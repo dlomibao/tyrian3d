@@ -128,7 +128,7 @@ export function parseLevelFile(data: Bytes): LevelFile {
   const positions = readLevelPositions(data);
   const levels: Level[] = [];
   for (let n = 1; n <= Math.floor(positions.lvlNum / 2); n++) {
-    levels.push(parseLevel(data, positions.lvlPos[(n - 1) * 2]!));
+    levels.push(parseLevel(data, positions.lvlPos[(n - 1) * 2]));
   }
   return { ...positions, levels };
 }
@@ -156,9 +156,9 @@ export function levelTiles(level: Level, shapes: (Uint8Array | null)[], layer: 0
   const blankTile = new Uint8Array(TILE_WIDTH * TILE_HEIGHT);
   const tiles: (Uint8Array | null)[] = new Array(128).fill(null);
   for (let x = 0; x <= 71; x++) {
-    const z = level.mapSh[layer][x]! - 1;
+    const z = level.mapSh[layer][x] - 1;
     if (z < 0 || z >= shapes.length) continue;
-    const shape = shapes[z]!;
+    const shape = shapes[z];
     if (layer === 0) tiles[x] = shape ?? blankTile;
     else if (shape && (layer === 1 ? x !== 71 : x < 70)) tiles[x] = shape;
   }

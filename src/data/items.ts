@@ -308,5 +308,5 @@ export function loadItemDat(episode: number, hdt: Bytes, lvl?: Bytes): ItemDat {
   if (episode <= 3) return parseItemDat(hdt, hdtItemDatOffset(hdt));
   if (!lvl) throw new Error(`episode ${episode} item data is in its level file`);
   const { lvlNum, lvlPos } = readLevelPositions(lvl);
-  return parseItemDat(lvl, lvlPos[lvlNum - 1]!);
+  return parseItemDat(lvl, lvlPos[lvlNum - 1]);
 }

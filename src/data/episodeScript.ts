@@ -71,7 +71,7 @@ export function parseEpisodeScript(data: Bytes): EpisodeScript {
 /** C atoi: skip leading whitespace, optional sign, then digits; 0 if there are none. */
 export function atoi(s: string): number {
   const m = /^\s*([+-]?\d+)/.exec(s);
-  return m ? parseInt(m[1]!, 10) : 0;
+  return m ? parseInt(m[1], 10) : 0;
 }
 
 /** Decode a `]L[` line, or return null for any other line. */
