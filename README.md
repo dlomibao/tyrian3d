@@ -5,36 +5,50 @@ A browser-based 3D remake of the DOS vertical-scrolling shooter **Tyrian**, buil
 
 The goal is to keep Tyrian's gameplay (levels, weapons, enemies, shop and story) and rebuild
 its presentation in real-time 3D that runs in the browser. Ships, enemies and props are modeled
-in Blender and exported as glTF.
+in Blender and exported as glTF; everything else is extruded from the original sprites.
+
+## Play
+
+**https://dlomibao.github.io/tyrian3d/**
+
+The game runs on the original Tyrian 2.1 data, which isn't hosted here (see [Game data](#game-data)).
+Download [tyrian21.zip](https://camanis.net/tyrian/tyrian21.zip), the freeware release that
+OpenTyrian links to, and choose or drop it on the page. It stays in your browser, cached for next time.
+
+| Action | Keyboard | Gamepad |
+|---|---|---|
+| Move | Arrow keys / WASD | D-pad / left stick |
+| Fire | Space / J | A / right trigger |
+| Change rear-weapon mode | Enter / L | X |
+| Sidekicks | Left Ctrl, Left Alt / K, ; | LB, RB |
+| Pause | Esc / P | Start |
 
 ## Status
 
-Early planning. Nothing playable yet.
+Episode 1 is playable level after level, with the original's enemies, weapons, events, music and
+sound. If your ship is destroyed, the level restarts from the loadout you started it with.
 
-## Proposed stack
+- **Not yet:** the shop and the navigation map between levels ([#30](../../issues/30),
+  [#31](../../issues/31)). Until then, the route through each episode is the default one.
+- **Everything else:** in [Issues](../../issues) and [Milestones](../../milestones). Design calls
+  made along the way are in [DECISIONS.md](DECISIONS.md).
 
-These choices aren't final.
+## How it works
 
-- **Rendering:** Three.js (WebGL2, with WebGPU later where it's supported)
-- **Language and build:** TypeScript + Vite
-- **Assets:** Blender → glTF 2.0 (`.glb`), with models built through the Blender MCP
-- **Game logic:** ported from OpenTyrian's C source (`src/`), not a from-scratch rewrite,
-  so it plays the same as the original
-- **Camera:** gameplay stays on a 2D plane, seen from a fixed, slightly angled 3D camera
-  ("2.5D"), so the original level layouts and hitboxes still apply
-
-## Roadmap
-
-1. **Foundations:** Vite/TS/Three.js skeleton, game loop, input, deploy to GitHub Pages
-2. **Data loading:** parse the Tyrian 2.1 data files (levels, items, enemies, shapes) in TypeScript
-3. **Core gameplay:** player ship movement, firing, the first weapons, collision, a scrolling level
-4. **Enemies:** enemy definitions, movement patterns and spawning from level event scripts
-5. **3D art pass:** Blender models for the player ship, common enemies, bullets and terrain
-6. **Full episode 1:** all levels, the shop and upgrades, bosses, the HUD
-7. **Audio:** music (Loudness/AdLib emulation or re-recorded tracks) and sound effects
-8. **Remaining episodes, arcade and two-player modes**
-
-Progress is tracked in [Issues](../../issues) and [Milestones](../../milestones).
+- **Simulation (`src/sim/`):** a close transliteration of OpenTyrian's gameplay code: `JE_main`'s
+  level loop, enemies, level events, player movement, weapons, collisions and explosions. It keeps
+  the C names, integer semantics and random number generator, so it plays like the original. Tests
+  compare it tick by tick against OpenTyrian's own C, compiled and run on the same input.
+- **Draw list:** instead of drawing pixels, the simulation records each sprite and tile it would
+  draw, tagged with its draw pass.
+- **Renderer (`src/render/`):** turns the draw list into a 3D scene. Draw order maps to height.
+  Sprites are extruded from their pixels into rounded 3D shapes. Hand-made Blender models replace
+  key sprites; the player's USP Talon is the first. Motion is interpolated, so it's smooth at any
+  refresh rate, though the game logic ticks at the original ~35 Hz.
+- **Audio (`src/audio/`):** the original sound effects, plus the AdLib music played through a
+  port of the OPL emulator and the LDS song player. It matches OpenTyrian's output sample for sample.
+- **Data (`src/data/`):** parsers for Tyrian's level, item, enemy, sprite, palette and episode
+  script formats.
 
 ## Asset pipeline
 
@@ -57,10 +71,13 @@ For local development, fetch it into `data/`, which is git-ignored:
 ## Development
 
     npm install
-    npm run dev        # dev server
+    npm run dev        # dev server; serves ./data (or $TYRIAN_DATA) so no zip is needed
     npm test           # unit tests (data parser tests skip when data/ is missing;
                        # set TYRIAN_DATA to read the data from elsewhere)
     npm run build      # typecheck and production build
+    TYRIAN_EPISODE_TEST=1 npm test   # also play every level of all four episodes headless
+
+Debug pages: `?debug=sprites` (renderer test bench), `/src/audio/debugMusic.html` (music player).
 
 ## License
 
