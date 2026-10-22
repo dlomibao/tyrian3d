@@ -4,11 +4,11 @@
 // reused, and a reused slot must not interpolate from the previous shot's position):
 // key = PLAYER_SHOT_KEY_BASE + 2 * serial, and its shadow uses key + 1.
 
-import { s16, u16, u32, u8 } from "./cint";
+import { s16, s8, u16, u32, u8 } from "./cint";
 import { blit_sprite2, blit_sprite2_darken, blit_sprite_blend, drawState } from "./draw";
 import { MAX_PWEAPON, g } from "./state";
 import { JE_doSP, JE_setupExplosion, shadowYDist } from "./varz";
-import { PORT_NUM, WEAP_NUM } from "../data";
+import { PORT_NUM, WEAP_NUM, type Weapon } from "../data";
 
 // config.h shot bays (indices into shotRepeat[] / shotMultiPos[]).
 export const SHOT_FRONT = 0;
@@ -296,6 +296,38 @@ export function player_shot_move_and_draw(shot_id: number, out: PlayerShotMoveOu
   return true;
 }
 
+/** One entry of a weapon's per-shot pattern arrays (attack[], del[], sx[] ...). */
+interface WeaponPattern {
+  attack: number;
+  del: number;
+  sx: number;
+  sy: number;
+  bx: number;
+  by: number;
+  sg: number;
+}
+
+/**
+ * weapon->attack[i], weapon->del[i] ... for i in 0..8. The arrays are [8], but player_shot_create
+ * can index 8: shotMultiPos only resets when it equals `max` or exceeds 8, so a value of 8 left by
+ * a previous weapon with a smaller `max` steps to 9. In JE_WeaponType (episodes.h, no padding)
+ * element [8] of each array is the first byte(s) of the next field, which is what the C reads.
+ */
+function weapon_pattern(weapon: Weapon, i: number): WeaponPattern {
+  if (i < 8) {
+    return { attack: weapon.attack[i], del: weapon.del[i], sx: weapon.sx[i], sy: weapon.sy[i], bx: weapon.bx[i], by: weapon.by[i], sg: weapon.sg[i] };
+  }
+  return {
+    attack: weapon.del[0],
+    del: u8(weapon.sx[0]),
+    sx: weapon.sy[0],
+    sy: weapon.bx[0],
+    bx: weapon.by[0],
+    by: s8(weapon.sg[0] & 0xff),
+    sg: u16((weapon.acceleration & 0xff) | ((weapon.accelerationX & 0xff) << 8)),
+  };
+}
+
 /**
  * shots.c L300-504 (FKA Varz.initPlayerShot): creates a player shot. `bay_i` indexes
  * shotRepeat/shotMultiPos (SHOT_*). Returns the last shot slot used, or MAX_PWEAPON if none.
@@ -333,7 +365,7 @@ export function player_shot_create(
     if (g.shotMultiPos[bay_i] === weapon.max || g.shotMultiPos[bay_i] > 8) g.shotMultiPos[bay_i] = 1;
     else g.shotMultiPos[bay_i] = u8(g.shotMultiPos[bay_i] + 1);
 
-    const pos = g.shotMultiPos[bay_i] - 1;
+    const w = weapon_pattern(weapon, g.shotMultiPos[bay_i] - 1);
 
     const shot = g.playerShotData[shot_id];
     shot.chainReaction = 0;
@@ -374,36 +406,36 @@ export function player_shot_create(
 
     shot.shotTrail = weapon.trail;
 
-    if (weapon.attack[pos] > 99 && weapon.attack[pos] < 250) {
-      shot.chainReaction = weapon.attack[pos] - 100;
+    if (w.attack > 99 && w.attack < 250) {
+      shot.chainReaction = w.attack - 100;
       shot.shotDmg = 1;
     } else {
-      shot.shotDmg = weapon.attack[pos];
+      shot.shotDmg = w.attack;
     }
 
     shot.shotBlastFilter = weapon.shipBlastFilter;
 
-    let tmp_by = weapon.by[pos]; // JE_integer
+    let tmp_by = w.by; // JE_integer
 
     /*Note: Only front selection used for player shots...*/
 
-    shot.shotX = s16(PX + weapon.bx[pos]);
+    shot.shotX = s16(PX + w.bx);
 
     shot.shotY = s16(PY + tmp_by);
     shot.shotYC = s16(-weapon.acceleration);
     shot.shotXC = weapon.accelerationX;
 
-    shot.shotXM = weapon.sx[pos];
+    shot.shotXM = w.sx;
 
     // Not sure what this field does exactly.
-    let del = weapon.del[pos]; // JE_byte
+    let del = w.del; // JE_byte
 
     if (del === 121) {
       shot.shotTrail = 0;
       del = 255;
     }
 
-    shot.shotGr = weapon.sg[pos];
+    shot.shotGr = w.sg;
     if (shot.shotGr === 0) g.shotAvail[shot_id] = 0;
     else g.shotAvail[shot_id] = del;
 
@@ -418,22 +450,22 @@ export function player_shot_create(
     }
 
     if (del === 99 || del === 100) {
-      tmp_by = s16(PY - mouseY - weapon.sy[pos]);
+      tmp_by = s16(PY - mouseY - w.sy);
       if (tmp_by < -4) tmp_by = -4;
       else if (tmp_by > 4) tmp_by = 4;
       shot.shotYM = tmp_by;
-    } else if (weapon.sy[pos] === 98) {
+    } else if (w.sy === 98) {
       shot.shotYM = 0;
       shot.shotYC = -1;
-    } else if (weapon.sy[pos] > 100) {
-      shot.shotYM = weapon.sy[pos];
+    } else if (w.sy > 100) {
+      shot.shotYM = w.sy;
       shot.shotY = s16(shot.shotY - g.player[shot.playerNumber - 1].delta_y_shot_move);
     } else {
-      shot.shotYM = -weapon.sy[pos];
+      shot.shotYM = -w.sy;
     }
 
-    if (weapon.sx[pos] > 100) {
-      shot.shotXM = weapon.sx[pos];
+    if (w.sx > 100) {
+      shot.shotXM = w.sx;
       shot.shotX = s16(shot.shotX - g.player[shot.playerNumber - 1].delta_x_shot_move);
       if (shot.shotXM === 101) shot.shotY = s16(shot.shotY - g.player[shot.playerNumber - 1].delta_y_shot_move);
     }
