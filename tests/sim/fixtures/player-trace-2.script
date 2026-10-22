@@ -1,0 +1,28 @@
+# Second scenario for tests/sim/playerTrace.test.ts: rear weapon modes, guided shots, every
+# sidekick style, ammo sidekicks and charge, then the end-of-level warp. Format: see player-trace.script.
+!loadout 31 10 30 22 5
+1 - T
+20 F
+10 RUF
+6 C
+6 F
+6 CF
+4 -
+6 C
+20 LF
+15 rF
+5 r
+30 DF
+15 LUF
+!loadout 1 14 19 10 3
+40 RFl
+20 LFr
+!loadout 1 11 3 16 2
+30 F
+20 UF
+20 -
+!loadout 4 0 29 12 4
+30 RF
+20 LDF
+1 - W
+50 F
