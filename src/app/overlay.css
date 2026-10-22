@@ -201,3 +201,10 @@
 .hud .boss .bar > i.hit {
   background: #ffb060;
 }
+
+/* The game owns touches on the canvas: no scrolling, zooming or text selection while steering. */
+canvas {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}

@@ -73,7 +73,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
   const audioContext = new AudioContext();
   const music = new Music(requireFile(files, "music.mus"), { context: audioContext });
   const sfx = new SoundEffects(requireFile(files, "tyrian.snd"), requireFile(files, "voices.snd"), audioContext);
-  const controls = new Controls();
+  const controls = new Controls(() => view.gamePixelsPerScreenPixel);
   const hud = new Hud();
   loading();
 
@@ -106,7 +106,10 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
       controls.clear();
       hud.visible = true;
 
+      controls.active = true;
       const outcome = await playLevel(view, controls, sfx, music, hud);
+      controls.active = false;
+      controls.release();
       hud.visible = false;
 
       if (outcome === "completed") {
@@ -141,10 +144,13 @@ function playLevel(view: View, controls: Controls, sfx: SoundEffects, music: Mus
         controls.pauseRequested = false;
         paused = !paused;
         if (paused) {
+          controls.release();
+          controls.active = false;
           pauseEl = showStatus("Paused · press Esc or P to continue");
           music.volume = 0.3;
         } else {
           pauseEl?.();
+          controls.active = true;
           music.volume = 1;
         }
       }
