@@ -1,8 +1,5 @@
-import { Input } from "./core/input";
-import { startLoop } from "./core/loop";
+import { runGame } from "./app/run";
 import { loadSettings } from "./core/settings";
-import { Timing } from "./core/timing";
-import { World } from "./game/world";
 import { loadModel, loadModelOverrides } from "./render/models";
 import { View } from "./render/view";
 
@@ -24,15 +21,20 @@ if (debug === "sprites") {
     .then(({ runSpriteHarness }) => runSpriteHarness(view))
     .catch((err) => console.error("sprite harness failed", err));
 } else {
-  const timing = new Timing(settings.logicHz);
-  const world = new World(timing);
-  const input = new Input();
+  // Until the game starts, keep the idle scene moving behind the overlays.
+  let idle = true;
+  const idleFrame = () => {
+    if (!idle) return;
+    view.render(null, 1);
+    requestAnimationFrame(idleFrame);
+  };
+  requestAnimationFrame(idleFrame);
 
-  startLoop(timing.tickMs, {
-    update: () => world.update(input.sample()),
-    render: (alpha) => view.render(world, alpha),
+  runGame(view, () => (idle = false)).catch((err) => {
+    console.error(err);
+    document.body.insertAdjacentHTML(
+      "beforeend",
+      `<pre style="position:fixed;inset:auto 1rem 1rem;color:#f88;white-space:pre-wrap">${String(err?.stack ?? err)}</pre>`,
+    );
   });
-
-  // Expose state for debugging in the dev server.
-  if (import.meta.env.DEV) Object.assign(window, { tyrian: { world, timing, settings, view } });
 }
