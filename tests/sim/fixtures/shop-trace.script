@@ -1,0 +1,9 @@
+# <section> <cash> [item=value ...] <keys...>: see tools/opentyrian-shop/driver.c
+# Upgrade the Pulse-Cannon's power (3 up, 1 down), buy a rear gun, browse shields, then play TYRIAN.
+2 10000 down down enter down enter right right right left enter enter down enter up enter enter down enter down down esc esc down down enter enter
+# Short of cash: the cursor skips what the player can't afford; power up refused; Escape undoes.
+2 1500 down down enter down enter down down right right esc down enter up up up esc down enter up enter enter esc down down enter enter
+# Trade in a powered-up weapon for another, cycle the rear gun's firing modes, take the second route.
+4 30000 front=2 fpow=5 rear=12 down down enter down enter down enter enter down enter slash slash slash down slash up enter enter esc down down enter down enter
+# Plenty of cash: a new ship, generator, sidekicks and shield; back out of the map once, then route 1.
+17 200000 down down enter enter down enter enter down down down down enter down enter enter down enter up enter enter down enter up up enter enter up up up enter down enter enter esc down down enter down down enter enter enter

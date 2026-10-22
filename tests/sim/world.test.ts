@@ -40,14 +40,14 @@ function resetPlayers(): void {
 describe.skipIf(!hasData(...NEEDED))("loadLevel (JE_loadMap)", () => {
   beforeEach(resetPlayers);
 
-  test("episode 1 starts at TYRIAN: section 1 jumps to 2, whose shop leaves for section 3's ]L[", () => {
+  test("episode 1 starts at TYRIAN: section 1 jumps to 2, whose item screen goes to section 3's ]L[", () => {
     loadLevel(files, 1, 1);
     // levels1.dat section 3: `]h[` then `]L[ 9999 004 TYRIAN   18 09`.
     expect(g.levelName).toBe("TYRIAN   ");
     expect(g.lvlFileNum).toBe(9);
     expect(g.levelSong).toBe(18);
     expect(g.nextLevel).toBe(4);
-    expect(g.mainLevel).toBe(3); // ]J 002[, then section 2's ]G[ 01 1 01 003 and ]I[ jump to 3
+    expect(g.mainLevel).toBe(3); // ]J 002[, then the item screen's only destination (]G[ 01 1 01 003)
     expect(g.bonusLevelCurrent).toBe(false);
     expect(g.normalBonusLevelCurrent).toBe(false);
     // Section 2's ]?[ 04 001 002 023 005, ]![ 04, ]G[ 01 1 01 003 and the ]I[ lists.
@@ -56,8 +56,11 @@ describe.skipIf(!hasData(...NEEDED))("loadLevel (JE_loadMap)", () => {
     expect(g.mapPNum).toBe(1);
     expect(g.mapPlanet[0]).toBe(1);
     expect(g.mapSection[0]).toBe(3);
-    expect(g.itemAvail[1].slice(0, g.itemAvailMax[1])).toEqual([13, 2, 7]); // WeapF 13 2 7
-    expect(g.itemAvailMax).toEqual([1, 3, 4, 3, 1, 4, 4, 3, 3]);
+    // WeapF 13 2 7, plus the player's last front weapon (None for these blank players), sorted by
+    // JE_itemScreen with None last.
+    expect(g.itemAvail[1].slice(0, g.itemAvailMax[1])).toEqual([2, 7, 13, 0]);
+    // [1, 3, 4, 3, 1, 4, 4, 3, 3] from the script, plus None where a sold category lacked it.
+    expect(g.itemAvailMax).toEqual([2, 4, 4, 4, 1, 4, 4, 3, 4]);
   });
 
   test("the level comes from tyrian1.lvl level 9 with its shapes file and the 65500 sentinel", () => {

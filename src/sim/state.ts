@@ -676,6 +676,18 @@ export const g = {
   /** demo.h recordDemo (demo recording isn't ported; always false). */
   recordDemo: false,
   // --- end added by player port ---
+  // --- added by shop port ---
+  /** helptext.h pName[21]: planet names, for the navigation menu. */
+  pName: new Array<string>(21).fill(""),
+  /** helptext.h mainMenuHelp[34]: the item screen's help line. */
+  mainMenuHelp: new Array<string>(34).fill(""),
+  /** helptext.h menuInt[MENU_MAX + 1][11]: menu titles and choices (0-based, as in C). */
+  menuInt: Array.from({ length: 15 }, () => [] as string[]),
+  /** helptext.h shipInfo[13][2]: the "Ship Specs" text per ship. */
+  shipInfo: [] as [string, string][],
+  /** musmast.h songBuy: the item screen's song (0-based); JE_loadMap resets it to DEFAULT_SONG_BUY, `]i` sets it. */
+  songBuy: 2,
+  // --- end added by shop port ---
 };
 
 export type Globals = typeof g;
