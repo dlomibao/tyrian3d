@@ -9,18 +9,18 @@ import { Music } from "../audio/music";
 import { CLASSIC_TICK_MS } from "../core/timing";
 import { drawList } from "../sim/draw";
 import { startLevel, tick } from "../sim/game";
-import { loadHelpText } from "../sim/helptext";
+import { loadHelpText, parseMenuText } from "../sim/helptext";
 import { clearSimInput } from "../sim/input";
 import { JE_endLevelAni } from "../sim/mainint";
 import { newOnePlayerGame } from "../sim/newgame";
 import { copyPlayerItems } from "../sim/player";
 import { buildResources, requireFile } from "../sim/resources";
-import { g, SA_NONE, type PlayerItems } from "../sim/state";
+import { DIFFICULTY_EASY, DIFFICULTY_HARD, DIFFICULTY_NORMAL, g, SA_NONE, type PlayerItems } from "../sim/state";
 import { EpisodeEndError, loadLevelAsync } from "../sim/tyrian2";
 import type { View } from "../render/view";
 import { Controls } from "./controls";
 import { Hud } from "./hud";
-import { askForData, showMessage, showStatus, showTitle } from "./screens";
+import { askForData, showMessage, showStatus, showTitle, type TitleChoice } from "./screens";
 import { runItemScreen } from "./shop";
 
 /** OpenTyrian song numbers (0-based, as passed to play_song). */
@@ -103,11 +103,24 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
 
   if (import.meta.env.DEV) Object.assign(window, { tyrian: { g, view, music, sfx } });
 
+  const names = parseMenuText(requireFile(files, "tyrian.hdt"));
+  const episodes = [1, 2, 3, 4, 5].filter((n) => files.get(`levels${n}.dat`) && files.get(`tyrian${n}.lvl`));
+  let choice: TitleChoice = { episode: 1, difficulty: DIFFICULTY_NORMAL };
+
   for (;;) {
     music.play(SONG_TITLE);
-    await showTitle();
+    choice = await showTitle({
+      episodeNames: names.episodeName,
+      episodes,
+      difficultyNames: names.difficultyName,
+      difficulties: [DIFFICULTY_EASY, DIFFICULTY_NORMAL, DIFFICULTY_HARD],
+      initial: choice,
+    });
 
-    newOnePlayerGame(1);
+    // JE_initEpisode: each episode has its own item data (episode 4's lives in tyrian4.lvl).
+    g.res = buildResources(files, choice.episode);
+    view.setPalettes(g.res.palettes);
+    newOnePlayerGame(choice.episode, choice.difficulty);
     onPlay();
     let backup: LevelBackup | null = null;
 

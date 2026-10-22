@@ -208,3 +208,36 @@ canvas {
   user-select: none;
   -webkit-user-select: none;
 }
+
+.choices {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0.75rem 0;
+}
+
+.choices.difficulty {
+  flex-direction: row;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.choices button {
+  font: inherit;
+  color: var(--ink-dim);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 0.35rem 0.75rem;
+  cursor: pointer;
+}
+
+.choices button:hover {
+  color: var(--ink);
+}
+
+.choices button.selected {
+  color: var(--ink);
+  border-color: var(--edge);
+  background: rgba(224, 160, 64, 0.12);
+}

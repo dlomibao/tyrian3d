@@ -53,6 +53,10 @@ export interface MenuText {
   menuInt: string[][];
   /** shipInfo[13][2]: the two "Ship Specs" paragraphs per ship, string[255]. */
   shipInfo: [string, string][];
+  /** episode_name[6]: entry 0 is the menu title, 1-5 the episodes. */
+  episodeName: string[];
+  /** difficulty_name[7]: entry 0 is the menu title, then Wimp/Easy/Normal/Hard/... by difficulty level. */
+  difficultyName: string[];
 }
 
 /** helptext.c menuInt_entries[MENU_MAX + 1]: how many strings each menuInt[m] reads (-1: none). */
@@ -88,8 +92,8 @@ export function parseMenuText(hdt: Uint8Array): MenuText {
   section(6); /*InGame Menu*/
   section(6); /*Detail Level*/
   section(5); /*Game speed text*/
-  section(6); // episode names
-  section(7); // difficulty names
+  const episodeName = section(6, 31); // episode names (menus.c episode_name[6][31])
+  const difficultyName = section(7, 21); // difficulty names (menus.c difficulty_name[7][21])
   section(5); // gameplay mode names
   menuInt[10] = section(menuInt_entries[10], 18); /*Menu 10 - 2Player Main*/
   section(3); /*Input Devices*/
@@ -115,7 +119,7 @@ export function parseMenuText(hdt: Uint8Array): MenuText {
   readEncryptedString(r);
   menuInt[14] = Array.from({ length: menuInt_entries[14] }, () => readEncryptedString(r).slice(0, 17));
 
-  return { pName, mainMenuHelp, menuInt, shipInfo };
+  return { pName, mainMenuHelp, menuInt, shipInfo, episodeName, difficultyName };
 }
 
 /** Load the item screen's texts into g.pName, g.mainMenuHelp, g.menuInt and g.shipInfo. */

@@ -25,12 +25,14 @@ OpenTyrian links to, and choose or drop it on the page. It stays in your browser
 
 ## Status
 
-Episode 1 is playable level after level, with the original's enemies, weapons, events, music and
+All four episodes of Tyrian 2.1 are playable, from the title screen's episode and difficulty
+choice through to each episode's end, with the original's enemies, weapons, events, music and
 sound. Between levels the item screen sells and upgrades gear and lets you pick the next
 destination on the map (arrows, Enter, Esc; `/` changes the rear gun's firing mode). If your ship
 is destroyed, you go back to that item screen with the loadout you launched with.
 
-- **Not yet:** the item screen's Data Cubes and Options menus.
+- **Not yet:** the item screen's Data Cubes and Options menus, arcade and two-player modes, and
+  the cutscenes between episodes.
 - **Everything else:** in [Issues](../../issues) and [Milestones](../../milestones). Design calls
   made along the way are in [DECISIONS.md](DECISIONS.md).
 
