@@ -36,6 +36,13 @@ These choices aren't final.
 
 Progress is tracked in [Issues](../../issues) and [Milestones](../../milestones).
 
+## Asset pipeline
+
+Each 3D model is built by a Python script in [`assets/blender/`](assets/blender/) and exported
+to `public/models/*.glb`. The scripts are committed, so every model can be rebuilt from scratch;
+`.blend` files are not committed. Anything imported from outside the project, such as Poly Haven
+textures or HDRIs, gets a row in [CREDITS.md](CREDITS.md).
+
 ## Game data
 
 Tyrian 2.1 was released as freeware by its author. This repo doesn't redistribute the data

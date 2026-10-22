@@ -15,3 +15,10 @@ data/
 .idea/
 .vscode/
 *.log
+
+# Blender source files: models are rebuilt from assets/blender/*.py
+# (set up Git LFS before committing any .blend)
+*.blend
+
+# Claude Code per-user settings
+.claude/settings.local.json
