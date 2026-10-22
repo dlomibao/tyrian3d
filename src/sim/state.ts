@@ -359,7 +359,11 @@ export interface LevelData {
   level: Level;
   /** eventRec[], including the 65500 sentinel JE_loadMap appends. */
   eventRec: LevelEvent[];
-  /** megaData1..3 shapes: per layer, tile pixels by tile number (0-based), null if absent. */
+  /**
+   * megaData1..3: per layer, the tile pixels for each map byte (levelTiles: tiles[layer][mapByte],
+   * 128 entries), null where nothing is drawn. megaDataN.mainmap[y][x] is
+   * tiles[layer][level.maps[layer][y * width + x]].
+   */
   tiles: [(Uint8Array | null)[], (Uint8Array | null)[], (Uint8Array | null)[]];
   /** Name of the shapes file, for tile cache ids. */
   shapesFile: string;
@@ -505,7 +509,12 @@ export const g = {
   mapX3: 0,
   mapY2: 0,
   mapY3: 0,
-  /** JE_byte **mapYPos etc.: pointers into the maps, as indices into Level.maps[layer]. */
+  /**
+   * JE_byte **mapYPos etc.: pointers into megaDataN.mainmap, as element indices into
+   * Level.maps[layer] (row-major, width 14/14/15): `&mainmap[y][x]` is `y * width + x`, so
+   * JE_main's `&megaData1.mainmap[mapY][0] - 1` is `mapY * 14 - 1`, and the C's pointer
+   * arithmetic (`mapYPos -= 14`, `+ mapXbpPos - 12`) carries over unchanged.
+   */
   mapYPos: 0,
   mapY2Pos: 0,
   mapY3Pos: 0,
@@ -639,6 +648,25 @@ export const g = {
   playDemo: false,
   constantPlay: false,
   constantDie: false,
+
+  // --- added by world port ---
+  /** nortsong.h play_song(): the 0-based song the sim asked for last (-1 = none). Audio watches it. */
+  song: -1,
+  /** musicFade (tyrian2.c JE_main): set by event 34, the audio layer fades the music out. */
+  musicFade: false,
+  /** helptext.h outputs[9]: the level-event message texts (event 16), from tyrian.hdt. */
+  outputs: new Array<string>(9).fill(""),
+  /** helptext.h miscText[68], from tyrian.hdt. */
+  miscText: new Array<string>(68).fill(""),
+  /** tyrian2.h itemAvail[9][10] / itemAvailMax[9]: the shop lists the episode script sets with `]I[`. */
+  itemAvail: Array.from({ length: 9 }, () => new Array<number>(10).fill(0)),
+  itemAvailMax: new Array<number>(9).fill(0),
+  /** editship.h extraShips[154] / extraShapes: ship editor data; not loaded, so ships > 90 don't exist. */
+  extraShips: new Array<number>(154).fill(0),
+  extraShapes: null as Sprite2Sheet | null,
+  /** levelWarningText / levelWarningLines (mainint.h): text the episode script shows with `]W`. */
+  levelWarningText: [] as string[],
+  // --- end added by world port ---
 };
 
 export type Globals = typeof g;
@@ -648,3 +676,40 @@ export const all_players_dead = (): boolean => !g.player[0].is_alive && (!g.twoP
 
 /** all_players_alive (player.h) */
 export const all_players_alive = (): boolean => g.player[0].is_alive && (!g.twoPlayerMode || g.player[1].is_alive);
+
+// --- added by world port (constants) ---
+
+/** Difficulty levels (config.h). */
+export const DIFFICULTY_WIMP = 0;
+export const DIFFICULTY_HARD = 3;
+export const DIFFICULTY_IMPOSSIBLE = 4;
+export const DIFFICULTY_INSANITY = 5;
+export const DIFFICULTY_SUICIDE = 6;
+export const DIFFICULTY_MANIACAL = 7;
+/** aka Lord of the Game */
+export const DIFFICULTY_ZINGLON = 8;
+export const DIFFICULTY_NORTANEOUS = 9;
+export const DIFFICULTY_10 = 10;
+
+/** Shot slots for shotRepeat / shotMultiPos (config.h). */
+export const SHOT_FRONT = 0;
+export const SHOT_REAR = 1;
+export const SHOT_LEFT_SIDEKICK = 2;
+export const SHOT_RIGHT_SIDEKICK = 3;
+export const SHOT_MISC = 4;
+export const SHOT_P2_CHARGE = 5;
+export const SHOT_P1_SUPERBOMB = 6;
+export const SHOT_P2_SUPERBOMB = 7;
+export const SHOT_SPECIAL = 8;
+export const SHOT_NORTSPARKS = 9;
+export const SHOT_SPECIAL2 = 10;
+
+/** Super arcade modes (varz.h). */
+export const SA = 7;
+export const SA_NORTSHIPZ = 7;
+export const SA_DESTRUCT = 8;
+export const SA_ENGAGE = 9;
+export const SA_SUPERTYRIAN = 254;
+export const SA_ARCADE = 255;
+
+// --- end added by world port (constants) ---

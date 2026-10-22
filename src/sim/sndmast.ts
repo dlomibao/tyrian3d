@@ -49,3 +49,16 @@ export const V_SPIKES = 36;
 export const V_DATA_CUBE = 37;
 /** "Unexplained speed increase." */
 export const V_ACCELERATE = 38;
+
+/** windowTextSamples[9] (sndmast.c): the voice played with each level-event message (event 16). */
+export const windowTextSamples = [
+  V_DANGER,
+  V_BOSS,
+  V_ENEMIES,
+  V_CLEARED_PLATFORM,
+  V_DANGER,
+  V_SPIKES,
+  V_ACCELERATE,
+  V_DANGER,
+  V_ENEMIES,
+] as const;
