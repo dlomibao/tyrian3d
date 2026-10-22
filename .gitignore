@@ -22,3 +22,7 @@ data/
 
 # Claude Code per-user settings
 .claude/settings.local.json
+
+# Python bytecode (Blender build scripts)
+__pycache__/
+*.pyc
