@@ -38,6 +38,8 @@ export class Controls {
   private moveY = 0;
   private mouseButtons = 0;
   private touches = new Map<number, { x: number; y: number }>();
+  /** Whether the last sample() saw any key held or tapped. */
+  private sampledInput = false;
   private releasing = false;
 
   /** @param gamePixelsPerScreenPixel converts pointer motion to game pixels (from the view). */
@@ -116,6 +118,8 @@ export class Controls {
     simInput.rightSidekick = down("rightSidekick");
     simInput.analogX = 0;
     simInput.analogY = 0;
+    // Remember whether this sample saw any key, so anyInput() still sees a tap after it's cleared.
+    this.sampledInput = this.held.size > 0 || this.tapped.size > 0;
     this.tapped.clear();
 
     // Mouse / touch: relative steering in game pixels (the C's mouseGetRelativePosition).
@@ -153,7 +157,7 @@ export class Controls {
 
   /** Whether any key or pad button is down (the C's "press any key" after game over). */
   anyInput(): boolean {
-    if (this.held.size > 0 || this.tapped.size > 0) return true;
+    if (this.sampledInput || this.held.size > 0 || this.tapped.size > 0 || this.touches.size > 0) return true;
     return (navigator.getGamepads?.() ?? []).some((p) => p?.buttons.some((x) => x.pressed));
   }
 
@@ -163,6 +167,7 @@ export class Controls {
     this.pauseRequested = false;
     this.moveX = this.moveY = 0;
     this.touches.clear();
+    this.sampledInput = false;
   }
 
   /** Leave pointer lock (pauses, level ends). */
