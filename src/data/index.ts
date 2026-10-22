@@ -6,3 +6,4 @@ export * from "./items";
 export * from "./enemies";
 export * from "./levels";
 export * from "./episodeScript";
+export * from "./sprites";
