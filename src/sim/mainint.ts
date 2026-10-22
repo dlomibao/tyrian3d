@@ -64,6 +64,7 @@ import {
   REAR_WEAPON,
   RIGHT_SIDEKICK,
   SA_NONE,
+  SA_NORTSHIPZ,
 } from "./state";
 import {
   chargeGunWeapons,
@@ -79,7 +80,6 @@ import {
   keyboardCombos,
   linkGunWeapons,
   optionSelect,
-  SA_NORTSHIPZ,
   SASpecialWeapon,
   SASpecialWeaponB,
   SAWeapon,
