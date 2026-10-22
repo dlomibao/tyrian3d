@@ -209,3 +209,36 @@ axis in one tick snaps instead of sliding (`src/render/interpolation.ts`).
 **Review:** The sim agents should give each enemy, shot and explosion slot a stable key (e.g.
 slot index plus a per-kind base), and give background tiles their map position. If an object's
 part count changes between ticks, parts may pair up wrongly for one frame.
+
+## D11 — A failed level restarts from its starting loadout; there are no lives
+
+2026-10-22
+
+**Decision:** In a one-player story game, when the ship is destroyed the game shows "Game over",
+then restarts the same level with the items and cash the player had when it began. This is what
+OpenTyrian does (`start_level` → `JE_loadGame(11)` restores the backup saved as "LAST LEVEL"). The HUD
+shows no lives counter.
+
+**Options considered:**
+- *Restart the level from its start state (chosen):* matches the original's story mode.
+- *Arcade-style lives:* the original's lives belong to arcade mode, which isn't ported.
+- *Send the player back to the title:* harsher than the original.
+
+**Review:** Play to a death and check the retry restores the weapons and cash the level started
+with. The fallback is a "back to title" option on the game-over screen.
+
+## D12 — The camera fits the play area exactly, solved numerically
+
+2026-10-22
+
+**Decision:** The camera framing projects the play area's four ground corners and iterates the
+distance and aim point until the outline fills the window, centred. Before this, a closed-form
+estimate cut off the near (bottom) edge, where the player flies, under the tilted perspective.
+
+**Options considered:**
+- *Iterative fit (chosen):* exact for any tilt, field of view and aspect ratio, and runs only on resize.
+- *Closed-form estimate with a bigger margin:* wastes screen space and is still off at extreme aspect ratios.
+- *Orthographic camera:* exact by construction, but loses the depth that makes the scene 3D.
+
+**Review:** Resize to portrait and ultrawide and check the whole field stays visible. The
+fallback is the old formula with a larger margin.

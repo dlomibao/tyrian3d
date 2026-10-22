@@ -189,16 +189,37 @@ export class View {
     this.renderer.setSize(w, h);
     this.camera.aspect = w / h;
 
-    // Fit the whole playfield at any aspect ratio.
+    // Fit the playfield's on-screen outline to the window, centred, at any aspect ratio. The tilted
+    // perspective makes the near edge wider than the far one, so solve it numerically: project the
+    // four ground corners, then rescale the distance and re-aim until they fill the frame.
+    // (Draws are projected along camera rays onto their original screen positions (DECISIONS.md D6),
+    // so everything drawn stays inside this outline whatever its height.)
     const margin = this.framedForDrawLists ? DRAW_LIST_FRAME_MARGIN : FRAME_MARGIN;
     const halfFov = THREE.MathUtils.degToRad(CAMERA_FOV / 2);
-    const halfH = Math.max(
-      (PLAYFIELD_WORLD_D / 2) * Math.cos(CAMERA_TILT),
-      PLAYFIELD_WORLD_W / 2 / this.camera.aspect,
-    );
-    const distance = (halfH * margin) / Math.tan(halfFov) + (PLAYFIELD_WORLD_D / 2) * Math.sin(CAMERA_TILT);
-    this.camera.position.set(0, distance * Math.cos(CAMERA_TILT), distance * Math.sin(CAMERA_TILT));
-    this.camera.lookAt(0, 0, 0);
+    let distance = Math.max(PLAYFIELD_WORLD_D, PLAYFIELD_WORLD_W / this.camera.aspect) / (2 * Math.tan(halfFov));
+    let aimZ = 0;
+    const corners = [-1, 1].flatMap((sx) => [-1, 1].map((sz) => new THREE.Vector3((sx * PLAYFIELD_WORLD_W) / 2, 0, (sz * PLAYFIELD_WORLD_D) / 2)));
+    const p = new THREE.Vector3();
+    this.camera.updateProjectionMatrix();
+    for (let i = 0; i < 40; i++) {
+      this.camera.position.set(0, distance * Math.cos(CAMERA_TILT), aimZ + distance * Math.sin(CAMERA_TILT));
+      this.camera.lookAt(0, 0, aimZ);
+      this.camera.updateMatrixWorld();
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (const c of corners) {
+        p.copy(c).project(this.camera);
+        minX = Math.min(minX, p.x);
+        maxX = Math.max(maxX, p.x);
+        minY = Math.min(minY, p.y);
+        maxY = Math.max(maxY, p.y);
+      }
+      const extent = Math.max(maxX - minX, maxY - minY) / 2;
+      const centreY = (minY + maxY) / 2;
+      if (Math.abs(extent * margin - 1) < 1e-4 && Math.abs(centreY) < 1e-4) break;
+      distance *= extent * margin;
+      // Positive centreY means the outline sits high on screen: aim further up the field (-Z).
+      aimZ -= centreY * distance * Math.tan(halfFov);
+    }
     this.camera.updateProjectionMatrix();
 
     // Mask everything outside the playfield's outline on screen. Draws are projected along camera
