@@ -30,3 +30,22 @@ export function worldX(px: number): number {
 export function worldZ(py: number): number {
   return (py - PLAYFIELD_H / 2) / PX_PER_UNIT;
 }
+
+/**
+ * Where the playfield is in the draw list's coordinates (OpenTyrian's game_screen). The game draws
+ * into a 320x200 buffer and showNormal (src/backgrnd.c) copies its 264x184 window at (24, 0) to
+ * the top-left of the screen; the HUD fills the rest of the real screen. Tiles and sprites are
+ * drawn beyond the window so the edges never need clipping.
+ */
+export const PLAYFIELD_SCREEN_X = 24;
+export const PLAYFIELD_SCREEN_Y = 0;
+
+/** Draw-list (game_screen) x to world X. */
+export function screenWorldX(x: number): number {
+  return worldX(x - PLAYFIELD_SCREEN_X);
+}
+
+/** Draw-list (game_screen) y to world Z. */
+export function screenWorldZ(y: number): number {
+  return worldZ(y - PLAYFIELD_SCREEN_Y);
+}
