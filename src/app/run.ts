@@ -14,7 +14,7 @@ import { clearSimInput } from "../sim/input";
 import { newOnePlayerGame } from "../sim/newgame";
 import { buildResources, requireFile } from "../sim/resources";
 import { g, type PlayerItems } from "../sim/state";
-import { loadLevel } from "../sim/tyrian2";
+import { EpisodeEndError, loadLevel } from "../sim/tyrian2";
 import type { View } from "../render/view";
 import { Controls } from "./controls";
 import { Hud } from "./hud";
@@ -90,7 +90,14 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
     for (;;) {
       if (backup) restorePlayer(backup);
       const levelSection = g.mainLevel;
-      loadLevel(files, g.episodeNum, levelSection);
+      try {
+        loadLevel(files, g.episodeNum, levelSection);
+      } catch (err) {
+        if (!(err instanceof EpisodeEndError)) throw err;
+        music.play(SONG_LEVEL_END);
+        await showMessage("Episode complete", [`Final score ${g.player[0].cash}`], "Press Enter for the title");
+        break;
+      }
       backup = backupPlayer(levelSection);
       startLevel();
       view.draws.resetInterpolation();
