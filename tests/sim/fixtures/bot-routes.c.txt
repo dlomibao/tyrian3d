@@ -1,0 +1,60 @@
+ROUTE 1 1 -> episode 1 main 3 level 'TYRIAN   ' next 4 file 9
+ROUTE 1 4 -> episode 1 main 6 level 'ASTEROID2' next 8 file 2
+ROUTE 1 12 -> episode 1 main 13 level 'MINES    ' next 18 file 7
+ROUTE 1 15 -> episode 1 main 16 level 'BUBBLES  ' next 17 file 4
+ROUTE 1 17 -> episode 1 main 6 level 'ASTEROID2' next 8 file 2
+ROUTE 1 18 -> episode 1 main 19 level 'DELIANI  ' next 37 file 5
+ROUTE 1 20 -> episode 1 main 21 level 'ASTEROID?' next 8 file 3
+ROUTE 1 22 -> episode 1 main 23 level 'MINEMAZE ' next 8 file 6
+ROUTE 1 24 -> episode 1 main 25 level 'BONUS    ' next 11 file 10
+ROUTE 1 27 -> episode 1 main 28 level 'HOLES    ' next 17 file 11
+ROUTE 1 30 -> episode 1 main 31 level 'SOH JIN  ' next 4 file 13
+ROUTE 1 32 -> episode 1 main 33 level 'WINDY    ' next 7 file 14
+ROUTE 1 35 -> episode 1 main 36 level 'ASSASSIN ' next 42 file 16
+ROUTE 1 37 -> episode 1 main 38 level 'SAVARA V ' next 39 file 17
+ROUTE 1 40 -> episode 1 ends: ]Q[ in section 26
+ROUTE 2 1 -> episode 2 main 2 level 'TORM     ' next 3 file 1
+ROUTE 2 3 -> episode 2 main 4 level 'GYGES    ' next 5 file 2
+ROUTE 2 5 -> episode 2 main 6 level 'BONUS    ' next 7 file 3
+ROUTE 2 7 -> episode 2 main 8 level 'ASTCITY  ' next 23 file 4
+ROUTE 2 9 -> episode 2 main 10 level 'SOH JIN  ' next 20 file 5
+ROUTE 2 11 -> episode 2 main 12 level 'GRYPHON  ' next 13 file 6
+ROUTE 2 14 -> episode 2 main 15 level 'GEM WAR  ' next 16 file 7
+ROUTE 2 16 -> episode 2 main 17 level 'MARKERS  ' next 18 file 8
+ROUTE 2 18 -> episode 2 main 19 level 'MISTAKES ' next 9 file 9
+ROUTE 2 20 -> episode 2 main 22 level 'BOTANY B ' next 11 file 11
+ROUTE 2 23 -> episode 2 main 24 level 'BONUS    ' next 9 file 12
+ROUTE 3 1 -> episode 3 main 2 level 'GAUNTLET ' next 3 file 3
+ROUTE 3 3 -> episode 3 main 4 level 'IXMUCANE ' next 5 file 4
+ROUTE 3 5 -> episode 3 main 6 level 'BONUS    ' next 7 file 5
+ROUTE 3 7 -> episode 3 main 8 level 'STARGATE ' next 9 file 7
+ROUTE 3 9 -> episode 3 main 10 level 'CAMANIS  ' next 24 file 1
+ROUTE 3 11 -> episode 3 main 12 level 'FLEET    ' next 16 file 6
+ROUTE 3 14 -> episode 3 main 15 level 'AST. CITY' next 9 file 2
+ROUTE 3 16 -> episode 3 ends: ]Q[ in section 13
+ROUTE 3 18 -> episode 3 main 19 level 'SAWBLADES' next 9 file 9
+ROUTE 3 20 -> episode 3 main 21 level 'SAVARA Y ' next 22 file 10
+ROUTE 3 22 -> episode 3 main 23 level 'New Deli ' next 13 file 11
+ROUTE 3 24 -> episode 3 main 25 level 'MACES    ' next 11 file 12
+ROUTE 4 1 -> episode 4 main 2 level 'SURFACE  ' next 3 file 4
+ROUTE 4 3 -> episode 4 main 4 level 'LAVA RUN ' next 5 file 12
+ROUTE 4 5 -> episode 4 main 6 level 'CORE     ' next 34 file 5
+ROUTE 4 7 -> episode 4 main 8 level '?TUNNEL? ' next 32 file 11
+ROUTE 4 9 -> episode 4 main 10 level 'ICE EXIT ' next 11 file 8
+ROUTE 4 11 -> episode 4 main 12 level 'HARVEST  ' next 13 file 1
+ROUTE 4 13 -> episode 4 main 14 level 'UNDERDELI' next 46 file 7
+ROUTE 4 15 -> episode 4 main 16 level 'SAVARA IV' next 17 file 3
+ROUTE 4 17 -> episode 4 main 18 level 'DREAD-NOT' next 19 file 14
+ROUTE 4 19 -> episode 4 main 20 level 'EYESPY   ' next 21 file 13
+ROUTE 4 21 -> episode 4 main 22 level 'BRAINIAC ' next 23 file 15
+ROUTE 4 24 -> episode 4 main 25 level 'NOSE DRIP' next 37 file 16
+ROUTE 4 26 -> episode 4 main 27 level 'WINDY    ' next 3 file 2
+ROUTE 4 28 -> episode 4 main 29 level 'DESERTRUN' next 11 file 10
+ROUTE 4 30 -> episode 4 main 31 level 'LAVA EXIT' next 11 file 9
+ROUTE 4 33 -> episode 4 main 10 level 'ICE EXIT ' next 11 file 8
+ROUTE 4 35 -> episode 4 main 36 level 'SIDE EXIT' next 7 file 6
+ROUTE 4 39 -> episode 4 ends: ]Q[ in section 42
+ROUTE 4 44 -> episode 4 ends: ]Q[ in section 42
+ROUTE 4 46 -> episode 4 main 47 level 'APPROACH ' next 15 file 19
+ROUTE 4 49 -> episode 4 main 50 level 'ICESECRET' next 51 file 20
+ROUTE 4 51 -> episode 4 main 12 level 'HARVEST  ' next 13 file 1

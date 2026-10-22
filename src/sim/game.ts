@@ -2,14 +2,15 @@
 // start_level_first section and `tick` is one pass of level_loop. Drawing goes to the draw list
 // (src/sim/draw.ts); the passes follow JE_main's draw order (DECISIONS.md D5).
 //
-// Not ported (single-player browser game): network play, demos, galaga/super-arcade modes,
-// two-player mode, pause/menu/cheat keys (the host handles pause), palette fades, the in-game text
+// Not ported (single-player browser game): network play, demos, super-arcade mode, two-player
+// mode (so also the dragonwing, player 2, of galaga mode; galaga mode's HUD-section rules are
+// ported), pause/menu/cheat keys (the host handles pause), palette fades, the in-game text
 // renderer (the HUD is HTML), and the screen filters (lava, water, blur): their flags are kept
 // so the renderer can approximate them.
 
 import { beginDrawList, drawList, drawState, fill_rectangle_xy, Pass, blit_sprite2, blit_sprite2_blend } from "./draw";
 import { mt_rand } from "./mtrand";
-import { s8, s16, u8, u16 } from "./cint";
+import { s8, s16, u8, u16, u32 } from "./cint";
 
 const abs = Math.abs;
 import {
@@ -26,6 +27,7 @@ import {
   S_EXPLOSION_4,
   S_EXPLOSION_8,
   S_EXPLOSION_9,
+  S_SOUL_OF_ZINGLON,
   S_WARNING,
   S_WEAPON_7,
 } from "./sndmast";
@@ -106,7 +108,23 @@ export function tick(): TickResult {
 
     // Shield Gen
     const p0 = g.player[0];
-    if (p0.is_alive && p0.shield < p0.shield_max && g.power > g.shieldT) {
+    if (g.galagaMode) {
+      for (const p of g.player) p.shield = 0;
+
+      // spawned dragonwing died :(
+      if (g.player[1].lives.value === 0 || g.player[1].armor === 0) g.twoPlayerMode = false;
+
+      if (p0.cash >= u32(g.galagaLife)) {
+        g.soundQueue[6] = S_EXPLOSION_11;
+        g.soundQueue[7] = S_SOUL_OF_ZINGLON;
+
+        if (p0.lives.value < 11) ++p0.lives.value;
+        else p0.cash += 1000;
+
+        if (g.galagaLife === 10000) g.galagaLife = 20000;
+        else g.galagaLife += 25000;
+      }
+    } else if (p0.is_alive && p0.shield < p0.shield_max && g.power > g.shieldT) {
       if (--g.shieldWait === 0) {
         g.shieldWait = 15;
         g.power -= g.shieldT;
@@ -331,6 +349,7 @@ export function tick(): TickResult {
   if (!g.constantPlay && !g.constantDie) {
     if (g.allPlayersGone) {
       if (g.player[0].exploding_ticks > 0 || g.player[1].exploding_ticks > 0) {
+        if (g.galagaMode) g.player[1].exploding_ticks = 0;
         // musicFade = true
       } else {
         gameOver = true;

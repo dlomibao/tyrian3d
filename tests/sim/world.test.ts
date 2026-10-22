@@ -7,6 +7,7 @@ import type { TyrianFiles } from "../../src/sim/resources";
 import { DIFFICULTY_HARD, DIFFICULTY_NORMAL, g, newPlayer } from "../../src/sim/state";
 import {
   ENEMY_KEY_BASE,
+  EpisodeEndError,
   initLevelWorld,
   JE_eventJump,
   JE_eventSystem,
@@ -39,14 +40,14 @@ function resetPlayers(): void {
 describe.skipIf(!hasData(...NEEDED))("loadLevel (JE_loadMap)", () => {
   beforeEach(resetPlayers);
 
-  test("episode 1 starts at TYRIAN: section 1 jumps to 2, whose shop falls into section 3's ]L[", () => {
+  test("episode 1 starts at TYRIAN: section 1 jumps to 2, whose shop leaves for section 3's ]L[", () => {
     loadLevel(files, 1, 1);
     // levels1.dat section 3: `]h[` then `]L[ 9999 004 TYRIAN   18 09`.
     expect(g.levelName).toBe("TYRIAN   ");
     expect(g.lvlFileNum).toBe(9);
     expect(g.levelSong).toBe(18);
     expect(g.nextLevel).toBe(4);
-    expect(g.mainLevel).toBe(2); // ]J 002[; execution then falls through into section 3
+    expect(g.mainLevel).toBe(3); // ]J 002[, then section 2's ]G[ 01 1 01 003 and ]I[ jump to 3
     expect(g.bonusLevelCurrent).toBe(false);
     expect(g.normalBonusLevelCurrent).toBe(false);
     // Section 2's ]?[ 04 001 002 023 005, ]![ 04, ]G[ 01 1 01 003 and the ]I[ lists.
@@ -78,6 +79,17 @@ describe.skipIf(!hasData(...NEEDED))("loadLevel (JE_loadMap)", () => {
     const shapes = parseShapes(readData(g.lvl.shapesFile));
     const sh = level.mapSh[0][level.maps[0][0]] - 1;
     expect(g.lvl.tiles[0][level.maps[0][0]]).toEqual(shapes[sh] ?? new Uint8Array(24 * 28));
+  });
+
+  test("the item screen always leaves for a map choice (the last, as with constantPlay), never the next section", () => {
+    // Section 17 (after BUBBLES): ]G[ 01 2 02 005  03 006, ]I[; section 18 is DELIANI's shop.
+    loadLevel(files, 1, 17);
+    expect(g.mainLevel).toBe(6);
+    expect(g.levelName).toBe("ASTEROID2");
+    // Section 40 (after ASSASSIN): ]G[ 01 2 05 041  21 026, ]I[; section 41 is the "** ALE **"
+    // galaga bonus game, section 26 the end of the episode.
+    expect(() => loadLevel(files, 1, 40)).toThrow(EpisodeEndError);
+    expect(g.mainLevel).toBe(26);
   });
 
   test("]h[ skips the normal-difficulty line on hard", () => {
