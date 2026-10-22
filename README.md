@@ -58,7 +58,8 @@ For local development, fetch it into `data/`, which is git-ignored:
 
     npm install
     npm run dev        # dev server
-    npm test           # unit tests (data parser tests skip when data/ is missing)
+    npm test           # unit tests (data parser tests skip when data/ is missing;
+                       # set TYRIAN_DATA to read the data from elsewhere)
     npm run build      # typecheck and production build
 
 ## License

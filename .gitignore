@@ -4,7 +4,7 @@ dist/
 .vite/
 
 # Tyrian game data (freeware, not redistributed here)
-data/
+/data/
 
 # Blender
 *.blend1
