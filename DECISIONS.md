@@ -242,3 +242,51 @@ estimate cut off the near (bottom) edge, where the player flies, under the tilte
 
 **Review:** Resize to portrait and ultrawide and check the whole field stays visible. The
 fallback is the old formula with a larger margin.
+
+## D13 — The item screen pauses JE_loadMap; its rules are ported, its screen is HTML
+
+2026-10-22
+
+**Decision:** `JE_loadMap` is a generator (`JE_loadMapSteps`) that yields where the C calls
+`JE_itemScreen` (`]I[`). The host runs the item screen, then resumes the script, which jumps to
+the section the player picked on the map, as the C does. `src/sim/game_menu.ts` ports
+JE_itemScreen's rules without its drawing: the menu state (`curMenu`, `curSel`, `menuChoices`,
+`old_items`, `temp_weapon_power`), its key and mouse handlers, JE_menuFunction, JE_genItemMenu,
+JE_cashLeft and JE_computeDots. `src/app/shop.ts` draws that state as an HTML overlay and feeds it
+keys, pad buttons and clicks. `loadLevel` still works without a host. By default the item screen
+makes the C's unattended choice (the last map destination, as with `constantPlay`), so tests and
+the playthrough bot follow the same route as OpenTyrian.
+
+**Options considered:**
+- *Generator plus a ported menu state machine (chosen):* the script runs in one place and in
+  order, and every rule comes from the C, including the odd ones: the trade-in when a submenu
+  opens, the cursor skipping items the player can't afford, and the 16-bit sum in JE_cashLeft. A
+  trace from the real C item screen running scripted keys (tools/opentyrian-shop) checks it.
+- *Split loadLevel into "run to the shop" and "continue" functions:* the same result, but the
+  script reader's state has to be carried between the calls by hand.
+- *A clean-room shop UI with its own rules:* simpler code, but prices, trade-ins and power costs
+  would drift from the original.
+
+**Review:** Data Cubes, Options, load/save and the weapon simulator preview aren't ported, and
+their rows show as "not available". The C's mouse rule needs two clicks: the first moves the
+cursor and the second selects. If that feels wrong on touch, the UI can send both clicks on one
+tap.
+
+## D14 — A failed level goes back through the item screen, as JE_loadGame(11) does
+
+2026-10-22
+
+**Decision:** The "LAST LEVEL" backup is taken after JE_loadMap, so after shopping. It holds
+saveLevel: the section JE_loadMap started from. After a death the game restores the backup and
+runs JE_loadMap from that section again. The player is back in the item screen with the loadout
+and credits they launched with. After each level the difficulty goes back to its pre-level value
+(`difficultyLevel = oldDifficultyLevel`). A completed level also applies JE_endLevelAni's state
+changes (adjust_difficulty, last_items). This refines D11.
+
+**Options considered:**
+- *Follow JE_saveGame/JE_loadGame (chosen):* the same retry loop as the original.
+- *Restart the level directly (D11 as first built):* skips the item screen, which the original
+  doesn't do. It also skips any route choice the section offers.
+
+**Review:** Die in a level and check that you return to the item screen with what you launched
+with.
