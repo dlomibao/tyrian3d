@@ -105,3 +105,107 @@ which keeps the original's occlusion under a top-down camera.
 
 **Review:** Look for layering mistakes in levels that toggle `background2over` and the like. The
 fallback is per-level height overrides.
+
+## D6 — Draws are lifted along camera rays, so the screen layout is exactly the original's
+
+2026-10-22
+
+**Decision:** Each draw is placed at its pass height (D5), but not straight above its ground
+position. It goes on the ray from the camera through that ground position, and it's scaled by the
+same factor, so it covers exactly the screen area it covered in the original
+(`writeMatrix` in `src/render/drawListRenderer.ts`). The camera frames the original's 264x184
+window: game_screen x 24..288, y 0..184 (`showNormal`, src/backgrnd.c). A screen-space mask
+covers everything outside that window's outline, because the C draws tiles and sprites past the
+window's edges. Under the tilted camera, the window's outline is a trapezoid.
+
+**Options considered:**
+- *Ray-projected placement (chosen):* shots visibly hit what they hit in the original, and nothing
+  drifts toward the screen edges as it gets higher. Heights only change depth, lighting and shadows.
+- *Straight up from the ground position:* higher passes would be magnified and pushed outward by
+  perspective, up to ~15% near the edges. Collisions would look wrong.
+- *Clipping planes instead of a mask:* they're exact in 3D, but OutlineEffect's outline material
+  ignores clipping planes, so outlines of clipped objects stayed visible.
+
+**Review:** A side effect is that a raised draw's real ground point is nearer the camera than it
+looks, so its shadow drifts down the screen. The sun is placed to cancel most of this (`view.ts`).
+If shadows look detached, lower `PASS_HEIGHT`. `?clip=0` shows everything that was drawn.
+
+## D7 — Meshes store palette indices; colour comes from a palette texture
+
+2026-10-22
+
+**Decision:** Extruded meshes carry each pixel's palette index as a vertex attribute. Ground tiles
+are an index atlas. Shaders look colours up in a 256x1 texture of the active palette. The C's
+index arithmetic runs in the shader from a per-instance attribute: `blit_sprite2_filter` is
+`(filter & 0xF0) | (i & 15)`, and `blit_sprite_hv` applies hue/value with the C's saturation.
+JE_filterScreen (the level-wide hue and brightness) depends only on the index, so it is baked into
+the palette texture (`remapScreenIndex`).
+
+**Options considered:**
+- *Index attribute plus palette texture (chosen):* one mesh per sprite serves every palette,
+  hit flash and screen filter. Switching costs one 1 KB texture upload.
+- *Bake RGB vertex colours, cached per palette and filter:* simpler shaders, but a filter flash
+  or palette change would mean new meshes (up to 16 variants per hit sprite).
+
+**Review:** Palette-cycling effects, if the port adds them, just update the texture. Lighting
+shifts colours a little. Tone mapping is Neutral (not ACES) to keep the palette's hues.
+
+## D8 — Ground tiles are flat textured quads; background layers 2 and 3 are extruded
+
+2026-10-22
+
+**Decision:** Background 1 (opaque) is one instanced 24x28 quad per tile, sampling the
+palette-index atlas with nearest filtering: one draw call for the whole ground. Backgrounds 2 and 3
+(which have transparency) are extruded like sprites, but lower (4 px) and with *open borders*: the
+tile's own edge doesn't count as an edge, so shapes continue seamlessly across tiles. There's one
+instanced mesh per distinct tile. No outline on tiles.
+
+**Options considered:**
+- *Flat ground plus extruded layers (chosen):* the terrain reads as solid 3D structures over a
+  crisp floor, at a few dozen draw calls per screen.
+- *Alpha-tested textured quads with thickness for layers 2 and 3:* cheaper, but flat-looking, and
+  the outline pass would outline the whole quad.
+- *Extruding the ground too:* ~300 tiles × up to 672 columns per screen. Too heavy, and the floor
+  should be flat.
+
+**Review:** Check tall structures in later levels. `TILE_EXTRUDE` in `spriteMesh.ts` tunes height.
+Some tiles may want outlines; layer 3 is often clouds or high structures, which may want more height.
+
+## D9 — Real shadows replace the shadow sprites; blend is translucency; shots glow
+
+2026-10-22
+
+**Decision:**
+- `darken` draws (the ship's shadow, drawn when `background2` is on) are skipped. The shadow map
+  gives every object a real shadow instead.
+- `blend` draws (invulnerability, blended background 2) render at 55% opacity.
+- Shots, explosions and effects use a partly emissive material, so they read as energy.
+- Pixels and rects (superpixels, warning bars) are unlit quads.
+
+**Options considered:**
+- *Shadow map (chosen):* it's consistent for every object, including enemies and terrain, which
+  had no shadows in the original.
+- *Render darken sprites as dark translucent decals:* faithful to where the original put the
+  ship's shadow, but the ship would get two shadows.
+
+**Review:** If the original's exact shadow offset matters, draw darken sprites as decals at the
+ground height, and set the ship's `castShadow` to false.
+
+## D10 — Interpolation matching: key, kind, and order within the key
+
+2026-10-22
+
+**Decision:** A draw matches the previous tick's draw of the same kind with the same `key`. When
+several draws share a key in one tick (multi-sprite enemies, the ship and its parts), the n-th
+matches the n-th. Key -1, pixels and rects never interpolate. A move of more than 40 px on either
+axis in one tick snaps instead of sliding (`src/render/interpolation.ts`).
+
+**Options considered:**
+- *Key plus occurrence order (chosen):* the sim only needs stable keys per object. The C's draw
+  order within an object is already stable.
+- *Require unique keys per draw:* it would force sub-keys into every multi-sprite draw site of the port.
+- *Nearest-neighbour matching without keys:* it fails when enemies cross.
+
+**Review:** The sim agents should give each enemy, shot and explosion slot a stable key (e.g.
+slot index plus a per-kind base), and give background tiles their map position. If an object's
+part count changes between ticks, parts may pair up wrongly for one frame.
