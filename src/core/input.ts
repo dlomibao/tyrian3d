@@ -20,18 +20,21 @@ const STICK_DEADZONE = 0.25;
 
 export class Input {
   private readonly held = new Set<string>();
+  /** Keys pressed since the last sample, so a tap shorter than one tick still registers. */
+  private readonly tapped = new Set<string>();
 
   constructor(target: Window = window) {
     target.addEventListener("keydown", (e) => {
       if (Object.values(KEYS).some((codes) => codes.includes(e.code))) e.preventDefault();
       this.held.add(e.code);
+      this.tapped.add(e.code);
     });
     target.addEventListener("keyup", (e) => this.held.delete(e.code));
     target.addEventListener("blur", () => this.held.clear());
   }
 
   sample(): InputState {
-    const down = (codes: string[]) => codes.some((c) => this.held.has(c));
+    const down = (codes: string[]) => codes.some((c) => this.held.has(c) || this.tapped.has(c));
     let x = (down(KEYS.right) ? 1 : 0) - (down(KEYS.left) ? 1 : 0);
     let y = (down(KEYS.down) ? 1 : 0) - (down(KEYS.up) ? 1 : 0);
     let fire = down(KEYS.fire);
@@ -50,6 +53,7 @@ export class Input {
       fire ||= b(0) || b(7);
     }
 
+    this.tapped.clear();
     return { x: clamp(x), y: clamp(y), fire };
   }
 }

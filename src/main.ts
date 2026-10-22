@@ -15,3 +15,6 @@ startLoop(timing.tickMs, {
   update: () => world.update(input.sample()),
   render: (alpha) => view.render(world, alpha),
 });
+
+// Expose state for debugging in the dev server.
+if (import.meta.env.DEV) Object.assign(window, { tyrian: { world, timing, settings, view } });

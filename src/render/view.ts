@@ -158,7 +158,7 @@ function playfieldOutline(): THREE.LineLoop {
     new THREE.Vector3(x, 0, z),
     new THREE.Vector3(-x, 0, z),
   ]);
-  return new THREE.LineLoop(geometry, new THREE.LineBasicMaterial({ color: 0x4a6fa5, transparent: true, opacity: 0.35 }));
+  return new THREE.LineLoop(geometry, new THREE.LineBasicMaterial({ color: 0x7fa7e0, transparent: true, opacity: 0.8 }));
 }
 
 /** Stand-in ship until the Blender model loads: a cone pointing forward (-Z). */
