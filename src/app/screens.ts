@@ -89,14 +89,119 @@ function waitForStart(el: HTMLElement): Promise<void> {
   });
 }
 
-export function showTitle(): Promise<void> {
+export interface TitleChoice {
+  episode: number;
+  difficulty: number;
+}
+
+export interface TitleOptions {
+  /** episode_name from the data: [0] is the menu title, [n] episode n. */
+  episodeNames: string[];
+  /** Episodes whose data is present. */
+  episodes: number[];
+  /** difficulty_name: [n] is difficulty level n. */
+  difficultyNames: string[];
+  /** Selectable difficulty levels. */
+  difficulties: number[];
+  initial: TitleChoice;
+}
+
+/** Title screen: pick an episode and difficulty (keyboard, gamepad, click or tap), then start. */
+export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
   const el = overlay(`
     <h1>TYRIAN 3D</h1>
-    <p>Episode 1 — Escape</p>
-    <p><span class="key">←↑↓→</span> / <span class="key">WASD</span> move ·
-       <span class="key">Space</span> fire · gamepad works too</p>
-    <p>Press <span class="key">Enter</span> to start</p>`);
-  return waitForStart(el);
+    <div class="choices episodes" role="listbox" aria-label="Episode"></div>
+    <div class="choices difficulty" role="radiogroup" aria-label="Difficulty"></div>
+    <p><span class="key">↑↓</span> episode · <span class="key">←→</span> difficulty ·
+       <span class="key">Enter</span> start</p>
+    <p><span class="key">←↑↓→</span> / <span class="key">WASD</span> move · <span class="key">Space</span> fire ·
+       mouse, touch and gamepads work too</p>`);
+  const episodesEl = el.querySelector<HTMLDivElement>(".episodes")!;
+  const difficultyEl = el.querySelector<HTMLDivElement>(".difficulty")!;
+  let ep = Math.max(0, opts.episodes.indexOf(opts.initial.episode));
+  let diff = Math.max(0, opts.difficulties.indexOf(opts.initial.difficulty));
+
+  const episodeButtons = opts.episodes.map((n, i) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = opts.episodeNames[n]?.trim() || `Episode ${n}`;
+    b.addEventListener("click", () => {
+      ep = i;
+      render();
+      finish();
+    });
+    episodesEl.appendChild(b);
+    return b;
+  });
+  const difficultyButtons = opts.difficulties.map((n, i) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = opts.difficultyNames[n]?.trim() || String(n);
+    b.addEventListener("click", () => {
+      diff = i;
+      render();
+    });
+    difficultyEl.appendChild(b);
+    return b;
+  });
+  const render = () => {
+    episodeButtons.forEach((b, i) => b.classList.toggle("selected", i === ep));
+    difficultyButtons.forEach((b, i) => b.classList.toggle("selected", i === diff));
+  };
+  render();
+
+  let resolveFn: (c: TitleChoice) => void = () => {};
+  let raf = 0;
+  const finish = () => {
+    window.removeEventListener("keydown", onKey);
+    cancelAnimationFrame(raf);
+    el.remove();
+    resolveFn({ episode: opts.episodes[ep], difficulty: opts.difficulties[diff] });
+  };
+  const move = (dEp: number, dDiff: number) => {
+    ep = (ep + dEp + episodeButtons.length) % episodeButtons.length;
+    diff = Math.min(difficultyButtons.length - 1, Math.max(0, diff + dDiff));
+    render();
+  };
+  const onKey = (e: KeyboardEvent) => {
+    const map: Record<string, () => void> = {
+      ArrowUp: () => move(-1, 0),
+      KeyW: () => move(-1, 0),
+      ArrowDown: () => move(1, 0),
+      KeyS: () => move(1, 0),
+      ArrowLeft: () => move(0, -1),
+      KeyA: () => move(0, -1),
+      ArrowRight: () => move(0, 1),
+      KeyD: () => move(0, 1),
+      Enter: finish,
+      Space: finish,
+    };
+    const action = map[e.code];
+    if (!action) return;
+    e.preventDefault();
+    action();
+  };
+  // Gamepad: d-pad moves, A starts; act on presses, not holds (and ignore buttons held on entry).
+  let prev: boolean[] | null = null;
+  const poll = () => {
+    const pad = (navigator.getGamepads?.() ?? []).find((p) => p);
+    if (pad) {
+      const now = pad.buttons.map((b) => b.pressed);
+      if (prev) {
+        const pressed = (i: number) => now[i] && !prev![i];
+        if (pressed(12)) move(-1, 0);
+        if (pressed(13)) move(1, 0);
+        if (pressed(14)) move(0, -1);
+        if (pressed(15)) move(0, 1);
+        if (pressed(0) || pressed(9)) return finish();
+      }
+      prev = now;
+    }
+    raf = requestAnimationFrame(poll);
+  };
+  window.addEventListener("keydown", onKey);
+  raf = requestAnimationFrame(poll);
+  return new Promise((resolve) => (resolveFn = resolve));
 }
 
 /** A message screen (level complete, game over); resolves when the player continues. */
