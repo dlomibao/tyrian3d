@@ -1,0 +1,10 @@
+import type { Object3D } from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+
+const loader = new GLTFLoader();
+
+/** Load a model exported by assets/blender/<name>.py from public/models/. */
+export async function loadModel(name: string): Promise<Object3D> {
+  const gltf = await loader.loadAsync(`${import.meta.env.BASE_URL}models/${name}.glb`);
+  return gltf.scene;
+}
