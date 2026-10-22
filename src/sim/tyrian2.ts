@@ -23,6 +23,8 @@ import {
 import { fdiv, fmul, mt_rand_mod, roundf } from "./cfloat";
 import { s8, s16, u8, u16, u32 } from "./cint";
 import { blit_sprite2, blit_sprite2_filter, drawList, drawState, type Sprite2Sheet } from "./draw";
+import { JE_itemScreenNonInteractive } from "./game_menu";
+import { loadMenuText } from "./helptext";
 import { mt_rand } from "./mtrand";
 import { JE_drawTextWindow } from "./mainint";
 import { buildResources, requireFile, type TyrianFiles } from "./resources";
@@ -1692,22 +1694,34 @@ class EpisodeReader {
 /** Thrown by JE_loadMap when the episode script reaches `]Q` (end of episode). */
 export class EpisodeEndError extends Error {}
 
+/** What JE_loadMapSteps pauses for: the item screen (`]I[` calls JE_itemScreen in the C). */
+export type LoadMapPause = "itemScreen";
+
+/** musmast.h DEFAULT_SONG_BUY */
+const DEFAULT_SONG_BUY = 2;
+
 /**
  * JE_loadMap (tyrian2.c L2295-3117): steps through the episode script (levelsN.dat) from section
  * g.mainLevel until a `]L[` command, then loads that level from tyrianN.lvl and its tiles from
  * shapes?.dat into g.lvl and the level globals.
  *
- * Ported: every script command's effect on game state. Not ported (no-ops, marked below): the
- * shop (`]I[` still records itemAvail, and leaves for the next level as constantPlay would),
+ * A generator, so the host can show the item screen where the C calls JE_itemScreen (`]I[`): it
+ * yields "itemScreen" after recording the shop lists, and the host runs the item screen
+ * (src/sim/game_menu.ts) to completion before resuming it. The item screen ends by choosing a
+ * destination (mainLevel + jumpSection) or quitting (gameLoaded with mainLevel 0). Returns true
+ * when a level was loaded, false when the player quit from the item screen (back to the title).
+ * JE_loadMap and JE_loadMapAsync below drive it.
+ *
+ * Ported: every script command's effect on game state. Not ported (no-ops, marked below):
  * pictures, fades, palette changes and text screens (the `]W` text is kept in
  * g.levelWarningText), the end-of-episode sequence (`]Q` throws EpisodeEndError), demos, saving,
- * and network sync.
+ * loading a saved game from the item screen, and network sync.
  */
-export function JE_loadMap(files: TyrianFiles): void {
+export function* JE_loadMapSteps(files: TyrianFiles): Generator<LoadMapPause, boolean, void> {
   g.lastCubeMax = g.cubeMax;
 
   /*Defaults*/
-  // songBuy = DEFAULT_SONG_BUY: item screen music, not simulated.
+  g.songBuy = DEFAULT_SONG_BUY; /*Item Screen default song*/
 
   /* Load LEVELS.DAT - Section = MAINLEVEL */
   g.saveLevel = g.mainLevel;
@@ -1745,7 +1759,14 @@ export function JE_loadMap(files: TyrianFiles): void {
       // ESCPressed = false
 
       do {
-        // (gameLoaded is only set by the item screen's load-game menu, which isn't ported.)
+        if (g.gameLoaded) {
+          if (g.mainLevel === 0) {
+            // if quit itemscreen
+            return false; // back to title screen
+          }
+          // goto new_game: only the item screen's load-game menu gets here, and it isn't ported.
+          throw new Error("JE_loadMap: loading a saved game isn't ported");
+        }
 
         let s = episodeFile.read();
 
@@ -1873,7 +1894,7 @@ export function JE_loadMap(files: TyrianFiles): void {
               break;
 
             case "i": // Set menu music track.
-              // songBuy = atoi(s + 3) - 1: item screen music, not simulated.
+              g.songBuy = atoi(s.slice(3)) - 1;
               break;
 
             case "I": // Menu.
@@ -1890,16 +1911,7 @@ export function JE_loadMap(files: TyrianFiles): void {
                 g.itemAvailMax[i] = j;
               }
 
-              // JE_itemScreen(): the shop isn't ported. The C never comes back from it to the
-              // lines below: the only ways out are loading a game or quitting (mainLevel = 0) and
-              // "play next level", which sets mainLevel = mapSection[choice], jumpSection = true
-              // (game_menu.c L1586, L2640-2650). Without the menu, choose as constantPlay does
-              // (game_menu.c L786-791): the last of the ]G[ choices. Falling through instead would
-              // run whatever section comes next in the file: sometimes a bonus game the player has
-              // to opt into (episode 1 "** ALE **", episode 4 "SQUADRON"), sometimes a section the
-              // map doesn't offer at all (episode 1 section 17 into 18, skipping the asteroid fields).
-              g.mainLevel = g.mapSection[g.mapPNum - 1];
-              g.jumpSection = true;
+              yield "itemScreen"; // JE_itemScreen()
               break;
 
             case "L": {
@@ -1987,6 +1999,31 @@ export function JE_loadMap(files: TyrianFiles): void {
   // Demos and fade_black(50): not ported.
 
   loadLevelFile(files);
+  return true;
+}
+
+/**
+ * JE_loadMap run to completion, with `itemScreen` run synchronously at each `]I[`. The default
+ * makes the choice the C makes when nobody is choosing (JE_itemScreenNonInteractive). Returns
+ * false if the item screen quit to the title.
+ */
+export function JE_loadMap(files: TyrianFiles, itemScreen: () => void = JE_itemScreenNonInteractive): boolean {
+  const steps = JE_loadMapSteps(files);
+  for (;;) {
+    const r = steps.next();
+    if (r.done) return r.value;
+    itemScreen();
+  }
+}
+
+/** JE_loadMap with an asynchronous item screen (the host's UI). */
+export async function JE_loadMapAsync(files: TyrianFiles, itemScreen: () => Promise<void>): Promise<boolean> {
+  const steps = JE_loadMapSteps(files);
+  for (;;) {
+    const r = steps.next();
+    if (r.done) return r.value;
+    await itemScreen();
+  }
 }
 
 /** The level-file half of JE_loadMap (tyrian2.c L2934-3117). */
@@ -2049,16 +2086,47 @@ export function loadHelpTextStrings(hdt: Uint8Array): void {
 
 /**
  * Loads a level the way a new game reaches it: JE_initEpisode(episode) (item data, via
- * buildResources), the event texts, then JE_loadMap from episode-script section `mainLevel`.
- * Episode 1's first level is mainLevel 1 (section 1 jumps to 2, whose shop leads into section
- * 3's `]L[`: TYRIAN, tyrian1.lvl level 9, or 15 on hard).
+ * buildResources), the event and menu texts, then JE_loadMap from episode-script section
+ * `mainLevel`. Episode 1's first level is mainLevel 1 (section 1 jumps to 2, whose item screen
+ * leads to section 3's `]L[`: TYRIAN, tyrian1.lvl level 9, or 15 on hard).
+ *
+ * `itemScreen` runs at each `]I[`; by default the C's non-interactive choice (the last
+ * destination the script lists). Returns false if the item screen quit to the title.
  */
-export function loadLevel(files: TyrianFiles, episode: number, mainLevel: number): void {
+export function loadLevel(files: TyrianFiles, episode: number, mainLevel: number, itemScreen?: () => void): boolean {
+  loadLevelPrelude(files, episode, mainLevel);
+  return JE_loadMap(files, itemScreen);
+}
+
+/** loadLevel with the host's asynchronous item screen. */
+export function loadLevelAsync(files: TyrianFiles, episode: number, mainLevel: number, itemScreen: () => Promise<void>): Promise<boolean> {
+  loadLevelPrelude(files, episode, mainLevel);
+  return JE_loadMapAsync(files, itemScreen);
+}
+
+function loadLevelPrelude(files: TyrianFiles, episode: number, mainLevel: number): void {
   if (!g.res || g.episodeNum !== episode) g.res = buildResources(files, episode);
   g.episodeNum = episode;
-  loadHelpTextStrings(requireFile(files, "tyrian.hdt"));
+  const hdt = requireFile(files, "tyrian.hdt");
+  loadHelpTextStrings(hdt);
+  if (!g.menuInt[1]?.length) loadMenuText(hdt);
   g.mainLevel = u8(mainLevel);
-  JE_loadMap(files);
+}
+
+/**
+ * The level a section reaches with its own `]L[` (the first one in the section), for showing
+ * where a navigation choice leads. Not in the C; null if the section has no `]L[` of its own.
+ */
+export function sectionLevelName(files: TyrianFiles, episode: number, section: number): string | null {
+  const data = requireFile(files, `levels${episode}.dat`);
+  let script = scriptCache.get(data);
+  if (!script) {
+    script = parseEpisodeScript(data);
+    scriptCache.set(data, script);
+  }
+  const sec = script.sections.find((x) => x.number === section);
+  const line = sec?.lines.find((l) => l.startsWith("]L["));
+  return line ? line.slice(13, 22).trim() : null;
 }
 
 /**

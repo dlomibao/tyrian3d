@@ -75,6 +75,11 @@ export class SoundEffects {
     this.channels[chan] = src;
   }
 
+  /** JE_playSampleNum (nortsong.c): a menu sound, on channel 0 at fxPlayVol. */
+  playSampleNum(id: number): void {
+    this.multiSamplePlay(id, 0, FX_PLAY_VOL);
+  }
+
   /** JE_main's sound routine: play each queued sound on its channel, then clear the queue. */
   playQueue(soundQueue: number[]): void {
     for (let chan = 0; chan < soundQueue.length; chan++) {

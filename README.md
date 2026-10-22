@@ -26,10 +26,11 @@ OpenTyrian links to, and choose or drop it on the page. It stays in your browser
 ## Status
 
 Episode 1 is playable level after level, with the original's enemies, weapons, events, music and
-sound. If your ship is destroyed, the level restarts from the loadout you started it with.
+sound. Between levels the item screen sells and upgrades gear and lets you pick the next
+destination on the map (arrows, Enter, Esc; `/` changes the rear gun's firing mode). If your ship
+is destroyed, you go back to that item screen with the loadout you launched with.
 
-- **Not yet:** the shop and the navigation map between levels ([#30](../../issues/30),
-  [#31](../../issues/31)). Until then, the route through each episode is the default one.
+- **Not yet:** the item screen's Data Cubes and Options menus.
 - **Everything else:** in [Issues](../../issues) and [Milestones](../../milestones). Design calls
   made along the way are in [DECISIONS.md](DECISIONS.md).
 

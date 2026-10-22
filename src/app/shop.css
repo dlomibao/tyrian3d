@@ -1,0 +1,336 @@
+/* The item screen between levels (src/app/shop.ts), in the overlay style of overlay.css. */
+
+.overlay.shop {
+  background: rgba(0, 0, 0, 0.55);
+  pointer-events: auto;
+}
+
+.shop-panel {
+  position: relative;
+  max-width: 52rem;
+  max-height: 100%;
+  overflow-y: auto;
+  text-align: left;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.shop-panel header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  border-bottom: 1px solid var(--edge);
+  padding-bottom: 0.5rem;
+}
+
+.shop-panel h2 {
+  margin: 0;
+  letter-spacing: 0.08em;
+}
+
+.shop-cash {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  color: var(--ink-dim);
+}
+
+.shop-cash b {
+  font-size: 1.4rem;
+  color: #fff3c0;
+  font-variant-numeric: tabular-nums;
+}
+
+.shop-body {
+  display: grid;
+  grid-template-columns: minmax(14rem, 18rem) 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+
+.shop-ship .bars {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 8px;
+  align-items: center;
+  font-size: 0.85rem;
+  color: var(--ink-dim);
+  margin-bottom: 0.5rem;
+}
+
+.shop-ship .bar {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.shop-ship .bar > i {
+  display: block;
+  height: 100%;
+}
+
+.shop-ship .armor > i { background: #d9c070; }
+.shop-ship .shield > i { background: #5aa8ff; }
+
+.shop .loadout,
+.shop-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.shop .loadout li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 2px 0;
+  font-size: 0.9rem;
+}
+
+.shop .ico {
+  flex: none;
+  width: 36px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 4px;
+}
+
+.shop .loadout .ico {
+  width: 30px;
+  height: 35px;
+}
+
+.shop .ico img {
+  width: 100%;
+  image-rendering: pixelated;
+}
+
+.shop .what {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.shop .what small {
+  color: var(--ink-dim);
+  font-size: 0.78em;
+}
+
+.shop .loadout em {
+  font-style: normal;
+  color: var(--accent);
+}
+
+.shop-list .row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 2.6rem;
+  padding: 0.3rem 0.6rem;
+  margin: 2px 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--ink);
+  user-select: none;
+}
+
+.shop-list .row:hover {
+  background: rgba(224, 160, 64, 0.08);
+}
+
+.shop-list .row.cur {
+  border-color: var(--accent);
+  background: rgba(224, 160, 64, 0.16);
+  color: #fff3c0;
+}
+
+.shop-list .row.dim {
+  opacity: 0.45;
+}
+
+.shop-list .row.off {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.shop-list .row.done {
+  color: var(--accent);
+}
+
+.shop-list .owned {
+  margin-left: auto;
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  color: #8fd18f;
+  border: 1px solid rgba(143, 209, 143, 0.5);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.shop-nav {
+  width: 100%;
+  max-width: 28rem;
+  aspect-ratio: 220 / 160;
+  image-rendering: pixelated;
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+.shop-nav[hidden] {
+  display: none;
+}
+
+.shop-power {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+  padding: 0.5rem;
+  border-top: 1px solid var(--edge);
+}
+
+.shop-power[hidden] {
+  display: none;
+}
+
+.shop button {
+  font: inherit;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  padding: 0.35rem 0.7rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.shop button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.shop button small {
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.shop-power .meter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.shop-power .segs {
+  display: flex;
+  gap: 2px;
+}
+
+.shop-power .segs i {
+  width: 8px;
+  height: 14px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.shop-power .segs i.on {
+  background: #e07030;
+}
+
+.shop-power .mode .key,
+.shop .hint {
+  color: var(--ink-dim);
+  font-size: 0.8em;
+}
+
+.shop-help {
+  min-height: 1.2em;
+  color: var(--ink-dim);
+  font-size: 0.9rem;
+  border-top: 1px solid var(--edge);
+  padding-top: 0.5rem;
+}
+
+.shop-dialog {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 10px;
+}
+
+.shop-dialog[hidden] {
+  display: none;
+}
+
+.shop-dialog .box {
+  max-width: 30rem;
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  text-align: center;
+}
+
+.shop-dialog .specs {
+  text-align: left;
+}
+
+.shop-dialog h3 {
+  margin: 0 0 0.5rem;
+  color: var(--accent);
+}
+
+.shop-dialog p {
+  color: var(--ink);
+}
+
+.shop-dialog .choices {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+
+.shop-dialog .choices .cur {
+  border-color: var(--accent);
+  background: rgba(224, 160, 64, 0.2);
+}
+
+@media (max-width: 640px) {
+  .shop-panel {
+    padding: 0.75rem;
+  }
+
+  .shop-body {
+    grid-template-columns: 1fr;
+  }
+
+  .shop-ship .loadout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 0.5rem;
+  }
+
+  .shop .loadout li {
+    font-size: 0.8rem;
+  }
+}
+
+.shop-dialog p b {
+  color: var(--accent);
+  font-weight: normal;
+}

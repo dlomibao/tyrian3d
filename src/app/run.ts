@@ -11,14 +11,17 @@ import { drawList } from "../sim/draw";
 import { startLevel, tick } from "../sim/game";
 import { loadHelpText } from "../sim/helptext";
 import { clearSimInput } from "../sim/input";
+import { JE_endLevelAni } from "../sim/mainint";
 import { newOnePlayerGame } from "../sim/newgame";
+import { copyPlayerItems } from "../sim/player";
 import { buildResources, requireFile } from "../sim/resources";
-import { g, type PlayerItems } from "../sim/state";
-import { EpisodeEndError, loadLevel } from "../sim/tyrian2";
+import { g, SA_NONE, type PlayerItems } from "../sim/state";
+import { EpisodeEndError, loadLevelAsync } from "../sim/tyrian2";
 import type { View } from "../render/view";
 import { Controls } from "./controls";
 import { Hud } from "./hud";
 import { askForData, showMessage, showStatus, showTitle } from "./screens";
+import { runItemScreen } from "./shop";
 
 /** OpenTyrian song numbers (0-based, as passed to play_song). */
 const SONG_TITLE = 29;
@@ -42,24 +45,45 @@ async function getFiles(): Promise<FileMap> {
   return askForData();
 }
 
-/** What JE_saveGame(11, "LAST LEVEL") keeps so a failed level can be retried (JE_loadGame). */
+/**
+ * What JE_saveGame(11, "LAST LEVEL") keeps (after JE_loadMap, so after the item screen) so a
+ * failed level can be retried with JE_loadGame(11). The saved level is saveLevel: the section
+ * JE_loadMap started from (or the last `]s[`), so a retry goes back through the item screen.
+ */
 interface LevelBackup {
   items: PlayerItems;
+  last_items: PlayerItems;
   cash: number;
-  /** The episode-script section the level was loaded from. */
-  mainLevel: number;
+  level: number;
+  difficultyLevel: number;
+  cubes: number;
 }
 
-function backupPlayer(mainLevel: number): LevelBackup {
+function saveLastLevel(): LevelBackup {
   const p = g.player[0];
-  return { items: structuredClone(p.items), cash: p.cash, mainLevel };
+  return {
+    items: copyPlayerItems(p.items),
+    last_items: copyPlayerItems(p.last_items),
+    cash: p.cash,
+    level: g.saveLevel,
+    difficultyLevel: g.difficultyLevel,
+    cubes: g.lastCubeMax,
+  };
 }
 
-function restorePlayer(b: LevelBackup): void {
+function loadLastLevel(b: LevelBackup): void {
   const p = g.player[0];
-  p.items = structuredClone(b.items);
+  g.superTyrian = false;
+  g.onePlayerAction = false;
+  g.extraGame = false;
+  g.galagaMode = false;
+  g.difficultyLevel = b.difficultyLevel;
+  p.items = copyPlayerItems(b.items);
+  p.last_items = copyPlayerItems(b.last_items);
   p.cash = b.cash;
-  g.mainLevel = b.mainLevel;
+  g.mainLevel = b.level;
+  g.cubeMax = b.cubes;
+  g.lastCubeMax = b.cubes;
 }
 
 /** `onPlay` fires once the first level starts, so the caller can stop its idle rendering. */
@@ -87,18 +111,20 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
     onPlay();
     let backup: LevelBackup | null = null;
 
+    // start_level / start_level_first (tyrian2.c L586-905): JE_loadMap with the item screen at
+    // each `]I[`, the backup save, the level, then where to go next.
     for (;;) {
-      if (backup) restorePlayer(backup);
-      const levelSection = g.mainLevel;
+      let loaded: boolean;
       try {
-        loadLevel(files, g.episodeNum, levelSection);
+        loaded = await loadLevelAsync(files, g.episodeNum, g.mainLevel, () => runItemScreen({ files, sfx, music }));
       } catch (err) {
         if (!(err instanceof EpisodeEndError)) throw err;
         music.play(SONG_LEVEL_END);
         await showMessage("Episode complete", [`Final score ${g.player[0].cash}`], "Press Enter for the title");
         break;
       }
-      backup = backupPlayer(levelSection);
+      if (!loaded) break; // quit from the item screen: back to the title
+      if (!g.doNotSaveBackup) backup = saveLastLevel(); /*Save backup game*/
       startLevel();
       view.draws.resetInterpolation();
       music.play(g.levelSong - 1);
@@ -112,20 +138,30 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
       controls.release();
       hud.visible = false;
 
+      g.difficultyLevel = g.oldDifficultyLevel; /*Return difficulty to normal*/
+
       if (outcome === "completed") {
+        g.mainLevel = g.nextLevel;
+        JE_endLevelAni(); // its state changes; the summary is this screen
         music.play(SONG_LEVEL_END);
         await showMessage("Level complete", [
           `${g.levelName.trim()}`,
           `Score ${g.player[0].cash}`,
           `Enemies destroyed ${g.enemyKilled} of ${g.totalEnemy}`,
         ]);
-        g.mainLevel = g.nextLevel;
-        backup = null;
         if (g.mainLevel === 0) break; // end of the episode
       } else {
         music.play(SONG_GAME_OVER);
-        await showMessage("Game over", ["Your ship was destroyed."], "Press Enter to retry the level");
+        await showMessage("Game over", ["Your ship was destroyed."], "Press Enter to retry from the item screen");
+        if (backup) loadLastLevel(backup); // JE_loadGame(11)
+        if (g.doNotSaveBackup) {
+          g.superTyrian = false;
+          g.onePlayerAction = false;
+          g.player[0].items.super_arcade_mode = SA_NONE;
+        }
+        if (g.bonusLevelCurrent && !g.playerEndLevel) g.mainLevel = g.nextLevel;
       }
+      g.doNotSaveBackup = false;
     }
   }
 }

@@ -1,9 +1,10 @@
 // Port of the gameplay parts of OpenTyrian src/mainint.c: new-game player data, the per-tick
 // player movement/firing/drawing (JE_playerMovement), JE_mainGamePlayerFunctions, player-vs-enemy
-// collisions and pick-ups (JE_playerCollide), and the message bar (JE_drawTextWindow).
+// collisions and pick-ups (JE_playerCollide), the message bar (JE_drawTextWindow), and item values
+// (JE_getCost, JE_getValue, JE_totalScore) with the end-of-level bookkeeping (JE_endLevelAni).
 //
 // Not ported (menus, UI, or out of scope): JE_outCharGlow, JE_helpSystem, the high-score, setup,
-// save/load and in-game menu screens, JE_endLevelAni, JE_playCredits, JE_mainKeyboardInput (cheats
+// save/load and in-game menu screens, JE_endLevelAni's drawing, JE_playCredits, JE_mainKeyboardInput (cheats
 // and debug keys; pause/menu are the host's job), JE_pauseGame, network play, demo playback and
 // recording, chat. The HUD is HTML, so the C's HUD drawing (VGAScreenSeg: armor/shield/power bars,
 // sidekick ammo gauges, port-config buttons) is left out; the state it reads is maintained.
@@ -14,6 +15,7 @@
 //   shadows, 6 Nortship side spark sprite, 7 dragonwing charge indicator, 10..29 end-of-level warp
 //   trail, 40/41 left/right sidekick.
 
+import { fmul } from "./cfloat";
 import { idiv, s16, s8, u16, u32, u8 } from "./cint";
 import {
   blit_sprite2,
@@ -56,7 +58,14 @@ import {
 } from "./sndmast";
 import {
   all_players_dead,
+  DIFFICULTY_EASY,
+  DIFFICULTY_IMPOSSIBLE,
+  DIFFICULTY_INSANITY,
+  DIFFICULTY_MANIACAL,
   DIFFICULTY_NORMAL,
+  DIFFICULTY_NORTANEOUS,
+  DIFFICULTY_SUICIDE,
+  DIFFICULTY_ZINGLON,
   FRONT_WEAPON,
   g,
   LEFT_SIDEKICK,
@@ -1439,4 +1448,170 @@ export function JE_playerCollide(this_player: Player, playerNum_: number): void 
       }
     }
   }
+}
+
+// --- Item values and the end-of-level bookkeeping (added by the shop port) ---
+
+/** mainint.c L570-582: cost to upgrade a weapon to `power` from power - 1 (power 0 = unupgraded). */
+export function weapon_upgrade_cost(base_cost: number, power: number): number {
+  if (power > 11) throw new Error(`weapon_upgrade_cost: power ${power} > 11`); // assert(power <= 11)
+
+  let temp = 0;
+
+  // 0 1 3 6 10 15 21 29 ...
+  for (; power > 0; power--) temp += power;
+
+  return base_cost * temp;
+}
+
+/**
+ * JE_getCost (mainint.c L584-618): an item's price. itemType is the upgrade menu's selection: 2
+ * ship, 3 front weapon, 4 rear weapon, 5 shield, 6 generator, 7/8 left/right sidekick. For weapons it
+ * also sets g.upgradeCost and g.downgradeCost (JE_word) for the player's current power level.
+ */
+export function JE_getCost(itemType: number, itemNum: number): number {
+  const { items } = g.res;
+  let cost = 0;
+
+  switch (itemType) {
+    case 2:
+      cost = itemNum > 90 ? 100 : items.ships[itemNum].cost;
+      break;
+    case 3:
+    case 4: {
+      cost = items.weaponPorts[itemNum].cost;
+
+      const port = itemType - 3,
+        item_power = g.player[0].items.weapon[port].power - 1;
+
+      g.downgradeCost = u16(weapon_upgrade_cost(cost, item_power));
+      g.upgradeCost = u16(weapon_upgrade_cost(cost, item_power + 1));
+      break;
+    }
+    case 5:
+      cost = items.shields[itemNum].cost;
+      break;
+    case 6:
+      cost = items.powerSys[itemNum].cost;
+      break;
+    case 7:
+    case 8:
+      cost = items.options[itemNum].cost;
+      break;
+  }
+
+  return cost;
+}
+
+/** JE_getValue (mainint.c L918-953): what an owned item is worth, including weapon power upgrades. */
+export function JE_getValue(itemType: number, itemNum: number): number {
+  const { items } = g.res;
+  let value = 0;
+
+  switch (itemType) {
+    case 2:
+      value = items.ships[itemNum].cost;
+      break;
+    case 3:
+    case 4: {
+      const base_value = items.weaponPorts[itemNum].cost;
+
+      // if two-player, use first player's front and second player's rear weapon
+      const port = itemType - 3;
+      const item_power = g.player[g.twoPlayerMode ? port : 0].items.weapon[port].power - 1;
+
+      value = base_value;
+      for (let i = 1; i <= item_power; ++i) value += weapon_upgrade_cost(base_value, i);
+      break;
+    }
+    case 5:
+      value = items.shields[itemNum].cost;
+      break;
+    case 6:
+      value = items.powerSys[itemNum].cost;
+      break;
+    case 7:
+    case 8:
+      value = items.options[itemNum].cost;
+      break;
+  }
+
+  return value;
+}
+
+/** JE_totalScore (mainint.c L903-916): cash plus the value of everything the player owns. */
+export function JE_totalScore(this_player: Player): number {
+  let temp = this_player.cash;
+
+  temp += JE_getValue(2, this_player.items.ship);
+  temp += JE_getValue(3, this_player.items.weapon[FRONT_WEAPON].id);
+  temp += JE_getValue(4, this_player.items.weapon[REAR_WEAPON].id);
+  temp += JE_getValue(5, this_player.items.shield);
+  temp += JE_getValue(6, this_player.items.generator);
+  temp += JE_getValue(7, this_player.items.sidekick[LEFT_SIDEKICK]);
+  temp += JE_getValue(8, this_player.items.sidekick[RIGHT_SIDEKICK]);
+
+  return temp;
+}
+
+/** adjust_difficulty (mainint.c L2158-2225): raise the difficulty as the player's score grows. */
+export function adjust_difficulty(): void {
+  const score_multiplier = [
+    0, // Wimp  (doesn't exist)
+    0.4, // Easy
+    0.8, // Normal
+    1.3, // Hard
+    1.6, // Impossible
+    2, // Insanity
+    2, // Suicide
+    3, // Maniacal
+    3, // Zinglon
+    3, // Nortaneous
+  ];
+
+  // assert(initialDifficulty > 0 && initialDifficulty < 10)
+  if (!(g.initialDifficulty > 0 && g.initialDifficulty < 10)) throw new Error(`adjust_difficulty: initialDifficulty ${g.initialDifficulty}`);
+
+  // ulong * float is a float multiply.
+  const score = g.twoPlayerMode ? g.player[0].cash + g.player[1].cash : JE_totalScore(g.player[0]),
+    adjusted_score = roundf(fmul(score, score_multiplier[g.initialDifficulty]));
+
+  let new_difficulty = 0;
+
+  if (g.twoPlayerMode) {
+    if (adjusted_score < 10000) new_difficulty = DIFFICULTY_EASY;
+    else if (adjusted_score < 20000) new_difficulty = DIFFICULTY_NORMAL;
+    else if (adjusted_score < 50000) new_difficulty = DIFFICULTY_HARD;
+    else if (adjusted_score < 80000) new_difficulty = DIFFICULTY_IMPOSSIBLE;
+    else if (adjusted_score < 125000) new_difficulty = DIFFICULTY_INSANITY;
+    else if (adjusted_score < 200000) new_difficulty = DIFFICULTY_SUICIDE;
+    else if (adjusted_score < 400000) new_difficulty = DIFFICULTY_MANIACAL;
+    else if (adjusted_score < 600000) new_difficulty = DIFFICULTY_ZINGLON;
+    else new_difficulty = DIFFICULTY_NORTANEOUS;
+  } else {
+    if (adjusted_score < 40000) new_difficulty = DIFFICULTY_EASY;
+    else if (adjusted_score < 70000) new_difficulty = DIFFICULTY_NORMAL;
+    else if (adjusted_score < 150000) new_difficulty = DIFFICULTY_HARD;
+    else if (adjusted_score < 300000) new_difficulty = DIFFICULTY_IMPOSSIBLE;
+    else if (adjusted_score < 600000) new_difficulty = DIFFICULTY_INSANITY;
+    else if (adjusted_score < 1000000) new_difficulty = DIFFICULTY_SUICIDE;
+    else if (adjusted_score < 2000000) new_difficulty = DIFFICULTY_MANIACAL;
+    else if (adjusted_score < 3000000) new_difficulty = DIFFICULTY_ZINGLON;
+    else new_difficulty = DIFFICULTY_NORTANEOUS;
+  }
+
+  // MAX((unsigned)difficultyLevel, new_difficulty)
+  g.difficultyLevel = Math.max(u32(g.difficultyLevel), new_difficulty);
+}
+
+/**
+ * JE_endLevelAni (mainint.c L2521-2676), its state changes only: the difficulty adjustment, the
+ * loadout the next item screen adds to its lists (last_items), and lastLevelName. The "Completed"
+ * summary is the host's screen; ShipEdit privileges (editorItemAvail) and editorLevel aren't ported.
+ */
+export function JE_endLevelAni(): void {
+  adjust_difficulty();
+
+  g.player[0].last_items = copyPlayerItems(g.player[0].items);
+  g.lastLevelName = g.levelName;
 }
