@@ -28,3 +28,15 @@ export async function loadDevFiles(): Promise<FileMap | null> {
   );
   return new FileMap(new Map(entries));
 }
+
+/** Build the game's file map from tyrian21.zip (or any zip holding the data, nested or not). */
+export async function filesFromZip(zip: Uint8Array): Promise<FileMap> {
+  const { readZip } = await import("./zip");
+  const map = new Map<string, Uint8Array>();
+  for (const entry of await readZip(zip)) {
+    const name = entry.name.split("/").pop()!.toLowerCase();
+    if (isGameFile(name)) map.set(name, entry.data);
+  }
+  if (!map.has("tyrian1.lvl") || !map.has("tyrian.shp")) throw new Error("that zip doesn't contain the Tyrian 2.1 data");
+  return new FileMap(map);
+}
