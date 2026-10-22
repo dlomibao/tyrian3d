@@ -32,6 +32,8 @@ const BACKGROUND = 0x05070d;
  */
 export class View {
   readonly renderer: THREE.WebGLRenderer;
+  /** Game pixels per CSS pixel across the middle of the play area (updated on resize). */
+  gamePixelsPerScreenPixel = 1;
   /** The draw-list renderer: sprites, background tiles, effects. */
   readonly draws = new DrawListRenderer();
   private readonly outline: OutlineEffect;
@@ -238,6 +240,12 @@ export class View {
     outer.holes.push(hole);
     this.mask.geometry.dispose();
     this.mask.geometry = new THREE.ShapeGeometry(outer);
+
+    // Game pixels per CSS pixel across the middle of the play area, for relative mouse/touch steering.
+    const left = new THREE.Vector3(-PLAYFIELD_WORLD_W / 2, 0, 0).project(this.camera);
+    const right = new THREE.Vector3(PLAYFIELD_WORLD_W / 2, 0, 0).project(this.camera);
+    const widthCss = ((right.x - left.x) / 2) * w;
+    this.gamePixelsPerScreenPixel = widthCss > 0 ? (PLAYFIELD_WORLD_W * PX_PER_UNIT) / widthCss : 1;
   }
 }
 

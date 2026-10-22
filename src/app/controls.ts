@@ -1,4 +1,8 @@
-// Keyboard and gamepad → simInput (src/sim/input.ts), sampled once per sim tick.
+// Keyboard, gamepad, mouse and touch → simInput (src/sim/input.ts), sampled once per sim tick.
+//
+// Mouse and touch use the original's relative mouse steering (mouseXR/mouseYR, which the C scales
+// from window pixels to game pixels): click the game to lock the mouse pointer (left button fires,
+// right button fires the sidekicks), or drag a finger to steer — the ship fires while touched.
 //
 // Defaults follow OpenTyrian's (arrows, Space = fire, Enter = change rear-weapon mode, Left Ctrl /
 // Left Alt = sidekicks), plus WASD/J/K/L for laptops. Keys pressed and released between two
@@ -26,8 +30,66 @@ export class Controls {
   private readonly tapped = new Set<string>();
   /** Set when the player asks to pause (Escape / P / Start), cleared by the reader. */
   pauseRequested = false;
+  /** True while a level is being played: pointer lock and touch steering only apply then. */
+  active = false;
 
-  constructor() {
+  /** Pointer motion since the last sample, in CSS pixels. */
+  private moveX = 0;
+  private moveY = 0;
+  private mouseButtons = 0;
+  private touches = new Map<number, { x: number; y: number }>();
+  private releasing = false;
+
+  /** @param gamePixelsPerScreenPixel converts pointer motion to game pixels (from the view). */
+  constructor(private readonly gamePixelsPerScreenPixel: () => number = () => 1) {
+    const canvasTarget = () => document.querySelector("canvas");
+    window.addEventListener("pointerdown", (e) => {
+      if (!this.active || e.target !== canvasTarget()) return;
+      if (e.pointerType === "mouse") {
+        if (document.pointerLockElement !== canvasTarget()) void canvasTarget()?.requestPointerLock?.();
+        this.mouseButtons = e.buttons;
+      } else {
+        this.touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      }
+      e.preventDefault();
+    });
+    window.addEventListener("pointermove", (e) => {
+      if (!this.active) return;
+      if (e.pointerType === "mouse") {
+        if (document.pointerLockElement) {
+          this.moveX += e.movementX;
+          this.moveY += e.movementY;
+        }
+        this.mouseButtons = e.buttons;
+        return;
+      }
+      const t = this.touches.get(e.pointerId);
+      if (!t) return;
+      // Steer with the first finger only.
+      if (e.pointerId === this.touches.keys().next().value) {
+        this.moveX += e.clientX - t.x;
+        this.moveY += e.clientY - t.y;
+      }
+      t.x = e.clientX;
+      t.y = e.clientY;
+    });
+    const lift = (e: PointerEvent) => {
+      if (e.pointerType === "mouse") this.mouseButtons = e.buttons;
+      else this.touches.delete(e.pointerId);
+    };
+    window.addEventListener("pointerup", lift);
+    window.addEventListener("pointercancel", lift);
+    window.addEventListener("contextmenu", (e) => {
+      if (this.active) e.preventDefault();
+    });
+    document.addEventListener("pointerlockchange", () => {
+      if (document.pointerLockElement) return;
+      this.mouseButtons = 0;
+      // The browser takes Esc to leave pointer lock without telling the page: treat it as pause.
+      if (this.active && !this.releasing) this.pauseRequested = true;
+      this.releasing = false;
+    });
+
     window.addEventListener("keydown", (e) => {
       if (ALL_CODES.has(e.code)) e.preventDefault();
       if (e.code === "Escape" || e.code === "KeyP") this.pauseRequested = true;
@@ -55,6 +117,19 @@ export class Controls {
     simInput.analogX = 0;
     simInput.analogY = 0;
     this.tapped.clear();
+
+    // Mouse / touch: relative steering in game pixels (the C's mouseGetRelativePosition).
+    const scale = this.gamePixelsPerScreenPixel();
+    simInput.mouseXR = Math.trunc(this.moveX * scale);
+    simInput.mouseYR = Math.trunc(this.moveY * scale);
+    // Keep the sub-pixel remainder so slow drags still move the ship.
+    this.moveX -= simInput.mouseXR / scale;
+    this.moveY -= simInput.mouseYR / scale;
+    const locked = document.pointerLockElement !== null;
+    const touching = this.touches.size > 0;
+    simInput.mouseLeft = touching || (locked && (this.mouseButtons & 1) !== 0);
+    simInput.mouseRight = locked && (this.mouseButtons & 2) !== 0;
+    simInput.mouseMiddle = locked && (this.mouseButtons & 6) !== 0;
 
     // Standard-mapping gamepads: d-pad as keys, left stick as the C's analog joystick,
     // A/RT fire, X change fire, LB/RB sidekicks, Start pause.
@@ -86,5 +161,14 @@ export class Controls {
     this.held.clear();
     this.tapped.clear();
     this.pauseRequested = false;
+    this.moveX = this.moveY = 0;
+    this.touches.clear();
+  }
+
+  /** Leave pointer lock (pauses, level ends). */
+  release(): void {
+    if (!document.pointerLockElement) return;
+    this.releasing = true;
+    document.exitPointerLock();
   }
 }
