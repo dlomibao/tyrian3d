@@ -1,0 +1,21 @@
+import { CLASSIC_TICK_HZ } from "./timing";
+
+export interface Settings {
+  /** Logic tick rate. Classic (~34.8 Hz) by default; higher rates are for a future mode. */
+  logicHz: number;
+  /** Cap on device pixel ratio, trading sharpness for speed on high-DPI screens. */
+  maxPixelRatio: number;
+}
+
+/** Defaults, overridable from the URL for testing, e.g. `?hz=60&dpr=1`. */
+export function loadSettings(search: string = location.search): Settings {
+  const params = new URLSearchParams(search);
+  const num = (key: string, fallback: number) => {
+    const v = Number(params.get(key));
+    return params.has(key) && Number.isFinite(v) && v > 0 ? v : fallback;
+  };
+  return {
+    logicHz: num("hz", CLASSIC_TICK_HZ),
+    maxPixelRatio: num("dpr", 2),
+  };
+}
