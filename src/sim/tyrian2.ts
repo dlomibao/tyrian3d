@@ -1698,9 +1698,10 @@ export class EpisodeEndError extends Error {}
  * shapes?.dat into g.lvl and the level globals.
  *
  * Ported: every script command's effect on game state. Not ported (no-ops, marked below): the
- * shop (`]I[` still records itemAvail), pictures, fades, palette changes and text screens (the
- * `]W` text is kept in g.levelWarningText), the end-of-episode sequence (`]Q` throws
- * EpisodeEndError), demos, saving, and network sync.
+ * shop (`]I[` still records itemAvail, and leaves for the next level as constantPlay would),
+ * pictures, fades, palette changes and text screens (the `]W` text is kept in
+ * g.levelWarningText), the end-of-episode sequence (`]Q` throws EpisodeEndError), demos, saving,
+ * and network sync.
  */
 export function JE_loadMap(files: TyrianFiles): void {
   g.lastCubeMax = g.cubeMax;
@@ -1889,7 +1890,16 @@ export function JE_loadMap(files: TyrianFiles): void {
                 g.itemAvailMax[i] = j;
               }
 
-              // JE_itemScreen(): the shop isn't ported.
+              // JE_itemScreen(): the shop isn't ported. The C never comes back from it to the
+              // lines below: the only ways out are loading a game or quitting (mainLevel = 0) and
+              // "play next level", which sets mainLevel = mapSection[choice], jumpSection = true
+              // (game_menu.c L1586, L2640-2650). Without the menu, choose as constantPlay does
+              // (game_menu.c L786-791): the last of the ]G[ choices. Falling through instead would
+              // run whatever section comes next in the file: sometimes a bonus game the player has
+              // to opt into (episode 1 "** ALE **", episode 4 "SQUADRON"), sometimes a section the
+              // map doesn't offer at all (episode 1 section 17 into 18, skipping the asteroid fields).
+              g.mainLevel = g.mapSection[g.mapPNum - 1];
+              g.jumpSection = true;
               break;
 
             case "L": {
