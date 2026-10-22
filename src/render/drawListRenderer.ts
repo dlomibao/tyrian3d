@@ -1,0 +1,515 @@
+// Turns the simulation's per-tick draw lists (src/sim/draw.ts) into a 3D scene.
+//
+// - Sprites become extruded meshes (spriteMesh.ts), one InstancedMesh per distinct sprite and
+//   material variant, so a full screen is a few dozen draw calls.
+// - Background 1 (the ground) is one instanced quad per tile, textured from a palette-index
+//   atlas. Backgrounds 2 and 3 are extruded like sprites (DECISIONS.md D8).
+// - Every draw sits at its pass's height (passHeights.ts, D5) but is projected along the camera
+//   ray back onto its original screen position and scaled to its original size (D6), so the
+//   layout on screen is exactly the original's at any height.
+// - Positions are interpolated between the last two ticks at display rate (interpolation.ts, D2).
+// - Selected sprites are replaced by hand-made models (MODEL_OVERRIDES, D4).
+//
+// Integrator API: add `root` to the scene, call setPalettes() once, setDrawList() every logic
+// tick, and update(alpha, camera) every display frame before rendering.
+
+import * as THREE from "three";
+import type { Palette } from "../data/palette";
+import { PX_PER_UNIT, screenWorldX, screenWorldZ } from "../game/playfield";
+import { Pass, type Draw, type DrawList, type SpriteEffect } from "../sim/draw";
+import { DrawInterpolator } from "./interpolation";
+import { FxMode, groundTileMaterial, paletteMaterial } from "./paletteMaterial";
+import { PaletteTexture } from "./paletteTexture";
+import { passHeight } from "./passHeights";
+import { SpriteMeshCache } from "./spriteMesh";
+import { TileAtlas } from "./tileAtlas";
+
+/** A hand-made model that replaces a sprite and its banking frames. */
+export interface ModelOverride {
+  /** Sprite2 sheet id, e.g. "tyrian.shp#8" for the player ships. */
+  sheetId: string;
+  /** Sprite index of the level (unbanked) frame. */
+  baseIndex: number;
+  /** Index step between banking frames, and how many frames there are to each side. */
+  bankStep: number;
+  maxBank: number;
+  /** The size the sprite is drawn at (2 for blit_sprite2x2). */
+  size: 1 | 2;
+  /** Model name in public/models/. */
+  model: string;
+}
+
+/**
+ * Sprites drawn as Blender models instead of extrusions. The player ship is blit_sprite2x2 from
+ * the ship sheet at shipGraphic + ship_banking * 2, ship_banking -2..2 (JE_playerMovement).
+ */
+export const MODEL_OVERRIDES: readonly ModelOverride[] = [
+  { sheetId: "tyrian.shp#8", baseIndex: 233, bankStep: 2, maxBank: 2, size: 2, model: "usp_talon" }, // USP Talon
+];
+
+/** Roll at full bank, and how fast the model eases toward its frame's roll (per second). */
+const MAX_ROLL = THREE.MathUtils.degToRad(35);
+const ROLL_RATE = 12;
+/** Opacity standing in for the C's value-averaging blend. */
+const BLEND_ALPHA = 0.55;
+/** Passes drawn with a partly emissive material: energy shots, explosions, sparks. */
+const GLOW_PASSES = new Set<Pass>([Pass.PlayerShots, Pass.EnemyShots, Pass.Explosions, Pass.Effects]);
+const GLOW = 0.65;
+/** Pools unused for this many frames are freed. */
+const POOL_TTL_FRAMES = 1800;
+
+const enum Variant {
+  Lit = 0,
+  LitBlend,
+  Glow,
+  GlowBlend,
+  Unlit,
+  Ground,
+}
+
+/** One InstancedMesh and its per-instance data, reused every frame. */
+class Pool {
+  mesh!: THREE.InstancedMesh;
+  /** Per-instance extra data: instFx (4 floats) or instTile (2 floats). */
+  extra!: THREE.InstancedBufferAttribute;
+  count = 0;
+  lastUsed = 0;
+
+  constructor(
+    private readonly base: THREE.BufferGeometry,
+    private readonly material: THREE.Material,
+    private readonly extraName: "instFx" | "instTile",
+    private readonly parent: THREE.Object3D,
+    private readonly shadows: { cast: boolean; receive: boolean },
+    capacity = 16,
+  ) {
+    this.allocate(capacity);
+  }
+
+  private allocate(capacity: number): void {
+    const old = this.mesh;
+    const g = new THREE.BufferGeometry();
+    for (const name of Object.keys(this.base.attributes)) g.setAttribute(name, this.base.attributes[name]);
+    g.setIndex(this.base.index);
+    const itemSize = this.extraName === "instFx" ? 4 : 2;
+    const extra = new THREE.InstancedBufferAttribute(new Float32Array(capacity * itemSize), itemSize);
+    extra.setUsage(THREE.DynamicDrawUsage);
+    g.setAttribute(this.extraName, extra);
+    const mesh = new THREE.InstancedMesh(g, this.material, capacity);
+    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    mesh.frustumCulled = false;
+    mesh.castShadow = this.shadows.cast;
+    mesh.receiveShadow = this.shadows.receive;
+    mesh.count = 0;
+    if (old) {
+      mesh.instanceMatrix.array.set(old.instanceMatrix.array);
+      extra.array.set(this.extra.array);
+      this.parent.remove(old);
+      old.dispose();
+      old.geometry.dispose();
+    }
+    this.mesh = mesh;
+    this.extra = extra;
+    this.parent.add(mesh);
+  }
+
+  /** Start a slot and return its index; the caller fills the matrix and extra data. */
+  next(frame: number): number {
+    if (this.count >= this.mesh.instanceMatrix.count) this.allocate(this.mesh.instanceMatrix.count * 2);
+    this.lastUsed = frame;
+    return this.count++;
+  }
+
+  commit(): void {
+    const n = this.count;
+    this.mesh.count = n;
+    this.mesh.visible = n > 0;
+    if (n === 0) return;
+    const m = this.mesh.instanceMatrix;
+    m.clearUpdateRanges();
+    m.addUpdateRange(0, n * 16);
+    m.needsUpdate = true;
+    this.extra.clearUpdateRanges();
+    this.extra.addUpdateRange(0, n * this.extra.itemSize);
+    this.extra.needsUpdate = true;
+    this.count = 0;
+  }
+
+  dispose(): void {
+    this.parent.remove(this.mesh);
+    this.mesh.dispose();
+    this.mesh.geometry.dispose();
+  }
+}
+
+/** Clones of one override model, with banking state per clone. */
+interface ModelPool {
+  override: ModelOverride;
+  source: THREE.Object3D;
+  clones: { object: THREE.Object3D; roll: number; materials: THREE.Material[]; blended: boolean }[];
+  used: number;
+}
+
+export interface DrawListStats {
+  items: number;
+  instances: number;
+  pools: number;
+  visiblePools: number;
+  meshes: number;
+  atlasTiles: number;
+}
+
+export class DrawListRenderer {
+  /** Add this to the scene. */
+  readonly root = new THREE.Group();
+  readonly palette = new PaletteTexture();
+  readonly cache = new SpriteMeshCache();
+  readonly atlas = new TileAtlas();
+
+  private readonly interp = new DrawInterpolator();
+  private list: DrawList | null = null;
+  private items: readonly Draw[] = [];
+  private palettes: readonly Palette[] = [];
+  private readonly materials: THREE.Material[];
+  private readonly pools: Map<THREE.BufferGeometry, Pool>[] = [];
+  private readonly allPools: Pool[] = [];
+  private readonly groundGeometry = groundQuad();
+  private readonly unitQuad = unitQuad();
+  private readonly overridesBySheet = new Map<string, ModelPool[]>();
+  private readonly modelPools: ModelPool[] = [];
+  private frame = 0;
+  private lastTime = performance.now();
+  private instances = 0;
+
+  constructor() {
+    this.root.name = "draw-list";
+    const p = this.palette;
+    this.materials = [];
+    this.materials[Variant.Lit] = paletteMaterial(p, { lit: true, transparent: false, outline: true });
+    this.materials[Variant.LitBlend] = paletteMaterial(p, { lit: true, transparent: true, outline: true });
+    this.materials[Variant.Glow] = paletteMaterial(p, { lit: true, transparent: false, outline: true, glow: GLOW });
+    this.materials[Variant.GlowBlend] = paletteMaterial(p, { lit: true, transparent: true, outline: false, glow: GLOW });
+    this.materials[Variant.Unlit] = paletteMaterial(p, { lit: false, transparent: false, outline: false });
+    this.materials[Variant.Ground] = groundTileMaterial(p, this.atlas);
+    for (let v = 0; v <= Variant.Ground; v++) this.pools.push(new Map());
+  }
+
+  /** The 23 palettes from palette.dat (resources.palettes); draw lists select one by index. */
+  setPalettes(palettes: readonly Palette[]): void {
+    this.palettes = palettes;
+    if (this.list) this.applyPalette(this.list);
+  }
+
+  /**
+   * Hand over one tick's draws. The list's `items` array must not be mutated afterwards (the
+   * sim's beginDrawList starts a new array each tick, so this holds).
+   */
+  setDrawList(list: DrawList): void {
+    this.list = list;
+    this.items = list.items;
+    this.interp.push(list.items);
+    this.applyPalette(list);
+  }
+
+  /** Forget interpolation history (level start, teleports). */
+  resetInterpolation(): void {
+    this.interp.reset();
+  }
+
+  get active(): boolean {
+    return this.list !== null;
+  }
+
+  /** Replace a sprite and its banking frames with a model (centred on its origin, forward -Z). */
+  addModelOverride(override: ModelOverride, model: THREE.Object3D): void {
+    const pool: ModelPool = { override, source: model, clones: [], used: 0 };
+    let list = this.overridesBySheet.get(override.sheetId);
+    if (!list) this.overridesBySheet.set(override.sheetId, (list = []));
+    list.push(pool);
+    this.modelPools.push(pool);
+  }
+
+  /** Build this frame's instances. alpha interpolates from the previous tick (0) to the current (1). */
+  update(alpha: number, camera: THREE.Camera): void {
+    const now = performance.now();
+    const dt = Math.min(0.1, (now - this.lastTime) / 1000);
+    this.lastTime = now;
+    this.frame++;
+    const frame = this.frame;
+    const items = this.items;
+    const { prevX, prevY } = this.interp;
+    const cam = camera.position;
+    let instances = 0;
+    for (let m = 0; m < this.modelPools.length; m++) this.modelPools[m].used = 0;
+
+    for (let i = 0; i < items.length; i++) {
+      const d = items[i];
+      switch (d.kind) {
+        case "sprite2": {
+          if (d.effect === "darken") continue; // Real shadows replace the C's shadow sprites (D9).
+          const x = prevX[i] + (d.x - prevX[i]) * alpha;
+          const y = prevY[i] + (d.y - prevY[i]) * alpha;
+          if (this.overridesBySheet.size > 0 && this.drawOverride(d.sheet.id, d.index, d.size, d.effect, x, y, d.pass, cam, dt)) continue;
+          const geometry = this.cache.sprite2Geometry(d.sheet, d.index, d.size);
+          if (!geometry) continue;
+          this.addSprite(geometry, d.pass, d.effect, d.filter, d.value, x, y, cam, frame);
+          instances++;
+          break;
+        }
+        case "sprite": {
+          if (d.effect === "darken") continue;
+          const geometry = this.cache.tableGeometry(d.table, d.index);
+          if (!geometry) continue;
+          const x = prevX[i] + (d.x - prevX[i]) * alpha;
+          const y = prevY[i] + (d.y - prevY[i]) * alpha;
+          this.addSprite(geometry, d.pass, d.effect, d.filter, d.value, x, y, cam, frame);
+          instances++;
+          break;
+        }
+        case "tile": {
+          const x = prevX[i] + (d.x - prevX[i]) * alpha;
+          const y = prevY[i] + (d.y - prevY[i]) * alpha;
+          if (d.layer === 0) {
+            const pool = this.pool(this.groundGeometry, Variant.Ground, frame);
+            const s = pool.next(frame);
+            this.atlas.place(d.tileId, d.tile, pool.extra.array as Float32Array, s * 2);
+            writeMatrix(pool.mesh.instanceMatrix.array as Float32Array, s, x, y, passHeight(d.pass), 1, 1, cam);
+          } else {
+            const geometry = this.cache.tileGeometry(d.tileId, d.tile);
+            if (!geometry) continue;
+            this.addSprite(geometry, d.pass, d.effect, 0, 0, x, y, cam, frame);
+          }
+          instances++;
+          break;
+        }
+        case "pixel":
+          this.addSolid(d.color, d.x, d.y, 1, 1, d.pass, cam, frame);
+          instances++;
+          break;
+        case "rect":
+          this.addSolid(d.color, d.x1, d.y1, d.x2 - d.x1 + 1, d.y2 - d.y1 + 1, d.pass, cam, frame);
+          instances++;
+          break;
+      }
+    }
+
+    for (let p = 0; p < this.allPools.length; p++) this.allPools[p].commit();
+    for (let m = 0; m < this.modelPools.length; m++) {
+      const mp = this.modelPools[m];
+      for (let c = mp.used; c < mp.clones.length; c++) mp.clones[c].object.visible = false;
+    }
+    this.atlas.flush();
+    this.instances = instances;
+    if (frame % 300 === 0) this.evictPools(frame);
+  }
+
+  stats(): DrawListStats {
+    return {
+      items: this.items.length,
+      instances: this.instances,
+      pools: this.allPools.length,
+      visiblePools: this.allPools.filter((p) => p.mesh.visible).length,
+      meshes: this.cache.size,
+      atlasTiles: this.atlas.size,
+    };
+  }
+
+  private applyPalette(list: DrawList): void {
+    const palette = this.palettes[list.palette] ?? this.palettes[0];
+    if (palette) this.palette.set(palette, list.filter, list.brightness);
+  }
+
+  private pool(geometry: THREE.BufferGeometry, variant: Variant, frame: number): Pool {
+    const map = this.pools[variant];
+    let pool = map.get(geometry);
+    if (!pool) {
+      const opaque = variant === Variant.Lit || variant === Variant.Glow;
+      pool = new Pool(
+        geometry,
+        this.materials[variant],
+        variant === Variant.Ground ? "instTile" : "instFx",
+        this.root,
+        { cast: opaque, receive: variant !== Variant.Unlit },
+      );
+      pool.lastUsed = frame;
+      map.set(geometry, pool);
+      this.allPools.push(pool);
+    }
+    return pool;
+  }
+
+  private addSprite(
+    geometry: THREE.BufferGeometry,
+    pass: Pass,
+    effect: SpriteEffect,
+    filter: number,
+    value: number,
+    x: number,
+    y: number,
+    cam: THREE.Vector3,
+    frame: number,
+  ): void {
+    const blend = effect === "blend";
+    const glow = GLOW_PASSES.has(pass);
+    const variant = glow ? (blend ? Variant.GlowBlend : Variant.Glow) : blend ? Variant.LitBlend : Variant.Lit;
+    const pool = this.pool(geometry, variant, frame);
+    const s = pool.next(frame);
+    writeMatrix(pool.mesh.instanceMatrix.array as Float32Array, s, x, y, passHeight(pass), 1, 1, cam);
+    const fx = pool.extra.array as Float32Array;
+    const o = s * 4;
+    if (effect === "filter") {
+      fx[o] = FxMode.Filter;
+      fx[o + 1] = (filter >> 4) & 0x0f;
+      fx[o + 2] = 0;
+    } else if (effect === "hv") {
+      fx[o] = FxMode.HueValue;
+      fx[o + 1] = filter & 0x0f;
+      fx[o + 2] = value;
+    } else {
+      fx[o] = FxMode.None;
+      fx[o + 1] = 0;
+      fx[o + 2] = 0;
+    }
+    fx[o + 3] = blend ? BLEND_ALPHA : 1;
+  }
+
+  private addSolid(color: number, x: number, y: number, w: number, h: number, pass: Pass, cam: THREE.Vector3, frame: number): void {
+    const pool = this.pool(this.unitQuad, Variant.Unlit, frame);
+    const s = pool.next(frame);
+    writeMatrix(pool.mesh.instanceMatrix.array as Float32Array, s, x, y, passHeight(pass), w, h, cam);
+    const fx = pool.extra.array as Float32Array;
+    fx[s * 4] = FxMode.Solid;
+    fx[s * 4 + 1] = color & 0xff;
+    fx[s * 4 + 2] = 0;
+    fx[s * 4 + 3] = 1;
+  }
+
+  /** Draw a sprite as its override model, if it has one. */
+  private drawOverride(
+    sheetId: string,
+    index: number,
+    size: 1 | 2,
+    effect: SpriteEffect,
+    x: number,
+    y: number,
+    pass: Pass,
+    cam: THREE.Vector3,
+    dt: number,
+  ): boolean {
+    const pools = this.overridesBySheet.get(sheetId);
+    if (!pools) return false;
+    for (let p = 0; p < pools.length; p++) {
+      const mp = pools[p];
+      const o = mp.override;
+      const offset = index - o.baseIndex;
+      if (size !== o.size || offset % o.bankStep !== 0 || Math.abs(offset) > o.bankStep * o.maxBank) continue;
+      const bank = offset / o.bankStep / o.maxBank; // -1..1
+      if (mp.used === mp.clones.length) mp.clones.push(this.cloneModel(mp.source));
+      const clone = mp.clones[mp.used++];
+      const { object } = clone;
+      object.visible = true;
+      // The model's origin goes where the sprite's centre was.
+      const sw = size * 12;
+      const sh = size * 14;
+      const h = passHeight(pass);
+      const k = h / cam.y;
+      const gx = screenWorldX(x + sw / 2);
+      const gz = screenWorldZ(y + sh / 2);
+      object.position.set(gx + (cam.x - gx) * k, h, gz + (cam.z - gz) * k);
+      object.scale.setScalar(1 - k);
+      // Banking eases per display frame, so the 5 sprite frames become a smooth roll.
+      clone.roll += (-bank * MAX_ROLL - clone.roll) * Math.min(1, dt * ROLL_RATE);
+      object.rotation.z = clone.roll;
+      const blended = effect === "blend";
+      if (blended !== clone.blended) {
+        clone.blended = blended;
+        for (const m of clone.materials) {
+          m.transparent = blended;
+          m.opacity = blended ? BLEND_ALPHA : 1;
+          m.depthWrite = !blended;
+          m.needsUpdate = true;
+        }
+      }
+      return true;
+    }
+    return false;
+  }
+
+  private cloneModel(source: THREE.Object3D): ModelPool["clones"][number] {
+    const object = source.clone(true);
+    const materials: THREE.Material[] = [];
+    object.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      // Own materials, so one clone can turn translucent (invulnerability) without the others.
+      mesh.material = Array.isArray(mesh.material) ? mesh.material.map((m) => m.clone()) : mesh.material.clone();
+      materials.push(...(Array.isArray(mesh.material) ? mesh.material : [mesh.material]));
+    });
+    this.root.add(object);
+    return { object, roll: 0, materials, blended: false };
+  }
+
+  private evictPools(frame: number): void {
+    for (let v = 0; v < this.pools.length; v++) {
+      for (const [geometry, pool] of this.pools[v]) {
+        if (frame - pool.lastUsed > POOL_TTL_FRAMES) {
+          pool.dispose();
+          this.pools[v].delete(geometry);
+          this.allPools.splice(this.allPools.indexOf(pool), 1);
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Write instance `slot`'s matrix: the draw's top-left at screen (x, y), at `height` above the
+ * ground, scaled by (w, h) px. The position is projected along the ray from the camera through
+ * the draw's ground position, and the scale shrinks with height by the same factor, so the draw
+ * covers exactly the screen area it covered in the original (DECISIONS.md D6).
+ */
+function writeMatrix(m: Float32Array, slot: number, x: number, y: number, height: number, w: number, h: number, cam: THREE.Vector3): void {
+  const k = height / cam.y;
+  const gx = screenWorldX(x);
+  const gz = screenWorldZ(y);
+  const s = (1 - k) / PX_PER_UNIT;
+  const o = slot * 16;
+  m[o] = s * w;
+  m[o + 1] = 0;
+  m[o + 2] = 0;
+  m[o + 3] = 0;
+  m[o + 4] = 0;
+  m[o + 5] = s;
+  m[o + 6] = 0;
+  m[o + 7] = 0;
+  m[o + 8] = 0;
+  m[o + 9] = 0;
+  m[o + 10] = s * h;
+  m[o + 11] = 0;
+  m[o + 12] = gx + (cam.x - gx) * k;
+  m[o + 13] = height;
+  m[o + 14] = gz + (cam.z - gz) * k;
+  m[o + 15] = 1;
+}
+
+/** A 24x28 px ground tile quad (top-left at the origin), with tile-space UVs. */
+function groundQuad(): THREE.BufferGeometry {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0, 24, 0, 0, 24, 0, 28, 0, 0, 28], 3));
+  g.setAttribute("normal", new THREE.Float32BufferAttribute([0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0], 3));
+  g.setAttribute("tileUvIn", new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 1], 2));
+  g.setIndex([0, 2, 1, 0, 3, 2]);
+  return g;
+}
+
+/** A 1x1 px horizontal quad (top-left at the origin) for pixels and rectangles. */
+function unitQuad(): THREE.BufferGeometry {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1], 3));
+  g.setAttribute("normal", new THREE.Float32BufferAttribute([0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0], 3));
+  g.setAttribute("palIndex", new THREE.Float32BufferAttribute([0, 0, 0, 0], 1));
+  g.setIndex([0, 2, 1, 0, 3, 2]);
+  return g;
+}

@@ -5,9 +5,11 @@ export interface Settings {
   logicHz: number;
   /** Cap on device pixel ratio, trading sharpness for speed on high-DPI screens. */
   maxPixelRatio: number;
+  /** Clip the draw-list view to the original's playfield (`?clip=0` shows everything drawn). */
+  clip: boolean;
 }
 
-/** Defaults, overridable from the URL for testing, e.g. `?hz=60&dpr=1`. */
+/** Defaults, overridable from the URL for testing, e.g. `?hz=60&dpr=1&clip=0`. */
 export function loadSettings(search: string = location.search): Settings {
   const params = new URLSearchParams(search);
   const num = (key: string, fallback: number) => {
@@ -17,5 +19,6 @@ export function loadSettings(search: string = location.search): Settings {
   return {
     logicHz: num("hz", CLASSIC_TICK_HZ),
     maxPixelRatio: num("dpr", 2),
+    clip: params.get("clip") !== "0",
   };
 }
