@@ -45,10 +45,21 @@ textures or HDRIs, gets a row in [CREDITS.md](CREDITS.md).
 
 ## Game data
 
-Tyrian 2.1 was released as freeware by its author. This repo doesn't redistribute the data
-files. Get them from the mirror that OpenTyrian links to
-([tyrian21.zip](https://camanis.net/tyrian/tyrian21.zip)) and put them in `data/`, which is
-git-ignored.
+OpenTyrian describes Tyrian 2.1 as freeware and bundles it with its releases. However, the zip
+itself still contains Epic MegaGames' original `license.doc`, which forbids copying. Until the
+redistribution terms are confirmed ([#10](../../issues/10)), the data isn't committed here and
+isn't deployed with the web build.
+
+For local development, fetch it into `data/`, which is git-ignored:
+
+    ../opentyrian/get_data.sh data     # or download tyrian21.zip and extract it with lowercase names
+
+## Development
+
+    npm install
+    npm run dev        # dev server
+    npm test           # unit tests (data parser tests skip when data/ is missing)
+    npm run build      # typecheck and production build
 
 ## License
 
