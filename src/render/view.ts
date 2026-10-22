@@ -1,4 +1,6 @@
 import * as THREE from "three";
+import { OutlineEffect } from "three/addons/effects/OutlineEffect.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import type { Settings } from "../core/settings";
 import { PLAYFIELD_WORLD_D, PLAYFIELD_WORLD_W, PX_PER_UNIT, worldX, worldZ } from "../game/playfield";
 import type { World } from "../game/world";
@@ -10,10 +12,15 @@ const CAMERA_FOV = 40;
 const FRAME_MARGIN = 1.08;
 const MAX_BANK = THREE.MathUtils.degToRad(35);
 const GROUND_TILE_PX = 64;
+/** Dark outline around models, echoing the sprites' black edges. Thickness is relative to screen
+ * size, so it looks the same at any resolution. */
+const OUTLINE = { defaultThickness: 0.0045, defaultColor: [0.07, 0.035, 0.0] };
+const NO_OUTLINE = { outlineParameters: { visible: false } };
 
 /** Draws the world. Resolution-independent: sized to the canvas, not to Tyrian's 320x200. */
 export class View {
   readonly renderer: THREE.WebGLRenderer;
+  private readonly outline: OutlineEffect;
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(CAMERA_FOV, 1, 0.1, 500);
   private readonly ground: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshStandardMaterial>;
@@ -31,6 +38,13 @@ export class View {
     this.renderer.shadowMap.enabled = true;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     container.appendChild(this.renderer.domElement);
+    this.outline = new OutlineEffect(this.renderer, OUTLINE);
+
+    // Image-based lighting so metal hulls pick up highlights like the sprites' shading.
+    const pmrem = new THREE.PMREMGenerator(this.renderer);
+    this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    this.scene.environmentIntensity = 0.7;
+    pmrem.dispose();
 
     this.scene.background = new THREE.Color(0x05070d);
     this.scene.fog = new THREE.Fog(0x05070d, 30, 70);
@@ -53,7 +67,7 @@ export class View {
     this.groundTexture.repeat.set(tiles, tiles);
     this.ground = new THREE.Mesh(
       new THREE.PlaneGeometry(groundSize, groundSize),
-      new THREE.MeshStandardMaterial({ map: this.groundTexture, roughness: 0.9 }),
+      new THREE.MeshStandardMaterial({ map: this.groundTexture, roughness: 0.9, envMapIntensity: 0.15, userData: NO_OUTLINE }),
     );
     this.ground.rotation.x = -Math.PI / 2;
     this.ground.position.y = -2;
@@ -99,7 +113,7 @@ export class View {
     const scrollPx = lerp(world.prevScrollY, world.scrollY, alpha);
     this.groundTexture.offset.y = scrollPx / GROUND_TILE_PX;
 
-    this.renderer.render(this.scene, this.camera);
+    this.outline.render(this.scene, this.camera);
   }
 
   private resize(): void {
@@ -158,7 +172,7 @@ function playfieldOutline(): THREE.LineLoop {
     new THREE.Vector3(x, 0, z),
     new THREE.Vector3(-x, 0, z),
   ]);
-  return new THREE.LineLoop(geometry, new THREE.LineBasicMaterial({ color: 0x7fa7e0, transparent: true, opacity: 0.8 }));
+  return new THREE.LineLoop(geometry, new THREE.LineBasicMaterial({ color: 0x7fa7e0, transparent: true, opacity: 0.8, userData: NO_OUTLINE }));
 }
 
 /** Stand-in ship until the Blender model loads: a cone pointing forward (-Z). */

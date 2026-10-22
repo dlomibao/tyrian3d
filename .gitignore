@@ -26,3 +26,6 @@ dist/
 # Python bytecode (Blender build scripts)
 __pycache__/
 *.pyc
+
+# Reference images rendered from the game data (licence unresolved, #10)
+reference/

@@ -12,7 +12,7 @@ const world = new World(timing);
 const input = new Input();
 const view = new View(document.body, settings);
 
-loadModel("player_ship")
+loadModel("usp_talon")
   .then((model) => view.setShipModel(model))
   .catch((err) => console.error("player ship model failed to load; keeping placeholder", err));
 

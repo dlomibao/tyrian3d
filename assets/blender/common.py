@@ -12,6 +12,64 @@ def repo_root(script_file):
     return Path(script_file).resolve().parents[2]
 
 
+def srgb(r, g, b):
+    """8-bit sRGB (as sampled from a sprite) to the linear RGB that Blender materials take."""
+    def lin(c):
+        c /= 255
+        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+    return (lin(r), lin(g), lin(b))
+
+
+def reference_image(name, path, width, height, location=(-2.0, 0.0, 0.0)):
+    """Show an image (e.g. a sprite rendered by tools/extract-sprites.mjs) as a flat, unlit plane
+    beside the model, in a `reference` collection that is never exported. Sizes are in units.
+    Does nothing if the file is missing (reference images are git-ignored)."""
+    path = Path(path)
+    if not path.exists():
+        print(f"reference image not found, skipping: {path}")
+        return None
+    coll = bpy.data.collections.get("reference") or bpy.data.collections.new("reference")
+    if coll.name not in bpy.context.scene.collection.children:
+        bpy.context.scene.collection.children.link(coll)
+
+    old = bpy.data.objects.get(name)
+    if old:
+        bpy.data.objects.remove(old, do_unlink=True)
+
+    image = bpy.data.images.load(str(path), check_existing=True)
+    image.reload()
+    mat = bpy.data.materials.get(name) or bpy.data.materials.new(name)
+    mat.use_nodes = True
+    nodes = mat.node_tree.nodes
+    bsdf = next(n for n in nodes if n.type == "BSDF_PRINCIPLED")
+    tex = next((n for n in nodes if n.type == "TEX_IMAGE"), None) or nodes.new("ShaderNodeTexImage")
+    tex.image = image
+    tex.interpolation = "Closest"  # keep the pixels crisp
+    links = mat.node_tree.links
+    links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
+    links.new(tex.outputs["Color"], bsdf.inputs["Emission Color"])
+    links.new(tex.outputs["Alpha"], bsdf.inputs["Alpha"])
+    bsdf.inputs["Emission Strength"].default_value = 1.0
+    bsdf.inputs["Roughness"].default_value = 1.0
+
+    bm = bmesh.new()
+    w, h = width / 2, height / 2
+    verts = [bm.verts.new(co) for co in ((-w, -h, 0), (w, -h, 0), (w, h, 0), (-w, h, 0))]
+    face = bm.faces.new(verts)
+    uv = bm.loops.layers.uv.new()
+    for loop, coord in zip(face.loops, ((0, 0), (1, 0), (1, 1), (0, 1))):
+        loop[uv].uv = coord
+    mesh = bpy.data.meshes.new(name)
+    bm.to_mesh(mesh)
+    bm.free()
+    mesh.materials.append(mat)
+    obj = bpy.data.objects.new(name, mesh)
+    coll.objects.link(obj)
+    obj.location = location
+    obj.hide_render = True
+    return obj
+
+
 def reset_collection(name):
     """Delete the collection's objects (and their meshes) and return it empty, linked to the scene."""
     coll = bpy.data.collections.get(name)
@@ -121,14 +179,14 @@ def shift_x(bm, start, dx):
         v.co.x += dx
 
 
-def mesh_object(name, bm, materials, collection):
-    """Turn a bmesh into a flat-shaded object with the given material slots."""
+def mesh_object(name, bm, materials, collection, smooth=False):
+    """Turn a bmesh into an object with the given material slots, flat or smooth shaded."""
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     mesh = bpy.data.meshes.new(name)
     bm.to_mesh(mesh)
     bm.free()
     for poly in mesh.polygons:
-        poly.use_smooth = False
+        poly.use_smooth = smooth
     for mat in materials:
         mesh.materials.append(mat)
     obj = bpy.data.objects.new(name, mesh)
