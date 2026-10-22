@@ -1,0 +1,17 @@
+# Dependencies / build
+node_modules/
+dist/
+.vite/
+
+# Tyrian game data (freeware, not redistributed here)
+data/
+
+# Blender
+*.blend1
+*.blend@
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.log
