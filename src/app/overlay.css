@@ -171,3 +171,33 @@
   letter-spacing: 0.3em;
   color: #ff5a3a;
 }
+
+.hud .boss {
+  position: absolute;
+  top: max(36px, calc(env(safe-area-inset-top) + 26px));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 1.5rem;
+  padding: 6px 10px;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 6px;
+}
+
+.hud .boss[hidden],
+.hud .boss .bar[hidden] {
+  display: none;
+}
+
+.hud .boss .bar {
+  width: clamp(6rem, 18vw, 12rem);
+  height: 10px;
+}
+
+.hud .boss .bar > i {
+  background: #d04030;
+}
+
+.hud .boss .bar > i.hit {
+  background: #ffb060;
+}
