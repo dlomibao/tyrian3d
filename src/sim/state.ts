@@ -600,7 +600,8 @@ export const g = {
   explosionTransparent: true,
   youAreCheating: false,
   displayScore: false,
-  background2: false,
+  /** true: JE_initProcessorType sets it for every processor type above 386. */
+  background2: true,
   smoothScroll: true,
   wild: false,
   superWild: false,
@@ -667,6 +668,14 @@ export const g = {
   /** levelWarningText / levelWarningLines (mainint.h): text the episode script shows with `]W`. */
   levelWarningText: [] as string[],
   // --- end added by world port ---
+  // --- added by player port ---
+  /** helptext.h miscTextB[5] (0-based like the C array), loaded from tyrian.hdt by loadHelpText. */
+  miscTextB: new Array<string>(5).fill(""),
+  /** params.h richMode: start a full game with 1,000,000 credits. */
+  richMode: false,
+  /** demo.h recordDemo (demo recording isn't ported; always false). */
+  recordDemo: false,
+  // --- end added by player port ---
 };
 
 export type Globals = typeof g;

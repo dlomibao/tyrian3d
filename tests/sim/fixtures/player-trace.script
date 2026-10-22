@@ -1,0 +1,31 @@
+# Scripted input for the player cross-check (tests/sim/playerTrace.test.ts).
+# Each line: <ticks> <keys> [event]. Keys: U D L R F (fire) C (change fire) l r (sidekicks),
+# "-" for none. Events fire before the first tick of the line, with the "enemy" at the player:
+# P = front power-up (scoreitem, evalue -1), B = purple ball (30000), $ = coin (100),
+# E = an air enemy with 10 armor (collision damage), X = the same after setting shield 0, armor 1
+# (the player dies), T = a target enemy at (150, 30), W = level end (endLevel, levelEnd = 40).
+# "!loadout <front> <rear> <left sidekick> <right sidekick> <power>" sets the items (+ JE_drawOptions).
+1 -
+12 R
+8 -
+25 LUF
+10 DF
+40 RDF
+5 - P
+30 F
+3 - B
+1 - B
+1 - B
+20 LF
+2 - $
+60 -
+1 - E
+20 UF
+15 RFC
+40 LDF
+30 F
+12 RU
+6 LU
+25 DF
+1 - X
+80 F
