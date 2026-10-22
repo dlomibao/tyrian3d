@@ -639,6 +639,15 @@ export const g = {
   playDemo: false,
   constantPlay: false,
   constantDie: false,
+
+  // --- added by player port ---
+  /** helptext.h miscText[68] / miscTextB[5] (0-based like the C arrays), loaded from tyrian.hdt by loadHelpText. */
+  miscText: new Array<string>(68).fill(""),
+  miscTextB: new Array<string>(5).fill(""),
+  /** params.h richMode: start a full game with 1,000,000 credits. */
+  richMode: false,
+  /** demo.h recordDemo (demo recording isn't ported; always false). */
+  recordDemo: false,
 };
 
 export type Globals = typeof g;
