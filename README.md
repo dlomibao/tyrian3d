@@ -45,9 +45,11 @@ is destroyed, you go back to that item screen with the loadout you launched with
 - **Draw list:** instead of drawing pixels, the simulation records each sprite and tile it would
   draw, tagged with its draw pass.
 - **Renderer (`src/render/`):** turns the draw list into a 3D scene. Draw order maps to height.
-  Sprites are extruded from their pixels into rounded 3D shapes. Hand-made Blender models replace
-  key sprites; the player's USP Talon is the first. Motion is interpolated, so it's smooth at any
-  refresh rate, though the game logic ticks at the original ~35 Hz.
+  Every enemy, boss and player ship is a Blender model of its original sprite (about 1,280
+  models), loaded the first time it appears and coloured from the game's live palette. The
+  backgrounds, shots and effects are extruded from their pixels into rounded 3D shapes. Motion is
+  interpolated, so it's smooth at any refresh rate, though the game logic ticks at the original
+  ~35 Hz.
 - **Audio (`src/audio/`):** the original sound effects, plus the AdLib music played through a
   port of the OPL emulator and the LDS song player. It matches OpenTyrian's output sample for sample.
 - **Data (`src/data/`):** parsers for Tyrian's level, item, enemy, sprite, palette and episode
@@ -56,8 +58,11 @@ is destroyed, you go back to that item screen with the loadout you launched with
 ## Asset pipeline
 
 Each 3D model is built by a Python script in [`assets/blender/`](assets/blender/) and exported
-to `public/models/*.glb`. The scripts are committed, so every model can be rebuilt from scratch;
-`.blend` files are not committed. Anything imported from outside the project, such as Poly Haven
+to `public/models/*.glb`. The scripts are committed, so every model can be rebuilt from scratch
+(`tools/build-models.sh` runs them headless in parallel); `.blend` files are not committed. The
+models are 3D versions of Daniel Cook's Tyrian art, which he released for anyone to use.
+`npm run catalogue` lists every sprite to model, and `?debug=models` on the dev server shows each
+model beside its sprite. Anything imported from outside the project, such as Poly Haven
 textures or HDRIs, gets a row in [CREDITS.md](CREDITS.md).
 
 ## Game data
