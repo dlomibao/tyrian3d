@@ -80,10 +80,30 @@ def tube(bm, p0, p1, radius, sides=6, mat_index=0, caps=True):
     return ring_loft(bm, rings, mat_index, cap_start=caps, cap_end=caps)
 
 
-def polyline_tube(bm, points, radius, sides=6, mat_index=0):
-    """Tubes along a polyline (one straight tube per segment)."""
-    for p0, p1 in zip(points, points[1:]):
-        tube(bm, p0, p1, radius, sides, mat_index)
+def polyline_tube(bm, points, radius, sides=6, mat_index=0, caps=True):
+    """One continuous round tube along a polyline, with mitred joints (rings face the bisector).
+    `radius` can be a number or a list with one radius per point."""
+    from mathutils import Vector
+    pts = [Vector(p) for p in points]
+    radii = radius if isinstance(radius, (list, tuple)) else [radius] * len(pts)
+    tangents = []
+    for i in range(len(pts)):
+        d0 = (pts[i] - pts[i - 1]).normalized() if i > 0 else None
+        d1 = (pts[i + 1] - pts[i]).normalized() if i < len(pts) - 1 else None
+        t = (d0 + d1) if d0 is not None and d1 is not None else (d0 if d1 is None else d1)
+        tangents.append(t.normalized())
+    ref = Vector((0, 0, 1)) if abs(tangents[0].z) < 0.9 else Vector((1, 0, 0))
+    u = tangents[0].cross(ref).normalized()
+    rings = []
+    for i, (c, t) in enumerate(zip(pts, tangents)):
+        u = (u - t * u.dot(t)).normalized()  # carry the frame along (parallel transport)
+        v = t.cross(u).normalized()
+        ring = []
+        for k in range(sides):
+            a = 2 * math.pi * (k + 0.5) / sides
+            ring.append(tuple(c + radii[i] * (math.cos(a) * u + math.sin(a) * v)))
+        rings.append(ring)
+    return ring_loft(bm, rings, mat_index, cap_start=caps, cap_end=caps)
 
 
 def ellipse_ring(cx, cy, z, rx, ry, n=10, phase=0.5):
