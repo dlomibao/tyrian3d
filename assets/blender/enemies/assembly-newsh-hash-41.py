@@ -58,37 +58,6 @@ SHAPES = [
 SHADES = [(9, 12, 6), (4, 7, 2), (3, 6, 2), (3, 5, 2)]
 
 
-def build_arm(bm, ARM, RIDGE, DARK, bulk=0.0):
-    """One claw arm in pixels from the hub centre, pointing up (+y), prongs leaning right.
-    `bulk` (pixels) thickens the main prong on its outer side and lengthens it (frame 1 draws
-    the claws fatter while they turn)."""
-    z = 0.11
-    b = bulk
-    # Stem out of the hub, a little narrower where it leaves it.
-    lib.sweep(bm, [(0.3, 3.5, z, 1.2, 0.05), (0.3, 6.5, z, 1.4, 0.055), (0.4, 9.5, z, 1.9, 0.06),
-                   (0.4, 11.5, z, 2.0, 0.06)], sides=8, mat=ARM)
-    # Knuckle across the end of the stem (x -5 .. 4, y 11 .. 15).
-    lib.sweep(bm, [(-5.3, 13.0, z, 0.0, 0.0), (-4.6, 13.0, z, 1.9, 0.07), (0.0, 12.8, z, 2.1, 0.075),
-                   (3.4, 12.3, z, 1.6, 0.065), (4.4, 12.2, z, 0.0, 0.0)], sides=10, mat=ARM)
-    # Main prong: up from the left end of the knuckle, then off at 45 degrees to a blunt tip.
-    lib.sweep(bm, [(-2.8 - b, 12.5, z, 2.7 + b / 2, 0.07), (-2.4 - b, 15.0, z, 2.6 + b / 2, 0.07),
-                   (-1.0 - b * 0.7, 17.0 + b * 0.7, z, 2.0 + b / 2, 0.065),
-                   (1.2 - b * 0.7, 19.3 + b * 0.7, z, 1.8 + b / 2, 0.06),
-                   (3.6 - b * 0.7, 21.7 + b * 0.7, z, 1.75 + b / 2, 0.055),
-                   (4.4 - b * 0.5, 22.5 + b, z, 1.5 + b / 2, 0.05)],
-              sides=8, mat=ARM)
-    # Its light upper-left edge.
-    lib.sweep(bm, [(-3.9, 13.0, z + 0.05, 0.0, 0.0), (-3.8, 14.5, z + 0.05, 0.6, 0.025),
-                   (-2.3, 17.2, z + 0.045, 0.6, 0.025), (2.4, 22.2, z + 0.035, 0.55, 0.02),
-                   (3.0, 22.8, z + 0.03, 0.0, 0.0)], sides=6, mat=RIDGE)
-    # Thin finger off the right end of the knuckle.
-    lib.sweep(bm, [(2.4, 12.2, z, 1.4, 0.055), (4.5, 13.8, z, 1.15, 0.05), (6.6, 15.8, z, 1.05, 0.045),
-                   (8.2, 17.3, z, 0.95, 0.04), (8.7, 17.8, z, 0.0, 0.0)], sides=8, mat=ARM)
-    # A dark rib under the stem and knuckle so the arm reads as a thick casting from the side.
-    lib.sweep(bm, [(0.3, 4.0, 0.05, 1.0, 0.04), (0.3, 11.0, 0.05, 1.5, 0.045), (0.3, 12.5, 0.05, 0.0, 0.0)],
-              sides=6, mat=DARK)
-
-
 def build_hub(bm, HUB_BASE, HUB_DOME, HUB_RIM):
     """The brown hub: an octagonal footing, a rim and a low dome (radius about 5.5 px)."""
     lib.prism(bm, lib.ngon(5.6, 8, start=0.39), 0.0, 0.1, mat=HUB_BASE)
@@ -112,7 +81,7 @@ def build(sprite, angle, scale, shade, tag, bulk=0.0, whole=1.0):
     ARM, RIDGE, DARK, HUB_BASE, HUB_DOME, HUB_RIM, GLOW = range(7)
     bm = bmesh.new()
 
-    build_arm(bm, ARM, RIDGE, DARK, bulk)
+    lib.claw_arm(bm, ARM, RIDGE, DARK, bulk)
     lib.copy_rotated(bm, 0, 0, [-90, -180, -270])  # clockwise round the hub, like the sprite
     lib.transform(bm, 0, angle_deg=angle, scale=scale, scale_z=min(1.0, 0.5 + scale / 2))
     build_hub(bm, HUB_BASE, HUB_DOME, HUB_RIM)
