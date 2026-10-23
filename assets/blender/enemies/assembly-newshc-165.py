@@ -87,7 +87,7 @@ def build(sprite):
         pal(62, metallic=0.5, roughness=0.1),  # 4 orb highlight
         pal(51, metallic=0.3, roughness=0.6),  # 5 dark slot
         pal(76, metallic=0.5, roughness=0.3),  # 6 pink rod
-        pal(57, metallic=0.4, roughness=0.35),  # 7 blue hood
+        pal(57, metallic=0.2, roughness=0.4),  # 7 blue hood
         pal(60, metallic=0.4, roughness=0.3),  # 8 hood highlight
         pal(52, metallic=0.3, roughness=0.6),  # 9 dark blue skirt
         pal(39, metallic=0.3, roughness=0.5),  # 10 green corner strips

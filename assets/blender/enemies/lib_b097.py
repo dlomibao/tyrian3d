@@ -148,9 +148,9 @@ def sweep(bm, path, sides=8, mat=0, smooth=True, cap_start=True, cap_end=True, u
     _tag(bm, snap, mat, smooth)
 
 
-def ellipsoid(bm, x, y, z, rx, ry, rz, mat=0, segments=16, rings=8, dome=False):
+def ellipsoid(bm, x, y, z, rx, ry, rz, mat=0, segments=16, rings=8, dome=False, power=1.0):
     """An ellipsoid (units) centred at (x, y, z); dome=True keeps only the upper half, its flat
-    base at z (closed)."""
+    base at z (closed). power < 1 squares the outline off (a superellipse seen from above)."""
     snap = snapshot(bm)
     res = bmesh.ops.create_uvsphere(bm, u_segments=segments, v_segments=rings, radius=1.0)
     verts = res["verts"]
@@ -161,7 +161,14 @@ def ellipsoid(bm, x, y, z, rx, ry, rz, mat=0, segments=16, rings=8, dome=False):
         edges = [e for e in bm.edges if e.is_boundary and all(v in set(verts) for v in e.verts)]
         bmesh.ops.holes_fill(bm, edges=edges, sides=0)
     for v in verts:
-        v.co = Vector((x + v.co.x * rx, y + v.co.y * ry, z + v.co.z * rz))
+        vx, vy = v.co.x, v.co.y
+        if power != 1.0:
+            rho = math.hypot(vx, vy)
+            if rho > 1e-6:
+                cx, cy = vx / rho, vy / rho
+                vx = math.copysign(abs(cx) ** power, cx) * rho
+                vy = math.copysign(abs(cy) ** power, cy) * rho
+        v.co = Vector((x + vx * rx, y + vy * ry, z + v.co.z * rz))
     _tag(bm, snap, mat, True)
 
 
@@ -262,7 +269,7 @@ def turret_base(bm, M, corner_mat, centre_rod_top=16):
 
     pbox(bm, 0, 5, 23, 10, 0.0, 0.12, M["skirt"])
     for side in (-1, 1):
-        ellipsoid(bm, side * LX, LY, LZ, RX, RY, RZ, M["hood"], segments=16, rings=8, dome=True)
+        ellipsoid(bm, side * LX, LY, LZ, RX, RY, RZ, M["hood"], segments=16, rings=8, dome=True, power=0.7)
         # Strip over the lobe's outer corner (columns 1-5, rows 3-8).
         pts = [(6.0, 2.8, 0.0), (5.0, 3.4, 1.6), (3.4, 4.7, 2.3), (2.3, 6.3, 2.0), (1.6, 7.9, 1.4), (1.3, 8.9, 0.0)]
         sweep(bm, [(-side * X(c), Y(r), on_lobe(X(c), Y(r), -0.005), w * PX, 0.035 if w else 0.0)
