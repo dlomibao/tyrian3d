@@ -1,0 +1,17 @@
+{
+ "model": "enemies/tyrian10-39",
+ "sprites": [
+  {
+   "sheet": "tyrian.shp#10",
+   "size": 2,
+   "frames": [
+    39,
+    41,
+    43,
+    45,
+    47,
+    49
+   ]
+  }
+ ]
+}
