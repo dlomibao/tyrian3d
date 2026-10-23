@@ -347,7 +347,7 @@ def build(name="fortress-newsh9"):
                (8.0, 5.6, 0.28, 4.4, 0.15), (12.5, 3.6, 0.33, 5.4, 0.19), (17.5, 3.6, 0.33, 5.0, 0.18),
                (22.0, 4.8, 0.31, 3.6, 0.15), (26.5, 5.2, 0.29, 3.2, 0.13), (29.0, 5.3, 0.27, 2.8, 0.11),
                (30.0, 5.3, 0.26, 0.0, 0.0)], sides=12, mat=FENDER)
-    ellipsoid(bm, 15.0, 2.3, 0.36, 6.4, 6.6, 0.24, mat=FENDER, segments=18, rings=9, lower=1.2)
+    ellipsoid(bm, 15.0, 2.6, 0.33, 6.6, 6.6, 0.24, mat=FENDER, segments=18, rings=9, lower=1.0)
 
     # Machinery bay under the fender (rows 9-19): a dark block with ribs, two knobs and a lens.
     plate(bm, [(8, 9.5), (25, 9.5), (25, 14), (8, 14)], 0.06, 0.13, mat=MACH)
@@ -379,7 +379,7 @@ def build(name="fortress-newsh9"):
     loft_y(bm, 34.8, [(-1.0, 0.0, 0.0, 0.48), (0.0, 0.9, 0.04, 0.49), (7.0, 0.9, 0.04, 0.49),
                       (8.0, 0.0, 0.0, 0.48)], sides=6, mat=BRIGHT)
     # The grey ball (columns 26-45, rows 8-20).
-    ellipsoid(bm, 35.5, 13.8, 0.3, 8.0, 7.0, 0.3, mat=BALL, segments=18, rings=9, lower=0.8)
+    ellipsoid(bm, 35.5, 13.6, 0.3, 8.0, 7.0, 0.32, mat=BALL, segments=18, rings=9, lower=0.8)
 
     # Spine down the shell (columns 31-40, rows 21-49) with a knob at each end.
     loft_y(bm, 35.5, [(21.0, 0.0, 0.0, 0.2), (21.6, 3.5, 0.08, 0.2), (24.0, 4.6, 0.1, 0.21),
