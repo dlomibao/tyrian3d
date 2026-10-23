@@ -6,6 +6,7 @@ import { remapScreenIndex } from "../../src/render/paletteTexture";
 const sheet: Sprite2Sheet = { id: "s", data: new Uint8Array(0) };
 const spr = (key: number, x: number, y: number): Draw => ({
   kind: "sprite2", sheet, index: 1, x, y, size: 2, pass: Pass.SkyEnemies, key, effect: "none", filter: 0, value: 0,
+  groupIndex: -1, groupSize: 1, groupDx: 0, groupDy: 0, groupFirst: false,
 });
 const prev = (ip: DrawInterpolator, i: number) => [ip.prevX[i], ip.prevY[i]];
 

@@ -132,6 +132,30 @@ describe.skipIf(!hasData(...NEEDED))("world simulation on TYRIAN", () => {
     expect(new Set(tiles.map((t) => t.key)).size).toBe(tiles.length);
   });
 
+  test("each enemy's tiles name the whole enemy once: one first tile, all pointing at one centre", () => {
+    let grouped = 0;
+    for (let tick = 0; tick < 3000; tick++) {
+      worldTick();
+      const enemies = new Map<number, { first: number; centres: Set<string>; size: number }>();
+      for (const d of drawList.items) {
+        if (d.kind !== "sprite2" || d.groupIndex < 0) continue;
+        const id = (d.key - ENEMY_KEY_BASE) >> 2;
+        let e = enemies.get(id);
+        if (!e) enemies.set(id, (e = { first: 0, centres: new Set(), size: d.groupSize }));
+        if (d.groupFirst) e.first++;
+        e.centres.add(`${d.x + d.groupDx},${d.y + d.groupDy}`);
+        // The tile is one of the object's: index, +1, +19, +20 (2x2) or the index itself.
+        expect(d.groupSize === 2 ? [0, 1, 19, 20] : [0]).toContain(d.index - d.groupIndex);
+        grouped++;
+      }
+      for (const e of enemies.values()) {
+        expect(e.first).toBe(1);
+        expect(e.centres.size).toBe(1);
+      }
+    }
+    expect(grouped).toBeGreaterThan(1000);
+  });
+
   test("3000 ticks: events run, enemies spawn, move, fire and stay in bounds", () => {
     const seen = new Set<number>();
     let maxActive = 0;

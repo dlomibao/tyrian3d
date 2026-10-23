@@ -1,20 +1,24 @@
 import { runGame } from "./app/run";
 import { loadSettings } from "./core/settings";
-import { loadModel, loadModelOverrides } from "./render/models";
+import { loadModel } from "./render/models";
+import { spriteModels } from "./render/spriteModels";
 import { View } from "./render/view";
 
 const settings = loadSettings();
 const view = new View(document.body, settings);
 const debug = new URLSearchParams(location.search).get("debug");
 
+view.draws.setSpriteModels(spriteModels(), loadModel);
 loadModel("usp_talon")
-  .then(async (model) => {
-    view.setShipModel(model);
-    await loadModelOverrides(view.draws, { usp_talon: model });
-  })
+  .then((model) => view.setShipModel(model))
   .catch((err) => console.error("player ship model failed to load; keeping placeholder", err));
 
-if (debug === "sprites") {
+if (debug === "models") {
+  // Blender models beside their sprites, in the game's renderer.
+  import("./debug/modelGallery")
+    .then(({ runModelGallery }) => runModelGallery(view))
+    .catch((err) => console.error("model gallery failed", err));
+} else if (debug === "sprites") {
   // Renderer test bench on real game data, without the sim. Loaded on demand so it stays out of
   // the main bundle.
   import("./debug/spriteHarness")
