@@ -412,7 +412,24 @@ def write_png(path, rows):
     bpy.data.images.remove(img)
 
 
-def run_assembly(asm_name, pieces, build, file, cols, rows_, frames=None):
+def layout_of(pieces, cols, rows_):
+    """(piece, cx, cy) per piece: its centre in pixels relative to the assembly's centre."""
+    w, h = 24 * cols, 28 * rows_
+    return [(n, ci * 24 + 12 - w / 2, ri * 28 + 14 - h / 2)
+            for ri, row_ in enumerate(pieces) for ci, n in enumerate(row_) if n]
+
+
+def sprites_with(root, name, frames):
+    """name's sprites list keeping only the given frame indices."""
+    out = []
+    for s in common.load_sprite(root, name)["sprites"]:
+        keep = [f for f in s["frames"] if f in frames]
+        if keep:
+            out.append({**s, "frames": keep})
+    return out
+
+
+def run_assembly(asm_name, pieces, build, file, cols, rows_, frames=None, frames_of=None):
     """Several 2x2 pieces laid out cols x rows_ (pieces: list of rows of piece names or None,
     top row first) built as one model and cut apart. build(sprite, grid) builds the whole in the
     grid's coordinates (Grid(24*cols, 28*rows_) centred on the origin) and returns
@@ -438,14 +455,13 @@ def run_assembly(asm_name, pieces, build, file, cols, rows_, frames=None):
     sprite = {"name": asm_name, "colors": colors, "pixels": comp}
     grid = Grid(w, h, comp)
     obj, extra = build(sprite, grid)
-    layout = []
-    for ri, row_ in enumerate(pieces):
-        for ci, n in enumerate(row_):
-            if n:
-                layout.append((n, (ci * 24 + 12 - w / 2), (ri * 28 + 14 - h / 2)))
+    layout = layout_of(pieces, cols, rows_)
     cut = common.split_assembly(obj, layout)
     for n in names:
-        common.export_sprite_model(root, [cut[n]], f"enemies/{n}", common.load_sprite(root, n)["sprites"])
+        sprites = common.load_sprite(root, n)["sprites"]
+        if frames_of and n in frames_of:
+            sprites = sprites_with(root, n, frames_of[n])
+        common.export_sprite_model(root, [cut[n]], f"enemies/{n}", sprites)
     for model, objects, sprites in extra:
         common.export_sprite_model(root, objects, f"enemies/{model}", sprites)
     if "--preview" in sys.argv:
