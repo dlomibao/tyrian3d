@@ -363,3 +363,40 @@ def render_preview(objects, out_png, sprite_png=None, size=2, view_px=320):
         o.hide_render = False
     print(f"preview {out_png}")
     return out_png
+
+
+def split_assembly(obj, layout, collection=None):
+    """Cut a model of a whole multi-piece object (a boss or big structure: several 2x2 enemies side
+    by side, sprite.json `assemblyLayout`) into one object per piece.
+
+    Build `obj` in assembly coordinates: Blender X = cx / 12 and Y = -cy / 12 for a point at screen
+    pixel (cx, cy) as given in the layout (pick any origin; only differences matter, so subtract a
+    common offset if you like, and pass the same offset here as layout entries). `layout` is a list
+    of (model_name, cx, cy): each piece's centre in screen pixels. Each piece keeps the part of
+    `obj` inside its 24x28 px box, with the cut faces filled, moved so its centre is the origin.
+    Returns {model_name: object}. `obj` is left as it was."""
+    result = {}
+    coll = collection or obj.users_collection[0]
+    for name, cx, cy in layout:
+        x0, y0 = cx / 12, -cy / 12
+        bm = bmesh.new()
+        bm.from_mesh(obj.data)
+        bmesh.ops.transform(bm, matrix=obj.matrix_world, verts=bm.verts)
+        hw, hh = 12 / 12, 14 / 12
+        for co, no in (((x0 - hw, 0, 0), (-1, 0, 0)), ((x0 + hw, 0, 0), (1, 0, 0)),
+                       ((0, y0 - hh, 0), (0, -1, 0)), ((0, y0 + hh, 0), (0, 1, 0))):
+            geom = bm.verts[:] + bm.edges[:] + bm.faces[:]
+            cut = bmesh.ops.bisect_plane(bm, geom=geom, plane_co=co, plane_no=no, clear_outer=True)
+            edges = [e for e in cut["geom_cut"] if isinstance(e, bmesh.types.BMEdge)]
+            if edges:
+                bmesh.ops.holes_fill(bm, edges=edges, sides=0)
+        bmesh.ops.translate(bm, vec=(-x0, -y0, 0), verts=bm.verts)
+        mesh = bpy.data.meshes.new(name)
+        bm.to_mesh(mesh)
+        bm.free()
+        for mat in obj.data.materials:
+            mesh.materials.append(mat)
+        piece = bpy.data.objects.new(name, mesh)
+        coll.objects.link(piece)
+        result[name] = piece
+    return result

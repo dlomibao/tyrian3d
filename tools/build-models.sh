@@ -24,7 +24,7 @@ shift $((OPTIND - 1))
 
 blender=${BLENDER:-$(command -v blender || echo /Applications/Blender.app/Contents/MacOS/Blender)}
 if [ $# -eq 0 ]; then
-  set -- $(find assets/blender -name '*.py' ! -name common.py | sort)
+  set -- $(find assets/blender -name '*.py' ! -name common.py ! -name 'lib_*' | sort)
 fi
 
 build() {
