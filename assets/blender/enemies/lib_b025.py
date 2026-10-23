@@ -264,12 +264,18 @@ def to_object(name, bm, mats, coll):
 
 
 def paint(bm, first_face, g, pixels, slot_of, min_nz=0.3, reach=1, average=True):
-    """Give each face added since `first_face` (whose normal points up at least min_nz) the slot of
-    the sprite pixels under it: slot_of(palette_index) -> slot or None to leave it. With `average`,
-    the mean index of the pixels under the face (shades of one ramp) is used."""
+    """paint_faces for every face added since face index `first_face`."""
+    paint_faces(bm, list(_faces_from(bm, first_face)), g, pixels, slot_of, min_nz, reach, average)
+
+
+def paint_faces(bm, faces, g, pixels, slot_of, min_nz=0.3, reach=1, average=True):
+    """Give each face (whose normal points up at least min_nz) the slot of the sprite pixels under
+    it: slot_of(palette_index) -> slot or None to leave it. With `average`, the mean index of the
+    pixels under the face (shades of one ramp) is used. Outline and transparent pixels are skipped
+    for the nearest other pixel within `reach`."""
     bm.normal_update()
     h, w = len(pixels), len(pixels[0])
-    for f in _faces_from(bm, first_face):
+    for f in faces:
         if f.normal.z < min_nz:
             continue
         cen = f.calc_center_median()
@@ -313,3 +319,73 @@ def subset(sprites, frames):
         if keep:
             out.append({**s, "frames": keep})
     return out
+
+
+def clip(bm, planes):
+    """Cut away everything beyond each plane and fill the cut: planes are (point, outward normal)
+    pairs in units, e.g. ((x0, 0, 0), (-1, 0, 0)) removes everything left of x0. For parts that
+    run off the edge of the tile (they continue in a neighbouring sprite)."""
+    for co, no in planes:
+        geom = bm.verts[:] + bm.edges[:] + bm.faces[:]
+        cut = bmesh.ops.bisect_plane(bm, geom=geom, plane_co=co, plane_no=no, clear_outer=True)
+        edges = [e for e in cut["geom_cut"] if isinstance(e, bmesh.types.BMEdge)]
+        if edges:
+            bmesh.ops.holes_fill(bm, edges=edges, sides=0)
+
+
+def facet_top(bm, z_top, cuts=3, amp=0.02, seed=1, eps=1e-4):
+    """Break the flat top face(s) at height z_top into small triangles and nudge their inner
+    vertices up and down by up to `amp` units: a rough, faceted rock or hull surface (colour it
+    with paint). Returns the new top faces."""
+    import random
+    rnd = random.Random(seed)
+    top = [f for f in bm.faces if f.normal.z > 0.99 and all(abs(v.co.z - z_top) < eps for v in f.verts)]
+    if not top:
+        return []
+    tri = bmesh.ops.triangulate(bm, faces=top, quad_method="BEAUTY", ngon_method="BEAUTY")
+    faces = tri["faces"]
+    edges = list({e for f in faces for e in f.edges})
+    bmesh.ops.subdivide_edges(bm, edges=edges, cuts=cuts, use_grid_fill=True)
+    top = [f for f in bm.faces if all(abs(v.co.z - z_top) < eps for v in f.verts)]
+    verts = {v for f in top for v in f.verts}
+    for v in verts:
+        if all(abs(w.co.z - z_top) < eps for e in v.link_edges for w in e.verts):
+            v.co.z += rnd.uniform(-amp, amp)
+    return top
+
+
+def span_mass(bm, g, rows, span, height, z0, ncols=8, mat=0):
+    """A solid whose top is a quad grid over a region given row by row: `rows` are pixel-edge row
+    positions (top to bottom), span(r) -> (left_edge_col, right_edge_col) the region's extent on
+    that row, height(c, r) -> z of the top at that point. The bottom is flat at z0; the sides drop
+    straight down from the top's edge. Returns the top faces."""
+    first = len(bm.faces)
+    grid = []
+    for r in rows:
+        a, b = span(r)
+        grid.append([bm.verts.new((g.ex(a + (b - a) * k / ncols), g.ey(r), height(a + (b - a) * k / ncols, r)))
+                     for k in range(ncols + 1)])
+    bottom = []
+    for r, row_verts in zip(rows, grid):
+        bottom.append([bm.verts.new((v.co.x, v.co.y, z0)) for v in row_verts])
+    top = []
+    for i in range(len(rows) - 1):
+        for k in range(ncols):
+            # top: rows go down the screen (-Y), columns +X; counter-clockwise seen from above
+            top.append(bm.faces.new((grid[i + 1][k], grid[i + 1][k + 1], grid[i][k + 1], grid[i][k])))
+            bm.faces.new((bottom[i][k], bottom[i][k + 1], bottom[i + 1][k + 1], bottom[i + 1][k]))
+    # side walls: left column, right column, first row, last row
+    ring_top = [row[0] for row in grid] + grid[-1][1:] + [row[-1] for row in reversed(grid[:-1])] + \
+        list(reversed(grid[0][1:-1]))
+    ring_bot = [row[0] for row in bottom] + bottom[-1][1:] + [row[-1] for row in reversed(bottom[:-1])] + \
+        list(reversed(bottom[0][1:-1]))
+    n = len(ring_top)
+    for i in range(n):
+        j = (i + 1) % n
+        try:
+            bm.faces.new((ring_top[i], ring_top[j], ring_bot[j], ring_bot[i]))
+        except ValueError:
+            pass
+    for f in _faces_from(bm, first):
+        f.material_index = mat
+    return top
