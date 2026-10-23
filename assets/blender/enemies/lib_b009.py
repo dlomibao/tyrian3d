@@ -252,3 +252,77 @@ def ellipse_ring(cx, cy, z, rx, ry, n=10, phase=0.5):
     """n points of an ellipse around (cx, cy) at height z (counter-clockwise from +X)."""
     return [(cx + rx * math.cos(2 * math.pi * (i + phase) / n), cy + ry * math.sin(2 * math.pi * (i + phase) / n), z)
             for i in range(n)]
+
+
+class Profile:
+    """A lofted body along Y: sections (y, half_width, half_height, z_centre) in units, sorted by y
+    either way. top(x, y) is the height of its top surface (elliptical cross-sections)."""
+
+    def __init__(self, sections):
+        self.sections = sorted(sections, key=lambda s: s[0])
+
+    def at(self, y):
+        s = self.sections
+        if y <= s[0][0]:
+            return s[0][1:]
+        for a, b in zip(s, s[1:]):
+            if a[0] <= y <= b[0]:
+                t = (y - a[0]) / (b[0] - a[0]) if b[0] > a[0] else 0.0
+                return tuple(a[i] + (b[i] - a[i]) * t for i in (1, 2, 3))
+        return s[-1][1:]
+
+    def top(self, x, y):
+        w, h, z = self.at(y)
+        if w <= 0:
+            return z
+        u = min(1.0, abs(x) / w)
+        return z + h * math.sqrt(max(0.0, 1 - u * u))
+
+    def build(self, bm, sides=16, mat_index=0, smooth=True, dx=0.0):
+        start = len(bm.verts)
+        f0 = len(bm.faces)
+        common.loft(bm, self.sections, sides=sides, mat_index=mat_index)
+        if dx:
+            common.shift_x(bm, start, dx)
+        bm.faces.ensure_lookup_table()
+        for f in bm.faces[f0:]:
+            f.smooth = smooth
+
+
+def drape_patch(bm, top, x0, x1, y0, y1, nx=4, ny=4, lift=0.01, depth=0.04, mat_index=0, side_mat=None,
+                smooth=False):
+    """A thin plate following a surface: a grid over [x0, x1] x [y0, y1] at top(x, y) + lift, with
+    walls down `depth`. For grooves, panels and stripes laid on a curved hull."""
+    grid = []
+    for j in range(ny + 1):
+        y = y0 + (y1 - y0) * j / ny
+        rowv = []
+        for i in range(nx + 1):
+            x = x0 + (x1 - x0) * i / nx
+            rowv.append(bm.verts.new((x, y, top(x, y) + lift)))
+        grid.append(rowv)
+    for j in range(ny):
+        for i in range(nx):
+            f = bm.faces.new((grid[j][i], grid[j][i + 1], grid[j + 1][i + 1], grid[j + 1][i]))
+            f.material_index = mat_index
+            f.smooth = smooth
+    rim = [grid[0][i] for i in range(nx + 1)] + [grid[j][nx] for j in range(1, ny + 1)]
+    rim += [grid[ny][i] for i in range(nx - 1, -1, -1)] + [grid[j][0] for j in range(ny - 1, 0, -1)]
+    low = [bm.verts.new((v.co.x, v.co.y, v.co.z - depth)) for v in rim]
+    n = len(rim)
+    sm = mat_index if side_mat is None else side_mat
+    for k in range(n):
+        f = bm.faces.new((rim[k], low[k], low[(k + 1) % n], rim[(k + 1) % n]))
+        f.material_index = sm
+    f = bm.faces.new(list(reversed(low)))
+    f.material_index = sm
+
+
+def ellipse_polygon(cx, cy, rx, ry, n=16, tilt=0.0):
+    ct, st = math.cos(tilt), math.sin(tilt)
+    pts = []
+    for k in range(n):
+        a = 2 * math.pi * k / n
+        ex_, ey_ = rx * math.cos(a), ry * math.sin(a)
+        pts.append((cx + ex_ * ct - ey_ * st, cy + ex_ * st + ey_ * ct))
+    return pts
