@@ -118,3 +118,24 @@ def composite_png(root, layout, out, size):
     im.save()
     bpy.data.images.remove(im)
     return out
+
+
+def ball(name, sprite, index, col, row, rx_px, ry_px, rz, metallic=0.6, roughness=0.25):
+    """A polished ball sitting on the ground (base at z = 0): sprite pixel-grid centre (col, row)
+    as continuous coordinates of a 24x28 sprite, radii across and down the sprite in pixels, and
+    half its height in units. One palette colour, smooth shaded."""
+    coll = common.reset_collection(name)
+    mats = [common.palette_material(sprite, index, name, metallic=metallic, roughness=roughness)]
+    bm = bmesh.new()
+    ellipsoid(bm, ((col - 12) * PX, (14 - row) * PX, rz), rx_px * PX, ry_px * PX, rz,
+              mat=0, segments=28, rings=14)
+    return to_object(name, bm, mats, coll)
+
+
+def export_single(root, name, obj, sprite):
+    """Export a one-object model enemies/<name> and, with -- --preview <png>, its preview."""
+    common.export_sprite_model(root, [obj], f"enemies/{name}", sprite["sprites"])
+    if "--preview" in sys.argv:
+        out = sys.argv[sys.argv.index("--preview") + 1]
+        ref = Path(root) / "reference" / "models" / name / sprite["frames"][0]["image"]
+        common.render_preview([obj], out, ref, size=sprite["frames"][0]["size"])
