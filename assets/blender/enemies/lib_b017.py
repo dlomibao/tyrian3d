@@ -397,7 +397,7 @@ def _triangulate(loops, interior):
 
 def rock_shell(bm, sheet, mask, slot_of, *, top=0.3, bottom=0.22, edge=0.05, radius=10.0, relief=0.12,
                step=2.2, bottom_step=5.0, lum=None, open_sides="", dt_mask=None, tol=0.6, seed=1,
-               bottom_slot=0, wall_slot=None, top_lift=None, blur_px=1):
+               bottom_slot=0, wall_slot=None, top_lift=None, blur_px=1, open_edge=None):
     """A solid rock filling `mask` ([r][c] booleans over the sheet): a faceted top surface that rises
     from `edge` at the outline to `top` (units) `radius` px inside, plus `relief` times the sprite's
     (blurred) brightness about its mean so light plates stand proud and dark cracks sink; a flatter
@@ -419,7 +419,14 @@ def rock_shell(bm, sheet, mask, slot_of, *, top=0.3, bottom=0.22, edge=0.05, rad
         t = min(1.0, bilinear(dt, mask, c, r) / radius)
         return math.sqrt(max(0.0, 1 - (1 - t) ** 2))
 
+    def on_open(c, r):
+        e = 1e-3
+        return (("l" in open_sides and c < e) or ("r" in open_sides and c > w - e)
+                or ("t" in open_sides and r < e) or ("b" in open_sides and r > h - e)
+                or bool(open_edge and open_edge(c, r)))
+
     def ztop(c, r, boundary):
+        boundary = boundary and not on_open(c, r)
         if boundary:
             return edge
         p = prof(c, r)
@@ -429,6 +436,7 @@ def rock_shell(bm, sheet, mask, slot_of, *, top=0.3, bottom=0.22, edge=0.05, rad
         return max(edge * 0.5, z)
 
     def zbot(c, r, boundary):
+        boundary = boundary and not on_open(c, r)
         if boundary:
             return -edge
         return -(edge + (bottom - edge) * prof(c, r))
@@ -599,3 +607,24 @@ def previews(root, out, obj, pieces, sheet):
         data = sheet.sprites[name]
         img = Path(root) / "reference" / "models" / name / data["frames"][0]["image"]
         common.render_preview([piece], str(out.parent / f"{name}.png"), img, size=2)
+
+
+# --- the rock wall of level 4.2 --------------------------------------------------------------------
+
+WALL = dict(top=0.3, bottom=0.2, edge=0.05, radius=11.0, relief=0.2, step=1.6, bottom_step=5.0, blur_px=2,
+            open_sides="lr")
+
+
+def wall_rock(bm, sheet, mats, mask, rock_index=lambda v: v):
+    """The sandy rock wall that newsh3 166-208 and the clamp pieces (newsh^ 77-119) are stretches
+    of: same thickness and rounding everywhere so the stretches join up (its left and right edges
+    are cut, the wall carries on). rock_index(v) maps a pixel's index to the rock colour to paint
+    (for pixels covered by something else)."""
+    dark = mats(19, roughness=0.9)
+    rock = {i: mats(i, metallic=0.05 if i < 27 else 0.15, roughness=0.85 if i < 27 else 0.6) for i in range(16, 32)}
+
+    def slot(v, p):
+        return rock.get(rock_index(v) if v is not None else 22, dark)
+
+    return rock_shell(bm, sheet, mask, slot, lum=lambda v: (v - 16) / 15 if 16 <= v <= 31 else 0.4,
+                      bottom_slot=dark, **WALL)

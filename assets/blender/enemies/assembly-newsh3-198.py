@@ -56,7 +56,8 @@ def build(sheet):
     bm = bmesh.new()
     lib.rock_shell(bm, sheet, mask, lambda v, _p: rock.get(v, dark), top=0.34, bottom=0.2, edge=0.05,
                    radius=12.0, relief=0.22, step=1.6, bottom_step=5.0, blur_px=2, lum=lambda v: (v - 16) / 15,
-                   open_sides="rb", dt_mask=dt_mask, bottom_slot=dark, top_lift=lift)
+                   open_sides="rb", dt_mask=dt_mask, open_edge=lambda c, r: abs(c - 96) < 1e-3 and r <= 28,
+                   bottom_slot=dark, top_lift=lift)
     return lib.to_object(NAME, bm, mats.list, coll)
 
 
