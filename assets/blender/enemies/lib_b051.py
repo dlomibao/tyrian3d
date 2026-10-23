@@ -229,6 +229,7 @@ def paint(bm, g, slot_of, start=0, min_nz=-0.25, under=None, average=True, keep=
     slot_of(index) -> slot, or None to leave the face as it is. `average` takes the mean index over
     the face (good for one colour ramp). Faces facing down (normal z < min_nz) get `under` if given.
     `keep` is a set of slots that are never repainted."""
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
     bm.normal_update()
     for f in faces_from(bm, start):
         if keep and f.material_index in keep:
@@ -254,6 +255,7 @@ def paint_soft(bm, g, slot_of, nslots, start=0, window=1.5, pct=0.7, under=0, cr
     """Like paint, but smoothed for noisy sprites (fire): each face takes the `pct` percentile of the
     indices within `window` px of its centre, one slot brighter where it faces straight up (normal
     z > crest), one darker on steep flanks (z < flank) and `under` facing down."""
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
     bm.normal_update()
     offs = [(dx, dy) for dx in (-1, -0.5, 0, 0.5, 1) for dy in (-1, -0.5, 0, 0.5, 1)]
     for f in faces_from(bm, start):
