@@ -341,3 +341,27 @@ def section_ring(xc, y, hw, z_mid, top, bottom, sides=16, keel=1.6, fullness=0.7
             z = z_mid - bottom * max(0.0, 1 - t * t) ** belly
         pts.append((xc + hw * t, y, z))
     return pts
+
+
+def resample(points, n):
+    """A closed polygon resampled to n points evenly spaced along its perimeter."""
+    pts = [Vector((p[0], p[1])) for p in points]
+    segs = [(pts[i], pts[(i + 1) % len(pts)]) for i in range(len(pts))]
+    lens = [(b - a).length for a, b in segs]
+    total = sum(lens)
+    out, i, acc = [], 0, 0.0
+    for k in range(n):
+        d = total * k / n
+        while acc + lens[i] < d and i < len(segs) - 1:
+            acc += lens[i]
+            i += 1
+        a, b = segs[i]
+        t = (d - acc) / lens[i] if lens[i] else 0.0
+        p = a.lerp(b, t)
+        out.append((p.x, p.y))
+    return out
+
+
+def smooth_outline(pixels, keep, rows=None, inset=-0.3, n=56, rounds=2, w=24, h=28):
+    """row_outline, rounded by corner cutting and resampled to n points."""
+    return resample(chaikin(row_outline(pixels, keep, rows=rows, w=w, h=h, inset=inset), rounds), n)
