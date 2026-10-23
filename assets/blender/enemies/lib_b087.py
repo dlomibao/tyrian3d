@@ -250,3 +250,70 @@ def run(name, build, file):
             path = out if k == 0 else out.with_name(f"{out.stem}-f{k + 1}.png")
             common.render_preview(objects, str(path), root / "reference" / "models" / name / image, size=size)
     return sprite
+
+
+# --- newsha-93 / newsha-17: a dome in a ring on a rubble tile ----------------------------------
+
+def build_pad(sprite, name, cfg, lit):
+    """The ground pad of newsha-93 (red) and newsha-17 (green): a 24x28 tile of grey rubble with
+    sand patches top-left and bottom-left, a ring lying on it and a dome in the ring (lit=False).
+    In the second frame (lit=True) the ring flares wider and brighter and the dome opens into a
+    ring round a smaller inner dome with a glint on top. `cfg` gives the palette indices:
+    plate, sand, rock, dark_rock, ring, ring_emit, socket, dome, lit_ring, lit_socket, inner,
+    glint and optionally ring_glint (white sparkles on the lit ring)."""
+    coll = common.reset_collection(f"{name}_{int(lit)}")
+    pal = lambda i, **kw: common.palette_material(sprite, i, name, **kw)  # noqa: E731
+    mats = [
+        pal(cfg["plate"], metallic=0.1, roughness=0.9),  # 0 rubble ground
+        pal(cfg["sand"], metallic=0.0, roughness=0.95),  # 1 sand
+        pal(cfg["rock"], metallic=0.1, roughness=0.85),  # 2 light rocks
+        pal(cfg["dark_rock"], metallic=0.1, roughness=0.9),  # 3 dark rocks
+        pal(cfg["lit_socket"] if lit else cfg["socket"], metallic=0.2, roughness=0.7),  # 4 socket
+        pal(cfg["lit_ring"] if lit else cfg["ring"], metallic=0.4, roughness=0.35,
+            emission_strength=3.0 if lit else cfg["ring_emit"]),  # 5 ring
+        pal(cfg["dome"], metallic=0.35, roughness=0.25),  # 6 dome (or its ring when lit)
+        pal(cfg["inner"], metallic=0.35, roughness=0.3),  # 7 inner dome (lit)
+        pal(cfg["glint"], emission_strength=4.0),  # 8 glint
+    ]
+    PLATE, SAND, ROCK, DARK, SOCKET, RING, DOME, INNER, GLINT = range(9)
+    if lit and cfg.get("ring_glint") is not None:
+        mats.append(pal(cfg["ring_glint"], emission_strength=5.0))  # 9 ring sparkles
+    bm = bmesh.new()
+
+    # The tile: rubble ground filling the block, sand drifts and a few rocks on it.
+    box(bm, ex(0), ey(28), ex(24), ey(0), 0.0, 0.06, mat=PLATE)
+    plate(bm, [(ex(0), ey(0)), (ex(10.5), ey(0)), (ex(10.5), ey(1.5)), (ex(8.5), ey(3.2)), (ex(5), ey(4.2)),
+               (ex(3), ey(4.6)), (ex(0), ey(3.8))], 0.0, 0.09, mat=SAND, smooth=False)
+    plate(bm, [(ex(2), ey(28)), (ex(2.6), ey(26)), (ex(4), ey(25.6)), (ex(10.5), ey(25.8)), (ex(11), ey(27)),
+               (ex(11.2), ey(28))], 0.0, 0.085, mat=SAND, smooth=False)
+    for c, r, rx, ry, rz, m in ((15.5, 1.6, 1.6, 1.4, 0.08, ROCK), (21.8, 1.4, 2.0, 1.4, 0.09, ROCK),
+                                (19.5, 3.4, 1.4, 1.0, 0.07, DARK), (22.8, 5.5, 1.2, 1.4, 0.07, ROCK),
+                                (22.6, 22.5, 1.4, 1.6, 0.08, ROCK), (21.5, 25.6, 2.0, 1.4, 0.07, DARK),
+                                (15.5, 26.6, 1.8, 1.2, 0.07, DARK), (13.5, 24.8, 1.6, 1.0, 0.06, ROCK),
+                                (1.0, 25.0, 1.2, 1.4, 0.07, ROCK), (1.2, 21.6, 1.0, 1.2, 0.06, DARK)):
+        ellipsoid(bm, (px(c), row(r), 0.05), rx / 12, ry / 12, rz, mat=m, segments=8, rings=4, smooth=False)
+
+    if not lit:
+        cx, cy = ex(12), ey(13.6)
+        # Dark socket inside the ring, the ring, and the dome sitting in it.
+        dome(bm, cx, cy, 0.06, 10.6 / 12, 9.0 / 12, 0.02, segments=24, rings=1, mat=SOCKET, smooth=False)
+        ellipse_torus(bm, cx, cy, 0.1, 11.0 / 12, 9.5 / 12, 1.1 / 12, 0.08, segments=32, sides=8, mat=RING)
+        dome(bm, ex(12.4), ey(13.6), 0.06, 9.3 / 12, 8.3 / 12, 0.42, segments=24, rings=6, mat=DOME, skirt=0.06)
+    else:
+        cx, cy = ex(12), ey(13.9)
+
+        dome(bm, cx, cy, 0.06, 10.8 / 12, 10.4 / 12, 0.02, segments=24, rings=1, mat=SOCKET, smooth=False)
+        ellipse_torus(bm, cx, cy, 0.12, 10.6 / 12, 10.6 / 12, 1.6 / 12, 0.11, segments=32, sides=8, mat=RING)
+        if len(mats) > 9:  # thin white sparkles along the ring's inner top, upper left and lower right
+            for a0, a1 in ((112, 160), (290, 338)):
+                pts = [(cx + 9.9 / 12 * math.cos(math.radians(a)), cy + 9.9 / 12 * math.sin(math.radians(a)), 0.2)
+                       for a in range(a0, a1 + 1, 8)]
+                polyline_tube(bm, pts, 0.45 / 12, sides=6, mat=9)
+        # The opened dome: a thick ring (its red rim) round a smaller inner dome with a glint.
+        ellipse_torus(bm, ex(12.0), ey(13.6), 0.13, 8.2 / 12, 7.4 / 12, 1.1 / 12, 0.12, segments=28, sides=8,
+                      mat=DOME)
+        dome(bm, ex(11.6), ey(13.8), 0.06, 6.9 / 12, 6.8 / 12, 0.36, segments=20, rings=6, mat=INNER, skirt=0.06)
+        gx, gy = px(9.5), row(10)
+        dz = 0.06 + 0.36 * math.sqrt(max(0.0, 1 - ((gx - ex(11.6)) ** 2 + (gy - ey(13.8)) ** 2) / (6.9 / 12) ** 2))
+        ellipsoid(bm, (gx, gy, dz), 1.3 / 12, 1.3 / 12, 0.03, mat=GLINT, segments=8, rings=4)
+    return to_object(f"{name}{'-f2' if lit else ''}", bm, mats, coll)
