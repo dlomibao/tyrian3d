@@ -261,3 +261,40 @@ def subset(sprite, frames):
         if keep:
             out.append({**s, "frames": keep})
     return out
+
+
+def sample(pixels, x, y, w=24, h=28):
+    """The palette index of the sprite pixel under Blender point (x, y), -1 outside."""
+    c = math.floor(x * 12 + w / 2)
+    r = math.floor(h / 2 - y * 12)
+    if 0 <= r < h and 0 <= c < w:
+        return pixels[r][c]
+    return -1
+
+
+def paint(bm, pixels, slot_of, first_face=0, under_slot=None, min_nz=0.15, spread=0.0, average=False):
+    """Give each face (from `first_face` on) the slot of the sprite pixel under its centre
+    (slot_of(index) -> slot, or None to leave it). Faces facing down (normal z < min_nz) get
+    `under_slot` if given. `spread` > 0 fills faces just outside the sprite with the most common
+    index around them; `average` instead takes the rounded mean index over 3x3 points `spread` apart
+    (for colours along one shading ramp)."""
+    bm.faces.ensure_lookup_table()
+    bm.normal_update()
+    for f in bm.faces[first_face:]:
+        cen = f.calc_center_median()
+        if f.normal.z < min_nz:
+            if under_slot is not None:
+                f.material_index = under_slot
+            continue
+        idx = sample(pixels, cen.x, cen.y)
+        if average and spread:
+            vals = [sample(pixels, cen.x + dx, cen.y + dy) for dx in (-spread, 0, spread) for dy in (-spread, 0, spread)]
+            vals = [v for v in vals if v >= 0]
+            idx = round(sum(vals) / len(vals)) if vals else -1
+        elif spread and idx < 0:
+            vals = [sample(pixels, cen.x + dx, cen.y + dy) for dx in (-spread, 0, spread) for dy in (-spread, 0, spread)]
+            vals = [v for v in vals if v >= 0]
+            idx = max(set(vals), key=vals.count) if vals else -1
+        slot = slot_of(idx)
+        if slot is not None:
+            f.material_index = slot
