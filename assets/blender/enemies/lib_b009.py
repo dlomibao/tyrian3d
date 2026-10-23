@@ -343,3 +343,69 @@ def ellipse_polygon(cx, cy, rx, ry, n=16, tilt=0.0):
         ex_, ey_ = rx * math.cos(a), ry * math.sin(a)
         pts.append((cx + ex_ * ct - ey_ * st, cy + ex_ * st + ey_ * ct))
     return pts
+
+
+def mirror_all_x(bm):
+    """Mirror the whole mesh in X (x -> -x); face windings are fixed by finish()."""
+    for v in bm.verts:
+        v.co.x = -v.co.x
+
+
+def claw(bm, slots):
+    """The curved claw of newsh2-49 (and newsh2-51, its mirror image: call mirror_all_x after): a
+    grey arm hooking from a purple-capped bar along the top over to the left, where it becomes a
+    purple blade pointing down, with a grey spine and a grey strap across it; and a thin grey arm
+    hanging from the bar's right end, with a jointed knuckle and a glowing red claw tip.
+    slots = (grey, light grey, purple blade, purple cap, red tip, dark red, beige stud, highlight)."""
+    GREY, LIGHT, BLADE, CAP, RED, DARKRED, STUD, HIGH = slots
+    U = 1 / 12
+    P = lambda c, r, z=0.0: (px(c), row(r), z)  # noqa: E731
+    E = lambda c, r: (ex(c), ey(r))  # noqa: E731
+
+    # Arm: from the top bar (rows 1-3) down through the shoulder (rows 4-9, columns 6-12) to the
+    # blade's root.
+    pts = [P(16.6, 2.0), P(13.0, 2.1), P(10.5, 3.4), P(8.6, 5.6), P(7.4, 8.0), P(6.6, 10.6)]
+    lib_r = [1.5, 1.6, 2.4, 3.1, 3.2, 2.6]
+    polyline_tube(bm, pts, [r * U for r in lib_r], sides=10, mat_index=GREY, flat=0.6)
+    # Purple cap on the bar's right end (columns 17-21) with a beige stud.
+    polyline_tube(bm, [P(16.2, 2.0), P(19.5, 2.0), P(21.2, 2.1)], [1.7 * U, 1.6 * U, 1.3 * U], sides=10,
+                  mat_index=CAP, flat=0.65)
+    ellipsoid(bm, P(17.0, 2.1, 0.08), (0.8 * U, 0.8 * U, 0.04), segments=8, rings=4, mat_index=STUD)
+    # Plate under the bar (columns 13-17, rows 5-7), lit along its left edge.
+    ellipsoid(bm, P(14.4, 6.2, 0.0), (4.0 * U, 1.8 * U, 0.12), segments=14, rings=6, mat_index=GREY)
+    polyline_tube(bm, [P(13.2, 5.0, 0.07), P(13.2, 7.4, 0.07)], 0.6 * U, sides=6, mat_index=HIGH)
+    # Bright ridge along the shoulder's top (columns 11-13, rows 6-8).
+    polyline_tube(bm, [P(12.0, 5.6, 0.12), P(11.4, 7.6, 0.13), P(10.2, 9.4, 0.1)], [0.7 * U, 0.8 * U, 0.6 * U],
+                  sides=6, mat_index=LIGHT)
+
+    # Blade: purple, columns 3-9 from row 10 down to the point at row 26, thicker along its back.
+    # Each section: (row edge, right edge column, half thickness); the left edge is column 3. The
+    # cross-section is a wedge, sharp on the left and thickest a third of the way in.
+    rings = []
+    for r, right, h in ((9.4, 10.2, 0.07), (12.0, 10.6, 0.09), (15.0, 10.2, 0.09), (18.0, 9.6, 0.08),
+                        (21.0, 9.0, 0.07), (22.6, 7.6, 0.06), (24.6, 5.6, 0.045), (25.6, 4.4, 0.03)):
+        xl, xr, y = ex(3.0), ex(right), ey(r)
+        xm = xl + (xr - xl) * 0.45
+        rings.append([(xl, y, 0.0), (xm, y, h), (xr, y, h * 0.7), (xr, y, -h * 0.7), (xm, y, -h)])
+    rings.append([(ex(3.5), ey(26.4), 0.0)])
+    ring_loft(bm, rings, BLADE)
+    # Its grey back along the right edge and the grey strap across it (rows 17-19).
+    polyline_tube(bm, [P(9.0, 10.0, 0.02), P(9.0, 14.0, 0.02), P(8.4, 18.0, 0.02), P(7.4, 21.4, 0.02),
+                       P(5.8, 23.4, 0.0)], [1.4 * U, 1.3 * U, 1.2 * U, 1.0 * U, 0.4 * U], sides=8,
+                  mat_index=GREY, flat=0.7)
+    polyline_tube(bm, [P(8.6, 16.0, 0.05), P(5.8, 17.6, 0.06), P(3.2, 19.8, 0.035)], [1.2 * U, 1.3 * U, 1.1 * U],
+                  sides=8, mat_index=LIGHT, flat=0.3)
+    # Beige stud near the blade's root (column 8, rows 10-12).
+    ellipsoid(bm, P(8.0, 11.0, 0.07), (0.7 * U, 1.3 * U, 0.04), segments=8, rings=4, mat_index=STUD)
+
+    # Hanging arm off the bar's right end: a knob (rows 5-7), a thin link, a knuckle (rows 12-17)
+    # and the red claw (rows 18-23).
+    polyline_tube(bm, [P(19.6, 3.0), P(20.6, 5.0)], 1.0 * U, sides=6, mat_index=CAP)
+    ellipsoid(bm, P(21.0, 6.3, 0.0), (1.9 * U, 1.6 * U, 0.12), segments=10, rings=6, mat_index=GREY)
+    polyline_tube(bm, [P(21.4, 7.5), P(21.6, 9.5), P(21.4, 12.0)], [1.0 * U, 0.9 * U, 1.0 * U], sides=6,
+                  mat_index=GREY)
+    ellipsoid(bm, P(20.9, 14.6, 0.0), (2.0 * U, 2.6 * U, 0.15), segments=12, rings=8, mat_index=LIGHT)
+    ellipsoid(bm, P(22.0, 13.5, 0.07), (0.7 * U, 0.7 * U, 0.08), segments=6, rings=4, mat_index=HIGH)
+    polyline_tube(bm, [P(20.5, 17.0), P(20.5, 18.0)], 1.25 * U, sides=8, mat_index=DARKRED)
+    polyline_tube(bm, [P(20.6, 17.8), P(20.6, 20.5), P(20.5, 22.6), P(20.3, 23.8)],
+                  [1.05 * U, 1.0 * U, 0.85 * U, 0.2 * U], sides=8, mat_index=RED)
