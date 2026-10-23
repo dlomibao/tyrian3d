@@ -116,3 +116,41 @@ def dome(bm, c, r, rx, ry, h, z=0.0, rings=4, sides=12, mat=0, bottom=True):
 def mirror(axis, c):
     """Mirror a column about the column `axis` (pixel edges)."""
     return 2 * axis - c
+
+
+def tube(bm, points, sides=8, mat=0, power=1.0, cap_start=True, cap_end=True):
+    """Like loft, but along a path in the sprite plane: points are (col, row, half_w, half_h, z)
+    (pixels, edges). Each ring is square to the path, half_w across it and half_h up. Zero half
+    width and height is a tip. Leaves, curved bands and bent tubes."""
+    pos = [(X(c), Y(r)) for c, r, *_ in points]
+    rings = []
+    for i, (c, r, hw, hh, z) in enumerate(points):
+        x, y = pos[i]
+        if hw == 0 and hh == 0:
+            rings.append([bm.verts.new((x, y, P(z)))])
+            continue
+        (x0, y0), (x1, y1) = pos[max(i - 1, 0)], pos[min(i + 1, len(pos) - 1)]
+        dx, dy = x1 - x0, y1 - y0
+        d = math.hypot(dx, dy) or 1
+        nx, ny = -dy / d, dx / d
+        ring = []
+        for k in range(sides):
+            u, v = _ring_point(2 * math.pi * (k + 0.5) / sides, power)
+            ring.append(bm.verts.new((x + nx * P(hw) * u, y + ny * P(hw) * u, P(z) + P(hh) * v)))
+        rings.append(ring)
+    for r0, r1 in zip(rings, rings[1:]):
+        if len(r0) == 1 and len(r1) == 1:
+            continue
+        for i in range(sides):
+            j = (i + 1) % sides
+            if len(r0) == 1:
+                face = (r0[0], r1[j], r1[i])
+            elif len(r1) == 1:
+                face = (r0[i], r0[j], r1[0])
+            else:
+                face = (r0[i], r0[j], r1[j], r1[i])
+            bm.faces.new(face).material_index = mat
+    if cap_start and len(rings[0]) > 1:
+        bm.faces.new(list(reversed(rings[0]))).material_index = mat
+    if cap_end and len(rings[-1]) > 1:
+        bm.faces.new(rings[-1]).material_index = mat
