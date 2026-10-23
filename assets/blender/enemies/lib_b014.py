@@ -266,3 +266,128 @@ def rock_script(name, file, **kw):
         obj = common.mesh_object(name, bm, mats, coll, smooth=False)
         return [(name, [obj], sprite["sprites"])]
     return run(name, build, file)
+
+
+# --- Plates, tubes and domes (the golden shield) -------------------------------------------------
+# ring_loft and polyline_tube are copied from lib_b007.
+
+def ring_loft(bm, rings, mats, cap_start=True, cap_end=True):
+    """Join rings of 3D points (all the same length, or a single point for a tip) in order.
+    `mats` is a material index, or a list with one per band between rings."""
+    verts = [[bm.verts.new(p) for p in ring] for ring in rings]
+    mat = (lambda b: mats[b]) if isinstance(mats, list) else (lambda b: mats)  # noqa: E731
+    for b, (r0, r1) in enumerate(zip(verts, verts[1:])):
+        n = max(len(r0), len(r1))
+        for i in range(n):
+            j = (i + 1) % n
+            if len(r0) == 1:
+                face = (r0[0], r1[j], r1[i])
+            elif len(r1) == 1:
+                face = (r0[i], r0[j], r1[0])
+            else:
+                face = (r0[i], r0[j], r1[j], r1[i])
+            bm.faces.new(face).material_index = mat(b)
+    if cap_start and len(verts[0]) > 2:
+        bm.faces.new(list(reversed(verts[0]))).material_index = mat(0)
+    if cap_end and len(verts[-1]) > 2:
+        bm.faces.new(verts[-1]).material_index = mat(len(verts) - 2)
+    return verts
+
+
+def polyline_tube(bm, points, radius, sides=6, mat_index=0, caps=True):
+    """One continuous round tube along a polyline, with mitred joints. `radius` can be a number or
+    a list with one radius per point."""
+    pts = [Vector(p) for p in points]
+    radii = radius if isinstance(radius, (list, tuple)) else [radius] * len(pts)
+    tangents = []
+    for i in range(len(pts)):
+        d0 = (pts[i] - pts[i - 1]).normalized() if i > 0 else None
+        d1 = (pts[i + 1] - pts[i]).normalized() if i < len(pts) - 1 else None
+        t = (d0 + d1) if d0 is not None and d1 is not None else (d0 if d1 is None else d1)
+        tangents.append(t.normalized())
+    ref = Vector((0, 0, 1)) if abs(tangents[0].z) < 0.9 else Vector((1, 0, 0))
+    u = tangents[0].cross(ref).normalized()
+    rings = []
+    for i, (c, t) in enumerate(zip(pts, tangents)):
+        u = (u - t * u.dot(t)).normalized()
+        v = t.cross(u).normalized()
+        rings.append([tuple(c + radii[i] * (math.cos(a) * u + math.sin(a) * v))
+                      for a in (2 * math.pi * (k + 0.5) / sides for k in range(sides))])
+    return ring_loft(bm, rings, mat_index, cap_start=caps, cap_end=caps)
+
+
+def ray_polygon(outline, c, d):
+    """Distance from point c along unit direction d to the polygon `outline` (the nearest hit)."""
+    best = None
+    n = len(outline)
+    for i in range(n):
+        ax, ay = outline[i]
+        bx, by = outline[(i + 1) % n]
+        ex_, ey_ = bx - ax, by - ay
+        den = d[0] * ey_ - d[1] * ex_
+        if abs(den) < 1e-12:
+            continue
+        t = ((ax - c[0]) * ey_ - (ay - c[1]) * ex_) / den
+        s = ((ax - c[0]) * d[1] - (ay - c[1]) * d[0]) / den
+        if t > 1e-9 and -1e-9 <= s <= 1 + 1e-9 and (best is None or t < best):
+            best = t
+    return best
+
+
+class Pillow:
+    """A plate with the outline of `outline` (Blender XY, counter-clockwise) that domes up toward
+    `centre`: its top at height top(s), its bottom at bottom(s), where s is 1 at the rim and 0 at
+    the centre (measured along the ray from the centre). The outline must be star-shaped about the
+    centre."""
+
+    def __init__(self, outline, centre, top, bottom):
+        self.outline, self.centre, self.top, self.bottom = outline, centre, top, bottom
+
+    def s_at(self, x, y):
+        cx, cy = self.centre
+        dx, dy = x - cx, y - cy
+        d = math.hypot(dx, dy)
+        if d < 1e-9:
+            return 0.0
+        r = ray_polygon(self.outline, self.centre, (dx / d, dy / d))
+        return min(1.0, d / r) if r else 1.0
+
+    def z_top(self, x, y):
+        return self.top(self.s_at(x, y))
+
+    def build(self, bm, levels, mat_index=0):
+        """Add the plate: rings at the given s levels (from 1 at the rim down toward 0)."""
+        cx, cy = self.centre
+        ring = lambda s, z: [(cx + (x - cx) * s, cy + (y - cy) * s, z(s)) for x, y in self.outline]  # noqa: E731
+        tops = [ring(s, self.top) for s in levels] + [[(cx, cy, self.top(0.0))]]
+        bots = [ring(s, self.bottom) for s in levels] + [[(cx, cy, self.bottom(0.0))]]
+        ring_loft(bm, list(reversed(bots)) + tops, mat_index, cap_start=False, cap_end=False)
+
+
+def dome(bm, cx, cy, rx, ry, h, z=0.0, rings=4, sides=16, mat_index=0, bottom=True):
+    """A half ellipsoid standing on height z (units), centred on (cx, cy)."""
+    loops = []
+    for k in range(rings):
+        t = (math.pi / 2) * k / rings
+        loops.append([(cx + rx * math.cos(t) * math.cos(a), cy + ry * math.cos(t) * math.sin(a), z + h * math.sin(t))
+                      for a in (2 * math.pi * (i + 0.5) / sides for i in range(sides))])
+    loops.append([(cx, cy, z + h)])
+    ring_loft(bm, loops, mat_index, cap_start=bottom, cap_end=False)
+
+
+def paint(bm, shade, edges, reps_slots, only=None, min_nz=0.3, rim_slot=0):
+    """Paint faces (of `only`, or all) with the slot of the sprite shade band under them: faces
+    facing up take reps_slots[band], steep or downward faces rim_slot."""
+    faces = only if only is not None else bm.faces
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    bm.normal_update()
+    for f in faces:
+        if f.normal.z < min_nz:
+            f.material_index = rim_slot
+            continue
+        cen = f.calc_center_median()
+        lum = shade.at(cen.x, cen.y, blur=0.4)
+        if lum is None:
+            f.material_index = rim_slot
+            continue
+        f.material_index = reps_slots[band_of(edges, lum)]
