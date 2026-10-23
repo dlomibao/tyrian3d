@@ -1,0 +1,12 @@
+{
+ "model": "ships/ship-nort-ship",
+ "sprites": [
+  {
+   "sheet": "tyrian.shp#8",
+   "size": 2,
+   "frames": [
+    220
+   ]
+  }
+ ]
+}
