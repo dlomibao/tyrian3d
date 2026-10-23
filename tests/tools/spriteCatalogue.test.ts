@@ -1,6 +1,6 @@
 // Opt-in: the catalogue of everything to model in Blender (DECISIONS.md D15).
 //
-//   CATALOGUE_OUT=reference/models npm run catalogue
+//   CATALOGUE_OUT=reference/models npm run catalogue     (CATALOGUE_SHIPS_ONLY=1: just the player ships)
 //
 // Plays every level's world (events and enemies, tests/sim/worldDriver.ts) and records each enemy
 // drawn: its sheet, size and animation frames. Frames that one enemy cycles through, and frames
@@ -23,6 +23,8 @@ import { decodeSprite2 } from "../../src/data/sprites";
 import { hasData, readData } from "../data/dataDir";
 
 const OUT = process.env.CATALOGUE_OUT ?? "";
+/** CATALOGUE_SHIPS_ONLY=1: write only the player ships' folders (no levels played, catalogue.json untouched). */
+const SHIPS_ONLY = process.env.CATALOGUE_SHIPS_ONLY === "1";
 const MAX_TICKS = Number(process.env.TICKS ?? 30000);
 const SCALE = 12;
 
@@ -148,7 +150,7 @@ describe.skipIf(!OUT || !hasData("levels1.dat", "tyrian1.lvl", "palette.dat", "t
   /** The biggest cluster of touching pieces seen with each frame in it, for assembly.png. */
   const clusterOf = new Map<string, { key: string; cx: number; cy: number }[]>();
 
-  for (let ep = 1; ep <= 4; ep++) {
+  for (let ep = 1; ep <= 4 && !SHIPS_ONLY; ep++) {
     const script = parseEpisodeScript(readData(`levels${ep}.dat`));
     for (const sec of script.sections) {
       if (!sec.lines.some((l) => l.startsWith("]L"))) continue;
@@ -231,7 +233,8 @@ describe.skipIf(!OUT || !hasData("levels1.dat", "tyrian1.lvl", "palette.dat", "t
     ticks: number;
     levels: string[];
     palette: number;
-    pictures: { sheet: string; size: 1 | 2; index: number; pic: Int16Array }[];
+    /** w x h defaults to size * 12 x size * 14. */
+    pictures: { sheet: string; size: 1 | 2; index: number; pic: Int16Array; w?: number; h?: number }[];
     assembly?: string;
     assemblyPieces?: string[];
     assemblyView?: { key: string; cx: number; cy: number }[];
@@ -319,9 +322,24 @@ describe.skipIf(!OUT || !hasData("levels1.dat", "tyrian1.lvl", "palette.dat", "t
   if (shipSheet) {
     sheets.set(shipSheet.id, shipSheet.data);
     for (const [graphic, shipName] of shipGraphics) {
+      const name = `ship-${shipName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
+      if (graphic === 1) {
+        // The Nort ship: two 24x28 halves, 220 and 222, side by side and no banking frames
+        // (JE_playerMovement's shipGr_ == 1 case); one model replaces both (blitShipHalves).
+        const pic = new Int16Array(48 * 28).fill(-1);
+        [220, 222].forEach((index, half) => {
+          const p = compose(shipSheet.data, 2, index);
+          for (let y = 0; y < 28; y++) for (let x = 0; x < 24; x++) pic[y * 48 + half * 24 + x] = p[y * 24 + x];
+        });
+        models.push({
+          name, sprites: [{ sheet: shipSheet.id, size: 2, frames: [220] }], kind: "ship", ticks: Number.MAX_SAFE_INTEGER, levels: [], palette: 5,
+          pictures: [{ sheet: shipSheet.id, size: 2, index: 220, pic, w: 48, h: 28 }],
+        });
+        continue;
+      }
       const frames = [-2, -1, 0, 1, 2].map((b) => graphic + b * 2);
       models.push({
-        name: `ship-${shipName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`,
+        name,
         sprites: [{ sheet: shipSheet.id, size: 2, frames: [graphic], bank: { step: 2, max: 2 } }],
         kind: "ship",
         ticks: Number.MAX_SAFE_INTEGER,
@@ -347,9 +365,11 @@ describe.skipIf(!OUT || !hasData("levels1.dat", "tyrian1.lvl", "palette.dat", "t
     const rgb = rgbOf(m.palette);
     const used = new Set<number>();
     for (const p of m.pictures) for (const c of p.pic) if (c >= 0) used.add(c);
-    const w = m.pictures[0].size * 12, h = m.pictures[0].size * 14;
+    const picW = (p: Model["pictures"][number]) => p.w ?? p.size * 12;
+    const picH = (p: Model["pictures"][number]) => p.h ?? p.size * 14;
+    const w = picW(m.pictures[0]), h = picH(m.pictures[0]);
     for (const p of m.pictures) {
-      const pw = p.size * 12, ph = p.size * 14;
+      const pw = picW(p), ph = picH(p);
       const img = new Uint8Array(pw * SCALE * ph * SCALE * 4);
       paint(img, pw * SCALE, p.pic, pw, ph, rgb, 0, 0, SCALE);
       writePng(join(dir, `frame-${sheetSlug(p.sheet)}-${p.index}.png`), pw * SCALE, ph * SCALE, img);
@@ -363,7 +383,7 @@ describe.skipIf(!OUT || !hasData("levels1.dat", "tyrian1.lvl", "palette.dat", "t
         const v = ((x >> 3) + (y >> 3)) & 1 ? 40 : 28;
         contact.set([v, v, v + 6, 255], (y * cw + x) * 4);
       }
-    m.pictures.forEach((p, i) => paint(contact, cw, p.pic, p.size * 12, p.size * 14, rgb, i * (w + pad) * cs + cs, cs, cs));
+    m.pictures.forEach((p, i) => paint(contact, cw, p.pic, picW(p), picH(p), rgb, i * (w + pad) * cs + cs, cs, cs));
     writePng(join(dir, "contact.png"), cw, ch, contact);
 
     if (m.assemblyView && m.assemblyView.length > 0) {
@@ -386,8 +406,8 @@ describe.skipIf(!OUT || !hasData("levels1.dat", "tyrian1.lvl", "palette.dat", "t
     }
 
     const rowsOf = (p: Model["pictures"][number]) => {
-      const pw = p.size * 12;
-      return Array.from({ length: p.size * 14 }, (_, y) => Array.from(p.pic.subarray(y * pw, (y + 1) * pw)));
+      const pw = picW(p);
+      return Array.from({ length: picH(p) }, (_, y) => Array.from(p.pic.subarray(y * pw, (y + 1) * pw)));
     };
     writeFileSync(join(dir, "sprite.json"), JSON.stringify({
       name: m.name,
@@ -401,10 +421,10 @@ describe.skipIf(!OUT || !hasData("levels1.dat", "tyrian1.lvl", "palette.dat", "t
       assemblyLayout: m.assemblyView?.map((p) => ({ model: modelOf.get(p.key)?.name, frame: p.key, cx: p.cx, cy: p.cy })) ?? null,
       palette: m.palette,
       colors: Object.fromEntries([...used].sort((a, b) => a - b).map((i) => [i, rgb(i)])),
-      frames: m.pictures.map((p) => ({ sheet: p.sheet, size: p.size, index: p.index, image: `frame-${sheetSlug(p.sheet)}-${p.index}.png`, pixels: rowsOf(p) })),
+      frames: m.pictures.map((p) => ({ sheet: p.sheet, size: p.size, index: p.index, width: picW(p), height: picH(p), image: `frame-${sheetSlug(p.sheet)}-${p.index}.png`, pixels: rowsOf(p) })),
     }, (k, v) => (k === "pixels" ? v.map((r: number[]) => r.join(" ")) : v), 1) + "\n");
   }
-  writeFileSync(join(OUT, "catalogue.json"), JSON.stringify(models.map((m) => ({
+  if (!SHIPS_ONLY) writeFileSync(join(OUT, "catalogue.json"), JSON.stringify(models.map((m) => ({
     name: m.name, kind: m.kind, size: m.sprites[0].size, frames: m.pictures.length, ticksSeen: m.kind === "ship" ? null : m.ticks, levels: m.levels.length,
     assembly: m.assembly ?? null,
   })), null, 1) + "\n");

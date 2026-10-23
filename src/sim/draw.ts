@@ -68,10 +68,11 @@ export interface SpriteDraw {
   filter: number;
   value: number;
   /**
-   * The whole object this tile belongs to, for drawing it as one model (DECISIONS.md D15). Only
-   * enemies set it: a 2x2 enemy is four blit_sprite2 calls (index, +1, +19, +20). groupIndex is
-   * the sprite index of the object's top-left tile in this animation frame (-1: not grouped),
-   * groupSize its size in tiles (1 or 2), and (groupDx, groupDy) the offset from this tile's
+   * The whole object this tile belongs to, for drawing it as one model (DECISIONS.md D15). Enemies
+   * set it (a 2x2 enemy is four blit_sprite2 calls: index, +1, +19, +20), and so do two-sprite
+   * player ships (two blit_sprite2x2 halves). groupIndex is the sprite index of the object's
+   * top-left tile in this animation frame (-1: not grouped); groupSize is 1 for a 12x14 enemy and
+   * 2 otherwise; the two together key the model. (groupDx, groupDy) is the offset from this tile's
    * top-left to the object's centre. groupFirst is true on the first tile drawn for the object
    * this tick, which is where its model goes.
    */

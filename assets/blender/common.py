@@ -270,7 +270,8 @@ def render_preview(objects, out_png, sprite_png=None, size=2, view_px=320):
     """Render the model beside its sprite into one PNG to compare them: the sprite, a top-down
     orthographic view at the same scale, the in-game view (from the bottom of the screen, tilted
     like the game camera) and a three-quarter view. Only `objects` are shown. `size` is the sprite's
-    size in tiles (1 = 12x14 px, 2 = 24x28 px). Works headless (blender --background)."""
+    size in tiles (1 = 12x14 px, 2 = 24x28 px), or its (width, height) in px for anything else (a frame's
+`width` and `height` in sprite.json). Works headless (blender --background)."""
     import tempfile
     import numpy as np
     from mathutils import Vector
@@ -295,7 +296,7 @@ def render_preview(objects, out_png, sprite_png=None, size=2, view_px=320):
         scene.world = bpy.data.worlds.new("preview")
     scene.world.color = (0.03, 0.03, 0.04)
 
-    w, h = size, size * 14 / 12  # units
+    w, h = (size[0] / 12, size[1] / 12) if isinstance(size, (tuple, list)) else (size, size * 14 / 12)  # units
     extent = max(w, h) * 1.15
     cams = []
     def camera(name, location, look_at, ortho=None, lens=50):
