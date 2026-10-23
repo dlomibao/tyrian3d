@@ -241,3 +241,37 @@ def export_frames(root, name, sprite, models, extra_preview=True):
             ref = Path(root) / "reference" / "models" / name / frame["image"]
             path = out if i == 0 else out.parent / f"{model_name}.png"
             common.render_preview([obj], str(path), ref, size=frame["size"])
+
+
+def resample(poly, step):
+    """A closed polygon with extra points so no edge is longer than `step` (corners are kept)."""
+    out = []
+    for (x0, y0), (x1, y1) in zip(poly, poly[1:] + poly[:1]):
+        n = max(1, math.ceil(math.hypot(x1 - x0, y1 - y0) / step))
+        out.extend((x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n) for i in range(n))
+    return out
+
+
+def toward_ellipse(points, cx, cy, rx, ry, scale=1.0):
+    """For each point, the point on the ellipse (centre cx, cy) in the same direction from the
+    centre: an inner loop with one vertex per outer vertex, for `terraces`."""
+    out = []
+    for x, y in points:
+        a = math.atan2(y - cy, x - cx)
+        r = scale / math.sqrt((math.cos(a) / rx) ** 2 + (math.sin(a) / ry) ** 2)
+        out.append((cx + r * math.cos(a), cy + r * math.sin(a)))
+    return out
+
+
+def pull(points, cx, cy, d):
+    """Move each point `d` units toward (cx, cy) (a rough inset for a bevel)."""
+    out = []
+    for x, y in points:
+        dx, dy = cx - x, cy - y
+        n = math.hypot(dx, dy) or 1.0
+        out.append((x + dx / n * d, y + dy / n * d))
+    return out
+
+
+def at_z(points, z):
+    return [(x, y, z) for x, y in points]
