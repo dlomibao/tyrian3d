@@ -368,3 +368,58 @@ def build_insect(sprite, name, remap=None):
     obj = common.mesh_object(name, bm, mats, coll, smooth=True)
     flat_faces(obj, FLAT)
     return [obj], coll, X0
+
+
+def build_swept(sprite, name, remap=None):
+    """The grey swept-wing fighter of newshf-11 (and newshf-53, the same craft in green: remap the
+    indices). Centred on column 12, nose down the screen: a fuselage from the tail (row 2) to a
+    blunt nose (row 25) with a bright spine, a small tailplane (rows 3-7, columns 8-16) under an
+    upright fin, wings swept back to tips at rows 6-9 (columns 3-4 and 20-21), a dark slot canopy
+    (rows 15-19) and two short guns poking forward from the wing roots (columns 8 and 16).
+    Returns (objects, collection, x0)."""
+    P = 1 / 12
+    X0 = px(12)
+    coll = common.reset_collection(name)
+    pal = palette(sprite, name, remap)
+    mats = [
+        pal(8, metallic=0.6, roughness=0.35),  # 0 fuselage grey
+        pal(9, metallic=0.55, roughness=0.4),  # 1 wing grey
+        pal(11, metallic=0.6, roughness=0.25),  # 2 bright spine
+        pal(9, metallic=0.55, roughness=0.4),  # 3 tailplane and fin
+        pal(4, metallic=0.4, roughness=0.12),  # 4 dark canopy
+        pal(12, metallic=0.7, roughness=0.25),  # 5 bright guns
+    ]
+    BODY, WING, SPINE, TAIL, CANOPY, GUN = range(6)
+    bm = bmesh.new()
+
+    body = [(2.3, 0.0, 0.0), (2.8, 1.0, 0.9), (4.0, 1.4, 1.3), (6.5, 1.5, 1.4), (8.5, 1.6, 1.6),
+            (9.6, 2.4, 2.0), (12.0, 2.8, 2.2), (15.0, 2.6, 2.1), (19.5, 2.5, 1.9), (21.5, 2.4, 1.8),
+            (22.6, 2.0, 1.5), (24.5, 1.4, 1.1), (25.5, 0.6, 0.5), (26.0, 0.0, 0.0)]
+    ellipse_loft(bm, X0, [(ey(r), w * P, h * P, 0.0) for r, w, h in body], sides=10, mats=BODY)
+    # Bright spine along the top, rows 8.5-15.
+    ellipse_loft(bm, X0, [(ey(r), w * P, 0.35 * P, z) for r, w, z in
+                          ((8.0, 0.0, 0.125), (8.8, 0.6, 0.15), (14.6, 0.6, 0.175), (15.4, 0.0, 0.17))],
+                 sides=6, mats=SPINE)
+
+    # Swept wings: sections across X (sprite column edges), leading edge = the outer, lower edge.
+    left = [(3, 9, 6, 0.3), (5, 13, 6.6, 0.45), (7, 17, 8, 0.6), (8, 17.2, 9, 0.75), (11, 17.5, 10.5, 0.9)]
+    secs = left + [(25 - c, yl, yt, t) for c, yl, yt, t in reversed(left)]
+    wing_loft(bm, [(ex(c), ey(yl), ey(yt), t * P, -0.01) for c, yl, yt, t in secs], mats=WING)
+    # Tailplane, rows 3-7, columns 8-16.
+    tl = [(-4.5, 5, 3, 0.3), (-3.5, 6, 3, 0.45), (-2.0, 7, 3, 0.6), (0.0, 7.5, 3, 0.7)]
+    tsecs = tl + [(-x, yl, yt, t) for x, yl, yt, t in reversed(tl[:-1])]
+    wing_loft(bm, [(X0 + x * P, ey(yl), ey(yt), t * P, 0.03) for x, yl, yt, t in tsecs], mats=TAIL)
+    # Upright fin over the tail (rows 1-6).
+    side_plate(bm, X0, [(ey(1.0), 0.07), (ey(6.5), 0.07), (ey(5.0), 0.14), (ey(2.4), 0.22), (ey(1.0), 0.22)],
+               0.8 * P, mat_index=TAIL)
+    # Dark slot canopy (rows 15-19.5).
+    dome(bm, X0, ey(17.3), 0.1, 1.5 * P, 2.4 * P, 0.085, mat_index=CANOPY, segs=12, rings=4)
+    # Guns poking forward past the wing roots (columns 8-9, rows 15-19), mirrored.
+    for side in (-1, 1):
+        def gx(c):
+            return px(c) if side < 0 else 2 * X0 - px(c)
+        polyline_tube(bm, [(gx(9.4), ey(15.5), -0.01), (gx(8.9), ey(17.0), -0.01), (gx(8.4), ey(18.8), -0.01)],
+                      [0.6 * P, 0.55 * P, 0.45 * P], sides=6, mat_index=GUN)
+
+    obj = common.mesh_object(name, bm, mats, coll, smooth=True)
+    return [obj], coll, X0
