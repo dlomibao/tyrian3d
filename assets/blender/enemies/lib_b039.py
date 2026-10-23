@@ -130,3 +130,52 @@ def preview(objects, root, name, sprite):
         out = sys.argv[sys.argv.index("--preview") + 1]
         ref = Path(root) / "reference" / "models" / name / sprite["frames"][0]["image"]
         common.render_preview(objects, out, ref, size=sprite["frames"][0]["size"])
+
+
+def sample(pixels, x, y):
+    """The palette index of the sprite pixel under Blender (x, y), or -1 outside / transparent
+    (the block size comes from `pixels`)."""
+    h, w = len(pixels), len(pixels[0])
+    c, r = int(math.floor(x * 12 + w / 2)), int(math.floor(h / 2 - y * 12))
+    if 0 <= r < h and 0 <= c < w:
+        return pixels[r][c]
+    return -1
+
+
+def paint_from_sprite(bm, pixels, slot_of, faces=None, under_slot=None, min_nz=0.0):
+    """Give each face (all, or `faces`) the material slot of the sprite pixel under its centre
+    (after lib_b004): slot_of(index) -> slot, or None to leave the face. Faces facing down
+    (normal z < min_nz) get `under_slot` if given."""
+    import bmesh
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    bm.normal_update()
+    for f in faces if faces is not None else bm.faces:
+        if f.normal.z < min_nz:
+            if under_slot is not None:
+                f.material_index = under_slot
+            continue
+        cen = f.calc_center_median()
+        slot = slot_of(sample(pixels, cen.x, cen.y))
+        if slot is not None:
+            f.material_index = slot
+
+
+def strip(bm, points, width, height, surface, lift=0.0, mat_index=0):
+    """A flat band (a strap, a seam) along a polyline of Blender (x, y) points, lying on
+    `surface(x, y) -> z`: `width` across, `height` thick, its underside `lift` above the surface
+    (negative sinks it in so it hugs a curved surface)."""
+    rings = []
+    n = len(points)
+    for i, (x, y) in enumerate(points):
+        a = points[max(i - 1, 0)]
+        b = points[min(i + 1, n - 1)]
+        dx, dy = b[0] - a[0], b[1] - a[1]
+        ln = math.hypot(dx, dy) or 1
+        nx, ny = -dy / ln * width / 2, dx / ln * width / 2
+        ring = []
+        for sx, sz in ((1, 0), (1, 1), (-1, 1), (-1, 0)):
+            px_, py_ = x + nx * sx, y + ny * sx
+            z = surface(px_, py_) + lift + height * sz
+            ring.append((px_, py_, z))
+        rings.append(ring)
+    return ring_loft(bm, rings, mat_index)
