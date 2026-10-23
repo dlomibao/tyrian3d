@@ -343,3 +343,88 @@ def rotate_new(bm, start, angle, cx=0.0, cy=0.0, dx=0.0, dy=0.0):
         x, y = v.co.x, v.co.y
         v.co.x = cx + dx + x * c - y * s
         v.co.y = cy + dy + x * s + y * c
+
+
+def sample(pixels, x, y):
+    """The palette index of the sprite pixel under Blender (x, y), or -1 outside / transparent."""
+    h, w = len(pixels), len(pixels[0])
+    c, r = int(math.floor(x * 12 + w / 2)), int(math.floor(h / 2 - y * 12))
+    if 0 <= r < h and 0 <= c < w:
+        return pixels[r][c]
+    return -1
+
+
+def paint_faces(bm, faces, pixels, slot_of, under_slot=None, min_nz=0.0, reach=0.6):
+    """Give each face the material slot of the sprite pixels under it: slot_of(index) -> slot or
+    None to leave it, voting over the face centre and points `reach` of the way to its corners.
+    Faces facing down (normal z < min_nz) get `under_slot` if given."""
+    bm.normal_update()
+    for f in faces:
+        if f.normal.z < min_nz:
+            if under_slot is not None:
+                f.material_index = under_slot
+            continue
+        cen = f.calc_center_median()
+        votes = {}
+        for p in [cen, cen] + [cen.lerp(v.co, reach) for v in f.verts]:
+            s = slot_of(sample(pixels, p.x, p.y))
+            if s is not None:
+                votes[s] = votes.get(s, 0) + 1
+        if votes:
+            f.material_index = max(votes, key=votes.get)
+
+
+def radial_profile(keep, cx, cy, n=36, max_r=16.0, step=0.05, smooth_passes=1, gap=1.6):
+    """Ray-cast from pixel-edge point (cx, cy) (col, row) through a mask keep(col, row) -> bool:
+    for each of n angles (counter-clockwise from +X as seen in Blender, i.e. sprite rows grow
+    downward) the start and end distance (px) of the longest run inside the mask (gaps shorter
+    than `gap` px are bridged). Returns a list of (angle, r_in, r_out)."""
+    out = []
+    for k in range(n):
+        a = 2 * math.pi * k / n
+        dx, dy = math.cos(a), -math.sin(a)  # sprite rows grow down
+        runs, r = [], 0.0
+        while r < max_r:
+            c, rr = cx + dx * r, cy + dy * r
+            if keep(int(math.floor(c)), int(math.floor(rr))):
+                if runs and r - runs[-1][1] <= gap:
+                    runs[-1][1] = r + step
+                else:
+                    runs.append([r, r + step])
+            r += step
+        r_in, r_out = max(runs, key=lambda u: u[1] - u[0]) if runs else (0.0, 0.0)
+        out.append([a, r_in, r_out])
+    for _ in range(smooth_passes):
+        out = [[a, (out[i - 1][1] + 2 * ri + out[(i + 1) % n][1]) / 4,
+                (out[i - 1][2] + 2 * ro + out[(i + 1) % n][2]) / 4] for i, (a, ri, ro) in enumerate(out)]
+    return out
+
+
+def closed_ring(bm, centre, profile, half_height, z=0.0, sides=8, power=0.8, mat_index=0, grow=0.0):
+    """A closed ring round `centre` (Blender XY) following a radial_profile (px): each section is a
+    rounded cross-section between r_in and r_out (grown by `grow` px each side), `half_height(angle)`
+    tall (units). Returns the faces made."""
+    rings = []
+    for a, ri, ro in profile:
+        rm = (ri + ro) / 24
+        hw = max(0.02, (ro - ri) / 24 + grow / 12)
+        hh = half_height(a) if callable(half_height) else half_height
+        ux, uy = math.cos(a), math.sin(a)
+        ring = []
+        for i in range(sides):
+            t = 2 * math.pi * (i + 0.5) / sides
+            c, s = math.cos(t), math.sin(t)
+            u, v = math.copysign(abs(c) ** power, c), math.copysign(abs(s) ** power, s)
+            rr = rm + hw * u
+            ring.append(bm.verts.new((centre[0] + ux * rr, centre[1] + uy * rr, z + hh * v)))
+        rings.append(ring)
+    faces = []
+    n = len(rings)
+    for k in range(n):
+        r0, r1 = rings[k], rings[(k + 1) % n]
+        for i in range(sides):
+            j = (i + 1) % sides
+            f = bm.faces.new((r0[i], r1[i], r1[j], r0[j]))
+            f.material_index = mat_index
+            faces.append(f)
+    return faces
