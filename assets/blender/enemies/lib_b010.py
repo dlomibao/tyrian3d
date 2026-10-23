@@ -218,3 +218,102 @@ def fire_assembly(root, file, name, pieces, shells_spec, **fire_kw):
             img = root / "reference" / "models" / m / data["frames"][0]["image"]
             common.render_preview([parts[m]], str(out.parent / f"{m}.png"), img, size=2)
     return obj, parts
+
+
+# --- hard-surface parts ------------------------------------------------------------------------
+
+def ex(c, w=24):
+    """The left edge of column c of a w px wide grid as Blender X."""
+    return (c - w / 2) / 12
+
+
+def ey(r, h=28):
+    """The top edge of row r of an h px tall grid as Blender Y."""
+    return (h / 2 - r) / 12
+
+
+def _faces(bm, faces, mat, smooth):
+    for f in faces:
+        f.material_index = mat
+        f.smooth = smooth
+
+
+def box(bm, c0, r0, c1, r1, z0, z1, mat=0, w=24, h=28):
+    """A box over pixel edges columns c0..c1, rows r0..r1 (fractions allowed), z0..z1."""
+    x0, x1, y1, y0 = ex(c0, w), ex(c1, w), ey(r0, h), ey(r1, h)
+    v = [bm.verts.new(p) for p in ((x0, y0, z0), (x1, y0, z0), (x1, y1, z0), (x0, y1, z0),
+                                   (x0, y0, z1), (x1, y0, z1), (x1, y1, z1), (x0, y1, z1))]
+    faces = [bm.faces.new(q) for q in ((v[3], v[2], v[1], v[0]), (v[4], v[5], v[6], v[7]),
+                                       (v[0], v[1], v[5], v[4]), (v[1], v[2], v[6], v[5]),
+                                       (v[2], v[3], v[7], v[6]), (v[3], v[0], v[4], v[7]))]
+    _faces(bm, faces, mat, False)
+
+
+def extrude_y(bm, profile, y0, y1, mat=0, smooth=False):
+    """A prism along Y from y0 to y1 (Blender units, y0 < y1) with a closed (x, z) profile."""
+    a = [bm.verts.new((x, y0, z)) for x, z in profile]
+    b = [bm.verts.new((x, y1, z)) for x, z in profile]
+    n = len(profile)
+    faces = [bm.faces.new(a), bm.faces.new(list(reversed(b)))]
+    for i in range(n):
+        j = (i + 1) % n
+        faces.append(bm.faces.new((a[i], a[j], b[j], b[i])))
+    _faces(bm, faces, mat, smooth)
+
+
+def prism(bm, top, z0, mat=0, smooth=False):
+    """A prism whose top face has the given (x, y, z) corners (counter-clockwise from above, z may
+    vary: a sloped top) and whose bottom face is flat at z0."""
+    t = [bm.verts.new(p) for p in top]
+    b = [bm.verts.new((x, y, z0)) for x, y, _ in top]
+    n = len(top)
+    faces = [bm.faces.new(t), bm.faces.new(list(reversed(b)))]
+    for i in range(n):
+        j = (i + 1) % n
+        faces.append(bm.faces.new((b[i], b[j], t[j], t[i])))
+    _faces(bm, faces, mat, smooth)
+
+
+def rod_y(bm, x, sections, sides=8, mat=0, smooth=True):
+    """A loft down the sprite at Blender X = x: sections are (y, half_width, half_height, z) in
+    units; a section of zero size is a point."""
+    rings = []
+    for y, w, hh, z in sections:
+        if w == 0 and hh == 0:
+            rings.append([bm.verts.new((x, y, z))])
+            continue
+        rings.append([bm.verts.new((x + w * math.cos(2 * math.pi * (i + 0.5) / sides), y,
+                                    z + hh * math.sin(2 * math.pi * (i + 0.5) / sides)))
+                      for i in range(sides)])
+    faces = []
+    for r0, r1 in zip(rings, rings[1:]):
+        for i in range(sides):
+            j = (i + 1) % sides
+            if len(r0) == 1 and len(r1) == 1:
+                break
+            if len(r0) == 1:
+                faces.append(bm.faces.new((r0[0], r1[j], r1[i])))
+            elif len(r1) == 1:
+                faces.append(bm.faces.new((r0[i], r0[j], r1[0])))
+            else:
+                faces.append(bm.faces.new((r0[i], r0[j], r1[j], r1[i])))
+    if len(rings[0]) > 1:
+        faces.append(bm.faces.new(list(reversed(rings[0]))))
+    if len(rings[-1]) > 1:
+        faces.append(bm.faces.new(rings[-1]))
+    _faces(bm, faces, mat, smooth)
+
+
+def stud(bm, x, y, z, r, hz, mat=0, sides=8):
+    """A small dome (rivet, lamp) of radius r and height hz standing on z."""
+    ring = [bm.verts.new((x + r * math.cos(2 * math.pi * i / sides), y + r * math.sin(2 * math.pi * i / sides), z))
+            for i in range(sides)]
+    mid = [bm.verts.new((x + 0.6 * r * math.cos(2 * math.pi * i / sides),
+                         y + 0.6 * r * math.sin(2 * math.pi * i / sides), z + 0.8 * hz)) for i in range(sides)]
+    tip = bm.verts.new((x, y, z + hz))
+    faces = [bm.faces.new(list(reversed(ring)))]
+    for i in range(sides):
+        j = (i + 1) % sides
+        faces.append(bm.faces.new((ring[i], ring[j], mid[j], mid[i])))
+        faces.append(bm.faces.new((mid[i], mid[j], tip)))
+    _faces(bm, faces, mat, True)
