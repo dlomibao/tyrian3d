@@ -200,15 +200,16 @@ def dome(bm, cx, cy, rx, ry, h, z=0.0, rings=5, sides=16, mat=0, bottom=True, po
     return faces
 
 
-def finish(name, bm, mats, coll, flat_z=0.97):
+def finish(name, bm, mats, coll, flat_z=0.97, flat_ranges=()):
     """Mesh object: faces whose normal points almost straight up (flat tops) are flat shaded,
-    the rest smooth."""
+    and so are faces with an index in one of `flat_ranges` ((start, end) face indices); the
+    rest are smooth."""
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     mesh = bpy.data.meshes.new(name)
     bm.to_mesh(mesh)
     bm.free()
     for poly in mesh.polygons:
-        poly.use_smooth = poly.normal.z < flat_z
+        poly.use_smooth = poly.normal.z < flat_z and not any(a <= poly.index < b for a, b in flat_ranges)
     for m in mats:
         mesh.materials.append(m)
     obj = bpy.data.objects.new(name, mesh)
