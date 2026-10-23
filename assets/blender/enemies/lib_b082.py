@@ -34,6 +34,22 @@ def loft(bm, sections, sides=10, mat=0, smooth=True, x=0.0):
     _mark(bm, before, mat, smooth)
 
 
+def loft_xy(bm, sections, sides=10, mat=0, smooth=True):
+    """Like loft, but each section (x, y, half_width, half_height, z_centre) has its own X, so the
+    tube can bend or taper to one side (rings stay square to Y)."""
+    before = set(bm.faces)
+    start = len(bm.verts)
+    common.loft(bm, [(y, w, h, z) for _, y, w, h, z in sections], sides=sides, mat_index=mat)
+    bm.verts.ensure_lookup_table()
+    i = start
+    for x, _, w, h, _ in sections:
+        n = 1 if w == 0 and h == 0 else sides
+        for v in bm.verts[i:i + n]:
+            v.co.x += x
+        i += n
+    _mark(bm, before, mat, smooth)
+
+
 def box(bm, x0, x1, y0, y1, z0, z1, mat=0, bevel=0.0):
     """An axis-aligned box in units; `bevel` chamfers its four vertical edges (seen from above)."""
     before = set(bm.faces)
