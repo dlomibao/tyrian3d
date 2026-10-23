@@ -236,3 +236,36 @@ def run_single(root, name, build):
         ref = root / "reference" / "models" / name / frame["image"]
         common.render_preview([obj], out, ref, size=frame["size"])
     return obj
+
+
+def stock_half(bm, m, c0=0.0, w=W, dz=0.0):
+    """The left half of the tank-and-teeth shape that newshc-197/199 (green and pink) and newshc-269
+    (grey and blue, the stock of the big gun) share: a tank lying across the sprite (rows 3-9) with
+    two grooved rings near its inner end, a bar under it (rows 10-13) ending in a bulb at the outer
+    end, a block of dark vertical fins hanging below (columns 7-20, rows 13-19) and half of the
+    spine block in the middle (columns 21-23). Columns are the piece's own (0-24, the inner edge at
+    24), shifted by c0 into an image w px wide; m maps part names to material slots."""
+    xy = (w, H)
+    C = lambda c: c + c0  # noqa: E731
+    # Tank (columns 1-20, rows 3-9), rounded at its outer end.
+    loft_x(bm, 5.9, [(C(0.8), 1.4, 1.2, 1.0 + dz), (C(1.3), 2.6, 2.2, 1.0 + dz), (C(2.3), 3.2, 2.7, 1.0 + dz),
+                     (C(3.6), 3.35, 2.8, 1.0 + dz), (C(20.6), 3.35, 2.8, 1.0 + dz)],
+           sides=14, mat=m["tank"], xy=xy)
+    for c in (16.0, 18.0):
+        loft_x(bm, 5.9, [(C(c), 3.5, 2.95, 1.0 + dz), (C(c + 1.0), 3.5, 2.95, 1.0 + dz)],
+               sides=14, mat=m["ring"], xy=xy)
+    # Bar under the tank (rows 10-13) with a pale top edge, and the bulb at its outer end.
+    loft_x(bm, 11.9, [(C(3.0), 2.1, 1.6, -0.4 + dz), (C(24.0), 2.1, 1.6, -0.4 + dz)],
+           sides=10, mat=m["bar"], cap_end=False, xy=xy)
+    loft_x(bm, 10.9, [(C(3.5), 0.0, 0.0, 0.7 + dz), (C(4.3), 0.6, 0.45, 0.8 + dz), (C(17.5), 0.6, 0.45, 0.8 + dz),
+                      (C(18.3), 0.0, 0.0, 0.7 + dz)], sides=6, mat=m["bar_hi"], xy=xy)
+    ellipsoid(bm, C(4.6), 12.6, -0.6 + dz, 3.6, 2.5, 1.9, mat=m["bar"], segments=14, rings=6, xy=xy)
+    # Dark fin block (columns 7-20, rows 13-19) with raised fins.
+    slab(bm, [(C(7.4), 13.0), (C(24.0), 13.0), (C(24.0), 18.9), (C(7.4), 18.9)], -2.7 + dz, -0.6 + dz,
+         mat=m["fin_base"], xy=xy)
+    for a, b, k in ((8.0, 12.0, "fin_hi"), (13.0, 14.0, "fin"), (15.0, 16.0, "fin"), (17.0, 18.0, "fin"),
+                    (19.0, 21.0, "fin_hi")):
+        box(bm, C(a), 13.2, C(b), 19.0 if b != 14.0 else 19.6, -2.7 + dz, 0.0 + dz, mat=m[k], bevel=0.25, xy=xy)
+    # Half the spine block (columns 21-23, rows 2-12).
+    slab(bm, [(C(20.6), 1.6), (C(24.0), 1.6), (C(24.0), 12.6), (C(20.6), 12.6)], -1.4 + dz, 3.8 + dz,
+         mat=m["spine"], xy=xy)
