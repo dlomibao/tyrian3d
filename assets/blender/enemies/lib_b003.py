@@ -90,7 +90,8 @@ def rings_solid(bm, centre, rings, sides=4, angle=0.0, mat_bottom=0):
 
     `rings` go from the outside in: (radius, z, mat_index). Ring i and ring i+1 are joined by a band
     with ring i+1's material; a last ring of radius 0 is an apex. With sides=4 and angle=0 the rings
-    are diamonds with corners on the X and Y axes. The outermost ring is closed underneath."""
+    are diamonds with corners on the X and Y axes. The first ring is closed underneath unless it
+    is an apex too (radius 0), which makes a bipyramid."""
     cx, cy = centre
     verts = []
     for r, z, _ in rings:
@@ -102,13 +103,16 @@ def rings_solid(bm, centre, rings, sides=4, angle=0.0, mat_bottom=0):
             a = angle + 2 * math.pi * i / sides
             ring.append(bm.verts.new((cx + r * math.cos(a), cy + r * math.sin(a), z)))
         verts.append(ring)
-    bm.faces.new(list(reversed(verts[0]))).material_index = mat_bottom
+    if len(verts[0]) > 1:
+        bm.faces.new(list(reversed(verts[0]))).material_index = mat_bottom
     for k in range(len(verts) - 1):
         r0, r1 = verts[k], verts[k + 1]
         m = rings[k + 1][2]
         for i in range(sides):
             j = (i + 1) % sides
-            if len(r1) == 1:
+            if len(r0) == 1:
+                f = (r0[0], r1[j], r1[i])
+            elif len(r1) == 1:
                 f = (r0[i], r0[j], r1[0])
             else:
                 f = (r0[i], r0[j], r1[j], r1[i])
@@ -182,3 +186,62 @@ def gem_disc(sprite, name, offset):
     ], sides=4, mat_bottom=RIDGE)
     diamond = common.mesh_object(f"{name}_diamond", bm, mats, coll, smooth=False)
     return [disc, diamond]
+
+
+def scale(bm, start, sx=1.0, sy=1.0, sz=1.0, cx=0.0, cy=0.0, cz=0.0):
+    """Scale every vertex added since `start` about (cx, cy, cz)."""
+    bm.verts.ensure_lookup_table()
+    for v in bm.verts[start:]:
+        v.co.x = cx + (v.co.x - cx) * sx
+        v.co.y = cy + (v.co.y - cy) * sy
+        v.co.z = cz + (v.co.z - cz) * sz
+
+
+# --- The small gem with a stalk (newshv-57 red, newshv-19 blue) ----------------------------------
+
+def small_gem(sprite, name, offset):
+    """A small faceted diamond (columns 1-10, rows 3-11 of a 12x14 sprite) with a short stalk
+    trailing below it (rows 12-13). Indices are given in newshv-57's reds (71-79); `offset` shifts
+    them (-16 for the blue newshv-19)."""
+    import bmesh
+    coll = common.reset_collection(name)
+    pal = lambda i, **kw: common.palette_material(sprite, i + offset, name, **kw)  # noqa: E731
+    mats = [
+        pal(72, metallic=0.4, roughness=0.4),  # 0 edge facets
+        pal(76, metallic=0.45, roughness=0.3),  # 1 body facets
+        pal(79, roughness=0.2, emission_strength=2.0),  # 2 bright crown, a glowing core
+        pal(71, metallic=0.4, roughness=0.5),  # 3 stalk
+        pal(74, metallic=0.4, roughness=0.4),  # 4 stalk tip
+    ]
+    EDGE, BODY, CROWN, STALK, TIP = range(5)
+    W, H = 12, 14
+    u = 1 / 12
+    cy = ey(7.5, H)
+
+    bm = bmesh.new()
+    # The diamond: corners at columns 1 and 11 (edges), rows 3 and 12; 10 px wide, 9 px tall.
+    rings_solid(bm, (0.0, cy), [
+        (0.0, -0.09, EDGE),
+        (3.6 * u, -0.045, EDGE),
+        (5.0 * u, 0.0, EDGE),
+        (4.2 * u, 0.05, EDGE),
+        (2.8 * u, 0.1, BODY),
+        (1.0 * u, 0.135, CROWN),
+        (0.0, 0.145, CROWN),
+    ], sides=4)
+    scale(bm, 0, sy=0.9, cy=cy)
+    # The bright ridge sits just right of centre (column 6): nudge the crown that way.
+    bm.verts.ensure_lookup_table()
+    for v in bm.verts:
+        if v.co.z > 0.12:
+            v.co.x += 0.25 * u
+    gem = common.mesh_object(name, bm, mats, coll, smooth=False)
+
+    # The stalk below it (rows 11.5-14, columns 5-6), darker with a lighter knob at the end.
+    bm = bmesh.new()
+    common.loft(bm, [(ey(11.2, H), 0.95 * u, 0.7 * u, -0.01), (ey(12.9, H), 0.95 * u, 0.7 * u, -0.01)],
+                sides=8, mat_index=STALK)
+    common.loft(bm, [(ey(12.9, H), 1.0 * u, 0.75 * u, -0.01), (ey(13.6, H), 0.95 * u, 0.7 * u, -0.01),
+                     (ey(14.0, H), 0.0, 0.0, -0.01)], sides=8, mat_index=TIP)
+    stalk = common.mesh_object(f"{name}_stalk", bm, mats, coll, smooth=True)
+    return [gem, stalk]
