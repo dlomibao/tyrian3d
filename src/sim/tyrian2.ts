@@ -22,7 +22,7 @@ import {
 } from "../data";
 import { fdiv, fmul, mt_rand_mod, roundf } from "./cfloat";
 import { s8, s16, u8, u16, u32 } from "./cint";
-import { blit_sprite2, blit_sprite2_filter, drawList, drawState, type Sprite2Sheet } from "./draw";
+import { blit_sprite2, blit_sprite2_filter, drawGroup, drawList, drawState, type Sprite2Sheet } from "./draw";
 import { JE_itemScreenNonInteractive } from "./game_menu";
 import { loadMenuText } from "./helptext";
 import { mt_rand } from "./mtrand";
@@ -130,8 +130,12 @@ function play_song(song_num: number): void {
   g.song = song_num;
 }
 
-/** blit_enemy (tyrian2.c L109-122). `part` (0..3) tells the 2x2 enemy's quarters apart in draw keys. */
-function blit_enemy(i: number, x_offset: number, y_offset: number, sprite_offset: number, part: number): void {
+/**
+ * blit_enemy (tyrian2.c L109-122). `part` (0..3) tells the 2x2 enemy's quarters apart in draw keys;
+ * `first` marks the first quarter drawn this tick. The draw also records the whole enemy
+ * (drawGroup), so the renderer can replace its tiles with one model.
+ */
+function blit_enemy(i: number, x_offset: number, y_offset: number, sprite_offset: number, part: number, first: boolean): void {
   const e = g.enemy[i];
   const sprite2s = enemySprite2s(e);
   if (sprite2s === null) return;
@@ -141,9 +145,17 @@ function blit_enemy(i: number, x_offset: number, y_offset: number, sprite_offset
   const index = u32(egrAt(e, e.enemycycle - 1) + sprite_offset);
 
   drawState.key = ENEMY_KEY_BASE + (enemySerial.get(e) ?? 0) * 4 + part;
+  // The object's centre: a 2x2 enemy's 24x28 block is centred on (ex + 6, ey + 7), a 1x1 enemy's
+  // 12x14 tile on (ex + 6, ey + 7) too.
+  drawGroup.index = u32(egrAt(e, e.enemycycle - 1));
+  drawGroup.size = e.size === 1 ? 2 : 1;
+  drawGroup.dx = e.ex + 6 + g.tempMapXOfs - x;
+  drawGroup.dy = e.ey + 7 - y;
+  drawGroup.first = first;
   if (e.filter !== 0) blit_sprite2_filter(x, y, sprite2s, index, e.filter);
   else blit_sprite2(x, y, sprite2s, index);
   drawState.key = -1;
+  drawGroup.index = -1;
 }
 
 /**
@@ -201,15 +213,15 @@ function drawOneEnemy(i: number, enemyOffset: number): void {
     if (e.size === 1) {
       // 2x2 enemy
       if (e.ey > -13) {
-        blit_enemy(i, -6, -7, 0, 0);
-        blit_enemy(i, 6, -7, 1, 1);
+        blit_enemy(i, -6, -7, 0, 0, true);
+        blit_enemy(i, 6, -7, 1, 1, false);
       }
       if (e.ey > -26 && e.ey < 182) {
-        blit_enemy(i, -6, 7, 19, 2);
-        blit_enemy(i, 6, 7, 20, 3);
+        blit_enemy(i, -6, 7, 19, 2, !(e.ey > -13));
+        blit_enemy(i, 6, 7, 20, 3, false);
       }
     } else {
-      if (e.ey > -13) blit_enemy(i, 0, 0, 0, 0);
+      if (e.ey > -13) blit_enemy(i, 0, 0, 0, 0, true);
     }
 
     e.filter = 0;

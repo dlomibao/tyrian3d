@@ -1,0 +1,16 @@
+{
+ "model": "usp_talon",
+ "sprites": [
+  {
+   "sheet": "tyrian.shp#8",
+   "size": 2,
+   "frames": [
+    233
+   ],
+   "bank": {
+    "step": 2,
+    "max": 2
+   }
+  }
+ ]
+}

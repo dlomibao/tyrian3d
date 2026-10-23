@@ -1,7 +1,8 @@
 """USP Talon, the starting ship: a 3D version of its sprite (ship sprite 233 in tyrian.shp).
 
 The hull's outline follows the sprite row by row (tools/extract-sprites.mjs renders it); colours are
-sampled from the sprite with palette 0. Exports public/models/usp_talon.glb.
+sampled from the sprite. Materials named pal_<index> take that palette colour in game. Exports
+public/models/usp_talon.glb and src/render/spriteModels/usp_talon.json.
 
 Blender axes: forward is +Y, up is +Z, 1 unit = 12 Tyrian pixels. Sprite row r maps to
 y = (14 - r) / 12, so the 24x28 sprite is centred on the origin.
@@ -19,6 +20,9 @@ NAME = "usp_talon"
 SPRITE = "ship-usp-talon-top.png"
 
 HULL, BAND, CANOPY, GLOW, SPINE = range(5)
+
+# The ship sprite and its banking frames (233 + bank * 2, bank -2..2) that the model replaces.
+SPRITES = [{"sheet": "tyrian.shp#8", "size": 2, "frames": [233], "bank": {"step": 2, "max": 2}}]
 
 
 def row(r):
@@ -48,11 +52,11 @@ def hull_top(r):
 def build():
     coll = common.reset_collection(NAME)
     mats = [
-        common.material("talon_hull", common.srgb(154, 130, 85), metallic=0.55, roughness=0.42),
-        common.material("talon_band", common.srgb(101, 73, 32), metallic=0.3, roughness=0.65),
-        common.material("talon_canopy", common.srgb(16, 8, 0), metallic=0.1, roughness=0.12),
+        common.material("pal_26_talon_hull", common.srgb(154, 130, 85), metallic=0.55, roughness=0.42),
+        common.material("pal_22_talon_band", common.srgb(101, 73, 32), metallic=0.3, roughness=0.65),
+        common.material("pal_16_talon_canopy", common.srgb(16, 8, 0), metallic=0.1, roughness=0.12),
         common.material("engine_glow", (1.0, 0.45, 0.1), emission=(1.0, 0.5, 0.12), emission_strength=6.0),
-        common.material("talon_spine", common.srgb(207, 195, 158), metallic=0.5, roughness=0.3),
+        common.material("pal_29_talon_spine", common.srgb(207, 195, 158), metallic=0.5, roughness=0.3),
     ]
 
     bm = bmesh.new()
@@ -114,9 +118,10 @@ def main():
     root = common.repo_root(__file__)
     common.reference_image(f"{NAME}_sprite", root / "reference" / "sprites" / SPRITE, 24 / 12, 28 / 12)
     obj = build()
-    out = root / "public" / "models" / f"{NAME}.glb"
-    common.export_glb([obj], out)
-    print(f"exported {out} ({out.stat().st_size} bytes, {len(obj.data.polygons)} faces)")
+    common.export_sprite_model(root, [obj], NAME, SPRITES)
+    if "--preview" in sys.argv:
+        ref = root / "reference" / "models" / "ship-usp-talon-light-fighter" / "frame-tyrian8-233.png"
+        common.render_preview([obj], sys.argv[sys.argv.index("--preview") + 1], ref, size=2)
 
 
 if __name__ == "__main__":

@@ -290,3 +290,52 @@ changes (adjust_difficulty, last_items). This refines D11.
 
 **Review:** Die in a level and check that you return to the item screen with what you launched
 with.
+
+## D15 — Every enemy and player ship gets a Blender model, found through one JSON file per model
+
+2026-10-22
+
+**Decision:** The sim marks each enemy's tiles as one object (`SpriteDraw.groupIndex`, the frame's
+top-left sprite, plus the offset to the object's centre and which tile is drawn first). The
+renderer draws a model at the centre on the first tile and skips the rest. Which frames a model
+replaces is in `src/render/spriteModels/<name>.json`, written by the model's Blender script and
+loaded with `import.meta.glob`. Models load the first time their sprite is drawn; until then the
+sprite stays extruded. Materials named `pal_<index>` take their colour from the live palette.
+The work list comes from `npm run catalogue`, which plays every level headless: 1,003 enemy
+models (458 flying, 545 ground) and 7 player ships. One enemy's animation frames, and identical
+pictures, are one model. Pieces of bosses and big structures are separate models, built from the
+picture of the whole. Flying enemies come before ground ones, each in order of time on screen.
+
+**Options considered:**
+- *Group in the sim, one JSON per model, lazy loading (chosen):* the renderer stays ignorant of
+  enemy rules. Agents building models in parallel never touch the same file. Players only
+  download the models for what they've seen.
+- *Group in the renderer by draw key:* no sim change, but the renderer would have to know the
+  2x2 tile layout and the key encoding.
+- *One manifest file listing every model:* simpler to read, but every parallel batch would
+  conflict on it.
+- *Baked model colours (as the Talon had):* simpler, but models wouldn't change with level
+  palettes, fades or the hit flash.
+
+**Review:** Watch a level with modelled enemies: models should sit exactly where the sprites
+were, flash when hit and fade with the level. Boss pieces should line up. Models can be large in
+number; if load stalls show up, preload a level's models when it starts.
+
+## D16 — The ship and tile art is free to use; the rest of the game data still isn't hosted
+
+2026-10-22
+
+**Decision:** Daniel Cook released the Tyrian ship and tile graphics for anyone to use in their
+games (https://lostgarden.com/2007/04/05/free-game-graphics-tyrian-ships-and-tiles/), so models
+that copy the sprites closely are fine to commit and deploy. The release covers only the art,
+so the data zip (levels, music, text, code) still isn't committed or hosted (D3), and the
+catalogue's reference images, which are rendered from that zip, stay out of git.
+
+**Options considered:**
+- *Commit models, keep the data and references out (chosen):* uses the release as written.
+- *Commit the reference images too:* they're the released art, but they're extracted from the
+  data files, whose own licence forbids copying them. The Lost Garden pack has its own PNGs
+  if references ever need to be committed.
+
+**Review:** The page gives no formal licence, only "use and abuse them as desired". It asks
+for a link back, which CREDITS.md gives.

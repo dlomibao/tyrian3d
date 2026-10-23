@@ -67,6 +67,19 @@ export interface SpriteDraw {
   /** For "filter": the hue filter byte (high nibble = hue). For "hv": hue and value. */
   filter: number;
   value: number;
+  /**
+   * The whole object this tile belongs to, for drawing it as one model (DECISIONS.md D15). Only
+   * enemies set it: a 2x2 enemy is four blit_sprite2 calls (index, +1, +19, +20). groupIndex is
+   * the sprite index of the object's top-left tile in this animation frame (-1: not grouped),
+   * groupSize its size in tiles (1 or 2), and (groupDx, groupDy) the offset from this tile's
+   * top-left to the object's centre. groupFirst is true on the first tile drawn for the object
+   * this tick, which is where its model goes.
+   */
+  groupIndex: number;
+  groupSize: 1 | 2;
+  groupDx: number;
+  groupDy: number;
+  groupFirst: boolean;
 }
 
 export interface TableSpriteDraw {
@@ -134,6 +147,9 @@ export const drawList: DrawList = { items: [], palette: 0, filter: -99, brightne
 /** The pass and key that the next blits record. Set by the sim around each draw section. */
 export const drawState = { pass: Pass.Background1 as Pass, key: -1 };
 
+/** The object the next sprite2 blits belong to (SpriteDraw.groupIndex and so on). Set by blit_enemy. */
+export const drawGroup = { index: -1, size: 1 as 1 | 2, dx: 0, dy: 0, first: false };
+
 export function beginDrawList(): void {
   drawList.items = [];
   drawState.pass = Pass.Background1;
@@ -141,7 +157,11 @@ export function beginDrawList(): void {
 }
 
 function sprite2(x: number, y: number, sheet: Sprite2Sheet, index: number, size: 1 | 2, effect: SpriteEffect, filter = 0): void {
-  drawList.items.push({ kind: "sprite2", sheet, index, x, y, size, pass: drawState.pass, key: drawState.key, effect, filter, value: 0 });
+  const gr = drawGroup;
+  drawList.items.push({
+    kind: "sprite2", sheet, index, x, y, size, pass: drawState.pass, key: drawState.key, effect, filter, value: 0,
+    groupIndex: gr.index, groupSize: gr.size, groupDx: gr.dx, groupDy: gr.dy, groupFirst: gr.first,
+  });
 }
 
 export const blit_sprite2 = (x: number, y: number, sheet: Sprite2Sheet, index: number) => sprite2(x, y, sheet, index, 1, "none");

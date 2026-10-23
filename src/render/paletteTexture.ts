@@ -22,6 +22,8 @@ export function remapScreenIndex(index: number, filter: number, brightness: numb
 
 export class PaletteTexture {
   readonly texture: THREE.DataTexture;
+  /** Goes up whenever the colours change, so things that copy colours out know to refresh. */
+  version = 0;
   private readonly rgba = new Uint8Array(256 * 4);
   private palette: Palette | null = null;
   private filter = -99;
@@ -54,6 +56,7 @@ export class PaletteTexture {
       this.rgba[i * 4 + 3] = 255;
     }
     this.texture.needsUpdate = true;
+    this.version++;
   }
 
   /** sRGB colour of an index in the current palette, for things drawn outside the shaders. */

@@ -19,6 +19,7 @@ anything imported from outside, such as Poly Haven textures or HDRIs.
 
 | Asset | Source URL | Author | License | Used in |
 |---|---|---|---|---|
+| Tyrian ship and tile graphics (the art the models in `assets/blender/` reproduce) | https://lostgarden.com/2007/04/05/free-game-graphics-tyrian-ships-and-tiles/ | Daniel Cook | Free to use in games ("use and abuse them as desired"); link back requested | Every model in `public/models/` is a 3D version of one of these sprites |
 
 ## Audio
 

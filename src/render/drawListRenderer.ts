@@ -8,7 +8,10 @@
 //   ray back onto its original screen position and scaled to its original size (D6), so the
 //   layout on screen is exactly the original's at any height.
 // - Positions are interpolated between the last two ticks at display rate (interpolation.ts, D2).
-// - Selected sprites are replaced by hand-made models (MODEL_OVERRIDES, D4).
+// - Selected sprites are replaced by hand-made models (D4): the player ship with its banking
+//   frames (MODEL_OVERRIDES), and whole enemies, all of whose tiles become one model
+//   (setSpriteModels, D15). Models load on first use; until then the sprite stays extruded.
+//   Materials named pal_<index> take their colour from the live palette.
 //
 // Integrator API: add `root` to the scene, call setPalettes() once, setDrawList() every logic
 // tick, and update(alpha, camera) every display frame before rendering.
@@ -16,36 +19,14 @@
 import * as THREE from "three";
 import type { Palette } from "../data/palette";
 import { PX_PER_UNIT, screenWorldX, screenWorldZ } from "../game/playfield";
-import { Pass, type Draw, type DrawList, type SpriteEffect } from "../sim/draw";
+import { Pass, type Draw, type DrawList, type SpriteDraw, type SpriteEffect } from "../sim/draw";
 import { DrawInterpolator } from "./interpolation";
 import { FxMode, groundTileMaterial, paletteMaterial } from "./paletteMaterial";
 import { PaletteTexture } from "./paletteTexture";
 import { passHeight } from "./passHeights";
 import { SpriteMeshCache } from "./spriteMesh";
+import { spriteModelKey, type ModelOverride, type SpriteModels } from "./spriteModels";
 import { TileAtlas } from "./tileAtlas";
-
-/** A hand-made model that replaces a sprite and its banking frames. */
-export interface ModelOverride {
-  /** Sprite2 sheet id, e.g. "tyrian.shp#8" for the player ships. */
-  sheetId: string;
-  /** Sprite index of the level (unbanked) frame. */
-  baseIndex: number;
-  /** Index step between banking frames, and how many frames there are to each side. */
-  bankStep: number;
-  maxBank: number;
-  /** The size the sprite is drawn at (2 for blit_sprite2x2). */
-  size: 1 | 2;
-  /** Model name in public/models/. */
-  model: string;
-}
-
-/**
- * Sprites drawn as Blender models instead of extrusions. The player ship is blit_sprite2x2 from
- * the ship sheet at shipGraphic + ship_banking * 2, ship_banking -2..2 (JE_playerMovement).
- */
-export const MODEL_OVERRIDES: readonly ModelOverride[] = [
-  { sheetId: "tyrian.shp#8", baseIndex: 233, bankStep: 2, maxBank: 2, size: 2, model: "usp_talon" }, // USP Talon
-];
 
 /** Roll at full bank, and how fast the model eases toward its frame's roll (per second). */
 const MAX_ROLL = THREE.MathUtils.degToRad(35);
@@ -142,13 +123,37 @@ class Pool {
   }
 }
 
-/** Clones of one override model, with banking state per clone. */
+/** A material of a model clone named pal_<index>: its colour follows the palette. */
+interface PaletteMaterial {
+  material: THREE.MeshStandardMaterial;
+  index: number;
+  /** Whether the Blender material glows, so its emissive colour follows too. */
+  emissive: boolean;
+}
+
+interface ModelClone {
+  object: THREE.Object3D;
+  roll: number;
+  materials: THREE.Material[];
+  paletteMaterials: PaletteMaterial[];
+  blended: boolean;
+  /** The palette version and hit-flash hue its pal_ colours were last set for. */
+  paletteVersion: number;
+  hue: number;
+}
+
+/** Clones of one model, reused every frame. `source` is null until the model has loaded. */
 interface ModelPool {
-  override: ModelOverride;
-  source: THREE.Object3D;
-  clones: { object: THREE.Object3D; roll: number; materials: THREE.Material[]; blended: boolean }[];
+  name: string;
+  source: THREE.Object3D | null;
+  clones: ModelClone[];
   used: number;
 }
+
+/** Loads a model by path in public/models/ (without .glb). */
+export type ModelLoader = (name: string) => Promise<THREE.Object3D>;
+
+const PALETTE_MATERIAL = /^pal_(\d+)/;
 
 export interface DrawListStats {
   items: number;
@@ -175,8 +180,10 @@ export class DrawListRenderer {
   private readonly allPools: Pool[] = [];
   private readonly groundGeometry = groundQuad();
   private readonly unitQuad = unitQuad();
-  private readonly overridesBySheet = new Map<string, ModelPool[]>();
-  private readonly modelPools: ModelPool[] = [];
+  private readonly overridesBySheet = new Map<string, { override: ModelOverride; pool: ModelPool }[]>();
+  private readonly modelPools = new Map<string, ModelPool>();
+  private spriteModels = new Map<string, string>();
+  private loader: ModelLoader | null = null;
   private frame = 0;
   private lastTime = performance.now();
   private instances = 0;
@@ -220,13 +227,20 @@ export class DrawListRenderer {
     return this.list !== null;
   }
 
-  /** Replace a sprite and its banking frames with a model (centred on its origin, forward -Z). */
-  addModelOverride(override: ModelOverride, model: THREE.Object3D): void {
-    const pool: ModelPool = { override, source: model, clones: [], used: 0 };
-    let list = this.overridesBySheet.get(override.sheetId);
-    if (!list) this.overridesBySheet.set(override.sheetId, (list = []));
-    list.push(pool);
-    this.modelPools.push(pool);
+  /**
+   * Draw sprites as models (spriteModels.ts): player ships with their banking frames, and grouped
+   * sprites (whole enemies). Models are fetched with `loader` the first time they're seen; until
+   * then their sprites stay extruded. Models are centred on their origin, forward -Z.
+   */
+  setSpriteModels(models: SpriteModels, loader: ModelLoader): void {
+    this.loader = loader;
+    this.spriteModels = models.grouped;
+    this.overridesBySheet.clear();
+    for (const override of models.banked) {
+      let list = this.overridesBySheet.get(override.sheetId);
+      if (!list) this.overridesBySheet.set(override.sheetId, (list = []));
+      list.push({ override, pool: this.modelPool(override.model) });
+    }
   }
 
   /** Build this frame's instances. alpha interpolates from the previous tick (0) to the current (1). */
@@ -240,7 +254,7 @@ export class DrawListRenderer {
     const { prevX, prevY } = this.interp;
     const cam = camera.position;
     let instances = 0;
-    for (let m = 0; m < this.modelPools.length; m++) this.modelPools[m].used = 0;
+    for (const mp of this.modelPools.values()) mp.used = 0;
 
     for (let i = 0; i < items.length; i++) {
       const d = items[i];
@@ -249,7 +263,8 @@ export class DrawListRenderer {
           if (d.effect === "darken") continue; // Real shadows replace the C's shadow sprites (D9).
           const x = prevX[i] + (d.x - prevX[i]) * alpha;
           const y = prevY[i] + (d.y - prevY[i]) * alpha;
-          if (this.overridesBySheet.size > 0 && this.drawOverride(d.sheet.id, d.index, d.size, d.effect, x, y, d.pass, cam, dt)) continue;
+          if (d.groupIndex >= 0 && this.spriteModels.size > 0 && this.drawGroupModel(d, x, y, cam)) continue;
+          if (this.overridesBySheet.size > 0 && this.drawOverride(d, x, y, cam, dt)) continue;
           const geometry = this.cache.sprite2Geometry(d.sheet, d.index, d.size);
           if (!geometry) continue;
           this.addSprite(geometry, d.pass, d.effect, d.filter, d.value, x, y, cam, frame);
@@ -294,8 +309,7 @@ export class DrawListRenderer {
     }
 
     for (let p = 0; p < this.allPools.length; p++) this.allPools[p].commit();
-    for (let m = 0; m < this.modelPools.length; m++) {
-      const mp = this.modelPools[m];
+    for (const mp of this.modelPools.values()) {
       for (let c = mp.used; c < mp.clones.length; c++) mp.clones[c].object.visible = false;
     }
     this.atlas.flush();
@@ -384,60 +398,99 @@ export class DrawListRenderer {
     fx[s * 4 + 3] = 1;
   }
 
-  /** Draw a sprite as its override model, if it has one. */
-  private drawOverride(
-    sheetId: string,
-    index: number,
-    size: 1 | 2,
-    effect: SpriteEffect,
-    x: number,
-    y: number,
-    pass: Pass,
-    cam: THREE.Vector3,
-    dt: number,
-  ): boolean {
-    const pools = this.overridesBySheet.get(sheetId);
-    if (!pools) return false;
-    for (let p = 0; p < pools.length; p++) {
-      const mp = pools[p];
-      const o = mp.override;
-      const offset = index - o.baseIndex;
-      if (size !== o.size || offset % o.bankStep !== 0 || Math.abs(offset) > o.bankStep * o.maxBank) continue;
+  /** Draw a sprite as its override model (the player ship and its banking frames), if it has one. */
+  private drawOverride(d: SpriteDraw, x: number, y: number, cam: THREE.Vector3, dt: number): boolean {
+    const overrides = this.overridesBySheet.get(d.sheet.id);
+    if (!overrides) return false;
+    for (let p = 0; p < overrides.length; p++) {
+      const { override: o, pool } = overrides[p];
+      const offset = d.index - o.baseIndex;
+      if (d.size !== o.size || offset % o.bankStep !== 0 || Math.abs(offset) > o.bankStep * o.maxBank) continue;
+      if (!pool.source) return false;
       const bank = offset / o.bankStep / o.maxBank; // -1..1
-      if (mp.used === mp.clones.length) mp.clones.push(this.cloneModel(mp.source));
-      const clone = mp.clones[mp.used++];
-      const { object } = clone;
-      object.visible = true;
-      // The model's origin goes where the sprite's centre was.
-      const sw = size * 12;
-      const sh = size * 14;
-      const h = passHeight(pass);
-      const k = h / cam.y;
-      const gx = screenWorldX(x + sw / 2);
-      const gz = screenWorldZ(y + sh / 2);
-      object.position.set(gx + (cam.x - gx) * k, h, gz + (cam.z - gz) * k);
-      object.scale.setScalar(1 - k);
+      const clone = this.placeModel(pool, x + (d.size * 12) / 2, y + (d.size * 14) / 2, d, cam);
       // Banking eases per display frame, so the 5 sprite frames become a smooth roll.
       clone.roll += (-bank * MAX_ROLL - clone.roll) * Math.min(1, dt * ROLL_RATE);
-      object.rotation.z = clone.roll;
-      const blended = effect === "blend";
-      if (blended !== clone.blended) {
-        clone.blended = blended;
-        for (const m of clone.materials) {
-          m.transparent = blended;
-          m.opacity = blended ? BLEND_ALPHA : 1;
-          m.depthWrite = !blended;
-          m.needsUpdate = true;
-        }
-      }
+      clone.object.rotation.z = clone.roll;
       return true;
     }
     return false;
   }
 
-  private cloneModel(source: THREE.Object3D): ModelPool["clones"][number] {
+  /**
+   * Draw a tile of a grouped object (an enemy) as part of the object's model, if it has one that
+   * has loaded: the model goes at the object's centre on its first tile, and the other tiles draw
+   * nothing. Returns false to draw the tile as a sprite.
+   */
+  private drawGroupModel(d: SpriteDraw, x: number, y: number, cam: THREE.Vector3): boolean {
+    const name = this.spriteModels.get(spriteModelKey(d.sheet.id, d.groupSize, d.groupIndex));
+    if (name === undefined) return false;
+    const pool = this.modelPool(name);
+    if (!pool.source) return false;
+    if (d.groupFirst) this.placeModel(pool, x + d.groupDx, y + d.groupDy, d, cam);
+    return true;
+  }
+
+  /** The pool for a model, starting its load the first time it's asked for. */
+  private modelPool(name: string): ModelPool {
+    let pool = this.modelPools.get(name);
+    if (!pool) {
+      const created: ModelPool = { name, source: null, clones: [], used: 0 };
+      this.modelPools.set(name, (pool = created));
+      this.loader?.(name).then(
+        (model) => (created.source ??= model),
+        (err) => console.error(`model ${name} failed to load; its sprites stay extruded`, err),
+      );
+    }
+    return pool;
+  }
+
+  /**
+   * Show the pool's next clone with its origin at screen point (cx, cy) on the draw's pass, at the
+   * size the sprite had on screen (D6), translucent for the "blend" effect and with the enemy
+   * hit-flash hue for "filter".
+   */
+  private placeModel(pool: ModelPool, cx: number, cy: number, d: SpriteDraw, cam: THREE.Vector3): ModelClone {
+    if (pool.used === pool.clones.length) pool.clones.push(this.cloneModel(pool.source!));
+    const clone = pool.clones[pool.used++];
+    const { object } = clone;
+    object.visible = true;
+    const h = passHeight(d.pass);
+    const k = h / cam.y;
+    const gx = screenWorldX(cx);
+    const gz = screenWorldZ(cy);
+    object.position.set(gx + (cam.x - gx) * k, h, gz + (cam.z - gz) * k);
+    object.scale.setScalar(1 - k);
+
+    const blended = d.effect === "blend";
+    if (blended !== clone.blended) {
+      clone.blended = blended;
+      for (const m of clone.materials) {
+        m.transparent = blended;
+        m.opacity = blended ? BLEND_ALPHA : 1;
+        m.depthWrite = !blended;
+        m.needsUpdate = true;
+      }
+    }
+
+    // blit_sprite2_filter draws (filter & 0xf0) | (index & 0x0f): the same shade in another hue.
+    const hue = d.effect === "filter" ? d.filter & 0xf0 : -1;
+    if (clone.paletteMaterials.length > 0 && (clone.paletteVersion !== this.palette.version || clone.hue !== hue)) {
+      clone.paletteVersion = this.palette.version;
+      clone.hue = hue;
+      for (const pm of clone.paletteMaterials) {
+        const index = hue < 0 ? pm.index : hue | (pm.index & 0x0f);
+        this.palette.color(index, pm.material.color);
+        if (pm.emissive) pm.material.emissive.copy(pm.material.color);
+      }
+    }
+    return clone;
+  }
+
+  private cloneModel(source: THREE.Object3D): ModelClone {
     const object = source.clone(true);
     const materials: THREE.Material[] = [];
+    const paletteMaterials: PaletteMaterial[] = [];
     object.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
@@ -445,10 +498,17 @@ export class DrawListRenderer {
       mesh.receiveShadow = true;
       // Own materials, so one clone can turn translucent (invulnerability) without the others.
       mesh.material = Array.isArray(mesh.material) ? mesh.material.map((m) => m.clone()) : mesh.material.clone();
-      materials.push(...(Array.isArray(mesh.material) ? mesh.material : [mesh.material]));
+      for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+        materials.push(m);
+        const match = PALETTE_MATERIAL.exec(m.name);
+        const std = m as THREE.MeshStandardMaterial;
+        if (match && std.isMeshStandardMaterial) {
+          paletteMaterials.push({ material: std, index: Number(match[1]) & 0xff, emissive: std.emissive.getHex() !== 0 });
+        }
+      }
     });
     this.root.add(object);
-    return { object, roll: 0, materials, blended: false };
+    return { object, roll: 0, materials, paletteMaterials, blended: false, paletteVersion: -1, hue: -1 };
   }
 
   private evictPools(frame: number): void {
