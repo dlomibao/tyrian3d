@@ -254,6 +254,7 @@ def composite_png(grid, colors, out, pad_to=None):
 def paint(bm, first_face, sample, slot_for, up_only=True):
     """Set the material of every face added since `first_face` from the sprite pixel under its
     centre: sample(x, y) -> palette index or None; slot_for(index) -> slot or None (leave it)."""
+    bm.normal_update()
     bm.faces.ensure_lookup_table()
     for f in bm.faces[first_face:]:
         if up_only and f.normal.z < 0.2:
