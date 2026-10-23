@@ -327,7 +327,7 @@ def dome_z(cx, cy, rx, ry, h, z0=FLOOR, lift=0.018):
     """zfunc for painted(): the height of a dome() (power 2, flat 0) plus `lift`."""
     def z(x, y):
         d = ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2
-        return z0 + h * math.sqrt(max(0.0, 1 - d)) + lift
+        return z0 + h * math.sqrt(max(0.0, 1 - d)) + lift * (1 + 2.5 * min(d, 1.0) ** 2)
     return z
 
 
@@ -436,24 +436,36 @@ def sprites_with(root, name, frames):
     return out
 
 
+def base_name(model):
+    """The catalogue entry a model belongs to: newshm-7-f2 -> newshm-7."""
+    head, _, tail = model.rpartition("-f")
+    return head if head and tail.isdigit() else model
+
+
 def run_assembly(asm_name, pieces, build, file, cols, rows_, frames=None, frames_of=None):
-    """Several 2x2 pieces laid out cols x rows_ (pieces: list of rows of piece names or None,
-    top row first) built as one model and cut apart. build(sprite, grid) builds the whole in the
-    grid's coordinates (Grid(24*cols, 28*rows_) centred on the origin) and returns
-    (object, extra) where extra is a list of more (model, objects, sprites) to export as is.
-    frames: optional {piece: frame position} for the composite preview."""
+    """Several 2x2 pieces laid out cols x rows_ (pieces: rows of model names or None, top row
+    first; a model like newshm-7-f2 is a piece of catalogue entry newshm-7) built as one model and
+    cut apart. build(sprite, grid) builds the whole in the grid's coordinates (Grid(24*cols,
+    28*rows_) centred on the origin) and returns (object, extra), extra being more (model,
+    objects, sprites) to export as they are. frames_of: {model: [frame indices]} for models that
+    cover only some of their entry's frames (the first one is used for the composite)."""
     root = common.repo_root(file)
+    frames_of = frames_of or {}
     names = [p for row_ in pieces for p in row_ if p]
-    colors = merged_colors(root, names)
+    colors = merged_colors(root, [base_name(n) for n in names])
     w, h = 24 * cols, 28 * rows_
     comp = [[-1] * w for _ in range(h)]
     comp_rgb = [[(0, 0, 0, 0)] * w for _ in range(h)]
+    first = {}
     for ri, row_ in enumerate(pieces):
         for ci, n in enumerate(row_):
             if not n:
                 continue
-            data = common.load_sprite(root, n)
-            fr = data["frames"][(frames or {}).get(n, 0)]
+            data = common.load_sprite(root, base_name(n))
+            fr = data["frames"][0]
+            if n in frames_of:
+                fr = next(f for f in data["frames"] if f["index"] == frames_of[n][0])
+            first[n] = fr
             for r, line in enumerate(fr["pixels"]):
                 for c, v in enumerate(line):
                     if v >= 0:
@@ -465,9 +477,8 @@ def run_assembly(asm_name, pieces, build, file, cols, rows_, frames=None, frames
     layout = layout_of(pieces, cols, rows_)
     cut = common.split_assembly(obj, layout)
     for n in names:
-        sprites = common.load_sprite(root, n)["sprites"]
-        if frames_of and n in frames_of:
-            sprites = sprites_with(root, n, frames_of[n])
+        sprites = common.load_sprite(root, n)["sprites"] if n not in frames_of else \
+            sprites_with(root, base_name(n), frames_of[n])
         common.export_sprite_model(root, [cut[n]], f"enemies/{n}", sprites)
     for model, objects, sprites in extra:
         common.export_sprite_model(root, objects, f"enemies/{model}", sprites)
@@ -485,11 +496,10 @@ def run_assembly(asm_name, pieces, build, file, cols, rows_, frames=None, frames
         write_png(ref, canvas)
         common.render_preview([obj], str(out), str(ref), size=sw / 12, view_px=480)
         for n in names:
-            data = common.load_sprite(root, n)
-            img = root / "reference" / "models" / n / data["frames"][0]["image"]
+            img = root / "reference" / "models" / base_name(n) / first[n]["image"]
             common.render_preview([cut[n]], str(out.parent / f"{n}.png"), img, size=2)
         for model, objects, sprites in extra:
-            base = model.split("-f")[0]
+            base = base_name(model)
             data = common.load_sprite(root, base)
             fr = next(f for f in data["frames"] if f["index"] == sprites[0]["frames"][0])
             img = root / "reference" / "models" / base / fr["image"]
