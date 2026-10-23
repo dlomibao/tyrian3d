@@ -1,0 +1,14 @@
+{
+ "model": "enemies/newshs-11",
+ "sprites": [
+  {
+   "sheet": "newshs.shp",
+   "size": 2,
+   "frames": [
+    11,
+    125,
+    277
+   ]
+  }
+ ]
+}
