@@ -49,13 +49,18 @@ def _faces(bm, rings, mat, smooth, cap_start, cap_end):
             else:
                 f = (r0[k], r0[j], r1[j], r1[k])
             faces.append(bm.faces.new(f))
+    for f in faces:
+        f.smooth = smooth
+    caps = []
     if cap_start and len(rings[0]) > 1:
-        faces.append(bm.faces.new(list(reversed(rings[0]))))
+        caps.append(bm.faces.new(list(reversed(rings[0]))))
     if cap_end and len(rings[-1]) > 1:
-        faces.append(bm.faces.new(rings[-1]))
+        caps.append(bm.faces.new(rings[-1]))
+    for f in caps:
+        f.smooth = False  # flat end caps: smooth shading would bend their normals
+    faces += caps
     for f in faces:
         f.material_index = mat
-        f.smooth = smooth
     return faces
 
 
