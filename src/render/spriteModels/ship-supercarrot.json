@@ -1,0 +1,16 @@
+{
+ "model": "ships/ship-supercarrot",
+ "sprites": [
+  {
+   "sheet": "tyrian.shp#8",
+   "size": 2,
+   "frames": [
+    119
+   ],
+   "bank": {
+    "step": 2,
+    "max": 2
+   }
+  }
+ ]
+}
