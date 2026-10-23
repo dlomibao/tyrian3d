@@ -191,6 +191,7 @@ def paint_from_sprite(bm, pixels, slot_of, size=2, under_slot=None, min_nz=0.0, 
     """Give each face the material slot of the sprite pixel under its centre (slot_of(index) ->
     slot or None to leave it; `average` takes the mean index over the face, for shades of one
     ramp). Faces facing down (normal z < min_nz) get `under_slot` if given."""
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
     bm.normal_update()
     for f in bm.faces:
         cen = f.calc_center_median()
