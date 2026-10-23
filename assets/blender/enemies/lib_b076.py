@@ -258,3 +258,42 @@ def loft_x(bm, F, row_edge, sections, sides=8, mat=0, smooth=True, cap=True):
     bmesh.ops.reverse_faces(bm, faces=new)
     for f in new:
         f.smooth = smooth
+
+
+def tube(bm, points, radius, sides=6, mat=0, smooth=True, caps=True):
+    """A round tube along a polyline of 3D points (radius a number or one per point), its rings
+    facing the bisector at each joint (copied in spirit from lib_b007.polyline_tube)."""
+    pts = [Vector(p) for p in points]
+    radii = radius if isinstance(radius, (list, tuple)) else [radius] * len(pts)
+    tangents = []
+    for i in range(len(pts)):
+        d0 = (pts[i] - pts[i - 1]).normalized() if i > 0 else None
+        d1 = (pts[i + 1] - pts[i]).normalized() if i < len(pts) - 1 else None
+        t = (d0 + d1) if d0 is not None and d1 is not None else (d0 if d1 is None else d1)
+        tangents.append(t.normalized())
+    ref = Vector((0, 0, 1)) if abs(tangents[0].z) < 0.9 else Vector((1, 0, 0))
+    u = tangents[0].cross(ref).normalized()
+    rings = []
+    for c, t, rad in zip(pts, tangents, radii):
+        u = (u - t * u.dot(t)).normalized()
+        v = t.cross(u).normalized()
+        rings.append([bm.verts.new(c + rad * (math.cos(2 * math.pi * (k + 0.5) / sides) * u +
+                                              math.sin(2 * math.pi * (k + 0.5) / sides) * v))
+                      for k in range(sides)])
+    faces = []
+    for r0, r1 in zip(rings, rings[1:]):
+        for k in range(sides):
+            j = (k + 1) % sides
+            faces.append(bm.faces.new((r0[k], r0[j], r1[j], r1[k])))
+    if caps:
+        faces.append(bm.faces.new(list(reversed(rings[0]))))
+        faces.append(bm.faces.new(rings[-1]))
+    # Make the winding face outward: compare the first side face's normal with its offset from the axis.
+    f = faces[0]
+    f.normal_update()
+    if f.normal.dot(f.calc_center_median() - pts[0]) < 0:
+        bmesh.ops.reverse_faces(bm, faces=faces)
+    for f in faces:
+        f.material_index = mat
+        f.smooth = smooth
+    return faces
