@@ -208,3 +208,30 @@ def run(name, build, file):
             path = out if i == 0 else out.parent / f"{model}.png"
             common.render_preview(objects, str(path), ref, size=frame["size"])
     return sprite
+
+
+def arch_loft(bm, sections, sides=8, mat=0, smooth=True, cap_start=True, cap_end=True, x_of=None):
+    """A loft of half-ellipse arches standing on the ground, along Y: each section is
+    (x_centre, y, half_width, height, z_base) in units. The flat bottom is closed, so it's a solid
+    hump (a shell, dome or ridge). A section with zero width and height is a point."""
+    rings = []
+    for x, y, w, h, z0 in sections:
+        if w == 0 and h == 0:
+            rings.append([(x, y, z0)])
+            continue
+        ring = []
+        for i in range(sides + 1):
+            a = math.pi * i / sides
+            ring.append((x + w * math.cos(a), y, z0 + h * math.sin(a)))
+        rings.append(ring)
+    return ring_loft(bm, rings, mat, cap_start=cap_start, cap_end=cap_end, smooth=smooth)
+
+
+def rotate_new(bm, start, pivot, angle, axis="X"):
+    """Rotate every vertex added since index `start` about `pivot` by `angle` radians."""
+    from mathutils import Matrix
+    bm.verts.ensure_lookup_table()
+    m = Matrix.Rotation(angle, 4, axis)
+    p = Vector(pivot)
+    for v in bm.verts[start:]:
+        v.co = p + m @ (v.co - p)
