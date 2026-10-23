@@ -267,3 +267,27 @@ def preview(objs, sprite, root, name, frame=0):
         out = sys.argv[sys.argv.index("--preview") + 1]
         ref = Path(root) / "reference" / "models" / name / sprite["frames"][frame]["image"]
         common.render_preview(objs, out, ref, size=sprite["frames"][frame]["size"])
+
+
+def torus(bm, centre, radius, minor, minor_z=None, major=24, sides=8, mat_index=0, ry=None):
+    """A ring lying flat at `centre`: centreline radius `radius` (`ry` for an elliptical ring),
+    tube radius `minor` across and `minor_z` up."""
+    cx, cy, cz = centre
+    minor_z = minor if minor_z is None else minor_z
+    ry = radius if ry is None else ry
+    rings = []
+    for i in range(major):
+        a = 2 * math.pi * i / major
+        ca, sa = math.cos(a), math.sin(a)
+        ring = []
+        for k in range(sides):
+            b = 2 * math.pi * (k + 0.5) / sides
+            ring.append(bm.verts.new((cx + (radius + minor * math.cos(b)) * ca,
+                                      cy + (ry + minor * math.cos(b)) * sa,
+                                      cz + minor_z * math.sin(b))))
+        rings.append(ring)
+    for i in range(major):
+        r0, r1 = rings[i], rings[(i + 1) % major]
+        for k in range(sides):
+            j = (k + 1) % sides
+            bm.faces.new((r0[k], r0[j], r1[j], r1[k])).material_index = mat_index
