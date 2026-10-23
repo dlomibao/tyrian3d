@@ -106,8 +106,8 @@ def loft_x(bm, sections, sides=12, mat=0, power=1.0, cap_start=True, cap_end=Tru
 
 def loft_y(bm, sections, sides=12, mat=0, power=1.0, groove=None, cap_start=True, cap_end=True):
     """Loft along Y. Sections are (y, x_centre, half_x, half_z, z_centre). `groove` is
-    (x, half_width, depth): the top surface dips by up to `depth` around that X (a tongue's
-    furrow)."""
+    (x, half_width, fraction): the top surface dips by up to that fraction of the section's half
+    height around that X (a tongue's furrow)."""
     unit = _ring(sides, power)
     rings = []
     for y, xc, hx, hz, zc in sections:
@@ -118,8 +118,8 @@ def loft_y(bm, sections, sides=12, mat=0, power=1.0, groove=None, cap_start=True
         for c, s in unit:
             x, z = xc + hx * c, zc + hz * s
             if groove and s > 0:
-                gx, gw, depth = groove
-                z -= depth * s * math.exp(-((x - gx) / gw) ** 2)
+                gx, gw, frac = groove
+                z -= frac * hz * s * math.exp(-((x - gx) / gw) ** 2)
             ring.append(bm.verts.new((x, y, z)))
         rings.append(ring)
     return _bridge(bm, rings, sides, mat, cap_start, cap_end)
@@ -148,19 +148,24 @@ def smooth_profile(values, passes=1):
     return v
 
 
-def paint(faces, grid, pixels, slot_of, min_nz=0.25, spread=0.6):
-    """Give each upward-facing face the slot of the sprite pixels under it: the mean palette
-    index under its centre and toward its corners, mapped by slot_of(index) -> slot or None
-    (leave the face as it is)."""
+def paint(faces, grid, pixels, slot_of, min_nz=0.25, spread=0.6, box=0):
+    """Give each upward-facing face the slot of the sprite pixels under it, mapped by
+    slot_of(list of palette indices) -> slot or None (leave the face as it is). The pixels are
+    those under its centre and toward its corners, or with `box` > 0 every pixel within `box`
+    pixels of its centre (a blur, for organic shading without a pixel mosaic)."""
     for f in faces:
         f.normal_update()
         if f.normal.z < min_nz:
             continue
         cen = f.calc_center_median()
-        pts = [cen] + [cen.lerp(v.co, spread) for v in f.verts]
+        if box:
+            c0, r0 = int(round(grid.col(cen.x))), int(round(grid.row(cen.y)))
+            cells = [(c0 + dc, r0 + dr) for dc in range(-box, box + 1) for dr in range(-box, box + 1)]
+        else:
+            cells = [(int(round(grid.col(p.x))), int(round(grid.row(p.y))))
+                     for p in [cen] + [cen.lerp(v.co, spread) for v in f.verts]]
         vals = []
-        for p in pts:
-            c, r = int(round(grid.col(p.x))), int(round(grid.row(p.y)))
+        for c, r in cells:
             if 0 <= r < len(pixels) and 0 <= c < len(pixels[0]) and pixels[r][c] >= 0:
                 vals.append(pixels[r][c])
         if not vals:
