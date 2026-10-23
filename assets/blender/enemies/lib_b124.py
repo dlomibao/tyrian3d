@@ -108,9 +108,10 @@ def ellipsoid(bm, centre, radii, mat=0, segments=16, rings=8, rot_z=0.0, half=Fa
     set_faces(bm, before, mat, smooth)
 
 
-def tube(bm, points, radii, sides=8, mat=0, flat=1.0, cap=True, smooth=True, up=(0, 0, 1)):
+def tube(bm, points, radii, sides=8, mat=0, flat=1.0, cap=True, smooth=True, up=(0, 0, 1), power=1.0):
     """A tube along a polyline of 3D points (units) with a radius per point (0 closes to a tip).
-    `flat` scales the cross-section along the ring's 'up' direction (squashed tubes)."""
+    `flat` scales the cross-section along the ring's 'up' direction (squashed tubes); power < 1
+    squares the cross-section off (0.5 is a rounded box)."""
     before = len(bm.faces)
     pts = [Vector(p) for p in points]
     rings = []
@@ -134,7 +135,9 @@ def tube(bm, points, radii, sides=8, mat=0, flat=1.0, cap=True, smooth=True, up=
         ring = []
         for k in range(sides):
             ang = 2 * math.pi * (k + 0.5) / sides
-            ring.append(bm.verts.new(p + side * math.cos(ang) * rad + nup * math.sin(ang) * rad * flat))
+            cu, su = math.cos(ang), math.sin(ang)
+            cu, su = math.copysign(abs(cu) ** power, cu), math.copysign(abs(su) ** power, su)
+            ring.append(bm.verts.new(p + side * cu * rad + nup * su * rad * flat))
         rings.append(ring)
     for r0, r1 in zip(rings, rings[1:]):
         for k in range(sides):
@@ -156,11 +159,12 @@ def tube(bm, points, radii, sides=8, mat=0, flat=1.0, cap=True, smooth=True, up=
     set_faces(bm, before, mat, smooth)
 
 
-def ground(bm, fr, grid, cell, c0, r0, cols, rows, slot_of, height_of, base=0.0, mat_side=0):
+def ground(bm, fr, grid, cell, c0, r0, cols, rows, slot_of, height_of, base=0.0, mat_side=0, inset=0.02):
     """Jungle-floor relief: a grid of cell x cell px quads over pixels (c0..c0+cols, r0..r0+rows)
     of `grid` (rows of palette indices, -1 transparent), each corner raised by height_of(index)
     averaged over the pixels around it, each quad coloured slot_of(most common index). The sides
-    drop to z = 0."""
+    drop to z = 0. The outer edge is pulled in by `inset` px so a cut along it (split_assembly)
+    leaves no wall lying in the cut plane."""
     nx, ny = cols // cell, rows // cell
 
     def px_at(c, r):
@@ -177,7 +181,9 @@ def ground(bm, fr, grid, cell, c0, r0, cols, rows, slot_of, height_of, base=0.0,
             z = base + (sum(hs) / len(hs) if hs else 0.0)
             if i in (0, nx) or j in (0, ny):
                 z = base
-            verts[i, j] = bm.verts.new((fr.x(c), fr.y(r), z))
+            ce = c + (inset if i == 0 else -inset if i == nx else 0.0)
+            re = r + (inset if j == 0 else -inset if j == ny else 0.0)
+            verts[i, j] = bm.verts.new((fr.x(ce), fr.y(re), z))
     for j in range(ny):
         for i in range(nx):
             idx = [px_at(c0 + i * cell + a, r0 + j * cell + b) for a in range(cell) for b in range(cell)]
@@ -241,3 +247,17 @@ def composite_png(root, layout, w, h, out, frame_of=None):
     im.save()
     bpy.data.images.remove(im)
     return out
+
+
+def drop_slivers(obj, min_area=1e-6):
+    """Remove zero-area faces and loose edges and vertices (what a cut along a model's flat edge
+    can leave behind, e.g. common.split_assembly cutting exactly through a skirt)."""
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.calc_area() < min_area], context="FACES_ONLY")
+    bmesh.ops.delete(bm, geom=[e for e in bm.edges if not e.link_faces], context="EDGES")
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context="VERTS")
+    bm.to_mesh(obj.data)
+    bm.free()
+    obj.data.update()
+    return obj
