@@ -258,8 +258,9 @@ class Profile:
     """A lofted body along Y: sections (y, half_width, half_height, z_centre) in units, sorted by y
     either way. top(x, y) is the height of its top surface (elliptical cross-sections)."""
 
-    def __init__(self, sections):
+    def __init__(self, sections, power=2.0):
         self.sections = sorted(sections, key=lambda s: s[0])
+        self.power = power  # cross-section superellipse exponent: 2 round, 4 or more boxy
 
     def at(self, y):
         s = self.sections
@@ -276,12 +277,28 @@ class Profile:
         if w <= 0:
             return z
         u = min(1.0, abs(x) / w)
-        return z + h * math.sqrt(max(0.0, 1 - u * u))
+        p = self.power
+        return z + h * max(0.0, 1 - u ** p) ** (1 / p)
 
     def build(self, bm, sides=16, mat_index=0, smooth=True, dx=0.0):
         start = len(bm.verts)
         f0 = len(bm.faces)
-        common.loft(bm, self.sections, sides=sides, mat_index=mat_index)
+        if self.power == 2.0:
+            common.loft(bm, self.sections, sides=sides, mat_index=mat_index)
+        else:
+            e = 2 / self.power
+            sgn = lambda v: math.copysign(abs(v) ** e, v)  # noqa: E731
+            rings = []
+            for y, w, h, z in self.sections:
+                if w == 0 and h == 0:
+                    rings.append([(0.0, y, z)])
+                    continue
+                ring = []
+                for i in range(sides):
+                    a = 2 * math.pi * (i + 0.5) / sides
+                    ring.append((w * sgn(math.cos(a)), y, z + h * sgn(math.sin(a))))
+                rings.append(ring)
+            ring_loft(bm, rings, mat_index)
         if dx:
             common.shift_x(bm, start, dx)
         bm.faces.ensure_lookup_table()
