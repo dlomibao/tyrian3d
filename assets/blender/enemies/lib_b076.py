@@ -166,3 +166,95 @@ def frame_subset(sprite, frames):
         if keep:
             out.append({**s, "frames": keep})
     return out
+
+
+def prism(bm, F, outline, z0, z1, mat, bevel=0.0, top_mat=None):
+    """A flat-topped block over a polygon of pixel-edge points (col, row), from z0 to z1. With
+    bevel (units), the top is inset by that much at z1 and the sides slope out to the outline at
+    z1 - bevel (a chamfered top edge); the chamfer takes `mat`, the top `top_mat` (default mat)."""
+    pts = [Vector((F.ex(c), F.ey(r))) for c, r in outline]
+    area = sum(a.x * b.y - b.x * a.y for a, b in zip(pts, pts[1:] + pts[:1]))
+    if area < 0:
+        pts.reverse()
+    n = len(pts)
+    top_mat = mat if top_mat is None else top_mat
+    if bevel <= 0:
+        common.slab(bm, [(p.x, p.y) for p in pts], z1 - z0, z=(z0 + z1) / 2, mat_index=mat)
+        if top_mat != mat:
+            bm.faces.ensure_lookup_table()
+            bm.faces[-n - 2].material_index = top_mat
+        return
+    # Inset polygon: move each vertex along its corner bisector.
+    inset = []
+    for i in range(n):
+        a, b, c = pts[i - 1], pts[i], pts[(i + 1) % n]
+        d0, d1 = (b - a).normalized(), (c - b).normalized()
+        n0, n1 = Vector((-d0.y, d0.x)), Vector((-d1.y, d1.x))  # inward normals (CCW polygon)
+        m = (n0 + n1)
+        m = m.normalized() / max(0.3, m.normalized().dot(n0)) if m.length > 1e-9 else n0
+        inset.append(b + m * bevel)
+    zb = z1 - bevel
+    bot = [bm.verts.new((p.x, p.y, z0)) for p in pts]
+    mid = [bm.verts.new((p.x, p.y, zb)) for p in pts]
+    top = [bm.verts.new((p.x, p.y, z1)) for p in inset]
+    f = bm.faces.new(top)
+    f.material_index = top_mat
+    f = bm.faces.new(list(reversed(bot)))
+    f.material_index = mat
+    for i in range(n):
+        j = (i + 1) % n
+        bm.faces.new((bot[i], bot[j], mid[j], mid[i])).material_index = mat
+        bm.faces.new((mid[i], mid[j], top[j], top[i])).material_index = mat
+
+
+def annulus(bm, F, outer, inner, profile, n, mat, smooth=True):
+    """A ring around ellipses in pixel-edge coordinates: outer/inner are (col, row, rx_px, ry_px).
+    `profile` is a closed list of (t, z) from the inner (t=0) to the outer (t=1) edge, going over
+    the top and back underneath, e.g. [(0, 0), (0, .2), (.5, .3), (1, .2), (1, 0)]."""
+    rings = []
+    for k in range(n):
+        a = 2 * math.pi * k / n
+        ca, sa = math.cos(a), math.sin(a)
+        pi = Vector((F.ex(inner[0] + inner[2] * ca), F.ey(inner[1] - inner[3] * sa)))
+        po = Vector((F.ex(outer[0] + outer[2] * ca), F.ey(outer[1] - outer[3] * sa)))
+        rings.append([bm.verts.new((*(pi + (po - pi) * t), z)) for t, z in profile])
+    m = len(profile)
+    for k in range(n):
+        r0, r1 = rings[k], rings[(k + 1) % n]
+        for i in range(m):
+            j = (i + 1) % m
+            f = bm.faces.new((r0[i], r0[j], r1[j], r1[i]))
+            f.material_index = mat
+            f.smooth = smooth
+
+
+def loft_y(bm, F, col, sections, sides=8, mat=0, smooth=True, cap=True):
+    """common.loft down the sprite centred on pixel-edge column `col`: sections are
+    (row_edge, half_width_px, half_height_units, z)."""
+    start = len(bm.verts)
+    nf = len(bm.faces)
+    common.loft(bm, [(F.ey(r), w * U, h, z) for r, w, h, z in sections], sides=sides, mat_index=mat,
+                cap_start=cap, cap_end=cap)
+    common.shift_x(bm, start, F.ex(col))
+    bm.faces.ensure_lookup_table()
+    for f in bm.faces[nf:]:
+        f.smooth = smooth
+
+
+def loft_x(bm, F, row_edge, sections, sides=8, mat=0, smooth=True, cap=True):
+    """A loft across the sprite (along X) at pixel-edge row `row_edge`: sections are
+    (col_edge, half_depth_px (along Y), half_height_units, z)."""
+    start = len(bm.verts)
+    nf = len(bm.faces)
+    # Build along Y with "y" = X, then swap axes (and flip winding with a mirror).
+    common.loft(bm, [(F.ex(c), w * U, h, z) for c, w, h, z in sections], sides=sides, mat_index=mat,
+                cap_start=cap, cap_end=cap)
+    bm.verts.ensure_lookup_table()
+    y0 = F.ey(row_edge)
+    for v in bm.verts[start:]:
+        v.co.x, v.co.y = v.co.y, y0 + v.co.x
+    bm.faces.ensure_lookup_table()
+    new = bm.faces[nf:]
+    bmesh.ops.reverse_faces(bm, faces=new)
+    for f in new:
+        f.smooth = smooth
