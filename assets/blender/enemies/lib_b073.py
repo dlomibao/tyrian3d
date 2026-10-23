@@ -180,6 +180,12 @@ def ring_loft(bm, rings, mat=0, smooth=False, cap_start=True, cap_end=True):
     return verts
 
 
+def extrude_y(bm, profile, y0, y1, mat=0, smooth=False):
+    """A prism along Y from y0 to y1 with a cross-section of (x, z) points (counter-clockwise
+    seen from -Y, i.e. x right, z up)."""
+    ring_loft(bm, [[(x, y0, z) for x, z in profile], [(x, y1, z) for x, z in profile]], mat=mat, smooth=smooth)
+
+
 def pillow(bm, outline, z0, z1, bevel, mat=0, top_mat=None, bevel_h=None, smooth=False):
     """A block with a chamfered top: outline (Blender XY) from z0 up to z1 - bevel_h, then in by
     `bevel` up to z1. top_mat colours the flat top."""
