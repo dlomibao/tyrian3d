@@ -1,0 +1,16 @@
+{
+ "model": "ships/ship-gencore-phoenix",
+ "sprites": [
+  {
+   "sheet": "tyrian.shp#8",
+   "size": 2,
+   "frames": [
+    157
+   ],
+   "bank": {
+    "step": 2,
+    "max": 2
+   }
+  }
+ ]
+}

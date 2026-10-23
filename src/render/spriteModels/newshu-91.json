@@ -1,0 +1,13 @@
+{
+ "model": "enemies/newshu-91",
+ "sprites": [
+  {
+   "sheet": "newshu.shp",
+   "size": 2,
+   "frames": [
+    91,
+    241
+   ]
+  }
+ ]
+}
