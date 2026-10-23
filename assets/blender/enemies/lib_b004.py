@@ -282,3 +282,100 @@ def eyeball(bm, frame, size, c, slots, sides=24):
         drape_cap(bm, ball, px(col, size), row(r, size), rx / 12, ry / 12, lift=lift, dome=dome,
                   sink=0.02, sides=16, mat_index=slot)
     return ball
+
+
+
+def chaikin(points, rounds=2, closed=True):
+    """Round off a polyline's corners by corner cutting."""
+    pts = [Vector(p) for p in points]
+    for _ in range(rounds):
+        out = []
+        n = len(pts) if closed else len(pts) - 1
+        if not closed:
+            out.append(pts[0])
+        for i in range(n):
+            p, q = pts[i], pts[(i + 1) % len(pts)]
+            out.append(p.lerp(q, 0.25))
+            out.append(p.lerp(q, 0.75))
+        if not closed:
+            out.append(pts[-1])
+        pts = out
+    return [tuple(p) for p in pts]
+
+
+def inset_polygon(poly, d):
+    """Move each vertex of a counter-clockwise polygon `d` units inward."""
+    out = []
+    n = len(poly)
+    for i, (x, y) in enumerate(poly):
+        ax, ay = poly[i - 1][:2]
+        bx, by = poly[(i + 1) % n][:2]
+        tx, ty = bx - ax, by - ay
+        ln = math.hypot(tx, ty) or 1
+        out.append((x - ty / ln * d, y + tx / ln * d))
+    return out
+
+
+def ellipse_polygon(cx, cy, rx, ry, n=16, tilt=0.0):
+    ct, st = math.cos(tilt), math.sin(tilt)
+    pts = []
+    for k in range(n):
+        a = 2 * math.pi * k / n
+        ex, ey = rx * math.cos(a), ry * math.sin(a)
+        pts.append((cx + ex * ct - ey * st, cy + ex * st + ey * ct))
+    return pts
+
+
+# newsh5-284's outline, pixel edges as (column, row), clockwise on screen (counter-clockwise in
+# Blender, whose Y points up the screen).
+EAR_OUTLINE = [
+    (9, 2), (8, 2.4), (7, 3.2), (5.5, 4.7), (4, 6.5), (3, 8.5), (3, 11), (4, 12.5), (5, 14),
+    (6, 16), (7.5, 17.5), (9, 19.5), (10, 21), (11, 23), (12, 24.5), (14, 25.8), (15.5, 26),
+    (17, 25.5), (18.6, 24), (19.5, 22.5), (20, 21), (20, 14), (20, 9), (19, 7.5), (18, 6),
+    (16.5, 4.5), (15, 3), (13, 2),
+]
+
+
+def ear(bm, mirror, slots):
+    """The flying ear of episode 4 (newsh5-284, and newsh5-245 its mirror image): a flat ear with a
+    rolled rim (helix) all round, a hollow inside with the darker concha and fossa, the Y-shaped
+    antihelix ridge, a fleshy lobe and the tragus bumps. Positions are newsh5-284's (lobe at the
+    bottom right); `mirror` flips them for newsh5-245.
+    slots = (skin, rim, hollow, dark, ridge, highlight)."""
+    SKIN, RIM, HOLLOW, DARK, RIDGE, HIGH = slots
+    s = -1 if mirror else 1
+    P = lambda c, r, z=0.0: (s * px(c), row(r), z)  # noqa: E731
+    E = lambda c, r: (s * (c - 12) / 12, (14 - r) / 12)  # noqa: E731  pixel edge coordinates
+
+    outline = chaikin([E(c, r) for c, r in EAR_OUTLINE], rounds=2)
+    if mirror:
+        outline.reverse()
+    outline = [(x, y) for x, y in outline]
+    common.slab(bm, outline, 0.12, z=-0.04, mat_index=SKIN)
+    # Hollow floor inside the rim, then the darker concha and the fossa above the antihelix.
+    common.slab(bm, inset_polygon(outline, 2.2 / 12), 0.03, z=0.02, mat_index=HOLLOW)
+    for c, r, rx, ry, tilt in ((15.6, 13.4, 2.3, 4.0, 0.15), (10.8, 6.4, 3.6, 1.5, -0.35),
+                               (14.4, 9.6, 1.6, 1.2, 0.0)):
+        poly = ellipse_polygon(*E(c + 0.5, r + 0.5), rx / 12, ry / 12, n=14, tilt=s * tilt)
+        common.slab(bm, poly, 0.03, z=0.028, mat_index=DARK)
+    # Rolled rim round the outline, inset by its radius so the silhouette stays put.
+    rim = inset_polygon(outline[::2], 1.9 / 12)
+    pts = [(x, y, 0.025) for x, y in rim] + [(rim[0][0], rim[0][1], 0.025)]
+    tube(bm, pts, [2.1 / 12] * len(pts), sides=8, mat_index=RIM, flat=0.55, cap=False)
+
+    # Antihelix: a stem from the antitragus up to the fork, then the upper and lower crura.
+    stem = chaikin([P(14.6, 19.0, 0.04), P(13.2, 17.2, 0.05), P(12.4, 15.0, 0.055), P(11.6, 12.4, 0.06),
+                    P(10.4, 9.8, 0.055), P(9.6, 7.6, 0.045), P(9.4, 6.4, 0.03)], rounds=1, closed=False)
+    radii = [0.15 - 0.07 * i / (len(stem) - 1) for i in range(len(stem))]
+    radii[-1] = 0.0
+    tube(bm, stem, radii, sides=8, mat_index=RIDGE, flat=0.5)
+    tube(bm, [P(11.8, 12.2, 0.06), P(12.6, 10.4, 0.05), P(14.0, 9.0, 0.04), P(15.4, 8.4, 0.025)],
+         [0.11, 0.1, 0.08, 0.0], sides=8, mat_index=RIDGE, flat=0.5)
+
+    # Lobe: a soft pad at the bottom.
+    Ellipsoid(s * px(14.4), row(21.6), 4.4 / 12, 3.6 / 12, 0.12).build(bm, segments=14, rings=8, mat_index=SKIN)
+    # Tragus (the bump on the open side) and antitragus (the knob at the stem's foot).
+    for c, r, rx, ry, rz in ((17.9, 15.0, 1.5, 2.0, 0.1), (14.9, 19.0, 1.4, 1.1, 0.09)):
+        Ellipsoid(s * px(c), row(r), rx / 12, ry / 12, rz, z0=0.02).build(bm, segments=10, rings=6, mat_index=HIGH)
+    # The bright highlight on the upper rim (row 5, column 15).
+    Ellipsoid(s * px(15.2), row(4.9), 1.2 / 12, 1.0 / 12, 0.05, z0=0.085).build(bm, segments=8, rings=4, mat_index=HIGH)
