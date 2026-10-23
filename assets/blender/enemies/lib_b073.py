@@ -110,6 +110,19 @@ def box(bm, x0, y0, x1, y1, z0, z1, mat=0, smooth=False):
     _tag(bm, n, mat, smooth)
 
 
+def rect(grid, c0, r0, c1, r1):
+    """Outline of the pixel-edge rectangle columns c0..c1, rows r0..r1 (counter-clockwise)."""
+    g = grid
+    return [(g.ex(c0), g.ey(r1)), (g.ex(c1), g.ey(r1)), (g.ex(c1), g.ey(r0)), (g.ex(c0), g.ey(r0))]
+
+
+def chamfer(grid, c0, r0, c1, r1, k):
+    """An octagon in the pixel-edge rectangle with corners cut by k pixels."""
+    g = grid
+    return [(g.ex(c0 + k), g.ey(r1)), (g.ex(c1 - k), g.ey(r1)), (g.ex(c1), g.ey(r1 - k)), (g.ex(c1), g.ey(r0 + k)),
+            (g.ex(c1 - k), g.ey(r0)), (g.ex(c0 + k), g.ey(r0)), (g.ex(c0), g.ey(r0 + k)), (g.ex(c0), g.ey(r1 - k))]
+
+
 def prism(bm, outline, z0, z1, mat=0, smooth=False):
     """Extrude an outline (Blender XY points, either winding) from z0 to z1."""
     if _area(outline) < 0:
