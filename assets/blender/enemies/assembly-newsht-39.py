@@ -147,18 +147,18 @@ def build(sprite):
     tag = "nsht39"
     pal = lambda i, **kw: common.palette_material(sprite, i, tag, **kw)  # noqa: E731
     mats = [
-        pal(71, metallic=0.35, roughness=0.45),  # 0 red hull
-        pal(69, metallic=0.3, roughness=0.5),  # 1 darker red plates
+        pal(72, metallic=0.3, roughness=0.45),  # 0 red hull
+        pal(70, metallic=0.3, roughness=0.5),  # 1 darker red plates
         pal(66, metallic=0.2, roughness=0.6),  # 2 deep red bands and grooves
         pal(74, metallic=0.4, roughness=0.35),  # 3 light red ribs
-        pal(3, metallic=0.85, roughness=0.18),  # 4 dark glass orbs
+        pal(4, metallic=0.7, roughness=0.15),  # 4 dark glass orbs
         pal(5, metallic=0.7, roughness=0.35),  # 5 grey pipes and canisters
         pal(2, metallic=0.2, roughness=0.8),  # 6 dark recesses
         pal(9, metallic=0.8, roughness=0.25),  # 7 bright grey rims
         pal(119, emission_strength=3.0),  # 8 exhaust glow
         pal(125, emission_strength=5.0),  # 9 hot exhaust streaks, eye core
         pal(113, metallic=0.2, roughness=0.5),  # 10 eye socket
-        pal(4, metallic=0.75, roughness=0.3),  # 11 visor and cannon
+        pal(7, metallic=0.75, roughness=0.25),  # 11 bright grey visor
     ]
     HULL, PLATE, BAND, RIB, ORB, PIPE, DARK, RIM, GLOW, HOT, SOCKET, VISOR = range(12)
     bm = bmesh.new()
@@ -207,8 +207,10 @@ def build(sprite):
     # Shoulder block (columns 26-41, rows 14-23) with ribs on top, and a claw hanging under it.
     plate(bm, [(26, 15), (27, 14), (38, 14), (39, 15), (39, 17), (42, 17), (42.5, 24), (27, 24), (26, 23)],
           -0.12, 0.12, mat=HULL)
-    for c in (27.0, 29.6, 32.2, 34.8, 37.4):
+    for c in (26.6, 28.6, 30.6, 32.6):
         plate(bm, [(c, 14.6), (c + 1, 14.6), (c + 1, 19.6), (c, 19.6)], 0.12, 0.15, mat=RIB)
+    # Diagonal brace from the beam up to the hose (the light ridge from column 30, row 20 to 37, 15).
+    sweep(bm, [(29.0, 20.8, 0.1, 1.2, 0.07), (37.8, 14.6, 0.1, 1.2, 0.07)], sides=8, mat=RIB)
     loft_y(bm, 28.6, [(22.5, 2.0, 0.08, -0.05), (27.0, 1.6, 0.07, -0.05), (28.6, 2.5, 0.08, -0.05),
                       (30.6, 2.5, 0.08, -0.05), (31.6, 1.2, 0.05, -0.05)], sides=8, mat=PLATE)
     loft_y(bm, 43.0, [(23.5, 0.9, 0.06, -0.05), (30.5, 0.9, 0.06, -0.05)], sides=6, mat=PLATE)
@@ -223,22 +225,24 @@ def build(sprite):
     # Cheek plate between the band and the orb's frame (columns 39-62, rows 13-24).
     plate(bm, [(39, 13), (63, 13), (63, 25), (53, 25), (51.5, 26), (43, 26), (39, 22)], -0.12, 0.08, mat=PLATE)
 
-    # U-shaped frame round the orb: down its outer side, round the bottom, up the inner strut.
-    sweep(bm, [(48.6, 12.5, 0.03, 2.4, 0.12), (48.6, 20.0, 0.03, 2.7, 0.13), (49.0, 28.0, 0.03, 3.0, 0.13),
-               (50.6, 34.0, 0.03, 3.2, 0.13), (54.0, 37.4, 0.03, 3.1, 0.13), (58.0, 38.0, 0.03, 3.1, 0.13),
-               (62.0, 37.2, 0.03, 3.0, 0.13), (65.0, 34.0, 0.03, 2.9, 0.13), (65.9, 29.0, 0.03, 2.7, 0.12),
+    # Frame round the orb: from the middle over the top of the orb, down its outer side, round
+    # the bottom and up the inner strut (the light ridge at columns 50-57, rows 16-29).
+    sweep(bm, [(64.5, 14.6, 0.04, 1.8, 0.1), (60.0, 14.8, 0.04, 2.0, 0.11), (55.5, 15.8, 0.04, 2.3, 0.12),
+               (51.8, 18.6, 0.04, 2.6, 0.13), (49.6, 23.0, 0.04, 2.9, 0.13), (49.2, 28.0, 0.03, 3.0, 0.13),
+               (50.4, 33.5, 0.03, 3.4, 0.13), (54.0, 36.9, 0.03, 3.7, 0.14), (58.0, 37.3, 0.03, 3.7, 0.14),
+               (62.0, 36.7, 0.03, 3.5, 0.14), (65.0, 33.5, 0.03, 3.1, 0.13), (65.9, 29.0, 0.03, 2.7, 0.12),
                (65.9, 24.4, 0.03, 2.3, 0.1)], sides=10, mat=HULL)
     # The dark glass orb (columns 54-64, rows 17-27) and the grey lip under it (rows 30-33).
     ellipsoid(bm, 59.3, 22.4, 0.0, 5.6, 5.6, 0.24, mat=ORB, segments=18, rings=9)
     sweep(bm, [(51.8, 31.6, 0.0, 0.0, 0.0), (52.4, 31.6, 0.0, 1.5, 0.07), (60.6, 31.6, 0.0, 1.5, 0.07),
-               (61.2, 31.6, 0.0, 0.0, 0.0)], sides=8, mat=VISOR)
+               (61.2, 31.6, 0.0, 0.0, 0.0)], sides=8, mat=PIPE)
     # Dark recess behind the orb and the visor.
     plate(bm, [(50, 12.5), (AXIS_COL + 0.5, 12.5), (AXIS_COL + 0.5, 36), (50, 36)], -0.11, -0.05, mat=DARK)
 
     # Glowing exhaust on the back, slanting out (columns 54-66, rows 1-7), in a red housing.
     plate(bm, [(60, 1.5), (67.5, 1.5), (61.5, 8.5), (53.5, 8.5)], -0.04, 0.09, mat=GLOW)
-    for off in (0.0, 3.0):
-        plate(bm, [(61.4 + off, 2.2), (62.4 + off, 2.2), (57.0 + off, 7.8), (56.0 + off, 7.8)], 0.09, 0.11, mat=HOT)
+    for off in (-0.5, 2.0, 4.5):
+        plate(bm, [(61.2 + off, 2.2), (62.6 + off, 2.2), (57.2 + off, 7.8), (55.8 + off, 7.8)], 0.09, 0.12, mat=HOT)
     plate(bm, [(59, 8.2), (68, 8.2), (68, 10), (58, 10)], -0.06, 0.06, mat=BAND)
 
     mirror_all(bm)
