@@ -442,3 +442,146 @@ def col_extents(pixels, keep):
                 r0, r1 = out.get(c, (r, r + 1))
                 out[c] = (min(r0, r), max(r1, r + 1))
     return out
+
+
+def trace_mask(pixels, keep):
+    """The boundary of the pixels for which keep(index) is true, as a loop of pixel corners
+    (col, row), counter-clockwise as seen in Blender; the largest loop only."""
+    h, w = len(pixels), len(pixels[0])
+    inside = lambda c, r: 0 <= r < h and 0 <= c < w and keep(pixels[r][c])  # noqa: E731
+    edges = {}
+    for r in range(h):
+        for c in range(w):
+            if not inside(c, r):
+                continue
+            if not inside(c, r - 1):
+                edges[(c + 1, r)] = (c, r)
+            if not inside(c, r + 1):
+                edges[(c, r + 1)] = (c + 1, r + 1)
+            if not inside(c - 1, r):
+                edges[(c, r)] = (c, r + 1)
+            if not inside(c + 1, r):
+                edges[(c + 1, r + 1)] = (c + 1, r)
+    loops, seen = [], set()
+    for s in list(edges):
+        if s in seen:
+            continue
+        loop, p = [], s
+        while p not in seen and p in edges:
+            seen.add(p)
+            loop.append(p)
+            p = edges[p]
+        loops.append(loop)
+    return max(loops, key=len)
+
+
+def rock_piece(bm, pixels, keep, slot_of, top=0.25, bottom=0.14, fall=5.0, relief=None,
+               spacing=2.0, smooth_rounds=3, under_slot=0, seed=1):
+    """A rock (or a piece of one cut off by its tile's edges) filling the sprite pixels for which
+    keep(index) is true: a faceted lump, `top` units high above z = 0 and `bottom` below inside,
+    falling to a thin edge along its free outline over `fall` px. Where the pixels touch the
+    tile's border the rock is cut off square (it carries on in the next piece). relief(index) ->
+    dz raises light facets and sinks dark cracks. Faces are painted with slot_of(index) on top and
+    `under_slot` below. Returns the faces made."""
+    import random
+    from mathutils import geometry
+    h, w = len(pixels), len(pixels[0])
+    rng = random.Random(seed)
+    loop = trace_mask(pixels, keep)
+    on_border = [c in (0, w) or r in (0, h) for c, r in loop]
+    pts = [Vector((float(c), float(r))) for c, r in loop]
+    # Drop collinear corners (keeping every corner along the tile's border, so the cut face has
+    # vertices all along it), then smooth the free outline.
+    keep_i = []
+    n = len(pts)
+    for i in range(n):
+        a, b, c = pts[i - 1], pts[i], pts[(i + 1) % n]
+        if abs((b - a).cross(c - b)) > 1e-6 or on_border[i]:
+            keep_i.append(i)
+    pts = [pts[i] for i in keep_i]
+    border = [on_border[i] for i in keep_i]
+    for _ in range(smooth_rounds):
+        n = len(pts)
+        pts = [p if border[i] else (pts[i - 1] + 2 * p + pts[(i + 1) % n]) / 4 for i, p in enumerate(pts)]
+    n = len(pts)
+    free = [(pts[i], pts[(i + 1) % n]) for i in range(n) if not (border[i] and border[(i + 1) % n])]
+
+    def dist_free(p):
+        best = 1e9
+        for a, b in free:
+            ab = b - a
+            t = max(0.0, min(1.0, (p - a).dot(ab) / (ab.length_squared or 1.0)))
+            best = min(best, (a + ab * t - p).length)
+        return best
+
+    def inside_poly(p):
+        hit = False
+        for i in range(n):
+            a, b = pts[i], pts[(i + 1) % n]
+            if (a.y > p.y) != (b.y > p.y):
+                x = a.x + (p.y - a.y) * (b.x - a.x) / (b.y - a.y)
+                if x > p.x:
+                    hit = not hit
+        return hit
+
+    def dist_poly(p):
+        best = 1e9
+        for i in range(n):
+            a, b = pts[i], pts[(i + 1) % n]
+            ab = b - a
+            t = max(0.0, min(1.0, (p - a).dot(ab) / (ab.length_squared or 1.0)))
+            best = min(best, (a + ab * t - p).length)
+        return best
+
+    coords = [Vector((p.x, p.y)) for p in pts]
+    gy = spacing / 2
+    while gy < h:
+        gx = spacing / 2 + (spacing / 2 if int(gy / spacing) % 2 else 0)
+        while gx < w:
+            p = Vector((gx + rng.uniform(-0.25, 0.25) * spacing, gy + rng.uniform(-0.25, 0.25) * spacing))
+            if inside_poly(p) and dist_poly(p) > spacing * 0.45:
+                coords.append(p)
+            gx += spacing
+        gy += spacing * 0.87
+    vco, _, faces, orig, _, _ = geometry.delaunay_2d_cdt(coords, [], [list(range(n))], 3, 1e-5, True)
+    # Map input boundary indices to output vertices.
+    out_of = {}
+    for o, ins in enumerate(orig):
+        for i in ins:
+            out_of[i] = o
+
+    def zs(p, idx):
+        d = dist_free(p)
+        k = min(1.0, d / fall)
+        k = math.sin(k * math.pi / 2) ** 0.8
+        dz = relief(idx) if (relief and idx >= 0) else 0.0
+        return max(0.008, top * k + dz * k), -max(0.008, bottom * k)
+
+    def blender(p):
+        return (p.x - w / 2) / 12, (h / 2 - p.y) / 12
+
+    tops, bots = [], []
+    for p in vco:
+        idx = pixels[min(h - 1, max(0, int(p.y)))][min(w - 1, max(0, int(p.x)))]
+        zt, zb = zs(Vector(p), idx)
+        x, y = blender(p)
+        tops.append(bm.verts.new((x, y, zt)))
+        bots.append(bm.verts.new((x, y, zb)))
+    made = []
+    top_faces = []
+    for f in faces:
+        ft = bm.faces.new([tops[i] for i in f])
+        fb = bm.faces.new([bots[i] for i in reversed(f)])
+        fb.material_index = under_slot
+        top_faces.append(ft)
+        made += [ft, fb]
+    for i in range(n):
+        a, b = out_of[i], out_of[(i + 1) % n]
+        if a == b:
+            continue
+        f = bm.faces.new((tops[b], tops[a], bots[a], bots[b]))
+        f.material_index = under_slot
+        made.append(f)
+    bmesh.ops.recalc_face_normals(bm, faces=made)
+    paint_faces(bm, top_faces, pixels, slot_of, under_slot=under_slot, min_nz=-0.2)
+    return made
