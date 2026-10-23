@@ -292,3 +292,43 @@ def mirror_x_new(bm, start_vert, start_face=None):
         v.co.x = -v.co.x
     newf = [g for g in ret["geom"] if isinstance(g, bmesh.types.BMFace)]
     bmesh.ops.reverse_faces(bm, faces=newf)
+
+
+def set_smooth(bm, face_start, smooth=True):
+    """Mark the faces added since index `face_start` smooth (or flat). (From lib_b003.)"""
+    bm.faces.ensure_lookup_table()
+    for f in bm.faces[face_start:]:
+        f.smooth = smooth
+
+
+def mesh_object_mixed(name, bm, materials, collection):
+    """Like common.mesh_object, but keeps each face's own smooth flag (see set_smooth)."""
+    import bpy
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    mesh = bpy.data.meshes.new(name)
+    bm.to_mesh(mesh)
+    bm.free()
+    for mat in materials:
+        mesh.materials.append(mat)
+    obj = bpy.data.objects.new(name, mesh)
+    collection.objects.link(obj)
+    return obj
+
+
+def diamond_spike(bm, base, tip, half_w, half_h, mats=(0, 0, 0, 0), z_dir=(0, 0, 1), steps=None):
+    """A spike with a diamond cross-section (a ridge on top and below) from `base` to a point at
+    `tip`. `mats` gives the material of its four faces: upper-right, upper-left, lower-left,
+    lower-right (seen looking from base to tip). `steps` is a list of (t, scale) to bulge it."""
+    a, b = Vector(base), Vector(tip)
+    axis = (b - a).normalized()
+    up = Vector(z_dir)
+    side = axis.cross(up).normalized()  # right of the axis
+    up = side.cross(axis).normalized()
+    rings = []
+    for t, s in (steps or [(0.0, 1.0)]):
+        c = a.lerp(b, t)
+        rings.append([tuple(c + side * half_w * s), tuple(c + up * half_h * s),
+                      tuple(c - side * half_w * s), tuple(c - up * half_h * s)])
+    rings.append([tuple(b)])
+    band = [list(mats)] * (len(rings) - 1)
+    return ring_loft(bm, rings, band, cap_start=True, cap_end=False, cap_mats=(mats[3], mats[3]))
