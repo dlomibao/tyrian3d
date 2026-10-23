@@ -167,7 +167,44 @@ def cube_blob(bm, centre, radii, n=8, mat_index=0, bump=None):
     return first_face
 
 
-def box(bm,x0, y0, x1, y1, z0, z1, mat_index=0):
+def tube(bm, points, sides=8, mat_index=0, cap_start=True, cap_end=True):
+    """A loft along any path: points are ((x, y, z), radius); radius 0 makes a point (a spike tip).
+    Each ring is perpendicular to the path at that point."""
+    from mathutils import Vector
+    pts = [(Vector(p), r) for p, r in points]
+    rings = []
+    for i, (p, r) in enumerate(pts):
+        a = pts[max(0, i - 1)][0]
+        b = pts[min(len(pts) - 1, i + 1)][0]
+        d = (b - a).normalized()
+        ref = Vector((0, 0, 1)) if abs(d.z) < 0.9 else Vector((1, 0, 0))
+        u = d.cross(ref).normalized()
+        w = d.cross(u).normalized()
+        if r == 0:
+            rings.append([bm.verts.new(p)])
+            continue
+        rings.append([bm.verts.new(p + r * (math.cos(2 * math.pi * (k + 0.5) / sides) * u +
+                                            math.sin(2 * math.pi * (k + 0.5) / sides) * w))
+                      for k in range(sides)])
+    for r0, r1 in zip(rings, rings[1:]):
+        for k in range(sides):
+            j = (k + 1) % sides
+            if len(r0) == 1 and len(r1) == 1:
+                continue
+            if len(r0) == 1:
+                face = (r0[0], r1[j], r1[k])
+            elif len(r1) == 1:
+                face = (r0[k], r0[j], r1[0])
+            else:
+                face = (r0[k], r0[j], r1[j], r1[k])
+            bm.faces.new(face).material_index = mat_index
+    if cap_start and len(rings[0]) > 1:
+        bm.faces.new(list(reversed(rings[0]))).material_index = mat_index
+    if cap_end and len(rings[-1]) > 1:
+        bm.faces.new(rings[-1]).material_index = mat_index
+
+
+def box(bm, x0, y0, x1, y1, z0, z1, mat_index=0):
     """An axis-aligned box between corners (x0, y0, z0) and (x1, y1, z1) (units)."""
     common.slab(bm, [(x0, y0), (x1, y0), (x1, y1), (x0, y1)], z1 - z0, z=(z0 + z1) / 2, mat_index=mat_index)
 
