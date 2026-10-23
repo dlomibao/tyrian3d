@@ -389,3 +389,51 @@ def span_mass(bm, g, rows, span, height, z0, ncols=8, mat=0):
     for f in _faces_from(bm, first):
         f.material_index = mat
     return top
+
+
+def mirror_all_x(bm, axis_x):
+    """Mirror the whole mesh in place about the vertical line X = axis_x (a left/right twin)."""
+    for v in bm.verts:
+        v.co.x = 2 * axis_x - v.co.x
+    bmesh.ops.reverse_faces(bm, faces=bm.faces[:])
+
+
+def build_tower_block(sprite, name, mirrored=False):
+    """newsh0-1 (and, mirrored about column 12, its twin newsh0-15): a grey pillar with a rounded
+    top standing at the left side of the top of a big ribbed blue block, with a rounded blue lump
+    at the bottom right. The block and lump run off the bottom of the tile (and the lump off its
+    side), so they are cut there."""
+    g = Grid(24, 28)
+    coll = common.reset_collection(name)
+    m = Mats(name, sprite["colors"])
+    PILLAR = m(9, metallic=0.7, roughness=0.3)
+    SHINE = m(12, metallic=0.7, roughness=0.25)
+    PILLAR_DK = m(6, metallic=0.65, roughness=0.35)
+    BLOCK = m(52, metallic=0.45, roughness=0.45)
+    RIB = m(57, metallic=0.5, roughness=0.35)
+    RIB2 = m(59, metallic=0.5, roughness=0.3)
+    LUMP = m(54, metallic=0.45, roughness=0.4)
+    bm = bmesh.new()
+
+    # Pillar (column 7, rows 11-28): a rounded nose at the top, widest over rows 15-23.
+    loft_y(bm, g, 7.0, [(11.0, 0.0, 0.0, 0.04), (11.6, 1.0, 0.07, 0.04), (12.6, 1.8, 0.13, 0.04),
+                        (14.0, 2.4, 0.17, 0.04), (15.5, 2.6, 0.18, 0.04), (23.4, 2.6, 0.18, 0.04),
+                        (24.4, 1.9, 0.14, 0.04), (28.5, 1.8, 0.13, 0.04)], sides=12, mat=PILLAR)
+    # Its bright top edge (the 11-14 pixels down columns 7-8) and darker base ring.
+    sweep(bm, g, [(7.5, 12.6, 0.17, 0.0, 0.0), (7.5, 13.4, 0.2, 0.6, 0.025), (7.6, 19.0, 0.215, 0.7, 0.025),
+                  (7.4, 23.0, 0.21, 0.0, 0.0)], sides=6, mat=SHINE)
+    loft_y(bm, g, 7.0, [(23.6, 2.65, 0.185, 0.04), (24.4, 2.0, 0.145, 0.04)], sides=12, mat=PILLAR_DK)
+
+    # Ribbed blue block (columns 9-17, rows 18-28) beside the pillar.
+    pillow(bm, g, [(10.4, 18), (15.2, 18), (16, 19), (16.2, 22), (17, 22.2), (17.8, 24.6), (19, 25.2),
+                   (19, 28.5), (9, 28.5), (9, 21), (10, 19)], -0.12, 0.08, round_px=1.0, round_h=0.5, mat=BLOCK)
+    for c, mat, r0 in ((12, RIB, 18.6), (14, RIB2, 18.6), (16.2, RIB, 22.6)):
+        sweep(bm, g, [(c, r0, 0.075, 0.0, 0.0), (c, r0 + 0.6, 0.08, 0.55, 0.035), (c, 28.5, 0.08, 0.55, 0.035)],
+              sides=6, mat=mat)
+    # Rounded blue lump at the bottom right (columns 19-23, rows 23-28), running on past the tile.
+    ellipsoid(bm, g.x(22.3), g.y(27.6), -0.04, 3.3 / 12, 4.0 / 12, 0.13, mat=LUMP, segments=14, rings=7)
+
+    clip(bm, [((0, g.ey(28), 0), (0, -1, 0)), ((g.ex(24), 0, 0), (1, 0, 0))])
+    if mirrored:
+        mirror_all_x(bm, g.x(12))
+    return to_object(name, bm, m.list, coll)
