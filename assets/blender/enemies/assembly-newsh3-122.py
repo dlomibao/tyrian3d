@@ -54,24 +54,23 @@ def build(sprite):
         pal(168, metallic=0.1, roughness=0.75),  # 0 roof
         pal(166, metallic=0.1, roughness=0.8),  # 1 end caps
         pal(165, metallic=0.1, roughness=0.85),  # 2 front slope
-        pal(165, metallic=0.1, roughness=0.85),  # 3 back wall
-        pal(171, metallic=0.15, roughness=0.6),  # 4 bright rib
-        pal(170, metallic=0.15, roughness=0.65),  # 5 rib
-        pal(169, metallic=0.1, roughness=0.7),  # 6 ledge
-        pal(162, metallic=0.1, roughness=0.9),  # 7 groove round the hatch
-        pal(167, metallic=0.15, roughness=0.7),  # 8 hatch plate
-        pal(119, emission_strength=4.0),  # 9 hot vent glow
-        pal(116, emission_strength=2.0),  # 10 dimmer vent glow
-        pal(163, metallic=0.1, roughness=0.85),  # 11 dark right end cap round the vents
+        pal(171, metallic=0.15, roughness=0.6),  # 3 bright rib
+        pal(170, metallic=0.15, roughness=0.65),  # 4 rib
+        pal(169, metallic=0.1, roughness=0.7),  # 5 ledge
+        pal(162, metallic=0.1, roughness=0.9),  # 6 groove round the hatch
+        pal(167, metallic=0.15, roughness=0.7),  # 7 hatch plate
+        pal(119, emission_strength=4.0),  # 8 hot vent glow
+        pal(116, emission_strength=2.0),  # 9 dimmer vent glow
+        pal(163, metallic=0.1, roughness=0.85),  # 10 dark right end cap round the vents
     ]
-    M = {"roof": 0, "cap": 1, "front": 2, "back": 3, "rib": 4, "rib2": 5, "ledge": 6, "groove": 7,
-         "panel": 8, "vent_hot": 9, "vent": 10, "edge": 1, "cap_r": 11}
+    M = {"roof": 0, "cap": 1, "front": 2, "back": 2, "rib": 3, "rib2": 4, "ledge": 5, "groove": 6,
+         "panel": 7, "vent_hot": 8, "vent": 9, "edge": 1, "cap_r": 10}
     bm = bmesh.new()
     lib.bunker(bm, SPEC, M)
     # The light slot down the middle of the hatch (column 18).
     X = lambda c: lib.ex(c, 48)  # noqa: E731
     Y = lambda r: lib.ey(r, 28)  # noqa: E731
-    lib.box(bm, X(18), Y(12.5), X(19), Y(6.5), SPEC["height"], SPEC["height"] + 0.035, mat=4)
+    lib.box(bm, X(18), Y(12.5), X(19), Y(6.5), SPEC["height"], SPEC["height"] + 0.035, mat=3)
     return lib.to_object(NAME, bm, mats, coll)
 
 
