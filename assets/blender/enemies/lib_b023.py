@@ -43,6 +43,14 @@ def palette(sprite, tag, remap=None):
     return pal
 
 
+def flat_faces(obj, material_indices):
+    """Flat-shade the faces of a smooth-shaded object that use the given material slots (slabs and
+    plates, whose hard edges would otherwise smear the shading)."""
+    for poly in obj.data.polygons:
+        if poly.material_index in material_indices:
+            poly.use_smooth = False
+
+
 def ring_loft(bm, rings, mats, cap_start=True, cap_end=True):
     """Join rings of 3D points (all the same length, or a single point for a tip) in order.
     `mats` is one material index or a list with one per band."""
@@ -256,6 +264,7 @@ def build_tailplane(sprite, name, remap=None):
         pal(10, metallic=0.6, roughness=0.3),  # 5 light nose spine / fin
     ]
     WING, BODY, SPINE, TAILP, CANOPY, LIGHT = range(6)
+    FLAT = ()
     bm = bmesh.new()
 
     # Fuselage: (row edge, half width px, half height px).
@@ -287,4 +296,75 @@ def build_tailplane(sprite, name, remap=None):
     dome(bm, X0, ey(14.9), 0.1, 1.7 * P, 2.2 * P, 0.09, mat_index=CANOPY, segs=12, rings=4)
 
     obj = common.mesh_object(name, bm, mats, coll, smooth=True)
+    flat_faces(obj, FLAT)
+    return [obj], coll, X0
+
+
+def build_insect(sprite, name, remap=None):
+    """The horned brown insect fighter of newshf-47 (and newshf-55, the same craft in green with
+    brown shoulders: remap the indices). Level frame (49): centred on column edge 13. Two horns
+    (columns 10 and 15, rows 0-7) over a dark neck plate, grey shoulder pads (columns 7-9 and
+    16-18, rows 4-8), a body tapering to a point at row 25, a wide delta wing across rows 11-17
+    (columns 4-21) whose lower edges show a grey underside, two red eyes (row 12) and a dark mouth
+    with a pale fang (rows 16-18). Returns (objects, collection, x0)."""
+    P = 1 / 12
+    X0 = ex(13)
+    coll = common.reset_collection(name)
+    pal = palette(sprite, name, remap)
+    mats = [
+        pal(25, metallic=0.3, roughness=0.45),  # 0 brown body
+        pal(27, metallic=0.3, roughness=0.4),  # 1 light brown ridge
+        pal(26, metallic=0.3, roughness=0.4),  # 2 horns
+        pal(6, metallic=0.55, roughness=0.4),  # 3 grey wing underside
+        pal(8, metallic=0.6, roughness=0.35),  # 4 grey shoulders
+        pal(3, metallic=0.5, roughness=0.5),  # 5 dark neck plate
+        pal(116, emission_strength=3.0),  # 6 red eyes
+        pal(16, metallic=0.3, roughness=0.15),  # 7 dark mouth
+        pal(28, metallic=0.2, roughness=0.4),  # 8 pale fang
+        pal(24, metallic=0.3, roughness=0.45),  # 9 brown wing top
+    ]
+    BODY, RIDGE, HORN, UNDER, SHOULDER, NECK, EYE, MOUTH, FANG, WING = range(10)
+    FLAT = (UNDER, NECK, WING)
+    bm = bmesh.new()
+    Z = 0.02
+
+    # Body, head (row 6.5) to tail point (row 25).
+    body = [(6.4, 0.0, 0.0), (6.9, 1.6, 1.1), (8.0, 2.0, 1.6), (9.5, 3.0, 2.1), (11.0, 3.3, 2.4),
+            (13.5, 3.5, 2.6), (16.0, 3.2, 2.4), (18.5, 3.0, 2.1), (20.5, 2.6, 1.8), (22.5, 1.8, 1.3),
+            (24.0, 1.0, 0.8), (25.0, 0.0, 0.0)]
+    ellipse_loft(bm, X0, [(ey(r), w * P, h * P, Z) for r, w, h in body], sides=12, mats=BODY)
+    # Light ridge on the crown (rows 7-10) and down the tail (rows 19-23).
+    for seg in (((6.9, 0.0, 1.1), (7.4, 0.8, 1.35), (9.6, 0.8, 2.1), (10.4, 0.0, 2.25)),
+                ((18.6, 0.0, 2.1), (19.2, 0.7, 2.0), (22.6, 0.6, 1.3), (23.4, 0.0, 1.0))):
+        ellipse_loft(bm, X0 - 0.3 * P, [(ey(r), w * P, 0.35 * P, Z + h * P - 0.1 * P) for r, w, h in seg],
+                     sides=6, mats=RIDGE)
+
+    # Delta wing: grey underside plate, brown top plate inset from the lower edges.
+    full = [(4, 11), (22, 11), (22, 13), (17, 18), (9, 18), (4, 13)]
+    top = [(4, 11), (22, 11), (22, 11.9), (20, 12.1), (15.6, 16.8), (10.4, 16.8), (6, 12.1), (4, 11.9)]
+    common.slab(bm, [(ex(c), ey(r)) for c, r in reversed(full)], 0.07, z=-0.005, mat_index=UNDER)
+    common.slab(bm, [(ex(c), ey(r)) for c, r in reversed(top)], 0.05, z=0.03, mat_index=WING)
+
+    # Dark neck plate between the horns (columns 11-14, rows 4-7).
+    common.slab(bm, [(ex(c), ey(r)) for c, r in reversed([(11, 4.2), (15, 4.2), (15, 7.5), (11, 7.5)])],
+                0.1, z=Z + 0.02, mat_index=NECK)
+
+    # Left horn, shoulder pad, eye; then mirrored.
+    start = len(bm.verts)
+    polyline_tube(bm, [(px(10), ey(7.6), Z + 0.05), (px(10), ey(4.0), Z + 0.1), (px(10), ey(0.8), Z + 0.16)],
+                  [0.8 * P, 0.6 * P, 0.2 * P], sides=6, mat_index=HORN)
+    polyline_tube(bm, [(px(7.2), ey(5.0), Z), (px(8.0), ey(5.6), Z + 0.01), (px(9.4), ey(7.6), Z),
+                       (px(10.4), ey(8.8), Z - 0.01)], [1.0 * P, 1.6 * P, 1.2 * P, 0.4 * P], sides=8,
+                  mat_index=SHOULDER, flat=0.75)
+    dome(bm, px(10), row(12), Z + 0.12, 0.9 * P, 0.9 * P, 0.7 * P, mat_index=EYE, segs=8, rings=3,
+         full=True)
+    mirror_x(bm, X0, start)
+
+    # Dark mouth with a pale fang (rows 16-18).
+    dome(bm, X0, ey(17.4), Z + 0.13, 1.7 * P, 1.7 * P, 0.07, mat_index=MOUTH, segs=10, rings=3)
+    polyline_tube(bm, [(px(12), ey(16.2), Z + 0.205), (px(12), ey(17.2), Z + 0.2), (px(12), ey(18.4), Z + 0.17)],
+                  [0.5 * P, 0.45 * P, 0.0], sides=6, mat_index=FANG)
+
+    obj = common.mesh_object(name, bm, mats, coll, smooth=True)
+    flat_faces(obj, FLAT)
     return [obj], coll, X0
