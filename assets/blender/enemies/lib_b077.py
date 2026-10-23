@@ -30,8 +30,9 @@ class Grid:
     centres at c + 0.5, r + 0.5) map to X = (c + 0.5 - w/2)/12, Y = (h/2 - (r + 0.5))/12.
     x(c)/y(r) take pixel-centre coordinates (fractions allowed); ex(c)/ey(r) take pixel edges."""
 
-    def __init__(self, w, h, pixels=None):
+    def __init__(self, w, h, pixels=None, weight=None):
         self.w, self.h, self.pixels = w, h, pixels
+        self.weight = weight  # weight(index) -> votes per pixel in mode() (favour bright blades)
 
     def x(self, c):
         return (c + 0.5 - self.w / 2) * U
@@ -85,7 +86,7 @@ class Grid:
                 v = self.at(c, r)
                 if v in skip or (allow and not allow(v)):
                     continue
-                votes[v] += 1
+                votes[v] += self.weight(v) if self.weight else 1
         if not votes:
             return self.sample((x0 + x1) / 2, (y0 + y1) / 2)
         top = max(votes.values())
@@ -393,3 +394,74 @@ def mirror_x(bm, first_vert, axis_x=0.0):
     for v in (e for e in dup if isinstance(e, bmesh.types.BMVert)):
         v.co.x = 2 * axis_x - v.co.x
     bmesh.ops.reverse_faces(bm, faces=[e for e in dup if isinstance(e, bmesh.types.BMFace)])
+
+
+def terrain(bm, grid, c0, r0, c1, r1, height, slot_for, cell=2.0, smooth=False):
+    """A block over the pixel-edge box (c0, r0)-(c1, r1) whose top is a grid of cell x cell pixel
+    squares raised to height(col, row) (pixel-edge coordinates) at each corner: rocks, mounds and
+    banks shaped by the caller. Top squares are painted with the most common sprite pixel under
+    them; the sides take the material of the top square above. Returns its first face index."""
+    first = len(bm.faces)
+    nx = max(1, round((c1 - c0) / cell))
+    ny = max(1, round((r1 - r0) / cell))
+    cs = [c0 + (c1 - c0) * i / nx for i in range(nx + 1)]
+    rs = [r0 + (r1 - r0) * j / ny for j in range(ny + 1)]
+    top = [[bm.verts.new((grid.ex(c), grid.ey(r), max(0.002, height(c, r)))) for c in cs] for r in rs]
+    for j in range(ny):
+        for i in range(nx):
+            f = bm.faces.new((top[j + 1][i], top[j + 1][i + 1], top[j][i + 1], top[j][i]))
+            f.smooth = smooth
+    paint(bm, first, grid, slot_for, up_only=False, area=True)
+    tops = faces_since(bm, first)
+    ring = ([top[0][i] for i in range(nx + 1)] + [top[j][nx] for j in range(1, ny + 1)]
+            + [top[ny][i] for i in range(nx - 1, -1, -1)] + [top[j][0] for j in range(ny - 1, 0, -1)])
+    bottom = [bm.verts.new((v.co.x, v.co.y, 0.0)) for v in ring]
+    n = len(ring)
+    for k in range(n):
+        m = (k + 1) % n
+        f = bm.faces.new((ring[k], ring[m], bottom[m], bottom[k]))
+        e = ring[k].link_faces
+        f.material_index = next((t.material_index for t in e if t in tops), 0)
+        f.smooth = False
+    bm.faces.new(list(reversed(bottom))).smooth = False
+    return first
+
+
+def mound(c, r, c0, r0, rc, rr, h, power=0.5):
+    """Height of an elliptic mound centred on pixel edge coords (c0, r0) with radii (rc, rr) px."""
+    d = ((c - c0) / rc) ** 2 + ((r - r0) / rr) ** 2
+    return h * max(0.0, 1.0 - d) ** power
+
+
+def noise2(seed, amount=0.03, freq=0.7):
+    """A smooth 2D noise function of pixel coordinates (small rocky unevenness)."""
+    rnd = random.Random(seed)
+    waves = [(rnd.uniform(-1, 1), rnd.uniform(-1, 1), rnd.uniform(0, 6.28)) for _ in range(5)]
+
+    def f(c, r):
+        return amount * sum(math.sin(freq * (a * c + b * r) * 2 + p) for a, b, p in waves) / 5
+    return f
+
+
+def tufts(bm, grid, c0, r0, c1, r1, pred, slot_for, height, seed=1, tuft_h=0.05):
+    """Small pointed grass tufts on the pixels (in the pixel-edge box) for which pred(index) is
+    true, standing on height(col, row)."""
+    rnd = random.Random(seed)
+    for r in range(int(r0), int(r1)):
+        for c in range(int(c0), int(c1)):
+            v = grid.at(c, r)
+            if v < 0 or not pred(v):
+                continue
+            x, y = grid.x(c) + rnd.uniform(-0.2, 0.2) * U, grid.y(r) + rnd.uniform(-0.2, 0.2) * U
+            z = height(c + 0.5, r + 0.5)
+            h = tuft_h * rnd.uniform(0.6, 1.0)
+            f0 = len(bm.faces)
+            base = [bm.verts.new((x + 0.55 * U * math.cos(a), y + 0.55 * U * math.sin(a), z - 0.01))
+                    for a in (0.3, 0.3 + 2.1, 0.3 + 4.2)]
+            tip = bm.verts.new((x + rnd.uniform(-0.3, 0.3) * U, y + rnd.uniform(-0.3, 0.3) * U, z + h))
+            for k in range(3):
+                bm.faces.new((base[k], base[(k + 1) % 3], tip))
+            slot = slot_for(v)
+            for f in faces_since(bm, f0):
+                f.material_index = slot if slot is not None else 0
+                f.smooth = False
