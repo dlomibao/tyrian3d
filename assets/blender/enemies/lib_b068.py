@@ -78,6 +78,19 @@ def ellipsoid(bm, centre, radii, mat=0, segments=16, rings=8, angle=0.0, floor=N
     set_faces(bm, f0, mat, smooth)
 
 
+def blob(bm, centre, radii, mat=0, segments=16, rings=8, power=1.0, angle=0.0, floor=None, smooth=True):
+    """A superellipsoid: power < 1 squares it off (0.5 is a rounded box), 1 is an ellipsoid."""
+    f0 = len(bm.faces)
+    res = bmesh.ops.create_uvsphere(bm, u_segments=segments, v_segments=rings, radius=1.0)
+    c, s = math.cos(angle), math.sin(angle)
+    for v in res["verts"]:
+        x, y, z = (math.copysign(abs(q) ** power, q) * r for q, r in zip(v.co, radii))
+        v.co = Vector((centre[0] + x * c - y * s, centre[1] + x * s + y * c, centre[2] + z))
+        if floor is not None and v.co.z < floor:
+            v.co.z = floor
+    set_faces(bm, f0, mat, smooth)
+
+
 def ellipsoid_z(centre, radii, angle, x, y, floor=0.0):
     """Height of the top of an ellipsoid (as built by `ellipsoid`) above point (x, y)."""
     c, s = math.cos(-angle), math.sin(-angle)
@@ -89,10 +102,11 @@ def ellipsoid_z(centre, radii, angle, x, y, floor=0.0):
     return max(floor, centre[2] + radii[2] * math.sqrt(t))
 
 
-def sweep(bm, path, sides=8, mat=0, smooth=True, cap_start=True, cap_end=True):
+def sweep(bm, path, sides=8, mat=0, smooth=True, cap_start=True, cap_end=True, phase=0.5):
     """A tube along a path of (x, y, z, half_width, half_height) in units. Rings stand
     perpendicular to the path in XY; the width is across the path and the height along Z. A ring
-    of zero size collapses to a point."""
+    of zero size collapses to a point. phase=0 with 4 sides gives a diamond section (a ridge on
+    top and a keel below)."""
     pts = [Vector((x, y, z)) for x, y, z, _, _ in path]
     up = Vector((0, 0, 1))
     rings = []
@@ -108,7 +122,7 @@ def sweep(bm, path, sides=8, mat=0, smooth=True, cap_start=True, cap_end=True):
             continue
         ring = []
         for k in range(sides):
-            a = 2 * math.pi * (k + 0.5) / sides
+            a = 2 * math.pi * (k + phase) / sides
             ring.append(bm.verts.new(pts[i] + side * (w * math.cos(a)) + up * (h * math.sin(a))))
         rings.append(ring)
     f0 = len(bm.faces)
