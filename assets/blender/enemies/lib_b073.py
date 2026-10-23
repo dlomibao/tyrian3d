@@ -298,6 +298,7 @@ def painted(bm, grid, c0, r0, c1, r1, zfunc, slot_of, skip=(-1,), breaks=(), max
     """A surface over pixel columns c0..c1-1 and rows r0..r1-1, one face per run of pixels in a
     row that share a material (slot_of(index) -> slot, or None to leave a hole). Heights come
     from zfunc(x, y) at the corners; `breaks` are column edges a run may not cross (creases)."""
+    up = bm.faces.layers.int.get("up") or bm.faces.layers.int.new("up")
     for r in range(r0, r1):
         c = c0
         while c < c1:
@@ -318,6 +319,7 @@ def painted(bm, grid, c0, r0, c1, r1, zfunc, slot_of, skip=(-1,), breaks=(), max
             f = bm.faces.new(vs)
             f.material_index = slot
             f.smooth = False
+            f[up] = 1
             c = e
 
 
@@ -371,6 +373,11 @@ def finish(name, bm, mats, coll):
     """Like common.mesh_object, but keeps each face's own smooth flag."""
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    up = bm.faces.layers.int.get("up")
+    if up is not None:  # painted surfaces always face up
+        for f in bm.faces:
+            if f[up] and f.normal.z < 0:
+                f.normal_flip()
     mesh = bpy.data.meshes.new(name)
     bm.to_mesh(mesh)
     bm.free()
