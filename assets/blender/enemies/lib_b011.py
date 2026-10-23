@@ -332,3 +332,14 @@ def diamond_spike(bm, base, tip, half_w, half_h, mats=(0, 0, 0, 0), z_dir=(0, 0,
     rings.append([tuple(b)])
     band = [list(mats)] * (len(rings) - 1)
     return ring_loft(bm, rings, band, cap_start=True, cap_end=False, cap_mats=(mats[3], mats[3]))
+
+
+def rotate_new(bm, start, angle, cx=0.0, cy=0.0, dx=0.0, dy=0.0):
+    """Rotate the vertices added since index `start` by `angle` (radians, counter-clockwise from
+    above) about the origin, then move them by (cx + dx, cy + dy)."""
+    bm.verts.ensure_lookup_table()
+    c, s = math.cos(angle), math.sin(angle)
+    for v in bm.verts[start:]:
+        x, y = v.co.x, v.co.y
+        v.co.x = cx + dx + x * c - y * s
+        v.co.y = cy + dy + x * s + y * c
