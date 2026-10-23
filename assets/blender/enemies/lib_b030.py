@@ -199,3 +199,21 @@ def run(name, build, file):
             common.render_preview(objects, str(out.parent / f"{out.stem}-{model}.png"),
                                   root / "reference" / "models" / name / img, size=frame["size"])
     return sprite
+
+
+def surface_cap(bm, x, y, rx, ry, z_of, bulge=0.0, mat=0, rings=4, segments=16, lift=0.004, tuck=0.02):
+    """A patch laid over a curved surface: an elliptical disc around (x, y) with radii rx, ry (units),
+    each point at z_of(px, py) + lift, swelling by `bulge` in its middle (a lens, an iris), its rim
+    tucked `tuck` below the surface so no gap shows. Open underneath (it sits on a closed body)."""
+    pts = []
+    for j in range(rings, 0, -1):
+        f = j / rings
+        ring = []
+        for k in range(segments):
+            a = 2 * math.pi * (k + 0.5) / segments
+            qx, qy = x + rx * f * math.cos(a), y + ry * f * math.sin(a)
+            z = z_of(qx, qy) + lift + bulge * (1 - f * f) - (tuck if j == rings else 0.0)
+            ring.append((qx, qy, z))
+        pts.append(ring)
+    pts.append([(x, y, z_of(x, y) + lift + bulge)])
+    return ring_loft(bm, pts, mat, True, cap_start=False, cap_end=False)
