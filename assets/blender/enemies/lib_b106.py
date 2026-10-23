@@ -192,3 +192,95 @@ def run(name, build, file):
         ref = root / "reference" / "models" / name / frame["image"]
         common.render_preview(models[0][1], out, ref, size=frame["size"])
     return sprite
+
+
+# --- The grey light capsule (tyrian10-165 and its mirror image tyrian10-203) ---------------------
+
+# Its profile along X: (column edge, half depth in Y in px). Rounded end caps (columns 2-4 and
+# 19-22), grooves at columns 5, 9, 14 and 18, raised bands at columns 6-8 and 15-17 and a plain
+# centre section between them.
+CAPSULE_PROFILE = [
+    (1.7, 0.0), (2.0, 1.8), (2.6, 2.9), (3.5, 4.4), (4.5, 5.5), (4.95, 6.0), (5.1, 5.4), (5.9, 5.4),
+    (6.05, 7.4), (8.95, 7.4), (9.1, 6.0), (9.6, 6.0), (9.75, 6.5), (14.25, 6.5), (14.4, 6.0), (14.9, 6.0),
+    (15.05, 7.4), (17.95, 7.4), (18.1, 5.6), (18.9, 5.6), (19.05, 6.4), (20.0, 5.8), (21.0, 4.8), (21.9, 3.4),
+    (22.6, 2.0), (23.1, 0.0),
+]
+CAPSULE_YC = ey(15.5)  # its axis: rows 8-22
+CAPSULE_ZC = 0.27  # axis height
+CAPSULE_K = 0.52  # height / depth of the cross-section
+
+
+def capsule_hy(c):
+    """Half depth (units) of the capsule's profile at column edge c."""
+    for (c0, h0), (c1, h1) in zip(CAPSULE_PROFILE, CAPSULE_PROFILE[1:]):
+        if c0 <= c <= c1:
+            t = (c - c0) / (c1 - c0) if c1 > c0 else 0.0
+            return (h0 + (h1 - h0) * t) / 12
+    return 0.0
+
+
+def capsule_point(c, angle, lift=0.0):
+    """A point on the capsule's surface at column edge c and angle (degrees; 0 = far side +Y,
+    90 = top, 180 = near side -Y), pushed out by `lift` units."""
+    hy = capsule_hy(c)
+    a = math.radians(angle)
+    return (ex(c), CAPSULE_YC + (hy + lift) * math.cos(a), CAPSULE_ZC + (hy * CAPSULE_K + lift) * math.sin(a))
+
+
+def capsule_arc(c, a0, a1, lift, n=6):
+    return [capsule_point(c, a0 + (a1 - a0) * i / (n - 1), lift) for i in range(n)]
+
+
+def build_light_capsule(sprite, name, near_lights):
+    """The grey capsule lying along X with red light strips across its bands and end caps and a
+    red and a green lamp on its centre section. tyrian10-165 has the red lights on the far side (up
+    the screen) and the green lamp on the near side; tyrian10-203 (near_lights=True) the reverse."""
+    import bmesh
+    coll = common.reset_collection(name)
+    pal = lambda i, **kw: common.palette_material(sprite, i, name, **kw)  # noqa: E731
+    mats = [
+        pal(9, metallic=0.55, roughness=0.35),  # 0 end caps
+        pal(11, metallic=0.55, roughness=0.3),  # 1 raised bands
+        pal(8, metallic=0.55, roughness=0.35),  # 2 centre section
+        pal(3, metallic=0.5, roughness=0.5),  # 3 grooves and seams
+        pal(117, roughness=0.3, emission_strength=3.0),  # 4 red light strips
+        pal(120, roughness=0.2, emission_strength=4.0),  # 5 red lamp
+        pal(195, roughness=0.2, emission_strength=4.0),  # 6 green lamp
+    ]
+    CAP, BAND, CENTRE, GROOVE, STRIP, RED, GREEN = range(7)
+
+    bm = bmesh.new()
+    sections = [(ex(c), hy / 12, hy / 12 * CAPSULE_K, CAPSULE_ZC) for c, hy in CAPSULE_PROFILE]
+    start = len(bm.verts)
+    common.loft(bm, sections, sides=16, mat_index=CAP)
+    bm.verts.ensure_lookup_table()
+    for v in bm.verts[start:]:
+        v.co.x, v.co.y = v.co.y, v.co.x + CAPSULE_YC
+    for f in bm.faces:
+        x = f.calc_center_median().x
+        c = x * 12 + 12  # back to a column edge
+        if c < 4.97 or c > 18.98:
+            f.material_index = CAP
+        elif 4.97 <= c < 6.0 or 8.97 <= c < 9.7 or 14.3 <= c < 15.0 or 17.97 <= c <= 18.98:
+            f.material_index = GROOVE
+        elif 6.0 <= c < 8.97 or 15.0 <= c < 17.97:
+            f.material_index = BAND
+        else:
+            f.material_index = CENTRE
+    # Seams along the centre section (rows 12 and 16).
+    for angle in (55, 105):
+        common_pts = [capsule_point(c, angle, 0.002) for c in (9.75, 12.0, 14.25)]
+        polyline_tube(bm, common_pts, 0.3 / 12, sides=4, mat_index=GROOVE)
+    body = common.mesh_object(name, bm, mats, coll, smooth=True)
+
+    # Lights: angles are on the far side (0-90) unless near_lights, which mirrors them (180 - a).
+    flip = (lambda a: 180 - a) if near_lights else (lambda a: a)
+    bm = bmesh.new()
+    # Red strips: columns 3 and 21 (rows 11-14) and columns 7 and 16 (rows 8-13).
+    for c, a0, a1 in ((3.5, 8, 80), (21.5, 8, 80), (7.5, 4, 72), (16.5, 4, 72)):
+        polyline_tube(bm, capsule_arc(c, flip(a0), flip(a1), 0.004), 0.55 / 12, sides=6, mat_index=STRIP)
+    # The red lamp (columns 11-12, rows 9-11) and the green lamp (rows 19-22), on opposite sides.
+    polyline_tube(bm, capsule_arc(12.0, flip(2), flip(50), 0.01, n=5), 1.05 / 12, sides=8, mat_index=RED)
+    polyline_tube(bm, capsule_arc(12.0, flip(185), flip(125), 0.01, n=5), 1.05 / 12, sides=8, mat_index=GREEN)
+    lights = common.mesh_object(f"{name}_lights", bm, mats, coll, smooth=True)
+    return [body, lights]
