@@ -81,7 +81,6 @@ def paint(bm, first_face, grid, mapper, under=None, min_nz=-0.2):
     """Give faces from index `first_face` on the slot of the sprite pixel under their centre.
     Faces pointing down (normal z < min_nz) get `under` when given."""
     bm.faces.ensure_lookup_table()
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[first_face:])
     bm.normal_update()
     for f in bm.faces[first_face:]:
         if under is not None and f.normal.z < min_nz:
@@ -140,6 +139,15 @@ def sweep(bm, path, sides=10, mat=0, smooth=True, cap_start=True, cap_end=True):
     for f in faces:
         f.material_index = mat
         f.smooth = smooth
+    # Make the faces point outward (the winding depends on the path's direction), judged on a
+    # side face between two full rings against the path between them.
+    for i, (r0, r1) in enumerate(zip(rings, rings[1:])):
+        if len(r0) > 1 and len(r1) > 1:
+            f = next(fc for fc in faces if set(fc.verts) == {r0[0], r0[1], r1[1], r1[0]})
+            f.normal_update()
+            if f.normal.dot(f.calc_center_median() - (pts[i] + pts[i + 1]) / 2) < 0:
+                bmesh.ops.reverse_faces(bm, faces=faces)
+            break
 
 
 def smooth_path(points, rounds=2):
@@ -192,7 +200,9 @@ def ellipsoid(bm, col, row, z, rx_px, ry_px, rz, mat=0, segments=16, rings=8, an
             zz = max(zz, z_bottom)
         v.co = Vector((X(col) + ex * ca - ey * sa, Y(row) + ex * sa + ey * ca, zz))
     bm.faces.ensure_lookup_table()
-    for f in bm.faces[before:]:
+    faces = bm.faces[before:]
+    bmesh.ops.reverse_faces(bm, faces=faces)  # swapping y and z mirrored the sphere
+    for f in faces:
         f.material_index = mat
         f.smooth = True
 
@@ -201,6 +211,8 @@ def plate(bm, outline, z0, z1, mat=0):
     """A flat plate from z0 to z1 with an outline of (col, row) pixel edges, counter-clockwise
     on screen."""
     pts = [(X(c - 0.5), Y(r - 0.5)) for c, r in outline]
+    if sum(x0 * y1 - x1 * y0 for (x0, y0), (x1, y1) in zip(pts, pts[1:] + pts[:1])) < 0:
+        pts.reverse()  # common.slab wants it counter-clockwise seen from above
     before = len(bm.faces)
     common.slab(bm, pts, z1 - z0, z=(z0 + z1) / 2, mat_index=mat)
     bm.faces.ensure_lookup_table()
@@ -458,3 +470,25 @@ def export_assembly(root, obj, pieces, sprite_grid, sprite):
             img = root / "reference" / "models" / name / data["frames"][0]["image"]
             common.render_preview([parts[name]], str(out.parent / f"{name}.png"), img, size=2)
     return parts
+
+
+# --- footprints (which pixels a hand-placed part covers in top view) -----------------------------
+
+def in_ellipse(c, r, col, row, rx, ry, angle=0.0, grow=0.0):
+    """Is pixel (c, r) inside the top-view ellipse of an ellipsoid placed with `ellipsoid`?"""
+    dx, dy = c - col, -(r - row)  # screen rows grow down; Blender Y up
+    ca, sa = math.cos(angle), math.sin(angle)
+    u, v = dx * ca + dy * sa, -dx * sa + dy * ca
+    return (u / (rx + grow)) ** 2 + (v / (ry + grow)) ** 2 <= 1.0
+
+
+def in_path(c, r, path, grow=0.0):
+    """Is pixel (c, r) within a swept path's half width (path of (col, row, z, hw, hh))?"""
+    for (c0, r0, _, w0, _), (c1, r1, _, w1, _) in zip(path, path[1:]):
+        dx, dy = c1 - c0, r1 - r0
+        ln2 = dx * dx + dy * dy or 1e-9
+        t = max(0.0, min(1.0, ((c - c0) * dx + (r - r0) * dy) / ln2))
+        px, py = c0 + dx * t, r0 + dy * t
+        if math.hypot(c - px, r - py) <= w0 + (w1 - w0) * t + grow:
+            return True
+    return False
