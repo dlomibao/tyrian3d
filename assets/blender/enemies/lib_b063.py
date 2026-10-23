@@ -163,3 +163,43 @@ def green_orb(sprite, name, coll, lift=0.0):
     ellipsoid(bm, cx, cy, a, b, c, z0=lift, segments=32, rings=18)
     paint(bm, pixels, slot_of, under_slot=0, min_nz=-0.3)
     return common.mesh_object(name, bm, mats, coll, smooth=True)
+
+
+def profile(ext, rows):
+    """Smooth the stair steps out of a sprite's row extents: [(row, centre column, half width px)].
+    A run of rows with the same extent becomes one section at its middle when the width keeps
+    growing or shrinking through it (a slope), or two sections near its ends when it is the
+    widest or narrowest part or the end of the shape (a plateau)."""
+    runs = []
+    for r in rows:
+        if runs and ext[r] == ext[runs[-1][-1]] and r == runs[-1][-1] + 1:
+            runs[-1].append(r)
+        else:
+            runs.append([r])
+    width = lambda run: ext[run[0]][1] - ext[run[0]][0]  # noqa: E731
+    out = []
+    for k, run in enumerate(runs):
+        a, b = ext[run[0]]
+        cen, half = (a + b) / 2, (b - a + 1) / 2
+        prev = width(runs[k - 1]) if k > 0 else None
+        nxt = width(runs[k + 1]) if k + 1 < len(runs) else None
+        w = width(run)
+        slope = prev is not None and nxt is not None and (prev - w) * (w - nxt) > 0
+        if len(run) <= 2 or slope:
+            out.append(((run[0] + run[-1]) / 2, cen, half))
+        else:
+            out.append((run[0] + 0.2, cen, half))
+            out.append((run[-1] - 0.2, cen, half))
+    return out
+
+
+def resample(prof, step=1.0):
+    """A profile() resampled every `step` rows by linear interpolation, so long smooth runs still
+    get enough rings to carry relief and colour."""
+    out = [prof[0]]
+    for (r0, c0, h0), (r1, c1, h1) in zip(prof, prof[1:]):
+        n = max(1, round((r1 - r0) / step))
+        for k in range(1, n + 1):
+            t = k / n
+            out.append((r0 + (r1 - r0) * t, c0 + (c1 - c0) * t, h0 + (h1 - h0) * t))
+    return out
