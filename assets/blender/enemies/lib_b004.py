@@ -220,3 +220,65 @@ def preview(objs, sprite, root, name):
         out = sys.argv[sys.argv.index("--preview") + 1]
         ref = Path(root) / "reference" / "models" / name / sprite["frames"][0]["image"]
         common.render_preview(objs, out, ref, size=sprite["frames"][0]["size"])
+
+
+class Ellipsoid:
+    """An ellipsoid body at (x0, y0, z0) with semi-axes a, b, c, for draping parts on its top."""
+
+    def __init__(self, x0, y0, a, b, c, z0=0.0):
+        self.x0, self.y0, self.z0, self.a, self.b, self.c = x0, y0, z0, a, b, c
+
+    def build(self, bm, segments=20, rings=12, mat_index=0):
+        start = len(bm.verts)
+        ellipsoid(bm, self.a, self.b, self.c, segments, rings, mat_index)
+        transform_from(bm, start, Matrix.Translation((self.x0, self.y0, self.z0)))
+
+    def top(self, x, y):
+        """Height of the top surface over (x, y); the rim height outside it."""
+        u = ((x - self.x0) / self.a) ** 2 + ((y - self.y0) / self.b) ** 2
+        return self.z0 + self.c * math.sqrt(max(0.0, 1 - u))
+
+
+def drape_cap(bm, surface, cx, cy, rx, ry, lift=0.02, dome=0.03, sink=0.02, sides=16, mat_index=0,
+              tilt=0.0):
+    """A cap (an eye's iris, a boss, a lens) draped over `surface.top(x, y)`: its outline is the
+    ellipse (cx, cy, rx, ry) seen from above (rotated by `tilt` radians), its edge sinks `sink`
+    below the surface, it rises `lift` above it just inside the edge and `lift + dome` at the
+    centre."""
+    ct, st = math.cos(tilt), math.sin(tilt)
+    def pt(k, scale):
+        ang = 2 * math.pi * (k + 0.5) / sides
+        ex, ey = rx * scale * math.cos(ang), ry * scale * math.sin(ang)
+        return cx + ex * ct - ey * st, cy + ex * st + ey * ct
+    rings = []
+    for scale, off in ((1.0, -sink), (0.92, lift), (0.55, lift + dome * 0.7)):
+        ring = []
+        for k in range(sides):
+            x, y = pt(k, scale)
+            ring.append(bm.verts.new((x, y, surface.top(x, y) + off)))
+        rings.append(ring)
+    centre = bm.verts.new((cx, cy, surface.top(cx, cy) + lift + dome))
+    for r0, r1 in zip(rings, rings[1:]):
+        for k in range(sides):
+            j = (k + 1) % sides
+            bm.faces.new((r0[k], r0[j], r1[j], r1[k])).material_index = mat_index
+    for k in range(sides):
+        j = (k + 1) % sides
+        bm.faces.new((rings[-1][k], rings[-1][j], centre)).material_index = mat_index
+
+
+def eyeball(bm, frame, size, c, slots, sides=24):
+    """A floating eyeball as one frame of its sprite shows it. `frame` gives sprite pixels (columns,
+    rows; fractional is fine): body (col, row, half width, half height) of the ball; iris, ring and
+    pupil (col, row, rx, ry) seen from above, draped on the ball as stacked caps. `c` is the ball's
+    half height in units; slots = (ball, iris, ring, pupil) material slots."""
+    BODY, IRIS, RING, PUPIL = slots
+    bc, br, ba, bb = frame["body"]
+    ball = Ellipsoid(px(bc, size), row(br, size), ba / 12, bb / 12, c)
+    ball.build(bm, segments=sides, rings=sides // 2, mat_index=BODY)
+    for key, slot, lift, dome in (("iris", IRIS, 0.008, 0.02), ("ring", RING, 0.022, 0.012),
+                                  ("pupil", PUPIL, 0.03, 0.01)):
+        col, r, rx, ry = frame[key]
+        drape_cap(bm, ball, px(col, size), row(r, size), rx / 12, ry / 12, lift=lift, dome=dome,
+                  sink=0.02, sides=16, mat_index=slot)
+    return ball
