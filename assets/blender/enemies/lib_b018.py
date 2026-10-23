@@ -365,3 +365,25 @@ def resample(points, n):
 def smooth_outline(pixels, keep, rows=None, inset=-0.3, n=56, rounds=2, w=24, h=28):
     """row_outline, rounded by corner cutting and resampled to n points."""
     return resample(chaikin(row_outline(pixels, keep, rows=rows, w=w, h=h, inset=inset), rounds), n)
+
+
+def loop_tube(bm, points, radii, sides=8, mat=0, flat=1.0, smooth=True):
+    """A closed round tube through a loop of 3D points (a torus-like ring); `radii` is a number
+    or one per point. `flat` squashes the cross-section toward the loop's plane normal (+Z)."""
+    pts = [Vector(p) for p in points]
+    n = len(pts)
+    radii = radii if isinstance(radii, (list, tuple)) else [radii] * n
+    f0 = len(bm.faces)
+    rings = []
+    for i in range(n):
+        t = (pts[(i + 1) % n] - pts[i - 1]).normalized()
+        u = t.cross(Vector((0, 0, 1))).normalized()
+        v = u.cross(t).normalized()
+        rings.append([bm.verts.new(pts[i] + radii[i] * (math.cos(a) * u + flat * math.sin(a) * v))
+                      for a in (2 * math.pi * (k + 0.5) / sides for k in range(sides))])
+    for i in range(n):
+        r0, r1 = rings[i], rings[(i + 1) % n]
+        for k in range(sides):
+            j = (k + 1) % sides
+            bm.faces.new((r0[k], r0[j], r1[j], r1[k]))
+    _mark(bm, f0, mat, smooth)
