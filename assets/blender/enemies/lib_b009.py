@@ -1,0 +1,411 @@
+"""Helpers shared by batch b009's model scripts (newsh2 flyers of episodes 1 and 3).
+
+Coordinates: sprite column c / row r. px/row give a pixel's centre, ex/ey a pixel edge (the left or
+top edge of column c / row r), for a 24x28 block. ring_loft, tube and polyline_tube come from
+lib_b007; ribbon, ellipsoid and the per-face smooth flag are this batch's.
+
+build-models.sh skips lib_ files; the model scripts import this next to them.
+"""
+
+import math
+import sys
+from pathlib import Path
+
+import bmesh
+import bpy
+from mathutils import Matrix, Vector
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import common  # noqa: E402
+
+
+def px(c, w=24):
+    return (c + 0.5 - w / 2) / 12
+
+
+def row(r, h=28):
+    return (h / 2 - (r + 0.5)) / 12
+
+
+def ex(c, w=24):
+    return (c - w / 2) / 12
+
+
+def ey(r, h=28):
+    return (h / 2 - r) / 12
+
+
+def ring_loft(bm, rings, mats, cap_start=True, cap_end=True, cap_mats=None, smooth=False):
+    """Join rings of 3D points (all the same length, or a single point for a tip) in order.
+
+    `mats` gives a material index per band between consecutive rings (an int applies to all, a
+    list of ints per band, or a list of lists per band and segment). Caps close the first/last ring
+    (with cap_mats = (start, end) material indices, default the first/last band's)."""
+    verts = [[bm.verts.new(p) for p in ring] for ring in rings]
+
+    def mat(band, seg):
+        m = mats
+        if isinstance(m, list):
+            m = m[band]
+        if isinstance(m, list):
+            m = m[seg]
+        return m
+
+    for b, (r0, r1) in enumerate(zip(verts, verts[1:])):
+        n = max(len(r0), len(r1))
+        for i in range(n):
+            j = (i + 1) % n
+            if len(r0) == 1:
+                face = (r0[0], r1[j], r1[i])
+            elif len(r1) == 1:
+                face = (r0[i], r0[j], r1[0])
+            else:
+                face = (r0[i], r0[j], r1[j], r1[i])
+            f = bm.faces.new(face)
+            f.material_index = mat(b, i)
+            f.smooth = smooth
+    first = mat(0, 0) if not cap_mats else cap_mats[0]
+    last = mat(len(verts) - 2, 0) if not cap_mats else cap_mats[1]
+    if cap_start and len(verts[0]) > 2:
+        f = bm.faces.new(list(reversed(verts[0])))
+        f.material_index = first
+    if cap_end and len(verts[-1]) > 2:
+        f = bm.faces.new(verts[-1])
+        f.material_index = last
+    return verts
+
+
+def tube(bm, p0, p1, radius, sides=6, mat_index=0, caps=True, smooth=True):
+    """A thin round bar between two 3D points (pipes, struts)."""
+    a, b = Vector(p0), Vector(p1)
+    axis = (b - a).normalized()
+    ref = Vector((0, 0, 1)) if abs(axis.z) < 0.9 else Vector((1, 0, 0))
+    u = axis.cross(ref).normalized()
+    v = axis.cross(u).normalized()
+    rings = []
+    for c in (a, b):
+        ring = []
+        for i in range(sides):
+            t = 2 * math.pi * (i + 0.5) / sides
+            ring.append(tuple(c + radius * (math.cos(t) * u + math.sin(t) * v)))
+        rings.append(ring)
+    return ring_loft(bm, rings, mat_index, cap_start=caps, cap_end=caps, smooth=smooth)
+
+
+def polyline_tube(bm, points, radius, sides=6, mat_index=0, caps=True, smooth=True, flat=1.0):
+    """One continuous round tube along a polyline, with mitred joints. `radius` can be a number or a
+    list with one radius per point. `flat` squashes the cross-section along the frame's second axis."""
+    pts = [Vector(p) for p in points]
+    radii = radius if isinstance(radius, (list, tuple)) else [radius] * len(pts)
+    tangents = []
+    for i in range(len(pts)):
+        d0 = (pts[i] - pts[i - 1]).normalized() if i > 0 else None
+        d1 = (pts[i + 1] - pts[i]).normalized() if i < len(pts) - 1 else None
+        t = (d0 + d1) if d0 is not None and d1 is not None else (d0 if d1 is None else d1)
+        tangents.append(t.normalized())
+    ref = Vector((0, 0, 1)) if abs(tangents[0].z) < 0.9 else Vector((1, 0, 0))
+    u = tangents[0].cross(ref).normalized()
+    rings = []
+    for i, (c, t) in enumerate(zip(pts, tangents)):
+        u = (u - t * u.dot(t)).normalized()
+        v = t.cross(u).normalized()
+        ring = []
+        for k in range(sides):
+            a = 2 * math.pi * (k + 0.5) / sides
+            ring.append(tuple(c + radii[i] * (math.cos(a) * u + math.sin(a) * v * flat)))
+        rings.append(ring)
+    return ring_loft(bm, rings, mat_index, cap_start=caps, cap_end=caps, smooth=smooth)
+
+
+def ribbon(bm, path, half_w, half_d, mat_of, z=0.0, closed=False):
+    """A flat band swept along a 2D path in the XY plane: `half_w` across the path in the plane,
+    `half_d` along Z. mat_of(segment_index, midpoint, side) gives each face's material, side being
+    "front" (+Z), "back" (-Z), "out" (left of the path) or "in". Flat shaded, mitred joints."""
+    pts = [Vector((x, y)) for x, y in path]
+    n = len(pts)
+    rings = []
+    for i in range(n):
+        if closed:
+            d0 = (pts[i] - pts[i - 1]).normalized()
+            d1 = (pts[(i + 1) % n] - pts[i]).normalized()
+        else:
+            d0 = (pts[i] - pts[i - 1]).normalized() if i > 0 else None
+            d1 = (pts[i + 1] - pts[i]).normalized() if i < n - 1 else None
+            if d0 is None:
+                d0 = d1
+            if d1 is None:
+                d1 = d0
+        t = (d0 + d1).normalized()
+        nrm = Vector((-t.y, t.x))
+        scale = 1.0 / max(0.4, nrm.dot(Vector((-d1.y, d1.x))))
+        o = nrm * half_w * scale
+        p = pts[i]
+        rings.append([bm.verts.new((p.x + o.x, p.y + o.y, z + half_d)),
+                      bm.verts.new((p.x - o.x, p.y - o.y, z + half_d)),
+                      bm.verts.new((p.x - o.x, p.y - o.y, z - half_d)),
+                      bm.verts.new((p.x + o.x, p.y + o.y, z - half_d))])
+    sides = ("front", "in", "back", "out")
+    segs = n if closed else n - 1
+    for s in range(segs):
+        r0, r1 = rings[s], rings[(s + 1) % n]
+        mid = (pts[s] + pts[(s + 1) % n]) / 2
+        for k in range(4):
+            j = (k + 1) % 4
+            f = bm.faces.new((r0[k], r1[k], r1[j], r0[j]))
+            f.material_index = mat_of(s, mid, sides[k])
+    if not closed:
+        f = bm.faces.new(list(reversed(rings[0])))
+        f.material_index = mat_of(0, pts[0], "end")
+        f = bm.faces.new(rings[-1])
+        f.material_index = mat_of(segs - 1, pts[-1], "end")
+
+
+def ellipsoid(bm, centre, radii, segments=16, rings=8, mat_index=0, smooth=True, z_cut=None):
+    """An ellipsoid (rx, ry, rz) at centre, poles along Y. With z_cut, verts below that height
+    (relative to the centre) are flattened onto it (a dome with a flat base)."""
+    cx, cy, cz = centre
+    rx, ry, rz = radii
+    ring_pts = [[(cx, cy + ry, cz)]]
+    for i in range(1, rings):
+        t = math.pi * i / rings
+        ring = []
+        for k in range(segments):
+            a = 2 * math.pi * (k + 0.5) / segments
+            z = rz * math.sin(t) * math.sin(a)
+            if z_cut is not None:
+                z = max(z, z_cut)
+            ring.append((cx + rx * math.sin(t) * math.cos(a), cy + ry * math.cos(t), cz + z))
+        ring_pts.append(ring)
+    ring_pts.append([(cx, cy - ry, cz)])
+    return ring_loft(bm, ring_pts, mat_index, smooth=smooth)
+
+
+def transform_since(bm, start, matrix):
+    bm.verts.ensure_lookup_table()
+    bmesh.ops.transform(bm, matrix=matrix, verts=bm.verts[start:])
+
+
+def mirror_since(bm, start):
+    """Duplicate everything added since vertex index `start`, mirrored in X."""
+    bm.verts.ensure_lookup_table()
+    bm.faces.ensure_lookup_table()
+    verts = set(bm.verts[start:])
+    faces = [f for f in bm.faces if all(v in verts for v in f.verts)]
+    mapping = {}
+    for v in verts:
+        mapping[v] = bm.verts.new((-v.co.x, v.co.y, v.co.z))
+    for f in faces:
+        nf = bm.faces.new([mapping[v] for v in reversed(f.verts)])
+        nf.material_index = f.material_index
+        nf.smooth = f.smooth
+
+
+def finish(name, bm, materials, collection):
+    """Turn a bmesh into an object keeping each face's own smooth flag."""
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    mesh = bpy.data.meshes.new(name)
+    bm.to_mesh(mesh)
+    bm.free()
+    for mat in materials:
+        mesh.materials.append(mat)
+    obj = bpy.data.objects.new(name, mesh)
+    collection.objects.link(obj)
+    return obj
+
+
+def frames_subset(sprite, indices):
+    """The sprite list with only the given frame indices (for one model of an animation)."""
+    out = []
+    for s in sprite["sprites"]:
+        keep = [f for f in s["frames"] if f in indices]
+        if keep:
+            out.append({**s, "frames": keep})
+    return out
+
+
+def run(name, build, file):
+    """Build, export every model and, with -- --preview <png>, preview each: the first model to
+    <png>, the others to <png stem>-<suffix>.png, each beside the first frame it covers.
+
+    `build(sprite)` returns a list of (model_name, objects, sprites) to export."""
+    root = common.repo_root(file)
+    sprite = common.load_sprite(root, name)
+    models = build(sprite)
+    for model, objects, sprites in models:
+        common.export_sprite_model(root, objects, f"enemies/{model}", sprites)
+    if "--preview" in sys.argv:
+        out = Path(sys.argv[sys.argv.index("--preview") + 1])
+        by_index = {f["index"]: f for f in sprite["frames"]}
+        for i, (model, objects, sprites) in enumerate(models):
+            frame = by_index[sprites[0]["frames"][0]]
+            ref = root / "reference" / "models" / name / frame["image"]
+            path = out if i == 0 else out.with_name(f"{out.stem}{model[len(name):]}.png")
+            common.render_preview(objects, str(path), ref, size=frame["size"])
+    return sprite
+
+
+def rot_y(angle):
+    return Matrix.Rotation(angle, 4, "Y")
+
+
+def ellipse_ring(cx, cy, z, rx, ry, n=10, phase=0.5):
+    """n points of an ellipse around (cx, cy) at height z (counter-clockwise from +X)."""
+    return [(cx + rx * math.cos(2 * math.pi * (i + phase) / n), cy + ry * math.sin(2 * math.pi * (i + phase) / n), z)
+            for i in range(n)]
+
+
+class Profile:
+    """A lofted body along Y: sections (y, half_width, half_height, z_centre) in units, sorted by y
+    either way. top(x, y) is the height of its top surface (elliptical cross-sections)."""
+
+    def __init__(self, sections, power=2.0):
+        self.sections = sorted(sections, key=lambda s: s[0])
+        self.power = power  # cross-section superellipse exponent: 2 round, 4 or more boxy
+
+    def at(self, y):
+        s = self.sections
+        if y <= s[0][0]:
+            return s[0][1:]
+        for a, b in zip(s, s[1:]):
+            if a[0] <= y <= b[0]:
+                t = (y - a[0]) / (b[0] - a[0]) if b[0] > a[0] else 0.0
+                return tuple(a[i] + (b[i] - a[i]) * t for i in (1, 2, 3))
+        return s[-1][1:]
+
+    def top(self, x, y):
+        w, h, z = self.at(y)
+        if w <= 0:
+            return z
+        u = min(1.0, abs(x) / w)
+        p = self.power
+        return z + h * max(0.0, 1 - u ** p) ** (1 / p)
+
+    def build(self, bm, sides=16, mat_index=0, smooth=True, dx=0.0):
+        start = len(bm.verts)
+        f0 = len(bm.faces)
+        if self.power == 2.0:
+            common.loft(bm, self.sections, sides=sides, mat_index=mat_index)
+        else:
+            e = 2 / self.power
+            sgn = lambda v: math.copysign(abs(v) ** e, v)  # noqa: E731
+            rings = []
+            for y, w, h, z in self.sections:
+                if w == 0 and h == 0:
+                    rings.append([(0.0, y, z)])
+                    continue
+                ring = []
+                for i in range(sides):
+                    a = 2 * math.pi * (i + 0.5) / sides
+                    ring.append((w * sgn(math.cos(a)), y, z + h * sgn(math.sin(a))))
+                rings.append(ring)
+            ring_loft(bm, rings, mat_index)
+        if dx:
+            common.shift_x(bm, start, dx)
+        bm.faces.ensure_lookup_table()
+        for f in bm.faces[f0:]:
+            f.smooth = smooth
+
+
+def drape_patch(bm, top, x0, x1, y0, y1, nx=4, ny=4, lift=0.01, depth=0.04, mat_index=0, side_mat=None,
+                smooth=False):
+    """A thin plate following a surface: a grid over [x0, x1] x [y0, y1] at top(x, y) + lift, with
+    walls down `depth`. For grooves, panels and stripes laid on a curved hull."""
+    grid = []
+    for j in range(ny + 1):
+        y = y0 + (y1 - y0) * j / ny
+        rowv = []
+        for i in range(nx + 1):
+            x = x0 + (x1 - x0) * i / nx
+            rowv.append(bm.verts.new((x, y, top(x, y) + lift)))
+        grid.append(rowv)
+    for j in range(ny):
+        for i in range(nx):
+            f = bm.faces.new((grid[j][i], grid[j][i + 1], grid[j + 1][i + 1], grid[j + 1][i]))
+            f.material_index = mat_index
+            f.smooth = smooth
+    rim = [grid[0][i] for i in range(nx + 1)] + [grid[j][nx] for j in range(1, ny + 1)]
+    rim += [grid[ny][i] for i in range(nx - 1, -1, -1)] + [grid[j][0] for j in range(ny - 1, 0, -1)]
+    low = [bm.verts.new((v.co.x, v.co.y, v.co.z - depth)) for v in rim]
+    n = len(rim)
+    sm = mat_index if side_mat is None else side_mat
+    for k in range(n):
+        f = bm.faces.new((rim[k], low[k], low[(k + 1) % n], rim[(k + 1) % n]))
+        f.material_index = sm
+    f = bm.faces.new(list(reversed(low)))
+    f.material_index = sm
+
+
+def ellipse_polygon(cx, cy, rx, ry, n=16, tilt=0.0):
+    ct, st = math.cos(tilt), math.sin(tilt)
+    pts = []
+    for k in range(n):
+        a = 2 * math.pi * k / n
+        ex_, ey_ = rx * math.cos(a), ry * math.sin(a)
+        pts.append((cx + ex_ * ct - ey_ * st, cy + ex_ * st + ey_ * ct))
+    return pts
+
+
+def mirror_all_x(bm):
+    """Mirror the whole mesh in X (x -> -x); face windings are fixed by finish()."""
+    for v in bm.verts:
+        v.co.x = -v.co.x
+
+
+def claw(bm, slots):
+    """The curved claw of newsh2-49 (and newsh2-51, its mirror image: call mirror_all_x after): a
+    grey arm hooking from a purple-capped bar along the top over to the left, where it becomes a
+    purple blade pointing down, with a grey spine and a grey strap across it; and a thin grey arm
+    hanging from the bar's right end, with a jointed knuckle and a glowing red claw tip.
+    slots = (grey, light grey, purple blade, purple cap, red tip, dark red, beige stud, highlight)."""
+    GREY, LIGHT, BLADE, CAP, RED, DARKRED, STUD, HIGH = slots
+    U = 1 / 12
+    P = lambda c, r, z=0.0: (px(c), row(r), z)  # noqa: E731
+    E = lambda c, r: (ex(c), ey(r))  # noqa: E731
+
+    # Arm: from the top bar (rows 1-3) down through the shoulder (rows 4-9, columns 6-12) to the
+    # blade's root.
+    pts = [P(16.6, 2.0), P(13.0, 2.1), P(10.5, 3.4), P(8.6, 5.6), P(7.4, 8.0), P(6.6, 10.6)]
+    lib_r = [1.5, 1.6, 2.4, 3.1, 3.2, 2.6]
+    polyline_tube(bm, pts, [r * U for r in lib_r], sides=10, mat_index=GREY, flat=0.6)
+    # Purple cap on the bar's right end (columns 17-21) with a beige stud.
+    polyline_tube(bm, [P(16.2, 2.0), P(19.5, 2.0), P(21.2, 2.1)], [1.7 * U, 1.6 * U, 1.3 * U], sides=10,
+                  mat_index=CAP, flat=0.65)
+    ellipsoid(bm, P(17.0, 2.1, 0.08), (0.8 * U, 0.8 * U, 0.04), segments=8, rings=4, mat_index=STUD)
+    # Plate under the bar (columns 13-17, rows 5-7), lit along its left edge.
+    ellipsoid(bm, P(14.4, 6.2, 0.0), (4.0 * U, 1.8 * U, 0.12), segments=14, rings=6, mat_index=GREY)
+    polyline_tube(bm, [P(13.2, 5.0, 0.07), P(13.2, 7.4, 0.07)], 0.6 * U, sides=6, mat_index=HIGH)
+    # Bright ridge along the shoulder's top (columns 11-13, rows 6-8).
+    polyline_tube(bm, [P(12.0, 5.6, 0.12), P(11.4, 7.6, 0.13), P(10.2, 9.4, 0.1)], [0.7 * U, 0.8 * U, 0.6 * U],
+                  sides=6, mat_index=LIGHT)
+
+    # Blade: purple, columns 3-9 from row 10 down to the point at row 26, thicker along its back.
+    # Each section: (row edge, right edge column, half thickness); the left edge is column 3. The
+    # cross-section is a wedge, sharp on the left and thickest a third of the way in.
+    rings = []
+    for r, right, h in ((9.4, 10.2, 0.07), (12.0, 10.6, 0.09), (15.0, 10.2, 0.09), (18.0, 9.6, 0.08),
+                        (21.0, 9.0, 0.07), (22.6, 7.6, 0.06), (24.6, 5.6, 0.045), (25.6, 4.4, 0.03)):
+        xl, xr, y = ex(3.0), ex(right), ey(r)
+        xm = xl + (xr - xl) * 0.45
+        rings.append([(xl, y, 0.0), (xm, y, h), (xr, y, h * 0.7), (xr, y, -h * 0.7), (xm, y, -h)])
+    rings.append([(ex(3.5), ey(26.4), 0.0)])
+    ring_loft(bm, rings, BLADE)
+    # Its grey back along the right edge and the grey strap across it (rows 17-19).
+    polyline_tube(bm, [P(9.0, 10.0, 0.02), P(9.0, 14.0, 0.02), P(8.4, 18.0, 0.02), P(7.4, 21.4, 0.02),
+                       P(5.8, 23.4, 0.0)], [1.4 * U, 1.3 * U, 1.2 * U, 1.0 * U, 0.4 * U], sides=8,
+                  mat_index=GREY, flat=0.7)
+    polyline_tube(bm, [P(8.6, 16.0, 0.05), P(5.8, 17.6, 0.06), P(3.2, 19.8, 0.035)], [1.2 * U, 1.3 * U, 1.1 * U],
+                  sides=8, mat_index=LIGHT, flat=0.3)
+    # Beige stud near the blade's root (column 8, rows 10-12).
+    ellipsoid(bm, P(8.0, 11.0, 0.07), (0.7 * U, 1.3 * U, 0.04), segments=8, rings=4, mat_index=STUD)
+
+    # Hanging arm off the bar's right end: a knob (rows 5-7), a thin link, a knuckle (rows 12-17)
+    # and the red claw (rows 18-23).
+    polyline_tube(bm, [P(19.6, 3.0), P(20.6, 5.0)], 1.0 * U, sides=6, mat_index=CAP)
+    ellipsoid(bm, P(21.0, 6.3, 0.0), (1.9 * U, 1.6 * U, 0.12), segments=10, rings=6, mat_index=GREY)
+    polyline_tube(bm, [P(21.4, 7.5), P(21.6, 9.5), P(21.4, 12.0)], [1.0 * U, 0.9 * U, 1.0 * U], sides=6,
+                  mat_index=GREY)
+    ellipsoid(bm, P(20.9, 14.6, 0.0), (2.0 * U, 2.6 * U, 0.15), segments=12, rings=8, mat_index=LIGHT)
+    ellipsoid(bm, P(22.0, 13.5, 0.07), (0.7 * U, 0.7 * U, 0.08), segments=6, rings=4, mat_index=HIGH)
+    polyline_tube(bm, [P(20.5, 17.0), P(20.5, 18.0)], 1.25 * U, sides=8, mat_index=DARKRED)
+    polyline_tube(bm, [P(20.6, 17.8), P(20.6, 20.5), P(20.5, 22.6), P(20.3, 23.8)],
+                  [1.05 * U, 1.0 * U, 0.85 * U, 0.2 * U], sides=8, mat_index=RED)
