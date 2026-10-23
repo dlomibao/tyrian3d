@@ -275,3 +275,73 @@ def pull(points, cx, cy, d):
 
 def at_z(points, z):
     return [(x, y, z) for x, y in points]
+
+
+def build_diagonal_pod(sprite, name, mirror=False):
+    """The grey diagonal pod of newsh5-83 (and, mirrored, newsh5-81): a faceted metal capsule lying
+    from the lower left to the upper right of its tile. A big body at the upper right whose ends
+    taper square to the tile's axes, a darker ribbed middle band, a dark groove and a lighter
+    rounded cap at the lower left, with a small dark foot block under its middle and a slot and a
+    recess on top. Built for newsh5-83; `mirror` flips it left to right (newsh5-81's sprite is
+    newsh5-83's mirror image)."""
+    coll = common.reset_collection(name)
+    pal = lambda i, **kw: common.palette_material(sprite, i, name, **kw)  # noqa: E731
+    mats = [
+        pal(9, metallic=0.55, roughness=0.35),  # 0 lit metal
+        pal(5, metallic=0.55, roughness=0.4),  # 1 shaded metal
+        pal(2, metallic=0.3, roughness=0.6),  # 2 grooves, slot
+        pal(11, metallic=0.6, roughness=0.3),  # 3 bright cap
+        pal(6, metallic=0.5, roughness=0.45),  # 4 darker middle band, recess
+        pal(13, metallic=0.7, roughness=0.2),  # 5 highlight ridge
+    ]
+    LIT, SHADE, GROOVE, CAP, BAND, HIGH = range(6)
+    bm = bmesh.new()
+    # Built along +Y (u, px along the diagonal from the centre), then turned 45 degrees clockwise
+    # so +Y points to the upper right, and moved onto the sprite's centre.
+    cx, cy = EX(12.2), EY(11.9)
+    flat = 1 / math.cos(math.pi / 8)  # an 8-sided loft's flat sides stand at cos(22.5) of its width
+
+    def loft(sections, mat):
+        common.loft(bm, [(sec[0] * PX, sec[1] * PX * flat, sec[2], sec[3] if len(sec) > 3 else sec[2])
+                         for sec in sections], sides=8, mat_index=mat)
+
+    # Lower-left cap: a flat end face, then sides tapering at 45 degrees (square to the tile).
+    loft([(-13.8, 2.1, 0.1), (-12.8, 3.2, 0.14), (-11.2, 4.7, 0.18), (-9.7, 5.8, 0.2), (-8.0, 5.9, 0.2)], CAP)
+    loft([(-8.1, 5.2, 0.18), (-7.1, 5.2, 0.18)], GROOVE)
+    # Darker middle band.
+    loft([(-7.3, 5.8, 0.21), (-6.6, 6.1, 0.22), (-1.0, 6.1, 0.22), (-0.6, 5.9, 0.21)], BAND)
+    loft([(-0.9, 5.5, 0.2), (0.0, 5.5, 0.2)], GROOVE)
+    # Main body, its end tapering at 45 degrees to a point at the tile's upper-right corner.
+    loft([(-0.3, 6.0, 0.24), (0.8, 6.2, 0.26), (7.6, 6.1, 0.26), (10.5, 3.4, 0.2), (13.0, 0.9, 0.1),
+          (13.8, 0.0, 0.0, 0.08)], LIT)
+    # Highlight ridge along the body's top, on its lit side.
+    start = len(bm.verts)
+    common.loft(bm, [(1.5 * PX, 0.5 * PX, 0.012, 0.52), (7.0 * PX, 0.5 * PX, 0.012, 0.52)], sides=4,
+                mat_index=HIGH)
+    common.shift_x(bm, start, -2.2 * PX)
+    # Slot and recess on top of the body (sprite rows 4 and 6).
+    box(bm, -3.3 * PX, 7.8 * PX, -1.1 * PX, 8.8 * PX, 0.44, 0.49, mat=GROOVE)
+    box(bm, -3.2 * PX, 4.8 * PX, -1.2 * PX, 6.0 * PX, 0.48, 0.525, mat=BAND)
+
+    bm.verts.ensure_lookup_table()
+    rotate_z(bm, 0, -math.pi / 4)
+    move(bm, 0, cx, cy)
+    # Small dark foot block under the middle (sprite rows 18-21, columns 10-13).
+    box(bm, EX(10), EY(21), EX(14), EY(18), 0.0, 0.12, mat=GROOVE)
+
+    # Shade the faces of the body and band that look down-right (the sprite's dark side).
+    bm.normal_update()
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    shade = Vector((1, -1, 0)).normalized()
+    bm.faces.ensure_lookup_table()
+    for f in bm.faces:
+        if f.material_index in (LIT, CAP) and f.normal.dot(shade) > 0.3:
+            f.material_index = SHADE
+    for f in bm.faces:
+        f.smooth = False
+
+    if mirror:
+        for v in bm.verts:
+            v.co.x = -v.co.x
+        bmesh.ops.reverse_faces(bm, faces=bm.faces)
+    return to_object(name, bm, mats, coll)
