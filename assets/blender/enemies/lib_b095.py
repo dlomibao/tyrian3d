@@ -155,7 +155,7 @@ def box(bm, g, c0, r0, c1, r1, z0, z1, mat=0):
     return plate(bm, g, [(c0, r0), (c1, r0), (c1, r1), (c0, r1)], z0, z1, mat=mat)
 
 
-def wedge_plate(bm, g, outline, z0, ztop, mat=0):
+def wedge_plate(bm, g, outline, z0, mat=0):
     """A prism from z0 up to a top whose height varies per outline point: outline is a list of
     pixel-edge (col, row, z_top). The top is triangulated (it need not be flat)."""
     pts = [(g.xe(c), g.ye(r), zt) for c, r, zt in outline]
