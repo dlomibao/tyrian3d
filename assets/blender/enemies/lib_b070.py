@@ -180,13 +180,13 @@ def dome(bm, centre, radii, segments=20, rings=6, mat_index=0, shear=(0.0, 0.0),
 
 
 def dome_z(centre, radii, x, y, shear=(0.0, 0.0), power=1.0):
-    """Height of a dome() surface above (x, y), or None outside it (power 1 only is exact)."""
+    """Height of a dome() surface above (x, y), or None outside it."""
     cx, cy, cz = centre
     rx, ry, h = radii
-    d = ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2
+    d = math.sqrt(((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2)
     if d >= 1:
         return None
-    return cz + shear[0] * (x - cx) + shear[1] * (y - cy) + h * math.sqrt(1 - d)
+    return cz + shear[0] * (x - cx) + shear[1] * (y - cy) + h * math.sqrt(1 - d ** (2 / power))
 
 
 def crater(bm, outer, inner, profile, mat_index=0, smooth=True):
@@ -280,3 +280,61 @@ def preview(root, name, objs, sprite, frame=0):
         f = sprite["frames"][frame]
         ref = Path(root) / "reference" / "models" / sprite["name"] / f["image"]
         common.render_preview(objs, out, ref, size=f["size"])
+
+
+# --- pods: a red body with a dark glass cap and glowing lenses (newshe-195 and the 4-piece pod) --
+
+def fit_cap(body, cap_xy, cap_r, margin=0.015, samples=48, power=1.0):
+    """Tilt and lift a cap (a dome() whose base is an ellipse centred at cap_xy with radii cap_r)
+    so its whole rim sits just above the body dome `body` = ((x, y, z0), (rx, ry, h)): the cap's
+    base is tilted down towards the side where it sits close to the body's edge. Returns
+    (z0, shear) for dome()."""
+    (bx, by, bz), bradii = body
+    cx, cy = cap_xy
+    dx, dy = bx - cx, by - cy
+    d = math.hypot(dx, dy) or 1.0
+    dx, dy = dx / d, dy / d
+    best = None
+    for k in range(41):
+        s = 0.6 * k / 40
+        z0 = -1e9
+        for i in range(samples):
+            a = 2 * math.pi * i / samples
+            px, py = cx + cap_r[0] * math.cos(a), cy + cap_r[1] * math.sin(a)
+            zb = dome_z((bx, by, bz), bradii, px, py, power=power) or bz
+            z0 = max(z0, zb + margin - s * (dx * (px - cx) + dy * (py - cy)))
+        if best is None or z0 < best[0]:
+            best = (z0, (s * dx, s * dy))
+    return best
+
+
+def lens(bm, surface, x, y, layers, segments=16):
+    """Glowing lenses on a sloping surface: surface(x, y) -> z. `layers` are (radius, height,
+    material slot), outermost first; each is a low dome tilted to the local slope, sunk a little."""
+    e = 0.01
+    z = surface(x, y)
+    gx = (surface(x + e, y) - surface(x - e, y)) / (2 * e)
+    gy = (surface(x, y + e) - surface(x, y - e)) / (2 * e)
+    for i, (r, h, slot) in enumerate(layers):
+        dome(bm, (x, y, z - 0.012 + 0.006 * i), (r, r, h), segments=segments, rings=3,
+             mat_index=slot, shear=(gx, gy), base=False)
+
+
+def composite_png(root, pieces, w, h, out):
+    """The first frames of several 2x2 pieces [(name, col, row of its top-left corner)] in one
+    w x h px image (for render_preview)."""
+    img = [[(0.0, 0.0, 0.0, 0.0)] * w for _ in range(h)]
+    for name, c0, r0 in pieces:
+        data = common.load_sprite(root, name)
+        for r, row in enumerate(data["frames"][0]["pixels"]):
+            for c, v in enumerate(row):
+                if v >= 0:
+                    rgb = data["colors"][str(v)]
+                    img[r0 + r][c0 + c] = (rgb[0] / 255, rgb[1] / 255, rgb[2] / 255, 1.0)
+    im = bpy.data.images.new("composite_sprite", w, h, alpha=True)
+    im.pixels[:] = [ch for row in reversed(img) for px in row for ch in px]
+    im.filepath_raw = str(out)
+    im.file_format = "PNG"
+    im.save()
+    bpy.data.images.remove(im)
+    return out
