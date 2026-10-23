@@ -90,21 +90,38 @@ def xloft(bm, sections, mat=0, smooth=False):
 
 
 def ellipsoid(bm, x, y, z, rx, ry, rz, mat=0, segments=12, rings=6, smooth=True, half=False, rot=0.0):
-    """An ellipsoid (or its upper half, a dome sitting on z) in Blender units."""
+    """An ellipsoid (or, with half, its upper half: a dome sitting on z with a flat base) in
+    Blender units, turned by `rot` radians about Z."""
     first = len(bm.faces)
-    res = bmesh.ops.create_uvsphere(bm, u_segments=segments, v_segments=rings, radius=1.0)
-    verts = res["verts"]
-    if half:
-        for v in verts:
-            if v.co.z < 0:
-                v.co.z = 0.0
     c, s = math.cos(rot), math.sin(rot)
-    for v in verts:
-        lx, ly = v.co.x * rx, v.co.y * ry
-        v.co = Vector((x + lx * c - ly * s, y + lx * s + ly * c, z + v.co.z * rz))
+    lo = 0 if half else -rings // 2
+    hi = rings // 2 if half else rings - rings // 2
+    steps = hi - lo
+    lat = [math.pi / 2 * (lo + i) / (rings // 2 if half else rings / 2) for i in range(steps)]
+    ring_verts = []
+    for a in lat:
+        ring = []
+        for k in range(segments):
+            t = 2 * math.pi * k / segments
+            lx, ly = math.cos(a) * math.cos(t) * rx, math.cos(a) * math.sin(t) * ry
+            ring.append(bm.verts.new((x + lx * c - ly * s, y + lx * s + ly * c, z + math.sin(a) * rz)))
+        ring_verts.append(ring)
+    top = bm.verts.new((x, y, z + rz))
+    for r0, r1 in zip(ring_verts, ring_verts[1:]):
+        for k in range(segments):
+            j = (k + 1) % segments
+            bm.faces.new((r0[k], r0[j], r1[j], r1[k]))
+    for k in range(segments):
+        bm.faces.new((ring_verts[-1][k], ring_verts[-1][(k + 1) % segments], top))
     if half:
-        bmesh.ops.remove_doubles(bm, verts=verts, dist=1e-6)
-    set_faces(bm, first, mat=mat, smooth=smooth)
+        bm.faces.new(list(reversed(ring_verts[0])))
+    else:
+        bottom = bm.verts.new((x, y, z - rz))
+        for k in range(segments):
+            bm.faces.new((ring_verts[0][(k + 1) % segments], ring_verts[0][k], bottom))
+    for f in faces_since(bm, first):
+        f.material_index = mat
+        f.smooth = smooth and not (half and len(f.verts) == segments)
 
 
 def cylinder(bm, x, y, z0, z1, rx, ry=None, mat=0, sides=12, smooth=True):
@@ -242,3 +259,32 @@ def bunker(bm, spec, M):
     for c0, c1, r0, r1, part in spec.get("vents", []):
         top = H * hf((c0 + c1) / 2) + 0.012
         box(bm, X(c0), Y(r1), X(c1), Y(r0), top - 0.06, top, mat=M[part])
+
+
+def bar(bm, p0, p1, width, z0, z1, mat=0):
+    """A straight flat-topped bar from XY point p0 to p1 (Blender units), `width` across."""
+    d = Vector((p1[0] - p0[0], p1[1] - p0[1]))
+    d.normalize()
+    n = Vector((-d.y, d.x)) * (width / 2)
+    pts = [(p0[0] - n.x, p0[1] - n.y), (p1[0] - n.x, p1[1] - n.y), (p1[0] + n.x, p1[1] + n.y),
+           (p0[0] + n.x, p0[1] + n.y)]
+    prism(bm, pts, z0, z1, mat=mat)
+
+
+def frame_subset(sprite, frames):
+    """The sprite's `sprites` entry narrowed to the given frame indices (one sheet)."""
+    ref = sprite["sprites"][0]
+    return [{"sheet": ref["sheet"], "size": ref["size"], "frames": list(frames)}]
+
+
+def preview_frames(root, name, sprite, objs_by_frame, argv):
+    """With --preview <png>: render each model beside its first frame. The first model goes to
+    <png>, the others to <png stem>-f2.png, -f3.png, ..."""
+    if "--preview" not in argv:
+        return
+    out = Path(argv[argv.index("--preview") + 1])
+    for i, (frame_index, objs) in enumerate(objs_by_frame):
+        frame = next(f for f in sprite["frames"] if f["index"] == frame_index)
+        ref = root / "reference" / "models" / name / frame["image"]
+        path = out if i == 0 else out.with_name(f"{out.stem}-f{i + 1}.png")
+        common.render_preview(objs, str(path), ref, size=frame["size"])
