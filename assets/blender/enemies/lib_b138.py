@@ -98,17 +98,21 @@ def pillow(bm, outline, centre, z0, profile, mat_index=0, mats=None):
     return ring_loft(bm, rings, mats if mats is not None else mat_index, cap_start=True, cap_end=False)
 
 
-def half_dome(bm, cx, cy, rx, ry, rz, side, z0=0.0, rings=5, sides=10, mat_index=0, inner_mat=None):
+def half_dome(bm, cx, cy, rx, ry, rz, side, z0=0.0, rings=5, sides=10, mat_index=0, inner_mat=None, power=1.0):
     """Half of a ground-standing half-ellipsoid: the part on side `side` (+1 right, -1 left) of the
-    plane x = cx, closed by a flat inner face. Returns the faces."""
+    plane x = cx, closed by a flat inner face. power < 1 squares off its outline seen from above.
+    Returns the faces."""
     loops = []
     for k in range(rings):
         t = (math.pi / 2) * k / rings
         loop = []
         for i in range(sides + 1):
             a = -math.pi / 2 + math.pi * i / sides  # -90..90 degrees
-            x = cx + side * rx * math.cos(t) * math.cos(a)
-            y = cy + ry * math.cos(t) * math.sin(a)
+            ca, sa = math.cos(a), math.sin(a)
+            ca = max(ca, 0.0) ** power
+            sa = math.copysign(abs(sa) ** power, sa)
+            x = cx + side * rx * math.cos(t) * ca
+            y = cy + ry * math.cos(t) * sa
             loop.append((x, y, z0 + rz * math.sin(t)))
         loops.append(loop)
     top = bm.verts.new((cx, cy, z0 + rz))
