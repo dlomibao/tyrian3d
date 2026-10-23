@@ -106,6 +106,36 @@ def ellipsoid(bm, centre, radii, mat=0, segments=16, rings=8, smooth=True, z_min
     return res["verts"]
 
 
+def pole_ellipsoid(bm, centre, radii, toward, mat=0, segments=24, rings=16):
+    """An ellipsoid whose UV pole sits at the surface point above `toward` (x, y in units): its
+    rings circle that point, so painting faces by angle from the pole gives round spots there.
+    Returns (faces, pole) with pole the unit-sphere direction; see angle_from_pole."""
+    bm.faces.ensure_lookup_table()
+    before = len(bm.faces)
+    res = bmesh.ops.create_uvsphere(bm, u_segments=segments, v_segments=rings, radius=1.0)
+    cx, cy, cz = centre
+    rx, ry, rz = radii
+    u, v = (toward[0] - cx) / rx, (toward[1] - cy) / ry
+    pole = Vector((u, v, math.sqrt(max(0.0, 1 - u * u - v * v)))).normalized()
+    rot = Vector((0, 0, 1)).rotation_difference(pole)
+    for vert in res["verts"]:
+        p = rot @ vert.co
+        vert.co = Vector((cx + p.x * rx, cy + p.y * ry, cz + p.z * rz))
+    bm.faces.ensure_lookup_table()
+    faces = bm.faces[before:]
+    for f in faces:
+        f.material_index = mat
+        f.smooth = True
+    return faces, pole
+
+
+def angle_from_pole(face, centre, radii, pole):
+    """Angle in degrees between a face of a pole_ellipsoid and its pole, on the unit sphere."""
+    p = face.calc_center_median()
+    q = Vector(((p.x - centre[0]) / radii[0], (p.y - centre[1]) / radii[1], (p.z - centre[2]) / radii[2]))
+    return math.degrees(q.normalized().angle(pole))
+
+
 def plate(bm, outline, z0, z1, mat=0, smooth=False):
     """A flat plate from z0 to z1 with an outline of (x, y) points in units (any winding)."""
     bm.faces.ensure_lookup_table()
