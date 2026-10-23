@@ -238,13 +238,14 @@ def run_single(root, name, build):
     return obj
 
 
-def stock_half(bm, m, c0=0.0, w=W, dz=0.0):
+def stock_half(bm, m, c0=0.0, w=W, dz=0.0, fin_end=24.0):
     """The left half of the tank-and-teeth shape that newshc-197/199 (green and pink) and newshc-269
     (grey and blue, the stock of the big gun) share: a tank lying across the sprite (rows 3-9) with
     two grooved rings near its inner end, a bar under it (rows 10-13) ending in a bulb at the outer
     end, a block of dark vertical fins hanging below (columns 7-20, rows 13-19) and half of the
     spine block in the middle (columns 21-23). Columns are the piece's own (0-24, the inner edge at
-    24), shifted by c0 into an image w px wide; m maps part names to material slots."""
+    24), shifted by c0 into an image w px wide; m maps part names to material slots. fin_end is
+    where the fin block stops towards the middle."""
     xy = (w, H)
     C = lambda c: c + c0  # noqa: E731
     # Tank (columns 1-20, rows 3-9), rounded at its outer end.
@@ -261,7 +262,7 @@ def stock_half(bm, m, c0=0.0, w=W, dz=0.0):
                       (C(18.3), 0.0, 0.0, 0.7 + dz)], sides=6, mat=m["bar_hi"], xy=xy)
     ellipsoid(bm, C(4.6), 12.6, -0.6 + dz, 3.6, 2.5, 1.9, mat=m["bar"], segments=14, rings=6, xy=xy)
     # Dark fin block (columns 7-20, rows 13-19) with raised fins.
-    slab(bm, [(C(7.4), 13.0), (C(24.0), 13.0), (C(24.0), 18.9), (C(7.4), 18.9)], -2.7 + dz, -0.6 + dz,
+    slab(bm, [(C(7.4), 13.0), (C(fin_end), 13.0), (C(fin_end), 18.9), (C(7.4), 18.9)], -2.7 + dz, -0.6 + dz,
          mat=m["fin_base"], xy=xy)
     for a, b, k in ((8.0, 12.0, "fin_hi"), (13.0, 14.0, "fin"), (15.0, 16.0, "fin"), (17.0, 18.0, "fin"),
                     (19.0, 21.0, "fin_hi")):
