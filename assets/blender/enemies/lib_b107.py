@@ -171,3 +171,24 @@ def preview_args():
     if "--preview" in sys.argv:
         return sys.argv[sys.argv.index("--preview") + 1]
     return None
+
+
+def ring_model(name, doc_root, centre, major_px, minor_px, minor_z, index, metallic=0.75,
+               roughness=0.3, segments=28, sides=10):
+    """The grey rings lying on the ground (newsha-87, -125, -127): one torus resting on z = 0,
+    centred on pixel-edge point `centre` of the 24x28 sprite, in palette colour `index`.
+    Exports enemies/<name> and renders the preview when asked."""
+    sprite = common.load_sprite(doc_root, name)
+    coll = common.reset_collection(name)
+    mats = [common.palette_material(sprite, index, name, metallic=metallic, roughness=roughness)]
+    bm = bmesh.new()
+    g = Grid(24, 28)
+    torus(bm, g, centre[0], centre[1], minor_z, major_px, minor_px, minor_z, mat=0,
+          segments=segments, sides=sides)
+    obj = to_object(name, bm, mats, coll)
+    common.export_sprite_model(doc_root, [obj], f"enemies/{name}", sprite["sprites"])
+    out = preview_args()
+    if out:
+        ref = Path(doc_root) / "reference" / "models" / name / sprite["frames"][0]["image"]
+        common.render_preview([obj], out, ref, size=sprite["frames"][0]["size"])
+    return obj
