@@ -163,9 +163,10 @@ def inset_outline(outline, d):
     return out
 
 
-def bevel_prism(bm, outline, z0, z1, bevel, bevel_h=None, mat_index=0, top_mat=None):
+def bevel_prism(bm, outline, z0, z1, bevel, bevel_h=None, mat_index=0, top_mat=None, bevel_mat=None):
     """A prism from z0 to z1 whose top edges are chamfered: the walls rise to z1 - bevel_h and a
-    sloped band leads in by `bevel` to the flat top. `top_mat` (default mat_index) colours the top."""
+    sloped band leads in by `bevel` to the flat top. `top_mat` (default mat_index) colours the top
+    and `bevel_mat` (default mat_index) the sloped band."""
     bevel_h = bevel if bevel_h is None else bevel_h
     top = inset_outline(outline, bevel)
     n = len(outline)
@@ -177,7 +178,8 @@ def bevel_prism(bm, outline, z0, z1, bevel, bevel_h=None, mat_index=0, top_mat=N
     for i in range(n):
         j = (i + 1) % n
         bm.faces.new((lo[i], lo[j], mid[j], mid[i])).material_index = mat_index
-        bm.faces.new((mid[i], mid[j], hi[j], hi[i])).material_index = mat_index
+        bm.faces.new((mid[i], mid[j], hi[j], hi[i])).material_index = (
+            mat_index if bevel_mat is None else bevel_mat)
 
 
 def frames_subset(sprite, keep):
