@@ -145,3 +145,39 @@ def preview_arg():
     if "--preview" in sys.argv:
         return Path(sys.argv[sys.argv.index("--preview") + 1])
     return None
+
+
+def bevel_box(bm, x0, y0, x1, y1, z0, z1, bevel=0.02, mat=0, segments=1):
+    """An axis-aligned box (units) with its edges bevelled (chamfered when segments is 1)."""
+    before = len(bm.faces)
+    res = bmesh.ops.create_cube(bm, size=1.0)
+    verts = res["verts"]
+    for v in verts:
+        v.co = Vector(((x0 + x1) / 2 + v.co.x * (x1 - x0), (y0 + y1) / 2 + v.co.y * (y1 - y0),
+                       (z0 + z1) / 2 + v.co.z * (z1 - z0)))
+    if bevel > 0:
+        edges = list({e for v in verts for e in v.link_edges})
+        bmesh.ops.bevel(bm, geom=edges, offset=bevel, segments=segments, profile=0.5, affect="EDGES",
+                        clamp_overlap=True)
+    finish(bm, before, mat, segments > 1)
+
+
+def composite_png(root, layout, out, w_px, h_px, ox, oy):
+    """Draw each piece's first frame (layout: (name, left_col, top_row) in a w_px x h_px image) into
+    one PNG, for an assembly's preview."""
+    import numpy as np
+    img = np.zeros((h_px, w_px, 4), dtype=np.float32)
+    for name, c0, r0 in layout:
+        data = common.load_sprite(root, name)
+        frame = data["frames"][0]
+        for r, row in enumerate(frame["pixels"]):
+            for c, v in enumerate(row):
+                if v >= 0:
+                    img[oy + r0 + r, ox + c0 + c] = [*(ch / 255 for ch in data["colors"][str(v)]), 1.0]
+    im = bpy.data.images.new("assembly_sprite", w_px, h_px, alpha=True)
+    im.pixels[:] = img[::-1].ravel()
+    im.filepath_raw = str(out)
+    im.file_format = "PNG"
+    im.save()
+    bpy.data.images.remove(im)
+    return out
