@@ -190,3 +190,72 @@ def floor_bricks(bm, g, pixels, slab_mat, dark_mat, light_mat, top=0.03, brick=0
                       mat=light_mat if mean > 3.5 else dark_mat)
             else:
                 c += 1
+
+
+# --- The light dart (newsh-caret-171 upright, -152 and -190 lying sideways) ----------------------
+
+def _vfin(bm, g, col, outline, thickness, mat):
+    """A thin upright fin along the sprite's Y axis at column `col`: outline is (row, z) points."""
+    before = set(bm.faces)
+    n = len(bm.verts)
+    common.slab(bm, [(z, g.Y(r)) for r, z in outline], thickness, z=g.X(col))
+    bm.verts.ensure_lookup_table()
+    for v in bm.verts[n:]:
+        v.co.x, v.co.z = v.co.z, v.co.x
+    _tag(bm, before, mat, False)
+
+
+def dart(sprite, tag, coll, name, mapping=None):
+    """A grey dart lying on the ground: a rod with two sets of swept fins (horizontal ones either
+    side and an upright one on top), a glowing red band near its blunt nose. Built as it appears
+    in newsh-caret-171 (12x14 sprite, nose down the screen at row 11, fins wide at the top), then
+    every vertex is moved by `mapping` (sprite pixel (c, r) -> (c, r) of the target sprite, a
+    rotation) for the sideways sprites. Returns the object."""
+    g = Grid(12, 14)
+    pal = lambda i, **kw: common.palette_material(sprite, i, tag, **kw)  # noqa: E731
+    mats = [
+        pal(10, metallic=0.7, roughness=0.3),  # 0 rod
+        pal(13, metallic=0.75, roughness=0.25),  # 1 bright ridge, upright fins
+        pal(14, metallic=0.6, roughness=0.3),  # 2 fins
+        pal(11, metallic=0.6, roughness=0.35),  # 3 fin trailing edges
+        pal(8, metallic=0.6, roughness=0.4),  # 4 rod's back end
+        pal(120, emission_strength=3.5),  # 5 red light band
+    ]
+    ROD, RIDGE, FIN, EDGE, BACK, LIGHT = range(6)
+    bm = bmesh.new()
+    R = 1.45 * PX  # rod radius
+    zc = R  # rod centre (it lies on the ground)
+    C = 5  # rod column
+
+    loft_y(bm, g, C, [(0.6, 1.0, R * 0.65, zc), (1.0, 1.45, R, zc), (11.2, 1.45, R, zc),
+                      (11.6, 1.1, R * 0.75, zc), (11.75, 0.0, 0.0, zc)], sides=10, mat=ROD)
+    loft_y(bm, g, C, [(0.55, 0.0, 0.0, zc), (0.6, 1.0, R * 0.66, zc), (1.2, 1.0, R * 0.66, zc)],
+           sides=10, mat=BACK)
+    loft_y(bm, g, C, [(9.5, 1.65, R * 1.13, zc), (10.5, 1.65, R * 1.13, zc)], sides=10, mat=LIGHT)
+    sweep(bm, g, [(C, 1.0, 2 * R, 0.0, 0.0), (C, 1.5, 2 * R + 0.004, 0.45, 0.012),
+                  (C, 9.3, 2 * R + 0.004, 0.45, 0.012), (C, 9.6, 2 * R, 0.0, 0.0)], sides=4, mat=RIDGE)
+
+    # Fins, outlines in pixel edges for the left side, mirrored about the rod.
+    fins = [[(2, 0.6), (4.2, 0.6), (4.2, 4.4), (3, 4), (2, 3)],
+            [(2, 6), (3, 5), (4.2, 5), (4.2, 9.4), (3, 9), (2, 8)]]
+    for outline in fins:
+        for side in (1, -1):
+            pts = [(g.X(C + side * (x - 0.5 - C)), g.Y(y - 0.5)) for x, y in outline]
+            if side < 0:
+                pts.reverse()
+            before = set(bm.faces)
+            common.slab(bm, pts, 0.03, z=zc + 0.005)
+            _tag(bm, before, FIN, False)
+            before = set(bm.faces)
+            common.slab(bm, [(x, y - 0.6 * PX) for x, y in pts], 0.03, z=zc - 0.012)
+            _tag(bm, before, EDGE, False)
+    # Upright fins on top, swept like the side fins.
+    _vfin(bm, g, C, [(0.5, zc), (0.5, 2 * R + 0.1), (1.6, 2 * R + 0.1), (4.2, zc)], 0.025, RIDGE)
+    _vfin(bm, g, C, [(4.6, zc), (4.6, 2 * R + 0.08), (5.6, 2 * R + 0.08), (9.2, zc)], 0.025, RIDGE)
+
+    if mapping:
+        for v in bm.verts:
+            c, r = v.co.x * 12 + 6 - 0.5, 7 - v.co.y * 12 - 0.5
+            c2, r2 = mapping(c, r)
+            v.co.x, v.co.y = g.X(c2), g.Y(r2)
+    return to_object(name, bm, mats, coll)
