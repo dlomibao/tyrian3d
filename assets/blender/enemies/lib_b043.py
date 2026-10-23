@@ -252,3 +252,86 @@ shows it that way). Returns the faces."""
     faces += loft_y(bm, g, col, [(r, w, w * k * 0.9, z) for r, w in low], sides=8, mat=base, smooth=False,
                     phase=0)
     return faces
+
+
+def gun_materials(sprite, tag):
+    """Materials for gun(), in its index order."""
+    pal = lambda i, **kw: common.palette_material(sprite, i, tag, **kw)  # noqa: E731
+    return [
+        pal(107, metallic=0.7, roughness=0.3),  # 0 body cylinder and barrel
+        pal(103, metallic=0.6, roughness=0.4),  # 1 lower block
+        pal(110, metallic=0.8, roughness=0.2),  # 2 bright ribs
+        pal(108, metallic=0.8, roughness=0.25),  # 3 rail
+        pal(105, metallic=0.6, roughness=0.4),  # 4 keel
+        pal(101, metallic=0.4, roughness=0.6),  # 5 dark joint behind the pod
+        pal(117, metallic=0.1, roughness=0.4, emission_strength=2.0),  # 6 red engine pod
+        pal(122, emission_strength=5.0),  # 7 its hot core
+        pal(116, emission_strength=3.0),  # 8 red lights under the barrel
+        pal(104, metallic=0.6, roughness=0.45),  # 9 jaw
+        pal(118, emission_strength=3.0),  # 10 red light at the keel's end
+    ]
+
+
+def gun(bm, g):
+    """The side gun of newshv-44 + newshv-46 in its 48 x 28 px assembly (pixel edges, newshv-44
+    on columns 0-24): a red glowing engine pod on the left, a fat body cylinder (rows 5-18) with
+    cooling ribs over its upper flank and a keel under it, and a barrel running right that hooks
+    down at its end over a jaw with a row of red lights. Material indices follow gun_materials()."""
+    TUBE, BLOCK, RIB, RAIL, KEEL, JOINT, POD, CORE, LIGHT, JAW, LIGHT2 = range(11)
+    AXIS, R, ZC, HZ = 12.0, 7.0, 0.0, 0.2  # body cylinder: axis row edge, radius px, z centre, half height
+
+    # Body cylinder (columns 8-24, rows 5-18), lit on its upper flank, shaded below.
+    loft_x(bm, g, AXIS, [(8.2, 6.0, 0.17, ZC), (9.0, 6.8, 0.195, ZC), (10.0, R, HZ, ZC), (22.5, R, HZ, ZC),
+                         (24.5, 6.4, 0.185, ZC), (25.5, 5.0, 0.16, ZC)], sides=14, mat=TUBE)
+    # Cooling ribs over its upper flank (columns 9, 11, 13, 15; rows 5-11).
+    import math as _m
+    for c in (9.5, 11.5, 13.5, 15.5):
+        path = []
+        for t in range(8, 84, 12):
+            a = _m.radians(t)
+            path.append((c, AXIS - (R + 0.15) * _m.sin(a), ZC + (HZ + 0.012) * _m.cos(a), 0.42, 0.025))
+        sweep(bm, g, path, sides=6, mat=RIB)
+    # Strip under the pod (rows 16-18 from column 3) and the keel under the body (rows 19-23).
+    plate(bm, g, [(3, 15.5), (9, 15.5), (9, 19), (3, 19)], -0.14, 0.02, mat=BLOCK)
+    plate(bm, g, [(7, 17.5), (24.3, 17.5), (24.3, 21), (23, 22), (22, 23), (21, 24), (15, 24), (13, 23),
+                  (11, 22), (9, 21), (7, 20)], -0.14, -0.02, mat=KEEL)
+    loft_x(bm, g, 21.0, [(12.5, 0.0, 0.0, -0.02), (13.5, 1.1, 0.05, -0.02), (21.5, 1.1, 0.05, -0.02),
+                         (22.5, 0.0, 0.0, -0.02)], sides=8, mat=RAIL)  # light ridge down the keel
+    ellipsoid(bm, g, 24.4, 19.9, -0.05, 0.8, 1.0, 0.06, mat=LIGHT2, segments=10, rings=5)
+    # Rail along the lower flank (row 14, columns 17-23).
+    zr = ZC + HZ * _m.sqrt(1 - (2.5 / R) ** 2) + 0.01
+    loft_x(bm, g, 14.5, [(16.6, 0.0, 0.0, zr), (17.2, 0.6, 0.035, zr), (23.6, 0.6, 0.035, zr),
+                         (24.2, 0.0, 0.0, zr)], sides=6, mat=RAIL)
+
+    # Barrel (rows 7-15) out of the body, hooking down at its end (columns 37-45).
+    sweep(bm, g, [(22.0, 10.8, 0.0, 4.4, 0.17), (28, 11.1, 0.0, 4.1, 0.165), (33, 11.7, 0.0, 3.9, 0.16),
+                  (37, 12.2, 0.0, 3.8, 0.155), (40.0, 13.3, 0.0, 3.6, 0.15), (42.0, 15.0, 0.0, 3.4, 0.14),
+                  (42.7, 17.0, -0.01, 3.2, 0.13), (42.8, 19.2, -0.02, 3.1, 0.12), (42.8, 20.1, -0.02, 0.0, 0.0)],
+          sides=12, mat=TUBE)
+    # Dark joint ring between the pod and the body (column 8).
+    loft_x(bm, g, 12.0, [(7.4, 5.0, 0.15, 0.0), (8.6, 5.0, 0.15, 0.0)], sides=12, mat=JOINT)
+
+    # Red engine pod (columns 2-7, rows 8-15) with its hot core up and left of centre.
+    ellipsoid(bm, g, 5.0, 12.0, 0.0, 3.2, 4.1, 0.19, mat=POD, segments=16, rings=8)
+    ellipsoid(bm, g, 4.9, 10.3, 0.05, 1.5, 1.5, 0.16, mat=CORE, segments=10, rings=6)
+
+    # Jaw under the barrel (rows 15-18, columns 28-39) with red lights along its top (row 15).
+    plate(bm, g, [(28.3, 14.0), (40.0, 14.0), (40.0, 18), (31.5, 18), (30, 18.5), (29, 17)], -0.13, -0.01,
+          mat=JAW)
+    for c0, c1 in ((32, 33), (34, 36), (37, 38)):
+        ellipsoid(bm, g, (c0 + c1) / 2, 15.6, -0.02, (c1 - c0) / 2 + 0.1, 0.7, 0.06, mat=LIGHT,
+                  segments=10, rings=5)
+
+
+def sprite_pixels(root, layout, w, h):
+    """The first frames of several pieces as one w x h grid of palette indices (-1 empty);
+    layout is (name, cx, cy) with each piece's centre relative to the grid's centre."""
+    grid = [[-1] * w for _ in range(h)]
+    for name, cx, cy in layout:
+        data = common.load_sprite(root, name)
+        x0, y0 = int(cx + w / 2 - 12), int(cy + h / 2 - 14)
+        for r, prow in enumerate(data["frames"][0]["pixels"]):
+            for c, v in enumerate(prow):
+                if v >= 0:
+                    grid[y0 + r][x0 + c] = v
+    return grid
