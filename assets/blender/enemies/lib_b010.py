@@ -117,9 +117,21 @@ def fire_body(bm, grid, shells, sides=16, open_top=False, open_bottom=False, tap
     (over `taper_rows`), so the fire billows. open_top/open_bottom: the grid's first/last row is
     a cut (the fire goes on past it), so the shell ends there flat instead of rounding off."""
     h_px, w_px = len(grid), len(grid[0])
+    top = next(r for r, line in enumerate(grid) if any(v >= 0 for v in line))
     for k, (t, half_h, mat) in enumerate(shells):
         runs = [row_run(line, t) for line in grid]
         runs = [r if r and r[1] - r[0] + 1 >= min_run else None for r in runs]
+        if k > 0:  # inner shells: soften the row-to-row jumps a little
+            soft = []
+            for r, run in enumerate(runs):
+                if run is None:
+                    soft.append(None)
+                    continue
+                near = [runs[q] for q in (r - 1, r + 1) if 0 <= q < h_px and runs[q] is not None]
+                a = (2 * run[0] + sum(n[0] for n in near)) / (2 + len(near))
+                b = (2 * run[1] + sum(n[1] for n in near)) / (2 + len(near))
+                soft.append((a, b))
+            runs = soft
         r = 0
         while r < h_px:
             if runs[r] is None:
@@ -135,8 +147,8 @@ def fire_body(bm, grid, shells, sides=16, open_top=False, open_bottom=False, tap
                 left, right = gx(a - 0.5, w_px), gx(b + 0.5, w_px)
                 w = (right - left) / 2
                 hh = min(half_h, 0.28 * w + 0.02)
-                if not (open_top and r0 == 0):
-                    hh *= math.sqrt(min(1.0, (rr - r0 + 1) / taper_rows))
+                if not open_top:  # the whole body rounds off towards its top
+                    hh *= math.sqrt(min(1.0, (rr - top + 1) / taper_rows))
                 sections.append(((left + right) / 2, gy(rr, h_px), w, hh))
             # Ends: flat at a cut edge of the grid, otherwise rounded off half a pixel out.
             cx, y, w, hh = sections[0]
