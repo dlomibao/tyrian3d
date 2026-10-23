@@ -223,3 +223,69 @@ def clamp_z(bm, start, zmin=0.0):
     for v in bm.verts[start:]:
         if v.co.z < zmin:
             v.co.z = zmin
+
+
+def build_rocket(sprite, name, flip):
+    """The blue rocket lying on the ground (newshv 237 points left; 235 is its mirror image,
+    pointing right: flip=True). Built for 237's pixels and mirrored for 235."""
+    P = 1 / 12
+    coll = common.reset_collection(name)
+    pal = lambda i, **kw: common.palette_material(sprite, i, name, **kw)  # noqa: E731
+    mats = [
+        pal(57, metallic=0.55, roughness=0.3),  # 0 hull blue
+        pal(53, metallic=0.5, roughness=0.45),  # 1 dark joint ring
+        pal(51, metallic=0.5, roughness=0.5),  # 2 dark rear section
+        pal(59, metallic=0.55, roughness=0.3),  # 3 light engine flange
+        pal(56, metallic=0.5, roughness=0.35),  # 4 fins
+        pal(48, metallic=0.4, roughness=0.6),  # 5 near-black light housings
+        pal(156, emission_strength=4.0),  # 6 blue lights
+        pal(153, emission_strength=3.0),  # 7 deeper blue lights
+    ]
+    HULL, JOINT, REAR, FLANGE, FIN, HOUSING, LIGHT, LIGHT2 = range(8)
+    bm = bmesh.new()
+
+    yc = ey(13)  # the body's axis: between rows 12 and 13
+    zc = 0.27
+
+    def x(c):
+        return ex(c)
+
+    def body(sections, mat, sides=12):
+        start = len(bm.verts)
+        loft_x(bm, [(x(c), hw * P, 0.88 * hw * P, zc) for c, hw in sections], sides=sides, mat_index=mat, y=yc)
+        clamp_z(bm, start)
+
+    # Rounded nose and main hull (columns 1-10), a dark joint ring, the finned hull (11-15).
+    body([(0.5, 0.0), (0.8, 1.5), (1.4, 2.4), (2.4, 2.9), (3.5, 3.05), (10.0, 3.05)], HULL)
+    body([(9.9, 2.75), (11.1, 2.75)], JOINT)
+    body([(11.0, 3.05), (15.0, 3.05), (15.3, 2.2)], HULL)
+    # Narrow dark rear (columns 15-20) and the wide engine flange (20-23).
+    body([(15.2, 2.1), (20.2, 2.1)], REAR)
+    body([(20.0, 3.0), (20.4, 3.9), (22.6, 3.9), (23.0, 3.2)], FLANGE)
+
+    # Fins, flat on each side at the hull's axis height: small swept ones at the front (rows 8-9,
+    # columns 4-7) and big ones mid-body (rows 6-9, columns 11-14), mirrored about the axis.
+    def fin_pair(outline):
+        for s in (1, -1):
+            pts = [(x(c), yc + s * (ey(r) - yc)) for c, r in outline]
+            if s < 0:
+                pts.reverse()
+            common.slab(bm, pts, 0.07, z=zc, mat_index=FIN)
+
+    fin_pair([(3.6, 10.6), (8.2, 10.6), (8.2, 8.0), (6.0, 8.0)])
+    fin_pair([(10.8, 10.6), (15.2, 10.6), (15.2, 6.0), (12.0, 6.0), (10.8, 7.2)])
+
+    # Light housings beside the rear (rows 9-10 and 15-16, columns 15-19) with blue lights.
+    for s in (1, -1):
+        def yy(r):
+            return yc + s * (ey(r) - yc)
+        y0, y1 = sorted((yy(9.3), yy(10.6)))
+        box(bm, x(15.2), y0, x(19.8), y1, zc - 0.07, zc + 0.05, mat_index=HOUSING)
+        for c, r0, r1, m in ((16, 8.0, 10.0, LIGHT), (18, 9.0, 10.0, LIGHT2)):
+            a, b = sorted((yy(r0), yy(r1)))
+            tube_path(bm, [(px(c), a + 0.02, zc + 0.04), (px(c), b - 0.02, zc + 0.04)], 0.55 * P, sides=8,
+                      mat_index=m, flat=1.0)
+
+    if flip:
+        mirror_all_x(bm)
+    return common.mesh_object(name, bm, mats, coll, smooth=True)
