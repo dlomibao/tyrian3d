@@ -305,3 +305,24 @@ def boulder(name, file, height=0.3, relief=0.05, samples=8):
         obj = common.mesh_object(name, bm, mats, coll, smooth=False)
         return [(name, [obj], sprite["sprites"], 0)]
     return run(name, build, file)
+
+
+def mark_smooth(bm, first_face):
+    """Mark the faces added since index `first_face` smooth (for mesh_object_mixed)."""
+    bm.faces.ensure_lookup_table()
+    for f in bm.faces[first_face:]:
+        f.smooth = True
+
+
+def mesh_object_mixed(name, bm, materials, collection):
+    """Like common.mesh_object, but keeps each face's own smooth flag (flat unless marked)."""
+    import bpy
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    mesh = bpy.data.meshes.new(name)
+    bm.to_mesh(mesh)
+    bm.free()
+    for mat in materials:
+        mesh.materials.append(mat)
+    obj = bpy.data.objects.new(name, mesh)
+    collection.objects.link(obj)
+    return obj
