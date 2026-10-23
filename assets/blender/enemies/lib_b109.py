@@ -264,3 +264,27 @@ def preview_arg():
     if "--preview" in sys.argv:
         return Path(sys.argv[sys.argv.index("--preview") + 1])
     return None
+
+
+def rock(bm, cx, cy, rx, ry, h, seed, jitter=0.18, z0=0.0, sides=9, rings=3, mat=0, tilt=(0.0, 0.0)):
+    """A lumpy faceted rock: a dome on z0 whose upper vertices are pushed about by up to `jitter`
+    (a fraction of the radii), seeded so it builds the same every time. `tilt` leans its top
+    (dx, dy in units)."""
+    import random
+    rnd = random.Random(seed)
+    v_start = len(bm.verts)
+    faces = dome(bm, cx, cy, rx, ry, h, z0=z0, sides=sides, rings=rings, mat=mat)
+    bm.verts.ensure_lookup_table()
+    for v in bm.verts[v_start:]:
+        t = (v.co.z - z0) / h
+        if t < 1e-4:
+            s = 1 + rnd.uniform(-jitter, jitter) * 0.6
+            v.co.x = cx + (v.co.x - cx) * s
+            v.co.y = cy + (v.co.y - cy) * s
+            continue
+        v.co.x += rnd.uniform(-jitter, jitter) * rx + tilt[0] * t
+        v.co.y += rnd.uniform(-jitter, jitter) * ry + tilt[1] * t
+        v.co.z += rnd.uniform(-jitter, jitter) * h * 0.6
+    for f in faces:
+        f.smooth = False
+    return faces
