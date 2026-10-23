@@ -358,6 +358,8 @@ def paint_faces(bm, faces, pixels, slot_of, under_slot=None, min_nz=0.0, reach=0
     """Give each face the material slot of the sprite pixels under it: slot_of(index) -> slot or
     None to leave it, voting over the face centre and points `reach` of the way to its corners.
     Faces facing down (normal z < min_nz) get `under_slot` if given."""
+    faces = list(faces)
+    bmesh.ops.recalc_face_normals(bm, faces=faces)
     bm.normal_update()
     for f in faces:
         if f.normal.z < min_nz:
@@ -428,3 +430,15 @@ def closed_ring(bm, centre, profile, half_height, z=0.0, sides=8, power=0.8, mat
             f.material_index = mat_index
             faces.append(f)
     return faces
+
+
+def col_extents(pixels, keep):
+    """{column: (first row, last row + 1)} (pixel edges) of the pixels for which keep(index, row)
+    is true."""
+    out = {}
+    for r, line in enumerate(pixels):
+        for c, v in enumerate(line):
+            if v >= 0 and keep(v, r):
+                r0, r1 = out.get(c, (r, r + 1))
+                out[c] = (min(r0, r), max(r1, r + 1))
+    return out
