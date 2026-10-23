@@ -143,3 +143,83 @@ def run(root, name, build, sprite=None):
         out = sys.argv[sys.argv.index("--preview") + 1]
         ref = Path(root) / "reference" / "models" / name / sprite["frames"][0]["image"]
         common.render_preview(objs, out, ref, size=sprite["frames"][0]["size"])
+
+
+def _tangents(pts):
+    from mathutils import Vector
+    vs = [Vector(p) for p in pts]
+    out = []
+    for i in range(len(vs)):
+        a = vs[max(i - 1, 0)]
+        b = vs[min(i + 1, len(vs) - 1)]
+        out.append((b - a).normalized())
+    return vs, out
+
+
+def tube_path(bm, pts, radii, sides=8, mat_index=0, flat=1.0, cap=True):
+    """A tube along a 3D polyline `pts`, radius per point (a list or one number); `flat` scales the
+    section's vertical axis. A radius of 0 ends in a point."""
+    from mathutils import Vector
+    if not isinstance(radii, (list, tuple)):
+        radii = [radii] * len(pts)
+    vs, ts = _tangents(pts)
+    rings = []
+    for p, t, r in zip(vs, ts, radii):
+        if r == 0:
+            rings.append([bm.verts.new(p)])
+            continue
+        side = t.cross(Vector((0, 0, 1)))
+        if side.length < 1e-6:
+            side = Vector((1, 0, 0))
+        side.normalize()
+        up = side.cross(t).normalized()
+        ring = []
+        for i in range(sides):
+            a = 2 * math.pi * (i + 0.5) / sides
+            ring.append(bm.verts.new(p + r * math.cos(a) * side + r * flat * math.sin(a) * up))
+        rings.append(ring)
+    _bridge(bm, rings, sides, mat_index, cap)
+
+
+def _bridge(bm, rings, sides, mat_index, cap, closed=True):
+    for r0, r1 in zip(rings, rings[1:]):
+        n = sides if closed else sides - 1
+        for i in range(n):
+            j = (i + 1) % sides
+            if len(r0) == 1 and len(r1) == 1:
+                continue
+            if len(r0) == 1:
+                face = (r0[0], r1[j], r1[i])
+            elif len(r1) == 1:
+                face = (r0[i], r0[j], r1[0])
+            else:
+                face = (r0[i], r0[j], r1[j], r1[i])
+            bm.faces.new(face).material_index = mat_index
+    if cap:
+        if len(rings[0]) > 1:
+            bm.faces.new(list(reversed(rings[0]))).material_index = mat_index
+        if len(rings[-1]) > 1:
+            bm.faces.new(rings[-1]).material_index = mat_index
+
+
+def sweep_xy(bm, path, half_widths, heights, profile, mat_index=0, z0=0.0, offset=0.0):
+    """Sweep a cross-section along a path in the XY plane (a ground-hugging band: hoods, walls,
+    ridges). `profile` is a closed list of (u, v): u in [-1, 1] across the band (+1 is to the left
+    of travel), v in [0, 1] up; each point lands at path + normal * (offset + u * half_width),
+    z = z0 + v * height."""
+    from mathutils import Vector
+    pts = [(x, y, 0.0) for x, y in path]
+    vs, ts = _tangents(pts)
+    rings = []
+    for p, t, hw, h in zip(vs, ts, half_widths, heights):
+        n = Vector((-t.y, t.x, 0.0)).normalized()
+        rings.append([bm.verts.new(p + n * (offset + u * hw) + Vector((0, 0, z0 + v * h))) for u, v in profile])
+    _bridge(bm, rings, len(profile), mat_index, True)
+
+
+def clamp_z(bm, start, zmin=0.0):
+    """Flatten every vertex added since `start` that dips below zmin (a flat base on the ground)."""
+    bm.verts.ensure_lookup_table()
+    for v in bm.verts[start:]:
+        if v.co.z < zmin:
+            v.co.z = zmin
