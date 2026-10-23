@@ -465,3 +465,124 @@ def tufts(bm, grid, c0, r0, c1, r1, pred, slot_for, height, seed=1, tuft_h=0.05)
             for f in faces_since(bm, f0):
                 f.material_index = slot if slot is not None else 0
                 f.smooth = False
+
+
+# --- The grey cannon emplacement in the grass (assembly-newshg-231 and its mirror, -267) ---------
+
+CANNON_GREENS = set(range(32, 36)) | set(range(192, 200))
+
+
+def build_cannon(tag, colors, pixels, mirror=False):
+    """The 48 x 28 px cannon emplacement (newshg-229 + newshg-231, or mirrored newshg-267 +
+    newshg-269) in assembly coordinates, centred on the origin, on grass painted from `pixels`
+    (the two pieces' rows side by side). Unmirrored, its rounded elbow nose is on the left and the
+    strut, collar and end box on the right; `mirror` flips it left to right."""
+    coll = common.reset_collection(tag)
+    grid = Grid(48, 28, pixels, weight=lambda i: 1.8 if 194 <= i <= 199 else 1.0)
+    M = Mats(tag, colors)
+    X, Y, EX, EY = grid.x, grid.y, grid.ex, grid.ey
+    TUBE = M(7, metallic=0.65, roughness=0.3)
+    LIGHT = M(9, metallic=0.65, roughness=0.3)
+    RIM = M(11, metallic=0.7, roughness=0.25)
+    LENS = M(14 if "14" in colors else 12, metallic=0.5, roughness=0.15)
+    DECK = M(2, metallic=0.5, roughness=0.5)
+    RIB = M(4, metallic=0.5, roughness=0.45)
+    SIDE = M(5, metallic=0.55, roughness=0.45)
+    STRUT = M(8, metallic=0.6, roughness=0.35)
+    PORT = M(116, emission_strength=3.0)
+    FLAME = M(119, emission_strength=4.0)
+    HOT = M(123, emission_strength=6.0)
+    bm = bmesh.new()
+
+    # ---- the machine, built nose-left ----
+    tz, tr, ty = 0.37, 0.2, 4.0  # tube centre height, height radius and centre row (pixel centres)
+    # Low dark deck along the front (rows 7-15) with its rounded left end.
+    deck = [(1.6, 8.5), (3.0, 7.2), (8.0, 6.8), (31.0, 6.8), (31.0, 14.6), (22.0, 15.4), (4.0, 15.2),
+            (2.0, 14.0), (1.2, 11.5)]
+    prism(bm, [(EX(c), EY(r)) for c, r in deck], 0.0, 0.2, mat_index=DECK)
+    # Grille ribs on the deck (columns 11-19) and a raised panel at its left (columns 5-9).
+    for c in (11, 13, 15, 17, 19):
+        box(bm, EX(c), EY(15.0), EX(c + 0.9), EY(8.6), 0.2, 0.235, mat_index=RIB)
+    box(bm, EX(5.0), EY(11.0), EX(9.5), EY(8.0), 0.2, 0.25, mat_index=SIDE)
+    # Glowing port at the seam (columns 20-24, rows 11-13).
+    box(bm, EX(20.2), EY(14.0), EX(25.0), EY(10.8), 0.16, 0.225, mat_index=PORT)
+
+    # Main tube along the top (rows 1-7, columns 9-31), with a flange ring at its left end.
+    cyl_x(bm, X(8.6), X(31.0), Y(ty), tz, 3.3 * U, tr, sides=14, mat_index=TUBE)
+    cyl_x(bm, X(8.6), X(10.2), Y(ty), tz, 3.7 * U, tr + 0.03, sides=14, mat_index=RIM)
+    cyl_x(bm, X(30.6), X(31.6), Y(ty), tz, 3.4 * U, tr + 0.015, sides=14, mat_index=RIM)
+    # Scope lens (columns 15-17, rows 3-4) and the sliding hatch beside it (columns 19-24).
+    blob(bm, (X(16.0), Y(3.6), tz + tr - 0.01), (1.6 * U, 1.1 * U, 0.05), segments=10, rings=5, mat_index=LENS)
+    box(bm, EX(14.4), EY(4.8), EX(18.0), EY(2.6), tz + tr - 0.04, tz + tr + 0.01, mat_index=RIB)
+    box(bm, EX(19.0), EY(4.8), EX(25.0), EY(2.6), tz + tr - 0.04, tz + tr + 0.015, mat_index=STRUT)
+    # Light rail along the tube's lower side (row 6).
+    cyl_x(bm, X(9.0), X(30.5), Y(6.2), tz - tr * 0.55, 0.9 * U, 0.05, sides=8, mat_index=LIGHT)
+
+    # Elbow nose: the tube turns down the screen at its left end and is capped (columns 1-9).
+    path = [(9.0, ty, 0.0), (7.0, 4.3, 0.0), (5.2, 5.4, -0.01), (3.8, 7.2, -0.03), (3.0, 9.3, -0.05),
+            (2.8, 11.0, -0.07)]
+    pts = [(X(c), Y(r), tz + dz, 3.3 * U, tr + dz) for c, r, dz in path]
+    pts.append((X(2.8), Y(12.2), tz - 0.07, 2.6 * U, tr - 0.1))
+    pts.append((X(2.8), Y(12.6), tz - 0.07, 0.0, 0.0))
+    sweep(bm, pts, sides=14, mat_index=TUBE)
+    # Its lit cap rim (the light arc at columns 2-4, rows 5-11).
+    sweep(bm, [(X(c), Y(r), tz - 0.02, 0.6 * U, 0.04) for c, r in
+               ((7.2, 2.0), (5.0, 3.0), (3.0, 4.8), (1.6, 7.0), (1.0, 9.5))], sides=6, mat_index=LIGHT)
+
+    # Narrow shaft to the collar (columns 31-38, rows 3-5).
+    cyl_x(bm, X(31.0), X(38.2), Y(ty), tz, 1.7 * U, 0.1, sides=10, mat_index=SIDE)
+    # Collar (columns 38-40, rows 1-8) and the end box (columns 41-45, rows 3-7).
+    cyl_x(bm, X(37.7), X(40.6), Y(ty + 0.3), tz - 0.02, 3.9 * U, tr + 0.04, sides=16, mat_index=LIGHT)
+    box(bm, EX(41.0), EY(8.0), EX(46.0), EY(2.6), 0.0, 0.46, mat_index=TUBE)
+    box(bm, EX(41.4), EY(5.6), EX(45.6), EY(3.0), 0.46, 0.49, mat_index=LIGHT)
+
+    # Beam under the tube's right end (rows 7-9, columns 23-37).
+    box(bm, EX(23.0), EY(9.6), EX(37.5), EY(7.4), 0.08, 0.26, mat_index=STRUT)
+    # Diagonal strut from the collar down to its foot (columns 31-41, rows 7-15).
+    sweep(bm, [(X(38.6), Y(7.8), 0.32, 1.5 * U, 0.06), (X(36.2), Y(10.2), 0.22, 1.5 * U, 0.06),
+               (X(34.0), Y(12.6), 0.12, 1.5 * U, 0.06)], sides=8, mat_index=STRUT)
+    sweep(bm, [(X(40.4), Y(8.2), 0.26, 1.0 * U, 0.05), (X(38.6), Y(10.2), 0.2, 1.0 * U, 0.05),
+               (X(37.2), Y(11.6), 0.12, 1.0 * U, 0.05)], sides=8, mat_index=RIB)
+    box(bm, EX(31.0), EY(15.0), EX(35.2), EY(11.6), 0.0, 0.14, mat_index=SIDE)
+    # Exhaust slot glowing beside the strut (columns 39-44, rows 8-13).
+    sweep(bm, [(X(43.4), Y(8.8), 0.15, 0.0, 0.0), (X(43.0), Y(9.2), 0.15, 1.1 * U, 0.06),
+               (X(40.2), Y(12.4), 0.1, 1.3 * U, 0.06), (X(39.8), Y(12.9), 0.1, 0.0, 0.0)], sides=10, mat_index=FLAME)
+    sweep(bm, [(X(42.6), Y(9.8), 0.17, 0.0, 0.0), (X(42.2), Y(10.2), 0.17, 0.5 * U, 0.04),
+               (X(41.0), Y(11.6), 0.14, 0.5 * U, 0.04), (X(40.6), Y(12.0), 0.14, 0.0, 0.0)], sides=8, mat_index=HOT)
+
+    for f in bm.faces:
+        if f.material_index in (DECK, RIB, SIDE) and len(f.verts) == 4:
+            f.smooth = False
+    if mirror:
+        for v in bm.verts:
+            v.co.x = -v.co.x
+        bmesh.ops.reverse_faces(bm, faces=bm.faces[:])
+
+    # ---- grass over the whole footprint ----
+    def grass(i):
+        if i in CANNON_GREENS:
+            return M(i, metallic=0.0, roughness=1.0)
+        return M(33, metallic=0.0, roughness=1.0)  # the machine's shadow on the grass
+    flat = lambda c, r: 0.035  # noqa: E731
+    terrain(bm, grid, 0, 0, 48, 28, flat, grass, cell=2.0)
+    tufts(bm, grid, 0, 0, 48, 28, lambda i: i >= 196 and i in CANNON_GREENS, grass, flat, seed=7)
+    return to_object(tag, bm, M.list, coll)
+
+
+def cannon_main(root, left, right, mirror, name):
+    """Build, split and export an assembly of two cannon pieces (left and right model names)."""
+    a, b = common.load_sprite(root, left), common.load_sprite(root, right)
+    colors = merged_colors([a, b])
+    pixels = stack_rows(a["frames"][0]["pixels"], b["frames"][0]["pixels"])
+    obj = build_cannon(name, colors, pixels, mirror)
+    pieces = common.split_assembly(obj, [(left, -12, 0), (right, 12, 0)])
+    for n, data in ((left, a), (right, b)):
+        common.export_sprite_model(root, [pieces[n]], f"enemies/{n}", data["sprites"])
+    out = preview_arg()
+    if out:
+        import tempfile
+        ref = composite_png([(a, 0, 0, 14), (b, 0, 24, 14)], 48, 56, Path(tempfile.mkdtemp()) / "a.png")
+        common.render_preview([obj], str(out), ref, size=4, view_px=480)
+        for n, data in ((left, a), (right, b)):
+            img = root / "reference" / "models" / n / data["frames"][0]["image"]
+            common.render_preview([pieces[n]], str(out.parent / f"{n}.png"), img, size=2)
