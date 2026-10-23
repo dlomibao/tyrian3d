@@ -1,0 +1,12 @@
+{
+ "model": "enemies/newshc-19",
+ "sprites": [
+  {
+   "sheet": "newshc.shp",
+   "size": 1,
+   "frames": [
+    19
+   ]
+  }
+ ]
+}
