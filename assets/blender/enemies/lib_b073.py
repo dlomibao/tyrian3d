@@ -281,7 +281,7 @@ def mirror_x(bm, start_vert, axis=0.0):
 
 # --- painted surfaces ---------------------------------------------------------------------------
 
-def painted(bm, grid, c0, r0, c1, r1, zfunc, slot_of, skip=(-1,), breaks=()):
+def painted(bm, grid, c0, r0, c1, r1, zfunc, slot_of, skip=(-1,), breaks=(), max_run=99):
     """A surface over pixel columns c0..c1-1 and rows r0..r1-1, one face per run of pixels in a
     row that share a material (slot_of(index) -> slot, or None to leave a hole). Heights come
     from zfunc(x, y) at the corners; `breaks` are column edges a run may not cross (creases)."""
@@ -294,7 +294,7 @@ def painted(bm, grid, c0, r0, c1, r1, zfunc, slot_of, skip=(-1,), breaks=()):
                 c += 1
                 continue
             e = c + 1
-            while e < c1 and e not in breaks:
+            while e < c1 and e not in breaks and e - c < max_run:
                 j = grid.at(e, r)
                 if j in skip or slot_of(j) != slot:
                     break
@@ -306,6 +306,14 @@ def painted(bm, grid, c0, r0, c1, r1, zfunc, slot_of, skip=(-1,), breaks=()):
             f.material_index = slot
             f.smooth = False
             c = e
+
+
+def dome_z(cx, cy, rx, ry, h, z0=FLOOR, lift=0.018):
+    """zfunc for painted(): the height of a dome() (power 2, flat 0) plus `lift`."""
+    def z(x, y):
+        d = ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2
+        return z0 + h * math.sqrt(max(0.0, 1 - d)) + lift
+    return z
 
 
 def grey_tones(mats, colors, tones=((1, 3), (4, 6), (7, 9), (10, 15)), finish=None):
