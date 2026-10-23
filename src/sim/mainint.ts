@@ -22,6 +22,7 @@ import {
   blit_sprite2x2,
   blit_sprite2x2_blend,
   blit_sprite2x2_darken,
+  drawGroup,
   drawState,
   type Sprite2Sheet,
 } from "./draw";
@@ -266,6 +267,27 @@ export function JE_drawPortConfigButtons(): void {}
 /** mainint.c L4465-4473 (network names aren't ported). */
 export function JE_getName(pnum: number): string {
   return g.miscText[47 + pnum];
+}
+
+/**
+ * The two 24x28 halves of a two-sprite ship (shipGraphic 0, and 1 = the Nort ship), left at x - 17
+ * and right at x + 7, recorded as one object so a model can replace both (DECISIONS.md D15). The
+ * group key is the left half's sprite; the centre is (x + 7, y + 7).
+ */
+function blitShipHalves(x: number, y: number, sheet: Sprite2Sheet, left: number, right: number, blend: boolean, leftKey: number, rightKey: number): void {
+  const blit = blend ? blit_sprite2x2_blend : blit_sprite2x2;
+  drawGroup.index = left;
+  drawGroup.size = 2;
+  drawGroup.dy = 14;
+  drawGroup.dx = 24;
+  drawGroup.first = true;
+  drawState.key = leftKey;
+  blit(x - 17, y - 7, sheet, left);
+  drawGroup.dx = 0;
+  drawGroup.first = false;
+  drawState.key = rightKey;
+  blit(x + 7, y - 7, sheet, right);
+  drawGroup.index = -1;
 }
 
 /**
@@ -560,11 +582,9 @@ export function JE_playerMovement(
         if (trail_y > 0 && trail_y < 170) {
           drawState.key = playerKey(playerNum_, 10 + i);
           if (shipGr_ === 0) {
-            blit_sprite2x2(this_player.x - 17, trail_y - 7, sheet, 13);
-            blit_sprite2x2(this_player.x + 7, trail_y - 7, sheet, 51);
+            blitShipHalves(this_player.x, trail_y, sheet, 13, 51, false, drawState.key, drawState.key);
           } else if (shipGr_ === 1) {
-            blit_sprite2x2(this_player.x - 17, trail_y - 7, sheet, 220);
-            blit_sprite2x2(this_player.x + 7, trail_y - 7, sheet, 222);
+            blitShipHalves(this_player.x, trail_y, sheet, 220, 222, false, drawState.key, drawState.key);
           } else {
             blit_sprite2x2(this_player.x - 5, trail_y - 7, sheet, shipGr_);
           }
@@ -727,30 +747,18 @@ export function JE_playerMovement(
       --this_player.invulnerable_ticks;
 
       if (shipGr_ === 0) {
-        drawState.key = playerKey(playerNum_, 0);
-        blit_sprite2x2_blend(this_player.x - 17, this_player.y - 7, sheet, ship_sprite + 13);
-        drawState.key = playerKey(playerNum_, 1);
-        blit_sprite2x2_blend(this_player.x + 7, this_player.y - 7, sheet, ship_sprite + 51);
+        blitShipHalves(this_player.x, this_player.y, sheet, ship_sprite + 13, ship_sprite + 51, true, playerKey(playerNum_, 0), playerKey(playerNum_, 1));
       } else if (shipGr_ === 1) {
-        drawState.key = playerKey(playerNum_, 0);
-        blit_sprite2x2_blend(this_player.x - 17, this_player.y - 7, sheet, 220);
-        drawState.key = playerKey(playerNum_, 1);
-        blit_sprite2x2_blend(this_player.x + 7, this_player.y - 7, sheet, 222);
+        blitShipHalves(this_player.x, this_player.y, sheet, 220, 222, true, playerKey(playerNum_, 0), playerKey(playerNum_, 1));
       } else {
         drawState.key = playerKey(playerNum_, 0);
         blit_sprite2x2_blend(this_player.x - 5, this_player.y - 7, sheet, ship_sprite);
       }
     } else {
       if (shipGr_ === 0) {
-        drawState.key = playerKey(playerNum_, 0);
-        blit_sprite2x2(this_player.x - 17, this_player.y - 7, sheet, ship_sprite + 13);
-        drawState.key = playerKey(playerNum_, 1);
-        blit_sprite2x2(this_player.x + 7, this_player.y - 7, sheet, ship_sprite + 51);
+        blitShipHalves(this_player.x, this_player.y, sheet, ship_sprite + 13, ship_sprite + 51, false, playerKey(playerNum_, 0), playerKey(playerNum_, 1));
       } else if (shipGr_ === 1) {
-        drawState.key = playerKey(playerNum_, 0);
-        blit_sprite2x2(this_player.x - 17, this_player.y - 7, sheet, 220);
-        drawState.key = playerKey(playerNum_, 1);
-        blit_sprite2x2(this_player.x + 7, this_player.y - 7, sheet, 222);
+        blitShipHalves(this_player.x, this_player.y, sheet, 220, 222, false, playerKey(playerNum_, 0), playerKey(playerNum_, 1));
 
         // (the C shadows ship_banking here with a new local)
         let nort_banking = 0;
