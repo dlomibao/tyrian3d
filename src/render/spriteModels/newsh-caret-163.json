@@ -1,0 +1,21 @@
+{
+ "model": "enemies/newsh-caret-163",
+ "sprites": [
+  {
+   "sheet": "newsh^.shp",
+   "size": 2,
+   "frames": [
+    163,
+    165
+   ]
+  },
+  {
+   "sheet": "newshm.shp",
+   "size": 2,
+   "frames": [
+    129,
+    131
+   ]
+  }
+ ]
+}
