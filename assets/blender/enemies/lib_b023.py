@@ -197,3 +197,94 @@ def ellipse_loft(bm, x0, sections, sides=12, mats=0, cap_start=True, cap_end=Tru
         rings.append([(x0 + w * math.cos(2 * math.pi * (i + 0.5) / sides), y,
                        z + h * math.sin(2 * math.pi * (i + 0.5) / sides)) for i in range(sides)])
     return ring_loft(bm, rings, mats, cap_start=cap_start, cap_end=cap_end)
+
+
+def wing_loft(bm, sections, mats=0, z_tip_lift=0.0):
+    """A wing (or tailplane) lofted across X from aerofoil sections (x, y_lead, y_trail,
+    half_thickness, z): y_lead is the leading edge (towards the nose, lower Y for a craft flying down
+    the screen), y_trail the trailing edge. Thickest a third of the way back from the leading edge."""
+    rings = []
+    for x, yl, yt, t, z in sections:
+        d = yt - yl
+        rings.append([(x, yt, z), (x, yl + d * 0.6, z + t * 0.8), (x, yl + d * 0.25, z + t),
+                      (x, yl, z), (x, yl + d * 0.25, z - t * 0.7), (x, yl + d * 0.6, z - t * 0.55)])
+    return ring_loft(bm, rings, mats)
+
+
+def side_plate(bm, x, outline_yz, thickness, mat_index=0):
+    """A thin upright plate (a tail fin) at X = x: `outline_yz` is its outline as (y, z) points."""
+    t = thickness / 2
+    left = [bm.verts.new((x - t, y, z)) for y, z in outline_yz]
+    right = [bm.verts.new((x + t, y, z)) for y, z in outline_yz]
+    bm.faces.new(left).material_index = mat_index
+    bm.faces.new(list(reversed(right))).material_index = mat_index
+    n = len(outline_yz)
+    for i in range(n):
+        j = (i + 1) % n
+        bm.faces.new((left[i], left[j], right[j], right[i])).material_index = mat_index
+
+
+def rocking_models(name, sprite, level_objects, x0, angles, collection):
+    """One model per frame of a craft that rocks side to side: frame k is the level build turned by
+    angles[k] (radians, positive lifts the left side) about its long axis X = x0. Models are named
+    name, name-f2, name-f3, ... Returns the list of (model_name, objects, sprites) for run()."""
+    frames = [f["index"] for f in sprite["frames"]]
+    models = []
+    for k, (index, angle) in enumerate(zip(frames, angles)):
+        model = name if k == 0 else f"{name}-f{k + 1}"
+        objs = level_objects if angle == 0 else rolled(level_objects, angle, x0, f"_f{k + 1}", collection)
+        models.append((model, objs, frame_sprites(sprite, [index])))
+    return models
+
+
+def build_tailplane(sprite, name, remap=None):
+    """The straight-winged grey fighter of newshf-123 (and newshf-77, the same craft in blue-grey:
+    remap the indices). Level frame: fuselage down column 12 with a needle nose (rows 20-26), a
+    straight wing across rows 12-16 (columns 3-21) with chamfered leading tips, a tailplane at rows
+    3-5 (columns 7-17), an upright fin over the tail (rows 1-6) and a dark canopy where the wing
+    meets the fuselage (rows 13-16). Returns (objects, collection, x0)."""
+    P = 1 / 12
+    X0 = px(12)
+    coll = common.reset_collection(name)
+    pal = palette(sprite, name, remap)
+    mats = [
+        pal(7, metallic=0.55, roughness=0.4),  # 0 wing grey
+        pal(8, metallic=0.6, roughness=0.35),  # 1 fuselage grey
+        pal(11, metallic=0.6, roughness=0.25),  # 2 bright spine
+        pal(6, metallic=0.55, roughness=0.45),  # 3 tailplane
+        pal(2, metallic=0.4, roughness=0.12),  # 4 dark canopy
+        pal(10, metallic=0.6, roughness=0.3),  # 5 light nose spine / fin
+    ]
+    WING, BODY, SPINE, TAILP, CANOPY, LIGHT = range(6)
+    bm = bmesh.new()
+
+    # Fuselage: (row edge, half width px, half height px).
+    body = [(2.2, 0.0, 0.0), (2.6, 1.0, 0.9), (3.5, 1.6, 1.4), (6.0, 1.5, 1.5), (10.5, 1.5, 1.6),
+            (12.0, 2.2, 1.9), (16.5, 2.5, 2.0), (18.6, 2.4, 1.9), (19.8, 1.6, 1.5), (23.6, 1.4, 1.2),
+            (24.2, 0.7, 0.7), (26.6, 0.45, 0.45), (27.0, 0.0, 0.0)]
+    ellipse_loft(bm, X0, [(ey(r), w * P, h * P, 0.0) for r, w, h in body], sides=10, mats=BODY)
+    # Bright spine along the top behind the wing (rows 6-11) and down the nose (rows 19-23).
+    ellipse_loft(bm, X0, [(ey(r), w * P, 0.35 * P, z) for r, w, z in
+                          ((5.8, 0.0, 0.11), (6.5, 0.6, 0.12), (10.5, 0.6, 0.125), (11.5, 0.0, 0.14))],
+                 sides=6, mats=SPINE)
+    ellipse_loft(bm, X0, [(ey(r), w * P, 0.3 * P, z) for r, w, z in
+                          ((18.8, 0.0, 0.14), (19.6, 0.7, 0.12), (23.4, 0.6, 0.095), (24.1, 0.0, 0.07))],
+                 sides=6, mats=LIGHT)
+
+    # Wing, rows 12-16 (17 at the root), columns 3-21, chamfered at the leading tips.
+    half = 9.5  # px from the centre line to the tip
+    wing = [(-half, 16, 12, 0.35, 0.0), (-6.5, 17, 12, 0.6, 0.0), (0, 17, 12, 1.0, 0.0),
+            (6.5, 17, 12, 0.6, 0.0), (half, 16, 12, 0.35, 0.0)]
+    wing_loft(bm, [(X0 + x * P, ey(yl), ey(yt), t * P, z) for x, yl, yt, t, z in wing], mats=WING)
+    # Tailplane, rows 3-5 (6 at the root), columns 7-17.
+    tail = [(-5.5, 4, 3, 0.3, 0.02), (-4.5, 5, 3, 0.45, 0.02), (-2.5, 6, 3, 0.6, 0.02), (0, 6.3, 3, 0.7, 0.02),
+            (2.5, 6, 3, 0.6, 0.02), (4.5, 5, 3, 0.45, 0.02), (5.5, 4, 3, 0.3, 0.02)]
+    wing_loft(bm, [(X0 + x * P, ey(yl), ey(yt), t * P, z) for x, yl, yt, t, z in tail], mats=TAILP)
+    # Upright fin over the tail, swept: from the spine at rows 3-7 up to its top at rows 1-2.
+    side_plate(bm, X0, [(ey(1.0), 0.07), (ey(7.0), 0.07), (ey(5.5), 0.14), (ey(2.6), 0.24), (ey(1.0), 0.24)],
+               0.75 * P, mat_index=LIGHT)
+    # Dark canopy where the wing meets the fuselage (rows 13-16.5).
+    dome(bm, X0, ey(14.9), 0.1, 1.7 * P, 2.2 * P, 0.09, mat_index=CANOPY, segs=12, rings=4)
+
+    obj = common.mesh_object(name, bm, mats, coll, smooth=True)
+    return [obj], coll, X0
