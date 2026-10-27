@@ -2,8 +2,10 @@
 
 Seen in episode 2 (level section 4). A lumpy ball of glowing red rock, white-hot at its upper
 left, with orange and yellow lava seams and a few cooled grey flakes. The 14 frames tumble the
-same round rock (the seams and flakes move across it, the outline stays a lumpy ball), so one
-model covers them all; its surface is painted from the first frame.
+same round rock: the seams and flakes move across it and its lumpy outline swells and shrinks a
+little, while the white-hot blister stays put. One model covers them all: the blister always
+shows, and each frame gets its own rock, shaped to that frame's outline and painted from it
+(common.frame_part).
 
 Run: blender --background --python assets/blender/enemies/newshg-1.py [-- --preview out.png]
 """
@@ -65,42 +67,50 @@ def build(sprite):
             return 0
         return 6  # 20, 29, 64-72, 165: grey and brown flakes
 
-    pixels = sprite["frames"][0]["pixels"]
-    # A sphere whose poles point along Y (so the top view is an even grid, not a pole star),
-    # squashed to the sprite's outline in XY and to HALF_H in Z, with gentle lumps.
-    segments, rings = 34, 24
-    bm = bmesh.new()
-    top = bm.verts.new((CX, CY + silhouette_radius(pixels, math.pi / 2), 0.0))
-    bot = bm.verts.new((CX, CY - silhouette_radius(pixels, -math.pi / 2), 0.0))
-    grid = []
-    for i in range(1, rings):
-        th = math.pi * i / rings
-        ring = []
-        for k in range(segments):
-            ph = 2 * math.pi * (k + 0.5) / segments
-            ux, uy, uz = math.sin(th) * math.cos(ph), math.cos(th), math.sin(th) * math.sin(ph)
-            rad = silhouette_radius(pixels, math.atan2(uy, ux))
-            lump = 1.0 + 0.045 * math.sin(i * 2.3 + k * 1.7) * math.sin(k * 0.9 + 0.4) * math.sin(th)
-            z = uz * HALF_H * (1.0 if uz > 0 else 0.7) * lump
-            ring.append(bm.verts.new((CX + rad * ux * lump, CY + rad * uy * lump, z)))
-        grid.append(ring)
-    for k in range(segments):
-        j = (k + 1) % segments
-        bm.faces.new((top, grid[0][j], grid[0][k]))
-        bm.faces.new((bot, grid[-1][k], grid[-1][j]))
-    for a, b in zip(grid, grid[1:]):
+    def rock(pixels):
+        """A sphere whose poles point along Y (so the top view is an even grid, not a pole star),
+        squashed to the frame's outline in XY and to HALF_H in Z, with gentle lumps, painted
+        from the frame."""
+        segments, rings = 34, 24
+        bm = bmesh.new()
+        top = bm.verts.new((CX, CY + silhouette_radius(pixels, math.pi / 2), 0.0))
+        bot = bm.verts.new((CX, CY - silhouette_radius(pixels, -math.pi / 2), 0.0))
+        grid = []
+        for i in range(1, rings):
+            th = math.pi * i / rings
+            ring = []
+            for k in range(segments):
+                ph = 2 * math.pi * (k + 0.5) / segments
+                ux, uy, uz = math.sin(th) * math.cos(ph), math.cos(th), math.sin(th) * math.sin(ph)
+                rad = silhouette_radius(pixels, math.atan2(uy, ux))
+                lump = 1.0 + 0.045 * math.sin(i * 2.3 + k * 1.7) * math.sin(k * 0.9 + 0.4) * math.sin(th)
+                z = uz * HALF_H * (1.0 if uz > 0 else 0.7) * lump
+                ring.append(bm.verts.new((CX + rad * ux * lump, CY + rad * uy * lump, z)))
+            grid.append(ring)
         for k in range(segments):
             j = (k + 1) % segments
-            bm.faces.new((a[k], a[j], b[j], b[k]))
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
-    lib.paint(bm, pixels, slot_of, under_slot=7, min_nz=-0.2, spread=0.6 / 12, average=True)
+            bm.faces.new((top, grid[0][j], grid[0][k]))
+            bm.faces.new((bot, grid[-1][k], grid[-1][j]))
+        for a, b in zip(grid, grid[1:]):
+            for k in range(segments):
+                j = (k + 1) % segments
+                bm.faces.new((a[k], a[j], b[j], b[k]))
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+        lib.paint(bm, pixels, slot_of, under_slot=7, min_nz=-0.2, spread=0.6 / 12, average=True)
+        return bm
+
     # The white-hot blister at the upper left (columns 6-10, rows 6-10), standing a little proud.
+    # It's the same on every frame.
+    bm = bmesh.new()
     lib.ellipsoid(bm, (ex(9.3), ey(8.9), HALF_H * 0.74), (2.4 / 12, 1.9 / 12, 0.1), segments=14, rings=6,
                   mat_index=5, bottom=0.6)
     lib.ellipsoid(bm, (ex(9.3), ey(9.0), HALF_H * 0.68), (3.0 / 12, 2.5 / 12, 0.1), segments=14, rings=6,
                   mat_index=4, bottom=0.6)
-    obj = common.mesh_object(NAME, bm, mats, coll, smooth=True)
-    return [(NAME, [obj], sprite["sprites"])]
+    parts = [common.mesh_object(NAME, bm, mats, coll, smooth=True)]
+    for f in sprite["frames"]:
+        obj = common.mesh_object(f"{NAME}-rock-{f['index']}", rock(f["pixels"]), mats, coll, smooth=True)
+        parts.append(common.frame_part(obj, [f["index"]]))
+    return [(NAME, parts, sprite["sprites"])]
 
 
 if __name__ == "__main__":
