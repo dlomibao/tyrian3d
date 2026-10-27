@@ -15,6 +15,8 @@ Each picture is rebuilt in Blender for the same purpose and layout, at 1920x1200
   `common.py`.
 - **`public/art/pictures.json`** maps each original picture number (`JE_loadPic`'s id) to its new
   file, relative to the site root. Code that shows a picture looks it up there.
+- **Checked by** `tests/assets/pictures.test.ts`: every picture has an entry, and each file is a
+  1920x1200 WebP under 600 KB.
 - **The originals,** for comparison: `npm run pictures` decodes them to
   `reference/pictures/pic-NN.png` (git-ignored, as it's derived from the data) and lists every
   episode-script line that shows one (`]P`, `]U`, `]V`, `]R`) in `reference/pictures/uses.txt`.
