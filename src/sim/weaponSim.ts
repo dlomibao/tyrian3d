@@ -258,6 +258,7 @@ export function JE_weaponViewFrame(): void {
   drawList.palette = ITEM_SCREEN_PALETTE;
   drawList.filter = -99;
   drawList.brightness = 0;
+  drawList.screen = null;
 
   drawState.pass = Pass.Background1;
   fill_rectangle_xy(8, 8, 143, 182, 0);

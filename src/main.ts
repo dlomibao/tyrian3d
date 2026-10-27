@@ -48,6 +48,11 @@ function startGame(): void {
     import("./debug/spriteHarness")
       .then(({ runSpriteHarness }) => runSpriteHarness(view))
       .catch((err) => console.error("sprite harness failed", err));
+  } else if (debug === "level") {
+    // One level with a chosen loadout (src/debug/levelHarness.ts), on demand like the others.
+    import("./debug/levelHarness")
+      .then(({ runLevelHarness }) => runLevelHarness(view))
+      .catch((err) => console.error("level harness failed", err));
   } else {
     // ui-framework: the menus' 3D backdrop draws with the view's renderer whenever a screen is up
     // (src/ui/backdrop.ts); during levels no screen is, and the game draws.

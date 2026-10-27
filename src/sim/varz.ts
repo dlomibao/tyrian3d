@@ -9,6 +9,7 @@ import { roundf } from "./cfloat";
 import { blit_sprite2, drawPixel, type Sprite2Sheet } from "./draw";
 import { mt_rand, mt_rand_1, mt_rand_lt1 } from "./mtrand";
 import { player_shot_create } from "./shots";
+import { JE_barBright } from "./smoothies";
 import { S_EXPLOSION_22, S_HULL_HIT, S_POWERUP, S_SHIELD_HIT, S_SOUL_OF_ZINGLON } from "./sndmast";
 import {
   FRONT_WEAPON,
@@ -551,9 +552,9 @@ export function JE_doSpecialShot(playerNum: number, this_player: Player): void {
   if (g.zinglonDuration > 1) {
     temp = u8(25 - Math.abs(g.zinglonDuration - 25));
 
-    // JE_barBright(VGAScreen, player[0].x + 7 - temp, 0, player[0].x + 7 + temp, 184), twice:
-    // brightens the Zinglon beam's columns. Not recorded; the renderer can draw the beam from
-    // zinglonDuration and player[0].x.
+    // The Zinglon beam: recorded for the renderer (src/sim/smoothies.ts).
+    JE_barBright(g.player[0].x + 7 - temp, 0, g.player[0].x + 7 + temp, 184);
+    JE_barBright(g.player[0].x + 7 - temp - 2, 0, g.player[0].x + 7 + temp + 2, 184);
 
     g.zinglonDuration--;
     if (g.zinglonDuration % 5 === 0) {

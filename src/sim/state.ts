@@ -576,7 +576,8 @@ export const g = {
   levelFilterNew: 0,
   levelBrightness: 0,
   levelBrightnessChg: 0,
-  filtrationAvail: false,
+  /** JE_initProcessorType sets it for processorType 4 (Pentium), which the port plays at. [filters] */
+  filtrationAvail: true,
   filterActive: false,
   filterFade: false,
   filterFadeStart: false,
