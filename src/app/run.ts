@@ -21,6 +21,8 @@ import { EpisodeEndError, loadLevelAsync } from "../sim/tyrian2";
 import type { View } from "../render/view";
 import { Controls } from "./controls";
 import { Hud } from "./hud";
+import { highScoreCheck, showHighScoreScreen } from "./highScoresScreen"; // [high scores]
+import { highScoreCheckDue } from "../sim/highscores"; // [high scores]
 import { askForData, showMessage, showStatus, showTitle, type TitleChoice } from "./screens";
 import { runItemScreen } from "./shop";
 
@@ -120,6 +122,9 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
       musicStyles: music.styles,
       musicStyle: music.style,
       onMusicStyle: (style) => music.setStyle(style),
+      // [high scores] the title menu's High Scores (JE_highScoreScreen)
+      highScoresLabel: g.miscText[50]?.trim() || undefined,
+      onHighScores: () => showHighScoreScreen({ ...names, episodes, sfx, episode: choice.episode }),
     });
 
     // JE_initEpisode: each episode has its own item data (episode 4's lives in tyrian4.lvl).
@@ -139,9 +144,15 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
         if (!(err instanceof EpisodeEndError)) throw err;
         music.play(SONG_LEVEL_END);
         await showMessage("Episode complete", [`Final score ${g.player[0].cash}`], "Press Enter for the title");
+        // [high scores] JE_nextEpisode (mainint.c L958-962)
+        if (highScoreCheckDue(choice.episode)) await highScoreCheck({ ...names, sfx, music }, choice.episode);
         break;
       }
-      if (!loaded) break; // quit from the item screen: back to the title
+      if (!loaded) {
+        // [high scores] Quitting is how a game ends here, since a game over retries (D11, D14).
+        if (highScoreCheckDue(choice.episode)) await highScoreCheck({ ...names, sfx, music }, choice.episode);
+        break; // quit from the item screen: back to the title
+      }
       if (!g.doNotSaveBackup) backup = saveLastLevel(); /*Save backup game*/
       startLevel();
       view.draws.resetInterpolation();

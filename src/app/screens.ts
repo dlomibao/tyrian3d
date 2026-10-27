@@ -111,6 +111,10 @@ export interface TitleOptions {
   musicStyles?: string[];
   musicStyle?: string;
   onMusicStyle?: (style: string) => void;
+  // [high scores] The title menu's High Scores entry (tyrian2.c MENU_ITEM_HIGH_SCORES): its label
+  // and the screen it opens (src/app/highScoresScreen.ts); the title waits while it's open.
+  highScoresLabel?: string;
+  onHighScores?: () => Promise<void>;
 }
 
 /** Title screen: pick an episode and difficulty (keyboard, gamepad, click or tap), then start. */
@@ -120,8 +124,9 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
     <div class="choices episodes" role="listbox" aria-label="Episode"></div>
     <div class="choices difficulty" role="radiogroup" aria-label="Difficulty"></div>
     <div class="choices music" role="radiogroup" aria-label="Music" hidden></div>
+    <div class="choices highscores-entry" hidden><button type="button"></button></div>
     <p><span class="key">↑↓</span> episode · <span class="key">←→</span> difficulty ·
-       <span class="key">Enter</span> start<span class="music-key" hidden> · <span class="key">M</span> music</span></p>
+       <span class="key">Enter</span> start<span class="music-key" hidden> · <span class="key">M</span> music</span><span class="hs-key" hidden> · <span class="key">H</span> high scores</span></p>
     <p><span class="key">←↑↓→</span> / <span class="key">WASD</span> move · <span class="key">Space</span> fire ·
        mouse, touch and gamepads work too</p>`);
   const episodesEl = el.querySelector<HTMLDivElement>(".episodes")!;
@@ -172,6 +177,25 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
     opts.onMusicStyle?.(styles[style]);
     render();
   };
+  // [high scores] The High Scores entry: hides the title until its screen closes.
+  let busy = false;
+  const highScoresEl = el.querySelector<HTMLDivElement>(".highscores-entry")!;
+  const openHighScores = async () => {
+    if (!opts.onHighScores || busy) return;
+    busy = true;
+    el.hidden = true;
+    await opts.onHighScores();
+    el.hidden = false;
+    busy = false;
+    prev = null;
+  };
+  if (opts.onHighScores) {
+    highScoresEl.hidden = false;
+    el.querySelector<HTMLSpanElement>(".hs-key")!.hidden = false;
+    const b = highScoresEl.querySelector("button")!;
+    b.textContent = opts.highScoresLabel ?? "High Scores";
+    b.addEventListener("click", openHighScores);
+  }
   const render = () => {
     episodeButtons.forEach((b, i) => b.classList.toggle("selected", i === ep));
     difficultyButtons.forEach((b, i) => b.classList.toggle("selected", i === diff));
@@ -205,8 +229,9 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
       Enter: finish,
       Space: finish,
       ...(musicButtons.length ? { KeyM: () => setStyle(style + 1) } : {}),
+      ...(opts.onHighScores ? { KeyH: openHighScores } : {}), // [high scores]
     };
-    const action = map[e.code];
+    const action = busy ? undefined : map[e.code];
     if (!action) return;
     e.preventDefault();
     action();
@@ -214,7 +239,7 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
   // Gamepad: d-pad moves, A starts; act on presses, not holds (and ignore buttons held on entry).
   let prev: boolean[] | null = null;
   const poll = () => {
-    const pad = (navigator.getGamepads?.() ?? []).find((p) => p);
+    const pad = busy ? undefined : (navigator.getGamepads?.() ?? []).find((p) => p); // [high scores] busy
     if (pad) {
       const now = pad.buttons.map((b) => b.pressed);
       if (prev) {
@@ -224,6 +249,7 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
         if (pressed(14)) move(0, -1);
         if (pressed(15)) move(0, 1);
         if (pressed(0) || pressed(9)) return finish();
+        if (pressed(3)) void openHighScores(); // [high scores] Y
       }
       prev = now;
     }
