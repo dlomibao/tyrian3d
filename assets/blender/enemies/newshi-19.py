@@ -4,7 +4,8 @@ Seen in episode 1 (level sections 10, 29 and 38) and level 3.21, on the ground. 
 rust-red ring, lit from the upper right, with a hole through its middle (the ground shows
 through) and a curved crescent blade hugging the inside of the ring at the upper right. The
 five frames are the same shape getting brighter (dark brown to pale pink), so one model covers
-them all; it takes its palette indices from the middle frame (newshi-57).
+them all; it takes its palette indices from the middle frame (newshi-57) and each material steps
+through the other frames' shades (palette_material frames=).
 
 Run: blender --background --python assets/blender/enemies/newshi-19.py [-- --preview out.png]
 """
@@ -34,14 +35,18 @@ Z_TUBE = H_TUBE  # sits on the ground
 
 def build(sprite):
     coll = common.reset_collection(NAME)
-    pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
+    # Each part takes its colour from the middle frame (57) and steps through the others' shades:
+    # {sprite frame: palette index}, read off the same pixels of every frame.
+    pal = lambda i, part, frames, **kw: common.palette_material(  # noqa: E731
+        sprite, i, f"{NAME}-{part}", frames=frames, **kw)
+    lit = {19: 69, 38: 72, 76: 77, 95: 31}
     mats = [
-        pal(72, metallic=0.35, roughness=0.4),  # 0 ring
-        pal(74, metallic=0.35, roughness=0.35),  # 1 lit upper-right of the ring
-        pal(69, metallic=0.3, roughness=0.5),  # 2 shaded lower-left of the ring
-        pal(2, metallic=0.2, roughness=0.7),  # 3 dark inner wall of the hole
-        pal(74, metallic=0.4, roughness=0.3),  # 4 blade
-        pal(76, metallic=0.4, roughness=0.25),  # 5 blade's bright edge
+        pal(72, "ring", {19: 67, 38: 69, 76: 74, 95: 77}, metallic=0.35, roughness=0.4),  # 0 ring
+        pal(74, "lit", lit, metallic=0.35, roughness=0.35),  # 1 lit upper-right of the ring
+        pal(69, "shade", {19: 66, 38: 67, 76: 72, 95: 74}, metallic=0.3, roughness=0.5),  # 2 shaded lower-left
+        pal(2, "inner", {19: 32, 38: 1, 76: 3, 95: 3}, metallic=0.2, roughness=0.7),  # 3 dark inner wall of the hole
+        pal(74, "lit", lit, metallic=0.4, roughness=0.3),  # 4 blade (the same material as 1)
+        pal(76, "edge", {19: 70, 38: 74, 76: 78, 95: 31}, metallic=0.4, roughness=0.25),  # 5 blade's bright edge
     ]
     RING, LIT, SHADE, INNER, BLADE, EDGE = range(6)
     bm = bmesh.new()
@@ -107,6 +112,8 @@ def main():
         out = sys.argv[sys.argv.index("--preview") + 1]
         ref = ROOT / "reference" / "models" / NAME / sprite["frames"][2]["image"]
         common.render_preview([obj], out, ref, size=sprite["frames"][0]["size"])
+    if "--frames" in sys.argv:
+        common.render_frame_previews([obj], sys.argv[sys.argv.index("--frames") + 1], sprite, ROOT)
 
 
 if __name__ == "__main__":
