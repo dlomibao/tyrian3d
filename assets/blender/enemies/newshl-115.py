@@ -2,8 +2,9 @@
 
 Seen in episode 4 (levels 6, 40 and 45). A round lump of lava, 11 x 13 px: dark red crust broken by
 orange and yellow glowing cracks. Frame 135 is the same rock glowing brighter (every index two
-steps up), so one model covers all three frames. The rock is a lumpy ellipsoid whose faces take
-the colour of the sprite pixel under them, the hot colours glowing.
+steps up), so one model covers all three frames, its colours stepping up on 135 (palette_material
+frames=). The rock is a lumpy ellipsoid whose faces take the colour of the sprite pixel under
+them, the hot colours glowing.
 
 Run: blender --background --python assets/blender/enemies/newshl-115.py [-- --preview out.png]
 """
@@ -34,11 +35,12 @@ def build(sprite):
     frame = sprite["frames"][0]
     grid = lib.Grid(12, 14, frame["pixels"])
     mats = lib.Mats(NAME, sprite["colors"])
-    crust = mats(113, metallic=0.0, roughness=0.9)
-    warm = mats(116, metallic=0.0, roughness=0.7, emission_strength=0.8)
-    hot = mats(119, metallic=0.0, roughness=0.5, emission_strength=2.0)
-    hotter = mats(122, metallic=0.0, roughness=0.4, emission_strength=3.0)
-    white = mats(125, metallic=0.0, roughness=0.3, emission_strength=4.5)
+    # Frame 135 glows two palette steps brighter: {sprite frame: index}.
+    crust = mats(113, metallic=0.0, roughness=0.9, frames={135: 115})
+    warm = mats(116, metallic=0.0, roughness=0.7, emission_strength=0.8, frames={135: 118})
+    hot = mats(119, metallic=0.0, roughness=0.5, emission_strength=2.0, frames={135: 121})
+    hotter = mats(122, metallic=0.0, roughness=0.4, emission_strength=3.0, frames={135: 124})
+    white = mats(125, metallic=0.0, roughness=0.3, emission_strength=4.5, frames={135: 127})
 
     def slot(i):
         if i <= 114:
@@ -72,6 +74,8 @@ def main():
     obj = build(sprite)
     common.export_sprite_model(ROOT, [obj], MODEL, sprite["sprites"])
     lib.preview(ROOT, NAME, [obj], sprite)
+    if "--frames" in sys.argv:
+        common.render_frame_previews([obj], sys.argv[sys.argv.index("--frames") + 1], sprite, ROOT)
 
 
 if __name__ == "__main__":
