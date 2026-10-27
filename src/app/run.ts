@@ -23,6 +23,10 @@ import { Controls } from "./controls";
 import { Hud } from "./hud";
 import { askForData, showMessage, showStatus, showTitle, type TitleChoice } from "./screens";
 import { runItemScreen } from "./shop";
+// port-story: the screens between levels and the level fades.
+import { BLACK, levelFade } from "./fade";
+import { closeStoryScreens, playStoryScreens } from "./storyScreens";
+import { takeStorySteps } from "../sim/story";
 
 /** OpenTyrian song numbers (0-based, as passed to play_song). */
 const SONG_TITLE = 29;
@@ -128,20 +132,28 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
     newOnePlayerGame(choice.episode, choice.difficulty);
     onPlay();
     let backup: LevelBackup | null = null;
+    // port-story: JE_loadMap's pictures, text and fades play where the C would have drawn them.
+    const story = (keepOpen = false) => playStoryScreens(takeStorySteps(), { files, sfx, music }, { keepOpen });
 
     // start_level / start_level_first (tyrian2.c L586-905): JE_loadMap with the item screen at
     // each `]I[`, the backup save, the level, then where to go next.
     for (;;) {
       let loaded: boolean;
       try {
-        loaded = await loadLevelAsync(files, g.episodeNum, g.mainLevel, () => runItemScreen({ files, sfx, music }));
+        loaded = await loadLevelAsync(files, g.episodeNum, g.mainLevel, async () => {
+          await story(); // port-story
+          await runItemScreen({ files, sfx, music });
+        });
       } catch (err) {
         if (!(err instanceof EpisodeEndError)) throw err;
+        await story(true); // port-story: the screens before `]Q[`, left up behind the message
         music.play(SONG_LEVEL_END);
         await showMessage("Episode complete", [`Final score ${g.player[0].cash}`], "Press Enter for the title");
+        closeStoryScreens(); // port-story
         break;
       }
       if (!loaded) break; // quit from the item screen: back to the title
+      await story(); // port-story: the screens after the item screen, and fade_black(50)
       if (!g.doNotSaveBackup) backup = saveLastLevel(); /*Save backup game*/
       startLevel();
       view.draws.resetInterpolation();
@@ -149,6 +161,11 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
       clearSimInput();
       controls.clear();
       hud.visible = true;
+
+      // port-story: JE_main's fade_palette(colors, 50) (tyrian2.c L716). The C fades in before the
+      // first frame; here the level starts under the fade.
+      levelFade().set(1, BLACK);
+      void levelFade().fade(0, 50, BLACK);
 
       controls.active = true;
       const outcome = await playLevel(view, controls, sfx, music, hud);
@@ -167,10 +184,12 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
           `Score ${g.player[0].cash}`,
           `Enemies destroyed ${g.enemyKilled} of ${g.totalEnemy}`,
         ]);
+        await levelFade().fade(1, 15, BLACK); // port-story: JE_endLevelAni's fade_black(15)
         if (g.mainLevel === 0) break; // end of the episode
       } else {
         music.play(SONG_GAME_OVER);
         await showMessage("Game over", ["Your ship was destroyed."], "Press Enter to retry from the item screen");
+        await levelFade().fade(1, 10, BLACK); // port-story: fade_black(10) (tyrian2.c L639)
         if (backup) loadLastLevel(backup); // JE_loadGame(11)
         if (g.doNotSaveBackup) {
           g.superTyrian = false;

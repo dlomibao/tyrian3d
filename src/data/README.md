@@ -17,12 +17,13 @@ explicitly where it needs to.
 | `shapes).dat`, `shapesw.dat`..`shapesz.dat` (map tiles) | `parseShapes`, `levelTiles` (`levels.ts`) | `JE_loadMap`, `src/tyrian2.c` |
 | `levels1.dat`..`levels4.dat` (episode scripts) | `parseEpisodeScript`, `episodeLevels`, `parsePlayLevel` (`episodeScript.ts`) | `JE_loadMap`, `src/tyrian2.c` |
 | encrypted strings | `decryptString`, `readEncryptedString` (`crypt.ts`) | `decrypt_string`, `readEncryptedString`, `src/helptext.c` |
+| `tyrian.pic`, `tshp2.pcx` (full-screen pictures) | `decodePicture`, `decodePcxFile` (`pictures.ts`) | `JE_loadPic`, `src/picload.c`; `JE_loadPCX`, `src/pcxload.c` |
 
 Episode 4 keeps its item and enemy data at the end of `tyrian4.lvl` instead of `tyrian.hdt`;
 `loadItemDat(4, hdt, lvl)` handles that the way `JE_loadItemDat` does.
 
 Not ported yet: the help and menu text in `tyrian.hdt` (`JE_loadHelpText`), `tyrian.cdt`,
-`cubetxt*.dat`, and sprite (`*.shp`), picture, sound and music files.
+`cubetxt*.dat`, and sprite (`*.shp`), sound and music files.
 
 Tests in `tests/data/` read the files from `$TYRIAN_DATA` (default `data/`) and skip when
 they're missing:
