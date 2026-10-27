@@ -151,6 +151,33 @@ describe("JE_highScoreCheck", () => {
     expect(t.slice(0, 3).map((e) => e.highScoreName)).toEqual(["n0", "n0", "n1"]);
   });
 
+  test("cancelling after beating the top entry leaves it twice and drops the third, as the C does", () => {
+    // The report: 19,500 on quitting, CANCEL at the name entry, then "#1 16000 Shirro, #2 16000
+    // Shirro". JE_highScoreCheck shifts the table down before asking for the name and, on cancel,
+    // writes nothing into the freed slot (mainint.c L1957-1966, L2106-2111), so the old #1 is
+    // still there above its copy, and the old #3 is gone. saveSaves keeps it on exit.
+    const t = ladder();
+    t[0] = entry(16000, "Shirro", 1);
+    t[1] = entry(12000, "Mantori", 2);
+    t[2] = entry(5000, "Reid", 3);
+    const slot = JE_highScoreCheckSlot(t, 1, false, 19500);
+    expect(slot).toBe(0);
+    JE_highScoreCheckEnter(t, slot, 19500, null, DIFFICULTY_NORMAL);
+    expect(t.slice(0, 3).map((e) => [e.highScore1, e.highScoreName, e.highScoreDiff])).toEqual([
+      [16000, "Shirro", 1],
+      [16000, "Shirro", 2],
+      [12000, "Mantori", 3],
+    ]);
+    // Entering a name instead fills the slot.
+    const u = ladder();
+    u[0] = entry(16000, "Shirro", 1);
+    JE_highScoreCheckEnter(u, JE_highScoreCheckSlot(u, 1, false, 19500), 19500, "Ace", DIFFICULTY_NORMAL);
+    expect(u.slice(0, 2).map((e) => [e.highScore1, e.highScoreName.trimEnd()])).toEqual([
+      [19500, "Ace"],
+      [16000, "Shirro"],
+    ]);
+  });
+
   test("the name is what was typed over the 29-space buffer, at most 28 characters the font has", () => {
     expect(highScoreStoredName("Ace")).toBe("Ace" + " ".repeat(26));
     expect(highScoreStoredName("")).toBe(" ".repeat(29));

@@ -8,7 +8,7 @@ import "./overlay.css";
 import "./screens.css";
 import { filesFromZip, type FileMap } from "../assets/files";
 import { storeZip } from "../assets/store";
-import { button, h, keyHints, logo, MenuList, showScreen, title, type Screen } from "../ui";
+import { button, h, keyHints, logo, MenuList, showScreen, title, ui, type Screen } from "../ui";
 
 /** Ask the player for tyrian21.zip (DECISIONS.md D3). Resolves once valid data is loaded. */
 export function askForData(): Promise<FileMap> {
@@ -139,16 +139,17 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
   // [port-options] [high scores] The other entries, each its own screen over the title's backdrop.
   // Those screens read keys and pads themselves, so the title steps aside while one is open
   // (Screen.aside), then reads back the music style (Options can change it). A loaded game starts.
-  const sub = async (fn: () => Promise<boolean | void>) => {
-    if (screen.isAside || !screen.open) return;
-    const loaded = await screen.aside(fn);
+  // [high scores] A screen on the framework (`own`) opens over the title itself (ScreenOptions.over).
+  const sub = async (fn: () => Promise<boolean | void>, own = false) => {
+    if (screen.isAside || !screen.open || ui.current !== screen) return;
+    const loaded = await (own ? fn() : screen.aside(fn));
     syncMusic();
     if (loaded === true) finish(true);
   };
-  const more: { label: string; key: string; code: string; pad?: string; run: () => Promise<boolean | void> }[] = [];
+  const more: { label: string; key: string; code: string; pad?: string; run: () => Promise<boolean | void>; own?: boolean }[] = [];
   if (opts.onLoadGame) more.push({ label: "Load Game", key: "L", code: "KeyL", run: opts.onLoadGame });
   if (opts.onOptions) more.push({ label: "Options", key: "O", code: "KeyO", pad: "Back", run: opts.onOptions });
-  if (opts.onHighScores) more.push({ label: opts.highScoresLabel ?? "High Scores", key: "H", code: "KeyH", pad: "Y", run: opts.onHighScores });
+  if (opts.onHighScores) more.push({ label: opts.highScoresLabel ?? "High Scores", key: "H", code: "KeyH", pad: "Y", run: opts.onHighScores, own: true });
   const padButtons = new Map<number, (typeof more)[number]>();
   for (const m of more) if (m.pad) padButtons.set(m.pad === "Y" ? PAD_Y : PAD_BACK, m);
 
@@ -162,13 +163,13 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
       else {
         const m = more.find((m) => m.code === e.code);
         if (!m || e.altKey || e.ctrlKey || e.metaKey) return false;
-        void sub(m.run);
+        void sub(m.run, m.own);
       }
       return true;
     },
     onPadButton: (button) => {
       const m = padButtons.get(button);
-      if (m) void sub(m.run);
+      if (m) void sub(m.run, m.own);
     },
     onIntent: (intent) => {
       if (intent === "start") finish();
@@ -190,7 +191,7 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
       if (i < episodeCount) ep = i;
     },
     onSelect: (i) => {
-      if (i >= episodeCount) return void sub(more[i - episodeCount].run);
+      if (i >= episodeCount) return void sub(more[i - episodeCount].run, more[i - episodeCount].own);
       ep = i;
       finish();
     },

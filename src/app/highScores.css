@@ -1,62 +1,113 @@
-/* The high score screens (src/app/highScoresScreen.ts), over the overlay panel (overlay.css). */
+/* The high score screens (src/app/highScoresScreen.ts), on src/ui's components and tokens:
+   .ui-screen--highscores (the tables) and .ui-screen--highscore-entry (the name entry). */
 
-.highscores .panel h3 {
-  margin: 0 0 0.5rem;
-  font-size: 1.05rem;
-  color: var(--ink);
+/* --- the tables --- */
+
+.ui-screen--highscores .ui-title {
+  text-align: center;
+  align-items: center;
 }
 
-.highscores .panel h3.disabled {
-  color: var(--ink-dim);
-  opacity: 0.6;
+.ui-screen--highscores .hs-paging {
+  display: grid;
+  grid-template-columns: var(--ui-hit) minmax(0, 1fr) var(--ui-hit);
+  align-items: center;
+  gap: var(--ui-space-2);
 }
 
-.highscores .panel h4 {
-  margin: 0.9rem 0 0.3rem;
-  font-size: 0.95rem;
-  font-weight: normal;
-  color: var(--accent);
+.ui-screen--highscores .hs-page {
+  padding: 0;
+  color: var(--ui-cyan);
 }
 
-.highscores table {
-  width: 100%;
-  border-collapse: collapse;
+.ui-screen--highscores .hs-episode {
+  margin: 0;
+  text-align: center;
+  font-family: var(--ui-font-display);
+  font-size: var(--ui-text-md);
+  font-weight: 600;
+  letter-spacing: var(--ui-tracking);
+  text-transform: uppercase;
+  color: var(--ui-ink);
+}
+
+/* The table after a name entry: the episode under the title. */
+.ui-screen--highscores .ui-panel > .hs-episode {
+  margin-bottom: var(--ui-space-3);
+}
+
+/* An episode without data (episodeAvail): its header is dimmed. */
+.ui-screen--highscores .hs-episode.is-disabled {
+  color: var(--ui-ink-faint);
+}
+
+.ui-screen--highscores .hs-tables .ui-label {
+  margin-top: var(--ui-space-4);
+}
+
+.hs-table {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* "~#1:~  16000", the name, the difficulty. */
+.hs-row {
+  display: grid;
+  grid-template-columns: 2.25rem 5.5rem minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--ui-space-3);
+  padding: var(--ui-space-2) var(--ui-space-3);
+  border-radius: var(--ui-radius);
+  background: rgba(143, 163, 184, 0.05);
+  color: var(--ui-ink-dim);
+}
+
+.hs-row:first-child {
+  background: linear-gradient(90deg, rgba(240, 176, 72, 0.14), rgba(240, 176, 72, 0.03) 70%, transparent);
+}
+
+.hs-rank {
+  font-family: var(--ui-font-display);
+  font-weight: 700;
+  color: var(--ui-gold);
+}
+
+.hs-score {
+  text-align: right;
   font-variant-numeric: tabular-nums;
-  text-align: left;
+  color: var(--ui-ink);
 }
 
-.highscores td {
-  padding: 0.15rem 0.4rem;
-  white-space: nowrap;
-}
-
-.highscores .hs-score {
-  width: 8.5em;
-  color: var(--ink-dim);
-  white-space: pre;
-}
-
-.highscores .hs-score b {
-  color: var(--ink);
-}
-
-.highscores .hs-name {
-  color: var(--ink);
+.hs-name {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 12rem;
+  white-space: nowrap;
+  color: var(--ui-ink);
 }
 
-/* JE_textShade's brightness: higher difficulty ranks are drawn brighter. */
-.highscores .hs-diff {
-  text-align: right;
-  color: hsl(38 70% calc(42% + var(--shade, 0) * 4.5%));
+/* JE_textShade's brightness: higher difficulty ranks are drawn brighter (--shade 0..9). */
+.hs-diff {
+  justify-self: end;
+  font-size: var(--ui-text-sm);
+  white-space: nowrap;
+  color: color-mix(in srgb, var(--ui-gold-bright) calc(25% + var(--shade, 0) * 8%), var(--ui-ink-faint));
 }
 
 /* JE_outTextGlow: the new entry fades in bright. */
-.highscores tr.hs-new td {
-  color: #fff3c0;
-  animation: hs-glow 1.2s ease-out;
+.hs-row.hs-new {
+  border: 1px solid var(--ui-edge-strong);
+  background: var(--ui-focus-fill);
+  color: var(--ui-ink-warm);
+}
+
+.hs-row.hs-new > span {
+  color: var(--ui-ink-warm);
+  animation: hs-glow 1.2s var(--ui-ease);
 }
 
 @keyframes hs-glow {
@@ -65,79 +116,243 @@
     text-shadow: 0 0 0 transparent;
   }
   60% {
-    text-shadow: 0 0 12px rgba(255, 220, 140, 0.9);
+    text-shadow: var(--ui-glow-gold);
   }
 }
 
-.highscores .hs-paging {
+@media (prefers-reduced-motion: reduce) {
+  .hs-row.hs-new > span {
+    animation: none;
+  }
+}
+
+/* "Press a key" (miscText[4]), or a tap on a touch screen. */
+.ui-screen--highscores .hs-press {
+  margin-top: var(--ui-space-4);
+  text-align: center;
+  font-family: var(--ui-font-display);
+  font-size: var(--ui-text-xs);
+  letter-spacing: var(--ui-tracking-wide);
+  text-transform: uppercase;
+  color: var(--ui-cyan);
+}
+
+.hs-press__touch,
+:root[data-input="touch"] .hs-press__keys {
+  display: none;
+}
+
+:root[data-input="touch"] .hs-press__touch {
+  display: inline;
+}
+
+/* --- the name entry --- */
+
+.ui-screen--highscore-entry .ui-title {
+  font-size: var(--ui-text-lg);
+  overflow-wrap: anywhere;
+}
+
+.ui-screen--highscore-entry .ui-title__kicker {
+  padding-right: 6rem; /* clear of CANCEL in the corner */
+}
+
+.ui-screen--highscore-entry .hs-earned {
+  margin-top: 0;
+}
+
+.ui-screen--highscore-entry .hs-total {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  margin-top: 0.75rem;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--ui-space-2);
 }
 
-.highscores .hs-paging p {
-  margin: 0;
+.ui-screen--highscore-entry .hs-total b {
+  font-family: var(--ui-font-display);
+  font-size: var(--ui-text-lg);
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-gold);
+  text-shadow: var(--ui-glow-gold);
 }
 
-.highscores .hs-paging p b,
-.highscores .hs-help b {
-  color: var(--ink);
-  font-weight: normal;
+.hs-field {
+  position: relative;
 }
 
-.highscores button {
-  font: inherit;
-  color: var(--ink-dim);
-  background: transparent;
-  border: 1px solid var(--edge);
-  border-radius: 6px;
-  padding: 0.3rem 0.75rem;
-  cursor: pointer;
-}
-
-.highscores button:hover,
-.highscores button:focus-visible {
-  color: var(--ink);
-  background: rgba(224, 160, 64, 0.12);
-}
-
-.highscores .hs-entry {
-  margin: 1rem 0 0.5rem;
-}
-
-.highscores .hs-entry label {
-  display: block;
-  color: var(--ink);
-}
-
-.highscores .hs-entry input {
-  width: min(100%, 20rem);
+.hs-input {
+  width: 100%;
+  min-height: var(--ui-hit);
   box-sizing: border-box;
+  padding: 0 3.5rem 0 var(--ui-space-3);
   font: inherit;
-  color: var(--ink);
+  font-size: var(--ui-text-lg);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ui-ink-warm);
+  caret-color: var(--ui-gold-bright);
   background: rgba(0, 0, 0, 0.45);
-  border: 1px solid var(--edge);
-  border-radius: 6px;
-  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--ui-edge-strong);
+  border-radius: var(--ui-radius);
+  box-shadow: inset 0 0 1rem rgba(240, 176, 72, 0.08);
   outline: none;
 }
 
-.highscores .hs-entry input:focus {
-  border-color: var(--accent);
+.hs-input:focus {
+  border-color: var(--ui-gold-bright);
+  box-shadow: inset 0 0 1rem rgba(240, 176, 72, 0.12), 0 0 0.75rem rgba(240, 176, 72, 0.25);
 }
 
-.highscores .hs-buttons {
-  flex-direction: row;
-  justify-content: center;
+.hs-count {
+  position: absolute;
+  right: var(--ui-space-3);
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: var(--ui-text-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-ink-faint);
+  pointer-events: none;
 }
 
-@media (max-width: 480px) {
-  .highscores .hs-score {
-    width: auto;
+/* The character grid (src/app/namePicker.ts): ten columns, the last row's keys span several. */
+.hs-picker {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 3px;
+  margin-top: var(--ui-space-3);
+  user-select: none;
+}
+
+.hs-key {
+  min-width: 0;
+  min-height: var(--ui-hit);
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--ui-ink-dim);
+  background: var(--ui-panel-raised);
+  border: 1px solid var(--ui-edge);
+  border-radius: var(--ui-radius);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    color var(--ui-fast) var(--ui-ease),
+    border-color var(--ui-fast) var(--ui-ease),
+    box-shadow var(--ui-med) var(--ui-ease);
+}
+
+.hs-key--set,
+.hs-key--space,
+.hs-key--delete,
+.hs-key--ok {
+  font-family: var(--ui-font-display);
+  font-size: var(--ui-text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.hs-key--set {
+  text-transform: none;
+}
+
+.hs-key--ok {
+  color: #1a0f00;
+  background: linear-gradient(180deg, var(--ui-gold-bright), var(--ui-gold));
+  border-color: var(--ui-gold-bright);
+}
+
+@media (hover: hover) {
+  .hs-key:hover {
+    color: var(--ui-ink);
+    border-color: var(--ui-edge-strong);
   }
-  .highscores .hs-name {
-    max-width: 8rem;
+}
+
+.hs-key:active {
+  transform: translateY(1px);
+}
+
+/* The focus: always drawn, whichever device moved it. */
+.hs-key.is-focused {
+  color: var(--ui-ink-warm);
+  border-color: var(--ui-gold-bright);
+  background: rgba(240, 176, 72, 0.2);
+  box-shadow: 0 0 0.75rem rgba(240, 176, 72, 0.35), inset 0 0 0 1px var(--ui-gold-bright);
+}
+
+.hs-key--ok.is-focused {
+  color: #1a0f00;
+  background: linear-gradient(180deg, #fff2b0, var(--ui-gold-bright));
+}
+
+/* The keyboard's hints, or the pad's on a pad; neither on a touch screen (the grid takes taps). */
+.ui-hints.hs-hints--pad,
+:root[data-input="pad"] .ui-hints.hs-hints--keys {
+  display: none;
+}
+
+:root[data-input="pad"] .ui-hints.hs-hints--pad {
+  display: flex;
+}
+
+/* Phones: less space around the rows, the difficulty under the name. */
+@media (max-width: 480px) {
+  .hs-row {
+    grid-template-columns: 2rem 4.75rem minmax(0, 1fr);
+    gap: 0 var(--ui-space-2);
+    padding: var(--ui-space-1) var(--ui-space-2);
+  }
+
+  .hs-diff {
+    grid-column: 3;
+    justify-self: start;
+    font-size: var(--ui-text-xs);
+  }
+
+  .hs-picker {
+    gap: 2px;
+  }
+}
+
+/* Phones in landscape: the grid beside the name, so both fit without scrolling. */
+@media (max-height: 520px) and (min-width: 600px) {
+  .ui-screen--highscore-entry > .ui-panel {
+    max-width: 52rem;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+    grid-auto-rows: min-content;
+    column-gap: var(--ui-space-5);
+    align-content: start;
+    padding: var(--ui-space-3) var(--ui-space-4);
+  }
+
+  .ui-screen--highscore-entry > .ui-panel > * {
+    grid-column: 1;
+  }
+
+  .ui-screen--highscore-entry > .ui-panel > .hs-picker {
+    grid-column: 2;
+    grid-row: 1 / span 9;
+    margin-top: 0;
+  }
+
+  /* CANCEL leaves the corner (the grid is there) for the end of the left column. */
+  .ui-screen--highscore-entry > .ui-panel > .ui-back {
+    position: static;
+    order: 1;
+    justify-self: start;
+    margin-top: var(--ui-space-2);
+  }
+
+  .ui-screen--highscore-entry .ui-title__kicker {
+    padding-right: 0;
+  }
+
+  .ui-screen--highscore-entry .hs-earned {
+    display: none;
+  }
+
+  .ui-screen--highscore-entry .ui-label {
+    margin-top: var(--ui-space-2);
   }
 }
