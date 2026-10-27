@@ -616,6 +616,8 @@ export const g = {
 
   // episodes.h
   episodeNum: 1,
+  /** The episode the game was started on (menus.c episodeSelect); kept in saved games. [port-options] */
+  initial_episode_num: 1,
   bonusLevel: false,
   jumpBackToEpisode1: false,
 
@@ -691,8 +693,7 @@ export const g = {
   // --- added by episodes port ---
   /** episodes.h episodeAvail[EPISODE_MAX]: which episodes' tyrianN.lvl exist (JE_scanForEpisodes). */
   episodeAvail: new Array<boolean>(5).fill(false),
-  /** episodes.h initial_episode_num: the episode the game was started on (menus.c L385). */
-  initial_episode_num: 1,
+  // (initial_episode_num, which this port also uses, is above with the save-game fields.)
   // --- end added by episodes port ---
 };
 

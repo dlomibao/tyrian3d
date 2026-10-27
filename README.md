@@ -23,6 +23,8 @@ OpenTyrian links to, and choose or drop it on the page. It stays in your browser
 | Sidekicks | Left Ctrl, Left Alt / K, ; | LB, RB |
 | Pause | Esc / P | Start |
 
+The keys can be changed in Options.
+
 ## Status
 
 All four episodes of Tyrian 2.1 are playable, from the title screen's episode and difficulty
@@ -38,7 +40,11 @@ back to that item screen with the loadout you launched with.
   the scene). Remastered pictures can replace the originals without code changes: see
   [`src/app/pictureArt.ts`](src/app/pictureArt.ts). An episode's end shows its hint, episode 3's
   ending animation and, after the last episode, the credits, then carries on into the next episode.
-- **Not yet:** the item screen's Options menu, and arcade and two-player modes.
+- **Options:** the item screen's Options menu loads and saves games (11 slots, the last being the
+  automatic LAST LEVEL backup; Alt-S / Alt-L), and the title has Load Game and Options. Options sets
+  the music and sound volume, the music style, the keys (two per control) and checks a gamepad's
+  buttons. Saves and settings stay in this browser.
+- **Not yet:** arcade and two-player modes.
 - **Everything else:** in [Issues](../../issues) and [Milestones](../../milestones). Design calls
   made along the way are in [DECISIONS.md](DECISIONS.md).
 

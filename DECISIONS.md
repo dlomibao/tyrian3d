@@ -533,3 +533,38 @@ palette (`facepal`). Cubes the player hasn't opened this session are marked NEW.
 wheel. The C's End key wraps `yLoc` for cubes of nine lines or fewer, which scrolls the text out of
 view; here it stays at the top. If NEW isn't wanted, remove it from `dataCubes.ts`, where it
 lives.
+## D?? — Saved games and settings live in localStorage; the Options menu's setup rows open a settings screen
+
+2026-10-27
+
+**Decision:**
+- **Saves:** `src/sim/savegame.ts` ports JE_saveGame/JE_loadGame with the C's 22 slots (1-11 one
+  player, 11 being the automatic "LAST LEVEL" backup; 12-22 two players) and the fields of
+  JE_SaveFileType, stored as versioned JSON in localStorage (`tyrian3d.saves`). The slots are kept
+  in memory too, so the retry backup works without storage. The D14 backup is now
+  JE_saveGame(11)/JE_loadGame(11), taken at the same point as before (after JE_loadMap, before the
+  level starts). Loading from the item screen re-enters JE_loadMap at the C's new_game label; loading
+  from the title follows JE_loadScreen.
+- **Settings:** the volumes (tyrMusicVolume/fxVolume, 0-255, default 223 as in the C) and key
+  bindings are kept as versioned JSON (`tyrian3d.settings`); the music style stays in MusicSwitch's
+  own key. Each control has two keys (OpenTyrian's default plus the WASD/JKL set), rebound with the
+  C's swap rule; Escape, P and F11 are reserved.
+- **Options menu:** Load, Save and the Music/Sound rows are the C's menu (`game_menu.ts`). The
+  Joystick and Keyboard rows open the settings screen (`src/app/options.ts`) instead of the C's
+  in-menu MENU_JOYSTICK_CONFIG/MENU_KEYBOARD_CONFIG; the joystick part is a live button check, not
+  the C's per-button assignment, since browsers give gamepads a standard layout.
+
+**Options considered:**
+- *localStorage JSON with the C's slot layout (chosen):* readable, versioned, and the slot list and
+  LAST LEVEL behave like the original.
+- *Write the C's encrypted tyrian.sav bytes:* saves could move to and from OpenTyrian, but the format
+  carries the high-score table and editor data this port doesn't have; import/export can be added later.
+- *IndexedDB:* asynchronous, and the saves are a few kilobytes.
+- *Port KEY CONFIG and the joystick menu inside the item screen:* closer to the C's look, but the
+  title needs the same settings, and one screen serves both.
+
+**Review:** The C saves the backup after start_level_first's episode-4 difficulty decrement, so in
+episode 4 each retry lowers the difficulty one more step; the port saves before it, as D14 did. If
+that quirk should be reproduced, move the JE_saveGame call after initLevelWorld. Two-player saves
+(slots 12-22) aren't shown on the title's load screen, as there's no two-player game yet. Volumes
+now start at the C's 223, about 4 dB below the old full volume for both music and effects.

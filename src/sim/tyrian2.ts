@@ -29,6 +29,7 @@ import { mt_rand } from "./mtrand";
 import { JE_nextEpisode } from "./episodes";
 import { JE_drawTextWindow, JE_totalScore } from "./mainint";
 import { buildResources, requireFile, type TyrianFiles } from "./resources";
+import { JE_saveGame } from "./savegame"; // [port-options]
 import { windowTextSamples, V_GOOD_LUCK } from "./sndmast";
 import {
   DIFFICULTY_10,
@@ -1745,8 +1746,8 @@ const DEFAULT_SONG_BUY = 2;
  * for the host to play before the item screen and the level; the `]W` text is also kept in
  * g.levelWarningText. The end of an episode (`]Q`) yields its screens (LoadMapPause) and runs
  * JE_nextEpisode, then goes back to new_game and carries on in the next episode's first section,
- * as the C does. Not ported (no-ops, marked below): demos, saving, loading a saved game from the
- * item screen, and network sync.
+ * as the C does; a game loaded from the item screen continues there too (src/sim/savegame.ts).
+ * Not ported (no-ops, marked below): demos and network sync.
  */
 export function* JE_loadMapSteps(files: TyrianFiles): Generator<LoadMapPause, boolean, void> {
   g.lastCubeMax = g.cubeMax;
@@ -1812,8 +1813,8 @@ function* JE_loadMap_newGame(files: TyrianFiles): Generator<LoadMapPause, boolea
             // if quit itemscreen
             return false; // back to title screen
           }
-          // The end of an episode (JE_nextEpisode) gets here; so would the item screen's load-game
-          // menu, which isn't ported.
+          // goto new_game: the end of an episode (JE_nextEpisode), or a game loaded from the item screen
+          // (JE_loadGame set mainLevel and the episode). [port-options]
           return GOTO_NEW_GAME;
         }
 
@@ -1939,7 +1940,8 @@ function* JE_loadMap_newGame(files: TyrianFiles): Generator<LoadMapPause, boolea
               break; /*store savepoint*/
 
             case "b": // Explicit auto-save.  (Used before bonus games.)
-              // JE_saveGame(11, "LAST LEVEL    "): not ported.
+              // (The C picks slot 22 for two players into temp, then saves to 11 regardless.) [port-options]
+              JE_saveGame(11, "LAST LEVEL    ");
               break;
 
             case "i": // Set menu music track.

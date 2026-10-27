@@ -92,6 +92,8 @@ function waitForStart(el: HTMLElement): Promise<void> {
 export interface TitleChoice {
   episode: number;
   difficulty: number;
+  /** [port-options] A saved game was loaded (Load Game): continue it instead of starting a new one. */
+  loaded?: boolean;
 }
 
 export interface TitleOptions {
@@ -111,6 +113,11 @@ export interface TitleOptions {
   musicStyles?: string[];
   musicStyle?: string;
   onMusicStyle?: (style: string) => void;
+  /** [port-options] Load Game (JE_loadScreen): resolves true once a saved game is loaded. */
+  onLoadGame?: () => Promise<boolean>;
+  /** [port-options] Options: the settings screen; the title reads the music style back after it. */
+  onOptions?: () => Promise<void>;
+  currentMusicStyle?: () => string;
 }
 
 /** Title screen: pick an episode and difficulty (keyboard, gamepad, click or tap), then start. */
@@ -120,8 +127,9 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
     <div class="choices episodes" role="listbox" aria-label="Episode"></div>
     <div class="choices difficulty" role="radiogroup" aria-label="Difficulty"></div>
     <div class="choices music" role="radiogroup" aria-label="Music" hidden></div>
+    <div class="choices title-more" hidden></div>
     <p><span class="key">↑↓</span> episode · <span class="key">←→</span> difficulty ·
-       <span class="key">Enter</span> start<span class="music-key" hidden> · <span class="key">M</span> music</span></p>
+       <span class="key">Enter</span> start<span class="music-key" hidden> · <span class="key">M</span> music</span><span class="more-keys" hidden></span></p>
     <p><span class="key">←↑↓→</span> / <span class="key">WASD</span> move · <span class="key">Space</span> fire ·
        mouse, touch and gamepads work too</p>`);
   const episodesEl = el.querySelector<HTMLDivElement>(".episodes")!;
@@ -172,6 +180,36 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
     opts.onMusicStyle?.(styles[style]);
     render();
   };
+  // [port-options] Load Game and Options (L / O, pad Y / Back), each its own screen over the title.
+  let busy = false;
+  const moreEl = el.querySelector<HTMLDivElement>(".title-more")!;
+  const more: [label: string, key: string, run: () => Promise<void>][] = [];
+  const sub = async (fn: () => Promise<boolean | void>) => {
+    if (busy) return;
+    busy = true;
+    el.hidden = true;
+    const loaded = await fn();
+    el.hidden = false;
+    busy = false;
+    style = Math.max(0, styles.indexOf(opts.currentMusicStyle?.() ?? styles[style]));
+    render();
+    prev = null;
+    if (loaded === true) finish(true);
+  };
+  if (opts.onLoadGame) more.push(["Load Game", "L", () => sub(opts.onLoadGame!)]);
+  if (opts.onOptions) more.push(["Options", "O", () => sub(opts.onOptions!)]);
+  for (const [label, , run] of more) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = label;
+    b.addEventListener("click", () => void run());
+    moreEl.appendChild(b);
+  }
+  moreEl.hidden = more.length === 0;
+  const moreKeys = el.querySelector<HTMLSpanElement>(".more-keys")!;
+  moreKeys.innerHTML = more.map(([label, key]) => ` · <span class="key">${key}</span> ${label.toLowerCase()}`).join("");
+  moreKeys.hidden = more.length === 0;
+
   const render = () => {
     episodeButtons.forEach((b, i) => b.classList.toggle("selected", i === ep));
     difficultyButtons.forEach((b, i) => b.classList.toggle("selected", i === diff));
@@ -181,11 +219,12 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
 
   let resolveFn: (c: TitleChoice) => void = () => {};
   let raf = 0;
-  const finish = () => {
+  const finish = (loaded = false) => {
+    if (busy) return;
     window.removeEventListener("keydown", onKey);
     cancelAnimationFrame(raf);
     el.remove();
-    resolveFn({ episode: opts.episodes[ep], difficulty: opts.difficulties[diff] });
+    resolveFn({ episode: opts.episodes[ep], difficulty: opts.difficulties[diff], ...(loaded ? { loaded } : {}) });
   };
   const move = (dEp: number, dDiff: number) => {
     ep = (ep + dEp + episodeButtons.length) % episodeButtons.length;
@@ -202,10 +241,13 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
       KeyA: () => move(0, -1),
       ArrowRight: () => move(0, 1),
       KeyD: () => move(0, 1),
-      Enter: finish,
-      Space: finish,
+      Enter: () => finish(),
+      Space: () => finish(),
       ...(musicButtons.length ? { KeyM: () => setStyle(style + 1) } : {}),
+      ...(opts.onLoadGame ? { KeyL: () => void sub(opts.onLoadGame!) } : {}),
+      ...(opts.onOptions ? { KeyO: () => void sub(opts.onOptions!) } : {}),
     };
+    if (busy) return;
     const action = map[e.code];
     if (!action) return;
     e.preventDefault();
@@ -215,7 +257,8 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
   let prev: boolean[] | null = null;
   const poll = () => {
     const pad = (navigator.getGamepads?.() ?? []).find((p) => p);
-    if (pad) {
+    if (pad && busy) prev = null;
+    else if (pad) {
       const now = pad.buttons.map((b) => b.pressed);
       if (prev) {
         const pressed = (i: number) => now[i] && !prev![i];
@@ -224,6 +267,8 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
         if (pressed(14)) move(0, -1);
         if (pressed(15)) move(0, 1);
         if (pressed(0) || pressed(9)) return finish();
+        if (pressed(3) && opts.onLoadGame) void sub(opts.onLoadGame);
+        if (pressed(8) && opts.onOptions) void sub(opts.onOptions);
       }
       prev = now;
     }

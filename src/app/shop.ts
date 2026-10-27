@@ -3,9 +3,10 @@
 // file only draws that state and turns keys, pad buttons, clicks and taps into the C's inputs.
 //
 // Keys: arrows (or WASD) move and change weapon power, Enter/Space select, Escape/Backspace back,
-// '/' changes the rear gun's firing mode. Pad: d-pad, A select, B back, X firing mode. Mouse and
-// touch use the C's mouse rules: the first click on a row moves the cursor there, a second click
-// on the same row selects it.
+// '/' changes the rear gun's firing mode, Alt-S / Alt-L save and load. Pad: d-pad, A select, B
+// back, X firing mode. Mouse and touch use the C's mouse rules: the first click on a row moves the
+// cursor there, a second click on the same row selects it. The Options menu's dialogs and settings
+// screen are in options.ts.
 
 import "./shop.css";
 import { createDataCubes } from "./dataCubes";
@@ -20,7 +21,9 @@ import {
   JE_itemScreen_init,
   JE_itemScreen_key,
   JE_itemScreen_mouse,
+  JE_itemScreen_operation,
   JE_itemScreen_quitAnswer,
+  JE_itemScreen_volumeClick,
   JE_itemScreen_update,
   JE_mainMenuHelpText,
   JE_menuHeader,
@@ -36,6 +39,8 @@ import {
   type ItemScreenKey,
 } from "../sim/game_menu";
 import type { TyrianFiles } from "../sim/resources";
+import { JE_operation_saveName } from "../sim/savegame";
+import { itemScreenOptionsRow, promptSaveName, showOptions, subscreenOpen, volumeBarCells } from "./options";
 import { g, REAR_WEAPON } from "../sim/state";
 import { sectionLevelName } from "../sim/tyrian2";
 import { WeaponPreview } from "./weaponPreview";
@@ -199,9 +204,35 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
     menu.sounds.length = 0;
   };
 
+  /**
+   * [port-options] The Options menu's requests: the settings screen, and JE_operation (a load
+   * runs at once; a save asks for the name first). True while a screen of options.ts is up.
+   */
+  const optionsRequests = (): boolean => {
+    if (menu.setupRequest) {
+      const section = menu.setupRequest;
+      menu.setupRequest = null;
+      void showOptions(host, section).then(() => step());
+      return true;
+    }
+    if (menu.operationRequest) {
+      const name = menu.performSave ? JE_operation_saveName(menu.operationRequest) : null;
+      if (name === null) JE_itemScreen_operation(host.files);
+      else {
+        void promptSaveName(host, name).then((n) => {
+          JE_itemScreen_operation(host.files, n);
+          step();
+        });
+        return true;
+      }
+    }
+    return false;
+  };
+
   /** After any input: the loop's exit test, then the next iteration's update, then redraw. */
   const step = () => {
     drainSounds();
+    if (optionsRequests()) return render();
     if (JE_itemScreen_done()) {
       finish();
       return;
@@ -240,7 +271,9 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
   };
 
   const onKey = (e: KeyboardEvent) => {
-    const k = KEYMAP[e.code] ?? (e.key === "/" ? "slash" : undefined);
+    if (subscreenOpen()) return; // [port-options] options.ts has the keys
+    const quick = e.altKey && (e.code === "KeyS" || e.code === "KeyL") ? (e.code === "KeyS" ? "quickSave" : "quickLoad") : undefined;
+    const k = quick ?? KEYMAP[e.code] ?? (e.key === "/" ? "slash" : undefined);
     if (!k) return;
     e.preventDefault();
     e.stopPropagation();
@@ -249,6 +282,11 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
   window.addEventListener("keydown", onKey, true);
 
   list.addEventListener("click", (e) => {
+    const bar = (e.target as HTMLElement).closest<HTMLElement>("[data-vol-row]"); // [port-options]
+    if (bar && !menu.quitRequest) {
+      JE_itemScreen_volumeClick(Number(bar.dataset.volRow) as 4 | 5, volumeBarCells(e, bar));
+      return step();
+    }
     const row = (e.target as HTMLElement).closest<HTMLElement>("[data-sel]");
     if (row) click(Number(row.dataset.sel));
   });
@@ -279,7 +317,8 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
   const frame = (now: number) => {
     const pads = (navigator.getGamepads?.() ?? []).filter((p): p is Gamepad => !!p);
     const down = (i: number) => pads.some((p) => p.buttons[i]?.pressed);
-    if (!armed) armed = !PAD.some(([i]) => down(i));
+    if (subscreenOpen()) armed = false; // [port-options] options.ts has the pad; wait for a release after
+    else if (!armed) armed = !PAD.some(([i]) => down(i));
     else {
       for (const [i, k] of PAD) {
         if (!down(i)) {
@@ -452,7 +491,10 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
     if (e.unavailable) cls.push("off");
     if (e.done) cls.push("done");
     let inner = "";
-    if (menu.curMenu === MENU_UPGRADE_SUB && !e.done) {
+    const optionsRow = itemScreenOptionsRow(e); // [port-options] volume bars, save slots
+    if (optionsRow !== null) {
+      inner = optionsRow;
+    } else if (menu.curMenu === MENU_UPGRADE_SUB && !e.done) {
       const icon = itemIcon(menu.curSel[MENU_UPGRADES], e.item ?? 0);
       inner = `<span class="ico">${icon ? `<img src="${icon}" alt="">` : ""}</span>
         <span class="what">${esc(e.label)}<small>Cost: ${e.cost}</small></span>
