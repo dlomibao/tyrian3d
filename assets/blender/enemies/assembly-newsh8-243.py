@@ -6,7 +6,9 @@ red machine pillars set into it, each with a glowing lamp window near the top, a
 slotted lower column with a pipe, a stack of cooling fins and a foot block. The three middle
 columns repeat the same three pieces (newsh8-167 / 205 / 243) and the two pillars are the same
 three pieces (newsh8-165 / 203 / 241); newsh8-165's four frames only pulse the lamp, so one model
-covers them.
+covers them: the lamp's rim and core change colour per frame (white hot on 165, dim red on 277,
+orange on 279, yellow on 281; palette_material frames=) and a white-hot line down the middle of
+the core shows on 279 and 281 (common.frame_part).
 
 The boulders come from the sprite itself: a watershed over the shading splits the rock into
 its stones (bright tops, flooding down to the dark cracks), and each stone becomes a rounded pod
@@ -46,6 +48,11 @@ EXPORT = {
 }
 PILLARS = (24, 120)  # grid column of the pillar pieces' left edges
 GLOW = 126  # the lamp window: its frames pulse between indices 117 and 127
+# newsh8-165's lamp per frame: the window's rim, its core (columns 10-12, rows 15-22) and the rows
+# of the white-hot line down column 11 (none on 165, where the whole core is white hot).
+LAMP_RIM = {277: 117, 279: 118, 281: 122}
+LAMP_CORE = {277: 120, 279: 124, 281: 126}
+LAMP_LINE = {279: (16.6, 20.4), 281: (15.8, 22.2)}
 
 
 def Xe(c):
@@ -73,16 +80,19 @@ class Mats:
         self.mats = []
         self.slots = {}
 
-    def slot(self, index, glow=0.0):
-        key = (index, glow)
+    def slot(self, index, glow=0.0, frames=None, part=None):
+        """`frames` and `part` make an animated material (palette_material frames=), named after
+        the part."""
+        key = (index, glow, part)
         if key not in self.slots:
             if index >= 112 or index == 64:
                 kw = dict(metallic=0.35, roughness=0.4)
             else:
                 kw = dict(metallic=0.0, roughness=0.85)
-            tag = NAME + ("_glow" if glow else "")
+            tag = NAME + ("_glow" if glow else "") + (f"_{part}" if part else "")
             self.slots[key] = len(self.mats)
-            self.mats.append(common.palette_material(self.sprite, index, tag, emission_strength=glow, **kw))
+            self.mats.append(common.palette_material(self.sprite, index, tag, emission_strength=glow,
+                                                     frames=frames, **kw))
         return self.slots[key]
 
 
@@ -180,10 +190,29 @@ def pillar(bm, grid, mats, c0):
     bm.faces.ensure_lookup_table()
     paint(bm.faces[faces_from:], grid, mats, lambda v: v == 64 or 112 <= v <= 127, 64, 112)
 
-    # The lamp window (rows 14-24, columns 9-13), glowing.
-    glow = mats.slot(GLOW, glow=4.0)
+    # The lamp window (rows 14-24, columns 9-13), glowing, its rim colour pulsing with the frames.
+    glow = mats.slot(GLOW, glow=4.0, frames=LAMP_RIM)
     win = [(9.6, 14.0), (13.4, 14.0), (14.0, 14.6), (14.0, 24.4), (13.4, 25.0), (9.6, 25.0), (9.0, 24.4), (9.0, 14.6)]
     common.slab(bm, [(x(c), Ye(r)) for c, r in reversed(win)], 0.08, z=0.25, mat_index=glow)
+    # Its hotter core, just proud of the window (columns 10-12, rows 15-22).
+    core = mats.slot(127, glow=5.0, frames=LAMP_CORE, part="core")
+    common.slab(bm, [(x(c), Ye(r)) for c, r in ((9.9, 22.6), (13.1, 22.6), (13.1, 14.8), (9.9, 14.8))], 0.02,
+                z=0.295, mat_index=core)
+
+
+def lamp_lines(mats, coll, offset):
+    """newsh8-165's white-hot line down the lamp's core (column 11), one per frame that has it, in
+    the coordinates of the piece whose centre is `offset` (Blender units from the origin)."""
+    hot = mats.slot(127, glow=6.0)
+    parts = []
+    for frame, (r0, r1) in LAMP_LINE.items():
+        bm = bmesh.new()
+        c0, c1 = PILLARS[0] + 10.9, PILLARS[0] + 12.1
+        common.slab(bm, [(Xe(c) - offset[0], Ye(r) - offset[1]) for c, r in ((c0, r1), (c1, r1), (c1, r0), (c0, r0))],
+                    0.02, z=0.31, mat_index=hot)
+        obj = common.mesh_object(f"newsh8-165-lamp-{frame}", bm, mats.mats, coll, smooth=False)
+        parts.append(common.frame_part(obj, [frame]))
+    return parts
 
 
 def build(sprite, grid):
@@ -193,7 +222,7 @@ def build(sprite, grid):
     rocks(bm, grid, mats)
     for c0 in PILLARS:
         pillar(bm, grid, mats, c0)
-    return common.mesh_object(NAME, bm, mats.mats, coll, smooth=True)
+    return common.mesh_object(NAME, bm, mats.mats, coll, smooth=True), mats
 
 
 def composite_png(grid, colors, out):
@@ -210,12 +239,18 @@ def composite_png(grid, colors, out):
 def main():
     sprite = merged_sprite()
     grid = lib.assembled_grid(ROOT, sprite["assemblyLayout"], ORIGIN, GRID)
-    obj = build(sprite, grid)
+    obj, mats = build(sprite, grid)
     layout = [(name, cx - CX0, cy - CY0) for name, (cx, cy) in EXPORT.items()]
     pieces = common.split_assembly(obj, layout)
+    cx, cy = EXPORT["newsh8-165"]
+    lamp = lamp_lines(mats, obj.users_collection[0], ((cx - CX0) / 12, -(cy - CY0) / 12))
+    objects = {name: [pieces[name]] + (lamp if name == "newsh8-165" else []) for name in EXPORT}
     for name in EXPORT:
         data = common.load_sprite(ROOT, name)
-        common.export_sprite_model(ROOT, [pieces[name]], f"enemies/{name}", data["sprites"])
+        common.export_sprite_model(ROOT, objects[name], f"enemies/{name}", data["sprites"])
+    if "--frame-previews" in sys.argv:  # newsh8-165's lamp, every frame
+        common.render_frame_previews(objects["newsh8-165"], sys.argv[sys.argv.index("--frame-previews") + 1],
+                                     common.load_sprite(ROOT, "newsh8-165"), ROOT)
     if "--preview" in sys.argv:
         out = Path(sys.argv[sys.argv.index("--preview") + 1])
         import tempfile
