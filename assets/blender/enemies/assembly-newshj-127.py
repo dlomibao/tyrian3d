@@ -5,7 +5,7 @@ Seen in levels 2.2, 2.21 and 2.24. Four 2x2 ground enemies make one 72x56 px lau
 level places a second launcher without the flame piece): a fat grey launch tube aimed up and to
 the left on a grey pedestal, with a narrower breech behind it, a strut down to the ground on its
 right and a vent between them glowing red to white (newshj-129, whose three frames only change the
-glow, so one model covers them). The two lower pieces (newshj-127, newshj-129) are squares of
+glow, so one model covers them; the glow's colours step from dim red to white with its frames). The two lower pieces (newshj-127, newshj-129) are squares of
 jungle, built as a dark ground plate covered in leafy mounds.
 
 newshj-55 is the tube's muzzle: frame 55 fires a long flame (whose tip is newshj-17 frame 17),
@@ -75,6 +75,7 @@ def tube_top(c, r):
 
 
 def materials(sprite):
+    SPRITE[0] = sprite
     tag = "nshj127"
     pal = lambda i, **kw: common.palette_material(sprite, i, tag, **kw)  # noqa: E731
     return [
@@ -84,9 +85,9 @@ def materials(sprite):
         pal(6, metallic=0.5, roughness=0.45),  # 3 darker grey pedestal and vent housing
         pal(8, metallic=0.55, roughness=0.4),  # 4 mid grey breech, pedestal top
         pal(117, emission_strength=2.0),  # 5 red rocket nose
-        pal(122, emission_strength=4.0),  # 6 vent glow, upper
-        pal(127, emission_strength=5.0),  # 7 vent glow, hottest
-        pal(117, emission_strength=2.5),  # 8 vent glow, lower (shares the red)
+        pal(122, emission_strength=4.0),  # 6 was the vent glow, upper (now 22; the flame shares it)
+        pal(127, emission_strength=5.0),  # 7 was the vent glow, hottest (now 21; the flame shares it)
+        pal(117, emission_strength=2.5),  # 8 was the vent glow's lower red; now 23 (the nose keeps it)
         pal(192, metallic=0.0, roughness=0.9),  # 9 dark jungle floor
         pal(194, metallic=0.0, roughness=0.8),  # 10 leaves dark
         pal(196, metallic=0.0, roughness=0.8),  # 11 leaves mid
@@ -99,11 +100,22 @@ def materials(sprite):
         pal(116, emission_strength=2.0),  # 18 tube lights dim (frame 89)
         pal(120, emission_strength=3.0),  # 19 tube lights mid (frame 93)
         pal(12, metallic=0.6, roughness=0.25),  # 20 bright grey muzzle rim
+        # The vent glow of newshj-129 as on its frame 281 (white at the top, fading to red), dim red
+        # on frame 129 and orange-red on 279. Its own materials, so the flame and nose keep theirs.
+        vent(127, "venthot", {129: 116, 279: 121}, 5.0),  # 21 vent glow, hottest
+        vent(122, "vent", {129: 115, 279: 118}, 4.0),  # 22 vent glow, upper
+        vent(117, "ventlow", {129: 114, 279: 115}, 2.5),  # 23 vent glow, lower
     ]
 
 
-(TUBE, COLLAR, SEAM, BASE, BREECH, NOSE, VENT, VENTHOT, VENTLOW, FLOOR, LEAF0, LEAF1, LEAF2,
- FLAME0, FLAME1, FLAME2, FLAME3, LIGHT_HI, LIGHT_LO, LIGHT_MID, RIM) = range(21)
+def vent(index, part, frames, strength):
+    return common.palette_material(SPRITE[0], index, f"nshj129{part}", emission_strength=strength, frames=frames)
+
+
+SPRITE = [None]  # the merged sprite, for vent()
+
+(TUBE, COLLAR, SEAM, BASE, BREECH, NOSE, _VENT, _VENTHOT, _VENTLOW, FLOOR, LEAF0, LEAF1, LEAF2,
+ FLAME0, FLAME1, FLAME2, FLAME3, LIGHT_HI, LIGHT_LO, LIGHT_MID, RIM, VENTHOT, VENT, VENTLOW) = range(24)
 
 
 def composite_pixels():
@@ -291,6 +303,9 @@ def main():
                 f for f in data[piece]["frames"] if f["index"] == frame)
             img = ROOT / "reference" / "models" / piece / fr["image"]
             common.render_preview(objs, str(out.parent / f"{model}.png"), img, size=2)
+    if "--frames" in sys.argv:
+        common.render_frame_previews([base_p["newshj-129"]], sys.argv[sys.argv.index("--frames") + 1],
+                                     data["newshj-129"], ROOT)
 
 
 if __name__ == "__main__":
