@@ -11,6 +11,7 @@
 import * as THREE from "three";
 import type { PaletteTexture } from "./paletteTexture";
 import type { TileAtlas } from "./tileAtlas";
+import { SCREEN_HUE_PARS } from "./screenHue";
 
 export const enum FxMode {
   None = 0,
@@ -30,7 +31,9 @@ const FX_VERTEX_PARS = /* glsl */ `
 attribute float palIndex;
 attribute vec4 instFx;
 varying vec4 vPal;
+varying float vScreenWater;
 ${PALETTE_LOOKUP}
+${SCREEN_HUE_PARS}
 float fxIndex(float index, vec4 fx) {
   float lo = mod(index, 16.0);
   if (fx.x > 2.5) return fx.y;
@@ -44,8 +47,20 @@ float fxIndex(float index, vec4 fx) {
 }
 `;
 
+// The smoothies' hue changes (screenHue.ts) apply to the draw's pass height, the instance's y.
 const FX_VERTEX = /* glsl */ `
-vPal = vec4(paletteColor(fxIndex(palIndex, instFx)), instFx.w);
+vScreenWater = 0.0;
+float palFx = fxIndex(palIndex, instFx);
+#ifdef USE_INSTANCING
+  palFx = screenHueIndex(palFx, instanceMatrix[3][1], vScreenWater);
+#endif
+vPal = vec4(paletteColor(palFx), instFx.w);
+`;
+
+/** Marks water_filter's pixels in the screen filters' render target (opaque materials only). */
+export const WATER_ALPHA = /* glsl */ `
+#include <opaque_fragment>
+if (vScreenWater > 0.5) gl_FragColor.a = 0.5;
 `;
 
 const PAL_FRAGMENT = /* glsl */ `
@@ -75,12 +90,14 @@ export function paletteMaterial(palette: PaletteTexture, opts: PaletteMaterialOp
     : new THREE.MeshBasicMaterial(params);
   material.onBeforeCompile = (shader) => {
     shader.uniforms.paletteMap = { value: palette.texture };
+    Object.assign(shader.uniforms, palette.screenHue.uniforms);
     shader.vertexShader = shader.vertexShader
       .replace("#include <common>", `#include <common>\n${FX_VERTEX_PARS}`)
       .replace("#include <begin_vertex>", `#include <begin_vertex>\n${FX_VERTEX}`);
     shader.fragmentShader = shader.fragmentShader
-      .replace("#include <common>", "#include <common>\nvarying vec4 vPal;")
+      .replace("#include <common>", "#include <common>\nvarying vec4 vPal;\nvarying float vScreenWater;")
       .replace("#include <color_fragment>", PAL_FRAGMENT);
+    if (!opts.transparent) shader.fragmentShader = shader.fragmentShader.replace("#include <opaque_fragment>", WATER_ALPHA);
     if (opts.lit && opts.glow) {
       shader.uniforms.glow = { value: opts.glow };
       shader.fragmentShader = shader.fragmentShader
@@ -102,6 +119,7 @@ export function groundTileMaterial(palette: PaletteTexture, atlas: TileAtlas): T
   });
   material.onBeforeCompile = (shader) => {
     shader.uniforms.paletteMap = { value: palette.texture };
+    Object.assign(shader.uniforms, palette.screenHue.uniforms);
     shader.uniforms.atlasMap = { value: atlas.texture };
     shader.uniforms.tileUv = { value: atlas.tileUv };
     shader.vertexShader = shader.vertexShader
@@ -111,16 +129,21 @@ export function groundTileMaterial(palette: PaletteTexture, atlas: TileAtlas): T
       )
       .replace("#include <begin_vertex>", "#include <begin_vertex>\nvTileOrigin = instTile.xy;\nvAtlasUv = instTile.xy + tileUvIn * tileUv;");
     shader.fragmentShader = shader.fragmentShader
-      .replace("#include <common>", `#include <common>\nuniform sampler2D atlasMap;\nuniform vec2 tileUv;\nvarying vec2 vAtlasUv;\nvarying vec2 vTileOrigin;\n${PALETTE_LOOKUP}`)
+      .replace(
+        "#include <common>",
+        `#include <common>\nuniform sampler2D atlasMap;\nuniform vec2 tileUv;\nvarying vec2 vAtlasUv;\nvarying vec2 vTileOrigin;\n${PALETTE_LOOKUP}\n${SCREEN_HUE_PARS}\nfloat vScreenWater = 0.0;`,
+      )
       .replace(
         "#include <color_fragment>",
         [
           // Stay inside this tile's texels so neighbours in the atlas never bleed in at the seams.
           "vec2 halfTexel = vec2(0.5 / float(textureSize(atlasMap, 0).x));",
           "vec2 atlasUv = clamp(vAtlasUv, vTileOrigin + halfTexel, vTileOrigin + tileUv - halfTexel);",
-          "diffuseColor.rgb *= paletteColor(floor(texture2D(atlasMap, atlasUv).r * 255.0 + 0.5));",
+          // The ground is background 1, under every smoothie (screenHue.ts): height 0.
+          "diffuseColor.rgb *= paletteColor(screenHueIndex(floor(texture2D(atlasMap, atlasUv).r * 255.0 + 0.5), 0.0, vScreenWater));",
         ].join("\n"),
-      );
+      )
+      .replace("#include <opaque_fragment>", WATER_ALPHA);
   };
   material.customProgramCacheKey = () => "palette-ground-tiles";
   return material;

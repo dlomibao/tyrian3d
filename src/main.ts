@@ -33,6 +33,7 @@ function startGame(): void {
   const debug = new URLSearchParams(location.search).get("debug");
 
   view.draws.setSpriteModels(spriteModels(), loadModel);
+  view.draws.setBackgroundStyle(settings.background); // D34
   loadModel("usp_talon")
     .then((model) => view.setShipModel(model))
     .catch((err) => console.error("player ship model failed to load; keeping placeholder", err));
@@ -42,12 +43,28 @@ function startGame(): void {
     import("./debug/modelGallery")
       .then(({ runModelGallery }) => runModelGallery(view))
       .catch((err) => console.error("model gallery failed", err));
+  } else if (debug === "play") {
+    // A real level played by the test bot, for weapons and effects (src/debug/playHarness.ts).
+    import("./debug/playHarness")
+      .then(({ runPlayHarness }) => runPlayHarness(view))
+      .catch((err) => console.error("play harness failed", err));
   } else if (debug === "sprites") {
     // Renderer test bench on real game data, without the sim. Loaded on demand so it stays out of
     // the main bundle.
     import("./debug/spriteHarness")
       .then(({ runSpriteHarness }) => runSpriteHarness(view))
       .catch((err) => console.error("sprite harness failed", err));
+  } else if (debug === "level") {
+    // One level with a chosen loadout (src/debug/levelHarness.ts), on demand like the others.
+    import("./debug/levelHarness")
+      .then(({ runLevelHarness }) => runLevelHarness(view))
+      .catch((err) => console.error("level harness failed", err));
+  } else if (new URLSearchParams(location.search).has("destruct")) {
+    // Destruct, the hidden artillery game (src/destruct/), straight away.
+    ui.attachBackdrop(new Backdrop(view.renderer));
+    import("./destruct/debug")
+      .then(({ runDestructDebug }) => runDestructDebug(view))
+      .catch((err) => console.error("destruct failed", err));
   } else {
     // ui-framework: the menus' 3D backdrop draws with the view's renderer whenever a screen is up
     // (src/ui/backdrop.ts); during levels no screen is, and the game draws.

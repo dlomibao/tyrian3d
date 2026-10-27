@@ -8,6 +8,8 @@
 // Coordinates are the original's 320x200 VGA screen pixels, x right and y down, for the top-left of
 // the sprite, exactly as passed to the C blit.
 
+import type { ScreenFilters } from "./smoothies";
+
 /** A Sprite2 sheet (OpenTyrian Sprite2_array): u16 offset table then RLE data (src/sprite.c). */
 export interface Sprite2Sheet {
   /** Stable name for caching meshes, e.g. "tyrian.shp#8" or "newsh1.shp". */
@@ -141,9 +143,11 @@ export interface DrawList {
   /** JE_filterScreen state: levelFilter (-99 = off) and levelBrightness. */
   filter: number;
   brightness: number;
+  /** The smoothies, headlight, flip and JE_barBright of this tick, or null (src/sim/smoothies.ts). */
+  screen: ScreenFilters | null;
 }
 
-export const drawList: DrawList = { items: [], palette: 0, filter: -99, brightness: 0 };
+export const drawList: DrawList = { items: [], palette: 0, filter: -99, brightness: 0, screen: null };
 
 /** The pass and key that the next blits record. Set by the sim around each draw section. */
 export const drawState = { pass: Pass.Background1 as Pass, key: -1 };

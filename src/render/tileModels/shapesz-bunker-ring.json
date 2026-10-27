@@ -1,0 +1,15 @@
+{
+ "model": "tiles/shapesz/bunker-ring",
+ "shapes": "shapesz.dat",
+ "layer": 0,
+ "tiles": [
+  [
+   320,
+   321
+  ],
+  [
+   330,
+   331
+  ]
+ ]
+}

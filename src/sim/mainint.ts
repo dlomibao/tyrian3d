@@ -26,7 +26,8 @@ import {
   drawState,
   type Sprite2Sheet,
 } from "./draw";
-import { simInput } from "./input";
+import { playDemoKeys } from "./demo"; // [demos]
+import { playerInput } from "./input";
 import { mt_rand } from "./mtrand";
 import { calc_purple_balls_needed, copyPlayerItems, handle_got_purple_ball, point_lives_at_weapon_power, power_up_weapon } from "./player";
 import {
@@ -293,7 +294,7 @@ function blitShipHalves(x: number, y: number, sheet: Sprite2Sheet, left: number,
 /**
  * mainint.c L3270-4403: input, movement, firing, sidekicks and drawing for one player.
  * `mouseX_`/`mouseY_` in the C always point at this_player->mouseX/mouseY, so the port uses
- * those fields directly. Input comes from simInput (src/sim/input.ts).
+ * those fields directly. Input comes from the player's SimInput (playerInput, src/sim/input.ts).
  */
 export function JE_playerMovement(
   this_player: Player,
@@ -306,6 +307,8 @@ export function JE_playerMovement(
   const button = g.button;
   const savedKey = drawState.key;
   const sheet = shipGrPtr_ as Sprite2Sheet;
+  // [two-player] this player's own devices (src/sim/input.ts)
+  const simInput = playerInput(playerNum_, g.twoPlayerMode, g.galagaMode);
 
   let mouseXC: number, mouseYC: number; // JE_integer
   let accelXC: number, accelYC: number;
@@ -430,7 +433,13 @@ export function JE_playerMovement(
       } else {
         if (g.playDemo || g.recordDemo) inputDevice = 1; // keyboard is required device for demo recording
 
-        // demo playback input: not ported (playDemoKeys)
+        // demo playback input
+        if (g.playDemo) {
+          if (!playDemoKeys()) {
+            g.endLevel = true;
+            g.levelEnd = 40;
+          }
+        }
 
         /* joystick input */
         // The host folds a gamepad's d-pad and buttons into simInput's keys (the C's digital
@@ -438,6 +447,11 @@ export function JE_playerMovement(
         if (inputDevice === 0 || inputDevice >= 3) {
           mouseXC += simInput.analogX;
           mouseYC += simInput.analogY;
+          // [two-player] link_gun_analog = joystick_analog_angle(j, &link_gun_angle)
+          if (simInput.analogAngle !== null) {
+            link_gun_analog = true;
+            link_gun_angle = simInput.analogAngle;
+          }
         }
 
         /* mouse input */

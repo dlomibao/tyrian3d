@@ -1,0 +1,10 @@
+{
+ "model": "tiles/shapesz/t220",
+ "shapes": "shapesz.dat",
+ "layer": 0,
+ "tiles": [
+  [
+   220
+  ]
+ ]
+}

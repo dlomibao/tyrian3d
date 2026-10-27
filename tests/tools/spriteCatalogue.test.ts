@@ -231,7 +231,7 @@ describe.skipIf(!OUT || !hasData("levels1.dat", "tyrian1.lvl", "palette.dat", "t
 
   interface Model {
     name: string;
-    sprites: { sheet: string; size: 1 | 2; frames: number[]; bank?: { step: number; max: number } }[];
+    sprites: { sheet: string; size: 1 | 2; frames: number[]; bank?: { step: number; max: number }; group?: boolean }[];
     kind: "ship" | "air" | "ground";
     ticks: number;
     levels: string[];
@@ -366,6 +366,29 @@ describe.skipIf(!OUT || !hasData("levels1.dat", "tyrian1.lvl", "palette.dat", "t
         pictures: frames.map((index) => ({ sheet: shipSheet.id, size: 2 as const, index, pic: compose(shipSheet.data, 2, index) })),
       });
     }
+  }
+
+  // [two-player] The dragonwing: player 2's ship in a two-player game (shipGr2 == 0), drawn as two
+  // 24x28 halves side by side, 13 and 51, each with banking frames at + bank * 2
+  // (JE_playerMovement's shipGr_ == 0 case, blitShipHalves); one model replaces the group.
+  if (shipSheet) {
+    const pictures = [-2, -1, 0, 1, 2].map((b) => {
+      const pic = new Int16Array(48 * 28).fill(-1);
+      [13, 51].forEach((index, half) => {
+        const p = compose(shipSheet.data, 2, index + b * 2);
+        for (let y = 0; y < 28; y++) for (let x = 0; x < 24; x++) pic[y * 48 + half * 24 + x] = p[y * 24 + x];
+      });
+      return { sheet: shipSheet.id, size: 2 as const, index: 13 + b * 2, pic, w: 48, h: 28 };
+    });
+    models.push({
+      name: "ship-dragonwing",
+      sprites: [{ sheet: shipSheet.id, size: 2, frames: [13], bank: { step: 2, max: 2 }, group: true }],
+      kind: "ship",
+      ticks: Number.MAX_SAFE_INTEGER,
+      levels: [],
+      palette: 5,
+      pictures,
+    });
   }
 
   const order = { ship: 0, air: 1, ground: 2 };

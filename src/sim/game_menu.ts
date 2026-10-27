@@ -17,14 +17,15 @@
 // Ported: the full-game menu, Upgrade Ship and its submenus (prices, trade-in, weapon power
 // up/downgrades, the rear weapon's firing mode), Play Next Level (the navigation choices and
 // JE_computeDots), Data Cubes (the list and the reader; the cubes themselves and the reader's
-// scrolling are in cubes.ts), Quit, and the arcade/Super Tyrian menus' "play next level" and quit.
+// scrolling are in cubes.ts), Quit, and the one-player arcade, two-player arcade and Super Tyrian
+// menus (the two-player menu's input rows ask the host, menu.inputRequest).
 // Options (load and save game, the music and sound volumes, Alt-S/Alt-L quick save and load); its
 // Joystick and Keyboard rows ask the host for its settings screen (menu.setupRequest) instead of
 // the C's in-menu MENU_JOYSTICK_CONFIG/MENU_KEYBOARD_CONFIG, and JE_operation (load or save a slot)
 // is the host's to run (menu.operationRequest), since saving asks for a name.
 // The weapon simulator (JE_initWeaponView/JE_weaponSimUpdate) is in weaponSim.ts, which the host
 // runs beside this state (src/app/weaponPreview.ts).
-// Not ported (no-ops): the arcade menus' Options rows, network play, and drawing.
+// Not ported (no-ops): network play, and drawing.
 
 import { u8 } from "./cint";
 import { cube, cubeReader_open } from "./cubes";
@@ -114,6 +115,11 @@ export const menu = {
   operationRequest: 0,
   /** The Options menu's Joystick or Keyboard row: the host shows its settings screen there. */
   setupRequest: null as "joystick" | "keyboard" | null,
+  /**
+   * [two-player] The 2 Player Arcade menu's "Player 1 Input" / "Player 2 Input" row (0 or 1): the
+   * host changes that player's devices, as the C cycles inputDevice[] (DECISIONS.md D28).
+   */
+  inputRequest: null as 0 | 1 | null,
 };
 
 /** JE_playSampleNum: queued for the host. */
@@ -725,11 +731,34 @@ export function JE_menuFunction(select: number): void {
       menu.curMenu = MENU_DATA_CUBES;
       break;
 
+    // [two-player] game_menu.c L2802-2835
     case MENU_2_PLAYER_ARCADE:
+      switch (curSel[menu.curMenu]) {
+        case 2:
+          g.mainLevel = u8(g.mapSection[g.mapPNum - 1]);
+          g.jumpSection = true;
+          break;
+        case 3:
+        case 4:
+          // The C cycles inputDevice[curSel - 3] through keyboard, mouse and joysticks, swapping
+          // with the other player's; here each player has their own devices and the host cycles
+          // the gamepad they use.
+          JE_playSampleNum(S_CURSOR);
+          menu.inputRequest = curSel[menu.curMenu] === 3 ? 0 : 1;
+          break;
+        case 5:
+          menu.curMenu = MENU_OPTIONS;
+          break;
+        case 6:
+          menu.quitRequest = true; // JE_quitRequest
+          break;
+      }
+      break;
+
     case MENU_1_PLAYER_ARCADE:
     case MENU_SUPER_TYRIAN: {
-      // The "play next level" and quit choices; the others (options, input devices, ship specs) aren't ported.
-      const quitChoice = menu.curMenu === MENU_2_PLAYER_ARCADE ? 6 : menu.curMenu === MENU_1_PLAYER_ARCADE ? 4 : 5;
+      // Play next level, Options, Ship Specs (Super Tyrian) and Quit (game_menu.c L2836-2850, L2948-2972).
+      const quitChoice = menu.curMenu === MENU_1_PLAYER_ARCADE ? 4 : 5;
       if (curSel[menu.curMenu] === 2) {
         g.mainLevel = u8(g.mapSection[g.mapPNum - 1]);
         g.jumpSection = true;
@@ -738,6 +767,12 @@ export function JE_menuFunction(select: number): void {
       } else if (menu.curMenu === MENU_SUPER_TYRIAN && curSel[menu.curMenu] === 3) {
         menu.shipSpecsRequest = true;
         JE_playSampleNum(S_SPRING);
+      } else if (
+        // [arcade] Options (game_menu.c L2843-2846, L2967-2969; isNetworkGame's MENU_LIMITED_OPTIONS isn't ported)
+        (menu.curMenu === MENU_1_PLAYER_ARCADE && curSel[menu.curMenu] === 3) ||
+        (menu.curMenu === MENU_SUPER_TYRIAN && curSel[menu.curMenu] === 4)
+      ) {
+        menu.curMenu = MENU_OPTIONS;
       }
       break;
     }
@@ -834,6 +869,8 @@ export interface ItemScreenEntry {
   volume?: number;
   /** [port-options] The load/save menu's rows: the save slot. */
   saveSlot?: SaveSlotView;
+  /** [two-player] The 2 Player Arcade menu's input rows: whose devices the row shows (0 or 1). */
+  inputPlayer?: 0 | 1;
 }
 
 /** An item's name as the submenu shows it (game_menu.c L640-662). itemType is the Upgrade Ship choice (2..8). */
@@ -916,9 +953,7 @@ export function itemScreenEntries(): ItemScreenEntry[] {
     if (curMenu === MENU_OPTIONS && x === 8) entry.done = true;
     if (curMenu === MENU_UPGRADES && x === 9) entry.done = true;
     if (curMenu === MENU_PLAY_NEXT_LEVEL && x === menuChoices[curMenu]) entry.done = true;
-    if (curMenu === MENU_1_PLAYER_ARCADE && x === 3) entry.unavailable = true;
-    if (curMenu === MENU_2_PLAYER_ARCADE && (x === 3 || x === 4 || x === 5)) entry.unavailable = true;
-    if (curMenu === MENU_SUPER_TYRIAN && x === 4) entry.unavailable = true;
+    if (curMenu === MENU_2_PLAYER_ARCADE && (x === 3 || x === 4)) entry.inputPlayer = x === 3 ? 0 : 1; // [two-player]
     out.push(entry);
   }
   return out;

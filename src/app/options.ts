@@ -1,5 +1,5 @@
 // The screens around the Options menu, on the interface framework (src/ui/README.md):
-//   showOptions      the settings screen: music and sound volume, music style, the keyboard
+//   showOptions      the settings screen: music and sound volume, music and sound style, the keyboard
 //                    bindings and a gamepad button check. The title's Options entry opens it, and
 //                    so do the item screen's Joystick and Keyboard rows (the C's MENU_JOYSTICK_CONFIG
 //                    and MENU_KEYBOARD_CONFIG, game_menu.c L386-440, L2668-2745).
@@ -21,7 +21,7 @@ import { S_CLICK, S_CLINK, S_CURSOR, S_SELECT, S_SPRING } from "../sim/sndmast";
 import { g } from "../sim/state";
 import { JE_changeVolume, set_volume, volume, volumeFromBarCells, VOLUME_STEP } from "../sim/volume";
 import { backButton, button, h, keyHints, MenuList, moveFocus, reveal, showScreen, title, type InputDevice, type Intent, type KeyHint } from "../ui";
-import { ACTIONS, BINDING_SLOTS, bindKey, clearKey, keyName, keys, resetKeys, type Action } from "./bindings";
+import { ACTIONS, BINDING_SLOTS, bindKey, clearKey, keyName, playerKeys, resetKeys, type Action, type PlayerIndex } from "./bindings";
 import { savePrefs } from "./prefs";
 
 export interface OptionsHost {
@@ -29,6 +29,9 @@ export interface OptionsHost {
   /** The music; a MusicSwitch also offers its styles (local remaster packs). */
   music: MusicPlayer & { readonly styles?: readonly string[]; readonly style?: string; setStyle?(style: string): void };
 }
+
+/** Which style a style row switches: the music's or the sound effects' (local remaster packs). */
+export type StyleTarget = "music" | "sound";
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
 /** Tyrian's text toggles a highlight with '~' (JE_textShade / JE_helpBox). */
@@ -128,9 +131,9 @@ export function itemScreenOptionsRow(e: ItemScreenEntry): string | null {
 
 export type OptionsRow =
   | { kind: "volume"; which: "music" | "sound"; label: string }
-  | { kind: "style"; label: string }
-  | { kind: "key"; action: Action; label: string }
-  | { kind: "reset"; label: string }
+  | { kind: "style"; which: StyleTarget; label: string }
+  | { kind: "key"; action: Action; label: string; player: PlayerIndex }
+  | { kind: "reset"; label: string; player: PlayerIndex }
   | { kind: "pad"; label: string }
   | { kind: "done"; label: string };
 
@@ -139,16 +142,20 @@ export type OptionsFocus = "sound" | "keyboard" | "joystick";
 const styleName = (s: string) => `${s[0].toUpperCase()}${s.slice(1)}`;
 
 /** The settings screen's rows, labelled from the game's menu text where it has them. */
-export function optionsRows(styles: readonly string[]): OptionsRow[] {
+export function optionsRows(styles: readonly string[], soundStyles: readonly string[] = []): OptionsRow[] {
   const opt = g.menuInt[3] ?? []; // Options, Load, Save, Music, Sound, Joystick, Keyboard, Done
   const keyMenu = g.menuInt[6] ?? []; // KEY CONFIG, UP ... RIGHT SIDEKICK, Reset to Defaults, Done
   const actionLabels = ["Up", "Down", "Left", "Right", "Fire", "Change fire", "Left sidekick", "Right sidekick"];
   return [
     { kind: "volume", which: "music", label: opt[3] || "Music" },
     { kind: "volume", which: "sound", label: opt[4] || "Sound" },
-    ...(styles.length > 1 ? [{ kind: "style" as const, label: "Music style" }] : []),
-    ...ACTIONS.map((action, i) => ({ kind: "key" as const, action, label: keyMenu[i + 1] || actionLabels[i] })),
-    { kind: "reset", label: keyMenu[9] || "Reset to Defaults" },
+    ...(styles.length > 1 ? [{ kind: "style" as const, which: "music" as const, label: "Music style" }] : []),
+    ...(soundStyles.length > 1 ? [{ kind: "style" as const, which: "sound" as const, label: "Sound style" }] : []),
+    // [two-player] player 1's (and the one-player game's) keys, then player 2's
+    ...([0, 1] as const).flatMap((player) => [
+      ...ACTIONS.map((action, i) => ({ kind: "key" as const, action, label: keyMenu[i + 1] || actionLabels[i], player })),
+      { kind: "reset" as const, label: keyMenu[9] || "Reset to Defaults", player },
+    ]),
     { kind: "pad", label: "Check gamepad buttons" },
     { kind: "done", label: keyMenu[10] || "Done" },
   ];
@@ -161,6 +168,10 @@ export interface SettingsHost {
   styles: readonly string[];
   style(): string | undefined;
   setStyle(style: string): void;
+  /** The sound-effect styles to choose from (local remaster packs), and the one in use. */
+  soundStyles?: readonly string[];
+  soundStyle?(): string | undefined;
+  setSoundStyle?(style: string): void;
   /** Leave the settings screen. */
   close(): void;
 }
@@ -219,7 +230,7 @@ export class SettingsMenu {
       case "right": {
         const dir = intent === "left" ? -1 : 1;
         if (r.kind === "volume") this.changeVolume(r.which, dir);
-        else if (r.kind === "style") this.changeStyle(dir);
+        else if (r.kind === "style") this.changeStyle(r.which, dir);
         else if (r.kind === "key") {
           this.col = (this.col + dir + BINDING_SLOTS) % BINDING_SLOTS;
           sound(S_CURSOR);
@@ -247,7 +258,7 @@ export class SettingsMenu {
     }
     const r = this.row;
     if (!this.checking && r.kind === "key" && (code === "Delete" || code === "Backspace")) {
-      clearKey(r.action, this.col);
+      clearKey(r.action, this.col, r.player);
       savePrefs();
       this.host.sound(S_CLICK);
       return true;
@@ -260,7 +271,7 @@ export class SettingsMenu {
     const sound = this.host.sound;
     switch (this.row.kind) {
       case "style":
-        this.changeStyle(1);
+        this.changeStyle(this.row.kind === "style" ? this.row.which : "music", 1);
         break;
       case "key":
         sound(S_CLICK);
@@ -268,7 +279,7 @@ export class SettingsMenu {
         break;
       case "reset":
         sound(S_CLICK);
-        resetKeys();
+        resetKeys(this.row.player);
         savePrefs();
         break;
       case "pad":
@@ -284,7 +295,7 @@ export class SettingsMenu {
   }
 
   /**
-   * A tap or click on row `i`, on one of its key slots or music styles if `part` says so. A tap
+   * A tap or click on row `i`, on one of its key slots or styles if `part` says so. A tap
    * while a key is awaited or the gamepad is checked only cancels that, as a click does in the C.
    */
   tap(i: number, part: { slot?: number; style?: string } = {}): void {
@@ -292,7 +303,7 @@ export class SettingsMenu {
     this.cur = i;
     const r = this.row;
     if (part.style !== undefined && r.kind === "style") {
-      this.host.setStyle(part.style);
+      this.styleOf(r.which).set(part.style);
       this.host.sound(S_CURSOR);
     } else if (part.slot !== undefined && r.kind === "key") {
       this.col = part.slot;
@@ -340,8 +351,12 @@ export class SettingsMenu {
     if (this.capturing) return g.miscText[32] || "Press the key to use for this function.";
     switch (this.row.kind) {
       case "volume": return g.mainMenuHelp[15 - 1] ?? "";
-      case "style": return "Change the music with the left/right arrow keys.";
-      case "key": return `${g.mainMenuHelp[20 - 1] ?? ""} Left/right picks the first or second key; Delete clears it.`;
+      case "style": return `Change the ${this.row.which === "sound" ? "sound effects and voices" : "music"} with the left/right arrow keys.`;
+      case "key":
+        return (
+          `${g.mainMenuHelp[20 - 1] ?? ""} Left/right picks the first or second key; Delete clears it.` +
+          (this.row.player === 1 ? " In a two-player game, player 2's keys win over player 1's." : "")
+        );
       case "reset": return g.mainMenuHelp[25 - 1] ?? "";
       case "pad": return "See which gamepad buttons the game reads, and what they do.";
       case "done": return g.mainMenuHelp[12 - 1] ?? "";
@@ -353,10 +368,19 @@ export class SettingsMenu {
     JE_changeVolume(which === "music" ? dir * VOLUME_STEP : 0, which === "sound" ? dir * VOLUME_STEP : 0, this.host.sound);
   }
 
-  private changeStyle(dir: number): void {
-    const styles = this.host.styles;
-    const i = styles.indexOf(this.host.style() ?? "original");
-    this.host.setStyle(styles[(i + dir + styles.length) % styles.length]);
+  /** The music's or the sound effects' styles, the one in use, and how to switch. */
+  private styleOf(which: StyleTarget): { styles: readonly string[]; current: string; set(style: string): void } {
+    const h = this.host;
+    return which === "sound"
+      ? { styles: h.soundStyles ?? [], current: h.soundStyle?.() ?? "original", set: (s) => h.setSoundStyle?.(s) }
+      : { styles: h.styles, current: h.style() ?? "original", set: (s) => h.setStyle(s) };
+  }
+
+  private changeStyle(which: StyleTarget, dir: number): void {
+    const { styles, current, set } = this.styleOf(which);
+    if (!styles.length) return;
+    const i = styles.indexOf(current);
+    set(styles[(i + dir + styles.length) % styles.length]);
     this.host.sound(S_CURSOR);
   }
 
@@ -365,7 +389,7 @@ export class SettingsMenu {
     const r = this.row;
     this.capturing = false;
     if (code === "Escape") this.host.sound(S_SPRING);
-    else if (r.kind === "key" && bindKey(r.action, this.col, code)) {
+    else if (r.kind === "key" && bindKey(r.action, this.col, code, r.player)) {
       this.host.sound(S_CLICK);
       savePrefs();
     } else this.host.sound(S_CLINK);
@@ -382,6 +406,7 @@ export class SettingsMenu {
 export function showOptions(host: OptionsHost, focus: OptionsFocus = "sound"): Promise<void> {
   return new Promise((resolve) => {
     const styles = host.music.styles ?? [];
+    const soundStyles = host.sfx.styles ?? [];
     const sound = (n: number) => host.sfx.playSampleNum(n);
     let raf = 0;
     const finish = () => {
@@ -390,11 +415,14 @@ export function showOptions(host: OptionsHost, focus: OptionsFocus = "sound"): P
       screen.close();
       resolve();
     };
-    const menu = new SettingsMenu(optionsRows(styles), focus, {
+    const menu = new SettingsMenu(optionsRows(styles, soundStyles), focus, {
       sound,
       styles,
       style: () => host.music.style,
       setStyle: (s) => host.music.setStyle?.(s),
+      soundStyles,
+      soundStyle: () => host.sfx.style,
+      setSoundStyle: (s) => host.sfx.setStyle(s),
       close: finish,
     });
     const rows = menu.rows;
@@ -417,10 +445,12 @@ export function showOptions(host: OptionsHost, focus: OptionsFocus = "sound"): P
       },
     });
 
-    // The rows, in sections: Sound, Keyboard (the C's KEY CONFIG), Gamepad, then Done.
+    // The rows, in sections: Sound, Keyboard (the C's KEY CONFIG), player 2's keyboard, Gamepad, then Done.
     const keyMenu = g.menuInt[6] ?? [];
-    const sectionOf = (r: OptionsRow) => (r.kind === "volume" || r.kind === "style" ? 0 : r.kind === "key" || r.kind === "reset" ? 1 : r.kind === "pad" ? 2 : 3);
-    const sectionTitles = ["Sound", keyMenu[0] ? styleName(keyMenu[0].toLowerCase()) : "Keyboard", (g.menuInt[13] ?? [])[0] || "Gamepad", ""];
+    const sectionOf = (r: OptionsRow) =>
+      r.kind === "volume" || r.kind === "style" ? 0 : r.kind === "key" || r.kind === "reset" ? 1 + r.player : r.kind === "pad" ? 3 : 4;
+    const keyboard = keyMenu[0] ? styleName(keyMenu[0].toLowerCase()) : "Keyboard";
+    const sectionTitles = ["Sound", keyboard, `${keyboard} · ${g.miscText[49]?.trim() || "Player 2"}`, (g.menuInt[13] ?? [])[0] || "Gamepad", ""];
     const list = h("ul", { class: "ui-menu opt-list", attrs: { role: "listbox", "aria-label": "Settings" } });
     const rowEls: HTMLLIElement[] = [];
     let section = -1;
@@ -433,7 +463,7 @@ export function showOptions(host: OptionsHost, focus: OptionsFocus = "sound"): P
       const li = h("li", { class: `ui-menu__item opt-row opt-row--${r.kind}`, attrs: { role: "option", "data-i": String(i) } }, h("span", { class: "ui-menu__label opt-row__label", text: r.label }));
       if (r.kind === "volume") li.insertAdjacentHTML("beforeend", volumeSliderHtml(0, r.which, r.label));
       if (r.kind === "style") {
-        li.append(h("span", { class: "opt-styles" }, ...styles.map((st) => h("button", { class: "opt-chip", text: styleName(st), attrs: { type: "button", tabindex: "-1", "data-style": st } }))));
+        li.append(h("span", { class: "opt-styles" }, ...(r.which === "sound" ? soundStyles : styles).map((st) => h("button", { class: "opt-chip", text: styleName(st), attrs: { type: "button", tabindex: "-1", "data-style": st } }))));
       }
       if (r.kind === "key") {
         li.append(
@@ -459,7 +489,7 @@ export function showOptions(host: OptionsHost, focus: OptionsFocus = "sound"): P
       const kind = menu.row.kind;
       const side: Partial<Record<OptionsRow["kind"], KeyHint>> = {
         volume: { key: "←→", pad: "✛", touch: "Drag", label: "Volume" },
-        style: { key: "←→", pad: "✛", label: "Music" },
+        style: { key: "←→", pad: "✛", label: menu.row.kind === "style" && menu.row.which === "sound" ? "Sound" : "Music" },
         key: { key: "←→", pad: "✛", label: "Key slot" },
       };
       return [
@@ -480,10 +510,13 @@ export function showOptions(host: OptionsHost, focus: OptionsFocus = "sound"): P
         li.classList.toggle("is-focused", focused);
         li.setAttribute("aria-selected", String(focused));
         if (r.kind === "volume") setVolumeSlider(li.querySelector<HTMLElement>(".opt-vol")!, r.which === "music" ? volume.tyrMusicVolume : volume.fxVolume);
-        if (r.kind === "style") li.querySelectorAll<HTMLElement>("[data-style]").forEach((b) => b.classList.toggle("is-on", b.dataset.style === host.music.style));
+        if (r.kind === "style") {
+          const on = r.which === "sound" ? host.sfx.style : host.music.style;
+          li.querySelectorAll<HTMLElement>("[data-style]").forEach((b) => b.classList.toggle("is-on", b.dataset.style === on));
+        }
         if (r.kind === "key") {
           li.querySelectorAll<HTMLElement>("[data-slot]").forEach((b, slot) => {
-            const code = keys[r.action][slot];
+            const code = playerKeys(r.player)[r.action][slot];
             const sel = focused && slot === menu.col;
             const wait = sel && menu.capturing;
             b.textContent = wait ? "…" : keyName(code);
@@ -496,7 +529,8 @@ export function showOptions(host: OptionsHost, focus: OptionsFocus = "sound"): P
       list.hidden = menu.checking; // the check takes the list's place
       padEl.hidden = !menu.checking;
       help.innerHTML = highlight(menu.helpText());
-      const id = `${menu.checking} ${menu.capturing} ${menu.row.kind}`;
+      const r = menu.row;
+      const id = `${menu.checking} ${menu.capturing} ${r.kind} ${r.kind === "style" ? r.which : ""}`;
       if (id !== hintsId) {
         hintsId = id;
         hints.replaceChildren(keyHints(hintsFor()));
@@ -505,7 +539,7 @@ export function showOptions(host: OptionsHost, focus: OptionsFocus = "sound"): P
     };
 
     // Taps and clicks: a row focuses (and does what Enter would, except on volume and key rows);
-    // a key slot waits for its key; a music style plays it. Volume bars take a tap or a drag.
+    // a key slot waits for its key; a music or sound style switches to it. Volume bars take a tap or a drag.
     list.addEventListener("click", (e) => {
       const t = e.target as HTMLElement;
       const rowEl = t.closest<HTMLElement>("[data-i]");
@@ -583,14 +617,16 @@ export function showOptions(host: OptionsHost, focus: OptionsFocus = "sound"): P
 // --- JE_loadScreen ---
 
 /**
- * JE_loadScreen (mainint.c L619-901): the one-player saved games. Resolves with the slot the
- * player picks (the caller loads it: JE_operation), or null for "Exit to Main Menu" / Escape. An
- * empty slot clinks. (The C's second page, two-player saves, isn't offered: there's no two-player
- * game to continue.)
+ * JE_loadScreen (mainint.c L619-901): the saved games, one-player and (left/right, [two-player])
+ * two-player. Resolves with the slot the player picks (the caller loads it: JE_operation), or null
+ * for "Exit to Main Menu" / Escape. An empty slot clinks.
  */
 export function showLoadScreen(host: Pick<OptionsHost, "sfx">): Promise<number | null> {
   const menuItemsCount = 12;
-  const slots: SaveSlotView[] = saveSlotViews(1, menuItemsCount - 1);
+  // [two-player] Left/right page between the one-player saves (slots 1-11) and the two-player
+  // ones (12-22), as the C's playersIndex does (mainint.c L626-899).
+  let playersIndex = 0;
+  let slots: SaveSlotView[] = saveSlotViews(1, menuItemsCount - 1);
   const sound = (n: number) => host.sfx.playSampleNum(n);
   const lastLevel = g.miscTextB[3 - 1] || "Last Level";
   const episode = g.miscTextB[2 - 1] || "Episode";
@@ -618,19 +654,39 @@ export function showLoadScreen(host: Pick<OptionsHost, "sfx">): Promise<number |
         finish(s.slot);
       }
     };
-    const screen = showScreen({ id: "load", over: true, layout: "center", label: "Load game", onBack: back });
+    const page = (index: number) => {
+      if (index === playersIndex || index < 0 || index > 1) return;
+      sound(S_CURSOR);
+      playersIndex = index;
+      slots = saveSlotViews(playersIndex * 11 + 1, menuItemsCount - 1);
+      list.setItems(items());
+      paintPage();
+    };
+    const screen = showScreen({
+      id: "load",
+      over: true,
+      layout: "center",
+      label: "Load game",
+      onBack: back,
+      onIntent: (intent) => {
+        if (intent !== "left" && intent !== "right") return false;
+        page(playersIndex + (intent === "left" ? -1 : 1));
+        return true;
+      },
+    });
+    const items = () => [
+      ...slots.map((s) => ({
+        label: s.name,
+        detail: `${lastLevel} ${s.empty ? "-----" : s.levelName}`,
+        badge: s.empty ? undefined : `${episode} ${s.episode}`,
+        class: s.empty ? "is-empty" : "",
+      })),
+      { label: g.miscText[33] || "Exit to Main Menu", class: "load-exit" },
+    ];
     const list = new MenuList({
       label: "Saved games",
       class: "load-list",
-      items: [
-        ...slots.map((s) => ({
-          label: s.name,
-          detail: `${lastLevel} ${s.empty ? "-----" : s.levelName}`,
-          badge: s.empty ? undefined : `${episode} ${s.episode}`,
-          class: s.empty ? "is-empty" : "",
-        })),
-        { label: g.miscText[33] || "Exit to Main Menu", class: "load-exit" },
-      ],
+      items: items(),
       onFocus: () => sound(S_CURSOR),
       onSelect: action,
     });
@@ -639,12 +695,25 @@ export function showLoadScreen(host: Pick<OptionsHost, "sfx">): Promise<number |
       back();
     });
     screen.panel.append(backButton(back));
+    // [two-player] the page's title, and the C's paging arrows (left: one player, right: two)
+    const heading = title(g.miscText[38] || "One Player Saved Games", "Load game");
+    const arrow = (dir: -1 | 1) =>
+      button({ label: dir < 0 ? "◀" : "▶", variant: "ghost", class: "load-page", onPress: () => page(playersIndex + dir) });
+    const prev = arrow(-1);
+    const next = arrow(1);
+    const paintPage = () => {
+      heading.querySelector("span:last-child")!.textContent = g.miscText[38 + playersIndex] || ["One Player Saved Games", "Two Player Saved Games"][playersIndex];
+      prev.hidden = playersIndex === 0;
+      next.hidden = playersIndex === 1;
+    };
+    paintPage();
     screen.add(
-      title(g.miscText[38] || "One Player Saved Games", "Load game"),
+      h("div", { class: "load-pages" }, prev, heading, next),
       list,
       h("p", { class: "opt-help", text: g.mainMenuHelp[21 - 1] ?? "" }),
       keyHints([
         { key: "↑↓", pad: "✛", label: "Move" },
+        { key: "←→", pad: "✛", label: "One / two players" },
         { key: "Enter", pad: "A", touch: "Tap", label: "Load" },
         { key: "Esc", pad: "B", label: "Back" },
       ]),

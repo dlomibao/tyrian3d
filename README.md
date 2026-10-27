@@ -23,6 +23,10 @@ OpenTyrian links to, and choose or drop it on the page. It stays in your browser
 | Sidekicks | Left Ctrl, Left Alt / K, ; | LB, RB |
 | Pause | Esc / P | Start |
 
+In a two-player game, player 2 moves with W/A/S/D, fires with F, changes the rear weapon's mode
+with R and fires the sidekicks with Q and E (or the keypad: 8/5/4/6, 0, `.`, 7 and 9), or uses
+the second gamepad.
+
 The keys can be changed in Options. Menus take arrows or WASD, Enter, Esc, a pad's d-pad, A and B,
 or taps. On a touch screen the ship follows your finger and fires while you touch; the pause
 button sits in the top corner.
@@ -48,7 +52,32 @@ score table (episodes 1-3, as in the original), which the title screen shows und
   automatic LAST LEVEL backup; Alt-S / Alt-L), and the title has Load Game and Options. Options sets
   the music and sound volume, the music style, the keys (two per control) and checks a gamepad's
   buttons. Saves and settings stay in this browser.
-- **Not yet:** arcade and two-player modes.
+- **Cheats:** the original's secret inputs work. In flight, hold F2 F3 F6 for invulnerability
+  ("Cheaters always prosper."), F2 F3 F4 to self-destruct, F2 F6 F7 to skip the level, or F2 F4 F6
+  F7 F9 \ / for the Nort ship. On the title, Shift+G, Shift+] and then L O R D reveal the
+  Impossible, Suicide and Lord of the Game difficulties. `?loot` starts new games with 1,000,000
+  credits. See [DECISIONS.md](DECISIONS.md) D32.
+- **Attract mode:** left alone for 30 seconds, the title screen plays the original's five recorded
+  demos in turn, replayed exactly as OpenTyrian plays them; any key, button or tap returns to the
+  title (`?demo` or `?demo=1`..`5` plays one at once).
+- **Kind of game:** Start asks for it, as the original's gameplay menu does: 1 Player Full Game,
+  1 Player Arcade (no shop, the Stalker armed by what it picks up, and lives) or 2 Player Arcade.
+  Typing a Super Arcade ship's code at the title (the original's, shown after each finished game)
+  starts that ship; ENGAGE starts Super Tyrian.
+- **Two players:** 2 Player Arcade is OpenTyrian's two-player mode on one machine. Player 1 has the
+  usual keys, the mouse and the first gamepad; player 2 W/A/S/D, F fire, R change fire, Q/E
+  sidekicks (or the keypad, or the second gamepad). Fly close together and stop to link: player 2
+  docks under player 1 and turns a gun with the move keys while firing. Each player has lives (their
+  weapon's power), and Options and the item screen set each player's keys and gamepad.
+- **Destruct:** Tyrian's hidden two-player artillery game, ported from OpenTyrian's destruct.c: five
+  modes, eight kinds of unit with their weapons, terrain that burns away, the computer opponent and
+  two players on one keyboard, on a 3D battlefield. Type DESTRUCT at the title (or open
+  `?destruct`); F1 shows its keys.
+- **Screen effects:** the levels' colour filters and fades, and the special weapons' flares (Flare,
+  SandStorm, MineField's tint and Zinglon beam), tint the screen as in the original. The levels
+  that switch on the lava, water, blur and iced-blur filters, the headlight darkness and the
+  upside-down screen get them as 3D post-processing that only touches the layers the original did.
+- **Not yet:** network play.
 - **Everything else:** in [Issues](../../issues) and [Milestones](../../milestones). Design calls
   made along the way are in [DECISIONS.md](DECISIONS.md).
 
@@ -70,7 +99,9 @@ score table (episodes 1-3, as in the original), which the title screen shows und
   models), loaded the first time it appears and coloured from the game's live palette. The
   backgrounds, shots and effects are extruded from their pixels into rounded 3D shapes. Motion is
   interpolated, so it's smooth at any refresh rate, though the game logic ticks at the original
-  ~35 Hz.
+  ~35 Hz. `?bg=remaster` tries the remastered backgrounds, a pilot done for Episode 1's first
+  level: the ground upscaled 4x (MMPX) with relief lighting, and its rocks, fortresses, bunkers and
+  forest as Blender models (DECISIONS.md D34).
 - **Audio (`src/audio/`):** the original sound effects, plus the AdLib music played through a
   port of the OPL emulator and the LDS song player. It matches OpenTyrian's output sample for sample.
 - **Data (`src/data/`):** parsers for Tyrian's level, item, enemy, sprite, palette and episode
@@ -82,9 +113,10 @@ Each 3D model is built by a Python script in [`assets/blender/`](assets/blender/
 to `public/models/*.glb`. The scripts are committed, so every model can be rebuilt from scratch
 (`tools/build-models.sh` runs them headless in parallel); `.blend` files are not committed. The
 models are 3D versions of Daniel Cook's Tyrian art, which he released for anyone to use.
-`npm run catalogue` lists every sprite to model. To compare models with their sprites, open the
-model viewer at `?viewer` (or `?viewer=<model name>`): the sprite and the model side by side, the
-model rotatable, with a top view at the sprite's scale that can lay the sprite over the model.
+`npm run catalogue` lists every sprite to model, and `npm run tiles` writes the background tiles
+that `assets/blender/tiles/` builds structure models from. To compare models with their sprites,
+open the model viewer at `?viewer` (or `?viewer=<model name>`): the sprite and the model side by
+side, the model rotatable, with a top view at the sprite's scale that can lay the sprite over the model.
 Bosses and other objects built from several pieces are listed too (`assembly-…`), shown whole. It
 works on the dev server and, once the data zip is loaded, on the deployed site. Anything imported from outside the project, such as Poly Haven
 textures or HDRIs, gets a row in [CREDITS.md](CREDITS.md).
@@ -109,7 +141,12 @@ For local development, fetch it into `data/`, which is git-ignored:
     npm run build      # typecheck and production build
     TYRIAN_EPISODE_TEST=1 npm test   # also play every level of all four episodes headless
 
-Debug pages: `?debug=sprites` (renderer test bench), `/src/audio/debugMusic.html` (music player).
+Debug pages: `?debug=sprites` (renderer test bench), `?debug=play` (a real level played by the test
+bot, with chosen weapons; see `src/debug/playHarness.ts`), `?debug=level` (one level with a chosen
+loadout, e.g. `&episode=4&main=3&sidekick=9,9&special=6&skip=3000&god=1`; see
+[`src/debug/levelHarness.ts`](src/debug/levelHarness.ts)), `?destruct` (straight into Destruct),
+`/src/audio/debugMusic.html` (music player). `?vfx=original` shows shots and explosions as the
+extruded sprites instead of the remastered effects; `?seed=N` fixes the random seed (D37).
 
 ## License
 

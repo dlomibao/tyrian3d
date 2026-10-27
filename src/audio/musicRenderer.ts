@@ -75,11 +75,14 @@ const volumeFactorTable = new Int32Array(256);
 /** Commands understood by the renderer (shared by the worklet and the fallback). */
 export type MusicCommand =
   | { type: "load"; data: Uint8Array }
-  | { type: "play"; song: number }
+  | { type: "play"; song: number; seq?: number }
   | { type: "restart" }
   | { type: "stop" }
   | { type: "fade" }
   | { type: "volume"; value: number };
+
+/** What the worklet tells the main thread: lds `playing`, as of the play command numbered `seq`. */
+export type MusicState = { type: "state"; playing: boolean; seq: number };
 
 export class MusicRenderer {
   readonly opl: Opl;
@@ -119,6 +122,15 @@ export class MusicRenderer {
 
   get stopped(): boolean {
     return this.musicStopped;
+  }
+
+  /**
+   * lds_play.c's `playing`: true from play_song until the song ends by itself (or a hard fade),
+   * whether or not it's stopped; looping songs never end. JE_highScoreCheck reads it to follow the
+   * fanfare with song 31.
+   */
+  get playing(): boolean {
+    return this.songPlaying >= 0 && this.lds.playing;
   }
 
   setMusicFile(musicMus: Uint8Array): void {

@@ -19,6 +19,12 @@ export interface SpriteRef {
    * Without it, the sprites are a grouped object (an enemy) and the model stays level.
    */
   bank?: { step: number; max: number };
+  /**
+   * [two-player] With `bank`: the frames are the first sprite of a grouped draw (a ship drawn in
+   * two halves, blitShipHalves, like the dragonwing), so the model replaces the whole group and
+   * rolls with the group's banking frame.
+   */
+  group?: boolean;
 }
 
 export interface SpriteModelEntry {
@@ -53,12 +59,15 @@ export interface SpriteModels {
   grouped: Map<string, string>;
   /** Player ships with banking frames. */
   banked: ModelOverride[];
+  /** [two-player] For grouped ships with banking frames: spriteModelKey to the bank, -1..1. */
+  groupBank: Map<string, number>;
 }
 
 /** Index the entries. Throws if two models claim the same frame. */
 export function spriteModels(entries: readonly SpriteModelEntry[] = SPRITE_MODELS): SpriteModels {
   const grouped = new Map<string, string>();
   const banked: ModelOverride[] = [];
+  const groupBank = new Map<string, number>();
   const claimed = new Map<string, string>();
   const claim = (key: string, model: string) => {
     const other = claimed.get(key);
@@ -67,6 +76,17 @@ export function spriteModels(entries: readonly SpriteModelEntry[] = SPRITE_MODEL
   };
   for (const e of entries) {
     for (const ref of e.sprites) {
+      if (ref.bank && ref.group) {
+        // [two-player] a grouped ship (two halves) that banks: every frame is the group's model
+        const [base] = ref.frames;
+        for (let n = -ref.bank.max; n <= ref.bank.max; n++) {
+          const key = spriteModelKey(ref.sheet, ref.size, base + n * ref.bank.step);
+          claim(key, e.model);
+          grouped.set(key, e.model);
+          groupBank.set(key, n / ref.bank.max);
+        }
+        continue;
+      }
       if (ref.bank) {
         const [base] = ref.frames;
         for (let n = -ref.bank.max; n <= ref.bank.max; n++) claim(spriteModelKey(ref.sheet, ref.size, base + n * ref.bank.step), e.model);
@@ -80,5 +100,5 @@ export function spriteModels(entries: readonly SpriteModelEntry[] = SPRITE_MODEL
       }
     }
   }
-  return { grouped, banked };
+  return { grouped, banked, groupBank };
 }

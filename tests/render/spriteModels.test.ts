@@ -38,6 +38,16 @@ describe("spriteModels()", () => {
     expect(m.banked).toEqual([{ sheetId: "tyrian.shp#8", baseIndex: 233, bankStep: 2, maxBank: 2, size: 2, model: "ship" }]);
   });
 
+  // [two-player]
+  test("a ship drawn in two halves (the dragonwing) is a grouped model that banks", () => {
+    const m = spriteModels([{ model: "ships/dw", sprites: [{ sheet: "tyrian.shp#8", size: 2, frames: [13], bank: { step: 2, max: 2 }, group: true }] }]);
+    expect([9, 11, 13, 15, 17].map((f) => m.grouped.get(spriteModelKey("tyrian.shp#8", 2, f)))).toEqual(Array(5).fill("ships/dw"));
+    expect([9, 11, 13, 15, 17].map((f) => m.groupBank.get(spriteModelKey("tyrian.shp#8", 2, f)))).toEqual([-1, -0.5, 0, 0.5, 1]);
+    expect(m.banked).toEqual([]);
+    // The real entry: player 2's ship, frames 13 +- 2 * bank.
+    expect(spriteModels().groupBank.get(spriteModelKey("tyrian.shp#8", 2, 13))).toBe(0);
+  });
+
   test("throws when two models claim a frame, including a ship's banking frames", () => {
     expect(() =>
       spriteModels([

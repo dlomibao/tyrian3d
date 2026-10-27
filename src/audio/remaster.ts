@@ -1,12 +1,26 @@
-// A local remaster pack: new recordings of the music (and later sound effects) that replace the
-// FM originals while testing locally. The pack is the private tyrian3d-remaster repo's out/ folder,
+// A local remaster pack: new recordings of the music and remade sound effects and voices that
+// replace the originals while testing locally. The pack is the private tyrian3d-remaster repo's out/ folder,
 // served at tyrian-remaster/ by `npm run dev` and `npm run play:local` (vite.config.ts). It's never
 // part of the public build: the deployed site doesn't ask for it, and nothing from it is bundled.
 
 /** out/manifest.json: per style ("orchestral", "synth"), the song files by 1-based song number. */
 export interface RemasterManifest {
   music: Record<string, Record<string, { file: string; title: string; seconds: number; loops: boolean }>>;
-  sfx?: Record<string, Record<string, unknown>>;
+  /** Per style ("remaster"), the sound effects and voices by 1-based sound id (sndmast.ts). */
+  sfx?: Record<string, Record<string, RemasterSfxEntry>>;
+}
+
+/** One remade sound (the private repo's tools/sfx.py). */
+export interface RemasterSfxEntry {
+  file: string;
+  /**
+   * Gain (dB, 0 or more) to play it at so it's as loud as the original: the file is kept below
+   * full scale and Web Audio mixes in floating point.
+   */
+  gain_db?: number;
+  title?: string;
+  name?: string;
+  seconds?: number;
 }
 
 /** Whether this build may look for local packs: the dev server, or a local build (VITE_LOCAL_DATA=1). */
@@ -17,8 +31,10 @@ export async function loadRemasterManifest(): Promise<RemasterManifest | null> {
   try {
     const r = await fetch("tyrian-remaster/manifest.json");
     if (!r.ok) return null;
-    const m = (await r.json()) as RemasterManifest;
-    return m.music && Object.keys(m.music).length ? m : null;
+    const m = (await r.json()) as Partial<RemasterManifest>;
+    const music = m.music ?? {};
+    const hasSfx = Object.values(m.sfx ?? {}).some((s) => Object.keys(s).length);
+    return Object.keys(music).length || hasSfx ? { ...m, music } : null;
   } catch {
     return null;
   }
@@ -31,6 +47,11 @@ export interface MusicPlayer {
   restart(): void;
   stop(): void;
   fade(): void;
+  /**
+   * lds_play.c's `playing`: true from play() until a song that doesn't loop reaches its end (stop()
+   * doesn't clear it). JE_highScoreCheck plays song 31 once the fanfare is over.
+   */
+  readonly playing: boolean;
   volume: number;
   resume(): void;
   dispose(): void;
@@ -53,7 +74,10 @@ export class StreamedMusic implements MusicPlayer {
   /** Seconds into the current song's buffer where a stopped song resumes. */
   private offset = 0;
   private startedAt = 0;
-  private playing = false;
+  /** A recording is sounding now (not stopped, not ended). */
+  private running = false;
+  /** The current recording played to its end (it doesn't loop). */
+  private ended = false;
   private token = 0;
   private volumeValue = 1;
   private usingFallback = false;
@@ -70,14 +94,15 @@ export class StreamedMusic implements MusicPlayer {
   }
 
   play(songNum: number): void {
-    if (songNum === this.song && (this.playing || this.usingFallback)) return;
-    if (songNum === this.song && !this.playing && !this.usingFallback) {
+    if (songNum === this.song && (this.running || this.usingFallback)) return;
+    if (songNum === this.song && !this.running && !this.usingFallback) {
       void this.start(this.offset);
       return;
     }
     this.halt();
     this.song = songNum;
     this.offset = 0;
+    this.ended = false;
     if (!this.files[String(songNum + 1)]) {
       this.usingFallback = true;
       this.fallback.play(songNum);
@@ -92,12 +117,13 @@ export class StreamedMusic implements MusicPlayer {
     if (this.usingFallback) return this.fallback.restart();
     this.halt();
     this.offset = 0;
+    this.ended = false; // lds_rewind sets playing again
     void this.start(0);
   }
 
   stop(): void {
     if (this.usingFallback) return this.fallback.stop();
-    if (this.playing) this.offset = this.position();
+    if (this.running) this.offset = this.position();
     this.halt();
   }
 
@@ -110,6 +136,10 @@ export class StreamedMusic implements MusicPlayer {
     g.linearRampToValueAtTime(0, now + FADE_SECONDS);
     const token = this.token;
     setTimeout(() => token === this.token && this.halt(), FADE_SECONDS * 1000);
+  }
+
+  get playing(): boolean {
+    return this.usingFallback ? this.fallback.playing : !this.ended;
   }
 
   get volume(): number {
@@ -143,7 +173,7 @@ export class StreamedMusic implements MusicPlayer {
 
   private halt(): void {
     this.token++;
-    this.playing = false;
+    this.running = false;
     if (this.source) {
       this.source.onended = null;
       try {
@@ -190,12 +220,14 @@ export class StreamedMusic implements MusicPlayer {
     this.gain.gain.value = volumeGain(this.volumeValue);
     src.start(0, offset % buf.duration);
     src.onended = () => {
-      if (this.source === src) this.playing = false;
+      if (this.source !== src) return;
+      this.running = false;
+      this.ended = true; // halt() clears onended first, so this is the recording's own end
     };
     this.source = src;
     this.startedAt = this.ctx.currentTime;
     this.offset = offset;
-    this.playing = true;
+    this.running = true;
   }
 }
 
@@ -276,6 +308,10 @@ export class MusicSwitch implements MusicPlayer {
 
   fade(): void {
     this.player.fade();
+  }
+
+  get playing(): boolean {
+    return this.player.playing;
   }
 
   get volume(): number {

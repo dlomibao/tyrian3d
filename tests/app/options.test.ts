@@ -45,8 +45,10 @@ describe("volume sliders", () => {
 });
 
 describe("SettingsMenu", () => {
-  test("rows: volumes, a music style only with more than one, eight keys, reset, gamepad, done", () => {
-    expect(optionsRows([]).map((r) => r.kind)).toEqual(["volume", "volume", ...Array(8).fill("key"), "reset", "pad", "done"]);
+  test("rows: volumes, a music style only with more than one, eight keys and reset per player, gamepad, done", () => {
+    const keyRows = [...Array(8).fill("key"), "reset"];
+    expect(optionsRows([]).map((r) => r.kind)).toEqual(["volume", "volume", ...keyRows, ...keyRows, "pad", "done"]);
+    expect(optionsRows([]).flatMap((r) => ("player" in r ? [r.player] : []))).toEqual([...Array(9).fill(0), ...Array(9).fill(1)]);
     expect(optionsRows(["original", "remaster"]).map((r) => r.kind)).toContain("style");
   });
 
@@ -198,5 +200,51 @@ describe("SettingsMenu", () => {
     b.menu.tap(b.rowOf("done"));
     expect(b.closed()).toBe(1);
     expect(b.sounds).toEqual([S_CLICK]);
+  });
+});
+
+describe("sound style (local remaster packs)", () => {
+  function setupBoth(music: string[], soundStyles: string[]) {
+    const sounds: number[] = [];
+    let musicStyle = music[0];
+    let soundStyle = soundStyles[0];
+    const menu = new SettingsMenu(optionsRows(music, soundStyles), "sound", {
+      sound: (n) => sounds.push(n),
+      styles: music,
+      style: () => musicStyle,
+      setStyle: (s) => (musicStyle = s),
+      soundStyles,
+      soundStyle: () => soundStyle,
+      setSoundStyle: (s) => (soundStyle = s),
+      close: () => {},
+    });
+    const rowOf = (which: string) => menu.rows.findIndex((r) => r.kind === "style" && r.which === which);
+    return { menu, sounds, rowOf, music: () => musicStyle, sound: () => soundStyle };
+  }
+
+  test("a Sound style row follows the Music style row only when the pack has sound styles", () => {
+    expect(optionsRows(["original", "synth"]).filter((r) => r.kind === "style")).toEqual([{ kind: "style", which: "music", label: "Music style" }]);
+    const rows = optionsRows(["original", "synth"], ["original", "remaster"]);
+    expect(rows.slice(0, 4).map((r) => (r.kind === "style" ? `style:${r.which}` : r.kind))).toEqual(["volume", "volume", "style:music", "style:sound"]);
+    expect(optionsRows([], ["original", "remaster"]).filter((r) => r.kind === "style").map((r) => r.label)).toEqual(["Sound style"]);
+    expect(optionsRows([], ["original"]).some((r) => r.kind === "style")).toBe(false);
+  });
+
+  test("left/right, Enter and taps switch the sound style, not the music's", () => {
+    const { menu, rowOf, music, sound, sounds } = setupBoth(["original", "orchestral", "synth"], ["original", "remaster"]);
+    menu.cur = rowOf("sound");
+    menu.intent("right", "keys");
+    expect(sound()).toBe("remaster");
+    expect(music()).toBe("original");
+    expect(sounds).toEqual([S_CURSOR]);
+    menu.intent("accept", "keys");
+    expect(sound()).toBe("original");
+    menu.tap(rowOf("sound"), { style: "remaster" });
+    expect(sound()).toBe("remaster");
+    expect(menu.helpText()).toContain("sound effects");
+    menu.cur = rowOf("music");
+    menu.intent("left", "keys");
+    expect(music()).toBe("synth");
+    expect(sound()).toBe("remaster");
   });
 });

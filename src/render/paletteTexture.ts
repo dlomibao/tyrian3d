@@ -7,6 +7,7 @@
 
 import * as THREE from "three";
 import { vga6To8, type Palette } from "../data/palette";
+import { ScreenHue } from "./screenHue";
 
 /** JE_filterScreen's per-pixel effect (filterScreenHue then filterScreenValue, src/backgrnd.c). */
 export function remapScreenIndex(index: number, filter: number, brightness: number): number {
@@ -22,6 +23,8 @@ export function remapScreenIndex(index: number, filter: number, brightness: numb
 
 export class PaletteTexture {
   readonly texture: THREE.DataTexture;
+  /** The smoothies' per-pass hue changes, for the materials that look colours up here (D31). */
+  readonly screenHue = new ScreenHue();
   /** Goes up whenever the colours change, so things that copy colours out know to refresh. */
   version = 0;
   private readonly rgba = new Uint8Array(256 * 4);

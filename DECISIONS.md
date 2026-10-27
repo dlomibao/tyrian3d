@@ -490,10 +490,8 @@ The C's timing, its order of screens and its mt_rand calls are unchanged.
 fade, but its play area is empty then). Text uses the original tiny font scaled up; if remastered
 pictures want new type, that's the place to change. Check the warning screen before MINES
 (flashing bars and siren) and episode 1's ending (pan up, flash).
+
 ## D22 — After the last episode the game goes on into episode 1, as JE_nextEpisode does
-fade, but its play area is empty then). Check the warning screen before MINES (flashing bars and
-siren) and episode 1's ending (pan up, flash).
-## D?? — After the last episode the game goes on into episode 1, as JE_nextEpisode does
 
 2026-10-27
 
@@ -650,3 +648,617 @@ renderer and only while a screen asks for it. The pause screen's "Quit to title"
 backdrop's cost shows on slow machines, cap its frame rate or render it at a lower pixel ratio. If
 the C's in-game Quit is wanted, add "Retry from item screen" to the pause menu: it's the "died"
 path in `run.ts` with `playerEndLevel` set.
+
+## D27 — Arcade games: a Game row on the title, codes typed over it, and a C bot cross-check
+
+2026-10-27
+
+**Decision:** One-player arcade, the seven Super Arcade ships and Super Tyrian are started by
+`startNewGame` (`src/sim/arcade.ts`), a port of newGame()'s arcade branch, newSuperArcadeGame()
+and newSuperTyrianGame() as they leave the game once their menus have returned. Everything in
+flight (lives as the front weapon's power, pickups arming the ship, the Super Arcade weapons and
+specials) was already in the level loop; the one missing piece, the Super Arcade drops taking
+turns through the ship's five weapons (tyrian2.c L1548-1555), is added to `game.ts`. The title
+gets a **Game** row above the episodes (Full Game, Arcade, 2 Player), cycled with Tab or the pad's
+RB or picked with a tap, like the Music row; it isn't a control, so the arrows keep their jobs.
+Typing a ship's code (helptext `specialName`: STEALTH ... NORTSHIPZ) opens a "Super Arcade Mode"
+card over the title with that ship, the episode and the difficulty one step up; ENGAGE opens
+Super Tyrian's "Prepare to play..." screen; DESTRUCT calls a hook for the Destruct game. The
+matching is `CodeMatcher`, the C's specialNameProgress loop for any list of codes, so the cheats
+work can reuse it. Tests play four arcade games in OpenTyrian's own C (tools/opentyrian-bot, new
+`mode` argument) and compare them with the port tick by tick.
+
+**Options considered:**
+- *Game row on the title (chosen):* the title already merges New Game, episodeSelect and
+  difficultySelect into one screen, so gameplaySelect becomes one more row there, not another step.
+- *gameplaySelect as its own screen after choosing an episode:* the C's order, but an extra screen
+  for every full game, which is what most players start.
+- *Codes only through the C's flow (the code first, then episode and difficulty screens):* the
+  title already shows both, so the card names them and asks to start or go back.
+
+Small deviations, each to fit a browser: a letter that carries on a code isn't also one of the
+title's shortcuts (L, O, H, M and WASD all occur inside codes), and the title's episode and
+difficulty go back to what they were before the code's first letter (STEALTH's S, WEIRD's W and
+DESTRUCT's D are moves); Shift, Ctrl, Alt, Meta and the lock keys don't reset a code; Super Tyrian
+at Suicide is asked for with Shift held on the last letter as well as Scroll Lock (Macs have
+none); beating Super Tyrian (trentWin) shows the C's "Sleep well, Trent" lines and goes back to
+the title instead of quitting. Backing out of a Super Arcade card keeps the C's quirk: the next
+full game starts in that ship ("smuggle"). Two-player arcade isn't built here: the row shows it
+disabled until `twoPlayerArcade.newGame` in `src/sim/arcade.ts` is set by the two-player work.
+
+**Review:** Type a code at the title and play a level of each kind. If the Game row is crowded on
+phones, fold 2 Player away until it's available. The cross-check runs each game in fresh modules,
+because some state (the ship's friction ticks, the explosion follow) carries over between games in
+the port as it does in the C, where each driver run is a new process.
+
+**Integration (2026-10-27):** merged with the two-player and cheats work. The kind of game is chosen
+by one mechanism, the two-player work's gameplay menu (`src/app/gameplaySelect.ts`, the C's
+gameplaySelect shown after the title's episode and difficulty): 1 Player Full Game, 1 Player Arcade
+and 2 Player Arcade all start through `startNewGame`, and Network Game stays greyed out. The title's
+Game row (Tab / RB) is gone, as is the `twoPlayerArcade` hook: `startNewGame` calls
+`newTwoPlayerGame` (`src/sim/twoplayer.ts`) itself. A code typed at the title skips the menu, since
+it has picked its game. The codes are heard by one listener, `TitleCodeListener` in
+`src/app/titleCodes.ts`, which uses `CodeMatcher` with the cheats work's hidden-difficulty keys and
+one set of shortcut rules (see D32).
+
+## D28 — Local two-player is OpenTyrian's 2 Player Arcade, with each player's own keys and gamepad
+
+2026-10-27
+
+**Decision:** Two players on one machine play OpenTyrian's two-player mode as the C runs it:
+newGame's "2 Player Arcade" (`src/sim/twoplayer.ts`: player 1 in the Silver Ship, player 2 in the
+dragonwing, no cash, one difficulty step harder), the 2 Player Arcade item-screen menu, lives that
+are each player's weapon power, linking (player 2 docks under player 1 and turns a gun), and save
+slots 12-22. The parts of JE_main the port had left out (both players' collisions and enemy-shot
+hits, the shared shield recharge, allPlayersGone's player-2 clause, the warning for player 2) are
+ported, and the C bot driver's new `play2` mode plays a two-player level in OpenTyrian itself:
+the port matches it tick for tick, through a link, the linked gun turning, an unlink and player 2's
+deaths and respawns. The title's Start asks for the kind of game first (the C's gameplaySelect,
+shown after the episode and difficulty here; 1 Player Arcade and Network Game are listed but not
+offered). Each player has their own SimInput (`simInputs`); the host fills it from that player's
+devices, and a local game sets `inputDevice` to 0 for both, so each player reads all of their own:
+player 1 the one-player keys, the mouse/touch and their gamepad; player 2 a key table of their
+own (W/A/S/D, F fire, R change fire, Q/E sidekicks, and the keypad; rebindable under "Key config ·
+Player 2" in Options) and their gamepad. In a two-player game player 2's keys win over player 1's
+(so W/A/S/D move player 2 there). The item screen's Player 1/2 Input rows cycle the gamepad each
+player uses (none, pad 1-4), swapping with the other player, as the C cycles inputDevice. A linked
+dragonwing's gun follows the stick's angle (joystick_analog_angle). Player 2's ship has a Blender
+model of the dragonwing (two sprite halves, so `spriteModels` gained `group` banking). The HUD
+shows a panel per player; the high score check asks each player, the higher scorer first; Load
+Game pages to the two-player saves with left/right.
+
+**Options considered:**
+- *The C's device model (chosen in spirit):* keep inputDevice and its filter in JE_playerMovement,
+  but give every player their own input instead of one shared keyboard. The C's own defaults
+  (player 1 on the keyboard, player 2 on the mouse) are still there for the cross-check
+  (`newTwoPlayerGame(..., { inputDevices: [1, 2] })`), not for play: two people can't share a mouse.
+- *One key table with player 2's keys in the second slot:* no new settings, but every one-player
+  game would lose its laptop keys.
+- *A two-player table for player 1 too:* each player gets half the keyboard by default, but a
+  player's custom one-player keys wouldn't carry over. Player 2's keys winning over player 1's
+  gets the same effect with the defaults.
+- *Two-player full game (the shop, both players buying):* OpenTyrian has no such mode; its
+  two-player game is the arcade one.
+- *The gameplay menu before the episode (the C's order):* a step more for every one-player game,
+  and the title already holds the episode and difficulty.
+
+**Review:** Play a level with two people on one keyboard, and with two pads. If player 2's
+defaults are awkward, change DEFAULT_KEYS_2 in `src/app/bindings.ts`. Player 1's W/A/S/D only
+drive player 2 in a two-player game; if that surprises, make player 1's table skip only keys
+player 2 actually uses. The dragonwing model (`assets/blender/ships/ship-dragonwing.py`) is a first
+pass: check it at `?viewer=ship-dragonwing` once the catalogue is rebuilt (its reference is in
+`reference/models/ship-dragonwing`, from `npm run catalogue`). The gameplay menu would also be the
+place for the 1 Player Arcade mode. D24's note that two-player saves aren't listed no longer holds.
+
+**Integration (2026-10-27):** the gameplay menu is the one way to pick the kind of game; the arcade
+work's Game row on the title was dropped (D27). 1 Player Arcade is offered there now and starts
+through `startNewGame` (`src/sim/arcade.ts`), which also starts 2 Player Arcade via
+`newTwoPlayerGame`. Network Game stays listed but greyed out.
+
+## D29 — Attract-mode demos replay the C's demo files, from a fresh state each time
+
+2026-10-27
+
+**Decision:** demo.c is ported as `src/sim/demo.ts` (beginPlayDemo, playDemoKeys, endPlayDemo),
+hooked where the C calls it: JE_loadMap reads the demo header instead of the episode script, and
+JE_playerMovement replays the recorded keys. A death ends a demo at once, as the C's game-over
+branch does with playDemo set. On the host side the title screen has the C's 30-second idle timer
+(`src/app/idle.ts`; any key, pointer motion or press, wheel, pad button or stick restarts it, and
+it doesn't run while Load Game, Options or High Scores is open); when it fires, the next demo plays
+(`src/app/attractDemo.ts`) with "INSERT COIN" (miscText[7]) over it, and any key, click, tap or pad
+button returns to the title. The demos cycle 1 to 5, as demoNum does. `?demo` or `?demo=N` plays
+one at once. Recording (`recordDemo`) isn't ported.
+
+The one departure from the C: before a demo, the state a game or an earlier demo leaves behind that
+the level start doesn't reset (the player structs, including their movement-friction counters;
+optionAttachmentReturn; initialDifficulty, which event 66 reads; the bonus-level flags) goes back to
+its value at program start. In the C a demo after a game can play differently from one after
+launch; a test (tests/sim/demo.test.ts) found demo 3 drifting when played twice in a row after a
+game, from x_friction_ticks alone.
+
+**Options considered:**
+- *Fresh state per demo (chosen):* every demo plays as it does in OpenTyrian straight after launch,
+  which is what the cross-check compares (tools/opentyrian-demo plays all five through the real
+  JE_main; all five match tick for tick to the end, including the final random number).
+- *Exactly the C, leftovers included:* faithful in the letter, but the demo would depend on what
+  was played before it, and nothing could check it.
+- *No intro logos after a demo that ran out:* the C shows intro_logos again unless the player
+  stopped the demo; this port has no intro logos, so both cases go straight to the title.
+
+**Review:** In OpenTyrian (and so here) demos 1-3 end with the ship destroyed partway through the
+level, and demos 4-5 run out of recorded keys. That is the C's behaviour, reproduced, not a desync
+of the port; why the C dies (probably recordings made with a DOS Tyrian whose simulation differed
+slightly) hasn't been checked. If the deaths look bad as attract mode, the fallback is to stop a demo a little before
+its death tick (from the fixtures) rather than altering the sim.
+
+## D30 — Destruct is a transliteration of destruct.c in its own module, checked against the C
+
+2026-10-27
+
+**Decision:** Destruct, the hidden artillery game, lives in `src/destruct/`. Its rules
+(`sim.ts`) are a close transliteration of OpenTyrian's destruct.c, held in one `DestructGame`
+object: the C's names, its float (`Math.fround`) and unsigned arithmetic, and the shared
+`mt_rand`, so a seed plays out as in the C. The terrain is the C's 320x200 byte screen
+(destructTempScreen); what the C blits onto VGAScreen each tick (units, walls, shot pixels,
+crosshairs) is recorded in `draws` for the renderer. `tools/destruct-trace` builds the real
+destruct.c with the computer on both sides and records a running digest of the whole state every
+10 ticks; `tests/destruct/trace.test.ts` must reproduce it (12 seeds over all five modes, 72,000
+ticks, 28 rounds). The game is opened with `openDestruct({ files, view, sfx, music, exitSong })`
+(`src/destruct/index.ts`) or `?destruct`.
+
+**Options considered:**
+- *Transliterate and cross-check against the C (chosen):* the same approach as the main game
+  (D1), and the trace pins it to the original exactly, AI included.
+- *Rewrite it as idiomatic TypeScript:* easier to read, but the AI, physics and terrain would
+  drift from the original with nothing to check them against.
+- *Write the sim into the main game's global state `g`:* destruct.c shares no state with the main
+  game besides the RNG and sound queue; its own object keeps it separate and testable.
+
+**Review:** The trace driver compiles the C with `-ffp-contract=off` and correctly rounded
+`sinf`/`cosf` (glibc's behaviour, and what the port computes); clang's default fused
+multiply-adds on arm64 and macOS's libm `sinf` each move some shots by an ulp. A negative float
+converted to unsigned (a very rare "tall" map column) follows arm64, saturating to 0, where x86-64
+wraps it. The C's `rand()` for the wall count is not used: with the default config it is always 20.
+
+## D30a — Destruct in 3D: a slab of terrain with real holes, extruded sprites, glowing fire
+
+2026-10-27
+
+**Decision:** The battlefield is seen from the front, a little above, like the original screen.
+The dirt (palette 16-25 of picture 11's palette, pcxpal[10] = 21) is a slab 26 px deep: its front
+face is one plane textured from the screen (shaded darker with depth and a little per-pixel
+noise), and its top, bottom and sides are geometry built from the dirt's outline, so craters,
+rings and holes go right through it. The explosion pixels (241-255, fading a step a tick as in
+the C) glow additively in front of it, with up to four point lights at the biggest live explosions.
+Units and walls are their newsh~.shp sprites extruded like the main game's (src/render/spriteMesh.ts),
+coloured from the palette; shots, trails and crosshairs are glowing beads in JE_pixCool's and the
+crosshair's palette colours. A big explosion shakes the camera slightly. The black sky gets a
+faint starfield. Units and shots are interpolated between ticks; the game ticks at the C's rate,
+setFrameCount(1) at the Normal speed: ~14.4 ms, ~70 a second.
+
+**Options considered:**
+- *Slab with a textured front and outline walls (chosen):* the terrain is arbitrary pixels (rings
+  floating in the air, holes, star-shaped craters), which a heightfield can't hold. Rebuilding only
+  the outline walls when the dirt changes stays cheap (a 120 Hz display keeps up).
+- *Extruded heightfield:* simple, but loses overhangs, floating rings and holes, which are the
+  C's map types.
+- *One cube per dirt pixel (instanced):* up to 60,000 cubes, re-uploaded as craters form.
+- *Blender models for the units:* they're 12x14 sprites seen side on; extrusion keeps their exact
+  look and costs no assets.
+
+**Review:** Check the look and readability at a phone's size and on a slow GPU (shadows and the
+outline effect run every frame). Explosions in the sky burn black holes in the C's picture; here
+the sky is black anyway, so nothing shows.
+
+## D30b — Destruct's screens, keys and the way in
+
+2026-10-27
+
+**Decision:**
+- **Screens:** the title (JE_introScreen), mode select (JE_modeSelect), help (JE_helpScreen) and
+  pause (JE_pauseScreen) are interface-framework screens over the battlefield, with the data's
+  texts. The mode select also has rows for each side's computer/human switch (the C's F10/F11),
+  Help and Leave; F10, F11 and F1 work there too. Escape in a round goes back to it, as in the C,
+  and Escape there leaves Destruct.
+- **Keys:** the C's default two-player layout on one keyboard (left: C/V angle, A/Z power, X or
+  Left Shift fire, Left Alt vehicle, Left Ctrl/Space weapon; right: arrows, Enter/Insert/keypad 0
+  fire, \ or keypad 5 vehicle, Page Up/Down weapon), by KeyboardEvent.code so it works on any
+  layout. The left side starts as the computer, as in the C's default config. A key tapped
+  between two ticks still counts for one tick. Gamepads stand in for keys: pad 1 plays the right
+  side, pad 2 the left (d-pad or stick to aim and set power, A fire, X vehicle, LB/RB weapon,
+  Start pause, Back leave).
+- **Way in:** `openDestruct()` for the title's DESTRUCT code (the cheats work wires it), and
+  `?destruct` for development, which reloads into the game when Destruct is left. It borrows the
+  game View's renderer, or makes its own canvas without one.
+
+**Options considered:**
+- *Framework screens (chosen):* consistent with the rest of the game (D26) and work with pads and
+  taps. The C's text drawn on the 320x200 screen would be blurry and keyboard-only.
+- *Keep F10/F11 as the only computer switches:* F11 is the browser's full-screen key on some
+  systems, so the menu rows make the switch reachable anyway.
+- *Remappable Destruct keys:* the C reads them from opentyrian.cfg; no settings screen for them
+  yet.
+
+**Review:** A phone can't play it (it is a keyboard game; touch only reaches the menus). The app
+never seeds mt_rand (`?destruct` does, from the clock, as opentyr.c's main does), so through the
+title the first map is the same on every page load until the main game seeds it.
+
+**Integration (2026-10-27):** typing DESTRUCT on the title now opens Destruct: `run.ts` sets
+`destructHook.open` (src/app/titleCodes.ts) to `openDestruct` with the title's song as `exitSong`,
+loading `src/destruct/` on first use. The title closes first (it resolves with `destruct`, since
+`openDestruct` closes whatever screen is up) and the main loop shows it again when Destruct is
+left. The app now seeds mt_rand at start-up (D37), so the first map differs between page loads.
+
+## D31 — Screen filters: hues on palette indices, waves and blurs as a post pass over a pass mask
+
+2026-10-27
+
+**Decision:** The smoothies (event 64: lava, water, iced blur, blur, the headlight and the flipped
+screen) and JE_barBright (the Zinglon beam) are recorded by the sim each tick in `drawList.screen`
+(`src/sim/smoothies.ts`): which filters run, in JE_main's order, the last draw pass each one
+covers, and whether it is the frame's first (the only one that reads the previous frame, since the
+C draws into VGAScreen2 until the first filter writes into game_screen). The renderer splits each
+filter in two. The hue half (lava 0x70, iced 0x80, the water's hue on indices with
+`(index & 0x30) != 0`) is index arithmetic in the palette materials for draws whose pass height
+(D5) is under the filter, as the C does it (`src/render/screenHue.ts`); models in those passes take
+the hue like the hit flash. The value half (the lava's wave and smear, the water's ripple, the
+blurs, the headlight's cone, the flip, the beam) is a post pass (`src/render/screenFilters.ts`):
+the scene goes to a render target, a mask pass draws every object's pass height, and the filter
+only changes pixels whose top object is under its ceiling. Pixels are placed in game_screen
+coordinates by meeting the camera ray with the ground (D6), so the C's per-row and per-chunk wave
+tables apply unchanged. Value is brightness; a new value scales the lit colour. Blends with the
+previous frame use the per-frame weight that halves it per classic tick. It all runs only while a
+filter is on. The level colour filter and brightness (event 44, the flare specials) were already
+folded into the palette texture; they showed nothing because `filtrationAvail` was false, so it is
+now true, as JE_initProcessorType sets it for processorType 4, which the port plays at.
+
+**Options considered:**
+- *Hue on indices, value in a masked post pass (chosen):* the colours are the C's exact palette
+  entries under the 3D lighting, and only the passes the C filters are touched.
+- *Everything in a post pass, hue guessed from the lit colour:* tried first. Lit colours are
+  brighter than palette entries, so the lava came out washed-out yellow, and the water's
+  grey/cloud test needed a nearest-palette lookup that lighting fools.
+- *A full-screen post pass with no mask:* simplest, but it tints and smears the player's ship,
+  shots and sky enemies, which the C draws after the filters.
+- *Split the scene into two renders by pass group:* exact layering, but the instanced pools mix
+  passes, so it means reorganising the draw-list renderer, and shadows across the split are lost.
+
+**Review:** Play ASSASSIN (episode 1; lava, headlight), SAVARA V (water), and in episode 4 LAVA
+RUN (lava, flip), ICE EXIT (iced blur), DESERTRUN (blur) and CORE (water with a level filter);
+`?debug=level&episode=E&main=N&skip=T&god=1` starts one. The mask pass draws the scene a second
+time while a smoothie is on; if that costs too much on slow machines, render the mask at half
+resolution. The water ripple is an approximation of the C's bottom-up recurrence (six rows down).
+Blended (translucent) objects count as solid in the mask.
+
+**Integration (2026-10-27), with the remastered effects (D35):** the shot sprites and explosion
+sprites are draws in their own passes, so the mask already leaves them alone. The remastered
+particles, glows and smoke puffs aren't draws (they have no pass height in the mask) and stand for
+shots and explosions, which the C draws after all its filters. So they're on their own camera layer
+(`VFX_LAYER`): while a smoothie's post pass runs they're left out of the scene and the mask, and
+drawn over the filtered image without depth, before the present pass, so the flip and headlight
+still apply to them as JE_starShowVGA does to the whole screen. Outside smoothies nothing changes.
+
+## D31a — The item screen's simulator draws the Plasma Storm's shots, which the C's doesn't
+
+2026-10-27
+
+**Decision:** The user reported that the Plasma Storm doesn't render. It is a sidekick (options
+index 9, "Plasma Storm Ammo 10"), not a special weapon. In a level it renders: its shots are
+option-shape sprites 22-24 (shot graphics above 60000), drawn blended by player_shot_move_and_draw,
+and they fire only on a sidekick key (Left Ctrl / K, Left Alt / ;) while it has ammo, as in the
+original. The C's item screen simulator, `simulate_player_shots`, skips shot graphics above 60000,
+so the shop showed nothing for it; the port now draws them there as the level does.
+
+**Options considered:**
+- *Draw them in the simulator (chosen):* buyers see what they're paying 8000 for.
+- *Keep the C's empty preview:* faithful, but it reads as a bug, and was reported as one.
+
+**Review:** Upgrade Ship → Left Sidekick → Plasma Storm. If the C's empty preview is preferred,
+remove the `anim_frame > 60000` branch in `simulate_player_shots` (`src/sim/shots.ts`).
+
+## D32 — Cheats: the C's chords and codes, with the title's codes routed to hooks
+
+2026-10-27
+
+**Decision:** The cheats and secret inputs of OpenTyrian are ported as rules on the game state in
+`src/sim/cheats.ts`, with thin key handling in `src/app/cheatKeys.ts` (in flight) and
+`src/app/titleCodes.ts` (title):
+- JE_mainKeyboardInput's chords, run once per tick in which a key went down, with the keys held
+  then (key repeats count as input but don't re-hold a key, as in keyboard.c): the Nort ship
+  (F2 F4 F6 F7 F9 \ /), invulnerability (F2 F3 F6), self-destruct (F2 F3 F4/F5) and skipping the
+  level (F2 F6 F7/F8 without F9), with the HUD's "Cheaters always prosper." The browser's own F1-F10
+  actions are held off during a level.
+- titleScreen's nine specialName codes, typed on the title. STEALTH ... NORTSHIPZ (Super Arcade),
+  DESTRUCT and ENGAGE (Super Tyrian) go to `titleCodeHooks`, which the arcade and Destruct modules
+  fill in. A hook that sets up a game resolves true, and the game starts the way a loaded game
+  does. Without a hook, a "Code accepted" notice names the ship or mode.
+- difficultySelect's hidden difficulties: Shift+G, Shift+] and L O R D add Impossible, Suicide and
+  Lord of the Game, one by one, to the title's difficulty row, which now lists difficultySelect's
+  six levels with their own names. Before, `difficulty_name` was indexed by level, which only
+  matched for the first three.
+- params.c's LOOT as `?loot` in the address (richMode: a new game gets 1,000,000 credits).
+
+On the title a code's later letters are taken from the shortcuts and WASD, but its first letter
+isn't, so S and D still move and L, O, H and M still open their screens when no code is under way.
+L is the exception while Lord of the Game is the next difficulty to unlock. A finished code
+starts over: in the C its counter stays at the end, so a key without a character, such as an
+arrow, would fire it again after the title comes back.
+
+Not ported: the edited ships (Tab/Caps Lock + 1..0), which need the ship editor's newsh$.shp
+(absent from Tyrian 2.1's data); the debug keys (F10 + Backspace); constantPlay, constantDie and
+their keys (command-line test modes; the C key's rule is there but constantPlay is never set); and
+the Backspace "personal commands" (screenshot pause, smoothies, filter cycling, hyper-speed,
+random music), which are developer keys.
+
+**Options considered:**
+- *Port the chords as held keys (chosen):* the original's rules, including its quirks: holding
+  self-destruct toggles cheating again on every key repeat, and skipping the level sets
+  `levelTimer` so `]t[` script jumps act as if the timer ran out.
+- *Also accept chord keys typed one after another:* kinder to keyboards that can't hold seven
+  keys (the C does this only for LORD), but it would fire chords that were never held, such as
+  skip-level halfway through typing the Nort ship.
+- *A separate difficulty screen for LORD, as in the C:* no clash with the L shortcut, but it would
+  bring back a screen the title merged away.
+
+**Review:** On the title, type `techno` (notice), `destruct` and `engage`. Check that L, O and H
+still open their screens. Press Shift+G, Shift+] and type `lord` to show all six difficulties.
+In a level, hold F2 F3 F6 and check the HUD line, then F2 F6 F7 (the level ends), and all seven
+keys of the Nort ship. Once the arcade and Destruct modules are merged, set `titleCodeHooks` from
+them, e.g. in run.ts. To drop a cheat, remove its branch in `JE_mainKeyboardInput`.
+
+**Integration (2026-10-27):** merged with the arcade work. The title has one key listener,
+`TitleCodeListener` (`src/app/titleCodes.ts`): the codes use the arcade work's `CodeMatcher`
+(`src/sim/arcade.ts`; this work's `SpecialNameMatcher` was removed as a duplicate), the hidden
+difficulties use `difficultySelectKey`, and the shortcut rule above holds for both. From the arcade
+work it also takes these rules: modifier keys alone and key repeats don't break a code (so Shift can
+be held for Shift+G or for Super Tyrian at Suicide), and the title's episode and difficulty go back
+to where they were before a code's first letter once the code completes. Super Arcade and Super
+Tyrian start through the arcade work's screens and `startNewGame`. `titleCodeHooks` is now only
+`destructHook.open`: DESTRUCT shows the "isn't in this build yet" notice until the Destruct module
+sets it.
+
+DESTRUCT now opens the Destruct game (D30b).
+
+## D32a — The high score name entry follows the fanfare with song 31
+
+2026-10-27
+
+**Decision:** JE_highScoreCheck plays the fanfare (song 33) and, after every input of its name
+entry, `if (!playing) play_song(31)` (mainint.c L2051-2052). The fanfare doesn't loop, and lasts
+about 7 seconds, so the first key, click or button after it ends starts song 31, which loops. The
+port played only the fanfare. `MusicPlayer` now has `playing` (lds_play.c's `playing`: true
+from play() until a song ends by itself; stop() doesn't clear it). The music worklet reports it to
+the main thread, tagged with the play command it belongs to, and a remaster recording counts as
+ended when its non-looping buffer finishes.
+
+**Options considered:**
+- *Report lds `playing` from the worklet (chosen):* the C's own test, so the song changes exactly
+  when the original's would, for any song and any remaster recording.
+- *Time the fanfare on the main thread:* no audio changes, but the length differs between the FM
+  song and recordings, and the timer drifts if the audio context starts late.
+- *Start song 31 when the fanfare ends, without waiting for input:* smoother, but not what the C
+  does.
+
+**Review:** Get a high score, wait about 8 seconds on the name entry, then type. Song 31 should
+start at that key. If the change at a key press sounds abrupt, start song 31 when `playing` goes
+false instead.
+
+## D33 — Frames not worth a model are listed with a reason; a test checks the rest are modelled
+
+2026-10-27
+
+**Decision:** Of the catalogue's 1,717 enemy and ship frames, 1,716 have models. The last one,
+newsh0.shp frame 13 (a filler piece of the level 2.12 dragon, seen for 13 ticks), is one
+near-black outline pixel in an otherwise empty 24x28 block, so it gets no model and stays
+extruded. `tests/render/modelCoverage.test.ts` holds such frames in `NOT_MODELLED` with the reason,
+and checks every other catalogued frame has a model whenever `reference/models/` exists.
+
+**Options considered:**
+- *Skip it, with the reason in a coverage test (chosen):* the exception is written down where
+  the check runs, and the next sim change that brings in a new frame shows up as a failing test
+  naming the frame, instead of a silent extruded sprite.
+- *Model the pixel as a 1/12-unit cube:* 100% on paper, but a model file and a script for
+  something the extruder already draws identically.
+- *Drop near-empty frames in the catalogue (a pixel-count threshold):* hides the frame, but the
+  threshold is arbitrary and would also hide small real parts such as horn tips.
+- *A note in the README only:* nothing would notice new uncovered frames.
+
+**Review:** The coverage test reads the git-ignored catalogue, so it only runs where `npm run
+catalogue` has been run, and only as fresh as that catalogue. Regenerate it after sim changes
+that affect which enemies are drawn.
+
+## D34 — Remastered backgrounds: the ground upscaled 4x at runtime, structures as tile models found by pattern
+
+2026-10-27
+
+**Decision:** A pilot of the backgrounds' new look, done fully for the tileset of Episode 1's first
+level (TYRIAN, `shapesz.dat`), behind a switch: `?bg=remaster` (`Settings.background`;
+`DrawListRenderer.setBackgroundStyle`). The default stays `original` (D8) until the other
+tilesets have their structures. Wherever nothing remastered exists, the original tile is drawn.
+- **Ground (background 1):** every tile is upscaled 4x with MMPX (`src/render/remaster/mmpx.ts`, a
+  port of the paper's MIT code) into a palette-index atlas (`groundAtlas.ts`). A tile is upscaled
+  with its eight neighbours as they are in the map that tick, and only its own part kept, so a
+  cell comes out exactly as if the whole map had been upscaled at once: no seams, and each slot
+  keeps a one-texel border from its neighbours. Slots are keyed by the 3x3 context and reused least
+  recently used first (a level has 1,000-2,000 contexts; about 100 are on screen). The shader
+  (`groundMaterial.ts`) looks the four nearest texels up in the live palette and blends them, and
+  tilts the normal by their brightness, so painted rocks and ridges catch the light.
+- **Structures:** Blender models of structure tiles, placed where a pattern of tiles is. Each
+  script in `assets/blender/tiles/` writes the `.glb` and a JSON entry in `src/render/tileModels/`
+  (model, tileset, layer, the pattern as rows of tile numbers). `tileModels.ts` matches a pattern
+  from any of its tiles, checking the cells drawn that tick, so a structure stays whole while part
+  of it is off screen. Ground structures stand on their tiles (`keepTiles`); background 2-3 models
+  replace theirs. The models are drawn instanced (`structureInstances.ts`): one draw per model
+  part however many copies, sharing palette materials.
+- **TYRIAN's models** (75): background 3's floating islands and fortresses, one model per tile
+  (`shapesz_bg3.py`): a slab with the tile's outline and a rounded boulder per stone in the art
+  (found as hills of brightness, with the tile between its usual neighbours, and cut at the tile
+  edge so boulders continue across it), the islands' undersides hanging toward the camera, smooth
+  relief for the purple carving and the metal maze floor, pits with glowing lava, drums as
+  cylinders, a glowing orb. On the ground (`shapesz_ground.py`): two 2x2 bunkers and a 3x2 wreck
+  as raised relief of their silhouettes (with a torus and domes for the ring bunker), boulders,
+  and a crown per tree in the forest. Ground models stay under 0.2 units where ground enemies
+  sit on them (the bunkers, boulders), trees under 0.4.
+- **Pipeline:** `npm run tiles` (`tests/tools/tileReference.test.ts`) writes
+  `reference/tiles/<shapes>/`: every used tile's pixels at 1x and MMPX 2x, its layers, levels and
+  usual neighbours, the in-level palette, PNGs of each tile, its 4x upscale, the layers' tile
+  sheets and maps, and a stretch of each level's ground upscaled in context. The Blender scripts
+  read `tiles.json`; `tools/build-models.sh` builds them with the rest.
+
+**Options considered:**
+- *Ground generated at runtime from the player's data (chosen):* the tiles are in the data the
+  player supplies (D3) anyway, every tileset gets it with no per-tileset work, and the result
+  is seamless because the neighbours are known when a cell is drawn. Nothing to commit for the
+  ground.
+- *Upscaled ground textures committed (allowed for the tile art by D16):* reviewable files, and
+  room for hand-painted or AI-upscaled ones later, but per-tile files can't be seamless for every
+  neighbour a tile has, and 600 tiles per tileset of 4x PNGs is a lot to commit for what the
+  game makes as it goes: about 0.17 ms per cell (measured in Node on the dev machine), so ~2 ms
+  for a new row of 12 and ~17 ms once at level start. Hand-made overrides can still be added
+  later as a lookup before the upscaler.
+- *xBR / hqx (as OpenTyrian's video_scale_hqNx.c) instead of MMPX:* smoother, but they blend
+  colours, so the result is RGB for one palette: level palettes, fades and JE_filterScreen (D7)
+  would no longer apply. MMPX only picks input pixels, so it works on palette indices; the colour
+  blending happens in the shader after the palette lookup instead. On the noisy dithered ground
+  textures MMPX changes little; the relief lighting does most of the visible work there.
+- *Per-tile upscale with clamped or wrapped edges:* measured on TYRIAN's ground, 2% (clamp) and
+  0.9% (wrap) of the pixels near a seam differ from a whole-map upscale; in context it's 0%.
+- *Structure models cloned per copy, as enemies are:* worked, but a fortress on screen took
+  ~970 draw calls and 5.9 ms of CPU a frame; instanced, ~400 and 1.6 ms.
+- *Structures modelled entirely by hand:* the most freedom, but 75 models for one tileset; the
+  scripts derive shape, size and colour from the tile pixels, so the models follow the art and
+  the same recipes extend to the other tilesets' rock, metal and foliage.
+- *Every tile as relief (extrusion done better):* uniform, but not "real" 3D; used only where the
+  art is a carved or plated surface.
+
+**Review:** Play TYRIAN with `?bg=remaster` and compare with `?bg=original` (the sprite harness:
+`?debug=sprites&episode=1&level=9&row=175&freeze=80&bg=remaster`, and
+`tyrianHarness.view.draws.setBackgroundStyle("original")` in the console for the same frame).
+Known gaps: the purple carving and the metal floor are relief with each 2x pixel's colour, so they
+still look pixelated up close and would gain from hand modelling; the island underside is a sloped
+face rather than modelled roots; the forest crowns are smooth domes, plainer than the painted
+canopy; the clouds (background 2) stay extruded. To extend to another tileset: `TILES_SHAPES=<x>
+npm run tiles`, then a `shapes<x>_*.py` like the two here, reusing `lib_tiles.py`. If many
+tilesets' models are added, load each tileset's models when its level starts (already done on the
+first tile seen) and consider one `.glb` per tileset.
+
+**Integration (2026-10-27):** composes with the screen filters (D31) and the remastered effects
+(D35). The remastered ground material applies the smoothies' hue on palette indices like the
+original ground (height 0, under every filter) and marks water_filter's pixels; structure models
+take a smoothie's hue for their pass height, as enemy models do. Both are instanced at their pass
+height, so the smoothie mask places them correctly. The level palette, fades and level filter
+still come from the live palette texture.
+
+## D35 — Remastered shots and explosions are a presentation layer over the draw list; on by default
+
+2026-10-27
+
+**Decision:** Shots and explosions get a remastered look (`src/render/vfx/`), drawn from the same
+draw list as everything else, so the sim and its draws are untouched. The draw-list renderer calls
+it through three hooks (a new tick, each shot or explosion sprite, the end of a frame) and draws a
+sprite the way it answers: as before, "hot" (fully emissive, no outline) or not at all.
+- **Shots** (both passes) keep their extruded sprite, so silhouette and palette colour are the
+  original's, but hot, inside an additive halo of the sprite's own brightest colour that stretches
+  back along its last tick's motion into a short trail. A new shot key gets a muzzle flash.
+- **Explosions** are recognised by sprite index: each moving type in `explosion_data` draws a run
+  of explosion-sheet frames no other type uses (`explosionFrames.ts`, checked against the sim's
+  `JE_setupExplosion` in tests), so the index alone gives the type and how far through its ttl it
+  is. A type's first frame is its start. Fireballs (types 1-5, 7-10) keep their sprite, hot, under
+  a fading glow, and on their first frame throw sparks, embers, tumbling debris and drifting smoke
+  and light the scene with one of four pooled point lights. Hit puffs (type 0) become a spark
+  burst and flash; smoke sprites (6, 12) become soft puffs. Coin values, shield arcs and trails
+  stay as they were.
+- **Speed:** particles live in two GPU ring buffers (4,096 additive, 2,048 blended); the vertex
+  shader flies them from their spawn values, so the CPU writes a particle once and uploads only new
+  slots. Halos and puffs are one instanced draw each, rebuilt into reused buffers. Lights are a
+  fixed pool, so shaders never recompile in play. Small fireballs mark every hit on a big enemy, so
+  they spawn few particles and debris and smoke only now and then. With 800 extra shots on screen
+  (`?debug=play&stress=800`) the renderer's CPU time stayed about 2-3 ms a frame, the same as the
+  original look, at 60+ fps.
+- **Switch:** `?vfx=original` (or `remastered`). Remastered is the default: in play the shots read
+  more clearly than before, enemy shots especially, and the explosions read as fire rather than
+  plastic. `?debug=play` (src/debug/playHarness.ts) plays a real level with the test bot, any
+  weapons, a fixed seed and `freezeAt=` for comparing the two looks; V switches them there.
+
+**Options considered:**
+- *Hooks into the existing renderer plus a separate effects module (chosen):* small edits to
+  `drawListRenderer.ts`, and the effects can't change what's drawn, only how.
+- *Replace explosion sprites entirely with procedural fireballs:* more "remastered", but loses the
+  original's shapes and timing (rings, crescents, the large explosion's quarters).
+- *Flat additive sprite billboards from a texture atlas:* softer fire, but a second sprite path
+  and a palette-baked atlas to keep in sync; the hot extruded sprite plus glow looked close enough.
+- *Fake the flash with ground decals instead of lights:* cheaper per fragment, but enemies and
+  terrain wouldn't catch the light. Four lights cost little; they're removed in the original look.
+- *CPU-simulated particles:* simpler shaders, but per-particle work every frame.
+- *Original as the default:* safest, but the remastered look reads at least as clearly.
+
+**Review:** Play levels with heavy weapons and big boss deaths. If the screen gets too busy, lower
+the counts in `spawnBirth` (remasteredFx.ts), or the halo intensity. Switching the look at run time
+recompiles shaders once (the light pool comes and goes), a short hitch; acceptable for a URL
+option, but an Options row should keep the lights at zero intensity instead. Not done: an Options
+menu row (the screen-filters work was changing that screen), and superpixels (JE_doSP) still draw
+as plain pixels.
+
+## D36 — Remastered sound effects are resynthesized from the originals and switch per sound
+
+2026-10-27
+
+**Decision:** The private remaster repo (D18) remakes all 38 sounds (29 effects in tyrian.snd, 9
+voices in voices.snd) with `tools/sfx.py`, and its `out/manifest.json` lists them under
+`sfx.remaster` by sound id. The effects are *resynthesized* from an analysis of each original:
+its tonal content as sinusoidal tracks on clean 48 kHz oscillators, the rest as a noise vocoder
+following the original's band levels, both extended above the original's 5.5 kHz ceiling, plus
+designed layers (sub-bass under explosions, onset transients, three CC0 samples). So each keeps the
+original's pitch, timing, length and envelope, which the player reads as feedback. The voices are
+macOS `say` (Samantha; the original is a female voice around 220 Hz), fitted to the original's
+start and length and pitched to its median, through a ship-computer chain. Every remake is matched
+to its original's K-weighted loudness; the originals are clipped 8-bit noise, so a clean remake at
+their loudness peaks higher, and the manifest's `gain_db` (0-6 dB) carries the difference.
+
+In the game, `SoundEffects` takes the manifest and offers its sound styles; Options gets a Sound
+style row (Original / Remaster) under Music style, remembered in this browser (`?sound=` overrides
+it). A remade sound replaces the original only in the sample it plays: same 8 channels, same
+replacement rule, same `(vol + 1) / 8` gain, times its `gain_db`. Each sound falls back to the
+original on its own until its file has loaded, or if it fails or the style lacks it. Nothing is
+requested unless `localAssetsAllowed()`, so the public build never asks for the pack.
+
+**Options considered:**
+- *Resynthesis from the originals plus designed layers (chosen):* keeps each sound's pitch and
+  timing by construction and drops the 8-bit hiss; but a noisy original can leave tracking
+  artifacts, and nothing in it is new design.
+- *Designing every effect from scratch (synth.py presets, samples):* freer and possibly better
+  sounding, but each would drift from the original's pitch and timing in ways nobody could check
+  without listening.
+- *Cleaning up the originals (denoise, upsample, exciter):* closest to the original, but it is the
+  original audio, not a remake, and 8-bit clipping can't be undone.
+- *Voices resynthesized from the originals (a vocoder on the old recordings):* exact delivery, but
+  only as intelligible as the 8-bit source. `say` is clearer; its output is for local use only.
+- *Limiting remakes to the originals' peak level instead of gain_db:* no peaks above what the game
+  had, but matching their loudness would mean 8-14 dB of limiting and a flattened decay.
+
+**Review:** Nobody has listened to these yet (listen/LISTENING-NOTES.md in the private repo lists
+what to check first: the explosions, the voices, the most frequent sounds). If gain_db makes busy
+scenes clip, lower MAX_GAIN_DB in tools/sfx.py or add a compressor on the effects bus. If the
+rights holders approve the music, decide separately whether the effects ship too: they derive from
+the game's sounds, so the same permission applies.
+
+## D37 — The game seeds mt_rand from the clock at start-up; `?seed=N` fixes it
+
+2026-10-27
+
+**Decision:** OpenTyrian's main calls `mt_srand(time(NULL))` before anything else (opentyr.c
+L757); the port never seeded, so every page load ran from MT19937's default seed (5489) and the
+same inputs gave the same game. `runGame` now seeds once at start-up with the seconds since the
+epoch (`src/app/seed.ts`), or with `N` from `?seed=N` for debugging. Only the game seeds there:
+the tests, the debug harnesses (`?debug=play`, `?debug=level` and `?destruct` set their own) and
+the demos (beginPlayDemo's `mt_srand(seed)`) keep fixed seeds, so the demo, bot, arcade,
+two-player and Destruct cross-checks are unchanged.
+
+**Options considered:**
+- *Seconds since the epoch, as the C (chosen):* the original's behaviour; two loads in the same
+  second play alike, as two launches in the same second of the C do.
+- *`crypto.getRandomValues`:* never repeats, but no reason to differ from the C.
+- *No seed (as before):* repeatable, but every session played the same.
+
+**Review:** Load the game twice and play the same way: enemy fire and drops should differ. To
+repeat a session exactly (with the same inputs), load it with the same `?seed=N`.

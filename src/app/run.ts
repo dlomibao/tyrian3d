@@ -13,10 +13,10 @@ import { startLevel, tick } from "../sim/game";
 import { loadHelpText, parseMenuText } from "../sim/helptext";
 import { clearSimInput } from "../sim/input";
 import { JE_endLevelAni, JE_initPlayerData } from "../sim/mainint";
-import { newOnePlayerGame } from "../sim/newgame";
+import { startNewGame, type GameplayMode } from "../sim/arcade"; // [arcade]
 import { buildResources, requireFile } from "../sim/resources";
 import { JE_loadGame, JE_loadScreen_select, JE_saveGame, loadSaves } from "../sim/savegame";
-import { DIFFICULTY_EASY, DIFFICULTY_HARD, DIFFICULTY_NORMAL, g, SA_NONE } from "../sim/state";
+import { DIFFICULTY_NORMAL, g, SA_NONE } from "../sim/state";
 import { loadLevelAsync } from "../sim/tyrian2";
 import type { View } from "../render/view";
 import { Controls } from "./controls";
@@ -29,10 +29,23 @@ import { highScoreCheckDue } from "../sim/highscores"; // [high scores]
 import { PauseButton, showPause } from "./pause"; // ui-framework: pause screen
 import { askForData, showMessage, showStatus, showTitle, type TitleChoice } from "./screens";
 import { runItemScreen } from "./shop";
+import { playAttractDemo } from "./attractDemo"; // [demos]
+import { TITLE_IDLE_MS } from "./idle"; // [demos]
+import { hasDemos, setNextDemo } from "../sim/demo"; // [demos]
 // port-story: the screens between levels and the level fades.
 import { BLACK, levelFade } from "./fade";
 import { closeStoryScreens, playStoryScreens } from "./storyScreens";
+import { showTrentWin } from "./arcade"; // [arcade]
 import { takeStorySteps } from "../sim/story";
+// [cheats] the secret inputs (DECISIONS.md D32)
+import { applyCheatParams, difficultyNamesByLevel, difficultySelectLevels } from "../sim/cheats";
+import { CheatKeys } from "./cheatKeys";
+import { destructHook, runDestruct } from "./titleCodes";
+import { seedAtStartup } from "./seed";
+// [two-player] the gameplay menu, a two-player game's HUD and messages
+import { showGameplaySelect } from "./gameplaySelect";
+import { TwoPlayerHud } from "./twoPlayerHud";
+import { gameOverLines, levelCompleteLines } from "./twoPlayer";
 
 /** OpenTyrian song numbers (0-based, as passed to play_song). */
 const SONG_TITLE = 29;
@@ -66,6 +79,7 @@ const lastLevelSlot = () => (g.twoPlayerMode ? 22 : 11);
 
 /** `onPlay` fires once the first level starts, so the caller can stop its idle rendering. */
 export async function runGame(view: View, onPlay: () => void = () => {}): Promise<void> {
+  seedAtStartup(); // opentyr.c L757: mt_srand(time(NULL)), or ?seed=N (D37)
   const files = await getFiles();
   const loading = showStatus("Loading…");
   g.res = buildResources(files, 1);
@@ -73,12 +87,23 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
   view.setPalettes(g.res.palettes);
 
   const audioContext = new AudioContext();
-  // The FM original, or a local remaster pack's recordings when one is served (local builds only).
-  const music = new MusicSwitch(audioContext, new Music(requireFile(files, "music.mus"), { context: audioContext }), await loadRemasterManifest());
-  const sfx = new SoundEffects(requireFile(files, "tyrian.snd"), requireFile(files, "voices.snd"), audioContext);
+  // The originals, or a local remaster pack's recordings and remade sounds when one is served
+  // (local builds only).
+  const remaster = await loadRemasterManifest();
+  const music = new MusicSwitch(audioContext, new Music(requireFile(files, "music.mus"), { context: audioContext }), remaster);
+  const sfx = new SoundEffects(requireFile(files, "tyrian.snd"), requireFile(files, "voices.snd"), audioContext, remaster);
   const controls = new Controls(() => view.gamePixelsPerScreenPixel);
   const hud = new Hud();
+  const hud2 = new TwoPlayerHud(); // [two-player]
   const pauseButton = new PauseButton(() => (controls.pauseRequested = true)); // ui-framework
+  const cheats = new CheatKeys(() => controls.active); // [cheats]
+  applyCheatParams(location.search); // [cheats] ?loot: params.c LOOT
+  // [destruct] The DESTRUCT code opens Destruct (src/destruct/, loaded when first needed); the title's
+  // music comes back when it closes.
+  destructHook.open = async () => {
+    const { openDestruct } = await import("../destruct");
+    await openDestruct({ files, view, sfx, music, exitSong: SONG_TITLE });
+  };
   loading();
 
   if (import.meta.env.DEV) Object.assign(window, { tyrian: { g, view, music, sfx } });
@@ -91,15 +116,26 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
   const names = parseMenuText(requireFile(files, "tyrian.hdt"));
   const episodes = [1, 2, 3, 4, 5].filter((n) => files.get(`levels${n}.dat`) && files.get(`tyrian${n}.lvl`));
   let choice: TitleChoice = { episode: 1, difficulty: DIFFICULTY_NORMAL };
+  // [demos] Attract mode: the title plays a demo when idle; ?demo (or ?demo=N) plays one at once.
+  const demos = hasDemos(files);
+  let demoNow = demos ? demoFromUrl() : null;
+  let gameplay: GameplayMode = "fullGame"; // [two-player] [arcade] the last gameplaySelect choice
 
   for (;;) {
+    if (demoNow !== null) {
+      if (demoNow > 0) setNextDemo(demoNow);
+      demoNow = null;
+      await playAttractDemo({ files, view, music, sfx, hud });
+    }
     music.play(SONG_TITLE);
     levelFade().set(0); // the title's backdrop draws under the level fade (port-story)
     choice = await showTitle({
       episodeNames: names.episodeName,
       episodes,
-      difficultyNames: names.difficultyName,
-      difficulties: [DIFFICULTY_EASY, DIFFICULTY_NORMAL, DIFFICULTY_HARD],
+      // [cheats] difficultySelect's six, the last three hidden until their keys are typed.
+      difficultyNames: difficultyNamesByLevel(names.difficultyName),
+      difficulties: [...difficultySelectLevels],
+      difficultiesShown: 3,
       initial: choice,
       musicStyles: music.styles,
       musicStyle: music.style,
@@ -119,13 +155,50 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
       // [high scores] the title menu's High Scores (JE_highScoreScreen)
       highScoresLabel: g.miscText[50]?.trim() || undefined,
       onHighScores: () => showHighScoreScreen({ ...names, episodes, sfx, episode: choice.episode }),
+      idleMs: demos ? TITLE_IDLE_MS : undefined, // [demos]
+      destructReady: () => destructHook.open !== null, // [destruct]
+      // [arcade] what the codes typed at the title start
+      arcade: {
+        superShips: names.superShips,
+        specialName: names.specialName,
+        planetName0: names.pName[0] ?? "Tyrian",
+        sound: (n) => sfx.playSampleNum(n),
+        song: (n) => music.play(n),
+        onDestruct: () => runDestruct({ files, sfx, specialName: names.specialName }), // [cheats] destructHook
+      },
     });
+    if (choice.destruct) {
+      // [destruct] loadDestruct: JE_destructGame, then the main loop shows the title again.
+      choice = { episode: choice.episode, difficulty: choice.difficulty };
+      await runDestruct({ files, sfx, specialName: names.specialName });
+      continue;
+    }
+    if (choice.demo) {
+      // [demos] titleScreen returned with playDemo set; JE_main plays it, then back to the title.
+      choice = { episode: choice.episode, difficulty: choice.difficulty };
+      await playAttractDemo({ files, view, music, sfx, hud });
+      continue;
+    }
+
+    // [two-player] [arcade] gameplaySelect (menus.c): which kind of game; Escape goes back to the
+    // title. A code typed at the title has already picked its game (Super Arcade, Super Tyrian).
+    if (!choice.loaded && !choice.superArcade && !choice.superTyrian) {
+      const picked = await showGameplaySelect({
+        names: names.gameplayName,
+        available: new Set(["fullGame", "arcade", "twoPlayerArcade"] as const),
+        initial: gameplay,
+      });
+      if (picked === null || picked === "network") continue;
+      gameplay = picked;
+    }
 
     // JE_initEpisode: each episode has its own item data (episode 4's lives in tyrian4.lvl).
     // A loaded game is already set up, on its own episode (JE_loadGame). [port-options]
     g.res = buildResources(files, choice.loaded ? g.episodeNum : choice.episode);
     view.setPalettes(g.res.palettes);
-    if (!choice.loaded) newOnePlayerGame(choice.episode, choice.difficulty);
+    // [arcade] newGame() for the chosen mode (1 Player Full Game or Arcade, 2 Player Arcade), or a
+    // Super Arcade or Super Tyrian game (src/sim/arcade.ts).
+    if (!choice.loaded) startNewGame({ ...choice, mode: gameplay });
     onPlay();
     // port-story: JE_loadMap's pictures, text and fades play where the C would have drawn them.
     const story = (keepOpen = false) => playStoryScreens(takeStorySteps(), { files, sfx, music }, { keepOpen });
@@ -167,6 +240,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
       clearSimInput();
       controls.clear();
       hud.visible = true;
+      hud2.visible = true; // [two-player]
 
       // port-story: JE_main's fade_palette(colors, 50) (tyrian2.c L716). The C fades in before the
       // first frame; here the level starts under the fade.
@@ -175,12 +249,15 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
 
       controls.active = true;
       pauseButton.visible = true; // ui-framework
-      const outcome = await playLevel(view, controls, sfx, music, hud, pauseButton);
+      const huds = { update: () => (hud.update(), hud2.update()) }; // [two-player]
+      const outcome = await playLevel(view, controls, sfx, music, huds, pauseButton, cheats);
       controls.active = false;
       controls.release();
       hud.visible = false;
+      hud2.visible = false; // [two-player]
       pauseButton.visible = false; // ui-framework
 
+      if (g.galagaMode) g.twoPlayerMode = false; // [two-player] start_level (tyrian2.c L597-598)
       g.difficultyLevel = g.oldDifficultyLevel; /*Return difficulty to normal*/
       if (outcome === "quit") {
         // ui-framework: "Quit to title" on the pause screen (src/app/pause.ts). [high scores] As
@@ -193,16 +270,12 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
         g.mainLevel = g.nextLevel;
         JE_endLevelAni(); // its state changes; the summary is this screen
         music.play(SONG_LEVEL_END);
-        await showMessage("Level complete", [
-          `${g.levelName.trim()}`,
-          `Score ${g.player[0].cash}`,
-          `Enemies destroyed ${g.enemyKilled} of ${g.totalEnemy}`,
-        ]);
+        await showMessage("Level complete", levelCompleteLines()); // [two-player] both scores in a two-player game
         await levelFade().fade(1, 15, BLACK); // port-story: JE_endLevelAni's fade_black(15)
         if (g.mainLevel === 0) break; // end of the episode
       } else {
         music.play(SONG_GAME_OVER);
-        await showMessage("Game over", ["Your ship was destroyed."], "Press Enter to retry from the item screen");
+        await showMessage("Game over", gameOverLines(), "Press Enter to retry from the item screen"); // [two-player]
         await levelFade().fade(1, 10, BLACK); // port-story: fade_black(10) (tyrian2.c L639)
         JE_loadGame(lastLevelSlot(), files);
         if (g.doNotSaveBackup) {
@@ -214,12 +287,17 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
       }
       g.doNotSaveBackup = false;
     }
+    // [arcade] Super Tyrian beaten at Lord of Game: the C quits with JE_tyrianHalt's message (opentyr.c L907-911).
+    if (g.trentWin) {
+      g.trentWin = false;
+      await showTrentWin();
+    }
   }
 }
 
 type Outcome = "completed" | "died" | "quit";
 
-function playLevel(view: View, controls: Controls, sfx: SoundEffects, music: MusicPlayer, hud: Hud, pauseButton: PauseButton): Promise<Outcome> {
+function playLevel(view: View, controls: Controls, sfx: SoundEffects, music: MusicPlayer, hud: Pick<Hud, "update">, pauseButton: PauseButton, cheats: CheatKeys): Promise<Outcome> {
   return new Promise((resolve) => {
     let last = performance.now();
     let acc = 0;
@@ -267,6 +345,7 @@ function playLevel(view: View, controls: Controls, sfx: SoundEffects, music: Mus
 
       for (let i = 0; i < steps; i++) {
         controls.sample();
+        cheats.poll(); // [cheats] JE_mainKeyboardInput, at the end of the C's frame
         const result = tick();
         sfx.playQueue(g.soundQueue);
         view.setDrawList(drawList);
@@ -288,4 +367,12 @@ function playLevel(view: View, controls: Controls, sfx: SoundEffects, music: Mus
     };
     requestAnimationFrame(frame);
   });
+}
+
+/** [demos] `?demo` plays the next demo at once, `?demo=N` demo N (1-5); null without it. */
+function demoFromUrl(): number | null {
+  const v = new URLSearchParams(location.search).get("demo");
+  if (v === null) return null;
+  const n = Number(v);
+  return Number.isInteger(n) && n >= 1 && n <= 5 ? n : 0;
 }

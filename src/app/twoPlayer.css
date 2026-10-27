@@ -1,0 +1,178 @@
+/*
+ * [two-player] The two-player HUD (twoPlayerHud.ts) and the item screen's two-player panel
+ * (twoPlayerShop.ts). While a two-player level is played (<html data-players="2">) the one-player
+ * HUD keeps its level name, message and boss bars; its bars, weapons, score and warning give way.
+ */
+[data-players="2"] .hud .bars,
+[data-players="2"] .hud .weapon,
+[data-players="2"] .hud .score,
+[data-players="2"] .hud .warning {
+  display: none;
+}
+
+.hud2 {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  color: var(--ink);
+  font-size: clamp(11px, 1.5vw, 15px);
+  text-shadow: 0 1px 2px #000;
+}
+
+.hud2[hidden],
+.hud2 [hidden] {
+  display: none !important;
+}
+
+.hud2-player {
+  position: absolute;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  display: grid;
+  gap: 4px;
+  min-width: 11rem;
+  padding: 6px 10px;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 6px;
+  border-top: 2px solid var(--p-color);
+  transition: opacity 300ms;
+}
+
+.hud2-player--1 {
+  --p-color: var(--ui-gold, #e0a040);
+  left: 12px;
+}
+
+.hud2-player--2 {
+  --p-color: var(--ui-cyan, #5cd6ff);
+  right: 12px;
+  text-align: right;
+}
+
+.hud2-player.is-out {
+  opacity: 0.45;
+}
+
+.hud2-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-family: var(--ui-font-display, inherit);
+  letter-spacing: 0.08em;
+}
+
+.hud2-head b {
+  color: var(--p-color);
+  font-weight: 600;
+}
+
+.hud2-score {
+  font-variant-numeric: tabular-nums;
+  color: #fff3c0;
+}
+
+.hud2-bars {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 8px;
+  align-items: center;
+  font-size: 0.85em;
+  color: var(--ink-dim);
+}
+
+.hud2 .bar {
+  height: 7px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.hud2 .bar > i {
+  display: block;
+  height: 100%;
+  width: 0;
+  transition: width 120ms linear;
+}
+
+.hud2 .armor > i { background: #d9c070; }
+.hud2 .shield > i { background: #5aa8ff; }
+
+.hud2-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.85em;
+  color: var(--ink-dim);
+}
+
+.hud2-player--2 .hud2-foot {
+  flex-direction: row-reverse;
+}
+
+.hud2-lives {
+  color: var(--p-color);
+  letter-spacing: 0.1em;
+}
+
+.hud2-state {
+  font-family: var(--ui-font-display, inherit);
+  font-size: 0.8em;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--p-color);
+}
+
+.hud2-warning {
+  position: absolute;
+  top: 18%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 1.6em;
+  font-weight: bold;
+  letter-spacing: 0.3em;
+  color: #ff5a3a;
+}
+
+/* Narrow (phone) screens: the two panels share the bottom edge. */
+@media (max-width: 480px) {
+  .hud2-player {
+    min-width: 0;
+    width: calc(50% - 18px);
+  }
+}
+
+/* The item screen's two-player panel, in the loadout's place. */
+.shop-two {
+  display: grid;
+  gap: var(--ui-space-3, 12px);
+}
+
+.shop-two__player {
+  display: grid;
+  gap: 4px;
+  padding: var(--ui-space-2, 8px) var(--ui-space-3, 12px);
+  border-left: 3px solid var(--p-color);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.shop-two__player--1 { --p-color: var(--ui-gold, #e0a040); }
+.shop-two__player--2 { --p-color: var(--ui-cyan, #5cd6ff); }
+
+.shop-two__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-family: var(--ui-font-display, inherit);
+}
+
+.shop-two__head b {
+  color: var(--p-color);
+}
+
+.shop-two__score {
+  font-variant-numeric: tabular-nums;
+}
+
+.shop-two__line {
+  color: var(--ui-ink-dim, #b8a77f);
+  font-size: 0.9em;
+}

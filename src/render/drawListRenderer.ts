@@ -13,13 +13,17 @@
 //   (setSpriteModels, D15). Models load on first use; until then the sprite stays extruded.
 //   Materials named pal_<index> take their colour from the live palette.
 //
+// - Remastered backgrounds (setBackgroundStyle("remaster"), D34): the ground is upscaled 4x
+//   (remaster/groundAtlas.ts) and structure tiles become Blender models found by tile pattern
+//   (remaster/tileModels.ts). Tiles without a model, and models still loading, stay as above.
+//
 // Integrator API: add `root` to the scene, call setPalettes() once, setDrawList() every logic
 // tick, and update(alpha, camera) every display frame before rendering.
 
 import * as THREE from "three";
 import type { Palette } from "../data/palette";
 import { PX_PER_UNIT, screenWorldX, screenWorldZ } from "../game/playfield";
-import { Pass, type Draw, type DrawList, type SpriteDraw, type SpriteEffect } from "../sim/draw";
+import { Pass, type Draw, type DrawList, type SpriteDraw, type SpriteEffect, type TileDraw } from "../sim/draw";
 import { DrawInterpolator } from "./interpolation";
 import { FxMode, groundTileMaterial, paletteMaterial } from "./paletteMaterial";
 import { PaletteTexture } from "./paletteTexture";
@@ -28,6 +32,16 @@ import { SpriteMeshCache } from "./spriteMesh";
 import { colourFrame, rigModel, showFrame, type FrameRig } from "./modelFrames";
 import { spriteModelKey, type ModelOverride, type SpriteModels } from "./spriteModels";
 import { TileAtlas } from "./tileAtlas";
+import { RemasteredFx, SpriteLook } from "./vfx/remasteredFx";
+import { vfxModeFromSearch, type VfxMode } from "./vfx/vfxMode";
+import { RemasterGroundAtlas } from "./remaster/groundAtlas";
+import { remasterGroundMaterial } from "./remaster/groundMaterial";
+import { paletteLuma } from "./remaster/mmpx";
+import { TileModelIndex } from "./remaster/tileModels";
+import { StructureInstances } from "./remaster/structureInstances";
+
+/** How backgrounds are drawn: the original tiles extruded (D8) or remastered (D34). */
+export type BackgroundStyle = "original" | "remaster";
 
 /** Roll at full bank, and how fast the model eases toward its frame's roll (per second). */
 const MAX_ROLL = THREE.MathUtils.degToRad(35);
@@ -37,6 +51,12 @@ const BLEND_ALPHA = 0.55;
 /** Passes drawn with a partly emissive material: energy shots, explosions, sparks. */
 const GLOW_PASSES = new Set<Pass>([Pass.PlayerShots, Pass.EnemyShots, Pass.Explosions, Pass.Effects]);
 const GLOW = 0.65;
+/** Shots and fireballs under the remastered effects (D35): fully emissive, no outline. */
+const HOT_GLOW = 1.0;
+/** Translucent ones (the C's blended explosions) glow harder, so they read as fire over anything. */
+const HOT_BLEND_GLOW = 1.6;
+/** Passes the remastered effects see (src/render/vfx/remasteredFx.ts). */
+const VFX_PASSES = new Set<Pass>([Pass.PlayerShots, Pass.EnemyShots, Pass.Explosions]);
 /** Pools unused for this many frames are freed. */
 const POOL_TTL_FRAMES = 1800;
 
@@ -47,6 +67,9 @@ const enum Variant {
   GlowBlend,
   Unlit,
   Ground,
+  Hot,
+  HotBlend,
+  RemasterGround,
 }
 
 /** One InstancedMesh and its per-instance data, reused every frame. */
@@ -155,6 +178,9 @@ export interface DrawListStats {
   visiblePools: number;
   meshes: number;
   atlasTiles: number;
+  remasterTiles: number;
+  /** Structure model copies drawn (remastered backgrounds). */
+  structures: number;
 }
 
 export class DrawListRenderer {
@@ -163,6 +189,7 @@ export class DrawListRenderer {
   readonly palette = new PaletteTexture();
   readonly cache = new SpriteMeshCache();
   readonly atlas = new TileAtlas();
+  readonly remasterAtlas = new RemasterGroundAtlas();
 
   private readonly interp = new DrawInterpolator();
   private list: DrawList | null = null;
@@ -176,13 +203,29 @@ export class DrawListRenderer {
   private readonly overridesBySheet = new Map<string, { override: ModelOverride; pool: ModelPool }[]>();
   private readonly modelPools = new Map<string, ModelPool>();
   private spriteModels = new Map<string, string>();
+  /** [two-player] Grouped ships' banking (spriteModels.ts groupBank). */
+  private groupBank = new Map<string, number>();
   private loader: ModelLoader | null = null;
   private frame = 0;
   private lastTime = performance.now();
   private instances = 0;
+  /** The remastered shot and explosion effects, or null for the original look (D35). */
+  private fx: RemasteredFx | null = null;
+  private vfx: VfxMode = "original";
+  /** Speed of the effects' clock (0 freezes particles and flashes, for debug screenshots). */
+  vfxTimeScale = 1;
+  private background: BackgroundStyle = "original";
+  private tileModels = new TileModelIndex([]);
+  /** Structures already placed this frame, by layer and pattern anchor. */
+  private readonly placedStructures = new Set<string>();
+  private readonly structures = new StructureInstances();
+  /** Structure models asked for (loading or loaded). */
+  private readonly structureLoads = new Set<string>();
+  private readonly preloadedShapes = new Set<string>();
 
   constructor() {
     this.root.name = "draw-list";
+    this.root.add(this.structures.group);
     const p = this.palette;
     this.materials = [];
     this.materials[Variant.Lit] = paletteMaterial(p, { lit: true, transparent: false, outline: true });
@@ -191,7 +234,29 @@ export class DrawListRenderer {
     this.materials[Variant.GlowBlend] = paletteMaterial(p, { lit: true, transparent: true, outline: false, glow: GLOW });
     this.materials[Variant.Unlit] = paletteMaterial(p, { lit: false, transparent: false, outline: false });
     this.materials[Variant.Ground] = groundTileMaterial(p, this.atlas);
-    for (let v = 0; v <= Variant.Ground; v++) this.pools.push(new Map());
+    this.materials[Variant.Hot] = paletteMaterial(p, { lit: true, transparent: false, outline: false, glow: HOT_GLOW });
+    this.materials[Variant.HotBlend] = paletteMaterial(p, { lit: true, transparent: true, outline: false, glow: HOT_BLEND_GLOW });
+    this.materials[Variant.RemasterGround] = remasterGroundMaterial(p, this.remasterAtlas); // [bg-remaster]
+    for (let v = 0; v <= Variant.RemasterGround; v++) this.pools.push(new Map());
+    this.setVfxMode(vfxModeFromSearch());
+  }
+
+  /** The shot and explosion look: the original sprites, or the remastered effects (D35). */
+  get vfxMode(): VfxMode {
+    return this.vfx;
+  }
+
+  setVfxMode(mode: VfxMode): void {
+    if (mode === this.vfx) return;
+    this.vfx = mode;
+    this.fx?.dispose();
+    this.fx = mode === "remastered" ? new RemasteredFx(this.cache, this.palette) : null;
+    if (this.fx) this.root.add(this.fx.root);
+  }
+
+  /** Particles alive in the remastered effects (0 in the original look). */
+  vfxStats(): { particles: number; spawned: number } {
+    return this.fx ? this.fx.stats() : { particles: 0, spawned: 0 };
   }
 
   /** The 23 palettes from palette.dat (resources.palettes); draw lists select one by index. */
@@ -208,12 +273,38 @@ export class DrawListRenderer {
     this.list = list;
     this.items = list.items;
     this.interp.push(list.items);
+    this.fx?.tick(list.items, this.interp.prevX, this.interp.prevY);
     this.applyPalette(list);
+    if (this.background === "remaster") {
+      const palette = this.palettes[list.palette] ?? this.palettes[0];
+      if (palette) this.remasterAtlas.setLuma(paletteLuma(palette));
+      this.remasterAtlas.prepare(list.items);
+      this.tileModels.prepare(list.items);
+    }
+  }
+
+  /**
+   * Draw backgrounds as the original's tiles (extruded, D8) or remastered (D34): the ground
+   * upscaled, and structure tiles as models from `tileModels` (loaded with the sprite models'
+   * loader on first sight; until then, and for tiles without a model, the tiles draw as before).
+   */
+  setBackgroundStyle(style: BackgroundStyle, tileModels: TileModelIndex = new TileModelIndex()): void {
+    this.background = style;
+    this.tileModels = style === "remaster" ? tileModels : new TileModelIndex([]);
+    if (style === "remaster" && this.list) {
+      this.remasterAtlas.prepare(this.list.items);
+      this.tileModels.prepare(this.list.items);
+    }
+  }
+
+  get backgroundStyle(): BackgroundStyle {
+    return this.background;
   }
 
   /** Forget interpolation history (level start, teleports). */
   resetInterpolation(): void {
     this.interp.reset();
+    this.fx?.reset();
   }
 
   get active(): boolean {
@@ -228,6 +319,7 @@ export class DrawListRenderer {
   setSpriteModels(models: SpriteModels, loader: ModelLoader): void {
     this.loader = loader;
     this.spriteModels = models.grouped;
+    this.groupBank = models.groupBank ?? new Map();
     this.overridesBySheet.clear();
     for (const override of models.banked) {
       let list = this.overridesBySheet.get(override.sheetId);
@@ -248,6 +340,10 @@ export class DrawListRenderer {
     const cam = camera.position;
     let instances = 0;
     for (const mp of this.modelPools.values()) mp.used = 0;
+    const fx = this.fx;
+    fx?.begin(dt * this.vfxTimeScale, camera);
+    this.placedStructures.clear();
+    this.structures.begin();
 
     for (let i = 0; i < items.length; i++) {
       const d = items[i];
@@ -256,11 +352,13 @@ export class DrawListRenderer {
           if (d.effect === "darken") continue; // Real shadows replace the C's shadow sprites (D9).
           const x = prevX[i] + (d.x - prevX[i]) * alpha;
           const y = prevY[i] + (d.y - prevY[i]) * alpha;
-          if (d.groupIndex >= 0 && this.spriteModels.size > 0 && this.drawGroupModel(d, x, y, cam)) continue;
+          if (d.groupIndex >= 0 && this.spriteModels.size > 0 && this.drawGroupModel(d, x, y, cam, dt)) continue;
           if (this.overridesBySheet.size > 0 && this.drawOverride(d, x, y, cam, dt)) continue;
           const geometry = this.cache.sprite2Geometry(d.sheet, d.index, d.size);
           if (!geometry) continue;
-          this.addSprite(geometry, d.pass, d.effect, d.filter, d.value, x, y, cam, frame);
+          const look = fx && VFX_PASSES.has(d.pass) ? fx.sprite(d, geometry, x, y, d.x - prevX[i], d.y - prevY[i]) : SpriteLook.Default;
+          if (look === SpriteLook.Hidden) continue;
+          this.addSprite(geometry, d.pass, d.effect, d.filter, d.value, x, y, cam, frame, look === SpriteLook.Hot);
           instances++;
           break;
         }
@@ -270,13 +368,19 @@ export class DrawListRenderer {
           if (!geometry) continue;
           const x = prevX[i] + (d.x - prevX[i]) * alpha;
           const y = prevY[i] + (d.y - prevY[i]) * alpha;
-          this.addSprite(geometry, d.pass, d.effect, d.filter, d.value, x, y, cam, frame);
+          const look = fx && VFX_PASSES.has(d.pass) ? fx.sprite(d, geometry, x, y, d.x - prevX[i], d.y - prevY[i]) : SpriteLook.Default;
+          if (look === SpriteLook.Hidden) continue;
+          this.addSprite(geometry, d.pass, d.effect, d.filter, d.value, x, y, cam, frame, look === SpriteLook.Hot);
           instances++;
           break;
         }
         case "tile": {
           const x = prevX[i] + (d.x - prevX[i]) * alpha;
           const y = prevY[i] + (d.y - prevY[i]) * alpha;
+          if (this.background === "remaster" && this.drawRemasterTile(d, x, y, cam, frame)) {
+            instances++;
+            break;
+          }
           if (d.layer === 0) {
             const pool = this.pool(this.groundGeometry, Variant.Ground, frame);
             const s = pool.next(frame);
@@ -302,10 +406,13 @@ export class DrawListRenderer {
     }
 
     for (let p = 0; p < this.allPools.length; p++) this.allPools[p].commit();
+    fx?.end();
     for (const mp of this.modelPools.values()) {
       for (let c = mp.used; c < mp.clones.length; c++) mp.clones[c].object.visible = false;
     }
+    this.structures.end(this.palette.version, this.paletteColor, (h) => this.palette.screenHue.modelHue(h)); // [filters] smoothie hue
     this.atlas.flush();
+    this.remasterAtlas.flush();
     this.instances = instances;
     if (frame % 300 === 0) this.evictPools(frame);
   }
@@ -318,6 +425,8 @@ export class DrawListRenderer {
       visiblePools: this.allPools.filter((p) => p.mesh.visible).length,
       meshes: this.cache.size,
       atlasTiles: this.atlas.size,
+      remasterTiles: this.remasterAtlas.size,
+      structures: this.structures.stats().instances,
     };
   }
 
@@ -334,7 +443,7 @@ export class DrawListRenderer {
       pool = new Pool(
         geometry,
         this.materials[variant],
-        variant === Variant.Ground ? "instTile" : "instFx",
+        variant === Variant.Ground || variant === Variant.RemasterGround ? "instTile" : "instFx",
         this.root,
         { cast: opaque, receive: variant !== Variant.Unlit },
       );
@@ -355,10 +464,13 @@ export class DrawListRenderer {
     y: number,
     cam: THREE.Vector3,
     frame: number,
+    hot = false,
   ): void {
     const blend = effect === "blend";
     const glow = GLOW_PASSES.has(pass);
-    const variant = glow ? (blend ? Variant.GlowBlend : Variant.Glow) : blend ? Variant.LitBlend : Variant.Lit;
+    const variant = hot
+      ? blend ? Variant.HotBlend : Variant.Hot
+      : glow ? (blend ? Variant.GlowBlend : Variant.Glow) : blend ? Variant.LitBlend : Variant.Lit;
     const pool = this.pool(geometry, variant, frame);
     const s = pool.next(frame);
     writeMatrix(pool.mesh.instanceMatrix.array as Float32Array, s, x, y, passHeight(pass), 1, 1, cam);
@@ -391,6 +503,65 @@ export class DrawListRenderer {
     fx[s * 4 + 3] = 1;
   }
 
+  /**
+   * Draw a background tile remastered (D34): a structure tile as its model (once per structure per
+   * frame, at the pattern's centre), and a ground tile from the upscaled atlas (also under a ground
+   * structure). Returns false to draw the tile the original way.
+   */
+  private drawRemasterTile(d: TileDraw, x: number, y: number, cam: THREE.Vector3, frame: number): boolean {
+    let modelled = false;
+    // Structures are opaque models; a "blend" (translucent) tile keeps the original look.
+    if (this.tileModels.size > 0) this.preloadStructures(d.tileId);
+    if (d.effect === "none" && this.tileModels.has(d)) {
+      const match = this.tileModels.match(d);
+      if (match && this.structureLoaded(match.entry.model)) {
+        const id = `${match.anchorKey}|${match.entry.model}`;
+        if (!this.placedStructures.has(id)) {
+          this.placedStructures.add(id);
+          // At the pass's height, on the camera ray through its screen point, scaled to keep its
+          // screen size (D6), as placeModel does for enemies.
+          const h = passHeight(d.pass);
+          const k = h / cam.y;
+          const gx = screenWorldX(x + match.dx);
+          const gz = screenWorldZ(y + match.dy);
+          this.structures.place(match.entry.model, gx + (cam.x - gx) * k, h, gz + (cam.z - gz) * k, 1 - k);
+        }
+        if (!(match.entry.keepTiles ?? d.layer === 0)) return true;
+        modelled = true;
+      }
+    }
+    if (d.layer !== 0) return modelled;
+    const pool = this.pool(this.groundGeometry, Variant.RemasterGround, frame);
+    const s = pool.next(frame);
+    if (!this.remasterAtlas.place(d.key, pool.extra.array as Float32Array, s * 2)) {
+      pool.count--; // No slot yet (no palette): give the instance back.
+      return false;
+    }
+    writeMatrix(pool.mesh.instanceMatrix.array as Float32Array, s, x, y, passHeight(d.pass), 1, 1, cam);
+    return true;
+  }
+
+  /** Start loading every structure model of a tileset the first time one of its tiles is drawn. */
+  private preloadStructures(tileId: string): void {
+    const shapes = tileId.slice(0, tileId.indexOf(":"));
+    if (this.preloadedShapes.has(shapes)) return;
+    this.preloadedShapes.add(shapes);
+    for (const model of this.tileModels.models(shapes)) this.structureLoaded(model);
+  }
+
+  /** Whether a structure model has loaded, starting its load the first time it's asked for. */
+  private structureLoaded(name: string): boolean {
+    if (this.structures.has(name)) return true;
+    if (!this.structureLoads.has(name) && this.loader) {
+      this.structureLoads.add(name);
+      this.loader(name).then(
+        (model) => this.structures.add(name, model),
+        (err) => console.error(`structure model ${name} failed to load; its tiles stay as they were`, err),
+      );
+    }
+    return false;
+  }
+
   /** Draw a sprite as its override model (the player ship and its banking frames), if it has one. */
   private drawOverride(d: SpriteDraw, x: number, y: number, cam: THREE.Vector3, dt: number): boolean {
     const overrides = this.overridesBySheet.get(d.sheet.id);
@@ -415,12 +586,21 @@ export class DrawListRenderer {
    * has loaded: the model goes at the object's centre on its first tile, and the other tiles draw
    * nothing. Returns false to draw the tile as a sprite.
    */
-  private drawGroupModel(d: SpriteDraw, x: number, y: number, cam: THREE.Vector3): boolean {
-    const name = this.spriteModels.get(spriteModelKey(d.sheet.id, d.groupSize, d.groupIndex));
+  private drawGroupModel(d: SpriteDraw, x: number, y: number, cam: THREE.Vector3, dt: number): boolean {
+    const key = spriteModelKey(d.sheet.id, d.groupSize, d.groupIndex);
+    const name = this.spriteModels.get(key);
     if (name === undefined) return false;
     const pool = this.modelPool(name);
     if (!pool.source) return false;
-    if (d.groupFirst) this.placeModel(pool, x + d.groupDx, y + d.groupDy, d, cam, d.groupIndex);
+    if (d.groupFirst) {
+      const clone = this.placeModel(pool, x + d.groupDx, y + d.groupDy, d, cam, d.groupIndex);
+      // [two-player] a grouped ship that banks (the dragonwing) rolls as drawOverride's ships do
+      const bank = this.groupBank.get(key);
+      if (bank !== undefined) {
+        clone.roll += (-bank * MAX_ROLL - clone.roll) * Math.min(1, dt * ROLL_RATE);
+        clone.object.rotation.z = clone.roll;
+      }
+    }
     return true;
   }
 
@@ -467,7 +647,9 @@ export class DrawListRenderer {
     }
 
     // blit_sprite2_filter draws (filter & 0xf0) | (index & 0x0f): the same shade in another hue.
-    const hue = d.effect === "filter" ? d.filter & 0xf0 : -1;
+    // [filters] A smoothie's hue covers that, as its filter runs after the draw (screenHue.ts).
+    const screenHue = this.palette.screenHue.modelHue(h);
+    const hue = screenHue >= 0 ? screenHue : d.effect === "filter" ? d.filter & 0xf0 : -1;
     const { rig } = clone;
     const frameChanged = rig.animated && clone.frame !== frame;
     if (frameChanged) showFrame(rig, frame);

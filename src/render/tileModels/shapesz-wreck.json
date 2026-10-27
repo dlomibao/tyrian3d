@@ -1,0 +1,17 @@
+{
+ "model": "tiles/shapesz/wreck",
+ "shapes": "shapesz.dat",
+ "layer": 0,
+ "tiles": [
+  [
+   340,
+   341,
+   342
+  ],
+  [
+   350,
+   351,
+   352
+  ]
+ ]
+}
