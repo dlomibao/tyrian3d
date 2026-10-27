@@ -1757,6 +1757,10 @@ export function* JE_loadMapSteps(files: TyrianFiles): Generator<LoadMapPause, bo
   /* Load LEVELS.DAT - Section = MAINLEVEL */
   g.saveLevel = g.mainLevel;
 
+  // (not in the C) Steps a host didn't play belong to an earlier JE_loadMap. Cleared once here, not
+  // at new_game: the screens before `]Q` lead into the next episode's.
+  clearStorySteps();
+
   // `goto new_game` (after `]Q` has moved to the next episode) runs JE_loadMap_newGame again.
   for (;;) {
     const r = yield* JE_loadMap_newGame(files);
@@ -1776,8 +1780,6 @@ function* JE_loadMap_newGame(files: TyrianFiles): Generator<LoadMapPause, boolea
   // haltGame = false: menus, not simulated.
 
   g.gameLoaded = false;
-
-  clearStorySteps(); // (not in the C) steps a host didn't play belong to an earlier JE_loadMap
 
   // episodeFilename: JE_initEpisode changes it with the episode.
   const episodeData = requireFile(files, `levels${g.episodeNum}.dat`);
