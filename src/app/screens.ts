@@ -114,14 +114,21 @@ export interface TitleOptions {
   onHighScores?: () => Promise<void>;
 }
 
-/** Standard-mapping pad buttons for the title's other entries (not intents in src/ui/nav.ts). */
-const PAD_Y = 3;
-const PAD_BACK = 8;
+/**
+ * Standard-mapping pad buttons for the title's other entries, with their hint glyphs. None is an
+ * intent (src/ui/nav.ts PAD_BUTTONS): X is the title's alt (Music) and Start starts, so Load Game
+ * takes LB, the next free button (the shoulders only steer sidekicks in flight).
+ */
+export const TITLE_PAD = {
+  loadGame: { button: 4, glyph: "LB" },
+  options: { button: 8, glyph: "Back" },
+  highScores: { button: 3, glyph: "Y" },
+} as const;
 
 /**
  * Title screen: pick an episode and difficulty (keyboard, gamepad, click or tap), then start.
  * Load Game, Options and High Scores follow the episodes in the same list (so up/down reach them
- * and a tap opens them), with keys L, O, H and pad Back (Options) and Y (High Scores).
+ * and a tap opens them), with keys L, O, H and pad buttons LB, Back and Y (TITLE_PAD).
  */
 export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
   let ep = Math.max(0, opts.episodes.indexOf(opts.initial.episode));
@@ -149,12 +156,11 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
     syncMusic();
     if (loaded === true) finish(true);
   };
-  const more: { label: string; key: string; code: string; pad?: string; over?: boolean; run: () => Promise<boolean | void> }[] = [];
-  if (opts.onLoadGame) more.push({ label: "Load Game", key: "L", code: "KeyL", over: true, run: opts.onLoadGame });
-  if (opts.onOptions) more.push({ label: "Options", key: "O", code: "KeyO", pad: "Back", over: true, run: opts.onOptions });
-  if (opts.onHighScores) more.push({ label: opts.highScoresLabel ?? "High Scores", key: "H", code: "KeyH", pad: "Y", over: true, run: opts.onHighScores });
-  const padButtons = new Map<number, (typeof more)[number]>();
-  for (const m of more) if (m.pad) padButtons.set(m.pad === "Y" ? PAD_Y : PAD_BACK, m);
+  const more: { label: string; key: string; code: string; pad: { button: number; glyph: string }; over?: boolean; run: () => Promise<boolean | void> }[] = [];
+  if (opts.onLoadGame) more.push({ label: "Load Game", key: "L", code: "KeyL", pad: TITLE_PAD.loadGame, over: true, run: opts.onLoadGame });
+  if (opts.onOptions) more.push({ label: "Options", key: "O", code: "KeyO", pad: TITLE_PAD.options, over: true, run: opts.onOptions });
+  if (opts.onHighScores) more.push({ label: opts.highScoresLabel ?? "High Scores", key: "H", code: "KeyH", pad: TITLE_PAD.highScores, over: true, run: opts.onHighScores });
+  const padButtons = new Map(more.map((m) => [m.pad.button, m]));
 
   const screen = showScreen({
     id: "title",
@@ -192,6 +198,7 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
     focused: ep,
     onFocus: (i) => {
       if (i < episodeCount) ep = i;
+      markChosen();
     },
     onSelect: (i) => {
       if (i >= episodeCount) return void sub(more[i - episodeCount].run, more[i - episodeCount].over);
@@ -199,6 +206,11 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
       finish();
     },
   });
+  // With the focus on Load Game, Options or High Scores, the episode Enter or Start would still
+  // start keeps a quieter mark, as the difficulty row always shows its choice.
+  const markChosen = () => {
+    [...episodes.el.children].forEach((li, i) => li.classList.toggle("is-chosen", i === ep && episodes.focused >= episodeCount));
+  };
   const difficulty = new MenuList({
     label: "Difficulty",
     orientation: "horizontal",
@@ -240,11 +252,11 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
       { key: "←→", pad: "✛", label: "Difficulty" },
       { key: "Enter", pad: "A", touch: "Tap", label: "Start" },
       ...(hasMusic ? [{ key: "M", pad: "X", label: "Music" }] : []),
-      // A hint without a pad glyph shows its key on a pad too; Load Game has no button of its own
-      // (Y and Back are taken), so on a pad it's reached in the list.
-      ...more.map((m) => ({ key: m.key, ...(m.pad ? { pad: m.pad } : {}), label: m.label })),
+      ...more.map((m) => ({ key: m.key, pad: m.pad.glyph, label: m.label })),
     ]),
-    h("p", { class: "title-controls", text: "In flight: arrows or WASD move, Space fires. Mouse, touch and gamepads work too." }),
+    // The flight controls for the device used last (src/app/controls.ts); CSS picks one.
+    h("p", { class: "title-controls", attrs: { "data-dev": "keys" }, text: "In flight: arrows or WASD move, Space fires. Mouse, touch and gamepads work too." }),
+    h("p", { class: "title-controls", attrs: { "data-dev": "pad" }, text: "In flight: stick or d-pad moves, A or RT fires, X changes fire mode, LB and RB fire the sidekicks, Start pauses." }),
   );
   return new Promise((resolve) => (resolveFn = resolve));
 }

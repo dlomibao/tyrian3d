@@ -52,7 +52,8 @@ export function showPause(): Promise<PauseChoice> {
       title("Paused"),
       menu,
       keyHints([
-        { key: "Esc", pad: "Start", touch: "Tap Resume", label: "Resume" },
+        // No touch glyph: on a touch screen the two buttons say it all (the hints hide there).
+        { key: "Esc", pad: "Start", label: "Resume" },
         { key: "Enter", pad: "A", label: "Choose" },
       ]),
     );

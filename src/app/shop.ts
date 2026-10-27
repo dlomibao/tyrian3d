@@ -193,7 +193,7 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
         <div class="shop-cash"><span>Credits</span><b data-k="cash"></b></div>
       </header>
       <div class="shop-body">
-        <aside class="shop-ship" data-k="ship"></aside>
+        <div class="shop-side"><aside class="shop-ship" data-k="ship"></aside></div>
         <section class="shop-menu">
           <canvas class="shop-nav" data-k="nav" width="${220 * NAV_SCALE}" height="${160 * NAV_SCALE}" hidden></canvas>
           <ul class="ui-menu shop-list" data-k="list" role="listbox"></ul>
@@ -210,7 +210,7 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
   const dialogEl = el("dialog");
   screen.root.append(dialogEl);
   // The weapon simulator (weaponPreview.ts) takes the loadout's place, in the left column, in the
-  // submenus that run it.
+  // submenus that run it; both sit in .shop-side's one cell, so the column keeps its size.
   const preview = new WeaponPreview();
   el("ship").before(preview.element);
   // Data Cubes (src/app/dataCubes.ts): load_cubes, then the cube list and reader in the loadout's
@@ -596,7 +596,6 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
       list.innerHTML = entries.map((e) => renderRow(e, e.sel === menu.curSel[menu.curMenu])).join("");
     }
     el("ship").hidden = preview.sync();
-    reveal(list.querySelector(".is-focused"));
     const power = renderPower();
     el("power").innerHTML = power;
     el("power").hidden = !power;
@@ -609,6 +608,8 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
     }
     navCanvas.hidden = !isNav;
     if (isNav) drawNav();
+    // Once the map and the power row are in place: they move the list (restyle-polish).
+    reveal(list.querySelector(".is-focused"));
     el("help").textContent = JE_mainMenuHelpText();
     renderHints();
     const dialog = renderDialog();

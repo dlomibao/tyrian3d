@@ -40,8 +40,27 @@
   color: var(--ui-ink-faint) !important;
 }
 
+/* One line of flight controls per device: the pad's on a pad, none on a touch screen. */
+.title-controls[data-dev="pad"],
+:root[data-input="pad"] .title-controls[data-dev="keys"],
 :root[data-input="touch"] .title-controls {
   display: none;
+}
+
+:root[data-input="pad"] .title-controls[data-dev="pad"] {
+  display: block;
+}
+
+/* The chosen episode while the focus is on Load Game, Options or High Scores: the focus bar and
+   warm text, without the focus's fill, like the difficulty row's chosen item. */
+.ui-screen--title .ui-menu__item.is-chosen {
+  color: var(--ui-ink-warm);
+  border-color: rgba(240, 176, 72, 0.22);
+}
+
+.ui-screen--title .ui-menu__item.is-chosen::before {
+  height: 40%;
+  opacity: 0.7;
 }
 
 /* Phones in landscape: a smaller logo, and the episodes in two columns, so the menu fits. */
@@ -74,7 +93,7 @@
     margin-top: var(--ui-space-2);
   }
 
-  .title-controls {
+  :root .ui-screen--title .title-controls[data-dev] {
     display: none;
   }
 }
@@ -157,6 +176,16 @@
 
 .ui-screen--message .ui-title {
   align-items: center;
+}
+
+/* A long continue label ("Retry from the item screen") wraps into even lines on a phone. */
+.ui-screen--message .ui-button {
+  padding-block: var(--ui-space-1);
+}
+
+.ui-screen--message .ui-button > span:first-child {
+  text-wrap: balance;
+  line-height: 1.25;
 }
 
 .message-line:first-of-type {
