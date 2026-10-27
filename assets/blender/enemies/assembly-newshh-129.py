@@ -14,14 +14,20 @@ strands of water 2 px wide (with the dark gaps of the sprite between them), brig
 ridge of foam with sparkles where it lands and a flat pool. The cliffs either side step down from
 a lit top with a highlighted edge; bushes and rounded rocks frame the pool.
 
-Every piece animates only the water (the streaks and sparkles move), so one model covers all of
-its frames. newshh-129 and newshh-205 each appear three times side by side; the strands and foam
-are laid out from the sprite pixels, which are the same for each copy, so one cut of each tiles.
+Every piece animates only the water: on each of its four frames the strands break in other places
+and the streaks and sparkles move, so one model covers all of its frames (DECISIONS.md D17). The
+cliffs, bushes, pool, the dark slope and the foam ridge are built once; the strands, streaks and
+sparkles are built again from each frame's pixels and tagged with common.frame_part. In game the
+pieces cycle in step (enemies 739-744: CYCLES below), the bottom row two frames behind the top row
+as in the layout, so each animation phase is laid out as a whole from the frames shown together.
+newshh-129 and newshh-205 each appear three times side by side; the strands and foam are laid out
+from the sprite pixels, which are the same for each copy, so one cut of each tiles.
 
 Built whole in assembly coordinates, then cut into the pieces with common.split_assembly.
 
 Run: blender --background --python assets/blender/enemies/assembly-newshh-129.py [-- --preview out.png]
-(the preview is the whole waterfall; each piece also gets <piece>.png next to it).
+(the preview is the whole waterfall; each piece also gets <piece>.png next to it) [-- --frames dir]
+(every frame of each piece, one row per frame, to dir/<piece>.png).
 """
 
 import sys
@@ -50,13 +56,20 @@ CLIFF = [(0, 0.56), (7, 0.56), (8.5, 0.5), (16, 0.44), (28, 0.35), (36, 0.27), (
 POOL_Z = 0.07
 FOAM_ROW, FOAM_W, FOAM_Z, FOAM_H = 43.5, 3.2, 0.085, 0.04
 STRAND_END = 41  # strands of falling water run over rows 0..40
+# Each piece's animation in game order (newshh.shp frames of enemies 739-744, each held 3 ticks).
+CYCLES = {
+    "newshh-117": [165, 234, 240, 117], "newshh-129": [167, 236, 242, 129], "newshh-153": [169, 238, 244, 153],
+    "newshh-157": [203, 272, 278, 157], "newshh-205": [205, 274, 280, 267], "newshh-207": [207, 276, 282, 269],
+}
+PHASES = 4
 
 
-def composite():
-    """Assembly pixels {(col, row): index} from each piece's frame used in the layout, the
-    layout itself (one entry per model) and every piece's colours."""
+def composite(phase=0):
+    """Assembly pixels {(col, row): index} for one animation phase (0 = each piece's frame used in
+    the layout, then `phase` frames on along its cycle), the frame each piece shows in that phase
+    {model: index}, the layout itself (one entry per model) and every piece's colours."""
     base = common.load_sprite(ROOT, PIECES[0])
-    colors, pixels, layout = {}, {}, {}
+    colors, pixels, layout, shown = {}, {}, {}, {}
     for entry in base["assemblyLayout"]:
         name = entry["model"]
         if name not in PIECES:
@@ -64,6 +77,9 @@ def composite():
         data = common.load_sprite(ROOT, name)
         colors.update(data["colors"])
         index = int(entry["frame"].split("|")[-1])
+        cycle = CYCLES[name]
+        index = cycle[(cycle.index(index) + phase) % len(cycle)]
+        shown[name] = index
         frame = next((f for f in data["frames"] if f["index"] == index), data["frames"][0])
         c0, r0 = entry["cx"] - 12 - (CX0 - W // 2), entry["cy"] - 14 - (CY0 - H // 2)
         for r, row in enumerate(frame["pixels"]):
@@ -71,7 +87,7 @@ def composite():
                 pixels[(c0 + c, r0 + r)] = v
         layout.setdefault(name, (entry["cx"] - CX0, entry["cy"] - CY0))
     base["colors"] = colors
-    return base, pixels, [(n, *layout[n]) for n in PIECES]
+    return base, pixels, shown, [(n, *layout[n]) for n in PIECES]
 
 
 def fall_z(r):
@@ -166,12 +182,16 @@ def strands(bm, pixels, M):
                 f.smooth = True
 
 
-def foam(bm, pixels, M):
-    """A ridge of foam where the water lands, sparkles on it in the pool."""
+def foam(bm, M):
+    """A ridge of foam where the water lands."""
     path = [(4.5, FOAM_ROW + 1.0), (10, FOAM_ROW - 1.5), (20, FOAM_ROW - 1.0)]
     path += [(c, FOAM_ROW + (0.5 if (c // 12) % 2 else -0.3)) for c in range(32, 100, 12)]
     path += [(104, FOAM_ROW - 1.0), (111.5, FOAM_ROW - 2.5)]
     lib.sweep(bm, G, [(c, r, FOAM_Z, FOAM_W, FOAM_H) for c, r in path], sides=8, mat=M.slot(58))
+
+
+def sparkles(bm, pixels, M):
+    """Sparkles on the foam and in the pool."""
     # Sparkles: the brightest pixels of the foam and the pool.
     for (c, r), v in pixels.items():
         if v >= 59 and 34 <= r < H and 5 <= c <= 112 and (r >= 38 or c < 12):
@@ -256,7 +276,9 @@ def bushes(bm, M):
                           mat=M.slot(bright[idx]), segments=6, rings=3)
 
 
-def build(sprite, pixels):
+def build(sprite, phases):
+    """The static waterfall, then the moving water of each phase (a list of assembly pixels) as its own
+    object. Returns (static object, [water object per phase])."""
     coll = common.reset_collection(NAME)
     water = {i: {"metallic": 0.2, "roughness": 0.15} for i in range(48, 63)}
     rock = {i: {"metallic": 0.05, "roughness": 0.8} for i in range(1, 13)}
@@ -267,31 +289,49 @@ def build(sprite, pixels):
     # The water: a dark slope (seen through the gaps) and the pool, then strands, streaks, foam.
     lib.ramp(bm, G, 12, 105, FALL, M.slot(49), r_to=45, step=2)
     lib.plate(bm, G, [(4, 38), (104, 38), (104, 33), (112.5, 33), (112.5, 48), (104.5, 56), (12.5, 56), (4.5, 48)], 0.0, POOL_Z, M.slot(54))
-    strands(bm, pixels, M)
-    foam(bm, pixels, M)
+    foam(bm, M)
     cliffs(bm, M)
     bushes(bm, M)
-    return lib.to_object(NAME, bm, M.list, coll)
+    static = lib.to_object(NAME, bm, M.list, coll)
+    waters = []
+    for k, pixels in enumerate(phases):
+        wbm = bmesh.new()
+        strands(wbm, pixels, M)
+        sparkles(wbm, pixels, M)
+        waters.append(lib.to_object(f"{NAME}-water-{k}", wbm, M.list, coll))
+    return static, waters
 
 
 def main():
-    sprite, pixels, layout = composite()
-    obj = build(sprite, pixels)
+    phases = [composite(k) for k in range(PHASES)]
+    sprite, pixels, _, layout = phases[0]
+    obj, waters = build(sprite, [p[1] for p in phases])
     pieces = common.split_assembly(obj, layout)
+    parts = {name: [pieces[name]] for name in PIECES}
+    for k, water in enumerate(waters):
+        for name, part in common.split_assembly(water, layout).items():
+            frame = phases[k][2][name]
+            part.name = f"{name}-water-{frame}"
+            parts[name].append(common.frame_part(part, [frame]))
     for name in PIECES:
         data = common.load_sprite(ROOT, name)
-        common.export_sprite_model(ROOT, [pieces[name]], f"enemies/{name}", data["sprites"])
+        assert sorted(f["index"] for f in data["frames"]) == sorted(CYCLES[name]), name
+        common.export_sprite_model(ROOT, parts[name], f"enemies/{name}", data["sprites"])
+    if "--frames" in sys.argv:
+        out = Path(sys.argv[sys.argv.index("--frames") + 1])
+        for name in PIECES:
+            common.render_frame_previews(parts[name], str(out / f"{name}.png"), common.load_sprite(ROOT, name), ROOT)
     if "--preview" in sys.argv:
         import tempfile
         out = Path(sys.argv[sys.argv.index("--preview") + 1])
         # The whole sprite, padded to the 24:28 shape render_preview expects for size 10.
         padded = {(c, r + (140 - H) // 2): v for (c, r), v in pixels.items()}
         ref = lib.composite_png(padded, sprite["colors"], 120, 140, Path(tempfile.mkdtemp()) / "assembly.png")
-        common.render_preview([obj], str(out), str(ref), size=10, view_px=640)
+        common.render_preview([obj, waters[0]], str(out), str(ref), size=10, view_px=640)
         for name in PIECES:
-            data = common.load_sprite(ROOT, name)
-            img = ROOT / "reference" / "models" / name / data["frames"][0]["image"]
-            common.render_preview([pieces[name]], str(out.parent / f"{name}.png"), img, size=2)
+            frame = phases[0][2][name]
+            img = ROOT / "reference" / "models" / name / f"frame-newshh-{frame}.png"
+            common.render_preview(parts[name], str(out.parent / f"{name}.png"), img, size=2, frame=frame)
 
 
 if __name__ == "__main__":
