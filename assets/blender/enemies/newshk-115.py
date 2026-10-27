@@ -3,7 +3,8 @@
 Seen in episode 3 (level 12) as a ground object. A crescent of fire in the lower half of its
 block, horns curling up at the left and right edges, thickest and hottest at the bottom centre.
 The three frames only brighten it, so one model covers them all: a rounded red ridge lying
-along the arc, a brighter orange core line along its crest and a yellow-hot swell at the centre.
+along the arc, a brighter orange core line along its crest and a yellow-hot swell at the centre,
+each stepping up through the palette with the frames (palette_material frames=).
 
 Run: blender --background --python assets/blender/enemies/newshk-115.py [-- --preview out.png]
 """
@@ -44,11 +45,14 @@ def catmull(points, steps=3):
 
 def build(sprite):
     coll = common.reset_collection(NAME)
-    pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
+    # Every pixel steps up two palette shades on frame 117 and four on 119; the ridge and core
+    # (which mostly show their shaded sides) step a little less: {sprite frame: palette index}.
+    pal = lambda i, part, frames, **kw: common.palette_material(  # noqa: E731
+        sprite, i, f"{NAME}-{part}", frames=frames, **kw)
     mats = [
-        pal(119, metallic=0.0, roughness=0.6, emission_strength=2.5),  # 0 red fire
-        pal(123, metallic=0.0, roughness=0.5, emission_strength=3.5),  # 1 orange core
-        pal(125, metallic=0.0, roughness=0.4, emission_strength=5.0),  # 2 yellow-hot centre
+        pal(119, "fire", {117: 120, 119: 121}, metallic=0.0, roughness=0.6, emission_strength=2.5),  # 0 red fire
+        pal(123, "core", {117: 124, 119: 125}, metallic=0.0, roughness=0.5, emission_strength=3.5),  # 1 orange core
+        pal(125, "hot", {117: 126, 119: 127}, metallic=0.0, roughness=0.4, emission_strength=5.0),  # 2 yellow-hot centre
     ]
     FIRE, CORE, HOT = range(3)
     bm = bmesh.new()
@@ -73,6 +77,8 @@ def main():
         out = sys.argv[sys.argv.index("--preview") + 1]
         ref = ROOT / "reference" / "models" / NAME / sprite["frames"][0]["image"]
         common.render_preview([obj], out, ref, size=sprite["frames"][0]["size"])
+    if "--frames" in sys.argv:
+        common.render_frame_previews([obj], sys.argv[sys.argv.index("--frames") + 1], sprite, ROOT)
 
 
 if __name__ == "__main__":
