@@ -109,7 +109,9 @@ For local development, fetch it into `data/`, which is git-ignored:
     npm run build      # typecheck and production build
     TYRIAN_EPISODE_TEST=1 npm test   # also play every level of all four episodes headless
 
-Debug pages: `?debug=sprites` (renderer test bench), `/src/audio/debugMusic.html` (music player).
+Debug pages: `?debug=sprites` (renderer test bench), `?debug=play` (a real level played by the test
+bot, with chosen weapons; see `src/debug/playHarness.ts`), `/src/audio/debugMusic.html` (music player).
+`?vfx=original` shows shots and explosions as the extruded sprites instead of the remastered effects.
 
 ## License
 

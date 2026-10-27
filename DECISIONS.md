@@ -650,3 +650,53 @@ renderer and only while a screen asks for it. The pause screen's "Quit to title"
 backdrop's cost shows on slow machines, cap its frame rate or render it at a lower pixel ratio. If
 the C's in-game Quit is wanted, add "Retry from item screen" to the pause menu: it's the "died"
 path in `run.ts` with `playerEndLevel` set.
+
+## D35 — Remastered shots and explosions are a presentation layer over the draw list; on by default
+
+2026-10-27
+
+**Decision:** Shots and explosions get a remastered look (`src/render/vfx/`), drawn from the same
+draw list as everything else, so the sim and its draws are untouched. The draw-list renderer calls
+it through three hooks (a new tick, each shot or explosion sprite, the end of a frame) and draws a
+sprite the way it answers: as before, "hot" (fully emissive, no outline) or not at all.
+- **Shots** (both passes) keep their extruded sprite, so silhouette and palette colour are the
+  original's, but hot, inside an additive halo of the sprite's own brightest colour that stretches
+  back along its last tick's motion into a short trail. A new shot key gets a muzzle flash.
+- **Explosions** are recognised by sprite index: each moving type in `explosion_data` draws a run
+  of explosion-sheet frames no other type uses (`explosionFrames.ts`, checked against the sim's
+  `JE_setupExplosion` in tests), so the index alone gives the type and how far through its ttl it
+  is. A type's first frame is its start. Fireballs (types 1-5, 7-10) keep their sprite, hot, under
+  a fading glow, and on their first frame throw sparks, embers, tumbling debris and drifting smoke
+  and light the scene with one of four pooled point lights. Hit puffs (type 0) become a spark
+  burst and flash; smoke sprites (6, 12) become soft puffs. Coin values, shield arcs and trails
+  stay as they were.
+- **Speed:** particles live in two GPU ring buffers (4,096 additive, 2,048 blended); the vertex
+  shader flies them from their spawn values, so the CPU writes a particle once and uploads only new
+  slots. Halos and puffs are one instanced draw each, rebuilt into reused buffers. Lights are a
+  fixed pool, so shaders never recompile in play. Small fireballs mark every hit on a big enemy, so
+  they spawn few particles and debris and smoke only now and then. With 800 extra shots on screen
+  (`?debug=play&stress=800`) the renderer's CPU time stayed about 2-3 ms a frame, the same as the
+  original look, at 60+ fps.
+- **Switch:** `?vfx=original` (or `remastered`). Remastered is the default: in play the shots read
+  more clearly than before, enemy shots especially, and the explosions read as fire rather than
+  plastic. `?debug=play` (src/debug/playHarness.ts) plays a real level with the test bot, any
+  weapons, a fixed seed and `freezeAt=` for comparing the two looks; V switches them there.
+
+**Options considered:**
+- *Hooks into the existing renderer plus a separate effects module (chosen):* small edits to
+  `drawListRenderer.ts`, and the effects can't change what's drawn, only how.
+- *Replace explosion sprites entirely with procedural fireballs:* more "remastered", but loses the
+  original's shapes and timing (rings, crescents, the large explosion's quarters).
+- *Flat additive sprite billboards from a texture atlas:* softer fire, but a second sprite path
+  and a palette-baked atlas to keep in sync; the hot extruded sprite plus glow looked close enough.
+- *Fake the flash with ground decals instead of lights:* cheaper per fragment, but enemies and
+  terrain wouldn't catch the light. Four lights cost little; they're removed in the original look.
+- *CPU-simulated particles:* simpler shaders, but per-particle work every frame.
+- *Original as the default:* safest, but the remastered look reads at least as clearly.
+
+**Review:** Play levels with heavy weapons and big boss deaths. If the screen gets too busy, lower
+the counts in `spawnBirth` (remasteredFx.ts), or the halo intensity. Switching the look at run time
+recompiles shaders once (the light pool comes and goes), a short hitch; acceptable for a URL
+option, but an Options row should keep the lights at zero intensity instead. Not done: an Options
+menu row (the screen-filters work was changing that screen), and superpixels (JE_doSP) still draw
+as plain pixels.
