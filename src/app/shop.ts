@@ -9,7 +9,7 @@
 
 import "./shop.css";
 import { decodeSprite2, decodeTableSprite, type DecodedSprite, type Palette, vga6To8 } from "../data";
-import type { Music } from "../audio/music";
+import type { MusicPlayer } from "../audio/remaster";
 import type { SoundEffects } from "../audio/sfx";
 import {
   itemName,
@@ -41,7 +41,7 @@ import { sectionLevelName } from "../sim/tyrian2";
 export interface ItemScreenHost {
   files: TyrianFiles;
   sfx: SoundEffects;
-  music: Music;
+  music: MusicPlayer;
 }
 
 /** sprite_table index of PLANET_SHAPES (sprite.h). */

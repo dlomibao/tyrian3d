@@ -104,6 +104,13 @@ export interface TitleOptions {
   /** Selectable difficulty levels. */
   difficulties: number[];
   initial: TitleChoice;
+  /**
+   * Music styles to choose from ("original" first) when a local remaster pack is present (only on
+   * local builds); omitted otherwise. `onMusicStyle` switches as soon as one is picked.
+   */
+  musicStyles?: string[];
+  musicStyle?: string;
+  onMusicStyle?: (style: string) => void;
 }
 
 /** Title screen: pick an episode and difficulty (keyboard, gamepad, click or tap), then start. */
@@ -112,8 +119,9 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
     <h1>TYRIAN 3D</h1>
     <div class="choices episodes" role="listbox" aria-label="Episode"></div>
     <div class="choices difficulty" role="radiogroup" aria-label="Difficulty"></div>
+    <div class="choices music" role="radiogroup" aria-label="Music" hidden></div>
     <p><span class="key">↑↓</span> episode · <span class="key">←→</span> difficulty ·
-       <span class="key">Enter</span> start</p>
+       <span class="key">Enter</span> start<span class="music-key" hidden> · <span class="key">M</span> music</span></p>
     <p><span class="key">←↑↓→</span> / <span class="key">WASD</span> move · <span class="key">Space</span> fire ·
        mouse, touch and gamepads work too</p>`);
   const episodesEl = el.querySelector<HTMLDivElement>(".episodes")!;
@@ -144,9 +152,30 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
     difficultyEl.appendChild(b);
     return b;
   });
+  // Music style (local remaster packs only).
+  const styles = opts.musicStyles ?? [];
+  let style = Math.max(0, styles.indexOf(opts.musicStyle ?? "original"));
+  const musicEl = el.querySelector<HTMLDivElement>(".music")!;
+  const label = (s: string) => `${s[0].toUpperCase()}${s.slice(1)} music`;
+  const musicButtons = styles.length > 1 ? styles.map((name, i) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = label(name);
+    b.addEventListener("click", () => setStyle(i));
+    musicEl.appendChild(b);
+    return b;
+  }) : [];
+  musicEl.hidden = musicButtons.length === 0;
+  el.querySelector<HTMLSpanElement>(".music-key")!.hidden = musicButtons.length === 0;
+  const setStyle = (i: number) => {
+    style = (i + styles.length) % styles.length;
+    opts.onMusicStyle?.(styles[style]);
+    render();
+  };
   const render = () => {
     episodeButtons.forEach((b, i) => b.classList.toggle("selected", i === ep));
     difficultyButtons.forEach((b, i) => b.classList.toggle("selected", i === diff));
+    musicButtons.forEach((b, i) => b.classList.toggle("selected", i === style));
   };
   render();
 
@@ -175,6 +204,7 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
       KeyD: () => move(0, 1),
       Enter: finish,
       Space: finish,
+      ...(musicButtons.length ? { KeyM: () => setStyle(style + 1) } : {}),
     };
     const action = map[e.code];
     if (!action) return;

@@ -364,3 +364,26 @@ animation as a single entry and plays it with the sprite.
 
 **Review:** Frames are sprite indices (the frame's top-left tile), so a model's frame tags must use
 the indices in its sprite.json. The animation is stepwise at the sprite's rate, like the original.
+
+## D18 — Remastered audio lives in a private repo and is only served locally
+
+2026-10-27
+
+**Decision:** New arrangements of the music (and later the sound effects) live in a private repo,
+tyrian3d-remaster, because the music is all rights reserved and the arrangements are for showing
+the rights holders. The game plays them only when they're served locally: `npm run dev` and
+`npm run play:local` (a production build served by `vite preview`) serve its `out/` folder at
+`tyrian-remaster/`, and the music switches between the FM original and each style on the title
+screen. Songs without a recording fall back to the original. The public build never requests the
+pack (it's gated on `VITE_LOCAL_DATA`, set only by `play:local`) and nothing from it is bundled.
+`npm run songs-to-midi` turns the game's songs into MIDI for arranging.
+
+**Options considered:**
+- *Private repo, served locally (chosen):* the arrangements can't leak into the public repo or
+  site, and the full game can still be tested with them.
+- *A user-supplied pack like the data zip:* would work on the deployed site, but the site would then
+  advertise a way to load unlicensed music.
+- *Keep them in the public repo, unlisted:* simplest, but public all the same.
+
+**Review:** If the rights holders agree, decide how the music ships (bundled, or downloaded on
+demand) and move it to the public repo with its licence in CREDITS.md.
