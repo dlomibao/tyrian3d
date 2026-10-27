@@ -118,11 +118,13 @@ class Palette:
 
 # --- Geometry ------------------------------------------------------------------------------------
 
-def mask_slab(bm, mask, frame, z_bottom, z_top, mat_top, mat_side=None, mat_bottom=None, top_height=None):
+def mask_slab(bm, mask, frame, z_bottom, z_top, mat_top, mat_side=None, mat_bottom=None, top_height=None, smooth_top=False):
     """A slab with the outline of `mask` (bool array in `frame` pixels) from z_bottom to z_top.
 
     `top_height`, an array like mask, raises each top cell by that much (a relief); side walls
-    follow it. Coplanar top faces of one material are merged afterwards (dissolve_coplanar)."""
+    follow it. With `smooth_top` a corner takes the mean of its cells' heights (else the highest)
+    and the top is smooth shaded, for carved surfaces; the sides stay flat. Coplanar top faces of
+    one material can be merged afterwards (dissolve_coplanar)."""
     mat_side = mat_top if mat_side is None else mat_side
     mat_bottom = mat_side if mat_bottom is None else mat_bottom
     h, w = mask.shape
@@ -132,7 +134,9 @@ def mask_slab(bm, mask, frame, z_bottom, z_top, mat_top, mat_side=None, mat_bott
         if top_height is None:
             return z_top
         vals = [top_height[y, x] for y in (cy - 1, cy) for x in (cx - 1, cx) if 0 <= y < h and 0 <= x < w and mask[y, x]]
-        return z_top + (max(vals) if vals else 0.0)
+        if not vals:
+            return z_top
+        return z_top + (sum(vals) / len(vals) if smooth_top else max(vals))
 
     def vt(cx, cy):
         v = top_v.get((cx, cy))
@@ -152,7 +156,9 @@ def mask_slab(bm, mask, frame, z_bottom, z_top, mat_top, mat_side=None, mat_bott
             if not mask[y, x]:
                 continue
             # Counter-clockwise seen from above (+Z): screen y grows downward, Blender Y upward.
-            bm.faces.new((vt(x, y + 1), vt(x + 1, y + 1), vt(x + 1, y), vt(x, y))).material_index = mats(x, y)
+            f = bm.faces.new((vt(x, y + 1), vt(x + 1, y + 1), vt(x + 1, y), vt(x, y)))
+            f.material_index = mats(x, y)
+            f.smooth = smooth_top
             bm.faces.new((vb(x, y), vb(x + 1, y), vb(x + 1, y + 1), vb(x, y + 1))).material_index = mat_bottom
             for (dx, dy), (a, b) in (((0, -1), ((x, y), (x + 1, y))), ((1, 0), ((x + 1, y), (x + 1, y + 1))),
                                      ((0, 1), ((x + 1, y + 1), (x, y + 1))), ((-1, 0), ((x, y + 1), (x, y)))):
@@ -192,6 +198,30 @@ def dome(bm, cx, cy, rx, ry, angle, z0, height, mat, sides=10, rings=3, squash=0
             j = (i + 1) % sides
             bm.faces.new((r0[i], r1[i], r1[j], r0[j])).material_index = mat
     bm.faces.new(list(reversed(ring_verts[-1]))).material_index = mat  # bottom
+
+
+def block(bm, cx, cy, rx, ry, angle, z0, height, mat, sides=8, bevel=0.3):
+    """A carved block: an elliptic prism of `sides` faces (8: octagonal) with a bevelled top, on the
+    plane z = z0, radii rx, ry (units) turned by `angle`."""
+    ca, sa = math.cos(angle), math.sin(angle)
+
+    def ring(scale, z):
+        out = []
+        for i in range(sides):
+            t = 2 * math.pi * (i + 0.5) / sides
+            lx, ly = rx * scale * math.cos(t), ry * scale * math.sin(t)
+            out.append(bm.verts.new((cx + lx * ca - ly * sa, cy + lx * sa + ly * ca, z)))
+        return out
+
+    top = ring(1 - bevel, z0 + height)
+    edge = ring(1.0, z0 + height * (1 - bevel * 0.8))
+    base = ring(1.0, z0)
+    bm.faces.new(top).material_index = mat
+    for a, b in ((top, edge), (edge, base)):
+        for i in range(sides):
+            j = (i + 1) % sides
+            bm.faces.new((b[i], b[j], a[j], a[i])).material_index = mat
+    bm.faces.new(list(reversed(base))).material_index = mat
 
 
 def components(mask):
@@ -400,7 +430,7 @@ def snap_shade(index, chosen, spread=2):
 
 
 def boulders(ts, n, pal, bm, keep=None, z0=-0.03, max_height=0.2, sigma=2.2, gap=0.22, sides=10, squash=0.2,
-             chosen=None, min_pixels=8, quantile=0.5, shrink=1.0):
+             chosen=None, min_pixels=8, quantile=0.5, shrink=1.0, shape="dome"):
     """A rounded boulder for each stone painted on tile n (2x pixels; a stone is a hill of
     brightness, lt.hills), sized, turned and coloured like its pixels. Stones are found with the
     tile between its usual neighbours, built whole and cut at the tile's edges, so one crossing
@@ -423,7 +453,10 @@ def boulders(ts, n, pal, bm, keep=None, z0=-0.03, max_height=0.2, sigma=2.2, gap
         rx, ry = (rx + 0.6) * shrink / 24, (ry + 0.6) * shrink / 24
         height = min(max_height, 0.55 * min(rx, ry) + 0.02)
         colour = snap_shade(dominant(grid[ys, xs], ts.lum, quantile=quantile), chosen)
-        dome(sb, frame.x(cx), frame.y(cy), rx, ry, -ang, z0, height, pal(colour), sides=sides, rings=3, squash=squash)
+        if shape == "block":
+            block(sb, frame.x(cx), frame.y(cy), rx, ry, -ang, z0, height, pal(colour), sides=sides)
+        else:
+            dome(sb, frame.x(cx), frame.y(cy), rx, ry, -ang, z0, height, pal(colour), sides=sides, rings=3, squash=squash)
     cut_to_tile(sb)
     # Move the stones into `bm` (bmesh has no direct join; go through a temporary mesh).
     tmp = bpy.data.meshes.new("tmp_stones")

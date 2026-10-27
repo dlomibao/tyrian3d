@@ -50,7 +50,7 @@ for n in (120, 121, 122, 123, 124, 130, 131, 132, 133, 134, 150, 151, 152):
 for n in (140, 141, 142):
     TILES[n] = ("underside", {"drop": 0.55})
 for n in (155, 156, 157, 158, 159, 165, 167, 168, 169, 175, 176, 177):
-    TILES[n] = ("boulders", {"relief": 0.17, "base": 0.03, "sigma": 1.4, "colours": 3})  # purple blocks
+    TILES[n] = ("boulders", {"relief": 0.16, "base": 0.03, "sigma": 1.6, "colours": 3, "smooth": True})  # purple blocks
 for n in (185, 186, 187, 188, 195, 196, 197, 198):
     TILES[n] = ("boulders", {"relief": 0.1, "base": 0.03, "colours": 3})  # stone blocks, brass frames
 for n in (160, 161, 170, 171):
@@ -62,7 +62,7 @@ TILES[149] = ("inlay", {"relief": 0.1, "base": 0.0, "sigma": 1.0, "colours": 4, 
 TILES[143] = ("pit", {"relief": 0.16, "base": -0.1, "sigma": 0.9, "glow": 1.8, "colours": 5})  # lava pit
 TILES[153] = ("pit", {"relief": 0.16, "base": -0.08, "sigma": 0.9, "glow": 1.8, "colours": 5})  # crater, gold rings
 for n in (180, 181, 191, 192, 200, 201, 183, 184, 193, 194):
-    TILES[n] = ("metal", {"relief": 0.035, "base": 0.06})
+    TILES[n] = ("metal", {"relief": 0.035, "base": 0.06, "smooth": True})
 
 
 def is_red(ts, index):
@@ -73,7 +73,7 @@ def is_red(ts, index):
 def build(ts, n, recipe, opts):
     name = f"t{n}"
     coll = common.reset_collection(f"{SHAPES}-{name}")
-    pal = lt.Palette(ts, f"{SHAPES}{name}", roughness=0.85, metallic=0.0)
+    pal = lt.Palette(ts, f"{SHAPES}{name}", roughness=0.55, metallic=0.05)
     frame = lt.Frame([[n]], scale=2)
     own = ts.grid([[n]], 2)
     h, w = own.shape
@@ -125,7 +125,7 @@ def build(ts, n, recipe, opts):
     bm = bmesh.new()
     bottom = SLAB_BOTTOM + min(0.0, drop.min(), heights.min())
     lt.mask_slab(bm, opaque, frame, bottom, SLAB_TOP, lambda x, y: cell_mat.get((x, y), DARK), DARK,
-                 top_height=heights + drop)
+                 top_height=heights + drop, smooth_top=opts.get("smooth", False))
     lt.dissolve_coplanar(bm)
 
     covered = np.zeros_like(opaque)  # where a hand-built part stands

@@ -83,10 +83,10 @@ export class TileModelIndex {
     return this.cells.has(cellId(d.tileId, d.layer));
   }
 
-  /** Every model path in the index. */
-  models(): string[] {
+  /** Every model path in the index, or those of one tileset ("shapesz.dat"). */
+  models(shapes?: string): string[] {
     const out = new Set<string>();
-    for (const list of this.cells.values()) for (const c of list) out.add(c.entry.model);
+    for (const list of this.cells.values()) for (const c of list) if (!shapes || c.entry.shapes === shapes) out.add(c.entry.model);
     return [...out];
   }
 

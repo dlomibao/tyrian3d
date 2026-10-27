@@ -204,6 +204,7 @@ export class DrawListRenderer {
   private readonly structures = new StructureInstances();
   /** Structure models asked for (loading or loaded). */
   private readonly structureLoads = new Set<string>();
+  private readonly preloadedShapes = new Set<string>();
 
   constructor() {
     this.root.name = "draw-list";
@@ -459,6 +460,7 @@ export class DrawListRenderer {
   private drawRemasterTile(d: TileDraw, x: number, y: number, cam: THREE.Vector3, frame: number): boolean {
     let modelled = false;
     // Structures are opaque models; a "blend" (translucent) tile keeps the original look.
+    if (this.tileModels.size > 0) this.preloadStructures(d.tileId);
     if (d.effect === "none" && this.tileModels.has(d)) {
       const match = this.tileModels.match(d);
       if (match && this.structureLoaded(match.entry.model)) {
@@ -486,6 +488,14 @@ export class DrawListRenderer {
     }
     writeMatrix(pool.mesh.instanceMatrix.array as Float32Array, s, x, y, passHeight(d.pass), 1, 1, cam);
     return true;
+  }
+
+  /** Start loading every structure model of a tileset the first time one of its tiles is drawn. */
+  private preloadStructures(tileId: string): void {
+    const shapes = tileId.slice(0, tileId.indexOf(":"));
+    if (this.preloadedShapes.has(shapes)) return;
+    this.preloadedShapes.add(shapes);
+    for (const model of this.tileModels.models(shapes)) this.structureLoaded(model);
   }
 
   /** Whether a structure model has loaded, starting its load the first time it's asked for. */
