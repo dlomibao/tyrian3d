@@ -3,9 +3,12 @@
 Seen in episode 2 (level section 15). A round, faceted green gem sitting on the ground: a pale,
 almost white table in the middle, dark notches at the four compass points, bright facets on
 the diagonals and a mid-green rim. The three frames only fade its greens darker (a pulse), so one
-model covers them all.
+model covers them all: every pixel of frame 193 is two palette steps darker than on frame 191 and
+on frame 195 four (down to the outline's 32), so every facet colour steps down the same way on
+those frames (palette_material frames=).
 
 Run: blender --background --python assets/blender/enemies/newshv-191.py [-- --preview out.png]
+     [--frames frames.png]
 """
 
 import sys
@@ -21,11 +24,14 @@ import lib_b111 as lib  # noqa: E402
 NAME = "newshv-191"
 ROOT = common.repo_root(__file__)
 P = 1 / 12
+# How many palette steps the whole gem darkens on each later frame (32 is the darkest green).
+FADE = {193: 2, 195: 4}
 
 
 def build(sprite):
     coll = common.reset_collection(NAME)
-    pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
+    pal = lambda i, **kw: common.palette_material(  # noqa: E731
+        sprite, i, f"{NAME}-pulse", frames={f: max(i - d, 32) for f, d in FADE.items()}, **kw)
     mats = [
         pal(40, metallic=0.2, roughness=0.5),  # 0 rim green
         pal(42, metallic=0.3, roughness=0.35),  # 1 mid facets
