@@ -359,7 +359,8 @@ def subset(sprite, keep):
 
 def run(name, build, file):
     """Build, export every model and, with -- --preview <png>, preview each: the first to <png>,
-    the others to <model>.png beside it. `build(sprite)` returns [(model, objects, sprites)]."""
+    the others to <model>.png beside it; -- --frames <png> renders every frame of each the same
+    way (common.render_frame_previews). `build(sprite)` returns [(model, objects, sprites)]."""
     root = common.repo_root(file)
     sprite = common.load_sprite(root, name)
     models = build(sprite)
@@ -371,4 +372,12 @@ def run(name, build, file):
         for i, (model, objects, sprites) in enumerate(models):
             path = out if i == 0 else out.parent / f"{model}.png"
             common.render_preview(objects, str(path), frame_image(root, name, sprite, sprites), size=size)
+    if "--frames" in sys.argv:
+        # Every frame of each animated model, one row per frame: <png>, then <model>-frames.png.
+        out = Path(sys.argv[sys.argv.index("--frames") + 1])
+        for i, (model, objects, sprites) in enumerate(models):
+            keep = {(s["sheet"], f) for s in sprites for f in s["frames"]}
+            frames = [f for f in sprite["frames"] if (f["sheet"], f["index"]) in keep]
+            path = out if i == 0 else out.parent / f"{model}-frames.png"
+            common.render_frame_previews(objects, str(path), {**sprite, "frames": frames}, root)
     return sprite
