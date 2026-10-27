@@ -210,7 +210,7 @@ def preview(root, objs, out, sprite, frame=0):
     """Render the model beside its sprite (first frame of the frames it covers)."""
     f = sprite["frames"][frame]
     ref = Path(root) / "reference" / "models" / sprite["name"] / f["image"]
-    common.render_preview(objs, str(out), ref, size=f["size"])
+    common.render_preview(objs, str(out), ref, size=f["size"], frame=f["index"])
 
 
 def frames_arg():
