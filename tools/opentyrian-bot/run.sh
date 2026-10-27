@@ -86,5 +86,5 @@ play_case() { # name episode section ticks every [mode]
 play_case tyrian 1 3 60000 50       # episode 1's first level, played to its end
 play_case squadron 4 45 20000 100   # the episode 4 galaga bonus game (it never ends)
 play_case two-players 1 3 60000 25 play2 # a two-player game: player 2 links, unlinks, dies
-play_case ale 1 41 22000 100        # the episode 1 galaga bonus game (diverges at tick 22212:
-                                    # the C's dragonwing, player 2, rams an enemy; not ported)
+play_case ale 1 41 30000 100        # the episode 1 galaga bonus game (past tick 22212 the
+                                    # dragonwing, player 2, rams an enemy: two-player collisions)

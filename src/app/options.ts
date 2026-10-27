@@ -592,14 +592,16 @@ export function showOptions(host: OptionsHost, focus: OptionsFocus = "sound"): P
 // --- JE_loadScreen ---
 
 /**
- * JE_loadScreen (mainint.c L619-901): the one-player saved games. Resolves with the slot the
- * player picks (the caller loads it: JE_operation), or null for "Exit to Main Menu" / Escape. An
- * empty slot clinks. (The C's second page, two-player saves, isn't offered: there's no two-player
- * game to continue.)
+ * JE_loadScreen (mainint.c L619-901): the saved games, one-player and (left/right, [two-player])
+ * two-player. Resolves with the slot the player picks (the caller loads it: JE_operation), or null
+ * for "Exit to Main Menu" / Escape. An empty slot clinks.
  */
 export function showLoadScreen(host: Pick<OptionsHost, "sfx">): Promise<number | null> {
   const menuItemsCount = 12;
-  const slots: SaveSlotView[] = saveSlotViews(1, menuItemsCount - 1);
+  // [two-player] Left/right page between the one-player saves (slots 1-11) and the two-player
+  // ones (12-22), as the C's playersIndex does (mainint.c L626-899).
+  let playersIndex = 0;
+  let slots: SaveSlotView[] = saveSlotViews(1, menuItemsCount - 1);
   const sound = (n: number) => host.sfx.playSampleNum(n);
   const lastLevel = g.miscTextB[3 - 1] || "Last Level";
   const episode = g.miscTextB[2 - 1] || "Episode";
@@ -627,19 +629,39 @@ export function showLoadScreen(host: Pick<OptionsHost, "sfx">): Promise<number |
         finish(s.slot);
       }
     };
-    const screen = showScreen({ id: "load", over: true, layout: "center", label: "Load game", onBack: back });
+    const page = (index: number) => {
+      if (index === playersIndex || index < 0 || index > 1) return;
+      sound(S_CURSOR);
+      playersIndex = index;
+      slots = saveSlotViews(playersIndex * 11 + 1, menuItemsCount - 1);
+      list.setItems(items());
+      paintPage();
+    };
+    const screen = showScreen({
+      id: "load",
+      over: true,
+      layout: "center",
+      label: "Load game",
+      onBack: back,
+      onIntent: (intent) => {
+        if (intent !== "left" && intent !== "right") return false;
+        page(playersIndex + (intent === "left" ? -1 : 1));
+        return true;
+      },
+    });
+    const items = () => [
+      ...slots.map((s) => ({
+        label: s.name,
+        detail: `${lastLevel} ${s.empty ? "-----" : s.levelName}`,
+        badge: s.empty ? undefined : `${episode} ${s.episode}`,
+        class: s.empty ? "is-empty" : "",
+      })),
+      { label: g.miscText[33] || "Exit to Main Menu", class: "load-exit" },
+    ];
     const list = new MenuList({
       label: "Saved games",
       class: "load-list",
-      items: [
-        ...slots.map((s) => ({
-          label: s.name,
-          detail: `${lastLevel} ${s.empty ? "-----" : s.levelName}`,
-          badge: s.empty ? undefined : `${episode} ${s.episode}`,
-          class: s.empty ? "is-empty" : "",
-        })),
-        { label: g.miscText[33] || "Exit to Main Menu", class: "load-exit" },
-      ],
+      items: items(),
       onFocus: () => sound(S_CURSOR),
       onSelect: action,
     });
@@ -648,12 +670,25 @@ export function showLoadScreen(host: Pick<OptionsHost, "sfx">): Promise<number |
       back();
     });
     screen.panel.append(backButton(back));
+    // [two-player] the page's title, and the C's paging arrows (left: one player, right: two)
+    const heading = title(g.miscText[38] || "One Player Saved Games", "Load game");
+    const arrow = (dir: -1 | 1) =>
+      button({ label: dir < 0 ? "◀" : "▶", variant: "ghost", class: "load-page", onPress: () => page(playersIndex + dir) });
+    const prev = arrow(-1);
+    const next = arrow(1);
+    const paintPage = () => {
+      heading.querySelector("span:last-child")!.textContent = g.miscText[38 + playersIndex] || ["One Player Saved Games", "Two Player Saved Games"][playersIndex];
+      prev.hidden = playersIndex === 0;
+      next.hidden = playersIndex === 1;
+    };
+    paintPage();
     screen.add(
-      title(g.miscText[38] || "One Player Saved Games", "Load game"),
+      h("div", { class: "load-pages" }, prev, heading, next),
       list,
       h("p", { class: "opt-help", text: g.mainMenuHelp[21 - 1] ?? "" }),
       keyHints([
         { key: "↑↓", pad: "✛", label: "Move" },
+        { key: "←→", pad: "✛", label: "One / two players" },
         { key: "Enter", pad: "A", touch: "Tap", label: "Load" },
         { key: "Esc", pad: "B", label: "Back" },
       ]),
