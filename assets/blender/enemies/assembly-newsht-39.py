@@ -4,13 +4,15 @@ Seen in episode 1 (level 1.19), 3 and 4. Twelve 2x2 enemies side by side make on
 machine (sprite.json `assemblyLayout`): a red body with two dark glass orbs set in U-shaped
 frames, a grey visor between them, a grey cannon below, two glowing exhausts on its back, and
 two arms that reach out sideways on a beam and hang down to claws with a glowing red eye
-(newsht-39 and newsht-49, whose three frames only brighten the eye, so one model covers them).
+(newsht-39 and newsht-49, whose three frames only brighten the eye, so one model covers them:
+the eye's materials take each frame's palette colour, palette_material frames=; see eye_materials).
 
 The whole machine is built once in assembly coordinates (left half, mirrored about pixel column
 71, which is the sprite's axis), then cut into the twelve pieces with common.split_assembly.
 
 Run: blender --background --python assets/blender/enemies/assembly-newsht-39.py [-- --preview out.png]
-(the preview is the whole machine; each piece also gets <piece>.png next to it).
+(the preview is the whole machine; each piece also gets <piece>.png next to it; -- --frames <dir>
+renders every frame of the two claws to <dir>/<piece>.png).
 """
 
 import math
@@ -267,6 +269,25 @@ def build(sprite):
     return to_object(NAME, bm, mats, coll)
 
 
+def eye_materials(piece, sprite):
+    """Animate the claw's eye on a claw piece (newsht-39 or newsht-49). The eye brightens: on
+    newsht-39 frames 39 -> 77 -> 79, on newsht-49 (its mirror image) 49 -> 87 -> 85; its glow, hot
+    core and socket rise a few palette steps. In the claw pieces the glow, hot and socket slots
+    hold nothing but the eye, so the piece's own copies of those slots get animated materials
+    (the other pieces, whose exhausts share the glow and hot materials, keep them as they are)."""
+    tag = "nsht39_eye"
+    slots = {
+        8: common.palette_material(sprite, 119, tag, emission_strength=3.0,
+                                   frames={77: 122, 79: 125, 85: 125, 87: 122}),  # GLOW
+        9: common.palette_material(sprite, 125, tag, emission_strength=5.0,
+                                   frames={77: 126, 79: 127, 85: 127, 87: 126}),  # HOT
+        10: common.palette_material(sprite, 113, tag, metallic=0.2, roughness=0.5,
+                                    frames={77: 114, 79: 116, 85: 116, 87: 114}),  # SOCKET
+    }
+    for slot, mat in slots.items():
+        piece.data.materials[slot] = mat
+
+
 def merged_sprite():
     """newsht-39's sprite.json with the colours of every piece, so any piece's index is valid."""
     data = common.load_sprite(ROOT, "newsht-39")
@@ -303,6 +324,8 @@ def main():
     layout = [(e["model"], e["cx"] - CX0, e["cy"] - CY0) for e in sprite["assemblyLayout"]
               if e["model"] in PIECES]
     pieces = common.split_assembly(obj, layout)
+    for name in ("newsht-39", "newsht-49"):
+        eye_materials(pieces[name], sprite)
     for name in PIECES:
         data = common.load_sprite(ROOT, name)
         common.export_sprite_model(ROOT, [pieces[name]], f"enemies/{name}", data["sprites"])
@@ -315,6 +338,10 @@ def main():
             data = common.load_sprite(ROOT, name)
             img = ROOT / "reference" / "models" / name / data["frames"][0]["image"]
             common.render_preview([pieces[name]], str(out.parent / f"{name}.png"), img, size=2)
+    if "--frames" in sys.argv:
+        out = Path(sys.argv[sys.argv.index("--frames") + 1])
+        for name in ("newsht-39", "newsht-49"):
+            common.render_frame_previews([pieces[name]], str(out / f"{name}.png"), common.load_sprite(ROOT, name), ROOT)
 
 
 if __name__ == "__main__":
