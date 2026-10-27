@@ -11,11 +11,19 @@ not its shape, so each piece gets three models that share the geometry:
 - <piece>-f2: glowing green (lit up, and the first fade steps, which are still mostly green),
 - <piece>-f3: a closed, smooth purple shell (one frame).
 
+Within the grey and green states the orb fades: lit up it goes from bright green through duller
+greens to grey-green, its core turning pale blue, and the grey state's last frame keeps a green
+tinge. Each part's material follows that fade frame by frame (common.palette_material frames=),
+taking on every frame the colour that the sprite shows where that part's colour was on the state's
+first frame (see frame_colours).
+
 Run: blender --background --python assets/blender/enemies/assembly-newshu-129.py [-- --preview out.png]
-(the preview shows the whole orb; out-f2.png and out-f3.png show the green and purple states).
+(the preview shows the whole orb; out-f2.png and out-f3.png show the green and purple states)
+[--frames <dir>] (renders every frame of each grey and green piece beside its sprite, one PNG each).
 """
 
 import sys
+from collections import Counter
 from pathlib import Path
 
 import bmesh
@@ -75,7 +83,40 @@ def classify(frame):
     return "green" if green > 0.35 * total else "grey"
 
 
-def build(state, palette):
+def fade_steps(sprite):
+    """A piece's grey and green frames in animation order (every piece has the same nine steps:
+    grey, seven green fading back to grey, grey; its purple frame is left out)."""
+    return [f for f in sorted(sprite["frames"], key=lambda f: f["index"]) if classify(f) != "purple"]
+
+
+def frame_colours(sprites, state, part):
+    """{sprite frame: palette index} for a part's material on the state's other frames, wherever it
+    differs from the part's index: on each frame, the commonest colour of the pixels that had the
+    part's colour on the state's first frame (the grey frame's for a colour that isn't there)."""
+    first = 0 if state == "grey" else 1
+    index = STATES[state]["mats"][part][0]
+    steps = {name: fade_steps(sprite) for name, sprite in sprites.items()}
+    ref_step, ref = first, index
+    if not any(v == index for st in steps.values() for row in st[first]["pixels"] for v in row):
+        ref_step, ref = 0, STATES["grey"]["mats"][part][0]
+    masks = {name: [(r, c) for r, row in enumerate(st[ref_step]["pixels"]) for c, v in enumerate(row) if v == ref]
+             for name, st in steps.items()}
+    frames = {}
+    for name, st in steps.items():
+        for k, f in enumerate(st):
+            if k == first or classify(f) != state:
+                continue
+            count = Counter(v for r, c in masks[name] if (v := f["pixels"][r][c]) >= 0)
+            if not count:  # this piece doesn't show the part's colour: use the whole orb's
+                count = Counter(v for n, other in steps.items() for r, c in masks[n]
+                                if (v := other[k]["pixels"][r][c]) >= 0)
+            new = count.most_common(1)[0][0]
+            if new != index:
+                frames[f["index"]] = new
+    return frames
+
+
+def build(state, palette, sprites):
     coll = common.reset_collection(f"{NAME}-{state}")
     spec = STATES[state]["mats"]
     tag = f"{NAME}-{state}"
@@ -84,6 +125,8 @@ def build(state, palette):
     for part in range(7):
         index, kw = spec.get(part, spec[SHELL])
         kw = dict(kw)
+        if state != "purple":
+            kw["frames"] = frame_colours(sprites, state, part)
         if part == SHELL:
             kw.update(metallic=0.15, roughness=0.18)
         elif part == RIM:
@@ -92,7 +135,8 @@ def build(state, palette):
         else:
             kw.setdefault("metallic", 0.1)
             kw.setdefault("roughness", 0.45)
-        mats.append(common.palette_material(palette, index, tag, **kw))
+        part_tag = f"{tag}-{part}" if kw.get("frames") else tag
+        mats.append(common.palette_material(palette, index, part_tag, **kw))
 
     bm = bmesh.new()
     cx, cy = P(23, 27)
@@ -151,8 +195,9 @@ def main():
         palette["colors"].update(s["colors"])
 
     wholes = {}
+    exported = []
     for state, info in STATES.items():
-        whole = build(state, palette)
+        whole = build(state, palette, sprites)
         wholes[state] = whole
         layout = [(name + info["suffix"], dx, dy) for name, dx, dy in PIECES]
         pieces = common.split_assembly(whole, layout)
@@ -164,6 +209,14 @@ def main():
             subset = [{"sheet": ref["sheet"], "size": ref["size"], "frames": frames}]
             common.export_sprite_model(ROOT, [pieces[name + info["suffix"]]], f"enemies/{name}{info['suffix']}",
                                        subset)
+            if state != "purple":
+                exported.append((name + info["suffix"], pieces[name + info["suffix"]],
+                                 dict(sprite, frames=[f for f in sprite["frames"] if f["index"] in frames])))
+
+    if "--frames" in sys.argv:
+        out = Path(sys.argv[sys.argv.index("--frames") + 1])
+        for model, obj, sprite in exported:
+            common.render_frame_previews([obj], out / f"{model}.png", sprite, ROOT)
 
     if "--preview" in sys.argv:
         out = Path(sys.argv[sys.argv.index("--preview") + 1])

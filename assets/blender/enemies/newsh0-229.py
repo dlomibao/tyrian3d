@@ -4,7 +4,8 @@ A ground unit in episode 2 (level 22), facing down the screen: a blue steel hull
 from a notched top, with two bright ribs running down it from rounded humps, a dark channel
 between them, then two leg pods at the bottom corners, each with a slanting row of red lights,
 and a short central snout with a red-hot vent across it. The frames only brighten the leg lights,
-so one model covers them all.
+so one model covers them all and animates: each light steps from dark red (229) through red (231)
+to orange (233) in its own palette colours.
 
 Run: blender --background --python assets/blender/enemies/newsh0-229.py [-- --preview out.png]
 """
@@ -31,12 +32,15 @@ def build(sprite):
         pal(60, metallic=0.65, roughness=0.3),  # 3 ribs
         pal(62, metallic=0.7, roughness=0.25),  # 4 rib crests
         pal(57, metallic=0.6, roughness=0.35),  # 5 legs and snout
-        pal(116, emission_strength=3.0),  # 6 red lights / vent
-        pal(120, emission_strength=4.0),  # 7 orange light
-        pal(121, emission_strength=5.0),  # 8 vent core
-        pal(52, metallic=0.5, roughness=0.5),  # 9 shadowed hull
+        pal(116, emission_strength=3.0),  # 6 red vent
+        pal(121, emission_strength=5.0),  # 7 vent core
+        pal(52, metallic=0.5, roughness=0.5),  # 8 shadowed hull
+        # The leg lights, top to bottom along each slanting row, brightening frame by frame.
+        common.palette_material(sprite, 113, f"{NAME}-light1", emission_strength=3.0, frames={231: 115, 233: 117}),
+        common.palette_material(sprite, 114, f"{NAME}-light2", emission_strength=3.0, frames={231: 116, 233: 121}),
+        common.palette_material(sprite, 116, f"{NAME}-light3", emission_strength=4.0, frames={231: 118, 233: 120}),
     ]
-    FLOOR, WALL, TOP, RIB, CREST, LEG, RED, ORANGE, CORE, SHADE = range(10)
+    FLOOR, WALL, TOP, RIB, CREST, LEG, RED, CORE, SHADE, LIGHT1, LIGHT2, LIGHT3 = range(12)
     bm = bmesh.new()
 
     def at(x, fn):
@@ -74,7 +78,7 @@ def build(sprite):
     # Leg pods (columns 6-8 / 15-17, rows 15-23), rounded at the bottom, with slanting red lights.
     leg = [(14.5, 1.5, 0.1, 0.1), (17, 1.6, 0.12, 0.12), (20, 1.6, 0.12, 0.12), (22.6, 1.4, 0.1, 0.1),
            (23.6, 0.8, 0.07, 0.08), (23.9, 0.0, 0.0, 0.07)]
-    lights = [(8, 20, RED), (7, 21, RED), (6, 22, ORANGE)]
+    lights = [(8, 20, LIGHT1), (7, 21, LIGHT2), (6, 22, LIGHT3)]
     for side in (-1, 1):
         x = side * -px(7)
         at(x, lambda: common.loft(bm, [(row(r), w / 12, h, z) for r, w, h, z in leg], sides=10, mat_index=LEG))

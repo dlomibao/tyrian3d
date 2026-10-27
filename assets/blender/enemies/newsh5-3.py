@@ -3,9 +3,10 @@
 Seen in episode 4 (level 4.12). A purple machine: a head of two round lobes on a ridged neck at
 the top, a broad collar with two white eyes, a boxy body with a dark groove down its middle and
 two glowing green strips, and ribbed bat wings drooping off each side. The eight frames only run
-green lights: the rungs in the groove, a bar scanning down the body and the outer wing ribs
-(green in seven frames), so one model covers them all, with the rungs and wing ribs lit and no
-bar.
+green lights, so one model covers them all: on the first frame (3) the rungs in the groove and the
+outer wing ribs are dark and the strip ends dim (common.palette_material frames=); on the other
+seven they are lit and a bright bar scans down the body, one row per frame from row 18 (frame 5)
+to row 24 (frame 17), one bar per frame (common.frame_part).
 
 Run: blender --background --python assets/blender/enemies/newsh5-3.py [-- --preview out.png]
 """
@@ -24,11 +25,16 @@ NAME = "newsh5-3"
 PX = 1 / 12
 AX = 0.0  # mirror symmetric about pixel edge 12
 E, R = L.EX, L.EY
+LIT = (5, 7, 9, 11, 13, 15, 17)  # the frames with the lights on, the bar at rows 18-24
 
 
 def build(sprite):
     coll = common.reset_collection(NAME)
     pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
+
+    def anim(i, part, frames, **kw):
+        return common.palette_material(sprite, i, f"{NAME}-{part}", frames=frames, **kw)
+
     mats = [
         pal(87, metallic=0.35, roughness=0.4),  # 0 purple body
         pal(85, metallic=0.15, roughness=0.65),  # 1 darker purple wings and neck
@@ -36,9 +42,12 @@ def build(sprite):
         pal(81, metallic=0.2, roughness=0.7),  # 3 dark groove and holes
         pal(93, metallic=0.2, roughness=0.3, emission_strength=2.0),  # 4 white eyes
         pal(199, metallic=0.1, roughness=0.4, emission_strength=4.0),  # 5 green lights
-        pal(38, metallic=0.2, roughness=0.6),  # 6 dark green strip ends
+        anim(38, "ends", {f: 40 for f in LIT}, metallic=0.2, roughness=0.6),  # 6 dark green strip ends
+        anim(197, "rungs", {3: 81}, metallic=0.1, roughness=0.4, emission_strength=4.0),  # 7 groove rungs, dark on 3
+        anim(197, "ribs", {3: 87}, metallic=0.1, roughness=0.4, emission_strength=4.0),  # 8 wing ribs, purple on 3
+        anim(205, "bar", {15: 206, 17: 207}, metallic=0.1, roughness=0.3, emission_strength=5.0),  # 9 scanning bar
     ]
-    BODY, WING, RIDGE, GROOVE, EYE, GREEN, DGREEN = range(7)
+    BODY, WING, RIDGE, GROOVE, EYE, GREEN, DGREEN, RUNG, RIB, BAR = range(10)
     bm = bmesh.new()
     start = len(bm.verts)
 
@@ -60,7 +69,7 @@ def build(sprite):
     # Dark groove down the middle (columns 11-12, rows 13-24) with green rungs at rows 18, 20, 22.
     L.box(bm, E(11), R(24.6), AX, R(13.0), 0.15, 0.215, mat=GROOVE)
     for r in (18, 20, 22):
-        L.box(bm, E(11), R(r + 1), AX, R(r), 0.15, 0.225, mat=GREEN)
+        L.box(bm, E(11), R(r + 1), AX, R(r), 0.15, 0.225, mat=RUNG)
     # Glowing green strip down the body (columns 7-8, rows 17-23) with dark ends (rows 24-25).
     L.loft_y(bm, E(8), [(R(16.6), 0.0, 0.0, 0.12), (R(17.0), 1.1 * PX, 0.07, 0.12), (R(23.8), 1.1 * PX, 0.07, 0.1)],
              sides=8, mat=GREEN, cap_end=False)
@@ -77,7 +86,7 @@ def build(sprite):
     L.loft_y(bm, L.X(4), [(R(11.3), 0.0, 0.0, 0.05), (R(12.0), 0.6 * PX, 0.04, 0.06), (R(15.9), 0.6 * PX, 0.04, 0.06)],
              sides=6, mat=RIDGE, cap_end=False)
     L.loft_y(bm, L.X(4), [(R(15.9), 0.6 * PX, 0.04, 0.06), (R(21.0), 0.6 * PX, 0.04, 0.06), (R(21.8), 0.0, 0.0, 0.05)],
-             sides=6, mat=GREEN, cap_start=False)
+             sides=6, mat=RIB, cap_start=False)
     bm.verts.ensure_lookup_table()
     for v in bm.verts[wing_start:]:
         v.co.z -= 0.16 * (E(6.2) - v.co.x) / (6.2 * PX)
@@ -93,7 +102,16 @@ def build(sprite):
     L.loft_y(bm, AX, [(R(10.0), 4.5 * PX, 0.12, 0.02), (R(10.8), 6.0 * PX, 0.19, 0.0), (R(23.5), 6.0 * PX, 0.19, 0.0),
                       (R(25.0), 5.2 * PX, 0.15, 0.0), (R(25.9), 3.8 * PX, 0.08, 0.0)], sides=14, mat=BODY)
 
-    return L.to_object(NAME, bm, mats, coll)
+    parts = [L.to_object(NAME, bm, mats, coll)]
+
+    # The scanning bar across the body (columns 8-15), one row lower each frame: row 18 on frame 5
+    # down to row 24 on frame 17, over the strips and the groove.
+    for k, frame in enumerate(LIT):
+        r = 18 + k
+        bbm = bmesh.new()
+        L.box(bbm, E(8), R(r + 1) + 0.05 * PX, E(16), R(r) - 0.05 * PX, 0.05, 0.235, mat=BAR)
+        parts.append(common.frame_part(L.to_object(f"{NAME}-bar-{frame}", bbm, mats, coll), [frame]))
+    return parts
 
 
 if __name__ == "__main__":

@@ -4,7 +4,8 @@ Seen in episode 4 (level 4.40). Four 2x2 enemies make one 48x56 px craft (sprite
 `assemblyLayout`): a grey shield-shaped hull, square at the top and rounding to a point at the
 bottom, with a raised cabin carrying a gridded blue window, blue glass on both shoulders, two
 blue lamps and a glowing blue channel down the keel to the tip. newsh9-92 and newsh9-94 (the
-lower pieces) have three frames that only change the channel's colours, so one model covers them.
+lower pieces) have three frames that only change the channel's colours, so one model covers them
+and its channel material takes the brighter shade on frames 130/132 and 282/284 (D17).
 
 The craft is built whole in assembly coordinates (left half mirrored about its axis, the edge
 between pixel columns 23 and 24), then cut into the four pieces with common.split_assembly.
@@ -46,7 +47,10 @@ def build(sprite):
         pal(147, metallic=0.5, roughness=0.2),  # 5 window grid
         pal(150, metallic=0.3, roughness=0.2, emission_strength=1.2),  # 6 window panes
         pal(156, emission_strength=4.0),  # 7 lamps
-        pal(151, emission_strength=3.0),  # 8 glowing channel
+        # 8 glowing channel: it brightens five shades on frames 130/132 and two on 282/284
+        # (the sprite's keel gradient 144-155 shifts up as a whole).
+        common.palette_material(sprite, 151, tag + "chan", emission_strength=3.0,
+                                frames={130: 156, 132: 156, 282: 153, 284: 153}),
         pal(9, metallic=0.6, roughness=0.3),  # 9 bright ridges and rim
         pal(6, metallic=0.5, roughness=0.4),  # 10 shoulder pods
     ]
@@ -116,8 +120,23 @@ def build(sprite):
     return lib.to_object(NAME, bm, mats, coll)
 
 
+ANIMATED = ["newsh9-92", "newsh9-94"]
+
+
+def finish(parts, sprite):
+    """The channel's tip reaches just into the upper pieces, which have one frame: they keep the
+    plain channel colour."""
+    plain = common.palette_material(sprite, 151, "nsh9a", emission_strength=3.0)
+    for name, obj in parts.items():
+        if name not in ANIMATED:
+            mats = obj.data.materials
+            for i, m in enumerate(mats):
+                if m.get("tyrian_frame_pal"):
+                    mats[i] = plain
+
+
 def main():
-    lib.run_assembly(ROOT, NAME, PIECES, CENTRE, build, size=4, grid_w=48, grid_h=56)
+    lib.run_assembly(ROOT, NAME, PIECES, CENTRE, build, size=4, grid_w=48, grid_h=56, finish=finish)
 
 
 if __name__ == "__main__":

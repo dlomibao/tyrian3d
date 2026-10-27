@@ -3,7 +3,9 @@
 A ground block that fills its whole tile (levels 1.21, 1.5, 1.6, 2.8, 3.15): a grey metal plate
 with three rounded red glass lamps stacked down it, each in a raised bezel, and a strip of
 machinery down its right side. The six frames only move the glow from lamp to lamp, so one model
-covers them all (the lamps glow in the palette's red).
+covers them all: each lamp has its own glowing lens and core, dark red while it's off, red when
+it lights and orange-red the frame after (bottom lamp on 153 and 155, middle on 157 and 159, top on
+161 and 163), through palette_material frames=.
 
 Run: blender --background --python assets/blender/enemies/newshs-153.py [-- --preview out.png]
 """
@@ -21,6 +23,11 @@ NAME = "newshs-153"
 MODEL = f"enemies/{NAME}"
 ROOT = common.repo_root(__file__)
 g = L.Grid(24, 28)
+FRAMES = [153, 155, 157, 159, 161, 163]
+# Each lamp's state per frame (0 off, 1 lit, 2 brightest), by its top row.
+LAMPS = {1: [0, 0, 0, 0, 1, 2], 10: [0, 0, 1, 2, 0, 0], 19: [1, 2, 0, 0, 0, 0]}
+LENS_SHADES = [115, 117, 119]  # the lens (whole lamp) per state: most of the lamp in the sprite
+CORE_SHADES = [115, 117, 120]  # the core (its middle) per state: the brightest pixels
 
 
 def stadium(x0, x1, y0, y1, n=4):
@@ -51,8 +58,6 @@ def build(sprite):
     BEZEL = m(9, metallic=0.6, roughness=0.4)
     DARK = m(3, metallic=0.4, roughness=0.6)
     RIM = m(113, metallic=0.3, roughness=0.4)
-    LENS = m(115, metallic=0.1, roughness=0.15, emission_strength=2.5)
-    CORE = m(117, metallic=0.1, roughness=0.15, emission_strength=3.0)
     RAIL = m(7, metallic=0.5, roughness=0.45)
     BOLT = m(11, metallic=0.7, roughness=0.3)
     bm = bmesh.new()
@@ -61,7 +66,14 @@ def build(sprite):
     L.bevel_prism(bm, [(g.x(-0.5), g.y(27.5)), (g.x(23.5), g.y(27.5)), (g.x(23.5), g.y(-0.5)),
                        (g.x(-0.5), g.y(-0.5))], 0.0, 0.14, 0.02, mat=PLATE)
 
+    def glow(top, shades, part, strength):
+        """A lamp's material: its colour on the first frame, another on frames it changes."""
+        idx = [shades[s] for s in LAMPS[top]]
+        return m(idx[0], metallic=0.1, roughness=0.15, emission_strength=strength, part=f"{part}{top}",
+                 frames={f: i for f, i in zip(FRAMES, idx) if i != idx[0]})
+
     for top in (1, 10, 19):  # each lamp: bezel rows top-1 .. top+7, lens rows top+1 .. top+7
+        LENS, CORE = glow(top, LENS_SHADES, "lens", 2.5), glow(top, CORE_SHADES, "core", 3.0)
         # Raised bezel round the lamp (its top and left edges are the bright lines in the sprite).
         bez = stadium(g.x(0.6), g.x(20.4), g.y(top - 0.4), g.y(top + 7.9), n=4)
         L.bevel_prism(bm, bez, 0.12, 0.25, 0.035, mat=BEZEL)
@@ -91,6 +103,8 @@ def main():
     obj = build(sprite)
     common.export_sprite_model(ROOT, [obj], MODEL, sprite["sprites"])
     L.preview([obj], ROOT, NAME, sprite)
+    if "--frames" in sys.argv:
+        common.render_frame_previews([obj], sys.argv[sys.argv.index("--frames") + 1], sprite, ROOT)
 
 
 if __name__ == "__main__":

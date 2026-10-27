@@ -73,15 +73,21 @@ class Mats:
         self.list = []
         self.slots = {}
 
-    def __call__(self, index, metallic=0.3, roughness=0.5, emission_strength=0.0):
+    def __call__(self, index, metallic=0.3, roughness=0.5, emission_strength=0.0, frames=None):
+        """`frames` animates the colour as in common.palette_material ({sprite frame: index})."""
         key = (index, metallic, roughness, emission_strength)
+        if frames:
+            key += (tuple(sorted(frames.items())),)
         if key not in self.slots:
             tag = self.tag if not emission_strength else f"{self.tag}_glow"
+            if frames:
+                tag += "_anim"
             if any(k[0] == index and k != key for k in self.slots):
                 tag = f"{self.tag}_{len(self.list)}"
             self.slots[key] = len(self.list)
             self.list.append(common.palette_material(self.sprite, index, tag, metallic=metallic,
-                                                     roughness=roughness, emission_strength=emission_strength))
+                                                     roughness=roughness, emission_strength=emission_strength,
+                                                     frames=frames))
         return self.slots[key]
 
 

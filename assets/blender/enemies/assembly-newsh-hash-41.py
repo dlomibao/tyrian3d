@@ -8,18 +8,21 @@ angled off to the clockwise side. The arms are drawn as one arm turned in 90 deg
 Its nine frames are the machine turning and then sinking away:
 - frames 0-3 are the claws at four angles 22.5 degrees apart (frame 2 is the arms straight up,
   right, down and left; frame 0 is 45 degrees anticlockwise of that),
-- frames 4 and 5 repeat frame 2's angle a shade darker,
+- frames 4 and 5 repeat frame 2's angle one and two palette steps darker (frame 5 also draws
+  the arms a pixel fatter, a motion smear the model leaves out),
 - frames 6, 7 and 8 draw the arms shorter and darker each time, until little more than the hub
   is left.
 
 So every piece gets seven models (one per distinct shape), built from the same arm:
 <piece> frame 0, -f2 frame 1, -f3 frames 2, 4 and 5, -f4 frame 3, -f5 frame 6, -f6 frame 7 and
--f7 frame 8. The whole machine is built once per shape in assembly coordinates and cut into the
+-f7 frame 8. The -f3 models animate: their grey arm materials darken one palette step on frame 4
+and two on frame 5 (common.palette_material frames=; the brown hub doesn't change). The whole machine is built once per shape in assembly coordinates and cut into the
 four pieces with common.split_assembly.
 
 Run: blender --background --python assets/blender/enemies/assembly-newsh-hash-41.py [-- --preview out.png]
 (the preview is the whole machine at frame 0; out-f2.png ... out-f7.png show the other shapes and
-each piece also gets <piece>.png next to it). Add --report to print a top-view silhouette check.
+each piece also gets <piece>.png next to it). Add --frames <dir> to render every frame of the
+animated pieces into <dir>/<piece><suffix>.png. Add --report to print a top-view silhouette check.
 """
 
 import sys
@@ -56,6 +59,20 @@ SHAPES = [
 ]
 # Grey arm colours per shade: (body, light ridge, dark underside) palette indices.
 SHADES = [(9, 12, 6), (4, 7, 2), (3, 6, 2), (3, 5, 2)]
+# Shapes whose arms darken within their frames: {frame position: palette steps darker}. The
+# sprite's greys are a ramp (1 darkest ... 13), so a darker frame is every grey index minus k.
+DARKEN = {"-f3": {4: 1, 5: 2}}
+
+
+def arm_frames(darken):
+    """{sprite index: steps darker} for every piece's frames at these positions, so one material
+    (shared by all four pieces after split_assembly) works for each piece's own frame indices."""
+    out = {}
+    for name in PIECES:
+        frames = common.load_sprite(ROOT, name)["frames"]
+        for pos, k in darken.items():
+            out[frames[pos]["index"]] = k
+    return out
 
 
 def build_hub(bm, HUB_BASE, HUB_DOME, HUB_RIM):
@@ -65,14 +82,20 @@ def build_hub(bm, HUB_BASE, HUB_DOME, HUB_RIM):
     lib.ellipsoid(bm, 0, 0, 0.16, 4.6, 4.6, 0.12, mat=HUB_DOME, segments=16, rings=8, z_min=0.15)
 
 
-def build(sprite, angle, scale, shade, tag, bulk=0.0, whole=1.0):
+def build(sprite, angle, scale, shade, tag, bulk=0.0, whole=1.0, darken=None):
     coll = common.reset_collection(f"{NAME}{tag}")
     pal = lambda i, **kw: common.palette_material(sprite, i, "nsh41", **kw)  # noqa: E731
     arm, ridge, dark = SHADES[shade]
+    if darken:  # animated greys get their own material names (tag nsh41<suffix>)
+        steps = arm_frames(darken)
+        grey = lambda i, **kw: common.palette_material(  # noqa: E731
+            sprite, i, f"nsh41{tag}", frames={f: max(1, i - k) for f, k in steps.items()}, **kw)
+    else:
+        grey = pal
     mats = [
-        pal(arm, metallic=0.6, roughness=0.35),  # 0 grey arm
-        pal(ridge, metallic=0.6, roughness=0.3),  # 1 light edge
-        pal(dark, metallic=0.4, roughness=0.6),  # 2 dark underside
+        grey(arm, metallic=0.6, roughness=0.35),  # 0 grey arm
+        grey(ridge, metallic=0.6, roughness=0.3),  # 1 light edge
+        grey(dark, metallic=0.4, roughness=0.6),  # 2 dark underside
         pal(163, metallic=0.3, roughness=0.6),  # 3 dark brown footing
         pal(25, metallic=0.4, roughness=0.4),  # 4 brown dome
         pal(26, metallic=0.4, roughness=0.4),  # 5 light brown rim
@@ -96,7 +119,7 @@ def main():
     layout = [(name, (x0 + 12 - 24) * 1.0, (y0 + 14 - 28) * 1.0) for name, x0, y0 in GRID]
     preview = Path(sys.argv[sys.argv.index("--preview") + 1]) if "--preview" in sys.argv else None
     for suffix, frames, angle, scale, shade, bulk, whole in SHAPES:
-        obj = build(sprite, angle, scale, shade, suffix, bulk, whole)
+        obj = build(sprite, angle, scale, shade, suffix, bulk, whole, DARKEN.get(suffix))
         if "--report" in sys.argv:
             lib.silhouette_report(obj, ROOT, GRID, frames[0], label=f"{NAME}{suffix} frame {frames[0]}")
         pieces = common.split_assembly(obj, [(f"{n}{suffix}", cx, cy) for n, cx, cy in layout])
@@ -113,6 +136,12 @@ def main():
                 data = common.load_sprite(ROOT, name)
                 img = ROOT / "reference" / "models" / name / data["frames"][frames[0]]["image"]
                 common.render_preview([pieces[f"{name}{suffix}"]], str(out.parent / f"{name}{suffix}.png"), img, size=2)
+        if "--frames" in sys.argv and suffix in DARKEN:  # every frame of each animated piece
+            out_dir = Path(sys.argv[sys.argv.index("--frames") + 1])
+            for name in PIECES:
+                data = common.load_sprite(ROOT, name)
+                data["frames"] = [data["frames"][i] for i in frames]
+                common.render_frame_previews([pieces[f"{name}{suffix}"]], str(out_dir / f"{name}{suffix}.png"), data, ROOT)
 
 
 if __name__ == "__main__":

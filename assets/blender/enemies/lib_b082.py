@@ -165,6 +165,17 @@ ROCKET_MATS = [
 ]
 (R_HULL, R_RIDGE, R_LUG, R_GREY, R_RIM, R_FRAME, R_WINDOW, R_COLLAR, R_FIN, R_TIP, R_RING, R_GLOW,
  R_SLIT, R_HOT) = range(len(ROCKET_MATS))
+R_HOT2 = len(ROCKET_MATS)  # the exhaust's lower hot band, when animated (rocket_mats animate=True)
+
+# The standing rocket's animation (assembly-newsh8-191, DECISIONS.md D17). Its exhaust's two hot
+# bands pulse down the bell: the upper one (rows 5-6) is brightest on newsh8-153's frame 153 and
+# dims, the lower one (row 8) brightens to frame 157. {frame: palette index} for each band.
+HOT_FRAMES = {153: (125, 123), 155: (123, 125), 157: (121, 127)}
+# A bright spark runs along each glowing slit of newsh8-191 (rows 33 and 35), the two in opposite
+# directions: (R, sprite column, palette index) of the spark's pixels on each frame.
+SLIT_SPARKS = {191: [(33, 8, 126), (33, 9, 123), (35, 13, 125), (35, 12, 121)],
+               193: [(33, 10, 126), (33, 11, 123), (35, 11, 125), (35, 10, 121)],
+               195: [(33, 13, 126), (35, 8, 125)]}
 
 ZC = 0.38  # hull axis height
 # Hull: (R, half width px, half height units)
@@ -173,8 +184,19 @@ HULL = [(23.5, 5.2, 0.30), (25.5, 6.0, 0.33), (27.5, 6.5, 0.34), (30.6, 6.5, 0.3
         (49.0, 4.4, 0.215), (50.5, 3.2, 0.16), (51.3, 1.6, 0.08), (51.6, 0.0, 0.0)]
 
 
-def rocket_mats(sprite, tag):
-    return [common.palette_material(sprite, i, tag, **kw) for i, kw in ROCKET_MATS]
+def rocket_mats(sprite, tag, animate=False):
+    mats = [common.palette_material(sprite, i, tag, **kw) for i, kw in ROCKET_MATS]
+    if animate:  # the hot bands get their own colours per frame (HOT_FRAMES)
+        first = min(HOT_FRAMES)
+        for slot, band in ((R_HOT, 0), (R_HOT2, 1)):
+            frames = {f: c[band] for f, c in HOT_FRAMES.items() if f != first}
+            mat = common.palette_material(sprite, HOT_FRAMES[first][band], f"{tag}-hot{band + 1}",
+                                          emission_strength=5.0, frames=frames)
+            if slot < len(mats):
+                mats[slot] = mat
+            else:
+                mats.append(mat)
+    return mats
 
 
 def _hull_top(R, L=0.0):
@@ -187,10 +209,11 @@ def _hull_top(R, L=0.0):
     return ZC
 
 
-def build_rocket(bm, rib_side=-1):
+def build_rocket(bm, rib_side=-1, animate=False):
     """Add the rocket to `bm` in its local frame (see above). `rib_side` is the side of the axis
     (-1 left, +1 right, in the standing sprite's columns) of the housing's bright rib, which
-    follows the sprites' light from the screen's top left."""
+    follows the sprites' light from the screen's top left. With `animate` the exhaust's lower hot
+    band gets its own material (R_HOT2; use rocket_mats(..., animate=True))."""
     def Y(R):
         return -R * PX
 
@@ -249,12 +272,23 @@ def build_rocket(bm, rib_side=-1):
     loft(bm, [(Y(9.6), 4.0 * PX, 0.28, ZC), (Y(8.0), 4.2 * PX, 0.3, ZC), (Y(7.0), 4.4 * PX, 0.31, ZC),
               (Y(6.0), 3.9 * PX, 0.28, ZC), (Y(5.0), 3.0 * PX, 0.22, ZC), (Y(4.2), 1.8 * PX, 0.13, ZC),
               (Y(3.7), 0.0, 0.0, ZC)], sides=14, mat=R_GLOW)
-    for R0, R1, w0, w1, h0, h1, m in ((5.0, 6.5, 3.15, 4.1, 0.23, 0.295, R_HOT), (7.65, 8.45, 4.4, 4.35, 0.31, 0.305, R_HOT),
+    hot2 = R_HOT2 if animate else R_HOT
+    for R0, R1, w0, w1, h0, h1, m in ((5.0, 6.5, 3.15, 4.1, 0.23, 0.295, R_HOT), (7.65, 8.45, 4.4, 4.35, 0.31, 0.305, hot2),
                                       (6.55, 7.45, 4.65, 4.65, 0.33, 0.33, R_RING), (8.55, 9.5, 4.3, 4.3, 0.31, 0.31, R_RING)):
         loft(bm, [(Y(R1), w1 * PX, h1, ZC), (Y(R0), w0 * PX, h0, ZC)], sides=14, mat=m)
     for s in (-1, 1):
         box(bm, *sorted((s * 4.6 * PX, s * 5.6 * PX)), Y(9.6), Y(7.6), ZC - 0.18, ZC + 0.12, mat=R_LUG,
             bevel=0.02)
+
+
+def build_sparks(bm, frame, mat_of):
+    """The bright pixels running along the slits on this frame of newsh8-191 (SLIT_SPARKS), raised
+    a little over the slit; mat_of[palette index] is each one's material slot."""
+    for R, c, i in SLIT_SPARKS[frame]:
+        L = c - 11
+        z0 = _hull_top(R, abs(L) + 0.5) - 0.03
+        box(bm, (L - 0.5) * PX, (L + 0.5) * PX, -(R + 0.45) * PX, -(R - 0.45) * PX, z0, _hull_top(R) + 0.028,
+            mat=mat_of[i])
 
 
 def place(obj, matrix):
@@ -268,22 +302,42 @@ def rocket_matrix(rotate_deg, dx, dy):
     return Matrix.Translation((dx, dy, 0)) @ Matrix.Rotation(math.radians(rotate_deg), 4, "Z")
 
 
-def rocket_assembly(name, root, layout, rotate_deg, dx, dy, rib_side=-1):
+def rocket_assembly(name, root, layout, rotate_deg, dx, dy, rib_side=-1, animate=False):
     """Build the rocket, place it in assembly coordinates (Blender units with the assembly's centre
     at the origin), cut it into its pieces and export each; `layout` is [(piece, cx, cy), ...] in
     pixels from that centre. With `-- --preview out.png` renders the whole rocket to out.png and
-    each piece to <piece>.png beside it."""
+    each piece to <piece>.png beside it. `animate` (the standing rocket, newsh8-153 over
+    newsh8-191) makes the exhaust pulse and the slits' sparks run with the frames; then
+    `-- --frames dir` renders every frame of each piece to <piece>-frames.png in dir."""
     pieces = [p for p, _, _ in layout]
     sprite = merged_sprite(root, pieces)
     coll = common.reset_collection(name)
     bm = bmesh.new()
-    build_rocket(bm, rib_side)
-    obj = to_object(name, bm, rocket_mats(sprite, name.replace("assembly-", "")), coll)
-    place(obj, rocket_matrix(rotate_deg, dx, dy))
+    build_rocket(bm, rib_side, animate)
+    tag = name.replace("assembly-", "")
+    obj = to_object(name, bm, rocket_mats(sprite, tag, animate), coll)
+    matrix = rocket_matrix(rotate_deg, dx, dy)
+    place(obj, matrix)
     parts = common.split_assembly(obj, layout)
+    objects = {piece: [parts[piece]] for piece in pieces}
+    if animate:
+        indices = sorted({i for sparks in SLIT_SPARKS.values() for *_, i in sparks})
+        mats = [common.palette_material(sprite, i, f"{tag}-spark", emission_strength=5.0) for i in indices]
+        for frame in SLIT_SPARKS:
+            sbm = bmesh.new()
+            build_sparks(sbm, frame, {i: k for k, i in enumerate(indices)})
+            sparks = to_object(f"{name}-sparks-{frame}", sbm, mats, coll)
+            place(sparks, matrix)
+            for piece, part in common.split_assembly(sparks, layout).items():
+                if part.data.polygons:
+                    part.name = f"{piece}-sparks-{frame}"
+                    objects[piece].append(common.frame_part(part, [frame]))
     for piece in pieces:
         data = common.load_sprite(root, piece)
-        common.export_sprite_model(root, [parts[piece]], f"enemies/{piece}", data["sprites"])
+        common.export_sprite_model(root, objects[piece], f"enemies/{piece}", data["sprites"])
+        if "--frames" in sys.argv:
+            out = Path(sys.argv[sys.argv.index("--frames") + 1]) / f"{piece}-frames.png"
+            common.render_frame_previews(objects[piece], str(out), data, root)
     if "--preview" in sys.argv:
         import tempfile
         out = Path(sys.argv[sys.argv.index("--preview") + 1])

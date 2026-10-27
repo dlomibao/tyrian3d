@@ -11,8 +11,16 @@ of six pieces:
 
 The brown armour has rounded outer panels with a dark slot, two raised panels each carrying a
 long glowing pink tube that ends in a rounded pod, and between them a ridged plate over a dark
-doorway with two arches. Pieces 165 and 167 have five frames that only light up the red lamps
-under their hoods, so one model covers each.
+doorway with two arches.
+
+Pieces 165 and 167 have five frames each, and one model covers each of them: their parts that
+change are frame-tagged (common.frame_part), built as in LAMP_STATES:
+  165 167  lamps off, hoods up
+  203 205  lamps glowing dim red, hoods slid down over them, the lip in front of them in shadow
+  241 243  lamps brighter and bigger, hoods down
+  279 281  lamps brightest (an orange-yellow centre), hoods down
+  232 236  hoods gone, the lamp housings open and dark (on these frames the sprite's brown armour
+           also sits a row lower, which the model doesn't follow)
 
 The body is built once in assembly coordinates (left half, mirrored about pixel column 36, the
 sprite's axis) and cut into the six pieces with common.split_assembly.
@@ -25,6 +33,7 @@ import sys
 from pathlib import Path
 
 import bmesh
+import bpy
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import lib_b095 as lib  # noqa: E402
@@ -43,8 +52,11 @@ BASE = 0.16  # top of the brown base slab
 PANEL = 0.29  # top of the raised armour panels
 
 
-def build(sprite):
-    coll = common.reset_collection(NAME)
+def build(sprite, lamps=True, name=NAME):
+    """The whole body. lamps=False leaves out the hoods and lamps (pieces 165 and 167 take theirs
+    from lamp_parts, one set per frame); the other pieces are cut from the full body, built exactly
+    as before the lamps were animated."""
+    coll = common.reset_collection(name)
     pal = lambda i, **kw: common.palette_material(sprite, i, "nshf270", **kw)  # noqa: E731
     mats = [
         pal(65, metallic=0.1, roughness=0.8),  # 0 dark brown base, slots and recesses
@@ -80,10 +92,12 @@ def build(sprite):
         x1 = x0 + 11
         lib.box(bm, G, x0, 1.2, x0 + 1, 10, 0.18, 0.36, mat=EDGE)  # lit left wall
         lib.box(bm, G, x1 - 1, 1.2, x1, 10, 0.18, 0.36, mat=GREY)  # right wall
-        lib.half_sweep(bm, G, [(x0 + 0.1, 3.0, 0.18, 2.3, 0.2), (x1 - 1.1, 3.0, 0.18, 2.3, 0.2)],
-                       sides=8, mat=HOOD)  # the rounded hood over the opening
+        if lamps:
+            lib.half_sweep(bm, G, [(x0 + 0.1, 3.0, 0.18, 2.3, 0.2), (x1 - 1.1, 3.0, 0.18, 2.3, 0.2)],
+                           sides=8, mat=HOOD)  # the rounded hood over the opening
         lib.box(bm, G, x0 + 1, 5, x1 - 1, 10, 0.18, 0.2, mat=BLACK)  # dark pit
-        lib.ellipsoid(bm, G, x0 + 5, 7.6, 0.2, 3.0, 1.8, 0.075, mat=LAMP, segments=14, rings=6, z_min=0.2)
+        if lamps:
+            lib.ellipsoid(bm, G, x0 + 5, 7.6, 0.2, 3.0, 1.8, 0.075, mat=LAMP, segments=14, rings=6, z_min=0.2)
         lib.box(bm, G, x0, 10, x1, 11.3, 0.18, 0.33, mat=GREY)  # lip in front
         lib.box(bm, G, x0, 11.3, x1, 13, 0.18, 0.27, mat=PIPE)
 
@@ -134,7 +148,59 @@ def build(sprite):
     lib.half_sweep(bm, G, [(c, r, BASE, 0.8, 0.09) for c, r in arch], sides=6, mat=RIM)
 
     lib.mirror_since(bm, 0, AX)
-    return lib.to_object(NAME, bm, mats, coll)
+    return lib.to_object(name, bm, mats, coll)
+
+
+# The lamps' states: name -> (frame of newshf-165, frame of newshf-167, hood, lamp). hood is
+# "up", "down" (slid down over a lit lamp, its lip in front dark) or None (gone, the housing open);
+# lamp is None (off) or (glow index, centre index, centre row, radius x px, radius y px).
+LAMP_STATES = {
+    "off": (165, 167, "up", None),
+    "dim": (203, 205, "down", (114, 116, 7.0, 2.0, 1.3)),
+    "open": (232, 236, None, None),
+    "mid": (241, 243, "down", (115, 119, 8.3, 3.0, 1.8)),
+    "bright": (279, 281, "down", (117, 123, 8.3, 3.3, 2.0)),
+}
+
+
+def lamp_parts(sprite, mats, coll, layout):
+    """The hoods, lamps and lips of pieces 165 and 167 for each LAMP_STATES entry, cut into the two
+    pieces and tagged with their frames: {piece name: [objects]}."""
+    (DARK, ARMOUR, RIM, BROWN, GLOW, BAND, BLACK, HOOD, GREY, EDGE, LAMP, RIDGE, PIPE) = range(13)
+    pieces = [e for e in layout if e[0] in ("newshf-165", "newshf-167")]
+    out = {"newshf-165": [], "newshf-167": []}
+    for state, (f165, f167, hood, lamp) in LAMP_STATES.items():
+        smats = list(mats)
+        if lamp:
+            glow, centre, row, rx, ry = lamp
+            smats.append(common.palette_material(sprite, glow, "nshf270-lamp", emission_strength=3.0))
+            smats.append(common.palette_material(sprite, centre, "nshf270-lamp", emission_strength=4.5))
+        bm = bmesh.new()
+        for x0 in (1, 13):
+            x1 = x0 + 11
+            if hood == "up":  # the rounded hood over the opening
+                lib.half_sweep(bm, G, [(x0 + 0.1, 3.0, 0.18, 2.3, 0.2), (x1 - 1.1, 3.0, 0.18, 2.3, 0.2)],
+                               sides=8, mat=HOOD)
+            elif hood == "down":  # slid down a row or so, nearer the lamp
+                lib.half_sweep(bm, G, [(x0 + 0.1, 3.6, 0.18, 2.9, 0.2), (x1 - 1.1, 3.6, 0.18, 2.9, 0.2)],
+                               sides=8, mat=HOOD)
+            else:  # no hood: the housing is open and dark up to its top edge
+                lib.box(bm, G, x0 + 1, 2.9, x1 - 1, 5, 0.18, 0.2, mat=BLACK)
+                lib.box(bm, G, x0 + 0.05, 1, x1 - 0.05, 2, 0.18, 0.2, mat=BLACK)
+            if hood == "down":  # the top of the lip in front is in the lamp's shadow
+                lib.box(bm, G, x0 + 0.05, 10, x1 - 0.05, 11.3, 0.33, 0.335, mat=BLACK)
+            if lamp:
+                lib.ellipsoid(bm, G, x0 + 5, row, 0.2, rx, ry, 0.075, mat=len(mats), segments=14, rings=6,
+                              z_min=0.2)
+                lib.ellipsoid(bm, G, x0 + 5, row, 0.2, rx * 0.4, ry * 0.5, 0.09, mat=len(mats) + 1,
+                              segments=10, rings=5, z_min=0.2)
+        lib.mirror_since(bm, 0, AX)
+        obj = lib.to_object(f"lamps-{state}", bm, smats, coll)
+        for name, part in common.split_assembly(obj, pieces).items():
+            part.name = f"{name}-lamps-{state}"
+            out[name].append(common.frame_part(part, [f165 if name == "newshf-165" else f167]))
+        bpy.data.objects.remove(obj)
+    return out
 
 
 def merged_sprite():
@@ -151,9 +217,22 @@ def main():
     layout = [(e["model"], e["cx"] - CX0, e["cy"] - CY0) for e in sprite["assemblyLayout"]
               if e["model"] in PIECES]
     pieces = common.split_assembly(obj, layout)
+    # Pieces 165 and 167: the body without hoods and lamps, plus a set of those for each frame.
+    bare = build(sprite, lamps=False, name=NAME + "-bare")
+    lamp_layout = [e for e in layout if e[0] in ("newshf-165", "newshf-167")]
+    for name, piece in common.split_assembly(bare, lamp_layout).items():
+        bpy.data.objects.remove(pieces[name])
+        piece.name = name
+        pieces[name] = piece
+    bare.hide_render = True
+    parts = lamp_parts(sprite, list(obj.data.materials), bare.users_collection[0], layout)
     for name in PIECES:
         data = common.load_sprite(ROOT, name)
-        common.export_sprite_model(ROOT, [pieces[name]], f"enemies/{name}", data["sprites"])
+        objs = [pieces[name]] + parts.get(name, [])
+        common.export_sprite_model(ROOT, objs, f"enemies/{name}", data["sprites"])
+        if "--frames" in sys.argv and name in parts:  # every frame beside its sprite, into <dir>/<name>.png
+            common.render_frame_previews(objs, str(Path(sys.argv[sys.argv.index("--frames") + 1]) / f"{name}.png"),
+                                         data, ROOT)
     out = lib.preview_arg()
     if out:
         import tempfile
@@ -162,7 +241,11 @@ def main():
         common.render_preview([obj], str(out), str(ref), size=6, view_px=480)
         for name in PIECES:
             data = common.load_sprite(ROOT, name)
-            lib.preview(ROOT, name, [pieces[name]], data, out=str(Path(out).with_name(f"{name}.png")))
+            objs = [pieces[name]] + parts.get(name, [])
+            f = data["frames"][0]
+            ref = Path(ROOT) / "reference" / "models" / name / f["image"]
+            common.render_preview(objs, str(Path(out).with_name(f"{name}.png")), str(ref), size=f["size"],
+                                  frame=f["index"])
 
 
 if __name__ == "__main__":

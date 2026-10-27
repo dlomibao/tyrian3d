@@ -5,7 +5,8 @@ Seen in episodes 1-3 (levels 1.5, 1.6, 2.8, 3.15): in the fortress set (assembly
 newshd-245 always stands directly above newshd-281, at both ends of the middle rows, making one
 24 x 56 px object. A dark grey housing with a red bar and a grey step sits at the back; in front
 of it a big round brown shell with a red band across it and two glowing lamps in the band. The
-two frames of newshd-281 only change the lamps' glow, so one model covers them.
+two frames of newshd-281 only switch the lamps on (281) and off (283), so one model covers
+them, with a set of lamps for each frame (frame_part).
 
 Built whole in the pair's coordinates and cut into the two pieces with common.split_assembly.
 
@@ -54,9 +55,14 @@ def build(sprite, g):
     # The two lamps in the band (columns 8-12, rows 30-35) with a dark bar between them.
     L.pillow(bm, rect(7.6, 29.6, 13.4, 36.0), h - 0.06, h + 0.04, 0.4 * L.U, mat=m.metal(163),
              top_mat=m.metal(163))
-    for r0, r1 in ((30.0, 31.9), (32.9, 35.6)):
-        L.pillow(bm, rect(8.0, r0, 13.0, r1), h + 0.02, h + 0.07, 0.4 * L.U, mat=m.glow(121, 3.5))
-    return L.finish(NAME, bm, m, coll), []
+    # They glow on frame 281 and are off, the band's red, on 283.
+    parts = []
+    for frame, mat in ((281, m.glow(121, 3.5)), (283, m.metal(73))):
+        lbm = bmesh.new()
+        for r0, r1 in ((30.0, 31.9), (32.9, 35.6)):
+            L.pillow(lbm, rect(8.0, r0, 13.0, r1), h + 0.02, h + 0.07, 0.4 * L.U, mat=mat)
+        parts.append(L.part(f"lamps-{frame}", lbm, m, coll, [frame]))
+    return L.finish(NAME, bm, m, coll), [], parts
 
 
 if __name__ == "__main__":

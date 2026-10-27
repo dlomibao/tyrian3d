@@ -150,9 +150,15 @@ def preview(objects, root, name, sprite):
 def gem_disc(sprite, name, offset):
     """A round domed disc with a stepped diamond on top: an outer bright diamond ridge, a dark groove
     and a bright pyramid in the middle (newshv.shp 153/155/157 in blues 48-63; 123/125/127 are the
-    same in reds, `offset` 16). The frames only dim the whole thing, so one model covers them."""
+    same in reds, `offset` 16). The frames only dim the whole thing, so one model covers them: on
+    the second frame every colour is two shades darker, on the third four (palette_material frames=,
+    DECISIONS.md D17)."""
     coll = common.reset_collection(name)
-    pal = lambda i, **kw: common.palette_material(sprite, i + offset, name, **kw)  # noqa: E731
+    f1, f2 = (f["index"] for f in sprite["frames"][1:3])
+
+    def pal(i, **kw):
+        i += offset
+        return common.palette_material(sprite, i, f"{name}-pulse", frames={f1: i - 2, f2: i - 4}, **kw)
     mats = [
         pal(58, metallic=0.4, roughness=0.35),  # 0 disc body
         pal(60, metallic=0.5, roughness=0.3),  # 1 bright diamond ridge

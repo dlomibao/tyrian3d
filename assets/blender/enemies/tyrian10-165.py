@@ -5,7 +5,9 @@ screen (columns 2-22, rows 8-22): rounded end caps, dark grooves at columns 5, 9
 bands at columns 6-8 and 15-17 and a plain centre section with a red lamp on its far side and a
 green one on its near side. Red light strips cross the bands and end caps on the far (upper) side.
 The three frames only brighten the lights, so one model covers them all: the capsule is lofted along
-X with an elliptical cross-section, the strips and lamps are emissive bars following its surface.
+X with an elliptical cross-section, the strips and lamps are emissive bars following its surface,
+and each light's material changes colour with the frame (palette_material frames=; the end-cap
+strips are a little dimmer than the band strips).
 Its mirror image with the lights on the near side is tyrian10-203 (same builder, lib_b106).
 
 Run: blender --background --python assets/blender/enemies/tyrian10-165.py [-- --preview out.png]
@@ -18,10 +20,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import lib_b106 as lib  # noqa: E402
 
 NAME = "tyrian10-165"
+# Each light's palette index on each frame (first frame, {other frames}): its brightest pixel, or
+# for the long strips (a red-to-white gradient) the colour of most of the strip.
+LIGHTS = {"strip": (117, {167: 120, 169: 124}), "cap_strip": (115, {167: 118, 169: 121}),
+          "red": (115, {167: 121, 169: 127}), "green": (195, {167: 202, 169: 206})}
 
 
 def build(sprite):
-    return [(NAME, lib.build_light_capsule(sprite, NAME, near_lights=False), sprite["sprites"])]
+    return [(NAME, lib.build_light_capsule(sprite, NAME, near_lights=False, lights=LIGHTS), sprite["sprites"])]
 
 
 if __name__ == "__main__":

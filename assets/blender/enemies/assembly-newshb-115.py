@@ -14,12 +14,16 @@ assembly pixel column 59.5), then cut into its fifteen pieces with common.split_
 newshb-117's port has a sliding hatch: closed (frame 117), a quarter open (195), half open
 (233), and open with a muzzle flash (197, 235, 271, 273, which only vary the flash), so it gets
 four models: newshb-117, -f2, -f3 and -f4. newshb-121's port is always open and only flashes, so
-one model covers its five frames.
+one model covers its five frames. The flashes animate (common.frame_part, one per frame): in -f4
+a small dim flash (197), a big one (235), a dying ember with the hatch's edge sliding back in
+(271) and the biggest (273); in newshb-121 none (121), a dim spark (199), the biggest (201), a
+medium red one (237) and a bright one (275).
 
 Run: blender --background --python assets/blender/enemies/assembly-newshb-115.py [-- --preview out.png]
 (the preview is the whole machine; each piece also gets <piece>.png next to it).
 """
 
+import json
 import math
 import sys
 from pathlib import Path
@@ -53,6 +57,7 @@ def mirror_col(e):
 # Hatch states of newshb-117's port: (model suffix, frames, hatch's left edge or None if open).
 HATCH = [("", [117], 25.0), ("-f2", [195], 27.0), ("-f3", [233], 29.0), ("-f4", [197, 235, 271, 273], None)]
 PORT_L = (25.0, 59.0, 33.0, 68.0)  # left port opening (pixel edges c0, r0, c1, r1)
+HATCH_271 = 31.0  # on frame 271 the hatch's edge shows at the port's right side
 BASE_TOP = 0.10
 COLLAR_TOP = 0.18
 
@@ -84,6 +89,19 @@ def materials(sprite):
 
 (BASE, COLLAR, RIB, LAV, PURP, PIPE, LOOP, POOL, CLAMP, TILE, SHAFT, LAMP, HOT, PORT, EMBER, FLASH,
  CORE, TOWER) = range(18)
+
+# Muzzle flashes: (centre column, centre row (pixel edges, as in the sprites), {frame: blobs from the
+# outside in, as (material, radius px)}). DIM is the dark red flash_materials() adds.
+DIM = 18
+FLASH_117 = (28.6, 64.3, {197: [(EMBER, 1.8)], 235: [(FLASH, 3.2), (CORE, 1.6)], 271: [(DIM, 1.2)],
+                          273: [(FLASH, 3.6), (CORE, 2.6)]})
+FLASH_121 = (91.4, 63.4, {199: [(DIM, 1.6)], 201: [(FLASH, 3.8), (CORE, 2.4)], 237: [(EMBER, 2.4), (FLASH, 1.2)],
+                          275: [(FLASH, 3.0), (CORE, 1.6)]})
+
+
+def flash_materials(sprite, mats):
+    """materials() plus the dark red of the faintest flashes (DIM)."""
+    return mats + [common.palette_material(sprite, 113, "nshb115", emission_strength=1.5)]
 
 
 def tower(bm, col, rows, z_of, stub=None):
@@ -201,11 +219,26 @@ def build(sprite):
     build_towers(bm)
     L.mirror_since(bm, n, F.x(TOWER_AXIS + 0.5))
     build_centre(bm)
-    # The right port is always open: an ember glows at its back (newshb-121's flashes).
-    c0, r0, c1, r1 = PORT_L
-    L.ellipsoid(bm, F, mirror_col((c0 + c1) / 2), (r0 + r1) / 2, 0.19, 1.6, 1.6, 0.04, mat=EMBER,
-                segments=8, rings=4)
+    # The right port is always open; its flashes (newshb-121) are separate frame parts.
     return L.to_object(NAME, bm, mats, coll), mats
+
+
+def flash_objects(mats, flash, piece_offset, name, coll):
+    """One object per frame of `flash` (FLASH_117 or FLASH_121): its glowing blobs at the port, in
+    the piece's coordinates, shown only on that frame. Frame 271 also gets the hatch's edge."""
+    col, row, frames = flash
+    x0, y0 = piece_offset
+    parts = []
+    for frame, blobs in frames.items():
+        bm = bmesh.new()
+        for k, (mat, r) in enumerate(blobs):
+            L.ellipsoid(bm, F, col, row, 0.21 + 0.04 * k, r, r, 0.06 - 0.01 * k, mat=mat, segments=12, rings=6)
+        if frame == 271:
+            c0, r0, c1, r1 = PORT_L
+            L.box(bm, F, HATCH_271, r0, c1, r1, 0.19, 0.265, mat=RIB)
+        bmesh.ops.translate(bm, vec=(-x0, -y0, 0), verts=bm.verts)
+        parts.append(common.frame_part(L.to_object(f"{name}-{frame}", bm, mats, coll), [frame]))
+    return parts
 
 
 def hatch_object(mats, hatch_left, piece_offset, name, coll):
@@ -254,20 +287,29 @@ def main():
     offsets = {name: (cx / 12, -cy / 12) for name, cx, cy in layout}
     pieces = common.split_assembly(obj, layout)
     coll = obj.users_collection[0]
+    fmats = flash_materials(sprite, mats)
     exported = {}  # model name -> (objects, sprite image)
     for name in PIECES:
         data = common.load_sprite(ROOT, name)
+        if name == "newshb-121":
+            objs = [pieces[name]] + flash_objects(fmats, FLASH_121, offsets[name], f"{name}-flash", coll)
+            common.export_sprite_model(ROOT, objs, f"enemies/{name}", data["sprites"])
+            exported[name] = (objs, data["frames"][0]["image"], name)
+            continue
         if name != "newshb-117":
             common.export_sprite_model(ROOT, [pieces[name]], f"enemies/{name}", data["sprites"])
             exported[name] = ([pieces[name]], data["frames"][0]["image"], name)
             continue
         for suffix, frames, hatch_left in HATCH:
             model = name + suffix
-            extra = hatch_object(mats, hatch_left, offsets[name], f"{model}-hatch", coll)
+            if hatch_left is None:
+                extra = flash_objects(fmats, FLASH_117, offsets[name], f"{model}-flash", coll)
+            else:
+                extra = [hatch_object(mats, hatch_left, offsets[name], f"{model}-hatch", coll)]
             sprites = [dict(s, frames=[f for f in s["frames"] if f in frames]) for s in data["sprites"]]
             sprites = [s for s in sprites if s["frames"]]
-            common.export_sprite_model(ROOT, [pieces[name], extra], f"enemies/{model}", sprites)
-            exported[model] = ([pieces[name], extra], f"frame-newshb-{frames[0]}.png", name)
+            common.export_sprite_model(ROOT, [pieces[name]] + extra, f"enemies/{model}", sprites)
+            exported[model] = ([pieces[name]] + extra, f"frame-newshb-{frames[0]}.png", name)
     if "--preview" in sys.argv:
         out = Path(sys.argv[sys.argv.index("--preview") + 1])
         import tempfile
@@ -278,6 +320,14 @@ def main():
         for model, (objs, image, piece) in exported.items():
             img = ROOT / "reference" / "models" / piece / image
             common.render_preview(objs, str(out.parent / f"{model}.png"), img, size=2)
+    if "--frames" in sys.argv:  # every frame of the animated models, one row each
+        out = Path(sys.argv[sys.argv.index("--frames") + 1])
+        for model, piece in (("newshb-117-f4", "newshb-117"), ("newshb-121", "newshb-121")):
+            data = common.load_sprite(ROOT, piece)
+            frames = {f for s in json.loads((ROOT / "src/render/spriteModels" / f"{model}.json").read_text())["sprites"]
+                      for f in s["frames"]}
+            data["frames"] = [f for f in data["frames"] if f["index"] in frames]
+            common.render_frame_previews(exported[model][0], str(out.parent / f"{model}.png"), data, ROOT)
 
 
 if __name__ == "__main__":

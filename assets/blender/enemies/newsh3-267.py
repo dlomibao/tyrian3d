@@ -3,8 +3,10 @@
 Seen in episode 4 (levels 6, 22 and 31). A teardrop of fire, tip up the screen and a round hot
 belly below: a fluted red outer flame wrapped round an orange layer, a yellow core and a
 white-hot heart low in the belly, each layer rising a little above the one round it so from above
-they read as the sprite's colour bands. The two frames only flicker the flame, so one model covers
-both. Everything glows.
+they read as the sprite's colour bands. The two frames only flicker the flame: 269 is 267
+mirrored left to right, so the flame sways and its hot heart swaps sides. One model covers both,
+with the flame lofted from each frame's own pixels and shown on that frame (common.frame_part).
+Everything glows.
 
 Run: blender --background --python assets/blender/enemies/newsh3-267.py [-- --preview out.png]
 """
@@ -56,22 +58,23 @@ def build(sprite):
         pal(126, roughness=0.3, emission_strength=5.0),  # 3 white-hot heart
     ]
     RED, ORANGE, YELLOW, WHITE = range(4)
-    frames = [f["pixels"] for f in sprite["frames"]]
-    bm = bmesh.new()
-
     def flutes(k, amp):
         return lambda a, y: 1.0 + amp * math.cos(k * a + y * 9.0)
 
-    lib.loft2(bm, layer_sections(frames, 113, 0.45, 0.17), sides=16, mat_index=RED, wobble=flutes(7, 0.06))
-    lib.loft2(bm, layer_sections(frames, 120, 0.1, 0.2, belly=0.03), sides=14, mat_index=ORANGE,
-              power=0.8, wobble=flutes(5, 0.07))
-    lib.loft2(bm, layer_sections(frames, 123, -0.1, 0.2, belly=0.07, rows=(7, 24)), sides=12,
-              mat_index=YELLOW, power=0.8)
-    lib.loft2(bm, layer_sections(frames, 125, -0.2, 0.17, belly=0.12, rows=(13, 21)), sides=10,
-              mat_index=WHITE, power=0.85)
-    obj = common.mesh_object(NAME, bm, mats, coll, smooth=True)
-    return [(NAME, [obj], sprite["sprites"])]
-
+    parts = []
+    for frame in sprite["frames"]:
+        frames = [frame["pixels"]]
+        bm = bmesh.new()
+        lib.loft2(bm, layer_sections(frames, 113, 0.45, 0.17), sides=16, mat_index=RED, wobble=flutes(7, 0.06))
+        lib.loft2(bm, layer_sections(frames, 120, 0.1, 0.2, belly=0.03), sides=14, mat_index=ORANGE,
+                  power=0.8, wobble=flutes(5, 0.07))
+        lib.loft2(bm, layer_sections(frames, 123, -0.1, 0.2, belly=0.07, rows=(7, 24)), sides=12,
+                  mat_index=YELLOW, power=0.8)
+        lib.loft2(bm, layer_sections(frames, 125, -0.2, 0.17, belly=0.12, rows=(13, 21)), sides=10,
+                  mat_index=WHITE, power=0.85)
+        obj = common.mesh_object(f"{NAME}-{frame['index']}", bm, mats, coll, smooth=True)
+        parts.append(common.frame_part(obj, [frame["index"]]))
+    return [(NAME, parts, sprite["sprites"])]
 
 if __name__ == "__main__":
     lib.run(NAME, build, __file__)

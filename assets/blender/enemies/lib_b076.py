@@ -139,7 +139,8 @@ def composite_png(root, layout, w, h, x_off, y_off, out):
 def run(root, name, build, file):
     """The usual main: build(sprite) returns a list of (model_name, objects, sprites) to export;
     with -- --preview <png>, the first model is previewed against the first frame and any others
-    get <png stem>-<model>.png next to it against their own first frame."""
+    get <png stem>-<model>.png next to it against their own first frame; with -- --frames <dir>,
+    each model's frames are rendered one row each into <dir>/<model>.png."""
     sprite = common.load_sprite(root, name)
     models = build(sprite)
     for model, objects, sprites in models:
@@ -154,7 +155,13 @@ def run(root, name, build, file):
             frame = frames.get(image, sprite["frames"][0])
             ref = Path(root) / "reference" / "models" / name / frame["image"]
             path = out if i == 0 else out.parent / f"{out.stem}-{model}.png"
-            common.render_preview(objects, str(path), ref, size=frame["size"])
+            common.render_preview(objects, str(path), ref, size=frame["size"], frame=frame["index"])
+    if "--frames" in sys.argv:  # every frame of each model, one row each, into <dir>/<model>.png
+        out = Path(sys.argv[sys.argv.index("--frames") + 1])
+        for model, objects, sprites in models:
+            own = {f for s in sprites for f in s["frames"]}
+            sub = {**sprite, "frames": [f for f in sprite["frames"] if f["index"] in own]}
+            common.render_frame_previews(objects, out / f"{model}.png", sub, root)
     return sprite
 
 

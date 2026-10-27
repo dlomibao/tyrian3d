@@ -2,8 +2,9 @@
 
 A ground emplacement in episode 2 (level 22): a violet steel dome in four rounded quarters split
 by a cross-shaped seam, with a stubby knob sticking out north, south, east and west. The frames
-light the seam: a red spark at the centre that spreads along the cross. That is a glow, so one
-model covers all three, with the seam glowing red and an orange core where its arms meet.
+light the seam: dark on frame 153, a red spark at the centre on 155 that spreads along the cross
+on 157. That is a glow, so one model covers all three and animates: the spark and the glowing
+cross with its orange core are parts shown on their own frames.
 
 Run: blender --background --python assets/blender/enemies/newsh0-153.py [-- --preview out.png]
 """
@@ -34,8 +35,10 @@ def build(sprite):
         pal(117, emission_strength=3.0),  # 6 red seam glow
         pal(120, emission_strength=4.0),  # 7 orange centre
         pal(123, emission_strength=5.0),  # 8 yellow core
+        pal(116, emission_strength=3.0),  # 9 frame 155's red spark
+        pal(118, emission_strength=3.5),  # 10 its centre
     ]
-    BASE, WALL, QUARTER, CROWN, KNOB, CAP, SEAM, CENTRE, CORE = range(9)
+    BASE, WALL, QUARTER, CROWN, KNOB, CAP, SEAM, CENTRE, CORE, SPARK, SPARK_C = range(11)
     bm = bmesh.new()
 
     # Dark round base under the dome (columns 7-17, rows 8-18).
@@ -62,16 +65,25 @@ def build(sprite):
         lib.dome(bm, kx + dx * 0.3 / 12, ky + dy * 0.3 / 12, 0.15, rx * 0.5, ry * 0.5, 0.05, n=10, steps=2,
                  mats=CAP)
 
-    # The glowing seam: a red cross down the grooves, with an orange core where its arms meet.
-    for along_x in (True, False):
-        half, w = 5.4 / 12, 0.6 / 12
-        rx, ry = (half, w) if along_x else (w, half)
-        lib.stack(bm, CX, CY, [(0.1, rx, ry, 4.0), (0.25, rx, ry, 4.0)], n=12, mats=SEAM)
-    lib.dome(bm, CX, CY, 0.18, 1.3 / 12, 1.3 / 12, 0.12, n=12, steps=3, mats=CENTRE)
-    lib.dome(bm, CX, CY, 0.28, 0.6 / 12, 0.6 / 12, 0.04, n=10, steps=2, mats=CORE)
-
     obj = common.mesh_object(NAME, bm, mats, coll, smooth=True)
-    return [(NAME, [obj], sprite["sprites"])]
+
+    def glow(frame, half, arm_mat, centre_r, centre_mat, core, centre_z=0.18):
+        """The glowing seam on one frame: a cross `half` px long each way down the grooves, a dome
+        where its arms meet and, with `core`, a yellow core on top."""
+        bm = bmesh.new()
+        for along_x in (True, False):
+            w = 0.6 / 12
+            rx, ry = (half / 12, w) if along_x else (w, half / 12)
+            lib.stack(bm, CX, CY, [(0.1, rx, ry, 4.0), (0.25, rx, ry, 4.0)], n=12, mats=arm_mat)
+        lib.dome(bm, CX, CY, centre_z, centre_r / 12, centre_r / 12, 0.12, n=12, steps=3, mats=centre_mat)
+        if core:
+            lib.dome(bm, CX, CY, 0.28, 0.6 / 12, 0.6 / 12, 0.04, n=10, steps=2, mats=CORE)
+        return common.frame_part(common.mesh_object(f"{NAME}-glow-{frame}", bm, mats, coll, smooth=True), [frame])
+
+    # Frame 153: the seam is dark (no glow). Frame 155: a red spark two pixels each way from the
+    # centre. Frame 157: the cross glows red four pixels each way, with an orange and yellow core.
+    parts = [glow(155, 2.5, SPARK, 1.8, SPARK_C, False, 0.2), glow(157, 4.6, SEAM, 1.3, CENTRE, True)]
+    return [(NAME, [obj] + parts, sprite["sprites"])]
 
 
 if __name__ == "__main__":

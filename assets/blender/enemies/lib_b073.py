@@ -81,6 +81,17 @@ class Mats:
     def glow(self, index, strength=3.0):
         return self(index, metallic=0.0, roughness=0.4, emission_strength=strength)
 
+    def anim(self, index, part, frames, metallic=0.0, roughness=0.4, emission_strength=0.0):
+        """A material whose palette colour changes on some frames (palette_material frames=):
+        `frames` is {sprite frame: palette index}; `part` names it (pal_<index>_<tag>_<part>)."""
+        key = (index, metallic, roughness, emission_strength, part)
+        if key not in self.slots:
+            self.slots[key] = len(self.list)
+            self.list.append(common.palette_material(self.sprite, index, f"{self.tag}_{part}", metallic=metallic,
+                                                     roughness=roughness, emission_strength=emission_strength,
+                                                     frames=frames))
+        return self.slots[key]
+
 
 def merged_colors(root, names):
     colors = {}
@@ -240,7 +251,8 @@ def ellipsoid(bm, cx, cy, cz, rx, ry, rz, sides=16, rings=8, mat=0, smooth=True)
 
 def tube(bm, points, radius, sides=8, mat=0, smooth=True, caps=True, flat=1.0):
     """A round tube along a 3D polyline (mitred joints). radius: number or one per point.
-    flat scales the tube's vertical radius (flat < 1 squashes it)."""
+    flat scales the tube's vertical radius (flat < 1 squashes it). caps: both ends, or a
+    (start, end) pair."""
     pts = [Vector(p) for p in points]
     radii = radius if isinstance(radius, (list, tuple)) else [radius] * len(pts)
     tangents = []
@@ -261,7 +273,8 @@ def tube(bm, points, radius, sides=8, mat=0, smooth=True, caps=True, flat=1.0):
             off.z *= flat
             ring.append(tuple(c + off))
         rings.append(ring)
-    ring_loft(bm, rings, mat=mat, smooth=smooth, cap_start=caps, cap_end=caps)
+    cap_start, cap_end = caps if isinstance(caps, tuple) else (caps, caps)
+    ring_loft(bm, rings, mat=mat, smooth=smooth, cap_start=cap_start, cap_end=cap_end)
 
 
 def loft_y(bm, x, sections, sides=10, mat=0, smooth=True, power=2.0, cap_start=True, cap_end=True):
@@ -394,6 +407,28 @@ def finish(name, bm, mats, coll):
     return obj
 
 
+def part(name, bm, mats, coll, frames):
+    """finish() a bmesh as a separate object shown only on these sprite frames (frame_part)."""
+    return common.frame_part(finish(name, bm, mats, coll), frames)
+
+
+def frame_previews(root, models):
+    """With -- --frames <dir>: render every frame each (model, objects, sprites) covers to
+    <dir>/<model>.png (common.render_frame_previews), to check its animation; -- --only a,b
+    limits it to those models."""
+    if "--frames" not in sys.argv:
+        return
+    out = Path(sys.argv[sys.argv.index("--frames") + 1])
+    only = sys.argv[sys.argv.index("--only") + 1].split(",") if "--only" in sys.argv else None
+    for model, objects, sprites in models:
+        if only and model not in only:
+            continue
+        covered = {f for s in sprites for f in s["frames"]}
+        data = common.load_sprite(root, base_name(model))
+        data = {**data, "frames": [f for f in data["frames"] if f["index"] in covered]}
+        common.render_frame_previews(objects, str(out / f"{model}.png"), data, root)
+
+
 def run(name, build, file):
     """Single tile: build(sprite) returns [(model_name, objects, sprites)]; export each and, with
     -- --preview <png>, preview each (the first at <png>, others beside it as <model>.png)."""
@@ -409,7 +444,8 @@ def run(name, build, file):
             frame = next(f for f in sprite["frames"] if f["index"] == frame_idx)
             ref = root / "reference" / "models" / name / frame["image"]
             path = out if i == 0 else out.parent / f"{model}.png"
-            common.render_preview(objects, str(path), ref, size=frame["size"])
+            common.render_preview(objects, str(path), ref, size=frame["size"], frame=frame_idx)
+    frame_previews(root, models)
     return sprite
 
 
@@ -448,12 +484,30 @@ def base_name(model):
     return head if head and tail.isdigit() else model
 
 
+def cut_parts(part, layout):
+    """split_assembly for a frame-tagged part: {piece: its cut, named <piece>-<part>, keeping the
+    part's frames}, leaving out pieces it doesn't reach. `part` itself is hidden."""
+    out = {}
+    for n, piece in common.split_assembly(part, layout).items():
+        if not piece.data.polygons:
+            bpy.data.objects.remove(piece)
+            continue
+        piece.name = f"{n}-{part.name}"
+        if "tyrian_frames" in part:
+            common.frame_part(piece, list(part["tyrian_frames"]))
+        out[n] = piece
+    part.hide_render = True
+    return out
+
+
 def run_assembly(asm_name, pieces, build, file, cols, rows_, frames=None, frames_of=None):
     """Several 2x2 pieces laid out cols x rows_ (pieces: rows of model names or None, top row
     first; a model like newshm-7-f2 is a piece of catalogue entry newshm-7) built as one model and
     cut apart. build(sprite, grid) builds the whole in the grid's coordinates (Grid(24*cols,
-    28*rows_) centred on the origin) and returns (object, extra), extra being more (model,
-    objects, sprites) to export as they are. frames_of: {model: [frame indices]} for models that
+    28*rows_) centred on the origin) and returns (object, extra) or (object, extra, parts), extra
+    being more (model, objects, sprites) to export as they are and parts objects built like the
+    whole but tagged for some frames (part / frame_part): each is cut apart too and exported with
+    the pieces it reaches. frames_of: {model: [frame indices]} for models that
     cover only some of their entry's frames (the first one is used for the composite)."""
     root = common.repo_root(file)
     frames_of = frames_of or {}
@@ -479,15 +533,24 @@ def run_assembly(asm_name, pieces, build, file, cols, rows_, frames=None, frames
                         comp_rgb[ri * 28 + r][ci * 24 + c] = (*(ch / 255 for ch in data["colors"][str(v)]), 1.0)
     sprite = {"name": asm_name, "colors": colors, "pixels": comp}
     grid = Grid(w, h, comp)
-    obj, extra = build(sprite, grid)
+    built = build(sprite, grid)
+    obj, extra = built[:2]
+    parts = built[2] if len(built) > 2 else []
     layout = layout_of(pieces, cols, rows_)
     cut = common.split_assembly(obj, layout)
+    pieces_of = {n: [cut[n]] for n in names}
+    for p in parts:
+        for n, piece in cut_parts(p, layout).items():
+            pieces_of[n].append(piece)
+    exported = []
     for n in names:
         sprites = common.load_sprite(root, n)["sprites"] if n not in frames_of else \
             sprites_with(root, base_name(n), frames_of[n])
-        common.export_sprite_model(root, [cut[n]], f"enemies/{n}", sprites)
+        common.export_sprite_model(root, pieces_of[n], f"enemies/{n}", sprites)
+        exported.append((n, pieces_of[n], sprites))
     for model, objects, sprites in extra:
         common.export_sprite_model(root, objects, f"enemies/{model}", sprites)
+    frame_previews(root, exported + list(extra))
     if "--preview" in sys.argv:
         import tempfile
         out = Path(sys.argv[sys.argv.index("--preview") + 1])
@@ -503,12 +566,12 @@ def run_assembly(asm_name, pieces, build, file, cols, rows_, frames=None, frames
         common.render_preview([obj], str(out), str(ref), size=sw / 12, view_px=480)
         for n in names:
             img = root / "reference" / "models" / base_name(n) / first[n]["image"]
-            common.render_preview([cut[n]], str(out.parent / f"{n}.png"), img, size=2)
+            common.render_preview(pieces_of[n], str(out.parent / f"{n}.png"), img, size=2, frame=first[n]["index"])
         for model, objects, sprites in extra:
             base = base_name(model)
             data = common.load_sprite(root, base)
             fr = next(f for f in data["frames"] if f["index"] == sprites[0]["frames"][0])
             img = root / "reference" / "models" / base / fr["image"]
-            common.render_preview(objects, str(out.parent / f"{model}.png"), img, size=2)
+            common.render_preview(objects, str(out.parent / f"{model}.png"), img, size=2, frame=fr["index"])
     obj.hide_render = True
     return cut

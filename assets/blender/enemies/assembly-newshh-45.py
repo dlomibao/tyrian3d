@@ -4,7 +4,8 @@ its sprites.
 Seen in episode 2 (level 2.4). Four 2x2 enemies make one 48x56 px block that fills its tiles: a
 slab of grey rock with pale veins running down it (the same 24x28 tile of veins repeated), and a
 dark blue beast crouched on it. The beast has a round head with one glowing red eye (newshh-5,
-whose three frames only brighten the head and the eye, so one model covers them), a hunched torso
+whose three frames only brighten the head and the eye, so one model covers them and its head
+and torso colours step up each frame), a hunched torso
 and a big rounded back to its right, a thick left foreleg ending in a hooked claw, a thin
 right leg reaching down to the bottom right, and thin dark legs in the black shadow under it.
 
@@ -78,6 +79,21 @@ def build(sprite):
         pal(119, emission_strength=5.0),  # 9 eye core
     ]
     ROCK, VEIN, SHADOW, HIDE, LIGHT, DARK, PALE, SOCKET, EYE, CORE = range(10)
+    # The head and torso brighten on newshh-5's frames 9 and 13 (the hide steps up three to five
+    # palette shades each frame, and the eye goes from red to yellow-white): the same colours as
+    # above, but with frames, so only newshh-5 animates (main() puts the static ones back on the
+    # other pieces).
+    anim = lambda i, f9, f13, tag, **kw: common.palette_material(  # noqa: E731
+        sprite, i, f"nshh5{tag}", frames={9: f9, 13: f13}, **kw)
+    mats += [
+        anim(53, 56, 58, "hide", metallic=0.35, roughness=0.4),  # 10 torso
+        anim(55, 58, 60, "head", metallic=0.35, roughness=0.35),  # 11 head
+        anim(58, 61, 62, "pale", metallic=0.4, roughness=0.3),  # 12 head and chest highlights
+        anim(48, 52, 55, "socket", metallic=0.2, roughness=0.6),  # 13 eye socket
+        anim(116, 120, 123, "eye", emission_strength=3.0),  # 14 red eye, then orange, then yellow
+        anim(119, 126, 127, "core", emission_strength=5.0),  # 15 eye core
+    ]
+    HIDE_A, LIGHT_A, PALE_A, SOCKET_A, EYE_A, CORE_A = range(10, 16)
     bm = bmesh.new()
 
     rock(bm, ROCK, VEIN)
@@ -100,10 +116,10 @@ def build(sprite):
     # Torso under the head, hunched down to row 40.
     lib.sweep(bm, G, [(18.5, 19.0, 0.0, 6.0, 0.17), (18.5, 23.0, 0.0, 5.6, 0.17), (18.6, 28.0, 0.0, 4.9, 0.15),
                       (19.0, 32.0, 0.0, 5.0, 0.14), (19.6, 35.5, -0.01, 5.4, 0.13), (20.5, 38.4, -0.02, 4.6, 0.1),
-                      (21.6, 39.8, -0.03, 2.5, 0.06), (22.0, 40.3, -0.03, 0.0, 0.0)], sides=12, mat=HIDE)
+                      (21.6, 39.8, -0.03, 2.5, 0.06), (22.0, 40.3, -0.03, 0.0, 0.0)], sides=12, mat=HIDE_A)
     # Pale ridge down the front of the torso (the light streak at columns 15-17, rows 26-31).
     lib.sweep(bm, G, [(16.4, 25.0, 0.1, 0.0, 0.0), (16.0, 26.2, 0.1, 1.0, 0.05), (15.8, 30.5, 0.09, 1.0, 0.05),
-                      (16.0, 31.8, 0.09, 0.0, 0.0)], sides=8, mat=PALE)
+                      (16.0, 31.8, 0.09, 0.0, 0.0)], sides=8, mat=PALE_A)
 
     # Big rounded back to the right (columns 22-41, rows 22-40), lit from the upper left.
     lib.ellipsoid(bm, G, 31.3, 31.2, 0.0, 10.0, 7.6, 0.24, mat=LIGHT, segments=20, rings=10,
@@ -134,14 +150,27 @@ def build(sprite):
               sides=8, mat=LIGHT)
 
     # Round head (columns 12-28, rows 10-25), lit from the upper left, with one red eye.
-    lib.ellipsoid(bm, G, 20.4, 17.6, 0.02, 8.4, 7.8, 0.28, mat=LIGHT, segments=20, rings=10, bottom=0.4)
-    lib.ellipsoid(bm, G, 17.4, 13.2, 0.205, 2.6, 1.8, 0.05, mat=PALE, segments=12, rings=6,
+    lib.ellipsoid(bm, G, 20.4, 17.6, 0.02, 8.4, 7.8, 0.28, mat=LIGHT_A, segments=20, rings=10, bottom=0.4)
+    lib.ellipsoid(bm, G, 17.4, 13.2, 0.205, 2.6, 1.8, 0.05, mat=PALE_A, segments=12, rings=6,
                   angle=math.radians(30))
-    lib.ellipsoid(bm, G, 22.2, 15.4, 0.25, 3.3, 2.9, 0.055, mat=SOCKET, segments=14, rings=7)
-    lib.ellipsoid(bm, G, 22.2, 15.4, 0.268, 2.5, 2.1, 0.05, mat=EYE, segments=14, rings=7)
-    lib.ellipsoid(bm, G, 22.5, 15.3, 0.3, 1.1, 1.0, 0.03, mat=CORE, segments=10, rings=5)
+    lib.ellipsoid(bm, G, 22.2, 15.4, 0.25, 3.3, 2.9, 0.055, mat=SOCKET_A, segments=14, rings=7)
+    lib.ellipsoid(bm, G, 22.2, 15.4, 0.268, 2.5, 2.1, 0.05, mat=EYE_A, segments=14, rings=7)
+    lib.ellipsoid(bm, G, 22.5, 15.3, 0.3, 1.1, 1.0, 0.03, mat=CORE_A, segments=10, rings=5)
 
     return lib.to_object(NAME, bm, mats, coll)
+
+
+ANIMATED = "newshh-5"  # the only piece with more than one frame
+STATIC_OF = {10: 3, 11: 4, 12: 6, 13: 7, 14: 8, 15: 9}  # animated material slot -> its static twin
+
+
+def static_materials(piece):
+    """Put the static colours back on a piece that doesn't animate, so it's as it was."""
+    mesh = piece.data
+    for poly in mesh.polygons:
+        poly.material_index = STATIC_OF.get(poly.material_index, poly.material_index)
+    while len(mesh.materials) > 10:
+        mesh.materials.pop()
 
 
 def main():
@@ -149,12 +178,18 @@ def main():
     obj = build(sprite)
     layout = [(e["model"], e["cx"] - CX0, e["cy"] - CY0) for e in sprite["assemblyLayout"] if e["model"] in PIECES]
     pieces = common.split_assembly(obj, layout)
+    for name, piece in pieces.items():
+        if name != ANIMATED:
+            static_materials(piece)
     for name in PIECES:
         data = common.load_sprite(ROOT, name)
         common.export_sprite_model(ROOT, [pieces[name]], f"enemies/{name}", data["sprites"])
     if "--preview" in sys.argv:
         out = sys.argv[sys.argv.index("--preview") + 1]
         lib.assembly_previews(ROOT, obj, pieces, layout, 4, out)
+    if "--frames" in sys.argv:
+        common.render_frame_previews([pieces[ANIMATED]], sys.argv[sys.argv.index("--frames") + 1],
+                                     common.load_sprite(ROOT, ANIMATED), ROOT)
 
 
 if __name__ == "__main__":

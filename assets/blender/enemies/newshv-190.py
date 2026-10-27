@@ -2,10 +2,10 @@
 
 Seen in episode 2 (level 17). A small dark-red ring, open in the middle, crossed by a diagonal
 bar from its lower left to a bright knob at its upper right. The three frames only pulse its
-colours brighter, so one model covers them all: a rounded ring whose faces take the sprite's
+colours brighter (palette_material frames=), so one model covers them all: a rounded ring whose faces take the sprite's
 shade under them (lit on the right), the bar across it and the glowing knob.
 
-Run: blender --background --python assets/blender/enemies/newshv-190.py [-- --preview out.png]
+Run: blender --background --python assets/blender/enemies/newshv-190.py [-- --preview out.png] [--frame-previews frames.png]
 """
 
 import sys
@@ -29,12 +29,17 @@ def P(c, r, z=0.0):
 
 def build(sprite):
     coll = common.reset_collection(NAME)
-    pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
+    # Every colour brightens on frames 209 and 228 (the shades the sprite's pixels step to).
+    f1, f2 = (f["index"] for f in sprite["frames"][1:3])
+
+    def pal(i, b1, b2, **kw):
+        return common.palette_material(sprite, i, f"{NAME}-pulse", frames={f1: b1, f2: b2}, **kw)
+
     mats = [
-        pal(66, metallic=0.3, roughness=0.5, emission_strength=0.6),  # 0 dark red
-        pal(67, metallic=0.3, roughness=0.45, emission_strength=0.8),  # 1 red ring
-        pal(69, metallic=0.35, roughness=0.4, emission_strength=1.0),  # 2 lit red
-        pal(71, metallic=0.3, roughness=0.3, emission_strength=3.0),  # 3 glowing knob
+        pal(66, 67, 68, metallic=0.3, roughness=0.5, emission_strength=0.6),  # 0 dark red
+        pal(67, 68, 70, metallic=0.3, roughness=0.45, emission_strength=0.8),  # 1 red ring
+        pal(69, 70, 72, metallic=0.35, roughness=0.4, emission_strength=1.0),  # 2 lit red
+        pal(71, 73, 75, metallic=0.3, roughness=0.3, emission_strength=3.0),  # 3 glowing knob
     ]
     DARK, RED, LIT, KNOB = range(4)
     pixels = sprite["frames"][0]["pixels"]
@@ -57,6 +62,8 @@ def main():
     obj = build(sprite)
     common.export_sprite_model(ROOT, [obj], MODEL, sprite["sprites"])
     lib.preview([obj], sprite, ROOT, NAME)
+    if "--frame-previews" in sys.argv:
+        common.render_frame_previews([obj], sys.argv[sys.argv.index("--frame-previews") + 1], sprite, ROOT)
 
 
 if __name__ == "__main__":

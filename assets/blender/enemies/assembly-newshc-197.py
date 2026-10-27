@@ -6,7 +6,9 @@ Two 2x2 enemies side by side make one 48x28 px bar (sprite.json `assemblyLayout`
 pieces in that layout are separate enemies with their own models): two green tanks lying across
 the screen either side of a pink spine block, a pink bar beneath them with a bulb at each end,
 dark purple fins hanging below, and a red light between the fins. The three frames of each piece
-only brighten the red light, so one model per piece covers them.
+only brighten the red light (dark red, red, orange; the pixels round it brighten a step or two
+with it), so one model per piece covers them: the light changes palette colour on each frame
+(palette_material frames=).
 
 The bar is mirror symmetric about the seam between the pieces, so the left half is built
 (lib_b031.stock_half, shared with the big gun's stock newshc-269) and mirrored, then cut into
@@ -49,7 +51,9 @@ def build(sprite):
         pal(85, metallic=0.3, roughness=0.55),  # 5 fins
         pal(87, metallic=0.3, roughness=0.5),  # 6 lighter fins
         pal(90, metallic=0.35, roughness=0.4),  # 7 pink spine
-        pal(119, emission_strength=4.0),  # 8 red light
+        # 8 red light: dark red on 197/199, red on 201/203, orange on 205/207
+        common.palette_material(sprite, 118, f"{tag}-light", emission_strength=4.0,
+                                frames={197: 113, 199: 113, 205: 122, 207: 122}),
     ]
     slots = {"tank": 0, "ring": 1, "bar": 2, "bar_hi": 3, "fin_base": 4, "fin": 5, "fin_hi": 6, "spine": 7}
     bm = bmesh.new()
@@ -79,6 +83,12 @@ def main():
             data = common.load_sprite(ROOT, name)
             img = ROOT / "reference" / "models" / name / data["frames"][0]["image"]
             common.render_preview([pieces[name]], str(out.parent / f"{name}.png"), img, size=2)
+    out = lib.frames_arg()
+    if out:  # every frame of each piece, one row each: <png> with the piece's name appended
+        out = Path(out)
+        for name in PIECES:
+            data = common.load_sprite(ROOT, name)
+            common.render_frame_previews([pieces[name]], str(out.with_name(f"{out.stem}-{name}.png")), data, ROOT)
 
 
 if __name__ == "__main__":

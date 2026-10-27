@@ -3,10 +3,11 @@
 Seen in episode 2 (level 17). A steel-blue craft flying down the screen with a big glowing red eye
 in a blue housing at its front, curved purple horns round the housing and beside the body, green
 pipes down its sides, a pale chest dome and a two-lobed rear shell with two red engine vents. The
-three frames only brighten the eye and the vents, so one model covers them all; the eye, chest,
-shell and horns take the shade of the sprite pixels under them.
+three frames only brighten the eye's glint and the vents (and on the last the dark pupil fills
+with red), so one model covers them all, with those colours stepping per frame (palette_material
+frames=); the eye, chest, shell and horns take the shade of the sprite pixels under them.
 
-Run: blender --background --python assets/blender/enemies/newshv-197.py [-- --preview out.png]
+Run: blender --background --python assets/blender/enemies/newshv-197.py [-- --preview out.png] [--frame-previews frames.png]
 """
 
 import sys
@@ -29,6 +30,11 @@ C = 12.0  # the sprite's mirror axis (pixel column)
 def build(sprite):
     coll = common.reset_collection(NAME)
     pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
+    f1, f2 = (f["index"] for f in sprite["frames"][1:3])  # 199, 201
+
+    def glow(i, b1, b2, part, **kw):  # a colour that brightens on the later frames
+        return common.palette_material(sprite, i, f"{NAME}-{part}", frames={f1: b1, f2: b2}, **kw)
+
     mats = [
         pal(53, metallic=0.4, roughness=0.5),  # 0 dark steel
         pal(57, metallic=0.45, roughness=0.45),  # 1 steel blue
@@ -40,10 +46,13 @@ def build(sprite):
         pal(40, metallic=0.2, roughness=0.5),  # 7 green pipes
         pal(113, metallic=0.2, roughness=0.4, emission_strength=1.5),  # 8 dark red
         pal(116, metallic=0.2, roughness=0.35, emission_strength=2.5),  # 9 red eye
-        pal(121, metallic=0.1, roughness=0.3, emission_strength=4.0),  # 10 bright glow
-        pal(82, metallic=0.3, roughness=0.3),  # 11 pupil
+        glow(121, 124, 126, "glint", metallic=0.1, roughness=0.3, emission_strength=4.0),  # 10 eye glint
+        common.palette_material(sprite, 82, f"{NAME}-pupil", metallic=0.3, roughness=0.3,
+                                frames={f2: 114}),  # 11 pupil, red on the last frame
+        glow(116, 118, 120, "vent", metallic=0.2, roughness=0.35, emission_strength=2.5),  # 12 red vents
+        glow(121, 123, 125, "ventglow", metallic=0.1, roughness=0.3, emission_strength=4.0),  # 13 vent glow
     ]
-    DARK, STEEL, LIGHT, PALE, PUR_D, PUR, PUR_L, PIPE, RED_D, RED, GLOW, PUPIL = range(12)
+    DARK, STEEL, LIGHT, PALE, PUR_D, PUR, PUR_L, PIPE, RED_D, RED, GLOW, PUPIL, VENT, VENT_GLOW = range(14)
     pixels = sprite["frames"][0]["pixels"]
     blue = lib.ramp([(51, 54, DARK), (55, 57, STEEL), (58, 60, LIGHT), (61, 63, PALE)])
     purple = lib.ramp([(83, 86, PUR_D), (87, 90, PUR), (91, 95, PUR_L)])
@@ -76,8 +85,8 @@ def build(sprite):
 
     # Engine vents on the shell (columns 9-10 and 14-15, rows 20-23), mirrored.
     start = len(bm.faces)
-    lib.ellipsoid(bm, P(9.6, 21.6, 0.11), (1.0 * U, 1.9 * U, 0.05), segments=10, rings=6, mat_index=RED)
-    lib.ellipsoid(bm, P(9.7, 20.6, 0.14), (0.6 * U, 0.8 * U, 0.03), segments=8, rings=4, mat_index=GLOW)
+    lib.ellipsoid(bm, P(9.6, 21.6, 0.11), (1.0 * U, 1.9 * U, 0.05), segments=10, rings=6, mat_index=VENT)
+    lib.ellipsoid(bm, P(9.7, 20.6, 0.14), (0.6 * U, 0.8 * U, 0.03), segments=8, rings=4, mat_index=VENT_GLOW)
 
     # Green pipes down the sides (columns 6-7, rows 8-15).
     lib.tube(bm, [P(6.0, 7.8, 0.06), P(6.4, 9.0, 0.08), P(7.0, 10.6, 0.08), P(7.0, 13.5, 0.07), P(7.0, 15.4, 0.04)],
@@ -111,6 +120,8 @@ def main():
     obj = build(sprite)
     common.export_sprite_model(ROOT, [obj], MODEL, sprite["sprites"])
     lib.preview([obj], sprite, ROOT, NAME)
+    if "--frame-previews" in sys.argv:
+        common.render_frame_previews([obj], sys.argv[sys.argv.index("--frame-previews") + 1], sprite, ROOT)
 
 
 if __name__ == "__main__":

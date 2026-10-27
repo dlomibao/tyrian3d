@@ -4,13 +4,15 @@ Seen in episode 3 (levels 3.4 and 3.19). Two 2x2 ground pieces stacked make one 
 lying on the ground with its nose down the screen: a glowing exhaust bell on top (newsh8-153),
 a grey housing with a brown window, a brown collar with red-tipped fins, then the bulging red
 body with two glowing slits and a rounded nose (newsh8-191). The frames of each piece only
-flicker the exhaust or the slits, so one model covers each piece's frames.
+flicker the exhaust or the slits, so one model covers each piece's frames and animates: the
+exhaust's two hot bands pulse down the bell and a bright spark runs along each slit.
 
 The rocket itself is built in lib_b082.build_rocket (shared with assembly-newsh8-125, the same
 rocket lying sideways), placed in assembly coordinates and cut into the two pieces.
 
 Run: blender --background --python assets/blender/enemies/assembly-newsh8-191.py [-- --preview out.png]
-(the preview is the whole rocket; each piece also gets <piece>.png next to it).
+(the preview is the whole rocket; each piece also gets <piece>.png next to it) [--frames dir]
+(every frame of each piece, <piece>-frames.png in dir).
 """
 
 import sys
@@ -30,7 +32,7 @@ LAYOUT = [("newsh8-153", 0, -14), ("newsh8-191", 0, 14)]
 
 
 def main():
-    lib_b082.rocket_assembly(NAME, ROOT, LAYOUT, 0, -0.5 / 12, 27.5 / 12)
+    lib_b082.rocket_assembly(NAME, ROOT, LAYOUT, 0, -0.5 / 12, 27.5 / 12, animate=True)
 
 
 if __name__ == "__main__":

@@ -5,8 +5,9 @@ structure (sprite.json `assemblyLayout`): a grey stone block (newshp-229, -231, 
 lighter raised plinth, a dark trench down its right side and a grille at the bottom right; on it
 a blocky brown machine with gold plates, a gold box behind it, a dark lattice column running up
 the screen to a golden onion-shaped tank of three stacked tiers (newshp-115, whose three frames
-only move the shine from tier to tier, so one model covers them), and an arm with gold bands
-reaching down the screen.
+move the shine from tier to tier: bottom, middle, top; one model covers them, each tier with its
+own material that brightens on its frame, animate_tank), and an arm with gold bands reaching down
+the screen.
 
 The whole structure is built once in assembly pixels (column 0, row 0 is the top-left corner of
 newshp-115; the platform is rows 28-83), then cut into the five pieces with common.split_assembly.
@@ -166,12 +167,52 @@ def composite_png(layout, out):
     return out
 
 
+# newshp-115's tank tiers, top to bottom: {frame: palette index} for each (tank gold 26 otherwise).
+# The lit tier brightens on its frame; the big bottom tier also falls into shadow on the others.
+TIER_FRAMES = [("top", {119: 29}), ("mid", {117: 29}), ("bottom", {115: 29, 117: 24, 119: 24})]
+
+
+def animate_tank(piece, sprite):
+    """newshp-115: give each of the tank's three tiers (the three islands of tank-gold faces)
+    its own animated material, on this piece only (the others keep the static one)."""
+    import bmesh as bm_mod
+    tank = 12  # TANK in build()
+    first = len(piece.data.materials)
+    for tier, frames in TIER_FRAMES:
+        piece.data.materials.append(common.palette_material(sprite, 26, f"nshp115-{tier}", metallic=0.4,
+                                                            roughness=0.3, frames=frames))
+    bm = bm_mod.new()
+    bm.from_mesh(piece.data)
+    todo = {f for f in bm.faces if f.material_index == tank}
+    islands = []
+    while todo:
+        stack, island = [todo.pop()], []
+        while stack:
+            f = stack.pop()
+            island.append(f)
+            for e in f.edges:
+                for g in e.link_faces:
+                    if g in todo:
+                        todo.remove(g)
+                        stack.append(g)
+        islands.append(island)
+    assert len(islands) == 3, f"expected 3 tank tiers, found {len(islands)}"
+    islands.sort(key=lambda isl: -sum(f.calc_center_median().y for f in isl) / len(isl))  # top first
+    for k, island in enumerate(islands):
+        for f in island:
+            f.material_index = first + k
+    bm.to_mesh(piece.data)
+    bm.free()
+    return piece
+
+
 def main():
     sprite = merged_sprite()
     obj = build(sprite)
     layout = [(e["model"], e["cx"] - CX0, e["cy"] - CY0) for e in sprite["assemblyLayout"]
               if e["model"] in PIECES]
     pieces = common.split_assembly(obj, layout)
+    animate_tank(pieces["newshp-115"], sprite)
     for name in PIECES:
         data = common.load_sprite(ROOT, name)
         common.export_sprite_model(ROOT, [pieces[name]], f"enemies/{name}", data["sprites"])
@@ -185,6 +226,9 @@ def main():
             data = common.load_sprite(ROOT, name)
             img = ROOT / "reference" / "models" / name / data["frames"][0]["image"]
             common.render_preview([pieces[name]], str(out.parent / f"{name}.png"), img, size=2)
+    if "--frame-previews" in sys.argv:
+        out = sys.argv[sys.argv.index("--frame-previews") + 1]
+        common.render_frame_previews([pieces["newshp-115"]], out, common.load_sprite(ROOT, "newshp-115"), ROOT)
 
 
 if __name__ == "__main__":

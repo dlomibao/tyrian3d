@@ -2,8 +2,8 @@
 
 Seen in episode 1 (level section 28). A glossy steel-blue ball (columns 3-20, rows 5-21) with a
 bright highlight up and left and a reflected rim low and right, girdled at its equator (rows
-12-14) by a glowing red-orange belt. The frames only cycle the belt's glow, so one model covers
-them all. Flattened to a squat ball so it stays within the height of a flying enemy.
+12-14) by a glowing red-orange belt. The frames only cycle the belt's glow (it dims two palette
+steps a frame), so one model covers them all, with the belt's colours changing per frame. Flattened to a squat ball so it stays within the height of a flying enemy.
 
 Run: blender --background --python assets/blender/enemies/newshe-13.py [-- --preview out.png]
 """
@@ -29,8 +29,11 @@ def build(sprite):
         pal(55, metallic=0.55, roughness=0.3),  # 1 dark blue edge
         pal(60, metallic=0.55, roughness=0.2),  # 2 light blue
         pal(62, metallic=0.5, roughness=0.12),  # 3 highlight
-        pal(118, emission_strength=2.5),  # 4 red belt edges
-        pal(123, emission_strength=4.0),  # 5 orange belt core
+        # The belt dims two palette steps a frame (13 bright, 15, 17 dark red).
+        common.palette_material(sprite, 118, f"{NAME}_belt", emission_strength=2.5,
+                                frames={15: 116, 17: 114}),  # 4 red belt edges
+        common.palette_material(sprite, 123, f"{NAME}_core", emission_strength=4.0,
+                                frames={15: 121, 17: 119}),  # 5 orange belt core
         pal(56, metallic=0.55, roughness=0.3),  # 6 underside
     ]
     BLUE, DARK, LIGHT, HI, BELT, CORE, UNDER = range(7)

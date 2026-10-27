@@ -143,9 +143,12 @@ def dome(bm, cx, cy, rx, ry, h, z=0.0, rings=4, sides=12, mat_index=0):
 
 
 def preview(objs, sprite, root, name, frame=0):
-    """Render the preview if the script was given `-- --preview <png>`."""
+    """Render the preview if the script was given `-- --preview <png>`, and every frame's
+    (common.render_frame_previews) with `--frames <png>`."""
     if "--preview" in sys.argv:
         out = sys.argv[sys.argv.index("--preview") + 1]
         f = sprite["frames"][frame]
         ref = Path(root) / "reference" / "models" / name / f["image"]
         common.render_preview(objs, out, ref, size=f["size"])
+    if "--frames" in sys.argv:
+        common.render_frame_previews(objs, sys.argv[sys.argv.index("--frames") + 1], sprite, root)

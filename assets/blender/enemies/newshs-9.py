@@ -3,9 +3,12 @@
 Seen in episode 1 (level 23) and episode 3 (level 2). A one-tile silver craft: a wide hammerhead
 bar at the top, a narrow neck, a body with two rounded side pods, and a glowing band near the
 tail (rows 10) above a short grey nozzle. The four frames only change the band's glow (red to
-yellow), so one model covers them all.
+yellow), so one model covers them all: the band takes its centre pixel's colour on each frame
+(120, 122, 124, 126) and the nozzle under it lightens as the glow brightens (palette_material
+frames=).
 
 Run: blender --background --python assets/blender/enemies/newshs-9.py [-- --preview out.png]
+     [--frames frames.png]
 """
 
 import sys
@@ -36,10 +39,15 @@ def build(sprite):
         pal(12, metallic=0.5, roughness=0.35),  # 1 hammerhead bar
         pal(9, metallic=0.5, roughness=0.4),  # 2 wings (the dark grooves between spine and pods) and nozzle
         pal(14, metallic=0.55, roughness=0.3),  # 3 side pods
-        pal(122, emission_strength=4.0),  # 4 engine glow band
-                pal(15, metallic=0.6, roughness=0.25),  # 5 nose highlight
+        # 4 engine glow band: its centre pixel goes 120, 122, 124, 126 over the frames.
+        common.palette_material(sprite, 120, f"{NAME}-glow", emission_strength=4.0,
+                                frames={10: 122, 28: 124, 29: 126}),
+        pal(15, metallic=0.6, roughness=0.25),  # 5 nose highlight
+        # 6 nozzle: lit by the glow, its pixels step from 10 to 11 and then 12.
+        common.palette_material(sprite, 9, f"{NAME}-nozzle", metallic=0.5, roughness=0.4,
+                                frames={10: 10, 28: 11, 29: 11}),
     ]
-    SPINE, BAR, WING, POD, GLOW, NOSE = range(6)
+    SPINE, BAR, WING, POD, GLOW, NOSE, NOZZLE = range(7)
     cx = lib.ex(AXIS, S)
     bm = bmesh.new()
 
@@ -54,7 +62,7 @@ def build(sprite):
     common.loft(bm, [(row(9.55), 1.5 / 12, 1.1 / 12, 0.0), (row(10.5), 1.5 / 12, 1.1 / 12, 0.0)],
                 sides=10, mat_index=GLOW)
     common.loft(bm, [(row(10.45), 1.45 / 12, 1.05 / 12, 0.0), (row(11.2), 1.4 / 12, 0.95 / 12, 0.0),
-                     (row(11.95), 0.9 / 12, 0.6 / 12, 0.0)], sides=10, mat_index=WING)
+                     (row(11.95), 0.9 / 12, 0.6 / 12, 0.0)], sides=10, mat_index=NOZZLE)
     lib.move(bm, start, dx=cx)
     # Bright nose cap at the top of the spine (row 1, the 15 highlight).
     start = len(bm.verts)

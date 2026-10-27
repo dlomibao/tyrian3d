@@ -129,12 +129,54 @@ def run(name, build, file):
     return sprite
 
 
-def build_gunship(sprite, name, flip=False, dc=0):
+def thruster_flames(sprite, name, coll, frames, place=None, mirror_y=False):
+    """The thruster flame of newsh7-13 / newsh7-51 / newsh7-237, one frame-tagged object per
+    sprite frame (DECISIONS.md D17). `frames` = (small, middle, big) sprite indices: the flame's
+    tip reaches row 2, 1 and 0 (in newsh7-51's coordinates, nozzle at row 3.2, centre column 11)
+    and it brightens from red to a yellow-white core. `place` (a Matrix) moves it into the model;
+    mirror_y adds the mirror across Y = 0 (newsh7-13 fires out of both ends)."""
+    import bmesh
+    from mathutils import Matrix
+
+    pal = lambda i, s: common.palette_material(sprite, i, name, emission_strength=s)  # noqa: E731
+    mats = [pal(118, 3.0), pal(119, 3.0), pal(120, 3.5), pal(122, 4.0), pal(124, 5.0), pal(125, 5.5),
+            pal(127, 6.5)]
+    R118, R119, R120, Y122, Y124, Y125, W127 = range(7)
+    # Per frame: (material, sides, [(edge row, half width px, half height, z)]).
+    shapes = [
+        [(R118, 10, [(3.6, 2.2, 0.06, 0.0), (3.0, 2.0, 0.055, 0.0), (2.4, 1.2, 0.04, 0.0), (1.9, 0.0, 0.0, 0.0)]),
+         (Y122, 8, [(3.6, 1.1, 0.04, 0.04), (3.0, 0.9, 0.035, 0.045), (2.6, 0.0, 0.0, 0.04)])],
+        [(R119, 10, [(3.6, 2.2, 0.06, 0.0), (2.6, 2.0, 0.055, 0.0), (1.6, 1.2, 0.04, 0.0), (1.0, 0.0, 0.0, 0.0)]),
+         (Y124, 8, [(3.6, 1.2, 0.04, 0.04), (2.8, 1.1, 0.04, 0.045), (2.0, 0.0, 0.0, 0.04)])],
+        [(R120, 10, [(3.6, 2.5, 0.07, 0.0), (2.4, 2.5, 0.07, 0.0), (1.2, 2.0, 0.06, 0.0), (0.5, 1.2, 0.04, 0.0),
+                     (0.0, 0.0, 0.0, 0.0)]),
+         (Y125, 8, [(3.6, 1.6, 0.05, 0.04), (2.2, 1.5, 0.05, 0.05), (1.2, 0.9, 0.035, 0.045), (0.6, 0.0, 0.0, 0.04)]),
+         (W127, 8, [(3.6, 0.8, 0.03, 0.07), (2.8, 0.7, 0.03, 0.08), (2.1, 0.0, 0.0, 0.07)])],
+    ]
+    out = []
+    for frame, layers in zip(frames, shapes):
+        bm = bmesh.new()
+        for mat, sides, secs in layers:
+            start = len(bm.verts)
+            common.loft(bm, [(ey(r), w / 12, h, z) for r, w, h, z in secs], sides=sides, mat_index=mat)
+            common.shift_x(bm, start, px(11))
+        if mirror_y:
+            geom = bm.verts[:] + bm.edges[:] + bm.faces[:]
+            bmesh.ops.mirror(bm, geom=geom, matrix=Matrix.Identity(4), axis="Y", merge_dist=0.0)
+        if place is not None:
+            bmesh.ops.transform(bm, matrix=place, verts=bm.verts)
+        obj = common.mesh_object(f"{name}-flame-{frame}", bm, mats, coll, smooth=True)
+        out.append(common.frame_part(obj, [frame]))
+    return out
+
+
+def build_gunship(sprite, name, flip=False, dc=0, flames=None):
     """The caged gunship of newsh7-51 (and newsh7-237, the same sprite upside down and one column
     to the right: flip=True, dc=1): a ribbed engine block with a thruster at one end, a grey bar
     cage bending into blue blades, a blue spindle, a cross wing and a grey shield-shaped hull.
 
     Built in newsh7-51's sprite coordinates (centre column 11), then flipped / shifted.
+    `flames` = the (small, middle, big) flame's sprite frames (thruster_flames).
     Returns the list of objects."""
     import bmesh
     from mathutils import Matrix
@@ -196,16 +238,11 @@ def build_gunship(sprite, name, flip=False, dc=0):
         fn()
         common.shift_x(bm, start, x)
 
-    # Nozzle and flame out of the block (columns 9-13, rows 1-4 in the middle frame).
+    # Nozzle out of the block (columns 9-13, rows 3-4); its flame is thruster_flames, per frame.
     at(cx, lambda: common.loft(bm, [(ey(4.5), 2.4 / 12, 0.075, 0.0), (ey(3.2), 2.5 / 12, 0.08, 0.0)],
                                sides=12, mat_index=NOZ, cap_end=False))
     at(cx, lambda: common.loft(bm, [(ey(3.25), 2.2 / 12, 0.065, 0.0), (ey(3.2), 0.0, 0.0, 0.0)],
                                sides=12, mat_index=MOU))
-    at(cx, lambda: common.loft(bm, [(ey(3.6), 2.2 / 12, 0.06, 0.0), (ey(2.6), 2.0 / 12, 0.055, 0.0),
-                                    (ey(1.6), 1.2 / 12, 0.04, 0.0), (ey(1.0), 0.0, 0.0, 0.0)],
-                               sides=10, mat_index=FLAME))
-    at(cx, lambda: common.loft(bm, [(ey(3.6), 1.2 / 12, 0.04, 0.04), (ey(2.8), 1.1 / 12, 0.04, 0.045),
-                                    (ey(2.0), 0.0, 0.0, 0.04)], sides=8, mat_index=CORE))
 
     for side in (-1, 1):
         def sx(c, side=side):
@@ -257,4 +294,4 @@ def build_gunship(sprite, name, flip=False, dc=0):
                                sides=10, mat_index=BRIGHT))
     finish(bm)
     parts = common.mesh_object(name, bm, smats, coll, smooth=True)
-    return [parts, plates]
+    return [parts, plates] + thruster_flames(sprite, name, coll, flames, place=place)

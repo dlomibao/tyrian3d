@@ -2,7 +2,9 @@
 
 A ground object seen in episode 2 (level 2.10) and episode 4: a big red glass dome sitting on
 the ground, a bright hot spot at its upper left and a glowing rim of reflected light round its
-lower right. The four frames only brighten the whole orb (a pulse), so one model covers them.
+lower right. The four frames only brighten the whole orb (a pulse), so one model covers them: its
+colours step up the red-orange ramp on frames 201, 239 and 277 (by 2, 3 and 5 palette indices;
+palette_material frames=), the white-hot spot staying as it is.
 
 Run: blender --background --python assets/blender/enemies/newsha-199.py [-- --preview out.png]
 """
@@ -50,12 +52,14 @@ def surface(x, y):
 def build(sprite):
     coll = common.reset_collection(NAME)
     pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
+    pulse = lambda i, part, frames, **kw: common.palette_material(  # noqa: E731
+        sprite, i, f"{NAME}-{part}", frames=frames, **kw)
     mats = [
-        pal(117, metallic=0.2, roughness=0.15, emission_strength=1.5),  # 0 red glass body
-        pal(114, metallic=0.5, roughness=0.4),  # 1 dark red base ring
-        pal(121, emission_strength=3.0),  # 2 orange glow round the hot spot
+        pulse(117, "body", {201: 119, 239: 120, 277: 122}, metallic=0.2, roughness=0.15, emission_strength=1.5),  # 0 red glass body
+        pulse(114, "base", {201: 116, 239: 117, 277: 119}, metallic=0.5, roughness=0.4),  # 1 dark red base ring
+        pulse(121, "glow", {201: 123, 239: 124, 277: 126}, emission_strength=3.0),  # 2 orange glow round the hot spot
         pal(127, emission_strength=6.0),  # 3 white-hot spot
-        pal(125, emission_strength=4.0),  # 4 yellow rim light
+        pulse(125, "rim", {201: 126, 277: 126}, emission_strength=4.0),  # 4 yellow rim light
     ]
     BODY, BASE, GLOW, HOT, RIM = range(5)
     bm = bmesh.new()
@@ -108,6 +112,8 @@ def main():
         out = sys.argv[sys.argv.index("--preview") + 1]
         ref = ROOT / "reference" / "models" / NAME / sprite["frames"][0]["image"]
         common.render_preview([obj], out, ref, size=sprite["frames"][0]["size"])
+    if "--frame-previews" in sys.argv:
+        common.render_frame_previews([obj], sys.argv[sys.argv.index("--frame-previews") + 1], sprite, ROOT)
 
 
 if __name__ == "__main__":

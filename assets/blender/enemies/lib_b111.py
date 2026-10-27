@@ -134,7 +134,8 @@ def mesh_object_mixed(name, bm, materials, collection):
 
 
 def run(root, name, build, sprite=None):
-    """Load the sprite, build, export enemies/<name> and render the preview if asked."""
+    """Load the sprite, build, export enemies/<name> and render the preview if asked
+    (`-- --preview <png>`; `--frames <png>` renders every frame, common.render_frame_previews)."""
     sprite = sprite or common.load_sprite(root, name)
     obj = build(sprite)
     objs = obj if isinstance(obj, list) else [obj]
@@ -143,6 +144,8 @@ def run(root, name, build, sprite=None):
         out = sys.argv[sys.argv.index("--preview") + 1]
         ref = Path(root) / "reference" / "models" / name / sprite["frames"][0]["image"]
         common.render_preview(objs, out, ref, size=sprite["frames"][0]["size"])
+    if "--frames" in sys.argv:
+        common.render_frame_previews(objs, sys.argv[sys.argv.index("--frames") + 1], sprite, root)
 
 
 def _tangents(pts):

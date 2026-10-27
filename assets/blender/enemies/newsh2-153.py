@@ -4,7 +4,9 @@ Seen in episode 1 (level 30) and episode 3. The sprite fills its whole block: a 
 plate framed by grey beams down both sides, with beige and brown blocks in the corners, and in
 the middle a five-pointed star round a glowing core: a grey ridge for the upper point, dark red
 arms with grey undersides to the left and right, dark red lower points and a red lip under the
-core. The three frames only brighten the core, so one model covers them all (the core glows).
+core. The three frames only brighten the core, so one model covers them all: the core, its
+centre and (on the last frame) its collar change palette colour per frame (common.palette_material
+frames=).
 
 Run: blender --background --python assets/blender/enemies/newsh2-153.py [-- --preview out.png]
 """
@@ -55,6 +57,10 @@ def spike(bm, a, b, w0, h0, z0, mat_up, mat_down, w1=0.0, h1=0.0):
 def build(sprite):
     coll = common.reset_collection(NAME)
     pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
+
+    def anim(i, part, frames, **kw):
+        return common.palette_material(sprite, i, f"{NAME}-{part}", frames=frames, **kw)
+
     mats = [
         pal(2, metallic=0.1, roughness=0.8),  # 0 dark plate
         pal(9, metallic=0.6, roughness=0.35),  # 1 grey beams and undersides
@@ -62,9 +68,9 @@ def build(sprite):
         pal(13, metallic=0.7, roughness=0.2),  # 3 ridge crest
         pal(67, metallic=0.15, roughness=0.5),  # 4 dark red arms
         pal(70, metallic=0.4, roughness=0.35),  # 5 red lip
-        pal(113, metallic=0.3, roughness=0.4),  # 6 core collar
-        pal(119, emission_strength=3.5),  # 7 core
-        pal(125, emission_strength=5.0),  # 8 core centre
+        anim(113, "collar", {157: 116}, metallic=0.3, roughness=0.4),  # 6 core collar
+        anim(119, "core", {155: 121, 157: 125}, emission_strength=3.5),  # 7 core
+        anim(125, "hot", {155: 127, 157: 127}, emission_strength=5.0),  # 8 core centre
         pal(170, metallic=0.3, roughness=0.5),  # 9 beige blocks
         pal(22, metallic=0.3, roughness=0.5),  # 10 brown blocks
         pal(4, metallic=0.4, roughness=0.5),  # 11 dark grey plates

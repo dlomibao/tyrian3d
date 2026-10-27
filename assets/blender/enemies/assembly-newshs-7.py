@@ -12,7 +12,9 @@ The pipe is built whole in assembly coordinates (the layout with the eye fourth,
 bottom of the arena) and cut into its pieces with common.split_assembly. The eye's frames change
 shape, so it gets three models, each cut from its own build of the pipe: newshs-115 (frames 115
 and 117, closed: dark sockets), newshs-115-f2 (119, 121: bulbs half out) and newshs-115-f3 (123:
-bulbs fully out and bright).
+bulbs fully out and bright). Within a model the eye still animates: the sockets are dark blue like
+the pipe on 115 and turn dark red on 117, and the half-out bulbs brighten on 121, where a small
+shine lights on each (palette_material frames=, frame_part).
 
 Run: blender --background --python assets/blender/enemies/assembly-newshs-7.py [-- --preview out.png]
 (the preview is the whole pipe; each piece also gets <piece>.png next to it).
@@ -47,6 +49,8 @@ YC = g.y(14.5)  # the pipe's axis (rows 5-24)
 R = 10 * U  # half width
 # eye frames per variant
 VARIANTS = [("newshs-115", [115, 117]), ("newshs-115-f2", [119, 121]), ("newshs-115-f3", [123])]
+SOCKET_FRAMES = (49, {117: 65})  # sockets: the pipe's dark blue on 115, dark red on 117
+BULB_FRAMES = (68, {121: 70})  # half-out bulbs: brighter on 121
 
 
 def profile(a):
@@ -149,9 +153,12 @@ def build(colors, variant, coll_name):
 
     # The eye: sockets above and below the seam, and the red bulbs that push out of them.
     if variant == 0:
+        SOCKET = m(SOCKET_FRAMES[0], metallic=0.2, roughness=0.6, frames=SOCKET_FRAMES[1], part="socket")
         bump(bm, EYE, 9.8, 2.0, 1.8, 0.012, SOCKET)
         bump(bm, EYE, 19.0, 3.3, 1.8, 0.012, SOCKET)
     elif variant == 1:
+        BULB_DIM = m(BULB_FRAMES[0], metallic=0.2, roughness=0.2, emission_strength=2.0,
+                     frames=BULB_FRAMES[1], part="bulb")
         bump(bm, EYE, 10.0, 2.9, 2.4, 0.05, BULB_DIM)
         bump(bm, EYE, 19.0, 4.3, 2.5, 0.05, BULB_DIM)
     else:
@@ -161,6 +168,17 @@ def build(colors, variant, coll_name):
         bump(bm, EYE, 18.6, 1.3, 1.0, 0.095, SHINE, sink=0.0)
 
     return L.to_object(coll_name, bm, m.list, coll)
+
+
+def shine_121(colors, coll_name):
+    """The half-out bulbs' highlights, lit only on frame 121 (rows 9 and 18, just left of the
+    eye's centre), poking through the tops of variant 1's bulbs."""
+    m = L.Mats("nshs7", colors)
+    SHINE = m(73, metallic=0.1, roughness=0.1, emission_strength=4.0)
+    bm = bmesh.new()
+    bump(bm, EYE - 0.4, 9.4, 0.9, 0.9, 0.066, SHINE, sink=0.0)  # the pipe is lower here than under the bulb
+    bump(bm, EYE - 0.4, 18.4, 1.1, 0.9, 0.05, SHINE, sink=0.0)
+    return L.to_object(f"{coll_name}-shine", bm, m.list, common.reset_collection(f"{coll_name}-shine"))
 
 
 def merged_colors():
@@ -208,14 +226,25 @@ def main():
     eye = common.load_sprite(ROOT, "newshs-115")
     eye_pieces = {"newshs-115": pieces["newshs-115"]}
     variant_wholes = {}
+    eye_objs = {"newshs-115": [pieces["newshs-115"]]}
+    _, cx, cy = next(e for e in layout if e[0] == "newshs-115")
     for v, (vname, frames) in enumerate(VARIANTS[1:], start=1):
         obj = build(colors, v, f"{NAME}-v{v}")
         variant_wholes[vname] = obj
-        _, cx, cy = next(e for e in layout if e[0] == "newshs-115")
         piece = common.split_assembly(obj, [(vname, cx, cy)])[vname]
+        objs = [piece]
+        if v == 1:
+            shine = shine_121(colors, f"{NAME}-v{v}")
+            objs.append(common.frame_part(common.split_assembly(shine, [(f"{vname}-shine-121", cx, cy)])[f"{vname}-shine-121"], [121]))
         sprites = [dict(s, frames=frames) for s in eye["sprites"]]
-        common.export_sprite_model(ROOT, [piece], f"enemies/{vname}", sprites)
+        common.export_sprite_model(ROOT, objs, f"enemies/{vname}", sprites)
         eye_pieces[vname] = piece
+        eye_objs[vname] = objs
+    if "--frames" in sys.argv:  # every frame of each eye model, beside its sprite
+        fout = Path(sys.argv[sys.argv.index("--frames") + 1])
+        for vname, frames in VARIANTS[:2]:
+            sub = dict(eye, frames=[f for f in eye["frames"] if f["index"] in frames])
+            common.render_frame_previews(eye_objs[vname], str(fout.parent / f"{vname}.png"), sub, ROOT)
     if out:
         tmp = Path(tempfile.mkdtemp())
         common.render_preview([whole], str(out), str(composite_png(tmp / "pipe.png")), size=10, view_px=640)

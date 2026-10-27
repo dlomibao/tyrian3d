@@ -2,8 +2,9 @@
 
 Seen in episode 3 (level section 10). A ground tile of blue ice with a red-hot core set in it: a
 low ice mound with a metal rim round the core, light ice ridges running out from the mound and a
-dark crack down its right side. The frames only heat the core up (dark red, then orange, then
-white hot), so one model covers them all.
+dark crack down its right side. The frames only heat the core up (dark red, then orange with a
+pale pink highlight, then white hot), so one model covers them all; the core's colours change per
+frame (palette_material frames=).
 
 Run: blender --background --python assets/blender/enemies/newsh7-55.py [-- --preview out.png]
 """
@@ -33,10 +34,13 @@ def build(sprite):
         pal(51, metallic=0.1, roughness=0.5),  # 3 dark crack
         pal(9, metallic=0.7, roughness=0.3),  # 4 metal rim
         pal(165, metallic=0.5, roughness=0.45),  # 5 brown inner rim
-        pal(117, emission_strength=3.0),  # 6 red-hot core
-        pal(126, emission_strength=5.0),  # 7 white-hot centre
+        # 6 red-hot core: orange on frame 93, white hot on 131
+        common.palette_material(sprite, 117, f"{NAME}-core", emission_strength=3.0, frames={93: 122, 131: 127}),
+        # 7 white-hot centre, whiter on frame 131
+        common.palette_material(sprite, 126, f"{NAME}-hot", emission_strength=5.0, frames={131: 127}),
+        pal(78, emission_strength=4.0),  # 8 pale pink highlight (frame 93)
     ]
-    ICE, MOUND, RIDGE, CRACK, RIM, INNER, CORE, HOT = range(8)
+    ICE, MOUND, RIDGE, CRACK, RIM, INNER, CORE, HOT, PINK = range(9)
     bm = bmesh.new()
 
     # The ice tile.
@@ -59,7 +63,14 @@ def build(sprite):
 
     # The core: a big glowing dome filling the rim, with a hotter centre up and left.
     lib.dome(bm, cx, cy, BASE + 0.09, 3.7 * P, 3.3 * P, 0.13, mat=CORE, segments=16, rings=5)
-    lib.ellipsoid(bm, px(10.0), row(9.8), BASE + 0.17, 1.8 * P, 1.6 * P, 0.06, mat=HOT, segments=10, rings=6)
+    # The hot centre is its own part: a small white-hot spot on frames 55 and 131, and on frame 93
+    # a wider pale pink highlight over the upper left half of the core (rows 8-11, columns 8-11).
+    hbm = bmesh.new()
+    lib.ellipsoid(hbm, px(10.0), row(9.8), BASE + 0.17, 1.8 * P, 1.6 * P, 0.06, mat=HOT, segments=10, rings=6)
+    hot = common.frame_part(lib.to_object(f"{NAME}-hot", hbm, mats, coll), [55, 131])
+    pbm = bmesh.new()
+    lib.ellipsoid(pbm, px(9.6), row(9.9), BASE + 0.165, 2.3 * P, 2.1 * P, 0.06, mat=PINK, segments=12, rings=6)
+    pink = common.frame_part(lib.to_object(f"{NAME}-pink", pbm, mats, coll), [93])
 
     # Bright ice ridges running out from the mound.
     z = BASE + 0.005
@@ -82,11 +93,11 @@ def build(sprite):
     lib.polyline_tube(bm, [(px(c), row(r), BASE) for c, r in crack], 1.0 * P, sides=4,
                       mat_index=CRACK, squash=0.15, smooth=False)
 
-    return lib.to_object(NAME, bm, mats, coll)
+    return [lib.to_object(NAME, bm, mats, coll), hot, pink]
 
 
 def main(sprite):
-    return [(NAME, [build(sprite)], sprite["sprites"], 0)]
+    return [(NAME, build(sprite), sprite["sprites"], 0)]
 
 
 if __name__ == "__main__":
