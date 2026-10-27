@@ -229,6 +229,8 @@ def run(file, name, build):
         out = sys.argv[sys.argv.index("--preview") + 1]
         ref = root / "reference" / "models" / name / sprite["frames"][0]["image"]
         common.render_preview(objs, out, ref, size=sprite["frames"][0]["size"])
+    if "--frame-previews" in sys.argv:  # every frame beside its sprite, for animated models
+        common.render_frame_previews(objs, sys.argv[sys.argv.index("--frame-previews") + 1], sprite, root)
 
 
 # --- the newshm wall tiles -----------------------------------------------------------------------
