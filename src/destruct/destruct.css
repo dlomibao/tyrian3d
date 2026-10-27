@@ -1,0 +1,182 @@
+/* Destruct's HUD and screens (src/destruct/), on the interface tokens (src/ui/tokens.css). */
+
+.destruct-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.destruct-fade {
+  z-index: 3;
+}
+
+/* DE_RunTickDrawHUD: a bar per side along the top. */
+.destruct-hud {
+  position: fixed;
+  inset: max(8px, env(safe-area-inset-top)) var(--ui-gutter) auto;
+  z-index: 2;
+  display: flex;
+  justify-content: space-between;
+  gap: var(--ui-space-4);
+  pointer-events: none;
+  font-family: var(--ui-font-display);
+  color: var(--ui-ink);
+}
+
+.destruct-hud[hidden] {
+  display: none;
+}
+
+.destruct-hud__side {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-3);
+  min-width: 0;
+  padding: var(--ui-space-1) var(--ui-space-3);
+  background: var(--ui-panel);
+  border: 1px solid var(--ui-edge);
+  border-top: 2px solid var(--ui-edge-strong);
+  border-radius: var(--ui-radius);
+  box-shadow: var(--ui-shadow);
+}
+
+.destruct-hud__side--right {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+.destruct-hud__icon {
+  width: 30px;
+  height: 35px;
+  image-rendering: pixelated;
+  flex: none;
+}
+
+.destruct-hud__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.destruct-hud__weapon {
+  font-size: var(--ui-text-sm);
+  letter-spacing: var(--ui-tracking);
+  color: var(--ui-gold-bright);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.destruct-hud__who {
+  font-family: var(--ui-font-text);
+  font-size: var(--ui-text-xs);
+  color: var(--ui-ink-faint);
+  text-transform: uppercase;
+  letter-spacing: var(--ui-tracking);
+}
+
+.destruct-hud__stat {
+  font-size: var(--ui-text-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-ink-dim);
+  white-space: nowrap;
+}
+
+.destruct-hud__pts {
+  color: var(--ui-cyan);
+  text-shadow: var(--ui-glow-cyan);
+}
+
+@media (max-width: 640px) {
+  .destruct-hud__side {
+    flex-wrap: wrap;
+    gap: 0 var(--ui-space-2);
+  }
+  .destruct-hud__icon {
+    width: 20px;
+    height: 23px;
+  }
+  .destruct-hud__who {
+    display: none;
+  }
+}
+
+/* JE_introScreen */
+.destruct-intro {
+  text-align: center;
+  font-family: var(--ui-font-text);
+  color: var(--ui-ink-dim);
+}
+
+.destruct-intro__name {
+  margin: var(--ui-space-2) 0 var(--ui-space-5);
+  font-family: var(--ui-font-display);
+  font-size: clamp(1.8rem, 1rem + 3.5vw, 3.2rem);
+  letter-spacing: var(--ui-tracking);
+  overflow-wrap: anywhere;
+  color: var(--ui-gold-bright);
+  text-shadow: var(--ui-glow-gold);
+}
+
+.destruct-intro p {
+  margin: var(--ui-space-1) 0;
+}
+
+/* JE_helpScreen */
+.destruct-help {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: var(--ui-space-5);
+  font-family: var(--ui-font-text);
+}
+
+.destruct-help__side h3 {
+  margin: 0;
+  font-family: var(--ui-font-display);
+  font-size: var(--ui-text-md);
+  letter-spacing: var(--ui-tracking);
+  color: var(--ui-gold);
+}
+
+.destruct-help__note {
+  margin: var(--ui-space-1) 0 var(--ui-space-3);
+  color: var(--ui-ink-faint);
+  font-size: var(--ui-text-sm);
+}
+
+.destruct-help dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--ui-space-1) var(--ui-space-3);
+  margin: 0;
+}
+
+.destruct-help dt {
+  color: var(--ui-cyan);
+  font-size: var(--ui-text-sm);
+}
+
+.destruct-help dd {
+  margin: 0;
+  color: var(--ui-ink);
+  font-size: var(--ui-text-sm);
+}
+
+.destruct-help__foot {
+  margin: var(--ui-space-4) 0 0;
+  color: var(--ui-ink-dim);
+  font-family: var(--ui-font-text);
+  font-size: var(--ui-text-sm);
+}
+
+/* JE_pauseScreen */
+.destruct-paused {
+  margin: var(--ui-space-3) 0;
+  text-align: center;
+  font-family: var(--ui-font-display);
+  font-size: var(--ui-text-xl);
+  letter-spacing: var(--ui-tracking-wide);
+  color: var(--ui-gold-bright);
+  text-shadow: var(--ui-glow-gold);
+}

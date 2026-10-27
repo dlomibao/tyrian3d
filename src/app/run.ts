@@ -40,7 +40,7 @@ import { takeStorySteps } from "../sim/story";
 // [cheats] the secret inputs (DECISIONS.md D32)
 import { applyCheatParams, difficultyNamesByLevel, difficultySelectLevels } from "../sim/cheats";
 import { CheatKeys } from "./cheatKeys";
-import { runDestruct } from "./titleCodes";
+import { destructHook, runDestruct } from "./titleCodes";
 // [two-player] the gameplay menu, a two-player game's HUD and messages
 import { showGameplaySelect } from "./gameplaySelect";
 import { TwoPlayerHud } from "./twoPlayerHud";
@@ -94,6 +94,12 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
   const pauseButton = new PauseButton(() => (controls.pauseRequested = true)); // ui-framework
   const cheats = new CheatKeys(() => controls.active); // [cheats]
   applyCheatParams(location.search); // [cheats] ?loot: params.c LOOT
+  // [destruct] The DESTRUCT code opens Destruct (src/destruct/, loaded when first needed); the title's
+  // music comes back when it closes.
+  destructHook.open = async () => {
+    const { openDestruct } = await import("../destruct");
+    await openDestruct({ files, view, sfx, music, exitSong: SONG_TITLE });
+  };
   loading();
 
   if (import.meta.env.DEV) Object.assign(window, { tyrian: { g, view, music, sfx } });
@@ -146,6 +152,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
       highScoresLabel: g.miscText[50]?.trim() || undefined,
       onHighScores: () => showHighScoreScreen({ ...names, episodes, sfx, episode: choice.episode }),
       idleMs: demos ? TITLE_IDLE_MS : undefined, // [demos]
+      destructReady: () => destructHook.open !== null, // [destruct]
       // [arcade] what the codes typed at the title start
       arcade: {
         superShips: names.superShips,
@@ -156,6 +163,12 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
         onDestruct: () => runDestruct({ files, sfx, specialName: names.specialName }), // [cheats] destructHook
       },
     });
+    if (choice.destruct) {
+      // [destruct] loadDestruct: JE_destructGame, then the main loop shows the title again.
+      choice = { episode: choice.episode, difficulty: choice.difficulty };
+      await runDestruct({ files, sfx, specialName: names.specialName });
+      continue;
+    }
     if (choice.demo) {
       // [demos] titleScreen returned with playDemo set; JE_main plays it, then back to the title.
       choice = { episode: choice.episode, difficulty: choice.difficulty };

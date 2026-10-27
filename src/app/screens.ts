@@ -90,6 +90,8 @@ export interface TitleChoice {
   loaded?: boolean;
   /** [demos] The title sat idle (idleMs): play the next demo, then come back to the title. */
   demo?: boolean;
+  /** [destruct] DESTRUCT was typed: play Destruct (it shows its own screens), then come back to the title. */
+  destruct?: boolean;
   /** [arcade] A game started by a code typed at the title (src/sim/arcade.ts startNewGame). */
   superArcade?: NewGameChoice["superArcade"];
   superTyrian?: NewGameChoice["superTyrian"];
@@ -126,6 +128,11 @@ export interface TitleOptions {
   // all); Shift+G, Shift+] and L O R D reveal the rest, one at a time, as difficultySelect does
   // (src/app/titleCodes.ts, which also listens for the codes in `arcade.specialName`).
   difficultiesShown?: number;
+  /**
+   * [destruct] Whether the Destruct game is in (src/app/titleCodes.ts destructHook): then DESTRUCT
+   * closes the title, which resolves with `destruct`. Without it, the code's notice shows over the title.
+   */
+  destructReady?: () => boolean;
   /** [demos] titleScreen's idle timer: after this long without input, resolve with `demo`. */
   idleMs?: number;
   /** [arcade] What the codes typed at the title start (src/app/arcade.ts). */
@@ -299,6 +306,7 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
           [ep, diff] = marked;
           episodes.focus(ep);
           difficulty.focus(diff);
+          if (code.kind === "destruct" && opts.destructReady?.()) return finish({ destruct: true }); // [destruct]
           arcade?.code(code, e);
         },
         onDifficultyVisible: (n) => {

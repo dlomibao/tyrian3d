@@ -64,6 +64,10 @@ export interface MenuText {
   difficultyNameB: string[];
   /** [two-player] gameplay_name[5] (string[26]): the menu title, then 1 Player Full Game, 1 Player Arcade, 2 Player Arcade, Network Game. */
   gameplayName: string[];
+  /** Destruct's texts (src/destruct/): destructHelp[25] (string[21]), weaponNames[17] (string[16]) and destructModeName[5] (string[12]). */
+  destructHelp: string[];
+  weaponNames: string[];
+  destructModeName: string[];
 }
 
 /** helptext.c menuInt_entries[MENU_MAX + 1]: how many strings each menuInt[m] reads (-1: none). */
@@ -112,9 +116,9 @@ export function parseMenuText(hdt: Uint8Array): MenuText {
   section(5); /*Joystick Button Assignments*/
   const superShips = section(11, 26); /*SuperShips - For Super Arcade Mode*/
   const specialName = section(9, 10); /*SuperShips - For Super Arcade Mode*/ // specialName
-  section(25); /*Secret DESTRUCT game*/
-  section(17); /*Secret DESTRUCT weapons*/
-  section(5); /*Secret DESTRUCT modes*/
+  const destructHelp = section(25, 22); /*Secret DESTRUCT game*/
+  const weaponNames = section(17, 17); /*Secret DESTRUCT weapons*/
+  const destructModeName = section(5, 13); /*Secret DESTRUCT modes*/
 
   /*NEW: Ship Info*/
   readEncryptedString(r);
@@ -126,7 +130,7 @@ export function parseMenuText(hdt: Uint8Array): MenuText {
   readEncryptedString(r);
   menuInt[14] = Array.from({ length: menuInt_entries[14] }, () => readEncryptedString(r).slice(0, 17));
 
-  return { pName, mainMenuHelp, menuInt, shipInfo, episodeName, difficultyName, superShips, specialName, difficultyNameB, gameplayName };
+  return { pName, mainMenuHelp, menuInt, shipInfo, episodeName, difficultyName, superShips, specialName, difficultyNameB, gameplayName, destructHelp, weaponNames, destructModeName };
 }
 
 /** Load the item screen's texts into g.pName, g.mainMenuHelp, g.menuInt and g.shipInfo. */

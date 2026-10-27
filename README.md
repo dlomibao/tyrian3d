@@ -55,9 +55,8 @@ score table (episodes 1-3, as in the original), which the title screen shows und
 - **Cheats:** the original's secret inputs work. In flight, hold F2 F3 F6 for invulnerability
   ("Cheaters always prosper."), F2 F3 F4 to self-destruct, F2 F6 F7 to skip the level, or F2 F4 F6
   F7 F9 \ / for the Nort ship. On the title, Shift+G, Shift+] and then L O R D reveal the
-  Impossible, Suicide and Lord of the Game difficulties (DESTRUCT is accepted, but the Destruct
-  game isn't in yet). `?loot` starts new games with 1,000,000 credits. See
-  [DECISIONS.md](DECISIONS.md) D32.
+  Impossible, Suicide and Lord of the Game difficulties. `?loot` starts new games with 1,000,000
+  credits. See [DECISIONS.md](DECISIONS.md) D32.
 - **Attract mode:** left alone for 30 seconds, the title screen plays the original's five recorded
   demos in turn, replayed exactly as OpenTyrian plays them; any key, button or tap returns to the
   title (`?demo` or `?demo=1`..`5` plays one at once).
@@ -70,7 +69,11 @@ score table (episodes 1-3, as in the original), which the title screen shows und
   sidekicks (or the keypad, or the second gamepad). Fly close together and stop to link: player 2
   docks under player 1 and turns a gun with the move keys while firing. Each player has lives (their
   weapon's power), and Options and the item screen set each player's keys and gamepad.
-- **Not yet:** the Destruct game and network play.
+- **Destruct:** Tyrian's hidden two-player artillery game, ported from OpenTyrian's destruct.c: five
+  modes, eight kinds of unit with their weapons, terrain that burns away, the computer opponent and
+  two players on one keyboard, on a 3D battlefield. Type DESTRUCT at the title (or open
+  `?destruct`); F1 shows its keys.
+- **Not yet:** network play.
 - **Everything else:** in [Issues](../../issues) and [Milestones](../../milestones). Design calls
   made along the way are in [DECISIONS.md](DECISIONS.md).
 
@@ -132,8 +135,9 @@ For local development, fetch it into `data/`, which is git-ignored:
     TYRIAN_EPISODE_TEST=1 npm test   # also play every level of all four episodes headless
 
 Debug pages: `?debug=sprites` (renderer test bench), `?debug=play` (a real level played by the test
-bot, with chosen weapons; see `src/debug/playHarness.ts`), `/src/audio/debugMusic.html` (music player).
-`?vfx=original` shows shots and explosions as the extruded sprites instead of the remastered effects.
+bot, with chosen weapons; see `src/debug/playHarness.ts`), `?destruct` (straight into Destruct),
+`/src/audio/debugMusic.html` (music player). `?vfx=original` shows shots and explosions as the
+extruded sprites instead of the remastered effects.
 
 ## License
 

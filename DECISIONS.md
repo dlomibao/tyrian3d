@@ -949,3 +949,94 @@ recompiles shaders once (the light pool comes and goes), a short hitch; acceptab
 option, but an Options row should keep the lights at zero intensity instead. Not done: an Options
 menu row (the screen-filters work was changing that screen), and superpixels (JE_doSP) still draw
 as plain pixels.
+## D30 — Destruct is a transliteration of destruct.c in its own module, checked against the C
+
+2026-10-27
+
+**Decision:** Destruct, the hidden artillery game, lives in `src/destruct/`. Its rules
+(`sim.ts`) are a close transliteration of OpenTyrian's destruct.c, held in one `DestructGame`
+object: the C's names, its float (`Math.fround`) and unsigned arithmetic, and the shared
+`mt_rand`, so a seed plays out as in the C. The terrain is the C's 320x200 byte screen
+(destructTempScreen); what the C blits onto VGAScreen each tick (units, walls, shot pixels,
+crosshairs) is recorded in `draws` for the renderer. `tools/destruct-trace` builds the real
+destruct.c with the computer on both sides and records a running digest of the whole state every
+10 ticks; `tests/destruct/trace.test.ts` must reproduce it (12 seeds over all five modes, 72,000
+ticks, 28 rounds). The game is opened with `openDestruct({ files, view, sfx, music, exitSong })`
+(`src/destruct/index.ts`) or `?destruct`.
+
+**Options considered:**
+- *Transliterate and cross-check against the C (chosen):* the same approach as the main game
+  (D1), and the trace pins it to the original exactly, AI included.
+- *Rewrite it as idiomatic TypeScript:* easier to read, but the AI, physics and terrain would
+  drift from the original with nothing to check them against.
+- *Write the sim into the main game's global state `g`:* destruct.c shares no state with the main
+  game besides the RNG and sound queue; its own object keeps it separate and testable.
+
+**Review:** The trace driver compiles the C with `-ffp-contract=off` and correctly rounded
+`sinf`/`cosf` (glibc's behaviour, and what the port computes); clang's default fused
+multiply-adds on arm64 and macOS's libm `sinf` each move some shots by an ulp. A negative float
+converted to unsigned (a very rare "tall" map column) follows arm64, saturating to 0, where x86-64
+wraps it. The C's `rand()` for the wall count is not used: with the default config it is always 20.
+
+## D30a — Destruct in 3D: a slab of terrain with real holes, extruded sprites, glowing fire
+
+2026-10-27
+
+**Decision:** The battlefield is seen from the front, a little above, like the original screen.
+The dirt (palette 16-25 of picture 11's palette, pcxpal[10] = 21) is a slab 26 px deep: its front
+face is one plane textured from the screen (shaded darker with depth and a little per-pixel
+noise), and its top, bottom and sides are geometry built from the dirt's outline, so craters,
+rings and holes go right through it. The explosion pixels (241-255, fading a step a tick as in
+the C) glow additively in front of it, with up to four point lights at the biggest live explosions.
+Units and walls are their newsh~.shp sprites extruded like the main game's (src/render/spriteMesh.ts),
+coloured from the palette; shots, trails and crosshairs are glowing beads in JE_pixCool's and the
+crosshair's palette colours. A big explosion shakes the camera slightly. The black sky gets a
+faint starfield. Units and shots are interpolated between ticks; the game ticks at the C's rate,
+setFrameCount(1) at the Normal speed: ~14.4 ms, ~70 a second.
+
+**Options considered:**
+- *Slab with a textured front and outline walls (chosen):* the terrain is arbitrary pixels (rings
+  floating in the air, holes, star-shaped craters), which a heightfield can't hold. Rebuilding only
+  the outline walls when the dirt changes stays cheap (a 120 Hz display keeps up).
+- *Extruded heightfield:* simple, but loses overhangs, floating rings and holes, which are the
+  C's map types.
+- *One cube per dirt pixel (instanced):* up to 60,000 cubes, re-uploaded as craters form.
+- *Blender models for the units:* they're 12x14 sprites seen side on; extrusion keeps their exact
+  look and costs no assets.
+
+**Review:** Check the look and readability at a phone's size and on a slow GPU (shadows and the
+outline effect run every frame). Explosions in the sky burn black holes in the C's picture; here
+the sky is black anyway, so nothing shows.
+
+## D30b — Destruct's screens, keys and the way in
+
+2026-10-27
+
+**Decision:**
+- **Screens:** the title (JE_introScreen), mode select (JE_modeSelect), help (JE_helpScreen) and
+  pause (JE_pauseScreen) are interface-framework screens over the battlefield, with the data's
+  texts. The mode select also has rows for each side's computer/human switch (the C's F10/F11),
+  Help and Leave; F10, F11 and F1 work there too. Escape in a round goes back to it, as in the C,
+  and Escape there leaves Destruct.
+- **Keys:** the C's default two-player layout on one keyboard (left: C/V angle, A/Z power, X or
+  Left Shift fire, Left Alt vehicle, Left Ctrl/Space weapon; right: arrows, Enter/Insert/keypad 0
+  fire, \ or keypad 5 vehicle, Page Up/Down weapon), by KeyboardEvent.code so it works on any
+  layout. The left side starts as the computer, as in the C's default config. A key tapped
+  between two ticks still counts for one tick. Gamepads stand in for keys: pad 1 plays the right
+  side, pad 2 the left (d-pad or stick to aim and set power, A fire, X vehicle, LB/RB weapon,
+  Start pause, Back leave).
+- **Way in:** `openDestruct()` for the title's DESTRUCT code (the cheats work wires it), and
+  `?destruct` for development, which reloads into the game when Destruct is left. It borrows the
+  game View's renderer, or makes its own canvas without one.
+
+**Options considered:**
+- *Framework screens (chosen):* consistent with the rest of the game (D26) and work with pads and
+  taps. The C's text drawn on the 320x200 screen would be blurry and keyboard-only.
+- *Keep F10/F11 as the only computer switches:* F11 is the browser's full-screen key on some
+  systems, so the menu rows make the switch reachable anyway.
+- *Remappable Destruct keys:* the C reads them from opentyrian.cfg; no settings screen for them
+  yet.
+
+**Review:** A phone can't play it (it is a keyboard game; touch only reaches the menus). The app
+never seeds mt_rand (`?destruct` does, from the clock, as opentyr.c's main does), so through the
+title the first map is the same on every page load until the main game seeds it.
