@@ -125,11 +125,14 @@ def export_frames(root, name, models, sheet_prefix):
 
 
 def preview(objects, root, name, sprite):
-    """Render the usual preview beside the first frame if run with `-- --preview <png>`."""
+    """Render the usual preview beside the first frame if run with `-- --preview <png>`, and every
+    frame's (common.render_frame_previews) with `--frames <png>`."""
     if "--preview" in sys.argv:
         out = sys.argv[sys.argv.index("--preview") + 1]
         ref = Path(root) / "reference" / "models" / name / sprite["frames"][0]["image"]
         common.render_preview(objects, out, ref, size=sprite["frames"][0]["size"])
+    if "--frames" in sys.argv:
+        common.render_frame_previews(objects, sys.argv[sys.argv.index("--frames") + 1], sprite, root)
 
 
 def sample(pixels, x, y):
