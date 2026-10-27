@@ -3,7 +3,8 @@
 Seen in episode 1 (level 1.21). A whole 24x28 tile of grey stone wall: courses of bricks round a
 big rounded steel hatch (a shield-shaped lid with a lit rim, panel seams across its top and a rib
 down its lower half) with a red-hot crescent glowing out from under its lower edge. The three
-frames only pulse the glow, so one model covers them all.
+frames only pulse the glow (dim dark red on 241, yellow-hot on 243), so one model covers them
+all, with the glow's colours changing per frame (palette_material frames=).
 
 Run: blender --background --python assets/blender/enemies/newshd-239.py [-- --preview out.png]
 """
@@ -66,8 +67,11 @@ def build(sprite):
         pal(5, metallic=0.5, roughness=0.45),  # 3 rim's lower (shaded) side
         pal(7, metallic=0.5, roughness=0.5),  # 4 panel seams
         pal(10, metallic=0.6, roughness=0.3),  # 5 rib
-        pal(116, emission_strength=2.5),  # 6 red glow
-        pal(121, emission_strength=4.0),  # 7 hot orange core of the glow
+        # The glow pulses: dimmer on frame 241, brighter on 243.
+        common.palette_material(sprite, 116, f"{NAME}_glow", emission_strength=2.5,
+                                frames={241: 114, 243: 117}),  # 6 red glow
+        common.palette_material(sprite, 121, f"{NAME}_hot", emission_strength=4.0,
+                                frames={241: 115, 243: 123}),  # 7 hot orange core of the glow
         pal(8, metallic=0.5, roughness=0.4),  # 8 rim's right side / seams
     ]
     brick_slot = {}
