@@ -3,7 +3,9 @@
 Seen in episodes 1-3 (levels 1.5, 2.8, 3.15), four of them in the fortress set
 (assembly-newshd-127). A brown hood at the back, a square brown cage with steel pipes inside
 it, red lamps on both flanks and a short neck down to a round barrel whose muzzle glows red.
-The frames only brighten the lamps and the muzzle, so one model covers them all.
+The frames only brighten the lamps and the muzzle, so one model covers them all: the lamps'
+colour follows the frame and each frame has its own muzzle glow (palette_material frames=,
+frame_part).
 
 Run: blender --background --python assets/blender/enemies/newshd-275.py [-- --preview out.png]
 """
@@ -53,10 +55,12 @@ def build(sprite):
     L.tube(bm, [(g.x(11.5), g.y(6.2), 0.23), (g.x(11.5), g.y(15.5), 0.23)], 1.6 * L.U, sides=10, mat=STEEL,
            flat=0.6)
 
-    # Red lamps on the flanks (columns 1-2 and 21-22, rows 7-12).
+    # Red lamps on the flanks (columns 1-2 and 21-22, rows 7-12), brighter on 277 and brighter
+    # still on 279.
+    lamp = m.anim(120, "lamp", {277: 121, 279: 123}, emission_strength=3.0)
     for c in (2.2, 20.8):
         L.ellipsoid(bm, g.x(c), g.y(10.0), 0.15, 1.7 * L.U, 3.1 * L.U, 0.1, sides=12, rings=6,
-                    mat=m.glow(120, 3.0))
+                    mat=lamp)
 
     # Neck (rows 17-20) narrowing to the barrel.
     neck = [(g.ex(5), g.ey(17)), (g.ex(18), g.ey(17)), (g.ex(17), g.ey(19)), (g.ex(15), g.ey(20.5)),
@@ -67,10 +71,16 @@ def build(sprite):
     L.loft_y(bm, g.x(11), [(g.ey(20.0), 3.0 * L.U, 0.08, 0.12), (g.ey(21.5), 3.6 * L.U, 0.09, 0.12),
                            (g.ey(26.0), 3.6 * L.U, 0.09, 0.12), (g.ey(27.6), 2.6 * L.U, 0.06, 0.12)],
              sides=14, mat=LIGHT)
-    L.dome(bm, g.x(11), g.y(25.0), 2.4 * L.U, 2.4 * L.U, 0.05, z0=0.19, sides=12, rings=3,
-           mat=m.glow(121, 3.5))
     obj = L.finish(NAME, bm, m, coll)
-    return [(NAME, [obj], sprite["sprites"])]
+    # The muzzle's glow: a dim red spot on 275 (columns 10-12, rows 24-25), a brighter one
+    # spilling to the barrel's end on 277, a big bright one on 279 (columns 9-13, rows 23-27).
+    parts = [obj]
+    for frame, r, rx, ry, mat in ((275, 24.6, 1.5, 1.1, m.glow(114, 2.0)), (277, 25.4, 1.6, 2.0, m.glow(121, 3.5)),
+                                  (279, 25.0, 2.4, 2.4, m.glow(121, 3.5))):
+        mbm = bmesh.new()
+        L.dome(mbm, g.x(11), g.y(r), rx * L.U, ry * L.U, 0.05, z0=0.19, sides=12, rings=3, mat=mat)
+        parts.append(L.part(f"{NAME}-muzzle-{frame}", mbm, m, coll, [frame]))
+    return [(NAME, parts, sprite["sprites"])]
 
 
 if __name__ == "__main__":
