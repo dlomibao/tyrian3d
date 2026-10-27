@@ -3,9 +3,10 @@
 Seen in episodes 1, 2 and 4. The 12x14 sprite draws a cut gem from above: a diamond-shaped
 outline (columns 1-11, rows 2-12) with bright ridges running from the centre to its four points
 (column 6 and row 7), lighter upper facets and darker lower ones. The five frames only brighten it
-step by step (a pulse), so one model covers them all: a faceted gem with a low pavilion resting on
-the ground, a girdle shaped like the sprite's outline and a crown rising to a glowing centre, its
-ridges on the axes and its facets coloured by quadrant as in the sprite.
+step by step (a pulse: every pixel one palette step per frame), so one model covers them all: a
+faceted gem with a low pavilion resting on the ground, a girdle shaped like the sprite's outline
+and a crown rising to a glowing centre, its ridges on the axes and its facets coloured by quadrant
+as in the sprite, every material stepping up with the frames (palette_material frames=).
 
 Run: blender --background --python assets/blender/enemies/tyrian10-51.py [-- --preview out.png]
 """
@@ -41,7 +42,11 @@ def girdle(scale, z):
 
 def build(sprite):
     coll = common.reset_collection(NAME)
-    pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
+    # The pulse: every pixel is one palette step brighter on each frame after 51 (up to 63, the
+    # brightest blue), so every material steps up with it.
+    def pal(i, **kw):
+        frames = {f: min(i + k, 63) for k, f in enumerate((52, 53, 54, 55), 1)}
+        return common.palette_material(sprite, i, f"{NAME}-pulse", frames=frames, **kw)
     mats = [
         pal(57, metallic=0.2, roughness=0.25),  # 0 upper-left facets
         pal(56, metallic=0.2, roughness=0.25),  # 1 upper-right facets
