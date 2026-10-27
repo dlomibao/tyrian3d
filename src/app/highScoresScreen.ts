@@ -195,8 +195,8 @@ function askHighScoreName(score: number): Promise<string | null> {
     <h2>${esc(misc(51, "Congratulations!"))}</h2>
     <p>${esc(misc(52, "You have earned a high score!"))}</p>
     <div class="hs-entry">
-      <label for="hs-name">${esc(misc(53, "Enter your name:"))}</label>
       <p>${esc(misc(37, "Your total Score:"))} ${score}</p>
+      <label for="hs-name">${esc(misc(53, "Enter your name:"))}</label>
       <input id="hs-name" type="text" maxlength="${HIGH_SCORE_NAME_MAX}" autocomplete="off" spellcheck="false" />
     </div>
     <div class="choices hs-buttons">
@@ -204,6 +204,8 @@ function askHighScoreName(score: number): Promise<string | null> {
       <button type="button" class="hs-cancel">${esc(misc(10, "CANCEL"))}</button>
     </div>`);
   const input = el.querySelector<HTMLInputElement>("input")!;
+  // Keep typing away from the game's key handlers (Controls cancels WASD, Space and the like).
+  input.addEventListener("keydown", (e) => e.stopPropagation());
   input.addEventListener("input", () => {
     // ch == ' ' || fontMap[ch] != -1, while temp < 28
     const clean = [...input.value].filter(highScoreNameAccepts).slice(0, HIGH_SCORE_NAME_MAX).join("");

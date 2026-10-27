@@ -29,7 +29,9 @@ All four episodes of Tyrian 2.1 are playable, from the title screen's episode an
 choice through to each episode's end, with the original's enemies, weapons, events, music and
 sound. Between levels the item screen sells and upgrades gear and lets you pick the next
 destination on the map (arrows, Enter, Esc; `/` changes the rear gun's firing mode). If your ship
-is destroyed, you go back to that item screen with the loadout you launched with.
+is destroyed, you go back to that item screen with the loadout you launched with. Finishing an
+episode, or quitting a game, with a high enough score asks for your name for that episode's high
+score table (episodes 1-3, as in the original), which the title screen shows under High Scores.
 
 - **Not yet:** the item screen's Data Cubes and Options menus, arcade and two-player modes, and
   the cutscenes between episodes.
