@@ -32,7 +32,8 @@ destination on the map (arrows, Enter, Esc; `/` changes the rear gun's firing mo
 is destroyed, you go back to that item screen with the loadout you launched with.
 
 - **Not yet:** the item screen's Data Cubes and Options menus, arcade and two-player modes, and
-  the cutscenes between episodes.
+  the story pictures and text between levels. An episode's end shows its hint, episode 3's ending
+  animation and, after the last episode, the credits, then carries on into the next episode.
 - **Everything else:** in [Issues](../../issues) and [Milestones](../../milestones). Design calls
   made along the way are in [DECISIONS.md](DECISIONS.md).
 
