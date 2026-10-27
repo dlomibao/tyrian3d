@@ -78,6 +78,12 @@ part's palette colour on those frames (a glow that pulses). Export the tagged pa
 model. `common.render_frame_previews(objects, png, sprite, root)` renders every frame beside its
 sprite, one row each. See `enemies/newshm-89.py`.
 
+**Coverage.** `tests/render/modelCoverage.test.ts` checks that every frame in the catalogue has a
+model (it skips when `reference/models/` hasn't been generated), and its failure lists the frames
+still to model. A frame that isn't worth a model goes in its `NOT_MODELLED` list with the reason
+(DECISIONS.md D33); it stays extruded in game. Today that's one frame: newsh0-13, a filler piece of
+the level 2.12 dragon that is a single dark outline pixel.
+
 Build headless, several at a time, with previews:
 
     tools/build-models.sh -j 8 -p /tmp/previews assets/blender/enemies/*.py
