@@ -75,8 +75,9 @@ Build headless, several at a time, with previews:
 
     tools/build-models.sh -j 8 -p /tmp/previews assets/blender/enemies/*.py
 
-Check models in the game's renderer at `?debug=models` on the dev server (`&model=a,b`,
-`&page=N`, `&flash=1` for the hit flash).
+Compare a model with its sprite in the model viewer at `?viewer=<name>`: rotate it freely, or use
+Top with "Sprite over model" to check the outline pixel by pixel. `?debug=models` on the dev server
+shows models in the game's own renderer (`&model=a,b`, `&page=N`, `&flash=1` for the hit flash).
 
 ## Running a script
 

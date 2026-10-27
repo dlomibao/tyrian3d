@@ -61,8 +61,10 @@ Each 3D model is built by a Python script in [`assets/blender/`](assets/blender/
 to `public/models/*.glb`. The scripts are committed, so every model can be rebuilt from scratch
 (`tools/build-models.sh` runs them headless in parallel); `.blend` files are not committed. The
 models are 3D versions of Daniel Cook's Tyrian art, which he released for anyone to use.
-`npm run catalogue` lists every sprite to model, and `?debug=models` on the dev server shows each
-model beside its sprite. Anything imported from outside the project, such as Poly Haven
+`npm run catalogue` lists every sprite to model. To compare models with their sprites, open the
+model viewer at `?viewer` (or `?viewer=<model name>`): the sprite and the model side by side, the
+model rotatable, with a top view at the sprite's scale that can lay the sprite over the model. It
+works on the dev server and, once the data zip is loaded, on the deployed site. Anything imported from outside the project, such as Poly Haven
 textures or HDRIs, gets a row in [CREDITS.md](CREDITS.md).
 
 ## Game data
