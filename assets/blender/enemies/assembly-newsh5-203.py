@@ -6,7 +6,11 @@ fireball dropping down the screen: a round, white-hot head (newsh5-241) trailing
 narrows to a thin red tip (newsh5-203). Its colours run from a dark red rim through orange and
 yellow to a near-white core. The model is a teardrop of nested glowing shells, each narrower but
 taller than the one round it, so that from above it shows the same bands of colour as the sprite.
-Each piece's two frames only flicker the flame's edge, so one model covers both.
+Each piece's two frames are mirror images of each other about pixel column 11 (the flame
+flickers by swapping its lean and its hot streaks from side to side), so one model covers both:
+the fireball as built shows on the first frames (203, 241), its mirror image on the second (205,
+243), as frame-tagged parts (common.frame_part). The axis is the seam's centre line, so the
+pieces still meet on both frames.
 
 sprite.json's layout only places newsh5-241 (the head); the tail sits right on top of it (its
 bottom row continues the head's top row), 28 px higher.
@@ -19,6 +23,7 @@ import sys
 from pathlib import Path
 
 import bmesh
+import bpy
 
 sys.path[:0] = [str(Path(__file__).resolve().parents[1]), str(Path(__file__).resolve().parent)]
 import common  # noqa: E402
@@ -27,6 +32,9 @@ import lib_b042 as lib  # noqa: E402
 NAME = "assembly-newsh5-203"
 ROOT = common.repo_root(__file__)
 PIECES = ["newsh5-203", "newsh5-241"]
+# Each piece's frames: (as built, mirrored).
+FRAMES = {"newsh5-203": (203, 205), "newsh5-241": (241, 243)}
+MIRROR_COL = 11  # the pixel column the frames mirror about
 
 # Rows of the 24 x 56 px assembly: the tail (newsh5-203) is rows 0-27, the head (newsh5-241) rows
 # 28-55. Each shell: (row, centre column, half width px); its half height is a fixed share of the
@@ -71,13 +79,51 @@ def build(sprite):
     return lib.to_object(NAME, bm, mats, coll)
 
 
+def mirrored(obj):
+    """A copy of obj mirrored about pixel column MIRROR_COL."""
+    ax = lib.Grid(24, 56).X(MIRROR_COL)
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    for v in bm.verts:
+        v.co.x = 2 * ax - v.co.x
+    bmesh.ops.reverse_faces(bm, faces=bm.faces[:])
+    mesh = bpy.data.meshes.new(f"{obj.name}-mirror")
+    bm.to_mesh(mesh)
+    bm.free()
+    for m in obj.data.materials:
+        mesh.materials.append(m)
+    copy = bpy.data.objects.new(f"{obj.name}-mirror", mesh)
+    obj.users_collection[0].objects.link(copy)
+    return copy
+
+
 def main():
     sprite = lib.merged_sprite(ROOT, PIECES)
     obj = build(sprite)
     # The assembly's centre (14 px above the head's centre) is the origin; the tail is 28 px above
     # the head, in the same column.
     layout = [("newsh5-203", 0, -14), ("newsh5-241", 0, 14)]
-    lib.export_assembly(ROOT, obj, layout, size=4)
+    pieces = common.split_assembly(obj, layout)
+    flipped = common.split_assembly(mirrored(obj), layout)
+    for name, _, _ in layout:
+        parts = []
+        for piece, frame in zip((pieces[name], flipped[name]), FRAMES[name]):
+            piece.name = piece.data.name = f"{name}-{frame}"
+            parts.append(common.frame_part(piece, [frame]))
+        data = common.load_sprite(ROOT, name)
+        common.export_sprite_model(ROOT, parts, f"enemies/{name}", data["sprites"])
+        if "--preview" in sys.argv:  # the first frame (the whole fireball is previewed below)
+            out = Path(sys.argv[sys.argv.index("--preview") + 1])
+            img = ROOT / "reference" / "models" / name / data["frames"][0]["image"]
+            common.render_preview(parts, str(out.parent / f"{name}.png"), img, size=2, frame=FRAMES[name][0])
+        if "--frames" in sys.argv:  # every frame, one row each: <png> with the piece's name appended
+            out = Path(sys.argv[sys.argv.index("--frames") + 1])
+            common.render_frame_previews(parts, str(out.with_name(f"{out.stem}-{name}.png")), data, ROOT)
+    if "--preview" in sys.argv:
+        import tempfile
+        out = sys.argv[sys.argv.index("--preview") + 1]
+        ref = lib.composite_png(ROOT, layout, Path(tempfile.mkdtemp()) / "assembly.png", 4)
+        common.render_preview([obj], out, ref, size=4, view_px=480)
 
 
 if __name__ == "__main__":
