@@ -23,6 +23,8 @@ OpenTyrian links to, and choose or drop it on the page. It stays in your browser
 | Sidekicks | Left Ctrl, Left Alt / K, ; | LB, RB |
 | Pause | Esc / P | Start |
 
+The keys can be changed in Options.
+
 ## Status
 
 All four episodes of Tyrian 2.1 are playable, from the title screen's episode and difficulty
@@ -31,8 +33,12 @@ sound. Between levels the item screen sells and upgrades gear and lets you pick 
 destination on the map (arrows, Enter, Esc; `/` changes the rear gun's firing mode). If your ship
 is destroyed, you go back to that item screen with the loadout you launched with.
 
-- **Not yet:** the item screen's Data Cubes and Options menus, arcade and two-player modes, and
-  the cutscenes between episodes.
+- **Not yet:** the item screen's Data Cubes menu, arcade and two-player modes, and the cutscenes
+  between episodes.
+- **Options:** the item screen's Options menu loads and saves games (11 slots, the last being the
+  automatic LAST LEVEL backup; Alt-S / Alt-L), and the title has Load Game and Options. Options sets
+  the music and sound volume, the music style, the keys (two per control) and checks a gamepad's
+  buttons. Saves and settings stay in this browser.
 - **Everything else:** in [Issues](../../issues) and [Milestones](../../milestones). Design calls
   made along the way are in [DECISIONS.md](DECISIONS.md).
 

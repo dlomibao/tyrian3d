@@ -209,7 +209,7 @@ export function showOptions(host: OptionsHost, focus: "sound" | "keyboard" | "jo
     `<div class="panel options-panel" role="dialog" aria-label="Options">
       <h2>${esc(opt[0] || "Options")}</h2>
       <div class="opt-list" data-k="list"></div>
-      <div class="opt-pad" data-k="pad" hidden></div>
+      <div class="opt-padcheck" data-k="pad" hidden></div>
       <footer class="opt-help" data-k="help"></footer>
     </div>`,
   );
@@ -234,7 +234,7 @@ export function showOptions(host: OptionsHost, focus: "sound" | "keyboard" | "jo
   };
 
   const rowHtml = (r: Row, i: number): string => {
-    const cls = ["opt-row", r.kind];
+    const cls = ["opt-row", `opt-${r.kind}`]; // (not "key": overlay.css styles .panel .key)
     if (i === cur) cls.push("cur");
     if (r.kind === "done") cls.push("done");
     let body = `<span class="lbl">${esc(r.label)}</span>`;
@@ -249,7 +249,7 @@ export function showOptions(host: OptionsHost, focus: "sound" | "keyboard" | "jo
         const c = keys[r.action][slot];
         const sel = i === cur && slot === col;
         const wait = sel && capturing;
-        body += `<button type="button" class="opt-key${sel ? " sel" : ""}${wait ? " wait" : ""}${c ? "" : " none"}" data-slot="${slot}">${wait ? "…" : esc(keyName(c))}</button>`;
+        body += `<button type="button" class="opt-slot${sel ? " sel" : ""}${wait ? " wait" : ""}${c ? "" : " none"}" data-slot="${slot}">${wait ? "…" : esc(keyName(c))}</button>`;
       }
     }
     return `<div class="${cls.join(" ")}" data-i="${i}">${body}</div>`;
@@ -267,7 +267,7 @@ export function showOptions(host: OptionsHost, focus: "sound" | "keyboard" | "jo
       html += rowHtml(r, i);
     });
     list.innerHTML = html;
-    list.classList.toggle("dim", checking);
+    list.hidden = checking; // the check takes the list's place
     padEl.hidden = !checking;
     el("help").innerHTML = highlight(helpText());
     list.querySelector(".cur")?.scrollIntoView({ block: "nearest" });

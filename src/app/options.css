@@ -7,7 +7,7 @@
   z-index: 10;
 }
 
-.options-panel {
+.panel.options-panel {
   max-width: 36rem;
   max-height: 100%;
   overflow-y: auto;
@@ -33,8 +33,8 @@
   color: var(--ink-dim);
 }
 
-.opt-list.dim {
-  opacity: 0.35;
+.opt-list[hidden] {
+  display: none;
 }
 
 .opt-row {
@@ -82,21 +82,21 @@
   cursor: pointer;
 }
 
-.opt-key {
+.opt-slot {
   min-width: 6.5rem;
   text-align: center;
 }
 
-.opt-key.none {
+.opt-slot.none {
   color: var(--ink-dim);
 }
 
-.opt-key.sel {
+.opt-slot.sel {
   border-color: #fff3c0;
   background: rgba(224, 160, 64, 0.25);
 }
 
-.opt-key.wait {
+.opt-slot.wait {
   animation: opt-blink 0.6s steps(2) infinite;
 }
 
@@ -158,31 +158,31 @@
 }
 
 /* The gamepad check. */
-.opt-pad {
+.opt-padcheck {
   border: 1px solid var(--edge);
   border-radius: 8px;
   padding: 0.6rem;
   cursor: pointer;
 }
 
-.opt-pad[hidden] {
+.opt-padcheck[hidden] {
   display: none;
 }
 
-.opt-pad p {
+.opt-padcheck p {
   margin: 0.2rem 0;
   color: var(--ink-dim);
   font-size: 0.85rem;
   overflow-wrap: anywhere;
 }
 
-.opt-pad .chips {
+.opt-padcheck .chips {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr));
   gap: 4px;
 }
 
-.opt-pad .chip {
+.opt-padcheck .chip {
   display: flex;
   flex-direction: column;
   padding: 0.25rem 0.4rem;
@@ -191,23 +191,23 @@
   background: linear-gradient(to top, rgba(224, 160, 64, 0.35) var(--fill, 0%), transparent var(--fill, 0%));
 }
 
-.opt-pad .chip.on {
+.opt-padcheck .chip.on {
   border-color: #fff3c0;
   color: #fff3c0;
 }
 
-.opt-pad .chip small {
+.opt-padcheck .chip small {
   color: var(--ink-dim);
   font-size: 0.7rem;
 }
 
-.opt-pad .sticks {
+.opt-padcheck .sticks {
   display: flex;
   gap: 1rem;
   margin: 0.4rem 0;
 }
 
-.opt-pad .stick {
+.opt-padcheck .stick {
   position: relative;
   width: 64px;
   height: 64px;
@@ -216,7 +216,7 @@
   margin-bottom: 1.2rem;
 }
 
-.opt-pad .stick i {
+.opt-padcheck .stick i {
   position: absolute;
   width: 12px;
   height: 12px;
@@ -225,7 +225,7 @@
   background: #e0a040;
 }
 
-.opt-pad .stick small {
+.opt-padcheck .stick small {
   position: absolute;
   top: 100%;
   left: 50%;
@@ -242,7 +242,8 @@
 }
 
 .slot-level {
-  flex: 0 1 9rem;
+  flex: 0 1 11rem;
+  white-space: nowrap;
   color: var(--ink-dim);
 }
 
@@ -256,7 +257,7 @@
   color: var(--ink-dim);
 }
 
-.save-box {
+.panel.options-panel.save-box {
   max-width: 24rem;
   text-align: center;
 }
@@ -299,7 +300,7 @@
 }
 
 @media (max-width: 640px) {
-  .opt-key {
+  .opt-slot {
     min-width: 4.5rem;
   }
 
@@ -307,4 +308,13 @@
     flex-basis: 100%;
     order: 3;
   }
+}
+
+/* The item screen's Options rows: bars and slot details line up on the right. */
+.shop-list .vol-bar {
+  margin-left: auto;
+}
+
+.shop-list .slot-name {
+  flex: 1 1 6rem;
 }

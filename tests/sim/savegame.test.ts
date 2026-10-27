@@ -36,6 +36,7 @@ import {
   SAVE_FORMAT_VERSION,
   SAVE_STORAGE_KEY,
   saveFiles,
+  saveNameChar,
   saveSlotViews,
   serializeSaves,
   setSaveStorage,
@@ -235,6 +236,12 @@ describe.skipIf(!HAVE)("the slots in storage", () => {
     loadSaves();
     expect(saveFiles[0].name).toBe("GOOD          ");
     expect(saveFiles[1].level).toBe(0);
+  });
+
+  test("the save-name prompt takes a space and what the font has (fontMap's ASCII part)", () => {
+    expect([..."Az09 !?.-'"].every(saveNameChar)).toBe(true);
+    expect([..."_<>@^&~`"].some(saveNameChar)).toBe(false);
+    expect(saveNameChar("ab")).toBe(false);
   });
 
   test("the slot list shows the C's names: EMPTY SLOT, or the name, last level and episode", () => {
