@@ -4,7 +4,7 @@ Seen in episode 4 (levels 2, 6 and 10). Two curved grey blades, one above the ot
 from a short spine on the right to sharp tips, like a pair of pincers seen from above; a thin rod
 joins the spine's two halves, a red and orange flame jets left from it between the blades and a
 small red glow comes out of its right side. The two frames only flicker the flame, so one model
-covers both.
+covers both, with a flame per frame (common.frame_part) and the glow brightening on the second.
 
 Run: blender --background --python assets/blender/enemies/newsh3-8.py [-- --preview out.png]
 """
@@ -89,7 +89,8 @@ def build(sprite, frame):
         pal(117, roughness=0.4, emission_strength=3.0),  # 4 red flame
         pal(121, roughness=0.4, emission_strength=4.0),  # 5 orange flame core
         pal(123, roughness=0.3, emission_strength=5.0),  # 6 yellow hot spot
-        pal(119, roughness=0.4, emission_strength=3.0),  # 7 red glow on the right
+        common.palette_material(sprite, 119, f"{NAME}-glow", roughness=0.4, emission_strength=3.0,
+                                frames={46: 120}),  # 7 red glow on the right, brighter on frame 46
     ]
     DARK, FLAME, CORE, SPOT, GLOW = 0, 4, 5, 6, 7
     bm = bmesh.new()
@@ -101,25 +102,6 @@ def build(sprite, frame):
     lib.loft(bm, SPINE, sides=10, mat=2)
     lib.paint(bm, sprite["frames"][frame]["pixels"], grey_slot, under_slot=DARK, min_nz=-0.1)
 
-    # The flame jetting left between the blades (rows 11-15, from the rod to column 4).
-    lib.loft_x(bm, [
-        (3.8, 14.3, 0.0, 0.0, 0.0),
-        (5.5, 14.1, 0.7, 0.5, 0.0),
-        (7.5, 13.9, 1.1, 0.8, 0.0),
-        (10.5, 13.4, 1.8, 1.1, 0.0),
-        (13.0, 13.0, 2.1, 1.3, 0.0),
-        (15.5, 12.9, 1.6, 1.0, 0.0),
-        (18.4, 13.0, 1.0, 0.8, 0.0),
-    ], sides=10, mat=FLAME)
-    lib.loft_x(bm, [
-        (8.0, 13.4, 0.0, 0.0, 0.5),
-        (10.5, 13.2, 0.8, 0.6, 0.6),
-        (13.5, 12.8, 1.1, 0.7, 0.6),
-        (16.5, 12.9, 0.7, 0.5, 0.4),
-        (17.5, 13.0, 0.0, 0.0, 0.3),
-    ], sides=8, mat=CORE)
-    lib.ellipsoid(bm, X(14.0), Y(12.6), P(0.9), P(1.1), P(0.7), P(0.5), segments=8, rings=4, mat=SPOT)
-
     # The small red glow out of the rod's right side (columns 21-23).
     lib.loft_x(bm, [
         (19.8, 13.5, 1.3, 0.9, 0.0),
@@ -128,7 +110,34 @@ def build(sprite, frame):
     ], sides=8, mat=GLOW)
 
     obj = common.mesh_object(NAME, bm, mats, coll, smooth=True)
-    return [obj]
+    parts = [obj]
+
+    # The flame jetting left between the blades, one per frame (common.frame_part). Frame 8: a
+    # thick flame from column 4 (row 14) to the rod, bulging above and below at columns 9-16, its
+    # yellow hot spot high at columns 13-14 (row 12). Frame 46: a thinner one along row 13 from
+    # column 5, its hot spot in the middle (column 12, row 13).
+    for frame, outer, core, spot in (
+        (8, [(3.8, 14.3, 0.0, 0.0, 0.0), (5.5, 14.1, 0.7, 0.5, 0.0), (7.5, 13.9, 1.1, 0.8, 0.0),
+             (10.5, 13.4, 1.8, 1.1, 0.0), (13.0, 13.0, 2.1, 1.3, 0.0), (15.5, 12.9, 1.6, 1.0, 0.0),
+             (18.4, 13.0, 1.0, 0.8, 0.0)],
+         [(8.0, 13.4, 0.0, 0.0, 0.5), (10.5, 13.2, 0.8, 0.6, 0.6), (13.5, 12.8, 1.1, 0.7, 0.6),
+          (16.5, 12.9, 0.7, 0.5, 0.4), (17.5, 13.0, 0.0, 0.0, 0.3)],
+         (14.0, 12.6, 1.1)),
+        (46, [(4.8, 13.5, 0.0, 0.0, 0.0), (5.6, 13.5, 0.5, 0.4, 0.0), (7.5, 13.1, 1.0, 0.6, 0.0),
+              (10.0, 12.9, 1.3, 0.8, 0.0), (11.5, 13.2, 1.8, 1.0, 0.0), (13.0, 13.7, 1.9, 1.1, 0.0),
+              (14.5, 13.7, 1.3, 0.9, 0.0), (16.0, 13.5, 0.7, 0.6, 0.0), (18.4, 13.4, 0.8, 0.6, 0.0)],
+         [(8.6, 13.5, 0.0, 0.0, 0.4), (10.0, 13.5, 0.6, 0.5, 0.5), (12.0, 13.5, 0.8, 0.6, 0.5),
+          (13.8, 13.6, 0.5, 0.4, 0.4), (14.5, 13.6, 0.0, 0.0, 0.3)],
+         (12.5, 13.5, 0.8)),
+    ):
+        fbm = bmesh.new()
+        lib.loft_x(fbm, outer, sides=10, mat=FLAME)
+        lib.loft_x(fbm, core, sides=8, mat=CORE)
+        sx, sy, sr = spot
+        lib.ellipsoid(fbm, X(sx), Y(sy), P(0.9), P(sr), P(0.7), P(0.5), segments=8, rings=4, mat=SPOT)
+        flame = common.mesh_object(f"{NAME}-flame-{frame}", fbm, mats, coll, smooth=True)
+        parts.append(common.frame_part(flame, [frame]))
+    return parts
 
 
 if __name__ == "__main__":
