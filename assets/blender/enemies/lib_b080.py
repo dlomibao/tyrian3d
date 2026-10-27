@@ -45,15 +45,22 @@ class Mats:
         self.list = []
         self.slots = {}
 
-    def __call__(self, index, metallic=0.3, roughness=0.5, emission_strength=0.0):
+    def __call__(self, index, metallic=0.3, roughness=0.5, emission_strength=0.0, frames=None, part=None):
+        """`frames` ({sprite frame: palette index}) animates the colour (common.palette_material);
+        such a material is named after `part` (pal_<index>_<tag>_<part>), so give each its own."""
         key = (index, metallic, roughness, emission_strength)
+        if frames:
+            key += (part, tuple(sorted(frames.items())))
         if key not in self.slots:
-            n = sum(1 for k in self.slots if k[0] == index)
-            tag = self.tag if n == 0 else f"{self.tag}_{n}"
+            if frames:
+                tag = f"{self.tag}_{part}"
+            else:
+                n = sum(1 for k in self.slots if k[0] == index and len(k) == 4)
+                tag = self.tag if n == 0 else f"{self.tag}_{n}"
             self.slots[key] = len(self.list)
             self.list.append(common.palette_material(self.sprite, index, tag, metallic=metallic,
                                                      roughness=roughness,
-                                                     emission_strength=emission_strength))
+                                                     emission_strength=emission_strength, frames=frames))
         return self.slots[key]
 
 
