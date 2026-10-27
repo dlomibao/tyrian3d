@@ -3,7 +3,9 @@
 Seen in episode 3 (level section 10) and episode 4. A cut gem hanging from a steel cap: an
 octagonal girdle, a table split by a bright crease (darker back facet, lighter front facet),
 sloped crown facets round it and a pavilion underneath. The frames only shimmer the blues and
-the white facet lines, so one model covers them all.
+the white facet lines: every blue is one palette step darker on frame 91 and two on 129, and the
+white lines fade (143, 142, 140), so one model covers them all with per-frame colours
+(common.palette_material frames=).
 
 Run: blender --background --python assets/blender/enemies/newsh7-53.py [-- --preview out.png]
 """
@@ -23,15 +25,21 @@ NAME = "newsh7-53"
 def build(sprite):
     coll = common.reset_collection(NAME)
     pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
+
+    def shimmer(i, **kw):
+        """A gem blue that steps one palette index darker on each later frame."""
+        return common.palette_material(sprite, i, f"{NAME}-shimmer", frames={91: i - 1, 129: i - 2}, **kw)
+
     gem_mats = [
-        pal(150, metallic=0.1, roughness=0.15),  # 0 deep blue pavilion
-        pal(153, metallic=0.1, roughness=0.15),  # 1 girdle / mid crown
-        pal(155, metallic=0.1, roughness=0.12),  # 2 side crown
-        pal(152, metallic=0.1, roughness=0.15),  # 3 front crown
-        pal(157, metallic=0.1, roughness=0.12),  # 4 light crown, front table
-        pal(148, metallic=0.1, roughness=0.15),  # 5 dark back table
-        pal(154, metallic=0.1, roughness=0.12),  # 6 back crown
-        pal(143, emission_strength=2.5),  # 7 white facet lines
+        shimmer(150, metallic=0.1, roughness=0.15),  # 0 deep blue pavilion
+        shimmer(153, metallic=0.1, roughness=0.15),  # 1 girdle / mid crown
+        shimmer(155, metallic=0.1, roughness=0.12),  # 2 side crown
+        shimmer(152, metallic=0.1, roughness=0.15),  # 3 front crown
+        shimmer(157, metallic=0.1, roughness=0.12),  # 4 light crown, front table
+        shimmer(148, metallic=0.1, roughness=0.15),  # 5 dark back table
+        shimmer(154, metallic=0.1, roughness=0.12),  # 6 back crown
+        common.palette_material(sprite, 143, f"{NAME}-shimmer", emission_strength=2.5,
+                                frames={91: 142, 129: 140}),  # 7 white facet lines, fading
     ]
     PAV, GIRD, SIDE, FRONT, LIGHT, BACK, TOPC, LINE = range(8)
 

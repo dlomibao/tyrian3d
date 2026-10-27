@@ -4,7 +4,9 @@ Seen in episode 4 (levels 2, 6, 10). Two curved steel claws, one above and one b
 points on the right from a short upright post on the left; between them a jet of fire blasts out
 to the right (and a little flame leaks out to the left). The claws are lofted column by column
 from the sprite, thick at the root and thin at the tips, with the sprite's greys painted on. The
-two frames only flicker the flame, so one model covers both; the flame glows.
+two frames only flicker the flame, so one model covers both, with a jet per frame
+(common.frame_part): on frame 48 the jet's tail thins, its hot core moves two columns right and
+the little left flame flares orange-yellow. The flame glows.
 
 Run: blender --background --python assets/blender/enemies/newsh3-10.py [-- --preview out.png]
 """
@@ -39,8 +41,9 @@ def build(sprite):
         pal(118, roughness=0.5, emission_strength=3.0),  # 3 red flame
         pal(121, roughness=0.4, emission_strength=4.0),  # 4 orange flame
         pal(123, roughness=0.3, emission_strength=5.0),  # 5 yellow core
+        pal(122, roughness=0.35, emission_strength=4.5),  # 6 orange-yellow (frame 48's left flame)
     ]
-    DARK, MID, LIGHT, RED, ORANGE, YELLOW = range(6)
+    DARK, MID, LIGHT, RED, ORANGE, YELLOW, AMBER = range(7)
     pixels = sprite["frames"][0]["pixels"]
 
     def slot(v):
@@ -84,24 +87,39 @@ def build(sprite):
                    (ey(11.5), ex(4.5), 0.45 / 12, 0.03, 0.06), (ey(10.5), ex(4.5), 0.0, 0.0, 0.05)],
               sides=6, mat_index=LIGHT)
 
-    # The jet: red flame from column 6 to 19 round row 13 with an orange-yellow core near its root,
-    # and a short flame out of the left side (columns 0-2).
-    yc = ey(13.5)
-    jet = [(6.0, 0.0, 0.0), (6.6, 1.0, 0.05), (8.5, 1.9, 0.08), (11.5, 2.0, 0.08), (14.5, 1.6, 0.07),
-           (17.5, 1.0, 0.05), (19.6, 0.0, 0.0)]
-    start = len(bm.verts)
-    lib.loft2(bm, [(ex(c), -yc, w / 12, hh, 0.0) for c, w, hh in jet], sides=10, mat_index=RED,
-              wobble=lambda a, y: 1.0 + 0.06 * math.cos(5 * a + y * 20))
-    core = [(7.0, 0.0, 0.0), (7.8, 1.1, 0.08), (10.0, 1.5, 0.1), (12.5, 1.2, 0.095), (15.0, 0.0, 0.0)]
-    lib.loft2(bm, [(ex(c), -yc, w / 12, hh, 0.005) for c, w, hh in core], sides=8, mat_index=ORANGE)
-    hot = [(8.2, 0.0, 0.0), (9.0, 0.8, 0.095), (11.0, 0.8, 0.1), (12.6, 0.0, 0.0)]
-    lib.loft2(bm, [(ex(c), -yc, w / 12, hh, 0.01) for c, w, hh in hot], sides=8, mat_index=YELLOW)
-    back = [(3.4, 0.0, 0.0), (2.6, 1.2, 0.05), (1.2, 1.0, 0.045), (-0.1, 0.0, 0.0)]
-    lib.loft2(bm, [(ex(c), -yc, w / 12, hh, 0.0) for c, w, hh in back], sides=8, mat_index=ORANGE)
-    lib.rotate_new(bm, start, -math.pi / 2)
-
     obj = common.mesh_object(NAME, bm, mats, coll, smooth=True)
-    return [(NAME, [obj], sprite["sprites"])]
+
+    # The jet: red flame from column 6 to 19 round row 13 with an orange-yellow core near its root,
+    # and a short flame out of the left side (columns 0-2). Frame 10 (the first) is the long full
+    # jet; on frame 48 the tail thins and the core sits further right (columns 10-14) and the
+    # left flame is bigger and brighter.
+    yc = ey(13.5)
+    jets = {
+        10: [(RED, 10, 0.0, [(6.0, 0.0, 0.0), (6.6, 1.0, 0.05), (8.5, 1.9, 0.08), (11.5, 2.0, 0.08), (14.5, 1.6, 0.07),
+                             (17.5, 1.0, 0.05), (19.6, 0.0, 0.0)]),
+             (ORANGE, 8, 0.005, [(7.0, 0.0, 0.0), (7.8, 1.1, 0.08), (10.0, 1.5, 0.1), (12.5, 1.2, 0.095),
+                                 (15.0, 0.0, 0.0)]),
+             (YELLOW, 8, 0.01, [(8.2, 0.0, 0.0), (9.0, 0.8, 0.095), (11.0, 0.8, 0.1), (12.6, 0.0, 0.0)]),
+             (ORANGE, 8, 0.0, [(3.4, 0.0, 0.0), (2.6, 1.2, 0.05), (1.2, 1.0, 0.045), (-0.1, 0.0, 0.0)])],
+        48: [(RED, 10, 0.0, [(6.0, 0.0, 0.0), (6.6, 1.0, 0.05), (9.0, 1.9, 0.08), (12.0, 1.9, 0.08), (14.5, 1.3, 0.06),
+                             (17.0, 0.8, 0.045), (19.0, 0.0, 0.0)]),
+             (ORANGE, 8, 0.005, [(8.6, 0.0, 0.0), (9.5, 1.0, 0.075), (11.5, 1.4, 0.095), (14.0, 1.1, 0.09),
+                                 (16.0, 0.0, 0.0)]),
+             (YELLOW, 8, 0.01, [(10.2, 0.0, 0.0), (11.0, 0.8, 0.095), (12.8, 0.8, 0.1), (14.2, 0.0, 0.0)]),
+             (ORANGE, 8, 0.0, [(3.4, 0.0, 0.0), (2.7, 1.5, 0.06), (1.2, 1.4, 0.055), (-0.2, 0.0, 0.0)]),
+             (AMBER, 8, 0.01, [(2.9, 0.0, 0.0), (2.3, 0.8, 0.06), (1.0, 0.7, 0.055), (0.4, 0.0, 0.0)])],
+    }
+    parts = [obj]
+    for frame, layers in jets.items():
+        bm = bmesh.new()
+        for k, (mat, sides, z, secs) in enumerate(layers):
+            wobble = (lambda a, y: 1.0 + 0.06 * math.cos(5 * a + y * 20)) if k == 0 else None
+            lib.loft2(bm, [(ex(c), -yc, w / 12, hh, z) for c, w, hh in secs], sides=sides, mat_index=mat,
+                      wobble=wobble)
+        lib.rotate_new(bm, 0, -math.pi / 2)
+        jet = common.mesh_object(f"{NAME}-jet-{frame}", bm, mats, coll, smooth=True)
+        parts.append(common.frame_part(jet, [frame]))
+    return [(NAME, parts, sprite["sprites"])]
 
 
 if __name__ == "__main__":

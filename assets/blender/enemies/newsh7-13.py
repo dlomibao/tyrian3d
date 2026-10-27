@@ -3,8 +3,9 @@
 Seen in episode 3 (level section 10). Symmetric top to bottom and left to right: a blue steel
 spindle (two bulbs and a waist) between two ribbed grey engine blocks, each with a thruster
 firing out of the end, and a grey bar cage that bends round both sides into blue chevron blades
-held to the spindle's waist by short grey axles. The frames only grow the thruster flames, so
-one model covers them all.
+held to the spindle's waist by short grey axles. The frames only grow the thruster flames (their
+tips reach rows 2, 1 and 0 from each end, and they brighten), so one model covers them all, with
+a pair of flames per frame (common.frame_part, lib_b007.thruster_flames).
 
 Run: blender --background --python assets/blender/enemies/newsh7-13.py [-- --preview out.png]
 """
@@ -70,16 +71,11 @@ def build(sprite):
         fn()
         common.shift_x(bm, start, CX)
 
-    # Nozzle (columns 9-13) pointing up out of the block, and its flame (rows 1-3 in the middle frame).
+    # Nozzle (columns 9-13) pointing up out of the block; its flame is lib.thruster_flames, per frame.
     at_cx(lambda: common.loft(bm, [(ey(4.5), 2.4 / 12, 0.075, 0.0), (ey(3.2), 2.5 / 12, 0.08, 0.0)],
                               sides=12, mat_index=NOZ, cap_end=False))
     at_cx(lambda: common.loft(bm, [(ey(3.25), 2.2 / 12, 0.065, 0.0), (ey(3.2), 0.0, 0.0, 0.0)],
                               sides=12, mat_index=MOU))
-    at_cx(lambda: common.loft(bm, [(ey(3.6), 2.2 / 12, 0.06, 0.0), (ey(2.6), 2.0 / 12, 0.055, 0.0),
-                                   (ey(1.6), 1.2 / 12, 0.04, 0.0), (ey(1.0), 0.0, 0.0, 0.0)],
-                              sides=10, mat_index=FLAME))
-    at_cx(lambda: common.loft(bm, [(ey(3.6), 1.2 / 12, 0.04, 0.04), (ey(2.8), 1.1 / 12, 0.04, 0.045),
-                                   (ey(2.0), 0.0, 0.0, 0.04)], sides=8, mat_index=CORE))
 
     # Grey cage: from the block's corner out along row 4, round the corner and down columns 2 / 20.
     r = 0.6 / 12
@@ -108,7 +104,8 @@ def build(sprite):
                                    for rr, w in spindle[2:-2]], sides=6, mat_index=HI))
     parts = common.mesh_object(NAME, bm, smats, coll, smooth=True)
 
-    return [(NAME, [parts, blocks], sprite["sprites"])]
+    flames = lib.thruster_flames(sprite, NAME, coll, (13, 15, 17), mirror_y=True)
+    return [(NAME, [parts, blocks] + flames, sprite["sprites"])]
 
 
 if __name__ == "__main__":
