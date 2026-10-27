@@ -5,11 +5,12 @@ Seen in episode 3 (level 3.6): a column of ground pieces, a reactor (newshc-165)
 a blue turret (newshc-155), with more machinery under them from another batch.
 
 - newshc-165: a split blue orb (two glossy half domes with a pink rod in the slot between them)
-  between two glowing red-orange crescent arcs. Its three frames only brighten the arcs, so one
-  model covers them.
+  between two glowing red-orange crescent arcs. Its three frames only brighten the arcs (every
+  arc pixel two palette steps up on frame 167, four on 169), so one model covers them, its arc
+  materials changing colour per frame (palette_material frames=).
 - newshc-155: a blue hood of two lobes with green strips on its corners, a grey housing with dark
   ports, a purple cannon tilted up toward the bottom of the screen and a grey bracket on the
-  ground in front. Its frames only light the green corner lights, so one model covers them.
+  ground in front. Its three frames are pixel for pixel the same, so it doesn't animate.
 
 Both are built in assembly coordinates (screen pixel cx 57, cy 53 is the origin) and cut into
 the pieces with common.split_assembly. The second newshc-165 in the layout uses the same model.
@@ -80,9 +81,11 @@ def build(sprite):
     coll = common.reset_collection(NAME)
     pal = lambda i, **kw: common.palette_material(sprite, i, "nshc165", **kw)  # noqa: E731
     mats = [
-        pal(119, emission_strength=3.0),  # 0 glowing arc
-        pal(123, emission_strength=5.0),  # 1 hot core of the arc
-        pal(114, metallic=0.4, roughness=0.5),  # 2 dark red cradle
+        # The arcs brighten two palette steps on frame 167 and four on 169.
+        common.palette_material(sprite, 119, "nshc165-arc", emission_strength=3.0, frames={167: 121, 169: 123}),  # 0 glowing arc
+        common.palette_material(sprite, 123, "nshc165-hot", emission_strength=5.0, frames={167: 125, 169: 127}),  # 1 hot core of the arc
+        common.palette_material(sprite, 114, "nshc165-cradle", metallic=0.4, roughness=0.5,
+                                frames={167: 116, 169: 118}),  # 2 dark red cradle
         pal(59, metallic=0.6, roughness=0.15),  # 3 blue glass orb
         pal(62, metallic=0.5, roughness=0.1),  # 4 orb highlight
         pal(51, metallic=0.3, roughness=0.6),  # 5 dark slot
@@ -195,6 +198,11 @@ def main():
             data = common.load_sprite(ROOT, name)
             img = ROOT / "reference" / "models" / name / data["frames"][0]["image"]
             common.render_preview([pieces[name]], str(out.parent / f"{name}.png"), img, size=2)
+    if "--frames" in sys.argv:
+        out = Path(sys.argv[sys.argv.index("--frames") + 1])
+        for name in PIECES:
+            common.render_frame_previews([pieces[name]], str(out.parent / f"{name}.png"),
+                                         common.load_sprite(ROOT, name), ROOT)
 
 
 if __name__ == "__main__":

@@ -210,7 +210,20 @@ def preview(root, objs, out, sprite, frame=0):
     """Render the model beside its sprite (first frame of the frames it covers)."""
     f = sprite["frames"][frame]
     ref = Path(root) / "reference" / "models" / sprite["name"] / f["image"]
-    common.render_preview(objs, str(out), ref, size=f["size"])
+    common.render_preview(objs, str(out), ref, size=f["size"], frame=f["index"])
+
+
+def frames_arg():
+    """--frames <png>: render every frame of the model beside its sprite (common.render_frame_previews)."""
+    if "--frames" in sys.argv:
+        return Path(sys.argv[sys.argv.index("--frames") + 1])
+    return None
+
+
+def frame_previews(root, objs, out, sprite, indices=None):
+    """common.render_frame_previews for the frames in `indices` (all of the sprite's by default)."""
+    frames = [f for f in sprite["frames"] if indices is None or f["index"] in indices]
+    common.render_frame_previews(objs, str(out), {**sprite, "frames": frames}, root)
 
 
 def subset(sprite, indices):
