@@ -45,6 +45,12 @@ export interface ScreenOptions {
    * edge-triggered, for a screen's own shortcuts (the title's Y for High Scores).
    */
   onPadButton?: (button: number) => void;
+  /**
+   * [high scores] Open over the current screen instead of replacing it (the title's High Scores):
+   * the screen below is hidden and gets no input until this one closes, then it comes back as it
+   * was, with its backdrop. Without a `backdrop` of its own, this one keeps the one below's.
+   */
+  over?: boolean;
 }
 
 export interface ModalAction<T> {
@@ -77,6 +83,8 @@ export class Screen implements NavTarget {
   private isClosed = false;
   /** How many aside() calls are running: input goes elsewhere meanwhile. */
   private asideDepth = 0;
+  /** [high scores] The screen this one opened over (ScreenOptions.over), shown again when it closes. */
+  below: Screen | null = null;
 
   constructor(
     readonly opts: ScreenOptions,
@@ -256,14 +264,22 @@ export class ScreenManager {
   show(opts: ScreenOptions): Screen {
     this.nav ??= new Nav();
     const prev = this._current;
-    const screen = new Screen(opts, this);
+    // [high scores] A screen opened over another keeps it underneath (and, by default, its backdrop).
+    const over = opts.over && prev?.open ? prev : null;
+    const screen = new Screen({ ...opts, backdrop: opts.backdrop ?? over?.opts.backdrop ?? "space" }, this);
     this._current = screen;
-    prev?.close();
+    if (over) {
+      screen.below = over;
+      over.root.classList.add("is-under");
+    } else {
+      // Replacing a screen replaces the ones under it too.
+      for (let s = prev; s; s = s.below) s.close();
+    }
     document.body.append(screen.root);
     // Next frame, so the entering transition runs from the initial state.
     requestAnimationFrame(() => requestAnimationFrame(() => screen.root.classList.add("is-shown")));
     this.nav.setTarget(opts.passive ? null : screen);
-    this._backdrop?.setMood(opts.backdrop ?? "space");
+    this._backdrop?.setMood(screen.opts.backdrop!);
     return screen;
   }
 
@@ -276,6 +292,15 @@ export class ScreenManager {
   /** Called by Screen.close. */
   closed(screen: Screen): void {
     if (this._current !== screen) return;
+    // [high scores] Back to the screen this one opened over, as it was.
+    const below = screen.below;
+    if (below?.open) {
+      this._current = below;
+      below.root.classList.remove("is-under");
+      this.nav?.setTarget(below.opts.passive || below.isAside ? null : below);
+      this._backdrop?.setMood(below.opts.backdrop ?? "space");
+      return;
+    }
     this._current = null;
     this.nav?.setTarget(null);
     this._backdrop?.setMood("none");

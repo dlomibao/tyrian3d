@@ -54,6 +54,10 @@ export function showOptions(): Promise<string | null> {
 - **One screen at a time.** `showScreen` closes whatever screen is up (they cross-fade) and routes
   all input to the new one. `screen.close()` fades it out; `screen.closed` resolves then. With no
   screen up (a level is running) nothing is routed and the backdrop sleeps.
+- **Over another screen.** `showScreen({ ..., over: true })` opens a screen over the current one
+  instead of replacing it (the title's High Scores): the one below fades out and gets no input,
+  and comes back as it was when this one closes. Without a `backdrop` of its own, it keeps the
+  one below's.
 - **Content** goes in `screen.panel` (`screen.add(...)` appends nodes and Navigables). Anything
   outside the panel, such as the title's logo, goes in `screen.root`.
 - **Text from the game data** goes in with `h(tag, { text })` or `textContent`, never as markup.
@@ -84,8 +88,8 @@ through a death or the press that opened the screen don't act on it. The other p
 Back, the shoulders) aren't intents; a screen gets their presses in `onPadButton(index)` (the
 title's Y opens High Scores, Back opens Options).
 
-Screens not yet on the framework (Options, the load and save dialogs, high scores, the data
-cube reader's keys) read the keys and pads themselves. A framework screen opening one does it
+Screens not yet on the framework (Options, the load and save dialogs, the data cube reader's
+keys) read the keys and pads themselves. A framework screen opening one does it
 inside `screen.aside(() => showOptions(...), { hide })`: the navigation stops sending it input
 until the promise settles (pad buttons still held then are ignored), and `hide` (default true)
 hides the screen meanwhile, leaving the backdrop.
