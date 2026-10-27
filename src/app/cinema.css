@@ -1,0 +1,363 @@
+/*
+ * The stage for the screens between levels and at an episode's end (src/app/cinema.ts): the
+ * picture letterboxed over a blurred copy of itself, text on a translucent panel, the warning
+ * bars, the fade layer and a Skip button, filling the window at any aspect ratio.
+ */
+
+.ui-screen--cinema {
+  display: block;
+  padding: 0;
+  container-type: size;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* A picture shows on black; titles and codes leave the framework's backdrop in view. */
+.ui-screen--cinema.is-picture {
+  background: #000;
+}
+
+.ui-screen--cinema:not(.is-picture) .cinema-ambient,
+.ui-screen--cinema:not(.is-picture) .cinema-frame {
+  display: none;
+}
+
+/* The picture's own colours, blurred and dimmed, fill the screen around it. */
+.cinema-ambient {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: blur(28px) brightness(0.55) saturate(1.2);
+  transform: scale(1.2);
+  pointer-events: none;
+}
+
+/*
+ * 16:10, as large as fits (contain), then grown to cover the screen as long as no more than a
+ * fifth of it is cropped: a little wider or taller screen loses only an edge, a phone held upright
+ * keeps the whole picture across its width.
+ */
+.cinema-frame {
+  --fit: min(100cqw, 160cqh);
+  --cover: max(100cqw, 160cqh);
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(var(--cover), var(--fit) * 1.25);
+  aspect-ratio: 16 / 10;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 3rem 1.5rem rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+
+.cinema-picture {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* JE_updateWarning's flashing bars, along the screen's top and bottom edges. */
+.cinema-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: var(--bar-h);
+  background: var(--bar, var(--ui-danger));
+  box-shadow: 0 0 1.5rem 0.25rem var(--bar, var(--ui-danger));
+  pointer-events: none;
+}
+
+.cinema-bar--top { top: 0; }
+.cinema-bar--bottom { bottom: 0; }
+.cinema-bar[hidden] { display: none; }
+
+/*
+ * The text: a translucent panel in the middle (or at the top, for red warnings), clear of the
+ * warning bars and the Skip button above it.
+ */
+.ui-screen--cinema {
+  --bar-h: clamp(6px, 3cqh, 26px);
+  --text-top: calc(var(--bar-h) + var(--ui-hit) + var(--ui-space-2));
+  --text-bottom: calc(var(--bar-h) + var(--ui-space-4));
+}
+
+.ui-screen--cinema > .cinema-text {
+  --ui-panel: rgba(5, 8, 16, 0.6);
+  position: absolute;
+  top: var(--text-top);
+  bottom: var(--text-bottom);
+  left: 0;
+  right: 0;
+  margin: auto;
+  width: min(42rem, 100% - 2 * var(--ui-gutter));
+  height: fit-content;
+  max-height: calc(100cqh - var(--text-top) - var(--text-bottom));
+  padding: var(--ui-space-5) clamp(var(--ui-space-4), 4cqw, var(--ui-space-6));
+  cursor: pointer;
+}
+
+.ui-screen--cinema > .cinema-text.is-top {
+  bottom: auto;
+}
+
+.ui-screen--cinema > .cinema-text.is-fading {
+  opacity: 0;
+  transition: opacity var(--ui-slow) var(--ui-ease);
+}
+
+.ui-screen--cinema > .cinema-text[hidden] {
+  display: none;
+}
+
+.cinema-lines {
+  margin: 0 !important;
+  overflow-wrap: break-word;
+  font-family: var(--ui-font-text);
+  font-size: clamp(0.95rem, 0.85rem + 0.45vw, 1.2rem);
+  line-height: 1.5;
+  color: var(--tint, var(--ui-ink-warm)) !important;
+}
+
+.cinema-line--center {
+  display: block;
+  text-align: center;
+  font-family: var(--ui-font-display);
+  font-weight: 700;
+  letter-spacing: var(--ui-tracking);
+}
+
+/* A paragraph wrapped to the original's width joins up when the panel is narrower than its lines. */
+.cinema-join { display: none; }
+
+@container (max-width: 40rem) {
+  .cinema-br--soft { display: none; }
+  .cinema-join { display: inline; }
+}
+
+/*
+ * Each character as JE_outCharGlow drew it (glowLook): dark until it starts, dim while it rises,
+ * then hot (lighter, with a glow) before it settles.
+ */
+.cinema-char {
+  opacity: var(--o, 0);
+  color: color-mix(in srgb, var(--tint-hot, #fff) calc(var(--h, 0) * 100%), var(--tint, var(--ui-ink-warm)));
+  text-shadow:
+    0 0 calc(0.15em + var(--h, 0) * 0.6em) color-mix(in srgb, var(--tint-hot, #fff) calc(var(--h, 0) * 85%), transparent),
+    0.06em 0.08em 0 rgba(0, 0, 0, 0.6);
+}
+
+.cinema-char.is-hl {
+  color: color-mix(in srgb, #fff calc(var(--h, 0) * 100%), var(--tint-hot, #fff));
+  font-weight: 700;
+}
+
+/* Short screens (a phone on its side): tighter, so a long text and its prompt fit. */
+@container (max-height: 500px) {
+  .ui-screen--cinema > .cinema-text {
+    padding: var(--ui-space-3) var(--ui-space-4);
+  }
+  .cinema-lines {
+    font-size: 0.9rem;
+    line-height: 1.35;
+  }
+  .cinema-prompt {
+    margin-top: var(--ui-space-2) !important;
+  }
+}
+
+/* The prompt (the C's "Press a key"): a key hint that glows in after the text. */
+.cinema-prompt {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--ui-space-4);
+  font-size: var(--ui-text-xs);
+  color: var(--ui-ink-dim);
+  opacity: var(--o, 0);
+  text-shadow: 0 0 calc(var(--h, 0) * 0.8em) var(--tint-hot, var(--ui-gold));
+}
+
+.cinema-prompt.is-lit {
+  --o: 1;
+}
+
+/* Content that isn't a picture: the credits, or nothing. */
+.cinema-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.cinema-layer:empty {
+  display: none;
+}
+
+/* The palette fades cover everything but the Skip button. */
+.cinema-fade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.cinema-fade[hidden] {
+  display: none;
+}
+
+.cinema-skip {
+  position: absolute;
+  z-index: 1;
+  /* Below the warning bar. */
+  top: max(calc(var(--bar-h) + var(--ui-space-2)), env(safe-area-inset-top));
+  right: max(var(--ui-space-2), env(safe-area-inset-right));
+  opacity: 0.6;
+  transition: opacity var(--ui-fast) var(--ui-ease);
+}
+
+.cinema-skip:hover {
+  opacity: 1;
+}
+
+.cinema-skip[hidden] {
+  display: none;
+}
+
+/* --- title cards: the next episode, the Super Arcade code --- */
+
+.ui-screen--cinema > .cinema-text.is-card {
+  width: min(32rem, 100% - 2 * var(--ui-gutter));
+}
+
+/* Upright screens: the card goes below the backdrop's ship. */
+@container (orientation: portrait) {
+  .ui-screen--cinema > .cinema-text.is-card {
+    top: auto;
+    bottom: max(var(--ui-space-6), env(safe-area-inset-bottom));
+  }
+}
+
+.cinema-card {
+  text-align: center;
+}
+
+.cinema-card .ui-title {
+  align-items: center;
+}
+
+.cinema-card p {
+  color: var(--ui-ink) !important;
+}
+
+.cinema-code {
+  display: inline-block;
+  margin: var(--ui-space-2) 0;
+  padding: var(--ui-space-2) var(--ui-space-4);
+  font-family: var(--ui-font-display);
+  font-size: var(--ui-text-lg);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: var(--ui-tracking-wide);
+  color: var(--ui-gold-bright);
+  text-shadow: var(--ui-glow-gold);
+  border: 1px solid var(--ui-edge-strong);
+  border-radius: var(--ui-radius);
+  background: rgba(240, 176, 72, 0.08);
+  user-select: all;
+  -webkit-user-select: all;
+}
+
+/* --- the credits (JE_playCredits) --- */
+
+.cinema-credits {
+  --line: clamp(1.9rem, 8.5cqh, 3.4rem);
+  position: absolute;
+  left: var(--ui-gutter);
+  right: var(--ui-gutter);
+  top: 50%;
+  height: calc(var(--line) * 10);
+  transform: translateY(-50%);
+  overflow: hidden;
+  /* The C's black bars at the top and bottom (y < 11, y >= 190), softened. */
+  mask: linear-gradient(180deg, transparent, #000 calc(var(--line) * 0.75), #000 calc(100% - var(--line) * 0.75), transparent);
+}
+
+.cinema-credits__roll {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  will-change: transform;
+}
+
+.cinema-credits__line {
+  height: var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-family: var(--ui-font-display);
+  font-size: calc(var(--line) * 0.4);
+  font-weight: 600;
+  letter-spacing: var(--ui-tracking);
+  white-space: nowrap;
+  color: var(--tint, var(--ui-ink));
+  text-shadow: 0 0 0.6em color-mix(in srgb, var(--tint, var(--ui-ink)) 45%, transparent);
+}
+
+/* The C's credits sit left of centre, beside the pictures; on a wide screen they still do. */
+@container (min-width: 46rem) {
+  .cinema-credits {
+    right: 42%;
+  }
+}
+
+.cinema-credits__pic {
+  position: absolute;
+  right: max(var(--ui-gutter), 6cqw);
+  top: 50%;
+  height: min(46cqh, 38cqw);
+  aspect-ratio: var(--aspect, 1);
+  transform: translateY(-50%);
+  image-rendering: pixelated;
+  opacity: var(--o, 0);
+  filter: drop-shadow(0 0 1.5rem rgba(0, 0, 0, 0.8));
+}
+
+@container (max-width: 46rem) {
+  /* Narrow screens: the pictures behind the text, dimmed. */
+  .cinema-credits__pic {
+    right: 50%;
+    transform: translate(50%, -50%);
+    height: min(40cqh, 70cqw);
+    opacity: calc(var(--o, 0) * 0.35);
+  }
+}
+
+.cinema-credits__ship {
+  position: absolute;
+  width: calc(var(--line) * 1.2);
+  aspect-ratio: 24 / 28;
+  image-rendering: pixelated;
+  left: calc(var(--x, 0) * (100% - var(--line) * 1.2));
+  top: calc(var(--y, 1) * 100%);
+}
+
+.cinema-credits__note {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: var(--text-bottom);
+  text-align: center;
+  font-family: var(--ui-font-display);
+  font-size: var(--ui-text-sm);
+  letter-spacing: var(--ui-tracking);
+  color: var(--ui-steel);
+  opacity: 0;
+  transition: opacity var(--ui-slow) var(--ui-ease);
+}
+
+.cinema-credits__note.is-shown {
+  opacity: 1;
+}

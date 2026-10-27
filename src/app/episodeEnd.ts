@@ -1,23 +1,29 @@
-// The screens at the end of an episode, drawn as the original drew them: a 320x200 screen (vga.ts)
-// in a canvas. JE_loadMap (src/sim/tyrian2.ts) pauses for each one (LoadMapPause) and the host
-// runs it with episodeEndScreens():
+// The screens at the end of an episode, on the stage the story screens use (cinema.ts).
+// JE_loadMap (src/sim/tyrian2.ts) pauses for each one (LoadMapPause) and the host runs it with
+// episodeEndScreens():
 //
-// - "anim": playAnim("tyrend.anm", 0, 7) (animlib.c L152-278), episode 3's `]A[`.
+// - "anim": playAnim("tyrend.anm", 0, 7) (animlib.c L152-278), episode 3's `]A[`: the original
+//   frames, scaled up on the stage.
 // - "displayText": JE_displayText (tyrian2.c L3709-3760) with JE_outCharGlow (mainint.c L85-170):
-//   the final score and a secret hint, `]Q[`.
-// - "credits": JE_playCredits (mainint.c L2347-2518), after the last episode.
-// - "nextEpisode": the next episode's name, from JE_nextEpisode (mainint.c L987-1000).
-// - "superArcadeCode": the next Super Arcade ship and its code (tyrian2.c L2603-2645).
+//   the final score and a secret hint, `]Q[`, glowing in on the story screens' text panel over
+//   the script's picture 5.
+// - "credits": JE_playCredits (mainint.c L2347-2518), after the last episode: the credits roll
+//   smoothly in the interface's type, the C's pictures fade in and out beside them and a ship
+//   weaves up the side.
+// - "nextEpisode": the next episode's name, from JE_nextEpisode (mainint.c L987-1000), as a title
+//   card over the 3D backdrop.
+// - "superArcadeCode": the next Super Arcade ship and its code (tyrian2.c L2603-2645), a card over
+//   the ship turning in the hangar.
 // - "highScoreCheck": JE_highScoreCheck isn't part of this feature; nothing is shown.
 //
 // What the C does with the game's state there (the hint's text, the next episode, the SuperCarrot)
-// is in the sim; these only draw and wait. They use the sim's mt_rand where the C does (the
-// credits' ships), so the random sequence afterwards is the C's for the same key presses.
+// is in the sim; these only draw and wait, with the C's frame timing and its rule that any key
+// moves on. They use the sim's mt_rand where the C does (the credits' ships), so the random
+// sequence afterwards is the C's for the same key presses.
 
-import "./episodeEnd.css";
 import { animFrames, parseAnim } from "../data/anim";
 import { parseCredits } from "../data/credits";
-import { parseSpriteTable } from "../data";
+import { parseSpriteTable, type TableSprite } from "../data";
 import type { MusicPlayer } from "../audio/remaster";
 import { parseMenuText, type MenuText } from "../sim/helptext";
 import { mt_rand } from "../sim/mtrand";
@@ -26,17 +32,16 @@ import { s8, s16 } from "../sim/cint";
 import { g, SA_ENGAGE, SA_NORTSHIPZ } from "../sim/state";
 import { TYREND_ANIM, type LoadMapPause } from "../sim/tyrian2";
 import { SANextShip, SAShip } from "../sim/varz";
-import { fontSprite, paletteRgb, Vga, type SpriteTableSprites } from "./vga";
+import { h, title, ui } from "../ui";
+import { bankTint, openCinema, releaseCinema, STAGE_H, STAGE_W, type Cinema } from "./cinema";
+import { BLACK } from "./fade";
+import { displayTextOver, drawPicture, paletteColors, pictureSource } from "./storyScreens";
+import { paletteRgb, Vga, type PressSource } from "./vga";
 
 export interface EpisodeEndHost {
   files: TyrianFiles;
   music: MusicPlayer;
 }
-
-/** sprite.h: the sprite tables in tyrian.shp. */
-const FONT_SHAPES = 0;
-const SMALL_FONT_SHAPES = 1;
-const TINY_FONT = 2;
 
 /** pcxmast.c pcxpal[]: each picture's palette. */
 const pcxpal = [0, 7, 5, 8, 10, 5, 18, 19, 19, 20, 21, 22, 5];
@@ -48,8 +53,6 @@ const HINT_PICTURE = 5;
 const SONG_CREDITS = 8;
 const SONG_CREDITS_END = 9;
 
-const fonts = () => g.res.spriteTables.map((t) => t.sprites) as SpriteTableSprites[];
-
 let menuText: { hdt: Uint8Array; text: MenuText } | null = null;
 function texts(files: TyrianFiles): MenuText {
   const hdt = requireFile(files, "tyrian.hdt");
@@ -57,24 +60,8 @@ function texts(files: TyrianFiles): MenuText {
   return menuText.text;
 }
 
-// One screen stays up between screens that follow each other, so the 3D view doesn't flash
-// through; it goes once nothing has used it for a moment (the item screen or the level is next).
-let screen: Vga | null = null;
-let closeTimer = 0;
-
-function openScreen(): Vga {
-  clearTimeout(closeTimer);
-  screen ??= new Vga();
-  return screen;
-}
-
-function releaseScreen(): void {
-  clearTimeout(closeTimer);
-  closeTimer = window.setTimeout(() => {
-    screen?.dispose();
-    screen = null;
-  }, 150);
-}
+/** The stage's presses, as the 320x200 screen's waits read them. */
+const stageInput = (stage: Cinema): PressSource => ({ get: () => stage.getInput(), clear: () => stage.clearInput() });
 
 /**
  * The host's handler for JE_loadMap's pauses other than the item screen. Make one for each
@@ -91,35 +78,50 @@ export function episodeEndScreens(host: EpisodeEndHost): (pause: Exclude<LoadMap
   return async (pause) => {
     if (pause === "highScoreCheck") return; // JE_highScoreCheck: not part of this feature
     playSimSong();
-    const v = openScreen();
+    // The stage the story screens left up (the hint is written over their picture), or a new one.
+    const stage = openCinema();
     try {
       switch (pause) {
         case "anim":
-          await playAnim(v, host.files);
+          await playAnim(stage, host.files);
           break;
         case "displayText":
-          await displayHint(v);
+          await displayHint(stage, host.files);
           break;
         case "credits":
-          await playCredits(v, host);
+          await playCredits(stage, host);
           playing = -1;
           break;
         case "nextEpisode":
-          await showNextEpisode(v, host.files);
+          await showNextEpisode(stage, host.files);
           break;
         case "superArcadeCode":
-          await showSuperArcadeCode(v, host.files);
+          await showSuperArcadeCode(stage, host.files);
           break;
       }
     } finally {
-      releaseScreen();
+      stage.setSkip("none");
+      releaseCinema();
     }
   };
 }
 
-/** playAnim(filename, startingFrame, speed) (animlib.c L152-278). */
-async function playAnim(v: Vga, files: TyrianFiles): Promise<void> {
+/** playAnim(filename, startingFrame, speed) (animlib.c L152-278), each frame scaled up on the stage. */
+async function playAnim(stage: Cinema, files: TyrianFiles): Promise<void> {
   const { filename, startingFrame, speed } = TYREND_ANIM;
+
+  stage.clearOverlay();
+  stage.setMode("picture");
+  stage.setSkip("skip");
+  stage.fade.set(0); // the animation sets its own palette
+  const v = new Vga({
+    input: stageInput(stage),
+    onShow: (canvas) => {
+      stage.ctx.imageSmoothingEnabled = false;
+      stage.ctx.drawImage(canvas, 0, 0, STAGE_W, STAGE_H);
+      stage.present();
+    },
+  });
 
   v.clr256();
   v.showVGA();
@@ -143,121 +145,49 @@ async function playAnim(v: Vga, files: TyrianFiles): Promise<void> {
 }
 
 /**
- * The `]Q[` text: JE_displayText of g.levelWarningText at g.frameCountMax, over picture 5's
- * palette, then fade_black(15). The picture itself is the episode script's `]P`, not drawn here.
+ * The `]Q[` text: JE_displayText of g.levelWarningText at g.frameCountMax in picture 5's palette,
+ * then fade_black(15). It's written over the picture the script's `]P 005[` put up; if the stage
+ * is fresh (that picture wasn't shown), picture 5 is put up first.
  */
-async function displayHint(v: Vga): Promise<void> {
-  v.clr256();
-  v.setPalette(paletteRgb(g.res.palettes[pcxpal[HINT_PICTURE - 1]]));
-  v.input.clear();
+async function displayHint(stage: Cinema, files: TyrianFiles): Promise<void> {
+  const palette = pcxpal[HINT_PICTURE - 1];
+  if (!stage.showing || stage.mode !== "picture") {
+    const { source } = await pictureSource(files, HINT_PICTURE, palette);
+    stage.blank();
+    drawPicture(stage, source);
+    stage.fade.set(0);
+  }
+  stage.clearOverlay();
 
-  await JE_displayText(v, g.levelWarningText, g.frameCountMax);
+  await displayTextOver(stage, paletteColors(palette), {
+    lines: [...g.levelWarningText],
+    prompt: g.miscText[4],
+    frameCountMax: g.frameCountMax,
+    warningRed: false,
+    warningDisplay: false,
+    useLastBank: g.useLastBank,
+  });
 
-  await v.fadeBlack(15);
+  await stage.fadeTo(1, BLACK, 15);
+}
+
+/** One line of tyrian.cdt as the credits show it: its colour bank and text, or null for a blank line. */
+export function creditLine(raw: string): { bank: number; text: string } | null {
+  if (raw.length === 0 || raw[0] === ".") return null;
+  return { bank: (raw.charCodeAt(0) - 65) & 0xff, text: raw.slice(1) };
 }
 
 /**
- * JE_displayText (tyrian2.c L3709-3760), without the warning bars (`]W` with sirens) and Esc.
- * `frameCountMax` is a copy: the C's changes to it only matter within the screen.
+ * How far the credits have rolled at tick `ticks`, in lines: line L's top is at (11 + L - roll)
+ * lines from the top of the C's 10-line screen (y = 220 + 20 L - ticks / 3, 20 pixels a line).
+ * The C moves a pixel every 3 ticks; this is the same line, without the steps. Pure, for tests.
  */
-async function JE_displayText(v: Vga, lines: string[], frameCountMax: number): Promise<void> {
-  const tiny = fonts()[TINY_FONT];
-  const st = { frameCountMax };
-
-  /* Display Warning Text */
-  let tempY = 55;
-  for (const line of lines) {
-    await JE_outCharGlow(v, 10, tempY, line, tiny, st);
-    tempY += 10;
-  }
-
-  let slow: boolean;
-  if (st.frameCountMax !== 0) {
-    st.frameCountMax = 6;
-    slow = true;
-  } else {
-    slow = false;
-  }
-  const tempW = 184;
-
-  await JE_outCharGlow(v, Vga.fontCenter(g.miscText[4], tiny), tempW, g.miscText[4], tiny, st);
-
-  for (;;) {
-    v.setFrameCount(1);
-
-    if (await v.waitUntilGetInputOrElapsed()) break;
-
-    if (st.frameCountMax === 0 && slow) break;
-  }
-}
-
-/** JE_outCharGlow (mainint.c L85-170): the text lights up a character at a time. */
-async function JE_outCharGlow(v: Vga, x: number, y: number, s: string, tiny: SpriteTableSprites, st: { frameCountMax: number }): Promise<void> {
-  const glowcol = new Array<number>(60).fill(-8);
-  const glowcolc = new Array<number>(60).fill(1);
-  const textloc = new Array<number>(60).fill(0);
-
-  const bank = g.useLastBank ? 15 : 14;
-
-  if (s.length === 0) return;
-
-  if (st.frameCountMax === 0) {
-    v.textShadePart(x, y, s, bank, 0, tiny);
-    v.showVGA();
-    return;
-  }
-
-  const maxloc = s.length;
-
-  let loc = x;
-  for (let z = 0; z < maxloc; z++) {
-    textloc[z] = loc;
-
-    const sprite_id = fontSprite(s, z);
-
-    if (s[z] === " ") loc += 6;
-    else if (sprite_id !== -1) loc += (tiny[sprite_id]?.width ?? 0) + 1;
-  }
-
-  for (loc = 0; loc < s.length + 28; loc++) {
-    v.setFrameCount(1);
-
-    let sprite_id = -1;
-
-    let z: number;
-    for (z = loc - 28; z <= loc; z++) {
-      if (z >= 0 && z < maxloc) {
-        sprite_id = fontSprite(s, z);
-
-        const sprite = tiny[sprite_id];
-        if (sprite_id !== -1 && sprite) {
-          v.blitSpriteHV(textloc[z], y, sprite, bank, glowcol[z]);
-
-          glowcol[z] = s8(glowcol[z] + glowcolc[z]);
-          if (glowcol[z] > 9) glowcolc[z] = -1;
-        }
-      }
-    }
-    const last = tiny[sprite_id];
-    if (sprite_id !== -1 && --z < maxloc && last) v.blitSpriteDark(textloc[z] + 1, y + 1, last, true);
-
-    v.showVGA();
-
-    for (let frameCount = st.frameCountMax; frameCount > 0; --frameCount) {
-      await v.waitUntilElapsed();
-
-      if (v.input.get()) st.frameCountMax = 0;
-
-      v.setFrameCount(1);
-    }
-  }
+export function creditsRoll(ticks: number): number {
+  return ticks / 3 / 20;
 }
 
 /** JE_playCredits (mainint.c L2347-2518). */
-async function playCredits(v: Vga, host: EpisodeEndHost): Promise<void> {
-  const small = fonts()[SMALL_FONT_SHAPES];
-  const tiny = fonts()[TINY_FONT];
-
+async function playCredits(stage: Cinema, host: EpisodeEndHost): Promise<void> {
   let currentpic = 0;
   let fade = 0;
   let fadechg = 1;
@@ -275,6 +205,9 @@ async function playCredits(v: Vga, host: EpisodeEndHost): Promise<void> {
   }
   const extraShapes = parseSpriteTable(estsc).sprites; // load_sprites_file(EXTRA_SHAPES, "estsc.shp")
 
+  // Only the timers and the sprite blits of the C's screen are used: the credits are drawn on the stage.
+  const v = new Vga({ input: stageInput(stage) });
+
   v.setFrameCount2(1000);
 
   host.music.play(SONG_CREDITS);
@@ -283,9 +216,10 @@ async function playCredits(v: Vga, host: EpisodeEndHost): Promise<void> {
   const credstr = parseCredits(cdt);
 
   const colors = paletteRgb(g.res.palettes[6 - 1]);
-  v.clr256();
-  v.showVGA();
-  await v.fadePalette(colors, 2);
+  stage.blank();
+  stage.setSkip("skip");
+  const view = new CreditsView(stage, credstr, colors, extraShapes);
+  await stage.fadeTo(0, BLACK, 2); // fade_palette(colors, 2)
 
   let songFaded = false;
   let endSong = false;
@@ -294,10 +228,7 @@ async function playCredits(v: Vga, host: EpisodeEndHost): Promise<void> {
   for (let ticks = 0; ticks < ticks_max; ++ticks) {
     v.setFrameCount(1);
 
-    v.clr256();
-
-    const pic = extraShapes[currentpic];
-    if (pic) v.blitSpriteHV(319 - pic.width, 100 - Math.trunc(pic.height / 2), pic, 0x0, fade - 15);
+    view.picture(currentpic, fade);
 
     fade += fadechg;
     if (fade === 0 && fadechg === -1) {
@@ -353,32 +284,16 @@ async function playCredits(v: Vga, host: EpisodeEndHost): Promise<void> {
     if (shipxc < -10) ship_sprite -= shipxc < -20 ? 4 : 2;
     else if (shipxc > 10) ship_sprite += shipxc > 20 ? 4 : 2;
 
-    v.blitSprite2x2(Math.trunc(shipx / 40), 184 - (ticks % 200), g.res.spriteSheet9.data, ship_sprite);
+    // blit_sprite2x2(shipx / 40, 184 - (ticks % 200), ship_sprite)
+    view.ship(ship_sprite, shipx, 184 - (ticks % 200));
+
+    // The lines bottom_line - 10 .. bottom_line - 1 at y = 20 - (ticks / 3) % 20 + 20 k.
+    view.roll(creditsRoll(ticks));
+
+    // levels-in-episode, under the last picture
+    view.note(currentpic === extraShapes.length - 1 ? g.miscText[54] : null);
 
     const bottom_line = Math.trunc(Math.trunc(ticks / 3) / 20);
-    let y = 20 - (Math.trunc(ticks / 3) % 20);
-
-    for (let line = bottom_line - 10; line < bottom_line; ++line) {
-      if (line >= 0 && line < credstr.length) {
-        if (credstr[line][0] !== "." && credstr[line].length > 0) {
-          const color = (credstr[line].charCodeAt(0) - 65) & 0xff;
-          const text = credstr[line].slice(1);
-
-          const x = 110 - Math.trunc(Vga.textWidth(text, small) / 2);
-
-          v.outTextAdjust(x + Math.abs((Math.trunc(y / 18) % 4) - 2) - 1, y - 1, text, color, -8, small, tiny, false);
-          v.outTextAdjust(x, y, text, color, -2, small, tiny, false);
-        }
-      }
-
-      y += 20;
-    }
-
-    v.fillRectangleXY(0, 0, 319, 10, 0);
-    v.fillRectangleXY(0, 190, 319, 199, 0);
-
-    if (currentpic === extraShapes.length - 1) v.outTextAdjust(5, 180, g.miscText[54], 2, -2, small, tiny, false); // levels-in-episode
-
     // fade_song() every tick of that line in the C; once is the same.
     if (bottom_line === credstr.length - 8 && !songFaded) {
       songFaded = true;
@@ -392,67 +307,152 @@ async function playCredits(v: Vga, host: EpisodeEndHost): Promise<void> {
       endSong = true;
     }
 
-    v.showVGA();
+    // JE_showVGA()
 
     if (await v.waitUntilGetInputOrElapsed()) break;
   }
 
-  await v.fadeBlack(10);
+  await stage.fadeTo(1, BLACK, 10); // fade_black(10)
+}
+
+/** The credits on the stage: the rolling lines, the pictures beside them, the ship and the note. */
+class CreditsView {
+  private readonly rollEl: HTMLElement;
+  private readonly noteEl: HTMLElement;
+  private readonly shipEl: HTMLCanvasElement;
+  private readonly pictures: (HTMLCanvasElement | null)[];
+  private shownPic = -1;
+  private shipSprite = -1;
+  private noteText: string | null = null;
+  /** A scratch 320x200 screen to draw the C's sprites on before cutting them out. */
+  private readonly scratch = new Vga();
+
+  constructor(
+    stage: Cinema,
+    credstr: string[],
+    private readonly colors: Uint8Array,
+    shapes: (TableSprite | null)[],
+  ) {
+    this.rollEl = h("div", { class: "cinema-credits__roll" });
+    for (const raw of credstr) {
+      const line = creditLine(raw);
+      const el = h("div", { class: "cinema-credits__line", text: line?.text ?? "" });
+      // JE_outTextAdjust(..., color, -2): the bank's shade, two below the glyphs' own.
+      if (line) el.style.setProperty("--tint", bankTint(colors, line.bank).ink);
+      this.rollEl.append(el);
+    }
+    this.noteEl = h("div", { class: "cinema-credits__note" });
+    this.shipEl = h("canvas", { class: "cinema-credits__ship", attrs: { width: "24", height: "28" } });
+    // Each picture once, at full brightness; the C's fade (fade - 15) becomes its opacity.
+    this.pictures = shapes.map((pic) => {
+      if (!pic) return null;
+      this.scratch.clr256();
+      this.scratch.blitSpriteHV(0, 0, pic, 0x0, 0);
+      const canvas = this.scratch.cutOut(pic.width, Math.min(pic.height, 200), colors);
+      canvas.className = "cinema-credits__pic";
+      canvas.style.setProperty("--aspect", `${pic.width} / ${pic.height}`);
+      return canvas;
+    });
+    stage.layer.replaceChildren(
+      h("div", { class: "cinema-credits", attrs: { "aria-label": "Credits", role: "marquee" } }, this.rollEl),
+      ...this.pictures.filter((p): p is HTMLCanvasElement => p !== null),
+      this.shipEl,
+      this.noteEl,
+    );
+  }
+
+  /** blit_sprite_hv(pic, 319 - width, 100 - height / 2, 0x0, fade - 15): picture `n` at fade 0..15. */
+  picture(n: number, fade: number): void {
+    if (n !== this.shownPic) {
+      this.pictures[this.shownPic]?.style.setProperty("--o", "0");
+      this.shownPic = n;
+    }
+    this.pictures[n]?.style.setProperty("--o", String(Math.max(0, Math.min(1, fade / 15))));
+  }
+
+  /** The ship: sprite `sprite` (2x2 tiles) at x shipx / 40 and y, in the C's 320x200 screen. */
+  ship(sprite: number, shipx: number, y: number): void {
+    if (sprite !== this.shipSprite) {
+      this.shipSprite = sprite;
+      this.scratch.clr256();
+      this.scratch.blitSprite2x2(0, 0, g.res.spriteSheet9.data, sprite);
+      const cut = this.scratch.cutOut(24, 28, this.colors);
+      const ctx = this.shipEl.getContext("2d")!;
+      ctx.clearRect(0, 0, 24, 28);
+      ctx.drawImage(cut, 0, 0);
+    }
+    this.shipEl.style.setProperty("--x", String((shipx - 1) / 899));
+    this.shipEl.style.setProperty("--y", String(y / 200));
+  }
+
+  /** Roll the lines `roll` lines on (creditsRoll). */
+  roll(roll: number): void {
+    this.rollEl.style.transform = `translateY(calc(${(11 - roll).toFixed(4)} * var(--line)))`;
+  }
+
+  /** The note under the last picture (miscText[54], the levels in each episode), or none. */
+  note(text: string | null): void {
+    if (text === this.noteText) return;
+    this.noteText = text;
+    if (text !== null) this.noteEl.textContent = text;
+    this.noteEl.classList.toggle("is-shown", text !== null);
+  }
+}
+
+/** An episode's name, "Episode 2: Treachery", as a title and its kicker. */
+export function splitEpisodeName(name: string): { kicker?: string; title: string } {
+  const at = name.indexOf(":");
+  if (at < 0) return { title: name.trim() };
+  return { kicker: name.slice(0, at).trim(), title: name.slice(at + 1).trim() };
 }
 
 /**
- * JE_nextEpisode's title for the next episode (mainint.c L992-1000): its name, miscText[4] under
- * it, faded in on palette 6, until a key is pressed.
+ * JE_nextEpisode's title for the next episode (mainint.c L992-1000): its name (miscText[4], the
+ * C's "Press a key" under it, is the card's key hint), faded in, until a key is pressed.
  */
-async function showNextEpisode(v: Vga, files: TyrianFiles): Promise<void> {
-  const small = fonts()[SMALL_FONT_SHAPES];
-  const name = texts(files).episodeName[g.episodeNum] ?? "";
+async function showNextEpisode(stage: Cinema, files: TyrianFiles): Promise<void> {
+  const name = splitEpisodeName(texts(files).episodeName[g.episodeNum] ?? "");
 
-  v.clr256();
-  const colors = paletteRgb(g.res.palettes[6 - 1]);
+  stage.blank();
+  stage.setMode("space");
+  stage.showCard(h("div", { class: "cinema-card" }, title(name.title, name.kicker)));
 
-  v.dString(Vga.fontCenter(name, small), 130, name, small);
-  v.dString(Vga.fontCenter(g.miscText[5 - 1], small), 185, g.miscText[5 - 1], small);
+  await stage.fadeTo(0, BLACK, 15); // fade_palette(colors, 15)
 
-  v.showVGA();
-  await v.fadePalette(colors, 15);
-
-  await v.waitUntilGetInput();
+  await stage.waitUntilGetInput();
 }
 
 /**
- * After the last episode, the next Super Arcade ship (tyrian2.c L2603-2645): its name, picture
- * and the code to type at the title screen, on picture 1's palette.
+ * After the last episode, the next Super Arcade ship (tyrian2.c L2603-2645): its name, the ship
+ * (the backdrop's 3D model of its sprite, turning in the hangar) and the code to type at the
+ * title screen, faded in over 50 frames, until a key is pressed.
  */
-async function showSuperArcadeCode(v: Vga, files: TyrianFiles): Promise<void> {
-  const font = fonts()[FONT_SHAPES];
-  const small = fonts()[SMALL_FONT_SHAPES];
+async function showSuperArcadeCode(stage: Cinema, files: TyrianFiles): Promise<void> {
   const { superShips, specialName } = texts(files);
   const next = SANextShip[g.superArcadeMode];
 
-  // JE_loadPic(VGAScreen, 1, false): colors becomes picture 1's palette; the picture is cleared.
-  const colors = paletteRgb(g.res.palettes[pcxpal[1 - 1]]);
-  v.clr256();
-
+  stage.blank();
+  const card = h("div", { class: "cinema-card" });
   if (next === SA_ENGAGE) {
-    let buffer = `${g.miscTextB[4]} ${g.pName[0]}`;
-    v.dString(Vga.fontCenter(buffer, font), 100, buffer, font);
-
-    buffer = `Or play... ${specialName[7]}`;
-    v.dString(80, 180, buffer, small);
+    card.append(title(`${g.miscTextB[4]} ${g.pName[0]}`), h("p", { text: `Or play... ${specialName[7]}` }));
   } else {
-    v.dString(Vga.fontCenter(superShips[0], font), 30, superShips[0], font);
-    v.dString(Vga.fontCenter(superShips[next], small), 100, superShips[next], small);
+    card.append(title(superShips[next], superShips[0]));
   }
 
-  if (next < SA_NORTSHIPZ) v.blitSprite2x2(148, 70, g.res.spriteSheet9.data, g.res.items.ships[SAShip[next - 1]].shipGraphic);
+  // blit_sprite2x2(148, 70, ships[SAShip[next - 1]].shipGraphic)
+  const shipGraphic = next < SA_NORTSHIPZ ? g.res.items.ships[SAShip[next - 1]].shipGraphic : -1;
   // else if (next == SA_NORTSHIPZ) trentWin = true: done by the sim.
+  stage.setMode(shipGraphic >= 0 ? "hangar" : "space");
+  if (shipGraphic >= 0) ui.backdrop?.setShipGraphic?.(shipGraphic);
 
-  const buffer = `Type ${specialName[next - 1]} at Title`;
-  v.dString(Vga.fontCenter(buffer, small), 160, buffer, small);
-  v.showVGA();
+  // "Type <code> at Title", the code picked out.
+  card.append(h("p", {}, "Type ", h("span", { class: "cinema-code", text: specialName[next - 1] }), " at Title"));
+  stage.showCard(card);
 
-  await v.fadePalette(colors, 50);
+  await stage.fadeTo(0, BLACK, 50); // fade_palette(colors, 50)
 
-  await v.waitUntilGetInput();
+  await stage.waitUntilGetInput();
+
+  // The backdrop shows the player's own ship again.
+  if (shipGraphic >= 0) ui.backdrop?.setShipGraphic?.(g.res.items.ships[g.player[0].items.ship]?.shipGraphic ?? -1);
 }

@@ -8,7 +8,7 @@
 //
 // JE_main's level fades (tyrian2.c L716 fade_palette(colors, 50) after the level loads, L639
 // fade_black(10) after a death, and JE_endLevelAni's fade_black(15) after the level-end text) use
-// the layer over the 3D view, levelFade(); the story screens have their own.
+// the layer over the 3D view, levelFade(); the story screens have their own (cinema.ts).
 
 import "./story.css";
 import { CLASSIC_TICK_MS } from "../core/timing";
