@@ -21,6 +21,7 @@ import { EpisodeEndError, loadLevelAsync } from "../sim/tyrian2";
 import type { View } from "../render/view";
 import { Controls } from "./controls";
 import { Hud } from "./hud";
+import { PauseButton, showPause } from "./pause"; // ui-framework: pause screen
 import { askForData, showMessage, showStatus, showTitle, type TitleChoice } from "./screens";
 import { runItemScreen } from "./shop";
 
@@ -101,6 +102,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
   const sfx = new SoundEffects(requireFile(files, "tyrian.snd"), requireFile(files, "voices.snd"), audioContext);
   const controls = new Controls(() => view.gamePixelsPerScreenPixel);
   const hud = new Hud();
+  const pauseButton = new PauseButton(() => (controls.pauseRequested = true)); // ui-framework
   loading();
 
   if (import.meta.env.DEV) Object.assign(window, { tyrian: { g, view, music, sfx } });
@@ -151,12 +153,15 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
       hud.visible = true;
 
       controls.active = true;
+      pauseButton.visible = true; // ui-framework
       const outcome = await playLevel(view, controls, sfx, music, hud);
       controls.active = false;
       controls.release();
       hud.visible = false;
+      pauseButton.visible = false; // ui-framework
 
       g.difficultyLevel = g.oldDifficultyLevel; /*Return difficulty to normal*/
+      if (outcome === "quit") break; // ui-framework: "Quit to title" on the pause screen (src/app/pause.ts)
 
       if (outcome === "completed") {
         g.mainLevel = g.nextLevel;
@@ -184,29 +189,34 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
   }
 }
 
-type Outcome = "completed" | "died";
+type Outcome = "completed" | "died" | "quit";
 
 function playLevel(view: View, controls: Controls, sfx: SoundEffects, music: MusicPlayer, hud: Hud): Promise<Outcome> {
   return new Promise((resolve) => {
     let last = performance.now();
     let acc = 0;
     let paused = false;
-    let pauseEl: (() => void) | null = null;
+    let quit = false;
 
     const frame = (now: number) => {
-      if (controls.pauseRequested) {
+      // ui-framework: the pause screen (src/app/pause.ts) replaces the "Paused" status line.
+      if (controls.pauseRequested && !paused) {
         controls.pauseRequested = false;
-        paused = !paused;
-        if (paused) {
-          controls.release();
-          controls.active = false;
-          pauseEl = showStatus("Paused · press Esc or P to continue");
-          music.volume = 0.3;
-        } else {
-          pauseEl?.();
+        paused = true;
+        controls.release();
+        controls.active = false;
+        music.volume = 0.3;
+        void showPause().then((choice) => {
+          paused = false;
+          quit = choice === "quit";
+          controls.clear();
           controls.active = true;
           music.volume = 1;
-        }
+        });
+      }
+      if (quit) {
+        resolve("quit");
+        return;
       }
       if (paused) {
         last = now;

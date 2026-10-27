@@ -1,0 +1,621 @@
+/*
+ * Base components of the remastered interface (src/ui/components.ts, screen.ts). Everything is
+ * drawn with borders, gradients and shadows, so it stays crisp at any resolution; colours, sizes
+ * and timings come from tokens.css.
+ */
+
+/* --- screens --- */
+
+.ui-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: max(16px, env(safe-area-inset-top)) var(--ui-gutter) max(16px, env(safe-area-inset-bottom));
+  overflow: hidden;
+  color: var(--ui-ink);
+  font-family: var(--ui-font-text);
+  font-size: var(--ui-text-md);
+  line-height: 1.45;
+  -webkit-tap-highlight-color: transparent;
+  opacity: 0;
+  transition: opacity var(--ui-med) var(--ui-ease);
+}
+
+.ui-screen.is-shown {
+  opacity: 1;
+}
+
+.ui-screen.is-leaving {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ui-screen--scrim {
+  background: radial-gradient(ellipse at center, rgba(1, 3, 8, 0.45), var(--ui-scrim));
+}
+
+/* Panels slide up into place as their screen fades in. */
+.ui-screen > .ui-panel {
+  transform: translateY(var(--ui-slide));
+  transition: transform var(--ui-slow) var(--ui-ease);
+}
+
+.ui-screen.is-shown > .ui-panel {
+  transform: none;
+}
+
+.ui-screen.is-leaving > .ui-panel {
+  transform: translateY(calc(var(--ui-slide) * -0.5));
+}
+
+/* --- panels --- */
+
+.ui-panel {
+  --corner: var(--ui-corner);
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--ui-space-5);
+  background:
+    /* gold corner brackets */
+    linear-gradient(var(--ui-gold), var(--ui-gold)) top left / var(--corner) 2px,
+    linear-gradient(var(--ui-gold), var(--ui-gold)) top left / 2px var(--corner),
+    linear-gradient(var(--ui-gold), var(--ui-gold)) top right / var(--corner) 2px,
+    linear-gradient(var(--ui-gold), var(--ui-gold)) top right / 2px var(--corner),
+    linear-gradient(var(--ui-gold), var(--ui-gold)) bottom left / var(--corner) 2px,
+    linear-gradient(var(--ui-gold), var(--ui-gold)) bottom left / 2px var(--corner),
+    linear-gradient(var(--ui-gold), var(--ui-gold)) bottom right / var(--corner) 2px,
+    linear-gradient(var(--ui-gold), var(--ui-gold)) bottom right / 2px var(--corner),
+    /* a faint cyan sheen along the top */
+    linear-gradient(180deg, rgba(92, 214, 255, 0.07), transparent 5rem),
+    var(--ui-panel);
+  background-repeat: no-repeat;
+  border: 1px solid var(--ui-edge);
+  border-radius: var(--ui-radius);
+  box-shadow: var(--ui-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  scrollbar-width: thin;
+  scrollbar-color: var(--ui-steel-dark) transparent;
+}
+
+.ui-panel--narrow { max-width: 28rem; }
+.ui-panel--center { max-width: 36rem; }
+.ui-panel--wide { max-width: 60rem; }
+
+.ui-panel > :first-child { margin-top: 0; }
+.ui-panel > :last-child { margin-bottom: 0; }
+
+.ui-panel p {
+  margin: var(--ui-space-2) 0;
+  color: var(--ui-ink-dim);
+}
+
+.ui-panel p b,
+.ui-panel p strong {
+  color: var(--ui-ink);
+  font-weight: 600;
+}
+
+.ui-rule {
+  height: 1px;
+  margin: var(--ui-space-4) 0;
+  border: 0;
+  background: linear-gradient(90deg, transparent, var(--ui-edge-strong), transparent);
+}
+
+/* --- titles --- */
+
+.ui-logo {
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.15em;
+  font-family: var(--ui-font-display);
+  font-weight: 900;
+  font-size: var(--ui-text-hero);
+  line-height: 1;
+  letter-spacing: 0.12em;
+  user-select: none;
+}
+
+.ui-logo__word {
+  background: linear-gradient(180deg, #fff6d0 0%, var(--ui-gold-bright) 38%, var(--ui-gold) 55%, var(--ui-gold-deep) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0.04em 0 #3a2204) drop-shadow(0 0 0.35em rgba(255, 190, 80, 0.35));
+}
+
+.ui-logo__tag {
+  font-size: 0.38em;
+  margin-top: 0.08em;
+  color: var(--ui-cyan);
+  letter-spacing: 0.05em;
+  text-shadow: var(--ui-glow-cyan);
+}
+
+.ui-title {
+  margin: 0 0 var(--ui-space-3);
+  display: flex;
+  flex-direction: column;
+  gap: 0.15em;
+  font-family: var(--ui-font-display);
+  font-weight: 700;
+  font-size: var(--ui-text-xl);
+  line-height: 1.15;
+  letter-spacing: var(--ui-tracking);
+  text-transform: uppercase;
+  color: var(--ui-gold);
+  text-shadow: var(--ui-glow-gold);
+}
+
+h3.ui-title {
+  font-size: var(--ui-text-lg);
+}
+
+.ui-title__kicker {
+  font-size: var(--ui-text-xs);
+  letter-spacing: var(--ui-tracking-wide);
+  color: var(--ui-cyan);
+  text-shadow: none;
+}
+
+.ui-label {
+  display: block;
+  margin: var(--ui-space-4) 0 var(--ui-space-2);
+  font-family: var(--ui-font-display);
+  font-size: var(--ui-text-xs);
+  letter-spacing: var(--ui-tracking-wide);
+  text-transform: uppercase;
+  color: var(--ui-steel);
+}
+
+/* --- menu lists --- */
+
+.ui-menu {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ui-menu__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-3);
+  min-height: var(--ui-hit);
+  box-sizing: border-box;
+  padding: var(--ui-space-1) var(--ui-space-3) var(--ui-space-1) var(--ui-space-4);
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius);
+  color: var(--ui-ink-dim);
+  cursor: pointer;
+  user-select: none;
+  transition:
+    color var(--ui-fast) var(--ui-ease),
+    background-color var(--ui-fast) var(--ui-ease),
+    border-color var(--ui-fast) var(--ui-ease),
+    box-shadow var(--ui-med) var(--ui-ease);
+}
+
+/* The focus marker: a gold bar on the left edge that grows in. */
+.ui-menu__item::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 50%;
+  width: 3px;
+  height: 0;
+  border-radius: 2px;
+  background: var(--ui-gold-bright);
+  box-shadow: var(--ui-glow-gold);
+  transform: translateY(-50%);
+  transition: height var(--ui-med) var(--ui-ease);
+}
+
+@media (hover: hover) {
+  .ui-menu__item:hover {
+    color: var(--ui-ink);
+    background-color: rgba(143, 163, 184, 0.07);
+  }
+}
+
+.ui-menu__item.is-focused {
+  color: var(--ui-ink-warm);
+  background: var(--ui-focus-fill);
+  border-color: rgba(240, 176, 72, 0.45);
+  box-shadow: inset 0 0 1.25rem rgba(240, 176, 72, 0.08), 0 0 0.75rem rgba(240, 176, 72, 0.12);
+}
+
+.ui-menu__item.is-focused::before {
+  height: 60%;
+}
+
+.ui-menu__item.is-disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.ui-menu__icon {
+  flex: none;
+  width: 2.25rem;
+  height: 2.6rem;
+  display: grid;
+  place-items: center;
+  border-radius: var(--ui-radius);
+  background: rgba(143, 163, 184, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(143, 163, 184, 0.12);
+}
+
+.ui-menu__icon img {
+  width: 100%;
+  image-rendering: pixelated;
+}
+
+.ui-menu__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ui-menu__label {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.ui-menu__detail {
+  font-size: 0.8em;
+  color: var(--ui-ink-faint);
+}
+
+.ui-menu__item.is-focused .ui-menu__detail {
+  color: var(--ui-ink-dim);
+}
+
+.ui-badge {
+  margin-left: auto;
+  padding: 1px 6px;
+  font-family: var(--ui-font-display);
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+  color: var(--ui-ok);
+  border: 1px solid rgba(143, 209, 143, 0.5);
+  border-radius: var(--ui-radius);
+}
+
+/* A row of choices (difficulty, yes/no): the focused one is the value. */
+.ui-menu--row {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--ui-space-2);
+}
+
+.ui-menu--row .ui-menu__item {
+  justify-content: center;
+  padding: var(--ui-space-1) var(--ui-space-4);
+  border-color: var(--ui-edge);
+  font-family: var(--ui-font-display);
+  font-size: var(--ui-text-sm);
+  letter-spacing: var(--ui-tracking);
+  text-transform: uppercase;
+}
+
+.ui-menu--row .ui-menu__item::before {
+  left: 50%;
+  top: auto;
+  bottom: 3px;
+  width: 0;
+  height: 2px;
+  transform: translateX(-50%);
+  transition: width var(--ui-med) var(--ui-ease);
+}
+
+.ui-menu--row .ui-menu__item.is-focused::before {
+  width: 50%;
+  height: 2px;
+}
+
+/* --- buttons --- */
+
+.ui-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ui-space-2);
+  min-height: var(--ui-hit);
+  padding: 0 var(--ui-space-4);
+  font: inherit;
+  font-family: var(--ui-font-display);
+  font-size: var(--ui-text-sm);
+  font-weight: 600;
+  letter-spacing: var(--ui-tracking);
+  text-transform: uppercase;
+  color: var(--ui-ink);
+  background: var(--ui-panel-raised);
+  border: 1px solid var(--ui-edge);
+  border-radius: var(--ui-radius);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    border-color var(--ui-fast) var(--ui-ease),
+    box-shadow var(--ui-med) var(--ui-ease),
+    color var(--ui-fast) var(--ui-ease);
+}
+
+.ui-button:hover,
+.ui-button.is-focused {
+  border-color: var(--ui-edge-strong);
+  color: var(--ui-ink-warm);
+  box-shadow: 0 0 0.75rem rgba(240, 176, 72, 0.2);
+}
+
+.ui-button:active {
+  transform: translateY(1px);
+}
+
+.ui-button:disabled {
+  opacity: 0.35;
+  cursor: default;
+  box-shadow: none;
+}
+
+.ui-button--primary {
+  color: #1a0f00;
+  background: linear-gradient(180deg, var(--ui-gold-bright), var(--ui-gold));
+  border-color: var(--ui-gold-bright);
+  box-shadow: var(--ui-glow-gold);
+}
+
+.ui-button--primary:hover,
+.ui-button--primary.is-focused {
+  color: #1a0f00;
+  box-shadow: 0 0 1.1rem rgba(255, 200, 90, 0.55);
+}
+
+.ui-button--ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--ui-ink-dim);
+}
+
+.ui-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--ui-space-3);
+  margin-top: var(--ui-space-4);
+}
+
+/* --- key hints --- */
+
+.ui-hints {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--ui-space-2) var(--ui-space-4);
+  margin-top: var(--ui-space-4);
+  font-size: var(--ui-text-xs);
+  color: var(--ui-ink-faint);
+}
+
+.ui-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+}
+
+.ui-glyphs {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.ui-key {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.5em;
+  height: 1.5em;
+  box-sizing: border-box;
+  padding: 0 0.4em;
+  font-family: var(--ui-font-text);
+  font-size: 0.9em;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ui-ink);
+  border: 1px solid var(--ui-edge);
+  border-bottom-width: 2px;
+  border-radius: var(--ui-radius);
+  background: rgba(143, 163, 184, 0.08);
+}
+
+.ui-key--pad {
+  border-radius: 999px;
+  border-bottom-width: 1px;
+  color: var(--ui-cyan);
+  border-color: rgba(92, 214, 255, 0.45);
+}
+
+.ui-key--touch {
+  border-style: dashed;
+  border-bottom-width: 1px;
+}
+
+/* Show the glyph for the device used last (html[data-input], set by src/ui/nav.ts). */
+.ui-glyphs > [data-dev] { display: none; }
+:root:not([data-input="pad"]):not([data-input="touch"]) .ui-glyphs > [data-dev="keys"],
+:root[data-input="pad"] .ui-glyphs > [data-dev="pad"],
+:root[data-input="touch"] .ui-glyphs > [data-dev="touch"] {
+  display: inline-grid;
+}
+/* A pad hint with no pad glyph falls back to the key; a touch screen hides hints without a tap. */
+:root[data-input="pad"] .ui-glyphs:not(:has([data-dev="pad"])) > [data-dev="keys"] { display: inline-grid; }
+:root[data-input="touch"] [data-no-touch] { display: none; }
+
+/* --- stat bars --- */
+
+.ui-stat {
+  display: grid;
+  grid-template-columns: 4.5rem 1fr;
+  align-items: center;
+  gap: var(--ui-space-2);
+  font-size: var(--ui-text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ui-ink-dim);
+}
+
+.ui-stat__bar {
+  position: relative;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 1px;
+  background: rgba(143, 163, 184, 0.16);
+}
+
+.ui-stat__bar > i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--tone);
+  box-shadow: 0 0 6px var(--tone);
+  transition: width var(--ui-med) var(--ui-ease);
+}
+
+/* Cut the bar into ten segments, over the fill. */
+.ui-stat__bar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(90deg, transparent 0 calc(10% - 2px), var(--ui-panel-solid) calc(10% - 2px) 10%);
+}
+
+.ui-stat--armor { --tone: var(--ui-armor); }
+.ui-stat--shield { --tone: var(--ui-shield); }
+.ui-stat--power { --tone: var(--ui-power); }
+.ui-stat--gold { --tone: var(--ui-gold); }
+.ui-stat--cyan { --tone: var(--ui-cyan); }
+
+/* --- scrolling text --- */
+
+.ui-scroll {
+  max-height: min(50vh, 22rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: var(--ui-space-2);
+  outline: none;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ui-gold-deep) transparent;
+  mask: linear-gradient(180deg, transparent, #000 0.75rem, #000 calc(100% - 0.75rem), transparent);
+}
+
+/* --- modal --- */
+
+.ui-modal {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  padding: var(--ui-gutter);
+  background: var(--ui-scrim);
+  opacity: 0;
+  transition: opacity var(--ui-fast) var(--ui-ease);
+}
+
+.ui-modal.is-shown {
+  opacity: 1;
+}
+
+.ui-modal.is-leaving {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ui-modal__box {
+  text-align: center;
+  transform: scale(0.96);
+  transition: transform var(--ui-med) var(--ui-ease);
+}
+
+.ui-modal.is-shown .ui-modal__box {
+  transform: none;
+}
+
+.ui-modal__actions {
+  margin-top: var(--ui-space-4);
+}
+
+/* --- small pieces --- */
+
+.ui-back {
+  position: absolute;
+  top: var(--ui-space-2);
+  right: var(--ui-space-2);
+}
+
+.ui-error {
+  color: var(--ui-danger) !important;
+}
+
+.ui-spinner {
+  display: inline-block;
+  width: 0.9em;
+  height: 0.9em;
+  margin-right: 0.5em;
+  vertical-align: -0.1em;
+  border: 2px solid var(--ui-cyan-dim);
+  border-top-color: var(--ui-cyan);
+  border-radius: 50%;
+  animation: ui-spin 0.9s linear infinite;
+}
+
+@keyframes ui-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-spinner { animation-duration: 3s; }
+}
+
+/* The CSS stand-in for the 3D backdrop when WebGL is missing (src/ui/backdrop.ts). */
+.ui-backdrop-fallback {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 120% 60% at 50% 115%, #16304a 0 45%, rgba(92, 214, 255, 0.35) 46%, transparent 52%),
+    radial-gradient(1px 1px at 20% 30%, #fff 50%, transparent 51%),
+    radial-gradient(1px 1px at 70% 20%, #cfe 50%, transparent 51%),
+    radial-gradient(1px 1px at 40% 60%, #fff 50%, transparent 51%),
+    radial-gradient(1px 1px at 85% 55%, #fec 50%, transparent 51%),
+    radial-gradient(1px 1px at 10% 75%, #fff 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 55% 40%, #fff 50%, transparent 51%),
+    radial-gradient(1px 1px at 30% 10%, #def 50%, transparent 51%),
+    var(--ui-bg);
+}
+
+.ui-backdrop-fallback[hidden] {
+  display: none;
+}
+
+/* Phones: tighter panels, full-width rows. */
+@media (max-width: 560px) {
+  .ui-panel {
+    padding: var(--ui-space-4);
+  }
+  .ui-menu--row .ui-menu__item {
+    flex: 1 1 0;
+    padding: var(--ui-space-1) var(--ui-space-2);
+  }
+}
