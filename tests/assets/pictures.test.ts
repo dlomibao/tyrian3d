@@ -1,6 +1,7 @@
 // public/art/pictures.json: the new artwork for each tyrian.pic picture (assets/art/README.md).
-// Code that shows a picture looks its number up there, so every entry must name a real file of
-// the pictures' size, and every picture must have one.
+// Code that shows a picture looks its number up there (0 is tshp2.pcx, which the episode script
+// shows as `]P 000`), so every entry must name a real file of the pictures' size, and every
+// picture must have one.
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
@@ -22,8 +23,8 @@ function webpSize(b: Buffer): [number, number] {
 }
 
 describe("pictures.json", () => {
-  test("has a picture for each of tyrian.pic's 13 (PCX_NUM)", () => {
-    expect(Object.keys(pictures).map(Number).sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+  test("has a picture for each of tyrian.pic's 13 (PCX_NUM) and for tshp2.pcx (0)", () => {
+    expect(Object.keys(pictures).map(Number).sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
   });
 
   test.each(Object.entries(pictures))("picture %s (%s) is a 1920x1200 WebP under 600 KB", (_, path) => {

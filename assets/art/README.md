@@ -42,7 +42,12 @@ Numbers are `JE_loadPic` ids (1-based); the palette is `pcxpal[id - 1]` (`src/si
 | 13 | Episode 4, after the tunnel boss (`]P 013`, levels4 section 32: re-heating planet Zica) | A red grid filling the top for the text; along the bottom, a figure at a heavy gun emplacement in red light | `story_zica.webp` |
 
 `]P 907` (episode 3's ending) is not a picture: numbers over 900 clear the screen and set picture
-(n - 900)'s palette. `]P 000` (episode 4) shows `tshp2.pcx`, a separate file.
+(n - 900)'s palette. `]P 000` shows `tshp2.pcx`, a separate file (`JE_loadPCX`, pcxload.c), so it's
+picture 0 in `pictures.json`:
+
+| # | Where the game shows it | What it depicts | New picture |
+|---|---|---|---|
+| 0 | Episode 4's special ending, under "ENGAGE!!!" (`]P 000`, levels4 section 41) | A golden ship blasting off through a hazy golden city, engines flaring | `story_engage.webp` |
 
 The screen furniture (3, 6 and 11) is built in the original's pixel layout (`panels.py` takes
 positions in 320x200 pixels) under an orthographic camera, and its black areas (the playfield,
