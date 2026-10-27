@@ -29,16 +29,16 @@ All four episodes of Tyrian 2.1 are playable, from the title screen's episode an
 choice through to each episode's end, with the original's enemies, weapons, events, music and
 sound. Between levels the item screen sells and upgrades gear and lets you pick the next
 destination on the map (arrows, Enter, Esc; `/` changes the rear gun's firing mode), with the
-original's little simulator showing the guns and sidekicks firing before you buy them. If your ship
-is destroyed, you go back to that item screen with the loadout you launched with.
+original's little simulator showing the guns and sidekicks firing before you buy them. Its Data
+row holds the data cubes found in the last level, to read there. If your ship is destroyed, you go
+back to that item screen with the loadout you launched with.
 
 - **Between levels:** the episode script's story screens play as in the original: pictures, pans,
   flashes and fades, and the glowing text with its warning sirens (any key or tap moves on, Esc skips
   the scene). Remastered pictures can replace the originals without code changes: see
-  [`src/app/pictureArt.ts`](src/app/pictureArt.ts).
-- **Not yet:** the item screen's Data Cubes and Options menus, arcade and two-player modes, and
-  the story pictures and text between levels. An episode's end shows its hint, episode 3's ending
-  animation and, after the last episode, the credits, then carries on into the next episode.
+  [`src/app/pictureArt.ts`](src/app/pictureArt.ts). An episode's end shows its hint, episode 3's
+  ending animation and, after the last episode, the credits, then carries on into the next episode.
+- **Not yet:** the item screen's Options menu, and arcade and two-player modes.
 - **Everything else:** in [Issues](../../issues) and [Milestones](../../milestones). Design calls
   made along the way are in [DECISIONS.md](DECISIONS.md).
 

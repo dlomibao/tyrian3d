@@ -1,0 +1,157 @@
+/* The item screen's Data Cubes menus (src/app/dataCubes.ts), inside the shop panel (shop.css). */
+
+.cube-portrait {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.cube-portrait img {
+  width: 100%;
+  max-width: 17rem;
+  image-rendering: pixelated;
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  background: #000;
+}
+
+.cube-portrait figcaption {
+  min-height: 1.2em;
+  color: var(--accent);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-size: 0.85rem;
+}
+
+.shop-list[hidden] {
+  display: none;
+}
+
+/* '~' highlights (JE_outTextAndDarken's brighter shade). */
+.shop-list .cube-row .what,
+.cube-text > div {
+  display: block;
+}
+
+.shop-list .cube-row .what b,
+.cube-text b {
+  color: var(--accent);
+  font-weight: normal;
+}
+
+.cube-ico {
+  flex: none;
+  width: 34px;
+  display: grid;
+  place-items: center;
+}
+
+.cube-ico img {
+  width: 26px;
+  image-rendering: pixelated;
+  filter: drop-shadow(3px 3px 0 rgba(0, 0, 0, 0.55));
+}
+
+/* JE_itemScreen's "flashy cube" on the chosen row. */
+.cube-row.cur .cube-ico img {
+  animation: cube-flash 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes cube-flash {
+  from { filter: drop-shadow(3px 3px 0 rgba(0, 0, 0, 0.55)) brightness(0.85); }
+  to { filter: drop-shadow(3px 3px 0 rgba(0, 0, 0, 0.55)) drop-shadow(0 0 6px rgba(120, 200, 255, 0.9)) brightness(1.35); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cube-row.cur .cube-ico img {
+    animation: none;
+    filter: drop-shadow(3px 3px 0 rgba(0, 0, 0, 0.55)) brightness(1.25);
+  }
+}
+
+.cube-new {
+  margin-left: auto;
+  flex: none;
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  color: #7fc8ff;
+  border: 1px solid rgba(127, 200, 255, 0.5);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.shop-list .cube-none {
+  padding: 0.6rem;
+  margin-bottom: 0.4rem;
+  color: var(--ink-dim);
+  border: 1px dashed var(--edge);
+  border-radius: 6px;
+}
+
+.cube-count {
+  display: inline-flex;
+  gap: 3px;
+  margin-left: auto;
+}
+
+.cube-count img {
+  width: 16px;
+  image-rendering: pixelated;
+  filter: drop-shadow(2px 1px 0 rgba(0, 0, 0, 0.6));
+}
+
+.cube-reader {
+  display: inline-flex;
+  max-width: 100%;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.cube-reader[hidden] {
+  display: none;
+}
+
+/* load_cube wrapped the text into lines of at most 35 characters; keep its breaks and indents. */
+.cube-text {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  width: max-content;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 0 0.75rem;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  font-size: 0.95rem;
+  color: var(--ink);
+  cursor: ns-resize;
+  outline: none;
+}
+
+.cube-text > div {
+  height: 1.5em;
+  line-height: 1.5em;
+  white-space: pre;
+}
+
+.cube-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--ink-dim);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 640px) {
+  .cube-portrait img {
+    max-width: 10rem;
+  }
+
+  .cube-text {
+    font-size: 0.85rem;
+  }
+}

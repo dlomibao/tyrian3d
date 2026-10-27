@@ -8,6 +8,7 @@
 // on the same row selects it.
 
 import "./shop.css";
+import { createDataCubes } from "./dataCubes";
 import { decodeSprite2, decodeTableSprite, type DecodedSprite, type Palette, vga6To8 } from "../data";
 import type { MusicPlayer } from "../audio/remaster";
 import type { SoundEffects } from "../audio/sfx";
@@ -185,6 +186,8 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
   const preview = new WeaponPreview();
   el("ship").before(preview.element);
   document.body.appendChild(root);
+  // Data Cubes (src/app/dataCubes.ts): load_cubes, then the cube list and reader in these panes.
+  const cubes = createDataCubes({ files: host.files, menuColumn: list.parentElement!, back: () => key("esc") });
 
   let quitYes = false;
   let finished = false;
@@ -309,6 +312,7 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
     cancelAnimationFrame(raf);
     window.removeEventListener("keydown", onKey, true);
     preview.close();
+    cubes.destroy();
     root.remove();
     resolveDone();
   }
@@ -460,7 +464,7 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
       const id = playerItem(e.sel);
       inner = `<span class="what">${esc(e.label)}<small>${esc(itemName(e.sel, id))}</small></span>`;
     } else {
-      inner = `<span class="what">${esc(e.label)}${e.unavailable ? "<small>not available</small>" : ""}</span>`;
+      inner = `<span class="what">${esc(e.label)}${e.unavailable ? "<small>not available</small>" : ""}</span>${cubes.rowExtra(e)}`;
     }
     return `<li class="${cls.join(" ")}" data-sel="${e.sel}" role="option" aria-selected="${cur}">${inner}</li>`;
   }
@@ -508,9 +512,11 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
     const entries = itemScreenEntries();
     el("title").textContent = JE_menuHeader();
     el("cash").textContent = String(itemScreenCash());
-    el("ship").innerHTML = renderShip();
+    if (!cubes.render(el("ship"), list)) {
+      el("ship").innerHTML = renderShip();
+      list.innerHTML = entries.map((e) => renderRow(e, e.sel === menu.curSel[menu.curMenu])).join("");
+    }
     el("ship").hidden = preview.sync();
-    list.innerHTML = entries.map((e) => renderRow(e, e.sel === menu.curSel[menu.curMenu])).join("");
     list.querySelector(".cur")?.scrollIntoView({ block: "nearest" });
     const power = renderPower();
     el("power").innerHTML = power;
