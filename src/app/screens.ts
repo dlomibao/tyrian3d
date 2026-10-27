@@ -139,15 +139,19 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
   // [port-options] [high scores] The other entries, each its own screen over the title's backdrop.
   // Those screens read keys and pads themselves, so the title steps aside while one is open
   // (Screen.aside), then reads back the music style (Options can change it). A loaded game starts.
-  const sub = async (fn: () => Promise<boolean | void>) => {
-    if (screen.isAside || !screen.open) return;
-    const loaded = await screen.aside(fn);
+  // [restyle-options] Load Game and Options are framework screens shown over the title
+  // (ScreenOptions.over), which hand the input back themselves: no stepping aside for them.
+  let busy = false;
+  const sub = async (fn: () => Promise<boolean | void>, over = false) => {
+    if (busy || screen.isAside || !screen.open) return;
+    busy = true;
+    const loaded = await (over ? fn() : screen.aside(fn)).finally(() => (busy = false));
     syncMusic();
     if (loaded === true) finish(true);
   };
-  const more: { label: string; key: string; code: string; pad?: string; run: () => Promise<boolean | void> }[] = [];
-  if (opts.onLoadGame) more.push({ label: "Load Game", key: "L", code: "KeyL", run: opts.onLoadGame });
-  if (opts.onOptions) more.push({ label: "Options", key: "O", code: "KeyO", pad: "Back", run: opts.onOptions });
+  const more: { label: string; key: string; code: string; pad?: string; over?: boolean; run: () => Promise<boolean | void> }[] = [];
+  if (opts.onLoadGame) more.push({ label: "Load Game", key: "L", code: "KeyL", over: true, run: opts.onLoadGame });
+  if (opts.onOptions) more.push({ label: "Options", key: "O", code: "KeyO", pad: "Back", over: true, run: opts.onOptions });
   if (opts.onHighScores) more.push({ label: opts.highScoresLabel ?? "High Scores", key: "H", code: "KeyH", pad: "Y", run: opts.onHighScores });
   const padButtons = new Map<number, (typeof more)[number]>();
   for (const m of more) if (m.pad) padButtons.set(m.pad === "Y" ? PAD_Y : PAD_BACK, m);
@@ -162,13 +166,13 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
       else {
         const m = more.find((m) => m.code === e.code);
         if (!m || e.altKey || e.ctrlKey || e.metaKey) return false;
-        void sub(m.run);
+        void sub(m.run, m.over);
       }
       return true;
     },
     onPadButton: (button) => {
       const m = padButtons.get(button);
-      if (m) void sub(m.run);
+      if (m) void sub(m.run, m.over);
     },
     onIntent: (intent) => {
       if (intent === "start") finish();
@@ -190,7 +194,7 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
       if (i < episodeCount) ep = i;
     },
     onSelect: (i) => {
-      if (i >= episodeCount) return void sub(more[i - episodeCount].run);
+      if (i >= episodeCount) return void sub(more[i - episodeCount].run, more[i - episodeCount].over);
       ep = i;
       finish();
     },
