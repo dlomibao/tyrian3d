@@ -8,14 +8,17 @@ of that grabber's frames on top of each other, so there are two sets of four arm
 apart (frame 0), or 50 degrees apart while it turns (frame 1, the grabber's frames 1 and 3).
 
 Its five frames: 0 is the rotor at rest; 1 is it turning; 2, 3 and 4 repeat frame 0 two palette
-steps darker each time (it fades out). So every piece gets three models:
-<piece> frames 0 and 2, -f2 frame 1, and -f3 frames 3 and 4 (frame 0's shape with the arms in
-dark grey). The whole rotor is built once per shape in assembly coordinates and cut into the
+steps darker each time (it fades out; frame 3 also draws it a pixel off, a jolt the model leaves
+out). So every piece gets three models: <piece> frames 0 and 2, -f2 frame 1, and -f3 frames 3
+and 4 (frame 0's shape with the arms in dark grey). <piece> and -f3 animate: their grey arm
+materials take each frame's shade (common.palette_material frames=); the blue core doesn't
+change. The whole rotor is built once per shape in assembly coordinates and cut into the
 four pieces with common.split_assembly.
 
 Run: blender --background --python assets/blender/enemies/assembly-newsh-hash-195.py [-- --preview out.png]
 (the preview is the whole rotor at frame 0; out-f2.png and out-f3.png show the other shapes and
-each piece also gets <piece>.png next to it). Add --report to print a top-view silhouette check.
+each piece also gets <piece>.png next to it). Add --frames <dir> to render every frame of the
+animated pieces into <dir>/<piece><suffix>.png. Add --report to print a top-view silhouette check.
 """
 
 import sys
@@ -42,20 +45,39 @@ CORE = (0.5, 0.5)  # core centre in pixels from the assembly's centre (it sits o
 SHAPES = [
     ("", [0, 2], [(45.0, 0.0), (0.0, 0.0)], 0),
     ("-f2", [1], [(24.0, 0.6), (-26.0, 0.0)], 0),
-    ("-f3", [3, 4], [(45.0, 0.0), (0.0, 0.0)], 1),
+    ("-f3", [3, 4], [(45.0, 0.0), (0.0, 0.0)], 0),
 ]
 # Grey arm colours per shade: (body, light ridge, dark underside) palette indices.
-SHADES = [(9, 12, 6), (4, 7, 2)]
+SHADES = [(9, 12, 6)]
+# Shapes that fade within their frames: {frame position: palette steps darker than the shade}.
+# The sprite's greys are a ramp (1 darkest ... 13) and each fading frame is frame 0 with every
+# grey two steps darker than the frame before. A shape takes its first frame's shade.
+FADE = {"": {0: 0, 2: 2}, "-f3": {3: 4, 4: 6}}
+
+
+def grey_materials(sprite, shade, suffix):
+    """The arm's (body, ridge, underside) materials for a shape: plain for a still shape, else
+    in its first frame's shade with the later frames' shades by sprite index (every piece's own
+    indices, since split_assembly gives all four pieces the same materials)."""
+    if suffix not in FADE:
+        return [common.palette_material(sprite, i, "nsh195", metallic=m, roughness=r)
+                for i, m, r in zip(SHADES[shade], (0.6, 0.6, 0.4), (0.35, 0.3, 0.6))]
+    fade = FADE[suffix]
+    base = fade[min(fade)]
+    data = [common.load_sprite(ROOT, name)["frames"] for name in PIECES]
+    tag = f"nsh195{suffix or '-f1'}"
+    mats = []
+    for i, m, r in zip(SHADES[shade], (0.6, 0.6, 0.4), (0.35, 0.3, 0.6)):
+        frames = {f[pos]["index"]: max(1, i - k) for f in data for pos, k in fade.items() if k != base}
+        mats.append(common.palette_material(sprite, max(1, i - base), tag, metallic=m, roughness=r, frames=frames))
+    return mats
 
 
 def build(sprite, arm_sets, shade, tag):
     coll = common.reset_collection(f"{NAME}{tag}")
     pal = lambda i, **kw: common.palette_material(sprite, i, "nsh195", **kw)  # noqa: E731
-    arm, ridge, dark = SHADES[shade]
     mats = [
-        pal(arm, metallic=0.6, roughness=0.35),  # 0 grey arm
-        pal(ridge, metallic=0.6, roughness=0.3),  # 1 light edge
-        pal(dark, metallic=0.4, roughness=0.6),  # 2 dark underside
+        *grey_materials(sprite, shade, tag),  # 0 grey arm, 1 light edge, 2 dark underside
         pal(144, metallic=0.3, roughness=0.5),  # 3 navy footing
         pal(152, metallic=0.3, roughness=0.3, emission_strength=1.5),  # 4 deep blue rim
         pal(154, metallic=0.2, roughness=0.2, emission_strength=2.5),  # 5 blue core
@@ -104,6 +126,12 @@ def main():
                 data = common.load_sprite(ROOT, name)
                 img = ROOT / "reference" / "models" / name / data["frames"][frames[0]]["image"]
                 common.render_preview([pieces[f"{name}{suffix}"]], str(out.parent / f"{name}{suffix}.png"), img, size=2)
+        if "--frames" in sys.argv and suffix in FADE:  # every frame of each animated piece
+            out_dir = Path(sys.argv[sys.argv.index("--frames") + 1])
+            for name in PIECES:
+                data = common.load_sprite(ROOT, name)
+                data["frames"] = [data["frames"][i] for i in frames]
+                common.render_frame_previews([pieces[f"{name}{suffix}"]], str(out_dir / f"{name}{suffix}.png"), data, ROOT)
 
 
 if __name__ == "__main__":
