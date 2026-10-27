@@ -5,14 +5,16 @@ rubbly ground, with a louvred apron falling away below it to a dark trench. In t
 square well a red lens looks out from under a shutter. The frames slide the shutter and take the
 lens away, so each shape is its own model:
 
-    newshp-237     open, lens showing (frames 237 and 239, which only brighten the lens)
+    newshp-237     open, lens showing (frames 237 and 239, which only brighten the lens: its
+                   materials take each frame's palette colour, palette_material frames=)
     newshp-237-f2  shutter half closed (245)
     newshp-237-f3  shutter closed (279)
     newshp-237-f4  shutter nearly closed (281)
     newshp-237-f5  open, the lens gone and its socket empty (283)
 
 Run: blender --background --python assets/blender/enemies/newshp-237.py [-- --preview out.png]
-(-- previews every state: <out>.png and newshp-237-f<n>.png beside it).
+(-- previews every state: <out>.png and newshp-237-f<n>.png beside it; -- --frames <png> renders
+every frame of each state).
 """
 
 import sys
@@ -45,25 +47,37 @@ def build(sprite):
     for model, frames, shutter, lens in STATES:
         coll = common.reset_collection(model)
         bm = bmesh.new()
+        extra = []
         lib.terrain(bm, g, m)
         lib.housing(bm, g, m)
         if shutter is None:
             # Shutter slid up under the rim: its lit lip across rows 3-4, its face in row 5.
             lib.frustum(bm, g, 7.6, 2, 16.4, 5.6, 0.12, 0.26, m[11], sides=(m[12], m[9], m[7], m[6]), inset=0.3)
-            # The lens socket (columns 9-14, rows 6-10).
-            lib.frustum(bm, g, 9, 6, 15, 11, 0.12, 0.17, m[6], sides=(m[4], m[5], m[7], m[5]), inset=0.4)
             if lens:
+                # The lens and its socket are their own object, with their own materials: frame 239
+                # brightens the lens (113 -> 118 round its rim, 117 -> 123 at its centre) and
+                # lights up the socket round it (grey 5-6 -> 8-10).
+                lm = lib.Mats(sprite, f"{NAME}_lens")
+                lm.add(6, "socket", frames={239: 9})
+                lm.add(113, "lens", emission_strength=3.0, frames={239: 118})
+                lm.add(117, "lens_core", emission_strength=5.0, frames={239: 123})
+                lbm = bmesh.new()
+                lib.frustum(lbm, g, 9, 6, 15, 11, 0.12, 0.17, lm.slot["socket"], sides=(lm[4], lm[5], lm[7], lm[5]),
+                            inset=0.4)
                 cx, cy = g.x(12), g.y(8)
-                lib.dome(bm, cx, cy, 0.15, 2.1 * PX, 2.1 * PX, 0.09, m[117], segs=12, rings=3)
-                lib.dome(bm, cx, cy + 0.4 * PX, 0.2, 0.9 * PX, 0.9 * PX, 0.05, m[121], segs=8, rings=2)
+                lib.dome(lbm, cx, cy, 0.15, 2.1 * PX, 2.1 * PX, 0.09, lm.slot["lens"], segs=12, rings=3)
+                lib.dome(lbm, cx, cy + 0.4 * PX, 0.2, 0.9 * PX, 0.9 * PX, 0.05, lm.slot["lens_core"], segs=8, rings=2)
+                extra = [lib.to_object(f"{model}-lens", lbm, lm.list, coll)]
             else:
+                # The lens socket (columns 9-14, rows 6-10).
+                lib.frustum(bm, g, 9, 6, 15, 11, 0.12, 0.17, m[6], sides=(m[4], m[5], m[7], m[5]), inset=0.4)
                 # Empty socket: a dark ring where the lens sat.
                 lib.frustum(bm, g, 10, 6.5, 14, 10, 0.165, 0.18, m[3], sides=(m[2], m[2], m[5], m[5]), inset=0.5)
         else:
             # Shutter slid down over the well, its lower edge at row `shutter`.
             lib.frustum(bm, g, 7.6, 2, 16.4, shutter, 0.12, 0.28, m[9], sides=(m[12], m[11], m[7], m[6]), inset=0.3)
         obj = lib.to_object(model, bm, m.list, coll)
-        models.append((model, [obj], lib.subset(sprite, {(SHEET, f) for f in frames})))
+        models.append((model, [obj] + extra, lib.subset(sprite, {(SHEET, f) for f in frames})))
     return models
 
 
