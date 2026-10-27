@@ -9,7 +9,7 @@
 // the first keydown/pointerdown/touchend. Calls made before that are queued and replayed in order.
 
 import workletUrl from "./musicWorklet.ts?worker&url";
-import type { MusicCommand } from "./musicRenderer";
+import type { MusicCommand, MusicState } from "./musicRenderer";
 
 /** Must match MUSIC_PROCESSOR_NAME in musicWorklet.ts. */
 const MUSIC_PROCESSOR_NAME = "tyrian-music";
@@ -23,7 +23,8 @@ export interface MusicOptions {
   destination?: AudioNode;
 }
 
-type Sink = { post(cmd: MusicCommand): void; disconnect(): void };
+/** `playing`: lds `playing` read straight from a main-thread renderer (the worklet sends it instead). */
+type Sink = { post(cmd: MusicCommand): void; disconnect(): void; playing?: () => boolean };
 
 export class Music {
   /** Number of songs in music.mus (41 in Tyrian 2.1). */
@@ -37,6 +38,9 @@ export class Music {
   private starting: Promise<void> | null = null;
   private pending: MusicCommand[] = [];
   private volumeValue = 1;
+  /** lds `playing` as the worklet last reported it for the latest play command (playSeq). */
+  private playingValue = false;
+  private playSeq = 0;
   private disposed = false;
   private watchingState = false;
   private readonly onGesture = (): void => {
@@ -73,7 +77,17 @@ export class Music {
       console.error(`Music.play: song ${songNum} does not exist (0..${this.songCount - 1})`);
       return;
     }
-    this.send({ type: "play", song: songNum });
+    // load_song sets lds `playing` at once; the worklet confirms it (or that the song had ended).
+    this.playingValue = true;
+    this.send({ type: "play", song: songNum, seq: ++this.playSeq });
+  }
+
+  /**
+   * lds_play.c's `playing`: true from play() until the song ends by itself; songs that loop never
+   * do. Stopping doesn't clear it. Before the audio starts it stays true.
+   */
+  get playing(): boolean {
+    return this.sink?.playing?.() ?? this.playingValue;
   }
 
   /** Rewinds the current song and plays it (restart_song). */
@@ -169,6 +183,10 @@ export class Music {
           outputChannelCount: [1],
         });
         node.onprocessorerror = (e) => console.error("music worklet error", e);
+        node.port.onmessage = (e: MessageEvent<MusicState>) => {
+          // Ignore what was true of an earlier song.
+          if (e.data?.type === "state" && e.data.seq >= this.playSeq) this.playingValue = e.data.playing;
+        };
         node.connect(dest);
         sink = { post: (cmd) => node.port.postMessage(cmd), disconnect: () => node.disconnect() };
       } catch (err) {
@@ -181,7 +199,7 @@ export class Music {
       const node = ctx.createScriptProcessor(2048, 0, 1);
       node.onaudioprocess = (e) => renderer.render(e.outputBuffer.getChannelData(0));
       node.connect(dest);
-      sink = { post: (cmd) => renderer.apply(cmd), disconnect: () => node.disconnect() };
+      sink = { post: (cmd) => renderer.apply(cmd), disconnect: () => node.disconnect(), playing: () => renderer.playing };
     }
     if (this.disposed) {
       sink.disconnect();

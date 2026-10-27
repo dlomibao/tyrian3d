@@ -36,6 +36,16 @@ import { nameAppend, nameDelete, pickerCell, pickerMove, pickerNextSet, pickerRo
 
 /** OpenTyrian song number (0-based, as passed to play_song) of the high score fanfare. */
 const SONG_HIGH_SCORE = 33;
+/** [cheats] The song the name entry plays once the fanfare is over (mainint.c L2051-2052). */
+export const SONG_HIGH_SCORE_AFTER = 31;
+
+/**
+ * [cheats] JE_highScoreCheck's name entry, after each input: `if (!playing) play_song(31);`. The
+ * fanfare (song 33) doesn't loop, so the first key, click or button after it ends starts song 31.
+ */
+export function highScoreEntryInput(music: Pick<MusicPlayer, "playing" | "play">): void {
+  if (!music.playing) music.play(SONG_HIGH_SCORE_AFTER);
+}
 
 /** Standard-mapping pad buttons that aren't intents (src/ui/nav.ts PAD_BUTTONS). */
 const PAD_Y = 3;
@@ -267,10 +277,16 @@ class NamePicker implements Navigable {
  * Typing takes the characters the font has, up to 28; Enter (or OK) keeps the name, Escape (or
  * CANCEL) cancels. Resolves with the typed text, or null when cancelled.
  */
-function askHighScoreName(score: number, episodeName: string, sfx?: SoundEffects): Promise<string | null> {
+function askHighScoreName(score: number, episodeName: string, sfx?: SoundEffects, onInput?: () => void): Promise<string | null> {
   return new Promise((resolve) => {
+    // [cheats] Every input, however it's handled below (the C checks after each one).
+    const input_ = () => onInput?.();
+    window.addEventListener("keydown", input_, true);
+    window.addEventListener("pointerdown", input_, true);
     const finish = (name: string | null) => {
       if (!screen.open) return;
+      window.removeEventListener("keydown", input_, true);
+      window.removeEventListener("pointerdown", input_, true);
       screen.close();
       resolve(name);
     };
@@ -298,7 +314,8 @@ function askHighScoreName(score: number, episodeName: string, sfx?: SoundEffects
         else return false;
         return true;
       },
-      onIntent: (intent) => {
+      onIntent: (intent, device) => {
+        if (device === "pad") input_(); // [cheats] keys are counted above
         if (intent === "start") ok();
         else if (intent === "alt") type(" ");
         else if (intent === "back") {
@@ -309,6 +326,7 @@ function askHighScoreName(score: number, episodeName: string, sfx?: SoundEffects
         return true;
       },
       onPadButton: (b) => {
+        input_(); // [cheats]
         if (b === PAD_Y || b === PAD_RB) picker.nextSet(1);
         else if (b === PAD_LB) picker.nextSet(-1);
       },
@@ -418,7 +436,7 @@ export async function highScoreCheck(host: HighScoreHost, initial_episode_num: n
 
   host.music.play(SONG_HIGH_SCORE);
   const episodeName = host.episodeName[g.episodeNum]?.trim() ?? "";
-  const name = await askHighScoreName(temp_score, episodeName, host.sfx);
+  const name = await askHighScoreName(temp_score, episodeName, host.sfx, () => highScoreEntryInput(host.music));
   JE_highScoreCheckEnter(saveFiles, slot, temp_score, name, g.difficultyLevel);
   saveHighScores(saveFiles);
 

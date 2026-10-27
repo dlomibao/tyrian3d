@@ -16,7 +16,7 @@ import { JE_endLevelAni, JE_initPlayerData } from "../sim/mainint";
 import { newOnePlayerGame } from "../sim/newgame";
 import { buildResources, requireFile } from "../sim/resources";
 import { JE_loadGame, JE_loadScreen_select, JE_saveGame, loadSaves } from "../sim/savegame";
-import { DIFFICULTY_EASY, DIFFICULTY_HARD, DIFFICULTY_NORMAL, g, SA_NONE } from "../sim/state";
+import { DIFFICULTY_NORMAL, g, SA_NONE } from "../sim/state";
 import { loadLevelAsync } from "../sim/tyrian2";
 import type { View } from "../render/view";
 import { Controls } from "./controls";
@@ -33,6 +33,10 @@ import { runItemScreen } from "./shop";
 import { BLACK, levelFade } from "./fade";
 import { closeStoryScreens, playStoryScreens } from "./storyScreens";
 import { takeStorySteps } from "../sim/story";
+// [cheats] the secret inputs (DECISIONS.md D32)
+import { applyCheatParams, difficultyNamesByLevel, difficultySelectLevels } from "../sim/cheats";
+import { CheatKeys } from "./cheatKeys";
+import { runTitleCode } from "./titleCodes";
 
 /** OpenTyrian song numbers (0-based, as passed to play_song). */
 const SONG_TITLE = 29;
@@ -79,6 +83,8 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
   const controls = new Controls(() => view.gamePixelsPerScreenPixel);
   const hud = new Hud();
   const pauseButton = new PauseButton(() => (controls.pauseRequested = true)); // ui-framework
+  const cheats = new CheatKeys(() => controls.active); // [cheats]
+  applyCheatParams(location.search); // [cheats] ?loot: params.c LOOT
   loading();
 
   if (import.meta.env.DEV) Object.assign(window, { tyrian: { g, view, music, sfx } });
@@ -98,8 +104,12 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
     choice = await showTitle({
       episodeNames: names.episodeName,
       episodes,
-      difficultyNames: names.difficultyName,
-      difficulties: [DIFFICULTY_EASY, DIFFICULTY_NORMAL, DIFFICULTY_HARD],
+      // [cheats] difficultySelect's six, the last three hidden until their keys are typed.
+      difficultyNames: difficultyNamesByLevel(names.difficultyName),
+      difficulties: [...difficultySelectLevels],
+      difficultiesShown: 3,
+      specialName: names.specialName,
+      onCode: (code) => runTitleCode(code, { files, sfx, music, superShips: names.superShips, specialName: names.specialName }),
       initial: choice,
       musicStyles: music.styles,
       musicStyle: music.style,
@@ -175,7 +185,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
 
       controls.active = true;
       pauseButton.visible = true; // ui-framework
-      const outcome = await playLevel(view, controls, sfx, music, hud, pauseButton);
+      const outcome = await playLevel(view, controls, sfx, music, hud, pauseButton, cheats);
       controls.active = false;
       controls.release();
       hud.visible = false;
@@ -219,7 +229,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
 
 type Outcome = "completed" | "died" | "quit";
 
-function playLevel(view: View, controls: Controls, sfx: SoundEffects, music: MusicPlayer, hud: Hud, pauseButton: PauseButton): Promise<Outcome> {
+function playLevel(view: View, controls: Controls, sfx: SoundEffects, music: MusicPlayer, hud: Hud, pauseButton: PauseButton, cheats: CheatKeys): Promise<Outcome> {
   return new Promise((resolve) => {
     let last = performance.now();
     let acc = 0;
@@ -267,6 +277,7 @@ function playLevel(view: View, controls: Controls, sfx: SoundEffects, music: Mus
 
       for (let i = 0; i < steps; i++) {
         controls.sample();
+        cheats.poll(); // [cheats] JE_mainKeyboardInput, at the end of the C's frame
         const result = tick();
         sfx.playQueue(g.soundQueue);
         view.setDrawList(drawList);
