@@ -2,8 +2,9 @@
 
 Seen in episode 2 (level 2.4). A square block of scaly blue-grey stone that fills its whole
 tile, with a lumpy tan ring like a flower set into it and a green eye in the ring's dark
-socket. The three frames only change the eye's glow (dim, bright, dark), so one model covers
-them all.
+socket. The three frames only change the eye's glow (dim on 1, wide open and bright with a
+white-hot pupil on 3, dark on 39), so one model covers them all, with an eye for frames 1 and 39
+(its colour changes) and a bigger, brighter one for frame 3.
 
 Run: blender --background --python assets/blender/enemies/newshh-1.py [-- --preview out.png]
 """
@@ -31,12 +32,17 @@ def build(sprite):
         pal(98, metallic=0.2, roughness=0.8),  # 1 dark sides and underside
         pal(107, metallic=0.25, roughness=0.6),  # 2 pale scales
         pal(171, metallic=0.35, roughness=0.45),  # 3 tan ring
-        pal(32, metallic=0.4, roughness=0.3),  # 4 dark socket
-        pal(198, metallic=0.1, roughness=0.2, emission_strength=4.0),  # 5 green eye
+        # 4 dark socket, lit dark green round the open eye on frame 3
+        common.palette_material(sprite, 32, f"{NAME}_socket", metallic=0.4, roughness=0.3, frames={3: 35}),
+        # 5 green eye, dark (socket black) on frame 39
+        common.palette_material(sprite, 198, f"{NAME}_eye", metallic=0.1, roughness=0.2, emission_strength=4.0,
+                                frames={39: 32}),
         pal(104, metallic=0.4, roughness=0.4),  # 6 grey bezel round the eye
         pal(175, metallic=0.4, roughness=0.35),  # 7 pale lobes of the ring
+        pal(201, metallic=0.1, roughness=0.2, emission_strength=5.0),  # 8 wide-open bright green eye
+        pal(15, metallic=0.0, roughness=0.2, emission_strength=6.0),  # 9 its white-hot pupil
     ]
-    STONE, DARK, SCALE, RING, SOCKET, EYE, BEZEL, LOBE = range(8)
+    STONE, DARK, SCALE, RING, SOCKET, EYE, BEZEL, LOBE, BRIGHT, PUPIL = range(10)
     bm = bmesh.new()
 
     # The block: the whole 24x28 tile, bevelled at the top.
@@ -83,10 +89,18 @@ def build(sprite):
     lib.dome(bm, (cx, cy, top - 0.02), (4.4 / 12, 4.8 / 12, 0.12), mat=SOCKET, segments=16, rings=4)
     lib.loop_tube(bm, [(cx + 4.0 / 12 * math.cos(a), cy + 4.4 / 12 * math.sin(a), top + 0.05)
                        for a in (2 * math.pi * k / 20 for k in range(20))], 0.045, sides=6, mat=BEZEL)
-    lib.dome(bm, (cx, cy - 0.01, top + 0.04), (2.6 / 12, 2.6 / 12, 0.13), mat=EYE, segments=16, rings=4)
-
     obj = lib.to_object(NAME, bm, mats, coll)
-    return [(NAME, [obj], sprite["sprites"], 0)]
+
+    # The eye: dim on frame 1 and dark on 39 (one eye whose colour changes), wide open and
+    # bright on frame 3 (rows 11-15, columns 10-15) with a white-hot pupil.
+    bm = bmesh.new()
+    lib.dome(bm, (cx, cy - 0.01, top + 0.04), (2.6 / 12, 2.6 / 12, 0.13), mat=EYE, segments=16, rings=4)
+    eye = common.frame_part(lib.to_object(f"{NAME}-eye", bm, mats, coll), [1, 39])
+    bm = bmesh.new()
+    lib.dome(bm, (cx + 0.2 / 12, cy - 0.01, top + 0.04), (3.1 / 12, 2.9 / 12, 0.15), mat=BRIGHT, segments=16, rings=4)
+    lib.dome(bm, (cx + 0.3 / 12, cy - 0.2 / 12, top + 0.17), (1.1 / 12, 1.1 / 12, 0.04), mat=PUPIL, segments=12, rings=3)
+    open_eye = common.frame_part(lib.to_object(f"{NAME}-eye-open", bm, mats, coll), [3])
+    return [(NAME, [obj, eye, open_eye], sprite["sprites"], 0)]
 
 
 if __name__ == "__main__":
