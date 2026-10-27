@@ -41,6 +41,7 @@ import { takeStorySteps } from "../sim/story";
 import { applyCheatParams, difficultyNamesByLevel, difficultySelectLevels } from "../sim/cheats";
 import { CheatKeys } from "./cheatKeys";
 import { destructHook, runDestruct } from "./titleCodes";
+import { seedAtStartup } from "./seed";
 // [two-player] the gameplay menu, a two-player game's HUD and messages
 import { showGameplaySelect } from "./gameplaySelect";
 import { TwoPlayerHud } from "./twoPlayerHud";
@@ -78,6 +79,7 @@ const lastLevelSlot = () => (g.twoPlayerMode ? 22 : 11);
 
 /** `onPlay` fires once the first level starts, so the caller can stop its idle rendering. */
 export async function runGame(view: View, onPlay: () => void = () => {}): Promise<void> {
+  seedAtStartup(); // opentyr.c L757: mt_srand(time(NULL)), or ?seed=N (D37)
   const files = await getFiles();
   const loading = showStatus("Loading…");
   g.res = buildResources(files, 1);

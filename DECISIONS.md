@@ -791,6 +791,171 @@ of the port; why the C dies (probably recordings made with a DOS Tyrian whose si
 slightly) hasn't been checked. If the deaths look bad as attract mode, the fallback is to stop a demo a little before
 its death tick (from the fixtures) rather than altering the sim.
 
+## D30 — Destruct is a transliteration of destruct.c in its own module, checked against the C
+
+2026-10-27
+
+**Decision:** Destruct, the hidden artillery game, lives in `src/destruct/`. Its rules
+(`sim.ts`) are a close transliteration of OpenTyrian's destruct.c, held in one `DestructGame`
+object: the C's names, its float (`Math.fround`) and unsigned arithmetic, and the shared
+`mt_rand`, so a seed plays out as in the C. The terrain is the C's 320x200 byte screen
+(destructTempScreen); what the C blits onto VGAScreen each tick (units, walls, shot pixels,
+crosshairs) is recorded in `draws` for the renderer. `tools/destruct-trace` builds the real
+destruct.c with the computer on both sides and records a running digest of the whole state every
+10 ticks; `tests/destruct/trace.test.ts` must reproduce it (12 seeds over all five modes, 72,000
+ticks, 28 rounds). The game is opened with `openDestruct({ files, view, sfx, music, exitSong })`
+(`src/destruct/index.ts`) or `?destruct`.
+
+**Options considered:**
+- *Transliterate and cross-check against the C (chosen):* the same approach as the main game
+  (D1), and the trace pins it to the original exactly, AI included.
+- *Rewrite it as idiomatic TypeScript:* easier to read, but the AI, physics and terrain would
+  drift from the original with nothing to check them against.
+- *Write the sim into the main game's global state `g`:* destruct.c shares no state with the main
+  game besides the RNG and sound queue; its own object keeps it separate and testable.
+
+**Review:** The trace driver compiles the C with `-ffp-contract=off` and correctly rounded
+`sinf`/`cosf` (glibc's behaviour, and what the port computes); clang's default fused
+multiply-adds on arm64 and macOS's libm `sinf` each move some shots by an ulp. A negative float
+converted to unsigned (a very rare "tall" map column) follows arm64, saturating to 0, where x86-64
+wraps it. The C's `rand()` for the wall count is not used: with the default config it is always 20.
+
+## D30a — Destruct in 3D: a slab of terrain with real holes, extruded sprites, glowing fire
+
+2026-10-27
+
+**Decision:** The battlefield is seen from the front, a little above, like the original screen.
+The dirt (palette 16-25 of picture 11's palette, pcxpal[10] = 21) is a slab 26 px deep: its front
+face is one plane textured from the screen (shaded darker with depth and a little per-pixel
+noise), and its top, bottom and sides are geometry built from the dirt's outline, so craters,
+rings and holes go right through it. The explosion pixels (241-255, fading a step a tick as in
+the C) glow additively in front of it, with up to four point lights at the biggest live explosions.
+Units and walls are their newsh~.shp sprites extruded like the main game's (src/render/spriteMesh.ts),
+coloured from the palette; shots, trails and crosshairs are glowing beads in JE_pixCool's and the
+crosshair's palette colours. A big explosion shakes the camera slightly. The black sky gets a
+faint starfield. Units and shots are interpolated between ticks; the game ticks at the C's rate,
+setFrameCount(1) at the Normal speed: ~14.4 ms, ~70 a second.
+
+**Options considered:**
+- *Slab with a textured front and outline walls (chosen):* the terrain is arbitrary pixels (rings
+  floating in the air, holes, star-shaped craters), which a heightfield can't hold. Rebuilding only
+  the outline walls when the dirt changes stays cheap (a 120 Hz display keeps up).
+- *Extruded heightfield:* simple, but loses overhangs, floating rings and holes, which are the
+  C's map types.
+- *One cube per dirt pixel (instanced):* up to 60,000 cubes, re-uploaded as craters form.
+- *Blender models for the units:* they're 12x14 sprites seen side on; extrusion keeps their exact
+  look and costs no assets.
+
+**Review:** Check the look and readability at a phone's size and on a slow GPU (shadows and the
+outline effect run every frame). Explosions in the sky burn black holes in the C's picture; here
+the sky is black anyway, so nothing shows.
+
+## D30b — Destruct's screens, keys and the way in
+
+2026-10-27
+
+**Decision:**
+- **Screens:** the title (JE_introScreen), mode select (JE_modeSelect), help (JE_helpScreen) and
+  pause (JE_pauseScreen) are interface-framework screens over the battlefield, with the data's
+  texts. The mode select also has rows for each side's computer/human switch (the C's F10/F11),
+  Help and Leave; F10, F11 and F1 work there too. Escape in a round goes back to it, as in the C,
+  and Escape there leaves Destruct.
+- **Keys:** the C's default two-player layout on one keyboard (left: C/V angle, A/Z power, X or
+  Left Shift fire, Left Alt vehicle, Left Ctrl/Space weapon; right: arrows, Enter/Insert/keypad 0
+  fire, \ or keypad 5 vehicle, Page Up/Down weapon), by KeyboardEvent.code so it works on any
+  layout. The left side starts as the computer, as in the C's default config. A key tapped
+  between two ticks still counts for one tick. Gamepads stand in for keys: pad 1 plays the right
+  side, pad 2 the left (d-pad or stick to aim and set power, A fire, X vehicle, LB/RB weapon,
+  Start pause, Back leave).
+- **Way in:** `openDestruct()` for the title's DESTRUCT code (the cheats work wires it), and
+  `?destruct` for development, which reloads into the game when Destruct is left. It borrows the
+  game View's renderer, or makes its own canvas without one.
+
+**Options considered:**
+- *Framework screens (chosen):* consistent with the rest of the game (D26) and work with pads and
+  taps. The C's text drawn on the 320x200 screen would be blurry and keyboard-only.
+- *Keep F10/F11 as the only computer switches:* F11 is the browser's full-screen key on some
+  systems, so the menu rows make the switch reachable anyway.
+- *Remappable Destruct keys:* the C reads them from opentyrian.cfg; no settings screen for them
+  yet.
+
+**Review:** A phone can't play it (it is a keyboard game; touch only reaches the menus). The app
+never seeds mt_rand (`?destruct` does, from the clock, as opentyr.c's main does), so through the
+title the first map is the same on every page load until the main game seeds it.
+
+**Integration (2026-10-27):** typing DESTRUCT on the title now opens Destruct: `run.ts` sets
+`destructHook.open` (src/app/titleCodes.ts) to `openDestruct` with the title's song as `exitSong`,
+loading `src/destruct/` on first use. The title closes first (it resolves with `destruct`, since
+`openDestruct` closes whatever screen is up) and the main loop shows it again when Destruct is
+left. The app now seeds mt_rand at start-up (D37), so the first map differs between page loads.
+
+## D31 — Screen filters: hues on palette indices, waves and blurs as a post pass over a pass mask
+
+2026-10-27
+
+**Decision:** The smoothies (event 64: lava, water, iced blur, blur, the headlight and the flipped
+screen) and JE_barBright (the Zinglon beam) are recorded by the sim each tick in `drawList.screen`
+(`src/sim/smoothies.ts`): which filters run, in JE_main's order, the last draw pass each one
+covers, and whether it is the frame's first (the only one that reads the previous frame, since the
+C draws into VGAScreen2 until the first filter writes into game_screen). The renderer splits each
+filter in two. The hue half (lava 0x70, iced 0x80, the water's hue on indices with
+`(index & 0x30) != 0`) is index arithmetic in the palette materials for draws whose pass height
+(D5) is under the filter, as the C does it (`src/render/screenHue.ts`); models in those passes take
+the hue like the hit flash. The value half (the lava's wave and smear, the water's ripple, the
+blurs, the headlight's cone, the flip, the beam) is a post pass (`src/render/screenFilters.ts`):
+the scene goes to a render target, a mask pass draws every object's pass height, and the filter
+only changes pixels whose top object is under its ceiling. Pixels are placed in game_screen
+coordinates by meeting the camera ray with the ground (D6), so the C's per-row and per-chunk wave
+tables apply unchanged. Value is brightness; a new value scales the lit colour. Blends with the
+previous frame use the per-frame weight that halves it per classic tick. It all runs only while a
+filter is on. The level colour filter and brightness (event 44, the flare specials) were already
+folded into the palette texture; they showed nothing because `filtrationAvail` was false, so it is
+now true, as JE_initProcessorType sets it for processorType 4, which the port plays at.
+
+**Options considered:**
+- *Hue on indices, value in a masked post pass (chosen):* the colours are the C's exact palette
+  entries under the 3D lighting, and only the passes the C filters are touched.
+- *Everything in a post pass, hue guessed from the lit colour:* tried first. Lit colours are
+  brighter than palette entries, so the lava came out washed-out yellow, and the water's
+  grey/cloud test needed a nearest-palette lookup that lighting fools.
+- *A full-screen post pass with no mask:* simplest, but it tints and smears the player's ship,
+  shots and sky enemies, which the C draws after the filters.
+- *Split the scene into two renders by pass group:* exact layering, but the instanced pools mix
+  passes, so it means reorganising the draw-list renderer, and shadows across the split are lost.
+
+**Review:** Play ASSASSIN (episode 1; lava, headlight), SAVARA V (water), and in episode 4 LAVA
+RUN (lava, flip), ICE EXIT (iced blur), DESERTRUN (blur) and CORE (water with a level filter);
+`?debug=level&episode=E&main=N&skip=T&god=1` starts one. The mask pass draws the scene a second
+time while a smoothie is on; if that costs too much on slow machines, render the mask at half
+resolution. The water ripple is an approximation of the C's bottom-up recurrence (six rows down).
+Blended (translucent) objects count as solid in the mask.
+
+**Integration (2026-10-27), with the remastered effects (D35):** the shot sprites and explosion
+sprites are draws in their own passes, so the mask already leaves them alone. The remastered
+particles, glows and smoke puffs aren't draws (they have no pass height in the mask) and stand for
+shots and explosions, which the C draws after all its filters. So they're on their own camera layer
+(`VFX_LAYER`): while a smoothie's post pass runs they're left out of the scene and the mask, and
+drawn over the filtered image without depth, before the present pass, so the flip and headlight
+still apply to them as JE_starShowVGA does to the whole screen. Outside smoothies nothing changes.
+
+## D31a — The item screen's simulator draws the Plasma Storm's shots, which the C's doesn't
+
+2026-10-27
+
+**Decision:** The user reported that the Plasma Storm doesn't render. It is a sidekick (options
+index 9, "Plasma Storm Ammo 10"), not a special weapon. In a level it renders: its shots are
+option-shape sprites 22-24 (shot graphics above 60000), drawn blended by player_shot_move_and_draw,
+and they fire only on a sidekick key (Left Ctrl / K, Left Alt / ;) while it has ammo, as in the
+original. The C's item screen simulator, `simulate_player_shots`, skips shot graphics above 60000,
+so the shop showed nothing for it; the port now draws them there as the level does.
+
+**Options considered:**
+- *Draw them in the simulator (chosen):* buyers see what they're paying 8000 for.
+- *Keep the C's empty preview:* faithful, but it reads as a bug, and was reported as one.
+
+**Review:** Upgrade Ship → Left Sidekick → Plasma Storm. If the C's empty preview is preferred,
+remove the `anim_frame > 60000` branch in `simulate_player_shots` (`src/sim/shots.ts`).
+
 ## D32 — Cheats: the C's chords and codes, with the title's codes routed to hooks
 
 2026-10-27
@@ -851,6 +1016,8 @@ to where they were before a code's first letter once the code completes. Super A
 Tyrian start through the arcade work's screens and `startNewGame`. `titleCodeHooks` is now only
 `destructHook.open`: DESTRUCT shows the "isn't in this build yet" notice until the Destruct module
 sets it.
+
+DESTRUCT now opens the Destruct game (D30b).
 
 ## D32a — The high score name entry follows the fanfare with song 31
 
@@ -949,155 +1116,7 @@ recompiles shaders once (the light pool comes and goes), a short hitch; acceptab
 option, but an Options row should keep the lights at zero intensity instead. Not done: an Options
 menu row (the screen-filters work was changing that screen), and superpixels (JE_doSP) still draw
 as plain pixels.
-## D30 — Destruct is a transliteration of destruct.c in its own module, checked against the C
 
-2026-10-27
-
-**Decision:** Destruct, the hidden artillery game, lives in `src/destruct/`. Its rules
-(`sim.ts`) are a close transliteration of OpenTyrian's destruct.c, held in one `DestructGame`
-object: the C's names, its float (`Math.fround`) and unsigned arithmetic, and the shared
-`mt_rand`, so a seed plays out as in the C. The terrain is the C's 320x200 byte screen
-(destructTempScreen); what the C blits onto VGAScreen each tick (units, walls, shot pixels,
-crosshairs) is recorded in `draws` for the renderer. `tools/destruct-trace` builds the real
-destruct.c with the computer on both sides and records a running digest of the whole state every
-10 ticks; `tests/destruct/trace.test.ts` must reproduce it (12 seeds over all five modes, 72,000
-ticks, 28 rounds). The game is opened with `openDestruct({ files, view, sfx, music, exitSong })`
-(`src/destruct/index.ts`) or `?destruct`.
-
-**Options considered:**
-- *Transliterate and cross-check against the C (chosen):* the same approach as the main game
-  (D1), and the trace pins it to the original exactly, AI included.
-- *Rewrite it as idiomatic TypeScript:* easier to read, but the AI, physics and terrain would
-  drift from the original with nothing to check them against.
-- *Write the sim into the main game's global state `g`:* destruct.c shares no state with the main
-  game besides the RNG and sound queue; its own object keeps it separate and testable.
-
-**Review:** The trace driver compiles the C with `-ffp-contract=off` and correctly rounded
-`sinf`/`cosf` (glibc's behaviour, and what the port computes); clang's default fused
-multiply-adds on arm64 and macOS's libm `sinf` each move some shots by an ulp. A negative float
-converted to unsigned (a very rare "tall" map column) follows arm64, saturating to 0, where x86-64
-wraps it. The C's `rand()` for the wall count is not used: with the default config it is always 20.
-
-## D30a — Destruct in 3D: a slab of terrain with real holes, extruded sprites, glowing fire
-
-2026-10-27
-
-**Decision:** The battlefield is seen from the front, a little above, like the original screen.
-The dirt (palette 16-25 of picture 11's palette, pcxpal[10] = 21) is a slab 26 px deep: its front
-face is one plane textured from the screen (shaded darker with depth and a little per-pixel
-noise), and its top, bottom and sides are geometry built from the dirt's outline, so craters,
-rings and holes go right through it. The explosion pixels (241-255, fading a step a tick as in
-the C) glow additively in front of it, with up to four point lights at the biggest live explosions.
-Units and walls are their newsh~.shp sprites extruded like the main game's (src/render/spriteMesh.ts),
-coloured from the palette; shots, trails and crosshairs are glowing beads in JE_pixCool's and the
-crosshair's palette colours. A big explosion shakes the camera slightly. The black sky gets a
-faint starfield. Units and shots are interpolated between ticks; the game ticks at the C's rate,
-setFrameCount(1) at the Normal speed: ~14.4 ms, ~70 a second.
-
-**Options considered:**
-- *Slab with a textured front and outline walls (chosen):* the terrain is arbitrary pixels (rings
-  floating in the air, holes, star-shaped craters), which a heightfield can't hold. Rebuilding only
-  the outline walls when the dirt changes stays cheap (a 120 Hz display keeps up).
-- *Extruded heightfield:* simple, but loses overhangs, floating rings and holes, which are the
-  C's map types.
-- *One cube per dirt pixel (instanced):* up to 60,000 cubes, re-uploaded as craters form.
-- *Blender models for the units:* they're 12x14 sprites seen side on; extrusion keeps their exact
-  look and costs no assets.
-
-**Review:** Check the look and readability at a phone's size and on a slow GPU (shadows and the
-outline effect run every frame). Explosions in the sky burn black holes in the C's picture; here
-the sky is black anyway, so nothing shows.
-
-## D30b — Destruct's screens, keys and the way in
-
-2026-10-27
-
-**Decision:**
-- **Screens:** the title (JE_introScreen), mode select (JE_modeSelect), help (JE_helpScreen) and
-  pause (JE_pauseScreen) are interface-framework screens over the battlefield, with the data's
-  texts. The mode select also has rows for each side's computer/human switch (the C's F10/F11),
-  Help and Leave; F10, F11 and F1 work there too. Escape in a round goes back to it, as in the C,
-  and Escape there leaves Destruct.
-- **Keys:** the C's default two-player layout on one keyboard (left: C/V angle, A/Z power, X or
-  Left Shift fire, Left Alt vehicle, Left Ctrl/Space weapon; right: arrows, Enter/Insert/keypad 0
-  fire, \ or keypad 5 vehicle, Page Up/Down weapon), by KeyboardEvent.code so it works on any
-  layout. The left side starts as the computer, as in the C's default config. A key tapped
-  between two ticks still counts for one tick. Gamepads stand in for keys: pad 1 plays the right
-  side, pad 2 the left (d-pad or stick to aim and set power, A fire, X vehicle, LB/RB weapon,
-  Start pause, Back leave).
-- **Way in:** `openDestruct()` for the title's DESTRUCT code (the cheats work wires it), and
-  `?destruct` for development, which reloads into the game when Destruct is left. It borrows the
-  game View's renderer, or makes its own canvas without one.
-
-**Options considered:**
-- *Framework screens (chosen):* consistent with the rest of the game (D26) and work with pads and
-  taps. The C's text drawn on the 320x200 screen would be blurry and keyboard-only.
-- *Keep F10/F11 as the only computer switches:* F11 is the browser's full-screen key on some
-  systems, so the menu rows make the switch reachable anyway.
-- *Remappable Destruct keys:* the C reads them from opentyrian.cfg; no settings screen for them
-  yet.
-
-**Review:** A phone can't play it (it is a keyboard game; touch only reaches the menus). The app
-never seeds mt_rand (`?destruct` does, from the clock, as opentyr.c's main does), so through the
-title the first map is the same on every page load until the main game seeds it.
-## D31 — Screen filters: hues on palette indices, waves and blurs as a post pass over a pass mask
-
-2026-10-27
-
-**Decision:** The smoothies (event 64: lava, water, iced blur, blur, the headlight and the flipped
-screen) and JE_barBright (the Zinglon beam) are recorded by the sim each tick in `drawList.screen`
-(`src/sim/smoothies.ts`): which filters run, in JE_main's order, the last draw pass each one
-covers, and whether it is the frame's first (the only one that reads the previous frame, since the
-C draws into VGAScreen2 until the first filter writes into game_screen). The renderer splits each
-filter in two. The hue half (lava 0x70, iced 0x80, the water's hue on indices with
-`(index & 0x30) != 0`) is index arithmetic in the palette materials for draws whose pass height
-(D5) is under the filter, as the C does it (`src/render/screenHue.ts`); models in those passes take
-the hue like the hit flash. The value half (the lava's wave and smear, the water's ripple, the
-blurs, the headlight's cone, the flip, the beam) is a post pass (`src/render/screenFilters.ts`):
-the scene goes to a render target, a mask pass draws every object's pass height, and the filter
-only changes pixels whose top object is under its ceiling. Pixels are placed in game_screen
-coordinates by meeting the camera ray with the ground (D6), so the C's per-row and per-chunk wave
-tables apply unchanged. Value is brightness; a new value scales the lit colour. Blends with the
-previous frame use the per-frame weight that halves it per classic tick. It all runs only while a
-filter is on. The level colour filter and brightness (event 44, the flare specials) were already
-folded into the palette texture; they showed nothing because `filtrationAvail` was false, so it is
-now true, as JE_initProcessorType sets it for processorType 4, which the port plays at.
-
-**Options considered:**
-- *Hue on indices, value in a masked post pass (chosen):* the colours are the C's exact palette
-  entries under the 3D lighting, and only the passes the C filters are touched.
-- *Everything in a post pass, hue guessed from the lit colour:* tried first. Lit colours are
-  brighter than palette entries, so the lava came out washed-out yellow, and the water's
-  grey/cloud test needed a nearest-palette lookup that lighting fools.
-- *A full-screen post pass with no mask:* simplest, but it tints and smears the player's ship,
-  shots and sky enemies, which the C draws after the filters.
-- *Split the scene into two renders by pass group:* exact layering, but the instanced pools mix
-  passes, so it means reorganising the draw-list renderer, and shadows across the split are lost.
-
-**Review:** Play ASSASSIN (episode 1; lava, headlight), SAVARA V (water), and in episode 4 LAVA
-RUN (lava, flip), ICE EXIT (iced blur), DESERTRUN (blur) and CORE (water with a level filter);
-`?debug=level&episode=E&main=N&skip=T&god=1` starts one. The mask pass draws the scene a second
-time while a smoothie is on; if that costs too much on slow machines, render the mask at half
-resolution. The water ripple is an approximation of the C's bottom-up recurrence (six rows down).
-Blended (translucent) objects count as solid in the mask.
-
-## D31a — The item screen's simulator draws the Plasma Storm's shots, which the C's doesn't
-
-2026-10-27
-
-**Decision:** The user reported that the Plasma Storm doesn't render. It is a sidekick (options
-index 9, "Plasma Storm Ammo 10"), not a special weapon. In a level it renders: its shots are
-option-shape sprites 22-24 (shot graphics above 60000), drawn blended by player_shot_move_and_draw,
-and they fire only on a sidekick key (Left Ctrl / K, Left Alt / ;) while it has ammo, as in the
-original. The C's item screen simulator, `simulate_player_shots`, skips shot graphics above 60000,
-so the shop showed nothing for it; the port now draws them there as the level does.
-
-**Options considered:**
-- *Draw them in the simulator (chosen):* buyers see what they're paying 8000 for.
-- *Keep the C's empty preview:* faithful, but it reads as a bug, and was reported as one.
-
-**Review:** Upgrade Ship → Left Sidekick → Plasma Storm. If the C's empty preview is preferred,
-remove the `anim_frame > 60000` branch in `simulate_player_shots` (`src/sim/shots.ts`).
 ## D36 — Remastered sound effects are resynthesized from the originals and switch per sound
 
 2026-10-27
@@ -1140,3 +1159,24 @@ what to check first: the explosions, the voices, the most frequent sounds). If g
 scenes clip, lower MAX_GAIN_DB in tools/sfx.py or add a compressor on the effects bus. If the
 rights holders approve the music, decide separately whether the effects ship too: they derive from
 the game's sounds, so the same permission applies.
+
+## D37 — The game seeds mt_rand from the clock at start-up; `?seed=N` fixes it
+
+2026-10-27
+
+**Decision:** OpenTyrian's main calls `mt_srand(time(NULL))` before anything else (opentyr.c
+L757); the port never seeded, so every page load ran from MT19937's default seed (5489) and the
+same inputs gave the same game. `runGame` now seeds once at start-up with the seconds since the
+epoch (`src/app/seed.ts`), or with `N` from `?seed=N` for debugging. Only the game seeds there:
+the tests, the debug harnesses (`?debug=play`, `?debug=level` and `?destruct` set their own) and
+the demos (beginPlayDemo's `mt_srand(seed)`) keep fixed seeds, so the demo, bot, arcade,
+two-player and Destruct cross-checks are unchanged.
+
+**Options considered:**
+- *Seconds since the epoch, as the C (chosen):* the original's behaviour; two loads in the same
+  second play alike, as two launches in the same second of the C do.
+- *`crypto.getRandomValues`:* never repeats, but no reason to differ from the C.
+- *No seed (as before):* repeatable, but every session played the same.
+
+**Review:** Load the game twice and play the same way: enemy fire and drops should differ. To
+repeat a session exactly (with the same inputs), load it with the same `?seed=N`.

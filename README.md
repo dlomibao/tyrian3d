@@ -143,7 +143,7 @@ bot, with chosen weapons; see `src/debug/playHarness.ts`), `?debug=level` (one l
 loadout, e.g. `&episode=4&main=3&sidekick=9,9&special=6&skip=3000&god=1`; see
 [`src/debug/levelHarness.ts`](src/debug/levelHarness.ts)), `?destruct` (straight into Destruct),
 `/src/audio/debugMusic.html` (music player). `?vfx=original` shows shots and explosions as the
-extruded sprites instead of the remastered effects.
+extruded sprites instead of the remastered effects; `?seed=N` fixes the random seed (D37).
 
 ## License
 
