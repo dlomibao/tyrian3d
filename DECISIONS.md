@@ -650,3 +650,78 @@ renderer and only while a screen asks for it. The pause screen's "Quit to title"
 backdrop's cost shows on slow machines, cap its frame rate or render it at a lower pixel ratio. If
 the C's in-game Quit is wanted, add "Retry from item screen" to the pause menu: it's the "died"
 path in `run.ts` with `playerEndLevel` set.
+
+## D34 — Remastered backgrounds: the ground upscaled 4x at runtime, structures as tile models found by pattern
+
+2026-10-27
+
+**Decision:** A pilot of the backgrounds' new look, done fully for the tileset of Episode 1's first
+level (TYRIAN, `shapesz.dat`), behind a switch: `?bg=remaster` (`Settings.background`;
+`DrawListRenderer.setBackgroundStyle`). The default stays `original` (D8) until the other
+tilesets have their structures. Wherever nothing remastered exists, the original tile is drawn.
+- **Ground (background 1):** every tile is upscaled 4x with MMPX (`src/render/remaster/mmpx.ts`, a
+  port of the paper's MIT code) into a palette-index atlas (`groundAtlas.ts`). A tile is upscaled
+  with its eight neighbours as they are in the map that tick, and only its own part kept, so a
+  cell comes out exactly as if the whole map had been upscaled at once: no seams, and each slot
+  keeps a one-texel border from its neighbours. Slots are keyed by the 3x3 context and reused least
+  recently used first (a level has 1,000-2,000 contexts; about 100 are on screen). The shader
+  (`groundMaterial.ts`) looks the four nearest texels up in the live palette and blends them, and
+  tilts the normal by their brightness, so painted rocks and ridges catch the light.
+- **Structures:** Blender models of structure tiles, placed where a pattern of tiles is. Each
+  script in `assets/blender/tiles/` writes the `.glb` and a JSON entry in `src/render/tileModels/`
+  (model, tileset, layer, the pattern as rows of tile numbers). `tileModels.ts` matches a pattern
+  from any of its tiles, checking the cells drawn that tick, so a structure stays whole while part
+  of it is off screen. Ground structures stand on their tiles (`keepTiles`); background 2-3 models
+  replace theirs. The models are drawn instanced (`structureInstances.ts`): one draw per model
+  part however many copies, sharing palette materials.
+- **TYRIAN's models** (75): background 3's floating islands and fortresses, one model per tile
+  (`shapesz_bg3.py`): a slab with the tile's outline and a rounded boulder per stone in the art
+  (found as hills of brightness, with the tile between its usual neighbours, and cut at the tile
+  edge so boulders continue across it), the islands' undersides hanging toward the camera, smooth
+  relief for the purple carving and the metal maze floor, pits with glowing lava, drums as
+  cylinders, a glowing orb. On the ground (`shapesz_ground.py`): two 2x2 bunkers and a 3x2 wreck
+  as raised relief of their silhouettes (with a torus and domes for the ring bunker), boulders,
+  and a crown per tree in the forest. Ground models stay under 0.2 units where ground enemies
+  sit on them (the bunkers, boulders), trees under 0.4.
+- **Pipeline:** `npm run tiles` (`tests/tools/tileReference.test.ts`) writes
+  `reference/tiles/<shapes>/`: every used tile's pixels at 1x and MMPX 2x, its layers, levels and
+  usual neighbours, the in-level palette, PNGs of each tile, its 4x upscale, the layers' tile
+  sheets and maps, and a stretch of each level's ground upscaled in context. The Blender scripts
+  read `tiles.json`; `tools/build-models.sh` builds them with the rest.
+
+**Options considered:**
+- *Ground generated at runtime from the player's data (chosen):* the tiles are in the data the
+  player supplies (D3) anyway, every tileset gets it with no per-tileset work, and the result
+  is seamless because the neighbours are known when a cell is drawn. Nothing to commit for the
+  ground.
+- *Upscaled ground textures committed (allowed for the tile art by D16):* reviewable files, and
+  room for hand-painted or AI-upscaled ones later, but per-tile files can't be seamless for every
+  neighbour a tile has, and 600 tiles per tileset of 4x PNGs is a lot to commit for what the
+  game makes as it goes: about 0.17 ms per cell (measured in Node on the dev machine), so ~2 ms
+  for a new row of 12 and ~17 ms once at level start. Hand-made overrides can still be added
+  later as a lookup before the upscaler.
+- *xBR / hqx (as OpenTyrian's video_scale_hqNx.c) instead of MMPX:* smoother, but they blend
+  colours, so the result is RGB for one palette: level palettes, fades and JE_filterScreen (D7)
+  would no longer apply. MMPX only picks input pixels, so it works on palette indices; the colour
+  blending happens in the shader after the palette lookup instead. On the noisy dithered ground
+  textures MMPX changes little; the relief lighting does most of the visible work there.
+- *Per-tile upscale with clamped or wrapped edges:* measured on TYRIAN's ground, 2% (clamp) and
+  0.9% (wrap) of the pixels near a seam differ from a whole-map upscale; in context it's 0%.
+- *Structure models cloned per copy, as enemies are:* worked, but a fortress on screen took
+  ~970 draw calls and 5.9 ms of CPU a frame; instanced, ~400 and 1.6 ms.
+- *Structures modelled entirely by hand:* the most freedom, but 75 models for one tileset; the
+  scripts derive shape, size and colour from the tile pixels, so the models follow the art and
+  the same recipes extend to the other tilesets' rock, metal and foliage.
+- *Every tile as relief (extrusion done better):* uniform, but not "real" 3D; used only where the
+  art is a carved or plated surface.
+
+**Review:** Play TYRIAN with `?bg=remaster` and compare with `?bg=original` (the sprite harness:
+`?debug=sprites&episode=1&level=9&row=175&freeze=80&bg=remaster`, and
+`tyrianHarness.view.draws.setBackgroundStyle("original")` in the console for the same frame).
+Known gaps: the purple carving and the metal floor are relief with each 2x pixel's colour, so they
+still look pixelated up close and would gain from hand modelling; the island underside is a sloped
+face rather than modelled roots; the forest crowns are smooth domes, plainer than the painted
+canopy; the clouds (background 2) stay extruded. To extend to another tileset: `TILES_SHAPES=<x>
+npm run tiles`, then a `shapes<x>_*.py` like the two here, reusing `lib_tiles.py`. If many
+tilesets' models are added, load each tileset's models when its level starts (already done on the
+first tile seen) and consider one `.glb` per tileset.

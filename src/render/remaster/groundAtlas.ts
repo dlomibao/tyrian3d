@@ -54,12 +54,18 @@ export function upscaleInContext(neighbours: (Uint8Array | null)[][], luma: Arra
       else src[y * w + x] = center[clamp(ty, TILE_HEIGHT) * TILE_WIDTH + clamp(tx, TILE_WIDTH)];
     }
   }
-  const up = mmpx2x(mmpx2x(src, w, h, luma), w * 2, h * 2, luma);
-  const uw = w * GROUND_SCALE;
+  // Only what's kept is computed: the slot (the tile and a texel of border) from the second pass,
+  // and from the first pass what the second reads for it (MMPX reads 3 pixels around).
+  const first = { x: PAD - 2, y: PAD - 2, w: TILE_WIDTH + 4, h: TILE_HEIGHT + 4 };
+  const half = mmpx2x(src, w, h, luma, "clamp", first);
+  const hw = first.w * 2, hh = first.h * 2;
+  // In the first pass's output the tile starts at 4 px; the slot starts a texel before it in 4x.
+  const second = { x: 3, y: 3, w: TILE_WIDTH * 2 + 2, h: TILE_HEIGHT * 2 + 2 };
+  const up = mmpx2x(half, hw, hh, luma, "clamp", second);
+  const uw = second.w * 2;
   const out = new Uint8Array(SLOT_W * SLOT_H);
-  const ox = PAD * GROUND_SCALE - BORDER;
-  const oy = PAD * GROUND_SCALE - BORDER;
-  for (let y = 0; y < SLOT_H; y++) out.set(up.subarray((oy + y) * uw + ox, (oy + y) * uw + ox + SLOT_W), y * SLOT_W);
+  const o = 2 - BORDER; // the tile starts 2 texels into `up`
+  for (let y = 0; y < SLOT_H; y++) out.set(up.subarray((o + y) * uw + o, (o + y) * uw + o + SLOT_W), y * SLOT_W);
   return out;
 }
 

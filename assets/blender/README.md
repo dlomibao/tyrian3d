@@ -86,6 +86,26 @@ Compare a model with its sprite in the model viewer at `?viewer=<name>`: rotate 
 Top with "Sprite over model" to check the outline pixel by pixel. `?debug=models` on the dev server
 shows models in the game's own renderer (`&model=a,b`, `&page=N`, `&flash=1` for the hit flash).
 
+## Background structures (DECISIONS.md D34)
+
+`?bg=remaster` draws structure tiles (rocks, buildings, trees) as models. Scripts in `tiles/`, one
+or more per tileset (`shapesz_bg3.py`, `shapesz_ground.py`), build them from the tiles' pixels:
+
+    TILES_SHAPES=z npm run tiles    # writes reference/tiles/shapesz/ (git-ignored, from the data)
+    tools/build-models.sh -p /tmp/previews assets/blender/tiles/*.py
+
+`reference/tiles/<shapes>/tiles.json` has every used tile's pixels (1x and MMPX 2x), the layers and
+levels that use it and its usual neighbours; `map-*.png` and `used-l*.png` show where tiles go.
+`lib_tiles.py` has the shared parts: `Tileset` (load it with the layer being modelled, as index 0 is
+transparent on layers 1 and 2), `boulders` (a rounded stone per stone painted on a tile, found as
+hills of brightness and continued across tile edges), `mask_slab` (a slab with the tile's outline,
+optionally a coloured relief), `dome`, `block` and `export_tile_model`. A model stands for a
+pattern of tiles (rows of tile numbers, -1 = any) and is centred on it; `export_tile_model` writes
+the `.glb` to `public/models/tiles/<shapes>/` and the pattern to `src/render/tileModels/`.
+Background 3 models sit at their pass's height and keep within about +-0.35 units; ground models
+stand at 0 and stay under 0.2 where ground enemies sit on them. `tests/render/remaster.test.ts`
+checks that every multi-tile pattern only occurs whole in the levels' maps.
+
 ## Running a script
 
 - **Through the Blender MCP**, in the live Blender session (the usual way while modeling):

@@ -70,7 +70,9 @@ score table (episodes 1-3, as in the original), which the title screen shows und
   models), loaded the first time it appears and coloured from the game's live palette. The
   backgrounds, shots and effects are extruded from their pixels into rounded 3D shapes. Motion is
   interpolated, so it's smooth at any refresh rate, though the game logic ticks at the original
-  ~35 Hz.
+  ~35 Hz. `?bg=remaster` tries the remastered backgrounds, a pilot done for Episode 1's first
+  level: the ground upscaled 4x (MMPX) with relief lighting, and its rocks, fortresses, bunkers and
+  forest as Blender models (DECISIONS.md D34).
 - **Audio (`src/audio/`):** the original sound effects, plus the AdLib music played through a
   port of the OPL emulator and the LDS song player. It matches OpenTyrian's output sample for sample.
 - **Data (`src/data/`):** parsers for Tyrian's level, item, enemy, sprite, palette and episode
@@ -82,7 +84,8 @@ Each 3D model is built by a Python script in [`assets/blender/`](assets/blender/
 to `public/models/*.glb`. The scripts are committed, so every model can be rebuilt from scratch
 (`tools/build-models.sh` runs them headless in parallel); `.blend` files are not committed. The
 models are 3D versions of Daniel Cook's Tyrian art, which he released for anyone to use.
-`npm run catalogue` lists every sprite to model. To compare models with their sprites, open the
+`npm run catalogue` lists every sprite to model, and `npm run tiles` writes the background tiles
+that `assets/blender/tiles/` builds structure models from. To compare models with their sprites, open the
 model viewer at `?viewer` (or `?viewer=<model name>`): the sprite and the model side by side, the
 model rotatable, with a top view at the sprite's scale that can lay the sprite over the model.
 Bosses and other objects built from several pieces are listed too (`assembly-…`), shown whole. It

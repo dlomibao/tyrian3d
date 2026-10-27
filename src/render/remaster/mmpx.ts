@@ -10,37 +10,63 @@
 // Changes from the reference: pixels are palette indices instead of RGBA, the luminance used to
 // break ties comes from a 256-entry table (the palette's), and there is no alpha case (ground
 // tiles are opaque; for transparent layers index 0 is given the lowest luminance, as transparent
-// is in the original). The source is read through `src(x, y)` with the edge handling chosen by
-// the caller (clamp, or wrap for tiles that repeat).
+// is in the original). Pixels beyond the edge are clamped or wrapped, as the caller chooses; the
+// reference clamps. The reference's src(x + 2, y - 1) etc. are the same reads as p[i - pw + 2].
 
 /** How pixels outside the image are read. */
 export type EdgeMode = "clamp" | "wrap";
 
-/** Double `pixels` (w x h palette indices). `luma[i]` orders indices by brightness. */
-export function mmpx2x(pixels: Uint8Array, w: number, h: number, luma: ArrayLike<number>, edge: EdgeMode = "clamp"): Uint8Array {
-  const out = new Uint8Array(w * h * 4);
-  const src =
-    edge === "wrap"
-      ? (x: number, y: number) => pixels[(((x % w) + w) % w) + (((y % h) + h) % h) * w]
-      : (x: number, y: number) => pixels[Math.max(0, Math.min(x, w - 1)) + Math.max(0, Math.min(y, h - 1)) * w];
-  const ow = w * 2;
+/** Pixels MMPX reads beyond the one it's on. */
+const REACH = 3;
 
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
+/**
+ * Double `pixels` (w x h palette indices). `luma[i]` orders indices by brightness. With `window`
+ * (x, y, width, height in source pixels) only that part is computed, reading the image around it;
+ * the result is then 2 * width x 2 * height.
+ */
+export function mmpx2x(
+  pixels: Uint8Array,
+  w: number,
+  h: number,
+  luma: ArrayLike<number>,
+  edge: EdgeMode = "clamp",
+  window: { x: number; y: number; w: number; h: number } = { x: 0, y: 0, w, h },
+): Uint8Array {
+  // Copy the image with REACH pixels around it (clamped or wrapped), so reads need no checks.
+  const pw = w + 2 * REACH;
+  const ph = h + 2 * REACH;
+  const p = new Uint8Array(pw * ph);
+  for (let y = 0; y < ph; y++) {
+    let sy = y - REACH;
+    sy = edge === "wrap" ? ((sy % h) + h) % h : sy < 0 ? 0 : sy >= h ? h - 1 : sy;
+    for (let x = 0; x < pw; x++) {
+      let sx = x - REACH;
+      sx = edge === "wrap" ? ((sx % w) + w) % w : sx < 0 ? 0 : sx >= w ? w - 1 : sx;
+      p[y * pw + x] = pixels[sy * w + sx];
+    }
+  }
+  const ow = window.w * 2;
+  const out = new Uint8Array(ow * window.h * 2);
+
+  for (let wy = 0; wy < window.h; wy++) {
+    const y = window.y + wy;
+    for (let wx = 0; wx < window.w; wx++) {
+      const x = window.x + wx;
+      const i = (y + REACH) * pw + x + REACH; // the pixel in the padded copy
       //    P
       //   ABC
       // QDEFR
       //   GHI
       //    S
-      const A = src(x - 1, y - 1), B = src(x, y - 1), C = src(x + 1, y - 1);
-      const D = src(x - 1, y), E = src(x, y), F = src(x + 1, y);
-      const G = src(x - 1, y + 1), H = src(x, y + 1), I = src(x + 1, y + 1);
+      const A = p[i - pw - 1], B = p[i - pw], C = p[i - pw + 1];
+      const D = p[i - 1], E = p[i], F = p[i + 1];
+      const G = p[i + pw - 1], H = p[i + pw], I = p[i + pw + 1];
 
       let J = E, K = E, L = E, M = E;
 
       if (A !== E || B !== E || C !== E || D !== E || F !== E || G !== E || H !== E || I !== E) {
-        const P = src(x, y - 2), S = src(x, y + 2);
-        const Q = src(x - 2, y), R = src(x + 2, y);
+        const P = p[i - 2 * pw], S = p[i + 2 * pw];
+        const Q = p[i - 2], R = p[i + 2];
         const Bl = luma[B], Dl = luma[D], El = luma[E], Fl = luma[F], Hl = luma[H];
 
         // 1:1 slopes: round corners and fill diagonals, but keep sharp right angles.
@@ -50,10 +76,10 @@ export function mmpx2x(pixels: Uint8Array, w: number, h: number, luma: ArrayLike
         if (F === H && F !== B && F !== D && (El >= Fl || E === I) && any3(E, C, G, I) && (El < Fl || I !== H || E !== R || E !== S)) M = F;
 
         // Disconnected line intersections.
-        if (E !== F && all4(E, C, I, D, Q) && all2(F, B, H) && F !== src(x + 3, y)) K = M = F;
-        if (E !== D && all4(E, A, G, F, R) && all2(D, B, H) && D !== src(x - 3, y)) J = L = D;
-        if (E !== H && all4(E, G, I, B, P) && all2(H, D, F) && H !== src(x, y + 3)) L = M = H;
-        if (E !== B && all4(E, A, C, H, S) && all2(B, D, F) && B !== src(x, y - 3)) J = K = B;
+        if (E !== F && all4(E, C, I, D, Q) && all2(F, B, H) && F !== p[i + 3]) K = M = F;
+        if (E !== D && all4(E, A, G, F, R) && all2(D, B, H) && D !== p[i - 3]) J = L = D;
+        if (E !== H && all4(E, G, I, B, P) && all2(H, D, F) && H !== p[i + 3 * pw]) L = M = H;
+        if (E !== B && all4(E, A, C, H, S) && all2(B, D, F) && B !== p[i - 3 * pw]) J = K = B;
 
         // Tips of bright triangles on dark backgrounds.
         if (Bl < El && all4(E, G, H, I, S) && none4(E, A, D, C, F)) J = K = B;
@@ -64,27 +90,27 @@ export function mmpx2x(pixels: Uint8Array, w: number, h: number, luma: ArrayLike
         // 2:1 and 1:2 slopes of one colour. These extend colours the rules above chose.
         if (H !== B) {
           if (H !== A && H !== E && H !== C) {
-            if (all3(H, G, F, R) && none2(H, D, src(x + 2, y - 1))) L = M;
-            if (all3(H, I, D, Q) && none2(H, F, src(x - 2, y - 1))) M = L;
+            if (all3(H, G, F, R) && none2(H, D, p[i - pw + 2])) L = M;
+            if (all3(H, I, D, Q) && none2(H, F, p[i - pw - 2])) M = L;
           }
           if (B !== I && B !== G && B !== E) {
-            if (all3(B, A, F, R) && none2(B, D, src(x + 2, y + 1))) J = K;
-            if (all3(B, C, D, Q) && none2(B, F, src(x - 2, y + 1))) K = J;
+            if (all3(B, A, F, R) && none2(B, D, p[i + pw + 2])) J = K;
+            if (all3(B, C, D, Q) && none2(B, F, p[i + pw - 2])) K = J;
           }
         }
         if (F !== D) {
           if (D !== I && D !== E && D !== C) {
-            if (all3(D, A, H, S) && none2(D, B, src(x + 1, y + 2))) J = L;
-            if (all3(D, G, B, P) && none2(D, H, src(x + 1, y - 2))) L = J;
+            if (all3(D, A, H, S) && none2(D, B, p[i + 2 * pw + 1])) J = L;
+            if (all3(D, G, B, P) && none2(D, H, p[i - 2 * pw + 1])) L = J;
           }
           if (F !== E && F !== A && F !== G) {
-            if (all3(F, C, H, S) && none2(F, B, src(x - 1, y + 2))) K = M;
-            if (all3(F, I, B, P) && none2(F, H, src(x - 1, y - 2))) M = K;
+            if (all3(F, C, H, S) && none2(F, B, p[i + 2 * pw - 1])) K = M;
+            if (all3(F, I, B, P) && none2(F, H, p[i - 2 * pw - 1])) M = K;
           }
         }
       }
 
-      const o = y * 2 * ow + x * 2;
+      const o = wy * 2 * ow + wx * 2;
       out[o] = J;
       out[o + 1] = K;
       out[o + ow] = L;
