@@ -3,8 +3,9 @@
 Seen in episode 3 (levels 3.6 and 3.23). Seen from above: a grey tower at the back with two dark
 vent slots, a pair of round grey pods with dark glass canopies either side of it, a blue hull
 underneath with green, sloped side panels, and a pink cannon whose dark mouth opens just in front
-of the tower. The three frames only light up the green panels (the last frame glows bright
-green), so one model covers them all; the glowing strips use the bright green index.
+of the tower. The three frames only light up the strips on the green panels (dark green, then
+brighter green, then bright yellow-green on the last frame), so one model covers them all: the
+strips change palette colour on each frame (palette_material frames=).
 
 Run: blender --background --python assets/blender/enemies/newshc-191.py [-- --preview out.png]
 """
@@ -36,7 +37,8 @@ def build(sprite):
         pal(57, metallic=0.4, roughness=0.45),  # 6 blue hull
         pal(59, metallic=0.4, roughness=0.4),  # 7 light blue ribs
         pal(38, metallic=0.3, roughness=0.5),  # 8 green side panels
-        pal(202, emission_strength=3.0),  # 9 glowing green strips
+        # 9 glowing strips: dark green on 191, green on 193, bright yellow-green on 195
+        common.palette_material(sprite, 202, f"{NAME}-glow", emission_strength=3.0, frames={191: 38, 193: 42}),
         pal(89, metallic=0.4, roughness=0.4),  # 10 pink cannon
         pal(82, metallic=0.2, roughness=0.8),  # 11 cannon mouth
         pal(93, metallic=0.4, roughness=0.3),  # 12 pale pink highlight
@@ -49,10 +51,12 @@ def build(sprite):
     # Blue hull (rows 17-25), its lower corners cut away, chamfered on top.
     lib.slab(bm, [(1, 17.2), (AXIS, 17.2), (AXIS, 25.0), (4.5, 25.0), (2.6, 24.2), (1.2, 22.8)],
              -3.2, 0.2, mat=HULL, bevel=0.8)
-    # Green side panel sloping down the outer edge (columns 1-4, rows 18-24) and its glow strip.
+    # Green side panel sloping down the outer edge (columns 1-4, rows 18-24) and its glow strip,
+    # just proud of the panel's top so it shows when it lights up (on frame 191 it is the panel's
+    # own dark green).
     lib.slab(bm, [(1.0, 17.6), (4.8, 17.6), (4.8, 21.0), (5.2, 24.4), (3.0, 24.6), (1.0, 23.0)],
              -2.6, 0.9, mat=GREEN, bevel=0.9)
-    lib.box(bm, 1.9, 20.2, 3.1, 23.8, -1.0, 0.6, mat=GLOW)
+    lib.box(bm, 1.9, 20.2, 3.1, 23.8, -1.0, 1.1, mat=GLOW)
     # Light diagonal ribs on the hull (the pale 57-60 streak from column 4, row 20 to column 9, row 24).
     lib.tube(bm, [(4.6, 19.6, 0.55, 0.45, 0.3), (6.6, 22.4, 0.55, 0.45, 0.3), (8.6, 24.4, 0.55, 0.45, 0.2)],
              sides=6, mat=RIB)

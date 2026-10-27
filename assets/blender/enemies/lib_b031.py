@@ -224,17 +224,28 @@ def preview_arg():
     return None
 
 
+def frames_arg():
+    if "--frames" in sys.argv:
+        return sys.argv[sys.argv.index("--frames") + 1]
+    return None
+
+
 def run_single(root, name, build):
-    """The usual main for one model: build(sprite) -> object; export it with every sprite frame
-    and, with -- --preview <png>, render the preview."""
+    """The usual main for one model: build(sprite) -> object, or a list of objects (the first
+    is the body, the rest frame-tagged parts); export them with every sprite frame and, with
+    -- --preview <png>, render the preview (-- --frames <png>: every frame, one row each)."""
     sprite = common.load_sprite(root, name)
     obj = build(sprite)
-    common.export_sprite_model(root, [obj], f"enemies/{name}", sprite["sprites"])
+    objs = obj if isinstance(obj, list) else [obj]
+    common.export_sprite_model(root, objs, f"enemies/{name}", sprite["sprites"])
     out = preview_arg()
     if out:
         frame = sprite["frames"][0]
         ref = root / "reference" / "models" / name / frame["image"]
-        common.render_preview([obj], out, ref, size=frame["size"])
+        common.render_preview(objs, out, ref, size=frame["size"], frame=frame["index"])
+    out = frames_arg()
+    if out:
+        common.render_frame_previews(objs, out, sprite, root)
     return obj
 
 

@@ -4,7 +4,8 @@ Seen in episode 1 (level 1.19), 3 (level 3.23) and 4 (level 4.12). A dark blue h
 thick, curved light-blue shell wrapping its left side and top, a glowing orange core in a socket
 under the shell, a light rib and a darker wall down its right side, and banded plates and vents
 across its lower part. The three frames only brighten the core (dim red to white-hot), so one
-model covers them all.
+model covers them all: the core and its hot centre change palette colour on each frame
+(palette_material frames=).
 
 Run: blender --background --python assets/blender/enemies/newshc-49.py [-- --preview out.png]
 """
@@ -32,8 +33,9 @@ def build(sprite):
         pal(61, metallic=0.5, roughness=0.3),  # 2 pale shell crest
         pal(56, metallic=0.45, roughness=0.4),  # 3 right rib, plates
         pal(54, metallic=0.4, roughness=0.45),  # 4 right wall, struts
-        pal(121, emission_strength=4.0),  # 5 glowing core
-        pal(125, emission_strength=6.0),  # 6 hot centre
+        # 5 glowing core and 6 hot centre: dim red-orange on 49, orange on 51, yellow-white on 53
+        common.palette_material(sprite, 121, f"{NAME}-core", emission_strength=4.0, frames={49: 116, 53: 124}),
+        common.palette_material(sprite, 125, f"{NAME}-hot", emission_strength=6.0, frames={49: 122, 53: 127}),
         pal(58, metallic=0.45, roughness=0.35),  # 7 light lip and bands
         pal(50, metallic=0.3, roughness=0.6),  # 8 dark socket and vents
     ]
