@@ -34,6 +34,7 @@ import {
   Pass,
   type Sprite2Sheet,
 } from "../sim/draw";
+import { BG_KEY_LAYER } from "../sim/backgrnd";
 import { buildResources, requireFile } from "../sim/resources";
 import type { Resources } from "../sim/state";
 import { composeSprite2x2 } from "../render/spriteMesh";
@@ -160,7 +161,8 @@ function levelScene(res: Resources, files: { get(name: string): Uint8Array | und
   const level: Level = lvl.levels[levelNum - 1] ?? lvl.levels[0];
   const shapes = parseShapes(requireFile(files, `shapes${level.shapeFile.toLowerCase()}.dat`));
   const layerTiles = ([0, 1, 2] as const).map((layer) => levelTiles(level, shapes, layer));
-  console.info(`level ${levelNum} of tyrian${episode}.lvl, shapes${level.shapeFile.toLowerCase()}.dat`);
+  const shapesFile = `shapes${level.shapeFile.toLowerCase()}.dat`;
+  console.info(`level ${levelNum} of tyrian${episode}.lvl, ${shapesFile}`);
 
   // Background state, as JE_loadMap sets it: maps scroll from the bottom (row height - 8) upward.
   // `&row=N` starts N rows from the top of background 1's map instead (the others in proportion).
@@ -235,7 +237,8 @@ function levelScene(res: Resources, files: { get(name: string): Uint8Array | und
           const tile = layerTiles[layer][level.maps[layer][row * width + col]];
           if (!tile) continue;
           const shape = level.mapSh[layer][level.maps[layer][row * width + col]];
-          drawTile(layer, tile, `${level.shapeFile}:${shape}`, ofs + (col - 2) * 24, i * 28 + b.backPos, layer * 1_000_000 + row * 16 + col);
+          // Tile id and key as the sim's blitBackgroundRow makes them (backgrnd.ts).
+          drawTile(layer, tile, `${shapesFile}:${shape - 1}`, ofs + (col - 2) * 24, i * 28 + b.backPos, BG_KEY_LAYER * layer + row * width + col);
         }
       }
     }

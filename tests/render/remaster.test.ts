@@ -6,6 +6,8 @@ import { mmpx2x, mmpx4x } from "../../src/render/remaster/mmpx";
 import { RemasterGroundAtlas, upscaleInContext } from "../../src/render/remaster/groundAtlas";
 import { TILE_MODELS, TileModelIndex, type TileModelEntry } from "../../src/render/remaster/tileModels";
 import { BG_KEY_LAYER } from "../../src/sim/backgrnd";
+import { MAP_SIZES, parseLevelFile } from "../../src/data/levels";
+import { hasData, readData } from "../data/dataDir";
 
 /** Luminance = index, so brighter indices are higher numbers. */
 const luma = Array.from({ length: 256 }, (_, i) => i);
@@ -155,5 +157,44 @@ describe("structure patterns", () => {
         claimed.set(k, e.model);
       }
     }
+  });
+});
+
+describe.skipIf(!hasData("tyrian1.lvl", "levels1.dat"))("structure patterns in the real maps", () => {
+  test("wherever a pattern's tile is on its layer, the whole pattern is there (or cut by the map's edge)", () => {
+    const multi = TILE_MODELS.filter((e) => e.tiles.length * e.tiles[0].length > 1);
+    let checked = 0;
+    for (let ep = 1; ep <= 4; ep++) {
+      if (!hasData(`tyrian${ep}.lvl`)) continue;
+      for (const level of parseLevelFile(readData(`tyrian${ep}.lvl`)).levels) {
+        const shapes = `shapes${level.shapeFile.toLowerCase()}.dat`;
+        for (const e of multi.filter((m) => m.shapes === shapes)) {
+          const { width, height } = MAP_SIZES[e.layer];
+          const at = (x: number, y: number) => level.mapSh[e.layer][level.maps[e.layer][y * width + x]] - 1;
+          const rows = e.tiles.length, cols = e.tiles[0].length;
+          for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+              const t = at(x, y);
+              const cells: [number, number][] = [];
+              e.tiles.forEach((row, r) => row.forEach((v, c) => v === t && cells.push([r, c])));
+              if (cells.length === 0) continue;
+              // Some placement of the pattern containing (x, y) must match every cell inside the map.
+              const fits = cells.some(([r, c]) => {
+                for (let rr = 0; rr < rows; rr++)
+                  for (let cc = 0; cc < cols; cc++) {
+                    const mx = x - c + cc, my = y - r + rr;
+                    if (mx < 0 || my < 0 || mx >= width || my >= height) continue;
+                    if (e.tiles[rr][cc] >= 0 && at(mx, my) !== e.tiles[rr][cc]) return false;
+                  }
+                return true;
+              });
+              expect(fits, `${e.model}: tile ${t} at (${x}, ${y}) of a level in tyrian${ep}.lvl outside its pattern`).toBe(true);
+              checked++;
+            }
+          }
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(0);
   });
 });
