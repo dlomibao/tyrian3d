@@ -16,11 +16,13 @@
 //
 // Ported: the full-game menu, Upgrade Ship and its submenus (prices, trade-in, weapon power
 // up/downgrades, the rear weapon's firing mode), Play Next Level (the navigation choices and
-// JE_computeDots), Quit, and the arcade/Super Tyrian menus' "play next level" and quit.
-// Not ported (no-ops): Data Cubes, Options (load/save, keyboard and joystick setup, volume),
+// JE_computeDots), Data Cubes (the list and the reader; the cubes themselves and the reader's
+// scrolling are in cubes.ts), Quit, and the arcade/Super Tyrian menus' "play next level" and quit.
+// Not ported (no-ops): Options (load/save, keyboard and joystick setup, volume),
 // the weapon simulator preview (JE_initWeaponView/JE_weaponSimUpdate), network play, and drawing.
 
 import { u8 } from "./cint";
+import { cube, cubeReader_open } from "./cubes";
 import { JE_getCost } from "./mainint";
 import { copyPlayerItems } from "./player";
 import { S_CLICK, S_CLINK, S_CURSOR, S_ITEM, S_SPRING } from "./sndmast";
@@ -89,6 +91,8 @@ export const menu = {
   shipSpecsRequest: false,
   /** JE_playSampleNum calls since the host last drained this. */
   sounds: [] as number[],
+  /** JE_byte currentCube: the cube[] slot the reader (MENU_DATA_CUBE_SUB) shows. */
+  currentCube: 0,
 };
 
 /** JE_playSampleNum: queued for the host. */
@@ -242,6 +246,10 @@ export function JE_itemScreen_update(): void {
   }
 
   // MENU_PLAY_NEXT_LEVEL: the navigation map's animation (JE_updateNavScreen) is the host's.
+
+  /* "firstmenu9" refers to menu 8 because of reindexing */
+  // (game_menu.c L672-676: the cube list's choices are the cubes, then "Exit to Game Menu".)
+  if (menu.curMenu === MENU_DATA_CUBES) menuChoices[MENU_DATA_CUBES] = g.cubeMax + 2;
 
   if (menu.curMenu === MENU_UPGRADE_SUB) {
     const sel = curSel[MENU_UPGRADES];
@@ -417,6 +425,14 @@ export function JE_itemScreen_mouse(selection: number | "powerDown" | "powerUp")
 
   menu.lastDirection = 1;
 
+  if (menu.curMenu === MENU_DATA_CUBES && g.cubeMax === 0) {
+    // No cubes: any click goes back (game_menu.c L1030-1035). The C then goes on to handle the
+    // click as one on the main menu, at the row its y falls on; a row of this menu has no such y.
+    menu.curMenu = MENU_FULL_GAME;
+    JE_playSampleNum(S_SPRING);
+    return;
+  }
+
   if (selection === "powerDown" || selection === "powerUp") {
     if (curMenu === MENU_UPGRADE_SUB && (curSel[MENU_UPGRADES] === 3 || curSel[MENU_UPGRADES] === 4)) {
       JE_playSampleNum(S_CURSOR);
@@ -492,7 +508,8 @@ export function JE_menuFunction(select: number): void {
     case MENU_FULL_GAME:
       switch (select) {
         case 2: // cubes
-          // Data cubes: not ported.
+          menu.curMenu = MENU_DATA_CUBES;
+          curSel[MENU_DATA_CUBES] = 2;
           break;
         case 3: // shipspecs
           menu.shipSpecsRequest = true; // JE_doShipSpecs(): the host shows it
@@ -563,6 +580,24 @@ export function JE_menuFunction(select: number): void {
         player[0].cash = JE_cashLeft();
         menu.curMenu = MENU_UPGRADES;
       }
+      break;
+
+    case MENU_DATA_CUBES:
+      if (curSelect === menuChoices[menu.curMenu]) {
+        menu.curMenu = MENU_FULL_GAME;
+      } else {
+        if (g.cubeMax > 0) {
+          menu.curMenu = MENU_DATA_CUBE_SUB;
+          cubeReader_open(); // yLoc = 0; yChg = 0;
+          menu.currentCube = u8(curSel[MENU_DATA_CUBES] - 2);
+        } else {
+          menu.curMenu = MENU_FULL_GAME;
+        }
+      }
+      break;
+
+    case MENU_DATA_CUBE_SUB:
+      menu.curMenu = MENU_DATA_CUBES;
       break;
 
     case MENU_2_PLAYER_ARCADE:
@@ -666,8 +701,10 @@ export interface ItemScreenEntry {
   owned?: boolean;
   /** The row is the menu's "Done"/"back" choice. */
   done?: boolean;
-  /** A choice this port doesn't implement (Data Cubes, Options, ...). */
+  /** A choice this port doesn't implement (Options, ...). */
   unavailable?: boolean;
+  /** Data Cubes: the cube[] slot the row opens. */
+  cube?: number;
 }
 
 /** An item's name as the submenu shows it (game_menu.c L640-662). itemType is the Upgrade Ship choice (2..8). */
@@ -690,6 +727,9 @@ export function JE_menuHeader(): string {
   const { curMenu, curSel } = menu;
   if (curMenu === MENU_UPGRADE_SUB) return g.menuInt[2][curSel[MENU_UPGRADES] - 1] ?? "";
   if (curMenu === MENU_PLAY_NEXT_LEVEL) return menu.menuInt4[0] ?? "";
+  // JE_drawMenuHeader (game_menu.c L1899-1915): the reader shows the cube's header.
+  if (curMenu === MENU_DATA_CUBE_SUB) return cube[curSel[MENU_DATA_CUBES] - 2]?.header ?? "";
+  if (curMenu === MENU_DATA_CUBES) return g.menuInt[1]?.[1] ?? "";
   return g.menuInt[curMenu + 1]?.[0] ?? "";
 }
 
@@ -723,10 +763,17 @@ export function itemScreenEntries(): ItemScreenEntry[] {
     return out;
   }
 
+  if (curMenu === MENU_DATA_CUBES) {
+    // The cube titles (JE_helpBox at game_menu.c L691-704), then "Exit to Game Menu" (L705-716).
+    for (let x = 1; x <= g.cubeMax; x++) out.push({ sel: x + 1, label: cube[x - 1].title, cube: x - 1 });
+    out.push({ sel: g.cubeMax + 2, label: g.miscText[6 - 1], done: true });
+    return out;
+  }
+
   const labels = curMenu === MENU_PLAY_NEXT_LEVEL ? menu.menuInt4 : (g.menuInt[curMenu + 1] ?? []);
   for (let x = 2; x <= menuChoices[curMenu]; x++) {
     const entry: ItemScreenEntry = { sel: x, label: labels[x - 1] ?? "" };
-    if (curMenu === MENU_FULL_GAME && (x === 2 || x === 5)) entry.unavailable = true;
+    if (curMenu === MENU_FULL_GAME && x === 5) entry.unavailable = true;
     if (curMenu === MENU_UPGRADES && x === 9) entry.done = true;
     if (curMenu === MENU_PLAY_NEXT_LEVEL && x === menuChoices[curMenu]) entry.done = true;
     if (curMenu === MENU_1_PLAYER_ARCADE && x === 3) entry.unavailable = true;
