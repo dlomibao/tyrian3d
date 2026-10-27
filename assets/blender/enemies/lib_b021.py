@@ -207,14 +207,22 @@ def _sharpen(obj, degrees):
 # --- Gems (tyrian10-14, -32, -57, -76) -----------------------------------------------------------
 
 def gem_model(sprite, name, body, crown, ridge, inner, core, glow=0.0, core_glow=2.0, facets=True,
-              metallic=0.25, roughness=0.18):
+              metallic=0.25, roughness=0.18, brighten=False):
     """A cut gem, diamond-shaped from above (columns 1-11, rows 2-12, centre column 6, row 7):
     a flat-shaded crown rising to a bright point over a deeper pavilion. `facets` adds the ring of
     crown facets that the brighter gems show as a bright inner outline. Palette indices: `body`
     for the pavilion, `crown` for the outer crown facets, `ridge` for the facet ring, `inner` for the
-    crown's middle and `core` for the top point (emissive). `glow` makes the crown glow too (gems that pulse with palette cycling)."""
+    crown's middle and `core` for the top point (emissive). `glow` makes the crown glow too (gems that pulse with palette cycling).
+    `brighten` animates a gem whose frames step every colour one shade up (to the top of its
+    16-colour ramp) per frame: palette_material frames= (DECISIONS.md D17)."""
     coll = common.reset_collection(name)
     pal = lambda i, **kw: common.palette_material(sprite, i, name, **kw)  # noqa: E731
+    if brighten:
+        later = [f["index"] for f in sprite["frames"]][1:]
+
+        def pal(i, **kw):
+            steps = {f: min(i + k, i | 15) for k, f in enumerate(later, 1)}
+            return common.palette_material(sprite, i, f"{name}-pulse", frames=steps, **kw)
     mats = [pal(body, metallic=metallic, roughness=roughness + 0.1),
             pal(crown, metallic=metallic, roughness=roughness, emission_strength=glow),
             pal(ridge, metallic=metallic, roughness=roughness, emission_strength=glow * 1.3),
