@@ -10,6 +10,7 @@ came from, its license, and where it's used. Add a row in the same commit that b
 | OpenTyrian | https://github.com/opentyrian/opentyrian | GPL-2.0-or-later | Reference for porting game logic and data formats |
 | DOSBox OPL2/OPL3 emulator (via OpenTyrian `opl.c`, based on Ken Silverman's ADLIBEMU.C) | https://github.com/opentyrian/opentyrian/blob/master/src/opl.c | LGPL-2.1-or-later | Ported to `src/audio/opl.ts` for music playback |
 | Loudness (LDS) player (via OpenTyrian `lds_play.c`, adapted from AdPlug) | https://github.com/opentyrian/opentyrian/blob/master/src/lds_play.c | GPL-2.0-or-later | Ported to `src/audio/lds.ts` for music playback |
+| MMPX pixel-art magnification (Morgan McGuire and Mara Gagiu, JCGT 2021; `js-demo.html` in the paper's supplement) | https://casual-effects.com/research/McGuire2021PixelArt/ | MIT | Ported to `src/render/remaster/mmpx.ts` for the remastered ground (DECISIONS.md D34) |
 | Tyrian 2.1 game data | https://camanis.net/tyrian/tyrian21.zip (the mirror OpenTyrian links to) | Freeware (not redistributed here; see README) | Level, item, enemy and shape data loaded at runtime |
 
 ## Fonts
@@ -26,7 +27,7 @@ anything imported from outside, such as Poly Haven textures or HDRIs.
 
 | Asset | Source URL | Author | License | Used in |
 |---|---|---|---|---|
-| Tyrian ship and tile graphics (the art the models in `assets/blender/` reproduce) | https://lostgarden.com/2007/04/05/free-game-graphics-tyrian-ships-and-tiles/ | Daniel Cook | Free to use in games ("use and abuse them as desired"); link back requested | Every model in `public/models/` is a 3D version of one of these sprites |
+| Tyrian ship and tile graphics (the art the models in `assets/blender/` reproduce) | https://lostgarden.com/2007/04/05/free-game-graphics-tyrian-ships-and-tiles/ | Daniel Cook | Free to use in games ("use and abuse them as desired"); link back requested | Every model in `public/models/` is a 3D version of one of these sprites or tiles |
 
 ## Audio
 

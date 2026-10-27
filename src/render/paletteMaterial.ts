@@ -58,7 +58,7 @@ vPal = vec4(paletteColor(palFx), instFx.w);
 `;
 
 /** Marks water_filter's pixels in the screen filters' render target (opaque materials only). */
-const WATER_ALPHA = /* glsl */ `
+export const WATER_ALPHA = /* glsl */ `
 #include <opaque_fragment>
 if (vScreenWater > 0.5) gl_FragColor.a = 0.5;
 `;
