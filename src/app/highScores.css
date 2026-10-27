@@ -1,0 +1,143 @@
+/* The high score screens (src/app/highScoresScreen.ts), over the overlay panel (overlay.css). */
+
+.highscores .panel h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+  color: var(--ink);
+}
+
+.highscores .panel h3.disabled {
+  color: var(--ink-dim);
+  opacity: 0.6;
+}
+
+.highscores .panel h4 {
+  margin: 0.9rem 0 0.3rem;
+  font-size: 0.95rem;
+  font-weight: normal;
+  color: var(--accent);
+}
+
+.highscores table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+}
+
+.highscores td {
+  padding: 0.15rem 0.4rem;
+  white-space: nowrap;
+}
+
+.highscores .hs-score {
+  width: 8.5em;
+  color: var(--ink-dim);
+  white-space: pre;
+}
+
+.highscores .hs-score b {
+  color: var(--ink);
+}
+
+.highscores .hs-name {
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 12rem;
+}
+
+/* JE_textShade's brightness: higher difficulty ranks are drawn brighter. */
+.highscores .hs-diff {
+  text-align: right;
+  color: hsl(38 70% calc(42% + var(--shade, 0) * 4.5%));
+}
+
+/* JE_outTextGlow: the new entry fades in bright. */
+.highscores tr.hs-new td {
+  color: #fff3c0;
+  animation: hs-glow 1.2s ease-out;
+}
+
+@keyframes hs-glow {
+  from {
+    color: #000;
+    text-shadow: 0 0 0 transparent;
+  }
+  60% {
+    text-shadow: 0 0 12px rgba(255, 220, 140, 0.9);
+  }
+}
+
+.highscores .hs-paging {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.highscores .hs-paging p {
+  margin: 0;
+}
+
+.highscores .hs-paging p b,
+.highscores .hs-help b {
+  color: var(--ink);
+  font-weight: normal;
+}
+
+.highscores button {
+  font: inherit;
+  color: var(--ink-dim);
+  background: transparent;
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  padding: 0.3rem 0.75rem;
+  cursor: pointer;
+}
+
+.highscores button:hover,
+.highscores button:focus-visible {
+  color: var(--ink);
+  background: rgba(224, 160, 64, 0.12);
+}
+
+.highscores .hs-entry {
+  margin: 1rem 0 0.5rem;
+}
+
+.highscores .hs-entry label {
+  display: block;
+  color: var(--ink);
+}
+
+.highscores .hs-entry input {
+  width: min(100%, 20rem);
+  box-sizing: border-box;
+  font: inherit;
+  color: var(--ink);
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+  outline: none;
+}
+
+.highscores .hs-entry input:focus {
+  border-color: var(--accent);
+}
+
+.highscores .hs-buttons {
+  flex-direction: row;
+  justify-content: center;
+}
+
+@media (max-width: 480px) {
+  .highscores .hs-score {
+    width: auto;
+  }
+  .highscores .hs-name {
+    max-width: 8rem;
+  }
+}

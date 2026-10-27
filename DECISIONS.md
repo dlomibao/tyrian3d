@@ -568,3 +568,33 @@ episode 4 each retry lowers the difficulty one more step; the port saves before 
 that quirk should be reproduced, move the JE_saveGame call after initLevelWorld. Two-player saves
 (slots 12-22) aren't shown on the title's load screen, as there's no two-player game yet. Volumes
 now start at the C's 223, about 4 dB below the old full volume for both music and effects.
+## D?? — High scores follow JE_highScoreCheck; quitting a game also checks
+
+2026-10-27
+
+**Decision:** The high score tables are OpenTyrian's: the 22 saveFiles entries (a one-player and
+a two-player table of three per episode, for episodes 1-3), kept as JSON in localStorage instead
+of tyrian.sav, with loadSaves' random default names and scores when there's none yet. The rules
+are ported from JE_highScoreCheck (src/sim/highscores.ts): the one-player score is JE_totalScore
+(cash plus the value of the ship and gear), only the table of the episode the game started on is
+checked, never episode 4 or a game that has repeated, and the difficulty column is
+difficultyNameB indexed by the difficulty level at the time. The C's quirks are kept: the shift
+that makes room moves names and scores but not difficulties, and cancelling the name entry leaves
+the shifted table. The check runs where JE_nextEpisode runs it (episode end), and also when the
+player quits to the title from the item screen. The title screen's High Scores entry shows the
+tables (JE_highScoreScreen).
+
+**Options considered:**
+- *Episode end plus quitting (chosen):* in the C, only JE_nextEpisode checks. A death there
+  doesn't end the game either: it reloads the last level (D11, D14). Here, quitting from the item
+  screen is the only other way a game ends, so it's the "game over" that can earn a place.
+- *Check at each Game over screen:* every retry of one game could add another entry.
+- *Episode end only (the C):* a player who never finishes an episode never sees the table fill.
+- *Tables for episode 4 too:* localStorage has the room, but the C has no episode 4 table and
+  excludes it from the check.
+
+**Review:** A new game's score is already 19,500 on episode 1 (10,000 cash plus the starting
+gear), above most of the 1,000-20,000 defaults, so quitting at once can earn a place. If that
+feels cheap, drop the check on quitting (the C's behaviour). Normal games show "Easy" in the
+difficulty column, because difficultyNameB starts at "Unranked", "Wimp"; that is the C's
+indexing, kept on purpose.

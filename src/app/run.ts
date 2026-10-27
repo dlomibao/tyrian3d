@@ -24,6 +24,8 @@ import { episodeEndScreens } from "./episodeEnd";
 import { Hud } from "./hud";
 import { showLoadScreen, showOptions } from "./options";
 import { connectVolumes, loadPrefs, musicLevel } from "./prefs";
+import { highScoreCheck, showHighScoreScreen } from "./highScoresScreen"; // [high scores]
+import { highScoreCheckDue } from "../sim/highscores"; // [high scores]
 import { askForData, showMessage, showStatus, showTitle, type TitleChoice } from "./screens";
 import { runItemScreen } from "./shop";
 // port-story: the screens between levels and the level fades.
@@ -111,6 +113,9 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
       },
       onOptions: () => showOptions({ sfx, music }),
       currentMusicStyle: () => music.style,
+      // [high scores] the title menu's High Scores (JE_highScoreScreen)
+      highScoresLabel: g.miscText[50]?.trim() || undefined,
+      onHighScores: () => showHighScoreScreen({ ...names, episodes, sfx, episode: choice.episode }),
     });
 
     // JE_initEpisode: each episode has its own item data (episode 4's lives in tyrian4.lvl).
@@ -139,10 +144,16 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
         async (pause) => {
           await story(); // port-story: e.g. the screens before `]Q[`
           closeStoryScreens();
+          // [high scores] JE_nextEpisode's JE_highScoreCheck (mainint.c L958-962)
+          if (pause === "highScoreCheck") return highScoreCheck({ ...names, sfx, music }, g.initial_episode_num);
           await screens(pause);
         },
       );
-      if (!loaded) break; // quit from the item screen: back to the title
+      if (!loaded) {
+        // [high scores] Quitting is how a game ends here, since a game over retries (D11, D14).
+        if (highScoreCheckDue(choice.episode)) await highScoreCheck({ ...names, sfx, music }, choice.episode);
+        break; // quit from the item screen: back to the title
+      }
       await story(); // port-story: the screens after the item screen, and fade_black(50)
       if (!g.doNotSaveBackup) JE_saveGame(lastLevelSlot(), "LAST LEVEL    "); /*Save backup game*/
       startLevel();

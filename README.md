@@ -33,7 +33,9 @@ sound. Between levels the item screen sells and upgrades gear and lets you pick 
 destination on the map (arrows, Enter, Esc; `/` changes the rear gun's firing mode), with the
 original's little simulator showing the guns and sidekicks firing before you buy them. Its Data
 row holds the data cubes found in the last level, to read there. If your ship is destroyed, you go
-back to that item screen with the loadout you launched with.
+back to that item screen with the loadout you launched with. Finishing an
+episode, or quitting a game, with a high enough score asks for your name for that episode's high
+score table (episodes 1-3, as in the original), which the title screen shows under High Scores.
 
 - **Between levels:** the episode script's story screens play as in the original: pictures, pans,
   flashes and fades, and the glowing text with its warning sirens (any key or tap moves on, Esc skips

@@ -118,6 +118,10 @@ export interface TitleOptions {
   /** [port-options] Options: the settings screen; the title reads the music style back after it. */
   onOptions?: () => Promise<void>;
   currentMusicStyle?: () => string;
+  // [high scores] The title menu's High Scores entry (tyrian2.c MENU_ITEM_HIGH_SCORES): its label
+  // and the screen it opens (src/app/highScoresScreen.ts); the title waits while it's open.
+  highScoresLabel?: string;
+  onHighScores?: () => Promise<void>;
 }
 
 /** Title screen: pick an episode and difficulty (keyboard, gamepad, click or tap), then start. */
@@ -198,6 +202,9 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
   };
   if (opts.onLoadGame) more.push(["Load Game", "L", () => sub(opts.onLoadGame!)]);
   if (opts.onOptions) more.push(["Options", "O", () => sub(opts.onOptions!)]);
+  // [high scores] The title menu's High Scores entry (JE_highScoreScreen), H / pad Y.
+  const openHighScores = () => sub(async () => void (await opts.onHighScores!()));
+  if (opts.onHighScores) more.push([opts.highScoresLabel ?? "High Scores", "H", openHighScores]);
   for (const [label, , run] of more) {
     const b = document.createElement("button");
     b.type = "button";
@@ -246,6 +253,7 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
       ...(musicButtons.length ? { KeyM: () => setStyle(style + 1) } : {}),
       ...(opts.onLoadGame ? { KeyL: () => void sub(opts.onLoadGame!) } : {}),
       ...(opts.onOptions ? { KeyO: () => void sub(opts.onOptions!) } : {}),
+      ...(opts.onHighScores ? { KeyH: () => void openHighScores() } : {}), // [high scores]
     };
     if (busy) return;
     const action = map[e.code];
@@ -267,7 +275,8 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
         if (pressed(14)) move(0, -1);
         if (pressed(15)) move(0, 1);
         if (pressed(0) || pressed(9)) return finish();
-        if (pressed(3) && opts.onLoadGame) void sub(opts.onLoadGame);
+        if (pressed(3) && opts.onHighScores) void openHighScores(); // [high scores] Y
+        else if (pressed(3) && opts.onLoadGame) void sub(opts.onLoadGame);
         if (pressed(8) && opts.onOptions) void sub(opts.onOptions);
       }
       prev = now;
