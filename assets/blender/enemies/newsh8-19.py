@@ -4,11 +4,13 @@ Seen in episode 3 (levels 3.4 and 3.19). A small tan craft: two ringed pods with
 caps on top, joined by a rounded centre plate that has two short prongs under it. The ten frames
 spin it about the screen's vertical axis, from face on (frame 19) to edge on (frame 114) and on
 round, so it gets one model per distinct angle: the same craft turned. Frames that show the same
-angle turned the other way (38/151, 57/132, 76/152, 95/133) look the same from above and share
-a model.
+angle turned the other way (38/151, 57/132, 76/152, 95/133) share a model, which holds the craft
+turned each way and shows the one for each frame (common.frame_part): on the first the left pod
+is the near one, on the second the right.
 
 Run: blender --background --python assets/blender/enemies/newsh8-19.py [-- --preview out.png]
-(each model's preview is written as <model>.png next to out.png).
+[--frames dir] (each model's preview is written as <model>.png next to out.png; --frames renders
+every frame of each two-frame model into dir/<model>.png).
 """
 
 import math
@@ -33,11 +35,12 @@ PX = lib.PX
 # out, then edge on.
 ANGLES = [(0, [19]), (29, [38, 151]), (51, [57, 132]), (68, [76, 152]), (83, [95, 133]), (90, [114])]
 POD_X = 4.0  # px from the centre, face on
+FIRST_SIGN = -1  # which way the first of a pair of frames is turned
 Z_SCALE = 0.6  # keep the edge-on frames from standing too tall
 
 
-def build(sprite, name, angle):
-    coll = common.reset_collection(name)
+def build(sprite, name, angle, coll=None):
+    coll = coll or common.reset_collection(name)
     pal = lambda i, **kw: common.palette_material(sprite, i, "nsh8_19", **kw)  # noqa: E731
     mats = [
         pal(26, metallic=0.35, roughness=0.4),  # 0 pod tan
@@ -94,14 +97,26 @@ def main():
     sprite = common.load_sprite(ROOT, NAME)
     base = sprite["sprites"][0]
     out = lib.preview_arg()
+    frames_out = Path(sys.argv[sys.argv.index("--frames") + 1]) if "--frames" in sys.argv else None
     for i, (angle, frames) in enumerate(ANGLES):
         name = NAME if i == 0 else f"{NAME}-f{i + 1}"
-        obj = build(sprite, name, angle)
-        common.export_sprite_model(ROOT, [obj], f"enemies/{name}", [{**base, "frames": frames}])
+        if len(frames) == 1:
+            objects = [build(sprite, name, angle)]
+        else:
+            # The two frames show the craft turned the same amount either way: on the first the
+            # left pod is the near one (the centre plate tucks under it and hides part of the right
+            # pod), on the second the right pod. Each gets the craft at its own angle.
+            coll = common.reset_collection(name)
+            objects = [common.frame_part(build(sprite, f"{name}-{f}", a, coll), [f])
+                       for f, a in zip(frames, (FIRST_SIGN * angle, -FIRST_SIGN * angle))]
+        common.export_sprite_model(ROOT, objects, f"enemies/{name}", [{**base, "frames": frames}])
         if out:
             ref = ROOT / "reference" / "models" / NAME / f"frame-newsh8-{frames[0]}.png"
-            common.render_preview([obj], out if i == 0 else out.with_name(f"{name}.png"), ref, size=1)
-
+            common.render_preview(objects, out if i == 0 else out.with_name(f"{name}.png"), ref, size=1,
+                                  frame=frames[0])
+        if frames_out and len(frames) > 1:
+            own = {**sprite, "frames": [f for f in sprite["frames"] if f["index"] in frames]}
+            common.render_frame_previews(objects, frames_out / f"{name}.png", own, ROOT)
 
 if __name__ == "__main__":
     main()

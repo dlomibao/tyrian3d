@@ -4,9 +4,10 @@ Seen in episode 4 (level 4.2), in the desert beside the stepped pyramids. A 12x1
 pyramid on a low plinth, drawn in the game's oblique view: its point leans to the top of the
 screen, the lit west face is a long triangle down the left, the shaded east face a narrow strip
 on the right and the south face the big dark triangle between them. The three frames only
-brighten the same picture (each colour two shades lighter), so one model covers them all.
+brighten the same picture (each colour two shades lighter), so one model covers them all and
+its colours brighten with them (palette_material frames=).
 
-Run: blender --background --python assets/blender/enemies/newsh3-3.py [-- --preview out.png]
+Run: blender --background --python assets/blender/enemies/newsh3-3.py [-- --preview out.png] [--frames dir]
 """
 
 import sys
@@ -26,7 +27,9 @@ F = lib.Frame(12, 14)
 
 def build(sprite):
     coll = common.reset_collection(NAME)
-    pal = lambda i, **kw: common.palette_material(sprite, i, NAME, metallic=0.0, **kw)  # noqa: E731
+    # Every colour is two shades lighter on frame 4 and four on frame 5.
+    pal = lambda i, **kw: common.palette_material(sprite, i, f"{NAME}-lit", metallic=0.0,  # noqa: E731
+                                                  frames={4: i + 2, 5: i + 4}, **kw)
     mats = [
         pal(25, roughness=0.75),  # 0 lit west face
         pal(20, roughness=0.85),  # 1 south face
