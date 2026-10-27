@@ -388,6 +388,14 @@ h3.ui-title {
   box-shadow: 0 0 1.1rem rgba(255, 200, 90, 0.55);
 }
 
+/* restyle-polish: a key hint inside a gold button, in the button's dark ink (the default light
+   key was barely visible on gold). */
+.ui-button--primary .ui-key {
+  color: #1a0f00;
+  border-color: rgba(26, 15, 0, 0.45);
+  background: rgba(26, 15, 0, 0.1);
+}
+
 .ui-button--ghost {
   background: transparent;
   border-color: transparent;

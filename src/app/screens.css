@@ -178,6 +178,16 @@
   align-items: center;
 }
 
+/* A long continue label ("Retry from the item screen") wraps into even lines on a phone. */
+.ui-screen--message .ui-button {
+  padding-block: var(--ui-space-1);
+}
+
+.ui-screen--message .ui-button > span:first-child {
+  text-wrap: balance;
+  line-height: 1.25;
+}
+
 .message-line:first-of-type {
   color: var(--ui-ink) !important;
   font-size: var(--ui-text-lg);
