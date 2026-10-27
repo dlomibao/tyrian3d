@@ -7,6 +7,7 @@ import { PLAYFIELD_WORLD_D, PLAYFIELD_WORLD_W, PX_PER_UNIT, screenWorldX, screen
 import type { World } from "../game/world";
 import type { DrawList } from "../sim/draw";
 import { DrawListRenderer } from "./drawListRenderer";
+import { ScreenFilterPass } from "./screenFilters";
 
 /** Camera tilt from straight down, in radians. */
 const CAMERA_TILT = THREE.MathUtils.degToRad(32);
@@ -48,6 +49,8 @@ export class View {
   /** The draw-list renderer: sprites, background tiles, effects. */
   readonly draws = new DrawListRenderer();
   private readonly outline: OutlineEffect;
+  /** The smoothies, headlight and flip (D31), when a draw list asks for them. */
+  private readonly screenFilters: ScreenFilterPass;
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(CAMERA_FOV, 1, 0.1, 500);
   /**
@@ -89,6 +92,7 @@ export class View {
     this.renderer.toneMapping = THREE.NeutralToneMapping;
     container.appendChild(this.renderer.domElement);
     this.outline = new OutlineEffect(this.renderer, OUTLINE);
+    this.screenFilters = new ScreenFilterPass(this.renderer, this.draws.palette);
 
     // Image-based lighting so metal hulls pick up highlights like the sprites' shading.
     const pmrem = new THREE.PMREMGenerator(this.renderer);
@@ -162,6 +166,7 @@ export class View {
   /** Hand over one logic tick's draws. From the first call on, the view draws only draw lists. */
   setDrawList(list: DrawList): void {
     this.draws.setDrawList(list);
+    this.screenFilters.setDrawList(list);
   }
 
   /** Draw a frame. alpha interpolates between the last two logic ticks (0 = previous, 1 = latest). */
@@ -174,7 +179,11 @@ export class View {
     this.fallback.visible = !drawLists;
     if (drawLists) this.draws.update(alpha, this.camera);
     else if (world) this.updateFallback(world, alpha);
-    this.outline.render(this.scene, this.camera);
+    if (drawLists && this.screenFilters.active) {
+      this.screenFilters.render(this.scene, this.camera, this.draws.root, () => this.outline.render(this.scene, this.camera), alpha);
+    } else {
+      this.outline.render(this.scene, this.camera);
+    }
     if (drawLists && this.settings.clip) {
       const autoClear = this.renderer.autoClear;
       this.renderer.autoClear = false;
