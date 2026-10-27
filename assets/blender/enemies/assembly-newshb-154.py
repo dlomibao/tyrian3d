@@ -5,7 +5,9 @@ Seen in level 3.10. Four 2x2 ground pieces side by side make one 96 x 28 px row 
 panels, a raised block in the middle, two pipes running down channels either side of it into
 framed red lights, a bright lip at the front, and a wide bevelled rim (lit on the left, in shadow
 on the right and below) sloping down to the ground. The pieces' extra frames (newshb-156 and
-newshb-158: 191/229/267 and 193/231/269) only flicker the red lights, so one model each covers them.
+newshb-158: 191/229/267 and 193/231/269) only flicker the red lights, so one model each covers them:
+the lights' materials brighten two shades on 191/193 and 229/231 and six (to yellow) on 267/269
+(palette_material frames=).
 
 The row is built whole in assembly coordinates (left half, mirrored about pixel column 47) and cut
 into its four pieces with common.split_assembly.
@@ -29,6 +31,9 @@ ROOT = common.repo_root(__file__)
 PIECES = ["newshb-154", "newshb-156", "newshb-158", "newshb-160"]
 AXIS = 47  # the row is (nearly) mirror symmetric about the centre of pixel column 47
 TOP = 0.32  # height of the flat top
+# The red lights flicker: palette index added to the lights' colours on each piece's later frames
+# (newshb-156: 191, 229, 267; newshb-158: 193, 231, 269).
+FLICKER = {191: 2, 229: 2, 267: 6, 193: 2, 231: 2, 269: 6}
 
 
 def build(sprite):
@@ -44,8 +49,10 @@ def build(sprite):
         pal(2, metallic=0.2, roughness=0.8),  # 5 dark channels
         pal(10, metallic=0.5, roughness=0.35),  # 6 bright edges, pipe ends
         pal(8, metallic=0.4, roughness=0.45),  # 7 light frames
-        pal(117, emission_strength=3.5),  # 8 red light
-        pal(119, emission_strength=5.0),  # 9 hot core
+        common.palette_material(sprite, 117, f"{tag}-light", emission_strength=3.5,
+                                frames={f: 117 + d for f, d in FLICKER.items()}),  # 8 red light
+        common.palette_material(sprite, 119, f"{tag}-core", emission_strength=5.0,
+                                frames={f: 119 + d for f, d in FLICKER.items()}),  # 9 hot core
     ]
     GREY, RIM_LIT, RIM, BEVEL, GROOVE, CHANNEL, BRIGHT, FRAME, RED, HOT = range(10)
     bm = bmesh.new()
@@ -109,7 +116,12 @@ def build(sprite):
 def main():
     sprite = lib.merged_sprite(ROOT, PIECES)
     obj = build(sprite)
-    lib.export_assembly(ROOT, obj, sprite, PIECES)
+    parts = lib.export_assembly(ROOT, obj, sprite, PIECES)
+    if "--frames" in sys.argv:  # every frame of the flickering pieces, beside its sprite
+        out = Path(sys.argv[sys.argv.index("--frames") + 1])
+        for name in ("newshb-156", "newshb-158"):
+            data = common.load_sprite(ROOT, name)
+            common.render_frame_previews([parts[name]], str(out.parent / f"{name}.png"), data, ROOT)
 
 
 if __name__ == "__main__":
