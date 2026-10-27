@@ -53,6 +53,11 @@ function startGame(): void {
     import("./debug/spriteHarness")
       .then(({ runSpriteHarness }) => runSpriteHarness(view))
       .catch((err) => console.error("sprite harness failed", err));
+  } else if (debug === "level") {
+    // One level with a chosen loadout (src/debug/levelHarness.ts), on demand like the others.
+    import("./debug/levelHarness")
+      .then(({ runLevelHarness }) => runLevelHarness(view))
+      .catch((err) => console.error("level harness failed", err));
   } else if (new URLSearchParams(location.search).has("destruct")) {
     // Destruct, the hidden artillery game (src/destruct/), straight away.
     ui.attachBackdrop(new Backdrop(view.renderer));

@@ -73,6 +73,10 @@ score table (episodes 1-3, as in the original), which the title screen shows und
   modes, eight kinds of unit with their weapons, terrain that burns away, the computer opponent and
   two players on one keyboard, on a 3D battlefield. Type DESTRUCT at the title (or open
   `?destruct`); F1 shows its keys.
+- **Screen effects:** the levels' colour filters and fades, and the special weapons' flares (Flare,
+  SandStorm, MineField's tint and Zinglon beam), tint the screen as in the original. The levels
+  that switch on the lava, water, blur and iced-blur filters, the headlight darkness and the
+  upside-down screen get them as 3D post-processing that only touches the layers the original did.
 - **Not yet:** network play.
 - **Everything else:** in [Issues](../../issues) and [Milestones](../../milestones). Design calls
   made along the way are in [DECISIONS.md](DECISIONS.md).
@@ -135,7 +139,9 @@ For local development, fetch it into `data/`, which is git-ignored:
     TYRIAN_EPISODE_TEST=1 npm test   # also play every level of all four episodes headless
 
 Debug pages: `?debug=sprites` (renderer test bench), `?debug=play` (a real level played by the test
-bot, with chosen weapons; see `src/debug/playHarness.ts`), `?destruct` (straight into Destruct),
+bot, with chosen weapons; see `src/debug/playHarness.ts`), `?debug=level` (one level with a chosen
+loadout, e.g. `&episode=4&main=3&sidekick=9,9&special=6&skip=3000&god=1`; see
+[`src/debug/levelHarness.ts`](src/debug/levelHarness.ts)), `?destruct` (straight into Destruct),
 `/src/audio/debugMusic.html` (music player). `?vfx=original` shows shots and explosions as the
 extruded sprites instead of the remastered effects.
 

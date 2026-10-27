@@ -527,7 +527,9 @@ export class DrawListRenderer {
     }
 
     // blit_sprite2_filter draws (filter & 0xf0) | (index & 0x0f): the same shade in another hue.
-    const hue = d.effect === "filter" ? d.filter & 0xf0 : -1;
+    // [filters] A smoothie's hue covers that, as its filter runs after the draw (screenHue.ts).
+    const screenHue = this.palette.screenHue.modelHue(h);
+    const hue = screenHue >= 0 ? screenHue : d.effect === "filter" ? d.filter & 0xf0 : -1;
     const { rig } = clone;
     const frameChanged = rig.animated && clone.frame !== frame;
     if (frameChanged) showFrame(rig, frame);

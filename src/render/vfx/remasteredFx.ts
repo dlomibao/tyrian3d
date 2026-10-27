@@ -15,6 +15,7 @@
 // reused instanced buffers (glowLayer.ts), and the lights are a fixed pool.
 
 import * as THREE from "three";
+import { VFX_LAYER } from "./vfxMode";
 import { CLASSIC_TICK_HZ } from "../../core/timing";
 import { PX_PER_UNIT, screenWorldX, screenWorldZ } from "../../game/playfield";
 import { Pass, type Draw, type SpriteDraw, type TableSpriteDraw } from "../../sim/draw";
@@ -111,6 +112,8 @@ export class RemasteredFx {
   ) {
     this.root.name = "vfx";
     this.root.add(this.blended.mesh, this.puffs.mesh, this.glows.mesh, this.additive.mesh);
+    // [filters] On their own layer, so the screen filters can draw them after the smoothies (D35).
+    for (const mesh of [this.blended.mesh, this.puffs.mesh, this.glows.mesh, this.additive.mesh]) mesh.layers.set(VFX_LAYER);
     for (let i = 0; i < LIGHTS; i++) {
       const light = new THREE.PointLight(0xffa040, 0, LIGHT_RANGE, 1.6);
       light.castShadow = false;

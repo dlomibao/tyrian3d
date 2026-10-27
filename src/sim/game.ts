@@ -44,6 +44,7 @@ import { JE_doSP, JE_drawSP, JE_getShipInfo, JE_playerDamage, JE_setupExplosion,
 import { JE_mainGamePlayerFunctions, JE_playerCollide } from "./mainint";
 import { newPlayerShotMoveOut, player_shot_create, player_shot_move_and_draw, SHOT_MISC } from "./shots";
 import { startLevelPlayerSetup } from "./newgame";
+import { recordScreenFilters, updateStarShowVGASpecialCode } from "./smoothies";
 
 /** Out-parameters of player_shot_move_and_draw, reused every call. */
 const shotOut = newPlayerShotMoveOut();
@@ -88,6 +89,7 @@ export interface TickResult {
 /** One pass of level_loop. Fills the draw list and g.soundQueue; the host plays sounds and renders. */
 export function tick(): TickResult {
   beginDrawList(); // keeps drawList.palette, which initLevelWorld sets for the level
+  updateStarShowVGASpecialCode(); // [filters] level_loop's starShowVGASpecialCode
 
   // Background Wrapping
   if (g.mapYPos <= g.BKwrap1) g.mapYPos = g.BKwrap1to;
@@ -379,6 +381,7 @@ export function tick(): TickResult {
     drawList.filter = -99;
     drawList.brightness = 0;
   }
+  recordScreenFilters(); // [filters] the smoothies, headlight and flip, for the renderer
 
   draw_boss_bar();
 
