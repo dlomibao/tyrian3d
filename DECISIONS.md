@@ -414,3 +414,32 @@ in a sunlit sky, an eclipse in smoke over a grid.
 shows them should place text where the original did (the story pictures keep those areas dark or
 plain). `tshp2.pcx`, shown by episode 4's `]P 000`, is a separate file; its new picture is
 number 0.
+## D?? — The weapon preview borrows the sim's globals and gives them back
+
+2026-10-27
+
+**Decision:** The item screen's weapon simulator is ported as the C has it (JE_initWeaponView,
+JE_weaponSimUpdate and shots.c's simulate_player_shots in `src/sim/weaponSim.ts`), running on `g`
+with the game's own player_shot_create. Unlike the C, it borrows the globals only for the length
+of each call: it swaps its own copy of everything it touches in (the ship and sidekick positions,
+power, shot slots and their draw keys, the sound queue, the stars, mt_rand and the draw list) and
+the game's back out. It draws a draw list, which a second, small View (the game's renderer, framed
+on the simulator's 136x175 window) shows in the shop panel in place of the loadout, at the C's
+pace (setFrameCount(3), ~23 Hz), in the same submenus as the C: front and rear gun, generator and
+both sidekicks. The C's text and bars over it are the shop's HTML; its power bar is a small meter.
+
+**Options considered:**
+- *Borrow and give back (chosen):* the game after the item screen is identical with or without
+  the preview, however long it was watched (a test runs the C cross-check's shop sessions both
+  ways and compares every global). The sim code is still the C's, line for line.
+- *Share the globals as the C does:* most faithful, but opening a submenu then advances mt_rand
+  by 400 draws (initialize_starfield) and leaves the preview's shots, power and positions behind,
+  so the level after the shop would depend on how the player browsed. Nothing checks that path
+  against the C, and the start of a level resets most of it anyway.
+- *Draw the preview on the main view behind the panel:* no second WebGL context, but the camera
+  and the panel's layout would have to be kept in register, and the main view's framing and mask
+  would change while the shop is open.
+
+**Review:** If the level after the shop must match the C exactly for a recorded session (demos),
+apply the preview's mt_rand use to the game's generator once per submenu opened. The second View
+is one extra WebGL context, made once and reused by every item screen.

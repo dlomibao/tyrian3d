@@ -50,3 +50,22 @@ export function mt_rand_1(): number {
 export function mt_rand_lt1(): number {
   return Math.fround(Math.fround(mt_rand()) / (Math.fround(MT_RAND_MAX) + 1));
 }
+
+/** The generator's whole state (not in the C), so a preview can borrow it and give it back. */
+export interface MtState {
+  x: Uint32Array;
+  p0: number;
+  p1: number;
+  pm: number;
+}
+
+export function mt_save(): MtState {
+  return { x: x.slice(), p0, p1, pm };
+}
+
+export function mt_restore(s: MtState): void {
+  x.set(s.x);
+  p0 = s.p0;
+  p1 = s.p1;
+  pm = s.pm;
+}
