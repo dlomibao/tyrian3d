@@ -339,3 +339,28 @@ catalogue's reference images, which are rendered from that zip, stay out of git.
 
 **Review:** The page gives no formal licence, only "use and abuse them as desired". It asks
 for a link back, which CREDITS.md gives.
+
+## D17 — Models animate with their sprites through frame-tagged parts and colours
+
+2026-10-27
+
+**Decision:** A model that covers several sprite frames animates by glTF extras set in its Blender
+script. A part with `tyrian_frames: [89, 91]` (common.frame_part) shows only on those frames, and a
+`pal_<index>` material with `tyrian_frame_pal: {"91": 122}` (palette_material frames=) takes
+another palette colour on those frames. The renderer passes each enemy's current sprite frame to
+its model (src/render/modelFrames.ts). Frames that change the whole shape keep using one model per
+shape (`<name>-f2`, ...), which the game already swaps. The model viewer shows the shapes of one
+animation as a single entry and plays it with the sprite.
+
+**Options considered:**
+- *Frame-tagged parts and colours (chosen):* one file per model, a shared body, cheap to switch
+  (visibility and colour only), and a script can tag just the parts that change.
+- *One model per frame for everything:* simplest renderer, but 620 more models and a lot of
+  duplicated geometry for a blinking light.
+- *Names instead of extras (`flame@f89`):* visible in Blender's outliner, but long frame lists hit
+  Blender's 63-character names and three.js rewrites some characters in node names.
+- *Procedural animation (spinning, scaling):* smoother than frame steps, but each needs its own
+  code and the sprite's timing would have to be matched by hand.
+
+**Review:** Frames are sprite indices (the frame's top-left tile), so a model's frame tags must use
+the indices in its sprite.json. The animation is stepwise at the sprite's rate, like the original.

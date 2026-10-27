@@ -212,6 +212,7 @@ def export_glb(objects, path):
         export_apply=True,
         export_cameras=False,
         export_lights=False,
+        export_extras=True,  # custom properties: frame tags on parts and materials (frame_part, palette_material)
     )
     return path
 
@@ -229,19 +230,40 @@ def load_sprite(root, name):
     return data
 
 
-def palette_material(sprite, index, tag, metallic=0.3, roughness=0.5, emission_strength=0.0):
+def palette_material(sprite, index, tag, metallic=0.3, roughness=0.5, emission_strength=0.0, frames=None):
     """A material for palette colour `index` of a sprite (load_sprite), named pal_<index>_<tag>.
 
     In game the colour comes from the live palette by that index (level palettes, fades and the
     hit flash all apply), so pick the index of the sprite pixels the part stands for. `tag` keeps
-    names unique when several models share a Blender session; use the model name. Emission makes
-    the part glow in the same palette colour."""
-    rgb = sprite["colors"].get(str(index))
-    if rgb is None:
-        raise ValueError(f"palette index {index} isn't used by {sprite['name']}; pick one of {list(sprite['colors'])}")
-    color = srgb(*rgb)
-    return material(f"pal_{index}_{tag}", color, metallic=metallic, roughness=roughness,
-                    emission=color if emission_strength else None, emission_strength=emission_strength)
+    names unique when several models share a Blender session; use the model name, plus the part's
+    name for a material with `frames`. Emission makes the part glow in the same palette colour.
+
+    `frames` animates the colour (DECISIONS.md D17): {sprite frame: palette index} for the frames
+    where the part shows another colour than `index`, e.g. {91: 122, 93: 124} for a glow that
+    brightens. Those indices may come from any frame of the sprite."""
+    def rgb_of(i):
+        rgb = sprite["colors"].get(str(i))
+        if rgb is None:
+            raise ValueError(f"palette index {i} isn't used by {sprite['name']}; pick one of {list(sprite['colors'])}")
+        return srgb(*rgb)
+    color = rgb_of(index)
+    mat = material(f"pal_{index}_{tag}", color, metallic=metallic, roughness=roughness,
+                   emission=color if emission_strength else None, emission_strength=emission_strength)
+    if frames:
+        mat["tyrian_frame_pal"] = {str(int(f)): int(i) for f, i in frames.items()}
+        mat["tyrian_frame_rgb"] = {str(int(f)): list(rgb_of(i)) for f, i in frames.items()}  # for previews
+    elif "tyrian_frame_pal" in mat:
+        del mat["tyrian_frame_pal"]
+        del mat["tyrian_frame_rgb"]
+    return mat
+
+
+def frame_part(obj, frames):
+    """Show `obj` only on these sprite frames (DECISIONS.md D17): a flame of one length, a light
+    that's on, a hatch that's open. `frames` are sprite indices as in sprite.json (each frame's
+    `index`). Parts without frames always show. Export it with the rest of the model."""
+    obj["tyrian_frames"] = sorted(int(f) for f in frames)
+    return obj
 
 
 def export_sprite_model(root, objects, model, sprites):
@@ -266,20 +288,31 @@ def _render_view(scene, camera, path):
     bpy.ops.render.render(write_still=True)
 
 
-def render_preview(objects, out_png, sprite_png=None, size=2, view_px=320):
+def render_preview(objects, out_png, sprite_png=None, size=2, view_px=320, frame=None):
     """Render the model beside its sprite into one PNG to compare them: the sprite, a top-down
     orthographic view at the same scale, the in-game view (from the bottom of the screen, tilted
     like the game camera) and a three-quarter view. Only `objects` are shown. `size` is the sprite's
     size in tiles (1 = 12x14 px, 2 = 24x28 px), or its (width, height) in px for anything else (a frame's
-`width` and `height` in sprite.json). Works headless (blender --background)."""
+`width` and `height` in sprite.json). With `frame` (a sprite index), parts and colours tagged for
+frames (frame_part, palette_material frames=) show as on that frame. Works headless."""
     import tempfile
     import numpy as np
     from mathutils import Vector
 
     scene = bpy.context.scene
     hidden = [o for o in scene.objects if o not in objects and not o.hide_render]
+    if frame is not None:
+        hidden += [o for o in objects if "tyrian_frames" in o and int(frame) not in list(o["tyrian_frames"]) and not o.hide_render]
     for o in hidden:
         o.hide_render = True
+    recoloured = []
+    if frame is not None:
+        mats = {m for o in objects if o.type == "MESH" for m in o.data.materials if m}
+        for m in mats:
+            rgb = m.get("tyrian_frame_rgb", {}).get(str(int(frame)))
+            if rgb is not None:
+                recoloured.append((m, tuple(m.diffuse_color)))
+                m.diffuse_color = (*rgb, 1.0)
     try:
         scene.render.engine = "BLENDER_WORKBENCH"
     except TypeError as err:  # the message lists the valid engines
@@ -362,7 +395,41 @@ def render_preview(objects, out_png, sprite_png=None, size=2, view_px=320):
         bpy.data.cameras.remove(data)
     for o in hidden:
         o.hide_render = False
+    for m, colour in recoloured:
+        m.diffuse_color = colour
     print(f"preview {out_png}")
+    return out_png
+
+
+def render_frame_previews(objects, out_png, sprite, root, view_px=200):
+    """render_preview for every frame of a sprite (load_sprite), stacked top to bottom in one PNG:
+    each row is that frame's sprite, then the model as it is on that frame. For checking an
+    animation (frame_part, palette_material frames=)."""
+    import tempfile
+    import numpy as np
+    tmp = Path(tempfile.mkdtemp())
+    rows = []
+    for f in sprite["frames"]:
+        path = tmp / f"{f['index']}.png"
+        ref = Path(root) / "reference" / "models" / sprite["name"] / f["image"]
+        render_preview(objects, path, ref, size=(f.get("width", f["size"] * 12), f.get("height", f["size"] * 14)),
+                       view_px=view_px, frame=f["index"])
+        img = bpy.data.images.load(str(path))
+        rows.append(np.array(img.pixels[:], dtype=np.float32).reshape(img.size[1], img.size[0], 4))
+        bpy.data.images.remove(img)
+    sep = np.ones((2, rows[0].shape[1], 4), dtype=np.float32)
+    stack = []
+    for r in reversed(rows):  # Blender images are bottom-up
+        stack += [r, sep]
+    sheet = np.concatenate(stack[:-1], axis=0)
+    out = bpy.data.images.new("frame_previews", sheet.shape[1], sheet.shape[0], alpha=True)
+    out.pixels[:] = sheet.ravel()
+    out.filepath_raw = str(out_png)
+    out.file_format = "PNG"
+    Path(out_png).parent.mkdir(parents=True, exist_ok=True)
+    out.save()
+    bpy.data.images.remove(out)
+    print(f"frame previews {out_png}")
     return out_png
 
 

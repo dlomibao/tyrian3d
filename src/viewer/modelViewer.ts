@@ -18,6 +18,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { filesFromZip, loadDevFiles, type FileMap } from "../assets/files";
 import { loadStoredZip } from "../assets/store";
 import { vga6To8, type Palette } from "../data/palette";
+import { colourFrame, rigModel, showFrame, type FrameRig } from "../render/modelFrames";
 import { PaletteTexture } from "../render/paletteTexture";
 import { SPRITE_MODELS, spriteModelKey, spriteModels, type SpriteModelEntry } from "../render/spriteModels";
 import { buildResources } from "../sim/resources";
@@ -31,7 +32,6 @@ const LEVEL_PALETTE = 5;
 const FLASH_HUE = 0x70;
 /** The game's model outline (src/render/view.ts OUTLINE). */
 const OUTLINE = { defaultThickness: 0.0045, defaultColor: [0.07, 0.035, 0.0] };
-const PALETTE_MATERIAL = /^pal_(\d+)/;
 /** Sprite pixels per Blender unit (assets/blender/README.md). */
 const PX_PER_UNIT = 12;
 
@@ -43,15 +43,22 @@ interface Item {
   frames: SpriteFrame[];
   /** The sheets its sprites come from. */
   sheets: string[];
-  /** A single model's entry, or an assembly's layout. */
-  entry?: SpriteModelEntry;
+  /**
+   * The models: usually one, or one per shape for an animation whose frames change shape (named
+   * <name>, <name>-f2, ...); frameModel[i] is the one frames[i] shows. An assembly has a layout.
+   */
+  entries: SpriteModelEntry[];
+  frameModel: number[];
   layout?: AssemblyLayout;
 }
 
 interface Loaded {
   root: THREE.Object3D;
-  /** pal_ materials and their palette index. */
-  paletteMaterials: { material: THREE.MeshStandardMaterial; index: number; emissive: boolean }[];
+  /**
+   * Its models: one per entry (shown on that entry's frames), or one per assembly piece (each
+   * on its own sprite frame). The rig shows frame-tagged parts and colours them (modelFrames.ts).
+   */
+  parts: { object: THREE.Object3D; rig: FrameRig; entry: number; pieceFrame?: number }[];
   materials: THREE.Material[];
   triangles: number;
   bytes: number;
@@ -66,15 +73,38 @@ const naturalOrder = (a: string, b: string) => a.localeCompare(b, undefined, { n
 const KIND_ORDER = { ship: 0, assembly: 1, enemy: 2 };
 
 function catalogue(): Item[] {
-  const items: Item[] = SPRITE_MODELS.map((entry) => ({
-    entry,
-    name: entry.model.split("/").pop()!,
-    kind: entry.model.startsWith("enemies/") ? "enemy" : "ship",
-    frames: entryFrames(entry),
-    sheets: [...new Set(entry.sprites.map((s) => s.sheet))],
-  }));
+  // A model and its per-shape siblings (<name>-f2, -f3, ...) are one item.
+  const families = new Map<string, SpriteModelEntry[]>();
+  for (const entry of SPRITE_MODELS) {
+    const base = entry.model.replace(/-f\d+$/, "");
+    if (!families.has(base)) families.set(base, []);
+    families.get(base)!.push(entry);
+  }
+  const items: Item[] = [];
+  for (const [base, entries] of families) {
+    entries.sort((a, b) => naturalOrder(a.model, b.model));
+    const frames: SpriteFrame[] = [];
+    const frameModel: number[] = [];
+    entries.forEach((entry, e) => {
+      for (const f of entryFrames(entry)) {
+        frames.push(f);
+        frameModel.push(e);
+      }
+    });
+    // In sprite order, so the animation plays as the game cycles it.
+    const order = frames.map((_, i) => i).sort((a, b) => frames[a].parts[0].index - frames[b].parts[0].index || a - b);
+    const banked = entries.some((e) => e.sprites.some((s) => s.bank));
+    items.push({
+      name: base.split("/").pop()!,
+      kind: base.startsWith("enemies/") ? "enemy" : "ship",
+      entries,
+      frames: banked ? frames : order.map((i) => frames[i]),
+      frameModel: banked ? frameModel : order.map((i) => frameModel[i]),
+      sheets: [...new Set(entries.flatMap((e) => e.sprites.map((s) => s.sheet)))],
+    });
+  }
   for (const layout of assemblyLayouts as AssemblyLayout[]) {
-    items.push({ name: layout.name, kind: "assembly", layout, frames: [assemblyFrame(layout)], sheets: [...new Set(layout.pieces.map((p) => p.sheet))] });
+    items.push({ name: layout.name, kind: "assembly", layout, entries: [], frameModel: [0], frames: [assemblyFrame(layout)], sheets: [...new Set(layout.pieces.map((p) => p.sheet))] });
   }
   return items.sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind] || naturalOrder(a.name, b.name));
 }
@@ -248,13 +278,13 @@ export async function runModelViewer(): Promise<void> {
     return p;
   }
 
-  /** The item's model: a single .glb, or an assembly's pieces each placed at its offset. */
+  /** The item's model: its .glb (one per shape), or an assembly's pieces each placed at its offset. */
   async function build(item: Item): Promise<Loaded> {
-    let root: THREE.Object3D;
+    const root = new THREE.Group();
+    const parts: Loaded["parts"] = [];
     let bytes = 0;
     let missing = 0;
     if (item.layout) {
-      root = new THREE.Group();
       const paths = item.layout.pieces.map((p) => pieceModels.get(spriteModelKey(p.sheet, p.size, p.index)));
       const loaded = await Promise.all(paths.map((path) => (path ? glb(path) : null)));
       const counted = new Set<string>();
@@ -265,17 +295,25 @@ export async function runModelViewer(): Promise<void> {
           counted.add(paths[i]!);
           bytes += piece.bytes;
         }
-        // A piece's model is centred on the piece; sprite x right = +X, sprite y down = +Z.
+        // A piece's model is centred on the piece; sprite x right = +X, sprite y down = +Z. Own
+        // materials, so pieces on different frames can colour differently.
         const clone = piece.scene.clone(true);
+        clone.traverse((o) => {
+          const mesh = o as THREE.Mesh;
+          if (mesh.isMesh) mesh.material = Array.isArray(mesh.material) ? mesh.material.map((m) => m.clone()) : mesh.material.clone();
+        });
         clone.position.set(p.x / PX_PER_UNIT, 0, p.y / PX_PER_UNIT);
         root.add(clone);
+        parts.push({ object: clone, rig: rigModel(clone), entry: 0, pieceFrame: p.index });
       });
     } else {
-      const one = await glb(item.entry!.model);
-      root = one.scene;
-      bytes = one.bytes;
+      const loaded = await Promise.all(item.entries.map((e) => glb(e.model)));
+      loaded.forEach((one, e) => {
+        root.add(one.scene);
+        bytes += one.bytes;
+        parts.push({ object: one.scene, rig: rigModel(one.scene), entry: e });
+      });
     }
-    const paletteMaterials: Loaded["paletteMaterials"] = [];
     const materials = new Set<THREE.Material>();
     let triangles = 0;
     root.traverse((o) => {
@@ -283,16 +321,13 @@ export async function runModelViewer(): Promise<void> {
       if (!mesh.isMesh) return;
       const geo = mesh.geometry;
       triangles += (geo.index ? geo.index.count : geo.attributes.position.count) / 3;
-      for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
-        if (materials.has(m)) continue;
-        materials.add(m);
-        const match = PALETTE_MATERIAL.exec(m.name);
-        const std = m as THREE.MeshStandardMaterial;
-        if (match && std.isMeshStandardMaterial) paletteMaterials.push({ material: std, index: Number(match[1]) & 0xff, emissive: std.emissive.getHex() !== 0 });
-      }
+      for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) materials.add(m);
     });
+    // Size the camera to the first frame's model (the shapes of one animation are alike).
+    if (parts.length > 1 && !item.layout) for (const p of parts) p.object.visible = p.entry === 0;
     const box = new THREE.Box3().setFromObject(root);
-    return { root, paletteMaterials, materials: [...materials], triangles, bytes, missing, size: box.getSize(new THREE.Vector3()), minY: box.min.y };
+    for (const p of parts) p.object.visible = true;
+    return { root, parts, materials: [...materials], triangles, bytes, missing, size: box.getSize(new THREE.Vector3()), minY: box.min.y };
   }
 
   // --- Palette ---
@@ -307,14 +342,23 @@ export async function runModelViewer(): Promise<void> {
     const j = shade(index) * 3;
     return [vga6To8(p[j]), vga6To8(p[j + 1]), vga6To8(p[j + 2])];
   };
+  /** Show the model as it is on the selected frame: which shape, which tagged parts, which colours. */
   function colourModel(): void {
-    if (!model || !palettes.length) return;
-    paletteTexture.set(palettes[Number(paletteEl.value)], -99, 0);
-    for (const pm of model.paletteMaterials) {
-      paletteTexture.color(shade(pm.index), pm.material.color);
-      if (pm.emissive) pm.material.emissive.copy(pm.material.color);
+    const item = shown[current];
+    if (!model || !item) return;
+    const f = item.frames[frame];
+    const spriteFrame = f?.parts[0].index ?? -1;
+    const havePalette = palettes.length > 0;
+    if (havePalette) paletteTexture.set(palettes[Number(paletteEl.value)], -99, 0);
+    for (const part of model.parts) {
+      const onFrame = part.pieceFrame ?? spriteFrame;
+      part.object.visible = part.pieceFrame !== undefined || part.entry === item.frameModel[frame];
+      if (!part.object.visible) continue;
+      showFrame(part.rig, onFrame);
+      if (havePalette) colourFrame(part.rig, onFrame, hue(), paletteColor);
     }
   }
+  const paletteColor = (index: number, target: THREE.Color) => paletteTexture.color(index, target);
 
   // --- Sprite side ---
   const pictureOf = (f: SpriteFrame): Int16Array | null => (res ? composeFrame(sheetData, f) : null);
@@ -374,6 +418,7 @@ export async function runModelViewer(): Promise<void> {
     const n = shown[current]?.frames.length ?? 1;
     frame = ((i % n) + n) % n;
     drawSprite();
+    colourModel();
   }
 
   // --- Model side ---
@@ -484,7 +529,9 @@ export async function runModelViewer(): Promise<void> {
       model = loaded;
       scene.add(model.root);
       grid.position.y = model.minY;
-      metaEl.textContent += ` · ${Math.round(model.triangles)} triangles · ${(model.bytes / 1024).toFixed(0)} KB`;
+      const models = item.entries.length > 1 ? `${item.entries.length} models (one per shape) · ` : "";
+      const animated = model.parts.some((p) => p.rig.animated) ? "animated parts · " : "";
+      metaEl.textContent += ` · ${models}${animated}${Math.round(model.triangles)} triangles · ${(model.bytes / 1024).toFixed(0)} KB`;
       if (model.missing) metaEl.textContent += ` · ${model.missing} piece${model.missing === 1 ? "" : "s"} without a model`;
       colourModel();
       applyToggles();

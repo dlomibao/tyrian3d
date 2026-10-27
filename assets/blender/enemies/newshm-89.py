@@ -5,7 +5,8 @@ side by side, each with a bright raised inner ridge and a rolled outer rim, wide
 and tapering to two prongs at the bottom with a gap between them. A dark recessed bridge with two
 light ribs joins them at the shoulders, and an engine between two grey nozzle cheeks at the back
 (top of the sprite) blows a red-orange flame with a yellow-white core. The three frames only
-change the flame's length, so one model covers them all.
+change the flame's length (its tip reaches rows 5, 4 and 3), so one model covers them all, with a
+flame per frame (common.frame_part).
 
 Run: blender --background --python assets/blender/enemies/newshm-89.py [-- --preview out.png]
 """
@@ -82,20 +83,28 @@ def build(sprite):
                          (lib.ey(7.9), 0.4 * P, 1.2 * P, 0.0)], sides=6, mat_index=RIM)
         common.shift_x(bm, start, CENTRE + side * 2 * P)
 
+    body = common.mesh_object(NAME, bm, mats, coll, smooth=True)
+
     # The flame, from inside the nozzle out past the back (rows 5-10, columns 8-16): a flat red
-    # outer flame, an orange-yellow core above it and a white-hot centre at the nozzle.
+    # outer flame, an orange-yellow core above it and a white-hot centre at the nozzle. Its tip
+    # reaches row 5 on frame 89, row 4 on 91 and row 3 on 93; each frame gets a flame stretched
+    # from the nozzle (row 10.8) to its tip.
     flames = [
         (FLAME, [(10.8, 2.4, 1.0), (9.0, 3.6, 1.2), (7.6, 3.3, 1.1), (6.6, 2.0, 0.9), (5.6, 0.9, 0.6),
                  (4.9, 0.0, 0.0)], 0.0),
         (CORE, [(10.8, 1.5, 1.6), (9.5, 1.65, 1.7), (8.0, 1.4, 1.5), (7.0, 0.8, 1.1), (6.2, 0.0, 0.0)], 0.02),
         (HOT, [(10.6, 0.7, 1.9), (9.6, 0.8, 2.0), (8.6, 0.0, 0.0)], 0.03),
     ]
-    for mat, secs, z in flames:
-        start = len(bm.verts)
-        common.loft(bm, [(lib.ey(r), w * P, h * P, z) for r, w, h in secs], sides=8, mat_index=mat)
-        common.shift_x(bm, start, CENTRE)
-
-    return [common.mesh_object(NAME, bm, mats, coll, smooth=True)]
+    parts = [body]
+    for frame, tip in ((89, 4.9), (91, 3.9), (93, 2.9)):
+        k = (10.8 - tip) / (10.8 - 4.9)
+        fbm = bmesh.new()
+        for mat, secs, z in flames:
+            start = len(fbm.verts)
+            common.loft(fbm, [(lib.ey(10.8 - (10.8 - r) * k), w * P, h * P, z) for r, w, h in secs], sides=8, mat_index=mat)
+            common.shift_x(fbm, start, CENTRE)
+        parts.append(common.frame_part(common.mesh_object(f"{NAME}-flame-{frame}", fbm, mats, coll, smooth=True), [frame]))
+    return parts
 
 
 if __name__ == "__main__":
