@@ -457,8 +457,8 @@ button ends a pan, shows the rest of a text at once, then leaves it; fades ignor
 the rest of the scene, as ESCPressed would. The screen is RGB at 6x 320x200: each picture is
 coloured with its own palette, text with `colors`, and palette fades are a black or white layer
 whose opacity follows fade_palette's straight line. Every picture is drawn through one function,
-pictureSource(), which takes a remastered image from src/app/pictureArt.ts (picture number → file
-under public/art/; empty for now) before the original from tyrian.pic. JE_main's level fades
+pictureSource(), which takes the remastered image public/art/pictures.json lists for it
+(src/app/pictureArt.ts) before the original from tyrian.pic. JE_main's level fades
 (50 frames in, 15 out after a completed level, 10 after a death) are the same kind of layer over
 the 3D view and HUD (src/app/fade.ts).
 
@@ -475,11 +475,25 @@ the 3D view and HUD (src/app/fade.ts).
 - *A palette brightness ramp in the renderer for the level fades:* would fade the models and tiles
   but not the lighting, sky or HUD; the layer fades everything, as the C's palette did.
 
+**Restyle (interface framework):** the story screens and the episode's end (the `]Q` hint, the
+ending animation, the credits, the next episode's title, the Super Arcade code) play on one
+framework screen, src/app/cinema.ts. The picture is letterboxed at any aspect ratio, cropped by
+up to a fifth to fill more of a wider or taller window, over a blurred copy of itself. Text is in
+the interface's type on a translucent panel, coloured from the bank and palette the C drew it in,
+each character still glowing in on JE_outCharGlow's steps; long lines join up on narrow screens.
+The warning bars flash along the window's edges; the credits roll smoothly at the C's rate;
+titles and codes sit over the 3D backdrop (the Super Arcade ship in the hangar). Input is the
+framework's: any key, pad button or tap continues, Escape / B / the Skip button skips a scene.
+The C's timing, its order of screens and its mt_rand calls are unchanged.
+
 **Review:** The level fade-in runs while the level starts (the C holds the game during the
 fade, but its play area is empty then). Text uses the original tiny font scaled up; if remastered
 pictures want new type, that's the place to change. Check the warning screen before MINES
 (flashing bars and siren) and episode 1's ending (pan up, flash).
 ## D22 — After the last episode the game goes on into episode 1, as JE_nextEpisode does
+fade, but its play area is empty then). Check the warning screen before MINES (flashing bars and
+siren) and episode 1's ending (pan up, flash).
+## D?? — After the last episode the game goes on into episode 1, as JE_nextEpisode does
 
 2026-10-27
 
@@ -529,8 +543,15 @@ palette (`facepal`). Cubes the player hasn't opened this session are marked NEW.
   from the last level anyway. So NEW means "not opened yet" instead, kept in memory for the
   session.
 
+On the interface framework the reader takes the framework's input, not its own listeners: up/down
+(keys, d-pad, stick), Page Up/Down, Home/End and a pad's LB/RB (one page of Page Down). A press counts
+as held for 6 of the C's frames, less than a line takes, so a tap still scrolls one line and the
+framework's key repeats keep a held key scrolling (`src/app/cubeReaderControl.ts`). The text is drawn
+between the C's frames, so it scrolls smoothly at any display rate.
+
 **Review:** Check that the reader feels right with arrows (one line per tap, as in the C) and the
-wheel. The C's End key wraps `yLoc` for cubes of nine lines or fewer, which scrolls the text out of
+wheel. Holding a direction can pause briefly after the first line, until the framework's repeat starts
+(380 ms on a pad). The C's End key wraps `yLoc` for cubes of nine lines or fewer, which scrolls the text out of
 view; here it stays at the top. If NEW isn't wanted, remove it from `dataCubes.ts`, where it
 lives.
 ## D24 — Saved games and settings live in localStorage; the Options menu's setup rows open a settings screen

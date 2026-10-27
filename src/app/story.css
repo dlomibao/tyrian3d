@@ -1,50 +1,12 @@
-/* The screens between levels (storyScreens.ts) and the level fades (fade.ts). */
+/* The level fades (fade.ts): a black layer over the 3D view and HUD with the fade's opacity. The
+   screens between levels have their own, on their stage (cinema.css). */
 
-/* Full screen, above whatever was showing; the 320x200 screen keeps its 16:10 shape. */
-.story {
+.level-fade {
   position: fixed;
   inset: 0;
-  display: grid;
-  place-items: center;
-  background: #000;
-  cursor: pointer;
-  touch-action: manipulation;
-  user-select: none;
-}
-
-.story[hidden] {
-  display: none;
-}
-
-.story-screen {
-  position: relative;
-  width: min(100vw, 160vh);
-  aspect-ratio: 16 / 10;
-}
-
-.story-screen canvas {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-/* The palette fades: a black or white layer with the fade's opacity. */
-.story-fade,
-.level-fade {
   pointer-events: none;
 }
 
-.story-fade {
-  position: absolute;
-  inset: 0;
-}
-
-.level-fade {
-  position: fixed;
-  inset: 0;
-}
-
-.story-fade[hidden],
 .level-fade[hidden] {
   display: none;
 }

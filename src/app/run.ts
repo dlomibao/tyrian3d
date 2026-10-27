@@ -175,7 +175,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
 
       controls.active = true;
       pauseButton.visible = true; // ui-framework
-      const outcome = await playLevel(view, controls, sfx, music, hud);
+      const outcome = await playLevel(view, controls, sfx, music, hud, pauseButton);
       controls.active = false;
       controls.release();
       hud.visible = false;
@@ -219,7 +219,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
 
 type Outcome = "completed" | "died" | "quit";
 
-function playLevel(view: View, controls: Controls, sfx: SoundEffects, music: MusicPlayer, hud: Hud): Promise<Outcome> {
+function playLevel(view: View, controls: Controls, sfx: SoundEffects, music: MusicPlayer, hud: Hud, pauseButton: PauseButton): Promise<Outcome> {
   return new Promise((resolve) => {
     let last = performance.now();
     let acc = 0;
@@ -234,8 +234,10 @@ function playLevel(view: View, controls: Controls, sfx: SoundEffects, music: Mus
         controls.release();
         controls.active = false;
         music.volume = musicLevel(0.3); // [port-options] relative to the music volume setting
+        pauseButton.visible = false; // restyle-polish: not over the pause screen
         void showPause().then((choice) => {
           paused = false;
+          pauseButton.visible = choice !== "quit"; // restyle-polish
           quit = choice === "quit";
           controls.clear();
           controls.active = true;

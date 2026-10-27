@@ -174,14 +174,17 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
     label: "Item screen",
     // [port-options] Alt-S / Alt-L: quick save and load (game_menu.c L1539-1580).
     onKey: (e) => {
+      if (cubes.key(e)) return true; // [restyle-cubes] the cube reader's Page Up/Down, Home, End
       if (!e.altKey || (e.code !== "KeyS" && e.code !== "KeyL")) return false;
       key(e.code === "KeyS" ? "quickSave" : "quickLoad");
       return true;
     },
     onIntent: (intent) => {
+      cubes.intent(intent); // [restyle-cubes] the cube reader scrolls; the C's keys still get it
       key(INTENT_KEYS[intent]);
       return true;
     },
+    onPadButton: (b) => cubes.padButton(b), // [restyle-cubes] LB/RB page the cube reader
   });
   const root = screen.panel;
   root.innerHTML = `
@@ -190,7 +193,7 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
         <div class="shop-cash"><span>Credits</span><b data-k="cash"></b></div>
       </header>
       <div class="shop-body">
-        <aside class="shop-ship" data-k="ship"></aside>
+        <div class="shop-side"><aside class="shop-ship" data-k="ship"></aside></div>
         <section class="shop-menu">
           <canvas class="shop-nav" data-k="nav" width="${220 * NAV_SCALE}" height="${160 * NAV_SCALE}" hidden></canvas>
           <ul class="ui-menu shop-list" data-k="list" role="listbox"></ul>
@@ -207,7 +210,7 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
   const dialogEl = el("dialog");
   screen.root.append(dialogEl);
   // The weapon simulator (weaponPreview.ts) takes the loadout's place, in the left column, in the
-  // submenus that run it.
+  // submenus that run it; both sit in .shop-side's one cell, so the column keeps its size.
   const preview = new WeaponPreview();
   el("ship").before(preview.element);
   // Data Cubes (src/app/dataCubes.ts): load_cubes, then the cube list and reader in the loadout's
@@ -226,21 +229,22 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
 
   /**
    * [port-options] The Options menu's requests: the settings screen, and JE_operation (a load
-   * runs at once; a save asks for the name first). True while a screen of options.ts is up; it
-   * has the keys and pads meanwhile (Screen.aside), and the item screen stays in view under it.
+   * runs at once; a save asks for the name first). True while a screen of options.ts is up;
+   * [restyle-options] it is shown over this one (ScreenOptions.over), which gets the input back
+   * when it closes.
    */
   const optionsRequests = (): boolean => {
     if (menu.setupRequest) {
       const section = menu.setupRequest;
       menu.setupRequest = null;
-      void screen.aside(() => showOptions(host, section), { hide: false }).then(() => step());
+      void showOptions(host, section).then(() => step());
       return true;
     }
     if (menu.operationRequest) {
       const name = menu.performSave ? JE_operation_saveName(menu.operationRequest) : null;
       if (name === null) JE_itemScreen_operation(host.files);
       else {
-        void screen.aside(() => promptSaveName(host, name), { hide: false }).then((n) => {
+        void promptSaveName(host, name).then((n) => {
           JE_itemScreen_operation(host.files, n);
           step();
         });
@@ -570,9 +574,11 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
     const id = `${weapon} ${volume} ${reader}`;
     if (id === hintsFor) return;
     hintsFor = id;
+    const cubeHints = cubes.hints(); // [restyle-cubes] the reader's own (scroll, page, back)
+    if (cubeHints) return void el("hints").replaceChildren(keyHints(cubeHints));
     el("hints").replaceChildren(
       keyHints([
-        { key: "↑↓", pad: "✛", label: reader ? "Scroll" : "Move" },
+        { key: "↑↓", pad: "✛", label: "Move" },
         ...(weapon ? [{ key: "←→", pad: "✛", label: "Power" }] : []),
         ...(volume ? [{ key: "←→", pad: "✛", label: "Volume" }] : []),
         { key: "Enter", pad: "A", touch: "Tap twice", label: "Select" },
@@ -590,7 +596,6 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
       list.innerHTML = entries.map((e) => renderRow(e, e.sel === menu.curSel[menu.curMenu])).join("");
     }
     el("ship").hidden = preview.sync();
-    reveal(list.querySelector(".is-focused"));
     const power = renderPower();
     el("power").innerHTML = power;
     el("power").hidden = !power;
@@ -603,6 +608,8 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
     }
     navCanvas.hidden = !isNav;
     if (isNav) drawNav();
+    // Once the map and the power row are in place: they move the list (restyle-polish).
+    reveal(list.querySelector(".is-focused"));
     el("help").textContent = JE_mainMenuHelpText();
     renderHints();
     const dialog = renderDialog();

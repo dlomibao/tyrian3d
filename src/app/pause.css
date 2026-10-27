@@ -14,6 +14,17 @@
   justify-content: center;
 }
 
+/* "Quit to title?" takes the pause panel's place rather than stacking a second frame over it. */
+.ui-screen--pause > .ui-panel {
+  transition:
+    transform var(--ui-slow) var(--ui-ease),
+    opacity var(--ui-fast) var(--ui-ease);
+}
+
+.ui-screen--pause:has(> .ui-modal:not(.is-leaving)) > .ui-panel {
+  opacity: 0;
+}
+
 /* Two bars in a ring, top right, clear of the HUD's score and the safe area. */
 .pause-button {
   position: fixed;

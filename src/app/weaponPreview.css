@@ -1,26 +1,72 @@
-/* The item screen's weapon preview (src/app/weaponPreview.ts), in the loadout column of shop.css. */
+/*
+ * The item screen's weapon preview (src/app/weaponPreview.ts): a framed "simulator" panel in the
+ * left column of shop.css, in the same grid cell as the loadout (.shop-side). Whichever of the two
+ * is hidden keeps its space (visibility, not display), so the column is always as big as the
+ * larger and nothing moves when the preview comes and goes.
+ */
 
 .weapon-preview {
   display: flex;
-  gap: 6px;
-  align-items: stretch;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-2) var(--ui-space-3) var(--ui-space-3);
+  border: 1px solid rgba(92, 214, 255, 0.35);
+  border-radius: var(--ui-radius);
+  background:
+    /* cyan corner brackets, the panel's gold ones in the simulator's colour */
+    linear-gradient(var(--ui-cyan), var(--ui-cyan)) top left / 8px 2px,
+    linear-gradient(var(--ui-cyan), var(--ui-cyan)) top left / 2px 8px,
+    linear-gradient(var(--ui-cyan), var(--ui-cyan)) top right / 8px 2px,
+    linear-gradient(var(--ui-cyan), var(--ui-cyan)) top right / 2px 8px,
+    linear-gradient(var(--ui-cyan), var(--ui-cyan)) bottom left / 8px 2px,
+    linear-gradient(var(--ui-cyan), var(--ui-cyan)) bottom left / 2px 8px,
+    linear-gradient(var(--ui-cyan), var(--ui-cyan)) bottom right / 8px 2px,
+    linear-gradient(var(--ui-cyan), var(--ui-cyan)) bottom right / 2px 8px,
+    rgba(10, 22, 34, 0.55);
+  background-repeat: no-repeat;
+  box-shadow: 0 0 1.25rem rgba(92, 214, 255, 0.08);
 }
 
-.weapon-preview[hidden] {
-  display: none;
+.weapon-preview-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-family: var(--ui-font-display);
+  font-size: var(--ui-text-xs);
+  letter-spacing: var(--ui-tracking-wide);
+  text-transform: uppercase;
+  color: var(--ui-cyan);
+}
+
+.weapon-preview-head .weapon-preview-pwr {
+  letter-spacing: var(--ui-tracking);
+  color: var(--ui-ink-faint);
+}
+
+.weapon-preview-body {
+  display: flex;
+  gap: var(--ui-space-2);
+  align-items: stretch;
+  justify-content: center;
 }
 
 /* The simulator's window is 136x175 game pixels; the 3D view frames it exactly (DECISIONS.md D6).
-   Under the game's tilted camera that window looks about as wide as it is tall. */
-.weapon-preview-view {
-  flex: 1;
-  min-width: 0;
+   Under the game's tilted camera that window looks about as wide as it is tall. On short screens
+   it narrows so its height stays within about half the window. */
+.weapon-preview-screen {
+  flex: 0 1 auto;
+  width: min(100%, 52vh * 10 / 9);
   aspect-ratio: 10 / 9;
-  max-height: 60vh;
-  border: 1px solid var(--edge);
-  border-radius: 6px;
+  border: 1px solid rgba(92, 214, 255, 0.28);
+  border-radius: var(--ui-radius);
   overflow: hidden;
   background: #05070d;
+  box-shadow: inset 0 0 1.5rem rgba(0, 0, 0, 0.8);
+}
+
+.weapon-preview-view {
+  width: 100%;
+  height: 100%;
 }
 
 .weapon-preview-view canvas {
@@ -33,8 +79,8 @@
   width: 8px;
   display: flex;
   align-items: flex-end;
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 4px;
+  background: rgba(143, 163, 184, 0.16);
+  border-radius: 1px;
   overflow: hidden;
 }
 
@@ -42,11 +88,13 @@
   display: block;
   width: 100%;
   height: 0;
-  background: linear-gradient(to top, #2f8f4f, #8fe08f);
+  background: linear-gradient(to top, #2f8f4f, var(--ui-ok));
+  box-shadow: 0 0 6px rgba(143, 209, 143, 0.6);
 }
 
-@media (max-width: 640px) {
-  .weapon-preview-view {
-    max-height: 38vh;
+/* Phones, where the loadout folds above the menu: a smaller screen, about the loadout's height. */
+@media (max-width: 720px) {
+  .weapon-preview-screen {
+    width: min(100%, 13rem * 10 / 9);
   }
 }

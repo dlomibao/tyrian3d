@@ -1,61 +1,109 @@
-/* The item screen's Data Cubes menus (src/app/dataCubes.ts), inside the shop panel (shop.css). */
-
-.cube-portrait {
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.cube-portrait img {
-  width: 100%;
-  max-width: 17rem;
-  image-rendering: pixelated;
-  border: 1px solid var(--edge);
-  border-radius: 6px;
-  background: #000;
-}
-
-.cube-portrait figcaption {
-  min-height: 1.2em;
-  color: var(--accent);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  font-size: 0.85rem;
-}
+/*
+ * The item screen's Data Cubes menus (src/app/dataCubes.ts), inside the item screen's panel
+ * (shop.css): a data terminal of the interface framework. The left pane is the cube's portrait as
+ * the C draws it, behind glass; the right is the cube list (framework menu rows) or the reader
+ * (a scroll box of the C's wrapped lines, a read meter and EXIT).
+ */
 
 .shop-list[hidden] {
   display: none;
 }
 
-/* '~' highlights (JE_outTextAndDarken's brighter shade). */
-.shop-list .cube-row .what,
-.cube-text > div {
+/* --- the portrait (the face in the C's portrait area, and the cube's header) --- */
+
+.ui-screen--shop .cube-portrait {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ui-space-3);
+}
+
+.ui-screen--shop .cube-portrait__frame {
+  position: relative;
   display: block;
+  width: 100%;
+  max-width: 17rem;
+  border: 1px solid rgba(92, 214, 255, 0.35);
+  border-radius: var(--ui-radius);
+  background: #000;
+  box-shadow: 0 0 1.25rem rgba(92, 214, 255, 0.1), inset 0 0 0 1px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
 }
 
-.shop-list .cube-row .what b,
-.cube-text b {
-  color: var(--accent);
-  font-weight: normal;
-}
-
-.cube-ico {
-  flex: none;
-  width: 34px;
-  display: grid;
-  place-items: center;
-}
-
-.cube-ico img {
-  width: 26px;
+.ui-screen--shop .cube-portrait__frame img {
+  display: block;
+  width: 100%;
   image-rendering: pixelated;
+}
+
+/* A screen's scanlines and a faint glare over the picture. */
+.ui-screen--shop .cube-portrait__frame::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(180deg, rgba(0, 0, 0, 0.18) 0 1px, transparent 1px 3px),
+    linear-gradient(160deg, rgba(92, 214, 255, 0.12), transparent 40%);
+}
+
+.ui-screen--shop .cube-portrait.is-idle .cube-portrait__frame {
+  opacity: 0.7;
+}
+
+.ui-screen--shop .cube-portrait figcaption {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  text-align: center;
+}
+
+.ui-screen--shop .cube-portrait figcaption small {
+  font-family: var(--ui-font-display);
+  font-size: var(--ui-text-xs);
+  letter-spacing: var(--ui-tracking-wide);
+  text-transform: uppercase;
+  color: var(--ui-steel);
+}
+
+.ui-screen--shop .cube-portrait figcaption b {
+  min-height: 1.2em;
+  font-family: var(--ui-font-display);
+  font-size: var(--ui-text-md);
+  font-weight: 600;
+  letter-spacing: var(--ui-tracking);
+  text-transform: uppercase;
+  color: var(--ui-cyan);
+  text-shadow: var(--ui-glow-cyan);
+}
+
+/* --- the cube list --- */
+
+/* '~' highlights (JE_outTextAndDarken's brighter shade). */
+.ui-screen--shop .cube-title b,
+.ui-screen--shop .cube-text b,
+.ui-screen--shop .cube-reader__title b {
+  color: var(--ui-gold);
+  font-weight: inherit;
+}
+
+.ui-screen--shop .cube-row .cube-title {
+  overflow-wrap: anywhere;
+}
+
+.ui-screen--shop .cube-ico img {
+  width: 26px;
   filter: drop-shadow(3px 3px 0 rgba(0, 0, 0, 0.55));
 }
 
 /* JE_itemScreen's "flashy cube" on the chosen row. */
-.cube-row.is-focused .cube-ico img {
+.ui-screen--shop .cube-row.is-focused .cube-ico {
+  box-shadow: inset 0 0 0 1px rgba(92, 214, 255, 0.45);
+}
+
+.ui-screen--shop .cube-row.is-focused .cube-ico img {
   animation: cube-flash 0.9s ease-in-out infinite alternate;
 }
 
@@ -65,31 +113,29 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cube-row.is-focused .cube-ico img {
+  .ui-screen--shop .cube-row.is-focused .cube-ico img {
     animation: none;
     filter: drop-shadow(3px 3px 0 rgba(0, 0, 0, 0.55)) brightness(1.25);
   }
 }
 
-.cube-new {
-  margin-left: auto;
+/* NEW: the framework's badge, in the terminal's cyan. */
+.ui-screen--shop .cube-new {
   flex: none;
-  font-size: 0.7rem;
-  letter-spacing: 0.1em;
-  color: #7fc8ff;
-  border: 1px solid rgba(127, 200, 255, 0.5);
-  border-radius: 4px;
-  padding: 1px 5px;
+  color: var(--ui-cyan);
+  border-color: rgba(92, 214, 255, 0.5);
+  box-shadow: 0 0 0.5rem rgba(92, 214, 255, 0.2);
 }
 
-.shop-list .cube-none {
-  padding: 0.6rem;
-  margin-bottom: 0.4rem;
-  color: var(--ink-dim);
-  border: 1px dashed var(--edge);
-  border-radius: 6px;
+.ui-screen--shop .shop-list .cube-none {
+  padding: var(--ui-space-3) var(--ui-space-4);
+  margin-bottom: var(--ui-space-2);
+  color: var(--ui-ink-dim);
+  border: 1px dashed var(--ui-edge);
+  border-radius: var(--ui-radius);
 }
 
+/* The collected cubes beside the main menu's Data row. */
 .cube-count {
   display: inline-flex;
   gap: 3px;
@@ -102,56 +148,117 @@
   filter: drop-shadow(2px 1px 0 rgba(0, 0, 0, 0.6));
 }
 
-.cube-reader {
-  display: inline-flex;
-  max-width: 100%;
+/* --- the reader --- */
+
+.ui-screen--shop .cube-reader {
+  display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--ui-space-3);
+  max-width: 36rem;
+  min-width: 0;
 }
 
-.cube-reader[hidden] {
+.ui-screen--shop .cube-reader[hidden] {
   display: none;
 }
 
-/* load_cube wrapped the text into lines of at most 35 characters; keep its breaks and indents. */
-.cube-text {
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  width: max-content;
-  max-width: 100%;
-  box-sizing: border-box;
-  padding: 0 0.75rem;
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid var(--edge);
-  border-radius: 6px;
-  font-size: 0.95rem;
-  color: var(--ink);
-  cursor: ns-resize;
-  outline: none;
+.ui-screen--shop .cube-reader__title {
+  margin: 0;
+  font-size: var(--ui-text-md);
+  overflow-wrap: anywhere;
 }
 
-.cube-text > div {
-  height: 1.5em;
-  line-height: 1.5em;
+/* The terminal glass the text sits on. */
+.ui-screen--shop .cube-screen {
+  position: relative;
+  border: 1px solid rgba(92, 214, 255, 0.3);
+  border-radius: var(--ui-radius);
+  background:
+    repeating-linear-gradient(180deg, rgba(92, 214, 255, 0.035) 0 1px, transparent 1px 4px),
+    radial-gradient(120% 90% at 30% 0%, rgba(20, 44, 66, 0.75), rgba(3, 8, 14, 0.92));
+  box-shadow: inset 0 0 2rem rgba(0, 0, 0, 0.6), 0 0 1.25rem rgba(92, 214, 255, 0.08);
+}
+
+/*
+ * load_cube wrapped the text into lines of at most 35 characters: keep its breaks and indents.
+ * The box shows the C's nine lines (--cube-lines, set by dataCubes.ts) between two fades, so
+ * yLoc maps to scrollTop line for line.
+ */
+.ui-screen--shop .cube-text {
+  --cube-line: 1.65em;
+  --cube-pad: 0.9rem;
+  box-sizing: content-box;
+  height: calc(var(--cube-lines, 9) * var(--cube-line));
+  max-height: none;
+  padding: var(--cube-pad) var(--ui-space-4);
+  overflow-x: hidden;
+  font-family: var(--ui-font-text);
+  font-size: 1.02rem;
+  color: #d6f2ff;
+  text-shadow: 0 0 0.4rem rgba(92, 214, 255, 0.25);
+  cursor: ns-resize;
+  touch-action: pan-y;
+  mask: linear-gradient(180deg, transparent, #000 var(--cube-pad), #000 calc(100% - var(--cube-pad)), transparent);
+}
+
+/* The column is as wide as its longest line, centred on the glass. */
+.ui-screen--shop .cube-lines {
+  width: max-content;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+.ui-screen--shop .cube-lines > div {
+  height: var(--cube-line);
+  line-height: var(--cube-line);
   white-space: pre;
 }
 
-.cube-foot {
+.ui-screen--shop .cube-foot {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  color: var(--ink-dim);
-  font-size: 0.85rem;
+  gap: var(--ui-space-2) var(--ui-space-4);
+}
+
+.ui-screen--shop .cube-foot .ui-stat {
+  flex: 1 1 12rem;
+  max-width: 20rem;
+  grid-template-columns: 6.5rem 1fr;
   font-variant-numeric: tabular-nums;
 }
 
-@media (max-width: 640px) {
-  .cube-portrait img {
-    max-width: 10rem;
+/* --- phones --- */
+
+@media (max-width: 720px) {
+  /* The portrait folds into a row beside its caption, so the text stays in view. */
+  .ui-screen--shop .cube-portrait {
+    flex-direction: row;
+    justify-content: center;
+    gap: var(--ui-space-4);
   }
 
-  .cube-text {
-    font-size: 0.85rem;
+  .ui-screen--shop .cube-portrait__frame {
+    width: 7.5rem;
+    flex: none;
+  }
+
+  .ui-screen--shop .cube-portrait figcaption {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .ui-screen--shop .cube-text {
+    --cube-pad: 0.7rem;
+    font-size: 0.92rem;
+    padding: var(--cube-pad) var(--ui-space-3);
+  }
+}
+
+/* Short screens (phones in landscape): a smaller portrait. */
+@media (max-height: 520px) {
+  .ui-screen--shop .cube-portrait__frame {
+    max-width: 9rem;
   }
 }
