@@ -6,7 +6,7 @@
 #   bot-*.c.txt       the bot playing a level through the whole of JE_main, sampled.
 #
 #   tools/opentyrian-bot/run.sh <opentyrian checkout> <tyrian data dir>
-#   tools/opentyrian-bot/run.sh <opentyrian checkout> <tyrian data dir> play <episode> <section> <ticks> [every]
+#   tools/opentyrian-bot/run.sh <opentyrian checkout> <tyrian data dir> play|play2 <episode> <section> <ticks> [every]
 #       (prints a trace instead, for investigating a level)
 #
 # Needs clang and SDL2 (sdl2-config; Homebrew's sdl2 works) and perl. Patches a copy of OpenTyrian's
@@ -37,6 +37,7 @@ patch_src tyrian2.c 's/\nlevel_loop:\n/\nlevel_loop:\n\t{ extern void bot_level_
 patch_src tyrian2.c 's/(\tif \(reallyEndLevel\)\n\t\{\n)(\t\tgoto start_level;)/$1\t\t{ extern void bot_level_end(void); bot_level_end(); }\n$2/'
 patch_src mainint.c 's/(void JE_nextEpisode\(void\)\n\{\n)/$1\t{ extern void bot_episode_end(void); bot_episode_end(); }\n/'
 patch_src nortsong.c 's/(void delayUntilElapsed\(void\)\n\{\n)/$1\treturn;\n/'
+patch_src keyboard.c 's/(void mouseGetRelativePosition\(Sint32 \*const out_x, Sint32 \*const out_y\)\n\{\n)/$1\t{ extern int bot_mouse_x, bot_mouse_y; *out_x = bot_mouse_x; *out_y = bot_mouse_y; return; }\n/'
 patch_src config.c 's/(void JE_saveGame\(JE_byte slot, const char \*name\)\n\{\n)/$1\treturn;\n/'
 
 CF="$(sdl2-config --cflags) -std=gnu11 -O1 -w -DOPENTYRIAN_VERSION=\"bot\" -I$S"
@@ -54,7 +55,7 @@ driver() {
   SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy "$WORK/driver" "$1" "$DATA" "${@:2}" 2>/dev/null
 }
 
-if [ "${1:-}" = play ]; then
+if [ "${1:-}" = play ] || [ "${1:-}" = play2 ]; then
   driver "$@"
   exit 0
 fi
@@ -76,12 +77,14 @@ done
 echo "wrote $out"
 
 # name episode section ticks every
-play_case() {
+play_case() { # name episode section ticks every [mode]
+  local mode=${6:-play}
   out="$FIXTURES/bot-$1.c.txt"
-  { echo "# play $2 $3 $4 $5"; driver play "$2" "$3" "$4" "$5"; } > "$out"
+  { echo "# $mode $2 $3 $4 $5"; driver "$mode" "$2" "$3" "$4" "$5"; } > "$out"
   echo "wrote $out"
 }
 play_case tyrian 1 3 60000 50       # episode 1's first level, played to its end
 play_case squadron 4 45 20000 100   # the episode 4 galaga bonus game (it never ends)
+play_case two-players 1 3 60000 25 play2 # a two-player game: player 2 links, unlinks, dies
 play_case ale 1 41 22000 100        # the episode 1 galaga bonus game (diverges at tick 22212:
                                     # the C's dragonwing, player 2, rams an enemy; not ported)
