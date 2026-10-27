@@ -5,8 +5,9 @@ Seen in episode 4 (level 4.2). Six 2x2 pieces make a 72x54 px stretch of the san
 a housing in the middle with an upright lug on top, a D-shaped grab handle on each side, a dark
 spider leg on each side gripping the rock, and two curved pincers hanging below the wall. The
 bottom middle piece (newsh^ 7, 9 and 117) has a blue electric arc between the pincer tips in
-frames 7 and 9 and none in 117, so it gets two models: newsh-caret-7 (frames 7 and 9, the arc
-flicker is one glowing bolt) and newsh-caret-7-f2 (frame 117, no arc).
+frames 7 and 9 and none in 117, so it gets two models: newsh-caret-7 (frames 7 and 9, with a
+glowing bolt traced from each frame's arc, shown on its frame with common.frame_part) and
+newsh-caret-7-f2 (frame 117, no arc).
 
 The rock is lib_b017.wall_rock (as for the plain wall); the machine is lofted tubes and plates,
 mirrored about pixel column 33. Built whole in assembly coordinates and cut into the pieces with
@@ -36,8 +37,8 @@ PLACEMENTS = [
 AXIS = 33  # the machine is mirror symmetric about the centre of pixel column 33
 
 
-def build(sheet, with_arc):
-    coll = common.reset_collection(NAME + ("_arc" if with_arc else ""))
+def build(sheet):
+    coll = common.reset_collection(NAME)
     mats = lib.Mats("nshc77", sheet.colors)
     pix = sheet.pix
 
@@ -107,37 +108,56 @@ def build(sheet, with_arc):
     left += lib.tube(bm, [(P(c, r, z), rad * U) for c, r, z, rad in path], sides=8, mat_index=plate, flat=0.6)
     smooth += left + lib.mirror_faces(bm, left, ax)
 
-    if with_arc:
-        # The electric arc between the pincer tips (frame 7's bolt, rows 45-53).
-        glow = mats(60, metallic=0.0, roughness=0.4, emission_strength=4.0)
-        pts = []
-        for c in range(24, 43):
-            rows = [r for r in range(40, 56) if 57 <= pix[r][c] <= 62]
-            if rows:
-                pts.append((c, sum(rows) / len(rows), max(rows) - min(rows) + 1))
-        bolt = [(P(c, r, 0.28), max(0.9, min(1.7, n / 2.6)) * U) for c, r, n in pts]
-        smooth += lib.tube(bm, bolt, sides=6, mat_index=glow, flat=0.6)
+    return lib.to_object(NAME, bm, mats.list, coll, smooth_faces=smooth)
 
-    return lib.to_object(NAME + ("_arc" if with_arc else ""), bm, mats.list, coll, smooth_faces=smooth)
+
+def arc(sheet, frame):
+    """The electric arc between the pincer tips on one frame of the bottom middle piece (placed at
+    column 24, row 28): a glowing bolt through the middle of the arc's pixels in each column
+    (columns 24-42, rows 40-55 of the stretch), as thick as the arc is there."""
+    coll = common.reset_collection(f"{NAME}_arc_{frame}")
+    mats = lib.Mats("nshc77", sheet.colors)
+    glow = mats(60, metallic=0.0, roughness=0.4, emission_strength=4.0)
+    data = sheet.sprites["newsh-caret-7"]
+    pixels = next(f["pixels"] for f in data["frames"] if f["index"] == frame)
+    pix = lambda r, c: pixels[r - 28][c - 24]  # noqa: E731
+    P = lambda c, r, z: (sheet.X(c + 0.5), sheet.Y(r + 0.5), z)  # noqa: E731
+    pts = []
+    for c in range(24, 43):
+        rows = [r for r in range(40, 56) if 57 <= pix(r, c) <= 62]
+        if rows:
+            pts.append((c, sum(rows) / len(rows), max(rows) - min(rows) + 1))
+    bolt = [(P(c, r, 0.28), max(0.9, min(1.7, n / 2.6)) * lib.U) for c, r, n in pts]
+    bm = bmesh.new()
+    smooth = lib.tube(bm, bolt, sides=6, mat_index=glow, flat=0.6)
+    return lib.to_object(f"{NAME}_arc_{frame}", bm, mats.list, coll, smooth_faces=smooth)
 
 
 def main():
     sheet = lib.Sheet(ROOT, PLACEMENTS)
-    plain = build(sheet, False)
-    arc = build(sheet, True)
+    plain = build(sheet)
     pieces = lib.export_pieces(ROOT, plain, sheet, PLACEMENTS[:4] + PLACEMENTS[5:])
-    # The bottom middle piece: with the arc for frames 7 and 9, without it for frame 117.
+    # The bottom middle piece: with an arc per frame for frames 7 and 9, without it for frame 117.
     sprite = sheet.sprites["newsh-caret-7"]["sprites"][0]
     with_arc = [{**sprite, "frames": [7, 9]}]
     no_arc = [{**sprite, "frames": [117]}]
+    centre = (24 + 12 - sheet.w / 2, 28 + 14 - sheet.h / 2)
     cut = {}
-    for obj, model, sprites in ((arc, "newsh-caret-7", with_arc), (plain, "newsh-caret-7-f2", no_arc)):
-        piece = common.split_assembly(obj, [(model, 24 + 12 - sheet.w / 2, 28 + 14 - sheet.h / 2)])[model]
-        common.export_sprite_model(ROOT, [piece], f"enemies/{model}", sprites)
-        cut[model] = piece
+    for model, sprites in (("newsh-caret-7", with_arc), ("newsh-caret-7-f2", no_arc)):
+        cut[model] = common.split_assembly(plain, [(model, *centre)])[model]
+    arcs = {}
+    for frame in (7, 9):
+        name = f"newsh-caret-7-arc-{frame}"
+        arcs[frame] = common.frame_part(common.split_assembly(arc(sheet, frame), [(name, *centre)])[name], [frame])
+    for model, objs, sprites in (("newsh-caret-7", [cut["newsh-caret-7"], *arcs.values()], with_arc),
+                                 ("newsh-caret-7-f2", [cut["newsh-caret-7-f2"]], no_arc)):
+        common.export_sprite_model(ROOT, objs, f"enemies/{model}", sprites)
     if "--preview" in sys.argv:
         out = Path(sys.argv[sys.argv.index("--preview") + 1])
-        lib.previews(ROOT, out, arc, {**pieces, "newsh-caret-7": cut["newsh-caret-7"]}, sheet)
+        lib.previews(ROOT, out, plain, pieces, sheet)
+        f7 = ROOT / "reference" / "models" / "newsh-caret-7" / "frame-newsh-caret-7.png"
+        common.render_preview([cut["newsh-caret-7"], arcs[7]], str(out.parent / "newsh-caret-7.png"), f7, size=2,
+                              frame=7)
         f2 = ROOT / "reference" / "models" / "newsh-caret-7" / "frame-newsh-caret-117.png"
         common.render_preview([cut["newsh-caret-7-f2"]], str(out.parent / "newsh-caret-7-f2.png"), f2, size=2)
 

@@ -200,15 +200,17 @@ def merged_sprite(root, names):
 
 
 def run(file, name, build):
-    """Load the sprite, build, export enemies/<name> with all its frames, preview if asked."""
+    """Load the sprite, build, export enemies/<name> with all its frames, preview if asked.
+    `build` returns the object, or a list of objects (the body and its frame parts)."""
     root = common.repo_root(file)
     sprite = common.load_sprite(root, name)
     obj = build(sprite)
-    common.export_sprite_model(root, [obj], f"enemies/{name}", sprite["sprites"])
+    objs = obj if isinstance(obj, list) else [obj]
+    common.export_sprite_model(root, objs, f"enemies/{name}", sprite["sprites"])
     if "--preview" in sys.argv:
         out = sys.argv[sys.argv.index("--preview") + 1]
         ref = root / "reference" / "models" / name / sprite["frames"][0]["image"]
-        common.render_preview([obj], out, ref, size=sprite["frames"][0]["size"])
+        common.render_preview(objs, out, ref, size=sprite["frames"][0]["size"], frame=sprite["frames"][0]["index"])
     return obj
 
 
