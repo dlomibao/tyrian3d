@@ -28,6 +28,8 @@ import { SpriteMeshCache } from "./spriteMesh";
 import { colourFrame, rigModel, showFrame, type FrameRig } from "./modelFrames";
 import { spriteModelKey, type ModelOverride, type SpriteModels } from "./spriteModels";
 import { TileAtlas } from "./tileAtlas";
+import { RemasteredFx, SpriteLook } from "./vfx/remasteredFx";
+import { vfxModeFromSearch, type VfxMode } from "./vfx/vfxMode";
 
 /** Roll at full bank, and how fast the model eases toward its frame's roll (per second). */
 const MAX_ROLL = THREE.MathUtils.degToRad(35);
@@ -37,6 +39,12 @@ const BLEND_ALPHA = 0.55;
 /** Passes drawn with a partly emissive material: energy shots, explosions, sparks. */
 const GLOW_PASSES = new Set<Pass>([Pass.PlayerShots, Pass.EnemyShots, Pass.Explosions, Pass.Effects]);
 const GLOW = 0.65;
+/** Shots and fireballs under the remastered effects (D35): fully emissive, no outline. */
+const HOT_GLOW = 1.0;
+/** Translucent ones (the C's blended explosions) glow harder, so they read as fire over anything. */
+const HOT_BLEND_GLOW = 1.6;
+/** Passes the remastered effects see (src/render/vfx/remasteredFx.ts). */
+const VFX_PASSES = new Set<Pass>([Pass.PlayerShots, Pass.EnemyShots, Pass.Explosions]);
 /** Pools unused for this many frames are freed. */
 const POOL_TTL_FRAMES = 1800;
 
@@ -47,6 +55,8 @@ const enum Variant {
   GlowBlend,
   Unlit,
   Ground,
+  Hot,
+  HotBlend,
 }
 
 /** One InstancedMesh and its per-instance data, reused every frame. */
@@ -180,6 +190,11 @@ export class DrawListRenderer {
   private frame = 0;
   private lastTime = performance.now();
   private instances = 0;
+  /** The remastered shot and explosion effects, or null for the original look (D35). */
+  private fx: RemasteredFx | null = null;
+  private vfx: VfxMode = "original";
+  /** Speed of the effects' clock (0 freezes particles and flashes, for debug screenshots). */
+  vfxTimeScale = 1;
 
   constructor() {
     this.root.name = "draw-list";
@@ -191,7 +206,28 @@ export class DrawListRenderer {
     this.materials[Variant.GlowBlend] = paletteMaterial(p, { lit: true, transparent: true, outline: false, glow: GLOW });
     this.materials[Variant.Unlit] = paletteMaterial(p, { lit: false, transparent: false, outline: false });
     this.materials[Variant.Ground] = groundTileMaterial(p, this.atlas);
-    for (let v = 0; v <= Variant.Ground; v++) this.pools.push(new Map());
+    this.materials[Variant.Hot] = paletteMaterial(p, { lit: true, transparent: false, outline: false, glow: HOT_GLOW });
+    this.materials[Variant.HotBlend] = paletteMaterial(p, { lit: true, transparent: true, outline: false, glow: HOT_BLEND_GLOW });
+    for (let v = 0; v <= Variant.HotBlend; v++) this.pools.push(new Map());
+    this.setVfxMode(vfxModeFromSearch());
+  }
+
+  /** The shot and explosion look: the original sprites, or the remastered effects (D35). */
+  get vfxMode(): VfxMode {
+    return this.vfx;
+  }
+
+  setVfxMode(mode: VfxMode): void {
+    if (mode === this.vfx) return;
+    this.vfx = mode;
+    this.fx?.dispose();
+    this.fx = mode === "remastered" ? new RemasteredFx(this.cache, this.palette) : null;
+    if (this.fx) this.root.add(this.fx.root);
+  }
+
+  /** Particles alive in the remastered effects (0 in the original look). */
+  vfxStats(): { particles: number; spawned: number } {
+    return this.fx ? this.fx.stats() : { particles: 0, spawned: 0 };
   }
 
   /** The 23 palettes from palette.dat (resources.palettes); draw lists select one by index. */
@@ -208,12 +244,14 @@ export class DrawListRenderer {
     this.list = list;
     this.items = list.items;
     this.interp.push(list.items);
+    this.fx?.tick(list.items, this.interp.prevX, this.interp.prevY);
     this.applyPalette(list);
   }
 
   /** Forget interpolation history (level start, teleports). */
   resetInterpolation(): void {
     this.interp.reset();
+    this.fx?.reset();
   }
 
   get active(): boolean {
@@ -248,6 +286,8 @@ export class DrawListRenderer {
     const cam = camera.position;
     let instances = 0;
     for (const mp of this.modelPools.values()) mp.used = 0;
+    const fx = this.fx;
+    fx?.begin(dt * this.vfxTimeScale, camera);
 
     for (let i = 0; i < items.length; i++) {
       const d = items[i];
@@ -260,7 +300,9 @@ export class DrawListRenderer {
           if (this.overridesBySheet.size > 0 && this.drawOverride(d, x, y, cam, dt)) continue;
           const geometry = this.cache.sprite2Geometry(d.sheet, d.index, d.size);
           if (!geometry) continue;
-          this.addSprite(geometry, d.pass, d.effect, d.filter, d.value, x, y, cam, frame);
+          const look = fx && VFX_PASSES.has(d.pass) ? fx.sprite(d, geometry, x, y, d.x - prevX[i], d.y - prevY[i]) : SpriteLook.Default;
+          if (look === SpriteLook.Hidden) continue;
+          this.addSprite(geometry, d.pass, d.effect, d.filter, d.value, x, y, cam, frame, look === SpriteLook.Hot);
           instances++;
           break;
         }
@@ -270,7 +312,9 @@ export class DrawListRenderer {
           if (!geometry) continue;
           const x = prevX[i] + (d.x - prevX[i]) * alpha;
           const y = prevY[i] + (d.y - prevY[i]) * alpha;
-          this.addSprite(geometry, d.pass, d.effect, d.filter, d.value, x, y, cam, frame);
+          const look = fx && VFX_PASSES.has(d.pass) ? fx.sprite(d, geometry, x, y, d.x - prevX[i], d.y - prevY[i]) : SpriteLook.Default;
+          if (look === SpriteLook.Hidden) continue;
+          this.addSprite(geometry, d.pass, d.effect, d.filter, d.value, x, y, cam, frame, look === SpriteLook.Hot);
           instances++;
           break;
         }
@@ -302,6 +346,7 @@ export class DrawListRenderer {
     }
 
     for (let p = 0; p < this.allPools.length; p++) this.allPools[p].commit();
+    fx?.end();
     for (const mp of this.modelPools.values()) {
       for (let c = mp.used; c < mp.clones.length; c++) mp.clones[c].object.visible = false;
     }
@@ -355,10 +400,13 @@ export class DrawListRenderer {
     y: number,
     cam: THREE.Vector3,
     frame: number,
+    hot = false,
   ): void {
     const blend = effect === "blend";
     const glow = GLOW_PASSES.has(pass);
-    const variant = glow ? (blend ? Variant.GlowBlend : Variant.Glow) : blend ? Variant.LitBlend : Variant.Lit;
+    const variant = hot
+      ? blend ? Variant.HotBlend : Variant.Hot
+      : glow ? (blend ? Variant.GlowBlend : Variant.Glow) : blend ? Variant.LitBlend : Variant.Lit;
     const pool = this.pool(geometry, variant, frame);
     const s = pool.next(frame);
     writeMatrix(pool.mesh.instanceMatrix.array as Float32Array, s, x, y, passHeight(pass), 1, 1, cam);

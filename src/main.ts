@@ -42,6 +42,11 @@ function startGame(): void {
     import("./debug/modelGallery")
       .then(({ runModelGallery }) => runModelGallery(view))
       .catch((err) => console.error("model gallery failed", err));
+  } else if (debug === "play") {
+    // A real level played by the test bot, for weapons and effects (src/debug/playHarness.ts).
+    import("./debug/playHarness")
+      .then(({ runPlayHarness }) => runPlayHarness(view))
+      .catch((err) => console.error("play harness failed", err));
   } else if (debug === "sprites") {
     // Renderer test bench on real game data, without the sim. Loaded on demand so it stays out of
     // the main bundle.
