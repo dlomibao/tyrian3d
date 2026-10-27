@@ -13,10 +13,11 @@
 // (src/sim/mainint.ts JE_playerMovement, JE_playerCollide; src/sim/game.ts).
 
 import { newOnePlayerGame } from "./newgame";
+import { newTwoPlayerGame } from "./twoplayer";
 import { DIFFICULTY_SUICIDE, DIFFICULTY_ZINGLON, FRONT_WEAPON, g, SA_DESTRUCT, SA_ENGAGE, SA_NORTSHIPZ } from "./state";
 import { SASpecialWeapon, SAShip, SAWeapon } from "./varz";
 
-/** gameplaySelect's choices (menus.c MENU_ITEM_*; the network game isn't offered). */
+/** gameplaySelect's choices (menus.c MENU_ITEM_*; the network game isn't offered). src/app/gameplaySelect.ts shows them. */
 export type GameplayMode = "fullGame" | "arcade" | "twoPlayerArcade";
 
 /** What the title starts: a mode, or a game unlocked by a code typed at the title. */
@@ -37,13 +38,6 @@ export interface NewGameChoice {
 }
 
 /**
- * [two-player] Two-player arcade isn't part of this port: the two-player work plugs newGame()'s
- * twoPlayerMode branch (tyrian2.c L3548-3559: both players' cash 0, the Silver Ship, one step
- * harder, input devices 1 and 2) in here. While it's null the title shows the mode disabled.
- */
-export const twoPlayerArcade: { newGame: ((choice: NewGameChoice) => void) | null } = { newGame: null };
-
-/**
  * Start a new game for a title choice: the main loop's reset (opentyr.c L873-880) and newGame(),
  * newSuperArcadeGame() or newSuperTyrianGame(). Needs g.res for the choice's episode (Super
  * Tyrian's is 1) and the help text, as newOnePlayerGame does. Load the first level next.
@@ -51,6 +45,9 @@ export const twoPlayerArcade: { newGame: ((choice: NewGameChoice) => void) | nul
 export function startNewGame(choice: NewGameChoice): void {
   if (choice.superTyrian) return newSuperTyrianGame(choice.superTyrian.suicide);
   if (choice.superArcade) return newSuperArcadeGame(choice.superArcade - 1, choice.episode, choice.difficulty);
+  // [two-player] newGame()'s twoPlayerMode branch (tyrian2.c L3548-3559) with its own reset: both
+  // players' cash 0, the Silver Ship, one step harder (src/sim/twoplayer.ts).
+  if (choice.mode === "twoPlayerArcade") return newTwoPlayerGame(choice.episode, choice.difficulty);
 
   // JE_initPlayerData(), episodeSelect(), difficultySelect(), and newGame()'s full-game cash.
   newOnePlayerGame(choice.episode, choice.difficulty);
@@ -58,16 +55,13 @@ export function startNewGame(choice: NewGameChoice): void {
 
   // gameplaySelect (menus.c L206-207)
   g.onePlayerAction = choice.mode === "arcade";
-  g.twoPlayerMode = choice.mode === "twoPlayerArcade";
+  g.twoPlayerMode = false;
 
-  // newGame() (tyrian2.c L3542-3559)
+  // newGame() (tyrian2.c L3542-3547)
   if (g.onePlayerAction) {
     g.player[0].cash = 0;
 
     g.player[0].items.ship = 8; // Stalker
-  } else if (g.twoPlayerMode) {
-    if (!twoPlayerArcade.newGame) throw new Error("Two-player arcade isn't available");
-    twoPlayerArcade.newGame(choice);
   }
 }
 

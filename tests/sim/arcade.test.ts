@@ -3,7 +3,7 @@
 // specialNameProgress), and the arcade item screen menus. tests/sim/arcadeTrace.test.ts plays the
 // games against the C.
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
-import { CodeMatcher, codeChar, startNewGame, titleCode, twoPlayerArcade, type NewGameChoice } from "../../src/sim/arcade";
+import { CodeMatcher, codeChar, startNewGame, titleCode, type NewGameChoice } from "../../src/sim/arcade";
 import {
   itemScreenEntries,
   JE_itemScreen_done,
@@ -171,9 +171,22 @@ describe.skipIf(!HAVE)("starting an arcade game", () => {
     expect(g.player[0].items.special).toBe(0);
   });
 
-  test("two-player arcade waits for the two-player port", () => {
-    expect(twoPlayerArcade.newGame).toBeNull();
-    expect(() => start({ mode: "twoPlayerArcade" })).toThrow();
+  test("2 Player Arcade: newGame's two-player branch (src/sim/twoplayer.ts), one step harder", () => {
+    start({ mode: "twoPlayerArcade", episode: 2, difficulty: DIFFICULTY_NORMAL, smuggledShip: SAShip[0] });
+    expect(g.twoPlayerMode).toBe(true);
+    expect(g.onePlayerAction).toBe(false);
+    expect(g.episodeNum).toBe(2);
+    expect(g.player[0].items.ship).toBe(11); // Silver Ship, not the smuggled one
+    expect(g.player.map((p) => p.cash)).toEqual([0, 0]);
+    expect(g.initialDifficulty).toBe(DIFFICULTY_NORMAL);
+    expect(g.difficultyLevel).toBe(DIFFICULTY_HARD);
+  });
+
+  test("a one-player game after a two-player one is one-player again", () => {
+    start({ mode: "twoPlayerArcade" });
+    start({ mode: "arcade" });
+    expect(g.twoPlayerMode).toBe(false);
+    expect(g.onePlayerAction).toBe(true);
   });
 });
 

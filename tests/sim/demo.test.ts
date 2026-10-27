@@ -132,4 +132,36 @@ describe.skipIf(!haveData)("demo playback matches OpenTyrian", () => {
     for (let k = 0; k < 500; k++) tick();
     for (const n of [3, 3, 5, 4, 2, 1, 4]) expect(await playDemo(n, 10, false), `demo.${n}`).toEqual(expected[n - 1]);
   }, 60000);
+
+  test("demos play the same after arcade, Super Arcade, Super Tyrian and two-player games", async () => {
+    // [integration] Those games set state a full game doesn't (onePlayerAction, superArcadeMode,
+    // superTyrian, twoPlayerMode, the second player's ship and input devices, constantDie...).
+    const expected = [1, 2, 3, 4, 5].map((n) => fixture(`demo-${n}.c.txt`).trim().split("\n").slice(1));
+    await playDemo(2, 10);
+    const { startNewGame } = await import("../../src/sim/arcade");
+    const { buildResources } = await import("../../src/sim/resources");
+    const { loadLevel } = await import("../../src/sim/tyrian2");
+    const { startLevel, tick } = await import("../../src/sim/game");
+    const { simInputs } = await import("../../src/sim/input");
+    const { DIFFICULTY_HARD, g } = await import("../../src/sim/state");
+    const games = [
+      { mode: "arcade" as const },
+      { mode: "fullGame" as const, superArcade: 7 },
+      { mode: "fullGame" as const, superTyrian: { suicide: false } },
+      { mode: "twoPlayerArcade" as const },
+    ];
+    for (const [i, game] of games.entries()) {
+      g.res = buildResources(files, 1);
+      startNewGame({ episode: 1, difficulty: DIFFICULTY_HARD, ...game });
+      loadLevel(files, 1, 1);
+      startLevel();
+      // Fly about and fire, so the ships' friction counters and the like are left mid-way.
+      for (let k = 0; k < 400; k++) {
+        for (const input of simInputs) Object.assign(input, { fire: true, left: k % 80 < 40, right: k % 80 >= 40, up: k % 50 < 10 });
+        tick();
+      }
+      const n = [1, 3, 4, 5][i];
+      expect(await playDemo(n, 10, false), `demo.${n} after ${JSON.stringify(game)}`).toEqual(expected[n - 1]);
+    }
+  }, 120000);
 });

@@ -23,6 +23,10 @@ OpenTyrian links to, and choose or drop it on the page. It stays in your browser
 | Sidekicks | Left Ctrl, Left Alt / K, ; | LB, RB |
 | Pause | Esc / P | Start |
 
+In a two-player game, player 2 moves with W/A/S/D, fires with F, changes the rear weapon's mode
+with R and fires the sidekicks with Q and E (or the keypad: 8/5/4/6, 0, `.`, 7 and 9), or uses
+the second gamepad.
+
 The keys can be changed in Options. Menus take arrows or WASD, Enter, Esc, a pad's d-pad, A and B,
 or taps. On a touch screen the ship follows your finger and fires while you touch; the pause
 button sits in the top corner.
@@ -57,10 +61,16 @@ score table (episodes 1-3, as in the original), which the title screen shows und
 - **Attract mode:** left alone for 30 seconds, the title screen plays the original's five recorded
   demos in turn, replayed exactly as OpenTyrian plays them; any key, button or tap returns to the
   title (`?demo` or `?demo=1`..`5` plays one at once).
-- **Arcade:** the title's Game row (Tab, or RB on a pad) picks 1 Player Arcade: no shop, the
-  Stalker armed by what it picks up, and lives. Typing a Super Arcade ship's code at the title
-  (the original's, shown after each finished game) starts that ship; ENGAGE starts Super Tyrian.
-- **Not yet:** two-player mode.
+- **Kind of game:** Start asks for it, as the original's gameplay menu does: 1 Player Full Game,
+  1 Player Arcade (no shop, the Stalker armed by what it picks up, and lives) or 2 Player Arcade.
+  Typing a Super Arcade ship's code at the title (the original's, shown after each finished game)
+  starts that ship; ENGAGE starts Super Tyrian.
+- **Two players:** 2 Player Arcade is OpenTyrian's two-player mode on one machine. Player 1 has the
+  usual keys, the mouse and the first gamepad; player 2 W/A/S/D, F fire, R change fire, Q/E
+  sidekicks (or the keypad, or the second gamepad). Fly close together and stop to link: player 2
+  docks under player 1 and turns a gun with the move keys while firing. Each player has lives (their
+  weapon's power), and Options and the item screen set each player's keys and gamepad.
+- **Not yet:** the Destruct game and network play.
 - **Everything else:** in [Issues](../../issues) and [Milestones](../../milestones). Design calls
   made along the way are in [DECISIONS.md](DECISIONS.md).
 

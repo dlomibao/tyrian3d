@@ -1,33 +1,29 @@
-// The arcade games' screens: the title's Game row (gameplaySelect, menus.c) and its typed codes
-// (titleScreen's specialName, tyrian2.c L3402-3446), the "Super Arcade Mode" card
+// The arcade games' screens: what the codes typed at the title start (titleScreen's specialName,
+// tyrian2.c L3402-3446; src/app/titleCodes.ts listens for them), the "Super Arcade Mode" card
 // (newSuperArcadeGame), Super Tyrian's "Prepare to play..." (newSuperTyrianGame), the Trent message
 // after beating Super Tyrian (JE_tyrianHalt), and the bits the item screen and HUD show in an
 // arcade game. The rules are in src/sim/arcade.ts; screens.ts only places these on the title.
 
 import "./arcade.css";
-import type { GameplayMode, NewGameChoice, TitleCode } from "../sim/arcade";
+import type { NewGameChoice, TitleCode } from "../sim/arcade";
 import { parseMenuText, type MenuText } from "../sim/helptext";
 import { requireFile, type TyrianFiles } from "../sim/resources";
 import { V_DANGER, V_DATA_CUBE } from "../sim/sndmast";
 import { g, SA, SA_NONE } from "../sim/state";
 import { SAShip } from "../sim/varz";
-import { button, h, MenuList, showScreen, title, ui, type KeyHint } from "../ui";
+import { button, h, showScreen, title, ui } from "../ui";
 
 /** play_song(16): Super Tyrian's "Prepare to play..." (0-based, as run.ts's song numbers). */
 const SONG_SUPER_TYRIAN = 16;
 
 /** What the title needs for the arcade games (from tyrian.hdt and the host). */
 export interface ArcadeTitleOptions {
-  /** gameplay_name[5]: [0] the menu title, then 1 Player Full Game, 1 Player Arcade, 2 Player Arcade, Network. */
-  gameplayName: string[];
   /** superShips[11]: "Super Arcade Mode", the seven ships, "Main Weapon:", "Special Weapon:", "Stalker 21.126". */
   superShips: string[];
   /** specialName[9]: the codes typed at the title (STEALTH .. NORTSHIPZ, DESTRUCT, ENGAGE). */
   specialName: string[];
   /** pName[0] ("Tyrian"): with miscTextB[4] ("SUPER"), Super Tyrian's name. */
   planetName0: string;
-  /** [two-player] Whether 2 Player Arcade can be chosen (src/sim/arcade.ts twoPlayerArcade). */
-  twoPlayerArcade: boolean;
   /** The DESTRUCT code (loadDestruct): the Destruct game, or its notice (src/app/titleCodes.ts runDestruct). */
   onDestruct?: () => Promise<void>;
   /** JE_playSampleNum and play_song, for the codes' sounds and Super Tyrian's song. */
@@ -50,60 +46,24 @@ export interface ArcadeTitleContext {
   start(choice: Partial<NewGameChoice>): void;
 }
 
-/** The modes in the title's Game row, in gameplaySelect's order. */
-export const GAME_MODES: readonly GameplayMode[] = ["fullGame", "arcade", "twoPlayerArcade"];
-
-/** Pad button for the Game row: RB (standard mapping 5), free on the title (LB is Load Game). */
-export const GAME_MODE_PAD = { button: 5, glyph: "RB" } as const;
-
 export interface ArcadeTitle {
-  /** The Game row's label and choices, for the panel. Not one of the screen's controls. */
-  nodes: HTMLElement[];
-  mode(): GameplayMode;
   /** A smuggled ship, when a Super Arcade start was backed out of. */
   smuggledShip(): number | undefined;
-  /** The title's onKey: the Game row's key (Tab). True when the key was used. */
-  key(e: KeyboardEvent): boolean;
   /** A code completed on the title (src/app/titleCodes.ts TitleCodeListener), by key `e`. */
   code(code: TitleCode, e: { shiftKey: boolean; getModifierState?: (key: string) => boolean }): void;
-  /** The title's onPadButton: true when used. */
-  padButton(button: number): boolean;
-  hints: KeyHint[];
 }
 
-/** Short labels for the Game row (the row is narrow): gameplay_name without "1 Player ", and "2 Player" for 2 Player Arcade. */
-function modeLabel(name: string | undefined, fallback: string): string {
-  const n = name?.trim();
-  return n ? n.replace(/^1 Player\s+/i, "").replace(/^(2 Player)\s+Arcade$/i, "$1") : fallback;
-}
-
-/** The title's arcade part: the Game row, and what the codes typed at the title start. */
-export function arcadeTitle(opts: ArcadeTitleOptions, initial: GameplayMode | undefined, ctx: ArcadeTitleContext): ArcadeTitle {
-  const enabled = (m: GameplayMode) => m !== "twoPlayerArcade" || opts.twoPlayerArcade;
-  const items = GAME_MODES.map((m, i) => ({
-    label: modeLabel(opts.gameplayName[i + 1], ["Full Game", "Arcade", "2 Player"][i]),
-    disabled: !enabled(m),
-  }));
-  const row = new MenuList({
-    label: opts.gameplayName[0]?.trim() || "Game",
-    orientation: "horizontal",
-    class: "title-mode",
-    items,
-    focused: Math.max(0, GAME_MODES.indexOf(initial && enabled(initial) ? initial : "fullGame")),
-  });
-  const cycle = () => {
-    let i = row.focused;
-    do i = (i + 1) % GAME_MODES.length;
-    while (!enabled(GAME_MODES[i]));
-    row.focus(i);
-  };
-
+/**
+ * The title's arcade part: what the codes typed at the title start. (The kind of game, gameplaySelect,
+ * is asked after the title: src/app/gameplaySelect.ts.)
+ */
+export function arcadeTitle(opts: ArcadeTitleOptions, ctx: ArcadeTitleContext): ArcadeTitle {
   let smuggled: number | undefined;
 
-  const typed: ArcadeTitle["code"] = (code, e) => {
+  const code: ArcadeTitle["code"] = (code, e) => {
     if (code.kind === "destruct") {
       // loadDestruct = true: the Destruct game (not part of the arcade port).
-      if (opts.onDestruct) ctx.open(opts.onDestruct, false, () => {});
+      if (opts.onDestruct) ctx.open(opts.onDestruct, true, () => {});
     } else if (code.kind === "superTyrian") {
       opts.sound?.(V_DATA_CUBE);
       // keysactive[SDL_SCANCODE_SCROLLLOCK] when the code completes; Shift too, as Macs have no Scroll Lock.
@@ -122,23 +82,7 @@ export function arcadeTitle(opts: ArcadeTitleOptions, initial: GameplayMode | un
     }
   };
 
-  return {
-    nodes: [h("span", { class: "ui-label", text: "Game" }), row.el],
-    mode: () => GAME_MODES[row.focused],
-    smuggledShip: () => smuggled,
-    key(e) {
-      if (e.code !== "Tab" || e.altKey || e.ctrlKey || e.metaKey) return false;
-      cycle();
-      return true;
-    },
-    code: typed,
-    padButton(b) {
-      if (b !== GAME_MODE_PAD.button) return false;
-      cycle();
-      return true;
-    },
-    hints: [{ key: "Tab", pad: GAME_MODE_PAD.glyph, label: "Game" }],
-  };
+  return { smuggledShip: () => smuggled, code };
 }
 
 /**

@@ -18,7 +18,11 @@
 // - mouseLeft/mouseRight/mouseMiddle: mouse buttons (left = fire, right = left sidekick,
 //   middle = right sidekick; with a two-button mouse the C uses right for both sidekicks).
 //
-// Only player 1 reads simInput (one-player games). Two-player input devices are not ported.
+// [two-player] Each player has one: simInputs[0] (also exported as simInput) is player 1's and
+// simInputs[1] player 2's (playerInput). In the C both players read the same SDL state and
+// inputDevice[] picks a device for each (1 keyboard, 2 mouse, 3+ a joystick); here the host fills
+// each player's SimInput from that player's own keys, pad and pointer (DECISIONS.md D28), and the
+// C's device filter still applies to it.
 
 export interface SimInput {
   up: boolean;
@@ -42,6 +46,11 @@ export interface SimInput {
   mouseLeft: boolean;
   mouseRight: boolean;
   mouseMiddle: boolean;
+  /**
+   * [two-player] joystick_analog_angle for the stick, or null when it's centred (or there is no
+   * stick): the linked dragonwing's gun points this way while firing.
+   */
+  analogAngle: number | null;
 }
 
 export const newSimInput = (): SimInput => ({
@@ -49,19 +58,60 @@ export const newSimInput = (): SimInput => ({
   fire: false, changeFire: false, leftSidekick: false, rightSidekick: false,
   analogX: 0, analogY: 0, mouseXR: 0, mouseYR: 0,
   mouseLeft: false, mouseRight: false, mouseMiddle: false,
+  analogAngle: null,
 });
 
-/** The input for the current tick. The host overwrites its fields before each tick. */
-export const simInput: SimInput = newSimInput();
+/** [two-player] Each player's input for the current tick. The host overwrites their fields before each tick. */
+export const simInputs: readonly [SimInput, SimInput] = [newSimInput(), newSimInput()];
 
-/** Clear every field (e.g. on focus loss or level start). */
+/** Player 1's input (the only one a one-player game reads). */
+export const simInput: SimInput = simInputs[0];
+
+/**
+ * [two-player] The input JE_playerMovement reads for player `playerNum` (1 or 2): player 2's own in
+ * a two-player game. In galaga mode the C moves both ships with every device (inputDevice 0), so
+ * the spawned dragonwing follows player 1's input there.
+ */
+export function playerInput(playerNum: number, twoPlayerMode: boolean, galagaMode: boolean): SimInput {
+  return playerNum === 2 && twoPlayerMode && !galagaMode ? simInputs[1] : simInputs[0];
+}
+
+/** Clear every field of both players' input (e.g. on focus loss or level start). */
 export function clearSimInput(): void {
-  Object.assign(simInput, newSimInput());
+  for (const input of simInputs) Object.assign(input, newSimInput());
 }
 
 /** OpenTyrian's default joystick settings (joystick.c): threshold 5, sensitivity 5. */
 const JOYSTICK_THRESHOLD = 5;
 const JOYSTICK_SENSITIVITY = 5;
+
+/** joystick_axis_threshold (joystick.c L50-63) for an axis given as -1..1, in SDL's units. */
+function joystick_axis_threshold(axis: number): number {
+  let value = Math.trunc(Math.max(-1, Math.min(1, axis)) * 32767);
+  const negative = value < 0;
+  if (negative) value = -value;
+  if (value <= JOYSTICK_THRESHOLD * 1000) return 0;
+  value -= JOYSTICK_THRESHOLD * 1000;
+  return negative ? -value : value;
+}
+
+/**
+ * [two-player] joystick_analog_angle (joystick.c L81-100) for one stick, axes -1..1: the angle the
+ * linked gun turns to (0 = down the screen, as linkGunDirec), or null when the stick is centred.
+ * The C adds to an angle starting at 0; with one stick that's the value itself. Float math as the C's.
+ */
+export function joystick_analog_angle(axisX: number, axisY: number): number | null {
+  const f = Math.fround;
+  const x = f(joystick_axis_threshold(axisX));
+  const y = f(joystick_axis_threshold(axisY));
+  if (x !== 0) {
+    let angle = f(0 + f(Math.atan(f(-y / x))));
+    angle = f(angle + (x < 0 ? -Math.PI / 2 : Math.PI / 2));
+    return angle;
+  }
+  if (y !== 0) return y < 0 ? f(Math.PI) : 0;
+  return null;
+}
 
 /**
  * joystick_axis_threshold + joystick_axis_reduce (joystick.c L50-77) for an axis given as -1..1

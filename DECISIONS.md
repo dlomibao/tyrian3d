@@ -649,29 +649,148 @@ backdrop's cost shows on slow machines, cap its frame rate or render it at a low
 the C's in-game Quit is wanted, add "Retry from item screen" to the pause menu: it's the "died"
 path in `run.ts` with `playerEndLevel` set.
 
-## D33 — Frames not worth a model are listed with a reason; a test checks the rest are modelled
+## D27 — Arcade games: a Game row on the title, codes typed over it, and a C bot cross-check
 
 2026-10-27
 
-**Decision:** Of the catalogue's 1,717 enemy and ship frames, 1,716 have models. The last one,
-newsh0.shp frame 13 (a filler piece of the level 2.12 dragon, seen for 13 ticks), is one
-near-black outline pixel in an otherwise empty 24x28 block, so it gets no model and stays
-extruded. `tests/render/modelCoverage.test.ts` holds such frames in `NOT_MODELLED` with the reason,
-and checks every other catalogued frame has a model whenever `reference/models/` exists.
+**Decision:** One-player arcade, the seven Super Arcade ships and Super Tyrian are started by
+`startNewGame` (`src/sim/arcade.ts`), a port of newGame()'s arcade branch, newSuperArcadeGame()
+and newSuperTyrianGame() as they leave the game once their menus have returned. Everything in
+flight (lives as the front weapon's power, pickups arming the ship, the Super Arcade weapons and
+specials) was already in the level loop; the one missing piece, the Super Arcade drops taking
+turns through the ship's five weapons (tyrian2.c L1548-1555), is added to `game.ts`. The title
+gets a **Game** row above the episodes (Full Game, Arcade, 2 Player), cycled with Tab or the pad's
+RB or picked with a tap, like the Music row; it isn't a control, so the arrows keep their jobs.
+Typing a ship's code (helptext `specialName`: STEALTH ... NORTSHIPZ) opens a "Super Arcade Mode"
+card over the title with that ship, the episode and the difficulty one step up; ENGAGE opens
+Super Tyrian's "Prepare to play..." screen; DESTRUCT calls a hook for the Destruct game. The
+matching is `CodeMatcher`, the C's specialNameProgress loop for any list of codes, so the cheats
+work can reuse it. Tests play four arcade games in OpenTyrian's own C (tools/opentyrian-bot, new
+`mode` argument) and compare them with the port tick by tick.
 
 **Options considered:**
-- *Skip it, with the reason in a coverage test (chosen):* the exception is written down where
-  the check runs, and the next sim change that brings in a new frame shows up as a failing test
-  naming the frame, instead of a silent extruded sprite.
-- *Model the pixel as a 1/12-unit cube:* 100% on paper, but a model file and a script for
-  something the extruder already draws identically.
-- *Drop near-empty frames in the catalogue (a pixel-count threshold):* hides the frame, but the
-  threshold is arbitrary and would also hide small real parts such as horn tips.
-- *A note in the README only:* nothing would notice new uncovered frames.
+- *Game row on the title (chosen):* the title already merges New Game, episodeSelect and
+  difficultySelect into one screen, so gameplaySelect becomes one more row there, not another step.
+- *gameplaySelect as its own screen after choosing an episode:* the C's order, but an extra screen
+  for every full game, which is what most players start.
+- *Codes only through the C's flow (the code first, then episode and difficulty screens):* the
+  title already shows both, so the card names them and asks to start or go back.
 
-**Review:** The coverage test reads the git-ignored catalogue, so it only runs where `npm run
-catalogue` has been run, and only as fresh as that catalogue. Regenerate it after sim changes
-that affect which enemies are drawn.
+Small deviations, each to fit a browser: a letter that carries on a code isn't also one of the
+title's shortcuts (L, O, H, M and WASD all occur inside codes), and the title's episode and
+difficulty go back to what they were before the code's first letter (STEALTH's S, WEIRD's W and
+DESTRUCT's D are moves); Shift, Ctrl, Alt, Meta and the lock keys don't reset a code; Super Tyrian
+at Suicide is asked for with Shift held on the last letter as well as Scroll Lock (Macs have
+none); beating Super Tyrian (trentWin) shows the C's "Sleep well, Trent" lines and goes back to
+the title instead of quitting. Backing out of a Super Arcade card keeps the C's quirk: the next
+full game starts in that ship ("smuggle"). Two-player arcade isn't built here: the row shows it
+disabled until `twoPlayerArcade.newGame` in `src/sim/arcade.ts` is set by the two-player work.
+
+**Review:** Type a code at the title and play a level of each kind. If the Game row is crowded on
+phones, fold 2 Player away until it's available. The cross-check runs each game in fresh modules,
+because some state (the ship's friction ticks, the explosion follow) carries over between games in
+the port as it does in the C, where each driver run is a new process.
+
+**Integration (2026-10-27):** merged with the two-player and cheats work. The kind of game is chosen
+by one mechanism, the two-player work's gameplay menu (`src/app/gameplaySelect.ts`, the C's
+gameplaySelect shown after the title's episode and difficulty): 1 Player Full Game, 1 Player Arcade
+and 2 Player Arcade all start through `startNewGame`, and Network Game stays greyed out. The title's
+Game row (Tab / RB) is gone, as is the `twoPlayerArcade` hook: `startNewGame` calls
+`newTwoPlayerGame` (`src/sim/twoplayer.ts`) itself. A code typed at the title skips the menu, since
+it has picked its game. The codes are heard by one listener, `TitleCodeListener` in
+`src/app/titleCodes.ts`, which uses `CodeMatcher` with the cheats work's hidden-difficulty keys and
+one set of shortcut rules (see D32).
+
+## D28 — Local two-player is OpenTyrian's 2 Player Arcade, with each player's own keys and gamepad
+
+2026-10-27
+
+**Decision:** Two players on one machine play OpenTyrian's two-player mode as the C runs it:
+newGame's "2 Player Arcade" (`src/sim/twoplayer.ts`: player 1 in the Silver Ship, player 2 in the
+dragonwing, no cash, one difficulty step harder), the 2 Player Arcade item-screen menu, lives that
+are each player's weapon power, linking (player 2 docks under player 1 and turns a gun), and save
+slots 12-22. The parts of JE_main the port had left out (both players' collisions and enemy-shot
+hits, the shared shield recharge, allPlayersGone's player-2 clause, the warning for player 2) are
+ported, and the C bot driver's new `play2` mode plays a two-player level in OpenTyrian itself:
+the port matches it tick for tick, through a link, the linked gun turning, an unlink and player 2's
+deaths and respawns. The title's Start asks for the kind of game first (the C's gameplaySelect,
+shown after the episode and difficulty here; 1 Player Arcade and Network Game are listed but not
+offered). Each player has their own SimInput (`simInputs`); the host fills it from that player's
+devices, and a local game sets `inputDevice` to 0 for both, so each player reads all of their own:
+player 1 the one-player keys, the mouse/touch and their gamepad; player 2 a key table of their
+own (W/A/S/D, F fire, R change fire, Q/E sidekicks, and the keypad; rebindable under "Key config ·
+Player 2" in Options) and their gamepad. In a two-player game player 2's keys win over player 1's
+(so W/A/S/D move player 2 there). The item screen's Player 1/2 Input rows cycle the gamepad each
+player uses (none, pad 1-4), swapping with the other player, as the C cycles inputDevice. A linked
+dragonwing's gun follows the stick's angle (joystick_analog_angle). Player 2's ship has a Blender
+model of the dragonwing (two sprite halves, so `spriteModels` gained `group` banking). The HUD
+shows a panel per player; the high score check asks each player, the higher scorer first; Load
+Game pages to the two-player saves with left/right.
+
+**Options considered:**
+- *The C's device model (chosen in spirit):* keep inputDevice and its filter in JE_playerMovement,
+  but give every player their own input instead of one shared keyboard. The C's own defaults
+  (player 1 on the keyboard, player 2 on the mouse) are still there for the cross-check
+  (`newTwoPlayerGame(..., { inputDevices: [1, 2] })`), not for play: two people can't share a mouse.
+- *One key table with player 2's keys in the second slot:* no new settings, but every one-player
+  game would lose its laptop keys.
+- *A two-player table for player 1 too:* each player gets half the keyboard by default, but a
+  player's custom one-player keys wouldn't carry over. Player 2's keys winning over player 1's
+  gets the same effect with the defaults.
+- *Two-player full game (the shop, both players buying):* OpenTyrian has no such mode; its
+  two-player game is the arcade one.
+- *The gameplay menu before the episode (the C's order):* a step more for every one-player game,
+  and the title already holds the episode and difficulty.
+
+**Review:** Play a level with two people on one keyboard, and with two pads. If player 2's
+defaults are awkward, change DEFAULT_KEYS_2 in `src/app/bindings.ts`. Player 1's W/A/S/D only
+drive player 2 in a two-player game; if that surprises, make player 1's table skip only keys
+player 2 actually uses. The dragonwing model (`assets/blender/ships/ship-dragonwing.py`) is a first
+pass: check it at `?viewer=ship-dragonwing` once the catalogue is rebuilt (its reference is in
+`reference/models/ship-dragonwing`, from `npm run catalogue`). The gameplay menu would also be the
+place for the 1 Player Arcade mode. D24's note that two-player saves aren't listed no longer holds.
+
+**Integration (2026-10-27):** the gameplay menu is the one way to pick the kind of game; the arcade
+work's Game row on the title was dropped (D27). 1 Player Arcade is offered there now and starts
+through `startNewGame` (`src/sim/arcade.ts`), which also starts 2 Player Arcade via
+`newTwoPlayerGame`. Network Game stays listed but greyed out.
+
+## D29 — Attract-mode demos replay the C's demo files, from a fresh state each time
+
+2026-10-27
+
+**Decision:** demo.c is ported as `src/sim/demo.ts` (beginPlayDemo, playDemoKeys, endPlayDemo),
+hooked where the C calls it: JE_loadMap reads the demo header instead of the episode script, and
+JE_playerMovement replays the recorded keys. A death ends a demo at once, as the C's game-over
+branch does with playDemo set. On the host side the title screen has the C's 30-second idle timer
+(`src/app/idle.ts`; any key, pointer motion or press, wheel, pad button or stick restarts it, and
+it doesn't run while Load Game, Options or High Scores is open); when it fires, the next demo plays
+(`src/app/attractDemo.ts`) with "INSERT COIN" (miscText[7]) over it, and any key, click, tap or pad
+button returns to the title. The demos cycle 1 to 5, as demoNum does. `?demo` or `?demo=N` plays
+one at once. Recording (`recordDemo`) isn't ported.
+
+The one departure from the C: before a demo, the state a game or an earlier demo leaves behind that
+the level start doesn't reset (the player structs, including their movement-friction counters;
+optionAttachmentReturn; initialDifficulty, which event 66 reads; the bonus-level flags) goes back to
+its value at program start. In the C a demo after a game can play differently from one after
+launch; a test (tests/sim/demo.test.ts) found demo 3 drifting when played twice in a row after a
+game, from x_friction_ticks alone.
+
+**Options considered:**
+- *Fresh state per demo (chosen):* every demo plays as it does in OpenTyrian straight after launch,
+  which is what the cross-check compares (tools/opentyrian-demo plays all five through the real
+  JE_main; all five match tick for tick to the end, including the final random number).
+- *Exactly the C, leftovers included:* faithful in the letter, but the demo would depend on what
+  was played before it, and nothing could check it.
+- *No intro logos after a demo that ran out:* the C shows intro_logos again unless the player
+  stopped the demo; this port has no intro logos, so both cases go straight to the title.
+
+**Review:** In OpenTyrian (and so here) demos 1-3 end with the ship destroyed partway through the
+level, and demos 4-5 run out of recorded keys. That is the C's behaviour, reproduced, not a desync
+of the port; why the C dies (probably recordings made with a DOS Tyrian whose simulation differed
+slightly) hasn't been checked. If the deaths look bad as attract mode, the fallback is to stop a demo a little before
+its death tick (from the fixtures) rather than altering the sim.
+
 ## D32 — Cheats: the C's chords and codes, with the title's codes routed to hooks
 
 2026-10-27
@@ -722,6 +841,17 @@ In a level, hold F2 F3 F6 and check the HUD line, then F2 F6 F7 (the level ends)
 keys of the Nort ship. Once the arcade and Destruct modules are merged, set `titleCodeHooks` from
 them, e.g. in run.ts. To drop a cheat, remove its branch in `JE_mainKeyboardInput`.
 
+**Integration (2026-10-27):** merged with the arcade work. The title has one key listener,
+`TitleCodeListener` (`src/app/titleCodes.ts`): the codes use the arcade work's `CodeMatcher`
+(`src/sim/arcade.ts`; this work's `SpecialNameMatcher` was removed as a duplicate), the hidden
+difficulties use `difficultySelectKey`, and the shortcut rule above holds for both. From the arcade
+work it also takes these rules: modifier keys alone and key repeats don't break a code (so Shift can
+be held for Shift+G or for Super Tyrian at Suicide), and the title's episode and difficulty go back
+to where they were before a code's first letter once the code completes. Super Arcade and Super
+Tyrian start through the arcade work's screens and `startNewGame`. `titleCodeHooks` is now only
+`destructHook.open`: DESTRUCT shows the "isn't in this build yet" notice until the Destruct module
+sets it.
+
 ## D32a — The high score name entry follows the fanfare with song 31
 
 2026-10-27
@@ -745,82 +875,31 @@ ended when its non-looping buffer finishes.
 **Review:** Get a high score, wait about 8 seconds on the name entry, then type. Song 31 should
 start at that key. If the change at a key press sounds abrupt, start song 31 when `playing` goes
 false instead.
-## D29 — Attract-mode demos replay the C's demo files, from a fresh state each time
+
+## D33 — Frames not worth a model are listed with a reason; a test checks the rest are modelled
 
 2026-10-27
 
-**Decision:** demo.c is ported as `src/sim/demo.ts` (beginPlayDemo, playDemoKeys, endPlayDemo),
-hooked where the C calls it: JE_loadMap reads the demo header instead of the episode script, and
-JE_playerMovement replays the recorded keys. A death ends a demo at once, as the C's game-over
-branch does with playDemo set. On the host side the title screen has the C's 30-second idle timer
-(`src/app/idle.ts`; any key, pointer motion or press, wheel, pad button or stick restarts it, and
-it doesn't run while Load Game, Options or High Scores is open); when it fires, the next demo plays
-(`src/app/attractDemo.ts`) with "INSERT COIN" (miscText[7]) over it, and any key, click, tap or pad
-button returns to the title. The demos cycle 1 to 5, as demoNum does. `?demo` or `?demo=N` plays
-one at once. Recording (`recordDemo`) isn't ported.
-
-The one departure from the C: before a demo, the state a game or an earlier demo leaves behind that
-the level start doesn't reset (the player structs, including their movement-friction counters;
-optionAttachmentReturn; initialDifficulty, which event 66 reads; the bonus-level flags) goes back to
-its value at program start. In the C a demo after a game can play differently from one after
-launch; a test (tests/sim/demo.test.ts) found demo 3 drifting when played twice in a row after a
-game, from x_friction_ticks alone.
+**Decision:** Of the catalogue's 1,717 enemy and ship frames, 1,716 have models. The last one,
+newsh0.shp frame 13 (a filler piece of the level 2.12 dragon, seen for 13 ticks), is one
+near-black outline pixel in an otherwise empty 24x28 block, so it gets no model and stays
+extruded. `tests/render/modelCoverage.test.ts` holds such frames in `NOT_MODELLED` with the reason,
+and checks every other catalogued frame has a model whenever `reference/models/` exists.
 
 **Options considered:**
-- *Fresh state per demo (chosen):* every demo plays as it does in OpenTyrian straight after launch,
-  which is what the cross-check compares (tools/opentyrian-demo plays all five through the real
-  JE_main; all five match tick for tick to the end, including the final random number).
-- *Exactly the C, leftovers included:* faithful in the letter, but the demo would depend on what
-  was played before it, and nothing could check it.
-- *No intro logos after a demo that ran out:* the C shows intro_logos again unless the player
-  stopped the demo; this port has no intro logos, so both cases go straight to the title.
+- *Skip it, with the reason in a coverage test (chosen):* the exception is written down where
+  the check runs, and the next sim change that brings in a new frame shows up as a failing test
+  naming the frame, instead of a silent extruded sprite.
+- *Model the pixel as a 1/12-unit cube:* 100% on paper, but a model file and a script for
+  something the extruder already draws identically.
+- *Drop near-empty frames in the catalogue (a pixel-count threshold):* hides the frame, but the
+  threshold is arbitrary and would also hide small real parts such as horn tips.
+- *A note in the README only:* nothing would notice new uncovered frames.
 
-**Review:** In OpenTyrian (and so here) demos 1-3 end with the ship destroyed partway through the
-level, and demos 4-5 run out of recorded keys. That is the C's behaviour, reproduced, not a desync
-of the port; why the C dies (probably recordings made with a DOS Tyrian whose simulation differed
-slightly) hasn't been checked. If the deaths look bad as attract mode, the fallback is to stop a demo a little before
-its death tick (from the fixtures) rather than altering the sim.
-## D27 — Arcade games: a Game row on the title, codes typed over it, and a C bot cross-check
+**Review:** The coverage test reads the git-ignored catalogue, so it only runs where `npm run
+catalogue` has been run, and only as fresh as that catalogue. Regenerate it after sim changes
+that affect which enemies are drawn.
 
-2026-10-27
-
-**Decision:** One-player arcade, the seven Super Arcade ships and Super Tyrian are started by
-`startNewGame` (`src/sim/arcade.ts`), a port of newGame()'s arcade branch, newSuperArcadeGame()
-and newSuperTyrianGame() as they leave the game once their menus have returned. Everything in
-flight (lives as the front weapon's power, pickups arming the ship, the Super Arcade weapons and
-specials) was already in the level loop; the one missing piece, the Super Arcade drops taking
-turns through the ship's five weapons (tyrian2.c L1548-1555), is added to `game.ts`. The title
-gets a **Game** row above the episodes (Full Game, Arcade, 2 Player), cycled with Tab or the pad's
-RB or picked with a tap, like the Music row; it isn't a control, so the arrows keep their jobs.
-Typing a ship's code (helptext `specialName`: STEALTH ... NORTSHIPZ) opens a "Super Arcade Mode"
-card over the title with that ship, the episode and the difficulty one step up; ENGAGE opens
-Super Tyrian's "Prepare to play..." screen; DESTRUCT calls a hook for the Destruct game. The
-matching is `CodeMatcher`, the C's specialNameProgress loop for any list of codes, so the cheats
-work can reuse it. Tests play four arcade games in OpenTyrian's own C (tools/opentyrian-bot, new
-`mode` argument) and compare them with the port tick by tick.
-
-**Options considered:**
-- *Game row on the title (chosen):* the title already merges New Game, episodeSelect and
-  difficultySelect into one screen, so gameplaySelect becomes one more row there, not another step.
-- *gameplaySelect as its own screen after choosing an episode:* the C's order, but an extra screen
-  for every full game, which is what most players start.
-- *Codes only through the C's flow (the code first, then episode and difficulty screens):* the
-  title already shows both, so the card names them and asks to start or go back.
-
-Small deviations, each to fit a browser: a letter that carries on a code isn't also one of the
-title's shortcuts (L, O, H, M and WASD all occur inside codes), and the title's episode and
-difficulty go back to what they were before the code's first letter (STEALTH's S, WEIRD's W and
-DESTRUCT's D are moves); Shift, Ctrl, Alt, Meta and the lock keys don't reset a code; Super Tyrian
-at Suicide is asked for with Shift held on the last letter as well as Scroll Lock (Macs have
-none); beating Super Tyrian (trentWin) shows the C's "Sleep well, Trent" lines and goes back to
-the title instead of quitting. Backing out of a Super Arcade card keeps the C's quirk: the next
-full game starts in that ship ("smuggle"). Two-player arcade isn't built here: the row shows it
-disabled until `twoPlayerArcade.newGame` in `src/sim/arcade.ts` is set by the two-player work.
-
-**Review:** Type a code at the title and play a level of each kind. If the Game row is crowded on
-phones, fold 2 Player away until it's available. The cross-check runs each game in fresh modules,
-because some state (the ship's friction ticks, the explosion follow) carries over between games in
-the port as it does in the C, where each driver run is a new process.
 ## D35 — Remastered shots and explosions are a presentation layer over the draw list; on by default
 
 2026-10-27

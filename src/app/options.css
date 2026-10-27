@@ -398,3 +398,16 @@
     order: 3;
   }
 }
+
+/* [two-player] The load screen's paging between one- and two-player saves. */
+.load-pages {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-2, 8px);
+}
+
+.load-pages .ui-button[hidden] {
+  visibility: hidden;
+  display: inline-flex;
+}

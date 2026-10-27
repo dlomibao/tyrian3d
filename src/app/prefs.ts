@@ -1,8 +1,9 @@
 // The player's settings, kept in this browser: the music and sound-effect volumes (the C keeps
-// them in opentyrian.cfg) and the keyboard bindings (keySettings there). The music style is kept
+// them in opentyrian.cfg) and the keyboard bindings (keySettings there), with player 2's keys and
+// both players' gamepads for two-player games ([two-player]). The music style is kept
 // by MusicSwitch itself (src/audio/remaster.ts). Stored as versioned JSON under PREFS_STORAGE_KEY.
 
-import { setKeys, keys } from "./bindings";
+import { keys, keys2, pads, setKeys, setPads } from "./bindings";
 import { DEFAULT_VOLUME, set_volume, setVolumeHandler, volume, volumeFactor } from "../sim/volume";
 
 export const PREFS_STORAGE_KEY = "tyrian3d.settings";
@@ -48,11 +49,13 @@ export function loadPrefs(storage: PrefsStorage | null = defaultStorage()): void
   if (isVolume(data.musicVolume)) volume.tyrMusicVolume = data.musicVolume;
   if (isVolume(data.fxVolume)) volume.fxVolume = data.fxVolume;
   setKeys(data.keys);
+  setKeys(data.keys2, 1); // [two-player]
+  setPads(data.pads);
 }
 
 /** The settings as stored. */
 export function serializePrefs(): string {
-  return JSON.stringify({ version: PREFS_VERSION, musicVolume: volume.tyrMusicVolume, fxVolume: volume.fxVolume, keys });
+  return JSON.stringify({ version: PREFS_VERSION, musicVolume: volume.tyrMusicVolume, fxVolume: volume.fxVolume, keys, keys2, pads });
 }
 
 export function savePrefs(storage: PrefsStorage | null = defaultStorage()): void {

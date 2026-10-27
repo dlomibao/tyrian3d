@@ -21,7 +21,7 @@ import { S_CLICK, S_CLINK, S_CURSOR, S_SELECT, S_SPRING } from "../sim/sndmast";
 import { g } from "../sim/state";
 import { JE_changeVolume, set_volume, volume, volumeFromBarCells, VOLUME_STEP } from "../sim/volume";
 import { backButton, button, h, keyHints, MenuList, moveFocus, reveal, showScreen, title, type InputDevice, type Intent, type KeyHint } from "../ui";
-import { ACTIONS, BINDING_SLOTS, bindKey, clearKey, keyName, keys, resetKeys, type Action } from "./bindings";
+import { ACTIONS, BINDING_SLOTS, bindKey, clearKey, keyName, playerKeys, resetKeys, type Action, type PlayerIndex } from "./bindings";
 import { savePrefs } from "./prefs";
 
 export interface OptionsHost {
@@ -129,8 +129,8 @@ export function itemScreenOptionsRow(e: ItemScreenEntry): string | null {
 export type OptionsRow =
   | { kind: "volume"; which: "music" | "sound"; label: string }
   | { kind: "style"; label: string }
-  | { kind: "key"; action: Action; label: string }
-  | { kind: "reset"; label: string }
+  | { kind: "key"; action: Action; label: string; player: PlayerIndex }
+  | { kind: "reset"; label: string; player: PlayerIndex }
   | { kind: "pad"; label: string }
   | { kind: "done"; label: string };
 
@@ -147,8 +147,11 @@ export function optionsRows(styles: readonly string[]): OptionsRow[] {
     { kind: "volume", which: "music", label: opt[3] || "Music" },
     { kind: "volume", which: "sound", label: opt[4] || "Sound" },
     ...(styles.length > 1 ? [{ kind: "style" as const, label: "Music style" }] : []),
-    ...ACTIONS.map((action, i) => ({ kind: "key" as const, action, label: keyMenu[i + 1] || actionLabels[i] })),
-    { kind: "reset", label: keyMenu[9] || "Reset to Defaults" },
+    // [two-player] player 1's (and the one-player game's) keys, then player 2's
+    ...([0, 1] as const).flatMap((player) => [
+      ...ACTIONS.map((action, i) => ({ kind: "key" as const, action, label: keyMenu[i + 1] || actionLabels[i], player })),
+      { kind: "reset" as const, label: keyMenu[9] || "Reset to Defaults", player },
+    ]),
     { kind: "pad", label: "Check gamepad buttons" },
     { kind: "done", label: keyMenu[10] || "Done" },
   ];
@@ -247,7 +250,7 @@ export class SettingsMenu {
     }
     const r = this.row;
     if (!this.checking && r.kind === "key" && (code === "Delete" || code === "Backspace")) {
-      clearKey(r.action, this.col);
+      clearKey(r.action, this.col, r.player);
       savePrefs();
       this.host.sound(S_CLICK);
       return true;
@@ -268,7 +271,7 @@ export class SettingsMenu {
         break;
       case "reset":
         sound(S_CLICK);
-        resetKeys();
+        resetKeys(this.row.player);
         savePrefs();
         break;
       case "pad":
@@ -341,7 +344,11 @@ export class SettingsMenu {
     switch (this.row.kind) {
       case "volume": return g.mainMenuHelp[15 - 1] ?? "";
       case "style": return "Change the music with the left/right arrow keys.";
-      case "key": return `${g.mainMenuHelp[20 - 1] ?? ""} Left/right picks the first or second key; Delete clears it.`;
+      case "key":
+        return (
+          `${g.mainMenuHelp[20 - 1] ?? ""} Left/right picks the first or second key; Delete clears it.` +
+          (this.row.player === 1 ? " In a two-player game, player 2's keys win over player 1's." : "")
+        );
       case "reset": return g.mainMenuHelp[25 - 1] ?? "";
       case "pad": return "See which gamepad buttons the game reads, and what they do.";
       case "done": return g.mainMenuHelp[12 - 1] ?? "";
@@ -365,7 +372,7 @@ export class SettingsMenu {
     const r = this.row;
     this.capturing = false;
     if (code === "Escape") this.host.sound(S_SPRING);
-    else if (r.kind === "key" && bindKey(r.action, this.col, code)) {
+    else if (r.kind === "key" && bindKey(r.action, this.col, code, r.player)) {
       this.host.sound(S_CLICK);
       savePrefs();
     } else this.host.sound(S_CLINK);
@@ -417,10 +424,12 @@ export function showOptions(host: OptionsHost, focus: OptionsFocus = "sound"): P
       },
     });
 
-    // The rows, in sections: Sound, Keyboard (the C's KEY CONFIG), Gamepad, then Done.
+    // The rows, in sections: Sound, Keyboard (the C's KEY CONFIG), player 2's keyboard, Gamepad, then Done.
     const keyMenu = g.menuInt[6] ?? [];
-    const sectionOf = (r: OptionsRow) => (r.kind === "volume" || r.kind === "style" ? 0 : r.kind === "key" || r.kind === "reset" ? 1 : r.kind === "pad" ? 2 : 3);
-    const sectionTitles = ["Sound", keyMenu[0] ? styleName(keyMenu[0].toLowerCase()) : "Keyboard", (g.menuInt[13] ?? [])[0] || "Gamepad", ""];
+    const sectionOf = (r: OptionsRow) =>
+      r.kind === "volume" || r.kind === "style" ? 0 : r.kind === "key" || r.kind === "reset" ? 1 + r.player : r.kind === "pad" ? 3 : 4;
+    const keyboard = keyMenu[0] ? styleName(keyMenu[0].toLowerCase()) : "Keyboard";
+    const sectionTitles = ["Sound", keyboard, `${keyboard} · ${g.miscText[49]?.trim() || "Player 2"}`, (g.menuInt[13] ?? [])[0] || "Gamepad", ""];
     const list = h("ul", { class: "ui-menu opt-list", attrs: { role: "listbox", "aria-label": "Settings" } });
     const rowEls: HTMLLIElement[] = [];
     let section = -1;
@@ -483,7 +492,7 @@ export function showOptions(host: OptionsHost, focus: OptionsFocus = "sound"): P
         if (r.kind === "style") li.querySelectorAll<HTMLElement>("[data-style]").forEach((b) => b.classList.toggle("is-on", b.dataset.style === host.music.style));
         if (r.kind === "key") {
           li.querySelectorAll<HTMLElement>("[data-slot]").forEach((b, slot) => {
-            const code = keys[r.action][slot];
+            const code = playerKeys(r.player)[r.action][slot];
             const sel = focused && slot === menu.col;
             const wait = sel && menu.capturing;
             b.textContent = wait ? "…" : keyName(code);
@@ -583,14 +592,16 @@ export function showOptions(host: OptionsHost, focus: OptionsFocus = "sound"): P
 // --- JE_loadScreen ---
 
 /**
- * JE_loadScreen (mainint.c L619-901): the one-player saved games. Resolves with the slot the
- * player picks (the caller loads it: JE_operation), or null for "Exit to Main Menu" / Escape. An
- * empty slot clinks. (The C's second page, two-player saves, isn't offered: there's no two-player
- * game to continue.)
+ * JE_loadScreen (mainint.c L619-901): the saved games, one-player and (left/right, [two-player])
+ * two-player. Resolves with the slot the player picks (the caller loads it: JE_operation), or null
+ * for "Exit to Main Menu" / Escape. An empty slot clinks.
  */
 export function showLoadScreen(host: Pick<OptionsHost, "sfx">): Promise<number | null> {
   const menuItemsCount = 12;
-  const slots: SaveSlotView[] = saveSlotViews(1, menuItemsCount - 1);
+  // [two-player] Left/right page between the one-player saves (slots 1-11) and the two-player
+  // ones (12-22), as the C's playersIndex does (mainint.c L626-899).
+  let playersIndex = 0;
+  let slots: SaveSlotView[] = saveSlotViews(1, menuItemsCount - 1);
   const sound = (n: number) => host.sfx.playSampleNum(n);
   const lastLevel = g.miscTextB[3 - 1] || "Last Level";
   const episode = g.miscTextB[2 - 1] || "Episode";
@@ -618,19 +629,39 @@ export function showLoadScreen(host: Pick<OptionsHost, "sfx">): Promise<number |
         finish(s.slot);
       }
     };
-    const screen = showScreen({ id: "load", over: true, layout: "center", label: "Load game", onBack: back });
+    const page = (index: number) => {
+      if (index === playersIndex || index < 0 || index > 1) return;
+      sound(S_CURSOR);
+      playersIndex = index;
+      slots = saveSlotViews(playersIndex * 11 + 1, menuItemsCount - 1);
+      list.setItems(items());
+      paintPage();
+    };
+    const screen = showScreen({
+      id: "load",
+      over: true,
+      layout: "center",
+      label: "Load game",
+      onBack: back,
+      onIntent: (intent) => {
+        if (intent !== "left" && intent !== "right") return false;
+        page(playersIndex + (intent === "left" ? -1 : 1));
+        return true;
+      },
+    });
+    const items = () => [
+      ...slots.map((s) => ({
+        label: s.name,
+        detail: `${lastLevel} ${s.empty ? "-----" : s.levelName}`,
+        badge: s.empty ? undefined : `${episode} ${s.episode}`,
+        class: s.empty ? "is-empty" : "",
+      })),
+      { label: g.miscText[33] || "Exit to Main Menu", class: "load-exit" },
+    ];
     const list = new MenuList({
       label: "Saved games",
       class: "load-list",
-      items: [
-        ...slots.map((s) => ({
-          label: s.name,
-          detail: `${lastLevel} ${s.empty ? "-----" : s.levelName}`,
-          badge: s.empty ? undefined : `${episode} ${s.episode}`,
-          class: s.empty ? "is-empty" : "",
-        })),
-        { label: g.miscText[33] || "Exit to Main Menu", class: "load-exit" },
-      ],
+      items: items(),
       onFocus: () => sound(S_CURSOR),
       onSelect: action,
     });
@@ -639,12 +670,25 @@ export function showLoadScreen(host: Pick<OptionsHost, "sfx">): Promise<number |
       back();
     });
     screen.panel.append(backButton(back));
+    // [two-player] the page's title, and the C's paging arrows (left: one player, right: two)
+    const heading = title(g.miscText[38] || "One Player Saved Games", "Load game");
+    const arrow = (dir: -1 | 1) =>
+      button({ label: dir < 0 ? "◀" : "▶", variant: "ghost", class: "load-page", onPress: () => page(playersIndex + dir) });
+    const prev = arrow(-1);
+    const next = arrow(1);
+    const paintPage = () => {
+      heading.querySelector("span:last-child")!.textContent = g.miscText[38 + playersIndex] || ["One Player Saved Games", "Two Player Saved Games"][playersIndex];
+      prev.hidden = playersIndex === 0;
+      next.hidden = playersIndex === 1;
+    };
+    paintPage();
     screen.add(
-      title(g.miscText[38] || "One Player Saved Games", "Load game"),
+      h("div", { class: "load-pages" }, prev, heading, next),
       list,
       h("p", { class: "opt-help", text: g.mainMenuHelp[21 - 1] ?? "" }),
       keyHints([
         { key: "↑↓", pad: "✛", label: "Move" },
+        { key: "←→", pad: "✛", label: "One / two players" },
         { key: "Enter", pad: "A", touch: "Tap", label: "Load" },
         { key: "Esc", pad: "B", label: "Back" },
       ]),

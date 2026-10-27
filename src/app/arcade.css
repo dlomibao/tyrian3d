@@ -1,10 +1,4 @@
-/* The arcade games' screens (src/app/arcade.ts): the title's Game row, the Super Arcade card and
-   Super Tyrian's warning. */
-
-/* The Game row sits above the episodes, a little quieter than the difficulty row. */
-.ui-screen--title .title-mode .ui-menu__item {
-  font-size: var(--ui-text-xs);
-}
+/* The arcade games' screens (src/app/arcade.ts): the Super Arcade card and Super Tyrian's warning. */
 
 .ui-screen--super-arcade .ui-title,
 .ui-screen--super-tyrian .ui-title {

@@ -8,9 +8,14 @@
 // defaults follow OpenTyrian's (arrows, Space = fire, Enter = change rear-weapon mode, Left Ctrl /
 // Left Alt = sidekicks), plus WASD/J/K/L for laptops. Keys pressed and released between two
 // ticks still count for one tick, so quick taps aren't lost.
+//
+// [two-player] In a two-player game player 2 gets their own keys (keys2, which win over player
+// 1's), the gamepad `pads[1]` picks, and nothing from the mouse; player 1 gets the rest of their
+// keys, `pads[0]`'s pad, the mouse and touch (DECISIONS.md D28).
 
-import { joystick_axis_reduce, simInput, type SimInput } from "../sim/input";
-import { isBound, keys as KEYS, type Action } from "./bindings";
+import { joystick_analog_angle, joystick_axis_reduce, simInput, simInputs, type SimInput } from "../sim/input";
+import { g } from "../sim/state";
+import { ACTIONS, isBound, keys as KEYS, keys2 as KEYS2, pads as PADS, type Action } from "./bindings";
 
 export class Controls {
   private readonly held = new Set<string>();
@@ -94,19 +99,30 @@ export class Controls {
     });
   }
 
-  /** Fill simInput for the next tick. */
+  /** Fill simInput (and in a two-player game player 2's, simInputs[1]) for the next tick. */
   sample(): SimInput {
-    const down = (a: Action) => KEYS[a].some((c) => c !== "" && (this.held.has(c) || this.tapped.has(c)));
-    simInput.up = down("up");
-    simInput.down = down("down");
-    simInput.left = down("left");
-    simInput.right = down("right");
-    simInput.fire = down("fire");
-    simInput.changeFire = down("changeFire");
-    simInput.leftSidekick = down("leftSidekick");
-    simInput.rightSidekick = down("rightSidekick");
-    simInput.analogX = 0;
-    simInput.analogY = 0;
+    const two = g.twoPlayerMode;
+    // [two-player] player 2's keys are theirs, even if player 1's table has them too
+    const taken = two ? new Set(ACTIONS.flatMap((a) => KEYS2[a])) : null;
+    const pressed = (c: string) => c !== "" && (this.held.has(c) || this.tapped.has(c));
+    const fill = (input: SimInput, table: Record<Action, string[]>, skip: Set<string> | null) => {
+      const down = (a: Action) => table[a].some((c) => pressed(c) && !skip?.has(c));
+      input.up = down("up");
+      input.down = down("down");
+      input.left = down("left");
+      input.right = down("right");
+      input.fire = down("fire");
+      input.changeFire = down("changeFire");
+      input.leftSidekick = down("leftSidekick");
+      input.rightSidekick = down("rightSidekick");
+      input.analogX = 0;
+      input.analogY = 0;
+      input.analogAngle = null;
+      input.mouseXR = input.mouseYR = 0;
+      input.mouseLeft = input.mouseRight = input.mouseMiddle = false;
+    };
+    fill(simInput, KEYS, taken);
+    if (two) fill(simInputs[1], KEYS2, null);
     // Remember whether this sample saw any key, so anyInput() still sees a tap after it's cleared.
     this.sampledInput = this.held.size > 0 || this.tapped.size > 0;
     this.tapped.clear();
@@ -125,23 +141,27 @@ export class Controls {
     simInput.mouseMiddle = locked && (this.mouseButtons & 6) !== 0;
 
     // Standard-mapping gamepads: d-pad as keys, left stick as the C's analog joystick,
-    // A/RT fire, X change fire, LB/RB sidekicks, Start pause.
+    // A/RT fire, X change fire, LB/RB sidekicks, Start pause. [two-player] Each player's own pad
+    // in a two-player game; every pad is player 1's otherwise. Start on any pad pauses.
     let start = false;
-    for (const pad of navigator.getGamepads?.() ?? []) {
-      if (!pad) continue;
+    const connected = (navigator.getGamepads?.() ?? []).filter((p): p is Gamepad => !!p);
+    connected.forEach((pad, n) => {
       const b = (i: number) => pad.buttons[i]?.pressed ?? false;
-      simInput.up ||= b(12);
-      simInput.down ||= b(13);
-      simInput.left ||= b(14);
-      simInput.right ||= b(15);
-      simInput.fire ||= b(0) || b(7);
-      simInput.changeFire ||= b(2);
-      simInput.leftSidekick ||= b(4);
-      simInput.rightSidekick ||= b(5);
       start ||= b(9);
-      simInput.analogX += joystick_axis_reduce(pad.axes[0] ?? 0);
-      simInput.analogY += joystick_axis_reduce(pad.axes[1] ?? 0);
-    }
+      const input = !two ? simInput : PADS[0] === n ? simInputs[0] : PADS[1] === n ? simInputs[1] : null;
+      if (!input) return;
+      input.up ||= b(12);
+      input.down ||= b(13);
+      input.left ||= b(14);
+      input.right ||= b(15);
+      input.fire ||= b(0) || b(7);
+      input.changeFire ||= b(2);
+      input.leftSidekick ||= b(4);
+      input.rightSidekick ||= b(5);
+      input.analogX += joystick_axis_reduce(pad.axes[0] ?? 0);
+      input.analogY += joystick_axis_reduce(pad.axes[1] ?? 0);
+      input.analogAngle ??= joystick_analog_angle(pad.axes[0] ?? 0, pad.axes[1] ?? 0);
+    });
     // ui-framework: pause on the press only. Start also resumes on the pause screen, and a Start
     // still held after resuming must not pause again.
     if (start && !this.startHeld) this.pauseRequested = true;

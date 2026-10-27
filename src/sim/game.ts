@@ -2,9 +2,8 @@
 // start_level_first section and `tick` is one pass of level_loop. Drawing goes to the draw list
 // (src/sim/draw.ts); the passes follow JE_main's draw order (DECISIONS.md D5).
 //
-// Not ported (single-player browser game): network play, demos, super-arcade mode, two-player
-// mode (so also the dragonwing, player 2, of galaga mode; galaga mode's HUD-section rules are
-// ported), pause/menu/cheat keys (the host handles pause), palette fades, the in-game text
+// Not ported: network play, demos, super-arcade mode, pause/menu/cheat keys (the host handles
+// pause), palette fades, the in-game text
 // renderer (the HUD is HTML), and the screen filters (lava, water, blur): their flags are kept
 // so the renderer can approximate them.
 
@@ -99,7 +98,8 @@ export function tick(): TickResult {
   // losing a life ends the level and the host restarts it (start_level / JE_loadGame in the C).
   g.allPlayersGone =
     all_players_dead() &&
-    ((g.player[0].lives.value === 1 && g.player[0].exploding_ticks === 0) || (!g.onePlayerAction && !g.twoPlayerMode));
+    ((g.player[0].lives.value === 1 && g.player[0].exploding_ticks === 0) || (!g.onePlayerAction && !g.twoPlayerMode)) &&
+    ((g.player[1].lives.value === 1 && g.player[1].exploding_ticks === 0) || !g.twoPlayerMode);
 
   if (!g.endLevel) {
     // draw HUD
@@ -124,6 +124,12 @@ export function tick(): TickResult {
         if (g.galagaLife === 10000) g.galagaLife = 20000;
         else g.galagaLife += 25000;
       }
+    } else if (g.twoPlayerMode) {
+      // [two-player] tyrian2.c L1057-1071: both shields recharge without drawing power.
+      if (--g.shieldWait === 0) {
+        g.shieldWait = 15;
+        for (const p of g.player) if (p.shield < p.shield_max && p.is_alive) ++p.shield;
+      }
     } else if (p0.is_alive && p0.shield < p0.shield_max && g.power > g.shieldT) {
       if (--g.shieldWait === 0) {
         g.shieldWait = 15;
@@ -134,10 +140,10 @@ export function tick(): TickResult {
     }
 
     // Weapon Display
-    for (let i = 0; i < 2; i++) loop.old_weapon_bar[i] = p0.items.weapon[i].power;
+    for (let i = 0; i < 2; i++) loop.old_weapon_bar[i] = g.player[g.twoPlayerMode ? i : 0].items.weapon[i].power;
 
     // Power Bar
-    if (g.onePlayerAction) {
+    if (g.twoPlayerMode || g.onePlayerAction) {
       g.power = 900;
     } else {
       g.power += g.powerAdd;
@@ -264,7 +270,7 @@ export function tick(): TickResult {
 
   // Collisions Detection
   drawState.pass = Pass.Player;
-  if (g.player[0].is_alive && !g.endLevel) JE_playerCollide(g.player[0], 1);
+  for (let i = 0; i < (g.twoPlayerMode ? 2 : 1); ++i) if (g.player[i].is_alive && !g.endLevel) JE_playerCollide(g.player[i], i + 1);
 
   if (g.firstGameOver) JE_mainGamePlayerFunctions(); // PLAYER DRAW+MOVEMENT
 
@@ -671,27 +677,32 @@ function enemyShots(): void {
     }
 
     // check if shot collided with player
-    const p = p0 as Player;
-    if (
-      p.is_alive &&
-      s.sx > p.x - p.shot_hit_area_x &&
-      s.sx < p.x + p.shot_hit_area_x &&
-      s.sy > p.y - p.shot_hit_area_y &&
-      s.sy < p.y + p.shot_hit_area_y
-    ) {
-      const tempX = s.sx;
-      const tempY = s.sy;
-      let temp = s.sdmg;
-      g.enemyShotAvail[z] = true;
-      JE_setupExplosion(tempX, tempY, 0, 0, false, false);
-      if (p.invulnerable_ticks === 0) {
-        if ((temp = JE_playerDamage(temp, p)) > 0) {
-          p.x_velocity += Math.trunc((s.sxm * temp) / 2);
-          p.y_velocity += Math.trunc((s.sym * temp) / 2);
+    let hit = false;
+    for (let i = 0; i < (g.twoPlayerMode ? 2 : 1); ++i) {
+      const p: Player = g.player[i];
+      if (
+        p.is_alive &&
+        s.sx > p.x - p.shot_hit_area_x &&
+        s.sx < p.x + p.shot_hit_area_x &&
+        s.sy > p.y - p.shot_hit_area_y &&
+        s.sy < p.y + p.shot_hit_area_y
+      ) {
+        const tempX = s.sx;
+        const tempY = s.sy;
+        let temp = s.sdmg;
+        g.enemyShotAvail[z] = true;
+        JE_setupExplosion(tempX, tempY, 0, 0, false, false);
+        if (p.invulnerable_ticks === 0) {
+          if ((temp = JE_playerDamage(temp, p)) > 0) {
+            p.x_velocity += Math.trunc((s.sxm * temp) / 2);
+            p.y_velocity += Math.trunc((s.sym * temp) / 2);
+          }
         }
+        hit = true;
+        break;
       }
-      continue;
     }
+    if (hit) continue;
 
     if (s.animax !== 0) {
       if (++s.animate >= s.animax) s.animate = 0;
@@ -764,9 +775,9 @@ function drawExplosions(): void {
 
 /** JE_main "Warning" (L1872–1932): low-armor warning, spawning the armor-repair ship. */
 function armorWarning(): void {
-  const p0 = g.player[0];
-  if (!(p0.is_alive && p0.armor < 6)) return;
-  const armor_amount = p0.armor;
+  const [p0, p1] = g.player;
+  if (!((p0.is_alive && p0.armor < 6) || (g.twoPlayerMode && !g.galagaMode && p1.is_alive && p1.armor < 6))) return;
+  const armor_amount = p0.is_alive && p0.armor < 6 ? p0.armor : p1.armor;
 
   if (warning.armorShipDelay > 0) {
     warning.armorShipDelay--;
@@ -780,6 +791,9 @@ function armorWarning(): void {
     }
     warning.armorShipDelay = 500;
   }
+
+  // (the C's network test, thisPlayerNum, is always true here)
+  if (!((p0.is_alive && p0.armor < 6) || (g.twoPlayerMode && p1.is_alive && p1.armor < 6))) return;
 
   const tempW = armor_amount * 4 + 8;
   if (warning.soundDelay > tempW) warning.soundDelay = tempW;

@@ -13,7 +13,7 @@ import { startLevel, tick } from "../sim/game";
 import { loadHelpText, parseMenuText } from "../sim/helptext";
 import { clearSimInput } from "../sim/input";
 import { JE_endLevelAni, JE_initPlayerData } from "../sim/mainint";
-import { startNewGame, twoPlayerArcade } from "../sim/arcade"; // [arcade]
+import { startNewGame, type GameplayMode } from "../sim/arcade"; // [arcade]
 import { buildResources, requireFile } from "../sim/resources";
 import { JE_loadGame, JE_loadScreen_select, JE_saveGame, loadSaves } from "../sim/savegame";
 import { DIFFICULTY_NORMAL, g, SA_NONE } from "../sim/state";
@@ -41,6 +41,10 @@ import { takeStorySteps } from "../sim/story";
 import { applyCheatParams, difficultyNamesByLevel, difficultySelectLevels } from "../sim/cheats";
 import { CheatKeys } from "./cheatKeys";
 import { runDestruct } from "./titleCodes";
+// [two-player] the gameplay menu, a two-player game's HUD and messages
+import { showGameplaySelect } from "./gameplaySelect";
+import { TwoPlayerHud } from "./twoPlayerHud";
+import { gameOverLines, levelCompleteLines } from "./twoPlayer";
 
 /** OpenTyrian song numbers (0-based, as passed to play_song). */
 const SONG_TITLE = 29;
@@ -86,6 +90,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
   const sfx = new SoundEffects(requireFile(files, "tyrian.snd"), requireFile(files, "voices.snd"), audioContext);
   const controls = new Controls(() => view.gamePixelsPerScreenPixel);
   const hud = new Hud();
+  const hud2 = new TwoPlayerHud(); // [two-player]
   const pauseButton = new PauseButton(() => (controls.pauseRequested = true)); // ui-framework
   const cheats = new CheatKeys(() => controls.active); // [cheats]
   applyCheatParams(location.search); // [cheats] ?loot: params.c LOOT
@@ -104,6 +109,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
   // [demos] Attract mode: the title plays a demo when idle; ?demo (or ?demo=N) plays one at once.
   const demos = hasDemos(files);
   let demoNow = demos ? demoFromUrl() : null;
+  let gameplay: GameplayMode = "fullGame"; // [two-player] [arcade] the last gameplaySelect choice
 
   for (;;) {
     if (demoNow !== null) {
@@ -140,13 +146,11 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
       highScoresLabel: g.miscText[50]?.trim() || undefined,
       onHighScores: () => showHighScoreScreen({ ...names, episodes, sfx, episode: choice.episode }),
       idleMs: demos ? TITLE_IDLE_MS : undefined, // [demos]
-      // [arcade] the Game row (gameplaySelect) and what the codes typed at the title start
+      // [arcade] what the codes typed at the title start
       arcade: {
-        gameplayName: names.gameplayName,
         superShips: names.superShips,
         specialName: names.specialName,
         planetName0: names.pName[0] ?? "Tyrian",
-        twoPlayerArcade: twoPlayerArcade.newGame !== null,
         sound: (n) => sfx.playSampleNum(n),
         song: (n) => music.play(n),
         onDestruct: () => runDestruct({ files, sfx, specialName: names.specialName }), // [cheats] destructHook
@@ -154,17 +158,30 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
     });
     if (choice.demo) {
       // [demos] titleScreen returned with playDemo set; JE_main plays it, then back to the title.
-      choice = { episode: choice.episode, difficulty: choice.difficulty, ...(choice.mode ? { mode: choice.mode } : {}) };
+      choice = { episode: choice.episode, difficulty: choice.difficulty };
       await playAttractDemo({ files, view, music, sfx, hud });
       continue;
+    }
+
+    // [two-player] [arcade] gameplaySelect (menus.c): which kind of game; Escape goes back to the
+    // title. A code typed at the title has already picked its game (Super Arcade, Super Tyrian).
+    if (!choice.loaded && !choice.superArcade && !choice.superTyrian) {
+      const picked = await showGameplaySelect({
+        names: names.gameplayName,
+        available: new Set(["fullGame", "arcade", "twoPlayerArcade"] as const),
+        initial: gameplay,
+      });
+      if (picked === null || picked === "network") continue;
+      gameplay = picked;
     }
 
     // JE_initEpisode: each episode has its own item data (episode 4's lives in tyrian4.lvl).
     // A loaded game is already set up, on its own episode (JE_loadGame). [port-options]
     g.res = buildResources(files, choice.loaded ? g.episodeNum : choice.episode);
     view.setPalettes(g.res.palettes);
-    // [arcade] newGame() for the chosen mode, or a Super Arcade or Super Tyrian game (src/sim/arcade.ts).
-    if (!choice.loaded) startNewGame({ mode: "fullGame", ...choice });
+    // [arcade] newGame() for the chosen mode (1 Player Full Game or Arcade, 2 Player Arcade), or a
+    // Super Arcade or Super Tyrian game (src/sim/arcade.ts).
+    if (!choice.loaded) startNewGame({ ...choice, mode: gameplay });
     onPlay();
     // port-story: JE_loadMap's pictures, text and fades play where the C would have drawn them.
     const story = (keepOpen = false) => playStoryScreens(takeStorySteps(), { files, sfx, music }, { keepOpen });
@@ -206,6 +223,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
       clearSimInput();
       controls.clear();
       hud.visible = true;
+      hud2.visible = true; // [two-player]
 
       // port-story: JE_main's fade_palette(colors, 50) (tyrian2.c L716). The C fades in before the
       // first frame; here the level starts under the fade.
@@ -214,12 +232,15 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
 
       controls.active = true;
       pauseButton.visible = true; // ui-framework
-      const outcome = await playLevel(view, controls, sfx, music, hud, pauseButton, cheats);
+      const huds = { update: () => (hud.update(), hud2.update()) }; // [two-player]
+      const outcome = await playLevel(view, controls, sfx, music, huds, pauseButton, cheats);
       controls.active = false;
       controls.release();
       hud.visible = false;
+      hud2.visible = false; // [two-player]
       pauseButton.visible = false; // ui-framework
 
+      if (g.galagaMode) g.twoPlayerMode = false; // [two-player] start_level (tyrian2.c L597-598)
       g.difficultyLevel = g.oldDifficultyLevel; /*Return difficulty to normal*/
       if (outcome === "quit") {
         // ui-framework: "Quit to title" on the pause screen (src/app/pause.ts). [high scores] As
@@ -232,16 +253,12 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
         g.mainLevel = g.nextLevel;
         JE_endLevelAni(); // its state changes; the summary is this screen
         music.play(SONG_LEVEL_END);
-        await showMessage("Level complete", [
-          `${g.levelName.trim()}`,
-          `Score ${g.player[0].cash}`,
-          `Enemies destroyed ${g.enemyKilled} of ${g.totalEnemy}`,
-        ]);
+        await showMessage("Level complete", levelCompleteLines()); // [two-player] both scores in a two-player game
         await levelFade().fade(1, 15, BLACK); // port-story: JE_endLevelAni's fade_black(15)
         if (g.mainLevel === 0) break; // end of the episode
       } else {
         music.play(SONG_GAME_OVER);
-        await showMessage("Game over", ["Your ship was destroyed."], "Press Enter to retry from the item screen");
+        await showMessage("Game over", gameOverLines(), "Press Enter to retry from the item screen"); // [two-player]
         await levelFade().fade(1, 10, BLACK); // port-story: fade_black(10) (tyrian2.c L639)
         JE_loadGame(lastLevelSlot(), files);
         if (g.doNotSaveBackup) {
@@ -263,7 +280,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
 
 type Outcome = "completed" | "died" | "quit";
 
-function playLevel(view: View, controls: Controls, sfx: SoundEffects, music: MusicPlayer, hud: Hud, pauseButton: PauseButton, cheats: CheatKeys): Promise<Outcome> {
+function playLevel(view: View, controls: Controls, sfx: SoundEffects, music: MusicPlayer, hud: Pick<Hud, "update">, pauseButton: PauseButton, cheats: CheatKeys): Promise<Outcome> {
   return new Promise((resolve) => {
     let last = performance.now();
     let acc = 0;

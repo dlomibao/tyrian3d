@@ -45,8 +45,10 @@ describe("volume sliders", () => {
 });
 
 describe("SettingsMenu", () => {
-  test("rows: volumes, a music style only with more than one, eight keys, reset, gamepad, done", () => {
-    expect(optionsRows([]).map((r) => r.kind)).toEqual(["volume", "volume", ...Array(8).fill("key"), "reset", "pad", "done"]);
+  test("rows: volumes, a music style only with more than one, eight keys and reset per player, gamepad, done", () => {
+    const keyRows = [...Array(8).fill("key"), "reset"];
+    expect(optionsRows([]).map((r) => r.kind)).toEqual(["volume", "volume", ...keyRows, ...keyRows, "pad", "done"]);
+    expect(optionsRows([]).flatMap((r) => ("player" in r ? [r.player] : []))).toEqual([...Array(9).fill(0), ...Array(9).fill(1)]);
     expect(optionsRows(["original", "remaster"]).map((r) => r.kind)).toContain("style");
   });
 

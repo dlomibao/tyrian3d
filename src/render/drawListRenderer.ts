@@ -186,6 +186,8 @@ export class DrawListRenderer {
   private readonly overridesBySheet = new Map<string, { override: ModelOverride; pool: ModelPool }[]>();
   private readonly modelPools = new Map<string, ModelPool>();
   private spriteModels = new Map<string, string>();
+  /** [two-player] Grouped ships' banking (spriteModels.ts groupBank). */
+  private groupBank = new Map<string, number>();
   private loader: ModelLoader | null = null;
   private frame = 0;
   private lastTime = performance.now();
@@ -266,6 +268,7 @@ export class DrawListRenderer {
   setSpriteModels(models: SpriteModels, loader: ModelLoader): void {
     this.loader = loader;
     this.spriteModels = models.grouped;
+    this.groupBank = models.groupBank ?? new Map();
     this.overridesBySheet.clear();
     for (const override of models.banked) {
       let list = this.overridesBySheet.get(override.sheetId);
@@ -296,7 +299,7 @@ export class DrawListRenderer {
           if (d.effect === "darken") continue; // Real shadows replace the C's shadow sprites (D9).
           const x = prevX[i] + (d.x - prevX[i]) * alpha;
           const y = prevY[i] + (d.y - prevY[i]) * alpha;
-          if (d.groupIndex >= 0 && this.spriteModels.size > 0 && this.drawGroupModel(d, x, y, cam)) continue;
+          if (d.groupIndex >= 0 && this.spriteModels.size > 0 && this.drawGroupModel(d, x, y, cam, dt)) continue;
           if (this.overridesBySheet.size > 0 && this.drawOverride(d, x, y, cam, dt)) continue;
           const geometry = this.cache.sprite2Geometry(d.sheet, d.index, d.size);
           if (!geometry) continue;
@@ -463,12 +466,21 @@ export class DrawListRenderer {
    * has loaded: the model goes at the object's centre on its first tile, and the other tiles draw
    * nothing. Returns false to draw the tile as a sprite.
    */
-  private drawGroupModel(d: SpriteDraw, x: number, y: number, cam: THREE.Vector3): boolean {
-    const name = this.spriteModels.get(spriteModelKey(d.sheet.id, d.groupSize, d.groupIndex));
+  private drawGroupModel(d: SpriteDraw, x: number, y: number, cam: THREE.Vector3, dt: number): boolean {
+    const key = spriteModelKey(d.sheet.id, d.groupSize, d.groupIndex);
+    const name = this.spriteModels.get(key);
     if (name === undefined) return false;
     const pool = this.modelPool(name);
     if (!pool.source) return false;
-    if (d.groupFirst) this.placeModel(pool, x + d.groupDx, y + d.groupDy, d, cam, d.groupIndex);
+    if (d.groupFirst) {
+      const clone = this.placeModel(pool, x + d.groupDx, y + d.groupDy, d, cam, d.groupIndex);
+      // [two-player] a grouped ship that banks (the dragonwing) rolls as drawOverride's ships do
+      const bank = this.groupBank.get(key);
+      if (bank !== undefined) {
+        clone.roll += (-bank * MAX_ROLL - clone.roll) * Math.min(1, dt * ROLL_RATE);
+        clone.object.rotation.z = clone.roll;
+      }
+    }
     return true;
   }
 

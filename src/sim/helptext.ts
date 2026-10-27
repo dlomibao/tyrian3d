@@ -62,7 +62,7 @@ export interface MenuText {
   specialName: string[];
   /** difficultyNameB[11]: the high score table's difficulty column, by difficulty level (string[20]). */
   difficultyNameB: string[];
-  /** [arcade] gameplay_name[5] (string[26]): gameplaySelect's title, then its modes (menus.c). */
+  /** [two-player] gameplay_name[5] (string[26]): the menu title, then 1 Player Full Game, 1 Player Arcade, 2 Player Arcade, Network Game. */
   gameplayName: string[];
 }
 
@@ -101,7 +101,7 @@ export function parseMenuText(hdt: Uint8Array): MenuText {
   section(5); /*Game speed text*/
   const episodeName = section(6, 31); // episode names (menus.c episode_name[6][31])
   const difficultyName = section(7, 21); // difficulty names (menus.c difficulty_name[7][21])
-  const gameplayName = section(5, 26); // gameplay mode names [arcade]
+  const gameplayName = section(5, 26); // gameplay mode names (menus.c gameplay_name[5][26])
   menuInt[10] = section(menuInt_entries[10], 18); /*Menu 10 - 2Player Main*/
   section(3); /*Input Devices*/
   section(4); /*Network text*/
