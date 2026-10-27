@@ -6,8 +6,9 @@ Seen in episode 3 (level 3.12). Eight 2x2 enemies make one 72x84 px machine (spr
 grilled back, a big glowing red orb in a cradle, a bar with a red nozzle under it and two thin
 legs; a beam and a thin pipe on each side carry a big C-shaped grey arm that sweeps out, down and
 back in to a claw with a glowing red inner face (newshk-161/199/237 on the left, 167/205/243 on
-the right). newshk-153's four frames and newshk-191's two only brighten the red glow, so each
-gets one model. newshk-163 is the left beam's stub where the pod hangs (the same 24x28 box as
+the right). newshk-153's four frames only brighten the orb (its glow materials change palette colour per
+frame) and newshk-191's two flare the nozzle (a bigger glow shown on frame 193), so each gets one
+model. newshk-163 is the left beam's stub where the pod hangs (the same 24x28 box as
 newshk-153: its bar and beam carry on from newshk-161's right edge); it is built from the same
 beam and pipe and cut from that box.
 
@@ -37,18 +38,21 @@ CX0, CY0 = 141, 71  # screen centre of newshk-191 = assembly edge (36, 42) = Ble
 AXIS = 36.5  # the sprite mirrors about the centre of pixel column 36
 
 
-def materials(sprite):
-    pal = lambda i, **kw: common.palette_material(sprite, i, "nshk237", **kw)  # noqa: E731
+def materials(sprite, tag="nshk237", glow=None):
+    """The palette materials. With `glow` (palette index -> {frame: index}), the red glow
+    materials (5-8) change colour on those frames; give them their own `tag`."""
+    def pal(i, red=False, **kw):
+        return common.palette_material(sprite, i, tag, frames=glow(i) if red and glow else None, **kw)
     return [
         pal(10, metallic=0.4, roughness=0.35),  # 0 grey hull
         pal(12, metallic=0.45, roughness=0.3),  # 1 light grey rails and plates
         pal(7, metallic=0.4, roughness=0.45),  # 2 dark grey (the claw's shaded band)
         pal(3, metallic=0.4, roughness=0.6),  # 3 deep recesses
         pal(13, metallic=0.7, roughness=0.25),  # 4 bright grey lid and claw foot
-        pal(118, metallic=0.3, roughness=0.15, emission_strength=2.5),  # 5 red orb
-        pal(124, emission_strength=5.0),  # 6 hot core
-        pal(119, emission_strength=3.0),  # 7 red vents and claw face
-        pal(113, metallic=0.3, roughness=0.5, emission_strength=1.0),  # 8 dark red vent bed
+        pal(118, True, metallic=0.3, roughness=0.15, emission_strength=2.5),  # 5 red orb
+        pal(124, True, emission_strength=5.0),  # 6 hot core
+        pal(119, True, emission_strength=3.0),  # 7 red vents and claw face
+        pal(113, True, metallic=0.3, roughness=0.5, emission_strength=1.0),  # 8 dark red vent bed
         pal(9, metallic=0.45, roughness=0.4),  # 9 mid grey pipes and bars
         pal(5, metallic=0.4, roughness=0.55),  # 10 dark grey beam flange and hub
     ]
@@ -177,6 +181,33 @@ def build_stub(sprite, coll):
     return L.to_object("stub-newshk-163", bm, materials(sprite), coll)
 
 
+GLOW = (ORB, HOT, VENT, BED)
+
+
+def animate_orb(piece):
+    """newshk-153: the orb and stem brighten over its frames, every red shade 2, 6 and 8 steps
+    up on frames 155, 157 and 159 (to white-hot 127 at most). Its glow materials get their own
+    tag so the other pieces keep the static ones."""
+    sprite = common.load_sprite(ROOT, "newshk-153")
+    mats = materials(sprite, "nshk153", lambda i: {155: i + 2, 157: min(i + 6, 127), 159: min(i + 8, 127)})
+    for slot in GLOW:
+        piece.data.materials[slot] = mats[slot]
+    return [piece]
+
+
+def nozzle_flare(sprite, coll):
+    """newshk-191, frame 193: the nozzle under the hub flares from a narrow red slit into a big
+    glow (columns 34-38, rows 31-37 of the assembly) with a yellow-white core. Built in assembly
+    coordinates, which for this piece are its own (its centre is the origin)."""
+    pal = lambda i, k: common.palette_material(sprite, i, "nshk191-flare", emission_strength=k)  # noqa: E731
+    mats = [pal(119, 3.0), pal(122, 4.0), pal(126, 6.0)]
+    bm = bmesh.new()
+    L.ellipsoid(bm, AXIS, 34.6, 0.05, 2.8, 3.7, 0.06, mat=0, segments=16, rings=8)
+    L.ellipsoid(bm, AXIS, 34.7, 0.08, 2.4, 3.2, 0.06, mat=1, segments=14, rings=7)
+    L.ellipsoid(bm, AXIS, 34.4, 0.1, 1.5, 2.0, 0.06, mat=2, segments=12, rings=6)
+    return common.frame_part(L.to_object("newshk-191-flare-193", bm, mats, coll), [193])
+
+
 def main():
     sprite = L.merged_sprite(ROOT, PIECES + [STUB])
     coll = common.reset_collection(NAME)
@@ -186,9 +217,17 @@ def main():
               if e["model"] in PIECES]
     pieces = common.split_assembly(obj, layout)
     pieces.update(common.split_assembly(stub, [(STUB, 141 - CX0, 43 - CY0)]))
+    parts = {name: [pieces[name]] for name in PIECES + [STUB]}
+    parts["newshk-153"] = animate_orb(pieces["newshk-153"])
+    parts["newshk-191"] = [pieces["newshk-191"], nozzle_flare(sprite, coll)]
     for name in PIECES + [STUB]:
         data = common.load_sprite(ROOT, name)
-        common.export_sprite_model(ROOT, [pieces[name]], f"enemies/{name}", data["sprites"])
+        common.export_sprite_model(ROOT, parts[name], f"enemies/{name}", data["sprites"])
+    if "--frame-previews" in sys.argv:
+        out = Path(sys.argv[sys.argv.index("--frame-previews") + 1])
+        for name in ("newshk-153", "newshk-191"):
+            common.render_frame_previews(parts[name], str(out / f"{name}.png"),
+                                         common.load_sprite(ROOT, name), ROOT)
     if "--preview" in sys.argv:
         out = Path(sys.argv[sys.argv.index("--preview") + 1])
         import tempfile
@@ -197,7 +236,7 @@ def main():
         for name in PIECES + [STUB]:
             data = common.load_sprite(ROOT, name)
             img = ROOT / "reference" / "models" / name / data["frames"][0]["image"]
-            common.render_preview([pieces[name]], str(out.parent / f"{name}.png"), img, size=2)
+            common.render_preview(parts[name], str(out.parent / f"{name}.png"), img, size=2)
 
 
 if __name__ == "__main__":
