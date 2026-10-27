@@ -8,9 +8,11 @@ import "./overlay.css";
 import "./screens.css";
 import { filesFromZip, type FileMap } from "../assets/files";
 import { storeZip } from "../assets/store";
-import { TitleCodeListener, type TitleCode } from "./titleCodes"; // [cheats]
 import { button, h, keyHints, logo, MenuList, showScreen, title, ui, type Screen } from "../ui";
+import { TitleCodeListener } from "./titleCodes"; // [cheats] [arcade]
 import { IdleTimer } from "./idle"; // [demos]
+import { arcadeTitle, type ArcadeTitleOptions } from "./arcade"; // [arcade]
+import type { GameplayMode, NewGameChoice } from "../sim/arcade"; // [arcade]
 
 /** Ask the player for tyrian21.zip (DECISIONS.md D3). Resolves once valid data is loaded. */
 export function askForData(): Promise<FileMap> {
@@ -88,6 +90,12 @@ export interface TitleChoice {
   loaded?: boolean;
   /** [demos] The title sat idle (idleMs): play the next demo, then come back to the title. */
   demo?: boolean;
+  /** [arcade] The Game row (gameplaySelect): full game (the default), arcade or two-player arcade. */
+  mode?: GameplayMode;
+  /** [arcade] A game started by a code typed at the title (src/sim/arcade.ts startNewGame). */
+  superArcade?: NewGameChoice["superArcade"];
+  superTyrian?: NewGameChoice["superTyrian"];
+  smuggledShip?: number;
 }
 
 export interface TitleOptions {
@@ -116,15 +124,14 @@ export interface TitleOptions {
   // and the screen it opens (src/app/highScoresScreen.ts); the title waits while it's open.
   highScoresLabel?: string;
   onHighScores?: () => Promise<void>;
-  // [cheats] The codes typed on the title (src/app/titleCodes.ts): specialName from tyrian.hdt and
-  // what a completed one does (true: it set up a game, which starts as a loaded game does). The
-  // difficulty row shows the first `difficultiesShown` of `difficulties` (default all); Shift+G,
-  // Shift+] and L O R D reveal the rest, one at a time, as difficultySelect does.
-  specialName?: string[];
-  onCode?: (code: TitleCode) => Promise<boolean | void>;
+  // [cheats] The difficulty row shows the first `difficultiesShown` of `difficulties` (default
+  // all); Shift+G, Shift+] and L O R D reveal the rest, one at a time, as difficultySelect does
+  // (src/app/titleCodes.ts, which also listens for the codes in `arcade.specialName`).
   difficultiesShown?: number;
   /** [demos] titleScreen's idle timer: after this long without input, resolve with `demo`. */
   idleMs?: number;
+  /** [arcade] The Game row and what the codes typed at the title start (src/app/arcade.ts). */
+  arcade?: ArcadeTitleOptions;
 }
 
 /**
@@ -150,16 +157,19 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
   const hasMusic = styles.length > 1;
 
   let resolveFn: (c: TitleChoice) => void = () => {};
-  const finish = (loaded = false, demo = false) => {
+  const finish = (extra: Partial<TitleChoice> = {}) => {
     if (!screen.open) return;
     idle?.stop(); // [demos]
     screen.close();
-    resolveFn({ episode: opts.episodes[ep], difficulty: opts.difficulties[diff], ...(loaded ? { loaded } : {}), ...(demo ? { demo } : {}) });
+    // [arcade] the Game row's mode, and a ship smuggled out of a Super Arcade start
+    const mode = arcade?.mode();
+    const smuggledShip = arcade?.smuggledShip();
+    resolveFn({ episode: opts.episodes[ep], difficulty: opts.difficulties[diff], ...(mode ? { mode } : {}), ...(smuggledShip ? { smuggledShip } : {}), ...extra });
   };
   // [demos] Play a demo after idling (tyrian2.c L3304-3311), only while the title itself is up.
   const idle = opts.idleMs
     ? new IdleTimer(opts.idleMs, () => {
-        if (!busy && !screen.isAside && ui.current === screen) finish(false, true);
+        if (!busy && !screen.isAside && ui.current === screen) finish({ demo: true });
       })
     : null;
 
@@ -169,15 +179,15 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
   // [restyle-options] Load Game and Options are framework screens shown over the title
   // (ScreenOptions.over), which hand the input back themselves: no stepping aside for them.
   let busy = false;
-  const sub = async (fn: () => Promise<boolean | void>, over = false) => {
+  const sub = async <T,>(fn: () => Promise<T>, over = false, then: (result: T) => void = (loaded) => loaded === true && finish({ loaded: true })) => {
     if (busy || screen.isAside || !screen.open) return;
     busy = true;
-    const loaded = await (over ? fn() : screen.aside(fn)).finally(() => {
+    const result = await (over ? fn() : screen.aside(fn)).finally(() => {
       busy = false;
       idle?.reset(); // [demos] the C restarts the title loop, and its idle count, after a sub-menu
     });
     syncMusic();
-    if (loaded === true) finish(true);
+    then(result);
   };
   const more: { label: string; key: string; code: string; pad: { button: number; glyph: string }; over?: boolean; run: () => Promise<boolean | void> }[] = [];
   if (opts.onLoadGame) more.push({ label: "Load Game", key: "L", code: "KeyL", pad: TITLE_PAD.loadGame, over: true, run: opts.onLoadGame });
@@ -191,7 +201,8 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
     layout: "narrow",
     label: "Title",
     onKey: (e) => {
-      if (codes?.key(e)) return true; // [cheats]
+      if (codes?.key(e)) return true; // [cheats] [arcade] the typed codes and hidden difficulties
+      if (arcade?.key(e)) return true; // [arcade] the Game row's key
       if (e.code === "KeyM" && hasMusic) cycleMusic();
       else {
         const m = more.find((m) => m.code === e.code);
@@ -201,6 +212,7 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
       return true;
     },
     onPadButton: (button) => {
+      if (arcade?.padButton(button)) return; // [arcade]
       const m = padButtons.get(button);
       if (m) void sub(m.run, m.over);
     },
@@ -245,18 +257,6 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
     focused: diff,
     onFocus: (i) => (diff = i),
   });
-  const codes = opts.onCode
-    ? new TitleCodeListener({
-        specialName: opts.specialName ?? [],
-        difficultyVisible: shown,
-        onCode: (code) => void sub(() => opts.onCode!(code), true),
-        onDifficultyVisible: (n) => {
-          shown = Math.min(n, opts.difficulties.length);
-          difficulty.setItems(difficultyItems());
-        },
-      })
-    : null;
-  void screen.closed.then(() => codes?.dispose());
   // Music style (local remaster packs only): M or X cycles it, a tap picks one. Not one of the
   // screen's controls, so left/right stay with the difficulty.
   const label = (s: string) => `${s[0].toUpperCase()}${s.slice(1)}`;
@@ -281,7 +281,41 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
     syncing = false;
   };
 
+  // [arcade] The Game row (gameplaySelect) above the episodes, and what the codes start.
+  const arcade = opts.arcade
+    ? arcadeTitle(opts.arcade, opts.initial.mode, {
+        episodeName: () => opts.episodeNames[opts.episodes[ep]]?.trim() || `Episode ${opts.episodes[ep]}`,
+        difficultyName: (level) => opts.difficultyNames[level]?.trim() || String(level),
+        difficulty: () => opts.difficulties[diff],
+        open: (run, over, then) => void sub(run, over, then),
+        start: (choice) => finish(choice),
+      })
+    : null;
+  // [cheats] [arcade] The title's one key listener for its secrets (src/app/titleCodes.ts): the
+  // codes (titleScreen's specialNameProgress) and the hidden difficulties. A code's first letter
+  // can be a WASD move, so the menus go back to where they were before it once a code completes.
+  let marked = [ep, diff];
+  const codes = opts.arcade
+    ? new TitleCodeListener({
+        specialName: opts.arcade.specialName,
+        difficultyVisible: shown,
+        onCodeMayStart: () => (marked = [ep, diff]),
+        onCode: (code, e) => {
+          [ep, diff] = marked;
+          episodes.focus(ep);
+          difficulty.focus(diff);
+          arcade?.code(code, e);
+        },
+        onDifficultyVisible: (n) => {
+          shown = Math.min(n, opts.difficulties.length);
+          difficulty.setItems(difficultyItems());
+        },
+      })
+    : null;
+  void screen.closed.then(() => codes?.dispose());
+
   screen.root.insertBefore(logo(), screen.panel);
+  if (arcade) screen.add(...arcade.nodes);
   screen.add(h("span", { class: "ui-label", text: "Episode" }), episodes);
   screen.add(h("span", { class: "ui-label", text: "Difficulty" }), difficulty);
   if (hasMusic) screen.add(h("span", { class: "ui-label", text: "Music" }), music.el);
@@ -291,6 +325,7 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
       { key: "←→", pad: "✛", label: "Difficulty" },
       { key: "Enter", pad: "A", touch: "Tap", label: "Start" },
       ...(hasMusic ? [{ key: "M", pad: "X", label: "Music" }] : []),
+      ...(arcade?.hints ?? []), // [arcade]
       ...more.map((m) => ({ key: m.key, pad: m.pad.glyph, label: m.label })),
     ]),
     // The flight controls for the device used last (src/app/controls.ts); CSS picks one.

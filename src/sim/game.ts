@@ -577,6 +577,13 @@ function playerShotsAndCollisions(): void {
               const nb = JE_newEnemy(enemy_offset, tempW, 0);
               if (nb !== 0) {
                 const n = g.enemy[nb - 1];
+                // [arcade] Super Arcade weapon drops take turns through the ship's five weapons (tyrian2.c L1548-1555).
+                if (g.superArcadeMode !== 0 && n.evalue > 30000) {
+                  g.superArcadePowerUp++;
+                  if (g.superArcadePowerUp > 5) g.superArcadePowerUp = 1;
+                  n.egr[1 - 1] = 5 + g.superArcadePowerUp * 2;
+                  n.evalue = 30000 + g.superArcadePowerUp;
+                }
                 n.scoreitem = n.evalue !== 0;
                 n.ex = o.ex;
                 n.ey = o.ey;

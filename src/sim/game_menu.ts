@@ -17,14 +17,14 @@
 // Ported: the full-game menu, Upgrade Ship and its submenus (prices, trade-in, weapon power
 // up/downgrades, the rear weapon's firing mode), Play Next Level (the navigation choices and
 // JE_computeDots), Data Cubes (the list and the reader; the cubes themselves and the reader's
-// scrolling are in cubes.ts), Quit, and the arcade/Super Tyrian menus' "play next level" and quit.
+// scrolling are in cubes.ts), Quit, and the one-player arcade and Super Tyrian menus.
 // Options (load and save game, the music and sound volumes, Alt-S/Alt-L quick save and load); its
 // Joystick and Keyboard rows ask the host for its settings screen (menu.setupRequest) instead of
 // the C's in-menu MENU_JOYSTICK_CONFIG/MENU_KEYBOARD_CONFIG, and JE_operation (load or save a slot)
 // is the host's to run (menu.operationRequest), since saving asks for a name.
 // The weapon simulator (JE_initWeaponView/JE_weaponSimUpdate) is in weaponSim.ts, which the host
 // runs beside this state (src/app/weaponPreview.ts).
-// Not ported (no-ops): the arcade menus' Options rows, network play, and drawing.
+// Not ported (no-ops): the two-player arcade menu's input devices and Options, network play, and drawing.
 
 import { u8 } from "./cint";
 import { cube, cubeReader_open } from "./cubes";
@@ -738,6 +738,12 @@ export function JE_menuFunction(select: number): void {
       } else if (menu.curMenu === MENU_SUPER_TYRIAN && curSel[menu.curMenu] === 3) {
         menu.shipSpecsRequest = true;
         JE_playSampleNum(S_SPRING);
+      } else if (
+        // [arcade] Options (game_menu.c L2843-2846, L2967-2969; isNetworkGame's MENU_LIMITED_OPTIONS isn't ported)
+        (menu.curMenu === MENU_1_PLAYER_ARCADE && curSel[menu.curMenu] === 3) ||
+        (menu.curMenu === MENU_SUPER_TYRIAN && curSel[menu.curMenu] === 4)
+      ) {
+        menu.curMenu = MENU_OPTIONS;
       }
       break;
     }
@@ -916,9 +922,7 @@ export function itemScreenEntries(): ItemScreenEntry[] {
     if (curMenu === MENU_OPTIONS && x === 8) entry.done = true;
     if (curMenu === MENU_UPGRADES && x === 9) entry.done = true;
     if (curMenu === MENU_PLAY_NEXT_LEVEL && x === menuChoices[curMenu]) entry.done = true;
-    if (curMenu === MENU_1_PLAYER_ARCADE && x === 3) entry.unavailable = true;
     if (curMenu === MENU_2_PLAYER_ARCADE && (x === 3 || x === 4 || x === 5)) entry.unavailable = true;
-    if (curMenu === MENU_SUPER_TYRIAN && x === 4) entry.unavailable = true;
     out.push(entry);
   }
   return out;

@@ -7,8 +7,8 @@
 //   Lock + 1..0), which need newsh$.shp from the ship editor, absent from Tyrian 2.1's data; F1 help;
 //   the debug keys (F10 + Backspace) and the other Backspace "personal commands" (screenshot pause,
 //   smoothies, filter cycling, hyper-speed, random music); pause and the menu, which the host owns.
-// - titleScreen's specialName codes (tyrian2.c L3216, L3405-3445): typed on the title, they start
-//   Super Arcade with one of seven ships, Destruct or Super Tyrian (SpecialNameMatcher).
+// - titleScreen's specialName codes (tyrian2.c L3216, L3405-3445) are matched by the arcade port's
+//   CodeMatcher (src/sim/arcade.ts); src/app/titleCodes.ts listens for them with the keys below.
 // - difficultySelect's hidden difficulties (menus.c L551-600): Shift+G shows Impossible, then
 //   Shift+] Suicide, then L O R D Lord of the Game (difficultySelectKey).
 // - The LOOT command-line parameter (params.c): richMode, a new game's 1,000,000 credits.
@@ -22,8 +22,6 @@ import {
   DIFFICULTY_SUICIDE,
   DIFFICULTY_ZINGLON,
   g,
-  SA_DESTRUCT,
-  SA_ENGAGE,
   SA_NONE,
 } from "./state";
 
@@ -86,72 +84,6 @@ export function JE_mainKeyboardInput(keysactive: KeysActive): void {
     g.endLevel = true;
     g.levelEnd = 40;
   }
-}
-
-/** The C's keyboardInput.sym for the title's codes: the key as uppercase ASCII, or '\0'. */
-export function specialNameChar(key: string): string {
-  // char ch = sym >= 0 && sym < 0x80 ? toupper((char)sym) : '\0';
-  return key.length === 1 && key.charCodeAt(0) < 0x80 ? key.toUpperCase() : "\0";
-}
-
-/**
- * titleScreen's specialNameProgress (tyrian2.c L3216, L3405-3445): one counter per code; a key that
- * continues a code advances it, any other key sets it back to 0 (without starting it again, so
- * "SSTEALTH" doesn't count). `key` returns the code completed (0-based specialName index), or -1.
- * Code i + 1 is the Super Arcade mode it starts (SA_NONE + 1 .. SA_NORTSHIPZ), then SA_DESTRUCT
- * and SA_ENGAGE (Super Tyrian).
- */
-export class SpecialNameMatcher {
-  /** specialNameProgress[SA_ENGAGE]. */
-  readonly progress: number[];
-
-  /** @param specialName the nine codes from tyrian.hdt (helptext.c specialName[9][10]). */
-  constructor(private readonly specialName: readonly string[]) {
-    this.progress = new Array<number>(SA_ENGAGE).fill(0);
-  }
-
-  key(ch: string): number {
-    for (let i = 0; i < SA_ENGAGE; i++) {
-      // The C's char[10]: nine characters at most, zero-padded.
-      const name = (this.specialName[i] ?? "").slice(0, 9);
-      const at = (n: number) => name[n] ?? "\0";
-      if (this.progress[i] >= 10 - 1 || ch !== at(this.progress[i])) {
-        this.progress[i] = 0;
-        continue;
-      }
-
-      this.progress[i]++;
-
-      if (at(this.progress[i]) === "\0") {
-        // The C returns here, leaving this code's counter at its end, where a key without a
-        // character ('\0', such as an arrow) would complete it again once the title comes back. A
-        // finished code starts over instead.
-        this.progress.fill(0);
-        return i;
-      }
-    }
-    return -1;
-  }
-
-  /** Whether some code has two or more of its letters typed (so the next key is likely meant for it). */
-  get typing(): boolean {
-    return this.progress.some((p) => p >= 2);
-  }
-}
-
-/** What a completed title code starts (tyrian2.c L3423-3443). */
-export type TitleCode =
-  /** newSuperArcadeGame(index): Super Arcade with SAShip[index], superArcadeMode = index + 1. */
-  | { kind: "superArcade"; index: number }
-  /** loadDestruct: JE_destructGame. */
-  | { kind: "destruct" }
-  /** JE_whoa, then newSuperTyrianGame. */
-  | { kind: "superTyrian" };
-
-export function titleCodeFor(index: number): TitleCode {
-  if (index + 1 === SA_DESTRUCT) return { kind: "destruct" };
-  if (index + 1 === SA_ENGAGE) return { kind: "superTyrian" };
-  return { kind: "superArcade", index };
 }
 
 /** difficultySelect's menu items in order (menus.c L612-629): item i sets this difficultyLevel. */

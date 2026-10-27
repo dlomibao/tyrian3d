@@ -1,5 +1,5 @@
 // The cheats and secret inputs (src/sim/cheats.ts): JE_mainKeyboardInput's chords, titleScreen's
-// specialName codes, difficultySelect's hidden difficulties and the LOOT parameter.
+// specialName data, difficultySelect's hidden difficulties and the LOOT parameter.
 import { beforeEach, describe, expect, test } from "vitest";
 import {
   applyCheatParams,
@@ -8,9 +8,6 @@ import {
   difficultySelectLevels,
   JE_mainKeyboardInput,
   newDifficultySelectState,
-  specialNameChar,
-  SpecialNameMatcher,
-  titleCodeFor,
 } from "../../src/sim/cheats";
 import { startLevel, tick } from "../../src/sim/game";
 import { loadHelpText, parseMenuText } from "../../src/sim/helptext";
@@ -37,62 +34,9 @@ const files = { get: (name: string) => (hasData(name) ? readData(name) : undefin
 /** Tyrian 2.1's specialName (tyrian.hdt), for the tests that don't read the data. */
 const SPECIAL_NAME = ["STEALTH", "STORMWIND", "TECHNO", "ENEMY", "WEIRD", "UNKNOWN", "NORTSHIPZ", "DESTRUCT", "ENGAGE"];
 
-const type = (m: SpecialNameMatcher, text: string): number[] => [...text].map((c) => m.key(specialNameChar(c))).filter((i) => i >= 0);
-
-describe("title codes (titleScreen's specialNameProgress)", () => {
-  test("each code, typed in either case, completes on its last letter", () => {
-    SPECIAL_NAME.forEach((name, i) => {
-      const m = new SpecialNameMatcher(SPECIAL_NAME);
-      const done = [...name.toLowerCase()].map((c) => m.key(specialNameChar(c)));
-      expect(done.slice(0, -1).every((d) => d === -1)).toBe(true);
-      expect(done.at(-1)).toBe(i);
-    });
-  });
-
-  test("codes can follow other keys, but a wrong key starts over without counting itself", () => {
-    const m = new SpecialNameMatcher(SPECIAL_NAME);
-    expect(type(m, "xyzTECHNO")).toEqual([2]);
-    expect(type(m, "SSTEALTH")).toEqual([]); // the second S breaks STEALTH and isn't a new start
-    expect(type(m, " STEALTH")).toEqual([0]);
-    expect(type(m, "STEALXTH")).toEqual([]);
-    // Shared prefixes run side by side: ST is the start of STEALTH and STORMWIND.
-    expect(type(m, "STORMWIND")).toEqual([1]);
-  });
-
-  test("a key without a character ('\\0', an arrow) breaks a code, and a finished code doesn't re-fire", () => {
-    const m = new SpecialNameMatcher(SPECIAL_NAME);
-    expect(type(m, "ENEM")).toEqual([]);
-    expect(m.key(specialNameChar("ArrowUp"))).toBe(-1);
-    expect(type(m, "Y")).toEqual([]);
-    expect(type(m, "ENEMY")).toEqual([3]);
-    expect(m.key(specialNameChar("ArrowUp"))).toBe(-1);
-    expect(m.progress.every((p) => p === 0)).toBe(true);
-  });
-
-  test("typing: two or more letters of some code", () => {
-    const m = new SpecialNameMatcher(SPECIAL_NAME);
-    m.key("S");
-    expect(m.typing).toBe(false);
-    m.key("T");
-    expect(m.typing).toBe(true);
-    m.key("Q");
-    expect(m.typing).toBe(false);
-  });
-
-  test("specialName[i] starts Super Arcade mode i + 1, then Destruct (8) and Super Tyrian (9)", () => {
-    for (let i = 0; i < 7; i++) expect(titleCodeFor(i)).toEqual({ kind: "superArcade", index: i });
-    expect(titleCodeFor(7)).toEqual({ kind: "destruct" });
-    expect(titleCodeFor(8)).toEqual({ kind: "superTyrian" });
-  });
-
-  test("specialNameChar: uppercase ASCII, '\\0' for anything else", () => {
-    expect(specialNameChar("a")).toBe("A");
-    expect(specialNameChar("Z")).toBe("Z");
-    expect(specialNameChar(" ")).toBe(" ");
-    expect(specialNameChar("Enter")).toBe("\0");
-    expect(specialNameChar("é")).toBe("\0");
-  });
-
+// The codes themselves are matched by src/sim/arcade.ts CodeMatcher (tests/sim/arcade.test.ts) and
+// listened for by src/app/titleCodes.ts (tests/app/titleCodes.test.ts).
+describe("title codes (titleScreen's specialName)", () => {
   test.skipIf(!hasData("tyrian.hdt"))("the data's codes are the ones above", () => {
     expect(parseMenuText(readData("tyrian.hdt")).specialName).toEqual(SPECIAL_NAME);
   });

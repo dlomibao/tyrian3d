@@ -1,0 +1,37 @@
+/* The arcade games' screens (src/app/arcade.ts): the title's Game row, the Super Arcade card and
+   Super Tyrian's warning. */
+
+/* The Game row sits above the episodes, a little quieter than the difficulty row. */
+.ui-screen--title .title-mode .ui-menu__item {
+  font-size: var(--ui-text-xs);
+}
+
+.ui-screen--super-arcade .ui-title,
+.ui-screen--super-tyrian .ui-title {
+  text-align: center;
+}
+
+.ui-screen--super-arcade .arcade-detail {
+  text-align: center;
+  color: var(--ui-ink-faint);
+}
+
+.ui-screen--super-tyrian .ui-title {
+  margin-top: var(--ui-space-4);
+  color: var(--ui-gold);
+}
+
+/* The item screen's Super Arcade panel: the ship's name over its weapons. */
+.ui-screen--shop .loadout--super .loadout__heading {
+  font-family: var(--ui-font-display);
+  font-size: var(--ui-text-xs);
+  letter-spacing: var(--ui-tracking);
+  text-transform: uppercase;
+  color: var(--ui-ink-faint);
+}
+
+/* The HUD's spare ships in an arcade game (src/app/hud.ts), top right. */
+.hud .lives {
+  color: var(--ui-gold);
+  letter-spacing: 0.1em;
+}

@@ -1,101 +1,55 @@
-// The title screen's secret inputs (DECISIONS.md D32), on the rules in src/sim/cheats.ts:
+// The title screen's secret inputs: one key listener for all of them (DECISIONS.md D27, D32).
 // - the codes typed on the title (titleScreen's specialName: STEALTH ... NORTSHIPZ for Super
-//   Arcade, DESTRUCT, ENGAGE for Super Tyrian), which go to the features that own them through
-//   `titleCodeHooks`;
-// - the hidden difficulties (difficultySelect): Shift+G, then Shift+], then L O R D, which add
-//   Impossible, Suicide and Lord of the Game to the title's difficulty row.
+//   Arcade, DESTRUCT, ENGAGE for Super Tyrian), matched by the arcade port's CodeMatcher
+//   (src/sim/arcade.ts, the C's specialNameProgress loop). What a code starts is the title's
+//   business (src/app/arcade.ts: the Super Arcade card and Super Tyrian's screen); DESTRUCT goes
+//   to `destructHook`;
+// - the hidden difficulties (difficultySelect, src/sim/cheats.ts): Shift+G, then Shift+], then
+//   L O R D, which add Impossible, Suicide and Lord of the Game to the title's difficulty row.
 //
 // The C's title does nothing else with letters, but this one has shortcuts (L, O, H, M) and WASD
 // moves the menus. So a key that continues a code already two letters in, or one of the hidden
-// difficulty keys while its step is open, is taken by the code; a code's first letter isn't (S and
-// D still move), and nor is a key that breaks a code off (H after "ST" still opens High Scores).
+// difficulty keys while its step is open, is taken by the listener; a code's first letter isn't (S
+// and D still move, and the title puts its menus back once a code completes), and nor is a key that
+// breaks a code off (H after "ST" still opens High Scores). Modifier keys alone and key repeats
+// don't count (so Shift can be held for Shift+G or Super Tyrian's Suicide), and nor do keys with
+// Ctrl, Alt or Cmd.
 
 import type { FileMap } from "../assets/files";
-import type { MusicPlayer } from "../audio/remaster";
 import type { SoundEffects } from "../audio/sfx";
-import {
-  difficultySelectKey,
-  lordKeySyms,
-  newDifficultySelectState,
-  specialNameChar,
-  SpecialNameMatcher,
-  titleCodeFor,
-  type DifficultySelectState,
-  type TitleCode,
-} from "../sim/cheats";
+import { CodeMatcher, codeChar, titleCode, type TitleCode } from "../sim/arcade";
+import { difficultySelectKey, lordKeySyms, newDifficultySelectState, type DifficultySelectState } from "../sim/cheats";
 import { V_DATA_CUBE } from "../sim/sndmast";
 import { button, h, showScreen, title } from "../ui";
 
-export type { TitleCode } from "../sim/cheats";
+export type { TitleCode } from "../sim/arcade";
 
-/** What a title code's feature gets from the game. */
-export interface TitleCodeContext {
+/** What the Destruct game gets from the title. */
+export interface DestructContext {
   files: FileMap;
   sfx: SoundEffects;
-  music: MusicPlayer;
-  /** superShips[11] from tyrian.hdt: [0] "Super Arcade Mode", [i + 1] code i's ship. */
-  superShips: string[];
-  /** specialName[9] from tyrian.hdt: the codes. */
+  /** specialName[9] from tyrian.hdt: [7] is "DESTRUCT". */
   specialName: string[];
 }
 
 /**
- * MERGE HOOK (cheats): the features the title's codes start. Each is set by the module that builds
- * it (Super Arcade and Super Tyrian by the arcade modes, Destruct by its own module), for example
- * `titleCodeHooks.destruct = (ctx) => openDestruct(ctx)`. Until one is set, its code shows a short
- * notice and the title stays.
+ * MERGE HOOK (destruct): JE_destructGame (destruct.c), opened by typing DESTRUCT on the title. The
+ * Destruct module sets it, e.g. `destructHook.open = (ctx) => openDestruct(ctx)`; it resolves when
+ * Destruct is over, back on the title. While it's null, the code shows a "not in this build yet"
+ * notice.
  */
-export interface TitleCodeHooks {
-  /**
-   * newSuperArcadeGame(index) (tyrian2.c): choose the episode and difficulty, set up the game in
-   * `g` (superArcadeMode = index + 1, SAShip[index], JE_initEpisode...) and resolve true to start
-   * it the way a loaded game starts (TitleChoice.loaded), or false to stay on the title.
-   */
-  superArcade?: (index: number, ctx: TitleCodeContext) => Promise<boolean>;
-  /** newSuperTyrianGame (tyrian2.c), after JE_whoa: as superArcade. */
-  superTyrian?: (ctx: TitleCodeContext) => Promise<boolean>;
-  /** JE_destructGame (destruct.c): play Destruct; resolves when it's over, back on the title. */
-  destruct?: (ctx: TitleCodeContext) => Promise<void>;
+export const destructHook: { open: ((ctx: DestructContext) => Promise<void>) | null } = { open: null };
+
+/** The DESTRUCT code (loadDestruct): the Destruct game, or the notice while there isn't one. */
+export function runDestruct(ctx: DestructContext): Promise<void> {
+  if (destructHook.open) return destructHook.open(ctx);
+  return showDestructNotice(ctx);
 }
 
-export const titleCodeHooks: TitleCodeHooks = {};
-
-/**
- * Run a completed code: its hook, or a notice when the feature isn't there. Resolves true when a
- * game was set up and should start.
- */
-export async function runTitleCode(code: TitleCode, ctx: TitleCodeContext): Promise<boolean> {
-  const hooks = titleCodeHooks;
-  if (code.kind === "superArcade" && hooks.superArcade) return hooks.superArcade(code.index, ctx);
-  if (code.kind === "superTyrian" && hooks.superTyrian) {
-    ctx.sfx.playSampleNum(V_DATA_CUBE); // JE_playSampleNum(V_DATA_CUBE) before JE_whoa
-    return hooks.superTyrian(ctx);
-  }
-  if (code.kind === "destruct" && hooks.destruct) {
-    await hooks.destruct(ctx);
-    return false;
-  }
-  await showCodeNotice(code, ctx);
-  return false;
-}
-
-/** The name a code's notice shows: the ship for Super Arcade, else the code itself. */
-export function titleCodeName(code: TitleCode, ctx: Pick<TitleCodeContext, "superShips" | "specialName">): { heading: string; name: string } {
-  const t = (s: string | undefined, fallback: string) => s?.trim() || fallback;
-  switch (code.kind) {
-    case "superArcade":
-      return { heading: t(ctx.superShips[0], "Super Arcade Mode"), name: t(ctx.superShips[code.index + 1], t(ctx.specialName[code.index], "")) };
-    case "destruct":
-      return { heading: t(ctx.specialName[7], "DESTRUCT"), name: "" };
-    case "superTyrian":
-      return { heading: "Super Tyrian", name: t(ctx.specialName[8], "ENGAGE") };
-  }
-}
-
-/** A notice over the title for a code whose feature isn't in this build. */
-function showCodeNotice(code: TitleCode, ctx: TitleCodeContext): Promise<void> {
+/** A notice over the title: DESTRUCT was typed, but the Destruct game isn't in this build. */
+function showDestructNotice(ctx: DestructContext): Promise<void> {
   ctx.sfx.playSampleNum(V_DATA_CUBE);
-  const { heading, name } = titleCodeName(code, ctx);
+  const heading = ctx.specialName[7]?.trim() || "DESTRUCT";
   return new Promise((resolve) => {
     const done = () => {
       if (!screen.open) return;
@@ -116,53 +70,73 @@ function showCodeNotice(code: TitleCode, ctx: TitleCodeContext): Promise<void> {
     });
     screen.add(
       title(heading, "Code accepted"),
-      ...(name ? [h("p", { class: "message-line", text: name })] : []),
       h("p", { class: "message-line", text: "This mode isn't in this build yet." }),
       h("div", { class: "ui-actions" }, button({ label: "Back", variant: "primary", hint: { key: "Enter", pad: "A" }, onPress: done })),
     );
   });
 }
 
+/** The keydown fields the listener reads. */
+export type TitleKey = Pick<KeyboardEvent, "key" | "code" | "shiftKey" | "ctrlKey" | "metaKey" | "altKey" | "repeat"> & {
+  getModifierState?: (key: string) => boolean;
+};
+
 export interface TitleCodeListenerOptions {
   /** specialName from tyrian.hdt. */
   specialName: readonly string[];
   /** How many difficulties the row shows now (3 to 6). */
   difficultyVisible: number;
-  onCode: (code: TitleCode) => void;
+  /** A code was completed, by this key (Super Tyrian reads Shift or Scroll Lock from it). */
+  onCode: (code: TitleCode, e: TitleKey) => void;
   /** A hidden difficulty was revealed: the row should show `visible` of them. */
   onDifficultyVisible: (visible: number) => void;
+  /**
+   * The next key may start a code (none is under way): the title remembers its menus, to put them
+   * back when a code completes, since a code's first letter can be a WASD move (STEALTH's S,
+   * WEIRD's W, DESTRUCT's D).
+   */
+  onCodeMayStart?: () => void;
 }
 
-/** The title's code keys: give it every key first (Screen onKey); true means it took the key. */
+/** Keys that are only modifiers: they don't reset a code (a deviation from the C, so Shift can be held). */
+const MODIFIER_KEYS = new Set(["Shift", "CapsLock", "ScrollLock", "NumLock", "Control", "Alt", "AltGraph", "Meta", "OS"]);
+
+/** The title's secret keys: give it every key first (Screen onKey); true means it took the key. */
 export class TitleCodeListener {
-  readonly matcher: SpecialNameMatcher;
+  readonly matcher: CodeMatcher;
   readonly difficulty: DifficultySelectState;
   /** keyboard.c lordKeySymsDown. */
   private readonly lordDown = new Set<string>();
-  private readonly onKeyUp = (e: KeyboardEvent) => this.lordDown.delete(e.key.toLowerCase());
+  private readonly onKeyUp = (e: KeyboardEvent) => this.lordDown.delete(keySym(e));
 
   constructor(private readonly opts: TitleCodeListenerOptions) {
-    this.matcher = new SpecialNameMatcher(opts.specialName);
+    // titleScreen's specialNameProgress: the nine codes (helptext.c specialName[9][10]).
+    this.matcher = new CodeMatcher(opts.specialName.slice(0, 9));
     this.difficulty = newDifficultySelectState();
     this.difficulty.visible = Math.max(3, Math.min(6, opts.difficultyVisible));
     window.addEventListener("keyup", this.onKeyUp);
   }
 
-  key(e: Pick<KeyboardEvent, "key" | "code" | "shiftKey" | "ctrlKey" | "metaKey" | "altKey" | "repeat">): boolean {
-    if (e.ctrlKey || e.metaKey || e.altKey) return false;
+  key(e: TitleKey): boolean {
+    if (e.ctrlKey || e.metaKey || e.altKey || e.repeat || MODIFIER_KEYS.has(e.key)) return false;
     const sym = keySym(e);
-    if ((lordKeySyms as readonly string[]).includes(sym) && !e.repeat) this.lordDown.add(sym);
+    if ((lordKeySyms as readonly string[]).includes(sym)) this.lordDown.add(sym);
 
     const before = this.difficulty.visible;
     const tookDifficulty = difficultySelectKey(this.difficulty, sym, e.shiftKey, lordKeySyms.every((k) => this.lordDown.has(k)));
     if (this.difficulty.visible !== before) this.opts.onDifficultyVisible(this.difficulty.visible);
 
-    const done = this.matcher.key(specialNameChar(e.key));
+    if (this.matcher.progress.every((p) => p === 0)) this.opts.onCodeMayStart?.();
+    const done = this.matcher.feed(codeChar(e.key));
     if (done >= 0) {
-      this.opts.onCode(titleCodeFor(done));
+      // The C returns with this code's counter at its end, where a key without a character (an
+      // arrow) would complete it again once the title comes back. A finished code starts over.
+      this.matcher.reset();
+      this.opts.onCode(titleCode(done), e);
       return true;
     }
-    return tookDifficulty || this.matcher.typing;
+    // A letter carrying on a code isn't also a shortcut (the codes hold L, O, H, M and WASD).
+    return tookDifficulty || this.matcher.continuing();
   }
 
   dispose(): void {

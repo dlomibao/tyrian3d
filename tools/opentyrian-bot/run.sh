@@ -78,10 +78,15 @@ echo "wrote $out"
 # name episode section ticks every
 play_case() {
   out="$FIXTURES/bot-$1.c.txt"
-  { echo "# play $2 $3 $4 $5"; driver play "$2" "$3" "$4" "$5"; } > "$out"
+  { echo "# play $2 $3 $4 $5${6:+ $6}"; driver play "$2" "$3" "$4" "$5" ${6:+"$6"}; } > "$out"
   echo "wrote $out"
 }
 play_case tyrian 1 3 60000 50       # episode 1's first level, played to its end
 play_case squadron 4 45 20000 100   # the episode 4 galaga bonus game (it never ends)
 play_case ale 1 41 22000 100        # the episode 1 galaga bonus game (diverges at tick 22212:
                                     # the C's dragonwing, player 2, rams an enemy; not ported)
+# [arcade] the same level in the arcade games (tests/sim/arcadeTrace.test.ts)
+play_case arcade-tyrian 1 3 60000 50 arcade        # 1 Player Arcade: the pickups arm the Stalker
+play_case sa-stealth 1 3 60000 50 sa1              # Super Arcade, the Ninja Star (STEALTH)
+play_case sa-nortshipz 2 2 60000 50 sa7            # Super Arcade, Nort-Ship Z: its own sidekicks
+play_case supertyrian 1 3 60000 50 supertyrian     # Super Tyrian (ENGAGE), at Lord of Game

@@ -51,13 +51,16 @@ score table (episodes 1-3, as in the original), which the title screen shows und
 - **Cheats:** the original's secret inputs work. In flight, hold F2 F3 F6 for invulnerability
   ("Cheaters always prosper."), F2 F3 F4 to self-destruct, F2 F6 F7 to skip the level, or F2 F4 F6
   F7 F9 \ / for the Nort ship. On the title, Shift+G, Shift+] and then L O R D reveal the
-  Impossible, Suicide and Lord of the Game difficulties, and the Super Arcade, DESTRUCT and ENGAGE
-  codes are accepted. `?loot` starts new games with 1,000,000 credits. See
+  Impossible, Suicide and Lord of the Game difficulties (DESTRUCT is accepted, but the Destruct
+  game isn't in yet). `?loot` starts new games with 1,000,000 credits. See
   [DECISIONS.md](DECISIONS.md) D32.
 - **Attract mode:** left alone for 30 seconds, the title screen plays the original's five recorded
   demos in turn, replayed exactly as OpenTyrian plays them; any key, button or tap returns to the
   title (`?demo` or `?demo=1`..`5` plays one at once).
-- **Not yet:** arcade and two-player modes.
+- **Arcade:** the title's Game row (Tab, or RB on a pad) picks 1 Player Arcade: no shop, the
+  Stalker armed by what it picks up, and lives. Typing a Super Arcade ship's code at the title
+  (the original's, shown after each finished game) starts that ship; ENGAGE starts Super Tyrian.
+- **Not yet:** two-player mode.
 - **Everything else:** in [Issues](../../issues) and [Milestones](../../milestones). Design calls
   made along the way are in [DECISIONS.md](DECISIONS.md).
 
