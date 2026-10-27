@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 import bpy
-from mathutils import Vector
+from mathutils import Matrix, Quaternion, Vector
 
 ROOT = next(p for p in Path(__file__).resolve().parents if (p / "package.json").exists())
 MODELS = ROOT / "public" / "models"
@@ -151,11 +151,17 @@ def model(name, location=(0, 0, 0), rotation=(0, 0, 0), scale=1.0):
 def aim(obj, forward, up):
     """Turn `obj` so its +Y (a model's nose) points along `forward` and its +Z (its top) as near
     `up` as possible."""
-    from mathutils import Matrix
     y = Vector(forward).normalized()
     x = y.cross(Vector(up)).normalized()
     z = x.cross(y)
     obj.rotation_euler = Matrix((x, y, z)).transposed().to_euler()
+
+
+def aim_z(obj, direction, roll=0.0):
+    """Turn `obj` so its +Z (a cone's or a column's length) points along `direction`, turned
+    `roll` radians about it."""
+    q = Vector(direction).to_track_quat("Z", "Y") @ Quaternion((0, 0, 1), roll)
+    obj.rotation_euler = q.to_euler()
 
 
 def camera_axes(cam):
@@ -173,8 +179,9 @@ def model_materials(root):
     return mats
 
 
-def tint_model(root, metallic=None, roughness=None, darken=1.0):
-    """Adjust an imported model's materials for a close-up (the game's are tuned for a small view)."""
+def tint_model(root, metallic=None, roughness=None, darken=1.0, glow=None):
+    """Adjust an imported model's materials for a close-up (the game's are tuned for a small view);
+    `glow` scales their emission (0 puts out a dead thing's eyes)."""
     for m in model_materials(root):
         b = next((n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED"), None)
         if not b:
@@ -185,6 +192,8 @@ def tint_model(root, metallic=None, roughness=None, darken=1.0):
             b.inputs["Roughness"].default_value = roughness
         c = b.inputs["Base Color"].default_value
         b.inputs["Base Color"].default_value = (c[0] * darken, c[1] * darken, c[2] * darken, c[3])
+        if glow is not None:
+            b.inputs["Emission Strength"].default_value *= glow
 
 
 def material(name, color=(0.8, 0.8, 0.8), metallic=0.0, roughness=0.5, emission=None, emission_strength=0.0):
