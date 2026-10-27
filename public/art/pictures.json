@@ -1,10 +1,14 @@
 {
   "2": "art/menu_background.webp",
+  "3": "art/hud.webp",
   "4": "art/title.webp",
   "5": "art/story_planet.webp",
+  "6": "art/hud_two_player.webp",
   "7": "art/story_dragon.webp",
   "8": "art/story_skull.webp",
   "9": "art/story_tangle.webp",
   "10": "art/intro_publisher.webp",
+  "11": "art/destruct.webp",
+  "12": "art/intro_studio.webp",
   "13": "art/story_zica.webp"
 }

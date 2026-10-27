@@ -42,5 +42,9 @@ Numbers are `JE_loadPic` ids (1-based); the palette is `pcxpal[id - 1]` (`src/si
 `]P 907` (episode 3's ending) is not a picture: numbers over 900 clear the screen and set picture
 (n - 900)'s palette. `]P 000` (episode 4) shows `tshp2.pcx`, a separate file.
 
+The screen furniture (3, 6 and 11) is built in the original's pixel layout (`panels.py` takes
+positions in 320x200 pixels) under an orthographic camera, and its black areas (the playfield,
+Destruct's field) are transparent, so the frame can lie over the 3D game.
+
 The logos (10 and 12) and the credit line on 2 belong to their companies, so the new pictures keep
 the mood and layout without the names or marks.

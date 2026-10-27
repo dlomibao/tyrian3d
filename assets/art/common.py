@@ -337,13 +337,15 @@ def save(name):
         PREVIEW_OUT.mkdir(parents=True, exist_ok=True)
         path = PREVIEW_OUT / f"{name}.png"
         scene.render.image_settings.file_format = "PNG"
+        scene.render.image_settings.color_mode = "RGBA" if scene.render.film_transparent else "RGB"
         image.save_render(str(path), scene=scene)
         print(f"wrote {path}")
         return path
     OUT.mkdir(parents=True, exist_ok=True)
     path = OUT / f"{name}.webp"
     scene.render.image_settings.file_format = "WEBP"
-    scene.render.image_settings.color_mode = "RGB"
+    # A transparent film (the in-game frame's playfield) keeps its alpha.
+    scene.render.image_settings.color_mode = "RGBA" if scene.render.film_transparent else "RGB"
     for quality in (95, 90, 85, 80, 75, 70, 65, 60, 55, 50):
         scene.render.image_settings.quality = quality
         image.save_render(str(path), scene=scene)
