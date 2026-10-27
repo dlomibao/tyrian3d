@@ -24,7 +24,8 @@ export class Hud {
         <span>Shield</span><span class="bar shield"><i data-k="shield"></i></span>
         <span>Power</span><span class="bar power"><i data-k="power"></i></span>
       </div>
-      <div class="weapon"><div data-k="front"></div><div data-k="rear"></div></div>`;
+      <div class="weapon"><div data-k="front"></div><div data-k="rear"></div></div>
+      <div class="cheating" data-k="cheating" hidden>Cheaters always prosper.</div>`;
     for (const node of this.root.querySelectorAll<HTMLElement>("[data-k]")) this.el[node.dataset.k!] = node;
     this.root.hidden = true;
     document.body.appendChild(this.root);
@@ -44,6 +45,7 @@ export class Hud {
     this.width("shield", p.shield_max ? p.shield / p.shield_max : 0);
     this.width("power", g.power / 900);
     this.hidden("warning", !(p.is_alive && p.armor < 6));
+    this.hidden("cheating", !g.youAreCheating); // [cheats] JE_inGameDisplays (mainint.c L2913-2916)
 
     // Boss bars (draw_boss_bar): the most damaged linked enemy's armor, out of 254; `color` > 0
     // flashes the bar after a hit.

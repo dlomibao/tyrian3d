@@ -9,6 +9,7 @@ import "./screens.css";
 import { filesFromZip, type FileMap } from "../assets/files";
 import { storeZip } from "../assets/store";
 import { button, h, keyHints, logo, MenuList, showScreen, title, type Screen } from "../ui";
+import { TitleCodeListener, type TitleCode } from "./titleCodes"; // [cheats]
 
 /** Ask the player for tyrian21.zip (DECISIONS.md D3). Resolves once valid data is loaded. */
 export function askForData(): Promise<FileMap> {
@@ -112,6 +113,13 @@ export interface TitleOptions {
   // and the screen it opens (src/app/highScoresScreen.ts); the title waits while it's open.
   highScoresLabel?: string;
   onHighScores?: () => Promise<void>;
+  // [cheats] The codes typed on the title (src/app/titleCodes.ts): specialName from tyrian.hdt and
+  // what a completed one does (true: it set up a game, which starts as a loaded game does). The
+  // difficulty row shows the first `difficultiesShown` of `difficulties` (default all); Shift+G,
+  // Shift+] and L O R D reveal the rest, one at a time, as difficultySelect does.
+  specialName?: string[];
+  onCode?: (code: TitleCode) => Promise<boolean | void>;
+  difficultiesShown?: number;
 }
 
 /**
@@ -168,6 +176,7 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
     layout: "narrow",
     label: "Title",
     onKey: (e) => {
+      if (codes?.key(e)) return true; // [cheats]
       if (e.code === "KeyM" && hasMusic) cycleMusic();
       else {
         const m = more.find((m) => m.code === e.code);
@@ -211,13 +220,28 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
   const markChosen = () => {
     [...episodes.el.children].forEach((li, i) => li.classList.toggle("is-chosen", i === ep && episodes.focused >= episodeCount));
   };
+  // [cheats] The hidden difficulties stay off the row until their keys are typed.
+  let shown = Math.max(opts.difficultiesShown ?? opts.difficulties.length, diff + 1);
+  const difficultyItems = () => opts.difficulties.slice(0, shown).map((n) => ({ label: opts.difficultyNames[n]?.trim() || String(n) }));
   const difficulty = new MenuList({
     label: "Difficulty",
     orientation: "horizontal",
-    items: opts.difficulties.map((n) => ({ label: opts.difficultyNames[n]?.trim() || String(n) })),
+    items: difficultyItems(),
     focused: diff,
     onFocus: (i) => (diff = i),
   });
+  const codes = opts.onCode
+    ? new TitleCodeListener({
+        specialName: opts.specialName ?? [],
+        difficultyVisible: shown,
+        onCode: (code) => void sub(() => opts.onCode!(code), true),
+        onDifficultyVisible: (n) => {
+          shown = Math.min(n, opts.difficulties.length);
+          difficulty.setItems(difficultyItems());
+        },
+      })
+    : null;
+  void screen.closed.then(() => codes?.dispose());
   // Music style (local remaster packs only): M or X cycles it, a tap picks one. Not one of the
   // screen's controls, so left/right stay with the difficulty.
   const label = (s: string) => `${s[0].toUpperCase()}${s.slice(1)}`;

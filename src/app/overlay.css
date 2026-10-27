@@ -252,3 +252,13 @@ canvas {
   border-color: var(--edge);
   background: rgba(224, 160, 64, 0.12);
 }
+
+/* [cheats] JE_inGameDisplays' "Cheaters always prosper." (x 90, y 170: above the message line). */
+.hud .cheating {
+  position: absolute;
+  bottom: max(84px, calc(env(safe-area-inset-bottom) + 72px));
+  left: 50%;
+  transform: translateX(-50%);
+  color: #f0a040;
+  white-space: nowrap;
+}
