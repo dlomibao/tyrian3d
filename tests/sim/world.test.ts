@@ -7,7 +7,6 @@ import type { TyrianFiles } from "../../src/sim/resources";
 import { DIFFICULTY_HARD, DIFFICULTY_NORMAL, g, newPlayer } from "../../src/sim/state";
 import {
   ENEMY_KEY_BASE,
-  EpisodeEndError,
   initLevelWorld,
   JE_eventJump,
   JE_eventSystem,
@@ -20,7 +19,7 @@ import { JE_doSP, JE_drawSP, JE_playerDamage, JE_setupExplosion, JE_setupExplosi
 import { hasData, readData } from "../data/dataDir";
 import { worldTick } from "./worldDriver";
 
-const NEEDED = ["levels1.dat", "tyrian1.lvl", "shapesz.dat", "tyrian.hdt", "tyrian.shp", "palette.dat", "newsh6.shp"];
+const NEEDED = ["levels1.dat", "tyrian1.lvl", "levels2.dat", "tyrian2.lvl", "shapesz.dat", "tyrian.hdt", "tyrian.shp", "palette.dat", "newsh6.shp"];
 
 const cache = new Map<string, Uint8Array | undefined>();
 const files: TyrianFiles = {
@@ -90,9 +89,10 @@ describe.skipIf(!hasData(...NEEDED))("loadLevel (JE_loadMap)", () => {
     expect(g.mainLevel).toBe(6);
     expect(g.levelName).toBe("ASTEROID2");
     // Section 40 (after ASSASSIN): ]G[ 01 2 05 041  21 026, ]I[; section 41 is the "** ALE **"
-    // galaga bonus game, section 26 the end of the episode.
-    expect(() => loadLevel(files, 1, 40)).toThrow(EpisodeEndError);
-    expect(g.mainLevel).toBe(26);
+    // galaga bonus game, section 26 the end of the episode, whose ]Q[ goes on to episode 2.
+    expect(loadLevel(files, 1, 40)).toBe(true);
+    expect(g.lastLevelName).toBe("Completed");
+    expect(g.episodeNum).toBe(2);
   });
 
   test("]h[ skips the normal-difficulty line on hard", () => {

@@ -6,7 +6,7 @@ import { mt_srand } from "../../src/sim/mtrand";
 import { newOnePlayerGame } from "../../src/sim/newgame";
 import { buildResources } from "../../src/sim/resources";
 import { g } from "../../src/sim/state";
-import { EpisodeEndError, loadLevel } from "../../src/sim/tyrian2";
+import { loadLevel } from "../../src/sim/tyrian2";
 import { hasData, readData } from "../data/dataDir";
 import { botTick } from "./bot";
 
@@ -29,11 +29,12 @@ describe.skipIf(!hasData("tyrian1.lvl", "levels1.dat") || !process.env.TYRIAN_EP
       try {
         loadLevel(files, episode, g.mainLevel);
       } catch (err) {
-        if (err instanceof EpisodeEndError) {
-          ended = true;
-          break;
-        }
         throw new Error(`episode ${episode} section ${g.mainLevel} failed to load after ${played.join(", ")}: ${err}`);
+      }
+      // ]Q[ ends the episode and JE_loadMap goes on into the next one.
+      if (g.episodeNum !== episode) {
+        ended = true;
+        break;
       }
       // There's no shop yet (#30): give the front weapon full power so boss levels can be won.
       g.player[0].items.weapon[0].power = 11;

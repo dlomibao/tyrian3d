@@ -17,7 +17,7 @@ import { newOnePlayerGame } from "../sim/newgame";
 import { copyPlayerItems } from "../sim/player";
 import { buildResources, requireFile } from "../sim/resources";
 import { DIFFICULTY_EASY, DIFFICULTY_HARD, DIFFICULTY_NORMAL, g, SA_NONE, type PlayerItems } from "../sim/state";
-import { EpisodeEndError, loadLevelAsync } from "../sim/tyrian2";
+import { loadLevelAsync } from "../sim/tyrian2";
 import type { View } from "../render/view";
 import { Controls } from "./controls";
 import { Hud } from "./hud";
@@ -132,15 +132,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
     // start_level / start_level_first (tyrian2.c L586-905): JE_loadMap with the item screen at
     // each `]I[`, the backup save, the level, then where to go next.
     for (;;) {
-      let loaded: boolean;
-      try {
-        loaded = await loadLevelAsync(files, g.episodeNum, g.mainLevel, () => runItemScreen({ files, sfx, music }));
-      } catch (err) {
-        if (!(err instanceof EpisodeEndError)) throw err;
-        music.play(SONG_LEVEL_END);
-        await showMessage("Episode complete", [`Final score ${g.player[0].cash}`], "Press Enter for the title");
-        break;
-      }
+      const loaded = await loadLevelAsync(files, g.episodeNum, g.mainLevel, () => runItemScreen({ files, sfx, music }));
       if (!loaded) break; // quit from the item screen: back to the title
       if (!g.doNotSaveBackup) backup = saveLastLevel(); /*Save backup game*/
       startLevel();
