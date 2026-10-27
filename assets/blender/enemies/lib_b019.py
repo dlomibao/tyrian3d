@@ -192,16 +192,20 @@ def composite_png(root, layout, w, h, out, pad_h=None):
     return out
 
 
-def run_assembly(root, name, pieces, centre, build, size, grid_w, grid_h):
+def run_assembly(root, name, pieces, centre, build, size, grid_w, grid_h, finish=None):
     """Build an assembly whole, cut it into its pieces, export each and, with -- --preview <png>,
     render the whole thing (and <piece>.png per piece next to it). `centre` is the assembly
-    centre in screen pixels (cx, cy) as the layout gives them."""
+    centre in screen pixels (cx, cy) as the layout gives them. `finish(parts, sprite)`, if given,
+    can adjust the cut pieces ({name: object}) before they're exported; with -- --frames it also
+    renders every animated piece's frames to <piece>-frames.png next to the preview."""
     sprite = merged_sprite(root, pieces)
     obj = build(sprite)
     cx0, cy0 = centre
     layout = [(e["model"], e["cx"] - cx0, e["cy"] - cy0) for e in sprite["assemblyLayout"]
               if e["model"] in pieces]
     parts = common.split_assembly(obj, layout)
+    if finish:
+        finish(parts, sprite)
     for piece in pieces:
         data = common.load_sprite(root, piece)
         common.export_sprite_model(root, [parts[piece]], f"enemies/{piece}", data["sprites"])
@@ -215,3 +219,5 @@ def run_assembly(root, name, pieces, centre, build, size, grid_w, grid_h):
             data = common.load_sprite(root, piece)
             img = root / "reference" / "models" / piece / data["frames"][0]["image"]
             common.render_preview([parts[piece]], str(out.parent / f"{piece}.png"), img, size=2)
+            if "--frames" in sys.argv and len(data["frames"]) > 1:
+                common.render_frame_previews([parts[piece]], str(out.parent / f"{piece}-frames.png"), data, root)
