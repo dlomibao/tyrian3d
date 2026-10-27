@@ -14,6 +14,11 @@ gets its own model (the core's glow only changes brightness, so the glowing fram
   newshd-169-f5  199            open, dark core, door down
   newshd-169-f6  201, 203       open, dark core, door half up
 
+Two of them animate (common.frame_part, palette_material frames=): on newshd-169 the core's glow
+pulses, biggest and brightest on 169, smaller on 207 and smallest and dimmest on 205 (where the
+window dims too), so it gets a core per frame; on newshd-169-f6 the door is a row higher on 203
+than on 201, and a dim red line of the window shows under it.
+
 Run: blender --background --python assets/blender/enemies/newshd-169.py [-- --preview out.png]
 (writes <out>.png for the first model and <name>-fN.png beside it for the others).
 """
@@ -91,7 +96,23 @@ def shutter(bm, sx, sy, d, mat, R=6.2 * P, zb=0.56, hd=0.09, gap=0.35 * P, nr=4,
         f.smooth = True
 
 
+# The glowing core on each frame of newshd-169: (core index, centre index, core radius px,
+# centre radius px). 169 lights the whole pit floor; 207 is a little smaller, 205 smaller and dim.
+CORES = {169: (121, 127, 3.6, 1.5), 207: (118, 124, 3.1, 1.2), 205: (116, 122, 2.5, 1.0)}
+# Where newshd-169-f6's door stops on each frame (z of its lower edge): a sprite row higher on 203.
+HALF_DOOR = {201: 0.2, 203: 0.29}
+
+
+def door_prisms(bm, x0, x1, yf, bottom, WOOD, BAND):
+    """The sliding door in front of the window, its lower edge at height `bottom`."""
+    L.prism(bm, [(x0 + 0.2 * P, yf - 1.0 * P), (x1 - 0.2 * P, yf - 1.0 * P), (x1 - 0.2 * P, yf - 0.2 * P),
+                 (x0 + 0.2 * P, yf - 0.2 * P)], bottom, 0.36, mat=WOOD)
+    L.prism(bm, [(x0 + 1.0 * P, yf - 1.2 * P), (x0 + 1.6 * P, yf - 1.2 * P), (x0 + 1.6 * P, yf - 0.9 * P),
+                 (x0 + 1.0 * P, yf - 0.9 * P)], bottom + 0.02, 0.34, mat=BAND)
+
+
 def build(sprite, name, opening, door, glow):
+    """The model of one stage: a list of objects, the body first (then the frame-tagged parts)."""
     coll = common.reset_collection(name)
     pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
     mats = [
@@ -111,7 +132,14 @@ def build(sprite, name, opening, door, glow):
         pal(113, metallic=0.0, roughness=0.8),  # 13 dark red unlit core
     ]
     SLAB, COB, DCOB, WOOD, RIM, SEAM, BAND, PIT, SHUT, GUIDE, CORE, WHITE, WINDOW, DULL = range(14)
+    if glow:  # the window dims with the core on 205
+        mats[WINDOW] = common.palette_material(sprite, 118, NAME + "-window", emission_strength=3.5,
+                                               frames={205: 114})
+    elif door == "half":  # dark, but a dim red line shows under the raised door on 203
+        mats[WINDOW] = common.palette_material(sprite, 2, NAME + "-window", metallic=0.0, roughness=0.9,
+                                               frames={203: 112})
     bm = bmesh.new()
+    parts = []
 
     # Stone slab filling the tile, with a few cobbles raised round the tub.
     L.box(bm, 0, 0, 24, 28, 0.0, Z_BASE, mat=SLAB)
@@ -146,10 +174,20 @@ def build(sprite, name, opening, door, glow):
         x, y = CX + (R_PIT + 0.6 * P) * math.cos(a), CY + (R_PIT + 0.6 * P) * math.sin(a)
         L.bevel_box(bm, x - 1.1 * P, y - 1.1 * P, x + 1.1 * P, y + 1.1 * P, Z_TOP - 0.1, Z_TOP + 0.06, 0.02, mat=GUIDE)
 
-    # The core in the pit: glowing, or dark red when the light is off.
+    # The core in the pit: glowing (one per frame, as its glow pulses), or dark red when the light
+    # is off.
     if glow:
-        L.ellipsoid(bm, CX, CY, Z_PIT, 3.6 * P, 3.6 * P, 0.14, mat=CORE, segments=14, rings=7, zmin=Z_PIT)
-        L.ellipsoid(bm, CX, CY, Z_PIT + 0.08, 1.5 * P, 1.5 * P, 0.09, mat=WHITE, segments=10, rings=5)
+        for frame, (core, white, r_core, r_white) in CORES.items():
+            k = r_core / 3.6
+            cmats = list(mats)
+            cmats[CORE] = common.palette_material(sprite, core, NAME + "-core", emission_strength=5.0)
+            cmats[WHITE] = common.palette_material(sprite, white, NAME + "-core", emission_strength=6.0)
+            cbm = bmesh.new()
+            L.ellipsoid(cbm, CX, CY, Z_PIT, r_core * P, r_core * P, 0.14 * k, mat=CORE, segments=14, rings=7,
+                        zmin=Z_PIT)
+            L.ellipsoid(cbm, CX, CY, Z_PIT + 0.08 * k, r_white * P, r_white * P, 0.09 * k, mat=WHITE,
+                        segments=10, rings=5)
+            parts.append(common.frame_part(L.to_object(f"{name}-core-{frame}", cbm, cmats, coll), [frame]))
     else:
         L.ellipsoid(bm, CX, CY, Z_PIT, 3.0 * P, 3.0 * P, 0.08, mat=DULL, segments=14, rings=7, zmin=Z_PIT)
 
@@ -164,14 +202,15 @@ def build(sprite, name, opening, door, glow):
     x0, x1 = L.XE(8.0), L.XE(14.0)
     L.bevel_box(bm, x0 - 0.6 * P, yf - 0.5 * P, x1 + 0.6 * P, yf + 1.0 * P, Z_BASE, 0.4, 0.0, mat=PIT)
     L.prism(bm, [(x0, yf - 0.6 * P), (x1, yf - 0.6 * P), (x1, yf), (x0, yf)], 0.12, 0.34,
-            mat=WINDOW if glow else PIT)
-    door_bottom = {"down": 0.11, "half": 0.2, "up": None}[door]
-    if door_bottom is not None:
-        L.prism(bm, [(x0 + 0.2 * P, yf - 1.0 * P), (x1 - 0.2 * P, yf - 1.0 * P), (x1 - 0.2 * P, yf - 0.2 * P),
-                     (x0 + 0.2 * P, yf - 0.2 * P)], door_bottom, 0.36, mat=WOOD)
-        L.prism(bm, [(x0 + 1.0 * P, yf - 1.2 * P), (x0 + 1.6 * P, yf - 1.2 * P), (x0 + 1.6 * P, yf - 0.9 * P),
-                     (x0 + 1.0 * P, yf - 0.9 * P)], door_bottom + 0.02, 0.34, mat=BAND)
-    return L.to_object(name, bm, mats, coll)
+            mat=WINDOW if glow or door == "half" else PIT)
+    if door == "down":
+        door_prisms(bm, x0, x1, yf, 0.11, WOOD, BAND)
+    elif door == "half":  # one door per frame (HALF_DOOR)
+        for frame, bottom in HALF_DOOR.items():
+            dbm = bmesh.new()
+            door_prisms(dbm, x0, x1, yf, bottom, WOOD, BAND)
+            parts.append(common.frame_part(L.to_object(f"{name}-door-{frame}", dbm, mats, coll), [frame]))
+    return [L.to_object(name, bm, mats, coll)] + parts
 
 
 def main():
@@ -179,12 +218,17 @@ def main():
     out = L.preview_arg()
     for suffix, frames, opening, door, glow in STAGES:
         name = NAME + suffix
-        obj = build(sprite, name, opening, door, glow)
-        common.export_sprite_model(ROOT, [obj], f"enemies/{name}", L.frames_subset(sprite, frames))
+        objs = build(sprite, name, opening, door, glow)
+        common.export_sprite_model(ROOT, objs, f"enemies/{name}", L.frames_subset(sprite, frames))
         if out:
             png = out if not suffix else out.parent / f"{name}.png"
-            common.render_preview([obj], str(png), L.frame_image(ROOT, sprite, frames[0]), size=2)
-            obj.hide_render = True
+            common.render_preview(objs, str(png), L.frame_image(ROOT, sprite, frames[0]), size=2, frame=frames[0])
+        if "--frames" in sys.argv and len(frames) > 1:  # every frame beside its sprite, into <dir>/<name>.png
+            sub = {**sprite, "frames": [f for f in sprite["frames"] if f["index"] in frames]}
+            common.render_frame_previews(objs, str(Path(sys.argv[sys.argv.index("--frames") + 1]) / f"{name}.png"),
+                                         sub, ROOT)
+        for o in objs:
+            o.hide_render = True
 
 
 if __name__ == "__main__":

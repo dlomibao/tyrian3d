@@ -3,7 +3,9 @@
 Seen in episodes 1 and 3 (levels 1.10, 1.29, 1.31, 3.21). A shiny tan dome set into a patch of
 sand that fills the whole tile, with a red eye on a raised boss looking out of its top, a small
 ball on a stalk at its upper right, and a curved barrel that wraps round its lower right and
-points down the screen. The two frames only brighten the eye, so one model covers both.
+points down the screen. The two frames only brighten the eye: on frame 41 it is lit right out to
+its socket, its red brighter and its core white-hot, so one model covers both and the eye, socket
+and core change colour on frame 41 (palette_material frames=).
 
 Run: blender --background --python assets/blender/enemies/newshf-39.py [-- --preview out.png]
 """
@@ -40,9 +42,11 @@ def build(sprite):
         pal(23, metallic=0.0, roughness=0.95),  # 0 sand
         pal(28, metallic=0.5, roughness=0.3),  # 1 dome
         pal(20, metallic=0.4, roughness=0.5),  # 2 dark collar under the dome
-        pal(113, metallic=0.3, roughness=0.4),  # 3 eye socket
-        pal(118, emission_strength=3.0),  # 4 eye
-        pal(125, emission_strength=5.0),  # 5 eye core
+        # The eye: on frame 41 the glow fills the socket and brightens (sprite rows 9-13).
+        common.palette_material(sprite, 113, "nshf39-socket", metallic=0.3, roughness=0.4,
+                                frames={41: 117}),  # 3 eye socket
+        common.palette_material(sprite, 118, "nshf39-eye", emission_strength=3.0, frames={41: 123}),  # 4 eye
+        common.palette_material(sprite, 125, "nshf39-core", emission_strength=5.0, frames={41: 127}),  # 5 eye core
         pal(29, metallic=0.5, roughness=0.3),  # 6 ball and boss highlights
         pal(26, metallic=0.5, roughness=0.35),  # 7 barrel
     ]
@@ -86,6 +90,8 @@ def main():
     obj = build(sprite)
     common.export_sprite_model(ROOT, [obj], f"enemies/{NAME}", sprite["sprites"])
     lib.preview(ROOT, NAME, [obj], sprite)
+    if "--frames" in sys.argv:
+        common.render_frame_previews([obj], sys.argv[sys.argv.index("--frames") + 1], sprite, ROOT)
 
 
 if __name__ == "__main__":
