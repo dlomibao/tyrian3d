@@ -207,6 +207,8 @@ def run(name, build, file):
             ref = root / "reference" / "models" / name / frame["image"]
             path = out if i == 0 else out.parent / f"{model}.png"
             common.render_preview(objects, str(path), ref, size=frame["size"])
+    if "--frame-previews" in sys.argv:  # every frame of the first model, one row each
+        common.render_frame_previews(models[0][1], sys.argv[sys.argv.index("--frame-previews") + 1], sprite, root)
     return sprite
 
 
