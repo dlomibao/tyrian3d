@@ -357,6 +357,14 @@ export function JE_operation_saveName(slot: number): string | null {
 }
 
 /**
+ * Whether the save-name prompt takes `ch` (mainint.c L2834: a space, or a character the font has,
+ * fontMap in fonthand.c L29-48). Only its ASCII part: the names are stored as text here.
+ */
+export function saveNameChar(ch: string): boolean {
+  return ch.length === 1 && (ch === " " || /[!"#$%'()*+,\-./0-9:;=?A-Z[\\\]a-z{|}]/.test(ch));
+}
+
+/**
  * The save half of JE_operation once the player confirms a name (Enter or OK, mainint.c L2795,
  * L2823): JE_saveGame with the name padded to 14 characters. The prompt keeps at most 14
  * characters, each a space or one the game's font has (fontMap).

@@ -12,15 +12,17 @@ import { drawList } from "../sim/draw";
 import { startLevel, tick } from "../sim/game";
 import { loadHelpText, parseMenuText } from "../sim/helptext";
 import { clearSimInput } from "../sim/input";
-import { JE_endLevelAni } from "../sim/mainint";
+import { JE_endLevelAni, JE_initPlayerData } from "../sim/mainint";
 import { newOnePlayerGame } from "../sim/newgame";
-import { copyPlayerItems } from "../sim/player";
 import { buildResources, requireFile } from "../sim/resources";
-import { DIFFICULTY_EASY, DIFFICULTY_HARD, DIFFICULTY_NORMAL, g, SA_NONE, type PlayerItems } from "../sim/state";
+import { JE_loadGame, JE_loadScreen_select, JE_saveGame, loadSaves } from "../sim/savegame";
+import { DIFFICULTY_EASY, DIFFICULTY_HARD, DIFFICULTY_NORMAL, g, SA_NONE } from "../sim/state";
 import { EpisodeEndError, loadLevelAsync } from "../sim/tyrian2";
 import type { View } from "../render/view";
 import { Controls } from "./controls";
 import { Hud } from "./hud";
+import { showLoadScreen, showOptions } from "./options";
+import { connectVolumes, loadPrefs, musicLevel } from "./prefs";
 import { askForData, showMessage, showStatus, showTitle, type TitleChoice } from "./screens";
 import { runItemScreen } from "./shop";
 
@@ -47,45 +49,12 @@ async function getFiles(): Promise<FileMap> {
 }
 
 /**
- * What JE_saveGame(11, "LAST LEVEL") keeps (after JE_loadMap, so after the item screen) so a
- * failed level can be retried with JE_loadGame(11). The saved level is saveLevel: the section
- * JE_loadMap started from (or the last `]s[`), so a retry goes back through the item screen.
+ * The "LAST LEVEL" backup: JE_saveGame(11, "LAST LEVEL    ") after JE_loadMap (so after the item
+ * screen), and JE_loadGame(11) to retry a failed level (src/sim/savegame.ts). The saved level is
+ * saveLevel: the section JE_loadMap started from (or the last `]s[`), so a retry goes back through
+ * the item screen. It's the C's save slot 11, so the load lists show it too. [port-options]
  */
-interface LevelBackup {
-  items: PlayerItems;
-  last_items: PlayerItems;
-  cash: number;
-  level: number;
-  difficultyLevel: number;
-  cubes: number;
-}
-
-function saveLastLevel(): LevelBackup {
-  const p = g.player[0];
-  return {
-    items: copyPlayerItems(p.items),
-    last_items: copyPlayerItems(p.last_items),
-    cash: p.cash,
-    level: g.saveLevel,
-    difficultyLevel: g.difficultyLevel,
-    cubes: g.lastCubeMax,
-  };
-}
-
-function loadLastLevel(b: LevelBackup): void {
-  const p = g.player[0];
-  g.superTyrian = false;
-  g.onePlayerAction = false;
-  g.extraGame = false;
-  g.galagaMode = false;
-  g.difficultyLevel = b.difficultyLevel;
-  p.items = copyPlayerItems(b.items);
-  p.last_items = copyPlayerItems(b.last_items);
-  p.cash = b.cash;
-  g.mainLevel = b.level;
-  g.cubeMax = b.cubes;
-  g.lastCubeMax = b.cubes;
-}
+const lastLevelSlot = () => (g.twoPlayerMode ? 22 : 11);
 
 /** `onPlay` fires once the first level starts, so the caller can stop its idle rendering. */
 export async function runGame(view: View, onPlay: () => void = () => {}): Promise<void> {
@@ -105,6 +74,11 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
 
   if (import.meta.env.DEV) Object.assign(window, { tyrian: { g, view, music, sfx } });
 
+  // [port-options] The settings and saved games kept in this browser (opentyrian.cfg and tyrian.sav).
+  loadPrefs();
+  loadSaves();
+  connectVolumes(music, sfx);
+
   const names = parseMenuText(requireFile(files, "tyrian.hdt"));
   const episodes = [1, 2, 3, 4, 5].filter((n) => files.get(`levels${n}.dat`) && files.get(`tyrian${n}.lvl`));
   let choice: TitleChoice = { episode: 1, difficulty: DIFFICULTY_NORMAL };
@@ -120,14 +94,26 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
       musicStyles: music.styles,
       musicStyle: music.style,
       onMusicStyle: (style) => music.setStyle(style),
+      // [port-options] JE_loadScreen, after the main loop's reset before the title (opentyr.c L873-880).
+      onLoadGame: async () => {
+        const slot = await showLoadScreen({ sfx });
+        if (slot === null) return false;
+        JE_initPlayerData();
+        g.playDemo = false;
+        g.gameLoaded = false;
+        g.jumpSection = false;
+        return JE_loadScreen_select(slot, files);
+      },
+      onOptions: () => showOptions({ sfx, music }),
+      currentMusicStyle: () => music.style,
     });
 
     // JE_initEpisode: each episode has its own item data (episode 4's lives in tyrian4.lvl).
-    g.res = buildResources(files, choice.episode);
+    // A loaded game is already set up, on its own episode (JE_loadGame). [port-options]
+    g.res = buildResources(files, choice.loaded ? g.episodeNum : choice.episode);
     view.setPalettes(g.res.palettes);
-    newOnePlayerGame(choice.episode, choice.difficulty);
+    if (!choice.loaded) newOnePlayerGame(choice.episode, choice.difficulty);
     onPlay();
-    let backup: LevelBackup | null = null;
 
     // start_level / start_level_first (tyrian2.c L586-905): JE_loadMap with the item screen at
     // each `]I[`, the backup save, the level, then where to go next.
@@ -142,7 +128,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
         break;
       }
       if (!loaded) break; // quit from the item screen: back to the title
-      if (!g.doNotSaveBackup) backup = saveLastLevel(); /*Save backup game*/
+      if (!g.doNotSaveBackup) JE_saveGame(lastLevelSlot(), "LAST LEVEL    "); /*Save backup game*/
       startLevel();
       view.draws.resetInterpolation();
       music.play(g.levelSong - 1);
@@ -171,7 +157,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
       } else {
         music.play(SONG_GAME_OVER);
         await showMessage("Game over", ["Your ship was destroyed."], "Press Enter to retry from the item screen");
-        if (backup) loadLastLevel(backup); // JE_loadGame(11)
+        JE_loadGame(lastLevelSlot(), files);
         if (g.doNotSaveBackup) {
           g.superTyrian = false;
           g.onePlayerAction = false;
@@ -201,11 +187,11 @@ function playLevel(view: View, controls: Controls, sfx: SoundEffects, music: Mus
           controls.release();
           controls.active = false;
           pauseEl = showStatus("Paused · press Esc or P to continue");
-          music.volume = 0.3;
+          music.volume = musicLevel(0.3);
         } else {
           pauseEl?.();
           controls.active = true;
-          music.volume = 1;
+          music.volume = musicLevel();
         }
       }
       if (paused) {
