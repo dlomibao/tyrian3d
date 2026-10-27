@@ -29,6 +29,9 @@ import { highScoreCheckDue } from "../sim/highscores"; // [high scores]
 import { PauseButton, showPause } from "./pause"; // ui-framework: pause screen
 import { askForData, showMessage, showStatus, showTitle, type TitleChoice } from "./screens";
 import { runItemScreen } from "./shop";
+import { playAttractDemo } from "./attractDemo"; // [demos]
+import { TITLE_IDLE_MS } from "./idle"; // [demos]
+import { hasDemos, setNextDemo } from "../sim/demo"; // [demos]
 // port-story: the screens between levels and the level fades.
 import { BLACK, levelFade } from "./fade";
 import { closeStoryScreens, playStoryScreens } from "./storyScreens";
@@ -97,8 +100,16 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
   const names = parseMenuText(requireFile(files, "tyrian.hdt"));
   const episodes = [1, 2, 3, 4, 5].filter((n) => files.get(`levels${n}.dat`) && files.get(`tyrian${n}.lvl`));
   let choice: TitleChoice = { episode: 1, difficulty: DIFFICULTY_NORMAL };
+  // [demos] Attract mode: the title plays a demo when idle; ?demo (or ?demo=N) plays one at once.
+  const demos = hasDemos(files);
+  let demoNow = demos ? demoFromUrl() : null;
 
   for (;;) {
+    if (demoNow !== null) {
+      if (demoNow > 0) setNextDemo(demoNow);
+      demoNow = null;
+      await playAttractDemo({ files, view, music, sfx, hud });
+    }
     music.play(SONG_TITLE);
     levelFade().set(0); // the title's backdrop draws under the level fade (port-story)
     choice = await showTitle({
@@ -129,7 +140,14 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
       // [high scores] the title menu's High Scores (JE_highScoreScreen)
       highScoresLabel: g.miscText[50]?.trim() || undefined,
       onHighScores: () => showHighScoreScreen({ ...names, episodes, sfx, episode: choice.episode }),
+      idleMs: demos ? TITLE_IDLE_MS : undefined, // [demos]
     });
+    if (choice.demo) {
+      // [demos] titleScreen returned with playDemo set; JE_main plays it, then back to the title.
+      choice = { episode: choice.episode, difficulty: choice.difficulty };
+      await playAttractDemo({ files, view, music, sfx, hud });
+      continue;
+    }
 
     // JE_initEpisode: each episode has its own item data (episode 4's lives in tyrian4.lvl).
     // A loaded game is already set up, on its own episode (JE_loadGame). [port-options]
@@ -299,4 +317,12 @@ function playLevel(view: View, controls: Controls, sfx: SoundEffects, music: Mus
     };
     requestAnimationFrame(frame);
   });
+}
+
+/** [demos] `?demo` plays the next demo at once, `?demo=N` demo N (1-5); null without it. */
+function demoFromUrl(): number | null {
+  const v = new URLSearchParams(location.search).get("demo");
+  if (v === null) return null;
+  const n = Number(v);
+  return Number.isInteger(n) && n >= 1 && n <= 5 ? n : 0;
 }

@@ -8,8 +8,9 @@ import "./overlay.css";
 import "./screens.css";
 import { filesFromZip, type FileMap } from "../assets/files";
 import { storeZip } from "../assets/store";
-import { button, h, keyHints, logo, MenuList, showScreen, title, type Screen } from "../ui";
 import { TitleCodeListener, type TitleCode } from "./titleCodes"; // [cheats]
+import { button, h, keyHints, logo, MenuList, showScreen, title, ui, type Screen } from "../ui";
+import { IdleTimer } from "./idle"; // [demos]
 
 /** Ask the player for tyrian21.zip (DECISIONS.md D3). Resolves once valid data is loaded. */
 export function askForData(): Promise<FileMap> {
@@ -85,6 +86,8 @@ export interface TitleChoice {
   difficulty: number;
   /** [port-options] A saved game was loaded (Load Game): continue it instead of starting a new one. */
   loaded?: boolean;
+  /** [demos] The title sat idle (idleMs): play the next demo, then come back to the title. */
+  demo?: boolean;
 }
 
 export interface TitleOptions {
@@ -120,6 +123,8 @@ export interface TitleOptions {
   specialName?: string[];
   onCode?: (code: TitleCode) => Promise<boolean | void>;
   difficultiesShown?: number;
+  /** [demos] titleScreen's idle timer: after this long without input, resolve with `demo`. */
+  idleMs?: number;
 }
 
 /**
@@ -145,11 +150,18 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
   const hasMusic = styles.length > 1;
 
   let resolveFn: (c: TitleChoice) => void = () => {};
-  const finish = (loaded = false) => {
+  const finish = (loaded = false, demo = false) => {
     if (!screen.open) return;
+    idle?.stop(); // [demos]
     screen.close();
-    resolveFn({ episode: opts.episodes[ep], difficulty: opts.difficulties[diff], ...(loaded ? { loaded } : {}) });
+    resolveFn({ episode: opts.episodes[ep], difficulty: opts.difficulties[diff], ...(loaded ? { loaded } : {}), ...(demo ? { demo } : {}) });
   };
+  // [demos] Play a demo after idling (tyrian2.c L3304-3311), only while the title itself is up.
+  const idle = opts.idleMs
+    ? new IdleTimer(opts.idleMs, () => {
+        if (!busy && !screen.isAside && ui.current === screen) finish(false, true);
+      })
+    : null;
 
   // [port-options] [high scores] The other entries, each its own screen over the title's backdrop.
   // Those screens read keys and pads themselves, so the title steps aside while one is open
@@ -160,7 +172,10 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
   const sub = async (fn: () => Promise<boolean | void>, over = false) => {
     if (busy || screen.isAside || !screen.open) return;
     busy = true;
-    const loaded = await (over ? fn() : screen.aside(fn)).finally(() => (busy = false));
+    const loaded = await (over ? fn() : screen.aside(fn)).finally(() => {
+      busy = false;
+      idle?.reset(); // [demos] the C restarts the title loop, and its idle count, after a sub-menu
+    });
     syncMusic();
     if (loaded === true) finish(true);
   };

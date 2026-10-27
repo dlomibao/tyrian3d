@@ -1,0 +1,42 @@
+/* Attract mode's "INSERT COIN" (src/app/attractDemo.ts), over the level and its HUD. */
+.attract-demo {
+  position: fixed;
+  top: max(3.25rem, calc(env(safe-area-inset-top) + 2.75rem));
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ui-space-1);
+  pointer-events: none;
+  text-align: center;
+  text-shadow: 0 1px 2px #000;
+}
+
+.attract-demo__coin {
+  font-family: var(--ui-font-display);
+  font-size: var(--ui-text-xl);
+  letter-spacing: var(--ui-tracking-wide);
+  color: var(--ui-gold-bright);
+  text-shadow: var(--ui-glow-gold), 0 1px 2px #000;
+  animation: attract-demo-blink 1.2s steps(1, end) infinite;
+}
+
+.attract-demo__hint {
+  font-family: var(--ui-font-text);
+  font-size: var(--ui-text-sm);
+  letter-spacing: var(--ui-tracking);
+  color: var(--ui-ink-dim);
+}
+
+@keyframes attract-demo-blink {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .attract-demo__coin {
+    animation: none;
+  }
+}

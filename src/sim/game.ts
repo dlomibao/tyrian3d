@@ -352,7 +352,10 @@ export function tick(): TickResult {
         if (g.galagaMode) g.player[1].exploding_ticks = 0;
         // musicFade = true
       } else {
-        gameOver = true;
+        // [demos] A demo ends at once, without the game over (L2047-2048; the bonus levels' part
+        // of that condition is left to the host, as before).
+        if (g.playDemo) g.reallyEndLevel = true;
+        else gameOver = true;
         if (g.firstGameOver) g.firstGameOver = false;
         // The C waits for any key here and then sets reallyEndLevel; the host does that.
       }

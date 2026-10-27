@@ -745,3 +745,38 @@ ended when its non-looping buffer finishes.
 **Review:** Get a high score, wait about 8 seconds on the name entry, then type. Song 31 should
 start at that key. If the change at a key press sounds abrupt, start song 31 when `playing` goes
 false instead.
+## D29 — Attract-mode demos replay the C's demo files, from a fresh state each time
+
+2026-10-27
+
+**Decision:** demo.c is ported as `src/sim/demo.ts` (beginPlayDemo, playDemoKeys, endPlayDemo),
+hooked where the C calls it: JE_loadMap reads the demo header instead of the episode script, and
+JE_playerMovement replays the recorded keys. A death ends a demo at once, as the C's game-over
+branch does with playDemo set. On the host side the title screen has the C's 30-second idle timer
+(`src/app/idle.ts`; any key, pointer motion or press, wheel, pad button or stick restarts it, and
+it doesn't run while Load Game, Options or High Scores is open); when it fires, the next demo plays
+(`src/app/attractDemo.ts`) with "INSERT COIN" (miscText[7]) over it, and any key, click, tap or pad
+button returns to the title. The demos cycle 1 to 5, as demoNum does. `?demo` or `?demo=N` plays
+one at once. Recording (`recordDemo`) isn't ported.
+
+The one departure from the C: before a demo, the state a game or an earlier demo leaves behind that
+the level start doesn't reset (the player structs, including their movement-friction counters;
+optionAttachmentReturn; initialDifficulty, which event 66 reads; the bonus-level flags) goes back to
+its value at program start. In the C a demo after a game can play differently from one after
+launch; a test (tests/sim/demo.test.ts) found demo 3 drifting when played twice in a row after a
+game, from x_friction_ticks alone.
+
+**Options considered:**
+- *Fresh state per demo (chosen):* every demo plays as it does in OpenTyrian straight after launch,
+  which is what the cross-check compares (tools/opentyrian-demo plays all five through the real
+  JE_main; all five match tick for tick to the end, including the final random number).
+- *Exactly the C, leftovers included:* faithful in the letter, but the demo would depend on what
+  was played before it, and nothing could check it.
+- *No intro logos after a demo that ran out:* the C shows intro_logos again unless the player
+  stopped the demo; this port has no intro logos, so both cases go straight to the title.
+
+**Review:** In OpenTyrian (and so here) demos 1-3 end with the ship destroyed partway through the
+level, and demos 4-5 run out of recorded keys. That is the C's behaviour, reproduced, not a desync
+of the port; why the C dies (probably recordings made with a DOS Tyrian whose simulation differed
+slightly) hasn't been checked. If the deaths look bad as attract mode, the fallback is to stop a demo a little before
+its death tick (from the fixtures) rather than altering the sim.

@@ -26,6 +26,7 @@ import {
   drawState,
   type Sprite2Sheet,
 } from "./draw";
+import { playDemoKeys } from "./demo"; // [demos]
 import { simInput } from "./input";
 import { mt_rand } from "./mtrand";
 import { calc_purple_balls_needed, copyPlayerItems, handle_got_purple_ball, point_lives_at_weapon_power, power_up_weapon } from "./player";
@@ -430,7 +431,13 @@ export function JE_playerMovement(
       } else {
         if (g.playDemo || g.recordDemo) inputDevice = 1; // keyboard is required device for demo recording
 
-        // demo playback input: not ported (playDemoKeys)
+        // demo playback input
+        if (g.playDemo) {
+          if (!playDemoKeys()) {
+            g.endLevel = true;
+            g.levelEnd = 40;
+          }
+        }
 
         /* joystick input */
         // The host folds a gamepad's d-pad and buttons into simInput's keys (the C's digital

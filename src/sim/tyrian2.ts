@@ -27,6 +27,7 @@ import { JE_itemScreenNonInteractive } from "./game_menu";
 import { loadMenuText } from "./helptext";
 import { mt_rand } from "./mtrand";
 import { JE_nextEpisode } from "./episodes";
+import { beginPlayDemo } from "./demo"; // [demos]
 import { JE_drawTextWindow, JE_totalScore } from "./mainint";
 import { buildResources, requireFile, type TyrianFiles } from "./resources";
 import { JE_saveGame } from "./savegame"; // [port-options]
@@ -1747,7 +1748,7 @@ const DEFAULT_SONG_BUY = 2;
  * g.levelWarningText. The end of an episode (`]Q`) yields its screens (LoadMapPause) and runs
  * JE_nextEpisode, then goes back to new_game and carries on in the next episode's first section,
  * as the C does; a game loaded from the item screen continues there too (src/sim/savegame.ts).
- * Not ported (no-ops, marked below): demos and network sync.
+ * Not ported (no-ops, marked below): demo recording and network sync.
  */
 export function* JE_loadMapSteps(files: TyrianFiles): Generator<LoadMapPause, boolean, void> {
   g.lastCubeMax = g.cubeMax;
@@ -2169,8 +2170,12 @@ function* JE_loadMap_newGame(files: TyrianFiles): Generator<LoadMapPause, boolea
     } while (!loadLevelOk);
   }
 
-  // Demos: not ported.
-  storyStep({ op: "fadeBlack", steps: 50 }); // fade_black(50)
+  if (g.playDemo) {
+    beginPlayDemo(files); // [demos] src/sim/demo.ts
+  } else {
+    storyStep({ op: "fadeBlack", steps: 50 }); // fade_black(50)
+    // if (recordDemo) beginRecordDemo(); (not ported)
+  }
 
   loadLevelFile(files);
   return true;

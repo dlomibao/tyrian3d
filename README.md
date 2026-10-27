@@ -54,6 +54,9 @@ score table (episodes 1-3, as in the original), which the title screen shows und
   Impossible, Suicide and Lord of the Game difficulties, and the Super Arcade, DESTRUCT and ENGAGE
   codes are accepted. `?loot` starts new games with 1,000,000 credits. See
   [DECISIONS.md](DECISIONS.md) D32.
+- **Attract mode:** left alone for 30 seconds, the title screen plays the original's five recorded
+  demos in turn, replayed exactly as OpenTyrian plays them; any key, button or tap returns to the
+  title (`?demo` or `?demo=1`..`5` plays one at once).
 - **Not yet:** arcade and two-player modes.
 - **Everything else:** in [Issues](../../issues) and [Milestones](../../milestones). Design calls
   made along the way are in [DECISIONS.md](DECISIONS.md).
