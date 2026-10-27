@@ -48,6 +48,12 @@ export interface ArcadeTitleContext {
   open<T>(run: () => Promise<T>, over: boolean, then: (result: T) => void): void;
   /** Start the game: the title resolves with these. */
   start(choice: Partial<NewGameChoice>): void;
+  /**
+   * Remember the title's choices before a key that may start a code, and put them back once a code
+   * is typed: a code's first letter can be a WASD move (STEALTH's S, WEIRD's W, DESTRUCT's D).
+   */
+  mark(): void;
+  restore(): void;
 }
 
 /** The modes in the title's Game row, in gameplaySelect's order. */
@@ -69,17 +75,17 @@ export interface ArcadeTitle {
   hints: KeyHint[];
 }
 
-/** Short labels for the Game row: gameplay_name without "1 Player " (the row is narrow). */
+/** Short labels for the Game row (the row is narrow): gameplay_name without "1 Player ", and "2 Player" for 2 Player Arcade. */
 function modeLabel(name: string | undefined, fallback: string): string {
   const n = name?.trim();
-  return n ? n.replace(/^1 Player\s+/i, "") : fallback;
+  return n ? n.replace(/^1 Player\s+/i, "").replace(/^(2 Player)\s+Arcade$/i, "$1") : fallback;
 }
 
 /** The title's arcade part: the Game row and the codes. */
 export function arcadeTitle(opts: ArcadeTitleOptions, initial: GameplayMode | undefined, ctx: ArcadeTitleContext): ArcadeTitle {
   const enabled = (m: GameplayMode) => m !== "twoPlayerArcade" || opts.twoPlayerArcade;
   const items = GAME_MODES.map((m, i) => ({
-    label: modeLabel(opts.gameplayName[i + 1], ["Full Game", "Arcade", "2 Player Arcade"][i]),
+    label: modeLabel(opts.gameplayName[i + 1], ["Full Game", "Arcade", "2 Player"][i]),
     disabled: !enabled(m),
   }));
   const row = new MenuList({
@@ -134,9 +140,11 @@ export function arcadeTitle(opts: ArcadeTitleOptions, initial: GameplayMode | un
       }
       // Modifier keys alone don't reset a code (the C's would: a deviation so Shift can be held).
       if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || ["Shift", "CapsLock", "ScrollLock", "Control", "Alt", "Meta"].includes(e.key)) return false;
+      if (codes.progress.every((p) => p === 0)) ctx.mark(); // this key may start a code
       const done = codes.feed(codeChar(e.key));
       if (done >= 0) {
         codes.reset();
+        ctx.restore();
         typed(done, e);
         return true;
       }
@@ -283,9 +291,10 @@ function texts(files: TyrianFiles): MenuText {
  */
 export function superArcadeLoadout(files: TyrianFiles): { heading: string; ship: string; mainWeapon: string; specialWeapon: string; special: string } | null {
   if (g.superArcadeMode === SA_NONE && !g.superTyrian) return null;
-  const { superShips } = texts(files);
+  const { superShips, pName } = texts(files);
   return {
-    heading: superShips[0]?.trim() ?? "",
+    // (the C shows no heading; Super Tyrian's is its name, miscTextB[4] and pName[0])
+    heading: g.superTyrian ? `${g.miscTextB[4] ?? "SUPER"} ${pName[0]?.trim() ?? "Tyrian"}` : (superShips[0]?.trim() ?? ""),
     ship: (g.superTyrian ? superShips[SA + 3] : superShips[g.superArcadeMode])?.trim() ?? "",
     mainWeapon: superShips[SA + 1]?.trim() ?? "",
     specialWeapon: superShips[SA + 2]?.trim() ?? "",

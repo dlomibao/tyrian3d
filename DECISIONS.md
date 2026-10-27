@@ -650,3 +650,45 @@ renderer and only while a screen asks for it. The pause screen's "Quit to title"
 backdrop's cost shows on slow machines, cap its frame rate or render it at a lower pixel ratio. If
 the C's in-game Quit is wanted, add "Retry from item screen" to the pause menu: it's the "died"
 path in `run.ts` with `playerEndLevel` set.
+
+## D27 — Arcade games: a Game row on the title, codes typed over it, and a C bot cross-check
+
+2026-10-27
+
+**Decision:** One-player arcade, the seven Super Arcade ships and Super Tyrian are started by
+`startNewGame` (`src/sim/arcade.ts`), a port of newGame()'s arcade branch, newSuperArcadeGame()
+and newSuperTyrianGame() as they leave the game once their menus have returned. Everything in
+flight (lives as the front weapon's power, pickups arming the ship, the Super Arcade weapons and
+specials) was already in the level loop; the one missing piece, the Super Arcade drops taking
+turns through the ship's five weapons (tyrian2.c L1548-1555), is added to `game.ts`. The title
+gets a **Game** row above the episodes (Full Game, Arcade, 2 Player), cycled with Tab or the pad's
+RB or picked with a tap, like the Music row; it isn't a control, so the arrows keep their jobs.
+Typing a ship's code (helptext `specialName`: STEALTH ... NORTSHIPZ) opens a "Super Arcade Mode"
+card over the title with that ship, the episode and the difficulty one step up; ENGAGE opens
+Super Tyrian's "Prepare to play..." screen; DESTRUCT calls a hook for the Destruct game. The
+matching is `CodeMatcher`, the C's specialNameProgress loop for any list of codes, so the cheats
+work can reuse it. Tests play four arcade games in OpenTyrian's own C (tools/opentyrian-bot, new
+`mode` argument) and compare them with the port tick by tick.
+
+**Options considered:**
+- *Game row on the title (chosen):* the title already merges New Game, episodeSelect and
+  difficultySelect into one screen, so gameplaySelect becomes one more row there, not another step.
+- *gameplaySelect as its own screen after choosing an episode:* the C's order, but an extra screen
+  for every full game, which is what most players start.
+- *Codes only through the C's flow (the code first, then episode and difficulty screens):* the
+  title already shows both, so the card names them and asks to start or go back.
+
+Small deviations, each to fit a browser: a letter that carries on a code isn't also one of the
+title's shortcuts (L, O, H, M and WASD all occur inside codes), and the title's episode and
+difficulty go back to what they were before the code's first letter (STEALTH's S, WEIRD's W and
+DESTRUCT's D are moves); Shift, Ctrl, Alt, Meta and the lock keys don't reset a code; Super Tyrian
+at Suicide is asked for with Shift held on the last letter as well as Scroll Lock (Macs have
+none); beating Super Tyrian (trentWin) shows the C's "Sleep well, Trent" lines and goes back to
+the title instead of quitting. Backing out of a Super Arcade card keeps the C's quirk: the next
+full game starts in that ship ("smuggle"). Two-player arcade isn't built here: the row shows it
+disabled until `twoPlayerArcade.newGame` in `src/sim/arcade.ts` is set by the two-player work.
+
+**Review:** Type a code at the title and play a level of each kind. If the Game row is crowded on
+phones, fold 2 Player away until it's available. The cross-check runs each game in fresh modules,
+because some state (the ship's friction ticks, the explosion follow) carries over between games in
+the port as it does in the C, where each driver run is a new process.

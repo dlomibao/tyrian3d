@@ -258,6 +258,7 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
   };
 
   // [arcade] The Game row (gameplaySelect) above the episodes, and the codes typed at the title.
+  let marked = [ep, diff];
   const arcade = opts.arcade
     ? arcadeTitle(opts.arcade, opts.initial.mode, {
         episodeName: () => opts.episodeNames[opts.episodes[ep]]?.trim() || `Episode ${opts.episodes[ep]}`,
@@ -265,6 +266,12 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
         difficulty: () => opts.difficulties[diff],
         open: (run, over, then) => void sub(run, over, then),
         start: (choice) => finish(choice),
+        mark: () => (marked = [ep, diff]),
+        restore: () => {
+          [ep, diff] = marked;
+          episodes.focus(ep);
+          difficulty.focus(diff);
+        },
       })
     : null;
 

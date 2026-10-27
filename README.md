@@ -48,7 +48,10 @@ score table (episodes 1-3, as in the original), which the title screen shows und
   automatic LAST LEVEL backup; Alt-S / Alt-L), and the title has Load Game and Options. Options sets
   the music and sound volume, the music style, the keys (two per control) and checks a gamepad's
   buttons. Saves and settings stay in this browser.
-- **Not yet:** arcade and two-player modes.
+- **Arcade:** the title's Game row (Tab, or RB on a pad) picks 1 Player Arcade: no shop, the
+  Stalker armed by what it picks up, and lives. Typing a Super Arcade ship's code at the title
+  (the original's, shown after each finished game) starts that ship; ENGAGE starts Super Tyrian.
+- **Not yet:** two-player mode.
 - **Everything else:** in [Issues](../../issues) and [Milestones](../../milestones). Design calls
   made along the way are in [DECISIONS.md](DECISIONS.md).
 
