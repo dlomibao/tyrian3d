@@ -387,3 +387,30 @@ pack (it's gated on `VITE_LOCAL_DATA`, set only by `play:local`) and nothing fro
 
 **Review:** If the rights holders agree, decide how the music ships (bundled, or downloaded on
 demand) and move it to the public repo with its licence in CREDITS.md.
+
+## D?? — The full-screen pictures are redrawn in Blender and looked up by their JE_loadPic number
+
+2026-10-27
+
+**Decision:** Each of the 13 pictures in `tyrian.pic` (title, menu background, item screen, in-game
+frames, story pictures, intro cards, Destruct's screen), and `tshp2.pcx` as number 0, has a new 1920x1200 picture rendered
+headless in Blender by `assets/art/<name>.py`, from the game's models and procedural materials,
+for the same purpose and layout. The WebPs are committed in `public/art/`, and
+`public/art/pictures.json` maps each original's `JE_loadPic` number to its file, so code that
+shows picture N looks it up there. Screen furniture (the in-game frames, Destruct's bars) leaves
+the original's black playfield transparent. The two intro cards drop the publisher's and developer's
+names and logos (and the menu background its credit line) and keep only their mood: a chrome emblem of the Talon
+in a sunlit sky, an eclipse in smoke over a grid.
+
+**Options considered:**
+- *Redraw in Blender, keyed by picture number (chosen):* the art is ours to ship (the originals
+  come from the data, whose licence is unresolved, #10), the scripts rebuild it, and the number is
+  what the episode scripts (`]P`, `]U`, `]V`, `]R`) and the C already use.
+- *Upscale the originals:* closest to the game, but still the data's pictures, so not shippable.
+- *Keep showing the originals from the player's data:* works today, but isn't the remaster.
+- *Recreate the logos as they were:* they're the companies' marks, not ours to remake.
+
+**Review:** The pictures follow the originals' composition, not their pixels; the code that
+shows them should place text where the original did (the story pictures keep those areas dark or
+plain). `tshp2.pcx`, shown by episode 4's `]P 000`, is a separate file; its new picture is
+number 0.
