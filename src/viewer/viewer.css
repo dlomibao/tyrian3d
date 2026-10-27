@@ -111,6 +111,11 @@ body.mv-page {
   color: var(--mv-accent);
 }
 
+.mv-list li.assembly::before {
+  content: "▦ ";
+  color: #7fb0e0;
+}
+
 .mv-list li.on {
   background: #3a2a10;
   color: #ffd38a;
