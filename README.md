@@ -48,6 +48,12 @@ score table (episodes 1-3, as in the original), which the title screen shows und
   automatic LAST LEVEL backup; Alt-S / Alt-L), and the title has Load Game and Options. Options sets
   the music and sound volume, the music style, the keys (two per control) and checks a gamepad's
   buttons. Saves and settings stay in this browser.
+- **Cheats:** the original's secret inputs work. In flight, hold F2 F3 F6 for invulnerability
+  ("Cheaters always prosper."), F2 F3 F4 to self-destruct, F2 F6 F7 to skip the level, or F2 F4 F6
+  F7 F9 \ / for the Nort ship. On the title, Shift+G, Shift+] and then L O R D reveal the
+  Impossible, Suicide and Lord of the Game difficulties, and the Super Arcade, DESTRUCT and ENGAGE
+  codes are accepted. `?loot` starts new games with 1,000,000 credits. See
+  [DECISIONS.md](DECISIONS.md) D32.
 - **Not yet:** arcade and two-player modes.
 - **Everything else:** in [Issues](../../issues) and [Milestones](../../milestones). Design calls
   made along the way are in [DECISIONS.md](DECISIONS.md).

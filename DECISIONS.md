@@ -648,3 +648,77 @@ renderer and only while a screen asks for it. The pause screen's "Quit to title"
 backdrop's cost shows on slow machines, cap its frame rate or render it at a lower pixel ratio. If
 the C's in-game Quit is wanted, add "Retry from item screen" to the pause menu: it's the "died"
 path in `run.ts` with `playerEndLevel` set.
+
+## D32 — Cheats: the C's chords and codes, with the title's codes routed to hooks
+
+2026-10-27
+
+**Decision:** The cheats and secret inputs of OpenTyrian are ported as rules on the game state in
+`src/sim/cheats.ts`, with thin key handling in `src/app/cheatKeys.ts` (in flight) and
+`src/app/titleCodes.ts` (title):
+- JE_mainKeyboardInput's chords, run once per tick in which a key went down, with the keys held
+  then (key repeats count as input but don't re-hold a key, as in keyboard.c): the Nort ship
+  (F2 F4 F6 F7 F9 \ /), invulnerability (F2 F3 F6), self-destruct (F2 F3 F4/F5) and skipping the
+  level (F2 F6 F7/F8 without F9), with the HUD's "Cheaters always prosper." The browser's own F1-F10
+  actions are held off during a level.
+- titleScreen's nine specialName codes, typed on the title. STEALTH ... NORTSHIPZ (Super Arcade),
+  DESTRUCT and ENGAGE (Super Tyrian) go to `titleCodeHooks`, which the arcade and Destruct modules
+  fill in. A hook that sets up a game resolves true, and the game starts the way a loaded game
+  does. Without a hook, a "Code accepted" notice names the ship or mode.
+- difficultySelect's hidden difficulties: Shift+G, Shift+] and L O R D add Impossible, Suicide and
+  Lord of the Game, one by one, to the title's difficulty row, which now lists difficultySelect's
+  six levels with their own names. Before, `difficulty_name` was indexed by level, which only
+  matched for the first three.
+- params.c's LOOT as `?loot` in the address (richMode: a new game gets 1,000,000 credits).
+
+On the title a code's later letters are taken from the shortcuts and WASD, but its first letter
+isn't, so S and D still move and L, O, H and M still open their screens when no code is under way.
+L is the exception while Lord of the Game is the next difficulty to unlock. A finished code
+starts over: in the C its counter stays at the end, so a key without a character, such as an
+arrow, would fire it again after the title comes back.
+
+Not ported: the edited ships (Tab/Caps Lock + 1..0), which need the ship editor's newsh$.shp
+(absent from Tyrian 2.1's data); the debug keys (F10 + Backspace); constantPlay, constantDie and
+their keys (command-line test modes; the C key's rule is there but constantPlay is never set); and
+the Backspace "personal commands" (screenshot pause, smoothies, filter cycling, hyper-speed,
+random music), which are developer keys.
+
+**Options considered:**
+- *Port the chords as held keys (chosen):* the original's rules, including its quirks: holding
+  self-destruct toggles cheating again on every key repeat, and skipping the level sets
+  `levelTimer` so `]t[` script jumps act as if the timer ran out.
+- *Also accept chord keys typed one after another:* kinder to keyboards that can't hold seven
+  keys (the C does this only for LORD), but it would fire chords that were never held, such as
+  skip-level halfway through typing the Nort ship.
+- *A separate difficulty screen for LORD, as in the C:* no clash with the L shortcut, but it would
+  bring back a screen the title merged away.
+
+**Review:** On the title, type `techno` (notice), `destruct` and `engage`. Check that L, O and H
+still open their screens. Press Shift+G, Shift+] and type `lord` to show all six difficulties.
+In a level, hold F2 F3 F6 and check the HUD line, then F2 F6 F7 (the level ends), and all seven
+keys of the Nort ship. Once the arcade and Destruct modules are merged, set `titleCodeHooks` from
+them, e.g. in run.ts. To drop a cheat, remove its branch in `JE_mainKeyboardInput`.
+
+## D32a — The high score name entry follows the fanfare with song 31
+
+2026-10-27
+
+**Decision:** JE_highScoreCheck plays the fanfare (song 33) and, after every input of its name
+entry, `if (!playing) play_song(31)` (mainint.c L2051-2052). The fanfare doesn't loop, and lasts
+about 7 seconds, so the first key, click or button after it ends starts song 31, which loops. The
+port played only the fanfare. `MusicPlayer` now has `playing` (lds_play.c's `playing`: true
+from play() until a song ends by itself; stop() doesn't clear it). The music worklet reports it to
+the main thread, tagged with the play command it belongs to, and a remaster recording counts as
+ended when its non-looping buffer finishes.
+
+**Options considered:**
+- *Report lds `playing` from the worklet (chosen):* the C's own test, so the song changes exactly
+  when the original's would, for any song and any remaster recording.
+- *Time the fanfare on the main thread:* no audio changes, but the length differs between the FM
+  song and recordings, and the timer drifts if the audio context starts late.
+- *Start song 31 when the fanfare ends, without waiting for input:* smoother, but not what the C
+  does.
+
+**Review:** Get a high score, wait about 8 seconds on the name entry, then type. Song 31 should
+start at that key. If the change at a key press sounds abrupt, start song 31 when `playing` goes
+false instead.
