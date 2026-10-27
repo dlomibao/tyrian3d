@@ -1,6 +1,6 @@
 // The settings kept in the browser (src/app/prefs.ts) and the key bindings (src/app/bindings.ts).
 import { beforeEach, describe, expect, test } from "vitest";
-import { ACTIONS, bindKey, clearKey, DEFAULT_KEYS, isBound, keyName, keys, resetKeys, setKeys } from "../../src/app/bindings";
+import { ACTIONS, bindKey, clearKey, cyclePad, DEFAULT_KEYS, DEFAULT_KEYS_2, isBound, keyName, keys, keys2, pads, resetKeys, setKeys, setPads } from "../../src/app/bindings";
 import { connectVolumes, loadPrefs, musicLevel, PREFS_STORAGE_KEY, PREFS_VERSION, savePrefs, type PrefsStorage } from "../../src/app/prefs";
 import { DEFAULT_VOLUME, JE_changeVolume, set_volume, setVolumeHandler, volume, volumeFactor } from "../../src/sim/volume";
 
@@ -16,6 +16,8 @@ class MemoryStorage implements PrefsStorage {
 
 beforeEach(() => {
   resetKeys();
+  resetKeys(1);
+  setPads([0, 1]);
   volume.tyrMusicVolume = DEFAULT_VOLUME;
   volume.fxVolume = DEFAULT_VOLUME;
   setVolumeHandler(() => {});
@@ -26,7 +28,7 @@ describe("key bindings", () => {
     expect(ACTIONS.map((a) => keys[a][0])).toEqual(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space", "Enter", "ControlLeft", "AltLeft"]);
     expect(keys.fire).toEqual(["Space", "KeyJ"]);
     expect(isBound("KeyW")).toBe(true);
-    expect(isBound("KeyQ")).toBe(false);
+    expect(isBound("KeyZ")).toBe(false);
   });
 
   test("binding a key another control uses swaps them, as KEY CONFIG does", () => {
@@ -59,6 +61,43 @@ describe("key bindings", () => {
     expect(keys.fire).toEqual(["KeyZ", ""]);
   });
 
+  // [two-player]
+  test("player 2 has a table of their own: W/A/S/D, F, R, Q, E and the keypad", () => {
+    expect(ACTIONS.map((a) => keys2[a][0])).toEqual(["KeyW", "KeyS", "KeyA", "KeyD", "KeyF", "KeyR", "KeyQ", "KeyE"]);
+    expect(keys2.fire).toEqual(["KeyF", "Numpad0"]);
+    expect(isBound("Numpad8")).toBe(true);
+    // Rebinding swaps within player 2's table and leaves player 1's alone.
+    expect(bindKey("fire", 0, "KeyW", 1)).toBe(true);
+    expect(keys2.fire[0]).toBe("KeyW");
+    expect(keys2.up[0]).toBe("KeyF");
+    expect(keys.up).toEqual([...DEFAULT_KEYS.up]);
+    clearKey("left", 1, 1);
+    expect(keys2.left).toEqual(["KeyA", ""]);
+    resetKeys(1);
+    expect(keys2.up).toEqual([...DEFAULT_KEYS_2.up]);
+    expect(setKeys({ ...structuredClone(keys2), fire: ["KeyZ", ""] }, 1)).toBe(true);
+    expect(keys2.fire).toEqual(["KeyZ", ""]);
+    expect(keys.fire).toEqual([...DEFAULT_KEYS.fire]);
+    resetKeys(1);
+  });
+
+  test("the input rows cycle a player's gamepad, swapping with the other player's", () => {
+    expect(pads).toEqual([0, 1]);
+    cyclePad(0); // player 1 takes pad 2 (index 1) from player 2, who gets pad 1
+    expect(pads).toEqual([1, 0]);
+    cyclePad(1);
+    expect(pads).toEqual([0, 1]); // player 2 → pad 2, player 1 takes pad 1 back
+    cyclePad(1);
+    cyclePad(1);
+    expect(pads).toEqual([0, 3]);
+    cyclePad(1); // past the last pad: none
+    expect(pads).toEqual([0, -1]);
+    expect(setPads([2, 2])).toBe(false);
+    expect(setPads([-1, -1])).toBe(true);
+    expect(setPads(["x", 1])).toBe(false);
+    expect(setPads([0, 1])).toBe(true);
+  });
+
   test("key names", () => {
     expect(["ArrowUp", "KeyW", "Space", "ControlLeft", "Semicolon", "Digit4", "Numpad8", ""].map(keyName)).toEqual(["Up", "W", "Space", "Left Ctrl", ";", "4", "Keypad 8", "—"]);
   });
@@ -70,14 +109,20 @@ describe("settings storage", () => {
     volume.tyrMusicVolume = 120;
     volume.fxVolume = 36;
     bindKey("fire", 0, "KeyZ");
+    bindKey("fire", 1, "KeyX", 1); // [two-player]
+    cyclePad(1);
     savePrefs(store);
     const data = JSON.parse(store.getItem(PREFS_STORAGE_KEY)!);
     expect(data).toMatchObject({ version: PREFS_VERSION, musicVolume: 120, fxVolume: 36 });
 
     resetKeys();
+    resetKeys(1);
+    setPads([0, 1]);
     loadPrefs(store);
     expect([volume.tyrMusicVolume, volume.fxVolume]).toEqual([120, 36]);
     expect(keys.fire[0]).toBe("KeyZ");
+    expect(keys2.fire).toEqual(["KeyF", "KeyX"]);
+    expect(pads).toEqual([0, 2]);
   });
 
   test("missing, unreadable or newer settings keep the defaults; a bad field keeps its own", () => {

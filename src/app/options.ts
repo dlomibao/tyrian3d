@@ -21,7 +21,7 @@ import { S_CLICK, S_CLINK, S_CURSOR, S_SELECT, S_SPRING } from "../sim/sndmast";
 import { g } from "../sim/state";
 import { JE_changeVolume, set_volume, volume, volumeFromBarCells, VOLUME_STEP } from "../sim/volume";
 import { backButton, button, h, keyHints, MenuList, moveFocus, reveal, showScreen, title, type InputDevice, type Intent, type KeyHint } from "../ui";
-import { ACTIONS, BINDING_SLOTS, bindKey, clearKey, keyName, keys, resetKeys, type Action } from "./bindings";
+import { ACTIONS, BINDING_SLOTS, bindKey, clearKey, keyName, playerKeys, resetKeys, type Action, type PlayerIndex } from "./bindings";
 import { savePrefs } from "./prefs";
 
 export interface OptionsHost {
@@ -129,8 +129,8 @@ export function itemScreenOptionsRow(e: ItemScreenEntry): string | null {
 export type OptionsRow =
   | { kind: "volume"; which: "music" | "sound"; label: string }
   | { kind: "style"; label: string }
-  | { kind: "key"; action: Action; label: string }
-  | { kind: "reset"; label: string }
+  | { kind: "key"; action: Action; label: string; player: PlayerIndex }
+  | { kind: "reset"; label: string; player: PlayerIndex }
   | { kind: "pad"; label: string }
   | { kind: "done"; label: string };
 
@@ -147,8 +147,11 @@ export function optionsRows(styles: readonly string[]): OptionsRow[] {
     { kind: "volume", which: "music", label: opt[3] || "Music" },
     { kind: "volume", which: "sound", label: opt[4] || "Sound" },
     ...(styles.length > 1 ? [{ kind: "style" as const, label: "Music style" }] : []),
-    ...ACTIONS.map((action, i) => ({ kind: "key" as const, action, label: keyMenu[i + 1] || actionLabels[i] })),
-    { kind: "reset", label: keyMenu[9] || "Reset to Defaults" },
+    // [two-player] player 1's (and the one-player game's) keys, then player 2's
+    ...([0, 1] as const).flatMap((player) => [
+      ...ACTIONS.map((action, i) => ({ kind: "key" as const, action, label: keyMenu[i + 1] || actionLabels[i], player })),
+      { kind: "reset" as const, label: keyMenu[9] || "Reset to Defaults", player },
+    ]),
     { kind: "pad", label: "Check gamepad buttons" },
     { kind: "done", label: keyMenu[10] || "Done" },
   ];
@@ -247,7 +250,7 @@ export class SettingsMenu {
     }
     const r = this.row;
     if (!this.checking && r.kind === "key" && (code === "Delete" || code === "Backspace")) {
-      clearKey(r.action, this.col);
+      clearKey(r.action, this.col, r.player);
       savePrefs();
       this.host.sound(S_CLICK);
       return true;
@@ -268,7 +271,7 @@ export class SettingsMenu {
         break;
       case "reset":
         sound(S_CLICK);
-        resetKeys();
+        resetKeys(this.row.player);
         savePrefs();
         break;
       case "pad":
@@ -341,7 +344,11 @@ export class SettingsMenu {
     switch (this.row.kind) {
       case "volume": return g.mainMenuHelp[15 - 1] ?? "";
       case "style": return "Change the music with the left/right arrow keys.";
-      case "key": return `${g.mainMenuHelp[20 - 1] ?? ""} Left/right picks the first or second key; Delete clears it.`;
+      case "key":
+        return (
+          `${g.mainMenuHelp[20 - 1] ?? ""} Left/right picks the first or second key; Delete clears it.` +
+          (this.row.player === 1 ? " In a two-player game, player 2's keys win over player 1's." : "")
+        );
       case "reset": return g.mainMenuHelp[25 - 1] ?? "";
       case "pad": return "See which gamepad buttons the game reads, and what they do.";
       case "done": return g.mainMenuHelp[12 - 1] ?? "";
@@ -365,7 +372,7 @@ export class SettingsMenu {
     const r = this.row;
     this.capturing = false;
     if (code === "Escape") this.host.sound(S_SPRING);
-    else if (r.kind === "key" && bindKey(r.action, this.col, code)) {
+    else if (r.kind === "key" && bindKey(r.action, this.col, code, r.player)) {
       this.host.sound(S_CLICK);
       savePrefs();
     } else this.host.sound(S_CLINK);
@@ -417,10 +424,12 @@ export function showOptions(host: OptionsHost, focus: OptionsFocus = "sound"): P
       },
     });
 
-    // The rows, in sections: Sound, Keyboard (the C's KEY CONFIG), Gamepad, then Done.
+    // The rows, in sections: Sound, Keyboard (the C's KEY CONFIG), player 2's keyboard, Gamepad, then Done.
     const keyMenu = g.menuInt[6] ?? [];
-    const sectionOf = (r: OptionsRow) => (r.kind === "volume" || r.kind === "style" ? 0 : r.kind === "key" || r.kind === "reset" ? 1 : r.kind === "pad" ? 2 : 3);
-    const sectionTitles = ["Sound", keyMenu[0] ? styleName(keyMenu[0].toLowerCase()) : "Keyboard", (g.menuInt[13] ?? [])[0] || "Gamepad", ""];
+    const sectionOf = (r: OptionsRow) =>
+      r.kind === "volume" || r.kind === "style" ? 0 : r.kind === "key" || r.kind === "reset" ? 1 + r.player : r.kind === "pad" ? 3 : 4;
+    const keyboard = keyMenu[0] ? styleName(keyMenu[0].toLowerCase()) : "Keyboard";
+    const sectionTitles = ["Sound", keyboard, `${keyboard} · ${g.miscText[49]?.trim() || "Player 2"}`, (g.menuInt[13] ?? [])[0] || "Gamepad", ""];
     const list = h("ul", { class: "ui-menu opt-list", attrs: { role: "listbox", "aria-label": "Settings" } });
     const rowEls: HTMLLIElement[] = [];
     let section = -1;
@@ -483,7 +492,7 @@ export function showOptions(host: OptionsHost, focus: OptionsFocus = "sound"): P
         if (r.kind === "style") li.querySelectorAll<HTMLElement>("[data-style]").forEach((b) => b.classList.toggle("is-on", b.dataset.style === host.music.style));
         if (r.kind === "key") {
           li.querySelectorAll<HTMLElement>("[data-slot]").forEach((b, slot) => {
-            const code = keys[r.action][slot];
+            const code = playerKeys(r.player)[r.action][slot];
             const sel = focused && slot === menu.col;
             const wait = sel && menu.capturing;
             b.textContent = wait ? "…" : keyName(code);
