@@ -61,7 +61,7 @@ interface Pose {
 export const POSES: Record<Exclude<BackdropMood, "none">, Pose> = {
   title: { cam: new THREE.Vector3(-2.2, 2.8, 7.8), look: new THREE.Vector3(0, 0, 0), frameX: 0.5, frameXPortrait: 0.3, frameY: 0.3, heading: -0.35, spin: 0, scale: 1 },
   hangar: { cam: new THREE.Vector3(0, 4.6, 4.4), look: new THREE.Vector3(0, 0, 0), frameX: -0.62, frameXPortrait: 0, frameY: 0.1, heading: 0, spin: 0.3, scale: 1 },
-  space: { cam: new THREE.Vector3(-3, 6, 16), look: new THREE.Vector3(0, -1, -2), frameX: 0, frameXPortrait: 0, frameY: 0.5, heading: -0.35, spin: 0, scale: 1 },
+  space: { cam: new THREE.Vector3(-3.2, 2, 9.5), look: new THREE.Vector3(0, 0, 0), frameX: 0.55, frameXPortrait: 0, frameY: -0.45, heading: -0.35, spin: 0, scale: 1 },
 };
 
 export class Backdrop implements BackdropControl {
@@ -119,7 +119,8 @@ export class Backdrop implements BackdropControl {
 
     this.planet.add(planetMesh(), atmosphere());
     this.planet.position.set(0, -PLANET_RADIUS - 34, -300);
-    this.planet.rotation.z = 0.3;
+    // Tip the poles away from the camera (their texture pinches); it spins about its own axis.
+    this.planet.rotation.set(-1.25, 0, 0.3, "XZY");
     this.scene.add(this.planet);
 
     this.glow = engineGlow();

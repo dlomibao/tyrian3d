@@ -17,6 +17,8 @@ export type BackdropMood = "title" | "hangar" | "space" | "none";
 /** The part of the backdrop the manager drives. */
 export interface BackdropControl {
   setMood(mood: BackdropMood): void;
+  /** Show the player ship drawn by this sprite (items.ships[id].shipGraphic). */
+  setShipGraphic?(shipGraphic: number): void;
 }
 
 export interface ScreenOptions {
