@@ -2,13 +2,16 @@
 
 Seen in episode 4 (level section 10). A round ball of churning lava: a white-hot core up and to
 the left, bright yellow streaks swirling round the lower right, and dark red rock at the rim and
-lower left. The three frames only brighten the whole ball (it pulses), so one model covers them.
+lower left. The three frames only brighten the whole ball (it pulses), so one model covers them:
+every pixel of frame 131 is two palette steps brighter than on frame 85, and on frame 233 five
+(up to white), so every colour band steps up the same way on those frames (palette_material
+frames=).
 
 The ball is a squashed sphere whose faces take the sprite's colour bands (smoothed from the first
 frame where they sit in the top view), with a glowing dome for the core and raised glowing
 ridges for the bright streaks.
 
-Run: blender --background --python assets/blender/enemies/newshp-85.py [-- --preview out.png]
+Run: blender --background --python assets/blender/enemies/newshp-85.py [-- --preview out.png] [--frames frames.png]
 """
 
 import math
@@ -33,6 +36,8 @@ HALF_HEIGHT = 0.28
 
 # Colour bands (palette indices) the ball's faces are sorted into, with their emission strength.
 BANDS = [(113, 0.0), (115, 0.0), (117, 0.5), (119, 1.5), (121, 2.5), (123, 3.0), (125, 3.5), (127, 4.5)]
+# How many palette steps the whole ball brightens on each later frame (white, 127, is the top).
+PULSE = {131: 2, 233: 5}
 DARK, MID, WARM, RED, ORANGE, AMBER, YELLOW, WHITE = range(len(BANDS))
 
 
@@ -116,8 +121,9 @@ def dome(bm, c, r, rx, ry, height, mat_index, sink=0.0):
 
 def build(sprite):
     coll = common.reset_collection(NAME)
-    mats = [common.palette_material(sprite, i, NAME, metallic=0.05, roughness=0.6 - 0.04 * k,
-                                    emission_strength=e)
+    mats = [common.palette_material(sprite, i, f"{NAME}-pulse", metallic=0.05, roughness=0.6 - 0.04 * k,
+                                    emission_strength=e,
+                                    frames={f: min(i + d, 127) for f, d in PULSE.items() if i < 127})
             for k, (i, e) in enumerate(BANDS)]
     grid = sprite["frames"][0]["pixels"]
     bm = bmesh.new()
@@ -160,6 +166,8 @@ def main():
         out = sys.argv[sys.argv.index("--preview") + 1]
         ref = ROOT / "reference" / "models" / NAME / sprite["frames"][0]["image"]
         common.render_preview([obj], out, ref, size=sprite["frames"][0]["size"])
+    if "--frames" in sys.argv:
+        common.render_frame_previews([obj], sys.argv[sys.argv.index("--frames") + 1], sprite, ROOT)
 
 
 if __name__ == "__main__":
