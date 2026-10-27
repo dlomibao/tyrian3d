@@ -2,15 +2,21 @@
 
 Seen in episode 1 (from level section 10) and episode 4. It flies nose down the screen: a
 pointed hull with swept wings at the back, two yellow eyes and a spike behind. The three frames
-only blink the orange wing lights, so one model covers them all.
+roll it about its long axis: on frame 1 its back turns to the left (the eyes, spike and markings
+sit a pixel left, the right wing is lit and both wings look shorter), frame 3 is level (wings at
+full span, with two extra orange lights on the left horn and right wing tip), and frame 5 rolls
+the other way. So one model covers them all, as three copies of the ship rolled by -ROLL, 0 and
++ROLL degrees, each shown on its frame (common.frame_part).
 
 Run: blender --background --python assets/blender/enemies/newshf-1.py [-- --preview out.png]
 """
 
+import math
 import sys
 from pathlib import Path
 
 import bmesh
+from mathutils import Matrix
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import common  # noqa: E402
@@ -18,6 +24,7 @@ import common  # noqa: E402
 NAME = "newshf-1"
 MODEL = f"enemies/{NAME}"
 ROOT = common.repo_root(__file__)
+ROLL = 25  # degrees the ship rolls on frames 1 and 5
 
 
 def px(x):
@@ -88,17 +95,34 @@ def build(sprite):
                     sides=8, mat_index=EYE)
         common.shift_x(bm, start, px(x))
 
-    return common.mesh_object(NAME, bm, mats, coll, smooth=True)
+    # One rolled copy of the ship per frame: frame 1 rolls its back to the left, 5 to the right.
+    parts = []
+    for frame, roll in ((1, -ROLL), (3, 0), (5, ROLL)):
+        b = bm.copy()
+        bmesh.ops.rotate(b, verts=b.verts, cent=(0, 0, 0), matrix=Matrix.Rotation(math.radians(roll), 3, "Y"))
+        parts.append(common.frame_part(common.mesh_object(f"{NAME}-f{frame}", b, mats, coll, smooth=True), [frame]))
+    bm.free()
+
+    # The level frame's extra lights: on the left horn's base (row 5, column 10) and the right
+    # wing-tip pod (row 8, column 19).
+    lights = bmesh.new()
+    for x, r, z in ((-2.6 / 12, 5.0, 0.07), ((12 - 5.6 - 0.5) / 12, 8.0, 0.075)):
+        start = len(lights.verts)
+        common.loft(lights, [(row(r - 0.5), 0.0, 0.0, z), (row(r), 0.035, 0.03, z), (row(r + 0.5), 0.0, 0.0, z)],
+                    sides=8, mat_index=LIGHT)
+        common.shift_x(lights, start, x)
+    parts.append(common.frame_part(common.mesh_object(f"{NAME}-lights", lights, mats, coll, smooth=True), [3]))
+    return parts
 
 
 def main():
     sprite = common.load_sprite(ROOT, NAME)
-    obj = build(sprite)
-    common.export_sprite_model(ROOT, [obj], MODEL, sprite["sprites"])
+    objs = build(sprite)
+    common.export_sprite_model(ROOT, objs, MODEL, sprite["sprites"])
     if "--preview" in sys.argv:
         out = sys.argv[sys.argv.index("--preview") + 1]
         ref = ROOT / "reference" / "models" / NAME / sprite["frames"][0]["image"]
-        common.render_preview([obj], out, ref, size=sprite["frames"][0]["size"])
+        common.render_preview(objs, out, ref, size=sprite["frames"][0]["size"], frame=sprite["frames"][0]["index"])
 
 
 if __name__ == "__main__":

@@ -3,7 +3,8 @@
 Seen in episode 1 (level 1.16), on the ground. Seven glossy red balls of different sizes heaped
 together, each with a hot glint on its upper right. The six frames keep the same shape and only
 shift the whole cluster from dark red to yellow (it heats up and glows), so one model covers them,
-coloured with the first frame's palette indices.
+coloured with the first frame's palette indices and stepping its colours up the ramp on each later
+frame (palette_material frames=).
 
 Run: blender --background --python assets/blender/enemies/newshe-155.py [-- --preview out.png]
 """
@@ -49,11 +50,15 @@ BALLS = [
 
 def build(sprite):
     coll = common.reset_collection(NAME)
-    pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
+    # Each frame heats the cluster up: every colour moves up the red-yellow ramp (as the sprite's
+    # pixels do), the glints ending white-hot.
     mats = [
-        pal(117, metallic=0.2, roughness=0.25),  # 0 red shell
-        pal(115, metallic=0.2, roughness=0.5),  # 1 dark base where the balls meet the ground
-        pal(123, emission_strength=3.0),  # 2 hot glints
+        common.palette_material(sprite, 117, f"{NAME}_shell", metallic=0.2, roughness=0.25,
+                                frames={157: 119, 159: 120, 161: 121, 163: 122, 165: 124}),  # 0 red shell
+        common.palette_material(sprite, 115, f"{NAME}_base", metallic=0.2, roughness=0.5,
+                                frames={157: 117, 159: 119, 161: 120, 163: 121, 165: 122}),  # 1 dark base
+        common.palette_material(sprite, 123, f"{NAME}_glint", emission_strength=3.0,
+                                frames={157: 124, 159: 125, 161: 126, 163: 31, 165: 255}),  # 2 hot glints
     ]
     SHELL, BASE, GLINT = range(3)
     bm = bmesh.new()

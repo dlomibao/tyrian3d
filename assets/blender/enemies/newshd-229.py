@@ -5,7 +5,8 @@ a few lumps: a big pale one on the left, one on top right, a bright knob in the 
 smaller ones below, split by dark cracks), with a blue light in the crack below the middle knob
 that the frames switch on and grow into a glowing diamond. The frames only change the light, so
 one model covers them all: the rock as in newshd-229, with a glowing blue crystal set in the
-crack. Its faces take the grey of the first frame's pixels.
+crack for each look of the light (none, a small cross, a deep-blue diamond, a pale-blue one).
+Its faces take the grey of the first frame's pixels.
 
 Run: blender --background --python assets/blender/enemies/newshd-229.py [-- --preview out.png]
 """
@@ -43,32 +44,44 @@ def build(sprite):
     lib.paint(bm, first, grid, lambda i: mats(i, metallic=0.1, roughness=0.85), min_nz=-0.3)
     rock = common.mesh_object(NAME, bm, mats.list, coll, smooth=True)
 
-    # The blue light (rows 12-16, columns 10-14 in the last frame): a glowing crystal, a flattened
-    # octahedron sitting in the crack with its tips pointing along the diamond's arms.
+    # The blue light, set in the crack below the middle knob (centre row 14, column 12): off on
+    # frame 229, a small dark-blue cross on 231 (rows 13-15), a diamond on 233 and 235 (rows 12-16,
+    # columns 10-14) that brightens from deep blue to pale blue with a white-hot heart on 235. Each
+    # look is a glowing crystal, a flattened octahedron with its tips along the arms, shown on its
+    # frames (common.frame_part); the diamond's colours change between 233 and 235.
     gc, gr = 12, 14
     gx, gy = grid.x(gc), grid.y(gr)
     near = [v.co.z for v in rock.data.vertices if (v.co.x - gx) ** 2 + (v.co.y - gy) ** 2 < (2.0 / 12) ** 2
             and v.co.z > 0]
     z0 = sum(near) / len(near)
-    gmats = [common.palette_material(sprite, 154, NAME, metallic=0.2, roughness=0.2, emission_strength=4.0),
-             common.palette_material(sprite, 141, NAME, metallic=0.1, roughness=0.15, emission_strength=6.0)]
-    bm = bmesh.new()
-    r = 2.6 / 12
-    ring = [bm.verts.new((gx + r * dx, gy + r * dy, z0)) for dx, dy in ((1, 0), (0, 1), (-1, 0), (0, -1))]
-    top = bm.verts.new((gx, gy, z0 + 0.06))
-    bottom = bm.verts.new((gx, gy, z0 - 0.08))
-    for k in range(4):
-        j = (k + 1) % 4
-        bm.faces.new((ring[k], ring[j], top)).material_index = 0
-        bm.faces.new((ring[j], ring[k], bottom)).material_index = 0
-    # Its white-hot heart (the middle pixel), just proud of the crystal's tip.
-    common.loft(bm, [(gy - 0.6 / 12, 0.0, 0.0, z0 + 0.05), (gy, 0.55 / 12, 0.03, z0 + 0.05),
-                     (gy + 0.6 / 12, 0.0, 0.0, z0 + 0.05)], sides=8, mat_index=1)
-    bm.verts.ensure_lookup_table()
-    for v in bm.verts[6:]:
-        v.co.x += gx
-    gem = common.mesh_object(f"{NAME}_light", bm, gmats, coll, smooth=False)
-    return [rock, gem]
+
+    def crystal(name, r, heart_r, gmats, frames):
+        bm = bmesh.new()
+        ring = [bm.verts.new((gx + r * dx, gy + r * dy, z0)) for dx, dy in ((1, 0), (0, 1), (-1, 0), (0, -1))]
+        top = bm.verts.new((gx, gy, z0 + 0.06 * r / (2.6 / 12)))
+        bottom = bm.verts.new((gx, gy, z0 - 0.08))
+        for k in range(4):
+            j = (k + 1) % 4
+            bm.faces.new((ring[k], ring[j], top)).material_index = 0
+            bm.faces.new((ring[j], ring[k], bottom)).material_index = 0
+        # Its brighter heart (the middle pixel), just proud of the crystal's tip.
+        hz = z0 + 0.05 * r / (2.6 / 12)
+        common.loft(bm, [(gy - 0.6 / 12, 0.0, 0.0, hz), (gy, heart_r, 0.03, hz),
+                         (gy + 0.6 / 12, 0.0, 0.0, hz)], sides=8, mat_index=1)
+        bm.verts.ensure_lookup_table()
+        for v in bm.verts[6:]:
+            v.co.x += gx
+        return common.frame_part(common.mesh_object(f"{NAME}_light_{name}", bm, gmats, coll, smooth=False), frames)
+
+    small = crystal("small", 1.6 / 12, 0.5 / 12, [
+        common.palette_material(sprite, 151, NAME, metallic=0.2, roughness=0.2, emission_strength=3.0),
+        common.palette_material(sprite, 154, NAME, metallic=0.2, roughness=0.2, emission_strength=4.0)], [231])
+    big = crystal("big", 2.6 / 12, 0.55 / 12, [
+        common.palette_material(sprite, 152, f"{NAME}_light", metallic=0.2, roughness=0.2, emission_strength=4.0,
+                                frames={235: 156}),
+        common.palette_material(sprite, 157, f"{NAME}_heart", metallic=0.1, roughness=0.15, emission_strength=6.0,
+                                frames={235: 141})], [233, 235])
+    return [rock, small, big]
 
 
 def main():
