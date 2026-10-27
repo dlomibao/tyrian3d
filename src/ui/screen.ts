@@ -45,6 +45,14 @@ export interface ScreenOptions {
    * edge-triggered, for a screen's own shortcuts (the title's Y for High Scores).
    */
   onPadButton?: (button: number) => void;
+  /**
+   * [restyle-options] Show over the current screen instead of closing it: a screen opened from
+   * another (Options from the title or the item screen). The one beneath stays open and gets no
+   * input until this one closes; it is hidden meanwhile (true), or left in view under a dialog
+   * ("show": the item screen under its save prompt). Without `backdrop`, the mood stays the one
+   * beneath.
+   */
+  over?: boolean | "show";
 }
 
 export interface ModalAction<T> {
@@ -234,6 +242,8 @@ export class Screen implements NavTarget {
 
 export class ScreenManager {
   private _current: Screen | null = null;
+  /** [restyle-options] Screens under the current one (ScreenOptions.over), bottom first. */
+  private readonly under: Screen[] = [];
   private _backdrop: BackdropControl | null = null;
   private nav: Nav | null = null;
 
@@ -256,14 +266,23 @@ export class ScreenManager {
   show(opts: ScreenOptions): Screen {
     this.nav ??= new Nav();
     const prev = this._current;
-    const screen = new Screen(opts, this);
+    // [restyle-options] A screen shown over another keeps it (and its backdrop mood) underneath;
+    // any other closes it and everything under it.
+    const below = opts.over ? prev : null;
+    const screen = new Screen(below && !opts.backdrop ? { ...opts, backdrop: below.opts.backdrop ?? "space" } : opts, this);
     this._current = screen;
-    prev?.close();
+    if (below) {
+      this.under.push(below);
+      below.root.classList.toggle("is-under", opts.over !== "show");
+    } else {
+      prev?.close();
+      for (const s of this.under.splice(0)) s.close();
+    }
     document.body.append(screen.root);
     // Next frame, so the entering transition runs from the initial state.
     requestAnimationFrame(() => requestAnimationFrame(() => screen.root.classList.add("is-shown")));
     this.nav.setTarget(opts.passive ? null : screen);
-    this._backdrop?.setMood(opts.backdrop ?? "space");
+    this._backdrop?.setMood(screen.opts.backdrop ?? "space");
     return screen;
   }
 
@@ -273,12 +292,16 @@ export class ScreenManager {
     this.nav?.setTarget(screen.opts.passive || screen.isAside ? null : screen);
   }
 
-  /** Called by Screen.close. */
+  /** Called by Screen.close. [restyle-options] The screen beneath, if any, is back on top. */
   closed(screen: Screen): void {
+    const i = this.under.indexOf(screen);
+    if (i >= 0) this.under.splice(i, 1);
     if (this._current !== screen) return;
-    this._current = null;
-    this.nav?.setTarget(null);
-    this._backdrop?.setMood("none");
+    const below = this.under.pop() ?? null;
+    this._current = below;
+    below?.root.classList.remove("is-under");
+    this.nav?.setTarget(below && !below.opts.passive && !below.isAside ? below : null);
+    this._backdrop?.setMood(below?.opts.backdrop ?? "none");
   }
 }
 
