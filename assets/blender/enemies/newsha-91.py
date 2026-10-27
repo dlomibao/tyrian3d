@@ -3,7 +3,8 @@
 Seen in episode 1 (level 31). A ground tile of brown sand with a glossy tan dome sunk in a dark
 crater: a round hatch ring on its top, a small knob on a stalk at its upper right, a spike lying
 on the sand below it and a glowing red vent slanting across its lower-left flank. The two frames
-only brighten the vent, so one model covers both.
+only brighten the vent, so one model covers both: on frame 129 its glow and hot spot step up to
+brighter oranges (palette_material frames=).
 
 Run: blender --background --python assets/blender/enemies/newsha-91.py [-- --preview out.png]
 """
@@ -47,8 +48,8 @@ def build(sprite):
         pal(28, metallic=0.55, roughness=0.25),  # 5 knob
         pal(25, metallic=0.4, roughness=0.4),  # 6 spike
         pal(113, metallic=0.2, roughness=0.6),  # 7 vent lip
-        pal(117, emission_strength=2.5),  # 8 vent glow
-        pal(121, emission_strength=4.5),  # 9 vent hot spot
+        common.palette_material(sprite, 117, f"{NAME}-vent", emission_strength=2.5, frames={129: 121}),  # 8 vent glow
+        common.palette_material(sprite, 121, f"{NAME}-hot", emission_strength=4.5, frames={129: 123}),  # 9 vent hot spot
     ]
     SAND, CRATER, DOME, RING, HATCH, KNOB, SPIKE, LIP, GLOW, HOT = range(10)
     bm = bmesh.new()

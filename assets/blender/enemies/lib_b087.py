@@ -249,6 +249,8 @@ def run(name, build, file):
         for k, (model, objects, _, image) in enumerate(models):
             path = out if k == 0 else out.with_name(f"{out.stem}-f{k + 1}.png")
             common.render_preview(objects, str(path), root / "reference" / "models" / name / image, size=size)
+    if "--frame-previews" in sys.argv:  # every frame of the first model, one row each
+        common.render_frame_previews(models[0][1], sys.argv[sys.argv.index("--frame-previews") + 1], sprite, root)
     return sprite
 
 
