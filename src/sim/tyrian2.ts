@@ -57,6 +57,7 @@ import {
 } from "./state";
 import { JE_setupExplosion, randomEnemyLaunchSounds, superTyrianSpecials } from "./varz";
 import { initialize_starfield } from "./backgrnd";
+import { clearStorySteps, storyStep } from "./story";
 
 /** shapeFile[34] (lvlmast.c): newsh?.shp suffix per enemy shape bank (event 5). */
 export const shapeFile = [
@@ -1724,10 +1725,12 @@ const DEFAULT_SONG_BUY = 2;
  * when a level was loaded, false when the player quit from the item screen (back to the title).
  * JE_loadMap and JE_loadMapAsync below drive it.
  *
- * Ported: every script command's effect on game state. Not ported (no-ops, marked below):
- * pictures, fades, palette changes and text screens (the `]W` text is kept in
- * g.levelWarningText), the end-of-episode sequence (`]Q` throws EpisodeEndError), demos, saving,
- * loading a saved game from the item screen, and network sync.
+ * Ported: every script command's effect on game state. The screens between levels (pictures,
+ * fades, palette changes, `]W` text and `]M` music) are recorded as StorySteps (src/sim/story.ts)
+ * for the host to play before the item screen, before the level, and at `]Q`; the `]W` text is
+ * also kept in g.levelWarningText. Not ported (no-ops, marked below): the `]A` animation, the
+ * end-of-episode sequence (`]Q` throws EpisodeEndError), demos, saving, loading a saved game from
+ * the item screen, and network sync.
  */
 export function* JE_loadMapSteps(files: TyrianFiles): Generator<LoadMapPause, boolean, void> {
   g.lastCubeMax = g.cubeMax;
@@ -1745,6 +1748,8 @@ export function* JE_loadMapSteps(files: TyrianFiles): Generator<LoadMapPause, bo
   // haltGame = false: menus, not simulated.
 
   g.gameLoaded = false;
+
+  clearStorySteps(); // (not in the C) steps a host didn't play belong to an earlier JE_loadMap
 
   const episodeData = requireFile(files, `levels${g.episodeNum}.dat`);
   let script = scriptCache.get(episodeData);
@@ -1950,21 +1955,72 @@ export function* JE_loadMapSteps(files: TyrianFiles): Generator<LoadMapPause, bo
               // Hint text, the ending screens and JE_nextEpisode: not ported.
               throw new EpisodeEndError(`episode ${g.episodeNum} ends at section ${g.mainLevel}`);
 
+            // The screens below are recorded for the host to play (src/sim/story.ts); each
+            // storyStep is the C call named beside it. isNetworkGame is always false.
             case "P": // Show picture or clear and set palette.
+              if (!g.constantPlay) {
+                const tempX = u16(atoi(s.slice(3)));
+                if (tempX > 900) {
+                  storyStep({ op: "setColors", palette: pcxpal[tempX - 1 - 900] }); // memcpy(colors, palettes[pcxpal[tempX-1 - 900]], ...)
+                  storyStep({ op: "clear" }); // JE_clr256(VGAScreen); JE_showVGA()
+                  storyStep({ op: "fadePalette", steps: 1 }); // fade_palette(colors, 1, 0, 255)
+                } else {
+                  if (tempX === 0) storyStep({ op: "loadPic", pic: 0, palette: -1 }); // JE_loadPCX("tshp2.pcx")
+                  else storyStep({ op: "loadPic", pic: tempX, palette: pcxpal[tempX - 1] }); // JE_loadPic(VGAScreen, tempX, false)
+
+                  storyStep({ op: "fadePalette", steps: 10 }); // JE_showVGA(); fade_palette(colors, 10, 0, 255)
+                }
+              }
+              break;
+
             case "U": // Pan up to picture.
+              if (!g.constantPlay) {
+                const tempX = u16(atoi(s.slice(3)));
+                storyStep({ op: "pan", dir: "up", pic: tempX, palette: pcxpal[tempX - 1], frames: 200 }); // for (z = 0; z <= 199; z++)
+              }
+              break;
+
             case "V": // Slide picture up.
+              if (!g.constantPlay) {
+                const tempX = u16(atoi(s.slice(3)));
+                storyStep({ op: "pan", dir: "slideUp", pic: tempX, palette: pcxpal[tempX - 1], frames: 200 }); // for (z = 0; z <= 199; z++)
+              }
+              break;
+
             case "R": // Pan right to picture.
+              if (!g.constantPlay) {
+                const tempX = u16(atoi(s.slice(3)));
+                storyStep({ op: "pan", dir: "right", pic: tempX, palette: pcxpal[tempX - 1], frames: 319 }); // for (z = 0; z <= 318; z++)
+              }
+              break;
+
             case "C": // Fade to black, clear, and reset palette.
+              storyStep({ op: "fadeBlack", steps: 10 }); // fade_black(10)
+              storyStep({ op: "clear" }); // JE_clr256(VGAScreen); JE_showVGA()
+              storyStep({ op: "setColors", palette: 7 }); // memcpy(colors, palettes[7], sizeof(colors))
+              storyStep({ op: "setPalette" }); // set_palette(colors, 0, 255)
+              break;
+
             case "B": // Fade to black.
+              storyStep({ op: "fadeBlack", steps: 10 }); // fade_black(10)
+              break;
+
             case "F": // Flash and clear.
-              // Screens between levels: not ported. (JE_main sets the in-level palette.)
+              storyStep({ op: "fadeWhite", steps: 100 }); // fade_white(100)
+              storyStep({ op: "fadeBlack", steps: 30 }); // fade_black(30)
+              storyStep({ op: "clear" }); // JE_clr256(VGAScreen); JE_showVGA()
               break;
 
             case "W": // Show text, optionally with warning flashers and sirens.
               if (!g.constantPlay) {
-                // (ESCPressed is never set here.)
-                const frames = atoi(s.slice(4));
-                g.frameCountMax = frames % 10;
+                // if (!ESCPressed): the host skips the text while Esc is in effect.
+                // warningCol, warningColChange and warningSoundDelay are the player's.
+                const levelWarningDisplay = s[2] === "y";
+                let frameCountMax = atoi(s.slice(4));
+                // setFrameCount2(6): the player's.
+                const warningRed = Math.trunc(frameCountMax / 10);
+                frameCountMax = frameCountMax % 10;
+                g.frameCountMax = frameCountMax;
                 g.levelWarningText = [];
 
                 // Read text.
@@ -1973,10 +2029,21 @@ export function* JE_loadMapSteps(files: TyrianFiles): Generator<LoadMapPause, bo
 
                   if (s[0] === "#") break;
 
-                  g.levelWarningText.push(s);
+                  if (g.levelWarningText.length >= 10) continue; // logWarn("Text has too many lines.")
+
+                  g.levelWarningText.push(s.slice(0, 60)); // SDL_strlcpy into char[61]
                 }
 
-                // JE_displayText(): the text screen isn't ported.
+                // JE_displayText()
+                storyStep({
+                  op: "text",
+                  lines: [...g.levelWarningText],
+                  prompt: g.miscText[4],
+                  frameCountMax,
+                  warningRed: warningRed !== 0,
+                  warningDisplay: levelWarningDisplay,
+                  useLastBank: g.useLastBank,
+                });
               }
               break;
 
@@ -1997,10 +2064,12 @@ export function* JE_loadMapSteps(files: TyrianFiles): Generator<LoadMapPause, bo
               break;
 
             case "n": // End of scene.
+              storyStep({ op: "endScene" }); // ESCPressed = false
               break;
 
             case "M": // Play music track.
               play_song(atoi(s.slice(3)) - 1);
+              storyStep({ op: "song", song: g.song }); // so the host plays it in order with the screens
               break;
           }
         }
@@ -2008,7 +2077,8 @@ export function* JE_loadMapSteps(files: TyrianFiles): Generator<LoadMapPause, bo
     } while (!loadLevelOk);
   }
 
-  // Demos and fade_black(50): not ported.
+  // Demos: not ported.
+  storyStep({ op: "fadeBlack", steps: 50 }); // fade_black(50)
 
   loadLevelFile(files);
   return true;
