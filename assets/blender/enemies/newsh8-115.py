@@ -2,8 +2,9 @@
 
 Seen in episode 3 (level 3.4). A grey metal dome with a red lamp on its crown and a glowing red
 core under its front edge, sitting on a brown crossbar with two legs that end in hooked feet.
-The three frames only pulse the lamp and the core (and twitch the hooks by a pixel), so one
-model covers them all.
+The three frames only pulse the lamp and the core and curl the hooks in by a pixel at a time, so
+one model covers them all: the core brightens and the lamp dims (palette_material frames=), and
+each frame has its own pair of hooks (common.frame_part).
 
 Run: blender --background --python assets/blender/enemies/newsh8-115.py [-- --preview out.png]
 """
@@ -31,15 +32,18 @@ def build(sprite):
         pal(9, metallic=0.75, roughness=0.3),  # 0 grey dome
         pal(5, metallic=0.7, roughness=0.4),  # 1 dark grey: shaded side, collar
         pal(13, metallic=0.8, roughness=0.2),  # 2 light grey highlight
-        pal(123, emission_strength=3.5),  # 3 crown lamp
-        pal(121, emission_strength=4.0),  # 4 core
-        pal(126, emission_strength=5.0),  # 5 core's hot centre
+        # The lamp dims a little on 117 and 119; the core brightens from 115 to 119.
+        common.palette_material(sprite, 123, f"{NAME}-lamp", emission_strength=3.5, frames={117: 122, 119: 122}),  # 3 crown lamp
+        common.palette_material(sprite, 121, f"{NAME}-core", emission_strength=4.0, frames={117: 123, 119: 125}),  # 4 core
+        common.palette_material(sprite, 126, f"{NAME}-hot", emission_strength=5.0, frames={117: 127, 119: 127}),  # 5 core's hot centre
         pal(23, metallic=0.3, roughness=0.55),  # 6 brown frame
         pal(19, metallic=0.25, roughness=0.6),  # 7 dark brown
         pal(27, metallic=0.35, roughness=0.45),  # 8 light brown
-        pal(115, metallic=0.3, roughness=0.5),  # 9 dark red lamp and core sockets
+        pal(115, metallic=0.3, roughness=0.5),  # 9 dark red lamp socket
+        common.palette_material(sprite, 115, f"{NAME}-ring", metallic=0.3, roughness=0.5,
+                                frames={117: 118, 119: 120}),  # 10 core socket, glowing with the core
     ]
-    GREY, DGREY, LGREY, LAMP, CORE, HOT, BROWN, DBROWN, LBROWN, SOCKET = range(10)
+    GREY, DGREY, LGREY, LAMP, CORE, HOT, BROWN, DBROWN, LBROWN, SOCKET, RING = range(11)
     pixels = sprite["frames"][0]["pixels"]
     bm = bmesh.new()
 
@@ -67,29 +71,43 @@ def build(sprite):
     strut += L.mirror(bm, AXIS, strut)
 
     # Glowing core under the front of the dome (rows 12-16).
-    L.ellipsoid(bm, L.P(12, 14.2, -0.02), (3.4 * L.PX, 3.0 * L.PX, 0.13), segments=14, rings=7, mat=SOCKET)
+    L.ellipsoid(bm, L.P(12, 14.2, -0.02), (3.4 * L.PX, 3.0 * L.PX, 0.13), segments=14, rings=7, mat=RING)
     L.ellipsoid(bm, L.P(12, 14.1, 0.0), (2.7 * L.PX, 2.4 * L.PX, 0.13), segments=14, rings=7, mat=CORE)
     L.ellipsoid(bm, L.P(12, 14.0, 0.08), (1.2 * L.PX, 1.1 * L.PX, 0.065), segments=10, rings=5, mat=HOT)
 
-    # Left leg (column 8-9) down to a hooked foot (rows 21-26) whose claw curls up at column 1-2.
+    # Left leg (column 8-9) down to a hooked foot (rows 21-26).
     leg = L.ptube(bm, [(8.6, 16.5, -0.06, 1.1), (8.6, 21.0, -0.08, 1.2), (8.0, 23.0, -0.09, 1.6)],
                   sides=8, mat=BROWN)
     leg += L.ellipsoid(bm, L.P(6.2, 23.9, -0.09), (3.4 * L.PX, 2.7 * L.PX, 0.11), segments=12, rings=6, mat=BROWN)
-    leg += L.ptube(bm, [(4.4, 24.2, -0.09, 2.0), (3.0, 23.8, -0.08, 1.6), (2.0, 22.6, -0.06, 1.2),
-                        (1.7, 21.2, -0.05, 0.8), (1.8, 20.2, -0.05, 0.0)], sides=8, mat=LBROWN)
     leg += L.mirror(bm, AXIS, leg)
-    L.paint(bm, leg + bar, pixels, lambda v, s: LBROWN if v >= 24.5 else (BROWN if v >= 20.5 else DBROWN))
+    shade = lambda v, s: LBROWN if v >= 24.5 else (BROWN if v >= 20.5 else DBROWN)  # noqa: E731
+    L.paint(bm, leg + bar, pixels, shade)
+    parts = [L.to_object(NAME, bm, mats, coll)]
 
-    return L.to_object(NAME, bm, mats, coll)
+    # The hooks: each foot's claw curls up at column 1-2 on frame 115 and a pixel further in on
+    # each later frame, one pair of claws per frame.
+    for frame, curl in ((115, 0.0), (117, 0.8), (119, 1.6)):
+        cbm = bmesh.new()
+        claw = L.ptube(cbm, [(4.4, 24.2, -0.09, 2.0), (3.0 + 0.3 * curl, 23.8, -0.08, 1.6),
+                             (2.0 + 0.6 * curl, 22.6, -0.06, 1.2), (1.7 + 0.9 * curl, 21.2, -0.05, 0.8),
+                             (1.8 + curl, 20.2, -0.05, 0.0)], sides=8, mat=LBROWN)
+        claw += L.mirror(cbm, AXIS, claw)
+        L.paint(cbm, claw, L.frame_pixels(sprite, frame), shade)
+        parts.append(common.frame_part(L.to_object(f"{NAME}-hooks-{frame}", cbm, mats, coll), [frame]))
+    return parts
 
 
 def main():
     sprite = common.load_sprite(ROOT, NAME)
-    obj = build(sprite)
-    common.export_sprite_model(ROOT, [obj], MODEL, sprite["sprites"])
+    objs = build(sprite)
+    common.export_sprite_model(ROOT, objs, MODEL, sprite["sprites"])
     out = L.preview_args()
     if out:
-        L.preview([obj], ROOT, NAME, sprite["frames"][0]["image"], out)
+        first = sprite["frames"][0]
+        common.render_preview(objs, str(out), ROOT / "reference" / "models" / NAME / first["image"], size=2,
+                              frame=first["index"])
+    if "--frames" in sys.argv:
+        common.render_frame_previews(objs, sys.argv[sys.argv.index("--frames") + 1], sprite, ROOT)
 
 
 if __name__ == "__main__":

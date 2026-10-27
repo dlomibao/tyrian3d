@@ -7,7 +7,8 @@ worm pushes out of the pit and down the screen, over the lower lip; newsh8-87, t
 it, shows the worm's pointed tip coming on down. In the last frame (85) the burrow is gone and
 only the worm is left, with a mushroom-shaped head.
 
-The frames change shape, so each distinct stage gets its own model:
+The frames change shape, so each distinct stage gets its own model (those covering two frames
+animate: a worm per frame, see ANIMATED):
     newsh8-9     frames 9, 11    the empty burrow
     newsh8-9-f2  frame 13        the worm's tip shows in the pit
     newsh8-9-f3  frame 15        ... reaches the lower lip
@@ -64,6 +65,11 @@ MODELS = [
     ("newsh8-87-f3", LOWER, [91], 91, False),
     ("newsh8-87-f4", LOWER, [93, 123], 93, False),
 ]
+
+# Models whose frames move the worm: each of their frames gets its own worm (common.frame_part).
+# newsh8-9's frame 11 shows the worm's dim tip in the pit; 49/51 and 53/55 slide the worm down; in
+# 123 the lower body has moved two rows up from 93.
+ANIMATED = {"newsh8-9", "newsh8-9-f6", "newsh8-9-f7", "newsh8-87-f4"}
 
 HOLE, DARK, MID, LIGHT, HIGH = range(5)
 
@@ -250,25 +256,69 @@ def blur_paint(bm, faces, pixels, slot_of):
             f.material_index = slot_of(sum(vals) / len(vals))
 
 
-def build_model(name, piece, frame, with_burrow, mats, base_pixels, frame_pixels):
-    coll = common.reset_collection(name)
-    bm = bmesh.new()
-    if with_burrow:
-        burrow(bm, base_pixels)
-        if frame != 9:
-            # Out of the pit (rows 4-9) and up over the lower lip.
-            worm(bm, frame_pixels, base_pixels,
-                 lambda r: -0.13 + 0.17 * min(1.0, max(0.0, (r - 4.0) / 8.0)), seed=frame)
-    elif piece == UPPER:
-        worm(bm, frame_pixels, None, lambda r: 0.04, seed=frame)
-    else:
-        worm(bm, frame_pixels, None, lambda r: 0.04, extend_top=True, seed=frame)
+def cut(name, bm, mats, coll):
+    """The mesh in `bm` as an object, cut to its piece's 24x28 box."""
     whole = L.to_object(name + "_whole", bm, mats, coll)
     obj = common.split_assembly(whole, [(name, 0, 0)])[name]
     mesh = whole.data
     bpy.data.objects.remove(whole, do_unlink=True)
     bpy.data.meshes.remove(mesh)
     return obj
+
+
+def burrow_z(r):
+    """Out of the pit (rows 4-9) and up over the lower lip."""
+    return -0.13 + 0.17 * min(1.0, max(0.0, (r - 4.0) / 8.0))
+
+
+def add_worm(bm, name, piece, with_burrow, base_pixels, frame_pixels, seed):
+    if with_burrow:
+        return worm(bm, frame_pixels, base_pixels, burrow_z, seed=seed)
+    if piece == UPPER:
+        return worm(bm, frame_pixels, None, lambda r: 0.04, seed=seed)
+    return worm(bm, frame_pixels, None, lambda r: 0.04, extend_top=True, seed=seed)
+
+
+def tip_in_the_dark(base_pixels, pixels):
+    """Frame 11's pixels with only the worm's dim tip (rows 4-11) differing from the empty burrow;
+    the frame's other changes (a boulder a shade darker, shadows in the pit) are left out."""
+    return [line if r <= 11 else base_pixels[r] for r, line in enumerate(pixels)]
+
+
+def build_model(name, piece, frames, frame, with_burrow, mats, base_pixels, pixels_of):
+    """The model's objects. A model that covers several frames of a moving worm (ANIMATED) gets
+    its burrow once and a worm per frame (common.frame_part); the others are one object shaped
+    from `frame`."""
+    coll = common.reset_collection(name)
+    if name not in ANIMATED:
+        bm = bmesh.new()
+        if with_burrow:
+            burrow(bm, base_pixels)
+        if not (with_burrow and frame == 9):
+            add_worm(bm, name, piece, with_burrow, base_pixels, pixels_of(frame), frame)
+        return [cut(name, bm, mats, coll)]
+    objs = []
+    if with_burrow:
+        bm = bmesh.new()
+        burrow(bm, base_pixels)
+        objs.append(cut(name, bm, mats, coll))
+    for f in frames:
+        if with_burrow and f == 9:
+            continue  # the empty burrow
+        bm = bmesh.new()
+        if f == 11:
+            # The worm's tip just shows in the dark of the pit, in near-black rock (19 and darker).
+            faces = add_worm(bm, name, piece, with_burrow, base_pixels, tip_in_the_dark(base_pixels, pixels_of(f)), f)
+            for face in faces:
+                face.material_index = DARK
+        else:
+            add_worm(bm, name, piece, with_burrow, base_pixels, pixels_of(f), f)
+        objs.append(common.frame_part(cut(f"{name}-worm-{f}", bm, mats, coll), [f]))
+    return objs
+
+
+def on_frame(objs, frame):
+    return [o for o in objs if "tyrian_frames" not in o or frame in list(o["tyrian_frames"])]
 
 
 def main():
@@ -278,23 +328,33 @@ def main():
     mats = materials(sprite)
     base = L.frame_pixels(upper, 9)
     out = L.preview_args()
+    frames_dir = Path(sys.argv[sys.argv.index("--frames") + 1]) if "--frames" in sys.argv else None
     built = {}
     for name, piece, frames, frame, with_burrow in MODELS:
         data = upper if piece == UPPER else lower
-        obj = build_model(name, piece, frame, with_burrow, mats, base, L.frame_pixels(data, frame))
-        common.export_sprite_model(ROOT, [obj], f"enemies/{name}", L.frames_subset(data, frames))
-        built[name] = (obj, data, frame)
+        objs = build_model(name, piece, frames, frame, with_burrow, mats, base,
+                           lambda f, data=data: L.frame_pixels(data, f))
+        common.export_sprite_model(ROOT, objs, f"enemies/{name}", L.frames_subset(data, frames))
+        built[name] = (objs, data, frame)
+        if frames_dir and name in ANIMATED:
+            sub = {**data, "frames": [f for f in data["frames"] if f["index"] in frames]}
+            common.render_frame_previews(objs, str(frames_dir / f"{name}.png"), sub, ROOT)
     if out:
-        for name, (obj, data, frame) in built.items():
+        for name, (objs, data, frame) in built.items():
             img = next(f["image"] for f in data["frames"] if f["index"] == frame)
-            L.preview([obj], ROOT, data["name"], img, out.parent / f"{name}.png")
+            common.render_preview(objs, str(out.parent / f"{name}.png"),
+                                  ROOT / "reference" / "models" / data["name"] / img, size=2, frame=frame)
         # The two pieces together: newsh8-9-f7 over newsh8-87-f4.
         ref = L.composite_png(ROOT, [(UPPER, 55, 12, 0), (LOWER, 93, 12, 28)], 48, 56,
                               Path(tempfile.mkdtemp()) / "assembly.png")
-        top, bottom = built["newsh8-9-f7"][0], built["newsh8-87-f4"][0]
-        top.location.y, bottom.location.y = 14 / 12, -14 / 12
-        common.render_preview([top, bottom], str(out), str(ref), size=4, view_px=480)
-        top.location.y = bottom.location.y = 0.0
+        top, bottom = on_frame(built["newsh8-9-f7"][0], 55), on_frame(built["newsh8-87-f4"][0], 93)
+        for o in top:
+            o.location.y = 14 / 12
+        for o in bottom:
+            o.location.y = -14 / 12
+        common.render_preview(top + bottom, str(out), str(ref), size=4, view_px=480)
+        for o in top + bottom:
+            o.location.y = 0.0
 
 
 if __name__ == "__main__":
