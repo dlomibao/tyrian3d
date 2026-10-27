@@ -10,7 +10,9 @@ a blue turret (newshc-155), with more machinery under them from another batch.
   materials changing colour per frame (palette_material frames=).
 - newshc-155: a blue hood of two lobes with green strips on its corners, a grey housing with dark
   ports, a purple cannon tilted up toward the bottom of the screen and a grey bracket on the
-  ground in front. Its three frames are pixel for pixel the same, so it doesn't animate.
+  ground in front. Its three frames only brighten the green corner strips (dark green 38-40 on
+  frame 155, 41-44 on 157, the bright 201-204 greens on 159), so the strip and light materials
+  change colour per frame (palette_material frames=).
 
 Both are built in assembly coordinates (screen pixel cx 57, cy 53 is the origin) and cut into
 the pieces with common.split_assembly. The second newshc-165 in the layout uses the same model.
@@ -93,7 +95,9 @@ def build(sprite):
         pal(57, metallic=0.2, roughness=0.4),  # 7 blue hood
         pal(60, metallic=0.4, roughness=0.3),  # 8 hood highlight
         pal(52, metallic=0.3, roughness=0.6),  # 9 dark blue skirt
-        pal(39, metallic=0.3, roughness=0.5),  # 10 green corner strips
+        # The corner strips and their lights brighten on frames 157 and 159.
+        common.palette_material(sprite, 39, "nshc155-corner", metallic=0.3, roughness=0.5,
+                                frames={157: 41, 159: 42}),  # 10 green corner strips
         pal(106, metallic=0.6, roughness=0.35),  # 11 grey housing
         pal(109, metallic=0.6, roughness=0.3),  # 12 housing top edge
         pal(98, metallic=0.4, roughness=0.6),  # 13 dark ports
@@ -104,7 +108,8 @@ def build(sprite):
         pal(91, metallic=0.4, roughness=0.35),  # 18 purple cannon
         pal(89, metallic=0.4, roughness=0.4),  # 19 cannon muzzle rim
         pal(82, metallic=0.2, roughness=0.7),  # 20 bore
-        pal(202, emission_strength=2.0),  # 21 green corner lights
+        common.palette_material(sprite, 38, "nshc155-light", emission_strength=2.0,
+                                frames={157: 43, 159: 202}),  # 21 green corner lights
         pal(93, metallic=0.4, roughness=0.3),  # 22 cannon highlight
     ]
     M = dict(arc=0, hot=1, cradle=2, orb=3, orb_hi=4, slot=5, rod=6, hood=7, hood_hi=8, skirt=9,
