@@ -2,7 +2,9 @@
 
 Seen in episodes 1-3 (levels 1.21, 1.5, 1.6, 2.8, 3.15), two of them side by side in the
 fortress set (assembly-newshd-127). A big rounded block of glowing red crystal sits in a dark
-clamp with a grey bracket behind it. The frames only pulse its glow, so one model covers them.
+clamp with a grey bracket behind it. The frames only pulse its glow (every red of the sprite a
+shade brighter on 231, two on 233, four on 235), so one model covers them, its colours
+brightening with the frame (palette_material frames=).
 
 Run: blender --background --python assets/blender/enemies/newshs-229.py [-- --preview out.png]
 """
@@ -34,12 +36,13 @@ def build(sprite):
     L.pillow(bm, L.rect(g, 7.5, 23.5, 16.5, 25.6), 0.0, 0.12, 0.5 * L.U, mat=m.metal(2))
     # The crystal (columns 4-18, rows 4-23): rounded, its top a shade lighter.
     L.dome(bm, g.ex(11.5), g.ey(14), 7.6 * L.U, 10.2 * L.U, 0.27, z0=0.0, sides=24, rings=4,
-           mat=m.glow(118, 2.5), power=4.0, flat=0.45)
+           mat=m.anim(118, "crystal", {231: 119, 233: 119, 235: 120}, emission_strength=2.5), power=4.0, flat=0.45)
     L.dome(bm, g.ex(12.2), g.ey(13.2), 3.2 * L.U, 4.6 * L.U, 0.03, z0=0.255, sides=16, rings=2,
-           mat=m.glow(116, 2.0), power=2.5, flat=0.6)  # the darker swirl in its heart
+           mat=m.anim(116, "swirl", {231: 117, 233: 117, 235: 118}, emission_strength=2.0), power=2.5, flat=0.6)  # the darker swirl in its heart
     # A bright rim along its upper-left edges (the highlight at columns 5-6 and rows 5-6).
     L.tube(bm, [(g.x(5.6), g.y(21.0), 0.215), (g.x(5.6), g.y(6.4), 0.24), (g.x(7.0), g.y(5.4), 0.24),
-                (g.x(14.5), g.y(5.4), 0.215)], 0.5 * L.U, sides=6, mat=m.glow(123, 3.5), flat=0.5)
+                (g.x(14.5), g.y(5.4), 0.215)], 0.5 * L.U, sides=6, mat=m.anim(123, "rim", {231: 124, 233: 125, 235: 126}, emission_strength=3.5),
+          flat=0.5)
     obj = L.finish(NAME, bm, m, coll)
     return [(NAME, [obj], sprite["sprites"])]
 
