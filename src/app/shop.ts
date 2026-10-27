@@ -37,6 +37,7 @@ import {
 import type { TyrianFiles } from "../sim/resources";
 import { g, REAR_WEAPON } from "../sim/state";
 import { sectionLevelName } from "../sim/tyrian2";
+import { WeaponPreview } from "./weaponPreview";
 
 export interface ItemScreenHost {
   files: TyrianFiles;
@@ -180,6 +181,9 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
   const el = (k: string) => root.querySelector<HTMLElement>(`[data-k="${k}"]`)!;
   const list = el("list");
   const navCanvas = el("nav") as HTMLCanvasElement;
+  // The weapon simulator (weaponPreview.ts) takes the loadout's place in the submenus that run it.
+  const preview = new WeaponPreview();
+  el("ship").before(preview.element);
   document.body.appendChild(root);
 
   let quitYes = false;
@@ -294,6 +298,7 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
       navT = now;
       drawNav();
     }
+    preview.frame(now);
     raf = requestAnimationFrame(frame);
   };
   raf = requestAnimationFrame(frame);
@@ -303,6 +308,7 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
     finished = true;
     cancelAnimationFrame(raf);
     window.removeEventListener("keydown", onKey, true);
+    preview.close();
     root.remove();
     resolveDone();
   }
@@ -503,6 +509,7 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
     el("title").textContent = JE_menuHeader();
     el("cash").textContent = String(itemScreenCash());
     el("ship").innerHTML = renderShip();
+    el("ship").hidden = preview.sync();
     list.innerHTML = entries.map((e) => renderRow(e, e.sel === menu.curSel[menu.curMenu])).join("");
     list.querySelector(".cur")?.scrollIntoView({ block: "nearest" });
     const power = renderPower();

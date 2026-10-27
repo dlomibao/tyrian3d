@@ -18,7 +18,8 @@
 // up/downgrades, the rear weapon's firing mode), Play Next Level (the navigation choices and
 // JE_computeDots), Quit, and the arcade/Super Tyrian menus' "play next level" and quit.
 // Not ported (no-ops): Data Cubes, Options (load/save, keyboard and joystick setup, volume),
-// the weapon simulator preview (JE_initWeaponView/JE_weaponSimUpdate), network play, and drawing.
+// network play, and drawing. The weapon simulator (JE_initWeaponView/JE_weaponSimUpdate) is in
+// weaponSim.ts, which the host runs beside this state (src/app/weaponPreview.ts).
 
 import { u8 } from "./cint";
 import { JE_getCost } from "./mainint";
@@ -535,7 +536,7 @@ export function JE_menuFunction(select: number): void {
 
         menu.lastDirection = 1;
         JE_genItemMenu(select);
-        // JE_initWeaponView(): the weapon simulator isn't ported.
+        // JE_initWeaponView(): weaponSim_sync runs it when it sees the submenu open (weaponSim.ts).
         menu.curMenu = MENU_UPGRADE_SUB;
         menu.lastCurSel = curSel[MENU_UPGRADE_SUB];
         player[0].cash = player[0].cash * 2 - JE_cashLeft();
