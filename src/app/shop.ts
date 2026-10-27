@@ -2,11 +2,13 @@
 // trade-ins, weapon power, where Play Next Level goes) are the C's, in src/sim/game_menu.ts; this
 // file only draws that state and turns keys, pad buttons, clicks and taps into the C's inputs.
 //
+// It is a screen of the interface framework (src/ui/README.md): its intents become the C's keys.
 // Keys: arrows (or WASD) move and change weapon power, Enter/Space select, Escape/Backspace back,
-// '/' changes the rear gun's firing mode, Alt-S / Alt-L save and load. Pad: d-pad, A select, B
-// back, X firing mode. Mouse and touch use the C's mouse rules: the first click on a row moves the
-// cursor there, a second click on the same row selects it. The Options menu's dialogs and settings
-// screen are in options.ts.
+// '/' changes the rear gun's firing mode, Alt-S / Alt-L save and load. Pad: d-pad or stick, A
+// select, B back, X firing mode. Mouse and touch use the C's mouse rules: the first click on a row
+// moves the cursor there, a second click on the same row selects it. Behind it the backdrop turns
+// the player's ship. The Options menu's dialogs and settings screen are in options.ts; the Data
+// Cubes menus in dataCubes.ts; the weapon preview in weaponPreview.ts.
 
 import "./shop.css";
 import { createDataCubes } from "./dataCubes";
@@ -23,10 +25,11 @@ import {
   JE_itemScreen_mouse,
   JE_itemScreen_operation,
   JE_itemScreen_quitAnswer,
-  JE_itemScreen_volumeClick,
   JE_itemScreen_update,
+  JE_itemScreen_volumeClick,
   JE_mainMenuHelpText,
   JE_menuHeader,
+  MENU_DATA_CUBE_SUB,
   MENU_PLAY_NEXT_LEVEL,
   MENU_UPGRADE_SUB,
   MENU_UPGRADES,
@@ -40,9 +43,10 @@ import {
 } from "../sim/game_menu";
 import type { TyrianFiles } from "../sim/resources";
 import { JE_operation_saveName } from "../sim/savegame";
-import { itemScreenOptionsRow, promptSaveName, showOptions, subscreenOpen, volumeBarCells } from "./options";
+import { itemScreenOptionsRow, promptSaveName, showOptions, volumeBarCells } from "./options";
 import { g, REAR_WEAPON } from "../sim/state";
 import { sectionLevelName } from "../sim/tyrian2";
+import { backButton, keyHints, reveal, showScreen, ui, type Intent } from "../ui";
 import { WeaponPreview } from "./weaponPreview";
 
 export interface ItemScreenHost {
@@ -57,22 +61,20 @@ const PLANET_SHAPES = 3;
 const NAV_PALETTE = 17;
 const SHOP_PALETTE = 0;
 
-const KEYMAP: Record<string, ItemScreenKey> = {
-  ArrowUp: "up",
-  KeyW: "up",
-  ArrowDown: "down",
-  KeyS: "down",
-  ArrowLeft: "left",
-  KeyA: "left",
-  ArrowRight: "right",
-  KeyD: "right",
-  Enter: "enter",
-  Space: "enter",
-  NumpadEnter: "enter",
-  Escape: "esc",
-  Backspace: "esc",
-  Slash: "slash",
+/** The framework's intents (src/ui/nav.ts: the keys and pad buttons above) as the C's keys. */
+const INTENT_KEYS: Record<Intent, ItemScreenKey> = {
+  up: "up",
+  down: "down",
+  left: "left",
+  right: "right",
+  accept: "enter",
+  start: "enter",
+  back: "esc",
+  alt: "slash",
 };
+
+/** The navigation map's canvas is drawn at this multiple of the C's 220x160 pixels, for crisp lines and labels. */
+const NAV_SCALE = 3;
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
 
@@ -165,33 +167,51 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
   JE_itemScreen_update();
   host.music.play(g.songBuy);
 
-  const root = document.createElement("div");
-  root.className = "overlay shop";
+  const screen = showScreen({
+    id: "shop",
+    backdrop: "hangar",
+    layout: "wide",
+    label: "Item screen",
+    // [port-options] Alt-S / Alt-L: quick save and load (game_menu.c L1539-1580).
+    onKey: (e) => {
+      if (!e.altKey || (e.code !== "KeyS" && e.code !== "KeyL")) return false;
+      key(e.code === "KeyS" ? "quickSave" : "quickLoad");
+      return true;
+    },
+    onIntent: (intent) => {
+      key(INTENT_KEYS[intent]);
+      return true;
+    },
+  });
+  const root = screen.panel;
   root.innerHTML = `
-    <div class="panel shop-panel" role="dialog" aria-label="Item screen">
-      <header>
-        <h2 data-k="title"></h2>
+      <header class="shop-header">
+        <h2 class="ui-title"><small class="ui-title__kicker">Item screen</small><span data-k="title"></span></h2>
         <div class="shop-cash"><span>Credits</span><b data-k="cash"></b></div>
       </header>
       <div class="shop-body">
         <aside class="shop-ship" data-k="ship"></aside>
         <section class="shop-menu">
-          <canvas class="shop-nav" data-k="nav" width="220" height="160" hidden></canvas>
-          <ul class="shop-list" data-k="list" role="listbox"></ul>
+          <canvas class="shop-nav" data-k="nav" width="${220 * NAV_SCALE}" height="${160 * NAV_SCALE}" hidden></canvas>
+          <ul class="ui-menu shop-list" data-k="list" role="listbox"></ul>
           <div class="shop-power" data-k="power" hidden></div>
         </section>
       </div>
-      <footer class="shop-help" data-k="help"></footer>
-      <div class="shop-dialog" data-k="dialog" hidden></div>
-    </div>`;
+      <footer class="shop-help"><p data-k="help"></p><div data-k="hints"></div></footer>
+      <div class="ui-modal is-shown shop-dialog" data-k="dialog" hidden></div>`;
+  root.querySelector("header")!.append(backButton(() => key("esc")));
   const el = (k: string) => root.querySelector<HTMLElement>(`[data-k="${k}"]`)!;
   const list = el("list");
   const navCanvas = el("nav") as HTMLCanvasElement;
-  // The weapon simulator (weaponPreview.ts) takes the loadout's place in the submenus that run it.
+  // The quit question and ship specs cover the whole screen, not just the (scrollable) panel.
+  const dialogEl = el("dialog");
+  screen.root.append(dialogEl);
+  // The weapon simulator (weaponPreview.ts) takes the loadout's place, in the left column, in the
+  // submenus that run it.
   const preview = new WeaponPreview();
   el("ship").before(preview.element);
-  document.body.appendChild(root);
-  // Data Cubes (src/app/dataCubes.ts): load_cubes, then the cube list and reader in these panes.
+  // Data Cubes (src/app/dataCubes.ts): load_cubes, then the cube list and reader in the loadout's
+  // and the menu's places.
   const cubes = createDataCubes({ files: host.files, menuColumn: list.parentElement!, back: () => key("esc") });
 
   let quitYes = false;
@@ -206,20 +226,21 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
 
   /**
    * [port-options] The Options menu's requests: the settings screen, and JE_operation (a load
-   * runs at once; a save asks for the name first). True while a screen of options.ts is up.
+   * runs at once; a save asks for the name first). True while a screen of options.ts is up; it
+   * has the keys and pads meanwhile (Screen.aside), and the item screen stays in view under it.
    */
   const optionsRequests = (): boolean => {
     if (menu.setupRequest) {
       const section = menu.setupRequest;
       menu.setupRequest = null;
-      void showOptions(host, section).then(() => step());
+      void screen.aside(() => showOptions(host, section), { hide: false }).then(() => step());
       return true;
     }
     if (menu.operationRequest) {
       const name = menu.performSave ? JE_operation_saveName(menu.operationRequest) : null;
       if (name === null) JE_itemScreen_operation(host.files);
       else {
-        void promptSaveName(host, name).then((n) => {
+        void screen.aside(() => promptSaveName(host, name), { hide: false }).then((n) => {
           JE_itemScreen_operation(host.files, n);
           step();
         });
@@ -264,24 +285,14 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
   };
 
   const click = (sel: number | "powerDown" | "powerUp") => {
-    if (menu.quitRequest || menu.shipSpecsRequest) return;
+    if (menu.quitRequest || menu.shipSpecsRequest || screen.isAside) return;
     JE_itemScreen_mouse(sel);
     if (menu.quitRequest) quitYes = true;
     step();
   };
 
-  const onKey = (e: KeyboardEvent) => {
-    if (subscreenOpen()) return; // [port-options] options.ts has the keys
-    const quick = e.altKey && (e.code === "KeyS" || e.code === "KeyL") ? (e.code === "KeyS" ? "quickSave" : "quickLoad") : undefined;
-    const k = quick ?? KEYMAP[e.code] ?? (e.key === "/" ? "slash" : undefined);
-    if (!k) return;
-    e.preventDefault();
-    e.stopPropagation();
-    key(k);
-  };
-  window.addEventListener("keydown", onKey, true);
-
   list.addEventListener("click", (e) => {
+    if (screen.isAside) return;
     const bar = (e.target as HTMLElement).closest<HTMLElement>("[data-vol-row]"); // [port-options]
     if (bar && !menu.quitRequest) {
       JE_itemScreen_volumeClick(Number(bar.dataset.volRow) as 4 | 5, volumeBarCells(e, bar));
@@ -297,7 +308,7 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
     if (act === "slash") key("slash");
     else click(act as "powerDown" | "powerUp");
   });
-  el("dialog").addEventListener("click", (e) => {
+  dialogEl.addEventListener("click", (e) => {
     const b = (e.target as HTMLElement).closest<HTMLElement>("[data-act]");
     if (menu.shipSpecsRequest) {
       menu.shipSpecsRequest = false;
@@ -308,34 +319,11 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
     }
   });
 
-  // Gamepad: edge-triggered buttons, with key repeat on the d-pad.
-  const PAD: [number, ItemScreenKey][] = [[12, "up"], [13, "down"], [14, "left"], [15, "right"], [0, "enter"], [1, "esc"], [2, "slash"]];
-  const held = new Map<number, number>();
-  let armed = false; // ignore buttons still held from the level
+  // The map's animation and the weapon preview (keys and pad buttons come through the
+  // framework's navigation).
   let raf = 0;
   let navT = 0;
   const frame = (now: number) => {
-    const pads = (navigator.getGamepads?.() ?? []).filter((p): p is Gamepad => !!p);
-    const down = (i: number) => pads.some((p) => p.buttons[i]?.pressed);
-    if (subscreenOpen()) armed = false; // [port-options] options.ts has the pad; wait for a release after
-    else if (!armed) armed = !PAD.some(([i]) => down(i));
-    else {
-      for (const [i, k] of PAD) {
-        if (!down(i)) {
-          held.delete(i);
-          continue;
-        }
-        const since = held.get(i);
-        if (since === undefined) {
-          held.set(i, now);
-          key(k);
-        } else if (i >= 12 && now - since > 380) {
-          held.set(i, now - 380 + 110);
-          key(k);
-        }
-        if (finished) return;
-      }
-    }
     if (menu.curMenu === MENU_PLAY_NEXT_LEVEL && now - navT > 1000 / 18) {
       navT = now;
       drawNav();
@@ -349,10 +337,9 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
     if (finished) return;
     finished = true;
     cancelAnimationFrame(raf);
-    window.removeEventListener("keydown", onKey, true);
     preview.close();
     cubes.destroy();
-    root.remove();
+    screen.close();
     resolveDone();
   }
 
@@ -379,8 +366,11 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
   /** JE_updateNavScreen's map: planets, the dotted routes, and the view easing toward the chosen route. */
   function drawNav(): void {
     const ctx = navCanvas.getContext("2d")!;
-    const W = navCanvas.width;
-    const H = navCanvas.height;
+    // Drawn in the C's 220x160 pixels, scaled up so lines and labels stay crisp.
+    ctx.setTransform(NAV_SCALE, 0, 0, NAV_SCALE, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    const W = navCanvas.width / NAV_SCALE;
+    const H = navCanvas.height / NAV_SCALE;
     const sel = menu.curSel[MENU_PLAY_NEXT_LEVEL];
     if (sel !== navState.lastSel) {
       navState.lastSel = sel;
@@ -405,19 +395,24 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
 
     const ox = W / 2 - navState.x;
     const oy = H / 2 - navState.y;
-    ctx.fillStyle = "#06101c";
+    const bg = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, W * 0.7);
+    bg.addColorStop(0, "#0b1a2c");
+    bg.addColorStop(1, "#04080f");
+    ctx.fillStyle = bg;
     ctx.fillRect(0, 0, W, H);
-    ctx.strokeStyle = "rgba(90, 140, 200, 0.18)";
-    ctx.lineWidth = 1;
-    for (let gx = ((ox % 15) + 15) % 15; gx < W; gx += 15) ctx.strokeRect(Math.round(gx) + 0.5, -1, 0, H + 2);
-    for (let gy = ((oy % 15) + 15) % 15; gy < H; gy += 15) ctx.strokeRect(-1, Math.round(gy) + 0.5, W + 2, 0);
+    ctx.strokeStyle = "rgba(92, 214, 255, 0.12)";
+    ctx.lineWidth = 1 / NAV_SCALE;
+    for (let gx = ((ox % 15) + 15) % 15; gx < W; gx += 15) ctx.strokeRect(gx, -1, 0, H + 2);
+    for (let gy = ((oy % 15) + 15) % 15; gy < H; gy += 15) ctx.strokeRect(-1, gy, W + 2, 0);
 
     // JE_drawDots: the chosen route's dots light up one by one.
     for (let x = 0; x < g.mapPNum; x++) {
       for (let y = 0; y < menu.planetDots[x]; y++) {
         const lit = x === sel - 2 && y < navState.dots;
         ctx.fillStyle = lit ? "#ffd75a" : "rgba(160, 190, 220, 0.45)";
-        ctx.fillRect(Math.round(menu.planetDotX[x][y] + ox) - 1, Math.round(menu.planetDotY[x][y] + oy) - 1, lit ? 3 : 2, lit ? 3 : 2);
+        ctx.beginPath();
+        ctx.arc(menu.planetDotX[x][y] + ox, menu.planetDotY[x][y] + oy, lit ? 1.4 : 0.9, 0, Math.PI * 2);
+        ctx.fill();
       }
     }
 
@@ -444,15 +439,15 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
     planet(g.mapOrigin - 1);
 
     // Labels: where you are and the chosen destination.
-    ctx.font = "9px 'Trebuchet MS', sans-serif";
+    ctx.font = "600 8px 'Exo 2', 'Trebuchet MS', sans-serif";
     ctx.textAlign = "center";
     const label = (n: number, text: string, color: string) => {
-      ctx.fillStyle = "#000";
-      ctx.fillText(text, planetX[n] + ox + 1, planetY[n] + oy + 21);
+      ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
+      ctx.fillText(text, planetX[n] + ox + 0.5, planetY[n] + oy + 20.5);
       ctx.fillStyle = color;
       ctx.fillText(text, planetX[n] + ox, planetY[n] + oy + 20);
     };
-    label(g.mapOrigin - 1, g.pName[g.mapOrigin - 1] ?? "", "#b8a77f");
+    label(g.mapOrigin - 1, g.pName[g.mapOrigin - 1] ?? "", "#a3b3c4");
     if (sel - 2 < g.mapPNum && sel >= 2) label(g.mapPlanet[sel - 2] - 1, g.pName[g.mapPlanet[sel - 2] - 1] ?? "", "#ffd75a");
   }
 
@@ -460,18 +455,22 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
     const p = g.player[0];
     const it = p.items;
     const { items } = g.res;
-    const row = (type: number, label: string, id: number, extra = "") => {
-      const icon = itemIcon(type, id);
-      return `<li><span class="ico">${icon ? `<img src="${icon}" alt="">` : ""}</span><span class="what"><small>${esc(label)}</small>${esc(itemName(type, id))}${extra}</span></li>`;
+    const icon = (type: number, id: number) => {
+      const url = itemIcon(type, id);
+      return `<span class="ui-menu__icon">${url ? `<img src="${url}" alt="">` : ""}</span>`;
     };
+    const row = (type: number, label: string, id: number, extra = "") =>
+      `<li>${icon(type, id)}<span class="ui-menu__text"><small class="ui-menu__detail">${esc(label)}</small><span class="ui-menu__label">${esc(itemName(type, id))}${extra}</span></span></li>`;
     const labels = g.menuInt[2] ?? [];
-    const power = (port: number) => (it.weapon[port].id ? ` <em>· power ${it.weapon[port].power}</em>` : "");
+    const power = (port: number) => (it.weapon[port].id ? ` <em>· ${it.weapon[port].power}</em>` : "");
     const mode = items.weaponPorts[it.weapon[REAR_WEAPON].id]?.opNum > 1 ? ` <em>· mode ${p.weapon_mode}</em>` : "";
     const shieldMax = items.shields[it.shield]?.mpwr ?? 0;
+    const bar = (label: string, tone: string, pct: number) =>
+      `<div class="ui-stat ui-stat--${tone}"><span class="ui-stat__label">${label}</span><span class="ui-stat__bar"><i style="width:${Math.min(100, pct)}%"></i></span></div>`;
     return `
-      <div class="bars">
-        <span>Armor</span><span class="bar armor"><i style="width:${Math.min(100, (p.armor / 28) * 100)}%"></i></span>
-        <span>Shield</span><span class="bar shield"><i style="width:${Math.min(100, ((shieldMax * 2) / 28) * 100)}%"></i></span>
+      <div class="shop-bars">
+        ${bar("Armor", "armor", (p.armor / 28) * 100)}
+        ${bar("Shield", "shield", ((shieldMax * 2) / 28) * 100)}
       </div>
       <ul class="loadout">
         ${row(2, labels[1] ?? "Ship", it.ship)}
@@ -484,29 +483,32 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
       </ul>`;
   }
 
+  /** One row of the current menu, in the framework's menu list markup (components.css). */
   function renderRow(e: ItemScreenEntry, cur: boolean): string {
-    const cls = ["row"];
-    if (cur) cls.push("cur");
+    const cls = ["ui-menu__item", "shop-row"];
+    if (cur) cls.push("is-focused");
     if (e.unaffordable) cls.push("dim");
     if (e.unavailable) cls.push("off");
     if (e.done) cls.push("done");
+    const text = (label: string, detail = "") =>
+      `<span class="ui-menu__text"><span class="ui-menu__label">${esc(label)}</span>${detail ? `<small class="ui-menu__detail">${detail}</small>` : ""}</span>`;
     let inner = "";
     const optionsRow = itemScreenOptionsRow(e); // [port-options] volume bars, save slots
     if (optionsRow !== null) {
       inner = optionsRow;
     } else if (menu.curMenu === MENU_UPGRADE_SUB && !e.done) {
       const icon = itemIcon(menu.curSel[MENU_UPGRADES], e.item ?? 0);
-      inner = `<span class="ico">${icon ? `<img src="${icon}" alt="">` : ""}</span>
-        <span class="what">${esc(e.label)}<small>Cost: ${e.cost}</small></span>
-        ${e.owned ? `<span class="owned" title="Owned">OWNED</span>` : ""}`;
+      inner = `<span class="ui-menu__icon">${icon ? `<img src="${icon}" alt="">` : ""}</span>
+        ${text(e.label, `Cost: ${e.cost}`)}
+        ${e.owned ? `<span class="ui-badge" title="Owned">OWNED</span>` : ""}`;
     } else if (menu.curMenu === MENU_PLAY_NEXT_LEVEL && !e.done) {
       const level = sectionLevelName(host.files, g.episodeNum, g.mapSection[e.sel - 2]);
-      inner = `<span class="what">${esc(e.label)}${level ? `<small>${esc(level)}</small>` : ""}</span>`;
+      inner = text(e.label, level ? esc(level) : "");
     } else if (menu.curMenu === MENU_UPGRADES && !e.done) {
       const id = playerItem(e.sel);
-      inner = `<span class="what">${esc(e.label)}<small>${esc(itemName(e.sel, id))}</small></span>`;
+      inner = text(e.label, esc(itemName(e.sel, id)));
     } else {
-      inner = `<span class="what">${esc(e.label)}${e.unavailable ? "<small>not available</small>" : ""}</span>${cubes.rowExtra(e)}`;
+      inner = text(e.label, e.unavailable ? "not available" : "") + cubes.rowExtra(e);
     }
     return `<li class="${cls.join(" ")}" data-sel="${e.sel}" role="option" aria-selected="${cur}">${inner}</li>`;
   }
@@ -527,27 +529,56 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
     if (onWeapon) {
       const segs = Array.from({ length: 11 }, (_, i) => `<i class="${i < it.power ? "on" : ""}"></i>`).join("");
       html += `
-        <button data-act="powerDown" ${menu.leftPower ? "" : "disabled"} aria-label="Lower power">◀<small>${menu.leftPower ? g.downgradeCost : ""}</small></button>
+        <button class="ui-button" tabindex="-1" data-act="powerDown" ${menu.leftPower ? "" : "disabled"} aria-label="Lower power">◀<small>${menu.leftPower ? g.downgradeCost : ""}</small></button>
         <span class="meter"><b>Power ${it.power}</b><span class="segs">${segs}</span></span>
-        <button data-act="powerUp" ${menu.rightPower && menu.rightPowerAfford ? "" : "disabled"} aria-label="Raise power">▶<small>${menu.rightPower ? g.upgradeCost : ""}</small></button>`;
+        <button class="ui-button" tabindex="-1" data-act="powerUp" ${menu.rightPower && menu.rightPowerAfford ? "" : "disabled"} aria-label="Raise power">▶<small>${menu.rightPower ? g.upgradeCost : ""}</small></button>`;
     }
     const opNum = g.res.items.weaponPorts[p.items.weapon[REAR_WEAPON].id]?.opNum ?? 1;
-    if (sel === 4 && opNum > 1) html += `<button class="mode" data-act="slash">Firing mode ${p.weapon_mode} / ${opNum} <span class="key">/</span></button>`;
+    if (sel === 4 && opNum > 1) {
+      html += `<button class="ui-button mode" tabindex="-1" data-act="slash">Firing mode ${p.weapon_mode} / ${opNum}
+        <span class="ui-glyphs"><kbd class="ui-key" data-dev="keys">/</kbd><kbd class="ui-key ui-key--pad" data-dev="pad">X</kbd></span></button>`;
+    }
     return html;
   }
 
+  /** JE_quitRequest and JE_doShipSpecs, drawn as the framework's modal (components.css .ui-modal). */
   function renderDialog(): string {
     if (menu.quitRequest) {
-      return `<div class="box"><p>${esc(g.miscText[28] ?? "Quit the game?")}</p>
-        <div class="choices"><button data-act="yes" class="${quitYes ? "cur" : ""}">${esc(g.miscText[9] ?? "Yes")}</button>
-        <button data-act="no" class="${quitYes ? "" : "cur"}">${esc(g.miscText[10] ?? "No")}</button></div></div>`;
+      return `<div class="ui-panel ui-panel--narrow ui-modal__box"><p>${esc(g.miscText[28] ?? "Quit the game?")}</p>
+        <ul class="ui-menu ui-menu--row ui-modal__actions">
+          <li class="ui-menu__item ${quitYes ? "is-focused" : ""}" data-act="yes">${esc(g.miscText[9] ?? "Yes")}</li>
+          <li class="ui-menu__item ${quitYes ? "" : "is-focused"}" data-act="no">${esc(g.miscText[10] ?? "No")}</li></ul></div>`;
     }
     if (menu.shipSpecsRequest) {
       const info = g.shipInfo[g.player[0].items.ship - 1];
       const name = g.res.items.ships[g.player[0].items.ship]?.name ?? "";
-      return `<div class="box specs"><h3>${esc(name)}</h3>${info ? info.map((s) => `<p>${highlight(s)}</p>`).join("") : ""}<p class="hint">Press any key</p></div>`;
+      return `<div class="ui-panel ui-panel--center ui-modal__box specs"><h3 class="ui-title"><small class="ui-title__kicker">Ship specs</small><span>${esc(name)}</span></h3>
+        <div class="ui-scroll">${info ? info.map((s) => `<p>${highlight(s)}</p>`).join("") : ""}</div>
+        <div class="ui-hints"><span class="ui-hint"><span class="ui-hint__label">Press any key or tap to continue</span></span></div></div>`;
     }
     return "";
+  }
+
+  let hintsFor = "";
+
+  /** The key hints under the help text, for the current menu. */
+  function renderHints(): void {
+    const weapon = menu.curMenu === MENU_UPGRADE_SUB && (menu.curSel[MENU_UPGRADES] === 3 || menu.curSel[MENU_UPGRADES] === 4);
+    // [port-options] The Options menu's Music and Sound rows change with left/right.
+    const volume = itemScreenEntries().some((e) => e.volume !== undefined && e.sel === menu.curSel[menu.curMenu]);
+    const reader = menu.curMenu === MENU_DATA_CUBE_SUB; // the cube reader scrolls
+    const id = `${weapon} ${volume} ${reader}`;
+    if (id === hintsFor) return;
+    hintsFor = id;
+    el("hints").replaceChildren(
+      keyHints([
+        { key: "↑↓", pad: "✛", label: reader ? "Scroll" : "Move" },
+        ...(weapon ? [{ key: "←→", pad: "✛", label: "Power" }] : []),
+        ...(volume ? [{ key: "←→", pad: "✛", label: "Volume" }] : []),
+        { key: "Enter", pad: "A", touch: "Tap twice", label: "Select" },
+        { key: "Esc", pad: "B", label: "Back" },
+      ]),
+    );
   }
 
   function render(): void {
@@ -559,7 +590,7 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
       list.innerHTML = entries.map((e) => renderRow(e, e.sel === menu.curSel[menu.curMenu])).join("");
     }
     el("ship").hidden = preview.sync();
-    list.querySelector(".cur")?.scrollIntoView({ block: "nearest" });
+    reveal(list.querySelector(".is-focused"));
     const power = renderPower();
     el("power").innerHTML = power;
     el("power").hidden = !power;
@@ -573,9 +604,12 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
     navCanvas.hidden = !isNav;
     if (isNav) drawNav();
     el("help").textContent = JE_mainMenuHelpText();
+    renderHints();
     const dialog = renderDialog();
-    el("dialog").innerHTML = dialog;
-    el("dialog").hidden = !dialog;
+    dialogEl.innerHTML = dialog;
+    dialogEl.hidden = !dialog;
+    // The backdrop shows the ship being bought or flown (src/ui/backdrop.ts).
+    ui.backdrop?.setShipGraphic?.(g.res.items.ships[g.player[0].items.ship]?.shipGraphic ?? -1);
   }
 
   render();

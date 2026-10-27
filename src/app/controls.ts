@@ -28,6 +28,8 @@ export class Controls {
   /** Whether the last sample() saw any key held or tapped. */
   private sampledInput = false;
   private releasing = false;
+  /** ui-framework: whether a pad's Start was down at the last sample, so holding it pauses once. */
+  private startHeld = false;
 
   /** @param gamePixelsPerScreenPixel converts pointer motion to game pixels (from the view). */
   constructor(private readonly gamePixelsPerScreenPixel: () => number = () => 1) {
@@ -124,6 +126,7 @@ export class Controls {
 
     // Standard-mapping gamepads: d-pad as keys, left stick as the C's analog joystick,
     // A/RT fire, X change fire, LB/RB sidekicks, Start pause.
+    let start = false;
     for (const pad of navigator.getGamepads?.() ?? []) {
       if (!pad) continue;
       const b = (i: number) => pad.buttons[i]?.pressed ?? false;
@@ -135,10 +138,14 @@ export class Controls {
       simInput.changeFire ||= b(2);
       simInput.leftSidekick ||= b(4);
       simInput.rightSidekick ||= b(5);
-      if (b(9)) this.pauseRequested = true;
+      start ||= b(9);
       simInput.analogX += joystick_axis_reduce(pad.axes[0] ?? 0);
       simInput.analogY += joystick_axis_reduce(pad.axes[1] ?? 0);
     }
+    // ui-framework: pause on the press only. Start also resumes on the pause screen, and a Start
+    // still held after resuming must not pause again.
+    if (start && !this.startHeld) this.pauseRequested = true;
+    this.startHeld = start;
     return simInput;
   }
 
@@ -149,6 +156,8 @@ export class Controls {
   }
 
   clear(): void {
+    // ui-framework: a Start held through clear() (resuming with it) counts as already seen.
+    this.startHeld = (navigator.getGamepads?.() ?? []).some((p) => p?.buttons[9]?.pressed);
     this.held.clear();
     this.tapped.clear();
     this.pauseRequested = false;

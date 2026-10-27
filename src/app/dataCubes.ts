@@ -183,7 +183,7 @@ export function createDataCubes(host: DataCubesHost): DataCubesView {
     <div class="cube-text" data-k="text" tabindex="-1"></div>
     <div class="cube-foot">
       <span data-k="read"></span>
-      <button data-k="exit"></button>
+      <button type="button" class="ui-button ui-button--ghost" tabindex="-1" data-k="exit"></button>
     </div>`;
   const textEl = reader.querySelector<HTMLElement>('[data-k="text"]')!;
   const readEl = reader.querySelector<HTMLElement>('[data-k="read"]')!;
@@ -311,16 +311,17 @@ export function createDataCubes(host: DataCubesHost): DataCubesView {
     for (let x = 1; x <= g.cubeMax; x++) {
       const cur = x + 1 === sel;
       const isNew = !opened.has(cubeKey(x - 1));
-      html += `<li class="row cube-row${cur ? " cur" : ""}" data-sel="${x + 1}" role="option" aria-selected="${cur}">
+      // The rows in the interface framework's menu markup (src/ui/components.css), as shop.ts's.
+      html += `<li class="ui-menu__item shop-row cube-row${cur ? " is-focused" : ""}" data-sel="${x + 1}" role="option" aria-selected="${cur}">
         <span class="cube-ico">${img ? `<img src="${img}" alt="">` : ""}</span>
-        <span class="what">${tildes(cube[x - 1].title)}</span>
+        <span class="ui-menu__text"><span class="ui-menu__label what">${tildes(cube[x - 1].title)}</span></span>
         ${isNew ? `<span class="cube-new" title="Not read yet">NEW</span>` : ""}
       </li>`;
     }
     const exitSel = g.cubeMax + 2;
     const cur = exitSel === sel;
-    html += `<li class="row done${cur ? " cur" : ""}" data-sel="${exitSel}" role="option" aria-selected="${cur}">
-      <span class="what">${esc(g.miscText[6 - 1] ?? "")}</span></li>`;
+    html += `<li class="ui-menu__item shop-row done${cur ? " is-focused" : ""}" data-sel="${exitSel}" role="option" aria-selected="${cur}">
+      <span class="ui-menu__text"><span class="ui-menu__label">${esc(g.miscText[6 - 1] ?? "")}</span></span></li>`;
     list.innerHTML = html;
   }
 

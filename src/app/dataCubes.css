@@ -55,7 +55,7 @@
 }
 
 /* JE_itemScreen's "flashy cube" on the chosen row. */
-.cube-row.cur .cube-ico img {
+.cube-row.is-focused .cube-ico img {
   animation: cube-flash 0.9s ease-in-out infinite alternate;
 }
 
@@ -65,7 +65,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cube-row.cur .cube-ico img {
+  .cube-row.is-focused .cube-ico img {
     animation: none;
     filter: drop-shadow(3px 3px 0 rgba(0, 0, 0, 0.55)) brightness(1.25);
   }

@@ -1,0 +1,183 @@
+/* The data picker, title, message and status screens (src/app/screens.ts), on src/ui's components. */
+
+/* The logo sits above the panel. */
+.ui-screen--title,
+.ui-screen--data {
+  align-content: center;
+  grid-template-rows: auto minmax(0, auto);
+  gap: clamp(0.75rem, 3vh, 2rem);
+  overflow-y: auto;
+}
+
+.ui-screen--title > .ui-logo,
+.ui-screen--data > .ui-logo {
+  opacity: 0;
+  transform: translateY(calc(var(--ui-slide) * -1.5)) scale(0.98);
+  transition:
+    opacity var(--ui-slow) var(--ui-ease) 80ms,
+    transform var(--ui-slow) var(--ui-ease) 80ms;
+}
+
+.ui-screen--title.is-shown > .ui-logo,
+.ui-screen--data.is-shown > .ui-logo {
+  opacity: 1;
+  transform: none;
+}
+
+/* The title's panel leaves the ship and planet in view: lighter, below the logo. */
+.ui-screen--title > .ui-panel {
+  --ui-panel: rgba(7, 12, 21, 0.72);
+}
+
+.ui-screen--title .ui-label:first-child {
+  margin-top: 0;
+}
+
+.title-controls {
+  margin-top: var(--ui-space-3) !important;
+  text-align: center;
+  font-size: var(--ui-text-xs);
+  color: var(--ui-ink-faint) !important;
+}
+
+:root[data-input="touch"] .title-controls {
+  display: none;
+}
+
+/* Phones in landscape: a smaller logo, and the episodes in two columns, so the menu fits. */
+@media (max-height: 520px) {
+  .ui-screen--title,
+  .ui-screen--data {
+    gap: var(--ui-space-2);
+  }
+
+  .ui-screen--title > .ui-logo,
+  .ui-screen--data > .ui-logo {
+    font-size: 1.75rem;
+  }
+
+  .ui-screen--title > .ui-panel {
+    max-width: 44rem;
+    padding: var(--ui-space-3) var(--ui-space-4);
+  }
+
+  .ui-screen--title .ui-menu:not(.ui-menu--row) {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .ui-screen--title .ui-label {
+    margin: var(--ui-space-2) 0 var(--ui-space-1);
+  }
+
+  .ui-screen--title .ui-hints {
+    margin-top: var(--ui-space-2);
+  }
+
+  .title-controls {
+    display: none;
+  }
+}
+
+/* --- data picker --- */
+
+.ui-drop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ui-space-3);
+  min-height: 4.5rem;
+  margin: var(--ui-space-4) 0 var(--ui-space-2);
+  padding: var(--ui-space-4);
+  border: 1px dashed var(--ui-edge-strong);
+  border-radius: var(--ui-radius);
+  background: rgba(240, 176, 72, 0.06);
+  color: var(--ui-ink);
+  font-family: var(--ui-font-display);
+  font-size: var(--ui-text-sm);
+  letter-spacing: var(--ui-tracking);
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    background-color var(--ui-fast) var(--ui-ease),
+    box-shadow var(--ui-med) var(--ui-ease);
+}
+
+.ui-drop.is-focused {
+  box-shadow: 0 0 1rem rgba(240, 176, 72, 0.15);
+}
+
+.ui-drop.is-over,
+.ui-drop:hover {
+  background: rgba(240, 176, 72, 0.16);
+}
+
+/* An arrow into a tray, drawn with borders. */
+.ui-drop__icon {
+  position: relative;
+  width: 1.1rem;
+  height: 1.1rem;
+  border: 2px solid var(--ui-gold);
+  border-top: 0;
+}
+
+.ui-drop__icon::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -0.45rem;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-right: 2px solid var(--ui-gold);
+  border-bottom: 2px solid var(--ui-gold);
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.ui-link {
+  color: var(--ui-cyan);
+  text-decoration-color: rgba(92, 214, 255, 0.4);
+}
+
+/* --- status and messages --- */
+
+.ui-status {
+  min-height: 1.45em;
+  text-align: center;
+  color: var(--ui-ink) !important;
+}
+
+.ui-screen--status > .ui-panel {
+  width: auto;
+  padding: var(--ui-space-3) var(--ui-space-5);
+}
+
+.ui-screen--message .ui-panel {
+  text-align: center;
+}
+
+.ui-screen--message .ui-title {
+  align-items: center;
+}
+
+.message-line:first-of-type {
+  color: var(--ui-ink) !important;
+  font-size: var(--ui-text-lg);
+}
+
+/* [port-options] [high scores] The title's other entries, after the episodes in the same list. */
+.ui-screen--title .title-more--first {
+  margin-top: var(--ui-space-2);
+}
+
+.ui-screen--title .title-more--first::after {
+  content: "";
+  position: absolute;
+  left: var(--ui-space-3);
+  right: var(--ui-space-3);
+  top: calc(var(--ui-space-1) * -1 - 1px);
+  border-top: 1px solid var(--ui-edge);
+}
+
+.ui-screen--title .title-more .ui-menu__label {
+  font-size: var(--ui-text-sm);
+}

@@ -1,91 +1,81 @@
-// Overlay screens around the game: asking for the data, the title, and end-of-level messages.
+// Screens around the game: asking for the data, the title, and end-of-level messages, built with
+// the interface framework (src/ui/README.md). Their behaviour is unchanged from the first overlays:
+// the title still picks an episode with up/down, a difficulty with left/right and starts on
+// Enter, a tap on an episode starts it, and messages wait for Enter, a pad button or a tap. The
+// title also opens Load Game, Options and High Scores (src/app/options.ts, highScoresScreen.ts).
 
 import "./overlay.css";
+import "./screens.css";
 import { filesFromZip, type FileMap } from "../assets/files";
 import { storeZip } from "../assets/store";
-
-function overlay(html: string): HTMLDivElement {
-  const el = document.createElement("div");
-  el.className = "overlay";
-  el.innerHTML = `<div class="panel">${html}</div>`;
-  document.body.appendChild(el);
-  return el;
-}
+import { button, h, keyHints, logo, MenuList, showScreen, title, type Screen } from "../ui";
 
 /** Ask the player for tyrian21.zip (DECISIONS.md D3). Resolves once valid data is loaded. */
 export function askForData(): Promise<FileMap> {
-  const el = overlay(`
-    <h1>TYRIAN 3D</h1>
-    <p>This game runs on the original <b>Tyrian 2.1</b> data, which isn't included here.</p>
-    <p>Download <b>tyrian21.zip</b> (the freeware release; OpenTyrian links to
-      <span class="key">camanis.net/tyrian/tyrian21.zip</span>), then choose or drop it below.
-      It stays in your browser.</p>
-    <label class="drop" tabindex="0">Choose or drop tyrian21.zip
-      <input type="file" accept=".zip,application/zip" hidden />
-    </label>
-    <p class="status"></p>`);
-  const drop = el.querySelector<HTMLLabelElement>(".drop")!;
-  const input = el.querySelector<HTMLInputElement>("input")!;
-  const status = el.querySelector<HTMLParagraphElement>(".status")!;
+  const screen = showScreen({ id: "data", backdrop: "title", layout: "center", label: "Game data" });
+  const input = h("input", { attrs: { type: "file", accept: ".zip,application/zip", hidden: "" } });
+  const drop = h(
+    "label",
+    { class: "ui-drop is-focused" },
+    h("span", { class: "ui-drop__icon", attrs: { "aria-hidden": "true" } }),
+    h("span", { class: "ui-drop__text", text: "Choose or drop tyrian21.zip" }),
+    input,
+  );
+  const status = h("p", { class: "ui-status", attrs: { role: "status" } });
+  screen.root.insertBefore(logo(), screen.panel);
+  screen.add(
+    title("Game data needed", "Tyrian 2.1"),
+    h("p", { html: "This game runs on the original <b>Tyrian 2.1</b> data, which isn't included here." }),
+    h(
+      "p",
+      {},
+      "Download ",
+      h("b", { text: "tyrian21.zip" }),
+      " (the freeware release; OpenTyrian links to ",
+      h("a", { class: "ui-link", text: "camanis.net/tyrian/tyrian21.zip", attrs: { href: "https://camanis.net/tyrian/tyrian21.zip", target: "_blank", rel: "noopener" } }),
+      "), then choose or drop it below. It stays in your browser.",
+    ),
+    drop,
+    status,
+    keyHints([{ key: "Enter", pad: "A", label: "Choose file" }]),
+  );
 
   return new Promise((resolve) => {
     const accept = async (file: File | undefined) => {
       if (!file) return;
-      status.className = "status";
-      status.textContent = "Reading…";
+      status.className = "ui-status";
+      status.replaceChildren(h("span", { class: "ui-spinner" }), "Reading…");
       try {
         const zip = new Uint8Array(await file.arrayBuffer());
         const files = await filesFromZip(zip);
         await storeZip(zip);
-        el.remove();
+        screen.close();
         resolve(files);
       } catch (err) {
-        status.className = "status error";
+        status.className = "ui-status ui-error";
         status.textContent = err instanceof Error ? err.message : String(err);
       }
     };
     input.addEventListener("change", () => accept(input.files?.[0]));
-    drop.addEventListener("dragover", (e) => {
+    // Enter / A open the file chooser (a key press counts as the user gesture it needs).
+    screen.opts.onIntent = (intent) => {
+      if (intent !== "accept" && intent !== "start") return false;
+      input.click();
+      return true;
+    };
+    // Drop anywhere on the screen.
+    screen.root.addEventListener("dragover", (e) => {
       e.preventDefault();
-      drop.classList.add("over");
+      drop.classList.add("is-over");
     });
-    drop.addEventListener("dragleave", () => drop.classList.remove("over"));
-    drop.addEventListener("drop", (e) => {
+    screen.root.addEventListener("dragleave", (e) => {
+      if (e.target === screen.root || !screen.root.contains(e.relatedTarget as Node)) drop.classList.remove("is-over");
+    });
+    screen.root.addEventListener("drop", (e) => {
       e.preventDefault();
-      drop.classList.remove("over");
+      drop.classList.remove("is-over");
       accept(e.dataTransfer?.files[0]);
     });
-  });
-}
-
-/** Wait for the player to press Enter, Space, a gamepad button, or click. */
-function waitForStart(el: HTMLElement): Promise<void> {
-  return new Promise((resolve) => {
-    let raf = 0;
-    const done = () => {
-      window.removeEventListener("keydown", onKey);
-      el.removeEventListener("click", done);
-      cancelAnimationFrame(raf);
-      el.remove();
-      resolve();
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.code === "Enter" || e.code === "Space") {
-        e.preventDefault();
-        done();
-      }
-    };
-    // Ignore buttons already held when the screen appears (e.g. fire held through a death).
-    let armed = false;
-    const poll = () => {
-      const pressed = (navigator.getGamepads?.() ?? []).some((p) => p?.buttons.some((b) => b.pressed));
-      if (!pressed) armed = true;
-      else if (armed) return done();
-      raf = requestAnimationFrame(poll);
-    };
-    window.addEventListener("keydown", onKey);
-    el.addEventListener("click", done);
-    raf = requestAnimationFrame(poll);
   });
 }
 
@@ -124,179 +114,179 @@ export interface TitleOptions {
   onHighScores?: () => Promise<void>;
 }
 
-/** Title screen: pick an episode and difficulty (keyboard, gamepad, click or tap), then start. */
+/** Standard-mapping pad buttons for the title's other entries (not intents in src/ui/nav.ts). */
+const PAD_Y = 3;
+const PAD_BACK = 8;
+
+/**
+ * Title screen: pick an episode and difficulty (keyboard, gamepad, click or tap), then start.
+ * Load Game, Options and High Scores follow the episodes in the same list (so up/down reach them
+ * and a tap opens them), with keys L, O, H and pad Back (Options) and Y (High Scores).
+ */
 export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
-  const el = overlay(`
-    <h1>TYRIAN 3D</h1>
-    <div class="choices episodes" role="listbox" aria-label="Episode"></div>
-    <div class="choices difficulty" role="radiogroup" aria-label="Difficulty"></div>
-    <div class="choices music" role="radiogroup" aria-label="Music" hidden></div>
-    <div class="choices title-more" hidden></div>
-    <p><span class="key">↑↓</span> episode · <span class="key">←→</span> difficulty ·
-       <span class="key">Enter</span> start<span class="music-key" hidden> · <span class="key">M</span> music</span><span class="more-keys" hidden></span></p>
-    <p><span class="key">←↑↓→</span> / <span class="key">WASD</span> move · <span class="key">Space</span> fire ·
-       mouse, touch and gamepads work too</p>`);
-  const episodesEl = el.querySelector<HTMLDivElement>(".episodes")!;
-  const difficultyEl = el.querySelector<HTMLDivElement>(".difficulty")!;
   let ep = Math.max(0, opts.episodes.indexOf(opts.initial.episode));
   let diff = Math.max(0, opts.difficulties.indexOf(opts.initial.difficulty));
-
-  const episodeButtons = opts.episodes.map((n, i) => {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.textContent = opts.episodeNames[n]?.trim() || `Episode ${n}`;
-    b.addEventListener("click", () => {
-      ep = i;
-      render();
-      finish();
-    });
-    episodesEl.appendChild(b);
-    return b;
-  });
-  const difficultyButtons = opts.difficulties.map((n, i) => {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.textContent = opts.difficultyNames[n]?.trim() || String(n);
-    b.addEventListener("click", () => {
-      diff = i;
-      render();
-    });
-    difficultyEl.appendChild(b);
-    return b;
-  });
-  // Music style (local remaster packs only).
   const styles = opts.musicStyles ?? [];
-  let style = Math.max(0, styles.indexOf(opts.musicStyle ?? "original"));
-  const musicEl = el.querySelector<HTMLDivElement>(".music")!;
-  const label = (s: string) => `${s[0].toUpperCase()}${s.slice(1)} music`;
-  const musicButtons = styles.length > 1 ? styles.map((name, i) => {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.textContent = label(name);
-    b.addEventListener("click", () => setStyle(i));
-    musicEl.appendChild(b);
-    return b;
-  }) : [];
-  musicEl.hidden = musicButtons.length === 0;
-  el.querySelector<HTMLSpanElement>(".music-key")!.hidden = musicButtons.length === 0;
-  const setStyle = (i: number) => {
-    style = (i + styles.length) % styles.length;
-    opts.onMusicStyle?.(styles[style]);
-    render();
-  };
-  // [port-options] Load Game and Options (L / O, pad Y / Back), each its own screen over the title.
-  let busy = false;
-  const moreEl = el.querySelector<HTMLDivElement>(".title-more")!;
-  const more: [label: string, key: string, run: () => Promise<void>][] = [];
-  const sub = async (fn: () => Promise<boolean | void>) => {
-    if (busy) return;
-    busy = true;
-    el.hidden = true;
-    const loaded = await fn();
-    el.hidden = false;
-    busy = false;
-    style = Math.max(0, styles.indexOf(opts.currentMusicStyle?.() ?? styles[style]));
-    render();
-    prev = null;
-    if (loaded === true) finish(true);
-  };
-  if (opts.onLoadGame) more.push(["Load Game", "L", () => sub(opts.onLoadGame!)]);
-  if (opts.onOptions) more.push(["Options", "O", () => sub(opts.onOptions!)]);
-  // [high scores] The title menu's High Scores entry (JE_highScoreScreen), H / pad Y.
-  const openHighScores = () => sub(async () => void (await opts.onHighScores!()));
-  if (opts.onHighScores) more.push([opts.highScoresLabel ?? "High Scores", "H", openHighScores]);
-  for (const [label, , run] of more) {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.textContent = label;
-    b.addEventListener("click", () => void run());
-    moreEl.appendChild(b);
-  }
-  moreEl.hidden = more.length === 0;
-  const moreKeys = el.querySelector<HTMLSpanElement>(".more-keys")!;
-  moreKeys.innerHTML = more.map(([label, key]) => ` · <span class="key">${key}</span> ${label.toLowerCase()}`).join("");
-  moreKeys.hidden = more.length === 0;
-
-  const render = () => {
-    episodeButtons.forEach((b, i) => b.classList.toggle("selected", i === ep));
-    difficultyButtons.forEach((b, i) => b.classList.toggle("selected", i === diff));
-    musicButtons.forEach((b, i) => b.classList.toggle("selected", i === style));
-  };
-  render();
+  const hasMusic = styles.length > 1;
 
   let resolveFn: (c: TitleChoice) => void = () => {};
-  let raf = 0;
   const finish = (loaded = false) => {
-    if (busy) return;
-    window.removeEventListener("keydown", onKey);
-    cancelAnimationFrame(raf);
-    el.remove();
+    if (!screen.open) return;
+    screen.close();
     resolveFn({ episode: opts.episodes[ep], difficulty: opts.difficulties[diff], ...(loaded ? { loaded } : {}) });
   };
-  const move = (dEp: number, dDiff: number) => {
-    ep = (ep + dEp + episodeButtons.length) % episodeButtons.length;
-    diff = Math.min(difficultyButtons.length - 1, Math.max(0, diff + dDiff));
-    render();
+
+  // [port-options] [high scores] The other entries, each its own screen over the title's backdrop.
+  // Those screens read keys and pads themselves, so the title steps aside while one is open
+  // (Screen.aside), then reads back the music style (Options can change it). A loaded game starts.
+  const sub = async (fn: () => Promise<boolean | void>) => {
+    if (screen.isAside || !screen.open) return;
+    const loaded = await screen.aside(fn);
+    syncMusic();
+    if (loaded === true) finish(true);
   };
-  const onKey = (e: KeyboardEvent) => {
-    const map: Record<string, () => void> = {
-      ArrowUp: () => move(-1, 0),
-      KeyW: () => move(-1, 0),
-      ArrowDown: () => move(1, 0),
-      KeyS: () => move(1, 0),
-      ArrowLeft: () => move(0, -1),
-      KeyA: () => move(0, -1),
-      ArrowRight: () => move(0, 1),
-      KeyD: () => move(0, 1),
-      Enter: () => finish(),
-      Space: () => finish(),
-      ...(musicButtons.length ? { KeyM: () => setStyle(style + 1) } : {}),
-      ...(opts.onLoadGame ? { KeyL: () => void sub(opts.onLoadGame!) } : {}),
-      ...(opts.onOptions ? { KeyO: () => void sub(opts.onOptions!) } : {}),
-      ...(opts.onHighScores ? { KeyH: () => void openHighScores() } : {}), // [high scores]
-    };
-    if (busy) return;
-    const action = map[e.code];
-    if (!action) return;
-    e.preventDefault();
-    action();
-  };
-  // Gamepad: d-pad moves, A starts; act on presses, not holds (and ignore buttons held on entry).
-  let prev: boolean[] | null = null;
-  const poll = () => {
-    const pad = (navigator.getGamepads?.() ?? []).find((p) => p);
-    if (pad && busy) prev = null;
-    else if (pad) {
-      const now = pad.buttons.map((b) => b.pressed);
-      if (prev) {
-        const pressed = (i: number) => now[i] && !prev![i];
-        if (pressed(12)) move(-1, 0);
-        if (pressed(13)) move(1, 0);
-        if (pressed(14)) move(0, -1);
-        if (pressed(15)) move(0, 1);
-        if (pressed(0) || pressed(9)) return finish();
-        if (pressed(3) && opts.onHighScores) void openHighScores(); // [high scores] Y
-        else if (pressed(3) && opts.onLoadGame) void sub(opts.onLoadGame);
-        if (pressed(8) && opts.onOptions) void sub(opts.onOptions);
+  const more: { label: string; key: string; code: string; pad?: string; run: () => Promise<boolean | void> }[] = [];
+  if (opts.onLoadGame) more.push({ label: "Load Game", key: "L", code: "KeyL", run: opts.onLoadGame });
+  if (opts.onOptions) more.push({ label: "Options", key: "O", code: "KeyO", pad: "Back", run: opts.onOptions });
+  if (opts.onHighScores) more.push({ label: opts.highScoresLabel ?? "High Scores", key: "H", code: "KeyH", pad: "Y", run: opts.onHighScores });
+  const padButtons = new Map<number, (typeof more)[number]>();
+  for (const m of more) if (m.pad) padButtons.set(m.pad === "Y" ? PAD_Y : PAD_BACK, m);
+
+  const screen = showScreen({
+    id: "title",
+    backdrop: "title",
+    layout: "narrow",
+    label: "Title",
+    onKey: (e) => {
+      if (e.code === "KeyM" && hasMusic) cycleMusic();
+      else {
+        const m = more.find((m) => m.code === e.code);
+        if (!m || e.altKey || e.ctrlKey || e.metaKey) return false;
+        void sub(m.run);
       }
-      prev = now;
-    }
-    raf = requestAnimationFrame(poll);
+      return true;
+    },
+    onPadButton: (button) => {
+      const m = padButtons.get(button);
+      if (m) void sub(m.run);
+    },
+    onIntent: (intent) => {
+      if (intent === "start") finish();
+      else if (intent === "alt" && hasMusic) cycleMusic();
+      else return false;
+      return true;
+    },
+  });
+
+  const episodeCount = opts.episodes.length;
+  const episodes = new MenuList({
+    label: "Episode",
+    items: [
+      ...opts.episodes.map((n) => ({ label: opts.episodeNames[n]?.trim() || `Episode ${n}` })),
+      ...more.map((m, i) => ({ label: m.label, class: `title-more${i === 0 ? " title-more--first" : ""}` })),
+    ],
+    focused: ep,
+    onFocus: (i) => {
+      if (i < episodeCount) ep = i;
+    },
+    onSelect: (i) => {
+      if (i >= episodeCount) return void sub(more[i - episodeCount].run);
+      ep = i;
+      finish();
+    },
+  });
+  const difficulty = new MenuList({
+    label: "Difficulty",
+    orientation: "horizontal",
+    items: opts.difficulties.map((n) => ({ label: opts.difficultyNames[n]?.trim() || String(n) })),
+    focused: diff,
+    onFocus: (i) => (diff = i),
+  });
+  // Music style (local remaster packs only): M or X cycles it, a tap picks one. Not one of the
+  // screen's controls, so left/right stay with the difficulty.
+  const label = (s: string) => `${s[0].toUpperCase()}${s.slice(1)}`;
+  let syncing = false;
+  const music = new MenuList({
+    label: "Music",
+    orientation: "horizontal",
+    class: "title-music",
+    items: styles.map((s) => ({ label: label(s) })),
+    focused: Math.max(0, styles.indexOf(opts.musicStyle ?? "original")),
+    onFocus: (i) => {
+      if (!syncing) opts.onMusicStyle?.(styles[i]);
+    },
+  });
+  const cycleMusic = () => music.focus((music.focused + 1) % styles.length);
+  /** Show the style the music plays now, without switching it again. */
+  const syncMusic = () => {
+    const i = styles.indexOf(opts.currentMusicStyle?.() ?? "");
+    if (i < 0) return;
+    syncing = true;
+    music.focus(i);
+    syncing = false;
   };
-  window.addEventListener("keydown", onKey);
-  raf = requestAnimationFrame(poll);
+
+  screen.root.insertBefore(logo(), screen.panel);
+  screen.add(h("span", { class: "ui-label", text: "Episode" }), episodes);
+  screen.add(h("span", { class: "ui-label", text: "Difficulty" }), difficulty);
+  if (hasMusic) screen.add(h("span", { class: "ui-label", text: "Music" }), music.el);
+  screen.add(
+    keyHints([
+      { key: "↑↓", pad: "✛", label: "Episode" },
+      { key: "←→", pad: "✛", label: "Difficulty" },
+      { key: "Enter", pad: "A", touch: "Tap", label: "Start" },
+      ...(hasMusic ? [{ key: "M", pad: "X", label: "Music" }] : []),
+      // A hint without a pad glyph shows its key on a pad too; Load Game has no button of its own
+      // (Y and Back are taken), so on a pad it's reached in the list.
+      ...more.map((m) => ({ key: m.key, ...(m.pad ? { pad: m.pad } : {}), label: m.label })),
+    ]),
+    h("p", { class: "title-controls", text: "In flight: arrows or WASD move, Space fires. Mouse, touch and gamepads work too." }),
+  );
   return new Promise((resolve) => (resolveFn = resolve));
 }
 
+/**
+ * The continue button's label from a prompt such as "Press Enter to continue" (callers still pass
+ * the keyboard wording; on a pad or a touch screen "Press Enter" would be wrong).
+ */
+export function actionLabel(prompt: string): string {
+  const s = prompt.replace(/^press\s+(enter|any key)\s*(to|for)?\s*/i, "").trim();
+  if (/^the title( screen)?$/i.test(s)) return "Title screen";
+  return s ? s[0].toUpperCase() + s.slice(1) : "Continue";
+}
+
 /** A message screen (level complete, game over); resolves when the player continues. */
-export function showMessage(title: string, lines: string[], prompt = "Press Enter to continue"): Promise<void> {
-  const body = lines.map((l) => `<p>${l}</p>`).join("");
-  const el = overlay(`<h2>${title}</h2>${body}<p><span class="key">${prompt}</span></p>`);
-  return waitForStart(el);
+export function showMessage(heading: string, lines: string[], prompt = "Press Enter to continue"): Promise<void> {
+  return new Promise((resolve) => {
+    let screen: Screen;
+    const done = () => {
+      if (!screen.open) return;
+      screen.close();
+      resolve();
+    };
+    screen = showScreen({
+      id: "message",
+      backdrop: "space",
+      layout: "narrow",
+      label: heading,
+      onIntent: (intent) => {
+        if (intent === "accept" || intent === "start" || intent === "back") done();
+        return true;
+      },
+    });
+    screen.add(
+      title(heading),
+      ...lines.map((l) => h("p", { class: "message-line", text: l })),
+      h("div", { class: "ui-actions" }, button({ label: actionLabel(prompt), variant: "primary", hint: { key: "Enter", pad: "A" }, onPress: done })),
+    );
+    // A tap anywhere continues, as a click on the old overlay did.
+    screen.root.addEventListener("click", done);
+  });
 }
 
 /** A non-blocking status line (e.g. loading), removed by calling the returned function. */
 export function showStatus(text: string): () => void {
-  const el = overlay(`<p>${text}</p>`);
-  return () => el.remove();
+  const screen = showScreen({ id: "status", backdrop: "title", layout: "narrow", passive: true, label: text });
+  screen.add(h("p", { class: "ui-status" }, h("span", { class: "ui-spinner" }), text));
+  return () => screen.close();
 }

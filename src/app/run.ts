@@ -26,6 +26,7 @@ import { showLoadScreen, showOptions } from "./options";
 import { connectVolumes, loadPrefs, musicLevel } from "./prefs";
 import { highScoreCheck, showHighScoreScreen } from "./highScoresScreen"; // [high scores]
 import { highScoreCheckDue } from "../sim/highscores"; // [high scores]
+import { PauseButton, showPause } from "./pause"; // ui-framework: pause screen
 import { askForData, showMessage, showStatus, showTitle, type TitleChoice } from "./screens";
 import { runItemScreen } from "./shop";
 // port-story: the screens between levels and the level fades.
@@ -77,6 +78,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
   const sfx = new SoundEffects(requireFile(files, "tyrian.snd"), requireFile(files, "voices.snd"), audioContext);
   const controls = new Controls(() => view.gamePixelsPerScreenPixel);
   const hud = new Hud();
+  const pauseButton = new PauseButton(() => (controls.pauseRequested = true)); // ui-framework
   loading();
 
   if (import.meta.env.DEV) Object.assign(window, { tyrian: { g, view, music, sfx } });
@@ -92,6 +94,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
 
   for (;;) {
     music.play(SONG_TITLE);
+    levelFade().set(0); // the title's backdrop draws under the level fade (port-story)
     choice = await showTitle({
       episodeNames: names.episodeName,
       episodes,
@@ -139,6 +142,8 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
         g.mainLevel,
         async () => {
           await story(); // port-story
+          // The item screen's backdrop draws in the game's canvas, under the level fade: clear it.
+          levelFade().set(0);
           await runItemScreen({ files, sfx, music });
         },
         async (pause) => {
@@ -169,12 +174,20 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
       void levelFade().fade(0, 50, BLACK);
 
       controls.active = true;
+      pauseButton.visible = true; // ui-framework
       const outcome = await playLevel(view, controls, sfx, music, hud);
       controls.active = false;
       controls.release();
       hud.visible = false;
+      pauseButton.visible = false; // ui-framework
 
       g.difficultyLevel = g.oldDifficultyLevel; /*Return difficulty to normal*/
+      if (outcome === "quit") {
+        // ui-framework: "Quit to title" on the pause screen (src/app/pause.ts). [high scores] As
+        // quitting from the item screen, it ends the game, so its score is checked.
+        if (highScoreCheckDue(choice.episode)) await highScoreCheck({ ...names, sfx, music }, choice.episode);
+        break;
+      }
 
       if (outcome === "completed") {
         g.mainLevel = g.nextLevel;
@@ -204,29 +217,34 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
   }
 }
 
-type Outcome = "completed" | "died";
+type Outcome = "completed" | "died" | "quit";
 
 function playLevel(view: View, controls: Controls, sfx: SoundEffects, music: MusicPlayer, hud: Hud): Promise<Outcome> {
   return new Promise((resolve) => {
     let last = performance.now();
     let acc = 0;
     let paused = false;
-    let pauseEl: (() => void) | null = null;
+    let quit = false;
 
     const frame = (now: number) => {
-      if (controls.pauseRequested) {
+      // ui-framework: the pause screen (src/app/pause.ts) replaces the "Paused" status line.
+      if (controls.pauseRequested && !paused) {
         controls.pauseRequested = false;
-        paused = !paused;
-        if (paused) {
-          controls.release();
-          controls.active = false;
-          pauseEl = showStatus("Paused · press Esc or P to continue");
-          music.volume = musicLevel(0.3);
-        } else {
-          pauseEl?.();
+        paused = true;
+        controls.release();
+        controls.active = false;
+        music.volume = musicLevel(0.3); // [port-options] relative to the music volume setting
+        void showPause().then((choice) => {
+          paused = false;
+          quit = choice === "quit";
+          controls.clear();
           controls.active = true;
           music.volume = musicLevel();
-        }
+        });
+      }
+      if (quit) {
+        resolve("quit");
+        return;
       }
       if (paused) {
         last = now;

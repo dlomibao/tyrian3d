@@ -31,22 +31,19 @@ const esc = (s: string) => s.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
 /** Tyrian's text toggles a highlight with '~' (JE_textShade / JE_helpBox). */
 const highlight = (s: string) => esc(s).replace(/~([^~]*)~?/g, "<b>$1</b>");
 
-let openScreens = 0;
-/** Whether one of these screens is up: the screens under it (title, item screen) ignore input meanwhile. */
-export const subscreenOpen = (): boolean => openScreens > 0;
+// These screens read keys and pads themselves; the title and item screen open them through the
+// interface framework's Screen.aside, which keeps the framework's navigation off meanwhile.
 
 function overlay(className: string, html: string): HTMLDivElement {
   const el = document.createElement("div");
   el.className = `overlay ${className}`;
   el.innerHTML = html;
   document.body.appendChild(el);
-  openScreens++;
   return el;
 }
 
 function closeOverlay(el: HTMLElement): void {
   el.remove();
-  openScreens--;
 }
 
 // --- Gamepad ---
@@ -157,9 +154,9 @@ export function itemScreenOptionsRow(e: ItemScreenEntry): string | null {
     const s = e.saveSlot;
     const level = s.empty ? "-----" : esc(s.levelName); /* Empty save slot */
     const ep = s.empty ? "" : `<span class="slot-ep">${esc(g.miscTextB[1 - 1] ?? "Ep")}${s.episode}</span>`;
-    return `<span class="what slot-name">${esc(s.name)}</span><span class="slot-level">${level}</span>${ep}`;
+    return `<span class="what ui-menu__label slot-name">${esc(s.name)}</span><span class="slot-level">${level}</span>${ep}`;
   }
-  if (e.volume !== undefined) return `<span class="what">${esc(e.label)}</span>${volumeBarHtml(e.volume, e.sel)}`;
+  if (e.volume !== undefined) return `<span class="what ui-menu__label">${esc(e.label)}</span>${volumeBarHtml(e.volume, e.sel)}`;
   return null;
 }
 

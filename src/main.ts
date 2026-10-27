@@ -3,6 +3,9 @@ import { loadSettings } from "./core/settings";
 import { loadModel } from "./render/models";
 import { spriteModels } from "./render/spriteModels";
 import { View } from "./render/view";
+import { Backdrop, POSES } from "./ui/backdrop"; // ui-framework
+import { showMessage } from "./app/screens"; // ui-framework
+import { ui } from "./ui"; // ui-framework
 
 if (new URLSearchParams(location.search).has("viewer")) {
   // Model viewer: each Blender model beside its sprite (src/viewer/). Its own page, so the game's
@@ -17,7 +20,16 @@ if (new URLSearchParams(location.search).has("viewer")) {
 /** The game itself: the 3D view, then the title screen, shop and levels (or a ?debug bench). */
 function startGame(): void {
   const settings = loadSettings();
-  const view = new View(document.body, settings);
+  // ui-framework: without WebGL the game can't run, but say so on a real screen.
+  let view: View;
+  try {
+    view = new View(document.body, settings);
+  } catch (err) {
+    console.error(err);
+    ui.attachBackdrop(new Backdrop(null));
+    void showMessage("WebGL needed", ["Tyrian 3D draws with WebGL, which this browser has turned off or doesn't support."], "Press Enter to try again").then(() => location.reload());
+    return;
+  }
   const debug = new URLSearchParams(location.search).get("debug");
 
   view.draws.setSpriteModels(spriteModels(), loadModel);
@@ -37,16 +49,13 @@ function startGame(): void {
       .then(({ runSpriteHarness }) => runSpriteHarness(view))
       .catch((err) => console.error("sprite harness failed", err));
   } else {
-    // Until the game starts, keep the idle scene moving behind the overlays.
-    let idle = true;
-    const idleFrame = () => {
-      if (!idle) return;
-      view.render(null, 1);
-      requestAnimationFrame(idleFrame);
-    };
-    requestAnimationFrame(idleFrame);
+    // ui-framework: the menus' 3D backdrop draws with the view's renderer whenever a screen is up
+    // (src/ui/backdrop.ts); during levels no screen is, and the game draws.
+    const backdrop = new Backdrop(view.renderer);
+    ui.attachBackdrop(backdrop);
+    if (import.meta.env.DEV) Object.assign(window, { tyrianUi: { ui, backdrop, poses: POSES } });
 
-    runGame(view, () => (idle = false)).catch((err) => {
+    runGame(view).catch((err) => {
       console.error(err);
       document.body.insertAdjacentHTML(
         "beforeend",
