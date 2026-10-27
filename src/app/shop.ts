@@ -174,14 +174,17 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
     label: "Item screen",
     // [port-options] Alt-S / Alt-L: quick save and load (game_menu.c L1539-1580).
     onKey: (e) => {
+      if (cubes.key(e)) return true; // [restyle-cubes] the cube reader's Page Up/Down, Home, End
       if (!e.altKey || (e.code !== "KeyS" && e.code !== "KeyL")) return false;
       key(e.code === "KeyS" ? "quickSave" : "quickLoad");
       return true;
     },
     onIntent: (intent) => {
+      cubes.intent(intent); // [restyle-cubes] the cube reader scrolls; the C's keys still get it
       key(INTENT_KEYS[intent]);
       return true;
     },
+    onPadButton: (b) => cubes.padButton(b), // [restyle-cubes] LB/RB page the cube reader
   });
   const root = screen.panel;
   root.innerHTML = `
@@ -570,9 +573,11 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
     const id = `${weapon} ${volume} ${reader}`;
     if (id === hintsFor) return;
     hintsFor = id;
+    const cubeHints = cubes.hints(); // [restyle-cubes] the reader's own (scroll, page, back)
+    if (cubeHints) return void el("hints").replaceChildren(keyHints(cubeHints));
     el("hints").replaceChildren(
       keyHints([
-        { key: "↑↓", pad: "✛", label: reader ? "Scroll" : "Move" },
+        { key: "↑↓", pad: "✛", label: "Move" },
         ...(weapon ? [{ key: "←→", pad: "✛", label: "Power" }] : []),
         ...(volume ? [{ key: "←→", pad: "✛", label: "Volume" }] : []),
         { key: "Enter", pad: "A", touch: "Tap twice", label: "Select" },

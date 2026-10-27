@@ -1,39 +1,33 @@
-// The item screen's Data Cubes menus as HTML: the list of cubes found in the last level
-// (MENU_DATA_CUBES) and the reader (MENU_DATA_CUBE_SUB). The rules are the C's, in
-// src/sim/game_menu.ts (which menu, which row, Enter/Escape) and src/sim/cubes.ts (which cubes,
-// their wrapped text, the reader's scrolling); this file draws them for src/app/shop.ts.
+// The item screen's Data Cubes menus, drawn as a data terminal of the interface framework
+// (src/ui/README.md): the list of cubes found in the last level (MENU_DATA_CUBES) and the reader
+// (MENU_DATA_CUBE_SUB). The rules are the C's, in src/sim/game_menu.ts (which menu, which row,
+// Enter/Escape) and src/sim/cubes.ts (which cubes, their wrapped text, the reader's scrolling);
+// this file draws them for src/app/shop.ts and turns the framework's input into the reader's.
 //
 // What the C draws (JE_itemScreen, game_menu.c L672-783 and L811-866), and what it becomes here:
 //   - the portrait area (OPTION_SHAPES 20) with the cube's face (FACE_SHAPES, in its own palette,
 //     facepal) and the cube's header under it: the left pane, in place of the loadout;
 //   - a cube icon (JE_drawCube: OPTION_SHAPES 25 tinted, which flashes on the chosen row) and the
-//     title per cube, then "Exit to Game Menu"; with no cubes, "No Data is available at this time.";
-//   - the reader: nine lines of the wrapped text scrolled by yLoc, "Read: n%" and EXIT.
+//     title per cube, then "Exit to Game Menu"; with no cubes, "No Data is available at this time.":
+//     rows in the framework's menu markup, as the item screen's other menus;
+//   - the reader: nine lines of the wrapped text scrolled by yLoc, "Read: n%" and EXIT: a scroll
+//     box under the cube's title, a stat bar and a back button.
 //   - On the main menu, an icon per cube collected beside the Data Cubes row (L317-324).
 // The reader's text column keeps the C's line breaks (load_cube wraps to the tiny font), so the
-// text can't reflow; it scrolls with the C's keys and also with the wheel or a drag.
+// text can't reflow. It scrolls by the C's rules with the framework's up/down (keys, d-pad,
+// stick), Page Up/Down, Home/End and a click on its upper or lower half, a pad's shoulder buttons
+// page (cubeReaderControl.ts), and the wheel or a finger move it directly.
 //
 // Cubes the player hasn't opened yet are marked NEW; the C has no such mark (see DECISIONS.md).
 
 import "./dataCubes.css";
 import { decodeTableSprite, type DecodedSprite, type Palette, vga6To8 } from "../data";
-import {
-  cube,
-  CUBE_LINE_HEIGHT,
-  CUBE_READER_LINES,
-  cubeReader,
-  cubeReader_end,
-  cubeReader_frame,
-  cubeReader_home,
-  cubeReader_percent,
-  facepal,
-  load_cubes,
-  type CubeReaderInput,
-} from "../sim/cubes";
+import { cube, CUBE_LINE_HEIGHT, CUBE_READER_LINES, cubeReader, cubeReader_end, cubeReader_home, cubeReader_percent, facepal, load_cubes } from "../sim/cubes";
 import { MENU_DATA_CUBE_SUB, MENU_DATA_CUBES, MENU_FULL_GAME, menu, type ItemScreenEntry } from "../sim/game_menu";
 import type { TyrianFiles } from "../sim/resources";
 import { g } from "../sim/state";
-import { CLASSIC_TICK_MS } from "../core/timing";
+import { button, h, type Intent, type KeyHint, statBar } from "../ui";
+import { CubeReaderControl } from "./cubeReaderControl";
 
 /** sprite.h table numbers, and the OPTION_SHAPES sprites the cube menus use. */
 const FACE_SHAPES = 4;
@@ -43,6 +37,10 @@ const CUBE_SPRITE = 25;
 const CUBE_ICON = 34;
 /** The item screen's palette (JE_loadPic 1). */
 const SHOP_PALETTE = 0;
+
+/** Standard-mapping pad buttons that page the reader: LB up, RB down. */
+const PAD_PAGE_UP = 4;
+const PAD_PAGE_DOWN = 5;
 
 export interface DataCubesHost {
   files: TyrianFiles;
@@ -57,6 +55,17 @@ export interface DataCubesView {
   render(side: HTMLElement, list: HTMLElement): boolean;
   /** Extra markup for a row of another menu: the collected-cube icons by the main menu's Data Cubes row. */
   rowExtra(e: ItemScreenEntry): string;
+  /**
+   * An intent the item screen got. In the reader, up/down scroll the text; the item screen still
+   * hands every intent to the C's keys too, as the C reads both.
+   */
+  intent(intent: Intent): void;
+  /** A raw key (the item screen's onKey): the reader's Page Up/Down, Home and End. True if used. */
+  key(e: KeyboardEvent): boolean;
+  /** A pad button that isn't an intent (the item screen's onPadButton): LB/RB page the reader. */
+  padButton(index: number): void;
+  /** The key hints while the reader is open, or null for the item screen's own. */
+  hints(): KeyHint[] | null;
   destroy(): void;
 }
 
@@ -172,134 +181,124 @@ function portraitImage(face: number): string {
   });
 }
 
+/** The "n / max" of a cube slot, for the labels. */
+const cubeOf = (slot: number) => `Data cube ${slot + 1} / ${g.cubeMax}`;
+
 /** Set up the cube menus for one item screen visit; JE_itemScreen's load_cubes() (game_menu.c L164). */
 export function createDataCubes(host: DataCubesHost): DataCubesView {
   load_cubes(host.files);
 
-  const reader = document.createElement("div");
-  reader.className = "cube-reader";
+  // The reader, in the menu's place: the cube's title, the text in a scroll box, "Read: n%" and EXIT.
+  const titleEl = h("span");
+  const linesEl = h("div", { class: "cube-lines" });
+  const textEl = h("div", { class: "ui-scroll cube-text", attrs: { role: "document" } }, linesEl);
+  const read = statBar("", "cyan");
+  const exit = button({ label: g.miscText[12] ?? "EXIT", class: "cube-exit", hint: { key: "Esc", pad: "B" }, onPress: () => host.back() });
+  const reader = h(
+    "div",
+    { class: "cube-reader" },
+    // The portrait's caption beside it already says which cube this is.
+    h("h3", { class: "ui-title cube-reader__title" }, titleEl),
+    h("div", { class: "cube-screen" }, textEl),
+    h("div", { class: "cube-foot" }, read.el, exit),
+  );
   reader.hidden = true;
-  reader.innerHTML = `
-    <div class="cube-text" data-k="text" tabindex="-1"></div>
-    <div class="cube-foot">
-      <span data-k="read"></span>
-      <button type="button" class="ui-button ui-button--ghost" tabindex="-1" data-k="exit"></button>
-    </div>`;
-  const textEl = reader.querySelector<HTMLElement>('[data-k="text"]')!;
-  const readEl = reader.querySelector<HTMLElement>('[data-k="read"]')!;
-  const exitEl = reader.querySelector<HTMLButtonElement>('[data-k="exit"]')!;
+  // The box shows the C's nine lines; its height comes from this in dataCubes.css.
+  textEl.style.setProperty("--cube-lines", String(CUBE_READER_LINES));
+  const readLabel = read.el.querySelector<HTMLElement>(".ui-stat__label")!;
   host.menuColumn.appendChild(reader);
-  exitEl.addEventListener("click", () => host.back());
 
   /** The cube the reader has open (-1: none), so a redraw keeps its scroll position. */
   let shown = -1;
+  const reading = () => menu.curMenu === MENU_DATA_CUBE_SUB && shown >= 0;
+  const control = new CubeReaderControl();
   /** CSS pixels per C pixel of yLoc (one text line is CUBE_LINE_HEIGHT C pixels). */
   let scale = 1;
   /** The scrollTop the frame loop last set, to tell its own scroll events from the player's. */
   let setTop = -1;
+  /** The yLoc (C pixels, fractional between frames) last drawn. */
+  let drawnY = -1;
+  let percentFor = -1;
 
-  // The reader's keys, read every frame as the C reads keysactive (so a held key keeps scrolling).
-  // A key also counts as down for the first frame after it's pressed, so a quick tap isn't missed.
-  const held = new Set<string>();
-  const tapped = new Set<string>();
-  let clicks: CubeReaderInput = {};
-  const onKeyDown = (e: KeyboardEvent) => {
-    if (menu.curMenu !== MENU_DATA_CUBE_SUB) return;
-    held.add(e.code);
-    tapped.add(e.code);
-    const c = cube[menu.currentCube];
-    if (e.code === "Home" || e.code === "End") {
-      e.preventDefault();
-      if (e.code === "Home") cubeReader_home();
-      else cubeReader_end(c);
-      cubeReader.yChg = 0;
-      scrollToYLoc();
-    } else if (e.code === "PageUp" || e.code === "PageDown") {
-      e.preventDefault();
-    }
+  const measure = () => {
+    const line = linesEl.firstElementChild?.getBoundingClientRect().height;
+    if (line) scale = line / CUBE_LINE_HEIGHT;
+    drawnY = -1; // redraw at the new scale
   };
-  const onKeyUp = (e: KeyboardEvent) => held.delete(e.code);
-  const onBlur = () => (held.clear(), tapped.clear());
-  window.addEventListener("keydown", onKeyDown, true);
-  window.addEventListener("keyup", onKeyUp, true);
-  window.addEventListener("blur", onBlur);
+  const resize = new ResizeObserver(measure);
+  resize.observe(textEl);
+
+  function draw(y: number): void {
+    if (y !== drawnY) {
+      drawnY = y;
+      textEl.scrollTop = y * scale;
+      setTop = textEl.scrollTop;
+    }
+    if (cubeReader.yLoc !== percentFor) {
+      percentFor = cubeReader.yLoc;
+      const pct = cubeReader_percent(cube[shown]);
+      readLabel.textContent = `${g.miscText[11] ?? "Read:"} ${pct}%`;
+      read.set(pct / 100);
+    }
+  }
 
   // A click on the upper or lower half of the text scrolls a line up or down (game_menu.c L813-820, L969-978).
   textEl.addEventListener("click", (e) => {
+    if (!reading()) return;
     const r = textEl.getBoundingClientRect();
-    if (e.clientY < r.top + r.height / 2) clicks = { clickUp: true };
-    else clicks = { clickDown: true };
+    control.press(e.clientY < r.top + r.height / 2 ? "clickUp" : "clickDown");
   });
-  // The wheel, a drag or the scrollbar move the text directly; the C's scrolling carries on from there.
+  // The wheel, a finger or the scrollbar move the text directly; the C's scrolling carries on from there.
   textEl.addEventListener("scroll", () => {
-    if (Math.abs(textEl.scrollTop - setTop) < 1) return;
+    if (!reading() || Math.abs(textEl.scrollTop - setTop) < 1) return;
     cubeReader.yLoc = Math.max(0, Math.round(textEl.scrollTop / scale));
     cubeReader.yChg = 0;
-    updatePercent();
-  });
-
-  function scrollToYLoc(): void {
-    setTop = cubeReader.yLoc * scale;
-    textEl.scrollTop = setTop;
+    control.sync();
+    drawnY = cubeReader.yLoc;
     setTop = textEl.scrollTop;
-    updatePercent();
-  }
-
-  function updatePercent(): void {
-    if (shown < 0) return;
-    readEl.textContent = `${g.miscText[11] ?? "Read:"} ${cubeReader_percent(cube[shown])}%`;
-  }
+    draw(drawnY);
+  });
 
   function openReader(slot: number): void {
     shown = slot;
     opened.add(cubeKey(slot));
     const c = cube[slot];
+    titleEl.innerHTML = tildes(c.title);
     const lines = c.text.slice(0, Math.max(c.last_line, 0));
-    textEl.innerHTML = lines.map((l) => `<div>${tildes(l) || "&nbsp;"}</div>`).join("");
-    exitEl.textContent = g.miscText[12] ?? "EXIT";
+    linesEl.innerHTML = lines.map((l) => `<div>${tildes(l) || "&nbsp;"}</div>`).join("");
     reader.hidden = false;
-    const lineHeight = textEl.firstElementChild?.getBoundingClientRect().height || 20;
-    scale = lineHeight / CUBE_LINE_HEIGHT;
-    textEl.style.height = `${CUBE_READER_LINES * lineHeight}px`;
-    scrollToYLoc();
-    textEl.focus({ preventScroll: true });
+    measure();
+    control.sync();
+    percentFor = -1;
+    draw(cubeReader.yLoc);
   }
 
-  // The reader's frame loop: setFrameCount(1), one classic tick per frame.
+  // The reader's frame loop: the C's frames at the C's rate (cubeReaderControl.ts), drawn every
+  // display frame.
   let raf = 0;
   let last = 0;
   const frame = (now: number) => {
     raf = requestAnimationFrame(frame);
-    if (menu.curMenu !== MENU_DATA_CUBE_SUB || shown < 0) return;
-    if (now - last < CLASSIC_TICK_MS) return;
-    last = now - ((now - last) % CLASSIC_TICK_MS);
-    const pads = (navigator.getGamepads?.() ?? []).filter((p): p is Gamepad => !!p);
-    const pad = (i: number) => pads.some((p) => p.buttons[i]?.pressed);
-    const down = (code: string) => held.has(code) || tapped.has(code);
-    const input: CubeReaderInput = {
-      ...clicks,
-      up: down("ArrowUp") || down("KeyW") || pad(12),
-      down: down("ArrowDown") || down("KeyS") || pad(13),
-      pageUp: down("PageUp"),
-      pageDown: down("PageDown"),
-    };
-    clicks = {};
-    tapped.clear();
-    const before = cubeReader.yLoc;
-    cubeReader_frame(cube[shown], input);
-    if (cubeReader.yLoc !== before) scrollToYLoc();
+    const dt = last ? now - last : 0;
+    last = now;
+    if (!reading()) return;
+    draw(control.advance(cube[shown], dt));
   };
   raf = requestAnimationFrame(frame);
 
   function renderPortrait(side: HTMLElement): void {
     const sel = menu.curSel[MENU_DATA_CUBES];
     const onCube = sel < menu.menuChoices[MENU_DATA_CUBES] && g.cubeMax > 0;
-    const c = onCube ? cube[sel - 2] : null;
+    const slot = onCube ? sel - 2 : -1;
+    const c = onCube ? cube[slot] : null;
     const url = portraitImage(c ? c.face_sprite : -1);
     side.innerHTML = `
-      <figure class="cube-portrait">
-        ${url ? `<img src="${url}" alt="">` : ""}
-        <figcaption>${c ? esc(c.header) : ""}</figcaption>
+      <figure class="cube-portrait${c ? "" : " is-idle"}">
+        <span class="cube-portrait__frame">${url ? `<img src="${url}" alt="">` : ""}</span>
+        <figcaption>
+          <small>${c ? esc(cubeOf(slot)) : "Data cubes"}</small>
+          <b>${c ? esc(c.header) : "&nbsp;"}</b>
+        </figcaption>
       </figure>`;
   }
 
@@ -311,11 +310,12 @@ export function createDataCubes(host: DataCubesHost): DataCubesView {
     for (let x = 1; x <= g.cubeMax; x++) {
       const cur = x + 1 === sel;
       const isNew = !opened.has(cubeKey(x - 1));
+      const c = cube[x - 1];
       // The rows in the interface framework's menu markup (src/ui/components.css), as shop.ts's.
-      html += `<li class="ui-menu__item shop-row cube-row${cur ? " is-focused" : ""}" data-sel="${x + 1}" role="option" aria-selected="${cur}">
-        <span class="cube-ico">${img ? `<img src="${img}" alt="">` : ""}</span>
-        <span class="ui-menu__text"><span class="ui-menu__label what">${tildes(cube[x - 1].title)}</span></span>
-        ${isNew ? `<span class="cube-new" title="Not read yet">NEW</span>` : ""}
+      html += `<li class="ui-menu__item shop-row cube-row${cur ? " is-focused" : ""}${isNew ? " is-new" : ""}" data-sel="${x + 1}" role="option" aria-selected="${cur}">
+        <span class="ui-menu__icon cube-ico">${img ? `<img src="${img}" alt="">` : ""}</span>
+        <span class="ui-menu__text"><span class="ui-menu__label cube-title">${tildes(c.title)}</span><small class="ui-menu__detail">${esc(c.header)}</small></span>
+        ${isNew ? `<span class="ui-badge cube-new" title="Not read yet">NEW</span>` : ""}
       </li>`;
     }
     const exitSel = g.cubeMax + 2;
@@ -354,11 +354,50 @@ export function createDataCubes(host: DataCubesHost): DataCubesView {
       return `<span class="cube-count" title="${esc(g.miscText[4 - 1] ?? "")} ${g.cubeMax}">${icons}</span>`;
     },
 
+    intent(intent) {
+      if (!reading()) return;
+      if (intent === "up" || intent === "down") control.press(intent);
+    },
+
+    key(e) {
+      if (!reading() || e.altKey || e.ctrlKey || e.metaKey) return false;
+      switch (e.code) {
+        case "PageUp":
+          control.press("pageUp");
+          return true;
+        case "PageDown":
+          control.press("pageDown");
+          return true;
+        case "Home":
+        case "End":
+          // game_menu.c L1337-1345: a jump, not a scroll.
+          if (e.code === "Home") cubeReader_home();
+          else cubeReader_end(cube[shown]);
+          cubeReader.yChg = 0;
+          control.sync();
+          draw(cubeReader.yLoc);
+          return true;
+      }
+      return false;
+    },
+
+    padButton(index) {
+      if (!reading()) return;
+      if (index === PAD_PAGE_UP || index === PAD_PAGE_DOWN) control.page(index === PAD_PAGE_DOWN);
+    },
+
+    hints() {
+      if (menu.curMenu !== MENU_DATA_CUBE_SUB) return null;
+      return [
+        { key: "↑↓", pad: "✛", touch: "Drag", label: "Scroll" },
+        { key: "PgUp PgDn", pad: "LB RB", label: "Page" },
+        { key: "Esc", pad: "B", label: "Back" },
+      ];
+    },
+
     destroy() {
       cancelAnimationFrame(raf);
-      window.removeEventListener("keydown", onKeyDown, true);
-      window.removeEventListener("keyup", onKeyUp, true);
-      window.removeEventListener("blur", onBlur);
+      resize.disconnect();
       reader.remove();
     },
   };
