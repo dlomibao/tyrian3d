@@ -23,6 +23,10 @@ OpenTyrian links to, and choose or drop it on the page. It stays in your browser
 | Sidekicks | Left Ctrl, Left Alt / K, ; | LB, RB |
 | Pause | Esc / P | Start |
 
+In a two-player game, player 2 moves with W/A/S/D, fires with F, changes the rear weapon's mode
+with R and fires the sidekicks with Q and E (or the keypad: 8/5/4/6, 0, `.`, 7 and 9), or uses
+the second gamepad.
+
 The keys can be changed in Options. Menus take arrows or WASD, Enter, Esc, a pad's d-pad, A and B,
 or taps. On a touch screen the ship follows your finger and fires while you touch; the pause
 button sits in the top corner.
@@ -48,7 +52,13 @@ score table (episodes 1-3, as in the original), which the title screen shows und
   automatic LAST LEVEL backup; Alt-S / Alt-L), and the title has Load Game and Options. Options sets
   the music and sound volume, the music style, the keys (two per control) and checks a gamepad's
   buttons. Saves and settings stay in this browser.
-- **Not yet:** arcade and two-player modes.
+- **Two players:** Start asks for the kind of game; 2 Player Arcade is OpenTyrian's two-player
+  mode on one machine. Player 1 has the usual keys, the mouse and the first gamepad; player 2
+  W/A/S/D, F fire, R change fire, Q/E sidekicks (or the keypad, or the second gamepad). Fly
+  close together and stop to link: player 2 docks under player 1 and turns a gun with the move
+  keys while firing. Each player has lives (their weapon's power), and Options and the item
+  screen set each player's keys and gamepad.
+- **Not yet:** one-player arcade mode.
 - **Everything else:** in [Issues](../../issues) and [Milestones](../../milestones). Design calls
   made along the way are in [DECISIONS.md](DECISIONS.md).
 

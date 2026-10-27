@@ -650,3 +650,51 @@ renderer and only while a screen asks for it. The pause screen's "Quit to title"
 backdrop's cost shows on slow machines, cap its frame rate or render it at a lower pixel ratio. If
 the C's in-game Quit is wanted, add "Retry from item screen" to the pause menu: it's the "died"
 path in `run.ts` with `playerEndLevel` set.
+## D28 — Local two-player is OpenTyrian's 2 Player Arcade, with each player's own keys and gamepad
+
+2026-10-27
+
+**Decision:** Two players on one machine play OpenTyrian's two-player mode as the C runs it:
+newGame's "2 Player Arcade" (`src/sim/twoplayer.ts`: player 1 in the Silver Ship, player 2 in the
+dragonwing, no cash, one difficulty step harder), the 2 Player Arcade item-screen menu, lives that
+are each player's weapon power, linking (player 2 docks under player 1 and turns a gun), and save
+slots 12-22. The parts of JE_main the port had left out (both players' collisions and enemy-shot
+hits, the shared shield recharge, allPlayersGone's player-2 clause, the warning for player 2) are
+ported, and the C bot driver's new `play2` mode plays a two-player level in OpenTyrian itself:
+the port matches it tick for tick, through a link, the linked gun turning, an unlink and player 2's
+deaths and respawns. The title's Start asks for the kind of game first (the C's gameplaySelect,
+shown after the episode and difficulty here; 1 Player Arcade and Network Game are listed but not
+offered). Each player has their own SimInput (`simInputs`); the host fills it from that player's
+devices, and a local game sets `inputDevice` to 0 for both, so each player reads all of their own:
+player 1 the one-player keys, the mouse/touch and their gamepad; player 2 a key table of their
+own (W/A/S/D, F fire, R change fire, Q/E sidekicks, and the keypad; rebindable under "Key config ·
+Player 2" in Options) and their gamepad. In a two-player game player 2's keys win over player 1's
+(so W/A/S/D move player 2 there). The item screen's Player 1/2 Input rows cycle the gamepad each
+player uses (none, pad 1-4), swapping with the other player, as the C cycles inputDevice. A linked
+dragonwing's gun follows the stick's angle (joystick_analog_angle). Player 2's ship has a Blender
+model of the dragonwing (two sprite halves, so `spriteModels` gained `group` banking). The HUD
+shows a panel per player; the high score check asks each player, the higher scorer first; Load
+Game pages to the two-player saves with left/right.
+
+**Options considered:**
+- *The C's device model (chosen in spirit):* keep inputDevice and its filter in JE_playerMovement,
+  but give every player their own input instead of one shared keyboard. The C's own defaults
+  (player 1 on the keyboard, player 2 on the mouse) are still there for the cross-check
+  (`newTwoPlayerGame(..., { inputDevices: [1, 2] })`), not for play: two people can't share a mouse.
+- *One key table with player 2's keys in the second slot:* no new settings, but every one-player
+  game would lose its laptop keys.
+- *A two-player table for player 1 too:* each player gets half the keyboard by default, but a
+  player's custom one-player keys wouldn't carry over. Player 2's keys winning over player 1's
+  gets the same effect with the defaults.
+- *Two-player full game (the shop, both players buying):* OpenTyrian has no such mode; its
+  two-player game is the arcade one.
+- *The gameplay menu before the episode (the C's order):* a step more for every one-player game,
+  and the title already holds the episode and difficulty.
+
+**Review:** Play a level with two people on one keyboard, and with two pads. If player 2's
+defaults are awkward, change DEFAULT_KEYS_2 in `src/app/bindings.ts`. Player 1's W/A/S/D only
+drive player 2 in a two-player game; if that surprises, make player 1's table skip only keys
+player 2 actually uses. The dragonwing model (`assets/blender/ships/ship-dragonwing.py`) is a first
+pass: check it at `?viewer=ship-dragonwing` once the catalogue is rebuilt (its reference is in
+`reference/models/ship-dragonwing`, from `npm run catalogue`). The gameplay menu would also be the
+place for the 1 Player Arcade mode. D24's note that two-player saves aren't listed no longer holds.
