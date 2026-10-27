@@ -1098,3 +1098,45 @@ so the shop showed nothing for it; the port now draws them there as the level do
 
 **Review:** Upgrade Ship → Left Sidekick → Plasma Storm. If the C's empty preview is preferred,
 remove the `anim_frame > 60000` branch in `simulate_player_shots` (`src/sim/shots.ts`).
+## D36 — Remastered sound effects are resynthesized from the originals and switch per sound
+
+2026-10-27
+
+**Decision:** The private remaster repo (D18) remakes all 38 sounds (29 effects in tyrian.snd, 9
+voices in voices.snd) with `tools/sfx.py`, and its `out/manifest.json` lists them under
+`sfx.remaster` by sound id. The effects are *resynthesized* from an analysis of each original:
+its tonal content as sinusoidal tracks on clean 48 kHz oscillators, the rest as a noise vocoder
+following the original's band levels, both extended above the original's 5.5 kHz ceiling, plus
+designed layers (sub-bass under explosions, onset transients, three CC0 samples). So each keeps the
+original's pitch, timing, length and envelope, which the player reads as feedback. The voices are
+macOS `say` (Samantha; the original is a female voice around 220 Hz), fitted to the original's
+start and length and pitched to its median, through a ship-computer chain. Every remake is matched
+to its original's K-weighted loudness; the originals are clipped 8-bit noise, so a clean remake at
+their loudness peaks higher, and the manifest's `gain_db` (0-6 dB) carries the difference.
+
+In the game, `SoundEffects` takes the manifest and offers its sound styles; Options gets a Sound
+style row (Original / Remaster) under Music style, remembered in this browser (`?sound=` overrides
+it). A remade sound replaces the original only in the sample it plays: same 8 channels, same
+replacement rule, same `(vol + 1) / 8` gain, times its `gain_db`. Each sound falls back to the
+original on its own until its file has loaded, or if it fails or the style lacks it. Nothing is
+requested unless `localAssetsAllowed()`, so the public build never asks for the pack.
+
+**Options considered:**
+- *Resynthesis from the originals plus designed layers (chosen):* keeps each sound's pitch and
+  timing by construction and drops the 8-bit hiss; but a noisy original can leave tracking
+  artifacts, and nothing in it is new design.
+- *Designing every effect from scratch (synth.py presets, samples):* freer and possibly better
+  sounding, but each would drift from the original's pitch and timing in ways nobody could check
+  without listening.
+- *Cleaning up the originals (denoise, upsample, exciter):* closest to the original, but it is the
+  original audio, not a remake, and 8-bit clipping can't be undone.
+- *Voices resynthesized from the originals (a vocoder on the old recordings):* exact delivery, but
+  only as intelligible as the 8-bit source. `say` is clearer; its output is for local use only.
+- *Limiting remakes to the originals' peak level instead of gain_db:* no peaks above what the game
+  had, but matching their loudness would mean 8-14 dB of limiting and a flattened decay.
+
+**Review:** Nobody has listened to these yet (listen/LISTENING-NOTES.md in the private repo lists
+what to check first: the explosions, the voices, the most frequent sounds). If gain_db makes busy
+scenes clip, lower MAX_GAIN_DB in tools/sfx.py or add a compressor on the effects bus. If the
+rights holders approve the music, decide separately whether the effects ship too: they derive from
+the game's sounds, so the same permission applies.

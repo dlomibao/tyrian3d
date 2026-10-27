@@ -1,12 +1,26 @@
-// A local remaster pack: new recordings of the music (and later sound effects) that replace the
-// FM originals while testing locally. The pack is the private tyrian3d-remaster repo's out/ folder,
+// A local remaster pack: new recordings of the music and remade sound effects and voices that
+// replace the originals while testing locally. The pack is the private tyrian3d-remaster repo's out/ folder,
 // served at tyrian-remaster/ by `npm run dev` and `npm run play:local` (vite.config.ts). It's never
 // part of the public build: the deployed site doesn't ask for it, and nothing from it is bundled.
 
 /** out/manifest.json: per style ("orchestral", "synth"), the song files by 1-based song number. */
 export interface RemasterManifest {
   music: Record<string, Record<string, { file: string; title: string; seconds: number; loops: boolean }>>;
-  sfx?: Record<string, Record<string, unknown>>;
+  /** Per style ("remaster"), the sound effects and voices by 1-based sound id (sndmast.ts). */
+  sfx?: Record<string, Record<string, RemasterSfxEntry>>;
+}
+
+/** One remade sound (the private repo's tools/sfx.py). */
+export interface RemasterSfxEntry {
+  file: string;
+  /**
+   * Gain (dB, 0 or more) to play it at so it's as loud as the original: the file is kept below
+   * full scale and Web Audio mixes in floating point.
+   */
+  gain_db?: number;
+  title?: string;
+  name?: string;
+  seconds?: number;
 }
 
 /** Whether this build may look for local packs: the dev server, or a local build (VITE_LOCAL_DATA=1). */
@@ -17,8 +31,10 @@ export async function loadRemasterManifest(): Promise<RemasterManifest | null> {
   try {
     const r = await fetch("tyrian-remaster/manifest.json");
     if (!r.ok) return null;
-    const m = (await r.json()) as RemasterManifest;
-    return m.music && Object.keys(m.music).length ? m : null;
+    const m = (await r.json()) as Partial<RemasterManifest>;
+    const music = m.music ?? {};
+    const hasSfx = Object.values(m.sfx ?? {}).some((s) => Object.keys(s).length);
+    return Object.keys(music).length || hasSfx ? { ...m, music } : null;
   } catch {
     return null;
   }

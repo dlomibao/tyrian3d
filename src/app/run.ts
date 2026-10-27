@@ -85,9 +85,11 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
   view.setPalettes(g.res.palettes);
 
   const audioContext = new AudioContext();
-  // The FM original, or a local remaster pack's recordings when one is served (local builds only).
-  const music = new MusicSwitch(audioContext, new Music(requireFile(files, "music.mus"), { context: audioContext }), await loadRemasterManifest());
-  const sfx = new SoundEffects(requireFile(files, "tyrian.snd"), requireFile(files, "voices.snd"), audioContext);
+  // The originals, or a local remaster pack's recordings and remade sounds when one is served
+  // (local builds only).
+  const remaster = await loadRemasterManifest();
+  const music = new MusicSwitch(audioContext, new Music(requireFile(files, "music.mus"), { context: audioContext }), remaster);
+  const sfx = new SoundEffects(requireFile(files, "tyrian.snd"), requireFile(files, "voices.snd"), audioContext, remaster);
   const controls = new Controls(() => view.gamePixelsPerScreenPixel);
   const hud = new Hud();
   const hud2 = new TwoPlayerHud(); // [two-player]
