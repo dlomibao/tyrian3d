@@ -108,15 +108,27 @@ class Mats:
         self.tag = tag
         self.list = []
         self.slots = {}
+        self.params = []
 
-    def __call__(self, index, metallic=0.3, roughness=0.5, emission_strength=0.0):
-        key = (index, metallic, roughness, emission_strength)
+    def __call__(self, index, metallic=0.3, roughness=0.5, emission_strength=0.0, part=None):
+        """The slot for palette `index` with this finish. `part` gives a part its own slot even when
+        another part has the same colour and finish (to animate it on its own, see animated)."""
+        key = (index, metallic, roughness, emission_strength) + ((part,) if part else ())
         if key not in self.slots:
             tag = f"{self.tag}_{len(self.list)}"
             self.slots[key] = len(self.list)
+            self.params.append((index, metallic, roughness, emission_strength))
             self.list.append(common.palette_material(self.sprite, index, tag, metallic=metallic,
                                                      roughness=roughness, emission_strength=emission_strength))
         return self.slots[key]
+
+    def animated(self, slot, tag, frames, index=None):
+        """A copy of slot's material whose colour changes on some sprite frames (palette_material
+        frames=), tagged `tag` so its name differs from the static one; `index` replaces its base
+        colour."""
+        base, metallic, roughness, emission_strength = self.params[slot]
+        return common.palette_material(self.sprite, base if index is None else index, tag, metallic=metallic,
+                                       roughness=roughness, emission_strength=emission_strength, frames=frames)
 
 
 def merged_colors(sprites):
@@ -366,6 +378,22 @@ def preview_arg():
     if "--preview" in sys.argv:
         return Path(sys.argv[sys.argv.index("--preview") + 1])
     return None
+
+
+def frames_arg():
+    """--frames <dir>: also render each model's frames (common.render_frame_previews) there."""
+    if "--frames" in sys.argv:
+        return Path(sys.argv[sys.argv.index("--frames") + 1])
+    return None
+
+
+def frame_previews(objects, model, sprite, root, frames):
+    """With --frames, render the sprite frames `frames` (sprite indices) of `objects`, one row each,
+    beside the sprite, into <dir>/<model>.png."""
+    out = frames_arg()
+    if out:
+        keep = {**sprite, "frames": [f for f in sprite["frames"] if f["index"] in frames]}
+        common.render_frame_previews(objects, str(out / f"{model}.png"), keep, root)
 
 
 def face_count(objs):
