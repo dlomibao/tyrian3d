@@ -57,7 +57,7 @@ import {
 } from "./state";
 import { JE_setupExplosion, randomEnemyLaunchSounds, superTyrianSpecials } from "./varz";
 import { initialize_starfield } from "./backgrnd";
-import { clearStorySteps, storyStep } from "./story";
+import { clearStorySteps, JE_displayText, setWarning, storyStep } from "./story";
 
 /** shapeFile[34] (lvlmast.c): newsh?.shp suffix per enemy shape bank (event 5). */
 export const shapeFile = [
@@ -2014,13 +2014,10 @@ export function* JE_loadMapSteps(files: TyrianFiles): Generator<LoadMapPause, bo
             case "W": // Show text, optionally with warning flashers and sirens.
               if (!g.constantPlay) {
                 // if (!ESCPressed): the host skips the text while Esc is in effect.
-                // warningCol, warningColChange and warningSoundDelay are the player's.
-                const levelWarningDisplay = s[2] === "y";
-                let frameCountMax = atoi(s.slice(4));
-                // setFrameCount2(6): the player's.
-                const warningRed = Math.trunc(frameCountMax / 10);
-                frameCountMax = frameCountMax % 10;
-                g.frameCountMax = frameCountMax;
+                // warningCol, warningColChange, warningSoundDelay and setFrameCount2(6): the player's.
+                g.frameCountMax = atoi(s.slice(4));
+                setWarning(s[2] === "y", Math.trunc(g.frameCountMax / 10) !== 0); // levelWarningDisplay, warningRed
+                g.frameCountMax = g.frameCountMax % 10;
                 g.levelWarningText = [];
 
                 // Read text.
@@ -2034,16 +2031,7 @@ export function* JE_loadMapSteps(files: TyrianFiles): Generator<LoadMapPause, bo
                   g.levelWarningText.push(s.slice(0, 60)); // SDL_strlcpy into char[61]
                 }
 
-                // JE_displayText()
-                storyStep({
-                  op: "text",
-                  lines: [...g.levelWarningText],
-                  prompt: g.miscText[4],
-                  frameCountMax,
-                  warningRed: warningRed !== 0,
-                  warningDisplay: levelWarningDisplay,
-                  useLastBank: g.useLastBank,
-                });
+                JE_displayText();
               }
               break;
 

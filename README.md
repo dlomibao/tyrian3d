@@ -31,8 +31,12 @@ sound. Between levels the item screen sells and upgrades gear and lets you pick 
 destination on the map (arrows, Enter, Esc; `/` changes the rear gun's firing mode). If your ship
 is destroyed, you go back to that item screen with the loadout you launched with.
 
+- **Between levels:** the episode script's story screens play as in the original: pictures, pans,
+  flashes and fades, and the glowing text with its warning sirens (any key or tap moves on, Esc skips
+  the scene). Remastered pictures can replace the originals without code changes: see
+  [`src/app/pictureArt.ts`](src/app/pictureArt.ts).
 - **Not yet:** the item screen's Data Cubes and Options menus, arcade and two-player modes, and
-  the cutscenes between episodes.
+  the animation and screens at the end of an episode.
 - **Everything else:** in [Issues](../../issues) and [Milestones](../../milestones). Design calls
   made along the way are in [DECISIONS.md](DECISIONS.md).
 

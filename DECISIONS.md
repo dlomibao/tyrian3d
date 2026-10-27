@@ -387,3 +387,40 @@ pack (it's gated on `VITE_LOCAL_DATA`, set only by `play:local`) and nothing fro
 
 **Review:** If the rights holders agree, decide how the music ships (bundled, or downloaded on
 demand) and move it to the public repo with its licence in CREDITS.md.
+
+## D?? — Screens between levels: the script records steps, an HTML canvas plays them
+
+2026-10-27
+
+**Decision:** JE_loadMap records the episode script's pictures, fades, text and music (`]P` `]U`
+`]V` `]R` `]C` `]B` `]F` `]W` `]M` `]n`, and the fade_black(50) before the level) as a list of
+steps named after the C calls they stand for (src/sim/story.ts), with the C's frame counts. The
+host plays them before the item screen, before the level and at the end of an episode
+(src/app/storyScreens.ts) on a canvas that stands in for the VGA screen, with the C's frame timer
+(one frame is 0x4300 PIT cycles, ~14.4 ms) and its input rules: a key, click, tap or gamepad
+button ends a pan, shows the rest of a text at once, then leaves it; fades ignore input. Esc skips
+the rest of the scene, as ESCPressed would. The screen is RGB at 6x 320x200: each picture is
+coloured with its own palette, text with `colors`, and palette fades are a black or white layer
+whose opacity follows fade_palette's straight line. Every picture is drawn through one function,
+pictureSource(), which takes a remastered image from src/app/pictureArt.ts (picture number → file
+under public/art/; empty for now) before the original from tyrian.pic. JE_main's level fades
+(50 frames in, 15 out after a completed level, 10 after a death) are the same kind of layer over
+the 3D view and HUD (src/app/fade.ts).
+
+**Options considered:**
+- *Recorded steps played by the host (chosen):* the sim stays synchronous and testable (the steps
+  for a section are checked against the script), the order with music and the item screen is the
+  C's, and the drawing is a line-by-line port of JE_displayText, JE_outCharGlow and the pans.
+- *Yield to the host at every screen command:* also in order, but every caller of the generator
+  (tests, the bot) would have to handle many more pauses for things they don't draw.
+- *An indexed 320x200 screen with real palette fades:* exact for every palette case, but the
+  remastered art isn't indexed. With the game's scripts the RGB version looks the same: every
+  picture appears from black or from a picture with the same palette, and the one pan (`]U 008[`)
+  is between two pictures that share palette 19.
+- *A palette brightness ramp in the renderer for the level fades:* would fade the models and tiles
+  but not the lighting, sky or HUD; the layer fades everything, as the C's palette did.
+
+**Review:** The level fade-in runs while the level starts (the C holds the game during the
+fade, but its play area is empty then). Text uses the original tiny font scaled up; if remastered
+pictures want new type, that's the place to change. Check the warning screen before MINES
+(flashing bars and siren) and episode 1's ending (pan up, flash).

@@ -11,6 +11,8 @@
 //
 // One frame is one setFrameCount(1) period: 0x4300 PIT cycles, ~14.4 ms, half a game tick.
 
+import { g } from "./state";
+
 /** One drawing, palette or timing call JE_loadMap makes between levels. */
 export type StoryStep =
   /**
@@ -57,6 +59,37 @@ export type StoryStep =
   | { op: "song"; song: number }
   /** `]n`: end of scene, ESCPressed = false (Esc skips the rest of a scene). */
   | { op: "endScene" };
+
+// fonthand.c globals JE_displayText reads (the warning colours and sound are the player's).
+/** warningRed: `]W`'s tens digit; red text higher up. Kept until the next `]W`, as in the C. */
+export let warningRed = false;
+/** levelWarningDisplay: flash the warning bars (`]Wy`); JE_displayText clears it. */
+export let levelWarningDisplay = false;
+
+/** `]W`'s settings (tyrian2.c L2849-2857): levelWarningDisplay = (s[2] == 'y'), warningRed. */
+export function setWarning(display: boolean, red: boolean): void {
+  levelWarningDisplay = display;
+  warningRed = red;
+}
+
+/**
+ * JE_displayText (tyrian2.c L3709-3762): show g.levelWarningText at g.frameCountMax, with the
+ * prompt miscText[4], and wait for input. Used by `]W` (and the `]Q` hint, which shows the same
+ * way). The C then sets frameCountMax to 6 or 0 depending on whether a key was pressed; that's
+ * the player's, so g.frameCountMax is left as it was.
+ */
+export function JE_displayText(): void {
+  storyStep({
+    op: "text",
+    lines: [...g.levelWarningText],
+    prompt: g.miscText[4],
+    frameCountMax: g.frameCountMax,
+    warningRed,
+    warningDisplay: levelWarningDisplay,
+    useLastBank: g.useLastBank,
+  });
+  levelWarningDisplay = false;
+}
 
 /** What the script has drawn since JE_loadMap started, for the host to play. */
 const steps: StoryStep[] = [];
