@@ -2,7 +2,8 @@
 
 Seen in episode 4 (levels 4.18 and 4.20). A glowing green arrow flying right: a round shaft with a
 white-hot core and a pointed four-faced head. The three frames only fade it (the same pixels in
-dimmer greens), so one model covers them all.
+dimmer greens), so one model covers them all, its materials stepping down to the dimmer greens
+on frames 228 and 266 (common.palette_material frames=).
 
 Run: blender --background --python assets/blender/enemies/newsh5-114.py [-- --preview out.png]
 """
@@ -25,11 +26,14 @@ U = lib.U
 
 def build(sprite):
     coll = common.reset_collection(NAME)
-    pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
+
+    def anim(i, part, frames, **kw):
+        return common.palette_material(sprite, i, f"{NAME}-{part}", frames=frames, **kw)
+
     mats = [
-        pal(199, metallic=0.1, roughness=0.4, emission_strength=2.5),  # 0 green shell
-        pal(207, metallic=0.1, roughness=0.3, emission_strength=3.5),  # 1 bright green head
-        pal(47, roughness=0.3, emission_strength=5.0),  # 2 white-hot core
+        anim(199, "shell", {228: 196, 266: 192}, metallic=0.1, roughness=0.4, emission_strength=2.5),  # 0 green shell
+        anim(207, "head", {228: 204, 266: 200}, metallic=0.1, roughness=0.3, emission_strength=3.5),  # 1 bright green head
+        anim(47, "core", {228: 204, 266: 200}, roughness=0.3, emission_strength=5.0),  # 2 white-hot core
     ]
     SHELL, BRIGHT, CORE = range(3)
     g = lib.Grid(12, 14)
