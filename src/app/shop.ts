@@ -590,7 +590,6 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
       list.innerHTML = entries.map((e) => renderRow(e, e.sel === menu.curSel[menu.curMenu])).join("");
     }
     el("ship").hidden = preview.sync();
-    reveal(list.querySelector(".is-focused"));
     const power = renderPower();
     el("power").innerHTML = power;
     el("power").hidden = !power;
@@ -603,6 +602,8 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
     }
     navCanvas.hidden = !isNav;
     if (isNav) drawNav();
+    // Once the map and the power row are in place: they move the list (restyle-polish).
+    reveal(list.querySelector(".is-focused"));
     el("help").textContent = JE_mainMenuHelpText();
     renderHints();
     const dialog = renderDialog();

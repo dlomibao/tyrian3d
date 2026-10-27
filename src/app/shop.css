@@ -283,8 +283,7 @@
 
 @media (max-width: 720px) {
   .ui-screen--shop {
-    padding-left: 8px;
-    padding-right: 8px;
+    padding-top: max(8px, env(safe-area-inset-top));
   }
 
   .ui-screen--shop > .ui-panel {
