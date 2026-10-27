@@ -178,7 +178,8 @@ def ellipse(cx, cy, rx, ry, n=16, phase=0.5):
 
 
 def run(name, build, file):
-    """Build, export every model and, with -- --preview <png>, preview the first.
+    """Build, export every model and, with -- --preview <png>, preview the first (-- --frames <png>:
+    each of its frames).
 
     `build(sprite)` returns a list of (model_name, objects, sprites) to export."""
     root = common.repo_root(file)
@@ -191,6 +192,8 @@ def run(name, build, file):
         frame = sprite["frames"][0]
         ref = root / "reference" / "models" / name / frame["image"]
         common.render_preview(models[0][1], out, ref, size=frame["size"])
+    if "--frames" in sys.argv:  # every frame of the first model, one row each
+        common.render_frame_previews(models[0][1], sys.argv[sys.argv.index("--frames") + 1], sprite, root)
     return sprite
 
 
@@ -231,10 +234,13 @@ def capsule_arc(c, a0, a1, lift, n=6):
     return [capsule_point(c, a0 + (a1 - a0) * i / (n - 1), lift) for i in range(n)]
 
 
-def build_light_capsule(sprite, name, near_lights):
+def build_light_capsule(sprite, name, near_lights, lights=None):
     """The grey capsule lying along X with red light strips across its bands and end caps and a
     red and a green lamp on its centre section. tyrian10-165 has the red lights on the far side (up
-    the screen) and the green lamp on the near side; tyrian10-203 (near_lights=True) the reverse."""
+    the screen) and the green lamp on the near side; tyrian10-203 (near_lights=True) the reverse.
+
+    `lights` animates them (DECISIONS.md D17): {"strip"|"cap_strip"|"red"|"green": (palette index on
+    the first frame, {frame: palette index})}, each light's colour on each frame."""
     import bmesh
     coll = common.reset_collection(name)
     pal = lambda i, **kw: common.palette_material(sprite, i, name, **kw)  # noqa: E731
@@ -248,6 +254,16 @@ def build_light_capsule(sprite, name, near_lights):
         pal(195, roughness=0.2, emission_strength=4.0),  # 6 green lamp
     ]
     CAP, BAND, CENTRE, GROOVE, STRIP, RED, GREEN = range(7)
+    CAP_STRIP = STRIP
+    if lights:
+        def lit(key, **kw):
+            index, frames = lights[key]
+            return common.palette_material(sprite, index, f"{name}-{key}", frames=frames, **kw)
+        mats[STRIP:] = [lit("strip", roughness=0.3, emission_strength=3.0),
+                        lit("red", roughness=0.2, emission_strength=4.0),
+                        lit("green", roughness=0.2, emission_strength=4.0),
+                        lit("cap_strip", roughness=0.3, emission_strength=3.0)]  # 7 end-cap strips
+        CAP_STRIP = 7
 
     bm = bmesh.new()
     sections = [(ex(c), hy / 12, hy / 12 * CAPSULE_K, CAPSULE_ZC) for c, hy in CAPSULE_PROFILE]
@@ -277,8 +293,8 @@ def build_light_capsule(sprite, name, near_lights):
     flip = (lambda a: 180 - a) if near_lights else (lambda a: a)
     bm = bmesh.new()
     # Red strips: columns 3 and 21 (rows 11-14) and columns 7 and 16 (rows 8-13).
-    for c, a0, a1 in ((3.5, 8, 80), (21.5, 8, 80), (7.5, 4, 72), (16.5, 4, 72)):
-        polyline_tube(bm, capsule_arc(c, flip(a0), flip(a1), 0.004), 0.55 / 12, sides=6, mat_index=STRIP)
+    for c, a0, a1, m in ((3.5, 8, 80, CAP_STRIP), (21.5, 8, 80, CAP_STRIP), (7.5, 4, 72, STRIP), (16.5, 4, 72, STRIP)):
+        polyline_tube(bm, capsule_arc(c, flip(a0), flip(a1), 0.004), 0.55 / 12, sides=6, mat_index=m)
     # The red lamp (columns 11-12, rows 9-11) and the green lamp (rows 19-22), on opposite sides.
     polyline_tube(bm, capsule_arc(12.0, flip(2), flip(50), 0.01, n=5), 1.05 / 12, sides=8, mat_index=RED)
     polyline_tube(bm, capsule_arc(12.0, flip(185), flip(125), 0.01, n=5), 1.05 / 12, sides=8, mat_index=GREEN)
