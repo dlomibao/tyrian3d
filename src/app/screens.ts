@@ -152,7 +152,7 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
   const more: { label: string; key: string; code: string; pad?: string; over?: boolean; run: () => Promise<boolean | void> }[] = [];
   if (opts.onLoadGame) more.push({ label: "Load Game", key: "L", code: "KeyL", over: true, run: opts.onLoadGame });
   if (opts.onOptions) more.push({ label: "Options", key: "O", code: "KeyO", pad: "Back", over: true, run: opts.onOptions });
-  if (opts.onHighScores) more.push({ label: opts.highScoresLabel ?? "High Scores", key: "H", code: "KeyH", pad: "Y", run: opts.onHighScores });
+  if (opts.onHighScores) more.push({ label: opts.highScoresLabel ?? "High Scores", key: "H", code: "KeyH", pad: "Y", over: true, run: opts.onHighScores });
   const padButtons = new Map<number, (typeof more)[number]>();
   for (const m of more) if (m.pad) padButtons.set(m.pad === "Y" ? PAD_Y : PAD_BACK, m);
 

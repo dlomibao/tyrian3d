@@ -41,6 +41,7 @@
 .ui-screen.is-shown.is-under {
   opacity: 0;
   visibility: hidden;
+  pointer-events: none;
   transition: opacity var(--ui-med) var(--ui-ease), visibility 0s linear var(--ui-med);
 }
 

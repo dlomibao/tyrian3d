@@ -85,6 +85,8 @@ export class Screen implements NavTarget {
   private isClosed = false;
   /** How many aside() calls are running: input goes elsewhere meanwhile. */
   private asideDepth = 0;
+  /** [high scores] The screen this one opened over (ScreenOptions.over), shown again when it closes. */
+  below: Screen | null = null;
 
   constructor(
     readonly opts: ScreenOptions,

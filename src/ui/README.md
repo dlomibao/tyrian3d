@@ -54,7 +54,7 @@ export function showOptions(): Promise<string | null> {
 - **One screen at a time.** `showScreen` closes whatever screen is up (they cross-fade) and routes
   all input to the new one. `screen.close()` fades it out; `screen.closed` resolves then. With no
   screen up (a level is running) nothing is routed and the backdrop sleeps.
-- **Screens over screens.** A screen opened from another (Options or Load Game from the title,
+- **Screens over screens.** A screen opened from another (Options, Load Game or High Scores from the title,
   the settings or save prompt from the item screen) passes `over: true`: the one beneath stays
   open, hidden and without input, and gets the input back when this one closes, so its caller just
   awaits it. `over: "show"` leaves the one beneath in view (a dialog over the item screen). Without
@@ -90,7 +90,7 @@ through a death or the press that opened the screen don't act on it. The other p
 Back, the shoulders) aren't intents; a screen gets their presses in `onPadButton(index)` (the
 title's Y opens High Scores, Back opens Options).
 
-Screens not yet on the framework (high scores, the data cube reader's keys) read the keys and pads themselves. A framework screen opening one does it
+A screen that reads the keys and pads itself (none of the game's menus do any more) is opened with `screen.aside`. A framework screen opening one does it
 inside `screen.aside(() => showOptions(...), { hide })`: the navigation stops sending it input
 until the promise settles (pad buttons still held then are ignored), and `hide` (default true)
 hides the screen meanwhile, leaving the backdrop.
