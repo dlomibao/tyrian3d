@@ -490,10 +490,8 @@ The C's timing, its order of screens and its mt_rand calls are unchanged.
 fade, but its play area is empty then). Text uses the original tiny font scaled up; if remastered
 pictures want new type, that's the place to change. Check the warning screen before MINES
 (flashing bars and siren) and episode 1's ending (pan up, flash).
+
 ## D22 — After the last episode the game goes on into episode 1, as JE_nextEpisode does
-fade, but its play area is empty then). Check the warning screen before MINES (flashing bars and
-siren) and episode 1's ending (pan up, flash).
-## D?? — After the last episode the game goes on into episode 1, as JE_nextEpisode does
 
 2026-10-27
 
