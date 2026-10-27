@@ -12,6 +12,13 @@ came from, its license, and where it's used. Add a row in the same commit that b
 | Loudness (LDS) player (via OpenTyrian `lds_play.c`, adapted from AdPlug) | https://github.com/opentyrian/opentyrian/blob/master/src/lds_play.c | GPL-2.0-or-later | Ported to `src/audio/lds.ts` for music playback |
 | Tyrian 2.1 game data | https://camanis.net/tyrian/tyrian21.zip (the mirror OpenTyrian links to) | Freeware (not redistributed here; see README) | Level, item, enemy and shape data loaded at runtime |
 
+## Fonts
+
+| Font | Source URL | Author | License | Used in |
+|---|---|---|---|---|
+| Orbitron | https://fonts.google.com/specimen/Orbitron | Matt McInerney (The Orbitron Project Authors) | SIL Open Font License 1.1 | Titles, labels and buttons of the interface (`src/ui/tokens.css`), loaded from Google Fonts |
+| Exo 2 | https://fonts.google.com/specimen/Exo+2 | Natanael Gama (The Exo 2 Project Authors) | SIL Open Font License 1.1 | Body text of the interface (`src/ui/tokens.css`), loaded from Google Fonts |
+
 ## 3D models, textures and HDRIs
 
 Models built from this project's own scripts in `assets/blender/` don't need a row here. List

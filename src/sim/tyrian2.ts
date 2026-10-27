@@ -26,8 +26,10 @@ import { blit_sprite2, blit_sprite2_filter, drawGroup, drawList, drawState, type
 import { JE_itemScreenNonInteractive } from "./game_menu";
 import { loadMenuText } from "./helptext";
 import { mt_rand } from "./mtrand";
-import { JE_drawTextWindow } from "./mainint";
+import { JE_nextEpisode } from "./episodes";
+import { JE_drawTextWindow, JE_totalScore } from "./mainint";
 import { buildResources, requireFile, type TyrianFiles } from "./resources";
+import { JE_saveGame } from "./savegame"; // [port-options]
 import { windowTextSamples, V_GOOD_LUCK } from "./sndmast";
 import {
   DIFFICULTY_10,
@@ -44,7 +46,9 @@ import {
   ENEMY_SHOT_MAX,
   FRONT_WEAPON,
   REAR_WEAPON,
+  SA_ENGAGE,
   SA_NONE,
+  SA_NORTSHIPZ,
   SHOT_SPECIAL,
   SHOT_SPECIAL2,
   g,
@@ -55,8 +59,9 @@ import {
   newSuperpixel,
   type Enemy,
 } from "./state";
-import { JE_setupExplosion, randomEnemyLaunchSounds, superTyrianSpecials } from "./varz";
+import { JE_setupExplosion, randomEnemyLaunchSounds, SANextShip, superTyrianSpecials } from "./varz";
 import { initialize_starfield } from "./backgrnd";
+import { clearStorySteps, JE_displayText, setWarning, storyStep } from "./story";
 
 /** shapeFile[34] (lvlmast.c): newsh?.shp suffix per enemy shape bank (event 5). */
 export const shapeFile = [
@@ -126,7 +131,7 @@ export function eventAt(i: number): LevelEvent {
 }
 
 /** nortsong.c play_song: the audio layer plays g.song. */
-function play_song(song_num: number): void {
+export function play_song(song_num: number): void {
   g.song = song_num;
 }
 
@@ -1703,11 +1708,23 @@ class EpisodeReader {
   }
 }
 
-/** Thrown by JE_loadMap when the episode script reaches `]Q` (end of episode). */
-export class EpisodeEndError extends Error {}
+/**
+ * What JE_loadMapSteps pauses for: where the C runs a screen that waits for the player.
+ * - "itemScreen": JE_itemScreen (`]I[`).
+ * - "anim": playAnim(TYREND_ANIM) (`]A`).
+ * - "displayText": JE_displayText of g.levelWarningText, at g.frameCountMax (the `]Q` hint).
+ * - "highScoreCheck", "credits", "nextEpisode": JE_nextEpisode's screens (src/sim/episodes.ts).
+ * - "superArcadeCode": after the last episode, the screen naming the next Super Arcade ship and
+ *   its title-screen code (superShips[0], superShips[SANextShip[superArcadeMode]], specialName).
+ * Only the item screen changes the game's state; the rest are to look at.
+ */
+export type LoadMapPause = "itemScreen" | "anim" | "displayText" | "highScoreCheck" | "credits" | "nextEpisode" | "superArcadeCode";
 
-/** What JE_loadMapSteps pauses for: the item screen (`]I[` calls JE_itemScreen in the C). */
-export type LoadMapPause = "itemScreen";
+/** The one animation the episode scripts play (`]A`): playAnim("tyrend.anm", 0, 7). */
+export const TYREND_ANIM = { filename: "tyrend.anm", startingFrame: 0, speed: 7 } as const;
+
+/** fonthand.h levelWarningText[10][61] */
+const LEVEL_WARNING_TEXT_COUNT = 10;
 
 /** musmast.h DEFAULT_SONG_BUY */
 const DEFAULT_SONG_BUY = 2;
@@ -1724,10 +1741,13 @@ const DEFAULT_SONG_BUY = 2;
  * when a level was loaded, false when the player quit from the item screen (back to the title).
  * JE_loadMap and JE_loadMapAsync below drive it.
  *
- * Ported: every script command's effect on game state. Not ported (no-ops, marked below):
- * pictures, fades, palette changes and text screens (the `]W` text is kept in
- * g.levelWarningText), the end-of-episode sequence (`]Q` throws EpisodeEndError), demos, saving,
- * loading a saved game from the item screen, and network sync.
+ * Ported: every script command's effect on game state. The screens between levels (pictures,
+ * fades, palette changes, `]W` text and `]M` music) are recorded as StorySteps (src/sim/story.ts)
+ * for the host to play before the item screen and the level; the `]W` text is also kept in
+ * g.levelWarningText. The end of an episode (`]Q`) yields its screens (LoadMapPause) and runs
+ * JE_nextEpisode, then goes back to new_game and carries on in the next episode's first section,
+ * as the C does; a game loaded from the item screen continues there too (src/sim/savegame.ts).
+ * Not ported (no-ops, marked below): demos and network sync.
  */
 export function* JE_loadMapSteps(files: TyrianFiles): Generator<LoadMapPause, boolean, void> {
   g.lastCubeMax = g.cubeMax;
@@ -1738,6 +1758,22 @@ export function* JE_loadMapSteps(files: TyrianFiles): Generator<LoadMapPause, bo
   /* Load LEVELS.DAT - Section = MAINLEVEL */
   g.saveLevel = g.mainLevel;
 
+  // (not in the C) Steps a host didn't play belong to an earlier JE_loadMap. Cleared once here, not
+  // at new_game: the screens before `]Q` lead into the next episode's.
+  clearStorySteps();
+
+  // `goto new_game` (after `]Q` has moved to the next episode) runs JE_loadMap_newGame again.
+  for (;;) {
+    const r = yield* JE_loadMap_newGame(files);
+    if (r !== GOTO_NEW_GAME) return r;
+  }
+}
+
+/** JE_loadMap's `goto new_game`. */
+const GOTO_NEW_GAME = "new_game";
+
+/** JE_loadMap from its new_game label to the end (tyrian2.c L2321-3117). */
+function* JE_loadMap_newGame(files: TyrianFiles): Generator<LoadMapPause, boolean | typeof GOTO_NEW_GAME, void> {
   // new_game:
   g.galagaMode = false;
   g.useLastBank = false;
@@ -1746,6 +1782,7 @@ export function* JE_loadMapSteps(files: TyrianFiles): Generator<LoadMapPause, bo
 
   g.gameLoaded = false;
 
+  // episodeFilename: JE_initEpisode changes it with the episode.
   const episodeData = requireFile(files, `levels${g.episodeNum}.dat`);
   let script = scriptCache.get(episodeData);
   if (!script) {
@@ -1776,8 +1813,9 @@ export function* JE_loadMapSteps(files: TyrianFiles): Generator<LoadMapPause, bo
             // if quit itemscreen
             return false; // back to title screen
           }
-          // goto new_game: only the item screen's load-game menu gets here, and it isn't ported.
-          throw new Error("JE_loadMap: loading a saved game isn't ported");
+          // goto new_game: the end of an episode (JE_nextEpisode), or a game loaded from the item screen
+          // (JE_loadGame set mainLevel and the episode). [port-options]
+          return GOTO_NEW_GAME;
         }
 
         let s = episodeFile.read();
@@ -1785,7 +1823,7 @@ export function* JE_loadMapSteps(files: TyrianFiles): Generator<LoadMapPause, bo
         if (s[0] === "]") {
           switch (s[1]) {
             case "A": // Show animation.
-              // playAnim("tyrend.anm", 0, 7): not ported.
+              yield "anim"; // playAnim("tyrend.anm", 0, 7)
               break;
 
             case "G": // Set next level choices.
@@ -1902,7 +1940,8 @@ export function* JE_loadMapSteps(files: TyrianFiles): Generator<LoadMapPause, bo
               break; /*store savepoint*/
 
             case "b": // Explicit auto-save.  (Used before bonus games.)
-              // JE_saveGame(11, "LAST LEVEL    "): not ported.
+              // (The C picks slot 22 for two players into temp, then saves to 11 regardless.) [port-options]
+              JE_saveGame(11, "LAST LEVEL    ");
               break;
 
             case "i": // Set menu music track.
@@ -1946,25 +1985,143 @@ export function* JE_loadMapSteps(files: TyrianFiles): Generator<LoadMapPause, bo
               g.useLastBank = !g.useLastBank;
               break;
 
-            case "Q": // End of episode.
-              // Hint text, the ending screens and JE_nextEpisode: not ported.
-              throw new EpisodeEndError(`episode ${g.episodeNum} ends at section ${g.mainLevel}`);
+            case "Q": {
+              // End of episode. (tyrian2.c L2547-2659)
+              // ESCPressed = false
+              const temp = g.secretHint + (mt_rand() % 3) * 3;
 
+              if (g.twoPlayerMode) {
+                g.levelWarningText = [];
+                for (let i = 0; i < 2; ++i) g.levelWarningText.push(`${g.miscText[40 + i]} ${g.player[i].cash}`.slice(0, 60));
+                g.levelWarningText.push("");
+              } else {
+                g.levelWarningText = [`${g.miscText[37]} ${JE_totalScore(g.player[0])}`.slice(0, 60), ""];
+              }
+
+              // Skip to hint.
+              for (let i = 0; i < temp - 1; ++i) {
+                for (;;) {
+                  s = episodeFile.read();
+
+                  if (s[0] === "#") break;
+                }
+              }
+
+              // Read hint.
+              for (;;) {
+                s = episodeFile.read();
+
+                if (s[0] === "#") break;
+
+                if (g.levelWarningText.length >= LEVEL_WARNING_TEXT_COUNT) {
+                  // logWarn("Hint has too many lines.");
+                  continue;
+                }
+
+                g.levelWarningText.push(s.slice(0, 60)); // SDL_strlcpy into char[61]
+              }
+
+              g.frameCountMax = 4;
+              if (!g.constantPlay) yield "displayText"; // JE_displayText()
+
+              // fade_black(15)
+
+              yield* JE_nextEpisode(files);
+
+              if (g.jumpBackToEpisode1 && !g.twoPlayerMode) {
+                // JE_loadPic(VGAScreen, 1, false); JE_clr256(VGAScreen)
+
+                if (g.superTyrian) {
+                  // if completed Zinglon's Revenge, show SuperTyrian and Destruct codes
+                  // if completed SuperTyrian, show Nort-Ship Z code
+                  g.superArcadeMode = g.initialDifficulty === DIFFICULTY_ZINGLON ? 8 : 1;
+                }
+
+                if (g.superArcadeMode < SA_ENGAGE) {
+                  if (SANextShip[g.superArcadeMode] === SA_NORTSHIPZ) g.trentWin = true;
+
+                  // The ship's name and code, faded in (the host draws it).
+                  if (!g.constantPlay) yield "superArcadeCode"; // waitUntilGetInput()
+                }
+
+                g.jumpSection = true;
+
+                // if (isNetworkGame) JE_readTextSync();
+
+                if (g.superTyrian) {
+                  // fade_black(10)
+
+                  // back to titlescreen
+                  g.mainLevel = 0;
+                  return false;
+                }
+              }
+              break;
+            }
+
+            // The screens below are recorded for the host to play (src/sim/story.ts); each
+            // storyStep is the C call named beside it. isNetworkGame is always false.
             case "P": // Show picture or clear and set palette.
+              if (!g.constantPlay) {
+                const tempX = u16(atoi(s.slice(3)));
+                if (tempX > 900) {
+                  storyStep({ op: "setColors", palette: pcxpal[tempX - 1 - 900] }); // memcpy(colors, palettes[pcxpal[tempX-1 - 900]], ...)
+                  storyStep({ op: "clear" }); // JE_clr256(VGAScreen); JE_showVGA()
+                  storyStep({ op: "fadePalette", steps: 1 }); // fade_palette(colors, 1, 0, 255)
+                } else {
+                  if (tempX === 0) storyStep({ op: "loadPic", pic: 0, palette: -1 }); // JE_loadPCX("tshp2.pcx")
+                  else storyStep({ op: "loadPic", pic: tempX, palette: pcxpal[tempX - 1] }); // JE_loadPic(VGAScreen, tempX, false)
+
+                  storyStep({ op: "fadePalette", steps: 10 }); // JE_showVGA(); fade_palette(colors, 10, 0, 255)
+                }
+              }
+              break;
+
             case "U": // Pan up to picture.
+              if (!g.constantPlay) {
+                const tempX = u16(atoi(s.slice(3)));
+                storyStep({ op: "pan", dir: "up", pic: tempX, palette: pcxpal[tempX - 1], frames: 200 }); // for (z = 0; z <= 199; z++)
+              }
+              break;
+
             case "V": // Slide picture up.
+              if (!g.constantPlay) {
+                const tempX = u16(atoi(s.slice(3)));
+                storyStep({ op: "pan", dir: "slideUp", pic: tempX, palette: pcxpal[tempX - 1], frames: 200 }); // for (z = 0; z <= 199; z++)
+              }
+              break;
+
             case "R": // Pan right to picture.
+              if (!g.constantPlay) {
+                const tempX = u16(atoi(s.slice(3)));
+                storyStep({ op: "pan", dir: "right", pic: tempX, palette: pcxpal[tempX - 1], frames: 319 }); // for (z = 0; z <= 318; z++)
+              }
+              break;
+
             case "C": // Fade to black, clear, and reset palette.
+              storyStep({ op: "fadeBlack", steps: 10 }); // fade_black(10)
+              storyStep({ op: "clear" }); // JE_clr256(VGAScreen); JE_showVGA()
+              storyStep({ op: "setColors", palette: 7 }); // memcpy(colors, palettes[7], sizeof(colors))
+              storyStep({ op: "setPalette" }); // set_palette(colors, 0, 255)
+              break;
+
             case "B": // Fade to black.
+              storyStep({ op: "fadeBlack", steps: 10 }); // fade_black(10)
+              break;
+
             case "F": // Flash and clear.
-              // Screens between levels: not ported. (JE_main sets the in-level palette.)
+              storyStep({ op: "fadeWhite", steps: 100 }); // fade_white(100)
+              storyStep({ op: "fadeBlack", steps: 30 }); // fade_black(30)
+              storyStep({ op: "clear" }); // JE_clr256(VGAScreen); JE_showVGA()
               break;
 
             case "W": // Show text, optionally with warning flashers and sirens.
               if (!g.constantPlay) {
-                // (ESCPressed is never set here.)
-                const frames = atoi(s.slice(4));
-                g.frameCountMax = frames % 10;
+                // if (!ESCPressed): the host skips the text while Esc is in effect.
+                // warningCol, warningColChange, warningSoundDelay and setFrameCount2(6): the player's.
+                g.frameCountMax = atoi(s.slice(4));
+                setWarning(s[2] === "y", Math.trunc(g.frameCountMax / 10) !== 0); // levelWarningDisplay, warningRed
+                g.frameCountMax = g.frameCountMax % 10;
                 g.levelWarningText = [];
 
                 // Read text.
@@ -1973,10 +2130,12 @@ export function* JE_loadMapSteps(files: TyrianFiles): Generator<LoadMapPause, bo
 
                   if (s[0] === "#") break;
 
-                  g.levelWarningText.push(s);
+                  if (g.levelWarningText.length >= 10) continue; // logWarn("Text has too many lines.")
+
+                  g.levelWarningText.push(s.slice(0, 60)); // SDL_strlcpy into char[61]
                 }
 
-                // JE_displayText(): the text screen isn't ported.
+                JE_displayText();
               }
               break;
 
@@ -1997,10 +2156,12 @@ export function* JE_loadMapSteps(files: TyrianFiles): Generator<LoadMapPause, bo
               break;
 
             case "n": // End of scene.
+              storyStep({ op: "endScene" }); // ESCPressed = false
               break;
 
             case "M": // Play music track.
               play_song(atoi(s.slice(3)) - 1);
+              storyStep({ op: "song", song: g.song }); // so the host plays it in order with the screens
               break;
           }
         }
@@ -2008,7 +2169,8 @@ export function* JE_loadMapSteps(files: TyrianFiles): Generator<LoadMapPause, bo
     } while (!loadLevelOk);
   }
 
-  // Demos and fade_black(50): not ported.
+  // Demos: not ported.
+  storyStep({ op: "fadeBlack", steps: 50 }); // fade_black(50)
 
   loadLevelFile(files);
   return true;
@@ -2024,17 +2186,25 @@ export function JE_loadMap(files: TyrianFiles, itemScreen: () => void = JE_itemS
   for (;;) {
     const r = steps.next();
     if (r.done) return r.value;
-    itemScreen();
+    if (r.value === "itemScreen") itemScreen(); // the other pauses are only screens
   }
 }
 
-/** JE_loadMap with an asynchronous item screen (the host's UI). */
-export async function JE_loadMapAsync(files: TyrianFiles, itemScreen: () => Promise<void>): Promise<boolean> {
+/**
+ * JE_loadMap with an asynchronous item screen (the host's UI), and `screens` for the other
+ * pauses (LoadMapPause), which are skipped without it.
+ */
+export async function JE_loadMapAsync(
+  files: TyrianFiles,
+  itemScreen: () => Promise<void>,
+  screens?: (pause: Exclude<LoadMapPause, "itemScreen">) => Promise<void>,
+): Promise<boolean> {
   const steps = JE_loadMapSteps(files);
   for (;;) {
     const r = steps.next();
     if (r.done) return r.value;
-    await itemScreen();
+    if (r.value === "itemScreen") await itemScreen();
+    else await screens?.(r.value);
   }
 }
 
@@ -2110,10 +2280,37 @@ export function loadLevel(files: TyrianFiles, episode: number, mainLevel: number
   return JE_loadMap(files, itemScreen);
 }
 
-/** loadLevel with the host's asynchronous item screen. */
-export function loadLevelAsync(files: TyrianFiles, episode: number, mainLevel: number, itemScreen: () => Promise<void>): Promise<boolean> {
+/**
+ * loadLevel until JE_loadMap pauses for one of `stopAt` (by default any screen other than the item
+ * screen, which takes the C's non-interactive choice), e.g. the screens at the end of an episode.
+ * Returns that pause, or null if the level loaded without one. For tests.
+ */
+export function loadLevelUntilPause(
+  files: TyrianFiles,
+  episode: number,
+  mainLevel: number,
+  stopAt?: Exclude<LoadMapPause, "itemScreen">[],
+): Exclude<LoadMapPause, "itemScreen"> | null {
   loadLevelPrelude(files, episode, mainLevel);
-  return JE_loadMapAsync(files, itemScreen);
+  const steps = JE_loadMapSteps(files);
+  for (;;) {
+    const r = steps.next();
+    if (r.done) return null;
+    if (r.value === "itemScreen") JE_itemScreenNonInteractive();
+    else if (!stopAt || stopAt.includes(r.value)) return r.value;
+  }
+}
+
+/** loadLevel with the host's asynchronous item screen. */
+export function loadLevelAsync(
+  files: TyrianFiles,
+  episode: number,
+  mainLevel: number,
+  itemScreen: () => Promise<void>,
+  screens?: (pause: Exclude<LoadMapPause, "itemScreen">) => Promise<void>,
+): Promise<boolean> {
+  loadLevelPrelude(files, episode, mainLevel);
+  return JE_loadMapAsync(files, itemScreen, screens);
 }
 
 function loadLevelPrelude(files: TyrianFiles, episode: number, mainLevel: number): void {

@@ -1,336 +1,330 @@
-/* The item screen between levels (src/app/shop.ts), in the overlay style of overlay.css. */
+/*
+ * The item screen between levels (src/app/shop.ts): a wide panel of the interface framework
+ * (src/ui/components.css), with the ship's loadout beside the current menu.
+ */
 
-.overlay.shop {
-  background: rgba(0, 0, 0, 0.55);
-  pointer-events: auto;
-}
-
-.shop-panel {
-  position: relative;
-  max-width: 52rem;
-  max-height: 100%;
-  overflow-y: auto;
-  text-align: left;
-  padding: 1rem 1.25rem;
+.ui-screen--shop > .ui-panel {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--ui-space-3);
+  padding: var(--ui-space-4) var(--ui-space-5);
 }
 
-.shop-panel header {
+/* The panel scrolls as a whole on short screens; its parts keep their height. */
+.ui-screen--shop > .ui-panel > * {
+  flex-shrink: 0;
+}
+
+/* On wide screens the panel sits right of centre, leaving the backdrop's ship in view. */
+@media (min-aspect-ratio: 3/2) and (min-width: 1100px) {
+  .ui-screen--shop {
+    justify-items: end;
+    padding-right: max(4vw, var(--ui-gutter));
+  }
+}
+
+.shop-header {
   display: flex;
+  align-items: flex-end;
   justify-content: space-between;
-  align-items: baseline;
-  gap: 1rem;
-  border-bottom: 1px solid var(--edge);
-  padding-bottom: 0.5rem;
+  gap: var(--ui-space-4);
+  padding-bottom: var(--ui-space-3);
+  border-bottom: 1px solid var(--ui-edge);
 }
 
-.shop-panel h2 {
+.shop-header .ui-title {
   margin: 0;
-  letter-spacing: 0.08em;
+}
+
+.shop-header .ui-title {
+  margin-right: auto;
+}
+
+/* The back button sits in the header's flow, after the credits. */
+.shop-header .ui-back {
+  position: static;
+  align-self: center;
 }
 
 .shop-cash {
   display: flex;
-  gap: 0.5rem;
-  align-items: baseline;
-  color: var(--ink-dim);
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: var(--ui-text-xs);
+  letter-spacing: var(--ui-tracking-wide);
+  text-transform: uppercase;
+  color: var(--ui-steel);
 }
 
 .shop-cash b {
-  font-size: 1.4rem;
-  color: #fff3c0;
+  font-family: var(--ui-font-display);
+  font-size: var(--ui-text-lg);
+  letter-spacing: 0.04em;
+  color: var(--ui-gold-bright);
+  text-shadow: var(--ui-glow-gold);
   font-variant-numeric: tabular-nums;
 }
 
 .shop-body {
   display: grid;
   grid-template-columns: minmax(14rem, 18rem) 1fr;
-  gap: 1rem;
+  gap: var(--ui-space-5);
   align-items: start;
+  min-height: 0;
 }
 
-.shop-ship .bars {
+/* --- the ship's loadout --- */
+
+.shop-ship {
+  padding: var(--ui-space-3);
+  border: 1px solid var(--ui-edge);
+  border-radius: var(--ui-radius);
+  background: rgba(20, 30, 46, 0.35);
+}
+
+.shop-bars {
   display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 4px 8px;
-  align-items: center;
-  font-size: 0.85rem;
-  color: var(--ink-dim);
-  margin-bottom: 0.5rem;
+  gap: var(--ui-space-2);
+  margin-bottom: var(--ui-space-3);
 }
 
-.shop-ship .bar {
-  height: 8px;
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.shop-ship .bar > i {
-  display: block;
-  height: 100%;
-}
-
-.shop-ship .armor > i { background: #d9c070; }
-.shop-ship .shield > i { background: #5aa8ff; }
-
-.shop .loadout,
-.shop-list {
+.ui-screen--shop .loadout {
   list-style: none;
   margin: 0;
   padding: 0;
-}
-
-.shop .loadout li {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 2px 0;
-  font-size: 0.9rem;
-}
-
-.shop .ico {
-  flex: none;
-  width: 36px;
-  height: 42px;
   display: grid;
-  place-items: center;
-  background: rgba(255, 255, 255, 0.04);
-  border-radius: 4px;
+  gap: 2px;
 }
 
-.shop .loadout .ico {
-  width: 30px;
-  height: 35px;
-}
-
-.shop .ico img {
-  width: 100%;
-  image-rendering: pixelated;
-}
-
-.shop .what {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.shop .what small {
-  color: var(--ink-dim);
-  font-size: 0.78em;
-}
-
-.shop .loadout em {
-  font-style: normal;
-  color: var(--accent);
-}
-
-.shop-list .row {
+.ui-screen--shop .loadout li {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  min-height: 2.6rem;
-  padding: 0.3rem 0.6rem;
-  margin: 2px 0;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  cursor: pointer;
-  color: var(--ink);
-  user-select: none;
+  gap: var(--ui-space-2);
+  font-size: var(--ui-text-sm);
 }
 
-.shop-list .row:hover {
-  background: rgba(224, 160, 64, 0.08);
+.ui-screen--shop .loadout .ui-menu__icon {
+  width: 1.9rem;
+  height: 2.2rem;
 }
 
-.shop-list .row.cur {
-  border-color: var(--accent);
-  background: rgba(224, 160, 64, 0.16);
-  color: #fff3c0;
+.ui-screen--shop .loadout .ui-menu__detail {
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
-.shop-list .row.dim {
+.ui-screen--shop .loadout em {
+  font-style: normal;
+  color: var(--ui-gold);
+}
+
+/* --- the menu --- */
+
+.shop-list .shop-row.dim {
   opacity: 0.45;
 }
 
-.shop-list .row.off {
+.shop-list .shop-row.off {
   opacity: 0.4;
   cursor: default;
 }
 
-.shop-list .row.done {
-  color: var(--accent);
+.shop-list .shop-row.done .ui-menu__label {
+  color: var(--ui-gold);
+  font-family: var(--ui-font-display);
+  font-size: var(--ui-text-sm);
+  letter-spacing: var(--ui-tracking);
+  text-transform: uppercase;
 }
 
-.shop-list .owned {
-  margin-left: auto;
-  font-size: 0.7rem;
-  letter-spacing: 0.1em;
-  color: #8fd18f;
-  border: 1px solid rgba(143, 209, 143, 0.5);
-  border-radius: 4px;
-  padding: 1px 5px;
-}
-
+/* The navigation map (JE_updateNavScreen), drawn at three times the C's pixels. */
 .shop-nav {
-  width: 100%;
-  max-width: 28rem;
-  aspect-ratio: 220 / 160;
-  image-rendering: pixelated;
-  border: 1px solid var(--edge);
-  border-radius: 6px;
-  margin-bottom: 0.5rem;
   display: block;
+  width: 100%;
+  max-width: 30rem;
+  aspect-ratio: 220 / 160;
+  margin: 0 auto var(--ui-space-3);
+  border: 1px solid rgba(92, 214, 255, 0.35);
+  border-radius: var(--ui-radius);
+  box-shadow: 0 0 1.25rem rgba(92, 214, 255, 0.08), inset 0 0 2rem rgba(0, 0, 0, 0.6);
 }
 
 .shop-nav[hidden] {
   display: none;
 }
 
+/* --- weapon power and firing mode --- */
+
 .shop-power {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
-  margin-top: 0.6rem;
-  padding: 0.5rem;
-  border-top: 1px solid var(--edge);
+  justify-content: center;
+  gap: var(--ui-space-3);
+  margin-top: var(--ui-space-3);
+  padding-top: var(--ui-space-3);
+  border-top: 1px solid var(--ui-edge);
 }
 
 .shop-power[hidden] {
   display: none;
 }
 
-.shop button {
-  font: inherit;
-  color: var(--ink);
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--edge);
-  border-radius: 6px;
-  padding: 0.35rem 0.7rem;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.shop button:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
-
-.shop button small {
-  color: var(--ink-dim);
+.shop-power .ui-button small {
+  color: var(--ui-ink-dim);
+  font-family: var(--ui-font-text);
   font-variant-numeric: tabular-nums;
+  text-transform: none;
 }
 
 .shop-power .meter {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
+  font-family: var(--ui-font-display);
+  font-size: var(--ui-text-xs);
+  letter-spacing: var(--ui-tracking);
+  text-transform: uppercase;
+  color: var(--ui-ink-dim);
 }
 
 .shop-power .segs {
   display: flex;
-  gap: 2px;
+  gap: 3px;
 }
 
 .shop-power .segs i {
-  width: 8px;
-  height: 14px;
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.12);
+  width: 9px;
+  height: 16px;
+  border-radius: 1px;
+  background: rgba(143, 163, 184, 0.16);
+  transition: background-color var(--ui-fast) var(--ui-ease);
 }
 
 .shop-power .segs i.on {
-  background: #e07030;
+  background: var(--ui-power);
+  box-shadow: 0 0 6px var(--ui-power);
 }
 
-.shop-power .mode .key,
-.shop .hint {
-  color: var(--ink-dim);
-  font-size: 0.8em;
-}
+/* --- help line and hints --- */
 
 .shop-help {
-  min-height: 1.2em;
-  color: var(--ink-dim);
-  font-size: 0.9rem;
-  border-top: 1px solid var(--edge);
-  padding-top: 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-2) var(--ui-space-4);
+  padding-top: var(--ui-space-3);
+  border-top: 1px solid var(--ui-edge);
 }
 
-.shop-dialog {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  background: rgba(0, 0, 0, 0.6);
-  border-radius: 10px;
+.shop-help p {
+  flex: 1 1 16rem;
+  min-height: 1.45em;
+  margin: 0 !important;
+  font-size: var(--ui-text-sm);
 }
+
+.shop-help .ui-hints {
+  margin: 0;
+}
+
+/* --- quit question and ship specs (the framework's modal) --- */
 
 .shop-dialog[hidden] {
   display: none;
-}
-
-.shop-dialog .box {
-  max-width: 30rem;
-  background: var(--panel);
-  border: 1px solid var(--edge);
-  border-radius: 8px;
-  padding: 1rem 1.25rem;
-  text-align: center;
 }
 
 .shop-dialog .specs {
   text-align: left;
 }
 
-.shop-dialog h3 {
-  margin: 0 0 0.5rem;
-  color: var(--accent);
+.shop-dialog .specs .ui-scroll p {
+  color: var(--ui-ink);
 }
 
-.shop-dialog p {
-  color: var(--ink);
+.shop-dialog p b {
+  color: var(--ui-gold);
+  font-weight: inherit;
 }
 
-.shop-dialog .choices {
-  display: flex;
-  justify-content: center;
-  gap: 1rem;
-  margin-top: 0.75rem;
-}
+/* --- phones --- */
 
-.shop-dialog .choices .cur {
-  border-color: var(--accent);
-  background: rgba(224, 160, 64, 0.2);
-}
+@media (max-width: 720px) {
+  .ui-screen--shop {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
 
-@media (max-width: 640px) {
-  .shop-panel {
-    padding: 0.75rem;
+  .ui-screen--shop > .ui-panel {
+    padding: var(--ui-space-3);
   }
 
   .shop-body {
     grid-template-columns: 1fr;
+    gap: var(--ui-space-3);
   }
 
-  .shop-ship .loadout {
-    display: grid;
+  /* The loadout folds into two columns above the menu. */
+  .ui-screen--shop .loadout {
     grid-template-columns: 1fr 1fr;
-    gap: 0 0.5rem;
+    gap: 2px var(--ui-space-2);
   }
 
-  .shop .loadout li {
-    font-size: 0.8rem;
+  .ui-screen--shop .loadout li {
+    font-size: 0.78rem;
   }
+
+  .shop-header {
+    flex-wrap: wrap;
+    align-items: center;
+    padding-right: 0;
+  }
+
+  .shop-header .ui-title {
+    flex: 1 1 100%;
+  }
+
+  .shop-cash {
+    flex-direction: row;
+    align-items: baseline;
+    gap: var(--ui-space-2);
+  }
+
 }
 
-.shop-dialog p b {
-  color: var(--accent);
-  font-weight: normal;
+/* Short screens (phones in landscape): tighter rows so more of the menu shows. */
+@media (max-height: 520px) {
+  .ui-screen--shop {
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+
+  .ui-screen--shop > .ui-panel {
+    gap: var(--ui-space-2);
+    padding: var(--ui-space-2) var(--ui-space-4);
+  }
+
+  .shop-header {
+    padding-bottom: var(--ui-space-2);
+  }
+
+  .shop-header .ui-title__kicker {
+    display: none;
+  }
+
+  .ui-screen--shop .ui-menu__item {
+    min-height: 2.25rem;
+  }
+
+  .ui-screen--shop .loadout .ui-menu__icon {
+    width: 1.5rem;
+    height: 1.75rem;
+  }
+
+  .shop-nav {
+    max-width: 18rem;
+  }
 }

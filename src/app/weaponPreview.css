@@ -1,0 +1,52 @@
+/* The item screen's weapon preview (src/app/weaponPreview.ts), in the loadout column of shop.css. */
+
+.weapon-preview {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+}
+
+.weapon-preview[hidden] {
+  display: none;
+}
+
+/* The simulator's window is 136x175 game pixels; the 3D view frames it exactly (DECISIONS.md D6).
+   Under the game's tilted camera that window looks about as wide as it is tall. */
+.weapon-preview-view {
+  flex: 1;
+  min-width: 0;
+  aspect-ratio: 10 / 9;
+  max-height: 60vh;
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  overflow: hidden;
+  background: #05070d;
+}
+
+.weapon-preview-view canvas {
+  display: block;
+}
+
+/* JE_weaponViewFrame's power bar: the generator's reserve, which every shot draws on. */
+.weapon-preview-power {
+  flex: none;
+  width: 8px;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.weapon-preview-power i {
+  display: block;
+  width: 100%;
+  height: 0;
+  background: linear-gradient(to top, #2f8f4f, #8fe08f);
+}
+
+@media (max-width: 640px) {
+  .weapon-preview-view {
+    max-height: 38vh;
+  }
+}

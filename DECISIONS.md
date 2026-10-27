@@ -387,3 +387,245 @@ pack (it's gated on `VITE_LOCAL_DATA`, set only by `play:local`) and nothing fro
 
 **Review:** If the rights holders agree, decide how the music ships (bundled, or downloaded on
 demand) and move it to the public repo with its licence in CREDITS.md.
+
+## D19 — The full-screen pictures are redrawn in Blender and looked up by their JE_loadPic number
+
+2026-10-27
+
+**Decision:** Each of the 13 pictures in `tyrian.pic` (title, menu background, item screen, in-game
+frames, story pictures, intro cards, Destruct's screen), and `tshp2.pcx` as number 0, has a new 1920x1200 picture rendered
+headless in Blender by `assets/art/<name>.py`, from the game's models and procedural materials,
+for the same purpose and layout. The WebPs are committed in `public/art/`, and
+`public/art/pictures.json` maps each original's `JE_loadPic` number to its file, so code that
+shows picture N looks it up there. Screen furniture (the in-game frames, Destruct's bars) leaves
+the original's black playfield transparent. The two intro cards drop the publisher's and developer's
+names and logos (and the menu background its credit line) and keep only their mood: a chrome emblem of the Talon
+in a sunlit sky, an eclipse in smoke over a grid.
+
+**Options considered:**
+- *Redraw in Blender, keyed by picture number (chosen):* the art is ours to ship (the originals
+  come from the data, whose licence is unresolved, #10), the scripts rebuild it, and the number is
+  what the episode scripts (`]P`, `]U`, `]V`, `]R`) and the C already use.
+- *Upscale the originals:* closest to the game, but still the data's pictures, so not shippable.
+- *Keep showing the originals from the player's data:* works today, but isn't the remaster.
+- *Recreate the logos as they were:* they're the companies' marks, not ours to remake.
+
+**Review:** The pictures follow the originals' composition, not their pixels; the code that
+shows them should place text where the original did (the story pictures keep those areas dark or
+plain). `tshp2.pcx`, shown by episode 4's `]P 000`, is a separate file; its new picture is
+number 0.
+## D20 — The weapon preview borrows the sim's globals and gives them back
+
+2026-10-27
+
+**Decision:** The item screen's weapon simulator is ported as the C has it (JE_initWeaponView,
+JE_weaponSimUpdate and shots.c's simulate_player_shots in `src/sim/weaponSim.ts`), running on `g`
+with the game's own player_shot_create. Unlike the C, it borrows the globals only for the length
+of each call: it swaps its own copy of everything it touches in (the ship and sidekick positions,
+power, shot slots and their draw keys, the sound queue, the stars, mt_rand and the draw list) and
+the game's back out. It draws a draw list, which a second, small View (the game's renderer, framed
+on the simulator's 136x175 window) shows in the shop panel in place of the loadout, at the C's
+pace (setFrameCount(3), ~23 Hz), in the same submenus as the C: front and rear gun, generator and
+both sidekicks. The C's text and bars over it are the shop's HTML; its power bar is a small meter.
+
+**Options considered:**
+- *Borrow and give back (chosen):* the game after the item screen is identical with or without
+  the preview, however long it was watched (a test runs the C cross-check's shop sessions both
+  ways and compares every global). The sim code is still the C's, line for line.
+- *Share the globals as the C does:* most faithful, but opening a submenu then advances mt_rand
+  by 400 draws (initialize_starfield) and leaves the preview's shots, power and positions behind,
+  so the level after the shop would depend on how the player browsed. Nothing checks that path
+  against the C, and the start of a level resets most of it anyway.
+- *Draw the preview on the main view behind the panel:* no second WebGL context, but the camera
+  and the panel's layout would have to be kept in register, and the main view's framing and mask
+  would change while the shop is open.
+
+**Review:** If the level after the shop must match the C exactly for a recorded session (demos),
+apply the preview's mt_rand use to the game's generator once per submenu opened. The second View
+is one extra WebGL context, made once and reused by every item screen.
+## D21 — Screens between levels: the script records steps, an HTML canvas plays them
+
+2026-10-27
+
+**Decision:** JE_loadMap records the episode script's pictures, fades, text and music (`]P` `]U`
+`]V` `]R` `]C` `]B` `]F` `]W` `]M` `]n`, and the fade_black(50) before the level) as a list of
+steps named after the C calls they stand for (src/sim/story.ts), with the C's frame counts. The
+host plays them before the item screen, before the level and at the end of an episode
+(src/app/storyScreens.ts) on a canvas that stands in for the VGA screen, with the C's frame timer
+(one frame is 0x4300 PIT cycles, ~14.4 ms) and its input rules: a key, click, tap or gamepad
+button ends a pan, shows the rest of a text at once, then leaves it; fades ignore input. Esc skips
+the rest of the scene, as ESCPressed would. The screen is RGB at 6x 320x200: each picture is
+coloured with its own palette, text with `colors`, and palette fades are a black or white layer
+whose opacity follows fade_palette's straight line. Every picture is drawn through one function,
+pictureSource(), which takes a remastered image from src/app/pictureArt.ts (picture number → file
+under public/art/; empty for now) before the original from tyrian.pic. JE_main's level fades
+(50 frames in, 15 out after a completed level, 10 after a death) are the same kind of layer over
+the 3D view and HUD (src/app/fade.ts).
+
+**Options considered:**
+- *Recorded steps played by the host (chosen):* the sim stays synchronous and testable (the steps
+  for a section are checked against the script), the order with music and the item screen is the
+  C's, and the drawing is a line-by-line port of JE_displayText, JE_outCharGlow and the pans.
+- *Yield to the host at every screen command:* also in order, but every caller of the generator
+  (tests, the bot) would have to handle many more pauses for things they don't draw.
+- *An indexed 320x200 screen with real palette fades:* exact for every palette case, but the
+  remastered art isn't indexed. With the game's scripts the RGB version looks the same: every
+  picture appears from black or from a picture with the same palette, and the one pan (`]U 008[`)
+  is between two pictures that share palette 19.
+- *A palette brightness ramp in the renderer for the level fades:* would fade the models and tiles
+  but not the lighting, sky or HUD; the layer fades everything, as the C's palette did.
+
+**Review:** The level fade-in runs while the level starts (the C holds the game during the
+fade, but its play area is empty then). Text uses the original tiny font scaled up; if remastered
+pictures want new type, that's the place to change. Check the warning screen before MINES
+(flashing bars and siren) and episode 1's ending (pan up, flash).
+## D22 — After the last episode the game goes on into episode 1, as JE_nextEpisode does
+
+2026-10-27
+
+**Decision:** `]Q[` (end of episode) runs the C's sequence inside JE_loadMap (src/sim/tyrian2.ts,
+src/sim/episodes.ts): the final score and a secret hint, JE_nextEpisode, then `goto new_game` into
+the next episode's first section, with the ship, items, cash, difficulty and data cubes carried
+over and the item data reloaded (JE_initEpisode). After the last available episode come the
+credits, maybe the SuperCarrot (1 in 6), the next Super Arcade ship's code, and then episode 1 again
+with everything kept (gameHasRepeated), not the title screen. Only a Super Tyrian game goes back to
+the title. The screens are pauses of the JE_loadMapSteps generator (LoadMapPause, like the item
+screen in D13), drawn by src/app/episodeEnd.ts on a 320x200 indexed canvas (src/app/vga.ts) with
+the original's fonts, palettes, timing and the decoded tyrend.anm.
+
+**Options considered:**
+- *Follow JE_nextEpisode (chosen):* the original's own ending, including its replay of the game
+  with the player's gear.
+- *Credits, then the title:* simpler to explain, but not what Tyrian does, and it throws away a
+  finished game's ship.
+- *HTML screens for the text and credits:* consistent with the title and shop, but the credits'
+  fading pictures and flying ships, the glowing text and the animation are pixel effects; one canvas
+  keeps the whole ending in the original's look.
+
+**Review:** Finish episode 4 and check the credits, the "Type ... at Title" screen and the return to
+episode 1's item screen. The fallback is to return false from the `]Q[` case when
+jumpBackToEpisode1 is set (back to the title). The title screen doesn't take the Super Arcade codes
+yet, so that screen names a code nothing reads.
+## D23 — Data cubes: the C's cube list and wrapped text, a scrolling HTML reader, and a NEW mark
+
+2026-10-27
+
+**Decision:** The Data row of the item screen works as in OpenTyrian's `JE_itemScreen`. It lists
+the cubes picked up in the last level (`cubeList[0 .. cubeMax-1]`, which the episode script's `]?[`
+fills and the level's pickups count). Enter opens a cube in the reader, and Enter, Escape or EXIT
+go back. `src/sim/cubes.ts` ports `load_cube`, including its word wrap to 150 tiny-font pixels and
+35 characters, and the reader's `yLoc`/`yChg` scrolling. `tools/opentyrian-cubes` checks every
+cube of all four episodes against the real C. `src/app/dataCubes.ts` shows the C's wrapped lines in
+a nine-line column, which also scrolls with the wheel or a drag. The face is drawn in its own
+palette (`facepal`). Cubes the player hasn't opened this session are marked NEW.
+
+**Options considered:**
+- *Keep the C's line breaks (chosen):* the line count, "Read: n%" and End all depend on them, and
+  the text reads as it did in the original. The column can't reflow to a wider panel.
+- *Reflow the text in HTML:* fits any width, but the scroll rules and percentage would no longer
+  match the C.
+- *Mark new cubes with lastCubeMax:* the C doesn't do this. `lastCubeMax` only records the count
+  for saves (JE_saveGame). At the item screen it's never below `cubeMax`, and every cube listed is
+  from the last level anyway. So NEW means "not opened yet" instead, kept in memory for the
+  session.
+
+**Review:** Check that the reader feels right with arrows (one line per tap, as in the C) and the
+wheel. The C's End key wraps `yLoc` for cubes of nine lines or fewer, which scrolls the text out of
+view; here it stays at the top. If NEW isn't wanted, remove it from `dataCubes.ts`, where it
+lives.
+## D24 — Saved games and settings live in localStorage; the Options menu's setup rows open a settings screen
+
+2026-10-27
+
+**Decision:**
+- **Saves:** `src/sim/savegame.ts` ports JE_saveGame/JE_loadGame with the C's 22 slots (1-11 one
+  player, 11 being the automatic "LAST LEVEL" backup; 12-22 two players) and the fields of
+  JE_SaveFileType, stored as versioned JSON in localStorage (`tyrian3d.saves`). The slots are kept
+  in memory too, so the retry backup works without storage. The D14 backup is now
+  JE_saveGame(11)/JE_loadGame(11), taken at the same point as before (after JE_loadMap, before the
+  level starts). Loading from the item screen re-enters JE_loadMap at the C's new_game label; loading
+  from the title follows JE_loadScreen.
+- **Settings:** the volumes (tyrMusicVolume/fxVolume, 0-255, default 223 as in the C) and key
+  bindings are kept as versioned JSON (`tyrian3d.settings`); the music style stays in MusicSwitch's
+  own key. Each control has two keys (OpenTyrian's default plus the WASD/JKL set), rebound with the
+  C's swap rule; Escape, P and F11 are reserved.
+- **Options menu:** Load, Save and the Music/Sound rows are the C's menu (`game_menu.ts`). The
+  Joystick and Keyboard rows open the settings screen (`src/app/options.ts`) instead of the C's
+  in-menu MENU_JOYSTICK_CONFIG/MENU_KEYBOARD_CONFIG; the joystick part is a live button check, not
+  the C's per-button assignment, since browsers give gamepads a standard layout.
+
+**Options considered:**
+- *localStorage JSON with the C's slot layout (chosen):* readable, versioned, and the slot list and
+  LAST LEVEL behave like the original.
+- *Write the C's encrypted tyrian.sav bytes:* saves could move to and from OpenTyrian, but the format
+  carries the high-score table and editor data this port doesn't have; import/export can be added later.
+- *IndexedDB:* asynchronous, and the saves are a few kilobytes.
+- *Port KEY CONFIG and the joystick menu inside the item screen:* closer to the C's look, but the
+  title needs the same settings, and one screen serves both.
+
+**Review:** The C saves the backup after start_level_first's episode-4 difficulty decrement, so in
+episode 4 each retry lowers the difficulty one more step; the port saves before it, as D14 did. If
+that quirk should be reproduced, move the JE_saveGame call after initLevelWorld. Two-player saves
+(slots 12-22) aren't shown on the title's load screen, as there's no two-player game yet. Volumes
+now start at the C's 223, about 4 dB below the old full volume for both music and effects.
+## D25 — High scores follow JE_highScoreCheck; quitting a game also checks
+
+2026-10-27
+
+**Decision:** The high score tables are OpenTyrian's: the 22 saveFiles entries (a one-player and
+a two-player table of three per episode, for episodes 1-3), kept as JSON in localStorage instead
+of tyrian.sav, with loadSaves' random default names and scores when there's none yet. The rules
+are ported from JE_highScoreCheck (src/sim/highscores.ts): the one-player score is JE_totalScore
+(cash plus the value of the ship and gear), only the table of the episode the game started on is
+checked, never episode 4 or a game that has repeated, and the difficulty column is
+difficultyNameB indexed by the difficulty level at the time. The C's quirks are kept: the shift
+that makes room moves names and scores but not difficulties, and cancelling the name entry leaves
+the shifted table. The check runs where JE_nextEpisode runs it (episode end), and also when the
+player quits to the title from the item screen. The title screen's High Scores entry shows the
+tables (JE_highScoreScreen).
+
+**Options considered:**
+- *Episode end plus quitting (chosen):* in the C, only JE_nextEpisode checks. A death there
+  doesn't end the game either: it reloads the last level (D11, D14). Here, quitting from the item
+  screen is the only other way a game ends, so it's the "game over" that can earn a place.
+- *Check at each Game over screen:* every retry of one game could add another entry.
+- *Episode end only (the C):* a player who never finishes an episode never sees the table fill.
+- *Tables for episode 4 too:* localStorage has the room, but the C has no episode 4 table and
+  excludes it from the check.
+
+**Review:** A new game's score is already 19,500 on episode 1 (10,000 cash plus the starting
+gear), above most of the 1,000-20,000 defaults, so quitting at once can earn a place. If that
+feels cheap, drop the check on quitting (the C's behaviour). Normal games show "Easy" in the
+difficulty column, because difficultyNameB starts at "Unranked", "Wimp"; that is the C's
+indexing, kept on purpose.
+## D26 — Menus are one HTML framework over a 3D backdrop; pause quits to the title
+
+2026-10-27
+
+**Decision:** Every screen outside the action is built with `src/ui/` (src/ui/README.md): design
+tokens in CSS custom properties, a few base components, a screen manager that shows one screen at
+a time with a transition, and one navigation model in which keys, pad buttons and taps become the
+same eight intents. The look is a "remastered" Tyrian drawn with CSS: dark panels with gold corner
+brackets, the palette's amber, gold, cyan and steel, Orbitron for titles and Exo 2 for text (Google
+Fonts, SIL Open Font License, loaded by index.html with system fallbacks). Behind the menus a
+three.js backdrop flies the player's ship over a generated dark planet, drawn with the game View's
+renderer and only while a screen asks for it. The pause screen's "Quit to title" ends the game.
+
+**Options considered:**
+- *HTML framework, shared View renderer (chosen):* text stays sharp at any size and readable on a
+  phone, screens are quick to write, the rules stay in `src/sim/`, and one WebGL context serves both
+  the game and the menus. The backdrop stops during levels, so play costs nothing extra.
+- *Menus drawn in three.js (text meshes, UI in the scene):* one rendering path, but text and
+  layout would be hand-built and harder to make accessible and responsive.
+- *A second WebGL canvas for the backdrop:* simpler to isolate, but two contexts, and phones limit
+  how many a page may hold.
+- *Self-hosted fonts:* no request to Google, but the font files would need a dependency or
+  committed binaries; the fallbacks keep the game working offline.
+- *Pause "Quit" as in OpenTyrian:* JE_inGameSetup's Quit sets reallyEndLevel and playerEndLevel,
+  so start_level reloads the "LAST LEVEL" backup and returns to the item screen. A death already
+  does that (D14); a way back to the title was what was missing.
+
+**Review:** Play through the title, item screen and a level with keys, a pad and a phone. If the
+backdrop's cost shows on slow machines, cap its frame rate or render it at a lower pixel ratio. If
+the C's in-game Quit is wanted, add "Retry from item screen" to the pause menu: it's the "died"
+path in `run.ts` with `playerEndLevel` set.

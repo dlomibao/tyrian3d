@@ -1,0 +1,57 @@
+/* The pause screen and the touch pause button (src/app/pause.ts). */
+
+.ui-screen--pause .ui-panel {
+  max-width: 22rem;
+  text-align: center;
+}
+
+.ui-screen--pause .ui-title {
+  align-items: center;
+  letter-spacing: var(--ui-tracking-wide);
+}
+
+.ui-screen--pause .ui-menu__item {
+  justify-content: center;
+}
+
+/* Two bars in a ring, top right, clear of the HUD's score and the safe area. */
+.pause-button {
+  position: fixed;
+  z-index: 5;
+  top: max(8px, env(safe-area-inset-top));
+  right: max(8px, env(safe-area-inset-right));
+  width: var(--ui-hit);
+  height: var(--ui-hit);
+  display: none;
+  place-items: center;
+  grid-auto-flow: column;
+  gap: 5px;
+  justify-content: center;
+  align-content: center;
+  padding: 0;
+  border: 1px solid var(--ui-edge-strong);
+  border-radius: 50%;
+  background: rgba(7, 12, 21, 0.55);
+  box-shadow: var(--ui-glow-gold);
+  cursor: pointer;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pause-button > span {
+  width: 4px;
+  height: 14px;
+  border-radius: 1px;
+  background: var(--ui-gold-bright);
+}
+
+/* Shown on touch screens, or once a finger was used. */
+@media (pointer: coarse) {
+  .pause-button:not([hidden]) { display: grid; }
+}
+:root[data-input="touch"] .pause-button:not([hidden]) { display: grid; }
+:root[data-input="keys"] .pause-button,
+:root[data-input="mouse"] .pause-button,
+:root[data-input="pad"] .pause-button {
+  display: none;
+}

@@ -23,16 +23,32 @@ OpenTyrian links to, and choose or drop it on the page. It stays in your browser
 | Sidekicks | Left Ctrl, Left Alt / K, ; | LB, RB |
 | Pause | Esc / P | Start |
 
+The keys can be changed in Options. Menus take arrows or WASD, Enter, Esc, a pad's d-pad, A and B,
+or taps. On a touch screen the ship follows your finger and fires while you touch; the pause
+button sits in the top corner.
+
 ## Status
 
 All four episodes of Tyrian 2.1 are playable, from the title screen's episode and difficulty
 choice through to each episode's end, with the original's enemies, weapons, events, music and
 sound. Between levels the item screen sells and upgrades gear and lets you pick the next
-destination on the map (arrows, Enter, Esc; `/` changes the rear gun's firing mode). If your ship
-is destroyed, you go back to that item screen with the loadout you launched with.
+destination on the map (arrows, Enter, Esc; `/` changes the rear gun's firing mode), with the
+original's little simulator showing the guns and sidekicks firing before you buy them. Its Data
+row holds the data cubes found in the last level, to read there. If your ship is destroyed, you go
+back to that item screen with the loadout you launched with. Finishing an
+episode, or quitting a game, with a high enough score asks for your name for that episode's high
+score table (episodes 1-3, as in the original), which the title screen shows under High Scores.
 
-- **Not yet:** the item screen's Data Cubes and Options menus, arcade and two-player modes, and
-  the cutscenes between episodes.
+- **Between levels:** the episode script's story screens play as in the original: pictures, pans,
+  flashes and fades, and the glowing text with its warning sirens (any key or tap moves on, Esc skips
+  the scene). Remastered pictures can replace the originals without code changes: see
+  [`src/app/pictureArt.ts`](src/app/pictureArt.ts). An episode's end shows its hint, episode 3's
+  ending animation and, after the last episode, the credits, then carries on into the next episode.
+- **Options:** the item screen's Options menu loads and saves games (11 slots, the last being the
+  automatic LAST LEVEL backup; Alt-S / Alt-L), and the title has Load Game and Options. Options sets
+  the music and sound volume, the music style, the keys (two per control) and checks a gamepad's
+  buttons. Saves and settings stay in this browser.
+- **Not yet:** arcade and two-player modes.
 - **Everything else:** in [Issues](../../issues) and [Milestones](../../milestones). Design calls
   made along the way are in [DECISIONS.md](DECISIONS.md).
 
@@ -44,6 +60,11 @@ is destroyed, you go back to that item screen with the loadout you launched with
   compare it tick by tick against OpenTyrian's own C, compiled and run on the same input.
 - **Draw list:** instead of drawing pixels, the simulation records each sprite and tile it would
   draw, tagged with its draw pass.
+- **Interface (`src/ui/`):** the title, item screen, messages and pause menu are HTML screens on
+  one framework (design tokens, components, a screen manager and one navigation model for keys,
+  pads and touch) over a 3D backdrop of the player's ship above a planet. The Options, load, save,
+  high score, data cube and story screens still have their first, simpler look, and are opened from
+  those screens. See [src/ui/README.md](src/ui/README.md).
 - **Renderer (`src/render/`):** turns the draw list into a 3D scene. Draw order maps to height.
   Every enemy, boss and player ship is a Blender model of its original sprite (about 1,280
   models), loaded the first time it appears and coloured from the game's live palette. The

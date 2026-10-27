@@ -182,7 +182,7 @@ export function JE_checkSmoothies(): void {
 
 // --- Background starfield (backgrnd.c L1044-1101) ---
 
-interface StarfieldStar {
+export interface StarfieldStar {
   /** Uint8 */
   color: number;
   /** JE_word: a pixel offset (y * 320 + x) that relies on 16-bit wrap-around. */
@@ -196,6 +196,15 @@ const STARFIELD_HUE = 0x90;
 const PITCH = 320;
 
 const starfield_stars: StarfieldStar[] = Array.from({ length: MAX_STARS }, () => ({ color: 0, position: 0, speed: 0 }));
+
+/** The stars' state (not in the C), so the item screen's weapon preview can borrow the starfield. */
+export function starfield_save(): StarfieldStar[] {
+  return starfield_stars.map((s) => ({ ...s }));
+}
+
+export function starfield_restore(saved: readonly StarfieldStar[]): void {
+  saved.forEach((s, i) => Object.assign(starfield_stars[i], s));
+}
 
 /** initialize_starfield (backgrnd.c L1057-1065) */
 export function initialize_starfield(): void {

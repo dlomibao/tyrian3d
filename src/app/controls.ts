@@ -4,26 +4,13 @@
 // from window pixels to game pixels): click the game to lock the mouse pointer (left button fires,
 // right button fires the sidekicks), or drag a finger to steer — the ship fires while touched.
 //
-// Defaults follow OpenTyrian's (arrows, Space = fire, Enter = change rear-weapon mode, Left Ctrl /
+// The keys are the player's bindings (src/app/bindings.ts, set on the settings screen); the
+// defaults follow OpenTyrian's (arrows, Space = fire, Enter = change rear-weapon mode, Left Ctrl /
 // Left Alt = sidekicks), plus WASD/J/K/L for laptops. Keys pressed and released between two
 // ticks still count for one tick, so quick taps aren't lost.
 
 import { joystick_axis_reduce, simInput, type SimInput } from "../sim/input";
-
-type Action = "up" | "down" | "left" | "right" | "fire" | "changeFire" | "leftSidekick" | "rightSidekick";
-
-const KEYS: Record<Action, string[]> = {
-  up: ["ArrowUp", "KeyW"],
-  down: ["ArrowDown", "KeyS"],
-  left: ["ArrowLeft", "KeyA"],
-  right: ["ArrowRight", "KeyD"],
-  fire: ["Space", "KeyJ"],
-  changeFire: ["Enter", "KeyL"],
-  leftSidekick: ["ControlLeft", "KeyK"],
-  rightSidekick: ["AltLeft", "Semicolon"],
-};
-
-const ALL_CODES = new Set(Object.values(KEYS).flat());
+import { isBound, keys as KEYS, type Action } from "./bindings";
 
 export class Controls {
   private readonly held = new Set<string>();
@@ -41,6 +28,8 @@ export class Controls {
   /** Whether the last sample() saw any key held or tapped. */
   private sampledInput = false;
   private releasing = false;
+  /** ui-framework: whether a pad's Start was down at the last sample, so holding it pauses once. */
+  private startHeld = false;
 
   /** @param gamePixelsPerScreenPixel converts pointer motion to game pixels (from the view). */
   constructor(private readonly gamePixelsPerScreenPixel: () => number = () => 1) {
@@ -93,7 +82,7 @@ export class Controls {
     });
 
     window.addEventListener("keydown", (e) => {
-      if (ALL_CODES.has(e.code)) e.preventDefault();
+      if (isBound(e.code)) e.preventDefault();
       if (e.code === "Escape" || e.code === "KeyP") this.pauseRequested = true;
       this.held.add(e.code);
       this.tapped.add(e.code);
@@ -107,7 +96,7 @@ export class Controls {
 
   /** Fill simInput for the next tick. */
   sample(): SimInput {
-    const down = (a: Action) => KEYS[a].some((c) => this.held.has(c) || this.tapped.has(c));
+    const down = (a: Action) => KEYS[a].some((c) => c !== "" && (this.held.has(c) || this.tapped.has(c)));
     simInput.up = down("up");
     simInput.down = down("down");
     simInput.left = down("left");
@@ -137,6 +126,7 @@ export class Controls {
 
     // Standard-mapping gamepads: d-pad as keys, left stick as the C's analog joystick,
     // A/RT fire, X change fire, LB/RB sidekicks, Start pause.
+    let start = false;
     for (const pad of navigator.getGamepads?.() ?? []) {
       if (!pad) continue;
       const b = (i: number) => pad.buttons[i]?.pressed ?? false;
@@ -148,10 +138,14 @@ export class Controls {
       simInput.changeFire ||= b(2);
       simInput.leftSidekick ||= b(4);
       simInput.rightSidekick ||= b(5);
-      if (b(9)) this.pauseRequested = true;
+      start ||= b(9);
       simInput.analogX += joystick_axis_reduce(pad.axes[0] ?? 0);
       simInput.analogY += joystick_axis_reduce(pad.axes[1] ?? 0);
     }
+    // ui-framework: pause on the press only. Start also resumes on the pause screen, and a Start
+    // still held after resuming must not pause again.
+    if (start && !this.startHeld) this.pauseRequested = true;
+    this.startHeld = start;
     return simInput;
   }
 
@@ -162,6 +156,8 @@ export class Controls {
   }
 
   clear(): void {
+    // ui-framework: a Start held through clear() (resuming with it) counts as already seen.
+    this.startHeld = (navigator.getGamepads?.() ?? []).some((p) => p?.buttons[9]?.pressed);
     this.held.clear();
     this.tapped.clear();
     this.pauseRequested = false;

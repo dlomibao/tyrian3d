@@ -12,17 +12,27 @@ import { drawList } from "../sim/draw";
 import { startLevel, tick } from "../sim/game";
 import { loadHelpText, parseMenuText } from "../sim/helptext";
 import { clearSimInput } from "../sim/input";
-import { JE_endLevelAni } from "../sim/mainint";
+import { JE_endLevelAni, JE_initPlayerData } from "../sim/mainint";
 import { newOnePlayerGame } from "../sim/newgame";
-import { copyPlayerItems } from "../sim/player";
 import { buildResources, requireFile } from "../sim/resources";
-import { DIFFICULTY_EASY, DIFFICULTY_HARD, DIFFICULTY_NORMAL, g, SA_NONE, type PlayerItems } from "../sim/state";
-import { EpisodeEndError, loadLevelAsync } from "../sim/tyrian2";
+import { JE_loadGame, JE_loadScreen_select, JE_saveGame, loadSaves } from "../sim/savegame";
+import { DIFFICULTY_EASY, DIFFICULTY_HARD, DIFFICULTY_NORMAL, g, SA_NONE } from "../sim/state";
+import { loadLevelAsync } from "../sim/tyrian2";
 import type { View } from "../render/view";
 import { Controls } from "./controls";
+import { episodeEndScreens } from "./episodeEnd";
 import { Hud } from "./hud";
+import { showLoadScreen, showOptions } from "./options";
+import { connectVolumes, loadPrefs, musicLevel } from "./prefs";
+import { highScoreCheck, showHighScoreScreen } from "./highScoresScreen"; // [high scores]
+import { highScoreCheckDue } from "../sim/highscores"; // [high scores]
+import { PauseButton, showPause } from "./pause"; // ui-framework: pause screen
 import { askForData, showMessage, showStatus, showTitle, type TitleChoice } from "./screens";
 import { runItemScreen } from "./shop";
+// port-story: the screens between levels and the level fades.
+import { BLACK, levelFade } from "./fade";
+import { closeStoryScreens, playStoryScreens } from "./storyScreens";
+import { takeStorySteps } from "../sim/story";
 
 /** OpenTyrian song numbers (0-based, as passed to play_song). */
 const SONG_TITLE = 29;
@@ -47,45 +57,12 @@ async function getFiles(): Promise<FileMap> {
 }
 
 /**
- * What JE_saveGame(11, "LAST LEVEL") keeps (after JE_loadMap, so after the item screen) so a
- * failed level can be retried with JE_loadGame(11). The saved level is saveLevel: the section
- * JE_loadMap started from (or the last `]s[`), so a retry goes back through the item screen.
+ * The "LAST LEVEL" backup: JE_saveGame(11, "LAST LEVEL    ") after JE_loadMap (so after the item
+ * screen), and JE_loadGame(11) to retry a failed level (src/sim/savegame.ts). The saved level is
+ * saveLevel: the section JE_loadMap started from (or the last `]s[`), so a retry goes back through
+ * the item screen. It's the C's save slot 11, so the load lists show it too. [port-options]
  */
-interface LevelBackup {
-  items: PlayerItems;
-  last_items: PlayerItems;
-  cash: number;
-  level: number;
-  difficultyLevel: number;
-  cubes: number;
-}
-
-function saveLastLevel(): LevelBackup {
-  const p = g.player[0];
-  return {
-    items: copyPlayerItems(p.items),
-    last_items: copyPlayerItems(p.last_items),
-    cash: p.cash,
-    level: g.saveLevel,
-    difficultyLevel: g.difficultyLevel,
-    cubes: g.lastCubeMax,
-  };
-}
-
-function loadLastLevel(b: LevelBackup): void {
-  const p = g.player[0];
-  g.superTyrian = false;
-  g.onePlayerAction = false;
-  g.extraGame = false;
-  g.galagaMode = false;
-  g.difficultyLevel = b.difficultyLevel;
-  p.items = copyPlayerItems(b.items);
-  p.last_items = copyPlayerItems(b.last_items);
-  p.cash = b.cash;
-  g.mainLevel = b.level;
-  g.cubeMax = b.cubes;
-  g.lastCubeMax = b.cubes;
-}
+const lastLevelSlot = () => (g.twoPlayerMode ? 22 : 11);
 
 /** `onPlay` fires once the first level starts, so the caller can stop its idle rendering. */
 export async function runGame(view: View, onPlay: () => void = () => {}): Promise<void> {
@@ -101,9 +78,15 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
   const sfx = new SoundEffects(requireFile(files, "tyrian.snd"), requireFile(files, "voices.snd"), audioContext);
   const controls = new Controls(() => view.gamePixelsPerScreenPixel);
   const hud = new Hud();
+  const pauseButton = new PauseButton(() => (controls.pauseRequested = true)); // ui-framework
   loading();
 
   if (import.meta.env.DEV) Object.assign(window, { tyrian: { g, view, music, sfx } });
+
+  // [port-options] The settings and saved games kept in this browser (opentyrian.cfg and tyrian.sav).
+  loadPrefs();
+  loadSaves();
+  connectVolumes(music, sfx);
 
   const names = parseMenuText(requireFile(files, "tyrian.hdt"));
   const episodes = [1, 2, 3, 4, 5].filter((n) => files.get(`levels${n}.dat`) && files.get(`tyrian${n}.lvl`));
@@ -111,6 +94,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
 
   for (;;) {
     music.play(SONG_TITLE);
+    levelFade().set(0); // the title's backdrop draws under the level fade (port-story)
     choice = await showTitle({
       episodeNames: names.episodeName,
       episodes,
@@ -120,29 +104,63 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
       musicStyles: music.styles,
       musicStyle: music.style,
       onMusicStyle: (style) => music.setStyle(style),
+      // [port-options] JE_loadScreen, after the main loop's reset before the title (opentyr.c L873-880).
+      onLoadGame: async () => {
+        const slot = await showLoadScreen({ sfx });
+        if (slot === null) return false;
+        JE_initPlayerData();
+        g.playDemo = false;
+        g.gameLoaded = false;
+        g.jumpSection = false;
+        return JE_loadScreen_select(slot, files);
+      },
+      onOptions: () => showOptions({ sfx, music }),
+      currentMusicStyle: () => music.style,
+      // [high scores] the title menu's High Scores (JE_highScoreScreen)
+      highScoresLabel: g.miscText[50]?.trim() || undefined,
+      onHighScores: () => showHighScoreScreen({ ...names, episodes, sfx, episode: choice.episode }),
     });
 
     // JE_initEpisode: each episode has its own item data (episode 4's lives in tyrian4.lvl).
-    g.res = buildResources(files, choice.episode);
+    // A loaded game is already set up, on its own episode (JE_loadGame). [port-options]
+    g.res = buildResources(files, choice.loaded ? g.episodeNum : choice.episode);
     view.setPalettes(g.res.palettes);
-    newOnePlayerGame(choice.episode, choice.difficulty);
+    if (!choice.loaded) newOnePlayerGame(choice.episode, choice.difficulty);
     onPlay();
-    let backup: LevelBackup | null = null;
+    // port-story: JE_loadMap's pictures, text and fades play where the C would have drawn them.
+    const story = (keepOpen = false) => playStoryScreens(takeStorySteps(), { files, sfx, music }, { keepOpen });
 
     // start_level / start_level_first (tyrian2.c L586-905): JE_loadMap with the item screen at
     // each `]I[`, the backup save, the level, then where to go next.
     for (;;) {
-      let loaded: boolean;
-      try {
-        loaded = await loadLevelAsync(files, g.episodeNum, g.mainLevel, () => runItemScreen({ files, sfx, music }));
-      } catch (err) {
-        if (!(err instanceof EpisodeEndError)) throw err;
-        music.play(SONG_LEVEL_END);
-        await showMessage("Episode complete", [`Final score ${g.player[0].cash}`], "Press Enter for the title");
-        break;
+      // The episode script's other screens: an episode's end (]Q[) and the next episode's start.
+      // port-story: the pictures, text and fades recorded before a pause play first.
+      const screens = episodeEndScreens({ files, music });
+      const loaded = await loadLevelAsync(
+        files,
+        g.episodeNum,
+        g.mainLevel,
+        async () => {
+          await story(); // port-story
+          // The item screen's backdrop draws in the game's canvas, under the level fade: clear it.
+          levelFade().set(0);
+          await runItemScreen({ files, sfx, music });
+        },
+        async (pause) => {
+          await story(); // port-story: e.g. the screens before `]Q[`
+          closeStoryScreens();
+          // [high scores] JE_nextEpisode's JE_highScoreCheck (mainint.c L958-962)
+          if (pause === "highScoreCheck") return highScoreCheck({ ...names, sfx, music }, g.initial_episode_num);
+          await screens(pause);
+        },
+      );
+      if (!loaded) {
+        // [high scores] Quitting is how a game ends here, since a game over retries (D11, D14).
+        if (highScoreCheckDue(choice.episode)) await highScoreCheck({ ...names, sfx, music }, choice.episode);
+        break; // quit from the item screen: back to the title
       }
-      if (!loaded) break; // quit from the item screen: back to the title
-      if (!g.doNotSaveBackup) backup = saveLastLevel(); /*Save backup game*/
+      await story(); // port-story: the screens after the item screen, and fade_black(50)
+      if (!g.doNotSaveBackup) JE_saveGame(lastLevelSlot(), "LAST LEVEL    "); /*Save backup game*/
       startLevel();
       view.draws.resetInterpolation();
       music.play(g.levelSong - 1);
@@ -150,13 +168,26 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
       controls.clear();
       hud.visible = true;
 
+      // port-story: JE_main's fade_palette(colors, 50) (tyrian2.c L716). The C fades in before the
+      // first frame; here the level starts under the fade.
+      levelFade().set(1, BLACK);
+      void levelFade().fade(0, 50, BLACK);
+
       controls.active = true;
+      pauseButton.visible = true; // ui-framework
       const outcome = await playLevel(view, controls, sfx, music, hud);
       controls.active = false;
       controls.release();
       hud.visible = false;
+      pauseButton.visible = false; // ui-framework
 
       g.difficultyLevel = g.oldDifficultyLevel; /*Return difficulty to normal*/
+      if (outcome === "quit") {
+        // ui-framework: "Quit to title" on the pause screen (src/app/pause.ts). [high scores] As
+        // quitting from the item screen, it ends the game, so its score is checked.
+        if (highScoreCheckDue(choice.episode)) await highScoreCheck({ ...names, sfx, music }, choice.episode);
+        break;
+      }
 
       if (outcome === "completed") {
         g.mainLevel = g.nextLevel;
@@ -167,11 +198,13 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
           `Score ${g.player[0].cash}`,
           `Enemies destroyed ${g.enemyKilled} of ${g.totalEnemy}`,
         ]);
+        await levelFade().fade(1, 15, BLACK); // port-story: JE_endLevelAni's fade_black(15)
         if (g.mainLevel === 0) break; // end of the episode
       } else {
         music.play(SONG_GAME_OVER);
         await showMessage("Game over", ["Your ship was destroyed."], "Press Enter to retry from the item screen");
-        if (backup) loadLastLevel(backup); // JE_loadGame(11)
+        await levelFade().fade(1, 10, BLACK); // port-story: fade_black(10) (tyrian2.c L639)
+        JE_loadGame(lastLevelSlot(), files);
         if (g.doNotSaveBackup) {
           g.superTyrian = false;
           g.onePlayerAction = false;
@@ -184,29 +217,34 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
   }
 }
 
-type Outcome = "completed" | "died";
+type Outcome = "completed" | "died" | "quit";
 
 function playLevel(view: View, controls: Controls, sfx: SoundEffects, music: MusicPlayer, hud: Hud): Promise<Outcome> {
   return new Promise((resolve) => {
     let last = performance.now();
     let acc = 0;
     let paused = false;
-    let pauseEl: (() => void) | null = null;
+    let quit = false;
 
     const frame = (now: number) => {
-      if (controls.pauseRequested) {
+      // ui-framework: the pause screen (src/app/pause.ts) replaces the "Paused" status line.
+      if (controls.pauseRequested && !paused) {
         controls.pauseRequested = false;
-        paused = !paused;
-        if (paused) {
-          controls.release();
-          controls.active = false;
-          pauseEl = showStatus("Paused · press Esc or P to continue");
-          music.volume = 0.3;
-        } else {
-          pauseEl?.();
+        paused = true;
+        controls.release();
+        controls.active = false;
+        music.volume = musicLevel(0.3); // [port-options] relative to the music volume setting
+        void showPause().then((choice) => {
+          paused = false;
+          quit = choice === "quit";
+          controls.clear();
           controls.active = true;
-          music.volume = 1;
-        }
+          music.volume = musicLevel();
+        });
+      }
+      if (quit) {
+        resolve("quit");
+        return;
       }
       if (paused) {
         last = now;

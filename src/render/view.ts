@@ -3,7 +3,7 @@ import { OutlineEffect } from "three/addons/effects/OutlineEffect.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import type { Settings } from "../core/settings";
 import type { Palette } from "../data/palette";
-import { PLAYFIELD_WORLD_D, PLAYFIELD_WORLD_W, PX_PER_UNIT, worldX, worldZ } from "../game/playfield";
+import { PLAYFIELD_WORLD_D, PLAYFIELD_WORLD_W, PX_PER_UNIT, screenWorldX, screenWorldZ, worldX, worldZ } from "../game/playfield";
 import type { World } from "../game/world";
 import type { DrawList } from "../sim/draw";
 import { DrawListRenderer } from "./drawListRenderer";
@@ -22,6 +22,17 @@ const GROUND_TILE_PX = 64;
 const OUTLINE = { defaultThickness: 0.0045, defaultColor: [0.07, 0.035, 0.0] };
 const NO_OUTLINE = { outlineParameters: { visible: false } };
 const BACKGROUND = 0x05070d;
+
+/** Options for a view other than the game's full-window one (the item screen's weapon preview). */
+export interface ViewOptions {
+  /**
+   * The part of the draw list's screen (game_screen pixels, D6) to frame and leave unmasked.
+   * Defaults to the playfield, 264x184 at (24, 0).
+   */
+  frame?: { x: number; y: number; w: number; h: number };
+  /** Size the canvas to its container (and follow it with a ResizeObserver) instead of the window. */
+  fitContainer?: boolean;
+}
 
 /**
  * Draws the game. Resolution-independent: sized to the canvas, not to Tyrian's 320x200.
@@ -59,11 +70,18 @@ export class View {
   private roll = 0;
   private lastRender = performance.now();
   private framedForDrawLists = false;
+  /** The framed area in world units (x0..x1, z0..z1); the playfield unless ViewOptions.frame. */
+  private readonly frameRect: { x0: number; x1: number; z0: number; z1: number };
 
   constructor(
-    container: HTMLElement,
+    private readonly container: HTMLElement,
     private readonly settings: Settings,
+    private readonly options: ViewOptions = {},
   ) {
+    const f = options.frame;
+    this.frameRect = f
+      ? { x0: screenWorldX(f.x), x1: screenWorldX(f.x + f.w), z0: screenWorldZ(f.y), z1: screenWorldZ(f.y + f.h) }
+      : { x0: -PLAYFIELD_WORLD_W / 2, x1: PLAYFIELD_WORLD_W / 2, z0: -PLAYFIELD_WORLD_D / 2, z1: PLAYFIELD_WORLD_D / 2 };
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -122,7 +140,8 @@ export class View {
     this.fallback.add(this.ship);
 
     this.resize();
-    window.addEventListener("resize", () => this.resize());
+    if (options.fitContainer) new ResizeObserver(() => this.resize()).observe(container);
+    else window.addEventListener("resize", () => this.resize());
   }
 
   /** Replace the placeholder-scene ship with a loaded model. */
@@ -185,8 +204,9 @@ export class View {
   }
 
   private resize(): void {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
+    const w = this.options.fitContainer ? this.container.clientWidth : window.innerWidth;
+    const h = this.options.fitContainer ? this.container.clientHeight : window.innerHeight;
+    if (w <= 0 || h <= 0) return; // a hidden container: wait for the ResizeObserver
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.settings.maxPixelRatio));
     this.renderer.setSize(w, h);
     this.camera.aspect = w / h;
@@ -198,14 +218,16 @@ export class View {
     // so everything drawn stays inside this outline whatever its height.)
     const margin = this.framedForDrawLists ? DRAW_LIST_FRAME_MARGIN : FRAME_MARGIN;
     const halfFov = THREE.MathUtils.degToRad(CAMERA_FOV / 2);
-    let distance = Math.max(PLAYFIELD_WORLD_D, PLAYFIELD_WORLD_W / this.camera.aspect) / (2 * Math.tan(halfFov));
-    let aimZ = 0;
-    const corners = [-1, 1].flatMap((sx) => [-1, 1].map((sz) => new THREE.Vector3((sx * PLAYFIELD_WORLD_W) / 2, 0, (sz * PLAYFIELD_WORLD_D) / 2)));
+    const { x0, x1, z0, z1 } = this.frameRect;
+    const cx = (x0 + x1) / 2;
+    let distance = Math.max(z1 - z0, (x1 - x0) / this.camera.aspect) / (2 * Math.tan(halfFov));
+    let aimZ = (z0 + z1) / 2;
+    const corners = [x0, x1].flatMap((x) => [z0, z1].map((z) => new THREE.Vector3(x, 0, z)));
     const p = new THREE.Vector3();
     this.camera.updateProjectionMatrix();
     for (let i = 0; i < 40; i++) {
-      this.camera.position.set(0, distance * Math.cos(CAMERA_TILT), aimZ + distance * Math.sin(CAMERA_TILT));
-      this.camera.lookAt(0, 0, aimZ);
+      this.camera.position.set(cx, distance * Math.cos(CAMERA_TILT), aimZ + distance * Math.sin(CAMERA_TILT));
+      this.camera.lookAt(cx, 0, aimZ);
       this.camera.updateMatrixWorld();
       let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
       for (const c of corners) {
@@ -227,12 +249,10 @@ export class View {
     // Mask everything outside the playfield's outline on screen. Draws are projected along camera
     // rays onto their original screen positions (DECISIONS.md D6), so the area inside shows exactly
     // what the original's 264x184 window showed, at every height.
-    const x = PLAYFIELD_WORLD_W / 2;
-    const z = PLAYFIELD_WORLD_D / 2;
     this.camera.updateMatrixWorld();
     const hole = new THREE.Path(
-      [[-x, -z], [-x, z], [x, z], [x, -z]].map(([cx, cz]) => {
-        const p = new THREE.Vector3(cx, 0, cz).project(this.camera);
+      [[x0, z0], [x0, z1], [x1, z1], [x1, z0]].map(([hx, hz]) => {
+        const p = new THREE.Vector3(hx, 0, hz).project(this.camera);
         return new THREE.Vector2(p.x, p.y);
       }),
     );
@@ -242,10 +262,10 @@ export class View {
     this.mask.geometry = new THREE.ShapeGeometry(outer);
 
     // Game pixels per CSS pixel across the middle of the play area, for relative mouse/touch steering.
-    const left = new THREE.Vector3(-PLAYFIELD_WORLD_W / 2, 0, 0).project(this.camera);
-    const right = new THREE.Vector3(PLAYFIELD_WORLD_W / 2, 0, 0).project(this.camera);
+    const left = new THREE.Vector3(x0, 0, (z0 + z1) / 2).project(this.camera);
+    const right = new THREE.Vector3(x1, 0, (z0 + z1) / 2).project(this.camera);
     const widthCss = ((right.x - left.x) / 2) * w;
-    this.gamePixelsPerScreenPixel = widthCss > 0 ? (PLAYFIELD_WORLD_W * PX_PER_UNIT) / widthCss : 1;
+    this.gamePixelsPerScreenPixel = widthCss > 0 ? ((x1 - x0) * PX_PER_UNIT) / widthCss : 1;
   }
 }
 

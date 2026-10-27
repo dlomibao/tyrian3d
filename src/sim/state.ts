@@ -616,6 +616,8 @@ export const g = {
 
   // episodes.h
   episodeNum: 1,
+  /** The episode the game was started on (menus.c episodeSelect); kept in saved games. [port-options] */
+  initial_episode_num: 1,
   bonusLevel: false,
   jumpBackToEpisode1: false,
 
@@ -688,6 +690,11 @@ export const g = {
   /** musmast.h songBuy: the item screen's song (0-based); JE_loadMap resets it to DEFAULT_SONG_BUY, `]i` sets it. */
   songBuy: 2,
   // --- end added by shop port ---
+  // --- added by episodes port ---
+  /** episodes.h episodeAvail[EPISODE_MAX]: which episodes' tyrianN.lvl exist (JE_scanForEpisodes). */
+  episodeAvail: new Array<boolean>(5).fill(false),
+  // (initial_episode_num, which this port also uses, is above with the save-game fields.)
+  // --- end added by episodes port ---
 };
 
 export type Globals = typeof g;

@@ -88,8 +88,12 @@ export function simulate_player_shots(): void {
 
         if (anim_frame < 60000) {
           if (anim_frame > 1000) anim_frame = anim_frame % 1000;
+          // The shot's draw key, as player_shot_move_and_draw gives it (not in the C).
+          const savedKey = drawState.key;
+          drawState.key = playerShotKey[z];
           if (anim_frame > 500) blit_sprite2(tempShotX + 1, tempShotY, g.res.spriteSheet12, anim_frame - 500);
           else blit_sprite2(tempShotX + 1, tempShotY, g.res.spriteSheet8, anim_frame);
+          drawState.key = savedKey;
         }
       }
     }
