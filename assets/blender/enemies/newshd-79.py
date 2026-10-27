@@ -5,7 +5,7 @@ pendant loop along the top, straight sides, and a bowl tapering to a point at th
 domes up toward the middle, and bright raised ribs run across it: an X from the shoulders down
 to a ring round a blue gem, a rib out to each side along the wings' lower edges, and two down to
 the point. The frames only brighten the gem (dark blue, blue, pale teal), so one model covers them
-all, with the gem glowing.
+all, with the gem glowing and taking each frame's colour (palette_material frames=).
 
 Run: blender --background --python assets/blender/enemies/newshd-79.py [-- --preview out.png]
 """
@@ -56,8 +56,12 @@ def build(sprite):
         pal(29, metallic=0.85, roughness=0.2),  # bright ribs
         pal(30, metallic=0.85, roughness=0.18),  # gem ring
         pal(27, metallic=0.8, roughness=0.25),  # pendant loop
-        pal(57, metallic=0.3, roughness=0.12, emission_strength=2.5),  # gem
-        pal(61, metallic=0.2, roughness=0.1, emission_strength=4.0),  # gem highlight
+    ]
+    # The gem and its highlight: dark blue on frame 79, blue on 81, pale teal on 83.
+    gem = lambda i, f, **kw: common.palette_material(sprite, i, f"{NAME}-gem", frames=f, **kw)  # noqa: E731
+    mats += [
+        gem(57, {81: 59, 83: 135}, metallic=0.3, roughness=0.12, emission_strength=2.5),  # gem
+        gem(61, {81: 63, 83: 143}, metallic=0.2, roughness=0.1, emission_strength=4.0),  # gem highlight
     ]
     _, RIB, RING, LOOP, GEMM, SHINE = range(RIM, RIM + 6)
 

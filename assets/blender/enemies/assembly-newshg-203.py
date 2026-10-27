@@ -8,7 +8,10 @@ chamfered red-tipped muzzle. The launcher has a dark panel along its top with a 
 light on its upper side and a bright collar at its breech.
 
 Frames: newshg-165, newshg-203 and newshg-205 only change the colour of their glowing lights, so
-one model each covers their frames. newshg-167 fires: its second and third frames add a flame
+one model each covers their frames. On newshg-165 the red light on the launcher's side flares
+orange and then white at its right end (frames 241, 281), and on newshg-203 the post's slit flares
+yellow-white (245, 279): those lights are cut into a piece per sprite pixel (column) whose material
+takes that pixel's colour on each frame (palette_material frames=). newshg-167 fires: its second and third frames add a flame
 out of the muzzle, so it has three models (newshg-167, newshg-167-f2 with the short flame and
 newshg-167-f3 with the long one), one per frame.
 
@@ -17,6 +20,7 @@ common.split_assembly. It sits on the ground (base at z = 0).
 
 Run: blender --background --python assets/blender/enemies/assembly-newshg-203.py [-- --preview out.png]
 (the preview is the whole emplacement; each piece also gets <piece>.png next to it).
+[-- --frames out.png] renders every frame of newshg-165 and newshg-203 to <piece>.png beside out.png.
 """
 
 import math
@@ -152,8 +156,13 @@ def build(sprite, grid):
              flat=0.7)
     lib.tube(bm, [at(s, 57.6, top_z(s) - 0.015) for s in (-10.0, 0.0, 14.0)], [0.8 * PX] * 3, sides=6,
              mat=MOUNT, flat=0.7)
-    # Red light on the upper-left side (row 23, columns 19-21).
-    plate_st(bm, -4.6, -1.4, 42.2, 44.4, -0.12, 0.08, RED)
+    # Red light on the upper-left side (row 23, columns 20-22 of newshg-165), in three parts along
+    # it, one per pixel: red on frame 165, orange on 241, brightening to white at the right on 281.
+    light = [{241: 121, 281: 117}, {241: 122, 281: 125}, {241: 119, 281: 127}]
+    edges = [-4.6 + 3.2 * k / 3 for k in range(4)]
+    for k, frames in enumerate(light):
+        mats.append(common.palette_material(sprite, 118, f"{tag}-light{k}", emission_strength=3.0, frames=frames))
+        plate_st(bm, edges[k], edges[k + 1], 42.2, 44.4, -0.12, 0.08, len(mats) - 1)
 
     # Bright collar round the breech (rows 28-30, columns 14-19).
     lib.tube(bm, [at(s, AXIS_T, axis_z(s)) for s in (-12.4, -11.4, -10.2)],
@@ -173,8 +182,25 @@ def build(sprite, grid):
 
     # The post with the glowing slit (columns 6-10, rows 41-51).
     lib.slab(bm, FR, [(5.8, 40.8), (10.8, 40.8), (10.8, 51.2), (5.8, 51.2)], 0.0, 0.3, mat=MOUNT, bevel=0.6)
-    lib.slab(bm, FR, [(6.9, 41.8), (9.1, 41.8), (9.1, 50.8), (6.9, 50.8)], 0.27, 0.31, mat=SLIT)
-    lib.slab(bm, FR, [(7.0, 43.6), (8.0, 43.6), (8.0, 45.0), (7.0, 45.0)], 0.3, 0.315, mat=HOT)
+    # The slit (columns 7-8, rows 42-49), a cell per sprite pixel taking that pixel's colour on each
+    # of newshg-203's frames: dark red on 203, flaring yellow-white on 245 and 279. Below it a
+    # dull red foot (row 50).
+    frames203 = common.load_sprite(ROOT, "newshg-203")["frames"]
+    slit = [f["pixels"] for f in frames203]
+    index = [f["index"] for f in frames203]
+    cell_mat = {}
+    for r in range(42, 50):
+        for c, (c0, c1) in ((7, (6.9, 8.0)), (8, (8.0, 9.1))):
+            vals = [int(px[r - 28][c]) for px in slit]
+            key = tuple(vals)
+            if key not in cell_mat:
+                frames = {i: v for i, v in zip(index[1:], vals[1:]) if v != vals[0]}
+                mats.append(common.palette_material(sprite, vals[0], f"{tag}-slit{len(cell_mat)}",
+                                                    emission_strength=3.0, frames=frames))
+                cell_mat[key] = len(mats) - 1
+            r0 = 41.8 if r == 42 else r
+            lib.slab(bm, FR, [(c0, r0), (c1, r0), (c1, r + 1), (c0, r + 1)], 0.27, 0.31, mat=cell_mat[key])
+    lib.slab(bm, FR, [(6.9, 50.0), (9.1, 50.0), (9.1, 50.8), (6.9, 50.8)], 0.27, 0.31, mat=SLIT)
 
     # Curved guard on the far left (columns 1-8, rows 35-45) and a shorter prong inside it.
     lib.tube(bm, [(*FR.xy(8.6, 35.6), 0.24), (*FR.xy(5.8, 36.8), 0.22), (*FR.xy(3.4, 39.0), 0.18),
@@ -268,6 +294,11 @@ def main():
             k = int(key.rsplit("-f", 1)[1]) - 1 if "-f" in key else 0
             img = ROOT / "reference" / "models" / base / data["frames"][k]["image"]
             common.render_preview(objs, str(out.parent / f"{key}.png"), img, size=2)
+    if "--frames" in sys.argv:  # every frame of the animated pieces, one row each
+        out = Path(sys.argv[sys.argv.index("--frames") + 1])
+        for name in ("newshg-165", "newshg-203"):
+            common.render_frame_previews(exported[name], str(out.parent / f"{name}.png"),
+                                         common.load_sprite(ROOT, name), ROOT)
 
 
 if __name__ == "__main__":

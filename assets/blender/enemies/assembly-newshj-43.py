@@ -8,7 +8,10 @@ the rest of the tiles, with its drop shadow falling to the right and below. The 
   two small posts on its left, a raised box and a dark trench on top;
 - a tall tower (columns 13-25) with three glowing green windows in a light frame; the windows
   light up one after another (frames 5, 9, 11 of newshj-5 and 43, 47, 49 of newshj-43), which only
-  changes their brightness, so each piece keeps one model for all its frames;
+  changes their brightness, so each piece keeps one model for all its frames: each pane takes its
+  shade on each frame (palette_material frames=), and newshj-5 has a part per frame
+  (common.frame_part) with the lit window's bright glint, the dimmer ones' faint glints and the dark
+  bands that hide a dim window's top rows;
 - a lean-to wing on the tower's left with a dark roof, its top-left corner cut by a lit chamfer
   and a lit ramp down to the base at its front;
 - a ribbed grey drum lying down the screen on the tower's right (columns 26-38), with a wider
@@ -21,6 +24,7 @@ pieces (newshj-5 top left, newshj-7 top right, newshj-43 bottom left, newshj-45 
 
 Run: blender --background --python assets/blender/enemies/assembly-newshj-43.py [-- --preview out.png]
 (the preview is the whole block; each piece also gets <piece>.png next to it).
+[-- --frames out.png] renders every frame of newshj-5 and newshj-43 to <piece>.png beside out.png.
 """
 
 import sys
@@ -44,6 +48,10 @@ BASE_TOP = 0.2  # top of the base slab
 WING_TOP = 0.5
 TOWER_TOP = 0.6
 STEP_TOP = 0.34
+# The three window panes, top to bottom: (palette index on newshj-5's first frame, {frame: index}).
+# The lit one moves down a window each frame (5, 9, 11 on newshj-5; the bottom pane's last rows are
+# on newshj-43, frames 43, 47, 49): lit, half-lit, dark.
+PANES = [(198, {9: 196, 11: 193}), (196, {9: 198}), (192, {9: 194, 11: 199, 47: 194, 49: 199})]
 
 
 def build(sprite):
@@ -133,11 +141,13 @@ def build(sprite):
     lib.box(bm, G, 14.0, 5.4, 23.0, 6.2, TOWER_TOP, TOWER_TOP + 0.015, RIB)
     for r0, r1 in ((14.0, 15.0), (22.0, 23.0), (30.0, 30.6)):
         lib.box(bm, G, 16.0, r0, 23.0, r1, ft, TOWER_TOP, FRAME)
-    # Recess shading at the windows' upper and left inner edges, then the glowing panes.
-    for r0, r1 in ((7.0, 14.0), (15.0, 22.0), (23.0, 30.0)):
-        lib.box(bm, G, 16.0, r0, 23.0, r0 + 0.6, ft - 0.01, ft + 0.03, GROOVE)
-        lib.box(bm, G, 16.0, r0, 16.8, r1, ft - 0.01, ft + 0.03, GROOVE)
-        lib.box(bm, G, 16.8, r0 + 0.6, 23.0, r1, ft - 0.01, ft + 0.035, GLASS)
+    # Recess shading at the windows' left inner edges, then the glowing panes, each in its shade
+    # on each frame (the dark bands over a dim window's top rows are in window_frames).
+    for (r0, r1, g0), (base, frames) in zip(((7.0, 14.0, 7.0), (15.0, 22.0, 17.0), (23.0, 30.0, 25.0)), PANES):
+        lib.box(bm, G, 16.0, g0, 16.8, r1, ft - 0.01, ft + 0.03, GROOVE)
+        mats.append(common.palette_material(sprite, base, f"{tag}-pane{len(mats)}", metallic=0.1, roughness=0.2,
+                                            emission_strength=2.5, frames=frames))
+        lib.box(bm, G, 16.8, r0, 23.0, r1, ft - 0.01, ft + 0.035, len(mats) - 1)
 
     # ---- low step in front of the tower (columns 13-25, rows 31-37) with a pipe down it ----
     lib.frustum(bm, G, [(13, 30.5), (25, 30.5), (25, 36.8), (13, 36.8)], BASE_TOP - 0.02,
@@ -185,15 +195,51 @@ def build(sprite):
     return lib.to_object(NAME, bm, mats, coll)
 
 
+def window_frames(sprite):
+    """newshj-5's parts per frame (block coordinates): the dark bands over the top rows of the dim
+    windows, the left recess's top corner (dark, or lit beside a lit window) and the glints, a
+    bright one near the lit window's top left and faint ones on the half-lit windows."""
+    ft = TOWER_TOP - 0.08
+    tag = "nshj43"
+    pal = lambda i, e=0.0: common.palette_material(sprite, i, tag, metallic=0.1, roughness=0.2,  # noqa: E731
+                                                   emission_strength=e) if e else \
+        common.palette_material(sprite, i, tag, metallic=0.3, roughness=0.7)
+    mats = [pal(3), pal(197, 2.5), pal(198, 2.5), pal(199, 3.0), pal(200, 3.0), pal(204, 3.5), pal(205, 4.0),
+            pal(206, 4.0), pal(207, 4.0)]
+    slot = {i: k for k, i in enumerate((3, 197, 198, 199, 200, 204, 205, 206, 207))}
+    # (frame, [(c0, r0, c1, r1, palette index, layer)]): layer 0 sits on the pane, 1 on top of it.
+    parts = {
+        5: [(16.8, 15, 23, 16, 3, 0), (16.8, 23, 23, 25, 3, 0), (16, 15, 16.8, 17, 3, 0), (16, 23, 16.8, 25, 3, 0),
+            (16.8, 7.8, 20, 11, 204, 0), (17.4, 8.3, 19.2, 10, 206, 1), (16.8, 16, 19.5, 18, 198, 0)],
+        9: [(16.8, 7, 23, 8, 3, 0), (16.8, 23, 23, 25, 3, 0), (16, 23, 16.8, 25, 3, 0), (16, 15, 16.8, 17, 198, 0),
+            (16.8, 8, 19, 10, 199, 0), (16.8, 15, 20, 18.5, 204, 0), (17.4, 15.6, 19.2, 17.8, 205, 1)],
+        11: [(16.8, 7, 23, 9, 3, 0), (16.8, 15, 23, 16, 3, 0), (16, 15, 16.8, 17, 3, 0), (16, 23, 16.8, 25, 197, 0),
+             (16.8, 16, 19.5, 18, 200, 0), (16.8, 23.4, 20, 26.5, 204, 0), (17.4, 24.2, 19.2, 26, 207, 1)],
+    }
+    objs = {}
+    for frame, boxes in parts.items():
+        coll = common.reset_collection(f"{NAME}-f{frame}")
+        bm = bmesh.new()
+        for c0, r0, c1, r1, i, layer in boxes:
+            lib.box(bm, G, c0, r0, c1, r1, ft - 0.01, ft + 0.04 + 0.005 * layer, slot[i])
+        objs[frame] = lib.to_object(f"newshj-5-frame{frame}", bm, mats, coll)
+    return objs
+
+
 def main():
     names = [n for n, _, _ in PIECES]
     sprite = lib.merged_sprite(ROOT, names)
     obj = build(sprite)
     layout = [(n, c0 + 12 - W // 2, r0 + 14 - H // 2) for n, c0, r0 in PIECES]
     pieces = common.split_assembly(obj, layout)
+    exported = {name: [pieces[name]] for name in names}
+    for frame, part in window_frames(sprite).items():
+        cut = common.split_assembly(part, [layout[0]])["newshj-5"]
+        cut.name = f"newshj-5-frame{frame}"
+        exported["newshj-5"].append(common.frame_part(cut, [frame]))
     for name in names:
         data = common.load_sprite(ROOT, name)
-        common.export_sprite_model(ROOT, [pieces[name]], f"enemies/{name}", data["sprites"])
+        common.export_sprite_model(ROOT, exported[name], f"enemies/{name}", data["sprites"])
     if "--preview" in sys.argv:
         out = Path(sys.argv[sys.argv.index("--preview") + 1])
         pixels = lib.composite_pixels(ROOT, PIECES, W, H)
@@ -203,6 +249,11 @@ def main():
             data = common.load_sprite(ROOT, name)
             img = ROOT / "reference" / "models" / name / data["frames"][0]["image"]
             common.render_preview([pieces[name]], str(out.parent / f"{name}.png"), img, size=2)
+    if "--frames" in sys.argv:  # every frame of the animated pieces, one row each
+        out = Path(sys.argv[sys.argv.index("--frames") + 1])
+        for name in ("newshj-5", "newshj-43"):
+            common.render_frame_previews(exported[name], str(out.parent / f"{name}.png"),
+                                         common.load_sprite(ROOT, name), ROOT)
 
 
 if __name__ == "__main__":

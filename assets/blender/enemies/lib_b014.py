@@ -241,7 +241,8 @@ def rock(sprite, name, pixels, size=2, half_height=0.24, relief=0.05, lumps=0.06
 
 
 def run(name, build, file):
-    """The usual main: build, export every model and, with -- --preview <png>, preview the first.
+    """The usual main: build, export every model and, with -- --preview <png>, preview the first
+    (-- --frames <png>: every frame of the first, for animated models).
 
     `build(sprite)` returns a list of (model_name, objects, sprites) to export."""
     root = common.repo_root(file)
@@ -254,6 +255,9 @@ def run(name, build, file):
         frame = sprite["frames"][0]
         ref = root / "reference" / "models" / name / frame["image"]
         common.render_preview(models[0][1], out, ref, size=frame["size"])
+    if "--frames" in sys.argv:  # every frame of the first model, one row each
+        out = sys.argv[sys.argv.index("--frames") + 1]
+        common.render_frame_previews(models[0][1], out, sprite, root)
     return sprite
 
 
