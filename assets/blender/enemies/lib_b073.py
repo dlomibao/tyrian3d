@@ -251,7 +251,8 @@ def ellipsoid(bm, cx, cy, cz, rx, ry, rz, sides=16, rings=8, mat=0, smooth=True)
 
 def tube(bm, points, radius, sides=8, mat=0, smooth=True, caps=True, flat=1.0):
     """A round tube along a 3D polyline (mitred joints). radius: number or one per point.
-    flat scales the tube's vertical radius (flat < 1 squashes it)."""
+    flat scales the tube's vertical radius (flat < 1 squashes it). caps: both ends, or a
+    (start, end) pair."""
     pts = [Vector(p) for p in points]
     radii = radius if isinstance(radius, (list, tuple)) else [radius] * len(pts)
     tangents = []
@@ -272,7 +273,8 @@ def tube(bm, points, radius, sides=8, mat=0, smooth=True, caps=True, flat=1.0):
             off.z *= flat
             ring.append(tuple(c + off))
         rings.append(ring)
-    ring_loft(bm, rings, mat=mat, smooth=smooth, cap_start=caps, cap_end=caps)
+    cap_start, cap_end = caps if isinstance(caps, tuple) else (caps, caps)
+    ring_loft(bm, rings, mat=mat, smooth=smooth, cap_start=cap_start, cap_end=cap_end)
 
 
 def loft_y(bm, x, sections, sides=10, mat=0, smooth=True, power=2.0, cap_start=True, cap_end=True):

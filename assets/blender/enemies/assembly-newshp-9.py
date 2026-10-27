@@ -5,8 +5,9 @@ Seen in episode 1 (level 1.5). Six 2x2 pieces (two across, three down) make one 
 object: a light grey pad on the stone floor with a brown-rimmed pit in its middle and brown
 anchor rings round it; a dark mast leans back from the pit to a brown T-shaped cap (newshp-9
 and newshp-11, over the transparent sky of the sprite), with a grey hook hanging from the cap
-and cables fanning down from the mast to the anchors. In newshp-1 and newshp-3 the cables at
-the seam between them sway a little from frame to frame; one model covers those frames.
+and cables fanning down from the mast to the anchors. In newshp-1 and newshp-3 the mast's
+lower end, at the seam between them, works up and down in the pit from frame to frame; one
+model covers those frames, with the mast's end for each pair of frames (frame_part).
 
 Built whole and cut into the pieces with common.split_assembly.
 
@@ -57,7 +58,8 @@ def build(sprite, g):
 
     # The mast, leaning back from the pit to the cap, and the cap (columns 11-30, rows 1-5).
     base, top = (g.x(21.0), g.y(42.0), PAD), (g.x(21.6), g.y(8.0), 0.56)
-    L.tube(bm, [base, top], [3.4 * L.U, 3.0 * L.U], sides=8, mat=m.metal(3), flat=1.0)
+    joint, r_joint = along(base, top, 34.0), mast_radius(34.0)
+    L.tube(bm, [joint, top], [r_joint, 3.0 * L.U], sides=8, mat=m.metal(3), flat=1.0, caps=(False, True))
     L.tube(bm, [(g.x(21.6), g.y(11.5), 0.53), (g.x(21.6), g.y(4.5), 0.6)], 1.8 * L.U, sides=8, mat=m.metal(22))
     cap = [(g.ex(11), g.ey(5.6)), (g.ex(29), g.ey(5.6)), (g.ex(31.4), g.ey(4.6)), (g.ex(31.4), g.ey(3.4)),
            (g.ex(26), g.ey(1.2)), (g.ex(11.5), g.ey(1.2)), (g.ex(10.6), g.ey(2.2))]
@@ -72,7 +74,34 @@ def build(sprite, g):
         start = tuple(b + (a - b) * t for a, b in zip(top, base))
         start = (start[0] + (c - 21) * 0.15 * L.U, start[1], start[2])
         L.tube(bm, [start, (g.x(c), g.y(r), PAD + 0.05)], 0.7 * L.U, sides=5, mat=CABLE)
-    return L.finish(NAME, bm, m, coll), []
+    return L.finish(NAME, bm, m, coll), [], drill(g, m, coll, joint, r_joint)
+
+
+def along(base, top, row):
+    """The point of the mast's line (row 42 at the pit to row 8 at the cap) at a pixel row."""
+    t = (42.0 - row) / (42.0 - 8.0)
+    return tuple(b + (a - b) * t for a, b in zip(top, base))
+
+
+def mast_radius(row):
+    return (3.4 + (3.0 - 3.4) * (42.0 - row) / (42.0 - 8.0)) * L.U
+
+
+def drill(g, m, coll, joint, r_joint):
+    """The mast's lower end, a drill working in the pit: on each pair of frames of newshp-1 and
+    newshp-3 it reaches another row, from above the pit's rim (row 40) down into the pit (row 48).
+    Each is a part from the mast's joint (row 34) down, tagged with its frames, open where it
+    meets the mast so the two shade as one tube."""
+    base = (g.x(21.0), g.y(42.0), PAD)
+    top = (g.x(21.6), g.y(8.0), 0.56)
+    parts = []
+    for frames, tip in (([1, 3], 40.5), ([5, 7], 42.5), ([81, 83], 45.5), ([43, 45], 46.5), ([77, 79], 48.0)):
+        x, y, z = along(base, top, tip)
+        bm = bmesh.new()
+        L.tube(bm, [(x, y, max(z, PAD + 0.015)), joint], [mast_radius(tip), r_joint], sides=8, mat=m.metal(3),
+               flat=1.0, caps=(True, False))
+        parts.append(L.part(f"drill-{frames[0]}", bm, m, coll, frames))
+    return parts
 
 
 if __name__ == "__main__":
