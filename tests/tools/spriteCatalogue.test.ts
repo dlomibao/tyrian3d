@@ -12,7 +12,8 @@
 //   contact.png   all frames side by side on a checkerboard
 //   assembly.png  for a piece of a bigger object (a boss is several 2x2 enemies side by side, each
 //                 with its own model): the whole object as seen in game, with this piece outlined
-// and reference/models/catalogue.json, every model in priority order. The output is derived from
+// and reference/models/catalogue.json, every model in priority order, plus src/viewer/assemblies.json
+// (committed): each multi-piece object's pieces and their offsets, for the model viewer. The output is derived from
 // the game data, so it stays out of git (reference/ is ignored).
 import { describe, test, vi } from "vitest";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -25,6 +26,8 @@ import { hasData, readData } from "../data/dataDir";
 const OUT = process.env.CATALOGUE_OUT ?? "";
 /** CATALOGUE_SHIPS_ONLY=1: write only the player ships' folders (no levels played, catalogue.json untouched). */
 const SHIPS_ONLY = process.env.CATALOGUE_SHIPS_ONLY === "1";
+/** Where the assembly layouts for the model viewer go (src/viewer/assemblies.json, committed). */
+const ASSEMBLIES_OUT = process.env.CATALOGUE_ASSEMBLIES_OUT ?? "src/viewer/assemblies.json";
 const MAX_TICKS = Number(process.env.TICKS ?? 30000);
 const SCALE = 12;
 
@@ -285,6 +288,7 @@ describe.skipIf(!OUT || !hasData("levels1.dat", "tyrian1.lvl", "palette.dat", "t
     if (n >= 20 && n >= 0.3 * Math.min(stats.get(a)!.ticks, stats.get(b)!.ticks)) auf.union(ma.name, mb.name);
   }
   const assemblies = new Map<string, Model[]>();
+  const assemblyLayouts: { name: string; pieces: { sheet: string; size: number; index: number; x: number; y: number }[] }[] = [];
   for (const m of models) {
     const root = auf.find(m.name);
     if (!assemblies.has(root)) assemblies.set(root, []);
@@ -307,6 +311,20 @@ describe.skipIf(!OUT || !hasData("levels1.dat", "tyrian1.lvl", "palette.dat", "t
       m.assemblyPieces = group.map((x) => x.name);
       m.assemblyView = best;
     }
+    // For the model viewer: this assembly's own pieces in that picture (neighbouring enemies left
+    // out), as offsets of each piece's centre from the whole object's centre, in sprite px.
+    const mine = new Set(group);
+    const pieces = best.filter((p) => mine.has(modelOf.get(p.key)!));
+    if (pieces.length < 2) continue;
+    const xs = pieces.map((p) => p.cx), ys = pieces.map((p) => p.cy);
+    const ox = (Math.min(...xs) + Math.max(...xs)) / 2, oy = (Math.min(...ys) + Math.max(...ys)) / 2;
+    assemblyLayouts.push({
+      name: assembly,
+      pieces: pieces.map((p) => {
+        const [sheet, size, index] = p.key.split("|");
+        return { sheet, size: Number(size), index: Number(index), x: p.cx - ox, y: p.cy - oy };
+      }),
+    });
   }
 
   // Player ships: blit_sprite2x2 from tyrian.shp#8 at shipGraphic + bank * 2, bank -2..2.
@@ -423,6 +441,11 @@ describe.skipIf(!OUT || !hasData("levels1.dat", "tyrian1.lvl", "palette.dat", "t
       colors: Object.fromEntries([...used].sort((a, b) => a - b).map((i) => [i, rgb(i)])),
       frames: m.pictures.map((p) => ({ sheet: p.sheet, size: p.size, index: p.index, width: picW(p), height: picH(p), image: `frame-${sheetSlug(p.sheet)}-${p.index}.png`, pixels: rowsOf(p) })),
     }, (k, v) => (k === "pixels" ? v.map((r: number[]) => r.join(" ")) : v), 1) + "\n");
+  }
+  if (!SHIPS_ONLY) {
+    // Committed (it's only sprite indices and offsets): the model viewer shows assemblies whole.
+    assemblyLayouts.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    writeFileSync(ASSEMBLIES_OUT, JSON.stringify(assemblyLayouts) + "\n");
   }
   if (!SHIPS_ONLY) writeFileSync(join(OUT, "catalogue.json"), JSON.stringify(models.map((m) => ({
     name: m.name, kind: m.kind, size: m.sprites[0].size, frames: m.pictures.length, ticksSeen: m.kind === "ship" ? null : m.ticks, levels: m.levels.length,

@@ -1,5 +1,7 @@
 // Model viewer: `?viewer` (or `?viewer=<model name>`) shows each Blender model that replaces sprites
-// (src/render/spriteModels/) beside the sprite it replaces. The model can be rotated freely
+// (src/render/spriteModels/) beside the sprite it replaces. Multi-piece objects (bosses and big
+// structures, src/viewer/assemblies.json) are listed too, each shown whole: every piece's sprite and
+// model in place. The model can be rotated freely
 // (drag), zoomed (wheel or pinch) and panned (right drag or two fingers). "Top" looks straight down
 // at the sprite's scale, where the sprite can be laid over the model to compare outlines. Colours
 // come from a game palette by index, as in game (pal_<index> materials, DECISIONS.md D15).
@@ -17,10 +19,11 @@ import { filesFromZip, loadDevFiles, type FileMap } from "../assets/files";
 import { loadStoredZip } from "../assets/store";
 import { vga6To8, type Palette } from "../data/palette";
 import { PaletteTexture } from "../render/paletteTexture";
-import { SPRITE_MODELS, type SpriteModelEntry } from "../render/spriteModels";
+import { SPRITE_MODELS, spriteModelKey, spriteModels, type SpriteModelEntry } from "../render/spriteModels";
 import { buildResources } from "../sim/resources";
 import type { Resources } from "../sim/state";
-import { composeFrame, entryFrames, type SpriteFrame } from "./spriteFrames";
+import assemblyLayouts from "./assemblies.json";
+import { assemblyFrame, composeFrame, entryFrames, type AssemblyLayout, type SpriteFrame } from "./spriteFrames";
 
 /** The in-level palette (JE_main sets pcxpal[3 - 1]). */
 const LEVEL_PALETTE = 5;
@@ -35,10 +38,14 @@ const PX_PER_UNIT = 12;
 type CameraMode = "free" | "top" | "game";
 
 interface Item {
-  entry: SpriteModelEntry;
   name: string;
-  kind: "ship" | "enemy";
+  kind: "ship" | "enemy" | "assembly";
   frames: SpriteFrame[];
+  /** The sheets its sprites come from. */
+  sheets: string[];
+  /** A single model's entry, or an assembly's layout. */
+  entry?: SpriteModelEntry;
+  layout?: AssemblyLayout;
 }
 
 interface Loaded {
@@ -48,20 +55,28 @@ interface Loaded {
   materials: THREE.Material[];
   triangles: number;
   bytes: number;
+  /** Assembly pieces with no model. */
+  missing: number;
   size: THREE.Vector3;
   minY: number;
 }
 
 const naturalOrder = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true });
 
+const KIND_ORDER = { ship: 0, assembly: 1, enemy: 2 };
+
 function catalogue(): Item[] {
-  const items = SPRITE_MODELS.map((entry): Item => ({
+  const items: Item[] = SPRITE_MODELS.map((entry) => ({
     entry,
     name: entry.model.split("/").pop()!,
     kind: entry.model.startsWith("enemies/") ? "enemy" : "ship",
     frames: entryFrames(entry),
+    sheets: [...new Set(entry.sprites.map((s) => s.sheet))],
   }));
-  return items.sort((a, b) => (a.kind === b.kind ? naturalOrder(a.name, b.name) : a.kind === "ship" ? -1 : 1));
+  for (const layout of assemblyLayouts as AssemblyLayout[]) {
+    items.push({ name: layout.name, kind: "assembly", layout, frames: [assemblyFrame(layout)], sheets: [...new Set(layout.pieces.map((p) => p.sheet))] });
+  }
+  return items.sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind] || naturalOrder(a.name, b.name));
 }
 
 /** The game data, if it's available without asking: the dev server's, or the cached zip. */
@@ -87,7 +102,7 @@ export async function runModelViewer(): Promise<void> {
       <aside class="mv-list">
         <header>
           <h1>Models</h1>
-          <input type="search" placeholder="Filter, e.g. newshf or ship" aria-label="Filter models" />
+          <input type="search" placeholder="Filter: newshf, ship, assembly…" aria-label="Filter models" />
           <p class="mv-count"></p>
         </header>
         <ul role="listbox" aria-label="Models"></ul>
@@ -213,17 +228,55 @@ export async function runModelViewer(): Promise<void> {
   const controls = () => (mode === "top" ? orthoControls : perspControls);
 
   const loader = new GLTFLoader();
-  const cache = new Map<string, Promise<Loaded>>();
+  const glbs = new Map<string, Promise<{ scene: THREE.Object3D; bytes: number }>>();
+  const built = new Map<string, Promise<Loaded>>();
+  const pieceModels = spriteModels().grouped;
   let model: Loaded | null = null;
 
-  async function load(name: string): Promise<Loaded> {
-    const response = await fetch(`${import.meta.env.BASE_URL}models/${name}.glb`);
-    if (!response.ok) throw new Error(`${name}.glb: HTTP ${response.status}`);
-    const buffer = await response.arrayBuffer();
-    const gltf = await loader.parseAsync(buffer, "");
-    const root = gltf.scene;
+  /** A .glb from public/models/, fetched once. */
+  function glb(path: string): Promise<{ scene: THREE.Object3D; bytes: number }> {
+    let p = glbs.get(path);
+    if (!p) {
+      p = (async () => {
+        const response = await fetch(`${import.meta.env.BASE_URL}models/${path}.glb`);
+        if (!response.ok) throw new Error(`${path}.glb: HTTP ${response.status}`);
+        const buffer = await response.arrayBuffer();
+        return { scene: (await loader.parseAsync(buffer, "")).scene, bytes: buffer.byteLength };
+      })();
+      glbs.set(path, p);
+    }
+    return p;
+  }
+
+  /** The item's model: a single .glb, or an assembly's pieces each placed at its offset. */
+  async function build(item: Item): Promise<Loaded> {
+    let root: THREE.Object3D;
+    let bytes = 0;
+    let missing = 0;
+    if (item.layout) {
+      root = new THREE.Group();
+      const paths = item.layout.pieces.map((p) => pieceModels.get(spriteModelKey(p.sheet, p.size, p.index)));
+      const loaded = await Promise.all(paths.map((path) => (path ? glb(path) : null)));
+      const counted = new Set<string>();
+      item.layout.pieces.forEach((p, i) => {
+        const piece = loaded[i];
+        if (!piece) return void missing++;
+        if (!counted.has(paths[i]!)) {
+          counted.add(paths[i]!);
+          bytes += piece.bytes;
+        }
+        // A piece's model is centred on the piece; sprite x right = +X, sprite y down = +Z.
+        const clone = piece.scene.clone(true);
+        clone.position.set(p.x / PX_PER_UNIT, 0, p.y / PX_PER_UNIT);
+        root.add(clone);
+      });
+    } else {
+      const one = await glb(item.entry!.model);
+      root = one.scene;
+      bytes = one.bytes;
+    }
     const paletteMaterials: Loaded["paletteMaterials"] = [];
-    const materials: THREE.Material[] = [];
+    const materials = new Set<THREE.Material>();
     let triangles = 0;
     root.traverse((o) => {
       const mesh = o as THREE.Mesh;
@@ -231,14 +284,15 @@ export async function runModelViewer(): Promise<void> {
       const geo = mesh.geometry;
       triangles += (geo.index ? geo.index.count : geo.attributes.position.count) / 3;
       for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
-        materials.push(m);
+        if (materials.has(m)) continue;
+        materials.add(m);
         const match = PALETTE_MATERIAL.exec(m.name);
         const std = m as THREE.MeshStandardMaterial;
         if (match && std.isMeshStandardMaterial) paletteMaterials.push({ material: std, index: Number(match[1]) & 0xff, emissive: std.emissive.getHex() !== 0 });
       }
     });
     const box = new THREE.Box3().setFromObject(root);
-    return { root, paletteMaterials, materials, triangles, bytes: buffer.byteLength, size: box.getSize(new THREE.Vector3()), minY: box.min.y };
+    return { root, paletteMaterials, materials: [...materials], triangles, bytes, missing, size: box.getSize(new THREE.Vector3()), minY: box.min.y };
   }
 
   // --- Palette ---
@@ -263,10 +317,7 @@ export async function runModelViewer(): Promise<void> {
   }
 
   // --- Sprite side ---
-  const pictureOf = (f: SpriteFrame): Int16Array | null => {
-    const data = sheetData(f.sheet);
-    return data ? composeFrame(data, f) : null;
-  };
+  const pictureOf = (f: SpriteFrame): Int16Array | null => (res ? composeFrame(sheetData, f) : null);
   /** Paint a frame into a canvas at `scale` canvas px per sprite px. */
   function paintFrame(canvas: HTMLCanvasElement, f: SpriteFrame, scale: number): boolean {
     const pic = pictureOf(f);
@@ -311,7 +362,7 @@ export async function runModelViewer(): Promise<void> {
     framesEl.innerHTML = "";
     item.frames.forEach((f, i) => {
       const b = document.createElement("button");
-      b.title = `${f.sheet} ${f.label}`;
+      b.title = `${[...new Set(f.parts.map((p) => p.sheet))].join(", ")} ${f.label}`;
       const c = document.createElement("canvas");
       paintFrame(c, f, 2);
       b.append(c, Object.assign(document.createElement("span"), { textContent: f.label }));
@@ -334,7 +385,9 @@ export async function runModelViewer(): Promise<void> {
     const { w, h } = size();
     // Fill most of the view with the model's bounding sphere.
     const radius = model.size.length() / 2;
-    const dist = radius / Math.sin(THREE.MathUtils.degToRad(persp.fov / 2)) / Math.min(1, persp.aspect) * 0.8;
+    const vHalf = THREE.MathUtils.degToRad(persp.fov / 2);
+    const hHalf = Math.atan(Math.tan(vHalf) * persp.aspect);
+    const dist = radius / Math.sin(Math.min(vHalf, hHalf));
     if (mode === "game") {
       // From the bottom of the screen, tilted like the game camera.
       persp.position.set(0, dist * 0.8, dist * 0.6);
@@ -414,23 +467,25 @@ export async function runModelViewer(): Promise<void> {
       if (on) li.scrollIntoView({ block: "nearest" });
     });
     nameEl.textContent = item.name;
-    const sheets = [...new Set(item.entry.sprites.map((s) => s.sheet))].join(", ");
-    metaEl.textContent = `${item.kind === "ship" ? "Player ship" : "Enemy"} · ${sheets} · ${item.frames.length} frame${item.frames.length === 1 ? "" : "s"}`;
+    const what = item.layout
+      ? `Assembly of ${item.layout.pieces.length} pieces (each its own enemy and model)`
+      : `${item.kind === "ship" ? "Player ship" : "Enemy"} · ${item.frames.length} frame${item.frames.length === 1 ? "" : "s"}`;
+    metaEl.textContent = `${what} · ${item.sheets.join(", ")}`;
     buildFrameStrip();
     drawSprite();
 
     loadingEl.hidden = false;
-    const name = item.entry.model;
-    let p = cache.get(name);
-    if (!p) cache.set(name, (p = load(name)));
+    let p = built.get(item.name);
+    if (!p) built.set(item.name, (p = build(item)));
     try {
       const loaded = await p;
-      if (shown[current]?.entry.model !== name) return; // moved on meanwhile
+      if (shown[current] !== item) return; // moved on meanwhile
       if (model) scene.remove(model.root);
       model = loaded;
       scene.add(model.root);
       grid.position.y = model.minY;
       metaEl.textContent += ` · ${Math.round(model.triangles)} triangles · ${(model.bytes / 1024).toFixed(0)} KB`;
+      if (model.missing) metaEl.textContent += ` · ${model.missing} piece${model.missing === 1 ? "" : "s"} without a model`;
       colourModel();
       applyToggles();
       frameCamera();
@@ -445,7 +500,7 @@ export async function runModelViewer(): Promise<void> {
   function renderList(): void {
     const q = filterEl.value.trim().toLowerCase();
     const keep = shown[current];
-    shown = q ? items.filter((i) => `${i.name} ${i.kind} ${i.entry.sprites.map((s) => s.sheet).join(" ")}`.toLowerCase().includes(q)) : items;
+    shown = q ? items.filter((i) => `${i.name} ${i.kind} ${i.sheets.join(" ")}`.toLowerCase().includes(q)) : items;
     countEl.textContent = `${shown.length} of ${items.length}`;
     listEl.innerHTML = "";
     const frag = document.createDocumentFragment();
@@ -454,7 +509,7 @@ export async function runModelViewer(): Promise<void> {
       li.dataset.name = item.name;
       li.setAttribute("role", "option");
       li.textContent = item.name;
-      if (item.kind === "ship") li.classList.add("ship");
+      if (item.kind !== "enemy") li.classList.add(item.kind);
       li.onclick = () => void show(shown.indexOf(item));
       frag.append(li);
     }
