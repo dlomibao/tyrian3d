@@ -108,15 +108,27 @@ class Mats:
         self.tag = tag
         self.list = []
         self.slots = {}
+        self.params = []
 
-    def __call__(self, index, metallic=0.3, roughness=0.5, emission_strength=0.0):
-        key = (index, metallic, roughness, emission_strength)
+    def __call__(self, index, metallic=0.3, roughness=0.5, emission_strength=0.0, part=None):
+        """The slot for palette `index` with this finish. `part` gives a part its own slot even when
+        another part has the same colour and finish (to animate it on its own, see animated)."""
+        key = (index, metallic, roughness, emission_strength) + ((part,) if part else ())
         if key not in self.slots:
             tag = f"{self.tag}_{len(self.list)}"
             self.slots[key] = len(self.list)
+            self.params.append((index, metallic, roughness, emission_strength))
             self.list.append(common.palette_material(self.sprite, index, tag, metallic=metallic,
                                                      roughness=roughness, emission_strength=emission_strength))
         return self.slots[key]
+
+    def animated(self, slot, tag, frames, index=None):
+        """A copy of slot's material whose colour changes on some sprite frames (palette_material
+        frames=), tagged `tag` so its name differs from the static one; `index` replaces its base
+        colour."""
+        base, metallic, roughness, emission_strength = self.params[slot]
+        return common.palette_material(self.sprite, base if index is None else index, tag, metallic=metallic,
+                                       roughness=roughness, emission_strength=emission_strength, frames=frames)
 
 
 def merged_colors(sprites):
@@ -368,6 +380,22 @@ def preview_arg():
     return None
 
 
+def frames_arg():
+    """--frames <dir>: also render each model's frames (common.render_frame_previews) there."""
+    if "--frames" in sys.argv:
+        return Path(sys.argv[sys.argv.index("--frames") + 1])
+    return None
+
+
+def frame_previews(objects, model, sprite, root, frames):
+    """With --frames, render the sprite frames `frames` (sprite indices) of `objects`, one row each,
+    beside the sprite, into <dir>/<model>.png."""
+    out = frames_arg()
+    if out:
+        keep = {**sprite, "frames": [f for f in sprite["frames"] if f["index"] in frames]}
+        common.render_frame_previews(objects, str(out / f"{model}.png"), keep, root)
+
+
 def face_count(objs):
     return sum(len(o.data.polygons) for o in objs)
 
@@ -476,7 +504,12 @@ def build_cannon(tag, colors, pixels, mirror=False):
     """The 48 x 28 px cannon emplacement (newshg-229 + newshg-231, or mirrored newshg-267 +
     newshg-269) in assembly coordinates, centred on the origin, on grass painted from `pixels`
     (the two pieces' rows side by side). Unmirrored, its rounded elbow nose is on the left and the
-    strut, collar and end box on the right; `mirror` flips it left to right."""
+    strut, collar and end box on the right; `mirror` flips it left to right.
+
+    Its three frames (k = 0, 1, 2 for each piece) slide the hatch open, run a light along the
+    deck's grille ribs, brighten the port glow and make the exhaust flare. Returns (body, parts,
+    M, anim): parts are [(object, [k...])] shown only on those frames; anim maps a material slot to
+    (part name, {k: palette index}) for colours that change from frame to frame (M.animated)."""
     coll = common.reset_collection(tag)
     grid = Grid(48, 28, pixels, weight=lambda i: 1.8 if 194 <= i <= 199 else 1.0)
     M = Mats(tag, colors)
@@ -492,6 +525,7 @@ def build_cannon(tag, colors, pixels, mirror=False):
     PORT = M(116, emission_strength=3.0)
     FLAME = M(119, emission_strength=4.0)
     HOT = M(123, emission_strength=6.0)
+    anim = {PORT: ("port", {1: 120, 2: 123}), FLAME: ("flame", {1: 121, 2: 124}), HOT: ("hot", {1: 127, 2: 127})}
     bm = bmesh.new()
 
     # ---- the machine, built nose-left ----
@@ -514,7 +548,7 @@ def build_cannon(tag, colors, pixels, mirror=False):
     # Scope lens (columns 15-17, rows 3-4) and the sliding hatch beside it (columns 19-24).
     blob(bm, (X(16.0), Y(3.6), tz + tr - 0.01), (1.6 * U, 1.1 * U, 0.05), segments=10, rings=5, mat_index=LENS)
     box(bm, EX(14.4), EY(4.8), EX(18.0), EY(2.6), tz + tr - 0.04, tz + tr + 0.01, mat_index=RIB)
-    box(bm, EX(19.0), EY(4.8), EX(25.0), EY(2.6), tz + tr - 0.04, tz + tr + 0.015, mat_index=STRUT)
+    # (The hatch itself is one of the frame parts below.)
     # Light rail along the tube's lower side (row 6).
     cyl_x(bm, X(9.0), X(30.5), Y(6.2), tz - tr * 0.55, 0.9 * U, 0.05, sides=8, mat_index=LIGHT)
 
@@ -566,7 +600,46 @@ def build_cannon(tag, colors, pixels, mirror=False):
     flat = lambda c, r: 0.035  # noqa: E731
     terrain(bm, grid, 0, 0, 48, 28, flat, grass, cell=2.0)
     tufts(bm, grid, 0, 0, 48, 28, lambda i: i >= 196 and i in CANNON_GREENS, grass, flat, seed=7)
-    return to_object(tag, bm, M.list, coll)
+
+    # ---- frame parts (built nose-left like the machine, then mirrored with it) ----
+    parts = []  # (name, bmesh, frames k)
+
+    def part(name, ks):
+        pbm = bmesh.new()
+        parts.append((name, pbm, ks))
+        return pbm
+    # The sliding hatch on the tube (columns 19-24, rows 3-5): shut and grey (k 0), slid back to
+    # a dark panel (1), open on a black slot (2).
+    for k, top, slot in ((0, tz + tr + 0.015, STRUT), (1, tz + tr + 0.005, RIB),
+                         (2, tz + tr + 0.003, M(1, metallic=0.2, roughness=0.8))):
+        box(part(f"hatch{k}", [k]), EX(19.0), EY(4.8), EX(25.0), EY(2.6), tz + tr - 0.04, top, mat_index=slot)
+    # A light running along the tips of the grille ribs (row 9): columns 15, 17 then 19.
+    caps = part("lights", [0, 1, 2])
+    for c, (i0, ks) in ((15, (9, {1: 3, 2: 3})), (17, (5, {1: 10, 2: 4})), (19, (5, {2: 9}))):
+        slot = M(i0, metallic=0.6, roughness=0.3, part=f"light{c}")
+        anim[slot] = (f"light{c}", ks)
+        box(caps, EX(c), EY(10.0), EX(c + 0.9), EY(8.6), 0.2, 0.25, mat_index=slot)
+    # Frame 2: the port's glow spills left over the deck (columns 18-19) and the exhaust flares
+    # into a long streak down the strut's side (columns 37-45, rows 8-15).
+    flare = part("flare", [2])
+    box(flare, EX(18.4), EY(14.6), EX(20.4), EY(10.6), 0.16, 0.205, mat_index=M(113, emission_strength=2.0))
+    sweep(flare, [(X(45.6), Y(7.8), 0.12, 0.0, 0.0), (X(44.8), Y(8.4), 0.12, 1.3 * U, 0.06),
+                  (X(41.0), Y(12.0), 0.1, 1.9 * U, 0.07), (X(38.2), Y(14.4), 0.08, 1.2 * U, 0.05),
+                  (X(37.2), Y(15.0), 0.08, 0.0, 0.0)], sides=10, mat_index=M(121, emission_strength=4.0))
+    sweep(flare, [(X(44.6), Y(8.4), 0.2, 0.0, 0.0), (X(44.0), Y(9.0), 0.2, 0.7 * U, 0.04),
+                  (X(39.4), Y(13.4), 0.16, 0.8 * U, 0.04), (X(38.8), Y(14.0), 0.16, 0.0, 0.0)], sides=8, mat_index=HOT)
+
+    objs = []
+    for name, pbm, ks in parts:
+        for f in pbm.faces:
+            f.smooth = False
+        if mirror:
+            for v in pbm.verts:
+                v.co.x = -v.co.x
+            bmesh.ops.reverse_faces(pbm, faces=pbm.faces[:])
+        objs.append((name, pbm, ks))
+    body = to_object(tag, bm, M.list, coll)
+    return body, [(to_object(f"{tag}-{name}", pbm, M.list, coll), ks) for name, pbm, ks in objs], M, anim
 
 
 def cannon_main(root, left, right, mirror, name):
@@ -574,15 +647,35 @@ def cannon_main(root, left, right, mirror, name):
     a, b = common.load_sprite(root, left), common.load_sprite(root, right)
     colors = merged_colors([a, b])
     pixels = stack_rows(a["frames"][0]["pixels"], b["frames"][0]["pixels"])
-    obj = build_cannon(name, colors, pixels, mirror)
-    pieces = common.split_assembly(obj, [(left, -12, 0), (right, 12, 0)])
-    for n, data in ((left, a), (right, b)):
-        common.export_sprite_model(root, [pieces[n]], f"enemies/{n}", data["sprites"])
+    obj, parts, M, anim = build_cannon(name, colors, pixels, mirror)
+    layout = [(left, -12, 0), (right, 12, 0)]
+    pieces = common.split_assembly(obj, layout)
+    models = {n: [pieces[n]] for n, _, _ in layout}
+    sprites = {left: a, right: b}
+    for part, ks in parts:
+        for n, piece in common.split_assembly(part, layout).items():
+            if not piece.data.polygons:  # this part lies wholly in the other piece
+                bpy.data.objects.remove(piece)
+                continue
+            piece.name = f"{n}-{part.name.rsplit('-', 1)[-1]}"
+            if len(ks) < 3:
+                frames = sprites[n]["sprites"][0]["frames"]
+                common.frame_part(piece, [frames[k] for k in ks])
+            models[n].append(piece)
+    for n, data in sprites.items():
+        frames = data["sprites"][0]["frames"]
+        mats = {slot: M.animated(slot, f"{n}-{pname}", {frames[k]: i for k, i in ks.items()})
+                for slot, (pname, ks) in anim.items()}
+        for o in models[n]:
+            for slot, mat in mats.items():
+                o.data.materials[slot] = mat
+        common.export_sprite_model(root, models[n], f"enemies/{n}", data["sprites"])
+        frame_previews(models[n], n, data, root, frames)
     out = preview_arg()
     if out:
         import tempfile
         ref = composite_png([(a, 0, 0, 14), (b, 0, 24, 14)], 48, 56, Path(tempfile.mkdtemp()) / "a.png")
-        common.render_preview([obj], str(out), ref, size=4, view_px=480)
+        common.render_preview([obj] + [p for p, ks in parts if 0 in ks], str(out), ref, size=4, view_px=480)
         for n, data in ((left, a), (right, b)):
             img = root / "reference" / "models" / n / data["frames"][0]["image"]
-            common.render_preview([pieces[n]], str(out.parent / f"{n}.png"), img, size=2)
+            common.render_preview(models[n], str(out.parent / f"{n}.png"), img, size=2, frame=data["sprites"][0]["frames"][0])

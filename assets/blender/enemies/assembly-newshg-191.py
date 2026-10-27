@@ -128,16 +128,40 @@ def build(tag, colors, pixels, state):
     L.box(bm, EX(4.6), EY(d1), EX(18.4), EY(d1 - lip_rows), dz - 0.035, dz + 0.012, mat_index=M(lip, metallic=0.6,
                                                                                                roughness=0.35))
     # Fire glowing in the pit below the shutter.
+    glow_slots = []
     if glow:
         index, strength, g0, g1 = glow
         M_glow = M(index, emission_strength=strength)
         cy = (g0 + g1) / 2 + 1.0
         L.blob(bm, (X(11.3), Y(cy), 0.03), (4.6 * U, (g1 - g0) / 2 * U, 0.12), segments=12, rings=6, mat_index=M_glow)
+        M_core = M(126 if 126 in [int(k) for k in colors] else index, emission_strength=strength + 1)
         L.blob(bm, (X(11.3), Y(cy + 0.8), 0.05), (2.2 * U, (g1 - g0) / 4 * U, 0.14), segments=10, rings=5,
-               mat_index=M(126 if 126 in [int(k) for k in colors] else index, emission_strength=strength + 1))
+               mat_index=M_core)
+        glow_slots = [M_glow, M_core]
 
     obj = L.to_object(tag, bm, M.list, coll)
-    return obj
+    return obj, M, glow_slots
+
+
+def shutter_stirs(sprite, frames):
+    """newshg-153 on its second frame (155): the closed shutter stirs, a dark line opening along
+    its top (piece rows 21-22) and its lower edge catching the light (row 27). Thin strips over
+    the shutter, shown on those frames only."""
+    coll = common.reset_collection("newshg-153-stir")
+    grid = L.Grid(24, 28)
+    dz = STATES["closed"][2]
+    mats = [common.palette_material(sprite, i, "newshg-153-stir", metallic=0.5, roughness=0.45) for i in (1, 2, 4)]
+    bm = bmesh.new()
+    for r, slot in ((21, 0), (22, 1), (27, 2)):
+        L.box(bm, grid.ex(4.6), grid.ey(r + 1), grid.ex(18.4), grid.ey(r), dz - 0.01, dz + 0.006, mat_index=slot)
+    for f in bm.faces:
+        f.smooth = False
+    return common.frame_part(L.to_object("newshg-153-stir", bm, mats, coll), frames)
+
+
+# The pit fire's colour on the frames of newshg-191-f3 (outer glow, white core): dim red as the
+# shutter starts up (195), red-orange once it is open (197, 199).
+FIRE = {195: (116, 117), 197: (120, 122), 199: (119, 121)}
 
 
 def frame_pixels(name, index):
@@ -154,11 +178,18 @@ def main():
         ti = frames[0] if piece == TOP else 0
         bi = frames[0] if piece == BOTTOM else 0
         pixels = top["frames"][ti]["pixels"] + bottom["frames"][bi]["pixels"]
-        obj = build(f"{model}_whole", colors, pixels, state)
+        obj, M, glow_slots = build(f"{model}_whole", colors, pixels, state)
         pieces = common.split_assembly(obj, [(p, cx, cy) for p, cx, cy in LAYOUT])
         frame_numbers = [data["sprites"][0]["frames"][i] for i in frames]
-        common.export_sprite_model(ROOT, [pieces[piece]], f"enemies/{model}",
-                                   L.frames_subset(data["sprites"], frame_numbers))
+        parts = [pieces[piece]]
+        if model == "newshg-153":
+            parts.append(shutter_stirs(data, frame_numbers[1:]))
+        if model == "newshg-191-f3":
+            mesh = pieces[piece].data
+            for k, slot in enumerate(glow_slots):
+                mesh.materials[slot] = M.animated(slot, f"{model}-fire{k}", {f: FIRE[f][k] for f in frame_numbers})
+        common.export_sprite_model(ROOT, parts, f"enemies/{model}", L.frames_subset(data["sprites"], frame_numbers))
+        L.frame_previews(parts, model, data, ROOT, frame_numbers)
         built[model] = (obj, pieces[piece], data, frames[0])
     if out:
         import tempfile

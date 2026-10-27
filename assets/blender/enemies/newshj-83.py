@@ -6,7 +6,9 @@ open (the other five frames) an iris on its upper side shows a glowing eye, and 
 the shell from it. The open frames only change the eye's colour, so:
 
 - newshj-83 (frame 83): the closed ball.
-- newshj-83-f2 (frames 85, 87, 121, 123, 125): the ball with its eye open.
+- newshj-83-f2 (frames 85, 87, 121, 123, 125): the ball with its eye open. The eye's socket, lens
+  and glint change colour from frame to frame (EYE): dull pink (85), bright fire (87, built from
+  it), dull tan (121), dim red (123) and white-hot (125).
 
 Run: blender --background --python assets/blender/enemies/newshj-83.py [-- --preview out.png]
 (the preview is the closed ball; the open one is written to newshj-83-f2.png next to it).
@@ -29,6 +31,12 @@ U = L.U
 GREENS = set(range(32, 36)) | set(range(192, 200))
 DOME_C, DOME_R = (10.8, 11.6), (8.6, 7.6)  # pixel centre coords, radii px
 DOME_Z, DOME_H = 0.1, 0.5
+# The open eye's colours on the frames other than 87: {part: {frame: palette index}}.
+EYE = {
+    "socket": {85: 70, 121: 167, 123: 114, 125: 122},
+    "lens": {85: 73, 121: 170, 123: 118, 125: 126},
+    "glint": {85: 75, 121: 27, 123: 121, 125: 127},
+}
 
 
 def dome_z(c, r):
@@ -69,16 +77,20 @@ def build(model, sprite, frame_index, open_eye):
     L.blob(bm, (X(DOME_C[0]), Y(DOME_C[1]), DOME_Z), (DOME_R[0] * U, DOME_R[1] * U, DOME_H),
            segments=22, rings=11, mat_index=BALL)
 
+    eye = {}
     if open_eye:
         # The iris: a dark red socket round a glowing eye (rows 5-12, columns 7-14).
         ec, er = 10.6, 8.6
         z = dome_z(ec, er)
+        eye["socket"] = M(116, metallic=0.4, roughness=0.4)
+        eye["lens"] = M(122, emission_strength=4.0)
+        eye["glint"] = M(126, emission_strength=6.0)
         L.blob(bm, (X(ec), Y(er), z - 0.02), (4.0 * U, 3.8 * U, 0.06), segments=16, rings=6,
-               mat_index=M(116, metallic=0.4, roughness=0.4))
+               mat_index=eye["socket"])
         L.blob(bm, (X(ec), Y(er), z), (3.1 * U, 2.9 * U, 0.065), segments=16, rings=6,
-               mat_index=M(122, emission_strength=4.0))
+               mat_index=eye["lens"])
         L.blob(bm, (X(ec - 0.4), Y(er - 0.4), z + 0.03), (1.5 * U, 1.4 * U, 0.05), segments=10, rings=5,
-               mat_index=M(126, emission_strength=6.0))
+               mat_index=eye["glint"])
         # Seams down the shell: from the eye down the front (column 11) and on the right (column 16).
         for pts in ([(11.2, 12.6), (11.2, 15.0), (11.2, 17.5), (11.2, 19.0)],
                     [(15.2, 6.5), (16.0, 8.5), (16.3, 10.5), (16.0, 12.5)],
@@ -86,7 +98,10 @@ def build(model, sprite, frame_index, open_eye):
             path = [(X(c), Y(r), dome_z(c, r) + 0.005, 0.45 * U, 0.02) for c, r in pts]
             L.sweep(bm, path, sides=6, mat_index=SEAM)
 
-    return L.to_object(model, bm, M.list, coll)
+    obj = L.to_object(model, bm, M.list, coll)
+    for part, slot in eye.items():
+        obj.data.materials[slot] = M.animated(slot, f"{model}-{part}", EYE[part])
+    return obj
 
 
 def main():
@@ -96,6 +111,7 @@ def main():
     for model, fi, open_eye, keep in ((NAME, 0, False, frames[:1]), (f"{NAME}-f2", 2, True, frames[1:])):
         obj = build(model, sprite, fi, open_eye)
         common.export_sprite_model(ROOT, [obj], f"enemies/{model}", L.frames_subset(sprite["sprites"], keep))
+        L.frame_previews([obj], model, sprite, ROOT, keep)
         if out:
             png = out if model == NAME else out.parent / f"{model}.png"
             ref = ROOT / "reference" / "models" / NAME / sprite["frames"][fi]["image"]
