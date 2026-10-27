@@ -48,6 +48,12 @@ function startGame(): void {
     import("./debug/spriteHarness")
       .then(({ runSpriteHarness }) => runSpriteHarness(view))
       .catch((err) => console.error("sprite harness failed", err));
+  } else if (new URLSearchParams(location.search).has("destruct")) {
+    // Destruct, the hidden artillery game (src/destruct/), straight away.
+    ui.attachBackdrop(new Backdrop(view.renderer));
+    import("./destruct/debug")
+      .then(({ runDestructDebug }) => runDestructDebug(view))
+      .catch((err) => console.error("destruct failed", err));
   } else {
     // ui-framework: the menus' 3D backdrop draws with the view's renderer whenever a screen is up
     // (src/ui/backdrop.ts); during levels no screen is, and the game draws.

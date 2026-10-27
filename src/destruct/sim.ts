@@ -348,7 +348,7 @@ export interface DestructDraws {
   /** DE_RunTickDrawWalls: sprite 42 at each wall. */
   walls: { x: number; y: number }[];
   /** JE_pixCool: a shot or trail pixel and its four neighbours (colour c - 2). */
-  pixels: { x: number; y: number; c: number; trail: boolean }[];
+  pixels: { x: number; y: number; c: number; trail: boolean; shot: number }[];
   /** DE_RunTickDrawCrosshairs, before clipping against the HUD. */
   crosshairs: { x: number; y: number }[];
 }
@@ -1081,7 +1081,8 @@ export class DestructGame {
 
   DE_RunTickShots(): void {
     const world = this.world;
-    for (const shot of this.shotRec) {
+    for (let i = 0; i < this.config.max_shots; i++) {
+      const shot = this.shotRec[i];
       if (shot.isAvailable === true) continue; /* Nothing to do */
 
       /* Move the shot.  Simple displacement */
@@ -1138,17 +1139,17 @@ export class DestructGame {
       }
 
       const tempTrails = u32((shotColor[shot.shottype] << 4) - 3);
-      this.JE_pixCool(tempPosX, tempPosY, tempTrails, false);
+      this.JE_pixCool(tempPosX, tempPosY, tempTrails, i);
 
       /*Draw the shot trail (if applicable) */
       switch (shotTrail[shot.shottype]) {
         case TRAILS_NONE:
           break;
         case TRAILS_NORMAL:
-          this.DE_DrawTrails(shot, 2, 4, tempTrails - 3);
+          this.DE_DrawTrails(shot, 2, 4, tempTrails - 3, i);
           break;
         case TRAILS_FULL:
-          this.DE_DrawTrails(shot, 4, 3, tempTrails - 1);
+          this.DE_DrawTrails(shot, 4, 3, tempTrails - 1, i);
           break;
       }
 
@@ -1186,12 +1187,12 @@ export class DestructGame {
     }
   }
 
-  DE_DrawTrails(shot: destruct_shot_s, count: number, decay: number, startColor: number): void {
+  DE_DrawTrails(shot: destruct_shot_s, count: number, decay: number, startColor: number, shotIndex: number): void {
     for (let i = count - 1; i >= 0; i--) {
       /* going in reverse is important as it affects how we draw */
       if (shot.trailc[i] > 0 && shot.traily[i] > 12) {
         /* If it exists and if it's not out of bounds, draw it. */
-        this.JE_pixCool(shot.trailx[i], shot.traily[i], shot.trailc[i], true);
+        this.JE_pixCool(shot.trailx[i], shot.traily[i], shot.trailc[i], shotIndex, true);
       }
 
       if (i === 0) {
@@ -1562,9 +1563,9 @@ export class DestructGame {
     return false;
   }
 
-  JE_pixCool(x: number, y: number, c: number, trail: boolean): void {
-    // JE_pix(x, y, c) and its four neighbours in c - 2, on VGAScreen.
-    this.draws.pixels.push({ x, y, c: c & 0xff, trail });
+  /** JE_pix(x, y, c) and its four neighbours in c - 2, on VGAScreen; `shot` is whose (or its trail). */
+  JE_pixCool(x: number, y: number, c: number, shot: number, trail = false): void {
+    this.draws.pixels.push({ x, y, c: c & 0xff, trail, shot });
   }
 }
 
