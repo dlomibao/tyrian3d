@@ -48,6 +48,9 @@ score table (episodes 1-3, as in the original), which the title screen shows und
   automatic LAST LEVEL backup; Alt-S / Alt-L), and the title has Load Game and Options. Options sets
   the music and sound volume, the music style, the keys (two per control) and checks a gamepad's
   buttons. Saves and settings stay in this browser.
+- **Attract mode:** left alone for 30 seconds, the title screen plays the original's five recorded
+  demos in turn, replayed exactly as OpenTyrian plays them; any key, button or tap returns to the
+  title (`?demo` or `?demo=1`..`5` plays one at once).
 - **Not yet:** arcade and two-player modes.
 - **Everything else:** in [Issues](../../issues) and [Milestones](../../milestones). Design calls
   made along the way are in [DECISIONS.md](DECISIONS.md).
