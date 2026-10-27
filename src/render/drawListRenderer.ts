@@ -25,6 +25,7 @@ import { FxMode, groundTileMaterial, paletteMaterial } from "./paletteMaterial";
 import { PaletteTexture } from "./paletteTexture";
 import { passHeight } from "./passHeights";
 import { SpriteMeshCache } from "./spriteMesh";
+import { colourFrame, rigModel, showFrame, type FrameRig } from "./modelFrames";
 import { spriteModelKey, type ModelOverride, type SpriteModels } from "./spriteModels";
 import { TileAtlas } from "./tileAtlas";
 
@@ -123,23 +124,17 @@ class Pool {
   }
 }
 
-/** A material of a model clone named pal_<index>: its colour follows the palette. */
-interface PaletteMaterial {
-  material: THREE.MeshStandardMaterial;
-  index: number;
-  /** Whether the Blender material glows, so its emissive colour follows too. */
-  emissive: boolean;
-}
-
 interface ModelClone {
   object: THREE.Object3D;
   roll: number;
   materials: THREE.Material[];
-  paletteMaterials: PaletteMaterial[];
+  /** Its pal_ materials and frame-tagged parts (modelFrames.ts). */
+  rig: FrameRig;
   blended: boolean;
-  /** The palette version and hit-flash hue its pal_ colours were last set for. */
+  /** The palette version, hit-flash hue and sprite frame its parts and colours were last set for. */
   paletteVersion: number;
   hue: number;
+  frame: number;
 }
 
 /** Clones of one model, reused every frame. `source` is null until the model has loaded. */
@@ -152,8 +147,6 @@ interface ModelPool {
 
 /** Loads a model by path in public/models/ (without .glb). */
 export type ModelLoader = (name: string) => Promise<THREE.Object3D>;
-
-const PALETTE_MATERIAL = /^pal_(\d+)/;
 
 export interface DrawListStats {
   items: number;
@@ -427,7 +420,7 @@ export class DrawListRenderer {
     if (name === undefined) return false;
     const pool = this.modelPool(name);
     if (!pool.source) return false;
-    if (d.groupFirst) this.placeModel(pool, x + d.groupDx, y + d.groupDy, d, cam);
+    if (d.groupFirst) this.placeModel(pool, x + d.groupDx, y + d.groupDy, d, cam, d.groupIndex);
     return true;
   }
 
@@ -448,9 +441,9 @@ export class DrawListRenderer {
   /**
    * Show the pool's next clone with its origin at screen point (cx, cy) on the draw's pass, at the
    * size the sprite had on screen (D6), translucent for the "blend" effect and with the enemy
-   * hit-flash hue for "filter".
+   * hit-flash hue for "filter". `frame` is the sprite frame drawn, for models that animate (D17).
    */
-  private placeModel(pool: ModelPool, cx: number, cy: number, d: SpriteDraw, cam: THREE.Vector3): ModelClone {
+  private placeModel(pool: ModelPool, cx: number, cy: number, d: SpriteDraw, cam: THREE.Vector3, frame = -1): ModelClone {
     if (pool.used === pool.clones.length) pool.clones.push(this.cloneModel(pool.source!));
     const clone = pool.clones[pool.used++];
     const { object } = clone;
@@ -475,22 +468,21 @@ export class DrawListRenderer {
 
     // blit_sprite2_filter draws (filter & 0xf0) | (index & 0x0f): the same shade in another hue.
     const hue = d.effect === "filter" ? d.filter & 0xf0 : -1;
-    if (clone.paletteMaterials.length > 0 && (clone.paletteVersion !== this.palette.version || clone.hue !== hue)) {
+    const { rig } = clone;
+    const frameChanged = rig.animated && clone.frame !== frame;
+    if (frameChanged) showFrame(rig, frame);
+    if (rig.palette.length > 0 && (frameChanged || clone.paletteVersion !== this.palette.version || clone.hue !== hue)) {
       clone.paletteVersion = this.palette.version;
       clone.hue = hue;
-      for (const pm of clone.paletteMaterials) {
-        const index = hue < 0 ? pm.index : hue | (pm.index & 0x0f);
-        this.palette.color(index, pm.material.color);
-        if (pm.emissive) pm.material.emissive.copy(pm.material.color);
-      }
+      colourFrame(rig, frame, hue, this.paletteColor);
     }
+    clone.frame = frame;
     return clone;
   }
 
   private cloneModel(source: THREE.Object3D): ModelClone {
     const object = source.clone(true);
     const materials: THREE.Material[] = [];
-    const paletteMaterials: PaletteMaterial[] = [];
     object.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
@@ -498,18 +490,13 @@ export class DrawListRenderer {
       mesh.receiveShadow = true;
       // Own materials, so one clone can turn translucent (invulnerability) without the others.
       mesh.material = Array.isArray(mesh.material) ? mesh.material.map((m) => m.clone()) : mesh.material.clone();
-      for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
-        materials.push(m);
-        const match = PALETTE_MATERIAL.exec(m.name);
-        const std = m as THREE.MeshStandardMaterial;
-        if (match && std.isMeshStandardMaterial) {
-          paletteMaterials.push({ material: std, index: Number(match[1]) & 0xff, emissive: std.emissive.getHex() !== 0 });
-        }
-      }
+      materials.push(...(Array.isArray(mesh.material) ? mesh.material : [mesh.material]));
     });
     this.root.add(object);
-    return { object, roll: 0, materials, paletteMaterials, blended: false, paletteVersion: -1, hue: -1 };
+    return { object, roll: 0, materials, rig: rigModel(object), blended: false, paletteVersion: -1, hue: -1, frame: Number.NaN };
   }
+
+  private readonly paletteColor = (index: number, target: THREE.Color) => this.palette.color(index, target);
 
   private evictPools(frame: number): void {
     for (let v = 0; v < this.pools.length; v++) {

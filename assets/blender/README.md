@@ -71,6 +71,13 @@ entry. See `enemies/newshf-1.py` for the pattern:
    entry in `src/render/spriteModels/`, which is how the game finds it.
 4. `common.render_preview(...)` renders the model beside the sprite (top, in-game and 3/4 views).
 
+**Animation** (DECISIONS.md D17). When frames change only details, one model covers them and
+animates: `common.frame_part(obj, [frames])` shows a part only on those frames (a flame of each
+length, a light that's on), and `common.palette_material(..., frames={frame: index})` changes a
+part's palette colour on those frames (a glow that pulses). Export the tagged parts with the
+model. `common.render_frame_previews(objects, png, sprite, root)` renders every frame beside its
+sprite, one row each. See `enemies/newshm-89.py`.
+
 Build headless, several at a time, with previews:
 
     tools/build-models.sh -j 8 -p /tmp/previews assets/blender/enemies/*.py
