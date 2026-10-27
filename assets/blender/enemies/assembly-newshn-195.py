@@ -7,8 +7,11 @@ glowing red eyes down each side, tentacles hanging off its flanks, purple claws 
 side and a bony chin spike. Most of the face is a huge round mouth: a ring of pink gums with
 bone fangs pointing inward, and a throat of dark red ridges sinking to a glowing core.
 
-The animated pieces (newshn-119, -121, -157, -159) only light up the core in the throat, so each
-keeps one model for all its frames.
+The four pieces round the throat (newshn-119, -121, -157, -159) animate over five frames: the
+teeth dim and draw back into the gums while a fire rises from the core, red, then orange, then
+white-hot. Each keeps one model for its frames (DECISIONS.md D17): their shell takes each frame's
+colours from the sprite (palette materials with `frames`), and the teeth and the fire are parts
+per frame (frame_part). The other pieces have one frame and are built as before.
 
 The whole head is built once in assembly coordinates and cut into the pieces with
 common.split_assembly. The head is a shell in polar rings round the mouth: from the outline in
@@ -94,12 +97,56 @@ FAMILIES = {
 }
 FAMILY_OF = {rep: fam for fam, reps in FAMILIES.items() for rep in reps}
 DARK = {"blue": 96, "gum": 65, "red": 112, "purple": 82, "tooth": 163}
+# For the animated pieces the throat's reds keep the fire's bright shades apart (orange, yellow,
+# white-hot), which the static paint lumps into 120.
+FINE_FAMILIES = dict(FAMILIES, red=[112, 113, 114, 117, 120, 122, 124, 126])
+FAMILY_OF.update({rep: "red" for rep in FINE_FAMILIES["red"]})
+
+# The animated pieces' frames, phase by phase (the layout above shows phase 2).
+ANIM = {"newshn-119": [119, 229, 233, 237, 241], "newshn-121": [121, 231, 235, 239, 243],
+        "newshn-157": [157, 267, 271, 275, 279], "newshn-159": [159, 269, 273, 277, 281]}
+PHASES = 5
+ANIM_COLOURS = 24  # most animated shell colours (each is a material, so a draw call per piece)
+# Teeth per phase, measured along each fang in the sprite: (length against the modelled fang,
+# which is phase 2's, and palette shade, every other one of the sprite's to save materials). The
+# fangs as listed in build_parts, left then right, then the short dark tooth under the upper lip.
+FANGS = {
+    ("L", 0): [(1.1, 171), (1.1, 169), (1.0, 169), (0.85, 167), (0.45, 165)],
+    ("L", 1): [(1.0, 171), (1.0, 169), (1.0, 169), (1.0, 167), (0.85, 165)],
+    ("L", 2): [(1.25, 169), (1.1, 169), (1.0, 169), (1.0, 169), (1.0, 169)],
+    ("L", 3): [(1.2, 169), (1.2, 169), (1.0, 169), (0.8, 167), (0.6, 167)],
+    ("L", 4): [(1.0, 171), (1.0, 171), (1.0, 169), (1.0, 167), (0.65, 165)],
+    ("L", 5): [(1.4, 169), (1.4, 167), (1.0, 169), (1.0, 167), (0.9, 167)],
+    ("L", 6): [(1.35, 169), (1.35, 169), (1.0, 169), (0.85, 167), (0.85, 167)],
+    ("R", 0): [(1.0, 171), (1.0, 169), (1.0, 169), (0.8, 167), (0.4, 165)],
+    ("R", 1): [(1.0, 171), (1.0, 169), (1.0, 169), (1.0, 165), (0.85, 165)],
+    ("R", 2): [(1.4, 169), (1.3, 169), (1.0, 169), (0.85, 167), (0.65, 167)],
+    ("R", 3): [(1.2, 171), (1.2, 169), (1.0, 169), (0.8, 167), (0.4, 165)],
+    ("R", 4): [(1.0, 171), (1.0, 169), (1.0, 169), (1.0, 165), (0.65, 163)],
+    ("R", 5): [(1.4, 169), (1.4, 167), (1.0, 169), (1.0, 167), (0.9, 167)],
+    ("R", 6): [(1.35, 169), (1.35, 169), (1.0, 169), (0.85, 167), (0.85, 167)],
+    "knob": [(1.1, 163), (1.05, 163), (1.0, 163), (0.8, 161), (0.4, 161)],
+}
+# The fire in the throat per phase: (palette index, centre col, row, z, radii px x, y, z, emission).
+# Phase 2 is the static model's core.
+FIRE = [
+    [],
+    [(115, 63.0, 56.5, -0.1, 2.8, 2.4, 0.04, 1.5)],
+    [(117, 63.0, 56.0, -0.1, 4.2, 3.6, 0.05, 0.0), (121, 63.3, 55.8, -0.07, 2.4, 2.2, 0.05, 4.0)],
+    [(117, 63.0, 56.5, -0.09, 5.0, 4.2, 0.05, 1.5), (122, 63.0, 56.2, -0.06, 3.0, 2.6, 0.05, 4.0),
+     (126, 63.0, 56.0, -0.035, 1.0, 1.0, 0.03, 6.0)],
+    [(118, 63.5, 57.5, -0.08, 6.6, 5.6, 0.06, 2.0), (121, 63.5, 57.5, -0.05, 5.0, 3.9, 0.05, 3.0),
+     (124, 62.8, 57.8, -0.03, 2.4, 3.2, 0.05, 4.5), (127, 62.6, 55.6, -0.005, 1.2, 1.2, 0.035, 6.0)],
+]
 
 
-def rep_of(idx, context):
-    """The shade (palette index) a sprite pixel stands for; outline black depends on where it is."""
+def rep_of(idx, context, fine=False):
+    """The shade (palette index) a sprite pixel stands for; outline black depends on where it is.
+    `fine` keeps the fire's bright shades apart (FINE_FAMILIES)."""
     if idx < 0:
         return None
+    if fine and 119 <= idx <= 127:
+        return (120, 120, 122, 122, 124, 124, 126, 126, 126)[idx - 119]
     if idx <= 4 or idx == 48:
         return DARK[context]
     for lo, hi, rep in ((16, 27, 19), (64, 65, 65), (66, 67, 66), (68, 70, 69), (71, 73, 72), (74, 77, 75),
@@ -123,26 +170,57 @@ class Palette:
         self.sprite = sprite
         self.mats = []
         self.slots = {}
+        self.index = []  # palette index per slot (the first frame's, for animated ones)
 
-    def __call__(self, idx, emission=0.0):
+    def __call__(self, idx, emission=0.0, fam=None):
         if idx not in self.slots:
-            fam = FAMILY_OF.get(idx, "blue")
+            fam = fam or FAMILY_OF.get(idx, "blue")
             metallic, rough = self.STYLE[fam]
             if idx == 120:
                 emission = emission or 2.5
             self.slots[idx] = len(self.mats)
+            self.index.append(idx)
             self.mats.append(common.palette_material(self.sprite, idx, TAG, metallic=metallic, roughness=rough,
                                                      emission_strength=emission))
         return self.slots[idx]
 
+    def animated(self, reps):
+        """A slot whose colour follows the animated pieces' frames: reps[k] is the palette index on
+        phase k (ANIM). A colour that never changes is a plain slot."""
+        if len(set(reps)) == 1:
+            return self(reps[0])
+        key = tuple(reps)
+        if key not in self.slots:
+            metallic, rough = self.STYLE[FAMILY_OF.get(reps[0], "blue")]
+            frames = {nums[k]: reps[k] for nums in ANIM.values() for k in range(1, PHASES) if reps[k] != reps[0]}
+            self.slots[key] = len(self.mats)
+            self.index.append(reps[0])
+            self.mats.append(common.palette_material(
+                self.sprite, reps[0], TAG + "f" + "-".join(map(str, reps[1:])), metallic=metallic, roughness=rough,
+                emission_strength=2.5 if max(reps) >= 120 else 0.0, frames=frames))
+        return self.slots[key]
 
-def load_grid():
-    """The whole assembly's pixels (each piece's frame as laid out) as {(col, row): index}."""
+    def glow(self, idx, emission):
+        """A slot for the fire in the throat (its own name, so it can glow at its own strength)."""
+        key = ("glow", idx, emission)
+        if key not in self.slots:
+            self.slots[key] = len(self.mats)
+            self.index.append(idx)
+            self.mats.append(common.palette_material(self.sprite, idx, f"{TAG}fire{round(emission * 10)}",
+                                                     metallic=0.0, roughness=0.6, emission_strength=emission))
+        return self.slots[key]
+
+
+def load_grid(phase=None):
+    """The whole assembly's pixels (each piece's frame as laid out, or with `phase` the animated
+    pieces' frame of that phase) as {(col, row): index}."""
     lay = common.load_sprite(ROOT, PIECES[0])["assemblyLayout"]
     grid = {}
     for e in lay:
         data = common.load_sprite(ROOT, e["model"])
         num = int(e["frame"].split("|")[2])
+        if phase is not None and e["model"] in ANIM:
+            num = ANIM[e["model"]][phase]
         frame = next(f for f in data["frames"] if f["index"] == num)
         x0, y0 = e["cx"] - 12 - SX0, e["cy"] - 14 - SY0
         for r, row in enumerate(frame["pixels"]):
@@ -153,12 +231,16 @@ def load_grid():
 
 
 class Painter:
-    def __init__(self, grid, pal):
-        self.grid, self.pal = grid, pal
+    def __init__(self, grid, pal, phases=None, boxes=()):
+        """`phases`: a grid per animation phase (load_grid(phase)); faces in `boxes` (the animated
+        pieces, (col0, row0, col1, row1) in assembly px) then take a colour per phase, set by
+        resolve() once everything is painted. Shapes (relief) always follow `grid`."""
+        self.grid, self.pal, self.phases, self.boxes = grid, pal, phases, boxes
+        self.pending = []
 
-    def pixel(self, x, y):
+    def pixel(self, x, y, grid=None):
         c, r = to_px(x, y)
-        return self.grid.get((math.floor(c + 0.5), math.floor(r + 0.5)), -1)
+        return (self.grid if grid is None else grid).get((math.floor(c + 0.5), math.floor(r + 0.5)), -1)
 
     def relief(self, c, r):
         """Height offset from the sprite's shading round a point: its light ribs and knobs stand
@@ -175,28 +257,67 @@ class Painter:
                 wsum += w
         return max(-0.06, min(0.06, (total / wsum - 2.3) * 0.028)) if wsum else 0.0
 
+    def shade(self, f, context, grid=None, fine=False):
+        """The shade of the sprite pixels under a face (a vote over a few points), or None."""
+        families = FINE_FAMILIES if fine else FAMILIES
+        cen = f.calc_center_median()
+        reps = [rep_of(self.pixel(p.x, p.y, grid), context, fine)
+                for p in [cen] + [cen.lerp(v.co, 0.55) for v in f.verts]]
+        reps = [r for r in reps if r is not None]
+        if context == "gum" and any(r != DARK["gum"] for r in reps):
+            reps = [r for r in reps if r != DARK["gum"]]  # the gums' dark cracks are teeth roots
+        if not reps:
+            return None
+        fams = [FAMILY_OF[r] for r in reps]
+        fam = max(set(fams), key=lambda k: (fams.count(k), k == context))
+        order = families[fam]
+        pos = sum(order.index(r) for r in reps if FAMILY_OF[r] == fam) / fams.count(fam)
+        return order[round(pos)]
+
     def paint(self, faces, context, default=None, min_nz=None):
-        """Give each face the shade of the sprite pixels under it (a vote over a few points)."""
+        """Give each face the shade of the sprite pixels under it (with `phases`, per phase)."""
         for f in faces:
             if min_nz is not None:
                 f.normal_update()
                 if f.normal.z < min_nz:
                     continue
-            cen = f.calc_center_median()
-            reps = [rep_of(self.pixel(p.x, p.y), context)
-                    for p in [cen] + [cen.lerp(v.co, 0.55) for v in f.verts]]
-            reps = [r for r in reps if r is not None]
-            if context == "gum" and any(r != DARK["gum"] for r in reps):
-                reps = [r for r in reps if r != DARK["gum"]]  # the gums' dark cracks are teeth roots
-            if not reps:
-                if default is not None:
-                    f.material_index = self.pal(default)
+            if self.phases is None:
+                rep = self.shade(f, context)
+                if rep is None:
+                    if default is not None:
+                        f.material_index = self.pal(default)
+                    continue
+                f.material_index = self.pal(rep)
                 continue
-            fams = [FAMILY_OF[r] for r in reps]
-            fam = max(set(fams), key=lambda k: (fams.count(k), k == context))
-            order = FAMILIES[fam]
-            pos = sum(order.index(r) for r in reps if FAMILY_OF[r] == fam) / fams.count(fam)
-            f.material_index = self.pal(order[round(pos)])
+            keep = self.pal.index[f.material_index] if default is None else default
+            c, r = to_px(*f.calc_center_median().xy)
+            if not any(c0 <= c <= c1 and r0 <= r <= r1 for c0, r0, c1, r1 in self.boxes):
+                rep = self.shade(f, context)  # outside the animated pieces: as the static paint
+                f.material_index = self.pal(keep if rep is None else rep)
+                continue
+            reps = [self.shade(f, context, g, fine=True) for g in self.phases]
+            reps = [keep if r is None else r for r in reps]
+            for k in range(1, PHASES - 1):  # a shade that flickers for one frame (pixel noise)
+                if reps[k - 1] == reps[k + 1] != reps[k]:
+                    reps[k] = reps[k - 1]
+            self.pending.append((f, tuple(reps)))
+
+    def resolve(self):
+        """Give the animated faces their colours: the ANIM_COLOURS most used ways of changing
+        colour keep their own material, every other face takes the closest of those or of a
+        steady colour (by RGB over all phases)."""
+        from collections import Counter
+        rgb = {int(i): v for i, v in self.pal.sprite["colors"].items()}
+
+        def dist(a, b):
+            return sum((x - y) ** 2 for i, j in zip(a, b) for x, y in zip(rgb[i], rgb[j]))
+        uses = Counter(reps for _, reps in self.pending if len(set(reps)) > 1)
+        kept = [reps for reps, _ in uses.most_common(ANIM_COLOURS)]
+        for f, reps in self.pending:
+            if len(set(reps)) > 1 and reps not in kept:
+                reps = min(kept + [(i,) * PHASES for i in set(reps)], key=lambda t: dist(t, reps))
+            f.material_index = self.pal.animated(reps)
+        self.pending = []
 
 
 # --- the shell -----------------------------------------------------------------------------------
@@ -335,8 +456,21 @@ def mirrored(fn):
     fn(lambda c: 2 * AXIS - c)
 
 
-def build_parts(bm, painter, surf):
+def build_parts(bm, painter, surf, phase=None):
+    """Everything on the shell. `phase` None: all of it, as the static pieces have it; "base": all
+    but the teeth and the fire (the animated pieces' always-shown part); 0-4: only the teeth and the
+    fire as on that phase (FANGS, FIRE)."""
     pal = painter.pal
+    body = phase is None or phase == "base"
+    teeth = phase != "base"
+    anim = isinstance(phase, int)
+
+    def fang(key, default_mat):
+        """(length factor, material slot) of a tooth on this phase."""
+        if not anim:
+            return 1.0, default_mat
+        k, shade = FANGS[key][phase]
+        return k, pal(shade, fam="tooth")
 
     # Brain: a lumpy purple dome on top of the skull (columns 50-76, rows 0-20 and on above).
     def bump(dx, dy, dz):
@@ -344,37 +478,50 @@ def build_parts(bm, painter, surf):
         return 1 + (0.07 * math.sin(14 * dx + 1.3) * math.sin(12 * dy + 0.4)
                     + 0.04 * math.sin(23 * dx + 7 * dy) + 0.03 * math.sin(19 * dy - 9 * dx)) * (0.3 + max(dz, 0))
     brain_c, brain_r = (13.6 * PX, 17.0 * PX, 0.19), P(AXIS, 4.0, 0.2)
-    faces = lib.blob(bm, brain_r, brain_c, segments=36, rings=14, mat=pal(87), bump=bump)
+    if body:
+        faces = lib.blob(bm, brain_r, brain_c, segments=36, rings=14, mat=pal(87), bump=bump)
 
-    painter.paint(faces, "purple", default=87, min_nz=0.0)
-    # Bony snout plate between the brain and the upper lip (rows 19-27).
-    faces = lib.blob(bm, P(AXIS, 23.8, 0.24), (7.5 * PX, 4.2 * PX, 0.075), segments=16, rings=6, mat=pal(103))
-    painter.paint(faces, "blue", default=103, min_nz=0.0)
+        painter.paint(faces, "purple", default=87, min_nz=0.0)
+        # Bony snout plate between the brain and the upper lip (rows 19-27).
+        faces = lib.blob(bm, P(AXIS, 23.8, 0.24), (7.5 * PX, 4.2 * PX, 0.075), segments=16, rings=6, mat=pal(103))
+        painter.paint(faces, "blue", default=103, min_nz=0.0)
 
-    # The central knob of the upper lip, ending in a short dark tooth (column 63, rows 39-49).
-    faces = lib.blob(bm, P(AXIS, 42.2, 0.27), (2.6 * PX, 3.2 * PX, 0.06), segments=12, rings=6, mat=pal(69))
-    painter.paint(faces, "gum", default=69, min_nz=0.0)
-    lib.tube(bm, [P(AXIS, 44.0, 0.25), P(AXIS, 46.5, 0.21), P(AXIS, 49.5, 0.15)],
-             [1.4 * PX, 1.0 * PX, 0.0], sides=8, mat=pal(163))
+        # The central knob of the upper lip, ending in a short dark tooth (column 63, rows 39-49).
+        faces = lib.blob(bm, P(AXIS, 42.2, 0.27), (2.6 * PX, 3.2 * PX, 0.06), segments=12, rings=6, mat=pal(69))
+        painter.paint(faces, "gum", default=69, min_nz=0.0)
+    if teeth:
+        k, mat = fang("knob", pal(163) if not anim else None)
+        lib.tube(bm, [P(AXIS, 44.0, 0.25), P(AXIS, 44.0 + 2.5 * k, 0.25 - 0.04 * k),
+                      P(AXIS, 44.0 + 5.5 * k, 0.25 - 0.1 * k)],
+                 [1.4 * PX, 1.0 * PX, 0.0], sides=8, mat=mat)
 
     def side(m):
-        # Eyes: a dark red socket with a glowing ball (three down each side).
-        for c, r in ((37.5, 24.8), (32.3, 32.2), (29.6, 40.6)):
-            z = surf.z(m(c), r)
-            lib.blob(bm, P(m(c), r, z - 0.01), (2.7 * PX, 2.6 * PX, 0.05), segments=12, rings=6, mat=pal(113))
-            lib.blob(bm, P(m(c), r - 0.2, z + 0.025), (1.6 * PX, 1.6 * PX, 0.04), segments=10, rings=5,
-                     mat=pal(121, emission=4.0))
+        if body:
+            # Eyes: a dark red socket with a glowing ball (three down each side).
+            for c, r in ((37.5, 24.8), (32.3, 32.2), (29.6, 40.6)):
+                z = surf.z(m(c), r)
+                lib.blob(bm, P(m(c), r, z - 0.01), (2.7 * PX, 2.6 * PX, 0.05), segments=12, rings=6, mat=pal(113))
+                lib.blob(bm, P(m(c), r - 0.2, z + 0.025), (1.6 * PX, 1.6 * PX, 0.04), segments=10, rings=5,
+                         mat=pal(121, emission=4.0))
 
         # Fangs round the gums, pointing in and down into the throat: (base, tip, radius px).
-        for (bc, br), (tc, tr), rad in (((56.4, 41.0), (57.8, 49.6), 1.5), ((44.0, 47.6), (50.6, 49.3), 1.6),
-                                        ((40.6, 54.6), (48.6, 56.6), 1.6), ((44.6, 63.6), (49.6, 63.2), 1.3),
-                                        ((46.6, 71.4), (51.6, 70.6), 1.2), ((52.8, 79.6), (54.6, 75.8), 1.1),
-                                        ((60.0, 82.4), (60.3, 77.0), 1.1)):
+        for i, ((bc, br), (tc, tr), rad) in enumerate((
+                ((56.4, 41.0), (57.8, 49.6), 1.5), ((44.0, 47.6), (50.6, 49.3), 1.6),
+                ((40.6, 54.6), (48.6, 56.6), 1.6), ((44.6, 63.6), (49.6, 63.2), 1.3),
+                ((46.6, 71.4), (51.6, 70.6), 1.2), ((52.8, 79.6), (54.6, 75.8), 1.1),
+                ((60.0, 82.4), (60.3, 77.0), 1.1))):
+            if not teeth:
+                break
+            k, mat = fang(("L" if m(0) == 0 else "R", i), pal(169) if not anim else None)
+            if k != 1.0:
+                tc, tr = bc + (tc - bc) * k, br + (tr - br) * k
             zb = surf.z(m(bc), br) - 0.01
             mc, mr = bc + (tc - bc) * 0.45, br + (tr - br) * 0.45
-            lib.tube(bm, [P(m(bc), br, zb), P(m(mc), mr, zb - 0.025), P(m(tc), tr, zb - 0.07)],
-                     [rad * PX, rad * 0.7 * PX, 0.0], sides=8, mat=pal(169))
+            lib.tube(bm, [P(m(bc), br, zb), P(m(mc), mr, zb - 0.025 * k), P(m(tc), tr, zb - 0.07 * k)],
+                     [rad * PX, rad * 0.7 * PX, 0.0], sides=8, mat=mat)
 
+        if not body:
+            return
         # Tentacles hanging off the flanks, thickening at their tips: (col, row, radius px).
         for path in ([(11.0, 40.0, 1.5), (8.7, 42.4, 1.4), (8.3, 44.3, 1.1), (8.6, 45.6, 0.0)],
                      [(15.0, 44.0, 1.6), (12.6, 47.5, 1.5), (11.3, 50.5, 1.5), (10.8, 52.6, 1.0), (10.7, 53.6, 0.0)],
@@ -396,15 +543,21 @@ def build_parts(bm, painter, surf):
 
     mirrored(side)
 
-    # Chin spike (column 63, rows 89-94).
-    faces = lib.tube(bm, [P(AXIS, 88.0, 0.06), P(AXIS, 91.0, 0.03), P(AXIS, 93.2, 0.0), P(AXIS, 94.4, 0.0)],
-                     [1.8 * PX, 1.4 * PX, 0.9 * PX, 0.0], sides=8, mat=pal(103))
-    painter.paint(faces, "blue", default=103, min_nz=-0.2)
+    if body:
+        # Chin spike (column 63, rows 89-94).
+        faces = lib.tube(bm, [P(AXIS, 88.0, 0.06), P(AXIS, 91.0, 0.03), P(AXIS, 93.2, 0.0), P(AXIS, 94.4, 0.0)],
+                         [1.8 * PX, 1.4 * PX, 0.9 * PX, 0.0], sides=8, mat=pal(103))
+        painter.paint(faces, "blue", default=103, min_nz=-0.2)
 
-    # The glowing core deep in the throat, in a red glow.
-    lib.blob(bm, P(CORE[0], CORE[1], -0.1), (4.2 * PX, 3.6 * PX, 0.05), segments=14, rings=6, mat=pal(117))
-    lib.blob(bm, P(CORE[0] + 0.3, CORE[1] - 0.2, -0.07), (2.4 * PX, 2.2 * PX, 0.05), segments=12, rings=6,
-             mat=pal(121, emission=4.0))
+    if phase is None:
+        # The glowing core deep in the throat, in a red glow.
+        lib.blob(bm, P(CORE[0], CORE[1], -0.1), (4.2 * PX, 3.6 * PX, 0.05), segments=14, rings=6, mat=pal(117))
+        lib.blob(bm, P(CORE[0] + 0.3, CORE[1] - 0.2, -0.07), (2.4 * PX, 2.2 * PX, 0.05), segments=12, rings=6,
+                 mat=pal(121, emission=4.0))
+    elif anim:
+        # The fire rising from the core on this phase, from its red outside in to its hottest heart.
+        for idx, c, r, z, rx, ry, rz, emission in FIRE[phase]:
+            lib.blob(bm, P(c, r, z), (rx * PX, ry * PX, rz), segments=14, rings=6, mat=pal.glow(idx, emission))
 
 
 def build(sprite):
@@ -417,6 +570,29 @@ def build(sprite):
     surf = Surface(bm)
     build_parts(bm, painter, surf)
     return lib.to_object(NAME, bm, pal.mats, coll)
+
+
+def build_animated(sprite):
+    """The head as the animated pieces show it: a base with each phase's colours (shown on every
+    frame) and, per phase, the teeth and the fire. Returns (base, [part per phase])."""
+    coll = bpy.data.collections[NAME]
+    pal = Palette(sprite)
+    boxes = [(e["cx"] - 12 - SX0 - 0.5, e["cy"] - 14 - SY0 - 0.5, e["cx"] + 12 - SX0 - 0.5, e["cy"] + 14 - SY0 - 0.5)
+             for e in sprite["assemblyLayout"] if e["model"] in ANIM]
+    painter = Painter(load_grid(), pal, phases=[load_grid(k) for k in range(PHASES)], boxes=boxes)
+    bm = bmesh.new()
+    build_shell(bm, painter)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    surf = Surface(bm)
+    build_parts(bm, painter, surf, phase="base")
+    painter.resolve()
+    base = lib.to_object(f"{NAME}-anim", bm, pal.mats, coll)
+    parts = []
+    for k in range(PHASES):
+        pbm = bmesh.new()
+        build_parts(pbm, Painter(painter.grid, pal), surf, phase=k)
+        parts.append(lib.to_object(f"{NAME}-phase{k}", pbm, pal.mats, coll))
+    return base, parts
 
 
 def merged_sprite():
@@ -451,9 +627,24 @@ def main():
     layout = [(e["model"], e["cx"] - (SX0 + AXIS + 0.5), e["cy"] - (SY0 + ROW0 + 0.5))
               for e in sprite["assemblyLayout"] if e["model"] in PIECES]
     pieces = common.split_assembly(obj, layout)
+    models = {name: [pieces[name]] for name in PIECES}
+    # The animated pieces: their cut of the animated base, plus each phase's teeth and fire tagged
+    # with that phase's frame.
+    base, phases = build_animated(sprite)
+    anim_layout = [e for e in layout if e[0] in ANIM]
+    for name in ANIM:
+        bpy.data.objects.remove(pieces[name])
+    cut = common.split_assembly(base, anim_layout)
+    for name in ANIM:
+        models[name] = [cut[name]]
+    for k, part in enumerate(phases):
+        for name, piece in common.split_assembly(part, anim_layout).items():
+            piece.name = f"{name}-f{ANIM[name][k]}"
+            if len(piece.data.polygons):
+                models[name].append(common.frame_part(piece, [ANIM[name][k]]))
     for name in PIECES:
         data = common.load_sprite(ROOT, name)
-        common.export_sprite_model(ROOT, [pieces[name]], f"enemies/{name}", data["sprites"])
+        common.export_sprite_model(ROOT, models[name], f"enemies/{name}", data["sprites"])
     if "--preview" in sys.argv:
         out = Path(sys.argv[sys.argv.index("--preview") + 1])
         import tempfile
@@ -462,7 +653,10 @@ def main():
         for name in PIECES:
             data = common.load_sprite(ROOT, name)
             img = ROOT / "reference" / "models" / name / data["frames"][0]["image"]
-            common.render_preview([pieces[name]], str(out.parent / f"{name}.png"), img, size=2)
+            common.render_preview(models[name], str(out.parent / f"{name}.png"), img, size=2,
+                                  frame=data["frames"][0]["index"])
+            if "--frames" in sys.argv and name in ANIM:
+                common.render_frame_previews(models[name], str(out.parent / f"{name}-frames.png"), data, ROOT)
 
 
 if __name__ == "__main__":
