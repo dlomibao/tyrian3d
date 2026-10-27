@@ -3,7 +3,8 @@
 A ground emplacement in episode 2 (levels 21 and 22): a blue steel shell in two rounded halves,
 split by a groove down the middle, with a red eye set in a dark socket between them. A slim
 armour pod hugs each side, joined by two bolts, and two short feet stick out at the bottom. The
-frames only open the eye wider and brighter, so one model covers them all.
+frames only open the eye wider and brighter, so one model covers them all and animates: a small
+dim eye on frame 125 that brightens with an orange core on 127, and the wide eye on 131.
 
 Run: blender --background --python assets/blender/enemies/newsh0-125.py [-- --preview out.png]
 """
@@ -35,8 +36,12 @@ def build(sprite):
         pal(116, metallic=0.2, roughness=0.3, emission_strength=2.5),  # 7 red eye
         pal(122, emission_strength=4.0),  # 8 orange pupil
         pal(124, emission_strength=5.0),  # 9 yellow core
+        # The small eye of frames 125 and 127: dark red, brightening on 127.
+        common.palette_material(sprite, 114, f"{NAME}-eye", metallic=0.2, roughness=0.3, emission_strength=2.5,
+                                frames={127: 116}),  # 10
+        common.palette_material(sprite, 117, f"{NAME}-pupil", emission_strength=3.0, frames={127: 119}),  # 11
     ]
-    DARK, LOW, SHELL, CROWN, POD, BOLT, FOOT, EYE, PUPIL, CORE = range(10)
+    DARK, LOW, SHELL, CROWN, POD, BOLT, FOOT, EYE, PUPIL, CORE, EYE_S, PUPIL_S = range(12)
     bm = bmesh.new()
 
     def mx(x):
@@ -74,12 +79,25 @@ def build(sprite):
     # The eye: a dark socket between the halves (columns 10-14, rows 9-16) with a red dome in it.
     lib.stack(bm, CX, row(12.5), [(0.05, 2.9 / 12, 3.7 / 12, 2.4), (0.22, 2.9 / 12, 3.7 / 12, 2.4),
                                   (0.24, 2.5 / 12, 3.3 / 12, 2.4)], n=16, mats=DARK)
+    obj = common.mesh_object(NAME, bm, mats, coll, smooth=True)
+
+    # Frame 131: the eye wide open (columns 10-14, rows 10-15) with an orange pupil and yellow core.
+    bm = bmesh.new()
     lib.dome(bm, CX, row(12.6), 0.2, 2.2 / 12, 2.8 / 12, 0.15, n=16, steps=4, mats=EYE)
     lib.dome(bm, CX, row(12.9), 0.3, 1.2 / 12, 1.5 / 12, 0.06, n=12, steps=3, mats=PUPIL)
     lib.dome(bm, CX, row(13.0), 0.345, 0.6 / 12, 0.7 / 12, 0.03, n=10, steps=2, mats=CORE)
+    wide = common.frame_part(common.mesh_object(f"{NAME}-eye-131", bm, mats, coll, smooth=True), [131])
 
-    obj = common.mesh_object(NAME, bm, mats, coll, smooth=True)
-    return [(NAME, [obj], sprite["sprites"])]
+    # Frames 125 and 127: a smaller eye (columns 11-13, rows 11-14), its bright centre at rows 12-13.
+    bm = bmesh.new()
+    lib.dome(bm, CX, row(12.5), 0.2, 1.5 / 12, 2.0 / 12, 0.14, n=16, steps=4, mats=EYE_S)
+    lib.dome(bm, CX, row(12.6), 0.3, 0.7 / 12, 1.1 / 12, 0.05, n=12, steps=3, mats=PUPIL_S)
+    small = common.frame_part(common.mesh_object(f"{NAME}-eye-125", bm, mats, coll, smooth=True), [125, 127])
+    # Frame 127: an orange core at row 13.
+    bm = bmesh.new()
+    lib.dome(bm, CX, row(13.0), 0.335, 0.5 / 12, 0.55 / 12, 0.03, n=10, steps=2, mats=PUPIL)
+    core = common.frame_part(common.mesh_object(f"{NAME}-core-127", bm, mats, coll, smooth=True), [127])
+    return [(NAME, [obj, wide, small, core], sprite["sprites"])]
 
 
 if __name__ == "__main__":
