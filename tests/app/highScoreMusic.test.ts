@@ -29,8 +29,15 @@ describe("the name entry's music", () => {
     expect(seconds).toBeGreaterThan(3);
     expect(seconds).toBeLessThan(15);
 
+    // Song 31 loops (after about a minute), so it never ends: step its LDS player alone, without
+    // rendering the audio, past two minutes.
     r.apply({ type: "play", song: 31 });
-    for (let t = 0; t < 120; t += 0.1) r.render(buf);
+    let looped = false;
+    for (let tick = 0; tick < 70 * 120; tick++) {
+      r.lds.update();
+      looped ||= r.lds.songlooped;
+    }
+    expect(looped).toBe(true);
     expect(r.playing).toBe(true);
-  });
+  }, 30000);
 });
