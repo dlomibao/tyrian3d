@@ -6,6 +6,7 @@ import { filesFromZip, loadDevFiles, type FileMap } from "../assets/files";
 import { loadStoredZip } from "../assets/store";
 import { SoundEffects } from "../audio/sfx";
 import { Music } from "../audio/music";
+import { loadRemasterManifest, MusicSwitch, type MusicPlayer } from "../audio/remaster";
 import { CLASSIC_TICK_MS } from "../core/timing";
 import { drawList } from "../sim/draw";
 import { startLevel, tick } from "../sim/game";
@@ -95,7 +96,8 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
   view.setPalettes(g.res.palettes);
 
   const audioContext = new AudioContext();
-  const music = new Music(requireFile(files, "music.mus"), { context: audioContext });
+  // The FM original, or a local remaster pack's recordings when one is served (local builds only).
+  const music = new MusicSwitch(audioContext, new Music(requireFile(files, "music.mus"), { context: audioContext }), await loadRemasterManifest());
   const sfx = new SoundEffects(requireFile(files, "tyrian.snd"), requireFile(files, "voices.snd"), audioContext);
   const controls = new Controls(() => view.gamePixelsPerScreenPixel);
   const hud = new Hud();
@@ -115,6 +117,9 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
       difficultyNames: names.difficultyName,
       difficulties: [DIFFICULTY_EASY, DIFFICULTY_NORMAL, DIFFICULTY_HARD],
       initial: choice,
+      musicStyles: music.styles,
+      musicStyle: music.style,
+      onMusicStyle: (style) => music.setStyle(style),
     });
 
     // JE_initEpisode: each episode has its own item data (episode 4's lives in tyrian4.lvl).
@@ -181,7 +186,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
 
 type Outcome = "completed" | "died";
 
-function playLevel(view: View, controls: Controls, sfx: SoundEffects, music: Music, hud: Hud): Promise<Outcome> {
+function playLevel(view: View, controls: Controls, sfx: SoundEffects, music: MusicPlayer, hud: Hud): Promise<Outcome> {
   return new Promise((resolve) => {
     let last = performance.now();
     let acc = 0;

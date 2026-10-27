@@ -1,6 +1,7 @@
 # Dependencies / build
 node_modules/
 dist/
+dist-local/
 .vite/
 
 # Tyrian game data (freeware, not redistributed here)

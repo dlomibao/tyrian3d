@@ -17,9 +17,12 @@ export class FileMap implements TyrianFiles {
 /** Game files worth loading (skips the DOS executables and docs). */
 export const isGameFile = (name: string): boolean => !/\.(exe|doc|ovl|diz|com|bat|txt|ini|int|box|tfp|ico)$/i.test(name);
 
-/** Dev server: load every file from /tyrian-data/ (served from the local data/ folder). */
+/**
+ * Dev server or local build (`npm run play:local`): load every file from /tyrian-data/ (served from
+ * the local data/ folder by vite.config.ts). The public build never asks.
+ */
 export async function loadDevFiles(): Promise<FileMap | null> {
-  if (!import.meta.env.DEV) return null;
+  if (!import.meta.env.DEV && import.meta.env.VITE_LOCAL_DATA !== "1") return null;
   const list = await fetch("tyrian-data/index.json").then((r) => (r.ok ? (r.json() as Promise<string[]>) : null)).catch(() => null);
   if (!list?.length) return null;
   const names = list.filter(isGameFile);

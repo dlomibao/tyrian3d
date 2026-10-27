@@ -8,8 +8,10 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
+    "play:local": "VITE_LOCAL_DATA=1 vite build --outDir dist-local --emptyOutDir && vite preview --outDir dist-local --port 4173",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
+    "songs-to-midi": "MIDI_OUT=${MIDI_OUT:-../tyrian3d-remaster/source} vitest run tests/tools/ldsToMidi.test.ts",
     "catalogue": "CATALOGUE_OUT=${CATALOGUE_OUT:-reference/models} vitest run tests/tools/spriteCatalogue.test.ts"
   },
   "dependencies": {

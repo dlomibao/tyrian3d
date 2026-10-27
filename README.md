@@ -94,3 +94,16 @@ Debug pages: `?debug=sprites` (renderer test bench), `/src/audio/debugMusic.html
 
 GPL-2.0-or-later. This project derives from OpenTyrian, which uses the same license; see
 [LICENSE](LICENSE). The Tyrian game data has its own freeware terms and isn't covered by this license.
+
+## Local build with the remaster
+
+To play the complete game locally with everything generated, including the private remastered music
+(the `tyrian3d-remaster` repo, cloned next to this one, and `tools/build_manifest.py` run there):
+
+    npm run play:local        # builds to dist-local/ and serves it at http://localhost:4173
+
+It loads the game data from `data/` (or `TYRIAN_DATA`) and the remaster from
+`../tyrian3d-remaster/out` (or `TYRIAN_REMASTER`). The title screen then offers Original,
+Orchestral and Synth music (`M` cycles; `?music=synth` picks one). `npm run dev` does the same with
+hot reload. Neither copies anything private into a build, and the deployed site never asks for it.
+
