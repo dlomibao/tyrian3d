@@ -245,6 +245,13 @@ def run(name, build, file, preview_frame=0):
             f = sprite["frames"][idx]
             extra = str(out)[:-4] + "-" + model.split("-")[-1] + ".png"
             common.render_preview(objects, extra, root / "reference" / "models" / name / f["image"], size=f["size"])
+    if "--frames" in sys.argv:
+        # Every frame of each model beside its sprite, one row each: <out>-<model>.png
+        out = sys.argv[sys.argv.index("--frames") + 1]
+        for model, objects, sprites in models:
+            covered = {f for s in sprites for f in s["frames"]}
+            sub = {**sprite, "frames": [f for f in sprite["frames"] if f["index"] in covered]}
+            common.render_frame_previews(objects, str(out)[:-4] + "-" + model + ".png", sub, root)
     return sprite
 
 
