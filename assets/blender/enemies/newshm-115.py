@@ -2,8 +2,9 @@
 
 A ground object in episode 1 (levels 13, 21, 23) and episode 3 (level 2): a glossy blue-grey
 ball resting on the ground, lit from the upper left with a rim reflection at the lower right.
-The newsha frames are the same ball drawn darker or brighter (it pulses), so one model covers
-every frame.
+The newsha frames are the same ball drawn darker (it pulses): every shade 5, 3 and 2 steps down on
+frames 165, 203 and 241, back to normal on 279. One model covers every frame; its material takes
+the darker shade on those frames.
 
 Run: blender --background --python assets/blender/enemies/newshm-115.py [-- --preview out.png]
 """
@@ -24,7 +25,8 @@ NAME = "newshm-115"
 
 def build(sprite):
     coll = common.reset_collection(NAME)
-    mats = [common.palette_material(sprite, 57, NAME, metallic=0.6, roughness=0.2)]
+    mats = [common.palette_material(sprite, 57, f"{NAME}-pulse", metallic=0.6, roughness=0.2,
+                                    frames={165: 52, 203: 54, 241: 55})]
     bm = bmesh.new()
     # The ball spans columns 3-20 and rows 5-21 (centre column 11.5, row 13).
     cx, cy = lib.P(11.5, 13.0)
