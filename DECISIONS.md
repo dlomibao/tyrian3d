@@ -529,8 +529,15 @@ palette (`facepal`). Cubes the player hasn't opened this session are marked NEW.
   from the last level anyway. So NEW means "not opened yet" instead, kept in memory for the
   session.
 
+On the interface framework the reader takes the framework's input, not its own listeners: up/down
+(keys, d-pad, stick), Page Up/Down, Home/End and a pad's LB/RB (one page of Page Down). A press counts
+as held for 6 of the C's frames, less than a line takes, so a tap still scrolls one line and the
+framework's key repeats keep a held key scrolling (`src/app/cubeReaderControl.ts`). The text is drawn
+between the C's frames, so it scrolls smoothly at any display rate.
+
 **Review:** Check that the reader feels right with arrows (one line per tap, as in the C) and the
-wheel. The C's End key wraps `yLoc` for cubes of nine lines or fewer, which scrolls the text out of
+wheel. Holding a direction can pause briefly after the first line, until the framework's repeat starts
+(380 ms on a pad). The C's End key wraps `yLoc` for cubes of nine lines or fewer, which scrolls the text out of
 view; here it stays at the top. If NEW isn't wanted, remove it from `dataCubes.ts`, where it
 lives.
 ## D?? — Saved games and settings live in localStorage; the Options menu's setup rows open a settings screen
