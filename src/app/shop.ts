@@ -48,6 +48,7 @@ import { g, REAR_WEAPON } from "../sim/state";
 import { sectionLevelName } from "../sim/tyrian2";
 import { backButton, keyHints, reveal, showScreen, ui, type Intent } from "../ui";
 import { WeaponPreview } from "./weaponPreview";
+import { superArcadeLoadout } from "./arcade"; // [arcade]
 
 export interface ItemScreenHost {
   files: TyrianFiles;
@@ -471,6 +472,20 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
     const shieldMax = items.shields[it.shield]?.mpwr ?? 0;
     const bar = (label: string, tone: string, pct: number) =>
       `<div class="ui-stat ui-stat--${tone}"><span class="ui-stat__label">${label}</span><span class="ui-stat__bar"><i style="width:${Math.min(100, pct)}%"></i></span></div>`;
+    // [arcade] Super Arcade and Super Tyrian: the ship's name, its main and special weapon (game_menu.c L645-655).
+    const sa = superArcadeLoadout(host.files);
+    if (sa) {
+      return `
+      <div class="shop-bars">
+        ${bar("Armor", "armor", (p.armor / 28) * 100)}
+        ${bar("Shield", "shield", ((shieldMax * 2) / 28) * 100)}
+      </div>
+      <ul class="loadout loadout--super">
+        <li>${icon(2, it.ship)}<span class="ui-menu__text"><small class="ui-menu__detail loadout__heading">${esc(sa.heading)}</small><span class="ui-menu__label">${esc(sa.ship)}</span></span></li>
+        ${row(3, sa.mainWeapon, it.weapon[0].id, power(0))}
+        <li><span class="ui-menu__icon"></span><span class="ui-menu__text"><small class="ui-menu__detail">${esc(sa.specialWeapon)}</small><span class="ui-menu__label">${esc(sa.special)}</span></span></li>
+      </ul>`;
+    }
     return `
       <div class="shop-bars">
         ${bar("Armor", "armor", (p.armor / 28) * 100)}

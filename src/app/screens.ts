@@ -9,6 +9,8 @@ import "./screens.css";
 import { filesFromZip, type FileMap } from "../assets/files";
 import { storeZip } from "../assets/store";
 import { button, h, keyHints, logo, MenuList, showScreen, title, type Screen } from "../ui";
+import { arcadeTitle, type ArcadeTitleOptions } from "./arcade"; // [arcade]
+import type { GameplayMode, NewGameChoice } from "../sim/arcade"; // [arcade]
 
 /** Ask the player for tyrian21.zip (DECISIONS.md D3). Resolves once valid data is loaded. */
 export function askForData(): Promise<FileMap> {
@@ -84,6 +86,12 @@ export interface TitleChoice {
   difficulty: number;
   /** [port-options] A saved game was loaded (Load Game): continue it instead of starting a new one. */
   loaded?: boolean;
+  /** [arcade] The Game row (gameplaySelect): full game (the default), arcade or two-player arcade. */
+  mode?: GameplayMode;
+  /** [arcade] A game started by a code typed at the title (src/sim/arcade.ts startNewGame). */
+  superArcade?: NewGameChoice["superArcade"];
+  superTyrian?: NewGameChoice["superTyrian"];
+  smuggledShip?: number;
 }
 
 export interface TitleOptions {
@@ -112,6 +120,8 @@ export interface TitleOptions {
   // and the screen it opens (src/app/highScoresScreen.ts); the title waits while it's open.
   highScoresLabel?: string;
   onHighScores?: () => Promise<void>;
+  /** [arcade] The Game row and the codes typed at the title (src/app/arcade.ts). */
+  arcade?: ArcadeTitleOptions;
 }
 
 /**
@@ -137,10 +147,13 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
   const hasMusic = styles.length > 1;
 
   let resolveFn: (c: TitleChoice) => void = () => {};
-  const finish = (loaded = false) => {
+  const finish = (extra: Partial<TitleChoice> = {}) => {
     if (!screen.open) return;
     screen.close();
-    resolveFn({ episode: opts.episodes[ep], difficulty: opts.difficulties[diff], ...(loaded ? { loaded } : {}) });
+    // [arcade] the Game row's mode, and a ship smuggled out of a Super Arcade start
+    const mode = arcade?.mode();
+    const smuggledShip = arcade?.smuggledShip();
+    resolveFn({ episode: opts.episodes[ep], difficulty: opts.difficulties[diff], ...(mode ? { mode } : {}), ...(smuggledShip ? { smuggledShip } : {}), ...extra });
   };
 
   // [port-options] [high scores] The other entries, each its own screen over the title's backdrop.
@@ -149,12 +162,12 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
   // [restyle-options] Load Game and Options are framework screens shown over the title
   // (ScreenOptions.over), which hand the input back themselves: no stepping aside for them.
   let busy = false;
-  const sub = async (fn: () => Promise<boolean | void>, over = false) => {
+  const sub = async <T,>(fn: () => Promise<T>, over = false, then: (result: T) => void = (loaded) => loaded === true && finish({ loaded: true })) => {
     if (busy || screen.isAside || !screen.open) return;
     busy = true;
-    const loaded = await (over ? fn() : screen.aside(fn)).finally(() => (busy = false));
+    const result = await (over ? fn() : screen.aside(fn)).finally(() => (busy = false));
     syncMusic();
-    if (loaded === true) finish(true);
+    then(result);
   };
   const more: { label: string; key: string; code: string; pad: { button: number; glyph: string }; over?: boolean; run: () => Promise<boolean | void> }[] = [];
   if (opts.onLoadGame) more.push({ label: "Load Game", key: "L", code: "KeyL", pad: TITLE_PAD.loadGame, over: true, run: opts.onLoadGame });
@@ -168,6 +181,7 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
     layout: "narrow",
     label: "Title",
     onKey: (e) => {
+      if (arcade?.key(e)) return true; // [arcade] the Game row's key and the typed codes
       if (e.code === "KeyM" && hasMusic) cycleMusic();
       else {
         const m = more.find((m) => m.code === e.code);
@@ -177,6 +191,7 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
       return true;
     },
     onPadButton: (button) => {
+      if (arcade?.padButton(button)) return; // [arcade]
       const m = padButtons.get(button);
       if (m) void sub(m.run, m.over);
     },
@@ -242,7 +257,19 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
     syncing = false;
   };
 
+  // [arcade] The Game row (gameplaySelect) above the episodes, and the codes typed at the title.
+  const arcade = opts.arcade
+    ? arcadeTitle(opts.arcade, opts.initial.mode, {
+        episodeName: () => opts.episodeNames[opts.episodes[ep]]?.trim() || `Episode ${opts.episodes[ep]}`,
+        difficultyName: (level) => opts.difficultyNames[level]?.trim() || String(level),
+        difficulty: () => opts.difficulties[diff],
+        open: (run, over, then) => void sub(run, over, then),
+        start: (choice) => finish(choice),
+      })
+    : null;
+
   screen.root.insertBefore(logo(), screen.panel);
+  if (arcade) screen.add(...arcade.nodes);
   screen.add(h("span", { class: "ui-label", text: "Episode" }), episodes);
   screen.add(h("span", { class: "ui-label", text: "Difficulty" }), difficulty);
   if (hasMusic) screen.add(h("span", { class: "ui-label", text: "Music" }), music.el);
@@ -252,6 +279,7 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
       { key: "←→", pad: "✛", label: "Difficulty" },
       { key: "Enter", pad: "A", touch: "Tap", label: "Start" },
       ...(hasMusic ? [{ key: "M", pad: "X", label: "Music" }] : []),
+      ...(arcade?.hints ?? []), // [arcade]
       ...more.map((m) => ({ key: m.key, pad: m.pad.glyph, label: m.label })),
     ]),
     // The flight controls for the device used last (src/app/controls.ts); CSS picks one.

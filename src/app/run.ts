@@ -13,7 +13,7 @@ import { startLevel, tick } from "../sim/game";
 import { loadHelpText, parseMenuText } from "../sim/helptext";
 import { clearSimInput } from "../sim/input";
 import { JE_endLevelAni, JE_initPlayerData } from "../sim/mainint";
-import { newOnePlayerGame } from "../sim/newgame";
+import { startNewGame, twoPlayerArcade } from "../sim/arcade"; // [arcade]
 import { buildResources, requireFile } from "../sim/resources";
 import { JE_loadGame, JE_loadScreen_select, JE_saveGame, loadSaves } from "../sim/savegame";
 import { DIFFICULTY_EASY, DIFFICULTY_HARD, DIFFICULTY_NORMAL, g, SA_NONE } from "../sim/state";
@@ -32,6 +32,7 @@ import { runItemScreen } from "./shop";
 // port-story: the screens between levels and the level fades.
 import { BLACK, levelFade } from "./fade";
 import { closeStoryScreens, playStoryScreens } from "./storyScreens";
+import { showTrentWin } from "./arcade"; // [arcade]
 import { takeStorySteps } from "../sim/story";
 
 /** OpenTyrian song numbers (0-based, as passed to play_song). */
@@ -119,13 +120,24 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
       // [high scores] the title menu's High Scores (JE_highScoreScreen)
       highScoresLabel: g.miscText[50]?.trim() || undefined,
       onHighScores: () => showHighScoreScreen({ ...names, episodes, sfx, episode: choice.episode }),
+      // [arcade] the Game row (gameplaySelect) and the codes typed at the title
+      arcade: {
+        gameplayName: names.gameplayName,
+        superShips: names.superShips,
+        specialName: names.specialName,
+        planetName0: names.pName[0] ?? "Tyrian",
+        twoPlayerArcade: twoPlayerArcade.newGame !== null,
+        sound: (n) => sfx.playSampleNum(n),
+        song: (n) => music.play(n),
+      },
     });
 
     // JE_initEpisode: each episode has its own item data (episode 4's lives in tyrian4.lvl).
     // A loaded game is already set up, on its own episode (JE_loadGame). [port-options]
     g.res = buildResources(files, choice.loaded ? g.episodeNum : choice.episode);
     view.setPalettes(g.res.palettes);
-    if (!choice.loaded) newOnePlayerGame(choice.episode, choice.difficulty);
+    // [arcade] newGame() for the chosen mode, or a Super Arcade or Super Tyrian game (src/sim/arcade.ts).
+    if (!choice.loaded) startNewGame({ mode: "fullGame", ...choice });
     onPlay();
     // port-story: JE_loadMap's pictures, text and fades play where the C would have drawn them.
     const story = (keepOpen = false) => playStoryScreens(takeStorySteps(), { files, sfx, music }, { keepOpen });
@@ -213,6 +225,11 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
         if (g.bonusLevelCurrent && !g.playerEndLevel) g.mainLevel = g.nextLevel;
       }
       g.doNotSaveBackup = false;
+    }
+    // [arcade] Super Tyrian beaten at Lord of Game: the C quits with JE_tyrianHalt's message (opentyr.c L907-911).
+    if (g.trentWin) {
+      g.trentWin = false;
+      await showTrentWin();
     }
   }
 }
