@@ -1,167 +1,192 @@
-/* The settings, load-game and save-name screens (src/app/options.ts), and the item screen's
-   Options rows, in the overlay style of overlay.css and shop.css. */
+/* The settings, load-game and save-name screens (src/app/options.ts), on src/ui's components, and
+   the volume sliders and save slots of the item screen's Options rows. */
 
-.overlay.options {
-  background: rgba(0, 0, 0, 0.6);
-  pointer-events: auto;
-  z-index: 10;
-}
+/* --- the settings screen --- */
 
-.panel.options-panel {
-  max-width: 36rem;
-  max-height: 100%;
-  overflow-y: auto;
-  text-align: left;
-  padding: 1rem 1.25rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.options-panel h2 {
-  margin: 0;
-  letter-spacing: 0.08em;
-  border-bottom: 1px solid var(--edge);
-  padding-bottom: 0.5rem;
-}
-
-.options-panel h3 {
-  margin: 0.6rem 0 0.2rem;
-  font-size: 0.85rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--ink-dim);
+.opt-list {
+  gap: 2px;
 }
 
 .opt-list[hidden] {
   display: none;
 }
 
+.ui-label.opt-section {
+  margin: var(--ui-space-4) 0 var(--ui-space-1);
+}
+
+.ui-label.opt-section:first-child {
+  margin-top: 0;
+}
+
 .opt-row {
-  display: flex;
-  align-items: center;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  min-height: 2.3rem;
-  padding: 0.2rem 0.6rem;
-  margin: 2px 0;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  cursor: pointer;
-  color: var(--ink);
-  user-select: none;
+  column-gap: var(--ui-space-3);
+  row-gap: var(--ui-space-1);
 }
 
-.opt-row:hover {
-  background: rgba(224, 160, 64, 0.08);
-}
-
-.opt-row.cur {
-  border-color: var(--accent);
-  background: rgba(224, 160, 64, 0.16);
-  color: #fff3c0;
-}
-
-.opt-row.done {
-  color: var(--accent);
-}
-
-.opt-row .lbl {
+.opt-row__label {
   flex: 1 1 8rem;
   min-width: 0;
 }
 
-.options button,
-.opt-row button {
-  font: inherit;
-  color: var(--ink);
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--edge);
-  border-radius: 6px;
-  padding: 0.25rem 0.6rem;
-  cursor: pointer;
+.opt-row--done .opt-row__label {
+  color: var(--ui-gold);
+  font-family: var(--ui-font-display);
+  font-size: var(--ui-text-sm);
+  letter-spacing: var(--ui-tracking);
+  text-transform: uppercase;
 }
 
-.opt-slot {
-  min-width: 6.5rem;
-  text-align: center;
-}
-
-.opt-slot.none {
-  color: var(--ink-dim);
-}
-
-.opt-slot.sel {
-  border-color: #fff3c0;
-  background: rgba(224, 160, 64, 0.25);
-}
-
-.opt-slot.wait {
-  animation: opt-blink 0.6s steps(2) infinite;
-}
-
-@keyframes opt-blink {
-  50% { border-color: var(--accent); background: rgba(224, 160, 64, 0.5); }
-}
-
+/* Two keys per control, and the music styles: small buttons the focus moves between. */
+.opt-keys,
 .opt-styles {
   display: flex;
-  gap: 0.35rem;
   flex-wrap: wrap;
+  gap: var(--ui-space-2);
 }
 
-.opt-styles .on {
-  border-color: #fff3c0;
-  background: rgba(224, 160, 64, 0.25);
-}
-
-/* The volume bars: JE_barDrawShadow's cells. */
-.vol-bar {
-  display: inline-flex;
-  gap: 2px;
-  padding: 4px 0;
+.opt-key,
+.opt-chip {
+  min-width: 6.5rem;
+  min-height: 2.25rem;
+  padding: 0 var(--ui-space-3);
+  font: inherit;
+  font-size: var(--ui-text-sm);
+  font-weight: 600;
+  color: var(--ui-ink);
+  background: var(--ui-panel-raised);
+  border: 1px solid var(--ui-edge);
+  border-radius: var(--ui-radius);
   cursor: pointer;
+  transition:
+    border-color var(--ui-fast) var(--ui-ease),
+    box-shadow var(--ui-med) var(--ui-ease),
+    color var(--ui-fast) var(--ui-ease);
+}
+
+.opt-chip {
+  min-width: 0;
+  font-family: var(--ui-font-display);
+  font-size: var(--ui-text-xs);
+  letter-spacing: var(--ui-tracking);
+  text-transform: uppercase;
+}
+
+@media (hover: hover) {
+  .opt-key:hover,
+  .opt-chip:hover {
+    border-color: var(--ui-edge-strong);
+  }
+}
+
+.opt-key.is-none {
+  color: var(--ui-ink-faint);
+}
+
+/* The slot the cursor is on (only on the focused row) and the chosen music style. */
+.opt-key.is-focused,
+.opt-chip.is-on {
+  color: var(--ui-ink-warm);
+  border-color: var(--ui-gold-bright);
+  box-shadow: var(--ui-glow-gold);
+}
+
+.opt-key.is-waiting {
+  animation: opt-wait 0.9s var(--ui-ease) infinite;
+}
+
+@keyframes opt-wait {
+  50% {
+    background: rgba(240, 176, 72, 0.35);
+    box-shadow: 0 0 1.1rem rgba(255, 200, 90, 0.55);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .opt-key.is-waiting {
+    animation: none;
+    background: rgba(240, 176, 72, 0.3);
+  }
+}
+
+/* Titles keep clear of the back button in the corner. */
+.ui-screen--options .ui-title,
+.ui-screen--load .ui-title {
+  padding-right: 5.5rem;
+}
+
+/* The help line and key hints under the list; on the settings screen they stay at the panel's
+   foot while the rows scroll. */
+.ui-panel .opt-help {
+  min-height: 1.45em;
+  margin: var(--ui-space-4) 0 0;
+  padding-top: var(--ui-space-3);
+  border-top: 1px solid var(--ui-edge);
+  font-size: var(--ui-text-sm);
+}
+
+.opt-foot {
+  position: sticky;
+  bottom: calc(-1 * var(--ui-space-5));
+  z-index: 1;
+  margin: 0 calc(-1 * var(--ui-space-5)) calc(-1 * var(--ui-space-5));
+  padding: 0 var(--ui-space-5) var(--ui-space-4);
+  background: linear-gradient(180deg, rgba(7, 12, 21, 0.9), var(--ui-panel-solid) 2rem);
+}
+
+.opt-foot .ui-hints {
+  margin-top: var(--ui-space-3);
+}
+
+.ui-panel .opt-help b {
+  color: var(--ui-gold);
+  font-weight: 600;
+}
+
+/* --- volume sliders: a stat bar cut into JE_barDrawShadow's 21 cells --- */
+
+.opt-vol {
+  flex: 1 1 10rem;
+  max-width: 18rem;
+  min-height: 2rem;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  /* A drag sets the volume rather than scrolling the page. */
   touch-action: none;
 }
 
-.vol-bar i {
-  width: 6px;
-  height: 14px;
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.12);
+.opt-vol .ui-stat__bar {
+  flex: 1;
+  height: 12px;
 }
 
-.vol-bar i.on {
-  background: #e0a040;
+.opt-vol .ui-stat__bar::after {
+  background: repeating-linear-gradient(90deg, transparent 0 calc(100% / 21 - 2px), var(--ui-panel-solid) calc(100% / 21 - 2px) calc(100% / 21));
 }
 
-.vol-num {
-  width: 2.2rem;
+.opt-vol__num {
+  flex: none;
+  width: 2.25rem;
   text-align: right;
-  color: var(--ink-dim);
+  font-family: var(--ui-font-display);
+  font-size: var(--ui-text-xs);
   font-variant-numeric: tabular-nums;
-  font-size: 0.85rem;
+  color: var(--ui-ink-dim);
 }
 
-.opt-help {
-  min-height: 1.2em;
-  color: var(--ink-dim);
-  font-size: 0.9rem;
-  border-top: 1px solid var(--edge);
-  padding-top: 0.5rem;
+.is-focused > .opt-vol__num {
+  color: var(--ui-ink-warm);
 }
 
-.opt-help b,
-.save-box b {
-  color: var(--accent);
-  font-weight: normal;
-}
+/* --- the gamepad check --- */
 
-/* The gamepad check. */
 .opt-padcheck {
-  border: 1px solid var(--edge);
-  border-radius: 8px;
-  padding: 0.6rem;
+  padding: var(--ui-space-3);
+  border: 1px solid var(--ui-edge);
+  border-radius: var(--ui-radius);
+  background: var(--ui-panel-raised);
   cursor: pointer;
 }
 
@@ -169,152 +194,207 @@
   display: none;
 }
 
-.opt-padcheck p {
-  margin: 0.2rem 0;
-  color: var(--ink-dim);
-  font-size: 0.85rem;
+.ui-panel .opt-padcheck p {
+  margin: 0 0 var(--ui-space-2);
+  font-size: var(--ui-text-sm);
   overflow-wrap: anywhere;
 }
 
-.opt-padcheck .chips {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr));
-  gap: 4px;
-}
-
-.opt-padcheck .chip {
+.opt-pad__sticks {
   display: flex;
-  flex-direction: column;
-  padding: 0.25rem 0.4rem;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 6px;
-  background: linear-gradient(to top, rgba(224, 160, 64, 0.35) var(--fill, 0%), transparent var(--fill, 0%));
+  gap: var(--ui-space-5);
+  margin: var(--ui-space-2) 0 var(--ui-space-5);
 }
 
-.opt-padcheck .chip.on {
-  border-color: #fff3c0;
-  color: #fff3c0;
-}
-
-.opt-padcheck .chip small {
-  color: var(--ink-dim);
-  font-size: 0.7rem;
-}
-
-.opt-padcheck .sticks {
-  display: flex;
-  gap: 1rem;
-  margin: 0.4rem 0;
-}
-
-.opt-padcheck .stick {
+.opt-pad__stick {
   position: relative;
   width: 64px;
   height: 64px;
-  border: 1px solid var(--edge);
+  border: 1px solid var(--ui-edge-strong);
   border-radius: 50%;
-  margin-bottom: 1.2rem;
+  background: radial-gradient(circle, rgba(92, 214, 255, 0.08), transparent 70%);
 }
 
-.opt-padcheck .stick i {
+.opt-pad__stick i {
   position: absolute;
   width: 12px;
   height: 12px;
   margin: -6px 0 0 -6px;
   border-radius: 50%;
-  background: #e0a040;
+  background: var(--ui-gold-bright);
+  box-shadow: var(--ui-glow-gold);
 }
 
-.opt-padcheck .stick small {
+.opt-pad__stick small {
   position: absolute;
-  top: 100%;
+  top: calc(100% + 4px);
   left: 50%;
   transform: translateX(-50%);
   white-space: nowrap;
-  font-size: 0.7rem;
-  color: var(--ink-dim);
+  font-size: var(--ui-text-xs);
+  color: var(--ui-ink-dim);
 }
 
-/* Save slots: name, last level, episode (the load screen and the item screen's load/save menu). */
+.opt-pad__chips {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(5.25rem, 1fr));
+  gap: var(--ui-space-1);
+}
+
+.opt-pad__chip {
+  display: flex;
+  flex-direction: column;
+  padding: var(--ui-space-1) var(--ui-space-2);
+  border: 1px solid var(--ui-edge);
+  border-radius: var(--ui-radius);
+  background: linear-gradient(to top, rgba(240, 176, 72, 0.35) var(--fill, 0%), transparent var(--fill, 0%));
+  font-family: var(--ui-font-display);
+  font-size: var(--ui-text-xs);
+  letter-spacing: 0.04em;
+}
+
+.opt-pad__chip.is-on {
+  color: var(--ui-ink-warm);
+  border-color: var(--ui-gold-bright);
+  box-shadow: var(--ui-glow-gold);
+}
+
+.opt-pad__chip small {
+  font-family: var(--ui-font-text);
+  letter-spacing: 0;
+  color: var(--ui-ink-dim);
+}
+
+/* --- the load screen --- */
+
+.load-list .ui-badge {
+  color: var(--ui-cyan);
+  border-color: rgba(92, 214, 255, 0.45);
+  white-space: nowrap;
+}
+
+.load-list .is-empty:not(.is-focused) .ui-menu__label {
+  color: var(--ui-ink-faint);
+  font-weight: 400;
+}
+
+.load-list .load-exit {
+  margin-top: var(--ui-space-2);
+}
+
+.load-list .load-exit .ui-menu__label {
+  color: var(--ui-gold);
+  font-family: var(--ui-font-display);
+  font-size: var(--ui-text-sm);
+  letter-spacing: var(--ui-tracking);
+  text-transform: uppercase;
+}
+
+/* --- the save-name prompt --- */
+
+.ui-screen--save-name .ui-panel {
+  text-align: center;
+}
+
+.ui-screen--save-name .ui-title {
+  align-items: center;
+}
+
+.save-name__field {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: var(--ui-space-2) var(--ui-space-3);
+  margin: var(--ui-space-4) 0;
+  color: var(--ui-ink-dim);
+}
+
+.save-name__field b {
+  color: var(--ui-gold);
+  font-weight: 600;
+}
+
+.save-name__input {
+  box-sizing: border-box;
+  width: 12em;
+  max-width: 100%;
+  min-height: var(--ui-hit);
+  padding: 0 var(--ui-space-3);
+  font: inherit;
+  font-family: var(--ui-font-display);
+  letter-spacing: var(--ui-tracking);
+  color: var(--ui-ink-warm);
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--ui-edge-strong);
+  border-radius: var(--ui-radius);
+  outline: none;
+  caret-color: var(--ui-gold-bright);
+}
+
+.save-name__input:focus {
+  border-color: var(--ui-gold-bright);
+  box-shadow: var(--ui-glow-gold);
+}
+
+/* --- the item screen's Options rows: sliders and slot details line up on the right --- */
+
+.shop-list .opt-vol {
+  margin-left: auto;
+  flex: 0 1 14rem;
+}
+
 .slot-name {
-  flex: 1 1 8rem;
+  flex: 1 1 6rem;
   min-width: 0;
 }
 
 .slot-level {
   flex: 0 1 11rem;
   white-space: nowrap;
-  color: var(--ink-dim);
+  color: var(--ui-ink-dim);
 }
 
 .slot-ep {
   flex: 0 0 4.5rem;
   text-align: right;
-  color: var(--ink-dim);
+  color: var(--ui-ink-dim);
 }
 
-.opt-row.slot.empty .slot-name {
-  color: var(--ink-dim);
-}
+/* --- phones --- */
 
-.panel.options-panel.save-box {
-  max-width: 24rem;
-  text-align: center;
-}
+@media (max-width: 560px) {
+  .opt-foot {
+    bottom: calc(-1 * var(--ui-space-4));
+    margin: 0 calc(-1 * var(--ui-space-4)) calc(-1 * var(--ui-space-4));
+    padding: 0 var(--ui-space-4) var(--ui-space-3);
+  }
 
-.save-box .level {
-  color: var(--ink);
-  letter-spacing: 0.1em;
-}
+  /* Key slots and sliders go under their label, full width. */
+  .opt-row--key .opt-row__label,
+  .opt-row--volume .opt-row__label,
+  .opt-row--style .opt-row__label {
+    flex-basis: 100%;
+  }
 
-.save-box label {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-items: center;
-  gap: 0.5rem;
-  margin: 0.5rem 0;
-}
+  .opt-keys {
+    flex: 1;
+    flex-wrap: nowrap;
+  }
 
-.save-box input {
-  font: inherit;
-  width: 11em;
-  padding: 0.3rem 0.5rem;
-  color: #fff3c0;
-  background: rgba(0, 0, 0, 0.5);
-  border: 1px solid var(--edge);
-  border-radius: 6px;
-}
+  .opt-key {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: var(--ui-hit);
+  }
 
-.save-box .choices.row {
-  flex-direction: row;
-  justify-content: center;
-  gap: 1rem;
-}
-
-/* The title's extra choices. */
-.choices.title-more {
-  flex-direction: row;
-  justify-content: center;
-  flex-wrap: wrap;
-}
-
-@media (max-width: 640px) {
-  .opt-slot {
-    min-width: 4.5rem;
+  .opt-vol {
+    max-width: none;
+    min-height: var(--ui-hit);
   }
 
   .slot-level {
     flex-basis: 100%;
     order: 3;
   }
-}
-
-/* The item screen's Options rows: bars and slot details line up on the right. */
-.shop-list .vol-bar {
-  margin-left: auto;
-}
-
-.shop-list .slot-name {
-  flex: 1 1 6rem;
 }

@@ -1,14 +1,16 @@
-// The screens around the Options menu, as HTML overlays:
+// The screens around the Options menu, on the interface framework (src/ui/README.md):
 //   showOptions      the settings screen: music and sound volume, music style, the keyboard
-//                    bindings and a gamepad button check. The title's Options button opens it, and
+//                    bindings and a gamepad button check. The title's Options entry opens it, and
 //                    so do the item screen's Joystick and Keyboard rows (the C's MENU_JOYSTICK_CONFIG
 //                    and MENU_KEYBOARD_CONFIG, game_menu.c L386-440, L2668-2745).
 //   showLoadScreen   JE_loadScreen (mainint.c L619-901): the title's list of saved games.
 //   promptSaveName   JE_operation's save dialog (mainint.c L2729-2843): the name for a save slot.
 //   itemScreenOptionsRow  how the item screen (shop.ts) draws the Options menu's volume rows and the
 //                    load/save menu's slots.
-// The rules are elsewhere: volumes in src/sim/volume.ts, bindings in bindings.ts, saves in
-// src/sim/savegame.ts. Everything here takes keys, gamepad buttons, clicks and taps.
+// Each is a screen shown over the one that opened it (ScreenOptions.over), so the title or the item
+// screen waits underneath and gets the input back when it closes. The rules are elsewhere: volumes
+// in src/sim/volume.ts, bindings in bindings.ts, saves in src/sim/savegame.ts. The settings
+// screen's own rules (which row does what with which input) are SettingsMenu, apart from the page.
 
 import "./options.css";
 import type { MusicPlayer } from "../audio/remaster";
@@ -18,6 +20,7 @@ import { saveNameChar, saveSlotViews, type SaveSlotView } from "../sim/savegame"
 import { S_CLICK, S_CLINK, S_CURSOR, S_SELECT, S_SPRING } from "../sim/sndmast";
 import { g } from "../sim/state";
 import { JE_changeVolume, set_volume, volume, volumeFromBarCells, VOLUME_STEP } from "../sim/volume";
+import { backButton, button, h, keyHints, MenuList, moveFocus, reveal, showScreen, title, type InputDevice, type Intent, type KeyHint } from "../ui";
 import { ACTIONS, BINDING_SLOTS, bindKey, clearKey, keyName, keys, resetKeys, type Action } from "./bindings";
 import { savePrefs } from "./prefs";
 
@@ -30,21 +33,6 @@ export interface OptionsHost {
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
 /** Tyrian's text toggles a highlight with '~' (JE_textShade / JE_helpBox). */
 const highlight = (s: string) => esc(s).replace(/~([^~]*)~?/g, "<b>$1</b>");
-
-// These screens read keys and pads themselves; the title and item screen open them through the
-// interface framework's Screen.aside, which keeps the framework's navigation off meanwhile.
-
-function overlay(className: string, html: string): HTMLDivElement {
-  const el = document.createElement("div");
-  el.className = `overlay ${className}`;
-  el.innerHTML = html;
-  document.body.appendChild(el);
-  return el;
-}
-
-function closeOverlay(el: HTMLElement): void {
-  el.remove();
-}
 
 // --- Gamepad ---
 
@@ -69,85 +57,61 @@ const PAD_BUTTONS: [name: string, use: string][] = [
   ["Home", ""],
 ];
 
-type PadKey = "up" | "down" | "left" | "right" | "enter" | "esc";
-const PAD_KEYS: [number, PadKey][] = [[12, "up"], [13, "down"], [14, "left"], [15, "right"], [0, "enter"], [1, "esc"]];
+/** How long B must be held to leave the gamepad check (a press alone is part of the check). */
+export const PAD_CHECK_HOLD_MS = 1000;
 
-/**
- * Menu input from gamepads: edge-triggered buttons, d-pad repeat, and buttons held when the screen
- * opens are ignored until released. `frame` runs every animation frame too.
- */
-function pollPad(onKey: (k: PadKey) => void, frame?: (pads: Gamepad[], now: number) => void): () => void {
-  const held = new Map<number, number>();
-  let armed = false;
-  let raf = 0;
-  let stopped = false;
-  const tick = (now: number) => {
-    if (stopped) return;
-    const pads = (navigator.getGamepads?.() ?? []).filter((p): p is Gamepad => !!p);
-    const down = (i: number) => pads.some((p) => p.buttons[i]?.pressed);
-    if (!armed) armed = !PAD_KEYS.some(([i]) => down(i));
-    else {
-      for (const [i, k] of PAD_KEYS) {
-        if (!down(i)) {
-          held.delete(i);
-          continue;
-        }
-        const since = held.get(i);
-        if (since === undefined) {
-          held.set(i, now);
-          onKey(k);
-        } else if (i >= 12 && now - since > 380) {
-          held.set(i, now - 380 + 110);
-          onKey(k);
-        }
-        if (stopped) return;
-      }
-    }
-    frame?.(pads, now);
-    raf = requestAnimationFrame(tick);
-  };
-  raf = requestAnimationFrame(tick);
-  return () => {
-    stopped = true;
-    cancelAnimationFrame(raf);
-  };
-}
-
-const KEYS_TO_MENU: Record<string, PadKey> = {
-  ArrowUp: "up",
-  ArrowDown: "down",
-  ArrowLeft: "left",
-  ArrowRight: "right",
-  Enter: "enter",
-  NumpadEnter: "enter",
-  Space: "enter",
-  Escape: "esc",
-};
-
-// --- Volume bars ---
+// --- Volume sliders ---
 
 /** JE_barDrawShadow's cells for a volume: tyrMusicVolume / 12, up to 21 (game_menu.c L667-668). */
-const VOLUME_CELLS = Math.trunc(255 / VOLUME_STEP);
+export const VOLUME_CELLS = Math.trunc(255 / VOLUME_STEP);
 
-function volumeBarHtml(vol: number, row: number | string): string {
-  const lit = Math.trunc(vol / VOLUME_STEP);
-  const cells = Array.from({ length: VOLUME_CELLS }, (_, i) => `<i class="${i < lit ? "on" : ""}"></i>`).join("");
-  return `<span class="vol-bar" data-vol-row="${row}" role="slider" aria-valuemin="0" aria-valuemax="255" aria-valuenow="${vol}">${cells}</span><span class="vol-num">${vol}</span>`;
+/** How full a volume's bar is drawn: the C's lit cells out of VOLUME_CELLS. */
+export function volumeFill(vol: number): number {
+  return Math.min(VOLUME_CELLS, Math.max(0, Math.trunc(vol / VOLUME_STEP))) / VOLUME_CELLS;
 }
 
-/** The bar cell a click lands on, as the C counts 4-pixel cells from the bar's start; the far end is full volume. */
-export function volumeBarCells(e: MouseEvent, bar: HTMLElement): number {
-  const r = bar.getBoundingClientRect();
-  const cells = Math.round(((e.clientX - r.left) / Math.max(1, r.width)) * VOLUME_CELLS);
+/**
+ * The bar cell a point `fraction` of the way along the bar lands on, as the C counts 4-pixel cells
+ * from the bar's start (game_menu.c L1047-1080); the far end is full volume.
+ */
+export function volumeCellsAt(fraction: number): number {
+  const cells = Math.round(fraction * VOLUME_CELLS);
   return cells >= VOLUME_CELLS ? VOLUME_CELLS + 1 : Math.max(0, cells);
+}
+
+/** The bar cell a click or drag at `e` lands on (volumeCellsAt). */
+export function volumeBarCells(e: { clientX: number }, bar: HTMLElement): number {
+  const r = bar.getBoundingClientRect();
+  return volumeCellsAt((e.clientX - r.left) / Math.max(1, r.width));
+}
+
+/**
+ * A volume slider: a stat bar cut into the C's 21 cells, and the value. `row` goes in
+ * data-vol-row (the item screen's row number, or the settings screen's "music" / "sound"); the
+ * element carrying it is the bar a tap or drag measures.
+ */
+function volumeSliderHtml(vol: number, row: number | string, label: string): string {
+  return (
+    `<span class="opt-vol ui-stat--gold" data-vol-row="${row}" role="slider" aria-label="${esc(label)}" aria-valuemin="0" aria-valuemax="255" aria-valuenow="${vol}">` +
+    `<span class="ui-stat__bar"><i style="width:${(volumeFill(vol) * 100).toFixed(2)}%"></i></span></span>` +
+    `<span class="opt-vol__num">${vol}</span>`
+  );
+}
+
+/** Show `vol` on a slider made by volumeSliderHtml (the bar's element and its number after it). */
+function setVolumeSlider(bar: HTMLElement, vol: number): void {
+  bar.querySelector<HTMLElement>("i")!.style.width = `${(volumeFill(vol) * 100).toFixed(2)}%`;
+  bar.setAttribute("aria-valuenow", String(vol));
+  const num = bar.nextElementSibling;
+  if (num) num.textContent = String(vol);
 }
 
 // --- The item screen's rows ---
 
 /**
  * The inner HTML for an item-screen row this file draws: the Options menu's Music and Sound rows
- * (their volume bars; click with JE_itemScreen_volumeClick) and the load/save menu's slots (name,
- * last level, episode: game_menu.c L328-383). Null for any other row.
+ * (their volume sliders; a tap goes to JE_itemScreen_volumeClick) and the load/save menu's slots
+ * (name, last level, episode: game_menu.c L328-383). Null for any other row.
  */
 export function itemScreenOptionsRow(e: ItemScreenEntry): string | null {
   if (e.saveSlot) {
@@ -156,13 +120,13 @@ export function itemScreenOptionsRow(e: ItemScreenEntry): string | null {
     const ep = s.empty ? "" : `<span class="slot-ep">${esc(g.miscTextB[1 - 1] ?? "Ep")}${s.episode}</span>`;
     return `<span class="what ui-menu__label slot-name">${esc(s.name)}</span><span class="slot-level">${level}</span>${ep}`;
   }
-  if (e.volume !== undefined) return `<span class="what ui-menu__label">${esc(e.label)}</span>${volumeBarHtml(e.volume, e.sel)}`;
+  if (e.volume !== undefined) return `<span class="what ui-menu__label">${esc(e.label)}</span>${volumeSliderHtml(e.volume, e.sel, e.label)}`;
   return null;
 }
 
-// --- The settings screen ---
+// --- The settings screen's rules ---
 
-type Row =
+export type OptionsRow =
   | { kind: "volume"; which: "music" | "sound"; label: string }
   | { kind: "style"; label: string }
   | { kind: "key"; action: Action; label: string }
@@ -170,19 +134,16 @@ type Row =
   | { kind: "pad"; label: string }
   | { kind: "done"; label: string };
 
+export type OptionsFocus = "sound" | "keyboard" | "joystick";
+
 const styleName = (s: string) => `${s[0].toUpperCase()}${s.slice(1)}`;
 
-/**
- * The settings screen. `focus` puts the cursor on its sound, keyboard or gamepad part (the item
- * screen's Options rows); "joystick" starts the gamepad check. Changes apply and are kept at once.
- */
-export function showOptions(host: OptionsHost, focus: "sound" | "keyboard" | "joystick" = "sound"): Promise<void> {
+/** The settings screen's rows, labelled from the game's menu text where it has them. */
+export function optionsRows(styles: readonly string[]): OptionsRow[] {
   const opt = g.menuInt[3] ?? []; // Options, Load, Save, Music, Sound, Joystick, Keyboard, Done
   const keyMenu = g.menuInt[6] ?? []; // KEY CONFIG, UP ... RIGHT SIDEKICK, Reset to Defaults, Done
-  const styles = host.music.styles ?? [];
   const actionLabels = ["Up", "Down", "Left", "Right", "Fire", "Change fire", "Left sidekick", "Right sidekick"];
-
-  const rows: Row[] = [
+  return [
     { kind: "volume", which: "music", label: opt[3] || "Music" },
     { kind: "volume", which: "sound", label: opt[4] || "Sound" },
     ...(styles.length > 1 ? [{ kind: "style" as const, label: "Music style" }] : []),
@@ -191,114 +152,119 @@ export function showOptions(host: OptionsHost, focus: "sound" | "keyboard" | "jo
     { kind: "pad", label: "Check gamepad buttons" },
     { kind: "done", label: keyMenu[10] || "Done" },
   ];
-  const firstKeyRow = rows.findIndex((r) => r.kind === "key");
-  const sectionOf = (r: Row) => (r.kind === "volume" || r.kind === "style" ? 0 : r.kind === "key" || r.kind === "reset" ? 1 : r.kind === "pad" ? 2 : 3);
-  const sectionTitles = ["Sound", keyMenu[0] ? styleName(keyMenu[0].toLowerCase()) : "Keyboard", (g.menuInt[13] ?? [])[0] || "Gamepad", ""];
+}
 
-  let cur = focus === "keyboard" ? firstKeyRow : focus === "joystick" ? rows.findIndex((r) => r.kind === "pad") : 0;
-  let col = 0; // the key slot on a key row
-  let capturing = false;
-  let checking = focus === "joystick";
-  let bHeldSince = 0;
+/** What the settings rules act on besides the volumes and bindings (the screen, or a test). */
+export interface SettingsHost {
+  sound(sample: number): void;
+  /** The music styles to choose from (local remaster packs), and the one playing. */
+  styles: readonly string[];
+  style(): string | undefined;
+  setStyle(style: string): void;
+  /** Leave the settings screen. */
+  close(): void;
+}
 
-  const root = overlay(
-    "options",
-    `<div class="panel options-panel" role="dialog" aria-label="Options">
-      <h2>${esc(opt[0] || "Options")}</h2>
-      <div class="opt-list" data-k="list"></div>
-      <div class="opt-padcheck" data-k="pad" hidden></div>
-      <footer class="opt-help" data-k="help"></footer>
-    </div>`,
-  );
-  const el = (k: string) => root.querySelector<HTMLElement>(`[data-k="${k}"]`)!;
-  const list = el("list");
-  const padEl = el("pad");
+/**
+ * The settings screen's state and what each input does to it, apart from the page (so it's tested
+ * without a browser). Changes apply and are kept at once: volumes through JE_changeVolume and
+ * set_volume (the host saves them), bindings with savePrefs.
+ */
+export class SettingsMenu {
+  /** The focused row. */
+  cur: number;
+  /** The key slot on a key row. */
+  col = 0;
+  /** Waiting for the key to bind (KEY CONFIG's wait, game_menu.c L2683-2741). */
+  capturing = false;
+  /** The gamepad check is up instead of the list. */
+  checking: boolean;
+  private bHeldSince = 0;
 
-  const sound = (n: number) => host.sfx.playSampleNum(n);
+  constructor(
+    readonly rows: OptionsRow[],
+    focus: OptionsFocus,
+    private readonly host: SettingsHost,
+  ) {
+    this.cur = focus === "keyboard" ? rows.findIndex((r) => r.kind === "key") : focus === "joystick" ? rows.findIndex((r) => r.kind === "pad") : 0;
+    this.checking = focus === "joystick";
+  }
 
-  const helpText = (): string => {
-    const r = rows[cur];
-    if (checking) return "Press buttons and move the sticks to check them. Hold B (or press Esc) to finish.";
-    if (capturing) return g.miscText[32] || "Press the key to use for this function.";
-    switch (r.kind) {
-      case "volume": return g.mainMenuHelp[15 - 1] ?? "";
-      case "style": return "Change the music with the left/right arrow keys.";
-      case "key": return `${g.mainMenuHelp[20 - 1] ?? ""} Left/right picks the first or second key; Delete clears it.`;
-      case "reset": return g.mainMenuHelp[25 - 1] ?? "";
-      case "pad": return "See which gamepad buttons the game reads, and what they do.";
-      case "done": return g.mainMenuHelp[12 - 1] ?? "";
-    }
-  };
+  get row(): OptionsRow {
+    return this.rows[this.cur];
+  }
 
-  const rowHtml = (r: Row, i: number): string => {
-    const cls = ["opt-row", `opt-${r.kind}`]; // (not "key": overlay.css styles .panel .key)
-    if (i === cur) cls.push("cur");
-    if (r.kind === "done") cls.push("done");
-    let body = `<span class="lbl">${esc(r.label)}</span>`;
-    if (r.kind === "volume") body += volumeBarHtml(r.which === "music" ? volume.tyrMusicVolume : volume.fxVolume, r.which);
-    if (r.kind === "style") {
-      body += `<span class="opt-styles">${styles
-        .map((s) => `<button type="button" data-style="${esc(s)}" class="${s === host.music.style ? "on" : ""}">${esc(styleName(s))}</button>`)
-        .join("")}</span>`;
-    }
-    if (r.kind === "key") {
-      for (let slot = 0; slot < BINDING_SLOTS; slot++) {
-        const c = keys[r.action][slot];
-        const sel = i === cur && slot === col;
-        const wait = sel && capturing;
-        body += `<button type="button" class="opt-slot${sel ? " sel" : ""}${wait ? " wait" : ""}${c ? "" : " none"}" data-slot="${slot}">${wait ? "…" : esc(keyName(c))}</button>`;
+  /**
+   * An intent from the framework (keys, pad). While a key is awaited the keyboard goes to key();
+   * the pad's B cancels. During the gamepad check the pad's buttons are being checked, not used:
+   * only the keyboard's Escape (or holding B, padHold) ends it.
+   */
+  intent(intent: Intent, device: InputDevice): void {
+    const sound = this.host.sound;
+    if (this.checking || this.capturing) {
+      if (intent === "back" && (this.capturing || device !== "pad")) {
+        this.checking = this.capturing = false;
+        sound(S_SPRING);
       }
+      return;
     }
-    return `<div class="${cls.join(" ")}" data-i="${i}">${body}</div>`;
-  };
-
-  const render = () => {
-    let html = "";
-    let section = -1;
-    rows.forEach((r, i) => {
-      const s = sectionOf(r);
-      if (s !== section) {
-        section = s;
-        if (sectionTitles[s]) html += `<h3>${esc(sectionTitles[s])}</h3>`;
+    const r = this.row;
+    switch (intent) {
+      case "up":
+      case "down":
+        this.cur = moveFocus(this.rows.length, this.cur, intent === "up" ? -1 : 1);
+        sound(S_CURSOR);
+        break;
+      case "left":
+      case "right": {
+        const dir = intent === "left" ? -1 : 1;
+        if (r.kind === "volume") this.changeVolume(r.which, dir);
+        else if (r.kind === "style") this.changeStyle(dir);
+        else if (r.kind === "key") {
+          this.col = (this.col + dir + BINDING_SLOTS) % BINDING_SLOTS;
+          sound(S_CURSOR);
+        }
+        break;
       }
-      html += rowHtml(r, i);
-    });
-    list.innerHTML = html;
-    list.hidden = checking; // the check takes the list's place
-    padEl.hidden = !checking;
-    el("help").innerHTML = highlight(helpText());
-    list.querySelector(".cur")?.scrollIntoView({ block: "nearest" });
-  };
+      case "accept":
+        this.activate();
+        break;
+      case "back":
+        sound(S_SPRING);
+        this.host.close();
+        break;
+    }
+  }
 
-  let stopPad: () => void = () => {};
-  let resolveDone: () => void = () => {};
-  const done = new Promise<void>((r) => (resolveDone = r));
-  const close = () => {
-    stopPad();
-    window.removeEventListener("keydown", onKey, true);
-    closeOverlay(root);
-    resolveDone();
-  };
+  /**
+   * A raw key, before it becomes an intent. While a key is awaited every key is taken (Escape
+   * cancels, reserved keys clink); on a key row Delete or Backspace clears the slot. True if used.
+   */
+  key(code: string, repeat = false): boolean {
+    if (this.capturing) {
+      if (!repeat) this.capture(code);
+      return true;
+    }
+    const r = this.row;
+    if (!this.checking && r.kind === "key" && (code === "Delete" || code === "Backspace")) {
+      clearKey(r.action, this.col);
+      savePrefs();
+      this.host.sound(S_CLICK);
+      return true;
+    }
+    return false;
+  }
 
-  const changeVolume = (which: "music" | "sound", dir: number) => {
-    sound(S_CURSOR);
-    JE_changeVolume(which === "music" ? dir * VOLUME_STEP : 0, which === "sound" ? dir * VOLUME_STEP : 0, sound);
-  };
-  const changeStyle = (dir: number) => {
-    const i = styles.indexOf(host.music.style ?? "original");
-    host.music.setStyle?.(styles[(i + dir + styles.length) % styles.length]);
-    sound(S_CURSOR);
-  };
-
-  const activate = () => {
-    const r = rows[cur];
-    switch (r.kind) {
+  /** Enter / A on the focused row. */
+  activate(): void {
+    const sound = this.host.sound;
+    switch (this.row.kind) {
       case "style":
-        changeStyle(1);
+        this.changeStyle(1);
         break;
       case "key":
         sound(S_CLICK);
-        capturing = true;
+        this.capturing = true;
         break;
       case "reset":
         sound(S_CLICK);
@@ -307,167 +273,311 @@ export function showOptions(host: OptionsHost, focus: "sound" | "keyboard" | "jo
         break;
       case "pad":
         sound(S_CLICK);
-        checking = true;
-        bHeldSince = 0;
+        this.checking = true;
+        this.bHeldSince = 0;
         break;
       case "done":
         sound(S_CLICK);
-        close();
-        return;
-    }
-    render();
-  };
-
-  const menuKey = (k: PadKey) => {
-    if (checking || capturing) {
-      if (k === "esc") {
-        checking = capturing = false;
-        sound(S_SPRING);
-        render();
-      }
-      return;
-    }
-    const r = rows[cur];
-    switch (k) {
-      case "up":
-      case "down":
-        cur = (cur + (k === "up" ? -1 : 1) + rows.length) % rows.length;
-        sound(S_CURSOR);
+        this.host.close();
         break;
-      case "left":
-      case "right": {
-        const dir = k === "left" ? -1 : 1;
-        if (r.kind === "volume") changeVolume(r.which, dir);
-        else if (r.kind === "style") changeStyle(dir);
-        else if (r.kind === "key") {
-          col = (col + dir + BINDING_SLOTS) % BINDING_SLOTS;
-          sound(S_CURSOR);
+    }
+  }
+
+  /**
+   * A tap or click on row `i`, on one of its key slots or music styles if `part` says so. A tap
+   * while a key is awaited or the gamepad is checked only cancels that, as a click does in the C.
+   */
+  tap(i: number, part: { slot?: number; style?: string } = {}): void {
+    if (this.cancelWait()) return;
+    this.cur = i;
+    const r = this.row;
+    if (part.style !== undefined && r.kind === "style") {
+      this.host.setStyle(part.style);
+      this.host.sound(S_CURSOR);
+    } else if (part.slot !== undefined && r.kind === "key") {
+      this.col = part.slot;
+      this.activate();
+    } else if (r.kind !== "volume" && r.kind !== "key") this.activate();
+  }
+
+  /** A tap or drag on row `i`'s volume bar, `cells` cells along it (volumeCellsAt). */
+  setVolumeCells(i: number, cells: number): void {
+    if (this.cancelWait()) return;
+    this.cur = i;
+    const r = this.row;
+    if (r.kind !== "volume") return;
+    const v = volumeFromBarCells(cells);
+    if (r.which === "music") volume.tyrMusicVolume = v;
+    else volume.fxVolume = v;
+    set_volume(volume.tyrMusicVolume, volume.fxVolume);
+    this.host.sound(S_CURSOR);
+  }
+
+  /** Stop waiting for a key and end the gamepad check, silently; true if either was on. */
+  cancelWait(): boolean {
+    const was = this.capturing || this.checking;
+    this.capturing = this.checking = false;
+    return was;
+  }
+
+  /** The gamepad check, every frame: holding B for PAD_CHECK_HOLD_MS ends it. True when it ended. */
+  padHold(bPressed: boolean, now: number): boolean {
+    if (!this.checking) return false;
+    if (!bPressed) this.bHeldSince = 0;
+    else if (!this.bHeldSince) this.bHeldSince = now;
+    else if (now - this.bHeldSince > PAD_CHECK_HOLD_MS) {
+      this.checking = false;
+      this.bHeldSince = 0;
+      this.host.sound(S_SPRING);
+      return true;
+    }
+    return false;
+  }
+
+  /** The help line: the game's own help text for the row where it has one. */
+  helpText(): string {
+    if (this.checking) return "Press buttons and move the sticks to check them. Hold B (or press Esc) to finish.";
+    if (this.capturing) return g.miscText[32] || "Press the key to use for this function.";
+    switch (this.row.kind) {
+      case "volume": return g.mainMenuHelp[15 - 1] ?? "";
+      case "style": return "Change the music with the left/right arrow keys.";
+      case "key": return `${g.mainMenuHelp[20 - 1] ?? ""} Left/right picks the first or second key; Delete clears it.`;
+      case "reset": return g.mainMenuHelp[25 - 1] ?? "";
+      case "pad": return "See which gamepad buttons the game reads, and what they do.";
+      case "done": return g.mainMenuHelp[12 - 1] ?? "";
+    }
+  }
+
+  private changeVolume(which: "music" | "sound", dir: number): void {
+    this.host.sound(S_CURSOR);
+    JE_changeVolume(which === "music" ? dir * VOLUME_STEP : 0, which === "sound" ? dir * VOLUME_STEP : 0, this.host.sound);
+  }
+
+  private changeStyle(dir: number): void {
+    const styles = this.host.styles;
+    const i = styles.indexOf(this.host.style() ?? "original");
+    this.host.setStyle(styles[(i + dir + styles.length) % styles.length]);
+    this.host.sound(S_CURSOR);
+  }
+
+  /** The awaited key (game_menu.c L2683-2741): Escape cancels, reserved keys clink. */
+  private capture(code: string): void {
+    const r = this.row;
+    this.capturing = false;
+    if (code === "Escape") this.host.sound(S_SPRING);
+    else if (r.kind === "key" && bindKey(r.action, this.col, code)) {
+      this.host.sound(S_CLICK);
+      savePrefs();
+    } else this.host.sound(S_CLINK);
+  }
+}
+
+// --- The settings screen ---
+
+/**
+ * The settings screen. `focus` puts the cursor on its sound, keyboard or gamepad part (the item
+ * screen's Options rows); "joystick" starts the gamepad check. Changes apply and are kept at once.
+ * Shown over the screen that opened it, which waits underneath.
+ */
+export function showOptions(host: OptionsHost, focus: OptionsFocus = "sound"): Promise<void> {
+  return new Promise((resolve) => {
+    const styles = host.music.styles ?? [];
+    const sound = (n: number) => host.sfx.playSampleNum(n);
+    let raf = 0;
+    const finish = () => {
+      if (!screen.open) return;
+      cancelAnimationFrame(raf);
+      screen.close();
+      resolve();
+    };
+    const menu = new SettingsMenu(optionsRows(styles), focus, {
+      sound,
+      styles,
+      style: () => host.music.style,
+      setStyle: (s) => host.music.setStyle?.(s),
+      close: finish,
+    });
+    const rows = menu.rows;
+
+    const screen = showScreen({
+      id: "options",
+      over: true,
+      layout: "center",
+      label: "Options",
+      // Raw keys first, so the key being bound never becomes an intent (or reaches the game).
+      onKey: (e) => {
+        const used = menu.key(e.code, e.repeat);
+        if (used) paint();
+        return used;
+      },
+      onIntent: (intent, device) => {
+        menu.intent(intent, device);
+        paint();
+        return true;
+      },
+    });
+
+    // The rows, in sections: Sound, Keyboard (the C's KEY CONFIG), Gamepad, then Done.
+    const keyMenu = g.menuInt[6] ?? [];
+    const sectionOf = (r: OptionsRow) => (r.kind === "volume" || r.kind === "style" ? 0 : r.kind === "key" || r.kind === "reset" ? 1 : r.kind === "pad" ? 2 : 3);
+    const sectionTitles = ["Sound", keyMenu[0] ? styleName(keyMenu[0].toLowerCase()) : "Keyboard", (g.menuInt[13] ?? [])[0] || "Gamepad", ""];
+    const list = h("ul", { class: "ui-menu opt-list", attrs: { role: "listbox", "aria-label": "Settings" } });
+    const rowEls: HTMLLIElement[] = [];
+    let section = -1;
+    rows.forEach((r, i) => {
+      const s = sectionOf(r);
+      if (s !== section) {
+        section = s;
+        if (sectionTitles[s]) list.append(h("li", { class: "ui-label opt-section", attrs: { role: "presentation" }, text: sectionTitles[s] }));
+      }
+      const li = h("li", { class: `ui-menu__item opt-row opt-row--${r.kind}`, attrs: { role: "option", "data-i": String(i) } }, h("span", { class: "ui-menu__label opt-row__label", text: r.label }));
+      if (r.kind === "volume") li.insertAdjacentHTML("beforeend", volumeSliderHtml(0, r.which, r.label));
+      if (r.kind === "style") {
+        li.append(h("span", { class: "opt-styles" }, ...styles.map((st) => h("button", { class: "opt-chip", text: styleName(st), attrs: { type: "button", tabindex: "-1", "data-style": st } }))));
+      }
+      if (r.kind === "key") {
+        li.append(
+          h("span", { class: "opt-keys" }, ...Array.from({ length: BINDING_SLOTS }, (_, slot) => h("button", { class: "opt-key", attrs: { type: "button", tabindex: "-1", "data-slot": String(slot) } }))),
+        );
+      }
+      rowEls.push(li);
+      list.append(li);
+    });
+    const padEl = h("div", { class: "opt-padcheck", attrs: { hidden: "", role: "status" } });
+    const help = h("p", { class: "opt-help", attrs: { "aria-live": "polite" } });
+    const hints = h("div", { class: "opt-hints" });
+    // The help and hints stay in view at the panel's foot while the rows scroll.
+    const foot = h("div", { class: "opt-foot" }, help, hints);
+
+    screen.panel.append(backButton(() => (menu.intent("back", "touch"), paint())));
+    screen.add(title((g.menuInt[3] ?? [])[0] || "Options", "Settings"), list, padEl, foot);
+
+    /** The key hints for what the focused row (or the wait, or the check) takes. */
+    const hintsFor = (): KeyHint[] => {
+      if (menu.checking) return [{ key: "Esc", pad: "Hold B", touch: "Tap", label: "Finish" }];
+      if (menu.capturing) return [{ key: "Any key", label: "Bind" }, { key: "Esc", pad: "B", touch: "Tap", label: "Cancel" }];
+      const kind = menu.row.kind;
+      const side: Partial<Record<OptionsRow["kind"], KeyHint>> = {
+        volume: { key: "←→", pad: "✛", touch: "Drag", label: "Volume" },
+        style: { key: "←→", pad: "✛", label: "Music" },
+        key: { key: "←→", pad: "✛", label: "Key slot" },
+      };
+      return [
+        { key: "↑↓", pad: "✛", label: "Move" },
+        ...(side[kind] ? [side[kind]] : []),
+        ...(kind === "volume" ? [] : [{ key: "Enter", pad: "A", touch: "Tap", label: kind === "key" ? "Change key" : "Select" }]),
+        ...(kind === "key" ? [{ key: "Del", label: "Clear" }] : []),
+        { key: "Esc", pad: "B", label: "Back" },
+      ];
+    };
+    let hintsId = "";
+
+    /** Draw the state: focus, values, the awaited key, the check, the help and hints. */
+    const paint = () => {
+      rows.forEach((r, i) => {
+        const li = rowEls[i];
+        const focused = i === menu.cur;
+        li.classList.toggle("is-focused", focused);
+        li.setAttribute("aria-selected", String(focused));
+        if (r.kind === "volume") setVolumeSlider(li.querySelector<HTMLElement>(".opt-vol")!, r.which === "music" ? volume.tyrMusicVolume : volume.fxVolume);
+        if (r.kind === "style") li.querySelectorAll<HTMLElement>("[data-style]").forEach((b) => b.classList.toggle("is-on", b.dataset.style === host.music.style));
+        if (r.kind === "key") {
+          li.querySelectorAll<HTMLElement>("[data-slot]").forEach((b, slot) => {
+            const code = keys[r.action][slot];
+            const sel = focused && slot === menu.col;
+            const wait = sel && menu.capturing;
+            b.textContent = wait ? "…" : keyName(code);
+            b.classList.toggle("is-focused", sel);
+            b.classList.toggle("is-waiting", wait);
+            b.classList.toggle("is-none", !code);
+          });
         }
-        break;
+      });
+      list.hidden = menu.checking; // the check takes the list's place
+      padEl.hidden = !menu.checking;
+      help.innerHTML = highlight(menu.helpText());
+      const id = `${menu.checking} ${menu.capturing} ${menu.row.kind}`;
+      if (id !== hintsId) {
+        hintsId = id;
+        hints.replaceChildren(keyHints(hintsFor()));
       }
-      case "enter":
-        activate();
+      if (!menu.checking) reveal(rowEls[menu.cur]);
+    };
+
+    // Taps and clicks: a row focuses (and does what Enter would, except on volume and key rows);
+    // a key slot waits for its key; a music style plays it. Volume bars take a tap or a drag.
+    list.addEventListener("click", (e) => {
+      const t = e.target as HTMLElement;
+      const rowEl = t.closest<HTMLElement>("[data-i]");
+      if (!rowEl || t.closest(".opt-vol")) return;
+      const slot = t.closest<HTMLElement>("[data-slot]")?.dataset.slot;
+      menu.tap(Number(rowEl.dataset.i), { slot: slot === undefined ? undefined : Number(slot), style: t.closest<HTMLElement>("[data-style]")?.dataset.style });
+      paint();
+    });
+    let drag: { pointer: number; i: number; bar: HTMLElement; cells: number } | null = null;
+    list.addEventListener("pointerdown", (e) => {
+      const bar = (e.target as HTMLElement).closest<HTMLElement>(".opt-vol");
+      const rowEl = bar?.closest<HTMLElement>("[data-i]");
+      if (!bar || !rowEl || drag) return;
+      e.preventDefault();
+      const i = Number(rowEl.dataset.i);
+      if (menu.cancelWait()) return paint();
+      drag = { pointer: e.pointerId, i, bar, cells: volumeBarCells(e, bar) };
+      bar.setPointerCapture?.(e.pointerId);
+      menu.setVolumeCells(i, drag.cells);
+      paint();
+    });
+    list.addEventListener("pointermove", (e) => {
+      if (!drag || e.pointerId !== drag.pointer) return;
+      const cells = volumeBarCells(e, drag.bar);
+      if (cells === drag.cells) return;
+      drag.cells = cells;
+      menu.setVolumeCells(drag.i, cells);
+      paint();
+    });
+    const endDrag = (e: PointerEvent) => {
+      if (drag && e.pointerId === drag.pointer) drag = null;
+    };
+    list.addEventListener("pointerup", endDrag);
+    list.addEventListener("pointercancel", endDrag);
+    padEl.addEventListener("click", () => {
+      menu.cancelWait();
+      paint();
+    });
+
+    // The gamepad check: every button and both sticks, live, with what the game does with them.
+    const drawPad = (now: number) => {
+      const pad = (navigator.getGamepads?.() ?? []).find((p): p is Gamepad => !!p);
+      if (!pad) {
+        padEl.innerHTML = `<p class="opt-pad__none">No gamepad found. Connect one and press a button.</p>`;
         return;
-      case "esc":
-        sound(S_SPRING);
-        close();
-        return;
-    }
-    render();
-  };
-
-  /** The KEY CONFIG wait for a key (game_menu.c L2683-2741): Escape cancels, reserved keys clink. */
-  const capture = (code: string) => {
-    const r = rows[cur];
-    capturing = false;
-    if (code === "Escape") sound(S_SPRING);
-    else if (r.kind === "key" && bindKey(r.action, col, code)) {
-      sound(S_CLICK);
-      savePrefs();
-    } else sound(S_CLINK);
-    render();
-  };
-
-  const onKey = (e: KeyboardEvent) => {
-    const r = rows[cur];
-    const clear = !checking && !capturing && r.kind === "key" && (e.code === "Delete" || e.code === "Backspace");
-    const k = KEYS_TO_MENU[e.code];
-    if (!capturing && !clear && !k) return;
-    e.preventDefault();
-    e.stopImmediatePropagation();
-    if (capturing) {
-      if (!e.repeat) capture(e.code);
-    } else if (clear && r.kind === "key") {
-      clearKey(r.action, col);
-      savePrefs();
-      sound(S_CLICK);
-      render();
-    } else if (k) menuKey(k);
-  };
-  window.addEventListener("keydown", onKey, true);
-
-  list.addEventListener("click", (e) => {
-    const t = e.target as HTMLElement;
-    const rowEl = t.closest<HTMLElement>("[data-i]");
-    if (!rowEl) return;
-    if (capturing || checking) {
-      capturing = false; // a click cancels the wait, as in the C
-      checking = false;
-      render();
-      return;
-    }
-    cur = Number(rowEl.dataset.i);
-    const r = rows[cur];
-    const bar = t.closest<HTMLElement>(".vol-bar");
-    const styleBtn = t.closest<HTMLElement>("[data-style]");
-    const slotBtn = t.closest<HTMLElement>("[data-slot]");
-    if (bar && r.kind === "volume") {
-      const v = volumeFromBarCells(volumeBarCells(e, bar));
-      if (r.which === "music") volume.tyrMusicVolume = v;
-      else volume.fxVolume = v;
-      set_volume(volume.tyrMusicVolume, volume.fxVolume);
-      sound(S_CURSOR);
-      render();
-    } else if (styleBtn && r.kind === "style") {
-      host.music.setStyle?.(styleBtn.dataset.style!);
-      sound(S_CURSOR);
-      render();
-    } else if (slotBtn && r.kind === "key") {
-      col = Number(slotBtn.dataset.slot);
-      activate();
-    } else if (r.kind !== "volume" && r.kind !== "key") {
-      activate();
-    } else render();
-  });
-
-  // The gamepad check: every button and both sticks, live, with what the game does with them.
-  const drawPad = (pads: Gamepad[], now: number) => {
-    if (!checking) return;
-    const pad = pads[0];
-    if (!pad) {
-      padEl.innerHTML = `<p>No gamepad found. Connect one and press a button.</p>`;
-      return;
-    }
-    const b = (i: number) => pad.buttons[i];
-    const standard = pad.mapping === "standard";
-    const chips = pad.buttons
-      .map((btn, i) => {
-        const [name, use] = standard ? (PAD_BUTTONS[i] ?? [`${i}`, ""]) : [`${i}`, ""];
-        const fill = Math.round((btn.value || (btn.pressed ? 1 : 0)) * 100);
-        return `<span class="chip${btn.pressed ? " on" : ""}" style="--fill:${fill}%"><b>${esc(name)}</b>${use ? `<small>${esc(use)}</small>` : ""}</span>`;
-      })
-      .join("");
-    const stick = (x = 0, y = 0, label: string) =>
-      `<span class="stick"><i style="left:${50 + x * 40}%;top:${50 + y * 40}%"></i><small>${label}</small></span>`;
-    padEl.innerHTML = `
-      <p class="pad-id">${esc(pad.id)}${standard ? "" : " · non-standard layout: buttons by number, the game expects the standard one"}</p>
-      <div class="sticks">${stick(pad.axes[0], pad.axes[1], "Left stick · Move")}${stick(pad.axes[2], pad.axes[3], "Right stick")}</div>
-      <div class="chips">${chips}</div>
-      <p class="hint">Hold B to finish</p>`;
-    // Hold B (button 1) for a second to leave the check: a press alone is part of the check.
-    if (b(1)?.pressed) {
-      if (!bHeldSince) bHeldSince = now;
-      else if (now - bHeldSince > 1000) {
-        checking = false;
-        bHeldSince = 0;
-        sound(S_SPRING);
-        render();
       }
-    } else bHeldSince = 0;
-  };
-  padEl.addEventListener("click", () => {
-    checking = false;
-    render();
+      const standard = pad.mapping === "standard";
+      const chips = pad.buttons
+        .map((btn, i) => {
+          const [name, use] = standard ? (PAD_BUTTONS[i] ?? [`${i}`, ""]) : [`${i}`, ""];
+          const fill = Math.round((btn.value || (btn.pressed ? 1 : 0)) * 100);
+          return `<span class="opt-pad__chip${btn.pressed ? " is-on" : ""}" style="--fill:${fill}%"><b>${esc(name)}</b>${use ? `<small>${esc(use)}</small>` : ""}</span>`;
+        })
+        .join("");
+      const stick = (x = 0, y = 0, label: string) =>
+        `<span class="opt-pad__stick"><i style="left:${50 + x * 40}%;top:${50 + y * 40}%"></i><small>${label}</small></span>`;
+      padEl.innerHTML = `
+        <p class="opt-pad__id">${esc(pad.id)}${standard ? "" : " · non-standard layout: buttons by number, the game expects the standard one"}</p>
+        <div class="opt-pad__sticks">${stick(pad.axes[0], pad.axes[1], "Left stick · Move")}${stick(pad.axes[2], pad.axes[3], "Right stick")}</div>
+        <div class="opt-pad__chips">${chips}</div>`;
+      // Hold B (button 1) to leave the check.
+      if (menu.padHold(!!pad.buttons[1]?.pressed, now)) paint();
+    };
+    const frame = (now: number) => {
+      if (!screen.open) return;
+      if (menu.checking) drawPad(now);
+      raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
+
+    paint();
   });
-
-  stopPad = pollPad((k) => {
-    if (checking) return; // buttons are being checked, not used
-    if (capturing && k === "esc") return menuKey("esc");
-    if (!capturing) menuKey(k);
-  }, drawPad);
-
-  render();
-  return done;
 }
 
 // --- JE_loadScreen ---
@@ -481,44 +591,21 @@ export function showOptions(host: OptionsHost, focus: "sound" | "keyboard" | "jo
 export function showLoadScreen(host: Pick<OptionsHost, "sfx">): Promise<number | null> {
   const menuItemsCount = 12;
   const slots: SaveSlotView[] = saveSlotViews(1, menuItemsCount - 1);
-  let selectedIndex = 0;
   const sound = (n: number) => host.sfx.playSampleNum(n);
-  const root = overlay(
-    "options load-screen",
-    `<div class="panel options-panel" role="dialog" aria-label="Load game">
-      <h2>${esc(g.miscText[38] || "One Player Saved Games")}</h2>
-      <div class="opt-list slots" data-k="list" role="listbox"></div>
-      <footer class="opt-help">${esc(g.mainMenuHelp[21 - 1] ?? "")}</footer>
-    </div>`,
-  );
-  const list = root.querySelector<HTMLElement>('[data-k="list"]')!;
   const lastLevel = g.miscTextB[3 - 1] || "Last Level";
   const episode = g.miscTextB[2 - 1] || "Episode";
 
-  const render = () => {
-    list.innerHTML =
-      slots
-        .map((s, i) => {
-          const cls = `opt-row slot${i === selectedIndex ? " cur" : ""}${s.empty ? " empty" : ""}`;
-          return `<div class="${cls}" data-i="${i}" role="option" aria-selected="${i === selectedIndex}">
-            <span class="slot-name">${esc(s.name)}</span>
-            <span class="slot-level">${esc(lastLevel)} ${s.empty ? "-----" : esc(s.levelName)}</span>
-            <span class="slot-ep">${s.empty ? "" : `${esc(episode)} ${s.episode}`}</span></div>`;
-        })
-        .join("") +
-      `<div class="opt-row done${selectedIndex === menuItemsCount - 1 ? " cur" : ""}" data-i="${menuItemsCount - 1}" role="option">${esc(g.miscText[33] || "Exit to Main Menu")}</div>`;
-    list.querySelector(".cur")?.scrollIntoView({ block: "nearest" });
-  };
-
   return new Promise((resolve) => {
-    let stopPad: () => void = () => {};
     const finish = (slot: number | null) => {
-      stopPad();
-      window.removeEventListener("keydown", onKey, true);
-      closeOverlay(root);
+      if (!screen.open) return;
+      screen.close();
       resolve(slot);
     };
-    const action = () => {
+    const back = () => {
+      sound(S_SPRING);
+      finish(null);
+    };
+    const action = (selectedIndex: number) => {
       if (selectedIndex === menuItemsCount - 1) {
         // "Exit to Main Menu"
         sound(S_SELECT);
@@ -531,50 +618,37 @@ export function showLoadScreen(host: Pick<OptionsHost, "sfx">): Promise<number |
         finish(s.slot);
       }
     };
-    const key = (k: PadKey) => {
-      switch (k) {
-        case "up":
-          sound(S_CURSOR);
-          selectedIndex = selectedIndex === 0 ? menuItemsCount - 1 : selectedIndex - 1;
-          break;
-        case "down":
-          sound(S_CURSOR);
-          selectedIndex = selectedIndex === menuItemsCount - 1 ? 0 : selectedIndex + 1;
-          break;
-        case "enter":
-          return action();
-        case "esc":
-          sound(S_SPRING);
-          return finish(null);
-        default:
-          return;
-      }
-      render();
-    };
-    const onKey = (e: KeyboardEvent) => {
-      const k = KEYS_TO_MENU[e.code];
-      if (!k) return;
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      key(k);
-    };
-    window.addEventListener("keydown", onKey, true);
-    list.addEventListener("click", (e) => {
-      const row = (e.target as HTMLElement).closest<HTMLElement>("[data-i]");
-      if (!row) return;
-      const i = Number(row.dataset.i);
-      if (i !== selectedIndex) sound(S_CURSOR);
-      selectedIndex = i;
-      render();
-      action();
+    const screen = showScreen({ id: "load", over: true, layout: "center", label: "Load game", onBack: back });
+    const list = new MenuList({
+      label: "Saved games",
+      class: "load-list",
+      items: [
+        ...slots.map((s) => ({
+          label: s.name,
+          detail: `${lastLevel} ${s.empty ? "-----" : s.levelName}`,
+          badge: s.empty ? undefined : `${episode} ${s.episode}`,
+          class: s.empty ? "is-empty" : "",
+        })),
+        { label: g.miscText[33] || "Exit to Main Menu", class: "load-exit" },
+      ],
+      onFocus: () => sound(S_CURSOR),
+      onSelect: action,
     });
-    list.addEventListener("contextmenu", (e) => {
+    list.el.addEventListener("contextmenu", (e) => {
       e.preventDefault(); // the C's right click: back
-      sound(S_SPRING);
-      finish(null);
+      back();
     });
-    stopPad = pollPad(key);
-    render();
+    screen.panel.append(backButton(back));
+    screen.add(
+      title(g.miscText[38] || "One Player Saved Games", "Load game"),
+      list,
+      h("p", { class: "opt-help", text: g.mainMenuHelp[21 - 1] ?? "" }),
+      keyHints([
+        { key: "↑↓", pad: "✛", label: "Move" },
+        { key: "Enter", pad: "A", touch: "Tap", label: "Load" },
+        { key: "Esc", pad: "B", label: "Back" },
+      ]),
+    );
   });
 }
 
@@ -582,60 +656,41 @@ export function showLoadScreen(host: Pick<OptionsHost, "sfx">): Promise<number |
 
 /**
  * The save-name dialog of JE_operation (mainint.c L2729-2843): "Save name:" with the slot's name to
- * edit (at most 14 characters the font has), above the last level's name. Resolves with the name
- * on Enter or OK, or null on Escape or CANCEL; JE_itemScreen_operation then saves (or not).
+ * edit (at most 14 characters the font has), under the last level's name. Resolves with the name
+ * on Enter, A or OK, or null on Escape, B or CANCEL; JE_itemScreen_operation then saves (or not).
+ * Shown over the item screen, which stays in view.
  */
 export function promptSaveName(host: Pick<OptionsHost, "sfx">, initial: string): Promise<string | null> {
   const sound = (n: number) => host.sfx.playSampleNum(n);
-  const root = overlay(
-    "options save-name",
-    `<div class="panel options-panel save-box" role="dialog" aria-label="Save game">
-      <p>${highlight(g.miscText[1 - 1] || "Last Level Completed")}</p>
-      <p class="level">${esc(g.levelName.trim())}</p>
-      <label><span>${highlight(g.miscText[2 - 1] || "~Save name: ~")}</span>
-        <input type="text" maxlength="14" spellcheck="false" autocomplete="off" /></label>
-      <div class="choices row">
-        <button type="button" data-act="ok">${esc(g.miscText[9] || "OK")}</button>
-        <button type="button" data-act="cancel">${esc(g.miscText[10] || "CANCEL")}</button>
-      </div>
-    </div>`,
-  );
-  const input = root.querySelector<HTMLInputElement>("input")!;
-  input.value = initial;
-  let last = initial;
-
   return new Promise((resolve) => {
-    let stopPad: () => void = () => {};
+    const input = h("input", { class: "save-name__input", attrs: { type: "text", maxlength: "14", spellcheck: "false", autocomplete: "off", "aria-label": "Save name" } });
+    input.value = initial;
+    let last = initial;
     const finish = (name: string | null) => {
-      stopPad();
-      window.removeEventListener("keydown", onKey, true);
-      closeOverlay(root);
+      if (!screen.open) return;
+      screen.close();
       resolve(name);
     };
-    // Window-level keys for when the field isn't focused (and the gamepad's A/B).
-    const onKey = (e: KeyboardEvent) => {
-      if (e.target === input) return;
-      if (e.code === "Enter" || e.code === "NumpadEnter") finish(input.value);
-      else if (e.code === "Escape") finish(null);
-      else {
-        input.focus();
-        return;
-      }
-      e.preventDefault();
-      e.stopImmediatePropagation();
-    };
-    window.addEventListener("keydown", onKey, true);
-    input.addEventListener("keydown", (e) => {
-      // Keep the game's key handlers (which take Space, letters and Backspace) out of the typing.
-      e.stopPropagation();
-      if (e.code === "Enter" || e.code === "NumpadEnter") {
-        e.preventDefault();
-        finish(input.value);
-      } else if (e.code === "Escape") {
-        e.preventDefault();
-        finish(null);
-      }
+    const screen = showScreen({
+      id: "save-name",
+      over: "show",
+      scrim: true,
+      layout: "narrow",
+      label: "Save game",
+      // The framework leaves keys typed into the field alone, except Enter and Escape (intents
+      // below). Typing with the field unfocused puts the focus back in it.
+      onKey: (e) => {
+        if (e.target !== input) input.focus();
+        return false;
+      },
+      onIntent: (intent) => {
+        if (intent === "accept") finish(input.value);
+        else if (intent === "back") finish(null);
+        return true;
+      },
     });
+    // Keep the game's key handlers (which take Space, letters and Backspace) out of the typing.
+    input.addEventListener("keydown", (e) => e.stopPropagation());
     input.addEventListener("input", () => {
       const v = [...input.value].filter(saveNameChar).join("").slice(0, 14);
       if (v !== input.value) input.value = v;
@@ -643,14 +698,21 @@ export function promptSaveName(host: Pick<OptionsHost, "sfx">, initial: string):
       else if (v.length < last.length) sound(S_CLICK);
       last = v;
     });
-    root.addEventListener("click", (e) => {
-      const b = (e.target as HTMLElement).closest<HTMLElement>("[data-act]");
-      if (b) finish(b.dataset.act === "ok" ? input.value : null);
+    // A tap outside the field (on OK, or beside it) leaves the focus, and a phone's keyboard, there.
+    screen.root.addEventListener("mousedown", (e) => {
+      if (e.target !== input) e.preventDefault();
     });
-    stopPad = pollPad((k) => {
-      if (k === "enter") finish(input.value);
-      else if (k === "esc") finish(null);
-    });
+    const lastLevel = (g.miscText[1 - 1] || "Last Level Completed").replace(/~/g, "");
+    screen.add(
+      title(g.levelName.trim() || "-----", lastLevel),
+      h("label", { class: "save-name__field" }, h("span", { html: highlight(g.miscText[2 - 1] || "~Save name: ~") }), input),
+      h(
+        "div",
+        { class: "ui-actions" },
+        button({ label: g.miscText[9] || "OK", variant: "primary", hint: { key: "Enter", pad: "A" }, onPress: () => finish(input.value) }),
+        button({ label: g.miscText[10] || "CANCEL", hint: { key: "Esc", pad: "B" }, onPress: () => finish(null) }),
+      ),
+    );
     input.focus();
     input.select();
   });

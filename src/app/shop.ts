@@ -226,21 +226,22 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
 
   /**
    * [port-options] The Options menu's requests: the settings screen, and JE_operation (a load
-   * runs at once; a save asks for the name first). True while a screen of options.ts is up; it
-   * has the keys and pads meanwhile (Screen.aside), and the item screen stays in view under it.
+   * runs at once; a save asks for the name first). True while a screen of options.ts is up;
+   * [restyle-options] it is shown over this one (ScreenOptions.over), which gets the input back
+   * when it closes.
    */
   const optionsRequests = (): boolean => {
     if (menu.setupRequest) {
       const section = menu.setupRequest;
       menu.setupRequest = null;
-      void screen.aside(() => showOptions(host, section), { hide: false }).then(() => step());
+      void showOptions(host, section).then(() => step());
       return true;
     }
     if (menu.operationRequest) {
       const name = menu.performSave ? JE_operation_saveName(menu.operationRequest) : null;
       if (name === null) JE_itemScreen_operation(host.files);
       else {
-        void screen.aside(() => promptSaveName(host, name), { hide: false }).then((n) => {
+        void promptSaveName(host, name).then((n) => {
           JE_itemScreen_operation(host.files, n);
           step();
         });
