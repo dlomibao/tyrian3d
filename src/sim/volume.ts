@@ -71,3 +71,11 @@ export function volumeFromBarCells(cells: number): number {
   const v = Math.trunc(cells) * VOLUME_STEP;
   return v > 255 ? 255 : v < 0 ? 0 : v;
 }
+
+/**
+ * The mixer's gain for a volume (loudness.c L123-125, volumeFactorTable): 0 is silent and 1..255
+ * span 30 dB up to 1.
+ */
+export function volumeFactor(v: number): number {
+  return v <= 0 ? 0 : 10 ** (((255 - Math.min(255, v)) * -30) / (20 * 255));
+}
