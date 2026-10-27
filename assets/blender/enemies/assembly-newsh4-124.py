@@ -10,13 +10,16 @@ pixel column 60 (the left half is built and mirrored).
 
 newsh4-1, the piece with the eye, has eight frames in which a grey shutter opens on a red eye
 that then flares yellow: three models, closed (frames 1, 3), open and red (5, 7, 39) and glowing
-(41, 43, 45). The other pieces have one frame each.
+(41, 43, 45). Each animates (common.frame_part, palette_material frames=): the shutter cracks on a
+red slit (3), its halves slide back as the eye widens and brightens (5, 7, 39), and the glow grows
+taller and hotter (41, 43, 45). The other pieces have one frame each.
 
 The whole machine is built once in assembly coordinates (lib_b015.X / Y), then cut into the
 pieces with common.split_assembly.
 
 Run: blender --background --python assets/blender/enemies/assembly-newsh4-124.py [-- --preview out.png]
-(the preview is the whole machine; each piece also gets <piece>.png next to it).
+(the preview is the whole machine; each piece also gets <piece>.png next to it) [--frames <dir>]
+(each eye model's frames beside its sprite, <dir>/<model>.png).
 """
 
 import sys
@@ -39,9 +42,8 @@ PIECES = ["newsh4-124", "newsh4-126", "newsh4-128", "newsh4-86", "newsh4-88", "n
 CX0, CY0 = 185, 24
 AXIS = 60  # mirror symmetric about the centre of pixel column 60
 EYE = "newsh4-1"
-# The eye piece's models: (model name, frames, core variant).
-EYE_MODELS = [("newsh4-1", [1, 3], "closed"), ("newsh4-1-f2", [5, 7, 39], "red"),
-              ("newsh4-1-f3", [41, 43, 45], "glow")]
+# The eye piece's models: (model name, frames).
+EYE_MODELS = [("newsh4-1", [1, 3]), ("newsh4-1-f2", [5, 7, 39]), ("newsh4-1-f3", [41, 43, 45])]
 TAG = "nsh4"
 
 
@@ -208,21 +210,68 @@ def build(sprite):
     return to_object(NAME, bm, mats, coll), mats, coll
 
 
-def build_eye(variant, mats, coll, offset):
-    """The eye in its socket (columns 56-64, rows 47-54) for one stage of the shutter, moved by
-    `offset` (the eye piece's centre) into the piece's own coordinates."""
-    bm = bmesh.new()
-    if variant == "closed":
+def eye_materials(sprite, mats):
+    """`mats` plus the eye's animated colours (their own names, so the other pieces keep theirs)."""
+    pal = lambda i, part, **kw: common.palette_material(sprite, i, f"{TAG}-{part}", **kw)  # noqa: E731
+    return mats + [
+        pal(70, "slit", emission_strength=1.5),  # 17 red slit as the shutter cracks (frame 3)
+        pal(74, "eye", emission_strength=1.5, frames={5: 71}),  # 18 red eye, dimmer on frame 5
+        pal(122, "spark", emission_strength=3.0),  # 19 orange glint (frame 7)
+        pal(77, "glint", emission_strength=2.0),  # 20 pink glint (frame 39)
+        pal(116, "glow", emission_strength=4.0, frames={43: 117, 45: 119}),  # 21 glow, heating up
+        pal(121, "hot", emission_strength=5.0, frames={43: 123, 45: 125}),  # 22 its hot core
+        pal(127, "white", emission_strength=6.0),  # 23 white-hot centre
+    ]
+
+
+SLIT, EYE_A, SPARK, GLINT, GLOW_A, HOT_A, WHITE = range(17, 24)
+
+
+def eye_frame(frame, bm):
+    """The eye in its socket (columns 56-64, rows 47-54) on one sprite frame."""
+    if frame == 1:  # shutter closed
         ellipsoid(bm, AXIS, 50.6, 0.12, 3.9, 3.4, 0.1, mat=SHUTTER)
-    elif variant == "red":
-        ellipsoid(bm, AXIS, 50.8, 0.11, 3.0, 2.7, 0.09, mat=EYE_RED)
-        for side in (-1, 1):  # the shutter's halves pulled back to the sides
-            ellipsoid(bm, AXIS + side * 4.2, 50.6, 0.11, 1.3, 3.4, 0.08, mat=SHUTTER, segments=10, rings=6)
-    else:
-        ellipsoid(bm, AXIS, 50.6, 0.12, 3.9, 3.3, 0.1, mat=GLOW)
-        ellipsoid(bm, AXIS - 0.4, 50.3, 0.17, 2.1, 1.8, 0.07, mat=HOT, segments=12, rings=6)
-    bmesh.ops.translate(bm, vec=(-offset[0], -offset[1], 0), verts=bm.verts)
-    return to_object(f"newsh4-eye-{variant}", bm, mats, coll)
+    elif frame == 3:  # shutter cracked down the middle on a thin red slit (rows 49-53)
+        for side in (-1, 1):
+            ellipsoid(bm, AXIS + side * 2.5, 50.6, 0.12, 1.8, 3.4, 0.1, mat=SHUTTER, segments=12, rings=8)
+        ellipsoid(bm, AXIS, 51.0, 0.1, 0.55, 2.5, 0.08, mat=SLIT, segments=8, rings=6)
+    elif frame in (5, 7):  # a narrow red eye (columns 59-61) between the shutter's halves
+        ellipsoid(bm, AXIS, 50.6, 0.11, 1.6, 2.1, 0.09, mat=EYE_A, segments=12, rings=6)
+        gap = 3.5 if frame == 5 else 4.0
+        for side in (-1, 1):
+            ellipsoid(bm, AXIS + side * gap, 50.6, 0.11, 1.0 if frame == 5 else 0.8, 3.4, 0.08, mat=SHUTTER,
+                      segments=10, rings=6)
+        if frame == 7:
+            ellipsoid(bm, AXIS - 1, 50.1, 0.19, 0.55, 0.55, 0.03, mat=SPARK, segments=8, rings=4)
+    elif frame == 39:  # shutter gone: the eye is five pixels wide (columns 58-62)
+        ellipsoid(bm, AXIS, 50.6, 0.11, 2.6, 2.1, 0.09, mat=EYE_A)
+        ellipsoid(bm, AXIS - 1, 50.1, 0.19, 0.6, 0.6, 0.03, mat=GLINT, segments=8, rings=4)
+    else:  # glowing: seven pixels wide, four rows tall on frame 41 and six on 43 and 45
+        ry = 2.1 if frame == 41 else 3.0
+        ellipsoid(bm, AXIS, 50.6, 0.12, 3.6, ry, 0.1, mat=GLOW_A)
+        ellipsoid(bm, AXIS - 0.4, 50.4, 0.17, 1.9 if frame == 41 else 2.2, ry * 0.65, 0.07, mat=HOT_A,
+                  segments=12, rings=6)
+
+
+def build_eye(frames, mats, coll, offset):
+    """One model's eye: a part per frame (shown only on it), moved by `offset` (the eye piece's
+    centre) into the piece's own coordinates. Frames 43 and 45 share their shape (their colours
+    differ), and the glowing model has a white-hot centre on every frame."""
+    groups = {}
+    for f in frames:
+        groups.setdefault(45 if f == 43 else f, []).append(f)
+    parts = []
+    for key, tagged in groups.items():
+        bm = bmesh.new()
+        eye_frame(key, bm)
+        bmesh.ops.translate(bm, vec=(-offset[0], -offset[1], 0), verts=bm.verts)
+        parts.append(common.frame_part(to_object(f"newsh4-eye-{key}", bm, mats, coll), tagged))
+    if 41 in frames:
+        bm = bmesh.new()
+        ellipsoid(bm, AXIS - 1, 50.1, 0.25, 0.7, 0.6, 0.03, mat=WHITE, segments=8, rings=4)
+        bmesh.ops.translate(bm, vec=(-offset[0], -offset[1], 0), verts=bm.verts)
+        parts.append(to_object("newsh4-eye-white", bm, mats, coll))
+    return parts
 
 
 def main():
@@ -232,32 +281,40 @@ def main():
               if e["model"] in PIECES]
     pieces = common.split_assembly(obj, layout)
     eye_centre = next((cx / 12, -cy / 12) for name, cx, cy in layout if name == EYE)
+    eye_mats = eye_materials(sprite, mats)
     eyes = {}
     for name in PIECES:
         data = common.load_sprite(ROOT, name)
         if name != EYE:
             common.export_sprite_model(ROOT, [pieces[name]], f"enemies/{name}", data["sprites"])
             continue
-        for model, frames, variant in EYE_MODELS:
-            eyes[model] = build_eye(variant, mats, coll, eye_centre)
+        for model, frames in EYE_MODELS:
+            eyes[model] = build_eye(frames, eye_mats, coll, eye_centre)
             sprites = [dict(s, frames=[f for f in s["frames"] if f in frames]) for s in data["sprites"]]
             sprites = [s for s in sprites if s["frames"]]
-            common.export_sprite_model(ROOT, [pieces[name], eyes[model]], f"enemies/{model}", sprites)
+            common.export_sprite_model(ROOT, [pieces[name]] + eyes[model], f"enemies/{model}", sprites)
+    if "--frames" in sys.argv:  # every frame of each eye model beside its sprite: <dir>/<model>.png
+        out_dir = Path(sys.argv[sys.argv.index("--frames") + 1])
+        data = common.load_sprite(ROOT, EYE)
+        for model, frames in EYE_MODELS:
+            sub = dict(data, frames=[f for f in data["frames"] if f["index"] in frames])
+            common.render_frame_previews([pieces[EYE]] + eyes[model], out_dir / f"{model}.png", sub, ROOT)
     if "--preview" in sys.argv:
         out = Path(sys.argv[sys.argv.index("--preview") + 1])
         import tempfile
         tmp = Path(tempfile.mkdtemp())
         # The whole machine with the glowing eye (as the layout shows it), placed in assembly space.
-        whole_eye = build_eye("glow", mats, coll, (0.0, 0.0))
+        whole_eye = build_eye([41, 43, 45], eye_mats, coll, (0.0, 0.0))
         ref = composite_png(ROOT, layout, tmp / "assembly.png", 120, 140)
-        common.render_preview([obj, whole_eye], str(out), ref, size=10, view_px=640)
+        common.render_preview([obj] + whole_eye, str(out), ref, size=10, view_px=640, frame=45)
         for name in PIECES:
             data = common.load_sprite(ROOT, name)
             if name == EYE:
-                for model, frames, _ in EYE_MODELS:
+                for model, frames in EYE_MODELS:
                     frame = next(f for f in data["frames"] if f["index"] == frames[-1])
                     img = ROOT / "reference" / "models" / name / frame["image"]
-                    common.render_preview([pieces[name], eyes[model]], str(out.parent / f"{model}.png"), img, size=2)
+                    common.render_preview([pieces[name]] + eyes[model], str(out.parent / f"{model}.png"), img,
+                                          size=2, frame=frames[-1])
                 continue
             img = ROOT / "reference" / "models" / name / data["frames"][0]["image"]
             common.render_preview([pieces[name]], str(out.parent / f"{name}.png"), img, size=2)
