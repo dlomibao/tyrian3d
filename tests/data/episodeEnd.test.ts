@@ -4,26 +4,28 @@ import { CREDITS_LINES, parseCredits } from "../../src/data/credits";
 import { hasData, readData } from "./dataDir";
 
 describe.skipIf(!hasData("tyrend.anm"))("tyrend.anm (animlib.c playAnim)", () => {
-  const anim = parseAnim(readData("tyrend.anm"));
+  // Read lazily: a skipped describe still runs its body to collect the tests.
+  let parsed: ReturnType<typeof parseAnim> | undefined;
+  const anim = () => (parsed ??= parseAnim(readData("tyrend.anm")));
 
   test("header, palette and page descriptors", () => {
-    expect(anim.pageCount).toBe(51);
-    expect(anim.recordCount).toBe(112);
-    expect([...anim.palette.subarray(0, 3)]).toEqual([0, 0, 0]);
+    expect(anim().pageCount).toBe(51);
+    expect(anim().recordCount).toBe(112);
+    expect([...anim().palette.subarray(0, 3)]).toEqual([0, 0, 0]);
     // The pages cover every record once.
-    const covered = anim.pageDescriptors.slice(0, anim.pageCount).flatMap((p) => Array.from({ length: p.recordCount }, (_, i) => p.firstRecord + i));
-    expect(covered.sort((a, b) => a - b)).toEqual(Array.from({ length: anim.recordCount }, (_, i) => i));
+    const covered = anim().pageDescriptors.slice(0, anim().pageCount).flatMap((p) => Array.from({ length: p.recordCount }, (_, i) => p.firstRecord + i));
+    expect(covered.sort((a, b) => a - b)).toEqual(Array.from({ length: anim().recordCount }, (_, i) => i));
   });
 
   test("plays recordCount - 1 frames of 320x200 that change as it goes", () => {
     const sums: number[] = [];
-    for (const image of animFrames(anim, 0)) {
+    for (const image of animFrames(anim(), 0)) {
       expect(image.length).toBe(ANIM_WIDTH * ANIM_HEIGHT);
       let sum = 0;
       for (const p of image) sum += p;
       sums.push(sum);
     }
-    expect(sums.length).toBe(anim.recordCount - 1);
+    expect(sums.length).toBe(anim().recordCount - 1);
     expect(sums[0]).toBeGreaterThan(0);
     expect(new Set(sums).size).toBeGreaterThan(sums.length / 2);
   });
