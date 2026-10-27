@@ -1,6 +1,8 @@
 // The item screen's weapon preview: the C's weapon simulator (src/sim/weaponSim.ts) drawn by the
 // game's own renderer into a small view in the shop panel, so its shots look exactly as they do in
-// a level, models included. It takes the place of the loadout column while a submenu shows it.
+// a level, models included. It takes the place of the loadout column while a submenu shows it, in a
+// framed "simulator" panel stacked in the same grid cell as the loadout (shop.css .shop-side), so
+// the layout doesn't move when it shows or hides.
 //
 // One View (one WebGL context) is made the first time a preview shows and reused by every later
 // item screen; its canvas moves into each new shop panel.
@@ -40,6 +42,8 @@ export class WeaponPreview {
   /** Put this in the shop panel; it hides itself when the current menu has no preview. */
   readonly element = document.createElement("div");
   private readonly power: HTMLElement;
+  /** The framed screen the shared view's canvas goes in. */
+  private readonly screen: HTMLElement;
   private active = false;
   private acc = 0;
   private last = 0;
@@ -47,8 +51,15 @@ export class WeaponPreview {
   constructor() {
     this.element.className = "weapon-preview";
     this.element.hidden = true;
-    this.element.innerHTML = `<div class="weapon-preview-power" title="Generator power"><i></i></div>`;
-    this.power = this.element.querySelector("i")!;
+    this.element.setAttribute("aria-label", "Weapon simulator");
+    this.element.innerHTML = `
+      <div class="weapon-preview-head"><span>Simulator</span><span class="weapon-preview-pwr">Power</span></div>
+      <div class="weapon-preview-body">
+        <div class="weapon-preview-screen"></div>
+        <div class="weapon-preview-power" title="Generator power"><i></i></div>
+      </div>`;
+    this.power = this.element.querySelector(".weapon-preview-power i")!;
+    this.screen = this.element.querySelector(".weapon-preview-screen")!;
     weaponSim_reset();
   }
 
@@ -89,7 +100,7 @@ export class WeaponPreview {
 
   private start(): void {
     const { view, host } = sharedView();
-    if (host.parentElement !== this.element) this.element.prepend(host);
+    if (host.parentElement !== this.screen) this.screen.append(host);
     view.setPalettes(g.res.palettes); // each episode has its own
     view.draws.resetInterpolation();
     view.setDrawList(weaponSim_frame());

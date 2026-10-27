@@ -15,6 +15,12 @@
   flex-shrink: 0;
 }
 
+/* The panel hangs from the top, so its header and menu stay put when a menu's length changes. */
+.ui-screen--shop {
+  align-items: start;
+  padding-top: max(16px, env(safe-area-inset-top), 8vh);
+}
+
 /* On wide screens the panel sits right of centre, leaving the backdrop's ship in view. */
 @media (min-aspect-ratio: 3/2) and (min-width: 1100px) {
   .ui-screen--shop {
@@ -67,10 +73,33 @@
 
 .shop-body {
   display: grid;
-  grid-template-columns: minmax(14rem, 18rem) 1fr;
+  grid-template-columns: minmax(15rem, 22rem) 1fr;
   gap: var(--ui-space-5);
   align-items: start;
   min-height: 0;
+}
+
+/* --- the left column: the loadout, or the weapon simulator (weaponPreview.css) --- */
+
+/* Both in one cell; the hidden one keeps its space, so the column (and the menu beside or under
+   it) doesn't move when the simulator shows or hides. */
+.shop-side {
+  display: grid;
+  align-items: start;
+}
+
+.shop-side > * {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+
+.shop-side > [hidden] {
+  display: block;
+  visibility: hidden;
+}
+
+.shop-side > .weapon-preview[hidden] {
+  display: flex;
 }
 
 /* --- the ship's loadout --- */
@@ -275,6 +304,21 @@
 
   .ui-screen--shop .loadout li {
     font-size: 0.78rem;
+  }
+
+  /* Weapon power right under the simulator, above the weapons, where a thumb finds it without
+     scrolling past the list. */
+  .shop-menu {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .shop-power {
+    order: -1;
+    margin: 0 0 var(--ui-space-3);
+    padding: 0 0 var(--ui-space-3);
+    border-top: 0;
+    border-bottom: 1px solid var(--ui-edge);
   }
 
   .shop-header {
