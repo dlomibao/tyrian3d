@@ -16,6 +16,7 @@ explicitly where it needs to.
 | `tyrian1.lvl`..`tyrian4.lvl` | `parseLevelFile`, `parseLevel`, `readLevelPositions` (`levels.ts`) | `analyzeLevel`, `src/lvllib.c`; `JE_loadMap`, `src/tyrian2.c` |
 | `shapes).dat`, `shapesw.dat`..`shapesz.dat` (map tiles) | `parseShapes`, `levelTiles` (`levels.ts`) | `JE_loadMap`, `src/tyrian2.c` |
 | `levels1.dat`..`levels4.dat` (episode scripts) | `parseEpisodeScript`, `episodeLevels`, `parsePlayLevel` (`episodeScript.ts`) | `JE_loadMap`, `src/tyrian2.c` |
+| `tyrend.anm` (episode 3's ending) | `parseAnim`, `animFrames` (`anim.ts`) | `playAnim`, `src/animlib.c` |
 | encrypted strings | `decryptString`, `readEncryptedString` (`crypt.ts`) | `decrypt_string`, `readEncryptedString`, `src/helptext.c` |
 
 Episode 4 keeps its item and enemy data at the end of `tyrian4.lvl` instead of `tyrian.hdt`;
