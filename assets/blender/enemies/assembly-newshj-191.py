@@ -10,12 +10,16 @@ shell running out in green ribbed columns.
 The whole thing is built once in assembly coordinates (mirror symmetric about the centre) and
 cut into the pieces with common.split_assembly. The eye pieces (newshj-161, newshj-163) change
 colour through their frames: glowing green with a white core (the base models), dull olive with a
-reflection (-f2) and shut grey (-f3). The front pieces (newshj-231, newshj-233) have a lit frame
+reflection (-f2) and shut grey (-f3). The eye also animates within those models: the glowing eye's
+white core is smaller on one frame, larger on the next and gone on the last two, where only a
+glyph of pale or yellow flecks shows on it; the dull eye shows that glyph in grey, lighter on its
+second frame, while its reflection dims (common.frame_part, palette_material frames=). The front pieces (newshj-231, newshj-233) have a lit frame
 (-f2) where the muzzle holds a glowing green core and the ribs beside it glow. Those are the same
 shape in other colours, built as separate models so the glow follows the animation.
 
 Run: blender --background --python assets/blender/enemies/assembly-newshj-191.py [-- --preview out.png]
-(the preview is the whole structure; each piece also gets <piece>.png next to it).
+(the preview is the whole structure; each piece also gets <piece>.png next to it) [--frames dir]
+(every frame of the animated eye models, <model>.png in dir).
 """
 
 import math
@@ -50,6 +54,11 @@ VARIANTS = {
             "newshj-233-f2": ("newshj-233", [233])},
 }
 G = lib.Grid(96, 84)  # assembly px; edge column 48 is the axis (X = 0)
+# The eye pieces' frames that show the same step of the eye's animation: (newshj-161, newshj-163).
+GLOW_STEPS = {"core-small": (165, 167), "core": (203, 205), "flecks-pale": (237, 239), "flecks-yellow": (275, 277)}
+DIM_STEPS = ((161, 163), (199, 201))
+# Where each eye piece sits in the assembly (column, row of its top left pixel).
+EYE_ORIGIN = {"newshj-161": (24, 28), "newshj-163": (48, 28)}
 
 
 def mirror(c):
@@ -93,7 +102,9 @@ def build(sprite, pixels, variant):
     pal = lambda i, **kw: common.palette_material(sprite, i, TAG, **kw)  # noqa: E731
     eye, core = {
         "glow": (pal(205, metallic=0.1, roughness=0.15, emission_strength=3.0), pal(47, roughness=0.2, emission_strength=4.0)),
-        "dim": (pal(42, metallic=0.2, roughness=0.12), pal(141, metallic=0.2, roughness=0.1)),
+        # The reflection dims on the second dull frame.
+        "dim": (pal(42, metallic=0.2, roughness=0.12),
+                common.palette_material(sprite, 141, TAG + "refl", metallic=0.2, roughness=0.1, frames={199: 139})),
         "grey": (pal(8, metallic=0.4, roughness=0.25), pal(14, metallic=0.4, roughness=0.2)),
         "lit": (pal(205, metallic=0.1, roughness=0.15, emission_strength=3.0), pal(47, roughness=0.2, emission_strength=4.0)),
     }[variant]
@@ -112,6 +123,9 @@ def build(sprite, pixels, variant):
         pal(202, emission_strength=3.0) if lit else pal(43, metallic=0.2, roughness=0.45),  # 10 glowing ribs
         pal(205, emission_strength=4.0) if lit else pal(2, metallic=0.3, roughness=0.6),  # 11 muzzle core
     ]
+    if variant == "dim":  # 12 the grey glyph on the dull eye, lighter on its second frame
+        mats.append(common.palette_material(sprite, 10, TAG + "glyph", metallic=0.3, roughness=0.3,
+                                            frames={199: 12, 201: 12}))
     SHELL, RIB, PLATE, DARK, MID, LIGHT, BRIGHT, GREY, EYE, CORE, STRIPE, MUZZLE = range(12)
     bm = bmesh.new()
 
@@ -168,17 +182,17 @@ def build(sprite, pixels, variant):
     lib.mound(bm, G, 48.0, 37.5, 18.5, 16.0, 0.3, z0=0.28, p=2.3, pz=3.0, mat=DARK, seg=28, rings=6)
     lib.mound(bm, G, 48.0, 37.5, 15.8, 10.2, 0.3, z0=0.5, p=2.0, mat=EYE, seg=28, rings=7)
 
-    def eye_z(c, r):
-        u = ((c - 48.0) / 15.8) ** 2 + ((r - 37.5) / 10.2) ** 2
-        return 0.5 + 0.3 * math.sqrt(max(1 - u, 0))
-
     if variant in ("glow", "lit"):
+        # (On the eye pieces the core changes size frame by frame: strip_core swaps it for eye_parts.)
         # The white-hot core fills most of the eye, a green rim round it.
         lib.mound(bm, G, 48.0, 36.0, 13.0, 6.6, 0.314, z0=0.5, p=2.2, pz=4.5, mat=CORE, seg=24, rings=6)
     else:
         # A reflection up on the left of the dull eye.
         c, r = (38.5, 33.0) if variant == "dim" else (39.5, 32.5)
         lib.mound(bm, G, c, r, 3.2, 2.6, 0.05, z0=eye_z(c, r) - 0.02, p=2.0, mat=CORE, seg=12, rings=3)
+        if variant == "dim":
+            flecks(bm, eye_pixels(DIM_STEPS[0], range(10, 14), {"newshj-161": (13, 20, 2, 10),
+                                                                 "newshj-163": (3, 10, 2, 11)}), {}, 12)
 
     # Grey spine over the eye down to a block at its bottom.
     lib.tube(bm, G, [(48.5, r, 2.2, 0.06, eye_z(48.5, r) + 0.0) for r in (27.6, 29.0, 31.0, 33.5, 36.0, 38.5)] +
@@ -205,6 +219,87 @@ def build(sprite, pixels, variant):
     return lib.to_object(f"{NAME}-{variant}", bm, mats, coll)
 
 
+def eye_z(c, r):
+    """Height of the eye dome's surface at assembly (col, row)."""
+    u = ((c - 48.0) / 15.8) ** 2 + ((r - 37.5) / 10.2) ** 2
+    return 0.5 + 0.3 * math.sqrt(max(1 - u, 0))
+
+
+_EYE_FRAMES = {}
+
+
+def eye_pixels(step, indices, region):
+    """The eye pixels of these palette indices on a step (frames of newshj-161 and newshj-163):
+    [(assembly col, row, palette index)]. `region` is each piece's (col0, col1, row0, row1) to look in."""
+    out = []
+    for piece, frame in zip(EYE_ORIGIN, step):
+        if piece not in _EYE_FRAMES:
+            _EYE_FRAMES[piece] = {f["index"]: [[int(v) for v in (row.split() if isinstance(row, str) else row)] for row in f["pixels"]]
+                                  for f in common.load_sprite(ROOT, piece)["frames"]}
+        rows = _EYE_FRAMES[piece][frame]
+        c0, c1, r0, r1 = region[piece]
+        oc, orow = EYE_ORIGIN[piece]
+        out += [(oc + c, orow + r, rows[r][c]) for r in range(r0, r1 + 1) for c in range(c0, c1 + 1)
+                if rows[r][c] in indices]
+    return out
+
+
+def flecks(bm, pixels, mat_of, mat=0):
+    """A small fleck raised on the eye dome for each pixel (col, row, palette index); its material
+    is mat_of[palette index], or `mat`."""
+    for c, r, i in pixels:
+        c, r = c + 0.5, r + 0.5
+        lib.mound(bm, G, c, r, 0.52, 0.52, 0.03, z0=eye_z(c, r) - 0.012, p=6.0, pz=3.0, seg=8, rings=2,
+                  mat=mat_of.get(i, mat))
+
+
+def strip_core(obj):
+    """Remove the glowing core (material 9, and whatever is joined to it, like the faces filling
+    its cut) from a piece of the glow variant; eye_parts builds it per frame instead."""
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    seen, todo = set(), [f for f in bm.faces if f.material_index == 9]
+    while todo:
+        f = todo.pop()
+        if f in seen:
+            continue
+        seen.add(f)
+        todo += [g for e in f.edges for g in e.link_faces if g not in seen]
+    verts = {v for f in seen for v in f.verts}
+    bmesh.ops.delete(bm, geom=list(verts), context="VERTS")
+    bm.to_mesh(obj.data)
+    bm.free()
+
+
+def eye_parts(sprite, models):
+    """What changes on the glowing eye from frame to frame, built in assembly coordinates as
+    separate objects: [(object, {model: frames it shows on})] for the eye models `models`
+    (newshj-161's, newshj-163's)."""
+    coll = common.reset_collection(f"{NAME}-eye")
+    core = common.palette_material(sprite, 47, TAG, roughness=0.2, emission_strength=4.0)
+    parts = []
+
+    def part(name, bm, mats):
+        obj = lib.to_object(f"{NAME}-{name}", bm, mats, coll)
+        parts.append((obj, {model: [frame] for model, frame in zip(models, GLOW_STEPS[name])}))
+
+    # The white-hot core over most of the eye, a green rim round it; smaller on the first frame.
+    for name, r, rx, ry in (("core", 36.0, 13.0, 6.6), ("core-small", 35.3, 10.6, 4.7)):
+        bm = bmesh.new()
+        lib.mound(bm, G, 48.0, r, rx, ry, 0.314, z0=0.5, p=2.2, pz=4.5, mat=0, seg=24, rings=6)
+        part(name, bm, [core])
+    # Without the core, the glyph on the eye shows as flecks: pale, then yellow and white.
+    region = {"newshj-161": (10, 22, 0, 18), "newshj-163": (0, 16, 0, 18)}
+    for name in ("flecks-pale", "flecks-yellow"):
+        pixels = eye_pixels(GLOW_STEPS[name], {14, 31, 45, 94, 95, 110, 126}, region)
+        indices = sorted({i for *_, i in pixels})
+        bm = bmesh.new()
+        flecks(bm, pixels, {i: k for k, i in enumerate(indices)})
+        part(name, bm, [common.palette_material(sprite, i, TAG + "fleck", roughness=0.3, emission_strength=2.0)
+                        for i in indices])
+    return parts
+
+
 def piece_sprites(piece, frames):
     sprites = common.load_sprite(ROOT, piece)["sprites"]
     if frames is None:
@@ -224,8 +319,24 @@ def main():
         obj = build(sprite, pixels, variant)
         layout = [(model, *centre[piece]) for model, (piece, _) in models.items()]
         pieces = common.split_assembly(obj, layout)
+        extra = {model: [] for model in models}
+        if variant == "glow":
+            eye_models = ("newshj-161", "newshj-163")
+            for model in eye_models:
+                strip_core(pieces[model])
+            for part, frames in eye_parts(sprite, eye_models):
+                cut = common.split_assembly(part, [(m, *centre[models[m][0]]) for m in eye_models])
+                for model, piece_part in cut.items():
+                    piece_part.name = f"{model}-{part.name.removeprefix(NAME + '-')}"
+                    extra[model].append(common.frame_part(piece_part, frames[model]))
         for model, (piece, frames) in models.items():
-            common.export_sprite_model(ROOT, [pieces[model]], f"enemies/{model}", piece_sprites(piece, frames))
+            objects = [pieces[model]] + extra[model]
+            common.export_sprite_model(ROOT, objects, f"enemies/{model}", piece_sprites(piece, frames))
+            if "--frames" in sys.argv and model in ("newshj-161", "newshj-163", "newshj-161-f2", "newshj-163-f2"):
+                data = common.load_sprite(ROOT, piece)
+                data["frames"] = [f for f in data["frames"] if f["index"] in frames]
+                out = Path(sys.argv[sys.argv.index("--frames") + 1]) / f"{model}.png"
+                common.render_frame_previews(objects, str(out), data, ROOT)
             if preview:
                 data = common.load_sprite(ROOT, piece)
                 index = frames[0] if frames else data["frames"][0]["index"]
