@@ -650,3 +650,27 @@ renderer and only while a screen asks for it. The pause screen's "Quit to title"
 backdrop's cost shows on slow machines, cap its frame rate or render it at a lower pixel ratio. If
 the C's in-game Quit is wanted, add "Retry from item screen" to the pause menu: it's the "died"
 path in `run.ts` with `playerEndLevel` set.
+
+## D33 — Frames not worth a model are listed with a reason; a test checks the rest are modelled
+
+2026-10-27
+
+**Decision:** Of the catalogue's 1,717 enemy and ship frames, 1,716 have models. The last one,
+newsh0.shp frame 13 (a filler piece of the level 2.12 dragon, seen for 13 ticks), is one
+near-black outline pixel in an otherwise empty 24x28 block, so it gets no model and stays
+extruded. `tests/render/modelCoverage.test.ts` holds such frames in `NOT_MODELLED` with the reason,
+and checks every other catalogued frame has a model whenever `reference/models/` exists.
+
+**Options considered:**
+- *Skip it, with the reason in a coverage test (chosen):* the exception is written down where
+  the check runs, and the next sim change that brings in a new frame shows up as a failing test
+  naming the frame, instead of a silent extruded sprite.
+- *Model the pixel as a 1/12-unit cube:* 100% on paper, but a model file and a script for
+  something the extruder already draws identically.
+- *Drop near-empty frames in the catalogue (a pixel-count threshold):* hides the frame, but the
+  threshold is arbitrary and would also hide small real parts such as horn tips.
+- *A note in the README only:* nothing would notice new uncovered frames.
+
+**Review:** The coverage test reads the git-ignored catalogue, so it only runs where `npm run
+catalogue` has been run, and only as fresh as that catalogue. Regenerate it after sim changes
+that affect which enemies are drawn.
