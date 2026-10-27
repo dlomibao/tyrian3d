@@ -479,3 +479,30 @@ the 3D view and HUD (src/app/fade.ts).
 fade, but its play area is empty then). Text uses the original tiny font scaled up; if remastered
 pictures want new type, that's the place to change. Check the warning screen before MINES
 (flashing bars and siren) and episode 1's ending (pan up, flash).
+## D?? — After the last episode the game goes on into episode 1, as JE_nextEpisode does
+
+2026-10-27
+
+**Decision:** `]Q[` (end of episode) runs the C's sequence inside JE_loadMap (src/sim/tyrian2.ts,
+src/sim/episodes.ts): the final score and a secret hint, JE_nextEpisode, then `goto new_game` into
+the next episode's first section, with the ship, items, cash, difficulty and data cubes carried
+over and the item data reloaded (JE_initEpisode). After the last available episode come the
+credits, maybe the SuperCarrot (1 in 6), the next Super Arcade ship's code, and then episode 1 again
+with everything kept (gameHasRepeated), not the title screen. Only a Super Tyrian game goes back to
+the title. The screens are pauses of the JE_loadMapSteps generator (LoadMapPause, like the item
+screen in D13), drawn by src/app/episodeEnd.ts on a 320x200 indexed canvas (src/app/vga.ts) with
+the original's fonts, palettes, timing and the decoded tyrend.anm.
+
+**Options considered:**
+- *Follow JE_nextEpisode (chosen):* the original's own ending, including its replay of the game
+  with the player's gear.
+- *Credits, then the title:* simpler to explain, but not what Tyrian does, and it throws away a
+  finished game's ship.
+- *HTML screens for the text and credits:* consistent with the title and shop, but the credits'
+  fading pictures and flying ships, the glowing text and the animation are pixel effects; one canvas
+  keeps the whole ending in the original's look.
+
+**Review:** Finish episode 4 and check the credits, the "Type ... at Title" screen and the return to
+episode 1's item screen. The fallback is to return false from the `]Q[` case when
+jumpBackToEpisode1 is set (back to the title). The title screen doesn't take the Super Arcade codes
+yet, so that screen names a code nothing reads.

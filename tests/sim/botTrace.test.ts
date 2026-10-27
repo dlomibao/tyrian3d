@@ -4,7 +4,7 @@
 // them the same way, tick for tick.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { startLevel, tick } from "../../src/sim/game";
 import { loadHelpText } from "../../src/sim/helptext";
 import { clearSimInput } from "../../src/sim/input";
@@ -12,9 +12,18 @@ import { mt_srand } from "../../src/sim/mtrand";
 import { newOnePlayerGame } from "../../src/sim/newgame";
 import { buildResources } from "../../src/sim/resources";
 import { all_players_dead, g } from "../../src/sim/state";
-import { EpisodeEndError, loadLevel } from "../../src/sim/tyrian2";
+import { loadLevel } from "../../src/sim/tyrian2";
 import { hasData, readData } from "../data/dataDir";
 import { botTick } from "./bot";
+
+/** The C driver stops at JE_nextEpisode (bot_episode_end); this stands in for it here. */
+class EpisodeEndError extends Error {}
+vi.mock("../../src/sim/episodes", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../src/sim/episodes")>()),
+  JE_nextEpisode: function* () {
+    throw new EpisodeEndError();
+  },
+}));
 
 const files = { get: (name: string) => (hasData(name) ? readData(name) : undefined) };
 const fixture = (name: string) => readFileSync(join(__dirname, "fixtures", name), "utf8");

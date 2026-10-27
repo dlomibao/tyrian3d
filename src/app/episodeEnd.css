@@ -1,0 +1,18 @@
+/* The original's 320x200 screens (src/app/vga.ts): the episode ending's animation, text and credits. */
+.vga-screen {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: #000;
+  z-index: 20;
+  cursor: pointer;
+}
+
+.vga-screen canvas {
+  /* Square pixels at the largest size that fits, kept sharp. */
+  width: min(100vw, 160vh);
+  height: auto;
+  aspect-ratio: 320 / 200;
+  image-rendering: pixelated;
+}

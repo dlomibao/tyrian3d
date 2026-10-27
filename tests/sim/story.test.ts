@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test } from "vitest";
 import type { TyrianFiles } from "../../src/sim/resources";
 import { DIFFICULTY_NORMAL, g, newPlayer } from "../../src/sim/state";
 import { clearStorySteps, takeStorySteps, type StoryStep } from "../../src/sim/story";
-import { EpisodeEndError, JE_loadMapSteps, loadLevel } from "../../src/sim/tyrian2";
+import { JE_loadMapSteps, loadLevel, loadLevelUntilPause } from "../../src/sim/tyrian2";
 import { hasData, readData } from "../data/dataDir";
 
 const NEEDED = ["levels1.dat", "tyrian1.lvl", "levels3.dat", "tyrian3.lvl", "tyrian.hdt", "tyrian.shp", "palette.dat"];
@@ -110,7 +110,7 @@ describe.skipIf(!hasData(...NEEDED))("JE_loadMap's screens between levels", () =
   });
 
   test("episode 1 section 42 (after the ALE bonus): ]U pans up to picture 8, ]n ends the scene, ]F flashes", () => {
-    expect(() => loadLevel(files, 1, 42)).toThrow(EpisodeEndError); // its item screen leads to section 26
+    expect(loadLevelUntilPause(files, 1, 42)).not.toBeNull(); // its item screen leads to section 26, on to the episode's end
     expect(ops(takeStorySteps()).slice(0, 12)).toEqual([
       "song 7",
       "loadPic 9/19",
@@ -129,7 +129,7 @@ describe.skipIf(!hasData(...NEEDED))("JE_loadMap's screens between levels", () =
 
   test("episode 3 section 13 (the ending): ]P 907[ clears to palette 18, ]C[ fades and resets to palette 7", () => {
     // ]A[ ]F[ ]P 907[ ]Wn 03[ ]C[ ]P 907[ ]Wn 03[ ]C[ ]P 907[ ]Wn 03[ ]F[ ]P 005[ ]Q[
-    expect(() => loadLevel(files, 3, 13)).toThrow(EpisodeEndError);
+    expect(loadLevelUntilPause(files, 3, 13, ["displayText"])).toBe("displayText"); // ]Q['s hint, after ]A[
     const clear907 = ["setColors 18", "clear", "fadePalette 1"]; // pcxpal[907 - 1 - 900]
     const resetC = ["fadeBlack 10", "clear", "setColors 7", "setPalette"];
     const flash = ["fadeWhite 100", "fadeBlack 30", "clear"];
@@ -147,14 +147,15 @@ describe.skipIf(!hasData(...NEEDED))("JE_loadMap's screens between levels", () =
       ...flash,
       "loadPic 5/10",
       "fadePalette 10",
-      // ]Q[ throws before fade_black(50); the steps wait for the host.
+      // ]Q[ pauses for its screens before fade_black(50); the steps wait for the host.
     ]);
   });
 
   test("constantPlay skips the pictures and text but not the fades", () => {
     g.constantPlay = true;
-    expect(() => loadLevel(files, 3, 13)).toThrow(EpisodeEndError);
-    expect(ops(takeStorySteps())).toEqual([
+    // constantPlay skips ]Q['s hint too, so loading carries on into the next episode: check the start.
+    loadLevelUntilPause(files, 3, 13, ["displayText"]);
+    expect(ops(takeStorySteps()).slice(0, 15)).toEqual([
       "song 8",
       "fadeWhite 100",
       "fadeBlack 30",

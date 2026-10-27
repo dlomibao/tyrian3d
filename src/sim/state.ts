@@ -688,6 +688,12 @@ export const g = {
   /** musmast.h songBuy: the item screen's song (0-based); JE_loadMap resets it to DEFAULT_SONG_BUY, `]i` sets it. */
   songBuy: 2,
   // --- end added by shop port ---
+  // --- added by episodes port ---
+  /** episodes.h episodeAvail[EPISODE_MAX]: which episodes' tyrianN.lvl exist (JE_scanForEpisodes). */
+  episodeAvail: new Array<boolean>(5).fill(false),
+  /** episodes.h initial_episode_num: the episode the game was started on (menus.c L385). */
+  initial_episode_num: 1,
+  // --- end added by episodes port ---
 };
 
 export type Globals = typeof g;

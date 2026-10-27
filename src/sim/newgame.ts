@@ -43,6 +43,7 @@ export function newOnePlayerGame(episode = 1, difficulty = DIFFICULTY_NORMAL): v
   g.twoPlayerMode = false;
   // episodeSelect(): JE_initEpisode(episode) (episodes.c L247-259; the item data is g.res)
   g.episodeNum = episode;
+  g.initial_episode_num = g.episodeNum; // menus.c L385 (episodes port)
   // difficultySelect()
   g.difficultyLevel = difficulty;
   g.gameLoaded = true;

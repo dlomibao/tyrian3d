@@ -17,9 +17,10 @@ import { newOnePlayerGame } from "../sim/newgame";
 import { copyPlayerItems } from "../sim/player";
 import { buildResources, requireFile } from "../sim/resources";
 import { DIFFICULTY_EASY, DIFFICULTY_HARD, DIFFICULTY_NORMAL, g, SA_NONE, type PlayerItems } from "../sim/state";
-import { EpisodeEndError, loadLevelAsync } from "../sim/tyrian2";
+import { loadLevelAsync } from "../sim/tyrian2";
 import type { View } from "../render/view";
 import { Controls } from "./controls";
+import { episodeEndScreens } from "./episodeEnd";
 import { Hud } from "./hud";
 import { askForData, showMessage, showStatus, showTitle, type TitleChoice } from "./screens";
 import { runItemScreen } from "./shop";
@@ -138,20 +139,23 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
     // start_level / start_level_first (tyrian2.c L586-905): JE_loadMap with the item screen at
     // each `]I[`, the backup save, the level, then where to go next.
     for (;;) {
-      let loaded: boolean;
-      try {
-        loaded = await loadLevelAsync(files, g.episodeNum, g.mainLevel, async () => {
+      // The episode script's other screens: an episode's end (]Q[) and the next episode's start.
+      // port-story: the pictures, text and fades recorded before a pause play first.
+      const screens = episodeEndScreens({ files, music });
+      const loaded = await loadLevelAsync(
+        files,
+        g.episodeNum,
+        g.mainLevel,
+        async () => {
           await story(); // port-story
           await runItemScreen({ files, sfx, music });
-        });
-      } catch (err) {
-        if (!(err instanceof EpisodeEndError)) throw err;
-        await story(true); // port-story: the screens before `]Q[`, left up behind the message
-        music.play(SONG_LEVEL_END);
-        await showMessage("Episode complete", [`Final score ${g.player[0].cash}`], "Press Enter for the title");
-        closeStoryScreens(); // port-story
-        break;
-      }
+        },
+        async (pause) => {
+          await story(); // port-story: e.g. the screens before `]Q[`
+          closeStoryScreens();
+          await screens(pause);
+        },
+      );
       if (!loaded) break; // quit from the item screen: back to the title
       await story(); // port-story: the screens after the item screen, and fade_black(50)
       if (!g.doNotSaveBackup) backup = saveLastLevel(); /*Save backup game*/
