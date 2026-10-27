@@ -199,7 +199,7 @@ export class DestructRenderer {
     for (const d of game.draws.units) {
       const key = d.player * 64 + d.index;
       this.curUnits.set(key, { x: d.x, y: d.y });
-      units.push({ key, sprite: d.sprite, x: d.x, y: d.y, selected: game.destruct_player[d.player].unitSelected === d.index });
+      units.push({ key, sprite: d.sprite, x: d.x, y: d.y });
     }
     game.shotRec.forEach((s, i) => {
       if (!s.isAvailable) this.curShots.set(i, { x: s.x, y: s.y });
@@ -421,7 +421,7 @@ export class DestructRenderer {
 }
 
 interface Snapshot {
-  units: { key: number; sprite: number; x: number; y: number; selected: boolean }[];
+  units: { key: number; sprite: number; x: number; y: number }[];
   walls: { x: number; y: number }[];
   /** shot: the shot this is the head of (for interpolation), or -1. */
   beads: { x: number; y: number; c: number; size: number; shot: number }[];

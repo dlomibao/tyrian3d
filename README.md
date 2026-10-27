@@ -48,6 +48,10 @@ score table (episodes 1-3, as in the original), which the title screen shows und
   automatic LAST LEVEL backup; Alt-S / Alt-L), and the title has Load Game and Options. Options sets
   the music and sound volume, the music style, the keys (two per control) and checks a gamepad's
   buttons. Saves and settings stay in this browser.
+- **Destruct:** Tyrian's hidden two-player artillery game, ported from OpenTyrian's destruct.c: five
+  modes, eight kinds of unit with their weapons, terrain that burns away, the computer opponent and
+  two players on one keyboard, on a 3D battlefield. Type DESTRUCT at the title (or open
+  `?destruct`); F1 shows its keys.
 - **Not yet:** arcade and two-player modes.
 - **Everything else:** in [Issues](../../issues) and [Milestones](../../milestones). Design calls
   made along the way are in [DECISIONS.md](DECISIONS.md).
@@ -109,7 +113,7 @@ For local development, fetch it into `data/`, which is git-ignored:
     npm run build      # typecheck and production build
     TYRIAN_EPISODE_TEST=1 npm test   # also play every level of all four episodes headless
 
-Debug pages: `?debug=sprites` (renderer test bench), `/src/audio/debugMusic.html` (music player).
+Debug pages: `?debug=sprites` (renderer test bench), `?destruct` (straight into Destruct), `/src/audio/debugMusic.html` (music player).
 
 ## License
 
