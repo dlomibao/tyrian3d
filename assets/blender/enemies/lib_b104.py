@@ -125,7 +125,8 @@ def tube(bm, p0, p1, radius, sides=8, mat_index=0, caps=True, r1=None):
 
 
 def run(name, build, file):
-    """Build, export every model and, with -- --preview <png>, preview the first.
+    """Build, export every model and, with -- --preview <png>, preview the first (-- --frames <png>:
+    each of its frames).
 
     `build(sprite)` returns a list of (model_name, objects, sprites) to export."""
     root = common.repo_root(file)
@@ -138,4 +139,7 @@ def run(name, build, file):
         frame = sprite["frames"][0]
         ref = root / "reference" / "models" / name / frame["image"]
         common.render_preview(models[0][1], out, ref, size=frame["size"])
+    if "--frames" in sys.argv:  # every frame of the first model beside its sprite (animation check)
+        out = sys.argv[sys.argv.index("--frames") + 1]
+        common.render_frame_previews(models[0][1], out, sprite, root)
     return sprite
