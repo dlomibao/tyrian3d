@@ -96,7 +96,7 @@ export function simulate_player_shots(): void {
           drawState.key = savedKey;
         } else if (anim_frame > 60000) {
           // Not in the C, whose simulator skips these, so the item screen showed nothing for the
-          // Plasma Storm sidekick (DECISIONS.md D31b): draw them as player_shot_move_and_draw does.
+          // Plasma Storm sidekick (DECISIONS.md D31a): draw them as player_shot_move_and_draw does.
           const savedKey = drawState.key;
           drawState.key = playerShotKey[z];
           blit_sprite_blend(tempShotX + 1, tempShotY, g.res.spriteTables[OPTION_SHAPES], anim_frame - 60001);

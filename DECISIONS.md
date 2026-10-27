@@ -650,3 +650,62 @@ renderer and only while a screen asks for it. The pause screen's "Quit to title"
 backdrop's cost shows on slow machines, cap its frame rate or render it at a lower pixel ratio. If
 the C's in-game Quit is wanted, add "Retry from item screen" to the pause menu: it's the "died"
 path in `run.ts` with `playerEndLevel` set.
+
+## D31 — Screen filters: hues on palette indices, waves and blurs as a post pass over a pass mask
+
+2026-10-27
+
+**Decision:** The smoothies (event 64: lava, water, iced blur, blur, the headlight and the flipped
+screen) and JE_barBright (the Zinglon beam) are recorded by the sim each tick in `drawList.screen`
+(`src/sim/smoothies.ts`): which filters run, in JE_main's order, the last draw pass each one
+covers, and whether it is the frame's first (the only one that reads the previous frame, since the
+C draws into VGAScreen2 until the first filter writes into game_screen). The renderer splits each
+filter in two. The hue half (lava 0x70, iced 0x80, the water's hue on indices with
+`(index & 0x30) != 0`) is index arithmetic in the palette materials for draws whose pass height
+(D5) is under the filter, as the C does it (`src/render/screenHue.ts`); models in those passes take
+the hue like the hit flash. The value half (the lava's wave and smear, the water's ripple, the
+blurs, the headlight's cone, the flip, the beam) is a post pass (`src/render/screenFilters.ts`):
+the scene goes to a render target, a mask pass draws every object's pass height, and the filter
+only changes pixels whose top object is under its ceiling. Pixels are placed in game_screen
+coordinates by meeting the camera ray with the ground (D6), so the C's per-row and per-chunk wave
+tables apply unchanged. Value is brightness; a new value scales the lit colour. Blends with the
+previous frame use the per-frame weight that halves it per classic tick. It all runs only while a
+filter is on. The level colour filter and brightness (event 44, the flare specials) were already
+folded into the palette texture; they showed nothing because `filtrationAvail` was false, so it is
+now true, as JE_initProcessorType sets it for processorType 4, which the port plays at.
+
+**Options considered:**
+- *Hue on indices, value in a masked post pass (chosen):* the colours are the C's exact palette
+  entries under the 3D lighting, and only the passes the C filters are touched.
+- *Everything in a post pass, hue guessed from the lit colour:* tried first. Lit colours are
+  brighter than palette entries, so the lava came out washed-out yellow, and the water's
+  grey/cloud test needed a nearest-palette lookup that lighting fools.
+- *A full-screen post pass with no mask:* simplest, but it tints and smears the player's ship,
+  shots and sky enemies, which the C draws after the filters.
+- *Split the scene into two renders by pass group:* exact layering, but the instanced pools mix
+  passes, so it means reorganising the draw-list renderer, and shadows across the split are lost.
+
+**Review:** Play ASSASSIN (episode 1; lava, headlight), SAVARA V (water), and in episode 4 LAVA
+RUN (lava, flip), ICE EXIT (iced blur), DESERTRUN (blur) and CORE (water with a level filter);
+`?debug=level&episode=E&main=N&skip=T&god=1` starts one. The mask pass draws the scene a second
+time while a smoothie is on; if that costs too much on slow machines, render the mask at half
+resolution. The water ripple is an approximation of the C's bottom-up recurrence (six rows down).
+Blended (translucent) objects count as solid in the mask.
+
+## D31a — The item screen's simulator draws the Plasma Storm's shots, which the C's doesn't
+
+2026-10-27
+
+**Decision:** The user reported that the Plasma Storm doesn't render. It is a sidekick (options
+index 9, "Plasma Storm Ammo 10"), not a special weapon. In a level it renders: its shots are
+option-shape sprites 22-24 (shot graphics above 60000), drawn blended by player_shot_move_and_draw,
+and they fire only on a sidekick key (Left Ctrl / K, Left Alt / ;) while it has ammo, as in the
+original. The C's item screen simulator, `simulate_player_shots`, skips shot graphics above 60000,
+so the shop showed nothing for it; the port now draws them there as the level does.
+
+**Options considered:**
+- *Draw them in the simulator (chosen):* buyers see what they're paying 8000 for.
+- *Keep the C's empty preview:* faithful, but it reads as a bug, and was reported as one.
+
+**Review:** Upgrade Ship → Left Sidekick → Plasma Storm. If the C's empty preview is preferred,
+remove the `anim_frame > 60000` branch in `simulate_player_shots` (`src/sim/shots.ts`).

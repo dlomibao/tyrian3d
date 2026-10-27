@@ -288,7 +288,7 @@ describe.skipIf(!HAVE)("Plasma Storm", () => {
     expect(inLevel.every((d) => d.effect === "blend" && d.pass === Pass.PlayerShots)).toBe(true);
 
     // The item screen's simulator fires the sidekicks without ammo; the C's simulate_player_shots
-    // doesn't draw these (D31b).
+    // doesn't draw these (D31a).
     JE_initWeaponView();
     let shown = 0;
     for (let i = 0; i < 10; i++) {
