@@ -23,6 +23,9 @@ OpenTyrian links to, and choose or drop it on the page. It stays in your browser
 | Sidekicks | Left Ctrl, Left Alt / K, ; | LB, RB |
 | Pause | Esc / P | Start |
 
+Menus take arrows or WASD, Enter, Esc, a pad's d-pad, A and B, or taps. On a touch screen the
+ship follows your finger and fires while you touch; the pause button sits in the top corner.
+
 ## Status
 
 All four episodes of Tyrian 2.1 are playable, from the title screen's episode and difficulty
@@ -44,6 +47,10 @@ is destroyed, you go back to that item screen with the loadout you launched with
   compare it tick by tick against OpenTyrian's own C, compiled and run on the same input.
 - **Draw list:** instead of drawing pixels, the simulation records each sprite and tile it would
   draw, tagged with its draw pass.
+- **Interface (`src/ui/`):** the title, item screen, messages and pause menu are HTML screens on
+  one framework (design tokens, components, a screen manager and one navigation model for keys,
+  pads and touch) over a 3D backdrop of the player's ship above a planet. See
+  [src/ui/README.md](src/ui/README.md).
 - **Renderer (`src/render/`):** turns the draw list into a 3D scene. Draw order maps to height.
   Every enemy, boss and player ship is a Blender model of its original sprite (about 1,280
   models), loaded the first time it appears and coloured from the game's live palette. The

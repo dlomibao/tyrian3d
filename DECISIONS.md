@@ -387,3 +387,35 @@ pack (it's gated on `VITE_LOCAL_DATA`, set only by `play:local`) and nothing fro
 
 **Review:** If the rights holders agree, decide how the music ships (bundled, or downloaded on
 demand) and move it to the public repo with its licence in CREDITS.md.
+
+## D?? — Menus are one HTML framework over a 3D backdrop; pause quits to the title
+
+2026-10-27
+
+**Decision:** Every screen outside the action is built with `src/ui/` (src/ui/README.md): design
+tokens in CSS custom properties, a few base components, a screen manager that shows one screen at
+a time with a transition, and one navigation model in which keys, pad buttons and taps become the
+same eight intents. The look is a "remastered" Tyrian drawn with CSS: dark panels with gold corner
+brackets, the palette's amber, gold, cyan and steel, Orbitron for titles and Exo 2 for text (Google
+Fonts, SIL Open Font License, loaded by index.html with system fallbacks). Behind the menus a
+three.js backdrop flies the player's ship over a generated dark planet, drawn with the game View's
+renderer and only while a screen asks for it. The pause screen's "Quit to title" ends the game.
+
+**Options considered:**
+- *HTML framework, shared View renderer (chosen):* text stays sharp at any size and readable on a
+  phone, screens are quick to write, the rules stay in `src/sim/`, and one WebGL context serves both
+  the game and the menus. The backdrop stops during levels, so play costs nothing extra.
+- *Menus drawn in three.js (text meshes, UI in the scene):* one rendering path, but text and
+  layout would be hand-built and harder to make accessible and responsive.
+- *A second WebGL canvas for the backdrop:* simpler to isolate, but two contexts, and phones limit
+  how many a page may hold.
+- *Self-hosted fonts:* no request to Google, but the font files would need a dependency or
+  committed binaries; the fallbacks keep the game working offline.
+- *Pause "Quit" as in OpenTyrian:* JE_inGameSetup's Quit sets reallyEndLevel and playerEndLevel,
+  so start_level reloads the "LAST LEVEL" backup and returns to the item screen. A death already
+  does that (D14); a way back to the title was what was missing.
+
+**Review:** Play through the title, item screen and a level with keys, a pad and a phone. If the
+backdrop's cost shows on slow machines, cap its frame rate or render it at a lower pixel ratio. If
+the C's in-game Quit is wanted, add "Retry from item screen" to the pause menu: it's the "died"
+path in `run.ts` with `playerEndLevel` set.

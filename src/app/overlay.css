@@ -1,11 +1,16 @@
-/* Overlays drawn over the 3D view: data picker, title, HUD, level/game-over screens. */
+/*
+ * The HUD over the 3D view, and the first overlay styles (.overlay, .panel, .choices, .key).
+ * ui-framework: screens are now built with src/ui (src/ui/README.md); the old classes stay for
+ * screens not moved yet, and take their colours and font from the framework's tokens so they
+ * already look the part.
+ */
 :root {
-  --ink: #f2e6c8;
-  --ink-dim: #b8a77f;
-  --accent: #e0a040;
-  --panel: rgba(12, 9, 4, 0.82);
-  --edge: rgba(224, 160, 64, 0.45);
-  font-family: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+  --ink: var(--ui-ink, #f2e6c8);
+  --ink-dim: var(--ui-ink-dim, #b8a77f);
+  --accent: var(--ui-gold, #e0a040);
+  --panel: var(--ui-panel, rgba(12, 9, 4, 0.82));
+  --edge: var(--ui-edge-strong, rgba(224, 160, 64, 0.45));
+  font-family: var(--ui-font-text, "Trebuchet MS", "Segoe UI", system-ui, sans-serif);
 }
 
 .overlay {
@@ -32,6 +37,12 @@
   padding: 1.5rem 1.75rem;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
   text-align: center;
+}
+
+.panel h1,
+.panel h2 {
+  font-family: var(--ui-font-display, inherit);
+  text-transform: uppercase;
 }
 
 .panel h1 {
