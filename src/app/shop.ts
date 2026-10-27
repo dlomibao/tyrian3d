@@ -48,6 +48,7 @@ import { g, REAR_WEAPON } from "../sim/state";
 import { sectionLevelName } from "../sim/tyrian2";
 import { backButton, keyHints, reveal, showScreen, ui, type Intent } from "../ui";
 import { WeaponPreview } from "./weaponPreview";
+import { inputDevicesText, twoPlayerInputRequest, twoPlayerSideHtml } from "./twoPlayerShop"; // [two-player]
 
 export interface ItemScreenHost {
   files: TyrianFiles;
@@ -257,6 +258,7 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
   /** After any input: the loop's exit test, then the next iteration's update, then redraw. */
   const step = () => {
     drainSounds();
+    twoPlayerInputRequest(); // [two-player] the Player 1/2 Input rows
     if (optionsRequests()) return render();
     if (JE_itemScreen_done()) {
       finish();
@@ -456,6 +458,7 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
   }
 
   function renderShip(): string {
+    if (g.twoPlayerMode) return twoPlayerSideHtml(); // [two-player]
     const p = g.player[0];
     const it = p.items;
     const { items } = g.res;
@@ -508,6 +511,8 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
     } else if (menu.curMenu === MENU_PLAY_NEXT_LEVEL && !e.done) {
       const level = sectionLevelName(host.files, g.episodeNum, g.mapSection[e.sel - 2]);
       inner = text(e.label, level ? esc(level) : "");
+    } else if (e.inputPlayer !== undefined) {
+      inner = text(e.label, esc(inputDevicesText(e.inputPlayer))); // [two-player]
     } else if (menu.curMenu === MENU_UPGRADES && !e.done) {
       const id = playerItem(e.sel);
       inner = text(e.label, esc(itemName(e.sel, id)));
@@ -591,6 +596,7 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
     const entries = itemScreenEntries();
     el("title").textContent = JE_menuHeader();
     el("cash").textContent = String(itemScreenCash());
+    el("cash").parentElement!.style.display = g.twoPlayerMode ? "none" : ""; // [two-player] the C shows both scores instead
     if (!cubes.render(el("ship"), list)) {
       el("ship").innerHTML = renderShip();
       list.innerHTML = entries.map((e) => renderRow(e, e.sel === menu.curSel[menu.curMenu])).join("");

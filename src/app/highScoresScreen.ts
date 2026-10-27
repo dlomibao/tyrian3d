@@ -267,7 +267,7 @@ class NamePicker implements Navigable {
  * Typing takes the characters the font has, up to 28; Enter (or OK) keeps the name, Escape (or
  * CANCEL) cancels. Resolves with the typed text, or null when cancelled.
  */
-function askHighScoreName(score: number, episodeName: string, sfx?: SoundEffects): Promise<string | null> {
+function askHighScoreName(score: number, episodeName: string, sfx?: SoundEffects, player: number | null = null): Promise<string | null> {
   return new Promise((resolve) => {
     const finish = (name: string | null) => {
       if (!screen.open) return;
@@ -348,9 +348,10 @@ function askHighScoreName(score: number, episodeName: string, sfx?: SoundEffects
       // Escape cancels; B only once the name is empty, so the button shows no glyph.
       button({ label: misc(10, "CANCEL"), variant: "ghost", class: "ui-back", onPress: cancel }),
       title(misc(51, "Congratulations!"), episodeName || undefined),
-      h("p", { class: "hs-earned", text: misc(52, "You have earned a high score!") }),
+      // [two-player] "Player 1 has earned a high score!", "Player 1 Enter your name:" (mainint.c L1996-2005)
+      h("p", { class: "hs-earned", text: player === null ? misc(52, "You have earned a high score!") : misc(57 + player, `Player ${player + 1} has earned a high score!`) }),
       h("p", { class: "hs-total" }, h("span", { text: misc(37, "Your total Score:") }), h("b", { text: String(score) })),
-      h("label", { class: "ui-label", attrs: { for: "hs-name" }, text: misc(53, "Enter your name:") }),
+      h("label", { class: "ui-label", attrs: { for: "hs-name" }, text: player === null ? misc(53, "Enter your name:") : `${misc(48 + player, `Player ${player + 1}`)} ${misc(53, "Enter your name:")}` }),
       h("div", { class: "hs-field" }, input, count),
     );
     screen.add(picker);
@@ -411,17 +412,22 @@ function showHighScoreEntered(saveFiles: HighScoreEntry[], slot: number, first_s
  * The caller decides when it's due (highScoreCheckDue).
  */
 export async function highScoreCheck(host: HighScoreHost, initial_episode_num: number): Promise<void> {
-  const saveFiles = loadHighScores();
-  const temp_score = highScoreCheckScore();
-  const slot = JE_highScoreCheckSlot(saveFiles, initial_episode_num, g.twoPlayerMode, temp_score);
-  if (slot < 0) return;
+  // [two-player] Both players in a two-player game, the higher scorer first (mainint.c L1928-1941).
+  const two = g.twoPlayerMode;
+  for (let temp_p = 0; temp_p < (two ? 2 : 1); ++temp_p) {
+    const p = two && g.player[0].cash < g.player[1].cash ? 1 - temp_p : temp_p;
+    const saveFiles = loadHighScores();
+    const temp_score = highScoreCheckScore(p);
+    const slot = JE_highScoreCheckSlot(saveFiles, initial_episode_num, two, temp_score);
+    if (slot < 0) continue;
 
-  host.music.play(SONG_HIGH_SCORE);
-  const episodeName = host.episodeName[g.episodeNum]?.trim() ?? "";
-  const name = await askHighScoreName(temp_score, episodeName, host.sfx);
-  JE_highScoreCheckEnter(saveFiles, slot, temp_score, name, g.difficultyLevel);
-  saveHighScores(saveFiles);
+    host.music.play(SONG_HIGH_SCORE);
+    const episodeName = host.episodeName[g.episodeNum]?.trim() ?? "";
+    const name = await askHighScoreName(temp_score, episodeName, host.sfx, two ? p : null);
+    JE_highScoreCheckEnter(saveFiles, slot, temp_score, name, g.difficultyLevel);
+    saveHighScores(saveFiles);
 
-  const { first_slot } = highScoreTable(initial_episode_num, g.twoPlayerMode);
-  await showHighScoreEntered(saveFiles, slot, first_slot, episodeName);
+    const { first_slot } = highScoreTable(initial_episode_num, two);
+    await showHighScoreEntered(saveFiles, slot, first_slot, episodeName);
+  }
 }

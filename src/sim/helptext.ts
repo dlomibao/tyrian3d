@@ -62,6 +62,8 @@ export interface MenuText {
   specialName: string[];
   /** difficultyNameB[11]: the high score table's difficulty column, by difficulty level (string[20]). */
   difficultyNameB: string[];
+  /** [two-player] gameplay_name[5] (string[26]): the menu title, then 1 Player Full Game, 1 Player Arcade, 2 Player Arcade, Network Game. */
+  gameplayName: string[];
 }
 
 /** helptext.c menuInt_entries[MENU_MAX + 1]: how many strings each menuInt[m] reads (-1: none). */
@@ -99,7 +101,7 @@ export function parseMenuText(hdt: Uint8Array): MenuText {
   section(5); /*Game speed text*/
   const episodeName = section(6, 31); // episode names (menus.c episode_name[6][31])
   const difficultyName = section(7, 21); // difficulty names (menus.c difficulty_name[7][21])
-  section(5); // gameplay mode names
+  const gameplayName = section(5, 26); // gameplay mode names (menus.c gameplay_name[5][26])
   menuInt[10] = section(menuInt_entries[10], 18); /*Menu 10 - 2Player Main*/
   section(3); /*Input Devices*/
   section(4); /*Network text*/
@@ -124,7 +126,7 @@ export function parseMenuText(hdt: Uint8Array): MenuText {
   readEncryptedString(r);
   menuInt[14] = Array.from({ length: menuInt_entries[14] }, () => readEncryptedString(r).slice(0, 17));
 
-  return { pName, mainMenuHelp, menuInt, shipInfo, episodeName, difficultyName, superShips, specialName, difficultyNameB };
+  return { pName, mainMenuHelp, menuInt, shipInfo, episodeName, difficultyName, superShips, specialName, difficultyNameB, gameplayName };
 }
 
 /** Load the item screen's texts into g.pName, g.mainMenuHelp, g.menuInt and g.shipInfo. */
