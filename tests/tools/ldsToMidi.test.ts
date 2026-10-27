@@ -5,9 +5,10 @@
 // Plays each song of music.mus through the ported Loudness player and OPL emulator (the same code
 // as the game) and records what the player writes to the FM chip. Each song becomes:
 //   song-NN.mid        one track per OPL channel (and a drum track for OPL rhythm mode), 1 MIDI
-//                      tick = 1 player update (69.5 Hz); notes start at key-on and change on every
-//                      pitch step of a semitone or more (arpeggios, slides); pitches are the
-//                      fundamental each FM patch sounds (pitchShift); velocity and CC11
+//                      tick = 1 player update (69.5 Hz); a note starts where the player strikes one
+//                      (playsound or key-on) and arpeggio steps are notes; slides, vibrato, scoops and
+//                      drum pitch falls are pitch bend (range 24 semitones, set by RPN 0); pitches are
+//                      the fundamental each FM patch sounds (pitchShift); velocity and CC11
 //                      follow the carrier's level; each FM patch is named in the track's events
 //   song-NN.json       analysis: length, loop point, the player's row speed, per channel the
 //                      notes' range and count and the FM patches used, with their parameters
@@ -24,6 +25,8 @@ const OUT = process.env.MIDI_OUT ?? "";
 const RATE = 44100;
 const UPDATE_HZ = 69.5;
 const MAX_SECONDS = 600;
+/** Pitch-bend range set on every channel (RPN 0), in semitones. */
+const BEND_RANGE = 24;
 /** OPL2 operator offsets of each channel's modulator; the carrier is +3. */
 const MOD_SLOT = [0, 1, 2, 8, 9, 10, 16, 17, 18];
 /** OPL rhythm-mode bits of register 0xBD (bit 4 .. 0) and their General MIDI drums. */
@@ -119,8 +122,22 @@ function convert(mus: Uint8Array, song: number) {
   const realUpdate = lds.update.bind(lds);
   let loopTick = -1;
   let rowSpeed = -1;
+  // New notes are the player's playsound calls; pitch changes without one are slides, vibrato or
+  // an arpeggio (whether a channel's arpeggio is running is read after each update).
+  const internals = lds as unknown as {
+    playsound(inst: number, chan: number, high: number): void;
+    channel: { arp_size: number }[];
+  };
+  const realPlaysound = internals.playsound.bind(lds);
+  const struck: Set<number>[] = [];
+  internals.playsound = (inst: number, chan: number, high: number) => {
+    (struck[tick] ??= new Set()).add(chan);
+    realPlaysound(inst, chan, high);
+  };
+  const arpeggio: boolean[][] = [];
   lds.update = () => {
     const ok = realUpdate();
+    arpeggio[tick] = internals.channel.map((c) => c.arp_size !== 0);
     tick++;
     const speed = (lds as unknown as { tempo: number }).tempo;
     if (rowSpeed < 0 && speed) rowSpeed = speed;
@@ -141,10 +158,14 @@ function convert(mus: Uint8Array, song: number) {
   const pcm = new Int16Array(total);
   audio.forEach((b, i) => pcm.set(b.subarray(0, Math.max(0, Math.min(block, total - i * block))), i * block));
 
-  // Replay the register writes into notes.
+  // Replay the register writes tick by tick into notes. A note starts at a key-on or a playsound;
+  // while it's held, an arpeggio step starts a new note and any other pitch change (slides, vibrato,
+  // scoops, a drum's falling pitch) becomes pitch bend on it (range BEND_RANGE semitones).
   const tracks: Ev[][] = Array.from({ length: 10 }, () => []);
   const patches = new Map<string, { id: number; params: Record<string, number>; shift: number }>();
-  const chan = Array.from({ length: 9 }, () => ({ on: false, onTick: -1, onEvent: null as Ev | null, note: 0, base: 0, patch: -1, vel: 0, count: 0, min: 128, max: -1, patches: new Set<number>() }));
+  const chan = Array.from({ length: 9 }, () => ({
+    on: false, note: 0, ref: 0, bend: 0, lastStep: 0, patch: -1, vel: 0, count: 0, bends: 0, min: 128, max: -1, patches: new Set<number>(),
+  }));
   let rhythm = 0;
   const patchOf = (ch: number) => {
     const m = MOD_SLOT[ch], c = m + 3;
@@ -167,76 +188,93 @@ function convert(mus: Uint8Array, song: number) {
     }
     return p;
   };
+  const bendTo = (ch: number, t: number, semis: number) => {
+    const v = Math.max(0, Math.min(16383, Math.round(8192 + (semis / BEND_RANGE) * 8192)));
+    tracks[ch].push({ tick: t, data: [0xe0 | ch, v & 0x7f, v >> 7] });
+  };
   const off = (ch: number, t: number) => {
     const s = chan[ch];
     if (!s.on) return;
     s.on = false;
-    // A pitch is written in two registers; a note that ends on the tick it started was the
-    // in-between value, not a note.
-    if (t === s.onTick) {
-      const i = tracks[ch].lastIndexOf(s.onEvent!);
-      if (i >= 0) tracks[ch].splice(i, 1);
-      s.count--;
-      return;
-    }
     tracks[ch].push({ tick: t, data: [0x80 | ch, s.note, 0] });
   };
-  const on = (ch: number, t: number, base: number) => {
+  /** Start a note at the exact (fractional) MIDI pitch `exact`. */
+  const on = (ch: number, t: number, exact: number) => {
     const s = chan[ch];
     const m = MOD_SLOT[ch];
     const p = patchOf(ch);
-    const patch = p.id;
-    const note = Math.max(0, Math.min(127, base + p.shift));
-    if (patch !== s.patch) {
-      tracks[ch].push({ tick: t, data: [0xff, 0x06, ...vlq(`patch ${patch}`.length), ...Buffer.from(`patch ${patch}`, "latin1")] });
-      s.patch = patch;
+    if (p.id !== s.patch) {
+      tracks[ch].push({ tick: t, data: [0xff, 0x06, ...vlq(`patch ${p.id}`.length), ...Buffer.from(`patch ${p.id}`, "latin1")] });
+      s.patch = p.id;
     }
-    s.patches.add(patch);
+    const note = Math.max(0, Math.min(127, Math.round(exact) + p.shift));
+    if (s.bend !== 0) bendTo(ch, t, 0);
+    s.bend = 0;
+    s.patches.add(p.id);
     s.vel = velocityOf(regs[0x40 + m + 3] & 0x3f);
-    s.onEvent = { tick: t, data: [0x90 | ch, note, s.vel] };
-    s.onTick = t;
-    tracks[ch].push(s.onEvent);
+    tracks[ch].push({ tick: t, data: [0x90 | ch, note, s.vel] });
     s.on = true;
     s.note = note;
-    s.base = base;
+    s.ref = Math.round(exact);
+    s.lastStep = t;
     s.count++;
     s.min = Math.min(s.min, note);
     s.max = Math.max(s.max, note);
   };
-  for (const w of writes) {
-    if (w.tick > endTick) break;
-    const prev = regs[w.reg];
-    regs[w.reg] = w.val;
-    const t = w.tick;
-    if ((w.reg >= 0xa0 && w.reg <= 0xa8) || (w.reg >= 0xb0 && w.reg <= 0xb8)) {
-      const ch = w.reg & 0x0f;
+  const keyRose = new Array<boolean>(9).fill(false);
+  let w = 0;
+  for (let t = 0; t <= endTick; t++) {
+    keyRose.fill(false);
+    for (; w < writes.length && writes[w].tick === t; w++) {
+      const { reg, val } = writes[w];
+      const prev = regs[reg];
+      regs[reg] = val;
+      if (reg >= 0xb0 && reg <= 0xb8 && !(prev & 0x20) && val & 0x20) keyRose[reg & 0x0f] = true;
+      if (reg >= 0x40 && reg <= 0x55) {
+        // Level changes of a sounding note's carrier: expression.
+        for (let ch = 0; ch < 9; ch++) {
+          if (reg === 0x40 + MOD_SLOT[ch] + 3 && chan[ch].on) {
+            const v = velocityOf(val & 0x3f);
+            tracks[ch].push({ tick: t, data: [0xb0 | ch, 11, Math.min(127, Math.round((v / Math.max(1, chan[ch].vel)) * 127))] });
+          }
+        }
+      } else if (reg === 0xbd) {
+        const nowRhythm = val & 0x20 ? val : 0;
+        for (const d of RHYTHM) {
+          const was = rhythm & 0x20 && rhythm & d.bit, is = nowRhythm & d.bit;
+          if (is && !was) tracks[9].push({ tick: t, data: [0x99, d.note, 100] }, { tick: t + 4, data: [0x89, d.note, 0] });
+        }
+        rhythm = nowRhythm;
+      }
+    }
+    // Each channel as it stands at the end of this tick.
+    for (let ch = 0; ch < 9; ch++) {
+      const s = chan[ch];
       const keyOn = (regs[0xb0 + ch] & 0x20) !== 0;
       const fnum = regs[0xa0 + ch] | ((regs[0xb0 + ch] & 3) << 8);
-      const note = Math.round(noteOf(fnum, (regs[0xb0 + ch] >> 2) & 7));
-      const s = chan[ch];
-      if (!keyOn) off(ch, t);
-      else if (!s.on || (w.reg >= 0xb0 && (prev & 0x20) === 0)) {
+      if (!keyOn || fnum === 0) {
         off(ch, t);
-        if (fnum > 0 && note >= 0 && note < 128) on(ch, t, note);
-      } else if (note !== s.base && fnum > 0 && note >= 0 && note < 128) {
-        off(ch, t); // a pitch step of a semitone or more: arpeggio, slide or new note
-        on(ch, t, note);
+        continue;
       }
-    } else if (w.reg >= 0x40 && w.reg <= 0x55) {
-      // Level changes of a sounding note's carrier: expression.
-      for (let ch = 0; ch < 9; ch++) {
-        if (w.reg === 0x40 + MOD_SLOT[ch] + 3 && chan[ch].on) {
-          const v = velocityOf(w.val & 0x3f);
-          tracks[ch].push({ tick: t, data: [0xb0 | ch, 11, Math.min(127, Math.round((v / Math.max(1, chan[ch].vel)) * 127))] });
-        }
+      const exact = noteOf(fnum, (regs[0xb0 + ch] >> 2) & 7);
+      if (exact < 0 || exact > 127) continue;
+      const newNote = !s.on || keyRose[ch] || struck[t]?.has(ch);
+      // An arpeggio step is a note when the previous step was held 2 ticks or more; faster steps (a
+      // drum's pitch fall, a one-tick "zap") are bend on one note.
+      const pitchStep = s.on && arpeggio[t]?.[ch] && Math.round(exact) !== Math.round(s.ref + s.bend);
+      const arpStep = pitchStep && t - s.lastStep >= 2;
+      if (pitchStep) s.lastStep = t;
+      if (newNote || arpStep || Math.abs(exact - s.ref) > BEND_RANGE - 0.5) {
+        off(ch, t);
+        on(ch, t, exact);
+        continue;
       }
-    } else if (w.reg === 0xbd) {
-      const nowRhythm = w.val & 0x20 ? w.val : 0;
-      for (const d of RHYTHM) {
-        const was = rhythm & 0x20 && rhythm & d.bit, is = nowRhythm & d.bit;
-        if (is && !was) tracks[9].push({ tick: t, data: [0x99, d.note, 100] }, { tick: t + 4, data: [0x89, d.note, 0] });
+      const semis = Math.round((exact - s.ref) * 100) / 100;
+      if (semis !== s.bend) {
+        bendTo(ch, t, semis);
+        if (s.bend === 0) s.bends++;
+        s.bend = semis;
       }
-      rhythm = nowRhythm;
     }
   }
   for (let ch = 0; ch < 9; ch++) off(ch, endTick);
@@ -250,6 +288,11 @@ function convert(mus: Uint8Array, song: number) {
   head.writeUInt16BE(1, 8);
   head.writeUInt16BE(used.length + 1, 10);
   head.writeUInt16BE(division, 12);
+  // Each melodic channel opens by setting its pitch-bend range (RPN 0) to BEND_RANGE semitones.
+  for (const t of used) {
+    if (t.ch === 9) continue;
+    t.events.unshift(...[[101, 0], [100, 0], [6, BEND_RANGE], [38, 0]].map(([cc, v]) => ({ tick: 0, data: [0xb0 | t.ch, cc, v] })));
+  }
   const midi = Buffer.concat([head, track(tempoTrack, `Tyrian song ${song + 1}`), ...used.map((t) => track(t.events, t.ch === 9 ? "OPL rhythm" : `OPL channel ${t.ch}`))]);
 
   const analysis = {
@@ -260,7 +303,8 @@ function convert(mus: Uint8Array, song: number) {
     ticksPerRow: rowSpeed,
     midiTicksPerQuarter: division,
     note: "1 MIDI tick = 1 player update; a quarter note is taken as 4 rows",
-    channels: chan.map((s, i) => ({ channel: i, notes: s.count, range: s.count ? [s.min, s.max] : null, patches: [...s.patches] })).filter((c) => c.notes),
+    bendRange: BEND_RANGE,
+    channels: chan.map((s, i) => ({ channel: i, notes: s.count, bentNotes: s.bends, range: s.count ? [s.min, s.max] : null, patches: [...s.patches] })).filter((c) => c.notes),
     drums: tracks[9].filter((e) => (e.data[0] & 0xf0) === 0x90).length,
     patches: [...patches.values()].map((p) => ({ id: p.id, semitonesFromBase: p.shift, ...p.params })),
   };
