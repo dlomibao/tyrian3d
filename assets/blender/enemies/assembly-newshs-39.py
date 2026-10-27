@@ -6,7 +6,7 @@ machine on the stone floor: a big glossy black orb with a bright glint, two brow
 flanks, two curved horns sweeping down from under it to a brown yoke, and in front of the yoke
 a small black hatch. In frames 81/85 (newshs-77) and 83/87 (newshs-79) a pink ball rises out
 of the hatch, so those frames get their own models (newshs-77-f2, newshs-79-f2) with the ball
-in place of the hatch.
+in place of the hatch: dim on 81/83, bright and a pixel lower on 85/87 (frame_part).
 
 Built whole and cut into the pieces with common.split_assembly.
 
@@ -66,11 +66,7 @@ def machine(sprite, g, m, name, ball):
         L.ellipsoid(bm, x, y, zf(x, y) - 0.012, s * L.U, s * 0.8 * L.U, 0.025, sides=8, rings=4,
                     mat=m(5, metallic=0.5, roughness=0.3))
 
-    if ball:
-        # The pink ball risen out of the hatch (columns 16-29, rows 38-52).
-        L.ellipsoid(bm, g.x(22.6), g.y(45.0), 0.2, 6.6 * L.U, 6.6 * L.U, 0.2, sides=18, rings=9,
-                    mat=m(74, metallic=0.2, roughness=0.45))
-    else:
+    if not ball:  # the risen ball is built apart (balls)
         # The black hatch (columns 18-26, rows 40-47) with a white glint.
         L.dome(bm, g.x(21.8), g.y(43.6), 4.6 * L.U, 4.0 * L.U, 0.12, z0=0.0, sides=16, rings=3,
                mat=m(2, metallic=0.6, roughness=0.15))
@@ -79,13 +75,29 @@ def machine(sprite, g, m, name, ball):
     return L.finish(name, bm, m, coll)
 
 
+def balls(g, m, coll):
+    """The pink ball risen out of the hatch (columns 16-29, rows 38-52): dim on frames 81/83,
+    bright and a pixel lower on 85/87."""
+    out = []
+    for look, frames, c, r, index in (("dim", [81, 83], 22.6, 45.0, 74), ("bright", [85, 87], 23.0, 46.0, 78)):
+        bm = bmesh.new()
+        L.ellipsoid(bm, g.x(c), g.y(r), 0.2, 6.6 * L.U, 6.6 * L.U, 0.2, sides=18, rings=9,
+                    mat=m(index, metallic=0.2, roughness=0.45))
+        out.append(L.part(f"ball-{look}", bm, m, coll, frames))
+    return out
+
+
 def build(sprite, g):
     m = L.Mats("nshs39", sprite["colors"])
     whole = machine(sprite, g, m, NAME, ball=False)
     risen = machine(sprite, g, m, NAME + "-ball", ball=True)
-    cut = common.split_assembly(risen, [e for e in L.layout_of(PIECES, 2, 2) if e[0] in ("newshs-77", "newshs-79")])
-    extra = [("newshs-77-f2", [cut["newshs-77"]], L.sprites_with(ROOT, "newshs-77", [81, 85])),
-             ("newshs-79-f2", [cut["newshs-79"]], L.sprites_with(ROOT, "newshs-79", [83, 87]))]
+    layout = [e for e in L.layout_of(PIECES, 2, 2) if e[0] in ("newshs-77", "newshs-79")]
+    cut = common.split_assembly(risen, layout)
+    for ball in balls(g, m, risen.users_collection[0]):
+        for n, piece in L.cut_parts(ball, layout).items():
+            cut.setdefault(n + "-parts", []).append(piece)
+    extra = [("newshs-77-f2", [cut["newshs-77"], *cut["newshs-77-parts"]], L.sprites_with(ROOT, "newshs-77", [81, 85])),
+             ("newshs-79-f2", [cut["newshs-79"], *cut["newshs-79-parts"]], L.sprites_with(ROOT, "newshs-79", [83, 87]))]
     risen.hide_render = True
     return whole, extra
 
