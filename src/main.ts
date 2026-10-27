@@ -33,6 +33,7 @@ function startGame(): void {
   const debug = new URLSearchParams(location.search).get("debug");
 
   view.draws.setSpriteModels(spriteModels(), loadModel);
+  view.draws.setBackgroundStyle(settings.background); // D34
   loadModel("usp_talon")
     .then((model) => view.setShipModel(model))
     .catch((err) => console.error("player ship model failed to load; keeping placeholder", err));

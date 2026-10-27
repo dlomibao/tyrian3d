@@ -13,13 +13,17 @@
 //   (setSpriteModels, D15). Models load on first use; until then the sprite stays extruded.
 //   Materials named pal_<index> take their colour from the live palette.
 //
+// - Remastered backgrounds (setBackgroundStyle("remaster"), D34): the ground is upscaled 4x
+//   (remaster/groundAtlas.ts) and structure tiles become Blender models found by tile pattern
+//   (remaster/tileModels.ts). Tiles without a model, and models still loading, stay as above.
+//
 // Integrator API: add `root` to the scene, call setPalettes() once, setDrawList() every logic
 // tick, and update(alpha, camera) every display frame before rendering.
 
 import * as THREE from "three";
 import type { Palette } from "../data/palette";
 import { PX_PER_UNIT, screenWorldX, screenWorldZ } from "../game/playfield";
-import { Pass, type Draw, type DrawList, type SpriteDraw, type SpriteEffect } from "../sim/draw";
+import { Pass, type Draw, type DrawList, type SpriteDraw, type SpriteEffect, type TileDraw } from "../sim/draw";
 import { DrawInterpolator } from "./interpolation";
 import { FxMode, groundTileMaterial, paletteMaterial } from "./paletteMaterial";
 import { PaletteTexture } from "./paletteTexture";
@@ -28,6 +32,13 @@ import { SpriteMeshCache } from "./spriteMesh";
 import { colourFrame, rigModel, showFrame, type FrameRig } from "./modelFrames";
 import { spriteModelKey, type ModelOverride, type SpriteModels } from "./spriteModels";
 import { TileAtlas } from "./tileAtlas";
+import { RemasterGroundAtlas } from "./remaster/groundAtlas";
+import { remasterGroundMaterial } from "./remaster/groundMaterial";
+import { paletteLuma } from "./remaster/mmpx";
+import { TileModelIndex } from "./remaster/tileModels";
+
+/** How backgrounds are drawn: the original tiles extruded (D8) or remastered (D34). */
+export type BackgroundStyle = "original" | "remaster";
 
 /** Roll at full bank, and how fast the model eases toward its frame's roll (per second). */
 const MAX_ROLL = THREE.MathUtils.degToRad(35);
@@ -47,6 +58,7 @@ const enum Variant {
   GlowBlend,
   Unlit,
   Ground,
+  RemasterGround,
 }
 
 /** One InstancedMesh and its per-instance data, reused every frame. */
@@ -155,6 +167,7 @@ export interface DrawListStats {
   visiblePools: number;
   meshes: number;
   atlasTiles: number;
+  remasterTiles: number;
 }
 
 export class DrawListRenderer {
@@ -163,6 +176,7 @@ export class DrawListRenderer {
   readonly palette = new PaletteTexture();
   readonly cache = new SpriteMeshCache();
   readonly atlas = new TileAtlas();
+  readonly remasterAtlas = new RemasterGroundAtlas();
 
   private readonly interp = new DrawInterpolator();
   private list: DrawList | null = null;
@@ -180,6 +194,10 @@ export class DrawListRenderer {
   private frame = 0;
   private lastTime = performance.now();
   private instances = 0;
+  private background: BackgroundStyle = "original";
+  private tileModels = new TileModelIndex([]);
+  /** Structures already placed this frame, by layer and pattern anchor. */
+  private readonly placedStructures = new Set<string>();
 
   constructor() {
     this.root.name = "draw-list";
@@ -191,7 +209,8 @@ export class DrawListRenderer {
     this.materials[Variant.GlowBlend] = paletteMaterial(p, { lit: true, transparent: true, outline: false, glow: GLOW });
     this.materials[Variant.Unlit] = paletteMaterial(p, { lit: false, transparent: false, outline: false });
     this.materials[Variant.Ground] = groundTileMaterial(p, this.atlas);
-    for (let v = 0; v <= Variant.Ground; v++) this.pools.push(new Map());
+    this.materials[Variant.RemasterGround] = remasterGroundMaterial(p, this.remasterAtlas);
+    for (let v = 0; v <= Variant.RemasterGround; v++) this.pools.push(new Map());
   }
 
   /** The 23 palettes from palette.dat (resources.palettes); draw lists select one by index. */
@@ -209,6 +228,30 @@ export class DrawListRenderer {
     this.items = list.items;
     this.interp.push(list.items);
     this.applyPalette(list);
+    if (this.background === "remaster") {
+      const palette = this.palettes[list.palette] ?? this.palettes[0];
+      if (palette) this.remasterAtlas.setLuma(paletteLuma(palette));
+      this.remasterAtlas.prepare(list.items);
+      this.tileModels.prepare(list.items);
+    }
+  }
+
+  /**
+   * Draw backgrounds as the original's tiles (extruded, D8) or remastered (D34): the ground
+   * upscaled, and structure tiles as models from `tileModels` (loaded with the sprite models'
+   * loader on first sight; until then, and for tiles without a model, the tiles draw as before).
+   */
+  setBackgroundStyle(style: BackgroundStyle, tileModels: TileModelIndex = new TileModelIndex()): void {
+    this.background = style;
+    this.tileModels = style === "remaster" ? tileModels : new TileModelIndex([]);
+    if (style === "remaster" && this.list) {
+      this.remasterAtlas.prepare(this.list.items);
+      this.tileModels.prepare(this.list.items);
+    }
+  }
+
+  get backgroundStyle(): BackgroundStyle {
+    return this.background;
   }
 
   /** Forget interpolation history (level start, teleports). */
@@ -248,6 +291,7 @@ export class DrawListRenderer {
     const cam = camera.position;
     let instances = 0;
     for (const mp of this.modelPools.values()) mp.used = 0;
+    this.placedStructures.clear();
 
     for (let i = 0; i < items.length; i++) {
       const d = items[i];
@@ -277,6 +321,10 @@ export class DrawListRenderer {
         case "tile": {
           const x = prevX[i] + (d.x - prevX[i]) * alpha;
           const y = prevY[i] + (d.y - prevY[i]) * alpha;
+          if (this.background === "remaster" && this.drawRemasterTile(d, x, y, cam, frame)) {
+            instances++;
+            break;
+          }
           if (d.layer === 0) {
             const pool = this.pool(this.groundGeometry, Variant.Ground, frame);
             const s = pool.next(frame);
@@ -306,6 +354,7 @@ export class DrawListRenderer {
       for (let c = mp.used; c < mp.clones.length; c++) mp.clones[c].object.visible = false;
     }
     this.atlas.flush();
+    this.remasterAtlas.flush();
     this.instances = instances;
     if (frame % 300 === 0) this.evictPools(frame);
   }
@@ -318,6 +367,7 @@ export class DrawListRenderer {
       visiblePools: this.allPools.filter((p) => p.mesh.visible).length,
       meshes: this.cache.size,
       atlasTiles: this.atlas.size,
+      remasterTiles: this.remasterAtlas.size,
     };
   }
 
@@ -334,7 +384,7 @@ export class DrawListRenderer {
       pool = new Pool(
         geometry,
         this.materials[variant],
-        variant === Variant.Ground ? "instTile" : "instFx",
+        variant === Variant.Ground || variant === Variant.RemasterGround ? "instTile" : "instFx",
         this.root,
         { cast: opaque, receive: variant !== Variant.Unlit },
       );
@@ -391,6 +441,37 @@ export class DrawListRenderer {
     fx[s * 4 + 3] = 1;
   }
 
+  /**
+   * Draw a background tile remastered (D34): a structure tile as its model (once per structure per
+   * frame, at the pattern's centre), and a ground tile from the upscaled atlas (also under a ground
+   * structure). Returns false to draw the tile the original way.
+   */
+  private drawRemasterTile(d: TileDraw, x: number, y: number, cam: THREE.Vector3, frame: number): boolean {
+    let modelled = false;
+    if (this.tileModels.has(d)) {
+      const match = this.tileModels.match(d);
+      const pool = match ? this.modelPool(match.entry.model) : null;
+      if (match && pool?.source) {
+        const id = `${match.anchorKey}|${match.entry.model}`;
+        if (!this.placedStructures.has(id)) {
+          this.placedStructures.add(id);
+          this.placeModel(pool, x + match.dx, y + match.dy, { pass: d.pass, effect: d.effect, filter: 0 }, cam);
+        }
+        if (!(match.entry.keepTiles ?? d.layer === 0)) return true;
+        modelled = true;
+      }
+    }
+    if (d.layer !== 0) return modelled;
+    const pool = this.pool(this.groundGeometry, Variant.RemasterGround, frame);
+    const s = pool.next(frame);
+    if (!this.remasterAtlas.place(d.key, pool.extra.array as Float32Array, s * 2)) {
+      pool.count--; // No slot yet (no palette): give the instance back.
+      return false;
+    }
+    writeMatrix(pool.mesh.instanceMatrix.array as Float32Array, s, x, y, passHeight(d.pass), 1, 1, cam);
+    return true;
+  }
+
   /** Draw a sprite as its override model (the player ship and its banking frames), if it has one. */
   private drawOverride(d: SpriteDraw, x: number, y: number, cam: THREE.Vector3, dt: number): boolean {
     const overrides = this.overridesBySheet.get(d.sheet.id);
@@ -443,7 +524,7 @@ export class DrawListRenderer {
    * size the sprite had on screen (D6), translucent for the "blend" effect and with the enemy
    * hit-flash hue for "filter". `frame` is the sprite frame drawn, for models that animate (D17).
    */
-  private placeModel(pool: ModelPool, cx: number, cy: number, d: SpriteDraw, cam: THREE.Vector3, frame = -1): ModelClone {
+  private placeModel(pool: ModelPool, cx: number, cy: number, d: Pick<SpriteDraw, "pass" | "effect" | "filter">, cam: THREE.Vector3, frame = -1): ModelClone {
     if (pool.used === pool.clones.length) pool.clones.push(this.cloneModel(pool.source!));
     const clone = pool.clones[pool.used++];
     const { object } = clone;

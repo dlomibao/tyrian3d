@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "songs-to-midi": "MIDI_OUT=${MIDI_OUT:-../tyrian3d-remaster/source} vitest run tests/tools/ldsToMidi.test.ts",
     "catalogue": "CATALOGUE_OUT=${CATALOGUE_OUT:-reference/models} vitest run tests/tools/spriteCatalogue.test.ts",
-    "pictures": "PICTURES_OUT=${PICTURES_OUT:-reference/pictures} vitest run tests/tools/pictureCatalogue.test.ts"
+    "pictures": "PICTURES_OUT=${PICTURES_OUT:-reference/pictures} vitest run tests/tools/pictureCatalogue.test.ts",
+    "tiles": "TILES_OUT=${TILES_OUT:-reference/tiles} vitest run tests/tools/tileReference.test.ts"
   },
   "dependencies": {
     "three": "^0.186.1"

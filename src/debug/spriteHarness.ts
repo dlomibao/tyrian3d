@@ -7,6 +7,9 @@
 //   &palette=N                         force palette N
 //   &sheet=newsh1.shp&size=2&page=P    a static grid of one sheet's sprites instead
 //   &clip=0                            show everything drawn, not just the original's playfield
+//   &freeze=T                          stop at tick T (the same frame every time, for comparisons)
+//   &bg=remaster                       remastered backgrounds (DECISIONS.md D34); in the console,
+//                                      tyrianHarness.view.draws.setBackgroundStyle("original") switches back
 //
 // The background emulates draw_background_1/2/3 (src/backgrnd.c): rows of 12 tiles from the
 // level's maps, scrolling down as the original's map pointers move up.
@@ -57,6 +60,7 @@ export async function runSpriteHarness(view: View): Promise<void> {
     ? sheetGrid(res, files.get(sheetName) ? { id: sheetName, data: requireFile(files, sheetName) } : sheetByName(res, sheetName), params)
     : levelScene(res, files, params);
   const palette = params.has("palette") ? Number(params.get("palette")) : null;
+  const freeze = params.has("freeze") ? Number(params.get("freeze")) : Infinity;
 
   let tick = 0;
   const frameTimes: number[] = [];
@@ -66,6 +70,10 @@ export async function runSpriteHarness(view: View): Promise<void> {
 
   startLoop(CLASSIC_TICK_MS, {
     update: () => {
+      if (tick >= freeze) {
+        view.setDrawList(drawList); // the same list again, so nothing moves
+        return;
+      }
       beginDrawList();
       build(tick++);
       if (palette !== null) drawList.palette = palette;
