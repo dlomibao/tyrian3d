@@ -388,7 +388,7 @@ pack (it's gated on `VITE_LOCAL_DATA`, set only by `play:local`) and nothing fro
 **Review:** If the rights holders agree, decide how the music ships (bundled, or downloaded on
 demand) and move it to the public repo with its licence in CREDITS.md.
 
-## D?? — The full-screen pictures are redrawn in Blender and looked up by their JE_loadPic number
+## D19 — The full-screen pictures are redrawn in Blender and looked up by their JE_loadPic number
 
 2026-10-27
 
@@ -414,7 +414,7 @@ in a sunlit sky, an eclipse in smoke over a grid.
 shows them should place text where the original did (the story pictures keep those areas dark or
 plain). `tshp2.pcx`, shown by episode 4's `]P 000`, is a separate file; its new picture is
 number 0.
-## D?? — The weapon preview borrows the sim's globals and gives them back
+## D20 — The weapon preview borrows the sim's globals and gives them back
 
 2026-10-27
 
@@ -443,7 +443,7 @@ both sidekicks. The C's text and bars over it are the shop's HTML; its power bar
 **Review:** If the level after the shop must match the C exactly for a recorded session (demos),
 apply the preview's mt_rand use to the game's generator once per submenu opened. The second View
 is one extra WebGL context, made once and reused by every item screen.
-## D?? — Screens between levels: the script records steps, an HTML canvas plays them
+## D21 — Screens between levels: the script records steps, an HTML canvas plays them
 
 2026-10-27
 
@@ -479,7 +479,7 @@ the 3D view and HUD (src/app/fade.ts).
 fade, but its play area is empty then). Text uses the original tiny font scaled up; if remastered
 pictures want new type, that's the place to change. Check the warning screen before MINES
 (flashing bars and siren) and episode 1's ending (pan up, flash).
-## D?? — After the last episode the game goes on into episode 1, as JE_nextEpisode does
+## D22 — After the last episode the game goes on into episode 1, as JE_nextEpisode does
 
 2026-10-27
 
@@ -506,7 +506,7 @@ the original's fonts, palettes, timing and the decoded tyrend.anm.
 episode 1's item screen. The fallback is to return false from the `]Q[` case when
 jumpBackToEpisode1 is set (back to the title). The title screen doesn't take the Super Arcade codes
 yet, so that screen names a code nothing reads.
-## D?? — Data cubes: the C's cube list and wrapped text, a scrolling HTML reader, and a NEW mark
+## D23 — Data cubes: the C's cube list and wrapped text, a scrolling HTML reader, and a NEW mark
 
 2026-10-27
 
@@ -533,7 +533,7 @@ palette (`facepal`). Cubes the player hasn't opened this session are marked NEW.
 wheel. The C's End key wraps `yLoc` for cubes of nine lines or fewer, which scrolls the text out of
 view; here it stays at the top. If NEW isn't wanted, remove it from `dataCubes.ts`, where it
 lives.
-## D?? — Saved games and settings live in localStorage; the Options menu's setup rows open a settings screen
+## D24 — Saved games and settings live in localStorage; the Options menu's setup rows open a settings screen
 
 2026-10-27
 
@@ -568,7 +568,7 @@ episode 4 each retry lowers the difficulty one more step; the port saves before 
 that quirk should be reproduced, move the JE_saveGame call after initLevelWorld. Two-player saves
 (slots 12-22) aren't shown on the title's load screen, as there's no two-player game yet. Volumes
 now start at the C's 223, about 4 dB below the old full volume for both music and effects.
-## D?? — High scores follow JE_highScoreCheck; quitting a game also checks
+## D25 — High scores follow JE_highScoreCheck; quitting a game also checks
 
 2026-10-27
 
@@ -598,7 +598,7 @@ gear), above most of the 1,000-20,000 defaults, so quitting at once can earn a p
 feels cheap, drop the check on quitting (the C's behaviour). Normal games show "Easy" in the
 difficulty column, because difficultyNameB starts at "Unranked", "Wimp"; that is the C's
 indexing, kept on purpose.
-## D?? — Menus are one HTML framework over a 3D backdrop; pause quits to the title
+## D26 — Menus are one HTML framework over a 3D backdrop; pause quits to the title
 
 2026-10-27
 
