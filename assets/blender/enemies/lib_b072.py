@@ -205,12 +205,13 @@ def _vfin(bm, g, col, outline, thickness, mat):
     _tag(bm, before, mat, False)
 
 
-def dart(sprite, tag, coll, name, mapping=None):
+def dart(sprite, tag, coll, name, mapping=None, light_frames=None):
     """A grey dart lying on the ground: a rod with two sets of swept fins (horizontal ones either
     side and an upright one on top), a glowing red band near its blunt nose. Built as it appears
     in newsh-caret-171 (12x14 sprite, nose down the screen at row 11, fins wide at the top), then
     every vertex is moved by `mapping` (sprite pixel (c, r) -> (c, r) of the target sprite, a
-    rotation) for the sideways sprites. Returns the object."""
+    rotation) for the sideways sprites. `light_frames` ({sprite frame: palette index}) cycles the
+    band's colour (its own material, tagged <tag>-band). Returns the object."""
     g = Grid(12, 14)
     pal = lambda i, **kw: common.palette_material(sprite, i, tag, **kw)  # noqa: E731
     mats = [
@@ -219,7 +220,8 @@ def dart(sprite, tag, coll, name, mapping=None):
         pal(14, metallic=0.6, roughness=0.3),  # 2 fins
         pal(11, metallic=0.6, roughness=0.35),  # 3 fin trailing edges
         pal(8, metallic=0.6, roughness=0.4),  # 4 rod's back end
-        pal(120, emission_strength=3.5),  # 5 red light band
+        common.palette_material(sprite, 120, f"{tag}-band" if light_frames else tag, emission_strength=3.5,
+                                frames=light_frames),  # 5 red light band
     ]
     ROD, RIDGE, FIN, EDGE, BACK, LIGHT = range(6)
     bm = bmesh.new()
