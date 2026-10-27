@@ -28,6 +28,7 @@ import { loadMenuText } from "./helptext";
 import { mt_rand } from "./mtrand";
 import { JE_drawTextWindow } from "./mainint";
 import { buildResources, requireFile, type TyrianFiles } from "./resources";
+import { JE_saveGame } from "./savegame"; // [port-options]
 import { windowTextSamples, V_GOOD_LUCK } from "./sndmast";
 import {
   DIFFICULTY_10,
@@ -1726,17 +1727,20 @@ const DEFAULT_SONG_BUY = 2;
  *
  * Ported: every script command's effect on game state. Not ported (no-ops, marked below):
  * pictures, fades, palette changes and text screens (the `]W` text is kept in
- * g.levelWarningText), the end-of-episode sequence (`]Q` throws EpisodeEndError), demos, saving,
- * loading a saved game from the item screen, and network sync.
+ * g.levelWarningText), the end-of-episode sequence (`]Q` throws EpisodeEndError), demos and
+ * network sync. `newGame` enters at the C's new_game label, where a game loaded from the item
+ * screen continues (src/sim/savegame.ts).
  */
-export function* JE_loadMapSteps(files: TyrianFiles): Generator<LoadMapPause, boolean, void> {
-  g.lastCubeMax = g.cubeMax;
+export function* JE_loadMapSteps(files: TyrianFiles, newGame = false): Generator<LoadMapPause, boolean, void> {
+  if (!newGame) {
+    g.lastCubeMax = g.cubeMax;
 
-  /*Defaults*/
-  g.songBuy = DEFAULT_SONG_BUY; /*Item Screen default song*/
+    /*Defaults*/
+    g.songBuy = DEFAULT_SONG_BUY; /*Item Screen default song*/
 
-  /* Load LEVELS.DAT - Section = MAINLEVEL */
-  g.saveLevel = g.mainLevel;
+    /* Load LEVELS.DAT - Section = MAINLEVEL */
+    g.saveLevel = g.mainLevel;
+  }
 
   // new_game:
   g.galagaMode = false;
@@ -1776,8 +1780,8 @@ export function* JE_loadMapSteps(files: TyrianFiles): Generator<LoadMapPause, bo
             // if quit itemscreen
             return false; // back to title screen
           }
-          // goto new_game: only the item screen's load-game menu gets here, and it isn't ported.
-          throw new Error("JE_loadMap: loading a saved game isn't ported");
+          // goto new_game: a game loaded from the item screen (JE_loadGame set mainLevel and the episode). [port-options]
+          return yield* JE_loadMapSteps(files, true);
         }
 
         let s = episodeFile.read();
@@ -1902,7 +1906,8 @@ export function* JE_loadMapSteps(files: TyrianFiles): Generator<LoadMapPause, bo
               break; /*store savepoint*/
 
             case "b": // Explicit auto-save.  (Used before bonus games.)
-              // JE_saveGame(11, "LAST LEVEL    "): not ported.
+              // (The C picks slot 22 for two players into temp, then saves to 11 regardless.) [port-options]
+              JE_saveGame(11, "LAST LEVEL    ");
               break;
 
             case "i": // Set menu music track.

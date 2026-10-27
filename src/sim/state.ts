@@ -616,6 +616,8 @@ export const g = {
 
   // episodes.h
   episodeNum: 1,
+  /** The episode the game was started on (menus.c episodeSelect); kept in saved games. [port-options] */
+  initial_episode_num: 1,
   bonusLevel: false,
   jumpBackToEpisode1: false,
 

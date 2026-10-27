@@ -17,15 +17,22 @@
 // Ported: the full-game menu, Upgrade Ship and its submenus (prices, trade-in, weapon power
 // up/downgrades, the rear weapon's firing mode), Play Next Level (the navigation choices and
 // JE_computeDots), Quit, and the arcade/Super Tyrian menus' "play next level" and quit.
-// Not ported (no-ops): Data Cubes, Options (load/save, keyboard and joystick setup, volume),
-// the weapon simulator preview (JE_initWeaponView/JE_weaponSimUpdate), network play, and drawing.
+// Options (load and save game, the music and sound volumes, Alt-S/Alt-L quick save and load); its
+// Joystick and Keyboard rows ask the host for its settings screen (menu.setupRequest) instead of
+// the C's in-menu MENU_JOYSTICK_CONFIG/MENU_KEYBOARD_CONFIG, and JE_operation (load or save a slot)
+// is the host's to run (menu.operationRequest), since saving asks for a name.
+// Not ported (no-ops): Data Cubes, the arcade menus' Options rows, the weapon simulator preview
+// (JE_initWeaponView/JE_weaponSimUpdate), network play, and drawing.
 
 import { u8 } from "./cint";
 import { JE_getCost } from "./mainint";
 import { copyPlayerItems } from "./player";
-import { S_CLICK, S_CLINK, S_CURSOR, S_ITEM, S_SPRING } from "./sndmast";
+import type { TyrianFiles } from "./resources";
+import { JE_operation_load, JE_operation_save, saveSlotViews, type SaveSlotView } from "./savegame";
+import { S_CLICK, S_CLINK, S_CURSOR, S_ITEM, S_SELECT, S_SPRING } from "./sndmast";
 import { g, newPlayerItems, REAR_WEAPON, type PlayerItems } from "./state";
 import { JE_getShipInfo } from "./varz";
+import { JE_changeVolume, set_volume, volume, volumeFromBarCells, VOLUME_STEP } from "./volume";
 
 export const MENU_FULL_GAME = 0;
 export const MENU_UPGRADES = 1;
@@ -89,6 +96,19 @@ export const menu = {
   shipSpecsRequest: false,
   /** JE_playSampleNum calls since the host last drained this. */
   sounds: [] as number[],
+  // [port-options] The Options and Load/Save menus.
+  /** MENU_LOAD_SAVE saves (true) or loads (false); its title is menuInt[3][performSave + 1]. */
+  performSave: false,
+  /** The load/save menu was opened with Alt-S/Alt-L from oldMenu, and goes back there. */
+  quikSave: false,
+  oldMenu: MENU_FULL_GAME,
+  /**
+   * JE_operation(slot) for the host to run (1-based; 0: none): it asks for a name when saving, then
+   * calls JE_itemScreen_operation.
+   */
+  operationRequest: 0,
+  /** The Options menu's Joystick or Keyboard row: the host shows its settings screen there. */
+  setupRequest: null as "joystick" | "keyboard" | null,
 };
 
 /** JE_playSampleNum: queued for the host. */
@@ -167,6 +187,8 @@ export function JE_itemScreen_init(): void {
 
   menu.quitRequest = false;
   menu.shipSpecsRequest = false;
+  menu.operationRequest = 0; // [port-options]
+  menu.setupRequest = null;
 
   /* JE: (* Check for where Pitems and Select match up - if no match then add to the itemavail list *) */
   for (let i = 0; i < 7; i++) {
@@ -295,8 +317,8 @@ export function JE_itemScreen_update(): void {
   }
 }
 
-/** Keyboard keys JE_itemScreen handles (SDL scancodes in the C). */
-export type ItemScreenKey = "up" | "down" | "left" | "right" | "enter" | "esc" | "slash";
+/** Keyboard keys JE_itemScreen handles (SDL scancodes in the C); quickSave/quickLoad are Alt-S/Alt-L. */
+export type ItemScreenKey = "up" | "down" | "left" | "right" | "enter" | "esc" | "slash" | "quickSave" | "quickLoad";
 
 /** JE_itemScreen's keyboard handler (game_menu.c L1150-1585), for the menus this port has. */
 export function JE_itemScreen_key(key: ItemScreenKey): void {
@@ -325,7 +347,9 @@ export function JE_itemScreen_key(key: ItemScreenKey): void {
 
     case "esc":
       JE_playSampleNum(S_SPRING);
-      if (menuEsc[curMenu] === 0) {
+      if (curMenu === MENU_LOAD_SAVE && menu.quikSave) {
+        menu.curMenu = menu.oldMenu; // [port-options]
+      } else if (menuEsc[curMenu] === 0) {
         menu.quitRequest = true; // JE_quitRequest(): the host asks, then calls JE_itemScreen_quitAnswer
       } else {
         if (curMenu === MENU_UPGRADE_SUB) {
@@ -370,15 +394,81 @@ export function JE_itemScreen_key(key: ItemScreenKey): void {
       break;
 
     case "left":
-      if (curMenu === MENU_UPGRADE_SUB) JE_playSampleNum(S_CURSOR);
+      if (curMenu === MENU_OPTIONS || curMenu === MENU_UPGRADE_SUB || curMenu === MENU_LIMITED_OPTIONS) JE_playSampleNum(S_CURSOR);
+      if (curMenu === MENU_OPTIONS || curMenu === MENU_LIMITED_OPTIONS) optionsVolume(-VOLUME_STEP); // [port-options]
       if (curMenu === MENU_UPGRADE_SUB) powerDown();
       break;
 
     case "right":
-      if (curMenu === MENU_UPGRADE_SUB) JE_playSampleNum(S_CURSOR);
+      if (curMenu === MENU_OPTIONS || curMenu === MENU_UPGRADE_SUB || curMenu === MENU_LIMITED_OPTIONS) JE_playSampleNum(S_CURSOR);
+      if (curMenu === MENU_OPTIONS || curMenu === MENU_LIMITED_OPTIONS) optionsVolume(VOLUME_STEP); // [port-options]
       if (curMenu === MENU_UPGRADE_SUB) powerUp();
       break;
+
+    case "quickSave": // [port-options] Alt-S / Alt-L (game_menu.c L1539-1580)
+    case "quickLoad":
+      if (curMenu !== MENU_LOAD_SAVE) {
+        if (curMenu === MENU_DATA_CUBE_SUB || curMenu === MENU_DATA_CUBES) menu.curMenu = MENU_FULL_GAME;
+        menu.quikSave = true;
+        menu.oldMenu = menu.curMenu;
+        menu.curMenu = MENU_LOAD_SAVE;
+        menu.performSave = key === "quickSave";
+      }
+      break;
   }
+}
+
+/**
+ * [port-options] case 2 / case 11 of the LEFT and RIGHT handlers: the Music (4) and Sound (5) rows
+ * change their volume by `delta`. (Turning music_disabled back on and restart_song: there's no
+ * way to disable the music here.)
+ */
+function optionsVolume(delta: number): void {
+  switch (menu.curSel[menu.curMenu]) {
+    case 4:
+      JE_changeVolume(delta, 0, JE_playSampleNum);
+      break;
+    case 5:
+      JE_changeVolume(0, delta, JE_playSampleNum);
+      break;
+  }
+}
+
+/**
+ * [port-options] The Options menu's mouse rule for its volume bars (game_menu.c L1047-1080): a
+ * click `cells` bar cells into the Music (row 4) or Sound (row 5) bar sets that volume.
+ */
+export function JE_itemScreen_volumeClick(row: 4 | 5, cells: number): void {
+  if (menu.curMenu !== MENU_OPTIONS && menu.curMenu !== MENU_LIMITED_OPTIONS) return;
+  menu.curSel[MENU_OPTIONS] = row;
+  if (row === 4) volume.tyrMusicVolume = volumeFromBarCells(cells);
+  else volume.fxVolume = volumeFromBarCells(cells);
+  set_volume(volume.tyrMusicVolume, volume.fxVolume);
+  JE_playSampleNum(S_CURSOR);
+}
+
+/**
+ * [port-options] JE_operation(menu.operationRequest) and what JE_menuFunction does after it
+ * (game_menu.c L2765-2770). Loading needs the game's files (JE_loadGame switches episodes);
+ * saving takes the name the player confirmed, or null if they cancelled (S_SPRING).
+ */
+export function JE_itemScreen_operation(files: TyrianFiles, name: string | null = null): void {
+  const slot = menu.operationRequest;
+  menu.operationRequest = 0;
+  if (slot <= 0) return;
+
+  if (!menu.performSave) {
+    JE_operation_load(slot, files);
+  } else if (slot % 11 !== 0) {
+    if (name !== null) {
+      JE_operation_save(slot, name);
+      JE_playSampleNum(S_SELECT);
+    } else {
+      JE_playSampleNum(S_SPRING);
+    }
+  }
+
+  if (menu.quikSave) menu.curMenu = menu.oldMenu;
 }
 
 /** case 4 of the LEFT handler: lower the weapon's power (refunds its upgrade). */
@@ -502,7 +592,7 @@ export function JE_menuFunction(select: number): void {
           menu.curMenu = MENU_UPGRADES;
           break;
         case 5: // options
-          // Options: not ported.
+          menu.curMenu = MENU_OPTIONS; // [port-options]
           break;
         case 6: {
           // nextlevel
@@ -539,6 +629,40 @@ export function JE_menuFunction(select: number): void {
         menu.curMenu = MENU_UPGRADE_SUB;
         menu.lastCurSel = curSel[MENU_UPGRADE_SUB];
         player[0].cash = player[0].cash * 2 - JE_cashLeft();
+      }
+      break;
+
+    // [port-options]
+    case MENU_OPTIONS:
+      switch (select) {
+        case 2:
+          menu.curMenu = MENU_LOAD_SAVE;
+          menu.performSave = false;
+          menu.quikSave = false;
+          break;
+        case 3:
+          menu.curMenu = MENU_LOAD_SAVE;
+          menu.performSave = true;
+          menu.quikSave = false;
+          break;
+        case 6:
+          menu.setupRequest = "joystick"; // curMenu = MENU_JOYSTICK_CONFIG: the host's settings screen
+          break;
+        case 7:
+          menu.setupRequest = "keyboard"; // curMenu = MENU_KEYBOARD_CONFIG: the host's settings screen
+          break;
+        case 8:
+          menu.curMenu = MENU_FULL_GAME;
+          break;
+      }
+      break;
+
+    case MENU_LOAD_SAVE:
+      if (curSelect === 13) {
+        menu.curMenu = menu.quikSave ? menu.oldMenu : MENU_OPTIONS;
+      } else {
+        const temp = g.twoPlayerMode ? 11 : 0;
+        menu.operationRequest = curSelect - 1 + temp; // JE_operation(): the host runs JE_itemScreen_operation
       }
       break;
 
@@ -666,8 +790,12 @@ export interface ItemScreenEntry {
   owned?: boolean;
   /** The row is the menu's "Done"/"back" choice. */
   done?: boolean;
-  /** A choice this port doesn't implement (Data Cubes, Options, ...). */
+  /** A choice this port doesn't implement (Data Cubes, ...). */
   unavailable?: boolean;
+  /** [port-options] The Options menu's Music and Sound rows: the volume, 0..255. */
+  volume?: number;
+  /** [port-options] The load/save menu's rows: the save slot. */
+  saveSlot?: SaveSlotView;
 }
 
 /** An item's name as the submenu shows it (game_menu.c L640-662). itemType is the Upgrade Ship choice (2..8). */
@@ -690,6 +818,7 @@ export function JE_menuHeader(): string {
   const { curMenu, curSel } = menu;
   if (curMenu === MENU_UPGRADE_SUB) return g.menuInt[2][curSel[MENU_UPGRADES] - 1] ?? "";
   if (curMenu === MENU_PLAY_NEXT_LEVEL) return menu.menuInt4[0] ?? "";
+  if (curMenu === MENU_LOAD_SAVE) return g.menuInt[3]?.[menu.performSave ? 2 : 1] ?? ""; // [port-options]
   return g.menuInt[curMenu + 1]?.[0] ?? "";
 }
 
@@ -723,10 +852,21 @@ export function itemScreenEntries(): ItemScreenEntry[] {
     return out;
   }
 
+  if (curMenu === MENU_LOAD_SAVE) {
+    // [port-options] game_menu.c L328-383: the player count's 11 slots, then "Exit to Game Menu".
+    const min = g.twoPlayerMode ? 12 : 1;
+    for (const v of saveSlotViews(min, 11)) out.push({ sel: v.slot - min + 2, label: v.name, saveSlot: v });
+    out.push({ sel: 13, label: g.miscText[6 - 1] ?? "", done: true });
+    return out;
+  }
+
   const labels = curMenu === MENU_PLAY_NEXT_LEVEL ? menu.menuInt4 : (g.menuInt[curMenu + 1] ?? []);
   for (let x = 2; x <= menuChoices[curMenu]; x++) {
     const entry: ItemScreenEntry = { sel: x, label: labels[x - 1] ?? "" };
-    if (curMenu === MENU_FULL_GAME && (x === 2 || x === 5)) entry.unavailable = true;
+    if (curMenu === MENU_FULL_GAME && x === 2) entry.unavailable = true; // [port-options] Options (5) is ported
+    if (curMenu === MENU_OPTIONS && x === 4) entry.volume = volume.tyrMusicVolume; // [port-options]
+    if (curMenu === MENU_OPTIONS && x === 5) entry.volume = volume.fxVolume;
+    if (curMenu === MENU_OPTIONS && x === 8) entry.done = true;
     if (curMenu === MENU_UPGRADES && x === 9) entry.done = true;
     if (curMenu === MENU_PLAY_NEXT_LEVEL && x === menuChoices[curMenu]) entry.done = true;
     if (curMenu === MENU_1_PLAYER_ARCADE && x === 3) entry.unavailable = true;
