@@ -387,3 +387,31 @@ pack (it's gated on `VITE_LOCAL_DATA`, set only by `play:local`) and nothing fro
 
 **Review:** If the rights holders agree, decide how the music ships (bundled, or downloaded on
 demand) and move it to the public repo with its licence in CREDITS.md.
+
+## D?? — Data cubes: the C's cube list and wrapped text, a scrolling HTML reader, and a NEW mark
+
+2026-10-27
+
+**Decision:** The Data row of the item screen works as in OpenTyrian's `JE_itemScreen`. It lists
+the cubes picked up in the last level (`cubeList[0 .. cubeMax-1]`, which the episode script's `]?[`
+fills and the level's pickups count). Enter opens a cube in the reader, and Enter, Escape or EXIT
+go back. `src/sim/cubes.ts` ports `load_cube`, including its word wrap to 150 tiny-font pixels and
+35 characters, and the reader's `yLoc`/`yChg` scrolling. `tools/opentyrian-cubes` checks every
+cube of all four episodes against the real C. `src/app/dataCubes.ts` shows the C's wrapped lines in
+a nine-line column, which also scrolls with the wheel or a drag. The face is drawn in its own
+palette (`facepal`). Cubes the player hasn't opened this session are marked NEW.
+
+**Options considered:**
+- *Keep the C's line breaks (chosen):* the line count, "Read: n%" and End all depend on them, and
+  the text reads as it did in the original. The column can't reflow to a wider panel.
+- *Reflow the text in HTML:* fits any width, but the scroll rules and percentage would no longer
+  match the C.
+- *Mark new cubes with lastCubeMax:* the C doesn't do this. `lastCubeMax` only records the count
+  for saves (JE_saveGame). At the item screen it's never below `cubeMax`, and every cube listed is
+  from the last level anyway. So NEW means "not opened yet" instead, kept in memory for the
+  session.
+
+**Review:** Check that the reader feels right with arrows (one line per tap, as in the C) and the
+wheel. The C's End key wraps `yLoc` for cubes of nine lines or fewer, which scrolls the text out of
+view; here it stays at the top. If NEW isn't wanted, remove it from `dataCubes.ts`, where it
+lives.
