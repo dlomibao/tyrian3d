@@ -10,6 +10,11 @@
   padding: var(--ui-space-4) var(--ui-space-5);
 }
 
+/* The panel scrolls as a whole on short screens; its parts keep their height. */
+.ui-screen--shop > .ui-panel > * {
+  flex-shrink: 0;
+}
+
 /* On wide screens the panel sits right of centre, leaving the backdrop's ship in view. */
 @media (min-aspect-ratio: 3/2) and (min-width: 1100px) {
   .ui-screen--shop {
@@ -23,7 +28,6 @@
   align-items: flex-end;
   justify-content: space-between;
   gap: var(--ui-space-4);
-  padding-right: 6.5rem; /* the back button */
   padding-bottom: var(--ui-space-3);
   border-bottom: 1px solid var(--ui-edge);
 }
@@ -32,8 +36,14 @@
   margin: 0;
 }
 
+.shop-header .ui-title {
+  margin-right: auto;
+}
+
+/* The back button sits in the header's flow, after the credits. */
 .shop-header .ui-back {
-  top: var(--ui-space-3);
+  position: static;
+  align-self: center;
 }
 
 .shop-cash {
@@ -268,11 +278,53 @@
   }
 
   .shop-header {
+    flex-wrap: wrap;
+    align-items: center;
     padding-right: 0;
   }
 
-  .shop-header .ui-back {
-    position: static;
-    order: 3;
+  .shop-header .ui-title {
+    flex: 1 1 100%;
+  }
+
+  .shop-cash {
+    flex-direction: row;
+    align-items: baseline;
+    gap: var(--ui-space-2);
+  }
+
+}
+
+/* Short screens (phones in landscape): tighter rows so more of the menu shows. */
+@media (max-height: 520px) {
+  .ui-screen--shop {
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+
+  .ui-screen--shop > .ui-panel {
+    gap: var(--ui-space-2);
+    padding: var(--ui-space-2) var(--ui-space-4);
+  }
+
+  .shop-header {
+    padding-bottom: var(--ui-space-2);
+  }
+
+  .shop-header .ui-title__kicker {
+    display: none;
+  }
+
+  .ui-screen--shop .ui-menu__item {
+    min-height: 2.25rem;
+  }
+
+  .ui-screen--shop .loadout .ui-menu__icon {
+    width: 1.5rem;
+    height: 1.75rem;
+  }
+
+  .shop-nav {
+    max-width: 18rem;
   }
 }

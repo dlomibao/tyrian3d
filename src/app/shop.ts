@@ -188,6 +188,9 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
   const el = (k: string) => root.querySelector<HTMLElement>(`[data-k="${k}"]`)!;
   const list = el("list");
   const navCanvas = el("nav") as HTMLCanvasElement;
+  // The quit question and ship specs cover the whole screen, not just the (scrollable) panel.
+  const dialogEl = el("dialog");
+  screen.root.append(dialogEl);
 
   let quitYes = false;
   let finished = false;
@@ -250,7 +253,7 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
     if (act === "slash") key("slash");
     else click(act as "powerDown" | "powerUp");
   });
-  el("dialog").addEventListener("click", (e) => {
+  dialogEl.addEventListener("click", (e) => {
     const b = (e.target as HTMLElement).closest<HTMLElement>("[data-act]");
     if (menu.shipSpecsRequest) {
       menu.shipSpecsRequest = false;
@@ -534,8 +537,8 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
     el("help").textContent = JE_mainMenuHelpText();
     renderHints();
     const dialog = renderDialog();
-    el("dialog").innerHTML = dialog;
-    el("dialog").hidden = !dialog;
+    dialogEl.innerHTML = dialog;
+    dialogEl.hidden = !dialog;
     // The backdrop shows the ship being bought or flown (src/ui/backdrop.ts).
     ui.backdrop?.setShipGraphic?.(g.res.items.ships[g.player[0].items.ship]?.shipGraphic ?? -1);
   }

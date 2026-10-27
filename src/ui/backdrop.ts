@@ -26,6 +26,8 @@ const SHIP_LENGTH = 2.4;
 const OUTLINE = { defaultThickness: 0.0045, defaultColor: [0.07, 0.035, 0.0] };
 const NO_OUTLINE = { outlineParameters: { visible: false } };
 const PLANET_RADIUS = 400;
+/** Vertical field of view on landscape screens. */
+const FOV = 40;
 const BACKGROUND = 0x03050a;
 
 /**
@@ -50,6 +52,8 @@ interface Pose {
   frameX: number;
   frameXPortrait: number;
   frameY: number;
+  /** On portrait screens, raise the ship by this much so it clears the panels below it. */
+  liftPortrait: number;
   /** Ship heading (radians about Y; 0 points up the screen, -Z) and how fast it turns. */
   heading: number;
   spin: number;
@@ -59,9 +63,9 @@ interface Pose {
 
 /** Exported for tuning from the console in dev (window.tyrian.backdrop). */
 export const POSES: Record<Exclude<BackdropMood, "none">, Pose> = {
-  title: { cam: new THREE.Vector3(-2.2, 2.8, 7.8), look: new THREE.Vector3(0, 0, 0), frameX: 0.5, frameXPortrait: 0.3, frameY: 0.3, heading: -0.35, spin: 0, scale: 1 },
-  hangar: { cam: new THREE.Vector3(0, 4.6, 4.4), look: new THREE.Vector3(0, 0, 0), frameX: -0.62, frameXPortrait: 0, frameY: 0.1, heading: 0, spin: 0.3, scale: 1 },
-  space: { cam: new THREE.Vector3(-3.2, 2, 9.5), look: new THREE.Vector3(0, 0, 0), frameX: 0.55, frameXPortrait: 0, frameY: -0.45, heading: -0.35, spin: 0, scale: 1 },
+  title: { cam: new THREE.Vector3(-2.2, 2.8, 7.8), look: new THREE.Vector3(0, 0, 0), frameX: 0.5, frameXPortrait: 0.15, frameY: 0.3, liftPortrait: 3.2, heading: -0.35, spin: 0, scale: 1 },
+  hangar: { cam: new THREE.Vector3(0, 4.6, 4.4), look: new THREE.Vector3(0, 0, 0), frameX: -0.62, frameXPortrait: 0, frameY: 0.1, liftPortrait: 0, heading: 0, spin: 0.3, scale: 1 },
+  space: { cam: new THREE.Vector3(-3.2, 2, 9.5), look: new THREE.Vector3(0, 0, 0), frameX: 0.55, frameXPortrait: 0, frameY: -0.45, liftPortrait: 0, heading: -0.35, spin: 0, scale: 1 },
 };
 
 export class Backdrop implements BackdropControl {
@@ -71,7 +75,7 @@ export class Backdrop implements BackdropControl {
   private time = 0;
   private readonly fallback: HTMLDivElement | null = null;
   private readonly scene = new THREE.Scene();
-  private readonly camera = new THREE.PerspectiveCamera(40, 1, 0.1, 2000);
+  private readonly camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 2000);
   private readonly outline: OutlineEffect | null = null;
   private readonly ship = new THREE.Group();
   private readonly shipPivot = new THREE.Group();
@@ -80,6 +84,7 @@ export class Backdrop implements BackdropControl {
   private readonly stars = new THREE.Group();
   private readonly pose: Pose = { ...POSES.title, cam: POSES.title.cam.clone(), look: POSES.title.look.clone() };
   private frameX = POSES.title.frameX;
+  private lift = 0;
   private target: Pose = POSES.title;
   private spinAngle = 0;
   private shipName = "";
@@ -193,8 +198,15 @@ export class Backdrop implements BackdropControl {
     this.spinAngle += p.spin * dt;
     if (this.target.spin === 0) this.spinAngle -= this.spinAngle * k; // unwind once it stops turning
 
+    this.renderer.getSize(this.size);
+    const { x: w, y: h } = this.size;
+    const aspect = w / Math.max(1, h);
+    // Landscape screens use frameX, portrait ones frameXPortrait and liftPortrait, blending between.
+    const land = Math.min(1, Math.max(0, (aspect - 0.9) / 0.6));
+    this.lift += ((1 - land) * this.target.liftPortrait - this.lift) * k;
+
     // A slow drift: the ship bobs and banks, the planet turns, the stars wheel past.
-    this.ship.position.set(Math.sin(t * 0.23) * 0.25, Math.sin(t * 0.7) * 0.12, Math.sin(t * 0.17) * 0.2);
+    this.ship.position.set(Math.sin(t * 0.23) * 0.25, this.lift + Math.sin(t * 0.7) * 0.12, Math.sin(t * 0.17) * 0.2);
     this.ship.rotation.set(Math.sin(t * 0.5) * 0.04, p.heading + this.spinAngle + Math.sin(t * 0.21) * 0.06, Math.sin(t * 0.4 + 1) * 0.14);
     this.ship.scale.setScalar(p.scale);
     this.glow.material.opacity = 0.55 + Math.sin(t * 31) * 0.06 + Math.sin(t * 17) * 0.05;
@@ -202,14 +214,11 @@ export class Backdrop implements BackdropControl {
     this.stars.rotation.x = t * 0.006;
 
     // Frame the target off centre (beside or above the panels): shift the view window.
-    this.renderer.getSize(this.size);
-    const { x: w, y: h } = this.size;
-    const aspect = w / Math.max(1, h);
-    // Landscape screens use frameX, portrait ones frameXPortrait, blending in between.
-    const land = Math.min(1, Math.max(0, (aspect - 0.9) / 0.6));
     const fx = this.target.frameXPortrait + (this.target.frameX - this.target.frameXPortrait) * land;
     this.frameX += (fx - this.frameX) * k;
     this.camera.aspect = aspect;
+    // Portrait screens (phones) keep a landscape square's width in view rather than zooming in.
+    this.camera.fov = aspect < 1 ? THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(FOV / 2)) / aspect)) : FOV;
     this.camera.setViewOffset(w, h, (-this.frameX * w) / 2, (p.frameY * h) / 2, w, h);
     this.camera.position.copy(p.cam);
     this.camera.lookAt(p.look);

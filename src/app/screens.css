@@ -44,11 +44,38 @@
   display: none;
 }
 
-/* Phones in landscape: the logo shrinks so the menu fits. */
+/* Phones in landscape: a smaller logo, and the episodes in two columns, so the menu fits. */
 @media (max-height: 520px) {
+  .ui-screen--title,
+  .ui-screen--data {
+    gap: var(--ui-space-2);
+  }
+
   .ui-screen--title > .ui-logo,
   .ui-screen--data > .ui-logo {
-    font-size: 2rem;
+    font-size: 1.75rem;
+  }
+
+  .ui-screen--title > .ui-panel {
+    max-width: 44rem;
+    padding: var(--ui-space-3) var(--ui-space-4);
+  }
+
+  .ui-screen--title .ui-menu:not(.ui-menu--row) {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .ui-screen--title .ui-label {
+    margin: var(--ui-space-2) 0 var(--ui-space-1);
+  }
+
+  .ui-screen--title .ui-hints {
+    margin-top: var(--ui-space-2);
+  }
+
+  .title-controls {
+    display: none;
   }
 }
 
