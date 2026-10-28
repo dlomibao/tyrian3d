@@ -124,3 +124,25 @@ checks that every multi-tile pattern only occurs whole in the levels' maps.
 
 `.blend` files are git-ignored because the scripts and exported `.glb` files are what get
 committed. If hand-made `.blend` files become necessary, set up Git LFS first.
+
+## Sprite-shape prototype (not used by the game)
+
+An experiment in inferring 3D shape from the sprites instead of modelling by hand. Nothing in
+the game loads it; the model viewer's Prototype switch (`?viewer=<name>&proto=1`, key `p`) shows
+its models where they exist.
+
+    PY=<python with numpy, scipy, Pillow>
+    $PY tools/sprite_shape.py <name>                 # analysis: .shape/<name>/regions.json, debug PNGs
+    blender -b --python assets/blender/proto/shape_model.py -- <name>   # model from the JSON
+    $PY tools/review_sheet.py <name> --build         # both of the above, then review sheets + metrics
+
+`<name>` is a catalogue model (`newsh5-47`) or a whole assembly (`assembly-newshb-115`, split into
+its pieces after building). The analyser splits the sprite into regions (one palette ramp each,
+cut by outlines), gives each a profile (round, flat, dome, taper, recess, void) and heights, and
+`tools/shape_profiles.py` turns those parameters into heights for both the analyser and Blender.
+`assets/blender/proto/overrides/<name>.json` overrides any region's parameters by id, so fixing a
+model means editing JSON, and rebuilding is deterministic. `tools/review_sheet.py` renders one
+sheet in a fixed layout (sprite, top, overlay, diff, elevations, 3/4, game camera, region ids)
+and writes metrics JSON (silhouette IoU, colour error and height per region, triangles, seams).
+`reshape_heights.py` instead rescales a hand-made model's heights from the analysis.
+Prototype models go to `public/models/proto/` (listed in its `index.json`).

@@ -30,3 +30,5 @@ __pycache__/
 
 # Reference images rendered from the game data (licence unresolved, #10)
 reference/
+/.shape/
+/public/models/proto-reshape/
