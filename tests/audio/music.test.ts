@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, test, vi } from "vitest";
 import { LdsPlayer } from "../../src/audio/lds";
 import { MusicRenderer, parseMusicMus } from "../../src/audio/musicRenderer";
 import { Opl } from "../../src/audio/opl";
+import { DEFAULT_MUSIC_STYLE, type MusicPlayer, MusicSwitch } from "../../src/audio/remaster";
 import { hasData, readData } from "../data/dataDir";
 
 /** FNV-1a over the little-endian bytes of 16-bit samples. */
@@ -136,5 +137,41 @@ describe.skipIf(!hasData("music.mus"))("music.mus", () => {
     expect(level(0)).toBe(0);
     expect(level(128)).toBeLessThan(level(255));
     expect(level(128)).toBeGreaterThan(0);
+  });
+});
+
+describe("MusicSwitch's starting style", () => {
+  const original: MusicPlayer = {
+    songCount: 41, playing: false, volume: 1,
+    play() {}, restart() {}, stop() {}, fade() {}, resume() {}, dispose() {},
+  };
+  const ctx = { destination: {}, currentTime: 0, createGain: () => ({ connect() {}, gain: { value: 1, cancelScheduledValues() {} } }) } as unknown as AudioContext;
+  const song = { file: "x.ogg", title: "x", seconds: 1, loops: true };
+  const manifest = { music: { orchestral: { "1": song }, synth: { "1": song } } };
+
+  function start(search: string, stored: string | null, m: typeof manifest | null = manifest) {
+    vi.stubGlobal("location", { search });
+    vi.stubGlobal("localStorage", { getItem: () => stored, setItem() {} });
+    try {
+      return new MusicSwitch(ctx, original, m).style;
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  }
+
+  test("is synth until the player picks one", () => {
+    expect(DEFAULT_MUSIC_STYLE).toBe("synth");
+    expect(start("", null)).toBe("synth");
+    expect(start("", "bogus")).toBe("synth");
+  });
+
+  test("a remembered choice or ?music= wins", () => {
+    expect(start("", "original")).toBe("original");
+    expect(start("", "orchestral")).toBe("orchestral");
+    expect(start("?music=original", "orchestral")).toBe("original");
+  });
+
+  test("is the original without the remaster", () => {
+    expect(start("", null, null)).toBe("original");
   });
 });
