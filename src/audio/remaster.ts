@@ -232,11 +232,14 @@ export class StreamedMusic implements MusicPlayer {
 }
 
 const STYLE_KEY = "tyrian3d.musicStyle";
+/** The style played until the player picks one, when the manifest has it (D38). */
+export const DEFAULT_MUSIC_STYLE = "synth";
 
 /**
  * The game's music: the FM original, or a remaster style's recordings (StreamedMusic), switchable
  * at any time; switching replays the current song in the new style. The style is remembered in
- * this browser; `?music=<style>` overrides it.
+ * this browser; `?music=<style>` overrides it. With no choice made, it's DEFAULT_MUSIC_STYLE if
+ * the manifest has it, else the original.
  */
 export class MusicSwitch implements MusicPlayer {
   readonly songCount: number;
@@ -262,7 +265,8 @@ export class MusicSwitch implements MusicPlayer {
     } catch {
       /* storage unavailable */
     }
-    if (wanted && this.styles.includes(wanted)) this.setStyle(wanted, false);
+    if (!wanted || !this.styles.includes(wanted)) wanted = DEFAULT_MUSIC_STYLE;
+    if (this.styles.includes(wanted)) this.setStyle(wanted, false);
   }
 
   get style(): string {
