@@ -30,7 +30,10 @@ def load_sprite(name):
     """{name, idx (H x W palette indices, -1 transparent), colors {index: rgb}, pieces}.
     A plain model is one piece covering the picture; an assembly lists each piece's box."""
     data = json.loads((REF / name / "sprite.json").read_text())
-    frame = data["frames"][0]
+    # The model's own frame (a player ship's level frame), not frames[0], which for a ship that
+    # banks is its hardest left bank.
+    want = next((s["frames"][0] for s in data.get("sprites") or [] if s.get("frames")), None)
+    frame = next((f for f in data["frames"] if f["index"] == want), data["frames"][0])
     idx = _pixels(frame)
     colors = {int(k): tuple(v) for k, v in data["colors"].items()}
     h, w = idx.shape

@@ -54,7 +54,9 @@ def import_model(name, which, doc):
         if name.startswith("assembly-"):
             path = piece_path(p["model"], frame, paths)
         else:
-            path = json.loads((ROOT / "src" / "render" / "spriteModels" / f"{name}.json").read_text())["model"]
+            entry = ROOT / "src" / "render" / "spriteModels" / f"{name}.json"
+            # The USP Talon predates the sprite-model entries: its script is assets/blender/usp_talon.py.
+            path = json.loads(entry.read_text())["model"] if entry.exists() else "usp_talon"
         f = base / f"{path}.glb"
         if not f.exists():
             missing.append(str(f))

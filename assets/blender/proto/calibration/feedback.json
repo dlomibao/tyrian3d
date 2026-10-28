@@ -7196,7 +7196,8 @@
         "silhouette": 3,
         "volume": 3
       },
-      "status": "done"
+      "status": "done",
+      "superseded": "2026-10-28: graded against the hard-left bank frame (the analyser took frames[0]); the level-frame sheet is regraded in the fix loop"
     },
     "ship-silver-ship-current": {
       "acceptedFromCommittee": "2026-10-28: the user agreed with all the committee findings",
@@ -7582,7 +7583,8 @@
         "silhouette": 2,
         "volume": 4
       },
-      "status": "done"
+      "status": "done",
+      "superseded": "2026-10-28: graded against the hard-left bank frame (the analyser took frames[0]); the level-frame sheet is regraded in the fix loop"
     }
   },
   "version": 1
