@@ -19,6 +19,7 @@ import { filesFromZip, loadDevFiles, type FileMap } from "../assets/files";
 import { loadStoredZip } from "../assets/store";
 import { vga6To8, type Palette } from "../data/palette";
 import { colourFrame, rigModel, showFrame, type FrameRig } from "../render/modelFrames";
+import { modelHeightFromUrl } from "../render/modelHeight";
 import { PaletteTexture } from "../render/paletteTexture";
 import { SPRITE_MODELS, spriteModelKey, spriteModels, type SpriteModelEntry } from "../render/spriteModels";
 import { buildResources } from "../sim/resources";
@@ -172,6 +173,7 @@ export async function runModelViewer(): Promise<void> {
               <label class="mv-check"><input type="checkbox" class="mv-grid" checked /> Grid</label>
               <label class="mv-check"><input type="checkbox" class="mv-flash" /> Hit flash</label>
               <label class="mv-range">palette <select class="mv-palette"></select></label>
+              <label class="mv-range" title="Stretch the model's height without rebuilding it; the game takes the same ?height=N">height <input type="range" class="mv-height" min="0.5" max="4" step="0.25" /><output class="mv-height-out"></output></label>
             </div>
           </section>
         </div>
@@ -200,6 +202,9 @@ export async function runModelViewer(): Promise<void> {
   const gridEl = $<HTMLInputElement>(".mv-grid");
   const flashEl = $<HTMLInputElement>(".mv-flash");
   const paletteEl = $<HTMLSelectElement>(".mv-palette");
+  const heightEl = $<HTMLInputElement>(".mv-height");
+  const heightOut = $<HTMLOutputElement>(".mv-height-out");
+  heightEl.value = String(modelHeightFromUrl());
 
   // --- Game data (sprites and palettes). The model side works without it. ---
   let res: Resources | null = null;
@@ -462,6 +467,19 @@ export async function runModelViewer(): Promise<void> {
     document.querySelectorAll<HTMLButtonElement>("[data-cam]").forEach((b) => b.classList.toggle("on", b.dataset.cam === m));
     frameCamera();
   }
+  /** The page's address: the model shown and, when not 1, the height multiplier. */
+  function viewerUrl(name: string): string {
+    const height = Number(heightEl.value);
+    return `?viewer=${encodeURIComponent(name)}${height === 1 ? "" : `&height=${height}`}`;
+  }
+  /** Stretch the model along its up axis (?height=N), as the game does with the same address. */
+  function applyHeight(): void {
+    const height = Number(heightEl.value);
+    heightOut.textContent = `×${height}`;
+    if (!model) return;
+    model.root.scale.y = height;
+    grid.position.y = model.minY * height;
+  }
   function applyToggles(): void {
     if (model) for (const m of model.materials) (m as THREE.MeshStandardMaterial).wireframe = wireEl.checked;
     grid.visible = gridEl.checked;
@@ -504,7 +522,7 @@ export async function runModelViewer(): Promise<void> {
       frame = Math.max(0, item.frames.findIndex((f) => f.label === "level"));
       showing = item.name;
     }
-    history.replaceState(null, "", `?viewer=${encodeURIComponent(item.name)}`);
+    history.replaceState(null, "", viewerUrl(item.name));
     listEl.querySelectorAll("li").forEach((li) => {
       const on = li.dataset.name === item.name;
       li.classList.toggle("on", on);
@@ -528,7 +546,7 @@ export async function runModelViewer(): Promise<void> {
       if (model) scene.remove(model.root);
       model = loaded;
       scene.add(model.root);
-      grid.position.y = model.minY;
+      applyHeight();
       const models = item.entries.length > 1 ? `${item.entries.length} models (one per shape) · ` : "";
       const animated = model.parts.some((p) => p.rig.animated) ? "animated parts · " : "";
       metaEl.textContent += ` · ${models}${animated}${Math.round(model.triangles)} triangles · ${(model.bytes / 1024).toFixed(0)} KB`;
@@ -570,6 +588,11 @@ export async function runModelViewer(): Promise<void> {
   document.querySelectorAll<HTMLButtonElement>("[data-step]").forEach((b) => (b.onclick = () => void show(current + Number(b.dataset.step))));
   document.querySelectorAll<HTMLButtonElement>("[data-cam]").forEach((b) => (b.onclick = () => setMode(b.dataset.cam as CameraMode)));
   for (const el of [spinEl, wireEl, gridEl]) el.onchange = applyToggles;
+  heightEl.oninput = () => {
+    applyHeight();
+    if (shown[current]) history.replaceState(null, "", viewerUrl(shown[current].name));
+  };
+  applyHeight();
   flashEl.onchange = paletteEl.onchange = () => {
     colourModel();
     buildFrameStrip();
@@ -580,7 +603,7 @@ export async function runModelViewer(): Promise<void> {
   };
   addEventListener("keydown", (e) => {
     if (e.target instanceof HTMLInputElement && e.target.type === "search" && !["ArrowUp", "ArrowDown"].includes(e.key)) return;
-    if (e.target instanceof HTMLSelectElement) return;
+    if (e.target instanceof HTMLSelectElement || (e.target instanceof HTMLInputElement && e.target.type === "range")) return;
     const k = e.key;
     if (k === "ArrowDown" || k === "j") void show(current + 1);
     else if (k === "ArrowUp" || k === "k") void show(current - 1);
