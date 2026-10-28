@@ -20,10 +20,14 @@ against what the sprite implies:
   lines) with where they are and what they must look like. Every listed feature must still be there
   and read as what it is; a lost or weakened feature is a regression no matter what else improved.
   Compare with the original hand-made model too (the baseline), not only the last round.
-- **Hard surfaces stay hard.** Ships, machines, guns and buildings are made of flat panels with
-  crisp, chamfered edges and sharp creases. Give them height by extruding and bevelling panels, not
-  by inflating or subdividing them; a ship that turns soft, bubbly or blobby is worse even if it is
-  taller. Only parts the sprite draws round (pods, domes, tanks with end caps, round pipes) are round.
+- **Hard surfaces stay hard, round parts stay round.** Ships, machines, guns and buildings are
+  mostly hard surfaces: flat panels, crisp chamfered edges and sharp creases, given height by
+  extruding and bevelling panels, not by inflating or subdividing them. But they can also have round
+  parts: canopies and cockpit bubbles, engine nacelles and nozzles, fuselages or pods the sprite
+  shades round, domes, tanks, round pipes. Follow the sprite part by part: where it draws a flat
+  panel or a hard edge, keep it flat and crisp; where it draws a curve (a highlight band with soft
+  falloff, a round outline), make it round. What is wrong is everything turning soft: a ship whose
+  flat panels and edges have gone bubbly or blobby is worse even if it is taller.
 - **Pipes are pipes.** A pipe is a cylinder of constant diameter that follows its path: straight
   runs, bends, clamps and flanges. Never a chain of bulges, capsules or spheres (that reads as
   tanks). A tank is only where the sprite shows a closed vessel with end caps.
