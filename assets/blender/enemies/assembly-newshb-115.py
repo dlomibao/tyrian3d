@@ -36,6 +36,7 @@ from pathlib import Path
 
 import bmesh
 import bpy
+from mathutils import Vector
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -66,10 +67,12 @@ HATCH_271 = 31.0  # on frame 271 the hatch's edge shows at the port's right side
 BASE_TOP = 0.10  # floor of the platform (and of the dark pool inside the loop)
 COLLAR_TOP = 0.45  # the deck: about 5.4 px thick
 DZ = COLLAR_TOP - 0.18  # how far the port, hatch and flashes rose with the deck
-# The big pipes are round: centre column, half width (px), axis height and vertical radius (units).
-PIPE_COL, PIPE_W, PIPE_Z, PIPE_RZ = 43.0, 11.0, 0.78, 0.72
-# The loop of pipe: a near-round tube about 11 px wide and tall.
-LOOP_W, LOOP_Z, LOOP_RZ = 5.5, 0.5, 0.45
+# The big pipes are round cylinders of constant diameter (22 px wide, 19 px tall): centre
+# column, half width (px), axis height and radius (units), and the row where each ends in a flange.
+PIPE_COL, PIPE_W, PIPE_Z, PIPE_RZ = 43.0, 11.0, 0.84, 0.80
+PIPE_END = 43.5
+# The loop of pipe: a round tube about 9 px across, standing on the platform.
+LOOP_W, LOOP_Z, LOOP_RZ = 4.5, 0.48, 4.5 / 12
 
 
 def materials(sprite):
@@ -165,6 +168,65 @@ def strip(bm, outer, inner, z_outer, z_inner, z0, mat):
         f.smooth = False
 
 
+def tube(bm, pts, radius, mat, sides=16, closed=False, smooth=True, squash=1.0):
+    """A pipe of round section (radius in units, or one per point for a reducer) along a 3D path of
+    (col, row, z) points, its rings carried along by parallel transport so bends keep the full
+    diameter; squash scales the section's height. Open ends are flat caps (smooth=False on them)."""
+    radii = list(radius) if isinstance(radius, (list, tuple)) else [radius] * len(pts)
+    P = [Vector((F.x(c), F.y(r), z)) for c, r, z in pts]
+    m = len(P)
+    tans = []
+    for i in range(m):
+        if closed:
+            t = P[(i + 1) % m] - P[(i - 1) % m]
+        else:
+            t = P[min(i + 1, m - 1)] - P[max(i - 1, 0)]
+        tans.append(t.normalized())
+    ref = Vector((0, 0, 1)) if abs(tans[0].z) < 0.9 else Vector((1, 0, 0))
+    u = (ref - tans[0] * ref.dot(tans[0])).normalized()
+    n = len(bm.faces)
+    rings = []
+    for i in range(m):
+        if i:
+            u = u - tans[i] * u.dot(tans[i])
+            u.normalize()
+        v = tans[i].cross(u)
+        ring = []
+        for k in range(sides):
+            a = 2 * math.pi * (k + 0.5) / sides
+            off = (u * math.cos(a) + v * math.sin(a)) * radii[i]
+            off.z *= squash
+            ring.append(bm.verts.new(P[i] + off))
+        rings.append(ring)
+    pairs = list(zip(rings, rings[1:])) + ([(rings[-1], rings[0])] if closed else [])
+    for r0, r1 in pairs:
+        for k in range(sides):
+            j = (k + 1) % sides
+            bm.faces.new((r0[k], r0[j], r1[j], r1[k]))
+    caps = []
+    if not closed:
+        caps = [bm.faces.new(list(reversed(rings[0]))), bm.faces.new(rings[-1])]
+    for f in L.faces_since(bm, n):
+        f.material_index = mat
+        f.smooth = smooth and f not in caps
+
+
+def spline(pts, per=6, closed=True):
+    """Catmull-Rom points through (col, row, z) control points, `per` per span."""
+    m = len(pts)
+    out = []
+    spans = m if closed else m - 1
+    for i in range(spans):
+        p0, p1, p2, p3 = (pts[(i + k) % m] if closed else pts[max(0, min(m - 1, i + k))] for k in (-1, 0, 1, 2))
+        for s in range(per):
+            t = s / per
+            out.append(tuple(0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t * t
+                                    + (-a + 3 * b - 3 * c + d) * t ** 3) for a, b, c, d in zip(p0, p1, p2, p3)))
+    if not closed:
+        out.append(pts[-1])
+    return out
+
+
 def pipe_top(c, grow=0.0, rx=PIPE_W):
     """Height of the big pipe's upper surface over edge column c (grow lifts it)."""
     t = (c - PIPE_COL) / rx
@@ -239,20 +301,28 @@ def build_side(bm):
     L.box(bm, F, c1, r0, c1 + 1, r1, 0.1, 0.28 + DZ, mat=wall)
     L.box(bm, F, c0, r0, c1, r1, 0.1, 0.19 + DZ, mat=PORT)
 
-    # Big round pipe down the screen (columns 33-52), narrowing into the top of the loop.
-    L.loft_y(bm, F, PIPE_COL, [(-1.0, PIPE_W, PIPE_RZ, PIPE_Z), (40.5, PIPE_W, PIPE_RZ, PIPE_Z),
-                               (43.0, 9.8, 0.67, 0.73), (45.5, 7.8, 0.56, 0.62), (47.5, LOOP_W, LOOP_RZ, LOOP_Z)],
-             sides=20, mat=PIPE)
-    # Grey grille clamp wrapped over its top (columns 35-47, rows 0-16), a 3x3 grid of tiles on it.
-    cols = [35.0 + k for k in range(14)]
-    clamp_top = lambda c: pipe_top(c, 0.07, PIPE_W + 0.4)  # noqa: E731
-    shell(bm, cols, -1.0, 17.0, clamp_top, lambda c: pipe_top(c, -0.15), CLAMP)
+    # Big round pipe down the screen (columns 33-52): a straight cylinder of constant diameter,
+    # ending in a flange where a smaller pipe bends out of its end down into the loop.
+    rw, sq = PIPE_W / 12, PIPE_RZ / (PIPE_W / 12)
+    tube(bm, [(PIPE_COL, -1.0, PIPE_Z), (PIPE_COL, PIPE_END, PIPE_Z)], rw, PIPE, sides=24, squash=sq)
+    tube(bm, [(PIPE_COL, PIPE_END - 2.2, PIPE_Z), (PIPE_COL, PIPE_END - 0.4, PIPE_Z)], rw + 0.06, PIPE,
+         sides=24, squash=sq)
+    # A short reducer cone out of the flange, then the loop-sized pipe bends down into the loop.
+    tube(bm, [(PIPE_COL, PIPE_END - 0.5, PIPE_Z), (PIPE_COL, PIPE_END + 1.8, PIPE_Z - 0.05)],
+         [rw * 0.92, LOOP_RZ * 1.05], LOOP, sides=20, squash=sq)
+    spout = [(PIPE_COL, PIPE_END + 1.6, PIPE_Z - 0.05), (PIPE_COL + 0.4, PIPE_END + 3.0, PIPE_Z - 0.14),
+             (PIPE_COL + 1.0, PIPE_END + 4.2, LOOP_Z + 0.12), (PIPE_COL + 1.6, PIPE_END + 4.8, LOOP_Z + 0.02)]
+    tube(bm, spline(spout, per=4, closed=False), LOOP_RZ, LOOP, sides=14)
+    # Grey grille clamp: an angular block saddled over the pipe's top (columns 35-48, rows 0-16),
+    # flat-topped, a 3x3 grid of raised tiles on it with dark grooves between.
+    ctop = PIPE_Z + PIPE_RZ + 0.08
+    L.box(bm, F, 35.0, -1.0, 48.0, 17.0, PIPE_Z + 0.25, ctop, mat=CLAMP)
     for r0, r1 in ((-1.0, 3.0), (4.0, 8.0), (10.0, 16.0)):
         for cc0, cc1 in ((35.0, 40.0), (41.0, 43.0), (44.0, 48.0)):
-            tc = [cc0 + 0.15 + (cc1 - cc0 - 0.3) * k / 4 for k in range(5)]
-            shell(bm, tc, r0 + 0.15, r1 - 0.15, lambda c: clamp_top(c) + 0.035, lambda c: clamp_top(c) - 0.03, TILE)
-    # Ribbed grey canister half sunk into the pipe's outer flank (columns 36-40, rows 29-41).
-    z = pipe_top(38.5) - 0.1
+            L.box(bm, F, cc0 + 0.25, r0 + 0.25, cc1 - 0.25, r1 - 0.25, ctop - 0.02, ctop + 0.05, mat=TILE)
+    # Ribbed grey canister lying on the pipe's outer flank (columns 36-40, rows 29-42), standing
+    # mostly proud of it: alternating raised ribs and grooves.
+    z = pipe_top(38.5) + 0.02
     secs = [(28.6, 0.0, 0.0, z)]
     for k in range(14):
         r = 29.0 + k
@@ -288,10 +358,11 @@ def build_towers(bm):
 
 def build_centre(bm):
     # The loop of pipe: heart-shaped, two lobes meeting in a dip at the top; a round tube.
-    left = [(59.5, 50.6), (55.0, 48.7), (49.0, 47.6), (43.5, 48.2), (39.5, 51.0), (37.6, 56.0), (38.3, 62.0),
-            (41.3, 67.6), (46.5, 71.2), (53.0, 72.8), (59.5, 73.3)]
+    # A tube of constant diameter along a smooth closed path through these points.
+    left = [(59.5, 50.2), (55.0, 48.5), (49.0, 47.6), (43.5, 48.2), (39.5, 51.0), (37.9, 56.0), (38.6, 62.0),
+            (41.5, 67.2), (46.5, 70.4), (53.0, 72.0), (59.5, 72.5)]
     loop = left + [(mirror_col(c), r) for c, r in reversed(left[1:-1])]
-    L.sweep(bm, F, [(c, r, LOOP_Z, LOOP_W, LOOP_RZ) for c, r in loop], sides=12, mat=LOOP, closed=True)
+    tube(bm, spline([(c, r, LOOP_Z) for c, r in loop], per=5), LOOP_RZ, LOOP, sides=14, closed=True)
     # Dark pool inside it, a well about 4 px below the deck.
     L.prism(bm, F, loop, 0.0, BASE_TOP + 0.02, mat=POOL)
     # Stepped grey block in the middle (columns 51-66, rows 53-83).

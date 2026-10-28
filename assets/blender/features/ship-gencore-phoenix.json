@@ -1,0 +1,190 @@
+{
+ "name": "ship-gencore-phoenix",
+ "summary": "Grey angular hard-surface fighter: a narrow pointed fuselage with a dark cockpit slot and a light canopy plate, flanked by two sharp, pointy blade-like wings joined to it by low struts near the tail.",
+ "features": [
+  {
+   "id": "windshield",
+   "kind": "glass",
+   "box": [
+    9,
+    6,
+    15,
+    10
+   ],
+   "traits": [
+    "dark slot across the fuselage behind the nose",
+    "glossy dark glass, crisp edges, set in a frame",
+    "bright glint at its upper edge (col 11, row 7) is shine, not a bump",
+    "angular, about 4 px wide"
+   ],
+   "note": "The cockpit: a dark band at row 6 and a dark slot at rows 8-9 with a bright glint between. Must read as a distinct dark glass windshield, not painted grey hull."
+  },
+  {
+   "id": "nose",
+   "kind": "hull",
+   "box": [
+    9,
+    1,
+    15,
+    6
+   ],
+   "traits": [
+    "pointed, tapering from 4 px to a tip at row 1",
+    "faceted, crisp ridge down the centre",
+    "metal, light ridge at col 11 is sheen"
+   ],
+   "note": "The narrow pointed nose ahead of the windshield; must taper in width and height to a point, not round off."
+  },
+  {
+   "id": "wing-left",
+   "kind": "wing",
+   "box": [
+    1,
+    9,
+    6,
+    24
+   ],
+   "traits": [
+    "sharp, pointy blade-like wing (the user's description)",
+    "thin blade: a knife-edge outer side and a crisp ridge on top, not a slab, pod or capsule",
+    "pointed tip at the front (row 9) and tapering to a point at the back",
+    "flat faces meeting at hard creases",
+    "polished metal",
+    "bright inner top edge (col 4, rows 10-19) as a crisp ridge"
+   ],
+   "note": "Left wing: a long, sharp, pointy blade beside the fuselage with an empty gap between them, joined only by the strut. It must read as a blade with knife edges and pointed ends, never a rounded pod."
+  },
+  {
+   "id": "wing-right",
+   "kind": "wing",
+   "box": [
+    18,
+    9,
+    23,
+    24
+   ],
+   "traits": [
+    "sharp, pointy blade-like wing (the user's description)",
+    "thin blade: a knife-edge outer side and a crisp ridge on top, not a slab, pod or capsule",
+    "pointed tip at the front (row 9) and tapering to a point at the back",
+    "flat faces meeting at hard creases",
+    "polished metal",
+    "bright inner edge (col 19, rows 17-19)"
+   ],
+   "note": "Right wing: a long, sharp, pointy blade beside the fuselage with an empty gap between them, joined only by the strut. It must read as a blade with knife edges and pointed ends, never a rounded pod."
+  },
+  {
+   "id": "canopy-panel",
+   "kind": "panel",
+   "box": [
+    10,
+    10,
+    13,
+    13
+   ],
+   "traits": [
+    "light grey plate, about 3x3 px",
+    "raised slightly, flat top, chamfered edges",
+    "the bright centre pixel is sheen, not a lump"
+   ],
+   "note": "The light canopy/armour plate just behind the windshield; a flat raised plate, never a dome."
+  },
+  {
+   "id": "strut-left",
+   "kind": "strut",
+   "box": [
+    5,
+    20,
+    9,
+    22
+   ],
+   "traits": [
+    "straight horizontal bar 4 px long, 2 px deep",
+    "bright top edge (row 20), darker underside",
+    "box section, low"
+   ],
+   "note": "Left strut joining the pod to the fuselage near the tail; must be a visible connecting bar across the gap."
+  },
+  {
+   "id": "strut-right",
+   "kind": "strut",
+   "box": [
+    15,
+    20,
+    19,
+    22
+   ],
+   "traits": [
+    "straight horizontal bar 4 px long, 2 px deep",
+    "bright top edge, darker underside",
+    "box section, low"
+   ],
+   "note": "Right strut joining the pod to the fuselage."
+  },
+  {
+   "id": "spine-ridge",
+   "kind": "hull",
+   "box": [
+    10,
+    13,
+    13,
+    18
+   ],
+   "traits": [
+    "1 px wide bright line down the centre (col 11, rows 14-17)",
+    "straight, crisp raised ridge on the back",
+    "metal"
+   ],
+   "note": "A raised ridge running down the fuselage top behind the canopy; reads as a crisp straight line."
+  },
+  {
+   "id": "rear-vent",
+   "kind": "recess",
+   "box": [
+    10,
+    17,
+    14,
+    20
+   ],
+   "traits": [
+    "dark 2x2 px slot (cols 11-12, rows 18-19)",
+    "cut into the hull about 1 px",
+    "framed by lighter hull on both sides"
+   ],
+   "note": "Dark vent behind the spine ridge; must be cut in, not painted."
+  },
+  {
+   "id": "tail-engine",
+   "kind": "engine",
+   "box": [
+    9,
+    21,
+    15,
+    25
+   ],
+   "traits": [
+    "dark engine housing at the back, narrowing to row 25",
+    "nozzle slot (cols 11-12, rows 23-24) darker",
+    "angular block"
+   ],
+   "note": "Engine block at the tail of the fuselage, darker than the hull."
+  },
+  {
+   "id": "fuselage",
+   "kind": "hull",
+   "box": [
+    8,
+    6,
+    16,
+    22
+   ],
+   "traits": [
+    "straight-sided, about 8 px wide",
+    "faceted panels, darker lower-right side is sprite shading",
+    "slightly lighter side panels at cols 15 rows 12-14",
+    "hard edges, not inflated"
+   ],
+   "note": "The central body from the cockpit to the struts; a crisp, tall hard-surface hull."
+  }
+ ]
+}

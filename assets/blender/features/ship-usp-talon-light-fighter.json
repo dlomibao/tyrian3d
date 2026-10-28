@@ -1,0 +1,135 @@
+{
+ "name": "ship-usp-talon-light-fighter",
+ "summary": "The starting USP Talon: a brown teardrop/delta fighter with a pointed nose, a cockpit slit, a bright centre spine and two engine bulges set into the rear hull; angular hard surface.",
+ "features": [
+  {
+   "id": "cockpit",
+   "kind": "glass",
+   "box": [
+    10,
+    8,
+    15,
+    12
+   ],
+   "traits": [
+    "dark slit across the nose (rows 9-11, columns 10-13)",
+    "glossy dark glass",
+    "set in, crisp edges"
+   ],
+   "note": "The cockpit slit; must read as glass, not paint."
+  },
+  {
+   "id": "nose",
+   "kind": "hull",
+   "box": [
+    9,
+    2,
+    15,
+    9
+   ],
+   "traits": [
+    "pointed",
+    "tapers from row 8 to row 2",
+    "angular, bevelled",
+    "height follows the width"
+   ],
+   "note": "The narrow pointed nose ahead of the cockpit."
+  },
+  {
+   "id": "spine",
+   "kind": "panel",
+   "box": [
+    11,
+    11,
+    14,
+    25
+   ],
+   "traits": [
+    "bright highlight column down the centre (column 12)",
+    "raised ridge",
+    "broken by the cockpit"
+   ],
+   "note": "The bright centre spine from the cockpit to the tail; a raised crease, metal sheen spots on it."
+  },
+  {
+   "id": "engine-left",
+   "kind": "engine",
+   "box": [
+    3,
+    16,
+    10,
+    25
+   ],
+   "traits": [
+    "rounded bulge set into the hull",
+    "highlight at its top-left",
+    "dark gap separating it from the fuselage (column 9)"
+   ],
+   "note": "The left engine pod bulge (rows 17-23, columns 4-8)."
+  },
+  {
+   "id": "engine-right",
+   "kind": "engine",
+   "box": [
+    14,
+    16,
+    21,
+    25
+   ],
+   "traits": [
+    "rounded bulge set into the hull",
+    "bright highlight at columns 16-17, rows 18-20",
+    "separated from the fuselage by a dark line"
+   ],
+   "note": "The right engine pod bulge (rows 17-23, columns 15-19)."
+  },
+  {
+   "id": "fuselage",
+   "kind": "hull",
+   "box": [
+    9,
+    8,
+    16,
+    26
+   ],
+   "traits": [
+    "angular hard surface",
+    "tallest along the centre",
+    "bevelled panels"
+   ],
+   "note": "The central fuselage between the engine bulges."
+  },
+  {
+   "id": "tail-ribs",
+   "kind": "panel",
+   "box": [
+    7,
+    21,
+    17,
+    26
+   ],
+   "traits": [
+    "ribbed bands across the tail (rows 22-25)",
+    "alternating light and dark",
+    "raised ribs, crisp"
+   ],
+   "note": "The ribbed bands across the tail."
+  },
+  {
+   "id": "shoulders",
+   "kind": "hull",
+   "box": [
+    6,
+    12,
+    18,
+    17
+   ],
+   "traits": [
+    "the hull widening from the cockpit to the pods",
+    "flat sloped panels",
+    "dark shadow seams at columns 7-8"
+   ],
+   "note": "The flanks where the delta widens behind the cockpit."
+  }
+ ]
+}

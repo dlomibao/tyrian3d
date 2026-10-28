@@ -1,0 +1,188 @@
+{
+ "name": "ship-nort-ship",
+ "summary": "Player fighter: a wide grey swept-delta, angular hard-surface, with a pointed nose fuselage, blue-banded swept wings ending in tip prongs, shoulder guns and two engine pods trailing behind the wing roots.",
+ "features": [
+  {
+   "id": "canopy",
+   "kind": "glass",
+   "box": [
+    21,
+    3,
+    26,
+    7
+   ],
+   "traits": [
+    "glossy dark glass",
+    "blue glint on its right side",
+    "raised about 1 px, crisp edges",
+    "set into the nose top"
+   ],
+   "note": "The dark canopy on the nose (columns 22-24, rows 4-6); must read as a separate glass part, not hull paint."
+  },
+  {
+   "id": "nose",
+   "kind": "hull",
+   "box": [
+    19,
+    0,
+    29,
+    11
+   ],
+   "traits": [
+    "angular",
+    "tapers to a point at row 0",
+    "faceted with a bright centre ridge",
+    "taller than the wings"
+   ],
+   "note": "The pointed nose fuselage running from the tip down past the shoulders; hard faceted panels, not a rounded cone."
+  },
+  {
+   "id": "wings",
+   "kind": "wing",
+   "box": [
+    5,
+    10,
+    43,
+    23
+   ],
+   "traits": [
+    "angular",
+    "swept leading edge, straight trailing edge",
+    "thin, flat plates with chamfered edges",
+    "thickest at the root, tapering to the tips"
+   ],
+   "note": "Broad swept delta wings from the shoulders out to the tips; flat hard plates, not inflated."
+  },
+  {
+   "id": "wing-blue-band",
+   "kind": "panel",
+   "box": [
+    6,
+    13,
+    12,
+    20
+   ],
+   "traits": [
+    "blue paint band along the leading edge",
+    "flat, follows the sweep",
+    "mirrored at columns 35-39"
+   ],
+   "note": "The blue leading-edge band on each wing (left shown; the right one mirrors it); a real marking that must stay blue and crisp."
+  },
+  {
+   "id": "shoulder-guns",
+   "kind": "gun",
+   "box": [
+    14,
+    5,
+    33,
+    10
+   ],
+   "traits": [
+    "short straight barrels",
+    "red-lit tips",
+    "stand clear of the hull by 1-2 px",
+    "one each side of the nose"
+   ],
+   "note": "Two short red-tipped guns on the shoulders (columns 15 and 31, rows 6-8); must read as separate barrels."
+  },
+  {
+   "id": "engine-pods",
+   "kind": "engine",
+   "box": [
+    11,
+    21,
+    37,
+    28
+   ],
+   "traits": [
+    "round-ish pods tapering to nozzles",
+    "dark vents cut in on top (rows 21-22)",
+    "dark nozzle openings at the back",
+    "stand below/behind the trailing edge"
+   ],
+   "note": "The two engine pods poking out behind the wing roots and tapering to nozzles at row 27; vents and nozzles recessed."
+  },
+  {
+   "id": "spine-channel",
+   "kind": "recess",
+   "box": [
+    19,
+    13,
+    29,
+    22
+   ],
+   "traits": [
+    "dark channel cut in beside the spine (columns 19-21)",
+    "pale raised spine to its right",
+    "straight, runs rows 13-21"
+   ],
+   "note": "The dark groove down the middle and the pale raised spine behind the nose; the groove is cut in, the spine sits proud."
+  },
+  {
+   "id": "wing-ridges",
+   "kind": "panel",
+   "box": [
+    7,
+    14,
+    18,
+    22
+   ],
+   "traits": [
+    "two chevron ridges with a dark groove between",
+    "angular creases, raised about 1 px",
+    "mirrored on the right wing"
+   ],
+   "note": "The chevron ridges on each wing behind the blue band, bending down into the tip prong; crisp creases."
+  },
+  {
+   "id": "wing-root-lights",
+   "kind": "light",
+   "box": [
+    14,
+    11,
+    33,
+    14
+   ],
+   "traits": [
+    "small red lights at columns 15 and 31, row 12",
+    "flush or slightly raised",
+    "emissive red"
+   ],
+   "note": "The red lights where the nose meets the wings."
+  },
+  {
+   "id": "canards",
+   "kind": "fin",
+   "box": [
+    19,
+    1,
+    29,
+    5
+   ],
+   "traits": [
+    "small blue glints beside the nose tip",
+    "thin, angular",
+    "at columns 20 and 27, rows 2-3"
+   ],
+   "note": "The small blue canards/fins either side of the nose tip."
+  },
+  {
+   "id": "wing-tip-prongs",
+   "kind": "wing",
+   "box": [
+    4,
+    16,
+    9,
+    23
+   ],
+   "traits": [
+    "short pointed prongs",
+    "angular",
+    "thin plate",
+    "mirrored at columns 39-41"
+   ],
+   "note": "The grey prong each wing ends in (left shown)."
+  }
+ ]
+}

@@ -1,0 +1,134 @@
+{
+ "name": "ship-u-ship",
+ "summary": "Player ship: a U-shaped band standing on edge, open end forward, with a brown bell-shaped pod hung in the middle on two short struts; hard-surface ribbon and pod.",
+ "features": [
+  {
+   "id": "pod",
+   "kind": "pod",
+   "box": [
+    8,
+    12,
+    15,
+    21
+   ],
+   "traits": [
+    "bell-shaped, round at the front (row 12), flat at the back (row 20)",
+    "round in section, about as tall as wide",
+    "brown metal"
+   ],
+   "note": "The pod in the middle of the U; must read as a rounded bell, not a flat plate."
+  },
+  {
+   "id": "pod-window",
+   "kind": "glass",
+   "box": [
+    9,
+    12,
+    14,
+    15
+   ],
+   "traits": [
+    "dark glass at the pod's front (rows 13-14)",
+    "set in, crisp edges",
+    "glossy"
+   ],
+   "note": "The dark window on the front of the pod."
+  },
+  {
+   "id": "pod-highlight",
+   "kind": "panel",
+   "box": [
+    9,
+    15,
+    12,
+    20
+   ],
+   "traits": [
+    "pale stripe down the left of the pod (column 10, rows 16-19)",
+    "a lit rounded side"
+   ],
+   "note": "The pale stripe that shows the pod is round."
+  },
+  {
+   "id": "pod-groove",
+   "kind": "recess",
+   "box": [
+    11,
+    13,
+    14,
+    20
+   ],
+   "traits": [
+    "dark groove down column 12",
+    "cut in, straight"
+   ],
+   "note": "The shaded groove down the right side of the pod."
+  },
+  {
+   "id": "arm-left",
+   "kind": "strut",
+   "box": [
+    4,
+    7,
+    7,
+    22
+   ],
+   "traits": [
+    "tall thin ribbon standing on edge",
+    "straight",
+    "grey with dark joint bands at rows 14 and 19",
+    "flat front end"
+   ],
+   "note": "The left arm of the U (column 5, rows 7-21): a tall flat band, not a low rail."
+  },
+  {
+   "id": "arm-right",
+   "kind": "strut",
+   "box": [
+    16,
+    7,
+    19,
+    22
+   ],
+   "traits": [
+    "tall thin ribbon standing on edge",
+    "straight",
+    "grey with dark joint bands at rows 14 and 19",
+    "flat front end"
+   ],
+   "note": "The right arm of the U (column 17)."
+  },
+  {
+   "id": "u-curve",
+   "kind": "strut",
+   "box": [
+    4,
+    19,
+    19,
+    26
+   ],
+   "traits": [
+    "brown curved band",
+    "smooth half ellipse joining the arms",
+    "same height as the arms"
+   ],
+   "note": "The back of the U, curving round behind the pod (rows 20-25), brown."
+  },
+  {
+   "id": "struts",
+   "kind": "strut",
+   "box": [
+    5,
+    15,
+    18,
+    18
+   ],
+   "traits": [
+    "short straight struts at row 16",
+    "constant thickness",
+    "grey, joining arm to pod"
+   ],
+   "note": "The two short struts that hang the pod from the arms."
+  }
+ ]
+}
