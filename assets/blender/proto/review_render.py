@@ -11,6 +11,7 @@ under each sprite pixel's centre, seam samples, triangles, bounding box).
 
 import json
 import math
+import os
 import re
 import sys
 from pathlib import Path
@@ -28,6 +29,9 @@ from shape_model import model_paths, piece_path  # noqa: E402
 
 PX = 1 / 12
 PANEL = 480
+# The models as they were before the grade/fix loop (DECISIONS.md D39): a checkout of main at
+# 7d47c05, for `baseline` reviews that check no feature of the original got lost.
+BASELINE = Path(os.environ.get("TYRIAN_BASELINE", ROOT.parent / "baseline"))
 
 
 def srgb_lin(c):
@@ -46,7 +50,7 @@ def import_model(name, which, doc):
     """Import the model's .glb files at their places; returns the mesh objects."""
     W, H = doc["size"]
     paths = model_paths()
-    base = ROOT / "public" / "models" / {"proto": "proto", "reshape": "proto-reshape"}.get(which, "")
+    base = (BASELINE if which == "baseline" else ROOT) / "public" / "models" / {"proto": "proto", "reshape": "proto-reshape"}.get(which, "")
     meshes = []
     missing = []
     for p in doc["pieces"]:
@@ -254,6 +258,8 @@ def main():
     render(camera((d * 0.55, -d * 0.6, d * 0.55), (0, 0, 0), fov=35), out / "q1.png", PANEL, PANEL)
     render(camera((-d * 0.6, d * 0.5, d * 0.55), (0, 0, 0), fov=35), out / "q2.png", PANEL, PANEL)
     sun = setup_game()
+    # The top view lit like the game, at the sprite's scale: feature crops line up with the sprite.
+    render(camera((0, 0, 20), (0, 0, 0), ortho=ext, top=True), out / "top_game.png", W * k, H * k)
     tilt = math.radians(32)  # CAMERA_TILT in src/render/view.ts
     render(camera((0, -d * math.sin(tilt), d * math.cos(tilt)), (0, 0, 0), fov=35), out / "game.png", PANEL, PANEL)
     bpy.data.objects.remove(sun, do_unlink=True)

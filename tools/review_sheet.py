@@ -1,6 +1,7 @@
 """One review sheet (PNG) and one metrics file (JSON) for a model, always in the same layout.
 
-    python tools/review_sheet.py <name> [--which proto|current|reshape|both] [--out DIR] [--build]
+    python tools/review_sheet.py <name> [--which proto|current|reshape|baseline|both] [--out DIR] [--build]
+                                 [--baseline]
                                  [--overrides FILE|none] [--label NAME]
 
 <name> is a model or an assembly (whole). `proto` reviews public/models/proto/... (built by
@@ -16,6 +17,10 @@ Layout (480 px panels, 4 across, 4 rows):
   5 side elevation (2 panels wide)                           6 front elevation (2 panels wide)
   7 3/4 front-right     8 3/4 back-left                      9 game camera              10 region map with ids
   11 inferred height    12 metrics
+--baseline adds rows under panel 12: the model before the grade/fix loop (13-15, from the checkout in
+$TYRIAN_BASELINE, default ../baseline next to this worktree) and, when assets/blender/features/<name>.json
+lists the sprite's features, one close-up tile per feature: sprite | baseline | now, cut from the
+game-lit top views (top_game.png).
 Elevations share one scale for both models of a sprite and carry a ruler in sprite px (12 px = 1 unit).
 Diff: red = sprite pixel the model misses, blue = model where the sprite is empty, grey to yellow =
 colour error (CIE76 dE, 0 to 40+) of the palette colour seen from above against the sprite's.
@@ -160,7 +165,62 @@ def diff_image(an, index, colors, de):
     return Image.fromarray(out)
 
 
-def sheet(name, which, out, label=None):
+FEATURES = ROOT / "assets/blender/features"
+TILE = 150  # one feature crop
+
+
+def crop_fit(img, box, k, nearest):
+    """The sprite-px box (x0, y0, x1, y1), padded 2 px, cut from an image at k px per sprite px and
+    fitted into a TILE square."""
+    x0, y0, x1, y1 = box
+    c = img.crop((max(0, (x0 - 2) * k), max(0, (y0 - 2) * k), min(img.width, (x1 + 2) * k), min(img.height, (y1 + 2) * k)))
+    s = TILE / max(c.width, c.height)
+    c = c.resize((max(1, round(c.width * s)), max(1, round(c.height * s))), Image.NEAREST if nearest else Image.LANCZOS)
+    out = Image.new("RGBA", (TILE, TILE), BG + (255,))
+    out.alpha_composite(c.convert("RGBA"), ((TILE - c.width) // 2, (TILE - c.height) // 2))
+    return out
+
+
+def baseline_rows(name, k, sprite_img, views, bviews, span, zc):
+    """Rows under the 12 panels: the model before the fix loop (13-15), then one tile per feature
+    in assets/blender/features/<name>.json: the sprite, the baseline and the current model, cropped
+    to the feature from the game-lit top views."""
+    def view(d, f):
+        im = Image.open(d / f).convert("RGBA")
+        bg = Image.new("RGBA", im.size, BG + (255,))
+        bg.alpha_composite(im)
+        return bg
+    rows = []
+    if bviews:
+        row = Image.new("RGBA", (PANEL * 4, PANEL + TITLE), BG + (255,))
+        for x, p in ((0, panel(view(bviews, "game.png"), "13 BASELINE (before the fix loop): game camera")),
+                     (PANEL, panel(view(bviews, "q1.png"), "14 BASELINE: three-quarter, front right")),
+                     (2 * PANEL, panel(ruler(view(bviews, "side.png"), span, zc), "15 BASELINE: side elevation"))):
+            row.alpha_composite(p, (x, 0))
+        rows.append(row)
+    fpath = FEATURES / f"{name}.json"
+    if not fpath.exists():
+        return rows
+    feats = json.loads(fpath.read_text())["features"]
+    cur_top = view(views, "top_game.png")
+    base_top = view(bviews, "top_game.png") if bviews else None
+    tile_w, tile_h = PANEL, TITLE + TILE + 4
+    for i in range(0, len(feats), 4):
+        row = Image.new("RGBA", (PANEL * 4, tile_h), BG + (255,))
+        for j, f in enumerate(feats[i:i + 4]):
+            t = Image.new("RGBA", (tile_w, tile_h), BG + (255,))
+            crops = [crop_fit(sprite_img, f["box"], k, True)]
+            crops.append(crop_fit(base_top, f["box"], k, False) if base_top else Image.new("RGBA", (TILE, TILE), BG + (255,)))
+            crops.append(crop_fit(cur_top, f["box"], k, False))
+            for c_i, c in enumerate(crops):
+                t.alpha_composite(c, (6 + c_i * (TILE + 6), TITLE))
+            ImageDraw.Draw(t).text((6, 5), f"F{i + j + 1} {f['id']} ({f.get('kind', '')}): sprite | baseline | now", fill=(150, 230, 255, 255))
+            row.alpha_composite(t, (j * tile_w, 0))
+        rows.append(row)
+    return rows
+
+
+def sheet(name, which, out, label=None, baseline=False):
     work = ROOT / ".shape" / name
     doc = json.loads((work / "regions.json").read_text())
     if which == "proto":  # the regions as built: the analysis plus the overrides used
@@ -175,6 +235,11 @@ def sheet(name, which, out, label=None):
     views = work / f"views-{which}"
     run([BLENDER, "-b", "--factory-startup", "--python", str(ROOT / "assets/blender/proto/review_render.py"), "--",
          name, which, str(views), str(k)])
+    bviews = None
+    if baseline and which != "baseline":
+        bviews = work / "views-baseline"
+        run([BLENDER, "-b", "--factory-startup", "--python", str(ROOT / "assets/blender/proto/review_render.py"), "--",
+             name, "baseline", str(bviews), str(k)])
     smp = json.loads((views / "samples.json").read_text())
     height, index = np.load(views / "height.npy"), np.load(views / "index.npy")
     target = np.load(work / "target_height.npy") if which in ("proto", "reshape") and (work / "target_height.npy").exists() else None
@@ -226,7 +291,8 @@ def sheet(name, which, out, label=None):
         panel(tpanel, "12 metrics"),
     ]
     head = 30
-    out_img = Image.new("RGBA", (PANEL * 4, head + (PANEL + TITLE) * 4), BG + (255,))
+    extra = baseline_rows(name, k, sprite_img, views, bviews, span, zc)
+    out_img = Image.new("RGBA", (PANEL * 4, head + (PANEL + TITLE) * 4 + sum(r.height for r in extra)), BG + (255,))
     ImageDraw.Draw(out_img).text((8, 8), f"{name} - {which} model - {m['triangles']} tris - IoU {m['silhouette_iou']}"
                                  f" - h/w {m['height_to_width']} - dE {m['colour_dE_mean']}", fill=(255, 220, 120, 255))
     x = y = 0
@@ -235,6 +301,10 @@ def sheet(name, which, out, label=None):
         x += p.width
         if x >= 4 * PANEL:
             x, y = 0, y + PANEL + TITLE
+    y = (PANEL + TITLE) * 4
+    for r in extra:
+        out_img.alpha_composite(r, (0, head + y))
+        y += r.height
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
     tag = label or which
@@ -329,7 +399,7 @@ def main(argv):
             run([BLENDER, "-b", "--factory-startup", "--python", str(ROOT / "assets/blender/proto/shape_model.py"), "--", name] + extra)
     label = argv[argv.index("--label") + 1] if "--label" in argv else None
     for w in (["current", "proto"] if which == "both" else [which]):
-        sheet(name, w, out, label if w == "proto" else None)
+        sheet(name, w, out, label if w == "proto" else None, baseline="--baseline" in argv)
     if which == "both" or "--compare" in argv:
         compare(name, out, label or "proto")
 
