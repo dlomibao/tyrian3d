@@ -131,5 +131,10 @@
    ],
    "note": "The flanks where the delta widens behind the cockpit."
   }
- ]
+ ],
+ "concept": {
+  "image": "assets/blender/features/concepts/ship-usp-talon-light-fighter.jpg",
+  "source": "Gemini (Nano Banana) high-res reimagining of the level-frame sprite, 2026-10-28, with the user's prompt (same overhead outline, don't take pixels literally)",
+  "use": "Design guide for what each part is and its shape language; the sprite decides the top-view outline, proportions and colours."
+ }
 }

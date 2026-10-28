@@ -1,34 +1,176 @@
-{"name": "ship-silver-ship",
+{
+ "name": "ship-silver-ship",
  "summary": "Silver hard-surface fighter: a pointed fuselage with a dark canopy and a wide bright spine deck, small swept fins by the canopy, and two side pods with red-striped engines at their backs.",
  "features": [
-  {"id": "canopy", "kind": "glass", "box": [10, 5, 14, 9],
-   "traits": ["dark glossy glass, about 4x4 px", "bright glint in the middle (col 11, row 6) is shine", "set in a frame on top of the fuselage, raised 1-2 px", "crisp edges"],
-   "note": "The cockpit canopy behind the nose: a dark glass bubble; must stay dark and glossy, distinct from the hull."},
-  {"id": "nose", "kind": "hull", "box": [9, 0, 14, 5],
-   "traits": ["pointed, tapering to a tip at row 0", "bright centre line (col 11) is a ridge/sheen", "metal, hard edges"],
-   "note": "The nose ahead of the canopy; tapers in width and height to a point."},
-  {"id": "spine-deck", "kind": "panel", "box": [9, 9, 14, 21],
-   "traits": ["wide bright plate, 5 px wide, straight sides", "flat top, raised above the pods", "crisp chamfered edges", "near-white spots (row 9, row 18) are sheen, not bumps"],
-   "note": "The bright central deck running from behind the canopy to the tail; a flat raised plate, not a bulging tube."},
-  {"id": "pod-left", "kind": "pod", "box": [2, 12, 9, 22],
-   "traits": ["wide side pod, about 6 px wide", "angled front edge (rows 12-15)", "lit diagonal edge at the front", "sits lower than the fuselage", "hard flat panels"],
-   "note": "Left side pod hugging the rear fuselage; must keep its angular front and its width."},
-  {"id": "pod-right", "kind": "pod", "box": [14, 12, 21, 22],
-   "traits": ["wide side pod, about 6 px wide", "angled front edge", "sits lower than the fuselage", "hard flat panels"],
-   "note": "Right side pod, mirror of the left."},
-  {"id": "engine-left", "kind": "engine", "box": [4, 18, 9, 26],
-   "traits": ["red stripes at rows 18, 20, 22-25 with grey bands between (rows 19, 21)", "tapers in toward the tail", "red glows; bands are raised rings"],
-   "note": "Left red-striped engine at the back of the pod; red and grey bands must both read."},
-  {"id": "engine-right", "kind": "engine", "box": [14, 18, 19, 26],
-   "traits": ["red stripes with grey bands between", "tapers in toward the tail", "red glows"],
-   "note": "Right red-striped engine, mirror of the left."},
-  {"id": "fin-left", "kind": "fin", "box": [4, 5, 9, 10],
-   "traits": ["small swept fin, thin flat plate", "pointed tip at col 5 row 8 (bright)", "angular, straight edges"],
-   "note": "Left swept fin beside the canopy; a thin sharp plate."},
-  {"id": "fin-right", "kind": "fin", "box": [14, 5, 19, 10],
-   "traits": ["small swept fin, thin flat plate", "pointed tip at col 17 row 8", "angular, straight edges"],
-   "note": "Right swept fin beside the canopy."},
-  {"id": "tail-ribs", "kind": "fin", "box": [9, 21, 14, 26],
-   "traits": ["three parallel ribs (cols 9, 11, 13), straight, constant width", "dark recessed gaps between them (cols 10, 12)", "raised about 1-2 px"],
-   "note": "Three ribs on the tail between the engines; must read as separate parallel ridges with dark slots between."}
- ]}
+  {
+   "id": "canopy",
+   "kind": "glass",
+   "box": [
+    10,
+    5,
+    14,
+    9
+   ],
+   "traits": [
+    "dark glossy glass, about 4x4 px",
+    "bright glint in the middle (col 11, row 6) is shine",
+    "set in a frame on top of the fuselage, raised 1-2 px",
+    "crisp edges"
+   ],
+   "note": "The cockpit canopy behind the nose: a dark glass bubble; must stay dark and glossy, distinct from the hull."
+  },
+  {
+   "id": "nose",
+   "kind": "hull",
+   "box": [
+    9,
+    0,
+    14,
+    5
+   ],
+   "traits": [
+    "pointed, tapering to a tip at row 0",
+    "bright centre line (col 11) is a ridge/sheen",
+    "metal, hard edges"
+   ],
+   "note": "The nose ahead of the canopy; tapers in width and height to a point."
+  },
+  {
+   "id": "spine-deck",
+   "kind": "panel",
+   "box": [
+    9,
+    9,
+    14,
+    21
+   ],
+   "traits": [
+    "wide bright plate, 5 px wide, straight sides",
+    "flat top, raised above the pods",
+    "crisp chamfered edges",
+    "near-white spots (row 9, row 18) are sheen, not bumps"
+   ],
+   "note": "The bright central deck running from behind the canopy to the tail; a flat raised plate, not a bulging tube."
+  },
+  {
+   "id": "pod-left",
+   "kind": "pod",
+   "box": [
+    2,
+    12,
+    9,
+    22
+   ],
+   "traits": [
+    "wide side pod, about 6 px wide",
+    "angled front edge (rows 12-15)",
+    "lit diagonal edge at the front",
+    "sits lower than the fuselage",
+    "hard flat panels"
+   ],
+   "note": "Left side pod hugging the rear fuselage; must keep its angular front and its width."
+  },
+  {
+   "id": "pod-right",
+   "kind": "pod",
+   "box": [
+    14,
+    12,
+    21,
+    22
+   ],
+   "traits": [
+    "wide side pod, about 6 px wide",
+    "angled front edge",
+    "sits lower than the fuselage",
+    "hard flat panels"
+   ],
+   "note": "Right side pod, mirror of the left."
+  },
+  {
+   "id": "engine-left",
+   "kind": "engine",
+   "box": [
+    4,
+    18,
+    9,
+    26
+   ],
+   "traits": [
+    "red stripes at rows 18, 20, 22-25 with grey bands between (rows 19, 21)",
+    "tapers in toward the tail",
+    "red glows; bands are raised rings"
+   ],
+   "note": "Left red-striped engine at the back of the pod; red and grey bands must both read."
+  },
+  {
+   "id": "engine-right",
+   "kind": "engine",
+   "box": [
+    14,
+    18,
+    19,
+    26
+   ],
+   "traits": [
+    "red stripes with grey bands between",
+    "tapers in toward the tail",
+    "red glows"
+   ],
+   "note": "Right red-striped engine, mirror of the left."
+  },
+  {
+   "id": "fin-left",
+   "kind": "fin",
+   "box": [
+    4,
+    5,
+    9,
+    10
+   ],
+   "traits": [
+    "small swept fin, thin flat plate",
+    "pointed tip at col 5 row 8 (bright)",
+    "angular, straight edges"
+   ],
+   "note": "Left swept fin beside the canopy; a thin sharp plate."
+  },
+  {
+   "id": "fin-right",
+   "kind": "fin",
+   "box": [
+    14,
+    5,
+    19,
+    10
+   ],
+   "traits": [
+    "small swept fin, thin flat plate",
+    "pointed tip at col 17 row 8",
+    "angular, straight edges"
+   ],
+   "note": "Right swept fin beside the canopy."
+  },
+  {
+   "id": "tail-ribs",
+   "kind": "fin",
+   "box": [
+    9,
+    21,
+    14,
+    26
+   ],
+   "traits": [
+    "three parallel ribs (cols 9, 11, 13), straight, constant width",
+    "dark recessed gaps between them (cols 10, 12)",
+    "raised about 1-2 px"
+   ],
+   "note": "Three ribs on the tail between the engines; must read as separate parallel ridges with dark slots between."
+  }
+ ],
+ "concept": {
+  "image": "assets/blender/features/concepts/ship-silver-ship.jpg",
+  "source": "Gemini (Nano Banana) high-res reimagining of the level-frame sprite, 2026-10-28, with the user's prompt (same overhead outline, don't take pixels literally)",
+  "use": "Design guide for what each part is and its shape language; the sprite decides the top-view outline, proportions and colours."
+ }
+}
