@@ -4,6 +4,11 @@ A grey fighter: a long fuselage with a faceted pointed nose, a dark glass windsh
 polished hard-surface metal hull, and two thin, knife-edged blade wings pointed at both ends, joined to
 the fuselage by struts near the tail.
 
+Shapes follow the user's concept art (assets/blender/features/concepts/ship-gencore-phoenix.jpg):
+crescent blade wings with stepped armour plates, a shield-shaped nose plate, the windshield recessed in
+an octagonal frame, armour plates beside the spine, a keel ridge to the tail and twin engine nozzles.
+The sprite still sets the top-view outline, proportions and colours.
+
 The game's sun only flashes on faces that tilt back towards the camera (about 27 degrees towards the
 tail), so the sprite's bright streaks sit on such facets: the spine ridge and the wing ridges slope
 down towards the tail, and the canopy plate and the struts have long, shallow rear chamfers.
@@ -148,12 +153,12 @@ def build(sprite):
     # The top is three shallow facets (shaded smooth between them, so the glass carries a glint);
     # the edges to the side panels and the frame stay crisp.
     def glass_ring(r, zt, zs, zb, k):
-        half = ((0.6 * k, zt + 0.35), (1.7 * k, zt), (2.7, zs), (2.7, zb))
+        half = ((0.6 * k, zt + 0.35), (1.6 * k, zt), (2.45, zs), (2.45, zb))
         right = list(half)
         return [(11.5 + x, r, z) for x, z in right + [(-x, z) for x, z in reversed(right)]]
 
-    glass = [glass_ring(5.8, 5.0, 4.5, 3.9, 1.0), glass_ring(7.7, 5.9, 5.0, 4.0, 0.97),
-             glass_ring(9.55, 6.5, 5.3, 4.2, 0.9)]
+    glass = [glass_ring(6.1, 5.0, 4.5, 3.9, 0.95), glass_ring(7.7, 5.8, 5.0, 4.0, 0.95),
+             glass_ring(9.35, 6.3, 5.3, 4.2, 0.88)]
     ploft(bm, glass, lambda r, c, up: GLASS, faces)
 
     # Canopy plate (rows 10-12, columns 10-12): a light, raised flat plate with chamfered edges.
@@ -174,25 +179,80 @@ def build(sprite):
              for r, z in ((13.55, 5.5), (14.0, 6.6), (17.2, 5.15), (17.45, 5.0))]
     ploft(bm, spine, lambda r, c, up: PLATE, faces)
 
-    # Wings: thin, knife-edged blades pointed at both ends. Each section is a wedge: a crisp ridge
-    # along the inner top edge (the bright line in the sprite), a near-vertical inner face, a flat
-    # upper face sloping down to a knife edge on the outer side and a lower face back up from the
-    # keel to that edge. (row, outer edge, inner edge, ridge height, keel depth.)
-    def pod_ring(r, o, i, t, b):
-        return [(i - 1.4, r, t - 0.12), (i - 0.5, r, t), (i, r, t - 0.6), (i, r, b + 0.5), (i - 0.9, r, b),
-                (o, r, 0.3)]
+    # Windshield frame: an octagonal rim around the glass (as in the concept), its top a little
+    # above the glass's side panels so the glass sits recessed in it.
+    def octagon(hw, r0, r1, k, z0, z1):
+        pts = [(-hw + k, r0), (hw - k, r0), (hw, r0 + k), (hw, r1 - k), (hw - k, r1), (-hw + k, r1),
+               (-hw, r1 - k), (-hw, r0 + k)]
+        return [(11.5 + x, r, z0 + (z1 - z0) * (r - r0) / (r1 - r0)) for x, r in pts]
 
-    # The ridge climbs from the front point to row 15 and then slopes back down towards the strut,
-    # so its flat top catches the sun there (the bright inner edge in the sprite).
-    tip_f = [(4.6, 8.4, 0.6)]
-    tip_b = [(3.4, 24.7, 0.4)]
-    pod = [tip_f] + [pod_ring(*p) for p in (
-        (9.6, 2.9, 5.4, 1.4, -0.3), (11.5, 2.0, 5.5, 2.6, -0.7), (13.8, 0.7, 5.5, 3.5, -0.9),
-        (15.2, 0.7, 5.5, 3.9, -0.9), (19.2, 0.7, 5.5, 2.1, -0.9), (21.8, 0.7, 5.5, 2.0, -0.9),
-        (22.5, 0.9, 5.5, 1.9, -0.85), (23.0, 2.6, 5.4, 1.5, -0.6), (23.6, 2.7, 5.2, 1.1, -0.45))] + [tip_b]
+    ploft(bm, [octagon(3.15, 5.55, 9.85, 0.9, 3.9, 4.4), octagon(3.15, 5.55, 9.85, 0.9, 4.75, 5.6),
+               octagon(2.6, 5.95, 9.5, 0.7, 4.75, 5.6), octagon(2.6, 5.95, 9.5, 0.7, 3.9, 4.4)],
+          lambda r, c, up: DARK, faces, cap_start=False, cap_end=False)
+
+    # Shield-shaped nose plate: a pointed armour plate laid over the nose, with a crisp centre crease
+    # (the light ridge in the sprite), raised a little above the nose's facets.
+    def shield_ring(r, hw, ze, zr):
+        return [(11.5 - hw, r, ze - 0.55), (11.5 - hw, r, ze), (11.5 - 0.55 * hw, r, ze + 0.3), (11.5, r, zr),
+                (11.5 + 0.55 * hw, r, ze + 0.3), (11.5 + hw, r, ze), (11.5 + hw, r, ze - 0.55)]
+
+    ploft(bm, [[(11.5, 1.2, 2.1)], shield_ring(2.6, 0.8, 2.85, 3.4), shield_ring(4.0, 1.3, 3.55, 4.3),
+               shield_ring(5.25, 1.5, 4.15, 4.85), shield_ring(5.6, 1.35, 4.0, 4.6)],
+          lambda r, c, up: LIGHTP, faces)
+
+    # Armour plates either side of the spine (rows 14-17): low chamfered plates stepped on the deck.
+    plate(8.85, 10.3, 13.6, 17.3, 4.8, 5.75, 0.25, HULL, rear=0.8)
+    plate(12.7, 14.15, 13.6, 17.3, 4.8, 5.75, 0.25, HULL, rear=0.8)
+
+    # Keel ridge: continues the spine behind the vent, down the engine to the tail, between the
+    # twin nozzles.
+    keel = [[(11.15, r, zb), (11.85, r, zb), (11.7, r, zt), (11.3, r, zt)]
+            for r, zb, zt in ((19.6, 4.3, 5.0), (22.3, 3.1, 4.5), (24.6, 2.2, 3.6), (25.4, 1.6, 2.6))]
+    ploft(bm, keel, lambda r, c, up: HULL, faces)
+
+    # Twin engine nozzles at the tail, flanking the keel: octagonal tubes with a dark bore.
+    def oct_ring(cx, r, cz, rad):
+        return [(cx + rad * math.cos(a), r, cz + rad * math.sin(a))
+                for a in (math.pi / 8 + k * math.pi / 4 for k in range(8))]
+
+    for cx in (10.35, 12.65):
+        ploft(bm, [oct_ring(cx, 23.3, 1.45, 0.8), oct_ring(cx, 25.75, 1.45, 0.8), oct_ring(cx, 25.75, 1.45, 0.5)],
+              lambda r, c, up: DARK, faces, cap_start=False, cap_end=False)
+        ploft(bm, [oct_ring(cx, 25.75, 1.45, 0.5), oct_ring(cx, 25.0, 1.45, 0.5)], lambda r, c, up: GLASS,
+              faces, cap_start=False)
+
+    # Wings: crescent (scythe) blades, as in the concept art: a convex outer curve, a slightly
+    # concave inner edge, pointed at both ends, with thin knife edges. Each is a flat-faced base blade
+    # (knife outer edge, a crest near the inner edge, a thin inner edge) with two stepped armour
+    # plates on top, each a smaller crescent, so the top reads as layered plates with crisp edges.
+    # The top plate's inner edge is the bright line in the sprite (column 4).
+    # (row, outer edge, inner edge, crest height, keel depth)
+    W = [(9.4, 3.3, 5.45, 1.0, -0.3), (10.5, 2.4, 5.4, 1.4, -0.5), (12.0, 1.55, 5.3, 1.8, -0.7),
+         (13.8, 0.75, 5.25, 2.1, -0.8), (16.0, 0.6, 5.2, 2.2, -0.8), (18.5, 0.6, 5.3, 2.0, -0.8),
+         (20.0, 0.65, 5.4, 1.8, -0.8), (21.8, 0.75, 5.5, 1.6, -0.8), (22.6, 1.3, 5.4, 1.3, -0.7),
+         (23.3, 2.6, 5.0, 0.9, -0.5), (24.1, 3.0, 4.4, 0.5, -0.3)]
+
+    def blade_ring(r, o, i, t, b):
+        w = i - o
+        return [(o, r, 0.15), (o + 0.45 * w, r, 0.75 * t), (i - 0.8, r, t), (i, r, t - 0.6), (i, r, 0.1),
+                (i - 0.9, r, b), (o + 0.4 * w, r, 0.6 * b)]
+
+    def wplate_ring(r, o, i, t, f, g, dz, zb):
+        w = i - o
+        a, b = o + f * w, i - g
+        zt = t + dz
+        return [(a, r, zb), (b, r, zb), (b, r, zt - 0.2), (b - 0.2, r, zt), (a + 0.45, r, zt - 0.1),
+                (a, r, zt - 0.45)]
+
+    blade = [[(4.7, 8.5, 0.5)]] + [blade_ring(*w) for w in W] + [[(3.4, 24.8, 0.25)]]
+    plate1 = [[(4.5, 9.3, 1.5)]] + [wplate_ring(r, o, i, t, 0.33, 0.3, 0.55, 0.35 * t)
+                                    for r, o, i, t, b in W[1:-1]] + [[(3.6, 24.0, 0.9)]]
+    plate2 = [[(4.3, 10.9, 2.2)]] + [wplate_ring(r, o, i, t, 0.55, 0.6, 1.05, 0.5 * t)
+                                     for r, o, i, t, b in W[2:-3]] + [[(3.6, 22.6, 1.7)]]
     for flip in (False, True):
-        rings = [[(23 - c, r, z) for c, r, z in ring][::-1] if flip else ring for ring in pod]
-        ploft(bm, rings, lambda r, c, up: POD, faces)
+        for part, mat in ((blade, POD), (plate1, POD), (plate2, LIGHTP)):
+            rings = [[(23 - c, r, z) for c, r, z in ring][::-1] if flip else ring for ring in part]
+            ploft(bm, rings, lambda r, c, up, mat=mat: mat, faces)
 
     # Struts (rows 19-22, columns 5-8): box-section bars from the pods into the hull with a
     # chamfered top: the bright top edge in the sprite is the front chamfer catching the light.
