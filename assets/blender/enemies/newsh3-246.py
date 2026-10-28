@@ -6,8 +6,10 @@ with their tops at rim height, joined by a bridge at the top, with a steel rib b
 long ridged spikes stand out from its flanks (up, down, left, right) and four red rods with pale
 ends stick out on the diagonals. One frame.
 
-Faces take the palette shade the sprite draws them in (lit from the upper left), so the top view
-matches the sprite's colours.
+The sprite draws its own light (a dark outline, white on the top of the ring, dark lower right);
+the game lights the model and draws the outline, so each part takes one mid-tone palette colour
+and a material: polished steel for the ball and the spikes (their bright streaks are sheen), red
+painted metal for the rods, and the pit is black because it is a hole.
 
 Run: blender --background --python assets/blender/enemies/newsh3-246.py [-- --preview out.png]
 """
@@ -25,8 +27,10 @@ from lib_b011 import common, px, row  # noqa: E402
 
 NAME = "newsh3-246"
 P = 1 / 12  # one sprite pixel
-LIGHT = Vector((-0.45, 1.0, 1.0)).normalized()  # the sprite's light: from the top and the left
-RING_LIGHT = Vector((-0.2, 1.0, 0.15)).normalized()  # the ring's: low, from the top of the screen
+BALL = SPIKE = 9  # palette indices: one mid-tone per part (the ball and spikes are one steel)
+ROD, PIT, PIT_WALL, RIB = 73, 1, 2, 11
+# (metallic, roughness) per palette index: polished steel, red painted metal, the pit's dark inside
+FINISH = {BALL: (0.8, 0.3), RIB: (0.8, 0.25), ROD: (0.4, 0.4), PIT: (0.3, 0.6), PIT_WALL: (0.3, 0.6)}
 
 
 def lathe(bm, centre, profile, segments):
@@ -45,12 +49,11 @@ def lathe(bm, centre, profile, segments):
     lib.ring_loft(bm, rings, 0)
 
 
-def ridged_spike(bm, centre, direction, stations, tip, mats, bottom=1.2):
+def ridged_spike(bm, centre, direction, stations, tip, mat, bottom=1.2):
     """A blade from the ball's centre outwards: a ridged prism (flat 1 px ridge on top, a slope
     either side, a steep dark edge, a keel below) tapering to a point. `stations` are
     (distance, half width, ridge height) in px from `centre`; `tip` is the point's distance.
-    `mats` = (ridge, lit slope, shaded slope, lit edge, shaded edge, keel) material slots; the lit
-    side is the one facing the upper left."""
+    One material slot `mat`: the sprite's bright ridge and dark sides are light on polished steel."""
     a = Vector((direction[0], direction[1], 0.0)).normalized()
     s = a.cross(Vector((0, 0, 1))).normalized()
     up = Vector((0, 0, 1))
@@ -63,12 +66,7 @@ def ridged_spike(bm, centre, direction, stations, tip, mats, bottom=1.2):
             (w, 0.0), (0.6 * w, 0.62 * h), (0.2 * w, h), (-0.2 * w, h), (-0.6 * w, 0.62 * h),
             (-w, 0.0), (0.0, -bottom * k))])
     rings.append([tuple(c0 + a * tip * P + up * 0.1 * P)])
-    ridge, lit_slope, dark_slope, lit_edge, dark_edge, keel = mats
-    right_lit = s.x * -1 + s.y > 0
-    r_slope, l_slope = (lit_slope, dark_slope) if right_lit else (dark_slope, lit_slope)
-    r_edge, l_edge = (lit_edge, dark_edge) if right_lit else (dark_edge, lit_edge)
-    band = [r_edge, r_slope, ridge, l_slope, l_edge, keel, keel]
-    lib.ring_loft(bm, rings, [band] * (len(rings) - 1), cap_mats=(keel, keel))
+    lib.ring_loft(bm, rings, mat, cap_mats=(mat, mat))
 
 
 def build(sprite):
@@ -77,10 +75,10 @@ def build(sprite):
 
     def m(index):
         if index not in slot:
-            red = index >= 67
+            metallic, roughness = FINISH[index]
             slot[index] = len(mats)
-            mats.append(common.palette_material(sprite, index, NAME, metallic=0.25 if red else 0.15,
-                                                roughness=0.45 if red else 0.45))
+            mats.append(common.palette_material(sprite, index, NAME, metallic=metallic,
+                                                roughness=roughness))
         return slot[index]
 
     bm = bmesh.new()
@@ -89,9 +87,6 @@ def build(sprite):
 
     def part(painter):
         parts.append((len(bm.faces), painter))
-
-    def lit(f):
-        return f.normal.dot(LIGHT)
 
     # The ball: 13 x 12.6 px at its widest, 1.6 px up (the blades' roots and the arms fill the
     # sprite's outline around it), bottom pole 4.4 px down. Above the widest point its shoulder is
@@ -106,22 +101,11 @@ def build(sprite):
         c = f.calc_center_median()
         dx, dy = (c.x - cx) / P - pit_x, (c.y - cy) / P
         r = math.hypot(dx, dy)
-        n = f.normal
-        if r < 3.95 and c.z < 6.0 * P:  # the pit: black, as the sprite's opening is
-            return m(1) if n.z > 0.7 else m(2)
-        if n.z < -0.2:
-            return m(4)
-        if r < 4.4 and (n.x * dx + n.y * dy) < 0:  # the lip, facing into the pit
-            s = -n.y + 0.4 * n.x
-            return m(13 if s > 0.3 else 9 if s > -0.2 else 1)
-        # The ring is drawn lit from the top of the screen: its top band (the far wall and the
-        # crest beside it) near white, its left mid silver, its right and bottom dark. So its shade
-        # follows where a face sits around the ring as much as which way it faces.
-        around = (-0.35 * dx + dy) / max(r, 1e-6) / 1.06
-        s = 0.7 * around + 0.4 * n.dot(RING_LIGHT)
-        k = (14 if s > 0.85 else 13 if s > 0.65 else 12 if s > 0.5 else 11 if s > 0.35
-             else 10 if s > 0.2 else 9 if s > 0.05 else 7 if s > -0.15 else 5 if s > -0.45 else 4)
-        return m(max(k, 7) if n.z > 0.2 and dx < 1.0 else k)  # the near side mid grey, not black
+        if r < 3.95 and c.z < 6.0 * P:  # the pit: black, as the sprite's opening is (a hole)
+            return m(PIT) if f.normal.z > 0.7 else m(PIT_WALL)
+        # The rest is one steel shade: the sprite's white top band and dark lower right are its
+        # light on the ring, which the game's sun and environment now make.
+        return m(BALL)
     part(paint_ball)
     shoulder = []
     for t in (0, 20, 38, 54, 68, 80, 90):
@@ -134,10 +118,9 @@ def build(sprite):
                          (3.85, 3.5, 4.3, pit_x), (2.6, 2.4, 4.0, pit_x), (0, 0, 4.0, pit_x)],
           segments=28)
 
-    # Four spikes, ridged on top: the ridge is the sprite's bright middle stripe, the slopes its
-    # lit (upper-left) and shaded (lower-right) sides, the steep edges its dark outline.
+    # Four spikes, ridged on top: the ridge catches the light as the sprite's bright middle stripe.
     part(lambda f: f.material_index)
-    smats = (m(11), m(7), m(4), m(3), m(2), m(3))
+    smats = m(SPIKE)
     vertical = [(5, 3.4, 3.0), (6, 3.3, 2.8), (7.5, 2.5, 2.3), (10.5, 2.3, 1.4), (12, 0.8, 0.5)]
     horizontal = [(4.5, 3.5, 3.0), (6.3, 3.05, 2.8), (7.3, 2.55, 2.4), (9.5, 2.3, 1.5), (10.8, 0.8, 0.5)]
     ridged_spike(bm, (cx, cy), (0, 1), vertical, 12.5, smats)
@@ -145,20 +128,17 @@ def build(sprite):
     ridged_spike(bm, (cx, cy), (-1, 0), horizontal, 11.5, smats)
     ridged_spike(bm, (cx, cy), (1, 0), horizontal, 11.5, smats)
 
-    # Red rods on the diagonals, 3.3 px thick, with a rounded pale end (the lower right one's end
-    # is plain red in the sprite). Their top is the sprite's bright salmon stripe, the flanks its
-    # darker red, and the sides fall away to the dark red of its outline.
+    # Red rods on the diagonals, 3.3 px thick, with a rounded end. Their salmon top stripe and pale
+    # ends are the light on round painted metal, their dark sides the sprite's outline: one red.
     def paint_rod(f):
-        nz = f.normal.z
-        return m(75 if nz > 0.95 else 71 if nz > 0.7 else 162 if nz > -0.6 else 67)
+        return m(ROD)
     for sx in (-1, 1):
         for sy in (-1, 1):
             ox, oy = cx + sx * 8.3 * P, cy + sy * 8.3 * P
             ix, iy = cx + sx * 3.4 * P, cy + sy * 3.4 * P
             part(paint_rod)
             lib.tube(bm, (ix, iy, 0.3 * P), (ox, oy, 0.3 * P), 1.65 * P, sides=12)
-            end = 72 if (sx, sy) == (1, -1) else 76
-            part(lambda f, end=end: m(end if f.normal.z > 0.6 else 71 if f.normal.z > 0.3 else 162))
+            part(paint_rod)
             lib.ellipsoid(bm, (ox, oy, 0.3 * P), (1.75 * P, 1.75 * P, 1.75 * P), segments=8, rings=3)
 
     # In the pit: two red rods lying along it (columns 9-11 and 13-14, rows 11-16), their tops
@@ -168,9 +148,9 @@ def build(sprite):
     for c, rad in ((10.0, 1.35), (13.5, 1.15)):
         lib.tube(bm, (px(c), row(10.9), 6.5 * P - rad * P), (px(c), row(16.3), 6.5 * P - rad * P),
                  rad * P, sides=8)
-    part(lambda f: m(73 if f.normal.z > 0.4 else 70))
+    part(paint_rod)
     lib.tube(bm, (px(9.2), row(11.0), 6.0 * P), (px(14.4), row(11.0), 6.0 * P), 0.8 * P, sides=6)
-    part(lambda f: m(13 if f.normal.z > 0.4 else 9))
+    part(lambda f: m(RIB))
     lib.tube(bm, (px(12), row(9.6), 6.5 * P), (px(12), row(15.6), 6.0 * P), 0.6 * P, sides=6)
 
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)

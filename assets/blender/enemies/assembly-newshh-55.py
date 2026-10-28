@@ -3,11 +3,11 @@
 Seen in episode 2 (level 2.4). Two 2x2 enemies stacked make one 24x56 px object: a faceted
 bronze shell lying along the screen, nose up. The nose (newshh-17) is a long cone; the body
 (newshh-55) is three overlapping skirts that widen towards the back, each with a chevron rim,
-and a rounded knob near the blunt tail. The sprite lights it from the left, with a sharp ridge
-down the middle (light left of it, dark right of it), so the shell is one closed, smooth-shaded
-24-sided loft, round in section (as tall as it is wide), with a vertex on top carrying a raised
-spine. Each skirt's rim stands ~1 px proud and overhangs the next skirt, and the tail closes in a
-rounded bottom. Faces take the sprite's shades by where they fall seen from above.
+and a round, bulging tail. The sprite lights it from the left (light left of the centre line, dark
+right of it, a bright line down the top and a hot spot on the tail): that is shine on polished
+bronze, so the shell is one closed, smooth-shaded 24-sided loft, round in section (as tall as it is
+wide), in one mid-tone metallic material that the game's lights shade. Each skirt's rim stands
+~1 px proud and overhangs the next skirt, and the tail closes in a rounded bottom.
 
 Built once in assembly coordinates (24x56 px, centre at the origin) and cut into the two pieces
 with common.split_assembly.
@@ -70,24 +70,14 @@ RINGS = [
     (54.5, 0.0, 0.0, None),
 ]
 
-# Palette indices of the shell as the sprite shades it seen from above, by a face's distance from
-# the ridge (px) and from the silhouette's edge: lit left of the ridge (24, 23, 22), dark right of it
-# (17, 18, 19), a lighter edge column on each side (20 left, 22 right: the sprite's rim light) and
-# the outline-dark flank. The underside (unseen from above) is mid bronze, so it reads as brass
-# from the side.
-LIT = [(1.5, 24), (3.0, 23), (99, 22)]
-DARK = [(1.5, 17), (3.0, 18), (99, 19)]
-EDGE_L, EDGE_R, FLANK = 20, 22, 16
-RIM_L, RIM_R = 27, 24  # a tier's light leading edge
-STEP = 17  # the shadow under a tier's overhang
-UNDER_L, UNDER_R = 21, 20
-# The spine along the ridge: the sprite's centre column, near-white at the chevrons' peaks.
-SPINE = [(18.5, 23), (21.5, 27), (23.5, 30), (26.5, 28), (30.5, 25), (32.5, 30), (34.5, 28),
-         (36.5, 25), (39.5, 30), (40.5, 24), (44.5, 28), (99, 25)]
-
-
-def lookup(table, v):
-    return next(i for lim, i in table if v < lim)
+# Polished bronze: the sprite's ramp (light left of the ridge, dark
+# right of it, the dark flank, the near-white centre column and the bright spot on the tail) is its
+# drawn lighting on a shiny round shell, not paint and not geometry. The whole shell takes the
+# ramp's mid-tone and a metallic, smooth material so the game's lights shade it and make the
+# shine; the tiers' rims, real raised beads, are a shade lighter. The game draws the outline.
+BODY = 22
+RIM = 24
+METALLIC, ROUGHNESS = 0.85, 0.25
 
 
 def ring_h(i):
@@ -101,72 +91,25 @@ def ring_h(i):
     return h
 
 
-def ridge_top(row):
-    """The shell's top on its centreline at `row`."""
-    pts = [(r, ring_h(i)) for i, (r, *_rest) in enumerate(RINGS)]
-    for (r0, z0), (r1, z1) in zip(pts, pts[1:]):
-        if r0 <= row <= r1 and r1 > r0:
-            return z0 + (z1 - z0) * (row - r0) / (r1 - r0)
-    return 0.0
-
-
 def build(sprite):
     coll = common.reset_collection(NAME)
     pal = lambda i, **kw: common.palette_material(sprite, i, "nshh55", **kw)  # noqa: E731
-    used = sorted({i for t in (LIT, DARK, SPINE) for _l, i in t}
-                  | {EDGE_L, EDGE_R, FLANK, RIM_L, RIM_R, STEP, UNDER_L, UNDER_R, 29, 30})
-    mats = [pal(i, metallic=0.0, roughness=0.8) for i in used]
+    used = sorted({BODY, RIM})
+    mats = [pal(i, metallic=METALLIC, roughness=ROUGHNESS) for i in used]
     slot = {i: k for k, i in enumerate(used)}
     bm = bmesh.new()
-    ax = G.X(AXIS)
 
     secs = [(r, w, ring_h(i), 0.0, s) for i, (r, w, s, _b) in enumerate(RINGS)]
     faces = lib.loft(bm, G, AXIS, secs, sides=SIDES, mat=0, smooth=True, phase=0.0)
-    half = SIDES // 2
     sharp = set()
-    for k, (_r, w0, _s, band) in enumerate(RINGS[:-1]):
-        width = (w0 + RINGS[k + 1][1]) / 2
-        strip = faces[k * SIDES:(k + 1) * SIDES]
-        for j, f in enumerate(strip):
-            # Face j runs from the ridge down the left side (j < half), then up the right side.
-            left = j < half
-            under = (j if left else SIDES - 1 - j) >= half // 2
-            dx = abs(f.calc_center_median().x - ax) / PX
-            edge = width - dx
-            if band == "step":
-                idx = STEP
-            elif under:
-                idx = UNDER_L if left else UNDER_R
-            elif edge < 1.0:
-                idx = FLANK
-            elif band == "rim":
-                idx = RIM_L if left else RIM_R
-            elif edge < 2.0:
-                idx = EDGE_L if left else EDGE_R
-            else:
-                idx = lookup(LIT if left else DARK, dx)
-            f.material_index = slot[idx]
+    for k, (_r, _w, _s, band) in enumerate(RINGS[:-1]):
+        for f in faces[k * SIDES:(k + 1) * SIDES]:
+            f.material_index = slot[RIM if band == "rim" else BODY]
             if band in ("rim", "step"):
                 f.smooth = False
                 sharp.update(f.edges)
     for e in sharp:
         e.smooth = False
-
-    # A raised spine down the ridge, from the tip to the knob, in the sprite's centre-column shades.
-    path = []
-    row = 15.0
-    while row <= 46.5:
-        path.append((AXIS, row, ridge_top(row) - 0.25 * PX, 0.6, 1.2 * PX))
-        row += 0.5
-    for f in lib.sweep(bm, G, path, sides=4, mat=0, smooth=False):
-        row = G.h / 2 - 0.5 - f.calc_center_median().y * 12
-        f.material_index = slot[lookup(SPINE, row)]
-    # Bright round knob on the tail section (rows 46-50, just left of the ridge): a sphere half
-    # standing out of the shell.
-    knob = lib.ellipsoid(bm, G, 11.8, 48.2, ridge_top(48.2), 2.5, 2.5, 2.5 * PX, mat=0, segments=12, rings=6)
-    for f in knob:
-        f.normal_update()
-        f.material_index = slot[30 if f.normal.z > 0.75 else 29 if f.normal.z > 0.35 else 27]
 
     return lib.to_object(NAME, bm, mats, coll)
 

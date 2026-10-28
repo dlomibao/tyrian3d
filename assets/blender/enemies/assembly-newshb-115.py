@@ -10,9 +10,12 @@ sides, leaning back (they are drawn tall in the sprite).
 
 The structure is built once in assembly coordinates (left half mirrored about the pipes' axis,
 assembly pixel column 59.5), then cut into its fifteen pieces with common.split_assembly. The
-sprite is lit from the upper left, so the right half's deck is drawn in shadow: it's built as a
-dark channel below the lit left deck. The pipes, loop, lamps and gun stacks are round solids about
-as tall as they are wide.
+sprite is lit from the upper left, so its right half is drawn in shadow (near-black deck, dark
+purple side panel) and its side panels carry the sprite's dark outline: that's lighting, not paint
+(the game's sun casts the pipes' shadow and draws the outline), so both halves get the lit half's
+mid-tone colours and the same deck. The pipes, loop, lamps and gun stacks are round solids about
+as tall as they are wide; the pipes and loop are polished metal, so their streaks of light are
+shine from the game's lights, not colour.
 
 newshb-117's port has a sliding hatch: closed (frame 117), a quarter open (195), half open
 (233), and open with a muzzle flash (197, 235, 271, 273, which only vary the flash), so it gets
@@ -61,8 +64,7 @@ HATCH = [("", [117], 25.0), ("-f2", [195], 27.0), ("-f3", [233], 29.0), ("-f4", 
 PORT_L = (25.0, 59.0, 33.0, 68.0)  # left port opening (pixel edges c0, r0, c1, r1)
 HATCH_271 = 31.0  # on frame 271 the hatch's edge shows at the port's right side
 BASE_TOP = 0.10  # floor of the platform (and of the dark pool inside the loop)
-COLLAR_TOP = 0.45  # the lit (left) deck: about 5.4 px thick
-CHANNEL_TOP = 0.23  # the shadowed right deck, a dark channel about 2.6 px below it
+COLLAR_TOP = 0.45  # the deck: about 5.4 px thick
 DZ = COLLAR_TOP - 0.18  # how far the port, hatch and flashes rose with the deck
 # The big pipes are round: centre column, half width (px), axis height and vertical radius (units).
 PIPE_COL, PIPE_W, PIPE_Z, PIPE_RZ = 43.0, 11.0, 0.78, 0.72
@@ -78,22 +80,22 @@ def materials(sprite):
         pal(10, metallic=0.5, roughness=0.45),  # 1 light grey collar
         pal(12, metallic=0.5, roughness=0.4),  # 2 bright ribs, caps, hatch
         pal(90, metallic=0.3, roughness=0.5),  # 3 lavender side panels
-        pal(84, metallic=0.3, roughness=0.55),  # 4 dark purple top plates, shadowed right rim
-        pal(52, metallic=0.3, roughness=0.3),  # 5 navy pipes
-        pal(53, metallic=0.3, roughness=0.25),  # 6 navy loop
+        pal(84, metallic=0.3, roughness=0.55),  # 4 dark purple top plates
+        pal(52, metallic=0.75, roughness=0.3),  # 5 navy pipes, polished metal
+        pal(53, metallic=0.75, roughness=0.28),  # 6 navy loop, polished metal
         pal(50, metallic=0.3, roughness=0.4),  # 7 dark pool inside the loop
         pal(4, metallic=0.5, roughness=0.6),  # 8 dark grey clamp body, recesses
         pal(7, metallic=0.5, roughness=0.45),  # 9 mid grey tiles, block
         pal(6, metallic=0.5, roughness=0.5),  # 10 tower shafts
         pal(148, emission_strength=4.0),  # 11 deep blue lamps
         pal(141, emission_strength=5.0),  # 12 lamp hot spot
-        pal(2, metallic=0.2, roughness=0.8),  # 13 port interior, shadowed right deck
+        pal(2, metallic=0.2, roughness=0.8),  # 13 port interior
         pal(116, emission_strength=2.0),  # 14 ember in the right port
         pal(120, emission_strength=3.5),  # 15 muzzle flash
         pal(126, emission_strength=5.0),  # 16 flash core
         pal(5, metallic=0.5, roughness=0.45),  # 17 tower bodies
-        pal(3, metallic=0.5, roughness=0.6),  # 18 ribs and walls on the shadowed right deck
-        pal(80, metallic=0.2, roughness=0.7),  # 19 dark outer edge of the side panels
+        pal(3, metallic=0.5, roughness=0.6),  # 18 (unused: was the shadowed right deck's ribs)
+        pal(80, metallic=0.2, roughness=0.7),  # 19 (unused: was the side panels' outline ring)
         pal(155, emission_strength=4.5),  # 20 bright upper half of the lamps
     ]
 
@@ -194,45 +196,43 @@ def tower(bm, segs, z_of, stub):
             f.smooth = False
 
 
-def build_side(bm, shadowed):
-    """The left half of the machine. The sprite is lit from the upper left, so its right half's
-    deck is drawn in shadow: built from the same shapes with shadowed=True, its deck sits lower
-    (a dark channel) in dark greys, then it's mirrored."""
-    deck = CHANNEL_TOP if shadowed else COLLAR_TOP
+def build_side(bm):
+    """The left half of the machine (built twice, the second copy mirrored into the right half:
+    the sprite's dark right half is its lighting, not a different deck)."""
+    deck = COLLAR_TOP
     # Round platform: the bottom of a disc, its upper edge rising diagonally to the pipes.
     outline = [(AXIS, 45.0), (53.0, 44.0), (33.0, 38.5), (17.5, 45.5), (4.8, 52.2), (4.5, 58.0),
                (5.5, 64.0), (7.5, 70.0), (10.5, 76.0), (14.0, 81.0), (16.5, 85.0), (AXIS, 85.0)]
     L.prism(bm, F, outline, 0.0, BASE_TOP, mat=BASE)
-    # Side panel on the outer edge: a bevel rising inward from about 2 px to 4.3 px, with a dark
-    # 1.4 px outer edge (the sprite's outline round the wing).
+    # Side panel on the outer edge: a bevel rising inward from about 2 px to 4.3 px; its outer
+    # 1.4 px (drawn dark in the sprite: its outline) is the same lavender, the game draws the edge.
     edge = [(4.0, 46.0), (4.0, 52.2), (4.0, 59.0), (5.0, 65.0), (6.0, 68.0), (7.0, 70.5), (9.0, 74.5), (11.0, 78.5),
             (12.3, 81.5), (13.2, 85.0)]
     edge_in = [(c + 1.4, r) for c, r in edge]
-    strip(bm, edge, edge_in, 0.07, 0.17, 0.0, EDGE)
+    strip(bm, edge, edge_in, 0.07, 0.17, 0.0, LAV)
     outer = [(16.0, 44.6), (9.0, 44.6)] + edge_in
     inner = [(17.0, 44.6), (17.0, 45.0), (17.0, 46.0), (17.0, 50.0), (17.0, 55.0), (17.0, 61.0), (17.0, 65.0), (17.0, 69.0),
              (17.0, 74.0), (17.0, 78.0), (17.0, 81.5), (17.0, 85.0)]
-    strip(bm, outer, inner, 0.17, 0.36, 0.0, PURP if shadowed else LAV)
-    L.prism(bm, F, [(17.0, 44.6), (18.2, 44.6), (18.2, 85.0), (17.0, 85.0)], 0.0, 0.4, mat=PORT if shadowed else RIB)
+    strip(bm, outer, inner, 0.17, 0.36, 0.0, LAV)
+    L.prism(bm, F, [(17.0, 44.6), (18.2, 44.6), (18.2, 85.0), (17.0, 85.0)], 0.0, 0.4, mat=RIB)
     # The deck between the rim and the loop, with two ribs down it.
     L.prism(bm, F, [(18.2, 45.2), (33.0, 38.5), (34.5, 40.0), (34.5, 62.0), (36.0, 70.0), (40.0, 76.0),
-                    (45.0, 81.0), (48.5, 85.0), (18.2, 85.0)], 0.0, deck, mat=PORT if shadowed else COLLAR)
+                    (45.0, 81.0), (48.5, 85.0), (18.2, 85.0)], 0.0, deck, mat=COLLAR)
     for c0, c1 in ((19.0, 20.0), (21.0, 22.0)):
-        L.prism(bm, F, [(c0, 44.8), (c1, 44.2), (c1, 85.0), (c0, 85.0)], 0.1, deck + 0.03,
-                mat=DRIB if shadowed else RIB)
+        L.prism(bm, F, [(c0, 44.8), (c1, 44.2), (c1, 85.0), (c0, 85.0)], 0.1, deck + 0.03, mat=RIB)
     # Curved steps on the deck, round the loop (the diagonal bands at the bottom left).
     for radius, a0, a1 in ((34.0, 205, 237), (39.0, 200, 227)):
         pts = []
         for k in range(8):
             a = math.radians(a0 + (a1 - a0) * k / 7)
             pts.append((AXIS + radius * math.cos(a), 55.0 - radius * math.sin(a), deck, 0.8, 0.025))
-        L.sweep(bm, F, pts, sides=4, mat=DRIB if shadowed else SHAFT, smooth=False)
-    # Post beside the loop (columns 28-31, rows 40-58): lavender, or dark in the shadow.
-    L.box(bm, F, 28.0, 39.5, 32.0, 58.0, 0.1, deck + 0.09, mat=PORT if shadowed else LAV)
-    # Gun port housing (columns 24-33, rows 58-68), standing a px above the lit deck on both
-    # sides; the hatch and flash are added per model.
+        L.sweep(bm, F, pts, sides=4, mat=SHAFT, smooth=False)
+    # Lavender post beside the loop (columns 28-31, rows 40-58).
+    L.box(bm, F, 28.0, 39.5, 32.0, 58.0, 0.1, deck + 0.09, mat=LAV)
+    # Gun port housing (columns 24-33, rows 58-68), standing a px above the deck; the hatch and
+    # flash are added per model.
     c0, r0, c1, r1 = PORT_L
-    wall = DRIB if shadowed else COLLAR
+    wall = COLLAR
     L.box(bm, F, c0 - 1, r0 - 1.5, c1 + 1, r0, 0.1, 0.28 + DZ, mat=wall)
     L.box(bm, F, c0 - 1, r1, c1 + 1, r1 + 1.2, 0.1, 0.28 + DZ, mat=wall)
     L.box(bm, F, c0 - 1, r0, c0, r1, 0.1, 0.28 + DZ, mat=wall)
@@ -309,9 +309,9 @@ def build(sprite):
     coll = common.reset_collection(NAME)
     mats = materials(sprite)
     bm = bmesh.new()
-    build_side(bm, shadowed=False)
+    build_side(bm)
     n = len(bm.verts)
-    build_side(bm, shadowed=True)
+    build_side(bm)
     reflect_since(bm, n, AX)
     n = len(bm.verts)
     build_towers(bm)

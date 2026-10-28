@@ -5,8 +5,8 @@ seam's right-hand column): the lower end of a grey machine. Down the screen it h
 with red lights (rows 0-6), a wide rounded tier with a dark slot across it (rows 7-11), a groove,
 a narrower band, another groove, a second wide tier with a bright upper rim (rows 16-19) and a
 glowing red exhaust bar at the bottom (rows 21-22). It is lofted down the screen as stacked lens
-discs about 9 px thick with pointed side tips (domed along the screen too, their tops painted with the
-sprite's own greys), the collar between them about 3 px lower, a broad flat-topped
+discs about 9 px thick with pointed side tips (domed along the screen too, each one polished grey,
+its lit rims left to the lighting), the collar between them about 3 px lower, a broad flat-topped
 wedge down the neck, the slot and the collar's intake cut in (boolean), then cut into the two pieces
 (newshl-77 left, newshl-79 right).
 
@@ -28,7 +28,6 @@ import lib_b006 as lib  # noqa: E402
 NAME = "assembly-newshl-77"
 PIECES = ["newshl-77", "newshl-79"]
 ROOT = common.repo_root(__file__)
-LOWEST = 5
 
 # Rings are lofted down the screen at sprite rows (pixel-row centres, fractional rows allowed), each
 # (row, half width left px, half width right px, half height px). The outline follows the sprite's
@@ -121,65 +120,46 @@ def build(sprites):
     pixels = [list(a) + list(b) for a, b in zip(sprites[0]["frames"][0]["pixels"], sprites[1]["frames"][0]["pixels"])]
     grid = lib.Grid(48, 28, pixels)
     mats = lib.Mats(NAME, lib.merged_colors(sprites))
-    neck = mats(6, metallic=0.35, roughness=0.45)
-    wedge = mats(7, metallic=0.35, roughness=0.4)
-    wedge_side = mats(10, metallic=0.35, roughness=0.4)
-    saucer = mats(9, metallic=0.35, roughness=0.45)
-    collar_back = mats(5, metallic=0.4, roughness=0.6)
-    band = mats(6, metallic=0.35, roughness=0.45)
-    disc = mats(7, metallic=0.35, roughness=0.45)
+    # A polished grey metal machine: each part takes its mid-tone grey and a metallic, fairly smooth
+    # finish, so the game's sun and environment make the sprite's lit rims and hot spots (the
+    # near-white rim of row 16, the spot of row 11) as sheen instead of paint. The wedge's flanks
+    # are their own slot (same grey, a hair rougher) only so its edges stay crisp.
+    HULL = dict(metallic=0.7, roughness=0.24)
+    neck = mats(6, **HULL)
+    wedge = mats(7, **HULL)
+    wedge_side = mats(7, metallic=0.7, roughness=0.26)
+    saucer = mats(7, metallic=0.7, roughness=0.25)
+    band = mats(6, metallic=0.7, roughness=0.25)
+    disc = mats(6, metallic=0.7, roughness=0.26)
+    groove = mats(4, metallic=0.6, roughness=0.4)
     shadow = mats(3, metallic=0.4, roughness=0.6)
     black = mats(2, metallic=0.3, roughness=0.7)
     floor = mats(4, metallic=0.4, roughness=0.6)
-    rim_hi = mats(14, metallic=0.1, roughness=0.45)
-    rim_mid = mats(12, metallic=0.1, roughness=0.45)
     glow = {i: mats(i, metallic=0.0, roughness=0.4, emission_strength=3.5) for i in (116, 118, 121)}
     light_a = mats(116, metallic=0.0, roughness=0.4, emission_strength=3.0)
     light_b = mats(118, metallic=0.0, roughness=0.4, emission_strength=3.0)
     axis = grid.x(24)
 
-    greys = {saucer, disc}
-
-    def shade(idx, default):
-        """The sprite's own grey for an upward face (its lit spots and shaded edges), kept out of the
-        darkest shades the lighting already gives and off the olive 8."""
-        if idx is None or not 3 <= idx <= 15:
-            return default
-        idx = max(idx, LOWEST)
-        slot = mats(7 if idx == 8 else idx, metallic=0.35, roughness=0.45)
-        greys.add(slot)
-        return slot
-
     def obj_of(bm, tag):
         return common.mesh_object(f"{NAME}-{tag}", bm, mats.list, coll)
 
-    # The forward saucer: a domed lens 9 px thick with pointed side tips; the lit spot of row 11
-    # (columns 16-18) painted on its upper face, and the dark slot of rows 10-11 (columns 20-28) cut
-    # into its back edge, open toward the collar below it: a deeper shadowed front row (10) and a
-    # shallower floor behind it (row 11).
+    # The forward saucer: a domed lens 9 px thick with pointed side tips, one grey (the lit spot of
+    # row 11 is sheen), and the dark slot of rows 10-11 (columns 20-28) cut into its back edge, open
+    # toward the collar below it: a deeper shadowed front row (10) and a shallower floor behind it
+    # (row 11).
     bm = bmesh.new()
-    faces = ring_loft(bm, grid, axis, SAUCER, k=1.8, mat_index=saucer)
-    for f in faces:
-        c = f.calc_center_median()
-        if c.z < 1.5 * lib.U or f.normal.z < 0.3:
-            continue
-        f.material_index = shade(grid.sample(c.x, c.y), saucer)
+    ring_loft(bm, grid, axis, SAUCER, k=1.8, mat_index=saucer)
     saucer_obj = obj_of(bm, "saucer")
     cut(saucer_obj, coll, mats, [(grid.x(19.5), grid.y(9.5), grid.x(28.5), grid.y(10.5),
                                   2.6 * lib.U, 0.5, shadow)])
     cut(saucer_obj, coll, mats, [(grid.x(19.5), grid.y(10.45), grid.x(28.5), grid.y(12.5),
                                   2.9 * lib.U, 0.5, floor)])
 
-    # The waist collar: one drum about 3 px below the saucer crests, shadowed in its front and back
-    # rows (12 and 15), with the intake of rows 13-14 (columns 30-33) cut in.
+    # The waist collar: one drum about 3 px below the saucer crests, one grey (the dark rows 12 and
+    # 15 are the tiers' shadows on it, which the game's sun casts), with the intake of rows 13-14
+    # (columns 30-33) cut in.
     bm = bmesh.new()
-    faces = ring_loft(bm, grid, axis, COLLAR, k=1.2, mat_index=band)
-    for f in faces:
-        c = f.calc_center_median()
-        if c.y > grid.y(12.4):
-            f.material_index = shadow
-        elif c.y < grid.y(14.7):
-            f.material_index = collar_back
+    ring_loft(bm, grid, axis, COLLAR, k=1.2, mat_index=band)
     collar_obj = obj_of(bm, "collar")
     cut(collar_obj, coll, mats, [(grid.x(29.5), grid.y(12.6), grid.x(33.5), grid.y(14.5),
                                   0.2 * lib.U, 0.5, black)])
@@ -187,19 +167,10 @@ def build(sprites):
     bm = bmesh.new()
     ring_loft(bm, grid, axis, NECK, k=1.2, sides=20, mat_index=neck)
     ridge(bm, grid, RIDGE, wedge, wedge_side)
-    # The rear disc: an 8.8 px lens whose narrow front bevel (row 16) carries the lit rim, the
-    # sprite's own shades from near-white on the left fading to dark on the right; its back half
-    # stays plain.
-    faces = ring_loft(bm, grid, axis, DISC, k=1.8, mat_index=disc)
-    for f in faces:
-        c = f.calc_center_median()
-        if grid.y(16.4) <= c.y <= grid.y(15.85) and c.z > 1.0 * lib.U:
-            idx = grid.sample(c.x, grid.y(16))
-            if idx is not None and idx >= 9:
-                f.material_index = mats(idx, metallic=0.1, roughness=0.45)
-        elif f.normal.z > 0.3:
-            f.material_index = shade(grid.sample(c.x, c.y), disc)
-    ring_loft(bm, grid, axis, TAIL_GROOVE, k=1.0, sides=16, mat_index=shadow)
+    # The rear disc: an 8.8 px lens, one grey; the near-white rim of row 16 fading to dark on the
+    # right is the sun's sheen on its narrow front bevel.
+    ring_loft(bm, grid, axis, DISC, k=1.8, mat_index=disc)
+    ring_loft(bm, grid, axis, TAIL_GROOVE, k=1.0, sides=16, mat_index=groove)
     # The exhaust: a flat glowing bar 2 px thick, hottest where the sprite is (columns 20-21, 27-28).
     faces = ring_loft(bm, grid, axis, ENGINE, k=0.35, sides=28, mat_index=glow[118])
     for f in faces:
@@ -221,14 +192,13 @@ def build(sprites):
     body_obj = obj_of(bm, "body")
 
     # One mesh; edges between different materials are split so recess walls, rims and grooves
-    # stay crisp under smooth shading (but not between the hull's own painted greys).
+    # stay crisp under smooth shading.
     bm = bmesh.new()
     for o in (body_obj, saucer_obj, collar_obj):
         bm.from_mesh(o.data)
         bpy.data.objects.remove(o)
     crisp = [e for e in bm.edges if len(e.link_faces) == 2
-             and e.link_faces[0].material_index != e.link_faces[1].material_index
-             and not {e.link_faces[0].material_index, e.link_faces[1].material_index} <= greys]
+             and e.link_faces[0].material_index != e.link_faces[1].material_index]
     bmesh.ops.split_edges(bm, edges=crisp)
     return common.mesh_object(NAME, bm, mats.list, coll, smooth=True)
 

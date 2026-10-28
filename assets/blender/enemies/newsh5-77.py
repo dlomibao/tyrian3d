@@ -6,9 +6,11 @@ shoulder, a red strap round it and a fat bulb) that rounds down to a short blunt
 One body of revolution turned round its long axis (which lies in the screen plane): every part is
 as tall as it is wide in the sprite, and its outline is the sprite's, dark outline pixels included.
 
-The sprite's shading (the highlight column, the dark rows and the light streak low on the right)
-is painted on, not modelled: each face takes the palette shade nearest the average of the sprite
-pixels it covers from above.
+The sprite's lighting is not paint: its dark outline ring, the darker lower rows and right side
+and the near-white streaks are the light on polished steel. The game lights the model and draws
+its own outline, so the steel takes one mid-tone grey all over (metallic and smooth, so the sun and
+environment make the streaks) and only the red strap is painted. The dark row across the tail
+plate (row 2) is a groove cut between its two lit rims.
 
 Run: blender --background --python assets/blender/enemies/newsh5-77.py [-- --preview out.png]
 """
@@ -34,8 +36,10 @@ SIDES = 20  # a face on top (centred on the axis) and one either side every 18 d
 # edge, radius px). Radii are the sprite's half widths, outline included: rows 0-3 13 px wide, row 4
 # 11, rows 5-6 7, rows 7-8 5, rows 9-13 7, rows 14-17 11, rows 18-21 13, then 11, 9, 7, 5, 3.
 PROFILE = [
-    # Tail plate: one flat disc (rows 0-3) with a bevel at the back and a sloped underside (row 4).
-    (0.0, 5.7), (0.45, 6.5), (3.55, 6.5), (4.1, 5.9), (4.6, 5.2), (4.95, 4.2),
+    # Tail plate: a flat disc (rows 0-3) with a bevel at the back, a groove round it (row 2) and a
+    # sloped underside (row 4).
+    (0.0, 5.7), (0.45, 6.5), (2.0, 6.5), (2.15, 6.2), (2.85, 6.2), (3.0, 6.5), (3.55, 6.5),
+    (4.1, 5.9), (4.6, 5.2), (4.95, 4.2),
     # Upper collar (rows 5-6), neck rod (rows 7-8), lower collar (rows 9-13).
     (5.0, 3.5), (6.8, 3.5), (7.0, 2.9), (7.1, 2.5), (8.9, 2.5), (9.0, 3.1), (9.15, 3.5),
     (13.9, 3.5),
@@ -48,11 +52,13 @@ PROFILE = [
     (25.0, 3.0), (25.05, 2.45), (25.9, 2.3), (26.3, 1.9), (26.7, 1.35), (26.95, 0.7), (27.0, 0.0),
 ]
 STEEP = 1.5  # px of radius per px of length: steeper rings are crisp steps, shaded flat
-LIFT = 1.2  # the lighting darkens the turned surface towards its rim, so the painted shades
-#             (the sprite's, which already carry its shading) are lifted a little; outline stays dark
+STRAP = (16.85, 19.05)  # the red strap's span of row edges (rows 17-18 and its two steps)
 
-# The palette shades the faces may take (sprite indices): the greys every other step and the reds.
-SHADES = [2, 4, 6, 8, 10, 12, 14, 113, 115, 117]
+# Materials: the steel's mid-tone grey (the sprite's grey pixels inside the outline average about
+# index 6-7; the game's outline and lighting darken it) and the strap's mid red. Polished steel
+# is metallic and smooth; the strap is painted.
+STEEL = 7
+RED = 117
 
 
 def rings_of(profile):
@@ -69,8 +75,8 @@ def rings_of(profile):
 
 def build(sprite):
     coll = common.reset_collection(NAME)
-    mats = [common.palette_material(sprite, i, NAME, metallic=0.1, roughness=0.45) for i in SHADES]
-    colours = [sprite["colors"][str(i)] for i in SHADES]
+    mats = [common.palette_material(sprite, STEEL, NAME, metallic=0.9, roughness=0.2),
+            common.palette_material(sprite, RED, NAME, metallic=0.4, roughness=0.4)]
     px = sprite["frames"][0]["pixels"]
     g = lib.Grid(24, 28, px)
     ax = g.x(12)
@@ -88,50 +94,15 @@ def build(sprite):
     for k, (r0, r1) in enumerate(zip(rings, rings[1:])):
         (e0, w0), (e1, w1) = profile[k], profile[k + 1]
         smooth = abs(w1 - w0) <= STEEP * (e1 - e0)
+        red = STRAP[0] - 1e-6 <= e0 and e1 <= STRAP[1] + 1e-6
         for i in range(SIDES):
             j = (i + 1) % SIDES
             f = bm.faces.new((r0[i], r0[j], r1[0]) if len(r1) == 1 else (r0[i], r0[j], r1[j], r1[i]))
             f.smooth = smooth
-    bm.faces.new(list(reversed(rings[0]))).smooth = False  # the flat back of the tail plate
-
-    # Paint: each face seen from above takes the shade nearest the mean colour of the sprite pixels
-    # under it, the dark outline included. The sides and underside (never seen from above) take the
-    # mean of their rows' pixels inside the outline, so the 3/4 views show steel, not a black rim.
-    def shade_for(c0, c1, r0, r1, cx, cy, side=False):
-        rows = [r for r in range(28) if r0 <= r <= r1] or [int(round(cy))]
-        if side:
-            rgb = [sprite["colors"][str(px[r][c])] for r in rows if 0 <= r < 28 for c in range(24)
-                   if px[r][c] not in (-1, 1)]
-            if rgb:
-                mean = [sum(p[k] for p in rgb) / len(rgb) * LIFT for k in range(3)]
-                return min(range(len(SHADES)),
-                           key=lambda s: sum((colours[s][k] - mean[k]) ** 2 for k in range(3)))
-        cols = [c for c in range(24) if c0 <= c <= c1] or [int(round(cx))]
-        rgb = [sprite["colors"][str(px[r][c])] for r in rows for c in cols
-               if 0 <= r < 28 and 0 <= c < 24 and px[r][c] != -1]
-        if not rgb:
-            idx = g.sample(g.x(cx), g.y(cy), reach=1)
-            if idx is None:
-                return None
-            rgb = [sprite["colors"][str(idx)]]
-        mean = [sum(p[k] for p in rgb) / len(rgb) for k in range(3)]
-        if max(mean) > 30:
-            mean = [m * LIFT for m in mean]
-        return min(range(len(SHADES)), key=lambda s: sum((colours[s][k] - mean[k]) ** 2 for k in range(3)))
-
-    bm.faces.ensure_lookup_table()
-    bm.normal_update()
-    back = len(bm.faces) - 1
-    for f in bm.faces:
-        if f.index == back:
-            f.material_index = SHADES.index(8)
-            continue
-        cs = [g.col(v.co.x) for v in f.verts]
-        rs = [g.row(v.co.y) for v in f.verts]
-        c = f.calc_center_median()
-        slot = shade_for(min(cs), max(cs), min(rs), max(rs), g.col(c.x), g.row(c.y),
-                         side=f.normal.z < 0.05)
-        f.material_index = SHADES.index(8) if slot is None else slot
+            f.material_index = 1 if red else 0
+    back = bm.faces.new(list(reversed(rings[0])))  # the flat back of the tail plate
+    back.smooth = False
+    back.material_index = 0
 
     return lib.to_object(NAME, bm, mats, coll)
 

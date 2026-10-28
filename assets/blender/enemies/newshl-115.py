@@ -46,14 +46,15 @@ def build(sprite):
     used = sorted({v for row in frame["pixels"] for v in row if v >= 112})
 
     def glow(i):
-        # The crust is dull; the cracks glow more the hotter they are.
-        if i <= 115:
-            return 0.0
-        return round(min(3.0, 0.35 * (i - 115)), 2)
+        # The crust and the dull red cracks are lit like rock; the orange and yellow cracks glow at
+        # their own colour (strength 1: the game copies the palette colour into the emissive, so
+        # this shows them at the sprite's brightness; more washes them to white).
+        return 1.0 if i >= 119 else 0.0
 
     # One material per palette index the sprite uses, so the colours are the sprite's own. Frame 135
-    # is the same rock glowing two palette steps brighter: {sprite frame: index}.
-    slots = {i: mats(i, metallic=0.0, roughness=max(0.35, 0.9 - 0.04 * (i - 112)),
+    # is the same rock glowing two palette steps brighter: {sprite frame: index}. It is rock, so
+    # every index is matte (no metal, rough): its light and dark come from the scene's light.
+    slots = {i: mats(i, metallic=0.0, roughness=max(0.65, 0.9 - 0.03 * (i - 112)),
                      emission_strength=glow(i), frames={135: i + 2}) for i in used}
 
     bm = bmesh.new()
@@ -84,8 +85,8 @@ def build(sprite):
 
     # Paint: the cap seen from above takes the pixel straight below it. The sprite's dark outline
     # ring and everything below the cap take its mottling wrapped on round the sides and underneath
-    # (sampled further in as it goes down), a step or two darker, so the rock is lava all over and
-    # its dark rim comes from the lighting instead of a painted black band.
+    # (sampled further in as it goes down) at the same indices, so the rock is lava all over and its
+    # dark rim comes from the lighting and the game's outline instead of a painted dark band.
     W0 = 0.2
     bm.faces.ensure_lookup_table()
     for face in bm.faces[first:]:
@@ -101,7 +102,7 @@ def build(sprite):
             s = k / rh if rh > 1e-6 else 0.0
             idx = grid.sample(cx + dx * s, cy + dy * s, skip=(-1, 1, 112))
             if idx is not None:
-                idx = max(113, idx - 3)
+                idx = max(113, idx)
                 while idx not in slots and idx > 112:
                     idx -= 1
         if idx is not None and idx in slots:

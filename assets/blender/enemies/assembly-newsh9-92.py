@@ -56,20 +56,6 @@ GLASS_OUTLINE = [(0.8, -0.5), (9.6, -0.5), (11, 1.2), (11, 15), (9, 15), (7, 14)
                  (2, 5), (1, 4)]
 
 
-def _inside(poly, x, y):
-    """Is point (x, y) inside (or on the edge of) polygon poly, give or take 0.05 px?"""
-    for (x0, y0), (x1, y1) in zip(poly, poly[1:] + poly[:1]):
-        dx, dy = x1 - x0, y1 - y0
-        t = max(0.0, min(1.0, ((x - x0) * dx + (y - y0) * dy) / (dx * dx + dy * dy)))
-        if (x - x0 - t * dx) ** 2 + (y - y0 - t * dy) ** 2 < 0.0025:
-            return True
-    n = 0
-    for (x0, y0), (x1, y1) in zip(poly, poly[1:] + poly[:1]):
-        if (y0 > y) != (y1 > y) and x < x0 + (x1 - x0) * (y - y0) / (y1 - y0):
-            n += 1
-    return n % 2 == 1
-
-
 def densify(points, step):
     """Linear in-between points (tuples starting with a row) so no gap is longer than step rows."""
     out = [points[0]]
@@ -153,22 +139,29 @@ def build(sprite):
     coll = common.reset_collection(NAME)
     tag = "nsh9a"
     pal = lambda i, **kw: common.palette_material(sprite, i, tag, **kw)  # noqa: E731
+    # Materials (lighting pass): the hull is polished grey metal, so the sprite's white streak on
+    # the lower-right rim and its dark right flank are the game's sun and environment on a metallic
+    # hull, not paint; the shoulder glass and window are glossy glass with a faint glow.
     mats = [
-        pal(6, metallic=0.3, roughness=0.5),  # 0 hull grey
-        pal(4, metallic=0.5, roughness=0.45),  # 1 keel and cabin, darker grey
+        pal(5, metallic=0.7, roughness=0.3),  # 0 hull grey (its mid-tone)
+        pal(4, metallic=0.5, roughness=0.4),  # 1 keel and cabin, darker grey
         pal(7, metallic=0.55, roughness=0.35),  # 2 light grey sill, plate, ribs
         pal(2, metallic=0.2, roughness=0.8),  # 3 dark vents
-        pal(148, metallic=0.1, roughness=0.3, emission_strength=0.6),  # 4 blue shoulder glass (left)
+        common.palette_material(sprite, 149, tag + "glass", metallic=0.05, roughness=0.1,
+                                emission_strength=1.2),  # 4 blue shoulder glass
         pal(148, metallic=0.2, roughness=0.3),  # 5 window grid
-        pal(151, metallic=0.1, roughness=0.2, emission_strength=1.5),  # 6 window panes
+        pal(151, metallic=0.05, roughness=0.1, emission_strength=1.5),  # 6 window panes
         common.palette_material(sprite, 151, tag + "lamp", emission_strength=2.0),  # 7 lamps (shaded per pixel)
         # 8 glowing channel: it brightens five shades on frames 130/132 and two on 282/284
         # (the sprite's keel gradient 144-155 shifts up as a whole).
         common.palette_material(sprite, 151, tag + "chan", emission_strength=3.0,
                                 frames={130: 156, 132: 156, 282: 153, 284: 153}),
         pal(9, metallic=0.6, roughness=0.3),  # 9 bright ridges and rim
-        pal(6, metallic=0.5, roughness=0.4),  # 10 shoulder pods
-        pal(146, metallic=0.1, roughness=0.3, emission_strength=0.4),  # 11 right shoulder glass, darker
+        pal(5, metallic=0.7, roughness=0.3),  # 10 shoulder pods (the hull's own metal)
+        # 11 right shoulder glass: the same glass as the left (the sprite draws it darker only
+        # because it is on the shadow side)
+        common.palette_material(sprite, 149, tag + "glass", metallic=0.05, roughness=0.1,
+                                emission_strength=1.2),
         # 12 the channel's dark sunk section (rows 41-46), shifting up with the rest of the gradient
         common.palette_material(sprite, 144, tag + "chand", emission_strength=1.0,
                                 frames={130: 149, 132: 149, 282: 146, 284: 146}),
@@ -185,13 +178,6 @@ def build(sprite):
             mats.append(make())
             extra[key] = len(mats) - 1
         return extra[key]
-
-    def glass(i):
-        """The shoulder glass's own shade for sprite index i (blues quantised to every other index)."""
-        if i >= 144:
-            i = min((144, 146, 148, 150, 152, 154, 156), key=lambda q: abs(q - i))
-        return mat_for(("g", i), lambda: common.palette_material(
-            sprite, i, tag + "g", metallic=0.1, roughness=0.3, emission_strength=0.4 if i < 152 else 1.5))
 
     def channel(i):
         """The keel channel's shade for sprite index i: its gradient shifts up five shades on frames
@@ -227,34 +213,15 @@ def build(sprite):
     lib.box(bm, G, 12.5, -0.5, 17.5, 2.6, 0.18 + CAB, 0.225 + CAB, mat=KEEL)
 
     lib.mirror_all(bm, G.x(AXIS))
-    # The right shoulder's glass is darker than the left's.
-    for f in bm.faces:
-        if f.material_index == GLASS and f.calc_center_median().x > G.x(AXIS):
-            f.material_index = GLASS_R
-    # The glass's shades: one smooth skin just above it, a quad per sprite pixel inside the glass's
-    # outline with shared corners (so dome() bends it with the glass as one sloped panel), each in
-    # its pixel's own shade, flush on the glass. The lighter cells are colour on the glass, not raised.
+    # Both shoulders' glass is one even mid-blue, glossy: the sprite's darker right glass and its
+    # scattered light and dark pixels are its drawn light (shadow side, glints), which the game's
+    # lights make on the glossy material.
     px = assembly_pixels()
-
-    def in_glass(a, b):
-        return _inside(GLASS_OUTLINE, a, b) or _inside(GLASS_OUTLINE, 2 * AXIS - a, b)
-    on = {(c, r) for (c, r), v in px.items()
-          if (v >= 144 or v in (83, 85, 102)) and ((c <= 11 and r <= 15) or (c >= 35 and r <= 15))
-          and all(in_glass(a, b) for a, b in ((c, r), (c + 1, r), (c, r + 1), (c + 1, r + 1)))}
-    skin = {}
-
-    def corner(a, b):
-        if (a, b) not in skin:
-            skin[(a, b)] = bm.verts.new((*G.xy(a, b), 0.335))
-        return skin[(a, b)]
-    for c, r in on:
-        f = bm.faces.new([corner(a, b) for a, b in ((c, r + 1), (c + 1, r + 1), (c + 1, r), (c, r))])
-        f.material_index, f.smooth = glass(px[(c, r)]), True
 
     # ---- centre parts ----
 
     # Hull: a rounded shield, square at the top and rounding to the tip (rows 0-55); dome() domes it.
-    hull = lib.tube(bm, G, [(AXIS, r, w, h, 0.0) for r, w, h in HULL[:3] + densify(HULL[2:], 2.5)[1:]], sides=24, mat=HULL_M,
+    lib.tube(bm, G, [(AXIS, r, w, h, 0.0) for r, w, h in HULL[:3] + densify(HULL[2:], 2.5)[1:]], sides=24, mat=HULL_M,
                     power=0.6)
     # Keel down the middle (columns 12-35, rows 17-55), standing above the hull.
     keel = [(16.6, 11.6, 0.2), (17.6, 12.0, 0.22), (46, 12.0, 0.22), (48, 11.6, 0.21), (50, 10.8, 0.2),
@@ -262,9 +229,10 @@ def build(sprite):
     lib.tube(bm, G, [(AXIS, r, w, h, 0.0) for r, w, h in densify(keel, 3)], sides=16, mat=KEEL, power=0.5)
     # The glowing channel down the keel to the tip (columns 20-27, rows 28-54): one round tube
     # standing about 4 px proud of the keel, that dips to just above the keel where it runs dark
-    # (rows 41-46) and rises again to the tip. Each face takes the shade of the sprite pixel under
-    # it, so the gradient (dark left edge, bright right half; dark in the dip, brightening to the
-    # tip) is the sprite's.
+    # (rows 41-46) and rises again to the tip. Each ring of faces takes the shade of the sprite's
+    # pixel beside the axis in its row (column 24), so the glow's gradient along the keel (dark in the dip, brightening
+    # to the tip) is the sprite's; the sprite's darker left edge across it is drawn light, left to
+    # the game's lights.
     H, HD = 4.6 / 12, 0.02 + 0.7 / 12
 
     def chan_h(r):
@@ -280,9 +248,8 @@ def build(sprite):
     pts += [(AXIS, 53.3, 3.9, H * 0.6, 0.2), (AXIS, 54.6, 3.6, H * 0.4, 0.15), (AXIS, 55.3, 2.5, H * 0.25, 0.1)]
     for f in lib.tube(bm, G, pts, sides=16, mat=CHANNEL, power=0.85):
         cen = f.calc_center_median()
-        col = min(27, max(20, int((cen.x * 12 + G.w / 2) // 1)))
         row = min(54, max(28, int((G.h / 2 - cen.y * 12) // 1)))
-        f.material_index = channel(px.get((col, row), 151))
+        f.material_index = channel(px.get((24, row), 151))
     # Two lamps across the keel (rows 18-20 and 23-25, columns 20-27): deep blue lenses about 2 px
     # tall on the keel, each with its bright cyan-white core along the top (the sprite's middle row).
     lh, lz = 1.25 / 12, 0.22 + 0.8 / 12
@@ -315,21 +282,9 @@ def build(sprite):
     lib.box(bm, G, 13.6, 16, 35.4, 17.2, 0.18 + CAB, 0.25 + CAB, mat=LIGHT)  # sill
 
     dome(bm)
-    # The right flank beside the cabin and keel (columns 40-47, rows 17-34) lies in shadow; the lower
-    # rim (rows 34-55), where the domed hull turns down, is light on the right and dark on the left,
-    # as drawn.
-    for f in hull:
-        f.normal_update()
-        c = f.calc_center_median()
-        col, row = c.x * 12 + G.w / 2, G.h / 2 - c.y * 12
-        if f.normal.z <= 0.05 or min(v.co.z for v in f.verts) < 0:
-            continue
-        if col > 37 and 16.5 < row < 34.8:
-            f.material_index = FLANK
-        elif col < 12.5 and row > 39.0:  # the dark plate low on the left (rows 40-50)
-            f.material_index = FLANK
-        elif row > 34.8 and abs(col - AXIS) > 0.88 * half_width(row):
-            f.material_index = RIM_R if col > AXIS else FLANK
+    # The hull is one grey all over: the sprite's dark right flank, dark lower-left rim and bright
+    # lower-right rim streak are its drawn light and outline on the domed metal hull, which the
+    # game's sun, environment and outline make (FLANK and RIM_R are no longer used on it).
     WHOLE[0] = lib.to_object(NAME, bm, mats, coll)
     return WHOLE[0]
 

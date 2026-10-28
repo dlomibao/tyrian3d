@@ -1,12 +1,13 @@
 """Four-pod spinner (newsh3.shp frame 6): a 3D version of its sprite.
 
-Seen in episode 4 (levels 4 and 36). Four round steel pods on the diagonals, each a short dark stem
-from the hub swelling into a smooth ellipsoidal bulb about as tall as it is wide (9 px: 7 above the
-base plane, 2.3 below), joined at a red ball hub about 5 px across that sits on the stems. A bright
-stud sits on each pod's inner end where the sprite draws it. Each bulb is one smooth silver, lighter
-on the upper-left pod and darker towards the lower-right one as the sprite draws them, and the
-lighting gives each its highlight and shadow; the hub is salmon red with a small highlight facing
-the light. One frame.
+Seen in episode 4 (levels 4 and 36). Four round steel pods on the diagonals, each a short narrow
+stem from the hub swelling into a smooth ellipsoidal bulb about as tall as it is wide (9 px: 7 above
+the base plane, 2.3 below), joined at a red ball hub about 5 px across that sits on the stems. A
+bright stud sits on each pod's inner end where the sprite draws it (a lit pixel with a dark one
+beside it, on all four pods alike). The pods are polished steel, all one mid-tone silver: the
+sprite's lighter upper-left and darker lower-right pods, its dark stems and its outline ring are its
+drawn lighting, which the game's lights, metal reflections and outline make. The hub is a glossy
+red ball, one mid red; its highlight is shine, not paint. One frame.
 
 Run: blender --background --python assets/blender/enemies/newsh3-6.py [-- --preview out.png]
 """
@@ -34,17 +35,13 @@ TIP = 13.25  # the sprite's lobe ends blunt, a 4 px flat across at 13.1 px
 SIDES = 14
 # Hub centre (sprite px from the sprite centre): the red pixels at columns 10-13, rows 11-14.
 HUB_X, HUB_Y = 0.0, 1.0
-# Each pod is one smooth silver (the rounded shape and the light make its upper-left highlight and
-# lower-right shadow); the sprite's pods darken from the upper-left one to the lower-right one, so
-# each takes its own shade, by its angle (45 upper-left, -45 upper-right, 135 lower-left, -135
-# lower-right): about two steps above the sprite's average, as the lit render darkens a colour.
-LOBE_SHADE = {45: 13, -45: 11, 135: 10, -135: 9}
-LIGHT = (-0.55, 0.55, 0.63)  # towards the upper-left and up (normalised in use), for the hub
-STEM, STEM_END = 6, 4.5  # the dark wedges: the stem rings nearer the hub than STEM_END px
-POD_ROUGHNESS = 0.35
-# The hub: salmon red, a small near-white highlight facing the light, one step darker facing away.
-HUB_SHADES = ((0.80, 79), (-0.25, 74), (-2.0, 73))  # (min normal . LIGHT, index), first match wins
-HUB_GLOW = 2.0
+# Every pod and its stem: one mid-tone steel (the sprite's pods average index 9-10; metal reads a
+# little darker than its colour, so 10), polished, so the light and environment shade and shine it.
+POD_SHADE = 10
+POD_METALLIC, POD_ROUGHNESS = 0.8, 0.3
+STUD_SHADE = 13
+# The hub: one mid red, glossy, no emission (it is lit like the rest).
+HUB_SHADE = 73
 # The bright studs, at the sprite pixels that draw them (col, row): one per lobe, at its inner end.
 STUDS = [(8, 9), (15, 9), (8, 16), (15, 16)]
 
@@ -74,29 +71,20 @@ def pod_top(d, lat):
     return 0.0
 
 
-def light_dot(n):
-    lx, ly, lz = LIGHT
-    k = math.sqrt(lx * lx + ly * ly + lz * lz)
-    return (n.x * lx + n.y * ly + n.z * lz) / k
-
-
 def build(sprite):
     coll = common.reset_collection(NAME)
     pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
-    greys = sorted(set(LOBE_SHADE.values()) | {STEM, 14})
-    mats = [pal(g, metallic=0.0, roughness=POD_ROUGHNESS) for g in greys]
-    reds = sorted({i for _, i in HUB_SHADES})
-    mats += [pal(r, metallic=0.2, roughness=0.3, emission_strength=HUB_GLOW) for r in reds]
-    slot = {g: k for k, g in enumerate(greys)}
-    red_slot = {r: len(greys) + k for k, r in enumerate(reds)}
+    mats = [pal(POD_SHADE, metallic=POD_METALLIC, roughness=POD_ROUGHNESS),
+            pal(STUD_SHADE, metallic=0.6, roughness=0.25),
+            pal(HUB_SHADE, metallic=0.05, roughness=0.12)]
+    pod_slot, stud_slot, hub_slot = 0, 1, 2
 
     bm = bmesh.new()
     cx, cy = HUB_X / 12, HUB_Y / 12
 
     for angle in (45, -45, 135, -135):
         start = len(bm.verts)
-        bands = [slot[STEM] if d < STEM_END else slot[LOBE_SHADE[angle]] for d, *_ in POD]
-        lib.ring_loft(bm, pod_rings(), bands, cap_start=True, cap_end=False)
+        lib.ring_loft(bm, pod_rings(), pod_slot, cap_start=True, cap_end=False)
         lib.rotate_new(bm, start, math.radians(angle), cx, cy)
 
     # The studs, each on its pod's surface where the sprite draws it, about 0.6 px proud.
@@ -107,19 +95,11 @@ def build(sprite):
         lat = abs(abs(ox) - abs(oy)) / math.sqrt(2)
         z = pod_top(d, lat)
         lib.ellipsoid(bm, (x / 12, y / 12, (z - 0.2) / 12), (0.75 / 12, 0.75 / 12, 0.8 / 12), segments=6,
-                      rings=2, mat_index=slot[14], top_only=True)
+                      rings=2, mat_index=stud_slot, top_only=True)
 
     # The hub: a salmon-red ball 5 px across standing on the stems, its top at about 5.5 px.
-    f0 = len(bm.faces)
     lib.ellipsoid(bm, (cx, cy, 3.0 / 12), (2.5 / 12, 2.5 / 12, 2.5 / 12), segments=12, rings=4,
-                  mat_index=red_slot[73])
-    bm.faces.ensure_lookup_table()
-    hub = list(bm.faces[f0:])
-    bmesh.ops.recalc_face_normals(bm, faces=hub)
-    bm.normal_update()
-    for f in hub:
-        t = light_dot(f.normal)
-        f.material_index = red_slot[next(i for lo, i in HUB_SHADES if t >= lo)]
+                  mat_index=hub_slot)
 
     obj = common.mesh_object(NAME, bm, mats, coll, smooth=True)
     return [(NAME, [obj], sprite["sprites"])]

@@ -8,13 +8,17 @@ strut and a strand down each side into two loops whose inner sides converge unde
 
 The mass is a heightfield over its pixels, 5-9 px thick: rounded, elongated lobe domes placed on
 the sprite's lobes and leaning in towards the eyes like a fan (a back and a front row, the
-brightest pair either side of the centre and the centre itself highest), with valleys between them, rounding off towards the outline with no deck or wall,
-each pixel's face in that pixel's palette colour. The eyes are glossy blue balls about 9 px tall,
-turned to follow the sprite's leaning eyes; the tendrils are round tubes about 2-3 px thick with a
-bright crest and dark flanks, the loops traced along the sprite's own tubes, the struts from the
+brightest pair either side of the centre and the centre itself highest), with valleys between them, rounding off towards the outline with no deck or wall.
+The eyes are glossy blue balls about 9 px tall, turned to follow the sprite's leaning eyes; the
+tendrils are round tubes about 2-3 px thick, the loops traced along the sprite's own tubes, the struts from the
 eyes' sides (about 5 px up) down to the loops, and a low dark web between the loops' inner sides.
 The lower parts are mirror symmetric about pixel column 36. Built whole in assembly coordinates and
 cut into the three pieces with common.split_assembly. One frame each.
+
+Each part is one mid-tone colour (the sprite's bright crests, pale eye spots, dark creases and dark
+rims are its drawn light and outline, which the game's lights and outline make): the mass moist
+flesh with a soft sheen that shows its lobes (metallic 0, roughness 0.6), the tendrils matte flesh
+(0, 0.9), the eyes wet and glossy (0.05, 0.1).
 
 Run: blender --background --python assets/blender/enemies/assembly-newsh5-272.py [-- --preview out.png]
 (the preview is the whole object; each piece also gets <piece>.png next to it).
@@ -44,13 +48,22 @@ def build(colors, pixels, grid):
     h, w = len(pixels), len(pixels[0])
     X, Y = grid.X, grid.Y
 
-    # One palette material per sprite index used, so every face takes its pixel's exact colour.
+    # One palette material per sprite index used; each part takes its mid-tone, which the game's
+    # lights shade.
+    MASS_RED = 67  # mid-tone of the mass (sprite 64-72; its lobes 67-70)
+    TUBE_RED = 69  # mid-tone of the tendrils (bright crest 70-72, dark flanks 65-67)
+    EYE_BLUE = 54  # mid-tone of the eyes (48-59)
     mats, slot = [], {}
 
     def mat(i):
         if i not in slot:
+            # Materials (the game keeps them, the palette gives the colour): the eyes are wet,
+            # glossy lobes (their pale spot is shine, made by the light); the mass and tendrils
+            # are flesh, matte, their bright pixels lit faces of the modelled lobes and tubes.
             if 48 <= i <= 63:
-                kw = dict(metallic=0.25, roughness=0.18, emission_strength=1.2 if i >= 58 else 0.0)
+                kw = dict(metallic=0.05, roughness=0.1)
+            elif i == MASS_RED:  # moist flesh: a soft sheen on the lobe tops shows their shape
+                kw = dict(metallic=0.0, roughness=0.6)
             else:
                 kw = dict(metallic=0.0, roughness=0.9)
             slot[i] = len(mats)
@@ -119,8 +132,6 @@ def build(colors, pixels, grid):
     bpts = [(b / SUB, a / SUB) for a, b in boundary if a > 0]
     EDGE_TOP = 3.0
     EDGE = 4.0  # px over which the mass rounds off at its outline
-    LIFT_NZ = 0.0
-    LIFT_FROM = 99  # (off, likewise)
     BASE = 4.5  # px: the mass's body under the lobes (the creases between them)
     # The lobes: rounded, elongated domes laid out on the sprite's own lobes, which lean in towards
     # the eyes like a fan: a back row along the top edge, a lower front row, and one on the centre
@@ -179,16 +190,9 @@ def build(colors, pixels, grid):
         q = [(a, b), (a + 1, b), (a + 1, b + 1), (a, b + 1)]  # row down, col right
         f = bm.faces.new([top_v[k] for k in reversed(q)])
         f.smooth = True
-        v = pixels[a // SUB][b // SUB]
-        # The sprite pixel's own shade; the near-black creases and outline pixels one step up so
-        # the lit mass reads dark red rather than black. Faces turned well away from the camera
-        # (the slopes into the creases and down to the outline) one step lighter again, as the
-        # light falls off on them (LIFT_NZ, 0 = off: it costs more colour error from above than it
-        # gains in the lit view).
-        f.normal_update()
-        nz = abs(f.normal.z)  # (wound downwards here; normals are recalculated at the end)
-        base = v if 65 <= v <= 79 else 65
-        f.material_index = mat(min(base + (1 if nz < LIFT_NZ or base >= LIFT_FROM else 0), 72))
+        # One mid-tone red over the whole mass: the sprite's bright lobes and dark creases are
+        # its drawn light on the lobes modelled here, and its dark rim the outline the game draws.
+        f.material_index = mat(MASS_RED)
     # Round off the pixel staircase of the outline (two passes along the boundary loop).
     bm.faces.ensure_lookup_table()
     tf = set(bm.faces[nt:])
@@ -232,7 +236,7 @@ def build(colors, pixels, grid):
         for f in bm.faces[n0:]:
             f[part] = 1
 
-    TUBE = mat(70)
+    TUBE = mat(TUBE_RED)
     # Strut from the mass down to the loop (columns 11-23, rows 11-21).
     tube([(12.6, 10.0, -0.02), (13.4, 14.0, -0.03), (15.4, 17.0, -0.03), (18.0, 18.9, -0.03),
           (21.5, 19.6, -0.03), (24.6, 21.0, -0.03)], 1.6, TUBE, n=12)
@@ -255,7 +259,7 @@ def build(colors, pixels, grid):
     # Eye lobe (columns 28-35, rows 8-17): a glossy ball sitting on the mass.
     # The sprite's eye leans: wide at its top-left, running down to a point at the lower right, so
     # the ball is turned 35 degrees to follow it.
-    lib.ellipsoid(bm, (X(31.9), Y(12.6), Z0 + 4.8 * PX), (4.6 * PX, 5.4 * PX, 4.9 * PX), mat=mat(53),
+    lib.ellipsoid(bm, (X(31.9), Y(12.6), Z0 + 4.8 * PX), (4.6 * PX, 5.4 * PX, 4.9 * PX), mat=mat(EYE_BLUE),
                   segments=24, rings=12, angle=math.radians(35))
 
     lib.mirror_since(bm, start, X(AXIS))
@@ -270,53 +274,13 @@ def build(colors, pixels, grid):
     for f in bm.faces[n0:]:
         f[part] = 2
 
-    # Colour the eyes and tendrils from the sprite pixels under each upward face.
-    bm.normal_update()
-    bm.faces.ensure_lookup_table()
-
-    EYE_STEP = 0
-    eye_mats = {slot[i] for i in slot if is_blue(i)}
+    # Eyes and tendrils in their mid-tones: the sprite's crests, pale spots and dark flanks are
+    # its drawn light and outline, which the game's lights and outline make on the model.
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     bm.normal_update()
-    eyes = [f for f in bm.faces if f.material_index in eye_mats]
-    tubes = [f for f in bm.faces if f[part] == 1]
-
-    def under(f, k=1):
-        """Sprite pixel under a face's centre, and its neighbours within k pixels."""
-        cen = f.calc_center_median()
-        c, r = int(round(grid.col(cen.x))), int(round(grid.row(cen.y)))
-        near = [pixels[r + dr][c + dc] for dr in range(-k, k + 1) for dc in range(-k, k + 1)
-                if 0 <= r + dr < h and 0 <= c + dc < w]
-        return (pixels[r][c] if 0 <= r < h and 0 <= c < w else -1), near
-
-    # Tendrils: the crest takes the strand's bright core (the pixel under it, or the brightest red
-    # near it where it lies over the sprite's outline), so the top view keeps the sprite's own
-    # tube shading; the shoulders the pixel under them, the flanks the dark red of the sprite's
-    # outline. (One even red, or a smoothed one, reads calmer in the side views but costs about
-    # 5 dE from above, where the game sees it.)
-    for f in tubes:
-        v, near = under(f)
-        if f.normal.z > 0.9:
-            if 66 <= v <= 72:
-                f.material_index = mat(max(v, 68))
-            else:
-                reds = [u for u in near if 64 <= u <= 72]
-                f.material_index = mat(min(max(max(reds, default=68), 67), 72))
-        elif f.normal.z > 0.5:
-            f.material_index = mat(min(max(v, 65), 72) if 64 <= v <= 72 else 65)
-        else:
-            f.material_index = mat(65)
-    for f in eyes:
-        if f.normal.z < 0.0:
-            f.material_index = mat(50)
-            continue
-        v0, near = under(f, 1)
-        # The pixel under the face weighted 4:1 over its eight neighbours: smooth shading bands
-        # rather than a checkerboard, but the sprite's pale highlight at the upper left kept.
-        b = [v for v in near if 48 <= v <= 59] + ([v0] * 3 if 48 <= v0 <= 59 else [])
-        # On the ball's flanks one shade up: the sphere's own shading darkens them again.
-        step = EYE_STEP + (2 if f.normal.z < 0.6 else 1 if f.normal.z < 0.85 else 0)
-        f.material_index = mat(min(round(sum(b) / len(b)) + step, 59) if b else 55)
+    for f in bm.faces:
+        if f[part] == 1:
+            f.material_index = mat(TUBE_RED)
     return lib.to_object(NAME, bm, mats, coll)
 
 

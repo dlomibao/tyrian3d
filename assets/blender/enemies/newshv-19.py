@@ -5,14 +5,15 @@ blues (58-60) brightening to a pale (61-62) and white (63) cross just right of c
 stalk trailing below it: a dark neck row (55) and a mid-blue knob (58). newshv-57 is the same gem
 in red.
 
-The bulb is a faceted crystal, flat shaded: 5 px above the midplane (half its 10 px width) and
+The bulb is a cut crystal, flat shaded: 5 px above the midplane (half its 10 px width) and
 3.5 px below it, widest at the rim. Its rings go from the diamond at the rim to a rounder shape
-towards the crown and close on a crest ridge 4 px long running down the sprite's bright column
-(half a pixel right of centre), so the top is a roof whose lit flanks give the white stripe. Each top
-face takes the palette index that best fits the sprite pixels it covers from above, so from above
-the bulb shows the sprite's own shading; the facets add the sparkle. The stalk is a 2 px rod with
-its axis 1 px above the midplane: a narrower dark collar at the neck, then a mid-blue knob with a
-rounded end.
+towards the crown: a steep girdle, crown facets and a small flat table on top, centred on the bulb.
+The sprite's dark rim and its darker lower-right are drawn light, not paint (the game draws the
+outline and lights the facets), so every facet is the crystal's mid blue (59) with a glass-like
+material (barely metallic, smooth) whose glint the game's sun makes. The white core the sprite
+shows through the top is the table, white (63) and glowing softly. The stalk is a 2 px
+rod with its axis 1 px above the midplane: a narrower dark collar at the neck (55), then a mid-blue
+knob (58) with a rounded end.
 
 Run: blender --background --python assets/blender/enemies/newshv-19.py [-- --preview out.png]
 """
@@ -33,13 +34,15 @@ ROOT = common.repo_root(__file__)
 W, H = 12, 14
 U = 1 / 12
 SIDE = 3  # sectors per side of the diamond
-TOP = 5.0 * U  # dome height above the midplane: half the bulb's 10 px width
 BOTTOM = 3.5 * U  # depth of the rounded underside
-TOP_RINGS = (1.0, 0.82, 0.6, 0.34)  # ring scales from the rim in; the crest ridge follows
-RIDGE = 2.0 * U  # half the length of the crest ridge, which runs down the sprite (rows 5-9)
+# The crown's rings from the rim in, (scale, height in px): a steep girdle, then crown facets that
+# flatten towards the top (about 45 then 30 degrees), closed by a flat table. The ~30 degree
+# facets are the ones that throw the game's sun back at its camera, the gem's glint.
+CROWN = ((1.0, 0.0), (0.85, 3.0), (0.55, 4.4), (0.32, 5.0))
 BOTTOM_RINGS = (1.0,)  # the underside is one fan: nobody sees it from the game camera
-HIGHLIGHT_DX = 0.5 * U  # the bright cross is centred on column 6, half a pixel right of centre
-UNDERSIDE = 56
+BODY = 59  # the crystal's mid blue, on every facet but the table
+CORE = 63  # the white core that glows through the table (the sprite's bright centre)
+CORE_GLOW = 0.4
 NECK, KNOB = 55, 58  # the stalk's dark neck row (12) and its mid-blue end (row 13)
 STALK_Z = 1.0 * U  # the stalk's axis, 1 px above the midplane
 
@@ -61,36 +64,14 @@ def ring_point(d, s, rx, ry):
     """The point in direction `d` (a point on the unit diamond) on the ring of scale `s`: the ring
     is a superellipse whose exponent goes from 1 (the diamond) at the rim towards 2 (round) at the
     crown."""
-    p = 1.0 + (1.0 - s) ** 1.5  # stays a diamond near the rim, so the dark rim band keeps its width
+    p = 1.0 + (1.0 - s) ** 1.5  # stays a diamond near the rim, rounder towards the crown
     ang = math.atan2(d[1], d[0])
     c, sn = math.cos(ang), math.sin(ang)
     r = (abs(c) ** p + abs(sn) ** p) ** (-1 / p)
-    return (s * r * c * rx + (1 - s) * HIGHLIGHT_DX, s * r * sn * ry + (1 - s) * d[1] * RIDGE)
+    return (s * r * c * rx, s * r * sn * ry)
 
 
-def sprite_index(pixels, x, y):
-    """The palette index of the sprite pixel under Blender (x, y); the nearest opaque pixel when
-    (x, y) falls on a transparent one."""
-    c, r = math.floor(x * 12 + W / 2), math.floor(H / 2 - y * 12)
-    if 0 <= r < H and 0 <= c < W and pixels[r][c] >= 0:
-        return pixels[r][c]
-    best = min(((rr - r) ** 2 + (cc - c) ** 2, pixels[rr][cc])
-               for rr in range(H) for cc in range(W) if pixels[rr][cc] >= 0)
-    return best[1]
-
-
-def inside(poly, x, y):
-    """Whether (x, y) lies inside the XY polygon `poly` (even-odd rule)."""
-    hit = False
-    n = len(poly)
-    for i in range(n):
-        (x0, y0), (x1, y1) = poly[i], poly[(i + 1) % n]
-        if (y0 > y) != (y1 > y) and x < x0 + (y - y0) * (x1 - x0) / (y1 - y0):
-            hit = not hit
-    return hit
-
-
-def bulb(pixels, dist, mats, slot, cx, cy, rx, ry, coll):
+def bulb(mats, slot, cx, cy, rx, ry, coll):
     import bmesh
     bm = bmesh.new()
     dirs = unit_dirs()
@@ -100,16 +81,7 @@ def bulb(pixels, dist, mats, slot, cx, cy, rx, ry, coll):
         return [bm.verts.new((cx + x, cy + y, z)) for x, y in (ring_point(d, s, rx, ry) for d in dirs)]
 
     rim = ring(1.0, 0.0)
-    top = [rim] + [ring(s, TOP * (1 - s ** 1.6) ** 0.8) for s in TOP_RINGS[1:]]
-    # The crest: a ridge down the sprite's bright column, so its lit right flank is the white
-    # stripe. Directions that land on the same ridge point share one vertex.
-    crest = {}
-    for d in dirs:
-        key = round(d[1], 6)
-        if key not in crest:
-            crest[key] = bm.verts.new((cx + HIGHLIGHT_DX, cy + d[1] * RIDGE, TOP))
-    top.append([crest[round(d[1], 6)] for d in dirs])
-    top_apex = None
+    top = [rim] + [ring(s, z * U) for s, z in CROWN[1:]]
     bot = [rim] + [ring(s, -BOTTOM * math.sqrt(1 - s * s)) for s in BOTTOM_RINGS[1:]]
     bot_apex = bm.verts.new((cx, cy, -BOTTOM))
 
@@ -122,44 +94,28 @@ def bulb(pixels, dist, mats, slot, cx, cy, rx, ry, coll):
             for i in range(n):
                 j = (i + 1) % n
                 f = (a[i], a[j], b[j], b[i]) if b else (a[i], a[j], apex)
-                f = tuple(v for k, v in enumerate(f) if v is not f[k - 1])
                 face = bm.faces.new(f)
                 face.material_index = slot[colour(f)]
 
-    def seen(f):
-        """The palette index that best fits the sprite pixels whose centres the face covers from
-        above (least total colour distance); the pixel under its centre if it covers none."""
-        poly = [(v.co.x, v.co.y) for v in f]
-        under = [pixels[r][c] for r in range(H) for c in range(W)
-                 if pixels[r][c] >= 0 and inside(poly, (c + 0.5 - W / 2) / 12, (H / 2 - r - 0.5) / 12)]
-        if not under:
-            return sprite_index(pixels, sum(p[0] for p in poly) / len(poly), sum(p[1] for p in poly) / len(poly))
-        return min(set(under), key=lambda i: sum(dist(i, j) for j in under))
-
-    bands(top, top_apex, seen)
-    bands(bot, bot_apex, lambda f: UNDERSIDE)
+    bands(top, None, lambda f: BODY)
+    face = bm.faces.new(top[-1])  # the table
+    face.material_index = slot[CORE]
+    bands(bot, bot_apex, lambda f: BODY)
     return common.mesh_object(NAME, bm, mats, coll, smooth=False)
 
 
 def main():
     sprite = common.load_sprite(ROOT, NAME)
-    pixels = sprite["frames"][0]["pixels"]
     coll = common.reset_collection(NAME)
-    used = sorted({v for row in pixels for v in row if v >= 0} | {UNDERSIDE, NECK, KNOB})
     mats, slot = [], {}
-    for i in used:
+    for i in (BODY, CORE, NECK, KNOB):
         slot[i] = len(mats)
-        glow = {63: 0.9, 62: 0.3}.get(i, 0.0)  # the white core glows a little, as the sprite's does
-        mats.append(common.palette_material(sprite, i, NAME, metallic=0.3, roughness=0.3,
-                                            emission_strength=glow))
+        # A crystal: glossy, barely metallic, so the game's sun and environment make its glint.
+        mats.append(common.palette_material(sprite, i, NAME, metallic=0.1, roughness=0.15,
+                                            emission_strength=CORE_GLOW if i == CORE else 0.0))
 
     cy = lib.ey(7.5, H)
-    colours = {int(k): v for k, v in sprite["colors"].items()}
-
-    def dist(a, b):
-        return sum((p - q) ** 2 for p, q in zip(colours[a], colours[b])) ** 0.5
-
-    gem = bulb(pixels, dist, mats, slot, 0.0, cy, 5.0 * U, 4.5 * U, coll)
+    gem = bulb(mats, slot, 0.0, cy, 5.0 * U, 4.5 * U, coll)
 
     # The stalk below it (rows 12-13, columns 5-6): a round 2 px rod, its axis 1 px above the
     # midplane. It starts inside the bulb in mid blue, narrows to a dark collar at the neck (row 12)
@@ -171,16 +127,14 @@ def main():
                      (lib.ey(12.0, H), 0.75 * U, 0.75 * U, z), (lib.ey(13.0, H), 0.75 * U, 0.75 * U, z),
                      (lib.ey(13.0, H), 1.0 * U, 1.0 * U, z), (lib.ey(13.65, H), 1.0 * U, 1.0 * U, z),
                      (lib.ey(14.0, H), 0.0, 0.0, z)], sides=6, mat_index=slot[KNOB])
-    # Where it leaves the bulb (row 11) it keeps the bulb's dark rim; the collar between the two
-    # steps (row 12) is the dark neck row.
+    # The collar between the two steps (row 12) is the dark neck row; the rest is the knob's blue
+    # (the bulb's dark rim at row 11 is the sprite's outline, which the game draws).
     for f in bm.faces:
         ys = [v.co.y for v in f.verts]
         if max(ys) - min(ys) < 1e-6:
             continue
         if min(ys) >= lib.ey(13.0, H) - 1e-6 and max(ys) <= lib.ey(12.0, H) + 1e-6:
             f.material_index = slot[NECK]
-        elif min(ys) >= lib.ey(12.0, H) - 1e-6:
-            f.material_index = slot[UNDERSIDE]
     stalk = common.mesh_object(f"{NAME}_stalk", bm, mats, coll, smooth=True)
 
     objects = [gem, stalk]

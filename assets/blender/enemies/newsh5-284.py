@@ -10,11 +10,9 @@ included), triangulated with a constrained Delaunay fill, over a flat back on th
 rim's outer side rises from the ground and rounds over to a 7 px crest about 3 px in, the lobe is
 a soft dome about 4 px tall that takes over from the rim at the bottom, and the concha and fossa
 are smooth merged bowls well below the crest. The antihelix is a pair of round tubes on it whose
-ends taper to a point and sink into the surface. The rim's outer side is one shade (evened out
-along the rim), with only a thin dark foot under the sprite's black outline. Each top face takes the palette colour of the sprite under it
-(softened, mixed with one read from its height, and averaged with its neighbours), and the foot
-of the rim under the sprite's black outline is dark, so the sprite's shading shows from above
-while the relief carries it in the 3/4 views.
+ends taper to a point and sink into the surface. The ear is skin: one mid-tone tan (the sprite's average, index 24) on a matte, non-metallic
+material, outer side and hollows alike, but for a step darker on the floor of the deepest bowls. The sprite's darker hollows, lit ridges and black outline
+are its drawn lighting; in the game the relief, the scene's light and the outline effect make them.
 
 Run: blender --background --python assets/blender/enemies/newsh5-284.py [-- --preview out.png]
 """
@@ -55,19 +53,13 @@ BACK_STEP = 2.0   # and of the back
 TOP_RINGS = [(0.12, 1), (0.4, 1), (0.75, 1), (1.15, 1), (1.6, 1), (2.15, 1), (2.8, 1), (3.3, 1), (3.8, 1), (4.3, 1), (4.85, 1)]
 BACK_RINGS = [(1.0, 3)]
 
-# Palette shades the top faces are painted with (sprite index ramp 16..30), and the back's.
-SHADES = [16, 17, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28]
-HOLLOW_SHADE = 20
-BACK_SHADE = 17
-# (px in from the edge, darkest shade): the foot of the rim's outer side under the sprite's black
-# outline is dark skin, so the edge reads dark from above; a band above it fades to the rim.
-OUTLINE_BANDS = [(0.85, 16)]
-OUTLINE_PIX_D = 0.0  # and out to here where the face lies over one of the sprite's outline pixels
-WALL_SMOOTH = 20      # extra passes evening out the shade along the rim's outer side
-BLUR = 0.35       # neighbour weight when softening the sprite's colours
-HEIGHT_MIX = 0.3  # how much of a top face's shade comes from its height
-HOLLOW_MIX = 0.75 # and down in the hollows, where the sprite's dark pixels are noisy
-FACE_SMOOTH = 3   # passes averaging each top face's shade with its neighbours'
+# Skin: the sprite's mid-tone tan (its pixels average index 24) everywhere; the light shades it.
+# Only the floor of the deep concha and fossa bowls, where the game's light can't reach in the
+# way the sprite's darkest browns say, is a step darker skin (a recess, not shading).
+SKIN = 24
+RECESS = 22
+RECESS_Z = FLOOR - 0.4  # faces whose centre lies below this (px) are the recess floor
+METALLIC, ROUGHNESS = 0.0, 0.75
 
 
 def P(c, r):
@@ -96,7 +88,6 @@ ANTIHELIX = [
 # (start, end) px over which each tube tapers to a point and sinks into the surface it meets, so
 # the ridge fades out instead of stopping as a cut pipe.
 TAPER = [(2.2, 2.6), (0.0, 2.2)]
-RIDGE_SHADE = 26
 FILLET = (0.6, 2.4)  # height and reach (px) of the swell under the antihelix
 LOBE = (P(14.3, 20.8), 4.6, 4.2, 4.3)         # centre, rx, ry, height: the floor rising into it
 # The lobe is its own soft dome (centre, rx, ry, height) that takes over from the rim below
@@ -252,60 +243,10 @@ def smooth_ring(poly, passes, push):
     return out
 
 
-def height_shade(z):
-    """A palette shade for a height (px): the bottom of the concha 19, the hollow's floor 22,
-    the ridges 25, the rim's crest 27."""
-    pts = [(MIN_Z + 0.3, 19.0), (FLOOR, 22.0), (FLOOR + 2.0, 25.0), (RIM_TOP, 27.0)]
-    if z <= pts[0][0]:
-        return pts[0][1]
-    for (z0, s0), (z1, s1) in zip(pts, pts[1:]):
-        if z <= z1:
-            return s0 + (s1 - s0) * (z - z0) / (z1 - z0)
-    return pts[-1][1]
-
-
-def shade_field(pixels, blur=BLUR):
-    """Palette index at a pixel-corner point, softened: each pixel is blended with its
-    neighbours (`blur` weight on the edge-sharing ones, half that on the diagonals; the black
-    outline pixels don't count) and then read bilinearly, so colour edges run smoothly across
-    the small triangles instead of in steps."""
-    h, w = len(pixels), len(pixels[0])
-    val = lambda i: min(i, 29)  # noqa: E731
-    soft = [[None] * w for _ in range(h)]
-    for r in range(h):
-        for c in range(w):
-            i = pixels[r][c]
-            if i < 0:
-                continue
-            tot, wsum = (val(i), 1.0) if i > 16 else (0.0, 0.0)
-            for dr in (-1, 0, 1):
-                for dc in (-1, 0, 1):
-                    rr, cc = r + dr, c + dc
-                    if (dr or dc) and 0 <= rr < h and 0 <= cc < w and pixels[rr][cc] > 16:
-                        wt = blur if dr == 0 or dc == 0 else blur * 0.5
-                        tot += wt * val(pixels[rr][cc])
-                        wsum += wt
-            soft[r][c] = tot / wsum if wsum else 16
-
-    def at(u, v):
-        x, y = u - 0.5, v - 0.5
-        c0, r0 = math.floor(x), math.floor(y)
-        tot = wsum = 0.0
-        for dc, dr in ((0, 0), (1, 0), (0, 1), (1, 1)):
-            c, r = c0 + dc, r0 + dr
-            if 0 <= r < h and 0 <= c < w and soft[r][c] is not None:
-                wt = (1 - abs(x - c)) * (1 - abs(y - r))
-                tot += wt * soft[r][c]
-                wsum += wt
-        return tot / wsum if wsum else 16
-    return at
-
-
 def build(sprite):
     coll = common.reset_collection(NAME)
     pixels = sprite["frames"][0]["pixels"]
-    mats = [common.palette_material(sprite, i, NAME, metallic=0.0, roughness=0.95) for i in SHADES]
-    slot = {i: k for k, i in enumerate(SHADES)}
+    mats = [common.palette_material(sprite, i, NAME, metallic=METALLIC, roughness=ROUGHNESS) for i in (SKIN, RECESS)]
 
     # The outline: every sprite pixel, black edge included, traced and smoothed (Blender XY),
     # then in pixel-corner coordinates.
@@ -375,56 +316,17 @@ def build(sprite):
         return faces
 
     vdist = {}  # each inner vertex's distance (px) in from the outline
-    shade = shade_field(pixels)
-    tops = []
-    for vs, (cu, cv) in fill(TOP_STEP, top_height, 0.0, TOP_RINGS, TOP_RINGS[-1][0] + 0.45):
-        f = bm.faces.new(vs)
-        # Half the sprite's shade, half one read from the face's height (deep = dark, high =
-        # light), so colour edges follow the relief instead of zigzagging across it.
+    for vs, _ in fill(TOP_STEP, top_height, 0.0, TOP_RINGS, TOP_RINGS[-1][0] + 0.45):
         z = sum(v.co.z for v in vs) / len(vs) * 12
-        dmax = max(vdist.get(v, 0.0) for v in vs)
-        mix = HEIGHT_MIX if z > FLOOR - 0.3 else HOLLOW_MIX  # in the hollows: mostly by depth
-        if dmax < RIM_AT:  # the rim's outer side: the sprite's rim colour, not stepped by height
-            mix = 0.0
-        s = (1 - mix) * shade(cu, cv) + mix * height_shade(z)
-        hollow = z < FLOOR - 0.5 and dmax >= RIM_AT  # down in the concha and fossa
-        # The sprite's black outline: the rim's outermost foot, dark skin in its own shadow.
-        # Read from the face's innermost vertex, so the band follows the rings of points round
-        # the edge instead of zigzagging between them.
-        dark = next((dk for band, dk in OUTLINE_BANDS if dmax < band), None)
-        pc, pr = int(cu), int(cv)
-        if dark is None and dmax < OUTLINE_PIX_D and 0 <= pr < len(pixels) and 0 <= pc < len(pixels[0]) \
-                and 0 <= pixels[pr][pc] <= 16:
-            dark = OUTLINE_BANDS[-1][1]
-        tops.append((f, s, dark, hollow))
-    # Soften the shades over neighbouring faces before picking palette entries, so the small
-    # triangles don't flicker between two neighbouring shades.
-    shade_of = {f: s for f, s, *_ in tops}
-    for _ in range(FACE_SMOOTH):
-        shade_of = {f: 0.5 * s + 0.5 * sum(shade_of.get(g, s) for e in f.edges for g in e.link_faces if g is not f) / 3
-                    for f, s in shade_of.items()}
-    # The rim's outer side: even its shade out along the rim (only among its own faces), so it
-    # reads as one surface from the side instead of patches.
-    wall = {f for f, _, dark, _ in tops if dark is None and max(vdist.get(v, 0.0) for v in f.verts) < RIM_AT - 0.2}
-    for _ in range(WALL_SMOOTH):
-        nxt = dict(shade_of)
-        for f in wall:
-            nb = [shade_of[g] for e in f.edges for g in e.link_faces if g is not f and g in wall]
-            if nb:
-                nxt[f] = 0.4 * shade_of[f] + 0.6 * sum(nb) / len(nb)
-        shade_of = nxt
-    for f, _, dark, hollow in tops:
-        s = shade_of[f] if dark is None else min(shade_of[f], dark)
-        if hollow:  # after the softening, so the hollows keep the sprite's darkest browns
-            s = min(s, HOLLOW_SHADE)
-        f.material_index = slot[min(SHADES, key=lambda i: abs(i - s))]
+        inner = min(vdist.get(v, 0.0) for v in vs) >= RIM_AT  # inside the rim, not its outer side
+        bm.faces.new(vs).material_index = 1 if z < RECESS_Z and inner else 0
     for vs, _ in fill(BACK_STEP, lambda p, d: back_height(d), 0.3, BACK_RINGS, BACK_RINGS[-1][0] + 0.8):
         twin = bm.faces.get(vs)
         if twin is not None:  # a sliver of three outline points on both sides: drop both
             bm.faces.remove(twin)
             continue
         f = bm.faces.new(list(reversed(vs)))
-        f.material_index = slot[BACK_SHADE]
+        f.material_index = 0
     # The antihelix: round tubes lying on the floor, standing about 2 px over it, the stem
     # climbing onto the lobe at its foot (the antitragus) and the crura dipping into the hollows.
     to_xyz = lambda q, z: (*to_xy(*q), z / 12)  # noqa: E731
@@ -445,7 +347,7 @@ def build(sprite):
             f = max(0.0, f)
             pts.append(to_xyz((u, v), z - (1 - f) * rad * 1.6))
             radii.append(rad * f ** 0.7 / 12)
-        lib.tube(bm, pts, radii, sides=10, mat_index=slot[RIDGE_SHADE])
+        lib.tube(bm, pts, radii, sides=10, mat_index=0)
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
     return common.mesh_object(NAME, bm, mats, coll, smooth=True)
 

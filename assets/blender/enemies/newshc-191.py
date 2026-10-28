@@ -60,43 +60,33 @@ def new_faces(bm, before):
 def build(sprite):
     coll = common.reset_collection(NAME)
     pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
+    # One mid-tone per part: the sprite's outline ring, its lit/shaded halves and its highlights are
+    # the game's lighting and outline, so they are not painted on (rubric: "The sprite's lighting
+    # is not paint"); the shine comes from the metallic/glossy materials.
     mats = [
-        pal(7, metallic=0.5, roughness=0.4),  # 0 grey tower
+        pal(7, metallic=0.75, roughness=0.3),  # 0 grey tower: polished metal hood
         pal(2, metallic=0.1, roughness=0.9),  # 1 dark vent slots
-        pal(9, metallic=0.5, roughness=0.35),  # 2 light grey ridge
-        pal(102, metallic=0.3, roughness=0.45),  # 3 dark grey-blue pods
-        pal(100, metallic=0.3, roughness=0.25),  # 4 navy glass canopies
-        pal(107, metallic=0.5, roughness=0.3),  # 5 pale band round each pod
-        pal(57, metallic=0.2, roughness=0.55),  # 6 blue hull
-        pal(59, metallic=0.2, roughness=0.45),  # 7 light blue lit facets
-        pal(38, metallic=0.0, roughness=0.9),  # 8 green side panels
-        # 9 glowing strip: the panel's dark green on 191, green on 193, bright green on 195
+        pal(105, metallic=0.7, roughness=0.3),  # 2 grey-blue pods: polished metal balls
+        pal(100, metallic=0.05, roughness=0.1),  # 3 navy glass canopies
+        pal(57, metallic=0.4, roughness=0.4),  # 4 blue hull: painted metal
+        pal(59, metallic=0.4, roughness=0.4),  # 5 light blue stripes on the hull's crests
+        pal(38, metallic=0.05, roughness=0.75),  # 6 green side panels: matte paint
+        # 7 glowing strip: the panel's dark green on 191, green on 193, bright green on 195
         common.palette_material(sprite, 38, f"{NAME}-glow", emission_strength=3.0, frames={193: 43, 195: 202}),
-        pal(89, metallic=0.3, roughness=0.45),  # 10 pink pod
-        pal(82, metallic=0.1, roughness=0.9),  # 11 dark opening in the pink pod
-        pal(91, metallic=0.3, roughness=0.35),  # 12 pale pink lit side
-        pal(103, metallic=0.4, roughness=0.5),  # 13 grey deck under the pods
-        pal(56, metallic=0.2, roughness=0.55),  # 14 blue facets turned away from the light
-        pal(51, metallic=0.2, roughness=0.7),  # 15 the hull's dark sloped rim (the sprite's dark edge)
-        pal(4, metallic=0.5, roughness=0.5),  # 16 the tower's steep, shaded lower sides
-        pal(87, metallic=0.3, roughness=0.5),  # 17 the pink pod's shaded side
-        pal(51, metallic=0.2, roughness=0.8),  # 18 dark navy gap between the pods and the hull
+        pal(89, metallic=0.6, roughness=0.3),  # 8 pink pod: polished metal
+        pal(82, metallic=0.1, roughness=0.9),  # 9 dark opening in the pink pod
+        pal(103, metallic=0.4, roughness=0.4),  # 10 grey deck under the pods
+        pal(56, metallic=0.4, roughness=0.5),  # 11 recessed gap between the pods and the hull
     ]
-    (TOWER, SLOT, RIDGE, POD, GLASS, RIM, HULL, RIB, GREEN, GLOW, PINK, MOUTH, PALE, DECK, HULL_DK, EDGE, TOWER_DK,
-     PINK_DK, GAP) = range(19)
+    TOWER, SLOT, POD, GLASS, HULL, RIB, GREEN, GLOW, PINK, MOUTH, DECK, GAP = range(12)
     bm = bmesh.new()
 
     # ---- left half (mirrored below) ----
     # Blue hull (rows 14-25, the 1 px dark rim included), stepped in at its lower corners, with
     # the notch between the two halves of its front edge (row 25, columns 11-12).
-    # Its chamfered rim is dark, as the sprite's 1 px edge is.
-    before = set(bm.faces)
+    # Its chamfered rim keeps the hull colour: the sprite's dark 1 px edge is its outline.
     lib.slab(bm, [(0.0, 14.2), (AXIS, 14.2), (AXIS, 25.0), (11.0, 25.0), (11.0, 26.0), (4.0, 26.0),
                   (4.0, 25.75), (2.8, 25.0), (1.2, 24.0), (0.0, 22.8)], -3.2, 0.2, mat=HULL, bevel=0.9)
-    for f in new_faces(bm, before):
-        f.normal_update()
-        if abs(f.normal.z) < 0.99:
-            f.material_index = EDGE
     # Green side panel: a band down the outer edge (column 1 at row 18 to columns 4-6 at row 24),
     # tilted down towards the outside, and its glow strip just proud of it.
     green_z = lambda c, r: 0.5 + 0.12 * (c - 1.0)  # noqa: E731
@@ -106,8 +96,8 @@ def build(sprite):
     plane_solid(bm, [(2.0, 20.8), (3.0, 21.0), (3.0, 22.8), (4.0, 23.0), (4.0, 24.0), (3.0, 24.0), (2.0, 22.9)],
                 -1.0, lambda c, r: green_z(c, r) + 0.2, GLOW)
     # The hull's light diagonal (columns 4-8, rows 20-24) is the lit face of an angular crest
-    # running from just under the pod down to the front edge: a ridge with a light face on the
-    # outside and a darker one sloping down towards the pink pod.
+    # running from just under the pod down to the front edge: a ridge with a light blue stripe on
+    # its outer face (drawn on both sides, so a marking) and hull blue sloping down to the pink pod.
     r0c, r0r, r1c, r1r = 5.8, 19.4, 8.9, 25.0
     dl = math.hypot(r1c - r0c, r1r - r0r)
     nc, nr = -(r1r - r0r) / dl, (r1c - r0c) / dl  # across the ridge, towards the outside
@@ -118,15 +108,16 @@ def build(sprite):
     plane_solid(bm, [(4.0, 19.6), (r0c, r0r), (r1c, r1r), (7.0, 25.0), (5.0, 21.2)],
                 -1.0, lambda c, r: 1.6 - 0.35 * across(c, r), RIB)
     plane_solid(bm, [(r0c, r0r), (7.0, 18.9), (9.6, 18.9), (9.6, 25.0), (r1c, r1r)],
-                -1.0, lambda c, r: 1.6 + 0.3 * across(c, r), HULL_DK)
+                -1.0, lambda c, r: 1.6 + 0.3 * across(c, r), HULL)
     # The sprite's dark navy line under the pods (row 18, and down beside the pink pod to row 21):
     # a gap between the pods and the hull's crests, its floor just above the hull.
     lib.slab(bm, [(0.6, 17.0), (3.9, 17.0), (3.9, 17.7), (AXIS, 17.7), (AXIS, 18.9), (0.6, 18.9)], -1.0, 0.5, mat=GAP)
     # Grey deck the pods sit on (rows 13-18), behind the hull.
     lib.slab(bm, [(1.6, 13.0), (AXIS, 13.0), (AXIS, 18.0), (1.6, 18.0)], -1.8, 0.4, mat=DECK, bevel=0.5)
     # Round pod (columns 1-8, rows 9-17): a ball standing about 5.5 px above the hull, a navy glass
-    # canopy capping its back half and a pale band round its front, as the sprite draws it. Both
-    # are caps cut by planes on the unit sphere (y is backwards), so their edges are clean curves.
+    # canopy capping its back half. The sprite's pale lower half is the shine on a metal ball, so
+    # the rest is one grey. The canopy is a cap cut by a plane on the unit sphere (y is backwards),
+    # so its edge is a clean curve; the band cut stays only to keep the mesh as it was.
     before = set(bm.faces)
     pc, pr, pz, prx, pry, prz = 4.5, 13.5, 2.2, 3.95, 4.4, 3.95
     bmesh.ops.create_uvsphere(bm, u_segments=24, v_segments=12, radius=1.0)
@@ -145,7 +136,7 @@ def build(sprite):
     for f in pod:
         m = f.calc_center_median()
         f.smooth = True
-        f.material_index = GLASS if m.dot(glass_n) > glass_d else RIM if m.dot(band_n) > band_d else POD
+        f.material_index = GLASS if m.dot(glass_n) > glass_d else POD
     for v in {v for f in pod for v in f.verts}:
         k = 1.0 if v.co.z >= 0 else 0.6
         v.co.x, v.co.y, v.co.z = lib.X(pc) + v.co.x * lib.P(prx), lib.Y(pr) + v.co.y * lib.P(pry), \
@@ -166,18 +157,15 @@ def build(sprite):
     slots = []
     for f in tower:
         c, r, z = sprite_pos(f.calc_center_median())
-        if abs(c - AXIS) < 1.0 and z > 4.0:
-            f.material_index = RIDGE  # the bright ridge down the crown (columns 11-12)
-        elif 7.0 < r < 11.6 and 1.0 < abs(c - AXIS) < 2.9 and z > 3.5:
+        # the sprite's bright crown line and dark lower sides are the hood's sheen and shading
+        if 7.0 < r < 11.6 and 1.0 < abs(c - AXIS) < 2.9 and z > 3.5:
             slots.append(f)  # the two dark vent slots (columns 9-10 and 13-14, rows 7-11)
-        elif z < 2.2 or r < 3.6:
-            f.material_index = TOWER_DK
     res = bmesh.ops.inset_individual(bm, faces=slots, thickness=lib.P(0.1), depth=-lib.P(1.7))
     for f in slots + res["faces"]:
         f.material_index = SLOT
         f.smooth = False
     # Pink pod (columns 9-14, rows 13-22): a round body 6 px across lying on the hull, its dark
-    # opening cut into its top just in front of the tower and a pale highlight on its lit side.
+    # opening cut into its top just in front of the tower; its pale and dark sides are lighting.
     before = set(bm.faces)
     lib.loft_y(bm, AXIS, [(12.9, 2.2, 2.2, 2.6), (13.4, 3.0, 3.0, 2.6), (14.0, 3.0, 3.0, 2.6),
                           (17.4, 3.0, 3.0, 2.6), (18.0, 3.0, 3.0, 2.6), (22.0, 3.0, 3.0, 2.6),
@@ -188,10 +176,6 @@ def build(sprite):
         c, r, z = sprite_pos(f.calc_center_median())
         if 14.0 < r < 17.4 and abs(c - AXIS) < 2.2 and z > 4.6:
             mouth.append(f)
-        elif 18.0 < r < 22.0 and -3.2 < c - AXIS < -0.3 and z > 3.0:
-            f.material_index = PALE
-        elif 18.0 < r < 22.0 and 0.8 < c - AXIS < 3.2 and z > 3.0:
-            f.material_index = PINK_DK
     res = bmesh.ops.inset_region(bm, faces=mouth, thickness=lib.P(0.15), depth=-lib.P(1.6))
     for f in mouth + res["faces"]:
         f.material_index = MOUTH

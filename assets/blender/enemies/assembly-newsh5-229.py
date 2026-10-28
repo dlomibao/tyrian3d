@@ -25,7 +25,6 @@ import common  # noqa: E402
 import lib_b013 as lib  # noqa: E402
 
 NAME = "assembly-newsh5-229"
-RIM_NZ = 0.8  # faces sloping more than this may take the sprite's outline colour
 ROOT = common.repo_root(__file__)
 PIECES = ["newsh5-229", "newsh5-231"]
 U = lib.U
@@ -149,26 +148,23 @@ def build(sprite, pixels):
     coll = common.reset_collection(NAME)
     tag = "n5a229"
     pal = lambda i, **kw: common.palette_material(sprite, i, tag, **kw)  # noqa: E731
-    base = [6, 7, 10, 4, 70, 72, 67, 8]
+    # Each part takes its mid-tone colour: the sprite's light and dark pixels on the hull, wings
+    # and red parts are its drawn lighting (bright streaks = sheen on polished metal, dark right
+    # halves = shade), which the game's lights make. The grey hull is polished metal; the red
+    # parts are painted metal.
+    metal = dict(metallic=0.75, roughness=0.3)
+    paint = dict(metallic=0.3, roughness=0.45)
     mats = [
-        pal(6, metallic=0.1, roughness=0.5),  # 0 grey hull
-        pal(7, metallic=0.1, roughness=0.5),  # 1 grey wings
-        pal(10, metallic=0.1, roughness=0.45),  # 2 bright grey ribs and tips
-        pal(4, metallic=0.1, roughness=0.55),  # 3 dark grey
-        pal(70, metallic=0.05, roughness=0.5),  # 4 red panels
-        pal(72, metallic=0.05, roughness=0.45),  # 5 light red spine
-        pal(67, metallic=0.05, roughness=0.55),  # 6 dark red (the shaded right panel)
-        pal(8, metallic=0.1, roughness=0.45),  # 7 light grey wing ribs
+        pal(6, **metal),  # 0 grey hull
+        pal(7, **metal),  # 1 grey wings (the sprite draws them a shade lighter than the body)
+        pal(7, **metal),  # 2 wing-tip pods
+        pal(4, metallic=0.5, roughness=0.5),  # 3 dark groove under the chest (a recess)
+        pal(69, **paint),  # 4 red panels, fins and shield
+        pal(71, **paint),  # 5 red spine stripe
+        pal(70, **paint),  # 6 red cowls and wing-tip barrels
+        pal(8, **metal),  # 7 wing ribs (the light diagonal lines)
     ]
     HULL, WING, RIB, DARK, RED, LRED, DRED, LGREY = range(8)
-    # Every other palette colour of the sprite, for painting the top faces from its pixels.
-    slot = {i: k for k, i in enumerate(base)}
-    for i in sorted(int(k) for k in sprite["colors"]):
-        if i in slot:
-            continue
-        slot[i] = len(mats)
-        red = i >= 64
-        mats.append(pal(i, metallic=0.05 if red else 0.1, roughness=0.5))
     bm = bmesh.new()
 
     # ---- left half (mirrored below) ----
@@ -176,7 +172,7 @@ def build(sprite, pixels):
 
     # Wing (rows 13-27): a 2 px plate with a bevelled top, swept from the body out and up to a
     # pointed tip at columns 2-4; its root tucks under the red panel and the lower body. Its top
-    # is cut on the pixel grid so it takes the sprite's shades.
+    # is cut on the pixel grid (small flat facets that follow its droop).
     wing = [E(2, 13), E(5, 13), E(8.2, 16.6), E(9.9, 16.9), E(10.2, 15.9), E(11, 15.0), E(19.5, 15.0),
             E(19.5, 28), E(12.0, 28), E(12.0, 27.0), E(9.2, 27.0), E(9.2, 26.0), E(9.9, 26.0), E(5.9, 22.0),
             E(4.7, 21.0), E(2, 21.0)]
@@ -202,13 +198,13 @@ def build(sprite, pixels):
     barrel = [(YE(19.8), 1.35 * U, 1.35 * U, 0.6 * U)]
     barrel += [(YE(r), 1.35 * U, 1.35 * U, 0.6 * U) for r in (21.0, 22.0, 23.0, 24.0, 25.0, 26.0)]
     barrel += [(YE(27.2), 1.35 * U, 1.35 * U, 0.6 * U), (YE(27.95), 0.6 * U, 0.6 * U, 0.6 * U)]
-    common.loft(bm, barrel, sides=8, mat_index=RED)
+    common.loft(bm, barrel, sides=8, mat_index=DRED)
     common.shift_x(bm, v0, XE(3.5))
     lib.set_smooth(bm, f0)
     tilt(bm, v0, G.x(16), 0.02)
     # Red cowl on the wing's root (columns 10-13, rows 16-18): a dome.
     f0 = lib.ellipsoid(bm, (XE(12.1), YE(17.5), 1.0 * U), (2.2 * U, 1.6 * U, 2.3 * U),
-                       segments=10, rings=5, mat_index=RED)
+                       segments=10, rings=5, mat_index=DRED)
     lib.set_smooth(bm, f0)
 
     # Canard (rows 1-4, columns 9-18): a horizontal cylinder 4 px across, and the red fin under
@@ -238,8 +234,8 @@ def build(sprite, pixels):
     lib.mirror_x(bm, start, AX)
 
     # Red side panels down the lower body (columns 15-19 at the top narrowing to 18-19, rows 16-27):
-    # round bars standing on the wing; the right one is the sprite's darker red.
-    for side, mat in ((-1, RED), (1, DRED)):
+    # round bars standing on the wing (the right one is drawn darker only because it is in shade).
+    for side, mat in ((-1, RED), (1, RED)):
         pts = [((15.9, 15.6), 0.9), ((16.6, 17.4), 1.9), ((17.6, 20.3), 1.9), ((18.9, 22.6), 1.15),
                ((19.0, 25.0), 1.1), ((19.0, 27.9), 1.1)]
         f0 = lib.nfaces(bm)
@@ -267,12 +263,10 @@ def build(sprite, pixels):
     # Red stripe down the spine (rows 0-10): a straight round bar 2 px wide standing about 1.6 px
     # proud of the nose's crest, running into the chest dome.
     f0 = lib.nfaces(bm)
-    s0 = lib.nfaces(bm)
     spine = [((AX, YE(0.4), (crest(body, 0.4) + 0.2) * U), 0.55 * U)]
     spine += [((AX, YE(r), (crest(body, r) + 0.6) * U), 1.0 * U) for r in (1.2, 4.2, 8.6, 11.2)]
     lib.tube(bm, spine, sides=8, mat_index=LRED)
     lib.set_smooth(bm, f0)
-    s1 = lib.nfaces(bm)
     # The red shield on the chest (columns 20-28, rows 10-15): a low smooth dome, 9 x 6 px,
     # rising about 3 px above the hull.
     f0 = lib.nfaces(bm)
@@ -283,18 +277,7 @@ def build(sprite, pixels):
     lib.pillow(bm, shield, (AX, cy), 6.1 * U, 3.5 * U, 2.0 * U, rings=5, mat_index=RED, power=0.8, bottom_rings=1)
     lib.set_smooth(bm, f0)
     # Dark floor of the groove under the chest (row 16).
-    g0 = lib.nfaces(bm)
     lib.box(bm, AX - 3.5 * U, YE(16.9), AX + 3.5 * U, YE(15.9), 3.0 * U, 5.3 * U, mat_index=DARK)
-    g1 = lib.nfaces(bm)
-    # The lit crest down the lower body (column 23).
-    f0 = lib.nfaces(bm)
-    keel = [(17.9, 0.0, 5.9, 0.0, 0.0), (18.6, 1.0, 6.0, 0.7, 0.6)]
-    keel += [(r, 1.0, 6.0 - 0.2 * (r - 18.6) / 8.8, 0.7, 0.6) for r in (20.5, 22.5, 24.5, 26)]
-    keel += [(27.4, 1.0, 5.8, 0.7, 0.6), (27.9, 0.0, 5.4, 0.4, 0.0)]
-    keel = sorted(keel)
-    body_loft(bm, keel, AX - 0.5 * U, sides=8, mat_index=RIB)
-    lib.set_smooth(bm, f0)
-
     # The two pieces are cut apart at X = 0 (half a pixel left of the axis), and each piece's
     # normals at the cut come from its own side only: thin strips either side of the cut keep
     # those normals true, so the dome and the body show no crease down the middle.
@@ -306,28 +289,8 @@ def build(sprite, pixels):
         geom = fs + list({e for f in fs for e in f.edges}) + list({v for f in fs for v in f.verts})
         bmesh.ops.bisect_plane(bm, geom=geom, plane_co=(x, 0, 0), plane_no=(1, 0, 0))
 
-    # Colour the faces seen from above from the sprite pixel under them (the outline pixels are
-    # passed over for their neighbours: the game draws its own outline).
-    grid = lib.Grid(48, 28, pixels)
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
-    bm.normal_update()
-    bm.faces.ensure_lookup_table()
-    for k, f in enumerate(bm.faces):
-        if f.normal.z < 0.3:
-            continue
-        c = f.calc_center_median()
-        # The spine bar takes the colour of the sprite's 1 px spine (column 24) along its length.
-        x = AX if s0 <= k < s1 else c.x
-        # Sloping faces on a part's rim may take the sprite's dark outline pixels (they read as
-        # the shadow where the part curves away); faces looking up take the nearest colour.
-        dark_ok = (f.normal.z < RIM_NZ and not (s0 <= k < s1)) or g0 <= k < g1  # the groove is dark
-        i = grid.sample(x, c.y, skip=(-1,) if dark_ok else (-1, 1, 112), reach=2)
-        red_part = f.material_index in (RED, LRED, DRED)
-        if red_part and i is not None and 1 < i < 64:
-            continue  # a red part keeps its red where the sprite shows grey (the spine's shadow)
-        if i in slot:
-            f.material_index = slot[i]
-
+    # No per-pixel painting: every part keeps its own mid-tone material (see above), the game
+    # draws the outline, and its lights shade the curves.
     return lib.to_object(NAME, bm, mats, coll)
 
 

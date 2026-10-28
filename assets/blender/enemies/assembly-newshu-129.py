@@ -4,7 +4,8 @@ version of its sprites, built whole and cut into the four pieces.
 Seen in episode 1 (level section 19), episode 3 and episode 4. A big glass ball with green
 organic machinery inside: a large lumpy mass on the left with a glowing core, a small glowing bud
 at the top, a lobe on the right, a lamp at the lower right fed by a vein, ribs curving round the
-bottom and a raised rim around the lower-right edge. The animation changes its whole colour,
+bottom (its dark rim and the bright crescent on its lower-right edge are the glass catching light,
+not shapes). The animation changes its whole colour,
 not its shape, so each piece gets three models that share the geometry:
 
 - <piece>: dim grey glass (the first frame and the last frame of the fade),
@@ -46,9 +47,11 @@ NPARTS = 10
 SHELL, ORGAN, LOBE, CORE, RIB, LAMP, RIM, DARK, MID, GLOW = range(NPARTS)
 # Palette index per part and state (grey/green indices correspond pixel for pixel in the sprites).
 STATES = {
+    # Grey: the pale-blue spot and its halo (CORE, RIM) are the glass's specular highlight, so they
+    # take the lumpy mass's mid-tone and the glossy glass makes the shine.
     "grey": {"suffix": "", "mats": {SHELL: (4, {}), ORGAN: (102, {}), LOBE: (104, {}),
-                                    CORE: (141, {"emission_strength": 1.5}), RIB: (101, {}),
-                                    LAMP: (55, {"emission_strength": 2.0}), RIM: (107, {}),
+                                    CORE: (104, {}), RIB: (101, {}),
+                                    LAMP: (55, {"emission_strength": 2.0}), RIM: (104, {}),
                                     DARK: (82, {}), MID: (103, {}),
                                     GLOW: (38, {"emission_strength": 1.5})}},
     "green": {"suffix": "-f2", "mats": {SHELL: (38, {}), ORGAN: (195, {}), LOBE: (198, {"emission_strength": 1.0}),
@@ -58,11 +61,13 @@ STATES = {
                                         RIM: (200, {"emission_strength": 1.5}),
                                         DARK: (34, {}), MID: (196, {}),
                                         GLOW: (203, {"emission_strength": 3.0})}},
-    "purple": {"suffix": "-f3", "mats": {SHELL: (86, {}), RIM: (89, {})}},
+    "purple": {"suffix": "-f3", "mats": {SHELL: (86, {})}},
 }
-# The glass ball is painted by the grey sprite's colours (classes of palette indices -> part), so
-# its shading (steel-blue upper left, dark violet rim, bright rim crescent, green lights) is flush
-# on the sphere instead of modelled as relief.
+# The glass ball is painted by the grey sprite's colours (classes of palette indices -> part): the
+# machinery seen through the glass and its lights. The sprite's drawn lighting is not painted (the
+# game lights the glass and draws the outline): the dark violet outline ring, the dark lower-right
+# side and the bright rim crescent round the lower-right edge take the glass's own colour
+# (see shading()).
 PAINT = {}
 for _part, _indices in ((SHELL, (2, 3, 4, 5, 6)), (DARK, (1, 33, 34, 48, 80, 81, 82, 83, 84, 85, 86, 98, 100)),
                         (ORGAN, (101, 102)), (MID, (103,)), (LOBE, (7, 104, 105)), (RIM, (8, 107)),
@@ -170,6 +175,19 @@ def paint_part(grid, x, y):
     return DARK
 
 
+def shading(part, x, y):
+    """SHELL where a painted part only stands for the sprite's drawn lighting: anything in the outer
+    ring (the outline, the dark rim and the bright rim crescent) and the dark lower-right side;
+    `part` elsewhere (real markings: the machinery, its gaps and lights). x, y are final XY."""
+    cx, cy = P(CC, CR)
+    u, v = (x - cx) / RX, (cy - y) / RY  # screen right, screen down
+    if math.hypot(u, v) > 0.84:
+        return SHELL
+    if part == DARK and (u + v) / math.sqrt(2) > 0.45:
+        return SHELL
+    return part
+
+
 def ball(bm, grid, paint, n=20):
     """A cube-sphere (even top-view cells for painting): RX wide, HZ tall, faces painted from the
     grey sprite (or all shell when `paint` is False)."""
@@ -203,11 +221,16 @@ def ball(bm, grid, paint, n=20):
                     votes = Counter()
                     for q in [centre] + [centre.lerp(v.co, 0.6) for v in quad]:
                         votes[paint_part(grid, q.x, cy + (q.y - cy) * RY / RX)] += 1
-                    part = votes.most_common(1)[0][0]
-                    # The sides and underside (unseen from above) are the dark rim.
+                    ranked = votes.most_common()
+                    part = ranked[0][0]
+                    # The dark gaps between the machinery are 1 px lines: a cell takes them only
+                    # where they fill most of it, not as stray dark squares.
+                    if part == DARK and ranked[0][1] < 3 and len(ranked) > 1:
+                        part = ranked[1][0]
+                    # The sides and underside are glass too: the game draws the outline.
                     if centre.z < 0.2 * HZ:
-                        part = DARK
-                    f.material_index = part
+                        part = SHELL
+                    f.material_index = shading(part, centre.x, cy + (centre.y - cy) * RY / RX)
 
 
 def build(state, palette, sprites):
@@ -221,14 +244,12 @@ def build(state, palette, sprites):
         kw = dict(kw)
         if state != "purple":
             kw["frames"] = frame_colours(sprites, state, part)
+        # All of it is the glass surface (the machinery is seen through it): glossy, not metal.
         if part == SHELL:
-            kw.update(metallic=0.15, roughness=0.18)
-        elif part == RIM:
-            kw.setdefault("metallic", 0.5)
-            kw.setdefault("roughness", 0.3)
+            kw.update(metallic=0.05, roughness=0.1)
         else:
-            kw.setdefault("metallic", 0.1)
-            kw.setdefault("roughness", 0.25)
+            kw.setdefault("metallic", 0.05)
+            kw.setdefault("roughness", 0.12)
         part_tag = f"{tag}-{part}" if kw.get("frames") else tag
         mats.append(common.palette_material(palette, index, part_tag, **kw))
 
@@ -236,11 +257,7 @@ def build(state, palette, sprites):
     cx, cy = P(CC, CR)
     dome = lib.Dome(RX, HZ, cx, cy)
     ball(bm, grey_pixels(sprites), state != "purple")
-
-    # The bright rim crescent round the lower-right edge, flush with the glass.
-    rim = [Q(43.6, 32.5), Q(42.2, 37.5), Q(40, 41.5), Q(37, 44.4), Q(33, 46.6), Q(28, 48.0), Q(21.5, 48.5)]
-    lib.surface_tube(bm, dome, rim, px(1.2), lift=0.0, mat_index=RIM, sides=6, samples=18, taper=0.2,
-                     flat=0.2)
+    # (The bright crescent round the lower-right edge is the glass catching light: no stroke for it.)
 
     if state != "purple":
         organs(bm, dome)
@@ -261,8 +278,6 @@ def organs(bm, dome):
         lib.surface_tube(bm, dome, [Q(c, r) for c, r in points], px(radius), lift=0.0, mat_index=mat,
                          sides=6, samples=samples, flat=0.2)
 
-    # The pale core of the specular highlight (its halo is painted on the ball).
-    lump(18.6, 17.3, 2.1, 3.0, 0.02, CORE, angle=0.5, sides=10)
     # The bud at the top with its tip.
     lump(23.4, 12, 1.5, 1.4, 0.02, LOBE, sides=8, rings=2)
     # The lamp at the lower right: a green light with a small blue-green centre.

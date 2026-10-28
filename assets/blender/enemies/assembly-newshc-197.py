@@ -57,74 +57,6 @@ def xtube(bm, points, sides, mat, xy):
     lib._join(bm, rings, mat, True, True, False)
 
 
-def shade_tank(bm, faces, m, xy, axis):
-    """Paint the tank's faces in bands by where they show from above, as the sprite shades it: a
-    light row along the back of the crown (row 3), the mid green over the top, a darker green on
-    the front slope (row 8) and the dark edge rows (2 and 9) on the steep sides and underneath."""
-    w, h = xy
-    for f in faces:
-        cen = f.calc_center_median()
-        c = cen.x * 12 + w / 2
-        # The axis (row, z in px) under this face, for the outward normal.
-        _, ar, az = axis[-1]
-        for (c0, r0, z0), (c1, r1, z1) in zip(axis, axis[1:]):
-            if c0 <= c <= c1:
-                t = (c - c0) / (c1 - c0)
-                ar, az = r0 + (r1 - r0) * t, z0 + (z1 - z0) * t
-                break
-        # Angle round the axis, 0 straight up, positive towards the back (up the sprite). On the
-        # full 4 px radius the sprite's bands fall at: row 3 (light) 21-49 degrees back, row 8
-        # (darker) 28-46 degrees forward, the outline rows beyond; banding by angle keeps the
-        # bands concentric on the domed end too.
-        dy = cen.y - (h / 2 - ar) / 12
-        dz = cen.z - az / 12
-        if len(f.verts) != 4:  # the end cap
-            k = "tank_edge"
-        else:
-            th = math.degrees(math.atan2(dy, dz))
-            if th > 49 or th < -46:
-                k = "tank_edge"
-            elif th > 21:
-                k = "tank_hi"
-            elif th < -28:
-                k = "tank_lo"
-            else:
-                k = "tank"
-        f.material_index = m[k]
-
-
-def shade_bar(bm, faces, m, xy, pts, pz):
-    """Paint the pipe in the sprite's bands seen from above (by the angle round its axis, forward
-    positive): along the shaft row 10 (back) 88, the crown row 11 89-90, the front row 12 87 and
-    the dark row 13 under it; over the bulb (columns 0-7) a light crown (rows 11-12, 90-94) between
-    89 behind and 85-88 in front. Lit renders read a step darker than the sprite, so the crown and
-    front take the lighter of the sprite's tones."""
-    w, h = xy
-    for f in faces:
-        cen = f.calc_center_median()
-        c = cen.x * 12 + w / 2
-        ar = pts[-1][1]
-        for p0, p1 in zip(pts, pts[1:]):
-            if p0[0] <= c <= p1[0]:
-                t = (c - p0[0]) / ((p1[0] - p0[0]) or 1)
-                ar = p0[1] + (p1[1] - p0[1]) * t
-                break
-        dy = (h / 2 - ar) / 12 - cen.y  # forward of the axis
-        dz = cen.z - pz / 12
-        fwd = math.degrees(math.atan2(dy, dz))
-        # (upper angle limit, palette index): a ramp a step or so at a time so the bands shade the
-        # pipe round rather than in facets. Pixel centres seen from above fall at about -39 (row
-        # 10), -6 (11), 25 (12) and 71 (13) degrees on the shaft; -55 (row 10), -29, -9, 9, 29 and
-        # 55 (row 15) on the bulb.
-        if c < 7.0:  # the bulb
-            bands = ((-62, 88), (-42, 89), (-36, 91), (-18, 93), (0, 91), (18, 89), (24, 88), (40, 87),
-                     (50, 85), (999, 83))
-        else:
-            bands = ((-50, 88), (-28, 89), (-14, 90), (14, 91), (22, 89), (36, 88), (50, 87), (64, 85),
-                     (999, 83))
-        f.material_index = next(m[f"p{i}"] for lim, i in bands if fwd < lim)
-
-
 def wedge(bm, c0, r0, c1, r1, z0, ztop, mat, xy, dzdc=0.0, dzdr=0.0):
     """A block over pixel edges c0..c1, r0..r1 from z0 up to a sloping top: ztop at (c0, r0),
     changing by dzdc per column and dzdr per row (pixels). A top tilted towards the front (+r) or
@@ -190,10 +122,9 @@ def half(bm, m, w=WIDTH):
         s = math.sqrt(max(0.0, 1.0 - (1.0 - u) ** 2))
         z = tz + (tr - hw) * 0.35
         pts.append((c, t + hw, hw * s, hw * s, z))
-    first = len(bm.faces)
+    # One mid-tone green all round: the sprite's light crown, dark front slope and outline rows
+    # are its drawn lighting, which the game's lights and outline make on the round tank.
     xtube(bm, pts, sides=20, mat=m["tank"], xy=xy)
-    bm.faces.ensure_lookup_table()
-    shade_tank(bm, bm.faces[first:], m, xy, [(c, r, z) for c, r, _, _, z in pts])
     for c in (16.0, 18.0):  # the two dark rings (columns 16 and 18)
         lib.loft_x(bm, 6.0, [(c, tr + 0.15, tr + 0.15, tz), (c + 1.0, tr + 0.15, tr + 0.15, tz)],
                    sides=20, mat=m["ring"], xy=xy)
@@ -207,14 +138,10 @@ def half(bm, m, w=WIDTH):
                   (2.4, 13.0, 3.05, 3.05, pz), (5.0, 13.0, 3.05, 3.05, pz), (6.6, 12.8, 2.85, 2.85, pz),
                   (8.0, 11.7, 1.9, 2.2, pz), (20.6, 11.7, 1.9, 2.2, pz), (21.8, 11.1, 1.25, 1.6, pz),
                   (24.0, 11.1, 1.25, 1.6, pz)]
-    first = len(bm.faces)
+    # One mid-tone pink (the sprite's bands 83-93 across it are drawn shading and sheen).
     xtube(bm, bar_pts, sides=24, mat=m["bar"], xy=xy)
-    bm.faces.ensure_lookup_table()
-    shade_bar(bm, bm.faces[first:], m, xy, bar_pts, pz)
-    # Its highlight line along the top (row 11, near-white over the bulb).
-    lib.loft_x(bm, 11.0, [(2.2, 0.0, 0.0, 2.05), (3.0, 0.55, 0.3, 2.15), (7.0, 0.55, 0.3, 2.15),
-                          (8.6, 0.5, 0.25, 1.85), (18.0, 0.5, 0.25, 1.85), (18.8, 0.0, 0.0, 1.8)],
-               sides=6, mat=m["bar_hi"], xy=xy)
+    # (The sprite's near-white line along the pipe's top is the metal's sheen, made by the
+    # material and the game's lights, not a ridge.)
     # Grille block: a dark body (columns 7-21, rows 13-20) under five rounded ribs (columns 7-12,
     # 13, 15, 17 and 19-21; the sprite shades each light in the middle and dark at its sides) with
     # 1 px slots between them down to dark floors (columns 12, 14, 16, 18), open at the front.
@@ -238,61 +165,54 @@ def build(sprite):
     coll = common.reset_collection(NAME)
     tag = "nshc197"
     pal = lambda i, **kw: common.palette_material(sprite, i, tag, **kw)  # noqa: E731
-    mats = [
-        # Indices are the sprite's own tones for each part (tank 34-43 in bands, pipe 83-93 in
-        # bands, spine 89-92, ribs 83-88), a step on the light side where the lit render reads
-        # darker than the sprite (ribs 87/88, the pipe's crown 91, the light's rim 117).
-        pal(41, metallic=0.0, roughness=0.6),  # 0 green tanks
-        pal(36, metallic=0.1, roughness=0.55),  # 1 dark green rings
-        pal(89, metallic=0.05, roughness=0.5),  # 2 pink pipe
-        pal(93, metallic=0.1, roughness=0.35),  # 3 pale pipe highlight
-        pal(82, metallic=0.05, roughness=0.6),  # 4 grille body
-        pal(87, metallic=0.0, roughness=0.5),  # 5 grille ribs: lilac like the pipe's shade
-        pal(88, metallic=0.0, roughness=0.5),  # 6 lighter grille ribs
-        pal(90, metallic=0.05, roughness=0.45),  # 7 spine
-        pal(80, metallic=0.0, roughness=0.8),  # 8 slot floors and notch
-        # 9 red light's rim and 10 its core, sunk inside it: the core is darker than the rim on
+    # One mid-tone per part (the sprite's bands across the round tanks and pipe are its drawn
+    # light, outline and sheen; the game lights the model and draws the outline), with each
+    # part's material: the tanks, ribs and spine painted metal, the pipe polished metal (its
+    # near-white line is sheen), the slots and notch dark recesses, the light glowing.
+    parts = [
+        ("tank", pal(42, metallic=0.4, roughness=0.4)),  # green tanks
+        ("ring", pal(36, metallic=0.4, roughness=0.4)),  # their dark green rings (markings)
+        ("bar", common.palette_material(sprite, 91, f"{tag}-pipe", metallic=0.8, roughness=0.3)),  # pink pipe, bulbs
+        ("fin_body", pal(82, metallic=0.3, roughness=0.5)),  # dark grille body
+        ("fin", pal(87, metallic=0.4, roughness=0.4)),  # grille ribs
+        ("fin_hi", pal(88, metallic=0.4, roughness=0.4)),  # the wider outer ribs, a step lighter
+        ("spine", pal(90, metallic=0.4, roughness=0.4)),  # spine block's sides
+        ("spine_top", pal(91, metallic=0.4, roughness=0.4)),  # its top plate
+        ("slot", pal(80, metallic=0.0, roughness=0.8)),  # slot floors and notch (recesses)
+        # the red light's rim and its core, sunk inside it: the core is darker than the rim on
         # 197/199 and brightens past it on 201/203 (red) and 205/207 (orange)
-        common.palette_material(sprite, 117, f"{tag}-rim", metallic=0.0, roughness=0.9, emission_strength=2.0,
-                                frames={205: 118, 207: 118}),
-        common.palette_material(sprite, 113, f"{tag}-light", metallic=0.0, roughness=0.9, emission_strength=4.0,
-                                frames={201: 119, 203: 119, 205: 123, 207: 123}),
-        pal(91, metallic=0.05, roughness=0.4),  # 11 spine's lit top
-        pal(43, metallic=0.0, roughness=0.6),  # 12 tanks' light crown (sprite row 3)
-        pal(40, metallic=0.0, roughness=0.6),  # 13 tanks' front slope (row 8)
-        pal(34, metallic=0.0, roughness=0.7),  # 14 tanks' dark edges (rows 2 and 9)
-        pal(83, metallic=0.05, roughness=0.6),  # 15 the pipe's dark underside (row 13)
-        pal(85, metallic=0.05, roughness=0.55),  # 16 and above it
+        ("rim", common.palette_material(sprite, 117, f"{tag}-rim", metallic=0.0, roughness=0.9,
+                                        emission_strength=2.0, frames={205: 118, 207: 118})),
+        ("light", common.palette_material(sprite, 113, f"{tag}-light", metallic=0.0, roughness=0.9,
+                                          emission_strength=4.0, frames={201: 119, 203: 119, 205: 123, 207: 123})),
     ]
-    slots = {"tank": 0, "tank_hi": 12, "tank_lo": 13, "tank_edge": 14, "ring": 1, "bar": 2, "bar_hi": 3, "fin_body": 4, "fin": 5, "fin_hi": 6, "spine": 7,
-             "slot": 8,
-             # the pipe's bands (shade_bar), by palette index
-             "p83": 15, "p85": 16, "p87": 5, "p88": 6, "p89": 2, "p90": 7, "p91": 11, "p93": 3}
+    mats = [mat for _, mat in parts]
+    slots = {k: i for i, (k, _) in enumerate(parts)}
     xy = (WIDTH, lib.H)
     bm = bmesh.new()
     half(bm, slots)
     lib.mirror_x(bm, 24.0, xy=xy)
     # Spine block (columns 20-28, rows 1-10.3), standing 2 px proud of the tanks' crown (4.5 px):
     # sides in the spine colour, a lighter bevelled top.
-    lib.slab(bm, [(20.0, 1.0), (28.0, 1.0), (28.0, 10.3), (20.0, 10.3)], -3.0, 5.8, mat=7, xy=xy)
-    lib.slab(bm, [(20.0, 1.0), (28.0, 1.0), (28.0, 10.3), (20.0, 10.3)], 5.8, 6.6, mat=11, bevel=0.7, xy=xy)
+    lib.slab(bm, [(20.0, 1.0), (28.0, 1.0), (28.0, 10.3), (20.0, 10.3)], -3.0, 5.8, mat=slots["spine"], xy=xy)
+    lib.slab(bm, [(20.0, 1.0), (28.0, 1.0), (28.0, 10.3), (20.0, 10.3)], 5.8, 6.6, mat=slots["spine_top"], bevel=0.7, xy=xy)
     # Red light between the grille halves (columns 21-27, rows 14-18): a dark red rim round a
     # glowing core (rows 15-17) sunk 1.2 px inside it.
     # Both have louvred tops (see louvres()).
     rim_top, core_top = 0.2, -1.0
     for c0, r0, c1, r1 in ((21.0, 14.0, 27.0, 15.0), (21.0, 17.0, 27.0, 18.0), (21.0, 15.0, 21.6, 17.0),
                            (26.4, 15.0, 27.0, 17.0)):
-        louvres(bm, c0, r0, c1, r1, -2.0, rim_top, 9, xy)
-    louvres(bm, 21.6, 15.0, 26.4, 17.0, -2.0, core_top, 10, xy)
+        louvres(bm, c0, r0, c1, r1, -2.0, rim_top, slots["rim"], xy)
+    louvres(bm, 21.6, 15.0, 26.4, 17.0, -2.0, core_top, slots["light"], xy)
     # Dark notch under the spine where the pipe meets the light (sprite row 12, columns 22-25).
-    louvres(bm, 21.6, 12.0, 26.4, 12.95, -2.0, 0.2, 8, xy)
+    louvres(bm, 21.6, 12.0, 26.4, 12.95, -2.0, 0.2, slots["slot"], xy)
     # Slot floors between the ribs (columns 12, 14, 16, 18 and their mirror images): near-black,
     # each sloping down to the right a little.
     floor = -1.8
     for a, b in ((12.0, 13.0), (14.0, 15.0), (16.0, 17.0), (18.0, 19.0)):
         for c0, c1 in ((a, b), (WIDTH - b, WIDTH - a)):
             wedge(bm, c0 + 0.1, 13.2, c1 - 0.1, 19.8 if b <= 19.0 else 18.8, floor - 0.2, floor + 0.45,
-                  8, xy, dzdc=-0.36)
+                  slots["slot"], xy, dzdc=-0.36)
     return lib.to_object(NAME, bm, mats, coll)
 
 

@@ -109,11 +109,41 @@ def height_field(frames):
     return f
 
 
+OUTLINE_IDX = 112   # the sprite's drawn outline ring (near black); the game draws its own outline
+EDGE_MIN = 115      # the coolest flame red the surface shows: 113/114 are the outline's soft inner edge
+
+
+def flame_colours(pixels):
+    """The sprite's pixels with its drawn outline taken off: each outline pixel takes the mean
+    colour of its flame neighbours (filled inward-out, so the ring and the tip get the cool red
+    next to them), and nothing is darker than EDGE_MIN. The flame's own pattern (hot core, cooler
+    edges) is the fire, not shading, and stays."""
+    h, w = len(pixels), len(pixels[0])
+    out = [list(row) for row in pixels]
+    todo = {(c, r) for r in range(h) for c in range(w) if out[r][c] == OUTLINE_IDX}
+    while todo:
+        done = {}
+        for c, r in todo:
+            nb = [out[r + dr][c + dc] for dc in (-1, 0, 1) for dr in (-1, 0, 1)
+                  if (dc or dr) and 0 <= r + dr < h and 0 <= c + dc < w
+                  and out[r + dr][c + dc] >= 0 and (c + dc, r + dr) not in todo]
+            if nb:
+                done[(c, r)] = round(sum(nb) / len(nb))
+        if not done:
+            for c, r in todo:
+                done[(c, r)] = EDGE_MIN
+        for (c, r), v in done.items():
+            out[r][c] = v
+        todo -= set(done)
+    return [[max(v, EDGE_MIN) if v >= 0 else v for v in row] for row in out]
+
+
 def fireball(bm, pixels, slot, f, drop=0.0):
     """One smooth closed ball over the sprite's pixels: a top surface with a vertex at every pixel
     corner and centre (four triangles a pixel, each pixel in its own palette colour), a short wall
     round the pixel outline and a flat base at z = 0. f is height_field(...); `drop` (px) lowers
     the surface off the outline."""
+    pixels = flame_colours(pixels)
     h, w = len(pixels), len(pixels[0])
     on = lambda c, r: 0 <= r < h and 0 <= c < w and pixels[r][c] >= 0  # noqa: E731
     corner, base = {}, {}
@@ -193,7 +223,8 @@ def build(sprite):
     mats, slot = [], {}
     for i in MAT_INDICES:
         slot[i] = len(mats)
-        mats.append(common.palette_material(sprite, i, NAME, roughness=0.5,
+        # Fire: no metal sheen, a soft rough surface; the glow carries the colour.
+        mats.append(common.palette_material(sprite, i, NAME, metallic=0.0, roughness=0.85,
                                             emission_strength=1.5 + 0.25 * (i - 112)))
     field = height_field([fr["pixels"] for fr in sprite["frames"]])
     parts = []

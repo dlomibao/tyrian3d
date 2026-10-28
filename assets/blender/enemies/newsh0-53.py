@@ -9,7 +9,10 @@ It is a thin flat plate: one flat top about 1 px above the midplane, split into 
 sprite pixel (axis-aligned, so the mottling lands exactly where the sprite has it) and coloured
 with that pixel's palette index. The black outline pixels along the diagonal are a steep 1 px
 bevel between two smooth lines that follow the sprite's stepped edges (the pixels it crosses are
-cut along it), so it covers the outline from above without a sawtooth of steps in 3D.
+cut along it), so it covers the outline from above without a sawtooth of steps in 3D. The bevel,
+walls and bottom are painted the rock's mid-tone (grey beside the grey patch), not the sprite's
+black: the game lights them and draws its own dark outline. The rock is matte (metallic 0,
+roughness 0.9); its mottling is grain on a flat top, so it stays per pixel.
 
 Run: blender --background --python assets/blender/enemies/newsh0-53.py [-- --preview out.png]
 """
@@ -29,8 +32,10 @@ ROOT = common.repo_root(__file__)
 G = lib.Grid(24, 28)
 Z_TOP = 2.0 * lib.U  # the flat top, +2 px
 Z_BOT = -1.0 * lib.U  # the flat bottom
-EDGE_INDEX = 1  # the sprite's black outline
-FINISH = (0.0, 0.9)  # metallic, roughness: matte, no specular sheen on the dark-grey patch
+EDGE_INDEX = 1  # the sprite's black outline (where the top ends; not painted: the game outlines)
+ROCK = 53  # the rock's mid-tone, for its bevel, walls and bottom
+GREY = 3  # the dark-grey patch's mid-tone, for the bevel beside it
+FINISH = (0.0, 0.9)  # metallic, roughness: rock, matte, no specular sheen
 
 
 def build(sprite):
@@ -47,8 +52,12 @@ def build(sprite):
     def mat(i):  # matte: the plate reads navy from above, as in the sprite
         return m(i, metallic=FINISH[0], roughness=FINISH[1])
 
-    EDGE = mat(EDGE_INDEX)
-    SIDE = mat(52)
+    SIDE = mat(ROCK)
+
+    def edge_mat(row):  # the bevel takes the colour of the top beside it, not the sprite's outline
+        r = min(max(int(row), rows[0]), rows[-1])
+        inside = px[r][e[r] - 1] if e[r] > 0 else ROCK
+        return mat(GREY if 0 <= inside <= 4 else ROCK)
     bm = bmesh.new()
     verts = {}
 
@@ -119,10 +128,10 @@ def build(sprite):
     i = j = 0
     while i < len(T) - 1 or j < len(B) - 1:  # zip the two edges together down the rows
         if j == len(B) - 1 or (i < len(T) - 1 and ty[i + 1] <= by[j + 1]):
-            face((T[i], T[i + 1], B[j]), EDGE)
+            face((T[i], T[i + 1], B[j]), edge_mat((ty[i] + ty[i + 1] + by[j]) / 3))
             i += 1
         else:
-            face((T[i], B[j + 1], B[j]), EDGE)
+            face((T[i], B[j + 1], B[j]), edge_mat((ty[i] + by[j + 1] + by[j]) / 3))
             j += 1
     # Top wall (row 0) and left wall (column 0): the rock continues into the next tiles.
     r0 = rows[0]
@@ -131,7 +140,7 @@ def build(sprite):
         face((v(0, r, True), v(0, r, False), v(0, r + 1, False), v(0, r + 1, True)), SIDE)
     # Flat bottom: the sprite's outline.
     ring = [v(0, r, False) for r in rows] + list(reversed(B))
-    face(list(dict.fromkeys(ring)), mat(50))
+    face(list(dict.fromkeys(ring)), SIDE)
     return lib.to_object(NAME, bm, m.list, coll)
 
 

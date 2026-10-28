@@ -116,13 +116,18 @@ BLUES = [50, 52, 55, 59]
 REDS = [113, 114, 115, 116, 117, 118]
 
 
-def round_run(bm, grid, secs, finish, centre=AXIS, z0=0.0, cap=None, lift=0, power=2.0):
+def round_run(bm, grid, secs, finish, centre=AXIS, z0=0.0, cap=None, lift=0, power=2.0, tone=None):
     """A round (circular section) length of the core along X, painted in bands along its length
     like the sprite: each band of faces takes the palette index the sprite shows on that pixel row
     over the run's columns. secs are (column edge in the mirrored b006 block, radius in px); centre is
     the row edge of its axis, z0 its height in units. lift raises every shade that many steps of its
     ramp (the sprite's metal is brighter than the same indices come out under the game's light);
-    power > 2 squares the section off (a superellipse) into a flat-topped plate."""
+    power > 2 squares the section off (a superellipse) into a flat-topped plate.
+
+    tone: paint the whole run (sides and ends) one palette index instead. The sprite's row bands on
+    a plain metal drum are its drawn light (a lit upper stripe, dark lower rows, the outline ring),
+    which the game's lights and outline add again; a single mid-tone lets the light shade it. The
+    row colours still place the ring's vertices, so the shape is unchanged."""
     ay = P(0, centre)[1]
     R = max(r for _, r in secs)
     e0, e1 = min(e for e, _ in secs), max(e for e, _ in secs)
@@ -173,7 +178,10 @@ def round_run(bm, grid, secs, finish, centre=AXIS, z0=0.0, cap=None, lift=0, pow
     ts = sorted(set(round(t, 4) for t in ts))
     ring = [(t, R * max(1.0 - (abs(t) / R) ** power, 0.0) ** (1.0 / power)) for t in ts]
     ring += [(t, -z) for t, z in reversed(ring[1:-1])]
-    mats = [finish(colour((a[0] + b[0]) / 2)) for a, b in zip(ring, ring[1:] + ring[:1])]
+    if tone is not None:
+        mats = [finish(tone)] * len(ring)
+    else:
+        mats = [finish(colour((a[0] + b[0]) / 2)) for a, b in zip(ring, ring[1:] + ring[:1])]
 
     rings = []
     for e, r in secs:
@@ -184,7 +192,10 @@ def round_run(bm, grid, secs, finish, centre=AXIS, z0=0.0, cap=None, lift=0, pow
         for i in range(len(ring)):
             j = (i + 1) % len(ring)
             bm.faces.new((ra[i], ra[j], rb[j], rb[i])).material_index = mats[i]
-    end = finish(up(cap) if cap is not None else colour(-R * 0.4))
+    if tone is not None:
+        end = finish(tone)
+    else:
+        end = finish(up(cap) if cap is not None else colour(-R * 0.4))
     bm.faces.new(list(reversed(rings[0]))).material_index = end
     bm.faces.new(rings[-1]).material_index = end
 
@@ -192,28 +203,32 @@ def round_run(bm, grid, secs, finish, centre=AXIS, z0=0.0, cap=None, lift=0, pow
 def build(sprites):
     coll = common.reset_collection(NAME)
     m = lib.Mats("nshl49", lib.merged_colors(sprites))
-    metal = lambda i: m(i, metallic=0.3, roughness=0.45)  # noqa: E731
-    core = lambda i: m(i, metallic=0.15, roughness=0.45)  # noqa: E731
+    # Materials: the panels, arms, shoulders and brackets are painted metal; the drum, its sleeve,
+    # flange and the bars along it are polished metal, whose bright streaks and white hot spot in
+    # the sprite are sheen the game's lights make on a metallic surface.
+    metal = lambda i: m(i, metallic=0.4, roughness=0.4)  # noqa: E731
+    core = lambda i: m(i, metallic=0.75, roughness=0.3)  # noqa: E731
     bm = bmesh.new()
     ay = P(0, AXIS)[1]
     grid = sprite_grid(sprites)
 
-    # --- Core, left to right in b006 columns (the sprites' right to left): round in section,
-    # painted like the sprite (column edge, radius in px), one step brighter than the sprite's shades
-    # (its silver drum otherwise comes out mid grey under the game's light). Its axis stands ZC above
-    # the panels' plane so the drum sits on the station rather than hanging through it.
+    # --- Core, left to right in b006 columns (the sprites' right to left): round in section
+    # (column edge, radius in px), each part one mid-tone a step or two above the median of the
+    # sprite's shades over it (its drawn highlights and shadows are left to the game's light). Its
+    # axis stands ZC above the panels' plane so the drum sits on the station rather than hanging
+    # through it.
     zc = ZC * U
-    round_run(bm, grid, [(0.0, 7.4), (0.5, 8.0), (3.6, 8.0), (4.2, 7.0)], core, cap=10, z0=zc, lift=LIFT)  # end flange
-    round_run(bm, grid, [(4.2, 5.8), (5.2, 5.8)], core, z0=zc, lift=LIFT)  # groove
-    round_run(bm, grid, [(5.2, 5.8), (6.0, 6.2), (8.8, 6.2), (9.6, 5.6)], core, z0=zc, lift=LIFT)  # end cap
+    round_run(bm, grid, [(0.0, 7.4), (0.5, 8.0), (3.6, 8.0), (4.2, 7.0)], core, z0=zc, tone=9)  # end flange
+    round_run(bm, grid, [(4.2, 5.8), (5.2, 5.8)], core, z0=zc, tone=7)  # groove
+    round_run(bm, grid, [(5.2, 5.8), (6.0, 6.2), (8.8, 6.2), (9.6, 5.6)], core, z0=zc, tone=9)  # end cap
     round_run(bm, grid, [(9.0, 3.6), (13.2, 3.6)],
               lambda i: m(i, metallic=0.1, roughness=0.2, emission_strength=2.5), z0=zc, lift=LIFT)  # glowing shaft
-    round_run(bm, grid, [(12.6, 4.6), (13.2, 4.9), (18.8, 4.9), (19.4, 4.6)], core, z0=zc, lift=LIFT)  # lit sleeve
+    round_run(bm, grid, [(12.6, 4.6), (13.2, 4.9), (18.8, 4.9), (19.4, 4.6)], core, z0=zc, tone=10)  # lit sleeve
     # The raised plate round the drum's left end (sprite columns 22-29): a flat-topped, round-cornered
     # block rather than a ring, its lit top face flat like the sprite's.
-    round_run(bm, grid, [(18.8, 6.4), (19.3, 7.5), (25.4, 7.5), (25.9, 6.4)], core, cap=7, z0=zc, lift=LIFT,
+    round_run(bm, grid, [(18.8, 6.4), (19.3, 7.5), (25.4, 7.5), (25.9, 6.4)], core, z0=zc, tone=10,
               power=3.2)
-    round_run(bm, grid, [(25.8, 4.6), (27.9, 4.6)], core, z0=zc, lift=LIFT)  # neck
+    round_run(bm, grid, [(25.8, 4.6), (27.9, 4.6)], core, z0=zc, tone=8)  # neck
     # Red emitter: a stubby cone, 6 px across where it meets the neck and still about 5 px across at
     # its left end (the sprite's 3 x 5 px red block), closing onto the rod. A step brighter than the
     # sprite's indices so its lit side reads as the sprite's crimson.
@@ -234,7 +249,7 @@ def build(sprites):
         # (row mapping, top/bottom panel, diagonal panel, bar, arm, pipe, strut, shoulder)
         # Above: the top panel's lighter cells in 2 columns x 3 rows; the up-left panel the lightest,
         # silver framed, with a 3 x 3 grid of dark pits between light dividers.
-        (lambda e: e, ((9, 5, 8), (2, 3), False, 2.0), ((9, 3, 6), (3, 3), True, 1.6), 10, 6, 5, 6, 5),
+        (lambda e: e, ((9, 5, 8), (2, 3), False, 2.0), ((9, 3, 6), (3, 3), True, 1.6), 9, 6, 5, 6, 5),
         # Below, in shadow: the bottom panel 2 x 2; the down-left panel dark, 2 x 3 black pits.
         (M, ((6, 2, 4), (2, 2), False, 2.0), ((3, 1, 2), (2, 3), True, 1.6), 7, 4, 4, 2, 2),
     ]
@@ -248,7 +263,7 @@ def build(sprites):
                       ((P(15.5, row(16))[0], P(0, row(16))[1], zb), 1.4 * U)], sides=8, mat_index=metal(arm))
         # The bar along the core (rows 14.5-18, columns 7-23), looping round the flange at column 3.
         round_run(bm, grid, [(6.8, 1.8), (7.3, 2.2), (22.5, 2.2), (23.0, 1.8)], core, centre=row(16.5),
-                  z0=0.04 + zb, cap=bar, lift=LIFT)
+                  z0=0.04 + zb, tone=bar)
         lib.tube(bm, [((P(7.8, 0)[0], P(0, row(16.4))[1], 0.04 + zb), 1.3 * U),
                       ((P(5.4, 0)[0], P(0, row(16.6))[1], 0.04 + zb), 1.3 * U),
                       ((P(4.2, 0)[0], P(0, row(17.8))[1], 0.03 + zb), 1.3 * U),

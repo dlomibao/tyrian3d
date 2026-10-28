@@ -1,10 +1,11 @@
 """Blue crystal (newsh7.shp frames 53, 91, 129): a 3D version of its sprite.
 
 Seen in episode 3 (level section 10) and episode 4. A rounded blue gem, egg-shaped from above,
-in a dark steel setting with a steel drum cap at the top: a smooth dome about 9.5 px tall with
+with a steel drum cap at the top: a smooth dome about 9.5 px tall with
 the sprite's pale seams riding on it as beads (the table line down the left and across the
 bottom, the front edge, the right rim, the cross bar at row 12), and a dark canopy cut into its
-upper centre. Each dome facet takes the blue the sprite shows under it. The frames only shimmer
+upper centre. The gem is one glossy mid-tone blue (the sprite's patchwork is its drawn light), the
+canopy a deeper blue, the cap polished steel. The frames only shimmer
 the blues and the white seams: every blue is one palette step darker on frame 91 and two on 129,
 and the white lines fade (143, 142, 140), so one model covers them all with per-frame colours
 (common.palette_material frames=).
@@ -104,9 +105,9 @@ def build(sprite):
     gem_mats = [
         pal(1, metallic=0.4, roughness=0.4),                                          # 0 dark setting
         common.palette_material(sprite, 140, f"{NAME}-gem", frames={91: 159, 129: 158}, metallic=0.0,
-                                roughness=0.4, emission_strength=0.5),                # 1 pale seam
+                                roughness=0.1, emission_strength=0.5),                # 1 pale seam
         common.palette_material(sprite, 143, f"{NAME}-gem", frames={91: 142, 129: 140}, metallic=0.0,
-                                roughness=0.4, emission_strength=0.5),                # 2 white seam
+                                roughness=0.1, emission_strength=0.5),                # 2 white seam
     ]
     GROUPS = {148: (144, 145, 146, 147, 148, 149), 150: (150, 151), 152: (152,), 153: (153,),
               155: (154, 155), 157: (156, 157), 159: (158, 159)}
@@ -114,8 +115,14 @@ def build(sprite):
     for idx, members in GROUPS.items():
         for m in members:
             mat_of[m] = len(gem_mats)
-        gem_mats.append(shimmer(idx, tag="gem", metallic=0.0, roughness=0.55))
-    WALL = mat_of[150]
+        gem_mats.append(shimmer(idx, tag="gem", metallic=0.05, roughness=0.12))
+    # The gem is glass-like: one mid-tone blue for the whole body (the sprite's lighter and darker
+    # blue patches and the white glints between its seams are its drawn shading and sheen; the
+    # game's light and the glossy material make those), the cut-in canopy a deeper blue. The pale
+    # seams are the beads below, not paint, and the sprite's black outline ring is not painted on
+    # either: the game draws the outline.
+    BODY, DEEP = mat_of[155], mat_of[150]
+    WALL = DEEP
 
     # The dome: a heightfield with one quad per sprite pixel inside the dark outline (rows 7-25;
     # the cap covers rows 2-6). Its border vertices are slid onto the outline polygon scaled to
@@ -164,7 +171,7 @@ def build(sprite):
     for c, r in cells:
         low = (c, r) in canopy
         corners = [(c, r), (c + 1, r), (c + 1, r + 1), (c, r + 1)]
-        add([vert(v, low) for v in corners], mat_of.get(at(c, r), mat_of[155]), "floor" if low else "dome")
+        add([vert(v, low) for v in corners], DEEP if low else BODY, "floor" if low else "dome")
     # The canopy's walls, where a cut pixel meets an uncut one.
     for c, r in canopy:
         for (dc, dr), (a, b) in (((0, -1), ((c, r), (c + 1, r))), ((1, 0), ((c + 1, r), (c + 1, r + 1))),
@@ -188,26 +195,13 @@ def build(sprite):
     rim = [bm.verts.new(world(on_ring(v, 1.0), ZR)) for v in loop]
     foot = [bm.verts.new(world(on_ring(v, 1.0), 0.0)) for v in loop]
 
-    def colour_at(a, b, k):
-        """The sprite's colour at ray scale k, between border points a and b."""
-        m = on_ring(((a[0] + b[0]) / 2, (a[1] + b[1]) / 2), k)
-        return mat_of.get(at(*m), mat_of[155])
-
-    def flank_colour(a, b):
-        """The blue of the gem's body just inside the rim: the vertical flank isn't seen from
-        above, so it takes the body's blue under the pale rim seam (which rides on its top)."""
-        for k in (S_IN - 0.04, S_IN - 0.14, S_IN - 0.24):
-            m = on_ring(((a[0] + b[0]) / 2, (a[1] + b[1]) / 2), k)
-            if 144 <= at(*m) <= 159:
-                return mat_of[at(*m)]
-        return mat_of[155]
     keel = bm.verts.new(world((CENTRE[0], CENTRE[1] + 1.5), -2.5))
     for i in range(len(loop)):
         j = (i + 1) % len(loop)
-        add([top[j], top[i], ledge[i], ledge[j]], flank_colour(loop[i], loop[j]), "flank")
-        add([ledge[j], ledge[i], rim[i], rim[j]], colour_at(loop[i], loop[j], (1 + S_LEDGE) / 2), "ledge")
-        add([rim[j], rim[i], foot[i], foot[j]], 0, "lip")
-        add([foot[j], foot[i], keel], 0, "keel")
+        add([top[j], top[i], ledge[i], ledge[j]], BODY, "flank")
+        add([ledge[j], ledge[i], rim[i], rim[j]], BODY, "ledge")
+        add([rim[j], rim[i], foot[i], foot[j]], BODY, "lip")
+        add([foot[j], foot[i], keel], BODY, "keel")
     gem = common.mesh_object(NAME, bm, gem_mats, coll, smooth=True)
     bm = bmesh.new()
     bm.from_mesh(gem.data)
@@ -224,9 +218,9 @@ def build(sprite):
 
     # Pale seams as beads riding on the dome (pixel-centre coordinates of the sprite's white lines).
     line_mats = [
-        common.palette_material(sprite, 143, f"{NAME}-shimmer", emission_strength=2.5,
-                                frames={91: 142, 129: 140}),  # white seams, fading
-        shimmer(159, metallic=0.0, roughness=0.3),  # the cross bar's pale-blue middle
+        common.palette_material(sprite, 143, f"{NAME}-shimmer", emission_strength=2.5, metallic=0.0,
+                                roughness=0.1, frames={91: 142, 129: 140}),  # white seams, fading
+        shimmer(159, metallic=0.0, roughness=0.1),  # the cross bar's pale-blue middle
     ]
     seams = [
         ([(5.5, 7.4), (5.5, 15.5), (9.5, 19.6), (10.2, 20.5), (15.5, 20.5), (15.5, 25.2)], 0),  # table, front edge
@@ -237,7 +231,7 @@ def build(sprite):
         ([(17.5, 12.5), (20.9, 12.5)], 0),
         ([(5.5, 12.5), (17.5, 12.5)], 1),                                                       # its pale middle
     ]
-    r = 0.42 * PX
+    r = 0.55 * PX
 
     def follow(points, step=3.2):
         """The polyline split into short pieces, each point lifted onto the dome."""
@@ -254,37 +248,18 @@ def build(sprite):
     lines = common.mesh_object(f"{NAME}_lines", bm, line_mats, coll, smooth=True)
 
     # The steel drum cap at the top (rows 2-7): a round drum along the gem's axis, as tall as the
-    # sprite's highlight band implies, dark navy-steel with its pale highlight band on the upper
-    # left (columns 9-11) and a dark front face (row 2).
-    CAP_IDX = [49, 51, 54, 55, 57, 59, 61]
-    cap_mats = [pal(i, metallic=0.3, roughness=0.4) for i in CAP_IDX]
+    # sprite's highlight band implies. It is polished blue steel: one mid-tone (the sprite's pale
+    # band on the upper left is the sheen, its near-black right side and front row the drawn
+    # shading and outline), metallic and smooth so the game's light makes the shine.
+    cap_mats = [pal(59, metallic=0.7, roughness=0.3)]
     bm = bmesh.new()
     zc = 2.8 * PX
-    # One section per sprite row, so each facet takes one row's shades; it ends at row 7, where
-    # the dome's rim begins, closed against it.
+    # One section per sprite row; it ends at row 7, where the dome's rim begins, closed against it.
     common.loft(bm, [(ey(7.0), 6.9 * PX, 3.1 * PX, zc), (ey(6.0), 6.7 * PX, 3.1 * PX, zc),
                      (ey(5.0), 6.2 * PX, 3.0 * PX, zc), (ey(4.0), 5.6 * PX, 2.8 * PX, zc),
                      (ey(3.0), 4.6 * PX, 2.4 * PX, zc), (ey(2.3), 3.6 * PX, 1.9 * PX, zc),
                      (ey(2.05), 2.8 * PX, 1.5 * PX, zc)],
                 sides=16, mat_index=0, cap_start=True, cap_end=False)
-    # Each facet takes the steel shade the sprite shows under it (the pale highlight band on
-    # the upper left, the near-black right side); the underside is the darkest.
-    for f in bm.faces:
-        c = f.calc_center_median()
-        if c.z < zc - 0.5 * PX:
-            f.material_index = 0
-            continue
-        pts = [(c.x, c.y)] + [(c.x + (v.co.x - c.x) * 0.5, c.y + (v.co.y - c.y) * 0.5) for v in f.verts]
-        vals = []
-        for x, y in pts:
-            v = at(x * 12 + 12, 14 - y * 12)
-            if 48 <= v <= 62:
-                vals.append(v)
-            elif v == 1:
-                vals.append(48)
-        if vals:
-            near = [min(range(len(CAP_IDX)), key=lambda k: abs(CAP_IDX[k] - v)) for v in vals]
-            f.material_index = max(set(near), key=lambda k: (near.count(k), -k))
     common.loft(bm, [(ey(2.05), 2.8 * PX, 1.5 * PX, zc), (ey(1.95), 0.0, 0.0, zc)], sides=16, mat_index=0,
                 cap_start=False, cap_end=False)
     cap = common.mesh_object(f"{NAME}_cap", bm, cap_mats, coll, smooth=True)

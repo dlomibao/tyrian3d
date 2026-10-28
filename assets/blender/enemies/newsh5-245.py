@@ -9,10 +9,11 @@ the floor from the lobe up the bowl, and a thick rounded lobe at the bottom left
 Built as one height field over the sprite's own (smoothed) outline: rings of vertices from the
 outline in to the middle, raised by a quarter-ellipse of the distance to the edge (a side that is
 vertical just above a small rounded lip and curves over to the crest) times a dome over the pod's
-principal axes, and lowered where the sprite is drawn dark inside the rim. Each top face takes the
-palette index of the sprite pixel under it, so the sprite's golden tans, browns and cream highlights
-are where the sprite has them; the steep foot of the side, which covers the sprite's dark edge
-pixels from above, is the edge colour. One frame.
+principal axes, and lowered where the sprite is drawn dark inside the rim. The sprite's tans,
+browns and cream highlights are its drawn lighting on that shape, not paint: the skin is one matte
+mid-tan (25) all over, the game's lights shade the rim, bowl and channels, and the game draws the
+dark edge, so the sides are skin too. Only the floor of the concha's channels is a shade darker
+(24), following the smooth groove field rather than the sprite's pixels. One frame.
 
 Run: blender --background --python assets/blender/enemies/newsh5-245.py [-- --preview out.png]
 """
@@ -51,15 +52,17 @@ SIDES = 80  # vertices round the outline
 TOP_RINGS = 22
 UNDER_RINGS = 4
 
-# Material slots: palette indices of the sprite's skin ramp. Highlights 29 and 30 are their own
-# (pale cream on the upper-left rim); the darkest browns 18, 19 take 19; the outline pixels 1, 16, 17
-# take 16 so the sprite's dark edge is dark from above.
-RAMP = [16, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30]
+# Material slots: skin is matte flesh in the sprite's mid-tan; the deep bowl floor and the concha's
+# channels are a shade and two darker (the recess the game's unshadowed light can't darken), by the
+# smooth bowl depth, not the sprite's pixels. The sprite's outline (1, 16, 17), dark browns and
+# cream highlights are its drawn shading.
+SKIN, FLOOR, CHANNEL = 25, 24, 23
+RAMP = [CHANNEL, FLOOR, SKIN]
 SLOT = {i: RAMP.index(i) for i in RAMP}
-SLOT.update({18: SLOT[19], 17: SLOT[16], 1: SLOT[16]})
-UNDER_SLOT = SLOT[16]
-GLOW = 0.3  # a little of its own palette colour, so the lit skin is as bright as the sprite's golden tan
-WALL_DARK = (2.6, 5.4)  # side heights below which it is the edge colour 16, then dark brown 19, px
+FLOOR_AT = 3.6  # bowl depth below the rim surface beyond which it is the floor shade, px
+CHANNEL_AT = 0.5  # the groove field's level above which the floor is the channel shade
+METALLIC, ROUGHNESS = 0.0, 0.72  # skin: no metal, a soft sheen at most
+GLOW = 0.06  # a touch of its own palette colour, so the bowl isn't muddy
 
 
 def gauss_blur(grid, sigma):
@@ -174,28 +177,19 @@ class Field:
         # A rounded side: vertical just above the lip, curving over to the crest (a quarter ellipse).
         x = min(d / EDGE_W, 1.0)
         body = CREST * self.dome(u, v) * math.sqrt(1 - (1 - x) ** 2)
-        inside = smoothstep(2.0, 4.8, d)
-        bowl = BOWL * smoothstep(0.1, 0.6, bilinear(self.wide, u, v))
-        bowl += GROOVE * bilinear(self.groove, u, v)
-        bowl -= RIDGE * self.ridge(u, v)
-        return LIP + body - inside * max(0.0, bowl)
+        return LIP + body - smoothstep(2.0, 4.8, d) * self.bowl(u, v)
+
+    def bowl(self, u, v):
+        """How far the bowl floor sits below the rim's surface here, px."""
+        depth = BOWL * smoothstep(0.1, 0.6, bilinear(self.wide, u, v))
+        depth += GROOVE * bilinear(self.groove, u, v)
+        depth -= RIDGE * self.ridge(u, v)
+        return max(0.0, depth)
 
     def under(self, d):
         # The lip curls under to the flat base at 0 (no undercut below it).
         x = min(d / UNDER_W, 1.0)
         return LIP * (1 - math.sqrt(1 - (1 - x) ** 2))
-
-    def index_at(self, u, v):
-        """The sprite's palette index under (u, v); an outline pixel gives its inner neighbour's."""
-        for step in range(6):
-            t = step * 0.6 / max(1e-6, math.hypot(self.cu - u, self.cv - v))
-            uu, vv = u + (self.cu - u) * min(1.0, t), v + (self.cv - v) * min(1.0, t)
-            c, r = int(math.floor(uu)), int(math.floor(vv))
-            if 0 <= r < H and 0 <= c < W:
-                i = self.pixels[r][c]
-                if i >= 0 and i not in OUTLINE_IDX:
-                    return i
-        return 24
 
 
 def to_xy(u, v):
@@ -205,7 +199,7 @@ def to_xy(u, v):
 def build(sprite):
     coll = common.reset_collection(NAME)
     pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
-    mats = [pal(i, metallic=0.0, roughness=0.55, emission_strength=GLOW) for i in RAMP]
+    mats = [pal(i, metallic=METALLIC, roughness=ROUGHNESS, emission_strength=GLOW) for i in RAMP]
     field = Field(sprite["frames"][0]["pixels"])
     cu, cv = field.cu, field.cv
 
@@ -259,17 +253,12 @@ def build(sprite):
     for f in top_faces:
         c = f.calc_center_median()
         u, v = c.x * 12 + W / 2, H / 2 - c.y * 12
-        col, row = int(math.floor(u)), int(math.floor(v))
-        under_px = field.pixels[row][col] if 0 <= row < H and 0 <= col < W else -1
-        if f.normal.z < 0.5 and c.z * 12 < WALL_DARK[0]:
-            i = 16  # the foot of the steep side, over the sprite's dark edge pixels
-        elif f.normal.z < 0.5 and c.z * 12 < WALL_DARK[1]:
-            i = 19  # the shaded side above it, still over the edge pixels from above
-        else:
-            i = field.index_at(u, v)
-        f.material_index = SLOT.get(i, SLOT[24])
+        i = SKIN
+        if field.edge_dist(u, v) > 3.0 and field.bowl(u, v) > FLOOR_AT:
+            i = CHANNEL if bilinear(field.groove, u, v) > CHANNEL_AT else FLOOR
+        f.material_index = SLOT[i]
     for f in under_faces:
-        f.material_index = UNDER_SLOT
+        f.material_index = SLOT[SKIN]
 
     return common.mesh_object(NAME, bm, mats, coll, smooth=True)
 

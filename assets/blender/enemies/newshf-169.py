@@ -23,11 +23,18 @@ NAME = "newshf-169"
 P = 1 / 12  # one sprite pixel
 
 
-# Tags for the parts while building; every face is then recoloured with the exact palette index of
-# the sprite pixel above it (one material per index the sprite uses).
-TUBE, KNOB, FINE = range(3)
-# The index the knobs fall back to where a knob bulges over a darker neighbouring pixel.
-KNOB_MIN = 73
+# Tags for the parts while building; each is then given its part's mid-tone palette index. The
+# sprite's light and dark columns (bright left flank, dark right flank, black outline ring) are its
+# drawn lighting, which the game's lights and outline make, so they are not painted on; only the
+# purple band, the groove and the dark socket between the prongs are real markings.
+TUBE, KNOB, FINE, SADDLE = range(4)
+HULL = 71      # the red hull's mid-tone (the sprite's body pixels average index 69.6, lit to ~71)
+NOZZLE = 74    # the pink nozzle knobs
+BAND = 87      # the purple band, rows 17-18 (84-90)
+GROOVE = 67    # the groove's floor, column 5, rows 15-20
+SOCKET = 66    # the dark socket between the prongs, rows 5-6
+# Painted metal hull: some sheen, not a mirror.
+FINISH = {HULL: (0.4, 0.4), NOZZLE: (0.5, 0.35), BAND: (0.4, 0.4), GROOVE: (0.4, 0.5), SOCKET: (0.3, 0.6)}
 
 # The tube's ring vertices sit on the sprite's column edges, so each face seen from above lies under
 # one pixel column: X offsets in px across the top, equator to equator, with the groove's two walls
@@ -143,49 +150,39 @@ def pod(bm, x0):
                                (x0 + dc * 1.5 * P, ey(4.05), 2.4 * P)],
                           [1.4 * P, 1.35 * P, 0.7 * P], sides=4, mat_index=FINE, flat=1.0)
     lib.polyline_tube(bm, [(x0 - 1.5 * P, ey(6.6), 1.4 * P), (x0 + 1.5 * P, ey(6.6), 1.4 * P)],
-                      0.7 * P, sides=4, mat_index=FINE, flat=1.2)
-
-
-def cut_small_parts(bm):
-    """Split the prongs, saddle and knobs (whose faces span several pixels) along the sprite's pixel
-    grid, so each pixel's centre lands on a face of its own colour."""
-    cuts = [((c - 12) * P, 0) for c in range(25)] + [(ey(r), 1) for r in range(4, 28)]
-    for co, axis in cuts:
-        bm.normal_update()
-        faces = [f for f in bm.faces if f.material_index in (KNOB, FINE) and f.normal.z > 0.2
-                 and min(v.co[axis] for v in f.verts) < co < max(v.co[axis] for v in f.verts)]
-        if faces:
-            geom = faces + list({e for f in faces for e in f.edges}) + list({v for f in faces for v in f.verts})
-            bmesh.ops.bisect_plane(bm, geom=geom, plane_co=(co, 0, 0) if axis == 0 else (0, co, 0),
-                                   plane_no=(1, 0, 0) if axis == 0 else (0, 1, 0))
+                      0.7 * P, sides=4, mat_index=SADDLE, flat=1.2)
 
 
 def build(sprite):
     coll = common.reset_collection(NAME)
     pal = lib.palette(sprite, NAME)
-    pixels = sprite["frames"][0]["pixels"]
-    used = sorted({i for row in pixels for i in row if i >= 0})
-    slot = {i: k for k, i in enumerate(used)}
-    mats = [pal(i, metallic=0.3 if i >= 84 else 0.05, roughness=0.35 if i >= 84 else 0.55) for i in used]
     bm = bmesh.new()
     for x0 in (-0.5, 0.5):  # pod centres: column edges 6 and 18
         pod(bm, x0)
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    cut_small_parts(bm)
-    # Colour every face by the sprite pixel under its centre, seen from above: the sprite's dark
-    # outline becomes dark flanks, its stripes and groove land exactly where it draws them.
     bm.normal_update()
     for f in bm.faces:
         c = f.calc_center_median()
-        col, r = math.floor(c.x / P + 12 + 1e-4), math.floor(14 - c.y / P + 1e-4)
-        idx = pixels[r][col] if 0 <= r < len(pixels) and 0 <= col < len(pixels[0]) else -1
-        if idx < 0 or f.normal.z < -0.2 or (f.normal.z < 0.35 and idx <= 68):
-            # Underneath, and the steep flanks under the sprite's black outline (which the camera
-            # sees edge-on from above): the dark red of the body's shaded side, not black.
-            idx = 68
-        if f.material_index == KNOB and idx < KNOB_MIN:
-            idx = KNOB_MIN
-        f.material_index = slot[idx]
+        x0 = -0.5 if c.x < 0 else 0.5
+        dx, r = (c.x - x0) / P, 14 - c.y / P  # px from the pod's centre line, sprite row
+        top = f.normal.z > 0.35
+        if f.material_index == KNOB:
+            idx = NOZZLE
+        elif f.material_index == SADDLE or (f.material_index == TUBE and r < 7.6 and abs(dx) < 1.2
+                                             and f.normal.z > 0.2):
+            idx = SOCKET
+        elif f.material_index == TUBE and 16.8 <= r <= 19.2 and abs(dx) < 3.6:
+            idx = GROOVE if top and -1.0 < dx < 0.0 else BAND
+        elif f.material_index == TUBE and top and 15 <= r <= 21 and -1.0 < dx < 0.0:
+            idx = GROOVE
+        else:
+            idx = HULL
+        f.material_index = idx
+    used = sorted({f.material_index for f in bm.faces})
+    slot = {i: k for k, i in enumerate(used)}
+    for f in bm.faces:
+        f.material_index = slot[f.material_index]
+    mats = [pal(i, metallic=FINISH[i][0], roughness=FINISH[i][1]) for i in used]
     obj = common.mesh_object(NAME, bm, mats, coll, smooth=True)
     return [(NAME, [obj], sprite["sprites"])]
 

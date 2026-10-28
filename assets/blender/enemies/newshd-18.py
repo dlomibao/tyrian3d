@@ -91,19 +91,6 @@ def seg_dist(x, y, a, b):
     return math.hypot(x - ax - t * dx, y - ay - t * dy)
 
 
-def repaint(bm, shade, edges, outline):
-    """Paint every face again after reshaping, the way lib.rock does (darkest shade underneath).
-    Top faces over the sprite's near-black outline ring (or just outside it) take `outline`."""
-    bm.normal_update()
-    for f in bm.faces:
-        k = face_band(shade, edges, f)
-        f.material_index = 0 if k is None else k
-        if k is not None:
-            cen = f.calc_center_median()
-            if shade.index(cen.x, cen.y) in lib.OUTLINE:
-                f.material_index = outline
-
-
 def fit_plane(bm, x0, x1, y0, y1, margin):
     """Least-squares plane z = a + b x + c y through the rock's top vertices round a rectangle."""
     import numpy as np
@@ -128,44 +115,45 @@ def slab(bm, x0, x1, y0, y1, plane, top, depth, mat):
         f.material_index = mat
 
 
-def face_band(shade, edges, f):
-    """The shade band lib.rock paints a top face with, from a frame's Shade (None: underneath)."""
-    if f.normal.z < -0.3:
-        return None
-    cen = f.calc_center_median()
-    pts = [cen] + [cen.lerp(v.co, 0.6) for v in f.verts]
-    vals = [x for x in (shade.at(p.x, p.y, blur=0.3) for p in pts) if x is not None]
-    if not vals:
-        return 1 if f.normal.z > 0.3 else 0
-    k = lib.band_of(edges, sum(vals) / len(vals))
-    return max(0, k - 1) if f.normal.z < 0.2 else k
+# Paint (the sprite's lighting is not paint): the rock is matte grey and the game's sun,
+# environment light and outline shade it; its lumps, crater and cracks are in the relief. It keeps
+# only a faint mottle a step either side of its mid-tone (stone isn't one flat colour), following
+# the sprite's light and dark areas loosely, with no outline ring, black cracks or white crown
+# painted on. Beyond that only what the light can't make is painted: the vent's glow on the rock
+# round it on frame 18 (cooling to plain rock on 55 and 93) and the scorched bed under the vent
+# that frame 93 shows.
+ROCK = (5, 6, 8)  # dark, mid, light stone (the sprite's body greys centre on 6-8)
+SCORCH = 4        # the dark bed under the vent
+HALO = 11         # rock lit by the glow on frame 18
 
 
-def glow_on_rock(sprite, bm, mats):
-    """The rock round the vent is lit by its glow on frame 18 and darker on 55 and 93: give the
-    faces whose shade changes a material that takes each frame's shade (palette_material frames=).
-    Under the vent this also paints the bare rock frame 93 shows once the vent is gone."""
-    first = sprite["frames"][0]
-    reps, edges = lib.shade_slots(sprite, first["pixels"], 6, FIRE)  # as lib.rock picked them
-    shades = [(f["index"], lib.Shade(sprite, f["pixels"], 2, FIRE)) for f in sprite["frames"][1:]]
+def paint_rock(sprite, bm):
+    """Material slots: 0-2 dark/mid/light stone, 3 scorched vent bed, 4 glow-lit rock (frame 18)."""
+    lit = lib.Shade(sprite, sprite["frames"][0]["pixels"], 2, FIRE)
+    cool = lib.Shade(sprite, sprite["frames"][1]["pixels"], 2, FIRE)
     bm.normal_update()
-    glow = {}
+    rock = []
     for f in bm.faces:
-        if face_band(shades[0][1], edges, f) is None:
+        f.material_index = 1
+        if f.normal.z < -0.3:
             continue
-        k0 = f.material_index
-        if k0 >= len(reps):  # the outline ring
+        c = f.calc_center_median()
+        u, v = lib.to_edge(c.x, c.y, 2)
+        if VENT_C0 <= u < VENT_C1 and VENT_R0 <= v < VENT_R1:
+            f.material_index = 3
             continue
-        per = {i: face_band(sh, edges, f) for i, sh in shades}
-        frames = {i: reps[k] for i, k in per.items() if reps[k] != reps[k0]}
-        if not frames:
-            continue
-        key = (k0, *(per[i] for i, _ in shades))
-        if key not in glow:
-            glow[key] = len(mats)
-            mats.append(common.palette_material(sprite, reps[k0], f"{NAME}-glow{''.join(map(str, key))}",
-                                                metallic=0.0, roughness=0.85 - 0.04 * k0, frames=frames))
-        f.material_index = glow[key]
+        a, b = lit.at(c.x, c.y, blur=0.3), cool.at(c.x, c.y, blur=0.3)
+        if a is not None and b is not None and a - b > 30:
+            f.material_index = 4
+        elif a is not None and f.normal.z > 0.2:  # the top only: the rim stays mid-tone
+            rock.append((lit.at(c.x, c.y, blur=1.0), f))
+    # The darkest and lightest quarter of the top a step either side of the mid-tone.
+    rock.sort(key=lambda t: t[0])
+    q = len(rock) // 4
+    for _, f in rock[:q]:
+        f.material_index = 0
+    for _, f in rock[-q:]:
+        f.material_index = 2
 
 
 def build(sprite):
@@ -173,10 +161,8 @@ def build(sprite):
     coll = common.reset_collection(NAME)
     pixels = sprite["frames"][0]["pixels"]
     # grow: the body reaches out over the sprite's dark outline ring, as the sprite's footprint does.
-    bm, mats, shade = lib.rock(sprite, NAME, pixels, size=2, half_height=HALF_HEIGHT, relief=0.05,
+    bm, _, _ = lib.rock(sprite, NAME, pixels, size=2, half_height=HALF_HEIGHT, relief=0.05,
                                seed=18, subdiv=3, skip=FIRE, grow=1.25, flat_bottom=0.55)
-    for m in mats:  # plain stone, not metal: the sprite's light greys read lighter from above
-        next(n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED").inputs["Metallic"].default_value = 0.0
     cx, cy, _ = lib.silhouette(pixels, 2)
     reshape(bm, cx, cy)
 
@@ -194,10 +180,12 @@ def build(sprite):
         if x0 - m < v.co.x < x1 + m and y0 - m < v.co.y < y1 + m and v.co.z > 0:
             v.co.z = min(v.co.z, plane(v.co.x, v.co.y) - 0.012)
 
-    _, edges = lib.shade_slots(sprite, pixels, 6, FIRE)
-    mats.append(common.palette_material(sprite, 1, NAME, metallic=0.0, roughness=0.9))
-    repaint(bm, shade, edges, len(mats) - 1)
-    glow_on_rock(sprite, bm, mats)
+    # Plain stone, not metal: matte and rough, so the lit faces of its lumps read as rock.
+    mats = [common.palette_material(sprite, i, NAME, metallic=0.0, roughness=0.85) for i in ROCK]
+    mats += [common.palette_material(sprite, SCORCH, NAME, metallic=0.0, roughness=0.9),
+             common.palette_material(sprite, HALO, f"{NAME}-glow", metallic=0.0, roughness=0.85,
+                                     frames={55: ROCK[1], 93: ROCK[1]})]
+    paint_rock(sprite, bm)
     rock = common.mesh_object(NAME, bm, mats, coll, smooth=False)
 
     # The vent: a flat glowing panel, hard-edged steps as the sprite draws them: red 119 with darker
@@ -209,8 +197,10 @@ def build(sprite):
                                 frames={55: 117}),
         common.palette_material(sprite, 117, vent_tag, metallic=0.0, roughness=0.6, emission_strength=3.0,
                                 frames={55: 115}),
-        common.palette_material(sprite, 122, vent_tag, emission_strength=5.0, frames={55: 120}),
-        common.palette_material(sprite, 126, vent_tag, emission_strength=6.0, frames={55: 124}),
+        common.palette_material(sprite, 122, vent_tag, metallic=0.0, roughness=0.3, emission_strength=5.0,
+                                frames={55: 120}),
+        common.palette_material(sprite, 126, vent_tag, metallic=0.0, roughness=0.3, emission_strength=6.0,
+                                frames={55: 124}),
     ]
     RED, DARK, HOT, CORE = range(4)
     vb = bmesh.new()

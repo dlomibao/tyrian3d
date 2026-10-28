@@ -40,7 +40,7 @@ def build(sprite):
     # 233 and 235 (palette_material frames=).
     def glow(i, part, strength=2.0):
         return m.anim(i, part, {229: i - 1, 233: min(i + 1, 127), 235: min(i + 3, 127)},
-                      emission_strength=strength)
+                      roughness=0.1, emission_strength=strength)
 
     cx, cy, rx, ry, h, power, flat = g.ex(11.5), g.ey(14), 7.6 * L.U, 10.2 * L.U, 0.5, 4.0, 0.45
     L.dome(bm, cx, cy, rx, ry, h, z0=0.0, sides=24, rings=5, mat=glow(115, "crystal", 2.5), power=power, flat=flat)
@@ -55,16 +55,18 @@ def build(sprite):
         c = min(1.0, (rho - flat) / (1 - flat))
         return h * (1 - c * c) ** 0.5 + 0.012 + 0.02 * c
 
-    # Its face (the lit rim along the upper left, the swirl in its heart) painted from the sprite's
-    # pixels over the part of it inside its edge, which keeps the body's own colour.
+    # The swirl in its heart painted from the sprite's pixels in two tones, away from the edge,
+    # which keeps the body's own colour: the sprite's lit rim along the upper left and its bright
+    # lower-right rim are the glossy crystal's shine, which the lights make.
     face = next(f for f in sprite["frames"] if f["index"] == 231)["pixels"]
-    inner = [[v if 112 <= v <= 127 and all(norm(g.ex(c + dc), g.ey(r + dr)) < 0.93 for dc in (0, 1) for dr in (0, 1))
+    inner = [[v if 112 <= v <= 127 and all(norm(g.ex(c + dc), g.ey(r + dr)) < 0.8 for dc in (0, 1) for dr in (0, 1))
               else -1 for c, v in enumerate(row)] for r, row in enumerate(face)]
-    bins = {112: 113, 113: 113, 119: 119, 120: 119, 121: 121, 122: 121}
     slot = {}
 
     def slot_of(i):
-        b = bins.get(i, i if i <= 118 else 124)
+        if i <= 116:
+            return None  # the body
+        b = 117 if i <= 118 else 119
         if b not in slot:
             slot[b] = glow(b, f"face{b}")
         return slot[b]

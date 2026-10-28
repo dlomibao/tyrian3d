@@ -36,11 +36,12 @@ ROOT = common.repo_root(__file__)
 PIECES = [("newshk-51", 92, 55), ("newshk-53", 116, 55), ("newshk-55", 140, 55)]
 CORE_INDEX = 127  # the white-hot core
 CORE_PX = 1.0  # the core sheet's thickness, sprite px
-LOW, HIGH = 115, 127  # flame palette ramp: darkest red .. white (emission strength)
+LOW, HIGH = 115, 127  # flame palette ramp: darkest red .. white
 # Flame pixel heights (sprite px) by palette index: red tips low, orange, yellow licks, and the
 # white streaks along their crests about 1 px proud of the yellow.
 FLAME_PX = {115: 0.8, 116: 0.9, 117: 1.0, 118: 1.2, 119: 1.4, 120: 1.6, 121: 2.0, 122: 2.3,
             123: 2.6, 124: 3.0, 125: 3.2, 126: 4.0, 127: 4.3}
+GLOW_FROM = 124  # yellow and white flame glow (emission 1); red and orange are lit, matte
 SMOOTH = 0.35  # how much each flame pixel is blended with its neighbours' mean
 RAMP_PX = 4.0  # flames rise from the core's height over this many px out from it
 
@@ -165,10 +166,15 @@ def fire_assembly(root, file, name, pieces):
     used = sorted({v for line in grid for v in line if v >= 0})
     mats, mat_of = [], {}
     for v in used:
-        t = (min(max(v, LOW), HIGH) - LOW) / (HIGH - LOW)
+        # Fire: matte (metallic 0, roughness 0.9), never metal. The yellow and white flame glows
+        # at exactly its palette colour (strength 1: the game swaps the live palette colour into
+        # the emissive but keeps a glTF strength, so more than 1 multiplies it and, with the
+        # scene's light on top, burns the whole column out to white). The red and orange tongues
+        # don't glow: the scene's light alone brings them to about the sprite's brightness, where
+        # glowing as well washed them out to yellow.
         mat_of[v] = len(mats)
-        mats.append(common.palette_material(sprite, v, name, metallic=0.0, roughness=0.6,
-                                            emission_strength=2.5 + 2.5 * t))
+        mats.append(common.palette_material(sprite, v, name, metallic=0.0, roughness=0.9,
+                                            emission_strength=1.0 if v >= GLOW_FROM else 0.0))
     bm = bmesh.new()
     fire_relief(bm, grid, mat_of)
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-6)

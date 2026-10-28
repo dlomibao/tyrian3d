@@ -8,9 +8,9 @@ are flat planes of the rock itself: the crown's vertices over those pixels are s
 tilted a little toward the upper-left light, flush with the rock on its lit side and a little
 above it on its shadowed lower right (no separate plates). The darker middle column sinks a little
 as a crease, and the two dark pits (between the upper facets, and lower right) are cut in.
-Each face takes the sprite's own palette index under it, so the facets' near-white cores and grey
-surrounds come through; under the girth, and on the low steep side, the rock is the sprite's dark
-slate rather than the outline's black. Flat shaded and matte all over.
+The rock is painted one mid-tone slate (the facets one lighter grey each, the two pits a shade
+darker) and left to the game's light: the facets' near-white cores and the dark lower right and rim in the sprite are its
+drawn lighting, and the game draws the black outline itself. Flat shaded and matte all over.
 One frame, one model.
 
 Built here rather than by lib_b014.rock (which makes a thin lens of this size) from its helpers.
@@ -56,13 +56,11 @@ DIP = 0.06        # most the darker ramp sinks on the crown (units; 0.7 px)
 SOFT = 1.3        # crease smoothing radius (sprite px)
 FULL = 0.8        # < 1 fills out the ellipsoid's shoulders
 NEUTRAL = (3, 4, 5, 6)  # the sprite's neutral greys (its rim and a few dark specks)
-RIM, EDGE, SLATE = 3, 1, 102  # rim grey, near-black outline, the dark slate of the lower rows
-MERGE = {32: 1, 4: 3, 6: 5, 108: 107}  # near-identical indices share a material
-UNDER = -0.05     # faces facing further down than this are under the girth (painted slate)
-GIRTH = 0.24      # faces below this height (units; 3 px) are under the girth, unseen from above
-LOW_SIDE = 0.36  # steep outline faces below this height (units; 4.3 px) are painted slate
-DARK_SLATE = 101  # the darkest slate, about the rim grey's brightness
-UNDER_SLATE = 103  # under the girth, facing away from the light, a shade up reads as the slate
+BODY = 103        # the rock's mid-tone slate, all over (the light makes its highlights and shadows)
+PIT = 102         # the two pits, a shade darker
+FACE = 107        # the three facets: one flat, lighter stone face each (not the sprite's near-white)
+PIT_MIN = 0.06    # how far a face's corners sink, on average, to count as in a pit (units)
+METALLIC, ROUGHNESS = 0.0, 0.85  # dry stone: no metal, rough
 
 
 def convex_hull(points):
@@ -84,13 +82,12 @@ def build(sprite):
     frame = sprite["frames"][0]
     pixels, size = frame["pixels"], frame["size"]
 
-    shade = lib.Shade(sprite, pixels, size)
     slot, mats = {}, []
 
     def mat(index):
         if index not in slot:
             slot[index] = len(mats)
-            mats.append(common.palette_material(sprite, index, NAME, metallic=0.0, roughness=0.9))
+            mats.append(common.palette_material(sprite, index, NAME, metallic=METALLIC, roughness=ROUGHNESS))
         return slot[index]
 
 
@@ -192,34 +189,32 @@ def build(sprite):
     # The two dark pits (between the upper facets, and lower right) are cut into the crown,
     # after the facets so the rock pulled up round them doesn't fill the pits in.
     lit = set().union(*FACETS)
+    pit_drop = {}
     for v in bm.verts:
         if lat.get(v, 0) < 0.4 or pixel_of(v.co) in lit:
             continue
         for px, py, pr, depth in PITS:
             d2 = ((v.co.x - px / 12) ** 2 + (v.co.y - py / 12) ** 2) * 144 / (pr * pr)
-            v.co.z -= depth * math.exp(-d2 * d2) * min(1.0, (lat[v] - 0.4) / 0.3)
+            drop = depth * math.exp(-d2 * d2) * min(1.0, (lat[v] - 0.4) / 0.3)
+            v.co.z -= drop
+            pit_drop[v] = pit_drop.get(v, 0.0) + drop
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
 
-    # Paint: the sprite's own palette index under each face seen from above (the most common one
-    # among a few samples), so the facets' near-white cores and grey surrounds both come through.
-    # Faces under the girth can't be seen from above; the game camera sees them on the near side,
-    # so they take the sprite's dark slate (its rows 10-12) rather than the outline's black, which
-    # stays on the outermost ring only.
+    # Paint: the rock is one stone, so it takes the sprite's mid-tone slate all over and the game's
+    # light shades it (its sides and lower right fall dark; the game draws the black outline). The
+    # game's sun is nearly overhead, so tilting alone can't make the facets stand out as the
+    # sprite's do: each facet is one flat, lighter face of the stone (a single grey, not the
+    # sprite's per-pixel near-white). The two pits, cut in, are a shade darker (the game has no
+    # ambient occlusion to darken them).
     bm.normal_update()
     for f in bm.faces:
-        cen = f.calc_center_median()
-        if f.normal.z < UNDER or cen.z < GIRTH:
-            f.material_index = mat(UNDER_SLATE)
-            continue
-        pts = [cen] + [cen.lerp(v.co, 0.6) for v in f.verts]
-        idx = [MERGE.get(i, i) for i in (shade.index(p.x, p.y) for p in pts)]
-        idx = [i for i in idx if i != -1] or [EDGE]
-        best = max(sorted(set(idx)), key=idx.count)
-        if best == RIM and f.normal.z < 0.35:
-            best = DARK_SLATE  # the rim's steep sides: as dark, but the rock's slate rather than grey
-        elif best == EDGE and f.normal.z < 0.35 and cen.z < LOW_SIDE:
-            best = SLATE  # the low side reads dark slate, not black
-        f.material_index = mat(best)
+        sunk = sum(pit_drop.get(v, 0.0) for v in f.verts) / len(f.verts)
+        if sunk > PIT_MIN:
+            f.material_index = mat(PIT)
+        elif f.normal.z > 0.3 and pixel_of(f.calc_center_median()) in lit:
+            f.material_index = mat(FACE)
+        else:
+            f.material_index = mat(BODY)
 
     # Flat shaded all over, matte, so the whole rock reads as one faceted stone.
     obj = common.mesh_object(NAME, bm, mats, coll, smooth=False)

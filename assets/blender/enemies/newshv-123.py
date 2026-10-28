@@ -94,23 +94,17 @@ def pod(sprite, name, offset):
     def pal(i, **kw):
         i += offset
         return common.palette_material(sprite, i, f"{name}-pulse", frames={f1: i - 2, f2: i - 4}, **kw)
-    # Shades from the sprite, ring by ring from the centre (each the best match, in CIE dE, to
-    # the sprite's pixels at that radius), stepping one palette index at a time so the side grades
-    # smoothly: 78 at the apex, 77, 76 over the crown and the body, 75, 74, 73, 71, then the
-    # outline (64) on the dome's outermost px.
+    # The pod is a glossy red shell (a gem-like enamel dome, newshv-153's red twin): the sprite's
+    # light centre, darker rings and 1 px dark outline are its drawn lighting, not paint, so the
+    # whole dome takes the sprite's mid-tone (75) and the game's sun, environment light and outline
+    # shade it; a glossy material makes the bright centre a highlight. The groove is a real marking
+    # (a cut-in dark diamond), one shade darker than the sprite's diamond pixels' mid (71).
     mats = [
-        pal(62, metallic=0.05, roughness=0.4),   # 0 apex highlight (78)
-        pal(61, metallic=0.05, roughness=0.45),  # 1 crown (77)
-        pal(60, metallic=0.05, roughness=0.45),  # 2 body (76)
-        pal(59, metallic=0.05, roughness=0.5),   # 3 shoulder (75)
-        pal(58, metallic=0.05, roughness=0.5),   # 4 lower shoulder (74)
-        pal(57, metallic=0.05, roughness=0.55),  # 5 side (73)
-        pal(55, metallic=0.05, roughness=0.55),  # 6 lower side (71)
-        # 7 the outline, the dome's outermost px (64 on every frame, so no pulse)
-        common.palette_material(sprite, 64, name, metallic=0.1, roughness=0.6),
-        pal(56, metallic=0.1, roughness=0.6),    # 8 groove (72, the diamond ring's shade)
+        pal(58, metallic=0.05, roughness=0.25),  # 0 shell (74)
+        pal(55, metallic=0.05, roughness=0.3),   # 1 groove (71)
     ]
-    APEX, CROWN, BODY, SHOULDER, LOWER, SIDE, LOWSIDE, RIM, GRV = range(9)
+    APEX = CROWN = BODY = SHOULDER = LOWER = SIDE = LOWSIDE = RIM = 0
+    GRV = 1
     g0, g1, g2, g3 = GROOVE
 
     def crown(u):

@@ -138,20 +138,23 @@ def build(sprite):
     coll = common.reset_collection(NAME)
     tag = "nshc54"
     pal = lambda i, **kw: common.palette_material(sprite, i, tag, **kw)  # noqa: E731
+    # Materials: the blue hull is glossy painted metal; its sprite's light streaks (down the pods'
+    # inner shoulders, the lower arms' crests and the bar's crest) are that gloss, so they are left
+    # to the lights, not modelled. Colours are each part's mid-tone, not its shaded pixels.
     mats = [
-        pal(54, metallic=0.15, roughness=0.35),  # 0 blue pod hull (the sprite's pods average 53-55)
-        pal(52, metallic=0.15, roughness=0.4),  # 1 dark blue struts and bar
-        pal(60, metallic=0.4, roughness=0.25),  # 2 light blue pipe
-        pal(50, metallic=0.2, roughness=0.6),  # 3 dark blue grooves and the plate in the U's mouth
-        pal(5, metallic=0.7, roughness=0.35),  # 4 grey clamp and rod
-        pal(3, metallic=0.5, roughness=0.5),  # 5 dark grey joint
-        pal(106, metallic=0.7, roughness=0.3),  # 6 light grey edges
-        pal(10, metallic=0.8, roughness=0.2),  # 7 bright grey edge
+        pal(55, metallic=0.5, roughness=0.25),  # 0 blue pod hull (the pods' mid-tone)
+        pal(53, metallic=0.45, roughness=0.32),  # 1 dark blue struts, lower arms and bar
+        pal(60, metallic=0.4, roughness=0.25),  # 2 light blue pipe (a marking)
+        pal(50, metallic=0.3, roughness=0.5),  # 3 dark blue grooves and the plate in the U's mouth
+        pal(5, metallic=0.75, roughness=0.3),  # 4 grey clamp and rod (polished metal)
+        pal(3, metallic=0.6, roughness=0.4),  # 5 dark grey joint
+        pal(106, metallic=0.75, roughness=0.3),  # 6 light grey edges
+        pal(10, metallic=0.8, roughness=0.25),  # 7 bright grey edge
         pal(7, metallic=0.75, roughness=0.3),  # 8 grey stem collar
-        pal(61, metallic=0.4, roughness=0.2),  # 9 pale blue highlights
-        pal(56, metallic=0.35, roughness=0.3),  # 10 mid blue bumps
-        pal(58, metallic=0.4, roughness=0.25),  # 11 lower arm highlight, knob
-        pal(2, metallic=0.4, roughness=0.5),  # 12 near-black stem
+        pal(61, metallic=0.4, roughness=0.2),  # 9 (unused: pale highlights are the hull's gloss)
+        pal(54, metallic=0.5, roughness=0.25),  # 10 blue blisters and bar studs
+        pal(58, metallic=0.4, roughness=0.25),  # 11 knob
+        pal(2, metallic=0.5, roughness=0.45),  # 12 near-black stem
     ]
     POD, STRUT, PIPE, GROOVE, GREY, JOINT, LIGHT, BRIGHT, STEM, PALE, BUMP, ARMLIGHT, BLACK = range(13)
     bm = bmesh.new()
@@ -214,9 +217,7 @@ def build(sprite):
                           (8.4, 23.2, 0.6, 0.5)], 0.2)
     pipe.append((8.6, 23.8, pipe[-1][2], 0.0, 0.0))
     sweep(bm, G, pipe, sides=8, mat=PIPE)
-    # The highlight down the inner flank of the pod (column 14, rows 4-11), nearly flush.
-    sweep(bm, G, on_top([sp_pod], [(14.0, 3.6, 0.0, 0.0), (14.0, 4.6, 0.6, 0.5), (14.2, 10.8, 0.6, 0.5),
-                                   (14.2, 11.6, 0.0, 0.0)], -0.25), sides=6, mat=PALE)
+    # (The light streak down the pod's inner shoulder, column 14 rows 4-11, is the hull's gloss.)
 
     # Grey rod down the strut (columns 12-13, rows 22-30), slanting through the joint to columns
     # 15-16 and on down the lower arm to the bar.
@@ -226,9 +227,7 @@ def build(sprite):
     sweep(bm, G, on_top(rod_surfs, [(14.4, 33.0, 0.0, 0.0), (14.6, 33.6, 1.0, 0.6), (15.4, 36.8, 1.0, 0.6),
                                 (15.4, 44.0, 1.0, 0.6), (15.9, 45.6, 0.0, 0.0)], 0.1), sides=8,
            mat=GREY)
-    # Highlight down the crest of the lower arm (column 13, rows 37-44), nearly flush.
-    sweep(bm, G, on_top([sp_arm], [(12.9, 36.6, 0.0, 0.0), (12.9, 37.4, 0.7, 0.5), (12.9, 43.0, 0.7, 0.5),
-                                   (13.3, 44.4, 0.0, 0.0)], -0.25), sides=6, mat=ARMLIGHT)
+    # (The light streak down the lower arm's crest, column 13 rows 37-44, is gloss too.)
 
     # Domes on the bar's top beside the stem (columns 18-20, rows 45-47), about 2.5 px proud.
     ellipsoid(bm, G, 19.0, 46.3, top(surfs, 19.0, 46.3) - 0.5 * PXU, 1.8, 1.6, 3.0 * PXU, mat=BUMP)
@@ -261,8 +260,7 @@ def build(sprite):
                                               mat=ARMLIGHT, segments=16, rings=8),
                 [lambda b: plate(b, G, [(23.8, 36), (24.8, 36), (24.8, 43), (23.8, 43)], knob_z + 1.4 * PXU, 0.8,
                                  mat=GROOVE)])
-    # Glossy highlight on the crest of the bar (rows 49-50), nearly flush.
-    ellipsoid(bm, G, AXIS_COL, 49.6, top([sp_arm], AXIS_COL, 49.6) - 0.3 * PXU, 3.4, 1.0, 0.5 * PXU, mat=PALE)
+    # (The pale spot on the bar's crest, rows 49-50, is the hull's gloss: no part for it.)
 
     return to_object(NAME, bm, mats, coll)
 

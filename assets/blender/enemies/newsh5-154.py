@@ -25,10 +25,20 @@ ROOT = common.repo_root(__file__)
 U = lib.U
 
 
-# Palette indices the body is painted with (each sprite pixel takes the nearest one), so the top
-# view keeps the sprite's colours: the lit nail on the left, the dark knuckle and crease on the right.
-PAINT = [17, 19, 20, 21, 22, 23, 24, 26, 28]
-FLOOR = 16  # darkest index the paint samples (the outline pixels read as this)
+# Palette indices the body is painted with. The sprite's light and dark (its outline ring, the
+# dark tip and right side, the bright rim of the nail) is drawn lighting, not paint: the game
+# lights the model and draws its own outline. So the skin is one mid-tone and only the real
+# markings get their own colours: the nail plate, the crease, and the next finger's knuckle
+# (a separate finger in shadow, a step darker than this one).
+SKIN, NAIL, CREASE, KNUCKLE = 20, 23, 17, 19
+PAINT = [SKIN, NAIL, CREASE, KNUCKLE]
+NAIL_C, NAIL_R = 10.3, 15.0  # nail oval centre in sprite pixels (column, row)
+NAIL_A, NAIL_B = 2.6, 8.7  # its half-width and half-length in pixels
+CREASE_C = (16.6, 18.0)  # sprite columns of the dark crease left of the knuckle
+CREASE_R = 14.5  # the crease and knuckle start this many rows down (where the knuckle shows;
+# above it the dark pixels there are the outline)
+SKIN_ROUGH = 0.75  # matte skin: metallic 0, rough, so the light shades the curve softly
+NAIL_ROUGH = 0.35  # the nail is smooth and glossy; its bright left rim is the light's shine on it
 TOP_SEG = 26  # segments over the rounded top of each cross-section
 BOT_SEG = 2  # segments across the flat underside (it sits on z = 0, nothing below)
 CREST = 0.45  # the crest sits this far across the width from the left (the lit side)
@@ -39,7 +49,6 @@ WALL = 2.5  # px the shaded front wall at the bottom edge (the sprite's dark bot
 GROW = 0.0  # px the outline is pushed out
 BLEND = 3.0  # px over which the length profile and the width cap blend, so there's no kink between them
 ROUNDS = 4  # smoothing rounds on the outline, so the shoulders don't terrace
-ROUGH = 1.0  # matte stone/skin, so the painted highlight does the lighting, not a specular band
 
 
 def crossing(poly, y):
@@ -57,32 +66,23 @@ def smooth_min(a, b, k):
     return min(a, b) - h * h * k / 4
 
 
-def softened(g):
-    """The sprite's pixels with their dithering evened out (each one averaged with its four
-    neighbours at half weight), so the paint follows its shading bands rather than single pixels."""
-    rows = []
-    for r in range(g.h):
-        row = []
-        for c in range(g.w):
-            v = g.at(c, r)
-            if v < 0:
-                row.append(v)
-                continue
-            acc, wt = 2.0 * max(v, FLOOR), 2.0
-            for dc, dr in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-                n = g.at(c + dc, r + dr)
-                if n >= 0:
-                    acc, wt = acc + max(n, FLOOR), wt + 1
-            row.append(int(round(acc / wt)))
-        rows.append(row)
-    return lib.Grid(g.w, g.h, rows)
+def marking(g, x, y):
+    """The palette index for a point of the finger's surface, from where it sits over the sprite."""
+    c, r = g.col(x), g.row(y)
+    if ((c - NAIL_C) / NAIL_A) ** 2 + ((r - NAIL_R) / NAIL_B) ** 2 <= 1:
+        return NAIL
+    if r >= CREASE_R and CREASE_C[0] <= c <= CREASE_C[1]:
+        return CREASE
+    if r >= CREASE_R and c > CREASE_C[1]:
+        return KNUCKLE
+    return SKIN
 
 
 def build(sprite):
     coll = common.reset_collection(NAME)
     pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
-    mats = [pal(i, metallic=0.0, roughness=ROUGH) for i in PAINT]
-    BASE = PAINT.index(21)
+    mats = [pal(i, metallic=0.0, roughness=NAIL_ROUGH if i == NAIL else SKIN_ROUGH) for i in PAINT]
+    BASE = PAINT.index(SKIN)
     g = lib.Grid(24, 28, common.load_sprite(ROOT, NAME)["frames"][0]["pixels"])
     bm = bmesh.new()
 
@@ -115,6 +115,22 @@ def build(sprite):
         x = d - dc
         return HEIGHT - (radius - math.sqrt(max(0.0, radius * radius - x * x)))
 
+    def uniform(a, b):
+        xc = a + (b - a) * CREST
+        return [xc + c * ((xc - a) if c < 0 else (b - xc)) for c in
+                (math.cos(math.pi * (1 - k / TOP_SEG)) for k in range(TOP_SEG + 1))]
+
+    def column(row, col):
+        """The ring column nearest sprite column `col` on the ring at sprite row `row`."""
+        i = min(range(len(ds)), key=lambda i: abs(g.row(top - ds[i] * U) - row))
+        uni = uniform(*spans[i])
+        return min(range(TOP_SEG + 1), key=lambda k: abs(uni[k] - g.x(col)))
+
+    # The ring columns that carry the nail's edges (nearest them where it is widest) and the
+    # crease's edges (half way down it).
+    kl, kr = column(NAIL_R, NAIL_C - NAIL_A), column(NAIL_R, NAIL_C + NAIL_A)
+    kc0, kc1 = column(20, CREASE_C[0]), column(20, CREASE_C[1])
+
     loops = []
     for i, d in enumerate(ds):
         a, b = spans[i]
@@ -122,10 +138,26 @@ def build(sprite):
         h = smooth_min(along(d), SIDE * smooth_half(i) / U, BLEND) * U
         y = top - d * U
         ring = []
-        for k in range(TOP_SEG + 1):  # left rim, over the crest, to the right rim
-            t = math.pi * (1 - k / TOP_SEG)
-            c = math.cos(t)
-            ring.append(bm.verts.new((xc + c * ((xc - a) if c < 0 else (b - xc)), y, h * math.sin(t))))
+        xs = uniform(a, b)
+        # Columns kl and kr slide onto the nail's oval edge, and kc0 and kc1 onto the crease's
+        # edges (the others follow in proportion), so these markings have clean outlines, not
+        # staircases. The vertices only move along the section's own curve: the shape is unchanged.
+        pins = [(0, a)]
+        e = 1 - ((g.row(y) - NAIL_R) / NAIL_B) ** 2
+        if e > 0:
+            hw = NAIL_A * math.sqrt(e) * U
+            pins += [(kl, g.x(NAIL_C) - hw), (kr, g.x(NAIL_C) + hw)]
+        if g.row(y) >= CREASE_R - 1.5 and g.x(CREASE_C[1]) < xs[TOP_SEG - 1]:
+            pins += [(kc0, g.x(CREASE_C[0])), (kc1, g.x(CREASE_C[1]))]
+        pins.append((TOP_SEG, b))
+        assert all(p[0] < q[0] and p[1] < q[1] for p, q in zip(pins, pins[1:])), pins
+        uni = list(xs)
+        for (k0, x0), (k1, x1) in zip(pins, pins[1:]):
+            for k in range(k0, k1 + 1):
+                xs[k] = x0 + (uni[k] - uni[k0]) * (x1 - x0) / (uni[k1] - uni[k0])
+        for x in xs:
+            c = (x - xc) / ((xc - a) if x < xc else (b - xc))
+            ring.append(bm.verts.new((x, y, h * math.sqrt(max(0.0, 1 - c * c)))))
         for k in range(1, BOT_SEG):  # back along the flat underside
             t = math.pi * k / BOT_SEG
             c = math.cos(t)
@@ -150,12 +182,16 @@ def build(sprite):
             f.smooth = False
             for e in f.edges:
                 e.smooth = False
-    lib.paint(bm, first, softened(g), lambda v: PAINT.index(min(PAINT, key=lambda p: abs(p - max(v, 16)))), min_nz=-0.3)
+    bm.faces.ensure_lookup_table()
+    for f in bm.faces[first:]:
+        if not all(abs(v.co.z) < 1e-6 for v in f.verts):  # the hidden underside stays skin
+            c = f.calc_center_median()
+            f.material_index = PAINT.index(marking(g, c.x, c.y))
     cap = [bm.verts.new(v.co) for v in loops[-1]]
     centre = bm.verts.new(tuple(sum(v.co[i] for v in cap) / n for i in range(3)))
     f0 = lib.nfaces(bm)
     for k in range(n):
-        bm.faces.new((cap[(k + 1) % n], cap[k], centre)).material_index = PAINT.index(20)
+        bm.faces.new((cap[(k + 1) % n], cap[k], centre)).material_index = BASE
     lib.set_smooth(bm, f0, smooth=False)
     return lib.to_object(NAME, bm, mats, coll)
 

@@ -81,18 +81,20 @@ def build_arm(name, sprite, coll):
     tag = name
     pal = lambda i, **kw: common.palette_material(sprite, i, tag, **kw)  # noqa: E731
     mats = [
-        pal(9, metallic=0.15, roughness=0.32),  # 0 lit grey faces
-        pal(5, metallic=0.15, roughness=0.38),  # 1 shaded grey faces
-        pal(2, metallic=0.2, roughness=0.6),  # 2 dark undersides
-        pal(3, metallic=0.2, roughness=0.7),  # 3 dark hollows
-        pal(7, metallic=0.2, roughness=0.3),  # 4 mid grey housings
-        pal(10, metallic=0.2, roughness=0.28),  # 5 bright rims
-        pal(12, metallic=0.4, roughness=0.25),  # 6 highlights
-        pal(4, metallic=0.3, roughness=0.5),  # 7 dark grey
-        pal(6, metallic=0.15, roughness=0.35),  # 8 grey neck
-        pal(153, metallic=0.0, roughness=0.3, emission_strength=4.0),  # 9 blue gem
-        pal(158, emission_strength=5.0),  # 10 gem highlight
-        pal(8, metallic=0.2, roughness=0.28),  # 11 light-mid grey
+        # Painted grey metal throughout (metallic about 0.45, roughness about 0.4): the game's
+        # light makes the sprite's drawn sheen; the dark hollows are matte.
+        pal(9, metallic=0.45, roughness=0.38),  # 0 lit grey faces
+        pal(5, metallic=0.45, roughness=0.42),  # 1 shaded grey faces
+        pal(2, metallic=0.1, roughness=0.75),  # 2 dark undersides
+        pal(3, metallic=0.05, roughness=0.85),  # 3 dark hollows
+        pal(7, metallic=0.45, roughness=0.38),  # 4 mid grey housings
+        pal(10, metallic=0.5, roughness=0.32),  # 5 bright rims
+        pal(12, metallic=0.5, roughness=0.3),  # 6 highlights (unused: the sprite's hot spots are sheen)
+        pal(4, metallic=0.4, roughness=0.45),  # 7 dark grey
+        pal(6, metallic=0.45, roughness=0.4),  # 8 grey neck
+        pal(153, metallic=0.0, roughness=0.1, emission_strength=4.0),  # 9 blue gem (glossy glow)
+        pal(158, metallic=0.0, roughness=0.1, emission_strength=5.0),  # 10 gem highlight (unused)
+        pal(8, metallic=0.45, roughness=0.38),  # 11 light-mid grey
     ]
     LIT, SHADE, UNDER, HOLLOW, MID, RIM, HI, DARK, NECK, GEM, GEMHI, LMID = range(12)
     bm = bmesh.new()
@@ -102,12 +104,10 @@ def build_arm(name, sprite, coll):
     round_sweep(bm, [(23.8, 8.1, 0.0), (24.8, 8.0, 1.3), (27.0, 7.7, 3.1), (30.0, 7.3, 3.5),
                      (34.0, 6.5, 4.4), (39.0, 6.6, 4.2), (43.0, 7.0, 3.9), (45.6, 8.2, 2.95),
                      (46.8, 8.1, 1.7), (47.3, 8.1, 0.0)], sides=14, mat=MID)
-    # Knuckle domes: hemispheres about 2.5 px proud of the drum, their crowns taking the sprite's
-    # highlight grey (sheen, not a nub).
-    before = set(bm.faces)
-    ellipsoid(bm, 37.4, 5.9, 0.73, 2.4, 2.5, 0.215, mat=RIM, segments=14, rings=8)
-    ellipsoid(bm, 41.6, 6.8, 0.69, 2.1, 2.3, 0.205, mat=RIM, segments=14, rings=8)
-    paint(bm, set(bm.faces) - before, HI, lambda n, cr: n.z > 0.8 and n.x < 0.25 and n.y > -0.25)
+    # Knuckle domes: two low rounded knuckles (two separate bright spots, each ringed darker, so
+    # real bumps), about 1.5 px proud of the drum, all one light grey; their hot spots are sheen.
+    ellipsoid(bm, 37.4, 5.9, 0.70, 2.3, 2.4, 0.15, mat=RIM, segments=14, rings=8)
+    ellipsoid(bm, 41.6, 6.8, 0.66, 2.0, 2.2, 0.145, mat=RIM, segments=14, rings=8)
 
     # Neck between the housing and the upper arm (rows 8-13).
     plate(bm, [(16.5, 12.2), (19, 9.2), (20.4, 8.05), (24.2, 7.4), (26, 7.3), (34, 8.5), (37, 11), (36, 13.5),
@@ -121,7 +121,7 @@ def build_arm(name, sprite, coll):
     plate(bm, [(35.5, 14), (45, 13.8), (45, 21), (43, 22), (37.5, 21.5), (35, 18.5)],
           0.0, 0.46, mat=LIT, bevel=1.0)
     plate(bm, [(35.5, 21), (45, 20.5), (44.6, 23), (41.5, 26.5), (39.5, 27.6), (36, 27.6)],
-          0.0, 0.4, mat=DARK, tilt=(0.0, -0.04, 0, 21), bevel=0.6)
+          0.0, 0.4, mat=SHADE, tilt=(0.0, -0.04, 0, 21), bevel=0.6)
 
     # Upper arm: the lit block (columns 17-27, rows 11-21), about 9.5 px tall, beside a round
     # shaded tube about 8 px wide and as tall running down to the lower left (columns 9-21,
@@ -136,17 +136,13 @@ def build_arm(name, sprite, coll):
     # and the ball joint cut down to a thin dark floor.
     plate(bm, [(8.2, 24.3), (18.4, 24.5), (18.4, 25.8), (14.8, 25.8), (14.8, 29.2), (18.4, 29.2),
                (18.4, 30.6), (6.8, 30.9), (8.2, 29.6)],
-          0.0, 0.42, mat=UNDER, tilt=(0.0, -0.02, 0, 24.3), bevel=0.6)
+          0.0, 0.42, mat=DARK, tilt=(0.0, -0.02, 0, 24.3), bevel=0.6)
     plate(bm, [(14.8, 25.8), (18.4, 25.8), (18.4, 29.2), (14.8, 29.2)], 0.0, 0.08, mat=HOLLOW)
 
-    # Ball joint at the upper arm's lower end (columns 17-25, rows 19-30): a ball about 9 px tall
-    # with a broad lit cap (the sprite's light-grey oval, its brightest grey in the arm), and its
-    # highlight.
-    before = set(bm.faces)
-    capped_ball(bm, 21.5, 24.6, 0.37, 4.75, 5.2, 0.37, mat=LIT, flat=0.3, segments=18, rings=10)
-    ball = set(bm.faces) - before
-    paint(bm, ball, RIM, lambda n, cr: n.z > 0.62)
-    paint(bm, ball, HI, lambda n, cr: n.z > 0.3 and math.hypot(cr[0] - 22.8, cr[1] - 21.0) < 1.3)
+    # Ball joint at the upper arm's lower end (columns 17-25, rows 19-30): a round ball about
+    # 9 px tall in the lit grey; the sprite's lighter oval and hot spot on it are the light on a
+    # metal ball, which the game draws.
+    capped_ball(bm, 21.5, 24.6, 0.37, 4.75, 5.2, 0.37, mat=LIT, flat=1.0, segments=18, rings=10)
 
     # Socket: a dark pit (columns 26-38, rows 12-27) inside a bright ring that stands proud of the
     # arm and the jaw, and the light pipe curling through it.
@@ -192,13 +188,13 @@ def build_arm(name, sprite, coll):
     def right_run(cr):
         return (cr[1] <= hr and cr[0] > hc + 0.4) or (cr[1] > hr and cr[0] > 8.6)
 
-    paint(bm, claw, NECK, lambda n, cr: n.z > 0.55)
-    paint(bm, claw, LMID, lambda n, cr: n.z > 0.75 and not right_run(cr))
-    paint(bm, claw, LIT, lambda n, cr: right_run(cr) and n.z > 0.5 and n.x < 0.6)
-    paint(bm, claw, RIM, lambda n, cr: right_run(cr) and n.z > 0.85 and n.x < 0.2)
+    # One grey per run, not the sprite's light and dark bands: the hoop light-mid grey, the
+    # brighter pipe down the right side and into the gem the lit grey.
+    paint(bm, claw, LMID, lambda n, cr: True)
+    paint(bm, claw, LIT, lambda n, cr: right_run(cr))
 
     # The gem (columns 4-8, rows 47-50): a round sky-blue ball about 5 px across and 6.5 px tall
-    # in a dark cup, its upper-left crown taking the sprite's pale highlight.
+    # in a dark cup; glossy, so its pale highlight is the game's shine.
     plate(bm, [(2.6, 46.4), (10.0, 46.0), (12.0, 47.2), (11.8, 49.0), (10.8, 50.8), (9.8, 51.8), (4.9, 51.7), (3.4, 49.8)],
           0.0, 0.14, mat=UNDER, bevel=0.5)
     before = set(bm.faces)
@@ -208,8 +204,6 @@ def build_arm(name, sprite, coll):
     for v in {v for f in gem for v in f.verts}:  # turn it to the sprite's diagonal and move it
         u, w = v.co.x * 12 + W / 2, H / 2 - v.co.y * 12  # pixel coords about (0, 0)
         v.co.x, v.co.y = X(6.55 + u * ca - w * sa), Y(48.9 + u * sa + w * ca)
-    paint(bm, set(bm.faces) - before, GEMHI,
-          lambda n, cr: n.z > 0.45 and math.hypot(cr[0] - 6.4, cr[1] - 48.5) < 0.6)
 
     return lib.to_object(name, bm, mats, coll)
 

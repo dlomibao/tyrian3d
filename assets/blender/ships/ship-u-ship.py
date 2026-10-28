@@ -3,12 +3,13 @@ its sprite.
 
 A U of round tube, open end forward, with a round brown pod hung in the middle on two short
 struts. The tube is one path: a grey pipe down each side (columns 5 and 17, rows 7-21) with a
-bright-over-dark collar at rows 13-14 and 18-19, turning tan at row 20, a 45-degree step down to
-row 24 and a flat bottom bar with the sprite's light and dark segments. The tube is about 2.6 px
-across, so with its shaded rims it covers the sprite's 1 px dark outline; the banking frames show
-the arms about 3 px deep, so it is about as tall as it is wide. The pod is a bullet with a round
-section (about 7 px wide with its outline, 5.4 px tall) and a hemispherical nose with a shallow
-dark window cut into it. Built around the middle of sprite column 11.
+raised collar ring at rows 13-14 and 18-19 (drawn bright over dark: its lit and shaded sides),
+turning tan at row 20, a 45-degree step down to row 24 and a flat bottom bar with a dark groove in
+the middle. The tube is about 2.6 px across, so it covers the sprite's 1 px dark outline (the game
+draws its own outline); the banking frames show the arms about 3 px deep, so it is about as tall
+as it is wide. The pod is a bullet with a round section (about 7 px wide with its outline, 5.4 px
+tall) and a hemispherical nose with a shallow dark window cut into it. Built around the middle of
+sprite column 11.
 
 Run: blender --background --python assets/blender/ships/ship-u-ship.py [-- --preview out.png]
 """
@@ -54,22 +55,22 @@ def segmented_tube(bm, points, mats, sides=10):
 def build(sprite):
     coll = common.reset_collection(NAME)
     pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
+    # Materials (lighting pass): the pipes and struts are polished steel, the tan tube and the pod
+    # polished brass, the window glass. Each part takes its mid-tone; the sprite's lit and shaded
+    # pixels (bright collar tops over dark bands, light/dark segments of the bar, the pod's hot
+    # streak and dark column, the dark rim round every part) come from the game's lights, sheen
+    # and outline, not from paint.
     mats = [
-        pal(9, metallic=0.35, roughness=0.35),  # 0 grey pipe
-        pal(10, metallic=0.35, roughness=0.35),  # 1 lighter grey pipe between the collars
-        pal(11, metallic=0.35, roughness=0.3),  # 2 bright collar
-        pal(6, metallic=0.35, roughness=0.45),  # 3 dark band under a collar
-        pal(28, metallic=0.2, roughness=0.45),  # 4 tan arm
-        pal(26, metallic=0.2, roughness=0.45),  # 5 bar, light
-        pal(25, metallic=0.2, roughness=0.45),  # 6 bar, mid
-        pal(21, metallic=0.2, roughness=0.55),  # 7 bar, dark groove
-        pal(25, metallic=0.2, roughness=0.45),  # 8 pod
-        pal(163, metallic=0.1, roughness=0.3),  # 9 dark window
-        pal(7, metallic=0.35, roughness=0.4),  # 10 struts
-        pal(3, metallic=0.35, roughness=0.5),  # 11 shaded flanks of the grey parts
-        pal(162, metallic=0.2, roughness=0.55),  # 12 shaded flanks of the tan and brown parts
+        pal(9, metallic=0.75, roughness=0.3),  # 0 grey pipe
+        pal(10, metallic=0.75, roughness=0.3),  # 1 lighter grey pipe between the collars
+        pal(11, metallic=0.75, roughness=0.28),  # 2 collar ring
+        pal(26, metallic=0.6, roughness=0.32),  # 3 tan tube: arms and bottom bar
+        pal(21, metallic=0.5, roughness=0.45),  # 4 bar, dark groove (a real recess)
+        pal(25, metallic=0.6, roughness=0.3),  # 5 pod
+        pal(163, metallic=0.05, roughness=0.1),  # 6 window, glass
+        pal(6, metallic=0.75, roughness=0.32),  # 7 struts
     ]
-    G9, G10, G11, G6, TAN, BAR_L, BAR_M, BAR_D, POD, DARK, STRUT, G_SHADE, B_SHADE = range(13)
+    G9, G10, G11, TAN, BAR_D, POD, DARK, STRUT = range(8)
     bm = bmesh.new()
     R, C, D = TUBE_R, COLLAR_R, GROOVE_R
 
@@ -79,7 +80,7 @@ def build(sprite):
     def pipe(c):
         pts = [(c, 7.0, R, 0.4), (c, 7.9, R), (c, 13.0, R), (c, 13.08, C), (c, 13.92, C), (c, 14.0, R),
                (c, 15.0, R), (c, 18.0, R), (c, 18.08, C), (c, 18.92, C), (c, 19.0, R), (c, 20.0, R)]
-        mats_ = [G9, G9, G11, G11, G11, G6, G10, G11, G11, G11, G6]
+        mats_ = [G9, G9, G11, G11, G11, G10, G10, G11, G11, G11, G9]
         return pts, mats_
 
     lp, lm = pipe(LEFT)
@@ -88,7 +89,7 @@ def build(sprite):
     # The bottom bar along row 24 (centre 24.5), columns 8-14: light, mid, tan, dark, tan, mid, light.
     bar = [(8.5, 24.5, BEND_R * MITRE, BEND_R), (9.0, 24.5, R), (10.0, 24.5, R), (11.0, 24.5, R), (11.08, 24.5, D),
            (11.92, 24.5, D), (12.0, 24.5, R), (13.0, 24.5, R), (14.0, 24.5, R), (14.5, 24.5, BEND_R * MITRE, BEND_R)]
-    bar_m = [BAR_L, BAR_M, TAN, BAR_D, BAR_D, BAR_D, TAN, BAR_M, BAR_L]
+    bar_m = [TAN, TAN, TAN, BAR_D, BAR_D, BAR_D, TAN, TAN, TAN]
     diag_l = [(6.5, 22.5, DIAG_R), (7.5, 23.5, DIAG_R)]
     diag_r = [(15.5, 23.5, DIAG_R), (16.5, 22.5, DIAG_R)]
     points = lp + [bend_l] + diag_l + bar + diag_r + [bend_r] + list(reversed(rp))
@@ -103,7 +104,8 @@ def build(sprite):
         tube(bm, [(x0, 16.5, 1.15, 1.0, 0.0), (x1, 16.5, 1.15, 1.0, 0.0)], sides=8, mat=STRUT)
 
     # The pod: a bullet, round in section, hemispherical at the front (row 12), cut off at the back
-    # (row 20); the light left side and dark right column of the sprite come from the lighting.
+    # (row 20); the light left side, the hot streak and the dark right column of the sprite are the
+    # sheen of polished metal, so the surface stays a smooth bullet and one colour.
     pod = [(12.0, 0.0, 0.0), (12.2, 1.2, 1.0), (12.6, 1.95, 1.65), (13.3, 2.65, 2.25), (14.2, 3.15, 2.6),
            (15.2, 3.35, 2.7), (19.9, 3.35, 2.7), (20.3, 3.3, 1.9), (20.8, 3.1, 0.9), (21.0, 2.6, 0.3)]
     n0 = len(bm.faces)
@@ -120,15 +122,7 @@ def build(sprite):
     for v in sink:
         v.co.z -= 0.3 / 12
 
-    # The sprite draws every part as a lit core inside a 1 px dark rim: the steep flanks of each
-    # round part (what is seen from above round its lit top) take the dark of its ramp.
-    shade = {m: G_SHADE for m in (G9, G10, G11, G6, STRUT)}
-    shade.update({m: B_SHADE for m in (TAN, BAR_L, BAR_M, BAR_D, POD)})
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    for f in bm.faces:
-        steep = 0.55 if f.material_index == POD else 0.8
-        if f.material_index in shade and f.normal.z < steep:
-            f.material_index = shade[f.material_index]
 
     return common.mesh_object(NAME, bm, mats, coll, smooth=True)
 

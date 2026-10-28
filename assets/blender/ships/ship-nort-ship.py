@@ -2,18 +2,18 @@
 object): a 3D version of its sprite.
 
 A wide grey delta. A pointed nose with a dark canopy, framed by a bright arch, runs into a round
-ribbed drum behind the cockpit (about 9 px across, standing about 4 px above the wings) and a
-pale raised spine behind it; broad swept wings with a blue leading-edge band (a light-blue
+drum behind the cockpit (about 9 px across, standing about 4 px above the wings, two dark grooves
+along it) and a pale raised spine behind it; broad swept wings with a blue leading-edge band (a light-blue
 highlight row behind it) and two chevron rails; under each wing root a round engine nacelle
 (about 9 px across) swells out behind the trailing edge, with two dark vents cut into its top,
 and tapers to a rounded tail. Two short red-tipped guns sit on the shoulders beside the nose. A
-thin dark skirt under the wings, nose and nacelles covers the sprite's black outline pixels.
+thin rim under the wings, nose and nacelles reaches the sprite's black outline pixels; it is hull
+grey, since the game draws the outline. Polished metal hull: the sprite's highlights are shine.
 Symmetric about the middle of sprite column 23; the origin is the middle of the 48x28 block.
 
 Run: blender --background --python assets/blender/ships/ship-nort-ship.py [-- --preview out.png]
 """
 
-import math
 import sys
 from pathlib import Path
 
@@ -93,7 +93,6 @@ DRUM_Z, DRUM_R, DRUM_H = 2.0, 4.2, 4.1  # round drum behind the cockpit (rows 7-
 DRUM = [(7.0, 3.3, 3.2, DRUM_Z), (7.4, DRUM_R, DRUM_H, DRUM_Z), (12.6, DRUM_R, DRUM_H, DRUM_Z),
         (13.0, 3.7, 3.6, DRUM_Z)]
 DRUM_POW = 0.92
-RIBS = [8.9, 10.2, 11.5]  # rib rows behind the bright front ring at 7.6
 SPINE = [(13.0, 2.7, 3.3, 1.2), (16.0, 2.7, 3.1, 1.1), (19.0, 2.6, 2.8, 1.0), (20.8, 2.3, 2.3, 0.8),
          (21.6, 1.6, 1.5, 0.6)]
 SPINE_POW = 0.75
@@ -213,44 +212,50 @@ def cut_into(bm, part, cutters, mats, cut_mat):
 def build(sprite):
     coll = common.reset_collection(NAME)
     pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
+    # Lighting pass: a polished grey metal hull, so the hull parts are metallic and smooth and the
+    # game's lights make the sprite's sheen; each part keeps its mid-tone (the sprite's shading,
+    # its canopy glint and its black outline ring aren't painted on).
+    hull = dict(metallic=0.7, roughness=0.3)
     mats = [
-        pal(9, metallic=0.1, roughness=0.5),  # 0 wing and nacelle grey
-        pal(7, metallic=0.1, roughness=0.5),  # 1 nose, gun barrels, wing-tip edges
-        pal(11, metallic=0.1, roughness=0.4),  # 2 pale spine
-        pal(13, metallic=0.2, roughness=0.35),  # 3 bright rails and canopy frame
-        pal(5, metallic=0.2, roughness=0.55),  # 4 dark grooves
-        pal(57, metallic=0.2, roughness=0.35),  # 5 blue leading-edge band
-        pal(1, metallic=0.1, roughness=0.7),  # 6 vents and seams
-        pal(52, metallic=0.3, roughness=0.1),  # 7 canopy glass
+        pal(9, **hull),  # 0 wing and nacelle grey (and the rim under them)
+        pal(7, metallic=0.6, roughness=0.35),  # 1 gun barrels, wing-tip edges
+        pal(11, **hull),  # 2 pale spine
+        pal(13, metallic=0.5, roughness=0.3),  # 3 bright rails and canopy frame
+        pal(5, metallic=0.1, roughness=0.7),  # 4 dark grooves
+        pal(57, metallic=0.4, roughness=0.4),  # 5 blue leading-edge band (paint)
+        pal(1, metallic=0.0, roughness=0.8),  # 6 vents and seams
+        pal(52, metallic=0.05, roughness=0.08),  # 7 canopy glass
         pal(70, metallic=0.2, roughness=0.4, emission_strength=2.5),  # 8 red gun lights
-        pal(54, metallic=0.2, roughness=0.3),  # 9 blue canards
-        pal(2, metallic=0.1, roughness=0.7),  # 10 dark outline skirt
-        pal(6, metallic=0.25, roughness=0.5),  # 11 nacelle tails
-        pal(59, metallic=0.2, roughness=0.3),  # 12 light-blue highlight row
-        pal(10, metallic=0.1, roughness=0.45),  # 13 drum
-        pal(12, metallic=0.2, roughness=0.35),  # 14 drum ribs
-        pal(61, metallic=0.3, roughness=0.1),  # 15 canopy highlight
-        pal(14, metallic=0.2, roughness=0.35),  # 16 brightest rails (inner chevron)
+        pal(54, metallic=0.4, roughness=0.4),  # 9 blue canards (paint)
+        pal(8, **hull),  # 10 nose shell
+        pal(6, metallic=0.6, roughness=0.35),  # 11 (unused)
+        pal(59, metallic=0.4, roughness=0.4),  # 12 light-blue band row (paint)
+        pal(10, **hull),  # 13 drum
+        pal(12, metallic=0.5, roughness=0.3),  # 14 (unused)
+        pal(61, metallic=0.05, roughness=0.08),  # 15 (unused)
+        pal(14, metallic=0.5, roughness=0.3),  # 16 brightest rails (inner chevron)
     ]
-    (WINGM, NOSEM, SPINEM, RIDGE, GROOVE, BLUE, VENT, GLASS, RED, CANARD, SKIRT_M, TAIL_M, LBLUE, DRUM_M, RIB,
-     GLINT, WHITE) = range(17)
-    POD_M = WINGM
-    BARREL = NOSEM  # gun barrels and wing edges share pal 7
+    (WINGM, BARREL, SPINEM, RIDGE, GROOVE, BLUE, VENT, GLASS, RED, CANARD, NOSEM, _TAIL6, LBLUE, DRUM_M, _RIB,
+     _GLINT, WHITE) = range(17)
+    POD_M = TAIL_M = WINGM  # the nacelle's tail was the sprite's shading, not a darker colour
     bm = bmesh.new()
 
     def mirror_rows(table):
         return [(mir(c), *rest) for c, *rest in reversed(table[:-1])]
 
-    # Wings: the main plate and the dark outline skirt under it, each one loft tip to tip.
+    # Wings: the main plate and a thinner rim under it reaching the sprite's outline (hull grey: the
+    # game draws the dark outline), each one loft tip to tip.
     span_wing(bm, WING + mirror_rows(WING), mat=WINGM)
-    span_wing(bm, SKIRT + mirror_rows(SKIRT), mat=SKIRT_M)
+    span_wing(bm, SKIRT + mirror_rows(SKIRT), mat=WINGM)
 
-    # Nose fuselage (and its dark skirt), the drum behind the cockpit with its ribs, the spine.
+    # Nose fuselage (and its rim), the drum behind the cockpit, the spine.
     loft(bm, [(r, AXIS, w, h, z) for r, w, h, z in NOSE], sides=16, mat=NOSEM, power=NOSE_POW)
-    loft(bm, [(r, AXIS, w, h, z) for r, w, h, z in NOSE_SKIRT], sides=12, mat=SKIRT_M, power=0.7)
+    loft(bm, [(r, AXIS, w, h, z) for r, w, h, z in NOSE_SKIRT], sides=12, mat=NOSEM, power=0.7)
     loft(bm, [(r, AXIS, w, h, z) for r, w, h, z in DRUM], sides=16, mat=DRUM_M, power=DRUM_POW)
-    # Bright front ring (the crossbar of the canopy frame, row 7) and three ribs, about 0.4 px proud.
-    for r, m, d in [(7.6, RIDGE, 0.45)] + [(r, RIB, 0.4) for r in RIBS]:
+    # Bright front ring (the crossbar of the canopy frame, row 7), about 0.4 px proud. The drum's
+    # bright rows 9-10 are sheen on its rounded top, not ribs; its two dark grooves (columns 21 and
+    # 25) are laid on below.
+    for r, m, d in [(7.6, RIDGE, 0.45)]:
         loft(bm, [(r - 0.3, AXIS, DRUM_R + d, DRUM_H + d, DRUM_Z), (r + 0.3, AXIS, DRUM_R + d, DRUM_H + d, DRUM_Z)],
              sides=16, mat=m, power=DRUM_POW)
     # Dark seam at the drum's back (row 13), then the pale spine down to the notch at row 21.
@@ -259,10 +264,8 @@ def build(sprite):
 
     # Canopy: a dark glass dome over columns 21-25, rows 3-7, with a light-blue glint (column 24).
     ztop = surf(AXIS, 5.3)
+    # (Its light-blue glint, column 24, is the glass's shine: the glossy material makes it.)
     dome(bm, AXIS, 5.3, 2.2, 2.1, 1.8, z=ztop - 0.9, rings=4, sides=14, mat=GLASS)
-    gz = lambda c, r: ztop - 0.9 + 1.8 * math.sqrt(max(0, 1 - ((c - AXIS) / 2.2) ** 2 - ((r - 5.3) / 2.1) ** 2))  # noqa: E731
-    tube(bm, [(24.5, 3.9, 0.35, 0.2, gz(24.5, 3.9) + 0.05), (24.5, 5.6, 0.35, 0.2, gz(24.5, 5.6) + 0.05)],
-         sides=4, mat=GLINT)
 
     for side in (1, -1):
         cc = (lambda c: c) if side == 1 else mir  # column on this side
@@ -282,13 +285,13 @@ def build(sprite):
              sides=8, mat=RED, cap_end=False)
         tube(bm, [(cc(15.5), 9.0, 0.9, 0.8, 1.2), (cc(15.5), 11.9, 1.0, 0.85, 1.1)], sides=8, mat=BARREL, cap_end=False)
         tube(bm, [(cc(15.5), 11.9, 1.0, 0.85, 1.1), (cc(15.5), 12.9, 0.9, 0.7, 1.0)], sides=8, mat=RED)
-        # Dark outline under the gun (columns 14 and 16, rows 5-9).
+        # Rim under the gun reaching its outline (columns 14 and 16, rows 5-9).
         tube(bm, [(cc(15.5), 5.0, 0, 0, 0.6), (cc(15.5), 5.6, 1.1, 0.5, 0.6), (cc(15.5), 6.3, 1.3, 0.5, 0.6),
                   (cc(15.5), 10.0, 1.3, 0.5, 0.4)],
-             sides=6, mat=SKIRT_M)
-        # Dark outline of the notch between the nacelles (columns 21-22, rows 21-23).
+             sides=6, mat=BARREL)
+        # Low web filling the notch between the nacelles (columns 21-22, rows 21-23), hull grey.
         notch = [(20.8, 21.0), (22.9, 21.0), (22.9, 23.0), (22.0, 23.0), (22.0, 24.0), (20.8, 24.0)]
-        slab(bm, [(cc(c), r) for c, r in notch], -1.6, 0.0, mat=SKIRT_M)
+        slab(bm, [(cc(c), r) for c, r in notch], -1.6, 0.0, mat=POD_M)
 
         # Blue leading-edge band: a darker outer row and a light-blue inner row.
         tube(bm, on([(11.6, 13.4), (8.5, 16.5), (7.4, 17.7), (7.4, 18.8)], 0.55, 0.2, 0.08), sides=4, mat=BLUE)
@@ -300,13 +303,15 @@ def build(sprite):
         tube(bm, on([(13.0, 14.0), (10.5, 16.5), (8.8, 18.4), (8.6, 21.0), (9.5, 23.0)], 0.6, 0.3, 0.05),
              sides=6, mat=RIDGE, power=0.7)
         tube(bm, on([(14.4, 14.9), (10.8, 18.4), (10.6, 21.4)], 0.45, 0.15, 0.05), sides=4, mat=GROOVE)
+        # Dark grooves down the drum (columns 21 and 25, rows 8-12).
+        tube(bm, on([(21.5, 8.0), (21.5, 10.4), (21.5, 12.8)], 0.45, 0.12, 0.03), sides=4, mat=GROOVE)
         # Dark channel beside the spine (columns 19-20, rows 13-20).
         tube(bm, on([(20.2, 13.4), (20.2, 16.5), (20.2, 20.9)], 0.9, 0.15, 0.05), sides=4, mat=GROOVE)
         # Grey wing-tip edge (column 6, rows 17-21).
         tube(bm, on([(6.4, 17.4), (6.4, 21.2)], 0.5, 0.3, -0.1), sides=6, mat=BARREL)
 
         # Engine nacelle: round body (two dark vents cut into its top at rows 21-23, columns 13-15
-        # and 17-19), a darker rounded tail, and a dark skirt under it reaching the outline.
+        # and 17-19), a rounded tail, and a rim under it reaching the outline.
         part = bmesh.new()
         # Lofted across the rows (rings square to the sprite's columns) so the leaning tail's
         # outline follows the sprite's rows.
@@ -319,7 +324,7 @@ def build(sprite):
             floor = min(pod_top(c0, 22.0), pod_top(c1, 22.0)) - 0.6
             vents.append((a, b, 21.0, 23.0, floor, 9.0))
         cut_into(bm, part, vents, mats, VENT)
-        loft(bm, [(r, cc(c), w, h, z) for c, r, w, h, z in POD_SKIRT], sides=10, mat=SKIRT_M, power=POD_POW)
+        loft(bm, [(r, cc(c), w, h, z) for c, r, w, h, z in POD_SKIRT], sides=10, mat=POD_M, power=POD_POW)
 
     return common.mesh_object(NAME, bm, mats, coll, smooth=True)
 

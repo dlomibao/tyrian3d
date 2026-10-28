@@ -104,37 +104,27 @@ def notched_loft(bm, sections, arc=13, mat=0, notch_mat=0):
     bm.faces.new(rings[-1]).material_index = mat
 
 
-def shade_flanks(bm, start, zc, ratio, mat_index, keep=()):
-    """Faces added since face `start` whose centre is less than 45 degrees above a loft's widest
-    line (zc px, height/width `ratio`) get `mat_index`: the dark lower flanks that show from
-    above as the sprite's dark edge pixels."""
-    bm.faces.ensure_lookup_table()
-    for f in bm.faces[start:]:
-        if f.material_index in keep:
-            continue
-        c = f.calc_center_median()
-        if math.atan2((c.z / P - zc) / ratio, abs(c.x) / P) < math.radians(45):
-            f.material_index = mat_index
-
-
 def build(sprite):
     coll = common.reset_collection(NAME)
     pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
+    # A polished metal hull: each part takes its sprite mid-tone and lets the game's light shade
+    # it and make the shine (the sprite's bright streaks on the nose and the rear body's left side,
+    # and its dark right sides and edge ring, are drawn light, not paint or shape).
     mats = [
-        pal(9, metallic=0.5, roughness=0.4),  # 0 rear hull grey
-        pal(9, metallic=0.5, roughness=0.4),  # 1 wing panels
-        pal(12, metallic=0.65, roughness=0.28),  # 2 bright strakes
-        pal(11, metallic=0.7, roughness=0.22),  # 3 nose cone
-        pal(14, metallic=0.7, roughness=0.18),  # 4 nose highlight
-        pal(2, metallic=0.2, roughness=0.15),  # 5 dark cockpit window
+        pal(9, metallic=0.8, roughness=0.3),  # 0 rear hull grey
+        pal(7, metallic=0.75, roughness=0.32),  # 1 wing panels and base plate
+        pal(11, metallic=0.8, roughness=0.28),  # 2 bright strakes
+        pal(11, metallic=0.85, roughness=0.25),  # 3 nose cone
+        pal(14, metallic=0.85, roughness=0.25),  # 4 (unused: the nose's highlight is shine)
+        pal(2, metallic=0.05, roughness=0.1),  # 5 dark cockpit window, glossy glass
         pal(117, emission_strength=3.0),  # 6 red side lights
         pal(120, emission_strength=5.0),  # 7 engine glow
-        pal(6, metallic=0.45, roughness=0.5),  # 8 dark grey neck
-        pal(9, metallic=0.55, roughness=0.4),  # 9 cockpit ring
-        pal(11, metallic=0.65, roughness=0.28),  # 10 wing leading edges, spine
-        pal(3, metallic=0.4, roughness=0.5),  # 11 wing base plate, grooves, nozzle
+        pal(7, metallic=0.7, roughness=0.38),  # 8 neck, a darker grey
+        pal(9, metallic=0.8, roughness=0.3),  # 9 cockpit ring
+        pal(11, metallic=0.8, roughness=0.28),  # 10 wing leading edges
+        pal(3, metallic=0.5, roughness=0.5),  # 11 wing grooves, nozzle
         pal(116, emission_strength=3.0),  # 12 nozzle glow rim
-        pal(4, metallic=0.45, roughness=0.5),  # 13 lower flanks of nose and cockpit ring
+        pal(4, metallic=0.75, roughness=0.32),  # 13 (unused: the dark flanks were the sprite's outline)
     ]
     HULL, WING, BRIGHT, NOSE, SHINE, COCKPIT, RED, GLOW, NECK, RING, LEAD, BASE, GLOW2, FLANK = range(14)
     bm = bmesh.new()
@@ -143,23 +133,16 @@ def build(sprite):
     # the staircase's dark edge pixels and none beyond. Round, a little taller than half its width.
     nose = [(-0.4, 0, 0, 0.5), (0.4, 0.7, 0.55, 0.5), (2.0, 1.5, 1.15, 0.45), (4.0, 2.5, 1.9, 0.4),
             (6.0, 3.5, 2.65, 0.35), (6.9, 3.9, 2.85, 0.3)]
-    start = len(bm.faces)
+    # Its bright streak (columns 10-11, rows 3-6) is the polished cone's shine: no geometry for it.
     common.loft(bm, [(ey(r), w * P, h * P, z * P) for r, w, h, z in nose], sides=12, mat_index=NOSE)
-    shade_flanks(bm, start, 0.4, 0.74, FLANK)
-    # Its shine (columns 10-11 at rows 3-6), a highlight strip on the upper left of the cone.
-    loft_path(bm, [(ey(r), x * P, w * P, w * P, z * P) for r, x, w, z in
-                   ((1.4, -0.2, 0, 1.3), (3.0, -0.4, 0.5, 1.95), (4.8, -0.6, 0.7, 2.55), (6.6, -0.6, 0, 2.95))],
-              sides=6, mat_index=SHINE)
 
     # Cockpit ring (rows 7-11): a round collar with the dark window (columns 10-12, rows 7-10)
     # cut into its top, floor about 1.2 px below the rim.
     nw, fl = 1.5, 1.8
     common_ring = (4.25, 2.9, 0.3)
-    start = len(bm.faces)
     notched_loft(bm, [(6.6, 3.8, 2.75, 0.3, nw, None), (7.0, *common_ring, nw, None), (7.3, *common_ring, nw, fl),
                       (10.7, *common_ring, nw, fl), (11.0, *common_ring, nw, None), (11.7, 4.15, 2.8, 0.25, nw, None),
                       (12.1, 3.4, 2.4, 0.2, nw, None)], mat=RING, notch_mat=COCKPIT)
-    shade_flanks(bm, start, 0.3, 0.68, FLANK, keep=(COCKPIT,))
     # The lighter dot in the window's middle (column 11, rows 8-9).
     common.loft(bm, [(ey(8.1), 0, 0, (fl + 0.2) * P), (ey(8.5), 0.5 * P, 0.4 * P, (fl + 0.2) * P),
                      (ey(9.3), 0.5 * P, 0.4 * P, (fl + 0.2) * P), (ey(9.7), 0, 0, (fl + 0.2) * P)],
@@ -178,17 +161,16 @@ def build(sprite):
     hull = [(16.0, 3.3, 2.4, 0.0), (17.0, 3.9, 2.8, 0.0), (21.5, 4.35, 3.0, 0.0), (23.2, 3.6, 2.5, -0.1),
             (24.3, 2.6, 1.9, -0.2), (24.8, 0, 0, -0.2)]
     common.loft(bm, [(ey(r), w * P, h * P, z * P) for r, w, h, z in hull], sides=14, mat_index=HULL)
-    # Three ribs: bright strakes on the body's edges (columns 7 and 15) and the spine (column 10).
+    # Two ribs: bright strakes on the body's edges (columns 7 and 15), bright on both sides so
+    # real. The bright streak at column 10, left of the centre line, is the round body's shine.
     strake = [(ey(r), w * P, 0.55 * P, 0.55 * P, z * P) for r, w, z in
               ((16.6, -3.4, 1.2), (17.5, -3.95, 1.3), (20.5, -4.1, 1.3), (21.8, -3.9, 1.1))]
     loft_path(bm, strake, sides=6, mat_index=BRIGHT)
     loft_path(bm, mirrored(strake), sides=6, mat_index=BRIGHT)
-    loft_path(bm, [(ey(r), -0.9 * P, 0.65 * P, 0.5 * P, z * P) for r, z in
-                   ((16.4, 2.2), (17.4, 2.8), (21.5, 2.95), (23.4, 2.3))], sides=6, mat_index=LEAD)
 
-    # Swept wings, level at the fuselage's middle: a dark base plate cut to the sprite's outline
-    # (its rim shows as the dark edge), a raised bright leading-edge strip, a dark groove behind
-    # it, then a raised outer panel. Sprite (col, row) coordinates, left wing; d = row - col runs
+    # Swept wings, level at the fuselage's middle: a base plate cut to the sprite's outline in the
+    # wing's grey (the game draws the dark edge), a raised bright leading-edge strip, a dark groove
+    # behind it (a real panel line, dark on both wings), then a raised outer panel. Sprite (col, row) coordinates, left wing; d = row - col runs
     # across the leading edge (the outline at d = 8.6).
     outer = [(1.2, 11.2), (2.6, 11.2), (8.6, 17.2), (9.6, 17.2), (10.2, 25.8), (5.85, 25.8),
              (2.1, 18.5), (1.2, 18.1)]
@@ -196,8 +178,10 @@ def build(sprite):
     panel = clip(clip(clip(clip(outer, 1, -1, -11.7), -1, 0, -1.8), 0, -1, -12.0), 0, 1, 25.0)
     # Inside the trailing staircase: col >= 3.9 + (row - 19.5) / 2.
     panel = clip(clip(panel, -1, 0.5, -3.9 + 9.75), 1, 0, 7.3)
+    groove = clip(clip(clip(outer, -1, 1, 11.7), 1, -1, -10.5), 1, 0, 7.9)
     for mirror in (False, True):
-        plate(bm, outer, 0.2, 1.2, BASE, mirror)
+        plate(bm, outer, 0.2, 1.2, WING, mirror)
+        plate(bm, groove, 0.3, 1.3, BASE, mirror)
         plate(bm, panel, 1.1, 1.7, WING, mirror)
         plate(bm, lead, 1.1, 1.9, LEAD, mirror)
 

@@ -9,10 +9,11 @@ north-west rim and dark east rim), a flat top, and the south edge rolling down
 toward the viewer over the sprite's dark lower third (its front wall).
 
 The footprint follows the sprite's body inside its 1 px black outline (the game draws that
-outline): a rounded rectangle whose corners match the sprite's staircase. Each face takes the
-palette colour of the sprite pixel under it (snapped to a few shades of the red ramp), so from
-above the block shows the sprite's bands: the bright top-left rim and glint spot, the dark east
-rim, the dark front band and the south-east glint; the walls below are the dark side shades.
+outline): a rounded rectangle whose corners match the sprite's staircase. The whole block is the
+sprite's mid-tone red (palette 71, its flat top) in a glossy painted-metal material: the sprite's
+bright top-left rim and glints are sheen, and its dark east rim and dark front band are the
+light falling off the shoulder and the front slope, so the game's lights make them instead of
+paint (the rubric's "the sprite's lighting is not paint" and "metallic sheen is not geometry").
 
 Run: blender --background --python assets/blender/enemies/newshm-1.py [-- --preview out.png]
 """
@@ -48,8 +49,10 @@ PROFILE = [
 CORNER_SEGS = 7
 SIDE_SPLITS = (3, 1)  # pieces along each straight west/east and north/south edge
 
-# Palette shades the faces snap to (the sprite's red ramp, 65 dark .. 79 bright).
-SHADES = (67, 68, 69, 70, 71, 73, 75)
+# The block's colour (the sprite's flat top) and its glossy painted-metal finish.
+BODY = 71
+METALLIC = 0.6
+ROUGHNESS = 0.35
 
 
 def _outline(iw, ie, inn, ins):
@@ -76,50 +79,9 @@ def _outline(iw, ie, inn, ins):
     return pts
 
 
-def _sprite_grid(sprite):
-    rows = sprite["frames"][0]["pixels"]
-    return [[int(v) for v in (r.split() if isinstance(r, str) else r)] for r in rows]
-
-
-def _shade_under(grid, x, y):
-    """Palette index of the sprite body pixel under (x, y) units, or the nearest body pixel when
-    that is outline or empty."""
-    H, W = len(grid), len(grid[0])
-    c, r = int(math.floor(x * 12 + W / 2)), int(math.floor(H / 2 - y * 12))
-    best = None
-    for rad in range(0, 4):
-        for dr in range(-rad, rad + 1):
-            for dc in range(-rad, rad + 1):
-                rr, cc = r + dr, c + dc
-                if 0 <= rr < H and 0 <= cc < W and grid[rr][cc] > 1:
-                    d = dr * dr + dc * dc
-                    if best is None or d < best[0]:
-                        best = (d, grid[rr][cc])
-        if best:
-            return best[1]
-    return 71
-
-
-def _lab(rgb):
-    def lin(c):
-        c /= 255
-        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
-    r, g, b = (lin(float(v)) for v in rgb)
-    X = (0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047
-    Y = 0.2126 * r + 0.7152 * g + 0.0722 * b
-    Z = (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883
-    f = [v ** (1 / 3) if v > 0.008856 else 7.787 * v + 16 / 116 for v in (X, Y, Z)]
-    return (116 * f[1] - 16, 500 * (f[0] - f[1]), 200 * (f[1] - f[2]))
-
-
 def build(sprite):
     coll = common.reset_collection(NAME)
-    grid = _sprite_grid(sprite)
-    labs = {int(k): _lab(v) for k, v in sprite["colors"].items()}
-    mats = [common.palette_material(sprite, i, NAME, metallic=0.35, roughness=0.3) for i in SHADES]
-    snap = {}
-    for k, lk in labs.items():
-        snap[k] = min(range(len(SHADES)), key=lambda j: sum((a - b) ** 2 for a, b in zip(lk, labs[SHADES[j]])))
+    mats = [common.palette_material(sprite, BODY, NAME, metallic=METALLIC, roughness=ROUGHNESS)]
 
     bm = bmesh.new()
     rings = []
@@ -130,23 +92,9 @@ def build(sprite):
     for r0, r1 in zip(rings, rings[1:]):
         for i in range(n):
             j = (i + 1) % n
-            f = bm.faces.new((r0[i], r0[j], r1[j], r1[i]))
-            c = f.calc_center_median()
-            f.normal_update()
-            if f.normal.z < 0.25:
-                # Near-vertical walls can't be seen from above: the dark side of the block, a
-                # shade darker on the south front the game camera looks at.
-                f.material_index = SHADES.index(67 if f.normal.y < -0.5 else 68)
-            else:
-                # Sloped faces take the colour of the sprite pixel above them.
-                k = snap[_shade_under(grid, c.x, c.y)]
-                if f.normal.y < -0.3:  # the south-east glint stays a soft gleam on the front
-                    k = min(k, SHADES.index(73))
-                f.material_index = k
-    cap = bm.faces.new(rings[-1])
-    cap.material_index = SHADES.index(71)
-    bot = bm.faces.new(list(reversed(rings[0])))
-    bot.material_index = SHADES.index(67)
+            bm.faces.new((r0[i], r0[j], r1[j], r1[i]))
+    bm.faces.new(rings[-1])
+    bm.faces.new(list(reversed(rings[0])))
     obj = lib.finish(NAME, bm, mats, coll)
     for poly in obj.data.polygons:  # the base stays flat so the walls shade evenly
         if poly.normal.z < -0.9:

@@ -6,9 +6,11 @@ the sprite's whole outline (dark rim included). Its section is one continuous su
 cap subdivided once more so its faces follow the sprite's shading pixel by pixel. The sprite's
 two big lit masses (centre and right) stand proud as broad bumps whose upper-left faces catch the
 light, and its dark pit, the groove running down from it and the lower-right hollow are cut in.
-Faces are painted with the sprite's own grey ramp (as lib_b014.rock does), the upward-facing
-outermost band with its near-black outline, the side wall and underside with darker shades of the
-same mottling. One frame, one model.
+The rock is matte (metallic 0.02, roughness 0.75), so its lit masses are lit faces of real relief.
+The upward faces keep the sprite's mottled greys, pulled a little towards their mean, as the
+rock's own colour; the sprite's near-black outline isn't painted (the game draws the outline), and
+the side wall and underside are one mid-tone grey (index 5) for the light alone to shade. One
+frame, one model.
 
 This rock is built here rather than by lib_b014.rock, which other asteroids share: it reuses that
 module's sprite helpers (silhouette, shade bands) but its own profile and relief.
@@ -52,10 +54,9 @@ GROOVE = ((9.4, 12.2), (8.8, 18.0), 1.3, 0.75)  # the dark groove running straig
 HOLLOWS = [(15.2, 15.6, 1.1, 1.3),              # the lower-right hollow
            (20.0, 10.6, 0.8, 1.2)]              # the shadow under the right mass
 OUTLINE_IDX = (1, 32)
-RIM = 1.1 * PX        # faces this close to the outline (seen from above) are its dark rim...
-RIM_NZ = 0.25          # ...where they face up; steeper faces there are the side wall
-LIFT_MEAN = 0.85       # face colour: this much of the mean shade under it, the rest its brightest
-
+SHADES = (4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15)  # the rock's greys, darkest first (no outline blacks)
+BASE = 1               # sides and underside: the body's dark mid-tone (index 5); the light shades them
+SQUEEZE = 0.9          # the top's sprite greys, pulled this far towards their mean: the game light adds the rest
 
 def lum_grid(sprite, pixels):
     """Luminance per body pixel (None outside the body and on the outline)."""
@@ -111,13 +112,13 @@ def build(sprite):
     pixels = frame["pixels"]
 
     shade = lib.Shade(sprite, pixels, size)
-    reps, edges = lib.shade_slots(sprite, pixels, 8)
-    mats = [common.palette_material(sprite, idx, NAME, metallic=0.15, roughness=0.85 - 0.03 * k)
-            for k, idx in enumerate(reps)]
-    m_rim = len(mats)
-    mats.append(common.palette_material(sprite, 1, NAME, metallic=0.1, roughness=0.9))
+    # Rock: matte (low metallic, rough), so its lit masses are lit faces of real relief. The top
+    # keeps the sprite's mottled greys, slightly evened out, as the rock's own colour; the near-black
+    # outline ring isn't painted (the game draws the outline) and the sides and underside are one
+    # mid-tone, not darkened, so the light alone shades them.
+    mats = [common.palette_material(sprite, idx, NAME, metallic=0.02, roughness=0.75) for idx in SHADES]
     m_blue = len(mats)
-    mats.append(common.palette_material(sprite, 102, NAME, metallic=0.2, roughness=0.8))
+    mats.append(common.palette_material(sprite, 102, NAME, metallic=0.02, roughness=0.8))
 
     # Footprint: the whole sprite, its dark outline included (the body only would leave a 1 px ring).
     full = [[4 if v in OUTLINE_IDX else v for v in r] for r in pixels]
@@ -233,48 +234,24 @@ def build(sprite):
     bmesh.ops.triangulate(bm, faces=bm.faces[:])
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
     bm.normal_update()
-    def inner_band(x, y, inset):
-        """The sprite's shade band a little inside the outline from Blender (x, y)."""
-        dx, dy = x - cx, y - cy
-        d = math.hypot(dx, dy)
-        if d > 1e-6:
-            x, y = x - dx / d * inset, y - dy / d * inset
-        lum = shade.at(x, y, blur=0.8)
-        return 0 if lum is None else lib.band_of(edges, lum)
+    lums = [lib.luminance(sprite["colors"][str(i)]) for i in SHADES]
+
+    def nearest(lum):
+        lum = shade.mean + SQUEEZE * (lum - shade.mean)
+        return min(range(len(SHADES)), key=lambda k: abs(lums[k] - lum))
 
     for f in bm.faces:
         cen = f.calc_center_median()
-        nz = f.normal.z
-        if nz < -0.3:
-            # The underside: the sprite's mottling carried round, at its darkest.
-            f.material_index = min(1, inner_band(cen.x, cen.y, 2.5 * PX))
-            continue
-        idx = shade.index(cen.x, cen.y)
-        dx, dy = cen.x - cx, cen.y - cy
-        edge = lib.radius_at(radii, math.atan2(dy, dx)) - math.hypot(dx, dy)  # to the outline
-        if idx in OUTLINE_IDX or idx == -1 or edge < RIM:
-            if nz > RIM_NZ:
-                # The upward-facing rim band is the sprite's near-black outline from above.
-                f.material_index = m_rim
-            else:
-                # The steep wall, edge-on from above: the grey a little inside, two shades
-                # darker, so the side reads as the same rock as the top, all the way down.
-                f.material_index = max(0, inner_band(cen.x, cen.y, 2.0 * PX) - 2)
-            continue
-        if idx == 102 and nz < 0.8:
-            f.material_index = m_blue
+        f.material_index = BASE
+        if f.normal.z < 0.5:
+            continue  # sides and underside: the same rock, shaded by the light
+        if shade.index(cen.x, cen.y) == 102:
+            f.material_index = m_blue  # the bluish specks are the rock's own colour
             continue
         pts = [cen] + [cen.lerp(p.co, 0.6) for p in f.verts]
-        ls = [shade.at(p.x, p.y, blur=0.3) for p in pts]
-        ls = [x for x in ls if x is not None]
-        if not ls:
-            f.material_index = m_rim
-            continue
-        lum = LIFT_MEAN * sum(ls) / len(ls) + (1 - LIFT_MEAN) * max(ls)  # highlights stay bright
-        k = lib.band_of(edges, lum)
-        if nz < 0.2:  # the steep side reads darker
-            k = max(0, k - 1)
-        f.material_index = k
+        ls = [x for x in (shade.at(p.x, p.y, blur=0.5) for p in pts) if x is not None]
+        if ls:
+            f.material_index = nearest(sum(ls) / len(ls))
 
     obj = common.mesh_object(NAME, bm, mats, coll, smooth=False)
     return [(NAME, [obj], sprite["sprites"])]

@@ -70,20 +70,24 @@ def build_arm(name, sprite, coll):
     """The right arm in its assembly grid: built in the left arm's layout and mirrored at the end."""
     tag = name
     pal = lambda i, **kw: common.palette_material(sprite, i, tag, **kw)  # noqa: E731
+    # Materials: the arm is a cast, polished grey metal machine, so every grey part is metallic and
+    # fairly smooth and the game's lights make its sheen (the sprite's bright streaks and hot spots
+    # are that sheen, not ridges or pins). Parts carry their mid-tone grey, not the sprite's drawn
+    # light and shadow; only the cut-in recesses stay dark. The gem is glowing glass.
     mats = [
-        pal(9, metallic=0.3, roughness=0.4),  # 0 lit grey faces
-        pal(5, metallic=0.3, roughness=0.45),  # 1 shaded grey faces
-        pal(2, metallic=0.2, roughness=0.6),  # 2 dark undersides
-        pal(3, metallic=0.2, roughness=0.7),  # 3 dark hollows
-        pal(7, metallic=0.35, roughness=0.35),  # 4 mid grey housings
-        pal(10, metallic=0.4, roughness=0.3),  # 5 bright rims
-        pal(12, metallic=0.4, roughness=0.25),  # 6 highlights
-        pal(4, metallic=0.3, roughness=0.5),  # 7 dark grey
-        pal(6, metallic=0.3, roughness=0.4),  # 8 grey neck
-        pal(153, emission_strength=4.0),  # 9 blue gem
-        pal(158, emission_strength=5.0),  # 10 gem highlight
-        pal(8, metallic=0.35, roughness=0.3),  # 11 light-mid grey
-        pal(1, metallic=0.2, roughness=0.7),  # 12 black hole
+        pal(9, metallic=0.6, roughness=0.32),  # 0 lit grey faces (the upper arm's top plate, jaw)
+        pal(5, metallic=0.6, roughness=0.35),  # 1 cowl grey
+        pal(2, metallic=0.2, roughness=0.7),  # 2 deep recess
+        pal(3, metallic=0.2, roughness=0.7),  # 3 dark hollows (socket, mouth)
+        pal(7, metallic=0.6, roughness=0.32),  # 4 mid grey housings
+        pal(10, metallic=0.6, roughness=0.3),  # 5 bright rims
+        pal(12, metallic=0.6, roughness=0.3),  # 6 highlights (unused: sheen is the material's)
+        pal(4, metallic=0.6, roughness=0.35),  # 7 dark grey
+        pal(6, metallic=0.6, roughness=0.35),  # 8 grey neck, undersides, claw base
+        pal(153, metallic=0.0, roughness=0.08, emission_strength=4.0),  # 9 blue gem
+        pal(158, metallic=0.0, roughness=0.08, emission_strength=5.0),  # 10 gem highlight (unused)
+        pal(8, metallic=0.6, roughness=0.32),  # 11 light-mid grey
+        pal(1, metallic=0.1, roughness=0.8),  # 12 the claw's open gap
     ]
     LIT, SHADE, UNDER, HOLLOW, MID, RIM, HI, DARK, NECK, GEM, GEMHI, LMID, BLACK = range(13)
     bm = bmesh.new()
@@ -94,10 +98,10 @@ def build_arm(name, sprite, coll):
                (30.0, 7.0, 0.2, 3.4, 0.37), (34.0, 6.6, 0.21, 4.4, 0.41), (39.0, 6.8, 0.21, 4.3, 0.41),
                (43.0, 7.0, 0.2, 3.9, 0.38), (45.6, 7.3, 0.18, 3.0, 0.3), (46.8, 7.6, 0.15, 1.5, 0.16),
                (47.1, 7.8, 0.13, 0.0, 0.0)], sides=14, mat=MID)
-    ellipsoid(bm, 37.6, 6.2, 0.56, 2.1, 2.6, 0.2, mat=RIM)
-    ellipsoid(bm, 42.2, 6.8, 0.52, 1.8, 2.4, 0.18, mat=RIM)
-    ellipsoid(bm, 37.9, 6.0, 0.74, 0.9, 1.2, 0.04, mat=HI, segments=10, rings=5)
-    ellipsoid(bm, 42.4, 6.6, 0.68, 0.7, 1.0, 0.035, mat=HI, segments=10, rings=5)
+    # The knuckles are real round knobs (each ringed by a darker groove in the sprite); their white
+    # centres are sheen on the dome, so no cap is modelled for them.
+    ellipsoid(bm, 37.6, 6.2, 0.56, 2.1, 2.6, 0.2, mat=LIT)
+    ellipsoid(bm, 42.2, 6.8, 0.52, 1.8, 2.4, 0.18, mat=LIT)
 
     # Neck between the housing and the upper arm (rows 8-13).
     # (Its outer edge reaches the sprite's dark outline pixels down the right arm's right side.)
@@ -111,7 +115,7 @@ def build_arm(name, sprite, coll):
     rplate(bm, [(35.5, 14), (45, 13.8), (45, 21), (43, 22), (37.5, 21.5), (35, 18.5)],
            -0.17, 0.3, mat=LIT, r=1.5)
     plate(bm, [(35.5, 21), (45, 20.5), (44.6, 23), (41.5, 26.5), (39.5, 27.6), (36, 27.6)],
-          -0.2, 0.16, mat=DARK, tilt=(0.0, -0.03, 0, 21))
+          -0.2, 0.16, mat=NECK, tilt=(0.0, -0.03, 0, 21))
 
     # Upper arm: the lit face (columns 17-26, rows 11-30) on a rounded shaded cowl to its lower
     # left (columns 9-18, rows 13-25) whose underside (rows 24-30) falls away in shadow.
@@ -121,11 +125,9 @@ def build_arm(name, sprite, coll):
                 (14.2, 17), (15, 16.6)],
            -0.2, 0.29, mat=SHADE, r=2.0, steps=4, tilt=(0.005, 0.0, 21, 0))
     plate(bm, [(8, 24.3), (17.8, 24.5), (17.8, 30.5), (8, 30.5)],
-          -0.2, 0.17, mat=UNDER, tilt=(0.0, -0.03, 0, 24.3))
-    # Highlight ridge on the edge between the lit face and the cowl, and the pin on it.
-    sweep(bm, [(20.8, 19.6, 0.34, 0.0, 0.0), (20.4, 20.4, 0.34, 0.9, 0.05), (19.2, 22.6, 0.33, 0.8, 0.045),
-               (18.3, 25.5, 0.32, 0.7, 0.04), (17.9, 27.2, 0.31, 0.0, 0.0)], sides=6, mat=RIM)
-    ellipsoid(bm, 20.6, 20.5, 0.38, 0.9, 0.8, 0.05, mat=HI, segments=8, rings=4)
+          -0.2, 0.17, mat=SHADE, tilt=(0.0, -0.03, 0, 24.3))
+    # (The bright streak down the edge between the lit face and the cowl, and the hot spot on it,
+    # are the rounded edge's sheen: the metal and the lights make them, no ridge or pin.)
 
     # Socket: a round pipe arching over a dark opening cut about 4 px into the arm (columns 26-38,
     # rows 12-27), its darkest part deeper still.
@@ -134,7 +136,7 @@ def build_arm(name, sprite, coll):
     plate(bm, [(28.5, 18), (31.5, 17), (34, 20), (33, 23), (30, 22)], -0.2, -0.1, mat=UNDER)
     sweep(bm, [(25.6, 15.0, 0.36, 1.5, 0.13), (27.4, 13.4, 0.38, 1.7, 0.15), (30.5, 13.0, 0.4, 1.9, 0.16),
                (33.6, 14.0, 0.4, 1.9, 0.16), (35.4, 16.0, 0.38, 1.8, 0.15), (37.0, 18.4, 0.34, 1.6, 0.14),
-               (38.6, 20.0, 0.3, 1.2, 0.11)], sides=10, mat=RIM)
+               (38.6, 20.0, 0.3, 1.2, 0.11)], sides=10, mat=LIT)
     sweep(bm, [(28.0, 21.0, 0.08, 0.0, 0.0), (28.8, 21.8, 0.12, 1.4, 0.12), (30.3, 24.0, 0.14, 1.7, 0.14),
                (32.6, 25.4, 0.14, 1.7, 0.14), (34.6, 26.6, 0.12, 1.4, 0.12), (35.6, 27.3, 0.1, 0.0, 0.0)],
           sides=8, mat=LMID)
@@ -151,30 +153,31 @@ def build_arm(name, sprite, coll):
     plate(bm, [(6, 38), (13.5, 38.5), (13.5, 40.5), (11.5, 44.5), (9.5, 47), (5, 47), (5, 44)],
           -0.17, -0.06, mat=BLACK)  # the dark gap between the fingers
     plate(bm, [(8.5, 34.5), (12.5, 34.5), (12.5, 39), (8.5, 39)], -0.17, -0.08, mat=UNDER)
+    # The claw's pipes are one grey metal: the sprite's dark outer finger and bright inner one are
+    # its light falling on a loop, which the game's light makes again.
     sweep(bm, [(7.6, 45.5, 0.15, 2.3, 0.19), (7.4, 41.0, 0.17, 2.4, 0.21), (7.6, 37.0, 0.18, 2.2, 0.2)],
-          sides=12, mat=DARK)
+          sides=12, mat=MID)
     sweep(bm, [(7.0, 38.0, 0.18, 0.0, 0.0), (7.0, 37.0, 0.18, 1.8, 0.16), (7.4, 35.0, 0.19, 2.2, 0.19),
                (8.6, 33.3, 0.2, 2.4, 0.2), (10.6, 32.8, 0.2, 2.4, 0.2), (12.4, 33.6, 0.2, 1.9, 0.17),
-               (13.2, 34.8, 0.2, 0.0, 0.0)], sides=12, mat=SHADE)
+               (13.2, 34.8, 0.2, 0.0, 0.0)], sides=12, mat=MID)
     sweep(bm, [(12.4, 32.4, 0.22, 0.0, 0.0), (12.8, 33.4, 0.22, 1.5, 0.13), (13.4, 37.0, 0.22, 1.7, 0.15),
                (13.4, 39.6, 0.21, 1.7, 0.15), (12.4, 42.0, 0.19, 1.7, 0.15), (11.0, 44.4, 0.17, 1.6, 0.14),
-               (9.6, 46.6, 0.15, 0.0, 0.0)], sides=10, mat=RIM)
-    # The claw's dark rim: a low black flange under the whole claw and the forearm's lower end,
-    # traced from the right arm's sprite outline (rows 30-51; R() takes right-arm pixel edges), so
-    # the sprite's black edge pixels round the claw are covered.
+               (9.6, 46.6, 0.15, 0.0, 0.0)], sides=10, mat=LMID)
+    # A low base flange under the whole claw and the forearm's lower end, traced from the right
+    # arm's sprite silhouette (rows 30-51; R() takes right-arm pixel edges). The sprite's black edge
+    # pixels there are its outline, which the game draws, so the flange is the claw's own grey.
     R = lambda pts: [(49 - c, r) for c, r in pts]  # noqa: E731  right-arm edge column -> left
     plate(bm, R([(34, 31), (36, 30), (42, 30), (42, 31), (43, 31), (43, 32), (44, 32), (44, 44), (45, 44),
                  (45, 46), (46, 46), (46, 50), (45, 50), (45, 51), (44, 51), (44, 52), (39.2, 52),
                  (37.9, 50.8), (32.5, 40), (29, 40), (29, 39), (28, 38.2)]),
-          -0.2, -0.1, mat=BLACK)
+          -0.2, -0.1, mat=NECK)
     # Collar over the gem (rows 44-47) and the gem: the sprite's blue is a flat diagonal facet across
     # the claw's end (right-arm columns 40-44, rows 47-50), so it is a low bevelled plate set in the
     # end of the claw with its highlight at the upper left, not a ball.
-    ellipsoid(bm, 7.0, 45.6, 0.16, 2.6, 1.5, 0.18, mat=DARK, segments=12, rings=6)
-    ellipsoid(bm, 8.6, 46.2, 0.3, 1.0, 0.7, 0.05, mat=HI, segments=8, rings=4)
+    # The gem's pale highlight is glass shine (its glossy material makes it), not a cap.
+    ellipsoid(bm, 7.0, 45.6, 0.16, 2.6, 1.5, 0.18, mat=NECK, segments=12, rings=6)
     rplate(bm, R([(42, 47), (45, 47), (45, 49), (44, 50), (42, 51), (40, 51), (40, 49), (41, 48)]),
            -0.2, 0.17, mat=GEM, r=1.0, steps=2, tilt=(0.012, -0.012, 7, 47))
-    ellipsoid(bm, 49 - 41.9, 48.4, 0.17 + 0.01, 1.0, 0.6, 0.025, mat=GEMHI, segments=8, rings=4)
 
     # Stand the arm on the ground: its lowest faces (the plates' and drums' undersides) at z = 0,
     # so nothing hangs below the base plane and every part keeps its height above it.

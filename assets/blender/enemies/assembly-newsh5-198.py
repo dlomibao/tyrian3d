@@ -67,17 +67,91 @@ FINE, BROAD = 1.4, 3.6  # blur radii (px) of the fold relief: the folds' roundin
 RELIEF_IN = 2.5  # the folds fade in over this many px from the outline, so the rim rounds over
 VMAX = 13  # brighter pixels (the near-white spots) are sheen on the folds, not taller folds
 CLEFT = 0.9  # how much of the height the midline fissure cuts away at its centre line
-SOFTEN = 3.0  # how far the light flesh's shading normals tilt towards SOFT_DIR (0 = true normals)
+SOFTEN = 0.0  # how far the light flesh's shading normals tilt towards SOFT_DIR (0 = true normals)
 SOFT_DIR = (-0.7, -0.25, 1.0)  # the direction the light flesh's normals lean towards: mostly up and a
 # little away from the studio light's grey specular lobe, so the folds light salmon rather than grey
 SOFT_FROM, SOFT_TO = 2.0, 6.0  # blurred brightness (palette steps over 64) where the softening fades in
 RIM_SMOOTH, RIM_SMOOTH_PASSES = 1.5, 3  # px from the outline whose normals are smoothed, and passes
 DARK_DIR, DARK_LEAN = (0.6, -0.6, 0.5), 6.0  # where the black fissure's normals lean, and how far
-STEEPEN, DARK = 4.0, 4.0  # the dark flesh's shading slopes are steepened by up to 1 + STEEPEN below DARK
+STEEPEN, DARK = 0.0, 4.0  # the dark flesh's shading slopes are steepened by up to 1 + STEEPEN below DARK
 CLEFT_W = 1.4  # px: half-width of the fissure's V at the top
 EDGE_SOFT = 0.5  # px: how much the distance to the outline is rounded over the outline's pixel steps
 BOTTOM_OUT = 0.35  # px beyond the bottom cut where the lobes would reach the ground (the folds roll
 # down to about 1 px at the cut rather than ending in a cliff)
+
+
+# Colours (palette indices): the sprite draws its light into its pixels (a dark outline ring,
+# near-white hot spots on the lit side of each fold, dark lower-right halves), and the game lights
+# the model and draws its own outline, so the flesh is painted in a few broad tones instead of the
+# sprite's per-pixel shading: the folds' crests, their body, and the grooves between them (the game
+# has no ambient occlusion, so the sulci keep a darker red for their depth). The fissure's black
+# stays: it is a cut, not shading.
+TONE_CREST, TONE_MID, TONE_GROOVE, FISSURE = 72, 70, 68, 1
+CREST_AT, GROOVE_AT = 1.2, -1.0  # palette steps of fold relief (fine minus broad blur) per tone
+
+
+def tone_grid(grid):
+    """The palette index each pixel is painted with: a broad tone from its fold relief (the blurred
+    sprite's brightness against its surroundings), the outline ring in the body tone, the fissure
+    black."""
+    import numpy as np
+    H, W = grid.shape
+    inside = grid != -1
+    rr, cc = np.mgrid[0:H, 0:W]
+    iy, ix = np.nonzero(inside)
+    v = np.clip(grid - 64, 0, VMAX).astype(float)[iy, ix]
+    d2 = (iy[:, None] - iy[None, :]) ** 2 + (ix[:, None] - ix[None, :]) ** 2
+
+    def blur(sigma):
+        w = np.exp(-0.5 * d2 / sigma ** 2)
+        return (w * v[None, :]).sum(1) / w.sum(1)
+
+    relief = blur(FINE) - blur(BROAD)
+    out = np.full((H, W), -1, dtype=int)
+    tone = np.where(relief > CREST_AT, TONE_CREST, np.where(relief < GROOVE_AT, TONE_GROOVE, TONE_MID))
+    out[iy, ix] = tone
+    # the outline ring: the game draws the outline, so it takes the body tone rather than the
+    # sprite's near-black
+    out[tone_grid_ring(grid)] = TONE_MID
+    fiss = (grid == 1) & (cc >= 33) & (cc <= 39) & (rr >= 9)
+    out[fiss] = FISSURE
+    return out
+
+
+def tone_grid_ring(grid):
+    """The inside pixels touching the outside (the bottom cut aside): the sprite's outline ring."""
+    import numpy as np
+    H, W = grid.shape
+    inside = grid != -1
+    pad = np.ones((H + 2, W + 2), dtype=bool)
+    pad[1:-1, 1:-1] = ~inside
+    pad[-1, :] = False  # the bottom cut is not an outline
+    ring = np.zeros((H, W), dtype=bool)
+    for dy in (-1, 0, 1):
+        for dx in (-1, 0, 1):
+            ring |= pad[1 + dy:H + 1 + dy, 1 + dx:W + 1 + dx]
+    return inside & ring
+
+
+def tone_at(grid, py, px):
+    """Broad tone (palette index) at points (py, px) in pixel units, from the fold relief there, so
+    the tones' borders follow the folds' smooth curves rather than the pixel steps."""
+    import numpy as np
+    iy, ix = np.nonzero(grid != -1)
+    v = np.clip(grid - 64, 0, VMAX).astype(float)[iy, ix]
+    out = np.empty(len(py), dtype=int)
+    for s0 in range(0, len(py), 2000):
+        y, x = py[s0:s0 + 2000], px[s0:s0 + 2000]
+        d2 = (y[:, None] - (iy + 0.5)[None, :]) ** 2 + (x[:, None] - (ix + 0.5)[None, :]) ** 2
+
+        def blur(sigma):
+            w = np.exp(-0.5 * d2 / sigma ** 2)
+            return (w * v[None, :]).sum(1) / w.sum(1)
+
+        relief = blur(FINE) - blur(BROAD)
+        out[s0:s0 + 2000] = np.where(relief > CREST_AT, TONE_CREST,
+                                     np.where(relief < GROOVE_AT, TONE_GROOVE, TONE_MID))
+    return out
 
 
 def _box_dist(py, px, oy, ox):
@@ -153,15 +227,31 @@ class Brain:
         H, W = self.H, self.W = grid.shape
         self.inside = grid != -1
         tag = "nsh5brain"
-        used = sorted({int(v) for v in grid.ravel() if v >= 0})
-        order = [67] + [i for i in used if i != 67]  # material 0 is the dark flesh
-        # soft, matte flesh: rough and non-metallic, so it lights to its own salmon rather than
-        # a dull glossy maroon (the fissure's black is fully rough, so it shows no streak)
+        self.paint = tone_grid(grid)
+        order = [TONE_MID, TONE_CREST, TONE_GROOVE, FISSURE]  # material 0 is the body flesh
+        # soft, matte flesh (organic: non-metallic and rough, so the folds' highlights are lit
+        # faces of their real shape, not sheen); the fissure's black is rougher still, no streak
         self.mats = [common.palette_material(sprite, i, tag, metallic=0.0,
-                                             roughness=0.6 if i >= 74 else 0.75 if i >= 68 else 0.9 if i >= 64 else 1.0)
+                                             roughness=0.9 if i == FISSURE else 0.7)
                      for i in order]
         self.mat_of = {i: k for k, i in enumerate(order)}
-        self.WALL, self.CUT = self.mat_of[66], self.mat_of[68]  # the outline's sides; the bottom cut and piece ends
+        # each fan triangle's tone from the relief at its centroid (pixels in the outline ring and
+        # the fissure keep their one colour)
+        import numpy as np
+        cents = []
+        for r, c in np.argwhere(self.inside):
+            for tri in self.fans(r, c):
+                cents.append([sum(k[1] for k in tri) / 6, sum(k[2] for k in tri) / 6])
+        cents = np.array(cents)
+        tri_tone = tone_at(grid, cents[:, 0], cents[:, 1])
+        self.tri_tone = {}
+        ring = tone_grid_ring(grid)
+        for i, (r, c) in enumerate(np.argwhere(self.inside)):
+            fixed = self.paint[r, c] == FISSURE or ring[r, c]
+            self.tri_tone[int(r), int(c)] = ([int(self.paint[r, c])] * 8 if fixed
+                                             else [int(t) for t in tri_tone[8 * i:8 * i + 8]])
+        # the outline's sides, the bottom cut and piece ends: the body tone (the game draws the outline)
+        self.WALL = self.CUT = self.mat_of[TONE_MID]
 
         # lattice points (a, b) at pixel coordinates (a / 2, b / 2) that touch an inside pixel
         pts = set()
@@ -304,10 +394,9 @@ class Brain:
             return verts[key]
 
         for r, c in self.pixels(c0, c1):
-            mi = self.mat_of[int(self.grid[r, c])]
-            for tri in self.fans(r, c):
+            for tri, tone in zip(self.fans(r, c), self.tri_tone[r, c]):
                 f = bm.faces.new([v(k) for k in tri])
-                f.material_index, f.smooth = mi, True
+                f.material_index, f.smooth = self.mat_of[tone], True
             for (dr, dc), (a, b) in self.SIDES(r, c):
                 rr, cc = r + dr, c + dc
                 seam = not c0 <= cc < c1 and self.ins(rr, cc)

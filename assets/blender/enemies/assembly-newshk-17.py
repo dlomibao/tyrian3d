@@ -54,6 +54,7 @@ SMOOTH_PASSES = 2
 # Fire shades with a material each (every pixel takes the closest): dark red rim, red, orange,
 # three yellows, pale yellow and the white core. The sprite's other shades are a step away.
 SHADES = [116, 119, 121, 123, 124, 125, 126, 127]
+GLOW_LO, GLOW_HI = 0.2, 0.5  # emission strength of the dark red rim and of the white core
 
 
 def lab(rgb):
@@ -257,8 +258,12 @@ def main():
         c_lo = int(cx - 12 - left)
         near = {v: nearest_shade(v, colors) for line in grid for v in line[c_lo:c_lo + 24] if v >= 0}
         used = sorted(set(near.values()))
-        mats = [common.palette_material(sprite, i, NAME, metallic=0.0, roughness=0.6,
-                                        emission_strength=1.5 + 3.5 * (i - 114) / 13) for i in used]
+        # Fire: not metal, no shine, and it glows in its own colour. The glow stays low (the scene's
+        # light already brightens it) so each shade shows as itself from the game camera; stronger
+        # glows wash the yellows and oranges out to white.
+        mats = [common.palette_material(sprite, i, NAME, metallic=0.0, roughness=0.9,
+                                        emission_strength=GLOW_LO + (GLOW_HI - GLOW_LO) * (i - 116) / 11)
+                for i in used]
         mat_of = {v: used.index(i) for v, i in near.items()}
         parts[m] = build_piece(m, grid, zc, nrm, c_lo, c_lo + 24, mats, mat_of, coll, w, h)
         parts[m].location = ((cx - cx0) * PX, -(cy - cy0) * PX, 0.0)  # for the preview

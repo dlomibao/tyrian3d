@@ -102,6 +102,12 @@ DARK = {"blue": 96, "gum": 65, "red": 1, "purple": 82, "tooth": 163}
 # white-hot), which the static paint lumps into 120.
 FINE_FAMILIES = dict(FAMILIES, red=[1, 112, 113, 114, 115, 117, 120, 122, 124, 126])
 FAMILY_OF.update({rep: "red" for rep in FINE_FAMILIES["red"]})
+# How a part's colours follow the sprite's shades (Painter.shade): (how much of the step away from
+# the part's mid-tone to keep, soft-average radius in px or 0 for none, leave outline black out).
+# The throat keeps its dark rings half (they are its ledges' gaps), unsmoothed.
+SOFT = {"blue": (0.5, 0.8, True), "gum": (0.55, 0.7, True), "red": (0.75, 0.0, False),
+        "purple": (0.35, 1.0, True)}
+LIGHTS = {117, 120, 122, 124, 126}  # the throat's glow and the fire: lights, not shading
 
 # The animated pieces' frames, phase by phase (the layout above shows phase 2).
 ANIM = {"newshn-119": [119, 229, 233, 237, 241], "newshn-121": [121, 231, 235, 239, 243],
@@ -167,8 +173,11 @@ def rep_of(idx, context, fine=False):
 class Palette:
     """Material slots by palette index, made on first use."""
 
-    STYLE = {"blue": (0.2, 0.55), "gum": (0.05, 0.55), "red": (0.0, 0.7), "purple": (0.15, 0.55),
-             "tooth": (0.1, 0.35)}
+    # (metallic, roughness) per family. The head is a creature: its blue-grey skull a hard, slightly
+    # glossy carapace (not metal), the gums and throat wet flesh, the brain and claws matte-ish
+    # organic, the fangs smooth bone. The lighting shades them; their colours are mid-tones.
+    STYLE = {"blue": (0.1, 0.4), "gum": (0.0, 0.4), "red": (0.0, 0.65), "purple": (0.0, 0.6),
+             "tooth": (0.0, 0.3)}
 
     def __init__(self, sprite):
         self.sprite = sprite
@@ -202,6 +211,17 @@ class Palette:
             self.mats.append(common.palette_material(
                 self.sprite, reps[0], TAG + "f" + "-".join(map(str, reps[1:])), metallic=metallic, roughness=rough,
                 emission_strength=2.5 if max(reps) >= 120 else 0.0, frames=frames))
+        return self.slots[key]
+
+    def eye(self, idx, emission=0.0):
+        """A slot for the eyes: wet, glossy balls, so the scene's lights put the sprite's highlight
+        on them."""
+        key = ("eye", idx)
+        if key not in self.slots:
+            self.slots[key] = len(self.mats)
+            self.index.append(idx)
+            self.mats.append(common.palette_material(self.sprite, idx, f"{TAG}eye", metallic=0.0, roughness=0.15,
+                                                     emission_strength=emission))
         return self.slots[key]
 
     def glow(self, idx, emission):
@@ -275,8 +295,15 @@ class Painter:
         v = self._lightness(c, r, "gum", 1.5, spread=2.0)
         return 0.0 if v is None else max(-0.06, min(0.1, (v - 2.4) * 0.04))
 
-    def shade(self, f, context, grid=None, fine=False):
-        """The shade of the sprite pixels under a face (a vote over a few points), or None."""
+    def shade(self, f, context, grid=None, fine=False, mid=None):
+        """The colour of a face from the sprite pixels under it (a vote over a few points), or None.
+
+        The sprite draws its light into its pixels (dark outline, dark grooves, lit ribs); the game
+        lights the model and draws its own outline. So, with `mid` (the part's mid-tone), a face
+        takes a soft average of the sprite's shade round it, with outline black left out, pulled
+        most of the way to the part's mid-tone (SOFT): the sprite's markings and lighter or darker
+        plates still show, its shading and pixel patchwork don't. Lights (the throat's glow and
+        fire, LIGHTS) keep their colour."""
         families = FINE_FAMILIES if fine else FAMILIES
         cen = f.calc_center_median()
         reps = [rep_of(self.pixel(p.x, p.y, grid), context, fine)
@@ -290,7 +317,33 @@ class Painter:
         fam = max(set(fams), key=lambda k: (fams.count(k), k == context))
         order = families[fam]
         pos = sorted(order.index(r) for r in reps if FAMILY_OF[r] == fam)
-        return order[pos[len(pos) // 2]]  # the median shade: no greying mix of light and dark
+        rep = order[pos[len(pos) // 2]]  # the median shade: no greying mix of light and dark
+        if mid is None or fam not in SOFT or rep in LIGHTS or FAMILY_OF.get(mid) != fam:
+            return rep
+        keep, sigma, skip_outline = SOFT[fam]
+        p = float(order.index(rep))
+        if sigma > 0:
+            c, r = to_px(cen.x, cen.y)
+            total = wsum = 0.0
+            for dc in (-2, -1, 0, 1, 2):
+                for dr in (-2, -1, 0, 1, 2):
+                    raw = (self.grid if grid is None else grid).get((math.floor(c + 0.5) + dc,
+                                                                     math.floor(r + 0.5) + dr), -1)
+                    if raw < 0 or (skip_outline and (raw <= 4 or raw == 48)):
+                        continue
+                    q = rep_of(raw, fam, fine)
+                    if q is None or FAMILY_OF.get(q) != fam or q in LIGHTS:
+                        continue
+                    w = math.exp(-((math.floor(c + 0.5) + dc - c) ** 2 + (math.floor(r + 0.5) + dr - r) ** 2)
+                                 / (2 * sigma * sigma))
+                    total += w * order.index(q)
+                    wsum += w
+            if wsum:
+                p = total / wsum
+            elif skip_outline:
+                p = float(order.index(mid))
+        m = order.index(mid)
+        return order[max(0, min(len(order) - 1, math.floor(m + (p - m) * keep + 0.5)))]
 
     def paint(self, faces, context, default=None, min_nz=None):
         """Give each face the shade of the sprite pixels under it (with `phases`, per phase)."""
@@ -300,7 +353,7 @@ class Painter:
                 if f.normal.z < min_nz:
                     continue
             if self.phases is None:
-                rep = self.shade(f, context)
+                rep = self.shade(f, context, mid=default)
                 if rep is None:
                     if default is not None:
                         f.material_index = self.pal(default)
@@ -310,10 +363,10 @@ class Painter:
             keep = self.pal.index[f.material_index] if default is None else default
             c, r = to_px(*f.calc_center_median().xy)
             if not any(c0 <= c <= c1 and r0 <= r <= r1 for c0, r0, c1, r1 in self.boxes):
-                rep = self.shade(f, context)  # outside the animated pieces: as the static paint
+                rep = self.shade(f, context, mid=default)  # outside the animated pieces: as the static paint
                 f.material_index = self.pal(keep if rep is None else rep)
                 continue
-            reps = [self.shade(f, context, g, fine=True) for g in self.phases]
+            reps = [self.shade(f, context, g, fine=True, mid=default) for g in self.phases]
             reps = [keep if r is None else r for r in reps]
             for k in range(1, PHASES - 1):  # a shade that flickers for one frame (pixel noise)
                 if reps[k - 1] == reps[k + 1] != reps[k]:
@@ -529,7 +582,7 @@ def build_shell(bm, painter):
 
     for f in skin + gums + throat + belly:
         f.smooth = True
-    painter.paint(skin, "blue", default=97)
+    painter.paint(skin, "blue", default=98)
     painter.paint(gums, "gum", default=69)
     painter.paint(throat, "red", default=113)
     for f in belly:
@@ -608,11 +661,11 @@ def build_parts(bm, painter, surf, phase=None):
             # Eyes: a red ball with a glowing centre, half sunk in its dark socket (three down each side).
             for c, r in EYES:
                 z = surf.z(m(c), r)
-                lib.blob(bm, P(m(c), r, z), (3.0 * PX, 3.0 * PX, 0.2), segments=14, rings=7, mat=pal(113))
+                lib.blob(bm, P(m(c), r, z), (3.0 * PX, 3.0 * PX, 0.2), segments=14, rings=7, mat=pal.eye(113))
                 lib.blob(bm, P(m(c), r - 0.1, z + 0.06), (2.1 * PX, 2.1 * PX, 0.165), segments=12, rings=6,
-                         mat=pal(117))
+                         mat=pal.eye(117))
                 lib.blob(bm, P(m(c), r - 0.2, z + 0.13), (1.2 * PX, 1.2 * PX, 0.11), segments=10, rings=5,
-                         mat=pal(121, emission=4.0))
+                         mat=pal.eye(121, emission=4.0))
 
         # Fangs round the gums, pointing in and down into the throat: (base, tip, radius px).
         for i, ((bc, br), (tc, tr), rad) in enumerate((

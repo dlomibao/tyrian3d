@@ -86,7 +86,7 @@ def build_core(bm, cx, cy, core_mat, groove_mat, eye_mat, eye2_mat, rim_mat):
     for j in range(len(grid) - 1):
         for i in range(nx):
             f = bm.faces.new((grid[j][i], grid[j][i + 1], grid[j + 1][i + 1], grid[j + 1][i]))
-            groove = i in (mid - 2, mid - 1, mid, mid + 1) and ys[j] > -3.6
+            groove = i in (mid - 1, mid, mid + 1) and ys[j] > -3.6  # the two walls and the floor
             f.material_index = groove_mat if groove else core_mat
             f.smooth = not groove
     # Skirt down to the underside, then close it.
@@ -113,50 +113,7 @@ def build_core(bm, cx, cy, core_mat, groove_mat, eye_mat, eye2_mat, rim_mat):
                             mat_index=m, smooth=False)
 
 
-# Grey shades the model is painted in (sprite palette indices, dark to light). Each face seen from
-# above takes the one nearest in brightness to the sprite pixel under it, so the lit model shows
-# the sprite's shading: white highlight bands on the arcs, light silver lobes on the core, black
-# outline pixels on the flanks.
-SHADES = (2, 4, 6, 8, 10, 12, 14)
-STEEP = 0.5  # faces steeper than this (normal z) are flanks
-FLANK = 4  # the darkest shade a flank takes
-
-
-def frame_pixels(frame):
-    return [[int(v) for v in (line.split() if isinstance(line, str) else line)] for line in frame["pixels"]]
-
-
-def paint(bm, pixels, colors, skip, slot_of):
-    """Give every face not in `skip` the shade of the sprite pixel under its centre (its nearest
-    opaque neighbour on the silhouette's edge); faces underneath get the darkest shade."""
-    lum = {int(k): sum(v) / 3 for k, v in colors.items()}
-    rows, cols = len(pixels), len(pixels[0])
-
-    def index_at(c, r):
-        for dc, dr in ((0, 0), (1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (-1, -1), (1, -1), (-1, 1)):
-            cc, rr = c + dc, r + dr
-            if 0 <= rr < rows and 0 <= cc < cols and pixels[rr][cc] >= 0:
-                return pixels[rr][cc]
-        return SHADES[0]
-
-    for f in bm.faces:
-        if f.material_index in skip:
-            continue
-        f.normal_update()
-        if f.normal.z < -0.2:
-            f.material_index = slot_of[SHADES[0]]
-            continue
-        c = f.calc_center_median()
-        i = index_at(math.floor(c.x / U + 12), math.floor(14 - c.y / U))
-        y = lum.get(i, 0)
-        if f.normal.z < STEEP:
-            # Steep flanks only show from above as the sprite's 1 px black outline, which the game
-            # draws itself; a mid grey keeps them from reading as a black band from the game camera.
-            y = max(y, lum[FLANK])
-        f.material_index = slot_of[min(SHADES, key=lambda k: abs(lum[k] - y))]
-
-
-def build_one(sprite, name, turn, centre, pixels):
+def build_one(sprite, name, turn, centre):
     coll = common.reset_collection(name)
     pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
     mats = [
@@ -164,12 +121,15 @@ def build_one(sprite, name, turn, centre, pixels):
         pal(119, emission_strength=4.0),  # 1 lights' outer drop: red (sprite index 119)
     ]
     EYE, EYE2 = 0, 1
-    slot_of = {}
-    for k in SHADES:
-        slot_of[k] = len(mats)
-        # Low metallic so the lit model reads as silver like the sprite, not dark chrome.
-        mats.append(pal(k, metallic=0.2, roughness=0.35))
-    BODY = slot_of[SHADES[-1]]
+    # Each part in its mid-tone; the sprite's white streaks on the arcs and silver lobes on the core
+    # are sheen on polished metal, and its black ring is the outline the game draws itself, so none
+    # of that is painted on: the metallic material and the game's lights make the shine.
+    mats += [
+        pal(10, metallic=0.85, roughness=0.22),  # 2 ring arcs: polished grey metal
+        pal(9, metallic=0.8, roughness=0.25),  # 3 core dome: polished grey metal
+        pal(4, metallic=0.5, roughness=0.45),  # 4 the core's centre crease (a real cut-in groove)
+    ]
+    RING, CORE, GROOVE = 2, 3, 4
     cx, cy = (centre[0] - 12) * U, (14 - centre[1]) * U
     bm = bmesh.new()
 
@@ -181,10 +141,9 @@ def build_one(sprite, name, turn, centre, pixels):
         for i in range(n + 1):
             a = mid - turn - HALF_ARC + 2 * HALF_ARC * i / n
             pts.append((cx + RING_R * math.cos(a), cy + RING_R * math.sin(a), 0.0))
-        lib.polyline_tube(bm, pts, TUBE_R, sides=10, mat_index=BODY)
+        lib.polyline_tube(bm, pts, TUBE_R, sides=10, mat_index=RING)
 
-    build_core(bm, cx, cy, BODY, BODY, EYE, EYE2, BODY)
-    paint(bm, pixels, sprite["colors"], (EYE, EYE2), slot_of)
+    build_core(bm, cx, cy, CORE, GROOVE, EYE, EYE2, CORE)
     return lib.finish(name, bm, mats, coll)
 
 
@@ -195,7 +154,7 @@ def build(sprite):
     for k, frame in enumerate(frames):
         name = NAME if k == 0 else f"{NAME}-f{k + 1}"
         f = by_index[frame]
-        obj = build_one(sprite, name, k * math.pi / 8, frame_centre(f), frame_pixels(f))
+        obj = build_one(sprite, name, k * math.pi / 8, frame_centre(f))
         models.append((name, [obj], lib.frames_subset(sprite, [frame])))
     return models
 

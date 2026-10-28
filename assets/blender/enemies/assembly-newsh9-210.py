@@ -84,10 +84,12 @@ def ellipse_point(t, s):
 # Palette shades: the sprite's indices folded onto the few shades the model uses.
 IRIS_TIERS = [((1, 97, 145), 1), ((51, 52, 53), 53), ((54, 55), 54), ((56, 57, 128, 129), 129),
               ((58, 59, 130), 130), ((131, 132, 133, 134), 131), ((155, 156, 157), 156),
-              ((158, 159), 158), ((62, 136, 137, 138, 139, 140, 141, 142, 143), 139)]
+              ((158, 159, 62, 136, 137, 138, 139, 140, 141, 142, 143), 158)]
 GREY_TIERS = [((1,), 1), ((2,), 2), ((3, 4), 3), ((5, 6), 5), ((7, 8, 10, 13), 7)]
-# Relief by shade (px): bright streaks and glints stand proud, the dark crosshair lines are cut in.
-RELIEF = {158: 0.45, 156: 0.3, 139: 0.5, 53: -0.35, 1: 0.0}
+# Relief by shade (px): only the dark crosshair lines are cut in. The near-white glints (folded
+# into the light streak shade above) are the wet eyeball's shine, which the glossy material makes;
+# the cornea stays smooth over the streaks.
+RELIEF = {53: -0.35, 1: 0.0}
 
 
 def tier_of(index):
@@ -104,7 +106,9 @@ def eyeball(bm, grid, slot):
     for r in range(H):
         for c in range(W):
             if ell_s(c + 0.5, r + 0.5) < 1.04:
-                cells[(c, r)] = tier_of(grid[r][c]) or 129
+                pal = tier_of(grid[r][c]) or 129
+                # Socket greys at the rim (under the lid) take the lid's one grey.
+                cells[(c, r)] = 3 if pal in (5, 7) else pal
     # Crosshair pixels are the dark ones in its row and column; elsewhere 53/54 is the limbal ring.
     relief = {}
     for (c, r), pal in cells.items():
@@ -226,10 +230,10 @@ def lid(bm, grid, slot):
             # The grey under the face's middle (inside faces and the base keep the dark grey).
             tm = (t0 + (t1 if t1 > t0 else t1 + 2 * math.pi)) / 2
             sm = (pts[i][0] + pts[j][0]) / 2
-            pal = grey_near(grid, *ellipse_point(tm, sm))
-            if i >= m - 3 or i == 0:
-                pal = 2
-            f.material_index = slot[pal if pal in slot and pal in (1, 2, 3, 5, 7) else 3]
+            # One mid-tone grey for the whole lid: the sprite's dark outer ring and lit ridge band
+            # are its drawn lighting (the game lights the ridge and draws the outline).
+            pal = 2 if (i >= m - 3 or i == 0) else 3
+            f.material_index = slot[pal]
             f.smooth = i < m - 3
 
 
@@ -241,23 +245,19 @@ def build(sprite):
     tag = "nsh9e"
     pal = lambda i, **kw: common.palette_material(sprite, i, tag, **kw)  # noqa: E731
     spec = [
-        (1, dict(metallic=0.0, roughness=0.85)),  # socket black, pupil
-        (2, dict(metallic=0.3, roughness=0.6)),  # dark socket
-        (3, dict(metallic=0.4, roughness=0.5)),  # socket grey
-        (5, dict(metallic=0.5, roughness=0.4)),  # lid
-        (7, dict(metallic=0.5, roughness=0.35)),  # lid highlight band
-        (53, dict(metallic=0.2, roughness=0.3)),  # crosshair, limbal ring
-        (54, dict(metallic=0.2, roughness=0.25, emission_strength=0.3)),
-        (129, dict(metallic=0.2, roughness=0.2, emission_strength=0.5)),  # iris
-        (130, dict(metallic=0.2, roughness=0.2, emission_strength=0.5)),
-        (131, dict(metallic=0.2, roughness=0.2, emission_strength=0.6)),
-        (156, dict(metallic=0.1, roughness=0.2, emission_strength=1.0)),  # streaks
-        (158, dict(metallic=0.1, roughness=0.2, emission_strength=1.1)),
-        (139, dict(metallic=0.1, roughness=0.1, emission_strength=1.8)),  # glints
+        # The eyeball is wet and glossy (pupil included); the lid is skin: matte.
+        (1, dict(metallic=0.0, roughness=0.15)),  # pupil
+        (2, dict(metallic=0.0, roughness=0.8)),  # lid underside, inner rim
+        (3, dict(metallic=0.0, roughness=0.7)),  # lid
+        (53, dict(metallic=0.0, roughness=0.1)),  # crosshair, limbal ring
+        (54, dict(metallic=0.0, roughness=0.1, emission_strength=0.3)),
+        (129, dict(metallic=0.0, roughness=0.1, emission_strength=0.5)),  # iris
+        (130, dict(metallic=0.0, roughness=0.1, emission_strength=0.5)),
+        (131, dict(metallic=0.0, roughness=0.1, emission_strength=0.6)),
+        (156, dict(metallic=0.0, roughness=0.1, emission_strength=1.0)),  # streaks
+        (158, dict(metallic=0.0, roughness=0.1, emission_strength=1.1)),
     ]
     mats = [pal(i, **kw) for i, kw in spec]
-    # The pupil and socket black stay matte in the viewport too (no grey sheen on the pupil).
-    mats[0].roughness, mats[0].metallic = 1.0, 0.0
     slot = {i: k for k, (i, _) in enumerate(spec)}
     grid = pixels()
     bm = bmesh.new()

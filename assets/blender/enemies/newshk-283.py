@@ -79,18 +79,20 @@ def build(sprite):
     coll = common.reset_collection(NAME)
     pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
     mats = [
-        pal(9, metallic=0.5, roughness=0.4),  # 0 grey housing and pods
-        pal(8, metallic=0.5, roughness=0.45),  # 1 darker grey rounded sides
-        pal(11, metallic=0.25, roughness=0.35),  # 2 light grey window frame and front edge
-        pal(5, metallic=0.4, roughness=0.5),  # 3 dark grey lip, grooves, lower pane
-        pal(3, metallic=0.3, roughness=0.6),  # 4 dark upper pane, top of the slots
+        # Polished grey metal: the near-white spots on the pods' tails and the rails are its
+        # shine, made by the game's lights, not knobs.
+        pal(9, metallic=0.6, roughness=0.3),  # 0 grey housing and pods
+        pal(8, metallic=0.6, roughness=0.3),  # 1 darker grey rounded sides and overhang lip
+        pal(11, metallic=0.5, roughness=0.35),  # 2 light grey window frame
+        pal(5, metallic=0.05, roughness=0.1),  # 3 dark glass window pane
+        pal(3, metallic=0.1, roughness=0.7),  # 4 top of the slots
         pal(13, metallic=0.3, roughness=0.25),  # 5 pale caps and rivets
         pal(117, emission_strength=6.0),  # 6 red-hot elements
         pal(123, emission_strength=6.0),  # 7 hot spot (left)
-        pal(10, metallic=0.25, roughness=0.35),  # 8 light grey rails
+        pal(10, metallic=0.5, roughness=0.35),  # 8 light grey rails
         pal(113, emission_strength=3.0),  # 9 dim glow on the slot floor
-        pal(1, metallic=0.2, roughness=0.8),  # 10 black slot floor
-        pal(6, metallic=0.4, roughness=0.5),  # 11 cross groove on the rails
+        pal(1, metallic=0.1, roughness=0.8),  # 10 black slot floor
+        pal(6, metallic=0.6, roughness=0.4),  # 11 cross groove on the rails, pod grooves
         pal(121, emission_strength=6.0),  # 12 hot spot (right)
     ]
     GREY, SIDE, LIGHT, LIP, DARK, PALE, HOT, SPOT, STRIP, EMBER, BLACK, NOTCH, SPOT2 = range(13)
@@ -112,32 +114,30 @@ def build(sprite):
         if side < 0:
             prof = prof[::-1]
         loft(bm, [ring(ey(4.5), prof), ring(ey(13), prof)], SIDE)
-    # Lit front edge (row 4) chamfered down towards the nose.
+    # Front edge (row 4) chamfered down towards the nose; its light row is the sun on the chamfer.
     lib.prism(bm, [(ex(0.6), ey(3.4), H - 2 * P), (ex(23.4), ey(3.4), H - 2 * P), (ex(23.6), ey(4.6), H),
-                   (ex(0.4), ey(4.6), H)], 0.0, mat=LIGHT)
-    # Row 13: the dark underside of the overhang, falling from the housing top to the pods.
+                   (ex(0.4), ey(4.6), H)], 0.0, mat=GREY)
+    # Row 13: the overhang's face, falling from the housing top to the pods (its dark band in the
+    # sprite is shadow; the game shades it).
     def lip(top):
         return [(ex(0), 0), (ex(24), 0), (ex(24), top - 2.2 * P), (ex(23), top - 0.6 * P), (ex(22), top),
                 (ex(2), top), (ex(1), top - 0.6 * P), (ex(0), top - 2.2 * P)]
-    loft(bm, [ring(ey(13), lip(H)), ring(ey(14), lip(5.5 * P))], LIP)
+    loft(bm, [ring(ey(13), lip(H)), ring(ey(14), lip(5.5 * P))], SIDE)
 
-    # Window: dark pane at the bottom of the cut, light frame (columns 7 and 16, row 10) proud.
-    lib.box(bm, 8, 7, 16, 8, H - 2.05 * P, H - 1.95 * P, mat=DARK)
-    lib.box(bm, 8, 8, 16, 10, H - 2.05 * P, H - 1.95 * P, mat=LIP)
+    # Window: one dark glass pane at the bottom of the cut (its darker top row is the rim's
+    # shadow and reflection), light frame (columns 7 and 16, row 10) proud.
+    lib.box(bm, 8, 7, 16, 10, H - 2.05 * P, H - 1.95 * P, mat=LIP)
     lib.box(bm, 7, 7, 8, 11, H - 0.1 * P, H + 0.5 * P, mat=LIGHT)
     lib.box(bm, 16, 7, 17, 11, H - 0.1 * P, H + 0.5 * P, mat=LIGHT)
     lib.box(bm, 8, 10, 16, 11, H - 0.1 * P, H + 0.5 * P, mat=LIGHT)
 
-    # Raised rails (columns 2 and 4, 19 and 21), broken by a dark cross groove at row 8, with
-    # rivets at rows 4 and 9.
+    # Raised rails (columns 2 and 4, 19 and 21), broken by a dark cross groove at row 8. The
+    # near-white pixels at rows 4 and 9 are shine on the rail ends, not rivets.
     for c in (2, 4, 19, 21):
         lib.box(bm, c + 0.05, 4.5, c + 0.95, 8, H - 0.1 * P, H + 0.6 * P, mat=STRIP)
         lib.box(bm, c + 0.05, 9, c + 0.95, 13, H - 0.1 * P, H + 0.6 * P, mat=STRIP)
     for c0, c1 in ((2, 5), (19, 22)):
         lib.box(bm, c0, 8, c1, 9, H - 0.1 * P, H + 0.05 * P, mat=NOTCH)
-    for c in (4, 19):
-        for y in (ey(4.9), gy(9)):
-            lib.stud(bm, gx(c), y, H + 0.6 * P, 0.6 * P, 0.6 * P, mat=PALE)
 
     # Nose cowl (rows 0-3): tapering from 14 px wide at the housing to 4 px at the front and
     # sloping from the housing top down to 4 px, with bevelled top edges.
@@ -167,11 +167,12 @@ def build(sprite):
             rings.append([(cx + u * rx * s, ey(r), zc + v * R * s) for u, v in pts])
         loft(bm, rings, GREY, smooth=True, flat=flat, flat_segs=2)
         zf = R + floor * R
-        lib.box(bm, groove_c + 0.02, 14, groove_c + 0.98, 23.5, zf - 0.2 * P, zf + 0.05 * P, mat=LIP)
+        lib.box(bm, groove_c + 0.02, 14, groove_c + 0.98, 23.5, zf - 0.2 * P, zf + 0.05 * P, mat=NOTCH)
 
-    # Pale rounded caps at the pods' inner tails (columns 4-7 and 15-18, rows 25-27).
-    for cx in (ex(6.2), ex(16.8)):
-        ellipsoid(bm, cx, ey(26.2), 2.3 * P, 2.4 * P, 2.0 * P, 2.2 * P, PALE, sides=12)
+    # The pods' tails flare inward a little (columns 4-7 and 15-18, rows 25-27): low rounded lobes
+    # of the pod's own metal. Their near-white pixels are its shine, not a pale cap.
+    for cx in (ex(6.0), ex(17.0)):
+        ellipsoid(bm, cx, ey(26.1), 2.0 * P, 2.3 * P, 2.0 * P, 1.8 * P, GREY, sides=12)
 
     # Slots between the pods: a black floor 1.5 px up, dark under the overhang, with round red-hot
     # elements on it (columns 7 and 9, 13 and 15) and a dim glow between each pair.

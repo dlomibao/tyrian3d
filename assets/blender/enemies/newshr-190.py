@@ -3,7 +3,8 @@
 Seen in episode 3 (levels 19 and 4). A small tumbling rock, 9 x 11 px: an elongated lump of sandy
 stone lying on the diagonal from upper right to lower left, lit from the upper left, with darker
 brown edges. One frame, one model: a lumpy rock whose outline follows the sprite and whose faces
-take the colour of the sprite pixel under them, the lighter pixels standing a little prouder.
+take one matte mid-tone (the game lights and outlines it), the lighter pixels standing a little
+prouder.
 
 Run: blender --background --python assets/blender/enemies/newshr-190.py [-- --preview out.png]
 """
@@ -24,8 +25,8 @@ MODEL = f"enemies/{NAME}"
 ROOT = common.repo_root(__file__)
 RZ = 0.34  # half thickness, units (about 4 px either side of the midplane; 9 px wide)
 HR_EXP = 0.8  # side curvature: 1 is a plain ellipsoid, lower makes steeper walls
-SIDE_NZ = 0.2  # faces steeper than this take the dark rim colour
-SHOULDER_NZ = 0.5  # faces between this and SIDE_NZ are no lighter than 23, a shaded shoulder
+BODY = 23  # the stone's mid-tone, used all over (the game shades and outlines it)
+ROUGH = 0.9  # matte rock
 RZ_TOP, RZ_BOTTOM = 0.37, 0.33  # crown about 4.5 px up, base about 4 px down
 # (column, row, radius px, depth px) of the pits, in sprite pixel coordinates
 PITS = [(8.0, 7.6, 2.0, 0.8), (4.0, 7.4, 1.4, 0.6)]
@@ -40,17 +41,14 @@ def build(sprite):
     coll = common.reset_collection(NAME)
     grid = lib.Grid(12, 14, sprite["frames"][0]["pixels"])
     mats = lib.Mats(NAME, sprite["colors"])
-    # Sandy stone, one material per shade (21-27) so the top keeps the sprite's warm tan mottling;
-    # 19, 178 and 179 are the darkest brown edge pixels and share 20's.
-    dark = mats(20, roughness=1.0)
-    shades = {19: dark, 20: dark, 178: dark, 179: dark}
-    for i in range(21, 28):
-        shades[i] = mats(i, roughness=1.0)
-
-    light = {shades[i] for i in range(24, 28)}
+    # Matte sandy stone in one colour. The sprite's light-to-dark spread (27 at the upper-left
+    # crown down to 20 and 179 at the rim) is its drawn lighting, not paint: the game lights the
+    # stone and draws its outline, so the whole surface takes the stone's mid-tone (23) and
+    # the shape (the prouder lit faces, the pits) makes the shading.
+    stone = mats(BODY, metallic=0.0, roughness=ROUGH)
 
     def slot(i):
-        return shades.get(i, dark)
+        return stone
 
     def brightness(i):
         return 0.05 if i in (178, 179) else (i - 19) / 8
@@ -58,27 +56,21 @@ def build(sprite):
     bm = bmesh.new()
     # The sprite shades it as one round lump (central highlight, dark rim all round), so it is
     # about as thick as it is wide: +-RZ around the midplane, nearly a round cross-section.
-    rock(bm, grid, RZ, slot, brightness, n=10, relief=0.22, under_slot=dark)
+    # The lighter pixels are lit faces of real relief on rock, so they stay a little prouder.
+    rock(bm, grid, RZ, slot, brightness, n=10, relief=0.22, under_slot=stone)
     for v in bm.verts:  # a slightly taller crown than base, so the game camera sees a dome
         v.co.z *= (RZ_TOP if v.co.z > 0 else RZ_BOTTOM) / RZ
     pits(bm, grid)
-    # The steep flanks are the sprite's dark rim, not stripes of whatever pixel lies under them.
-    bm.faces.ensure_lookup_table()
-    for f in bm.faces:
-        f.normal_update()
-        if f.normal.z < SIDE_NZ:
-            f.material_index = dark
-        elif f.normal.z < SHOULDER_NZ and f.material_index in light:
-            f.material_index = shades[23]  # shade the shoulder so the tan top fades into the rim
     for m in mats.list:  # matte sandy stone: a soft tan lift, not a grey gloss
         bsdf = next(n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
-        bsdf.inputs["Roughness"].default_value = 1.0
-        m.roughness, m.metallic, m.specular_intensity = 1.0, 0.0, 0.1  # viewport/preview shading
+        bsdf.inputs["Roughness"].default_value = ROUGH
+        m.roughness, m.metallic, m.specular_intensity = ROUGH, 0.0, 0.1  # viewport/preview shading
         for key in ("Specular IOR Level", "Specular"):
             if key in bsdf.inputs:
                 bsdf.inputs[key].default_value = 0.15
                 break
-    return common.mesh_object(NAME, bm, mats.list, coll, smooth=True)
+    # Flat shaded: the facets catch the light unevenly, so the one-colour stone reads as rock.
+    return common.mesh_object(NAME, bm, mats.list, coll, smooth=False)
 
 
 def rock(bm, grid, rz, slot_for, brightness, n=10, relief=0.22, shrink=0.15, under_slot=None):

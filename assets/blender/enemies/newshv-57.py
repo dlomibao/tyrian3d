@@ -6,10 +6,12 @@ gem in blue.
 
 The bulb is round, not faceted: a smooth dome over the diamond plan, about 4.5 px above the
 midplane and 3.5 px below it, widest at the rim. Its rings go from the diamond at the rim to a
-rounder shape towards the crown, so the top has no creases, and they shift towards the sprite's
-highlight (column 6) as they rise. The faces take the sprite's shades by band and by direction:
-the dark rim, a mid-salmon body darker on the left, the bright cross along the axes and a bright
-core at the crown.
+rounder shape towards the crown, so the top has no creases.
+
+It is a gem, so the sprite's drawn light is not paint: the dark 1 px rim is the outline (the game
+draws its own), and the bright cross and darker left side are the shine and shading of a glossy
+surface. The whole bulb takes the body's mid-tone (76) in a glossy, non-metallic material and the
+game's lights make the shine. The stalk keeps its real colours: a dark neck (71) and a mid knob (74).
 
 Run: blender --background --python assets/blender/enemies/newshv-57.py [-- --preview out.png]
 """
@@ -34,28 +36,9 @@ TOP = 4.5 * U  # dome height above the midplane
 BOTTOM = 3.5 * U  # depth of the rounded underside
 TOP_RINGS = (1.0, 0.86, 0.76, 0.54, 0.22)  # ring scales from the rim in; an apex follows
 BOTTOM_RINGS = (1.0, 0.6)
-HIGHLIGHT_DX = 0.5 * U  # the bright cross is centred on column 6, half a pixel right of centre
-
-# Palette index of each top band (dark rim, wall, body, inner, crown) in each sector. Sectors: the
-# two halves of each arm of the sprite's cross (right_u is the upper half of the +X arm) and the
-# four diagonals. The sprite is lit along the cross's right and top halves, darker on the left.
-SHADES = {
-    #          rim wall body inner crown
-    "right_u": (72, 74, 76, 78, 79),
-    "right_d": (72, 74, 76, 78, 79),
-    "up_r":    (72, 74, 76, 78, 79),
-    "up_l":    (72, 74, 74, 75, 79),
-    "left_u":  (72, 74, 76, 76, 79),
-    "left_d":  (72, 74, 76, 76, 79),
-    "down_l":  (72, 74, 74, 77, 79),
-    "down_r":  (72, 74, 76, 78, 79),
-    "ur":      (72, 74, 76, 76, 78),
-    "ul":      (72, 74, 74, 75, 79),
-    "ll":      (72, 74, 74, 77, 79),
-    "lr":      (72, 74, 76, 76, 78),
-}
-UNDERSIDE = 72
-
+BODY = 76  # the gem's mid-tone, over the whole bulb
+GEM = dict(metallic=0.05, roughness=0.15)  # glossy: the lights draw the sprite's shine
+STALK = dict(metallic=0.3, roughness=0.45)
 
 def unit_dirs():
     """Points around the unit diamond |x| + |y| = 1, evenly spaced along each side, corners
@@ -70,19 +53,6 @@ def unit_dirs():
     return out
 
 
-def sector_dir(i):
-    """Which arm or diagonal sector i (between point i and i+1) faces."""
-    side, k = divmod(i, SIDE)
-    first = ("right_u", "up_l", "left_d", "down_r")  # the arm half at the side's start
-    last = ("up_r", "left_u", "down_l", "right_d")  # the arm half at its end
-    diag = ("ur", "ul", "ll", "lr")
-    if k == 0:
-        return first[side]
-    if k == SIDE - 1:
-        return last[side]
-    return diag[side]
-
-
 def ring_point(d, s, rx, ry):
     """The point in direction `d` (a point on the unit diamond) on the ring of scale `s`: the ring
     is a superellipse whose exponent goes from 1 (the diamond) at the rim to 2 (round) at the crown."""
@@ -90,7 +60,7 @@ def ring_point(d, s, rx, ry):
     ang = math.atan2(d[1], d[0])
     c, sn = math.cos(ang), math.sin(ang)
     r = (abs(c) ** p + abs(sn) ** p) ** (-1 / p)
-    return (s * r * c * rx + (1 - s) * HIGHLIGHT_DX, s * r * sn * ry)
+    return (s * r * c * rx, s * r * sn * ry)
 
 
 def bulb(mats, slot, cx, cy, rx, ry, coll):
@@ -104,32 +74,31 @@ def bulb(mats, slot, cx, cy, rx, ry, coll):
 
     rim = ring(1.0, 0.0)
     top = [rim] + [ring(s, TOP * (1 - s * s) ** 0.6) for s in TOP_RINGS[1:]]
-    top_apex = bm.verts.new((cx + HIGHLIGHT_DX, cy, TOP))
+    top_apex = bm.verts.new((cx, cy, TOP))
     bot = [rim] + [ring(s, -BOTTOM * math.sqrt(1 - s * s)) for s in BOTTOM_RINGS[1:]]
     bot_apex = bm.verts.new((cx, cy, -BOTTOM))
 
-    def bands(rings, apex, shade):
+    def bands(rings, apex):
         for k in range(len(rings)):
             a = rings[k]
             b = rings[k + 1] if k + 1 < len(rings) else None
             for i in range(n):
                 j = (i + 1) % n
                 f = (a[i], a[j], b[j], b[i]) if b else (a[i], a[j], apex)
-                bm.faces.new(f).material_index = slot[shade(k, i)]
+                bm.faces.new(f).material_index = slot[BODY]
 
-    bands(top, top_apex, lambda k, i: SHADES[sector_dir(i)][k])
-    bands(bot, bot_apex, lambda k, i: UNDERSIDE)
+    bands(top, top_apex)
+    bands(bot, bot_apex)
     return common.mesh_object(NAME, bm, mats, coll, smooth=True)
 
 
 def main():
     sprite = common.load_sprite(ROOT, NAME)
     coll = common.reset_collection(NAME)
-    used = sorted({i for shades in SHADES.values() for i in shades} | {UNDERSIDE, 71, 74})
     mats, slot = [], {}
-    for i in used:
+    for i, finish in ((BODY, GEM), (71, STALK), (74, STALK)):
         slot[i] = len(mats)
-        mats.append(common.palette_material(sprite, i, NAME, metallic=0.35, roughness=0.3))
+        mats.append(common.palette_material(sprite, i, NAME, **finish))
 
     cy = lib.ey(7.5, H)
     gem = bulb(mats, slot, 0.0, cy, 5.0 * U, 4.5 * U, coll)

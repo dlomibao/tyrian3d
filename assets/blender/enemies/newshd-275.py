@@ -33,16 +33,20 @@ def build(sprite):
     m = L.Mats(NAME, sprite["colors"])
     # Copper-brown frames (the sprite's 164-169) with lighter edges, steel-blue pipes in dark blue
     # windows.
-    BROWN, LIGHT, DARKB = m.metal(166), m.metal(169), m.metal(164)
-    STEEL, DEEP = m.metal(106), m(101, metallic=0.5, roughness=0.5)
+    # Painted copper-brown metal; polished steel pipes.
+    def paint(i):
+        return m(i, metallic=0.4, roughness=0.4)
+
+    BROWN, LIGHT, DARKB = paint(166), paint(169), paint(164)
+    STEEL, DEEP = m(106, metallic=0.8, roughness=0.3), m(101, metallic=0.5, roughness=0.5)
     bm = bmesh.new()
     L.floor(bm, g, m, sprite["colors"])
 
     # Mount running off the top edge (columns 5-17, rows 0-2), a base plate about 3 px tall.
-    L.pillow(bm, rect(g, 5, 0, 18, 3), 0.0, 0.25, 0.5 * L.U, mat=DARKB, top_mat=m.metal(102))
+    L.pillow(bm, rect(g, 5, 0, 18, 3), 0.0, 0.25, 0.5 * L.U, mat=DARKB, top_mat=paint(102))
     # Hood across the back (columns 3-19, rows 2-5), the highest part, about 8.5 px.
     hood = L.ellipse(g.x(11), g.y(3.8), 8.6 * L.U, 2.4 * L.U, n=20, power=3.0)
-    L.pillow(bm, hood, 0.0, 0.7, 1.2 * L.U, mat=m.metal(167), top_mat=m.metal(168), smooth=True)
+    L.pillow(bm, hood, 0.0, 0.7, 1.2 * L.U, mat=paint(167), top_mat=paint(168), smooth=True)
 
     # The cage (columns 3-19, rows 5-17), about 7.5 px tall: a frame of brown bars round four
     # windows cut about 2.5 px into it (columns 9-13 rows 6-8, 4-6 and 16-18 rows 9-13, 9-13
@@ -51,11 +55,11 @@ def build(sprite):
     L.pillow(bm, rect(g, 3, 5, 20, 17), 0.0, FLOOR_W, 0.3 * L.U, mat=BROWN, top_mat=DEEP)
     for c0, r0, c1, r1 in ((3, 5, 9, 9), (3, 14, 9, 17), (14, 5, 20, 9), (14, 14, 20, 17), (3, 9, 4, 14),
                            (19, 9, 20, 14), (9, 5, 14, 6), (9, 9, 14, 12), (9, 16, 14, 17)):
-        L.pillow(bm, rect(g, c0, r0, c1, r1), FLOOR_W - 0.02, TOP, 0.35 * L.U, mat=BROWN, top_mat=m.metal(166))
+        L.pillow(bm, rect(g, c0, r0, c1, r1), FLOOR_W - 0.02, TOP, 0.35 * L.U, mat=BROWN, top_mat=paint(166))
     for c0, c1 in ((7, 9), (14, 16)):  # light uprights either side of the middle
         L.pillow(bm, rect(g, c0, 5, c1, 17), FLOOR_W, TOP + 0.04, 0.4 * L.U, mat=BROWN, top_mat=LIGHT)
     for r0, r1 in ((8.6, 9.8), (15.8, 17)):  # cross bars
-        L.pillow(bm, rect(g, 3.5, r0, 19.5, r1), FLOOR_W, TOP + 0.03, 0.3 * L.U, mat=BROWN, top_mat=m.metal(168))
+        L.pillow(bm, rect(g, 3.5, r0, 19.5, r1), FLOOR_W, TOP + 0.03, 0.3 * L.U, mat=BROWN, top_mat=paint(168))
     # Steel pipes in the windows: one across (row 10), one down the middle (columns 10-12).
     L.tube(bm, [(g.x(3.6), g.y(10.4), FLOOR_W + 0.06), (g.x(19.4), g.y(10.4), FLOOR_W + 0.06)], 0.8 * L.U,
            sides=8, mat=STEEL)
@@ -72,7 +76,7 @@ def build(sprite):
     # Neck (rows 17-20) stepping down from the cage to the barrel.
     neck = [(g.ex(5), g.ey(17)), (g.ex(18), g.ey(17)), (g.ex(17), g.ey(19)), (g.ex(15), g.ey(20.5)),
             (g.ex(8), g.ey(20.5)), (g.ex(6), g.ey(19))]
-    L.pillow(bm, neck, 0.0, 0.46, 0.6 * L.U, mat=BROWN, top_mat=m.metal(165))
+    L.pillow(bm, neck, 0.0, 0.46, 0.6 * L.U, mat=BROWN, top_mat=paint(165))
     L.tube(bm, [(g.x(8.5), g.y(18.8), 0.44), (g.x(14.5), g.y(18.8), 0.44)], 1.0 * L.U, sides=8, mat=STEEL)
     # The barrel (columns 8-14, rows 20-27): round, about 6.5 px tall, tapering to its glowing
     # muzzle.
@@ -80,7 +84,7 @@ def build(sprite):
     L.loft_y(bm, g.x(11), [(g.ey(20.0), 3.0 * L.U, 0.25, zb), (g.ey(21.5), 3.6 * L.U, 0.27, zb),
                            (g.ey(25.0), 3.4 * L.U, 0.25, zb), (g.ey(26.6), 3.0 * L.U, 0.21, zb - 0.02),
                            (g.ey(27.6), 2.4 * L.U, 0.15, zb - 0.04)],
-             sides=14, mat=m.metal(169))
+             sides=14, mat=paint(169))
     obj = L.finish(NAME, bm, m, coll)
     # The muzzle's glow: a dim red spot on 275 (columns 10-12, rows 24-25), a brighter one
     # spilling to the barrel's end on 277, a big bright one on 279 (columns 9-13, rows 23-27).

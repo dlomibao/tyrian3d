@@ -8,8 +8,12 @@ The ball is a full ellipsoid as tall as it is wide (its outline is the sprite's,
 included), with the socket cut into it: a wall that is deep under the upper lid (the sprite's dark
 shadow line) and shallow at the lit lower lip, a dished floor, and the pupil as a deeper pit. The
 mesh is built in rings round the eye (pupil, floor, socket rim, then out to the ball's equator and
-round underneath), so every rim is a smooth curve and the faces take their palette shade from the
-sprite pixels above them.
+round underneath), so every rim is a smooth curve.
+
+The ball is glossy (a wet eyeball), so the sprite's white patch upper left is shine and its dark
+lower right and dark rim are the sprite's drawn light: the ball takes one mid-tone blue all over
+and the game's lights and outline shade it. The socket floor is a shade darker (the iris round
+the pupil), the wall darker still, and the pupil black.
 
 Run: blender --background --python assets/blender/enemies/newsh5-127.py [-- --preview out.png]
 """
@@ -46,23 +50,21 @@ FLOOR = 2.7 / 12     # floor depth at the pupil's edge
 PUPIL = 1.4 / 12     # the pupil sinks this much further at its centre
 SIDES = 40
 
-# Palette shades the faces may take (the sprite's blue ramp), nearest wins.
-BODY_RAMP = (52, 54, 56, 58, 59, 61)
-FLOOR_RAMP = (50, 52, 54, 56, 58)
-WALL_INDEX = 50
+# Palette shades: one mid-tone per surface, the light does the rest.
+BODY_INDEX = 57
+FLOOR_INDEX = 53
+WALL_INDEX = 51
 PUPIL_INDEX = 1
-UNDER_INDEX = 54
-
-
-def nearest(ramp, value):
-    return min(ramp, key=lambda i: abs(i - value))
+UNDER_INDEX = BODY_INDEX
+# Glossy, not metal: low metalness, smooth, so the sun and environment put the shine on.
+METALLIC, ROUGHNESS = 0.05, 0.12
 
 
 def build(sprite, pixels, name, frame):
     coll = common.reset_collection(name)
-    indices = sorted(set(BODY_RAMP + FLOOR_RAMP + (WALL_INDEX, PUPIL_INDEX, UNDER_INDEX)))
-    mats = [common.palette_material(sprite, i, name, metallic=0.1 if i > 1 else 0.0,
-                                    roughness=0.3 if i > 1 else 0.75) for i in indices]
+    indices = sorted({BODY_INDEX, FLOOR_INDEX, WALL_INDEX, PUPIL_INDEX, UNDER_INDEX})
+    mats = [common.palette_material(sprite, i, name, metallic=METALLIC, roughness=ROUGHNESS)
+            for i in indices]
     slot = {i: k for k, i in enumerate(indices)}
 
     bc, br, ba, bb = frame["body"]
@@ -128,20 +130,6 @@ def build(sprite, pixels, name, frame):
         f.material_index = slot[mat]
         return f
 
-    def shade(verts, ramp):
-        """The sprite's palette index averaged over the face, nearest on the ramp."""
-        cx = sum(v.co.x for v in verts) / len(verts)
-        cy = sum(v.co.y for v in verts) / len(verts)
-        pts = [(cx + (v.co.x - cx) * t, cy + (v.co.y - cy) * t) for v in verts for t in (0.5, 1.0)]
-        pts += [(cx, cy)]
-        vals = []
-        for x, y in pts:
-            i = lib.sample(pixels, x, y)
-            if i >= 48:
-                vals.append(max(i, 52) if ramp is BODY_RAMP else i)
-        return nearest(ramp, sum(vals) / len(vals)) if vals else ramp[0]
-
-    painted = []
     first = rings[0]
     for k in range(SIDES):
         face((centre, first[k], first[(k + 1) % SIDES]), PUPIL_INDEX)
@@ -155,32 +143,15 @@ def build(sprite, pixels, name, frame):
             elif kind == "wall":
                 mat = WALL_INDEX
             elif kind == "floor":
-                mat = shade(quad, FLOOR_RAMP)
+                mat = FLOOR_INDEX
             elif kind == "body":
-                mat = shade(quad, BODY_RAMP)
+                mat = BODY_INDEX
             else:
                 mat = UNDER_INDEX
-            f = face(quad, mat)
-            if kind in ("body", "floor"):
-                painted.append(f)
+            face(quad, mat)
     last = rings[-1]
     for k in range(SIDES):
         face((last[(k + 1) % SIDES], last[k], pole), UNDER_INDEX)
-
-    # Drop speckles: a painted face whose neighbours mostly share another shade takes it.
-    painted_set = set(painted)
-    new_index = {}
-    for f in painted:
-        counts = {}
-        for e in f.edges:
-            for g in e.link_faces:
-                if g is not f and g in painted_set:
-                    counts[g.material_index] = counts.get(g.material_index, 0) + 1
-        best = max(counts, key=counts.get) if counts else f.material_index
-        if best != f.material_index and counts[best] >= 3:
-            new_index[f] = best
-    for f, i in new_index.items():
-        f.material_index = i
 
     # Crisp edges at the socket lip and the pupil's rim.
     for r in (rings[lip], rings[1]):

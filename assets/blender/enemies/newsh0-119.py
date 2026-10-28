@@ -5,8 +5,10 @@ pale crest down the middle, slanted glowing red eyes set in dark sockets under t
 cheekbones curving down to the corners of the mouth, the crest's two prongs running down into a
 deep dark mouth, and a lower jaw (side arms, three teeth and a round chin) that slides up and down.
 
-The head is a smooth height field over the sprite's own pixels, so the outline is the sprite's and
-each pixel's face takes that pixel's palette colour (shading kept to the sprite's ramp): a dome
+The head is a smooth height field over the sprite's own pixels, so the outline is the sprite's. Its
+colours are the parts' mid-tones, not the sprite's drawn light (no outline ring, no baked shading or
+hot spots): polished blue steel (metallic, smooth) that the game's lights shade, a pale crest and
+prongs, a darker jaw, red eyes and a dark mouth and sockets. The shape is a dome
 about 9 px tall at the crest that rolls down to the underside at the outline (no skirt wall; the
 staircase's step pixels are split so the rim is one smooth edge), with the eye sockets about
 2.5 px deep. Every corner has one height per part (head, jaw), relaxed so the surface is one
@@ -54,6 +56,14 @@ LIP = 0.5
 DIST_SMOOTH = 4  # passes smoothing the distance-to-outline field (rounds the staircase outline off)
 H_SMOOTH = 3  # passes smoothing the finished heights (no peaks or fins)
 DARK = (1, 48, 49)
+# Colours: the sprite draws its light (outline ring, dark lower-right, near-white hot spots); the game
+# lights the model and draws the outline, so each part takes one mid-tone and the light shades it.
+METAL, ROUGH = 0.75, 0.3  # the skull's steel: the game's lights make its sheen
+BODY = 54  # the cranium and cheeks: blue steel
+CREST = 58  # the pale crest down the middle and its two prongs (a real marking)
+JAW = 52  # the jaw's arms and chin
+TOOTH = 56  # the lower teeth, painted on the mouth floor
+VOID = 48  # the mouth floor and the eye sockets' dark (cut in)
 
 
 def floor_z(x):
@@ -166,6 +176,21 @@ class Shape:
             for v, z in vals.items():
                 hv[(g, v)] = z
         return hv
+
+    def paint(self, c, r):
+        """Palette index a pixel's faces use: its part's mid-tone, not the sprite's drawn shading."""
+        idx, k = self.pix[r][c], self.kinds[(c, r)]
+        if k == "socket":
+            return idx if idx >= 112 else VOID  # the eyes keep their red; the socket's dark stays
+        if k == "floor":
+            return TOOTH if 52 <= idx <= 62 else VOID
+        if k == "prong":
+            return CREST
+        if k in ("arm", "chin"):
+            return JAW
+        if (r <= 5 and 9 <= c <= 13) or (r <= 8 and c in (9, 13)):
+            return CREST
+        return BODY
 
     def group(self, p):
         return "jaw" if p[1] >= self.jaw_row else "head"
@@ -292,7 +317,7 @@ def height_field(bm, shape, slot):
             vs = [V(x, y, z) for (x, y), z in zip(corners, zs)]
             for tri in split(shape, corners, zs):
                 f = bm.faces.new([vs[i] for i in tri])
-                f.material_index = slot(shape.pix[r][c], matte=k == "floor")
+                f.material_index = slot(shape.paint(c, r), matte=k == "floor")
                 f.smooth = k != "floor"  # the floor is faceted so no face looks straight up
     bottoms = []
     for (c, r), zc in tops.items():
@@ -303,13 +328,13 @@ def height_field(bm, shape, slot):
             a0, a1 = zc[a], zc[b]
             if n in tops:
                 b0, b1 = tops[n][a], tops[n][b]
-                mat = slot(shape.pix[n[1]][n[0]])
+                mat = slot(shape.paint(*n))
             elif n[1] < 0:
                 b0 = b1 = BASE  # the top row: closed by a wall too
-                mat = slot(shape.pix[r][c])
+                mat = slot(shape.paint(c, r))
             else:
                 b0 = b1 = BASE
-                mat = slot(shape.pix[r][c])
+                mat = slot(shape.paint(c, r))
             da, db = a0 - b0, a1 - b1
             if da <= 1e-4 and db <= 1e-4:
                 continue  # level, or the neighbour is the higher side and builds the wall
@@ -370,7 +395,7 @@ def build(sprite, name, frame, off):
             elif q == 48:
                 slots[q] = m(q, metallic=0.1, roughness=0.85)
             else:
-                slots[q] = m(q, metallic=0.25, roughness=0.6)
+                slots[q] = m(q, metallic=METAL, roughness=ROUGH)  # polished blue steel
         return slots[q]
 
     # The eyes are the sockets' own red pixels, flat and matte at the socket floor (the sprite's

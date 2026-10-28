@@ -8,9 +8,9 @@ at the shoulders and two rounded lobes on the flanks. One frame.
 The shell and cap are one smooth height field lofted down the sprite: a ring per row (closer
 together round the cap join), each as wide as the sprite's row (outline pixels included). The
 heights follow a smoothed outline, so the stepped pixel edge doesn't crease the dome, and fall
-gently to 1-2 px at the edge instead of standing as side walls. Each top face takes the palette
-shade of the sprite pixel under it, blended with the pixels above and below, bucketed into a few
-shades.
+gently to 1-2 px at the edge instead of standing as side walls. The shell is one mid-tone, with
+the pale keel and dark slots as its only markings; the sprite's drawn light and outline are left
+to the game's lighting and outline.
 
 Run: blender --background --python assets/blender/enemies/newshh-131.py [-- --preview out.png]
 """
@@ -27,11 +27,19 @@ import lib_b018 as lib  # noqa: E402
 
 NAME = "newshh-131"
 
-# Palette shades used, darkest first, and which shade each sprite index is painted with.
-SHADES = [16, 18, 20, 22, 24, 26, 29]
-BUCKET = {16: 16, 17: 18, 18: 18, 19: 20, 20: 20, 21: 22, 22: 22, 23: 24,
-          24: 24, 25: 24, 26: 26, 27: 26, 28: 26, 29: 29, 30: 29, 31: 29}
+# Colours. The sprite's light-to-dark gradient (lit upper-left, dark lower-right, near-white
+# hot spots, a black outline ring) is its drawn lighting, not paint: the game lights the model and
+# draws the outline. So the shell, cap and lobes are one mid-tone and only real markings differ:
+# the pale keel and the dark L-slots cut in beside it.
+SHELL_C = 21  # the carapace's mid-tone: the sprite's shell averages about 22, but the game's light brightens it
+KEEL_C = 25  # the pale keel stripe
+SLOT_C = 17  # the cut-in L-slots
+BELLY_C = 21  # the underside
 EAR = 23  # the ears' tan
+COLOURS = sorted({SLOT_C, BELLY_C, SHELL_C, KEEL_C, EAR})
+# A seed pod's shell: organic, not metal. Barely metallic and fairly rough, so its highlights come
+# from the shape (the cap, keel and lobes really are rounded) rather than a metal sheen.
+METALLIC, ROUGHNESS = 0.03, 0.65
 
 # Heights in sprite px.
 RIM = 0.6  # the shell's edge
@@ -55,8 +63,8 @@ def band(a, b, soft, x):
 
 def build(sprite):
     coll = common.reset_collection(NAME)
-    mats = [common.palette_material(sprite, i, NAME, metallic=0.12, roughness=0.5) for i in SHADES + [EAR]]
-    mat_of = {idx: k for k, idx in enumerate(SHADES + [EAR])}
+    mats = [common.palette_material(sprite, i, NAME, metallic=METALLIC, roughness=ROUGHNESS) for i in COLOURS]
+    mat_of = {idx: k for k, idx in enumerate(COLOURS)}
     pixels = sprite["frames"][0]["pixels"]
     H, W = len(pixels), len(pixels[0])
 
@@ -127,13 +135,15 @@ def build(sprite):
             r2 = ((du - side * 7.6) / 3.4) ** 2 + ((v - 12.8) / 4.4) ** 2
             if r2 < 1:
                 z += 3.3 * (1 - r2) ** 1.6
+        z -= 1.5 * slot(v, du)
+        return z
+
+    def slot(v, du):
         # Two shallow L-slots either side of the keel at the cap join: across row 4 (columns 7-10
         # and 14-17) and down beside the keel (columns 10 and 14, rows 4-7).
         a = abs(du)
-        cut = max(band(1.6, 5.4, 0.5, a) * band(4.3, 4.9, 0.45, v),
-                  band(1.6, 2.6, 0.45, a) * band(4.3, 7.2, 0.5, v))
-        z -= 1.5 * cut
-        return z
+        return max(band(1.6, 5.4, 0.5, a) * band(4.3, 4.9, 0.45, v),
+                   band(1.6, 2.6, 0.45, a) * band(4.3, 7.2, 0.5, v))
 
     def top(v, du):
         if v < 4.3:
@@ -142,28 +152,16 @@ def build(sprite):
             return max(head_top(v, du), body_top(v, du))
         return body_top(v, du)
 
-    def ramp(r, c):
-        # The sprite's shade (16-31) at a pixel, or None for outline and empty pixels.
-        if not (0 <= r < H and 0 <= c < W):
-            return None
-        idx = pixels[r][c]
-        return idx if idx >= 16 else None
-
-    def shade(u, v):
-        # The pixel's shade, blended with the pixels above and below it so single-pixel speckle
-        # evens out along the sprite's lengthwise bands (the keel, its shadow, the flanks) without
-        # blurring across them; outline pixels take the darkest shade.
-        r, c = int(math.floor(v)), int(math.floor(u))
-        centre = ramp(r, c)
-        if centre is None:
-            return mat_of[16]
-        acc, tot = 2.0 * centre, 2.0
-        for dr, dc, wgt in ((-1, 0, 1), (1, 0, 1)):
-            n = ramp(r + dr, c + dc)
-            if n is not None:
-                acc += wgt * n
-                tot += wgt
-        return mat_of[BUCKET[min(31, max(16, round(acc / tot)))]]
+    def shade(u, v, t):
+        # One mid-tone for the shell; the keel's pale stripe and the slots' dark floors are the
+        # only markings. The stripe is picked by the face's place across the ring (t), so its
+        # edges run along the ring vertices instead of zigzagging with the rows' widths.
+        du = u - CX
+        if v >= 4.3 and slot(v, du) > 0.5:
+            return mat_of[SLOT_C]
+        if v >= 5.5 and abs(t) < 0.085:
+            return mat_of[KEEL_C]
+        return mat_of[SHELL_C]
 
     # Rings: v down the sprite (px from its top edge).
     vs = [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.3, 4.45, 4.8, 5.2, 5.6, 6.0, 6.5, 7.0, 7.6]
@@ -193,15 +191,15 @@ def build(sprite):
         for k in range(n):
             j = (k + 1) % n
             f = bm.faces.new((a[k], a[j], b[j], b[k]))
-            f.material_index = shade(CX + (ts[k] + ts[j]) / 2 * wc, vc) if k < ntop else mat_of[20]
+            f.material_index = shade(CX + (ts[k] + ts[j]) / 2 * wc, vc, (ts[k] + ts[j]) / 2) if k < ntop else mat_of[BELLY_C]
             f.smooth = True
     for k in range(n):
         j = (k + 1) % n
         f = bm.faces.new((rings[-1][k], rings[-1][j], tip))
-        f.material_index = shade(CX, 25.5) if k < ntop else mat_of[20]
+        f.material_index = shade(CX, 25.5, 0.0) if k < ntop else mat_of[BELLY_C]
         f.smooth = True
     f = bm.faces.new(list(reversed(rings[0])))
-    f.material_index = mat_of[20]
+    f.material_index = mat_of[BELLY_C]
     f.smooth = True
 
     # The ears (rows 4-8, columns 2-5 and 19-22): tan blocks slanting out and back from the
@@ -210,11 +208,7 @@ def build(sprite):
     lib.tube(bm, [to3(5.4, 4.0, 1.6), to3(4.7, 4.9, 1.8), to3(3.6, 6.6, 1.8), to3(3.7, 8.0, 1.7),
                   to3(4.1, 8.7, 1.5)],
              [0.8 / 12, 1.25 / 12, 1.55 / 12, 1.2 / 12, 0.7 / 12], sides=8, flat=1.0, mat=mat_of[EAR])
-    # Only their tops are tan; their sides are as dark as the sprite's outline round them.
-    bm.faces.ensure_lookup_table()
-    for f in bm.faces[f0:]:
-        if f.calc_center_median().z < 2.75 / 12:
-            f.material_index = mat_of[16]
+    # All tan: the dark ring round them in the sprite is its outline, which the game draws.
     lib.mirror_new(bm, v0, f0, axis_x=0.0 + (CX - 12) / 12)
 
     obj = lib.to_object(NAME, bm, mats, coll)

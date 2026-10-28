@@ -1,7 +1,7 @@
 """Gencore Phoenix (player ship, tyrian.shp#8 sprite 157 and its banking frames 153-161).
 
-A grey fighter: a long fuselage with a pointed nose, a dark cockpit slot behind the nose and a
-light canopy panel, and two blade-like side pods (taller than they are wide, as the banking
+A grey fighter: a long fuselage with a pointed nose, a dark cockpit slot behind the nose, a
+polished metal hull, and two blade-like side pods (taller than they are wide, as the banking
 frames show) joined to the fuselage by struts near the tail.
 
 Run: blender --background --python assets/blender/ships/ship-gencore-phoenix.py [-- --preview out.png]
@@ -93,18 +93,23 @@ def build(sprite):
             mats.append(common.palette_material(sprite, i, NAME, metallic=metallic, roughness=roughness))
         return used[i]
 
-    EDGE, SLOT, DARK, HULL, MID, POD, LIGHT, BRIGHT = (m(1, 0.3, 0.6), m(2, 0.2, 0.3), m(4), m(5), m(6), m(7),
-                                                      m(10, 0.6, 0.3), m(13, 0.6, 0.25))
+    # Polished grey metal throughout: the sprite's near-white spots and streaks (the nose tip, the
+    # bright patch mid-fuselage, the spine streak, the pods' inner edges) are specular highlights,
+    # not bumps or paint, so the hull carries its mid-tone colour on a shiny metallic material and
+    # the game's lights make the shine. The dark cockpit slot and the nozzle are glossy and dark.
+    METAL = dict(metallic=0.8, roughness=0.28)
+    SLOT, DARK, HULL, POD, STRUT = (m(2, 0.05, 0.12), m(4, **METAL), m(5, **METAL), m(6, **METAL),
+                                    m(7, **METAL))
     bm = bmesh.new()
 
-    # Dark edge (the sprite's black outline, palette 1): a low, wider lower hull under every part,
-    # so from above the outline pixels are covered and dark. (row, column, half width, top, bottom).
+    # Lower hull: a low, wider flange under every part, out to the sprite's silhouette. The game
+    # draws the dark outline, so it carries the hull colour. (row, column, half width, top, bottom).
     skirt = [(0.55, 11.5, 0, 0.3, -0.3), (1.0, 11.5, 0.75, 0.6, -0.5), (2.0, 11.5, 1.7, 0.8, -0.8),
              (3.0, 11.5, 1.75, 0.9, -0.9), (4.0, 11.5, 2.7, 1.0, -1.1), (5.0, 11.5, 2.75, 1.0, -1.2),
              (6.0, 11.5, 3.7, 1.1, -1.3), (8.4, 11.5, 3.7, 1.1, -1.4), (8.6, 11.5, 4.7, 1.2, -1.5),
              (16.4, 11.5, 4.7, 1.2, -1.5), (16.6, 11.5, 3.7, 1.1, -1.4), (23.0, 11.5, 3.7, 1.0, -1.3),
              (24.0, 11.5, 2.7, 0.9, -1.1), (25.0, 11.5, 1.7, 0.8, -0.9), (25.45, 11.5, 1.7, 0.5, -0.6)]
-    tube(bm, skirt, 12, lambda r, c, up: EDGE)
+    tube(bm, skirt, 12, lambda r, c, up: HULL)
 
     # Fuselage: a round hull, as tall as it is wide (8 px wide, 6.5 px tall above the plane), the
     # nose tapering in width and height to the tip. Ring grooves cut the dark bands across it
@@ -122,52 +127,32 @@ def build(sprite):
         if 5.55 < r < 6.45:
             return DARK if x < 2.2 else HULL  # dark band across the nose
         if 8.45 < r < 9.55:
-            return SLOT if x < 2.2 else MID  # cockpit slot
+            return SLOT if x < 2.2 else HULL  # cockpit slot
         if 12.45 < r < 13.55:
             return DARK  # band under the cockpit
         if 17.45 < r < 19.55:
             return SLOT if x < 1.0 and up > 0.5 else HULL  # rear port between two lips
         if r > 19.55:
             return DARK  # the darker tail end
-        if 9.55 < r < 12.45 and up > 0.3:
-            return MID  # lit shoulders round the cockpit
         return HULL
 
     tube(bm, [(r, 11.5, w, t, b) for r, w, t, b in hull], 14, hull_paint)
 
-    hull_top = lambda r: next(t0 + (t1 - t0) * (r - r0) / (r1 - r0)  # noqa: E731
-                              for (r0, _, t0, _), (r1, _, t1, _) in zip(hull, hull[1:]) if r0 <= r <= r1)
-    for rows, paint in (((2.6, 3.0, 5.0, 5.45), lambda r, c, up: LIGHT),
-                        ((6.5, 6.8, 7.4, 7.8), lambda r, c, up: BRIGHT),
-                        ((13.6, 13.9, 14.6, 17.2, 17.6), lambda r, c, up: BRIGHT if r < 14.6 else LIGHT)):
-        # blunt ends: the end sections are narrower and sunk into the hull
-        tube(bm, [(r, 11.15, 0.3 if r in (rows[0], rows[-1]) else 0.45,
-                   hull_top(r) + (0.0 if r in (rows[0], rows[-1]) else 0.4), hull_top(r) - 0.6)
-                  for r in rows], 8, paint)
-
-    # Cockpit dome (rows 10-12, columns 10-12): a hemisphere about 2 px proud of the hull.
-    R, rc, cc, zc = 1.75, 11.0, 11.2, 6.5 - 0.25
-    dome = [(rc - R * 0.98, cc, 0, zc + 0.3, zc - 0.3)]
-    for t in (-0.85, -0.55, -0.2, 0.2, 0.55, 0.85):
-        h = R * math.sqrt(1 - t * t)
-        dome.append((rc + t * R, cc, h, zc + 1.2 * h, zc - h))
-    dome.append((rc + R * 0.98, cc, 0, zc + 0.3, zc - 0.3))
-    tube(bm, dome, 10, lambda r, c, up: BRIGHT if up > 0.8 and r > 11.6 else LIGHT)
-
     # Tail engine (rows 23-25, columns 10-13): a blunt, chamfered block, darker than the hull, with
-    # a dark rim at the back and a nozzle cut into its end.
+    # a nozzle cut into its end.
     block = [(22.3, 11.5, 1.95, 3.3, -1.5), (24.6, 11.5, 1.95, 3.3, -1.5), (25.4, 11.5, 1.95, 2.3, -1.2),
              (25.4, 11.5, 1.0, 1.4, -0.4), (24.7, 11.5, 0.8, 1.2, -0.2), (24.7, 11.5, 0, 0.5, 0.5)]
 
     def block_paint(r, c, up):
         if r > 24.55:
-            return EDGE
-        return DARK if up > 0.9 else SLOT
+            return SLOT if abs(c - 11.5) < 1.1 else DARK  # nozzle in the dark back face
+        return DARK
 
     tube(bm, block, 8, block_paint, cap_end=False)
 
     # Side pods: round nacelles, inner edge straight (column 5), outer edge flaring out to
-    # column 1 at rows 14-22; a dark edge pod under each for the outline, and a bright inner ridge.
+    # column 1 at rows 14-22, on a lower, wider flange out to the silhouette. The bright line along
+    # each pod's inner edge in the sprite is the metal's sheen.
     pod_edge = [(8.55, 4.6, 0, 0.4, -0.5), (9.0, 4.5, 0.75, 0.8, -0.9), (10.0, 4.0, 1.25, 1.0, -1.1),
                 (11.0, 4.0, 1.25, 1.0, -1.2), (12.0, 3.5, 1.75, 1.1, -1.3), (13.0, 3.5, 1.75, 1.1, -1.3),
                 (14.0, 3.0, 2.25, 1.1, -1.4), (22.0, 3.0, 2.25, 1.1, -1.4), (23.0, 4.0, 1.25, 1.0, -1.2),
@@ -175,20 +160,16 @@ def build(sprite):
     pod = [(9.6, 4.2, 0, 1.4, 0.2), (10.0, 4.0, 0.45, 2.0, -0.6), (11.0, 3.55, 0.95, 2.9, -1.3),
            (13.0, 3.5, 0.95, 3.4, -1.6), (14.0, 3.0, 1.45, 3.7, -1.8), (21.0, 3.0, 1.45, 3.7, -1.8),
            (22.0, 3.55, 0.95, 3.2, -1.6), (23.0, 4.0, 0.45, 2.3, -1.2), (23.55, 4.0, 0, 1.4, -0.4)]
-    ridge = [(10.6, 4.1, 0, 2.2, 1.8), (11.5, 4.05, 0.4, 3.0, 2.0), (14.0, 3.95, 0.45, 3.8, 2.6),
-             (19.5, 3.95, 0.45, 3.8, 2.6), (22.0, 4.0, 0.4, 3.1, 2.1), (22.8, 4.0, 0, 2.6, 2.0)]
     for flip in (False, True):
         mir = (lambda secs: [(r, 23 - c, w, t, b) for r, c, w, t, b in secs]) if flip else (lambda secs: secs)
-        tube(bm, mir(pod_edge), 10, lambda r, c, up: EDGE)
+        tube(bm, mir(pod_edge), 10, lambda r, c, up: POD)
         tube(bm, mir(pod), 10, lambda r, c, up: POD)
-        tube(bm, mir(ridge), 6, lambda r, c, up: LIGHT)
 
-    # Struts (rows 20-21, columns 5-8): round bars from the pods into the hull, lit along the
-    # front, on a dark edge bar for the outline (rows 19 and 22).
+    # Struts (rows 20-21, columns 5-8): round bars from the pods into the hull, on a low bar out to
+    # the silhouette (rows 19 and 22).
     for a, b in ((4.6, 9.0), (23 - 9.0, 23 - 4.6)):
-        box(bm, px(a) - 0.5 * P, px(b) + 0.5 * P, row(22.25), row(18.75), -1.0 * P, 0.6 * P, mat_index=EDGE)
-        xtube(bm, a, b, 20.5, 2.6, -0.4, 0.95, 8,
-              lambda dy, up: LIGHT if dy > 0.3 and up > -0.2 else MID)
+        box(bm, px(a) - 0.5 * P, px(b) + 0.5 * P, row(22.25), row(18.75), -1.0 * P, 0.6 * P, mat_index=STRUT)
+        xtube(bm, a, b, 20.5, 2.6, -0.4, 0.95, 8, lambda dy, up: STRUT)
 
     return common.mesh_object(NAME, bm, mats, coll, smooth=True)
 

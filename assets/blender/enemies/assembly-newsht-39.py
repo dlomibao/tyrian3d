@@ -229,15 +229,22 @@ def sprite_grid(sprite):
     return grid
 
 
+PAINT_FAMILIES = ("glow",)  # ramps painted from the sprite: only its real lights
+
+
 def paint(bm, grid, sprite, slot_of, skip, glass=()):
-    """Colour the model from the sprite: every face that looks up takes the (quantised) colour of
-    the sprite pixel under its centre, when that pixel is of the face's own ramp (red on red, grey
-    on grey), and every painted plate pixel gets its own quad just above the plate's top. Faces
-    in `skip` (the claws' animated eye) keep their materials; faces in `glass` (the orbs) keep
-    theirs but where the sprite draws their lit spots (its highlight and lower rim)."""
+    """Paint the sprite's real lights (the glowing exhaust beds and their streaks) onto the model:
+    every glow pixel on a painted plate gets its own quad just above the plate's top. Everything
+    else keeps its part's own mid-tone colour: the sprite's red and grey shades are its drawn
+    light (lit upper-left edges, dark lower-right halves, the outline ring, the orbs' highlight),
+    which the game's lights and outline make on their own; painted on, they darkened the model
+    twice and broke it into a patchwork. (The per-face sprite painting below is kept for ramps
+    listed in PAINT_FAMILIES.)"""
     bm.normal_update()
     marked = bm.faces.layers.int.get("paint")
     for f in bm.faces:
+        if family(SLOT_PAL[f.material_index]) not in PAINT_FAMILIES:
+            continue
         if f.material_index in skip or f.normal.z <= 0.05:
             continue
         fam = family(SLOT_PAL[f.material_index])
@@ -270,7 +277,7 @@ def paint(bm, grid, sprite, slot_of, skip, glass=()):
     lift = 0.6 * PX + 0.006  # above the fattened plate top
     for (pc, pr), (z, fam) in tops.items():
         v = grid[pr][pc] if 0 <= pr < 56 and 0 <= pc < 144 else -1
-        if v < 0 or family(v) != fam:
+        if v < 0 or family(v) != fam or fam not in PAINT_FAMILIES:
             continue
         x0, x1, y0, y1 = X(pc - 0.5), X(pc + 0.5), Y(pr + 0.5), Y(pr - 0.5)
         vs = [bm.verts.new((x, y, z + lift)) for x, y in ((x0, y0), (x1, y0), (x1, y1), (x0, y1))]
@@ -314,26 +321,29 @@ def build(sprite, grid):
     MIRRORED[0] = True
     tag = "nsht39"
     pal = lambda i, **kw: common.palette_material(sprite, i, tag, **kw)  # noqa: E731
+    # A machine: its red hull is painted metal (moderately metallic, satin), its grey pipes, rims
+    # and visor bare polished metal, its orbs dark glass (glossy, not metallic): the game's
+    # environment light and sun make the sheen the sprite draws as highlights.
     mats = [
-        pal(71, metallic=0.05, roughness=0.5),  # 0 red hull
-        pal(69, metallic=0.05, roughness=0.55),  # 1 darker red plates
-        pal(66, metallic=0.2, roughness=0.6),  # 2 deep red bands and grooves
-        pal(74, metallic=0.05, roughness=0.4),  # 3 light red ribs
-        pal(4, metallic=0.3, roughness=0.12),  # 4 dark glass orbs: glossy, so the light's highlight shows
-        pal(5, metallic=0.7, roughness=0.35),  # 5 grey pipes and canisters
+        pal(71, metallic=0.35, roughness=0.4),  # 0 red hull
+        pal(69, metallic=0.35, roughness=0.42),  # 1 darker red plates
+        pal(66, metallic=0.35, roughness=0.45),  # 2 deep red bands and grooves
+        pal(74, metallic=0.35, roughness=0.4),  # 3 light red ribs
+        pal(4, metallic=0.05, roughness=0.08),  # 4 dark glass orbs: glossy, so the light's highlight shows
+        pal(5, metallic=0.8, roughness=0.3),  # 5 grey pipes and canisters
         pal(2, metallic=0.2, roughness=0.8),  # 6 dark recesses
-        pal(9, metallic=0.8, roughness=0.25),  # 7 bright grey rims
+        pal(9, metallic=0.85, roughness=0.25),  # 7 bright grey rims
         pal(119, emission_strength=3.0),  # 8 eye glow (animated on the claw pieces)
         pal(125, emission_strength=5.0),  # 9 eye core (animated on the claw pieces)
         pal(113, metallic=0.2, roughness=0.5),  # 10 eye socket
-        pal(7, metallic=0.75, roughness=0.25),  # 11 bright grey visor
+        pal(7, metallic=0.8, roughness=0.25),  # 11 bright grey visor
         pal(116, emission_strength=3.0),  # 12 exhaust bed (now painted from the sprite; kept so slots stay put)
         pal(122, emission_strength=5.0),  # 13 exhaust streaks: orange
     ]
     HULL, PLATE, BAND, RIB, ORB, PIPE, DARK, RIM, GLOW, HOT, SOCKET, VISOR, VENT, STREAK = range(14)
     EYE = {GLOW, HOT, SOCKET}  # animated per frame on the claw pieces (eye_materials): never painted
     KEEP = EYE
-    mats[ORB].metallic, mats[ORB].roughness = 0.3, 0.12  # the viewport (preview) gloss too
+    mats[ORB].metallic, mats[ORB].roughness = 0.05, 0.08  # the viewport (preview) gloss too
     SLOT_PAL[:] = [int(m.name.split("_")[1]) for m in mats]
 
     def slot_of(i):

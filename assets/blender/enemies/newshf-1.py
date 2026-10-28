@@ -13,12 +13,13 @@ One body (frame 1's outline, the frame the others are drawn from): a smooth hull
 round profile of the distance to the smoothed outline, cresting at about 5 px along the spine and
 falling to about 1.5 px over the narrow wing strips, with a shallower belly below (about 2 px under
 the spine, under 1 px at the wings), so the ship is about 7 px thick and its wings about 2. The
-belly and the walls are one dark green. Over it each frame has its own skin, a surface with one face
-per pixel in that pixel's palette colour (common.frame_part), so the top view is that frame's
-sprite; frames 3 and 5 lie a hair under frame 1's skin so they never show through it. The lower
-vent is a 2x2 px pit 1 px deep with the pale light in it. The spike and horns are tapered cones
-(shared by all frames), the eyes small emissive domes (frame 1, where the review compares), and the
-right shoulder's orange light a dome on every frame.
+belly and the walls are the hull's mid-tone green. Over it each frame has its own skin, a surface
+with one face per pixel (common.frame_part) in that pixel's marking colour or else the hull's mid-
+tone (see marking: the sprite's outline ring and shading are left to the game's light and outline);
+frames 3 and 5 lie a hair under frame 1's skin so they never show through it. The lower vent is a
+2x2 px pit 1 px deep with the pale light in it. The spike and horns are tapered cones (shared by all
+frames), the eyes small emissive domes (frame 1, where the review compares), and the right
+shoulder's orange light a dome on every frame.
 
 The ship's centre line is column 13 (x = 1.5 px), not the block's centre.
 
@@ -46,10 +47,35 @@ SINK = {1: 0.0, 3: 0.2, 5: 0.35}  # how far each frame's skin lies under frame 1
 VENT = [(17, 11), (17, 12), (18, 11), (18, 12)]  # the lower vent's pixels: a pit with a pale light
 VENT_DEPTH = 1.0
 
-# Palette shades merged into one material each (few materials; neighbouring shades of one ramp).
-SHADE = {33: 32, 35: 34, 37: 36, 39: 38, 41: 40, 43: 42, 45: 44, 47: 46, 20: 22, 23: 24, 25: 26}
+# The sprite draws its light: a near-black outline ring, a mottle of greens that is mostly shading
+# (dark on the lower right, the lit wing on the roll), highlights. The game lights the model and
+# draws its own outline, so each skin keeps only the real markings: the pale spine plates, the
+# near-black vent and gaps inside the hull, the brown wing-root panels and horn bases, the eyes and
+# lights. Everything else is the hull's mid-tone green, and the light shades it.
+HULL = 40  # the hull's mid-tone green: skins, walls and belly
+PALE = 44  # the pale spine plates
+DARK = 32  # the vent and the gaps inside the hull
+BROWN = {20: 24, 22: 24, 23: 24, 24: 24, 25: 26, 26: 26}  # horn bases and wing-root panels
 EYE, LIGHT = 125, 122
-WALL, UNDER = 38, 36  # side walls and belly
+WALL, UNDER = HULL, HULL  # side walls and belly
+HORN = 24  # the horns' mid-tone brown
+METAL = dict(metallic=0.35, roughness=0.45)  # painted metal hull
+
+
+def marking(hull, r, c, i):
+    """The palette index a skin face at pixel (r, c), drawn as `i` in its frame, gets: its marking
+    colour, or the hull's mid-tone where the sprite only draws light or the outline there."""
+    if i in (EYE, LIGHT):
+        return i
+    if i in BROWN:
+        return BROWN[i]
+    rim = not all(hull.inside(r + dr, c + dc) for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)))
+    spine = abs(c + 0.5 - SPINE) <= 2.5
+    if i in (1, 32, 33) and spine and not rim:
+        return DARK  # the vent and the gaps by the spike (dark pixels elsewhere are outline or shade)
+    if i >= PALE and spine:
+        return PALE  # the pale plates along the spine (pale wing pixels are the lit wing)
+    return HULL
 
 
 def lateral(x):
@@ -166,14 +192,14 @@ def body(hull, slot):
 
 
 def skin(hull, pix, sink, slot):
-    """One frame's skin over the hull: a face per pixel of frame 1's outline, in this frame's colour
-    there (its dark outline colour where this frame has no pixel)."""
+    """One frame's skin over the hull: a face per pixel of frame 1's outline, in this frame's marking
+    colour there (the hull's mid-tone where this frame has no pixel)."""
     bm = bmesh.new()
     v = {k: bm.verts.new(hull.co(k, hull.top[k] - (0.0 if k in hull.edge else sink))) for k in hull.corners}
     for r, c in hull.cells:
-        i = pix[r][c] if pix[r][c] >= 0 else 1
+        i = pix[r][c] if pix[r][c] >= 0 else HULL
         f = bm.faces.new((v[(r + 1, c)], v[(r + 1, c + 1)], v[(r, c + 1)], v[(r, c)]))
-        f.material_index = slot[SHADE.get(i, i)]
+        f.material_index = slot[marking(hull, r, c, i)]
     return bm
 
 
@@ -245,8 +271,10 @@ def add_prong(bm, hull, base, tip, width, height, mat):
 def build(sprite):
     coll = common.reset_collection(NAME)
     frames = {f["index"]: f for f in sprite["frames"]}
-    used = sorted({SHADE.get(i, i) for f in sprite["frames"] for row in f["pixels"] for i in row if i >= 0}
-                  | {WALL, UNDER, 1})
+    hull = Hull(frames[1]["pixels"])
+    used = sorted({marking(hull, r, c, i) for f in sprite["frames"] for r, row in enumerate(f["pixels"])
+                   for c, i in enumerate(row) if i >= 0 and hull.inside(r, c)}
+                  | {WALL, UNDER, HULL, PALE, HORN})
     mats, slot = [], {}
     for i in used:
         if i == EYE:
@@ -254,22 +282,18 @@ def build(sprite):
         elif i == LIGHT:
             kw = dict(emission_strength=2.5)
         else:
-            kw = dict(metallic=0.0, roughness=0.8)
+            kw = METAL
         slot[i] = len(mats)
         mats.append(common.palette_material(sprite, i, NAME, **kw))
 
-    hull = Hull(frames[1]["pixels"])
-
     # The body, the prongs and the right shoulder's light show on every frame.
     bm = body(hull, slot)
-    add_prong(bm, hull, (5.6, 12.5), (1.7, 12.5), 1.5, 2.3, slot[44])  # the pale spike
-    add_prong(bm, hull, (6.0, 10.5), (2.8, 10.5), 1.4, 2.0, slot[17])  # left horn
-    add_prong(bm, hull, (6.0, 15.6), (2.8, 15.4), 1.4, 2.0, slot[24])  # right horn
+    add_prong(bm, hull, (5.6, 12.5), (1.7, 12.5), 1.5, 2.3, slot[PALE])  # the pale spike
+    add_prong(bm, hull, (6.0, 10.5), (2.8, 10.5), 1.4, 2.0, slot[HORN])  # left horn
+    add_prong(bm, hull, (6.0, 15.6), (2.8, 15.4), 1.4, 2.0, slot[HORN])  # right horn
     for group in lamps(frames[1]["pixels"], LIGHT):
         add_lamp(bm, hull, group, slot[LIGHT], 0.6)
     parts = [common.mesh_object(f"{NAME}-body", bm, mats, coll, smooth=True)]
-    for p in parts[0].data.polygons:
-        p.use_smooth = p.material_index != slot[UNDER]
 
     for index in (1, 3, 5):
         bm = skin(hull, frames[index]["pixels"], SINK[index], slot)

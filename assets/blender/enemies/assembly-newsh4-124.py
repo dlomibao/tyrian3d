@@ -51,36 +51,43 @@ EYE_DZ = 0.40
 
 
 def materials(sprite):
+    """A bronze-and-steel machine: the plates are painted metal (the tan and grey hull, the red
+    panels), the dome, neck and stinger cap are polished steel (their bright spots in the sprite
+    are shine, which the metal and the game's lights make), the lights and the eye glow."""
     pal = lambda i, **kw: common.palette_material(sprite, i, TAG, **kw)  # noqa: E731
+    bronze = dict(metallic=0.35, roughness=0.45)  # painted tan plates (pal 22 is shared by two slots)
     return [
-        pal(8, metallic=0.1, roughness=0.35),  # 0 light grey pylons, neck, shoulders
-        pal(10, metallic=0.1, roughness=0.3),  # 1 light grey dome, bars, hook
-        pal(4, metallic=0.4, roughness=0.5),  # 2 dark grey hull
-        pal(2, metallic=0.4, roughness=0.6),  # 3 black socket and pod underside
-        pal(24, metallic=0.0, roughness=0.6),  # 4 gold wings, chevron, brim (the sprite's saturated mid gold)
-        pal(22, metallic=0.0, roughness=0.45),  # 5 darker tan emblems
-        pal(28, metallic=0.0, roughness=0.4),  # 6 bright gold ridges, crest, barrel and blades
-        pal(165, metallic=0.3, roughness=0.6),  # 7 dark brown bands
-        pal(72, metallic=0.15, roughness=0.35),  # 8 red panels and windows
-        pal(76, metallic=0.15, roughness=0.4),  # 9 pink collar
+        pal(7, metallic=0.45, roughness=0.4),  # 0 grey shoulders and wrists (the sprite's 6 to 8)
+        pal(10, metallic=0.45, roughness=0.38),  # 1 light grey posts, bars, ladder
+        pal(4, metallic=0.45, roughness=0.45),  # 2 dark grey hull
+        pal(2, metallic=0.4, roughness=0.5),  # 3 black socket and pod underside
+        pal(24, metallic=0.35, roughness=0.45),  # 4 gold chevron, brim, struts and cable (the sprite's saturated mid gold)
+        pal(22, **bronze),  # 5 darker tan emblems
+        pal(28, metallic=0.35, roughness=0.4),  # 6 bright gold ridges, crest, barrel and blades
+        pal(165, metallic=0.3, roughness=0.5),  # 7 dark brown bands
+        pal(72, metallic=0.3, roughness=0.4),  # 8 red panels and windows
+        pal(76, metallic=0.3, roughness=0.4),  # 9 pink collar
         pal(167, metallic=0.25, roughness=0.45),  # 10 brown claws
         pal(79, emission_strength=2.5),  # 11 pink lights
         pal(9, metallic=0.75, roughness=0.25),  # 12 grey eye shutter
         pal(74, emission_strength=1.5),  # 13 red eye
         pal(123, emission_strength=4.0),  # 14 eye glow
         pal(126, emission_strength=6.0),  # 15 eye hot core
-        pal(25, metallic=0.0, roughness=0.55),  # 16 gold barrel (lit a step brighter than the wings)
-        pal(75, metallic=0.15, roughness=0.3),  # 17 lit red ribs on the pod
-        pal(8, metallic=0.1, roughness=0.35),  # 18 grey hooks (the same material as the pylons)
-        pal(7, metallic=0.1, roughness=0.4),  # 19 grey stinger dome
-        pal(73, metallic=0.0, roughness=0.4),  # 20 bright red shoulder windows
-        pal(164, metallic=0.0, roughness=0.55),  # 21 dark brown-orange lower band of the stinger
+        pal(25, metallic=0.35, roughness=0.45),  # 16 gold barrel (lit a step brighter than the wings)
+        pal(75, metallic=0.3, roughness=0.35),  # 17 lit red ribs on the pod
+        pal(6, metallic=0.45, roughness=0.4),  # 18 darker grey hooks, pylon plates, wingtip blocks, arm roots
+        common.palette_material(sprite, 7, f"{TAG}-cap", metallic=0.75, roughness=0.3),  # 19 polished stinger cap
+        pal(73, metallic=0.3, roughness=0.4),  # 20 bright red shoulder windows
+        pal(22, **bronze),  # 21 tan lower band of the stinger (the sprite's mid tone, shaded 23 to 163)
+        common.palette_material(sprite, 8, f"{TAG}-steel", metallic=0.8, roughness=0.3),  # 22 polished dome, neck
+        pal(23, metallic=0.35, roughness=0.45),  # 23 tan wing plates (the sprite's 22 to 24, between them)
     ]
 
 
 (GREY, LGREY, DGREY, BLACK, TAN, DTAN, LTAN, BROWN, RED, PINK, CLAW, LIGHT, SHUTTER, EYE_RED, GLOW,
- HOT, BARREL, RIB, HOOK, BALLG, WIN, DBROWN) = range(22)
-N_MATS = 22
+ HOT, BARREL, RIB, HOOK, BALLG, WIN, DBROWN, STEEL, WING) = range(24)
+N_MATS = 24
+DSTEEL = HOOK  # the darker grey plates share the hooks' material
 
 
 def bplate(bm, outline, z0, z1, mat=0, bevel=0.6, tilt=None):
@@ -128,7 +135,7 @@ def build_left(bm):
     # light ridge along its upper edge and a strut on to the barrel (rows 34-38).
     plate_outline = [(4.0, 19.8), (13, 23.3), (23, 28.8), (34, 33.3), (34, 48.5), (29.5, 52.7), (15, 38.7),
                      (5.0, 31.5), (4.6, 24.0)]
-    bplate(bm, plate_outline, -0.04, 0.25, mat=TAN, bevel=0.7, tilt=wing_tilt)
+    bplate(bm, plate_outline, -0.04, 0.25, mat=WING, bevel=0.7, tilt=wing_tilt)
     sweep(bm, [(4.8, 21.0, 0.24 + wing_tilt(5, 21), 1.0, 0.04), (13, 24.6, 0.24 + wing_tilt(13, 25), 1.2, 0.045),
                (23, 29.6, 0.24 + wing_tilt(23, 30), 1.2, 0.045), (33.5, 34.2, 0.24, 1.2, 0.045)], sides=6, mat=LTAN)
     sweep(bm, [(15.5, 38.9, wing_tilt(15, 38) + 0.2, 0.8, 0.04), (29.5, 51.6, 0.2, 0.8, 0.04)], sides=6, mat=DTAN)
@@ -137,7 +144,7 @@ def build_left(bm):
     box(bm, 6, 26, 10, 36, -0.12, 0.2, mat=RED)
     sweep(bm, [(8.5, 25.4, 0.2, 0.0, 0.0), (8.5, 26.4, 0.2, 2.2, 0.24), (8.5, 30.5, 0.2, 2.6, 0.31),
                (8.3, 35.4, 0.2, 2.2, 0.24), (8.3, 36.5, 0.2, 0.0, 0.0)], sides=10, mat=RED)
-    bplate(bm, [(10, 29), (15, 29), (15, 38), (10, 38)], -0.12, 0.44, mat=GREY, bevel=0.6)
+    bplate(bm, [(10, 29), (15, 29), (15, 38), (10, 38)], -0.12, 0.44, mat=DSTEEL, bevel=0.6)
     # Thin tan cable from the pylon's top round to the wing tip (rows 9-22).
     sweep(bm, [(20.5, 9.0, 0.38, 1.4, 0.06), (16, 9.2, 0.37, 1.4, 0.06), (12.5, 10.5, 0.35, 1.4, 0.06),
                (9.8, 12.8, 0.33, 1.4, 0.06), (7.5, 16, 0.3, 1.4, 0.06), (5.6, 19.5, 0.22, 1.5, 0.06),
@@ -150,7 +157,7 @@ def build_left(bm):
     # mirror, see build_recesses).
     bplate(bm, [(20.5, 2.5), (25, 2.5), (34, 7), (43.5, 11.5), (43.5, 18), (46.5, 18.5), (46.5, 21.5),
                 (43, 22), (43, 31), (41, 35.5), (36.5, 34), (36, 30), (30, 22), (22.5, 19), (20, 17.5),
-                (20, 7)], -0.1, 0.4, mat=GREY, bevel=1.0)
+                (20, 7)], -0.1, 0.4, mat=DSTEEL, bevel=1.0)
     bplate(bm, [(20.5, 3.2), (24.5, 3.2), (25.5, 4), (25.5, 18.5), (21.5, 18.5), (20.5, 17)], 0.25, 0.46,
            mat=LGREY, bevel=0.5)
     plate(bm, [(27, 9.5), (31, 8), (36, 10.5), (36, 12.5), (31, 11), (29.5, 12), (29.5, 15.5), (27, 15.5)],
@@ -159,7 +166,7 @@ def build_left(bm):
     box(bm, 37, 22, 38, 34, 0.25, 0.45, mat=LGREY)
 
     # Arm root from the hull down to the shoulder (columns 28-40, rows 46-58).
-    bplate(bm, [(28, 52), (33, 46.5), (41, 45.5), (41, 53), (36, 58.5), (28, 58.5)], -0.12, 0.34, mat=GREY)
+    bplate(bm, [(28, 52), (33, 46.5), (41, 45.5), (41, 53), (36, 58.5), (28, 58.5)], -0.12, 0.34, mat=DSTEEL)
 
     # Tan chevron from the middle out and down to the shoulder, with a light outer edge: the body
     # plate, above the wings.
@@ -263,27 +270,27 @@ def build_centre(bm):
 
     # Tower: grey dome, tan brim, dark band under it, tan barrel, pink collar, grey neck, black
     # eye socket, red pod with a black underside, grey and tan stinger ball.
-    loft_y(bm, AXIS, DOME, sides=16, mat=GREY)
+    loft_y(bm, AXIS, DOME, sides=16, mat=STEEL)
     loft_y(bm, AXIS, BRIM, sides=16, mat=TAN)
     loft_y(bm, AXIS, BAND, sides=16, mat=BROWN)
     loft_y(bm, AXIS, BARREL_S, sides=16, mat=BARREL)
     loft_y(bm, AXIS, COLLAR, sides=14, mat=PINK)
-    loft_y(bm, AXIS, NECK, sides=12, mat=GREY)
+    loft_y(bm, AXIS, NECK, sides=12, mat=STEEL)
     loft_y(bm, AXIS, SOCKET, sides=12, mat=BLACK)
     loft_y(bm, AXIS, POD, sides=16, mat=RED)
     loft_y(bm, AXIS, UNDER, sides=16, mat=BLACK)
     # The stinger is a dome standing on the body plane (its underside cut flat at BALL_FLOOR), not a
-    # ball hanging under it: grey upper half, near-black lower band.
+    # ball hanging under it: polished grey upper half, tan lower band.
     n0 = len(bm.verts)
     loft_y(bm, AXIS, BALL_TOP, sides=16, mat=BALLG)
     loft_y(bm, AXIS, BALL_BOTTOM, sides=16, mat=DBROWN)
     bm.verts.ensure_lookup_table()
     for v in bm.verts[n0:]:
         v.co.z = max(v.co.z, BALL_FLOOR)
-    # The red stripe wrapped down the stinger's front (one raised strip), and a grey stud at its top.
+    # The red stripe wrapped down the stinger's front (one raised strip). (The bright spot at its top
+    # is the polished cap's shine, not a stud.)
     loft_y(bm, AXIS, on(BALL, [(77.5, 0.0, 0.0), (78.5, 2.0, 0.09), (84, 2.0, 0.09), (88, 1.8, 0.08),
                                (90.8, 0.0, 0.0)], sink=0.03), sides=8, mat=RED)
-    ellipsoid(bm, AXIS, 75.4, surf(BALL, 75.4) - 0.02, 1.6, 1.4, 0.08, mat=LGREY, segments=10, rings=5)
     # The small dark horns at the stinger's upper corners (columns 49-51 and 69-71, rows 75-77).
     for side in (-1, 1):
         sweep(bm, [(AXIS + side * 9.6, 78.2, 0.3, 1.1, 0.12), (AXIS + side * 10.8, 75.8, 0.27, 0.7, 0.08),

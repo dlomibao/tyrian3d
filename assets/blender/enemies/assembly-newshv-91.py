@@ -47,8 +47,8 @@ def poly(points):
 
 
 def bevel_prism3(bm, outline, z0, z1, bevel, bevel_h, wall, band, top):
-    """lib.bevel_prism with its own material for the chamfer band: seen from above the band covers
-    the sprite's dark outline pixels, so it gets the outline's dark shade."""
+    """lib.bevel_prism with its own material for the chamfer band (the hull's side colour; the
+    game draws the sprite's dark outline itself)."""
     hi_xy = lib.inset_outline(outline, bevel)
     n = len(outline)
     lo = [bm.verts.new((x, y, z0)) for x, y in outline]
@@ -65,28 +65,29 @@ def bevel_prism3(bm, outline, z0, z1, bevel, bevel_h, wall, band, top):
 def build(colors, firing):
     coll = common.reset_collection(NAME + ("-f2" if firing else ""))
     pal = lambda i, **kw: common.palette_material(colors, i, NAME, **kw)  # noqa: E731
+    # Blue metal hull: the sprite's white hot spots (tube middle, vent ribs) are sheen, so the
+    # parts are metallic and fairly smooth and keep one mid-tone each; the game's lights shade
+    # them and its outline pass draws the dark edge, so no face is painted outline-dark.
     mats = [
-        pal(55, metallic=0.25, roughness=0.45),  # 0 hull deck
-        pal(59, metallic=0.25, roughness=0.3),  # 1 tube
-        pal(62, metallic=0.3, roughness=0.25),  # 2 bright ribs and ridge
-        pal(54, metallic=0.25, roughness=0.5),  # 3 dark lower deck and seams
-        pal(69, metallic=0.1, roughness=0.2),  # 4 red balls and lamps
+        pal(56, metallic=0.5, roughness=0.38),  # 0 hull deck (painted metal)
+        pal(59, metallic=0.75, roughness=0.28),  # 1 tube (polished metal)
+        pal(62, metallic=0.6, roughness=0.3),  # 2 bright vent ribs
+        pal(55, metallic=0.5, roughness=0.4),  # 3 hull sides, chamfers, lower deck
+        pal(69, metallic=0.05, roughness=0.1),  # 4 red balls and lamps (glossy)
         pal(68, metallic=0.2, roughness=0.5),  # 5 gun ports (cold)
         pal(122, emission_strength=4.0),  # 6 gun port firing
         pal(115, emission_strength=2.5),  # 7 flare, outer dark red
         pal(118, emission_strength=3.0),  # 8 flare, red
         pal(121, emission_strength=4.0),  # 9 flare, orange
-        pal(58, metallic=0.25, roughness=0.35),  # 10 upper hull block and vents
-        pal(60, metallic=0.25, roughness=0.3),  # 11 rails
-        pal(56, metallic=0.25, roughness=0.4),  # 12 collars, chin and prongs
-        pal(50, metallic=0.2, roughness=0.6),  # 13 outline-dark chamfer bands, vent recess
-        pal(52, metallic=0.25, roughness=0.5),  # 14 side walls
-        pal(123, emission_strength=4.5),  # 15 flare, yellow-orange
-        pal(125, emission_strength=5.0),  # 16 flare core, yellow
-        pal(64, metallic=0.2, roughness=0.5),  # 17 ball socket (the ball's dark rim)
+        pal(58, metallic=0.5, roughness=0.36),  # 10 upper hull block and vents
+        pal(60, metallic=0.6, roughness=0.3),  # 11 rails and ridge
+        pal(57, metallic=0.65, roughness=0.3),  # 12 collars, chin and prongs
+        pal(123, emission_strength=4.5),  # 13 flare, yellow-orange
+        pal(125, emission_strength=5.0),  # 14 flare core, yellow
     ]
-    (HULL, TUBE, RIB, DARK, RED, PORT, PORT_HOT, FLARE_DR, FLARE_R, FLARE_O, BLOCK, RAIL,
-     COLLAR, EDGE, WALL, FLARE_YO, FLARE_Y, SOCKET) = range(18)
+    (HULL, TUBE, RIB, SIDE, RED, PORT, PORT_HOT, FLARE_DR, FLARE_R, FLARE_O, BLOCK, RAIL,
+     COLLAR, FLARE_YO, FLARE_Y) = range(15)
+    WALL = EDGE = DARK = SIDE
     bm = bmesh.new()
 
     # --- Left side hull (newshv-89, columns 0-23); mirrored for newshv-93 afterwards. ----------
@@ -107,7 +108,7 @@ def build(colors, firing):
                     0.6 * U, 0.04, mat_index=HULL, top_mat=HULL)
     # The bright ridge down column 15 (rows 5-23).
     lib.bevel_prism(bm, poly([(14.8, 5.1), (16.1, 5.1), (16.1, 23.8), (14.8, 23.8)]), 0.0, 0.57,
-                    0.3 * U, 0.03, mat_index=RIB)
+                    0.3 * U, 0.03, mat_index=RAIL)
     # Vent block, upper left (columns 9-15, rows 6-11): a recessed dark well with three bright
     # ribs (columns 9, 11, 13) standing 2 px proud of the block.
     lib.bevel_prism(bm, poly([(8.9, 5.6), (15, 5.6), (15, 11), (8.5, 11), (8.5, 9.2)]), 0.0, 0.46,
@@ -128,13 +129,12 @@ def build(colors, firing):
                     0.4 * U, 0.04, mat_index=EDGE)
 
     # Glossy red ball on the outer side (columns 1-8, rows 7-15): a full sphere, about two
-    # thirds of it above the lower deck.
+    # thirds of it above the lower deck, set into the hull's side. Like the hull it reaches the
+    # outer edge of its outline pixels; its dark rim in the sprite is outline and shading, which
+    # the game draws.
     f0 = len(bm.faces)
-    lib.ellipsoid(bm, (ax(4.9), ay(11.6), 0.2), (3.3 * U, 3.6 * U, 0.3), sides=16, rings=10,
+    lib.ellipsoid(bm, (ax(4.9), ay(11.6), 0.2), (3.8 * U, 4.1 * U, 0.32), sides=16, rings=10,
                   mat_index=RED)
-    # A dark socket under it, whose rim shows round the ball from above like the sprite's outline.
-    lib.ellipsoid(bm, (ax(4.8), ay(11.7), 0.03), (4.1 * U, 4.5 * U, 0.15), sides=12, rings=6,
-                  mat_index=SOCKET)
     lib.set_smooth(bm, f0)
     # The hull's lower corner reaches into the centre piece (columns 24-25, rows 18-21) with a
     # small red lamp on it (column 24, rows 19-20).
@@ -158,21 +158,20 @@ def build(colors, firing):
                         (ax(u1 - 0.8), w[2] * U, 0.4, ZC), (ax(u1), w[3] * U, 0.38, ZC)],
                    sides=14, mat_index=COLLAR)
         lib.move(bm, start, dy=ay(11.0))
-    # The tube (rows 7-15), round, bulging in the middle where the sprite's highlight is (row 10).
-    tube = [(28.0, 4.0, 0.35), (31, 4.1, 0.38), (34, 4.2, 0.41), (36, 4.25, 0.42),
-            (38, 4.2, 0.41), (41, 4.1, 0.38), (44.0, 4.0, 0.35)]
+    # The tube (rows 7-15), round and as wide all along as the sprite's outline; the bright spot
+    # in its middle is sheen on the metal, not a bulge.
+    tube = [(28.0, 4.1, 0.4), (36, 4.1, 0.4), (44.0, 4.1, 0.4)]
     start = len(bm.verts)
     lib.loft_x(bm, [(ax(u), hy * U, hz, ZC) for u, hy, hz in tube], sides=16, mat_index=TUBE)
     lib.move(bm, start, dy=ay(11.5))
     lib.set_smooth(bm, f0)
 
-    # Chin under the tube (rows 14-18, columns 28-43), with the gun ports along row 15; below it
-    # the dark strip of row 18, cut in lower than the chin, and the prongs crossing it.
-    lib.bevel_prism(bm, poly([(28, 14.0), (44, 14.0), (44, 16.8), (42.8, 18.0), (29.2, 18.0),
-                              (28, 16.8)]), -0.28, 0.2, 0.5 * U, 0.04, mat_index=WALL,
+    # Chin under the tube (rows 14-18, columns 28-43), with the gun ports along row 15, and the
+    # prongs below it (the sprite's dark row 18 is the chin's outline).
+    lib.bevel_prism(bm, poly([(28, 14.0), (44, 14.0), (44, 17.0), (43, 18.0), (42, 18.9),
+                              (30, 18.9), (29, 18.0), (28, 17.0)]), -0.28, 0.2, 0.5 * U, 0.04,
+                    mat_index=WALL,
                     top_mat=COLLAR)
-    lib.prism(bm, poly([(30.05, 17.5), (41.95, 17.5), (41.95, 19.95), (38.9, 19.95), (38.9, 19.0),
-                        (33.1, 19.0), (33.1, 19.95), (30.05, 19.95)]), -0.26, -0.02, EDGE)
     for u0, u1 in ((32, 33), (39, 40)):
         lib.prism(bm, poly([(u0 + 0.05, 14.9), (u1 - 0.05, 14.9), (u1 - 0.05, 16.0),
                             (u0 + 0.05, 16.0)]), 0.0, 0.205, PORT)

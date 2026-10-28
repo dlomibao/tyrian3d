@@ -9,8 +9,10 @@ back (top of the sprite) blows a flame: a yellow-white core inside an orange-red
 dark-red rim. The three frames only change the flame's length (its tip reaches rows 5, 4 and 3),
 so one model covers them all, with a flame per frame (common.frame_part).
 
-The blades reach out over the sprite's 1 px black outline as a dark bevel (palette 1), along a
-smooth line through the outline's pixel steps, so the top view covers the sprite's whole outline.
+The blades reach out over the sprite's 1 px black outline as a bevel in the blade's own grey (the
+game draws the dark outline), along a smooth line through the outline's pixel steps, so the top
+view covers the sprite's whole outline. The hull is polished metal: mid-tone greys, metallic and
+smooth, so the game's lights make the sprite's highlights and shading.
 
 Run: blender --background --python assets/blender/enemies/newshm-89.py [-- --preview out.png]
 """
@@ -67,8 +69,8 @@ def blade_bottom(w, e):
 
 def build(sprite):
     coll = common.reset_collection(NAME)
-    grey = lambda i: common.palette_material(sprite, i, NAME, metallic=0.25, roughness=0.42)  # noqa: E731
-    idx = [1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 112, 113]
+    grey = lambda i: common.palette_material(sprite, i, NAME, metallic=0.75, roughness=0.3)  # polished metal  # noqa: E731
+    idx = [3, 8, 9, 10, 11, 12, 113]
     mats = [grey(i) for i in idx]
     M = {i: k for k, i in enumerate(idx)}
     FLAME, MID, CORE, YEL, HOT, WHITE = range(len(mats), len(mats) + 6)
@@ -104,29 +106,25 @@ def build(sprite):
         (26.0, 9.5, 1.5, 2.5, 1.5, 0.6), (26.6, 9.95, 1.1, 2.1, 1.3, 0.5), (27.0, 10.4, 0.7, 1.5, 1.0, 0.4),
     ]
     # Top strips inner to outer: inner lip, ridge, tube top, tube outer flank (2), groove, groove
-    # wall, plate, lit bevel, outline bevel. The left blade is lit (white ridge), the right one
-    # shaded, as in the sprite; the ridges dim down the prongs. Where there is no plate its
-    # strips fold into the dark outline.
+    # wall, plate, lit bevel, outline bevel. The sprite draws its light: the left blade lit (white
+    # ridge), the right one shaded, a dark outline ring round both. The game lights the model and
+    # draws its own outline, so both blades take the same mid-tone grey of their rows (the
+    # average of the sprite's lit and shaded sides), with the ridge one step lighter as its trim;
+    # the bright streak along it is the metal's shine. The nose is tinted dark red by the exhaust.
     strips = {
-        (1, "nose"): [1, 10, 113, 113, 113, 1, 1, 1, 1, 1],
-        (-1, "nose"): [1, 9, 112, 1, 1, 1, 1, 1, 1, 1],
-        (1, "brow"): [1, 10, 10, 5, 5, 10, 10, 1, 1, 1],
-        (-1, "brow"): [1, 9, 8, 4, 4, 8, 8, 1, 1, 1],
-        (1, "front"): [1, 12, 13, 12, 12, 11, 11, 10, 10, 1],
-        (-1, "front"): [1, 13, 12, 11, 11, 8, 8, 8, 7, 1],
-        (1, "shoulder"): [1, 15, 9, 8, 7, 6, 7, 10, 10, 1],
-        (-1, "shoulder"): [1, 12, 6, 6, 6, 3, 7, 8, 8, 1],
-        (1, "prong"): [1, 10, 9, 6, 6, 1, 1, 1, 1, 1],
-        (-1, "prong"): [1, 10, 6, 3, 3, 1, 1, 1, 1, 1],
-        (1, "tip"): [1, 10, 9, 8, 8, 1, 1, 1, 1, 1],
-        (-1, "tip"): [1, 8, 6, 3, 3, 1, 1, 1, 1, 1],
+        "nose": [113, 10, 113, 113, 113, 9, 9, 9, 9, 9],
+        "brow": [8, 10, 9, 9, 9, 9, 9, 9, 9, 9],
+        "front": [9, 11, 10, 10, 10, 10, 10, 10, 10, 10],
+        "shoulder": [8, 10, 9, 9, 9, 9, 9, 9, 9, 9],
+        "prong": [8, 10, 8, 8, 8, 8, 8, 8, 8, 8],
+        "tip": [8, 9, 8, 8, 8, 8, 8, 8, 8, 8],
     }
     parts = (("nose", nose), ("brow", brow), ("front", front), ("shoulder", shoulder), ("prong", prong), ("tip", tip))
     for side in (1, -1):
         for part, secs in parts:
             blade = [(lib.ey(r), lib.ex(INNER), lib.ex(xo), P, P, (wt, zt, hp, hb)) for r, xo, wt, zt, hp, hb in secs]
-            lib.profile_blade(bm, blade, blade_top, blade_bottom, [M[i] for i in strips[(side, part)]],
-                              side=side, mirror_about=CENTRE, under_mat=M[6])
+            lib.profile_blade(bm, blade, blade_top, blade_bottom, [M[i] for i in strips[part]],
+                              side=side, mirror_about=CENTRE, under_mat=M[8])
 
     # The dark channel between the shoulders (rows 11-16, column 12), its floor about 1.5 px up,
     # 3 px below the ridges, with two light rungs across it (rows 12 and 14) standing 1.3 px
@@ -139,8 +137,8 @@ def build(sprite):
         common.slab(bm, [(x0, y0), (x1, y0), (x1, y1), (x0, y1)], 1.2 * P, z=2.2 * P, mat_index=M[12])
 
     # Grey nozzle cheeks either side of the engine (columns 10 and 14, rows 8-10): upright
-    # rounded posts about 4.8 px tall, above the flame's shell, the left one lit.
-    for side, mat in ((1, M[10]), (-1, M[9])):
+    # rounded posts about 4.8 px tall, above the flame's shell.
+    for side, mat in ((1, M[10]), (-1, M[10])):
         start = len(bm.verts)
         common.loft(bm, [(lib.ey(10.9), 0.65 * P, 2.4 * P, 2.4 * P), (lib.ey(9.0), 0.65 * P, 2.4 * P, 2.4 * P),
                          (lib.ey(8.0), 0.5 * P, 1.9 * P, 2.2 * P)], sides=8, mat_index=mat)

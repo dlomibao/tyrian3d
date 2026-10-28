@@ -4,13 +4,12 @@ Seen in episode 4 (level 20). A small grey ball with a dark socket and pupil loo
 screen. The two frames turn the ball (round, then tall and narrow), so each gets a model:
 newsh5-202 and newsh5-202-f2.
 
-The ball is a full sphere (as tall as it is wide, centred on the midplane). Seen from above it
-carries the sprite's colours: past latitude 59 degrees it is the sprite's black outline ring, inside
-that its faces take a lightly smoothed copy of the sprite's shading (the upper-left highlight, the
-mid greys), so the lighting adds roundness without hard concentric bands. The socket is cut about
-2.1 px in along the sprite's dark pixels; its floor and walls take those pixels as they are (the
-darkest strips across its middle), with a small bright bead where the sprite has its one light
-pixel inside the socket.
+The ball is a full sphere (as tall as it is wide, centred on the midplane). The sprite's light is
+not painted on: the ball is one wet, glossy grey (the sprite's mid grey) all over, so the game's
+lights make its upper-left highlight and darker edges, and the game draws its dark outline. The
+socket is cut about 2.1 px in along the sprite's dark pixels and is one glossy dark grey (the
+sprite's mid socket shade); the sprite's one light pixel inside it is the pupil's glint, which the
+glossy material catches, so it isn't modelled.
 
 Run: blender --background --python assets/blender/enemies/newsh5-202.py [-- --preview out.png]
 """
@@ -45,20 +44,19 @@ FRAMES = {
                      (5, 9), (6, 9), (7, 9),
                      (5, 10), (6, 10), (7, 10)], "glint": (6, 6)},
 }
+# "glint" is kept for reference only: the pupil's highlight comes from the glossy material.
 
 SOCKET_DEPTH = 2.1 / 12  # how far the socket floor sits below the ball's surface
 RAYS = 40  # vertices around the ball
 INNER_RINGS = 4  # body rings between the socket edge and the first latitude line
 # Latitude lines (degrees from the top) the body's rings run along out to the equator (90), dense
-# near the rim so the elevations' outline stays round and the sprite's dark outline ring gets its
-# own faces.
+# near the rim so the elevations' outline stays round.
 LATITUDES = (44, 51, 59, 66, 73, 80, 85, 90)
-RIM_LAT = 59  # past this latitude the ball is the sprite's black outline ring seen from above
-BLUR = 0.6  # px, how much the sprite's body shading is smoothed (body_field)
 BOTTOM_RINGS = 4  # latitude bands under the equator
-OUTLINE = 1  # palette index of the sprite's outline, for faces past its pixels
-UNDER = 2  # palette index of the ball's underside (seen only at the tilt, as the dark edge)
-GLINT = 12  # palette index of the bright bead in the socket
+BODY = 9  # palette index of the ball: the sprite's mid grey (its body runs 8-12; the lights add the rest)
+SOCKET = 3  # palette index of the socket: the sprite's mid socket shade (it runs 1-7)
+# Materials: the eyeball is wet and glossy, so the shine is the material's, not geometry or paint.
+GLOSS = {BODY: dict(metallic=0.05, roughness=0.25), SOCKET: dict(metallic=0.05, roughness=0.1)}
 
 
 class Ball:
@@ -70,16 +68,6 @@ class Ball:
     def top(self, x, y):
         u = ((x - self.x0) / self.a) ** 2 + ((y - self.y0) / self.b) ** 2
         return self.c * math.sqrt(max(0.0, 1 - u))
-
-
-class Floor:
-    """The socket floor: the ball's surface lowered by SOCKET_DEPTH."""
-
-    def __init__(self, ball):
-        self.ball = ball
-
-    def top(self, x, y):
-        return self.ball.top(x, y) - SOCKET_DEPTH
 
 
 def socket_radii(cells, sx, sy, dirs):
@@ -99,29 +87,12 @@ def socket_radii(cells, sx, sy, dirs):
     return [(raw[i - 1] + 2 * raw[i] + raw[(i + 1) % n]) / 4 for i in range(n)]
 
 
-def body_field(pixels, cells, sigma=BLUR):
-    """The sprite's body shading as a smooth field: at (x, y), the Gaussian-weighted mean palette
-    index of the body pixels around it (the outline ring and the socket left out), so the ball
-    shades from the upper-left highlight to the greys at its edge without the pixel mosaic."""
-    body = [(c, r, v) for r, line in enumerate(pixels) for c, v in enumerate(line)
-            if v > OUTLINE and (c, r) not in cells]
-
-    def at(x, y):
-        col, row = lib.to_col(x, 1), lib.to_row(y, 1)
-        tw = tv = 0.0
-        for c, r, v in body:
-            w = math.exp(-((c - col) ** 2 + (r - row) ** 2) / (2 * sigma * sigma))
-            tw, tv = tw + w, tv + w * v
-        return int(round(tv / tw))
-    return at
-
-
-def paint(faces, colour):
+def paint(faces, index):
     for f in faces:
-        f.material_index = colour(f.calc_center_median())
+        f.material_index = index
 
 
-def eyeball(bm, frame, pixels):
+def eyeball(bm, frame):
     bc, br, ba, bb = frame["body"]
     ball = Ball(lib.px(bc, 1), lib.row(br, 1), ba / 12, bb / 12, frame["depth"] / 12)
     cells = set(frame["socket"])
@@ -170,8 +141,8 @@ def eyeball(bm, frame, pixels):
             band(prev, cur)
         prev = cur
     band(prev, ring(edge, lambda x, y: ball.top(x, y) + 0.002))
-    # The socket takes the sprite's pixels as they are: its darkest strips, its mid greys.
-    paint(part, lambda c: max(OUTLINE, lib.sample(pixels, c.x, c.y, 1)))
+    # The socket is one dark grey; the recess and the light shade it.
+    paint(part, SOCKET)
     part.clear()
 
     # Body: its own ring on the socket edge (a sharp lip), then rings spaced along each ray, then
@@ -193,20 +164,13 @@ def eyeball(bm, frame, pixels):
                    ball.top)
         band(prev, cur)
         prev = cur
-    field = body_field(pixels, cells)
     for deg in LATITUDES:
-        if deg == min(d for d in LATITUDES if d > RIM_LAT):
-            # The body's top so far takes the sprite's shading, smoothed; the rest is the rim.
-            paint(part, lambda c: field(c.x, c.y))
-            part.clear()
         if deg >= 90:
             cur = [bm.verts.new((x, y, 0.0)) for x, y, _ in rim]
         else:
             cur = ring([at_latitude(j, math.radians(deg)) for j in range(RAYS)], ball.top)
         band(prev, cur)
         prev = cur
-    paint(part, lambda c: OUTLINE)  # the outline ring, down to the equator
-    part.clear()
     for i in range(1, BOTTOM_RINGS):
         lat = math.pi / 2 * i / BOTTOM_RINGS
         cur = [bm.verts.new((ball.x0 + ball.a * math.cos(lat) * math.cos(phi),
@@ -215,28 +179,22 @@ def eyeball(bm, frame, pixels):
         band(prev, cur)
         prev = cur
     fan(bm.verts.new((ball.x0, ball.y0, -ball.c)), prev, reverse=True)
-    paint(part, lambda c: UNDER)
-
-    # The glint: a small bright bead on the socket floor where the sprite has its one light pixel
-    # inside the socket.
-    gc, gr = frame["glint"]
-    lib.drape_cap(bm, Floor(ball), lib.px(gc, 1), lib.row(gr, 1), 0.6 / 12, 0.6 / 12, lift=0.3 / 12,
-                  dome=0.45 / 12, sink=0.01, sides=10, mat_index=GLINT)
+    # The whole ball, top to bottom, is one grey: the sprite's outline ring and its shading are the
+    # game's outline and lights.
+    paint(part, BODY)
     return ball
 
 
 def build(sprite, name, index, frame):
     coll = common.reset_collection(name)
-    pixels = next(f["pixels"] for f in sprite["frames"] if f["index"] == index)
     bm = bmesh.new()
-    eyeball(bm, frame, pixels)
+    eyeball(bm, frame)
     # Palette indices to material slots, in index order.
     used = sorted({f.material_index for f in bm.faces})
     slot = {i: s for s, i in enumerate(used)}
     for f in bm.faces:
         f.material_index = slot[f.material_index]
-    mats = [common.palette_material(sprite, i, name, metallic=0.05, roughness=0.4 if i > 2 else 0.25)
-            for i in used]
+    mats = [common.palette_material(sprite, i, name, **GLOSS[i]) for i in used]
     return common.mesh_object(name, bm, mats, coll, smooth=True)
 
 

@@ -520,18 +520,22 @@ def build(sprite):
         # Indices are the ones that best match the sprite's pixels under each part (the wing is a
         # mix of 51-56 that averages 53; its ribs read darker, the shells average 7-9).
         # The wing is the sprite's mid teal-navy (54): 53 rendered a greyish slate from above.
-        pal(54, metallic=0.0, roughness=0.8),  # 0 wing and body navy
-        pal(54, metallic=0.1, roughness=0.6),  # 1 horns, arms, cheek ridges, spine
-        pal(55, metallic=0.15, roughness=0.5),  # 2 bright bones
-        pal(48, metallic=0.0, roughness=0.85),  # 3 dark underside, head grooves, face outline
-        pal(10, metallic=0.1, roughness=0.75),  # 4 light grey shell ribs and claw (matte)
-        pal(6, metallic=0.05, roughness=0.8),  # 5 shell base, the grooves between the ribs
-        pal(54, metallic=0.1, roughness=0.7),  # 6 lit navy face ribs, tusks
-        pal(52, metallic=0.05, roughness=0.7),  # 7 wing ribs (a shade darker than the wing)
-        pal(56, metallic=0.2, roughness=0.45),  # 8 pale highlights (head spikes)
+        # A creature: skin, horn and bone, so every part is matte (no metal); horn and bone are a
+        # little smoother than the skin so their lit side catches some light. The sprite's dark
+        # edge and its shaded undersides are not painted on: the game lights the model and draws
+        # the outline.
+        pal(54, metallic=0.0, roughness=0.8),  # 0 wing and body navy, the arm's underside
+        pal(54, metallic=0.0, roughness=0.65),  # 1 horns, arms, cheek ridges, spine
+        pal(55, metallic=0.0, roughness=0.55),  # 2 bright bones
+        pal(48, metallic=0.0, roughness=0.85),  # 3 the dark gaps round the nose (a low floor)
+        pal(10, metallic=0.0, roughness=0.7),  # 4 light grey shell ribs and claw (matte)
+        pal(6, metallic=0.0, roughness=0.8),  # 5 shell base, the grooves between the ribs
+        pal(54, metallic=0.0, roughness=0.7),  # 6 lit navy face ribs, tusks
+        pal(52, metallic=0.0, roughness=0.75),  # 7 wing ribs (a shade darker than the wing)
+        pal(56, metallic=0.0, roughness=0.55),  # 8 pale highlights (head spikes)
         pal(48, metallic=0.0, roughness=0.9),  # 9 eye pits
         pal(52, metallic=0.0, roughness=0.8),  # 10 lower face, lit navy
-        pal(53, metallic=0.05, roughness=0.7),  # 11 head dome
+        pal(53, metallic=0.0, roughness=0.7),  # 11 head dome
         pal(51, metallic=0.0, roughness=0.8),  # 12 nose tip, darker navy
     ]
     BLUE, RIDGE, BONE, DARK, GREY, GREYD, DEEP, VEIN, PALE, PIT, JAW_M, HEAD_M, NOSE = range(13)
@@ -554,7 +558,8 @@ def build(sprite):
         tc = max(0.0, min(1.0, (c - 4) / 80)) ** 1.1
         z_edge = (2.6 + 4.6 * tc) / 12 * 0.8
         return z_edge * (1 - smoothstep(64.0, 70.0, r)) + 0.02
-    relief_plate(bm, under, skirt_top, lambda c, r: -0.03, 4, 1.5, mat=DARK)
+    # Its shaded side is the light's job: painted the wing's navy, not the sprite's near-black.
+    relief_plate(bm, under, skirt_top, lambda c, r: -0.03, 4, 1.5, mat=BLUE)
     for i, (pts, w0, h0) in enumerate(VEINS):
         sweep(bm, vein_path(curve(pts), w0 * 1.1, h0 * 1.6), sides=6, mat=VEIN)
     # Bright bone along the lower edge from the tip to the elbow, then the arm to the body.
@@ -628,11 +633,11 @@ def build(sprite):
     # eye reads as a clean bowl rather than a hole.
     dome_loft(bm, HEAD, HEAD_Z0, (HEAD_M, NOSE, PIT), n=34, n_bottom=4, depth_fn=head_depth, step=0.9,
               pit_at=0.17)
-    # The low dark floor of the lower face, and the lit navy face on it: dark only at its rim and
-    # underneath, a darker navy toward the nose tip.
+    # The low dark floor of the lower face (the gaps round the nose), and the navy face on it, its
+    # sides the same navy (the game draws the outline), a darker navy toward the nose tip.
     dome_loft(bm, FLOOR, 0.02, (DARK, DARK, DARK), n=12, n_bottom=2, step=2.0)
     dome_loft(bm, JAW, JAW_Z0, (JAW_M, JAW_M, JAW_M), n=14, n_bottom=4, step=1.0,
-              mat_fn=lambda r, s, under: DARK if under or s < 0.3 else NOSE if r > 72.5 else JAW_M)
+              mat_fn=lambda r, s, under: NOSE if r > 72.5 else JAW_M)
     # Spine down the middle of the head, and the pale spikes on it.
     loft_y(bm, 96, [(r, w, h, head_top(96, r) - 0.01) for r, w, h in
                     ((45, 0.0, 0.0), (46, 1.6, 0.06), (52, 2.1, 0.09), (57, 2.1, 0.09), (60, 2.0, 0.08),

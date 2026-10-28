@@ -9,10 +9,9 @@ and a dark cross across it at the front (bottom of the screen). The bottom of th
 other pieces (newsh9-210, 212, 214, a separate assembly), so it is cut off here.
 
 The ball is a dome about 26 px tall on a flat base at z = 0 and the eye a dome about 11 px proud
-of it, with an 8 px pupil port sunk 3 px into it at the cut edge. The armour takes two greys in
-broad bands (mid grey, near-black on the shadowed right side and rim) and the eye three blues in
-zones (bright blue, teal at the right, navy along the bottom), leaving the shading to the
-lighting; the plate seams and the eye's cross are grooves about 1 px wide and deep, cut with
+of it, with an 8 px pupil port sunk 3 px into it at the cut edge. The armour takes one mid grey and
+the eye one mid blue, leaving the sprite's drawn shading, outline and sheen to the game's lights
+and outline; the plate seams and the eye's cross are grooves about 1 px wide and deep, cut with
 exact booleans.
 
 The whole ball is built once in assembly coordinates, then cut into the six pieces with
@@ -301,11 +300,13 @@ def near_edge(grid, r, c, d=2):
     return False
 
 
-BALL_TONES = [2, 6]  # the ball's greys: mid grey, and near-black where the sprite's right side and rim are in shadow
-# The eye's blues in three zones, by which ramp most sprite pixels round a face are on: navy (the
-# lower edge), teal (the right side and lower left) and bright blue (upper left and middle; its
-# near-white spots are the lens's sheen, left to the lighting).
-EYE_ZONES = ((53, lambda i: 51 <= i <= 63), (131, lambda i: 128 <= i <= 136), (157, lambda i: i >= 137))
+# The ball's armour takes one mid grey all over: the sprite's darker right side and near-black rim
+# are its drawn shading and outline, which the game's light and outline make (rubric: "The
+# sprite's lighting is not paint").
+BALL_TONES = [7]
+# The eye's lens takes one mid blue all over: its navy lower edge and teal right side are the
+# sprite's shading and its near-white spots the lens's sheen, all left to the lighting.
+EYE_ZONES = ((157, lambda i: True),)
 EYE_TONES = [z for z, _ in EYE_ZONES]
 BALL_REACH, EYE_REACH = 5, 2  # sampling windows (px either side) for the ball's and eye's shades
 
@@ -345,25 +346,25 @@ def build(sprite):
             mats.append(common.palette_material(sprite, i, tag, **kw))
         return slots[i]
 
+    # Painted armour plate; the swirl boss and latch rods polished metal; the blue strip a glowing
+    # light; the eye a glossy lens with a faint glow; the socket, seams and pupil dark recesses.
     for i in BALL_TONES:
-        M(i, metallic=0.35, roughness=0.45)
-    SEAM = M(3, metallic=0.4, roughness=0.6)
-    SWIRL = M(11, metallic=0.7, roughness=0.25)
-    RIM = M(13, metallic=0.7, roughness=0.3)
-    STRIP = M(132, metallic=0.3, roughness=0.2, emission_strength=1.0)
-    PLATE = M(8)
-    SOCKET = M(2)
+        M(i, metallic=0.45, roughness=0.4)
+    SEAM = M(3, metallic=0.3, roughness=0.6)
+    SWIRL = M(11, metallic=0.8, roughness=0.28)
+    RIM = M(13, metallic=0.8, roughness=0.3)
+    STRIP = M(132, metallic=0.05, roughness=0.15, emission_strength=1.0)
+    PLATE = M(8, metallic=0.45, roughness=0.4)
+    SOCKET = M(2, metallic=0.3, roughness=0.6)
     for i in EYE_TONES:
-        M(i, metallic=0.2, roughness=0.15, emission_strength=0.0 if i < 128 else 0.8)
+        M(i, metallic=0.05, roughness=0.1, emission_strength=0.1)
     PUPIL = M(97, metallic=0.0, roughness=0.95)
-    CROSS = slots[53]
+    CROSS = M(53, metallic=0.1, roughness=0.5)
     bm = bmesh.new()
     colors = sprite['colors']
 
     # The ball: a dome over the whole footprint, round to the rim, on a flat base at z = 0. Rings
-    # bunch towards the rim, where the surface turns down; each face takes the sprite's grey round
-    # it (a wide window, so the shading comes in broad bands, not pixel tiles): the lit upper left
-    # and the dark right side and rim come through.
+    # bunch towards the rim, where the surface turns down; every face takes the armour's mid grey.
     segs, nr = 72, 16
     bb = bmesh.new()
 
@@ -431,8 +432,7 @@ def build(sprite):
               + [(u1 + (u1 - u0) * 0.08, v1 + 0.6, 0.05, 0.0, 0.0)], sides=8, mat=RIM)
 
     # The eye: a dome standing out of the ball in a dark socket ring, with the pupil sunk into it.
-    # Rings run from the pupil's edge out to the eye's rim; the faces take the sprite's blues in
-    # broad zones (bright blue over most of it, teal at the right, navy along the bottom).
+    # Rings run from the pupil's edge out to the eye's rim, all in the lens's mid blue.
     S = 48
     be = bmesh.new()
 

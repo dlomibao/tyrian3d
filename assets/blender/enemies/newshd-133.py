@@ -5,11 +5,11 @@ slate blue-grey inside and a small near-white spot just left of centre: a shiny 
 is a smooth sphere (smooth shaded) whose outline is traced to the sprite's, its dark rim included,
 and which stands about as tall as it is wide (+-5.5 px round the midplane).
 
-The sphere is built from rings round a pole tilted a little toward the sprite's highlight, and
-each band between two rings takes one colour, so the paint is concentric like the sprite's: a
-small near-white spot at the pole, a lighter halo, the blue-grey body, a darker blue-grey ring, a
-dark band and the near-black rim at the outline; the underside is the dark shade. One frame, one
-model.
+The sphere is built from rings round a pole tilted a little toward the sprite's highlight. The
+sprite's near-black rim, darker lower-right and near-white spot are its drawn lighting, not paint:
+the game draws its own dark outline and its sun and environment light make the shine, so the whole
+ball takes the sprite's mid-tone slate blue-grey (pal 103) and a polished-metal material (metallic,
+fairly smooth) that puts a highlight on it from the game's light. One frame, one model.
 
 Run: blender --background --python assets/blender/enemies/newshd-133.py [-- --preview out.png]
 """
@@ -34,12 +34,12 @@ ROUND = 0.5  # how far the traced outline is pulled toward a circle (its mean ra
 # The sprite's highlight (the mean of its near-white pixels, col 4.2 row 6.5) sits ~0.8 px left of
 # the disc's centre: tilt the pole that far toward it.
 TILT = math.asin(0.8 / 5.6)
-# Bands from the pole down: (sine of the ring's angle from the pole, i.e. its fraction of the
-# radius seen from above, palette index of the band above it). Then the equator and the underside.
-RIM, EDGE, SHADOW, BODY, GLOW, SPOT = 1, 3, 102, 104, 107, 110
-BANDS = [(0.17, SPOT), (0.33, GLOW), (0.52, BODY), (0.70, SHADOW), (0.86, EDGE), (0.96, RIM),
-         (1.0, RIM)]
-UNDER = [(math.radians(125), EDGE), (math.radians(155), EDGE), (math.pi, EDGE)]
+# Rings from the pole down, as the sine of the ring's angle from the pole (its fraction of the
+# radius seen from above), then the angles of the underside rings. Geometry only: one colour.
+BODY = 103  # the sprite's mid-tone slate blue-grey (its interior, between 102 and 105)
+METALLIC, ROUGHNESS = 0.8, 0.35  # a polished metal ball: the game's lights make its highlight
+BANDS = [0.17, 0.33, 0.52, 0.70, 0.86, 0.96, 1.0]
+UNDER = [math.radians(125), math.radians(155), math.pi]
 
 
 def outline(pixels, steps=96, grow=GROW, smooth=8):
@@ -73,10 +73,7 @@ def build(sprite):
     pixels = sprite["frames"][0]["pixels"]
     cx, cy, radii = outline(pixels)
 
-    order = sorted({RIM, EDGE, SHADOW, BODY, GLOW, SPOT}, key=lambda i: lib.luminance(sprite["colors"][str(i)]))
-    slot = {idx: k for k, idx in enumerate(order)}
-    mats = [common.palette_material(sprite, idx, NAME, metallic=0.25, roughness=0.55 - 0.03 * k)
-            for k, idx in enumerate(order)]
+    mats = [common.palette_material(sprite, BODY, NAME, metallic=METALLIC, roughness=ROUGHNESS)]
 
     tilt = Matrix.Rotation(-TILT, 3, "Y")  # pole leans toward -X (the sprite's left)
 
@@ -85,16 +82,15 @@ def build(sprite):
         r = lib.radius_at(radii, math.atan2(n.y, n.x))
         return Vector((cx + n.x * r, cy + n.y * r, n.z * HALF_HEIGHT))
 
-    rings = [(math.asin(s), idx) for s, idx in BANDS] + UNDER
+    rings = [math.asin(s) for s in BANDS] + UNDER
     bm = bmesh.new()
     top = bm.verts.new(place(0.0, 0.0))
     prev = None
-    for theta, idx in rings:
+    for theta in rings:
         if theta >= math.pi - 1e-6:  # the bottom pole closes the last band
             bot = bm.verts.new(place(math.pi, 0.0))
             for k in range(SEGMENTS):
                 f = bm.faces.new((prev[(k + 1) % SEGMENTS], prev[k], bot))
-                f.material_index = slot[idx]
             break
         ring = [bm.verts.new(place(theta, 2 * math.pi * k / SEGMENTS)) for k in range(SEGMENTS)]
         for k in range(SEGMENTS):
@@ -103,7 +99,6 @@ def build(sprite):
                 f = bm.faces.new((top, ring[k], ring[k1]))
             else:
                 f = bm.faces.new((prev[k], ring[k], ring[k1], prev[k1]))
-            f.material_index = slot[idx]
         prev = ring
     bmesh.ops.triangulate(bm, faces=bm.faces[:])
     obj = common.mesh_object(NAME, bm, mats, coll, smooth=True)

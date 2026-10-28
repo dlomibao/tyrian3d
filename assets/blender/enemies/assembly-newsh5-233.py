@@ -8,7 +8,8 @@ each hemisphere is a rounded body (a 2 px ground that runs out to the outline, r
 the outline and the fissure to about 5.5 px in the middle) with the folds raised on it as
 rounded tubes from the sprite's shading (gyri up to 4.5 px above the sulci between them, also on
 the darker shadowed side), about 9-10 px at the highest, and the fissure cut down below the base.
-A dark skirt and underside close it.
+A skirt and underside in the brain's mid-tone close it. Matte flesh (metallic 0, roughness
+0.8); the colours keep only a muted share of the sprite's drawn shading (see MID, CONTRAST).
 
 The whole brain is built once in assembly coordinates and cut into the four pieces with
 common.split_assembly. One frame each.
@@ -49,6 +50,20 @@ LOCAL_MIX = 0.55  # how much of the relief comes from the relative shading
 FISSURE_Z = -1.0  # floor of the fissure
 EDGE = 0.75  # outline height, as a share of the pixels' just inside it (a rounded, not feathered, edge)
 BASE_Z = -1.7  # underside
+# Colour. The sprite draws its light: a black outline ring, dark lower-right halves and bright
+# highlights on every fold. The folds are modelled, so the game's lights shade them; painting the
+# sprite's full shading on top darkens them twice. Each pixel keeps a muted version of its shade
+# (the grooves a little darker than the folds, which is real: they are deep and narrow), pulled
+# towards the brain's mid-tone, and the outline ring and the sides take the mid-tone.
+MID = 5  # ramp level of the mid-tone (palette 69): about the sprite's average brightness
+CONTRAST = 0.65  # how much of the sprite's shading the colours keep
+RIM = 1  # pixels this close to the outline are the drawn outline ring
+
+
+def tone(v):
+    """Palette index for a pixel of value v: its ramp level pulled towards MID."""
+    level = 0 if v == 1 else v - 64
+    return 64 + max(0, min(15, round(MID + (level - MID) * CONTRAST)))
 
 
 def fissure(pixels):
@@ -108,21 +123,37 @@ def heights(pixels, gap):
 def build(colors, pixels, grid):
     coll = common.reset_collection(NAME)
     sprite = {"name": NAME, "colors": colors}
-    used = sorted({v for line in pixels for v in line if v >= 0})
-    # One material per palette index the sprite uses, so the top view is the sprite's own colours.
-    # Matte: the brain is flesh, not metal (a glossy finish turns it grey from above).
-    mats = [common.palette_material(sprite, i, "ns5b233", metallic=0.0,
-                                    roughness=1.0) for i in used]
-    for m in mats:
-        # The viewport shading (this session's previews) reads these, not the node tree: matte too.
-        m.roughness = 1.0
-        m.metallic = 0.0
-        m.specular_intensity = 0.0
-    slot = {i: k for k, i in enumerate(used)}
     h, w = len(pixels), len(pixels[0])
     mask = lambda r, c: 0 <= r < h and 0 <= c < w and pixels[r][c] >= 0  # noqa: E731
     gap = fissure(pixels)
     z = heights(pixels, gap)
+    mid = 64 + MID
+    rim = {(r, c) for r in range(h) for c in range(w) if mask(r, c) and (r, c) not in gap
+           and any(not mask(r + dr, c + dc) for dr in range(-RIM, RIM + 1) for dc in range(-RIM, RIM + 1))}
+    # The fissure keeps its dark colours (a real cleft); the rest is muted towards the mid-tone, and
+    # the outline ring takes the mid-tone, or its own muted shade where that is lighter.
+    paint = {}
+    for r in range(h):
+        for c in range(w):
+            if not mask(r, c):
+                continue
+            v = pixels[r][c]
+            if (r, c) in gap:
+                paint[r, c] = v
+            elif (r, c) in rim:
+                paint[r, c] = max(tone(v), mid)
+            else:
+                paint[r, c] = tone(v)
+    used = sorted(set(paint.values()) | {mid})
+    # One material per palette index used. Matte, soft flesh: not metal (a metallic finish turns
+    # it grey from above), a little sheen from the light on the fold tops.
+    mats = [common.palette_material(sprite, i, "ns5b233", metallic=0.0,
+                                    roughness=0.8) for i in used]
+    for m in mats:
+        # The viewport shading (this session's previews) reads these, not the node tree: matte too.
+        m.roughness = 0.8
+        m.metallic = 0.0
+    slot = {i: k for k, i in enumerate(used)}
 
     bm = bmesh.new()
     corner = lambda i, j: ((j - w / 2) / 12, (h / 2 - i) / 12)  # noqa: E731
@@ -166,15 +197,14 @@ def build(colors, pixels, grid):
         for c in range(w):
             if not mask(r, c):
                 continue
-            v = pixels[r][c]
             face([top_vert(r + 1, c), top_vert(r + 1, c + 1), top_vert(r, c + 1), top_vert(r, c)],
-                 slot[v], (0, 0, 1), (r, c) not in gap)
+                 slot[paint[r, c]], (0, 0, 1), (r, c) not in gap)
             # Skirt down to the underside wherever the pixel is on the outline.
             for dr, dc, a, b in ((-1, 0, (r, c), (r, c + 1)), (1, 0, (r + 1, c), (r + 1, c + 1)),
                                  (0, -1, (r, c), (r + 1, c)), (0, 1, (r, c + 1), (r + 1, c + 1))):
                 if not mask(r + dr, c + dc):
                     face([top_vert(*a), top_vert(*b), bottom_vert(*b), bottom_vert(*a)],
-                         slot[64], (dc, -dr, 0), False)
+                         slot[mid], (dc, -dr, 0), False)
     # Underside: one strip per run of pixels in a row.
     for r in range(h):
         c = 0
@@ -186,7 +216,7 @@ def build(colors, pixels, grid):
             while c1 + 1 < w and mask(r, c1 + 1):
                 c1 += 1
             face([bottom_vert(r, c), bottom_vert(r, c1 + 1), bottom_vert(r + 1, c1 + 1), bottom_vert(r + 1, c)],
-                 slot[64], (0, 0, -1), False)
+                 slot[mid], (0, 0, -1), False)
             c = c1 + 1
 
     mesh = bpy.data.meshes.new(NAME)

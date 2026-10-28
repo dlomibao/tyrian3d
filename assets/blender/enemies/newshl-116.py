@@ -50,6 +50,13 @@ TOP_NZ = -0.3
 HOT = (5, 6)
 GLOW = (14, 0.45, 1.9, 1.05)
 N_CUBE = 18
+# The outline ring's palette indices (near-black and the darkest red), and how much cooler (in RAMP
+# steps) than its inner neighbours a ring pixel is painted.
+OUTLINE_INDICES = (1, 112)
+RING_COOL = 1.0
+# The spikes are hardened crust, drawn 1 px wide so all their 112 pixels are outline; their centre
+# pixels are 114-116, so they take 115, matte like rock.
+SPIKE_INDEX = 115
 # The lava glows, so it should read lit all over rather than dark on the side away from the light
 # with a grey sheen where it faces the viewer: the ball's shading normals lean LEAN times their own
 # length towards LEAN_DIR (up and to the left, towards the game's sun; Blender axes). They still
@@ -65,6 +72,23 @@ def heat_field(grid, blur):
     raw = [[None if grid.pixels[r][c] == -1 else
             (RAMP.index(grid.pixels[r][c]) if grid.pixels[r][c] in RAMP else 1)
             for c in range(w)] for r in range(h)]
+
+    def opaque(r, c):
+        return 0 <= r < h and 0 <= c < w and grid.pixels[r][c] != -1
+
+    # The sprite's dark outline ring (the darkest pixels, OUTLINE_INDICES, on the edge of the
+    # shape) is its drawn edge, not lava: the game draws its own outline, so those pixels take the
+    # mean heat of their inner neighbours and the ball's rim and sides keep the lava's colours.
+    ring = {(r, c) for r in range(h) for c in range(w)
+            if grid.pixels[r][c] in OUTLINE_INDICES and any(
+                not opaque(r + dr, c + dc) for dr in (-1, 0, 1) for dc in (-1, 0, 1))}
+    fixed = [row[:] for row in raw]
+    for r, c in ring:
+        inner = [raw[r + dr][c + dc] for dr in (-1, 0, 1) for dc in (-1, 0, 1)
+                 if opaque(r + dr, c + dc) and (r + dr, c + dc) not in ring]
+        if inner:
+            fixed[r][c] = max(raw[r][c], sum(inner) / len(inner) - RING_COOL)
+    raw = fixed
     if blur is None:
         return raw
     out = [[None] * w for _ in range(h)]
@@ -99,7 +123,7 @@ def build(sprite):
     mats = lib.Mats(NAME, sprite["colors"])
     # Matte: the lava glows rather than shines.
     bands = [mats(i, metallic=0.0, roughness=0.9, emission_strength=e) for i, e in BANDS]
-    spike = mats(112, metallic=0.3, roughness=0.6)
+    spike = mats(SPIKE_INDEX, metallic=0.0, roughness=0.8)
     fields = heat_field(grid, None), heat_field(grid, BLUR_SIDE)
 
     def heat_at(field, x, y, soft=False):
