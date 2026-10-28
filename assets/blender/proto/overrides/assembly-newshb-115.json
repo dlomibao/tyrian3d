@@ -1,0 +1,14 @@
+{
+ "_note": "Hand-written as a fixer would: what the analysis got wrong on the blue-pipe machine (ids from analyser version 1).",
+ "model": {},
+ "regions": {
+  "r2": {"profile": "round", "top": 9.0, "extends_under": ["r1", "r19"], "_why": "pipe and loop: shading scored flat, sprite says fat round pipe"},
+  "r3": {"profile": "round", "top": 8.0, "base": 0.0, "extends_under": ["r4", "r35"], "_why": "right pipe: round, not a taper, on the floor like its twin"},
+  "r1": {"top": 3.0, "bevel": 1.0, "_why": "grille clamp over the pipe"},
+  "r4": {"top": 3.0, "bevel": 1.0, "_why": "grille clamp over the pipe"},
+  "r42": {"profile": "flat", "top": 4.0, "bevel": 2.0, "base": 0.0, "_why": "hull: raised plate with bevelled edges"},
+  "r41": {"profile": "flat", "top": 4.0, "bevel": 1.0, "base": 0.0, "material": 3, "_why": "hull's shaded right side, not a hole"},
+  "r50": {"profile": "flat", "top": 5.0, "bevel": 2.0, "base": 0.0, "_why": "lilac wedge is a plate, not a cone"},
+  "r51": {"profile": "flat", "top": 5.0, "bevel": 2.0, "base": 0.0, "_why": "lilac wedge is a plate, not a cone"}
+ }
+}

@@ -18,6 +18,7 @@ Run: blender --background --python assets/blender/enemies/assembly-newsho-79.py 
 (the preview is the whole structure; add --pieces to also render each piece as <piece>.png beside it).
 """
 
+import math
 import sys
 from pathlib import Path
 
@@ -39,6 +40,22 @@ CX0, CY0 = 116, 55
 F = lib.Frame(192, 84)
 AXIS = 95.5  # mirror axis in pixel edges (the sprite mirrors about the centre of column 95)
 AX = F.X(AXIS)
+ARM_Z, ARM_H, ARM_POW = 0.56, 0.54, 0.8  # arm tube: centre height, half height (units), section power
+ORB_Z = 1.06  # height of the orb dome above the well floor
+
+
+def arm_z(path, row, u):
+    """Height on the arm tube's surface at `row`, at u (-1..1) of its half width from the centre
+    line (negative is the left side of the path seen from above). Follows lib.sweep's section."""
+    for (c0, r0, z0, w0, h0), (c1, r1, z1, w1, h1) in zip(path, path[1:]):
+        if r0 <= row <= r1:
+            t = (row - r0) / (r1 - r0)
+            z, h = z0 + t * (z1 - z0), h0 + t * (h1 - h0)
+            break
+    else:
+        z, h = path[-1][2], path[-1][4]
+    a = abs(u) ** (1 / ARM_POW)
+    return z + h * max(0.0, 1 - a * a) ** (ARM_POW / 2)
 
 
 def build(sprite):
@@ -62,9 +79,12 @@ def build(sprite):
         pal(133, metallic=0.4, roughness=0.3),  # 13 blue highlight edges
         pal(2, "nsho79orb", metallic=0.8, roughness=0.12),  # 14 dark glass orb
         pal(15, metallic=0.2, roughness=0.2),  # 15 glint on the orb
+        pal(1, metallic=0.2, roughness=0.85),  # 16 the near-black well round the orb
+        pal(100, metallic=0.35, roughness=0.5),  # 17 dark navy (shadowed blue edges)
+        pal(101, metallic=0.35, roughness=0.5),  # 18 navy
     ]
     (GREY, LIGHT, DARKGREY, MID, TRIM, BLACK, BEVEL, RIB, KNOB,
-     BLUE_L, BLUE, BLUE_D, BLUE_V, BLUE_W, ORB, GLINT) = range(16)
+     BLUE_L, BLUE, BLUE_D, BLUE_V, BLUE_W, ORB, GLINT, VOID, NAVY, NAVY_L) = range(19)
     bm = bmesh.new()
 
     # ---- the parts on each side (built on the left, then mirrored) ----
@@ -74,20 +94,22 @@ def build(sprite):
 
         # Dark floor under the middle (shows in the jaws and the barrel bay).
         lib.prism(bm, F, [(66, 20), (AXIS, 20), (AXIS, 84), (61.5, 84), (61.5, 77.5), (57, 77.5),
-                          (58.5, 75), (58.5, 22)], 0.0, 0.04, BLACK)
+                          (58.5, 75), (58.5, 22)], 0.0, 0.04, VOID)
 
         # Wing armour plate: top rows 22-36, a front face down to row 43 and a bevelled left end.
-        plate_low = [(33.5, 21), (52, 21), (52, 43), (5.5, 43), (5.5, 37.5), (14, 28.6)]
+        plate_low = [(33.5, 21), (52, 21), (52, 43), (5.5, 43), (5.5, 37.5), (14, 28.4)]
         plate_top = [(34.5, 22), (52, 22), (52, 36.5), (10, 36.5), (9.5, 36), (16, 29.4)]
-        plate_sides = {2: BLUE_D, 3: BLUE_V, 4: BLUE_V, 5: BLUE_W}
-        lib.stack(bm, F, [(plate_low, 0.0), (plate_low, 0.30), (plate_top, 0.44)], top_mat=BLUE_L,
-                  side_mat=lambda k, i: plate_sides.get(i, BLUE) if k == 1 else (BLUE_V if i in (3, 4, 5) else BLUE_D))
+        plate_sides = pick({2: BLUE_D, 3: BLUE_V, 4: BLUE_V, 5: BLUE_W}, {2: BLUE_D, 3: NAVY_L, 4: NAVY_L, 5: BLUE_D})
+        plate_ends = pick(BLUE_V, NAVY)
+        lib.stack(bm, F, [(plate_low, 0.0), (plate_low, 0.40), (plate_top, 0.58)], top_mat=BLUE_L,
+                  side_mat=lambda k, i: plate_sides.get(i, BLUE) if k == 1 else (plate_ends if i in (3, 4, 5) else BLUE_D))
 
         # Grey pillar on the plate (columns 41-47) with a rounded rib across it.
-        lib.stack(bm, F, [([(41, 21), (48, 21), (48, 43), (41, 43)], 0.30),
-                          ([(41, 21), (48, 21), (48, 37), (41, 37)], 0.60)],
-                  top_mat=GREY, side_mat=lambda k, i: {1: BEVEL, 2: DARKGREY}.get(i, MID))
-        lib.sweep(bm, F, [(41.2, 26, 0.60, 3.5, 0.05), (47.8, 26, 0.60, 3.5, 0.05)], sides=8, mat=RIB)
+        pillar_sides = pick({1: BEVEL, 2: DARKGREY, 3: RIB}, {1: RIB, 2: DARKGREY, 3: NAVY_L})
+        lib.stack(bm, F, [([(40.5, 21), (48.5, 21), (48.5, 38.5), (40.5, 38.5)], 0.40),
+                          ([(41.5, 21), (47.5, 21), (47.5, 37), (41.5, 37)], 0.76)],
+                  top_mat=GREY, side_mat=lambda k, i: pillar_sides.get(i, MID))
+        lib.sweep(bm, F, [(41.6, 26, 0.76, 3.5, 0.05), (47.4, 26, 0.76, 3.5, 0.05)], sides=8, mat=RIB)
 
         # Grey hull between the plate and the shoulder (columns 52-69).
         body_low = [(52, 20.5), (70, 20.5), (70, 29), (58.5, 29.5), (58.5, 43), (52, 43)]
@@ -97,13 +119,14 @@ def build(sprite):
 
         # Turret on top of the wing: a block, a domed cap and two short barrels with bright ends.
         t_low = [(43, 11), (60, 11), (60, 21), (43, 21)]
-        t_top = [(45, 11.5), (58.5, 11.5), (58.5, 20.5), (45, 20.5)]
-        lib.stack(bm, F, [(t_low, 0.0), (t_low, 0.46), (t_top, 0.52)], top_mat=DARKGREY, side_mat=MID)
-        lib.ellipsoid(bm, F, 50.5, 12, 0.50, 5.5, 3.8, 0.12, mat=LIGHT, segments=12, rings=6, upper=True)
+        t_top = [(45, 11.5), (58.5, 11.5), (58.5, 19.8), (45, 19.8)]
+        lib.stack(bm, F, [(t_low, 0.0), (t_low, 0.62), (t_top, 0.68)], top_mat=DARKGREY,
+                  side_mat=lambda k, i: BEVEL if (k, i) == (1, 2) else MID)
+        lib.ellipsoid(bm, F, 50.5, 11.6, 0.66, 5.0, 3.2, 0.16, mat=LIGHT, segments=12, rings=6, upper=True)
         for c in (50.5, 55.0):
-            lib.sweep(bm, F, [(c, 14.6, 0.56, 0.0, 0.0), (c, 15.2, 0.56, 2.0, 0.075), (c, 20.8, 0.56, 2.2, 0.08)],
+            lib.sweep(bm, F, [(c, 14.6, 0.74, 0.0, 0.0), (c, 15.2, 0.74, 2.0, 0.09), (c, 19.9, 0.74, 2.2, 0.10)],
                       sides=8, mat=GREY)
-            lib.ellipsoid(bm, F, c, 15.3, 0.58, 1.3, 1.1, 0.05, mat=KNOB, segments=8, rings=4)
+            lib.ellipsoid(bm, F, c, 15.3, 0.76, 1.3, 1.1, 0.06, mat=KNOB, segments=8, rings=4)
 
         # A small bracket behind the plate (columns 31-41, rows 16-23).
         lib.box(bm, F, 31, 16, 42, 21, 0.0, 0.30, BEVEL)
@@ -115,18 +138,18 @@ def build(sprite):
         lib.sweep(bm, F, [(56.5, 37.5, 0.16, 2.8, 0.14), (56.5, 66.5, 0.16, 2.8, 0.14)], sides=10, mat=MID)
 
         # The big screen: a block with a bevelled left side, a grey frame and a dark face.
+        # One solid: the bevelled outside up to the frame (0.36), the frame's top, then the inner
+        # walls down to the dark face (0.14), sunk ~2.6 px.
         s_low = [(5.5, 43), (54, 43), (54, 64.5), (5.5, 64.5)]
         s_top = [(9.5, 43), (54, 43), (54, 64.5), (9.5, 64.5)]
-        lib.stack(bm, F, [(s_low, 0.0), (s_top, 0.28)], top_mat=BLACK,
-                  side_mat=lambda k, i: TRIM if i == 3 else DARKGREY)
-        lib.box(bm, F, 10, 43, 54, 45, 0.28, 0.33, GREY, side_mat=DARKGREY)
-        lib.box(bm, F, 10, 62, 54, 64.5, 0.28, 0.33, DARKGREY)
-        lib.box(bm, F, 10, 45, 12, 62, 0.28, 0.33, DARKGREY)
-        lib.box(bm, F, 52, 45, 54, 62, 0.28, 0.33, DARKGREY)
+        s_in = [(12, 45), (52, 45), (52, 62), (12, 62)]
+        lib.stack(bm, F, [(s_low, 0.0), (s_top, 0.36), (s_in, 0.36), (s_in, 0.14)], top_mat=BLACK,
+                  side_mat=lambda k, i: ((TRIM if i == 3 else DARKGREY) if k == 0 else
+                                         (GREY if (k, i) == (1, 0) else DARKGREY)))
         # The stepped shape drawn on the screen, as low ridges.
         for c0, r0, c1, r1 in ((13, 47, 47, 47.7), (13, 47.7, 13.7, 60), (19, 50, 42, 50.7), (14, 53, 19, 53.7),
                                (19, 50, 19.7, 53.7), (41.3, 50, 42, 53.7), (37, 53, 47, 53.7), (14, 60, 47, 60.7)):
-            lib.box(bm, F, c0, r0, c1, r1, 0.28, 0.292, BEVEL)
+            lib.box(bm, F, c0, r0, c1, r1, 0.14, 0.18, BEVEL)
 
         # Lower block: a chamfered lower-left corner, a slatted vent and two blue ribs.
         l_low = [(5.5, 64.5), (58.5, 64.5), (58.5, 74.5), (48.5, 84), (24, 84), (5.5, 65.5)]
@@ -142,17 +165,31 @@ def build(sprite):
             lib.sweep(bm, F, [(29.5, r, 0.255, 0.8, 0.025), (45, r, 0.255, 0.8, 0.025)], sides=6, mat=TRIM)
         for c in (29.5, 37.5):
             lib.box(bm, F, c, 76, c + 5, 84, 0.24, 0.29, BLUE, side_mat=TRIM)
+        lib.prism(bm, F, [(48.5, 84), (58.5, 74.5), (58.5, 75.5), (56.5, 77.5), (56.5, 84)], 0.0, 0.10, VOID)
 
-        # Blue shoulder plate sloping down beside the orb, with a lit crease.
-        lib.sweep(bm, F, [(64.5, 29.5, 0.2, 6.5, 0.24), (67.5, 40.5, 0.2, 6.8, 0.24), (69.5, 47.5, 0.2, 7.4, 0.24),
-                          (71.5, 53, 0.2, 7.5, 0.24), (73, 58, 0.2, 5, 0.2)],
-                  sides=8, mat=pick(BLUE_L, BLUE), power=0.5)
-        lib.sweep(bm, F, [(65.5, 31, 0.43, 0.8, 0.02), (68.5, 42, 0.43, 0.8, 0.02), (71.5, 52, 0.43, 0.8, 0.02)],
-                  sides=6, mat=BLUE_W)
+        # Blue arm beside the orb: a round tube standing on the floor, about as tall as it is wide,
+        # rounded off at both ends, with the sprite's highlight stripe along its crest (left) or its
+        # outer flank (right).
+        arm = [(64.4, 28.8, ARM_Z - 0.10, 4.2, ARM_H - 0.16), (64.5, 29.8, ARM_Z, 6.3, ARM_H - 0.02),
+               (67.5, 40.5, ARM_Z, 6.8, ARM_H), (69.5, 47.5, ARM_Z, 7.4, ARM_H), (71.5, 53, ARM_Z, 7.5, ARM_H),
+               (72.6, 56.5, ARM_Z - 0.04, 6.0, ARM_H - 0.06), (73.2, 58.6, ARM_Z - 0.10, 3.8, ARM_H - 0.18)]
+        lib.sweep(bm, F, arm, sides=12, mat=pick(BLUE_L, BLUE), power=ARM_POW)
+        stripe = pick([(65.4, 31.5, 0.0), (68.4, 42, 0.0), (71.3, 52, 0.0)],
+                      [(66.0, 44.5, -0.80), (66.5, 50, -0.80), (68.5, 55, -0.70)])
+        lib.sweep(bm, F, [(c, r, arm_z(arm, r, u) - 0.012, 0.8, 0.025) for c, r, u in stripe], sides=6, mat=BLUE_W)
 
         # Blue claw beside the hood.
-        lib.prism(bm, F, [(83, 25), (84.5, 25), (88, 28.5), (88, 36), (85, 38.5), (81, 40), (79, 40), (78, 37),
-                          (78, 34), (81, 32), (82, 26)], 0.0, 0.46, pick(BLUE_V, BLUE_D), side_mat=BLUE)
+        # On the left the sprite draws the claw's lower lip dark navy; the right claw is all blue.
+        if side == 0:
+            lib.prism(bm, F, [(83, 25), (84.5, 25), (88, 28.2), (88, 36), (85, 38.5), (82.5, 38), (81.5, 33),
+                              (82, 26)], 0.0, 0.46, BLUE_V, side_mat=BLUE)
+            lib.prism(bm, F, [(81.5, 32), (82.5, 33), (83.5, 38.3), (81, 40), (79, 40), (78, 37), (78, 34)],
+                      0.0, 0.34, NAVY, side_mat=NAVY)
+        else:
+            lib.prism(bm, F, [(83, 25), (84.5, 25), (88, 28.2), (88, 36), (85, 38.5), (81, 40), (79, 40), (78, 37),
+                              (78, 34), (81, 32), (82, 26)], 0.0, 0.46, BLUE_D, side_mat=BLUE)
+            # The right pillar's shadowed side shows as a navy strip on the plate.
+            lib.box(bm, F, 39.2, 22, 41, 36.5, 0.575, 0.59, NAVY_L)
 
         # Hip of the hood's roof sloping down to the outline (columns 66-84, rows 10-20).
         a, b, c = (84, 10.5, 0.64), (84, 20.5, 0.64), (66, 20.5, 0.40)
@@ -165,10 +202,10 @@ def build(sprite):
             bm.faces.new((low[i], low[j], top[j], top[i])).material_index = GREY
 
         # A barrel slanting down and out under the shoulder, a bright knob on it and a stub below.
-        lib.sweep(bm, F, [(71.2, 57.3, 0.16, 0.0, 0.0), (70, 58.5, 0.17, 3.6, 0.13), (56, 71.5, 0.17, 4.2, 0.15),
-                          (55, 72.5, 0.17, 3.0, 0.11), (54.6, 72.9, 0.16, 0.0, 0.0)], sides=8, mat=MID)
-        lib.ellipsoid(bm, F, 64.5, 62.5, 0.31, 1.8, 1.8, 0.06, mat=KNOB, segments=8, rings=4)
-        lib.ellipsoid(bm, F, 65, 78.5, 0.0, 3.0, 3.2, 0.18, mat=DARKGREY, segments=10, rings=4, upper=True)
+        lib.sweep(bm, F, [(71.2, 57.3, 0.38, 0.0, 0.0), (70, 58.5, 0.38, 3.6, 0.30), (56, 71.5, 0.38, 4.2, 0.33),
+                          (55, 72.5, 0.36, 3.0, 0.24), (54.6, 72.9, 0.36, 0.0, 0.0)], sides=10, mat=MID)
+        lib.ellipsoid(bm, F, 64.5, 62.5, 0.68, 1.8, 1.8, 0.08, mat=KNOB, segments=8, rings=4)
+        lib.ellipsoid(bm, F, 65, 78.5, 0.0, 3.0, 3.2, 0.26, mat=DARKGREY, segments=10, rings=4, upper=True)
 
         if side:
             lib.mirror_since(bm, start, AX)
@@ -181,29 +218,79 @@ def build(sprite):
     for c in range(89, 102, 2):
         lib.box(bm, F, c, 11, c + 1, 15.5, 0.64, 0.66, RIB)
 
-    # The dark glass orb under the hood, and its glint.
-    lib.ellipsoid(bm, F, AXIS, 46.5, 0.10, 17, 10.5, 0.40, mat=ORB, segments=20, rings=10)
-    lib.ellipsoid(bm, F, 91, 45, 0.472, 1.6, 1.6, 0.02, mat=GLINT, segments=8, rings=4)
+    # The navy lip under the hood's front and the claws.
+    lib.box(bm, F, 78, 37, 113, 40, 0.0, 0.26, NAVY)
+    # The dark glass orb under the hood: a tall dome (top ~13 px) in the dark well, and its glint where
+    # the sprite draws it.
+    oc, orow, orx, ory, orz = AXIS, 47.5, 12.0, 8.5, ORB_Z
+    lib.ellipsoid(bm, F, oc, orow, 0.04, orx, ory, orz, mat=ORB, segments=24, rings=12, upper=True)
+    def orb_z(c, r):
+        return 0.04 + orz * max(0.0, 1 - ((c - oc) / orx) ** 2 - ((r - orow) / ory) ** 2) ** 0.5
 
-    # Grey block under the collar, and the curved collar cradling the orb.
-    lib.box(bm, F, 73, 60, 118, 70.5, 0.0, 0.18, MID)
-    half = [(70.5, 57.5, 0.0, 0.0), (71.5, 58.0, 3.5, 0.12), (74, 59.3, 4.6, 0.15), (78, 60.8, 5.0, 0.16),
-            (84, 62, 5.4, 0.16), (90, 62.5, 5.5, 0.16)]
-    path = half + [(AXIS, 62.6, 5.5, 0.16)] + [(2 * AXIS - c, r, w, h) for c, r, w, h in reversed(half)]
-    lib.sweep(bm, F, [(c, r, 0.24, w, h) for c, r, w, h in path], sides=10, mat=GREY)
+    decal(bm, 91.0, 45.0, 3.2, 2.7, orb_z, 0.012, KNOB)
+    decal(bm, 90.8, 44.6, 1.3, 1.2, orb_z, 0.022, GLINT)
 
-    # Bottom screen: a blue-lidded block with a grey frame and a dark face.
-    p_low = [(70, 70.5), (121, 70.5), (121, 84), (70, 84)]
-    p_top = [(72.5, 73.5), (118.5, 73.5), (118.5, 84), (72.5, 84)]
-    lib.stack(bm, F, [(p_low, 0.0), (p_low, 0.12), (p_top, 0.24)], top_mat=BLACK,
-              side_mat=lambda k, i: BLUE if k == 0 else {0: BLUE_D, 1: BLUE, 3: BLUE_L}.get(i, BLUE))
-    lib.box(bm, F, 72.5, 73.5, 118.5, 75.5, 0.24, 0.28, GREY, side_mat=DARKGREY)
-    lib.box(bm, F, 72.5, 75.5, 75, 84, 0.24, 0.28, DARKGREY)
-    lib.box(bm, F, 116, 75.5, 118.5, 84, 0.24, 0.28, DARKGREY)
+    # Grey block under the collar, and the curved collar cradling the orb: a round tube lying on the
+    # floor (as tall as it is wide, top ~11.5 px), rising at its ends beside the arms.
+    lib.box(bm, F, 73, 60, 118, 68.5, 0.0, 0.18, MID)
+    half = [(70.8, 57.0, 0.42, 0.0, 0.0), (71.5, 58.0, 0.36, 3.5, 0.34), (74, 59.3, 0.42, 4.6, 0.42),
+            (78, 60.8, 0.45, 5.0, 0.45), (84, 62, 0.48, 5.4, 0.48), (90, 62.5, 0.48, 5.5, 0.48)]
+    path = half + [(AXIS, 62.6, 0.48, 5.5, 0.48)] + [(2 * AXIS - c, r, z, w, h) for c, r, z, w, h in reversed(half)]
+    lib.sweep(bm, F, path, sides=12, mat=GREY)
+
+    # Three barrels lying across the front (blue, grey, blue: the sprite's lid bands), ~8 px tall,
+    # on a low navy pedestal.
+    lib.box(bm, F, 72.5, 69.2, 118.5, 74, 0.0, 0.22, NAVY)
+    for c0, c1, hw, m in ((72.5, 91.2, 2.6, BLUE_D), (91.6, 99.4, 2.3, MID), (99.8, 118.5, 2.6, BLUE_D)):
+        lib.sweep(bm, F, [(c0, 71.6, 0.42, hw, 0.25), (c1, 71.6, 0.42, hw, 0.25)], sides=12, mat=m)
+    # Bottom screen: blue bevelled sides, a grey top bar and a dark face sunk to ~0.7 px.
+    for c0, c1, c_in, m in ((70, 75, 72.5, BLUE_L), (121, 116, 118.5, BLUE_D)):
+        lo = [(c0, 73.5), (c1, 73.5), (c1, 84), (c0, 84)]
+        hi = [(c_in, 73.5), (c1, 73.5), (c1, 84), (c_in, 84)]
+        if c0 > c1:
+            lo, hi = [lo[1], lo[0], lo[3], lo[2]], [hi[1], hi[0], hi[3], hi[2]]
+        lib.stack(bm, F, [(lo, 0.0), (lo, 0.12), (hi, 0.30)], top_mat=DARKGREY,
+                  side_mat=lambda k, i, m=m, c0=c0: BLUE if k == 0 else (m if i == (3 if c0 < 100 else 1) else DARKGREY))
+    lib.box(bm, F, 75, 73.5, 116, 75.5, 0.0, 0.30, GREY, side_mat=DARKGREY)
+    lib.box(bm, F, 75, 75.5, 116, 84, 0.0, 0.06, BLACK)
     for c0, r0, c1, r1 in ((77, 78, 114, 78.7), (77, 78.7, 77.7, 84), (113.3, 78.7, 114, 84), (85, 81, 106, 81.7)):
-        lib.box(bm, F, c0, r0, c1, r1, 0.24, 0.252, BEVEL)
+        lib.box(bm, F, c0, r0, c1, r1, 0.06, 0.10, BEVEL)
 
     return lib.to_object(NAME, bm, mats, coll)
+
+
+def flatten_cut_faces(piece):
+    """Shade the faces split_assembly fills along a piece's edges (its 24 x 28 px box) flat, so the
+    smooth parts cut there (orb, collar, arms) keep their own normals instead of bending towards
+    the cut and showing a crease where two pieces meet."""
+    hx, hy, eps = 1.0, 14 / 12, 1e-4
+    me = piece.data
+    for p in me.polygons:
+        cos = [me.vertices[i].co for i in p.vertices]
+        on_x = all(abs(abs(c.x) - hx) < eps for c in cos) and abs(cos[0].x - cos[-1].x) < eps
+        on_y = all(abs(abs(c.y) - hy) < eps for c in cos) and abs(cos[0].y - cos[-1].y) < eps
+        if on_x or on_y:
+            p.use_smooth = False
+
+
+def decal(bm, c, r, rx, ry, surf, lift, mat, segments=12):
+    """A thin patch hugging a surface z = surf(col, row): an elliptical disc `lift` above it (a little
+    domed), closed underneath by a point sunk into the surface."""
+    def v(cc, rr, dz):
+        return bm.verts.new((F.X(cc), F.Y(rr), surf(cc, rr) + dz))
+    centre = v(c, r, lift * 1.5)
+    rings = [[v(c + rx * t * math.cos(a), r + ry * t * math.sin(a), lift * (1.5 - 0.5 * t * t))
+              for a in (2 * math.pi * i / segments for i in range(segments))] for t in (0.5, 1.0)]
+    under = v(c, r, -0.08)
+    faces = []
+    for i in range(segments):
+        j = (i + 1) % segments
+        faces.append(bm.faces.new((centre, rings[0][j], rings[0][i])))
+        faces.append(bm.faces.new((rings[0][i], rings[0][j], rings[1][j], rings[1][i])))
+        faces.append(bm.faces.new((rings[1][i], rings[1][j], under)))
+    for f in faces:
+        f.material_index = mat
+        f.smooth = True
 
 
 def main():
@@ -212,6 +299,8 @@ def main():
     layout = [(e["model"], e["cx"] - CX0, e["cy"] - CY0) for e in sprite["assemblyLayout"]
               if e["model"] in PIECES]
     pieces = common.split_assembly(obj, layout)
+    for piece in pieces.values():
+        flatten_cut_faces(piece)
     for name in PIECES:
         data = common.load_sprite(ROOT, name)
         common.export_sprite_model(ROOT, [pieces[name]], f"enemies/{name}", data["sprites"])

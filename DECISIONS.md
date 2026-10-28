@@ -1282,3 +1282,39 @@ so it plays the original as before; only local builds with the private remaster 
 **Review:** In a local build with a fresh browser profile (or after clearing the site's storage),
 the title music is the Synth version; `M` cycles and the pick is remembered across reloads. To
 go back, set `DEFAULT_MUSIC_STYLE` to "original".
+
+## D39 — Models are improved by a grade→fix→regrade loop calibrated on the user's ratings
+
+2026-10-28
+
+**Decision:** Models are improved in rounds. A grader rates a model's review sheet
+(`tools/review_sheet.py`) with `tools/calibration/rubric.md`. A fixer edits the model's own Blender
+script against the grade, rebuilds it and renders a new sheet. A second grader, from a different
+model family than the fixer and seeing only the two sheets, scores the new sheet and says whether
+it is better, the same or worse. A worse round is undone from backups. At most 3 rounds; a
+model stops at 4 overall with no high-severity issues, or when a round changes nothing. The
+rubric is calibrated on 20 models the user rated (`assets/blender/proto/calibration/feedback.json`):
+an Opus and a Fable grader plus a chair graded them and the user agreed with every grade. Opus
+fixes; Fable grades.
+
+First run: the 18 calibration models plus the 7 player ships. 22 of the 25 reached 4 overall
+(from mostly 2-3). One round of 33 was undone (assembly-newshr-85, round 3). Triangle counts
+grew 1.1-2.7x. Only the models' own scripts changed: no shared lib_*.py, no common.py, and the
+sprite-model entries (frames, animation) are byte-identical.
+
+**Options considered:**
+- *Grade→fix→regrade with revert (chosen):* every kept change was judged better by a grader
+  that never saw the fixer's reasoning; regressions are undone automatically.
+- *Generate models from the sprite analysis (the model-shape prototype):* only beat the hand
+  models on simple round sprites.
+- *Rescale the hand models' heights from the analysis (reshape):* one global fix; can't make
+  a slab round or cut a recess.
+
+**Review:** Open the model viewer on a few changed models (the player ships, newsh5-47,
+assembly-newshb-115) and play a level or two: the models should look like their sprites with
+more depth, and nothing should be missing or misplaced. To undo a model, restore its script
+from main and rebuild it with `tools/build-models.sh`.
+
+The player ships' review sheets used to show the hardest left-bank frame rather than the level
+frame (`sprite_shape.load_sprite` took `frames[0]`); the two ship grades made from them are
+marked superseded and the ships were regraded on corrected sheets.

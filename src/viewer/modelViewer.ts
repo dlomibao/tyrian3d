@@ -6,7 +6,12 @@
 // at the sprite's scale, where the sprite can be laid over the model to compare outlines. Colours
 // come from a game palette by index, as in game (pal_<index> materials, DECISIONS.md D15).
 //
-// Keys: up/down or j/k pick the model, left/right the frame, t top, g game angle, f free, o overlay.
+// "Prototype" (?proto=1) swaps in the models built by assets/blender/proto/shape_model.py (the
+// sprite-shape prototype, public/models/proto/index.json lists them) where there is one, to
+// compare with the current model; the game never loads them.
+//
+// Keys: up/down or j/k pick the model, left/right the frame, t top, g game angle, f free, o overlay,
+// p prototype.
 // Loaded by dynamic import, so it stays out of the game's bundle.
 
 import "./viewer.css";
@@ -65,6 +70,8 @@ interface Loaded {
   bytes: number;
   /** Assembly pieces with no model. */
   missing: number;
+  /** Models shown from the prototype (public/models/proto). */
+  proto: number;
   size: THREE.Vector3;
   minY: number;
 }
@@ -172,6 +179,7 @@ export async function runModelViewer(): Promise<void> {
               <label class="mv-check"><input type="checkbox" class="mv-wire" /> Wireframe</label>
               <label class="mv-check"><input type="checkbox" class="mv-grid" checked /> Grid</label>
               <label class="mv-check"><input type="checkbox" class="mv-flash" /> Hit flash</label>
+              <label class="mv-check" title="Models from the sprite-shape prototype (public/models/proto), where built (p)"><input type="checkbox" class="mv-proto" /> Prototype</label>
               <label class="mv-range">palette <select class="mv-palette"></select></label>
               <label class="mv-range" title="Stretch the model's height without rebuilding it; the game takes the same ?height=N">height <input type="range" class="mv-height" min="0.5" max="4" step="0.25" /><output class="mv-height-out"></output></label>
             </div>
@@ -202,6 +210,8 @@ export async function runModelViewer(): Promise<void> {
   const gridEl = $<HTMLInputElement>(".mv-grid");
   const flashEl = $<HTMLInputElement>(".mv-flash");
   const paletteEl = $<HTMLSelectElement>(".mv-palette");
+  const protoEl = $<HTMLInputElement>(".mv-proto");
+  protoEl.checked = params.get("proto") === "1";
   const heightEl = $<HTMLInputElement>(".mv-height");
   const heightOut = $<HTMLOutputElement>(".mv-height-out");
   heightEl.value = String(modelHeightFromUrl());
@@ -268,8 +278,19 @@ export async function runModelViewer(): Promise<void> {
   const pieceModels = spriteModels().grouped;
   let model: Loaded | null = null;
 
-  /** A .glb from public/models/, fetched once. */
-  function glb(path: string): Promise<{ scene: THREE.Object3D; bytes: number }> {
+  /** The prototype models there are (public/models/proto/index.json), fetched once. */
+  let protoIndex: Promise<Set<string>> | null = null;
+  const protoModels = (): Promise<Set<string>> =>
+    (protoIndex ??= fetch(`${import.meta.env.BASE_URL}models/proto/index.json`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list: string[]) => new Set(list))
+      .catch(() => new Set<string>()));
+  /** Model paths shown from public/models/proto/ in the current build. */
+  let protoShown = 0;
+  /** A .glb from public/models/ (or its prototype from public/models/proto/), fetched once. */
+  async function glb(model: string): Promise<{ scene: THREE.Object3D; bytes: number }> {
+    const path = protoEl.checked && (await protoModels()).has(model) ? `proto/${model}` : model;
+    if (path !== model) protoShown++;
     let p = glbs.get(path);
     if (!p) {
       p = (async () => {
@@ -285,6 +306,7 @@ export async function runModelViewer(): Promise<void> {
 
   /** The item's model: its .glb (one per shape), or an assembly's pieces each placed at its offset. */
   async function build(item: Item): Promise<Loaded> {
+    protoShown = 0;
     const root = new THREE.Group();
     const parts: Loaded["parts"] = [];
     let bytes = 0;
@@ -332,7 +354,7 @@ export async function runModelViewer(): Promise<void> {
     if (parts.length > 1 && !item.layout) for (const p of parts) p.object.visible = p.entry === 0;
     const box = new THREE.Box3().setFromObject(root);
     for (const p of parts) p.object.visible = true;
-    return { root, parts, materials: [...materials], triangles, bytes, missing, size: box.getSize(new THREE.Vector3()), minY: box.min.y };
+    return { root, parts, materials: [...materials], triangles, bytes, missing, proto: protoShown, size: box.getSize(new THREE.Vector3()), minY: box.min.y };
   }
 
   // --- Palette ---
@@ -470,7 +492,7 @@ export async function runModelViewer(): Promise<void> {
   /** The page's address: the model shown and, when not 1, the height multiplier. */
   function viewerUrl(name: string): string {
     const height = Number(heightEl.value);
-    return `?viewer=${encodeURIComponent(name)}${height === 1 ? "" : `&height=${height}`}`;
+    return `?viewer=${encodeURIComponent(name)}${height === 1 ? "" : `&height=${height}`}${protoEl.checked ? "&proto=1" : ""}`;
   }
   /** Stretch the model along its up axis (?height=N), as the game does with the same address. */
   function applyHeight(): void {
@@ -538,8 +560,9 @@ export async function runModelViewer(): Promise<void> {
     drawSprite();
 
     loadingEl.hidden = false;
-    let p = built.get(item.name);
-    if (!p) built.set(item.name, (p = build(item)));
+    const key = `${protoEl.checked ? "proto:" : ""}${item.name}`;
+    let p = built.get(key);
+    if (!p) built.set(key, (p = build(item)));
     try {
       const loaded = await p;
       if (shown[current] !== item) return; // moved on meanwhile
@@ -551,6 +574,7 @@ export async function runModelViewer(): Promise<void> {
       const animated = model.parts.some((p) => p.rig.animated) ? "animated parts · " : "";
       metaEl.textContent += ` · ${models}${animated}${Math.round(model.triangles)} triangles · ${(model.bytes / 1024).toFixed(0)} KB`;
       if (model.missing) metaEl.textContent += ` · ${model.missing} piece${model.missing === 1 ? "" : "s"} without a model`;
+      if (protoEl.checked) metaEl.textContent += model.proto ? ` · prototype (${model.proto} model${model.proto === 1 ? "" : "s"} from models/proto)` : " · no prototype: current model";
       colourModel();
       applyToggles();
       frameCamera();
@@ -588,6 +612,11 @@ export async function runModelViewer(): Promise<void> {
   document.querySelectorAll<HTMLButtonElement>("[data-step]").forEach((b) => (b.onclick = () => void show(current + Number(b.dataset.step))));
   document.querySelectorAll<HTMLButtonElement>("[data-cam]").forEach((b) => (b.onclick = () => setMode(b.dataset.cam as CameraMode)));
   for (const el of [spinEl, wireEl, gridEl]) el.onchange = applyToggles;
+  protoEl.onchange = () => {
+    if (!shown[current]) return;
+    history.replaceState(null, "", viewerUrl(shown[current].name));
+    void show(current);
+  };
   heightEl.oninput = () => {
     applyHeight();
     if (shown[current]) history.replaceState(null, "", viewerUrl(shown[current].name));
@@ -612,6 +641,10 @@ export async function runModelViewer(): Promise<void> {
     else if (k === "t") setMode("top");
     else if (k === "g") setMode("game");
     else if (k === "f") setMode("free");
+    else if (k === "p") {
+      protoEl.checked = !protoEl.checked;
+      protoEl.onchange?.(new Event("change"));
+    }
     else if (k === "o") {
       overlayOnEl.checked = !overlayOnEl.checked;
       overlayOnEl.onchange?.(new Event("change"));

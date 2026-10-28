@@ -2,7 +2,7 @@
 
 Seen in episodes 1-3 (levels 1.21, 1.5, 2.8, 3.15); in the fortress set (assembly-newshd-127) a
 row of them makes a long red bank along the bottom. A raised grey rack across the tile holds
-three upright red capsules with rounded ends. The frames only light up one capsule after
+three upright red capsules with rounded ends, round in section (as tall as they are wide). The frames only light up one capsule after
 another, so one model covers them all, each capsule's colour following the frame
 (palette_material frames=).
 
@@ -38,10 +38,12 @@ def build(sprite):
     for c, lit in ((3.5, (199, 201)), (11.5, (195, 197)), (19.5, (191, 193))):
         L.dome(bm, g.x(c), g.y(13.5), 3.6 * L.U, 9.6 * L.U, 0.04, z0=0.095, sides=16, rings=1,
                mat=m.metal(11), power=2.6, flat=0.8)
-        L.loft_y(bm, g.x(c), [(g.ey(4.4), 0.0, 0.0, 0.14), (g.ey(5.0), 1.8 * L.U, 0.05, 0.14),
-                              (g.ey(6.2), 2.8 * L.U, 0.09, 0.14), (g.ey(8.0), 3.1 * L.U, 0.11, 0.14),
-                              (g.ey(19.0), 3.1 * L.U, 0.11, 0.14), (g.ey(20.8), 2.8 * L.U, 0.09, 0.14),
-                              (g.ey(22.0), 1.8 * L.U, 0.05, 0.14), (g.ey(22.6), 0.0, 0.0, 0.14)],
+        # Round capsules about 6 px across and 6 px tall, standing on the floor through the rack.
+        zc = 0.25
+        L.loft_y(bm, g.x(c), [(g.ey(4.4), 0.0, 0.0, zc), (g.ey(5.0), 1.8 * L.U, 0.13, zc),
+                              (g.ey(6.2), 2.8 * L.U, 0.21, zc), (g.ey(8.0), 3.1 * L.U, 0.245, zc),
+                              (g.ey(19.0), 3.1 * L.U, 0.245, zc), (g.ey(20.8), 2.8 * L.U, 0.21, zc),
+                              (g.ey(22.0), 1.8 * L.U, 0.13, zc), (g.ey(22.6), 0.0, 0.0, zc)],
                  sides=12, mat=m.anim(115, f"capsule{lit[0]}", {lit[0]: 117, lit[1]: 119}, emission_strength=2.0))
     obj = L.finish(NAME, bm, m, coll)
     return [(NAME, [obj], sprite["sprites"])]
