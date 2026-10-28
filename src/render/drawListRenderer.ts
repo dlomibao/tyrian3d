@@ -39,6 +39,7 @@ import { remasterGroundMaterial } from "./remaster/groundMaterial";
 import { paletteLuma } from "./remaster/mmpx";
 import { TileModelIndex } from "./remaster/tileModels";
 import { StructureInstances } from "./remaster/structureInstances";
+import { modelHeightFromUrl } from "./modelHeight";
 
 /** How backgrounds are drawn: the original tiles extruded (D8) or remastered (D34). */
 export type BackgroundStyle = "original" | "remaster";
@@ -202,6 +203,8 @@ export class DrawListRenderer {
   private readonly unitQuad = unitQuad();
   private readonly overridesBySheet = new Map<string, { override: ModelOverride; pool: ModelPool }[]>();
   private readonly modelPools = new Map<string, ModelPool>();
+  /** `?height=N`: the models stretched along their up axis (modelHeight.ts). */
+  private readonly modelHeight = modelHeightFromUrl();
   private spriteModels = new Map<string, string>();
   /** [two-player] Grouped ships' banking (spriteModels.ts groupBank). */
   private groupBank = new Map<string, number>();
@@ -633,7 +636,7 @@ export class DrawListRenderer {
     const gx = screenWorldX(cx);
     const gz = screenWorldZ(cy);
     object.position.set(gx + (cam.x - gx) * k, h, gz + (cam.z - gz) * k);
-    object.scale.setScalar(1 - k);
+    object.scale.set(1 - k, (1 - k) * this.modelHeight, 1 - k);
 
     const blended = d.effect === "blend";
     if (blended !== clone.blended) {
