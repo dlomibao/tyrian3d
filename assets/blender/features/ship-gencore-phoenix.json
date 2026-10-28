@@ -50,7 +50,8 @@
     "pointed tip at the front (row 9) and tapering to a point at the back",
     "flat faces meeting at hard creases",
     "polished metal",
-    "bright inner top edge (col 4, rows 10-19) as a crisp ridge"
+    "bright inner top edge (col 4, rows 10-19) as a crisp ridge",
+    "crescent/scythe blade per the concept: convex outer curve, concave inner edge, layered plates"
    ],
    "note": "Left wing: a long, sharp, pointy blade beside the fuselage with an empty gap between them, joined only by the strut. It must read as a blade with knife edges and pointed ends, never a rounded pod."
   },
@@ -69,7 +70,8 @@
     "pointed tip at the front (row 9) and tapering to a point at the back",
     "flat faces meeting at hard creases",
     "polished metal",
-    "bright inner edge (col 19, rows 17-19)"
+    "bright inner edge (col 19, rows 17-19)",
+    "crescent/scythe blade per the concept: convex outer curve, concave inner edge, layered plates"
    ],
    "note": "Right wing: a long, sharp, pointy blade beside the fuselage with an empty gap between them, joined only by the strut. It must read as a blade with knife edges and pointed ends, never a rounded pod."
   },
@@ -186,5 +188,10 @@
    ],
    "note": "The central body from the cockpit to the struts; a crisp, tall hard-surface hull."
   }
- ]
+ ],
+ "concept": {
+  "image": "assets/blender/features/concepts/ship-gencore-phoenix.jpg",
+  "source": "user-supplied AI reimagining (Google Nano Banana), 2026-10-28",
+  "use": "Design guide for shapes and shape language only; the sprite still decides the top-view outline, proportions and colours. Key cues: crescent/scythe wings (convex outer curve, concave inner edge, pointed at both ends, layered armour plates) joined to the hull by a box-section boom near the tail; layered, chamfered hull armour with panel lines; shield-shaped nose plate; keel ridge down the centre; windshield recessed in an octagonal frame; twin engine nozzles at the tail flanking the keel."
+ }
 }
