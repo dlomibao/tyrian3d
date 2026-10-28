@@ -15,14 +15,32 @@ The common failure is **flatness**: parts modelled as low slabs or squashed caps
 sprite's shading and size say they're tall, round, tapered or stacked. Judge each part's height
 against what the sprite implies:
 
-- **Round parts** (pipes, barrels, tanks, pods, domes): a highlight band or spot with darker edges.
-  A round part's height above what it sits on should be about its width (a pipe 10 px wide stands
-  about 10 px tall; a dome about half its diameter or more).
+- **Round parts** (pipes, barrels, tanks, pods, domes): a highlight band or spot with darker edges,
+  on a part whose outline is round too. A round part's height above what it sits on should be about
+  its width (a pipe 10 px wide stands about 10 px tall; a dome about half its diameter or more).
+- **Metallic sheen is not geometry.** A small, very bright spot or streak (often near-white) on a
+  hull is usually a specular highlight on shiny metal, not a hump, knob or dome. Don't add or ask
+  for geometry for it; the model's metallic material and the lighting make the shine. Model a bump
+  only when the outline, the part's width or a shadow beside it says the surface rises there. (The
+  user pointed this out on the Gencore Phoenix: its bright centre spot is sheen, and the lump the
+  first fix round put there is wrong.) Judge the material first: not everything is metal. On
+  rock, earth, organic creatures, cloth or matte paint a highlight usually is a lit face of a real
+  shape (so model the shape, matte); on glass, gems, wet or glossy surfaces it is shine (use a
+  glossy material, not geometry); on metal hulls a small hot spot is shine. Give each part the
+  material that makes its highlights read right: metallic and smooth for polished metal, low
+  metallic and rough for rock or flesh.
 - **Flat parts** (hull plates, decks, armour panels): even shade, often with a lit edge on the
   light side (upper-left) and a dark edge opposite, which means a bevel. Plates stack: a plate
   drawn over another, with a shadow on its lower-right side, sits higher.
 - **Tapering parts** (towers, gun barrels, noses, wings): the width changes along their length, and
   the height should follow it.
+- **The sprite's lighting is not paint.** Sprites draw their light: a dark outline around the edge,
+  darker pixels on the lower-right side, lighter on the upper-left, highlights. The game lights the
+  model and draws its own dark outline (`OUTLINE` in src/render/view.ts), so a model must not paint
+  the sprite's outline ring onto its sides, nor bake the sprite's shading into its colours on
+  curved surfaces: that darkens it twice (a grey ball turns black from the game camera) and looks
+  blocky. Give each part its mid-tone colour and let the light shade it; paint only real markings
+  (stripes, lights, panel colours), not shading.
 - **Recesses** (grilles, vents, windows, hatches): dark pixels inside a part are cut in, not
   painted on.
 - **Buildings and ground structures** sometimes show a front wall: a darker band along the bottom
@@ -43,7 +61,7 @@ Units: one sprite pixel is 1/12 world unit; the elevations carry a ruler in spri
 | 5 | Side elevation, orthographic, from the right (sprite top is to the right); two panels wide; ruler in px |
 | 6 | Front elevation, orthographic, from the screen bottom; two panels wide; ruler in px |
 | 7, 8 | Three-quarter views, front-right and back-left |
-| 9 | The game camera's angle |
+| 9 | The game camera's angle, lit like the game (EEVEE: each part's metalness and roughness, environment light and sun). The only panel that shows material shine; judge sheen and colour in game here |
 | 10 | Region map: the sprite split into regions (same colour family, connected), with ids like r7 |
 | 11 | The height the shading analysis infers for each pixel (a hint, often wrong on shading; trust width more) |
 | 12 | Metrics (also in the sheet's .json) |

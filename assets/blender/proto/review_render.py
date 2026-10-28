@@ -90,6 +90,9 @@ def palette_colours(meshes, doc):
             rgb = doc["colors"].get(g.group(1)) if g else None
             if rgb is not None:
                 m.diffuse_color = (*[srgb_lin(c) for c in rgb], 1.0)
+                bsdf = next((n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED"), None) if m.use_nodes else None
+                if bsdf:  # for the game-lit view, which renders the materials themselves
+                    bsdf.inputs["Base Color"].default_value = m.diffuse_color
             elif m.use_nodes:
                 bsdf = next((n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED"), None)
                 if bsdf:
@@ -113,6 +116,33 @@ def setup(flat):
     scene.render.resolution_percentage = 100
     scene.render.image_settings.file_format = "PNG"
     scene.render.image_settings.color_mode = "RGBA"
+
+
+def setup_game():
+    """Lit like the game (src/render/view.ts): each material's own metalness and roughness, an
+    environment light standing in for the RoomEnvironment and hemisphere light, and a sun from the
+    left and the camera's side. Shows what Workbench can't: metal shine and glossy highlights."""
+    scene = bpy.context.scene
+    try:
+        scene.render.engine = "BLENDER_EEVEE"
+    except TypeError as err:
+        scene.render.engine = next(e for e in str(err).replace("'", " ").replace(",", " ").split() if "EEVEE" in e)
+    world = bpy.data.worlds.new("game") if not scene.world else scene.world
+    scene.world = world
+    world.use_nodes = True
+    bg = next(n for n in world.node_tree.nodes if n.type == "BACKGROUND")
+    bg.inputs[0].default_value = (0.42, 0.45, 0.55, 1.0)
+    bg.inputs[1].default_value = 1.0
+    sun_data = bpy.data.lights.new("game_sun", "SUN")
+    sun_data.energy = 3.0
+    sun = bpy.data.objects.new("game_sun", sun_data)
+    bpy.context.collection.objects.link(sun)
+    # three.js (-6, 20, 8.4), y up and +z towards the screen bottom -> Blender (-6, -8.4, 20).
+    d = Vector((-6, -8.4, 20)).normalized()
+    sun.rotation_euler = d.to_track_quat("Z", "Y").to_euler()
+    scene.view_settings.view_transform = "Standard"
+    scene.render.film_transparent = True
+    return sun
 
 
 def camera(location, look_at, ortho=None, fov=None, top=False):
@@ -223,7 +253,10 @@ def main():
     d = ext * 1.45 + 1.5  # small sprites need the extra margin
     render(camera((d * 0.55, -d * 0.6, d * 0.55), (0, 0, 0), fov=35), out / "q1.png", PANEL, PANEL)
     render(camera((-d * 0.6, d * 0.5, d * 0.55), (0, 0, 0), fov=35), out / "q2.png", PANEL, PANEL)
-    render(camera((0, -d * 0.6, d * 0.8), (0, 0, 0), fov=35), out / "game.png", PANEL, PANEL)
+    sun = setup_game()
+    tilt = math.radians(32)  # CAMERA_TILT in src/render/view.ts
+    render(camera((0, -d * math.sin(tilt), d * math.cos(tilt)), (0, 0, 0), fov=35), out / "game.png", PANEL, PANEL)
+    bpy.data.objects.remove(sun, do_unlink=True)
     height, index, seams = samples(doc, meshes)
     dg = bpy.context.evaluated_depsgraph_get()
     tris = 0

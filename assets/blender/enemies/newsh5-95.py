@@ -9,6 +9,7 @@ the parts use the bright frame's palette indices and step down to the mid and di
 Run: blender --background --python assets/blender/enemies/newsh5-95.py [-- --preview out.png]
 """
 
+import math
 import sys
 from pathlib import Path
 
@@ -34,19 +35,6 @@ def ey(r):
     return G.Y(r - 0.5)
 
 
-def bipyramid(bm, outline, apex, top, bottom, mat):
-    """A faceted gem: an outline (Blender x, y, counter-clockwise) at z = 0 joined to an apex point
-    (x, y) raised to `top` and lowered to `bottom`."""
-    ring = [bm.verts.new((x, y, 0.0)) for x, y in outline]
-    up = bm.verts.new((apex[0], apex[1], top))
-    down = bm.verts.new((apex[0], apex[1], bottom))
-    n = len(ring)
-    for i in range(n):
-        j = (i + 1) % n
-        bm.faces.new((ring[i], ring[j], up)).material_index = mat
-        bm.faces.new((ring[j], ring[i], down)).material_index = mat
-
-
 def build(sprite):
     coll = common.reset_collection(NAME)
     glow = lambda i, part, frames, **kw: common.palette_material(  # noqa: E731
@@ -61,27 +49,85 @@ def build(sprite):
     ]
     BODY, INNER, CORE, HOT = range(4)
     bm = bmesh.new()
-    yc = G.Y(6)  # the arrow's axis (row 6)
+    px = 1 / 12
+    yc = 6.5  # the arrow's axis (row 6's centre, as a pixel-edge row coordinate)
 
-    # Arrowhead: rows 3-9 at column 3-4, tip at column 0 (pixel edges).
-    head = [(ex(0), yc), (ex(3), ey(3) - 0.2 / 12), (ex(5), ey(3)), (ex(5), ey(10)), (ex(3), ey(10) + 0.2 / 12)]
-    head = [head[0], head[4], head[3], head[2], head[1]]  # counter-clockwise from the tip
-    bipyramid(bm, head, (ex(3.4), yc), 0.07, -0.08, BODY)
-    # Its bright inner chevron (the 207 pixels along the tip), standing a little proud.
-    inner = [(ex(0.7), yc), (ex(3), ey(9.0)), (ex(4.0), ey(8.6)), (ex(4.0), ey(4.4)), (ex(3), ey(4.0))]
-    bipyramid(bm, inner, (ex(2.9), yc), 0.105, -0.06, INNER)
-    # White-hot centre of the head (the cross of 47 pixels at columns 2-4, rows 5-7).
-    hot = [(ex(1.9), yc), (ex(3.5), ey(8.0)), (ex(4.6), yc), (ex(3.5), ey(5.0))]
-    bipyramid(bm, hot, (ex(3.4), yc), 0.125, -0.04, HOT)
+    # Arrowhead: a faceted bipyramid, one ridge from the tip at column 0 up to its peak at the
+    # column 3/4 edge (its widest, 7 px) and down its back into the shaft's crest. Its top is
+    # lofted through the sprite's colour bands, each a ring in pixel-edge (column, row, height px):
+    # the green rim (199), the bright chevron (207) and the white-hot cross (47).
+    def ring(tip, upper, right):
+        """Tip, upper points from left to right, right point; mirrored about the axis, counter-
+        clockwise from the tip."""
+        lower = [(c, 2 * yc - r, z) for c, r, z in upper]
+        return [tip] + lower + [right] + upper[::-1]
 
-    # Shaft: columns 4-11, rows 5-7, rounded, flat-ended at the right edge.
+    rings = [
+        ring((0, yc, 0.0), [(3, 3.2, 0.0), (5, 3, 0.0), (5, 5, 0.0)], (5, yc, 0.0)),  # rim, the outline
+        ring((1, yc, 1.4), [(3, 4, 1.45), (4, 4, 1.45), (4, 5, 1.6)], (5, yc, 1.0)),  # bright chevron
+        ring((2, yc, 2.25), [(3, 5, 2.4), (4, 5, 2.4), (4.5, 5.75, 1.95)], (5, yc, 1.55)),  # white cross
+    ]
+    apex_c, top, bottom = 4.0, 3.2, -2.8
+    vr = [[bm.verts.new((ex(c), ey(r), z * px)) for c, r, z in rg] for rg in rings]
+    up = bm.verts.new((ex(apex_c), ey(yc), top * px))
+    down = bm.verts.new((ex(apex_c), ey(yc), bottom * px))
+    n = len(rings[0])
+    for band, mat in ((0, BODY), (1, INNER)):
+        r0, r1 = vr[band], vr[band + 1]
+        for i in range(n):
+            j = (i + 1) % n
+            bm.faces.new((r0[i], r0[j], r1[j], r1[i])).material_index = mat
+    for i in range(n):
+        j = (i + 1) % n
+        # The cross's faces behind the peak (columns 4-5) are the start of the shaft's core.
+        behind = min(rings[2][i][0], rings[2][j][0]) >= apex_c
+        bm.faces.new((vr[2][i], vr[2][j], up)).material_index = CORE if behind else HOT
+        bm.faces.new((vr[0][j], vr[0][i], down)).material_index = BODY
+
+    # Shaft: a round beam 3 px across (rows 5-7), from inside the head to the right edge, ending
+    # square with a small bevel (the sprite's shaft ends square). Its top facet is exactly 1 px
+    # wide (row 6): the white-hot core as a stripe standing about 0.35 px proud of the beam's crest,
+    # then the bright green cell at column 10, where the stripe ramps back down into the beam.
+    R = 1.5
+    # From the top, about the axis; the first two are the stripe's top edges (raised), the next
+    # and the last its feet on the beam, just outside row 6 so the stripe's sides stay green.
+    angles = [-19.47, 19.47, 22.5, 62, 105, 145, 180, 215, 255, 298, -22.5]
+    raised = {0, 1}
+    m = len(angles)
     n0 = len(bm.faces)
-    lib.sweep(bm, [(ex(4.2), yc, 0.0, 1.5 / 12, 0.075), (ex(11.2), yc, 0.0, 1.5 / 12, 0.075),
-                   (ex(12), yc, 0.0, 1.2 / 12, 0.055)], sides=10, mat=BODY)
-    # White core down the middle (row 6, columns 2-9), its top just above the shaft's.
-    lib.sweep(bm, [(ex(1.6), yc, 0.0, 0.0, 0.0), (ex(2.4), yc, 0.02, 0.6 / 12, 0.09),
-                   (ex(9.6), yc, 0.02, 0.6 / 12, 0.075), (ex(10.4), yc, 0.02, 0.0, 0.0)], sides=8, mat=CORE)
+    # (column edge, radius scale, stripe rise in px)
+    stations = [(4.5, 1.0, 0.35), (10, 1.0, 0.35), (11, 1.0, 0.0), (11.8, 1.0, 0.0), (12, 0.8, 0.0)]
+    srings = []
+    for c, k, rise in stations:
+        ring_v = []
+        for i, a in enumerate(angles):
+            s, z = math.sin(math.radians(a)) * R * k, math.cos(math.radians(a)) * R * k
+            if i in raised:
+                z += rise
+            ring_v.append(bm.verts.new((ex(c), ey(yc) + s * px, z * px)))
+        srings.append(ring_v)
+    stripe = []
+    for si in range(len(stations) - 1):
+        a, b = srings[si], srings[si + 1]
+        c0 = stations[si][0]
+        crest = CORE if c0 < 10 else INNER if c0 < 11 else BODY
+        for k in range(m):
+            j = (k + 1) % m
+            f = bm.faces.new((a[k], a[j], b[j], b[k]))
+            f.material_index = crest if k == 0 else BODY
+            if k in (0, 1, m - 1) and c0 < 11:
+                stripe.append(f)
+    # Back cap: flat (a fan from its centre, so the 11-gon stays clean).
+    cc = bm.verts.new((ex(stations[-1][0]), ey(yc), 0.0))
+    for k in range(m):
+        j = (k + 1) % m
+        bm.faces.new((srings[-1][j], srings[-1][k], cc)).material_index = BODY
     lib.faces_since(bm, n0, smooth=True)
+    for f in stripe:
+        f.smooth = False
+    bm.faces.ensure_lookup_table()
+    for f in bm.faces[len(bm.faces) - m:]:
+        f.smooth = False
     return lib.to_object(NAME, bm, mats, coll)
 
 

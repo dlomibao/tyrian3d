@@ -2,9 +2,13 @@
 
 Seen in episode 4 (level 22). Four 2x2 enemies side by side make one 96x28 px brain: two
 hemispheres split by a dark fissure down the middle, their surface packed with pink folds (gyri)
-between dark grooves, brightest on the inner halves. Each hemisphere is a low rounded lump whose
-outline follows the sprite row by row; the folds are rounded ridges fitted to the sprite's
-highlights, set into its surface and coloured from the pixels under them.
+between dark grooves, brightest on the inner halves. The top is a height field with a vertex at
+every pixel corner, each pixel a face in its own palette colour, so the top view is the sprite:
+each hemisphere is a rounded body (a 2 px ground that runs out to the outline, rising from
+the outline and the fissure to about 5.5 px in the middle) with the folds raised on it as
+rounded tubes from the sprite's shading (gyri up to 4.5 px above the sulci between them, also on
+the darker shadowed side), about 9-10 px at the highest, and the fissure cut down below the base.
+A dark skirt and underside close it.
 
 The whole brain is built once in assembly coordinates and cut into the four pieces with
 common.split_assembly. One frame each.
@@ -13,15 +17,20 @@ Run: blender --background --python assets/blender/enemies/assembly-newsh5-233.py
 (the preview is the whole brain; each piece also gets <piece>.png next to it).
 """
 
+import math
 import sys
 import tempfile
 from pathlib import Path
 
 import bmesh
+import bpy
+from mathutils import Vector
 
 sys.path[:0] = [str(Path(__file__).resolve().parents[1]), str(Path(__file__).resolve().parent)]
 import common  # noqa: E402
 import lib_b029 as lib  # noqa: E402
+
+PX = 1 / 12
 
 NAME = "assembly-newsh5-233"
 ROOT = common.repo_root(__file__)
@@ -29,84 +38,165 @@ PIECES = ["newsh5-233", "newsh5-235", "newsh5-237", "newsh5-239"]
 FISSURE = 47  # column of the dark fissure between the hemispheres
 
 
-def spans(pixels, left_half):
-    """Per-row outline of one hemisphere: (row, left edge, right edge). The outer edge follows the
-    sprite (lightly smoothed); the inner edge runs straight along the fissure."""
-    outer = []
-    for line in pixels:
-        if left_half:
-            outer.append(min(c for c in range(FISSURE + 1) if line[c] >= 0))
-        else:
-            outer.append(max(c for c in range(FISSURE, len(line)) if line[c] >= 0) + 1)
-    n = len(outer)
-    smooth = [(outer[max(i - 1, 0)] + 2 * outer[i] + outer[min(i + 1, n - 1)]) / 4 for i in range(n)]
-    if left_half:
-        return [(r, smooth[r], FISSURE - 1.0) for r in range(n)]
-    return [(r, FISSURE + 1.5, smooth[r]) for r in range(n)]
+# Heights in sprite px (1 px = 1/12 unit).
+GROUND = 2.0  # every hemisphere pixel stands at least this high, right out to the outline
+DOME = 3.5  # each hemisphere's rounded body at its middle
+ROUND = 9.0  # how far in from the outline (px) the body takes to reach full height
+RELIEF = 4.5  # the folds: brightest gyrus tops this far above the darkest grooves
+LEVEL_MAX = 12.0  # shading level (ramp 64-79 -> 0-15) that counts as a full-height fold
+LOCAL = 4  # window (px either way) for the folds' relative shading
+LOCAL_MIX = 0.55  # how much of the relief comes from the relative shading
+FISSURE_Z = -1.0  # floor of the fissure
+EDGE = 0.75  # outline height, as a share of the pixels' just inside it (a rounded, not feathered, edge)
+BASE_Z = -1.7  # underside
 
 
-def body_spans(rows, top, bottom):
-    """Body spans at pixel centres, ends at the tile edges; slightly rounded at the cut edges."""
-    res = []
-    n = len(rows)
-    for r, left, right in rows:
-        k = 1.0 if 1 <= r <= n - 2 else 0.8
-        res.append((r + 0.5, left, right, top * k, bottom * k))
-    r, left, right = rows[0]
-    res.insert(0, (0.0, left + 0.5, right - 0.5, top * 0.55, bottom * 0.55))
-    r, left, right = rows[-1]
-    res.append((float(n), left + 0.5, right - 0.5, top * 0.55, bottom * 0.55))
-    return res
+def fissure(pixels):
+    """The fissure's pixels: the dark (outline-black and darkest-ramp) pixels connected to its
+    middle column, within a few columns of it."""
+    h, w = len(pixels), len(pixels[0])
+    todo = [(r, FISSURE) for r in range(h) if pixels[r][FISSURE] >= 0]
+    seen = set(todo)
+    while todo:
+        r, c = todo.pop()
+        for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            n = (r + dr, c + dc)
+            if (n not in seen and 0 <= n[0] < h and abs(n[1] - FISSURE) <= 1
+                    and pixels[n[0]][n[1]] in (1, 64)):
+                seen.add(n)
+                todo.append(n)
+    return seen
+
+
+def heights(pixels, gap):
+    """Height (px) of every sprite pixel: a rounded body per hemisphere (round to the outline and
+    to the fissure, from each pixel's distance to them) plus the folds' relief, read from the
+    sprite's shading (bright gyri high, dark sulci cut down between them)."""
+    h, w = len(pixels), len(pixels[0])
+    inside = lambda r, c: 0 <= r < h and 0 <= c < w and pixels[r][c] >= 0 and (r, c) not in gap  # noqa: E731
+    edge = [(r, c) for r in range(-1, h + 1) for c in range(-1, w + 1) if not inside(r, c)
+            and any(inside(r + dr, c + dc) for dr in (-1, 0, 1) for dc in (-1, 0, 1))]
+    _, sm = lib._levels(pixels)
+    # Soften the shading once more so the folds come out as rounded tubes, not pixel steps.
+    soft = [[None] * w for _ in range(h)]
+    for r in range(h):
+        for c in range(w):
+            if sm[r][c] is None:
+                continue
+            near = [sm[r + dr][c + dc] for dr in (-1, 0, 1) for dc in (-1, 0, 1)
+                    if 0 <= r + dr < h and 0 <= c + dc < w and sm[r + dr][c + dc] is not None]
+            soft[r][c] = 0.5 * sm[r][c] + 0.5 * sum(near) / len(near)
+    z = {}
+    for r in range(h):
+        for c in range(w):
+            if not inside(r, c):
+                continue
+            d = min(math.hypot(r - er, c - ec) for er, ec in edge) - 0.5
+            t = min(d / ROUND, 1.0)
+            body = DOME * max(1 - (1 - t) ** 2, 0.0) ** 0.6
+            # The folds on the shadowed (right and outer) side are drawn darker but stand as tall:
+            # mix the absolute shading with the shading relative to the folds around it.
+            near = [soft[r + dr][c + dc] for dr in range(-LOCAL, LOCAL + 1) for dc in range(-LOCAL, LOCAL + 1)
+                    if 0 <= r + dr < h and 0 <= c + dc < w and soft[r + dr][c + dc] is not None]
+            lo, hi = min(near), max(near)
+            rel = (soft[r][c] - lo) / max(hi - lo, 3.0)
+            lv = (1 - LOCAL_MIX) * min(max(soft[r][c], 0.0), LEVEL_MAX) / LEVEL_MAX + LOCAL_MIX * rel
+            z[r, c] = GROUND + body + RELIEF * lv
+    return z
 
 
 def build(colors, pixels, grid):
     coll = common.reset_collection(NAME)
     sprite = {"name": NAME, "colors": colors}
-    pal = lambda i, **kw: common.palette_material(sprite, i, "ns5b233", **kw)  # noqa: E731
-    mats = [
-        pal(64, metallic=0.0, roughness=0.9),  # 0 fissure
-        pal(66, metallic=0.05, roughness=0.75),  # 1 deep grooves (the hemisphere under the folds)
-        pal(68, metallic=0.1, roughness=0.6),  # 2 dark folds
-        pal(70, metallic=0.1, roughness=0.5),  # 3 folds
-        pal(72, metallic=0.1, roughness=0.45),  # 4 light folds
-        pal(74, metallic=0.1, roughness=0.4),  # 5 lighter folds
-        pal(76, metallic=0.1, roughness=0.35),  # 6 bright highlights
-        pal(78, metallic=0.1, roughness=0.3),  # 7 brightest
-    ]
-
-    def slot(i):
-        if not 64 <= i <= 79:
-            return None
-        return min(max((i - 64) // 2 + 1, 1), 7) if i >= 66 else 1
+    used = sorted({v for line in pixels for v in line if v >= 0})
+    # One material per palette index the sprite uses, so the top view is the sprite's own colours.
+    # Matte: the brain is flesh, not metal (a glossy finish turns it grey from above).
+    mats = [common.palette_material(sprite, i, "ns5b233", metallic=0.0,
+                                    roughness=1.0) for i in used]
+    for m in mats:
+        # The viewport shading (this session's previews) reads these, not the node tree: matte too.
+        m.roughness = 1.0
+        m.metallic = 0.0
+        m.specular_intensity = 0.0
+    slot = {i: k for k, i in enumerate(used)}
+    h, w = len(pixels), len(pixels[0])
+    mask = lambda r, c: 0 <= r < h and 0 <= c < w and pixels[r][c] >= 0  # noqa: E731
+    gap = fissure(pixels)
+    z = heights(pixels, gap)
 
     bm = bmesh.new()
-    halves = []
-    for left_half in (True, False):
-        rows = spans(pixels, left_half)
-        body = lib.Body(grid, body_spans(rows, 0.3, 0.14), power=0.9)
-        n0 = len(bm.faces)
-        body.build(bm, mat=1, sides=40)
-        bm.faces.ensure_lookup_table()
-        lib.paint(bm, pixels, grid, slot, faces=bm.faces[n0:])
-        halves.append(body)
+    corner = lambda i, j: ((j - w / 2) / 12, (h / 2 - i) / 12)  # noqa: E731
+    top = {}
 
-    def surface_for(x, y):
-        return halves[0] if x < grid.X(FISSURE - 0.5) else halves[1]
+    def top_vert(i, j):
+        if (i, j) not in top:
+            adj = [(i - 1, j - 1), (i - 1, j), (i, j - 1), (i, j)]
+            if not all(mask(r, c) for r, c in adj):
+                # On the outline: the rounded body turns down into the skirt.
+                zs = [z[a] for a in adj if a in z]
+                zz = EDGE * sum(zs) / len(zs) if zs else 0.0
+            elif all(a in gap for a in adj):
+                zz = FISSURE_Z - 0.5  # the floor of a wider stretch of fissure: a shallow V, above the base
+            elif any(a in gap for a in adj):
+                zz = FISSURE_Z
+            else:
+                zz = sum(z[a] for a in adj) / 4
+            x, y = corner(i, j)
+            top[i, j] = bm.verts.new((x, y, zz * PX))
+        return top[i, j]
 
-    class Surface:
-        def top(self, x, y):
-            return surface_for(x, y).top(x, y)
+    bottom = {}
 
-    paths = lib.trace_ridges(pixels, min_level=4, drop=3.5, max_len=14)
-    n = lib.ridge_tubes(bm, paths, pixels, grid, Surface(), slot, width=2.0, height=0.04,
-                        height_per_level=0.003, sink=0.35)
-    print(f"{n} folds")
+    def bottom_vert(i, j):
+        if (i, j) not in bottom:
+            x, y = corner(i, j)
+            bottom[i, j] = bm.verts.new((x, y, BASE_Z * PX))
+        return bottom[i, j]
 
-    # The fissure: a dark trough between the hemispheres, filling the gap in the outline.
-    lib.plate(bm, [(grid.X(FISSURE - 2.5), grid.Y(-0.5)), (grid.X(FISSURE - 2.5), grid.Y(27.5)),
-                   (grid.X(FISSURE + 2.5), grid.Y(27.5)), (grid.X(FISSURE + 2.5), grid.Y(-0.5))][::-1],
-              -0.1, 0.03, mat=0)
-    return lib.to_object(NAME, bm, mats, coll)
+    def face(verts, mat, out, smooth):
+        f = bm.faces.new(verts)
+        f.material_index = mat
+        f.smooth = smooth
+        f.normal_update()
+        if f.normal.dot(Vector(out)) < 0:
+            f.normal_flip()
+        return f
+
+    for r in range(h):
+        for c in range(w):
+            if not mask(r, c):
+                continue
+            v = pixels[r][c]
+            face([top_vert(r + 1, c), top_vert(r + 1, c + 1), top_vert(r, c + 1), top_vert(r, c)],
+                 slot[v], (0, 0, 1), (r, c) not in gap)
+            # Skirt down to the underside wherever the pixel is on the outline.
+            for dr, dc, a, b in ((-1, 0, (r, c), (r, c + 1)), (1, 0, (r + 1, c), (r + 1, c + 1)),
+                                 (0, -1, (r, c), (r + 1, c)), (0, 1, (r, c + 1), (r + 1, c + 1))):
+                if not mask(r + dr, c + dc):
+                    face([top_vert(*a), top_vert(*b), bottom_vert(*b), bottom_vert(*a)],
+                         slot[64], (dc, -dr, 0), False)
+    # Underside: one strip per run of pixels in a row.
+    for r in range(h):
+        c = 0
+        while c < w:
+            if not mask(r, c):
+                c += 1
+                continue
+            c1 = c
+            while c1 + 1 < w and mask(r, c1 + 1):
+                c1 += 1
+            face([bottom_vert(r, c), bottom_vert(r, c1 + 1), bottom_vert(r + 1, c1 + 1), bottom_vert(r + 1, c)],
+                 slot[64], (0, 0, -1), False)
+            c = c1 + 1
+
+    mesh = bpy.data.meshes.new(NAME)
+    bm.to_mesh(mesh)
+    bm.free()
+    for m in mats:
+        mesh.materials.append(m)
+    obj = bpy.data.objects.new(NAME, mesh)
+    coll.objects.link(obj)
+    return obj
 
 
 def main():

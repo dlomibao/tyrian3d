@@ -1,16 +1,21 @@
 """Grey twin-blade fighter (newshm.shp frames 89, 91, 93): a 3D version of its sprite.
 
 Seen in episode 2 (levels 2.10 and 2.19). It flies nose down the screen: two long grey blades
-side by side, each with a bright raised inner ridge and a rolled outer rim, wide at the shoulders
-and tapering to two prongs at the bottom with a gap between them. A dark recessed bridge with two
-light ribs joins them at the shoulders, and an engine between two grey nozzle cheeks at the back
-(top of the sprite) blows a red-orange flame with a yellow-white core. The three frames only
-change the flame's length (its tip reaches rows 5, 4 and 3), so one model covers them all, with a
-flame per frame (common.frame_part).
+side by side, each a round prong tube with a bright ridge along its inner edge, tapering to a
+round tip at the bottom with a gap between them, and a flat bevelled wing plate beside it at the
+shoulders, a groove between the two. A dark channel with two light rungs runs
+between the shoulders, cut well below them, and an engine between two grey nozzle cheeks at the
+back (top of the sprite) blows a flame: a yellow-white core inside an orange-red bulb with a thin
+dark-red rim. The three frames only change the flame's length (its tip reaches rows 5, 4 and 3),
+so one model covers them all, with a flame per frame (common.frame_part).
+
+The blades reach out over the sprite's 1 px black outline as a dark bevel (palette 1), along a
+smooth line through the outline's pixel steps, so the top view covers the sprite's whole outline.
 
 Run: blender --background --python assets/blender/enemies/newshm-89.py [-- --preview out.png]
 """
 
+import math
 import sys
 from pathlib import Path
 
@@ -21,87 +26,157 @@ import common  # noqa: E402
 import lib_b016 as lib  # noqa: E402
 
 NAME = "newshm-89"
+# Each frame's flame: (frame, tip row edge, lift px, height scale).
+FLAME_FRAMES = [(89, 5.05, 0.5, 1.0), (91, 4.05, 0.25, 0.85), (93, 3.05, 0.0, 0.74)]
 P = 1 / 12  # one sprite pixel
 CENTRE = lib.px(12)  # the sprite is symmetric about column 12
+INNER = 11.75  # the left blade's inner edge (column edge); it covers the outline column 11
 
 
-def blade_top(w, _):
-    """Top of a blade from its inner edge outward: a sharp inner ridge, a shallow valley, a
-    rolled outer rim."""
-    return [(0.0, 0.55), (0.13 * w, 1.0), (0.3 * w, 0.78), (0.5 * w, 0.68), (0.72 * w, 0.74),
-            (0.88 * w, 0.62), (w, 0.15)]
+def _lerp(a, b, t):
+    return (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
 
 
-def blade_bottom(w, _):
-    return [(0.0, 0.45), (0.13 * w, 0.75), (0.3 * w, 0.9), (0.5 * w, 0.95), (0.72 * w, 0.85),
-            (0.88 * w, 0.6), (w, 0.15)]
+LIP = 0.45  # the dark inner lip beside the slot (the sprite's outline column 11)
+ARC = [math.radians(a) for a in (0, 36, 72, 108, 144, 180)]
+
+
+def blade_top(w, e):
+    """Top of a blade from its inner edge outward, in px (profile_blade scales by 1 px): a round
+    prong tube `wt` px wide standing `zt` px tall, a 1 px groove beside it, then a flat wing plate
+    `hp` px tall with a lit bevel and a dark outline bevel at the outer edge. Where the blade is
+    too narrow for a plate (down the prong) the plate points fold into the tube's outer flank."""
+    wt, zt, hp = e[0], e[1], e[2]
+    rt = (wt - LIP) / 2
+    rz = min(rt, zt - 0.4)
+    zc = zt - rz
+    pts = [(LIP * (a > 0) + rt * (1 - math.cos(a)), zc + rz * math.sin(a)) for a in ARC]
+    edge = (w, 0.6)
+    s = min(1.0, max(0.0, (w - wt - 1.9) / 1.0))
+    folded = [_lerp((wt, zc), edge, t) for t in (0.2, 0.4, 0.6, 0.8)]
+    plate = [(wt + 0.25, hp - 0.9), (wt + 0.6, hp), (w - 1.6, hp), (w - 0.85, hp - 0.35)]
+    pts += [_lerp(f, q, s) for f, q in zip(folded, plate)]
+    pts.append(edge)
+    return pts
+
+
+def blade_bottom(w, e):
+    hb = e[3]
+    return [(d, max(0.2, hb * (1 - (d / w) ** 2))) for d, _ in blade_top(w, e)]
 
 
 def build(sprite):
     coll = common.reset_collection(NAME)
-    pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
-    mats = [
-        pal(12, metallic=0.55, roughness=0.3),  # 0 bright inner ridges and bridge ribs
-        pal(8, metallic=0.5, roughness=0.4),  # 1 grey blade plating
-        pal(10, metallic=0.5, roughness=0.35),  # 2 light outer rims and nozzle cheeks
-        pal(6, metallic=0.4, roughness=0.5),  # 3 dark underside
-        pal(3, metallic=0.3, roughness=0.6),  # 4 dark recessed bridge
-        pal(117, emission_strength=3.0),  # 5 red outer flame
-        pal(123, emission_strength=4.5),  # 6 orange-yellow flame core
-        pal(126, emission_strength=6.0),  # 7 white-hot centre
+    grey = lambda i: common.palette_material(sprite, i, NAME, metallic=0.25, roughness=0.42)  # noqa: E731
+    idx = [1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 112, 113]
+    mats = [grey(i) for i in idx]
+    M = {i: k for k, i in enumerate(idx)}
+    FLAME, MID, CORE, YEL, HOT, WHITE = range(len(mats), len(mats) + 6)
+    mats += [
+        common.palette_material(sprite, 114, NAME, emission_strength=3.0),  # dark-red flame shell
+        common.palette_material(sprite, 117, NAME, emission_strength=5.0),  # bright red band
+        common.palette_material(sprite, 123, NAME, emission_strength=6.0),  # orange core
+        common.palette_material(sprite, 124, NAME, emission_strength=7.0),  # yellow centre stripe
+        common.palette_material(sprite, 126, NAME, emission_strength=8.0),  # white-yellow centre
+        common.palette_material(sprite, 127, NAME, emission_strength=9.0),  # white-hot at the nozzle
     ]
-    RIDGE, PLATE, RIM, UNDER, BRIDGE, FLAME, CORE, HOT = range(8)
     bm = bmesh.new()
 
-    # Left blade, back (top) to nose prong (bottom): (pixel row edge, outer column edge,
-    # top half-height px, bottom half-height px). Its inner edge is column 11's left edge; the
-    # right blade is its mirror about column 12.
-    sections = [
-        (9.9, 8.0, 1.6, 1.2), (10.4, 6.9, 2.4, 1.7), (11.2, 5.7, 2.8, 2.0), (12.0, 5.05, 3.0, 2.1),
-        (14.7, 5.05, 3.0, 2.1), (15.3, 6.6, 2.9, 2.0), (16.0, 7.0, 2.8, 2.0), (19.0, 7.3, 2.4, 1.7),
-        (22.0, 8.3, 2.0, 1.4), (24.0, 9.3, 1.6, 1.1), (25.9, 10.3, 1.0, 0.7),
+    # Each blade in six lofts along its length, so each gets the palette shades of its own sprite
+    # rows: the nose (rows 9-10, darkened red by the exhaust), the brow (10-11), the lit front
+    # edge (11-11.8), the shoulder (11.8-16), the prong (16-19.6) and the tip (19.6-27).
+    # Sections: (row edge, outer column edge, tube width px, tube top px, plate top px,
+    # underside depth px). The outer edge is a smooth line through the sprite outline's steps
+    # (within half a pixel of each), not the steps themselves. The prong tube runs from the inner
+    # edge over columns 8-11 (7-11 down the prong, narrowing to the tip), stands 5.3 px at the
+    # shoulders and tapers to about 1.5 px at its round tip; the wing plate beside it is flat at
+    # 3 px with a groove between them.
+    nose = [(9.0, 8.3, 2.65, 2.8, 2.2, 0.6), (9.6, 7.0, 3.75, 3.6, 2.6, 0.9), (10.0, 6.5, 3.75, 3.9, 2.75, 1.05)]
+    brow = [(10.0, 6.5, 3.75, 3.9, 2.75, 1.05), (10.4, 6.0, 3.75, 4.2, 2.9, 1.2), (11.0, 5.33, 3.75, 4.75, 3.0, 1.33)]
+    front = [(11.0, 5.33, 3.75, 4.75, 3.0, 1.33), (11.3, 5.0, 3.75, 5.0, 3.0, 1.4), (11.8, 4.45, 3.75, 5.2, 3.0, 1.45)]
+    shoulder = [
+        (11.8, 4.45, 3.75, 5.2, 3.0, 1.45), (12.1, 4.05, 3.75, 5.3, 3.0, 1.5), (14.8, 4.05, 3.75, 5.3, 3.0, 1.5),
+        (15.4, 5.0, 4.2, 5.2, 2.9, 1.45), (16.0, 6.0, 4.9, 5.0, 2.8, 1.4),
     ]
-    blade = [(lib.ey(r), lib.ex(11), lib.ex(xo), ht * P, hb * P, None) for r, xo, ht, hb in sections]
-    strip = [RIDGE, RIDGE, PLATE, PLATE, RIM, RIM]
+    prong = [(16.0, 6.0, 4.9, 5.0, 2.8, 1.4), (18.6, 6.43, 4.9, 4.6, 2.6, 1.3), (19.6, 6.7, 4.1, 4.4, 2.4, 1.2)]
+    tip = [
+        (19.6, 6.7, 4.1, 4.4, 2.4, 1.2), (22.0, 7.5, 3.3, 3.7, 2.0, 1.0), (24.0, 8.5, 2.3, 3.1, 1.8, 0.8),
+        (26.0, 9.5, 1.5, 2.5, 1.5, 0.6), (26.6, 9.95, 1.1, 2.1, 1.3, 0.5), (27.0, 10.4, 0.7, 1.5, 1.0, 0.4),
+    ]
+    # Top strips inner to outer: inner lip, ridge, tube top, tube outer flank (2), groove, groove
+    # wall, plate, lit bevel, outline bevel. The left blade is lit (white ridge), the right one
+    # shaded, as in the sprite; the ridges dim down the prongs. Where there is no plate its
+    # strips fold into the dark outline.
+    strips = {
+        (1, "nose"): [1, 10, 113, 113, 113, 1, 1, 1, 1, 1],
+        (-1, "nose"): [1, 9, 112, 1, 1, 1, 1, 1, 1, 1],
+        (1, "brow"): [1, 10, 10, 5, 5, 10, 10, 1, 1, 1],
+        (-1, "brow"): [1, 9, 8, 4, 4, 8, 8, 1, 1, 1],
+        (1, "front"): [1, 12, 13, 12, 12, 11, 11, 10, 10, 1],
+        (-1, "front"): [1, 13, 12, 11, 11, 8, 8, 8, 7, 1],
+        (1, "shoulder"): [1, 15, 9, 8, 7, 6, 7, 10, 10, 1],
+        (-1, "shoulder"): [1, 12, 6, 6, 6, 3, 7, 8, 8, 1],
+        (1, "prong"): [1, 10, 9, 6, 6, 1, 1, 1, 1, 1],
+        (-1, "prong"): [1, 10, 6, 3, 3, 1, 1, 1, 1, 1],
+        (1, "tip"): [1, 10, 9, 8, 8, 1, 1, 1, 1, 1],
+        (-1, "tip"): [1, 8, 6, 3, 3, 1, 1, 1, 1, 1],
+    }
+    parts = (("nose", nose), ("brow", brow), ("front", front), ("shoulder", shoulder), ("prong", prong), ("tip", tip))
     for side in (1, -1):
-        lib.profile_blade(bm, blade, blade_top, blade_bottom, strip, side=side, mirror_about=CENTRE,
-                          under_mat=UNDER)
+        for part, secs in parts:
+            blade = [(lib.ey(r), lib.ex(INNER), lib.ex(xo), P, P, (wt, zt, hp, hb)) for r, xo, wt, zt, hp, hb in secs]
+            lib.profile_blade(bm, blade, blade_top, blade_bottom, [M[i] for i in strips[(side, part)]],
+                              side=side, mirror_about=CENTRE, under_mat=M[6])
 
-    # Dark recessed bridge between the blades at the shoulders (rows 11-15, columns 11-13), with
-    # two light ribs across it (rows 12 and 14).
-    x0, x1 = lib.ex(10.7), lib.ex(14.3)
-    common.slab(bm, [(x0, lib.ey(16.2)), (x1, lib.ey(16.2)), (x1, lib.ey(10.8)), (x0, lib.ey(10.8))],
-                0.2, z=-0.02, mat_index=BRIDGE)
+    # The dark channel between the shoulders (rows 11-16, column 12), its floor about 1.5 px up,
+    # 3 px below the ridges, with two light rungs across it (rows 12 and 14) standing 1.3 px
+    # above the floor.
+    x0, x1 = lib.ex(11.4), lib.ex(13.6)
+    common.slab(bm, [(x0, lib.ey(16.6)), (x1, lib.ey(16.6)), (x1, lib.ey(10.8)), (x0, lib.ey(10.8))],
+                2.6 * P, z=0.2 * P, mat_index=M[3])
     for r in (12, 14):
-        y0, y1 = lib.ey(r + 1) + 0.15 * P, lib.ey(r) - 0.15 * P
-        common.slab(bm, [(x0, y0), (x1, y0), (x1, y1), (x0, y1)], 0.06, z=0.1, mat_index=RIDGE)
+        y0, y1 = lib.ey(r + 1) + 0.12 * P, lib.ey(r) - 0.12 * P
+        common.slab(bm, [(x0, y0), (x1, y0), (x1, y1), (x0, y1)], 1.2 * P, z=2.2 * P, mat_index=M[12])
 
-    # Grey nozzle cheeks either side of the engine (columns 10 and 14, rows 8-10).
-    for side in (1, -1):
+    # Grey nozzle cheeks either side of the engine (columns 10 and 14, rows 8-10): upright
+    # rounded posts about 4.8 px tall, above the flame's shell, the left one lit.
+    for side, mat in ((1, M[10]), (-1, M[9])):
         start = len(bm.verts)
-        common.loft(bm, [(lib.ey(10.8), 0.55 * P, 1.9 * P, 0.0), (lib.ey(9.0), 0.55 * P, 1.8 * P, 0.0),
-                         (lib.ey(7.9), 0.4 * P, 1.2 * P, 0.0)], sides=6, mat_index=RIM)
-        common.shift_x(bm, start, CENTRE + side * 2 * P)
+        common.loft(bm, [(lib.ey(10.9), 0.65 * P, 2.4 * P, 2.4 * P), (lib.ey(9.0), 0.65 * P, 2.4 * P, 2.4 * P),
+                         (lib.ey(8.0), 0.5 * P, 1.9 * P, 2.2 * P)], sides=8, mat_index=mat)
+        common.shift_x(bm, start, CENTRE - side * 2 * P)
 
     body = common.mesh_object(NAME, bm, mats, coll, smooth=True)
 
-    # The flame, from inside the nozzle out past the back (rows 5-10, columns 8-16): a flat red
-    # outer flame, an orange-yellow core above it and a white-hot centre at the nozzle. Its tip
-    # reaches row 5 on frame 89, row 4 on 91 and row 3 on 93; each frame gets a flame stretched
-    # from the nozzle (row 10.8) to its tip.
+    # The flame, from inside the nozzle (row 10.8) out past the back to its tip (row 5 on frame
+    # 89, 4 on 91, 3 on 93): nested glowing cones, each standing above the one around it so the
+    # top view shows the sprite's rings: a dark-red shell 7 px wide at rows 7-10 narrowing to its
+    # 1 px tip (rows 5-6); a bright red band that shows at row 7; the 3 px orange core (rows
+    # 8-10, pointed at row 7); a yellow centre stripe down column 12, white-yellow at row 9 and
+    # white-hot at row 10, the highest part (5.5 px). Sections are (row edge, half width px,
+    # half height px, z centre px).
     flames = [
-        (FLAME, [(10.8, 2.4, 1.0), (9.0, 3.6, 1.2), (7.6, 3.3, 1.1), (6.6, 2.0, 0.9), (5.6, 0.9, 0.6),
-                 (4.9, 0.0, 0.0)], 0.0),
-        (CORE, [(10.8, 1.5, 1.6), (9.5, 1.65, 1.7), (8.0, 1.4, 1.5), (7.0, 0.8, 1.1), (6.2, 0.0, 0.0)], 0.02),
-        (HOT, [(10.6, 0.7, 1.9), (9.6, 0.8, 2.0), (8.6, 0.0, 0.0)], 0.03),
+        (FLAME, [(10.8, 2.8, 1.5, 2.0), (9.6, 3.6, 1.8, 2.0), (8.4, 3.5, 1.8, 2.0), (7.4, 3.2, 1.5, 1.9),
+                 (6.6, 1.7, 1.2, 2.2), (5.6, 0.6, 0.7, 1.9), (5.05, 0.0, 0.0, 1.7)], 10),
+        (MID, [(10.8, 2.4, 1.0, 3.0), (8.4, 2.6, 1.1, 3.0), (7.6, 2.5, 1.0, 3.0), (7.1, 1.6, 0.7, 2.9),
+               (6.95, 0.0, 0.0, 2.8)], 10),
+        (CORE, [(10.8, 1.6, 1.0, 3.8), (8.2, 1.6, 1.0, 3.8), (7.8, 1.0, 0.8, 3.8), (7.3, 0.45, 0.5, 3.7),
+                (6.95, 0.0, 0.0, 3.6)], 10),
+        (YEL, [(10.8, 0.8, 0.6, 4.4), (8.15, 0.8, 0.6, 4.4), (7.95, 0.0, 0.0, 4.4)], 8),
+        (HOT, [(10.0, 0.8, 0.5, 4.8), (9.1, 0.8, 0.5, 4.8), (8.95, 0.0, 0.0, 4.8)], 8),
+        (WHITE, [(10.8, 0.85, 0.5, 5.0), (10.05, 0.8, 0.5, 5.0), (9.9, 0.0, 0.0, 5.0)], 8),
     ]
     parts = [body]
-    for frame, tip in ((89, 4.9), (91, 3.9), (93, 2.9)):
-        k = (10.8 - tip) / (10.8 - 4.9)
+    # The longer flames are a little flatter and lower (FLAME_FRAMES), as a flame thins when it
+    # stretches, so a view showing every frame at once (the review sheet) sees frame 89's flame
+    # on top where it reaches; in game only one shows at a time.
+    for frame, tip, lift, zs in FLAME_FRAMES:
+        k = (10.8 - tip) / (10.8 - 5.05)
         fbm = bmesh.new()
-        for mat, secs, z in flames:
+        for mat, secs, sides in flames:
             start = len(fbm.verts)
-            common.loft(fbm, [(lib.ey(10.8 - (10.8 - r) * k), w * P, h * P, z) for r, w, h in secs], sides=8, mat_index=mat)
+            common.loft(fbm, [(lib.ey(10.8 - (10.8 - r) * k), w * P, h * zs * P, (z * zs + lift) * P)
+                              for r, w, h, z in secs], sides=sides, mat_index=mat)
             common.shift_x(fbm, start, CENTRE)
         parts.append(common.frame_part(common.mesh_object(f"{NAME}-flame-{frame}", fbm, mats, coll, smooth=True), [frame]))
     return parts

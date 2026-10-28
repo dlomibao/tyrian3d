@@ -9,6 +9,7 @@ each ends in a pale tip. One frame.
 Run: blender --background --python assets/blender/enemies/newshk-283.py [-- --preview out.png]
 """
 
+import math
 import sys
 from pathlib import Path
 
@@ -26,75 +27,169 @@ ROOT = common.repo_root(__file__)
 P = 1 / 12  # one sprite pixel
 
 
+def loft(bm, rings, mat, smooth=False, flat=(), flat_segs=None):
+    """Faces between consecutive rings of (x, y, z) points (all the same length), capped at both
+    ends. Faces from profile edge i are flat-shaded when i is in `flat` (in the first `flat_segs`
+    segments only, when given)."""
+    vs = [[bm.verts.new(p) for p in ring] for ring in rings]
+    n = len(rings[0])
+    for k, (a, b) in enumerate(zip(vs, vs[1:])):
+        sharp = flat if flat_segs is None or k < flat_segs else ()
+        for i in range(n):
+            j = (i + 1) % n
+            f = bm.faces.new((a[i], a[j], b[j], b[i]))
+            f.material_index, f.smooth = mat, smooth and i not in sharp
+            if smooth and i in sharp:  # keep the smooth faces beside it from shading into it
+                for e in f.edges:
+                    e.smooth = False
+    for cap in (list(reversed(vs[0])), vs[-1]):
+        f = bm.faces.new(cap)
+        f.material_index, f.smooth = mat, False
+
+
+def ring(y, profile):
+    return [(x, y, z) for x, z in profile]
+
+
+def pod_profile(groove, n=16):
+    """A unit circle (u, v) with a groove 1/3 deep and 1/3 wide cut in its top, centred at u =
+    groove. Returns the points and the indices of the groove's edges (flat-shaded)."""
+    ta, tb = math.acos(groove + 1 / 6), math.acos(groove - 1 / 6)
+    floor = min(math.sin(ta), math.sin(tb)) - 1 / 3
+    pts = [(2 * math.pi * k / n, (math.cos(2 * math.pi * k / n), math.sin(2 * math.pi * k / n)))
+           for k in range(n)]
+    pts = [p for p in pts if not (ta - 0.05 < p[0] < tb + 0.05)]
+    pts += [(ta, (math.cos(ta), math.sin(ta))), (ta + 1e-4, (math.cos(ta), floor)),
+            (tb - 1e-4, (math.cos(tb), floor)), (tb, (math.cos(tb), math.sin(tb)))]
+    pts.sort()
+    i = [k for k, (t, _) in enumerate(pts) if t == ta][0]
+    return [uv for _, uv in pts], (i, i + 1, i + 2), floor
+
+
+def ellipsoid(bm, cx, cy, cz, rx, ry, rz, mat, sides=12, rings=6):
+    secs = [(cy + ry, 0.0, 0.0, cz)]
+    for k in range(1, rings):
+        t = math.pi * k / rings
+        secs.append((cy + ry * math.cos(t), rx * math.sin(t), rz * math.sin(t), cz))
+    secs.append((cy - ry, 0.0, 0.0, cz))
+    lib.rod_y(bm, cx, secs, sides=sides, mat=mat)
+
+
 def build(sprite):
     coll = common.reset_collection(NAME)
     pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
     mats = [
-        pal(9, metallic=0.55, roughness=0.4),  # 0 grey housing
-        pal(8, metallic=0.55, roughness=0.45),  # 1 darker grey sides and roof
-        pal(11, metallic=0.6, roughness=0.3),  # 2 light grey frame and ribs
-        pal(5, metallic=0.5, roughness=0.5),  # 3 dark grey lip and grooves
-        pal(3, metallic=0.4, roughness=0.6),  # 4 dark window and slots
-        pal(13, metallic=0.6, roughness=0.25),  # 5 pale tips and rivets
-        pal(116, emission_strength=3.0),  # 6 red-hot elements
-        pal(123, emission_strength=5.0),  # 7 hot spot
-        pal(10, metallic=0.55, roughness=0.35),  # 8 light grey strips
-        pal(114, emission_strength=1.5),  # 9 dull red glow at the bottom of the slots
+        pal(9, metallic=0.5, roughness=0.4),  # 0 grey housing and pods
+        pal(8, metallic=0.5, roughness=0.45),  # 1 darker grey rounded sides
+        pal(11, metallic=0.25, roughness=0.35),  # 2 light grey window frame and front edge
+        pal(5, metallic=0.4, roughness=0.5),  # 3 dark grey lip, grooves, lower pane
+        pal(3, metallic=0.3, roughness=0.6),  # 4 dark upper pane, top of the slots
+        pal(13, metallic=0.3, roughness=0.25),  # 5 pale caps and rivets
+        pal(117, emission_strength=6.0),  # 6 red-hot elements
+        pal(123, emission_strength=6.0),  # 7 hot spot (left)
+        pal(10, metallic=0.25, roughness=0.35),  # 8 light grey rails
+        pal(113, emission_strength=3.0),  # 9 dim glow on the slot floor
+        pal(1, metallic=0.2, roughness=0.8),  # 10 black slot floor
+        pal(6, metallic=0.4, roughness=0.5),  # 11 cross groove on the rails
+        pal(121, emission_strength=6.0),  # 12 hot spot (right)
     ]
-    GREY, SIDE, LIGHT, LIP, DARK, PALE, HOT, SPOT, STRIP, EMBER = range(10)
+    GREY, SIDE, LIGHT, LIP, DARK, PALE, HOT, SPOT, STRIP, EMBER, BLACK, NOTCH, SPOT2 = range(13)
     bm = bmesh.new()
-    top = 0.13  # housing top
+    H = 9 * P  # housing top: about 3 px above the pods, its row 13 shadow band an overhang
 
-    # Housing (rows 4-12), its sides bevelled down (the darker columns 0-1 and 22-23).
-    lib.extrude_y(bm, [(ex(0), -0.12), (ex(24), -0.12), (ex(24), top - 0.08), (ex(22), top),
-                       (ex(2), top), (ex(0), top - 0.08)], ey(13), ey(4), mat=GREY)
-    # Sloped roof behind it (rows 1-3): a wedge falling away towards the top of the sprite.
-    lib.prism(bm, [(ex(4), ey(4.2), top), (ex(20), ey(4.2), top), (ex(14), ey(1), top - 0.1),
-                   (ex(10), ey(1), top - 0.1)], -0.08, mat=SIDE)
-    # Dark lip under the housing (row 13), right across.
-    lib.box(bm, 0, 13, 24, 14, -0.1, top - 0.04, mat=LIP)
+    # Housing (rows 4-13): a block 9 px tall over columns 2-22 with a 2 px deep window cut in it
+    # (columns 8-16, rows 7-10), and rounded darker sides (columns 0-2 and 22-24).
+    full = [(ex(2), 0), (ex(22), 0), (ex(22), H), (ex(2), H)]
+    notch = [(ex(2), 0), (ex(22), 0), (ex(22), H), (ex(16), H), (ex(16), H - 2 * P),
+             (ex(8), H - 2 * P), (ex(8), H), (ex(2), H)]
+    for r0, r1, prof in ((4.5, 7, full), (7, 10, notch), (10, 13, full)):
+        loft(bm, [ring(ey(r0), prof), ring(ey(r1), prof)], GREY)
+    for side in (-1, 1):
+        o = ex(12)
+        def mx(c):
+            return o + side * (ex(c) - o)
+        prof = [(mx(2), 0), (mx(2), H), (mx(1), H - 0.6 * P), (mx(0), H - 2.2 * P), (mx(0), 0)]
+        if side < 0:
+            prof = prof[::-1]
+        loft(bm, [ring(ey(4.5), prof), ring(ey(13), prof)], SIDE)
+    # Lit front edge (row 4) chamfered down towards the nose.
+    lib.prism(bm, [(ex(0.6), ey(3.4), H - 2 * P), (ex(23.4), ey(3.4), H - 2 * P), (ex(23.6), ey(4.6), H),
+                   (ex(0.4), ey(4.6), H)], 0.0, mat=LIGHT)
+    # Row 13: the dark underside of the overhang, falling from the housing top to the pods.
+    def lip(top):
+        return [(ex(0), 0), (ex(24), 0), (ex(24), top - 2.2 * P), (ex(23), top - 0.6 * P), (ex(22), top),
+                (ex(2), top), (ex(1), top - 0.6 * P), (ex(0), top - 2.2 * P)]
+    loft(bm, [ring(ey(13), lip(H)), ring(ey(14), lip(5.5 * P))], LIP)
 
-    # Window: a light frame (columns 7-16, rows 7-10) round a dark sunken pane.
-    lib.box(bm, 7, 6.8, 17, 7.6, top, top + 0.03, mat=LIGHT)
-    lib.box(bm, 7, 10, 17, 11, top, top + 0.03, mat=LIGHT)
-    lib.box(bm, 7, 6.8, 8, 11, top, top + 0.03, mat=LIGHT)
-    lib.box(bm, 16, 6.8, 17, 11, top, top + 0.03, mat=LIGHT)
-    lib.box(bm, 8, 7.6, 16, 10, top - 0.03, top + 0.005, mat=DARK)
+    # Window: dark pane at the bottom of the cut, light frame (columns 7 and 16, row 10) proud.
+    lib.box(bm, 8, 7, 16, 8, H - 2.05 * P, H - 1.95 * P, mat=DARK)
+    lib.box(bm, 8, 8, 16, 10, H - 2.05 * P, H - 1.95 * P, mat=LIP)
+    lib.box(bm, 7, 7, 8, 11, H - 0.1 * P, H + 0.5 * P, mat=LIGHT)
+    lib.box(bm, 16, 7, 17, 11, H - 0.1 * P, H + 0.5 * P, mat=LIGHT)
+    lib.box(bm, 8, 10, 16, 11, H - 0.1 * P, H + 0.5 * P, mat=LIGHT)
 
-    # Ribbed strips down the sides (columns 2 and 4, 19 and 21) with rivets (rows 4 and 9).
+    # Raised rails (columns 2 and 4, 19 and 21), broken by a dark cross groove at row 8, with
+    # rivets at rows 4 and 9.
     for c in (2, 4, 19, 21):
-        lib.box(bm, c + 0.1, 4, c + 0.9, 13, top - 0.01, top + 0.025, mat=STRIP)
+        lib.box(bm, c + 0.05, 4.5, c + 0.95, 8, H - 0.1 * P, H + 0.6 * P, mat=STRIP)
+        lib.box(bm, c + 0.05, 9, c + 0.95, 13, H - 0.1 * P, H + 0.6 * P, mat=STRIP)
+    for c0, c1 in ((2, 5), (19, 22)):
+        lib.box(bm, c0, 8, c1, 9, H - 0.1 * P, H + 0.05 * P, mat=NOTCH)
     for c in (4, 19):
-        for r in (4, 9):
-            lib.stud(bm, gx(c), gy(r), top + 0.02, 0.6 * P, 0.03, mat=PALE)
+        for y in (ey(4.9), gy(9)):
+            lib.stud(bm, gx(c), y, H + 0.6 * P, 0.6 * P, 0.6 * P, mat=PALE)
 
-    # Prongs (rows 14-24): grey blocks rounded on their outer sides, a groove down each.
-    for c0, c1, groove, slot in ((0, 6, 3, (6, 10)), (17, 23, 19, (13, 17))):
-        mid, half = (ex(c0) + ex(c1)) / 2, (ex(c1) - ex(c0)) / 2
-        start = len(bm.verts)
-        lib.rod_y(bm, 0.0, [(ey(14), half, 0.12, 0.0), (ey(23), half, 0.12, 0.0),
-                            (ey(25.5), half * 0.95, 0.11, -0.01), (ey(27.2), half * 0.8, 0.08, -0.02),
-                            (ey(28), half * 0.6, 0.04, -0.02)], sides=10, mat=GREY)
-        bm.verts.ensure_lookup_table()
-        for v in bm.verts[start:]:
-            v.co.x += mid
-        lib.box(bm, groove + 0.15, 14, groove + 0.85, 24, 0.0, 0.122, mat=LIP)
-        # The slot on the prong's inner side, lower than the prong, glowing dull red inside.
-        lib.box(bm, slot[0], 14, slot[1], 24.5, -0.1, 0.0, mat=DARK)
-        lib.box(bm, slot[0] + 0.5, 14, slot[1] - 0.5, 24.3, 0.0, 0.03, mat=EMBER)
-        # Pale tip at the prong's inner bottom corner (columns 4-7 and 16-19, rows 25-27).
-        tip = gx(5) if c0 == 0 else gx(18)
-        lib.rod_y(bm, tip, [(ey(24.6), 0.0, 0.0, 0.0), (ey(25), 1.6 * P, 0.1, 0.0), (ey(27), 1.8 * P, 0.1, 0.0),
-                            (ey(27.8), 1.3 * P, 0.07, -0.01), (ey(28), 0.0, 0.0, -0.01)],
-                  sides=10, mat=PALE)
+    # Nose cowl (rows 0-3): tapering from 14 px wide at the housing to 4 px at the front and
+    # sloping from the housing top down to 4 px, with bevelled top edges.
+    def cowl(hw, top):
+        x0 = ex(12)
+        return [(x0 - hw, 0), (x0 + hw, 0), (x0 + hw, top - 1.5 * P), (x0 + hw - P, top),
+                (x0 - hw + P, top), (x0 - hw, top - 1.5 * P)]
+    loft(bm, [ring(ey(4.6), cowl(7 * P, H - 0.2 * P)), ring(ey(3), cowl(6.3 * P, 7.4 * P)),
+              ring(ey(2), cowl(4.7 * P, 6.2 * P)), ring(ey(1), cowl(3.2 * P, 5 * P)),
+              ring(ey(-0.05), cowl(2.2 * P, 4 * P))], GREY)
 
-    # Red-hot elements in the slots (columns 7 and 9, 13 and 15).
-    for c, r0, r1 in ((7, 16, 24.5), (9, 14, 24), (13, 14, 24), (15, 16, 24.5)):
-        lib.rod_y(bm, gx(c), [(ey(r0), 0.0, 0.0, 0.05), (ey(r0) - 0.4 * P, 0.6 * P, 0.035, 0.05),
-                              (ey(r1) + 0.4 * P, 0.6 * P, 0.035, 0.05), (ey(r1), 0.0, 0.0, 0.05)],
-                  sides=6, mat=HOT)
-    lib.stud(bm, gx(9), gy(21), 0.06, 0.6 * P, 0.035, mat=SPOT)
-    lib.stud(bm, gx(13), gy(21), 0.06, 0.5 * P, 0.03, mat=SPOT)
+    # Pods (rows 14-27): round, 6 px across and 6 px tall, a groove cut down column 3 / 19,
+    # rounded off at the tail.
+    R = 3 * P
+    # The right pod also covers column 23 (the sprite's outline there; the left one is cut off).
+    for cx, rx, groove_c in ((ex(3), R, 3), (ex(20.5), 3.5 * P, 19)):
+        g = (ex(groove_c) + P / 2 - cx) / rx
+        prof, flat, floor = pod_profile(g, n=14)
+        rings = []
+        lo, hi = flat[0], flat[2] + 1  # the groove's top corners; between them, its floor
+        for r, s, fill in ((11, 1.0, 0), (14, 1.0, 0), (23.5, 1.0, 0), (25.5, 0.97, 0.6), (26.8, 0.86, 0.9),
+                           (27.6, 0.62, 0.9), (28.0, 0.25, 0.9)):
+            zc = R * s
+            pts = list(prof)
+            for k in (lo + 1, hi - 1):  # the groove closes up round the tail
+                pts[k] = (pts[k][0], pts[k][1] + fill * (math.sqrt(1 - pts[k][0] ** 2) - pts[k][1]))
+            rings.append([(cx + u * rx * s, ey(r), zc + v * R * s) for u, v in pts])
+        loft(bm, rings, GREY, smooth=True, flat=flat, flat_segs=2)
+        zf = R + floor * R
+        lib.box(bm, groove_c + 0.02, 14, groove_c + 0.98, 23.5, zf - 0.2 * P, zf + 0.05 * P, mat=LIP)
+
+    # Pale rounded caps at the pods' inner tails (columns 4-7 and 15-18, rows 25-27).
+    for cx in (ex(6.2), ex(16.8)):
+        ellipsoid(bm, cx, ey(26.2), 2.3 * P, 2.4 * P, 2.0 * P, 2.2 * P, PALE, sides=12)
+
+    # Slots between the pods: a black floor 1.5 px up, dark under the overhang, with round red-hot
+    # elements on it (columns 7 and 9, 13 and 15) and a dim glow between each pair.
+    bed = 1.5 * P
+    for c0, c1, r1 in ((6, 11, 25), (13, 17, 25.5)):
+        lib.box(bm, c0, 13.5, c1, r1, 0.0, bed, mat=BLACK)
+    lib.box(bm, 6, 13.6, 9, 16, bed, bed + 0.1 * P, mat=DARK)
+    lib.box(bm, 14, 13.6, 17, 16, bed, bed + 0.1 * P, mat=DARK)
+    lib.box(bm, 8.1, 17, 8.9, 20, bed, bed + 0.15 * P, mat=EMBER)
+    lib.box(bm, 14.1, 18, 14.9, 23, bed, bed + 0.15 * P, mat=EMBER)
+    rz = 0.6 * P
+    for c, r0, r1 in ((7, 16, 25), (9, 14, 24), (13, 14, 24), (15, 16, 25)):
+        z = bed + rz
+        lib.rod_y(bm, gx(c), [(ey(r0), 0.25 * P, 0.25 * P, z), (ey(r0) - 0.3 * P, 0.6 * P, rz, z),
+                              (ey(r1) + 0.3 * P, 0.6 * P, rz, z), (ey(r1), 0.25 * P, 0.25 * P, z)],
+                  sides=8, mat=HOT)
+    lib.stud(bm, gx(9), gy(21), bed + 1.6 * rz, 0.65 * P, 0.5 * P, mat=SPOT)
+    lib.stud(bm, gx(13), gy(21), bed + 1.6 * rz, 0.6 * P, 0.45 * P, mat=SPOT2)
 
     return lib.to_object(NAME, bm, mats, coll)
 

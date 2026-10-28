@@ -1,9 +1,14 @@
 """Grey bomb (newsh5.shp frame 77): a 3D version of its sprite.
 
 Seen in episode 4 (levels 4.18, 4.22 and 4.47). A round steel bomb falling nose first down the
-screen: a wide flat cap with a groove round it at the back, a thin neck between two collars, a
-fat body with a red band round it and a pointed nose with stabiliser fins. Turned round its long
-axis (which lies in the screen plane), flattened a little so it stays low.
+screen: a flat disc tail plate at the back, a thin neck between two collars, a round body (a
+shoulder, a red strap round it and a fat bulb) that rounds down to a short blunt stub at the tip.
+One body of revolution turned round its long axis (which lies in the screen plane): every part is
+as tall as it is wide in the sprite, and its outline is the sprite's, dark outline pixels included.
+
+The sprite's shading (the highlight column, the dark rows and the light streak low on the right)
+is painted on, not modelled: each face takes the palette shade nearest the average of the sprite
+pixels it covers from above.
 
 Run: blender --background --python assets/blender/enemies/newsh5-77.py [-- --preview out.png]
 """
@@ -23,62 +28,110 @@ NAME = "newsh5-77"
 MODEL = f"enemies/{NAME}"
 ROOT = common.repo_root(__file__)
 U = lib.U
-MAX_H = 3.4  # px: the round sections are flattened to at most this half height
+SIDES = 20  # a face on top (centred on the axis) and one either side every 18 degrees
+
+# The profile, from the back (row edge 0, the top edge of sprite row 0) to the nose tip: (row
+# edge, radius px). Radii are the sprite's half widths, outline included: rows 0-3 13 px wide, row 4
+# 11, rows 5-6 7, rows 7-8 5, rows 9-13 7, rows 14-17 11, rows 18-21 13, then 11, 9, 7, 5, 3.
+PROFILE = [
+    # Tail plate: one flat disc (rows 0-3) with a bevel at the back and a sloped underside (row 4).
+    (0.0, 5.7), (0.45, 6.5), (3.55, 6.5), (4.1, 5.9), (4.6, 5.2), (4.95, 4.2),
+    # Upper collar (rows 5-6), neck rod (rows 7-8), lower collar (rows 9-13).
+    (5.0, 3.5), (6.8, 3.5), (7.0, 2.9), (7.1, 2.5), (8.9, 2.5), (9.0, 3.1), (9.15, 3.5),
+    (13.9, 3.5),
+    # The body's rounded shoulder (row 14) and its upper part (rows 15-16).
+    (14.0, 4.2), (14.3, 5.0), (14.6, 5.35), (15.0, 5.5), (16.85, 5.5),
+    # The red strap (rows 17-18): wrapped round the body where it widens, 0.3 px proud.
+    (16.9, 5.8), (17.8, 5.95), (18.2, 6.65), (19.0, 6.75), (19.05, 6.5),
+    # The bulb (rows 19-21), rounding down over rows 22-24 to the blunt stub (rows 25-26).
+    (21.6, 6.5), (22.0, 6.35), (22.5, 5.9), (23.0, 5.4), (23.5, 4.85), (24.0, 4.3), (24.5, 3.7),
+    (25.0, 3.0), (25.05, 2.45), (25.9, 2.3), (26.3, 1.9), (26.7, 1.35), (26.95, 0.7), (27.0, 0.0),
+]
+STEEP = 1.5  # px of radius per px of length: steeper rings are crisp steps, shaded flat
+LIFT = 1.2  # the lighting darkens the turned surface towards its rim, so the painted shades
+#             (the sprite's, which already carry its shading) are lifted a little; outline stays dark
+
+# The palette shades the faces may take (sprite indices): the greys every other step and the reds.
+SHADES = [2, 4, 6, 8, 10, 12, 14, 113, 115, 117]
+
+
+def rings_of(profile):
+    """The profile with a ring added at every whole row edge inside a longer span, so each face
+    covers one sprite row and can take that row's shade."""
+    out = [profile[0]]
+    for (e0, r0), (e1, r1) in zip(profile, profile[1:]):
+        for e in range(math.floor(e0) + 1, math.ceil(e1)):
+            if e - e0 > 0.2 and e1 - e > 0.2:
+                out.append((float(e), r0 + (r1 - r0) * (e - e0) / (e1 - e0)))
+        out.append((e1, r1))
+    return out
 
 
 def build(sprite):
     coll = common.reset_collection(NAME)
-    pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
-    mats = [
-        pal(11, metallic=0.75, roughness=0.25),  # 0 bright steel cap and collars
-        pal(8, metallic=0.7, roughness=0.3),  # 1 steel body
-        pal(5, metallic=0.6, roughness=0.4),  # 2 dark steel neck and nose
-        pal(3, metallic=0.5, roughness=0.5),  # 3 grooves
-        pal(117, metallic=0.3, roughness=0.35),  # 4 red band
-    ]
-    CAP, BODY, DARK, GROOVE, BAND = range(5)
-    g = lib.Grid(24, 28)
+    mats = [common.palette_material(sprite, i, NAME, metallic=0.1, roughness=0.45) for i in SHADES]
+    colours = [sprite["colors"][str(i)] for i in SHADES]
+    px = sprite["frames"][0]["pixels"]
+    g = lib.Grid(24, 28, px)
     ax = g.x(12)
     bm = bmesh.new()
 
-    def part(sections, mat, cap_start=True, cap_end=True):
-        """A round section of the bomb: (row edge, half width px) pairs down the screen."""
-        v0 = len(bm.verts)
-        common.loft(bm, [(g.y(r - 0.5), w * U, min(w, MAX_H) * U, 0.0) for r, w in sections],
-                    sides=16, mat_index=mat, cap_start=cap_start, cap_end=cap_end)
-        common.shift_x(bm, v0, ax)
+    profile = rings_of(PROFILE)
+    rings = []
+    for e, r in profile:
+        y = g.y(e - 0.5)
+        if r == 0.0:
+            rings.append([bm.verts.new((ax, y, 0.0))])
+            continue
+        rings.append([bm.verts.new((ax + r * U * math.cos(a), y, r * U * math.sin(a)))
+                      for a in (2 * math.pi * (i + 0.5) / SIDES for i in range(SIDES))])
+    for k, (r0, r1) in enumerate(zip(rings, rings[1:])):
+        (e0, w0), (e1, w1) = profile[k], profile[k + 1]
+        smooth = abs(w1 - w0) <= STEEP * (e1 - e0)
+        for i in range(SIDES):
+            j = (i + 1) % SIDES
+            f = bm.faces.new((r0[i], r0[j], r1[0]) if len(r1) == 1 else (r0[i], r0[j], r1[j], r1[i]))
+            f.smooth = smooth
+    bm.faces.new(list(reversed(rings[0]))).smooth = False  # the flat back of the tail plate
 
-    # common.loft runs along +Y, so list each part from its bottom (nose end) up.
-    part([(26.4, 0.0), (25.6, 1.1), (24.8, 2.2), (23.8, 3.3), (22.8, 4.2), (22.0, 5.0)], DARK)  # nose
-    part([(22.0, 5.0), (19.0, 5.0)], BODY)  # body below the band (rows 19-21)
-    part([(19.1, 4.9), (18.9, 5.0), (17.1, 5.0), (16.9, 4.9)], BAND)  # red band (rows 17-18)
-    part([(17.0, 4.6), (15.2, 4.6), (14.8, 4.2), (14.4, 2.0)], BODY)  # body top (rows 15-16)
-    part([(14.6, 1.5), (13.4, 1.5)], DARK)  # waist (row 14)
-    part([(13.8, 2.5), (10.0, 2.5), (9.6, 1.6)], CAP)  # lower collar (rows 10-13)
-    part([(9.8, 1.5), (6.8, 1.5)], DARK)  # neck (rows 7-9)
-    part([(7.0, 1.6), (6.6, 2.5), (4.8, 2.5), (4.4, 1.8)], CAP)  # upper collar (rows 5-6)
-    part([(4.6, 2.0), (4.1, 2.6), (3.9, 3.4)], DARK)  # under the cap (row 4)
-    part([(4.0, 3.2), (3.8, 4.4), (3.2, 4.8), (2.9, 4.8)], CAP)  # cap rim (row 3)
-    part([(3.2, 4.8), (2.0, 4.8)], GROOVE)  # groove round the cap (row 2)
-    part([(2.1, 5.4), (0.9, 5.4), (0.6, 4.6)], CAP)  # cap (row 1)
-    lib.set_smooth(bm, 0)
+    # Paint: each face seen from above takes the shade nearest the mean colour of the sprite pixels
+    # under it, the dark outline included. The sides and underside (never seen from above) take the
+    # mean of their rows' pixels inside the outline, so the 3/4 views show steel, not a black rim.
+    def shade_for(c0, c1, r0, r1, cx, cy, side=False):
+        rows = [r for r in range(28) if r0 <= r <= r1] or [int(round(cy))]
+        if side:
+            rgb = [sprite["colors"][str(px[r][c])] for r in rows if 0 <= r < 28 for c in range(24)
+                   if px[r][c] not in (-1, 1)]
+            if rgb:
+                mean = [sum(p[k] for p in rgb) / len(rgb) * LIFT for k in range(3)]
+                return min(range(len(SHADES)),
+                           key=lambda s: sum((colours[s][k] - mean[k]) ** 2 for k in range(3)))
+        cols = [c for c in range(24) if c0 <= c <= c1] or [int(round(cx))]
+        rgb = [sprite["colors"][str(px[r][c])] for r in rows for c in cols
+               if 0 <= r < 28 and 0 <= c < 24 and px[r][c] != -1]
+        if not rgb:
+            idx = g.sample(g.x(cx), g.y(cy), reach=1)
+            if idx is None:
+                return None
+            rgb = [sprite["colors"][str(idx)]]
+        mean = [sum(p[k] for p in rgb) / len(rgb) for k in range(3)]
+        if max(mean) > 30:
+            mean = [m * LIFT for m in mean]
+        return min(range(len(SHADES)), key=lambda s: sum((colours[s][k] - mean[k]) ** 2 for k in range(3)))
 
-    # Two stabiliser fins on the nose (the one to the right shows on the sprite at columns 15-16).
-    for ang in (math.radians(35), math.radians(215)):
-        d = (math.cos(ang), math.sin(ang))
-        t = 0.35 * U  # half thickness
-        pts = [(19.6, 3.6), (19.6, 6.4), (23.2, 4.6), (24.6, 2.0)]  # (row edge, radius px)
-        verts = []
-        for r, rad in pts:
-            cx, cz = ax + d[0] * rad * U, d[1] * rad * U * (MAX_H / 5.0)
-            verts.append([bm.verts.new((cx - d[1] * t * s, g.y(r - 0.5), cz + d[0] * t * s)) for s in (-1, 1)])
-        a = [v[0] for v in verts]
-        b = [v[1] for v in verts]
-        bm.faces.new(a).material_index = BODY
-        bm.faces.new(list(reversed(b))).material_index = BODY
-        for i in range(4):
-            j = (i + 1) % 4
-            bm.faces.new((a[j], a[i], b[i], b[j])).material_index = BODY
+    bm.faces.ensure_lookup_table()
+    bm.normal_update()
+    back = len(bm.faces) - 1
+    for f in bm.faces:
+        if f.index == back:
+            f.material_index = SHADES.index(8)
+            continue
+        cs = [g.col(v.co.x) for v in f.verts]
+        rs = [g.row(v.co.y) for v in f.verts]
+        c = f.calc_center_median()
+        slot = shade_for(min(cs), max(cs), min(rs), max(rs), g.col(c.x), g.row(c.y),
+                         side=f.normal.z < 0.05)
+        f.material_index = SHADES.index(8) if slot is None else slot
 
     return lib.to_object(NAME, bm, mats, coll)
 

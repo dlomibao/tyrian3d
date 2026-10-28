@@ -7,15 +7,19 @@ the middle, covered in rounded folds (gyri) with dark grooves between them. A lo
 sweeps from the lower left up towards the fissure; the brightest lumps are along the bottom edge,
 where the brain carries on (below the red star, newsh5-278, which other batches model).
 
-Built whole in assembly coordinates: a domed core lofted column by column to the sprite's outline
-(lower along the fissure), with the folds laid on it as rounded tubes, then cut into the three
-pieces with common.split_assembly. Each piece has one frame.
+Built as a smooth heightfield over the sprite's pixels (a half-pixel lattice, each pixel in its
+own palette colour): two lobes domed up to about 13 px, rounding down to the outline (no plinth) and to
+about 1 px at the bottom cut, and into a V cleft at the fissure, with the folds raised and the grooves sunk by how
+much brighter or darker the blurred sprite is than its surroundings, so the gyri are round tubes
+that follow the sprite's own folds. The light flesh's shading normals lean towards straight up so
+the folds shade soft rather than dark and glossy. The pieces are built straight from their
+own 24 columns (the piece borders are pixel borders) and share the corners and their normals, so
+they meet without a step or a shading line. Each piece has one frame.
 
 Run: blender --background --python assets/blender/enemies/assembly-newsh5-198.py [-- --preview out.png]
 (the preview is the whole brain top; each piece also gets <piece>.png next to it).
 """
 
-import math
 import sys
 from pathlib import Path
 
@@ -46,147 +50,294 @@ def Y(r):
     return (13.5 - r) / 12
 
 
-def column_tops(sprites):
-    """The first coloured row (not transparent, not the black outline) of each assembly column."""
-    tops = []
-    for data in sprites:
-        pix = data["frames"][0]["pixels"]
-        for c in range(24):
-            r = next((r for r in range(28) if pix[r][c] not in (-1, 1)), 28)
-            tops.append(r)
-    # smooth the staircase a little, but keep the notch at the fissure (columns 34-38)
-    out = list(tops)
-    for a in range(1, 71):
-        if not 33 <= a <= 39:
-            out[a] = 0.25 * tops[a - 1] + 0.5 * tops[a] + 0.25 * tops[a + 1]
-    return out
+def sprite_grid(sprites):
+    """The three pieces' first frames side by side: 28 rows x 72 assembly columns of palette indices."""
+    import numpy as np
+    return np.hstack([np.array(d["frames"][0]["pixels"], dtype=int) for d in sprites])
+
+
+# Heights in sprite px.
+DOME = 13.0  # each lobe's crown above the ground
+DOME_R = 9.0  # how far in from the outline the lobes round over to their crowns
+RIM = 0.4  # the outline's edge
+BOTTOM = 0.0  # underside (on the ground: no plinth)
+FOLD = 3.0  # px of fold relief per palette step brighter than the surroundings
+RELIEF = 3.4  # the most a fold stands out of (or a sulcus sinks into) the dome, px
+FINE, BROAD = 1.4, 3.6  # blur radii (px) of the fold relief: the folds' rounding, their surroundings
+RELIEF_IN = 2.5  # the folds fade in over this many px from the outline, so the rim rounds over
+VMAX = 13  # brighter pixels (the near-white spots) are sheen on the folds, not taller folds
+CLEFT = 0.9  # how much of the height the midline fissure cuts away at its centre line
+SOFTEN = 3.0  # how far the light flesh's shading normals tilt towards SOFT_DIR (0 = true normals)
+SOFT_DIR = (-0.7, -0.25, 1.0)  # the direction the light flesh's normals lean towards: mostly up and a
+# little away from the studio light's grey specular lobe, so the folds light salmon rather than grey
+SOFT_FROM, SOFT_TO = 2.0, 6.0  # blurred brightness (palette steps over 64) where the softening fades in
+RIM_SMOOTH, RIM_SMOOTH_PASSES = 1.5, 3  # px from the outline whose normals are smoothed, and passes
+DARK_DIR, DARK_LEAN = (0.6, -0.6, 0.5), 6.0  # where the black fissure's normals lean, and how far
+STEEPEN, DARK = 4.0, 4.0  # the dark flesh's shading slopes are steepened by up to 1 + STEEPEN below DARK
+CLEFT_W = 1.4  # px: half-width of the fissure's V at the top
+EDGE_SOFT = 0.5  # px: how much the distance to the outline is rounded over the outline's pixel steps
+BOTTOM_OUT = 0.35  # px beyond the bottom cut where the lobes would reach the ground (the folds roll
+# down to about 1 px at the cut rather than ending in a cliff)
+
+
+def _box_dist(py, px, oy, ox):
+    """Distance (px) from points (py, px) to the unit squares centred on (oy, ox): (points x squares)."""
+    import numpy as np
+    dy = np.maximum(np.abs(py[:, None] - oy[None, :]) - 0.5, 0)
+    dx = np.maximum(np.abs(px[:, None] - ox[None, :]) - 0.5, 0)
+    return np.sqrt(dy * dy + dx * dx)
+
+
+def field(grid, py, px):
+    """Heights (px) at points (py, px) in pixel units (pixel (r, c) spans rows r..r+1, columns
+    c..c+1): two domed lobes rounding down to the outline and into the midline fissure, with the
+    gyri standing out of the sulci by how much brighter they are than their surroundings. The
+    relief is a continuous Gaussian blur of the sprite's brightness, so each fold is a smooth,
+    round-crested tube rather than a per-pixel spike. Returns (heights, blurred brightness in
+    palette steps above the darkest flesh)."""
+    import numpy as np
+    H, W = grid.shape
+    inside = grid != -1
+    rr, cc = np.mgrid[0:H, 0:W]
+    # the outline: transparent pixels, and a transparent border left, right and above (the bottom
+    # edge is a cut where the brain carries on)
+    pad = np.full((H + 1, W + 2), True)
+    pad[1:, 1:-1] = ~inside
+    oy, ox = np.nonzero(pad)
+    # a soft minimum of the distances to the outside pixels' centres, so the outline's pixel steps
+    # don't crease the slope (a hard minimum leaves a ridge or a notch at every step)
+    do = np.sqrt((py[:, None] - (oy - 0.5)[None, :]) ** 2 + (px[:, None] - (ox - 0.5)[None, :]) ** 2)
+    dmin = do.min(1)
+    d_edge = dmin - EDGE_SOFT * np.log(np.exp(-(do - dmin[:, None]) / EDGE_SOFT).sum(1)) - 0.5
+    d_edge = np.maximum(d_edge, 0)
+    d_edge = np.minimum(d_edge, (H - py) + BOTTOM_OUT)
+    # the fissure: the black pixels inside the brain, below its top notch
+    fiss = (grid == 1) & (cc >= 33) & (cc <= 39) & (rr >= 9)
+    fy, fx = np.nonzero(fiss)
+    d_fiss = _box_dist(py, px, fy + 0.5, fx + 0.5).min(1)
+    t = np.clip(d_edge / DOME_R, 0, 1)
+    # the lobes round over from the outline to their crowns with a finite slope (no wall)
+    dome = RIM + (DOME - RIM) * np.sin(0.5 * np.pi * t)
+    ft = np.clip(d_fiss / 6.0, 0, 1)
+    dome *= 0.62 + 0.38 * np.sqrt(1 - (1 - ft) ** 2)  # the lobes round down into the fissure
+    # folds: brightness relative to the surroundings, blurred continuously over the inside pixels
+    iy, ix = np.nonzero(inside)
+    v = np.clip(grid - 64, 0, VMAX).astype(float)[iy, ix]
+    d2 = (py[:, None] - (iy + 0.5)[None, :]) ** 2 + (px[:, None] - (ix + 0.5)[None, :]) ** 2
+
+    def blur(sigma):
+        w = np.exp(-0.5 * d2 / sigma ** 2)
+        return (w * v).sum(1) / np.maximum(w.sum(1), 1e-9)
+
+    fine = blur(FINE)
+    relief = RELIEF * np.tanh(FOLD * (fine - blur(BROAD)) / RELIEF)
+    s = np.clip(d_edge / RELIEF_IN, 0, 1)
+    relief *= s * s * (3 - 2 * s)
+    h = dome + relief
+    # the cleft: a V down the fissure pixels' centre line, so its black pixels face sideways
+    d_fc = np.sqrt((py[:, None] - (fy + 0.5)[None, :]) ** 2 + (px[:, None] - (fx + 0.5)[None, :]) ** 2).min(1)
+    h *= 1 - CLEFT * np.clip(1 - d_fc / CLEFT_W, 0, 1)
+    return np.maximum(h, 0.3), fine, d_edge
 
 
 class Brain:
-    """The domed core: a loft of rings standing in the YZ plane, one per column, each spanning
-    from the sprite's top edge down past the bottom of the pieces (row 31, cut away later)."""
+    """A heightfield over the sprite's pixels on a half-pixel lattice: each pixel a fan of 8
+    triangles around its centre (through its corners and edge midpoints) in the pixel's own
+    palette colour, smooth-shaded, with low walls down to the ground along the outline. The pieces
+    are built straight from their own columns (the piece borders are pixel borders), sharing the
+    lattice points and their normals, so they meet without a step or a shading line."""
 
-    BOTTOM_ROW = 31.0
-    EXP = 0.75  # superellipse exponent: < 1 fills the rings out
+    def __init__(self, sprite, grid):
+        import numpy as np
+        self.grid = grid
+        H, W = self.H, self.W = grid.shape
+        self.inside = grid != -1
+        tag = "nsh5brain"
+        used = sorted({int(v) for v in grid.ravel() if v >= 0})
+        order = [67] + [i for i in used if i != 67]  # material 0 is the dark flesh
+        # soft, matte flesh: rough and non-metallic, so it lights to its own salmon rather than
+        # a dull glossy maroon (the fissure's black is fully rough, so it shows no streak)
+        self.mats = [common.palette_material(sprite, i, tag, metallic=0.0,
+                                             roughness=0.6 if i >= 74 else 0.75 if i >= 68 else 0.9 if i >= 64 else 1.0)
+                     for i in order]
+        self.mat_of = {i: k for k, i in enumerate(order)}
+        self.WALL, self.CUT = self.mat_of[66], self.mat_of[68]  # the outline's sides; the bottom cut and piece ends
 
-    def __init__(self, tops):
-        self.tops = tops
+        # lattice points (a, b) at pixel coordinates (a / 2, b / 2) that touch an inside pixel
+        pts = set()
+        for r, c in np.argwhere(self.inside):
+            for a in range(2 * r, 2 * r + 3):
+                for b in range(2 * c, 2 * c + 3):
+                    pts.add((a, b))
+        pts = sorted(pts)
+        lxy = {(a, b): [X(b / 2 - 0.5), Y(a / 2 - 0.5)] for a, b in pts}
+        # soften the outline's pixel steps: relax each outline corner towards its two neighbours
+        # along the outline (not along the bottom cut), then put the edge midpoints between them
+        links = {}
+        mids = {}
+        for r, c in np.argwhere(self.inside):
+            for (dr, dc), (a, b) in self.SIDES(r, c):
+                if r + dr < H and not self.ins(r + dr, c + dc):
+                    ka, kb = (2 * a[0], 2 * a[1]), (2 * b[0], 2 * b[1])
+                    links.setdefault(ka, []).append(kb)
+                    links.setdefault(kb, []).append(ka)
+                    mids[((ka[0] + kb[0]) // 2, (ka[1] + kb[1]) // 2)] = (ka, kb)
+        for _ in range(2):
+            new = {}
+            for k, nb in links.items():
+                if len(nb) == 2 and k[0] < 2 * H:
+                    (x0, y0), (x1, y1), (x2, y2) = lxy[k], lxy[nb[0]], lxy[nb[1]]
+                    new[k] = [0.5 * x0 + 0.25 * (x1 + x2), 0.5 * y0 + 0.25 * (y1 + y2)]
+            lxy.update(new)
+        for m, (ka, kb) in mids.items():
+            lxy[m] = [0.5 * (lxy[ka][0] + lxy[kb][0]), 0.5 * (lxy[ka][1] + lxy[kb][1])]
+        # heights (and normals) from the field at the points' final positions, so the relaxed
+        # outline corners don't leave a notch or a bump at every pixel step
+        py = np.array([14 - 12 * lxy[k][1] for k in pts])
+        px = np.array([36 + 12 * lxy[k][0] for k in pts])
+        hz, bright, dedge = field(grid, py, px)
+        lh = {k: float(z) for k, z in zip(pts, hz)}
+        for k in list(links) + list(mids):  # the outline itself stays at the rim, so its wall is even
+            if k[0] < 2 * H:
+                lh[k] = RIM
+        self.soft = {("t", *k): SOFTEN * min(max((b - SOFT_FROM) / (SOFT_TO - SOFT_FROM), 0), 1)
+                     for k, b in zip(pts, bright)}
+        self.steep = {("t", *k): 1 + STEEPEN * min(max((DARK - b) / DARK, 0), 1) for k, b in zip(pts, bright)}
+        # the black fissure: its normals lean towards a direction the light leaves dark (away from
+        # the upper-left key), so it reads as a clean dark line from above and from the game camera
+        # instead of a speckled band with a glossy streak
+        rr, cc = np.mgrid[0:H, 0:self.W]
+        fy, fx = np.nonzero((grid == 1) & (cc >= 33) & (cc <= 39) & (rr >= 9))
+        d_fc = np.sqrt((py[:, None] - (fy + 0.5)[None, :]) ** 2 + (px[:, None] - (fx + 0.5)[None, :]) ** 2).min(1)
+        self.shade = {("t", *k): DARK_LEAN * min(max((1.6 - df) / 0.8, 0), 1) for k, df in zip(pts, d_fc)}
+        self.lh, self.lxy = lh, lxy
+        self.normals = self.top_normals(grid, py, px, pts)
+        # smooth the normals over the last px or two at the outline (lattice neighbours, a few
+        # passes): the steepened rim's normals otherwise alternate from point to point along the
+        # stepped outline and shade as a saw-tooth of glints at the rim's foot
+        near = {("t", *k) for k, de in zip(pts, dedge) if de < RIM_SMOOTH}
+        for _ in range(RIM_SMOOTH_PASSES):
+            new = {}
+            for t in near:
+                _, a, b = t
+                nb = [self.normals[n] for n in (("t", a + 1, b), ("t", a - 1, b), ("t", a, b + 1), ("t", a, b - 1))
+                      if n in self.normals]
+                v = self.normals[t] * 2
+                for n in nb:
+                    v = v + n
+                new[t] = v.normalized()
+            self.normals.update(new)
 
-    def top_edge(self, a):
-        a = min(max(a, 0.0), 71.0)
-        i = min(int(a), 70)
-        f = a - i
-        t = self.tops[i] * (1 - f) + self.tops[i + 1] * f
-        return t - 0.5 + 0.3  # pixel top edge, a little inside
+    def ins(self, r, c):
+        return 0 <= r < self.H and 0 <= c < self.W and bool(self.inside[r, c])
 
-    def heights(self, a):
-        d = (a - 35.8) / 37.0
-        prof = math.sqrt(max(0.0, 1 - d * d))
-        fiss = 1 - 0.45 * math.exp(-((a - 36.4) / 1.3) ** 2)
-        return (0.07 + 0.25 * prof) * fiss, 0.05 + 0.11 * prof
+    @staticmethod
+    def SIDES(r, c):
+        """A pixel's four sides: (neighbour offset, (corner a, corner b)) wound so that a wall
+        (top a, top b, low b, low a) faces out. Corners are (row, column) of the pixel grid."""
+        return (((-1, 0), ((r, c + 1), (r, c))), ((1, 0), ((r + 1, c), (r + 1, c + 1))),
+                ((0, -1), ((r, c), (r + 1, c))), ((0, 1), ((r + 1, c + 1), (r, c + 1))))
 
-    def span(self, a):
-        top = self.top_edge(a)
-        y_top, y_bot = Y(top - 0.5), Y(self.BOTTOM_ROW)
-        return (y_top + y_bot) / 2, (y_top - y_bot) / 2
+    def co(self, key):
+        """Position of a vertex key: ('t', a, b) a top lattice point, ('l', a, b) the same point on
+        the underside."""
+        kind, a, b = key
+        x, y = self.lxy[a, b]
+        return (x, y, (self.lh[a, b] if kind == "t" else BOTTOM) / 12)
 
-    def ring(self, a, sides=18, scale=1.0):
-        yc, ry = self.span(a)
-        hz_top, hz_bot = self.heights(a)
-        pts = []
-        for k in range(sides):
-            t = 2 * math.pi * (k + 0.5) / sides
-            c, s = math.cos(t), math.sin(t)
-            y = yc + ry * math.copysign(abs(c) ** self.EXP, c) * scale
-            z = (hz_top if s > 0 else hz_bot) * math.copysign(abs(s) ** self.EXP, s) * scale
-            pts.append((X(a), y, z))
-        return pts
+    @staticmethod
+    def fans(r, c):
+        a, b = 2 * r, 2 * c
+        # anticlockwise from above (rows run down the screen, so +a is -Y)
+        ring = [(a, b), (a + 1, b), (a + 2, b), (a + 2, b + 1), (a + 2, b + 2), (a + 1, b + 2),
+                (a, b + 2), (a, b + 1)]
+        ring = [("t", *k) for k in ring]
+        m = ("t", a + 1, b + 1)
+        return [(m, ring[i], ring[(i + 1) % 8]) for i in range(8)]
 
-    def z(self, x, y):
-        """Height of the core's top surface at (x, y) in units."""
-        a = x * 12 + 35.5
-        yc, ry = self.span(a)
-        hz_top, _ = self.heights(a)
-        u = min(abs(y - yc) / ry, 1.0) if ry > 0 else 1.0
-        c = u ** (1 / self.EXP)
-        s = math.sqrt(max(0.0, 1 - c * c))
-        return hz_top * s ** self.EXP
+    def top_normals(self, grid, py, px, pts):
+        """Smooth normal of every top vertex, from the height field's own gradient (so the steep rim
+        and the folds shade evenly, without the triangles' facets)."""
+        from mathutils import Vector
+        import numpy as np
+        e = 0.25  # px
+        h0, _, d0 = field(grid, py, px)
 
+        def slope(dy, dx):
+            # central differences inside; on the outline (where the outside is clamped flat) the
+            # steeper one-sided difference, so the rim's normals lean out like the slope behind them
+            fwd = (field(grid, py + dy, px + dx)[0] - h0) / e
+            bwd = (h0 - field(grid, py - dy, px - dx)[0]) / e
+            one = np.where(np.abs(fwd) > np.abs(bwd), fwd, bwd)
+            return np.where(d0 < 0.75, one, 0.5 * (fwd + bwd))
 
-def build(sprite, tops):
-    coll = common.reset_collection(NAME)
-    tag = "nsh5brain"
-    pal = lambda i, **kw: common.palette_material(sprite, i, tag, **kw)  # noqa: E731
-    mats = [
-        pal(67, metallic=0.1, roughness=0.55),  # 0 dark red core, showing in the grooves
-        pal(71, metallic=0.1, roughness=0.45),  # 1 folds
-        pal(74, metallic=0.15, roughness=0.35),  # 2 light folds
-        pal(69, metallic=0.1, roughness=0.5),  # 3 shaded folds (right side, edges)
-        pal(64, metallic=0.0, roughness=0.8),  # 4 the fissure's dark depths
-    ]
-    CORE, FOLD, LIGHT, SHADE, DEEP = range(5)
-    brain = Brain(tops)
-    bm = bmesh.new()
+        gx, gy = slope(0, e), slope(e, 0)
+        # rows run down the screen (-Y), so a height rising with the row tilts the normal to +Y
+        # soften the shading of the light flesh: tilt its normals part way to straight up, so the
+        # gyri shade like the sprite's soft pink folds (lighter, gentler) while the geometry keeps
+        # its full relief; the dark grooves and the outline keep their true, steep normals
+        # and the near-black outline and grooves shade steeper than they are (their slopes face
+        # sideways), so they stay dark from above rather than catching the light
+        out = {}
+        for k, dx, dy in zip(pts, gx, gy):
+            t = ("t", *k)
+            m = self.steep[t]
+            out[t] = (Vector((-dx * m, dy * m, 1)).normalized() + Vector(SOFT_DIR) * self.soft[t]
+                      + Vector(DARK_DIR).normalized() * self.shade[t]).normalized()
+        return out
 
-    # Core: rings every column from 1.6 to 70.4, closing to a point at each end.
-    cols = [1.6] + [a + 0.5 for a in range(2, 70)] + [70.4]
-    rings = []
-    yc, _ = brain.span(1.0)
-    rings.append([(X(1.0), yc, 0.0)])
-    for a in cols:
-        rings.append(brain.ring(a))
-    yc, _ = brain.span(71.0)
-    rings.append([(X(71.0), yc, 0.0)])
-    lib.ring_loft(bm, rings, mat=CORE, smooth=True)
+    def pixels(self, c0, c1):
+        import numpy as np
+        return [(int(r), int(c)) for r, c in np.argwhere(self.inside) if c0 <= c < c1]
 
-    def fold(points, w, mat=FOLD, h=0.07, sides=8):
-        n = len(points)  # fuller in the middle, like a fold swelling out of the grooves
-        ws = [w * 1.45 * PX * (0.85 + 0.25 * math.sin(math.pi * i / max(n - 1, 1))) for i in range(n)]
-        lib.sausage(bm, [(X(a), Y(r)) for a, r in points], ws, h, sides=sides, mat=mat,
-                    z_of=brain.z, lift=-0.02)
+    def piece(self, name, c0, c1, offset, coll):
+        """The piece made of columns c0..c1-1, moved so `offset` (its centre) is the origin."""
+        from mathutils import Vector
+        bm = bmesh.new()
+        verts, keys = {}, []
+        off = Vector(offset)
 
-    # The fissure: a dark strip in the dip down the middle.
-    lib.sausage(bm, [(X(36.4), Y(9.0)), (X(36.4), Y(28.5))], 0.9 * PX, 0.02, sides=6, mat=DEEP,
-                z_of=brain.z, lift=0.0)
+        def v(key):
+            if key not in verts:
+                verts[key] = bm.verts.new(Vector(self.co(key)) - off)
+                keys.append(key)
+            return verts[key]
 
-    # Left hemisphere.
-    fold([(4.2, 24.4), (8.0, 24.9)], 2.6)  # round lobe at the lower left
-    fold([(6.2, 17.6), (10.5, 18.7), (13.5, 21.6), (16.5, 24.0), (21.0, 24.6), (24.6, 22.2),
-          (28.0, 19.0), (31.6, 18.4)], 1.6, LIGHT)  # the long light fold
-    fold([(13.4, 13.4), (17.0, 15.6)], 1.8, LIGHT)
-    fold([(18.4, 10.8), (21.0, 9.6), (24.0, 6.6), (27.4, 5.6)], 2.1)  # along the top edge
-    fold([(11.6, 11.6), (15.8, 10.8)], 1.6, SHADE)
-    fold([(17.2, 18.6), (22.4, 18.6), (26.0, 15.6), (30.0, 15.2)], 1.5)
-    fold([(29.6, 26.6), (32.8, 26.0)], 2.2, LIGHT)  # bright lump at the bottom
-    fold([(30.4, 9.8), (33.2, 11.4), (34.0, 13.4)], 1.9, LIGHT)  # cap beside the fissure
-    fold([(24.4, 11.0), (27.6, 12.6)], 1.7)
-    fold([(24.2, 25.6), (27.2, 26.4)], 1.7)
-    fold([(34.6, 16.6), (34.4, 23.6)], 1.1, SHADE)
-    fold([(5.0, 20.4), (8.6, 21.4)], 1.3, SHADE)
-    fold([(8.6, 14.4), (11.6, 13.8)], 1.3, SHADE)
-    fold([(17.0, 26.6), (21.6, 26.8)], 1.4)
-    fold([(19.6, 13.6), (23.6, 13.0)], 1.4)
-    fold([(3.2, 21.6), (4.4, 19.4)], 1.1, SHADE)
-
-    # Right hemisphere.
-    fold([(38.0, 10.0), (39.0, 12.6)], 2.0, LIGHT)  # cap beside the fissure
-    fold([(39.4, 22.0), (40.9, 19.0), (42.0, 16.4)], 1.8, LIGHT)
-    fold([(38.8, 26.5), (42.2, 25.6)], 2.2, LIGHT)  # bright lump at the bottom
-    fold([(44.4, 5.4), (48.0, 6.6), (51.0, 9.6)], 2.4)  # top right lobe
-    fold([(44.4, 19.6), (46.0, 21.6), (49.0, 24.0), (51.6, 24.6)], 1.7, LIGHT)
-    fold([(55.0, 12.8), (57.6, 15.6)], 1.6)
-    fold([(56.6, 11.0), (61.4, 12.4)], 1.4, SHADE)
-    fold([(56.0, 23.6), (59.6, 21.0), (62.6, 18.0)], 1.5)
-    fold([(63.4, 16.6), (67.2, 18.2)], 1.4, SHADE)
-    fold([(63.4, 23.4), (68.4, 23.6)], 2.0)
-    fold([(46.0, 17.4), (53.6, 18.4)], 1.4, SHADE)
-    fold([(43.0, 14.4), (47.6, 14.8)], 1.4)
-    fold([(52.4, 26.6), (57.6, 26.8)], 1.3, SHADE)
-    fold([(53.0, 13.4), (51.0, 15.6)], 1.2, SHADE)
-    fold([(59.6, 25.6), (62.0, 26.6)], 1.2, SHADE)
-    fold([(66.6, 20.4), (68.8, 21.0)], 1.0, SHADE)
-
-    return lib.to_object(NAME, bm, mats, coll)
+        for r, c in self.pixels(c0, c1):
+            mi = self.mat_of[int(self.grid[r, c])]
+            for tri in self.fans(r, c):
+                f = bm.faces.new([v(k) for k in tri])
+                f.material_index, f.smooth = mi, True
+            for (dr, dc), (a, b) in self.SIDES(r, c):
+                rr, cc = r + dr, c + dc
+                seam = not c0 <= cc < c1 and self.ins(rr, cc)
+                if self.ins(rr, cc) and not seam:
+                    continue
+                ka, kb = (2 * a[0], 2 * a[1]), (2 * b[0], 2 * b[1])
+                km = ((ka[0] + kb[0]) // 2, (ka[1] + kb[1]) // 2)
+                f = bm.faces.new((v(("t", *ka)), v(("t", *km)), v(("t", *kb)), v(("l", *kb)), v(("l", *ka))))
+                cut = rr == self.H or seam
+                f.material_index = self.CUT if cut else self.WALL
+                f.smooth = False  # flat: the 0.4 px outline wall (smooth, it caught glints at the rim's foot)
+        # underside: one face
+        low = {verts[k] for k in verts if k[0] == "l"}
+        bmesh.ops.contextual_create(bm, geom=[e for e in bm.edges if all(x in low for x in e.verts)
+                                              and len(e.link_faces) == 1])
+        for f in bm.faces:
+            if all(x in low for x in f.verts):
+                f.material_index, f.smooth = self.WALL, False
+        bmesh.ops.triangulate(bm, faces=[f for f in bm.faces if len(f.verts) > 4])
+        obj = lib.to_object(name, bm, self.mats, coll)
+        # custom normals: smooth faces take the whole brain's normals (an outline wall the normal of
+        # the rim point above), flat faces their own
+        me = obj.data
+        loops = []
+        for p in me.polygons:
+            for li in p.loop_indices:
+                k = keys[me.loops[li].vertex_index]
+                loops.append(self.normals["t", k[1], k[2]] if p.use_smooth else p.normal.copy())
+        me.normals_split_custom_set(loops)
+        return obj
 
 
 def merged_sprite():
@@ -219,11 +370,15 @@ def composite_png(out):
 
 def main():
     sprite = merged_sprite()
-    tops = column_tops([common.load_sprite(ROOT, n) for n in PIECES])
-    obj = build(sprite, tops)
+    grid = sprite_grid([common.load_sprite(ROOT, n) for n in PIECES])
+    brain = Brain(sprite, grid)
+    coll = common.reset_collection(NAME)
     layout = [(e["model"], e["cx"] - CX0, e["cy"] - CY0) for e in sprite["assemblyLayout"]
               if e["model"] in PIECES]
-    pieces = common.split_assembly(obj, layout)
+    pieces = {}
+    for name, cx, cy in layout:
+        c0 = 24 * PIECES.index(name)
+        pieces[name] = brain.piece(name, c0, c0 + 24, (cx / 12, -cy / 12, 0), coll)
     for name in PIECES:
         data = common.load_sprite(ROOT, name)
         common.export_sprite_model(ROOT, [pieces[name]], f"enemies/{name}", data["sprites"])
