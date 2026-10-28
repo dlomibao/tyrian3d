@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Model ratings</title>
+<style>
+  :root {
+    --bg: #14151b;
+    --panel: #1c1e26;
+    --edge: #2c2f3a;
+    --text: #e6e6ea;
+    --muted: #9a9cab;
+    --accent: #f0b54a;
+    --good: #5cc98a;
+    --warn: #e6a23c;
+    --bad: #e5604d;
+    --pin: #ff3d7f;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  button, select, textarea, input { font: inherit; color: inherit; }
+  .app { display: grid; grid-template-columns: 220px minmax(0, 1fr) 380px; grid-template-rows: minmax(0, 1fr); height: 100vh; overflow: hidden; }
+  .app > * { min-height: 0; }
+
+  /* List */
+  .list { border-right: 1px solid var(--edge); overflow-y: auto; padding: 12px 8px; }
+  .list h1 { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin: 4px 8px 4px; }
+  .progress { margin: 0 8px 10px; color: var(--muted); font-size: 12px; }
+  .bar { height: 4px; background: var(--edge); border-radius: 2px; margin-top: 4px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--good); width: 0; transition: width .2s; }
+  .list ul { list-style: none; margin: 0; padding: 0; }
+  .list li { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+  .list li:hover { background: var(--panel); }
+  .list li.on { background: #2a2416; color: var(--accent); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; border: 1px solid var(--muted); flex: none; }
+  .dot.part { background: var(--warn); border-color: var(--warn); }
+  .dot.done { background: var(--good); border-color: var(--good); }
+  .dot.skipped { background: var(--muted); }
+  .list small { color: var(--muted); margin-left: auto; font-size: 11px; }
+
+  /* Sheet */
+  .main { display: flex; flex-direction: column; min-width: 0; }
+  .head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; padding: 12px 16px; border-bottom: 1px solid var(--edge); }
+  .head h2 { margin: 0; font: 600 18px/1.2 ui-monospace, Menlo, monospace; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { font-size: 12px; color: var(--muted); background: var(--panel); border: 1px solid var(--edge); border-radius: 999px; padding: 1px 8px; }
+  .tools { margin-left: auto; display: flex; gap: 6px; }
+  .btn { background: var(--panel); border: 1px solid var(--edge); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+  .btn:hover { border-color: var(--muted); }
+  .btn.primary { background: var(--accent); color: #1a1408; border-color: var(--accent); font-weight: 600; }
+  .btn[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+  .view { flex: 1; overflow: auto; position: relative; background: #0d0e12; }
+  .stage { position: relative; display: inline-block; cursor: crosshair; }
+  .stage img { display: block; width: 100%; user-select: none; -webkit-user-drag: none; }
+  .view.fit .stage { width: 100%; }
+  .view:not(.fit) .stage img { width: auto; }
+  .pin { position: absolute; transform: translate(-50%, -100%); background: var(--pin); color: #fff; font: 700 11px/1 system-ui; padding: 4px 6px; border-radius: 10px 10px 10px 2px; pointer-events: none; box-shadow: 0 1px 4px #0008; }
+  .pin.sel { outline: 2px solid #fff; }
+  .hint { position: sticky; left: 0; bottom: 0; padding: 6px 12px; font-size: 12px; color: var(--muted); background: #0d0e12cc; }
+
+  /* Form */
+  .form { border-left: 1px solid var(--edge); overflow-y: auto; padding: 14px 16px 24px; }
+  .form h3 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 18px 0 8px; }
+  .form h3:first-child { margin-top: 0; }
+  .crit { margin-bottom: 12px; }
+  .crit .label { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; }
+  .crit .anchor { color: var(--muted); font-size: 12px; min-height: 1.4em; margin-top: 3px; }
+  .seg { display: flex; gap: 4px; margin-top: 5px; }
+  .seg button { flex: 1; background: var(--panel); border: 1px solid var(--edge); border-radius: 5px; padding: 3px 0; cursor: pointer; }
+  .seg button:hover { border-color: var(--muted); }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: #1a1408; border-color: var(--accent); font-weight: 700; }
+  .issue { border: 1px solid var(--edge); border-radius: 8px; padding: 8px; margin-bottom: 8px; background: var(--panel); }
+  .issue.sel { border-color: var(--pin); }
+  .issue .row { display: flex; gap: 6px; align-items: center; }
+  .issue .num { background: var(--pin); color: #fff; font: 700 11px/1 system-ui; padding: 3px 6px; border-radius: 8px; }
+  .issue select { flex: 1; background: var(--bg); border: 1px solid var(--edge); border-radius: 5px; padding: 3px 4px; }
+  .issue textarea { margin-top: 6px; }
+  .issue .seg button { font-size: 12px; }
+  .x { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 16px; padding: 0 4px; }
+  .x:hover { color: var(--bad); }
+  textarea { width: 100%; min-height: 64px; resize: vertical; background: var(--bg); border: 1px solid var(--edge); border-radius: 6px; padding: 6px 8px; }
+  .empty { color: var(--muted); font-size: 12px; }
+  .actions { display: flex; gap: 8px; margin-top: 16px; align-items: center; }
+  .saved { color: var(--muted); font-size: 12px; margin-left: auto; }
+  .saved.err { color: var(--bad); }
+  kbd { font: 11px ui-monospace, monospace; border: 1px solid var(--edge); border-radius: 3px; padding: 0 4px; color: var(--muted); }
+
+  @media (max-width: 1100px) {
+    .app { grid-template-columns: 1fr; grid-template-rows: none; height: auto; overflow: visible; }
+    .list { border-right: 0; border-bottom: 1px solid var(--edge); max-height: 30vh; }
+    .view { max-height: 70vh; }
+    .form { border-left: 0; border-top: 1px solid var(--edge); }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="list">
+    <h1>Model ratings</h1>
+    <div class="progress"><span id="progress-text"></span><div class="bar"><i id="progress-bar"></i></div></div>
+    <ul id="list"></ul>
+  </aside>
+
+  <main class="main">
+    <div class="head">
+      <h2 id="name"></h2>
+      <div class="chips" id="chips"></div>
+      <div class="tools">
+        <button class="btn" id="zoom" aria-pressed="false" title="Toggle fit-to-width and full size (z)">Full size</button>
+        <button class="btn" id="prev" title="Previous (p)">‹ Prev</button>
+        <button class="btn" id="next" title="Next (n)">Next ›</button>
+      </div>
+    </div>
+    <div class="view fit" id="view">
+      <div class="stage" id="stage"><img id="sheet" alt="Review sheet" /></div>
+    </div>
+    <div class="hint">Click anywhere on the sheet to pin an issue to that spot. <kbd>n</kbd>/<kbd>p</kbd> next/previous · <kbd>z</kbd> zoom</div>
+  </main>
+
+  <section class="form">
+    <h3>Scores</h3>
+    <div id="criteria"></div>
+
+    <h3>Issues <span class="empty">(click the sheet to add one)</span></h3>
+    <div id="issues"></div>
+
+    <h3>Notes</h3>
+    <textarea id="notes" placeholder="Anything else: what's wrong, what's good, what you'd change first…"></textarea>
+
+    <div class="actions">
+      <button class="btn primary" id="done" title="Mark rated and go to the next (Cmd/Ctrl+Enter)">Done, next ›</button>
+      <button class="btn" id="skip" title="Not sure; skip this one">Skip</button>
+      <span class="saved" id="saved"></span>
+    </div>
+  </section>
+</div>
+
+<script>
+const CRITERIA = [
+  { key: "silhouette", label: "Outline & colour", anchors: ["Outline or colours clearly differ from the sprite", "", "Recognisable, but some parts' outline or colour is off", "", "Top view matches the sprite"] },
+  { key: "volume", label: "Volume & heights", anchors: ["Everything flat, or heights uniformly wrong", "", "Some parts right, others too flat or too tall", "", "Every part is about as tall as the sprite implies"] },
+  { key: "profile", label: "Profiles", anchors: ["Round things flat or boxy, flat things blobby", "", "Mixed: some profiles right, some wrong", "", "Round parts round, flat parts flat, tapers taper"] },
+  { key: "detail", label: "Detail", anchors: ["Recesses and raised details missing", "", "The main details are there", "", "Every detail the sprite shows, in relief"] },
+  { key: "game", label: "Reads in game", anchors: ["From the game camera it doesn't look like the sprite", "", "Recognisable from the game camera", "", "Looks like the sprite brought into 3D"] },
+  { key: "cohesion", label: "Pieces fit together", assemblyOnly: true, anchors: ["Pieces don't fit: gaps, steps, mismatched heights", "", "Small seams or steps", "", "Reads as one object"] },
+  { key: "overall", label: "Overall", anchors: ["Unacceptable; redo it", "Poor", "OK as a start", "Good", "Ship it"] },
+];
+const ISSUE_TYPES = [
+  ["too_flat", "Too flat"], ["too_tall", "Too tall"], ["should_be_round", "Should be round"],
+  ["should_be_flat", "Should be flat / boxy"], ["should_taper", "Should taper"], ["missing_recess", "Missing recess / hole"],
+  ["missing_raised", "Missing raised detail"], ["wrong_colour", "Wrong colour / material"], ["outline_wrong", "Outline / silhouette wrong"],
+  ["seam", "Seam / gap between pieces"], ["lumpy", "Lumpy / messy surface"], ["wrong_position", "Part in wrong place / height"], ["other", "Other"],
+];
+const SEVERITIES = ["low", "medium", "high"];
+
+const $ = (id) => document.getElementById(id);
+let items = [];
+let feedback = {};
+let current = 0;
+let selectedPin = -1;
+let saveTimer = 0;
+
+function blank() { return { scores: {}, issues: [], notes: "", status: "" }; }
+function entry(id) { return (feedback[id] ??= blank()); }
+function item() { return items[current]; }
+
+function statusOf(id) {
+  const e = feedback[id];
+  if (!e) return "";
+  if (e.status === "done" || e.status === "skipped") return e.status;
+  return Object.keys(e.scores || {}).length || (e.issues || []).length || e.notes ? "part" : "";
+}
+
+function renderList() {
+  const ul = $("list");
+  ul.innerHTML = "";
+  items.forEach((it, i) => {
+    const li = document.createElement("li");
+    li.className = i === current ? "on" : "";
+    const dot = document.createElement("span");
+    dot.className = `dot ${statusOf(it.id)}`;
+    const name = document.createElement("span");
+    name.textContent = it.name;
+    const kind = document.createElement("small");
+    kind.textContent = it.kind === "assembly" ? `${it.pieces} pcs` : it.kind;
+    li.append(dot, name, kind);
+    li.onclick = () => show(i);
+    ul.append(li);
+  });
+  const done = items.filter((it) => ["done", "skipped"].includes(statusOf(it.id))).length;
+  $("progress-text").textContent = `${done} of ${items.length} rated`;
+  $("progress-bar").style.width = `${(100 * done) / Math.max(1, items.length)}%`;
+}
+
+function chip(text) {
+  const s = document.createElement("span");
+  s.className = "chip";
+  s.textContent = text;
+  return s;
+}
+
+function renderHead() {
+  const it = item();
+  $("name").textContent = it.name;
+  const c = $("chips");
+  c.innerHTML = "";
+  c.append(chip(it.kind === "assembly" ? `assembly of ${it.pieces}` : it.kind), chip(it.which));
+  const m = it.metrics || {};
+  if (m.silhouette_iou != null) c.append(chip(`outline match ${m.silhouette_iou}`));
+  if (m.max_height_px != null) c.append(chip(`max height ${m.max_height_px} px`));
+  if (m.height_to_width != null) c.append(chip(`h/w ${m.height_to_width}`));
+  if (m.triangles != null) c.append(chip(`${m.triangles} tris`));
+}
+
+function renderCriteria() {
+  const box = $("criteria");
+  box.innerHTML = "";
+  const it = item();
+  const e = entry(it.id);
+  for (const c of CRITERIA) {
+    if (c.assemblyOnly && it.kind !== "assembly") continue;
+    const div = document.createElement("div");
+    div.className = "crit";
+    const label = document.createElement("div");
+    label.className = "label";
+    label.textContent = c.label;
+    const seg = document.createElement("div");
+    seg.className = "seg";
+    const anchor = document.createElement("div");
+    anchor.className = "anchor";
+    const v = e.scores[c.key];
+    const showAnchor = (n) => (anchor.textContent = n == null ? "" : c.anchors[n - 1] || "(between)");
+    showAnchor(v);
+    const values = [1, 2, 3, 4, 5];
+    for (const n of values) {
+      const b = document.createElement("button");
+      b.textContent = String(n);
+      b.setAttribute("aria-pressed", String(e.scores[c.key] === n));
+      b.onmouseenter = () => showAnchor(n);
+      b.onmouseleave = () => showAnchor(e.scores[c.key]);
+      b.onclick = () => {
+        e.scores[c.key] = e.scores[c.key] === n ? undefined : n;
+        if (e.scores[c.key] === undefined) delete e.scores[c.key];
+        renderCriteria();
+        changed();
+      };
+      seg.append(b);
+    }
+    div.append(label, seg, anchor);
+    box.append(div);
+  }
+}
+
+function renderIssues() {
+  const box = $("issues");
+  box.innerHTML = "";
+  const e = entry(item().id);
+  if (!e.issues.length) {
+    const p = document.createElement("p");
+    p.className = "empty";
+    p.textContent = "No issues pinned yet.";
+    box.append(p);
+  }
+  e.issues.forEach((iss, i) => {
+    const div = document.createElement("div");
+    div.className = `issue${i === selectedPin ? " sel" : ""}`;
+    div.onclick = () => { selectedPin = i; renderPins(); for (const d of box.children) d.classList.remove("sel"); div.classList.add("sel"); };
+
+    const row = document.createElement("div");
+    row.className = "row";
+    const num = document.createElement("span");
+    num.className = "num";
+    num.textContent = String(i + 1);
+    const type = document.createElement("select");
+    for (const [k, l] of ISSUE_TYPES) type.add(new Option(l, k, false, iss.type === k));
+    type.onchange = () => { iss.type = type.value; changed(); };
+    const del = document.createElement("button");
+    del.className = "x";
+    del.title = "Remove this issue";
+    del.textContent = "×";
+    del.onclick = (ev) => { ev.stopPropagation(); e.issues.splice(i, 1); selectedPin = -1; renderIssues(); renderPins(); changed(); };
+    row.append(num, type, del);
+
+    const seg = document.createElement("div");
+    seg.className = "seg";
+    for (const s of SEVERITIES) {
+      const b = document.createElement("button");
+      b.textContent = s;
+      b.setAttribute("aria-pressed", String(iss.severity === s));
+      b.onclick = () => { iss.severity = s; renderIssues(); changed(); };
+      seg.append(b);
+    }
+
+    const note = document.createElement("textarea");
+    note.placeholder = "What's wrong here, and what it should be (e.g. \"pipe should be round, about as tall as it is wide\")";
+    note.value = iss.note || "";
+    note.style.minHeight = "44px";
+    note.oninput = () => { iss.note = note.value; changed(); };
+
+    div.append(row, seg, note);
+    box.append(div);
+  });
+}
+
+function renderPins() {
+  const stage = $("stage");
+  stage.querySelectorAll(".pin").forEach((p) => p.remove());
+  const img = $("sheet");
+  if (!img.naturalWidth) return;
+  const e = entry(item().id);
+  e.issues.forEach((iss, i) => {
+    const p = document.createElement("span");
+    p.className = `pin${i === selectedPin ? " sel" : ""}`;
+    p.textContent = String(i + 1);
+    p.style.left = `${(iss.x / img.naturalWidth) * 100}%`;
+    p.style.top = `${(iss.y / img.naturalHeight) * 100}%`;
+    stage.append(p);
+  });
+}
+
+function show(i) {
+  current = (i + items.length) % items.length;
+  selectedPin = -1;
+  const it = item();
+  const img = $("sheet");
+  img.onload = renderPins;
+  img.src = it.sheet;
+  $("notes").value = entry(it.id).notes || "";
+  renderHead();
+  renderCriteria();
+  renderIssues();
+  renderList();
+  $("saved").textContent = feedback[it.id]?.updatedAt ? `Saved ${new Date(feedback[it.id].updatedAt).toLocaleTimeString()}` : "";
+  $("view").scrollTo(0, 0);
+  history.replaceState(null, "", `#${encodeURIComponent(it.id)}`);
+}
+
+function changed() {
+  renderList();
+  $("saved").textContent = "Saving…";
+  $("saved").classList.remove("err");
+  clearTimeout(saveTimer);
+  const id = item().id;
+  saveTimer = setTimeout(() => save(id), 400);
+}
+
+async function save(id) {
+  const e = entry(id);
+  try {
+    const r = await fetch(`api/feedback/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scores: e.scores, issues: e.issues, notes: e.notes, status: e.status }),
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    e.updatedAt = (await r.json()).updatedAt;
+    if (item().id === id) $("saved").textContent = `Saved ${new Date(e.updatedAt).toLocaleTimeString()}`;
+  } catch (err) {
+    $("saved").textContent = `Not saved: ${err.message}. Is the server still running?`;
+    $("saved").classList.add("err");
+  }
+}
+
+$("stage").addEventListener("click", (ev) => {
+  const img = $("sheet");
+  const r = img.getBoundingClientRect();
+  const x = Math.round(((ev.clientX - r.left) / r.width) * img.naturalWidth);
+  const y = Math.round(((ev.clientY - r.top) / r.height) * img.naturalHeight);
+  const e = entry(item().id);
+  e.issues.push({ x, y, type: "too_flat", severity: "medium", note: "" });
+  selectedPin = e.issues.length - 1;
+  renderIssues();
+  renderPins();
+  changed();
+  const boxes = $("issues").querySelectorAll("textarea");
+  boxes[boxes.length - 1]?.focus();
+});
+
+$("notes").oninput = () => { entry(item().id).notes = $("notes").value; changed(); };
+$("prev").onclick = () => show(current - 1);
+$("next").onclick = () => show(current + 1);
+$("zoom").onclick = () => {
+  const fit = $("view").classList.toggle("fit");
+  $("zoom").setAttribute("aria-pressed", String(!fit));
+  renderPins();
+};
+$("done").onclick = () => {
+  entry(item().id).status = "done";
+  changed();
+  clearTimeout(saveTimer);
+  save(item().id);
+  const next = items.findIndex((it, i) => i > current && !["done", "skipped"].includes(statusOf(it.id)));
+  show(next >= 0 ? next : current + 1);
+};
+$("skip").onclick = () => {
+  entry(item().id).status = "skipped";
+  changed();
+  clearTimeout(saveTimer);
+  save(item().id);
+  show(current + 1);
+};
+addEventListener("keydown", (ev) => {
+  if ((ev.metaKey || ev.ctrlKey) && ev.key === "Enter") return $("done").click();
+  if (["TEXTAREA", "SELECT", "INPUT"].includes(document.activeElement?.tagName)) return;
+  if (ev.key === "n") show(current + 1);
+  else if (ev.key === "p") show(current - 1);
+  else if (ev.key === "z") $("zoom").click();
+});
+
+(async () => {
+  [items, feedback] = await Promise.all([
+    fetch("api/items").then((r) => r.json()),
+    fetch("api/feedback").then((r) => r.json()).then((f) => f.items || {}),
+  ]);
+  for (const e of Object.values(feedback)) { e.scores ??= {}; e.issues ??= []; }
+  const order = { assembly: 0, ground: 1, air: 2, ship: 3 };
+  items.sort((a, b) => (order[a.kind] ?? 9) - (order[b.kind] ?? 9) || a.name.localeCompare(b.name));
+  const fromHash = items.findIndex((it) => `#${encodeURIComponent(it.id)}` === location.hash);
+  show(fromHash >= 0 ? fromHash : Math.max(0, items.findIndex((it) => !["done", "skipped"].includes(statusOf(it.id)))));
+})();
+</script>
+</body>
+</html>
