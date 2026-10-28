@@ -10,10 +10,10 @@ the fin and canopy a pixel left (123) or right (127). Each frame gets its own mo
 own outline (newshf-123, -f2, -f3), barely banked (a few degrees) so the wings stay level, with the
 canopy and fin leaned toward the raised side.
 
-The wing and tailplane are bevelled plates whose bevel is the sprite's dark outline. Every face
-seen from above takes the palette index of the sprite pixel under it (the light spine, the tip
-highlights, the lighter inboard wing band, the canopy's dark ring and lit pixel); sides take the
-outline index and undersides a dark grey.
+The wing and tailplane are bevelled plates. The craft is painted grey metal: each part takes one
+mid-tone palette index all over (the sprite's light spine, tip highlights and lighter wing band
+are sheen, and its dark outline ring is drawn by the game's outline), with a painted-metal
+material so the game's lights make the shine. The canopy is dark glass, glossy.
 
 Run: blender --background --python assets/blender/enemies/newshf-123.py [-- --preview out.png]
 """
@@ -54,8 +54,9 @@ FRAMES = {
         roll=ROLL, lean=1.0),
 }
 
-OUTLINE, SIDE, UNDER = 1, 2, 3  # palette indices: the near-black outline, the darkest grey for sides
-# (they show as the outline from above but stay readable from the side), a dark grey underside
+# Parts and their mid-tone palette indices (sprite colours: 5 = 69, 6 = 81, 7 = 93, 3 = 40 grey).
+FUSELAGE, WING, TAIL, FIN, CANOPY = 0, 1, 2, 3, 4
+PART_INDEX = {FUSELAGE: 7, WING: 6, TAIL: 5, FIN: 7, CANOPY: 3}
 
 
 def _signed_area(pts):
@@ -80,9 +81,9 @@ def _inset(pts, d):
     return out
 
 
-def bevel_plate(bm, outline_cr, z_top, z_edge, z_bot, inset, top_layer, flat_layer, bevel_layer):
+def bevel_plate(bm, outline_cr, z_top, z_edge, z_bot, inset, part_layer, part, flat_layer):
     """A plate with the sprite outline (column/row edges) at z_edge..z_bot and its top inset by
-    `inset` (units) at z_top: the sloped band between is the dark outline bevel."""
+    `inset` (units) at z_top: the sloped band between is a bevel."""
     pts = [(lib.ex(c), lib.ey(r)) for c, r in outline_cr]
     if _signed_area(pts) < 0:
         pts.reverse()
@@ -91,31 +92,17 @@ def bevel_plate(bm, outline_cr, z_top, z_edge, z_bot, inset, top_layer, flat_lay
     edge = [bm.verts.new((x, y, z_edge)) for x, y in pts]
     bot = [bm.verts.new((x, y, z_bot)) for x, y in pts]
     n = len(pts)
-    f = bm.faces.new(top)
-    f[top_layer] = 1
-    f[flat_layer] = 1
-    f = bm.faces.new(list(reversed(bot)))
-    f[flat_layer] = 1
+    faces = [bm.faces.new(top), bm.faces.new(list(reversed(bot)))]
     for i in range(n):
         j = (i + 1) % n
-        f = bm.faces.new((edge[i], edge[j], top[j], top[i]))
+        faces.append(bm.faces.new((edge[i], edge[j], top[j], top[i])))
+        faces.append(bm.faces.new((bot[i], bot[j], edge[j], edge[i])))
+    for f in faces:
         f[flat_layer] = 1
-        f[bevel_layer] = 1
-        f = bm.faces.new((bot[i], bot[j], edge[j], edge[i]))
-        f[flat_layer] = 1
+        f[part_layer] = part
 
 
-def grid_cut(bm, layer, xs, ys):
-    """Cut the faces tagged in `layer` along vertical planes X = xs and Y = ys (pixel edges)."""
-    for no, values in (((1, 0, 0), xs), ((0, 1, 0), ys)):
-        for v in values:
-            faces = [f for f in bm.faces if f[layer]]
-            geom = list({e for f in faces for e in f.edges}) + list({vv for f in faces for vv in f.verts}) + faces
-            co = (v, 0, 0) if no[0] else (0, v, 0)
-            bmesh.ops.bisect_plane(bm, geom=geom, dist=1e-6, plane_co=co, plane_no=no)
-
-
-def wedge_fin(bm, xc, outline_yz, t_bot, t_top, flat_layer):
+def wedge_fin(bm, xc, outline_yz, t_bot, t_top, part_layer, flat_layer):
     """An upright fin at X = xc, `outline_yz` its side outline; half-thickness t_bot at its lowest
     point tapering to t_top at its highest."""
     zs = [z for _, z in outline_yz]
@@ -132,17 +119,15 @@ def wedge_fin(bm, xc, outline_yz, t_bot, t_top, flat_layer):
         faces.append(bm.faces.new((left[i], left[j], right[j], right[i])))
     for f in faces:
         f[flat_layer] = 1
+        f[part_layer] = FIN
 
 
 def build_frame(sprite, model, frame):
     spec = FRAMES[frame["index"]]
-    pixels = [[int(v) for v in (r.split() if isinstance(r, str) else r)] for r in frame["pixels"]]
     coll = common.reset_collection(model)
     bm = bmesh.new()
-    top_layer = bm.faces.layers.int.new("top")
+    part_layer = bm.faces.layers.int.new("part")  # 0 (FUSELAGE) unless tagged
     flat_layer = bm.faces.layers.int.new("flat")
-    bevel_layer = bm.faces.layers.int.new("bevel")
-    glass_layer = bm.faces.layers.int.new("glass")
     lean = spec["lean"] * P
 
     # Fuselage, round: (row edge, half width px, half height px). 5 px across (with the outline)
@@ -154,17 +139,14 @@ def build_frame(sprite, model, frame):
     lib.ellipse_loft(bm, X0, [(lib.ey(r), w * P, h * P, 0.0) for r, w, h in body], sides=12, mats=0)
 
     # Wing: a ~1 px plate a little above the fuselage's midline, its top inset by the bevel.
-    bevel_plate(bm, spec["wing"], 0.85 * P, 0.0, -0.25 * P, 0.45 * P, top_layer, flat_layer, bevel_layer)
+    bevel_plate(bm, spec["wing"], 0.85 * P, 0.0, -0.25 * P, 0.45 * P, part_layer, WING, flat_layer)
     # Tailplane: a blocky ~1 px plate.
-    bevel_plate(bm, spec["tail"], 1.0 * P, 0.1 * P, -0.2 * P, 0.45 * P, top_layer, flat_layer, bevel_layer)
-    cols = sorted({c for c, _ in spec["wing"] + spec["tail"]})
-    grid_cut(bm, top_layer, [lib.ex(c) for c in range(cols[0] + 1, cols[-1])],
-             [lib.ey(r) for r in range(3, 18) if r not in (6, 7, 8, 9, 10, 11)])
+    bevel_plate(bm, spec["tail"], 1.0 * P, 0.1 * P, -0.2 * P, 0.45 * P, part_layer, TAIL, flat_layer)
 
     # Upright fin over the tail, out past it to row 0, leaning with the bank.
     wedge_fin(bm, X0 + lean * 0.85, [(lib.ey(0.05), 1.0 * P), (lib.ey(6.5), 0.6 * P), (lib.ey(5.0), 1.8 * P),
                                       (lib.ey(2.4), 3.3 * P), (lib.ey(0.05), 3.3 * P)],
-              1.25 * P, 0.5 * P, flat_layer)
+              1.25 * P, 0.5 * P, part_layer, flat_layer)
 
     # Glass canopy dome where the wing meets the fuselage (rows 13-16, 3 px wide), rising ~2 px
     # above the fuselage's top.
@@ -172,7 +154,7 @@ def build_frame(sprite, model, frame):
     lib.dome(bm, X0 + lean, lib.ey(15.0), 1.8 * P, 1.6 * P, 2.0 * P, 2.7 * P, mat_index=0, segs=12, rings=5)
     bm.faces.ensure_lookup_table()
     for f in bm.faces[start:]:
-        f[glass_layer] = 1
+        f[part_layer] = CANOPY
 
     # Bank about the long axis.
     if spec["roll"]:
@@ -181,49 +163,22 @@ def build_frame(sprite, model, frame):
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     bm.normal_update()
 
-    # Paint: faces seen from above take the sprite pixel under them.
+    # Paint: each part one mid-tone index all over; painted grey metal, the canopy glossy glass.
     slots = {}
     mats = []
-
-    def slot(index, glass):
+    for f in bm.faces:
+        part = f[part_layer]
+        index = PART_INDEX[part]
+        glass = part == CANOPY
         key = (index, glass)
         if key not in slots:
             if glass:
-                mat = common.palette_material(sprite, index, f"{NAME}-glass", metallic=0.3, roughness=0.08)
+                mat = common.palette_material(sprite, index, f"{NAME}-glass", metallic=0.05, roughness=0.08)
             else:
-                mat = common.palette_material(sprite, index, NAME, metallic=0.55, roughness=0.38)
+                mat = common.palette_material(sprite, index, NAME, metallic=0.45, roughness=0.4)
             slots[key] = len(mats)
             mats.append(mat)
-        return slots[key]
-
-    def sample(x, y):
-        c = math.floor(x * 12 + 12)
-        r = math.floor(14 - y * 12)
-        if 0 <= r < len(pixels) and 0 <= c < len(pixels[0]) and pixels[r][c] > 0:
-            return pixels[r][c]
-        return OUTLINE
-
-    for f in bm.faces:
-        nz = f.normal.z
-        glass = bool(f[glass_layer])
-        if f[bevel_layer]:
-            index = OUTLINE
-        elif -0.3 <= nz <= 0.3:
-            index = SIDE
-        elif nz < -0.3:
-            index = UNDER
-        else:
-            cen = f.calc_center_median()
-            index = sample(cen.x, cen.y)
-        f.material_index = slot(index, glass)
-
-    # Merge the painted pixel grid back into larger faces where neighbours share a colour.
-    tops = [f for f in bm.faces if f[top_layer]]
-    top_set = set(tops)
-    edges = [e for f in tops for e in f.edges if all(lf in top_set for lf in e.link_faces) and len(e.link_faces) == 2]
-    verts = [v for f in tops for v in f.verts if all(lf in top_set for lf in v.link_faces)]
-    bmesh.ops.dissolve_limit(bm, angle_limit=math.radians(1), verts=list(set(verts)), edges=list(set(edges)),
-                             delimit={"MATERIAL"})
+        f.material_index = slots[key]
 
     flags = [bool(f[flat_layer]) for f in bm.faces]
     obj = common.mesh_object(model, bm, mats, coll, smooth=True)

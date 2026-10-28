@@ -22,6 +22,7 @@ Run: blender --background --python assets/blender/enemies/assembly-newsh4-124.py
 (each eye model's frames beside its sprite, <dir>/<model>.png).
 """
 
+import math
 import sys
 from pathlib import Path
 
@@ -30,7 +31,7 @@ import bmesh
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import common  # noqa: E402
-from lib_b015 import (box, composite_png, ellipsoid, loft_y, merged_sprite, mirror_all, plate,  # noqa: E402
+from lib_b015 import (PX, box, composite_png, ellipsoid, loft_y, merged_sprite, mirror_all, plate,  # noqa: E402
                       sweep, to_object)
 
 NAME = "assembly-newsh4-124"
@@ -45,37 +46,86 @@ EYE = "newsh4-1"
 # The eye piece's models: (model name, frames).
 EYE_MODELS = [("newsh4-1", [1, 3]), ("newsh4-1-f2", [5, 7, 39]), ("newsh4-1-f3", [41, 43, 45])]
 TAG = "nsh4"
+# The eye sits in the raised socket: every eye part is built at its old height and lifted by this.
+EYE_DZ = 0.40
 
 
 def materials(sprite):
+    """A bronze-and-steel machine: the plates are painted metal (the tan and grey hull, the red
+    panels), the dome, neck and stinger cap are polished steel (their bright spots in the sprite
+    are shine, which the metal and the game's lights make), the lights and the eye glow."""
     pal = lambda i, **kw: common.palette_material(sprite, i, TAG, **kw)  # noqa: E731
+    bronze = dict(metallic=0.35, roughness=0.45)  # painted tan plates (pal 22 is shared by two slots)
     return [
-        pal(7, metallic=0.6, roughness=0.4),  # 0 grey pylons, stinger, shoulders
-        pal(10, metallic=0.7, roughness=0.3),  # 1 light grey dome, bars, hook
-        pal(4, metallic=0.5, roughness=0.5),  # 2 dark grey hull
-        pal(2, metallic=0.4, roughness=0.6),  # 3 black socket and pod underside
-        pal(26, metallic=0.45, roughness=0.4),  # 4 tan wings, chevron, brim
-        pal(23, metallic=0.4, roughness=0.5),  # 5 darker tan emblems, stinger tip
-        pal(28, metallic=0.5, roughness=0.3),  # 6 light tan ridges and crest
-        pal(165, metallic=0.3, roughness=0.6),  # 7 dark brown bands
-        pal(72, metallic=0.3, roughness=0.35),  # 8 red panels and windows
+        pal(7, metallic=0.45, roughness=0.4),  # 0 grey shoulders and wrists (the sprite's 6 to 8)
+        pal(10, metallic=0.45, roughness=0.38),  # 1 light grey posts, bars, ladder
+        pal(4, metallic=0.45, roughness=0.45),  # 2 dark grey hull
+        pal(2, metallic=0.4, roughness=0.5),  # 3 black socket and pod underside
+        pal(24, metallic=0.35, roughness=0.45),  # 4 gold chevron, brim, struts and cable (the sprite's saturated mid gold)
+        pal(22, **bronze),  # 5 darker tan emblems
+        pal(28, metallic=0.35, roughness=0.4),  # 6 bright gold ridges, crest, barrel and blades
+        pal(165, metallic=0.3, roughness=0.5),  # 7 dark brown bands
+        pal(72, metallic=0.3, roughness=0.4),  # 8 red panels and windows
         pal(76, metallic=0.3, roughness=0.4),  # 9 pink collar
-        pal(168, metallic=0.3, roughness=0.45),  # 10 brown claws
+        pal(167, metallic=0.25, roughness=0.45),  # 10 brown claws
         pal(79, emission_strength=2.5),  # 11 pink lights
         pal(9, metallic=0.75, roughness=0.25),  # 12 grey eye shutter
         pal(74, emission_strength=1.5),  # 13 red eye
         pal(123, emission_strength=4.0),  # 14 eye glow
         pal(126, emission_strength=6.0),  # 15 eye hot core
-        pal(25, metallic=0.45, roughness=0.4),  # 16 tan barrel
+        pal(25, metallic=0.35, roughness=0.45),  # 16 gold barrel (lit a step brighter than the wings)
+        pal(75, metallic=0.3, roughness=0.35),  # 17 lit red ribs on the pod
+        pal(6, metallic=0.45, roughness=0.4),  # 18 darker grey hooks, pylon plates, wingtip blocks, arm roots
+        common.palette_material(sprite, 7, f"{TAG}-cap", metallic=0.75, roughness=0.3),  # 19 polished stinger cap
+        pal(73, metallic=0.3, roughness=0.4),  # 20 bright red shoulder windows
+        pal(22, **bronze),  # 21 tan lower band of the stinger (the sprite's mid tone, shaded 23 to 163)
+        common.palette_material(sprite, 8, f"{TAG}-steel", metallic=0.8, roughness=0.3),  # 22 polished dome, neck
+        pal(23, metallic=0.35, roughness=0.45),  # 23 tan wing plates (the sprite's 22 to 24, between them)
     ]
 
 
 (GREY, LGREY, DGREY, BLACK, TAN, DTAN, LTAN, BROWN, RED, PINK, CLAW, LIGHT, SHUTTER, EYE_RED, GLOW,
- HOT, BARREL) = range(17)
+ HOT, BARREL, RIB, HOOK, BALLG, WIN, DBROWN, STEEL, WING) = range(24)
+N_MATS = 24
+DSTEEL = HOOK  # the darker grey plates share the hooks' material
+
+
+def bplate(bm, outline, z0, z1, mat=0, bevel=0.6, tilt=None):
+    """`plate` with a bevelled top: the top face is inset by `bevel` px and the outer rim is
+    `bevel` * 0.7 px lower, so the edges catch the light like the sprite's lit and dark rims."""
+    bm.faces.ensure_lookup_table()
+    n0 = len(bm.faces)
+    drop = bevel * PX * 0.7
+    plate(bm, outline, z0, z1 - drop, mat=mat, tilt=tilt)
+    bm.faces.ensure_lookup_table()
+    top = bm.faces[n0]
+    top.normal_update()
+    if top.normal.z < 0:
+        top.normal_flip()
+    bmesh.ops.inset_region(bm, faces=[top], thickness=bevel * PX, depth=drop, use_even_offset=True)
+
+
+def surf(sections, row, dx=0.0):
+    """The top of a loft_y (sections of (row, half_width_px, half_height, z)) at `row`, `dx` px off its
+    axis: for placing details on it."""
+    rows = [s[0] for s in sections]
+    row = min(max(row, rows[0]), rows[-1])
+    for a, b in zip(sections, sections[1:]):
+        if a[0] <= row <= b[0]:
+            t = (row - a[0]) / max(b[0] - a[0], 1e-6)
+            hw, hh, z = (a[i] + (b[i] - a[i]) * t for i in (1, 2, 3))
+            break
+    if hw <= 0:
+        return z
+    u = min(1.0, abs(dx) / hw)
+    return z + 0.98 * hh * math.sqrt(max(0.0, 1 - u * u))
 
 
 def build_left(bm):
-    """Everything off the centreline, on the left side (mirrored afterwards)."""
+    """Everything off the centreline, on the left side (mirrored afterwards). Heights stack like
+    the sprite's plates: wings about 3 px, the hull and arm roots 4 px, the chevron (body plate)
+    and the shoulder blocks about 6 px, the grey pylons thinner plates (about 5 px), each with a
+    bevelled top."""
 
     def wing_tilt(c, r):
         """The wings droop toward their tips (anhedral): lit on the left, shaded on the right."""
@@ -83,121 +133,216 @@ def build_left(bm):
 
     # Big tan wing: a slanted plate from the tip (columns 5-14) to the body (column 34), with a
     # light ridge along its upper edge and a strut on to the barrel (rows 34-38).
-    plate(bm, [(4.5, 20.5), (13, 24), (23, 29.5), (34, 34), (34, 48.5), (29.5, 52), (15, 38), (5, 31)],
-          -0.03, 0.05, mat=TAN, tilt=wing_tilt)
-    sweep(bm, [(5.2, 21.6, 0.05 + wing_tilt(5, 21), 1.0, 0.03), (13, 25.2, 0.05 + wing_tilt(13, 25), 1.2, 0.035),
-               (23, 30.2, 0.05 + wing_tilt(23, 30), 1.2, 0.035), (33.5, 34.8, 0.05, 1.2, 0.035)],
-          sides=6, mat=LTAN)
-    sweep(bm, [(15.5, 38.5, wing_tilt(15, 38) + 0.01, 0.8, 0.03), (29.5, 51, 0.01, 0.8, 0.03)], sides=6, mat=DTAN)
-    box(bm, 33, 34, 43, 38, -0.02, 0.1, mat=TAN)
-    # Wingtip block: a red face on the outside (columns 6-10) and a grey block inside it.
-    box(bm, 6, 26, 10, 36, -0.24, 0.0, mat=RED)
-    box(bm, 10, 29, 14, 36, -0.22, -0.02, mat=GREY)
+    plate_outline = [(4.0, 19.8), (13, 23.3), (23, 28.8), (34, 33.3), (34, 48.5), (29.5, 52.7), (15, 38.7),
+                     (5.0, 31.5), (4.6, 24.0)]
+    bplate(bm, plate_outline, -0.04, 0.25, mat=WING, bevel=0.7, tilt=wing_tilt)
+    sweep(bm, [(4.8, 21.0, 0.24 + wing_tilt(5, 21), 1.0, 0.04), (13, 24.6, 0.24 + wing_tilt(13, 25), 1.2, 0.045),
+               (23, 29.6, 0.24 + wing_tilt(23, 30), 1.2, 0.045), (33.5, 34.2, 0.24, 1.2, 0.045)], sides=6, mat=LTAN)
+    sweep(bm, [(15.5, 38.9, wing_tilt(15, 38) + 0.2, 0.8, 0.04), (29.5, 51.6, 0.2, 0.8, 0.04)], sides=6, mat=DTAN)
+    box(bm, 33, 34, 43, 38, 0.0, 0.3, mat=TAN)
+    # Wingtip block: a red knob on the outside (columns 6-10), lit on top, and a grey block inside it.
+    box(bm, 6, 26, 10, 36, -0.12, 0.2, mat=RED)
+    sweep(bm, [(8.5, 25.4, 0.2, 0.0, 0.0), (8.5, 26.4, 0.2, 2.2, 0.24), (8.5, 30.5, 0.2, 2.6, 0.31),
+               (8.3, 35.4, 0.2, 2.2, 0.24), (8.3, 36.5, 0.2, 0.0, 0.0)], sides=10, mat=RED)
+    bplate(bm, [(10, 29), (15, 29), (15, 38), (10, 38)], -0.12, 0.44, mat=DSTEEL, bevel=0.6)
     # Thin tan cable from the pylon's top round to the wing tip (rows 9-22).
-    sweep(bm, [(20.5, 9.0, 0.1, 0.9, 0.035), (16, 9.2, 0.1, 1.0, 0.035), (12.5, 10.5, 0.08, 1.0, 0.035),
-               (9.8, 12.8, 0.05, 1.0, 0.035), (7.5, 16, 0.02, 1.0, 0.035), (5.8, 19.5, -0.02, 1.1, 0.035),
-               (5.6, 22.5, -0.04, 1.1, 0.035)], sides=6, mat=TAN)
+    sweep(bm, [(20.5, 9.0, 0.38, 1.4, 0.06), (16, 9.2, 0.37, 1.4, 0.06), (12.5, 10.5, 0.35, 1.4, 0.06),
+               (9.8, 12.8, 0.33, 1.4, 0.06), (7.5, 16, 0.3, 1.4, 0.06), (5.6, 19.5, 0.22, 1.5, 0.06),
+               (5.2, 22.5, 0.16, 1.5, 0.06)], sides=6, mat=TAN)
 
-    # Grey pylon behind the tower (columns 19-46, rows 3-35): a slanted block with a bright outer
-    # post, a tan emblem and a dark brown band, and a bright bar down to the barrel's side.
-    plate(bm, [(20.5, 2.5), (25, 2.5), (34, 7), (43, 11), (47, 13), (47, 30), (41, 35.5), (36.5, 34),
-               (36, 30), (30, 22), (22.5, 19), (19.5, 17.5), (19.5, 7)], -0.1, 0.12, mat=GREY)
-    plate(bm, [(20.5, 3.2), (24.5, 3.2), (25.5, 4), (25.5, 18.5), (21.5, 18.5), (20.5, 17)], 0.12, 0.17, mat=LGREY)
+    # Grey pylon behind the tower (columns 19-46, rows 3-35): a raised slanted block with a bevelled
+    # top, a bright outer post, a tan emblem and a dark brown band, and a bright bar down to the
+    # barrel's side.
+    # Its inner edge stops at column 43 (the sprite's dark gap beside the barrel is cut in after the
+    # mirror, see build_recesses).
+    bplate(bm, [(20.5, 2.5), (25, 2.5), (34, 7), (43.5, 11.5), (43.5, 18), (46.5, 18.5), (46.5, 21.5),
+                (43, 22), (43, 31), (41, 35.5), (36.5, 34), (36, 30), (30, 22), (22.5, 19), (20, 17.5),
+                (20, 7)], -0.1, 0.4, mat=DSTEEL, bevel=1.0)
+    bplate(bm, [(20.5, 3.2), (24.5, 3.2), (25.5, 4), (25.5, 18.5), (21.5, 18.5), (20.5, 17)], 0.25, 0.46,
+           mat=LGREY, bevel=0.5)
     plate(bm, [(27, 9.5), (31, 8), (36, 10.5), (36, 12.5), (31, 11), (29.5, 12), (29.5, 15.5), (27, 15.5)],
-          0.12, 0.16, mat=DTAN)
-    plate(bm, [(26.5, 17.5), (45, 17.5), (46, 20.5), (28, 20.5)], 0.12, 0.155, mat=BROWN)
-    box(bm, 37, 22, 38, 34, 0.08, 0.17, mat=LGREY)
+          0.3, 0.408, mat=BROWN)
+    plate(bm, [(26.5, 17.5), (45, 17.5), (46, 20.5), (28, 20.5)], 0.3, 0.415, mat=BROWN)
+    box(bm, 37, 22, 38, 34, 0.25, 0.45, mat=LGREY)
 
     # Arm root from the hull down to the shoulder (columns 28-40, rows 46-58).
-    plate(bm, [(28, 52), (33, 46.5), (41, 45.5), (41, 53), (36, 58.5), (28, 58.5)], -0.14, 0.05, mat=GREY)
-    # Red panel above the chevron (rows 39-43).
-    plate(bm, [(38.5, 39.5), (45, 39.5), (54.5, 41.5), (54.5, 44), (38.5, 44)], 0.02, 0.12, mat=RED)
+    bplate(bm, [(28, 52), (33, 46.5), (41, 45.5), (41, 53), (36, 58.5), (28, 58.5)], -0.12, 0.34, mat=DSTEEL)
 
-    # Tan chevron from the middle out and down to the shoulder, with a light outer edge.
+    # Tan chevron from the middle out and down to the shoulder, with a light outer edge: the body
+    # plate, above the wings.
     outer = [(58.5, 43.5), (47.5, 43.5), (45.5, 46), (43.5, 48), (41, 50), (39.5, 52), (37.5, 54), (35, 56),
              (33.5, 58), (30.5, 59), (31, 61), (32.5, 62), (34.5, 64), (35, 66), (35.5, 68), (36, 71),
              (37, 72.5)]
-    inner = [(39.5, 72.5), (40, 68.5), (41, 64.5), (42.5, 62.5), (43.5, 58), (43, 56.5), (45, 54.5),
+    inner = [(42.0, 72.5), (42.6, 68.5), (43.2, 64.5), (44.2, 62.5), (44.5, 58), (43.5, 56.5), (45, 54.5),
              (47, 52.5), (49, 50.5), (55, 49.5), (58.5, 48.5)]
-    plate(bm, outer + inner, 0.1, 0.24, mat=TAN)
-    sweep(bm, [(c + 0.6, r + 0.6, 0.24, 0.7, 0.025) for c, r in outer[1:9]], sides=6, mat=LTAN)
-    # Tan blade hanging below the shoulder (columns 24-28, rows 68-79).
-    plate(bm, [(23.5, 67.5), (29.5, 67.5), (28.5, 73), (25.5, 79), (23.5, 79)], -0.02, 0.12, mat=TAN)
+    bplate(bm, outer + inner, 0.2, 0.58, mat=TAN, bevel=0.7)
+    sweep(bm, [(c + 0.6, r + 0.6, 0.555, 0.7, 0.03) for c, r in outer[1:9]], sides=6, mat=LTAN)
+    # Light tan blade hanging below the shoulder (columns 24-28, rows 68-78), standing over the
+    # shoulder's lower edge (about 7 px).
+    bplate(bm, [(23.5, 68), (29.5, 68), (28.5, 73), (25.5, 78.5), (23.5, 78.5)], -0.04, 0.56, mat=TAN,
+           bevel=0.6)
 
-    # Shoulder block (columns 14-33, rows 57-68) with a red window, and a smaller block under it
-    # with a red triangular window, then the grey wrist.
-    plate(bm, [(14, 60.5), (16, 59), (18, 58), (23, 58), (25, 59), (34, 59), (34, 69), (14, 69)],
-          -0.14, 0.1, mat=GREY)
-    plate(bm, [(18, 58), (23, 58), (23.5, 60.5), (17.5, 60.5)], 0.1, 0.15, mat=LGREY)
-    box(bm, 16, 62, 21, 67, 0.06, 0.13, mat=RED)
-    box(bm, 15, 70, 23, 76, -0.12, 0.06, mat=GREY)
-    box(bm, 15, 70, 23, 71, 0.06, 0.09, mat=LGREY)
-    plate(bm, [(18, 72.5), (22.5, 72.5), (22.5, 73.5), (18.5, 77)], 0.03, 0.1, mat=RED)
-    plate(bm, [(16, 77), (24, 77), (24, 82), (22.5, 84.5), (16.5, 84.5)], -0.1, 0.05, mat=GREY)
+    # Shoulder block (columns 14-33, rows 57-69): a 6 px box whose red window is set 1 px into its
+    # top inside a dark frame (the top is built as a rim round the window). Under it a smaller
+    # block with a red triangular window, then the grey wrist.
+    top, rim = 0.5, 0.42
+    plate(bm, [(14, 60.5), (16, 59), (18, 58), (23, 58), (25, 59), (35, 59), (35, 70), (14, 70)],
+          -0.12, rim, mat=GREY)
+    plate(bm, [(14, 60.5), (16, 59), (18, 58), (23, 58), (25, 59), (35, 59), (35, 62), (14, 62)], rim, top,
+          mat=GREY)
+    box(bm, 22, 62, 34, 69, rim, top, mat=GREY)
+    box(bm, 14, 62, 15, 69, rim, top, mat=GREY)
+    box(bm, 16, 68, 21, 69, rim, top, mat=GREY)
+    plate(bm, [(18, 58), (23, 58), (23.5, 60.5), (17.5, 60.5)], top, top + 0.06, mat=LGREY)
+    box(bm, 16, 62, 21, 67, rim - 0.02, top - 0.03, mat=BLACK)
+    plate(bm, [(16.05, 62.05), (21.95, 62.05), (21.95, 67.95), (16.05, 67.95)], rim, top - 0.01, mat=WIN)
+    plate(bm, [(14, 69.9), (24, 69.9), (24, 70.9), (14, 70.9)], -0.12, 0.3, mat=BLACK)
+    bplate(bm, [(15, 70.8), (24, 70.8), (24, 77), (15, 77)], -0.12, 0.42, mat=GREY, bevel=0.5)
+    box(bm, 15, 70.8, 23, 70.8, 0.4, 0.45, mat=LGREY)
+    # The grey arm-root strip under the shoulder's inner half (columns 24-35, rows 70-71).
+    bplate(bm, [(24, 69.5), (36.5, 69.5), (36.5, 71), (32, 72), (29, 72.5), (24, 72.5)], -0.12, 0.3, mat=GREY,
+           bevel=0.4)
+    plate(bm, [(17.6, 72.1), (22.9, 72.1), (22.9, 73.9), (18.3, 77.5)], 0.39, 0.425, mat=BLACK)
+    plate(bm, [(18, 72.5), (22.5, 72.5), (22.5, 73.5), (18.5, 77)], 0.39, 0.44, mat=WIN)
+    bplate(bm, [(16, 77), (24, 77), (24, 82), (22.5, 84.5), (16.5, 84.5)], -0.08, 0.32, mat=GREY, bevel=0.5)
 
-    # Brown claw curving in to its tip (rows 84-106) and the thin grey hook inside it.
-    sweep(bm, [(20.2, 83.5, -0.02, 3.6, 0.1), (20, 89.5, -0.03, 3.5, 0.1), (21, 95, -0.04, 3.4, 0.095),
-               (24.6, 100, -0.05, 3.3, 0.09), (30, 103.8, -0.06, 2.9, 0.08), (34, 105.3, -0.065, 1.9, 0.06),
-               (37.2, 105.9, -0.07, 0.0, 0.0)], sides=8, mat=CLAW)
-    sweep(bm, [(26.8, 71.5, 0.02, 1.9, 0.06), (28.2, 77, 0.0, 2.0, 0.06), (30.6, 81, -0.01, 2.0, 0.06),
-               (34.2, 84.6, -0.02, 1.9, 0.055), (38.4, 87, -0.03, 1.7, 0.05), (44, 88.6, -0.04, 1.4, 0.045),
-               (50.2, 89.1, -0.05, 0.0, 0.0)], sides=8, mat=LGREY)
+    # Brown claw curving in to its tip (rows 84-106): a round tube, as tall as it is wide, rooted in
+    # the wrist and tapering to the point; and the thin grey hook inside it, rooted in the blade's tip.
+    sweep(bm, [(19.8, 81.5, 0.25, 4.0, 0.44), (19.5, 84.5, 0.25, 4.5, 0.47), (19.5, 90, 0.26, 4.5, 0.47),
+               (21.0, 96, 0.25, 4.3, 0.46), (24.6, 100.5, 0.22, 3.8, 0.41), (30, 104, 0.17, 3.1, 0.32),
+               (34.4, 105.6, 0.1, 2.0, 0.19), (38.4, 106.5, 0.05, 0.0, 0.0)], sides=10, mat=CLAW)
+    sweep(bm, [(27.0, 73.0, 0.18, 2.0, 0.15), (27.6, 75.5, 0.24, 2.5, 0.24), (28.4, 78.2, 0.3, 2.8, 0.3),
+               (29.6, 81.2, 0.3, 2.8, 0.3),
+               (31.9, 84.5, 0.28, 2.6, 0.3), (35.8, 86.8, 0.24, 2.2, 0.26), (40.8, 88.3, 0.18, 1.7, 0.19),
+               (45.0, 89.0, 0.12, 1.1, 0.12), (48.0, 89.2, 0.08, 0.0, 0.0)], sides=10, mat=HOOK)
+
+
+# The tower down the middle: (row, half width px, half height, z) sections of each loft. A round
+# column of round parts: the dome (about 6 px above the brim's base), the brim, the barrel lying
+# along the body (about 10 px above the hull plane), the pink collar on its front, the neck under
+# the chevron, the eye socket, the ribbed red pod (a 12 px barrel) and the stinger (a dome 23 px
+# wide and about 13 px tall standing on the plane), as the sprite shades them.
+Z_TOWER = 0.25
+DOME = [(5.4, 0.0, 0.0, Z_TOWER), (5.7, 4.6, 0.3, Z_TOWER), (6.3, 6.4, 0.45, Z_TOWER), (7.2, 7.9, 0.56, Z_TOWER),
+        (8.2, 8.9, 0.64, Z_TOWER), (9.4, 9.7, 0.7, Z_TOWER), (11.0, 10.4, 0.74, Z_TOWER), (13.4, 11.0, 0.76, Z_TOWER)]
+BRIM = [(12.8, 10.4, 0.68, Z_TOWER), (14, 11.8, 0.72, Z_TOWER), (15.5, 13.6, 0.75, Z_TOWER),
+        (17.5, 15.2, 0.75, Z_TOWER), (18.6, 15.0, 0.73, Z_TOWER), (19.4, 13.8, 0.68, Z_TOWER)]
+BAND = [(19.2, 13.7, 0.66, Z_TOWER), (21, 13.9, 0.66, Z_TOWER)]
+BARREL_S = [(20.8, 13.9, 0.66, Z_TOWER), (27, 14.3, 0.68, Z_TOWER), (33, 14.0, 0.66, Z_TOWER),
+            (36.5, 13.2, 0.6, Z_TOWER), (38.8, 11.0, 0.46, Z_TOWER)]
+COLLAR = [(33.4, 5.0, 0.62, Z_TOWER), (34.5, 6.2, 0.72, Z_TOWER), (36.5, 6.2, 0.7, Z_TOWER),
+          (38.2, 5.4, 0.6, Z_TOWER)]
+NECK = [(37.4, 7.4, 0.52, Z_TOWER), (40, 7.2, 0.48, Z_TOWER), (42.5, 7.0, 0.38, Z_TOWER), (44, 6.8, 0.26, Z_TOWER),
+        (47, 6.6, 0.22, Z_TOWER)]
+SOCKET = [(46.8, 6.8, 0.22, Z_TOWER), (48, 6.4, 0.3, Z_TOWER), (53, 6.4, 0.3, Z_TOWER), (54.5, 7.5, 0.32, Z_TOWER)]
+Z_POD = 0.22
+POD = [(54.0, 6.0, 0.4, Z_POD), (55.2, 9.0, 0.6, Z_POD), (57, 11.0, 0.72, Z_POD), (59, 11.5, 0.76, Z_POD),
+       (64, 11.5, 0.76, Z_POD), (66.5, 10.8, 0.7, Z_POD)]
+UNDER = [(66.3, 10.9, 0.7, Z_POD), (68, 10.2, 0.6, Z_POD), (70, 9.4, 0.48, Z_POD), (72.8, 7.6, 0.34, Z_POD),
+         (75.6, 6.4, 0.26, Z_POD)]
+# The stinger: a half-ellipsoid centred on the body plane (its lower half is cut off at BALL_FLOOR),
+# about 13 px tall.
+Z_BALL = -0.06
+BALL_TOP = [(72.3, 3.5, 0.36, Z_BALL), (74, 4.6, 0.54, Z_BALL), (75.8, 6.8, 0.74, Z_BALL), (76.7, 10.9, 0.96, Z_BALL),
+            (78.0, 11.7, 1.06, Z_BALL), (81.5, 11.7, 1.1, Z_BALL), (83.6, 11.2, 1.05, Z_BALL), (85.5, 10.3, 0.97, Z_BALL)]
+BALL_BOTTOM = [(85.3, 10.4, 0.98, Z_BALL), (86.5, 9.8, 0.92, Z_BALL), (87.6, 8.8, 0.84, Z_BALL),
+               (88.6, 7.8, 0.75, Z_BALL), (89.6, 6.8, 0.63, Z_BALL), (90.5, 5.7, 0.5, Z_BALL), (91.2, 4.6, 0.36, Z_BALL),
+               (91.7, 2.6, 0.18, Z_BALL), (91.9, 0.0, 0.0, Z_BALL)]
+BALL = BALL_TOP + BALL_BOTTOM[1:]
+BALL_FLOOR = -0.08
+CENTRE_FLOOR = -0.1
+
+
+def on(sections, rows_hw_hh, dx=0.0, sink=0.02):
+    """Sections for a thin loft lying on another loft's top: (row, half width, half height)."""
+    return [(r, w, h, surf(sections, r, dx) - sink) for r, w, h in rows_hw_hh]
 
 
 def build_centre(bm):
-    """The tower down the middle and the hull under everything (symmetric about column 60)."""
-    # Dark grey hull under the wings, chevron and shoulders.
-    loft_y(bm, AXIS, [(16.5, 0.0, 0.0, -0.12), (18, 13, 0.12, -0.12), (22, 21, 0.16, -0.12),
-                      (30, 26.5, 0.18, -0.12), (42, 27.5, 0.18, -0.12), (50, 25.5, 0.17, -0.12),
-                      (56, 20, 0.15, -0.12), (61, 11, 0.12, -0.12), (63, 0.0, 0.0, -0.12)], sides=14, mat=DGREY)
+    """The tower down the middle and the hull under everything (symmetric about column 60). Every
+    loft here is centred on its z, so its lower half is cut flat at CENTRE_FLOOR afterwards: the pod,
+    its black underside and the hull sit on the body plane instead of hanging below it."""
+    n_start = len(bm.verts)
+    # Dark grey hull under the wings, chevron and shoulders, out to the dark gaps beside the pod.
+    loft_y(bm, AXIS, [(16.5, 0.0, 0.0, 0.0), (18, 13, 0.24, 0.0), (22, 21, 0.3, 0.0), (30, 26.5, 0.36, 0.0),
+                      (42, 27.5, 0.38, 0.0), (50, 25.5, 0.38, 0.0), (56, 20.5, 0.36, 0.0), (62.4, 17.4, 0.33, 0.0),
+                      (63.3, 12.0, 0.29, 0.0), (65, 11.0, 0.28, 0.0), (68.5, 0.0, 0.0, 0.0)], sides=14, mat=DGREY)
 
     # Tower: grey dome, tan brim, dark band under it, tan barrel, pink collar, grey neck, black
-    # eye socket, red pod with a black underside, grey stinger with a tan tip.
-    loft_y(bm, AXIS, [(5.8, 0.0, 0.0, 0.06), (6.5, 4.0, 0.12, 0.05), (8, 7.2, 0.2, 0.03), (10, 9.6, 0.25, 0.02),
-                      (12, 11.4, 0.28, 0.0), (13.5, 12.5, 0.29, 0.0)], sides=16, mat=LGREY)
-    loft_y(bm, AXIS, [(12.8, 12.6, 0.29, 0.0), (13.8, 14.6, 0.31, 0.0), (15, 15.6, 0.33, 0.0),
-                      (17.5, 15.6, 0.33, 0.0), (18.6, 14.8, 0.31, 0.0), (19.4, 13.6, 0.29, 0.0)], sides=16, mat=TAN)
-    loft_y(bm, AXIS, [(19.2, 13.6, 0.29, 0.0), (21, 13.9, 0.3, 0.0)], sides=16, mat=BROWN)
-    loft_y(bm, AXIS, [(20.8, 13.9, 0.3, 0.0), (27, 14.3, 0.31, 0.0), (32, 13.6, 0.3, 0.0),
-                      (33.8, 11.5, 0.26, 0.0)], sides=16, mat=BARREL)
-    loft_y(bm, AXIS, [(33.5, 11.2, 0.26, 0.0), (34.5, 9.4, 0.24, 0.0), (36, 8.8, 0.22, 0.0),
-                      (37.6, 7.8, 0.2, 0.0)], sides=14, mat=PINK)
-    loft_y(bm, AXIS, [(37.4, 7.6, 0.2, 0.0), (40, 7.2, 0.18, 0.0), (44, 7.0, 0.17, 0.0), (47, 6.6, 0.15, 0.0)],
-           sides=12, mat=GREY)
-    loft_y(bm, AXIS, [(46.8, 6.8, 0.15, 0.0), (48, 6.2, 0.14, 0.0), (53, 6.2, 0.14, 0.0), (54.5, 7.5, 0.15, 0.0)],
-           sides=12, mat=BLACK)
-    loft_y(bm, AXIS, [(54.2, 8.5, 0.16, 0.0), (55.5, 10.6, 0.2, 0.0), (58, 11.6, 0.22, 0.0), (64, 11.6, 0.22, 0.0),
-                      (66.5, 10.8, 0.2, 0.0)], sides=14, mat=RED)
-    loft_y(bm, AXIS, [(66.3, 10.9, 0.2, 0.0), (68, 10.2, 0.19, 0.0), (70, 9.4, 0.17, 0.0), (72.5, 7.0, 0.14, 0.0)],
-           sides=14, mat=BLACK)
-    loft_y(bm, AXIS, [(72.3, 6.8, 0.14, 0.0), (74, 8.6, 0.16, 0.0), (76.5, 10.8, 0.19, 0.0), (80, 11.2, 0.19, 0.0),
-                      (81.5, 10.8, 0.185, 0.0)], sides=14, mat=GREY)
-    loft_y(bm, AXIS, [(81.3, 10.9, 0.185, 0.0), (84, 9.8, 0.17, 0.0), (87, 8.0, 0.14, 0.0), (89.5, 5.5, 0.1, 0.0),
-                      (91.3, 0.0, 0.0, 0.0)], sides=14, mat=DTAN)
-    # Red stripe down the stinger's front and a grey stud at its top.
-    loft_y(bm, AXIS, [(77, 0.0, 0.0, 0.17), (78, 1.9, 0.05, 0.17), (84, 1.9, 0.05, 0.15), (88, 1.7, 0.045, 0.11),
-                      (90.6, 0.0, 0.0, 0.07)], sides=8, mat=RED)
-    ellipsoid(bm, AXIS, 74.8, 0.15, 1.6, 1.4, 0.05, mat=LGREY, segments=10, rings=5)
-    # Black spine between the pod's red panels, and dark brown seams across them.
-    loft_y(bm, AXIS, [(54, 0.0, 0.0, 0.2), (55, 1.6, 0.04, 0.21), (65.5, 1.6, 0.04, 0.21), (67, 0.0, 0.0, 0.2)],
-           sides=8, mat=BLACK)
+    # eye socket, red pod with a black underside, grey and tan stinger ball.
+    loft_y(bm, AXIS, DOME, sides=16, mat=STEEL)
+    loft_y(bm, AXIS, BRIM, sides=16, mat=TAN)
+    loft_y(bm, AXIS, BAND, sides=16, mat=BROWN)
+    loft_y(bm, AXIS, BARREL_S, sides=16, mat=BARREL)
+    loft_y(bm, AXIS, COLLAR, sides=14, mat=PINK)
+    loft_y(bm, AXIS, NECK, sides=12, mat=STEEL)
+    loft_y(bm, AXIS, SOCKET, sides=12, mat=BLACK)
+    loft_y(bm, AXIS, POD, sides=16, mat=RED)
+    loft_y(bm, AXIS, UNDER, sides=16, mat=BLACK)
+    # The stinger is a dome standing on the body plane (its underside cut flat at BALL_FLOOR), not a
+    # ball hanging under it: polished grey upper half, tan lower band.
+    n0 = len(bm.verts)
+    loft_y(bm, AXIS, BALL_TOP, sides=16, mat=BALLG)
+    loft_y(bm, AXIS, BALL_BOTTOM, sides=16, mat=DBROWN)
+    bm.verts.ensure_lookup_table()
+    for v in bm.verts[n0:]:
+        v.co.z = max(v.co.z, BALL_FLOOR)
+    # The red stripe wrapped down the stinger's front (one raised strip). (The bright spot at its top
+    # is the polished cap's shine, not a stud.)
+    loft_y(bm, AXIS, on(BALL, [(77.5, 0.0, 0.0), (78.5, 2.0, 0.09), (84, 2.0, 0.09), (88, 1.8, 0.08),
+                               (90.8, 0.0, 0.0)], sink=0.03), sides=8, mat=RED)
+    # The small dark horns at the stinger's upper corners (columns 49-51 and 69-71, rows 75-77).
     for side in (-1, 1):
-        sweep(bm, [(AXIS + side * 6.5, 57.2, 0.2, 0.7, 0.025), (AXIS + side * 7.5, 64.5, 0.18, 0.7, 0.025)],
-              sides=6, mat=BROWN)
+        sweep(bm, [(AXIS + side * 9.6, 78.2, 0.3, 1.1, 0.12), (AXIS + side * 10.8, 75.8, 0.27, 0.7, 0.08),
+                   (AXIS + side * 11.1, 74.6, 0.25, 0.0, 0.0)], sides=6, mat=DGREY)
+    # The pod's dark spine down the middle, raised ribs either side (lit inner ribs, red outer ones)
+    # and dark brown grooves between them, all following its round top.
+    loft_y(bm, AXIS, on(POD, [(54.2, 0.0, 0.0), (55, 2.0, 0.06), (65.5, 2.0, 0.06), (66.8, 0.0, 0.0)],
+                        sink=0.02), sides=8, mat=BLACK)
+    for side in (-1, 1):
+        for dx, w, mat in ((4.2, 0.9, RIB), (9.0, 0.9, RED)):
+            rows = [(55.6 if dx < 6 else 57.2, 0.0, 0.0), (56.4 if dx < 6 else 58, w, 0.05), (62, w, 0.05),
+                    (65.6, w, 0.05), (66.3, 0.0, 0.0)]
+            loft_y(bm, AXIS + side * dx, on(POD, rows, dx, sink=0.0), sides=6, mat=mat)
+        sweep(bm, [(AXIS + side * 6.5, 57.6, surf(POD, 57.6, 6.5), 0.7, 0.03),
+                   (AXIS + side * 7.0, 64.5, surf(POD, 64.5, 7.0), 0.7, 0.03)], sides=6, mat=BROWN)
 
     # Light tan crest up the dome from the brim, with a pink light at its top, and another pink
     # light under the brim.
-    loft_y(bm, AXIS, [(9.4, 0.0, 0.0, 0.22), (10.2, 3.0, 0.05, 0.24), (12.5, 3.4, 0.05, 0.28),
-                      (14.5, 3.6, 0.05, 0.31)], sides=8, mat=LTAN)
-    ellipsoid(bm, AXIS - 1, 10.2, 0.25, 1.4, 1.2, 0.04, mat=LIGHT, segments=8, rings=4)
-    ellipsoid(bm, AXIS + 0.5, 21.2, 0.3, 1.2, 1.4, 0.03, mat=LIGHT, segments=8, rings=4)
+    loft_y(bm, AXIS, on(DOME, [(9.4, 0.0, 0.0), (10.2, 3.0, 0.05), (12.5, 3.4, 0.05)], sink=0.03)
+           + on(BRIM, [(14.5, 3.6, 0.05)], sink=0.03), sides=8, mat=LTAN)
+    ellipsoid(bm, AXIS - 1, 10.2, surf(DOME, 10.2, 1) + 0.0, 1.4, 1.2, 0.05, mat=LIGHT, segments=8, rings=4)
+    ellipsoid(bm, AXIS + 0.5, 21.2, surf(BARREL_S, 21.2, 0.5) - 0.01, 1.2, 1.4, 0.05, mat=LIGHT, segments=8,
+              rings=4)
 
     # Barrel details: bright grey bars down its sides and a ladder down its middle.
     for side in (-1, 1):
-        loft_y(bm, AXIS + side * 8.5, [(21.5, 1.6, 0.04, 0.235), (33, 1.6, 0.04, 0.235)], sides=8, mat=LGREY)
-        loft_y(bm, AXIS + side * 2.5, [(21.8, 0.9, 0.03, 0.3), (33.5, 0.9, 0.03, 0.29)], sides=6, mat=LGREY)
+        loft_y(bm, AXIS + side * 8.5, on(BARREL_S, [(21.5, 1.6, 0.05), (33, 1.6, 0.05)], 8.5), sides=8, mat=LGREY)
+        loft_y(bm, AXIS + side * 2.5, on(BARREL_S, [(21.8, 0.9, 0.04), (33.5, 0.9, 0.04)], 2.5), sides=6, mat=LGREY)
     for r0, r1 in ((26, 27), (30, 32)):
-        box(bm, 58, r0, 62, r1, 0.27, 0.33, mat=LGREY)
+        zt = surf(BARREL_S, (r0 + r1) / 2, 2.5)
+        box(bm, 58, r0, 62, r1, zt - 0.04, zt + 0.04, mat=LGREY)
+    bm.verts.ensure_lookup_table()
+    for v in bm.verts[n_start:]:
+        v.co.z = max(v.co.z, CENTRE_FLOOR)
+
+
+def build_recesses(bm):
+    """The parts that aren't mirror images (built after mirror_all, in sprite columns): the sprite is
+    lit from the upper left, so the gaps right of the barrel and of the neck are near-black and the
+    right red panel starts further out. The gaps are low floors, 3-4 px under the pylons and the
+    neck around them."""
+    # Dark gap between the barrel and each pylon (left: dark brown, right: black, r8/r9).
+    plate(bm, [(43, 21.5), (47, 21.5), (47, 36.5), (43, 36.5)], 0.1, 0.32, mat=BROWN)
+    plate(bm, [(73.5, 17.5), (78, 17.5), (78, 21.5), (81, 21.5), (81, 36.5), (73.5, 36.5)], 0.1, 0.32, mat=BLACK)
+    # Black pit right of the neck (r11, columns 66-73, rows 37-43), and a smaller one on the left.
+    plate(bm, [(66.5, 36.5), (74, 36.5), (74, 41), (73, 44), (66.5, 44)], 0.1, 0.38, mat=BLACK)
+    plate(bm, [(50, 36.5), (54, 36.5), (54, 40.5), (50, 40.5)], 0.1, 0.38, mat=BLACK)
+    # Red panels above the chevron (rows 39-43): the left one reaches in to column 53, the right one
+    # only to column 74 (with a strip up its outer side, rows 35-39).
+    bplate(bm, [(38.5, 39.5), (45, 39.5), (54, 41.5), (54, 44), (38.5, 44)], 0.1, 0.46, mat=RED, bevel=0.5)
+    bplate(bm, [(74, 41.5), (78, 39.5), (78, 34.5), (80, 34.5), (80, 39.5), (83, 39.5), (83, 44), (74, 44)],
+           0.1, 0.46, mat=RED, bevel=0.5)
 
 
 def build(sprite):
@@ -206,6 +351,7 @@ def build(sprite):
     bm = bmesh.new()
     build_left(bm)
     mirror_all(bm, AXIS)
+    build_recesses(bm)
     build_centre(bm)
     return to_object(NAME, bm, mats, coll), mats, coll
 
@@ -214,17 +360,19 @@ def eye_materials(sprite, mats):
     """`mats` plus the eye's animated colours (their own names, so the other pieces keep theirs)."""
     pal = lambda i, part, **kw: common.palette_material(sprite, i, f"{TAG}-{part}", **kw)  # noqa: E731
     return mats + [
-        pal(70, "slit", emission_strength=1.5),  # 17 red slit as the shutter cracks (frame 3)
-        pal(74, "eye", emission_strength=1.5, frames={5: 71}),  # 18 red eye, dimmer on frame 5
-        pal(122, "spark", emission_strength=3.0),  # 19 orange glint (frame 7)
-        pal(77, "glint", emission_strength=2.0),  # 20 pink glint (frame 39)
-        pal(116, "glow", emission_strength=4.0, frames={43: 117, 45: 119}),  # 21 glow, heating up
-        pal(121, "hot", emission_strength=5.0, frames={43: 123, 45: 125}),  # 22 its hot core
-        pal(127, "white", emission_strength=6.0),  # 23 white-hot centre
+        pal(70, "slit", emission_strength=1.5),  # red slit as the shutter cracks (frame 3)
+        pal(74, "eye", emission_strength=1.5, frames={5: 71}),  # red eye, dimmer on frame 5
+        pal(122, "spark", emission_strength=3.0),  # orange glint (frame 7)
+        pal(77, "glint", emission_strength=2.0),  # pink glint (frame 39)
+        # The glow heats up over frames 41, 43, 45; its base colour is the hottest (frame 45, the one
+        # the assembly layout shows), the cooler frames are listed.
+        pal(119, "glow", emission_strength=4.0, frames={41: 116, 43: 117}),  # glow, heating up
+        pal(125, "hot", emission_strength=5.0, frames={41: 121, 43: 123}),  # its hot core
+        pal(127, "white", emission_strength=6.0),  # white-hot centre
     ]
 
 
-SLIT, EYE_A, SPARK, GLINT, GLOW_A, HOT_A, WHITE = range(17, 24)
+SLIT, EYE_A, SPARK, GLINT, GLOW_A, HOT_A, WHITE = range(N_MATS, N_MATS + 7)
 
 
 def eye_frame(frame, bm):
@@ -249,7 +397,7 @@ def eye_frame(frame, bm):
     else:  # glowing: seven pixels wide, four rows tall on frame 41 and six on 43 and 45
         ry = 2.1 if frame == 41 else 3.0
         ellipsoid(bm, AXIS, 50.6, 0.12, 3.6, ry, 0.1, mat=GLOW_A)
-        ellipsoid(bm, AXIS - 0.4, 50.4, 0.17, 1.9 if frame == 41 else 2.2, ry * 0.65, 0.07, mat=HOT_A,
+        ellipsoid(bm, AXIS - 0.4, 50.4, 0.17, 1.9 if frame == 41 else 2.8, ry * (0.65 if frame == 41 else 0.8), 0.08, mat=HOT_A,
                   segments=12, rings=6)
 
 
@@ -264,12 +412,12 @@ def build_eye(frames, mats, coll, offset):
     for key, tagged in groups.items():
         bm = bmesh.new()
         eye_frame(key, bm)
-        bmesh.ops.translate(bm, vec=(-offset[0], -offset[1], 0), verts=bm.verts)
+        bmesh.ops.translate(bm, vec=(-offset[0], -offset[1], EYE_DZ), verts=bm.verts)
         parts.append(common.frame_part(to_object(f"newsh4-eye-{key}", bm, mats, coll), tagged))
     if 41 in frames:
         bm = bmesh.new()
         ellipsoid(bm, AXIS - 1, 50.1, 0.25, 0.7, 0.6, 0.03, mat=WHITE, segments=8, rings=4)
-        bmesh.ops.translate(bm, vec=(-offset[0], -offset[1], 0), verts=bm.verts)
+        bmesh.ops.translate(bm, vec=(-offset[0], -offset[1], EYE_DZ), verts=bm.verts)
         parts.append(to_object("newsh4-eye-white", bm, mats, coll))
     return parts
 

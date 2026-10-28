@@ -74,9 +74,9 @@ PX = 1 / 12
 OUT_LEFT = [(63, -8), (13, -8), (13, 12), (15.5, 14), (14.3, 17), (14.3, 20.5), (16, 22.5), (15.5, 24.5),
             (13.8, 27), (12, 30), (10, 32), (9, 34), (9, 40), (9.5, 43.5), (13, 45), (17, 46.5),
             (20, 48.3), (24, 50), (25.2, 52), (25.5, 54.5), (27.2, 57.2), (29.5, 59.5), (30.2, 62),
-            (29.5, 65), (28.5, 68), (27.6, 71), (27.6, 74), (29, 76.5), (32, 78.5), (34, 80.5),
-            (35.2, 83), (36, 86), (37.6, 88.3), (39.5, 90.3), (42.5, 91.8), (52, 92), (56, 91),
-            (60, 90.5)]
+            (29.5, 65), (28.5, 68), (27.6, 71), (28.2, 72.6), (31.0, 75.0), (31.5, 76.6), (31.6, 78.6),
+            (32.6, 80.2), (34.4, 81.3), (34.4, 85.3), (35.5, 86.4), (36.4, 87.6), (37.4, 89.2), (38.6, 90.3),
+            (40.5, 91.4), (42.6, 92.5), (52.5, 92.5), (53.3, 90.6), (60.5, 90.6)]
 # Outer and inner edge of the gums.
 GUM_OUT_LEFT = [(63, 35), (52, 35), (49, 36.8), (46, 38.8), (42, 41.5), (38.5, 44.2), (36.2, 47), (35.2, 50),
                 (35.5, 56), (37.5, 58.5), (38.6, 61), (38.8, 64), (41, 66.5), (43.5, 68.2), (44.5, 71),
@@ -88,19 +88,26 @@ CENTRE = (63.0, 60.0)  # the polar rings' centre: the middle of the mouth
 CORE = (63.0, 56.0)  # the glowing core deep in the throat
 
 # Palette families: the shell's faces take the sprite's colour, snapped to these shades.
+# The throat's near-black (index 1) is its own darkest "red", so the gaps between its ridges stay black.
 FAMILIES = {
-    "blue": [96, 97, 99, 101, 103, 105, 107],
-    "gum": [65, 66, 69, 72, 75],
-    "red": [112, 113, 114, 117, 120],
-    "purple": [82, 83, 87, 90],
+    "blue": [96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 107],
+    "gum": [65, 67, 69, 71, 73, 75],
+    "red": [1, 112, 113, 114, 115, 117, 120],
+    "purple": [82, 83, 85, 87, 90],
     "tooth": [19, 163, 169],
 }
 FAMILY_OF = {rep: fam for fam, reps in FAMILIES.items() for rep in reps}
-DARK = {"blue": 96, "gum": 65, "red": 112, "purple": 82, "tooth": 163}
+DARK = {"blue": 96, "gum": 65, "red": 1, "purple": 82, "tooth": 163}
 # For the animated pieces the throat's reds keep the fire's bright shades apart (orange, yellow,
 # white-hot), which the static paint lumps into 120.
-FINE_FAMILIES = dict(FAMILIES, red=[112, 113, 114, 117, 120, 122, 124, 126])
+FINE_FAMILIES = dict(FAMILIES, red=[1, 112, 113, 114, 115, 117, 120, 122, 124, 126])
 FAMILY_OF.update({rep: "red" for rep in FINE_FAMILIES["red"]})
+# How a part's colours follow the sprite's shades (Painter.shade): (how much of the step away from
+# the part's mid-tone to keep, soft-average radius in px or 0 for none, leave outline black out).
+# The throat keeps its dark rings half (they are its ledges' gaps), unsmoothed.
+SOFT = {"blue": (0.5, 0.8, True), "gum": (0.55, 0.7, True), "red": (0.75, 0.0, False),
+        "purple": (0.35, 1.0, True)}
+LIGHTS = {117, 120, 122, 124, 126}  # the throat's glow and the fire: lights, not shading
 
 # The animated pieces' frames, phase by phase (the layout above shows phase 2).
 ANIM = {"newshn-119": [119, 229, 233, 237, 241], "newshn-121": [121, 231, 235, 239, 243],
@@ -132,7 +139,8 @@ FANGS = {
 FIRE = [
     [],
     [(115, 63.0, 56.5, -0.1, 2.8, 2.4, 0.04, 1.5)],
-    [(117, 63.0, 56.0, -0.1, 4.2, 3.6, 0.05, 0.0), (121, 63.3, 55.8, -0.07, 2.4, 2.2, 0.05, 4.0)],
+    [(115, 63.0, 56.0, -0.1, 4.2, 3.6, 0.05, 0.0), (117, 63.1, 55.9, -0.08, 2.9, 2.6, 0.05, 1.5),
+     (121, 63.3, 55.8, -0.07, 1.6, 1.5, 0.05, 4.0)],
     [(117, 63.0, 56.5, -0.09, 5.0, 4.2, 0.05, 1.5), (122, 63.0, 56.2, -0.06, 3.0, 2.6, 0.05, 4.0),
      (126, 63.0, 56.0, -0.035, 1.0, 1.0, 0.03, 6.0)],
     [(118, 63.5, 57.5, -0.08, 6.6, 5.6, 0.06, 2.0), (121, 63.5, 57.5, -0.05, 5.0, 3.9, 0.05, 3.0),
@@ -149,11 +157,13 @@ def rep_of(idx, context, fine=False):
         return (120, 120, 122, 122, 124, 124, 126, 126, 126)[idx - 119]
     if idx <= 4 or idx == 48:
         return DARK[context]
-    for lo, hi, rep in ((16, 27, 19), (64, 65, 65), (66, 67, 66), (68, 70, 69), (71, 73, 72), (74, 77, 75),
-                        (80, 82, 82), (83, 84, 83), (85, 88, 87), (89, 93, 90),
-                        (96, 96, 96), (97, 97, 97), (98, 99, 99), (100, 101, 101), (102, 103, 103),
-                        (104, 106, 105), (107, 111, 107), (255, 255, 107),
-                        (112, 112, 112), (113, 113, 113), (114, 115, 114), (116, 118, 117), (119, 127, 120),
+    for lo, hi, rep in ((16, 27, 19), (64, 65, 65), (66, 67, 67), (68, 69, 69), (70, 71, 71), (72, 73, 73),
+                        (74, 77, 75), (80, 82, 82), (83, 83, 83), (84, 85, 85), (86, 88, 87), (89, 93, 90),
+                        (96, 96, 96), (97, 97, 97), (98, 98, 98), (99, 99, 99), (100, 100, 100), (101, 101, 101),
+                        (102, 102, 102), (103, 103, 103), (104, 104, 104), (105, 106, 105), (107, 111, 107),
+                        (255, 255, 107),
+                        (112, 112, 112), (113, 113, 113), (114, 114, 114), (115, 115, 115), (116, 118, 117),
+                        (119, 127, 120),
                         (160, 165, 163), (166, 174, 169)):
         if lo <= idx <= hi:
             return rep
@@ -163,8 +173,11 @@ def rep_of(idx, context, fine=False):
 class Palette:
     """Material slots by palette index, made on first use."""
 
-    STYLE = {"blue": (0.3, 0.5), "gum": (0.05, 0.55), "red": (0.0, 0.7), "purple": (0.15, 0.55),
-             "tooth": (0.1, 0.35)}
+    # (metallic, roughness) per family. The head is a creature: its blue-grey skull a hard, slightly
+    # glossy carapace (not metal), the gums and throat wet flesh, the brain and claws matte-ish
+    # organic, the fangs smooth bone. The lighting shades them; their colours are mid-tones.
+    STYLE = {"blue": (0.1, 0.4), "gum": (0.0, 0.4), "red": (0.0, 0.65), "purple": (0.0, 0.6),
+             "tooth": (0.0, 0.3)}
 
     def __init__(self, sprite):
         self.sprite = sprite
@@ -198,6 +211,17 @@ class Palette:
             self.mats.append(common.palette_material(
                 self.sprite, reps[0], TAG + "f" + "-".join(map(str, reps[1:])), metallic=metallic, roughness=rough,
                 emission_strength=2.5 if max(reps) >= 120 else 0.0, frames=frames))
+        return self.slots[key]
+
+    def eye(self, idx, emission=0.0):
+        """A slot for the eyes: wet, glossy balls, so the scene's lights put the sprite's highlight
+        on them."""
+        key = ("eye", idx)
+        if key not in self.slots:
+            self.slots[key] = len(self.mats)
+            self.index.append(idx)
+            self.mats.append(common.palette_material(self.sprite, idx, f"{TAG}eye", metallic=0.0, roughness=0.15,
+                                                     emission_strength=emission))
         return self.slots[key]
 
     def glow(self, idx, emission):
@@ -242,23 +266,44 @@ class Painter:
         c, r = to_px(x, y)
         return (self.grid if grid is None else grid).get((math.floor(c + 0.5), math.floor(r + 0.5)), -1)
 
-    def relief(self, c, r):
-        """Height offset from the sprite's shading round a point: its light ribs and knobs stand
-        up, its dark gaps and sockets sink (a soft 5x5 average, so it follows forms, not pixels)."""
+    def _lightness(self, c, r, fam, neutral, spread=1.2):
+        """The sprite's shade round a point on a 0-6 scale within one palette family (a soft
+        average over a few pixels, so it follows the ribs and lumps rather than single pixels);
+        pixels of other families count as `neutral`."""
         total = wsum = 0.0
         c0, r0 = math.floor(c + 0.5), math.floor(r + 0.5)
+        order = FAMILIES[fam]
         for dc in (-2, -1, 0, 1, 2):
             for dr in (-2, -1, 0, 1, 2):
-                rep = rep_of(self.grid.get((c0 + dc, r0 + dr), -1), "blue")
+                rep = rep_of(self.grid.get((c0 + dc, r0 + dr), -1), fam)
                 if rep is None:
                     continue
-                w = math.exp(-((c0 + dc - c) ** 2 + (r0 + dr - r) ** 2) / 3.0)
-                total += w * (FAMILIES["blue"].index(rep) if FAMILY_OF[rep] == "blue" else 2.5)
+                w = math.exp(-((c0 + dc - c) ** 2 + (r0 + dr - r) ** 2) / spread)
+                total += w * (6 * order.index(rep) / (len(order) - 1) if FAMILY_OF.get(rep) == fam else neutral)
                 wsum += w
-        return max(-0.06, min(0.06, (total / wsum - 2.3) * 0.028)) if wsum else 0.0
+        return total / wsum if wsum else None
 
-    def shade(self, f, context, grid=None, fine=False):
-        """The shade of the sprite pixels under a face (a vote over a few points), or None."""
+    def relief(self, c, r):
+        """Height offset from the sprite's shading round a point: its light ribs and knobs stand
+        up about 1.5 px, its dark grooves, gaps and sockets sink up to 1.7 px."""
+        v = self._lightness(c, r, "blue", 2.0)
+        return 0.0 if v is None else max(-0.14, min(0.13, (v - 2.0) * 0.07))
+
+    def gum_relief(self, c, r):
+        """The gums' lumps: their light pink highlights stand up to 1.2 px, the dark gaps between
+        them sink."""
+        v = self._lightness(c, r, "gum", 1.5, spread=2.0)
+        return 0.0 if v is None else max(-0.06, min(0.1, (v - 2.4) * 0.04))
+
+    def shade(self, f, context, grid=None, fine=False, mid=None):
+        """The colour of a face from the sprite pixels under it (a vote over a few points), or None.
+
+        The sprite draws its light into its pixels (dark outline, dark grooves, lit ribs); the game
+        lights the model and draws its own outline. So, with `mid` (the part's mid-tone), a face
+        takes a soft average of the sprite's shade round it, with outline black left out, pulled
+        most of the way to the part's mid-tone (SOFT): the sprite's markings and lighter or darker
+        plates still show, its shading and pixel patchwork don't. Lights (the throat's glow and
+        fire, LIGHTS) keep their colour."""
         families = FINE_FAMILIES if fine else FAMILIES
         cen = f.calc_center_median()
         reps = [rep_of(self.pixel(p.x, p.y, grid), context, fine)
@@ -271,8 +316,34 @@ class Painter:
         fams = [FAMILY_OF[r] for r in reps]
         fam = max(set(fams), key=lambda k: (fams.count(k), k == context))
         order = families[fam]
-        pos = sum(order.index(r) for r in reps if FAMILY_OF[r] == fam) / fams.count(fam)
-        return order[round(pos)]
+        pos = sorted(order.index(r) for r in reps if FAMILY_OF[r] == fam)
+        rep = order[pos[len(pos) // 2]]  # the median shade: no greying mix of light and dark
+        if mid is None or fam not in SOFT or rep in LIGHTS or FAMILY_OF.get(mid) != fam:
+            return rep
+        keep, sigma, skip_outline = SOFT[fam]
+        p = float(order.index(rep))
+        if sigma > 0:
+            c, r = to_px(cen.x, cen.y)
+            total = wsum = 0.0
+            for dc in (-2, -1, 0, 1, 2):
+                for dr in (-2, -1, 0, 1, 2):
+                    raw = (self.grid if grid is None else grid).get((math.floor(c + 0.5) + dc,
+                                                                     math.floor(r + 0.5) + dr), -1)
+                    if raw < 0 or (skip_outline and (raw <= 4 or raw == 48)):
+                        continue
+                    q = rep_of(raw, fam, fine)
+                    if q is None or FAMILY_OF.get(q) != fam or q in LIGHTS:
+                        continue
+                    w = math.exp(-((math.floor(c + 0.5) + dc - c) ** 2 + (math.floor(r + 0.5) + dr - r) ** 2)
+                                 / (2 * sigma * sigma))
+                    total += w * order.index(q)
+                    wsum += w
+            if wsum:
+                p = total / wsum
+            elif skip_outline:
+                p = float(order.index(mid))
+        m = order.index(mid)
+        return order[max(0, min(len(order) - 1, math.floor(m + (p - m) * keep + 0.5)))]
 
     def paint(self, faces, context, default=None, min_nz=None):
         """Give each face the shade of the sprite pixels under it (with `phases`, per phase)."""
@@ -282,7 +353,7 @@ class Painter:
                 if f.normal.z < min_nz:
                     continue
             if self.phases is None:
-                rep = self.shade(f, context)
+                rep = self.shade(f, context, mid=default)
                 if rep is None:
                     if default is not None:
                         f.material_index = self.pal(default)
@@ -292,10 +363,10 @@ class Painter:
             keep = self.pal.index[f.material_index] if default is None else default
             c, r = to_px(*f.calc_center_median().xy)
             if not any(c0 <= c <= c1 and r0 <= r <= r1 for c0, r0, c1, r1 in self.boxes):
-                rep = self.shade(f, context)  # outside the animated pieces: as the static paint
+                rep = self.shade(f, context, mid=default)  # outside the animated pieces: as the static paint
                 f.material_index = self.pal(keep if rep is None else rep)
                 continue
-            reps = [self.shade(f, context, g, fine=True) for g in self.phases]
+            reps = [self.shade(f, context, g, fine=True, mid=default) for g in self.phases]
             reps = [keep if r is None else r for r in reps]
             for k in range(1, PHASES - 1):  # a shade that flickers for one frame (pixel noise)
                 if reps[k - 1] == reps[k + 1] != reps[k]:
@@ -358,77 +429,160 @@ def rim(d, depth=6.0):
     return math.sqrt(max(0.0, 1 - (1 - d) ** 2))
 
 
+# Raised forms on the skull (left side; mirrored): (col, row, sigma col, sigma row px, height).
+KNOBS = [
+    (33.5, 44.8, 3.0, 3.0, 0.3),  # the round grey knob below the lowest eye (r30)
+    (38.6, 42.6, 2.0, 2.0, 0.22),  # the small knob at the gums' corner (r35)
+    (32.5, 61.5, 4.0, 6.0, 0.26),  # the cheek pad beside the lower mouth, under the claw (r49)
+    (47.0, 18.5, 3.5, 3.0, 0.12),  # the ribbed brow arcs round the upper eye
+]
+# Dark pits cut into the armour (left side; mirrored): (col, row, radius px, depth).
+PITS = [
+    (43.5, 7.4, 3.0, 0.12),  # beside the brain (r9)
+    (30.5, 10.4, 3.2, 0.12),  # (r12)
+    (52.8, 18.5, 3.5, 0.14),  # the V between the brain and the eye clusters (r16)
+    (23.8, 42.8, 4.0, 0.12),  # behind the tentacle roots (r29)
+]
+EYES = [(37.5, 24.8), (32.3, 32.2), (29.6, 40.6)]  # the glowing eyes, each in a dark socket
+SOCKET_R, SOCKET_DEPTH = 4.3, 0.17
+# The throat: its rim below the gums' top, the floor it steps down to (in ledges) and the red
+# mound round the glowing core that rises from it.
+LIP_TOP = 0.72
+THROAT_RIM, THROAT_FLOOR, MOUND_TOP = 0.42, -0.5, -0.16
+FLOOR_AT = 0.55  # fraction of the way from the gums to the core where the mound starts
+LEDGES = 6
+BELLY = 0.62  # the underside's depth (it has to stay under the throat)
+# The skull is a domed mass: about 12-13 px high over the brow and the eye ridges, falling to
+# about 4 px at the shoulder plates and the lower jaw.
+H_LOW, H_HIGH = 0.33, 1.05
+OLD_TOP = 0.3  # the skull height the gums' and lip's heights below were set against
+RIM_DEPTH = 11.0  # how far in (px) the skull rolls over from its outline
+
+
+def skull_top(c, r):
+    """The skull's dome height (before its relief) at assembly pixel (c, r)."""
+    dc = abs(c - AXIS)
+    brow = math.exp(-(dc ** 2 / (2 * 26 ** 2) + (r - 14) ** 2 / (2 * 21 ** 2)))
+    cheek = 0.85 * math.exp(-((dc - 30) ** 2 / (2 * 9 ** 2) + (r - 38) ** 2 / (2 * 13 ** 2)))
+    f = 1 - (1 - brow) * (1 - cheek)
+    return H_LOW + (H_HIGH - H_LOW) * f
+
+
+def lift(c, r):
+    """How much higher the skull is at (c, r) than it was: the gums, lip and throat rim rise with it."""
+    return skull_top(c, r) - OLD_TOP
+
+
+def features(c, r):
+    """Height added to the skull at assembly pixel (c, r): knobs and cheek pads raised, eye
+    sockets and the dark pits between the armour plates cut in."""
+    cm = AXIS - abs(c - AXIS)  # left-side column (the head is symmetric)
+    dz = 0.0
+    for kc, kr, sc, sr, h in KNOBS:
+        if kc > AXIS:
+            continue
+        dz += h * math.exp(-((cm - kc) ** 2 / (2 * sc * sc) + (r - kr) ** 2 / (2 * sr * sr)))
+    for pc, pr, rad, depth in PITS:
+        d = math.hypot(cm - pc, r - pr) / rad
+        if d < 1:
+            dz -= depth * (1 - d * d) ** 1.5
+    for ec, er in EYES:
+        d = math.hypot(cm - ec, r - er) / SOCKET_R
+        if d < 1:
+            dz -= SOCKET_DEPTH * (1 - d ** 4)
+    return dz
+
+
+def throat_z(s, rim_z=THROAT_RIM):
+    """Throat height at fraction s of the way from the gums (0) to the core (1): down in ledges to
+    the floor, then up over the mound. `rim_z`: the throat's rim height on this ray."""
+    if s <= FLOOR_AT:
+        t = s / FLOOR_AT
+        q = t * LEDGES
+        k = min(math.floor(q), LEDGES - 1)
+        f = q - k
+        stair = (k + f * f * (3 - 2 * f)) / LEDGES
+        g = 0.35 * t + 0.65 * stair
+        return rim_z + (THROAT_FLOOR - rim_z) * g ** 0.9
+    m = (s - FLOOR_AT) / (1 - FLOOR_AT)
+    return THROAT_FLOOR + (MOUND_TOP - THROAT_FLOOR) * math.sin(0.5 * math.pi * m) ** 1.5
+
+
 def build_shell(bm, painter):
     out = lib.mirror_poly(OUT_LEFT, AXIS)
     gum_out = lib.mirror_poly(GUM_OUT_LEFT, AXIS)
     gum_in = lib.mirror_poly(GUM_IN_LEFT, AXIS)
-    N, M, K = 256, 128, 64  # ring resolution: skin, gums, throat
+    N, M, K = 384, 192, 96  # ring resolution: skin, gums, throat
     edge_z = -0.03
 
     def verts(pts, zs):
         return [bm.verts.new((X(c), Y(r), z)) for (c, r), z in zip(pts, zs)]
 
-    def dome(c, r):
-        """The skull's height away from its rim: highest round the brain and over the cheeks."""
-        top = 0.24 + 0.06 * math.exp(-((c - AXIS) ** 2 / 500 + (r - 12) ** 2 / 300))
-        cheek = 0.03 * math.exp(-((abs(c - AXIS) - 33) ** 2 / 120 + (r - 34) ** 2 / 200))
-        return top + cheek
+    dome = skull_top
 
     edge = ring_points(out, out, 0.0, N)
     edge_v = verts(edge, [edge_z] * N)
 
-    # Top: from the outline in to the gums, with the sprite's light ribs raised a little and its
-    # dark crevices sunk.
+    # Top: from the outline in to the gums, with the sprite's light ribs raised and its dark
+    # grooves, pits and the eye sockets cut in, and the knobs and cheek pads raised.
     skin = []
     prev = edge_v
-    for u in (0.02, 0.045, 0.075, 0.11, 0.15, 0.2, 0.25, 0.3, 0.36, 0.42, 0.48, 0.54, 0.6, 0.66, 0.72,
-              0.78, 0.84, 0.9, 0.95, 1.0):
+    us = [0.02, 0.045, 0.075, 0.11] + [0.15 + 0.85 * i / 22 for i in range(23)]
+    for u in us:
         pts = ring_points(out, gum_out, u, N)
         zs = []
         for (c, r), (ec, er) in zip(pts, edge):
-            k = rim(math.hypot(c - ec, r - er), 8.0)
-            zs.append(edge_z + (dome(c, r) - edge_z) * k + painter.relief(c, r) * k * (1 - u ** 4))
+            # The top edge (beyond the screen) is cut off by the pieces, so the dome runs on there.
+            k = 1.0 if er < -7.5 else rim(math.hypot(c - ec, r - er), RIM_DEPTH)
+            zs.append(edge_z + (dome(c, r) + features(c, r) - edge_z) * k
+                      + painter.relief(c, r) * k * (1 - u ** 4))
         ring = verts(pts, zs)
         skin += connect(bm, prev, ring)
         prev = ring
 
-    # The gums: a fleshy lip that rises and rolls over into the throat.
+    # The gums: a rounded ridge of fleshy lumps standing well above the armour, rolling over
+    # into the throat.
     gums = []
-    for v, z in ((0.2, 0.31), (0.45, 0.335), (0.7, 0.315), (1.0, 0.22)):
-        ring = verts(ring_points(gum_out, gum_in, v, M), [z] * M)
+    for v, z in ((0.08, 0.5), (0.22, 0.64), (0.38, LIP_TOP), (0.55, 0.71), (0.72, 0.64), (0.87, 0.54),
+                 (1.0, THROAT_RIM)):
+        pts = ring_points(gum_out, gum_in, v, M)
+        zs = [z + lift(c, r) + painter.gum_relief(c, r) * math.sin(math.pi * v) for c, r in pts]
+        ring = verts(pts, zs)
         gums += connect(bm, prev, ring)
         prev = ring
 
-    # The throat: ridged rings sinking from the gums to the core.
+    # The throat: a tapered bowl stepping down in ledges (the sprite's dark red rings) to its floor,
+    # then a red mound round the glowing core.
     rim_pts = ring_points(gum_in, gum_in, 0.0, K)
+    rim_zs = [THROAT_RIM + lift(c, r) for c, r in rim_pts]
     throat = []
-    steps = 14
-    for i in range(1, steps):
-        s = i / steps
+    ss = [FLOOR_AT * i / 22 for i in range(1, 23)] + [FLOOR_AT + (1 - FLOOR_AT) * i / 10 for i in range(1, 10)]
+    for s in ss:
         pts = [(c + (CORE[0] - c) * s, r + (CORE[1] - r) * s) for c, r in rim_pts]
-        z = 0.22 - 0.33 * s ** 0.85 + 0.024 * math.cos(math.pi * i) * (1 - s)
-        ring = verts(pts, [z] * K)
+        ring = verts(pts, [throat_z(s, rz) for rz in rim_zs])
         throat += connect(bm, prev, ring)
         prev = ring
-    tip = [bm.verts.new((X(CORE[0]), Y(CORE[1]), -0.13))]
+    tip = [bm.verts.new((X(CORE[0]), Y(CORE[1]), MOUND_TOP))]
     throat += connect(bm, prev, tip)
 
-    # Underside: a shallow rounded belly.
+    # Underside: a rounded belly, deep enough to close under the throat.
     belly = []
     prev = edge_v
     for u, n in ((0.03, M), (0.1, K), (0.25, K // 2), (0.5, K // 2), (0.75, K // 2)):
         pts = ring_points(out, out, 0.0, n)
         rim_ref = pts
         pts = [(CENTRE[0] + (c - CENTRE[0]) * (1 - u), CENTRE[1] + (r - CENTRE[1]) * (1 - u)) for c, r in pts]
-        zs = [edge_z - 0.15 * rim(math.hypot(c - ec, r - er)) for (c, r), (ec, er) in zip(pts, rim_ref)]
+        # Deep only under the throat; elsewhere (the cut edges at the top of the screen) shallow.
+        zs = [edge_z - (0.15 + (BELLY - 0.15) * min(1.0, max(0.0, (34 - math.hypot(c - CENTRE[0], r - CENTRE[1])) / 10)))
+              * rim(math.hypot(c - ec, r - er), 16.0) for (c, r), (ec, er) in zip(pts, rim_ref)]
         ring = verts(pts, zs)
         belly += connect(bm, prev, ring)
         prev = ring
-    belly += connect(bm, prev, [bm.verts.new((X(CENTRE[0]), Y(CENTRE[1]), -0.18))])
+    belly += connect(bm, prev, [bm.verts.new((X(CENTRE[0]), Y(CENTRE[1]), edge_z - BELLY - 0.02))])
 
     for f in skin + gums + throat + belly:
         f.smooth = True
-    painter.paint(skin, "blue", default=97)
+    painter.paint(skin, "blue", default=98)
     painter.paint(gums, "gum", default=69)
     painter.paint(throat, "red", default=113)
     for f in belly:
@@ -477,32 +631,41 @@ def build_parts(bm, painter, surf, phase=None):
         # Folds: a few crossing ripples, strongest on top, like the sprite's lumpy purple mass.
         return 1 + (0.07 * math.sin(14 * dx + 1.3) * math.sin(12 * dy + 0.4)
                     + 0.04 * math.sin(23 * dx + 7 * dy) + 0.03 * math.sin(19 * dy - 9 * dx)) * (0.3 + max(dz, 0))
-    brain_c, brain_r = (13.6 * PX, 17.0 * PX, 0.19), P(AXIS, 4.0, 0.2)
     if body:
-        faces = lib.blob(bm, brain_r, brain_c, segments=36, rings=14, mat=pal(87), bump=bump)
+        # A round dome about 8 px above the armour (its lower half, inside the skull, left out).
+        # Its base sits a little into the skull's dome, so it stands about 8 px above it.
+        faces = half_blob(bm, P(AXIS, 4.0, skull_top(AXIS, 4.0) - 0.12), (13.6 * PX, 17.0 * PX, 0.8), segments=36,
+                          rings=10, mat=pal(87), bump=bump)
 
         painter.paint(faces, "purple", default=87, min_nz=0.0)
         # Bony snout plate between the brain and the upper lip (rows 19-27).
-        faces = lib.blob(bm, P(AXIS, 23.8, 0.24), (7.5 * PX, 4.2 * PX, 0.075), segments=16, rings=6, mat=pal(103))
+        faces = lib.blob(bm, P(AXIS, 23.8, skull_top(AXIS, 23.8) - 0.1), (7.5 * PX, 4.2 * PX, 0.26), segments=16,
+                         rings=8, mat=pal(103))
         painter.paint(faces, "blue", default=103, min_nz=0.0)
 
-        # The central knob of the upper lip, ending in a short dark tooth (column 63, rows 39-49).
-        faces = lib.blob(bm, P(AXIS, 42.2, 0.27), (2.6 * PX, 3.2 * PX, 0.06), segments=12, rings=6, mat=pal(69))
+        # The central lobe of the upper lip, hanging from the gums' ridge over the throat and ending
+        # in a short dark tooth (column 63, rows 37-49).
+        faces = lib.tube(bm, [P(AXIS, r, z + lift(AXIS, r)) for r, z in
+                              ((36.5, LIP_TOP - 0.06), (40.0, LIP_TOP - 0.1), (43.2, 0.5), (44.6, 0.42))], [2.2 * PX, 2.3 * PX, 1.9 * PX, 1.0 * PX], sides=10,
+                         mat=pal(69), flat=0.8)
         painter.paint(faces, "gum", default=69, min_nz=0.0)
     if teeth:
         k, mat = fang("knob", pal(163) if not anim else None)
-        lib.tube(bm, [P(AXIS, 44.0, 0.25), P(AXIS, 44.0 + 2.5 * k, 0.25 - 0.04 * k),
-                      P(AXIS, 44.0 + 5.5 * k, 0.25 - 0.1 * k)],
-                 [1.4 * PX, 1.0 * PX, 0.0], sides=8, mat=mat)
+        z0 = 0.44 + lift(AXIS, 44.0)
+        lib.tube(bm, [P(AXIS, 44.0, z0), P(AXIS, 44.0 + 2.5 * k, z0 - 0.12 * k),
+                      P(AXIS, 44.0 + 5.5 * k, z0 - 0.32 * k)],
+                 [1.5 * PX, 1.1 * PX, 0.0], sides=8, mat=mat)
 
     def side(m):
         if body:
-            # Eyes: a dark red socket with a glowing ball (three down each side).
-            for c, r in ((37.5, 24.8), (32.3, 32.2), (29.6, 40.6)):
+            # Eyes: a red ball with a glowing centre, half sunk in its dark socket (three down each side).
+            for c, r in EYES:
                 z = surf.z(m(c), r)
-                lib.blob(bm, P(m(c), r, z - 0.01), (2.7 * PX, 2.6 * PX, 0.05), segments=12, rings=6, mat=pal(113))
-                lib.blob(bm, P(m(c), r - 0.2, z + 0.025), (1.6 * PX, 1.6 * PX, 0.04), segments=10, rings=5,
-                         mat=pal(121, emission=4.0))
+                lib.blob(bm, P(m(c), r, z), (3.0 * PX, 3.0 * PX, 0.2), segments=14, rings=7, mat=pal.eye(113))
+                lib.blob(bm, P(m(c), r - 0.1, z + 0.06), (2.1 * PX, 2.1 * PX, 0.165), segments=12, rings=6,
+                         mat=pal.eye(117))
+                lib.blob(bm, P(m(c), r - 0.2, z + 0.13), (1.2 * PX, 1.2 * PX, 0.11), segments=10, rings=5,
+                         mat=pal.eye(121, emission=4.0))
 
         # Fangs round the gums, pointing in and down into the throat: (base, tip, radius px).
         for i, ((bc, br), (tc, tr), rad) in enumerate((
@@ -515,49 +678,91 @@ def build_parts(bm, painter, surf, phase=None):
             k, mat = fang(("L" if m(0) == 0 else "R", i), pal(169) if not anim else None)
             if k != 1.0:
                 tc, tr = bc + (tc - bc) * k, br + (tr - br) * k
-            zb = surf.z(m(bc), br) - 0.01
+            # Rooted in the gums' inner slope, hanging down over the throat.
+            zb = surf.z(m(bc), br) - 0.04
             mc, mr = bc + (tc - bc) * 0.45, br + (tr - br) * 0.45
-            lib.tube(bm, [P(m(bc), br, zb), P(m(mc), mr, zb - 0.025 * k), P(m(tc), tr, zb - 0.07 * k)],
-                     [rad * PX, rad * 0.7 * PX, 0.0], sides=8, mat=mat)
+            lib.tube(bm, [P(m(bc), br, zb), P(m(mc), mr, zb - 0.1 * k), P(m(tc), tr, zb - 0.3 * k)],
+                     [(rad + 0.35) * PX, (rad + 0.35) * 0.7 * PX, 0.0], sides=8, mat=mat)
 
         if not body:
             return
-        # Tentacles hanging off the flanks, thickening at their tips: (col, row, radius px).
-        for path in ([(11.0, 40.0, 1.5), (8.7, 42.4, 1.4), (8.3, 44.3, 1.1), (8.6, 45.6, 0.0)],
-                     [(15.0, 44.0, 1.6), (12.6, 47.5, 1.5), (11.3, 50.5, 1.5), (10.8, 52.6, 1.0), (10.7, 53.6, 0.0)],
-                     [(21.5, 46.5, 1.7), (18.4, 49.5, 1.3), (16.8, 52.5, 1.2), (16.0, 55.5, 1.6), (16.0, 57.6, 1.0),
-                      (16.0, 58.4, 0.0)],
-                     [(26.5, 53.0, 1.7), (22.8, 56.0, 1.3), (21.2, 59.5, 1.1), (20.8, 62.0, 1.3), (21.6, 64.6, 1.9),
-                      (21.6, 66.6, 1.4), (21.6, 67.9, 0.0)]):
+        # Tentacles hanging off the flanks, round and swelling to a ball at their tips: (col, row,
+        # radius px), measured on the sprite with its dark outline.
+        for path in ([(11.5, 39.5, 1.8), (9.5, 41.5, 1.8), (8.5, 43.5, 2.0), (8.5, 45.0, 1.5), (8.5, 45.8, 0.0)],
+                     [(15.5, 44.0, 1.8), (13.0, 46.5, 2.2), (11.5, 48.8, 2.3), (10.8, 51.0, 2.2), (10.5, 52.8, 1.6),
+                      (10.5, 53.8, 0.0)],
+                     [(21.5, 46.5, 1.9), (18.5, 49.0, 1.9), (16.8, 51.5, 1.9), (16.0, 54.0, 2.2), (16.0, 56.2, 2.5),
+                      (16.2, 58.0, 1.6), (16.2, 58.9, 0.0)],
+                     [(26.5, 53.0, 2.0), (23.0, 56.5, 1.8), (21.0, 59.5, 1.9), (20.6, 62.0, 2.0), (21.4, 64.8, 2.8),
+                      (21.4, 66.8, 2.4), (21.2, 68.2, 1.2), (21.2, 68.8, 0.0)]):
             n = len(path)
-            pts = [P(m(c), r, 0.04 - 0.06 * i / (n - 1)) for i, (c, r, _) in enumerate(path)]
-            faces = lib.tube(bm, pts, [rr * PX for _, _, rr in path], sides=8, mat=pal(101))
+            pts = [P(m(c), r, 0.08 - 0.08 * i / (n - 1)) for i, (c, r, _) in enumerate(path)]
+            faces = lib.tube(bm, pts, [rr * PX for _, _, rr in path], sides=10, mat=pal(101))
             painter.paint(faces, "blue", default=101, min_nz=-0.2)
 
         # Purple claw low on each side, sweeping down and out (columns 27-38, rows 64-77).
-        path = [(37.2, 64.6, 0.3, 3.0), (34.6, 68.5, 0.24, 3.4), (31.6, 72.2, 0.15, 2.7), (29.0, 75.4, 0.07, 1.6),
-                (27.4, 77.4, 0.03, 0.0)]
-        faces = lib.tube(bm, [P(m(c), r, z) for c, r, z, _ in path], [w * PX for *_, w in path], sides=10,
-                         mat=pal(87), flat=0.4)
+        # Centres and half-widths measured on the sprite's purple, row by row.
+        path = [(35.5, 65.2, 0.3, 2.8), (33.0, 68.5, 0.24, 3.6), (31.5, 71.5, 0.15, 3.5), (30.0, 73.5, 0.08, 2.6),
+                (28.6, 75.0, 0.04, 1.6), (27.6, 76.0, 0.03, 0.0)]
+        # A round, tapering horn standing on the cheek pad: about 5 px tall at its root.
+        faces = lib.tube(bm, [P(m(c), r, max(z, surf.z(m(c), r, z) - 0.03 + 0.55 * w * PX)) for c, r, z, w in path],
+                         [w * PX for *_, w in path], sides=10, mat=pal(87), flat=1.0)
         painter.paint(faces, "purple", default=87, min_nz=-0.2)
 
     mirrored(side)
 
     if body:
         # Chin spike (column 63, rows 89-94).
-        faces = lib.tube(bm, [P(AXIS, 88.0, 0.06), P(AXIS, 91.0, 0.03), P(AXIS, 93.2, 0.0), P(AXIS, 94.4, 0.0)],
-                         [1.8 * PX, 1.4 * PX, 0.9 * PX, 0.0], sides=8, mat=pal(103))
+        faces = lib.tube(bm, [P(AXIS, 88.0, 0.2), P(AXIS, 91.0, 0.12), P(AXIS, 93.0, 0.06), P(AXIS, 94.2, 0.02),
+                              P(AXIS, 95.0, 0.0)],
+                         [2.2 * PX, 2.5 * PX, 2.3 * PX, 1.4 * PX, 0.0], sides=8, mat=pal(103))
         painter.paint(faces, "blue", default=103, min_nz=-0.2)
 
     if phase is None:
-        # The glowing core deep in the throat, in a red glow.
-        lib.blob(bm, P(CORE[0], CORE[1], -0.1), (4.2 * PX, 3.6 * PX, 0.05), segments=14, rings=6, mat=pal(117))
-        lib.blob(bm, P(CORE[0] + 0.3, CORE[1] - 0.2, -0.07), (2.4 * PX, 2.2 * PX, 0.05), segments=12, rings=6,
-                 mat=pal(121, emission=4.0))
+        # The glowing core on its mound at the bottom of the throat (as phase 2's fire).
+        fire(bm, FIRE[2], lambda idx, emission: pal(idx, emission=emission) if emission else pal(idx))
     elif anim:
         # The fire rising from the core on this phase, from its red outside in to its hottest heart.
-        for idx, c, r, z, rx, ry, rz, emission in FIRE[phase]:
-            lib.blob(bm, P(c, r, z), (rx * PX, ry * PX, rz), segments=14, rings=6, mat=pal.glow(idx, emission))
+        fire(bm, FIRE[phase], pal.glow)
+
+
+def fire(bm, blobs, mat):
+    """The core's fire: round orbs on the mound at the bottom of the throat, each smaller one
+    standing a little proud of the one round it, so the hottest heart shows on top."""
+    for i, (idx, c, r, _z, rx, ry, _rz, emission) in enumerate(blobs):
+        rz = 0.6 * min(rx, ry) * PX
+        top = MOUND_TOP + 0.1 + 0.05 * i
+        lib.blob(bm, P(c, r, top - rz), (rx * PX, ry * PX, rz), segments=14, rings=7, mat=mat(idx, emission))
+
+
+def half_blob(bm, centre, radii, segments=16, rings=8, mat=0, bump=None):
+    """The upper half of an ellipsoid (rx, ry, rz) at centre, closed by a flat base; bump(dx, dy, dz)
+    -> radius scale makes it lumpy. Returns its faces."""
+    cx, cy, cz = centre
+    rx, ry, rz = radii
+
+    def vert(d):
+        k = bump(*d) if bump else 1.0
+        return bm.verts.new((cx + rx * d[0] * k, cy + ry * d[1] * k, cz + rz * d[2] * k))
+    top = vert((0, 0, 1))
+    ring_verts = []
+    for i in range(1, rings + 1):
+        phi = 0.5 * math.pi * i / rings
+        ring_verts.append([vert((math.sin(phi) * math.cos(2 * math.pi * j / segments),
+                                 math.sin(phi) * math.sin(2 * math.pi * j / segments), math.cos(phi)))
+                           for j in range(segments)])
+    faces = []
+    for j in range(segments):
+        faces.append(bm.faces.new((top, ring_verts[0][j], ring_verts[0][(j + 1) % segments])))
+    for a, b in zip(ring_verts, ring_verts[1:]):
+        for j in range(segments):
+            k = (j + 1) % segments
+            faces.append(bm.faces.new((a[j], b[j], b[k], a[k])))
+    faces.append(bm.faces.new(list(reversed(ring_verts[-1]))))
+    for f in faces:
+        f.material_index = mat
+        f.smooth = True
+    return faces
 
 
 def build(sprite):
@@ -621,6 +826,27 @@ def composite_png(out):
     return out
 
 
+def flat_cuts(obj):
+    """Shade the faces that close a piece where split_assembly cut it flat, with sharp edges, so the
+    smooth skin's normals next to a cut aren't bent sideways (which drew a dark crack along every
+    seam between pieces)."""
+    hw, hh, eps = 1.0, 14 / 12, 1e-4
+    me = obj.data
+    dark = next((i for i, m in enumerate(me.materials) if m.name.startswith("pal_96_")), None)
+    sharp = set()
+    for poly in me.polygons:
+        cos = [me.vertices[i].co for i in poly.vertices]
+        if any(all(abs(abs(co[a]) - h) < eps for co in cos) for a, h in ((0, hw), (1, hh))):
+            poly.use_smooth = False
+            if dark is not None:
+                poly.material_index = dark  # in shadow where the head runs on past the screen edge
+            sharp.update(poly.edge_keys)
+    for e in me.edges:
+        if e.key in sharp:
+            e.use_edge_sharp = True
+    me.update()
+
+
 def main():
     sprite = merged_sprite()
     obj = build(sprite)
@@ -642,6 +868,9 @@ def main():
             piece.name = f"{name}-f{ANIM[name][k]}"
             if len(piece.data.polygons):
                 models[name].append(common.frame_part(piece, [ANIM[name][k]]))
+    for objs in models.values():
+        for o in objs:
+            flat_cuts(o)
     for name in PIECES:
         data = common.load_sprite(ROOT, name)
         common.export_sprite_model(ROOT, models[name], f"enemies/{name}", data["sprites"])

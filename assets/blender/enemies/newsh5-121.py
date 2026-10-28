@@ -1,12 +1,14 @@
 """Red curled pod (newsh5.shp frames 121, 123, 125): a 3D version of its sprites.
 
 Seen in episode 4 (levels 4.22 and 4.25), lying on the ground. A glossy red pod, a full dome about half
-as tall as it is wide, with a glowing yellow nub near its top left, a dark crease cut into it
-beside the nub, and two low, broad folds curling round it like a shell. The three frames show it turning (the egg goes from a wide, tilted oval to
-a tall narrow one), so each frame gets its own model: newsh5-121, newsh5-121-f2, newsh5-121-f3.
-The shell's rim follows that frame's silhouette (its distance from a centre at 44 angles), and
-its faces take the sprite's shades (blurred: dark rim, lit upper left); the details are placed
-by hand from the frame's pixels.
+as tall as it is wide, with a dark crease cut into it near its top, and two low, broad folds
+curling round it like a shell. The three frames show it turning (the egg goes from a wide, tilted
+oval to a tall narrow one), so each frame gets its own model: newsh5-121, newsh5-121-f2, newsh5-121-f3.
+The shell's rim follows that frame's silhouette (its distance from a centre at 44 angles); the
+details are placed by hand from the frame's pixels. The sprite's drawn light is left to the game:
+its dark rim is the outline, its lit left side and the orange/yellow hot spot at the top left (the
+top of the red ramp) are the light on a glossy shell, so the shell is one mid red with a glossy
+(non-metal) material.
 
 Run: blender --background --python assets/blender/enemies/newsh5-121.py [-- --preview out.png]
 """
@@ -25,19 +27,16 @@ common = L.common
 NAME = "newsh5-121"
 ROOT = common.repo_root(__file__)
 
-# Per frame (sprite pixel coordinates, column/row of pixel centres): the glowing nub, the dark
-# crease beside it and the two folds (the lighter bands of indices 116/117).
+# Per frame (sprite pixel coordinates, column/row of pixel centres): the dark crease and the two
+# folds (the lighter bands of indices 116/117).
 DETAILS = {
-    121: dict(nub=(8.0, 8.2), core=(7.6, 7.9),
-              crease=[(11.0, 6.7), (12.3, 7.6), (12.9, 9.2), (12.4, 11.0), (11.0, 12.2), (8.4, 12.4), (7.2, 12.3)],
+    121: dict(crease=[(11.0, 6.7), (12.3, 7.6), (12.9, 9.2), (12.4, 11.0), (11.0, 12.2), (8.4, 12.4), (7.2, 12.3)],
               fold=[(14.2, 6.6), (14.9, 9.0), (14.7, 11.5), (13.6, 13.5), (11.6, 15.3), (9.0, 16.6)],
               rim=[(19.3, 9.6), (19.1, 12.5), (18.1, 14.8), (16.6, 16.8), (14.6, 18.4)]),
-    123: dict(nub=(7.9, 7.1), core=(7.6, 6.9),
-              crease=[(11.0, 5.8), (12.0, 7.0), (12.3, 9.5), (12.0, 11.2), (10.9, 12.5), (8.4, 13.0), (7.3, 12.9)],
+    123: dict(crease=[(11.0, 5.8), (12.0, 7.0), (12.3, 9.5), (12.0, 11.2), (10.9, 12.5), (8.4, 13.0), (7.3, 12.9)],
               fold=[(13.6, 5.7), (14.3, 8.5), (14.3, 11.0), (13.5, 13.3), (12.0, 15.0), (10.0, 16.4)],
               rim=[(18.2, 9.0), (18.3, 12.0), (17.8, 14.6), (16.5, 16.5), (14.8, 18.1)]),
-    125: dict(nub=(8.0, 6.2), core=(7.6, 5.9),
-              crease=[(11.0, 4.8), (11.4, 7.0), (11.5, 9.5), (11.2, 11.8), (9.8, 12.8), (8.0, 12.6)],
+    125: dict(crease=[(11.0, 4.8), (11.4, 7.0), (11.5, 9.5), (11.2, 11.8), (9.8, 12.8), (8.0, 12.6)],
               fold=[(13.1, 4.6), (13.3, 8.0), (13.6, 11.5), (13.1, 14.0), (12.0, 16.0), (10.0, 17.3)],
               rim=[(17.3, 8.5), (17.3, 12.0), (17.0, 14.8), (16.0, 16.8), (14.5, 18.4)]),
 }
@@ -156,39 +155,22 @@ def relief(bm, path, depth, half_width, lift):
             lift[v.index] = lift.get(v.index, 0.0) + dz
 
 
-SHELL_PAL = (112, 113, 114, 115, 116, 117, 118)  # the shell's ramp, from the dark rim to the lit side
-BLUR = 2.0  # px: the sprite's shading, smoothed so the shell's colours are bands, not speckle
-
-
-def sprite_shade(frame, x, y):
-    """The sprite's palette shade around (x, y) units, blurred (its outline's 1 and 112 count as
-    113, its glow as 117), as an index into SHELL_PAL."""
-    px = frame["pixels"]
-    fx, fy = x * 12 + 12, 14 - y * 12  # pixel-edge coordinates
-    tot = wsum = 0.0
-    lo, hi = 113, 117  # the sprite's outline counts as 113; 118 is only reached by brightening
-    for r in range(math.floor(fy - 3 * BLUR), math.ceil(fy + 3 * BLUR)):
-        for c in range(math.floor(fx - 3 * BLUR), math.ceil(fx + 3 * BLUR)):
-            if 0 <= r < len(px) and 0 <= c < len(px[0]) and px[r][c] >= 0:
-                k = math.exp(-((c + 0.5 - fx) ** 2 + (r + 0.5 - fy) ** 2) / (2 * BLUR * BLUR))
-                tot += k * min(max(px[r][c], lo), hi)
-                wsum += k
-    i = round(tot / wsum) if wsum else lo
-    return SHELL_PAL.index(i)
+# The shell's mid red, folds included: their lighter bands in the sprite are their lit crests,
+# which the relief and the game's light make (painting them gave blocky, jagged patches).
+SHELL_PAL = (116,)
+BODY = FOLD = 116
 
 
 def build(sprite, frame, tag):
     coll = common.reset_collection(tag)
     pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
-    mats = [pal(i, metallic=0.0, roughness=0.75) for i in SHELL_PAL] + [
-        pal(121, emission_strength=3.0),  # the glowing nub (an orange 3x3 spot)
-        pal(124, emission_strength=6.0),  # its bright yellow core
-        common.palette_material(sprite, 114, NAME + "-crease", metallic=0.0, roughness=1.0),
+    # A glossy shell (not metal): the sprite's orange/yellow spot near the top left is the top of
+    # the red ramp (120-124), the sheen of that gloss under an upper-left light, so it is the
+    # material's job, not a knob. The shell is one mid-tone; the game's lights shade it.
+    mats = [pal(i, metallic=0.0, roughness=0.3) for i in SHELL_PAL] + [
+        common.palette_material(sprite, 114, NAME + "-crease", metallic=0.0, roughness=0.8),
     ]
-    NUB, CORE, CREASE = len(SHELL_PAL), len(SHELL_PAL) + 1, len(SHELL_PAL) + 2
-    for m in mats[:NUB] + [mats[CREASE]]:  # a soft sheen: a strong white specular washes the red out to pink
-        bsdf = next(n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
-        bsdf.inputs["Specular IOR Level"].default_value = 0.25
+    CREASE = len(SHELL_PAL)
     d = DETAILS[frame["index"]]
     dome = Dome(frame)
     bm = bmesh.new()
@@ -200,25 +182,14 @@ def build(sprite, frame, tag):
     relief(bm, d["fold"], 0.45, 1.6, lift)
     relief(bm, d["rim"], 0.45, 1.6, lift)
 
-    # Colour the shell with the sprite's shading under it (lit upper-left, dark rim), the groove
-    # dark red and the folds the lighter red.
+    # The shell is the sprite's mid red all over (its dark rim is the sprite's outline and its
+    # lit/dark sides are its drawn light: the game draws both).
     bm.faces.ensure_lookup_table()
     for f in bm.faces:
         if len(f.verts) > 4:
             continue  # the floor
-        c = f.calc_center_median()
         dz = sum(lift.get(v.index, 0.0) for v in f.verts) / len(f.verts)
-        rho = dome.rho(c.x, c.y)
-        if rho > 0.93:
-            f.material_index = SHELL_PAL.index(112)  # the near-black rim
-        elif rho > 0.84:
-            f.material_index = SHELL_PAL.index(114)
-        elif dz > 0.2:
-            f.material_index = SHELL_PAL.index(117)  # the folds
-        else:
-            # The lit side one step brighter than the sprite (the model's own lighting shades it).
-            i = SHELL_PAL[sprite_shade(frame, c.x, c.y)]
-            f.material_index = SHELL_PAL.index(max(115, i + 1 if i >= 116 else i))
+        f.material_index = SHELL_PAL.index(BODY if dz <= 0.2 else FOLD)
 
     shell = L.to_object(tag, bm, mats, coll)
 
@@ -250,13 +221,6 @@ def build(sprite, frame, tag):
     for e in bm.edges:
         if len({f.material_index == CREASE for f in e.link_faces}) > 1:
             e.smooth = False
-    # The nub and its core, slightly domed.
-    x, y = L.X(d["nub"][0]), L.Y(d["nub"][1])
-    L.ellipsoid(bm, (x, y, dome.z(x, y) - 0.4 * L.PX), (1.7 * L.PX, 1.6 * L.PX, 1.1 * L.PX), mat=NUB,
-                segments=12, rings=6)
-    x, y = L.X(d["core"][0]), L.Y(d["core"][1])
-    L.ellipsoid(bm, (x, y, dome.z(x, y) + 0.3 * L.PX), (1.1 * L.PX, 1.0 * L.PX, 0.8 * L.PX), mat=CORE,
-                segments=10, rings=5)
     shell.data.materials.clear()
     for m in mats:
         shell.data.materials.append(m)

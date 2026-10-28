@@ -36,61 +36,51 @@ def build(sprite, g):
     def rect(c0, r0, c1, r1):
         return [(g.ex(c0), g.ey(r1)), (g.ex(c1), g.ey(r1)), (g.ex(c1), g.ey(r0)), (g.ex(c0), g.ey(r0))]
 
+    # Finishes: the housing is dark polished metal, the shell painted metal. One mid-tone per part;
+    # the lights make the sprite's highlight streaks, lit rims and dark lower-right halves, and the
+    # game draws the outline.
+    def polished(i):
+        return m(i, metallic=0.8, roughness=0.3)
+
+    def painted_metal(i):
+        return m(i, metallic=0.35, roughness=0.45)
+
     # Dark housing at the back (columns 3-18, rows 0-11): a drum lying along the column, round in
     # section (the highlight streak down its left, the dark right side), about 10 px tall; a red
     # bar and a grey step in front of it.
     # Sections (row edge, half width, half height in px); each sits on the floor.
     hx, hp = g.x(10.0), 2.3
     hsec = [(0.2, 3.4, 1.2), (0.9, 6.0, 3.8), (2.2, 7.3, 5.0), (9.6, 7.3, 5.0), (11.0, 6.6, 4.4), (11.8, 5.0, 3.0)]
-    L.loft_y(bm, hx, [(g.ey(r), w * L.U, hh * L.U, hh * L.U) for r, w, hh in hsec], sides=20, mat=m.metal(4),
+    L.loft_y(bm, hx, [(g.ey(r), w * L.U, hh * L.U, hh * L.U) for r, w, hh in hsec], sides=20, mat=polished(4),
              power=hp)
-
-    def housing_z(x, y):
-        r = (g.h / 2 - y / L.U)  # row edge
-        for (r0, w0, h0), (r1, w1, h1) in zip(hsec, hsec[1:]):
-            if r0 <= r <= r1:
-                t = (r - r0) / (r1 - r0)
-                w, hh = (w0 + (w1 - w0) * t) * L.U, (h0 + (h1 - h0) * t) * L.U
-                u = min(1.0, abs(x - hx) / w)
-                return hh + hh * (1 - u ** hp) ** (1 / hp) + 0.015
-        return 0.0
-
-    def inside_housing(c, r):
-        for dc in (0, 1):
-            for dr in (0, 1):
-                rr = r + dr
-                if not 1.0 <= rr <= 11.0:
-                    return False
-                w = next(w0 + (w1 - w0) * (rr - r0) / (r1 - r0) for (r0, w0, _), (r1, w1, _) in zip(hsec, hsec[1:])
-                         if r0 <= rr <= r1)
-                if abs(g.ex(c + dc) - hx) > 0.9 * w * L.U:
-                    return False
-        return True
-
-    # Its face (the highlight streak down its left, the dark right side) painted from the sprite.
-    greys = {1: 1, 2: 1, 3: 3, 4: 3, 5: 5, 6: 5, 7: 7, 8: 7, 9: 9, 10: 9, 11: 11, 12: 11, 14: 11}
-    face = L.Grid(g.w, g.h, [[v if v in greys and inside_housing(c, r) else -1 for c, v in enumerate(row)]
-                             for r, row in enumerate(g.pixels)])
-    L.painted(bm, face, 3, 0, 19, 12, housing_z, lambda i: m.metal(greys[i]))
-    L.pillow(bm, rect(7, 11.6, 14, 14), 0.0, 0.42, 0.5 * L.U, mat=m.metal(162), top_mat=m.metal(67))
-    L.pillow(bm, rect(6, 14, 15, 17), 0.0, 0.25, 0.5 * L.U, mat=m.metal(5), top_mat=m.metal(8))
+    L.pillow(bm, rect(7, 11.6, 14, 14), 0.0, 0.42, 0.5 * L.U, mat=painted_metal(67))
+    L.pillow(bm, rect(6, 14, 15, 17), 0.0, 0.25, 0.5 * L.U, mat=painted_metal(7))
 
     # The brown shell (columns 1-19, rows 20-44): round, an egg cut lengthwise, about 11 px tall.
     cx, cy, rx, ry, h = g.x(10.0), g.y(32.5), 9.4 * L.U, 12.4 * L.U, 0.92
-    L.dome(bm, cx, cy, rx, ry, h, z0=0.0, sides=28, rings=7, mat=m.metal(20))
+    L.dome(bm, cx, cy, rx, ry, h, z0=0.0, sides=28, rings=7, mat=painted_metal(22))
     zf = L.dome_z(cx, cy, rx, ry, h, z0=0.0)
-    # Its face painted from the sprite inside its edge: the browns of the shell, the red band
-    # across it (rows 28-34), the dark seam down its back half.
-    tones = {16: 17, 17: 17, 18: 17, 19: 20, 20: 20, 21: 21, 22: 21, 23: 23, 24: 23, 25: 25, 26: 25, 29: 25,
-             65: 67, 66: 67, 67: 67, 68: 68, 69: 68, 70: 70, 71: 70, 72: 72, 73: 72, 74: 74, 76: 74, 77: 74}
+    # Its markings painted from the sprite inside its edge: the red band across it (rows 28-35) in
+    # one red, the dark grooves between its plates (columns 9 and 12 and row 24 at the front, the
+    # pair of grooves either side of the ridge down its back half, columns 9 and 11).
+    band, groove = painted_metal(71), painted_metal(18)
 
     def on_shell(c, r):
         return all(((g.ex(c + dc) - cx) / rx) ** 2 + ((g.ey(r + dr) - cy) / ry) ** 2 < 0.88
                    for dc in (0, 1) for dr in (0, 1))
 
-    shell = L.Grid(g.w, g.h, [[v if v in tones and r >= 19 and on_shell(c, r) else -1 for c, v in enumerate(row)]
+    def marking(c, r, v):
+        if 65 <= v <= 77:
+            return 1
+        if 16 <= v <= 19 and ((c in (9, 12) and 20 <= r <= 24) or (r == 24 and 9 <= c <= 15)
+                              or (c in (9, 11) and 36 <= r <= 44)):
+            return 2
+        return -1
+
+    shell = L.Grid(g.w, g.h, [[marking(c, r, v) if r >= 19 and on_shell(c, r) else -1 for c, v in enumerate(row)]
                               for r, row in enumerate(g.pixels)])
-    L.painted(bm, shell, 0, 19, 21, 46, zf, lambda i: m.metal(tones[i]))
+    # One face per pixel, so that no flat run cuts under the curved shell.
+    L.painted(bm, shell, 0, 19, 21, 46, zf, lambda i: (band, groove)[i - 1], max_run=1)
     # The two lamps in the band (columns 8-12, rows 30-35) with a dark bar between them.
     L.pillow(bm, rect(7.6, 29.6, 13.4, 36.0), h - 0.2, h + 0.04, 0.4 * L.U, mat=m.metal(163),
              top_mat=m.metal(163))

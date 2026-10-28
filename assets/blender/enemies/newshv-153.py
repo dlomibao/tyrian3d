@@ -1,18 +1,17 @@
 """Blue faceted orb (newshv.shp frames 153, 155, 157): a 3D version of its sprite.
 
-Seen in episode 2 (level 2.15). The sprite is shaded as an orb (a bright centre fading to a
-near-black rim), with a speckled diamond pattern on its surface: a pale outer diamond band whose
-corners nearly reach the rim, mid-dark navy spots at the corners of an inner diamond, pale speckles
-running out along the diagonals (brightest at the lower-right), and a soft white highlight in the
-middle. So the model is a tall dome (top ~8.5 px above the midplane on an ~19 px wide body) over a
-rounded underside, and the pattern is painted on the dome: the top surface is a fine polar mesh
-whose every face takes the palette index of the sprite pixel under it, so the speckles and the
-diamond come straight from the sprite. The surface itself stays one smooth curve (no per-pixel
-lumps): the only relief is a soft ~0.4 px ridge along the pale diamond band (|x| + |y| = 7 px in the
-sprite, its corners rounded) and a low round swell at the apex under the white centre, never a frame
-or a stud. The rim band is the sprite's near-black navy outline, matte so it doesn't ring with gloss. The three frames only dim the whole
-orb (a pulse), so one model covers them, its colours stepping darker frame by frame. newshv-123 is
-the same disc in red (still built by lib_b003.gem_disc).
+Seen in episode 2 (level 2.15). The sprite is a faceted blue gem drawn lit: a bright centre
+fading to a near-black rim, with a speckled diamond pattern on its surface (a pale outer diamond
+band whose corners nearly reach the rim, mid-dark navy spots at the corners of an inner diamond,
+pale speckles along the diagonals) and a white hot spot in the middle. So the model is a tall dome
+(top ~8.5 px above the midplane on an ~19 px wide body) over a rounded underside, one smooth curve
+with no relief: the white centre and the pale speckles are the gem's shine, which its glossy
+material and the game's lights make, not humps. The diamond pattern is the gem's marking and stays
+painted, but in three tones only (navy spots, the body's blue, a paler band; see tone), without the
+sprite's light: no white hot spots, no darkening toward the rim, and the rim and underside take the
+body's colour too, because the game draws the dark outline. The three frames only dim the whole orb
+(a pulse), so one model covers them, its colours stepping darker frame by frame. newshv-123 is the
+same disc in red (still built by lib_b003.gem_disc).
 
 Run: blender --background --python assets/blender/enemies/newshv-153.py [-- --preview out.png] [--frame-previews frames.png]
 """
@@ -34,22 +33,25 @@ U = 1 / 12          # one sprite px in units
 R = 9.4             # body radius in px: the sprite's circle, its dark edge pixels included
 H_TOP = 8.5         # dome height above the midplane, px
 H_BOTTOM = 6.5      # underside depth, px
-RIM_INDEX = 50      # the rim band (the sprite's outline pixels) and the underside's first band
-UNDER_INDEX = 53    # the rest of the underside
+BODY_INDEX = 58     # the gem's mid-tone blue: the body, the rim band and the underside
 EDGE_INDEX = 48     # the sprite's near-black outline pixels: modelled as the rim band instead
 R_IN = 8.4          # where the pixel grid meets the rim band (the outline pixels are ~1 px wide)
-# The rim band from R_IN out to R, as (outer radius px, palette index): it darkens to the navy
-# edge like the sprite's last pixels, so the orb's steep side isn't one tall black skirt.
+# The rim band from R_IN out to R, as (outer radius px, palette index): the body's colour, as the
+# game's outline effect draws the sprite's navy edge.
 RELAX_FROM, RELAX, RELAX_STEPS = 6.0, 0.5, 3   # relaxing the pixel corners near the rim (px, weight, passes)
-RIM_BANDS = [(8.8, 50), (9.15, 49), (R, 48)]
-RIM_ROUGHNESS = 0.85      # the rim and underside are matte: no gloss ring round the orb's edge
-DIAMOND_L1 = 7.0          # the pale diamond band's centre line, |x| + |y| in px (the sprite's brightest ring)
-DIAMOND_RIDGE = 0.4       # its ridge height, px
-DIAMOND_WIDTH = 1.0       # its half-width (gaussian), px
-DIAMOND_ROUND = 1.5       # how much the diamond's corners are rounded, px
-APEX_SWELL = 0.3          # the white centre's low swell at the apex, px
-APEX_WIDTH = 2.2          # its radius (gaussian), px
-RELIEF_FADE = (7.6, 8.8)  # relief fades out between these radii so the rim stays a clean circle
+RIM_BANDS = [(8.8, BODY_INDEX), (9.15, BODY_INDEX), (R, BODY_INDEX)]
+METALLIC, ROUGHNESS = 0.05, 0.12   # a glossy gem: the sun and environment make its shine
+
+
+def tone(i, rim_pixel):
+    """The painted tone for a sprite pixel of palette index i: the diamond pattern's navy spots,
+    the body or the pale band. The sprite's dark pixels next to its outline are rim shading, not
+    spots, so they take the body's colour."""
+    if i <= 55:
+        return BODY_INDEX if rim_pixel else 54
+    if i <= 60:
+        return BODY_INDEX
+    return 61
 
 
 def dome_z(r):
@@ -73,19 +75,6 @@ class SpriteField:
         return None
 
 
-def relief(field, x, y):
-    """Smooth relief (px) at (x, y): a soft ridge along the pale diamond and a swell at the apex.
-    Both are smooth functions of position, so neighbouring pixels never step against each other."""
-    r = math.hypot(x, y)
-    lo, hi = RELIEF_FADE
-    fade = 1.0 if r <= lo else max(0.0, (hi - r) / (hi - lo))
-    k = DIAMOND_ROUND
-    l1 = math.sqrt(x * x + k * k) + math.sqrt(y * y + k * k) - 2 * k   # |x| + |y|, corners rounded
-    ridge = DIAMOND_RIDGE * math.exp(-((l1 - DIAMOND_L1) / DIAMOND_WIDTH) ** 2)
-    swell = APEX_SWELL * math.exp(-(r / APEX_WIDTH) ** 2)
-    return fade * ridge + swell
-
-
 def orb(sprite):
     import bmesh
     coll = common.reset_collection(NAME)
@@ -94,16 +83,14 @@ def orb(sprite):
 
     mats, slot = [], {}
 
-    def mat(i, rim=False):
-        """Material slot for palette index i, dimming on the pulse frames like the sprite; the rim
-        and underside get matte copies."""
-        if (i, rim) not in slot:
-            slot[(i, rim)] = len(mats)
+    def mat(i):
+        """Material slot for palette index i, dimming on the pulse frames like the sprite."""
+        if i not in slot:
+            slot[i] = len(mats)
             mats.append(common.palette_material(
-                sprite, i, f"{NAME}-{'rim' if rim else 'pulse'}", frames={f1: max(48, i - 2), f2: max(48, i - 4)},
-                metallic=0.0 if rim else 0.2, roughness=RIM_ROUGHNESS if rim else 0.4,
-                emission_strength=1.2 if i == 63 else 0.0))
-        return slot[(i, rim)]
+                sprite, i, f"{NAME}-pulse", frames={f1: max(48, i - 2), f2: max(48, i - 4)},
+                metallic=METALLIC, roughness=ROUGHNESS))
+        return slot[i]
 
     # Top: one quad per sprite pixel inside the dark outline, coloured with that pixel's palette
     # index, its corners lifted onto the dome. Every corner's distance from the centre is rescaled
@@ -187,18 +174,17 @@ def orb(sprite):
     verts = {}
 
     def vert(p):
-        """A pixel corner lifted onto the dome (plus the smooth relief)."""
+        """A pixel corner lifted onto the dome."""
         if p not in verts:
             x, y = plane[p]
             r = min(R_IN, math.hypot(x, y))
-            lift = 0.0 if p in nbr else relief(field, p[0], p[1])
-            verts[p] = bm.verts.new((x * U, y * U, (dome_z(r) + lift) * U))
+            verts[p] = bm.verts.new((x * U, y * U, dome_z(r) * U))
         return verts[p]
 
     for row, col in cells:
         f = bm.faces.new([vert(p) for p in corners(row, col)])
-        i = grid[row][col]
-        f.material_index = mat(i)
+        rim_pixel = any(grid[row + dr][col + dc] == EDGE_INDEX for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1)))
+        f.material_index = mat(tone(grid[row][col], rim_pixel))
 
     # The rim band, then the underside: a rounded bowl, H_BOTTOM deep.
     angles = [math.atan2(y, x) for x, y in loop]
@@ -213,13 +199,13 @@ def orb(sprite):
     chain = [[verts[p] for p in loop]] + under
     n = len(loop)
     for k in range(len(chain) - 1):
-        m = mat(RIM_BANDS[k][1] if k < len(RIM_BANDS) else RIM_INDEX if k == len(RIM_BANDS) else UNDER_INDEX, rim=True)
+        m = mat(RIM_BANDS[k][1] if k < len(RIM_BANDS) else BODY_INDEX)
         for i in range(n):
             j = (i + 1) % n
             bm.faces.new((chain[k][i], chain[k][j], chain[k + 1][j], chain[k + 1][i])).material_index = m
     for i in range(n):
         j = (i + 1) % n
-        bm.faces.new((under[-1][j], under[-1][i], bottom)).material_index = mat(UNDER_INDEX, rim=True)
+        bm.faces.new((under[-1][j], under[-1][i], bottom)).material_index = mat(BODY_INDEX)
     return [common.mesh_object(NAME, bm, mats, coll, smooth=True)]
 
 

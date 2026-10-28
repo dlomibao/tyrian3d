@@ -1,7 +1,7 @@
 """Red spiked mine (newsh5.shp frame 76): a 3D version of its sprite.
 
 Seen in episode 4 (level 22). A small red ball with four spikes (up, down, left, right), short
-studs between them and a hot orange-white core glowing through its top-left. One frame.
+studs between them; the sprite's orange-white band is the shine on its glossy shell. One frame.
 
 Run: blender --background --python assets/blender/enemies/newsh5-76.py [-- --preview out.png]
 """
@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 import bmesh
+from mathutils import Vector
 
 sys.path[:0] = [str(Path(__file__).resolve().parents[1]), str(Path(__file__).resolve().parent)]
 import common  # noqa: E402
@@ -25,54 +26,59 @@ SIZE = 1
 def build(sprite):
     coll = common.reset_collection(NAME)
     pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
+    # A glossy painted-metal mine. The sprite's orange-yellow band across row 5, the white pixel
+    # in it and the bright pixels at the four diagonal shoulders are its drawn light (a specular
+    # band on a shiny red ball, lit tops of the shoulders), and its darker lower rows and black ring
+    # are drawn shade and outline. In game the sun, the environment and the outline effect make
+    # all of that, so the ball, spikes and studs are one mid red, glossy, with no emission.
     mats = [
-        pal(116, metallic=0.4, roughness=0.4),  # 0 red shell
-        pal(118, metallic=0.5, roughness=0.3),  # 1 bright red spikes
-        pal(122, metallic=0.3, roughness=0.3, emission_strength=2.0),  # 2 orange spike tips
-        pal(123, emission_strength=3.5),  # 3 glowing core
-        pal(127, emission_strength=5.0),  # 4 white-hot centre
-        pal(113, metallic=0.3, roughness=0.6),  # 5 dark red studs and shadowed shell
-        pal(120, metallic=0.3, roughness=0.35, emission_strength=1.5),  # 6 red-orange glow
+        pal(117, metallic=0.5, roughness=0.2),  # 0 red painted-metal shell, spikes and studs
+        pal(1, metallic=0.0, roughness=0.9),  # 1 the dark pit
     ]
-    SHELL, SPIKE, TIP, CORE, HOT, DARK, WARM = range(7)
+    SHELL, PIT = range(2)
+    P = 1 / 12  # one sprite pixel
     bm = bmesh.new()
 
-    # Body: columns 1-9, rows 2-10 (centre column 5, row 6).
+    # Body: a true sphere centred on column 5, row 6, 9.2 px across and 9.2 px tall. It is a cube
+    # sphere (even ~1 px faces, no pole fan on top); the four short corner cones fill the
+    # sprite's square shoulders, so the plan stays round.
     cx, cy = lib.px(5, SIZE), lib.row(6, SIZE)
-    body = lib.Ellipsoid(cx, cy, 4.0 / 12, 4.0 / 12, 0.2)
-    body.build(bm, segments=20, rings=12, mat_index=SHELL)
-    # The shell glows where the sprite does: orange-yellow in the top-left, dark red lower right.
-    def slot(i):
-        if i < 0 or i == 1:
-            return DARK
-        if i >= 122:
-            return CORE
-        if i >= 119:
-            return WARM
-        return SHELL if i >= 115 else DARK
-    lib.paint_from_sprite(bm, sprite["frames"][0]["pixels"], slot, size=SIZE, under_slot=DARK, min_nz=-0.3)
+    R = 4.6 * P
+    bmesh.ops.create_cube(bm, size=2.0)
+    bmesh.ops.subdivide_edges(bm, edges=bm.edges[:], cuts=8, use_grid_fill=True)
+    for v in bm.verts:
+        d = v.co.normalized() * R
+        v.co = (d.x + cx, d.y + cy, d.z)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    bm.normal_update()
+    body_faces = list(bm.faces)
 
-    # Spikes out to the tip pixels: up (column 4, row 0), down (5, 12), left (0, 6), right (10, 6).
-    for tc, tr in ((4, 0.2), (5, 11.9), (0.1, 6), (9.9, 6)):
-        tx, ty = lib.px(tc, SIZE), lib.row(tr, SIZE)
-        dx, dy = tx - cx, ty - cy
-        ln = math.hypot(dx, dy)
-        ux, uy = dx / ln, dy / ln
-        base = 3.2 / 12
-        lib.tube(bm, [(cx + ux * base, cy + uy * base, 0.0), (cx + ux * (ln - 0.12), cy + uy * (ln - 0.12), 0.0),
-                      (tx, ty, 0.0)], [0.13, 0.06, 0.0], sides=8, mat_index=SPIKE)
-        lib.tube(bm, [(cx + ux * (ln - 0.13), cy + uy * (ln - 0.13), 0.0), (tx, ty, 0.0)], [0.06, 0.0],
-                 sides=8, mat_index=TIP)
-    # Short studs on the diagonals (the square-ish corners of the body).
+    up = [f for f in body_faces if f.normal.z > 0.3]
+
+    def near(x, y, rad):
+        hits = [f for f in up if math.hypot(f.calc_center_median().x - x, f.calc_center_median().y - y) < rad]
+        return hits or [min(up, key=lambda f: (f.calc_center_median() - Vector((x, y, 0))).xy.length)]
+
+    # The dark pit just below the centre (column 5, row 8): cut in about 1 px wide and 1.2 px deep.
+    pitx, pity = lib.px(5, SIZE), lib.row(8, SIZE)
+    pit = near(pitx, pity, 0.6 * P)
+    res = bmesh.ops.inset_region(bm, faces=pit, thickness=0.08 * P, depth=-1.2 * P, use_even_offset=True)
+    for f in pit + list(res["faces"]):
+        f.material_index = PIT
+
+    # Spikes on the equator: up and down 2 px past the body (3 px wide, then a 1 px tip), left and
+    # right 1 px past it (3 px tall).
+    for (dx, dy), (base, mid, tipd), (rb, rm) in (
+            ((0, 1), (4.0, 5.2, 6.4), (1.8, 1.0)), ((0, -1), (4.0, 5.2, 6.4), (1.8, 1.0)),
+            ((-1, 0), (4.0, 5.0, 5.9), (1.9, 1.15)), ((1, 0), (4.0, 5.0, 5.9), (1.9, 1.15))):
+        pts = [(cx + dx * d * P, cy + dy * d * P, 0.0) for d in (base, mid, tipd)]
+        lib.tube(bm, pts, [rb * P, rm * P, 0.0], sides=8, mat_index=SHELL)
+    # Short studs on the diagonals, out to the sprite's square corners.
     for k in range(4):
         a = math.pi / 4 + k * math.pi / 2
         ux, uy = math.cos(a), math.sin(a)
-        lib.tube(bm, [(cx + ux * 0.28, cy + uy * 0.28, 0.0), (cx + ux * 0.42, cy + uy * 0.42, 0.0)],
-                 [0.06, 0.0], sides=6, mat_index=DARK)
-
-    # The white-hot spot at column 5, row 5.
-    lib.drape_cap(bm, body, lib.px(5.0, SIZE), lib.row(5.0, SIZE), 0.8 / 12, 0.8 / 12, lift=0.01,
-                  dome=0.01, sink=0.0, sides=8, mat_index=HOT)
+        lib.tube(bm, [(cx + ux * 4.4 * P, cy + uy * 4.4 * P, 0.0), (cx + ux * 6.2 * P, cy + uy * 6.2 * P, 0.0)],
+                 [1.3 * P, 0.0], sides=6, mat_index=SHELL)
     return common.mesh_object(NAME, bm, mats, coll, smooth=True)
 
 

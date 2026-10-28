@@ -381,6 +381,101 @@
       },
       "status": "done"
     },
+    "assembly-newsh3-198-fixed": {
+      "gradedBy": "fix loop (Fable grader), 2026-10-28",
+      "issues": [
+        {
+          "by": "grader",
+          "note": "Lit from above the arch (r0/r3/r6) is still darker than the sprite: mean about (77,66,50) vs the sprite's (107,83,47); 38% of its pixels are dark (luminance under 50) vs the sprite's 28%, and only 23% bright (over 90) vs 33%. The dark inner band is now about 12-15 px of the 35 px band where the sprite's is 8-10 px, and the lit face is a greyer tan. Narrow the steep inner drop to the inner 8-10 px, keep the rest of the top near-horizontal, and warm the lit face toward the sprite's ochre.",
+          "panel": 2,
+          "region": "r0",
+          "severity": "medium",
+          "type": "wrong_colour",
+          "x": 682,
+          "y": 196
+        },
+        {
+          "by": "grader",
+          "note": "The arch legs at the tile's bottom edge (bottom-left of each arch, and the base of the right boulder) are still 2-3 px slabs with a thin upturned fin at the corner: panel 6 shows each copy's left end dipping to about 1 px and then spiking to about 3 px before the mound rises. Carry the mound's height (about 10-12 px) out to the tile edge, cut it off with a plain vertical wall there, and remove the corner spike.",
+          "panel": 7,
+          "region": "r0",
+          "severity": "medium",
+          "type": "too_flat",
+          "x": 144,
+          "y": 1181
+        },
+        {
+          "by": "grader",
+          "note": "The sprite's five or six big boulders along the top of each arch, separated by 1-2 px dark cracks, are now hinted by a row of 2-3 px bumps along the outer rim only (panel 2 and panel 6 ridge). The lobes should span the whole 35 px band as rounded boulders 2-4 px above the mound, following the sprite's crack lines, with cracks cut 1-2 px deep between them.",
+          "panel": 1,
+          "region": "r0",
+          "severity": "medium",
+          "type": "missing_raised",
+          "x": 202,
+          "y": 177
+        },
+        {
+          "by": "grader",
+          "note": "In the game view the crest boulders show as polygonal facets with sharp triangular highlights (top of the bottom copy, and the inner edge of the top copy), where the sprite's boulders are smooth rounded shapes. Smooth-shade or subdivide the lobes so the highlights are soft bands, not triangles.",
+          "panel": 9,
+          "region": "r0",
+          "severity": "low",
+          "type": "lumpy",
+          "x": 1176,
+          "y": 1382
+        },
+        {
+          "by": "grader",
+          "note": "The outer flank's ground edge still has a fringe of 1-2 px dark teeth along the whole length of each copy (panel 8 lower edge). Fade the displacement to zero over the bottom 3 px so the flank meets the ground in a clean line.",
+          "panel": 8,
+          "region": "r0",
+          "severity": "low",
+          "type": "lumpy",
+          "x": 720,
+          "y": 1354
+        },
+        {
+          "by": "grader",
+          "note": "The small corner chunk r2 (copies r5/r8) at the bottom-left of each arch fell from 2.8 px mean to 1.1 px mean / 1.7 max and now reads as a flat plate; r1 is fine at 4.0 px mean / 4.95 max. Raise r2 to a small rounded boulder of about 2-3 px blending into the arch's end.",
+          "panel": 10,
+          "region": "r2",
+          "severity": "low",
+          "type": "too_flat",
+          "x": 1464,
+          "y": 1190
+        },
+        {
+          "by": "grader",
+          "note": "Faint straight lines still cross the top of each arch at piece boundaries in panels 7 and 9 (seam dz 0.015 px, max 0.064, so these are normal breaks, not steps; gap samples 77). Weld the vertices or match the normals across pieces so the joins disappear.",
+          "panel": 9,
+          "region": "r0",
+          "severity": "low",
+          "type": "seam",
+          "x": 1176,
+          "y": 1200
+        }
+      ],
+      "notes": "First, finish opening up the lit top: the dark inner band is now 12-15 px and should be the sprite's 8-10 px, and the lit face should be the sprite's warm ochre rather than grey-tan (model mean (77,66,50) vs sprite (107,83,47)). Then fix the legs at the tile edge: carry the 10-12 px mound to the edge with a plain wall and remove the corner fin that still shows as a 1-3 px V in panel 6. Next, extend the boulder lobes across the full band as 2-4 px rounded boulders with 1-2 px cracks, and smooth-shade them so the crest stops showing triangular facets in the game view. Then fade the displacement at the outer flank's ground edge, raise the r2 corner chunk back to 2-3 px, and hide the piece-boundary normal breaks.",
+      "reasons": {
+        "cohesion": "Pieces meet cleanly: seam mean dz 0.015 px, max 0.064 px (was 0.1), none over 1 px; gap samples unchanged at 77. The three overlapping copies show no steps in panels 7-9. Faint straight lines still cross the top of each arch at piece boundaries in panels 7 and 9, so normals are still not matched across pieces. Reads as one object with faint seam lines, so 4.",
+        "detail": "The undercut is a clean shadowed concave wall (panels 7 and 9). Along the outer crest in panel 2 there are now five or six distinct rounded bumps with faint dark lines between them, and panel 6 shows them as 2-3 px knobs along the ridge, so the sprite's boulder row is now hinted rather than absent. But the lobes sit only on the outer rim; the sprite's big boulders span the whole 35 px band and its crack lines (1-2 px dark) are still only faint tone changes here. The small chunks r1 are now low rounded bumps (4 px); r2 is nearly flat (1.1 px). Main detail there, boulder relief still soft, so 3.",
+        "game": "From the game camera (panel 9) the model reads as a standing rock arch with a smooth shadowed cave beneath it, and this round the top is noticeably lighter with a tan crest of bumpy boulders along the outer edge, closer to the sprite's look. Against the sprite it is still darker in the inner half of the band, the crest boulders show as polygonal facets with sharp triangular highlights (bottom copy, top of the arch), the left leg sits as a low slab with a small upturned corner, and faint straight piece-boundary lines still cross the top. Clearly the arch with depth and better colour, not yet the crisp boulder look, so 4.",
+        "overall": "A visible improvement with nothing important lost: the lit top is about a third brighter and much closer to the sprite, the crest is flatter so the dark band narrowed, the cave underside is smooth, the r1 chunks are near their target and the height error halved. Remaining: the top is still about a quarter darker than the sprite, the boulder lobes only hint at the sprite's facets, the legs at the tile edge are still 2-3 px slabs with a corner fin, the outer flank's ground edge is still toothed, the r2 corner chunk flattened, the crest facets look polygonal in the game view, and the piece lines show. Good, at the bar the best calibration models set, so 4.",
+        "profile": "The cross-section is a rounded mound with a broad, gently domed top and a steep inner drop (panel 5 shows a plateau-like crest instead of last round's half-dome), which matches the sprite's wide lit boulders and narrow dark band. The underside of the cave overhang is now a smooth concave ceiling in panel 6 and panel 9 with no hanging teeth, and the outer flank in panel 8 is large smooth facets. What remains: the ground edge of the outer flank still has a fringe of 1-2 px dark teeth along its whole length (panel 8), the leg slabs at the tile edge still carry the upturned corner fin (panel 6 left ends, panel 7), and the crest shows blocky triangular facets in the game view. Round where it should be, cave fixed, edges still ragged, so 4.",
+        "silhouette": "Outline is still exact: IoU 1.0, 0 missed / 0 extra px, flat colour error 2.7 dE (unchanged). The lit top view (panel 2) is clearly brighter than last round: the first arch's mean colour is now about (77,66,50) against the sprite's (107,83,47), up from (66,53,35); 38% of its pixels are darker than luminance 50 (sprite 28%, was 62%) and 23% are brighter than 90 (sprite 33%, was 11%). The dark inner band now covers roughly 12-15 px of the 35 px rock band where the sprite's is 8-10 px, and the lit face reads a slightly greyer tan than the sprite's warm ochre. Panel 4 colour error is still scattered over the whole band, concentrated along the outer crest. Outline exact, lit colour much closer but still about a quarter darker, so 4.",
+        "volume": "On the panel 5 ruler the arch (r0, copies r3/r6) is now a flatter-topped mound cresting at about 17-18 px (max 19.23 px, was 22.29; h/w 0.131) with a mean of 11.8 px against the analysis's 12.5 (error -0.75 px, was +1.2; overall height error 0.91 px, was 1.51). Panel 6 shows the crest at 16-18 px along the arch and the ends at about 8-12 px. The r1 chunk rose from 2.8 to 4.0 px mean (4.95 max), close to the analysis's 5.2; the r2 corner chunk fell from 2.8 to 1.1 px mean (1.7 max; analysis 1.9). The arch legs at the tile's bottom edge are still thin 2-3 px slabs: in panel 6 each copy's left end dips to about 1 px then spikes to about 3 px before the mound rises. Main mass right and closer to the analysis, legs still short, so 4."
+      },
+      "scores": {
+        "cohesion": 4,
+        "detail": 3,
+        "game": 4,
+        "overall": 4,
+        "profile": 4,
+        "silhouette": 4,
+        "volume": 4
+      },
+      "status": "draft"
+    },
     "assembly-newshb-115-current": {
       "acceptedFromCommittee": "2026-10-28: the user agreed with all the committee findings",
       "committee": {
@@ -906,6 +1001,121 @@
       "status": "done",
       "updatedAt": "2026-10-28T10:34:01+00:00"
     },
+    "assembly-newshb-115-fixed": {
+      "gradedBy": "fix loop (Fable grader), 2026-10-28",
+      "issues": [
+        {
+          "by": "grader",
+          "note": "The ring r2 tube is now round in section but only about 6.5 px tall (about 3 px deck top to about 9.5 px in panel 5) on a 12 px wide tube. Make the section near-circular: about 10-12 px tall, top at about 13-15 px.",
+          "panel": 6,
+          "region": "r2",
+          "severity": "medium",
+          "type": "too_flat",
+          "x": 1440,
+          "y": 928
+        },
+        {
+          "by": "grader",
+          "note": "The columns r19/r3 render almost black from above (dE 17.2/11.9) and show none of the sprite's cyan highlight stripe along the lit edge. Lighten the base to the sprite's navy and add the lighter cyan band down the left third of each column (as material or a lighter strip), so it matches panel 1.",
+          "panel": 2,
+          "region": "r19",
+          "severity": "medium",
+          "type": "wrong_colour",
+          "x": 643,
+          "y": 210
+        },
+        {
+          "by": "grader",
+          "note": "All four gun stacks (r17/r18, r37/r38, r32/r33, r44 and mirrors) are charcoal grey (dE 17-23); the sprite's are silver-grey with light tops. Lift their material to the sprite's mid-grey so they read light against the dark background as in panel 1.",
+          "panel": 2,
+          "region": "r17",
+          "severity": "medium",
+          "type": "wrong_colour",
+          "x": 528,
+          "y": 244
+        },
+        {
+          "by": "grader",
+          "note": "The outer gun stacks float beside the hull: in panel 7 the right-hand stacks hang in the air above the purple wing with a gap underneath, and in panel 6 they hover at 3-9 px with nothing below. Add a mount (a short pedestal or bracket from the wing up to each stack's base) so they attach to the hull.",
+          "panel": 7,
+          "region": "r17",
+          "severity": "medium",
+          "type": "seam",
+          "x": 427,
+          "y": 1334
+        },
+        {
+          "by": "grader",
+          "note": "The deck r42 is about 3.5-4 px thick at the centre in panel 5 (up from 2-3 px). Target is about 5-6 px at the centre, bevelling to about 2 px at the purple wing tips.",
+          "panel": 5,
+          "region": "r42",
+          "severity": "low",
+          "type": "too_flat",
+          "x": 298,
+          "y": 962
+        },
+        {
+          "by": "grader",
+          "note": "The dark strip r41 right of the ring is now the right near-black colour but sits level with the deck in panel 9. Cut it 2-3 px into the deck so it reads as a channel.",
+          "panel": 9,
+          "region": "r41",
+          "severity": "low",
+          "type": "missing_recess",
+          "x": 1339,
+          "y": 1339
+        },
+        {
+          "by": "grader",
+          "note": "The ring torus is built from about 8 straight segments with visible creases at the joins in panels 2 and 9. Smooth the joins (more segments or shade-smooth across them) so the tube is continuous.",
+          "panel": 2,
+          "region": "r2",
+          "severity": "low",
+          "type": "lumpy",
+          "x": 720,
+          "y": 330
+        },
+        {
+          "by": "grader",
+          "note": "The lamps r25/r27 are now deep blue with a white core (dE 30.6/35.3) but lack the sprite's bright electric-blue glow around the core. Add an emissive lighter blue gradient from the white core outward.",
+          "panel": 2,
+          "region": "r25",
+          "severity": "low",
+          "type": "wrong_colour",
+          "x": 590,
+          "y": 239
+        },
+        {
+          "by": "grader",
+          "note": "The well inside the ring (r53/r57) is still a floor at deck level; it reads deep only because the ring now stands around it. Cut the floor about 3-4 px below the deck top so the sprite's dark well shows from the game camera.",
+          "panel": 9,
+          "region": "r53",
+          "severity": "low",
+          "type": "missing_recess",
+          "x": 1200,
+          "y": 1349
+        }
+      ],
+      "notes": "Clearly better: the columns are now 19 px round tubes, the ring a round-sectioned torus, the gun stacks sprite-width stacked cylinders, IoU 0.974 and colour dE 16.0. Fix in this order: raise the ring tube from about 6.5 px to 10-12 px; lighten the columns toward the sprite's navy and add the cyan highlight stripe; lighten the gun stacks to silver-grey; mount the floating outer gun stacks on the hull; thicken the deck to 5-6 px; cut r41 and the ring well in; smooth the torus segment joins; add the lamps' blue glow.",
+      "reasons": {
+        "cohesion": "seams: mean step 0.075 px, max 1.2 px, 12 samples over 1 px, no gaps, the same as before. The ring sits on the deck and the columns meet the ring without visible steps, and the gun stacks no longer poke below the deck. The remaining fault is that the four gun stacks have no mount: in panel 7 the right-hand stacks float in the air beside the purple wing with a visible gap under them, and in panel 6 they hover at 3-9 px with nothing beneath. Taller stacks make that more visible than before.",
+        "detail": "Everything the previous grade listed is still there in relief: the 3x3 grid plates r1/r4 on the column tops, the ribbed grilles, the two square hatches, the stepped block inside the ring, the arc grooves r50/r51 and the rods r20. r41 is now the right dark colour, but in panel 9 it sits level with the surrounding deck rather than being cut 2-3 px in. The well inside the ring (r53/r57) is still a floor at deck level that only reads deep because the ring tube is now taller around it. The thin panel lines on the lower hull r42 are still absent.",
+        "game": "From the game camera (panel 9) the boss now reads as the sprite in 3D: two standing blue tubes with grid caps, a round blue ring, blue lamps and four stacked-cylinder gun stacks, all where the sprite has them, with proper shading and shadows between them. The two things that keep it from a 5 are the near-black columns and charcoal gun stacks, which are darker than the sprite from this angle, and the ring tube being noticeably lower than the columns and the lamps.",
+        "overall": "The two defining parts that were flat are fixed or nearly so: the columns are 19 px round tubes and the ring is a round-sectioned torus, the gun stacks are stacked cylinders at sprite width, the outline is 0.974 and the colour error dropped by a third. What is left is polish: raise the ring tube from about 6.5 px to 10-12 px, give the columns and gun stacks the sprite's lighter tones and the column highlight stripe, thicken the deck to 5-6 px, mount the gun stacks on the hull, and cut r41 in. A 4; with those it could be a 5.",
+        "profile": "The columns are now cylinders lying along the screen's vertical axis, with a highlight down the lit side in panels 7-9 instead of flat lids. The ring has a round section that reads as a tube in panels 7 and 9, though its section is wider (about 12 px) than tall (about 6.5 px) and the torus is built from straight segments with visible creases at about 8 joins in panel 2. The gun stacks are stacked cylinders of stepped width, no longer ball-and-capsule chains. The lamps are ellipsoid domes, the hatches and the stepped centre block are flat, and the ribbed grilles r9/r40/r35 are now ribbed cylinders seated on the column surfaces.",
+        "silhouette": "silhouette_iou rose from 0.908 to 0.974 (missed px 657 to 143, extra 59): the gun stacks now fill their sprite widths (coverage 1.0 on r17/r18, r37/r38, r32/r33, r44) and the red rim along the purple wing edges r55/r56 is gone from panel 4. colour_dE_mean fell from 25.3 to 16.0; r41 is now the sprite's near-black (dE 7.2, was 44.5) and the lamps are deep blue with a white core (r25 dE 30.6, r27 35.3, from 38.6/47.9). What remains is tone: the columns r19/r3 render almost black from above with none of the sprite's cyan highlight stripe (dE 17.2/11.9), the gun stacks are charcoal where the sprite's are silver-grey (dE 17-23), and the lamps lack the sprite's wider blue glow.",
+        "volume": "max_height_px went from 8.25 to 19.25 (height_to_width 0.084 to 0.165). In panel 6 the twin columns now stand as full round tubes from the deck (about 3-4 px) to about 19 px, inside the 15-20 px asked for; r1/r4 actual max 19.25. The gun stacks are about 9-11 px tall straight stacks (r17 mean 9.7, r37 7.7), close to the 10-13 px target, and nothing hangs below 0 px. The ring r2 is better but still short: in panel 5 its tube runs from about 3 px to about 9.5 px, so about 6.5 px tall on a 12 px wide tube, against a 10-12 px target. The deck r42 is about 3.5-4 px thick at the centre in panel 5, up from 2-3 px but short of the 5-6 px asked for."
+      },
+      "scores": {
+        "cohesion": 4,
+        "detail": 4,
+        "game": 4,
+        "overall": 4,
+        "profile": 4,
+        "silhouette": 4,
+        "volume": 4
+      },
+      "status": "draft"
+    },
     "assembly-newshd-127-current": {
       "acceptedFromCommittee": "2026-10-28: the user agreed with all the committee findings",
       "committee": {
@@ -1372,6 +1582,91 @@
       },
       "status": "done"
     },
+    "assembly-newshd-127-fixed": {
+      "gradedBy": "fix loop (Fable grader), 2026-10-28",
+      "issues": [
+        {
+          "by": "grader",
+          "note": "The four turrets r23/r24/r42/r43 are still dE 18.9: the frames are now a closer brown, but the cage windows read as grey-blue steel. The sprite's windows are a brighter, more saturated blue; set the inner panel to the sprite's blue and keep the dark outlines on the frame bars.",
+          "panel": 2,
+          "region": "r23",
+          "severity": "medium",
+          "type": "wrong_colour",
+          "x": 610,
+          "y": 244
+        },
+        {
+          "by": "grader",
+          "note": "The black drums r26/r28 and r27/r29 are now 10.2 px tall but are rounded-top blocks (about 15 x 10 px, flat sides, soft top edge). The sprite's highlight band says cylinder lying across: give them a semicircular cross-section the full 10 px tall, with the axis along the sprite's vertical.",
+          "panel": 5,
+          "region": "r26",
+          "severity": "medium",
+          "type": "should_be_round",
+          "x": 586,
+          "y": 952
+        },
+        {
+          "by": "grader",
+          "note": "The tube row r51-r68 is unchanged at a darker, browner red (dE 18.3). Use the sprite's brighter red with the pale highlight stripe along the lit (upper-left) side; the height (5.8 px) is now right.",
+          "panel": 2,
+          "region": "r51",
+          "severity": "low",
+          "type": "wrong_colour",
+          "x": 720,
+          "y": 470
+        },
+        {
+          "by": "grader",
+          "note": "The two black squares r13/r15 are still painted flat at deck level (mean 0.87 and 0.65 px against the deck's 0.7 px). Cut them about 3 px into the deck with dark walls, which needs r14 to be at least about 3 px thick around them.",
+          "panel": 7,
+          "region": "r13",
+          "severity": "low",
+          "type": "missing_recess",
+          "x": 158,
+          "y": 1354
+        },
+        {
+          "by": "grader",
+          "note": "On each dome the vertical white slot holding the two red lights is still a flat lighter band on the sphere. Cut the slot about 1-2 px into the dome so its walls catch light; the lights themselves are now fine as 2 px bumps.",
+          "panel": 2,
+          "region": "r1",
+          "severity": "low",
+          "type": "missing_recess",
+          "x": 540,
+          "y": 162
+        },
+        {
+          "by": "grader",
+          "note": "The brown pods r39-r46 have the sprite's pixel shading baked onto the dome as a dark mottled texture, which shows as blocky patches in the 3/4 views and game view. Use a flat mid-brown with only the red band and badge painted, and let the lighting shade the egg.",
+          "panel": 7,
+          "region": "r46",
+          "severity": "low",
+          "type": "lumpy",
+          "x": 422,
+          "y": 1382
+        }
+      ],
+      "notes": "Every raised part is now about the height the sprite implies (domes 9.8 px, pods 11.9 px, drums 10.2 px, turrets 8.4 px, gems 6.2 px, tubes 5.8 px) with the right profiles, the gem and light colours are fixed and the outline is still exact. Remaining, in order: make the turret windows the sprite's blue; reshape the black drums into cylinders lying across; brighten the tube reds; cut the black squares in as 3 px pits; cut the dome slots in 1-2 px; replace the pods' baked mottled texture with a flat brown plus band and badge.",
+      "reasons": {
+        "cohesion": "The 22 pieces still fit: no gaps, seam mean 0.15 px (was 0.12), max 2.16 px (was 1.56), 52 of 784 samples over 1 px. The larger steps are at the bases of the raised domes, pods and drums, where they read as the part meeting the deck. The deck is still a thin sheet (0.7 px) with no visible thickness, so the machinery sits on a plane, but nothing floats or steps wrongly in panels 7-9. 4.",
+        "detail": "The two red lights per dome are now 2 px bumps, the gems carry the sprite's orange swirl and lit rim, the turrets have a raised cage over a base with red side knobs and a tapered tan muzzle, and the pods keep their red band and badge. Still painted rather than in relief: the black squares r13/r15 sit at floor level (mean 0.87/0.65 px, same as the deck), the vertical white slot on each dome is a flat lighter band on the sphere, and the tubes sit on the deck with no recessed slots. 3.",
+        "game": "From the game camera (panel 9) it now reads as the sprite with real depth: the six domes are lit spheres with specular highlights and dark lower-right sides, the brown pods are domed, the turrets stand up as cages on bases with the muzzle below, the gems glow orange-red, and the tube bank is a row of rounded capsules. The layout, the two black pits and the deck tiling match the sprite. The turrets' grey windows and the dark tube red are the only things that weaken the match. 4.",
+        "overall": "Outline is exact, every main part is now about as tall as the sprite implies with the right kind of profile, and the game view reads as the sprite brought into 3D. What remains is polish: the turret windows and tube reds, the drums as cylinders, the pits and dome slots cut in, and the pods' mottled baked texture. 4.",
+        "profile": "Round parts are round now: the domes are true hemispheres in panel 5 (about 23 px wide, 9.8 px tall), the pods are eggs cut lengthwise, the gems are rounded pillows and the tubes are half-capsules about 6 x 5.8 px. The turret cages are boxy, which is right, and the deck is flat. The black drums r26-r29 are the one miss: they are rounded-top blocks about 15 x 10 px in panels 5 and 7, not cylinders lying across as the sprite's highlight band suggests. 4.",
+        "silhouette": "The outline is still exact (IoU 1.0, 0 missed, 4 extra px): deck r14, the two black squares and every component sit where the sprite has them. Colour improved from dE 13.5 to 11.1: the gems r30/r31 went from dE 21.2 to 5.1 and the dome lights r1-r12 from 43 to 13.2. Still off: the four turrets r23/r24/r42/r43 (dE 18.9) have darker frames now but the cage windows are grey-blue steel instead of the sprite's brighter blue, and the tube row r51-r68 is unchanged at a darker red (dE 18.3). 4.",
+        "volume": "The heights now match what the sprite implies: grey domes r0 crest at 9.8 px (target 8-11), brown pods r41/r44 at 11.9 px and r45/r46 at 11.6 px (target 10-12), black drums r26-r29 at 10.2 px (target about 10), turrets at 8.4 px (target 7-8), gems at 6.2 px (target 5-6), tubes at 5.8 px (target 5-6). Max height went from 5.88 to 11.88 px and height error mean from 7.73 to 5.26 px. What is left: the deck r14 is still a 0.7 px sheet with no edge, the black squares r13/r15 are not cut in, and the small side knobs and pod badges (r32/r33/r47/r48, 3.4-3.7 px mean) are shallow. 4."
+      },
+      "scores": {
+        "cohesion": 4,
+        "detail": 3,
+        "game": 4,
+        "overall": 4,
+        "profile": 4,
+        "silhouette": 4,
+        "volume": 4
+      },
+      "status": "draft"
+    },
     "assembly-newshh-55-current": {
       "acceptedFromCommittee": "2026-10-28: the user agreed with all the committee findings",
       "committee": {
@@ -1703,6 +1998,71 @@
         "volume": 2
       },
       "status": "done"
+    },
+    "assembly-newshh-55-fixed": {
+      "gradedBy": "fix loop (Fable grader), 2026-10-28",
+      "issues": [
+        {
+          "by": "grader",
+          "note": "r0 colour from above: mean ~(75,64,48), greyish and desaturated, dE 12.7; the sprite averages (73,55,30) with 4.2% near-white pixels (model 1.7%). Lit flank brass should go toward (110,80,35) with lower blue, and the spine ridge and the three chevron peaks should be near-white (~(230,215,170)) for 1-2 px rather than tan.",
+          "panel": 2,
+          "region": "r0",
+          "severity": "medium",
+          "type": "wrong_colour",
+          "x": 720,
+          "y": 340
+        },
+        {
+          "by": "grader",
+          "note": "The base end is a plain rounded dome; the sprite shows a ~2 px dark tail point below the knob at the centre of the base. Add a small ~2 px cone or nub at the centre of the end cap, dark brass.",
+          "panel": 9,
+          "region": "r0",
+          "severity": "low",
+          "type": "missing_raised",
+          "x": 1200,
+          "y": 1469
+        },
+        {
+          "by": "grader",
+          "note": "The end cap carries the top texture wrapped around it: panel 6 shows a fan of light and dark wedges and panel 7 a dark blotch across the dome. Give the end cap a plain dark-brass material (or project the texture only on the upper half) so the bottom reads as a smooth rounded end.",
+          "panel": 7,
+          "region": "r0",
+          "severity": "low",
+          "type": "lumpy",
+          "x": 144,
+          "y": 1320
+        },
+        {
+          "by": "grader",
+          "note": "Single red pixels at the tier shoulders and tip sides (6 missed) and one blue at a tier step (2 extra): the tier shoulders are offset ~1 px from the sprite's step rows. Polish only.",
+          "panel": 4,
+          "region": "r0",
+          "severity": "low",
+          "type": "outline_wrong",
+          "x": 1598,
+          "y": 268
+        }
+      ],
+      "notes": "Remaining work is polish. First warm and saturate the brass (top-view mean ~(75,64,48) vs sprite (73,55,30), dE 12.7) and make the spine ridge and chevron peaks near-white so the top view gets the sprite's 4% highlight pixels. Then add the ~2 px dark tail point at the centre of the base end, and give the end cap a plain dark-brass finish instead of the wrapped texture wedges seen in panels 6 and 7. The outline (IoU 0.984), round ~19 px cross-section with its top at ~8.5 px, closed rounded base, smooth flanks, stepped ~1 px tier overhangs, spherical knob and seams (max 0.003 px) are right.",
+      "reasons": {
+        "cohesion": "Nose cone and body meet cleanly: 11 seam samples, max step 0.003 px, no gaps; no join shows in panels 7-9. Reads as one object.",
+        "detail": "The ~1 px light spine ridge runs from tip to knob, the three chevron tiers are stepped rims with light edges, and the knob is a lit sphere. Still missing: the ~2 px dark tail point below the knob at the centre of the base end (the cap is a plain dome in panel 9), and the spine and tier edges are light tan rather than the sprite's near-white highlight, so the top view lacks the sprite's bright chevron peaks.",
+        "game": "From the game camera (panel 9) it reads as the chevron-banded brass spike with spine, stepped tiers and knob, with real round shading and a closed dark rounded bottom facing the camera instead of the hollow bell. It still looks a shade greyer and flatter in colour than the sprite's polished brass, and the bottom shows wedge-shaped texture patches rather than a smooth dark end.",
+        "overall": "All three defects that held the previous sheet at 3 are gone: the base is closed and rounded, the flanks are smooth, and the tiers are stepped overhangs. The outline (IoU 0.984), heights and roundness match. What remains is polish: warm and saturate the brass with near-white highlights, add the tail point, and give the end cap a plain finish instead of the wrapped texture patches. Good; a 4.",
+        "profile": "The body is now smooth-shaded: panels 7 and 8 show an even light-to-dark gradient around the flank with no flat facets, and panel 6 is a clean circle. The three tiers are stepped shells, each with a light leading edge standing ~1 px proud of the next segment in panel 5, instead of free-standing fins. The base end is a closed half-dome. The only profile blemish is that the end cap carries the top texture wrapped around it, so panel 6 shows a fan of light and dark wedges and panel 7 a dark blotch on the dome, which reads as patchy rather than a plain rounded bottom.",
+        "silhouette": "Outline matches: IoU 0.984 (was 0.976), 6 px missed and 2 px extra of 497; panel 4 shows only single red pixels at the tier shoulders and tip and one blue pixel at a tier step. Colour is closer but still off: dE 12.7 (was 14.7). The top view's mean colour is about (75,64,48) against the sprite's (73,55,30), so the brightness now matches but the model is greyer and less saturated than the sprite's warm brass, and only 1.7% of its pixels are bright highlight (over 170) against 4.2% in the sprite.",
+        "volume": "Heights are right: max 11.46 px at the knob, mean 5.5 px vs the analysis's 5.1 (height error 0.42 px); the body is ~19 px wide in panel 6 with its top at ~8.5 px above the midplane and the underside to about -10 px (bbox 1.81 units tall), so the cross-section is round at the width the sprite implies. The knob is a ~5 px sphere standing ~3 px proud of the body at 8-11.5 px in panel 5. The base end is now a closed rounded cap and the taper to the ~2 px tip is kept."
+      },
+      "scores": {
+        "cohesion": 5,
+        "detail": 4,
+        "game": 4,
+        "overall": 4,
+        "profile": 4,
+        "silhouette": 4,
+        "volume": 4
+      },
+      "status": "draft"
     },
     "assembly-newshj-43-current": {
       "acceptedFromCommittee": "2026-10-28: the user agreed with all the committee findings",
@@ -2163,6 +2523,91 @@
       },
       "status": "done"
     },
+    "assembly-newshj-43-fixed": {
+      "gradedBy": "fix loop (Fable grader), 2026-10-28",
+      "issues": [
+        {
+          "by": "grader",
+          "note": "The building metal r1/r2 (dE 9.7, unchanged) is still mid-grey from above; the sprite's block top, plinth and ribs are light silver-grey with near-white edge highlights. Lighten the base colour by about 15-20% and remove the green cast; the sloped left face should be a lighter grey than the roof, not darker.",
+          "panel": 2,
+          "region": "r1",
+          "severity": "medium",
+          "type": "wrong_colour",
+          "x": 624,
+          "y": 292
+        },
+        {
+          "by": "grader",
+          "note": "New: a dotted row of light specks runs along the bottom front edge of each building where the dark skirt/plinth meets the ground (also at fx 0.62, fy 0.82 for the second building). Looks like coplanar or overlapping faces fighting; lift the skirt's bottom face off the ground plane or extend it below z=0 so there is no coincident surface.",
+          "panel": 8,
+          "region": "r1",
+          "severity": "medium",
+          "type": "lumpy",
+          "x": 624,
+          "y": 1306
+        },
+        {
+          "by": "grader",
+          "note": "The diagonal left face is still a ramp from the roof (about 9 px) down to the plinth (about 4 px) over about 12 px of run (panel 5 left end), so the block reads as a wedge in the 3/4 views. Make it a steep or vertical wall with a narrow bevel at the top, keeping the top view the same.",
+          "panel": 7,
+          "region": "r1",
+          "severity": "low",
+          "type": "should_be_flat",
+          "x": 96,
+          "y": 1258
+        },
+        {
+          "by": "grader",
+          "note": "The small dark notches r5/r6 on each block's right side near the tank top are still flush (mean 0.56 px; the analysis infers about 4.6 px). Cut them about 1-2 px into the block side.",
+          "panel": 10,
+          "region": "r5",
+          "severity": "low",
+          "type": "missing_recess",
+          "x": 1632,
+          "y": 1224
+        },
+        {
+          "by": "grader",
+          "note": "The bottom windows r9/r10 sit at 8.4 px, the same height as the upper windows r3/r7 (8.42 px); the dark window band should be inset about 1 px deeper than the lit ones so it reads as cut in.",
+          "panel": 2,
+          "region": "r9",
+          "severity": "low",
+          "type": "missing_recess",
+          "x": 571,
+          "y": 244
+        },
+        {
+          "by": "grader",
+          "note": "The small ledge pieces r17/r18 below each building are still flush (0.21 px) and now read dark (dE 16.6, was 8.0) because the skirt covers them, leaving the two red dots in the diff. Raise them to plinth height (about 2-3 px) in the sprite's grey.",
+          "panel": 4,
+          "region": "r17",
+          "severity": "low",
+          "type": "too_flat",
+          "x": 1618,
+          "y": 470
+        }
+      ],
+      "notes": "Clear improvement: the tanks are round 9 px sections, the shadow border is covered (IoU 1.0), the ground is the sprite's green and the tile seams are gone. Remaining, in fix order: lighten the building metal from dE 9.7 mid-grey to the sprite's silver; remove the new dotted fringe along the buildings' lower edge seen in panel 8; replace the ramped left face with a steep wall and top bevel; then the polish items: cut the r5/r6 notches 1-2 px in, inset the bottom windows r9/r10 about 1 px, and raise the r17/r18 ledges to plinth height in grey.",
+      "reasons": {
+        "cohesion": "Seams: mean step 0.025 px (was 0.035), max 0.6 px, none over 1 px, 0 gaps (was 4). The ground tiles no longer show vertical seams or shade steps in panel 2, and the buildings, tanks and skirts meet without steps. New in panel 8 (back-left): a dotted row of light specks along the bottom front edge of each building where the skirt or plinth meets the ground, which looks like coplanar faces fighting. Reads as one object with a small artefact, so 4.",
+        "detail": "Present in relief: the three green windows inset in a raised frame, the tank rings, the elbow into the base, the lever under the windows, the 'II' vents, the step plate, and now a dark skirt strip along the right and bottom. Still flat: the small notches r5/r6 on each block's right side (mean 0.56 px, inferred 4.6 px), the ledges r17/r18 (0.21 px) and the bottom windows r9/r10 at the same 8.4 px as the frame's upper windows, so the dark band is not visibly deeper. Main details there, small ones missing, so 4.",
+        "game": "From the game camera (panel 9) both generators read as the sprite in 3D: the block, the round ribbed tank, the elbow and the dark shadow skirt all show depth, and the ground is now the bright foliage of the original with no light strips between tiles. The metal is still a darker grey than the sprite's silver, so the buildings look a shade gloomier than the original. Recognisable and close, so 4.",
+        "overall": "The three top-ranked fixes landed: round 9 px tanks, the dark skirt covering the shadow border (IoU 1.0) and the ground brightened to the sprite's green, with the tile seams gone. Left: the metal is still too dark, the wedge face is still a ramp, a new dotted fringe along the building's lower edge in panel 8, and the small flush notches, windows and ledges. Good, close to shippable, so 4.",
+        "profile": "The tank is now a round section with raised rings (panels 6, 7 and 9), the elbow is round, and the block top, plinth, window frames and bevels are crisp and flat. The diagonal left face is still a ramp sloping from the roof at about 9 px down to about 4 px at the plinth over roughly 12 px of run (panel 5, left end), so in panels 7 and 8 the block reads as a wedge rather than a wall. Round parts right, one flat part still a slope, so 4.",
+        "silhouette": "The outline is now exact (silhouette_iou 1.0, 2 px missed, 0 extra, was 0.963 with 200 missed): the dark L along each building's right side and bottom and the 1 px edge along the wedge and block tops are covered, and panel 4 shows only two red dots at the bottom of each building. The ground r0 is now the sprite's bright saturated green (dE 2.2, was 16.6), so the mean colour error fell from 12.6 to 6.0. The building metal r1/r2 is still mid-grey (dE 9.7, was 9.8): in panel 2 the block top, plinth and ribs read noticeably darker than the sprite's light silver with near-white highlights, and the sloped left face renders darker than the sprite's lighter diagonal. Matches in outline, one colour still off, so 4.",
+        "volume": "Max height is 10.34 px (was 7.38). On the panel 6 ruler the ribbed tank now stands about 9.3 px on its 13 px footprint, showing well over half a circular section; the window block tops at about 8.5-9 px (r3 8.4 px, was 6.7) with the elbow at about 10 px, and the plinth at about 2.7 px. Region height error fell from 2.13 to 1.83 px mean. Only the tiny ledges r17/r18 (0.21 px, 5 px regions) stay flush; every substantial part is about as tall as the sprite implies, so 5."
+      },
+      "scores": {
+        "cohesion": 4,
+        "detail": 4,
+        "game": 4,
+        "overall": 4,
+        "profile": 4,
+        "silhouette": 4,
+        "volume": 5
+      },
+      "status": "draft"
+    },
     "assembly-newshm-1-current": {
       "acceptedFromCommittee": "2026-10-28: the user agreed with all the committee findings",
       "committee": {
@@ -2456,6 +2901,61 @@
         "volume": 2
       },
       "status": "done"
+    },
+    "assembly-newshm-1-fixed": {
+      "gradedBy": "fix loop (Fable grader), 2026-10-28",
+      "issues": [
+        {
+          "by": "grader",
+          "note": "Every brick (r0-r18) is now about 21 x 22 px with 3 px joints on the sprite's 24 px pitch; the sprite bricks are 23 x 23 px with 1-2 px joints, so panel 4 shows a 1-1.5 px red rim on all four sides of each brick (1520 px missed, IoU 0.868, down from 0.931). Grow each brick's footprint about 1-1.5 px per side so the joints are 1-2 px, and reduce the corner radius from about 5 px to the sprite's 3 px.",
+          "panel": 4,
+          "region": "r0",
+          "severity": "medium",
+          "type": "outline_wrong",
+          "x": 1560,
+          "y": 148
+        },
+        {
+          "by": "grader",
+          "note": "The top fillet is about 4-5 px wide on a 21 px brick, so the flat plateau is only about 14 px and the lit view shows a broad dark ring. The sprite's lit rim is 1 px: narrow the fillet to 2-3 px and keep the top flat or crowned at most 1-2 px.",
+          "panel": 5,
+          "region": "r0",
+          "severity": "low",
+          "type": "other",
+          "x": 288,
+          "y": 976
+        },
+        {
+          "by": "grader",
+          "note": "The brick sides bulge (widest above the base, rounded in to the footprint), which shrinks the outline seen from above. Make the sides vertical from the base to the fillet so the top-view outline fills the sprite brick.",
+          "panel": 7,
+          "region": "r0",
+          "severity": "low",
+          "type": "other",
+          "x": 240,
+          "y": 1296
+        }
+      ],
+      "notes": "Height and colour are fixed: every brick is 11.1 px (mean 9.8) and brick red (dE 2.6). Remaining, in order: 1) grow each brick about 1-1.5 px per side and tighten the corner radius to about 3 px so the joints return to the sprite's 1-2 px and the top-view IoU climbs back above 0.93 (now 0.868, 1520 px missed); 2) narrow the top fillet from 4-5 px to 2-3 px with a flat or 1-2 px crowned top; 3) make the sides vertical so the footprint matches the top. Nothing else outstanding.",
+      "reasons": {
+        "cohesion": "All 19 pieces are identical (9.78 px mean, 11.1 max), on a clean grid, nothing floats or steps in panels 7-9; seams is null because the bricks don't touch, as in the sprite. The joints are now 3 px rather than the sprite's 1-2, so the chain reads a little more as separate beads than one wall. 4.",
+        "detail": "The sprite has no recesses; its details are the 1 px bright upper-left rim, the 3-4 px dark lower band and the 1-2 px dark joints. The 11 px wall now gives the dark lower band in panels 2, 7 and 9, and the upper-left rim is lit. The joints are too wide (3 px instead of 1-2) because each brick is undersized. 4.",
+        "game": "From the game camera (panel 9) the chain reads as solid red blocks with lit tops and shaded right/bottom sides, clearly the sprite in 3D, where before it was thin mauve tiles. The bricks are slightly bead-like (rounded shoulders, 3 px gaps) rather than the sprite's tight chain of squared bricks, which keeps it off a 5. 4.",
+        "overall": "Both fixes the committee asked for first are done: the bricks are 11 px blocks and the sprite's brick red. What remains is one footprint fix: each brick lost about 1-1.5 px per side while being rounded, so the top view is thinner than the sprite (IoU 0.868). Growing the footprint back and narrowing the fillet should make this ship-ready. 4.",
+        "profile": "The bricks are now rounded blocks: a flat central plateau with rounded shoulders, a dark lower-right side in the lit views and a bright upper-left rim, which is the bevelled block the sprite shows. Two things are still off: the shoulder fillet is about 4-5 px wide on a 21 px top (the sprite's lit rim is 1 px, target 2-3 px), and the sides bulge so the widest point is above the base and the top plateau is only about 14 px across. The inset-tile look of the old wide chamfer is gone. 4.",
+        "silhouette": "Colour is now right: the brick face sampled from panel 3 matches the sprite's #8e382c exactly (dE 2.6, was 12.5). But the footprint shrank: IoU fell from 0.931 to 0.868, missed px rose from 716 to 1520 (13% of every brick, coverage 0.868 on all 19), extra 0. Along the top row the model bricks are 21 px wide on the sprite's 24 px pitch with 3 px joints, where the sprite has 23 px bricks and 1-2 px joints; panel 4 shows a red rim of about 1-1.5 px on all four sides of every brick, and the model's corners are rounder (about 5 px radius vs the sprite's 3 px). Recognisable, outline off uniformly: 3.",
+        "volume": "Every brick is now 11.1 px at the crown and 9.8 px mean (was 4.76 max), inside the 10-12 px target the committee set, and all 19 are identical. In panel 5 the row sits between the 6 and 12 px rulings. The height is now about half the brick's width, which is what the sprite's 3-4 px dark lower band implies. 5."
+      },
+      "scores": {
+        "cohesion": 4,
+        "detail": 4,
+        "game": 4,
+        "overall": 4,
+        "profile": 4,
+        "silhouette": 3,
+        "volume": 5
+      },
+      "status": "draft"
     },
     "assembly-newsho-79-current": {
       "acceptedFromCommittee": "2026-10-28: the user agreed with all the committee findings",
@@ -2972,6 +3472,101 @@
       },
       "status": "done"
     },
+    "assembly-newsho-79-fixed": {
+      "gradedBy": "fix loop (Fable grader), 2026-10-28",
+      "issues": [
+        {
+          "by": "grader",
+          "note": "r8, the dark well around the eye (and r23, the dark area between the right arm and the U-bar): still a grey floor at 4.2 px mean (r23 3.3 px) where the sprite is near-black and the analysis infers 0.5 px. Cut the floor inside the arms and U-bar down to ~0.5-1 px and colour it near-black so the eye sphere sits in a socket.",
+          "panel": 10,
+          "region": "r8",
+          "severity": "medium",
+          "type": "missing_recess",
+          "x": 1690,
+          "y": 1306
+        },
+        {
+          "by": "grader",
+          "note": "The black eye sphere is ~22 px across, about 2-3 px narrower than the sprite's eye (a blue ring shows around it in the diff). Widen the sphere so its rim meets the inner edge of the U-bar and arms as in the sprite, keeping its top at ~13 px.",
+          "panel": 4,
+          "region": "r9",
+          "severity": "low",
+          "type": "outline_wrong",
+          "x": 1670,
+          "y": 292
+        },
+        {
+          "by": "grader",
+          "note": "r0 and r1, the top turret caps, are still the dark hull grey (dE 14) where the sprite's cap is a light grey with a bright highlight. Lighten both caps to the sprite's light grey. The small cylinders beside them (r3, r4, r5: dE 18-21, coverage 0.86) also need the sprite's mid grey and a slightly wider footprint.",
+          "panel": 10,
+          "region": "r0",
+          "severity": "low",
+          "type": "wrong_colour",
+          "x": 1589,
+          "y": 1241
+        },
+        {
+          "by": "grader",
+          "note": "r43, the middle grey engine barrel: 4.1 px mean, 7.9 px max, so it reads as a shallow lens between the two blue barrels (r41 5.5 mean, r42 7.4 mean). Make it a full half-cylinder like its neighbours, ~8 px tall across its whole width.",
+          "panel": 10,
+          "region": "r43",
+          "severity": "low",
+          "type": "too_flat",
+          "x": 1680,
+          "y": 1358
+        },
+        {
+          "by": "grader",
+          "note": "r31, the small dark wedge at the lower-right of the right wing block, is still only 75% covered (red in the diff); its mirror r55 is now 90%. Extend the wedge geometry to fill the sprite's corner and colour it dark.",
+          "panel": 10,
+          "region": "r31",
+          "severity": "low",
+          "type": "outline_wrong",
+          "x": 1853,
+          "y": 1320
+        },
+        {
+          "by": "grader",
+          "note": "r15, the grey central plate between the claws below the grille roof: flat at 3.6 px mean (max 7.7) where the sprite shades it as a raised nose tapering toward the eye (inferred ~6 px). Raise its upper end ~2 px and let it taper down to the well.",
+          "panel": 10,
+          "region": "r15",
+          "severity": "low",
+          "type": "should_taper",
+          "x": 1656,
+          "y": 1282
+        },
+        {
+          "by": "grader",
+          "note": "Faint construction lines still cross the wing pods r11/r10 and their mirrors in the lit top view and the game view (panel 9). Merge or smooth-shade the pod plates so the wing reads as one surface.",
+          "panel": 2,
+          "region": "r11",
+          "severity": "low",
+          "type": "seam",
+          "x": 576,
+          "y": 292
+        }
+      ],
+      "notes": "Big step forward: arms, U-bar, eye, pipes and engines are now round and tall (ship 13.4 px, was 7.9), the panels are recessed, the slot is cut, and every seam is within 0.5 px. Fix next, in order: cut the well r8/r23 around the eye to ~0.5-1 px and colour it near-black; widen the eye sphere ~2-3 px to meet the U-bar; lighten the turret caps r0/r1 and the small cylinders r3/r4/r5 to the sprite's greys; make the middle engine r43 a full ~8 px barrel; add the missing wedge r31; raise and taper the central plate r15; smooth the construction lines across the wing pods.",
+      "reasons": {
+        "cohesion": "Seams: 814 samples, mean step 0.011 px, max 0.48 px, 0 samples over 1 px, 0 gaps (was max 5.04, 23 over 1 px, 2 gaps). The jagged mirror seam through the eye and U-bar is welded; the deck-to-wing ledges in panel 8 are gone. Faint construction lines still cross the wing plates in panels 2 and 9, which keeps it from a 5.",
+        "detail": "Nearly every sprite detail is present and the relief is now real: the side panels r24/r25 sit 4.5 px below the pod tops (1.75 vs 6.3 px), the slot r50 between the engines is cut to 0.8 px, the grille ribs, vent slats, bolts, blue stripes and the rear framed block are there. Still missing in relief: the dark well r8 around the eye and the dark r23 area between the right arm and the U-bar are a grey floor at 3-4 px rather than the ~0.5-1 px pit the sprite draws, so the eye does not sit in a socket. The grille lines on r2 remain close to painted.",
+        "game": "From the game camera (panel 9) it reads as the sprite brought into 3D: the tube arms rise to the U-bar, the eye is a glossy black ball with its highlight, the engine barrels and the deck steps catch the light, and the mirror crack through the eye is gone. The only tells are the grey floor around the eye where the sprite is black, and the dark turret caps.",
+        "overall": "All six high/medium problems of the previous grade are fixed or clearly improved: the arms, U-bar, eye, pipes and engines are round and about as tall as they are wide, the panels are recessed, the slot is cut, and the seams are gone. What is left is polish: the eye socket r8/r23 is not a pit, the eye is slightly narrow, the turret caps and small turret cylinders are the wrong grey, the wedge r31 is missing and the middle engine is shallow. A solid 4; sinking the socket and fixing the turret colours would make it ship-ready.",
+        "profile": "Round parts are now round in section: the arms are proper cylinders with rounded ends, the U-bar is a tube (panels 7-9 show its highlight running along a curved tube, not a flat swelling), the eye is a glossy sphere and the engines are barrels lying across the hull. Flat parts stay flat: the deck, pods and framed panels are bevelled plates. Remaining softness: the middle engine r43 is a shallow barrel (4 px mean), and the small central plate r15 between the claws is flat at 3.6 px where the sprite shades it as a tapering, slightly raised nose (inferred 6).",
+        "silhouette": "Top view matches the sprite nearly everywhere: IoU 0.974 (156 px missed, 146 extra, up from 0.968) and colour dE 7.5 (was 8.0). The diff in panel 4 is almost all yellow; red is left only at the small wing-tip wedge r31 (coverage 0.75; r55 is now 0.90) and at the dark slivers under the ends of the angled pipes. Colour misses are local: the turret caps r0/r1 are still the dark hull grey (dE 14 against the sprite's light grey top), the small cylinders beside them r3/r4/r5 are dE 18-21, and the blocks r13/r20 that were dE 27 are now 3.8 and 11.9. A thin blue ring in the diff around the eye says the black sphere is drawn ~2-3 px narrower than the sprite's eye.",
+        "volume": "The ship now rises from 0 to 13.4 px (was 7.9), h/w 0.074, and the round parts have their heights: the blue arms r17/r18 are 11.2/10.9 px mean, 13.4/13.0 max (target ~14), the U-bar r28 tops at 12.7 px (8.2 mean), the eye dome r22 at 13.1 px, the angled pipes r34 at 9.1 px, the upper decks r10 at 6.2 px, ~2 px above the 4.3 px deck r2. The engine barrels r41/r42/r43 reach 7.9 px but r43, the middle one, averages only 4.1 px. The dark wells are still not pits: r8 (inferred 0.5) averages 4.2 px and r23 3.3 px. Some parts are modestly over: the turrets r0/r1 are 10 px tall (inferred 6), which is acceptable for a ~10 px wide cylinder."
+      },
+      "scores": {
+        "cohesion": 4,
+        "detail": 4,
+        "game": 5,
+        "overall": 4,
+        "profile": 4,
+        "silhouette": 4,
+        "volume": 4
+      },
+      "status": "draft"
+    },
     "assembly-newshr-85-current": {
       "acceptedFromCommittee": "2026-10-28: the user agreed with all the committee findings",
       "committee": {
@@ -3342,6 +3937,91 @@
       },
       "status": "done"
     },
+    "assembly-newshr-85-fixed": {
+      "gradedBy": "fix loop (Fable grader), 2026-10-28",
+      "issues": [
+        {
+          "by": "grader",
+          "note": "The glass shell r0 (and r56) is now built as a geodesic frame: a hub at the crown, about 8 meridian ribs and 3 ring ribs in mid-purple standing proud of the glass, visible in panels 2, 4 (yellow wheel pattern), 7, 8 and 9. The sprite's dome has no ribs; it is one smooth glass surface. Remove the lattice entirely and keep the closed smooth 27-28 px egg underneath it.",
+          "panel": 9,
+          "region": "r0",
+          "severity": "high",
+          "type": "other",
+          "x": 1200,
+          "y": 1224
+        },
+        {
+          "by": "grader",
+          "note": "Seen through the shell from above the tower cluster reads flat light grey: r1 dE 3.0 to 9.3, r2 0.8 to 5.4, r3 1.6 to 20.9, r4 1.7 to 8.5, r9 1.8 to 8.3 since last round. The glass is adding a milky, desaturating haze. The sprite shows the dark teal towers clearly through a violet tint. Make the glass a clear tinted transmission (low roughness, no white diffuse) so the teal towers keep their colour and only shift toward violet.",
+          "panel": 2,
+          "region": "r1",
+          "severity": "medium",
+          "type": "wrong_colour",
+          "x": 720,
+          "y": 268
+        },
+        {
+          "by": "grader",
+          "note": "Outside the upper-left highlight the dome is still near-black with purple only at the rim (r0 dE 7.1, barely changed from 8.2). The sprite's glass is a saturated deep violet across the whole dome with a lilac highlight and a darker purple rim. Raise the glass base colour toward that violet and keep the highlight where it is.",
+          "panel": 2,
+          "region": "r0",
+          "severity": "medium",
+          "type": "wrong_colour",
+          "x": 720,
+          "y": 186
+        },
+        {
+          "by": "grader",
+          "note": "A vertical crack line runs down the front of the shell in the 3/4 view (also on the back in panel 8), a lighting discontinuity where shell segments meet. Merge the shell vertices and smooth normals so the surface shades continuously.",
+          "panel": 7,
+          "region": "r0",
+          "severity": "low",
+          "type": "seam",
+          "x": 216,
+          "y": 1392
+        },
+        {
+          "by": "grader",
+          "note": "Tower facades are plain dark teal with a few single lit dots. The sprite draws pale cyan lit faces on the upper-left sides (r3, r4, r9, r10) and horizontal window rows. Lighten the upper-left faces and add emissive or shallow-inset window bands.",
+          "panel": 9,
+          "region": "r1",
+          "severity": "low",
+          "type": "missing_raised",
+          "x": 1224,
+          "y": 1248
+        },
+        {
+          "by": "grader",
+          "note": "Cobble plates r18/r24 (and r74/r80) are much closer by metric (dE 5.0/7.3, from 11.3/12.8) but read as cool grey stones; the sprite's are warm dark orange-brown. A small warm shift of the stone colour would finish this.",
+          "panel": 2,
+          "region": "r18",
+          "severity": "low",
+          "type": "wrong_colour",
+          "x": 672,
+          "y": 446
+        }
+      ],
+      "notes": "The shell is now a closed, smooth egg about 27-28 px tall enclosing all the towers, with the sawtooth cut and the long-axis step gone and the cobbles closer in colour. Remaining, in fix order: (1) remove the purple geodesic lattice ribs added to the dome, which the sprite does not have and which dominate the game view; (2) make the glass a clear deep-violet tint instead of a milky haze so the towers keep their teal (r3 dE 20.9 from above) and the dome stops reading near-black; (3) smooth the lighting crack on the shell front; (4) add lit left faces and window rows on the towers; (5) warm the cobble plates slightly.",
+      "reasons": {
+        "cohesion": "Seam metrics are unchanged and clean (mean dz 0.025 px, max 0.40 px, none over 1 px); the ground plates and the overlapping second tile meet without steps. The shell/tower fit is now right: the shell closes over the whole cluster with the tallest tower (about 24.6 px) under the 27-28 px crown and no cut edges. One cosmetic lighting crack runs down the front of the shell in panel 7 (and the back in panel 8), the join between shell segments. 4.",
+        "detail": "The skyline keeps its varied tower blocks with alley gaps and scattered lit window pixels, the cobbles have per-stone relief, and the specular highlight sits upper-left. New this round is a geodesic frame on the dome (a hub at the crown, 8 meridian ribs and 3 ring ribs in mid-purple) which is an invented detail: the sprite's dome is plain glass. Still missing: the pale cyan lit left faces (r3, r4, r9, r10) and the horizontal window bands; facades are plain dark teal with single dots. Main details present, one wrong one added: 3.",
+        "game": "From the game camera (panel 9) it is a domed city and the dome now encloses the towers, which is the structural fix the last grade asked for. But the shell reads as a purple wire cage with dark panes rather than a violet glass bubble: the ribs are the most prominent feature, the glass between them is near-black with a milky cast, and the towers behind it are desaturated to grey. The sprite shows a smooth saturated violet dome with a lilac highlight and the teal city tinted through it. Recognisable, not yet the sprite in 3D: 3.",
+        "overall": "The structural problem is fixed: the shell is a closed, smooth egg about 27-28 px tall over the whole city, with no sawtooth or step, and the cobbles moved toward the sprite. What was lost: the closure was built as a purple geodesic lattice with milky panes, so from above and in game the dome reads as a cage, and the towers behind the glass went grey (r3 dE 20.9). Remove the ribs, make the glass a clear deep-violet tint, and this is a 4. OK as a start: 3.",
+        "profile": "The shell is now one closed, smooth egg in both elevations: panel 5 rises from 0 at the sprite's bottom end to about 27 px near the upper-middle in a single curve (the 13 px lobe and the step are gone), and panel 6 shows a continuous dome edge with no sawtooth notches. Towers are flat-topped prisms with vertical facades, cobbles are flat. The only profile blemish is the new lattice of ribs standing proud of the glass surface, which is a detail problem more than a profile one. 4.",
+        "silhouette": "Outline unchanged and near-exact (IoU 0.995, 28 px missed, 24 extra of 10106; panels 3-4 line up on both domes and both plates). Mean colour error improved 8.0 to 7.0 dE, mostly from the ground: the cobble plates went from dE 11.3/12.8 (r18/r24) to 5.0/7.3 and the base regions r7/r33/r46 from 12-15 to 6-8. But the tower cluster got worse from above: seen through the new milky glass the towers read flat grey instead of dark teal (r1 dE 3.0 to 9.3, r3 1.6 to 20.9, r4 1.7 to 8.5, r9 1.8 to 8.3), and the diff in panel 4 lights up a bright yellow wheel-and-spokes pattern of purple lattice ribs that the sprite does not have. The glass itself is still near-black outside the highlight (r0 dE 7.1, was 8.2). Recognisable, parts off: 3.",
+        "volume": "Heights are right. On the panel 5/6 rulers the shell now crowns at about 27-28 px (max_height 28.0, h/w 0.292) over its 55 px footprint, about half its width as a dome should be. The towers are unchanged upright prisms 12-24 px (r10/r12 about 22.7, r8 13.4, r20 max 26.8 under the crown) and every tower top is below the shell. The cobble plates stay flat at about 0.6 px and the city base regions r6/r7/r19 at 0.6-1.8 px. 4, as before."
+      },
+      "scores": {
+        "cohesion": 4,
+        "detail": 3,
+        "game": 3,
+        "overall": 3,
+        "profile": 4,
+        "silhouette": 3,
+        "volume": 4
+      },
+      "status": "draft"
+    },
     "newsh2-191-current": {
       "acceptedFromCommittee": "2026-10-28: the user agreed with all the committee findings",
       "committee": {
@@ -3707,6 +4387,79 @@
         "volume": 3
       },
       "status": "done"
+    },
+    "newsh2-191-fixed": {
+      "gradedBy": "fix loop (Fable grader), 2026-10-28",
+      "issues": [
+        {
+          "by": "grader",
+          "note": "The pod r7 is an ellipse about 6 px wide but only about 3.9 px tall (about -1.5 to +2.4 px on the ruler). The sprite's pale stripe with a dark far side says a round capsule, so make its section circular, about 5-6 px in diameter, keeping the top at about +2.4 px and extending it downward.",
+          "panel": 6,
+          "region": "r7",
+          "severity": "medium",
+          "type": "too_flat",
+          "x": 1430,
+          "y": 976
+        },
+        {
+          "by": "grader",
+          "note": "The pod r7 (dE 15.3) has its right half almost black over 2-3 columns and its pale stripe one column wide; the sprite has a mid-tan base, a 2-column pale stripe left of centre, and only the last right column and bottom rows dark brown. Lighten the right side to the sprite's mid-brown, widen the pale stripe to 2 px, and keep the dark only on the far-right column and the lower rows.",
+          "panel": 2,
+          "region": "r7",
+          "severity": "low",
+          "type": "wrong_colour",
+          "x": 706,
+          "y": 244
+        },
+        {
+          "by": "grader",
+          "note": "The rail tubes r4/r6 read as a uniform mid-grey from above (dE 15.6 and 14.2, up from 9.7/11.3 when only the centre column was covered); the sprite's rails are a black left column, grey centre and light-grey right column. Darken the tube base grey toward the sprite's dark grey so the shaded edge goes near black, and keep a light highlight on the right half.",
+          "panel": 4,
+          "region": "r4",
+          "severity": "low",
+          "type": "wrong_colour",
+          "x": 1584,
+          "y": 340
+        },
+        {
+          "by": "grader",
+          "note": "Each rail ends in a grey cone where the sprite ends it with a single black pixel; panel 4 shows yellow at both tips. Colour the last 1 px of each rail tip black or near-black.",
+          "panel": 2,
+          "region": "r4",
+          "severity": "low",
+          "type": "wrong_colour",
+          "x": 624,
+          "y": 450
+        },
+        {
+          "by": "grader",
+          "note": "One extra pixel (blue) at the arch's top-right shoulder, beside r3: the tube's outer corner reaches 1 px past the sprite's outline. Pull the arch's right shoulder in by about 1 px or tighten its bend radius there.",
+          "panel": 4,
+          "region": "r3",
+          "severity": "low",
+          "type": "outline_wrong",
+          "x": 1786,
+          "y": 148
+        }
+      ],
+      "notes": "First, round out the pod r7: it is about 6 px wide but only about 3.9 px tall, so give it a circular section about 5-6 px in diameter. Then fix the pod's colour: lighten its near-black right half to the sprite's mid-brown, widen the pale stripe to 2 px and keep dark only on the far-right column and the lower rows. Then darken the rail tube grey and blacken the 1 px rail tips so the rails match the sprite's black edge and tip pixels. Finally, pull the arch's top-right shoulder in by 1 px to remove the single extra pixel.",
+      "reasons": {
+        "detail": "Present: the two dark clamp collars on each rail, the 2 px axle struts, the arch's alternating tan/dark segment banding, the pod's pale left-centre stripe and dark right side, and the pointed nozzle. Missing or off: the pod's dark side is nearly black over 2-3 columns where the sprite has one dark column, and the 1 px black tips at the rail bottoms are grey cones. Nearly every detail is there, so 4.",
+        "game": "From the game camera (panel 9) it is the sprite's horseshoe frame with the pod hung between the rails, now with the chunky tubed frame, collars and banded arch the sprite shows; the pod's stripe reads. The pod sits slightly flat and its right side is darker than the sprite, which is the only thing that keeps it from reading exactly like the sprite in 3D. 4.",
+        "overall": "The previous grade's main problems (half-width boards, 0.43 IoU, hair-thin struts, flat pod colour) are all fixed and nothing was lost: the top view now matches the sprite almost exactly and the frame is a proper 3 px tube. What remains is polish: give the pod a round 5-6 px section instead of 4 px, soften its dark side toward the sprite's mid-brown, darken the rail grey and tips, and trim the 1 extra px at the arch shoulder. Good, so 4.",
+        "profile": "The rails and arch are one continuous round tube with collars (panels 7-8), replacing the boards on edge; the arch bends smoothly into the rails. The struts are round rods. The pod is a capsule with a highlight stripe and a tapered nose, which matches the sprite's narrowing bottom rows, but its cross-section in panel 6 is an ellipse about 6 px wide by 4 px tall rather than a circle. Round parts round, one slightly squashed, so 4.",
+        "silhouette": "IoU is now 0.994 (0 of 180 px missed, 1 extra), up from 0.433: the rails r4/r6 and the arch r0 are 3 px wide tubes and the pod r7 is about 6 px wide, so panel 4 has no red at all, just one blue pixel at the arch's top-right shoulder. Colour dE mean is 14.6: the pod (dE 15.3) still shows yellow error on its pale stripe and its lower-right, the rail tubes read mid-grey over the sprite's black left column and light-grey right column (dE 15.6/14.2), and the rail tips are grey where the sprite ends them with a black pixel. Outline matches; colours mostly do, so 4.",
+        "volume": "On the panel 6 ruler the rail tubes span about -1.2 to +1.8 px, about 3 px tall for 3 px wide, which is right for round tubes; the arch is the same section (panel 5). The pod r7 spans about -1.5 to +2.4 px, about 3.9 px tall for a pod about 6 px wide, so it is a little lens-shaped where the sprite's highlight stripe says a full round capsule about 5-6 px tall. The struts are about 2 px thick. Max height 2.6 px, height error mean 0.27 px (was 0.63). All but the pod right, so 4."
+      },
+      "scores": {
+        "detail": 4,
+        "game": 4,
+        "overall": 4,
+        "profile": 4,
+        "silhouette": 4,
+        "volume": 4
+      },
+      "status": "draft"
     },
     "newsh5-121-current": {
       "acceptedFromCommittee": "2026-10-28: the user agreed with all the committee findings",
@@ -4074,6 +4827,79 @@
       },
       "status": "done"
     },
+    "newsh5-121-fixed": {
+      "gradedBy": "fix loop (Fable grader), 2026-10-28",
+      "issues": [
+        {
+          "by": "grader",
+          "note": "r0, the shell colour: still a dull maroon with a pinkish-grey specular wash on the upper-left flank (dE 13.2, was 28.6), and the lit rim band is about 3 px wide. The sprite is a saturated bright red (~170,10,0 mid tones) with a scarlet highlight near the light and a near-black rim only 1-2 px wide. Raise saturation and brightness of the base red, cut the grey specular, and keep the dark falloff to the outer 1-2 px.",
+          "panel": 2,
+          "region": "r0",
+          "severity": "medium",
+          "type": "wrong_colour",
+          "x": 706,
+          "y": 292
+        },
+        {
+          "by": "grader",
+          "note": "r0, the apex: the highest point sits under the light at the sprite's upper-left, so from the front-right (panel 7) the body is a tent with nearly straight flanks rising to a point, and in panel 6 the peak is at ~0.4 across with the right half sloping away. Keep the 9.5 px height but move the apex to about the body's centre (at most 2-3 px toward the light) and give the flanks a circular-arc dome profile so the mid-body is ~9 px, not ~8.",
+          "panel": 7,
+          "region": "r0",
+          "severity": "medium",
+          "type": "should_be_round",
+          "x": 250,
+          "y": 1162
+        },
+        {
+          "by": "grader",
+          "note": "r0, the surface: the sprite's colour bands have become stepped terraces about 0.3-0.5 px high with jagged pixel-edged outlines, visible as staircases on the flanks in panels 5-9 and as paint-by-numbers zones from above. The shell should be one smooth dome; keep the bands as colour (or soft shading) only, with no height steps.",
+          "panel": 7,
+          "region": "r0",
+          "severity": "medium",
+          "type": "lumpy",
+          "x": 326,
+          "y": 1258
+        },
+        {
+          "by": "grader",
+          "note": "The hook groove: cut in about 1 px with hard vertical walls and a near-black floor. The sprite's crease is a soft dark red (~70,0,0) about 2 px wide. Colour the groove dark red rather than black and round its walls so it reads as a crease, not a trench.",
+          "panel": 2,
+          "region": "r0",
+          "severity": "low",
+          "type": "wrong_colour",
+          "x": 720,
+          "y": 244
+        },
+        {
+          "by": "grader",
+          "note": "The two arcs on the right: now flat lighter-red colour zones with jagged pixel-step edges. The sprite shows soft 2-3 px wide lighter bands. Smooth their edges (or make them broad ridges no more than 0.3-0.5 px high) so they read as gentle shade bands from above.",
+          "panel": 2,
+          "region": "r0",
+          "severity": "low",
+          "type": "other",
+          "x": 816,
+          "y": 268
+        }
+      ],
+      "notes": "The dome is now ~9.5 px with no skirt, the outline is exact (IoU 0.991) and the hook is a groove under the light, so this is a clear improvement. Remaining, in order: recolour the shell from dull maroon with a grey sheen to saturated bright red with a 1-2 px dark rim (dE 13.2); move the apex from under the light toward the body centre so the front-right view is a dome, not a tent; smooth away the 0.3-0.5 px terraces made from the sprite's colour bands; then polish the hook groove to dark red with soft walls and soften the arcs' jagged edges.",
+      "reasons": {
+        "detail": "The hook is now cut in as a groove about 1 px deep, and its horizontal arm starts under the light as the sprite has it, though it is still near-black with hard box walls where the sprite shows a soft dark-red crease. The light is a bright yellow core on an orange, slightly domed spot: right. The two arcs on the right are no longer proud ribs; they survive as flat lighter-red colour zones with jagged pixel-step edges rather than the soft 2-3 px bands of the sprite. Every detail is present in roughly the right form, so 4.",
+        "game": "From the game camera (panel 9) it reads as a glossy red rounded blob with the orange light at the upper-left and the dark hook beside it, which is the sprite brought into 3D. The height now shows as real roundness at this tilt instead of a thin disc. It is still darker and more maroon than the sprite's bright red, and the terraced facets show as faint stair-steps on the flanks. 4.",
+        "overall": "Two of the three things the previous grade asked for are done: the dome is ~9.5 px with no skirt, and the hook is a groove under the light; the colour is halfway there (dE 28.6 to 13.2) and the outline is now exact. What keeps it from a 5 is the dull maroon colour with a grey sheen, the apex pushed off-centre so the body looks conical from the front-right, and the pixel-band terracing on the surface. Good: 4.",
+        "profile": "The skirt and shoulder are gone: panels 5 and 6 show one continuous curve from the ground to the apex. But two new profile flaws appear. The apex sits under the light at the sprite's upper-left rather than near the centre, so in the front-right 3/4 view (panel 7) the body reads as a tent or cone with nearly straight flanks from the rim to a point, not a dome. And the surface is terraced: the sprite's colour bands have been turned into stepped facets about 0.3-0.5 px high with jagged pixel edges, visible as staircase outlines on the flanks in panels 5-9. Round in kind, but conical and stepped in practice, so 3.",
+        "silhouette": "The outline now matches the sprite almost exactly: IoU 0.991, 3 px missed, 0 extra (was 0.933, 12/12), and panel 4 shows only two or three red pixels at the 12 o'clock bump and the bottom edge. The lean and the flatter bottom edge follow the sprite. Colour is better but still off: dE 13.2 (was 28.6). From above (panel 2) the mid tones are a dull maroon with a pinkish-grey specular wash centre-left, and the dark rim band is about 3 px wide where the sprite's near-black rim is 1-2 px. Outline is a 5, colour a 3, so 4.",
+        "volume": "Both elevations put the apex at about 9.5 px (max 9.49 px, h/w 0.44, mean 5.8 px against the analysis's 6.4 mean / 10 max; height error -0.6 px, was -2.7). That is the 9-10 px the previous grade asked for on a ~21 px body. The light sits about 0.7 px proud at the top, fine. The only caveat is that the apex is pushed to the upper-left under the light, so the centre of the body is nearer 8 px and the lower-right half falls away faster than a dome of this width should. 4."
+      },
+      "scores": {
+        "detail": 4,
+        "game": 4,
+        "overall": 4,
+        "profile": 3,
+        "silhouette": 4,
+        "volume": 4
+      },
+      "status": "draft"
+    },
     "newsh5-47-current": {
       "acceptedFromCommittee": "2026-10-28: the user agreed with all the committee findings",
       "committee": {
@@ -4440,6 +5266,70 @@
       },
       "status": "done"
     },
+    "newsh5-47-fixed": {
+      "gradedBy": "fix loop (Fable grader), 2026-10-28",
+      "issues": [
+        {
+          "by": "grader",
+          "note": "The body r0 reads as a dull dark grey-mauve from above (dE 15.9) with no highlight; the sprite's upper body is a mid violet (lighter than the model) with a bright highlight spot near the top centre. Shift the body material toward the sprite's violet and brighten it so the lit top matches the sprite's mid tone.",
+          "panel": 2,
+          "region": "r0",
+          "severity": "medium",
+          "type": "wrong_colour",
+          "x": 720,
+          "y": 172
+        },
+        {
+          "by": "grader",
+          "note": "The band r1 is a cylinder ring: its top is flat at 12.3-12.8 px across its 8 px width while the sphere under it curves down to about 10.5 px at the band's edges, so it is about 1 px proud at the centre and about 2 px at its edges with vertical dark side walls (panels 7, 8). Make the strap's cross-section follow the sphere so it is a uniform 0.5-1 px proud.",
+          "panel": 5,
+          "region": "r1",
+          "severity": "low",
+          "type": "should_be_round",
+          "x": 480,
+          "y": 679
+        },
+        {
+          "by": "grader",
+          "note": "The recess r2 interior is a glossy near-black with grey specular rings (dE 11.8, was 6.0 before the cut); the sprite's r2 is a matte dark navy-purple. Make the bowl matte and dark purple, keeping the lighter purple lip around it.",
+          "panel": 2,
+          "region": "r2",
+          "severity": "low",
+          "type": "wrong_colour",
+          "x": 706,
+          "y": 398
+        },
+        {
+          "by": "grader",
+          "note": "The band's centre rows are still dark brown-maroon (dE 10.7); the sprite's band is crimson with brighter rows at its edges. The model's edge stripes are close; warm the centre toward the same crimson.",
+          "panel": 2,
+          "region": "r1",
+          "severity": "low",
+          "type": "wrong_colour",
+          "x": 624,
+          "y": 292
+        }
+      ],
+      "notes": "The sphere is built, the outline is exact and the bar and opening are right. Fix the body colour first (too dark and grey from above; match the sprite's violet and highlight). Then curve the band's cross-section so it hugs the sphere instead of standing as a flat-topped ring. Finally make the recess matte dark purple and warm the band's centre toward crimson.",
+      "reasons": {
+        "cohesion": "Not an assembly.",
+        "detail": "All three details are present and in relief: the 8 px band, the straight 2 px gold bar spanning the band with a white cap at its top (fixed from the old bean), and the lower opening r2 cut about 2-3 px into the sphere (panel 5: the body behind the band dips from about 10.5 px to 8 px) with the purple lip kept below it. The only miss is the recess finish: its interior is a glossy black with grey specular rings, where the sprite's r2 is a matte dark purple with a lighter lip row.",
+        "game": "From the game camera (panel 9) it is a lit purple ball with a maroon band, a gold bar and a dark mouth with a lit rim, darkening toward the lower right: the sprite brought into 3D. The upper body is darker and flatter in tone than the sprite's violet with its highlight spot, which keeps this from a 5.",
+        "overall": "The core problem is solved: a 25 px sphere with the band, bar and opening on it, outline exact, every height right. What remains is colour polish (body too dark and grey from above, band centre brown, recess glossy black) and the band being a flat-topped ring instead of a curved strap. Good; ship after the colour pass.",
+        "profile": "Panel 6 shows a circular section from edge to edge, no equatorial crease, and the game view and 3/4 views shade like a ball. The gold stripe is a straight bar about 0.5 px proud. The band r1 follows the sphere's great circle about 1 px proud, but in panel 5 its top is flat across its 8 px width (12.3-12.8 px) while the sphere under it drops to about 10.5 px at the band's edges, so it is a short cylinder ring about 2 px proud at its edges with vertical dark side walls (visible in panels 7 and 8) rather than a strap whose cross-section hugs the sphere. The recess is a smooth bowl.",
+        "silhouette": "The outline now matches the sprite: silhouette_iou 0.977 (516 vs 520 px, 8 missed, 4 extra), and panel 4 shows only single stray red pixels at the left and right of the equator and blue ones at the top and bottom instead of the old 1 px red ring. The band r1, the straight gold bar with its white cap and the dark lower opening r2 sit where the sprite has them (panel 3 overlays cleanly). Colours are a little further off than before: colour_dE_mean 13.0 (was 11.3); the body r0 reads as a dull dark grey-mauve from above (dE 15.9) where the sprite is a mid violet with a bright highlight, the band centre is still brown-maroon (dE 10.7), and the opening r2 is a glossy near-black with grey rings (dE 11.8) instead of the sprite's matte dark purple.",
+        "volume": "The pod is now a full sphere: bbox z 2.096 units = 25 px tall for 25.6 px wide (height_to_width 0.984), top of the body at about 11.5 px on the panel 6 ruler with the band at 12.3 px and the gold bar at 13 px; the sphere continues below the midplane to about -12 px. Region heights match the analysis within a pixel (height_error_px_mean 0.48; r0 7.4 vs 7.4, r1 9.7 vs 10.4, r2 5.6 vs 6.3). Every part is as tall as the sprite implies."
+      },
+      "scores": {
+        "detail": 4,
+        "game": 4,
+        "overall": 4,
+        "profile": 4,
+        "silhouette": 4,
+        "volume": 5
+      },
+      "status": "draft"
+    },
     "newsh5-89-current": {
       "acceptedFromCommittee": "2026-10-28: the user agreed with all the committee findings",
       "committee": {
@@ -4797,6 +5687,89 @@
       },
       "status": "done"
     },
+    "newsh5-89-fixed": {
+      "gradedBy": "fix loop (Fable grader), 2026-10-28",
+      "issues": [
+        {
+          "by": "grader",
+          "note": "r0: the cut-in dimples (about 8, 2-3 px across, 0.5-1 px deep) have two or three flat triangular walls each, and the walls facing the light render as bright grey facets in the game view (also visible in panels 2 and 7). The sprite's pits are uniformly dark navy/black. Keep the dimple depth and placement but smooth them (more subdivision or smooth shading across the dimple, a soft bowl rather than a 3-facet cut) so their walls stay navy.",
+          "panel": 9,
+          "region": "r0",
+          "severity": "high",
+          "type": "lumpy",
+          "x": 1176,
+          "y": 1272
+        },
+        {
+          "by": "grader",
+          "note": "r0, lower hemisphere in both elevations: the grey specular blob about 8 px wide at z -1 to 5 px is unchanged from the previous sheet (now pixelated, but the same grey). The sprite is matte navy there. Set roughness to about 1 and specular to 0 (or an unlit-style material) so the elevations show only the sprite-derived navy and light-blue pixels.",
+          "panel": 5,
+          "region": "r0",
+          "severity": "medium",
+          "type": "wrong_colour",
+          "x": 432,
+          "y": 880
+        },
+        {
+          "by": "grader",
+          "note": "r0, centre-left of the lit top view: a grey wash about 5 x 5 px around the two highlight pixels. Sprite navy (20,56,81) renders as (82,89,97) and sprite light blue (154,186,203) as (124,147,160), i.e. the gloss desaturates the vein area. Same fix: matte material; the flat colours underneath are already right (dE 1.3).",
+          "panel": 2,
+          "region": "r0",
+          "severity": "medium",
+          "type": "wrong_colour",
+          "x": 662,
+          "y": 254
+        },
+        {
+          "by": "grader",
+          "note": "r0, below the equator: unchanged; the pixel texture is projected from above, so the lower band in panels 7 and 8 shows rim pixels stretched into navy blocks 3-5 px wide. Mostly hidden from the game camera; if touched, mirror or wrap the sprite so the lower hemisphere gets the same pixel density as the top.",
+          "panel": 8,
+          "region": "r0",
+          "severity": "low",
+          "type": "other",
+          "x": 720,
+          "y": 1440
+        },
+        {
+          "by": "grader",
+          "note": "r0, the outer 1 px rim: about 30 rim pixels at the top, bottom, left and right edges still show colour error in the diff (yellow spots; mean dE 1.3). The ring from last round is gone. Polish: sample those edge pixels straight from the sprite's rim colour.",
+          "panel": 4,
+          "region": "r0",
+          "severity": "low",
+          "type": "wrong_colour",
+          "x": 1680,
+          "y": 90
+        },
+        {
+          "by": "grader",
+          "note": "r0, the crest: the cut-in pockets notch the top silhouette by about 0.5 px between 9 and 11 px on the ruler and step the left shoulder at 6-8 px. Acceptable at the sprite's pit scale; smoothing the dimples (the high issue) will soften these too.",
+          "panel": 5,
+          "region": "r0",
+          "severity": "low",
+          "type": "lumpy",
+          "x": 403,
+          "y": 717
+        }
+      ],
+      "notes": "The orb is now a geometrically exact 23 px sphere (IoU 1.0, 0 missed/0 extra px, crest 11.5 px, h/w 1.0, clean round profile) with the sprite's pixels mapped over the whole ball (dE 1.3 from above) and its dark pockets cut back in as 0.5-1 px dimples without raised rims. The blurred specular smear is gone from the game view. Remaining, in fix order: (1) smooth the dimples: their flat triangular walls catch the light as about eight bright grey facets in the game and top views where the sprite is uniformly dark; (2) make the material matte: the 8 px grey specular blob at z -1 to 5 px is unchanged in both elevations and desaturates a 5 x 5 px patch centre-left of the top view; (3) polish only: the stretched pixel blocks below the equator, about 30 rim px of colour error, and the 0.5 px crest notches.",
+      "reasons": {
+        "detail": "The sprite's darkest pockets are cut back in: panels 2, 7 and 9 show about 6-8 dimples, 2-3 px across and roughly 0.5-1 px deep, on the dark sprite pixels, with the surface between them on the true sphere and no raised rims. The vein network and highlight px are present as colour. The dimples are low-poly though: each shows two or three flat triangular walls that catch the light as bright grey facets, so they read as crumpled rather than as the sprite's soft dark pits. Main details in relief, so 4.",
+        "game": "From the game camera (panel 9) it is a round navy orb of the right size with the sprite's pixel pattern over the whole disc, and the 8-9 px blurred specular smear of the previous sheet is gone. In its place the dimple walls show about eight bright grey triangular glints, 2-3 px each, spread over the centre-left third of the disc, where the sprite is uniformly dark; a grey desaturated wash about 5 px wide also sits around the highlight px. Recognisable and closer than last round, but the grey glints still read as a faceted, glossy ball rather than the matte sprite, so 3.",
+        "overall": "Geometry is now exact (23 px sphere, IoU 1.0, crest 11.5 px, clean profile), the colour from above matches the sprite (dE 1.3) and the pits are back in relief. Two things still hold it at 3: the material is still glossy (the grey specular blob about 8 px wide at z -1 to 5 px is unchanged in both elevations, and it surfaces as a grey wash and as grey facet glints in the top and game views), and the dimples are faceted low-poly cuts rather than smooth pits. Make the material matte and smooth the dimple walls and this is a 4.",
+        "profile": "The cross-section is a clean circle in panels 5 and 6 and in the 3/4 views: round shoulders all the way to the ground line, no boxiness and no flattening. The cut-in pockets put a few notches of about 0.5 px in the crest between 9 and 11 px (e.g. at x 0.42 in panel 5) and a faceted step on the left shoulder at 6-8 px, but these are at the scale of the sprite's pits and the ball stays round. Round part built round, so 5.",
+        "silhouette": "Outline is now exact: IoU 1.0, 0 px missed, 0 px extra (the 12 diagonal nick px from last round are gone), and the flat-colour diff in panel 4 is grey everywhere except about 30 scattered rim px at the top, bottom, left and right edges (mean dE 1.3, down from 4.6; the yellow ring is gone). Panel 2's pixel layout matches panel 1 (pockets, vein network, the two near-white highlight px at about x 0.35/0.3 and 0.4/0.42). What keeps it off 5 is the lit top view: a grey wash about 5 x 5 px centre-left of panel 2, where the sprite's navy (20,56,81) renders as (82,89,97) and its light blue (154,186,203) as (124,147,160), plus light-grey triangular facets on the walls of the cut-in pockets that the sprite does not have.",
+        "volume": "Still a full sphere: bbox 1.915 x 1.915 x 1.913 units (23 px across), h/w 0.999, crest at 11.5 px on the ruler with the centre on the ground line, height error vs the analysis 0.48 px. Nothing changed in size and nothing needs to; the one region is as tall as the sprite implies."
+      },
+      "scores": {
+        "detail": 4,
+        "game": 3,
+        "overall": 3,
+        "profile": 5,
+        "silhouette": 4,
+        "volume": 5
+      },
+      "status": "draft"
+    },
     "newshe-235-current": {
       "acceptedFromCommittee": "2026-10-28: the user agreed with all the committee findings",
       "committee": {
@@ -5135,6 +6108,70 @@
         "volume": 4
       },
       "status": "done"
+    },
+    "newshe-235-fixed": {
+      "gradedBy": "fix loop (Fable grader), 2026-10-28",
+      "issues": [
+        {
+          "by": "grader",
+          "note": "The crescent's pink highlight pixels are painted on the tube as hard-edged squares (panels 7, 8, 9 show them as rectangular blotches on the lower-right of the torus). Replace them with a smooth highlight gradient along the tube, brightest at the lower-right end of the crescent where the sprite has its lightest pixels, so the top view still matches but the 3/4 views don't show decals.",
+          "panel": 7,
+          "region": "r9",
+          "severity": "low",
+          "type": "wrong_colour",
+          "x": 240,
+          "y": 1354
+        },
+        {
+          "by": "grader",
+          "note": "The pink ball r8 (about 7 px wide, 5.9 px tall) shows flat facets: a polygonal outline in panel 2 and stepped shading in panel 9. Increase its segments or shade it smooth, and give it one soft highlight spot at the upper left instead of the painted squares.",
+          "panel": 9,
+          "region": "r8",
+          "severity": "low",
+          "type": "lumpy",
+          "x": 1133,
+          "y": 1224
+        },
+        {
+          "by": "grader",
+          "note": "The upper-right rim pixels r1, r3 and r6 are blue-grey tints in the sprite but plain dark in the model (r1 dE 14.8, r7 dE 9.9), and two blue (extra) px sit there in the diff. Tint those 2-3 px of rim toward the sprite's grey-blue and pull the rim in about 1 px at that spot.",
+          "panel": 4,
+          "region": "r1",
+          "severity": "low",
+          "type": "wrong_colour",
+          "x": 1728,
+          "y": 196
+        },
+        {
+          "by": "grader",
+          "note": "The crescent tube at the lower right stands about 5.8 px tall for a tube about 4-5 px wide at its widest in the sprite, so it looks slightly ballooned in panel 5. Optional: trim its top to about 5 px while keeping the round section.",
+          "panel": 5,
+          "region": "r9",
+          "severity": "low",
+          "type": "too_tall",
+          "x": 365,
+          "y": 852
+        }
+      ],
+      "notes": "All seven previous fixes landed: IoU 0.815 to 0.98, ball at full sprite size, stalk on the sprite's line and below the rim, the ring now a full-round crescent (5.8 px) tapering to a thin upper-left lip, and the small pink dot added. Heights all fit the rubric. Remaining, in order: 1) soften the painted pink squares on the crescent into a highlight gradient; 2) smooth the faceted ball; 3) tint the upper-right rim pixels r1/r3/r6 blue-grey and pull that rim in 1 px; 4) optionally trim the crescent tube from about 5.8 to about 5 px.",
+      "reasons": {
+        "cohesion": "Not an assembly.",
+        "detail": "Ball, thick lower-right crescent, dark stalk along the sprite's line and the small pink dot below-right of the ball (now its own ~2 px bump) are all present, and the dark interior floor is covered. The sprite's pink highlight pixels on the crescent and on the ball are still painted as hard nearest-neighbour squares rather than a highlight gradient, which shows in panels 7-9 as blotches on the tube, and the blue-grey tint pixels r1/r3/r6 on the upper-right rim are rendered plain dark. Main and secondary details are there; the surface finish is the remaining gap.",
+        "game": "From the game camera (panel 9) it reads clearly as the sprite: a dark bowl with a swollen glowing lower-right crescent, a large pink pearl at the upper left, the hooked stalk and the small pink dot. Composition and colours match. What keeps it from 5 is the finish: the crescent's pink patches are hard-edged squares that look like decals on the tube, and the ball's facets are visible. 4.",
+        "overall": "Every item in the previous grade's fix list was done: the ball is the sprite's size, the stalk lies along the sprite's line below the rim, the ring has the crescent and is a full round, and the pink dot exists. Outline is near exact (IoU 0.98) and heights all fit the rubric. Remaining work is cosmetic: smooth the ball, soften the painted highlight squares into a gradient, and tint the upper-right rim pixels. Good, close to shippable; 4.",
+        "profile": "The ring is a torus whose section swells toward the lower-right crescent and thins to a 1-2 px lip at the upper left (panels 2, 7, 8), the ball is a sphere and the stalk a round tube with the sprite's hook at its top. Two polish points: the ball still shows flat facets (visible in panels 2 and 9 as a polygonal rim and a stepped top), and in panel 5 the crescent tube reads a little swollen (about 5.8 px tall against about 4 px of width at its widest in the sprite). Round things are round and the taper is there, so 4.",
+        "silhouette": "silhouette_iou went from 0.815 to 0.98: 1 of 145 sprite px missed and 2 extra (was 22 missed, 6 extra). Panel 4 is now grey/yellow almost everywhere, with a single red px below the ball and two blue px on the upper-right rim. The pink ball r8 is now the sprite's ~7 px width (coverage 1.0, was 0.625), the dark stalk follows the sprite's thin line from the upper rim down to r11 (coverage 0.857, was 0.43), and the ring is thick at the lower right and thin at the upper left like the sprite. Colours stay close (colour_dE_mean 7.2); the only off tints are the tiny blue-grey rim pixels r1/r3/r6 at the upper right (r1 dE 14.8) and r7 (dE 9.9), 2-3 px each.",
+        "volume": "In the elevations the crescent tube r9 now tops at about 5.8 px (was 3.9) for a tube about 4-5 px wide at the lower right, the ball r8 stands about 5.9 px (was 5.1) for a ball about 7 px across, and the thin upper-left rim is about 2 px (r0 2.2, r10 2.1). The stalk's upper end r5 is 2.9 px, below the rim (was 5.2, above it), and the small pink bump r11 reaches about 2.6 px. max_height_px is 5.92 and height_to_width 0.377. Every part is about as tall as its width implies; nothing stands out as flat or too tall."
+      },
+      "scores": {
+        "detail": 4,
+        "game": 4,
+        "overall": 4,
+        "profile": 4,
+        "silhouette": 5,
+        "volume": 5
+      },
+      "status": "draft"
     },
     "newshf-1-current": {
       "acceptedFromCommittee": "2026-10-28: the user agreed with all the committee findings",
@@ -5510,6 +6547,99 @@
         "volume": 4
       },
       "status": "done"
+    },
+    "newshf-1-fixed": {
+      "gradedBy": "fix loop (Fable grader), 2026-10-28",
+      "issues": [
+        {
+          "by": "grader",
+          "note": "The three nose prong cones angle upward: in panel 5 their bases sit at 4-5.7 px above the base line at 0.69 across, above the hull under them (2-3 px there), so the pale centre prong reads as a horn with a dark gap beneath it in panels 2 and 7. Lay them along the nose: base about 2-3 px tall (as wide as the 1-2 px prongs), tip at about 1 px at the sprite's top row, never above the 5 px crest.",
+          "panel": 7,
+          "region": "r0",
+          "severity": "medium",
+          "type": "too_tall",
+          "x": 298,
+          "y": 1214
+        },
+        {
+          "by": "grader",
+          "note": "The lit top view renders both wings and the hull's outer flanks near-black with a glossy highlight at the left of the nose, and panel 9 shows a specular streak across mid-hull (0.5, 0.5); the flat colours are right (dE 3.1), so it is the shading. Cut the specular to matte and lift the lit wing shade to the sprite's dark/mid green.",
+          "panel": 2,
+          "region": "r0",
+          "severity": "medium",
+          "type": "wrong_colour",
+          "x": 638,
+          "y": 268
+        },
+        {
+          "by": "grader",
+          "note": "The lower-centre vent (sprite (6,19): a pale pixel inside black) is a flush pale square with a soft shading smear around it; it is not cut in. Cut a recess about 2x2 px and 1 px deep with the pale light inset in it.",
+          "panel": 2,
+          "region": "r0",
+          "severity": "low",
+          "type": "missing_recess",
+          "x": 720,
+          "y": 354
+        },
+        {
+          "by": "grader",
+          "note": "The top texture is projected down the dome's flanks, so the side walls show stretched vertical pixel columns (panel 5 at 0.35-0.55 across, the near flank in panel 7). Give the flanks below the top surface a single dark green instead of the stretched top pattern.",
+          "panel": 7,
+          "region": "r0",
+          "severity": "low",
+          "type": "other",
+          "x": 144,
+          "y": 1320
+        },
+        {
+          "by": "grader",
+          "note": "A flat 1 px thick base plate with vertical walls and a lit top band runs under the whole outline (panels 5 and 6, 0 to -1 px), showing as a green rim under the hull in panels 7-8. Blend it into the underside so the hull's flank curves straight into the belly.",
+          "panel": 5,
+          "region": "r0",
+          "severity": "low",
+          "type": "should_be_round",
+          "x": 480,
+          "y": 986
+        },
+        {
+          "by": "grader",
+          "note": "Colour error on the central prong at rows 2-4 and the right prong's top pixel: the pale cone's flat colour covers pixels the sprite paints green/dark below the prong tip, and the brown cone reaches a row the sprite leaves dark. Shorten the pale cone to the sprite's two cream rows and start the green under it.",
+          "panel": 4,
+          "region": "r0",
+          "severity": "low",
+          "type": "wrong_colour",
+          "x": 1680,
+          "y": 148
+        },
+        {
+          "by": "grader",
+          "note": "The right yellow lamp is a small round dome where the sprite has a 1x2 px oblong like the left lamp (which is modelled as a raised 1x2 plate). Make the right lamp the same 1x2 raised oblong, about 1 px tall.",
+          "panel": 2,
+          "region": "r0",
+          "severity": "low",
+          "type": "missing_raised",
+          "x": 744,
+          "y": 258
+        }
+      ],
+      "notes": "Lay the nose prong cones along the nose (base 2-3 px, tip about 1 px) instead of angling them up to 5.7 px above the hull. Then cut the specular and lift the lit wings and flanks from near-black to the sprite's dark/mid green. Then cut the lower-centre vent in as a 2x2 px, 1 px deep recess with the pale light inset. Then give the dome's flanks one dark green wall colour instead of the stretched top texture, blend the 1 px base plate rim into the underside, trim the pale prong colour to the sprite's two cream rows, and make the right lamp a 1x2 raised oblong like the left.",
+      "reasons": {
+        "detail": "In relief: two yellow lamps (left a 1x2 raised oblong, right a small dome), three separate prong cones (pale centre, brown sides), the orange stud on the right shoulder only, the pale/cream right wing tip, and the pale spine as colour. The extra left orange stud and the two extra yellow dots are gone. Still missing: the lower-centre vent (0.5, 0.63 in panel 2) is a flush pale square with a soft shading smear, not a cut recess; and the right lamp is a dot where the sprite has a 1x2 oblong like the left one.",
+        "game": "From the game camera (panel 9) it is this sprite: an arrowhead with the pale spine, two yellow lamps above mid-body, a crown of three tapered prongs at the nose, swept wings with the pale right tip and the orange shoulder light. The surface is now smooth with the sprite's pattern on it. What still looks off is a glossy specular streak across the centre of the hull (0.5, 0.5) around the vent and the lower-right hull edges going near-black.",
+        "overall": "The previous fix list is done: smooth hull (no stairs, no bumpy facets), prongs split into tapered cones, wings thinned to 1-2 px, body from 10.3 to 7.7 px, outline exact (IoU 1.0), flat colours to dE 3.1, extra stud and dots removed. Good now, so 4. For a 5: lay the prong cones along the nose instead of angling them up above the crest, cut the gloss and lift the lit wings to the sprite's green, cut the vent in, give the flanks one wall colour and lose the base-plate rim.",
+        "profile": "The per-pixel heightfield is gone: the hull is a smooth dome (panels 5-8), the wings are smooth tapered blades with a clean rounded outline and no stairs, the prongs are three distinct tapered cones with a gap between them, and the lamps and the orange stud are small domes. Two profile faults remain: the top texture is projected down the steep flanks, so panel 5 at 0.35-0.55 and the near flank in panel 7 show stretched vertical pixel columns instead of a single wall colour; and a 1 px thick flat base plate with vertical walls runs under the whole outline (panel 5 and 6, 0 to -1 px), visible as a green rim in panels 7-8.",
+        "silhouette": "IoU is 1.0 (0 of 220 sprite px missed, 0 extra) and flat-colour dE is 3.1, from 0.876 and 11.4. Panel 4 has no red or blue at all; the only strong colour error is a yellow column on the central nose prong at rows 2-4 (0.5, 0.15-0.25) and one pixel at the right prong's top (0.62, 0.12), where the pale/brown cones cover pixels the sprite paints green or dark. Everything else is grey to faint olive. The lit top view (panel 2) still renders the wings and the hull's outer flanks closer to black than the sprite's dark green, with a glossy highlight on the left of the nose, so the lit view reads darker than the flat colours say; that is what keeps it from a 5.",
+        "volume": "Panel 5 shows a smooth hull cresting at 5.0 px at 0.45-0.5 across (max 5.73 px is the lamp and prong tips), falling to about 1 px at the tail and 2-3 px at the nose; panel 6 shows the wings tapering from the hull down to about 1-1.5 px at the tips. The body is 7.7 px total (bbox z 0.643 units: 5.7 above the base line, about 1.2 below), from 10.3 px before, which is what a 13 px wide fighter implies. The one height that is off: the nose prongs are cones whose fat bases rise to 4-5.7 px at 0.69 across in panel 5, above the hull under them (2-3 px there), so they read as horns sticking up rather than spikes lying along the nose. Height error mean is 0.32 px."
+      },
+      "scores": {
+        "detail": 4,
+        "game": 4,
+        "overall": 4,
+        "profile": 4,
+        "silhouette": 4,
+        "volume": 4
+      },
+      "status": "draft"
     },
     "newshf-123-current": {
       "acceptedFromCommittee": "2026-10-28: the user agreed with all the committee findings",
@@ -5888,6 +7018,79 @@
       },
       "status": "done"
     },
+    "newshf-123-fixed": {
+      "gradedBy": "fix loop (Fable grader), 2026-10-28",
+      "issues": [
+        {
+          "by": "grader",
+          "note": "The nose spike and T-fin end (right end of the side elevation) is an inclined plate rising from about +1 px to +3 px, ending in a vertical face ~1 px above the fuselage top; in panels 7 and 8 it reads as an upward wedge on the nose. The sprite's spike is the fuselage continuing past the fins at its own height. Make it level at the fuselage top (~+1.5 to +2 px), tapering to the tip, with the T-fin plates at about +1 to +1.7 px.",
+          "panel": 5,
+          "region": "r0",
+          "severity": "medium",
+          "type": "wrong_position",
+          "x": 758,
+          "y": 909
+        },
+        {
+          "by": "grader",
+          "note": "Residual roll: the right wingtip's top edge is at ~+1.1 px and the left's at ~+0.4 px, a ~0.7 px difference across the span. Set both main-wing tips at the same height (~+0.7 px top surface).",
+          "panel": 6,
+          "region": "r0",
+          "severity": "low",
+          "type": "wrong_position",
+          "x": 1680,
+          "y": 900
+        },
+        {
+          "by": "grader",
+          "note": "Yellow trail along the front spine and a few rear-fuselage pixels: the model's spine strip is light grey where the sprite is near-white (and the rear centreline a shade off). Brighten the spine strip to the sprite's near-white and match the rear centreline pixels.",
+          "panel": 4,
+          "region": "r0",
+          "severity": "low",
+          "type": "wrong_colour",
+          "x": 1642,
+          "y": 119
+        },
+        {
+          "by": "grader",
+          "note": "Lit from the game camera the round fuselage flanks go near-black, so the body reads darker and flatter than the sprite's dark-grey fuselage. Lift the flank albedo a shade or widen the top facet so the mid-grey shows beside the spine.",
+          "panel": 9,
+          "region": "r0",
+          "severity": "low",
+          "type": "wrong_colour",
+          "x": 1181,
+          "y": 1296
+        },
+        {
+          "by": "grader",
+          "note": "The lighter inboard wing band and the tip highlights are colour only on a 0.7 px flat plate. Optional polish: raise the band ~0.3 px so it catches the light in game like the sprite's lit pixels.",
+          "panel": 1,
+          "region": "r0",
+          "severity": "low",
+          "type": "missing_raised",
+          "x": 144,
+          "y": 292
+        }
+      ],
+      "notes": "Nearly done. First level the nose spike/T-fin end, which ramps from +1 px to +3 px with a vertical face in the side elevation and reads as a wedge in the 3/4 views; it should continue the fuselage level at ~+1.5-2 px. Then remove the last ~0.7 px of wing tilt (right tip +1.1 px, left +0.4 px). Last, colour polish: push the spine strip to the sprite's near-white, and lift the fuselage flanks a shade so the body doesn't go near-black from the game camera; optionally raise the inboard wing band ~0.3 px.",
+      "reasons": {
+        "detail": "Everything the sprite shows is present: the light spine stripe down the front fuselage (as a lighter raised strip), the canopy as a dark glass dome with a highlight, light pixels on the fin and wing tips, the lighter inboard wing band and darker outer blocks, the ~2 px trailing-edge step at the wing root, and r1 lighter than its twin. The wing banding and tip highlights are colour only (flat plates), and the spine highlight is light grey rather than the sprite's near-white, so the relief is a little weaker than the sprite's sparkle; 4 rather than 5.",
+        "game": "From the game camera (panel 9) it reads as the sprite brought into 3D: symmetric cross layout, dark bevelled outline, pixel-matched wing shading, a round dome at the wing root instead of a black hole. The fuselage flanks render near-black under the top light (the round sides face away), so the body reads darker and more uniform than the sprite's dark-grey fuselage with its bright spine; the nose tip shows a slightly odd lit facet from the ramp. Minor, so 4.",
+        "overall": "A near-complete fix of the committee's list: level, exact outline, correct palette, blocky fins, dome canopy, no blades, step and banding present. What remains is polish: level the nose spike that ramps to +3 px, take the last ~0.7 px of tilt out of the wings, and push the spine highlight to near-white and the fuselage flanks a shade lighter. Good: 4.",
+        "profile": "Round parts are round and flat parts flat: an octagonal round fuselage that tapers to a point at the tail, 0.7 px bevelled wing and fin plates, and a glossy dome canopy with a specular spot. The spine blades are gone and the T-fins are square blocks. The one wrong profile is the spike beyond the T-fins: in panels 7 and 8 it is a wedge ramping up to a dark vertical face about 1 px above the fuselage, rather than the fuselage continuing its taper level. Max height stayed 4.3 px.",
+        "silhouette": "The top view now matches the sprite exactly: IoU 1.0 (0 of 238 px missed, 0 extra) against 0.664 before, and panel 4 has no red or blue at all. Flat colour error dropped from dE 18.4 to 2.1 (r0 2.4, r1 and r2 0.0): the wings carry the sprite's mid-grey with the lighter inboard band and darker outer blocks, the edges are near-black bevels, and the top fins are the sprite's blocky ~3 px rectangles with the right one (r1) lighter. The only residue is a thin yellow trail in panel 4 along the front spine and a few rear-fuselage pixels, where the model's light grey is a shade short of the sprite's near-white.",
+        "volume": "The fuselage is a round section about 4 px across, from -1.9 to +2.1 px in the front elevation, and the whole plane is level: the roll is gone. Wings are ~0.7 px plates at about 0 to +1 px; the canopy dome r2 tops out at 4.3 px (analysis 4.7), about 2 px above the fuselage top. Two things keep it from a 5: in the front elevation the right wingtip (top edge ~+1.1 px) still sits ~0.7 px higher than the left (~+0.4 px), a small residual tilt; and the nose/T-fin end in the side elevation is an inclined plate rising from +1 px to +3 px with a vertical drop, ~1 px above the fuselage top, where the sprite gives no reason for the spike to climb."
+      },
+      "scores": {
+        "detail": 4,
+        "game": 4,
+        "overall": 4,
+        "profile": 4,
+        "silhouette": 5,
+        "volume": 4
+      },
+      "status": "draft"
+    },
     "newshk-245-current": {
       "acceptedFromCommittee": "2026-10-28: the user agreed with all the committee findings",
       "committee": {
@@ -6236,6 +7439,80 @@
       },
       "status": "done"
     },
+    "newshk-245-fixed": {
+      "gradedBy": "fix loop (Fable grader), 2026-10-28",
+      "issues": [
+        {
+          "by": "grader",
+          "note": "The deck's outer 3 px bevel still renders as a broad dark-grey ring from above (r0 dE 13.8, the whole ring yellow in panel 4). The sprite's outer ring is light grey with only a 1 px dark outline. Make the bevel narrower (about 1 px wide) or shallower, or give its faces a lighter material, so the ring reads light grey from above.",
+          "panel": 2,
+          "region": "r0",
+          "severity": "medium",
+          "type": "wrong_colour",
+          "x": 720,
+          "y": 81
+        },
+        {
+          "by": "grader",
+          "note": "The two light-grey axle pads at the disc edge (left and right of the barrel) are now pillars about 10.2 px tall by 4 px wide, carrying the axle rod at the barrel's centre height. The sprite shows them as flat light-grey 1 px strips above and below a black axle line, no taller than the rails. Lower them to about 6 px (rails height plus a little) and drop the axle rod to enter the barrel below its centre, or make them thin plates of about 1-2 px with the rod at pad height.",
+          "panel": 6,
+          "region": null,
+          "severity": "medium",
+          "type": "too_tall",
+          "x": 1210,
+          "y": 799
+        },
+        {
+          "by": "grader",
+          "note": "The gem's black 4 x 4 px socket is now the right colour but is a flat square plate sitting tangent on the barrel crest, its corners standing proud of the curve (panel 7). Cut it about 1 px into the barrel instead and set the 1.5 px dome in the cut.",
+          "panel": 2,
+          "region": "r2",
+          "severity": "low",
+          "type": "missing_recess",
+          "x": 720,
+          "y": 287
+        },
+        {
+          "by": "grader",
+          "note": "The barrel's hoops are now yellow-orange and the centre stripe is bright red, but the flanks between the hoops and the end caps are still dark maroon (r1 dE 11.5). The sprite's body is bright red throughout with yellow-orange highlights 6 px either side of centre: brighten the base red of the flanks and end caps.",
+          "panel": 2,
+          "region": "r1",
+          "severity": "low",
+          "type": "wrong_colour",
+          "x": 662,
+          "y": 292
+        },
+        {
+          "by": "grader",
+          "note": "In the side elevation the barrel's cross-section is an oval about 8.2 px wide by 9.6 px tall (4.9 to 14.5 px). Make it a circle: either 8 px in diameter (the sprite's red width from above) on a 1-2 px cradle, or keep the 14.5 px crest and widen it by about 1 px.",
+          "panel": 5,
+          "region": "r1",
+          "severity": "low",
+          "type": "should_be_round",
+          "x": 480,
+          "y": 746
+        }
+      ],
+      "notes": "The barrel is now a full barrel about 10 px above a 4.4 px bevelled deck and the outline matches the sprite exactly, so the model has gone from a 3 to a 4. In order: lighten the outer bevel ring so it reads light grey from above; lower the two 10 px axle pillars to about 6 px (or thin plates with the rod at pad height); cut the gem socket about 1 px into the barrel; brighten the maroon flanks of the barrel to the sprite's red; round the barrel's 8.2 x 9.6 px oval cross-section into a circle.",
+      "reasons": {
+        "cohesion": "Not an assembly.",
+        "detail": "In relief: the white bracket rails with their dark slots, the hoops and the centre bands on the barrel, the dark cradle under the barrel, the axle rods with their pads, the gem and now a black socket square the right colour. Still missing: the socket is painted on a plate rather than cut about 1 px into the barrel, the deck's darker speckle is smoothed out, and the lighter inner stripe on the rails is absent. 4.",
+        "game": "From the game camera (panel 9) it reads as the sprite brought into 3D: a grey octagonal pad with white rails, a tall red hooped barrel with a blue gem, axle rods out the sides. The height now shows (the barrel casts a real shadow and the deck has a lip). Costs of the height at this camera angle: the barrel hides the top rail completely, the two 10 px axle pillars read as grey boxes flanking the barrel, and the outer ring is still a dark band instead of the sprite's light grey. 4.",
+        "overall": "The two high and medium height problems are fixed without losing the top view (IoU went from 0.948 to 1.0). What is left is polish: lighten the outer bevel ring from above, bring the axle pillars down from 10 px to about 6 px, cut the gem socket in, brighten the barrel flanks and round the barrel's oval cross-section. Good: 4.",
+        "profile": "The barrel is a true barrel on a horizontal axis with rounded end caps and two proud hoops (panels 7-8), the deck is a flat-topped bevelled frustum, the rails are flat bars with the channel cut in, the axles are rods and the gem is a dome. Two flaws: in the side elevation (panel 5) the barrel's cross-section is an oval about 8.2 px wide by 9.6 px tall, not a circle; and the gem's black socket is a flat square plate sitting tangent on the crest with its corners standing off the curve (panel 7), where the sprite's socket is a recess. 4.",
+        "silhouette": "The outline is now exact: IoU 1.0, 0 missed, 0 extra px (the previous 28 extra px on the octagon diagonals are gone), and panel 4 shows no red or blue at all. The red core from above measures 12 x 8 px in both the sprite and the model (panel 2 red bbox matches panel 1 to the pixel), the white rails, axle rods and side pads all line up. Colour is unchanged overall (dE 13.1 vs 13.0): the sprite's outer ring is light grey with a 1 px dark outline, but the model's 3 px bevel still renders as a broad dark-grey ring from above (r0 dE 13.8, up from 12.2; the whole ring is yellow in panel 4), and the barrel's flanks between the hoops are still dark maroon where the sprite is bright red (r1 dE 11.5, down from 16.3). 4.",
+        "volume": "From panel 5's ruler: the deck r0 is now about 4.4 px thick (vertical wall to 3 px, bevel 3 to 4.4), the rails top out at 5.8 px (1.4 px above the deck), the barrel r1 spans 4.9 to 14.5 px so it is a full barrel about 10 px above the deck resting on a 0.5 px cradle, and the gem r2 reaches 16.2 px (1.7 px proud of the crest). Those all match what the previous grade asked for (max height 16.06 px, h/w 0.69, region height error 2.0 px, down from 6.3). The one height that overshoots: the two light-grey axle pads at the disc edge are now pillars 10.2 px tall and about 4 px wide (panel 6, either side of the barrel), where the sprite shows flat light-grey 1 px strips either side of the black axle line. 4."
+      },
+      "scores": {
+        "detail": 4,
+        "game": 4,
+        "overall": 4,
+        "profile": 4,
+        "silhouette": 4,
+        "volume": 4
+      },
+      "status": "draft"
+    },
     "newshn-125-current": {
       "acceptedFromCommittee": "2026-10-28: the user agreed with all the committee findings",
       "committee": {
@@ -6543,6 +7820,60 @@
         "volume": 2
       },
       "status": "done"
+    },
+    "newshn-125-fixed": {
+      "gradedBy": "fix loop (Fable grader), 2026-10-28",
+      "issues": [
+        {
+          "by": "grader",
+          "note": "r0, the lower-right shadow: in the game view the bottom third of the ball (about 4-5 px of its 15) is near-black, and from above (panel 2) the navy rim is about 2 px wide, where the sprite's dark rim is a 1 px band. Lighten the texture toward the rim or add fill/ambient so the dark band from above is about 1 px and the game view keeps mid steel-blue down to the last 1-2 px.",
+          "panel": 9,
+          "region": "r0",
+          "severity": "medium",
+          "type": "wrong_colour",
+          "x": 1200,
+          "y": 1334
+        },
+        {
+          "by": "grader",
+          "note": "r0, the crown: the upper-left edge of the elevation between 7 and 10 px shows polygon steps of about 0.3-0.5 px (1582 triangles). Use smooth shading and/or more segments so the dome's outline is a clean arc.",
+          "panel": 5,
+          "region": "r0",
+          "severity": "low",
+          "type": "lumpy",
+          "x": 384,
+          "y": 722
+        },
+        {
+          "by": "grader",
+          "note": "r0, the surface pattern: the sprite's 1 px texels are projected as hard-edged blocks that stretch toward the sides in the 3/4 views and the game view, reading as a mosaic rather than a shaded ball. Soften the texture edges (bilinear/filtered, or paint the highlight and swirl as smooth gradients) while keeping the same colours and placement from above.",
+          "panel": 7,
+          "region": "r0",
+          "severity": "low",
+          "type": "other",
+          "x": 240,
+          "y": 1248
+        }
+      ],
+      "notes": "First, soften the rim shadow: from above the dark navy rim is about 2 px wide (sprite: 1 px) and in the game view the lower third of the ball goes near-black; lighten the texture toward the rim or add fill light. Then smooth the crown's faceting (0.3-0.5 px steps visible in the elevations). Last, soften the hard projected texel edges so the surface reads as a shaded ball rather than a mosaic off-axis.",
+      "reasons": {
+        "cohesion": "Not an assembly.",
+        "detail": "The sprite has no structural detail, only shading and a swirl marking; the model now carries exactly that: highlight, dark central curve and pale crescent as a flush pattern on the surface, as the previous grade asked (flush colour band or under 0.5 px relief). Nothing is invented any more. There is no relief at all on the swirl, which the committee allowed, so 4 rather than 5.",
+        "game": "From the game camera (panel 9) it reads as a glossy blue ball with the pale highlight upper-left and the swirl curling lower-right: clearly the sprite's orb brought into 3D, and no longer a puck with a wart. What holds it back is lighting: the lower third of the ball in panel 9 is near-black with the dark band about 4-5 px deep, where the sprite's shadow rim is 1 px, and the texel blocks become a visible mosaic at this angle. Recognisable and faithful, so 4.",
+        "overall": "All five previous issues are fixed: a near-spherical orb 15 px across and 10.7 px tall, exact outline, dE 5.2, knob and fin removed, swirl flush. What remains is polish: the rim shadow is about twice as wide as the sprite's from above and swallows the lower third in the game view, the crown shows faceting in the elevations, and the sharp projected texels look blocky off-axis. Good, so 4.",
+        "profile": "The body is one smooth ball: the 5 px knob is gone, the crescent fin and its groove are gone, and the swirl is colour on the curved surface, so nothing stands off the sphere in panels 5-8. Two polish points: the crown in panel 5 shows faceting (steps of about 0.3-0.5 px along the upper-left edge between 7 and 10 px, 1582 triangles), and in the 3/4 views the sprite's 1 px texels are projected as sharp blocks that stretch toward the sides, so the sphere reads a little mosaic-like off-axis. Round thing is round, so 4.",
+        "silhouette": "Panel 4 is now all grey/yellow with no red or blue: IoU 1.0, 0 px missed, 0 px extra, so the body fills the sprite's 15 x 16 px circle exactly (it was a 1 px red ring at 0.781). Colour dE fell from 14.5 to 5.2: the sprite's pixel pattern is on the surface, with the pale ice-blue highlight upper-left (about 3x2 px), the mid steel-blue, the dark central curve and the pale lower-right crescent all in the right places in panel 2. The only colour difference left is that the shadowed lower-right rim in panel 2 is about 2 px of near-black navy where the sprite's rim is a 1 px dark band, which is where the yellow error pixels in panel 4 cluster. Top view matches the sprite.",
+        "volume": "On the panel 5 and 6 rulers the body now rises to about 10.7 px (max_height 10.74, h/w 0.71) over about 15 px across, up from 3.5-4 px. That is inside the 10-12 px near-spherical target the committee asked for and well over the 7.5 px hemisphere minimum. The widest point sits about 2.5 px up, so it is a sphere cut a little below its equator, which is what a ball resting on the ground should look like. No part is flat or too tall."
+      },
+      "scores": {
+        "detail": 4,
+        "game": 4,
+        "overall": 4,
+        "profile": 4,
+        "silhouette": 5,
+        "volume": 5
+      },
+      "status": "draft"
     },
     "newshv-153-current": {
       "acceptedFromCommittee": "2026-10-28: the user agreed with all the committee findings",
@@ -6872,6 +8203,70 @@
       },
       "status": "done"
     },
+    "newshv-153-fixed": {
+      "gradedBy": "fix loop (Fable grader), 2026-10-28",
+      "issues": [
+        {
+          "by": "grader",
+          "note": "The dome surface in the 3/4 and game views: every sprite pixel is a hard-edged flat colour cell (~1 px) on the sphere, so it reads as a pixel mosaic on a ball instead of the sprite's smoothly graded orb. Keep the sphere and the vertex colours, but blend colour between neighbouring cell centres (bilinear / smooth vertex-colour interpolation) so tones grade across the sphere, keeping only the 1-px white speckles and the dark inner diamond edges crisp.",
+          "panel": 9,
+          "region": "r0",
+          "severity": "medium",
+          "type": "other",
+          "x": 1200,
+          "y": 1296
+        },
+        {
+          "by": "grader",
+          "note": "The ~1 px rim: still a dim olive ring in panel 4 with brighter yellow 1-px spots at the four diagonals (about fx/fy 0.2/0.3, 0.8/0.3, 0.2/0.7, 0.8/0.7) and the top and bottom edges. In panel 2 the bevel is grey-black with a faint gloss; it should be the sprite's dark navy and matte (no specular on the bevel).",
+          "panel": 4,
+          "region": "r0",
+          "severity": "low",
+          "type": "wrong_colour",
+          "x": 1680,
+          "y": 110
+        },
+        {
+          "by": "grader",
+          "note": "The diamond outline and the centre highlight are colour only, no relief (the dome is a plain sphere, outline in panels 5-6 is a clean arc). Add a smooth ~0.3-0.5 px ridge along the diamond's outline following the dome curvature, and let the apex (8.7 px) carry the pale centre, so the main detail is modelled rather than painted.",
+          "panel": 2,
+          "region": "r0",
+          "severity": "low",
+          "type": "missing_raised",
+          "x": 720,
+          "y": 210
+        },
+        {
+          "by": "grader",
+          "note": "A soft grey specular bloom sits on the upper-left of the dome in the lit top view, washing the cells there; the sprite's brightest point is the centre with the lower-right speckles. Lower the gloss or move the highlight to the apex so the lit top view keeps the sprite's tone distribution.",
+          "panel": 2,
+          "region": "r0",
+          "severity": "low",
+          "type": "wrong_colour",
+          "x": 662,
+          "y": 206
+        }
+      ],
+      "notes": "The r2 lumps are gone: the dome is a smooth sphere (clean arc from 4 px to 8.7 px in panels 5-6), the shading is continuous across cells, the outline is still exact (IoU 1.0) and the colour error fell from dE 4.1 to 1.3, with the rim ring in panel 4 mostly faded. Remaining, in fix order: 1) soften the hard-edged ~1 px colour cells on the dome (blend vertex colours between cell centres) so the 3/4 and game views read as a graded orb rather than a mosaic ball; 2) make the ~1 px rim bevel matte navy (residual olive ring and yellow spots at the diagonals in panel 4); 3) add a faint ~0.3-0.5 px smooth ridge along the diamond so the main detail is in relief; 4) tone down the upper-left specular bloom in the top view.",
+      "reasons": {
+        "cohesion": "Not an assembly.",
+        "detail": "Every mark of the sprite is present as colour (panel 2 and the overlay in 3): outer diamond, dark inner diamond, pale centre cross, the four spokes and the lower-right white speckles. None of it is in relief; the diamond and the centre are flat colour cells on the dome with no ridge or step. The main details are there, not modelled.",
+        "game": "From the game camera (panel 9) it is a blue orb carrying the sprite's diamond-and-highlight pattern in the right colours on a smoothly lit sphere; the lighting now runs continuously across cells (no per-cell facets, no disco-ball look) and the dark rim is a thin navy-black ring. What still separates it from the sprite is that each sprite pixel is a hard-edged flat cell about 1 px across, so at the game camera's magnification the orb reads as a pixel mosaic on a ball rather than the sprite's smoothly graded glossy sphere with one highlight. Recognisable and close; a soft blend between cells would close the gap.",
+        "overall": "Both medium problems from r2 are solved: the dome is a smooth sphere again (clean outline in panels 5-6) and the shading is continuous, while the exact outline, dE 1.3 colour match and 8.7 px dome are kept. What remains is polish: hard-edged colour cells in the 3/4 and game views, a faint grey-black rim ring with a few yellow spots in panel 4, and no relief on the diamond. A good model at 4; blending the cells, a matte navy rim and a faint diamond ridge would push it toward 5.",
+        "profile": "The per-cell displacement is gone: the elevation outline in panels 5-6 is now a clean continuous arc from the 4 px base to the 8.7 px apex (r2 showed ~0.3-0.5 px steps all the way up), and panels 7-8 show one smooth sphere rather than a bumpy mosaic. Round body, round profile. Not a 5 only because there is no deliberate relief at all: the diamond and centre are purely painted, so the surface is a plain sphere rather than the sprite's shapes in 3D.",
+        "silhouette": "Outline is exact (IoU 1.0, 0 of 276 px missed, 0 extra) and the colour from above is now dE 1.3 (was 4.1). Panel 3 overlays the sprite's diamond, dark inner diamond, pale centre cross, spokes and lower-right speckles one-to-one, and panel 4 is flat grey everywhere inside the orb. The only residue is the ~1 px rim: a dim olive ring with a few brighter yellow 1-px spots at the four diagonals and the top and bottom edges, where the model's rim bevel is grey-black with a slight gloss instead of the sprite's dark navy.",
+        "volume": "The dome rises from its base at 4.0 px to an apex of 8.7 px on the ruler (max_height 8.7, h/w 0.81; was 8.98), on an 18.8 px wide body that keeps going ~6.6 px below the midplane (bbox z 1.275 units = 15.3 px), as an orb should. The analysis infers 9.7 px max / 6.6 mean against 8.7 / 5.7 actual, height error -0.9 px. Nothing is flat; the apex is about 0.7 px lower than a true sphere of this width would reach (radius 9.4), which is within tolerance."
+      },
+      "scores": {
+        "detail": 3,
+        "game": 4,
+        "overall": 4,
+        "profile": 4,
+        "silhouette": 5,
+        "volume": 4
+      },
+      "status": "draft"
+    },
     "ship-gencore-phoenix-current": {
       "acceptedFromCommittee": "2026-10-28: the user agreed with all the committee findings",
       "committee": {
@@ -7179,7 +8574,7 @@
           "y": 292
         }
       ],
-      "notes": "The sheet compares this model to banking frame 153 instead of the level frame 157, so the members' 1s (and the 'asymmetric wedge' rebuild advice) don't apply. Fix load_sprite's frame choice or regenerate the sheet, then regrade. Against frame 157 the design is right but undersized: widen the fuselage to about 10 px and the pods to about 5 px with 1 px gaps, replace the tail struts with a full-width band about 22 x 4 px, and deepen the hull and pods.\n\nCommittee disagreements: silhouette/game/overall: Opus and Fable both gave 1 (scored against banking frame 153); the chair found the sheet uses the wrong frame and provisionally scored 3/4/3 against level frame 157. volume: Opus 3, Fable 2, differing by only 1; the chair took 3 provisionally. profile: Opus 3, Fable 2, differing by 1; 3 provisionally.",
+      "notes": "SUPERSEDED: these grades and pins were made on a sheet showing the hard-left bank frame; the sheet shown now is the level frame.\n\nThe sheet compares this model to banking frame 153 instead of the level frame 157, so the members' 1s (and the 'asymmetric wedge' rebuild advice) don't apply. Fix load_sprite's frame choice or regenerate the sheet, then regrade. Against frame 157 the design is right but undersized: widen the fuselage to about 10 px and the pods to about 5 px with 1 px gaps, replace the tail struts with a full-width band about 22 x 4 px, and deepen the hull and pods.\n\nCommittee disagreements: silhouette/game/overall: Opus and Fable both gave 1 (scored against banking frame 153); the chair found the sheet uses the wrong frame and provisionally scored 3/4/3 against level frame 157. volume: Opus 3, Fable 2, differing by only 1; the chair took 3 provisionally. profile: Opus 3, Fable 2, differing by 1; 3 provisionally.",
       "reasons": {
         "detail": "The model has a dark canopy slot behind the nose, a raised canopy bump, a light stripe down the nose, a spine ridge and a dark hatch near the tail. Frame 157 also shows a light nose stripe, a darker mid-fuselage band and light edge pixels on the pods. Neither member checked against 157 (the seam and plate details they listed belong to banking frame 153). Provisionally 3; recheck in relief detail once the sheet is regenerated.",
         "game": "From the game camera the model is a symmetric twin-pod grey fighter, which is the frame-157 design. Both members gave 1 because it doesn't look like frame 153. Against the correct sprite it's clearly recognisable; the pods are too thin and the gaps too wide. Provisionally 4.",
@@ -7198,6 +8593,215 @@
       },
       "status": "done",
       "superseded": "2026-10-28: graded against the hard-left bank frame (the analyser took frames[0]); the level-frame sheet is regraded in the fix loop"
+    },
+    "ship-gencore-phoenix-fixed": {
+      "gradedBy": "fix loop (Fable grader), 2026-10-28",
+      "issues": [
+        {
+          "by": "grader",
+          "note": "The dark base plate used to fill the silhouette (panel 5: a flat slab 0 to -1 px spanning the whole footprint) shows in the game view as a flat dark diamond skirt around the tail exhaust r1 and as a lip in front of the nose tip. Trim the plate so it extends no more than about 0.5 px beyond the parts above it (or bevel its edge down at 45 degrees), and widen the tail cylinder's base to meet it so no flat flange shows.",
+          "panel": 9,
+          "region": "r1",
+          "severity": "medium",
+          "type": "other",
+          "x": 1200,
+          "y": 1421
+        },
+        {
+          "by": "grader",
+          "note": "The sprite's near-white highlight pixels along the right pod's inner edge (rows 10-18) and at both strut/pod junctions (row 17-18) are absent; the model's right pod is uniform dark grey there (brightest yellow in the diff). Add a lit raised bevel or lighter vertex colour along the right pod's inner rim and a 1 px bright cap at each strut/pod junction.",
+          "panel": 4,
+          "region": "r0",
+          "severity": "low",
+          "type": "wrong_colour",
+          "x": 1805,
+          "y": 388
+        },
+        {
+          "by": "grader",
+          "note": "The cockpit is a full sphere about 4 px across whose top is at 8.3 px over a 4.5 px hull, so it perches 3.5-4 px proud and reads as a ball in the game view. The sprite's light cluster under the canopy band is a 3 x 2 px patch; make it a low dome about 4 px wide and 2 px proud of the hull, sunk into the segment.",
+          "panel": 2,
+          "region": "r0",
+          "severity": "low",
+          "type": "too_tall",
+          "x": 715,
+          "y": 244
+        },
+        {
+          "by": "grader",
+          "note": "The step lines between hull segments (sprite rows 9, 12-13 and 16, drawn black 1 px) are modelled as lit chamfers that show as light-grey rings in the top view. Make each step a 0.5 px dark undercut (the upper segment overhanging the lower) so the lines read dark from above as in the sprite.",
+          "panel": 2,
+          "region": "r0",
+          "severity": "low",
+          "type": "missing_recess",
+          "x": 720,
+          "y": 278
+        },
+        {
+          "by": "grader",
+          "note": "The main hull segment tops out at about 4-4.5 px for an 8 px wide body, a half-round. The sprite's strong centre stripe with dark flanks suggests a fuller section; raising the main and cockpit segments about 1 px (to 5.5 px, keeping the nose taper) would match better. Polish only.",
+          "panel": 5,
+          "region": "r0",
+          "severity": "low",
+          "type": "too_flat",
+          "x": 432,
+          "y": 938
+        }
+      ],
+      "notes": "1) Trim or bevel the base plate so it does not show as a flat dark skirt around the tail exhaust r1 and in front of the nose in the game view. 2) Add the sprite's bright highlights along the right pod's inner edge and at the strut/pod junctions (the remaining colour error). 3) Lower the cockpit from a perched 4 px ball (top 8.3 px) to a 2 px proud dome sunk into the segment. 4) Turn the lit chamfers between hull segments into dark 0.5 px undercuts so the step lines read dark from above. 5) Optionally raise the main hull about 1 px to 5.5 px.",
+      "reasons": {
+        "detail": "Present in relief: the four hull segments, the centre ridge highlight on the nose and aft segments, the cockpit dome, the dark notch at the ridge/tail junction (the sprite's rear port), the nacelle inner rims, the tail nozzle cap, and the step lines between segments. Missing: the near-white highlight pixels along the right pod's inner edge and at both strut/pod junctions (bright yellow in panel 4), and the sprite's dark 1 px step lines read as light bevel rings in the top view instead of dark grooves. Most details there; 4.",
+        "game": "From the game camera (panel 9) it reads as the sprite in 3D: dark charcoal, segmented tapering hull with a bright dome, twin blade nacelles on cylinder struts, blunt exhaust. Two small tells: the dome is a bright perched ball larger than the sprite's light cluster, and the base plate shows as a flat dark diamond skirt around the tail exhaust and a dark lip in front of the nose. 4.",
+        "overall": "A different model in kind from the previous sheet: exact outline, right colour, plausible heights and profiles, the main details in relief, and it reads as the sprite from the game camera. What remains is polish: the perched dome, the visible base-plate skirt at the tail and nose, the missing pod highlights, and the step lines as lit bevels instead of dark grooves. Good; 4.",
+        "profile": "The hull is round in the front elevation (panel 6: about 7 px wide, 4.5 px tall above the plane, rounded top), built as stacked segments with a tapering stepped nose; the tail r1 is a blunt cylinder about 4 px wide; the cockpit is a sphere about 4 px across; the struts are cylinders and the nacelles are faceted blades with a raised inner rim, matching the sprite's irregular pods. The segment steps are lit chamfers rather than dark cuts, and the dome is a full ball rather than a low dome. Round parts round, tapers taper; 4.",
+        "silhouette": "IoU 1.0 (0 px missed, 0 px extra) on the 22 x 25 px footprint, up from 0.694: the model now covers the sprite's dark edge everywhere, done with a thin dark base plate about 1 px thick under the parts (visible in panel 5 as a slab from 0 to -1 px running the full length). Colour dE 6.5 (was 18.0): the olive-green cast is gone and the hull is the sprite's neutral dark charcoal; panel 4 is mostly dim yellow with a few brighter spots on the right nacelle's inner edge (fx 0.75, fy 0.7) where the sprite has near-white highlight pixels the model lacks, and on the nose tip. Top view matches closely; 4.",
+        "volume": "max_height 8.33 px (was 3.61), h/w 0.49. In the side elevation the main hull top is at about 4-4.5 px for an 8 px wide body (half-round), stepping down through 3 px and 2 px to the 2 px wide nose tip; the cockpit dome rises to 8.3 px; the tail exhaust cylinder is about 3 px tall; the nacelles stand about 3 px for 3 px wide. Everything is now in the right range for its width; the main hull could be another 1 px taller for its strong centre highlight. 4."
+      },
+      "scores": {
+        "detail": 4,
+        "game": 4,
+        "overall": 4,
+        "profile": 4,
+        "silhouette": 4,
+        "volume": 4
+      },
+      "status": "draft"
+    },
+    "ship-microcorp-stalker-fixed": {
+      "gradedBy": "fix loop (Fable grader), 2026-10-28",
+      "issues": [
+        {
+          "by": "grader",
+          "note": "The outline match comes from a flat dark plate in the sprite's full silhouette under the model: about 0.8 px thick (0.2 to 1.0 px in panels 5 and 6), it sticks out about 1 px past the wings, the nose tip and the tail as a flat flange, visible under the wingtips and tail in panels 7-8 and as a dark bar the whole length of the ship in panel 5. Remove it and instead extend the wing plates 1 px at the tips and leading edges, the nose cone 2 px and the tail 1 px (about a 10% scale) so the real parts cover the outline; if a dark edge is wanted, make it a dark bevel on those parts, not a separate slab.",
+          "panel": 8,
+          "region": "r0",
+          "severity": "medium",
+          "type": "other",
+          "x": 874,
+          "y": 1296
+        },
+        {
+          "by": "grader",
+          "note": "The hull r0 is now a neutral grey (green cast gone) but still too dark: dE 17.6, panel 4 yellow over the whole body. The sprite's hull is a light mid grey with near-white highlights on the nose, the centre rib and the wing leading edges. Lighten the base grey about 20-25% and brighten the rib and leading-edge strip materials.",
+          "panel": 4,
+          "region": "r0",
+          "severity": "medium",
+          "type": "wrong_colour",
+          "x": 1680,
+          "y": 340
+        },
+        {
+          "by": "grader",
+          "note": "The pods r2/r3 are the right size now (2 x 3 px, coverage 1.0) but have gone a dark maroon: dE 38.8 and 47.2, up from 21.2/16.5. The sprite's pods are the same bright red as the tail nozzle (r4 now dE 8.0); give the pods the nozzle's material.",
+          "panel": 2,
+          "region": "r2",
+          "severity": "low",
+          "type": "wrong_colour",
+          "x": 643,
+          "y": 273
+        },
+        {
+          "by": "grader",
+          "note": "Because the backing plate runs under the nose, the nose cone in side view is a light tapering cone on top (1 to 2.9 px) and a flat dark slab below (0.2 to 1 px) ending in a flat tip. Once the plate is gone the cone should taper to a point on all sides, about 5 px in diameter at the ring tapering to 0 over about 7 px.",
+          "panel": 5,
+          "region": "r0",
+          "severity": "low",
+          "type": "should_taper",
+          "x": 787,
+          "y": 948
+        },
+        {
+          "by": "grader",
+          "note": "The wing leading-edge strip and groove are present but shallow (about 0.3 px of relief) so they read only from above; the sprite's lighter inner wing panel is barely distinct. Raise the leading-edge strip to about 0.5 px proud and make the groove about 0.5 px deep so the bands show in the 3/4 views.",
+          "panel": 7,
+          "region": "r0",
+          "severity": "low",
+          "type": "missing_raised",
+          "x": 120,
+          "y": 1272
+        }
+      ],
+      "notes": "Most of the previous fixes landed: IoU 1.0, cockpit cut in as a window, pods 2 x 3 px, 4 px nozzle, level wings with leading-edge bands, neutral grey (dE 18.1). Remaining, in fix order: 1) remove the flat dark silhouette plate (0.2-1.0 px slab flanging 1 px past every edge, visible in panels 5-8) and get the outline by extending the wings, nose and tail instead; 2) lighten the hull grey about 20-25% to match the sprite's light grey (panel 4 still yellow everywhere); 3) restore the bright red on the pods (r2/r3 dE 39/47, now maroon); 4) let the nose cone taper to a point on all sides once the plate is gone; 5) deepen the wing strip and groove to about 0.5 px.",
+      "reasons": {
+        "detail": "Present: nose highlight, cockpit ring, the cockpit cut in as a dark square window with the lighter centre dot (panel 2 and 9), two red 2 x 3 px pods, three fuselage ribs with dark grooves, a lighter leading-edge strip with a dark diagonal groove on each wing, and a 4 px wide tail nozzle with a dark rim. Missing: the lighter inner panel on the wings is only faint, and the wing relief is modest (about 0.3 px) so it reads mainly from above.",
+        "game": "From the game camera (panel 9) it reads clearly as the Stalker: spike nose, dark square cockpit with its dot, red pods, swept wings with leading-edge strips, red tail, and it is now the sprite's full size. The dark border from the plate reads like the sprite's dark outline from this angle, which is acceptable, but the hull is still noticeably darker than the sprite's light grey, and in the 3/4 views (panel 8 especially) the flat dark flange under the wingtips and tail looks like a cardboard cut-out.",
+        "overall": "Nearly everything the previous grade asked for was done: outline covered, cockpit recessed, pods and nozzle enlarged, wing bands added, wings levelled, grey made neutral. What keeps it from a 5 is how the outline was fixed (a flat backing plate instead of extending the parts), the still-dark hull grey, and the pods going maroon. Replace the plate by extending the wings, nose and tail to the outline, lighten the grey, and restore the bright pod red.",
+        "profile": "Round fuselage, tapering nose cone, cylindrical ring, half-round ribs, bevelled plate wings now with a raised leading-edge strip and a groove behind it. The wings are level at about 0.5-1.5 px in panel 6 instead of drooping. The wrong profile is the backing plate: in panel 5 it shows as a dark flat bar running from the tail to the nose tip at 0.2-1.0 px, making the lower half of the nose cone a flat dark slab, and in panel 6 as a flat bar the full span of the wings, so every edge of the ship ends in a 1 px flat flange.",
+        "silhouette": "The outline now matches exactly: silhouette_iou 1.0, 313 vs 313 px, 0 missed and 0 extra, and panel 4 has no red rim at all. But it was done by adding a flat dark plate in the sprite's full outline under the model (visible in panel 2 and 3 as a dark border about 1 px wide round the wings, nose and tail), not by enlarging the parts. Colour is better but still off: colour_dE_mean 18.1 (was 21.4), r0 17.6, and panel 4 is still yellow over the whole hull because the grey is a neutral but dark grey where the sprite is a light grey with near-white highlights; the red pods got darker (r2 dE 38.8, r3 47.2, was 21.2/16.5) while the tail nozzle is now close (r4 dE 8.0).",
+        "volume": "Heights are about right. The fuselage is still a round section from below -1 px to about 2.4 px (panel 6), the cockpit ring tops at about 3 px and the nose cone at about 2.9 px (panel 5), max_height 3.41 px. The pods are now 2 x 3 px capsules (coverage 1.0, max 2.05 px) and the tail nozzle is a 4 px wide dome with a dark rim (coverage 1.0, max 1.2 px). The cockpit r1 sits at 2.0-2.4 px, below the ring top, so it is a recess now. The one wrong volume is the new backing plate, a slab about 0.8 px thick (0.2 to 1.0 px in panels 5 and 6) that spans the whole outline."
+      },
+      "scores": {
+        "detail": 4,
+        "game": 4,
+        "overall": 4,
+        "profile": 4,
+        "silhouette": 4,
+        "volume": 4
+      },
+      "status": "draft"
+    },
+    "ship-nort-ship-fixed": {
+      "gradedBy": "fix loop (Fable grader), 2026-10-28",
+      "issues": [
+        {
+          "by": "grader",
+          "note": "The hull r0 is still a mid grey (dE 15.7, down from 17.5); the sprite is bright silver with white highlight rows and the diff in panel 4 is yellow over the whole ship. Lighten the base hull colour by about 25-30% toward the sprite's silver, keeping the rails white.",
+          "panel": 2,
+          "region": "r0",
+          "severity": "medium",
+          "type": "wrong_colour",
+          "x": 720,
+          "y": 316
+        },
+        {
+          "by": "grader",
+          "note": "Both engine nacelle pods are an olive dark grey, visibly darker than the hull in the game view and 3/4 views; the sprite's nacelles are the same silver as the hull with lighter rows along their tops and dark only on their lower edges. Give the pods the hull's silver and keep only the underside dark.",
+          "panel": 9,
+          "region": "r0",
+          "severity": "medium",
+          "type": "wrong_colour",
+          "x": 1104,
+          "y": 1368
+        },
+        {
+          "by": "grader",
+          "note": "The nose block around the cockpit (sprite rows 0-8) is the brightest part of the sprite, nearly white, but the model's nose dome is a dark grey; panel 4 shows its strongest yellow here. Lighten the nose dome to the sprite's light silver-white.",
+          "panel": 2,
+          "region": "r0",
+          "severity": "low",
+          "type": "wrong_colour",
+          "x": 720,
+          "y": 172
+        },
+        {
+          "by": "grader",
+          "note": "The nacelles are about 9 px wide but about 6 px thick (-3 px to +3 px in the front elevation), a little under fully round. Bring them to about 8 px thick, a circular section, mostly by raising their tops to about 4 px above the wing plane.",
+          "panel": 6,
+          "region": "r0",
+          "severity": "low",
+          "type": "too_flat",
+          "x": 1248,
+          "y": 962
+        }
+      ],
+      "notes": "Fix in this order: (1) lighten the hull r0 from mid grey to the sprite's bright silver (dE 15.7 -> under 10); (2) give the nacelle pods the hull silver instead of dark olive-grey, dark only on the underside; (3) lighten the nose dome around the cockpit to the sprite's near-white; (4) polish: make the nacelles slightly rounder (about 8 px thick on their 9 px width).",
+      "reasons": {
+        "detail": "Present now: four rib bands on the drum, the white arch framing the cockpit, the canopy highlight, two 3x2 px dark vent bars per nacelle with a lighter rim, the red pods, the blue tip strips with a lighter edge, the central engine block with its side gaps, and the small blue spikes beside the cockpit. Nothing the sprite shows is missing; the vents and ribs are in relief rather than painted.",
+        "game": "From the game camera (panel 9) the ship reads as the Nort fighter with real relief: the ribbed drum and the two round nacelles catch light as cylinders, the vents are dark cut-ins, the white rails and red pods are where the sprite has them. What still differs from the sprite is brightness: the hull is a mid grey and the nacelle pods a darker olive-grey, where the sprite is bright silver all over with white highlights, so the ship looks duller and darker than its sprite.",
+        "overall": "Every shape problem from the previous grade is fixed or nearly so: perfect outline, a 6.5 px ribbed cylinder, round nacelles with blunt caps, widened vents, the white cockpit frame and brighter blue strips. The one substantial thing left is colour: the hull (dE 15.7) and especially the nacelles and nose are too dark against the sprite's silver. Lightening those would make this a solid 4 approaching ship quality.",
+        "profile": "The drum is a true cylinder with four rib bands, read clearly in panels 5, 7 and 8. The nacelles are round pods with a circular front-elevation section and dark undersides, and their tails end in broad rounded caps in panel 7 instead of cone points. The wings are flat with lit rails, the red side pods are round rods, and the canopy is a domed sphere with a highlight. Only the nacelles could be a touch rounder (6 px thick on a 9 px width).",
+        "silhouette": "The outline now matches the sprite almost exactly: IoU 0.998, 0 px missed, 1 px extra (a single blue pixel under the nacelle gap in panel 4); the red ring of the previous sheet is gone. Colour is what holds this back: dE 15.4 overall and 15.7 on r0, the whole diff is still yellow. The hull is a mid grey where the sprite is bright silver; the brightest yellow is over the nose and cockpit block (sprite rows 0-8), which the sprite draws nearly white. The wing rails are now white and the blue tip strips are close (r3 dE 6.8, r4 10.2).",
+        "volume": "Max height is 6.47 px (h/w 0.304) against 3.79 px before. The ribbed drum behind the cockpit stands from about 1 px to 6.5 px on a section about 9 px wide, which is about what its 10 px sprite width implies. The nacelles are now about 9 px wide and about 6 px thick, from about -3 px to +3 px in the front elevation, a little under full round but close. The wings stay thin plates about 1 px thick and the nose tapers from about 3 px at the cockpit to the tip; the mean r0 height of 2.0 px against the analysis's 4.4 px is mostly the thin wings, which is correct."
+      },
+      "scores": {
+        "detail": 4,
+        "game": 4,
+        "overall": 4,
+        "profile": 4,
+        "silhouette": 4,
+        "volume": 4
+      },
+      "status": "draft"
     },
     "ship-silver-ship-current": {
       "acceptedFromCommittee": "2026-10-28: the user agreed with all the committee findings",
@@ -7566,7 +9170,7 @@
           "y": 498
         }
       ],
-      "notes": "The top view doesn't match the sprite. Add the right-side fin or gun and the wider right pod (or confirm the symmetry is intended), blunt the nose and trim the left side by about 1 px. Then lighten the hull and spine to the sprite's bright silver, and lower the canopy to a shallow dome. The volumes are already about right.\n\nCommittee disagreements: volume: Opus 4, Fable 2. Fable read max_height_px 3.34 as the full height, but the ship is centred on 0 and is about 6.4 px thick (bbox z 0.537), so I scored 4.\nprofile: Opus 4, Fable 2. Panel 6 shows a round-oval fuselage and rounded pods, not flat lozenges, so I scored 4.\ndetail: Opus 4, Fable 2. The main details are present but the asymmetric right-side pieces and the panel seams are missing, so I scored 3.",
+      "notes": "SUPERSEDED: these grades and pins were made on a sheet showing the hard-left bank frame; the sheet shown now is the level frame.\n\nThe top view doesn't match the sprite. Add the right-side fin or gun and the wider right pod (or confirm the symmetry is intended), blunt the nose and trim the left side by about 1 px. Then lighten the hull and spine to the sprite's bright silver, and lower the canopy to a shallow dome. The volumes are already about right.\n\nCommittee disagreements: volume: Opus 4, Fable 2. Fable read max_height_px 3.34 as the full height, but the ship is centred on 0 and is about 6.4 px thick (bbox z 0.537), so I scored 4.\nprofile: Opus 4, Fable 2. Panel 6 shows a round-oval fuselage and rounded pods, not flat lozenges, so I scored 4.\ndetail: Opus 4, Fable 2. The main details are present but the asymmetric right-side pieces and the panel seams are missing, so I scored 3.",
       "reasons": {
         "detail": "Present: the canopy, raised spine plate, red-striped engines at the rear of the pods, three tail ribs over a dark tail, and swept fins. Missing: the sprite's right-side gun or fin and heavier right pod, its dark panel seams along the fuselage sides, and the stepped nose shoulders. The red engines are also larger than the sprite's narrow stripes. Opus gave 4 (everything a 24 x 28 sprite shows) and Fable 2 (half the features); I scored 3 because the main details are there but the asymmetric right-side pieces and seams aren't.",
         "game": "From the game camera (panel 9) it reads as a grey fighter with red engines and a dark canopy, so it's recognisable as a player ship. But it looks like a different ship: symmetric, darker and dull where the sprite is bright silver with a heavier right side. Opus gave 3 and Fable 2; I scored 3 (recognisable but not a match).",
@@ -7585,6 +9189,279 @@
       },
       "status": "done",
       "superseded": "2026-10-28: graded against the hard-left bank frame (the analyser took frames[0]); the level-frame sheet is regraded in the fix loop"
+    },
+    "ship-silver-ship-fixed": {
+      "gradedBy": "fix loop (Fable grader), 2026-10-28",
+      "issues": [
+        {
+          "by": "grader",
+          "note": "The nose (rows 1-8, from the tip to the cockpit) is one mid-dark grey, and panel 4 is yellow over it. The sprite's nose has dark-grey sides with a 1 px light-grey/white centre column running from the tip down to the cockpit. Add a 1 px wide light strip down the nose centreline (flush, same tone as the spine strip) over a dark-grey nose base.",
+          "panel": 2,
+          "region": "r0",
+          "severity": "low",
+          "type": "wrong_colour",
+          "x": 730,
+          "y": 124
+        },
+        {
+          "by": "grader",
+          "note": "The pods' outer two rows and front ends go nearly black on the rounded slope; the sprite's pod edges are dark grey (about two palette steps above black), and panel 4 is still yellow there. Lift the pod base colour one step or reduce the outer slope so the shaded edge lands on the sprite's dark grey, keeping the mid-grey inner half.",
+          "panel": 2,
+          "region": "r0",
+          "severity": "low",
+          "type": "wrong_colour",
+          "x": 586,
+          "y": 350
+        },
+        {
+          "by": "grader",
+          "note": "The plan outline still follows the sprite's pixel edge exactly, so the nose, canard tips and pod outer edges show 1 px stair-steps from above (also as jagged edges in panels 7 and 8). Smooth the outline through the pixel corners, keeping every sprite pixel covered, so the edges read as straight and curved lines.",
+          "panel": 2,
+          "region": "r0",
+          "severity": "low",
+          "type": "outline_wrong",
+          "x": 566,
+          "y": 330
+        },
+        {
+          "by": "grader",
+          "note": "The nose and the hull's left flank show visible planar facets in the back-left 3/4 view (and the hull top in panel 6 has a flat about 3 px wide at 4.9 px). Add segments or smooth shading on the hull so the 6.5 px wide elliptical section reads as a continuous curve.",
+          "panel": 8,
+          "region": "r0",
+          "severity": "low",
+          "type": "lumpy",
+          "x": 624,
+          "y": 1320
+        },
+        {
+          "by": "grader",
+          "note": "Panel 4 keeps a yellow 1 px ring around the whole ship where the sprite's black outline pixels are; the model's edge is lit grey there. A thin darker bevel on the outermost edge of the hull, canards and pods (the outline pixel ring) would bring colour_dE_mean (13.4) down further without changing the silhouette.",
+          "panel": 4,
+          "region": "r0",
+          "severity": "low",
+          "type": "wrong_colour",
+          "x": 1680,
+          "y": 292
+        }
+      ],
+      "notes": "The Silver Ship is now good: exact outline (IoU 1.0), a rounded hull about 6.3 px tall at the widest point (max 5.1 px above the midplane, was 4.3) tapering to a 2 px nose, rounded 4 px pods with a mid-grey inner half, round ringed engines and exhaust tubes over a sunk base, a recessed cockpit slot with its lit pixel, and a flat 2 px white spine strip to the tail in place of the raised rail; colour error fell from dE 19.2 to 13.4. Remaining, in order: (1) add the sprite's 1 px light centre column down the nose, which is now one dark grey; (2) stop the pods' outer rows going near black, target the sprite's dark grey; (3) smooth the stair-stepped plan outline through the pixel corners; (4) smooth the hull faceting seen in panel 8 and the flat on the ridge top; (5) optionally a dark 1 px edge bevel to account for the sprite's outline ring in the diff.",
+      "reasons": {
+        "cohesion": "Not an assembly.",
+        "detail": "Every main detail is in relief: the cockpit slot cut about 0.9 px into the nose (r1 actual max 4.43 vs r0 max 5.1) with a small lit pixel at its upper left, the canards, the pods with a mid-grey inner half, two red engines with two grey rings each, three exhaust tubes over a base sunk about 1 px, and a flat white spine strip running from under the cockpit to the tail. Missing: the sprite's 1 px light centre line down the nose from the tip to the cockpit, and the sprite's cockpit has its lit pixel in the centre of the second row rather than the upper left.",
+        "game": "From the game camera (panel 9) it reads as the Silver Ship: light-grey fuselage with a white strip, dark cockpit zone with a dark slot, dark canards, grey pods with dark outer edges, red ringed engines and three tubes at the rear. The lighter hull base removes the dark, greyish look of the previous sheet; the ridge shades on both sides so it has depth. The nose still reads darker than the sprite's because the light centre column is missing, and the pods' outer edges are a shade darker than the sprite's.",
+        "overall": "Good now: exact outline, a 6.3 px tall rounded hull tapering to the nose, rounded 4 px pods, correct engines and tubes, a recessed cockpit slot and a flat white spine strip, with colour error down from 19.2 to 13.4. What is left is polish: the nose's light centre column, the pods' outer rows going too dark, the stair-stepped plan outline and the faceting seen in panel 8. That is a 4; a 5 would need the nose and pod tones to match and the outline smoothed.",
+        "profile": "The hull is a rounded ridge in both elevations with an elliptical section about 6.5 x 6.3 px, the top slightly flattened over about 3 px (panel 6). The pods are rounded octagonal bodies curving down at the outside, the engines round with two grey rings, the pipes round tubes, the cockpit a flat recessed slot. The spine highlight is now a flat 2 px strip flush with the hull (panels 2, 7, 8 show no rail), which fixes the odd knife profile. The one remaining profile nit is faceting: in panel 8 the nose and the hull's left flank show visible planar facets, so the rounded body reads a little low-poly up close.",
+        "silhouette": "Outline stays exact (silhouette_iou 1.0, 343/343 px, 0 missed, 0 extra; panel 4 has no red or blue). Colour moved a lot: colour_dE_mean 13.4 (was 19.2), r0 13.7 (was 18.9), r1 6.2 (was 18.1), r2 11.7 (was 24.2). In panel 2 the rear hull is now the sprite's light grey with a flat 2 px white strip left of centre running to the tail, the cockpit zone is dark grey as in the sprite, and the pods are mid grey next to the hull and dark on their outer rows. What is still yellow in panel 4: the 1 px ring where the sprite's black outline pixels are (the model has no dark edge), the nose rows 1-8, where the sprite has a 1 px light centre column over dark-grey sides and the model is one mid-dark grey, and the pods' outer two rows, which go nearly black where the sprite is dark grey. The plan outline still shows 1 px stair-steps at the nose, canard tips and pod edges.",
+        "volume": "The hull ridge now tops out at 5.1 px (max_height_px 5.1, was 4.3) and in panel 6 the body runs from about 4.9 px down to about -1.5 px, roughly 6.3 px tall for a 6.5 px wide section, inside the 6-7 px target. In panel 5 it tapers from about 2 px at the nose tip to 4 px at the cockpit and 5 px over the rear hull. r0 actual mean 2.59 px (was 2.34). Pods about 6 px wide and 4 px tall (+2/-2), red engines about 4.5 px tall on a 3 px bar, exhaust tubes about 1.5 px across standing 1-2 px above the sunk base. Nothing reads too flat or too tall now; the pods could be a shade taller for their 6 px width but that is within tolerance."
+      },
+      "scores": {
+        "detail": 4,
+        "game": 4,
+        "overall": 4,
+        "profile": 4,
+        "silhouette": 4,
+        "volume": 4
+      },
+      "status": "draft"
+    },
+    "ship-supercarrot-fixed": {
+      "gradedBy": "fix loop (Fable grader), 2026-10-28",
+      "issues": [
+        {
+          "by": "grader",
+          "note": "The leaves r2 show grey-brown patches over about a third of the blade tops: the tips of both leaves and the left leaf's upper edge (also the right leaf's outer third in panel 9). The sprite's leaves are bright green with only a 1 px dark-maroon outline; here that outline colour has been projected onto the lit blade surfaces and lights to neutral grey. Keep the blades the sprite's bright green (and darker green at the lower-right) across their whole top, and put the dark maroon only on the blades' side faces or a 1 px rim, so the leaves read green from the game camera.",
+          "panel": 2,
+          "region": "r2",
+          "severity": "medium",
+          "type": "wrong_colour",
+          "x": 634,
+          "y": 436
+        },
+        {
+          "by": "grader",
+          "note": "Scattered yellow px in panel 4 run in a diagonal line along the edge of the yellow highlight streak and the red rim (r0 dE 9.5): the projected sprite colours are offset by about 1 px (up-left) from the sprite. Nudge the texture registration by that px, or sample the sprite at pixel centres, so the streak lands on the sprite's own px.",
+          "panel": 4,
+          "region": "r0",
+          "severity": "low",
+          "type": "wrong_colour",
+          "x": 1670,
+          "y": 292
+        },
+        {
+          "by": "grader",
+          "note": "The body's sides below the equator are near-black with radial red/black wedges (panel 6, lower half of panel 5), because the top-down projection stretches the sprite's 1 px dark rim over the whole underside. Not visible from the game camera; if wanted, fade the side colour from the rim red to a dark red rather than black so the 3/4 views show a red carrot rather than a black-bottomed one.",
+          "panel": 6,
+          "region": "r0",
+          "severity": "low",
+          "type": "other",
+          "x": 1430,
+          "y": 890
+        }
+      ],
+      "notes": "Remaining problems, in fix order: (1) leaves r2: grey-brown patches on about a third of the blade tops (tips and the left leaf's upper edge) from the sprite's dark outline being projected onto the lit blades; blades should be bright green with dark maroon only on a 1 px rim or the side faces; (2) a roughly 1 px up-left misregistration of the projected body colours along the yellow streak and red rim (r0 dE 9.5), polish; (3) black underside with radial wedges on the body's sides in the elevations, cosmetic only. Outline (IoU 1.0, 0 diff px), body colour, eye, thickness, section and leaf flatness are all right.",
+      "reasons": {
+        "detail": "The eye r1 sits in a dark 1 px socket ring with a brown iris and pale centre spot, matching the sprite exactly (dE 0.0). The yellow highlight streak now follows the sprite's curved path from the tip down the centre-left to the eye instead of a hard 2 px stripe. The green stem knob under the body matches the sprite's stem, and nothing in the sprite is missing or invented.",
+        "game": "From the game camera (panel 9) it reads as the sprite's bright red-orange carrot with the yellow streak, dark-ringed eye and flat green leaves; a player would take it for the sprite in 3D. The one thing they would notice is the leaf tips and the left leaf's outer edge going grey-brown rather than green, so the foliage looks partly dead.",
+        "overall": "A clear step up to good: outline 0.987 to 1.0 with zero diff px, colour dE 37.9 to 8.3, body now the sprite's real red/orange/yellow with the curved streak, eye pixel-exact, shape and thickness unchanged and still right. Remaining work is polish: grey-brown patches on the leaf blades where the sprite's dark outline got projected onto the tops, a 1 px texture misregistration along the highlight streak, and starburst wedges on the body's sides. Fix the leaves and this is close to 5.",
+        "profile": "Panel 6 shows a near-circular 13 px section with the eye dome on top; panel 5 shows the body tapering smoothly from the 13 px base to the 1 px tip with the thickest point near the base. The eye is a dome recessed in a ring. The leaves are flat lobed blades 0.5-1 px thick. The only profile blemish is cosmetic: the top-down colour projection turns the body's sides into radial red/black wedges (panel 6) and leaves the whole lower half nearly black, which is invisible from the game camera but shows in the elevations.",
+        "silhouette": "Outline is now exact: silhouette_iou 1.0, 226 of 226 sprite px covered, 0 missed, 0 extra, and panel 4 has no red or blue at all. Colour went from dE 37.9 to 8.3 (r0 38.6 to 9.5, r1 15.8 to 0.0, r2 43.5 to 8.0): the body now carries the sprite's own red rim, orange fill and curved yellow streak, and the eye is pixel-exact. Panel 4 is grey over the body with scattered yellow px along the highlight streak and the leaf edges, which is a roughly 1 px misregistration of the projected colours. What keeps it off 5 is the leaves: about a third of the blade area in panel 2 shows grey-brown patches (tips of both leaves, the left leaf's upper edge) where the sprite's 1 px dark-maroon leaf outline has been laid onto the lit blade tops and renders as neutral grey instead of the sprite's bright green with a thin dark edge.",
+        "volume": "The body r0 spans bbox z 1.063 units = 12.8 px for a 13 px wide base (h/w 0.998), peaking at 6.33 px above the midplane in panel 5, so it is as thick as it is wide, as the sprite's red-rim/yellow-centre shading says; the analysis agrees (actual mean 3.52 / max 6.33 px against inferred 2.98 / 5.37). The eye r1 dome tops at 6.2 px in a dark socket about 1 px deep, right for a 5 px eye. The leaves r2 sit at about 0 px (mean 0.04, max 0.91 px), flat blades, which is correct for foliage even though the analysis wants 1.6 px."
+      },
+      "scores": {
+        "detail": 4,
+        "game": 4,
+        "overall": 4,
+        "profile": 4,
+        "silhouette": 4,
+        "volume": 4
+      },
+      "status": "draft"
+    },
+    "ship-u-ship-fixed": {
+      "gradedBy": "fix loop (Fable grader), 2026-10-28",
+      "issues": [
+        {
+          "by": "grader",
+          "note": "The pod's dark intake is a flat dark L-shaped rectangle painted on the pod's upper-LEFT (about 2 px wide, 2 px tall) and visible as a flat square in panel 9. The sprite's dark pixels are at rows 6-7, cols 7-8, right of the pod's centre line. Move it to the right-of-centre position and cut it about 0.5-1 px into the dome as a shallow recess (or just let the round nose shade dark there), instead of a painted decal.",
+          "panel": 2,
+          "region": "r2",
+          "severity": "medium",
+          "type": "wrong_position",
+          "x": 691,
+          "y": 292
+        },
+        {
+          "by": "grader",
+          "note": "The pod is a flat greyish brown (about 6b5a3e) with no highlight gradient from above, colour_dE 17.7 (was 12.2). The sprite's pod is warm gold-brown (654920 base, 7d6538/9a8255 body, cfc39e highlight at col 6, 241408 shadow at col 8). Shift the base colour to about 7d6538 with more saturation, and make sure the round section catches the upper-left light so a bright column appears left of centre.",
+          "panel": 2,
+          "region": "r2",
+          "severity": "medium",
+          "type": "wrong_colour",
+          "x": 720,
+          "y": 340
+        },
+        {
+          "by": "grader",
+          "note": "In the side elevation the pod's top is a flat sloped facet from +2.6 px at the rear to about +1.6 px at the nose, with a hard crease at the rear top edge. The sprite's pod is a rounded bullet: make the top a smooth curve (domed in section, rounding down toward the nose) with no planar facet or crease.",
+          "panel": 5,
+          "region": "r2",
+          "severity": "low",
+          "type": "should_be_round",
+          "x": 422,
+          "y": 928
+        },
+        {
+          "by": "grader",
+          "note": "The bottom bar of the U-arm is two tan segments about 2.5 px long with a dark gap in the middle and darker end caps. The sprite's row 17 alternates light and dark every pixel (b6a279, 553c18, b6a279 ...) from col 4 to col 10. Band the bar with 1 px alternating light tan and dark brown rings (slight ribs) along its length.",
+          "panel": 2,
+          "region": "r7",
+          "severity": "low",
+          "type": "other",
+          "x": 720,
+          "y": 465
+        },
+        {
+          "by": "grader",
+          "note": "The cross-struts are now about 1.5 px grey tubes at the right height, but the near-pod halves (r3, r5) are very dark, colour_dE 21-23, where the sprite draws them mid grey (5d5d5d next to the pipe, 343434 next to the pod). Lighten the strut material toward 5d5d5d.",
+          "panel": 2,
+          "region": "r3",
+          "severity": "low",
+          "type": "wrong_colour",
+          "x": 629,
+          "y": 326
+        }
+      ],
+      "notes": "Much improved: outline now exact (IoU 1.0), pipes and arm are round tubes about 2.5-3 px in diameter, the pod is a round-sectioned 5.3 px bullet, the U-arm has its chamfers and flat bar and is tan, struts are thicker. Remaining, in order: (1) move the pod's dark intake from the upper-left to right of centre (sprite rows 6-7, cols 7-8) and cut it in as a shallow recess instead of a painted rectangle; (2) warm the pod's colour from grey-brown toward the sprite's gold-brown (dE 17.7, worse than before) and let the dome catch a highlight left of centre; (3) round off the pod's flat sloped top facet into a smooth nose; (4) band the bottom bar with 1 px alternating light/dark rings; (5) lighten the struts toward 5d5d5d.",
+      "reasons": {
+        "detail": "The pipe collars (sprite rows 6-7 and 11-12) are rings, the cross-struts are 1.5 px grey tubes, the chamfers and bottom bar are there and the bar is split into two segments with a dark centre gap. But the sprite's dark pixels at the pod top (rows 6-7, cols 7-8) have become a flat dark L-shaped decal on the upper-left of the pod, painted on rather than recessed and on the wrong side; the pod shows almost no light-to-dark gradient from above, so the sprite's highlight column at col 6 and dark column at col 8 are not reproduced; and the bottom bar's per-pixel light/dark alternation (row 17: b6a279/553c18/b6a279) is only loosely suggested by two tan segments with darker end caps.",
+        "game": "From the game camera (panel 9) it is clearly the sprite: two grey tubes with collars and chamfered tips, a rounded brown pod slung between them on grey struts, and a tan U-frame with chamfered corners and a flat bar. Depth is believable, the tubes catch highlights and the pod reads as a solid round bullet. The one thing that jars is the flat dark square painted on the pod's upper-left, and the pod being a touch grey and flat-lit compared with the sprite's golden pod.",
+        "overall": "A large step up: exact outline (IoU 0.425 to 1.0), tubes round at about 2.5-3 px, pod a round-sectioned 5.3 px bullet, arm reshaped with chamfers and recoloured tan, struts thickened. What remains is polish on the pod: warm its colour toward the sprite's gold-brown (dE 17.7 now, worse than before), move the dark intake to the right of centre and cut it in as a shallow recess instead of a painted rectangle, soften the sloped top facet into a rounded nose, and give the bottom bar its alternating bands. Good (4).",
+        "profile": "In panels 5 and 6 the pipes and the U-arm show the specular streak and dark underside of round tubes, and in panels 7-9 they read as pipes, not plates. The pod's section in panel 6 is a dome about 5.5 px wide with a rounded top at +2.6 px and no painted strip or cut groove. Two small faults: in panel 5 the pod's top is a flat sloped facet running from +2.6 px at the rear down to about +1.6 px at the nose with a hard crease at the rear edge, rather than a smoothly rounded bullet nose, and the dark intake is a flat painted rectangle, not relief.",
+        "silhouette": "The top view now covers the sprite exactly: silhouette_iou 1.0, 186 of 186 px, 0 missed and 0 extra, and panel 4 has no red or blue, only grey-yellow colour error along the dark rims. The pipes, collars, struts and the U-arm (straight runs, two 45-degree chamfers, flat bottom bar) sit where the sprite draws them, and the arm is now tan. Colour is the weak point: colour_dE_mean 13.9, with the pod at dE 17.7, a flat greyish brown (about 6b5a3e) where the sprite is warm gold-brown (7d6538/9a8255) with a cream cfc39e highlight column, and the pod's dark patch is a rectangle on its upper-LEFT where the sprite's dark pixels (rows 6-7, cols 7-8) are right of centre.",
+        "volume": "Heights now follow each part's width. In panel 5 the side pipes span about +1.3 to -1.3 px on the ruler (about 2.5-3 px diameter, metrics actual_max 1.5) for a 1 px core plus 1 px rims; the U-arm spans about +1.2 to -1.2 px (about 2.3 px, actual_max 1.3) for its 1 px bar plus rims; the pod rises to +2.6 px (max_height_px 2.62) and drops below the panel, bbox z 0.441 units = 5.3 px, for a 5 px wide (7 with outline) round pod. The struts are about 1.5 px thick at the pipes' centre height. Nothing is a uniform extrusion any more; the previous sheet had every part at the same 4.8 px band."
+      },
+      "scores": {
+        "detail": 3,
+        "game": 4,
+        "overall": 4,
+        "profile": 4,
+        "silhouette": 4,
+        "volume": 4
+      },
+      "status": "draft"
+    },
+    "ship-usp-talon-light-fighter-fixed": {
+      "gradedBy": "fix loop (Fable grader), 2026-10-28",
+      "issues": [
+        {
+          "by": "grader",
+          "note": "The pod crowns and the hull top between the pods now show visible facet steps: in panel 6 the outline between 3 and 4 px is jagged (several 0.2-0.3 px notches across each 6 px pod) and in panel 5 the top surface between 2.5 and 3.5 px is saw-toothed along the whole body. Last round these were smooth. Smooth-shade or subdivide the hull and pods so the pod crowns are clean round arcs and the hull top is a continuous curve, keeping the current heights (pods to about 4 px, hull to 3.5 px).",
+          "panel": 6,
+          "region": "r0",
+          "severity": "medium",
+          "type": "lumpy",
+          "x": 1296,
+          "y": 890
+        },
+        {
+          "by": "grader",
+          "note": "The hull colour is applied as sprite-resolution texels, so in panels 7-9 the pods and nose show square 1 px blocks of colour (visible as a checker of browns on the right pod and nose in panel 7, faintly in panel 9). From above this matches the sprite, so keep the mapping, but soften it in the 3/4 views: blend the texels (linear filtering or a slight blur) so the colour bands follow the pod curvature rather than reading as a grid.",
+          "panel": 7,
+          "region": "r0",
+          "severity": "low",
+          "type": "other",
+          "x": 264,
+          "y": 1320
+        },
+        {
+          "by": "grader",
+          "note": "The hull mid tone in panel 2 is still a little greyer and less saturated than panel 1's sandy gold (panel 4 shows faint yellow across the pod flanks and nose). Warm and brighten the base hull material by a small step so the lit flanks match the sprite's mid gold rather than a grey-brown.",
+          "panel": 2,
+          "region": "r0",
+          "severity": "low",
+          "type": "wrong_colour",
+          "x": 720,
+          "y": 292
+        },
+        {
+          "by": "grader",
+          "note": "The nose tip is bright yellow in panel 4: the cream nose keel runs all the way to the tip (panel 2, fy about 0.05-0.1) where the sprite's top two rows are dark brown outline. Stop the cream keel one or two px short of the tip and let the tip be the dark hull tone.",
+          "panel": 4,
+          "region": "r0",
+          "severity": "low",
+          "type": "wrong_colour",
+          "x": 1680,
+          "y": 90
+        },
+        {
+          "by": "grader",
+          "note": "The groove floors are uneven in depth: panel 5 shows the cuts as notches of varying depth (0.5 to 1 px) along the body, and panel 2 still has the grooves ending about 1 px above the sprite's last dark row at the tail. Give both grooves a constant depth of about 0.7 px with a smooth floor and run them to the tail row.",
+          "panel": 5,
+          "region": "r0",
+          "severity": "low",
+          "type": "other",
+          "x": 432,
+          "y": 900
+        }
+      ],
+      "notes": "Remaining problems, in order: (1) the pod crowns and hull top have become faceted and saw-toothed in the elevations (panel 6 jagged between 3 and 4 px, panel 5 between 2.5 and 3.5 px); smooth them without changing heights; (2) the sprite-resolution colour texels show as square blocks in the 3/4 views; blend them so they follow the pod curves; (3) the hull mid tone is still slightly grey and muted against the sprite's sandy gold; (4) the cream nose keel runs onto the dark nose tip; stop it 1-2 px short; (5) the grooves vary in depth along their length and end about 1 px short of the tail row.",
+      "reasons": {
+        "detail": "Canopy, both keel segments, nose steps, pods and both grooves are all modelled in relief, and the keel now carries the cream base with a white specular line along both the nose and rear segments (panel 2). The grooves are straight at the sprite's columns, about 1 px wide and dark brown with a lit edge (panel 7), ending about 1 px above the tail. Remaining: the groove floors are uneven in depth along their length (panel 5 notches of 0.5-1 px), and the hull colour comes from sprite-resolution texels that show as square blocks in the 3/4 views. Every main detail present, some polish off: 4.",
+        "game": "From the game camera (panel 9) the model reads as the sprite's teardrop fighter: a dark cockpit dome, a cream crested spine, two straight dark grooves, two round shoulder pods with lighter crowns and darker flanks, and a stepped nose, now in the sprite's own browns and golds rather than the olive-tan of last round. It is slightly more muted than panel 1 and the texel blocks are faintly visible on the pods, but it looks like the sprite brought into 3D rather than a desaturated copy. Recognisable and convincing: 4.",
+        "overall": "This round fixed what the previous grade asked: the palette is now the sprite's (dE 9.7 from 21.8), the keel is cream with a white line on both segments and about 2 px proud, the canopy is a dome about 1 px proud, the grooves are about 1 px wide and reach nearly to the tail, and the pod-to-hull crease is gone. Shape, heights, detail and colour are all good now. What remains is polish: faceted pod crowns and a saw-toothed hull top in the elevations, square texel blocks in the 3/4 views, a slightly muted hull tone, the cream keel spilling onto the dark nose tip, and uneven groove depth. Good: 4.",
+        "profile": "Panel 6 shows the pods as round lobes and the keel as a 3 px rounded dome about 2 px proud; panel 5 shows the canopy as a dome from about 3.6 to 4.6 px sitting on the hull with no undercut, and the nose stepping down in three steps with its width. The grooves are now about 1 px wide and read as cut lines (panels 2, 7, 9). New this round: the pod crowns and hull top show visible facet steps in panel 6 (jagged outline between 3 and 4 px) and panel 5's top surface is saw-toothed between 2.5 and 3.5 px where the groove cuts and the texel colour steps meet. Right profiles, slightly rough surfaces: 4.",
+        "silhouette": "Outline is still exact: silhouette_iou 1.0, 0 px missed and 0 px extra on the 266 px sprite, no red or blue in panel 4. Colour is now close: colour_dE_mean 9.7 (from 21.8), and panel 4 is grey over most of the body with yellow only along the keel highlight, the pod crowns and the nose tip, because the hull now carries the sprite's per-pixel tones (panel 2 shows the sprite's dark-brown flank columns and lighter crowns in the right places). What is left: the hull mid tone in panel 2 reads a touch greyer and less saturated than panel 1's sandy gold, and the cream keel runs right to the nose tip where the sprite's top two rows are dark outline. Exact outline, near-right palette: 4.",
+        "volume": "On the panel 5 ruler the hull body runs from about -1 px to +3.5 px (bbox z 0.706 units, about 8.5 px overall) and the keel ridge tops out at 5.4 px (max_height_px 5.44, h/w 0.474, actual_mean 3.28 px against the inferred 3.92). Panel 6 shows each rear pod about 6 px wide standing from -1 px to about 4 px, about as tall as wide, with the keel about 3 px wide rising about 2 px above the hull between them (3.3 to 5.4 px), which is what a 3 px keel with a centre highlight implies. The canopy dome tops out at about 4.6 px, about 1 px above the hull; the nose steps down from about 4 px at the shoulder to about 1.5 px at the tip. Every part is close to what the sprite implies: 4."
+      },
+      "scores": {
+        "detail": 4,
+        "game": 4,
+        "overall": 4,
+        "profile": 4,
+        "silhouette": 4,
+        "volume": 4
+      },
+      "status": "draft"
     }
   },
   "version": 1

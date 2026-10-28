@@ -1,16 +1,21 @@
-"""Twin-plate spindle (newshl.shp 24): a 3D version of its sprite.
+"""Twin-disc spindle (newshl.shp 24): a 3D version of its sprite.
 
-Seen in episode 4, level 40. A grey shaft runs across the sprite: a short nose, a wide body, two
-tall oval plates (one thin, one thick) joined by a dark web with a red light above and below the
-shaft, then a narrower shaft with red brackets above and below it and a flange where the sprite
-is cut off. newshl 34 is exactly newshl 24 mirrored left to right, so both are built by
-lib_b020.build_spindle. One frame, one model.
+Seen in episode 4, level 40. A turned grey shaft runs across the sprite on an axle at z = 0: a
+short nose, a wide body, two full-height discs standing on edge (the sprite's 21 px tall bars,
+lit on the left, dark on the right) with a deep dark gap between them down to the shaft and a red
+stud above and below the shaft in it, then a narrower shaft with dark clamp blocks above and
+below it carrying red strips, and a flange where the sprite is cut off. Every round part is round
+(as tall as it is wide). newshl 34 (its mirror image) is still built by lib_b020.build_spindle;
+this script builds its own, rounder version. One frame, one model.
 
 Run: blender --background --python assets/blender/enemies/newshl-24.py [-- --preview out.png]
 """
 
+import math
 import sys
 from pathlib import Path
+
+import bmesh
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -20,11 +25,86 @@ import lib_b020 as lib  # noqa: E402
 NAME = "newshl-24"
 MODEL = f"enemies/{NAME}"
 ROOT = common.repo_root(__file__)
+U = lib.U
+# Each turned part takes its mid-tone grey from the sprite, whole: the sprite's lit columns, dark
+# lower halves and black outline ring are its drawn lighting, which the game's lights, polished
+# metal finish and outline pass make for themselves.
+BODY, DISC, SHAFT, TAIL = 8, 7, 7, 6
+
+
+def build(name, sprite):
+    """Built in the sprite's pixel edge coordinates (column edge e -> X(e), row edge e -> Y(e)),
+    the axle along X through row edge 13.5 at z = 0."""
+    coll = common.reset_collection(name)
+    m = lib.Mats(name, sprite["colors"])
+    metal = lambda i: m(i, metallic=0.8, roughness=0.3)  # noqa: E731  polished turned steel
+    bm = bmesh.new()
+
+    def X(e):
+        return (e - 12) * U
+
+    def Y(e):
+        return (14 - e) * U
+
+    ay = Y(13.5)
+
+    def run(secs, mat, sides=16):
+        """Round sections (column edge, radius px) or (column edge, radius across, radius up):
+        as tall as they are wide, with extra sections at every column edge in between."""
+        secs = [s if len(s) == 3 else (s[0], s[1], s[1]) for s in secs]
+        full = [secs[0]]
+        for (e0, a0, b0), (e1, a1, b1) in zip(secs, secs[1:]):
+            for c in range(math.floor(e0) + 1, math.ceil(e1)):
+                if c - e0 > 0.2 and e1 - c > 0.2:
+                    t = (c - e0) / (e1 - e0)
+                    full.append((c, a0 + (a1 - a0) * t, b0 + (b1 - b0) * t))
+            full.append((e1, a1, b1))
+        lib.loft_x(bm, [(X(e), a * U, b * U, 0.0) for e, a, b in full], ay, 0.0, sides=sides, mat_index=mat)
+
+    # Nose (columns 4-7, rows 10-16) and body (columns 7-11, rows 8-18), outline included.
+    run([(4.0, 2.4), (4.4, 3.3), (5.0, 3.6), (7.6, 3.6)], metal(BODY))
+    # The body's darker band at column 9 is a shallow turned groove (kept full width from above).
+    run([(7.0, 4.6), (7.4, 5.6), (8.85, 5.6), (9.1, 5.6, 5.0), (9.9, 5.6, 5.0), (10.15, 5.6),
+         (11.6, 5.6), (12.2, 5.0)], metal(BODY))
+    # Shaft through the discs and between them (seen lit at column 15, rows 9-17).
+    run([(11.8, 4.6), (19.6, 4.6)], metal(SHAFT))
+    # The two discs (rows 3-23 with the outline: 21 px across), on edge, rims rounded.
+    run([(12.0, 9.8), (12.35, 10.6), (14.65, 10.6), (15.0, 9.8)], metal(DISC), sides=28)
+    run([(17.0, 9.8), (17.35, 10.6), (19.65, 10.6), (20.0, 9.8)], metal(DISC), sides=28)
+    # Right shaft (columns 19-22, rows 9-17) and the flange at the sprite's edge (column 23).
+    run([(19.4, 4.4), (22.8, 4.4)], metal(TAIL))
+    run([(22.4, 4.4), (22.8, 5.0), (24.0, 5.0)], metal(TAIL))
+
+    # Dark web low between the discs (columns 15-16): from above the gap is a deep dark slot
+    # down past the shaft, with a red stud on the web above and below the shaft (rows 5 and 21).
+    lib.box(bm, X(14.9), Y(23.4), X(17.1), Y(3.6), -0.6 * U, 0.6 * U, mat_index=m(1, metallic=0.2, roughness=0.7))
+    lib.box(bm, X(16.0), Y(4.0), X(17.1), Y(3.0), -0.6 * U, 0.6 * U, mat_index=m(1, metallic=0.2, roughness=0.7))
+    lib.box(bm, X(16.0), Y(24.0), X(17.1), Y(23.0), -0.6 * U, 0.6 * U, mat_index=m(1, metallic=0.2, roughness=0.7))
+    for r, idx in ((5, 116), (21, 114)):
+        lib.box(bm, X(15.0), Y(r + 1.0), X(16.0), Y(r), 0.0, 1.6 * U,
+                mat_index=m(idx, metallic=0.0, roughness=0.4, emission_strength=3.0))
+
+    # Clamp blocks above (rows 6-9) and below (rows 17-21) the right shaft: dark boxes with the
+    # sprite's saturated red L strips 1 px proud on top.
+    dark = m(1, metallic=0.3, roughness=0.6)  # black like the sprite's pixels round the red
+    lib.box(bm, X(19.0), Y(9.6), X(24.0), Y(6.0), -3.0 * U, 2.6 * U, mat_index=dark)
+    lib.box(bm, X(19.0), Y(21.0), X(24.0), Y(17.2), -3.0 * U, 2.6 * U, mat_index=dark)
+    # Matte and faintly self-lit so they stay saturated red under the lights, not brown-pink.
+    red_top, red_bottom = (m(i, metallic=0.0, roughness=0.7, emission_strength=0.8) for i in (114, 113))
+    common.slab(bm, [(X(20), Y(7)), (X(24), Y(7)), (X(24), Y(8)), (X(22), Y(8)), (X(22), Y(9)), (X(20), Y(9))][::-1],
+                1.2 * U, z=3.0 * U, mat_index=red_top)
+    common.slab(bm, [(X(20), Y(18)), (X(22), Y(18)), (X(22), Y(19)), (X(23), Y(19)), (X(23), Y(20)), (X(20), Y(20))],
+                1.2 * U, z=3.0 * U, mat_index=red_bottom)
+
+    obj = common.mesh_object(name, bm, m.list, coll, smooth=True)
+    split = obj.modifiers.new("edges", "EDGE_SPLIT")
+    split.split_angle = math.radians(40)
+    return obj
 
 
 def main():
     sprite = common.load_sprite(ROOT, NAME)
-    obj = lib.build_spindle(NAME, sprite, mirror=False)
+    obj = build(NAME, sprite)
     common.export_sprite_model(ROOT, [obj], MODEL, sprite["sprites"])
     if "--preview" in sys.argv:
         out = sys.argv[sys.argv.index("--preview") + 1]

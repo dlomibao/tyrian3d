@@ -78,34 +78,42 @@ def build(sprites):
     bm = bmesh.new()
     ay = P(0, AXIS)[1]
 
-    # --- Core, left to right: (column edge, half height across in px, half height up in units, index).
+    # --- Core, left to right: (column edge, radius in px, index). Every section is round: as tall
+    # as it is wide across, the way the sprite draws it (a lit band along the axis, dark edges).
     def core_run(secs, mat, sides=16):
         start = len(bm.verts)
-        common.loft(bm, [(P(e, 0)[0], r * U, h, 0.0) for e, r, h in secs], sides=sides, mat_index=mat)
+        common.loft(bm, [(P(e, 0)[0], r * U, r * U, 0.0) for e, r in secs], sides=sides, mat_index=mat)
         lib.rotate_new_to_x(bm, start, ay, 0.0)
         # rotate_new_to_x maps the loft's along-axis to X; our sections are already X positions.
 
-    core_run([(0.2, 5.8, 0.24), (0.6, 6.6, 0.28), (3.6, 6.6, 0.28), (4.2, 5.8, 0.24)], metal(9))  # left flange
-    core_run([(4.2, 4.8, 0.2), (5.2, 4.8, 0.2)], m(3, metallic=0.4, roughness=0.6))  # groove
-    core_run([(5.2, 5.6, 0.23), (6.0, 6.0, 0.25), (8.4, 6.0, 0.25), (9.2, 5.4, 0.22)], metal(7))
-    core_run([(9.0, 3.5, 0.16), (13.2, 3.5, 0.16)], m(55, metallic=0.1, roughness=0.2, emission_strength=2.5))
-    core_run([(12.8, 4.0, 0.18), (13.4, 4.4, 0.2), (18.8, 4.4, 0.2), (19.4, 4.2, 0.19)], metal(9))  # lit sleeve
-    core_run([(18.8, 6.6, 0.27), (19.4, 7.5, 0.31), (25.2, 7.5, 0.31), (25.9, 6.6, 0.27)], metal(10))  # collar
-    core_run([(25.8, 4.6, 0.19), (28.2, 4.6, 0.19)], metal(5))  # neck
-    core_run([(28.0, 3.4, 0.15), (29.6, 3.4, 0.15), (31.0, 1.6, 0.08), (31.4, 0.0, 0.0)],
-             m(117, metallic=0.0, roughness=0.4, emission_strength=3.0))  # red emitter
-    core_run([(31.0, 0.55, 0.05), (36.2, 0.55, 0.05)], m(115, metallic=0.0, roughness=0.4, emission_strength=2.5),
+    # Left end cap: a wheel spanning rows 19.5-35.5 at columns 0-4, where the bars loop in.
+    core_run([(0.2, 6.8), (0.6, 7.7), (3.8, 7.7), (4.4, 6.6)], metal(9))
+    core_run([(4.2, 4.8), (5.2, 4.8)], m(3, metallic=0.4, roughness=0.6))  # groove
+    core_run([(5.2, 5.4), (5.8, 5.8), (8.4, 5.8), (9.2, 5.2)], metal(7))
+    # Blue shaft: navy, a faint glow only.
+    core_run([(9.0, 3.6), (13.2, 3.6)], m(54, metallic=0.4, roughness=0.3, emission_strength=0.6))
+    core_run([(12.8, 4.0), (13.4, 4.5), (18.8, 4.5), (19.4, 4.2)], metal(9))  # lit sleeve
+    core_run([(18.8, 6.6), (19.4, 7.5), (25.2, 7.5), (25.9, 6.6)], metal(10))  # collar
+    core_run([(25.8, 4.6), (28.2, 4.6)], metal(5))  # neck
+    # Red emitter: dark crimson, glossy, a low glow.
+    core_run([(28.0, 3.4), (29.6, 3.4), (31.0, 1.6), (31.4, 0.0)],
+             m(116, metallic=0.2, roughness=0.25, emission_strength=0.8))
+    core_run([(31.0, 0.55), (36.2, 0.55)], m(115, metallic=0.0, roughness=0.4, emission_strength=1.0),
              sides=8)  # rod to the right panel
     # Dark band round the collar's middle (rows 25-29 in the sprite are shaded darker).
-    core_run([(20.6, 7.6, 0.315), (24.6, 7.6, 0.315)], m(4, metallic=0.5, roughness=0.5))
+    core_run([(20.6, 7.6), (24.6, 7.6)], m(4, metallic=0.5, roughness=0.5))
+    # Dark housing the rod runs through, between the emitter and the right panel (columns 31-35).
+    x0, y0 = P(30.8, 30.6)
+    x1, y1 = P(34.6, 24.4)
+    lib.box(bm, x0, y0, x1, y1, -2.2 * U, 2.2 * U, mat_index=m(2, metallic=0.4, roughness=0.5))
 
     # --- Upper and lower halves: same shapes mirrored, each in its own sprite's palette indices.
     halves = [
-        # (row mapping, top/bottom panel (frame, field, cell), diagonal panel, bar, arm, pipe)
-        (lambda e: e, (9, 4, 7), (6, 3, 5), 10, 6, 5),
-        (M, (6, 2, 4), (5, 2, 3), 7, 4, 4),
+        # (row mapping, top/bottom panel (frame, field, cell), diagonal panel, bar, arm, pipe, shoulder)
+        (lambda e: e, (9, 4, 7), (6, 3, 5), 10, 6, 5, 5),
+        (M, (6, 2, 4), (5, 2, 3), 7, 4, 4, 3),
     ]
-    for row, top, diag, bar, arm, pipe in halves:
+    for row, top, diag, bar, arm, pipe, shoulder in halves:
         sign = 1 if row(0) == 0 else -1
         # Panel above the core (rows 0.5-11.5, columns 10.5-20.5) on its arm (column 15).
         panel(bm, (15.5, row(6.0)), (0, sign), lambda i: metal(i), *top)
@@ -119,9 +127,13 @@ def build(sprites):
                       ((P(3.4, 0)[0], P(0, row(17.6))[1], 0.03), 1.0 * U),
                       ((P(3.0, 0)[0], P(0, row(21.5))[1], 0.02), 1.0 * U)], sides=8, mat_index=metal(pipe))
         # Diagonal arm from the collar (column 25, row 19.5) up to its panel's corner.
-        lib.tube(bm, [((P(23.0, 0)[0], P(0, row(19.8))[1], 0.05), 1.3 * U),
-                      ((P(26.0, 0)[0], P(0, row(17.4))[1], 0.03), 1.3 * U),
-                      ((P(29.6, 0)[0], P(0, row(13.6))[1], 0.0), 1.2 * U)], sides=8, mat_index=metal(arm))
+        lib.tube(bm, [((P(23.0, 0)[0], P(0, row(19.8))[1], 0.0), 1.9 * U),
+                      ((P(26.0, 0)[0], P(0, row(17.4))[1], 0.0), 1.9 * U),
+                      ((P(29.6, 0)[0], P(0, row(13.6))[1], 0.0), 1.7 * U)], sides=8, mat_index=metal(arm))
+        # Shoulder on the collar (rows 18-20, columns 17-27) that the diagonal arm grows from.
+        sx0, sy0 = P(16.8, row(17.8))
+        sx1, sy1 = P(27.2, row(21.5))
+        lib.box(bm, sx0, sy0, sx1, sy1, -2.6 * U, 2.6 * U, mat_index=metal(shoulder))
         # Diagonal panel: corners about (35.5, 3), (41.5, 9.5), (33.5, 17), (27.5, 11.5).
         panel(bm, (34.5, row(10.25)), (0.69, 0.73 * sign), lambda i: metal(i), *diag, length=11.6, width=9.6)
 

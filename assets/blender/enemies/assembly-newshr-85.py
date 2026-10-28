@@ -12,10 +12,10 @@ cobbled brown ground with a dark shadow ring around the dome's foot.
 The glass is a shell from the dome's foot up to a window over the city (the sprite shows the
 towers through it), so its back half stands as a curved wall behind the towers and its sides and
 front are a lower rim. Over the window a frame of glass ribs on the same egg surface closes the
-bubble (the panes between the ribs are the clear glass), so it encloses the city. Shell faces take the purple shade the sprite has at that spot. The towers
+bubble (the panes between the ribs are the clear glass), so it encloses the city. The towers
 are boxes on the sprite's building blocks, tallest at the back (the sprite draws them in an
 oblique view, so each block's drawn area is its footprint here), coloured by the block's average
-shade. The ground is a low slab with cobbles where the sprite's ground is brown. The whole thing is
+shade. Glass and walls take one mid-tone each (the game lights and outlines them). The ground is a low slab with cobbles where the sprite's ground is brown. The whole thing is
 built once in assembly coordinates and cut into the nine pieces with common.split_assembly.
 
 Run: blender --background --python assets/blender/enemies/assembly-newshr-85.py [-- --preview out.png]
@@ -117,6 +117,9 @@ PARALLELS = (0.35, 0.68)
 MERIDIANS = 8
 CAP_RN = 0.12
 RIB_W = 1.0  # px
+GLASS_MID = 84  # the glass's purple: the sprite's glass averages ~85 with the glare; one step darker since the
+# environment's reflections already lighten the glossy shell from the game camera
+WALL_MID = 101  # the towers' facades: the city ramp's mid-tone (the game lights the walls)
 
 
 def dome_height(c, r, egg):
@@ -247,7 +250,8 @@ def tower_px(h):
 
 def build(sprite, m):
     coll = common.reset_collection(NAME)
-    glass = dict(metallic=0.1, roughness=0.2)
+    # Glossy glass: the game's sun and environment make the sprite's glare and bright rim.
+    glass = dict(metallic=0.05, roughness=0.1)
     rock = dict(metallic=0.0, roughness=0.9)
     city = dict(metallic=0.3, roughness=0.4)
     pal = lambda i, **kw: common.palette_material(sprite, i, TAG, **kw)  # noqa: E731
@@ -262,15 +266,11 @@ def build(sprite, m):
         k = min(range(len(idx_list)), key=lambda i: abs(idx_list[i] - value))
         return base + k
 
-    glare = {9: 91, 10: 92, 11: 92, 13: 95, 14: 95, 109: 95, 110: 95}  # greys in the glare
-    is_glass = lambda v: 80 <= v <= 95 or v in glare  # noqa: E731
-
     def glass_mat(c, r):
-        """The glass's shade at (c, r): the sprite's (the glare spot keeps its own light shade)."""
-        v = sample(m, c, r, is_glass, remap=glare)
-        if v is None:
-            return G0 + 2
-        return nearest(glass_idx, G0, max(82, v))
+        """The glass's colour: one mid-tone purple all over. The sprite's glare, its bright right
+        rim, its dark lower-right side and its dark outline ring at the foot are drawn light, which
+        the game's lights and outline make on the glossy shell, so none of it is painted on."""
+        return nearest(glass_idx, G0, GLASS_MID)
 
     bm = bmesh.new()
 
@@ -338,7 +338,7 @@ def build(sprite, m):
         quad(out_rings[K][i], out_rings[K][j], in_rings[K][j], in_rings[K][i], G0, False)
 
     # The frame closing the bubble over the window (see PARALLELS).
-    rib_mat = nearest(glass_idx, G0, 87)
+    rib_mat = nearest(glass_idx, G0, GLASS_MID + 1)
     win_in = lambda p: inside(WINDOW, *p)  # noqa: E731
 
     def on_egg(rn, a):
@@ -461,9 +461,7 @@ def build(sprite, m):
                 if 96 <= m[rr][cc] <= 109]
         avg = sum(vals) / len(vals) if vals else 100
         top = nearest(city_idx, C0, avg - 1)
-        box(bm, a0, a1, b0, b1, 0.035, h, nearest(city_idx, C0, 99), top,
-            south=nearest(city_idx, C0, 100), east=nearest(city_idx, C0, 98),
-            north=nearest(city_idx, C0, 99), west=nearest(city_idx, C0, 105))
+        box(bm, a0, a1, b0, b1, 0.035, h, nearest(city_idx, C0, WALL_MID), top)
         # The roof's pixels: runs of one shade per sprite row, clipped to the roof.
         zt = h + 0.01
         for rr in range(int(math.floor(b0)), int(math.ceil(b1))):

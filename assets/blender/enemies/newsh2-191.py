@@ -61,12 +61,14 @@ def build_one(sprite, name, angle):
     mats, slot = [], {}
 
     def mat(i):
-        """Material slot of palette index i (bronze and greys alike are polished metal)."""
+        """Material slot of palette index i (bronze and greys alike are polished metal; the dark
+        collars and the top seam a little less polished). The sprite's highlights and dark sides are
+        its drawn light: the game's lights make them on these metal surfaces."""
         if i not in slot:
-            dark = i in (1, 2, 3, 4, 16, 20, 160, 162, 163, 164)
+            dark = i in (4, 5, 21)
             slot[i] = len(mats)
-            mats.append(common.palette_material(sprite, i, NAME, metallic=0.5 if dark else 0.6,
-                                                roughness=0.45 if dark else 0.35))
+            mats.append(common.palette_material(sprite, i, NAME, metallic=0.7 if dark else 0.8,
+                                                roughness=0.4 if dark else 0.3))
         return slot[i]
 
     def col_of(x):
@@ -102,11 +104,17 @@ def build_one(sprite, name, angle):
         band_pal.append(sprite_index(pixels, c, min(r, 18.0), range(round(c) - 1, round(c) + 2),
                                      range(max(0, round(r) - 1), min(19, round(r) + 2))))
     # On the legs, the stretches under the collars take their neighbour's colour, and the lighter
-    # greys of the leg's middle (10-12) are one: the tube's own lighting gives the highlight.
+    # greys of the leg's middle (10-12) are one: the tube's own lighting gives the highlight. The
+    # bronze is one mid-tone (25) all round: the sprite's lit left corners and dark right corners
+    # are its drawn light, not paint. Only the dark seam at the top centre (21) is kept.
     for k in range(len(band_pal)):
         i = band_pal[k]
-        r = row_of((pts[k][1] + pts[k + 1][1]) / 2)
-        if i < 16 and r > 6.5:
+        mx, my = (pts[k][0] + pts[k + 1][0]) / 2, (pts[k][1] + pts[k + 1][1]) / 2
+        r = row_of(my)
+        if i >= 16:
+            band_pal[k] = 21 if abs(col_of(mx) - AXIS) < 0.6 and r < 2.6 else 25
+            continue
+        if r > 6.5:
             if min(abs(r - 7), abs(r - 12)) < 0.6 and k > 0:
                 i = band_pal[k - 1] if r > 9.5 else 10
             band_pal[k] = 10 if i in (11, 12) else i
@@ -119,14 +127,9 @@ def build_one(sprite, name, angle):
             continue
         keep.append(i)
     keep += [len(pts) - 2, len(pts) - 1]
-    # Round the tube's colour like the sprite's: the faces seen square on from above (and, turned,
-    # in the edge-on frames) take the sprite's colour, the four diagonal faces between them a dark
-    # shade of the same ramp, as the sprite draws the band's edges dark round a lit centre.
-    band_mats = []
-    for k0 in keep[:-1]:
-        i = band_pal[k0]
-        edge = 4 if i < 16 else 163
-        band_mats.append([mat(edge) if k % 2 == 0 else mat(i) for k in range(8)])
+    # Each stretch is one colour all round: the sprite's dark band edges are its outline and
+    # shading, which the game draws itself.
+    band_mats = [[mat(band_pal[k0])] * 8 for k0 in keep[:-1]]
     lib.polyline_tube(bm, [(pts[i][0], pts[i][1], 0.0) for i in keep], [rads[i] for i in keep], sides=8,
                       mat_index=band_mats, flat=TUBE_FLAT)
 
@@ -142,11 +145,12 @@ def build_one(sprite, name, angle):
     # Round struts about two pixels thick from the legs to the pod (row 10).
     for s in (-1, 1):
         lib.tube(bm, (s * 4.8 / 12, lib.row(10), 0), (s * 2.6 / 12, lib.row(10), 0), 1.1 / 12, sides=8,
-                 mat_index=mat(5), caps=False)
+                 mat_index=mat(6), caps=False)
 
-    # The pod: a round barrel about six pixels across, rows 6-14, rounded at the bottom. Its faces
-    # take the colours of the sprite pixels above them: the pale stripe left of centre, the dark
-    # column right of it and the dark lower panel; those under its black edge, the darkest brown.
+    # The pod: a round barrel about six pixels across, rows 6-14, rounded at the bottom, polished
+    # bronze in the band's mid-tone (25). The sprite's pale stripe left of centre, dark column right of it,
+    # dark lower end and black edge are a lit metal cylinder drawn by hand: the game's lights and
+    # outline make them.
     sections = [(5.6, 2.4), (6.2, 2.95), (6.9, 3.3), (12.0, 3.3), (12.8, 2.85), (13.6, 2.2), (14.3, 1.4),
                 (14.75, 0.6)]
     rings = []
@@ -154,17 +158,7 @@ def build_one(sprite, name, angle):
         ring = lib.ellipse_ring(0, 0, 0, rx / 12, rx / 12 * POD_RZ / POD_RX, n=12, phase=0.0)
         rings.append([(x, lib.row(sr), z) for x, z, _ in ring])
     rings = [[(0.0, lib.row(5.5), 0.0)]] + rings + [[(0.0, lib.row(14.9), 0.0)]]
-    bm.faces.ensure_lookup_table()
-    first = len(bm.faces)
-    lib.ring_loft(bm, rings, 0, smooth=True)
-    bm.faces.ensure_lookup_table()
-    for f in list(bm.faces)[first:]:
-        ctr = f.calc_center_median()
-        c, r = col_of(ctr.x), row_of(ctr.y)
-        if pixels[min(19, max(0, round(r)))][min(23, max(0, round(c)))] == 1:
-            f.material_index = mat(163)  # the sprite's black edge round the pod: its darkest brown
-        else:
-            f.material_index = mat(sprite_index(pixels, c, r, range(9, 14), range(7, 14)))
+    lib.ring_loft(bm, rings, mat(25), smooth=True)
 
     # Turn it about the spin axis and put the axis on column 11.
     bmesh.ops.transform(bm, matrix=Matrix.Translation((lib.px(AXIS), 0, 0)) @ lib.rot_y(angle), verts=bm.verts)

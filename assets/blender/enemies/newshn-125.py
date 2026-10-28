@@ -4,8 +4,8 @@ Seen in level 2.4, lying on the ground. The sprite shades it as a glossy ball: a
 round, a pale highlight upper left, and a swirl marking inside it (a dark groove curving down
 from the top edge round the middle, and a pale crescent round the lower right). So the model is
 one near-spherical orb filling the sprite's 15 x 16 px circle and about 11 px tall, its surface
-painted from the sprite's own palette ramp (lighter upper left, navy toward the rim), with the
-groove pressed in and the crescent raised by under half a pixel. One frame, one model.
+one glossy mid-blue with the swirl painted on (the shading, rim and highlight are left to the
+game's light), the groove pressed in by under half a pixel. One frame, one model.
 
 Run: blender --background --python assets/blender/enemies/newshn-125.py [-- --preview out.png]
 """
@@ -37,61 +37,23 @@ GROOVE = [(13.4, 8.6), (13.1, 10.0), (13.0, 11.5), (13.0, 12.9), (12.4, 14.0), (
           (10.0, 15.2)]
 RIDGE = [(15.4, 11.2), (15.6, 12.8), (15.2, 14.4), (14.3, 15.8), (13.0, 17.0), (11.4, 17.9),
          (9.8, 18.1)]
-RELIEF = 0.4  # px: groove depth and crescent rise
+RELIEF = 0.4  # px: groove depth
 
-# Palette ramp 48 (darkest navy) .. 62 (ice blue). The surface is painted in these bands; the
-# sprite's black outline (index 1) counts as the darkest navy.
-BANDS = [52, 54, 56, 58, 60, 62]
-RIM_IDX, RIM_FROM = 49, 0.9  # a dark navy band round the outer edge, past this fraction of the radius
-FOOT_IDX = 51
-
-
-def ramp_sampler(sprite, sigma=0.4):
-    """A smooth field of the sprite's ramp values (48..62), sampled at sprite (col, row) centre
-    coordinates: the pixels blurred a little so the painted bands follow the shading, not the
-    dithering. The black outline and the empty pixels round it count as dark navy."""
-    pix = sprite["frames"][0]["pixels"]
-    rows, cols = len(pix), len(pix[0])
-    raw = [[float(v) if v >= 48 else 51.0 for v in row] for row in pix]
-    k = int(math.ceil(2 * sigma))
-    w = [math.exp(-(d / sigma) ** 2 / 2) for d in range(-k, k + 1)]
-
-    def blur(get, n, m, axis):
-        out = [[0.0] * m for _ in range(n)]
-        for i in range(n):
-            for j in range(m):
-                acc = ws = 0.0
-                for d, wd in zip(range(-k, k + 1), w):
-                    ii, jj = (i + d, j) if axis == 0 else (i, j + d)
-                    if 0 <= ii < n and 0 <= jj < m:
-                        acc += get(ii, jj) * wd
-                        ws += wd
-                out[i][j] = acc / ws
-        return out
-
-    once = blur(lambda i, j: raw[i][j], rows, cols, 1)
-    field = blur(lambda i, j: once[i][j], rows, cols, 0)
-
-    def value(c, r):
-        return field[min(max(r, 0), rows - 1)][min(max(c, 0), cols - 1)]
-
-    def sample(c, r):
-        c0, r0 = math.floor(c), math.floor(r)
-        tc, tr = c - c0, r - r0
-        return ((1 - tc) * (1 - tr) * value(c0, r0) + tc * (1 - tr) * value(c0 + 1, r0)
-                + (1 - tc) * tr * value(c0, r0 + 1) + tc * tr * value(c0 + 1, r0 + 1))
-
-    return sample
+# The orb is glass-like and glossy: the sprite's dark rim, its navy lower half and its pale
+# upper-left spot are the drawn light (the game lights the ball, makes the shine and draws the
+# outline), so the whole surface takes the ramp's mid-tone and only the swirl is painted: the dark
+# groove and the pale crescent. The crescent is a marking, not a bulge; only the groove is cut in.
+BODY_IDX = 55
+GROOVE_IDX, GROOVE_W = 52, 0.8  # px: the painted half-width of the groove
+CRESCENT_IDX, CRESCENT_W = 58, 0.75
+GLASS = dict(metallic=0.05, roughness=0.12)
 
 
 def build(sprite):
     coll = common.reset_collection(NAME)
-    mats = [common.palette_material(sprite, i, NAME, metallic=0.35, roughness=0.3) for i in BANDS]
-    mats.append(common.palette_material(sprite, FOOT_IDX, NAME, metallic=0.3, roughness=0.5))
-    foot_mat = len(mats) - 1
-    mats.append(common.palette_material(sprite, RIM_IDX, NAME, metallic=0.35, roughness=0.3))
-    rim_mat = len(mats) - 1
-    sample = ramp_sampler(sprite)
+    mats = [common.palette_material(sprite, i, NAME, **GLASS) for i in (BODY_IDX, GROOVE_IDX, CRESCENT_IDX)]
+    body_mat, groove_mat, crescent_mat = 0, 1, 2
+    foot_mat = body_mat
 
     cx, cy = CENTRE
     a, b = RADII
@@ -99,21 +61,22 @@ def build(sprite):
 
     def relief(c, r):
         dg, tg = lib._dist_polyline((c, r), GROOVE)
-        dr, tr = lib._dist_polyline((c, r), RIDGE)
         fade_g = min(1.0, tg * 4, (1 - tg) * 4)
-        fade_r = min(1.0, tr * 4, (1 - tr) * 4)
-        return RELIEF * PX * (math.exp(-(dr / 0.9) ** 2) * fade_r - math.exp(-(dg / 0.8) ** 2) * fade_g)
+        return -RELIEF * PX * math.exp(-(dg / 0.8) ** 2) * fade_g
 
     def to_px(v):
         return v.x * 12 + 12 - 0.5, 14 - 0.5 - v.y * 12
 
     def paint(f):
         c, r = to_px(f.calc_center_median())
-        if math.hypot((c - cx) / a, (r - cy) / b) > RIM_FROM:
-            f.material_index = rim_mat
+        dg, _ = lib._dist_polyline((c, r), GROOVE)
+        dr, _ = lib._dist_polyline((c, r), RIDGE)
+        if dg < GROOVE_W:
+            f.material_index = groove_mat
+        elif dr < CRESCENT_W:
+            f.material_index = crescent_mat
         else:
-            v = sample(c, r)
-            f.material_index = min(range(len(BANDS)), key=lambda m: abs(BANDS[m] - v))
+            f.material_index = body_mat
         f.smooth = True
 
     bm = bmesh.new()

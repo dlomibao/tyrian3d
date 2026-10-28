@@ -3,8 +3,9 @@
 Seen in episode 4 (levels 6, 40 and 45). A round lump of lava, 11 x 13 px: dark red crust broken by
 orange and yellow glowing cracks. Frame 135 is the same rock glowing brighter (every index two
 steps up), so one model covers all three frames, its colours stepping up on 135 (palette_material
-frames=). The rock is a lumpy ellipsoid whose faces take the colour of the sprite pixel under
-them, the hot colours glowing.
+frames=). The rock is a ball as tall as it is wide, its outline the sprite's rounded octagon, cut
+along the pixel boundaries so each face of its top takes the colour of the sprite pixel under it
+(one material per palette index); the mottling wraps round its sides and underside.
 
 Run: blender --background --python assets/blender/enemies/newshl-115.py [-- --preview out.png]
 """
@@ -26,8 +27,15 @@ ROOT = common.repo_root(__file__)
 
 
 def bump(x, y, z):
-    """Gentle lumps so the rock isn't a perfect egg."""
-    return 1 + 0.07 * math.sin(3.1 * x + 1.3) * math.cos(2.7 * y - 0.4) + 0.05 * math.sin(4.3 * z + 2.9 * x)
+    """Gentle lumps so the rock isn't a perfect egg (applied to its height only, so the outline from
+    above stays the sprite's)."""
+    return 1 + 0.03 * math.sin(3.1 * x + 1.3) * math.cos(2.7 * y - 0.4) + 0.02 * math.sin(4.3 * z + 2.9 * x)
+
+
+# The outline: rows 4-10 are full width, so the sprite is a rounded octagon rather than an ellipse.
+# A superellipse of exponent P with semi-axes RX x RY px covers exactly its 119 pixels.
+P = 2.2
+RX, RY, RZ = 5.6, 6.6, 5.5  # px: a ball as tall as it is wide (11 px), 13 px long
 
 
 def build(sprite):
@@ -35,38 +43,87 @@ def build(sprite):
     frame = sprite["frames"][0]
     grid = lib.Grid(12, 14, frame["pixels"])
     mats = lib.Mats(NAME, sprite["colors"])
-    # Frame 135 glows two palette steps brighter: {sprite frame: index}.
-    crust = mats(113, metallic=0.0, roughness=0.9, frames={135: 115})
-    warm = mats(116, metallic=0.0, roughness=0.7, emission_strength=0.8, frames={135: 118})
-    hot = mats(119, metallic=0.0, roughness=0.5, emission_strength=2.0, frames={135: 121})
-    hotter = mats(122, metallic=0.0, roughness=0.4, emission_strength=3.0, frames={135: 124})
-    white = mats(125, metallic=0.0, roughness=0.3, emission_strength=4.5, frames={135: 127})
+    used = sorted({v for row in frame["pixels"] for v in row if v >= 112})
 
-    def slot(i):
-        if i <= 114:
-            return crust
-        if i <= 117:
-            return warm
-        if i <= 120:
-            return hot
-        if i <= 123:
-            return hotter
-        return white
+    def glow(i):
+        # The crust and the dull red cracks are lit like rock; the orange and yellow cracks glow at
+        # their own colour (strength 1: the game copies the palette colour into the emissive, so
+        # this shows them at the sprite's brightness; more washes them to white).
+        return 1.0 if i >= 119 else 0.0
+
+    # One material per palette index the sprite uses, so the colours are the sprite's own. Frame 135
+    # is the same rock glowing two palette steps brighter: {sprite frame: index}. It is rock, so
+    # every index is matte (no metal, rough): its light and dark come from the scene's light.
+    slots = {i: mats(i, metallic=0.0, roughness=max(0.65, 0.9 - 0.03 * (i - 112)),
+                     emission_strength=glow(i), frames={135: i + 2}) for i in used}
 
     bm = bmesh.new()
     # Rows 1-13, columns 0-10: centred on column 5, row 7.
     cx, cy = grid.x(5), grid.y(7)
-    rx, ry = 5.4 * lib.U, 6.4 * lib.U
+    a, b, c = RX * lib.U, RY * lib.U, RZ * lib.U
 
-    def lumps(x, y, z):
-        # The crust stands proud and the glowing cracks sink in a little.
-        idx = grid.sample(cx + x * rx, cy + y * ry) if z > -0.3 else None
-        heat = 0.0 if idx is None else max(0.0, min(1.0, (idx - 115) / 9))
-        return bump(x, y, z) * (1.03 - 0.08 * heat * max(0.0, z))
+    # A unit sphere from a subdivided cube, reshaped: superellipse outline, round section.
+    first = lib.cube_blob(bm, (0.0, 0.0, 0.0), (1.0, 1.0, 1.0), n=5, mat_index=slots[used[0]])
+    bm.verts.ensure_lookup_table()
+    for v in bm.verts:
+        sx, sy, sz = v.co
+        rh = math.hypot(sx, sy)
+        f = 1.0
+        if rh > 1e-6:
+            ux, uy = abs(sx) / rh, abs(sy) / rh
+            f = (ux ** P + uy ** P) ** (-1 / P)
+        v.co = (cx + a * sx * f, cy + b * sy * f, c * sz * bump(sx, sy, sz))
 
-    first = lib.cube_blob(bm, (cx, cy, 0.0), (rx, ry, 0.24), n=9, mat_index=crust, bump=lumps)
-    lib.paint(bm, first, grid, slot)
-    return common.mesh_object(NAME, bm, mats.list, coll, smooth=True)
+    # Cut the surface along the sprite's pixel boundaries, so every face lies over one pixel and the
+    # top view shows the pixels as squares.
+    for col in range(1, 11):
+        geom = list(bm.verts) + list(bm.edges) + list(bm.faces)
+        bmesh.ops.bisect_plane(bm, geom=geom, plane_co=(grid.x(col) - lib.U / 2, 0, 0), plane_no=(1, 0, 0))
+    for row in range(2, 14):
+        geom = list(bm.verts) + list(bm.edges) + list(bm.faces)
+        bmesh.ops.bisect_plane(bm, geom=geom, plane_co=(0, grid.y(row) + lib.U / 2, 0), plane_no=(0, 1, 0))
+
+    # Paint: the cap seen from above takes the pixel straight below it. The sprite's dark outline
+    # ring and everything below the cap take its mottling wrapped on round the sides and underneath
+    # (sampled further in as it goes down) at the same indices, so the rock is lava all over and its
+    # dark rim comes from the lighting and the game's outline instead of a painted dark band.
+    W0 = 0.2
+    bm.faces.ensure_lookup_table()
+    for face in bm.faces[first:]:
+        ctr = face.calc_center_median()
+        w = max(-1.0, min(1.0, ctr.z / c))
+        dx, dy = ctr.x - cx, ctr.y - cy
+        rh = math.hypot(dx / a, dy / b)
+        idx = grid.sample(ctr.x, ctr.y) if w >= W0 else None
+        if idx is None or (idx == 112 and rh > 0.7):
+            # The sprite's near-black outline ring (or the sides below the cap): wrapped mottling.
+            t = (W0 - w) / (W0 + 1)  # 0 at the cap's edge, 1 at the bottom
+            k = 0.82 * (1 - 0.7 * t)
+            s = k / rh if rh > 1e-6 else 0.0
+            idx = grid.sample(cx + dx * s, cy + dy * s, skip=(-1, 1, 112))
+            if idx is not None:
+                idx = max(113, idx)
+                while idx not in slots and idx > 112:
+                    idx -= 1
+        if idx is not None and idx in slots:
+            face.material_index = slots[idx]
+    obj = common.mesh_object(NAME, bm, mats.list, coll, smooth=True)
+
+    # Shade it as the smooth ball it is: the pixel cuts leave slivers and n-gons whose averaged
+    # normals would dent the shading, so set each vertex's normal from the shape's own gradient.
+    from mathutils import Vector
+    normals = []
+    for v in obj.data.vertices:
+        X, Y, Z = (v.co.x - cx) / a, (v.co.y - cy) / b, v.co.z / c
+        R = (abs(X) ** P + abs(Y) ** P) ** (1 / P)
+        gx = gy = 0.0
+        if R > 1e-6:
+            gx = R ** (2 - P) * abs(X) ** (P - 1) * math.copysign(1, X) / a
+            gy = R ** (2 - P) * abs(Y) ** (P - 1) * math.copysign(1, Y) / b
+        n = Vector((gx, gy, Z / c))
+        normals.append(n.normalized() if n.length > 1e-9 else Vector((0, 0, 1)))
+    obj.data.normals_split_custom_set_from_vertices(normals)
+    return obj
 
 
 def main():

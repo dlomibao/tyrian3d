@@ -53,24 +53,27 @@ def build(sprite):
         w, top = ry * s, max(0.0, h * s + d)
         return [(x, cy + w * math.cos(math.pi * k / n), z0 + top * math.sin(math.pi * k / n)) for k in range(n + 1)]
 
+    # Polished grey metal: one mid-tone per part, the lights make the sprite's bright upper-left
+    # rim and dark lower-right edge (and the game draws the dark outline round the bottom).
+    DOME, PLATE, RIB = (m(i, metallic=0.75, roughness=0.3) for i in (9, 12, 11))
     xl, xr = cx - rx, cx + rx
     a, b, c_, e = g.ex(8), g.ex(9), g.ex(15), g.ex(16)
     left = [xl] + [cx - rx * u for u in (0.97, 0.9, 0.78, 0.62)] + [a]
     right = [e] + [cx + rx * u for u in (0.62, 0.78, 0.9, 0.97)] + [xr]
-    L.ring_loft(bm, [section(x) for x in left], mat=m.metal(9), smooth=True, cap_start=False, cap_end=False)
-    L.ring_loft(bm, [section(x) for x in right], mat=m.metal(9), smooth=True, cap_start=False, cap_end=False)
+    L.ring_loft(bm, [section(x) for x in left], mat=DOME, smooth=True, cap_start=False, cap_end=False)
+    L.ring_loft(bm, [section(x) for x in right], mat=DOME, smooth=True, cap_start=False, cap_end=False)
     plate = [section(a), section(a, RIM), section(b, RIM), section(b, SLOT)]
     plate += [section(x, SLOT) for x in (g.ex(11), g.ex(13))]
     plate += [section(c_, SLOT), section(c_, RIM), section(e, RIM), section(e)]
-    L.ring_loft(bm, plate, mat=m.metal(12), cap_start=False, cap_end=False)
-    L.dome(bm, cx, cy, 10.6 * L.U, 9.4 * L.U, 0.07, z0=L.FLOOR - 0.01, sides=24, rings=1, mat=m.metal(4),
+    L.ring_loft(bm, plate, mat=PLATE, cap_start=False, cap_end=False)
+    L.dome(bm, cx, cy, 10.6 * L.U, 9.4 * L.U, 0.07, z0=L.FLOOR - 0.01, sides=24, rings=1, mat=DOME,
            power=2.2, flat=0.9)
     # Ribs across the pod either side of the plate (light grey at columns 4-6 and 17-19), on its
     # surface.
     for c0, c1 in ((3.2, 7.6), (16.0, 20.4)):
         for r in (9.3, 17.6):
             pts = [(g.x(c), g.y(r), surface(g.x(c), g.y(r))) for c in (c0, (c0 + c1) / 2, c1)]
-            L.tube(bm, pts, 0.6 * L.U, sides=6, mat=m.metal(11), flat=0.7)
+            L.tube(bm, pts, 0.6 * L.U, sides=6, mat=RIB, flat=0.7)
 
     # Two red lamps in the slot (columns 10-13, rows 9-12 and 15-18): a dark ring round a bright
     # core, both brightening from red (127) through orange (129) to yellow-orange (131).

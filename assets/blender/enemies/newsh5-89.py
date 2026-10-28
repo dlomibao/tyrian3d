@@ -5,8 +5,13 @@ veins. The model is a floating ball, a full sphere of the sprite's 23 px disc (d
 the diagonals, as the sprite's stepped circle is). Its top is a height field over the sprite's own
 pixel grid, so from above each pixel is a flat-shaded quad in that pixel's own palette index, with
 the darkest plates cut in straight down as pits up to 2 px deep (never above the sphere, so no
-raised rims); the sides and the underside carry the sprite's dark navy rim mottling and a mirror
-of the top. Matte materials (roughness 1, no specular). One frame.
+raised rims); the sides and the underside continue the top's mottling and mirror it.
+
+The sprite draws its own light: a black outline ring, a brighter upper-left and darker lower
+half. The game lights the ball and draws the outline, so the colours are the sprite's with that
+light taken out: the outline ring takes the rock just inside it, and the sprite's broad shading
+(its pixel indices blurred over about 3 px) is subtracted, keeping the plates, veins and cracks.
+Matte stone (metallic 0, roughness 0.85). One frame.
 
 Run: blender --background --python assets/blender/enemies/newsh5-89.py [-- --preview out.png]
 """
@@ -26,24 +31,27 @@ MODEL = f"enemies/{NAME}"
 ROOT = common.repo_root(__file__)
 
 
-OUTLINE_NAVY = False  # True: the sprite's black outline pixels take the dark navy just inside them
+OUTLINE_NAVY = True  # True: the sprite's black outline pixels take the rock colour just inside them
 BLUR = 0  # smoothing passes over the pit depths
 PIT = 2.0  # depth of a pit under the sprite's darkest pixels, sprite px
 SQ = 0.02  # how far the diagonals are drawn in (fraction of the radius)
 SQ_POW = 1.5  # how narrow that is round each diagonal
 NOTCH = True  # keep the outline's inner step corners off the rim
 SMOOTH = False  # flat: every pixel quad shades as one block, so the sheen breaks up into pixels too
-RIM_MAX = 53  # brightest palette index on the sides (the band round the equator)
-EDGE_MAX = 51  # brightest palette index for the outline pixels on the top cap
+RIM_MAX = 58  # brightest palette index on the sides (the band round the equator)
+EDGE_MAX = 58  # brightest palette index for the outline pixels on the top cap
+DESHADE = 0.85  # how much of the sprite's broad drawn shading is taken out of the colours
+SHADE_SIGMA = 3.0  # blur radius (sprite px) that separates that shading from the rock's markings
 
 
 def build(sprite):
     coll = common.reset_collection(NAME)
-    # Matte, non-metallic stone; no specular sheen (the sprite has none).
+    # Matte, non-metallic stone without specular: the game's sun and environment shade it.
     # One material per palette index the sprite uses, so from above every pixel keeps its own shade.
     shades = sorted(int(k) for k in sprite["colors"])
-    mats = [common.palette_material(sprite, i, NAME, metallic=0.0, roughness=1.0) for i in shades]
+    mats = [common.palette_material(sprite, i, NAME, metallic=0.0, roughness=0.85) for i in shades]
     for m in mats:
+        # Dull stone: no specular, so the environment light doesn't wash it grey.
         bsdf = next(n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
         if "Specular IOR Level" in bsdf.inputs:
             bsdf.inputs["Specular IOR Level"].default_value = 0.0
@@ -66,21 +74,37 @@ def build(sprite):
     def pixel_at(u, v):
         return at(int(round(C0 + u)), int(round(R0 - v)))
 
-    def ring_sample(rho, phi):
-        """The sprite pixel rho px from the centre at angle phi, stepping inwards past the outline."""
-        while rho > 0:
-            i = pixel_at(rho * math.cos(phi), rho * math.sin(phi))
-            if i >= 0:
-                return i
-            rho -= 0.5
-        return pixel_at(0, 0)
-
     def interior(c, rr):
         """True when the sprite pixel is at least two pixels inside the disc's outline."""
         return all(at(c + dc, rr + dr) >= 0 for dr in (-2, 0, 2) for dc in (-2, 0, 2))
 
     def outline(c, rr):
         return any(at(c + dc, rr + dr) < 0 for dr in (-1, 0, 1) for dc in (-1, 0, 1))
+
+    # The rock's own colours: each inner pixel's index less the sprite's broad drawn shading (the
+    # indices 48-61 are one dark-to-light ramp, so the shading is the blurred index less its mean).
+    # The two white glints (63) are kept as they are.
+    inner = [(c, rr) for rr in range(rows) for c in range(cols)
+             if pixels[rr][c] >= 0 and not outline(c, rr)]
+    mean = sum(pixels[rr][c] for c, rr in inner) / len(inner)
+    flat = {}
+    for c, rr in inner:
+        w = s = 0.0
+        for cc, r2 in inner:
+            g = math.exp(-((cc - c) ** 2 + (r2 - rr) ** 2) / (2 * SHADE_SIGMA ** 2))
+            w += g
+            s += g * pixels[r2][cc]
+        i = pixels[rr][c]
+        flat[(c, rr)] = i if i == 63 else max(48, min(61, round(i + DESHADE * (mean - s / w))))
+
+    def ring_sample(rho, phi):
+        """The rock colour rho px from the centre at angle phi, stepping inwards past the outline."""
+        while rho > 0:
+            c, rr = int(round(C0 + rho * math.cos(phi))), int(round(R0 - rho * math.sin(phi)))
+            if (c, rr) in flat:
+                return flat[(c, rr)]
+            rho -= 0.5
+        return flat[(C0, R0)]
 
     # The top cap is a height field over the sprite's own pixel grid, so from above every pixel is
     # one quad in that pixel's colour: the veins, pits and highlights land where the sprite has
@@ -183,7 +207,7 @@ def build(sprite):
         if OUTLINE_NAVY and outline(c, rr):
             u, v = c - C0, R0 - rr
             return min(ring_sample(math.hypot(u, v) - 1.0, math.atan2(v, u)), EDGE_MAX)
-        return pixels[rr][c]
+        return flat.get((c, rr), pixels[rr][c])
 
     def colour_bottom(c, rr):
         # The underside mirrors the top through the equator, without its two white highlights.

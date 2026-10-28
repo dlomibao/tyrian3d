@@ -31,30 +31,26 @@ def E(r):
 def build(sprite):
     coll = common.reset_collection(NAME)
     pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
+    # The sprite's light is drawn: a near-white hot spot above the belt, a darker lower half,
+    # bright and dark rows on the belt and dark rows either side of it. That is sheen and shading
+    # on a glossy painted-metal pod, not paint: each part takes its mid-tone and a metal finish,
+    # and the game's lights make the shine and the shade.
     mats = [
-        pal(88, metallic=0.15, roughness=0.4),  # 0 light purple upper shell
-        pal(86, metallic=0.15, roughness=0.45),  # 1 darker purple lower shell
-        pal(243, metallic=0.15, roughness=0.6),  # 2 maroon belt
-        pal(250, metallic=0.8, roughness=0.25),  # 3 gold strap
-        pal(94, metallic=0.6, roughness=0.2),  # 4 pale strap top
-        pal(241, metallic=0.2, roughness=0.6),  # 5 dark lip under the belt (row 17)
-        pal(81, metallic=0.0, roughness=0.8),  # 6 dark opening below the belt
-        pal(245, metallic=0.25, roughness=0.4),  # 7 bright crimson top row of the belt (row 11)
-        pal(244, metallic=0.25, roughness=0.4),  # 8 crimson bottom row of the belt (row 16)
-        pal(242, metallic=0.2, roughness=0.5),  # 9 shaded lower belt row (row 15)
-        pal(83, metallic=0.15, roughness=0.6),  # 10 shadowed purple lip over the belt (row 10)
+        pal(87, metallic=0.6, roughness=0.35),  # 0 purple shell (glossy painted metal)
+        pal(243, metallic=0.6, roughness=0.4),  # 1 maroon belt (painted metal)
+        pal(250, metallic=0.85, roughness=0.25),  # 2 gold strap (polished metal)
+        pal(94, metallic=0.85, roughness=0.2),  # 3 pale clasp on the strap (polished metal)
+        pal(81, metallic=0.0, roughness=0.8),  # 4 dark opening below the belt (recess)
     ]
-    UPPER, LOWER, BELT, GOLD, PALE, EDGE, PANEL, BELT_HI, BELT_LO, BELT_SH, LIP = range(11)
+    SHELL, BELT, GOLD, PALE, PANEL = range(5)
+    UPPER = LOWER = LIP = SHELL  # the shell is one colour all round; the light shades it
+    BELT_HI = BELT_LO = BELT_SH = EDGE = BELT  # the belt's drawn rows and flank are its own colour
     bm = bmesh.new()
 
     # Shell: a ball as tall as it is wide. Columns 0-23 and rows 0-26 with the dark rim, so the
     # outline covers the sprite's; about 23 px from bottom to top, centred on the midplane.
     shell = lib.Ellipsoid(0.0, E(13.5), 12.2 / 12, 13.5 / 12, 11.5 / 12)
-    shell.build(bm, segments=32, rings=22, mat_index=UPPER)
-    belt_top, belt_bottom = E(11.0), E(17.0)
-    for f in bm.faces:
-        if f.calc_center_median().y < (belt_top + belt_bottom) / 2:
-            f.material_index = LOWER
+    shell.build(bm, segments=32, rings=22, mat_index=SHELL)
     body = common.mesh_object(NAME, bm, mats, coll, smooth=True)
 
     # The dark opening under the belt (rows 18-23, columns 5-16), cut about 3.5 px into the ball

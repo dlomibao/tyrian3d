@@ -53,21 +53,24 @@ def build(sprite):
     coll = common.reset_collection(NAME)
     pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
     mats = [
-        pal(10, metallic=0.4, roughness=0.5),  # 0 pad grey
-        pal(7, metallic=0.4, roughness=0.55),  # 1 pad wall, dark grey
+        # Painted metal throughout, the drum glossier; one mid-tone per part, the light shades it
+        # (the sprite's dark rim, its darker bevel and the drum's darker flanks and right end are
+        # drawn light, not paint). Slots 1 and 12 are kept for their numbering but unused.
+        pal(10, metallic=0.4, roughness=0.42),  # 0 pad grey: the deck
+        pal(7, metallic=0.4, roughness=0.42),  # 1 (unused)
         pal(13, metallic=0.45, roughness=0.35),  # 2 light grey frames and lips
-        pal(4, metallic=0.3, roughness=0.6),  # 3 dark vents and axle
-        pal(2, metallic=0.2, roughness=0.7),  # 4 the pit and grooves
-        pal(116, metallic=0.15, roughness=0.35),  # 5 red drum, its crest
-        pal(122, metallic=0.1, roughness=0.3, emission_strength=2.5),  # 6 yellow-orange bands
-        pal(119, metallic=0.1, roughness=0.3, emission_strength=1.5),  # 7 red-orange centre band
-        pal(112, metallic=0.2, roughness=0.6),  # 8 dark socket
-        pal(149, metallic=0.1, roughness=0.15, emission_strength=3.0),  # 9 blue lens
+        pal(4, metallic=0.3, roughness=0.5),  # 3 dark vents and axle
+        pal(2, metallic=0.1, roughness=0.8),  # 4 the pit and grooves
+        pal(116, metallic=0.35, roughness=0.32),  # 5 red drum
+        pal(121, metallic=0.3, roughness=0.3, emission_strength=0.6),  # 6 orange bands
+        pal(119, metallic=0.3, roughness=0.3, emission_strength=0.6),  # 7 red-orange centre band
+        pal(112, metallic=0.1, roughness=0.7),  # 8 dark socket
+        pal(149, metallic=0.0, roughness=0.08, emission_strength=1.5),  # 9 blue glass lens
         pal(11, metallic=0.45, roughness=0.4),  # 10 vent rib
-        pal(8, metallic=0.4, roughness=0.5),  # 11 pad bevel
-        pal(115, metallic=0.15, roughness=0.4),  # 12 red drum, its flanks
-        pal(113, metallic=0.15, roughness=0.45),  # 13 dark red stripes and ends
-        pal(117, metallic=0.15, roughness=0.35),  # 14 brighter red stripe
+        pal(9, metallic=0.4, roughness=0.42),  # 11 the pad's bevel and wall, the ring's mid-tone
+        pal(115, metallic=0.35, roughness=0.32),  # 12 (unused)
+        pal(113, metallic=0.35, roughness=0.35),  # 13 dark red stripes beside the socket
+        pal(117, metallic=0.35, roughness=0.32),  # 14 brighter red stripe
     ]
     (PAD, WALL, LIGHT, VENT, PIT, DRUM, BAND, CBAND, SOCKET, LENS, RIB, BEVEL, FLANK, DARKRED,
      REDHI) = range(15)
@@ -77,7 +80,7 @@ def build(sprite):
     # 2.5 px bevel rising to the deck. The diagonals run through the middle of the sprite's steps.
     octagon = [(7.5, 27), (16.5, 27), (24, 19.5), (24, 8.5), (16.5, 1), (7.5, 1), (0, 8.5), (0, 19.5)]
     outline = [(ex(c), ey(r)) for c, r in octagon]
-    frustum(bm, outline, 0.0, PAD_WALL + 0.001, mat_index=WALL)
+    frustum(bm, outline, 0.0, PAD_WALL + 0.001, mat_index=BEVEL)
     frustum(bm, outline, PAD_WALL, PAD_TOP, inset=2.5 * PX, mat_index=BEVEL, mat_top=PAD)
 
     # The dark pit across the middle (rows 9-18, columns 5-18, corners cut).
@@ -100,7 +103,8 @@ def build(sprite):
 
     # The red drum lying along X on the deck (columns 4-19, rows 10-17), a round solid as tall as
     # the sprite shows it wide: half depth DRUM_W px, half height DRUM_H px, axis at rows 13-14.
-    # Each column takes the sprite's shade; the dark socket (columns 10-13, rows 12-15) is cut
+    # One red all over but for the real stripes (the orange bands, the dark and bright stripes
+    # framing the socket); the dark socket (columns 10-13, rows 12-15) is cut
     # about 1 px into its crest.
     zc = PAD_TOP + DRUM_H * PX
     hz = DRUM_H / DRUM_W
@@ -116,18 +120,14 @@ def build(sprite):
             sections += [(c, h, True), (c, h, False)]
         else:
             sections.append((c, h, 10 < c < 14))
-    col_mat = {4: DARKRED, 5: FLANK, 6: FLANK, 7: FLANK, 8: BAND, 9: FLANK, 10: DARKRED, 11: REDHI, 12: CBAND,
-               13: DARKRED, 14: FLANK, 15: BAND, 16: FLANK, 17: DARKRED, 18: DARKRED, 19: DARKRED}
+    col_mat = {8: BAND, 10: DARKRED, 11: REDHI, 12: CBAND, 13: DARKRED, 15: BAND}
 
     def face_mat(c0, c1, k, grooved):
         if grooved and k >= 12:  # the socket's walls and floor
             return SOCKET
         if c1 - c0 < 1e-6:
             return SOCKET  # the socket's end walls
-        mat = col_mat.get(int(math.floor((c0 + c1) / 2)), FLANK)
-        if mat == FLANK and (k >= 12 or k in (0, 11)):
-            return DRUM  # the crest is a shade brighter
-        return mat
+        return col_mat.get(int(math.floor((c0 + c1) / 2)), DRUM)
 
     rings = []
     for i, (c, h, grooved) in enumerate(sections):
@@ -157,8 +157,8 @@ def build(sprite):
                 smooth_faces.add(f)
     for ring, rev in ((rings[0], True), (rings[-1], False)):
         f = bm.faces.new(list(reversed(ring)) if rev else ring)
-        f.material_index = DARKRED
-    # Raised yellow-orange bands round it at columns 8 and 15.
+        f.material_index = DRUM
+    # Raised orange bands round it at columns 8 and 15.
     for c0 in (8, 15):
         h = 4.2
         start = len(bm.faces)
@@ -167,10 +167,10 @@ def build(sprite):
         bm.faces.ensure_lookup_table()
         smooth_faces.update(bm.faces[start:])
 
-    # The blue lens standing in the socket on a dark post, a dome 2 px proud of the drum's crest.
+    # The blue glass lens in the socket on a dark post, a low dome about 1 px proud of the crest.
     base = zc + (DRUM_H - 0.6) * PX
     box(bm, ex(10.8), ey(15.2), ex(13.2), ey(12.8), zc + floor - 0.002, base + 0.002, SOCKET)
-    dome(bm, ex(12), ey(14), base, 1.4 * PX, 1.4 * PX, 2.6 * PX, sides=12, rings=4, mat_index=LENS)
+    dome(bm, ex(12), ey(14), base, 1.4 * PX, 1.4 * PX, 1.7 * PX, sides=12, rings=4, mat_index=LENS)
 
     # The axle (rows 13-14) runs out from the drum's ends to the pad's left and right edges, held
     # in a bearing block whose light lips (rows 12 and 15) stand either side of it.

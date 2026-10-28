@@ -69,7 +69,6 @@ CRACK = 1.8       # deepest crack
 DARK_LUM = 0.42   # broad brightness under which the rock is the arch's shaded inside (no boulders)
 SOFT_TOL = 1.6    # outline simplification for the distance fields (no stair-step ridges)
 CHUNKS = [((20.5, 29.5), 7.0, 3.6)]  # the small lit boulder on the outer edge of the left leg: (c, r), height, radius
-KEEP = [((4.0, 54.5), None, 2.5)]  # (the left foot's dark corner keeps its own pixels' colours too)
 TOE = 0.9         # a low strip along the outline before the flank rises (no teeth at the ground)
 CORNER = 3.0      # near the cut edges, the outer edge's distance is also measured from the raw outline
 CORNER_LIFT = 0.8  # (plus this, so the foot keeps a low toe)
@@ -82,6 +81,17 @@ TALL = 2.5        # ... and span more than this many px of height (not the crack
 STEEP = 0.55      # facets steeper than this (normal z) take smoothed shades
 OPENING_SEED = (75, 50)  # a pixel in the opening under the arch
 CUT_COL, CUT_ROWS = 96, 28  # the crown's right end is cut (the rock carries on there)
+ROUGH = 0.9       # matte sandstone
+# Colours: the sprite draws its light (a dark outline ring, per-pixel shading, near-white
+# highlights) and the game lights the model and draws its own outline, so the rock takes a
+# smoothed tone of the sprite's colours: the outline ring is left out (filled from inside),
+# highlights are capped, and the per-pixel speckle is blurred away. Large-scale tone (the lit
+# crown, the darker striated inside of the arch) and the dark crack lines between the boulders
+# (real markings, also cut in) stay.
+RING = 1.6        # pixels this close to the empty pixels around them are the outline ring
+TONE_R = 1        # blur radius of the tone, px (enough to drop single-pixel speckle)
+TONE_MAX = 29     # highlights capped at this index (the light makes the shine)
+CRACK_DARK = 5    # crack faces this many indices darker than the tone around them
 
 
 def flood(mask, seed):
@@ -158,8 +168,9 @@ class Segs:
 def build(sheet):
     coll = common.reset_collection(NAME)
     mats = lib.Mats("nsh3_198", sheet.colors)
-    dark = mats(19, metallic=0.0, roughness=1.0)  # underside, cut faces and the undercut
-    rock = {i: mats(i, metallic=0.0, roughness=1.0 if i < 27 else 0.85) for i in range(16, 32)}
+    # Sandstone: matte, not metal (its lit faces are real shape, lit by the game's light).
+    dark = mats(19, metallic=0.0, roughness=ROUGH)  # the underside (never seen from above)
+    rock = {i: mats(i, metallic=0.0, roughness=ROUGH) for i in range(16, 32)}
     h, w = sheet.h, sheet.w
     mask = [[v >= 0 for v in row] for row in sheet.pix]
     hole = flood(mask, OPENING_SEED)
@@ -279,6 +290,31 @@ def build(sheet):
 
     pillow = [[pillow_at(c, r) * lit[r][c] if mask[r][c] else 0.0 for c in range(w)] for r in range(h)]
     pillow = lib.blur(pillow, mask, 1)
+
+    # The rock's tone per pixel (see RING..CRACK_DARK): a blur of the capped sprite colours over
+    # the pixels that are neither the outline ring nor cracks; those take their neighbours' tone.
+    src_ok = [[mask[r][c] and d_edge[r][c] > RING and not is_crack[r][c] for c in range(w)] for r in range(h)]
+    tone = [[0.0] * w for _ in range(h)]
+    for r in range(h):
+        for c in range(w):
+            if not mask[r][c]:
+                continue
+            for rad in (TONE_R, TONE_R + 2, TONE_R + 5):
+                s = n = 0.0
+                for rr in range(max(0, r - rad), min(h, r + rad + 1)):
+                    for cc in range(max(0, c - rad), min(w, c + rad + 1)):
+                        if src_ok[rr][cc]:
+                            s += min(TONE_MAX, sheet.pix[rr][cc])
+                            n += 1
+                if n:
+                    break
+            tone[r][c] = s / n if n else float(min(TONE_MAX, max(16, sheet.pix[r][c])))
+
+    wall_tone = lib.blur(tone, mask, 3)  # the walls' tone, smoother (no stripes down the flanks)
+
+    def tone_index(c, r, on_crack=False, field=tone):
+        v = lib.bilinear(field, mask, c, r) - (CRACK_DARK if on_crack else 0)
+        return max(16, min(31, round(v)))
     def height(c, r, on_hole=False):
         """The top's height (px) at corner-coordinate point (c, r) (`on_hole`: on the opening's edge)."""
         crest = CREST - (CREST - FOOT) * clamp01((r - LEG_ROW) / (h - LEG_ROW))
@@ -445,42 +481,25 @@ def build(sheet):
                if lib.bilinear(d_hole, mask, *p) > UNDERCUT + 2]
     tops = surface(loops, ring_pts + inner_pts, ztop, ring_top, True)
     bots = surface(bottom_loops, bot_pts, zbot, ring_bot, False)
-    smooth_idx = lib.blur([[min(31, max(16, sheet.pix[r][c])) if mask[r][c] else 0 for c in range(w)]
-                           for r in range(h)], mask, 1)
-
-    def edge_index(a, b, q):
-        """The sprite pixel just inside edge a-b at its point nearest q."""
-        tx, ty = b[0] - a[0], b[1] - a[1]
-        L2 = tx * tx + ty * ty or 1.0
-        s = clamp01(((q[0] - a[0]) * tx + (q[1] - a[1]) * ty) / L2)
-        nx, ny = normal(a, b)
-        pc, pr = a[0] + tx * s + nx * 0.5, a[1] + ty * s + ny * 0.5
-        v = sheet.at(int(math.floor(pc)), int(math.floor(pr)))
-        return v if v >= 0 else sheet.nearest(pc, pr, lambda i: i >= 0)
-
     smooth_tops = []
     for face, f, vout in tops:
         cc = sum(vout[j].x for j in f) / len(f)
         rr = sum(vout[j].y for j in f) / len(f)
-        # Tall steep facets (the flanks, the faces into the cave) stretch a few sprite pixels over
-        # their height: they take a smoothed shade (single dark or light pixels would streak them).
-        # The low strip along the outline keeps the sprite's edge pixel.
+        # Every facet takes the rock's tone under it (not the sprite's pixel: no outline ring on
+        # the low strip along the edge, no painted highlights or per-pixel patchwork); facets on
+        # the cracks between the boulders stay darker (except on the steep flanks and the faces
+        # into the cave, where a crack pixel would streak down the wall).
         face.normal_update()
-        d, seg = all_segs.nearest((cc, rr), cap=1.2)
         span = max(q.co.z for q in face.verts) - min(q.co.z for q in face.verts)
-        on_chunk = any(math.dist((cc, rr), bc) < rad for bc, _, rad in CHUNKS + KEEP)
-        if abs(face.normal.z) < STEEP and span > TALL * U and not on_chunk:
-            v = max(16, min(31, round(lib.bilinear(smooth_idx, mask, cc, rr))))
-        elif seg and d < 0.9:
-            v = edge_index(*seg, (cc, rr))
-        else:
-            v = sheet.nearest(cc, rr, lambda i: i >= 0)
-        face.material_index = rock.get(v, dark)
+        steep = abs(face.normal.z) < STEEP and span > TALL * U
+        ci, ri = int(math.floor(cc)), int(math.floor(rr))
+        on_crack = not steep and 0 <= ri < h and 0 <= ci < w and is_crack[ri][ci]
+        face.material_index = rock[tone_index(cc, rr, on_crack)]
         smooth_tops.append(face)
     for face, _, _ in bots:
         face.material_index = dark
-    # Walls between the top and bottom rings: the outer ones take the sprite's edge colour, the
-    # undercut and the cut edges are in shadow.
+    # Walls between the top and bottom rings (outer flanks, the undercut, the cut edges) take the
+    # tone just inside them: the game's light shades them and its outline draws the dark edge.
     i = 0
     for loop in loops:
         n = len(loop)
@@ -491,12 +510,10 @@ def build(sheet):
                     face = bm.faces.new((ring_bot[a], ring_bot[b], ring_top[b], ring_top[a]))
                 except ValueError:
                     continue
-                if seg_kinds[a] == "outer":
-                    s0, s1 = loop[k], loop[(k + 1) % n]
-                    v = edge_index(s0, s1, ((s0[0] + s1[0]) / 2, (s0[1] + s1[1]) / 2))
-                    face.material_index = rock.get(v, dark)
-                else:
-                    face.material_index = dark
+                s0, s1 = loop[k], loop[(k + 1) % n]
+                nx, ny = normal(s0, s1)
+                pc, pr = (s0[0] + s1[0]) / 2 + nx * 1.5, (s0[1] + s1[1]) / 2 + ny * 1.5
+                face.material_index = rock[tone_index(pc, pr, field=wall_tone)]
         i += n
     # The top is smooth shaded (rounded rock, no facet noise); walls, underside and cut faces stay flat.
     return lib.to_object(NAME, bm, mats.list, coll, smooth_faces=smooth_tops)

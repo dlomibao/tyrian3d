@@ -122,14 +122,16 @@ def build(sprite):
         pal(194, metallic=0.0, roughness=0.85),  # 2 leaves
         pal(196, metallic=0.0, roughness=0.8),  # 3 bright leaves
         pal(198, metallic=0.0, roughness=0.75),  # 4 brightest leaves
-        pal(3, metallic=0.2, roughness=0.7),  # 5 dark grooves and recesses
-        pal(5, metallic=0.25, roughness=0.6),  # 6 dark panels (wing roof, base front)
-        pal(7, metallic=0.25, roughness=0.55),  # 7 sloped faces
-        pal(9, metallic=0.25, roughness=0.5),  # 8 grey body
-        pal(10, metallic=0.3, roughness=0.45),  # 9 light frame
-        pal(12, metallic=0.3, roughness=0.4),  # 10 bright ribs and rims
-        pal(197, metallic=0.1, roughness=0.2, emission_strength=2.5),  # 11 green windows
-        pal(4, metallic=0.2, roughness=0.65),  # 12 shadowed sides
+        # The bunker is painted metal plate: semi-metallic, fairly smooth, so the game's sun and
+        # environment light make its lit edges and the drum's sheen (none of it is painted on).
+        pal(3, metallic=0.3, roughness=0.55),  # 5 dark grooves and recesses
+        pal(5, metallic=0.4, roughness=0.42),  # 6 dark panels (wing roof, step top)
+        pal(7, metallic=0.4, roughness=0.4),  # 7 sloped faces
+        pal(9, metallic=0.45, roughness=0.38),  # 8 grey body
+        pal(10, metallic=0.45, roughness=0.38),  # 9 light frame
+        pal(12, metallic=0.5, roughness=0.32),  # 10 bright ribs (the drum's raised rings, posts)
+        pal(197, metallic=0.05, roughness=0.1, emission_strength=2.5),  # 11 green windows (glass)
+        pal(4, metallic=0.4, roughness=0.45),  # 12 dark notch beside the drum's collar
         pal(35, metallic=0.0, roughness=0.95),  # 13 lit shadow on the ground
         pal(192, metallic=0.0, roughness=0.9),  # 14 darkest leaves
         pal(195, metallic=0.0, roughness=0.85),  # 15 mid leaves
@@ -171,9 +173,9 @@ def build(sprite):
     lib.frustum(bm, G, [(4.6, 31), (39.6, 31), (39.6, 47.4), (39.0, 48), (33.4, 48), (32.8, 47.2), (4.6, 47.2)],
                 0.0,
                 [(5, 31), (38, 31), (38, 43.5), (37.2, 44.2), (34, 44.2), (33.6, 44.2), (5, 44.2)], BASE_TOP,
-                [BODY, GROOVE, GROOVE, PANEL, PANEL, PANEL, RIB], BODY)
-    # Bright rim along its top-left edge and the top front edge (rows 37 and 43).
-    lib.box(bm, G, 5, 37, 14, 37.8, BASE_TOP, BASE_TOP + 0.02, RIB)
+                [BODY, BODY, BODY, SLOPE, SLOPE, SLOPE, BODY], BODY)
+    # Light rim along its top-left edge and the top front edge (rows 37 and 43).
+    lib.box(bm, G, 5, 37, 14, 37.8, BASE_TOP, BASE_TOP + 0.02, FRAME)
     lib.box(bm, G, 5, 43.2, 37.5, 44.2, BASE_TOP, BASE_TOP + 0.015, FRAME)
     # Two small posts on the left (columns 7 and 9, rows 39-42).
     for c in (7, 9):
@@ -183,7 +185,7 @@ def build(sprite):
     lib.box(bm, G, 14, 36.5, 15, 42, BASE_TOP, BASE_TOP + 0.008, GROOVE)
     # Raised box (columns 18-24, rows 40-43) with a lit top edge.
     lib.box(bm, G, 18, 40, 24, 43, BASE_TOP, BASE_TOP + 0.07, BODY)
-    lib.box(bm, G, 18, 40, 24, 40.8, BASE_TOP + 0.07, BASE_TOP + 0.08, RIB)
+    lib.box(bm, G, 18, 40, 24, 40.8, BASE_TOP + 0.07, BASE_TOP + 0.08, FRAME)
     # Small box with a post at the drum's lower left (columns 24-31, rows 37-42).
     lib.box(bm, G, 24, 38, 31, 42.5, BASE_TOP, BASE_TOP + 0.05, SLOPE)
     lib.box(bm, G, 25.6, 38, 26.8, 42.5, BASE_TOP + 0.05, BASE_TOP + 0.1, FRAME)
@@ -191,10 +193,10 @@ def build(sprite):
     # ---- lean-to wing (columns 5-13): vertical walls up to the eave, then a low hipped roof with a
     # dark top, a lit chamfer face at its top left and a lit face down its front ----
     wing = [(4.6, 13.6), (13, 5.2), (13, 37), (4.6, 37)]
-    lib.prism(bm, G, wing, BASE_TOP - 0.05, WING_EAVE, SIDE)
+    lib.prism(bm, G, wing, BASE_TOP - 0.05, WING_EAVE, BODY)
     lib.frustum(bm, G, wing, WING_EAVE,
                 [(6.8, 17.5), (12.6, 11.5), (12.6, 27.5), (6.8, 32.2)], WING_TOP,
-                [SLOPE, SIDE, SLOPE, SLOPE], PANEL)
+                [SLOPE, SLOPE, SLOPE, SLOPE], PANEL)
     # Light rim along the roof's left edge (column 6) and its shaded fold below the chamfer.
     lib.frustum(bm, G, [(6.0, 17.5), (6.8, 17.5), (6.8, 32.2), (6.0, 32.7)], WING_TOP - 0.03,
                 [(6.0, 17.5), (6.8, 17.5), (6.8, 32.2), (6.0, 32.7)], WING_TOP + 0.012, FRAME, FRAME)
@@ -203,13 +205,13 @@ def build(sprite):
     ft = TOWER_TOP - 0.16  # the body's top, under the frame
     lib.frustum(bm, G, [(13, 5.0), (25.8, 5.0), (25.8, 31), (13, 31)], 0.0,
                 [(13.2, 5.4), (25.8, 5.4), (25.8, 30.6), (13.2, 30.6)], ft,
-                [SIDE, SIDE, BODY, SLOPE], BODY)
+                [BODY, BODY, BODY, BODY], BODY)
     # Frame round and between the windows (left 13-16, right 23-25, bars at rows 5-7, 14-15, 22-23).
     lib.box(bm, G, 13.2, 5.4, 14.0, 30.6, ft, TOWER_TOP, SLOPE)
     lib.box(bm, G, 14.0, 5.4, 16.0, 30.6, ft, TOWER_TOP, FRAME)
     lib.box(bm, G, 23.0, 5.4, 25.8, 30.6, ft, TOWER_TOP, BODY)
     lib.box(bm, G, 16.0, 5.4, 23.0, 7.0, ft, TOWER_TOP, FRAME)
-    lib.box(bm, G, 14.0, 5.4, 23.0, 6.2, TOWER_TOP, TOWER_TOP + 0.015, RIB)
+    lib.box(bm, G, 14.0, 5.4, 23.0, 6.2, TOWER_TOP, TOWER_TOP + 0.015, FRAME)
     for r0, r1 in ((14.0, 15.0), (22.0, 23.0), (30.0, 30.6)):
         lib.box(bm, G, 16.0, r0, 23.0, r1, ft, TOWER_TOP, FRAME)
     # Recess shading at the windows' left inner edges, then the glowing panes set about 1.2 px down
@@ -217,14 +219,14 @@ def build(sprite):
     # are in window_frames).
     for (r0, r1, g0), (base, frames) in zip(((7.0, 14.0, 7.0), (15.0, 22.0, 17.0), (23.0, 30.0, 25.0)), PANES):
         lib.box(bm, G, 16.0, g0, 16.8, r1, ft, PANE_TOP + 0.004, GROOVE)
-        mats.append(common.palette_material(sprite, base, f"{tag}-pane{len(mats)}", metallic=0.1, roughness=0.2,
+        mats.append(common.palette_material(sprite, base, f"{tag}-pane{len(mats)}", metallic=0.05, roughness=0.1,
                                             emission_strength=2.5, frames=frames))
         lib.box(bm, G, 16.8, r0, 23.0, r1, ft, PANE_TOP, len(mats) - 1)
 
     # ---- low step in front of the tower (columns 13-25, rows 31-37) with a pipe down it ----
     lib.frustum(bm, G, [(13, 30.5), (25, 30.5), (25, 36.8), (13, 36.8)], BASE_TOP - 0.02,
                 [(13, 30.5), (25, 30.5), (25, 36.0), (13, 36.0)], STEP_TOP,
-                [BODY, SIDE, SIDE, SLOPE], PANEL)
+                [BODY, SLOPE, SLOPE, SLOPE], PANEL)
     lib.box(bm, G, 20.8, 30.6, 24.8, 31.4, STEP_TOP, STEP_TOP + 0.012, FRAME)
     lib.loft_y(bm, G.E(18.9, 0)[0], [(G.E(0, 30.6)[1], 1.2 / 12, 0.05, STEP_TOP),
                                       (G.E(0, 36.6)[1], 1.2 / 12, 0.05, STEP_TOP - 0.03),
@@ -242,9 +244,9 @@ def build(sprite):
         band(bm, dx, yr(r + 0.85), yr(r + 0.15), a + 0.02, c + 0.02, zc, RIB)
     for r in (14, 16, 19, 24, 26, 30):
         band(bm, dx, yr(r + 0.8), yr(r + 0.2), a + 0.008, c + 0.008, zc, GROOVE)
-    # The cradle: a dark sloping skirt from under the drum's right side out to column 40.
+    # The cradle: a dark-painted sloping skirt from under the drum's right side out to column 40.
     lib.frustum(bm, G, [(36.0, 14.0), (40.2, 14.0), (40.2, 32.0), (36.0, 32.0)], 0.0,
-                [(36.0, 14.0), (37.9, 14.0), (37.9, 32.0), (36.0, 32.0)], 0.3, GROOVE, GROOVE)
+                [(36.0, 14.0), (37.9, 14.0), (37.9, 32.0), (36.0, 32.0)], 0.3, PANEL, PANEL)
     # Fluted collar at its top end (rows 8-14), a little taller than the drum, with lengthwise
     # flutes on top; a dark notch (columns 37-39.5) is cut in beside its shadowed right end.
     cx, ca, cc = G.E(31.3, 0)[0], 5.9 / 12, 0.48
@@ -264,7 +266,7 @@ def build(sprite):
     lib.loft_y(bm, ex, [(yr(44.0), 3.5 / 12, 0.3, 0.2), (yr(38.0), 3.5 / 12, 0.36, 0.28),
                         (yr(32.0), 3.6 / 12, 0.42, 0.36)], sides=12, mat=BODY)
     lib.loft_y(bm, ex, [(yr(44.3), 3.6 / 12, 0.31, 0.2), (yr(43.3), 3.6 / 12, 0.31, 0.2)],
-               sides=12, mat=RIB)
+               sides=12, mat=FRAME)
     # Hatch beside it (columns 26-31, rows 32-37): a box with a dark inset.
     lib.box(bm, G, 25.5, 31.5, 31, 37.5, BASE_TOP - 0.02, 0.36, PANEL)
     lib.box(bm, G, 26.8, 32.8, 30.2, 36.6, 0.36, 0.365, GROOVE)
@@ -281,9 +283,9 @@ def window_frames(sprite):
     windows, the left recess's top corner (dark, or lit beside a lit window) and the glints, a
     bright one near the lit window's top left and faint ones on the half-lit windows."""
     tag = "nshj43"
-    pal = lambda i, e=0.0: common.palette_material(sprite, i, tag, metallic=0.1, roughness=0.2,  # noqa: E731
+    pal = lambda i, e=0.0: common.palette_material(sprite, i, tag, metallic=0.05, roughness=0.1,  # noqa: E731
                                                    emission_strength=e) if e else \
-        common.palette_material(sprite, i, tag, metallic=0.3, roughness=0.7)
+        common.palette_material(sprite, i, tag, metallic=0.3, roughness=0.55)
     mats = [pal(3), pal(197, 2.5), pal(198, 2.5), pal(199, 3.0), pal(200, 3.0), pal(204, 3.5), pal(205, 4.0),
             pal(206, 4.0), pal(207, 4.0)]
     slot = {i: k for k, i in enumerate((3, 197, 198, 199, 200, 204, 205, 206, 207))}

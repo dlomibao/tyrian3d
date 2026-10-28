@@ -220,7 +220,7 @@ def sheet(name, which, out, label=None):
         panel(ruler(view("front.png"), span, zc), "6 front elevation, ortho (from the screen bottom)"),
         panel(view("q1.png"), "7 three-quarter, front right"),
         panel(view("q2.png"), "8 three-quarter, back left"),
-        panel(view("game.png"), "9 game camera angle"),
+        panel(view("game.png"), "9 game camera, game-like light and materials"),
         panel(fit(rmap, nearest=True), "10 regions (ids for overrides)"),
         panel(fit(himg, nearest=True), "11 inferred height (analysis)"),
         panel(tpanel, "12 metrics"),

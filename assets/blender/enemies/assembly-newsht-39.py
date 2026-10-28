@@ -52,10 +52,19 @@ PX = 1 / 12  # one sprite pixel in units
 
 # --- geometry helpers --------------------------------------------------------------------------
 
-def sweep(bm, path, sides=10, mat=0, smooth=True, cap_start=True, cap_end=True):
+def sweep(bm, path, sides=10, mat=0, smooth=True, cap_start=True, cap_end=True, step=None, flat=1.0):
     """A tube along a path of (col, row, z, half_width_px, half_height_units). Rings stand
     perpendicular to the path; the width is measured across the path in the XY plane and the
-    height along Z. A ring of zero size collapses to a point (a rounded or pointed end)."""
+    height along Z. A ring of zero size collapses to a point (a rounded or pointed end). With
+    `step` (px), extra rings are put in between so no two are further apart (so the sprite's
+    colours can be painted along it). `flat` < 1 squares the cross-section off (a superellipse:
+    a band with a flat top and rounded edges rather than a round tube)."""
+    if step:
+        dense = [path[0]]
+        for a, b in zip(path, path[1:]):
+            n = max(1, math.ceil(math.hypot(b[0] - a[0], b[1] - a[1]) / step))
+            dense += [tuple(p + (q - p) * k / n for p, q in zip(a, b)) for k in range(1, n + 1)]
+        path = dense
     pts = [Vector((X(c), Y(r), z)) for c, r, z, _, _ in path]
     rings = []
     up = Vector((0, 0, 1))
@@ -70,7 +79,9 @@ def sweep(bm, path, sides=10, mat=0, smooth=True, cap_start=True, cap_end=True):
         ring = []
         for k in range(sides):
             a = 2 * math.pi * (k + 0.5) / sides
-            ring.append(bm.verts.new(pts[i] + side * (w * PX * math.cos(a)) + up * (h * math.sin(a))))
+            ca, sa = math.cos(a), math.sin(a)
+            ca, sa = math.copysign(abs(ca) ** flat, ca), math.copysign(abs(sa) ** flat, sa)
+            ring.append(bm.verts.new(pts[i] + side * (w * PX * ca) + up * (h * sa)))
         rings.append(ring)
     faces = []
     for r0, r1 in zip(rings, rings[1:]):
@@ -94,20 +105,44 @@ def sweep(bm, path, sides=10, mat=0, smooth=True, cap_start=True, cap_end=True):
         f.smooth = smooth
 
 
-def loft_y(bm, col, sections, sides=10, mat=0, smooth=True):
+def loft_y(bm, col, sections, sides=10, mat=0, smooth=True, step=None):
     """A loft down the sprite (along Y) centred on column `col`: sections are
     (row, half_width_px, half_height_units, z)."""
-    sweep(bm, [(col, r, z, w, h) for r, w, h, z in sections], sides=sides, mat=mat, smooth=smooth)
+    sweep(bm, [(col, r, z, w, h) for r, w, h, z in sections], sides=sides, mat=mat, smooth=smooth, step=step)
 
 
-def plate(bm, outline, z0, z1, mat=0, smooth=False):
-    """A flat plate from z0 to z1 with an outline of (col, row) pixel edges."""
+# Painted plate tops: {(col, row): (z, mirrored)} of the sprite pixels on top of a flat plate;
+# after the build each gets its own small quad, coloured from the sprite (see paint).
+DECALS = {}
+MIRRORED = [True]  # plates built now are on the left half and get mirrored
+
+
+def inside(poly, x, y):
+    """Point in polygon (even-odd), poly in (col, row) edge coordinates."""
+    n, hit = len(poly), False
+    for i in range(n):
+        (x1, y1), (x2, y2) = poly[i], poly[(i + 1) % n]
+        if (y1 > y) != (y2 > y) and x < x1 + (y - y1) * (x2 - x1) / (y2 - y1):
+            hit = not hit
+    return hit
+
+
+def plate(bm, outline, z0, z1, mat=0, smooth=False, paint=True):
+    """A flat plate from z0 to z1 with an outline of (col, row) pixel edges. With `paint`, the
+    sprite's pixels on its top are painted on it (the highest plate over a pixel wins)."""
     pts = [(X(c - 0.5), Y(r - 0.5)) for c, r in outline]
     n = len(bm.faces)
     common.slab(bm, pts, z1 - z0, z=(z0 + z1) / 2, mat_index=mat)
     bm.faces.ensure_lookup_table()
     for f in bm.faces[n:]:
         f.smooth = smooth
+    if paint:
+        cs = [c for c, _ in outline]
+        rs = [r for _, r in outline]
+        for pc in range(math.floor(min(cs)), math.ceil(max(cs))):
+            for pr in range(math.floor(min(rs)), math.ceil(max(rs))):
+                if inside(outline, pc + 0.5, pr + 0.5) and DECALS.get((pc, pr), (-1,))[0] < z1:
+                    DECALS[(pc, pr)] = (z1, MIRRORED[0], paint if isinstance(paint, str) else family(SLOT_PAL[mat]))
 
 
 def ellipsoid(bm, col, row, z, rx_px, ry_px, rz, mat=0, segments=16, rings=8):
@@ -129,9 +164,10 @@ def mirror_all(bm):
     bmesh.ops.reverse_faces(bm, faces=[e for e in dup if isinstance(e, bmesh.types.BMFace)])
 
 
-def to_object(name, bm, mats, coll):
+def to_object(name, bm, mats, coll, recalc=True):
     """Like common.mesh_object, but keeps each face's own smooth/flat flag."""
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    if recalc:
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     mesh = bpy.data.meshes.new(name)
     bm.to_mesh(mesh)
     bm.free()
@@ -142,131 +178,332 @@ def to_object(name, bm, mats, coll):
     return obj
 
 
+# --- colours from the sprite --------------------------------------------------------------------
+
+def family(i):
+    """The palette ramp a colour index belongs to: grey, red (the hull) or glow (eye, exhausts)."""
+    return "grey" if 1 <= i <= 15 else "red" if 64 <= i <= 79 else "glow" if 112 <= i <= 127 else None
+
+
+# Each ramp is painted with a few of its shades (for red the five that fit the sprite's pixels
+# best; for grey and glow the ones the model has anyway), so each piece keeps few materials.
+QUANT = {"red": (66, 68, 69, 71, 74), "grey": (2, 5, 9), "glow": (113, 116, 119, 122, 125)}
+SLOT_PAL = []
+RED_LIFT = 1  # palette index of each material slot (set by build)
+
+
+def lab(rgb):
+    def lin(c):
+        c /= 255
+        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+    r, g, b = (lin(float(c)) for c in rgb)
+    x = (0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.9505
+    y = 0.2126 * r + 0.7152 * g + 0.0722 * b
+    z = (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.089
+    f = lambda t: t ** (1 / 3) if t > 0.008856 else 7.787 * t + 16 / 116  # noqa: E731
+    return (116 * f(y) - 16, 500 * (f(x) - f(y)), 200 * (f(y) - f(z)))
+
+
+def quantise(sprite, i):
+    """The painted shade for sprite colour i: the nearest (CIE76) of its ramp's QUANT shades."""
+    if family(i) == "red" and i < 79:
+        i += RED_LIFT  # under the game's light the sprite's shades read a step darker
+    li = lab(sprite["colors"][str(i)])
+    return min(QUANT[family(i)], key=lambda q: sum((a - b) ** 2 for a, b in zip(li, lab(sprite["colors"][str(q)]))))
+
+
+def sprite_grid(sprite):
+    """The whole machine's sprite (first frames) as palette indices, [row][col], -1 = empty."""
+    grid = [[-1] * 144 for _ in range(56)]
+    for e in sprite["assemblyLayout"]:
+        if e["model"] not in PIECES:
+            continue
+        frame = common.load_sprite(ROOT, e["model"])["frames"][0]
+        x0, y0 = e["cx"] - CX0 + 60, e["cy"] - CY0 + 14
+        for r, row in enumerate(frame["pixels"]):
+            vals = row.split() if isinstance(row, str) else row
+            for c, v in enumerate(vals):
+                v = int(v)
+                if v >= 0 and 0 <= y0 + r < 56 and 0 <= x0 + c < 144:
+                    grid[y0 + r][x0 + c] = v
+    return grid
+
+
+PAINT_FAMILIES = ("glow",)  # ramps painted from the sprite: only its real lights
+
+
+def paint(bm, grid, sprite, slot_of, skip, glass=()):
+    """Paint the sprite's real lights (the glowing exhaust beds and their streaks) onto the model:
+    every glow pixel on a painted plate gets its own quad just above the plate's top. Everything
+    else keeps its part's own mid-tone colour: the sprite's red and grey shades are its drawn
+    light (lit upper-left edges, dark lower-right halves, the outline ring, the orbs' highlight),
+    which the game's lights and outline make on their own; painted on, they darkened the model
+    twice and broke it into a patchwork. (The per-face sprite painting below is kept for ramps
+    listed in PAINT_FAMILIES.)"""
+    bm.normal_update()
+    marked = bm.faces.layers.int.get("paint")
+    for f in bm.faces:
+        if family(SLOT_PAL[f.material_index]) not in PAINT_FAMILIES:
+            continue
+        if f.material_index in skip or f.normal.z <= 0.05:
+            continue
+        fam = family(SLOT_PAL[f.material_index])
+        # Round red parts (smooth faces) keep one even colour so their curvature does the
+        # shading: the sprite's baked light and dark would show as blotches on them. Only parts
+        # marked `paint` (the bands round the orbs, whose lit edge is the sprite's) are painted.
+        if f.smooth and fam == "red" and not (marked and f[marked]):
+            continue
+        k = 2 if marked and f[marked] else 1  # a wider window on the bands, so they don't blotch
+        c = f.calc_center_median()
+        pc, pr = math.floor(c.x * 12 + 72), math.floor(28 - c.y * 12)
+        if f.material_index in glass:
+            lit = sorted(grid[r][c] for r in range(pr - 1, pr + 2) for c in range(pc - 1, pc + 2)
+                         if 0 <= r < 56 and 0 <= c < 144 and family(grid[r][c]) == "grey")
+            v = lit[len(lit) // 2] if len(lit) >= 5 else 0
+            if v >= 6:
+                f.material_index = slot_of(9 if v >= 9 else 5)
+            continue
+        # The median shade of the sprite pixels of the face's own ramp round its centre (not the
+        # black outline round every part), so 1 px seams don't break a curved face into dashes.
+        near = sorted(quantise(sprite, grid[r][c]) for r in range(pr - k, pr + k + 1) for c in range(pc - k, pc + k + 1)
+                      if 0 <= r < 56 and 0 <= c < 144 and grid[r][c] > 1 and family(grid[r][c]) == fam)
+        if len(near) >= 3:
+            f.material_index = slot_of(near[len(near) // 2])
+    tops = {}
+    for (pc, pr), (z, mirrored, fam) in DECALS.items():
+        for cc in ((pc, 2 * AXIS_COL - pc) if mirrored else (pc,)):
+            if tops.get((cc, pr), (-1,))[0] < z:
+                tops[(cc, pr)] = (z, fam)
+    lift = 0.6 * PX + 0.006  # above the fattened plate top
+    for (pc, pr), (z, fam) in tops.items():
+        v = grid[pr][pc] if 0 <= pr < 56 and 0 <= pc < 144 else -1
+        if v < 0 or family(v) != fam or fam not in PAINT_FAMILIES:
+            continue
+        x0, x1, y0, y1 = X(pc - 0.5), X(pc + 0.5), Y(pr + 0.5), Y(pr - 0.5)
+        vs = [bm.verts.new((x, y, z + lift)) for x, y in ((x0, y0), (x1, y0), (x1, y1), (x0, y1))]
+        f = bm.faces.new(vs)
+        f.material_index = slot_of(quantise(sprite, v))
+        f.smooth = False
+    if marked:
+        bm.faces.layers.int.remove(marked)
+    bm.normal_update()
+
+
 # --- the machine -------------------------------------------------------------------------------
 
-def build(sprite):
+def ring(bm, col, row, z, radius_px, tube_px, tube_h, mat=0, n=16):
+    """A torus lying flat (a raised rim) round (col, row), as a closed sweep."""
+    path = []
+    for i in range(n + 1):
+        a = 2 * math.pi * i / n
+        path.append((col + radius_px * math.cos(a), row + radius_px * math.sin(a), z, tube_px, tube_h))
+    sweep(bm, path, sides=6, mat=mat, cap_start=False, cap_end=False)
+
+
+def round_loft(col, sections, z, k=1.0):
+    """Sections (row, half_width_px) of a round loft: each ring as tall as it is wide (times k)."""
+    return [(r, w, w * PX * k, z) for r, w in sections]
+
+
+def fatten(bm, d):
+    """Grow every solid outward by d units (an even offset along the vertex normals), so the
+    sprite's 1 px edge pixels are covered from above."""
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.normal_update()
+    moves = [(v, v.normal * d * min(2.0, v.calc_shell_factor())) for v in bm.verts if v.link_faces]
+    for v, off in moves:
+        v.co += off
+
+
+def build(sprite, grid):
     coll = common.reset_collection(NAME)
+    DECALS.clear()
+    MIRRORED[0] = True
     tag = "nsht39"
     pal = lambda i, **kw: common.palette_material(sprite, i, tag, **kw)  # noqa: E731
+    # A machine: its red hull is painted metal (moderately metallic, satin), its grey pipes, rims
+    # and visor bare polished metal, its orbs dark glass (glossy, not metallic): the game's
+    # environment light and sun make the sheen the sprite draws as highlights.
     mats = [
-        pal(72, metallic=0.3, roughness=0.45),  # 0 red hull
-        pal(70, metallic=0.3, roughness=0.5),  # 1 darker red plates
-        pal(66, metallic=0.2, roughness=0.6),  # 2 deep red bands and grooves
-        pal(74, metallic=0.4, roughness=0.35),  # 3 light red ribs
-        pal(4, metallic=0.7, roughness=0.15),  # 4 dark glass orbs
-        pal(5, metallic=0.7, roughness=0.35),  # 5 grey pipes and canisters
+        pal(71, metallic=0.35, roughness=0.4),  # 0 red hull
+        pal(69, metallic=0.35, roughness=0.42),  # 1 darker red plates
+        pal(66, metallic=0.35, roughness=0.45),  # 2 deep red bands and grooves
+        pal(74, metallic=0.35, roughness=0.4),  # 3 light red ribs
+        pal(4, metallic=0.05, roughness=0.08),  # 4 dark glass orbs: glossy, so the light's highlight shows
+        pal(5, metallic=0.8, roughness=0.3),  # 5 grey pipes and canisters
         pal(2, metallic=0.2, roughness=0.8),  # 6 dark recesses
-        pal(9, metallic=0.8, roughness=0.25),  # 7 bright grey rims
-        pal(119, emission_strength=3.0),  # 8 exhaust glow
-        pal(125, emission_strength=5.0),  # 9 hot exhaust streaks, eye core
+        pal(9, metallic=0.85, roughness=0.25),  # 7 bright grey rims
+        pal(119, emission_strength=3.0),  # 8 eye glow (animated on the claw pieces)
+        pal(125, emission_strength=5.0),  # 9 eye core (animated on the claw pieces)
         pal(113, metallic=0.2, roughness=0.5),  # 10 eye socket
-        pal(7, metallic=0.75, roughness=0.25),  # 11 bright grey visor
+        pal(7, metallic=0.8, roughness=0.25),  # 11 bright grey visor
+        pal(116, emission_strength=3.0),  # 12 exhaust bed (now painted from the sprite; kept so slots stay put)
+        pal(122, emission_strength=5.0),  # 13 exhaust streaks: orange
     ]
-    HULL, PLATE, BAND, RIB, ORB, PIPE, DARK, RIM, GLOW, HOT, SOCKET, VISOR = range(12)
+    HULL, PLATE, BAND, RIB, ORB, PIPE, DARK, RIM, GLOW, HOT, SOCKET, VISOR, VENT, STREAK = range(14)
+    EYE = {GLOW, HOT, SOCKET}  # animated per frame on the claw pieces (eye_materials): never painted
+    KEEP = EYE
+    mats[ORB].metallic, mats[ORB].roughness = 0.05, 0.08  # the viewport (preview) gloss too
+    SLOT_PAL[:] = [int(m.name.split("_")[1]) for m in mats]
+
+    def slot_of(i):
+        """The slot of palette colour i for painting (added on first use)."""
+        for k, m in enumerate(mats):
+            if SLOT_PAL[k] == i and k not in EYE:
+                return k
+        same = next((m for k, m in enumerate(mats) if SLOT_PAL[k] == i), None)
+        if same is None:
+            fam = family(i)
+            same = (pal(i, emission_strength=2.5 if i < 120 else 5.0) if fam == "glow" else
+                    pal(i, metallic=0.5, roughness=0.35) if fam == "grey" else
+                    pal(i, metallic=0.05, roughness=0.55))
+        mats.append(same)
+        SLOT_PAL.append(i)
+        return len(mats) - 1
+
     bm = bmesh.new()
+    PAINT = bm.faces.layers.int.new("paint")
+
+    # Heights (px above z = 0): the hull plates stand about 5 px, the frames round the orbs about
+    # 8, the orbs are spheres about 12 px tall, the arms round about 10-11 px, the claws about 8.
 
     # ---- left half (mirrored below) ----
 
-    # Arm: a beam out of the shoulder, bending down into a thick upper arm (columns 4-14).
-    loft_y(bm, 9.5, [(19.7, 1.5, 0.08, 0.0), (20.3, 3.0, 0.14, 0.0), (21.2, 4.2, 0.18, 0.0),
-                     (22.5, 5.0, 0.21, 0.0), (24.0, 5.5, 0.22, 0.0), (34.6, 5.5, 0.22, 0.0),
-                     (35.4, 5.9, 0.23, 0.0), (38.4, 5.9, 0.23, 0.0), (39.4, 4.4, 0.17, 0.0)],
-           sides=14, mat=HULL)
-    # Ribs down the upper arm and a dark band at its cuff.
+    # Arm: a round beam out of the shoulder, bending down into a thick upper arm (columns 4-15).
+    ARM_Z = 0.44
+    arm = round_loft(9.5, [(19.7, 1.5), (20.3, 3.0), (21.2, 4.2), (22.5, 5.2), (24.0, 5.9), (34.6, 5.9),
+                           (35.4, 6.2), (38.4, 6.2), (39.4, 4.4)], ARM_Z, k=0.95)
+    # The upper arm is as wide as the sprite's (columns 3-16) but keeps its height.
+    arm[4:6] = [(r, 6.45, h, z) for r, _, h, z in arm[4:6]]
+    arm[-2] = (38.4, 6.2, 5.9 * PX * 0.9, 0.40)
+    arm[-1] = (39.9, 5.0, 4.4 * PX * 0.9, 0.34)  # the cuff is wide at its bottom edge
+    loft_y(bm, 9.5, arm, sides=16, mat=HULL, step=2.0)
+    # Ribs down the upper arm (on its round top) and a dark band at its cuff.
     for dc in (-2.6, 0.0, 2.6):
-        loft_y(bm, 9.5 + dc, [(23.5, 0.0, 0.0, 0.2), (24.5, 0.7, 0.05, 0.2 - abs(dc) * 0.012),
-                              (34.0, 0.7, 0.05, 0.2 - abs(dc) * 0.012), (34.8, 0.0, 0.0, 0.2)],
+        zr = ARM_Z + 5.9 * PX * 0.95 * math.sqrt(1 - (dc / 5.9) ** 2)
+        loft_y(bm, 9.5 + dc, [(23.5, 0.0, 0.0, zr), (24.5, 0.7, 0.05, zr), (34.0, 0.7, 0.05, zr), (34.8, 0.0, 0.0, zr)],
                sides=6, mat=RIB)
-    loft_y(bm, 9.5, [(34.7, 5.75, 0.226, 0.0), (35.3, 5.95, 0.233, 0.0)], sides=14, mat=BAND)
+    loft_y(bm, 9.5, [(34.7, 6.15, 5.75 * PX * 0.95 + 0.012, ARM_Z), (35.3, 6.35, 5.95 * PX * 0.95 + 0.012, ARM_Z)],
+           sides=16, mat=BAND)
 
-    # Forearm and claw (columns 8-20, rows 40-52) with the eye looking out of its top.
-    loft_y(bm, 14.0, [(39.0, 3.5, 0.12, -0.02), (40.0, 5.0, 0.16, -0.02), (41.5, 6.0, 0.19, -0.02),
-                      (49.5, 6.3, 0.2, -0.02), (50.8, 5.3, 0.17, -0.02), (52.0, 3.5, 0.12, -0.02),
-                      (52.8, 1.5, 0.06, -0.02)], sides=14, mat=HULL)
-    loft_y(bm, 18.8, [(39.6, 0.0, 0.0, 0.0), (40.4, 1.1, 0.16, 0.0), (49.5, 1.2, 0.16, 0.0),
-                      (50.6, 0.0, 0.0, 0.0)], sides=8, mat=PLATE)  # rib down its outer side
-    ellipsoid(bm, 13.6, 47.2, 0.15, 3.4, 3.2, 0.06, mat=SOCKET)
-    ellipsoid(bm, 13.6, 47.2, 0.16, 2.5, 2.4, 0.065, mat=GLOW)
-    ellipsoid(bm, 13.3, 46.6, 0.19, 1.1, 1.1, 0.045, mat=HOT)
-    sweep(bm, [(7.2, 47.5, -0.01, 0.0, 0.0), (7.6, 47.5, -0.01, 1.0, 0.05), (10.5, 47.5, -0.01, 1.0, 0.05)],
-          sides=8, mat=PIPE)  # grey stub on its inner side
+    # Forearm and claw (columns 8-21, rows 39-53): a pod about 8 px tall, dipping where the eye
+    # looks out of its top; the eye sits in a raised dark socket rim with its glow sunk inside.
+    CLAW_Z = 0.2
+    loft_y(bm, 13.4, [(39.0, 3.5, 0.25, CLAW_Z), (40.0, 5.0, 0.36, CLAW_Z), (41.5, 6.0, 0.43, CLAW_Z),
+                      (44.0, 6.3, 0.44, CLAW_Z), (45.3, 6.5, 0.22, CLAW_Z), (49.2, 6.5, 0.22, CLAW_Z),
+                      (51.0, 5.6, 0.33, CLAW_Z), (52.4, 4.0, 0.25, CLAW_Z), (53.3, 1.8, 0.1, CLAW_Z)],
+           sides=16, mat=HULL)
+    loft_y(bm, 18.9, [(39.6, 0.0, 0.0, 0.22), (40.4, 1.1, 0.28, 0.22), (49.5, 1.2, 0.28, 0.22),
+                      (50.6, 0.0, 0.0, 0.22)], sides=8, mat=PLATE)  # rib down its outer side
+    sweep(bm, [(6.6, 47.5, 0.27, 0.0, 0.0), (7.0, 47.5, 0.27, 1.0, 0.1), (10.5, 47.5, 0.27, 1.0, 0.1)],
+          sides=8, mat=PIPE)  # grey stub out of its outer side
 
-    # Grey works behind the top of the upper arm: a ringed canister and a box (rows 10-19).
-    loft_y(bm, 11.0, [(10.8, 0.0, 0.0, 0.05), (11.3, 1.8, 0.09, 0.05), (12.0, 2.3, 0.12, 0.05),
-                      (12.7, 2.3, 0.12, 0.05), (13.0, 1.8, 0.09, 0.05), (13.4, 2.3, 0.12, 0.05),
-                      (14.7, 2.3, 0.12, 0.05), (15.0, 1.8, 0.09, 0.05), (15.4, 2.3, 0.12, 0.05),
-                      (20.0, 2.3, 0.12, 0.05)], sides=10, mat=PIPE)
-    plate(bm, [(15, 11), (20, 11), (20, 20), (15, 20)], -0.08, 0.12, mat=PIPE)
-    plate(bm, [(16, 16.5), (19.5, 16.5), (19.5, 19.5), (16, 19.5)], 0.12, 0.15, mat=RIM)
-    sweep(bm, [(19.5, 18.0, 0.03, 1.2, 0.07), (25.5, 18.0, 0.03, 1.2, 0.07)], sides=8, mat=PIPE)
-    # Hose down the inside of the upper arm (rows 25-35).
-    sweep(bm, [(19.8, 23.5, 0.02, 1.5, 0.1), (19.2, 27.0, 0.02, 1.6, 0.1), (18.0, 30.5, 0.02, 1.6, 0.1),
-               (17.2, 33.5, 0.0, 1.5, 0.09), (16.6, 35.8, -0.02, 1.4, 0.08)], sides=8, mat=PIPE)
+    # Grey works behind the top of the upper arm: a round ringed canister and a box (rows 10-19).
+    CAN = [(10.8, 0.0), (11.3, 1.8), (12.0, 2.3), (12.7, 2.3), (13.0, 1.8), (13.4, 2.3), (14.7, 2.3),
+           (15.0, 1.8), (15.4, 2.3), (20.0, 2.3)]
+    loft_y(bm, 10.6, round_loft(10.6, CAN, 0.34), sides=10, mat=PIPE)
+    plate(bm, [(13, 10.4), (17.4, 10.4), (19.5, 12.5), (19.5, 20), (15, 20), (15, 13), (13, 13)], 0.0, 0.48, mat=PIPE)
+    plate(bm, [(16, 16.5), (19.5, 16.5), (19.5, 19.5), (16, 19.5)], 0.48, 0.53, mat=RIM)
+    sweep(bm, [(19.5, 18.0, 0.36, 1.2, 0.1), (25.5, 18.0, 0.36, 1.2, 0.1)], sides=8, mat=PIPE)
+    # Round dark hose down the inside of the upper arm (rows 24-36).
+    sweep(bm, [(21.8, 24.2, 0.3, 2.0, 0.17), (20.4, 26.5, 0.3, 2.0, 0.17), (18.9, 29.0, 0.28, 2.0, 0.17),
+               (17.7, 31.5, 0.26, 2.0, 0.17), (17.1, 34.5, 0.24, 1.9, 0.16), (17.2, 36.4, 0.22, 1.7, 0.14), (17.8, 38.2, 0.2, 1.5, 0.12)],
+          sides=10, mat=PIPE)
 
-    # The beam from the shoulder out to the arm (rows 20-22).
-    sweep(bm, [(12.0, 21.4, 0.06, 1.8, 0.11), (42.5, 21.4, 0.06, 1.8, 0.11)], sides=10, mat=HULL)
+    # The round beam from the shoulder out to the arm (rows 20-22).
+    sweep(bm, [(12.0, 22.0, 0.5, 2.4, 0.15), (42.5, 22.0, 0.5, 2.4, 0.15)], sides=10, mat=HULL)
 
-    # Shoulder block (columns 26-41, rows 14-23) with ribs on top, and a claw hanging under it.
-    plate(bm, [(26, 15), (27, 14), (38, 14), (39, 15), (39, 17), (42, 17), (42.5, 24), (27, 24), (26, 23)],
-          -0.12, 0.12, mat=HULL)
+    # Shoulder block (columns 26-42, rows 14-23), 6 px tall with ribs on top, a claw hanging under it.
+    plate(bm, [(25.2, 14.5), (26.2, 13.2), (38, 13.2), (39, 15), (39, 17), (42, 17), (42.5, 24), (27, 24), (26, 23)],
+          0.0, 0.40, mat=HULL)
     for c in (26.6, 28.6, 30.6, 32.6):
-        plate(bm, [(c, 14.6), (c + 1, 14.6), (c + 1, 19.6), (c, 19.6)], 0.12, 0.15, mat=RIB)
+        plate(bm, [(c, 14.6), (c + 1, 14.6), (c + 1, 19.6), (c, 19.6)], 0.40, 0.46, mat=RIB)
     # Diagonal brace from the beam up to the hose (the light ridge from column 30, row 20 to 37, 15).
-    sweep(bm, [(29.0, 20.8, 0.1, 1.2, 0.07), (37.8, 14.6, 0.1, 1.2, 0.07)], sides=8, mat=RIB)
-    loft_y(bm, 28.6, [(22.5, 2.0, 0.08, -0.05), (27.0, 1.6, 0.07, -0.05), (28.6, 2.5, 0.08, -0.05),
-                      (30.6, 2.5, 0.08, -0.05), (31.6, 1.2, 0.05, -0.05)], sides=8, mat=PLATE)
-    loft_y(bm, 43.0, [(23.5, 0.9, 0.06, -0.05), (30.5, 0.9, 0.06, -0.05)], sides=6, mat=PLATE)
+    sweep(bm, [(29.0, 20.8, 0.44, 1.2, 0.06), (37.8, 14.6, 0.44, 1.2, 0.06)], sides=8, mat=RIB)
+    # A strut hanging under the shoulder (columns 27-29, rows 23-29): a 3 px round post with a
+    # flat foot across its end (columns 26-31, rows 29-30).
+    loft_y(bm, 28.6, [(22.5, 2.3, 1.5 * PX, 0.22), (29.0, 2.3, 1.5 * PX, 0.22)], sides=8, mat=PLATE)
+    plate(bm, [(26.5, 28.5), (32.2, 28.5), (32.2, 31), (26.5, 31)], 0.0, 0.3, mat=PLATE)
+    # Bracket under the cheek (columns 43-48, rows 24-31): a post, a foot and a dark floor.
+    loft_y(bm, 44.0, round_loft(44.0, [(23.5, 1.0), (30.5, 1.0)], 0.2), sides=6, mat=PLATE)
+    plate(bm, [(43, 24), (45, 24), (45, 31), (43, 31)], 0.0, 0.22, mat=PLATE)
+    plate(bm, [(45, 29.5), (48.5, 29.5), (48.5, 31), (45, 31)], 0.0, 0.22, mat=PLATE)
+    plate(bm, [(45, 24), (48.5, 24), (48.5, 29.5), (45, 29.5)], 0.0, 0.06, mat=DARK)
 
-    # Thick grey hose from the back of the body down to the shoulder (rows 6-13).
-    sweep(bm, [(45.0, 7.0, 0.04, 2.6, 0.14), (41.5, 8.4, 0.04, 3.0, 0.15), (38.6, 10.2, 0.03, 3.0, 0.15),
-               (37.0, 12.2, 0.02, 2.8, 0.14), (36.6, 14.5, 0.0, 2.4, 0.12)], sides=10, mat=PIPE)
+    # Thick round grey hose from the back of the body down to the shoulder (rows 6-13).
+    sweep(bm, [(44.0, 7.9, 0.42, 2.5, 2.6 * PX), (40.2, 9.0, 0.42, 3.4, 3.0 * PX), (36.8, 10.8, 0.41, 3.4, 3.0 * PX),
+               (35.0, 12.8, 0.4, 3.0, 2.8 * PX), (35.0, 14.4, 0.38, 2.4, 2.4 * PX)], sides=12, mat=PIPE)
 
-    # Upper band across the back of the body (rows 9-12), rounded at its outer end.
-    sweep(bm, [(40.6, 11.0, 0.03, 0.0, 0.0), (41.2, 11.0, 0.03, 1.6, 0.09), (42.3, 11.0, 0.03, 2.4, 0.13),
-               (44.0, 11.0, 0.03, 2.6, 0.15), (AXIS_COL, 11.0, 0.03, 2.6, 0.15)], sides=10, mat=HULL)
-    # Cheek plate between the band and the orb's frame (columns 39-62, rows 13-24).
-    plate(bm, [(39, 13), (63, 13), (63, 25), (53, 25), (51.5, 26), (43, 26), (39, 22)], -0.12, 0.08, mat=PLATE)
+    # Upper band across the back of the body (rows 9-12), round, rounded at its outer end.
+    sweep(bm, [(40.6, 11.0, 0.27, 0.0, 0.0), (41.2, 11.0, 0.27, 1.6, 1.6 * PX), (42.3, 11.0, 0.27, 2.4, 2.4 * PX),
+               (44.0, 11.0, 0.27, 2.6, 2.6 * PX), (63.5, 11.0, 0.27, 2.6, 2.6 * PX)], sides=10, mat=HULL,
+          step=2.0)
+    # Cheek plate between the band and the orb's frame (columns 39-62, rows 13-24), 5 px tall,
+    # with a stepped plate on its outer half.
+    plate(bm, [(39, 13), (63, 13), (63, 25), (53, 25), (51.5, 26), (43, 26), (39, 22)], 0.0, 0.29, mat=PLATE)
+    plate(bm, [(40, 13.5), (48, 13.5), (48, 22), (43.5, 24.5), (40, 21.5)], 0.29, 0.40, mat=HULL)
 
-    # Frame round the orb: from the middle over the top of the orb, down its outer side, round
-    # the bottom and up the inner strut (the light ridge at columns 50-57, rows 16-29).
-    sweep(bm, [(64.5, 14.6, 0.04, 1.8, 0.1), (60.0, 14.8, 0.04, 2.0, 0.11), (55.5, 15.8, 0.04, 2.3, 0.12),
-               (51.8, 18.6, 0.04, 2.6, 0.13), (49.6, 23.0, 0.04, 2.9, 0.13), (49.2, 28.0, 0.03, 3.0, 0.13),
-               (50.4, 33.5, 0.03, 3.4, 0.13), (54.0, 36.9, 0.03, 3.7, 0.14), (58.0, 37.3, 0.03, 3.7, 0.14),
-               (62.0, 36.7, 0.03, 3.5, 0.14), (65.0, 33.5, 0.03, 3.1, 0.13), (65.9, 29.0, 0.03, 2.7, 0.12),
-               (65.9, 24.4, 0.03, 2.3, 0.1)], sides=10, mat=HULL)
-    # The dark glass orb (columns 54-64, rows 17-27) and the grey lip under it (rows 30-33).
-    ellipsoid(bm, 59.3, 22.4, 0.0, 5.6, 5.6, 0.24, mat=ORB, segments=18, rings=9)
-    sweep(bm, [(51.8, 31.6, 0.0, 0.0, 0.0), (52.4, 31.6, 0.0, 1.5, 0.07), (60.6, 31.6, 0.0, 1.5, 0.07),
-               (61.2, 31.6, 0.0, 0.0, 0.0)], sides=8, mat=PIPE)
-    # Dark recess behind the orb and the visor.
-    plate(bm, [(50, 12.5), (AXIS_COL + 0.5, 12.5), (AXIS_COL + 0.5, 36), (50, 36)], -0.11, -0.05, mat=DARK)
+    # Frame round the orb, a band standing proud of the cheek: from the middle over the top
+    # of the orb, down its outer side, round the bottom and up the inner strut.
+    FRAME = [(64.5, 14.6, 1.8), (60.0, 14.8, 2.0), (55.5, 15.8, 2.3), (51.8, 18.6, 2.6), (49.6, 23.0, 2.9),
+             (49.1, 28.0, 3.1), (50.0, 33.5, 4.0), (51.6, 35.6, 4.2), (54.0, 37.1, 4.2), (58.0, 37.4, 4.1), (62.0, 36.9, 3.9),
+             (65.0, 33.5, 3.1), (65.9, 29.0, 2.7), (65.9, 24.4, 2.3)]
+    # A band about 5 px tall (the sprite's lit-edged C), not a full round tube, so the orb
+    # stands clear above it.
+    # Its cross-section is a superellipse: a flat top about 5 px up with rounded edges.
+    n0 = len(bm.faces)
+    sweep(bm, [(c, r, 0.15, w, 0.24) for c, r, w in FRAME], sides=12, mat=HULL, step=1.5, flat=0.5)
+    bm.faces.ensure_lookup_table()
+    for f in bm.faces[n0:]:
+        f[PAINT] = 1
+    # The dark glass orb (columns 54-64, rows 17-27): a sphere about 12 px tall.
+    ellipsoid(bm, 59.3, 22.4, 0.42, 5.6, 5.6, 0.54, mat=ORB, segments=18, rings=10)
+    # The grey lip under it (rows 30-33).
+    sweep(bm, [(51.8, 31.6, 0.25, 0.0, 0.0), (52.4, 31.6, 0.25, 1.5, 1.5 * PX), (60.6, 31.6, 0.25, 1.5, 1.5 * PX),
+               (61.2, 31.6, 0.25, 0.0, 0.0)], sides=8, mat=PIPE)
+    # Dark recess behind the orb and the visor, well below the plates and frames round it.
+    plate(bm, [(50, 12.5), (AXIS_COL + 0.5, 12.5), (AXIS_COL + 0.5, 36), (50, 36)], 0.0, 0.12, mat=DARK)
 
-    # Glowing exhaust on the back, slanting out (columns 54-66, rows 1-7), in a red housing.
-    plate(bm, [(60, 1.5), (67.5, 1.5), (61.5, 8.5), (53.5, 8.5)], -0.04, 0.09, mat=GLOW)
-    for off in (-0.5, 2.0, 4.5):
-        plate(bm, [(61.2 + off, 2.2), (62.6 + off, 2.2), (57.2 + off, 7.8), (55.8 + off, 7.8)], 0.09, 0.12, mat=HOT)
-    plate(bm, [(59, 8.2), (68, 8.2), (68, 10), (58, 10)], -0.06, 0.06, mat=BAND)
+    # Exhaust on the back, slanting out (columns 54-66, rows 1-8): a dark red glowing bed sunk
+    # between the spine and the lip in front of it, with orange streaks down it.
+    # The housing is hull red; its glowing bed (the sprite's pixels, painted) sits about a pixel
+    # below the lip in front of it and the spine beside it.
+    plate(bm, [(60.5, 1.3), (67.4, 1.3), (67.4, 4.0), (62.3, 8.5), (53.5, 8.5)], 0.0, 0.34, mat=HULL, paint="glow")
+    plate(bm, [(59, 8.2), (68, 8.2), (68, 10), (58, 10)], 0.0, 0.42, mat=BAND)
 
     mirror_all(bm)
+    MIRRORED[0] = False
+
+    # The claws' eyes (built per side: the right claw's eye sits about 1.5 px further in than a
+    # mirror image of the left's): a raised dark rim round a socket sunk about 2 px into the pod,
+    # the glow at its floor and a hot core on the glow.
+    for col, hot in ((13.5, 13.1), (127.2, 127.4)):
+        ring(bm, col, 47.1, 0.56, 2.9, 0.8, 0.15, mat=SOCKET)  # rim top about 2.5 px above the lens
+        ellipsoid(bm, col, 47.1, 0.43, 2.3, 2.2, 0.03, mat=GLOW)
+        ellipsoid(bm, hot, 46.6, 0.45, 0.8, 0.8, 0.025, mat=HOT)
 
     # ---- centre parts (symmetric about the axis) ----
 
-    # Raised spine between the exhausts (columns 62-81, rows 4-12) with a plate down its middle.
-    loft_y(bm, AXIS_COL, [(3.8, 2.5, 0.08, 0.07), (4.6, 3.6, 0.14, 0.08), (6.0, 8.5, 0.17, 0.08),
-                          (8.0, 10.0, 0.18, 0.06), (12.5, 10.5, 0.18, 0.04), (13.6, 9.0, 0.12, 0.02)],
-           sides=10, mat=HULL)
-    loft_y(bm, AXIS_COL, [(4.8, 0.0, 0.0, 0.2), (5.6, 3.6, 0.06, 0.2), (12.4, 3.8, 0.06, 0.2),
-                          (13.0, 0.0, 0.0, 0.2)], sides=8, mat=PLATE)
-    # Grey visor between the orbs (columns 65-77, rows 14-19), on a dark bracket.
-    sweep(bm, [(63.8, 17.0, 0.06, 0.0, 0.0), (64.6, 17.0, 0.06, 2.4, 0.12), (78.4, 17.0, 0.06, 2.4, 0.12),
-               (79.2, 17.0, 0.06, 0.0, 0.0)], sides=10, mat=VISOR)
-    plate(bm, [(68, 19.5), (75, 19.5), (75, 24), (68, 24)], -0.08, 0.04, mat=PIPE)
-    # Cannon pointing down the screen between the frames (columns 68-74, rows 29-34).
-    loft_y(bm, AXIS_COL, [(28.0, 3.0, 0.1, 0.0), (33.6, 3.2, 0.11, 0.0)], sides=12, mat=PIPE)
-    loft_y(bm, AXIS_COL, [(33.5, 3.4, 0.12, 0.0), (34.6, 3.5, 0.12, 0.0), (34.8, 2.2, 0.08, 0.0)],
+    # Raised spine between the exhausts (columns 62-81, rows 4-12), about 7 px, with a plate on top.
+    loft_y(bm, AXIS_COL, [(3.8, 2.5, 0.1, 0.25), (4.6, 3.6, 0.2, 0.25), (6.0, 8.5, 0.3, 0.25),
+                          (8.0, 10.0, 0.32, 0.23), (12.0, 10.5, 0.32, 0.21), (12.8, 9.0, 0.22, 0.19)],
+           sides=12, mat=HULL)
+    loft_y(bm, AXIS_COL, [(4.8, 0.0, 0.0, 0.54), (5.6, 3.6, 0.06, 0.54), (11.7, 3.8, 0.06, 0.53),
+                          (12.3, 0.0, 0.0, 0.53)], sides=8, mat=PLATE)
+    # Round grey visor between the orbs (columns 65-77, rows 16-18; the sprite's rows 13-15 above
+    # it are the dark slot), on a grey bracket above the dark recess.
+    sweep(bm, [(63.8, 17.2, 0.48, 0.0, 0.0), (64.6, 17.2, 0.48, 1.7, 0.17), (78.4, 17.2, 0.48, 1.7, 0.17),
+               (79.2, 17.2, 0.48, 0.0, 0.0)], sides=10, mat=VISOR)
+    plate(bm, [(68, 19.5), (75, 19.5), (75, 24), (68, 24)], 0.0, 0.35, mat=PIPE)
+    # Round cannon pointing down the screen between the frames (columns 68-74, rows 28-34).
+    loft_y(bm, AXIS_COL, round_loft(AXIS_COL, [(28.0, 3.0), (33.6, 3.2)], 0.3), sides=12, mat=PIPE)
+    loft_y(bm, AXIS_COL, [(33.5, 3.4, 0.29, 0.3), (34.6, 3.5, 0.29, 0.3), (34.8, 2.2, 0.18, 0.3)],
            sides=12, mat=RIM)
 
-    return to_object(NAME, bm, mats, coll)
+    fatten(bm, 0.6 * PX)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    paint(bm, grid, sprite, slot_of, KEEP, glass={ORB})
+    return to_object(NAME, bm, mats, coll, recalc=False)
 
 
 def eye_materials(piece, sprite):
@@ -320,7 +557,7 @@ def composite_png(layout, out):
 
 def main():
     sprite = merged_sprite()
-    obj = build(sprite)
+    obj = build(sprite, sprite_grid(sprite))
     layout = [(e["model"], e["cx"] - CX0, e["cy"] - CY0) for e in sprite["assemblyLayout"]
               if e["model"] in PIECES]
     pieces = common.split_assembly(obj, layout)

@@ -1315,6 +1315,14 @@ assembly-newshb-115) and play a level or two: the models should look like their 
 more depth, and nothing should be missing or misplaced. To undo a model, restore its script
 from main and rebuild it with `tools/build-models.sh`.
 
+Second run (round two, the next 62 models by screen time) and a lighting pass over all 87
+reworked models: the fix loop had read the sprites' drawn lighting as shape and paint (lumps under
+metal highlights, the sprite's outline ring and shading painted on, which made models dark in game).
+The rubric now says highlights, the outline and the sprite's shading are lighting; each part gets
+a material that fits it (polished metal, glass, matte rock or flesh), and panel 9 of the review
+sheet renders like the game (EEVEE, metalness and roughness, environment and sun) so graders can
+see shine. The user flagged the Gencore Phoenix's highlight lump, which started this.
+
 The player ships' review sheets used to show the hardest left-bank frame rather than the level
 frame (`sprite_shape.load_sprite` took `frames[0]`); the two ship grades made from them are
 marked superseded and the ships were regraded on corrected sheets.
