@@ -1262,3 +1262,23 @@ two-player and Destruct cross-checks are unchanged.
 
 **Review:** Load the game twice and play the same way: enemy fire and drops should differ. To
 repeat a session exactly (with the same inputs), load it with the same `?seed=N`.
+
+## D38 — The remastered Synth music plays by default where it's available
+
+2026-10-28
+
+**Decision:** Until the player picks a music style, `MusicSwitch` plays `DEFAULT_MUSIC_STYLE`
+("synth") when the remaster manifest has it, otherwise the original FM music. A remembered
+choice (`tyrian3d.musicStyle` in localStorage, set by `M` or Options) and `?music=<style>` still
+win, so a player who picked Original or Orchestral keeps it. The deployed site has no manifest,
+so it plays the original as before; only local builds with the private remaster change.
+
+**Options considered:**
+- *Synth when available, choice remembered (chosen):* what the user asked for; nothing changes
+  for anyone who already chose, or for the public site.
+- *Override remembered choices too:* would undo an explicit pick.
+- *Make it a build setting:* more machinery for a single default.
+
+**Review:** In a local build with a fresh browser profile (or after clearing the site's storage),
+the title music is the Synth version; `M` cycles and the pick is remembered across reloads. To
+go back, set `DEFAULT_MUSIC_STYLE` to "original".

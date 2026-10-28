@@ -162,6 +162,7 @@ To play the complete game locally with everything generated, including the priva
 
 It loads the game data from `data/` (or `TYRIAN_DATA`) and the remaster from
 `../tyrian3d-remaster/out` (or `TYRIAN_REMASTER`). The title screen then offers Original,
-Orchestral and Synth music (`M` cycles; `?music=synth` picks one). `npm run dev` does the same with
+Orchestral and Synth music, starting on Synth until you pick another (`M` cycles; `?music=orchestral`
+picks one). `npm run dev` does the same with
 hot reload. Neither copies anything private into a build, and the deployed site never asks for it.
 
