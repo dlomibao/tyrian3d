@@ -84,3 +84,20 @@ elevations; `low` = polish.
 Every issue's note says **what is wrong and what it should be, concretely enough to fix**: which
 part, its current height or profile, and the target (for example "r12, the left pipe: about 4 px
 tall and capsule-flat; should be round, about 10 px tall, as wide as it is in the sprite").
+
+## Calibration (2026-10-28)
+
+A committee (an Opus and a Fable grader and a chair) graded 20 models' sheets; the user reviewed
+their grades and agreed with all of them. Those grades, in
+`assets/blender/proto/calibration/feedback.json` (status `done`, `acceptedFromCommittee`), are the
+reference set: grade new sheets the way they were graded, and fix models toward what they ask for.
+What they found, most common first (152 issues on 20 models):
+
+- **Too flat** (30) and **round parts built as slabs or squashed capsules** (17) are the main
+  problems. 11 of the 20 scored 1-2 on volume. A sprite part that is drawn round (a highlight band
+  with dark edges) is as tall as it is wide; pods and spheres are spheres, not lenses.
+- **Colours** (29) and **outlines** (28) come next: parts in the wrong palette shade from above, and
+  outlines that drift from the sprite's (IoU under about 0.8 is worth a look).
+- **Recesses** (15): grilles, vents, ports and windows drawn dark in the sprite are cut in.
+- Overall scores: 4 for the best two (the building assembly-newshj-43, newshe-235), 3 for eight,
+  2 for ten. A 4 is the bar for "good"; fixing a 2 starts with its heights and profiles.
