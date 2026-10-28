@@ -98,7 +98,7 @@ def build(sprite):
     # not bumps or paint, so the hull carries its mid-tone colour on a shiny metallic material and
     # the game's lights make the shine. The dark cockpit slot and the nozzle are glossy and dark.
     METAL = dict(metallic=0.8, roughness=0.28)
-    SLOT, DARK, HULL, POD, STRUT = (m(2, 0.05, 0.12), m(4, **METAL), m(5, **METAL), m(6, **METAL),
+    SLOT, DARK, HULL, POD, STRUT = (m(2, 0.05, 0.12), m(4, **METAL), m(6, **METAL), m(6, **METAL),
                                     m(7, **METAL))
     bm = bmesh.new()
 
@@ -111,16 +111,20 @@ def build(sprite):
              (24.0, 11.5, 2.7, 0.9, -1.1), (25.0, 11.5, 1.7, 0.8, -0.9), (25.45, 11.5, 1.7, 0.5, -0.6)]
     tube(bm, skirt, 12, lambda r, c, up: HULL)
 
-    # Fuselage: a round hull, as tall as it is wide (8 px wide, 6.5 px tall above the plane), the
-    # nose tapering in width and height to the tip. Ring grooves cut the dark bands across it
-    # (row 6, the cockpit slot at row 9, the band under the cockpit at row 13, the port at 18-19).
+    # Fuselage: one smooth, tapered polished-metal body (8-10 px wide, about 6 px tall above the
+    # plane), the nose tapering in width and height to the tip. The sprite shows only two dark seam
+    # rows across it (rows 6 and 13): each is a shallow groove, about 0.5 px deep and 1 px wide.
+    # The cockpit slot (row 9), the rear port (rows 18-19) and the tail are painted, not cut, and
+    # the bright spot mid-fuselage is the metal's sheen, so the top stays smooth under it.
     hull = [(1.4, 0, 1.0, -0.2), (2.0, 0.85, 1.8, -0.6), (3.0, 1.2, 2.6, -0.9), (4.0, 1.85, 3.4, -1.2),
-            (5.0, 2.25, 4.1, -1.5), (5.55, 2.6, 4.4, -1.6), (5.65, 2.65, 3.8, -1.6), (6.35, 2.65, 4.0, -1.7),
-            (6.45, 2.85, 4.8, -1.8), (7.5, 2.85, 5.3, -1.9), (8.45, 3.4, 5.9, -2.0), (8.6, 3.65, 4.9, -2.0),
-            (9.4, 3.65, 5.0, -2.0), (9.55, 3.85, 6.2, -2.0), (12.45, 3.85, 6.5, -2.0), (12.6, 3.75, 5.5, -2.0),
-            (13.4, 3.75, 5.6, -2.0), (13.55, 3.85, 6.4, -2.0), (16.4, 3.85, 6.1, -2.0), (16.6, 2.85, 5.7, -2.0),
-            (17.45, 2.85, 5.5, -2.0), (17.6, 2.6, 4.6, -2.0), (19.4, 2.6, 4.5, -2.0), (19.55, 2.85, 5.1, -1.9),
-            (22.4, 2.85, 4.4, -1.8), (23.0, 1.8, 2.8, -1.5), (23.3, 0, 1.5, -1.0)]
+            (5.0, 2.25, 4.0, -1.5), (5.5, 2.6, 4.35, -1.6),
+            (5.75, 2.4, 3.85, -1.6), (6.25, 2.5, 4.0, -1.7),  # seam groove, row 6
+            (6.5, 2.8, 4.6, -1.8), (7.5, 3.05, 5.05, -1.9), (8.45, 3.4, 5.45, -2.0), (9.2, 3.7, 5.75, -2.0),
+            (9.9, 3.85, 5.95, -2.0), (11.0, 3.85, 6.1, -2.0), (12.5, 3.85, 6.1, -2.0),
+            (12.75, 3.6, 5.6, -2.0), (13.25, 3.6, 5.6, -2.0),  # seam groove, row 13
+            (13.5, 3.85, 6.1, -2.0), (15.0, 3.85, 6.0, -2.0), (16.0, 3.75, 5.85, -2.0), (16.8, 3.2, 5.55, -2.0),
+            (17.45, 2.9, 5.3, -2.0), (19.55, 2.85, 4.95, -1.9), (22.4, 2.85, 4.4, -1.8),
+            (23.0, 1.8, 2.8, -1.5), (23.3, 0, 1.5, -1.0)]
 
     def hull_paint(r, c, up):
         x = abs(c - 11.5)

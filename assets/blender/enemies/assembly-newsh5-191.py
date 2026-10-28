@@ -12,6 +12,7 @@ Run: blender --background --python assets/blender/enemies/assembly-newsh5-191.py
 (the preview is the whole nose; each piece also gets <piece>.png next to it).
 """
 
+import math
 import sys
 from pathlib import Path
 
@@ -33,50 +34,72 @@ def build(sprite, grid):
     coll = common.reset_collection(NAME)
     tag = "n5a191"
     pal = lambda i, **kw: common.palette_material(sprite, i, tag, **kw)  # noqa: E731
+    # Flesh, not metal: mid-tone skin, a little glossy, and the light does the shading (the
+    # sprite's near-white streaks are the lit faces of the tip and the alae).
     mats = [
-        pal(22, metallic=0.0, roughness=0.6),  # 0 skin in shadow
-        pal(24, metallic=0.0, roughness=0.5),  # 1 skin
-        pal(26, metallic=0.0, roughness=0.45),  # 2 lit skin (the tip)
-        pal(16, metallic=0.0, roughness=0.9),  # 3 nostrils
-        pal(19, metallic=0.0, roughness=0.7),  # 4 dark skin round the nostrils
+        pal(19, metallic=0.0, roughness=0.6),  # 0 skin between the parts
+        pal(21, metallic=0.0, roughness=0.4),  # 1 skin (alae, column)
+        pal(22, metallic=0.0, roughness=0.38),  # 2 the tip and bridge
+        pal(1, metallic=0.0, roughness=1.0),  # 3 inside the nostrils
+        pal(17, metallic=0.0, roughness=0.7),  # 4 dark skin: nostril rims, the column's point
     ]
     SHADOW, SKIN, LIT, HOLE, DSKIN = range(5)
     G = grid
     ax = G.x(AXIS)
     bm = bmesh.new()
 
-    # Base: a low cushion over the whole silhouette.
+    # Base: a low cushion over the whole silhouette (the skin between tip, alae and column).
     outline = lib.resample(lib.mask_outline(G, lambda v: v >= 0, rounds=3, inset=0.3), 40)
-    f0 = lib.pillow(bm, outline, (ax, G.y(11)), 0.0, 0.1, 0.12, rings=4, mat_index=SHADOW)
+    f0 = lib.pillow(bm, outline, (ax, G.y(11)), 0.0, 0.14, 0.12, rings=4, mat_index=SHADOW)
     lib.set_smooth(bm, f0)
 
-    # Nostrils (columns 13-18 and 30-36, rows 12-19), in darker skin.
+    # Nostrils (columns 13-18 and 26-36, rows 12-19): black floors at the level of the cushion,
+    # sunk between the alae, the column and the alar rim curling round their outer and lower side.
     for side in (-1, 1):
-        cx = ax + side * 8.4 * U
-        f0 = lib.ellipsoid(bm, (cx, G.y(15.3), 0.0), (6.2 * U, 4.8 * U, 0.11), segments=14, rings=6, mat_index=DSKIN)
+        cx = ax + side * 8.6 * U
+        cy = G.y(14.7)
+        f0 = lib.ellipsoid(bm, (cx, cy, 0.0), (4.4 * U, 3.0 * U, 0.155), segments=14, rings=6, mat_index=HOLE)
         lib.set_smooth(bm, f0)
-        f0 = lib.ellipsoid(bm, (cx + side * 0.3 * U, G.y(15.6), 0.03), (5.2 * U, 3.5 * U, 0.1),
-                           segments=14, rings=6, mat_index=HOLE)
+        f0 = lib.nfaces(bm)
+        pts = []
+        n = 12
+        for k in range(n + 1):
+            t = k / n
+            a = math.radians(150 + 145 * t)  # from outer-top, round the bottom, to the column
+            r = 2.1 * U * math.sin(math.pi * min(1.0, 0.15 + t * 0.85)) ** 0.5
+            pts.append(((cx - side * 5.0 * U * math.cos(a), cy + 3.1 * U * math.sin(a), 0.0), r))
+        lib.tube(bm, pts, sides=8, mat_index=SKIN, flat=1.4)
         lib.set_smooth(bm, f0)
 
-    # Alae: the rounded wings either side of the tip (columns 6-15 and 33-42, rows 2-17).
+    # Alae: the round wings either side of the tip (columns 6-16 and 32-42, rows 2-15), domes
+    # about 10 px across standing about 5 px.
     for side in (-1, 1):
-        f0 = lib.ellipsoid(bm, (ax + side * 12.3 * U, G.y(9.2), -0.02), (6.6 * U, 7.6 * U, 0.19),
-                           segments=16, rings=8, mat_index=SKIN)
+        f0 = lib.ellipsoid(bm, (ax + side * 13.0 * U, G.y(8.3), 0.0), (5.6 * U, 6.4 * U, 0.42),
+                           segments=18, rings=10, mat_index=SKIN)
         lib.set_smooth(bm, f0)
 
-    # The column between the nostrils, running down to a point (rows 12-23).
-    f0 = lib.ellipsoid(bm, (ax, G.y(16.0), 0.0), (3.6 * U, 6.4 * U, 0.14), segments=14, rings=7, mat_index=SKIN)
+    # The column between the nostrils: a rounded keel about 4 px tall under the tip, tapering in
+    # width and height to the dark point at row 23.
+    f0 = lib.nfaces(bm)
+    v0 = len(bm.verts)
+    common.loft(bm, [(G.y(23.6), 0.0, 0.0, 0.0), (G.y(22.0), 1.8 * U, 0.08, 0.0),
+                     (G.y(19.5), 3.0 * U, 0.2, 0.0), (G.y(16.0), 3.7 * U, 0.3, 0.0),
+                     (G.y(12.0), 3.8 * U, 0.36, 0.0)], sides=14, mat_index=SKIN)
+    common.shift_x(bm, v0, ax)
     lib.set_smooth(bm, f0)
-    f0 = lib.ellipsoid(bm, (ax, G.y(20.0), 0.0), (2.8 * U, 3.3 * U, 0.09), segments=10, rings=5, mat_index=SHADOW)
+    f0 = lib.ellipsoid(bm, (ax, G.y(22.2), 0.0), (2.3 * U, 1.9 * U, 0.1), segments=10, rings=5, mat_index=DSKIN)
     lib.set_smooth(bm, f0)
 
-    # The tip (columns 16-31, rows 0-12) and the bridge rising up off the top of the sprites.
-    f0 = lib.ellipsoid(bm, (ax, G.y(5.6), 0.0), (8.6 * U, 7.6 * U, 0.28), segments=18, rings=9, mat_index=LIT)
+    # The tip (columns 17-30, rows 0-11): a ball about 14 px across standing about 7 px, and the
+    # bridge carrying its cross-section up off the top of the sprites.
+    rx, ry, rz, cyr = 6.9 * U, 6.6 * U, 0.6, 5.2
+    f0 = lib.ellipsoid(bm, (ax, G.y(cyr), 0.0), (rx, ry, rz), segments=22, rings=12, mat_index=LIT)
     lib.set_smooth(bm, f0)
     f0 = lib.nfaces(bm)
     v0 = len(bm.verts)
-    common.loft(bm, [(G.y(1.0), 7.0 * U, 0.2, 0.0), (G.y(-2.0), 6.6 * U, 0.2, 0.0)], sides=16, mat_index=LIT)
+    k = math.sqrt(1 - ((cyr - 3.0) * U / ry) ** 2)  # the ball's cross-section at row 3
+    secs = [(G.y(r), rx * k, rz * k, 0.0) for r in (3.0, 1.5, 0.0, -0.4)]
+    common.loft(bm, secs, sides=22, mat_index=LIT)
     common.shift_x(bm, v0, ax)
     lib.set_smooth(bm, f0)
 

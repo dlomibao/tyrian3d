@@ -8,8 +8,10 @@ are flat planes of the rock itself: the crown's vertices over those pixels are s
 tilted a little toward the upper-left light, flush with the rock on its lit side and a little
 above it on its shadowed lower right (no separate plates). The darker middle column sinks a little
 as a crease, and the two dark pits (between the upper facets, and lower right) are cut in.
-The rock is painted one mid-tone slate (the facets one lighter grey each, the two pits a shade
-darker) and left to the game's light: the facets' near-white cores and the dark lower right and rim in the sprite are its
+Lumps (LUMPS) and broad flat planes cut into its shoulders (PLANES, flat shaded) break its surface
+into irregular facets, so it reads in game as broken, faceted stone rather than a smooth bun.
+The rock is painted one mid-tone slate (the three facets one pale grey each, so the game light
+brings them to about the sprite's near-white; the two pits a shade darker) and left to the game's light: the facets' near-white cores and the dark lower right and rim in the sprite are its
 drawn lighting, and the game draws the black outline itself. Flat shaded and matte all over.
 One frame, one model.
 
@@ -58,9 +60,13 @@ FULL = 0.8        # < 1 fills out the ellipsoid's shoulders
 NEUTRAL = (3, 4, 5, 6)  # the sprite's neutral greys (its rim and a few dark specks)
 BODY = 103        # the rock's mid-tone slate, all over (the light makes its highlights and shadows)
 PIT = 102         # the two pits, a shade darker
-FACE = 107        # the three facets: one flat, lighter stone face each (not the sprite's near-white)
+FACE = 109        # the three facets: one flat, pale stone face each (the game light lifts it to about the sprite's near-white)
 PIT_MIN = 0.06    # how far a face's corners sink, on average, to count as in a pit (units)
-METALLIC, ROUGHNESS = 0.0, 0.85  # dry stone: no metal, rough
+PLANES = 14       # broad flat faces the stone is broken into
+PLANAR = 1.0      # how fully each patch is pulled onto its plane (1 = flat)
+MAX_MOVE = 0.12   # most a vertex moves onto its plane (units; 1.4 px)
+BULGE = 0.02      # most a vertex moves out onto its plane (units)
+METALLIC, ROUGHNESS = 0.0, 0.8  # dry stone: no metal, rough
 
 
 def convex_hull(points):
@@ -148,6 +154,38 @@ def build(sprite):
     for v in bm.verts:
         v.co.z -= low
 
+    # Break the rock into broad flat faces of stone: its surface is split among PLANES directions
+    # (a random set, a Voronoi of the surface), and each patch's vertices are pulled onto one plane
+    # fitted to it, so the rock gets sharp-edged planes meeting at ridges that the light picks out.
+    # Strongest on the shoulders, fading out at the girth (the top-view outline) and on the crown (its
+    # own lit facets).
+    prng = random.Random(SEED + 1)
+    seeds = []
+    while len(seeds) < PLANES:
+        d = Vector((prng.uniform(-1, 1), prng.uniform(-1, 1), prng.uniform(-0.4, 1)))
+        if 0.2 < d.length <= 1:
+            seeds.append(d.normalized())
+    zc = sum(v.co.z for v in bm.verts) / len(bm.verts)
+    centre = Vector((cx, cy, zc))
+    patches = {}
+    for v in bm.verts:
+        n = (v.co - centre).normalized()
+        patches.setdefault(max(range(len(seeds)), key=lambda k: n.dot(seeds[k])), []).append(v)
+    for k, vs in patches.items():
+        if len(vs) < 4:
+            continue
+        m = sum((v.co for v in vs), Vector()) / len(vs)
+        nrm = sum(((v.co - centre).normalized() for v in vs), Vector()).normalized()
+        for v in vs:
+            # each vertex slides along its own ray from the centre onto the plane (so no folds)
+            ray = (v.co - centre).normalized()
+            t = -(v.co - m).dot(nrm) / max(0.3, ray.dot(nrm))
+            t = max(-MAX_MOVE, min(BULGE, t))  # mostly cut in, so the outline isn't outgrown
+            rise = (lat[v] - 0.05) / 0.25
+            fall = (0.85 - lat[v]) / 0.25
+            w = PLANAR * max(0.0, min(1.0, rise, fall))
+            v.co += ray * (t * w)
+
     # The lit facets are flat planes of the crown: the rock's vertices over each facet's pixels are
     # set on one plane fitted to the rock there (keeping FLATTEN of its slope), PROUD above it and
     # tilted further toward the upper-left light; round it the rock is about flush on the lit
@@ -198,6 +236,8 @@ def build(sprite):
             drop = depth * math.exp(-d2 * d2) * min(1.0, (lat[v] - 0.4) / 0.3)
             v.co.z -= drop
             pit_drop[v] = pit_drop.get(v, 0.0) + drop
+
+    bmesh.ops.triangulate(bm, faces=bm.faces[:])
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
 
     # Paint: the rock is one stone, so it takes the sprite's mid-tone slate all over and the game's

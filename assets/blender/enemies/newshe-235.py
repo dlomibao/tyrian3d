@@ -34,14 +34,14 @@ def build(sprite):
     frame = sprite["frames"][0]
     grid = lib.Grid(24, 28, frame["pixels"])
     mats = lib.Mats(NAME, sprite["colors"])
-    DARK = mats(65, metallic=0.2, roughness=0.75)  # shadowed inner wall, claw
-    SHELL = mats(67, metallic=0.2, roughness=0.65)  # rim
-    LIT = mats(70, metallic=0.25, roughness=0.55)  # lit front of the rim
-    PALE = mats(74, metallic=0.3, roughness=0.45)  # highlights on the rim's front
-    BALL = mats(76, metallic=0.35, roughness=0.3)  # pink ball
-    BALL_DIM = mats(72, metallic=0.35, roughness=0.35)
-    BALL_HI = mats(78, metallic=0.4, roughness=0.25)
-    BEAD = mats(77, metallic=0.4, roughness=0.3)  # pink bead on the claw
+    # A pod's husk is organic, not metal: low metallic and rough, so the light shades it without a
+    # metal sheen. The pink ball and bead are glossy (their near-white sprite spots are shine, made
+    # by the material, not painted or modelled).
+    DARK = mats(65, metallic=0.0, roughness=0.8)  # inner wall in the bowl, claw
+    SHELL = mats(67, metallic=0.0, roughness=0.75)  # rim
+    LIT = mats(70, metallic=0.0, roughness=0.7)  # redder front of the rim
+    BALL = mats(76, metallic=0.0, roughness=0.25)  # pink ball
+    BEAD = mats(77, metallic=0.0, roughness=0.25)  # pink bead on the claw
     bm = bmesh.new()
 
     # Rim: outer outline edges cols 4-20, rows 7-22. The opening is traced from the sprite's open
@@ -90,15 +90,28 @@ def build(sprite):
                for t in (0.0, 0.08, 0.2, 0.35, 0.5, 0.65, 0.8, 0.92, 1.0)]
     first = lib.crater(bm, outer, inner, profile, mat_index=SHELL)
 
+    # The rim's pale pixels at the front right are its highlight (the sprite's light), so they get
+    # the rim's own red there, not a pale patch.
+    # Dark pixels on the rim stand for its inner wall in shadow, so only faces turned into the bowl
+    # take them; the outer side never gets the sprite's dark outline ring.
     def rim_slot(v):
         if v in (16, 64, 65):
             return DARK
-        if v <= 68:
+        if v <= 67:
             return SHELL
-        if v <= 72:
-            return LIT
-        return PALE
-    lib.paint(bm, first, grid, rim_slot)
+        return LIT
+    bm.faces.ensure_lookup_table()
+    bm.normal_update()
+    for f in bm.faces[first:]:
+        c = f.calc_center_median()
+        idx = grid.sample(c.x, c.y)
+        if idx is None:
+            continue
+        slot = rim_slot(idx)
+        outward = f.normal.x * (c.x - ccx) + f.normal.y * (c.y - ccy) > 0.05 * math.hypot(c.x - ccx, c.y - ccy)
+        if slot == DARK and outward:
+            slot = SHELL
+        f.material_index = slot
 
     # Pink ball inside (with its dark outline, cols 6-11, rows 10-14), resting on the ground: a
     # sphere about 6 px across and 6 px tall.
@@ -106,24 +119,8 @@ def build(sprite):
     first = lib.blob(bm, (bx, by, 3.0 / 12), (3.0 / 12, 2.55 / 12, 3.0 / 12), segments=20, rings=10,
                      mat_index=BALL)
 
-    def ball_slot(v):
-        if v <= 68:
-            return SHELL
-        if v <= 72:
-            return BALL_DIM
-        if v <= 76:
-            return BALL
-        return BALL_HI
-    # The sprite's dark outline round the ball is its shaded steep side: faces that face up keep
-    # the pink of the nearest pink pixel; the steep sides under outline pixels turn dark red.
-    bm.faces.ensure_lookup_table()
-    bm.normal_update()
-    for f in bm.faces[first:]:
-        c = f.calc_center_median()
-        steep = f.normal.z < 0.5
-        idx = grid.sample(c.x, c.y, skip=(-1,) if steep else (-1, 16, 64, 65, 66, 67, 68))
-        if idx is not None:
-            f.material_index = ball_slot(idx)
+    # One pink all over: the sprite's dark ring round the ball is its outline and shaded side, and
+    # its pale centre its highlight; the game's light and outline draw both.
 
     # The claw: a thin dark stalk lying in the bowl along the sprite's dark line, from the front of
     # the rim (cols 12-13, row 17) up the ball's right side (cols 13-14, rows 11-13), over to
@@ -136,14 +133,10 @@ def build(sprite):
     lib.tube(bm, [((E(c, r)[0], E(c, r)[1], z / 12), w / 12) for c, r, z, w in path], sides=6,
              mat_index=DARK)
 
-    def claw_slot(v):
-        return LIT if 69 <= v <= 72 else PALE if v >= 73 else DARK
-    lib.paint(bm, first, grid, claw_slot)
 
     # The small pink bead on the stalk (col 12, rows 14-15): a 2 px ball sitting on it.
     first = lib.blob(bm, (E(12.5, 15.0)[0], E(12.5, 15.0)[1], 1.9 / 12), (1.0 / 12, 1.0 / 12, 0.9 / 12),
                      segments=8, rings=5, mat_index=BEAD)
-    lib.paint(bm, first, grid, lambda v: BEAD if v >= 73 else LIT if v >= 69 else None)
 
     return lib.to_object(NAME, bm, mats.list, coll)
 

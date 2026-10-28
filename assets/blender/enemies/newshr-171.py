@@ -30,6 +30,8 @@ TOP_PX = 4.1     # dome height above the midplane before relief (peak with relie
 BOTTOM_PX = 3.6  # underside depth below the midplane (about 8 px thick in all)
 N = 13           # cube-sphere subdivisions (6 * N * N quads), flat shaded so it reads as facets
 JITTER_PX = 0.22  # random vertex offset that breaks the sphere into irregular stone facets
+SIDE_NZ = 0.55   # faces steeper than this (normal z) are sides, lit by the game, not the sprite
+SIDE_MIN = 165   # mid-tone for side faces (the sprite's rim pixels are its outline)
 
 
 def lumps(x, y, z):
@@ -141,7 +143,14 @@ def boulder(bm, grid, slot_for, under_slot, shrink=0.15):
             continue
         c = f.calc_center_median()
         idx = grid.sample(c.x, c.y)
-        f.material_index = slot_for(idx if idx is not None else -1)
+        idx = idx if idx is not None else -1
+        # The sprite's dark rim (162-164) is its drawn outline and shadow side, not stone colour:
+        # the game lights the sides and draws its own outline, so steep side faces take the
+        # stone's mid-tone instead of painting that ring (and a patchwork of shades) on them,
+        # which made it dark and blocky.
+        if f.normal.z < SIDE_NZ and 162 <= idx <= 171:
+            idx = SIDE_MIN
+        f.material_index = slot_for(idx)
 
 
 def build(sprite):
@@ -159,7 +168,7 @@ def build(sprite):
         return shades.get(i, shades[163])
 
     bm = bmesh.new()
-    boulder(bm, grid, slot, shades[163])
+    boulder(bm, grid, slot, shades[165])
     obj = common.mesh_object(NAME, bm, mats.list, coll, smooth=False)
     for m in mats.list:
         m.roughness = 1.0  # viewport (Workbench) roughness too

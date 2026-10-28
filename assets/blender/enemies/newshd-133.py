@@ -1,20 +1,22 @@
-"""Small grey-blue ball (newshd.shp frame 133): a 3D version of its sprite.
+"""Small grey stone (newshd.shp frame 133): a 3D version of its sprite.
 
-Seen in episodes 1-3. The sprite is a round disc 11 px wide and 12 px tall, near-black at its rim,
-slate blue-grey inside and a small near-white spot just left of centre: a shiny ball. So the model
-is a smooth sphere (smooth shaded) whose outline is traced to the sprite's, its dark rim included,
-and which stands about as tall as it is wide (+-5.5 px round the midplane).
+Seen in episodes 1-3. The sprite is a round lump 11 px wide and 12 px tall, near-black at its rim,
+slate blue-grey inside with pale patches left of centre: a chipped rock lit from the upper left.
+So the model is an irregular faceted stone whose outline is traced to the sprite's, its dark rim
+included, about as tall as it is wide (+-5 px round the midplane): the convex hull of points on
+that ball, each pulled in by a fixed random amount, so it has big flat faces and ridges.
 
-The sphere is built from rings round a pole tilted a little toward the sprite's highlight. The
-sprite's near-black rim, darker lower-right and near-white spot are its drawn lighting, not paint:
-the game draws its own dark outline and its sun and environment light make the shine, so the whole
-ball takes the sprite's mid-tone slate blue-grey (pal 103) and a polished-metal material (metallic,
-fairly smooth) that puts a highlight on it from the game's light. One frame, one model.
+The sprite's near-black rim, darker lower-right and pale patches are its drawn lighting, not paint:
+the game draws its own dark outline, and the pale patches are lit faces of the stone. So every face
+takes one mid-tone blue-grey (pal 106, near the mean of the sprite's interior) in a matte material
+(metallic 0, roughness 0.8), flat shaded, and the game's sun lights the facets toward the upper
+left. One frame, one model.
 
 Run: blender --background --python assets/blender/enemies/newshd-133.py [-- --preview out.png]
 """
 
 import math
+import random
 import sys
 from pathlib import Path
 
@@ -29,17 +31,18 @@ common = lib.common
 NAME = "newshd-133"
 HALF_HEIGHT = 5.6 / 12  # units: the ball is about 11 px tall, centred on the midplane
 GROW = 0.15  # px past the sprite's outer pixel edge, so its outline pixels are covered
-SEGMENTS = 20
 ROUND = 0.5  # how far the traced outline is pulled toward a circle (its mean radius)
 # The sprite's highlight (the mean of its near-white pixels, col 4.2 row 6.5) sits ~0.8 px left of
 # the disc's centre: tilt the pole that far toward it.
 TILT = math.asin(0.8 / 5.6)
-# Rings from the pole down, as the sine of the ring's angle from the pole (its fraction of the
-# radius seen from above), then the angles of the underside rings. Geometry only: one colour.
-BODY = 103  # the sprite's mid-tone slate blue-grey (its interior, between 102 and 105)
-METALLIC, ROUGHNESS = 0.8, 0.35  # a polished metal ball: the game's lights make its highlight
-BANDS = [0.17, 0.33, 0.52, 0.70, 0.86, 0.96, 1.0]
-UNDER = [math.radians(125), math.radians(155), math.pi]
+BODY = 106  # the sprite's lit blue-grey, near the mean of its interior: its mid-tone
+METALLIC, ROUGHNESS = 0.0, 0.8  # matte stone: the game's sun lights the facets, nothing shines
+SEED = 133
+# Rings of hull points from the top down: (angle from the pole in degrees, points, the range of
+# how far each is pulled in toward the centre). The equator ring stays on the outline.
+RINGS = [(0, 1, 0.92, 0.95), (28, 4, 0.86, 0.96), (58, 7, 0.88, 0.98), (90, 12, 1.0, 1.02),
+         (122, 6, 0.86, 0.96), (155, 3, 0.85, 0.95)]
+MERGE_DEG = 6  # neighbouring hull faces closer than this to flat become one facet
 
 
 def outline(pixels, steps=96, grow=GROW, smooth=8):
@@ -77,31 +80,27 @@ def build(sprite):
 
     tilt = Matrix.Rotation(-TILT, 3, "Y")  # pole leans toward -X (the sprite's left)
 
-    def place(theta, phi):
+    def place(theta, phi, scale=1.0):
         n = tilt @ Vector((math.sin(theta) * math.cos(phi), math.sin(theta) * math.sin(phi), math.cos(theta)))
-        r = lib.radius_at(radii, math.atan2(n.y, n.x))
-        return Vector((cx + n.x * r, cy + n.y * r, n.z * HALF_HEIGHT))
+        r = lib.radius_at(radii, math.atan2(n.y, n.x)) * scale
+        return Vector((cx + n.x * r, cy + n.y * r, n.z * HALF_HEIGHT * scale))
 
-    rings = [math.asin(s) for s in BANDS] + UNDER
+    # Points on the traced ball, each pulled in a little by a fixed random amount, and their convex
+    # hull: big flat faces meeting at ridges, a chipped stone rather than a ball.
+    rng = random.Random(SEED)
     bm = bmesh.new()
-    top = bm.verts.new(place(0.0, 0.0))
-    prev = None
-    for theta in rings:
-        if theta >= math.pi - 1e-6:  # the bottom pole closes the last band
-            bot = bm.verts.new(place(math.pi, 0.0))
-            for k in range(SEGMENTS):
-                f = bm.faces.new((prev[(k + 1) % SEGMENTS], prev[k], bot))
-            break
-        ring = [bm.verts.new(place(theta, 2 * math.pi * k / SEGMENTS)) for k in range(SEGMENTS)]
-        for k in range(SEGMENTS):
-            k1 = (k + 1) % SEGMENTS
-            if prev is None:
-                f = bm.faces.new((top, ring[k], ring[k1]))
-            else:
-                f = bm.faces.new((prev[k], ring[k], ring[k1], prev[k1]))
-        prev = ring
+    for theta_deg, count, lo, hi in RINGS:
+        offset = rng.uniform(0, 2 * math.pi)
+        for k in range(count):
+            phi = offset + 2 * math.pi * (k + rng.uniform(-0.3, 0.3)) / count
+            theta = math.radians(theta_deg + rng.uniform(-8, 8)) if theta_deg else 0.0
+            bm.verts.new(place(theta, phi, rng.uniform(lo, hi)))
+    hull = bmesh.ops.convex_hull(bm, input=bm.verts[:])
+    loose = [v for v in hull["geom_interior"] + hull["geom_unused"] if isinstance(v, bmesh.types.BMVert)]
+    bmesh.ops.delete(bm, geom=loose, context="VERTS")
+    bmesh.ops.dissolve_limit(bm, angle_limit=math.radians(MERGE_DEG), verts=bm.verts[:], edges=bm.edges[:])
     bmesh.ops.triangulate(bm, faces=bm.faces[:])
-    obj = common.mesh_object(NAME, bm, mats, coll, smooth=True)
+    obj = common.mesh_object(NAME, bm, mats, coll, smooth=False)
     return [(NAME, [obj], sprite["sprites"])]
 
 
