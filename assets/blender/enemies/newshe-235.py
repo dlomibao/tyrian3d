@@ -41,26 +41,54 @@ def build(sprite):
     BALL = mats(76, metallic=0.35, roughness=0.3)  # pink ball
     BALL_DIM = mats(72, metallic=0.35, roughness=0.35)
     BALL_HI = mats(78, metallic=0.4, roughness=0.25)
+    BEAD = mats(77, metallic=0.4, roughness=0.3)  # pink bead on the claw
     bm = bmesh.new()
 
-    # Rim: outer outline edges cols 4-20, rows 7-22; the opening (cols 5-17, rows 8-18) sits up
-    # and left of centre, so the wall is one pixel thin at the left and top and 3-4 px at the
-    # right and front.
-    n = 40
-    ocx, ocy = E(12, 14.5)
-    icx, icy = E(10.8, 13)
+    # Rim: outer outline edges cols 4-20, rows 7-22. The opening is traced from the sprite's open
+    # pixels (pixel-edge coordinates): it sits up and left of centre, so the wall is a crescent,
+    # 1 px at the left and top and about 4 px at the right and front.
+    opening = [(10.2, 8.2), (13.8, 8.2), (15.9, 9.1), (16.0, 10.4), (17, 11.0), (17, 11.4), (16.2, 12),
+               (16, 13.5), (16, 14.6), (15, 15.6), (14, 16.6), (12.5, 17.6), (11.6, 18), (8.2, 17.9),
+               (7.9, 17.1), (6.1, 16.9), (5.3, 16), (5, 14.5), (5, 12.5), (5.6, 11.4), (6.2, 10.2),
+               (8.1, 9.2), (9.9, 8.4)]
+    opening = [E(c, r) for c, r in opening]
+    n = 48
+    ccx, ccy = E(10.8, 13.2)  # every outline point lies on a ray from here
+    ocx, ocy, orx, ory = *E(12, 14.5), 8.1 / 12, 7.6 / 12
+
+    def ray_ellipse(dx, dy):
+        # Solve ((ccx + t dx - ocx)/orx)^2 + ((ccy + t dy - ocy)/ory)^2 = 1 for t > 0.
+        px, py = (ccx - ocx) / orx, (ccy - ocy) / ory
+        qx, qy = dx / orx, dy / ory
+        a, b, c = qx * qx + qy * qy, 2 * (px * qx + py * qy), px * px + py * py - 1
+        t = (-b + math.sqrt(b * b - 4 * a * c)) / (2 * a)
+        return (ccx + t * dx, ccy + t * dy)
+
+    def ray_polygon(dx, dy, poly):
+        best = None
+        for (x1, y1), (x2, y2) in zip(poly, poly[1:] + poly[:1]):
+            ex, ey = x2 - x1, y2 - y1
+            den = dx * ey - dy * ex
+            if abs(den) < 1e-12:
+                continue
+            t = ((x1 - ccx) * ey - (y1 - ccy) * ex) / den
+            u = ((x1 - ccx) * dy - (y1 - ccy) * dx) / den
+            if t > 0 and -1e-9 <= u <= 1 + 1e-9 and (best is None or t < best):
+                best = t
+        return (ccx + best * dx, ccy + best * dy)
+
     outer, inner, heights = [], [], []
     for i in range(n):
         a = 2 * math.pi * i / n
-        ca, sa = math.cos(a), math.sin(a)
-        outer.append((ocx + 8.1 / 12 * ca, ocy + 7.6 / 12 * sa))
-        inner.append((icx + 5.6 / 12 * ca, icy + 5.0 / 12 * sa))
+        dx, dy = math.cos(a), math.sin(a)
+        outer.append(ray_ellipse(dx, dy))
+        inner.append(ray_polygon(dx, dy, opening))
         thick = math.hypot(outer[-1][0] - inner[-1][0], outer[-1][1] - inner[-1][1]) * 12
-        heights.append(0.13 + 0.045 * thick)
-    first = lib.crater(bm, outer, inner,
-                       [(0.0, 0.0), (0.15, [h * 0.5 for h in heights]), (0.33, [h * 0.9 for h in heights]),
-                        (0.5, heights), (0.68, [h * 0.8 for h in heights]), (0.86, [h * 0.35 for h in heights]),
-                        (1.0, 0.0)], mat_index=SHELL)
+        # A round section: about as tall as it is wide (4 px wide stands about 5 px).
+        heights.append((0.9 + 1.0 * thick) / 12)
+    profile = [(t, [h * math.sqrt(max(0.0, 1 - (2 * t - 1) ** 2)) ** 0.85 for h in heights])
+               for t in (0.0, 0.08, 0.2, 0.35, 0.5, 0.65, 0.8, 0.92, 1.0)]
+    first = lib.crater(bm, outer, inner, profile, mat_index=SHELL)
 
     def rim_slot(v):
         if v in (16, 64, 65):
@@ -72,29 +100,50 @@ def build(sprite):
         return PALE
     lib.paint(bm, first, grid, rim_slot)
 
-    # Pink ball inside (cols 7-10, rows 10-13), resting on the ground.
-    bx, by = E(9, 12.1)
-    first = lib.blob(bm, (bx, by, 0.2), (2.3 / 12, 2.2 / 12, 0.2), segments=16, rings=8, mat_index=BALL)
+    # Pink ball inside (with its dark outline, cols 6-11, rows 10-14), resting on the ground: a
+    # sphere about 6 px across and 6 px tall.
+    bx, by = E(9.0, 12.4)
+    first = lib.blob(bm, (bx, by, 3.0 / 12), (3.0 / 12, 2.55 / 12, 3.0 / 12), segments=20, rings=10,
+                     mat_index=BALL)
 
     def ball_slot(v):
+        if v <= 68:
+            return SHELL
         if v <= 72:
             return BALL_DIM
         if v <= 76:
             return BALL
         return BALL_HI
-    lib.paint(bm, first, grid, ball_slot, skip=(-1, 16, 64, 65, 66, 67, 68))
+    # The sprite's dark outline round the ball is its shaded steep side: faces that face up keep
+    # the pink of the nearest pink pixel; the steep sides under outline pixels turn dark red.
+    bm.faces.ensure_lookup_table()
+    bm.normal_update()
+    for f in bm.faces[first:]:
+        c = f.calc_center_median()
+        steep = f.normal.z < 0.5
+        idx = grid.sample(c.x, c.y, skip=(-1,) if steep else (-1, 16, 64, 65, 66, 67, 68))
+        if idx is not None:
+            f.material_index = ball_slot(idx)
 
-    # The claw: from the front of the rim (col 12-13, row 17) up past the ball's right side and
-    # over its top (the dark arc at cols 11-13, rows 9-13).
-    path = [(12.8, 18.6, 0.18), (12.6, 16.2, 0.24), (13.3, 14.0, 0.3), (13.6, 12.0, 0.36),
-            (13.0, 10.3, 0.4), (11.8, 9.6, 0.4), (10.8, 9.6, 0.36)]
+    # The claw: a thin dark stalk lying in the bowl along the sprite's dark line, from the front of
+    # the rim (cols 12-13, row 17) up the ball's right side (cols 13-14, rows 11-13), over to
+    # row 9 and hooking down at the ball's top right (col 11, row 10). It stays below the rim.
+    path = [(13.0, 18.6, 1.9, 0.75), (13.0, 17.5, 1.3, 0.75), (12.6, 16.5, 1.1, 0.75),
+            (12.5, 15.5, 1.1, 1.2), (13.0, 14.5, 1.2, 0.75), (13.6, 13.5, 1.3, 0.75),
+            (14.0, 12.5, 1.5, 0.8), (13.5, 11.5, 1.7, 1.25), (13.3, 10.5, 2.0, 0.75),
+            (12.4, 9.5, 2.2, 0.75), (11.6, 9.7, 2.1, 0.7), (11.4, 10.5, 1.8, 0.45)]
     first = len(bm.faces)
-    lib.tube(bm, [((E(c, r)[0], E(c, r)[1], z), 0.65 / 12 if i < len(path) - 1 else 0.3 / 12)
-                  for i, (c, r, z) in enumerate(path)], sides=6, mat_index=DARK)
+    lib.tube(bm, [((E(c, r)[0], E(c, r)[1], z / 12), w / 12) for c, r, z, w in path], sides=6,
+             mat_index=DARK)
 
     def claw_slot(v):
         return LIT if 69 <= v <= 72 else PALE if v >= 73 else DARK
     lib.paint(bm, first, grid, claw_slot)
+
+    # The small pink bead on the stalk (col 12, rows 14-15): a 2 px ball sitting on it.
+    first = lib.blob(bm, (E(12.5, 15.0)[0], E(12.5, 15.0)[1], 1.9 / 12), (1.0 / 12, 1.0 / 12, 0.9 / 12),
+                     segments=8, rings=5, mat_index=BEAD)
+    lib.paint(bm, first, grid, lambda v: BEAD if v >= 73 else LIT if v >= 69 else None)
 
     return lib.to_object(NAME, bm, mats.list, coll)
 

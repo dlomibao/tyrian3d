@@ -11,7 +11,8 @@ cobbled brown ground with a dark shadow ring around the dome's foot.
 
 The glass is a shell from the dome's foot up to a window over the city (the sprite shows the
 towers through it), so its back half stands as a curved wall behind the towers and its sides and
-front are a lower rim. Shell faces take the purple shade the sprite has at that spot. The towers
+front are a lower rim. Over the window a frame of glass ribs on the same egg surface closes the
+bubble (the panes between the ribs are the clear glass), so it encloses the city. Shell faces take the purple shade the sprite has at that spot. The towers
 are boxes on the sprite's building blocks, tallest at the back (the sprite draws them in an
 oblique view, so each block's drawn area is its footprint here), coloured by the block's average
 shade. The ground is a low slab with cobbles where the sprite's ground is brown. The whole thing is
@@ -97,6 +98,36 @@ WINDOW = [(35, 9), (29.5, 9), (29.5, 17), (26, 20), (20, 21), (19, 26), (15.5, 2
 
 CENTRE = (32.0, 37.0)  # the dome's middle, in pixel edges
 
+# The dome's height profile: a bubble about 28 px tall (a bit under half its 61 px width), its
+# crown set back toward the sprite's top (the egg's narrow end, where the sprite's glare sits),
+# with steep sides that curve right down to the cobbles. z = DOME_H * (1 - rn^2)^DOME_EXP, where
+# rn is the distance from APEX relative to the egg's edge along the same ray.
+APEX = (32.0, 26.0)
+DOME_H = 28 / 12
+DOME_EXP = 0.4
+GLASS_T = 1.0 / 12  # the glass shell's thickness
+TOWER_MARGIN = 1.5 / 12  # how far every tower roof stays under the glass
+COBBLE_LIFT = 0.3  # cobbles take the ground shade under them, this many indices lighter
+
+# The glass over the window is a frame of ribs on the same egg surface (the panes between them
+# are the clear glass the sprite looks through), so the bubble is closed over the city: parallels
+# at these fractions of the way from APEX to the egg's edge, MERIDIANS ribs from the crown cap and
+# as many again between them from the second parallel.
+PARALLELS = (0.35, 0.68)
+MERIDIANS = 8
+CAP_RN = 0.12
+RIB_W = 1.0  # px
+
+
+def dome_height(c, r, egg):
+    """Height of the dome's outer surface over pixel edges (c, r) (0 outside the egg)."""
+    d = math.dist((c, r), APEX)
+    if d < 1e-6:
+        return DOME_H
+    hit = ray_hit(egg, APEX, math.atan2(r - APEX[1], c - APEX[0]))
+    rn = d / max(1e-6, math.dist(hit, APEX))
+    return DOME_H * max(0.0, 1 - rn * rn) ** DOME_EXP
+
 
 def egg_outline():
     left = [(l, r) for r, l, _ in EGG]
@@ -135,13 +166,15 @@ def inside(poly, x, y):
 
 # --- geometry ----------------------------------------------------------------------------------
 
-def box(bm, c0, c1, r0, r1, z0, z1, side_mat, top_mat):
-    """A box over pixel edges c0..c1, r0..r1, from z0 to z1, with its own top material."""
+def box(bm, c0, c1, r0, r1, z0, z1, side_mat, top_mat, south=None, east=None, north=None, west=None):
+    """A box over pixel edges c0..c1, r0..r1, from z0 to z1, with its own top material (and
+    optionally its own material per wall; south is the screen-bottom wall)."""
     xs, ys = (X(c0), X(c1)), (Y(r1), Y(r0))
     v = [bm.verts.new((xs[i], ys[j], z)) for z in (z0, z1) for j in (0, 1) for i in (0, 1)]
     # v index: bottom 0..3 (x0y0, x1y0, x0y1, x1y1), top 4..7
-    quads = [((0, 2, 3, 1), side_mat), ((4, 5, 7, 6), top_mat), ((0, 1, 5, 4), side_mat),
-             ((1, 3, 7, 5), side_mat), ((3, 2, 6, 7), side_mat), ((2, 0, 4, 6), side_mat)]
+    pick = lambda m: side_mat if m is None else m  # noqa: E731
+    quads = [((0, 2, 3, 1), side_mat), ((4, 5, 7, 6), top_mat), ((0, 1, 5, 4), pick(south)),
+             ((1, 3, 7, 5), pick(east)), ((3, 2, 6, 7), pick(north)), ((2, 0, 4, 6), pick(west))]
     for idx, mat in quads:
         f = bm.faces.new([v[i] for i in idx])
         f.material_index = mat
@@ -206,14 +239,20 @@ TOWERS = [
 ]
 
 
+def tower_px(h):
+    """A TOWERS height (the old, quarter-scale units) as the skyscraper height in sprite px: the
+    central tower about 24 px, the ring of smaller blocks 10-16 px, the front rim blocks about 6."""
+    return 24 * (h / 0.66) ** 0.8
+
+
 def build(sprite, m):
     coll = common.reset_collection(NAME)
-    glass = dict(metallic=0.25, roughness=0.15)
+    glass = dict(metallic=0.1, roughness=0.2)
     rock = dict(metallic=0.0, roughness=0.9)
-    city = dict(metallic=0.45, roughness=0.35)
+    city = dict(metallic=0.3, roughness=0.4)
     pal = lambda i, **kw: common.palette_material(sprite, i, TAG, **kw)  # noqa: E731
-    glass_idx = [82, 84, 86, 88, 90, 92, 95]
-    city_idx = [97, 99, 100, 101, 102, 103, 105, 107]
+    glass_idx = [82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 95]
+    city_idx = [96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 109]
     ground_idx = [16, 17, 18, 19, 20]
     mats = ([pal(i, **glass) for i in glass_idx] + [pal(i, **city) for i in city_idx]
             + [pal(i, **rock) for i in ground_idx])
@@ -227,10 +266,11 @@ def build(sprite, m):
     is_glass = lambda v: 80 <= v <= 95 or v in glare  # noqa: E731
 
     def glass_mat(c, r):
+        """The glass's shade at (c, r): the sprite's (the glare spot keeps its own light shade)."""
         v = sample(m, c, r, is_glass, remap=glare)
         if v is None:
-            return G0 + 1
-        return nearest(glass_idx, G0, v)
+            return G0 + 2
+        return nearest(glass_idx, G0, max(82, v))
 
     bm = bmesh.new()
 
@@ -238,7 +278,7 @@ def build(sprite, m):
     slab_px(bm, [(0, 28), (0, 84), (72, 84), (72, 28)], 0.0, 0.03, S0)
     slab_px(bm, WINDOW, 0.0, 0.035, C0)
 
-    # Cobbles where the sprite's ground is brown, outside the dome.
+    # Cobbles where the sprite's ground is brown, outside the dome, in the warmer browns.
     egg = egg_outline()
     rng = random.Random(85)
     step = 4.3
@@ -250,67 +290,228 @@ def build(sprite, m):
             v = sample(m, cc, rr, lambda x: 16 <= x <= 20, radius=1)
             if v is not None and not inside(egg, cc, rr) and 0 < cc < W and 28 < rr < H:
                 stone(bm, rng, cc, rr, 0.03, rng.uniform(2.3, 2.9), rng.uniform(1.9, 2.4),
-                      rng.uniform(0.025, 0.04), nearest(ground_idx, S0, v + 1.2))
+                      rng.uniform(0.025, 0.04), nearest(ground_idx, S0, v + COBBLE_LIFT))
             c += step
         r += step
 
-    # The glass shell from the dome's foot up to the window.
-    N, K = 96, 6
-    Hd = 0.62
+    # The glass: a thin shell from the dome's foot (on the cobbles, z = 0) up to the window over
+    # the city, where it stops so the city shows from above (the rest of the bubble is the clear
+    # glass the sprite looks through). Rings run from the foot inwards along rays from CENTRE,
+    # closer together near the foot where the shell is steep; heights follow dome_height.
+    N, K = 96, 9
     outer, inner = [], []
     for i in range(N):
         a = 2 * math.pi * i / N
         outer.append(ray_hit(egg, CENTRE, a))
         inner.append(ray_hit(WINDOW, CENTRE, a))
 
-    def dome_z(r_norm):
-        return Hd * max(0.0, 1 - r_norm * r_norm) ** 0.7
-
-    rings = []
-    rings.append([bm.verts.new((X(o[0]), Y(o[1]), 0.0)) for o in outer])  # foot
+    pts = []  # pts[k][i]: pixel-edge (c, r) of ring k
     for k in range(K + 1):
-        t = k / K
-        ring = []
-        for o, n in zip(outer, inner):
-            p = (o[0] + (n[0] - o[0]) * t, o[1] + (n[1] - o[1]) * t)
-            ro = math.dist(o, CENTRE)
-            rn = math.dist(p, CENTRE) / ro if ro else 0
-            ring.append(bm.verts.new((X(p[0]), Y(p[1]), max(0.05, dome_z(rn)))))
-        rings.append(ring)
-    rings.append([bm.verts.new((X(n[0]), Y(n[1]), 0.035)) for n in inner])  # window floor
-    for k in range(len(rings) - 1):
-        r0, r1 = rings[k], rings[k + 1]
+        t = 1 - math.cos(k / K * math.pi / 2)
+        pts.append([(o[0] + (n[0] - o[0]) * t, o[1] + (n[1] - o[1]) * t) for o, n in zip(outer, inner)])
+    zs = [[0.0 if k == 0 else dome_height(c, r, egg) for c, r in ring] for k, ring in enumerate(pts)]
+    out_rings = [[bm.verts.new((X(c), Y(r), z)) for (c, r), z in zip(ring, zr)] for ring, zr in zip(pts, zs)]
+    in_rings = [out_rings[0]] + [[bm.verts.new((X(c), Y(r), max(0.0, z - GLASS_T))) for (c, r), z in zip(ring, zr)]
+                                 for ring, zr in zip(pts[1:], zs[1:])]
+
+    def quad(a, b, c, d, mat, smooth):
+        f = bm.faces.new((a, b, c, d))
+        f.material_index = mat
+        f.smooth = smooth
+        return f
+
+    for k in range(K):
         for i in range(N):
             j = (i + 1) % N
-            f = bm.faces.new((r0[i], r0[j], r1[j], r1[i]))
-            if 1 <= k < K + 1:  # the curved top: the sprite's shade at the face's middle
-                cx = sum(v.co.x for v in f.verts) / 4 * 12 + W / 2
-                cy = H / 2 - sum(v.co.y for v in f.verts) / 4 * 12
-                f.material_index = glass_mat(cx, cy)
-                f.smooth = True
-            else:  # the foot and the cut edge over the city
-                f.material_index = G0 + 1
-                f.smooth = False
+            o0, o1, i0, i1 = out_rings[k], out_rings[k + 1], in_rings[k], in_rings[k + 1]
+            pc = [(pts[k][i][0] + pts[k][j][0] + pts[k + 1][i][0] + pts[k + 1][j][0]) / 4,
+                  (pts[k][i][1] + pts[k][j][1] + pts[k + 1][i][1] + pts[k + 1][j][1]) / 4]
+            quad(o0[i], o0[j], o1[j], o1[i], glass_mat(*pc), True)  # outside: the sprite's shade
+            if k == 0:  # the foot ring is shared, so the first inner band is a triangle fan strip
+                f = bm.faces.new((o0[j], o0[i], i1[i], i1[j]))
+            else:
+                f = bm.faces.new((i0[j], i0[i], i1[i], i1[j]))
+            f.material_index = G0  # the inside of the glass, dark
+            f.smooth = True
+    for i in range(N):  # the cut edge of the glass round the window
+        j = (i + 1) % N
+        quad(out_rings[K][i], out_rings[K][j], in_rings[K][j], in_rings[K][i], G0, False)
 
-    # The towers, coloured by their block's average shade (outline pixels left out).
+    # The frame closing the bubble over the window (see PARALLELS).
+    rib_mat = nearest(glass_idx, G0, 87)
+    win_in = lambda p: inside(WINDOW, *p)  # noqa: E731
+
+    def on_egg(rn, a):
+        h = ray_hit(egg, APEX, a)
+        return (APEX[0] + (h[0] - APEX[0]) * rn, APEX[1] + (h[1] - APEX[1]) * rn)
+
+    def rib(path, closed, lift):
+        """A rib along `path` (pixel edges), RIB_W wide, its top on the egg surface (+ lift px)
+        and GLASS_T deep, kept to the window (plus one sample under the solid glass each end)."""
+        n = len(path)
+        ok = [win_in(p) for p in path]
+        if not any(ok):
+            return
+        runs = []
+        if closed and all(ok):
+            runs.append((list(range(n)), True))
+        else:
+            start = next(i for i in range(n) if not ok[i]) if closed else 0
+            order = [(start + k) % n for k in range(n)] if closed else list(range(n))
+            cur = []
+            for idx in order:
+                if ok[idx]:
+                    cur.append(idx)
+                elif cur:
+                    runs.append((cur, False))
+                    cur = []
+            if cur:
+                runs.append((cur, False))
+            ext = []
+            for run, _ in runs:
+                a, b = run[0], run[-1]
+                pre = (a - 1) % n if closed else a - 1
+                post = (b + 1) % n if closed else b + 1
+                run = ([pre] if (closed or pre >= 0) else []) + run + ([post] if (closed or post < n) else [])
+                ext.append((run, False))
+            runs = ext
+        for run, loop in runs:
+            if len(run) < 2:
+                continue
+            secs = []
+            for k, idx in enumerate(run):
+                p0 = path[run[k - 1]] if (k > 0 or loop) else path[idx]
+                p1 = path[run[(k + 1) % len(run)]] if (k < len(run) - 1 or loop) else path[idx]
+                tx, ty = p1[0] - p0[0], p1[1] - p0[1]
+                ln = math.hypot(tx, ty) or 1
+                nx, ny = -ty / ln * RIB_W / 2, tx / ln * RIB_W / 2
+                c, r = path[idx]
+                sec = []
+                for s in (-1, 1):
+                    cc, rr = c + nx * s, r + ny * s
+                    z = dome_height(cc, rr, egg) + lift / 12
+                    sec.append((cc, rr, z))
+                vt = [bm.verts.new((X(cc), Y(rr), z)) for cc, rr, z in sec]
+                vb = [bm.verts.new((X(cc), Y(rr), z - GLASS_T)) for cc, rr, z in sec]
+                secs.append((vt[0], vt[1], vb[1], vb[0]))  # top-left, top-right, bottom-right, bottom-left
+            pairs = list(zip(secs, secs[1:])) + ([(secs[-1], secs[0])] if loop else [])
+            for s0, s1 in pairs:
+                quad(s0[0], s0[1], s1[1], s1[0], rib_mat, True)  # top
+                quad(s0[3], s1[3], s1[2], s0[2], G0, True)  # underside
+                quad(s0[1], s0[2], s1[2], s1[1], rib_mat, False)  # sides
+                quad(s0[0], s1[0], s1[3], s0[3], rib_mat, False)
+            if not loop:
+                for s in (secs[0], secs[-1]):
+                    quad(s[0], s[1], s[2], s[3], rib_mat, False)
+
+    def samples_along(fn, t0, t1, approx_len, step=0.7):
+        n = max(2, int(approx_len / step) + 1)
+        return [fn(t0 + (t1 - t0) * i / (n - 1)) for i in range(n)]
+
+    R_EST = 30.0  # px, the egg's rough radius from APEX, only for sampling density
+    for rn in PARALLELS:
+        n = max(16, int(math.tau * rn * R_EST / 0.7))
+        rib([on_egg(rn, math.tau * i / n) for i in range(n)], True, 0.12)
+    for j in range(2 * MERIDIANS):
+        a = math.tau * j / (2 * MERIDIANS) + math.pi / 2  # j = 0 runs straight down the screen
+        rn0 = CAP_RN if j % 2 == 0 else PARALLELS[1]
+        rib(samples_along(lambda t: on_egg(t, a), rn0 * 0.9, 1.0, (1 - rn0) * R_EST), False, 0.0)
+    # The crown cap the main meridians meet at.
+    ring = [on_egg(CAP_RN, math.tau * i / 16) for i in range(16)]
+    top_c = bm.verts.new((X(APEX[0]), Y(APEX[1]), DOME_H + 0.06 / 12))
+    bot_c = bm.verts.new((X(APEX[0]), Y(APEX[1]), DOME_H + 0.06 / 12 - GLASS_T))
+    tops = [bm.verts.new((X(c), Y(r), dome_height(c, r, egg) + 0.06 / 12)) for c, r in ring]
+    bots = [bm.verts.new((X(c), Y(r), dome_height(c, r, egg) + 0.06 / 12 - GLASS_T)) for c, r in ring]
+    for i in range(16):
+        j = (i + 1) % 16
+        f = bm.faces.new((top_c, tops[i], tops[j]))
+        f.material_index, f.smooth = rib_mat, True
+        f = bm.faces.new((bot_c, bots[j], bots[i]))
+        f.material_index, f.smooth = G0, True
+        quad(tops[i], bots[i], bots[j], tops[j], rib_mat, False)
+
+    # The towers: upright blocks, kept under the glass. Each roof carries the sprite's own pixels
+    # in the city ramp (runs of one shade per row, a hair above the roof), so from above the city
+    # has the sprite's dark blue-teal blocks, pale cyan lit edges and window dots. The west walls
+    # take the pale lit-face shade, the south and east walls darker, and the south and west walls
+    # get rows of lit windows.
+    decals = []  # (face, the way it must face)
+
+    def decal(corners, mat, facing):
+        f = bm.faces.new([bm.verts.new(p) for p in corners])
+        f.material_index = mat
+        f.smooth = False
+        decals.append((f, facing))
+
+    def city_shade(v, fallback):
+        if 96 <= v <= 110:
+            return nearest(city_idx, C0, v)
+        if 0 <= v <= 2:  # the sprite's black outlines between blocks
+            return nearest(city_idx, C0, 96)
+        return fallback
+
+    UP, SOUTH, WEST = Vector((0, 0, 1)), Vector((0, -1, 0)), Vector((-1, 0, 0))
+    wrng = random.Random(4385)
     for c0, c1, r0, r1, h in TOWERS:
+        a0, a1, b0, b1 = c0 + 0.45, c1 - 0.45, r0 + 0.45, r1 - 0.45
+        under = min(dome_height(a0 + (a1 - a0) * i / 4, b0 + (b1 - b0) * j / 4, egg)
+                    for i in range(5) for j in range(5)) - GLASS_T - TOWER_MARGIN
+        h = max(0.12, min(tower_px(h) / 12, under))
         vals = [m[rr][cc] for rr in range(int(r0), int(math.ceil(r1))) for cc in range(int(c0), int(math.ceil(c1)))
                 if 96 <= m[rr][cc] <= 109]
         avg = sum(vals) / len(vals) if vals else 100
         top = nearest(city_idx, C0, avg - 1)
-        side = nearest(city_idx, C0, min(avg, 100) - 1)
-        light = nearest(city_idx, C0, avg + 5)
-        box(bm, c0 + 0.45, c1 - 0.45, r0 + 0.45, r1 - 0.45, 0.035, h, side, top)
-        # The lit roof edge at the back and the lit corner down the left, as the sprite draws them.
-        box(bm, c0 + 0.45, c1 - 0.45, r0 + 0.45, r0 + 1.6, h, h + 0.02, light, light)
-        box(bm, c0 + 0.45, c0 + 1.4, r0 + 1.6, r1 - 0.45, h, h + 0.012, light, light)
+        box(bm, a0, a1, b0, b1, 0.035, h, nearest(city_idx, C0, 99), top,
+            south=nearest(city_idx, C0, 100), east=nearest(city_idx, C0, 98),
+            north=nearest(city_idx, C0, 99), west=nearest(city_idx, C0, 105))
+        # The roof's pixels: runs of one shade per sprite row, clipped to the roof.
+        zt = h + 0.01
+        for rr in range(int(math.floor(b0)), int(math.ceil(b1))):
+            y0, y1 = max(rr, b0), min(rr + 1, b1)
+            run_mat, run_start = None, None
+            cols = list(range(int(math.floor(a0)), int(math.ceil(a1))))
+            for cc in cols + [None]:
+                mat = None if cc is None else city_shade(m[rr][cc], top)
+                if mat != run_mat:
+                    if run_mat is not None and run_mat != top:
+                        x0, x1 = max(run_start, a0), min(cc if cc is not None else a1, a1)
+                        decal([(X(x0), Y(y1), zt), (X(x1), Y(y1), zt), (X(x1), Y(y0), zt), (X(x0), Y(y0), zt)],
+                              run_mat, UP)
+                    run_mat, run_start = mat, cc
+        # Windows: rows of lit windows along the walls, a floor every 3 px (the sprite's horizontal
+        # light bands), each row broken into a run or two, some floors dark.
+        if h * 12 < 9:
+            continue
+        floors = [z / 12 for z in range(4, int(h * 12) - 2, 3)]
+        for wall, lo, hi in (("south", a0, a1), ("west", b0, b1)):
+            for z in floors:
+                if wrng.random() > 0.7:
+                    continue
+                cuts = [lo + 0.7, hi - 0.7]
+                if hi - lo > 6 and wrng.random() < 0.5:
+                    g = wrng.uniform(lo + 2.5, hi - 2.5)
+                    cuts = [lo + 0.7, g - 0.5, g + 0.5, hi - 0.7]
+                mat = nearest(city_idx, C0, wrng.choice((104, 105, 106, 107)))
+                z1 = z + 1.0 / 12
+                for s0, s1 in zip(cuts[::2], cuts[1::2]):
+                    if wall == "south":
+                        y = Y(b1) - 0.006
+                        decal([(X(s0), y, z), (X(s1), y, z), (X(s1), y, z1), (X(s0), y, z1)], mat, SOUTH)
+                    else:
+                        x = X(a0) - 0.006
+                        decal([(x, Y(s0), z), (x, Y(s1), z), (x, Y(s1), z1), (x, Y(s0), z1)], mat, WEST)
 
-    return to_object(NAME, bm, mats, coll)
+    return to_object(NAME, bm, mats, coll, decals)
 
 
-def to_object(name, bm, mats, coll):
-    """Like common.mesh_object, but keeps each face's own smooth/flat flag."""
+def to_object(name, bm, mats, coll, decals=()):
+    """Like common.mesh_object, but keeps each face's own smooth/flat flag, and turns each loose
+    decal face to face the way it was made for (recalc can't tell for a face on its own)."""
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    for f, facing in decals:
+        f.normal_update()
+        if f.normal.dot(facing) < 0:
+            f.normal_flip()
     mesh = bpy.data.meshes.new(name)
     bm.to_mesh(mesh)
     bm.free()

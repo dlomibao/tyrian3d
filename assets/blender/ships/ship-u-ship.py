@@ -1,11 +1,14 @@
 """U-Ship (player ship, tyrian.shp#8 frame 271 and its banking frames 267-275): a 3D version of
 its sprite.
 
-A U-shaped band standing on edge, open end forward, with a bell-shaped brown pod hung in the
-middle on two short struts. Seen from above (the level frame) the band is a thin line; the
-banking frames show its grey and brown sides, so it is a tall ribbon: grey arms with dark
-joints, turning brown where it curves round behind the pod. Built around the middle of sprite
-column 11.
+A U of round tube, open end forward, with a round brown pod hung in the middle on two short
+struts. The tube is one path: a grey pipe down each side (columns 5 and 17, rows 7-21) with a
+bright-over-dark collar at rows 13-14 and 18-19, turning tan at row 20, a 45-degree step down to
+row 24 and a flat bottom bar with the sprite's light and dark segments. The tube is about 2.6 px
+across, so with its shaded rims it covers the sprite's 1 px dark outline; the banking frames show
+the arms about 3 px deep, so it is about as tall as it is wide. The pod is a bullet with a round
+section (about 7 px wide with its outline, 5.4 px tall) and a hemispherical nose with a shallow
+dark window cut into it. Built around the middle of sprite column 11.
 
 Run: blender --background --python assets/blender/ships/ship-u-ship.py [-- --preview out.png]
 """
@@ -19,59 +22,113 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "enemies"))
 import bmesh  # noqa: E402
 
 import common  # noqa: E402
-from lib_b002 import dome, loft, tube  # noqa: E402
+from lib_b002 import H, W, loft, tube  # noqa: E402
 
 NAME = "ship-u-ship"
 MODEL = f"ships/{NAME}"
 ROOT = common.repo_root(__file__)
 AXIS = 11.5  # the middle of sprite column 11
+LEFT, RIGHT = AXIS - 6.0, AXIS + 6.0  # the pipes, columns 5 and 17
 
-BAND_W = 0.6  # half thickness of the band, px (one sprite pixel wide from above)
-BAND_H = 2.3  # half height of the band, px
+TUBE_R = 1.3  # radius of the U's tube, px (the 1 px core plus most of its outline each side)
+COLLAR_R = 1.5  # the raised bright collars
+GROOVE_R = 1.12  # the dark segment of the bottom bar
+BEND_R = 1.1  # the bends into the 45-degree runs
+DIAG_R = 0.88  # the 45-degree runs: the sprite's diagonal is 3 px wide across a row, 2 px square to it
+MITRE = 1.0 / math.cos(math.pi / 8)  # keeps the tube's width round the 45-degree bends
+
+
+def segmented_tube(bm, points, mats, sides=10):
+    """tube() along points (col, row, radius) or (col, row, half_w, half_h), round in section unless
+    half_h is given, one material per segment."""
+    n0 = len(bm.faces)
+    rings = [(p[0], p[1], p[2], p[-1], 0.0) for p in points]
+    tube(bm, rings, sides=sides, mat=mats[0])
+    faces = list(bm.faces)[n0:]
+    for k, m in enumerate(mats):
+        for f in faces[k * sides:(k + 1) * sides]:
+            f.material_index = m
+    faces[-1].material_index = mats[-1]  # the end cap
 
 
 def build(sprite):
     coll = common.reset_collection(NAME)
     pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
     mats = [
-        pal(10, metallic=0.65, roughness=0.3),  # 0 grey arms
-        pal(5, metallic=0.5, roughness=0.5),  # 1 dark joints
-        pal(26, metallic=0.5, roughness=0.4),  # 2 brown curve
-        pal(24, metallic=0.45, roughness=0.4),  # 3 brown pod
-        pal(163, metallic=0.2, roughness=0.25),  # 4 dark window and groove
-        pal(7, metallic=0.6, roughness=0.4),  # 5 struts
-        pal(29, metallic=0.5, roughness=0.35),  # 6 pale stripe on the pod
+        pal(9, metallic=0.35, roughness=0.35),  # 0 grey pipe
+        pal(10, metallic=0.35, roughness=0.35),  # 1 lighter grey pipe between the collars
+        pal(11, metallic=0.35, roughness=0.3),  # 2 bright collar
+        pal(6, metallic=0.35, roughness=0.45),  # 3 dark band under a collar
+        pal(28, metallic=0.2, roughness=0.45),  # 4 tan arm
+        pal(26, metallic=0.2, roughness=0.45),  # 5 bar, light
+        pal(25, metallic=0.2, roughness=0.45),  # 6 bar, mid
+        pal(21, metallic=0.2, roughness=0.55),  # 7 bar, dark groove
+        pal(25, metallic=0.2, roughness=0.45),  # 8 pod
+        pal(163, metallic=0.1, roughness=0.3),  # 9 dark window
+        pal(7, metallic=0.35, roughness=0.4),  # 10 struts
+        pal(3, metallic=0.35, roughness=0.5),  # 11 shaded flanks of the grey parts
+        pal(162, metallic=0.2, roughness=0.55),  # 12 shaded flanks of the tan and brown parts
     ]
-    ARM, JOINT, CURVE, POD, DARK, STRUT, PALE = range(7)
+    G9, G10, G11, G6, TAN, BAR_L, BAR_M, BAR_D, POD, DARK, STRUT, G_SHADE, B_SHADE = range(13)
     bm = bmesh.new()
+    R, C, D = TUBE_R, COLLAR_R, GROOVE_R
 
-    def band(points, mat, w=BAND_W, h=BAND_H, **kw):
-        tube(bm, [(c, r, w, h, 0.0) for c, r in points], sides=8, mat=mat, power=0.35, **kw)
+    # The U, one tube from the top of the left pipe round to the top of the right one. Each pipe:
+    # a rounded top end (row 7), grey, a bright collar over a dark band at rows 13-14 and 18-19,
+    # then tan from row 20 into the bend.
+    def pipe(c):
+        pts = [(c, 7.0, R, 0.4), (c, 7.9, R), (c, 13.0, R), (c, 13.08, C), (c, 13.92, C), (c, 14.0, R),
+               (c, 15.0, R), (c, 18.0, R), (c, 18.08, C), (c, 18.92, C), (c, 19.0, R), (c, 20.0, R)]
+        mats_ = [G9, G9, G11, G11, G11, G6, G10, G11, G11, G11, G6]
+        return pts, mats_
 
-    # The U's curve behind the pod (rows 20-25), brown: a half ellipse from one arm to the other.
-    cx, cy, rx, ry = AXIS, 20.2, 6.0, 4.3
-    curve = [(cx - rx * math.cos(t), cy + ry * math.sin(t)) for t in (math.pi * i / 10 for i in range(11))]
-    band([(cx - rx, 19.8)] + curve + [(cx + rx, 19.8)], CURVE, cap_start=False, cap_end=False)
-    for side in (1, -1):
-        c = AXIS - rx if side == 1 else AXIS + rx
-        # Grey arm (rows 7-20 at columns 5 and 17), ends flat at the front.
-        band([(c, 7.7), (c, 13.0), (c, 20.0)], ARM)
-        # Dark joints round the arm (rows 14 and 19).
-        for r in (14.0, 19.0):
-            band([(c, r), (c, r + 1.0)], JOINT, w=BAND_W + 0.15, h=BAND_H + 0.15)
-        # Strut from the arm to the pod (row 16).
-        strut = [(c, 16.5), (AXIS - 2.0 if side == 1 else AXIS + 2.0, 16.5)]
-        tube(bm, [(x, r, 0.55, 0.6, 0.0) for x, r in strut], sides=6, mat=STRUT)
+    lp, lm = pipe(LEFT)
+    rp, rm = pipe(RIGHT)
+    bend_l, bend_r = (LEFT, 21.5, BEND_R * MITRE, BEND_R), (RIGHT, 21.5, BEND_R * MITRE, BEND_R)
+    # The bottom bar along row 24 (centre 24.5), columns 8-14: light, mid, tan, dark, tan, mid, light.
+    bar = [(8.5, 24.5, BEND_R * MITRE, BEND_R), (9.0, 24.5, R), (10.0, 24.5, R), (11.0, 24.5, R), (11.08, 24.5, D),
+           (11.92, 24.5, D), (12.0, 24.5, R), (13.0, 24.5, R), (14.0, 24.5, R), (14.5, 24.5, BEND_R * MITRE, BEND_R)]
+    bar_m = [BAR_L, BAR_M, TAN, BAR_D, BAR_D, BAR_D, TAN, BAR_M, BAR_L]
+    diag_l = [(6.5, 22.5, DIAG_R), (7.5, 23.5, DIAG_R)]
+    diag_r = [(15.5, 23.5, DIAG_R), (16.5, 22.5, DIAG_R)]
+    points = lp + [bend_l] + diag_l + bar + diag_r + [bend_r] + list(reversed(rp))
+    mats_u = (lm + [TAN] * 4  # row 20 to the bend, the bend down to the bar
+              + bar_m + [TAN] * 4  # the bar, then up to the right bend and row 20
+              + list(reversed(rm)))
+    segmented_tube(bm, points, mats_u)
 
-    # The pod: a bell, round at the front (row 12), flat at the back (row 20).
-    pod = [(12.3, 0, 0, 0.3), (12.8, 1.4, 1.3, 0.2), (13.6, 2.1, 1.9, 0.1), (15.0, 2.5, 2.2, 0.0),
-           (19.9, 2.5, 2.2, 0.0)]
-    loft(bm, [(r, AXIS, w, h, z) for r, w, h, z in pod], sides=14, mat=POD)
-    # Dark window at the front (rows 13-14) and the shaded groove down the right side (column 12).
-    dome(bm, AXIS + 0.4, 14.3, 1.4, 1.1, 0.5, z=1.75, rings=2, sides=10, mat=DARK)
-    loft(bm, [(15.2, AXIS + 0.9, 0.45, 0.3, 2.1), (19.9, AXIS + 0.9, 0.45, 0.3, 2.1)], sides=6, mat=DARK)
-    # Pale highlight stripe down the left (column 10, rows 16-19).
-    loft(bm, [(15.6, AXIS - 1.2, 0.45, 0.3, 1.95), (19.9, AXIS - 1.2, 0.45, 0.3, 1.95)], sides=6, mat=PALE)
+    # Struts from the pipes to the pod (row 16, columns 6-7 and 15-16), grey tubes.
+    for side in (-1, 1):
+        x0, x1 = AXIS + side * 4.9, AXIS + side * 2.9
+        tube(bm, [(x0, 16.5, 1.15, 1.0, 0.0), (x1, 16.5, 1.15, 1.0, 0.0)], sides=8, mat=STRUT)
+
+    # The pod: a bullet, round in section, hemispherical at the front (row 12), cut off at the back
+    # (row 20); the light left side and dark right column of the sprite come from the lighting.
+    pod = [(12.0, 0.0, 0.0), (12.2, 1.2, 1.0), (12.6, 1.95, 1.65), (13.3, 2.65, 2.25), (14.2, 3.15, 2.6),
+           (15.2, 3.35, 2.7), (19.9, 3.35, 2.7), (20.3, 3.3, 1.9), (20.8, 3.1, 0.9), (21.0, 2.6, 0.3)]
+    n0 = len(bm.faces)
+    loft(bm, [(r, AXIS, w, h, 0.0) for r, w, h in pod], sides=16, mat=POD)
+    # Shallow dark window in the nose (rows 13-14, columns 9-11): faces there turn dark and sink
+    # about 0.3 px.
+    sink = set()
+    for f in list(bm.faces)[n0:]:
+        cen = f.calc_center_median()
+        col, row, z = cen.x * 12 + W / 2, H / 2 - cen.y * 12, cen.z * 12
+        if 13.0 < row < 15.0 and 9.2 < col < 12.3 and z > 0.6:
+            f.material_index = DARK
+            sink.update(f.verts)
+    for v in sink:
+        v.co.z -= 0.3 / 12
+
+    # The sprite draws every part as a lit core inside a 1 px dark rim: the steep flanks of each
+    # round part (what is seen from above round its lit top) take the dark of its ramp.
+    shade = {m: G_SHADE for m in (G9, G10, G11, G6, STRUT)}
+    shade.update({m: B_SHADE for m in (TAN, BAR_L, BAR_M, BAR_D, POD)})
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    for f in bm.faces:
+        steep = 0.55 if f.material_index == POD else 0.8
+        if f.material_index in shade and f.normal.z < steep:
+            f.material_index = shade[f.material_index]
 
     return common.mesh_object(NAME, bm, mats, coll, smooth=True)
 
