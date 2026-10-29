@@ -1,0 +1,15 @@
+{
+ "model": "sidekicks/atom-bombs",
+ "sprites": [
+  {
+   "sheet": "tyrian.shp#8",
+   "size": 1,
+   "frames": [
+    165,
+    184,
+    203
+   ],
+   "ungrouped": true
+  }
+ ]
+}

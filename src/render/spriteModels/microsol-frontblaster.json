@@ -1,0 +1,13 @@
+{
+ "model": "sidekicks/microsol-frontblaster",
+ "sprites": [
+  {
+   "sheet": "tyrian.shp#9",
+   "size": 2,
+   "frames": [
+    83
+   ],
+   "ungrouped": true
+  }
+ ]
+}

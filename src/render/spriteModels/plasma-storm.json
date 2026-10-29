@@ -1,0 +1,17 @@
+{
+ "model": "sidekicks/plasma-storm",
+ "sprites": [
+  {
+   "sheet": "tyrian.shp#8",
+   "size": 1,
+   "frames": [
+    224,
+    243,
+    262,
+    281,
+    300
+   ],
+   "ungrouped": true
+  }
+ ]
+}

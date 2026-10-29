@@ -1,0 +1,16 @@
+{
+ "model": "sidekicks/zica-flamethrower",
+ "sprites": [
+  {
+   "sheet": "tyrian.shp#8",
+   "size": 1,
+   "frames": [
+    87,
+    106,
+    125,
+    144
+   ],
+   "ungrouped": true
+  }
+ ]
+}

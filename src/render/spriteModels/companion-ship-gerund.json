@@ -1,0 +1,13 @@
+{
+ "model": "sidekicks/companion-ship-gerund",
+ "sprites": [
+  {
+   "sheet": "tyrian.shp#9",
+   "size": 2,
+   "frames": [
+    49
+   ],
+   "ungrouped": true
+  }
+ ]
+}

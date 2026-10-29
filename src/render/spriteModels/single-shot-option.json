@@ -1,0 +1,13 @@
+{
+ "model": "sidekicks/single-shot-option",
+ "sprites": [
+  {
+   "sheet": "tyrian.shp#8",
+   "size": 1,
+   "frames": [
+    168
+   ],
+   "ungrouped": true
+  }
+ ]
+}

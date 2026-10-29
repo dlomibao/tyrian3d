@@ -1,0 +1,13 @@
+{
+ "model": "sidekicks/beno-wallop-beam",
+ "sprites": [
+  {
+   "sheet": "tyrian.shp#9",
+   "size": 2,
+   "frames": [
+    43
+   ],
+   "ungrouped": true
+  }
+ ]
+}
