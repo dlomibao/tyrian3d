@@ -1,0 +1,10 @@
+{
+ "model": "tiles/shapesz/tyrbld-drum-w",
+ "shapes": "shapesz.dat",
+ "layer": 2,
+ "tiles": [
+  [
+   199
+  ]
+ ]
+}

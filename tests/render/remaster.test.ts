@@ -1,5 +1,6 @@
 // The remastered backgrounds (DECISIONS.md D34): the MMPX upscaler, the context-aware ground atlas
 // and the structure models' tile patterns.
+import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import { Pass, type Draw, type TileDraw } from "../../src/sim/draw";
 import { mmpx2x, mmpx4x } from "../../src/render/remaster/mmpx";
@@ -124,12 +125,13 @@ describe("ground upscaled in context", () => {
   });
 });
 
+const tileDraw = (layer: 0 | 1 | 2, index: number, tile: number, x = 0, y = 0): TileDraw => ({
+  kind: "tile", layer, tile: new Uint8Array(0), tileId: `shapesz.dat:${tile}`, x, y, pass: Pass.Background1, key: layer * BG_KEY_LAYER + index, effect: "none",
+});
+
 describe("structure patterns", () => {
   const bunker: TileModelEntry = { model: "tiles/test/bunker", shapes: "shapesz.dat", layer: 0, tiles: [[320, 321], [330, 331]] };
   const rock: TileModelEntry = { model: "tiles/test/rock", shapes: "shapesz.dat", layer: 2, tiles: [[141]] };
-  const tileDraw = (layer: 0 | 1 | 2, index: number, tile: number, x = 0, y = 0): TileDraw => ({
-    kind: "tile", layer, tile: new Uint8Array(0), tileId: `shapesz.dat:${tile}`, x, y, pass: Pass.Background1, key: layer * BG_KEY_LAYER + index, effect: "none",
-  });
 
   test("any tile of a pattern finds the whole structure and its centre", () => {
     const idx = new TileModelIndex([bunker, rock]);
@@ -203,87 +205,254 @@ describe("structure patterns", () => {
   });
 });
 
-describe.skipIf(!hasData("tyrian1.lvl", "levels1.dat"))("structure patterns in the real maps", () => {
-  test("wherever a pattern's tile is on its layer, the whole pattern is there (or cut by the map's edge)", () => {
-    const multi = TILE_MODELS.filter((e) => e.tiles.length * e.tiles[0].length > 1 && e.minRows === undefined);
-    let checked = 0;
-    for (let ep = 1; ep <= 4; ep++) {
-      if (!hasData(`tyrian${ep}.lvl`)) continue;
-      for (const level of parseLevelFile(readData(`tyrian${ep}.lvl`)).levels) {
-        const shapes = `shapes${level.shapeFile.toLowerCase()}.dat`;
-        for (const e of multi.filter((m) => m.shapes === shapes)) {
-          const { width, height } = MAP_SIZES[e.layer];
-          const at = (x: number, y: number) => level.mapSh[e.layer][level.maps[e.layer][y * width + x]] - 1;
-          const rows = e.tiles.length, cols = e.tiles[0].length;
-          for (let y = 0; y < height; y++) {
-            for (let x = 0; x < width; x++) {
-              const t = at(x, y);
-              const cells: [number, number][] = [];
-              e.tiles.forEach((row, r) => row.forEach((v, c) => v === t && cells.push([r, c])));
-              if (cells.length === 0) continue;
-              // Some placement of the pattern containing (x, y) must match every cell inside the map.
-              const fits = cells.some(([r, c]) => {
-                for (let rr = 0; rr < rows; rr++)
-                  for (let cc = 0; cc < cols; cc++) {
-                    const mx = x - c + cc, my = y - r + rr;
-                    if (mx < 0 || my < 0 || mx >= width || my >= height) continue;
-                    if (e.tiles[rr][cc] >= 0 && at(mx, my) !== e.tiles[rr][cc]) return false;
-                  }
-                return true;
-              });
-              expect(fits, `${e.model}: tile ${t} at (${x}, ${y}) of a level in tyrian${ep}.lvl outside its pattern`).toBe(true);
-              checked++;
+type Level = ReturnType<typeof parseLevelFile>["levels"][number];
+
+/** Every level in the episodes there is data for, with its tileset's file name. */
+function* levels(): Generator<{ ep: number; n: number; level: Level; shapes: string }> {
+  for (let ep = 1; ep <= 4; ep++) {
+    if (!hasData(`tyrian${ep}.lvl`)) continue;
+    const all = parseLevelFile(readData(`tyrian${ep}.lvl`)).levels;
+    for (let n = 0; n < all.length; n++) yield { ep, n: n + 1, level: all[n], shapes: `shapes${all[n].shapeFile.toLowerCase()}.dat` };
+  }
+}
+
+/** A level's tile (0-based, -1 = none) at map cell (x, y) of a layer. */
+const tileAt = (level: Level, layer: 0 | 1 | 2, x: number, y: number) =>
+  level.mapSh[layer][level.maps[layer][y * MAP_SIZES[layer].width + x]] - 1;
+
+/** Patterns without minRows: wherever one of their tiles is, the whole pattern is (or is cut by the map's edge). */
+function checkWholePatterns(entries: readonly TileModelEntry[]): number {
+  const multi = entries.filter((e) => e.tiles.length * e.tiles[0].length > 1 && e.minRows === undefined);
+  let checked = 0;
+  for (const { ep, level, shapes } of levels()) {
+    for (const e of multi.filter((m) => m.shapes === shapes)) {
+      const { width, height } = MAP_SIZES[e.layer];
+      const at = (x: number, y: number) => tileAt(level, e.layer, x, y);
+      const rows = e.tiles.length, cols = e.tiles[0].length;
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const t = at(x, y);
+          const cells: [number, number][] = [];
+          e.tiles.forEach((row, r) => row.forEach((v, c) => v === t && cells.push([r, c])));
+          if (cells.length === 0) continue;
+          // Some placement of the pattern containing (x, y) must match every cell inside the map.
+          const fits = cells.some(([r, c]) => {
+            for (let rr = 0; rr < rows; rr++)
+              for (let cc = 0; cc < cols; cc++) {
+                const mx = x - c + cc, my = y - r + rr;
+                if (mx < 0 || my < 0 || mx >= width || my >= height) continue;
+                if (e.tiles[rr][cc] >= 0 && at(mx, my) !== e.tiles[rr][cc]) return false;
+              }
+            return true;
+          });
+          expect(fits, `${e.model}: tile ${t} at (${x}, ${y}) of a level in tyrian${ep}.lvl outside its pattern`).toBe(true);
+          checked++;
+        }
+      }
+    }
+  }
+  return checked;
+}
+
+// The ground shows about 8 rows; a structure is seen as a run of its rows at the top or bottom of
+// the screen (or a screenful in the middle). Wherever such a run of at least minRows rows matches
+// in any level, the whole structure must be there.
+const SCREEN_ROWS = 8;
+
+/** Patterns with minRows: minRows rows always tell the structure apart. Returns the whole copies found. */
+function checkMinRows(entries: readonly TileModelEntry[]): number {
+  const shared = entries.filter((e) => e.minRows !== undefined);
+  let found = 0;
+  for (const { ep, level, shapes } of levels()) {
+    for (const e of shared.filter((m) => m.shapes === shapes)) {
+      const { width, height } = MAP_SIZES[e.layer];
+      const at = (x: number, y: number) => tileAt(level, e.layer, x, y);
+      const rows = e.tiles.length, cols = e.tiles[0].length;
+      const need = Math.min(e.minRows!, rows);
+      for (let ax = 0; ax + cols <= width; ax++) {
+        for (let ay = -rows + 1; ay < height; ay++) {
+          // Which of the pattern's rows (inside the map) hold all their tiles here.
+          const rowOk = e.tiles.map((row, r) => {
+            const y = ay + r;
+            if (y < 0 || y >= height) return null;
+            return row.every((t, c) => t < 0 || at(ax + c, y) === t);
+          });
+          if (rowOk.every((v) => v === true)) {
+            found++;
+            continue;
+          }
+          for (let a = 0; a < rows; a++) {
+            for (let b = a + need - 1; b < Math.min(rows, a + SCREEN_ROWS); b++) {
+              if (!(a === 0 || b === rows - 1 || b - a + 1 === SCREEN_ROWS)) continue;
+              let ok = true;
+              for (let r = a; r <= b && ok; r++) ok = rowOk[r] === true;
+              expect(ok, `${e.model}: rows ${a}-${b} match at (${ax}, ${ay}) of a level in tyrian${ep}.lvl without the rest`).toBe(false);
             }
           }
         }
       }
     }
-    expect(checked).toBeGreaterThan(0);
+  }
+  return found;
+}
+
+describe.skipIf(!hasData("tyrian1.lvl", "levels1.dat"))("structure patterns in the real maps", () => {
+  test("wherever a pattern's tile is on its layer, the whole pattern is there (or cut by the map's edge)", () => {
+    expect(checkWholePatterns(TILE_MODELS)).toBeGreaterThan(0);
   });
 });
 
 describe.skipIf(!hasData("tyrian1.lvl", "levels1.dat"))("structure patterns with minRows in the real maps", () => {
-  // The ground shows about 8 rows; a structure is seen as a run of its rows at the top or bottom of
-  // the screen (or a screenful in the middle). Wherever such a run of at least minRows rows matches
-  // in any level, the whole structure must be there.
-  const SCREEN_ROWS = 8;
   test("minRows rows always tell the structure apart from other terrain", () => {
-    const shared = TILE_MODELS.filter((e) => e.minRows !== undefined);
+    const found = checkMinRows(TILE_MODELS);
+    if (TILE_MODELS.some((e) => e.minRows !== undefined)) expect(found).toBeGreaterThan(0);
+  }, 60_000); // scans every level's maps
+});
+
+// TYRIAN's (map 1-9) structures, planned in assets/blender/tiles/tyrbld_patterns.json and built one
+// by one (lib_tyrbld.py): the plan is checked here before (and after) each model lands, so every
+// pattern is told apart from the others and from terrain, and wins over the per-tile models.
+interface PlannedStructure {
+  layer: 0 | 2;
+  tiles: number[][];
+  minRows: number | null;
+  keepTiles?: boolean;
+  occurrences: [number, number][];
+  replaces: string[];
+  variants?: { name: string; tiles: number[][]; offset: [number, number] }[];
+}
+const PLAN = JSON.parse(readFileSync(new URL("../../assets/blender/tiles/tyrbld_patterns.json", import.meta.url), "utf8")) as {
+  structures: Record<string, PlannedStructure>;
+};
+
+/** The plan as tile model entries (what each unit's export writes), variants included. */
+function plannedEntries(): TileModelEntry[] {
+  const out: TileModelEntry[] = [];
+  for (const [name, s] of Object.entries(PLAN.structures)) {
+    const base = { model: `tiles/shapesz/tyrbld-${name}`, shapes: "shapesz.dat", layer: s.layer } as const;
+    const extra = { ...(s.minRows !== null ? { minRows: s.minRows } : {}), ...(s.keepTiles !== undefined ? { keepTiles: s.keepTiles } : {}) };
+    out.push({ ...base, tiles: s.tiles, ...extra });
+    for (const v of s.variants ?? []) out.push({ ...base, tiles: v.tiles, offset: v.offset, ...extra });
+  }
+  return out;
+}
+
+/** The committed entries as they'll be once every planned model has landed. */
+function withPlan(): { all: TileModelEntry[]; planned: TileModelEntry[] } {
+  const planned = plannedEntries();
+  const replaced = new Set(Object.values(PLAN.structures).flatMap((s) => s.replaces.map((n) => `tiles/shapesz/${n.replace(/^shapesz-/, "")}`)));
+  const kept = TILE_MODELS.filter((e) => !replaced.has(e.model) && !e.model.startsWith("tiles/shapesz/tyrbld-"));
+  return { all: [...kept, ...planned], planned };
+}
+
+const cellCount = (e: TileModelEntry) => e.tiles.flat().filter((t) => t >= 0).length;
+
+describe("TYRIAN structure plan (tyrbld_patterns.json)", () => {
+  test("each structure's pattern is where the plan says, and its tiles are claimed once per pattern size", () => {
+    const { all } = withPlan();
+    const claimed = new Map<string, string>();
+    for (const e of all) {
+      if (e.minRows !== undefined) continue;
+      for (const t of e.tiles.flat()) {
+        if (t < 0) continue;
+        const k = `${e.layer}:${t}:${e.tiles.length}x${e.tiles[0].length}`;
+        expect(claimed.get(k), `${k} claimed by ${claimed.get(k)} and ${e.model}`).toBeUndefined();
+        claimed.set(k, e.model);
+      }
+    }
+    for (const s of Object.values(PLAN.structures)) for (const row of s.tiles) expect(row.length).toBe(s.tiles[0].length);
+  });
+
+  test.skipIf(!hasData("tyrian1.lvl", "levels1.dat"))("the planned patterns are told apart from each other and from terrain in every level", () => {
+    const { planned } = withPlan();
+    expect(checkWholePatterns(planned)).toBeGreaterThan(0);
+    expect(checkMinRows(planned)).toBeGreaterThan(0);
+    // Every copy the plan lists is in map 1-9.
+    const tyrian = parseLevelFile(readData("tyrian1.lvl")).levels[8];
+    for (const [name, s] of Object.entries(PLAN.structures)) {
+      for (const [row, col] of s.occurrences) {
+        s.tiles.forEach((r, dr) =>
+          r.forEach((t, dc) => {
+            if (t >= 0 && col + dc < MAP_SIZES[s.layer].width) expect(tileAt(tyrian, s.layer, col + dc, row + dr), `${name} at (${col}, ${row})`).toBe(t);
+          }),
+        );
+      }
+    }
+   }, 60_000); // scans every level's maps
+
+  test.skipIf(!hasData("tyrian1.lvl", "levels1.dat"))("on screen, a structure's tiles go to the structure (not a per-tile model) and nothing else is taken for one", () => {
+    const { all, planned } = withPlan();
+    const idx = new TileModelIndex(all);
+    const plannedSet = new Set(planned);
     let found = 0;
-    for (let ep = 1; ep <= 4; ep++) {
-      if (!hasData(`tyrian${ep}.lvl`)) continue;
-      for (const level of parseLevelFile(readData(`tyrian${ep}.lvl`)).levels) {
-        const shapes = `shapes${level.shapeFile.toLowerCase()}.dat`;
-        for (const e of shared.filter((m) => m.shapes === shapes)) {
-          const { width, height } = MAP_SIZES[e.layer];
-          const at = (x: number, y: number) => level.mapSh[e.layer][level.maps[e.layer][y * width + x]] - 1;
+    for (const { ep, n, level, shapes } of levels()) {
+      if (shapes !== "shapesz.dat") continue;
+      for (const layer of [0, 2] as const) {
+        const { width, height } = MAP_SIZES[layer];
+        const mine = planned.filter((e) => e.layer === layer);
+        const tiles = new Set(mine.flatMap((e) => e.tiles.flat()).filter((t) => t >= 0));
+        let any = false;
+        for (let i = 0; i < width * height && !any; i++) any = tiles.has(tileAt(level, layer, i % width, Math.floor(i / width)));
+        if (!any) continue;
+        // Every whole copy (inside the map's width, as tileModels.ts places them) of each planned pattern.
+        const copies = new Map<TileModelEntry, Set<number>>();
+        for (const e of mine) {
           const rows = e.tiles.length, cols = e.tiles[0].length;
-          const need = Math.min(e.minRows!, rows);
-          for (let ax = 0; ax + cols <= width; ax++) {
+          const set = new Set<number>();
+          for (let ax = 0; ax + cols <= width; ax++)
             for (let ay = -rows + 1; ay < height; ay++) {
-              // Which of the pattern's rows (inside the map) hold all their tiles here.
-              const rowOk = e.tiles.map((row, r) => {
-                const y = ay + r;
-                if (y < 0 || y >= height) return null;
-                return row.every((t, c) => t < 0 || at(ax + c, y) === t);
-              });
-              if (rowOk.every((v) => v === true)) {
-                found++;
-                continue;
-              }
-              for (let a = 0; a < rows; a++) {
-                for (let b = a + need - 1; b < Math.min(rows, a + SCREEN_ROWS); b++) {
-                  if (!(a === 0 || b === rows - 1 || b - a + 1 === SCREEN_ROWS)) continue;
-                  let ok = true;
-                  for (let r = a; r <= b && ok; r++) ok = rowOk[r] === true;
-                  expect(ok, `${e.model}: rows ${a}-${b} match at (${ax}, ${ay}) of a level in tyrian${ep}.lvl without the rest`).toBe(false);
+              let ok = true, cells = 0;
+              for (let r = 0; r < rows && ok; r++)
+                for (let c = 0; c < cols && ok; c++) {
+                  const t = e.tiles[r][c], y = ay + r;
+                  if (t < 0 || y < 0 || y >= height) continue;
+                  ok = tileAt(level, layer, ax + c, y) === t;
+                  cells++;
                 }
-              }
+              if (ok && cells > 0) set.add(ay * width + ax);
+            }
+          copies.set(e, set);
+        }
+        for (let top = -SCREEN_ROWS + 1; top < height; top++) {
+          const draws: TileDraw[] = [];
+          for (let y = Math.max(0, top); y < Math.min(height, top + SCREEN_ROWS); y++)
+            for (let x = 0; x < width; x++) {
+              const t = tileAt(level, layer, x, y);
+              if (t >= 0) draws.push(tileDraw(layer, y * width + x, t));
+            }
+          idx.prepare(draws);
+          for (const d of draws) {
+            const index = d.key - layer * BG_KEY_LAYER;
+            const x = index % width, y = Math.floor(index / width);
+            const m = idx.match(d);
+            const where = `tyrian${ep}.lvl level ${n} layer ${layer} (${x}, ${y}), screen rows ${top}-${top + SCREEN_ROWS - 1}`;
+            if (m && plannedSet.has(m.entry)) {
+              // Never a structure where there's none.
+              expect(copies.get(m.entry)!.has(m.anchorKey - layer * BG_KEY_LAYER), `${m.entry.model} matched at ${where} without its copy`).toBe(true);
+            }
+            // A cell of a whole copy, with enough of its rows on screen, goes to that structure (or a bigger one).
+            for (const e of mine) {
+              const rows = e.tiles.length, cols = e.tiles[0].length;
+              for (let r = 0; r < rows; r++)
+                for (let c = 0; c < cols; c++) {
+                  if (e.tiles[r][c] !== tileAt(level, layer, x, y) || x - c < 0) continue;
+                  const anchor = (y - r) * width + (x - c);
+                  if (!copies.get(e)!.has(anchor)) continue;
+                  let seen = 0;
+                  for (let rr = 0; rr < rows; rr++) {
+                    const yy = y - r + rr;
+                    if (yy >= Math.max(0, top) && yy < Math.min(height, top + SCREEN_ROWS) && e.tiles[rr].some((t) => t >= 0)) seen++;
+                  }
+                  if (seen < Math.min(e.minRows ?? 1, rows)) continue;
+                  expect(m && plannedSet.has(m.entry), `${e.model}'s tile at ${where} not matched to a structure (got ${m?.entry.model})`).toBe(true);
+                  expect(cellCount(m!.entry), `${e.model}'s tile at ${where} went to ${m!.entry.model}`).toBeGreaterThanOrEqual(cellCount(e));
+                  found++;
+                }
             }
           }
         }
       }
     }
-    if (shared.length > 0) expect(found).toBeGreaterThan(0);
-  }, 60_000); // scans every level's maps
+    expect(found).toBeGreaterThan(0);
+  }, 120_000);
 });

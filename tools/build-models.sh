@@ -44,11 +44,12 @@ bake_name() {
   if [ "$n" = usp_talon ] && [ -f assets/blender/textures/ship-usp-talon-light-fighter/maps.json ]; then
     echo ship-usp-talon-light-fighter; return
   fi
-  entry=$(grep -l "\"model\": \"tiles/[^\"]*/${n//_/-}\"" src/render/tileModels/*.json 2>/dev/null | head -1)
-  if [ -n "$entry" ]; then
+  # Several entries can share a model (a variant pattern, e.g. a copy cut by the map's edge): use the
+  # one with concept maps.
+  for entry in $(grep -l "\"model\": \"tiles/[^\"]*/${n//_/-}\"" src/render/tileModels/*.json 2>/dev/null); do
     entry=$(basename "$entry" .json)
-    [ -f "assets/blender/textures/$entry/maps.json" ] && echo "tile:$entry"
-  fi
+    if [ -f "assets/blender/textures/$entry/maps.json" ]; then echo "tile:$entry"; return 0; fi
+  done
   return 0
 }
 

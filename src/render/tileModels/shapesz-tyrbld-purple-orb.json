@@ -1,0 +1,23 @@
+{
+ "model": "tiles/shapesz/tyrbld-purple-orb",
+ "shapes": "shapesz.dat",
+ "layer": 2,
+ "tiles": [
+  [
+   155,
+   156,
+   157
+  ],
+  [
+   165,
+   149,
+   167
+  ],
+  [
+   175,
+   176,
+   177
+  ]
+ ],
+ "minRows": 2
+}

@@ -2,6 +2,8 @@
 
     python tools/concept_maps.py <name> [--px 16] [--out assets/blender/textures]
     python tools/concept_maps.py tile:<entry> --concept <concept> [--px 8] [--concept-box x0,y0,x1,y1]
+    python tools/concept_maps.py tile:<entry> --concept <concept> --span r0,c0,r1,c1
+    python tools/concept_maps.py tile:<entry> --part <concept>:r0,c0,r1,c1 [--part ...]
 
 The concept (assets/blender/features/concepts/<name>.jpg) is a high-res reimagining of the sprite
 that keeps its outline. This cuts it out of its background, lines its outline up with the
@@ -22,6 +24,13 @@ pattern's tiles at 1x from reference/tiles/<shapes>/tiles.json (index 0 = empty,
 the concept is assets/blender/features/concepts/<concept>.jpg, and the maps go to
 assets/blender/textures/<entry>/ in the pattern's frame. --concept-box gives the object's box in the
 concept by hand when its cut-out fails (a building that runs into the image's edge).
+
+--span says the concept image is a crop of the map, edge to edge: it spans the pattern's cells
+rows r0..r1, cols c0..c1 (inclusive, may run outside the pattern), as TYRIAN's concepts do (they
+were made from map crops, assets/blender/tiles/tyrbld_patterns.json). A structure drawn as several
+overlapping concepts (fortress a/b/c top to bottom, bridge a/b/c left to right) gives one --part
+per concept with its span: each is registered onto its own cells, and where two overlap the texel
+comes from the one whose edge is farther (the seam runs down the middle of the overlap).
 
 The game multiplies the detail by the live palette colour, so palette fades and the hit flash
 keep working. Outside the object, and on surfaces the bake marks as steep, the detail is neutral.
@@ -96,12 +105,17 @@ def main():
     ap.add_argument("--out", type=Path, default=ROOT / "assets/blender/textures")
     ap.add_argument("--concept", help="tile:<entry> only: the concept's name (assets/blender/features/concepts/<concept>.jpg)")
     ap.add_argument("--concept-box", help="x0,y0,x1,y1: the object's box in the concept image, instead of its cut-out")
+    ap.add_argument("--span", help="tile: only: r0,c0,r1,c1, the pattern cells the --concept image spans edge to edge")
+    ap.add_argument("--part", action="append", default=[],
+                    help="tile: only: <concept>:r0,c0,r1,c1, one of several concepts and the cells it spans (repeat)")
     a = ap.parse_args()
 
     tile = a.name.startswith("tile:")
     if tile:
+        if a.part and not a.concept:
+            a.concept = a.part[0].split(":")[0]
         if not a.concept:
-            raise SystemExit("tile:<entry> needs --concept <name>")
+            raise SystemExit("tile:<entry> needs --concept <name> (or --part)")
         sp = load_tile_pattern(a.name[5:])
         out_name, concept_name = a.name[5:], a.concept
     else:
@@ -113,24 +127,49 @@ def main():
     k = max(2, min(a.px or 8, 4096 // max(W, H))) if tile else max(4, min(a.px or 16, 1024 // max(W, H)))
     sx0, sy0, sx1, sy1 = bbox(idx >= 0)
 
-    concept = Image.open(ROOT / "assets/blender/features/concepts" / f"{concept_name}.jpg").convert("RGB")
-    rgb = np.asarray(concept)
-    fg = foreground(rgb)
-    if a.concept_box:
-        cx0, cy0, cx1, cy1 = (int(v) for v in a.concept_box.split(","))
-    else:
-        cx0, cy0, cx1, cy1 = bbox(fg)
-
-    # Affine fit: the concept's object box onto the sprite's object box (in texels).
     tw, th = W * k, H * k
-    scale_x = (cx1 - cx0) / ((sx1 - sx0) * k)
-    scale_y = (cy1 - cy0) / ((sy1 - sy0) * k)
     ty, tx = np.mgrid[0:th, 0:tw].astype(float) + 0.5
-    src_x = cx0 + (tx - sx0 * k) * scale_x
-    src_y = cy0 + (ty - sy0 * k) * scale_y
-    coords = [src_y, src_x]
-    reg = np.stack([ndimage.map_coordinates(rgb[..., c].astype(float), coords, order=1, mode="nearest") for c in range(3)], -1)
-    concept_mask = ndimage.map_coordinates(fg.astype(float), coords, order=1, mode="constant") > 0.5
+    parts = [(p.split(":")[0], p.split(":")[1]) for p in a.part] if a.part else ([(concept_name, a.span)] if a.span else [])
+    if tile and parts:
+        # Map crops: each concept spans its cells edge to edge; the farther-from-its-edge part wins.
+        reg = np.zeros((th, tw, 3))
+        best = np.full((th, tw), -np.inf)
+        concept_mask = np.zeros((th, tw), bool)
+        spans = []
+        for pname, span in parts:
+            r0, c0, r1, c1 = (float(v) for v in span.split(","))
+            bx0, by0, bx1, by1 = c0 * 24 * k, r0 * 28 * k, (c1 + 1) * 24 * k, (r1 + 1) * 28 * k
+            prgb = np.asarray(Image.open(ROOT / "assets/blender/features/concepts" / f"{pname}.jpg").convert("RGB"))
+            ph, pw = prgb.shape[:2]
+            src_x = (tx - bx0) / (bx1 - bx0) * pw
+            src_y = (ty - by0) / (by1 - by0) * ph
+            inside = (tx >= bx0) & (tx < bx1) & (ty >= by0) & (ty < by1)
+            edge = np.minimum.reduce([tx - bx0, bx1 - tx, ty - by0, by1 - ty])
+            take = inside & (edge > best)
+            col = np.stack([ndimage.map_coordinates(prgb[..., c].astype(float), [src_y, src_x], order=1, mode="nearest") for c in range(3)], -1)
+            reg[take] = col[take]
+            best[take] = edge[take]
+            concept_mask |= inside
+            spans.append({"concept": pname, "span": [r0, c0, r1, c1]})
+        cx0 = cy0 = cx1 = cy1 = 0
+    else:
+        spans = None
+        concept = Image.open(ROOT / "assets/blender/features/concepts" / f"{concept_name}.jpg").convert("RGB")
+        rgb = np.asarray(concept)
+        fg = foreground(rgb)
+        if a.concept_box:
+            cx0, cy0, cx1, cy1 = (int(v) for v in a.concept_box.split(","))
+        else:
+            cx0, cy0, cx1, cy1 = bbox(fg)
+
+        # Affine fit: the concept's object box onto the sprite's object box (in texels).
+        scale_x = (cx1 - cx0) / ((sx1 - sx0) * k)
+        scale_y = (cy1 - cy0) / ((sy1 - sy0) * k)
+        src_x = cx0 + (tx - sx0 * k) * scale_x
+        src_y = cy0 + (ty - sy0 * k) * scale_y
+        coords = [src_y, src_x]
+        reg = np.stack([ndimage.map_coordinates(rgb[..., c].astype(float), coords, order=1, mode="nearest") for c in range(3)], -1)
+        concept_mask = ndimage.map_coordinates(fg.astype(float), coords, order=1, mode="constant") > 0.5
     # The object is where the sprite is: concepts keep the sprite's outline, and the sprite's mask
     # is exact where the concept's cut-out can be patchy.
     sprite_mask = np.kron(idx >= 0, np.ones((k, k), bool))
@@ -167,6 +206,8 @@ def main():
             "sprite_box": [int(sx0), int(sy0), int(sx1), int(sy1)],
             "concept_box": [int(cx0), int(cy0), int(cx1), int(cy1)], "neutral": NEUTRAL,
             "fit_iou": None}
+    if spans:
+        meta["parts"] = spans
     # How well the concept's outline matches the sprite's, after the fit.
     meta["fit_iou"] = round(float((sprite_mask & concept_mask).sum() / max(1, (sprite_mask | concept_mask).sum())), 3)
     (out / "maps.json").write_text(json.dumps(meta, indent=1) + "\n")

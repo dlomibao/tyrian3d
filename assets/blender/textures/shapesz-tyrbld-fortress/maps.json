@@ -1,0 +1,57 @@
+{
+ "name": "shapesz-tyrbld-fortress",
+ "concept": "tyr-fortress-a",
+ "tile": true,
+ "sprite_size": [
+  360,
+  1260
+ ],
+ "texels_per_px": 3,
+ "size": [
+  1080,
+  3780
+ ],
+ "sprite_box": [
+  0,
+  0,
+  360,
+  1260
+ ],
+ "concept_box": [
+  0,
+  0,
+  0,
+  0
+ ],
+ "neutral": 0.85,
+ "fit_iou": 0.218,
+ "parts": [
+  {
+   "concept": "tyr-fortress-a",
+   "span": [
+    -1.0,
+    0.0,
+    16.0,
+    14.0
+   ]
+  },
+  {
+   "concept": "tyr-fortress-b",
+   "span": [
+    15.0,
+    0.0,
+    31.0,
+    14.0
+   ]
+  },
+  {
+   "concept": "tyr-fortress-c",
+   "span": [
+    29.0,
+    0.0,
+    45.0,
+    14.0
+   ]
+  }
+ ]
+}

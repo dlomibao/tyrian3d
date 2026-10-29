@@ -1,0 +1,39 @@
+{
+ "name": "shapesz-tyrbld-purple-orb",
+ "concept": "tyr-purple-orb",
+ "tile": true,
+ "sprite_size": [
+  72,
+  84
+ ],
+ "texels_per_px": 32,
+ "size": [
+  2304,
+  2688
+ ],
+ "sprite_box": [
+  0,
+  0,
+  72,
+  84
+ ],
+ "concept_box": [
+  0,
+  0,
+  0,
+  0
+ ],
+ "neutral": 0.85,
+ "fit_iou": 1.0,
+ "parts": [
+  {
+   "concept": "tyr-purple-orb",
+   "span": [
+    -0.19,
+    -0.07,
+    2.38,
+    2.09
+   ]
+  }
+ ]
+}

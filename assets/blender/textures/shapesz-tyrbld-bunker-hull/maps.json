@@ -1,0 +1,39 @@
+{
+ "name": "shapesz-tyrbld-bunker-hull",
+ "concept": "tyr-bunker-hull",
+ "tile": true,
+ "sprite_size": [
+  48,
+  56
+ ],
+ "texels_per_px": 32,
+ "size": [
+  1536,
+  1792
+ ],
+ "sprite_box": [
+  0,
+  0,
+  48,
+  56
+ ],
+ "concept_box": [
+  0,
+  0,
+  0,
+  0
+ ],
+ "neutral": 0.85,
+ "fit_iou": 0.866,
+ "parts": [
+  {
+   "concept": "tyr-bunker-hull",
+   "span": [
+    0.03,
+    0.07,
+    1.15,
+    0.83
+   ]
+  }
+ ]
+}

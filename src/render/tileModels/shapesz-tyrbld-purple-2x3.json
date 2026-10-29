@@ -1,0 +1,18 @@
+{
+ "model": "tiles/shapesz/tyrbld-purple-2x3",
+ "shapes": "shapesz.dat",
+ "layer": 2,
+ "tiles": [
+  [
+   155,
+   156,
+   157
+  ],
+  [
+   175,
+   176,
+   177
+  ]
+ ],
+ "minRows": 2
+}

@@ -1,0 +1,39 @@
+{
+ "name": "shapesz-tyrbld-drum-e",
+ "concept": "tyr-drum-e",
+ "tile": true,
+ "sprite_size": [
+  24,
+  28
+ ],
+ "texels_per_px": 32,
+ "size": [
+  768,
+  896
+ ],
+ "sprite_box": [
+  0,
+  0,
+  24,
+  28
+ ],
+ "concept_box": [
+  0,
+  0,
+  0,
+  0
+ ],
+ "neutral": 0.85,
+ "fit_iou": 1.0,
+ "parts": [
+  {
+   "concept": "tyr-drum-e",
+   "span": [
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ]
+  }
+ ]
+}

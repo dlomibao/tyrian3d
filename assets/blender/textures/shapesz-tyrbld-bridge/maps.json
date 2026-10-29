@@ -1,0 +1,57 @@
+{
+ "name": "shapesz-tyrbld-bridge",
+ "concept": "tyr-bridge-a",
+ "tile": true,
+ "sprite_size": [
+  360,
+  84
+ ],
+ "texels_per_px": 8,
+ "size": [
+  2880,
+  672
+ ],
+ "sprite_box": [
+  0,
+  1,
+  360,
+  83
+ ],
+ "concept_box": [
+  0,
+  0,
+  0,
+  0
+ ],
+ "neutral": 0.85,
+ "fit_iou": 0.895,
+ "parts": [
+  {
+   "concept": "tyr-bridge-a",
+   "span": [
+    0.0,
+    0.0,
+    2.0,
+    5.0
+   ]
+  },
+  {
+   "concept": "tyr-bridge-a",
+   "span": [
+    0.0,
+    5.0,
+    2.0,
+    10.0
+   ]
+  },
+  {
+   "concept": "tyr-bridge-a",
+   "span": [
+    0.0,
+    9.0,
+    2.0,
+    14.0
+   ]
+  }
+ ]
+}

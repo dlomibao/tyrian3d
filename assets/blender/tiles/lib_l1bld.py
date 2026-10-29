@@ -267,11 +267,25 @@ class Building:
     with a ground enemy), pal (lib_tiles.Palette), height / mat (per-pixel deck heights and material
     slots, from surface()), parts (bmesh of closed extra pieces: rocks, capsules, hatches, ...)."""
 
-    def __init__(self, name, tag=None):
-        spec = BUILDINGS[name]
+    # The frame's heights and names, as class attributes so a subclass can change them for another
+    # map or layer (lib_tyrbld.py: TYRIAN's background 3); the defaults are map 1-3's ground.
+    layer = LAYER
+    prefix = "l1bld"  # model tiles/shapesz/<prefix>-<name>, entry shapesz-<prefix>-<name>.json
+    deck = DECK
+    enemy_max = ENEMY_MAX
+    enemy_min = ENEMY_MIN
+    rim_max = RIM_MAX
+    tall_max = TALL_MAX
+    z_min = None  # lowest vertex allowed (check()); None: no limit
+    slab_bottom = SLAB_BOTTOM
+    min_rows = MIN_ROWS
+    keep_tiles = None  # the entry's keepTiles (None: the layer's default)
+
+    def __init__(self, name, tag=None, spec=None):
+        spec = BUILDINGS[name] if spec is None else spec
         self.name = name
         self.spec = spec
-        self.ts = lt.Tileset(ROOT, SHAPES, layer=LAYER)
+        self.ts = lt.Tileset(ROOT, SHAPES, layer=self.layer)
         self.pattern = spec["pattern"]
         self.rows, self.cols = len(self.pattern), len(self.pattern[0])
         self.W, self.H = self.cols * lt.TILE_W, self.rows * lt.TILE_H
@@ -283,21 +297,25 @@ class Building:
             for c, t in enumerate(row):
                 if t >= 0 and r0 <= r <= r1:
                     self.cover[r * lt.TILE_H:(r + 1) * lt.TILE_H, c * lt.TILE_W:(c + 1) * lt.TILE_W] = True
+        self.footprint = self.make_footprint()
+        self.enemy_mask = np.zeros_like(self.cover)
+        for r, c in spec["enemies"]:
+            self.enemy_mask[r * lt.TILE_H:(r + 1) * lt.TILE_H, c * lt.TILE_W:(c + 1) * lt.TILE_W] = True
+        self.pal = lt.Palette(self.ts, tag or f"{self.prefix}{name.replace('-', '')}", roughness=0.85, metallic=0.0)
+        self.height = None
+        self.mat = None
+        self.parts = bmesh.new()
+        self._rng = random.Random(name)
+
+    def make_footprint(self):
+        """The painted platform in the covered cells (what the model must cover)."""
         painted = self.cover & (self.grid > 0)
         # The outline between the rim's painted rocks has gaps of black: close them, keep real holes
         # (pits, the yard inside a U) that are bigger than a few pixels.
         closed = close(painted, 2) & self.cover
         holes = self.cover & ~closed
         small = holes & ~drop_small(holes, 40)
-        self.footprint = closed | small
-        self.enemy_mask = np.zeros_like(self.cover)
-        for r, c in spec["enemies"]:
-            self.enemy_mask[r * lt.TILE_H:(r + 1) * lt.TILE_H, c * lt.TILE_W:(c + 1) * lt.TILE_W] = True
-        self.pal = lt.Palette(self.ts, tag or f"l1bld{name.replace('-', '')}", roughness=0.85, metallic=0.0)
-        self.height = None
-        self.mat = None
-        self.parts = bmesh.new()
-        self._rng = random.Random(name)
+        return closed | small
 
     # Coordinates ---------------------------------------------------------------------------------
 
@@ -350,11 +368,12 @@ class Building:
         rim = fp & (d <= 7)
         return dict(rim=rim, channel=channel & ~rim, red=red & ~rim, dark=dark & ~rim, pave=fp & ~rim, depth=d)
 
-    def surface(self, deck=DECK, channel=True, pits=True, red=True):
+    def surface(self, deck=None, channel=True, pits=True, red=True):
         """A first version of the deck: per-pixel heights (nan = no platform) and material slots.
         Paving at `deck`, channels CHANNEL_DROP lower, dark areas PIT_DROP lower (in a building's
         script, decide per area whether a dark spot is a pit, a hatch or an enemy's pad), red lights
         flush in red. The rim band is paving too: rim_rocks() covers it."""
+        deck = self.deck if deck is None else deck
         mk = self.masks()
         self.height = np.full((self.H, self.W), np.nan, dtype=np.float32)
         self.mat = np.full((self.H, self.W), -1, dtype=np.int32)
@@ -392,11 +411,12 @@ class Building:
 
     # Geometry ------------------------------------------------------------------------------------
 
-    def terrace(self, height=None, mat=None, bottom=SLAB_BOTTOM, wall_mat=None):
+    def terrace(self, height=None, mat=None, bottom=None, wall_mat=None):
         """The deck as geometry: flat tops at each pixel's height (equal neighbours merged into
         rectangles), vertical walls between different heights and down to `bottom` at the edge
         (`wall_mat`, default "wall", for the outer sides; steps inside take the higher side's
         material), and a bottom. Returns the bmesh (the object is made by export())."""
+        bottom = self.slab_bottom if bottom is None else bottom
         height = self.height if height is None else height
         mat = self.mat if mat is None else mat
         wall_mat = self.m("wall") if wall_mat is None else wall_mat
@@ -496,7 +516,7 @@ class Building:
                 x = x1
         return bm
 
-    def rim_rocks(self, spacing=7.0, inset=3.0, size=(0.55, 0.85), height=(0.40, RIM_MAX), sink=0.12,
+    def rim_rocks(self, spacing=7.0, inset=3.0, size=(0.55, 0.85), height=None, sink=0.12,
                   rows=1, mats=None, keep=None, sides=(5, 7), jitter=0.35):
         """Rocks along the footprint's outline, as in the concepts' rocky, crenellated rims: bevelled
         blocks (lib_tiles.block) every `spacing` px, centred `inset` px inside the outline, `size`
@@ -504,6 +524,7 @@ class Building:
         deck where they stand. Over an enemy cell a rock is capped at ENEMY_MAX. `rows` > 1 adds an inner row of
         smaller rocks; `jitter` (fraction of a rock's size) roughens each one. `keep(px, py)` can drop rocks (e.g. where a wall or a stair meets the rim).
         Adds to self.parts; returns the number of rocks."""
+        height = (0.40, self.rim_max) if height is None else height
         mats = mats or [self.m("rim"), self.m(4), self.m(6)]
         d = depth(self.footprint)
         n = 0
@@ -543,10 +564,10 @@ class Building:
                 y0, y1 = int(max(0, py - r_px)), int(min(self.H, py + r_px + 1))
                 x0, x1 = int(max(0, px - r_px)), int(min(self.W, px + r_px + 1))
                 if self.enemy_mask[y0:y1, x0:x1].any():
-                    top = min(top, ENEMY_MAX)
+                    top = min(top, self.enemy_max)
                 # Sunk into the deck where it stands (DECK before surface()).
                 here = self.height[min(self.H - 1, int(py)), min(self.W - 1, int(px))] if self.height is not None else np.nan
-                z0 = (DECK if np.isnan(here) else float(here)) - sink
+                z0 = (self.deck if np.isnan(here) else float(here)) - sink
                 rock = bmesh.new()
                 lt.block(rock, self.x(px), self.y(py), rx, ry, self._rng.random() * math.pi, z0, top - z0,
                          mats[self._rng.randrange(len(mats))], sides=self._rng.randint(*sides), bevel=0.35)
@@ -567,7 +588,7 @@ class Building:
         mat = self.m("red") if mat is None else mat
         r = radius * lt.PX
         half = max(0.0, length / 2 * lt.PX - r)
-        ztop = (ENEMY_MAX - 0.01) if z is None else z
+        ztop = (self.enemy_max - 0.01) if z is None else z
         zc = ztop - r
         cx, cy = self.x(px), self.y(py)
         ax = (1, 0) if axis == "x" else (0, 1)
@@ -604,7 +625,7 @@ class Building:
             hl = length + 3
             hw = radius * 2 + 3
             w, h = (hl, hw) if axis == "x" else (hw, hl)
-            self.wall_block(px - w / 2, py - h / 2, px + w / 2, py + h / 2, DECK - 0.05, ztop - r * 0.6, self.m("red_dark"), bevel=0.25)
+            self.wall_block(px - w / 2, py - h / 2, px + w / 2, py + h / 2, self.deck - 0.05, ztop - r * 0.6, self.m("red_dark"), bevel=0.25)
 
     def wall_block(self, x0, y0, x1, y1, z0, z1, mat=None, bevel=0.3):
         """A box with chamfered top edges over the pixel box, from z0 to z1 (bevel: fraction of the
@@ -632,13 +653,13 @@ class Building:
     def hatch(self, x0, y0, x1, y1, z=None, frame_px=2.0, depth_=0.05, mat_frame=None, mat_inside=None):
         """A dark hatch: a frame of light metal around a recessed dark panel (pixel box), its frame
         top at z (default ENEMY_MAX: hatches are often under enemies)."""
-        z = ENEMY_MAX if z is None else z
+        z = self.enemy_max if z is None else z
         mat_frame = self.m("metal") if mat_frame is None else mat_frame
         mat_inside = self.m("dark") if mat_inside is None else mat_inside
         f = frame_px
         for bx in ((x0, y0, x1, y0 + f), (x0, y1 - f, x1, y1), (x0, y0 + f, x0 + f, y1 - f), (x1 - f, y0 + f, x1, y1 - f)):
-            self.wall_block(*bx, DECK - 0.05, z, mat_frame, bevel=0.2)
-        self.wall_block(x0 + f, y0 + f, x1 - f, y1 - f, DECK - 0.05, z - depth_, mat_inside, bevel=0.0)
+            self.wall_block(*bx, self.deck - 0.05, z, mat_frame, bevel=0.2)
+        self.wall_block(x0 + f, y0 + f, x1 - f, y1 - f, self.deck - 0.05, z - depth_, mat_inside, bevel=0.0)
 
     def dome(self, px, py, rx_px, ry_px, z0, height, mat=None, sides=20, rings=6):
         """A dome (half ellipsoid) on the plane z0, radii in px."""
@@ -677,13 +698,15 @@ class Building:
                     py = int(self.H / 2 - co.y / lt.PX)
                     if 0 <= px < self.W and 0 <= py < self.H:
                         top[py, px] = max(top[py, px], co.z)
-                    if co.z > TALL_MAX + 1e-4:
-                        problems.append(f"vertex at z {co.z:.3f} > TALL_MAX {TALL_MAX}")
-        over = self.enemy_mask & (top > ENEMY_MAX + 1e-4)
+                    if co.z > self.tall_max + 1e-4:
+                        problems.append(f"vertex at z {co.z:.3f} > tall_max {self.tall_max}")
+                    if self.z_min is not None and co.z < self.z_min - 1e-4:
+                        problems.append(f"vertex at z {co.z:.3f} < z_min {self.z_min}")
+        over = self.enemy_mask & (top > self.enemy_max + 1e-4)
         if over.any():
             ys, xs = np.nonzero(over)
             cells = sorted({(int(y) // lt.TILE_H, int(x) // lt.TILE_W) for y, x in zip(ys, xs)})
-            problems.append(f"{over.sum()} vertices' px above ENEMY_MAX {ENEMY_MAX} in enemy cells {cells}")
+            problems.append(f"{over.sum()} vertices' px above enemy_max {self.enemy_max} in enemy cells {cells}")
         for p in problems[:10]:
             print("CHECK:", p)
         if not problems:
@@ -694,24 +717,25 @@ class Building:
 
     def objects(self, deck_bm=None, coll=None):
         """The building's objects: the terraced deck (`deck_bm` or terrace()) and the parts."""
-        coll = coll or common.reset_collection(f"{SHAPES}-l1bld-{self.name}")
+        coll = coll or common.reset_collection(f"{SHAPES}-{self.prefix}-{self.name}")
         deck_bm = deck_bm or self.terrace()
-        deck = mesh_object(f"{SHAPES}-l1bld-{self.name}-deck", deck_bm, self.pal.materials, coll)
+        deck = mesh_object(f"{SHAPES}-{self.prefix}-{self.name}-deck", deck_bm, self.pal.materials, coll)
         objs = [deck]
         if len(self.parts.faces):
             bmesh.ops.recalc_face_normals(self.parts, faces=self.parts.faces)  # closed pieces
-            parts = mesh_object(f"{SHAPES}-l1bld-{self.name}-parts", self.parts, self.pal.materials, coll)
+            parts = mesh_object(f"{SHAPES}-{self.prefix}-{self.name}-parts", self.parts, self.pal.materials, coll)
             objs.append(parts)
         return objs
 
     def export(self, objects, name=None):
-        """Export public/models/tiles/shapesz/l1bld-<name>.glb and src/render/tileModels/
-        shapesz-l1bld-<name>.json (with minRows)."""
+        """Export public/models/tiles/shapesz/<prefix>-<name>.glb and src/render/tileModels/
+        shapesz-<prefix>-<name>.json (with minRows unless it's None, and keepTiles if set)."""
         name = name or self.name
-        out = lt.export_tile_model(self.ts, objects, f"l1bld-{name}", LAYER, self.pattern)
-        path = ROOT / "src" / "render" / "tileModels" / f"{SHAPES}-l1bld-{name}.json"
+        out = lt.export_tile_model(self.ts, objects, f"{self.prefix}-{name}", self.layer, self.pattern, keep_tiles=self.keep_tiles)
+        path = ROOT / "src" / "render" / "tileModels" / f"{SHAPES}-{self.prefix}-{name}.json"
         entry = json.loads(path.read_text())
-        entry["minRows"] = MIN_ROWS
+        if self.min_rows is not None:
+            entry["minRows"] = self.min_rows
         path.write_text(json.dumps(entry, indent=1) + "\n")
         return out
 
