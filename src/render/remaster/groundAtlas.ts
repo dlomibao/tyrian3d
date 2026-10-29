@@ -8,10 +8,13 @@
 // border from its neighbours, so the shader's bilinear filter and relief read across the seam too.
 // Slots are keyed by the 3x3 context of tile ids; a level has one to two thousand of them, but only
 // about a hundred are on screen at a time, so slots are reused least recently used first.
+// Blended background-2 cells (TYRIAN's ice clouds) share the atlas, upscaled against their empty
+// neighbours so their outlines come out smooth.
 
 import * as THREE from "three";
 import { TILE_HEIGHT, TILE_WIDTH } from "../../data/levels";
 import type { Draw, TileDraw } from "../../sim/draw";
+import { BG_KEY_LAYER } from "../../sim/backgrnd";
 import { mmpx2x } from "./mmpx";
 
 /** Upscale factor (two MMPX passes). */
@@ -30,7 +33,10 @@ export const GROUND_SLOTS = COLS * ROWS;
  * cropped tile and its border clear of that.
  */
 const PAD = 6;
-/** Background 1's map width (JE_MapType): a cell's vertical neighbours are this many keys away. */
+/**
+ * Background 1's and 2's map width (JE_MapType, JE_MapType2): a cell's vertical neighbours are this
+ * many keys away.
+ */
 const MAP_WIDTH = 14;
 
 /**
@@ -71,6 +77,9 @@ export function upscaleInContext(neighbours: (Uint8Array | null)[][], luma: Arra
 
 const clamp = (v: number, n: number) => (v < 0 ? 0 : v >= n ? n - 1 : v);
 
+/** A transparent tile (all index 0), for background 2's empty cells. */
+const EMPTY_TILE = new Uint8Array(TILE_WIDTH * TILE_HEIGHT);
+
 interface Slot {
   index: number;
   lastUsed: number;
@@ -107,28 +116,55 @@ export class RemasterGroundAtlas {
     this.luma ??= luma;
   }
 
-  /** Find or make the slot of every background-1 cell in this tick's draw list. */
+  /**
+   * Find or make the slot of every background-1 cell in this tick's draw list, and of every blended
+   * background-2 cell (draw_background_2_blend: drawn as translucent sheets from this atlas too).
+   */
   prepare(items: readonly Draw[]): void {
     this.tick++;
     this.cells.clear();
-    const luma = this.luma;
-    if (!luma) return;
-    const byKey = new Map<number, TileDraw>();
-    for (const d of items) if (d.kind === "tile" && d.layer === 0) byKey.set(d.key, d);
-    if (byKey.size === 0) return;
+    if (!this.luma) return;
+    const ground = new Map<number, TileDraw>();
+    const blended = new Map<number, TileDraw>();
+    for (const d of items) {
+      if (d.kind !== "tile") continue;
+      if (d.layer === 0) ground.set(d.key, d);
+      else if (d.layer === 1 && d.effect === "blend") blended.set(d.key, d);
+    }
+    if (ground.size > 0) this.prepareLayer(ground, 0);
+    if (blended.size > 0) this.prepareLayer(blended, 1);
+  }
+
+  /**
+   * Upscale one layer's cells in context. A neighbour outside the rows and columns drawn this tick is
+   * unknown (the cell's edge is repeated); on background 2, one inside them that wasn't drawn is a
+   * transparent tile, so it's empty and the sheet's outline is upscaled against nothing.
+   */
+  private prepareLayer(byKey: Map<number, TileDraw>, layer: 0 | 1): void {
+    const luma = this.luma!;
+    const base = layer * BG_KEY_LAYER;
+    let minRow = Infinity, maxRow = -Infinity, minCol = Infinity, maxCol = -Infinity;
+    for (const key of byKey.keys()) {
+      const row = Math.floor((key - base) / MAP_WIDTH), col = (key - base) % MAP_WIDTH;
+      minRow = Math.min(minRow, row);
+      maxRow = Math.max(maxRow, row);
+      minCol = Math.min(minCol, col);
+      maxCol = Math.max(maxCol, col);
+    }
     const ids: string[] = new Array(9);
     const neighbours: (Uint8Array | null)[][] = [[null, null, null], [null, null, null], [null, null, null]];
     for (const key of byKey.keys()) {
-      const col = key % MAP_WIDTH;
+      const row = Math.floor((key - base) / MAP_WIDTH), col = (key - base) % MAP_WIDTH;
       for (let dy = -1; dy <= 1; dy++) {
         for (let dx = -1; dx <= 1; dx++) {
-          const c = col + dx;
+          const r = row + dy, c = col + dx;
           const n = c < 0 || c >= MAP_WIDTH ? undefined : byKey.get(key + dy * MAP_WIDTH + dx);
-          neighbours[dy + 1][dx + 1] = n ? n.tile : null;
-          ids[(dy + 1) * 3 + dx + 1] = n ? n.tileId : "?";
+          const empty = layer === 1 && !n && r >= minRow && r <= maxRow && c >= minCol && c <= maxCol;
+          neighbours[dy + 1][dx + 1] = n ? n.tile : empty ? EMPTY_TILE : null;
+          ids[(dy + 1) * 3 + dx + 1] = n ? n.tileId : empty ? "-" : "?";
         }
       }
-      const signature = ids.join("|");
+      const signature = `${layer}|${ids.join("|")}`;
       let slot = this.slots.get(signature);
       if (!slot) {
         slot = this.allocate(signature);
