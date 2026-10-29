@@ -1,0 +1,26 @@
+{
+ "name": "newsh2-267",
+ "sprite_size": [
+  24,
+  28
+ ],
+ "texels_per_px": 16,
+ "size": [
+  384,
+  448
+ ],
+ "sprite_box": [
+  0,
+  2,
+  23,
+  28
+ ],
+ "concept_box": [
+  11,
+  71,
+  834,
+  1006
+ ],
+ "neutral": 0.85,
+ "fit_iou": 0.872
+}

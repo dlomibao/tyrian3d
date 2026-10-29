@@ -17,6 +17,7 @@ Run: blender --background --python assets/blender/enemies/assembly-newsh2-9.py [
 (the preview is the whole pipe; each piece also gets <piece>.png next to it).
 """
 
+import math
 import sys
 import tempfile
 from pathlib import Path
@@ -39,11 +40,21 @@ G = lib.Grid(W, H)
 SEGMENTS = [24 + 24 * k for k in range(6)]  # left edges of the six newsh2-9 pieces
 EXPORT_9 = 226  # screen cx of the newsh2-9 copy that is exported (a middle one)
 
-ROW = 11.0  # the pipe's axis (sprite row)
-ZC = 0.52  # the pipe's axis height: the pipe (radius 3.5 px) stands about 2.7 px off the ground
+ROW = 10.5  # the pipe's axis (sprite row centre): rings cover rows 7-14, the sprite's outline ring
+ZC = 0.53  # the pipe's axis height: the pipe (radius 3.9 px) stands about 2.5 px off the ground
 ZT = ZC - 0.21  # top of the cradles, just under the pipe's underside where it leaves the top view
 SLOPE_END = 19.0  # pixel edge (row) where the cradles' sloping south faces meet the ground
 EPS = 0.15  # px: tubes that meet at a piece boundary overlap it a little so the cut is clean
+R_RING = 3.9  # grey rings (rows 7-14, outline included)
+R_ROD = 2.4  # the red rods between rings (the concept's thin red couplings)
+R_GROOVE = 3.0  # dark bolt rings and seams between parts
+R_FLANGE = 4.85  # copper/red flange bands (rows 6-14)
+
+# Remodelled on the concept (assets/blender/features/concepts/assembly-newsh2-9.jpg, registered in
+# assets/blender/textures/assembly-newsh2-9/concept.png): each segment is a riveted grey ring, a
+# thin red rod held by two tie rods, a dark bolt ring, a red rod, a broad riveted grey ring, a broad
+# flat-faced flange band and a short grey ring. The parts stay on the sprite's columns; the concept
+# maps were re-registered onto them (its segments drift up to 2 px against the sprite's).
 
 
 def e(a):
@@ -52,7 +63,7 @@ def e(a):
 
 
 def ring(bm, c0, c1, r, mat, bevel=(0.5, 0.5), sides=12, smooth=True, row=ROW, z=ZC):
-    """A section of pipe from pixel edge c0 to c1 with radius r px, its ends rounded off by
+    """A section of pipe from pixel edge c0 to c1 with radius r px, its ends chamfered by
     `bevel` (left, right) px."""
     path = []
     bl, br = bevel
@@ -70,6 +81,14 @@ def ring(bm, c0, c1, r, mat, bevel=(0.5, 0.5), sides=12, smooth=True, row=ROW, z
         f.normal_update()
         if abs(f.normal.x) > 0.3:
             f.smooth = False
+
+
+def tie_rods(bm, c0, c1, mat):
+    """The concept's two thin grey tie rods along the sides of a red rod, ring to ring."""
+    for side in (-1, 1):
+        lib.sweep(bm, G, [(e(c0) - 0.2, ROW + side * 2.55, ZC, 0.45, 0.45 / 12),
+                          (e(c1) + 0.2, ROW + side * 2.55, ZC, 0.45, 0.45 / 12)],
+                  sides=6, mat=mat, smooth=True)
 
 
 def prism(bm, c0, c1, profile, mat):
@@ -102,30 +121,31 @@ def build(sprite):
     tag = "nsh2_9"
     pal = lambda i, **kw: common.palette_material(sprite, i, tag, **kw)  # noqa: E731
     mats = [
-        pal(8, metallic=0.5, roughness=0.35),  # 0 grey rings
-        pal(11, metallic=0.6, roughness=0.25),  # 1 light grey nose
-        pal(3, metallic=0.4, roughness=0.5),  # 2 dark grooves, sled feet
-        pal(72, metallic=0.3, roughness=0.4),  # 3 red collars
-        pal(73, metallic=0.3, roughness=0.4),  # 4 red flanges
-        pal(77, metallic=0.3, roughness=0.35),  # 5 flanges' lit rims
+        pal(8, metallic=0.55, roughness=0.4),  # 0 grey rings (riveted steel)
+        pal(11, metallic=0.25, roughness=0.55),  # 1 light grey nose (soft sheen)
+        pal(3, metallic=0.4, roughness=0.5),  # 2 dark bolt rings, seams
+        pal(72, metallic=0.3, roughness=0.35),  # 3 red rods
+        pal(71, metallic=0.25, roughness=0.65),  # 4 flange bands: mid red, matte faces
+        pal(77, metallic=0.45, roughness=0.35),  # 5 flanges' lit left chamfer
         pal(67, metallic=0.2, roughness=0.6),  # 6 dark red brackets
         pal(70, metallic=0.2, roughness=0.5),  # 7 bracket feet
         pal(1, metallic=0.1, roughness=0.85),  # 8 dark cradles (the sprite draws them in index 1)
         pal(66, metallic=0.1, roughness=0.8),  # 9 darkest red bracket bars
         pal(16, metallic=0.1, roughness=0.85),  # 10 the rail
+        pal(6, metallic=0.5, roughness=0.45),  # 11 tie rods
     ]
-    GREY, NOSE, GROOVE, COLLAR, FLANGE, FLANGE_LIT, BRACKET, FOOT, SLED, BAR, RAIL = range(11)
+    GREY, NOSE, GROOVE, COLLAR, FLANGE, FLANGE_LIT, BRACKET, FOOT, SLED, BAR, RAIL, TIE = range(12)
     bm = bmesh.new()
 
     # A thin rail along the pipe's south side (rows 15-16) joining the cradles, low on the ground.
     prism(bm, 13, W, [(15.2, 0.0), (15.2, zs(15.2) * 0.45), (16.8, zs(16.8) * 0.45), (16.8, 0.0)], RAIL)
 
     def flange(c0, r, foot_row):
-        """A big red flange 4 px wide from pixel edge c0, lit on its left rim, held by a red bracket
-        frame: a post on its left, a top bar, a hole, a lower bar and a lit foot on the ground at
-        foot_row."""
-        ring(bm, c0, c0 + 0.6, r, FLANGE_LIT, bevel=(0.6, 0.0), sides=14)
-        ring(bm, c0 + 0.6, c0 + 4, r, FLANGE, bevel=(0.0, 0.5), sides=14)
+        """A broad flange band 4 px wide from pixel edge c0: flat faces, a crisp lit chamfer on its
+        left edge, held by a red bracket frame: a post on its left, a top bar, a hole, a lower bar
+        and a lit foot on the ground at foot_row."""
+        ring(bm, c0, c0 + 0.5, r, FLANGE_LIT, bevel=(0.5, 0.0), sides=16)
+        ring(bm, c0 + 0.5, c0 + 4, r, FLANGE, bevel=(0.0, 0.35), sides=16)
         end = foot_row + 1.0
         prism(bm, c0, c0 + 1, [(9.0, 0.0), (10.0, ZT), (14.0, ZT), (end, 0.0)], BRACKET)
         prism(bm, c0 + 1, c0 + 4, [(9.0, 0.0), (10.0, ZT), (14.0, ZT), (15.0, zs(15.0, end)), (15.0, 0.0)], BRACKET)
@@ -139,43 +159,52 @@ def build(sprite):
         prism(bm, c0, c1, [(8.5, 0.0), (10.0, ZT), (14.0, ZT), (SLOPE_END, 0.0)], SLED)
         slope_bar(bm, c0 + 0.3, c1 - 0.3, 17.0, 18.0, GROOVE, t=0.05)
 
-    # Nose (newsh2-7): a light grey ogive from its tip at column 3, dipping a little, to the first
-    # segment.
-    nose = [(2.4, 12.6, 0.0), (3.2, 12.5, 0.5), (5.0, 12.4, 1.1), (8.0, 12.0, 1.8), (11.0, 11.6, 2.4),
-            (14.0, 11.3, 2.9), (17.0, 11.1, 3.3), (20.0, 11.0, 3.5), (e(24) + EPS, 11.0, 3.5)]
-    lib.sweep(bm, G, [(c, r, ZC - 0.22 * (1 - rad / 3.5), rad, rad / 12) for c, r, rad in nose],
-              sides=12, mat=NOSE)
+    # Nose (newsh2-7): the concept's long light grey ogive from its tip at column 2, dipping a
+    # little (the sprite's tip sits at rows 12-13), to the first segment's full ring radius.
+    nose = [(2.3, 12.5, 0.0), (3.2, 12.4, 0.6), (5.0, 12.1, 1.3), (8.0, 11.6, 2.1), (11.0, 11.2, 2.8),
+            (14.0, 10.9, 3.3), (17.0, 10.7, 3.65), (20.0, 10.5, 3.85), (23.0, 10.5, 3.9), (e(24) + EPS, 10.5, 3.9)]
+    lib.sweep(bm, G, [(c, r, ZC - 0.22 * (1 - rad / 3.9), rad, rad / 12) for c, r, rad in nose],
+              sides=14, mat=NOSE)
     foot(19, 24)
 
-    # Six identical segments (newsh2-9): groove, collar, ring, groove, collar, ring, flange, ring.
+    # Six identical segments (newsh2-9), on the sprite's columns: bolt ring, red rod, riveted ring,
+    # bolt ring, red rod, broad riveted ring, flange band, short ring.
     for a0 in SEGMENTS:
-        lib.sweep(bm, G, [(e(a0) - EPS, ROW, ZC, 2.8, 2.8 / 12), (e(a0 + 1), ROW, ZC, 2.8, 2.8 / 12)],
-                  sides=12, mat=GROOVE)
-        ring(bm, a0 + 1, a0 + 4, 2.5, COLLAR, bevel=(0.0, 0.0))
-        ring(bm, a0 + 4, a0 + 8, 3.5, GREY)
-        ring(bm, a0 + 8, a0 + 9, 2.8, GROOVE, bevel=(0.0, 0.0))
-        ring(bm, a0 + 9, a0 + 12, 2.5, COLLAR, bevel=(0.0, 0.0))
-        ring(bm, a0 + 12, a0 + 17, 3.5, GREY)
-        flange(a0 + 17, 4.0, 18)
-        # The last ring runs on into the next piece (the next segment's groove, or the end piece).
-        ring(bm, a0 + 21, a0 + 24 + EPS, 3.5, GREY, bevel=(0.5, 0.0))
+        ring(bm, a0 - EPS, a0 + 1, R_GROOVE, GROOVE, bevel=(0.0, 0.0))
+        ring(bm, a0 + 1, a0 + 4, R_ROD, COLLAR, bevel=(0.0, 0.0))
+        tie_rods(bm, a0 + 1, a0 + 4, TIE)
+        ring(bm, a0 + 4, a0 + 8, R_RING, GREY, bevel=(0.45, 0.45))
+        ring(bm, a0 + 8, a0 + 9, R_GROOVE, GROOVE, bevel=(0.0, 0.0))
+        ring(bm, a0 + 9, a0 + 12, R_ROD, COLLAR, bevel=(0.0, 0.0))
+        ring(bm, a0 + 12, a0 + 17, R_RING, GREY, bevel=(0.45, 0.3))
+        flange(a0 + 17, R_FLANGE, 18)
+        # The last ring runs on into the next piece (the next segment's bolt ring, or the end).
+        ring(bm, a0 + 21, a0 + 24 + EPS, R_RING, GREY, bevel=(0.3, 0.0))
         foot(a0 + 4, a0 + 8)
         foot(a0 + 12, a0 + 17)
         foot(a0 + 21, a0 + 25)
 
-    # End piece (newsh2-11): the end of the last ring, a bigger flange, a ring, a groove, a collar
-    # and a long cylinder with a rounded cap.
+    # End piece (newsh2-11): the end of the last ring, a bigger flange, a ring, a bolt ring, a red
+    # rod, and the concept's plain cylinder ending in a rounded dome cap.
     a0 = 168
-    ring(bm, a0 - EPS, a0 + 2, 3.5, GREY, bevel=(0.0, 0.5))
+    ring(bm, a0 - EPS, a0 + 2, R_RING, GREY, bevel=(0.0, 0.3))
     flange(a0 + 2, 5.2, 19)
-    ring(bm, a0 + 6, a0 + 10, 3.5, GREY)
-    ring(bm, a0 + 10, a0 + 11, 2.8, GROOVE, bevel=(0.0, 0.0))
-    ring(bm, a0 + 11, a0 + 14, 2.5, COLLAR, bevel=(0.0, 0.0))
-    cap = [(e(a0 + 14), 3.0), (e(a0 + 14) + 0.5, 3.5), (e(a0 + 20), 3.5), (e(a0 + 21.5), 3.2),
-           (e(a0 + 22.6), 2.4), (e(a0 + 23.4), 1.3), (e(a0 + 23.8), 0.0)]
-    lib.sweep(bm, G, [(c, ROW, ZC, r, r / 12) for c, r in cap], sides=12, mat=GREY)
+    ring(bm, a0 + 6, a0 + 10, R_RING, GREY, bevel=(0.3, 0.45))
+    ring(bm, a0 + 10, a0 + 11, R_GROOVE, GROOVE, bevel=(0.0, 0.0))
+    ring(bm, a0 + 11, a0 + 14, R_ROD, COLLAR, bevel=(0.0, 0.0))
+    tie_rods(bm, a0 + 11, a0 + 14, TIE)
+    ring(bm, a0 + 14, a0 + 15, 3.2, GROOVE, bevel=(0.0, 0.0))
+    # The plain cylinder (rings' radius, chamfered only at its left joint) ending in a rounded
+    # hemispherical dome whose tip reaches the sprite's last column.
+    tip = e(W) + 0.05
+    x0 = tip - R_RING
+    lib.sweep(bm, G, [(e(a0 + 15), ROW, ZC, R_RING - 0.3, (R_RING - 0.3) / 12),
+                      (e(a0 + 15) + 0.3, ROW, ZC, R_RING, R_RING / 12)]
+              + [(x0 + R_RING * math.sin(t), ROW, ZC, max(R_RING * math.cos(t), 0.0), max(R_RING * math.cos(t), 0.0) / 12)
+                 for t in [k * math.pi / 2 / 8 for k in range(9)]],
+              sides=12, mat=GREY)
     foot(a0 + 6, a0 + 10)
-    foot(a0 + 14, a0 + 23)
+    foot(a0 + 15, a0 + 23)
 
     return lib.to_object(NAME, bm, mats, coll)
 

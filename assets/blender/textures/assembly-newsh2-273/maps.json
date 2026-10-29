@@ -1,0 +1,27 @@
+{
+ "name": "assembly-newsh2-273",
+ "sprite_size": [
+  96,
+  28
+ ],
+ "texels_per_px": 10,
+ "size": [
+  960,
+  280
+ ],
+ "sprite_box": [
+  0,
+  0,
+  96,
+  28
+ ],
+ "concept_box": [
+  0,
+  0,
+  1024,
+  597
+ ],
+ "neutral": 0.85,
+ "fit_iou": 1.0,
+ "note": "concept shows 2 pieces (48x28 px): cols 0-48 mapped 1:1, cols 48-96 repeat the middle piece (cols 24-48); hand-registered, tools/concept_maps.py stretched it over all 4"
+}

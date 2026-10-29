@@ -1,0 +1,26 @@
+{
+ "name": "assembly-newsh2-279",
+ "sprite_size": [
+  72,
+  28
+ ],
+ "texels_per_px": 14,
+ "size": [
+  1008,
+  392
+ ],
+ "sprite_box": [
+  0,
+  0,
+  72,
+  28
+ ],
+ "concept_box": [
+  0,
+  0,
+  1024,
+  398
+ ],
+ "neutral": 0.85,
+ "fit_iou": 0.991
+}

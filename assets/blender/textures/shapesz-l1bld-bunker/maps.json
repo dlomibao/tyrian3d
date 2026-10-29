@@ -1,0 +1,28 @@
+{
+ "name": "shapesz-l1bld-bunker",
+ "concept": "l1-bld-bunker",
+ "tile": true,
+ "sprite_size": [
+  144,
+  168
+ ],
+ "texels_per_px": 8,
+ "size": [
+  1152,
+  1344
+ ],
+ "sprite_box": [
+  3,
+  5,
+  139,
+  164
+ ],
+ "concept_box": [
+  47,
+  57,
+  855,
+  1012
+ ],
+ "neutral": 0.85,
+ "fit_iou": 0.952
+}

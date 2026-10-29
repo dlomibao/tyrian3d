@@ -1,15 +1,20 @@
 """Microcorp Stalker (player ship, tyrian.shp#8 sprite 195 and its banking frames 191-199).
 
-A grey fighter: a shiny conical nose, a round collar with the dark cockpit window cut into it, a
-narrow neck with two red lights, a wide rear body with three bright ribs and a red engine glow in a
-dark nozzle, and two level swept wings pointing forward and out (a dark base plate with a raised
-bright leading-edge strip, a groove and a raised outer panel). The outline covers the sprite's
-dark edge pixels. The sprite is centred on column 11, half a pixel left of the 24 px block's centre.
+Traced from its concept (assets/blender/features/concepts/ship-microcorp-stalker.jpg, registered
+onto the sprite as assets/blender/textures/ship-microcorp-stalker/concept.png): a grey metal
+fighter with a round fuselage running the whole length, an ogive nose cone with a seam behind it,
+a framed hexagonal dark canopy on the forebody, two short ogive side pods flanking the cockpit whose
+open rear intakes glow red (the sprite's two red "neck lights"), a narrower neck with vents behind
+the pods, a mid-body band and a rear body ending in a dark nozzle with an orange-red exhaust glow.
+Two forward-swept wings: a dark base plate carrying raised panels (a bright leading-edge strip, an
+outer rail along the tip, a fore panel with a cut-in vent slot, an aft panel), split by recessed
+seams. Box-shaped wing roots with a bright chamfer strip and a dark vent bay sit beside the body,
+and two short engine pods hang under the wings' trailing edges. The outline stays inside the
+sprite's. The sprite is centred on column 11, half a pixel left of the 24 px block's centre.
 
 Run: blender --background --python assets/blender/ships/ship-microcorp-stalker.py [-- --preview out.png]
 """
 
-import math
 import sys
 from pathlib import Path
 
@@ -18,23 +23,13 @@ import bmesh
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "enemies"))
 import common  # noqa: E402
-from lib_b001 import loft_path, mirrored  # noqa: E402
+from lib_b001 import loft_path  # noqa: E402
 
 NAME = "ship-microcorp-stalker"
 MODEL = f"ships/{NAME}"
 ROOT = common.repo_root(__file__)
 P = 1 / 12  # one sprite pixel
 AXIS = 11  # the sprite's mirror column; the model is built about X = 0 and shifted to it at the end
-
-
-def cx(c):
-    """Sprite column centre to X, relative to the mirror column."""
-    return (c - AXIS) / 12
-
-
-def ex(e):
-    """Sprite column edge (left edge of column e) to X, relative to the mirror column."""
-    return (e - AXIS - 0.5) / 12
 
 
 def ey(r):
@@ -61,7 +56,13 @@ def clip(poly, a, b, c):
     return out
 
 
-def plate(bm, poly, z0, z1, mat_index, mirror=False):
+def clips(poly, *planes):
+    for a, b, c in planes:
+        poly = clip(poly, a, b, c)
+    return poly
+
+
+def plate(bm, poly, z0, z1, mat_index, flat, mirror=False):
     """A flat plate from z0 to z1 (px) with the outline `poly` in sprite (col, row) coordinates."""
     pts = [(sx(c), ey(r)) for c, r in poly]
     if mirror:
@@ -71,188 +72,129 @@ def plate(bm, poly, z0, z1, mat_index, mirror=False):
         pts.reverse()
     top = [bm.verts.new((x, y, z1 * P)) for x, y in pts]
     bot = [bm.verts.new((x, y, z0 * P)) for x, y in pts]
-    bm.faces.new(top).material_index = mat_index
-    bm.faces.new(list(reversed(bot))).material_index = mat_index
+    faces = [bm.faces.new(top), bm.faces.new(list(reversed(bot)))]
     for i in range(len(pts)):
         j = (i + 1) % len(pts)
-        bm.faces.new((bot[i], bot[j], top[j], top[i])).material_index = mat_index
-
-
-def hard_loft(bm, sections, mat_index, flat):
-    """A hard-surface body along +Y: each section is (row, side half width, top half width, top z,
-    shoulder z, bottom half width, bottom z), all px, giving a flat top, chamfered shoulders,
-    straight sides and a chamfered keel. Its faces are flagged flat-shaded so the edges stay crisp."""
-    rings = []
-    for r, w, tw, zt, zs, bw, zb in sections:
-        pts = [(tw, zt), (w, zs), (w, zb + 0.8), (bw, zb), (-bw, zb), (-w, zb + 0.8), (-w, zs), (-tw, zt)]
-        rings.append([bm.verts.new((x * P, ey(r), z * P)) for x, z in pts])
-    n = len(rings[0])
-    for r0, r1 in zip(rings, rings[1:]):
-        for i in range(n):
-            j = (i + 1) % n
-            f = bm.faces.new((r0[i], r1[i], r1[j], r0[j]))
-            f.material_index = mat_index
-            f[flat] = 1
-    for ring, rev in ((rings[0], False), (rings[-1], True)):
-        f = bm.faces.new(list(reversed(ring)) if rev else ring)
+        faces.append(bm.faces.new((bot[i], bot[j], top[j], top[i])))
+    for f in faces:
         f.material_index = mat_index
         f[flat] = 1
+    return top + bot
 
 
-def ellipse_dome(bm, x0, y0, a, b, z0, height, mat_index, segs=20, rings=5):
-    """A glass bubble: an elliptical dome (semi-axes a across, b along, px) rising `height` px from z0."""
-    top = bm.verts.new((x0 * P, y0, (z0 + height) * P))
-    loops = []
-    for k in range(rings):
-        phi = (k / rings) * math.pi / 2  # 0 at the base
-        rr, zz = math.cos(phi), z0 + height * math.sin(phi)
-        loops.append([bm.verts.new(((x0 + a * rr * math.cos(t)) * P, y0 + b * rr * math.sin(t) * P, zz * P))
-                      for t in (2 * math.pi * i / segs for i in range(segs))])
-    for l0, l1 in zip(loops, loops[1:]):
-        for i in range(segs):
-            j = (i + 1) % segs
-            bm.faces.new((l0[i], l0[j], l1[j], l1[i])).material_index = mat_index
-    for i in range(segs):
-        bm.faces.new((loops[-1][i], loops[-1][(i + 1) % segs], top)).material_index = mat_index
-    bm.faces.new(list(reversed(loops[0]))).material_index = mat_index
-
-
-def ellipse_frame(bm, y0, a, b, width, z0, z1, mat_index, flat, segs=20):
-    """A flat elliptical rim around the canopy (inner semi-axes a, b; `width` px wide)."""
-    def loop(ea, eb, z):
-        return [bm.verts.new((ea * math.cos(t) * P, y0 + eb * math.sin(t) * P, z * P))
-                for t in (2 * math.pi * i / segs for i in range(segs))]
-    io, it = loop(a, b, z0), loop(a, b, z1)
-    oo, ot = loop(a + width, b + width, z0), loop(a + width, b + width, z1)
-    for i in range(segs):
-        j = (i + 1) % segs
-        for quad in ((it[i], it[j], ot[j], ot[i]), (ot[i], ot[j], oo[j], oo[i]), (io[i], io[j], it[j], it[i])):
-            f = bm.faces.new(quad)
-            f.material_index = mat_index
-            f[flat] = 1
+def tube(bm, sections, mat_index, sides=12, x=0.0, mirror=False, **kw):
+    """A round loft along the sprite: sections are (row, half width, half height, z centre) in px,
+    centred on sprite column `x` offset (px from the axis)."""
+    for s in ((1, -1) if mirror else (1,)):
+        loft_path(bm, [(ey(r), s * x * P, w * P, h * P, z * P) for r, w, h, z in sections],
+                  sides=sides, mat_index=mat_index, **kw)
 
 
 def build(sprite):
     coll = common.reset_collection(NAME)
     pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
-    # A polished metal hull: each part takes its sprite mid-tone and lets the game's light shade
-    # it and make the shine (the sprite's bright streaks on the nose and the rear body's left side,
-    # and its dark right sides and edge ring, are drawn light, not paint or shape).
+    # Grey metal throughout, each part at its sprite mid-tone; the sprite's bright streaks and
+    # dark right sides are its drawn light and shine, left to the game's lighting.
     mats = [
-        pal(9, metallic=0.8, roughness=0.3),  # 0 rear hull grey
-        pal(7, metallic=0.75, roughness=0.32),  # 1 wing panels and base plate
-        pal(11, metallic=0.8, roughness=0.28),  # 2 bright strakes
-        pal(11, metallic=0.85, roughness=0.25),  # 3 nose cone
-        pal(14, metallic=0.85, roughness=0.25),  # 4 (unused: the nose's highlight is shine)
+        pal(10, metallic=0.5, roughness=0.4),  # 0 fuselage
+        pal(8, metallic=0.45, roughness=0.42),  # 1 wing panels
+        pal(11, metallic=0.5, roughness=0.36),  # 2 bright chamfers and leading edges
+        pal(10, metallic=0.6, roughness=0.32),  # 3 nose cone
+        pal(9, metallic=0.5, roughness=0.38),  # 4 side pods
         pal(2, metallic=0.1, roughness=0.04),  # 5 dark cockpit glass, glossy
-        pal(117, emission_strength=3.0),  # 6 red side lights
-        pal(120, emission_strength=5.0),  # 7 engine glow
-        pal(7, metallic=0.7, roughness=0.38),  # 8 neck, a darker grey
-        pal(9, metallic=0.8, roughness=0.3),  # 9 cockpit ring
-        pal(11, metallic=0.8, roughness=0.28),  # 10 wing leading edges
-        pal(3, metallic=0.5, roughness=0.5),  # 11 wing grooves, nozzle
-        pal(116, emission_strength=3.0),  # 12 nozzle glow rim
-        pal(4, metallic=0.75, roughness=0.32),  # 13 (unused: the dark flanks were the sprite's outline)
+        pal(117, emission_strength=3.0),  # 6 red pod intakes
+        pal(120, emission_strength=5.0),  # 7 engine glow core
+        pal(7, metallic=0.5, roughness=0.42),  # 8 neck, a darker grey
+        pal(9, metallic=0.5, roughness=0.38),  # 9 canopy frame
+        pal(7, metallic=0.45, roughness=0.42),  # 10 wing roots and engine pods
+        pal(3, metallic=0.4, roughness=0.55),  # 11 dark base plate, seams, vents, nozzle
+        pal(116, emission_strength=3.0),  # 12 engine glow rim
     ]
-    HULL, WING, BRIGHT, NOSE, SHINE, COCKPIT, RED, GLOW, NECK, RING, LEAD, BASE, GLOW2, FLANK = range(14)
+    HULL, WING, BRIGHT, NOSE, POD, GLASS, RED, GLOW, NECK, FRAME, ROOT_, DARK, GLOW2 = range(13)
     bm = bmesh.new()
     flat = bm.faces.layers.int.new("flat")  # faces to flat-shade (hard edges)
+    ZC = 0.4  # fuselage axis height, px
 
-    # Nose cone (rows 0-6), out to the sprite's outline: half width 0.5 * row + 0.5 px covers
-    # the staircase's dark edge pixels and none beyond. Round, a little taller than half its width.
-    nose = [(-0.4, 0, 0, 0.5), (0.4, 0.7, 0.55, 0.5), (2.0, 1.5, 1.15, 0.45), (4.0, 2.5, 1.9, 0.4),
-            (6.0, 3.5, 2.65, 0.35), (6.9, 3.9, 2.85, 0.3)]
-    # Its bright streak (columns 10-11, rows 3-6) is the polished cone's shine: no geometry for it.
-    common.loft(bm, [(ey(r), w * P, h * P, z * P) for r, w, h, z in nose], sides=12, mat_index=NOSE)
-
-    # Cockpit housing (rows 7-11): a round collar, and on it the round dark glass bubble (columns
-    # 9-13, rows 7-10, about 3x4 px inside a bright frame) raised above the collar. The lighter
-    # centre pixel is the glossy glass's glint: no geometry for it.
-    common_ring = (4.25, 2.9, 0.3)
-    common.loft(bm, [(ey(r), w * P, h * P, z * P) for r, w, h, z in
-                     ((6.6, 3.8, 2.75, 0.3), (7.0, *common_ring), (11.0, *common_ring), (11.7, 4.15, 2.8, 0.25),
-                      (12.1, 3.4, 2.4, 0.2))], sides=14, mat_index=RING)
-    cy = ey(9.0)
-    ellipse_frame(bm, cy, 1.55, 2.0, 0.55, 2.4, 3.55, RING, flat)
-    ellipse_dome(bm, 0.0, cy, 1.6, 2.05, 2.9, 1.7, COCKPIT)
-
-    # Neck (rows 11-16), darker grey, to the outline (columns 8 and 14 at rows 14-15).
-    common.loft(bm, [(ey(r), w * P, h * P, z * P) for r, w, h, z in ((11.5, 3.6, 2.5, 0.1), (16.4, 3.3, 2.4, 0.0))],
-                sides=14, mat_index=NECK)
-    # Red lights either side of the neck (columns 8 and 14, rows 12-13): round capsules.
-    for s in (-1, 1):
-        loft_path(bm, [(ey(11.6), s * 3.1 * P, 0, 0, 0.8 * P), (ey(12.0), s * 3.1 * P, 1.0 * P, 1.0 * P, 0.8 * P),
-                       (ey(14.0), s * 3.1 * P, 1.0 * P, 1.0 * P, 0.8 * P), (ey(14.4), s * 3.1 * P, 0, 0, 0.8 * P)],
-                  sides=8, mat_index=RED)
-
-    # Rear fuselage (rows 16-24): a hard, straight-sided body (flat top, chamfered shoulders,
-    # straight sides, a keel), widest between the wings and tapering at the tail into the nozzle.
-    # (row, side half width, top half width, top z, shoulder z, keel half width, keel z)
-    common.loft(bm, [(ey(r), w * P, h * P, z * P) for r, w, h, z in ((15.9, 3.3, 2.4, 0.0), (16.6, 3.3, 2.4, 0.0))],
-                sides=14, mat_index=NECK)
-    hard_loft(bm, [(16.3, 3.4, 2.0, 2.7, 1.5, 1.8, -2.4), (17.2, 4.0, 2.4, 3.1, 1.9, 2.2, -2.8),
-                   (21.6, 4.2, 2.5, 3.2, 2.0, 2.3, -2.9), (23.3, 3.5, 2.0, 2.7, 1.6, 1.9, -2.5),
-                   (24.4, 2.4, 1.4, 2.0, 1.1, 1.3, -1.9)], HULL, flat)
-    # Bright strakes on the shoulders (columns 7 and 15, rows 17-21): crisp square ribs standing on
-    # the shoulder chamfer's outer edge.
-    strake = [(ey(r), w * P, 0.55 * P, 0.6 * P, z * P) for r, w, z in
-              ((16.6, -3.45, 1.9), (17.4, -3.95, 2.3), (21.0, -4.1, 2.4), (22.3, -3.85, 2.2))]
-    for side in (strake, mirrored(strake)):
-        start = len(bm.faces)
-        loft_path(bm, side, sides=4, mat_index=BRIGHT)
-        bm.faces.ensure_lookup_table()
-        for f in bm.faces[start:]:
-            f[flat] = 1
-    # The faint spine down the middle of the top (rows 17-23): a low ridge with a peaked top, whose
-    # lit left face is the sprite's lighter column 10.
-    spine = [(17.0, 0.0, 3.1), (17.4, 0.7, 3.1), (21.8, 0.75, 3.2), (23.3, 0.55, 2.7), (23.8, 0.0, 2.6)]
-    rows = []
-    for r, w, z in spine:
-        rows.append([bm.verts.new((x * P, ey(r), zz * P)) for x, zz in
-                     ((-w, z - 0.1), (0.0, z + 0.55 * (w > 0)), (w, z - 0.1))])
-    for r0, r1 in zip(rows, rows[1:]):
-        for i in range(2):
-            f = bm.faces.new((r0[i], r1[i], r1[i + 1], r0[i + 1]))
-            f.material_index = BRIGHT
-            f[flat] = 1
-
-    # Swept wings, level at the fuselage's middle: a base plate cut to the sprite's outline in the
-    # wing's grey (the game draws the dark edge), a raised bright leading-edge strip, a dark groove
-    # behind it (a real panel line, dark on both wings), then a raised outer panel. Sprite (col, row) coordinates, left wing; d = row - col runs
-    # across the leading edge (the outline at d = 8.6).
-    outer = [(1.2, 11.2), (2.6, 11.2), (8.6, 17.2), (9.6, 17.2), (10.2, 25.8), (5.85, 25.8),
-             (2.1, 18.5), (1.2, 18.1)]
-    lead = clip(clip(clip(clip(outer, -1, 1, 10.5), 1, -1, -9.25), 1, 0, 7.9), 0, -1, -11.7)
-    panel = clip(clip(clip(clip(outer, 1, -1, -11.7), -1, 0, -1.8), 0, -1, -12.0), 0, 1, 25.0)
-    # Inside the trailing staircase: col >= 3.9 + (row - 19.5) / 2.
-    panel = clip(clip(panel, -1, 0.5, -3.9 + 9.75), 1, 0, 7.3)
-    groove = clip(clip(clip(outer, -1, 1, 11.7), 1, -1, -10.5), 1, 0, 7.9)
-    wing_start, wing_faces = len(bm.verts), len(bm.faces)
-    for mirror in (False, True):
-        plate(bm, outer, 0.2, 1.2, WING, mirror)
-        plate(bm, groove, 0.3, 1.3, BASE, mirror)
-        plate(bm, panel, 1.1, 1.7, WING, mirror)
-        plate(bm, lead, 1.1, 1.9, LEAD, mirror)
-    # Tilted up toward the tips (a slight dihedral outboard of the body's sides).
-    bm.verts.ensure_lookup_table()
-    for v in bm.verts[wing_start:]:
-        v.co.z += max(0.0, abs(v.co.x) - 3.6 * P) * 0.18
+    # Nose cone (rows 0-3): an ogive, round, ending at a seam ring where the forebody starts.
+    tube(bm, [(0.15, 0, 0, ZC - 0.6), (0.5, 0.7, 0.65, ZC - 0.35), (1.0, 1.2, 1.15, ZC - 0.15),
+              (1.6, 1.55, 1.55, ZC), (2.2, 1.8, 1.8, ZC), (2.85, 2.15, 2.15, ZC)], NOSE, sides=16)
+    # Forebody (rows 3-11.4): a round tube, a touch wider than the nose's end (the seam).
+    tube(bm, [(2.85, 2.35, 2.35, ZC), (4.0, 2.5, 2.5, ZC), (11.0, 2.55, 2.5, ZC), (11.4, 2.3, 2.25, ZC)],
+         HULL, sides=16)
+    # Canopy (rows 5.6-11): a faceted hexagonal dark glass bubble raised in a grey frame.
+    tube(bm, [(5.35, 0.45, 0.25, 2.45), (5.9, 1.25, 0.8, 2.45), (7.0, 1.75, 0.95, 2.5), (10.3, 1.75, 0.95, 2.5),
+              (11.1, 1.2, 0.7, 2.5), (11.35, 0.5, 0.3, 2.5)], FRAME, sides=10)
+    tube(bm, [(5.55, 0, 0, 2.8), (5.9, 0.75, 0.6, 2.7), (7.1, 1.4, 1.15, 2.6), (10.1, 1.4, 1.15, 2.6),
+              (10.9, 0.85, 0.75, 2.6), (11.05, 0, 0, 2.7)], GLASS, sides=8)
+    # Canopy crossbar at the front pane's joint (row 7.2).
+    start = len(bm.faces)
+    tube(bm, [(7.05, 1.35, 1.2, 2.6), (7.35, 1.35, 1.2, 2.6)], FRAME, sides=8)
     bm.faces.ensure_lookup_table()
-    for f in bm.faces[wing_faces:]:
+    for f in bm.faces[start:]:
         f[flat] = 1
 
-    # Engine (rows 24-26): a dark nozzle 4 px wide (row 24), the red-orange exhaust plug in its
-    # mouth (columns 10-12, row 25, hottest in the middle) and the nozzle's dark lower lip (row 26).
-    common.loft(bm, [(ey(r), w * P, h * P, z * P) for r, w, h, z in
-                     ((23.6, 2.1, 1.5, -0.2), (25.0, 2.0, 1.4, -0.2))], sides=12, mat_index=BASE, cap_end=False)
-    common.loft(bm, [(ey(r), w * P, h * P, z * P) for r, w, h, z in
-                     ((25.8, 1.9, 0.9, -0.5), (26.8, 1.7, 0.7, -0.5))], sides=12, mat_index=BASE)
-    common.loft(bm, [(ey(r), w * P, h * P, z * P) for r, w, h, z in
-                     ((24.6, 1.65, 1.15, -0.2), (25.9, 1.65, 1.15, -0.2), (26.2, 1.2, 0.8, -0.2), (26.35, 0, 0, -0.2))],
-                sides=12, mat_index=GLOW2)
-    common.loft(bm, [(ey(r), w * P, h * P, z * P) for r, w, h, z in
-                     ((24.6, 0.75, 1.45, -0.2), (25.9, 0.75, 1.45, -0.2), (26.3, 0, 0, -0.2))],
-                sides=8, mat_index=GLOW)
+    # Side pods (rows 5.4-13.3) flanking the cockpit, centred on columns 8 and 14: ogive fronts,
+    # and open rear intakes glowing red (the sprite's red pixels at rows 12-13).
+    tube(bm, [(5.4, 0, 0, 0.9), (6.0, 0.7, 0.6, 0.9), (7.0, 1.1, 1.0, 0.9), (8.5, 1.3, 1.15, 0.9),
+              (11.2, 1.35, 1.2, 0.9), (11.7, 1.35, 1.2, 0.9)], POD, x=3.0, mirror=True)
+    tube(bm, [(11.7, 1.4, 1.25, 0.9), (12.1, 1.4, 1.25, 0.9)], DARK, x=3.0, mirror=True)
+    tube(bm, [(12.1, 1.1, 1.0, 0.9), (13.4, 1.1, 0.95, 0.9), (13.95, 0.9, 0.8, 0.9)], RED, x=3.0, mirror=True, sides=10)
+
+    # Neck (rows 11.4-13.4): narrower, darker and lower, between the pods.
+    tube(bm, [(11.3, 1.6, 2.1, ZC), (13.5, 1.6, 2.1, ZC)], NECK, sides=12)
+    # Its vents: dark slots either side of the top.
+    for s in (-1, 1):
+        plate(bm, [(9.85 if s < 0 else 12.45, 11.7), (10.55 if s < 0 else 13.15, 11.7),
+                   (10.55 if s < 0 else 13.15, 12.9), (9.85 if s < 0 else 12.45, 12.9)], 0.5, 2.2, DARK, flat)
+    # Mid band (rows 13.4-16.6) and rear body (16.6-25), a seam step between them. The band is a
+    # little wider than the concept's so it covers the sprite's outline ring at rows 14-16.
+    tube(bm, [(13.3, 2.3, 2.3, ZC), (13.6, 3.1, 2.6, ZC), (16.6, 3.1, 2.6, ZC)], HULL, sides=16)
+    tube(bm, [(16.55, 2.35, 2.35, ZC), (24.0, 2.35, 2.35, ZC), (24.6, 2.1, 2.05, ZC), (25.0, 1.5, 1.4, ZC)],
+         HULL, sides=16)
+    # Engine: a dark nozzle (rows 24.2-25.4) and the orange-red exhaust dome in its mouth.
+    tube(bm, [(24.2, 2.2, 1.75, ZC - 0.2), (25.6, 2.15, 1.7, ZC - 0.2)], DARK, sides=14)
+    tube(bm, [(25.0, 1.55, 1.25, ZC - 0.2), (26.0, 1.5, 1.2, ZC - 0.2), (26.6, 1.1, 0.85, ZC - 0.2),
+              (26.9, 0, 0, ZC - 0.2)], GLOW2, sides=14)
+    tube(bm, [(25.2, 0.9, 1.45, ZC - 0.2), (26.4, 0.9, 1.3, ZC - 0.2), (26.85, 0, 0, ZC - 0.2)], GLOW, sides=10)
+
+    # Wings (left; the right is its mirror): sprite (col, row) outline, forward-swept to a tip at
+    # columns 1-2 row 11, trailing edge following the sprite's staircase.
+    outer = [(1.05, 11.1), (2.6, 11.1), (7.5, 16.0), (9.3, 16.0), (9.3, 22.5), (7.0, 24.8), (5.3, 24.8),
+             (2.0, 18.0), (1.05, 18.0)]
+    # d = row - col runs across the leading edge (the outline at d = 8.5).
+    lead = clips(outer, (-1, 1, 9.9), (-1, 0, -2.35), (0, 1, 16.0), (1, 0, 7.2))
+    rail = clips(outer, (1, 0, 2.1))
+    fore = clips(outer, (1, -1, -10.15), (-1, 0, -2.35), (0, 1, 17.0), (1, 0, 7.0))
+    fore_a = clips(fore, (-1, 1, 11.0))
+    fore_b = clips(fore, (1, -1, -11.6))
+    fore_c = clips(fore, (1, -1, -11.0), (-1, 1, 11.6), (1, 0, 3.1))
+    fore_d = clips(fore, (1, -1, -11.0), (-1, 1, 11.6), (-1, 0, -5.2))
+    aft = clips(outer, (0, -1, -17.25), (-1, 0, -2.35), (1, 0, 6.8))
+    wing_verts = []
+    for mirror in (False, True):
+        wing_verts += plate(bm, outer, 0.0, 0.9, DARK, flat, mirror)
+        wing_verts += plate(bm, rail, 0.6, 1.7, WING, flat, mirror)
+        wing_verts += plate(bm, lead, 0.6, 1.5, BRIGHT, flat, mirror)
+        for poly in (fore_a, fore_b, fore_c, fore_d, aft):
+            wing_verts += plate(bm, poly, 0.6, 1.35, WING, flat, mirror)
+    # Tilted up toward the tips.
+    for v in wing_verts:
+        v.co.z += max(0.0, abs(v.co.x) - 4.0 * P) * 0.16
+
+    # Wing roots (rows 16-21.6, columns 6.9-9.3): boxes beside the body, a bright chamfer strip on
+    # the outer edge (the sprite's bright column 7) and a dark vent bay cut into the top.
+    for mirror in (False, True):
+        plate(bm, [(6.9, 16.7), (7.5, 16.1), (7.6, 16.1), (7.6, 21.6), (6.9, 21.6)], 0.0, 2.0, BRIGHT, flat, mirror)
+        plate(bm, [(7.6, 16.1), (8.3, 16.1), (8.3, 21.6), (7.6, 21.6)], 0.0, 2.4, ROOT_, flat, mirror)
+        plate(bm, [(8.3, 16.1), (9.4, 16.1), (9.4, 17.0), (8.3, 17.0)], 0.0, 2.4, ROOT_, flat, mirror)
+        plate(bm, [(8.3, 19.8), (9.4, 19.8), (9.4, 21.6), (8.3, 21.6)], 0.0, 2.4, ROOT_, flat, mirror)
+        plate(bm, [(8.3, 17.0), (9.4, 17.0), (9.4, 19.8), (8.3, 19.8)], 0.0, 1.5, DARK, flat, mirror)
+
+    # Engine pods under the wings' trailing edges (rows 21-26, centred on columns 7.6 and 15.4),
+    # each with a dark intake at its front.
+    tube(bm, [(20.8, 1.1, 0.9, 0.5), (21.4, 1.2, 1.0, 0.5)], DARK, x=3.9, mirror=True)
+    tube(bm, [(21.2, 1.45, 1.2, 0.5), (21.6, 1.6, 1.35, 0.5), (25.0, 1.65, 1.4, 0.5), (25.6, 1.5, 1.25, 0.5),
+              (25.95, 1.2, 0.95, 0.5)], ROOT_, x=3.9, mirror=True)
 
     obj = common.mesh_object(NAME, bm, mats, coll, smooth=True)
     # Hard-surface faces flat shaded, so their edges stay crisp; the round parts stay smooth.

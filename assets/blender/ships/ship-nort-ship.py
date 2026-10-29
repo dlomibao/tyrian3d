@@ -1,19 +1,22 @@
 """Nort ship (player ship, tyrian.shp#8 frames 220 and 222 drawn side by side as one 48x28
-object): a 3D version of its sprite.
+object): a 3D version of its sprite, its parts placed where the concept
+(assets/blender/features/concepts/ship-nort-ship.jpg, registered to the sprite in
+assets/blender/textures/ship-nort-ship/concept.png) draws them.
 
-A wide grey delta. A pointed nose with a dark canopy, framed by a bright arch, runs into a round
-drum behind the cockpit (about 9 px across, standing about 4 px above the wings, two dark grooves
-along it) and a pale raised spine behind it; broad swept wings with a blue leading-edge band (a light-blue
-highlight row behind it) and two chevron rails; under each wing root a round engine nacelle
-(about 9 px across) swells out behind the trailing edge, with two dark vents cut into its top,
-and tapers to a rounded tail. Two short red-tipped guns sit on the shoulders beside the nose. A
-thin rim under the wings, nose and nacelles reaches the sprite's black outline pixels; it is hull
-grey, since the game draws the outline. Polished metal hull: the sprite's highlights are shine.
-Symmetric about the middle of sprite column 23; the origin is the middle of the 48x28 block.
+A wide grey hard-surface delta built of separate chamfered plates. A pointed nose cowl holds a
+dark glass canopy and runs back into a round drum behind the cockpit; behind the drum a raised
+spine plate runs down the middle between two big angular body blocks, each with a two-part intake
+grille cut into its back and a round engine nozzle trailing behind it. Outside the blocks, across a
+dark machinery channel, a long swept wing panel on each side carries a blue band along its
+leading edge and ends in a short tip nub. A red gun barrel stands on each shoulder beside the nose,
+with a red light at its foot in the channel, and small blue canards sit beside the nose tip.
+Polished metal hull: the sprite's highlights are shine. Symmetric about the middle of sprite
+column 23; the origin is the middle of the 48x28 block.
 
 Run: blender --background --python assets/blender/ships/ship-nort-ship.py [-- --preview out.png]
 """
 
+import math
 import sys
 from pathlib import Path
 
@@ -23,7 +26,8 @@ import bmesh  # noqa: E402
 import bpy  # noqa: E402
 
 import common  # noqa: E402
-from lib_b141 import P, X, Y, dome, loft, slab, span_wing, tube  # noqa: E402
+import lib_b048 as L  # noqa: E402
+from lib_b141 import P, X, Y, dome, loft, tube  # noqa: E402
 
 NAME = "ship-nort-ship"
 MODEL = f"ships/{NAME}"
@@ -35,131 +39,31 @@ def mir(c):
     return 2 * AXIS - c
 
 
-def lerp_table(table, key, k0=0):
-    """Linear interpolation of the rows of `table` (tuples) at table[...][k0] == key."""
-    if key <= table[0][k0]:
-        return list(table[0])
-    for a, b in zip(table, table[1:]):
-        if a[k0] <= key <= b[k0]:
-            t = (key - a[k0]) / ((b[k0] - a[k0]) or 1)
-            return [x + (y - x) * t for x, y in zip(a, b)]
-    return list(table[-1])
+def shell_top(r):
+    """Top of the nose cowl (px) at row r: low at the tip, rising toward the drum."""
+    return 1.8 + 0.27 * r
 
 
-# Left wing planform, tip to centre: (col, front row, back row, thickness, z mid), pixel edges.
-# The main wing stops about a pixel inside the sprite's black outline; SKIRT, a thinner dark
-# plate under it, reaches the outline's outer edge.
-WING = [
-    (5.7, 17.6, 20.6, 0.9, 0.0),
-    (6.5, 16.8, 21.5, 1.1, 0.0),
-    (7.5, 15.8, 22.4, 1.3, 0.0),
-    (8.5, 14.8, 23.3, 1.5, 0.0),
-    (9.5, 13.8, 24.2, 1.7, 0.0),
-    (10.6, 12.8, 24.2, 1.9, 0.0),
-    (11.2, 12.2, 23.0, 2.0, 0.0),
-    (12.0, 11.4, 21.8, 2.2, 0.0),
-    (13.5, 10.6, 21.4, 2.5, 0.0),
-    (15.0, 9.8, 21.4, 2.8, 0.0),
-    (16.5, 8.2, 21.4, 3.0, 0.0),
-    (18.5, 6.6, 21.4, 3.2, 0.0),
-    (AXIS, 6.4, 21.4, 3.4, 0.0),
-]
-SKIRT = [
-    (4.8, 17.3, 20.5, 0.5, -0.45),
-    (5.5, 16.6, 21.1, 0.7, -0.5),
-    (6.5, 15.7, 22.4, 0.8, -0.55),
-    (7.5, 14.7, 23.4, 0.9, -0.6),
-    (8.5, 13.7, 24.4, 1.0, -0.65),
-    (9.5, 12.7, 25.3, 1.1, -0.7),
-    (10.6, 11.7, 25.3, 1.2, -0.75),
-    (11.4, 10.8, 24.3, 1.3, -0.8),
-    (12.5, 9.8, 22.0, 1.4, -0.85),
-    (14.0, 9.4, 22.0, 1.6, -0.9),
-    (15.6, 7.6, 22.0, 1.8, -0.95),
-    (17.2, 5.9, 22.0, 1.9, -1.0),
-    (19.0, 5.0, 22.2, 2.0, -1.0),
-    (AXIS, 5.0, 22.4, 2.0, -1.0),
-]
-
-# Nose (row, half width, half height, z centre), drum and spine along the axis; power as lofted.
-NOSE = [(0.3, 0, 0, 0.9), (0.8, 1.4, 1.0, 0.9), (1.8, 2.4, 1.7, 1.0), (2.8, 3.4, 2.3, 1.1),
-        (3.8, 4.3, 2.8, 1.2), (5.0, 4.8, 3.2, 1.3), (6.3, 5.2, 3.5, 1.4), (7.6, 5.0, 3.6, 1.4),
-        (8.4, 4.4, 3.4, 1.4)]
-NOSE_SKIRT = [(-0.3, 0, 0, 0.6), (0.1, 1.6, 0.6, 0.6), (1.1, 2.6, 1.0, 0.6), (2.1, 3.5, 1.3, 0.6),
-              (3.1, 4.6, 1.6, 0.6), (4.2, 5.6, 1.8, 0.6), (5.6, 5.8, 2.0, 0.6), (6.6, 5.6, 2.0, 0.6),
-              (7.6, 4.8, 2.0, 0.6)]
-NOSE_POW = 0.8
-DRUM_Z, DRUM_R, DRUM_H = 2.0, 4.2, 4.1  # round drum behind the cockpit (rows 7-13)
-DRUM = [(7.0, 3.3, 3.2, DRUM_Z), (7.4, DRUM_R, DRUM_H, DRUM_Z), (12.6, DRUM_R, DRUM_H, DRUM_Z),
-        (13.0, 3.7, 3.6, DRUM_Z)]
-DRUM_POW = 0.92
-SPINE = [(13.0, 2.7, 3.3, 1.2), (16.0, 2.7, 3.1, 1.1), (19.0, 2.6, 2.8, 1.0), (20.8, 2.3, 2.3, 0.8),
-         (21.6, 1.6, 1.5, 0.6)]
-SPINE_POW = 0.75
-
-# Left nacelle (col, row, half width, half height, z centre): under the wing root, swelling out
-# behind the trailing edge to a round section about 9.6 px across, then tapering to a rounded
-# tail leaning in toward column 18.
-POD = [(16.5, 12.8, 0, 0, -1.8), (16.5, 14.0, 2.6, 1.6, -1.8), (16.5, 16.2, 3.8, 2.4, -1.6),
-       (16.5, 18.5, 4.4, 3.0, -1.2), (16.5, 20.3, 4.7, 3.8, -0.8), (16.5, 21.6, 4.8, 4.3, -0.6),
-       (16.6, 23.0, 4.8, 4.3, -0.6), (16.8, 24.0, 4.0, 3.8, -0.6)]
-TAIL = [(16.8, 24.0, 4.0, 3.8, -0.6), (17.5, 25.0, 2.9, 2.9, -0.6), (18.0, 26.0, 2.4, 2.4, -0.6),
-        (18.4, 27.0, 1.9, 1.9, -0.6), (18.5, 27.6, 1.3, 1.2, -0.6), (18.5, 27.9, 0, 0, -0.6)]
-# The nacelle's dark skirt from row 20 back (col, row, half width, half height, z centre).
-POD_SKIRT = [(16.5, 20.3, 5.6, 2.7, -1.9), (16.5, 21.6, 5.7, 3.0, -1.9), (16.6, 23.0, 5.7, 3.0, -1.9),
-             (16.6, 24.5, 4.7, 2.6, -1.6), (17.4, 25.5, 3.6, 2.0, -1.3), (17.9, 26.5, 3.1, 1.6, -1.2),
-             (18.3, 27.5, 2.5, 1.2, -1.1), (18.4, 27.9, 1.8, 0.9, -1.0), (18.4, 28.1, 0, 0, -1.0)]
-POD_POW = 0.95
+def wing_dz(c):
+    """Lift of a wing panel's top (px) at column c: thickest at the root, tapering to the tip."""
+    t = min(max((17.9 - abs(c - AXIS)) / (17.9 - 9.2), 0.0), 1.0)
+    return 0.4 + 1.0 * t
 
 
-def ring_top(dx, hw, hh, z, power):
-    """Top of a lofted superellipse ring (half width hw, half height hh, centre z) at offset dx."""
-    if hw <= 0 or abs(dx) >= hw:
-        return None
-    return z + hh * (1 - (abs(dx) / hw) ** (2 / power)) ** (power / 2)
+def plate(bm, outline, z0, z1, bevel, mat, dz=None):
+    """A chamfered plate on an outline of (col, row) pixel edges, heights in px; dz(col, row)
+    lifts its top."""
+    pts = [(X(c), Y(r)) for c, r in outline]
+    before = set(bm.verts)
+    L.bevel_plate(bm, pts, P(z0), P(z1), P(bevel), (mat,) * 4)
+    if dz:
+        for v in set(bm.verts) - before:
+            if v.co.z > P(z0) + 1e-5:
+                v.co.z += P(dz(v.co.x * 12 + 24, 14 - v.co.y * 12))
 
 
-def wing_top(c, r, table=WING):
-    """Height (px) of the wing's upper surface at column c, row r (the span_wing profile)."""
-    if c > AXIS:
-        c = mir(c)
-    if c < table[0][0]:
-        return None
-    _, f, b, t, zm = lerp_table(table, c)
-    if not f <= r <= b:
-        return None
-    chord = b - f
-    le = min(2.0, 0.22 * chord)
-    prof = [(f, 0.0), (f + le, 0.42 * t), (f + 0.38 * chord, 0.5 * t), (f + 0.78 * chord, 0.4 * t), (b, 0.1 * t)]
-    for (r0, z0), (r1, z1) in zip(prof, prof[1:]):
-        if r0 <= r <= r1:
-            return zm + z0 + (z1 - z0) * (r - r0) / ((r1 - r0) or 1)
-    return zm
-
-
-def axial_top(table, c, r, power):
-    if not table[0][0] <= r <= table[-1][0]:
-        return None
-    _, hw, hh, z = lerp_table(table, r)
-    return ring_top(c - AXIS, hw, hh, z, power)
-
-
-def pod_top(c, r):
-    if c > AXIS:
-        c = mir(c)
-    path = POD + TAIL[1:]
-    if not path[0][1] <= r <= path[-1][1]:
-        return None
-    pc, _, hw, hh, z = lerp_table(path, r, k0=1)
-    return ring_top(c - pc, hw, hh, z, POD_POW)
-
-
-def surf(c, r):
-    """The highest base surface (wing, nose, drum, spine, nacelle) at column c, row r (px)."""
-    hs = [wing_top(c, r), axial_top(NOSE, c, r, NOSE_POW), axial_top(DRUM, c, r, DRUM_POW),
-          axial_top(SPINE, c, r, SPINE_POW), pod_top(c, r)]
-    hs = [h for h in hs if h is not None]
-    return max(hs) if hs else 0.0
+def ellipse(c, r, rx, ry, n=20):
+    return [(c + rx * math.cos(2 * math.pi * i / n), r + ry * math.sin(2 * math.pi * i / n)) for i in range(n)]
 
 
 def cut_into(bm, part, cutters, mats, cut_mat):
@@ -209,124 +113,140 @@ def cut_into(bm, part, cutters, mats, cut_mat):
         bpy.data.meshes.remove(me)
 
 
+# Left-side outlines traced from the registered concept, (col, row) pixel edges.
+WING = [(12.3, 10.1), (14.3, 10.1), (14.3, 10.9), (10.3, 17.4), (10.5, 22.6), (11.0, 24.4), (10.6, 25.0),
+        (9.6, 25.0), (8.8, 24.2), (5.9, 21.3), (5.6, 17.4), (6.1, 16.5)]
+BLOCK = [(11.1, 19.7), (17.1, 12.3), (19.8, 12.3), (19.8, 23.5), (19.1, 24.0), (11.8, 24.1), (11.0, 23.2)]
+GRILLES = [(12.8, 15.9), (16.7, 19.3)]  # intake grille columns, rows 21.0-23.0
+NOZZLE_C = 17.4
+
+
 def build(sprite):
     coll = common.reset_collection(NAME)
     pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
-    # Lighting pass: a polished grey metal hull, so the hull parts are metallic and smooth and the
-    # game's lights make the sprite's sheen; each part keeps its mid-tone (the sprite's shading,
-    # its canopy glint and its black outline ring aren't painted on).
-    hull = dict(metallic=0.7, roughness=0.3)
+    hull = dict(metallic=0.45, roughness=0.4)
     mats = [
-        pal(9, **hull),  # 0 wing and nacelle grey (and the rim under them)
-        pal(7, metallic=0.6, roughness=0.35),  # 1 gun barrels, wing-tip edges
-        pal(11, **hull),  # 2 pale spine
-        pal(13, metallic=0.5, roughness=0.3),  # 3 bright rails and canopy frame
-        pal(5, metallic=0.1, roughness=0.7),  # 4 dark grooves
-        pal(57, metallic=0.4, roughness=0.4),  # 5 blue leading-edge band (paint)
-        pal(1, metallic=0.0, roughness=0.8),  # 6 vents and seams
-        pal(52, metallic=0.05, roughness=0.08),  # 7 canopy glass
-        pal(70, metallic=0.2, roughness=0.4, emission_strength=2.5),  # 8 red gun lights
-        pal(54, metallic=0.4, roughness=0.4),  # 9 blue canards (paint)
-        pal(8, **hull),  # 10 nose shell
-        pal(6, metallic=0.6, roughness=0.35),  # 11 (unused)
-        pal(59, metallic=0.4, roughness=0.4),  # 12 light-blue band row (paint)
-        pal(10, **hull),  # 13 drum
-        pal(12, metallic=0.5, roughness=0.3),  # 14 (unused)
-        pal(61, metallic=0.05, roughness=0.08),  # 15 (unused)
-        pal(14, metallic=0.5, roughness=0.3),  # 16 brightest rails (inner chevron)
+        pal(10, **hull),  # 0 wings, body blocks
+        pal(11, **hull),  # 1 nose cowl, spine
+        pal(10, metallic=0.45, roughness=0.35),  # 2 drum
+        pal(4, metallic=0.3, roughness=0.6),  # 3 machinery deck in the channels
+        pal(2, metallic=0.0, roughness=0.85),  # 4 grilles, nozzle mouths, recesses
+        pal(52, metallic=0.1, roughness=0.06),  # 5 canopy glass
+        pal(69, metallic=0.4, roughness=0.35),  # 6 red gun barrels
+        pal(70, metallic=0.1, roughness=0.4, emission_strength=2.5),  # 7 red lights
+        pal(59, metallic=0.35, roughness=0.35),  # 8 blue band (upper)
+        pal(57, metallic=0.35, roughness=0.35),  # 9 blue band (lower), canards
+        pal(7, metallic=0.6, roughness=0.35),  # 10 nozzles, gun mounts
+        pal(12, metallic=0.55, roughness=0.3),  # 11 bright trim: canopy frame, wing ridge
     ]
-    (WINGM, BARREL, SPINEM, RIDGE, GROOVE, BLUE, VENT, GLASS, RED, CANARD, NOSEM, _TAIL6, LBLUE, DRUM_M, _RIB,
-     _GLINT, WHITE) = range(17)
-    POD_M = TAIL_M = WINGM  # the nacelle's tail was the sprite's shading, not a darker colour
+    (HULL, COWL, DRUM, DECK, DARK, GLASS, RED, LIGHT, BLUE, BLUE2, NOZ, TRIM) = range(12)
+    smooth_mats = {DRUM, GLASS, RED, LIGHT, NOZ}
     bm = bmesh.new()
 
-    def mirror_rows(table):
-        return [(mir(c), *rest) for c, *rest in reversed(table[:-1])]
+    # Machinery deck under everything, seen in the channels between wings, guns and blocks.
+    plate(bm, [(9.8, 18.0), (15.4, 10.4), (mir(15.4), 10.4), (mir(9.8), 18.0), (mir(9.8), 22.0), (9.8, 22.0)],
+          -1.0, 0.4, 0.2, DECK)
 
-    # Wings: the main plate and a thinner rim under it reaching the sprite's outline (hull grey: the
-    # game draws the dark outline), each one loft tip to tip.
-    span_wing(bm, WING + mirror_rows(WING), mat=WINGM)
-    span_wing(bm, SKIRT + mirror_rows(SKIRT), mat=WINGM)
+    # Nose cowl: a pointed shield from the tip back to the drum, sloping up toward the back.
+    cowl = [(23.5, 0.0), (25.2, 0.5), (27.0, 2.2), (28.8, 5.0), (30.8, 7.6), (31.4, 9.9), (30.6, 10.5),
+            (16.4, 10.5), (15.6, 9.9), (16.2, 7.6), (18.2, 5.0), (20.0, 2.2), (21.8, 0.5)]
+    plate(bm, cowl, -0.5, shell_top(0), 0.6, COWL, dz=lambda c, r: 0.27 * r)
+    # Canopy: a bright frame ring set in the cowl holding a dark glossy glass bubble.
+    zc = shell_top(5.5)  # cowl top at the canopy's centre
+    plate(bm, ellipse(AXIS, 5.5, 3.0, 3.2, 18), zc - 1.0, zc + 0.25, 0.25, TRIM)
+    dome(bm, AXIS, 5.5, 2.55, 2.75, 1.7, z=zc + 0.1, rings=5, sides=18, mat=GLASS)
 
-    # Nose fuselage (and its rim), the drum behind the cockpit, the spine.
-    loft(bm, [(r, AXIS, w, h, z) for r, w, h, z in NOSE], sides=16, mat=NOSEM, power=NOSE_POW)
-    loft(bm, [(r, AXIS, w, h, z) for r, w, h, z in NOSE_SKIRT], sides=12, mat=NOSEM, power=0.7)
-    loft(bm, [(r, AXIS, w, h, z) for r, w, h, z in DRUM], sides=16, mat=DRUM_M, power=DRUM_POW)
-    # Bright front ring (the crossbar of the canopy frame, row 7), about 0.4 px proud. The drum's
-    # bright rows 9-10 are sheen on its rounded top, not ribs; its two dark grooves (columns 21 and
-    # 25) are laid on below.
-    for r, m, d in [(7.6, RIDGE, 0.45)]:
-        loft(bm, [(r - 0.3, AXIS, DRUM_R + d, DRUM_H + d, DRUM_Z), (r + 0.3, AXIS, DRUM_R + d, DRUM_H + d, DRUM_Z)],
-             sides=16, mat=m, power=DRUM_POW)
-    # Dark seam at the drum's back (row 13), then the pale spine down to the notch at row 21.
-    loft(bm, [(12.9, AXIS, 3.8, 3.7, DRUM_Z), (13.6, AXIS, 2.9, 3.0, 1.6)], sides=14, mat=VENT, power=0.85)
-    loft(bm, [(r, AXIS, w, h, z) for r, w, h, z in SPINE], sides=14, mat=SPINEM, power=SPINE_POW)
+    # Drum behind the cockpit: an elliptical wall and a rounded top, the tallest part, machined:
+    # a raised rim band round the wall top and a ring band part-way up the dome.
+    DZ = 4.7
+    plate(bm, ellipse(AXIS, 11.1, 4.2, 2.9, 24), -0.5, DZ, 0.15, DRUM)
+    plate(bm, ellipse(AXIS, 11.1, 4.45, 3.1, 24), DZ - 0.9, DZ + 0.3, 0.2, NOZ)
+    dome(bm, AXIS, 11.1, 4.05, 2.75, 2.1, z=DZ, rings=6, sides=24, mat=DRUM, bottom=False)
+    k, n = 0.62, 24
+    zr = DZ + 2.1 * math.sqrt(1 - k * k)
+    ring = [(AXIS + 4.05 * k * math.cos(2 * math.pi * i / n), 11.1 + 2.75 * k * math.sin(2 * math.pi * i / n),
+             0.28, 0.32, zr) for i in range(n + 2)]
+    tube(bm, ring, sides=6, mat=NOZ)
 
-    # Canopy: a dark glass dome over columns 21-25, rows 3-7, with a light-blue glint (column 24).
-    ztop = surf(AXIS, 5.3)
-    # (Its light-blue glint, column 24, is the glass's shine: the glossy material makes it.)
-    dome(bm, AXIS, 5.3, 2.2, 2.1, 1.8, z=ztop - 0.9, rings=4, sides=14, mat=GLASS)
+    # Spine plate down the middle (rows 14-22), a dark vent cut into its foot.
+    spine = bmesh.new()
+    plate(spine, [(20.1, 13.4), (mir(20.1), 13.4), (mir(20.1), 20.0), (mir(20.9), 21.9), (20.9, 21.9), (20.1, 20.0)],
+          -0.5, 4.2, 0.5, COWL)
+    cut_into(bm, spine, [(22.3, mir(22.3), 21.0, 21.95, 2.4, 9.0)], mats, DARK)
 
     for side in (1, -1):
-        cc = (lambda c: c) if side == 1 else mir  # column on this side
+        cc = (lambda c: c) if side == 1 else mir
 
-        def on(path, hw, hh, lift):
-            return [(cc(c), r, hw, hh, surf(c, r) + lift) for c, r in path]
+        def O(pts):
+            return [(cc(c), r) for c, r in pts]
 
-        # Canopy frame: the bright arch from the canopy's front corner down its side, continuing
-        # as the shoulder ridge out to column 16 row 10.
-        tube(bm, on([(21.7, 2.8), (20.8, 4.0), (20.5, 5.5), (19.8, 7.0), (18.6, 8.4), (16.6, 10.6)], 0.6, 0.35, 0.05),
-             sides=6, mat=RIDGE, power=0.7)
-        # Blue canards beside the nose tip (column 19, rows 2-3).
-        tube(bm, [(cc(20.8), 4.4, 0.7, 0.45, 1.7), (cc(19.6), 2.5, 0.7, 0.4, 1.5), (cc(19.3), 1.8, 0, 0, 1.4)],
-             sides=6, mat=CANARD)
-        # Shoulder gun: red-lit barrel at column 15, rows 5-9, a grey body to row 12, a red light at 12.
-        tube(bm, [(cc(15.5), 5.0, 0, 0, 1.2), (cc(15.5), 5.3, 0.8, 0.7, 1.2), (cc(15.5), 9.0, 0.85, 0.75, 1.2)],
-             sides=8, mat=RED, cap_end=False)
-        tube(bm, [(cc(15.5), 9.0, 0.9, 0.8, 1.2), (cc(15.5), 11.9, 1.0, 0.85, 1.1)], sides=8, mat=BARREL, cap_end=False)
-        tube(bm, [(cc(15.5), 11.9, 1.0, 0.85, 1.1), (cc(15.5), 12.9, 0.9, 0.7, 1.0)], sides=8, mat=RED)
-        # Rim under the gun reaching its outline (columns 14 and 16, rows 5-9).
-        tube(bm, [(cc(15.5), 5.0, 0, 0, 0.6), (cc(15.5), 5.6, 1.1, 0.5, 0.6), (cc(15.5), 6.3, 1.3, 0.5, 0.6),
-                  (cc(15.5), 10.0, 1.3, 0.5, 0.4)],
-             sides=6, mat=BARREL)
-        # Low web filling the notch between the nacelles (columns 21-22, rows 21-23), hull grey.
-        notch = [(20.8, 21.0), (22.9, 21.0), (22.9, 23.0), (22.0, 23.0), (22.0, 24.0), (20.8, 24.0)]
-        slab(bm, [(cc(c), r) for c, r in notch], -1.6, 0.0, mat=POD_M)
+        # Swept wing panel (thickest at the root) with its tip nub, the blue leading-edge band and
+        # two chevron ridges with a dark groove between them, bending down into the tip prong.
+        plate(bm, O(WING), -0.6, 2.0, 0.45, HULL, dz=lambda c, r: wing_dz(c))
+        plate(bm, O([(5.0, 17.9), (6.0, 17.6), (6.0, 20.6), (5.0, 20.3)]), 0.0, 2.6, 0.25, NOZ)
 
-        # Blue leading-edge band: a darker outer row and a light-blue inner row.
-        tube(bm, on([(11.6, 13.4), (8.5, 16.5), (7.4, 17.7), (7.4, 18.8)], 0.55, 0.2, 0.08), sides=4, mat=BLUE)
-        tube(bm, on([(11.7, 14.5), (8.6, 17.6)], 0.5, 0.2, 0.1), sides=4, mat=LBLUE)
-        # Wing rails: the inner chevron from row 12 down to the trailing edge, and the outer one
-        # behind the blue band bending down into the tip prong; a dark groove between them.
-        tube(bm, on([(18.9, 12.2), (15.5, 15.6), (12.4, 18.8), (12.1, 20.0), (12.2, 21.0)], 0.6, 0.3, 0.05),
-             sides=6, mat=WHITE, power=0.7)
-        tube(bm, on([(13.0, 14.0), (10.5, 16.5), (8.8, 18.4), (8.6, 21.0), (9.5, 23.0)], 0.6, 0.3, 0.05),
-             sides=6, mat=RIDGE, power=0.7)
-        tube(bm, on([(14.4, 14.9), (10.8, 18.4), (10.6, 21.4)], 0.45, 0.15, 0.05), sides=4, mat=GROOVE)
-        # Dark grooves down the drum (columns 21 and 25, rows 8-12).
-        tube(bm, on([(21.5, 8.0), (21.5, 10.4), (21.5, 12.8)], 0.45, 0.12, 0.03), sides=4, mat=GROOVE)
-        # Dark channel beside the spine (columns 19-20, rows 13-20).
-        tube(bm, on([(20.2, 13.4), (20.2, 16.5), (20.2, 20.9)], 0.9, 0.15, 0.05), sides=4, mat=GROOVE)
-        # Grey wing-tip edge (column 6, rows 17-21).
-        tube(bm, on([(6.4, 17.4), (6.4, 21.2)], 0.5, 0.3, -0.1), sides=6, mat=BARREL)
+        def on_wing(pts, hw, hh, lift):
+            return [(cc(c), r, hw, hh, 2.0 + wing_dz(cc(c)) + lift) for c, r in pts]
 
-        # Engine nacelle: round body (two dark vents cut into its top at rows 21-23, columns 13-15
-        # and 17-19), a rounded tail, and a rim under it reaching the outline.
+        tube(bm, on_wing([(12.1, 12.5), (7.6, 17.6)], 0.45, 0.2, -0.05), sides=4, mat=BLUE, power=0.5)
+        tube(bm, on_wing([(7.6, 17.6), (7.6, 21.6)], 0.45, 0.2, -0.05), sides=4, mat=BLUE2, power=0.5)
+        ridge1 = [(13.2, 12.3), (8.9, 17.5), (8.9, 20.8), (7.3, 22.3)]
+        ridge2 = [(13.6, 11.2), (10.1, 16.9), (10.1, 22.0), (8.9, 23.4)]
+        groove = [((a[0] + b[0]) / 2, (a[1] + b[1]) / 2) for a, b in zip(ridge1, ridge2)]
+        tube(bm, on_wing(groove, 0.32, 0.08, -0.02), sides=4, mat=DARK, power=0.5)
+        tube(bm, on_wing(ridge1, 0.32, 0.55, 0.35), sides=6, mat=TRIM)
+        tube(bm, on_wing(ridge2, 0.32, 0.55, 0.35), sides=6, mat=HULL)
+
+        # Body block with its intake grille (two bays split by a post) cut into its back.
         part = bmesh.new()
-        # Lofted across the rows (rings square to the sprite's columns) so the leaning tail's
-        # outline follows the sprite's rows.
-        loft(part, [(r, cc(c), w, h, z) for c, r, w, h, z in POD], sides=16, mat=POD_M, power=POD_POW, cap_end=False)
-        loft(part, [(r, cc(c), w, h, z) for c, r, w, h, z in TAIL], sides=16, mat=TAIL_M, power=POD_POW,
-             cap_start=False)
-        vents = []
-        for c0, c1 in ((13.1, 15.9), (17.1, 19.9)):
+        plate(part, O(BLOCK), -0.8, 5.0, 0.8, HULL)
+        cuts = []
+        for c0, c1 in GRILLES:
             a, b = sorted((cc(c0), cc(c1)))
-            floor = min(pod_top(c0, 22.0), pod_top(c1, 22.0)) - 0.6
-            vents.append((a, b, 21.0, 23.0, floor, 9.0))
-        cut_into(bm, part, vents, mats, VENT)
-        loft(bm, [(r, cc(c), w, h, z) for c, r, w, h, z in POD_SKIRT], sides=10, mat=POD_M, power=POD_POW)
+            cuts.append((a, b, 21.0, 23.0, 3.4, 9.0))
+        cut_into(bm, part, cuts, mats, DARK)
+        # Grille slats across each bay.
+        for c0, c1 in GRILLES:
+            for k in range(1, 4):
+                rr = 21.0 + 0.5 * k
+                tube(bm, [(cc(c0 + 0.1), rr, 0.1, 0.12, 3.8), (cc(c1 - 0.1), rr, 0.1, 0.12, 3.8)], sides=4, mat=NOZ)
 
-    return common.mesh_object(NAME, bm, mats, coll, smooth=True)
+        # Engine nozzle trailing behind the block: a housing ring, a banded nozzle, a dark mouth.
+        plate(bm, O([(12.0, 23.2), (21.0, 23.2), (21.0, 25.0), (14.0, 25.2), (12.0, 24.8)]), -0.6, 1.4, 0.3, HULL)
+        plate(bm, O([(19.6, 21.3), (22.4, 21.3), (22.4, 22.8), (21.9, 24.0), (19.6, 24.0)]), -0.6, 3.4, 0.3, HULL)
+        # Nozzle: slimmer (about 78% of the old radius) and longer, mid-grey hull with one darker
+        # band; only the mouth is dark.
+        S, ZN = 0.78, 1.2
+        noz = [(22.8, 3.3, 2.2), (24.4, 3.5, 2.3), (25.4, 3.6, 2.2), (26.5, 3.1, 2.0), (27.5, 2.65, 1.8),
+               (28.1, 2.4, 1.6)]
+
+        def nc(r):
+            return cc(NOZZLE_C + 0.25 * (r - 23.0))
+
+        loft(bm, [(r, nc(r), w * S, h * S, ZN) for r, w, h in noz], sides=16, mat=HULL, power=0.95)
+        loft(bm, [(24.7, nc(24.7), 3.6 * S, 2.35 * S, ZN), (25.2, nc(25.2), 3.65 * S, 2.35 * S, ZN)],
+             sides=16, mat=NOZ, power=0.95)
+        loft(bm, [(27.8, nc(27.8), 1.7 * S, 1.2 * S, ZN), (28.18, nc(28.18), 1.7 * S, 1.2 * S, ZN)],
+             sides=12, mat=DARK, power=0.95)
+
+        # Shoulder gun: a grey mount, a red barrel with a lit tip, a red light at its foot.
+        plate(bm, O([(14.7, 8.8), (16.3, 8.8), (16.3, 12.9), (14.7, 12.9)]), -0.5, 2.4, 0.3, NOZ)
+        plate(bm, O([(14.1, 6.0), (16.9, 6.0), (16.9, 9.6), (14.1, 9.6)]), -0.5, 1.0, 0.2, DECK)
+        tube(bm, [(cc(15.4), 5.2, 0, 0, 3.1), (cc(15.4), 5.4, 0.65, 0.65, 3.1), (cc(15.4), 5.9, 0.75, 0.75, 3.1)],
+             sides=10, mat=LIGHT, cap_end=False)
+        tube(bm, [(cc(15.4), 5.9, 0.75, 0.75, 3.1), (cc(15.4), 9.4, 0.75, 0.75, 3.1)], sides=10, mat=RED,
+             cap_start=False)
+        tube(bm, [(cc(15.4), 9.3, 0.88, 0.88, 3.1), (cc(15.4), 10.5, 0.88, 0.88, 3.1)], sides=10, mat=NOZ)
+        tube(bm, [(cc(15.4), 10.5, 0.55, 0.55, 3.0), (cc(15.4), 13.0, 0.55, 0.55, 2.9)], sides=10, mat=LIGHT)
+
+        # Blue canards on the nose flanks beside the tip (sprite columns 20 and 27, rows 2-3), standing
+        # proud of the cowl.
+        plate(bm, O([(19.0, 2.4), (20.6, 1.8), (21.0, 3.9), (19.0, 4.4)]), 1.0, 3.4, 0.2, BLUE)
+
+    obj = common.mesh_object(NAME, bm, mats, coll, smooth=False)
+    for poly in obj.data.polygons:
+        poly.use_smooth = poly.material_index in smooth_mats
+    return obj
 
 
 def main():

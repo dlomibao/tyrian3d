@@ -1,0 +1,28 @@
+{
+ "name": "shapesz-l1bld-red-bar",
+ "concept": "l1-bld-red-bar",
+ "tile": true,
+ "sprite_size": [
+  144,
+  84
+ ],
+ "texels_per_px": 8,
+ "size": [
+  1152,
+  672
+ ],
+ "sprite_box": [
+  3,
+  5,
+  139,
+  80
+ ],
+ "concept_box": [
+  22,
+  38,
+  987,
+  569
+ ],
+ "neutral": 0.85,
+ "fit_iou": 0.928
+}

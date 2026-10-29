@@ -32,3 +32,6 @@ __pycache__/
 reference/
 /.shape/
 /public/models/proto-reshape/
+
+# Intermediate bake images: texture_bake.py embeds them in the .glb (WebP)
+assets/blender/textures/*/bake/

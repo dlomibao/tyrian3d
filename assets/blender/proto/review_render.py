@@ -96,7 +96,12 @@ def palette_colours(meshes, doc):
                 m.diffuse_color = (*[srgb_lin(c) for c in rgb], 1.0)
                 bsdf = next((n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED"), None) if m.use_nodes else None
                 if bsdf:  # for the game-lit view, which renders the materials themselves
-                    bsdf.inputs["Base Color"].default_value = m.diffuse_color
+                    base = bsdf.inputs["Base Color"]
+                    if base.is_linked and base.links[0].from_node.type == "MIX":
+                        # A textured model (assets/blender/texture_bake.py): texture x colour, as in game.
+                        base.links[0].from_node.inputs[7].default_value = m.diffuse_color
+                    else:
+                        base.default_value = m.diffuse_color
             elif m.use_nodes:
                 bsdf = next((n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED"), None)
                 if bsdf:

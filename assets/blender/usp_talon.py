@@ -1,7 +1,9 @@
 """USP Talon, the starting ship: a 3D version of its sprite (ship sprite 233 in tyrian.shp).
 
-The hull's outline follows the sprite row by row (tools/extract-sprites.mjs renders it); colours are
-sampled from the sprite. Materials named pal_<index> take that palette colour in game. Exports
+Its parts are laid out from the concept (assets/blender/features/concepts/), registered onto the
+sprite: ogive nose, framed oval canopy, two-part round engine pods with outboard caps, cross bands,
+vents, tail plate and exhaust housings, each where the concept draws it, inside the sprite's outline.
+Colours are palette indices closest to the concept's mid-tones. Materials named pal_<index> take that palette colour in game. Exports
 public/models/usp_talon.glb and src/render/spriteModels/usp_talon.json.
 
 Blender axes: forward is +Y, up is +Z, 1 unit = 12 Tyrian pixels. Sprite row r maps to
@@ -20,18 +22,24 @@ import common  # noqa: E402
 NAME = "usp_talon"
 SPRITE = "ship-usp-talon-top.png"
 
-HULL, POD, CANOPY, GLOW, KEEL, RIB = range(6)
+HULL, POD, CANOPY, GLOW, KEEL, RIB, VENT, FRAME, CAP = range(9)
 
 # The ship sprite and its banking frames (233 + bank * 2, bank -2..2) that the model replaces.
 SPRITES = [{"sheet": "tyrian.shp#8", "size": 2, "frames": [233], "bank": {"step": 2, "max": 2}}]
 
 PX = 1 / 12  # one sprite pixel in Blender units
-HULL_PAL, POD_PAL, RIB_PAL = 24, 25, 25  # mid-tones: the sprite hull averages index 24, its pods and ribs 25
 
-# Palette colours of the indices used (tyrian.shp#8 ramp 16-31, sampled from the sprite).
+# Palette colours of the indices used (tyrian.shp#8 ramp 16-31, from reference/models/.../sprite.json).
 PAL = {16: (16, 8, 0), 17: (28, 16, 0), 18: (44, 24, 4), 19: (56, 36, 8), 20: (73, 44, 16),
        21: (85, 60, 24), 22: (101, 73, 32), 23: (113, 85, 44), 24: (125, 101, 56), 25: (142, 113, 69),
        26: (154, 130, 85), 27: (170, 146, 101), 28: (182, 162, 121), 29: (207, 195, 158), 30: (231, 223, 199)}
+
+MODEL = "ship-usp-talon-light-fighter"
+
+# The layout follows the concept (assets/blender/features/concepts/<MODEL>.jpg) registered onto the
+# sprite (assets/blender/textures/<MODEL>/concept.png, 16 texels per sprite px): every part sits
+# where the concept draws it, inside the sprite's outline. Positions below are in sprite px
+# (column c, row r: c = 12 is the centre line), heights z in px above the model's origin.
 
 
 def row(r):
@@ -50,35 +58,8 @@ def lerp_table(table, r):
     return table[-1][1:]
 
 
-# Fuselage: (row at pixel centre, half width px, top z px, bottom z px). The nose follows the
-# sprite's stepped outline (2, 4, 6, 8 px wide) and its height grows with its width; behind the
-# shoulder (row 12) it is a round body about 10-11 px wide and 7 px tall, the pods fill out the rest.
-FUSELAGE = [
-    (2.5, 1.0, 1.5, -0.3), (3.5, 1.9, 2.1, -0.9), (4.5, 2.0, 2.3, -1.1), (5.5, 2.9, 2.8, -1.5),
-    (7.5, 3.0, 3.1, -1.8), (8.5, 3.9, 3.5, -2.2), (11.5, 4.0, 3.9, -2.6), (12.5, 4.9, 4.2, -2.9),
-    (13.5, 5.4, 4.3, -3.0), (17.0, 5.5, 4.4, -3.0), (21.5, 5.5, 4.2, -3.0), (23.5, 5.6, 3.8, -2.8),
-    (24.5, 5.6, 3.4, -2.6), (25.5, 4.9, 2.8, -2.2), (26.5, 2.9, 1.9, -1.5), (27.0, 1.9, 1.3, -1.1),
-    (27.3, 1.1, 0.9, -0.7),
-]
-
-# Pods: (row, axis x px, half width px), round in section. Their axis leans in toward the front
-# and back so they merge into the fuselage there, and their outer edge follows the sprite's outline.
-POD_Z = 0.9
-POD_SHAPE = [
-    (12.6, 3.9, 0.0), (13.4, 4.2, 1.6), (15.5, 4.6, 2.3), (17.5, 5.0, 2.9), (19.0, 5.4, 3.4),
-    (20.5, 5.5, 3.5), (21.8, 5.5, 3.3), (22.6, 5.4, 2.6), (23.5, 5.0, 2.1), (24.3, 4.6, 1.6),
-    (25.0, 4.2, 1.0), (25.6, 3.8, 0.0),
-]
-
-# Colours: each part takes its mid-tone and the game's lights shade it. The sprite's drawn light
-# (lit pod crowns, white spine line, dark flanks and black outline) is not painted on: the game lights
-# the model and draws its own outline. Only real parts are coloured: the canopy glass and the spine.
-MODEL = "ship-usp-talon-light-fighter"
-
-
 def resample(table, step=1.0):
-    """The table's rows plus extra rows every `step` between them (linear, so the shape is the same),
-    so the faces are about a sprite pixel long."""
+    """The table's rows plus extra rows every `step` between them (linear, so the shape is the same)."""
     out = []
     for t0, t1 in zip(table, table[1:]):
         out.append(t0)
@@ -90,9 +71,33 @@ def resample(table, step=1.0):
     return out
 
 
+# Fuselage, from the concept: (row, half width px, deck z px, belly z px). An ogive nose from the tip
+# at row 2 widening to 8 px across the cockpit (rows 10-14), then, between the engine pods, the narrower
+# rear body (columns 9.2-14.8) down to the tail plate's blunt end at row 26.8.
+FUSELAGE = [
+    (2.0, 0.15, 0.6, 0.1), (2.6, 0.75, 1.0, -0.2), (3.5, 1.4, 1.5, -0.6), (5.0, 2.2, 2.1, -1.1),
+    (6.5, 2.8, 2.6, -1.5), (8.0, 3.4, 3.0, -1.9), (9.5, 3.8, 3.3, -2.2), (11.0, 4.0, 3.5, -2.5),
+    (14.0, 4.0, 3.6, -2.7), (16.0, 3.7, 3.6, -2.7), (17.5, 3.0, 3.5, -2.6), (19.0, 2.8, 3.4, -2.5),
+    (23.0, 2.8, 3.1, -2.3), (25.5, 2.8, 2.8, -2.0), (26.4, 2.6, 2.4, -1.6), (26.8, 2.1, 1.9, -1.2),
+]
+
+
 def fuselage_top(r):
-    """Height in px of the fuselage's flat top deck at sprite row r."""
     return lerp_table(FUSELAGE, r)[1]
+
+
+def hull_profile(w, top, bot, deck=0.45, ch=0.22):
+    """Right half of a faceted hard-surface section, top centre to bottom centre, as (x, z) px:
+    a flat deck, a chamfered shoulder, the side and a chamfered belly."""
+    h = top - bot
+    return [(0.0, top), (deck * w, top), (0.8 * w, top - ch * h), (w, top - 0.55 * h),
+            (0.74 * w, bot + 0.12 * h), (0.34 * w, bot), (0.0, bot)]
+
+
+def plate_profile(w, top, bot, ch):
+    """A raised plate's half section: flat top, a 45-degree chamfer, straight side."""
+    ch = min(ch, 0.45 * w, 0.8 * (top - bot))
+    return [(0.0, top), (w - ch, top), (w, top - ch), (w, bot), (0.0, bot)]
 
 
 def loft_px(bm, sections, sides, mat_index, cap_start=True, cap_end=True):
@@ -108,14 +113,6 @@ def loft_px(bm, sections, sides, mat_index, cap_start=True, cap_end=True):
         for v in bm.verts[i:i + n]:
             v.co.x += x * PX
         i += n
-
-
-def hull_profile(w, top, bot):
-    """Right half of the fuselage's faceted section, top centre to bottom centre, as (x, z) px:
-    a flat top deck, a chamfered shoulder, the side and a chamfered belly (angular hard surface)."""
-    h = top - bot
-    return [(0.0, top), (0.42 * w, top), (0.76 * w, top - 0.24 * h), (w, top - 0.55 * h),
-            (0.74 * w, bot + 0.12 * h), (0.34 * w, bot), (0.0, bot)]
 
 
 def section_loft(bm, sections, mat_index, creases=(), cap=True):
@@ -151,89 +148,142 @@ def section_loft(bm, sections, mat_index, creases=(), cap=True):
     bmesh.ops.split_edges(bm, edges=[e for e in edges if e is not None])
 
 
+def plate(bm, rows, mat_index, ch=0.3):
+    """A raised chamfered plate lofted along rows: rows are (row, centre column, half width, top z,
+    bottom z)."""
+    section_loft(bm, [(r, c - 12, plate_profile(w, t, b, ch)) for r, c, w, t, b in rows], mat_index,
+                 creases=(1, 2, 3))
+
+
+def rounded_ends(r0, r1, c, w, top, bot, ease=0.4, n=4, min_w=0.45):
+    """Rows for a plate whose ends round off in the top view over `ease` px."""
+    out = []
+    for i in range(n + 1):
+        t = i / n
+        r = r0 + ease * t
+        out.append((r, c, max(min_w, w * (0.55 + 0.45 * t ** 0.5)), top, bot))
+    out.append((r1 - ease, c, w, top, bot))
+    for i in range(n, -1, -1):
+        t = i / n
+        out.append((r1 - ease * t, c, max(min_w, w * (0.55 + 0.45 * t ** 0.5)), top, bot))
+    # Drop repeated rows.
+    clean = [out[0]]
+    for o in out[1:]:
+        if o[0] > clean[-1][0] + 1e-4:
+            clean.append(o)
+    return clean
+
+
 def build(root):
     coll = common.reset_collection(NAME)
     mats = [
-        # Painted metal hull and polished metal pods: the sprite's bright pod and spine spots are
-        # sheen, which these make from the game's lights, not paint or geometry.
-        common.material(f"pal_{HULL_PAL}_talon_hull", common.srgb(*PAL[HULL_PAL]), metallic=0.5, roughness=0.38),
-        common.material(f"pal_{POD_PAL}_talon_pod", common.srgb(*PAL[POD_PAL]), metallic=0.75, roughness=0.3),
-        common.material("pal_16_talon_canopy", common.srgb(*PAL[16]), metallic=0.0, roughness=0.06),
+        common.material("pal_24_talon_hull", common.srgb(*PAL[24]), metallic=0.5, roughness=0.4),
+        # The engine pods are polished metal: the concept's bright domes are sheen from the lights.
+        common.material("pal_25_talon_pod", common.srgb(*PAL[25]), metallic=0.8, roughness=0.3),
+        common.material("pal_16_talon_canopy", common.srgb(*PAL[16]), metallic=0.0, roughness=0.05),
         common.material("engine_glow", (1.0, 0.45, 0.1), emission=(1.0, 0.5, 0.12), emission_strength=6.0),
-        common.material("pal_27_talon_spine", common.srgb(*PAL[27]), metallic=0.6, roughness=0.32),
-        common.material(f"pal_{RIB_PAL}_talon_rib", common.srgb(*PAL[RIB_PAL]), metallic=0.5, roughness=0.45),
+        common.material("pal_26_talon_spine", common.srgb(*PAL[26]), metallic=0.8, roughness=0.3),
+        common.material("pal_24_talon_band", common.srgb(*PAL[24]), metallic=0.55, roughness=0.4),
+        common.material("pal_18_talon_vent", common.srgb(*PAL[18]), metallic=0.3, roughness=0.7),
+        common.material("pal_21_talon_frame", common.srgb(*PAL[21]), metallic=0.6, roughness=0.35),
+        common.material("pal_22_talon_cap", common.srgb(*PAL[22]), metallic=0.6, roughness=0.38),
     ]
     bm = bmesh.new()
 
-    # Fuselage: an angular hull, pointed nose to blunt tail. Its section is faceted (flat deck,
-    # chamfered shoulders and belly); the facets stay crisp and run smooth along the length.
-    secs = [(2.05, 0.0, hull_profile(0.15, 0.9, 0.3))]
-    for r, w, top, bot in resample(FUSELAGE):
-        secs.append((r, 0.0, hull_profile(w, top, bot)))
-    secs.append((27.45, 0.0, hull_profile(0.5, 0.5, -0.3)))
+    # Fuselage: the concept's ogive nose and narrower rear body in one faceted hull (flat deck,
+    # chamfered shoulders and belly), crisp along its length.
+    secs = [(r, 0.0, hull_profile(w, t, b)) for r, w, t, b in resample(FUSELAGE, 0.8)]
     section_loft(bm, secs, HULL, creases=(1, 2, 3, 4, 5))
 
-    # Engine pods (the highlighted bulges at rows 15-23, cols 4-8 and 15-19): round, as tall as wide,
-    # set into the hull's flanks so a dark valley (sprite columns 9 and 14) parts them from the deck.
-    for side in (-1, 1):
-        loft_px(bm, list(reversed([(r, side * x, w, w * 0.95, POD_Z) for r, x, w in resample(POD_SHAPE, 1.0)])),
-                sides=16, mat_index=POD)
-
-    # Spine: the thin bright crease down the centre of the back (sprite column 12, rows 13-25), a
-    # narrow ridge with a sharp, slim crest; its white pixels are the polished crest's sheen.
-    def spine(r0, r1, up, half, lift_ends=0.15):
-        rows = [r0 + (r1 - r0) * i / 10 for i in range(11)]
-        out = []
-        for i, r in enumerate(rows):
-            e = min(i, 10 - i) / 2.0
-            k = min(1.0, e) if e > 0 else 0.0
-            t = fuselage_top(r)
-            u = lift_ends + (up - lift_ends) * k
-            hw = max(0.25, half * (0.5 + 0.5 * k))
-            out.append((r, 0.0, [(0.0, t + u), (0.22, t + u), (hw, t - 0.05), (hw * 0.8, t - 1.0), (0.0, t - 1.0)]))
-        section_loft(bm, out, KEEL, creases=(1, 2, 3))
-    spine(12.6, 25.7, 0.95, 1.05)
-    # The nose ridge ahead of the cockpit (rows 3-8): the same crease, lower.
-    spine(3.0, 8.4, 0.6, 0.85)
-
-    # Tail ribs (rows 19-25): raised crisp straps across the back between the pods, alternating
-    # with the dark gaps between them (rows 20, 22 and 24).
-    for rc, half_len, grow in ((19.5, 0.42, 0.45), (21.5, 0.42, 0.45), (23.5, 0.42, 0.4), (25.1, 0.32, 0.0)):
-        rib = []
-        for r in (rc - half_len, rc + half_len):
-            w, top, bot = lerp_table(FUSELAGE, rc)
-            rib.append((r, 0.0, hull_profile(w + grow, top + 0.5, bot - 0.2)))
-        section_loft(bm, rib, RIB, creases=(1, 2, 3, 4, 5))
-
-    # Cockpit: the dark slit at rows 9-11, cols 10-13. A raised frame (a hull-coloured coaming with a
-    # chamfered rim) holds a long, low glass canopy, pointed at both ends, its base edge crisp.
-    def outline(r, ends, mid):
-        """Half width of a long, blunt-ended outline between rows ends[0] and ends[1]: straight sides
-        that close in over the last quarter at each end."""
-        t = (r - ends[0]) / (ends[1] - ends[0])
-        return max(0.35, mid * min(1.0, 4.0 * min(t, 1 - t)) ** 0.55)
-    frame = []
-    for i in range(13):
-        r = 8.1 + (12.75 - 8.1) * i / 12
-        hw = outline(r, (8.1, 12.75), 2.3)
+    # Nose spine: the concept's narrow raised centre panel from row 4 back to the canopy (row 9.4).
+    nose = []
+    for i in range(9):
+        r = 4.0 + (9.6 - 4.0) * i / 8
+        w = 0.55 + 0.45 * min(1.0, (r - 4.0) / 2.0)
         t = fuselage_top(r)
-        frame.append((r, 0.0, [(0.0, t + 0.35), (hw - 0.35, t + 0.35), (hw, t), (hw, t - 1.2), (0.0, t - 1.2)]))
-    section_loft(bm, frame, HULL, creases=(1, 2, 3))
-    glass = []
-    for i in range(13):
-        r = 8.5 + (12.35 - 8.5) * i / 12
-        hw = outline(r, (8.5, 12.35), 1.85)
-        t = fuselage_top(r) + 0.3
-        rise = 1.0 * (hw / 1.85) ** 0.7
-        glass.append((r, 0.0, [(0.0, t + rise), (0.5 * hw, t + 0.9 * rise), (0.85 * hw, t + 0.5 * rise),
-                               (hw, t), (0.0, t)]))
-    section_loft(bm, glass, CANOPY, creases=(3,))
+        nose.append((r, 12.0, w, t + 0.4, t - 1.0))
+    plate(bm, nose, KEEL, ch=0.25)
 
-    # Exhausts inside the back of the pods: hidden from the top view, there for later effects.
+    # Cockpit: the concept's long oval canopy, columns 10-14, rows 9.6-16.3, in a darker raised
+    # coaming (columns 9.6-14.4, rows 9.2-16.7); the glass is a dark, glossy bubble.
+    def oval(r, r0, r1, mid, front=0.35, back=0.25):
+        t = (r - r0) / (r1 - r0)
+        f = min(1.0, t / front) if t < front else (min(1.0, (1 - t) / back) if t > 1 - back else 1.0)
+        return max(0.3, mid * f ** 0.5)
+    frame = []
+    for i in range(15):
+        r = 9.2 + (16.7 - 9.2) * i / 14
+        hw = oval(r, 9.2, 16.7, 2.45)
+        t = fuselage_top(r)
+        frame.append((r, 0.0, [(0.0, t + 0.45), (hw - 0.3, t + 0.45), (hw, t + 0.15), (hw, t - 1.2), (0.0, t - 1.2)]))
+    section_loft(bm, frame, FRAME, creases=(1, 2, 3))
+    glass = []
+    for i in range(15):
+        r = 9.6 + (16.3 - 9.6) * i / 14
+        hw = oval(r, 9.6, 16.3, 1.95)
+        t = fuselage_top(r) + 0.4
+        rise = 1.5 * (hw / 1.95) ** 0.7
+        glass.append((r, 0.0, [(0.0, t + rise), (0.45 * hw, t + 0.92 * rise), (0.8 * hw, t + 0.6 * rise),
+                               (hw, t + 0.05), (0.0, t)]))
+    section_loft(bm, glass, CANOPY, creases=(3,))
+    # The canopy's cross frame (row 12.4), where the front pane meets the rear one.
+    bar = []
+    for r in (12.25, 12.6):
+        hw = oval(r, 9.6, 16.3, 1.95) + 0.1
+        t = fuselage_top(r) + 0.4
+        rise = 1.5 * (hw / 1.95) ** 0.7 + 0.12
+        bar.append((r, 0.0, [(0.0, t + rise), (0.45 * hw, t + 0.92 * rise), (0.8 * hw, t + 0.6 * rise),
+                             (hw, t + 0.05), (0.0, t)]))
+    section_loft(bm, bar, FRAME, creases=(3,))
+
+    # Rear spine behind the canopy (rows 16.6-19, columns 11-13): a raised polished strip.
+    plate(bm, [(r, 12.0, 1.0, fuselage_top(r) + 0.45, fuselage_top(r) - 1.0) for r in (16.5, 17.7, 19.0)], KEEL, ch=0.25)
+
+    # Cross bands between the pods (concept rows 19-22): two raised straps, a recessed dark grille
+    # between them with three slats, then a lower band.
+    for r0, r1 in ((19.0, 19.95), (21.0, 21.9)):
+        plate(bm, [(r, 12.0, 2.15, fuselage_top(r) + 0.55, fuselage_top(r) - 1.2) for r in (r0, r1)], RIB, ch=0.3)
+    plate(bm, [(r, 12.0, 1.9, fuselage_top(r) + 0.05, fuselage_top(r) - 1.0) for r in (19.9, 21.05)], VENT, ch=0.1)
+    for rc in (20.2, 20.5, 20.8):
+        plate(bm, [(r, 12.0, 1.8, fuselage_top(r) + 0.3, fuselage_top(r) - 0.2) for r in (rc - 0.07, rc + 0.07)], RIB, ch=0.05)
+
+    # Vents (rows 22.6-23.5): two dark ports either side of the centre line, set in a raised frame.
+    plate(bm, [(r, 12.0, 2.0, fuselage_top(r) + 0.3, fuselage_top(r) - 1.0) for r in (22.2, 23.7)], HULL, ch=0.2)
+    for c in (11.1, 12.9):
+        plate(bm, [(r, c, 0.55, fuselage_top(r) + 0.36, fuselage_top(r)) for r in (22.6, 23.4)], VENT, ch=0.05)
+
+    # Tail plate (rows 23.8-26.6): the concept's chevron-marked plate, narrowing to the tail.
+    plate(bm, [(23.8, 12.0, 1.7, fuselage_top(23.8) + 0.4, fuselage_top(23.8) - 1.0),
+               (25.6, 12.0, 1.4, fuselage_top(25.6) + 0.4, fuselage_top(25.6) - 1.0),
+               (26.6, 12.0, 0.9, fuselage_top(26.6) + 0.3, fuselage_top(26.6) - 0.8)], RIB, ch=0.3)
+
     for side in (-1, 1):
-        x = side * 5.0
-        loft_px(bm, [(23.8, x, 0.0, 0.0, POD_Z), (23.5, x, 0.8, 0.8, POD_Z)], sides=10, mat_index=GLOW,
-                cap_start=False)
+        def col(c):
+            return 12 + side * (12 - c)
+
+        # Engine pod, front cowling (rows 12.4-18.2): a polished shell from the nose's flank out to the
+        # pod's full width; its rear rim is the seam the concept draws at row 18.
+        cowl = [(12.4, 9.2, 0.9, 1.6), (13.4, 8.7, 1.4, 2.0), (14.4, 8.1, 1.8, 2.3), (15.4, 7.7, 2.2, 2.55),
+                (16.3, 7.4, 2.45, 2.7), (17.2, 7.3, 2.6, 2.75), (18.2, 7.25, 2.6, 2.75)]
+        loft_px(bm, [(r, col(c) - 12, w, h, 0.9) for r, c, w, h in cowl], sides=16, mat_index=POD)
+        # Engine pod, rear dome (rows 18.1-23.8): round, about as tall as it is wide.
+        dome = [(18.1, 7.25, 2.45, 2.6), (19.5, 7.2, 2.5, 2.65), (21.0, 7.2, 2.45, 2.6), (22.2, 7.25, 2.25, 2.4),
+                (23.0, 7.35, 1.8, 2.0), (23.5, 7.5, 1.1, 1.3), (23.8, 7.6, 0.0, 0.0)]
+        loft_px(bm, [(r, col(c) - 12, w, h, 0.9) for r, c, w, h in dome], sides=16, mat_index=POD)
+
+        # Outboard armour caps (columns 3-5, rows 18.8-23): chamfered plates hugging the pods' sides.
+        cap = rounded_ends(18.8, 22.9, 4.25, 1.15, 2.3, -1.2, ease=0.6)
+        plate(bm, [(r, col(4.25 + 1.15 - w), w, t, b) for r, _, w, t, b in cap], CAP, ch=0.45)
+
+        # Engine housing under the back of the pod (rows 23-25, columns 6-10) with its intake grille
+        # (columns 8.6-9.8) and an exhaust nozzle (columns 7-8.6) sticking out behind (to row 25.9), its
+        # glow set deep inside: the concept draws the nozzles dark.
+        plate(bm, [(r, col(7.9), 1.9, 1.0, -1.4) for r in (22.9, 24.9)], CAP, ch=0.35)
+        plate(bm, [(r, col(9.2), 0.6, 1.15, 0.6) for r in (23.2, 24.6)], VENT, ch=0.05)
+        loft_px(bm, [(24.6, col(7.8) - 12, 0.75, 0.75, 0.0), (25.9, col(7.8) - 12, 0.72, 0.72, 0.0)],
+                sides=10, mat_index=VENT, cap_end=False)
+        loft_px(bm, [(24.9, col(7.8) - 12, 0.5, 0.5, 0.0), (25.3, col(7.8) - 12, 0.5, 0.5, 0.0)],
+                sides=10, mat_index=GLOW, cap_start=False)
 
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     obj = common.mesh_object(NAME, bm, mats, coll, smooth=True)

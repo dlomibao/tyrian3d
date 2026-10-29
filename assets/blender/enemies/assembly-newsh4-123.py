@@ -2,14 +2,27 @@
 
 Seen in one level of episode 4. Three 2x2 enemies side by side make the lower half of a boss
 (the head, horns and shoulder pods above it are assembly-newsh4-81): a bronze torso with a grey
-ribbed chest and a red light, swept bronze wings with red pods at their tips, thin arcs curving
-from the wing tips round to two grey engine pods under the wings, and a grey nozzle at the tail.
-Each piece has a single frame.
+ribbed chest and a red light, swept bronze wings with red caps at their tips whose outer edge
+loops down and back in under the wing, two grey gun pods slung under the wings on dark arms,
+and a bronze collar over a round grey tail dome.
+
+Remodelled on the concept (assets/blender/features/concepts/, registered to the sprite in
+assets/blender/textures/assembly-newsh4-123/concept.png): every part sits where the concept
+draws it, within the sprite's outline, so the concept detail texture_bake.py projects onto it
+lands on the matching part. The shape language is the concept's: hard, chamfered armour plates
+and boxy machinery. Each wing is one bronze plate that runs from the shoulder out to the red tip
+cap and loops down and back in round an open slot (the sprite's hole) to the gun pod; under the
+shoulder a grey armour block carries a red band. The torso is a machinery bay between bronze
+side columns: the head's grey hood comes down to the red chest light, two steel tanks flank a
+grey chest stack with two light ribs and a small red lamp, and a bronze collar with a pale centre
+plate closes it over the tail dome. The gun pods are grey blocks with a recessed grille and a
+tall bracket at their outer end, joined to the wing root by a dark tube.
 
 The body is built once in the frame shared with assembly-newsh4-81 (lib_b065) and cut into the
 three pieces with common.split_assembly. The sprite is not quite symmetric (its right side is
-drawn up to 2 px further out), so the wings are mirrored about column edge 30.75 and the parts
-that differ more are placed per side.
+drawn up to 2 px further out, and its right pod sits further in), so the wings are mirrored about
+column edge 30.75, the torso about 30.4, and the parts that differ more are placed per side.
+Each piece has a single frame.
 
 Run: blender --background --python assets/blender/enemies/assembly-newsh4-123.py [-- --preview out.png]
 (the preview is the whole body; each piece also gets <piece>.png next to it).
@@ -28,7 +41,9 @@ import lib_b065 as lib  # noqa: E402
 NAME = "assembly-newsh4-123"
 ROOT = common.repo_root(__file__)
 PIECES = ["newsh4-119", "newsh4-121", "newsh4-123"]
-WING_AXIS = 30.75
+WING_AXIS = 30.75  # the wings' mirror axis (column edge)
+TORSO_AXIS = 30.4  # the torso's
+POD_AXIS = 29.9  # the gun pods': the sprite's right pod sits further in than the left one
 
 
 def plate(bm, outline, z0, z1, mat, ch_px=0.7, ch_z=0.04):
@@ -46,23 +61,8 @@ def plate(bm, outline, z0, z1, mat, ch_px=0.7, ch_z=0.04):
         f.smooth = False
 
 
-def pod(bm, c0, c1, row, nozzle_c, GREY, DKBR, DARK):
-    """A grey engine pod lying across the sprite (columns c0-c1 edges, centred on `row`) with a
-    nozzle pointing down at column edge `nozzle_c` and a dark bronze band along its top. The pod
-    is a faceted (octagonal) drum about as tall as it is wide, with flanged end plates."""
-    d = 1 if c1 > c0 else -1
-    z = 0.1
-    lib.sweep(bm, [(c0 - 0.2 * d, row, z, 0.0, 0.0), (c0, row, z, 2.6, 0.22),
-                   (c0 + 0.9 * d, row, z, 3.1, 0.26), (c0 + 1.3 * d, row, z, 2.8, 0.235),
-                   (c1 - 1.3 * d, row, z, 2.8, 0.235), (c1 - 0.9 * d, row, z, 3.1, 0.26),
-                   (c1, row, z, 2.6, 0.22), (c1 + 0.2 * d, row, z, 0.0, 0.0)],
-              sides=8, mat=GREY, smooth=False)
-    lo, hi = sorted((c0 + 4.5 * d, c1 - 1.5 * d))
-    lib.box(bm, lo, row - 2.0, hi, row - 0.9, z + 0.12, z + 0.25, mat=DKBR)
-    lib.loft_y(bm, nozzle_c, [(row + 1.0, 2.2, 0.17, 0.02), (row + 4.0, 2.0, 0.16, 0.02),
-                              (row + 5.6, 1.6, 0.12, 0.02), (row + 5.9, 0.0, 0.0, 0.02)],
-               sides=10, mat=GREY)
-    lib.ellipsoid(bm, nozzle_c, row + 5.5, 0.02, 1.2, 0.5, 0.09, mat=DARK, segments=10, rings=5)
+def rect(c0, r0, c1, r1):
+    return [(c0, r0), (c1, r0), (c1, r1), (c0, r1)]
 
 
 def build(sprite):
@@ -70,95 +70,116 @@ def build(sprite):
     tag = "nsh4b"
     pal = lambda i, **kw: common.palette_material(sprite, i, tag, **kw)  # noqa: E731
     mats = [
-        pal(23, metallic=0.45, roughness=0.45),  # 0 bronze wings
-        pal(24, metallic=0.45, roughness=0.4),  # 1 bronze torso
-        pal(25, metallic=0.5, roughness=0.35),  # 2 light bronze ridges and arcs
-        pal(27, metallic=0.5, roughness=0.3),  # 3 pale bulge
-        pal(163, metallic=0.3, roughness=0.55),  # 4 dark bronze bands
-        pal(6, metallic=0.65, roughness=0.35),  # 5 grey pods and chest
-        pal(9, metallic=0.7, roughness=0.3),  # 6 light grey ribs
-        pal(3, metallic=0.4, roughness=0.6),  # 7 dark joints and nozzles
-        pal(70, metallic=0.35, roughness=0.4),  # 8 red armour and wing-tip pods
-        pal(74, emission_strength=3.0),  # 9 red chest light
+        pal(23, metallic=0.45, roughness=0.5),  # 0 bronze wings
+        pal(24, metallic=0.45, roughness=0.45),  # 1 bronze torso columns and collar
+        pal(25, metallic=0.5, roughness=0.4),  # 2 light bronze panels
+        pal(27, metallic=0.45, roughness=0.4),  # 3 pale collar plate and tip points
+        pal(163, metallic=0.3, roughness=0.6),  # 4 dark bronze bay floor
+        pal(6, metallic=0.6, roughness=0.4),  # 5 grey armour, hood, pods
+        pal(9, metallic=0.6, roughness=0.35),  # 6 light grey ribs, brackets, grille bars
+        pal(3, metallic=0.4, roughness=0.6),  # 7 dark tubes and grille recess
+        pal(70, metallic=0.3, roughness=0.5),  # 8 red armour
+        pal(74, emission_strength=3.0),  # 9 red lights
         pal(77, emission_strength=5.0),  # 10 chest light core
-        pal(10, metallic=0.75, roughness=0.25),  # 11 bright rail
-        pal(20, metallic=0.35, roughness=0.5),  # 12 brown strut
+        pal(10, metallic=0.6, roughness=0.3),  # 11 bright steel tank
+        pal(5, metallic=0.6, roughness=0.35),  # 12 darker steel tank
     ]
-    WING, HULL, RIDGE, PALE, DKBR, GREY, RIB, DARK, RED, LIGHT, HOT, RAIL, STRUT = range(13)
+    WING, HULL, RIDGE, PALE, DKBR, GREY, RIB, DARK, RED, LIGHT, HOT, STEEL, STEEL2 = range(13)
     bm = bmesh.new()
 
     # ---- left wing, mirrored for the right ----
     start = len(bm.verts)
 
-    def wing_z(top):
-        def z(c, r):
-            t = max(0.0, min(1.0, (c - 4) / 19))  # 0 at the tip, 1 at the root
-            return 0.1 + 0.12 * t if top else -0.04 - 0.04 * t
-        return z
+    def wing_top(c, r):
+        t = max(0.0, min(1.0, (c - 4) / 17))  # 0 at the tip, 1 at the root
+        return 0.13 + 0.09 * t
 
-    wing = [(15, 25.8), (18.5, 25.8), (18.5, 31.8), (23.8, 31.8), (23.8, 34.2), (17, 34.4), (14.5, 36),
-            (11, 37.6), (8.5, 38.8), (6.5, 39.7), (4.3, 39.6), (4.2, 33.4), (6.5, 32.4), (9, 31.8),
-            (11, 29.8), (13, 27.8)]
-    plate(bm, wing, wing_z(False), wing_z(True), WING, ch_px=1.0, ch_z=0.05)
-    # Light spar down the wing root and along its middle.
-    lib.sweep(bm, [(16.5, 26.4, 0.2, 0.0, 0.0), (16.5, 26.8, 0.2, 0.7, 0.05), (16.5, 33.0, 0.19, 0.75, 0.05),
-                   (17.6, 33.5, 0.19, 0.7, 0.05), (22.8, 33.5, 0.2, 0.7, 0.05), (23.3, 33.5, 0.2, 0.0, 0.0)],
-              sides=6, mat=RIDGE)
-    # Red cap at the wing tip with a grey block inboard, and a pale point under it.
-    lib.loft_y(bm, 5.4, [(32.4, 0.0, 0.0, 0.1), (32.8, 1.0, 0.09, 0.1), (33.6, 1.5, 0.13, 0.1),
-                         (37.6, 1.5, 0.13, 0.1), (38.4, 1.0, 0.09, 0.1)], sides=10, mat=RED)
-    lib.loft_y(bm, 5.2, [(38.3, 1.0, 0.08, 0.08), (39.6, 0.9, 0.06, 0.08), (40.3, 0.0, 0.0, 0.08)], sides=8, mat=PALE)
-    plate(bm, [(6.6, 32.8), (9.2, 32.8), (9.2, 36.2), (6.6, 36.2)], 0.0, 0.2, GREY, ch_px=0.4, ch_z=0.03)
-    # Thin arc from the wing tip round under the wing to the engine pod: a rail of constant
-    # thickness.
-    lib.sweep(bm, [(4.9, 39.4, 0.06, 0.75, 0.065), (4.6, 41.0, 0.06, 0.75, 0.065), (4.9, 42.6, 0.06, 0.75, 0.065),
-                   (5.7, 44.0, 0.06, 0.75, 0.065), (6.8, 45.3, 0.06, 0.75, 0.065), (8.3, 46.4, 0.06, 0.75, 0.065),
-                   (10.2, 46.7, 0.06, 0.75, 0.065), (12.0, 46.4, 0.06, 0.75, 0.065)], sides=8, mat=RIDGE)
-    # Dark joint where the wing meets the shoulder.
-    lib.loft_y(bm, 19.8, [(24.2, 0.0, 0.0, 0.12), (24.7, 1.6, 0.13, 0.12), (30.6, 1.6, 0.13, 0.12),
-                          (31.2, 0.0, 0.0, 0.12)], sides=10, mat=GREY)
+    # One plate: shoulder, leading edge, tip, the outer loop down and back in along the bottom to
+    # the pod's bracket, then back up the slot's inner edge to the wing root bar.
+    wing = [(15.0, 24.3), (18.0, 24.3), (18.0, 32.0), (22.2, 32.0), (22.2, 40.6), (19.2, 40.6),
+            (19.2, 35.0), (16.8, 35.0), (6.6, 40.4), (5.9, 41.3), (5.9, 44.9), (8.2, 45.0),
+            (10.9, 44.4), (10.9, 48.2), (8.0, 48.2), (6.2, 47.6), (4.6, 46.4), (3.6, 44.8),
+            (3.0, 43.0), (3.0, 34.2), (3.6, 33.0), (4.6, 32.4), (8.2, 31.9), (11.0, 29.6),
+            (13.4, 27.6), (15.0, 26.2)]
+    plate(bm, wing, -0.05, wing_top, WING, ch_px=0.8, ch_z=0.05)
+    # Raised inner panel on the wing (the concept's panel between its panel lines), and a light
+    # bronze lip along the slot's top edge.
+    plate(bm, [(10.6, 31.4), (15.6, 27.2), (17.4, 27.2), (17.4, 31.4)], 0.1,
+          lambda c, r: wing_top(c, r) + 0.05, WING, ch_px=0.5, ch_z=0.03)
+    plate(bm, [(8.4, 38.0), (16.6, 33.6), (19.0, 33.6), (19.0, 34.9), (16.8, 34.9), (8.4, 39.3)],
+          0.1, lambda c, r: wing_top(c, r) + 0.035, RIDGE, ch_px=0.35, ch_z=0.025)
+    # Red cap at the wing tip, a grey block inboard of it and a pale point under it.
+    plate(bm, [(3.0, 34.0), (3.7, 33.0), (5.8, 32.9), (5.8, 35.4), (6.0, 38.4), (3.0, 38.6)],
+          0.0, 0.3, RED, ch_px=0.45, ch_z=0.04)
+    plate(bm, rect(5.8, 32.4, 8.4, 35.3), 0.0, 0.26, GREY, ch_px=0.4, ch_z=0.03)
+    plate(bm, rect(3.2, 38.6, 5.6, 40.2), 0.0, 0.2, PALE, ch_px=0.35, ch_z=0.03)
+    # Grey armour block on the shoulder.
+    plate(bm, [(17.8, 24.3), (22.8, 24.3), (22.8, 31.8), (18.3, 31.8), (17.8, 31.2)],
+          0.0, 0.38, GREY, ch_px=0.6, ch_z=0.05)
+    # Wing root bar: a raised bronze frame running down to the pod.
+    plate(bm, rect(19.3, 31.6, 22.4, 40.6), 0.05, 0.27, HULL, ch_px=0.5, ch_z=0.04)
     lib.mirror_since(bm, start, WING_AXIS)
 
-    # ---- per-side parts ----
-    # Red shoulder armour: two plates on the left, one on the right, standing on the wing root.
-    plate(bm, [(19.8, 28.8), (23.0, 28.6), (23.0, 31.2), (20.2, 31.2)], 0.1, 0.32, RED, ch_px=0.5, ch_z=0.04)
-    plate(bm, [(23.8, 28.6), (27.2, 28.6), (27.2, 31.2), (23.8, 31.2)], 0.1, 0.36, RED, ch_px=0.5, ch_z=0.04)
-    plate(bm, [(36.8, 27.8), (41.2, 28.6), (41.0, 31.2), (37.0, 31.2)], 0.1, 0.34, RED, ch_px=0.5, ch_z=0.04)
-    # Struts from the shoulders down to the pods: grey on the left, a bronze rod on the right.
-    lib.sweep(bm, [(21.8, 33.6, 0.12, 0.0, 0.0), (21.8, 34.0, 0.12, 1.7, 0.14), (21.8, 39.6, 0.12, 1.7, 0.14),
-                   (21.8, 40.2, 0.12, 0.0, 0.0)], sides=10, mat=RIB)
-    lib.sweep(bm, [(40.4, 32.6, 0.14, 0.0, 0.0), (40.4, 33.0, 0.14, 0.8, 0.07), (40.4, 39.0, 0.14, 0.8, 0.07),
-                   (40.4, 39.5, 0.14, 0.0, 0.0)], sides=8, mat=HULL)
-    # Engine pods under the wings.
-    pod(bm, 23.6, 11.2, 43.0, 13.2, GREY, DKBR, DARK)
-    pod(bm, 38.8, 49.6, 43.0, 47.9, GREY, DKBR, DARK)
+    # ---- per-side wing parts (the sprite differs side to side here) ----
+    # Red band across the shoulder: two plates on the left, one on the right.
+    plate(bm, rect(19.4, 29.1, 23.3, 30.8), 0.2, 0.44, RED, ch_px=0.4, ch_z=0.04)
+    plate(bm, rect(23.6, 29.1, 26.7, 30.6), 0.2, 0.48, RED, ch_px=0.4, ch_z=0.04)
+    plate(bm, [(37.8, 28.6), (41.8, 28.8), (41.8, 31.0), (37.8, 31.0)], 0.2, 0.44, RED, ch_px=0.4, ch_z=0.04)
+    # The right pod sits further in than the mirrored loop ends: carry the loop's bottom on to it.
+    plate(bm, [(48.8, 44.5), (51.0, 44.4), (51.0, 48.2), (48.8, 48.2)], -0.05, 0.14, WING, ch_px=0.5, ch_z=0.04)
+    # Light grey rail on the inboard edge of the left root bar (the sprite's grey strut).
+    plate(bm, rect(21.3, 32.4, 22.4, 40.2), 0.1, 0.31, RIB, ch_px=0.25, ch_z=0.02)
 
-    # ---- torso, down the middle ----
-    # A hard octagonal shell (flat-shaded), low at the front where the head's pincers hang over
-    # it (rows 24-28) and full height from the shoulders down.
-    lib.loft_y(bm, 30.5, [(24.0, 0.0, 0.0, 0.0), (24.3, 4.5, 0.14, 0.0), (26.0, 5.8, 0.17, 0.0),
-                          (28.6, 6.6, 0.24, 0.06), (31.0, 7.0, 0.36, 0.06), (40.0, 7.0, 0.36, 0.06),
-                          (43.5, 6.6, 0.34, 0.06), (45.2, 5.2, 0.28, 0.05), (47.0, 3.4, 0.18, 0.03),
-                          (48.2, 0.0, 0.0, 0.0)], sides=8, mat=HULL, smooth=False)
-    # Grey chest top (rows 28-31) and the glowing red light under it.
-    plate(bm, [(27.4, 28.0), (33.4, 28.0), (33.4, 31.8), (27.4, 31.8)], 0.2, 0.44, GREY, ch_px=0.5, ch_z=0.04)
-    lib.ellipsoid(bm, 29.9, 33.1, 0.41, 2.0, 1.4, 0.07, mat=LIGHT, segments=12, rings=6)
-    lib.ellipsoid(bm, 29.7, 33.3, 0.44, 0.9, 0.6, 0.05, mat=HOT, segments=10, rings=5)
-    # Ribbed grey chest (rows 34-39): a plate with two raised light ribs.
-    plate(bm, [(26.9, 33.9), (33.6, 33.9), (33.6, 40.4), (26.9, 40.4)], 0.25, 0.45, GREY, ch_px=0.5, ch_z=0.04)
-    for r0, r1 in ((34.2, 35.9), (37.0, 37.9)):
-        plate(bm, [(28.2, r0), (32.0, r0), (32.0, r1), (28.2, r1)], 0.4, 0.5, RIB, ch_px=0.3, ch_z=0.03)
-    # Bright rail down the left of the chest and a dark strut down its right.
-    lib.loft_y(bm, 26.5, [(32.6, 0.0, 0.0, 0.38), (33.0, 0.6, 0.05, 0.38), (39.5, 0.6, 0.05, 0.38),
-                          (39.9, 0.0, 0.0, 0.38)], sides=6, mat=RAIL)
-    lib.loft_y(bm, 36.0, [(31.0, 0.0, 0.0, 0.34), (31.5, 1.4, 0.08, 0.34), (38.5, 1.4, 0.08, 0.34),
-                          (39.0, 0.0, 0.0, 0.34)], sides=8, mat=STRUT)
-    # Dark band across the belly and the pale dome below it.
-    plate(bm, [(24.6, 40.6), (36.4, 40.6), (36.4, 41.8), (24.6, 41.8)], 0.2, 0.42, DKBR, ch_px=0.3, ch_z=0.03)
-    lib.ellipsoid(bm, 29.8, 43.4, 0.3, 2.8, 1.8, 0.15, mat=PALE, segments=12, rings=6)
-    # Grey tail nozzle.
-    lib.loft_y(bm, 29.6, [(44.6, 3.8, 0.16, 0.02), (47.0, 3.4, 0.15, 0.02), (48.2, 2.6, 0.11, 0.02),
-                          (48.8, 0.0, 0.0, 0.02)], sides=10, mat=GREY)
+    # ---- gun pods, left mirrored for the right about POD_AXIS ----
+    start = len(bm.verts)
+    # Dark tube from the wing root down to the pod (constant diameter).
+    lib.sweep(bm, [(19.9, 37.6, 0.12, 0.0, 0.0), (19.7, 37.8, 0.12, 1.1, 0.1), (13.6, 42.5, 0.12, 1.1, 0.1),
+                   (13.3, 42.8, 0.12, 0.0, 0.0)], sides=8, mat=DARK, smooth=True)
+    # Body with a recessed grille: grey block, dark recess floor, raised frame and bars.
+    plate(bm, [(13.8, 42.6), (21.0, 42.6), (23.4, 41.4), (23.4, 44.6), (21.0, 46.9), (13.8, 46.9)],
+          -0.05, 0.22, GREY, ch_px=0.4, ch_z=0.03)
+    lib.box(bm, 14.5, 43.2, 20.6, 46.4, 0.18, 0.23, mat=DARK)
+    plate(bm, rect(13.8, 42.5, 21.0, 43.2), 0.15, 0.33, GREY, ch_px=0.25, ch_z=0.02)
+    plate(bm, rect(13.8, 46.4, 21.0, 46.95), 0.15, 0.3, GREY, ch_px=0.2, ch_z=0.02)
+    plate(bm, [(20.6, 42.6), (23.4, 41.4), (23.4, 44.6), (20.6, 46.9)], 0.15, 0.37, GREY, ch_px=0.4, ch_z=0.03)
+    for c in (14.9, 15.85, 16.8, 17.75, 18.7, 19.65):
+        lib.box(bm, c, 43.2, c + 0.42, 46.4, 0.18, 0.3, mat=RIB)
+    # Tall bracket at the pod's outer end.
+    plate(bm, [(11.6, 42.2), (14.0, 42.2), (14.0, 49.6), (11.6, 49.6), (11.6, 48.2), (10.7, 48.2),
+               (10.7, 44.0), (11.6, 44.0)], -0.05, 0.44, RIB, ch_px=0.45, ch_z=0.04)
+    lib.box(bm, 12.2, 45.0, 13.5, 47.6, 0.36, 0.47, mat=GREY)
+    lib.mirror_since(bm, start, POD_AXIS)
+
+    # ---- torso, mirrored about TORSO_AXIS where it is symmetric ----
+    # Bay floor under everything.
+    plate(bm, [(23.0, 24.2), (37.8, 24.2), (37.8, 41.4), (23.0, 41.4)], 0.0, 0.24, DKBR, ch_px=0.4, ch_z=0.03)
+    start = len(bm.verts)
+    # Bronze side columns: upper (the shoulder of the torso) and lower (beside the tanks).
+    plate(bm, rect(23.0, 24.2, 26.6, 29.1), 0.1, 0.46, HULL, ch_px=0.5, ch_z=0.04)
+    plate(bm, [(23.0, 31.2), (25.4, 31.2), (25.4, 39.4), (24.4, 40.6), (23.0, 40.6)], 0.1, 0.42, HULL,
+          ch_px=0.45, ch_z=0.04)
+    lib.mirror_since(bm, start, TORSO_AXIS)
+    # Steel tanks either side of the chest: upright cylinders with domed tops.
+    for col, mat in ((26.6, STEEL), (34.2, STEEL2)):
+        lib.loft_y(bm, col, [(31.6, 0.0, 0.0, 0.3), (31.8, 0.8, 0.08, 0.3), (32.4, 1.2, 0.13, 0.3),
+                             (40.2, 1.2, 0.13, 0.3), (40.8, 0.0, 0.0, 0.3)], sides=8, mat=mat)
+    # The head's grey hood coming down to the red chest light.
+    plate(bm, [(26.6, 24.2), (34.2, 24.2), (34.2, 30.8), (32.8, 32.5), (31.5, 33.4), (28.6, 33.4),
+               (27.2, 32.5), (26.6, 31.0)], 0.1, 0.52, GREY, ch_px=0.6, ch_z=0.05)
+    lib.ellipsoid(bm, 29.9, 33.1, 0.44, 1.5, 1.1, 0.1, mat=LIGHT, segments=10, rings=5)
+    lib.ellipsoid(bm, 29.8, 33.0, 0.5, 0.7, 0.55, 0.06, mat=HOT, segments=8, rings=4)
+    # Grey chest stack with two raised light ribs and a small red lamp.
+    plate(bm, rect(27.6, 34.0, 33.2, 41.0), 0.15, 0.42, GREY, ch_px=0.5, ch_z=0.04)
+    for r0, r1 in ((35.4, 36.9), (37.9, 39.2)):
+        plate(bm, rect(27.9, r0, 32.9, r1), 0.3, 0.49, RIB, ch_px=0.3, ch_z=0.03)
+    plate(bm, rect(29.7, 39.6, 31.0, 40.9), 0.3, 0.47, LIGHT, ch_px=0.2, ch_z=0.02)
+    # Bronze collar closing the bay, a pale plate in its middle, and the round light grey tail dome.
+    plate(bm, [(23.6, 41.0), (37.2, 41.0), (37.2, 44.4), (35.6, 45.9), (25.2, 45.9), (23.6, 44.4)],
+          0.0, 0.38, HULL, ch_px=0.6, ch_z=0.05)
+    plate(bm, rect(24.2, 40.8, 36.6, 41.9), 0.3, 0.42, DKBR, ch_px=0.3, ch_z=0.02)
+    plate(bm, [(27.4, 42.2), (33.2, 42.2), (33.2, 44.6), (32.2, 45.3), (28.4, 45.3), (27.4, 44.6)],
+          0.3, 0.47, PALE, ch_px=0.4, ch_z=0.04)
+    lib.ellipsoid(bm, 30.2, 46.6, 0.1, 2.9, 2.0, 0.27, mat=RIB, segments=12, rings=6)
 
     return lib.to_object(NAME, bm, mats, coll)
 

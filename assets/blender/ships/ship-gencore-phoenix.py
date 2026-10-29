@@ -1,17 +1,27 @@
 """Gencore Phoenix (player ship, tyrian.shp#8 sprite 157 and its banking frames 153-161).
 
-A grey fighter: a long fuselage with a faceted pointed nose, a dark glass windshield behind it, a
-polished hard-surface metal hull, and two thin, knife-edged blade wings pointed at both ends, joined to
-the fuselage by struts near the tail.
+A grey hard-surface fighter, modelled part by part from the user's concept art as it lines up with
+the sprite (assets/blender/textures/ship-gencore-phoenix/concept.png, from tools/concept_maps.py):
+every part sits where the concept draws it, so the concept-derived texture (texture_bake.py) lands
+on the matching part. The sprite still bounds the top-view outline and sets the palette.
 
-Shapes follow the user's concept art (assets/blender/features/concepts/ship-gencore-phoenix.jpg):
-crescent blade wings with stepped armour plates, a shield-shaped nose plate, the windshield recessed in
-an octagonal frame, armour plates beside the spine, a keel ridge to the tail and twin engine nozzles.
-The sprite still sets the top-view outline, proportions and colours.
+Coordinates here are sprite pixel EDGES (x = column edge, y = row edge, 0..24 x 0..28, top-left =
+the sprite's top-left), the same frame as concept.png divided by its texels_per_px; z is in sprite
+px. From front to back:
 
-The game's sun only flashes on faces that tilt back towards the camera (about 27 degrees towards the
-tail), so the sprite's bright streaks sit on such facets: the spine ridge and the wing ridges slope
-down towards the tail, and the canopy plate and the struts have long, shallow rear chamfers.
+- a blunt nose with a light armour plate down its top (concept rows 1-5.5);
+- the cockpit: a dark, glossy faceted canopy (x 11-13, y 6-8.3) in a raised octagonal frame, a
+  dark grille behind it, and box-section cheeks with small antennas either side;
+- the body (y 9.6-17.2): a pointed chevron plate behind the cockpit, the spine ridge down the
+  middle, and the two curved "heart" armour plates sweeping from the shoulders in to the spine,
+  over a darker outer side strip;
+- the rear body: armour plates either side of a dark vent and a channel holding a round rod that
+  runs back to the tail, and twin nozzles at the tail;
+- the wings: crescent (scythe) blades, convex outside and straight inside, pointed at both ends,
+  with a mid plate and a light inner strip stepped on top, a hook curving into the boom, and the
+  box-section booms (light top beam over a darker under-frame) joining them to the body.
+
+The sprite's bright spots and streaks are sheen on polished metal, not bumps.
 
 Run: blender --background --python assets/blender/ships/ship-gencore-phoenix.py [-- --preview out.png]
 """
@@ -23,21 +33,22 @@ from pathlib import Path
 import bmesh
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "enemies"))
 import common  # noqa: E402
-from lib_b001 import px, row  # noqa: E402
 
 NAME = "ship-gencore-phoenix"
 MODEL = f"ships/{NAME}"
 ROOT = common.repo_root(__file__)
 P = 1 / 12  # one sprite pixel
+W, H = 24, 28  # sprite size; the origin is its centre
+CX = W / 2  # the ship's centre line (x edge 12)
+ZS = 1.15  # heights above the waterline are stretched by this (the numbers below were laid out at 1)
 
 
 def ploft(bm, rings, paint, faces, cap_start=True, cap_end=True):
-    """A flat-faced loft through rings of sprite-space points (col, row, z px), all with the same
-    count (a one-point ring is a tip). Each face is recorded with paint(row, col, up), applied once
-    the normals are known, so the top view can follow the sprite's pixels."""
-    vs = [[bm.verts.new((px(c), row(r), z * P)) for c, r, z in ring] for ring in rings]
+    """A flat-faced loft through rings of edge-space points (x, y, z px), all with the same count
+    (a one-point ring is a tip). Each face is recorded with paint(y, x, up), applied once the
+    normals are known."""
+    vs = [[bm.verts.new(((x - CX) * P, (H / 2 - y) * P, (z * ZS if z > 0 else z) * P)) for x, y, z in ring] for ring in rings]
     for r0, r1 in zip(vs, vs[1:]):
         n = max(len(r0), len(r1))
         for i in range(n):
@@ -55,14 +66,50 @@ def ploft(bm, rings, paint, faces, cap_start=True, cap_end=True):
         faces.append((bm.faces.new(vs[-1]), paint))
 
 
-def hull_ring(r, v, d, zt, s, zs, w, zc, lo, zl, k, zb, zv=None, cx=11.5):
-    """A hard-surface section across the ship at row r, symmetric about column cx: a centre deck
-    strip (half width v, at zv or zt), a flat deck out to d at zt, a chamfered shoulder (s, zs), the
-    chine at the silhouette (w, zc), a lower chamfer (lo, zl) and a flat keel (k, zb)."""
-    zv = zt if zv is None else zv
-    right = [(v, zv), (d, zt), (s, zs), (w, zc), (lo, zl), (k, zb)]
+def inset(poly, d):
+    """The 2D polygon [(x, y)] offset inwards by d (mitred corners)."""
+    area = sum(x0 * y1 - x1 * y0 for (x0, y0), (x1, y1) in zip(poly, poly[1:] + poly[:1]))
+    sgn = 1 if area > 0 else -1
+    n = len(poly)
+    normals = []
+    for i in range(n):
+        (x0, y0), (x1, y1) = poly[i], poly[(i + 1) % n]
+        ln = math.hypot(x1 - x0, y1 - y0)
+        normals.append((-(y1 - y0) / ln * sgn, (x1 - x0) / ln * sgn))
+    out = []
+    for i in range(n):
+        a, b = normals[i - 1], normals[i]
+        k = d / (1 + a[0] * b[0] + a[1] * b[1])
+        out.append((poly[i][0] + (a[0] + b[0]) * k, poly[i][1] + (a[1] + b[1]) * k))
+    return out
+
+
+def zf(z):
+    return z if callable(z) else (lambda y: z)
+
+
+def plate(bm, faces, poly, z0, z1, ch, mat):
+    """A hard-surface armour plate: the top-view polygon extruded from z0 to z1 with a chamfered top
+    edge (ch px in and down). z1 may be a function of y, for a sloped top."""
+    z0, z1 = zf(z0), zf(z1)
+    top = inset(poly, ch)
+    rings = [[(x, y, z0(y)) for x, y in poly], [(x, y, z1(y) - ch) for x, y in poly],
+             [(x, y, z1(y)) for x, y in top]]
+    ploft(bm, rings, lambda y, x, up: mat, faces)
+
+
+def mirror(poly):
+    return [(W - x, y) for x, y in reversed(poly)]
+
+
+def hull_section(y, w, zt):
+    """A hard-surface section across the hull at row edge y: a centre strip (|x| < v), a flat deck,
+    a chamfered shoulder, the chine at the silhouette (half width w), a lower chamfer and a keel."""
+    v = min(1.0, 0.45 * w)
+    d = max(v + 0.1, w - 0.8)
+    right = [(v, zt), (d, zt), (w - 0.3, zt - 0.6), (w, zt * 0.4), (w - 0.5, -1.0), (0.45 * w, -1.6)]
     left = [(-x, z) for x, z in reversed(right)]
-    return [(cx + x, r, z) for x, z in right + left]
+    return [(CX + x, y, z) for x, z in right + left]
 
 
 def build(sprite):
@@ -70,203 +117,161 @@ def build(sprite):
     used = {}
     mats = []
 
-    def m(i, metallic=0.3, roughness=0.45):
+    def m(i, metallic=0.8, roughness=0.3, emission=0.0):
         """Material slot for palette index i (one slot per index)."""
         if i not in used:
             used[i] = len(mats)
-            mats.append(common.palette_material(sprite, i, NAME, metallic=metallic, roughness=roughness))
+            mats.append(common.palette_material(sprite, i, NAME, metallic=metallic, roughness=roughness,
+                                                emission_strength=emission))
         return used[i]
 
-    # Polished grey metal, built as a hard-surface hull: flat panels with chamfered edges and crisp
-    # creases, flat shaded. The sprite's near-white spots and streaks (the nose ridge, the bright
-    # spot on the canopy plate, the spine, the pods' inner edges) are specular highlights on the
-    # metal, not bumps: the flat panels catch the light. The windshield is a separate glossy dark
-    # glass part set into a frame in the hull.
-    METAL = dict(metallic=0.8, roughness=0.3)
-    GLASS, DARK, HULL, LIGHTP, PLATE = (m(1, 0.2, 0.1), m(4, **METAL), m(6, **METAL), m(8, **METAL),
-                                        m(10, **METAL))
-    POD = STRUT = HULL
+    # Palette shades picked from the concept's mid-tones per part (its lighting discounted): the
+    # concept reads darker and less contrasty than the sprite, so the hull is mostly 5-7 with the
+    # light armour (nose plate, chevron, spine, wing strips) at 8, and near-black glass and vents.
+    GLASS = m(1, 0.2, 0.08)
+    VENT, DARK, SIDE, HULL, ARMOUR, LIGHT = m(2), m(4), m(5), m(6), m(7), m(8)
+
     bm = bmesh.new()
     faces = []
 
-    # Fuselage, nose (row 1) to the engine (row 22): (row, centre strip v, deck d, deck z, shoulder
-    # s and z, chine w (the silhouette) and z, lower chamfer and z, keel and z, centre strip z).
-    # The nose is a faceted wedge with a crisp ridge; behind it the deck drops into a frame for the
-    # windshield; the body behind the glass is a flat deck with a seam groove across it (row 13), and
-    # the centre strip sinks into the rear vent (rows 18-19).
-    H = [(0.55, 0.05, 0.3, 1.2, 0.5, 1.0, 0.9, 0.6, 0.6, 0.2, 0.2, 0.0, 1.3),
-         (2.5, 0.05, 0.5, 2.5, 1.1, 2.1, 2.0, 0.9, 1.5, -0.5, 0.6, -0.9, 2.65),
-         (4.5, 0.05, 0.65, 3.6, 1.8, 3.0, 3.0, 1.0, 2.4, -1.0, 0.9, -1.4, 3.8),
-         (5.5, 0.05, 0.75, 4.1, 2.0, 3.4, 3.0, 1.0, 2.5, -1.1, 1.0, -1.5, 4.3),
-         (5.75, 1.0, 2.5, 4.1, 3.2, 4.4, 4.0, 1.0, 3.3, -1.3, 1.4, -1.7, None),
-         (8.5, 1.0, 2.7, 4.3, 3.4, 4.8, 4.0, 1.1, 3.5, -1.5, 1.6, -1.9, None),
-         (8.65, 1.0, 2.8, 4.4, 3.9, 4.8, 5.0, 1.2, 4.2, -1.5, 1.8, -2.0, None),
-         (9.5, 1.0, 2.8, 4.6, 4.0, 4.9, 5.0, 1.3, 4.3, -1.6, 1.8, -2.0, None),
-         (9.65, 1.0, 2.8, 5.4, 4.0, 4.9, 5.0, 1.3, 4.3, -1.6, 1.8, -2.0, None),
-         (12.6, 1.0, 2.8, 5.4, 4.0, 4.8, 5.0, 1.3, 4.3, -1.6, 1.8, -2.0, None),
-         (12.7, 1.0, 2.8, 4.8, 4.0, 4.6, 5.0, 1.3, 4.3, -1.6, 1.8, -2.0, None),
-         (13.3, 1.0, 2.8, 4.8, 4.0, 4.6, 5.0, 1.3, 4.3, -1.6, 1.8, -2.0, None),
-         (13.4, 1.0, 2.8, 5.3, 4.0, 4.8, 5.0, 1.3, 4.3, -1.6, 1.8, -2.0, None),
-         (16.4, 1.0, 2.8, 5.2, 4.0, 4.7, 5.0, 1.3, 4.3, -1.6, 1.8, -2.0, None),
-         (16.6, 1.0, 2.7, 5.1, 3.4, 4.5, 4.0, 1.2, 3.5, -1.6, 1.7, -2.0, None),
-         (17.5, 1.0, 2.7, 5.0, 3.4, 4.4, 4.0, 1.2, 3.5, -1.6, 1.7, -2.0, None),
-         (17.6, 1.0, 2.7, 5.0, 3.4, 4.4, 4.0, 1.2, 3.5, -1.6, 1.7, -2.0, 3.9),
-         (19.4, 1.0, 2.6, 4.8, 3.3, 4.2, 4.0, 1.1, 3.4, -1.5, 1.6, -1.9, 3.7),
-         (19.5, 1.0, 2.6, 4.7, 3.3, 4.2, 4.0, 1.1, 3.4, -1.5, 1.6, -1.9, None),
-         (22.4, 0.8, 2.0, 4.0, 2.8, 3.6, 4.0, 1.0, 3.2, -1.4, 1.4, -1.8, None)]
+    # Hull: (row edge, half width, deck height). Blunt nose, narrower at the cockpit (the cheeks and
+    # frame sit on it), full width over the body, narrowing behind the booms to the tail.
+    HULL_ROWS = [(1.0, 0.8, 2.2), (1.8, 1.4, 2.8), (3.0, 1.85, 3.3), (4.5, 2.2, 3.7), (5.6, 2.5, 3.9),
+                 (5.8, 3.6, 3.7), (9.3, 3.6, 3.9), (9.6, 4.75, 4.1), (17.2, 4.75, 4.1), (17.7, 3.8, 4.0),
+                 (18.2, 3.75, 4.0), (19.9, 3.6, 3.95), (22.9, 3.6, 3.7), (23.6, 3.6, 3.3), (24.6, 2.7, 2.7),
+                 (25.6, 1.6, 2.1)]
 
-    def hull_paint(r, c, up):
-        x = abs(c - 11.5)
-        if up > 0.5 and 12.6 < r < 13.4:
-            return DARK  # seam groove across the deck
-        if up > 0.5 and 17.55 < r < 19.45 and x < 1.0:
-            return GLASS  # floor of the rear vent
-        if up > 0.5 and 17.55 < r < 19.45:
-            return LIGHTP  # the lighter lips either side of the vent
-        if r > 19.5:
+    def hull_paint(y, x, up):
+        dx = abs(x - CX)
+        if up > 0.5 and 18.2 < y < 19.9 and dx < 1.0:
+            return VENT  # the dark vent behind the spine
+        if up > 0.5 and 19.9 < y < 23.6 and dx < 1.0:
+            return DARK  # the channel the rod lies in
+        if y > 22.9:
             return DARK  # the darker tail
+        if 9.6 < y < 17.2 and dx > 3.0:
+            return SIDE  # the darker outer side strip
         return HULL
 
-    ploft(bm, [hull_ring(*h[:12], zv=h[12]) for h in H], hull_paint, faces, cap_end=False)
+    ploft(bm, [hull_section(*h) for h in HULL_ROWS], hull_paint, faces)
 
-    # Tail engine (rows 22-25): an angular block, darker than the hull, narrowing to the back, with
-    # the nozzle cut into its end face.
-    E = [(22.3, 0.8, 1.8, 3.4, 2.6, 3.0, 4.0, 0.9, 3.2, -1.2, 1.4, -1.6),
-         (23.5, 0.8, 1.6, 3.2, 2.4, 2.8, 3.6, 0.8, 2.9, -1.1, 1.3, -1.5),
-         (24.5, 0.6, 1.2, 2.6, 2.0, 2.2, 2.9, 0.7, 2.3, -1.0, 1.0, -1.3),
-         (25.4, 0.5, 0.9, 2.0, 1.5, 1.7, 2.0, 0.6, 1.6, -0.8, 0.8, -1.0)]
-    eng = [hull_ring(*e) for e in E]
+    # Nose armour plate: a light plate down the nose's top, following its slope.
+    nose_z = lambda y: 2.5 + (4.25 - 2.5) * (y - 1.4) / (5.4 - 1.4)  # noqa: E731
+    plate(bm, faces, [(11.45, 1.4), (12.55, 1.4), (13.05, 2.5), (13.05, 5.4), (10.95, 5.4), (10.95, 2.5)],
+          1.0, nose_z, 0.25, LIGHT)
 
-    def inset(ring, k, dr):
-        return [(11.5 + (c - 11.5) * k, r + dr, 0.5 + (z - 0.5) * k) for c, r, z in ring]
+    # Cockpit frame: a raised octagonal rim (x 10.4-13.6, y 5.6-9.8) around the canopy and grille.
+    def octagon(hw, y0, y1, k, z):
+        pts = [(-hw + k, y0), (hw - k, y0), (hw, y0 + k), (hw, y1 - k), (hw - k, y1), (-hw + k, y1),
+               (-hw, y1 - k), (-hw, y0 + k)]
+        return [(CX + x, y, z) for x, y in pts]
 
-    eng += [inset(eng[-1], 0.6, 0.0), inset(eng[-1], 0.55, -0.9)]
+    ploft(bm, [octagon(1.6, 5.6, 9.8, 0.6, 3.4), octagon(1.6, 5.6, 9.8, 0.6, 4.75),
+               octagon(1.4, 5.75, 9.65, 0.5, 5.1), octagon(1.15, 5.95, 9.45, 0.45, 5.1),
+               octagon(1.15, 5.95, 9.45, 0.45, 3.4)],
+          lambda y, x, up: ARMOUR, faces, cap_start=False, cap_end=False)
 
-    def engine_paint(r, c, up):
-        return GLASS if r > 24.6 and abs(c - 11.5) < 1.3 and up < 0.6 else DARK
+    # Canopy: dark glossy glass, a faceted bubble (x 11-13, y 6-8.3) rising above the frame.
+    def glass_ring(y, hw, zt):
+        return [(CX + x, y, z) for x, z in ((-hw, 3.6), (-hw, zt - 0.6), (-0.5 * hw, zt), (0.5 * hw, zt),
+                                            (hw, zt - 0.6), (hw, 3.6))]
 
-    ploft(bm, eng, engine_paint, faces, cap_start=False)
+    ploft(bm, [glass_ring(6.0, 0.85, 4.7), glass_ring(6.6, 1.0, 5.5), glass_ring(7.6, 1.0, 5.75),
+               glass_ring(8.3, 0.9, 5.1)], lambda y, x, up: GLASS, faces)
 
-    # Windshield: a separate faceted wedge of dark glass set into the frame behind the nose, low at
-    # its front edge (row 6) and rising to its back edge (row 9), with a flat top panel and angled
-    # side panels. Its bright glint in the sprite (row 7) is the glass catching the light.
-    # The top is three shallow facets (shaded smooth between them, so the glass carries a glint);
-    # the edges to the side panels and the frame stay crisp.
-    def glass_ring(r, zt, zs, zb, k):
-        half = ((0.6 * k, zt + 0.35), (1.6 * k, zt), (2.45, zs), (2.45, zb))
-        right = list(half)
-        return [(11.5 + x, r, z) for x, z in right + [(-x, z) for x, z in reversed(right)]]
+    # Grille behind the canopy: a dark block sunk in the frame with two ribs along it.
+    plate(bm, faces, [(10.95, 8.35), (13.05, 8.35), (13.05, 9.45), (10.95, 9.45)], 3.4, 4.4, 0.1, VENT)
+    for x0 in (11.55, 12.2):
+        plate(bm, faces, [(x0, 8.4), (x0 + 0.25, 8.4), (x0 + 0.25, 9.4), (x0, 9.4)], 4.0, 4.75, 0.08, DARK)
 
-    glass = [glass_ring(6.1, 5.0, 4.5, 3.9, 0.95), glass_ring(7.7, 5.8, 5.0, 4.0, 0.95),
-             glass_ring(9.35, 6.3, 5.3, 4.2, 0.88)]
-    ploft(bm, glass, lambda r, c, up: GLASS, faces)
+    # Cheeks: box-section blocks beside the cockpit, with thin antennas ahead of them.
+    cheek = [(8.6, 5.9), (10.1, 5.9), (10.35, 6.2), (10.35, 9.4), (8.3, 9.4), (8.3, 6.2)]
+    antenna = [(9.2, 3.9), (9.5, 3.9), (9.5, 6.0), (9.2, 6.0)]
+    for poly in (cheek, mirror(cheek)):
+        plate(bm, faces, poly, 2.8, 4.75, 0.3, SIDE)
+    for poly in (antenna, mirror(antenna)):
+        plate(bm, faces, poly, 2.6, 4.6, 0.08, DARK)
 
-    # Canopy plate (rows 10-12, columns 10-12): a light, raised flat plate with chamfered edges.
-    def plate(c0, c1, r0, r1, z0, z1, ch, mat, rear=1.0):
-        # The rear chamfer is longer and shallower: it faces the game's sun and carries the glint.
-        rings = []
-        for r, k, dz in ((r0, ch, ch), (r0 + ch, 0, 0), (r1 - rear, 0, 0), (r1, ch, 0.55)):
-            zt = z1 - dz
-            rings.append([(c0 + k, r, z0), (c1 - k, r, z0), (c1 - k, r, zt - ch), (c1 - k - ch, r, zt),
-                          (c0 + k + ch, r, zt), (c0 + k, r, zt - ch)])
-        ploft(bm, rings, lambda r, c, up: mat, faces)
+    # Chevron plate behind the cockpit, pointing back at the spine.
+    plate(bm, faces, [(10.6, 9.9), (13.4, 9.9), (13.4, 11.5), (12.0, 12.9), (10.6, 11.5)], 3.6, 5.3, 0.3, LIGHT)
 
-    plate(9.7, 12.9, 9.9, 12.5, 5.0, 6.1, 0.4, PLATE)
+    # Spine ridge down the body's centre, sloping down towards the vent.
+    spine_z = lambda y: 5.65 - 0.65 * (y - 12.4) / (18.1 - 12.4)  # noqa: E731
+    plate(bm, faces, [(11.15, 12.4), (12.85, 12.4), (12.75, 17.6), (12.4, 18.1), (11.6, 18.1), (11.25, 17.6)],
+          3.6, spine_z, 0.3, LIGHT)
 
-    # Spine ridge (rows 14-17, column 11): a straight, flat-topped strip down the back, rising at its
-    # front and sloping back towards the vent so its top catches the sun.
-    spine = [[(10.45, r, 5.0), (11.55, r, 5.0), (11.3, r, z), (10.7, r, z - 0.08)]
-             for r, z in ((13.55, 5.5), (14.0, 6.6), (17.2, 5.15), (17.45, 5.0))]
-    ploft(bm, spine, lambda r, c, up: PLATE, faces)
+    # Heart plates: the two curved armour plates from the shoulders in to the spine.
+    heart = [(8.7, 9.7), (10.3, 9.7), (10.45, 11.4), (10.95, 12.7), (11.05, 16.6), (10.6, 17.6),
+             (9.7, 17.1), (9.0, 15.8), (8.7, 14.0)]
+    for poly in (heart, mirror(heart)):
+        plate(bm, faces, poly, 3.6, 5.0, 0.3, ARMOUR)
 
-    # Windshield frame: an octagonal rim around the glass (as in the concept), its top a little
-    # above the glass's side panels so the glass sits recessed in it.
-    def octagon(hw, r0, r1, k, z0, z1):
-        pts = [(-hw + k, r0), (hw - k, r0), (hw, r0 + k), (hw, r1 - k), (hw - k, r1), (-hw + k, r1),
-               (-hw, r1 - k), (-hw, r0 + k)]
-        return [(11.5 + x, r, z0 + (z1 - z0) * (r - r0) / (r1 - r0)) for x, r in pts]
+    # Rear armour plates either side of the vent and the rod channel.
+    rear = [(8.7, 17.7), (10.5, 18.0), (11.0, 18.7), (11.0, 23.6), (10.4, 24.5), (9.2, 23.6), (8.8, 21.5)]
+    for poly in (rear, mirror(rear)):
+        plate(bm, faces, poly, 3.0, 4.8, 0.3, HULL)
 
-    ploft(bm, [octagon(3.15, 5.55, 9.85, 0.9, 3.9, 4.4), octagon(3.15, 5.55, 9.85, 0.9, 4.75, 5.6),
-               octagon(2.6, 5.95, 9.5, 0.7, 4.75, 5.6), octagon(2.6, 5.95, 9.5, 0.7, 3.9, 4.4)],
-          lambda r, c, up: DARK, faces, cap_start=False, cap_end=False)
+    # The rod: a round bar from the vent to the tail, held by a clamp bar at its front.
+    def circle(y, cz, rad, n=16):
+        return [(CX + rad * math.cos(a), y, cz + rad * math.sin(a))
+                for a in (2 * math.pi * (k + 0.5) / n for k in range(n))]
 
-    # Shield-shaped nose plate: a pointed armour plate laid over the nose, with a crisp centre crease
-    # (the light ridge in the sprite), raised a little above the nose's facets.
-    def shield_ring(r, hw, ze, zr):
-        return [(11.5 - hw, r, ze - 0.55), (11.5 - hw, r, ze), (11.5 - 0.55 * hw, r, ze + 0.3), (11.5, r, zr),
-                (11.5 + 0.55 * hw, r, ze + 0.3), (11.5 + hw, r, ze), (11.5 + hw, r, ze - 0.55)]
+    ploft(bm, [circle(19.9, 4.1, 0.38), circle(23.8, 4.1, 0.38)], lambda y, x, up: HULL, faces)
+    plate(bm, faces, [(11.0, 19.75), (13.0, 19.75), (13.0, 20.15), (11.0, 20.15)], 3.6, 4.65, 0.1, ARMOUR)
 
-    ploft(bm, [[(11.5, 1.2, 2.1)], shield_ring(2.6, 0.8, 2.85, 3.4), shield_ring(4.0, 1.3, 3.55, 4.3),
-               shield_ring(5.25, 1.5, 4.15, 4.85), shield_ring(5.6, 1.35, 4.0, 4.6)],
-          lambda r, c, up: LIGHTP, faces)
+    # Twin nozzles at the tail: round tubes with a dark bore.
+    for cx in (10.8, 13.2):
+        ring = lambda y, rad: [(x - CX + cx, y, z) for x, y, z in circle(y, 1.4, rad, 8)]  # noqa: E731
+        ploft(bm, [ring(23.3, 0.7), ring(25.7, 0.7), ring(25.7, 0.45)], lambda y, x, up: DARK, faces,
+              cap_start=False, cap_end=False)
+        ploft(bm, [ring(25.7, 0.45), ring(25.0, 0.45)], lambda y, x, up: VENT, faces, cap_start=False)
 
-    # Armour plates either side of the spine (rows 14-17): low chamfered plates stepped on the deck.
-    plate(8.85, 10.3, 13.6, 17.3, 4.8, 5.75, 0.25, HULL, rear=0.8)
-    plate(12.7, 14.15, 13.6, 17.3, 4.8, 5.75, 0.25, HULL, rear=0.8)
+    # Wings: crescent blades, a flat-faced base blade (knife outer edge, a crest near the straight
+    # inner edge) with a mid plate and a light inner strip stepped on top.
+    # (row edge, outer edge x, inner edge x, crest height, keel depth); left wing.
+    WING = [(9.6, 3.9, 5.75, 1.0, -0.3), (11.0, 2.9, 5.75, 1.4, -0.5), (13.0, 1.9, 5.75, 1.8, -0.7),
+            (15.0, 1.2, 5.75, 2.1, -0.8), (17.0, 1.0, 5.75, 2.2, -0.8), (19.0, 1.0, 5.8, 2.1, -0.8),
+            (20.3, 1.05, 6.0, 1.9, -0.8), (21.6, 1.1, 6.0, 1.7, -0.8), (22.6, 1.3, 5.9, 1.4, -0.7),
+            (23.5, 2.7, 5.4, 0.9, -0.5), (24.3, 2.95, 5.0, 0.6, -0.3), (24.75, 3.3, 4.8, 0.4, -0.2)]
 
-    # Keel ridge: continues the spine behind the vent, down the engine to the tail, between the
-    # twin nozzles.
-    keel = [[(11.15, r, zb), (11.85, r, zb), (11.7, r, zt), (11.3, r, zt)]
-            for r, zb, zt in ((19.6, 4.3, 5.0), (22.3, 3.1, 4.5), (24.6, 2.2, 3.6), (25.4, 1.6, 2.6))]
-    ploft(bm, keel, lambda r, c, up: HULL, faces)
-
-    # Twin engine nozzles at the tail, flanking the keel: octagonal tubes with a dark bore.
-    def oct_ring(cx, r, cz, rad):
-        return [(cx + rad * math.cos(a), r, cz + rad * math.sin(a))
-                for a in (math.pi / 8 + k * math.pi / 4 for k in range(8))]
-
-    for cx in (10.35, 12.65):
-        ploft(bm, [oct_ring(cx, 23.3, 1.45, 0.8), oct_ring(cx, 25.75, 1.45, 0.8), oct_ring(cx, 25.75, 1.45, 0.5)],
-              lambda r, c, up: DARK, faces, cap_start=False, cap_end=False)
-        ploft(bm, [oct_ring(cx, 25.75, 1.45, 0.5), oct_ring(cx, 25.0, 1.45, 0.5)], lambda r, c, up: GLASS,
-              faces, cap_start=False)
-
-    # Wings: crescent (scythe) blades, as in the concept art: a convex outer curve, a slightly
-    # concave inner edge, pointed at both ends, with thin knife edges. Each is a flat-faced base blade
-    # (knife outer edge, a crest near the inner edge, a thin inner edge) with two stepped armour
-    # plates on top, each a smaller crescent, so the top reads as layered plates with crisp edges.
-    # The top plate's inner edge is the bright line in the sprite (column 4).
-    # (row, outer edge, inner edge, crest height, keel depth)
-    W = [(9.4, 3.3, 5.45, 1.0, -0.3), (10.5, 2.4, 5.4, 1.4, -0.5), (12.0, 1.55, 5.3, 1.8, -0.7),
-         (13.8, 0.75, 5.25, 2.1, -0.8), (16.0, 0.6, 5.2, 2.2, -0.8), (18.5, 0.6, 5.3, 2.0, -0.8),
-         (20.0, 0.65, 5.4, 1.8, -0.8), (21.8, 0.75, 5.5, 1.6, -0.8), (22.6, 1.3, 5.4, 1.3, -0.7),
-         (23.3, 2.6, 5.0, 0.9, -0.5), (24.1, 3.0, 4.4, 0.5, -0.3)]
-
-    def blade_ring(r, o, i, t, b):
+    def blade_ring(y, o, i, t, b):
         w = i - o
-        return [(o, r, 0.15), (o + 0.45 * w, r, 0.75 * t), (i - 0.8, r, t), (i, r, t - 0.6), (i, r, 0.1),
-                (i - 0.9, r, b), (o + 0.4 * w, r, 0.6 * b)]
+        return [(o, y, 0.15), (o + 0.45 * w, y, 0.75 * t), (i - 0.8, y, t), (i, y, t - 0.6), (i, y, 0.1),
+                (i - 0.9, y, b), (o + 0.4 * w, y, 0.6 * b)]
 
-    def wplate_ring(r, o, i, t, f, g, dz, zb):
+    def wplate_ring(y, o, i, t, f, g, dz, zb):
         w = i - o
         a, b = o + f * w, i - g
         zt = t + dz
-        return [(a, r, zb), (b, r, zb), (b, r, zt - 0.2), (b - 0.2, r, zt), (a + 0.45, r, zt - 0.1),
-                (a, r, zt - 0.45)]
+        return [(a, y, zb), (b, y, zb), (b, y, zt - 0.2), (b - 0.2, y, zt), (a + 0.3, y, zt - 0.1),
+                (a, y, zt - 0.4)]
 
-    blade = [[(4.7, 8.5, 0.5)]] + [blade_ring(*w) for w in W] + [[(3.4, 24.8, 0.25)]]
-    plate1 = [[(4.5, 9.3, 1.5)]] + [wplate_ring(r, o, i, t, 0.33, 0.3, 0.55, 0.35 * t)
-                                    for r, o, i, t, b in W[1:-1]] + [[(3.6, 24.0, 0.9)]]
-    plate2 = [[(4.3, 10.9, 2.2)]] + [wplate_ring(r, o, i, t, 0.55, 0.6, 1.05, 0.5 * t)
-                                     for r, o, i, t, b in W[2:-3]] + [[(3.6, 22.6, 1.7)]]
+    blade = [[(5.3, 8.9, 0.5)]] + [blade_ring(*w) for w in WING] + [[(4.0, 25.0, 0.2)]]
+    mid = [[(4.4, 10.0, 1.4)]] + [wplate_ring(y, o, i, t, 0.22, 0.42, 0.45, 0.4 * t)
+                                  for y, o, i, t, b in WING[1:-1]] + [[(3.8, 24.1, 0.9)]]
+    strip = [[(4.7, 10.2, 1.9)]] + [wplate_ring(y, o, i, t, 0.66, 0.1, 0.75, 0.5 * t)
+                                    for y, o, i, t, b in WING[1:-2]] + [[(4.6, 23.2, 1.5)]]
     for flip in (False, True):
-        for part, mat in ((blade, POD), (plate1, POD), (plate2, LIGHTP)):
-            rings = [[(23 - c, r, z) for c, r, z in ring][::-1] if flip else ring for ring in part]
-            ploft(bm, rings, lambda r, c, up, mat=mat: mat, faces)
+        for part, mat in ((blade, SIDE), (mid, ARMOUR), (strip, LIGHT)):
+            rings = [[(W - x, y, z) for x, y, z in ring][::-1] if flip else ring for ring in part]
+            ploft(bm, rings, lambda y, x, up, mat=mat: mat, faces)
 
-    # Struts (rows 19-22, columns 5-8): box-section bars from the pods into the hull with a
-    # chamfered top: the bright top edge in the sprite is the front chamfer catching the light.
-    for a, b in ((4.0, 8.6), (23 - 8.6, 23 - 4.0)):
-        sec = [(19.0, 0.6), (19.6, 1.9), (20.4, 1.9), (22.2, 1.0), (22.4, 0.4), (22.0, -1.0), (19.4, -1.0)]
-        ploft(bm, [[(x, r, z) for r, z in sec] for x in (a, b)],
-              lambda r, c, up: LIGHTP if up > 0.3 and r < 20.5 else STRUT, faces)
+    # Hook: the wing's light inner strip curving into the boom, and the booms: a light, chamfered top
+    # beam (the concept's J-shaped bright edge continues along it) over a darker under-frame.
+    hook = [(5.5, 17.4), (6.0, 18.8), (7.3, 19.4), (8.6, 19.4), (8.6, 19.95), (5.5, 19.95)]
+    boom = [(5.6, 19.4), (9.2, 19.4), (9.2, 21.4), (5.6, 21.4)]
+    under = [(5.6, 21.4), (9.2, 21.4), (9.2, 22.9), (5.6, 22.9)]
+    for poly, z0, z1, ch, mat in ((hook, -0.5, 1.8, 0.25, LIGHT), (boom, -0.6, 1.9, 0.4, LIGHT),
+                                  (under, -1.0, 0.8, 0.2, DARK)):
+        for p in (poly, mirror(poly)):
+            plate(bm, faces, p, z0, z1, ch, mat)
 
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     for f, paint in faces:
         cen = f.calc_center_median()
-        f.material_index = paint(14 - 0.5 - cen.y * 12, cen.x * 12 + 11.5, f.normal.z)
-    # Smooth shading split at the creases: flat panels and chamfers stay crisp, and the polished
-    # metal's sheen runs along each panel instead of flashing face by face.
+        f.material_index = paint(H / 2 - cen.y * 12, cen.x * 12 + CX, f.normal.z)
+    # Smooth shading split at the creases: flat panels and chamfers stay crisp, round parts (the rod)
+    # stay round, and the polished metal's sheen runs along each panel.
     obj = common.mesh_object(NAME, bm, mats, coll, smooth=True)
     obj.modifiers.new("edges", "EDGE_SPLIT").split_angle = math.radians(30)
     return obj

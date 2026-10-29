@@ -1,0 +1,26 @@
+{
+ "name": "newshp-13",
+ "sprite_size": [
+  24,
+  28
+ ],
+ "texels_per_px": 16,
+ "size": [
+  384,
+  448
+ ],
+ "sprite_box": [
+  5,
+  4,
+  20,
+  20
+ ],
+ "concept_box": [
+  145,
+  105,
+  746,
+  784
+ ],
+ "neutral": 0.85,
+ "fit_iou": 0.834
+}

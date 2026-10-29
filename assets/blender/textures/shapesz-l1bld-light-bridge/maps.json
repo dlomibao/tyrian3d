@@ -1,0 +1,28 @@
+{
+ "name": "shapesz-l1bld-light-bridge",
+ "concept": "l1-bld-light-bridge",
+ "tile": true,
+ "sprite_size": [
+  312,
+  140
+ ],
+ "texels_per_px": 8,
+ "size": [
+  2496,
+  1120
+ ],
+ "sprite_box": [
+  3,
+  5,
+  312,
+  136
+ ],
+ "concept_box": [
+  23,
+  36,
+  1024,
+  460
+ ],
+ "neutral": 0.85,
+ "fit_iou": 0.295
+}

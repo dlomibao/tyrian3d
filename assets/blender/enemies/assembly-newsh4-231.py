@@ -1,14 +1,19 @@
 """Golden horned arm (newsh4.shp, assembly of 7 pieces): a 3D version of its sprites.
 
 Seen in episode 1 (level 1.3) and episode 3 (level 3.17). Seven 2x2 enemies in a row make one
-168x28 px object (sprite.json `assemblyLayout`): a long brown-gold horn that tapers and curves
-down to a point at the far left, with grey metal studs along its top and a few raised bands near
-its root, a round knuckle, and the start of a thick ribbed segment cut off at the right edge.
-Each piece is a single frame.
+168x28 px object (sprite.json `assemblyLayout`): a long brass horn that tapers and curls down to a
+point at the far left, its plating telescoping at collared joints, held by steel clamps with grille
+slats along its top, a cable bay with a lit rail along its underside, raised bands and a grilled
+port near its root, a round ball knuckle, a ribbed steel neck and the start of a gripper housing cut
+off at the right edge: a brass drum with armour plates, steel frame rails and claws, a band of vent
+fins and a heavy end cap ring. Each piece is a single frame.
 
-The whole arm is built once in assembly coordinates, painted from the sprite's own shading (each
-face takes the palette index of the pixels under it, grouped into a few shades), then cut into
-the seven pieces with common.split_assembly.
+Remodelled on the concept (assets/blender/features/concepts/assembly-newsh4-231.jpg): each part sits
+where the registered concept (assets/blender/textures/assembly-newsh4-231/concept.png) draws it,
+within the sprite's outline, so the detail texture_bake.py projects onto it lands on the right part.
+The brass is one mid tone; the sprite's lit tops and dark lower halves are the light's work. The
+whole arm is built once in assembly coordinates, then cut into the seven pieces with
+common.split_assembly.
 
 Run: blender --background --python assets/blender/enemies/assembly-newsh4-231.py [-- --preview out.png]
 (the preview is the whole arm; each piece also gets <piece>.png next to it).
@@ -19,6 +24,7 @@ import sys
 from pathlib import Path
 
 import bmesh
+import bpy
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -36,7 +42,6 @@ U = 1 / 12
 # The horn, knuckle and segment are round tubes and a ball (the sprite lights their tops and
 # shades their lower halves): each is about as tall as it is wide.
 ROUND = 0.95
-SEAMS = (64.0, 80.0)  # dark seam lines across the horn's plating (sprite columns)
 
 
 def X(e):
@@ -61,28 +66,6 @@ def load():
             for c, v in enumerate(row):
                 grid[r][24 * i + c] = v
     return grid, colors, sprites
-
-
-def sampler(grid, skip=(-1, 1), reach=2):
-    """sample(x, y) -> the palette index of the arm pixel under Blender (x, y); transparent and
-    outline pixels are skipped for the nearest other pixel within `reach`."""
-    def sample(x, y):
-        c, r = int(math.floor(x / U + W / 2)), int(math.floor(H / 2 - y / U))
-        for d in range(reach + 1):
-            best = None
-            for dr in range(-d, d + 1):
-                for dc in range(-d, d + 1):
-                    if max(abs(dr), abs(dc)) != d:
-                        continue
-                    rr, cc = r + dr, c + dc
-                    if 0 <= rr < H and 0 <= cc < W and grid[rr][cc] not in skip:
-                        dist = dr * dr + dc * dc
-                        if best is None or dist < best[0]:
-                            best = (dist, grid[rr][cc])
-            if best:
-                return best[1]
-        return None
-    return sample
 
 
 def horn_profile(grid):
@@ -123,99 +106,278 @@ def horn_path(prof):
     return path
 
 
-def surface_z(prof, c, r):
-    """Height of the horn's top surface over pixel (c, r) (edge coordinates), 0 off the horn."""
-    m, vh = prof[int(c)]
-    w = vh * U
-    h = ROUND * w + 0.004
-    t = (r - m) / vh
-    return h * math.sqrt(max(0.0, 1 - t * t))
-
-
-def box(bm, x0, x1, y0, y1, z0, z1, mat_index, bevel=0.0):
-    """An axis-aligned box between Blender coordinates, its edges chamfered by `bevel`."""
+def faces_since(bm, n):
     bm.faces.ensure_lookup_table()
-    first = len(bm.faces)
-    res = bmesh.ops.create_cube(bm, size=1.0)
-    for v in res["verts"]:
-        v.co.x = x0 if v.co.x < 0 else x1
-        v.co.y = y0 if v.co.y < 0 else y1
-        v.co.z = z0 if v.co.z < 0 else z1
+    return bm.faces[n:]
+
+
+def set_faces(bm, n, mat, smooth):
+    for f in faces_since(bm, n):
+        f.material_index = mat
+        f.smooth = smooth
+
+
+def prism(bm, outline, z0, z1, mat, bevel=0.0):
+    """A hard, flat-topped block from z0 to z1 over an outline of (col, row) pixel edges, its top
+    edges chamfered by `bevel` (units)."""
+    pts = [(X(c), Y(r)) for c, r in outline]
+    area = sum(x0 * y1 - x1 * y0 for (x0, y0), (x1, y1) in zip(pts, pts[1:] + pts[:1]))
+    if area < 0:
+        pts = pts[::-1]
+    n = len(bm.faces)
+    top = [bm.verts.new((x, y, z1)) for x, y in pts]
+    bottom = [bm.verts.new((x, y, z0)) for x, y in pts]
+    top_face = bm.faces.new(top)
+    bm.faces.new(list(reversed(bottom)))
+    k = len(pts)
+    for i in range(k):
+        j = (i + 1) % k
+        bm.faces.new((bottom[i], bottom[j], top[j], top[i]))
     if bevel > 0:
-        vs = set(res["verts"])
-        edges = [e for e in bm.edges if e.verts[0] in vs and e.verts[1] in vs]
-        bmesh.ops.bevel(bm, geom=edges, offset=bevel, segments=1, affect="EDGES", profile=0.5)
-    bm.faces.ensure_lookup_table()
-    for f in bm.faces[first:]:
-        f.material_index = mat_index
-    return first
+        bmesh.ops.bevel(bm, geom=list(top_face.edges), offset=bevel, segments=1, affect="EDGES", profile=0.5)
+    set_faces(bm, n, mat, False)
+
+
+def bar(bm, a, b, half_w, z0, z1, mat, bevel=0.0):
+    """A straight hard bar from pixel point a to b (col, row), half_w px either side."""
+    (ca, ra), (cb, rb) = a, b
+    d = math.hypot(cb - ca, rb - ra)
+    nc, nr = -(rb - ra) / d * half_w, (cb - ca) / d * half_w
+    prism(bm, [(ca + nc, ra + nr), (cb + nc, rb + nr), (cb - nc, rb - nr), (ca - nc, ra - nr)], z0, z1, mat, bevel)
+
+
+class Tube:
+    """A round tube lying along the sprite's columns: centre row m(c), half width w(c) px, and height
+    ROUND * w (the tubes are centred on z = 0)."""
+
+    def __init__(self, fn):
+        self.fn = fn  # c -> (centre row, half width px)
+
+    def z(self, c, r):
+        m, w = self.fn(c)
+        t = (r - m) / w
+        return ROUND * w * U * math.sqrt(max(0.0, 1 - t * t))
+
+    def wrap(self, bm, c0, c1, r0, r1, lift, mat, sink=0.6, nc=3, na=6, smooth=False):
+        """A plate wrapped round the tube's upper side between columns c0..c1 and rows r0..r1 (as
+        seen from above), standing `lift` px proud of the surface and sunk `sink` px into it: a
+        clamp, band or panel that follows the tube's curve."""
+        n = len(bm.faces)
+        cols = [c0 + (c1 - c0) * i / nc for i in range(nc + 1)]
+        grid_o, grid_i = [], []
+        for c in cols:
+            m, w = self.fn(c)
+            a0 = math.acos(max(-0.995, min(0.995, (m - r0) / w)))
+            a1 = math.acos(max(-0.995, min(0.995, (m - r1) / w)))
+            ro, ri = [], []
+            for j in range(na + 1):
+                a = a0 + (a1 - a0) * j / na
+                for rad, out in ((w + lift, ro), (w - sink, ri)):
+                    out.append(bm.verts.new((X(c), Y(m) + rad * U * math.cos(a), ROUND * rad * U * math.sin(a))))
+            grid_o.append(ro)
+            grid_i.append(ri)
+        for i in range(nc):
+            for j in range(na):
+                bm.faces.new((grid_o[i][j], grid_o[i + 1][j], grid_o[i + 1][j + 1], grid_o[i][j + 1]))
+                bm.faces.new((grid_i[i][j + 1], grid_i[i + 1][j + 1], grid_i[i + 1][j], grid_i[i][j]))
+        for i in range(nc):  # the plate's edges along its rows
+            for j in (0, na):
+                q = (grid_o[i][j], grid_i[i][j], grid_i[i + 1][j], grid_o[i + 1][j])
+                bm.faces.new(q if j == 0 else q[::-1])
+        for i in (0, nc):  # and its ends
+            for j in range(na):
+                q = (grid_o[i][j], grid_o[i][j + 1], grid_i[i][j + 1], grid_i[i][j])
+                bm.faces.new(q if i == 0 else q[::-1])
+        set_faces(bm, n, mat, False)
+        if smooth:
+            for f in faces_since(bm, n)[: nc * na]:
+                f.smooth = True
+
+    def ring(self, bm, c, length, scale, mat, sides=16, smooth=True):
+        """A band right round the tube at column c, `length` px long, `scale` times its size."""
+        n = len(bm.faces)
+        pts = []
+        for e in (c, c + length):
+            m, w = self.fn(e)
+            pts.append((X(e), Y(m), 0.0, w * scale * U, ROUND * w * scale * U))
+        lib.sweep(bm, pts, sides=sides, mat_index=mat)
+        set_faces(bm, n, mat, smooth)
+
+
+def to_object(name, bm, mats, coll):
+    """A mesh object keeping each face's own smooth or flat flag."""
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    mesh = bpy.data.meshes.new(name)
+    bm.to_mesh(mesh)
+    bm.free()
+    for m in mats:
+        mesh.materials.append(m)
+    obj = bpy.data.objects.new(name, mesh)
+    coll.objects.link(obj)
+    return obj
+
+
+# Remodelled on the concept (assets/blender/features/concepts/assembly-newsh4-231.jpg, registered to
+# the sprite as assets/blender/textures/assembly-newsh4-231/concept.png): every part sits where the
+# concept draws it, inside the sprite's outline (the sprite decides the outline), so the concept
+# detail texture_bake.py projects straight down lands on the matching part.
+# Telescoping joints of the horn's plating, where the concept draws a collar (columns).
+HORN_JOINTS = (9.4, 13.2, 44.6, 63.6, 85.4)
+# Raised bands round the horn root (the sprite's bright columns 90, 94 and 104; the concept's panel
+# seams at 89, 93 and 103) and the seam where the root meets the elbow.
+ROOT_BANDS = (89.3, 93.2, 103.2, 111.0)
+# The gripper housing (the thick segment): a round drum, rows 1-22 (centre row 11.5, 10.5 px).
+SEG_M, SEG_W = 11.5, 10.5
+
+
+def seg_fn(c):
+    """The gripper drum's (centre row, half width px) at column c: a rounded shoulder from column
+    133.3 to 140, full width to the end cap."""
+    pts = [(133.3, 2.5), (133.8, 6.0), (134.8, 8.0), (136.2, 9.3), (137.8, 10.1), (139.5, 10.5)]
+    if c >= 139.5:
+        return SEG_M, SEG_W
+    for (a, wa), (b, wb) in zip(pts, pts[1:]):
+        if a <= c <= b:
+            return SEG_M - 0.5 * (1 - (c - 133.3) / 6.2), wa + (wb - wa) * (c - a) / (b - a)
+    return SEG_M - 0.5, 2.5
 
 
 def build(grid, colors):
     coll = common.reset_collection(NAME)
     mats = lib.Mats("nsh4_231", colors)
-    gold = lambda i: mats(i, metallic=0.5, roughness=0.35)  # noqa: E731
-    metal = lambda i: mats(i, metallic=0.7, roughness=0.3)  # noqa: E731
-    body = gold(22)  # one mid tone: the game's light draws the sprite's lit tops and shaded undersides
+    gold = lambda i: mats(i, metallic=0.55, roughness=0.35)  # noqa: E731
+    steel = lambda i: mats(i, metallic=0.75, roughness=0.32)  # noqa: E731
+    # One mid gold for the brass shell (the game's light draws the sprite's lit tops and shaded
+    # undersides); a lighter gold for the collars and bands catching the light.
+    body, collar = gold(22), gold(25)
+    clamp, clamp_hi, dark, slot = steel(5), steel(7), steel(3), mats(1, metallic=0.3, roughness=0.6)
+    blue = steel(106)
     bm = bmesh.new()
 
-    # The horn, from its tip at the bottom left up and along to inside the knuckle: a round tube.
+    # The horn, from its tip curling down at the bottom left up and along to inside the knuckle:
+    # one round tube that tapers to a point.
     prof = horn_profile(grid)
-    first = lib.sweep(bm, horn_path(prof), sides=16, mat_index=body)
-    horn_end = len(bm.faces)
-    # The knuckle (columns 114-134, rows 1-19, its lower lobe hanging to a point at column 126): a
-    # ball, and the thick segment beyond it (columns 134-167, rows 1-21; it runs on past the arm's
-    # right edge, where the cut leaves it open): a round cylinder with a rounded shoulder.
-    lib.cube_blob(bm, (X(124.5), Y(8.0), 0.0), (9.5 * U, 7.5 * U, 7.6 * U), n=8, mat_index=body)
-    lib.cube_blob(bm, (X(125.6), Y(13.2), -0.05), (5.4 * U, 6.2 * U, 4.6 * U), n=6, mat_index=body)  # lobe under it
-    seg = [(133.3, 10.6, 2.5), (133.8, 10.6, 6.0), (134.8, 10.8, 8.0),
-           (136.2, 11.0, 9.3), (137.8, 11.3, 10.1), (139.5, 11.5, 10.5)]
-    seg += [(x, 11.5, 10.5) for x in (141.5, 143.5, 145.5, 147.5, 149.5, 151.5, 153.5, 155.5, 157.5, 159.5, 161.5,
-                                      163.5, 165.5, 167.5, 168.6)]
-    lib.sweep(bm, [(X(x), Y(m), 0.0, w * U, ROUND * w * U) for x, m, w in seg], sides=24, mat_index=body)
+    lib.sweep(bm, horn_path(prof), sides=16, mat_index=body)
+    set_faces(bm, 0, body, True)
 
-    # Dark seams across the horn's plating.
-    bm.faces.ensure_lookup_table()
-    for f in bm.faces[first:horn_end]:
-        col = f.calc_center_median().x / U + W / 2
-        if any(abs(col - s) < 0.8 for s in SEAMS):
-            f.material_index = gold(17)
+    def horn_fn(c):
+        m, vh = prof[max(2, min(122, int(c)))]
+        return m, vh
 
-    # Raised bands round the horn near its root (the bright columns 90, 94 and 104).
-    for c in (90, 94, 104):
-        m, vh = prof[c]
-        w = vh * U
-        h = ROUND * w + 0.004
-        lib.sweep(bm, [(X(c + 0.05), Y(m), 0.0, w * 1.06, h * 1.06), (X(c + 0.95), Y(m), 0.0, w * 1.06, h * 1.06)],
-                  sides=16, mat_index=gold(27 if c == 104 else 25))
+    horn = Tube(horn_fn)
+    # Collars at the plating's telescoping joints, and the root's raised bands.
+    for c in HORN_JOINTS:
+        horn.ring(bm, c - 0.45, 0.9, 1.07, collar)
+    for c in ROOT_BANDS:
+        horn.ring(bm, c - 0.35, 0.7, 1.05, collar if c < 110 else gold(20))
 
-    # A thin rod along the lower flank of the horn's root (the lit line on row 12, columns 68-117).
+    # Steel clamps wrapped over the horn's upper side where the concept draws them (cols, rows),
+    # the two nearest the root with grille slats across them.
+    for c0, c1, r0, r1, mat, slats in ((39.8, 45.0, 7.6, 12.4, clamp, 0), (58.0, 63.2, 5.0, 9.4, clamp, 0),
+                                       (80.4, 85.2, 2.6, 8.6, clamp, 4), (107.0, 111.0, 1.4, 5.0, blue, 3)):
+        horn.wrap(bm, c0, c1, r0, r1, 0.9, mat)
+        for k in range(slats):
+            r = r0 + 0.9 + k * (r1 - r0 - 1.8) / max(1, slats - 1)
+            horn.wrap(bm, c0 + 0.6, c1 - 0.6, r - 0.25, r + 0.25, 1.5, clamp_hi, sink=0.0, nc=1, na=1)
+    # The dark grille port on the root's lower flank (cols 95-99.5, rows 8.4-12.4): a steel frame
+    # round a dark recess with slats.
+    horn.wrap(bm, 94.8, 99.8, 8.2, 12.6, 0.8, clamp, nc=2, na=4)
+    horn.wrap(bm, 95.6, 99.0, 8.9, 11.9, 0.95, slot, sink=0.0, nc=1, na=3)
+    for r in (9.6, 10.6, 11.5):
+        horn.wrap(bm, 95.8, 98.8, r - 0.2, r + 0.2, 1.2, clamp_hi, sink=0.0, nc=1, na=1)
+
+    # The cable bay under the horn (cols 45-112): a lit rail along the lower flank (row 12) and two
+    # dark cables slung along it between the clamps.
     rail = []
-    for c in range(68, 118, 3):
-        z = surface_z(prof, c + 0.5, 12.0)
-        rail.append((X(c + 0.5), Y(12.25), z * 0.9, 0.75 * U, 0.75 * U))
-    lib.sweep(bm, rail, sides=8, mat_index=gold(24))
+    for c in range(46, 113, 3):
+        m, vh = horn_fn(c)
+        r = min(12.3, m + vh - 0.9)
+        rail.append((X(c + 0.5), Y(r), horn.z(c + 0.5, r) * 0.85, 0.6 * U, 0.6 * U))
+    n = len(bm.faces)
+    lib.sweep(bm, rail, sides=6, mat_index=collar)
+    set_faces(bm, n, collar, True)
+    for r_off, (ca, cb) in ((-1.2, (64.0, 88.0)), (-1.9, (69.0, 86.0))):
+        cable = []
+        for i in range(9):
+            c = ca + (cb - ca) * i / 8
+            m, vh = horn_fn(c)
+            r = m + vh + r_off + 0.4 * math.sin(math.pi * i / 8)
+            cable.append((X(c), Y(r), horn.z(c, r) + 0.15 * U, 0.35 * U, 0.35 * U))
+        n = len(bm.faces)
+        lib.sweep(bm, cable, sides=6, mat_index=dark)
+        set_faces(bm, n, dark, True)
 
-    # Grey clamps on the horn: (col0, col1, row0, row1) in pixel edges. Each is a hard box from the
-    # horn's centre line to a little above its surface, so it wraps the upper half of the tube.
-    bm.faces.ensure_lookup_table()
-    flat_from = len(bm.faces)
-    clamps = [(39.0, 45.5, 7.0, 12.5, 5), (58.0, 63.5, 4.8, 9.5, 5), (80.8, 85.5, 2.0, 7.5, 6),
-              (108.0, 112.5, 0.8, 4.6, 106)]
-    for c0, c1, r0, r1, idx in clamps:
-        top = max(surface_z(prof, c, r) for c in (c0, (c0 + c1) / 2, c1 - 0.1) for r in (r0, (r0 + r1) / 2, r1))
-        box(bm, X(c0), X(c1), Y(r1), Y(r0), -0.02, top + 1.3 * U, metal(idx), bevel=0.35 * U)
-    # The dark port on the root's lower flank (columns 96-99, rows 8-12): a grey frame, dark inside.
-    pz = max(surface_z(prof, c, r) for c in (95.5, 97.5, 99.5) for r in (7.8, 10.0, 12.2))
-    for c0, c1, r0, r1 in ((95.5, 100.0, 7.6, 8.4), (95.5, 100.0, 11.8, 12.6), (95.5, 96.3, 7.6, 12.6),
-                           (99.2, 100.0, 7.6, 12.6)):
-        box(bm, X(c0), X(c1), Y(r1), Y(r0), 0.0, pz + 1.0 * U, metal(5))
-    box(bm, X(96.3), X(99.2), Y(11.8), Y(8.4), 0.0, pz + 0.15 * U, metal(1))
+    # The knuckle: a brass ball joint (columns 114-134, rows 1-19) where the horn's elbow turns
+    # down, and its lower lobe hanging to a point at column 126.
+    n = len(bm.faces)
+    lib.cube_blob(bm, (X(124.5), Y(8.0), 0.0), (9.5 * U, 7.5 * U, 7.6 * U), n=8, mat_index=body)
+    lib.cube_blob(bm, (X(125.6), Y(13.2), -0.05), (5.4 * U, 6.2 * U, 4.6 * U), n=6, mat_index=body)
+    set_faces(bm, n, body, True)
+    # The neck between the ball and the gripper (cols 130-137): a ribbed steel shaft.
+    neck = Tube(lambda c: (10.0, 5.6))
+    n = len(bm.faces)
+    lib.sweep(bm, [(X(129.5), Y(10.0), 0.0, 5.6 * U, ROUND * 5.6 * U), (X(137.0), Y(10.0), 0.0, 5.6 * U,
+                                                                         ROUND * 5.6 * U)], sides=16, mat_index=dark)
+    set_faces(bm, n, dark, True)
+    for c in (131.0, 133.0):
+        neck.ring(bm, c, 0.9, 1.12, clamp)
 
-    obj = common.mesh_object(NAME, bm, mats.list, coll, smooth=True)
-    for poly in obj.data.polygons[flat_from:]:
-        poly.use_smooth = False  # the clamps and port are hard, flat-faced metal
-    return obj
+    # The gripper housing: a brass drum (cols 133-160) with a rounded shoulder, a band of vent slots
+    # (cols 155-160) and a heavy end cap ring (cols 160-168, cut open at the assembly's edge).
+    drum = Tube(seg_fn)
+    sections = [133.3, 133.8, 134.8, 136.2, 137.8, 139.5] + [141.5 + 2 * i for i in range(7)] + [155.0]
+    n = len(bm.faces)
+    lib.sweep(bm, [(X(c), Y(seg_fn(c)[0]), 0.0, seg_fn(c)[1] * U, ROUND * seg_fn(c)[1] * U) for c in sections],
+              sides=24, mat_index=body, cap_end=False)
+    set_faces(bm, n, body, True)
+    n = len(bm.faces)
+    lib.sweep(bm, [(X(155.0), Y(SEG_M), 0.0, (SEG_W - 0.7) * U, ROUND * (SEG_W - 0.7) * U),
+                   (X(160.0), Y(SEG_M), 0.0, (SEG_W - 0.7) * U, ROUND * (SEG_W - 0.7) * U)],
+              sides=24, mat_index=dark, cap_start=False, cap_end=False)
+    set_faces(bm, n, dark, True)
+    # Vent fins round the band (cols 155.5-159.5): rings standing proud between dark slots.
+    for c in (155.6, 157.0, 158.4):
+        drum.ring(bm, c, 0.7, 1.0, gold(21), sides=24)
+    cap = [(160.0, SEG_W - 0.4), (160.6, SEG_W + 0.0), (163.0, SEG_W + 0.0), (163.6, SEG_W - 0.5),
+           (164.3, SEG_W - 0.5), (164.9, SEG_W - 0.1), (168.6, SEG_W - 0.1)]
+    n = len(bm.faces)
+    lib.sweep(bm, [(X(c), Y(SEG_M), 0.0, w * U, ROUND * w * U) for c, w in cap], sides=24, mat_index=gold(24))
+    set_faces(bm, n, gold(24), True)
+
+    # Plating on the drum: an upper and a lower armour plate either side of a riveted strap
+    # (cols 141-154), and steel frame rails along its top and bottom edges (rows 1-3, 18-21).
+    drum.wrap(bm, 140.6, 154.0, 3.0, 9.2, 0.7, gold(23), nc=4, na=6, smooth=True)
+    drum.wrap(bm, 140.6, 154.0, 12.6, 18.4, 0.7, gold(23), nc=4, na=6, smooth=True)
+    drum.wrap(bm, 141.8, 152.6, 9.6, 12.2, 1.0, gold(24), nc=3, na=3, smooth=True)
+    drum.wrap(bm, 138.6, 157.4, 1.6, 2.8, 1.1, clamp, nc=4, na=2)
+    drum.wrap(bm, 138.6, 157.4, 19.2, 20.8, 1.1, clamp, nc=4, na=2)
+
+    # Steel claws gripping the drum's shoulder: an upper hinge bracket (cols 132.5-141, rows 4-7.5)
+    # with its pin, a lower claw arm angled down to the bottom rail, and a diagonal strut across
+    # the lower plate (cols 150-157).
+    def on_drum(pts, lift):
+        """(z0, z1) for a hard part over these (col, row) points: from just under the drum's
+        surface to `lift` px above its highest point, so it sits on the curve, not beside it."""
+        zs = [drum.z(c, r) if c >= 133.3 else 0.0 for c, r in pts]
+        return min(zs) - 0.8 * U, max(zs) + lift * U
+
+    def sample(a, b, k=5):
+        return [(a[0] + (b[0] - a[0]) * i / k, a[1] + (b[1] - a[1]) * i / k) for i in range(k + 1)]
+
+    hinge = [(132.6, 4.4), (141.0, 4.0), (141.0, 7.4), (132.6, 7.2)]
+    z0, z1 = on_drum(sample((134.0, 4.2), (141.0, 4.2)) + sample((134.0, 7.3), (141.0, 7.3)), 1.4)
+    prism(bm, hinge, min(z0, 0.0), z1, clamp, bevel=0.3 * U)
+    prism(bm, [(139.2, 4.9), (142.0, 4.9), (142.0, 6.7), (139.2, 6.7)], z1 - 0.1, z1 + 0.8 * U,
+          clamp_hi, bevel=0.25 * U)
+    for a, b, hw, lift, mat in (((132.8, 13.6), (141.0, 17.6), 1.0, 1.2, clamp),
+                                ((141.0, 17.6), (149.0, 18.0), 0.8, 1.0, clamp),
+                                ((149.6, 10.4), (157.2, 14.6), 0.7, 1.4, clamp),
+                                ((150.2, 2.0), (154.6, 2.0), 0.8, 1.6, clamp_hi)):
+        pts = sample(a, b)
+        z0, z1 = on_drum([(c, r + d) for c, r in pts for d in (-hw, hw)], lift)
+        bar(bm, a, b, hw, z0, z1, mat, bevel=0.2 * U)
+
+    return to_object(NAME, bm, mats.list, coll)
 
 
 def main():

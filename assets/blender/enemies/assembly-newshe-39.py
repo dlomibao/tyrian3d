@@ -7,11 +7,17 @@ brown dirt, lit from the top left: a big flat-topped block at the back (upper ri
 edge down its left side, smaller boulders to its left, splintered shards below it, and a dark
 shadow on the ground in front of them all.
 
-The heap is built once in assembly coordinates: each boulder is the convex hull of its footprint
-and its raised top (so it has flat, angular faces), split into small facets that take the colour
-of the sprite pixel under them (the sprite's own shading of each face). It is cut into the six
-pieces with common.split_assembly, and each piece gets a flat patch of dirt and shadow under it,
-painted from its sprite in 2 x 2 px cells.
+The heap is built once in assembly coordinates, remodelled on the concept
+(assets/blender/features/concepts/assembly-newshe-39.jpg, registered to the sprite by
+tools/concept_maps.py) as hard columnar basalt: the big block is two large flat-topped slabs split by
+the fissure, its lower-left edge one straight chamfer catching the light (the lit ridge); smaller
+blocks with chamfered rims step down to the left, and in front the block's steep dark front faces,
+the front boulder and two pointed splinters are low with tops tilting down the screen (SLABS,
+COLUMNS). The blocks set only the geometry: every face is cut on a 2 px grid and takes the sprite's
+shade under it, so texture_bake.py's concept detail (cracks, weathering) lands on the matching
+block; low dark rubble fills the crevices. It is
+cut into the six pieces with common.split_assembly, and each piece gets a flat patch of dirt and
+shadow under it, painted from its sprite in 2 x 2 px cells.
 
 Run: blender --background --python assets/blender/enemies/assembly-newshe-39.py [-- --preview out.png]
 (the preview is the whole heap; each piece also gets <piece>.png next to it).
@@ -38,90 +44,167 @@ CX0, CY0 = 248, -4
 
 ROCK = set(range(4, 12))  # the grey ramp of the boulders
 CREVICE = {2, 3}
-STEP = 3  # px between the cuts that let the boulders' facets take the sprite's shading
+
+
+# Remodelled on the concept (assets/blender/textures/assembly-newshe-39/concept.png, the concept
+# registered to the sprite) as hard columnar basalt: flat-topped prisms with a chamfered rim and steep
+# sides. The big block at the back is two large slabs split by the fissure (col ~45.5), the only deep
+# seam: a V groove about 4-5 px deep. The left slab's lower-left edge is one straight chamfer along the
+# sprite's lit ridge (col 29, row 5 to col 41, row 14), with the dark left face falling away below it.
+# In front of it the concept draws the block's steep dark front faces in perspective: the front
+# boulder, the slab and the two splinters are low (2-7 px) and their tops tilt down towards the screen
+# bottom; the splinters are narrow wedges with pointed lower ends. The row of blocks on the left steps
+# down to the left (9 to 7 px). Every face is then cut on a 2 px grid and painted with the sprite's
+# shade under it (geometry from the blocks, light and dark from the sprite).
+#
+# Main slabs: top face [(col, row)] at z px, and the footprint on the ground [(col, row)].
+SLABS = {
+    "block-left": ([(29, 5), (33, 2.4), (38, 1), (44.5, 0.4), (44.5, 14.6), (41, 14.2)], 14.0,
+                   [(27.4, 4.6), (32, 1.8), (38, 0.3), (46.6, 0), (46.6, 20.2), (43, 20.6), (36, 18.8),
+                    (30, 16.2), (27.4, 12)]),
+    "block-right": ([(47, 0.6), (50, 0.8), (56, 3), (59, 6.4), (59.6, 11.5), (57, 14), (52, 14.6),
+                     (47, 14.6)], 12.5,
+                    [(44.4, 0), (50, 0), (56, 2), (62, 5), (65.6, 9), (65.6, 16), (62, 20), (52, 21.2),
+                     (44.4, 20.6)]),
+}
+LIT_RIDGE = ((29, 5), (41, 14.2))  # the left slab's lit edge (sprite's bright diagonal)
+LIT = 11  # its shade: the sprite's lightest rock grey
+# Smaller blocks: top face [(col, row)], height at the top face's back (upper) edge and at its front
+# (lower) edge in px (a tilted top when they differ), lean (px the foot reaches further down).
+COLUMNS = {
+    # Front boulder: part of the big block's front face, tilting down to the screen bottom.
+    "front-boulder": ([(46, 16.6), (52, 15.6), (58, 16.4), (60.6, 19.6), (58.4, 24.5), (53.5, 28.4),
+                       (48.5, 29.2), (45.4, 24.5)], 6.5, 3.0, 1.5),
+    "splinter-r": ([(52.5, 27.5), (57, 23.5), (60.4, 20.4), (61, 23), (57.6, 30), (53.6, 33.8),
+                    (50.8, 33)], 3.0, 1.2, 0.5),
+    "chip": ([(45.6, 31), (48, 29.8), (51, 30.4), (50.6, 33.6), (47.2, 35.6)], 2.0, 1.0, 0.3),
+    # Shards below the block: a low tilted slab and two narrow splinters tapering to a point.
+    "slab": ([(29.6, 20.8), (36, 19.6), (38, 21.5), (37.6, 28.5), (31, 29.6), (29.4, 26)], 5.0, 2.5,
+             1.0),
+    "shard-lit": ([(38, 20.6), (44.4, 20.2), (45, 23.5), (42.5, 30), (40.2, 37.8), (38.4, 31)], 6.0,
+                  1.2, 0.6),
+    "splinter": ([(30, 29.8), (36.6, 29), (39, 31.5), (38, 36.5), (35.4, 41.8), (31, 35.5)], 4.5, 1.0,
+                 0.5),
+    # The row of blocks left of the big one, stepping down to the left.
+    "between": ([(23.6, 14), (29, 13.2), (31.4, 16), (30.6, 21), (26, 21.4), (24.2, 18)], 9.0, 9.0, 2.0),
+    "bright": ([(15.6, 19.4), (21, 17.6), (26.4, 18.6), (27.4, 22), (25, 25.4), (17, 25.6)], 8.5, 8.5,
+               2.5),
+    "upper-left": ([(7.5, 15.4), (13, 12.2), (21.5, 11.2), (23, 13.2), (21, 16.6), (10, 17.8)], 8.0,
+                   8.0, 1.5),
+    "left": ([(1.2, 20), (5, 17.6), (14, 17.6), (15, 21), (13.5, 25), (3, 25)], 7.0, 7.0, 2.5),
+}
+CHAMFER = 0.8  # px: the crisp bevel round each block's top (the concept's lit rims)
+RIDGE_CHAMFER = 1.3  # px: the wider bevel along the lit ridge
+FLARE = 1.0  # px the foot spreads beyond the rim
+STEP = 2  # px between the cuts that let the faces take the sprite's shading
+
+
+def offset(poly, d, d_edge=None):
+    """The convex polygon `poly` [(col, row)] with every edge moved d px outwards (edge i, from
+    vertex i to i + 1, by d_edge[i] when given): the parallel rim of a chamfer."""
+    import math
+    n = len(poly)
+    area = sum(poly[i][0] * poly[(i + 1) % n][1] - poly[(i + 1) % n][0] * poly[i][1] for i in range(n))
+    sgn = 1 if area > 0 else -1
+    lines = []
+    for i in range(n):
+        (c1, r1), (c2, r2) = poly[i], poly[(i + 1) % n]
+        L = math.hypot(c2 - c1, r2 - r1)
+        nc, nr = sgn * (r2 - r1) / L, -sgn * (c2 - c1) / L  # outward normal
+        k = d_edge[i] if d_edge else d
+        lines.append(((c1 + nc * k, r1 + nr * k), (c2 - c1, r2 - r1)))
+    out = []
+    for i in range(n):
+        (p, u), (q, v) = lines[i - 1], lines[i]
+        den = u[0] * v[1] - u[1] * v[0]
+        t = ((q[0] - p[0]) * v[1] - (q[1] - p[1]) * v[0]) / den
+        out.append((p[0] + u[0] * t, p[1] + u[1] * t))
+    return out
+
+
+def tilt(poly, zb, zf):
+    """Heights for a top face that falls from zb px at its back (upper) edge to zf at its front."""
+    r0, r1 = min(r for _, r in poly), max(r for _, r in poly)
+    return [zb - (zb - zf) * (r - r0) / ((r1 - r0) or 1) for _, r in poly]
+
+
+def slab(bm, grid, top, zpx, foot):
+    """One of the big block's two halves: flat top, chamfered rim (wider along the lit ridge), and
+    steep faces down to its footprint."""
+    widths = []
+    for i in range(len(top)):
+        edge = (top[i], top[(i + 1) % len(top)])
+        widths.append(RIDGE_CHAMFER if set(edge) == set(LIT_RIDGE) else CHAMFER)
+    rim = offset(top, 0, widths)
+    pts = [(c, r, zpx * lib.U) for c, r in top]
+    pts += [(c, r, (zpx - w) * lib.U) for (c, r), w in zip(rim, [max(a, b) for a, b in
+                                                                   zip(widths, widths[-1:] + widths[:-1])])]
+    return lib.rock(bm, grid, foot, pts)
+
+
+def column(bm, grid, top, zb, zf, lean):
+    """A smaller block: a (possibly tilted) top, a chamfered rim, steep sides down to a foot that
+    reaches `lean` px further down the screen."""
+    zs = tilt(top, zb, zf)
+    ch = min(CHAMFER, 0.35 * zf)
+    pts = [(c, r, z * lib.U) for (c, r), z in zip(top, zs)]
+    pts += [(c, r, (z - ch) * lib.U) for (c, r), z in zip(offset(top, ch), zs)]
+    foot = offset(top, ch + FLARE) + [(c, r + lean) for c, r in offset(top, ch + FLARE * 0.5)]
+    return lib.rock(bm, grid, foot, pts)
+
+
+def near_ridge(c, r, tol):
+    """Whether (col, row) lies within tol px of the lit ridge segment."""
+    (c1, r1), (c2, r2) = LIT_RIDGE
+    dc, dr = c2 - c1, r2 - r1
+    t = max(0.0, min(1.0, ((c - c1) * dc + (r - r1) * dr) / (dc * dc + dr * dr)))
+    return ((c - c1 - t * dc) ** 2 + (r - r1 - t * dr) ** 2) ** 0.5 <= tol
 
 
 def boulders(bm, grid):
-    """Each boulder: footprint on the ground [(col, row)], raised top [(col, row, z)], optional peak.
-    Columns and rows are assembly pixels (fractions are pixel edges and centres)."""
-    faces = []
-    add = lambda *a, **k: faces.extend(lib.rock(bm, grid, *a, **k))  # noqa: E731
-    block = lambda *a, **k: faces.extend(lib.block_rock(bm, grid, *a, **k))  # noqa: E731
-
-    # Low rubble under the heap, filling the gaps between the boulders (the dark rock and crevices
-    # between them in the sprite): one mound on the left, one under and in front of the big block.
-    block([(0.5, 23), (5, 16), (14, 11.5), (26, 11.5), (31, 14), (31, 32), (20, 33), (8, 31), (1, 29.5)],
-          0.2, inset=5.0)
-    block([(28, 16), (64, 16), (64.5, 22), (60, 30), (50, 35), (40, 41.5), (33, 42), (28, 33)],
-          0.24, inset=6.0)
-
-    # The big block at the back: a flat top (cols 30-59, rows 1-13) edged by the bright ridge that
-    # runs from column 29, row 5 down to column 41, row 14; a dark face sloping off to the left, a
-    # darker face on the right (cols 58-65) and a mid-grey face in front (rows 12-20). It is the
-    # tallest part of the heap (its shadow runs 10-15 px down the screen), a columnar block split
-    # down the middle (col 45) by a fissure, as the concept draws it: two hulls whose tops stop
-    # short of the split, leaving a V-shaped groove, the right half a little lower.
-    S = 45.5  # the fissure
-    add([(27.5, 4.5), (32, 2.5), (38, 1), (44, 0), (S + 0.8, 0), (S + 0.8, 20.2), (43, 20),
-         (36, 18.5), (30, 16), (27.5, 12)],
-        [(30, 5.2, 1.0), (34, 2.6, 1.1), (43, 1.4, 1.15), (S - 1.0, 1.5, 1.14), (S - 1.0, 13.4, 1.04),
-         (40, 13.6, 1.0), (31, 9.5, 0.92), (29.2, 12.5, 0.55), (36.5, 17.2, 0.55)])
-    add([(S - 0.8, 0), (50, 0.8), (56, 3), (62, 5.5), (65.5, 9), (65.5, 16), (62, 20), (52, 20.5),
-         (S - 0.8, 20.2)],
-        [(S + 1.0, 1.8, 1.06), (49, 1.8, 1.08), (56, 4, 1.0), (59, 6.8, 0.92), (59.5, 11, 0.84),
-         (52, 12.5, 0.92), (S + 1.0, 13.4, 0.98), (64, 9.5, 0.5), (60.5, 17.5, 0.5),
-         (52, 18.6, 0.6)])
-
-    # Boulder in front of the block's right half (cols 42-61, rows 15-31), its edge lit at col 44.
-    block([(42, 18), (47, 15), (58, 15.5), (61, 19), (58, 23.5), (53, 28.5), (47.5, 31), (44, 29),
-           (42, 24)], 0.7, inset=2.5, dr=-1.0)
-    # Small splinters to its right (cols 50-61, rows 18-34).
-    block([(51, 27), (55.5, 19), (60.5, 18.5), (60.5, 21.5), (57, 29), (53, 34), (50, 33)],
-          0.3, inset=1.5)
-    # Upper-left boulder (cols 9-25, rows 11-19).
-    block([(9, 16.5), (12.5, 12.5), (16, 11), (23, 11), (25.5, 13.5), (25, 18.5), (17, 19.5),
-           (11, 19.5)], 0.6, inset=2.0, dr=-0.5)
-    # Bright boulder below it (cols 15-27, rows 17-31), the brightest of the small ones.
-    block([(15, 19.5), (19, 17), (25, 17), (27.5, 21), (27, 28.5), (23, 31.5), (17.5, 30.5),
-           (15, 25.5)], 0.74, inset=2.0, dr=-1.0)
-    # Grey boulder between it and the big block (cols 23-32, rows 12-31).
-    block([(24, 12.5), (29, 12.5), (32.5, 16), (32.5, 29), (29.5, 32), (25.5, 30.5), (23.5, 18)],
-          0.68, inset=2.0, dr=-1.0)
-    # Left boulder (cols 0-14, rows 16-30), its left edge catching the light (col 3, row 21).
-    block([(0.5, 21), (3, 17.5), (6, 16), (11, 16), (14.5, 19), (14.5, 26), (12, 29.5), (6, 30.5),
-           (2, 29.5), (0.2, 25)], 0.62, inset=2.5, dr=-1.0)
-
-    # Shards below the block: a low slab (cols 29-38, rows 19-30) and two tall splinters pointing
-    # down the screen (cols 29-37, rows 29-42, and cols 37-45, rows 20-38), and a chip at the foot.
-    block([(29, 20.5), (37.5, 19), (38.5, 28), (36, 30.5), (29.5, 30)], 0.42, inset=1.5)
-    block([(28.5, 29.5), (36.5, 28.5), (38.5, 33), (37, 39.5), (34.5, 42), (31, 37.5), (28.5, 33)],
-          0.52, inset=1.5, dr=-1.0)
-    block([(37.5, 21.5), (44, 20), (45.5, 24), (43, 31), (40, 38), (37.5, 34)], 0.5, inset=1.5,
-          dr=-1.0)
-    block([(45, 33), (48, 29.5), (51.5, 30), (51, 34), (47, 36.5)], 0.18, inset=1.0)
-    return faces
+    # Low rubble under the heap, filling the gaps between the blocks (the dark crevices).
+    lib.block_rock(bm, grid, [(0.5, 23), (5, 16), (14, 11.5), (26, 11.5), (31, 14), (31, 32), (20, 33),
+                              (8, 31), (1, 29.5)], 0.2, inset=5.0)
+    lib.block_rock(bm, grid, [(28, 16), (64, 16), (64.5, 22), (60, 30), (50, 35), (40, 41.5), (33, 42),
+                              (28, 33)], 0.24, inset=6.0)
+    for top, z, foot in SLABS.values():
+        slab(bm, grid, top, z, foot)
+    for top, zb, zf, lean in COLUMNS.values():
+        column(bm, grid, top, zb, zf, lean)
 
 
 def build(colors, grid):
     coll = common.reset_collection(NAME)
     mats = lib.Mats("nshe39", colors)
+    rock = lambda i: mats(i, metallic=0.15, roughness=0.75)  # noqa: E731
+    (rc1, rr1), (rc2, rr2) = LIT_RIDGE
+    ridge_dir = ((rr2 - rr1), (rc2 - rc1))  # outward normal of the ridge in Blender X/Y: (-, -)
+    import math
+    k = math.hypot(*ridge_dir)
+    ridge_n = (-ridge_dir[0] / k, -ridge_dir[1] / k)
 
     def rock_slot(idx, face):
-        if face.normal.z < -0.3:
+        n = face.normal
+        if n.z < -0.3:
             return mats(3)
+        cen = face.calc_center_median()
+        c, r = cen.x / lib.U + grid.w / 2 - 0.5, grid.h / 2 - cen.y / lib.U - 0.5
+        # The lit ridge: the chamfer along the left slab's lower-left edge, one crisp light line.
+        if 0.45 < n.z < 0.95 and cen.z > 11 * lib.U and near_ridge(c, r, 1.6):
+            h = math.hypot(n.x, n.y) or 1
+            if (n.x * ridge_n[0] + n.y * ridge_n[1]) / h > 0.8:
+                return rock(LIT)
         if idx in ROCK:
-            return mats(idx, metallic=0.15, roughness=0.75)
+            return rock(idx)
         if idx in CREVICE:
             return mats(idx, metallic=0.1, roughness=0.9)
-        return mats(4, metallic=0.15, roughness=0.75)  # side faces over the ground and shadow
+        return rock(4)  # side faces over the ground and shadow
 
     bm = bmesh.new()
     boulders(bm, grid)
     lib.slice_grid(bm, grid, step=STEP)
     bm.normal_update()
-    faces = bm.faces[:]
-    lib.paint(faces, grid, rock_slot)
-    bm.faces.ensure_lookup_table()
+    lib.paint(bm.faces[:], grid, rock_slot)
     for f in bm.faces:
         f.smooth = False
     mesh = bpy.data.meshes.new(NAME)

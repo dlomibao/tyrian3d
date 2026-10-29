@@ -1,0 +1,26 @@
+{
+ "name": "newsh2-271",
+ "sprite_size": [
+  24,
+  28
+ ],
+ "texels_per_px": 16,
+ "size": [
+  384,
+  448
+ ],
+ "sprite_box": [
+  0,
+  2,
+  24,
+  25
+ ],
+ "concept_fit": {
+  "concept_px_per_sprite_px": 36.575,
+  "x_at_col0": 19.0,
+  "y_at_row13.5": 493.25,
+  "note": "manual isotropic fit (rails and nose); auto box failed, concept cropped at right"
+ },
+ "neutral": 0.85,
+ "fit_iou": 0.905
+}

@@ -1,0 +1,28 @@
+{
+ "name": "shapesz-l1bld-ring-dome",
+ "concept": "l1-bld-ring-dome",
+ "tile": true,
+ "sprite_size": [
+  240,
+  196
+ ],
+ "texels_per_px": 8,
+ "size": [
+  1920,
+  1568
+ ],
+ "sprite_box": [
+  3,
+  5,
+  235,
+  192
+ ],
+ "concept_box": [
+  45,
+  83,
+  967,
+  803
+ ],
+ "neutral": 0.85,
+ "fit_iou": 0.799
+}
