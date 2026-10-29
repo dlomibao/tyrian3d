@@ -1,0 +1,172 @@
+{
+ "name": "ship-supercarrot",
+ "summary": "Player ship shaped like a flying carrot: a round orange tapering root, point forward, with one big eye and a three-leaf green tuft behind; organic and round.",
+ "features": [
+  {
+   "id": "eye",
+   "kind": "dome",
+   "box": [
+    9,
+    9,
+    14,
+    14
+   ],
+   "traits": [
+    "round",
+    "dark socket recessed into the root",
+    "brown eyeball bulging out of it",
+    "about half as tall as wide above the root"
+   ],
+   "note": "The single brown eye in the middle of the root (rows 9-13, columns 9-13); a sunken socket with a round eyeball in it."
+  },
+  {
+   "id": "pupil",
+   "kind": "light",
+   "box": [
+    10,
+    10,
+    13,
+    13
+   ],
+   "traits": [
+    "pale yellow glow",
+    "small round spot on top of the eyeball",
+    "emissive or glossy"
+   ],
+   "note": "The glowing pupil at column 11, row 11; must stay bright."
+  },
+  {
+   "id": "root",
+   "kind": "hull",
+   "box": [
+    5,
+    0,
+    18,
+    19
+   ],
+   "traits": [
+    "round in section",
+    "tapers from the flat top (row 18) to a point at row 0",
+    "about as tall as it is wide",
+    "matte orange"
+   ],
+   "note": "The carrot root: a round tapered cone, not a flat slab."
+  },
+  {
+   "id": "ridge-band",
+   "kind": "panel",
+   "box": [
+    7,
+    13,
+    15,
+    16
+   ],
+   "traits": [
+    "light yellow band across the root at row 14",
+    "a raised ring round the root",
+    "follows the round section"
+   ],
+   "note": "The bright ridge ring below the eye; a raised band, not just paint."
+  },
+  {
+   "id": "upper-ridges",
+   "kind": "panel",
+   "box": [
+    8,
+    4,
+    15,
+    10
+   ],
+   "traits": [
+    "light yellow rings at rows 6 and 8",
+    "shallow raised rings",
+    "on the tapered tip"
+   ],
+   "note": "The light bands round the upper root; carrot ridges."
+  },
+  {
+   "id": "tip",
+   "kind": "hull",
+   "box": [
+    9,
+    0,
+    14,
+    5
+   ],
+   "traits": [
+    "pointed",
+    "round in section",
+    "darker red-orange"
+   ],
+   "note": "The pointed tip of the carrot at the front."
+  },
+  {
+   "id": "leaf-middle",
+   "kind": "other",
+   "box": [
+    9,
+    18,
+    14,
+    28
+   ],
+   "traits": [
+    "green leaf",
+    "straight back to row 27",
+    "thin, tapered, with a light midrib"
+   ],
+   "note": "The middle leaf of the tuft, straight back."
+  },
+  {
+   "id": "leaf-left",
+   "kind": "other",
+   "box": [
+    5,
+    19,
+    10,
+    27
+   ],
+   "traits": [
+    "green leaf",
+    "fans out to column 6 at row 25",
+    "thin, tapered"
+   ],
+   "note": "The left leaf of the tuft."
+  },
+  {
+   "id": "leaf-right",
+   "kind": "other",
+   "box": [
+    12,
+    19,
+    17,
+    25
+   ],
+   "traits": [
+    "green leaf",
+    "fans out to column 15 at row 23",
+    "thin, tapered"
+   ],
+   "note": "The right leaf of the tuft."
+  },
+  {
+   "id": "root-top",
+   "kind": "other",
+   "box": [
+    6,
+    17,
+    16,
+    20
+   ],
+   "traits": [
+    "dark red flat top of the root at row 18",
+    "stem rises from it"
+   ],
+   "note": "The flat back end of the root where the stem starts."
+  }
+ ],
+ "concept": {
+  "image": "assets/blender/features/concepts/ship-supercarrot.jpg",
+  "source": "Gemini (Nano Banana) high-res reimagining of the level-frame sprite, 2026-10-28, with the user's prompt (same overhead outline, don't take pixels literally)",
+  "use": "Design guide for what each part is and its shape language; the sprite decides the top-view outline, proportions and colours."
+ }
+}

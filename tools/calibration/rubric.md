@@ -15,6 +15,25 @@ The common failure is **flatness**: parts modelled as low slabs or squashed caps
 sprite's shading and size say they're tall, round, tapered or stacked. Judge each part's height
 against what the sprite implies:
 
+- **Keep every feature.** Each model has a feature list (`assets/blender/features/<name>.json`):
+  the named parts of the sprite (windshield, canopy, pipes, tanks, fins, guns, intakes, lights, panel
+  lines) with where they are and what they must look like. Every listed feature must still be there
+  and read as what it is; a lost or weakened feature is a regression no matter what else improved.
+  Compare with the original hand-made model too (the baseline), not only the last round.
+- **Hard surfaces stay hard, round parts stay round.** Ships, machines, guns and buildings are
+  mostly hard surfaces: flat panels, crisp chamfered edges and sharp creases, given height by
+  extruding and bevelling panels, not by inflating or subdividing them. But they can also have round
+  parts: canopies and cockpit bubbles, engine nacelles and nozzles, fuselages or pods the sprite
+  shades round, domes, tanks, round pipes. Follow the sprite part by part: where it draws a flat
+  panel or a hard edge, keep it flat and crisp; where it draws a curve (a highlight band with soft
+  falloff, a round outline), make it round. What is wrong is everything turning soft: a ship whose
+  flat panels and edges have gone bubbly or blobby is worse even if it is taller.
+- **Pipes are pipes.** A pipe is a cylinder of constant diameter that follows its path: straight
+  runs, bends, clamps and flanges. Never a chain of bulges, capsules or spheres (that reads as
+  tanks). A tank is only where the sprite shows a closed vessel with end caps.
+- **Glass stays glass.** Windshields, canopies, windows and visors are distinct glass parts with
+  crisp edges (glossy material, slightly raised or set in a frame), even where the sprite draws them
+  as a bright highlight. Don't merge them into the hull or paint them out.
 - **Round parts** (pipes, barrels, tanks, pods, domes): a highlight band or spot with darker edges,
   on a part whose outline is round too. A round part's height above what it sits on should be about
   its width (a pipe 10 px wide stands about 10 px tall; a dome about half its diameter or more).
@@ -47,6 +66,38 @@ against what the sprite implies:
   edge. Its length in pixels suggests the building's height.
 
 Units: one sprite pixel is 1/12 world unit; the elevations carry a ruler in sprite px.
+
+## Reading a sprite
+
+What the pixel patterns mean, learned by comparing sprites with high-resolution reimaginings of them
+(`assets/blender/features/concepts/`). A good reading names every part as a real kind of object (a
+pipe, a clamp, a coil, a mast, a windshield, an armour plate) and builds it the way that object is
+built.
+
+- **First name the part, then model it.** An artist redrawing the sprite at high resolution turns
+  each ambiguous cluster of pixels into a known object; do the same. The feature list records it.
+- **A thin bright line along a part is an edge catching the light**, a bevel or ridge, so the
+  surface has a crisp edge there. It is not a separate strip of material.
+- **A bright streak down the middle of a long part with darker sides is a cylinder** (a pipe or
+  barrel): keep its diameter constant along its length; a bend keeps the same diameter.
+- **Alternating light and dark bands across a narrow part are rings**: ribs, coils, stacked
+  discs or strap bands around a pipe.
+- **A grid of small squares is bolted plating or a clamp box**: raised boxes with seams between
+  them, wrapped around whatever they sit on.
+- **A saturated colour (blue, red, yellow) with a near-white core is a light**: glowing glass set
+  in a housing (an arch, a frame, a socket), emissive, not a coloured lump.
+- **A dark slot or band with a single bright pixel near it is glass**: a windshield, canopy or
+  window, recessed in a frame, with the bright pixel as its glint.
+- **Dark areas inside the silhouette are depth**: a gap between parts, a seam, or a recessed bay
+  that holds smaller parts (pipes, machinery). They are not flat black floor.
+- **Dark lines between lighter areas are seams between panels or parts.** Use them to split the
+  model into separate plates and pieces.
+- **Speckled or dithered pixels on a flat area are surface wear or texture**, not bumps.
+- **When one half of a symmetric object is darker, that is shadow.** The light comes from the upper
+  left, so the right or lower side is drawn darker. Build both halves the same shape and colour and
+  let the light do it.
+- **A small isolated near-white pixel on metal or glass is a glint** (see the sheen rule above).
+- **Thin vertical stacks of small blocks with knobs at the sides are masts or antennas.**
 
 ## The sheet
 
@@ -94,7 +145,9 @@ Each issue points at one spot: a panel (1-12), a position inside it (0-1 across,
 the region id when one applies. Types:
 
 `too_flat`, `too_tall`, `should_be_round`, `should_be_flat`, `should_taper`, `missing_recess`,
-`missing_raised`, `wrong_colour`, `outline_wrong`, `seam`, `lumpy`, `wrong_position`, `other`.
+`missing_raised`, `wrong_colour`, `outline_wrong`, `seam`, `lumpy`, `wrong_position`,
+`feature_lost` (a listed feature is gone or no longer reads as what it is), `should_be_angular` (a
+hard surface gone soft or bubbly), `bulging` (a pipe or rail with varying thickness), `other`.
 
 Severity: `high` = the part reads wrong in game; `medium` = visible in the 3/4 views or
 elevations; `low` = polish.

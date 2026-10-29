@@ -2,9 +2,12 @@
 of its sprite.
 
 A flying carrot, point up the screen: a root as round in section as it is wide, one matte orange
-lit by the game (the sprite's outline, red flanks and yellow highlight are its drawn light), one
-glossy brown eye sunk in a dark socket, and a tuft of three flat matte green leaves trailing
-behind. Centred on sprite column 11.5.
+lit by the game (the sprite's outline, red flanks and yellow highlight are its drawn light), with
+raised light ridge rings round it (rows 6, 8 and 14), a darker red-orange tip and a dark red collar
+at its flat back; one glossy brown eye sunk in a dark socket with a glowing pale pupil; and a tuft
+of three thin creased green leaves trailing behind, the middle one with a light midrib. The
+concept art reads the ridges as armour-plate seams and the eye as a lens in a ring housing.
+Centred on sprite column 11.5.
 
 Run: blender --background --python assets/blender/ships/ship-supercarrot.py [-- --preview out.png]
 """
@@ -26,6 +29,11 @@ ROOT = common.repo_root(__file__)
 AXIS = 11.5  # the middle of sprite column 11
 EYE = (11.5, 11.0)  # the eye's centre (pixel edges): columns 9-13, rows 9-12, socket below
 BODY_SHADE = 121  # the root's mid-tone orange (the sprite's commonest body colour)
+TIP_SHADE = 120  # the tip, darker red-orange (rows 0-3)
+RIDGE_SHADE = 124  # the light ridge rings
+BACK_SHADE = 118  # the dark red flat back of the root (row 18)
+PUPIL_SHADE = 126  # the pale yellow pupil
+MIDRIB_SHADE = 201  # the middle leaf's light midrib
 IRIS_SHADE = 183  # the eye's mid-tone brown
 SOCKET_SHADE = 176  # the eye socket's dark rim
 LEAF_SHADE = 198  # the leaves' mid-tone green
@@ -47,7 +55,7 @@ def _densify(points, step=0.8):
 def build(sprite):
     coll = common.reset_collection(NAME)
 
-    BODY, IRIS, LEAF, STEM, SOCKET = range(5)  # part tags, repainted with palette indices below
+    BODY, IRIS, LEAF, STEM, SOCKET, RIDGE, PUPIL, MIDRIB, BACK = range(9)  # part tags, repainted below
     bm = bmesh.new()
 
     # The root, tip (row 0) to its back (row 19): (row, half width px) at the pixel rows' edges, so
@@ -57,9 +65,25 @@ def build(sprite):
             (7.0, 3.9), (8.0, 4.3), (9.0, 4.6), (10.0, 4.95), (11.0, 5.3), (12.0, 5.6), (13.0, 5.95),
             (14.0, 6.3), (15.0, 6.4), (16.0, 6.3), (17.0, 5.9), (18.0, 5.0), (19.0, 3.6), (19.2, 2.0),
             (19.3, 0.0)]
+
+    def half_width(row):
+        """The root's half width (px) at a row (pixel edges)."""
+        return next(w0 + (w1 - w0) * (row - r0) / (r1 - r0)
+                    for (r0, w0), (r1, w1) in zip(body, body[1:]) if r0 <= row <= r1)
+
     before = set(bm.verts)
     loft(bm, [(r, AXIS, w, w, 0.0) for r, w in body], sides=36, mat=BODY)
-    # The eye socket: a bowl about 6 px across and 1.4 px deep pressed into the top of the root.
+    # Raised rings round the root, following its round section (about 0.3 px proud, as wide as a
+    # sprite row): the light ridges at rows 6 and 8 on the tapered tip, the bright band at row 14
+    # below the eye, and the dark red collar where the root's flat back starts (row 18).
+    for r, half, rise, mat in ((6.5, 0.35, 0.3, RIDGE), (8.1, 0.35, 0.3, RIDGE), (14.5, 0.38, 0.35, RIDGE),
+                               (17.95, 0.3, 0.3, BACK)):
+        rows = (r - half, r - half * 0.45, r + half * 0.45, r + half)
+        lifts = (0.02, rise, rise, 0.02)
+        loft(bm, [(rr, AXIS, half_width(rr) + k, half_width(rr) + k, 0.0) for rr, k in zip(rows, lifts)],
+             sides=36, mat=mat, cap_start=False, cap_end=False)
+    # The eye socket: a bowl about 6 px across and 1.4 px deep pressed into the top of the root
+    # (and into the rings where they pass it).
     R, D = 3.3, 1.4
     for v in set(bm.verts) - before:
         if v.co.z <= 0:
@@ -71,12 +95,13 @@ def build(sprite):
     # The iris (brown, 5 px) rising out of the socket to just above the surface; its glossy
     # material catches the light where the sprite draws a pale pixel.
     dome(bm, EYE[0], EYE[1], 2.3, 2.15, 1.75, z=4.25, rings=4, sides=16, mat=IRIS)
+    # The pupil (column 11, row 11): a small glowing pale lens set into the top of the eyeball.
+    dome(bm, EYE[0], EYE[1] + 0.35, 0.85, 0.8, 0.45, z=5.55, rings=2, sides=10, mat=PUPIL)
 
     # The socket's dark rim: a thin ring round the iris lying in the bowl (about 1 px wide).
     def surface(col, row):
         """Height (px) of the root's top at (col, row), with the socket's bowl pressed in."""
-        hw = next(w0 + (w1 - w0) * (row - r0) / (r1 - r0)
-                  for (r0, w0), (r1, w1) in zip(body, body[1:]) if r0 <= row <= r1)
+        hw = half_width(row)
         z = math.sqrt(max(hw * hw - (col - AXIS) ** 2, 0))
         d = math.hypot(col - EYE[0], row - EYE[1])
         return z - (D * (1 - (d / R) ** 2) if d < R else 0)
@@ -111,9 +136,16 @@ def build(sprite):
         [(12.0, 21.5, 1.0, 0.45, -0.2), (13.3, 22.2, 1.8, 0.45, -0.3), (14.2, 23.5, 1.7, 0.4, -0.4),
          (14.9, 24.5, 1.3, 0.4, -0.4), (15.8, 24.9, 0, 0, -0.4)],
     ]
-    for leaf in leaves:
-        # A thin blade with a midrib and bevelled edges, flat shaded.
-        tube(bm, _densify([(c, r, w * 1.15, h, z) for c, r, w, h, z in leaf]), sides=10, mat=LEAF)
+    # Each leaf a thin blade creased along its middle (a six-sided section: a crest on top, sharp
+    # edges at the sides), flat shaded. The middle leaf lies on top of the side ones so the three
+    # read as separate blades, and carries a light midrib.
+    lift = (0.0, 0.35, 0.0)
+    for leaf, dz in zip(leaves, lift):
+        tube(bm, _densify([(c, r, w * 1.05, h, z + dz) for c, r, w, h, z in leaf]), sides=6, mat=LEAF)
+    mid = leaves[1]
+    tube(bm, _densify([(c, r, 0.35 if w else 0, 0.3 if w else 0, z + 0.35 + h * 0.85)
+                       for c, r, w, h, z in mid[1:-1]] + [(11.2, 27.2, 0, 0, 0.0)]),
+         sides=6, mat=MIDRIB)
 
     # Paint each part its mid-tone and let the game's lights shade it (rubric: the sprite's lighting
     # is not paint): the sprite's black outline ring, its red lower-right flanks and its yellow
@@ -134,12 +166,24 @@ def build(sprite):
         c = f.calc_center_median()
         col, row = c.x * 12 + 12, 14 - c.y * 12
         part = f.material_index
-        f.smooth = part != LEAF  # the leaves stay flat shaded
+        f.smooth = part not in (LEAF, MIDRIB)  # the leaves stay flat shaded
         if part == BODY:
             if c.z > 0 and math.hypot(col - EYE[0], row - EYE[1]) < 2.1:
                 f.material_index = slot(SOCKET_SHADE, metallic=0.0, roughness=0.8)  # under the iris
+            elif row < 3.3:  # the darker red-orange tip
+                f.material_index = slot(TIP_SHADE, metallic=0.0, roughness=0.55)
+            elif row > 18.1:  # the dark red flat back the stem rises from
+                f.material_index = slot(BACK_SHADE, metallic=0.0, roughness=0.65)
             else:
                 f.material_index = slot(BODY_SHADE, metallic=0.0, roughness=0.55)
+        elif part == RIDGE:
+            f.material_index = slot(RIDGE_SHADE, metallic=0.0, roughness=0.45)
+        elif part == BACK:
+            f.material_index = slot(BACK_SHADE, metallic=0.0, roughness=0.65)
+        elif part == PUPIL:
+            f.material_index = slot(PUPIL_SHADE, metallic=0.0, roughness=0.2, emission_strength=3.0)
+        elif part == MIDRIB:
+            f.material_index = slot(MIDRIB_SHADE, metallic=0.0, roughness=0.7)
         elif part == IRIS:
             f.material_index = slot(IRIS_SHADE, metallic=0.0, roughness=0.2)
         elif part == SOCKET:

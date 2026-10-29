@@ -36,6 +36,7 @@ from pathlib import Path
 
 import bmesh
 import bpy
+from mathutils import Vector
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -66,10 +67,17 @@ HATCH_271 = 31.0  # on frame 271 the hatch's edge shows at the port's right side
 BASE_TOP = 0.10  # floor of the platform (and of the dark pool inside the loop)
 COLLAR_TOP = 0.45  # the deck: about 5.4 px thick
 DZ = COLLAR_TOP - 0.18  # how far the port, hatch and flashes rose with the deck
-# The big pipes are round: centre column, half width (px), axis height and vertical radius (units).
-PIPE_COL, PIPE_W, PIPE_Z, PIPE_RZ = 43.0, 11.0, 0.78, 0.72
-# The loop of pipe: a near-round tube about 11 px wide and tall.
-LOOP_W, LOOP_Z, LOOP_RZ = 5.5, 0.5, 0.45
+# The big pipes are round cylinders of constant diameter (22 px wide, 20 px tall): centre column,
+# half width (px), axis height and radius (units).
+PIPE_COL, PIPE_W, PIPE_Z, PIPE_RZ = 43.0, 11.0, 0.84, 0.82
+# The loop of pipe: a round tube about 9 px across, standing on the platform.
+LOOP_W, LOOP_Z, LOOP_RZ = 4.5, 0.48, 4.5 / 12
+# Each pipe bends into the loop as one tube: below row TAPER0 it eases (keeping its outer wall
+# straight down the sprite) into the loop's diameter, reached at row TAPER1.
+TAPER0, TAPER1 = 42.0, 56.0
+# The heart-shaped loop's centre line, left half from the top dip round to the bottom centre.
+LOOP_LEFT = [(59.5, 50.2), (55.0, 48.5), (49.0, 47.6), (43.5, 48.2), (39.5, 51.0), (37.9, 56.0), (38.6, 62.0),
+             (41.5, 67.2), (46.5, 70.4), (53.0, 72.0), (59.5, 72.5)]
 
 
 def materials(sprite):
@@ -165,6 +173,66 @@ def strip(bm, outer, inner, z_outer, z_inner, z0, mat):
         f.smooth = False
 
 
+def tube(bm, pts, radius, mat, sides=16, closed=False, smooth=True, squash=1.0):
+    """A pipe of round section (radius in units, or one per point for a reducer) along a 3D path of
+    (col, row, z) points, its rings carried along by parallel transport so bends keep the full
+    diameter; squash scales the section's height. Open ends are flat caps (smooth=False on them)."""
+    radii = list(radius) if isinstance(radius, (list, tuple)) else [radius] * len(pts)
+    squashes = list(squash) if isinstance(squash, (list, tuple)) else [squash] * len(pts)
+    P = [Vector((F.x(c), F.y(r), z)) for c, r, z in pts]
+    m = len(P)
+    tans = []
+    for i in range(m):
+        if closed:
+            t = P[(i + 1) % m] - P[(i - 1) % m]
+        else:
+            t = P[min(i + 1, m - 1)] - P[max(i - 1, 0)]
+        tans.append(t.normalized())
+    ref = Vector((0, 0, 1)) if abs(tans[0].z) < 0.9 else Vector((1, 0, 0))
+    u = (ref - tans[0] * ref.dot(tans[0])).normalized()
+    n = len(bm.faces)
+    rings = []
+    for i in range(m):
+        if i:
+            u = u - tans[i] * u.dot(tans[i])
+            u.normalize()
+        v = tans[i].cross(u)
+        ring = []
+        for k in range(sides):
+            a = 2 * math.pi * (k + 0.5) / sides
+            off = (u * math.cos(a) + v * math.sin(a)) * radii[i]
+            off.z *= squashes[i]
+            ring.append(bm.verts.new(P[i] + off))
+        rings.append(ring)
+    pairs = list(zip(rings, rings[1:])) + ([(rings[-1], rings[0])] if closed else [])
+    for r0, r1 in pairs:
+        for k in range(sides):
+            j = (k + 1) % sides
+            bm.faces.new((r0[k], r0[j], r1[j], r1[k]))
+    caps = []
+    if not closed:
+        caps = [bm.faces.new(list(reversed(rings[0]))), bm.faces.new(rings[-1])]
+    for f in L.faces_since(bm, n):
+        f.material_index = mat
+        f.smooth = smooth and f not in caps
+
+
+def spline(pts, per=6, closed=True):
+    """Catmull-Rom points through (col, row, z) control points, `per` per span."""
+    m = len(pts)
+    out = []
+    spans = m if closed else m - 1
+    for i in range(spans):
+        p0, p1, p2, p3 = (pts[(i + k) % m] if closed else pts[max(0, min(m - 1, i + k))] for k in (-1, 0, 1, 2))
+        for s in range(per):
+            t = s / per
+            out.append(tuple(0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t * t
+                                    + (-a + 3 * b - 3 * c + d) * t ** 3) for a, b, c, d in zip(p0, p1, p2, p3)))
+    if not closed:
+        out.append(pts[-1])
+    return out
+
+
 def pipe_top(c, grow=0.0, rx=PIPE_W):
     """Height of the big pipe's upper surface over edge column c (grow lifts it)."""
     t = (c - PIPE_COL) / rx
@@ -239,28 +307,23 @@ def build_side(bm):
     L.box(bm, F, c1, r0, c1 + 1, r1, 0.1, 0.28 + DZ, mat=wall)
     L.box(bm, F, c0, r0, c1, r1, 0.1, 0.19 + DZ, mat=PORT)
 
-    # Big round pipe down the screen (columns 33-52), narrowing into the top of the loop.
-    L.loft_y(bm, F, PIPE_COL, [(-1.0, PIPE_W, PIPE_RZ, PIPE_Z), (40.5, PIPE_W, PIPE_RZ, PIPE_Z),
-                               (43.0, 9.8, 0.67, 0.73), (45.5, 7.8, 0.56, 0.62), (47.5, LOOP_W, LOOP_RZ, LOOP_Z)],
-             sides=20, mat=PIPE)
-    # Grey grille clamp wrapped over its top (columns 35-47, rows 0-16), a 3x3 grid of tiles on it.
-    cols = [35.0 + k for k in range(14)]
-    clamp_top = lambda c: pipe_top(c, 0.07, PIPE_W + 0.4)  # noqa: E731
-    shell(bm, cols, -1.0, 17.0, clamp_top, lambda c: pipe_top(c, -0.15), CLAMP)
+    # (The big pipes and the loop they bend into are one tube, built in build_centre.)
+    # Grey grille clamp: an angular block saddled over the pipe's top (columns 35-48, rows 0-16),
+    # flat-topped, a 3x3 grid of raised tiles on it with dark grooves between.
+    ctop = PIPE_Z + PIPE_RZ + 0.08
+    L.box(bm, F, 35.0, -1.0, 48.0, 17.0, PIPE_Z + 0.25, ctop, mat=CLAMP)
     for r0, r1 in ((-1.0, 3.0), (4.0, 8.0), (10.0, 16.0)):
         for cc0, cc1 in ((35.0, 40.0), (41.0, 43.0), (44.0, 48.0)):
-            tc = [cc0 + 0.15 + (cc1 - cc0 - 0.3) * k / 4 for k in range(5)]
-            shell(bm, tc, r0 + 0.15, r1 - 0.15, lambda c: clamp_top(c) + 0.035, lambda c: clamp_top(c) - 0.03, TILE)
-    # Ribbed grey canister half sunk into the pipe's outer flank (columns 36-40, rows 29-41).
-    z = pipe_top(38.5) - 0.1
-    secs = [(28.6, 0.0, 0.0, z)]
-    for k in range(14):
-        r = 29.0 + k
-        secs.append((r, 2.0, 2.0 * L.PX, z))
-        secs.append((r + 0.5, 2.6, 2.6 * L.PX, z))
-    secs.append((43.0, 2.0, 2.0 * L.PX, z))
-    secs.append((43.3, 0.0, 0.0, z))
-    L.loft_y(bm, F, 38.5, secs, sides=8, mat=TILE)
+            L.box(bm, F, cc0 + 0.25, r0 + 0.25, cc1 - 0.25, r1 - 0.25, ctop - 0.02, ctop + 0.05, mat=TILE)
+    # Ribbed grey canister lying along the pipe's outer flank (columns 36-41, rows 29-44), a separate
+    # part standing mostly proud of the pipe: a dark rod through a stack of six raised grey discs
+    # (rows 29-40), ending in a plain grey sleeve (rows 40-44).
+    z = pipe_top(38.5) + 0.06
+    drum(bm, 38.5, 28.8, 44.2, 1.9, z, z, CLAMP, sides=10)
+    for k in range(6):
+        r = 29.0 + 1.9 * k
+        drum(bm, 38.5, r, r + 1.15, 2.7, z, z, TILE, sides=10)
+    drum(bm, 38.5, 40.6, 44.0, 2.5, z, z, TILE, sides=10)
     # Glowing lamp pod on the pipe's outer flank (columns 24-31, rows 19-41): deep blue, its upper
     # half bright blue round a near-white hot spot.
     L.ellipsoid(bm, F, 28.0, 30.0, 0.5, 4.4, 11.8, 0.34, mat=LAMP, segments=14, rings=8)
@@ -278,20 +341,50 @@ def build_towers(bm):
     # Tall gun stack (column 15, rows 1-45): mast, node, mast, drum with a side stub, shaft and
     # a wide base drum (columns 10-18), as stacked cylinders of the sprite's widths.
     za = lambda r: 0.38 + (46.0 - r) * 0.0088  # noqa: E731
-    tower(bm, [(15.5, 0.8, 8.0, 1.4), (15.5, 8.0, 11.0, 2.4), (15.5, 11.0, 14.0, 1.4), (15.5, 14.0, 26.0, 3.4),
+    tower(bm, [(15.5, 0.8, 8.0, 1.1), (15.5, 8.0, 10.5, 2.0), (15.5, 10.5, 14.0, 1.2), (15.5, 14.0, 26.0, 3.4),
                (15.5, 26.0, 36.0, 2.4), (14.5, 36.0, 46.0, 4.4)], za, stub=(10.0, 13.0, 20.0, 3.0))
     # Short gun stack (column 6, rows 17-50): mast, node, mast, drum with a side stub and a foot.
     zb = lambda r: 0.30 + (51.0 - r) * 0.0095  # noqa: E731
-    tower(bm, [(6.5, 16.8, 24.0, 1.4), (6.5, 24.0, 27.0, 2.4), (6.5, 27.0, 30.0, 1.4), (6.5, 30.0, 42.0, 3.4),
+    tower(bm, [(6.5, 16.8, 24.0, 1.1), (6.5, 24.0, 26.5, 2.0), (6.5, 26.5, 30.0, 1.2), (6.5, 30.0, 42.0, 3.4),
                (6.5, 42.0, 51.0, 2.4)], zb, stub=(1.0, 4.0, 36.0, 3.0))
 
 
 def build_centre(bm):
-    # The loop of pipe: heart-shaped, two lobes meeting in a dip at the top; a round tube.
-    left = [(59.5, 50.6), (55.0, 48.7), (49.0, 47.6), (43.5, 48.2), (39.5, 51.0), (37.6, 56.0), (38.3, 62.0),
-            (41.3, 67.6), (46.5, 71.2), (53.0, 72.8), (59.5, 73.3)]
-    loop = left + [(mirror_col(c), r) for c, r in reversed(left[1:-1])]
-    L.sweep(bm, F, [(c, r, LOOP_Z, LOOP_W, LOOP_RZ) for c, r in loop], sides=12, mat=LOOP, closed=True)
+    # The two big pipes and the heart-shaped loop: ONE round tube swept along one path, from the
+    # left pipe's top straight down the screen, bending outward and down round the left lobe, along
+    # the loop's bottom, and up round the right lobe into the right pipe. Through the bend the tube
+    # eases from the pipe's diameter into the loop's (its outer wall runs straight on), so the
+    # pipes flow into the loop with no flange, step or cap.
+    rw = PIPE_W / 12
+
+    def profile(row):
+        """(axis height, half width, height/width) of the tube where its centre line is at `row`."""
+        t = min(1.0, max(0.0, (row - TAPER0) / (TAPER1 - TAPER0)))
+        s = t * t * (3 - 2 * t)
+        return (PIPE_Z + (LOOP_Z - PIPE_Z) * s, rw + (LOOP_RZ - rw) * s,
+                PIPE_RZ / rw + (1.0 - PIPE_RZ / rw) * s)
+
+    down = [(PIPE_COL, -1.0), (PIPE_COL, 30.0), (PIPE_COL, 38.0), (42.7, 44.0), (40.6, 48.0), (38.6, 52.0),
+            (38.0, 56.5), (38.6, 62.0), (41.5, 67.2), (46.5, 70.4), (53.0, 72.0), (AXIS, 72.5)]
+    ctrl = down + [(mirror_col(c), r) for c, r in reversed(down[:-1])]
+    per = 3
+    path = spline([(c, r, 0.0) for c, r in ctrl], per=per, closed=False)
+    path = path[:1] + path[per:-per] + path[-1:]  # the straight runs need no rings between their ends
+    prof = [profile(r) for _, r, _ in path]
+    n = len(bm.faces)
+    sides = 16
+    tube(bm, [(c, r, z) for (c, r, _), (z, _, _) in zip(path, prof)], [p[1] for p in prof], PIPE, sides=sides,
+         squash=[p[2] for p in prof])
+    for k, f in enumerate(L.faces_since(bm, n)):  # the loop is drawn a shade brighter than the pipes
+        i = k // sides
+        if i + 1 < len(path) and min(path[i][1], path[i + 1][1]) >= 50.0:
+            f.material_index = LOOP
+    # The top of the heart: the loop runs on from inside each pipe's bend, inward under the pipes'
+    # ends to the dip at the top centre (both ends buried in the pipes).
+    top = [(41.0, 47.6), (45.0, 47.4), (49.5, 47.7), (55.0, 48.8), (AXIS, 50.2)]
+    top = top + [(mirror_col(c), r) for c, r in reversed(top[:-1])]
+    tube(bm, spline([(c, r, LOOP_Z) for c, r in top], per=3, closed=False), LOOP_RZ, LOOP, sides=12)
+    loop = LOOP_LEFT + [(mirror_col(c), r) for c, r in reversed(LOOP_LEFT[1:-1])]
     # Dark pool inside it, a well about 4 px below the deck.
     L.prism(bm, F, loop, 0.0, BASE_TOP + 0.02, mat=POOL)
     # Stepped grey block in the middle (columns 51-66, rows 53-83).
@@ -354,6 +447,19 @@ def hatch_object(mats, hatch_left, piece_offset, name, coll):
     return L.to_object(name, bm, mats, coll)
 
 
+def flat_cut_faces(piece):
+    """Shade the faces that close a piece where split_assembly cut it flat, so a round part cut
+    across (a pipe, the loop, a tower) keeps its smooth normals up to the cut instead of bending
+    them toward the cut face (which drew a dark ring, a false waist, at every piece edge)."""
+    hw, hh = 12 / 12, 14 / 12
+    for poly in piece.data.polygons:
+        c, nrm = poly.center, poly.normal
+        on_x = abs(abs(c.x) - hw) < 1e-4 and abs(abs(nrm.x) - 1) < 1e-3
+        on_y = abs(abs(c.y) - hh) < 1e-4 and abs(abs(nrm.y) - 1) < 1e-3
+        if on_x or on_y:
+            poly.use_smooth = False
+
+
 def merged_sprite():
     data = common.load_sprite(ROOT, "newshb-115")
     for name in PIECES:
@@ -384,6 +490,8 @@ def main():
               if e["model"] in PIECES]
     offsets = {name: (cx / 12, -cy / 12) for name, cx, cy in layout}
     pieces = common.split_assembly(obj, layout)
+    for piece in pieces.values():
+        flat_cut_faces(piece)
     coll = obj.users_collection[0]
     fmats = flash_materials(sprite, mats)
     exported = {}  # model name -> (objects, sprite image)
