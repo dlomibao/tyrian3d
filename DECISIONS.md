@@ -1805,3 +1805,47 @@ and a few local modelling faults. Fixed as follows.
 **Review:** the title screen (twin glows, one contour), `?debug=play` (translucent, no inner bands)
 and `?debug=play&solid=1` (opaque), `?debug=models&model=usp_talon`. D50's known limits (single
 glow, outline breaks) are resolved by this entry. The .glb is ~815 KB.
+
+## D52 — The Talon's sprite is authoritative for its outline, windshield and colours
+
+2026-10-29
+
+**Decision:** The user liked D50/D51's ship but it "doesn't match the overhead outline and cockpit
+windshield of the original", and its colours should match "to make it truly feel like an extension
+of the original". From now on the original sprite (frame 233) decides the Talon's top-down
+silhouette, the windshield's position, size and shape, and the major colours; the blueprint and the
+concept only guide the side and front design and the detail where they agree with it.
+`assets/blender/usp_talon.py`:
+- **Outline:** the plan half width is a smooth pchip curve (`PLAN`) fitted to the sprite's mask
+  including its dark outline ring (the hitbox read): a pointed nose widening steadily, no tiers, to
+  the pods' round bulge at rows 19-21, a rounded rear and a short narrow tail. The fuselage follows it
+  to row 12, the two engine pods' outboard sides from there (their noses buried in the fuselage's
+  flank so they blend into it, their inboard sides tucked in at the sprite's dark seam), the tail its
+  last rows; each core is inset by the plates that stand on it. Gone: the tiered nose, the square
+  shoulders, the boxy outboard armour caps, the vent blocks, the boat-tail plate and the chevron
+  block; the nozzles sit in the pods' rounded tails and the tail ends in a recessed vented face.
+  Top view vs the sprite: IoU 1.00 on the sprite's grid (each sprite pixel covered at least half),
+  0.957 at 20 px per sprite pixel. A smooth outline cannot do much better at that resolution (a
+  best-fit smooth curve reaches ~0.962; 0.97 needs the outline to follow the pixel staircase, the
+  tiers the user objected to).
+- **Windshield:** small, dark and glossy, framed, exactly over the sprite's cockpit pixels (rows
+  9.1-11.95, |x| <= 1.8, pointed forward), instead of D50's large canopy further back. The bright
+  centre pixels behind it (rows 12-14 and on along the rear body) are sheen on a raised dorsal
+  spine, not glass (tools/calibration/rubric.md).
+- **Colours:** each part takes the palette index the sprite uses where it covers it (the median of
+  those pixels, the darkest shading 16-18 and the highlights 29-31 left out as lighting): nose and
+  hatch 24, nose panels, deck, belts and the pods' front cowls 23, the spine 26 with 27 strips, pod
+  shells 24 and top panels 25, pod tails and flanks 22, shading 19, recesses and glass 16. Metalness
+  scaled to 0.3-0.42 (satin), so the menu's warm light no longer turns it saturated brass. The
+  game-lit top view vs the sprite: mean colour dE76 2.1 for the whole ship, 1.7-3.9 per region (the
+  windshield 14: the glass is darker than the sprite's mixed cockpit pixels).
+
+**Options considered:**
+- *Follow the pixel staircase to push the fine IoU past 0.97:* reintroduces steps in the outline.
+- *Keep D50's brighter brass (26, metallic 0.8):* reads as yellow-gold beside the original's khaki.
+- *Keep the large canopy:* it sat over the sprite's spine highlight, which is sheen, not glass.
+
+**Review:** the title screen, `?debug=play&solid=1&skip=200`, `?debug=models&model=usp_talon`. The
+measurement scripts (top orthographic renders on the sprite grid, IoU, per-row widths, windshield
+overlay, per-region colours) are not in the repo; the numbers above are from them. The .glb is
+~780 KB.
