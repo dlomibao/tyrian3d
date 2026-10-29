@@ -1373,3 +1373,78 @@ in the repo (D3).
 
 **Review:** On the deployed site, Options → Sound style → Remaster plays the remade sounds; the
 original sounds remain the default.
+
+## D42 — Shots and pickups can be drawn flat from remastered art; on where the art exists
+
+2026-10-29
+
+**Decision:** Weapon shots and pickups (power-up orbs, weapon capsules, coins, gems, datacubes) stay
+flat 2D sprites, drawn from high-resolution painted art instead of the original pixels, wherever
+`public/art/sprites/` has a painting for the sprite (the art pipeline, `tools/flat_art.py`, has its
+own entry). The game side (`src/render/spriteArt.ts`, `spriteArtLayer.ts`, hooks in
+`drawListRenderer.ts`):
+- **Contract.** `public/art/sprites/manifest.json`:
+  `{ "scale": 8, "sheets": { "<sheet>": { "image": "<file>", "frames": { "<index>": { "x", "y", "w", "h" } } } } }`.
+  `<sheet>` is the draw list's sheet id, `SpriteDraw.sheet.id` / `TableSpriteDraw.table.id`
+  (src/sim/resources.ts): `tyrian.shp#7`..`tyrian.shp#11` for tyrian.shp's Sprite2 sheets (#7 is
+  spriteSheet8, the shots; #10 spriteSheet11, coins, gems and power-ups; #11 spriteSheet12, more
+  shots), `tyrian.shp#0`..`#6` for its sprite tables, `newsh<c>.shp` for the enemy sheets.
+  `<index>` is the draw's sprite index as the C passes it: 1-based for Sprite2 sheets, 0-based for
+  sprite tables. A frame is the original sprite's box times `scale` (a Sprite2 sprite is 12 wide by
+  the rows it decodes to; a table sprite its table width and height), its top-left at the blit
+  position. A blit_sprite2x2 draw and a 2x2 enemy are the four tiles index, +1, +19, +20, each with
+  its own frame, so art for a 2x2 object should be painted whole and cut into tiles with no soft
+  edge along the cuts. `image` is relative to the manifest and URL-escaped when loaded, so a name
+  without `#` (e.g. `tyrian-shp-7.webp`) is simplest. Frames are sampled clamped to their own
+  rectangle, but mipmaps still reach a few texels out: leave ~8 px of transparent padding between
+  frames. Alpha may be straight (not premultiplied); colour comes from the art.
+- **Loading.** `main.ts` fetches the manifest at startup and each atlas in the background. No
+  manifest (or a bad one) → nothing changes; a sprite missing from the manifest, an atlas still
+  loading or failed, or a frame outside its image → that sprite draws exactly as before.
+- **Drawing.** A sprite with a painting is a flat quad in the playfield plane at its pass's height,
+  placed like every draw (D6: on the camera ray through its screen rectangle, shrunk to keep its
+  screen size), so position, size and layering are the original's; the draw list has no flips or
+  rotations to honour. For an enemy (a pickup) the object's first tile decides, and a painted object
+  is drawn flat instead of as its Blender model (D15); banked player ships keep their models
+  unless their sheet is painted. One instanced draw per atlas and pass, rebuilt each frame into
+  reused buffers like the halos (D35), unlit and not tone-mapped. Atlases are uploaded
+  premultiplied and blended with depth testing, no depth writes, drawn before the other transparent
+  draws (renderOrder -1), so explosions, puffs and halos, all in passes above what they overlap,
+  land on top.
+- **Palette effects** on the art's brightness (the shade 0-15 its luma gives): the enemy hit flash
+  (blit_sprite2_filter) and blit_sprite_hv recolour with the palette entry of their hue at that
+  shade; "blend" is the usual 55% opacity; JE_filterScreen's level hue recolours the same way and
+  its brightness scales the colour; the smoothies' hues (D31) apply by pass height as on palette
+  materials. Palette fades and swaps don't reach the art (its colours aren't palette indices).
+  Skipped: water_filter's ripple mark (the art is transparent, which the mark doesn't support), and
+  shadows (flat art casts none; the extruded shots didn't either).
+- **Remastered effects.** Shots keep their halo, trail and muzzle flash (still measured from the
+  original sprite), with the painting in place of the hot extruded sprite; pickups get no halo.
+- **Switch.** `?sprites=original|remastered`. Without it the sprite art follows the effects look:
+  `?vfx=original` draws the original sprites too, the default remastered look draws the art. In
+  `?debug=play`, A switches the art (V still switches the effects), and the overlay shows
+  `N flat in C` (quads and draw calls).
+- **Speed.** `?debug=play&skip=300&freezeAt=330&front=2&power=5&stress=800`: 812 flat quads in 2
+  draw calls; the renderer's CPU time was 2.7-3.0 ms a frame with the art and 2.7-3.0 ms without
+  (the same as D35's 2-3 ms), at 120 fps, on the dev machine with a synthetic atlas.
+
+**Options considered:**
+- *Flat painted quads, one instanced draw per atlas and pass (chosen):* what the art is for (a
+  painting has detail the extruder can't keep), and cheap: hundreds of shots cost two draw calls.
+- *Paint the art onto the extruded meshes:* keeps some depth, but the extrusion's rounded walls
+  stretch the painting at the edges, and every sprite is still a mesh.
+- *Palette-quantised art (indices, like the ground in D34):* palette effects would be exact, but the
+  painting's colours would collapse to 16 shades per hue; luma-to-shade recolouring gives the hit
+  flash and filters at the cost of exactness only while they're on.
+- *Alpha test with depth writes:* sorts by depth with no ordering rules, but the soft edges would be
+  cut hard and the camera-facing halos would be clipped where they pass behind the quad.
+- *Keep pickups as models:* they read as 3D objects, but the request is flat painted pickups;
+  the manifest decides per sprite, so a pickup the art leaves out keeps its model.
+- *Its own Options row:* the Options screen has only the sound and music styles; the effects and
+  background looks (D34, D35) are URL options too, so the art follows them rather than adding the
+  first graphics row on its own. A "Graphics" section with all three is the natural next step.
+
+**Review:** With the real atlases committed, play TYRIAN with `?debug=play` (A switches the art, N
+the weapon) and compare: shots under their halos, coins and power-ups in flight, the hit flash on
+anything painted that can be hit, a level filter fade. Check a 2x2 pickup for seams between its
+tiles, and a dense screen with `&stress=800` for CPU time.

@@ -62,6 +62,15 @@ export class PaletteTexture {
     this.version++;
   }
 
+  /** JE_filterScreen's hue (-99: off) and brightness, as folded into the texture. */
+  get screenFilter(): number {
+    return this.filter;
+  }
+
+  get screenBrightness(): number {
+    return this.brightness;
+  }
+
   /** sRGB colour of an index in the current palette, for things drawn outside the shaders. */
   color(index: number, target = new THREE.Color()): THREE.Color {
     const o = (index & 0xff) * 4;

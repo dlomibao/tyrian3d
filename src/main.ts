@@ -2,6 +2,7 @@ import { runGame } from "./app/run";
 import { loadSettings } from "./core/settings";
 import { loadModel } from "./render/models";
 import { spriteModels } from "./render/spriteModels";
+import { loadSpriteArt } from "./render/spriteArtLayer";
 import { View } from "./render/view";
 import { Backdrop, POSES } from "./ui/backdrop"; // ui-framework
 import { showMessage } from "./app/screens"; // ui-framework
@@ -34,6 +35,10 @@ function startGame(): void {
 
   view.draws.setSpriteModels(spriteModels(), loadModel);
   view.draws.setBackgroundStyle(settings.background); // D34
+  // Remastered flat art for shots and pickups (D42), where public/art/sprites/ has it.
+  loadSpriteArt()
+    .then((art) => view.draws.setSpriteArt(art))
+    .catch((err) => console.warn("sprite art failed to load; using the original sprites", err));
   loadModel("usp_talon")
     .then((model) => view.setShipModel(model))
     .catch((err) => console.error("player ship model failed to load; keeping placeholder", err));
