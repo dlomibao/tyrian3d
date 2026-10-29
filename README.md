@@ -157,8 +157,8 @@ GPL-2.0-or-later. This project derives from OpenTyrian, which uses the same lice
 
 Orchestral and synth arrangements of all 41 songs (covers of Alexander Brandon's soundtrack; see
 CREDITS.md) are in `public/tyrian-remaster/` and play on the deployed site too: the game starts on
-Synth (`M` cycles Original, Orchestral and Synth; `?music=orchestral` picks one). The remade sound
-effects and voices stay in the private `tyrian3d-remaster` repo and only play in local builds.
+Synth (`M` cycles Original, Orchestral and Synth; `?music=orchestral` picks one). Remade sound
+effects and voices are there too: Options → Sound style, or `?sound=remaster`.
 
 ## Local build with the remaster
 

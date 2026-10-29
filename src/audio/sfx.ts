@@ -7,7 +7,7 @@
 // sample changes, sound by sound, and any sound the style lacks or that fails to load stays the
 // original. The style is remembered in this browser; `?sound=<style>` overrides it.
 
-import { localAssetsAllowed, type RemasterManifest, type RemasterSfxEntry } from "./remaster";
+import type { RemasterManifest, RemasterSfxEntry } from "./remaster";
 
 export const SFX_COUNT = 29;
 export const VOICE_COUNT = 9;
@@ -67,7 +67,7 @@ export function sfxStyleEntries(styles: Record<string, Record<string, RemasterSf
 /**
  * Which sample each sound plays in the chosen style: "original", or a manifest style's remade
  * sounds, loaded (once) when the style is first chosen. Until a sound has loaded, or if it fails,
- * the original plays. Nothing is loaded unless this build may use local packs (localAssetsAllowed).
+ * the original plays. `allowed` false keeps it to the original (no style is offered or loaded).
  * Generic over the buffer type so it's tested without Web Audio.
  */
 export class SoundStyles<B> {
@@ -80,7 +80,7 @@ export class SoundStyles<B> {
   constructor(
     private readonly manifest: Record<string, Record<string, RemasterSfxEntry>> | undefined,
     private readonly load: (file: string) => Promise<B>,
-    private readonly allowed: boolean = localAssetsAllowed(),
+    private readonly allowed: boolean = true,
   ) {
     const named = allowed ? Object.keys(manifest ?? {}).filter((s) => s !== "original" && sfxStyleEntries(manifest, s).size) : [];
     this.styles = ["original", ...named.sort()];
@@ -233,7 +233,7 @@ export class SoundEffects {
     }
   }
 
-  /** A remade sound from the local pack (never asked for unless localAssetsAllowed). */
+  /** A remade sound from the remaster pack (public/tyrian-remaster/, or the private one locally). */
   private fetchSound(file: string): Promise<AudioBuffer> {
     return fetch(`tyrian-remaster/${file}`)
       .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`${file}: HTTP ${r.status}`))))
