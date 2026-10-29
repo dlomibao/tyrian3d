@@ -1,0 +1,28 @@
+{
+ "name": "shapesz-l1bld-cross-pad",
+ "concept": "l1-bld-cross-pad",
+ "tile": true,
+ "sprite_size": [
+  120,
+  140
+ ],
+ "texels_per_px": 8,
+ "size": [
+  960,
+  1120
+ ],
+ "sprite_box": [
+  3,
+  5,
+  115,
+  136
+ ],
+ "concept_box": [
+  109,
+  0,
+  998,
+  976
+ ],
+ "neutral": 0.85,
+ "fit_iou": 0.668
+}

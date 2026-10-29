@@ -1,0 +1,28 @@
+{
+ "name": "shapesz-l1bld-pipe-junction",
+ "concept": "l1-bld-pipe-junction",
+ "tile": true,
+ "sprite_size": [
+  216,
+  336
+ ],
+ "texels_per_px": 8,
+ "size": [
+  1728,
+  2688
+ ],
+ "sprite_box": [
+  0,
+  5,
+  216,
+  336
+ ],
+ "concept_box": [
+  18,
+  26,
+  649,
+  994
+ ],
+ "neutral": 0.85,
+ "fit_iou": 0.92
+}

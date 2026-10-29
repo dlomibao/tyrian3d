@@ -1,6 +1,7 @@
 """Texture a built model from its concept maps: detail, baked shadowing and fine relief.
 
     blender --background --factory-startup --python assets/blender/texture_bake.py -- <name> [--size 512]
+    blender --background --factory-startup --python assets/blender/texture_bake.py -- tile:<entry> [--size N]
 
 Runs after the model's own script has exported it (tools/build-models.sh). Needs
 assets/blender/textures/<name>/ from tools/concept_maps.py, and .shape/<name>/regions.json (from
@@ -17,9 +18,15 @@ For each exported .glb of the model (one, or one per assembly piece):
   that colour from the live palette, so fades and the hit flash still work), Normal = the normal map;
 - export the .glb again in place (names, extras and frame tags kept).
 The textures are also written to assets/blender/textures/<name>/bake/.
+
+Tile models (background structures, D34): `tile:<entry>` bakes the model of
+src/render/tileModels/<entry>.json (public/models/<model>.glb, origin at the pattern's centre) with
+the maps from `tools/concept_maps.py tile:<entry> --concept ...` in assets/blender/textures/<entry>/.
+The texture size defaults to about 5 texels per tile px (512 to 2048).
 """
 
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -39,8 +46,17 @@ AO_DISTANCE = 0.25  # units: about two sprite pixels
 STEEP_LO, STEEP_HI = 0.35, 0.75  # |normal.z| below LO: side (neutral); above HI: top (full detail)
 
 
+def tile_glbs(entry):
+    """[(glb path, offset 0)] and the pattern's size in px for a tile model (src/render/tileModels/)."""
+    doc = json.loads((ROOT / "src" / "render" / "tileModels" / f"{entry}.json").read_text())
+    size = (len(doc["tiles"][0]) * 24, len(doc["tiles"]) * 28)
+    return [(ROOT / "public" / "models" / f"{doc['model']}.glb", Vector((0, 0, 0)))], size
+
+
 def glbs(name):
     """[(glb path, offset into the sprite's frame)] for the model or each assembly piece."""
+    if name.startswith("tile:"):
+        return tile_glbs(name[5:])
     doc = json.loads((ROOT / ".shape" / name / "regions.json").read_text())
     W, H = doc["size"]
     paths = model_paths()
@@ -245,7 +261,8 @@ def main():
     argv = sys.argv[sys.argv.index("--") + 1:]
     name = argv[0]
     size = int(argv[argv.index("--size") + 1]) if "--size" in argv else 0
-    tex_dir = ROOT / "assets/blender/textures" / name
+    tile = name.startswith("tile:")
+    tex_dir = ROOT / "assets/blender/textures" / (name[5:] if tile else name)
     meta = json.loads((tex_dir / "maps.json").read_text())
     bake_dir = tex_dir / "bake"
     bake_dir.mkdir(exist_ok=True)
@@ -273,7 +290,11 @@ def main():
                 o.data.uv_layers.remove(uv)
         concept_uvs(meshes, sprite_size)
         bake_uvs(meshes)
-        px = size or (512 if len(pieces) == 1 else 256)
+        if tile and not size:
+            area = (sprite_size[0] * sprite_size[1]) ** 0.5 * 5
+            px = int(min(2048, max(512, 2 ** round(math.log2(area)))))
+        else:
+            px = size or (512 if len(pieces) == 1 else 256)
         stem = glb.stem
         colour_img = bpy.data.images.new(f"{stem}-detail", px, px, alpha=False)
         normal_img = bpy.data.images.new(f"{stem}-normal", px, px, alpha=False)

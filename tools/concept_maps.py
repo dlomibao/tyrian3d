@@ -1,6 +1,7 @@
 """Texture maps for a model from its concept image (docs/art-pipeline.html, "Texturing").
 
     python tools/concept_maps.py <name> [--px 16] [--out assets/blender/textures]
+    python tools/concept_maps.py tile:<entry> --concept <concept> [--px 8] [--concept-box x0,y0,x1,y1]
 
 The concept (assets/blender/features/concepts/<name>.jpg) is a high-res reimagining of the sprite
 that keeps its outline. This cuts it out of its background, lines its outline up with the
@@ -14,6 +15,13 @@ sprite's (reference/models/..., from `npm run catalogue`), and writes, in the sp
   height.png   fine relief for a normal map (band-passed luminance)
   mask.png     where the concept has the object
   maps.json    sizes and the fit
+
+Tile models (background structures, DECISIONS.md D34): `tile:<entry>` names a pattern in
+src/render/tileModels/<entry>.json (e.g. tile:shapesz-l1bld-bunker); the "sprite" is then the
+pattern's tiles at 1x from reference/tiles/<shapes>/tiles.json (index 0 = empty, as are -1 cells),
+the concept is assets/blender/features/concepts/<concept>.jpg, and the maps go to
+assets/blender/textures/<entry>/ in the pattern's frame. --concept-box gives the object's box in the
+concept by hand when its cut-out fails (a building that runs into the image's edge).
 
 The game multiplies the detail by the live palette colour, so palette fades and the hit flash
 keep working. Outside the object, and on surfaces the bake marks as steep, the detail is neutral.
@@ -58,6 +66,23 @@ def foreground(rgb):
     return ndimage.binary_fill_holes(ndimage.binary_closing(np.pad(keep, close), iterations=close)[close:-close, close:-close])
 
 
+def load_tile_pattern(entry):
+    """The pixels (palette indices, -1 = empty) of a tile model's pattern, as sprite_shape's idx."""
+    doc = json.loads((ROOT / "src/render/tileModels" / f"{entry}.json").read_text())
+    shapes = Path(doc["shapes"]).stem  # "shapesz.dat" -> "shapesz"
+    tiles = json.loads((ROOT / "reference/tiles" / shapes / "tiles.json").read_text())["tiles"]
+    pattern = doc["tiles"]
+    th, tw = 28, 24
+    idx = np.full((len(pattern) * th, len(pattern[0]) * tw), -1, dtype=np.int32)
+    for r, row in enumerate(pattern):
+        for c, n in enumerate(row):
+            if n < 0:
+                continue
+            px = np.array([[int(v) for v in line.split()] for line in tiles[str(n)]["pixels"]], dtype=np.int32)
+            idx[r * th:(r + 1) * th, c * tw:(c + 1) * tw] = np.where(px == 0, -1, px)
+    return {"idx": idx}
+
+
 def bbox(mask):
     ys, xs = np.nonzero(mask)
     return xs.min(), ys.min(), xs.max() + 1, ys.max() + 1
@@ -66,20 +91,35 @@ def bbox(mask):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("name")
-    ap.add_argument("--px", type=int, default=16, help="texels per sprite pixel (capped so the map is at most 1024 wide)")
+    ap.add_argument("--px", type=int, default=None,
+                    help="texels per sprite pixel (default 16, capped so the map is at most 1024 wide; tile: default 8, at most 4096)")
     ap.add_argument("--out", type=Path, default=ROOT / "assets/blender/textures")
+    ap.add_argument("--concept", help="tile:<entry> only: the concept's name (assets/blender/features/concepts/<concept>.jpg)")
+    ap.add_argument("--concept-box", help="x0,y0,x1,y1: the object's box in the concept image, instead of its cut-out")
     a = ap.parse_args()
 
-    sp = S.load_assembly(a.name) if a.name.startswith("assembly-") else S.load_sprite(a.name)
+    tile = a.name.startswith("tile:")
+    if tile:
+        if not a.concept:
+            raise SystemExit("tile:<entry> needs --concept <name>")
+        sp = load_tile_pattern(a.name[5:])
+        out_name, concept_name = a.name[5:], a.concept
+    else:
+        sp = S.load_assembly(a.name) if a.name.startswith("assembly-") else S.load_sprite(a.name)
+        out_name, concept_name = a.name, a.concept or a.name
     idx = sp["idx"]
     H, W = idx.shape
-    k = max(4, min(a.px, 1024 // max(W, H)))
+    # A building's pattern is a few hundred px across: fewer texels per px, up to 4096 on its long side.
+    k = max(2, min(a.px or 8, 4096 // max(W, H))) if tile else max(4, min(a.px or 16, 1024 // max(W, H)))
     sx0, sy0, sx1, sy1 = bbox(idx >= 0)
 
-    concept = Image.open(ROOT / "assets/blender/features/concepts" / f"{a.name}.jpg").convert("RGB")
+    concept = Image.open(ROOT / "assets/blender/features/concepts" / f"{concept_name}.jpg").convert("RGB")
     rgb = np.asarray(concept)
     fg = foreground(rgb)
-    cx0, cy0, cx1, cy1 = bbox(fg)
+    if a.concept_box:
+        cx0, cy0, cx1, cy1 = (int(v) for v in a.concept_box.split(","))
+    else:
+        cx0, cy0, cx1, cy1 = bbox(fg)
 
     # Affine fit: the concept's object box onto the sprite's object box (in texels).
     tw, th = W * k, H * k
@@ -95,6 +135,10 @@ def main():
     # is exact where the concept's cut-out can be patchy.
     sprite_mask = np.kron(idx >= 0, np.ones((k, k), bool))
     mask = sprite_mask
+    if tile:
+        # A building's rim is rocks with black between them, which the model's rocks cover: take the
+        # concept's object there too, a few px out from the tiles' pixels.
+        mask = sprite_mask | (concept_mask & ndimage.binary_dilation(sprite_mask, iterations=3 * k))
 
     lum = (reg @ np.array([0.2126, 0.7152, 0.0722])) / 255.0
     lum_obj = np.where(mask, lum, np.nan)
@@ -113,13 +157,13 @@ def main():
     height = np.where(mask, height, 0.0)
     height = np.clip(0.5 + height * 4.0, 0, 1)
 
-    out = a.out / a.name
+    out = a.out / out_name
     out.mkdir(parents=True, exist_ok=True)
     Image.fromarray(reg.clip(0, 255).astype(np.uint8)).save(out / "concept.png")
     Image.fromarray((detail * 255).astype(np.uint8)).save(out / "detail.png")
     Image.fromarray((height * 255).astype(np.uint8)).save(out / "height.png")
     Image.fromarray((mask * 255).astype(np.uint8)).save(out / "mask.png")
-    meta = {"name": a.name, "sprite_size": [W, H], "texels_per_px": k, "size": [tw, th],
+    meta = {"name": out_name, "concept": concept_name, "tile": tile, "sprite_size": [W, H], "texels_per_px": k, "size": [tw, th],
             "sprite_box": [int(sx0), int(sy0), int(sx1), int(sy1)],
             "concept_box": [int(cx0), int(cy0), int(cx1), int(cy1)], "neutral": NEUTRAL,
             "fit_iou": None}

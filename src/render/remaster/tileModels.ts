@@ -11,6 +11,12 @@
 // row is off screen: a tile at map index `key` in pattern cell (row, col) puts the pattern's
 // top-left at key - row * mapWidth - col, and every cell of the pattern that is drawn this tick
 // must hold the pattern's tile. Cells not drawn this tick (off screen) aren't checked.
+//
+// A structure built from tiles that also occur elsewhere as plain terrain (the asteroid platforms of
+// shapesz.dat: rims, paving and channels are modular tiles) gives every cell it covers and
+// `minRows`: it's placed only once that many of its rows are drawn and match, so the edge of a
+// plain platform scrolling in doesn't pass for it. tests/render/remaster.test.ts checks in the
+// real maps that `minRows` rows always tell such a structure apart.
 
 import { BG_KEY_LAYER } from "../../sim/backgrnd";
 import type { Draw, TileDraw } from "../../sim/draw";
@@ -29,6 +35,12 @@ export interface TileModelEntry {
    * which stay as the remastered ground; structures on layers 1 and 2 replace their tiles.
    */
   keepTiles?: boolean;
+  /**
+   * Its tiles also occur as other terrain: match only when at least this many of the pattern's
+   * rows (or all of them, if fewer) have drawn cells, all matching. Without it any drawn cell of
+   * the pattern is enough, and its tiles must occur nowhere else on the layer.
+   */
+  minRows?: number;
 }
 
 /** Map widths in tiles per layer (JE_MapType, JE_MapType2, JE_MapType3). */
@@ -59,6 +71,8 @@ export class TileModelIndex {
   private readonly cells = new Map<string, Cell[]>();
   /** This tick's tile ids by draw key, per layer. */
   private readonly drawn = [new Map<number, string>(), new Map<number, string>(), new Map<number, string>()];
+  /** This tick's verdicts on (pattern, anchor) pairs: a big pattern is checked once, not per tile. */
+  private readonly verdicts = new Map<string, boolean>();
 
   constructor(entries: readonly TileModelEntry[] = TILE_MODELS) {
     for (const entry of entries) {
@@ -93,6 +107,7 @@ export class TileModelIndex {
   /** Record the tiles drawn this tick, for checking patterns. */
   prepare(items: readonly Draw[]): void {
     for (const m of this.drawn) m.clear();
+    this.verdicts.clear();
     for (const d of items) if (d.kind === "tile") this.drawn[d.layer].set(d.key, d.tileId);
   }
 
@@ -110,17 +125,11 @@ export class TileModelIndex {
       const left = (index % width) - col;
       if (left < 0 || left + cols > width) continue; // the pattern would wrap around the map's edge
       const anchor = index - row * width - col;
-      let ok = true;
-      for (let r = 0; r < rows && ok; r++) {
-        for (let c = 0; c < cols; c++) {
-          const want = entry.tiles[r][c];
-          if (want < 0) continue;
-          const got = drawn.get(d.layer * BG_KEY_LAYER + anchor + r * width + c);
-          if (got !== undefined && got !== `${shapes}:${want}`) {
-            ok = false;
-            break;
-          }
-        }
+      const memo = `${d.layer}|${anchor}|${entry.model}`;
+      let ok = this.verdicts.get(memo);
+      if (ok === undefined) {
+        ok = this.fits(entry, d.layer * BG_KEY_LAYER + anchor, drawn, shapes);
+        this.verdicts.set(memo, ok);
       }
       if (!ok) continue;
       return {
@@ -131,6 +140,27 @@ export class TileModelIndex {
       };
     }
     return null;
+  }
+
+  /** Whether every drawn cell of the pattern at `anchorKey` holds its tile (and, with minRows, enough rows are drawn). */
+  private fits(entry: TileModelEntry, anchorKey: number, drawn: Map<number, string>, shapes: string): boolean {
+    const rows = entry.tiles.length;
+    const cols = entry.tiles[0].length;
+    const width = MAP_WIDTHS[entry.layer];
+    let rowsSeen = 0;
+    for (let r = 0; r < rows; r++) {
+      let seen = false;
+      for (let c = 0; c < cols; c++) {
+        const want = entry.tiles[r][c];
+        if (want < 0) continue;
+        const got = drawn.get(anchorKey + r * width + c);
+        if (got === undefined) continue;
+        if (got !== `${shapes}:${want}`) return false;
+        seen = true;
+      }
+      if (seen) rowsSeen++;
+    }
+    return entry.minRows === undefined || rowsSeen >= Math.min(entry.minRows, rows);
   }
 }
 
