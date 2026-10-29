@@ -1448,3 +1448,63 @@ own entry). The game side (`src/render/spriteArt.ts`, `spriteArtLayer.ts`, hooks
 the weapon) and compare: shots under their halos, coins and power-ups in flight, the hit flash on
 anything painted that can be hit, a level filter fade. Check a 2x2 pickup for seams between its
 tiles, and a dense screen with `&stress=800` for CPU time.
+
+## D43 — Flat remastered sprites: Gemini paints input sheets; a cutter fits each painting to its sprite
+
+2026-10-29
+
+**Decision:** The art D42 draws is made by Google Gemini from input sheets of the original sprites
+and brought back by `tools/flat_art.py`:
+- **Inventory** (first level, TYRIAN): found empirically by playing the level headless with the real
+  game loop and the play harness's bot and recording every draw: story mode with the starting
+  Pulse-Cannon and each first-shop front weapon, arcade mode (where power-up orbs and capsules
+  spawn), every front and rear weapon of the first shop at power 1-11 and in both rear modes, and
+  the first shop's sidekicks; then cross-checked against the level's enemy types' turret weapons and
+  the weapon ports' op tables. 71 shot sprites (tyrian.shp#7), 76 pickup tiles on tyrian.shp#10
+  (coins, gems, the colour-cycling datacube) and 32 on tyrian.shp#9 (power-up orb, weapon and
+  sidekick capsules, arcade mode only): 179 atlas frames.
+- **Input sheets** (`flat_art.py sheets`, kept out of git as they're rendered from the game data,
+  D3): one family per sheet (Pulse and front Multi-Cannon; rear Multi-Cannon; Sonic Wave; the
+  other shots; coins; gems; datacubes; orbs and capsules), at most 12 cells of 256 px in 3 or 4
+  columns, each sprite scaled up nearest-neighbour by one integer per sheet so the biggest fills
+  60% of a cell (small shots come out bigger), centred, on black. A sprite that is another's mirror
+  image shares its cell (23 pairs), so Gemini paints it once and both stay symmetric. A
+  `manifest.json` beside the sheets says where each picture sits and which atlas frames it feeds.
+- **Cutter** (`flat_art.py cut`): for each cell of Gemini's answer (any size, same aspect), the
+  art's brightest pixels, as many as the sprite would cover, are its foreground, so a glow or halo
+  Gemini adds is left out; the sprite's visible pixels are fitted onto it by scale (0.8-1.25x,
+  aspect 0.9-1.1) and shift (FFT cross-correlation, within a fifth of a cell), best Dice overlap.
+  Each frame is resampled from the art at 8 texels per sprite pixel; its alpha is the original
+  silhouette upscaled smoothly (blurred, then a steep ramp: rounded staircases, a ~1.5 texel soft
+  edge), computed over the whole picture so a 2x2 object's tiles meet without seams; colour under
+  zero alpha is bled from the nearest visible texel. Frames are shelf-packed per original sheet
+  into an RGBA WebP with 8 texels of edge-extended padding. `--check` writes a contact sheet,
+  original (8x nearest) | remastered, with each fit's score.
+- **Placeholder:** the committed atlases cut the earlier concept paintings
+  (`assets/blender/features/concepts/l1-*.jpg`, made from crops of the 4x sprite sheets): 33 of
+  the 179 frames (rear Multi-Cannon 1/2/3/5 and their mirrors, Sonic Wave 6/44, bomb 20, the gold
+  coin's spin squashed from its face, the green gem, three weapon capsules). The rest draw as
+  before until the new sheets come back.
+
+**Options considered:**
+- *Gemini paints whole sheets of sprites, a cutter registers each painting to its sprite (chosen):*
+  Gemini keeps a grid well and paints a family consistently in one go; the registration absorbs its
+  small shifts, rescaling and glow, and the original silhouette as alpha keeps the outline and the
+  hitbox read exactly the original's.
+- *Gemini's own outline as alpha (background removal):* richer edges, but shapes drift from the
+  hitbox and glows become part of the sprite.
+- *One request per sprite:* exact framing, but ~150 requests and no consistency across a weapon's
+  frames.
+- *Algorithmic upscaling only (MMPX/xBR, as the ground in D34):* deterministic and free, but stays
+  pixel art; the point here is painted detail.
+- *Hand-placed crops:* no fitting code, but every new answer would need hand work.
+- *Static inventory from the data only:* misses what play actually draws (and lists pattern slots
+  never fired), so play is the source and the data a cross-check.
+
+**Review:** After Gemini answers the 11 sheets, run `python tools/flat_art.py cut --inputs
+<sheets>/manifest.json --results <answers> --check check.png` and look at the contact sheet: fit
+scores under ~0.5 or a painting that's off its silhouette mean the cell needs a retry (or a
+`search`/`scale` edit in the manifest). Known limits: the fit is a scale and shift only (no
+rotation); animation frames painted in separate cells may differ more than the original's frames
+did; tyrian.shp#5 table sprites (Plasma Storm's shots) and other levels aren't covered yet. To
+extend to another level, record its draws the same way and add its families to `SHEET_GROUPS`.
