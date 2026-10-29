@@ -10,9 +10,10 @@
 //   &skip=T                        fast-forward T ticks before showing anything
 //   &freezeAt=T                    stop the game (and the effects' clock) at tick T, for screenshots
 //   &vfx=original|remastered       the shot and explosion look (D35)
+//   &sprites=original|remastered   shots and pickups as the original sprites or the flat art (D42)
 //   &stress=N                      add N extra copies of the tick's shots (bullet-hell load test)
 //
-// Keys: V switches the effects look, N the next front weapon, P (or Space) pauses.
+// Keys: V switches the effects look, A the sprite art, N the next front weapon, P (or Space) pauses.
 // The bot is the one the episode tests use: invulnerable, always firing, sweeping left and right.
 
 import { startLoop } from "../core/loop";
@@ -91,6 +92,7 @@ export async function runPlayHarness(view: View): Promise<void> {
 
   window.addEventListener("keydown", (e) => {
     if (e.code === "KeyV") view.draws.setVfxMode(view.draws.vfxMode === "remastered" ? "original" : "remastered");
+    else if (e.code === "KeyA") view.draws.setSpriteArtMode(view.draws.spriteArtMode === "remastered" ? "original" : "remastered");
     else if (e.code === "KeyN") nextWeapon();
     else if (e.code === "KeyP" || e.code === "Space") paused = !paused;
     else return;
@@ -124,9 +126,9 @@ export async function runPlayHarness(view: View): Promise<void> {
         const shots = g.shotAvail.filter((s) => s !== 0).length;
         const name = g.res.items.weaponPorts[p.items.weapon[0].id]?.name.trim();
         overlay.textContent =
-          `${view.draws.vfxMode} (V) · ${name} (N) · tick ${t}${frozen ? " (paused)" : ""} · ` +
+          `${view.draws.vfxMode} (V) · art ${view.draws.spriteArtMode} (A) · ${name} (N) · tick ${t}${frozen ? " (paused)" : ""} · ` +
           `${((frames * 1000) / (now - lastReport)).toFixed(0)} fps · cpu ${avg.toFixed(2)} ms (max ${max.toFixed(1)}) · ` +
-          `${s.items} draws · ${shots} shots · ${fx.particles} particles · ${info.calls} calls`;
+          `${s.items} draws · ${shots} shots · ${fx.particles} particles · ${info.calls} calls · ${s.flatSprites} flat in ${s.flatCalls}`;
         frameTimes.length = 0;
         frames = 0;
         lastReport = now;
