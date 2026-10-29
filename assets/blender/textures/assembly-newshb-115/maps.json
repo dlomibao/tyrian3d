@@ -1,0 +1,26 @@
+{
+ "name": "assembly-newshb-115",
+ "sprite_size": [
+  120,
+  84
+ ],
+ "texels_per_px": 8,
+ "size": [
+  960,
+  672
+ ],
+ "sprite_box": [
+  1,
+  0,
+  118,
+  84
+ ],
+ "concept_box": [
+  47,
+  114,
+  993,
+  900
+ ],
+ "neutral": 0.85,
+ "fit_iou": 0.767
+}

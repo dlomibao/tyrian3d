@@ -1,0 +1,26 @@
+{
+ "name": "ship-gencore-phoenix",
+ "sprite_size": [
+  24,
+  28
+ ],
+ "texels_per_px": 16,
+ "size": [
+  384,
+  448
+ ],
+ "sprite_box": [
+  1,
+  1,
+  23,
+  26
+ ],
+ "concept_box": [
+  73,
+  35,
+  949,
+  994
+ ],
+ "neutral": 0.85,
+ "fit_iou": 0.713
+}
