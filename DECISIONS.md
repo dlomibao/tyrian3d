@@ -1629,3 +1629,35 @@ no textures for any enemy or ship (only the seven map 1-3 tile structures and ne
 had them). `tools/build-models.sh $(script for each textures/<name>/)` rebuilds and textures them
 (assemblies need `tools/sprite_shape.py <name>` first); several rebuilt models came out not
 byte-identical to git, so check them in `?debug=models` before committing.
+
+## D47 — TYRIAN's buildings are whole-structure models from concepts; the biggest matching pattern wins
+
+2026-10-29
+
+**Decision:** The first level (TYRIAN, map 1-9) gets concept-based models for its buildings, the
+way map 1-3's got them (D44), while terrain (forest, dirt, roads, clouds, plain rock islands) keeps
+its current look. A scout mapped 16 structure types (`assets/blender/features/concepts/
+tyr-structures.json`, plan in `assets/blender/tiles/tyrbld_patterns.json`): on the ground the two
+bunkers and the wreck (which stand on their tiles); on layer 2 the floating fortress (one 45x15
+model from three stitched concept parts), the full-width bridges, white gates, drums, purple carved
+blocks (cross, orb, 2x2, 2x3, 2x5), lava pits and craters (which replace their tiles and carry the
+rock their tiles paint). `lib_tyrbld.py` (on a generalised `lib_l1bld.py`) supplies the shared
+kits: rock islands, metal walkways from the walkway tiles' own pixels, carved purple stone,
+lathed and extruded parts, emissive lights. `TileModelIndex` now tries the biggest pattern first,
+so a structure wins over the per-tile models of its tiles, which stay as fallbacks (a minRows
+structure with one row on screen; other levels). Same-size replacements (the old bunkers and
+wreck, tiles 143/153/189/199) are removed. A real-map test checks every pattern is told apart
+from the others and from terrain in every level.
+
+**Options considered:**
+- *Whole-structure models with biggest-pattern priority (chosen):* one coherent object per
+  building, detail lines up across tile seams, and the old per-tile models remain a safe fallback.
+- *Re-texture the existing per-tile models from the concepts:* no matching changes, but tile seams
+  stay visible and walkways can't get continuous rails.
+- *Leave buildings covered by enemies (bunkers, wreck, purple blocks, orb, lava pits) as they
+  were:* less work, but they show after kills and would look older than their neighbours.
+
+**Review:** Play TYRIAN with `?bg=remaster`. The bridge (2.4 MB) and fortress (1.9 MB) models carry
+large textures; drop their bake size (`texture_bake.py --size`) if loading matters. Graders left
+polish items: bridge and purple orb (4/5), crater, lava pit and wreck (3/5). Fallback: delete a
+`shapesz-tyrbld-*.json` entry and restore the old per-tile entry from git history.
