@@ -1074,7 +1074,7 @@ that affect which enemies are drawn.
 **Decision:** A pilot of the backgrounds' new look, done fully for the tileset of Episode 1's first
 level (TYRIAN, `shapesz.dat`), behind a switch: `?bg=remaster` (`Settings.background`;
 `DrawListRenderer.setBackgroundStyle`). The default stays `original` (D8) until the other
-tilesets have their structures. Wherever nothing remastered exists, the original tile is drawn.
+tilesets have their structures. (Since D48 remastered is the default and `?bg=original` opts out.) Wherever nothing remastered exists, the original tile is drawn.
 - **Ground (background 1):** every tile is upscaled 4x with MMPX (`src/render/remaster/mmpx.ts`, a
   port of the paper's MIT code) into a palette-index atlas (`groundAtlas.ts`). A tile is upscaled
   with its eight neighbours as they are in the map that tick, and only its own part kept, so a
@@ -1661,3 +1661,53 @@ from the others and from terrain in every level.
 large textures; drop their bake size (`texture_bake.py --size`) if loading matters. Graders left
 polish items: bridge and purple orb (4/5), crater, lava pit and wreck (3/5). Fallback: delete a
 `shapesz-tyrbld-*.json` entry and restore the old per-tile entry from git history.
+
+## D48 — Remastered backgrounds are the default; `?bg=original` opts out
+
+2026-10-29
+
+**Decision:** `Settings.background` now defaults to `remaster` (D34); only `?bg=original` picks the
+original's extruded tiles (D8). With the first level's buildings modelled (D47), the old default
+meant a player saw flat pixel bunkers unless they knew the switch. The game, `?debug=play`,
+`?debug=level` and `?debug=sprites` all read the same setting. Like the effects (`?vfx=`) and sprite
+art (`?sprites=`) looks, it's a URL option only: there's no Options row and nothing is stored. Levels
+other than TYRIAN get the upscaled ground and keep their original structure tiles until they have
+models.
+
+**Options considered:**
+- *Default to remaster, URL opt-out (chosen):* matches the effects look (remastered by default since
+  D35) and needs no new UI.
+- *An Options row stored in the prefs:* lets players switch without the URL, but the other looks
+  aren't there either; worth doing for all three together.
+- *Keep `original` until every tileset has models:* consistent, but hides the finished first level.
+
+**Review:** Play TYRIAN with no options and check the 3D bunkers, fortresses and bridges; play a
+later level and check the upscaled ground holds up without structure models. Fallback: flip the
+default back in `src/core/settings.ts`.
+
+## D49 — Sidekicks can be models: `ungrouped` sprite-model entries, catalogued like enemies
+
+2026-10-29
+
+**Decision:** The player's sidekicks (options) get the enemies' model path (D15). JE_playerMovement
+draws each sidekick on its own at `gr[animation_frame] + charge`: `blit_sprite2` from tyrian.shp#8
+(the ship sheet), or for styles (`tr`) 1 and 2 `blit_sprite2x2` from tyrian.shp#9 at x - 6. Those
+draws have no `drawGroup`, so the grouped (enemy) lookup never saw them. A `SpriteRef` can now say
+`"ungrouped": true`: `spriteModels()` indexes it in its own `ungrouped` map (frames are still
+claimed against every other model), and the renderer replaces an ungrouped sprite2 draw of such a
+frame with the model, centred on the sprite and showing the frame drawn (D17 animation). With no
+entries, or a model still loading, every sidekick draws as before. `npm run catalogue` writes each
+sidekick's `reference/models/sidekick-<name>/` (options that share frames are one model; the items
+are in `sprite.json` `sidekicks`) and `sidekicks.json`, not `catalogue.json`, so the enemy
+coverage test doesn't count them; `CATALOGUE_SIDEKICKS_ONLY=1` writes just those.
+
+**Options considered:**
+- *A separate `ungrouped` entry kind (chosen):* no draw that works today can change, and
+  `export_sprite_model` writes it from `load_sprite(...)["sprites"]` unchanged.
+- *Look ungrouped draws up in the grouped map:* no new field, but any loose draw of an enemy's
+  frame (now or in later ports) would silently turn into that enemy's model.
+- *Have the sim set `drawGroup` for sidekicks:* touches the transliterated C for a renderer concern.
+
+**Review:** `?debug=play&left=9&right=16` (and `?debug=models` for a built sidekick) once a model
+exists. Fallback: delete the sidekick's `src/render/spriteModels/` entry.
+

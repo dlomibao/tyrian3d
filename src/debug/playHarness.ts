@@ -11,6 +11,7 @@
 //   &freezeAt=T                    stop the game (and the effects' clock) at tick T, for screenshots
 //   &vfx=original|remastered       the shot and explosion look (D35)
 //   &sprites=original|remastered   shots and pickups as the original sprites or the flat art (D42)
+//   &bg=original                   the original's tiles instead of the remastered backgrounds (D34, D48)
 //   &stress=N                      add N extra copies of the tick's shots (bullet-hell load test)
 //
 // Keys: V switches the effects look, A the sprite art, N the next front weapon, P (or Space) pauses.

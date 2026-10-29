@@ -224,7 +224,7 @@ effort, no Fable).</p>
 <table>
   <tr><th>What</th><th>How</th><th>Where</th></tr>
   <tr><td>Full-screen pictures (title, menus, HUD frames, story art)</td><td>Redrawn in Blender from the game's models and procedural materials at 1920×1200, keyed by the original picture number (D19)</td><td><code>assets/art/</code> → <code>public/art/</code></td></tr>
-  <tr><td>Backgrounds</td><td>The ground is upscaled 4× at runtime with MMPX; structures become instanced tile models matched by tile pattern (D34). Only Episode 1's TYRIAN tileset so far.</td><td><code>assets/blender/tiles/</code>, <code>?bg=remaster</code></td></tr>
+  <tr><td>Backgrounds</td><td>The ground is upscaled 4× at runtime with MMPX; structures become instanced tile models matched by tile pattern (D34). Only Episode 1's TYRIAN tileset so far.</td><td><code>assets/blender/tiles/</code>, default (<code>?bg=original</code> to opt out)</td></tr>
   <tr><td>Shots and explosions</td><td>A presentation layer over the draw list: glowing projectiles, particles. On by default (D35).</td><td><code>?vfx=original</code> shows the old look</td></tr>
 </table>
 </main>

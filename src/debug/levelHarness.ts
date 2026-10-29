@@ -11,6 +11,7 @@
 //   &ship=N &shield=N &generator=N
 //   &skip=N                        run N ticks headless first (invulnerable), to reach a level event
 //   &god=1                         stay invulnerable
+//   &bg=original                   the original's tiles instead of the remastered backgrounds (D34, D48)
 //
 // In the console, `tyrianLevel` holds g and simInput; `tyrianLevel.hold.fire = true` keeps a
 // button pressed (for scripted checks).

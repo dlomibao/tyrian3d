@@ -8,8 +8,9 @@
 //   &sheet=newsh1.shp&size=2&page=P    a static grid of one sheet's sprites instead
 //   &clip=0                            show everything drawn, not just the original's playfield
 //   &freeze=T                          stop at tick T (the same frame every time, for comparisons)
-//   &bg=remaster                       remastered backgrounds (DECISIONS.md D34); in the console,
-//                                      tyrianHarness.view.draws.setBackgroundStyle("original") switches back
+//   &bg=original                       the original's tiles instead of the remastered backgrounds
+//                                      (the default, DECISIONS.md D34/D48); in the console,
+//                                      tyrianHarness.view.draws.setBackgroundStyle("remaster") switches back
 //
 // The background emulates draw_background_1/2/3 (src/backgrnd.c): rows of 12 tiles from the
 // level's maps, scrolling down as the original's map pointers move up.

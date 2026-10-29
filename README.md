@@ -99,9 +99,9 @@ score table (episodes 1-3, as in the original), which the title screen shows und
   models), loaded the first time it appears and coloured from the game's live palette. The
   backgrounds, shots and effects are extruded from their pixels into rounded 3D shapes. Motion is
   interpolated, so it's smooth at any refresh rate, though the game logic ticks at the original
-  ~35 Hz. `?bg=remaster` tries the remastered backgrounds, a pilot done for Episode 1's first
-  level: the ground upscaled 4x (MMPX) with relief lighting, and its rocks, fortresses, bunkers and
-  forest as Blender models (DECISIONS.md D34).
+  ~35 Hz. Backgrounds are remastered by default (`?bg=original` shows the original tiles): the ground
+  upscaled 4x (MMPX) with relief lighting, and, so far for Episode 1's first level, its rocks,
+  fortresses, bunkers and forest as Blender models (DECISIONS.md D34, D48).
 - **Audio (`src/audio/`):** the original sound effects, plus the AdLib music played through a
   port of the OPL emulator and the LDS song player. It matches OpenTyrian's output sample for sample.
 - **Data (`src/data/`):** parsers for Tyrian's level, item, enemy, sprite, palette and episode
