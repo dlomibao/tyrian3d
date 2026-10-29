@@ -201,5 +201,105 @@
   "image": "assets/blender/features/concepts/l1-bld-base-complex.jpg",
   "note": "First level (map 1-3): the large base complex on the ground layer; generated as top and bottom halves (9:16) and stitched",
   "source": "Gemini (Nano Banana) high-res reimagining, with the user's prompt (same overhead outline, don't take pixels literally)"
+ },
+ "tyr-fortress-a": {
+  "image": "assets/blender/features/concepts/tyr-fortress-a.jpg",
+  "note": "TYRIAN (map 1-9) structure fortress-a; scout data in structures.json (pattern, layer, copies)",
+  "source": "Gemini (Nano Banana) high-res reimagining, with the user's prompt (same overhead outline, don't take pixels literally)"
+ },
+ "tyr-fortress-b": {
+  "image": "assets/blender/features/concepts/tyr-fortress-b.jpg",
+  "note": "TYRIAN (map 1-9) structure fortress-b; scout data in structures.json (pattern, layer, copies)",
+  "source": "Gemini (Nano Banana) high-res reimagining, with the user's prompt (same overhead outline, don't take pixels literally)"
+ },
+ "tyr-fortress-c": {
+  "image": "assets/blender/features/concepts/tyr-fortress-c.jpg",
+  "note": "TYRIAN (map 1-9) structure fortress-c; scout data in structures.json (pattern, layer, copies)",
+  "source": "Gemini (Nano Banana) high-res reimagining, with the user's prompt (same overhead outline, don't take pixels literally)"
+ },
+ "tyr-bridge-a": {
+  "image": "assets/blender/features/concepts/tyr-bridge-a.jpg",
+  "note": "TYRIAN (map 1-9) structure bridge-a; scout data in structures.json (pattern, layer, copies)",
+  "source": "Gemini (Nano Banana) high-res reimagining, with the user's prompt (same overhead outline, don't take pixels literally)"
+ },
+ "tyr-bridge-b": {
+  "image": "assets/blender/features/concepts/tyr-bridge-b.jpg",
+  "note": "TYRIAN (map 1-9) structure bridge-b; scout data in structures.json (pattern, layer, copies)",
+  "source": "Gemini (Nano Banana) high-res reimagining, with the user's prompt (same overhead outline, don't take pixels literally)"
+ },
+ "tyr-bridge-c": {
+  "image": "assets/blender/features/concepts/tyr-bridge-c.jpg",
+  "note": "TYRIAN (map 1-9) structure bridge-c; scout data in structures.json (pattern, layer, copies)",
+  "source": "Gemini (Nano Banana) high-res reimagining, with the user's prompt (same overhead outline, don't take pixels literally)"
+ },
+ "tyr-white-gate-w": {
+  "image": "assets/blender/features/concepts/tyr-white-gate-w.jpg",
+  "note": "TYRIAN (map 1-9) structure white-gate-w; scout data in structures.json (pattern, layer, copies)",
+  "source": "Gemini (Nano Banana) high-res reimagining, with the user's prompt (same overhead outline, don't take pixels literally)"
+ },
+ "tyr-white-gate-e": {
+  "image": "assets/blender/features/concepts/tyr-white-gate-e.jpg",
+  "note": "TYRIAN (map 1-9) structure white-gate-e; scout data in structures.json (pattern, layer, copies)",
+  "source": "Gemini (Nano Banana) high-res reimagining, with the user's prompt (same overhead outline, don't take pixels literally)"
+ },
+ "tyr-drum-e": {
+  "image": "assets/blender/features/concepts/tyr-drum-e.jpg",
+  "note": "TYRIAN (map 1-9) structure drum-e; scout data in structures.json (pattern, layer, copies)",
+  "source": "Gemini (Nano Banana) high-res reimagining, with the user's prompt (same overhead outline, don't take pixels literally)"
+ },
+ "tyr-drum-w": {
+  "image": "assets/blender/features/concepts/tyr-drum-w.jpg",
+  "note": "TYRIAN (map 1-9) structure drum-w; scout data in structures.json (pattern, layer, copies)",
+  "source": "Gemini (Nano Banana) high-res reimagining, with the user's prompt (same overhead outline, don't take pixels literally)"
+ },
+ "tyr-crater": {
+  "image": "assets/blender/features/concepts/tyr-crater.jpg",
+  "note": "TYRIAN (map 1-9) structure crater; scout data in structures.json (pattern, layer, copies)",
+  "source": "Gemini (Nano Banana) high-res reimagining, with the user's prompt (same overhead outline, don't take pixels literally)"
+ },
+ "tyr-purple-cross": {
+  "image": "assets/blender/features/concepts/tyr-purple-cross.jpg",
+  "note": "TYRIAN (map 1-9) structure purple-cross; scout data in structures.json (pattern, layer, copies)",
+  "source": "Gemini (Nano Banana) high-res reimagining, with the user's prompt (same overhead outline, don't take pixels literally)"
+ },
+ "tyr-bunker-ring": {
+  "image": "assets/blender/features/concepts/tyr-bunker-ring.jpg",
+  "note": "TYRIAN (map 1-9) structure bunker-ring; scout data in structures.json (pattern, layer, copies)",
+  "source": "Gemini (Nano Banana) high-res reimagining, with the user's prompt (same overhead outline, don't take pixels literally)"
+ },
+ "tyr-bunker-hull": {
+  "image": "assets/blender/features/concepts/tyr-bunker-hull.jpg",
+  "note": "TYRIAN (map 1-9) structure bunker-hull; scout data in structures.json (pattern, layer, copies)",
+  "source": "Gemini (Nano Banana) high-res reimagining, with the user's prompt (same overhead outline, don't take pixels literally)"
+ },
+ "tyr-wreck": {
+  "image": "assets/blender/features/concepts/tyr-wreck.jpg",
+  "note": "TYRIAN (map 1-9) structure wreck; scout data in structures.json (pattern, layer, copies)",
+  "source": "Gemini (Nano Banana) high-res reimagining, with the user's prompt (same overhead outline, don't take pixels literally)"
+ },
+ "tyr-purple-orb": {
+  "image": "assets/blender/features/concepts/tyr-purple-orb.jpg",
+  "note": "TYRIAN (map 1-9) structure purple-orb; scout data in structures.json (pattern, layer, copies)",
+  "source": "Gemini (Nano Banana) high-res reimagining, with the user's prompt (same overhead outline, don't take pixels literally)"
+ },
+ "tyr-purple-2x3": {
+  "image": "assets/blender/features/concepts/tyr-purple-2x3.jpg",
+  "note": "TYRIAN (map 1-9) structure purple-2x3; scout data in structures.json (pattern, layer, copies)",
+  "source": "Gemini (Nano Banana) high-res reimagining, with the user's prompt (same overhead outline, don't take pixels literally)"
+ },
+ "tyr-purple-2x2": {
+  "image": "assets/blender/features/concepts/tyr-purple-2x2.jpg",
+  "note": "TYRIAN (map 1-9) structure purple-2x2; scout data in structures.json (pattern, layer, copies)",
+  "source": "Gemini (Nano Banana) high-res reimagining, with the user's prompt (same overhead outline, don't take pixels literally)"
+ },
+ "tyr-purple-2x5": {
+  "image": "assets/blender/features/concepts/tyr-purple-2x5.jpg",
+  "note": "TYRIAN (map 1-9) structure purple-2x5; scout data in structures.json (pattern, layer, copies)",
+  "source": "Gemini (Nano Banana) high-res reimagining, with the user's prompt (same overhead outline, don't take pixels literally)"
+ },
+ "tyr-lava-pit": {
+  "image": "assets/blender/features/concepts/tyr-lava-pit.jpg",
+  "note": "TYRIAN (map 1-9) structure lava-pit; scout data in structures.json (pattern, layer, copies)",
+  "source": "Gemini (Nano Banana) high-res reimagining, with the user's prompt (same overhead outline, don't take pixels literally)"
  }
 }
