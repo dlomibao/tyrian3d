@@ -1,6 +1,6 @@
 """USP Talon, the player's starting ship and the game's flagship model (ship sprite 233 in
 tyrian.shp#8, banking frames 229-237), shown large and turning in the menus and from the tilted game
-camera in play (DECISIONS.md D50, D51, D52).
+camera in play (DECISIONS.md D50, D51, D52, D53).
 
 A hard-surface build. The sprite is authoritative for the plan outline, the windshield and the
 colours (D52): the top view follows frame 233's teardrop row by row (a pointed nose widening
@@ -9,11 +9,12 @@ dark windshield sits exactly over the sprite's cockpit pixels (rows 9-12), and e
 palette index the sprite uses where it covers it. The multi-view blueprint and the top-down concept
 (assets/blender/features/concepts/ship-usp-talon-light-fighter.jpg) guide the side and front design
 and the detail: a faceted chisel nose with a split raised spine, a framed windshield, a raised
-dorsal spine behind it (the sprite's bright centre pixels are sheen on it), two engine pods with a
-machined (chamfered, filleted octagon) section, armour petals over their front domes and a deep
-blackened seam, a banded rear body with grilles, two deep glowing nozzles in the pods' tails, a
-recessed vented tail face; underneath a keel, chin cannons, pod intakes, ventral pylons and gear
-doors.
+dorsal spine running unbroken to the tail (the sprite's bright centre pixels are sheen on it), two
+engine pods with a machined (chamfered, filleted octagon) section, armour petals over their front
+domes and tails, long top panels with lengthwise seams (the sprite's seams run lengthwise: no dark
+bands across the pods or the body, D53), flank louvres, two deep glowing nozzles under shrouds in
+the pods' tails, a recessed vented tail face; underneath a keel, chin cannons, pod intakes, ventral
+pylons and gear doors.
 
 How it is built:
 - Every part is a low-poly cage in sprite px (x = column - 12, y = sprite row, aft is +y, z up),
@@ -25,8 +26,9 @@ How it is built:
   only fillets, nacelle domes and glass are smooth. No subdivision, no normal map.
 - Texture: no concept projection (texture_bake.py skips this model: "bake": "model" in its
   maps.json). This script bakes its own two small maps with Cycles: ambient occlusion at two scales
-  times a light edge lift (colour multiplier), and roughness/metalness (crevices rougher, bevelled
-  edges polished). Base Color = map x palette colour, so the palette still sets the colour.
+  times a light edge lift (colour multiplier, slightly cool: TINT), and roughness/metalness
+  (crevices rougher, bevelled edges polished). Base Color = map x palette colour, so the palette
+  still sets the colour.
 - Materials are palette materials (pal_<index>) so palettes, fades and the hit flash apply; the
   glows and navigation lights are emissive palette colours (orange 121/123, red 118, green 204).
 - Exported beside it: an outline shell (common.outline_shell, D51), a smooth closed copy the game
@@ -70,20 +72,29 @@ BRASS, BRASS_DK, BRASS_LT, GUN, DEEP, GLASS, GLOW, NAV_R, NAV_G, CORE, BRASS_MID
 
 # Palette index per material, from the sprite (DECISIONS D52): the median index of the sprite pixels
 # each part covers, the darkest shading (16-18) and the brightest highlights (29-31) left out as
-# lighting: nose and hatch 24, nose panels, deck, belts and the pods' front cowls 23, the spine 26
+# lighting: nose and hatch 24, nose panels, deck, belt and the pods' front cowls 23, the spine 26
 # and its top strips 27 (the lit centre line), the pods' shells 24 and their top panels 25, the pod tails and flanks 22,
 # dark recesses 16, the dark brown shading 19.
 PAL_OF = {BRASS: 24, BRASS_DK: 22, BRASS_LT: 26, GUN: 19, DEEP: 16, GLASS: 16, BRASS_MID: 23,
           BRASS_POL: 24, FRAME_LT: 22, BELLY: 23, POD_TOP: 25, SPINE_HI: 27}
 
 
-# Metalness scale: fully metallic tan multiplies its own colour into every reflection and turns
-# saturated brass under the menu's warm light; at ~0.4 the hull keeps the sprite's muted khaki.
-METAL = 0.7
+# Metalness scale: fully metallic tan multiplies its own colour into every reflection and reads as
+# saturated brass in the game (measured in real captures, DECISIONS D53); at 0.3 the hull, pods and
+# trim are 0.15-0.18 metallic, satin.
+METAL = 0.3
+
+# The baked colour map's tint (linear multipliers on the palette colour). The game's lighting and
+# tone mapping (three's Neutral, which subtracts a small offset from every channel) push the lit tan
+# toward saturated bronze: the blue channel, the smallest, loses the most. Captures of the title menu
+# and of play measured the ship at HSV saturation ~0.6 and blue/red ~0.39 against the sprite's 0.55
+# and 0.45 with an untinted map; this lifts blue (and trims red a little) so the ship in the game
+# reads the sprite's sandy khaki. The flat (unlit) colours stay within a few dE of the palette.
+TINT = (0.76, 0.86, 1.0)
 
 
 def materials():
-    """The sprite's own palette colours per region (PAL_OF), as satin metal (metallic 0.3-0.42,
+    """The sprite's own palette colours per region (PAL_OF), as satin metal (metallic 0.1-0.18,
     roughness 0.3-0.5) so the hull reads the sprite's muted sandy tan, not saturated mirror brass;
     the bake's roughness map adds the variation (edges smoother, crevices rougher)."""
     m = common.material
@@ -215,7 +226,7 @@ POD_CZ = pchip(_PY, [-0.3] * 12 + [-0.35, -0.42, -0.5, -0.55])
 POD_RZ = pchip(_PY, [0.45, 0.8, 1.2, 1.55, 1.8, 1.95, 2.05, 2.12, 2.15, 2.15, 2.15, 2.15, 2.05, 1.85, 1.5, 1.12])
 POD_START = _PY[0]
 POD_END = _PY[-1]  # the pod's aft bulkhead, round the nozzle
-NOZ_X, NOZ_Z = 3.55, -0.55  # nozzle axis
+NOZ_X, NOZ_Z = 3.7, -0.55  # nozzle axis, centred in the pod's tail
 
 
 def fillet(corners, radius, k=3):
@@ -276,7 +287,9 @@ def pod_s(deg):
         u = (ax * dz - az * dx) / den
         if r > 0 and -1e-9 <= u <= 1 + 1e-9 and (best is None or r < best[0]):
             best = (r, i + u)
-    return best[1] - (POD_N if deg < 0 else 0)
+    # Inboard angles run below 0 (the loop starts just inboard of the top flat, so small inboard
+    # angles land on its first segments and stay positive).
+    return best[1] - (POD_N if deg < 0 and best[1] > POD_N / 2 else 0)
 
 
 def pod_loop(y, side=1, grow=0.0):
@@ -588,11 +601,10 @@ def build_fuselage(P):
         x4, z4 = sec[4]
         hull(P, [(sx * x, y, z) for x, y, z in cbox(x4 * 0.55, x4 * 0.55 + 0.32, 13.0, 13.7, z4 - 0.75, z4 - 0.1, 0.06)], GUN)
         hull(P, [(sx * x, y, z) for x, y, z in cbox(x4 * 0.55, x4 * 0.55 + 0.32, 15.6, 16.3, z4 - 0.75, z4 - 0.1, 0.06)], GUN)
-    # Belts between the nacelles (thick polished straps) with a grille between them.
-    for y0, y1 in ((19.3, 20.15), (21.6, 22.45)):
-        plate(P, L, y0, y1, BRASS_MID, s0=-2.7, s1=2.7, d=0.36, c=0.1, ystep=1)
-    for yc in (20.45, 20.85, 21.25):
-        plate(P, L, yc - 0.09, yc + 0.09, BRASS_DK, s0=-2.4, s1=2.4, d=0.16, c=0.04, ystep=1)
+    # The belt between the nacelles: one thick plate under the spine (the sprite has no dark bands
+    # across the body here; its seams run lengthwise), split lengthwise either side of the spine.
+    for s0, s1 in ((-2.7, -0.55), (0.55, 2.7)):
+        plate(P, L, 19.3, 22.45, BRASS_MID, s0=s0, s1=s1, d=0.36, c=0.1, ystep=0.8)
     # Rear hatch, and the tail's end: a dark ring round the last row, its back edge chamfered.
     plate(P, L, 22.65, 26.3, BRASS, s0=-0.9, s1=0.9)
     plate(P, L, 26.45, 27.0, BRASS_DK, d=0.25, c=0.15, ch0=True, ch1=True, ystep=1)
@@ -625,17 +637,14 @@ def build_spine(P):
             top = FT(y) + h
             pts += [(sx * x, y, z) for sx in (-1, 1) for x, z in ((hw, top - ch), (hw - ch, top), (hw, FT(y) + base))]
         hull(P, pts, mat)
+    # It runs unbroken over the belt to the tail ring (the sprite's light centre column, rows 12-25),
+    # lower toward the tail.
     ridge(12.1, 19.25, 0.78, 0.5, 0.85, BRASS_LT)
     ridge(12.25, 19.0, 0.95, 0.68, 0.3, SPINE_HI, base=0.3, ch=0.08)
-    # Its rear run on the hatch, lower, to the tail ring.
+    ridge(19.1, 22.65, 0.5, 0.42, 0.78, BRASS_LT)
+    ridge(18.9, 22.8, 0.68, 0.58, 0.28, SPINE_HI, base=0.1, ch=0.08)
     ridge(22.5, 26.35, 0.42, 0.3, 0.7, BRASS_LT)
     ridge(22.7, 26.2, 0.58, 0.44, 0.26, SPINE_HI, base=0.1, ch=0.07)
-    # Blade antenna on the spine, swept back.
-    pts = []
-    for y, z0, z1 in ((18.05, FT(18.05) + 0.6, FT(18.05) + 0.62), (18.75, FT(18.75) + 0.6, FT(18.75) + 1.35)):
-        pts += [(sx * 0.06, y, z) for sx in (-1, 1) for z in (z0, z1)]
-    pts += [(sx * 0.06, 19.05, FT(19.05) + 1.35) for sx in (-1, 1)] + [(sx * 0.06, 19.1, FT(19.1) + 0.6) for sx in (-1, 1)]
-    hull(P, pts, GUN)
 
 
 # Windshield: glass edge outline in plan (sprite px), peak behind the middle. Small and high on the
@@ -777,7 +786,7 @@ def build_pods(P, D):
         # cowl and the rear shell.
         SEAM0, SEAM1 = 17.62, 17.98
         rings = [(G, y, 0.0) for y in frange(POD_START, SEAM0, 0.7)]
-        rings += [(G, SEAM0, -0.32), (G, SEAM1, -0.32), (G, SEAM1, 0.0)]
+        rings += [(G, SEAM0, -0.16), (G, SEAM1, -0.16), (G, SEAM1, 0.0)]
         rings += [(G, y, 0.0) for y in frange(SEAM1, POD_END, 0.7)[1:]]
         mats = [GUN] * len(rings)
         for i, (_, y, g) in enumerate(rings[:-1]):
@@ -803,15 +812,25 @@ def build_pods(P, D):
         # A strap over the seam on the outboard flank, so the plan outline runs on unbroken.
         plate(P, L, 17.35, 18.25, BRASS_DK, **A(62, 118), d=POD_PLATE, c=0.08, ystep=1)
         plate(P, L, 18.06, 22.9, BRASS_POL, **A(-121, 56), d=POD_PLATE, c=0.12, ystep=0.6)
-        plate(P, L, 18.06, 22.9, BRASS_POL, **A(59, 236), d=POD_PLATE, c=0.12, ystep=0.6)
-        # Aft end cap: a dark brass ring round the shell's rounded tail, behind a panel break.
-        plate(P, L, 23.05, POD_END + 0.1, BRASS_DK, d=POD_PLATE, c=0.12, ystep=0.4)
-        # Top armour panel, thick, over the rear shell.
-        plate(P, L, 18.75, 22.3, POD_TOP, **A(-34, 66), d=0.5, c=0.16, ystep=0.7)
-        # Heat louvres at the panel's aft end: a dark grille with three slats across it.
-        plate(P, L, 20.85, 21.95, DEEP, **A(-13.5, 46.5), d=0.54, c=0.03, ystep=2)
-        for yc in (21.12, 21.4, 21.68):
-            plate(P, L, yc - 0.07, yc + 0.07, BRASS_DK, **A(-12.7, 45.7), d=0.62, c=0.03, ystep=2)
+        # The outboard and lower rear shell in two, a seam along the lower flank (seen from the
+        # side and behind, not from above).
+        plate(P, L, 18.06, 22.9, BRASS_POL, **A(59, 146), d=POD_PLATE, c=0.12, ystep=0.6)
+        plate(P, L, 18.06, 22.9, BRASS_POL, **A(149, 236), d=POD_PLATE, c=0.12, ystep=0.6)
+        # Aft end cap round the shell's rounded tail: four dark brass petals, as on the front cowl,
+        # behind a panel break.
+        for a, b in ((-48, 57), (57, 133), (133, 224), (224, 312)):
+            plate(P, L, 23.05, POD_END + 0.1, BRASS_DK, **A(a, b, 0.1), d=POD_PLATE, c=0.12, ystep=0.4)
+        # Top armour panel, thick, along the pod from the cowl over the seam to the tail (the
+        # sprite's pod seams run lengthwise; a groove across the top read as a dark belt).
+        # In two strips with a seam along the pod, and a raised access hatch on the outer strip.
+        plate(P, L, 14.1, 22.3, POD_TOP, **A(-34, 9), d=0.5, c=0.16, ystep=0.7)
+        plate(P, L, 14.1, 22.3, POD_TOP, **A(12, 52), d=0.5, c=0.16, ystep=0.7)
+        plate(P, L, 19.2, 21.7, BRASS_LT, **A(19, 45), d=0.64, c=0.1, ystep=0.7)
+        # Heat louvres low on the outboard flank behind the navigation light: a dark grille with
+        # three slats along it.
+        plate(P, L, 20.55, 22.55, DEEP, **A(101, 131), d=0.36, c=0.03, ystep=0.7)
+        for a in (106, 116, 126):
+            plate(P, L, 20.65, 22.45, BRASS_DK, **A(a - 2.6, a + 2.6), d=0.46, c=0.03, ystep=0.7)
         # Gear door under the pod: a proud panel on the shell's belly.
         plate(P, L, 18.9, 22.4, BELLY, **A(152, 206), d=0.44, c=0.1, ystep=0.9)
         # Navigation light flush in the outboard shell at the pod's widest point.
@@ -846,6 +865,15 @@ def build_pods(P, D):
                     D.f(vs, prof[i][2], out=(0, 1, 0))
                 else:
                     D.f(vs, prof[i][2], away=(nx, (ya + yb) / 2, nz))
+        # Nozzle shroud: a faceted hood over the bell's upper arc, standing out of the bulkhead.
+        for k in range(6):
+            a0, a1 = math.radians(38 + k * 104 / 6), math.radians(38 + (k + 1) * 104 / 6)
+            pts = []
+            for a in (a0, a1):
+                for r in (0.84, 1.0):
+                    for y, dr in ((y0 - 0.15, 0.0), (y0 + 0.72, -0.05)):
+                        pts.append((nx + (r + dr) * math.cos(a), y, nz + (r + dr) * math.sin(a)))
+            hull(D, pts, BRASS_DK)
         # Intake scoop under the pod's front: gunmetal lip, dark mouth.
         cx = side * POD_CX(15.5)
         hull(D, [(cx + side * x, y, z) for x, y, z in cbox(-0.85, 0.85, 14.6, 17.4, -2.55, -1.3, 0.22)], GUN)
@@ -1074,9 +1102,12 @@ def bake_maps(obj, out_dir, size=1024, samples=96):
                      math_("ADD", 0.65, math_("MULTIPLY", ao_l.outputs["AO"], 0.35)))
         em = node("ShaderNodeEmission")
         if mode == "colour":
-            v = math_("MINIMUM", math_("ADD", math_("ADD", 0.36, math_("MULTIPLY", occl, 0.62)),
+            v = math_("MINIMUM", math_("ADD", math_("ADD", 0.48, math_("MULTIPLY", occl, 0.62)),
                                        math_("MULTIPLY", edge, 0.2)), 1.0)
-            L(v, em.inputs["Color"])
+            tint = node("ShaderNodeCombineColor")
+            for k in range(3):
+                L(math_("MULTIPLY", v, TINT[k]), tint.inputs[k])
+            L(tint.outputs[0], em.inputs["Color"])
         else:
             r = math_("ADD", rough, math_("SUBTRACT", math_("MULTIPLY", math_("SUBTRACT", 1.0, occl), 0.3),
                                           math_("MULTIPLY", edge, 0.16)))

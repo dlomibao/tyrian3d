@@ -1849,3 +1849,44 @@ concept only guide the side and front design and the detail where they agree wit
 measurement scripts (top orthographic renders on the sprite grid, IoU, per-row widths, windshield
 overlay, per-region colours) are not in the repo; the numbers above are from them. The .glb is
 ~780 KB.
+
+## D53 — The Talon's colours are measured in the game's own render; no dark bands across the pods
+
+2026-10-29
+
+**Decision:** A review of D52 found the ship still read bronze/brass in the game, not the sprite's
+sandy khaki: ship pixels in real captures of the title menu and of `?debug=play` measured HSV
+saturation 0.66-0.68 and blue/red 0.33 against the sprite's 0.55 and 0.45 (its pixels of index 19
+and up), although the palette indices were right. D52's "game-lit dE 2.1" came from a Blender
+approximation of the game's light, which leaves out three's Neutral tone mapping (it subtracts a
+small offset from every channel, so the smallest one, blue, loses the most). Colours are now judged
+on headless-Chrome captures of the game itself. `assets/blender/usp_talon.py`:
+- **Colour:** metalness scale 0.7 -> 0.3 (hull, pods and trim 0.15-0.18 metallic, satin), and the
+  baked colour map carries a slight cool tint (`TINT`, linear 0.76 / 0.86 / 1.0; the map cannot go
+  above 1, so red and green come down rather than blue up), its occlusion floor raised a little to
+  keep the brightness. Captures now measure saturation 0.57 and blue/red 0.43 in both the title menu
+  and play (the pods in play 0.55-0.60). The flat (unlit) top view moves a few dE from the bare
+  palette (whole ship 6.0), the price of matching where it is seen.
+- **No dark bands across the pods and body:** the sprite's seams run lengthwise. Gone: the louvre
+  grille across the pods' tops and the grille between the body's belts (one plate now, split along
+  either side of the spine), and the spine runs unbroken to the tail. The pods' long top panels run
+  from the cowl over the cowl/shell seam (now shallow) to the tail, in two strips with a lengthwise
+  seam and an access hatch. This also fixes `pod_s`, which turned small inboard angles into a
+  full extra turn, so D52's "top panel" wrapped right round each pod.
+- **Detail:** the blade antenna on the spine is gone (dark and thin, it read as a tiny figure standing
+  on the spine). The pods' rear halves get a lengthwise flank seam, louvres low on the outboard flank,
+  a tail cap in four petals, and nozzle shrouds; the nozzles move out to the pods' tail centres.
+- Outline and windshield unchanged: IoU 1.00 on the sprite's grid, 0.959 at 20 px per sprite px.
+
+**Not changed:** the game's ink outline (src/render/view.ts, all models) draws outside the model, so
+the Talon's dark contour sits about a sprite pixel outside the sprite's own ring, and its colour is
+(0.07, 0.035, 0) linear, (75, 53, 0) on screen, not the ring's near-black (16, 8, 0). Changing it is
+a call for every model, not this one.
+
+**Options considered:**
+- *Lower metalness only:* at 0.05-0.15 metallic the captures still measured saturation ~0.59-0.6.
+- *Lighter palette indices:* would break the sprite's per-region indices (D52).
+- *Change the game's lights or tone mapping:* affects every model and the ground.
+
+**Review:** the title screen, `?debug=play&solid=1&skip=400&freezeAt=402` (the ship over water,
+which makes its pixels easy to separate). The capture and measurement scripts are not in the repo.
