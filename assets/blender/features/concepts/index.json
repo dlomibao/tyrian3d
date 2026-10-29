@@ -25,8 +25,8 @@
  },
  "assembly-newsh2-3": {
   "image": "assets/blender/features/concepts/assembly-newsh2-3.jpg",
-  "source": "Gemini (Nano Banana) high-res reimagining of the sprite, with the user's prompt (same overhead outline, don't take pixels literally)",
-  "note": "Unreliable: the sprite is a long repeating strip and Gemini only saw a cropped end; it drew a pipe or blade. Don't use as a shape guide."
+  "note": "Unreliable: the sprite is a long repeating strip and Gemini only saw a cropped end; it drew a pipe or blade. Don't use as a shape guide.",
+  "source": "Gemini (Nano Banana) high-res reimagining of the sprite, with the user's prompt (same overhead outline, don't take pixels literally)"
  },
  "assembly-newsh2-53": {
   "image": "assets/blender/features/concepts/assembly-newsh2-53.jpg",
@@ -38,8 +38,8 @@
  },
  "assembly-newsh2-9": {
   "image": "assets/blender/features/concepts/assembly-newsh2-9.jpg",
-  "source": "Gemini (Nano Banana) high-res reimagining of the sprite, with the user's prompt (same overhead outline, don't take pixels literally)",
-  "note": "Unreliable: the sprite is a long repeating strip and Gemini only saw a cropped end; it drew a pipe or blade. Don't use as a shape guide."
+  "note": "Unreliable: the sprite is a long repeating strip and Gemini only saw a cropped end; it drew a pipe or blade. Don't use as a shape guide.",
+  "source": "Gemini (Nano Banana) high-res reimagining of the sprite, with the user's prompt (same overhead outline, don't take pixels literally)"
  },
  "assembly-newsh4-123": {
   "image": "assets/blender/features/concepts/assembly-newsh4-123.jpg",
@@ -51,13 +51,13 @@
  },
  "assembly-newsh4-195": {
   "image": "assets/blender/features/concepts/assembly-newsh4-195.jpg",
-  "source": "Gemini (Nano Banana) high-res reimagining of the sprite, with the user's prompt (same overhead outline, don't take pixels literally)",
-  "note": "Unreliable: the sprite is a long repeating strip and Gemini only saw a cropped end; it drew a pipe or blade. Don't use as a shape guide."
+  "note": "Unreliable: the sprite is a long repeating strip and Gemini only saw a cropped end; it drew a pipe or blade. Don't use as a shape guide.",
+  "source": "Gemini (Nano Banana) high-res reimagining of the sprite, with the user's prompt (same overhead outline, don't take pixels literally)"
  },
  "assembly-newsh4-231": {
   "image": "assets/blender/features/concepts/assembly-newsh4-231.jpg",
-  "source": "Gemini (Nano Banana) high-res reimagining of the sprite, with the user's prompt (same overhead outline, don't take pixels literally)",
-  "note": "Unreliable: the sprite is a long repeating strip and Gemini only saw a cropped end; it drew a pipe or blade. Don't use as a shape guide."
+  "note": "Unreliable: the sprite is a long repeating strip and Gemini only saw a cropped end; it drew a pipe or blade. Don't use as a shape guide.",
+  "source": "Gemini (Nano Banana) high-res reimagining of the sprite, with the user's prompt (same overhead outline, don't take pixels literally)"
  },
  "assembly-newsh4-81": {
   "image": "assets/blender/features/concepts/assembly-newsh4-81.jpg",
@@ -70,6 +70,56 @@
  "assembly-newshe-39": {
   "image": "assets/blender/features/concepts/assembly-newshe-39.jpg",
   "source": "Gemini (Nano Banana) high-res reimagining of the sprite, with the user's prompt (same overhead outline, don't take pixels literally)"
+ },
+ "l1-bld-bunker": {
+  "image": "assets/blender/features/concepts/l1-bld-bunker.jpg",
+  "note": "First level (map 1-3): square bunker on the ground layer",
+  "source": "Gemini (Nano Banana) high-res reimagining, with the user's prompt (same overhead outline, don't take pixels literally)"
+ },
+ "l1-bld-cross-pad": {
+  "image": "assets/blender/features/concepts/l1-bld-cross-pad.jpg",
+  "note": "First level: cross-shaped pad of red light capsules",
+  "source": "Gemini (Nano Banana) high-res reimagining, with the user's prompt (same overhead outline, don't take pixels literally)"
+ },
+ "l1-bld-light-bridge": {
+  "image": "assets/blender/features/concepts/l1-bld-light-bridge.jpg",
+  "note": "First level: long platform with a red light strip and two dark pads",
+  "source": "Gemini (Nano Banana) high-res reimagining, with the user's prompt (same overhead outline, don't take pixels literally)"
+ },
+ "l1-bld-pipe-junction": {
+  "image": "assets/blender/features/concepts/l1-bld-pipe-junction.jpg",
+  "note": "First level: paved platform with a forked channel",
+  "source": "Gemini (Nano Banana) high-res reimagining, with the user's prompt (same overhead outline, don't take pixels literally)"
+ },
+ "l1-bld-red-bar": {
+  "image": "assets/blender/features/concepts/l1-bld-red-bar.jpg",
+  "note": "First level: small platform with a red light bar",
+  "source": "Gemini (Nano Banana) high-res reimagining, with the user's prompt (same overhead outline, don't take pixels literally)"
+ },
+ "l1-bld-ring-dome": {
+  "image": "assets/blender/features/concepts/l1-bld-ring-dome.jpg",
+  "note": "First level: ring-shaped platform with turrets and a dome",
+  "source": "Gemini (Nano Banana) high-res reimagining, with the user's prompt (same overhead outline, don't take pixels literally)"
+ },
+ "l1-pickups": {
+  "image": "assets/blender/features/concepts/l1-pickups.jpg",
+  "note": "Pickups: red/green/purple gems, small diamonds, coins, data cube (coins-datacubes sheet)",
+  "source": "Gemini (Nano Banana) high-res reimagining, with the user's prompt (same overhead outline, don't take pixels literally)"
+ },
+ "l1-power-orbs": {
+  "image": "assets/blender/features/concepts/l1-power-orbs.jpg",
+  "note": "Power-up orbs (powerups sheet)",
+  "source": "Gemini (Nano Banana) high-res reimagining, with the user's prompt (same overhead outline, don't take pixels literally)"
+ },
+ "l1-shots": {
+  "image": "assets/blender/features/concepts/l1-shots.jpg",
+  "note": "A selection of player and enemy projectiles (shots sheet)",
+  "source": "Gemini (Nano Banana) high-res reimagining, with the user's prompt (same overhead outline, don't take pixels literally)"
+ },
+ "l1-weapon-pickups": {
+  "image": "assets/blender/features/concepts/l1-weapon-pickups.jpg",
+  "note": "Front-weapon pickup capsules (powerups sheet)",
+  "source": "Gemini (Nano Banana) high-res reimagining, with the user's prompt (same overhead outline, don't take pixels literally)"
  },
  "newsh2-127": {
   "image": "assets/blender/features/concepts/newsh2-127.jpg",
