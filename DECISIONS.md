@@ -1597,3 +1597,35 @@ What the C draws translucent in play, and how it's drawn here:
 `&bg=remaster`): the ice clouds should show the ground and ground enemies through them. The C keeps
 the cloud's hue and averages brightness, so its clouds are bluer over dark ground than this alpha
 blend; if that matters, try the two-pass blend.
+
+## D46 — A model's frames are textured together, and a build textures what has concept maps
+
+2026-10-29
+
+**Decision:** texture_bake.py textures a model's other animation frames (`<name>-f<k>`, one model
+per frame) with the first: a frame with the same faces as the first (the same parts moved or
+turned) takes its texture and bake UVs face corner by face corner, so the detail turns with the
+parts; one with a different mesh is baked on its own from the same maps. tools/build-models.sh runs
+the bake right after building any model with concept maps (`-n` skips it). newsh2-229 (the spinning
+ring drones in TYRIAN) no longer textures its own frames in its build script.
+
+The drones flashed light and dark because frame 229 was plain while f2-f8 were textured: the
+bake textured only the first .glb, so the script baked f2-f8 itself, and the model was rebuilt
+after its bake, which left frame 229 plain. Its frames' bake was also much darker than the bake now
+is (probably because it ran with all eight frame models overlapping in the scene, where the
+ambient occlusion sees the other frames; not checked further).
+
+**Options considered:**
+- *Bake every frame in texture_bake.py, and bake in the build (chosen):* one place, and a rebuild
+  can't drop textures.
+- *Fix newsh2-229 only (rebake its first frame):* fixes the flash, but the next rebuild without a
+  bake brings it back, and the other multi-frame models with concept maps would flash once baked.
+- *Bake each frame separately always:* simpler, but a turned part's detail stays put on screen
+  instead of turning with it.
+
+**Review:** In this commit only newsh2-229 is rebuilt and rebaked. The other models with concept
+maps (D44) are plain in git: the commit that made them was rebuilt after its bakes, so it carries
+no textures for any enemy or ship (only the seven map 1-3 tile structures and newsh2-229's frames
+had them). `tools/build-models.sh $(script for each textures/<name>/)` rebuilds and textures them
+(assemblies need `tools/sprite_shape.py <name>` first); several rebuilt models came out not
+byte-identical to git, so check them in `?debug=models` before committing.
