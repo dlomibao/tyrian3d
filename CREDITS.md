@@ -28,6 +28,7 @@ anything imported from outside, such as Poly Haven textures or HDRIs.
 | Asset | Source URL | Author | License | Used in |
 |---|---|---|---|---|
 | Tyrian ship and tile graphics (the art the models in `assets/blender/` reproduce) | https://lostgarden.com/2007/04/05/free-game-graphics-tyrian-ships-and-tiles/ | Daniel Cook | Free to use in games ("use and abuse them as desired"); link back requested | Every model in `public/models/` is a 3D version of one of these sprites or tiles |
+| Remastered shot and pickup sprites (`public/art/sprites/`) | Generated with Google Gemini (Nano Banana) from input sheets of Tyrian's original sprites, cut and fitted with `tools/flat_art.py` (DECISIONS.md D43) | Based on Tyrian's sprite art (Daniel Cook) | As the art they're based on | Drawn flat in game in place of the original shot and pickup sprites (D42) |
 | Concept images of models (`assets/blender/features/concepts/`) | Generated with Google Gemini (Nano Banana) from the sprites above; two supplied by the project's author | Based on Daniel Cook's Tyrian art | As the art they're based on | Design references for the Blender models; not shipped in the game |
 
 ## Audio

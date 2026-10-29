@@ -17,6 +17,10 @@
 //   (remaster/groundAtlas.ts) and structure tiles become Blender models found by tile pattern
 //   (remaster/tileModels.ts). Tiles without a model, and models still loading, stay as above.
 //
+// - Remastered flat sprite art (setSpriteArt, D42): sprites with a painting in
+//   public/art/sprites/ (shots and pickups) are flat textured quads (spriteArtLayer.ts) instead of
+//   extruded sprites or models. Sprites without one, and atlases still loading, stay as above.
+//
 // Integrator API: add `root` to the scene, call setPalettes() once, setDrawList() every logic
 // tick, and update(alpha, camera) every display frame before rendering.
 
@@ -40,6 +44,8 @@ import { paletteLuma } from "./remaster/mmpx";
 import { TileModelIndex } from "./remaster/tileModels";
 import { StructureInstances } from "./remaster/structureInstances";
 import { modelHeightFromUrl } from "./modelHeight";
+import { placeFlatQuad, SPRITE2X2_PARTS, spriteArtModeFromSearch, type FlatQuad, type ReadyFrame, type SpriteArt, type SpriteArtMode, type SpriteArtSheet } from "./spriteArt";
+import { SpriteArtLayer } from "./spriteArtLayer";
 
 /** How backgrounds are drawn: the original tiles extruded (D8) or remastered (D34). */
 export type BackgroundStyle = "original" | "remaster";
@@ -182,6 +188,9 @@ export interface DrawListStats {
   remasterTiles: number;
   /** Structure model copies drawn (remastered backgrounds). */
   structures: number;
+  /** Flat sprite art quads drawn, and their draw calls (D42). */
+  flatSprites: number;
+  flatCalls: number;
 }
 
 export class DrawListRenderer {
@@ -225,6 +234,14 @@ export class DrawListRenderer {
   /** Structure models asked for (loading or loaded). */
   private readonly structureLoads = new Set<string>();
   private readonly preloadedShapes = new Set<string>();
+  /** Remastered flat sprite art (D42): the atlases, if any, and the layer that draws them. */
+  private spriteArt: SpriteArt<THREE.Texture> | null = null;
+  private readonly artLayer: SpriteArtLayer;
+  /** `?sprites=` (or setSpriteArtMode); undefined follows the effects look. */
+  private artMode: SpriteArtMode | undefined = spriteArtModeFromSearch();
+  /** Each sheet's art, by the sheet object (null: none), so the per-draw lookup builds no strings. */
+  private artSheets = new WeakMap<object, SpriteArtSheet<THREE.Texture> | null>();
+  private readonly quad: FlatQuad = { x: 0, y: 0, z: 0, w: 0, d: 0 };
 
   constructor() {
     this.root.name = "draw-list";
@@ -241,6 +258,8 @@ export class DrawListRenderer {
     this.materials[Variant.HotBlend] = paletteMaterial(p, { lit: true, transparent: true, outline: false, glow: HOT_BLEND_GLOW });
     this.materials[Variant.RemasterGround] = remasterGroundMaterial(p, this.remasterAtlas); // [bg-remaster]
     for (let v = 0; v <= Variant.RemasterGround; v++) this.pools.push(new Map());
+    this.artLayer = new SpriteArtLayer(p);
+    this.root.add(this.artLayer.root);
     this.setVfxMode(vfxModeFromSearch());
   }
 
@@ -255,6 +274,28 @@ export class DrawListRenderer {
     this.fx?.dispose();
     this.fx = mode === "remastered" ? new RemasteredFx(this.cache, this.palette) : null;
     if (this.fx) this.root.add(this.fx.root);
+  }
+
+  /**
+   * The remastered flat sprite art (D42), from loadSpriteArt (spriteArtLayer.ts), or null. Sprites
+   * it has a painting for draw flat while the sprite look is "remastered".
+   */
+  setSpriteArt(art: SpriteArt<THREE.Texture> | null): void {
+    this.spriteArt = art;
+    this.artSheets = new WeakMap();
+  }
+
+  /**
+   * How shots and pickups are drawn: "original" sprites, or the "remastered" flat art where it
+   * exists. Undefined (the default without `?sprites=`) follows the effects look (setVfxMode).
+   */
+  setSpriteArtMode(mode: SpriteArtMode | undefined): void {
+    this.artMode = mode;
+  }
+
+  /** The sprite look in effect. */
+  get spriteArtMode(): SpriteArtMode {
+    return this.artMode ?? (this.vfx === "remastered" ? "remastered" : "original");
   }
 
   /** Particles alive in the remastered effects (0 in the original look). */
@@ -347,6 +388,8 @@ export class DrawListRenderer {
     fx?.begin(dt * this.vfxTimeScale, camera);
     this.placedStructures.clear();
     this.structures.begin();
+    const art = this.spriteArt !== null && this.spriteArtMode === "remastered";
+    this.artLayer.begin();
 
     for (let i = 0; i < items.length; i++) {
       const d = items[i];
@@ -355,12 +398,20 @@ export class DrawListRenderer {
           if (d.effect === "darken") continue; // Real shadows replace the C's shadow sprites (D9).
           const x = prevX[i] + (d.x - prevX[i]) * alpha;
           const y = prevY[i] + (d.y - prevY[i]) * alpha;
-          if (d.groupIndex >= 0 && this.spriteModels.size > 0 && this.drawGroupModel(d, x, y, cam, dt)) continue;
-          if (this.overridesBySheet.size > 0 && this.drawOverride(d, x, y, cam, dt)) continue;
+          // With flat art for the sprite (for a grouped one, the object's first tile), it's drawn flat
+          // instead of as a model (D42).
+          const sheetArt = art ? this.artSheet(d.sheet) : null;
+          const flat = sheetArt !== null && sheetArt.frame(d.groupIndex >= 0 ? d.groupIndex : d.index) !== undefined;
+          if (!flat && d.groupIndex >= 0 && this.spriteModels.size > 0 && this.drawGroupModel(d, x, y, cam, dt)) continue;
+          if (!flat && this.overridesBySheet.size > 0 && this.drawOverride(d, x, y, cam, dt)) continue;
           const geometry = this.cache.sprite2Geometry(d.sheet, d.index, d.size);
           if (!geometry) continue;
           const look = fx && VFX_PASSES.has(d.pass) ? fx.sprite(d, geometry, x, y, d.x - prevX[i], d.y - prevY[i]) : SpriteLook.Default;
           if (look === SpriteLook.Hidden) continue;
+          if (flat && this.addFlatSprite2(sheetArt, d, x, y, cam)) {
+            instances++;
+            break;
+          }
           this.addSprite(geometry, d.pass, d.effect, d.filter, d.value, x, y, cam, frame, look === SpriteLook.Hot);
           instances++;
           break;
@@ -373,7 +424,10 @@ export class DrawListRenderer {
           const y = prevY[i] + (d.y - prevY[i]) * alpha;
           const look = fx && VFX_PASSES.has(d.pass) ? fx.sprite(d, geometry, x, y, d.x - prevX[i], d.y - prevY[i]) : SpriteLook.Default;
           if (look === SpriteLook.Hidden) continue;
-          this.addSprite(geometry, d.pass, d.effect, d.filter, d.value, x, y, cam, frame, look === SpriteLook.Hot);
+          const tableArt = art ? this.artSheet(d.table) : null;
+          const f = tableArt?.frame(d.index);
+          if (tableArt && f) this.addFlat(tableArt, f, 0, 0, d.pass, d.effect, d.filter, d.value, x, y, cam);
+          else this.addSprite(geometry, d.pass, d.effect, d.filter, d.value, x, y, cam, frame, look === SpriteLook.Hot);
           instances++;
           break;
         }
@@ -409,6 +463,7 @@ export class DrawListRenderer {
     }
 
     for (let p = 0; p < this.allPools.length; p++) this.allPools[p].commit();
+    this.artLayer.end();
     fx?.end();
     for (const mp of this.modelPools.values()) {
       for (let c = mp.used; c < mp.clones.length; c++) mp.clones[c].object.visible = false;
@@ -430,6 +485,8 @@ export class DrawListRenderer {
       atlasTiles: this.atlas.size,
       remasterTiles: this.remasterAtlas.size,
       structures: this.structures.stats().instances,
+      flatSprites: this.artLayer.instances,
+      flatCalls: this.artLayer.drawCalls,
     };
   }
 
@@ -493,6 +550,49 @@ export class DrawListRenderer {
       fx[o + 2] = 0;
     }
     fx[o + 3] = blend ? BLEND_ALPHA : 1;
+  }
+
+  /** A sheet's flat art (D42), or null if it has none. */
+  private artSheet(sheet: { readonly id: string }): SpriteArtSheet<THREE.Texture> | null {
+    let a = this.artSheets.get(sheet);
+    if (a === undefined) {
+      a = this.spriteArt?.sheet(sheet.id) ?? null;
+      this.artSheets.set(sheet, a);
+    }
+    return a;
+  }
+
+  /**
+   * Draw a Sprite2 draw as flat art: one quad, or a blit_sprite2x2's four. Returns false (draw it
+   * as before) if a non-empty tile has no frame.
+   */
+  private addFlatSprite2(art: SpriteArtSheet<THREE.Texture>, d: SpriteDraw, x: number, y: number, cam: THREE.Vector3): boolean {
+    if (d.size === 1) {
+      const f = art.frame(d.index);
+      if (!f) return false;
+      this.addFlat(art, f, 0, 0, d.pass, d.effect, d.filter, d.value, x, y, cam);
+      return true;
+    }
+    for (const [di] of SPRITE2X2_PARTS) {
+      if (!art.frame(d.index + di) && this.cache.sprite2Geometry(d.sheet, d.index + di, 1) !== null) return false;
+    }
+    for (const [di, dx, dy] of SPRITE2X2_PARTS) {
+      const f = art.frame(d.index + di);
+      if (f) this.addFlat(art, f, dx, dy, d.pass, d.effect, d.filter, d.value, x, y, cam);
+    }
+    return true;
+  }
+
+  /** One flat art quad at the draw's place (screen (x + dx, y + dy), its pass's height). */
+  private addFlat(
+    art: SpriteArtSheet<THREE.Texture>, f: ReadyFrame, dx: number, dy: number, pass: Pass,
+    effect: SpriteEffect, filter: number, value: number, x: number, y: number, cam: THREE.Vector3,
+  ): void {
+    const q = placeFlatQuad(x + dx, y + dy, f.w, f.h, passHeight(pass), cam, this.quad);
+    const alpha = effect === "blend" ? BLEND_ALPHA : 1;
+    if (effect === "filter") this.artLayer.add(art, pass, q, f, FxMode.Filter, (filter >> 4) & 0x0f, 0, alpha);
+    else if (effect === "hv") this.artLayer.add(art, pass, q, f, FxMode.HueValue, filter & 0x0f, value, alpha);
+    else this.artLayer.add(art, pass, q, f, FxMode.None, 0, 0, alpha);
   }
 
   private addSolid(color: number, x: number, y: number, w: number, h: number, pass: Pass, cam: THREE.Vector3, frame: number): void {
