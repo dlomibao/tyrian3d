@@ -604,7 +604,12 @@ export const g = {
   /** true: JE_initProcessorType sets it for every processor type above 386. */
   background2: true,
   smoothScroll: true,
-  wild: false,
+  /**
+   * JE_initProcessorType sets it for processorType 4 (Pentium), which the port plays at: background 2
+   * (TYRIAN's ice clouds, for one) is drawn blended (draw_background_2_blend) unless an event sets
+   * background2notTransparent. It changes only which draw call is made, never the game.
+   */
+  wild: true,
   superWild: false,
   starActive: false,
   topEnemyOver: false,

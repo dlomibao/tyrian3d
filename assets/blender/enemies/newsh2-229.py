@@ -12,7 +12,9 @@ a dark clamp block at each end. The features are listed in assets/blender/featur
 The ring turns clockwise 22.5 degrees a frame, so the eight frames are eight models of the same
 thing with the ring turned: newsh2-229 (frame 229), newsh2-229-f2 (231) ... newsh2-229-f8 (243).
 The sprite's whole drone shifts by a pixel between frames; each model is centred where its frame
-draws it (found from the core's top-left light).
+draws it (found from the core's top-left light). All eight are exported plain; texture_bake.py
+textures them together (frame 229's bake, its UVs copied onto the other frames, which share its
+mesh), so the ring's detail turns with the ring and every frame has the same brightness.
 
 Run: blender --background --python assets/blender/enemies/newsh2-229.py [-- --preview out.png]
 """
@@ -244,92 +246,6 @@ def build_one(sprite, name, turn, centre):
     return lib.finish(name, bm, mats, coll)
 
 
-def _bake_helpers():
-    """texture_bake.py's functions, loaded without running its main()."""
-    path = Path(__file__).resolve().parents[1] / "texture_bake.py"
-    src = path.read_text()
-    if not src.rstrip().endswith("\nmain()"):
-        raise RuntimeError("texture_bake.py no longer ends in main(); can't reuse its helpers")
-    ns = {"__file__": str(path), "__name__": "texture_bake_helpers"}
-    exec(compile(src.rstrip()[: -len("main()")], str(path), "exec"), ns)
-    return ns
-
-
-def texture_frames(first, others):
-    """Give frames f2-f8 the same baked texture as frame 229 (texture_bake.py only bakes the model's
-    first .glb, so without this the ring would pop between textured and plain every frame).
-
-    Every frame model has the same topology (only the ring's turn and the drone's 1 px shift
-    differ), so this bakes one copy of frame 229 the way texture_bake.py does (concept detail times
-    AO, and the concept's fine relief as a normal map) and copies its "bake" UVs loop by loop onto
-    the other frames: the ring's texture turns with the ring, the core's stays put. Frame 229 itself
-    is exported untextured, for texture_bake.py to texture after the build."""
-    import bpy
-
-    root = common.repo_root(__file__)
-    tex_dir = root / "assets" / "blender" / "textures" / NAME
-    if not (tex_dir / "maps.json").exists():
-        print(f"warning: {tex_dir}/maps.json missing (run tools/concept_maps.py); frames f2-f8 left untextured")
-        return
-    import json
-    tb = _bake_helpers()
-    meta = json.loads((tex_dir / "maps.json").read_text())
-    regions = json.loads((root / ".shape" / NAME / "regions.json").read_text())
-    scene = bpy.context.scene
-    engine = scene.render.engine
-    scene.render.engine = "CYCLES"
-    scene.cycles.samples = 32
-    scene.cycles.device = "CPU"
-
-    ref = first.copy()
-    ref.data = first.data.copy()
-    for coll in first.users_collection:
-        coll.objects.link(ref)
-    me = ref.data
-    for uv in list(me.uv_layers):
-        me.uv_layers.remove(uv)
-    tb["concept_uvs"]([ref], regions["size"])
-    tb["bake_uvs"]([ref])
-    detail = tb["load_image"](tex_dir / "detail.png", True)
-    height = tb["load_image"](tex_dir / "height.png", True)
-    colour_img = bpy.data.images.new(f"{NAME}-frames-detail", 512, 512, alpha=False)
-    normal_img = bpy.data.images.new(f"{NAME}-frames-normal", 512, 512, alpha=False)
-    normal_img.colorspace_settings.name = "Non-Color"
-    tb["bake"]([ref], tb["bake_material_colour"](detail, meta["neutral"], colour_img), "EMIT")
-    tb["bake"]([ref], tb["bake_material_normal"](height, normal_img), "NORMAL")
-    import tempfile
-    with tempfile.TemporaryDirectory() as tmp:  # packed as WebP, so the .glbs stay small like texture_bake.py's
-        for img in (colour_img, normal_img):
-            img.filepath_raw = str(Path(tmp) / f"{img.name}.webp")
-            img.file_format = "WEBP"
-            img.save()
-            img.pack()
-    bake_uv = [tuple(d.uv) for d in me.uv_layers["bake"].data]
-    ref_loops = [lp.vertex_index for lp in me.loops]
-
-    # Each frame gets its own copies of the materials (frame 229's stay plain for texture_bake.py),
-    # named pal_<index>_<frame model> so the game still colours them from the live palette.
-    copies = {}
-    for obj in others:
-        m = obj.data
-        if [lp.vertex_index for lp in m.loops] != ref_loops:
-            raise RuntimeError(f"{obj.name}: topology differs from {first.name}; can't share its texture")
-        uv = m.uv_layers.new(name="bake")
-        for d, co in zip(uv.data, bake_uv):
-            d.uv = co
-        for i, mat in enumerate(m.materials):
-            key = (obj.name, mat.name)
-            if key not in copies:
-                c = mat.copy()
-                c.name = mat.name.replace(f"_{NAME}", f"_{obj.name}", 1)
-                copies[key] = c
-                tb["wire"]([c], colour_img, normal_img)
-            m.materials[i] = copies[key]
-    bpy.data.objects.remove(ref, do_unlink=True)
-    scene.render.engine = engine
-    print(f"textured frames {', '.join(o.name for o in others)} from one bake of {first.name}")
-
-
 def build(sprite):
     frames = sprite["sprites"][0]["frames"]
     by_index = {f["index"]: f for f in sprite["frames"]}
@@ -339,7 +255,6 @@ def build(sprite):
         f = by_index[frame]
         obj = build_one(sprite, name, k * math.pi / 8, frame_centre(f))
         models.append((name, [obj], lib.frames_subset(sprite, [frame])))
-    texture_frames(models[0][1][0], [objs[0] for _, objs, _ in models[1:]])
     return models
 
 

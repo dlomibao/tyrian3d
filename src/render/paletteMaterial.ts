@@ -109,12 +109,18 @@ export function paletteMaterial(palette: PaletteTexture, opts: PaletteMaterialOp
   return material;
 }
 
-/** The ground (background 1) material: tiles from the atlas, coloured per fragment. */
-export function groundTileMaterial(palette: PaletteTexture, atlas: TileAtlas): THREE.Material {
+/**
+ * The ground (background 1) material: tiles from the atlas, coloured per fragment. With `blend`
+ * (an opacity), it draws the C's blended background-2 tiles (draw_background_2_blend) as flat
+ * translucent sheets instead: index 0 is see-through and the rest is drawn at that opacity.
+ */
+export function groundTileMaterial(palette: PaletteTexture, atlas: TileAtlas, blend?: number): THREE.Material {
   const material = new THREE.MeshStandardMaterial({
     roughness: 0.95,
     metalness: 0,
     envMapIntensity: 0.2,
+    transparent: blend !== undefined,
+    depthWrite: blend === undefined,
     userData: { outlineParameters: { visible: false } },
   });
   material.onBeforeCompile = (shader) => {
@@ -125,13 +131,16 @@ export function groundTileMaterial(palette: PaletteTexture, atlas: TileAtlas): T
     shader.vertexShader = shader.vertexShader
       .replace(
         "#include <common>",
-        "#include <common>\nattribute vec2 tileUvIn;\nattribute vec2 instTile;\nuniform vec2 tileUv;\nvarying vec2 vAtlasUv;\nvarying vec2 vTileOrigin;",
+        "#include <common>\nattribute vec2 tileUvIn;\nattribute vec2 instTile;\nuniform vec2 tileUv;\nvarying vec2 vAtlasUv;\nvarying vec2 vTileOrigin;\nvarying float vPassY;",
       )
-      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvTileOrigin = instTile.xy;\nvAtlasUv = instTile.xy + tileUvIn * tileUv;");
+      .replace(
+        "#include <begin_vertex>",
+        "#include <begin_vertex>\nvTileOrigin = instTile.xy;\nvAtlasUv = instTile.xy + tileUvIn * tileUv;\nvPassY = 0.0;\n#ifdef USE_INSTANCING\nvPassY = instanceMatrix[3][1];\n#endif",
+      );
     shader.fragmentShader = shader.fragmentShader
       .replace(
         "#include <common>",
-        `#include <common>\nuniform sampler2D atlasMap;\nuniform vec2 tileUv;\nvarying vec2 vAtlasUv;\nvarying vec2 vTileOrigin;\n${PALETTE_LOOKUP}\n${SCREEN_HUE_PARS}\nfloat vScreenWater = 0.0;`,
+        `#include <common>\nuniform sampler2D atlasMap;\nuniform vec2 tileUv;\nvarying vec2 vAtlasUv;\nvarying vec2 vTileOrigin;\nvarying float vPassY;\n${PALETTE_LOOKUP}\n${SCREEN_HUE_PARS}\nfloat vScreenWater = 0.0;`,
       )
       .replace(
         "#include <color_fragment>",
@@ -139,12 +148,15 @@ export function groundTileMaterial(palette: PaletteTexture, atlas: TileAtlas): T
           // Stay inside this tile's texels so neighbours in the atlas never bleed in at the seams.
           "vec2 halfTexel = vec2(0.5 / float(textureSize(atlasMap, 0).x));",
           "vec2 atlasUv = clamp(vAtlasUv, vTileOrigin + halfTexel, vTileOrigin + tileUv - halfTexel);",
-          // The ground is background 1, under every smoothie (screenHue.ts): height 0.
-          "diffuseColor.rgb *= paletteColor(screenHueIndex(floor(texture2D(atlasMap, atlasUv).r * 255.0 + 0.5), 0.0, vScreenWater));",
+          "float groundIndex = floor(texture2D(atlasMap, atlasUv).r * 255.0 + 0.5);",
+          blend !== undefined ? `if (groundIndex < 0.5) discard;\ndiffuseColor.a = ${blend.toFixed(3)};` : "",
+          // The smoothies' hue (screenHue.ts) for the instance's pass height: 0 for the ground, which
+          // is under every filter; a blended background-2 sheet's own pass otherwise.
+          "diffuseColor.rgb *= paletteColor(screenHueIndex(groundIndex, vPassY, vScreenWater));",
         ].join("\n"),
-      )
-      .replace("#include <opaque_fragment>", WATER_ALPHA);
+      );
+    if (blend === undefined) shader.fragmentShader = shader.fragmentShader.replace("#include <opaque_fragment>", WATER_ALPHA);
   };
-  material.customProgramCacheKey = () => "palette-ground-tiles";
+  material.customProgramCacheKey = () => (blend === undefined ? "palette-ground-tiles" : `palette-ground-tiles-blend-${blend}`);
   return material;
 }
