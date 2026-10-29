@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Art and 3D modelling pipeline</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+<nav><a href="index.html">Docs</a> › Art and 3D modelling</nav>
+<h1>Art remastering and 3D modelling</h1>
+<p class="lede">How a 2D sprite from Tyrian becomes a 3D model in the game, and how each model is checked.</p>
+
+<div class="flow">
+  <span>Sprite (game data)</span><b>→</b><span>References</span><b>→</b><span>Concept image</span><b>→</b>
+  <span>Feature list</span><b>→</b><span>Blender script</span><b>→</b><span>Review sheet</span><b>→</b>
+  <span>Grade → fix → regrade</span><b>→</b><span>Human check</span><b>→</b><span>PR, CI, merge</span>
+</div>
+
+<h2>Noteworthy: problems we hit and how we solved them</h2>
+<p>The most interesting part of the remake is that most models were made and improved by AI agents, and the hard
+problems were about <em>judging</em> 3D work from 2D pixel art reliably. In roughly the order we ran into them:</p>
+<table>
+  <tr><th>Problem</th><th>What we did</th></tr>
+  <tr><td><b>An AI grader can't be trusted on its own.</b> Can a model judge 3D models from renders the way a person would?</td>
+    <td>A fixed, one-page <b>review sheet</b> for every model, and a local <b>rating page</b> where a person scores sheets
+    with pins on problem spots. A <b>committee</b> (an Opus grader, a Fable grader and a chair) pre-filled 20 ratings and the
+    person checked them; they agreed with all of them, and the two models agreed within 1 point on 124 of 128 scores. Those
+    ratings became the calibration set the rubric refers to.</td></tr>
+  <tr><td><b>The ships were graded against the wrong picture.</b> The sheet tool took a ship's first frame, which is its
+    hardest left bank, so a level model was compared with a tilted sprite.</td>
+    <td>Found because the USP Talon's sheet looked shifted. The tool now uses each model's own frame, and the two affected
+    ratings were marked superseded and regraded.</td></tr>
+  <tr><td><b>Automated fixes made models taller but wrong.</b> Agents read the sprite's drawn lighting literally: highlights
+    became lumps, the sprite's black outline and shading were painted on, and in game many models turned nearly black.</td>
+    <td>Two changes. Rules in the rubric: highlights are shine, the outline and shading are lighting, judge the material first.
+    And a <b>game-lit panel</b>: the sheets had used Blender's flat Workbench renderer, which ignores metalness, so no
+    grader could see shine. Panel 9 now renders with the materials' metalness and roughness under game-like light. A
+    lighting pass then fixed all 87 reworked models.</td></tr>
+  <tr><td><b>Features disappeared.</b> The Gencore Phoenix lost its windshield and went bubbly; the blue-pipe machine's pipes
+    became a row of tanks. Each round was only compared with the previous round, so small losses added up.</td>
+    <td><b>Feature lists</b> (named parts with boxes on the sprite), comparison with the <b>pre-loop baseline</b> (the
+    hand-made models, rebuilt from an old commit), and a close-up tile per feature: sprite | baseline | now. Any weakened or
+    lost feature reverts the change.</td></tr>
+  <tr><td><b>What is that cluster of pixels?</b> A 3-pixel glint might be a cockpit, a bolt or a light.</td>
+    <td><b>Concept images</b> from Gemini, made with the sprite and a prompt that keeps its outline. Comparing many of them
+    with their sprites gave general <b>sprite-reading rules</b> (bright line = edge, streak = cylinder, bands = rings,
+    saturated colour with a white core = light, dark slot plus glint = glass).</td></tr>
+  <tr><td><b>Rocks turned into blobs.</b> We first blamed the shape. The real cause: one flat matte colour under the game's
+    mostly overhead light makes small facets all the same brightness.</td>
+    <td>Bigger, steeper facets that face the sun, in the rock's mid-tone colour, so the shape reads under the same lighting.</td></tr>
+  <tr><td><b>Pipes that bend.</b> Two attempts to bend the pipes into the heart-shaped loop left a flange or a capsule end.</td>
+    <td>Build each pipe and the loop as one tube swept along one curve, so the thickness can't change at the joint.</td></tr>
+  <tr><td><b>Getting images into Gemini from a script.</b> Pasting image data through the agent occasionally corrupted it
+    (blank thumbnails, failed requests); wide strips were refused; Chrome blocked repeated downloads; tall results were
+    missed by a size check.</td>
+    <td>Send the sprite as a small palette plus one character per pixel, checked and drawn on a canvas in the page; or put the
+    PNG on the clipboard and press ⌘V. Wide strips are cropped. The person allowed automatic downloads, and results are
+    picked by their largest side.</td></tr>
+  <tr><td><b>Agents and interruptions.</b> A usage limit cut agents off mid-edit; agents spawned on a model the person had
+    stopped using declined and returned placeholder scores of 1.</td>
+    <td>Every fix backs up its files first, so half-done edits are restored before resuming. Results are screened for
+    placeholder grades, and those models are reverted and redone.</td></tr>
+</table>
+<p>Older decisions are worth a look too. Draws are lifted along camera rays, so the 3D screen layout is exactly the
+original's (D6). Meshes store palette indices and take their colour from a palette texture, so fades and the hit flash
+still work (D7). Models animate with their sprites through frame-tagged parts and colours (D17).</p>
+
+<h2>The goal</h2>
+<p>Every enemy, boss, structure and player ship is a Blender model that replaces its sprite (D15). A model must be
+<b>the sprite brought into 3D</b>: the same outline from above, the same proportions, colours and details, with
+believable depth. The game camera looks almost straight down, so the top view must match the sprite closely; depth
+shows in the lighting, the shadows and the slight tilt. Models are low-poly so a screen full of enemies stays fast.</p>
+<p>The original game data (tyrian21.zip) is never committed or deployed (D3). Everything we make from it, such as
+models, concept images and redrawn pictures, may be public, credited to the original artists in
+<a href="../CREDITS.md">CREDITS.md</a> (D16, D41).</p>
+
+<h2>1. References from the game data</h2>
+<p>These are generated locally from your own copy of the data and are git-ignored:</p>
+<pre><code>npm run catalogue        # plays every level headless; writes reference/models/ (about 2 min)</code></pre>
+<ul>
+  <li><code>reference/models/catalogue.json</code> lists every model to make, in priority order: player ships, then
+    flying enemies, then ground enemies, each by time on screen. Each entry lists the levels it appears in
+    (<code>1.3</code> = episode 1, level file 3, the first level, TYRIAN).</li>
+  <li><code>reference/models/&lt;name&gt;/</code> holds <code>sprite.json</code> (every frame's palette indices and
+    colours), frame PNGs, a contact sheet and, for a piece of a bigger object, <code>assembly.png</code>. Bosses and
+    big ground structures are <em>assemblies</em>: several 2×2 enemies side by side, each with its own model, built
+    together so the pieces fit.</li>
+  <li>Sprite sheets (<code>reference/sprites/</code>) and the background tiles and maps
+    (<code>reference/tiles/</code>, from <code>tests/tools/tileReference.test.ts</code>) cover pickups, shots and
+    buildings.</li>
+</ul>
+
+<h2>2. Concept images</h2>
+<p>A high-resolution reimagining of the sprite settles what each cluster of pixels <em>is</em> (a canopy, a pipe, a
+clamp, a light) before anyone models it. They're made with Google Gemini (Nano Banana), at
+<a href="https://gemini.google.com/images">gemini.google.com/images</a>, with the sprite enlarged with
+nearest-neighbour scaling and this prompt:</p>
+<div class="box">a high def enhancement of this ship from tyrian the game that keeps the same overhead profile a la
+starcraft remastered. don't take the sprite pixel graphics literally. you shouldn't make pixel shaped details in
+the high def version unless that's what the image reads as. it must fit in the same outline as original for
+collision detection purposes</div>
+<ul>
+  <li>Swap "ship" for "enemy ship", "ground structure (seen from overhead)" or "ground building" as needed. For sets of
+    small items (pickups, shots), arrange them in a roughly square grid and ask Gemini to keep each item in its
+    place.</li>
+  <li>Long thin strips (fences, walls) and very wide images tend to fail or come back as unrelated pipes or blades.
+    Crop or split them. Gemini sometimes declines a request; trying again or re-padding the image usually works.</li>
+  <li>Bigger images are best pasted from the clipboard (copy the PNG, ⌘V into the prompt box). For automation,
+    pass the sprite as a palette plus a grid of characters and draw it on a canvas in the page; that never corrupts
+    the image.</li>
+  <li>Save to <code>assets/blender/features/concepts/&lt;name&gt;.jpg</code> (at most 1024 px) and add a row to
+    <code>concepts/index.json</code>. Mark a concept <code>"note": "Unreliable…"</code> if Gemini misread the
+    sprite; fixers then ignore it.</li>
+</ul>
+<p>A concept is a guide to what the parts are and their shape language. The sprite still decides the top-view
+outline, the proportions and the colours.</p>
+
+<h2>3. Feature lists</h2>
+<p>Each model has <code>assets/blender/features/&lt;name&gt;.json</code>: the parts a player would recognise, each
+with a box on the sprite, checkable traits and a material. A lost or weakened feature counts as a regression,
+whatever else improved.</p>
+<pre><code>{"name": "ship-gencore-phoenix",
+ "summary": "Grey angular hard-surface fighter …",
+ "concept": {"image": "assets/blender/features/concepts/ship-gencore-phoenix.jpg", "use": "design guide …"},
+ "features": [
+  {"id": "windshield", "kind": "glass", "box": [9, 6, 15, 10],
+   "traits": ["glossy dark glass, crisp edges, set in a frame", "bright glint is shine, not a bump"],
+   "note": "The cockpit …"}]}</code></pre>
+<p>Write them from the sprite, the concept, and the original hand-made model's script (its docstring names the
+parts). For player ships, the person checks the list before models change.</p>
+
+<h2>4. Building a model</h2>
+<p>Each model is built by a Python script run in Blender; the script is the source of truth
+(<a href="../assets/blender/README.md">assets/blender/README.md</a>).</p>
+<ul>
+  <li>Enemies are in <code>assets/blender/enemies/&lt;name&gt;.py</code>, ships in <code>assets/blender/ships/</code>
+    and the USP Talon in <code>assets/blender/usp_talon.py</code>. Shared helpers are in <code>common.py</code> and
+    per-sheet <code>lib_bNNN.py</code>.</li>
+  <li>One sprite pixel is 1/12 unit, forward is +Y, up is +Z, and the model is centred on its sprite block.</li>
+  <li><b>Palette materials</b> (<code>pal_&lt;index&gt;_&lt;tag&gt;</code>) take their colour from the live palette,
+    so level palettes, fades and the hit flash still work (D7). Each material's metalness and roughness are kept in
+    game, and the scene has environment light, so polished metal shines.</li>
+  <li><b>Animation</b> (D17): <code>common.frame_part</code> shows a part only on some frames, and a palette
+    material can change colour per frame.</li>
+  <li>Assemblies are built once in assembly coordinates and cut into their pieces with
+    <code>common.split_assembly</code>.</li>
+</ul>
+<pre><code>tools/build-models.sh assets/blender/enemies/newsh2-127.py   # writes public/models/… .glb and src/render/spriteModels/… .json
+npm run dev                                                   # then ?viewer=newsh2-127 to inspect it (&amp;height=N tries other heights)</code></pre>
+
+<h3>Rules that came out of review</h3>
+<p><a href="../tools/calibration/rubric.md">tools/calibration/rubric.md</a> has them all. The ones that matter
+most:</p>
+<ul>
+  <li><b>Read the sprite, don't copy it.</b> A thin bright line is an edge catching the light. A bright streak
+    along a long part means a cylinder. Light and dark bands across a part are rings. A grid of squares is bolted
+    plating. A saturated colour with a white core is a light. A dark slot with one bright pixel is glass. Dark
+    areas inside the outline are depth.</li>
+  <li><b>The sprite's lighting is not shape or paint.</b> A small hot spot on metal is shine, not a lump. Don't
+    paint the sprite's dark outline or drawn shading onto the model: the game draws its own outline and lights the
+    model, so painted shading darkens it twice.</li>
+  <li><b>Judge the material first.</b> Metal and glass are shiny. On rock, earth and organic parts a highlight is a
+    lit face of real shape.</li>
+  <li><b>Hard surfaces stay hard, round parts stay round.</b> Ships and machines are flat panels with crisp edges,
+    plus the round parts the sprite draws (canopies, nacelles, pods, domes).</li>
+  <li><b>Pipes are pipes:</b> constant thickness along a path, bends included, never a chain of bulges. <b>Glass
+    stays glass.</b> <b>Keep every feature.</b></li>
+</ul>
+
+<h2>5. Verification</h2>
+<h3>Review sheets</h3>
+<pre><code>python tools/review_sheet.py &lt;name&gt; --which current --baseline --out DIR</code></pre>
+<p>This renders one image (with metrics in a <code>.json</code> beside it), always in the same layout:</p>
+<table>
+  <tr><th>Panel</th><th>Shows</th></tr>
+  <tr><td>1</td><td>The sprite, enlarged with nearest-neighbour scaling</td></tr>
+  <tr><td>2, 3, 4</td><td>The model from straight above at the sprite's scale; the sprite laid over it; a diff (missing pixels, extra pixels, colour error)</td></tr>
+  <tr><td>5, 6</td><td>Side and front elevations with a ruler in sprite pixels</td></tr>
+  <tr><td>7, 8</td><td>Three-quarter views</td></tr>
+  <tr><td>9</td><td>The game camera's angle, lit like the game (EEVEE, the materials' metalness and roughness). The only panel that shows shine.</td></tr>
+  <tr><td>10, 11, 12</td><td>Region map, inferred heights (a hint only) and metrics: outline match (IoU), colour error, height, triangles</td></tr>
+  <tr><td>13–15</td><td>With <code>--baseline</code>: the hand-made model from before any automated changes (a checkout of commit 7d47c05)</td></tr>
+  <tr><td>Feature tiles</td><td>One per listed feature: sprite | baseline | now, cropped from game-lit top views</td></tr>
+</table>
+<p>Review sheets are made from the game data, so they stay local.</p>
+
+<h3>Calibrating the grader</h3>
+<p>Before letting agents grade, a person rated 20 sheets on the local rating page
+(<code>python tools/calibration/server.py --sheets DIR</code>, at http://127.0.0.1:5194/). An Opus and a Fable grader
+plus a chair pre-filled the drafts, and the person agreed with all of them. Those ratings
+(<code>assets/blender/proto/calibration/feedback.json</code>) are the reference the rubric points to. Opus and Fable
+agreed within 1 point on 124 of 128 scores, so one grader per check is enough.</p>
+
+<h3>The grade → fix → regrade loop (D39)</h3>
+<ol>
+  <li><b>Fix.</b> An agent reads the rubric, the feature list, the concept and the latest grade, backs up the files
+    it will touch, edits only that model's own script, rebuilds, renders a new sheet, and iterates.</li>
+  <li><b>Regrade.</b> A separate grader, seeing only the before and after sheets (never the fixer's reasoning),
+    scores the new sheet and rates each listed feature against the baseline: better, same, weakened or lost.</li>
+  <li><b>Keep or revert.</b> If anything is worse, the backups are restored. Otherwise the change is kept. A model
+    gets at most 3 rounds and stops at 4/5 with no high-severity issues, or when a round changes nothing.</li>
+</ol>
+<p>Fixers must not edit shared <code>lib_*.py</code>, <code>common.py</code>, tools or game code, nor change model
+names, frames, animation, palette naming or the origin. They may add at most about +60% triangles. These runs use
+the Workflow tool; the person sets the model, effort and concurrency (lately at most 3 Opus agents at medium
+effort, no Fable).</p>
+
+<h3>Before merging</h3>
+<ul>
+  <li>Look at a before-and-after contact sheet of every changed model (sprite | before | after, game view).
+    Graders miss things a person sees, such as everything turning dark, highlights built as lumps, lost windshields
+    or pipes becoming tanks.</li>
+  <li>Check that no shared library, <code>common.py</code> or <code>src/render/spriteModels/</code> entry changed
+    unexpectedly. Rebuild every changed script and confirm the changed <code>.glb</code> set is the same. A few
+    scripts write slightly different bytes on each run; that's harmless.</li>
+  <li>Run <code>npx vitest run</code> (including the model coverage test) and <code>npx tsc --noEmit</code>. Merge
+    only after CI passes.</li>
+  <li>For player ships, and anything the person flagged, send them images and wait for approval.</li>
+</ul>
+
+<h2>Other remastered art</h2>
+<table>
+  <tr><th>What</th><th>How</th><th>Where</th></tr>
+  <tr><td>Full-screen pictures (title, menus, HUD frames, story art)</td><td>Redrawn in Blender from the game's models and procedural materials at 1920×1200, keyed by the original picture number (D19)</td><td><code>assets/art/</code> → <code>public/art/</code></td></tr>
+  <tr><td>Backgrounds</td><td>The ground is upscaled 4× at runtime with MMPX; structures become instanced tile models matched by tile pattern (D34). Only Episode 1's TYRIAN tileset so far.</td><td><code>assets/blender/tiles/</code>, <code>?bg=remaster</code></td></tr>
+  <tr><td>Shots and explosions</td><td>A presentation layer over the draw list: glowing projectiles, particles. On by default (D35).</td><td><code>?vfx=original</code> shows the old look</td></tr>
+</table>
+</main>
+</body>
+</html>
