@@ -1354,3 +1354,22 @@ others have reused the music without issue, and asked for the music only, with c
 **Review:** The deployed site plays the Synth music from the title screen; `M` cycles Original,
 Orchestral and Synth. Local builds still play the remade sound effects. The deploy is about 88 MB
 bigger.
+
+## D41 — The remade sound effects and voices are public too; anything derived may be
+
+2026-10-29
+
+**Decision:** The 38 remade sound effects and voices (D36) join the music in
+`public/tyrian-remaster/sfx/remaster/`, listed in the public manifest, and every build offers the
+"remaster" sound style (Options → Sound style, `?sound=remaster`); the default stays the original
+sounds. `SoundStyles` no longer checks `localAssetsAllowed`. The user set a standing rule: anything
+this project makes that isn't the original game assets themselves may be public, credited to the
+original authors it's based on (CREDITS.md); the original data files (tyrian21.zip) still never go
+in the repo (D3).
+
+**Options considered:**
+- *Publish them (chosen):* the user's rule; they are new syntheses, not copies of tyrian.snd.
+- *Keep them local-only (D36):* the earlier stance.
+
+**Review:** On the deployed site, Options → Sound style → Remaster plays the remade sounds; the
+original sounds remain the default.

@@ -496,5 +496,313 @@
     "title": "Ending Number 2"
    }
   }
+ },
+ "sfx": {
+  "remaster": {
+   "1": {
+    "file": "sfx/remaster/01-scaledn2.ogg",
+    "gain_db": 0.0,
+    "name": "S_WEAPON_1",
+    "original_seconds": 0.556,
+    "seconds": 0.556,
+    "title": "SCALEDN2"
+   },
+   "10": {
+    "file": "sfx/remaster/10-temp13.ogg",
+    "gain_db": 0.0,
+    "name": "S_WEAPON_10",
+    "original_seconds": 1.119,
+    "seconds": 1.119,
+    "title": "TEMP13"
+   },
+   "11": {
+    "file": "sfx/remaster/11-expretap.ogg",
+    "gain_db": 6.0,
+    "name": "S_EXPLOSION_11",
+    "original_seconds": 1.285,
+    "seconds": 1.285,
+    "title": "EXPRETAP"
+   },
+   "12": {
+    "file": "sfx/remaster/12-mt2boom.ogg",
+    "gain_db": 4.77,
+    "name": "S_EXPLOSION_12",
+    "original_seconds": 1.138,
+    "seconds": 1.138,
+    "title": "MT2BOOM"
+   },
+   "13": {
+    "file": "sfx/remaster/13-temp3.ogg",
+    "gain_db": 0.0,
+    "name": "S_WEAPON_13",
+    "original_seconds": 0.64,
+    "seconds": 0.64,
+    "title": "TEMP3"
+   },
+   "14": {
+    "file": "sfx/remaster/14-lazb.ogg",
+    "gain_db": 0.48,
+    "name": "S_WEAPON_14",
+    "original_seconds": 2.521,
+    "seconds": 2.521,
+    "title": "LAZB"
+   },
+   "15": {
+    "file": "sfx/remaster/15-lazgun2.ogg",
+    "gain_db": 2.81,
+    "name": "S_WEAPON_15",
+    "original_seconds": 0.395,
+    "seconds": 0.395,
+    "title": "LAZGUN2"
+   },
+   "16": {
+    "file": "sfx/remaster/16-spring.ogg",
+    "gain_db": 0.0,
+    "name": "S_SPRING",
+    "original_seconds": 0.702,
+    "seconds": 0.703,
+    "title": "SPRING"
+   },
+   "17": {
+    "file": "sfx/remaster/17-warning.ogg",
+    "gain_db": 0.82,
+    "name": "S_WARNING",
+    "original_seconds": 0.764,
+    "seconds": 0.764,
+    "title": "WARNING"
+   },
+   "18": {
+    "file": "sfx/remaster/18-item.ogg",
+    "gain_db": 2.64,
+    "name": "S_ITEM",
+    "original_seconds": 0.499,
+    "seconds": 0.499,
+    "title": "ITEM"
+   },
+   "19": {
+    "file": "sfx/remaster/19-hit2.ogg",
+    "gain_db": 6.0,
+    "name": "S_HULL_HIT",
+    "original_seconds": 1.33,
+    "seconds": 1.33,
+    "title": "HIT2"
+   },
+   "2": {
+    "file": "sfx/remaster/02-f2.ogg",
+    "gain_db": 6.0,
+    "name": "S_WEAPON_2",
+    "original_seconds": 0.618,
+    "seconds": 0.618,
+    "title": "F2"
+   },
+   "20": {
+    "file": "sfx/remaster/20-machngun.ogg",
+    "gain_db": 3.29,
+    "name": "S_MACHINE_GUN",
+    "original_seconds": 0.894,
+    "seconds": 0.894,
+    "title": "MACHNGUN"
+   },
+   "21": {
+    "file": "sfx/remaster/21-hyperd2.ogg",
+    "gain_db": 1.47,
+    "name": "S_SOUL_OF_ZINGLON",
+    "original_seconds": 2.265,
+    "seconds": 2.265,
+    "title": "HYPERD2"
+   },
+   "22": {
+    "file": "sfx/remaster/22-explhug.ogg",
+    "gain_db": 5.46,
+    "name": "S_EXPLOSION_22",
+    "original_seconds": 1.451,
+    "seconds": 1.451,
+    "title": "EXPLHUG"
+   },
+   "23": {
+    "file": "sfx/remaster/23-clink1.ogg",
+    "gain_db": 6.0,
+    "name": "S_CLINK",
+    "original_seconds": 0.285,
+    "seconds": 0.285,
+    "title": "CLINK1"
+   },
+   "24": {
+    "file": "sfx/remaster/24-click.ogg",
+    "gain_db": 3.22,
+    "name": "S_CLICK",
+    "original_seconds": 0.158,
+    "seconds": 0.158,
+    "title": "CLICK"
+   },
+   "25": {
+    "file": "sfx/remaster/25-scaledn1.ogg",
+    "gain_db": 0.0,
+    "name": "S_WEAPON_25",
+    "original_seconds": 0.302,
+    "seconds": 0.302,
+    "title": "SCALEDN1"
+   },
+   "26": {
+    "file": "sfx/remaster/26-temp11.ogg",
+    "gain_db": 0.38,
+    "name": "S_WEAPON_26",
+    "original_seconds": 0.998,
+    "seconds": 0.998,
+    "title": "TEMP11"
+   },
+   "27": {
+    "file": "sfx/remaster/27-temp16.ogg",
+    "gain_db": 0.0,
+    "name": "S_SHIELD_HIT",
+    "original_seconds": 0.495,
+    "seconds": 0.495,
+    "title": "TEMP16"
+   },
+   "28": {
+    "file": "sfx/remaster/28-small1.ogg",
+    "gain_db": 0.0,
+    "name": "S_CURSOR",
+    "original_seconds": 0.273,
+    "seconds": 0.273,
+    "title": "SMALL1"
+   },
+   "29": {
+    "file": "sfx/remaster/29-powerup.ogg",
+    "gain_db": 1.18,
+    "name": "S_POWERUP",
+    "original_seconds": 0.816,
+    "seconds": 0.816,
+    "title": "POWERUP"
+   },
+   "3": {
+    "file": "sfx/remaster/03-temp10.ogg",
+    "gain_db": 3.19,
+    "name": "S_ENEMY_HIT",
+    "original_seconds": 0.152,
+    "seconds": 0.152,
+    "title": "TEMP10"
+   },
+   "30": {
+    "file": "sfx/remaster/30-voice1.ogg",
+    "gain_db": 0.0,
+    "name": "V_CLEARED_PLATFORM",
+    "original_seconds": 1.651,
+    "seconds": 1.713,
+    "title": "VOICE1"
+   },
+   "31": {
+    "file": "sfx/remaster/31-voice2.ogg",
+    "gain_db": 1.6,
+    "name": "V_BOSS",
+    "original_seconds": 1.809,
+    "seconds": 1.887,
+    "title": "VOICE2"
+   },
+   "32": {
+    "file": "sfx/remaster/32-voice3.ogg",
+    "gain_db": 0.0,
+    "name": "V_ENEMIES",
+    "original_seconds": 1.281,
+    "seconds": 1.281,
+    "title": "VOICE3"
+   },
+   "33": {
+    "file": "sfx/remaster/33-voice4.ogg",
+    "gain_db": 0.0,
+    "name": "V_GOOD_LUCK",
+    "original_seconds": 0.585,
+    "seconds": 0.666,
+    "title": "VOICE4"
+   },
+   "34": {
+    "file": "sfx/remaster/34-voice5.ogg",
+    "gain_db": 0.71,
+    "name": "V_LEVEL_END",
+    "original_seconds": 1.189,
+    "seconds": 1.273,
+    "title": "VOICE5"
+   },
+   "35": {
+    "file": "sfx/remaster/35-voice6.ogg",
+    "gain_db": 0.0,
+    "name": "V_DANGER",
+    "original_seconds": 0.597,
+    "seconds": 0.679,
+    "title": "VOICE6"
+   },
+   "36": {
+    "file": "sfx/remaster/36-voice7.ogg",
+    "gain_db": 2.46,
+    "name": "V_SPIKES",
+    "original_seconds": 1.728,
+    "seconds": 1.782,
+    "title": "VOICE7"
+   },
+   "37": {
+    "file": "sfx/remaster/37-voice8.ogg",
+    "gain_db": 2.58,
+    "name": "V_DATA_CUBE",
+    "original_seconds": 1.07,
+    "seconds": 1.15,
+    "title": "VOICE8"
+   },
+   "38": {
+    "file": "sfx/remaster/38-voice9.ogg",
+    "gain_db": 0.98,
+    "name": "V_ACCELERATE",
+    "original_seconds": 2.048,
+    "seconds": 2.126,
+    "title": "VOICE9"
+   },
+   "4": {
+    "file": "sfx/remaster/04-explsm.ogg",
+    "gain_db": 5.95,
+    "name": "S_EXPLOSION_4",
+    "original_seconds": 0.517,
+    "seconds": 0.517,
+    "title": "EXPLSM"
+   },
+   "5": {
+    "file": "sfx/remaster/05-pass3.ogg",
+    "gain_db": 1.28,
+    "name": "S_WEAPON_5",
+    "original_seconds": 0.888,
+    "seconds": 0.888,
+    "title": "PASS3"
+   },
+   "6": {
+    "file": "sfx/remaster/06-temp2.ogg",
+    "gain_db": 0.37,
+    "name": "S_WEAPON_6",
+    "original_seconds": 0.897,
+    "seconds": 0.897,
+    "title": "TEMP2"
+   },
+   "7": {
+    "file": "sfx/remaster/07-bypass1.ogg",
+    "gain_db": 6.0,
+    "name": "S_WEAPON_7",
+    "original_seconds": 0.931,
+    "seconds": 0.931,
+    "title": "BYPASS1"
+   },
+   "8": {
+    "file": "sfx/remaster/08-exp1rt.ogg",
+    "gain_db": 4.8,
+    "name": "S_SELECT / S_EXPLOSION_8",
+    "original_seconds": 0.612,
+    "seconds": 0.612,
+    "title": "EXP1RT"
+   },
+   "9": {
+    "file": "sfx/remaster/09-expllow.ogg",
+    "gain_db": 5.05,
+    "name": "S_EXPLOSION_9",
+    "original_seconds": 0.479,
+    "seconds": 0.479,
+    "title": "EXPLLOW"
+   }
+  }
  }
 }

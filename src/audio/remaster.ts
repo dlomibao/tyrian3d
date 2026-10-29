@@ -1,8 +1,7 @@
-// The remaster pack: new recordings of the music (orchestral and synth) and, in local builds only,
-// remade sound effects and voices. The music is public (public/tyrian-remaster/, DECISIONS.md D40)
-// and every build loads it. The sound effects stay in the private tyrian3d-remaster repo: `npm run
-// dev` and `npm run play:local` serve its out/ folder at tyrian-remaster/ in place of the public
-// one (vite.config.ts), and only those builds ask for them (localAssetsAllowed, src/audio/sfx.ts).
+// The remaster pack: new recordings of the music (orchestral and synth) and remade sound effects and
+// voices, public in public/tyrian-remaster/ (DECISIONS.md D40, D41) and loaded by every build. They
+// are made in the tyrian3d-remaster repo; `npm run dev` and `npm run play:local` serve its out/
+// folder at tyrian-remaster/ in place of the public copy when it's there (vite.config.ts).
 
 /** out/manifest.json: per style ("orchestral", "synth"), the song files by 1-based song number. */
 export interface RemasterManifest {
