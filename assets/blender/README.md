@@ -18,7 +18,11 @@ colors and details, not a new design.
 3. `common.reference_image()` puts the sprite on a plane beside the model in Blender (never
    exported) so they can be compared side by side with the MCP's `look`.
 
-In game, a dark outline (`OUTLINE` in `src/render/view.ts`) reproduces the sprites' black edges.
+In game, a dark outline (`OUTLINE` in `src/render/view.ts`) reproduces the sprites' black edges. A
+hard-surface model (split normals, separate plates) can export a smooth outline shell beside it
+(`common.outline_shell`, DECISIONS.md D51) so the outline is one clean contour instead of whiskers
+along every hard edge; and a ship can name its engines (`tyrian_engines` on its object) for the
+menu backdrop's glows. `assets/blender/usp_talon.py` does both.
 
 ## Conventions
 
@@ -98,7 +102,9 @@ A model with concept maps (`textures/<name>/maps.json`, DECISIONS.md D44) is tex
 `texture_bake.py` straight after its build, with all of its animation frames (`-f2`, `-f3` ...),
 so a rebuild never leaves it plain or leaves one frame plain among textured ones (D46). An
 assembly's bake needs `.shape/<name>/regions.json` (`tools/sprite_shape.py <name>`, git-ignored);
-`-n` builds without texturing.
+`-n` builds without texturing. A maps.json with `"bake": "model"` is skipped: that model's own
+script bakes its maps (the USP Talon, `usp_talon.py`: occlusion and edge wear only, no concept
+projection, D50; `--no-bake` builds it plain, `--out x.glb` writes only that file).
 
 Compare a model with its sprite in the model viewer at `?viewer=<name>`: rotate it freely, or use
 Top with "Sprite over model" to check the outline pixel by pixel. `?debug=models` on the dev server

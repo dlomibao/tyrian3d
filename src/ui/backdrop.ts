@@ -79,7 +79,8 @@ export class Backdrop implements BackdropControl {
   private readonly outline: OutlineEffect | null = null;
   private readonly ship = new THREE.Group();
   private readonly shipPivot = new THREE.Group();
-  private readonly glow: THREE.Sprite;
+  /** Engine glows: one per engine the model names (extras `tyrian_engines`), else one at the tail. */
+  private glows: THREE.Sprite[] = [];
   private readonly planet = new THREE.Group();
   private readonly stars = new THREE.Group();
   private readonly pose: Pose = { ...POSES.title, cam: POSES.title.cam.clone(), look: POSES.title.look.clone() };
@@ -98,7 +99,6 @@ export class Backdrop implements BackdropControl {
       this.fallback.className = "ui-backdrop-fallback";
       this.fallback.hidden = true;
       document.body.prepend(this.fallback);
-      this.glow = new THREE.Sprite();
       return;
     }
     this.outline = new OutlineEffect(renderer, OUTLINE);
@@ -128,9 +128,7 @@ export class Backdrop implements BackdropControl {
     this.planet.rotation.set(-1.25, 0, 0.3, "XZY");
     this.scene.add(this.planet);
 
-    this.glow = engineGlow();
     this.ship.add(this.shipPivot);
-    this.shipPivot.add(this.glow);
     this.scene.add(this.ship);
     this.setShip(DEFAULT_SHIP);
   }
@@ -165,9 +163,14 @@ export class Backdrop implements BackdropControl {
         const s = SHIP_LENGTH / Math.max(size.x, size.z, 1e-3);
         model.scale.setScalar(s);
         model.position.copy(centre).multiplyScalar(-s);
-        for (const old of this.shipPivot.children.filter((c) => c !== this.glow)) this.shipPivot.remove(old);
+        this.shipPivot.clear();
         this.shipPivot.add(model);
-        this.glow.position.set(0, 0, (size.z * s) / 2 + 0.1);
+        this.glows = engineGlows(model, this.shipPivot, (size.z * s) / 2 + 0.1).map((g) => {
+          const sprite = engineGlow(g.color, g.size, g.opacity);
+          sprite.position.copy(g.position);
+          return sprite;
+        });
+        this.shipPivot.add(...this.glows);
       })
       .catch((err) => console.warn(`backdrop: ship model ${name} failed to load`, err));
   }
@@ -209,7 +212,8 @@ export class Backdrop implements BackdropControl {
     this.ship.position.set(Math.sin(t * 0.23) * 0.25, this.lift + Math.sin(t * 0.7) * 0.12, Math.sin(t * 0.17) * 0.2);
     this.ship.rotation.set(Math.sin(t * 0.5) * 0.04, p.heading + this.spinAngle + Math.sin(t * 0.21) * 0.06, Math.sin(t * 0.4 + 1) * 0.14);
     this.ship.scale.setScalar(p.scale);
-    this.glow.material.opacity = 0.55 + Math.sin(t * 31) * 0.06 + Math.sin(t * 17) * 0.05;
+    const flicker = Math.sin(t * 31) * 0.06 + Math.sin(t * 17) * 0.05;
+    for (const g of this.glows) g.material.opacity = g.userData.opacity + flicker;
     this.planet.rotation.y = t * 0.012;
     this.stars.rotation.x = t * 0.006;
 
@@ -290,10 +294,42 @@ function nebula(color: number, at: THREE.Vector3, size: number): THREE.Sprite {
   return sprite;
 }
 
-function engineGlow(): THREE.Sprite {
-  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTexture(), color: 0x8fe6ff, transparent: true, opacity: 0.6, depthWrite: false, blending: THREE.AdditiveBlending }));
-  sprite.scale.setScalar(0.4);
+function engineGlow(color: THREE.ColorRepresentation, size: number, opacity: number): THREE.Sprite {
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTexture(), color, transparent: true, opacity, depthWrite: false, blending: THREE.AdditiveBlending }));
+  sprite.scale.setScalar(size);
+  sprite.userData.opacity = opacity;
   return sprite;
+}
+
+/** Where a glow goes behind an engine, its colour, size and base opacity. */
+export interface EngineGlow {
+  position: THREE.Vector3;
+  color: string;
+  size: number;
+  opacity: number;
+}
+
+/**
+ * The glows behind a ship's engines, in `pivot`'s space. A model can name its engines in the node
+ * extras `tyrian_engines: { color, at: [[x, y, z], ...] }` (points in that node's space, e.g.
+ * assets/blender/usp_talon.py's twin nozzles); otherwise one cyan glow sits `tail` behind the centre.
+ * Pure (no sprites), for tests.
+ */
+export function engineGlows(model: THREE.Object3D, pivot: THREE.Object3D, tail: number): EngineGlow[] {
+  let engines = null as { node: THREE.Object3D; color: string; at: number[][] } | null;
+  model.traverse((o) => {
+    const e = o.userData?.tyrian_engines;
+    if (!engines && e && Array.isArray(e.at)) engines = { node: o, color: String(e.color ?? "#ff8a2a"), at: e.at };
+  });
+  if (!engines) return [{ position: new THREE.Vector3(0, 0, tail), color: "#8fe6ff", size: 0.4, opacity: 0.55 }];
+  const { node, color, at } = engines;
+  pivot.updateMatrixWorld(true);
+  return at.map(([x, y, z]) => ({
+    position: pivot.worldToLocal(node.localToWorld(new THREE.Vector3(x, y, z))),
+    color,
+    size: 0.26,
+    opacity: 0.5,
+  }));
 }
 
 /** Fractal value noise on a sphere's equirectangular map (wraps in x). */

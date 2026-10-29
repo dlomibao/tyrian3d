@@ -37,6 +37,7 @@ import { PaletteTexture } from "./paletteTexture";
 import { passHeight } from "./passHeights";
 import { SpriteMeshCache } from "./spriteMesh";
 import { colourFrame, rigModel, showFrame, type FrameRig } from "./modelFrames";
+import { isModelHelper, setModelBlended } from "./modelPrep";
 import { spriteModelKey, type ModelOverride, type SpriteModels } from "./spriteModels";
 import { TileAtlas } from "./tileAtlas";
 import { RemasteredFx, SpriteLook } from "./vfx/remasteredFx";
@@ -779,7 +780,14 @@ export class DrawListRenderer {
     const blended = d.effect === "blend";
     if (blended !== clone.blended) {
       clone.blended = blended;
+      setModelBlended(object, blended);
       for (const m of clone.materials) {
+        // The outline shell only toggles its outline; the depth prepass is shown by setModelBlended.
+        if (m.userData.depthPrepass) continue;
+        if (m.userData.outlineShell) {
+          (m.userData.outlineParameters as { visible?: boolean }).visible = !blended;
+          continue;
+        }
         m.transparent = blended;
         m.opacity = blended ? BLEND_ALPHA : 1;
         m.depthWrite = !blended;
@@ -817,8 +825,8 @@ export class DrawListRenderer {
     object.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
+      mesh.castShadow = !isModelHelper(mesh);
+      mesh.receiveShadow = !isModelHelper(mesh);
       // Own materials, so one clone can turn translucent (invulnerability) without the others.
       mesh.material = Array.isArray(mesh.material) ? mesh.material.map((m) => m.clone()) : mesh.material.clone();
       materials.push(...(Array.isArray(mesh.material) ? mesh.material : [mesh.material]));

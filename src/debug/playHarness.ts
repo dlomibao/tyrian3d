@@ -13,6 +13,8 @@
 //   &sprites=original|remastered   shots and pickups as the original sprites or the flat art (D42)
 //   &bg=original                   the original's tiles instead of the remastered backgrounds (D34, D48)
 //   &stress=N                      add N extra copies of the tick's shots (bullet-hell load test)
+//   &solid=1                       the bot not invulnerable (its armour kept topped up instead), so the
+//                                  ship draws opaque rather than translucent
 //
 // Keys: V switches the effects look, A the sprite art, N the next front weapon, P (or Space) pauses.
 // The bot is the one the episode tests use: invulnerable, always firing, sweeping left and right.
@@ -65,12 +67,13 @@ export async function runPlayHarness(view: View): Promise<void> {
   let t = 0;
   let paused = false;
   const stress = num("stress", 0);
+  const solid = num("solid", 0) > 0;
   const freezeAt = num("freezeAt", -1);
   const cycleTicks = num("cycle", 0) * (1000 / CLASSIC_TICK_MS);
   const step = (show: boolean) => {
     // tests/sim/bot.ts: invulnerable, always firing, sweeping.
-    p.invulnerable_ticks = 2;
-    p.armor = Math.max(p.armor, 10);
+    p.invulnerable_ticks = solid ? 0 : 2;
+    p.armor = Math.max(p.armor, solid ? 28 : 10);
     simInput.fire = true;
     simInput.left = Math.floor(t / 50) % 2 === 0;
     simInput.right = !simInput.left;

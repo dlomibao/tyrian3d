@@ -10,7 +10,7 @@
 # default macOS install.
 #
 # A model with concept maps (assets/blender/textures/<name>/maps.json, DECISIONS.md D44) is textured
-# right after it's built (assets/blender/texture_bake.py, which must run on a fresh build), with all
+# (unless its maps.json says "bake": "model": its script bakes its own maps, D50) right after it's built (assets/blender/texture_bake.py, which must run on a fresh build), with all
 # its animation frames: a build alone exports it plain, and a plain model, or a plain frame among
 # textured ones, is the wrong look (a frame left plain flashes lighter, D46). -n builds without the
 # bake (the models come out plain). An assembly's bake needs .shape/<name>/regions.json
@@ -37,20 +37,33 @@ if [ $# -eq 0 ]; then
 fi
 
 # The texture_bake.py name for a script's model, if it has concept maps: the script's own name, a tile
-# model's entry (tile:<entry>, found by the model path it writes), or the Talon's.
+# model's entry (tile:<entry>, found by the model path it writes), or the Talon's. Maps whose maps.json
+# says "bake": "model" are not baked here: the model's own script textures it (the Talon, D50).
 bake_name() {
   local n=$1 entry
-  if [ -f "assets/blender/textures/$n/maps.json" ]; then echo "$n"; return; fi
+  if [ -f "assets/blender/textures/$n/maps.json" ]; then
+    own_bake "assets/blender/textures/$n/maps.json" || echo "$n"
+    return
+  fi
   if [ "$n" = usp_talon ] && [ -f assets/blender/textures/ship-usp-talon-light-fighter/maps.json ]; then
-    echo ship-usp-talon-light-fighter; return
+    own_bake assets/blender/textures/ship-usp-talon-light-fighter/maps.json || echo ship-usp-talon-light-fighter
+    return
   fi
   # Several entries can share a model (a variant pattern, e.g. a copy cut by the map's edge): use the
   # one with concept maps.
   for entry in $(grep -l "\"model\": \"tiles/[^\"]*/${n//_/-}\"" src/render/tileModels/*.json 2>/dev/null); do
     entry=$(basename "$entry" .json)
-    if [ -f "assets/blender/textures/$entry/maps.json" ]; then echo "tile:$entry"; return 0; fi
+    if [ -f "assets/blender/textures/$entry/maps.json" ]; then
+      own_bake "assets/blender/textures/$entry/maps.json" || echo "tile:$entry"
+      return 0
+    fi
   done
   return 0
+}
+
+# Whether a maps.json says the model's own script textures it ("bake": "model").
+own_bake() {
+  grep -q '"bake": *"model"' "$1"
 }
 
 build() {
@@ -86,7 +99,7 @@ build() {
   fi
   rm -f "$log"
 }
-export -f build bake_name
+export -f build bake_name own_bake
 export blender preview texture
 [ -n "$preview" ] && mkdir -p "$preview"
 printf '%s\n' "$@" | xargs -P "$jobs" -I{} bash -c 'build "$@"' _ {}

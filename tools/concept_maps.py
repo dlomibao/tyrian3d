@@ -208,6 +208,11 @@ def main():
             "fit_iou": None}
     if spans:
         meta["parts"] = spans
+    # Keep how the model is textured ("bake": "model": its own script bakes its maps, D50).
+    if (out / "maps.json").exists():
+        old_bake = json.loads((out / "maps.json").read_text()).get("bake")
+        if old_bake:
+            meta["bake"] = old_bake
     # How well the concept's outline matches the sprite's, after the fit.
     meta["fit_iou"] = round(float((sprite_mask & concept_mask).sum() / max(1, (sprite_mask | concept_mask).sum())), 3)
     (out / "maps.json").write_text(json.dumps(meta, indent=1) + "\n")

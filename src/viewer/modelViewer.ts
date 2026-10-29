@@ -25,6 +25,7 @@ import { loadStoredZip } from "../assets/store";
 import { vga6To8, type Palette } from "../data/palette";
 import { colourFrame, rigModel, showFrame, type FrameRig } from "../render/modelFrames";
 import { modelHeightFromUrl } from "../render/modelHeight";
+import { isModelHelper, prepareModel } from "../render/modelPrep";
 import { PaletteTexture } from "../render/paletteTexture";
 import { SPRITE_MODELS, spriteModelKey, spriteModels, type SpriteModelEntry } from "../render/spriteModels";
 import { buildResources } from "../sim/resources";
@@ -297,7 +298,7 @@ export async function runModelViewer(): Promise<void> {
         const response = await fetch(`${import.meta.env.BASE_URL}models/${path}.glb`);
         if (!response.ok) throw new Error(`${path}.glb: HTTP ${response.status}`);
         const buffer = await response.arrayBuffer();
-        return { scene: (await loader.parseAsync(buffer, "")).scene, bytes: buffer.byteLength };
+        return { scene: prepareModel((await loader.parseAsync(buffer, "")).scene), bytes: buffer.byteLength };
       })();
       glbs.set(path, p);
     }
@@ -345,7 +346,7 @@ export async function runModelViewer(): Promise<void> {
     let triangles = 0;
     root.traverse((o) => {
       const mesh = o as THREE.Mesh;
-      if (!mesh.isMesh) return;
+      if (!mesh.isMesh || isModelHelper(mesh)) return;
       const geo = mesh.geometry;
       triangles += (geo.index ? geo.index.count : geo.attributes.position.count) / 3;
       for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) materials.add(m);

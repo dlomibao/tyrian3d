@@ -326,6 +326,10 @@ def main():
     tile = name.startswith("tile:")
     tex_dir = ROOT / "assets/blender/textures" / (name[5:] if tile else name)
     meta = json.loads((tex_dir / "maps.json").read_text())
+    if meta.get("bake") == "model":
+        # The model's own script bakes its maps (no concept projection: the USP Talon, D50).
+        print(f"Error: {name} is textured by its own build script (maps.json \"bake\": \"model\"); not baked")
+        return
     bake_dir = tex_dir / "bake"
     bake_dir.mkdir(exist_ok=True)
 
