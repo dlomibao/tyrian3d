@@ -99,6 +99,30 @@ describe("ground upscaled in context", () => {
     expect(atlas.size).toBe(3);
     expect(atlas.upscaled).toBe(3);
   });
+
+  test("blended background-2 cells get slots too, upscaled against their empty neighbours (D45)", () => {
+    const atlas = new RemasterGroundAtlas();
+    atlas.setLuma(luma);
+    const solid = new Uint8Array(24 * 28).fill(90);
+    const cloud = (cell: number, effect: "none" | "blend"): TileDraw =>
+      ({ kind: "tile", layer: 1, tile: solid, tileId: "z:5", x: 0, y: 0, pass: Pass.Background2Mid, key: BG_KEY_LAYER + cell, effect });
+    // Row 1: cells 15 and 17 drawn, 16 between them empty (a transparent tile). Row 2: 29-31 drawn.
+    const items: Draw[] = [cloud(15, "blend"), cloud(17, "blend"), cloud(29, "blend"), cloud(30, "blend"), cloud(31, "blend"), cloud(18, "none")];
+    atlas.prepare(items);
+    const uv = new Float32Array(2);
+    expect(atlas.place(BG_KEY_LAYER + 15, uv, 0)).toBe(true);
+    expect(atlas.place(BG_KEY_LAYER + 18, uv, 0)).toBe(false); // not blended: drawn extruded as before
+    // Cell 30 has the empty cell 16 above it: its top edge is cut against nothing (index 0), while
+    // cell 29's top (cell 15 above it) stays solid.
+    const ATLAS = 2048;
+    const slotPixels = (key: number, x: number, y: number) => {
+      atlas.place(key, uv, 0);
+      const sx = Math.round(uv[0] * ATLAS) - 1, sy = Math.round(uv[1] * ATLAS) - 1;
+      return (atlas.texture.image.data as Uint8Array)[(sy + y) * ATLAS + sx + x];
+    };
+    expect(slotPixels(BG_KEY_LAYER + 30, 1 + 48, 0)).toBe(0); // the border texel above: the empty cell
+    expect(slotPixels(BG_KEY_LAYER + 29, 1 + 48, 0)).toBe(90);
+  });
 });
 
 const tileDraw = (layer: 0 | 1 | 2, index: number, tile: number, x = 0, y = 0): TileDraw => ({

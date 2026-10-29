@@ -1553,3 +1553,79 @@ steep sides get no concept detail; small grooves are texture only; concept glows
 maps; some models cover noticeably less of the sprite outline (U-Ship 0.76, newsh2-87 0.79,
 newshp-13 0.80 IoU) because they follow the concept; assembly-newsh2-273 ended at 3/5 with polish
 left. Fallback: revert a model's script from git history and rebuild without the bake.
+
+## D45 — Background 2 is drawn blended, as flat translucent sheets, like the C at processorType 4
+
+2026-10-29
+
+**Decision:** The port plays at processorType 4 (Pentium, D31), where JE_initProcessorType sets
+`wild`, so background 2 is drawn with draw_background_2_blend unless an event sets
+background2notTransparent; the sim had `wild: false`, so TYRIAN's ice clouds came out opaque. Now
+`wild: true` (it only chooses which background-2 draw is made). Blended background-2 tiles
+(`effect: "blend"`) are drawn as flat translucent quads at their pass height instead of extruded
+tiles: in the original look from the tile atlas (`groundTileMaterial(…, blend)`), in the remastered
+look upscaled in context with the ground (`RemasterGroundAtlas` gives them slots, against their empty
+neighbours, so the outline comes out smooth; `remasterGroundMaterial(…, blend)` blends the four
+texels weighted by coverage). Index 0 is see-through, the rest is drawn at `BLEND_ALPHA` (0.55), no
+depth write, no outline, no shadow. The sheets draw before other translucent draws (renderOrder -1;
++1 for background2over 2, drawn over everything). Translucent sprites and models no longer get the
+outline shell: OutlineEffect drew it opaque behind them (it reads material.opacity, and the
+instanced sprites' alpha is per instance), which turned the clouds into a flat olive sheet and put a
+dark husk inside the invulnerable ship.
+
+What the C draws translucent in play, and how it's drawn here:
+- Background 2 (draw_background_2_blend: the tile's hue, value averaged with what's under it):
+  this entry.
+- Explosions (blit_sprite2_blend, explosionTransparent): translucent sprites, or the remastered
+  fire (D35).
+- The ship while invulnerable (blit_sprite2x2_blend): the model at BLEND_ALPHA, now without outline.
+- Special-weapon shots from OPTION_SHAPES (blit_sprite_blend): translucent sprites or flat art.
+- Shadows (blit_sprite2_darken): replaced by real shadows (D9). JE_darkenBackground (superWild) is
+  not at processorType 4.
+
+**Options considered:**
+- *`wild` as at processorType 4, flat translucent sheets (chosen):* the same draws the C makes at
+  the port's detail level, and a sheet reads as cloud.
+- *Leave `wild` false and blend layer 1 in the renderer:* no sim change, but it would also blend
+  where an event asks for an opaque background 2.
+- *Extruded tiles at BLEND_ALPHA (what "blend" tiles did before):* their sides double up at every
+  tile seam into a grid of bright lines.
+- *The C's exact blend (cloud hue, averaged value):* needs the colour underneath; with a fixed
+  blend it would take a multiply pass and an add pass per sheet. Plain alpha reads the same way.
+
+**Review:** Play TYRIAN (`?debug=play&seed=1&skip=220&freezeAt=220`, with and without
+`&bg=remaster`): the ice clouds should show the ground and ground enemies through them. The C keeps
+the cloud's hue and averages brightness, so its clouds are bluer over dark ground than this alpha
+blend; if that matters, try the two-pass blend.
+
+## D46 — A model's frames are textured together, and a build textures what has concept maps
+
+2026-10-29
+
+**Decision:** texture_bake.py textures a model's other animation frames (`<name>-f<k>`, one model
+per frame) with the first: a frame with the same faces as the first (the same parts moved or
+turned) takes its texture and bake UVs face corner by face corner, so the detail turns with the
+parts; one with a different mesh is baked on its own from the same maps. tools/build-models.sh runs
+the bake right after building any model with concept maps (`-n` skips it). newsh2-229 (the spinning
+ring drones in TYRIAN) no longer textures its own frames in its build script.
+
+The drones flashed light and dark because frame 229 was plain while f2-f8 were textured: the
+bake textured only the first .glb, so the script baked f2-f8 itself, and the model was rebuilt
+after its bake, which left frame 229 plain. Its frames' bake was also much darker than the bake now
+is (probably because it ran with all eight frame models overlapping in the scene, where the
+ambient occlusion sees the other frames; not checked further).
+
+**Options considered:**
+- *Bake every frame in texture_bake.py, and bake in the build (chosen):* one place, and a rebuild
+  can't drop textures.
+- *Fix newsh2-229 only (rebake its first frame):* fixes the flash, but the next rebuild without a
+  bake brings it back, and the other multi-frame models with concept maps would flash once baked.
+- *Bake each frame separately always:* simpler, but a turned part's detail stays put on screen
+  instead of turning with it.
+
+**Review:** In this commit only newsh2-229 is rebuilt and rebaked. The other models with concept
+maps (D44) are plain in git: the commit that made them was rebuilt after its bakes, so it carries
+no textures for any enemy or ship (only the seven map 1-3 tile structures and newsh2-229's frames
+had them). `tools/build-models.sh $(script for each textures/<name>/)` rebuilds and textures them
+(assemblies need `tools/sprite_shape.py <name>` first); several rebuilt models came out not
+byte-identical to git, so check them in `?debug=models` before committing.

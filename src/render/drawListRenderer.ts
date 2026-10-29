@@ -3,7 +3,9 @@
 // - Sprites become extruded meshes (spriteMesh.ts), one InstancedMesh per distinct sprite and
 //   material variant, so a full screen is a few dozen draw calls.
 // - Background 1 (the ground) is one instanced quad per tile, textured from a palette-index
-//   atlas. Backgrounds 2 and 3 are extruded like sprites (DECISIONS.md D8).
+//   atlas. Backgrounds 2 and 3 are extruded like sprites (DECISIONS.md D8), except background 2
+//   drawn blended (draw_background_2_blend: TYRIAN's ice clouds), which is flat translucent quads
+//   from the same atlas (D45).
 // - Every draw sits at its pass's height (passHeights.ts, D5) but is projected along the camera
 //   ray back onto its original screen position and scaled to its original size (D6), so the
 //   layout on screen is exactly the original's at any height.
@@ -77,7 +79,13 @@ const enum Variant {
   Hot,
   HotBlend,
   RemasterGround,
+  /** Blended background-2 tiles (draw_background_2_blend) as flat translucent sheets. */
+  GroundBlend,
+  RemasterGroundBlend,
 }
+
+/** Variants drawn as atlas quads (per-instance atlas offset) rather than meshes. */
+const TILE_VARIANTS = new Set<Variant>([Variant.Ground, Variant.RemasterGround, Variant.GroundBlend, Variant.RemasterGroundBlend]);
 
 /** One InstancedMesh and its per-instance data, reused every frame. */
 class Pool {
@@ -249,7 +257,9 @@ export class DrawListRenderer {
     const p = this.palette;
     this.materials = [];
     this.materials[Variant.Lit] = paletteMaterial(p, { lit: true, transparent: false, outline: true });
-    this.materials[Variant.LitBlend] = paletteMaterial(p, { lit: true, transparent: true, outline: true });
+    // No outline on translucent draws: OutlineEffect draws the shell opaque (per-instance alpha is in
+    // the shader, not material.opacity), which hides whatever the sprite should let through.
+    this.materials[Variant.LitBlend] = paletteMaterial(p, { lit: true, transparent: true, outline: false });
     this.materials[Variant.Glow] = paletteMaterial(p, { lit: true, transparent: false, outline: true, glow: GLOW });
     this.materials[Variant.GlowBlend] = paletteMaterial(p, { lit: true, transparent: true, outline: false, glow: GLOW });
     this.materials[Variant.Unlit] = paletteMaterial(p, { lit: false, transparent: false, outline: false });
@@ -257,7 +267,9 @@ export class DrawListRenderer {
     this.materials[Variant.Hot] = paletteMaterial(p, { lit: true, transparent: false, outline: false, glow: HOT_GLOW });
     this.materials[Variant.HotBlend] = paletteMaterial(p, { lit: true, transparent: true, outline: false, glow: HOT_BLEND_GLOW });
     this.materials[Variant.RemasterGround] = remasterGroundMaterial(p, this.remasterAtlas); // [bg-remaster]
-    for (let v = 0; v <= Variant.RemasterGround; v++) this.pools.push(new Map());
+    this.materials[Variant.GroundBlend] = groundTileMaterial(p, this.atlas, BLEND_ALPHA);
+    this.materials[Variant.RemasterGroundBlend] = remasterGroundMaterial(p, this.remasterAtlas, undefined, BLEND_ALPHA);
+    for (let v = 0; v <= Variant.RemasterGroundBlend; v++) this.pools.push(new Map());
     this.artLayer = new SpriteArtLayer(p);
     this.root.add(this.artLayer.root);
     this.setVfxMode(vfxModeFromSearch());
@@ -438,8 +450,12 @@ export class DrawListRenderer {
             instances++;
             break;
           }
-          if (d.layer === 0) {
-            const pool = this.pool(this.groundGeometry, Variant.Ground, frame);
+          if (d.layer === 0 || d.effect === "blend") {
+            // The ground, and blended background-2 tiles as flat translucent sheets (an extruded
+            // tile seen through shows its sides and doubles up at the seams).
+            const blend = d.effect === "blend";
+            const pool = this.pool(this.groundGeometry, blend ? Variant.GroundBlend : Variant.Ground, frame);
+            if (blend) pool.mesh.renderOrder = blendSheetOrder(d.pass);
             const s = pool.next(frame);
             this.atlas.place(d.tileId, d.tile, pool.extra.array as Float32Array, s * 2);
             writeMatrix(pool.mesh.instanceMatrix.array as Float32Array, s, x, y, passHeight(d.pass), 1, 1, cam);
@@ -503,7 +519,7 @@ export class DrawListRenderer {
       pool = new Pool(
         geometry,
         this.materials[variant],
-        variant === Variant.Ground || variant === Variant.RemasterGround ? "instTile" : "instFx",
+        TILE_VARIANTS.has(variant) ? "instTile" : "instFx",
         this.root,
         { cast: opaque, receive: variant !== Variant.Unlit },
       );
@@ -613,7 +629,7 @@ export class DrawListRenderer {
    */
   private drawRemasterTile(d: TileDraw, x: number, y: number, cam: THREE.Vector3, frame: number): boolean {
     let modelled = false;
-    // Structures are opaque models; a "blend" (translucent) tile keeps the original look.
+    // Structures are opaque models; a "blend" (translucent) tile is never one (only background 2 blends).
     if (this.tileModels.size > 0) this.preloadStructures(d.tileId);
     if (d.effect === "none" && this.tileModels.has(d)) {
       const match = this.tileModels.match(d);
@@ -633,8 +649,12 @@ export class DrawListRenderer {
         modelled = true;
       }
     }
-    if (d.layer !== 0) return modelled;
-    const pool = this.pool(this.groundGeometry, Variant.RemasterGround, frame);
+    const blend = d.layer !== 0 && d.effect === "blend";
+    if (d.layer !== 0 && !blend) return modelled;
+    // The ground, and blended background-2 tiles (TYRIAN's ice clouds) as translucent sheets, both
+    // upscaled in context.
+    const pool = this.pool(this.groundGeometry, blend ? Variant.RemasterGroundBlend : Variant.RemasterGround, frame);
+    if (blend) pool.mesh.renderOrder = blendSheetOrder(d.pass);
     const s = pool.next(frame);
     if (!this.remasterAtlas.place(d.key, pool.extra.array as Float32Array, s * 2)) {
       pool.count--; // No slot yet (no palette): give the instance back.
@@ -745,6 +765,14 @@ export class DrawListRenderer {
         m.transparent = blended;
         m.opacity = blended ? BLEND_ALPHA : 1;
         m.depthWrite = !blended;
+        // The outline shell would show through a translucent model as a dark husk.
+        const outline = (m.userData.outlineParameters ??= {}) as { visible?: boolean; opaqueVisible?: boolean };
+        if (blended) {
+          outline.opaqueVisible = outline.visible ?? true;
+          outline.visible = false;
+        } else {
+          outline.visible = outline.opaqueVisible ?? true;
+        }
         m.needsUpdate = true;
       }
     }
@@ -827,6 +855,15 @@ function writeMatrix(m: Float32Array, slot: number, x: number, y: number, height
 }
 
 /** A 24x28 px ground tile quad (top-left at the origin), with tile-space UVs. */
+/**
+ * Draw order among translucent objects for a blended background-2 sheet: before the others (shots,
+ * explosions, a flashing ship are all above it) unless it's background2over 2, drawn over everything.
+ * Instanced pools all sit at the origin, so three.js's depth sort can't order them.
+ */
+function blendSheetOrder(pass: Pass): number {
+  return pass === Pass.Background2Top ? 1 : -1;
+}
+
 function groundQuad(): THREE.BufferGeometry {
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0, 24, 0, 0, 24, 0, 28, 0, 0, 28], 3));

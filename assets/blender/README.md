@@ -88,6 +88,12 @@ Build headless, several at a time, with previews:
 
     tools/build-models.sh -j 8 -p /tmp/previews assets/blender/enemies/*.py
 
+A model with concept maps (`textures/<name>/maps.json`, DECISIONS.md D44) is textured by
+`texture_bake.py` straight after its build, with all of its animation frames (`-f2`, `-f3` ...),
+so a rebuild never leaves it plain or leaves one frame plain among textured ones (D46). An
+assembly's bake needs `.shape/<name>/regions.json` (`tools/sprite_shape.py <name>`, git-ignored);
+`-n` builds without texturing.
+
 Compare a model with its sprite in the model viewer at `?viewer=<name>`: rotate it freely, or use
 Top with "Sprite over model" to check the outline pixel by pixel. `?debug=models` on the dev server
 shows models in the game's own renderer (`&model=a,b`, `&page=N`, `&flash=1` for the hit flash).

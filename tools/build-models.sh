@@ -8,15 +8,24 @@
 # -p also renders each model beside its sprite to <preview_dir>/<name>.png (needs the reference
 # images from `npm run catalogue`). Blender comes from $BLENDER, `blender` on the PATH, or the
 # default macOS install.
+#
+# A model with concept maps (assets/blender/textures/<name>/maps.json, DECISIONS.md D44) is textured
+# right after it's built (assets/blender/texture_bake.py, which must run on a fresh build), with all
+# its animation frames: a build alone exports it plain, and a plain model, or a plain frame among
+# textured ones, is the wrong look (a frame left plain flashes lighter, D46). -n builds without the
+# bake (the models come out plain). An assembly's bake needs .shape/<name>/regions.json
+# (tools/sprite_shape.py <name>).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 jobs=$(( $(getconf _NPROCESSORS_ONLN) / 2 ))
 preview=""
-while getopts "j:p:" opt; do
+texture=1
+while getopts "j:p:n" opt; do
   case $opt in
     j) jobs=$OPTARG ;;
     p) preview=$OPTARG ;;
+    n) texture=0 ;;
     *) exit 2 ;;
   esac
 done
@@ -27,8 +36,24 @@ if [ $# -eq 0 ]; then
   set -- $(find assets/blender -name '*.py' ! -name common.py ! -name 'lib_*' | sort)
 fi
 
+# The texture_bake.py name for a script's model, if it has concept maps: the script's own name, a tile
+# model's entry (tile:<entry>, found by the model path it writes), or the Talon's.
+bake_name() {
+  local n=$1 entry
+  if [ -f "assets/blender/textures/$n/maps.json" ]; then echo "$n"; return; fi
+  if [ "$n" = usp_talon ] && [ -f assets/blender/textures/ship-usp-talon-light-fighter/maps.json ]; then
+    echo ship-usp-talon-light-fighter; return
+  fi
+  entry=$(grep -l "\"model\": \"tiles/[^\"]*/${n//_/-}\"" src/render/tileModels/*.json 2>/dev/null | head -1)
+  if [ -n "$entry" ]; then
+    entry=$(basename "$entry" .json)
+    [ -f "assets/blender/textures/$entry/maps.json" ] && echo "tile:$entry"
+  fi
+  return 0
+}
+
 build() {
-  local script=$1 name log
+  local script=$1 name log bake
   name=$(basename "$script" .py)
   log=$(mktemp)
   local args=(--background --factory-startup --python "$script")
@@ -41,9 +66,26 @@ build() {
     rm -f "$log"
     return 1
   fi
+  bake=$(bake_name "$name")
+  if [ "$texture" = 1 ] && [ -n "$bake" ]; then
+    if [[ "$bake" == assembly-* ]] && [ ! -f ".shape/$bake/regions.json" ]; then
+      echo "FAILED $script: built but not textured; run tools/sprite_shape.py $bake first (or -n)" >&2
+      rm -f "$log"
+      return 1
+    fi
+    if "$blender" --background --factory-startup --python assets/blender/texture_bake.py -- "$bake" >"$log" 2>&1 \
+      && ! grep -q "^Traceback\|^Error" "$log"; then
+      grep "^textured" "$log" || true
+    else
+      echo "FAILED $script: built, but texturing it ($bake) failed:" >&2
+      cat "$log" >&2
+      rm -f "$log"
+      return 1
+    fi
+  fi
   rm -f "$log"
 }
-export -f build
-export blender preview
+export -f build bake_name
+export blender preview texture
 [ -n "$preview" ] && mkdir -p "$preview"
 printf '%s\n' "$@" | xargs -P "$jobs" -I{} bash -c 'build "$@"' _ {}
