@@ -1508,3 +1508,48 @@ scores under ~0.5 or a painting that's off its silhouette mean the cell needs a 
 rotation); animation frames painted in separate cells may differ more than the original's frames
 did; tyrian.shp#5 table sprites (Plasma Storm's shots) and other levels aren't covered yet. To
 extend to another level, record its draws the same way and add its families to `SHEET_GROUPS`.
+
+## D44 — Models follow their concept image, then wear it: concept-placed geometry, baked concept detail
+
+2026-10-29
+
+**Decision:** The first level's enemies, structures and the player ships are rebuilt with their
+Gemini concept image (`assets/blender/features/concepts/`) as the base, then textured from it.
+- **Registration:** `tools/concept_maps.py <name>` lines the concept up with the sprite (the
+  sprite's mask is the object mask) and writes `assets/blender/textures/<name>/` (the aligned
+  concept, a detail map, a height map, the mask and `maps.json`). A tile structure uses
+  `tile:<entry> --concept <name>` and its tiles' mask.
+- **Geometry:** each part is placed where the concept draws it, in sprite-pixel coordinates read
+  off the aligned concept, with the concept's shape language, while the outline stays inside the
+  sprite's (the hitbox read) and materials stay palette materials (`pal_<index>`), so palettes,
+  fades and the hit flash still apply.
+- **Texture:** `assets/blender/texture_bake.py <name>` runs on a freshly built model: a planar
+  "concept" UV and a smart-projected bake UV, an emission bake of the concept's detail on
+  upward-facing surfaces times ambient occlusion, and a normal map from the height map. The
+  material becomes `Base Color = palette colour × detail` plus the normal map, so the game needs
+  no change (the palette still sets `material.color`). Maps are exported as WebP inside the .glb
+  (`common.export_glb(image_format="WEBP")`): a textured ship is ~230 KB instead of ~690 KB as
+  PNG. Bake intermediates (`textures/*/bake/`) are not tracked.
+- **Process:** one agent per model (remodel, build, bake, render), then a grader against the
+  previous model; a fix round when asked, a revert when worse. All 33 first-level models and
+  ships were kept (3.5–4/5). The four long-strip structures got new full-length concepts first.
+- **Shared-tile structures:** map 1-3's buildings use tiles that also occur as plain terrain, so a
+  tile pattern can say `minRows`: it is placed only once that many of its rows are on screen and
+  every drawn cell matches. A real-map test checks that the rows always tell it apart.
+
+**Options considered:**
+- *Concept-placed geometry plus baked concept detail (chosen):* the detail lands on the part it
+  belongs to; the pilot (bake onto the old geometry) put cockpits on plain plates.
+- *Bake only, keep the old geometry:* cheapest, but misaligned detail where shapes differ.
+- *Hand-painted or generated PBR textures per model:* richer, but far more work per model and a
+  second source of truth beside the concept.
+- *Follow the sprite's outline exactly:* best hitbox match, but fights the concept where it is
+  narrower; inside-the-sprite was the compromise.
+- *PNG/JPEG/KTX2 maps:* PNG is 3x larger; JPEG has no alpha and worse normals; KTX2 needs a
+  transcoder in the page. WebP is supported by three.js's GLTFLoader natively.
+
+**Review:** Look at the models in play (`?debug=level&main=1`) from the game camera. Known limits:
+steep sides get no concept detail; small grooves are texture only; concept glows aren't emissive
+maps; some models cover noticeably less of the sprite outline (U-Ship 0.76, newsh2-87 0.79,
+newshp-13 0.80 IoU) because they follow the concept; assembly-newsh2-273 ended at 3/5 with polish
+left. Fallback: revert a model's script from git history and rebuild without the bake.
