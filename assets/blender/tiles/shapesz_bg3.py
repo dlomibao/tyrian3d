@@ -21,6 +21,7 @@ Each tile becomes a rock slab with its outline (MMPX 2x pixels, so diagonals are
 Run: blender --background --python assets/blender/tiles/shapesz_bg3.py [-- --preview out_dir]
 """
 
+import json
 import sys
 from pathlib import Path
 
@@ -215,12 +216,24 @@ def orb(bm, pal, frame, own, cx, cy, radius):
     return covered
 
 
+def replaced_tiles():
+    """Tiles whose per-tile model a TYRIAN structure model replaces (lib_tyrbld.py: a one-tile
+    pattern in src/render/tileModels/shapesz-tyrbld-*.json, such as the drums): not built here."""
+    out = set()
+    for path in (ROOT / "src" / "render" / "tileModels").glob(f"{SHAPES}-tyrbld-*.json"):
+        doc = json.loads(path.read_text())
+        if doc["layer"] == LAYER and len(doc["tiles"]) == 1 and len(doc["tiles"][0]) == 1:
+            out.add(doc["tiles"][0][0])
+    return out
+
+
 def main():
     ts = lt.Tileset(ROOT, SHAPES, layer=LAYER)
     preview = lt.preview_arg()
     only = {int(a) for a in sys.argv[sys.argv.index("--") + 1:] if a.isdigit()} if "--" in sys.argv else set()
+    skip = replaced_tiles()
     for n, (recipe, opts) in TILES.items():
-        if only and n not in only:
+        if (only and n not in only) or n in skip:
             continue
         objects = build(ts, n, recipe, opts)
         lt.export_tile_model(ts, objects, f"t{n}", LAYER, [[n]])

@@ -4,8 +4,10 @@
 // Each structure model's script (assets/blender/tiles/) writes one JSON file to tileModels/, like
 // the enemy models' spriteModels/ (D15): the model and the pattern of tiles it stands for, as
 // rows of 0-based tile numbers in the shapes file (-1: any tile). The model's origin is the
-// pattern's centre. A tile can belong to several patterns; the first whose visible cells all match
-// is used.
+// pattern's centre (plus `offset`). A tile can belong to several patterns; the biggest (most
+// cells) whose visible cells all match is used, so a structure wins over the per-tile models of
+// its tiles (which stay for the tiles it doesn't cover, and while it isn't matched yet), and a
+// whole structure over a variant cut by the map's edge. Equal sizes keep the files' order.
 //
 // In game a pattern is matched from any of its tiles, so a structure stays whole while its first
 // row is off screen: a tile at map index `key` in pattern cell (row, col) puts the pattern's
@@ -41,6 +43,12 @@ export interface TileModelEntry {
    * the pattern is enough, and its tiles must occur nowhere else on the layer.
    */
   minRows?: number;
+  /**
+   * Where the model's origin is, in px from the pattern's centre (x right, y down): a variant of
+   * a structure cut by the map's edge reuses the whole structure's model, e.g. [12, 0] for the
+   * left two columns of a three-column one.
+   */
+  offset?: [number, number];
 }
 
 /** Map widths in tiles per layer (JE_MapType, JE_MapType2, JE_MapType3). */
@@ -86,6 +94,9 @@ export class TileModelIndex {
         }),
       );
     }
+    // Biggest pattern first (a stable sort keeps the files' order between equals).
+    const size = (e: TileModelEntry) => e.tiles.reduce((n, row) => n + row.filter((t) => t >= 0).length, 0);
+    for (const list of this.cells.values()) list.sort((a, b) => size(b.entry) - size(a.entry));
   }
 
   get size(): number {
@@ -135,8 +146,8 @@ export class TileModelIndex {
       return {
         entry,
         anchorKey: d.layer * BG_KEY_LAYER + anchor,
-        dx: -col * 24 + (cols * 24) / 2,
-        dy: -row * 28 + (rows * 28) / 2,
+        dx: -col * 24 + (cols * 24) / 2 + (entry.offset?.[0] ?? 0),
+        dy: -row * 28 + (rows * 28) / 2 + (entry.offset?.[1] ?? 0),
       };
     }
     return null;

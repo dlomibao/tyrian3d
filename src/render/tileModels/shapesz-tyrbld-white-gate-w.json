@@ -1,0 +1,15 @@
+{
+ "model": "tiles/shapesz/tyrbld-white-gate-w",
+ "shapes": "shapesz.dat",
+ "layer": 2,
+ "tiles": [
+  [
+   185,
+   186
+  ],
+  [
+   195,
+   196
+  ]
+ ]
+}

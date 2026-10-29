@@ -1,0 +1,2081 @@
+{
+ "about": "TYRIAN (map 1-9, shapesz.dat) structures as tile models: the matching plan read by assets/blender/tiles/lib_tyrbld.py and tests/render/remaster.test.ts. Each entry becomes src/render/tileModels/shapesz-tyrbld-<name>.json (model tiles/shapesz/tyrbld-<name>). tiles: the pattern (-1 = not part of it: rock fill stays on the per-tile models); map: rows/cols of its first copy in map 1-9 (0-based cells of reference/tiles/shapesz/map-1-9-l<layer>.png); enemies: pattern cells (row, col) with an enemy seated on them in any copy; over: drawn in the Background3Over pass (4.15) instead of Background3 (2.1); concepts: each concept image and the pattern cells it spans (rows r0..r1, cols c0..c1, inclusive, may run outside the pattern); replaces: per-tile entries this model supersedes (removed by its export); variants: extra entries reusing the model (offset in px from the pattern's centre).",
+ "structures": {
+  "bunker-ring": {
+   "unit": "bunker_ring",
+   "layer": 0,
+   "tiles": [
+    [
+     320,
+     321
+    ],
+    [
+     330,
+     331
+    ]
+   ],
+   "minRows": null,
+   "over": false,
+   "map": {
+    "rows": [
+     257,
+     258
+    ],
+    "cols": [
+     4,
+     5
+    ]
+   },
+   "occurrences": [
+    [
+     257,
+     4
+    ],
+    [
+     268,
+     6
+    ],
+    [
+     271,
+     9
+    ],
+    [
+     276,
+     7
+    ],
+    [
+     282,
+     11
+    ],
+    [
+     285,
+     3
+    ]
+   ],
+   "enemies": [
+    [
+     0,
+     0
+    ],
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     0
+    ],
+    [
+     1,
+     1
+    ]
+   ],
+   "replaces": [
+    "shapesz-bunker-ring"
+   ],
+   "concepts": [
+    {
+     "name": "tyr-bunker-ring",
+     "span": [
+      0,
+      0,
+      1,
+      1
+     ],
+     "input": "/private/tmp/claude-501/-Users-dlomibao-projects-tyrian/0dbe1f8e-e959-4ffb-bcd8-9ccff6b761d6/scratchpad/tyrbld/inputs/bunker-ring.png"
+    }
+   ],
+   "description": "Gold dome bunker: dark body with a gold ring and two gold domes, 2x2 tiles on the dirt.",
+   "notes": "Every cell carries a ground enemy (newsh2 77/79/115/117 = enemy model assembly-newsh2-115 'brass dome works'), drawn at 0.45 over the tile; the tile is only seen once the enemy is destroyed. Tiles 320-333 occur only in bunkers, so no minRows needed.",
+   "keepTiles": true
+  },
+  "bunker-hull": {
+   "unit": "bunker_hull",
+   "layer": 0,
+   "tiles": [
+    [
+     322,
+     323
+    ],
+    [
+     332,
+     333
+    ]
+   ],
+   "minRows": null,
+   "over": false,
+   "map": {
+    "rows": [
+     266,
+     267
+    ],
+    "cols": [
+     11,
+     12
+    ]
+   },
+   "occurrences": [
+    [
+     266,
+     11
+    ],
+    [
+     277,
+     11
+    ],
+    [
+     285,
+     6
+    ]
+   ],
+   "enemies": [
+    [
+     0,
+     0
+    ],
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     0
+    ],
+    [
+     1,
+     1
+    ]
+   ],
+   "replaces": [
+    "shapesz-bunker-hull"
+   ],
+   "concepts": [
+    {
+     "name": "tyr-bunker-hull",
+     "span": [
+      0,
+      0,
+      1,
+      1
+     ],
+     "input": "/private/tmp/claude-501/-Users-dlomibao-projects-tyrian/0dbe1f8e-e959-4ffb-bcd8-9ccff6b761d6/scratchpad/tyrbld/inputs/bunker-hull.png"
+    }
+   ],
+   "description": "Armoured hull bunker with gold chevrons, 2x2 tiles.",
+   "notes": "Every cell carries a ground enemy (newsh2 81/83/119/121 = assembly-newsh2-119 'grey carapace bunker'). Same caveat as bunker-ring.",
+   "keepTiles": true
+  },
+  "wreck": {
+   "unit": "wreck",
+   "layer": 0,
+   "tiles": [
+    [
+     340,
+     341,
+     342
+    ],
+    [
+     350,
+     351,
+     352
+    ]
+   ],
+   "minRows": null,
+   "over": false,
+   "map": {
+    "rows": [
+     243,
+     244
+    ],
+    "cols": [
+     10,
+     12
+    ]
+   },
+   "occurrences": [
+    [
+     243,
+     10
+    ],
+    [
+     223,
+     12
+    ]
+   ],
+   "enemies": [
+    [
+     0,
+     0
+    ],
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     0
+    ],
+    [
+     1,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "replaces": [
+    "shapesz-wreck"
+   ],
+   "concepts": [
+    {
+     "name": "tyr-wreck",
+     "span": [
+      0,
+      0,
+      1,
+      2
+     ],
+     "input": "/private/tmp/claude-501/-Users-dlomibao-projects-tyrian/0dbe1f8e-e959-4ffb-bcd8-9ccff6b761d6/scratchpad/tyrbld/inputs/wreck.png"
+    }
+   ],
+   "description": "Dark rock/wreck outcrop, 3x2 tiles.",
+   "notes": "Every cell carries a ground enemy (newshe 1/3/5/39/41/43 = assembly-newshe-39 'rock outcrop'). The copy at rows 223-224 is cut by the map's right edge (only cols 12-13: 340 341 / 350 351); a 3-wide pattern cannot match there (tileModels.ts skips patterns that would wrap), so it needs a 2-wide variant [[340,341],[350,351]] listed AFTER the full one.",
+   "keepTiles": true,
+   "variants": [
+    {
+     "name": "wreck-cut",
+     "tiles": [
+      [
+       340,
+       341
+      ],
+      [
+       350,
+       351
+      ]
+     ],
+     "offset": [
+      12,
+      0
+     ],
+     "why": "the copy at map rows 223-224 is cut by the map's right edge (cols 12-13)"
+    }
+   ]
+  },
+  "fortress": {
+   "unit": "fortress",
+   "layer": 2,
+   "tiles": [
+    [
+     180,
+     180,
+     180,
+     180,
+     180,
+     180,
+     180,
+     180,
+     180,
+     180,
+     180,
+     184,
+     -1,
+     -1,
+     -1
+    ],
+    [
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     200,
+     -1,
+     -1,
+     -1
+    ],
+    [
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     200,
+     -1,
+     -1,
+     -1
+    ],
+    [
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     200,
+     -1,
+     -1,
+     -1
+    ],
+    [
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     200,
+     -1,
+     -1,
+     -1
+    ],
+    [
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     200,
+     -1,
+     -1,
+     -1
+    ],
+    [
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     200,
+     -1,
+     -1,
+     -1
+    ],
+    [
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     183,
+     180,
+     180,
+     201,
+     180,
+     180,
+     184
+    ],
+    [
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     200,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     200
+    ],
+    [
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     200,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     200
+    ],
+    [
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     200,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     200
+    ],
+    [
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     200,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     200
+    ],
+    [
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     193,
+     180,
+     180,
+     181,
+     180,
+     180,
+     194
+    ],
+    [
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     200,
+     -1,
+     -1,
+     -1
+    ],
+    [
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     200,
+     -1,
+     -1,
+     -1
+    ],
+    [
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     200,
+     -1,
+     -1,
+     -1
+    ],
+    [
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     200,
+     -1,
+     -1,
+     -1
+    ],
+    [
+     180,
+     180,
+     180,
+     180,
+     181,
+     180,
+     180,
+     180,
+     180,
+     180,
+     180,
+     191,
+     180,
+     180,
+     180
+    ],
+    [
+     180,
+     180,
+     180,
+     180,
+     191,
+     180,
+     180,
+     180,
+     180,
+     180,
+     180,
+     201,
+     180,
+     180,
+     180
+    ],
+    [
+     -1,
+     -1,
+     -1,
+     -1,
+     200,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1
+    ],
+    [
+     -1,
+     -1,
+     160,
+     161,
+     200,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1
+    ],
+    [
+     -1,
+     -1,
+     170,
+     171,
+     200,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1
+    ],
+    [
+     -1,
+     -1,
+     -1,
+     -1,
+     200,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1
+    ],
+    [
+     180,
+     180,
+     180,
+     180,
+     201,
+     184,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1
+    ],
+    [
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     193,
+     180,
+     184,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1
+    ],
+    [
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     200,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1
+    ],
+    [
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     200,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1
+    ],
+    [
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     200,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1
+    ],
+    [
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     200,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1
+    ],
+    [
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     200,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1
+    ],
+    [
+     180,
+     180,
+     180,
+     180,
+     180,
+     180,
+     180,
+     192,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1
+    ],
+    [
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     200,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1
+    ],
+    [
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     200,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1
+    ],
+    [
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     200,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1
+    ],
+    [
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     200,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1
+    ],
+    [
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     200,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     183,
+     180
+    ],
+    [
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     200,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     200,
+     -1
+    ],
+    [
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     200,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     200,
+     -1
+    ],
+    [
+     -1,
+     -1,
+     -1,
+     183,
+     180,
+     180,
+     180,
+     194,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     200,
+     -1
+    ],
+    [
+     -1,
+     -1,
+     -1,
+     200,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     200,
+     -1
+    ],
+    [
+     -1,
+     -1,
+     183,
+     194,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     200,
+     -1
+    ],
+    [
+     -1,
+     -1,
+     200,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     200,
+     -1
+    ],
+    [
+     -1,
+     -1,
+     200,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     200,
+     -1
+    ],
+    [
+     -1,
+     -1,
+     200,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     200,
+     -1
+    ],
+    [
+     180,
+     180,
+     201,
+     180,
+     180,
+     180,
+     180,
+     180,
+     180,
+     180,
+     180,
+     180,
+     180,
+     201,
+     180
+    ]
+   ],
+   "minRows": 2,
+   "over": false,
+   "map": {
+    "rows": [
+     334,
+     378
+    ],
+    "cols": [
+     0,
+     14
+    ]
+   },
+   "occurrences": [
+    [
+     334,
+     0
+    ]
+   ],
+   "enemies": [
+    [
+     20,
+     2
+    ],
+    [
+     20,
+     3
+    ],
+    [
+     21,
+     2
+    ],
+    [
+     21,
+     3
+    ],
+    [
+     30,
+     5
+    ]
+   ],
+   "replaces": [],
+   "concepts": [
+    {
+     "name": "tyr-fortress-a",
+     "span": [
+      -1,
+      0,
+      16,
+      14
+     ],
+     "input": "/private/tmp/claude-501/-Users-dlomibao-projects-tyrian/0dbe1f8e-e959-4ffb-bcd8-9ccff6b761d6/scratchpad/tyrbld/inputs/fortress-a.png"
+    },
+    {
+     "name": "tyr-fortress-b",
+     "span": [
+      15,
+      0,
+      31,
+      14
+     ],
+     "input": "/private/tmp/claude-501/-Users-dlomibao-projects-tyrian/0dbe1f8e-e959-4ffb-bcd8-9ccff6b761d6/scratchpad/tyrbld/inputs/fortress-b.png"
+    },
+    {
+     "name": "tyr-fortress-c",
+     "span": [
+      29,
+      0,
+      45,
+      14
+     ],
+     "input": "/private/tmp/claude-501/-Users-dlomibao-projects-tyrian/0dbe1f8e-e959-4ffb-bcd8-9ccff6b761d6/scratchpad/tyrbld/inputs/fortress-c.png"
+    }
+   ],
+   "description": "The fortress complex: a network of grey metal walkways (maze-pattern deck, rounded corners 183/184/193/194, T-junctions 181/191/192/201) framing rock islands, with the red-panel machine (160 161 / 170 171) beside the vertical walkway. Purple blocks, lava pits and craters inside it are separate patterns.",
+   "notes": "Rock fill (120-124, 130-134, 140-142, 150-152) is -1 and stays on the per-tile models; purple blocks / 143 / 153 are their own patterns (-1 here). The machine cells carry enemies newsh2 15/17/53/55 (assembly-newsh2-53 'red machinery block'). An enemy (newsh2 41/131) also sits on the walkway at row 364 col 5. Walkway tile 180 also forms the bridges: minRows 2 keeps a lone walkway row from passing for either."
+  },
+  "bridge": {
+   "unit": "bridge",
+   "layer": 2,
+   "tiles": [
+    [
+     -1,
+     -1,
+     121,
+     121,
+     121,
+     121,
+     121,
+     121,
+     121,
+     121,
+     121,
+     121,
+     121,
+     121,
+     121
+    ],
+    [
+     180,
+     180,
+     180,
+     180,
+     180,
+     180,
+     180,
+     180,
+     180,
+     180,
+     180,
+     180,
+     180,
+     180,
+     180
+    ],
+    [
+     141,
+     141,
+     141,
+     141,
+     141,
+     141,
+     141,
+     141,
+     141,
+     141,
+     141,
+     141,
+     141,
+     141,
+     141
+    ]
+   ],
+   "minRows": 2,
+   "over": true,
+   "map": {
+    "rows": [
+     199,
+     201
+    ],
+    "cols": [
+     0,
+     14
+    ]
+   },
+   "occurrences": [
+    [
+     199,
+     0
+    ],
+    [
+     223,
+     0
+    ],
+    [
+     236,
+     0
+    ]
+   ],
+   "enemies": [],
+   "replaces": [],
+   "concepts": [
+    {
+     "name": "tyr-bridge-a",
+     "span": [
+      0,
+      0,
+      2,
+      5
+     ],
+     "input": "/private/tmp/claude-501/-Users-dlomibao-projects-tyrian/0dbe1f8e-e959-4ffb-bcd8-9ccff6b761d6/scratchpad/tyrbld/inputs/bridge-a.png"
+    },
+    {
+     "name": "tyr-bridge-b",
+     "span": [
+      0,
+      5,
+      2,
+      10
+     ],
+     "input": "/private/tmp/claude-501/-Users-dlomibao-projects-tyrian/0dbe1f8e-e959-4ffb-bcd8-9ccff6b761d6/scratchpad/tyrbld/inputs/bridge-b.png"
+    },
+    {
+     "name": "tyr-bridge-c",
+     "span": [
+      0,
+      9,
+      2,
+      14
+     ],
+     "input": "/private/tmp/claude-501/-Users-dlomibao-projects-tyrian/0dbe1f8e-e959-4ffb-bcd8-9ccff6b761d6/scratchpad/tyrbld/inputs/bridge-c.png"
+    }
+   ],
+   "description": "Full-width walkway bridge: a metal walkway between a rocky top rim (121) and a hanging rocky underside with roots (141), 15x3 tiles.",
+   "notes": "Rows 199-201 and 223-225 have 121 across the top; rows 236-238 join an island at the left (131 124 in cols 0-1), hence the -1s. The rims are rock-island tiles shared with plain terrain: including them in the bridge model is optional (they could stay per-tile, pattern then [[180]*15] with -1 rows). These rows are drawn in the Background3Over pass (height 4.15, over the player) once the level switches background3over (ticks ~5540-6413 in the sim)."
+  },
+  "purple-orb": {
+   "unit": "purple_orb",
+   "layer": 2,
+   "tiles": [
+    [
+     155,
+     156,
+     157
+    ],
+    [
+     165,
+     149,
+     167
+    ],
+    [
+     175,
+     176,
+     177
+    ]
+   ],
+   "minRows": 2,
+   "over": false,
+   "map": {
+    "rows": [
+     365,
+     367
+    ],
+    "cols": [
+     3,
+     5
+    ]
+   },
+   "occurrences": [
+    [
+     365,
+     3
+    ],
+    [
+     437,
+     7
+    ]
+   ],
+   "enemies": [
+    [
+     0,
+     0
+    ],
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     0
+    ],
+    [
+     1,
+     1
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     0
+    ],
+    [
+     2,
+     1
+    ],
+    [
+     2,
+     2
+    ]
+   ],
+   "replaces": [],
+   "concepts": [
+    {
+     "name": "tyr-purple-orb",
+     "span": [
+      0,
+      0,
+      2,
+      2
+     ],
+     "input": "/private/tmp/claude-501/-Users-dlomibao-projects-tyrian/0dbe1f8e-e959-4ffb-bcd8-9ccff6b761d6/scratchpad/tyrbld/inputs/purple-orb.png"
+    }
+   ],
+   "description": "Purple carved block, 3x3, with the blue orb set in the middle (149).",
+   "notes": "Every cell carries a top enemy: newsh2 279/281/283 (top row), 245/169/207 (middle: assembly-newsh2-245 'purple eye fortress'), 273/275/277 (bottom). Tiles 155/156/157/175/176/177 are shared by every purple shape: minRows 2 tells them apart."
+  },
+  "purple-2x3": {
+   "unit": "purple_2x3",
+   "layer": 2,
+   "tiles": [
+    [
+     155,
+     156,
+     157
+    ],
+    [
+     175,
+     176,
+     177
+    ]
+   ],
+   "minRows": 2,
+   "over": false,
+   "map": {
+    "rows": [
+     353,
+     354
+    ],
+    "cols": [
+     5,
+     7
+    ]
+   },
+   "occurrences": [
+    [
+     353,
+     5
+    ],
+    [
+     400,
+     10
+    ]
+   ],
+   "enemies": [
+    [
+     0,
+     0
+    ],
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     0
+    ],
+    [
+     1,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "replaces": [],
+   "concepts": [
+    {
+     "name": "tyr-purple-2x3",
+     "span": [
+      0,
+      0,
+      1,
+      2
+     ],
+     "input": "/private/tmp/claude-501/-Users-dlomibao-projects-tyrian/0dbe1f8e-e959-4ffb-bcd8-9ccff6b761d6/scratchpad/tyrbld/inputs/purple-2x3.png"
+    }
+   ],
+   "description": "Purple carved block, 2 rows x 3 cols.",
+   "notes": "Every cell carries a top enemy (279/281/283 over the top row, 273/275/277 over the bottom row)."
+  },
+  "purple-2x2": {
+   "unit": "purple_2x2",
+   "layer": 2,
+   "tiles": [
+    [
+     155,
+     157
+    ],
+    [
+     175,
+     177
+    ]
+   ],
+   "minRows": 2,
+   "over": false,
+   "map": {
+    "rows": [
+     376,
+     377
+    ],
+    "cols": [
+     11,
+     12
+    ]
+   },
+   "occurrences": [
+    [
+     376,
+     11
+    ],
+    [
+     412,
+     5
+    ],
+    [
+     412,
+     8
+    ]
+   ],
+   "enemies": [
+    [
+     0,
+     0
+    ],
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     0
+    ],
+    [
+     1,
+     1
+    ]
+   ],
+   "replaces": [],
+   "concepts": [
+    {
+     "name": "tyr-purple-2x2",
+     "span": [
+      0,
+      0,
+      1,
+      1
+     ],
+     "input": "/private/tmp/claude-501/-Users-dlomibao-projects-tyrian/0dbe1f8e-e959-4ffb-bcd8-9ccff6b761d6/scratchpad/tyrbld/inputs/purple-2x2.png"
+    }
+   ],
+   "description": "Purple carved block, 2x2.",
+   "notes": "Every cell carries a top enemy. Its top row (155 157) also occurs in purple-cross: minRows 2 needed."
+  },
+  "purple-2x5": {
+   "unit": "purple_2x5",
+   "layer": 2,
+   "tiles": [
+    [
+     155,
+     156,
+     156,
+     156,
+     157
+    ],
+    [
+     175,
+     176,
+     176,
+     176,
+     177
+    ]
+   ],
+   "minRows": 2,
+   "over": false,
+   "map": {
+    "rows": [
+     344,
+     345
+    ],
+    "cols": [
+     9,
+     13
+    ]
+   },
+   "occurrences": [
+    [
+     344,
+     9
+    ]
+   ],
+   "enemies": [
+    [
+     0,
+     0
+    ],
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     0
+    ],
+    [
+     1,
+     1
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     1,
+     3
+    ]
+   ],
+   "replaces": [],
+   "concepts": [
+    {
+     "name": "tyr-purple-2x5",
+     "span": [
+      0,
+      0,
+      1,
+      4
+     ],
+     "input": "/private/tmp/claude-501/-Users-dlomibao-projects-tyrian/0dbe1f8e-e959-4ffb-bcd8-9ccff6b761d6/scratchpad/tyrbld/inputs/purple-2x5.png"
+    }
+   ],
+   "description": "Long purple carved block, 2 rows x 5 cols (inside the fortress's walkway frame).",
+   "notes": "Every cell carries a top enemy."
+  },
+  "purple-cross": {
+   "unit": "purple_cross",
+   "layer": 2,
+   "tiles": [
+    [
+     -1,
+     155,
+     157,
+     -1
+    ],
+    [
+     155,
+     158,
+     159,
+     157
+    ],
+    [
+     175,
+     168,
+     169,
+     177
+    ],
+    [
+     -1,
+     175,
+     177,
+     -1
+    ]
+   ],
+   "minRows": 2,
+   "over": false,
+   "map": {
+    "rows": [
+     385,
+     388
+    ],
+    "cols": [
+     5,
+     8
+    ]
+   },
+   "occurrences": [
+    [
+     385,
+     5
+    ]
+   ],
+   "enemies": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     0
+    ],
+    [
+     1,
+     3
+    ],
+    [
+     2,
+     0
+    ],
+    [
+     2,
+     3
+    ],
+    [
+     3,
+     1
+    ],
+    [
+     3,
+     2
+    ]
+   ],
+   "replaces": [],
+   "concepts": [
+    {
+     "name": "tyr-purple-cross",
+     "span": [
+      0,
+      0,
+      3,
+      3
+     ],
+     "input": "/private/tmp/claude-501/-Users-dlomibao-projects-tyrian/0dbe1f8e-e959-4ffb-bcd8-9ccff6b761d6/scratchpad/tyrbld/inputs/purple-cross.png"
+    }
+   ],
+   "description": "Purple carved block in a cross/diamond shape, 4x4 with the corners cut (inner corner tiles 158/159/168/169).",
+   "notes": "The eight outer cells carry top enemies; the four centre tiles (158/159/168/169) have none and are always visible. The cut corners are rock cells (123/131): -1."
+  },
+  "white-gate-w": {
+   "unit": "white_gate",
+   "layer": 2,
+   "tiles": [
+    [
+     185,
+     186
+    ],
+    [
+     195,
+     196
+    ]
+   ],
+   "minRows": null,
+   "over": true,
+   "map": {
+    "rows": [
+     277,
+     278
+    ],
+    "cols": [
+     9,
+     10
+    ]
+   },
+   "occurrences": [
+    [
+     277,
+     9
+    ],
+    [
+     284,
+     9
+    ],
+    [
+     320,
+     11
+    ]
+   ],
+   "enemies": [],
+   "replaces": [],
+   "concepts": [
+    {
+     "name": "tyr-white-gate-w",
+     "span": [
+      0,
+      0,
+      1,
+      1
+     ],
+     "input": "/private/tmp/claude-501/-Users-dlomibao-projects-tyrian/0dbe1f8e-e959-4ffb-bcd8-9ccff6b761d6/scratchpad/tyrbld/inputs/white-gate-w.png"
+    }
+   ],
+   "description": "White stone blocks in brass frames set into the WEST edge of a rock island (a gate/door), 2x2.",
+   "notes": "No enemies. Tiles occur only here. Drawn in the Background3Over pass in the late part of the level. Probably the mirror of white-gate-e."
+  },
+  "white-gate-e": {
+   "unit": "white_gate",
+   "layer": 2,
+   "tiles": [
+    [
+     187,
+     188
+    ],
+    [
+     197,
+     198
+    ]
+   ],
+   "minRows": null,
+   "over": true,
+   "map": {
+    "rows": [
+     262,
+     263
+    ],
+    "cols": [
+     4,
+     5
+    ]
+   },
+   "occurrences": [
+    [
+     262,
+     4
+    ],
+    [
+     291,
+     4
+    ],
+    [
+     315,
+     3
+    ]
+   ],
+   "enemies": [],
+   "replaces": [],
+   "concepts": [
+    {
+     "name": "tyr-white-gate-e",
+     "span": [
+      0,
+      0,
+      1,
+      1
+     ],
+     "input": "/private/tmp/claude-501/-Users-dlomibao-projects-tyrian/0dbe1f8e-e959-4ffb-bcd8-9ccff6b761d6/scratchpad/tyrbld/inputs/white-gate-e.png"
+    }
+   ],
+   "description": "White stone blocks in brass frames on the EAST edge of a rock island, 2x2.",
+   "notes": "No enemies. Same pass caveat. Probably the mirror of white-gate-w (one concept could serve both, mirrored)."
+  },
+  "drum-e": {
+   "unit": "drum",
+   "layer": 2,
+   "tiles": [
+    [
+     189
+    ]
+   ],
+   "minRows": null,
+   "over": true,
+   "map": {
+    "rows": [
+     276,
+     276
+    ],
+    "cols": [
+     11,
+     11
+    ]
+   },
+   "occurrences": [
+    [
+     276,
+     11
+    ],
+    [
+     279,
+     11
+    ],
+    [
+     290,
+     11
+    ],
+    [
+     322,
+     12
+    ]
+   ],
+   "enemies": [],
+   "replaces": [
+    "shapesz-t189"
+   ],
+   "concepts": [
+    {
+     "name": "tyr-drum-e",
+     "span": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "input": "/private/tmp/claude-501/-Users-dlomibao-projects-tyrian/0dbe1f8e-e959-4ffb-bcd8-9ccff6b761d6/scratchpad/tyrbld/inputs/drum-e.png"
+    }
+   ],
+   "description": "Brass-banded drum/barrel lying on an island, pointed end to the east (right), 1 tile.",
+   "notes": "No enemies. Usually next to a white gate (rows 276/279 beside the gate at 277-278; 322 below the gate at 320-321)."
+  },
+  "drum-w": {
+   "unit": "drum",
+   "layer": 2,
+   "tiles": [
+    [
+     199
+    ]
+   ],
+   "minRows": null,
+   "over": true,
+   "map": {
+    "rows": [
+     260,
+     260
+    ],
+    "cols": [
+     3,
+     3
+    ]
+   },
+   "occurrences": [
+    [
+     260,
+     3
+    ],
+    [
+     261,
+     3
+    ],
+    [
+     293,
+     4
+    ]
+   ],
+   "enemies": [],
+   "replaces": [
+    "shapesz-t199"
+   ],
+   "concepts": [
+    {
+     "name": "tyr-drum-w",
+     "span": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "input": "/private/tmp/claude-501/-Users-dlomibao-projects-tyrian/0dbe1f8e-e959-4ffb-bcd8-9ccff6b761d6/scratchpad/tyrbld/inputs/drum-w.png"
+    }
+   ],
+   "description": "The same drum pointing west (left), 1 tile.",
+   "notes": "No enemies. Two stacked at rows 260-261 col 3 (could be a 2x1 pattern [[199],[199]] listed first), one under the gate at 293."
+  },
+  "lava-pit": {
+   "unit": "pits",
+   "layer": 2,
+   "tiles": [
+    [
+     143
+    ]
+   ],
+   "minRows": null,
+   "over": false,
+   "map": {
+    "rows": [
+     343,
+     343
+    ],
+    "cols": [
+     11,
+     11
+    ]
+   },
+   "occurrences": [
+    [
+     343,
+     11
+    ],
+    [
+     368,
+     8
+    ],
+    [
+     370,
+     4
+    ],
+    [
+     377,
+     6
+    ],
+    [
+     381,
+     7
+    ],
+    [
+     384,
+     9
+    ],
+    [
+     390,
+     3
+    ],
+    [
+     396,
+     7
+    ],
+    [
+     404,
+     5
+    ],
+    [
+     421,
+     2
+    ],
+    [
+     422,
+     12
+    ],
+    [
+     423,
+     11
+    ],
+    [
+     428,
+     4
+    ],
+    [
+     431,
+     9
+    ],
+    [
+     440,
+     9
+    ]
+   ],
+   "enemies": [
+    [
+     0,
+     0
+    ]
+   ],
+   "replaces": [
+    "shapesz-t143"
+   ],
+   "concepts": [
+    {
+     "name": "tyr-lava-pit",
+     "span": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "input": "/private/tmp/claude-501/-Users-dlomibao-projects-tyrian/0dbe1f8e-e959-4ffb-bcd8-9ccff6b761d6/scratchpad/tyrbld/inputs/lava-pit.png"
+    }
+   ],
+   "description": "Lava pit in rock: a crater with glowing red lava, 1 tile, usually the middle of a 3x3 island.",
+   "notes": "EVERY copy carries a top enemy, the animated turret newsh2 153/155/157 (enemy model newsh2-153 'star core panel'): the pit is its emplacement and is only seen after it dies."
+  },
+  "crater": {
+   "unit": "pits",
+   "layer": 2,
+   "tiles": [
+    [
+     153
+    ]
+   ],
+   "minRows": null,
+   "over": false,
+   "map": {
+    "rows": [
+     361,
+     361
+    ],
+    "cols": [
+     6,
+     6
+    ]
+   },
+   "occurrences": [
+    [
+     361,
+     6
+    ],
+    [
+     368,
+     1
+    ],
+    [
+     374,
+     12
+    ],
+    [
+     410,
+     4
+    ],
+    [
+     412,
+     7
+    ],
+    [
+     417,
+     7
+    ],
+    [
+     424,
+     9
+    ],
+    [
+     436,
+     8
+    ],
+    [
+     437,
+     2
+    ],
+    [
+     438,
+     10
+    ],
+    [
+     439,
+     4
+    ]
+   ],
+   "enemies": [],
+   "replaces": [
+    "shapesz-t153"
+   ],
+   "concepts": [
+    {
+     "name": "tyr-crater",
+     "span": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "input": "/private/tmp/claude-501/-Users-dlomibao-projects-tyrian/0dbe1f8e-e959-4ffb-bcd8-9ccff6b761d6/scratchpad/tyrbld/inputs/crater.png"
+    }
+   ],
+   "description": "Small crater with gold rings in the rock, 1 tile.",
+   "notes": "No enemies. Borderline 'terrain' (a decal in the boulders); include only if wanted."
+  }
+ }
+}

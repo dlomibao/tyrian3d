@@ -1,0 +1,39 @@
+{
+ "name": "shapesz-tyrbld-purple-cross",
+ "concept": "tyr-purple-cross",
+ "tile": true,
+ "sprite_size": [
+  96,
+  112
+ ],
+ "texels_per_px": 8,
+ "size": [
+  768,
+  896
+ ],
+ "sprite_box": [
+  0,
+  0,
+  96,
+  112
+ ],
+ "concept_box": [
+  0,
+  0,
+  0,
+  0
+ ],
+ "neutral": 0.85,
+ "fit_iou": 0.75,
+ "parts": [
+  {
+   "concept": "tyr-purple-cross",
+   "span": [
+    0.0,
+    0.0,
+    3.0,
+    3.0
+   ]
+  }
+ ]
+}

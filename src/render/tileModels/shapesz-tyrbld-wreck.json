@@ -1,0 +1,18 @@
+{
+ "model": "tiles/shapesz/tyrbld-wreck",
+ "shapes": "shapesz.dat",
+ "layer": 0,
+ "tiles": [
+  [
+   340,
+   341,
+   342
+  ],
+  [
+   350,
+   351,
+   352
+  ]
+ ],
+ "keepTiles": true
+}

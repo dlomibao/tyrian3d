@@ -1,0 +1,39 @@
+{
+ "name": "shapesz-tyrbld-purple-2x2",
+ "concept": "tyr-purple-2x2",
+ "tile": true,
+ "sprite_size": [
+  48,
+  56
+ ],
+ "texels_per_px": 32,
+ "size": [
+  1536,
+  1792
+ ],
+ "sprite_box": [
+  0,
+  0,
+  48,
+  56
+ ],
+ "concept_box": [
+  0,
+  0,
+  0,
+  0
+ ],
+ "neutral": 0.85,
+ "fit_iou": 1.0,
+ "parts": [
+  {
+   "concept": "tyr-purple-2x2",
+   "span": [
+    -0.18,
+    -0.18,
+    1.37,
+    1.26
+   ]
+  }
+ ]
+}

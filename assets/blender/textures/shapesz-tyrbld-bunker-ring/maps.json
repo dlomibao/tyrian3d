@@ -1,0 +1,39 @@
+{
+ "name": "shapesz-tyrbld-bunker-ring",
+ "concept": "tyr-bunker-ring",
+ "tile": true,
+ "sprite_size": [
+  48,
+  56
+ ],
+ "texels_per_px": 32,
+ "size": [
+  1536,
+  1792
+ ],
+ "sprite_box": [
+  0,
+  0,
+  48,
+  56
+ ],
+ "concept_box": [
+  0,
+  0,
+  0,
+  0
+ ],
+ "neutral": 0.85,
+ "fit_iou": 0.933,
+ "parts": [
+  {
+   "concept": "tyr-bunker-ring",
+   "span": [
+    -0.054,
+    -0.083,
+    0.946,
+    0.917
+   ]
+  }
+ ]
+}
