@@ -153,10 +153,17 @@ extruded sprites instead of the remastered effects; `?seed=N` fixes the random s
 GPL-2.0-or-later. This project derives from OpenTyrian, which uses the same license; see
 [LICENSE](LICENSE). The Tyrian game data has its own freeware terms and isn't covered by this license.
 
+## Remastered music
+
+Orchestral and synth arrangements of all 41 songs (covers of Alexander Brandon's soundtrack; see
+CREDITS.md) are in `public/tyrian-remaster/` and play on the deployed site too: the game starts on
+Synth (`M` cycles Original, Orchestral and Synth; `?music=orchestral` picks one). The remade sound
+effects and voices stay in the private `tyrian3d-remaster` repo and only play in local builds.
+
 ## Local build with the remaster
 
-To play the complete game locally with everything generated, including the private remastered music
-(the `tyrian3d-remaster` repo, cloned next to this one, and `tools/build_manifest.py` run there):
+To play the complete game locally with everything generated, including the private remastered sound
+effects (the `tyrian3d-remaster` repo, cloned next to this one, and `tools/build_manifest.py` run there):
 
     npm run play:local        # builds to dist-local/ and serves it at http://localhost:4173
 
@@ -164,5 +171,6 @@ It loads the game data from `data/` (or `TYRIAN_DATA`) and the remaster from
 `../tyrian3d-remaster/out` (or `TYRIAN_REMASTER`). The title screen then offers Original,
 Orchestral and Synth music, starting on Synth until you pick another (`M` cycles; `?music=orchestral`
 picks one). `npm run dev` does the same with
-hot reload. Neither copies anything private into a build, and the deployed site never asks for it.
+hot reload. Neither copies anything private into a build; the private pack replaces the public
+music-only one while they run.
 

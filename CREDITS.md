@@ -34,3 +34,6 @@ anything imported from outside, such as Poly Haven textures or HDRIs.
 
 | Asset | Source URL | Author | License | Used in |
 |---|---|---|---|---|
+| Tyrian soundtrack (the compositions the remastered music arranges) | https://alexanderbrandon.bandcamp.com/ ; https://www.materiacollective.com/music/tyrian-original-game-soundtrack | Alexander Brandon, with additional music by Andreas Molnar ("ZANAC3" and "ZANAC5" reproduce music from Compile's *Zanac*) | Theirs; the arrangements here are covers | `public/tyrian-remaster/`: orchestral and synth arrangements of all 41 songs, made for this project |
+| Orchestral samples used to render the orchestral arrangements | https://github.com/sgossner/VSCO-2-CE , https://github.com/sgossner/VCSL | Versilian Studios (Sam Gossner) | CC0 | `public/tyrian-remaster/orchestral/` |
+| sfizz (renders the sample instruments) | https://github.com/sfztools/sfizz | sfizz contributors | BSD-2-Clause | Rendering the orchestral arrangements (not shipped) |

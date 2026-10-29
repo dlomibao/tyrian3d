@@ -1,7 +1,8 @@
-// A local remaster pack: new recordings of the music and remade sound effects and voices that
-// replace the originals while testing locally. The pack is the private tyrian3d-remaster repo's out/ folder,
-// served at tyrian-remaster/ by `npm run dev` and `npm run play:local` (vite.config.ts). It's never
-// part of the public build: the deployed site doesn't ask for it, and nothing from it is bundled.
+// The remaster pack: new recordings of the music (orchestral and synth) and, in local builds only,
+// remade sound effects and voices. The music is public (public/tyrian-remaster/, DECISIONS.md D40)
+// and every build loads it. The sound effects stay in the private tyrian3d-remaster repo: `npm run
+// dev` and `npm run play:local` serve its out/ folder at tyrian-remaster/ in place of the public
+// one (vite.config.ts), and only those builds ask for them (localAssetsAllowed, src/audio/sfx.ts).
 
 /** out/manifest.json: per style ("orchestral", "synth"), the song files by 1-based song number. */
 export interface RemasterManifest {
@@ -27,7 +28,6 @@ export interface RemasterSfxEntry {
 export const localAssetsAllowed = (): boolean => import.meta.env.DEV || import.meta.env.VITE_LOCAL_DATA === "1";
 
 export async function loadRemasterManifest(): Promise<RemasterManifest | null> {
-  if (!localAssetsAllowed()) return null;
   try {
     const r = await fetch("tyrian-remaster/manifest.json");
     if (!r.ok) return null;

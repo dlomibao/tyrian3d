@@ -1326,3 +1326,31 @@ see shine. The user flagged the Gencore Phoenix's highlight lump, which started 
 The player ships' review sheets used to show the hardest left-bank frame rather than the level
 frame (`sprite_shape.load_sprite` took `frames[0]`); the two ship grades made from them are
 marked superseded and the ships were regraded on corrected sheets.
+
+## D40 — The remastered music is public; the remade sound effects stay private
+
+2026-10-29
+
+**Decision:** The orchestral and synth arrangements of all 41 songs (D18's private pack) are
+published in `public/tyrian-remaster/` with a music-only `manifest.json`, so every build, including
+the deployed site, offers them (and starts on Synth, D38). `loadRemasterManifest` no longer checks
+`localAssetsAllowed`. The remade sound effects and voices (D36) stay in the private repo:
+`src/audio/sfx.ts` still only asks for them in local builds, and local builds serve the private
+pack (music and effects) at the same path in place of the public one. CREDITS.md credits Alexander
+Brandon (and Andreas Molnar), the CC0 VSCO-2-CE and VCSL samples and sfizz.
+
+**Why:** the user decided it. Before acting I reported what I found: the soundtrack is sold as
+"all rights reserved" on Brandon's Bandcamp and Materia Collective lists "(P) 2018 Materia
+Collective / Materia Music Inc. under exclusive license from Alexander Brandon"; its 2010 free
+release is a free download (a Tyrian 2000 bonus on GOG). The user judged that covers are fine, as
+others have reused the music without issue, and asked for the music only, with credit.
+
+**Options considered:**
+- *Publish the music, keep the effects private (chosen):* what the user asked for.
+- *Keep everything private (D18):* the earlier stance.
+- *Ask Materia Collective or Brandon first:* still possible; if they object, delete
+  `public/tyrian-remaster/` (the game falls back to the original FM music).
+
+**Review:** The deployed site plays the Synth music from the title screen; `M` cycles Original,
+Orchestral and Synth. Local builds still play the remade sound effects. The deploy is about 88 MB
+bigger.
