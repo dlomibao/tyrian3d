@@ -1,0 +1,63 @@
+{
+ "name": "newsh2-191",
+ "sprite_size": [
+  24,
+  28
+ ],
+ "texels_per_px": 16,
+ "size": [
+  384,
+  448
+ ],
+ "sprite_box": [
+  4,
+  1,
+  19,
+  20
+ ],
+ "concept_box": [
+  123,
+  34,
+  735,
+  973
+ ],
+ "neutral": 0.85,
+ "fit_iou": 0.72,
+ "warp": {
+  "note": "after the box fit, the concept pod and struts (cols 6.8-16.2, rows below 3.4) are moved onto the sprite pod: target rows TY <- box-fit rows SY, cols TX <- SX (pixel edges)",
+  "TY": [
+   0,
+   3.5,
+   5.9,
+   10.5,
+   14.9,
+   16.5,
+   40
+  ],
+  "SY": [
+   0,
+   3.5,
+   4.7,
+   8.0,
+   12.05,
+   16.5,
+   40
+  ],
+  "TX": [
+   0,
+   6.62,
+   8.15,
+   14.85,
+   16.38,
+   40
+  ],
+  "SX": [
+   0,
+   6.62,
+   8.75,
+   14.5,
+   16.38,
+   40
+  ]
+ }
+}

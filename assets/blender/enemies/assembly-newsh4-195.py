@@ -5,7 +5,11 @@ the right (sprite.json `assemblyLayout`): a thick bronze upper arm with a dark u
 (newsh4-153), a ball joint on a narrow neck (newsh4-155), a forearm ringed by a grey metal collar
 and a bright rib (newsh4-157), a grey-brown box and a grey block on top (newsh4-159), and a
 tapering horn-like claw that curves down to a point (newsh4-191, -193, -195) with two small grey
-clamps on it. Every piece has one frame.
+clamps on it. Every piece has one frame. Remodelled on the concept: the upper arm is a riveted
+bronze canister over a dark chamfered housing with a hydraulic pipe up its slanted end, the neck is
+ringed, the forearm carries steel rings, a dark collar, a junction box over a piped bay, a grey
+sleeve and raised plates, and the claw's clamps are ribbed steel bands, each where the registered
+concept draws it so texture_bake.py's detail lands on the matching part.
 
 The whole arm is built once in assembly coordinates, then cut into the seven pieces with
 common.split_assembly.
@@ -33,9 +37,6 @@ PIECES = ["newsh4-153", "newsh4-155", "newsh4-157", "newsh4-159", "newsh4-191", 
 CX0, CY0 = 122, -18
 W, H = 168, 28
 PX = 1 / 12
-# The arm was laid out at about half its round height; every z is scaled by this at the end so
-# the tubes, the ball and the claw stand about as tall as they are wide, as the sprite shades them.
-ZS = 1.75
 
 
 def XE(u):
@@ -75,7 +76,7 @@ def _faces_between(bm, rings, mat, smooth, cap_start=True, cap_end=True):
     return faces
 
 
-def loft_x(bm, sections, sides=12, mat=0, smooth=True, shear=None):
+def loft_x(bm, sections, sides=12, mat=0, smooth=True, shear=None, caps=True):
     """A tube along the arm (+X). Sections are (u, v_top, v_bottom, half_height_units, z): the
     pixel-edge column and the top and bottom pixel edges it covers there. Zero width collapses
     the ring to a point. `shear(u, v)` may return a column offset per vertex (slanted ends)."""
@@ -92,7 +93,7 @@ def loft_x(bm, sections, sides=12, mat=0, smooth=True, shear=None):
             uu = u + (shear(u, v) if shear else 0.0)
             ring.append(bm.verts.new((XE(uu), YE(v), z + hz * math.sin(a))))
         rings.append(ring)
-    return _faces_between(bm, rings, mat, smooth)
+    return _faces_between(bm, rings, mat, smooth, caps, caps)
 
 
 def sweep(bm, path, sides=8, mat=0, smooth=True):
@@ -177,104 +178,187 @@ def profile(g, c):
 
 
 # --- the arm -----------------------------------------------------------------------------------
+# Remodelled on the concept (assets/blender/features/concepts/assembly-newsh4-195.jpg, registered
+# to the sprite as assets/blender/textures/assembly-newsh4-195/concept.png): every part sits where
+# the concept draws it, inside the sprite's outline, so the concept detail that texture_bake.py
+# projects straight down lands on the matching part.
+
+def prism(bm, pts, z0, z1, mat, chamfer=0.6):
+    """A hard plate: a convex outline of pixel-edge points (u, v), from z0 up to z1, its top edge
+    chamfered inwards by `chamfer` px (and down by as much)."""
+    n = len(pts)
+    cu = sum(p[0] for p in pts) / n
+    cv = sum(p[1] for p in pts) / n
+    inset = []
+    for i, (u, v) in enumerate(pts):
+        # Move each corner towards the centre along the bisector of its two edges.
+        pu, pv = pts[i - 1]
+        nu, nv = pts[(i + 1) % n]
+        d1 = Vector((u - pu, v - pv)).normalized()
+        d2 = Vector((nu - u, nv - v)).normalized()
+        b = (d2 - d1)
+        if b.length < 1e-6:
+            b = Vector((cu - u, cv - v))
+        b.normalize()
+        if b.dot(Vector((cu - u, cv - v))) < 0:
+            b = -b
+        sin_half = max(0.3, math.sqrt(max(0.0, (1 - d1.dot(d2)) / 2)))
+        inset.append((u + b.x * chamfer / sin_half, v + b.y * chamfer / sin_half))
+    c = min(chamfer * PX, (z1 - z0) * 0.45)
+    bot = [bm.verts.new((XE(u), YE(v), z0)) for u, v in pts]
+    mid = [bm.verts.new((XE(u), YE(v), z1 - c)) for u, v in pts]
+    top = [bm.verts.new((XE(u), YE(v), z1)) for u, v in inset]
+    faces = [bm.faces.new(top), bm.faces.new(list(reversed(bot)))]
+    for i in range(n):
+        j = (i + 1) % n
+        faces.append(bm.faces.new((bot[i], bot[j], mid[j], mid[i])))
+        faces.append(bm.faces.new((mid[i], mid[j], top[j], top[i])))
+    for f in faces:
+        f.material_index = mat
+        f.smooth = False
+    return faces
+
+
+U_TIP = 166.2
+FORE_HZ = 0.47  # forearm half height (units): about as tall as its 12 px width
+
+
+def body_sections(g):
+    """The forearm-and-claw tube, from the ball's shoulder to the claw's tip: (u, v_top, v_bottom,
+    half height, z) per section, following the sprite's outline averaged over a few columns."""
+    secs = []
+    for u in [47, 50, 53, 56] + list(range(60, 100, 5)) + list(range(100, 164, 4)) + [163.5, 165.0]:
+        c = min(int(u), W - 3)
+        near = [profile(g, k) for k in range(max(c - 2, 0), min(c + 3, W - 2))]
+        top = sum(p[0] for p in near) / len(near)
+        bot = sum(p[1] for p in near) / len(near)
+        if u < 56:
+            # The ball's shoulder: the forearm's own tube, swelling into the ball.
+            top, bot = 1.0, 13.0
+        t = max(0.0, (u - 100) / (U_TIP - 100))
+        if u <= 100:
+            top = min(top, 1.6) if u < 92 else top
+            bot = max(bot, 13.0) if u < 100 else bot
+        hz = FORE_HZ * (1 - t) ** 1.1 + 0.012
+        z = -0.12 * t * t
+        secs.append((u, top - 0.1, bot + 0.1, hz, z))
+    secs.append((U_TIP, 24.7, 24.7, 0.0, -0.12))
+    return secs
+
+
+def section_at(secs, u):
+    for a, b in zip(secs, secs[1:]):
+        if a[0] <= u <= b[0]:
+            t = (u - a[0]) / max(b[0] - a[0], 1e-6)
+            return tuple(x + (y - x) * t for x, y in zip(a, b))
+    return secs[-1] if u > secs[-1][0] else secs[0]
+
+
+def band(bm, secs, u0, u1, grow_px, grow_z, mat, sides=12, smooth=True):
+    """A ring around the forearm or claw from column u0 to u1, standing grow_px / grow_z proud,
+    with crisp ends."""
+    rings = []
+    for u, k in ((u0, 0.0), (u0 + 0.05, 1.0), (u1 - 0.05, 1.0), (u1, 0.0)):
+        _, top, bot, hz, z = section_at(secs, u)
+        g = grow_px * k - 0.3 * (1 - k)
+        rings.append((u, top - g, bot + g, hz + grow_z * k - 0.02 * (1 - k), z))
+    # The ends tuck under the tube's surface, so they need no caps.
+    return loft_x(bm, rings, sides=sides, mat=mat, smooth=smooth, caps=False)
+
 
 def build(sprite, g):
     coll = common.reset_collection(NAME)
     tag = "nsh4a"
     pal = lambda i, **kw: common.palette_material(sprite, i, tag, **kw)  # noqa: E731
     mats = [
-        pal(24, metallic=0.45, roughness=0.35),  # 0 bronze upper arm and ball
-        pal(18, metallic=0.35, roughness=0.5),  # 1 dark underside
-        pal(21, metallic=0.4, roughness=0.4),  # 2 forearm and claw
-        pal(23, metallic=0.4, roughness=0.4),  # 3 lighter rail along the forearm
-        pal(26, metallic=0.5, roughness=0.3),  # 4 bright ribs and rims
-        pal(8, metallic=0.8, roughness=0.25),  # 5 grey metal collar
-        pal(2, metallic=0.4, roughness=0.6),  # 6 dark lower half of the collar
-        pal(166, metallic=0.4, roughness=0.45),  # 7 grey-brown box
-        pal(5, metallic=0.75, roughness=0.3),  # 8 grey block
-        pal(4, metallic=0.7, roughness=0.35),  # 9 grey clamps
-        pal(19, metallic=0.35, roughness=0.5),  # 10 neck
-        pal(164, metallic=0.4, roughness=0.5),  # 11 box strut
-        pal(19, metallic=0.4, roughness=0.45),  # 12 the claw, darker than the forearm
+        pal(23, metallic=0.55, roughness=0.35),  # 0 bronze canister (upper arm)
+        pal(18, metallic=0.45, roughness=0.5),  # 1 dark bronze lower section of the upper arm
+        pal(21, metallic=0.55, roughness=0.35),  # 2 forearm
+        pal(22, metallic=0.55, roughness=0.35),  # 3 raised bronze plates
+        pal(26, metallic=0.6, roughness=0.3),  # 4 bright bronze rims and pipe
+        pal(9, metallic=0.8, roughness=0.25),  # 5 polished steel rings
+        pal(6, metallic=0.7, roughness=0.35),  # 6 dark steel collar, clamps
+        pal(166, metallic=0.4, roughness=0.45),  # 7 grey-brown junction box
+        pal(7, metallic=0.75, roughness=0.3),  # 8 grey sleeve
+        pal(3, metallic=0.3, roughness=0.7),  # 9 dark recesses and machinery
+        pal(164, metallic=0.4, roughness=0.5),  # 10 dark bronze neck and bay
+        pal(22, metallic=0.55, roughness=0.32),  # 11 ball joint
+        pal(20, metallic=0.55, roughness=0.35),  # 12 the claw, a little darker than the forearm
     ]
-    BRONZE, UNDER, ARM, RAIL, RIB, COLLAR, CDARK, BOX, GREY, CLAMP, NECK, STRUT, CLAW = range(13)
+    (CAN, LOWER, ARM, PLATE, RIM, STEEL, COLLAR, BOX, SLEEVE, DARK, NECK, BALL, CLAW) = range(13)
     bm = bmesh.new()
 
-    # Upper arm (columns 0-31): a thick tube, cut off by the piece's left edge, rounded at its end.
-    loft_x(bm, [(-2, 1, 13, 0.27, 0.04), (26, 1, 13, 0.27, 0.04), (28.5, 1.3, 12.7, 0.25, 0.04),
-                (30.5, 2.2, 11.8, 0.2, 0.04), (31.6, 4.0, 10.0, 0.12, 0.04), (32.0, 7.0, 7.0, 0.0, 0.04)],
-           sides=16, mat=BRONZE)
-    # Its dark underside (rows 13-21), ending in a slanted edge with a bright rim.
-    loft_x(bm, [(-2, 12.5, 22, 0.2, -0.06), (27.5, 12.5, 22, 0.2, -0.06), (29.0, 13.0, 21.5, 0.16, -0.06),
-                (29.6, 14.5, 20.0, 0.08, -0.06)], sides=12, mat=UNDER,
-           shear=lambda u, v: 0.0 if u < 20 else (22 - v) * 0.7)
-    sweep(bm, [(28.6, 21.6, -0.04, 0.6, 0.06), (32.0, 18.0, -0.03, 0.7, 0.07), (35.0, 14.5, -0.03, 0.6, 0.06)],
-          sides=6, mat=RIB)
+    # Upper arm, top member (concept: a big riveted bronze canister, rows 1-12): a round tube,
+    # cut off by the piece's left edge, with a flanged end ring and a conical end tapering into
+    # the neck (cols 26-32).
+    loft_x(bm, [(-1, 0.9, 12.6, 0.48, 0.0), (26.5, 0.9, 12.6, 0.48, 0.0), (28.5, 1.4, 12.2, 0.44, 0.0),
+                (30.5, 2.4, 11.6, 0.37, 0.0), (32.0, 3.2, 11.2, 0.3, 0.0), (32.1, 4.5, 10.0, 0.15, 0.0)],
+           sides=18, mat=CAN)
+    band(bm, [(-1, 0.9, 12.6, 0.48, 0.0), (8, 0.9, 12.6, 0.48, 0.0)], -1.0, 5.6, 0.2, 0.025, CAN, sides=18)
+    loft_x(bm, [(5.6, 0.7, 12.8, 0.0, 0.0), (5.7, 0.7, 12.8, 0.5, 0.0), (6.5, 0.7, 12.8, 0.5, 0.0),
+                (6.6, 0.9, 12.6, 0.0, 0.0)], sides=18, mat=STEEL)
 
-    # Neck (columns 30-37) and the ball joint (columns 34-52) with its lower lobe.
-    loft_x(bm, [(29, 2, 13, 0.19, 0.02), (38, 2.5, 13, 0.19, 0.02)], sides=12, mat=NECK)
-    ellipsoid(bm, 43.2, 9.0, 0.0, 8.6, 8.0, 0.29, mat=BRONZE, segments=18, rings=10)
-    ellipsoid(bm, 42.2, 14.5, -0.06, 6.0, 5.5, 0.2, mat=UNDER, segments=14, rings=8)
+    # Upper arm, lower member (concept: dark riveted side panels, rows 12-22, ending in a slanted
+    # edge rimmed by a bright hydraulic pipe): a hard chamfered housing, lower than the canister.
+    prism(bm, [(-1, 12.0), (30.0, 12.0), (35.6, 13.8), (31.4, 21.6), (29.4, 22.3), (-1, 22.3)],
+          -0.36, 0.14, LOWER, chamfer=0.8)
+    prism(bm, [(6.5, 13.2), (23.5, 13.2), (24.8, 14.5), (24.8, 17.2), (6.5, 17.2)], 0.1, 0.19, PLATE, chamfer=0.5)
+    prism(bm, [(6.5, 18.0), (12.0, 18.0), (12.0, 21.3), (6.5, 21.3)], 0.1, 0.18, PLATE, chamfer=0.4)
+    # End flange of the lower member (the concept's end ring spans the whole upper arm).
+    prism(bm, [(-1, 12.0), (5.6, 12.0), (5.6, 22.3), (-1, 22.3)], -0.36, 0.2, LOWER, chamfer=0.6)
+    # The hydraulic pipe along the bottom and up the slanted end.
+    sweep(bm, [(10.0, 19.6, 0.17, 0.9, 0.075), (26.5, 19.6, 0.17, 0.9, 0.075), (29.2, 19.8, 0.17, 0.9, 0.075),
+               (31.6, 17.6, 0.17, 0.9, 0.075), (34.0, 14.6, 0.17, 0.9, 0.075)], sides=8, mat=RIM)
+    # Machinery between the canister's end and the ball (concept cols 24-33, rows 9-18).
+    prism(bm, [(25.0, 11.0), (31.2, 11.0), (33.2, 13.0), (31.2, 18.2), (25.0, 18.2)], -0.1, 0.3, DARK, chamfer=0.5)
+    prism(bm, [(26.0, 12.0), (30.6, 12.0), (30.6, 16.0), (26.0, 16.0)], 0.2, 0.38, NECK, chamfer=0.5)
 
-    # Forearm and claw (columns 46-166): the upper body down to row 10, then the whole tapering
-    # claw as the sprite outlines it, thinning to a point at the tip.
-    secs = []
-    for u in [46, 50] + list(range(54, 104, 8)) + list(range(104, 166, 3)) + [165.5]:
-        c = min(int(u), W - 3)
-        # Average the stepped pixel outline over a few columns so the claw's edges run smooth.
-        near = [profile(g, k) for k in range(max(c - 2, 0), min(c + 3, W - 2))]
-        top = sum(p[0] for p in near) / len(near)
-        bot = sum(p[1] for p in near) / len(near)
-        if u < 101:
-            bot = 10.6
-        elif u < 106:
-            bot = 10.6 + (u - 101) / 5 * (bot - 10.6)
-        t = max(0.0, (u - 50) / 116)
-        hz = 0.24 * (1 - t) ** 0.9 + 0.015
-        z = -0.06 * t * t
-        secs.append((u, top, bot, hz, z))
-    u_tip = 166.2
-    secs.append((u_tip, 24.6, 24.6, 0.0, -0.06))
-    claw_x = XE(104)
-    for f in loft_x(bm, secs, sides=12, mat=ARM):
+    # Neck (cols 31-37): narrower and lower than both the canister and the ball, so it pinches in.
+    loft_x(bm, [(30.5, 2.0, 12.4, 0.3, 0.0), (37.5, 2.3, 12.4, 0.3, 0.0)], sides=14, mat=NECK)
+    for u in (33.0, 35.2):
+        loft_x(bm, [(u, 2.4, 12.0, 0.0, 0.0), (u + 0.1, 1.9, 12.6, 0.34, 0.0), (u + 1.0, 1.9, 12.6, 0.34, 0.0),
+                    (u + 1.1, 2.4, 12.0, 0.0, 0.0)], sides=10, mat=DARK, caps=False)
+
+    # Ball joint (concept: a round shell, cols 36-55, rows 2-19, with a big lobe under it).
+    ellipsoid(bm, 45.2, 9.8, 0.02, 9.4, 8.5, 0.62, mat=BALL, segments=16, rings=8)
+    ellipsoid(bm, 41.6, 14.0, -0.04, 7.0, 5.6, 0.46, mat=BALL, segments=12, rings=7)
+
+    # Forearm and claw: one round tube following the sprite's outline, tapering to the tip.
+    secs = body_sections(g)
+    claw_x = XE(101)
+    for f in loft_x(bm, secs, sides=14, mat=ARM):
         if f.calc_center_median().x > claw_x:
             f.material_index = CLAW
 
-    # Lighter rail along the forearm's lower side (rows 11-12), widening at its root over the ball.
-    loft_x(bm, [(45.5, 11.5, 12.5, 0.0, -0.05), (46.5, 10.2, 14.0, 0.12, -0.05), (52, 10.2, 13.2, 0.14, -0.05),
-                (57, 10.2, 13.0, 0.15, -0.05), (100, 10.2, 13.0, 0.14, -0.05), (106, 10.5, 13.6, 0.12, -0.05),
-                (110, 11.5, 13.0, 0.0, -0.05)], sides=10, mat=RAIL)
+    # Rings and sleeves along the forearm, where the concept draws them.
+    band(bm, secs, 56.6, 58.6, 0.5, 0.045, STEEL)   # polished ring
+    band(bm, secs, 58.6, 65.8, 0.25, 0.025, COLLAR)  # dark steel collar
+    band(bm, secs, 65.8, 67.6, 0.5, 0.045, STEEL)   # polished ring
+    band(bm, secs, 75.8, 77.2, 0.4, 0.035, STEEL)   # thin ring before the machinery bay
+    band(bm, secs, 84.0, 89.6, 0.3, 0.03, SLEEVE)   # grey sleeve
+    band(bm, secs, 89.6, 90.4, 0.4, 0.035, RIM)
+    # Machinery bay (cols 77-84): a darker recessed band with pipes over it and a junction box on top.
+    band(bm, secs, 77.2, 84.0, 0.1, 0.008, NECK)
+    for v in (8.3, 10.6):
+        sweep(bm, [(76.6, v, 0.0, 0.6, 0.38), (84.4, v, 0.0, 0.6, 0.38)], sides=8, mat=RIM)
+    prism(bm, [(76.6, 1.2), (82.8, 1.2), (82.8, 6.6), (76.6, 6.6)], 0.0, 0.58, BOX, chamfer=0.6)
+    prism(bm, [(79.6, 6.2), (82.6, 6.2), (82.6, 12.8), (79.6, 12.8)], -0.2, 0.36, BOX, chamfer=0.5)
+    # Grey block on the sleeve and its vent slot.
+    prism(bm, [(84.6, 1.8), (89.4, 1.8), (89.4, 7.0), (84.6, 7.0)], 0.0, 0.56, SLEEVE, chamfer=0.6)
+    prism(bm, [(85.2, 7.8), (88.8, 7.8), (88.8, 10.2), (85.2, 10.2)], 0.0, 0.47, DARK, chamfer=0.3)
+    # Riveted plate on the forearm (cols 67-75) and the plate and dark device on cols 90-105.
+    prism(bm, [(68.2, 1.6), (75.0, 1.6), (75.0, 8.6), (68.2, 8.6)], 0.0, 0.53, PLATE, chamfer=0.6)
+    prism(bm, [(91.0, 2.6), (104.6, 3.2), (104.6, 7.2), (91.0, 7.2)], 0.0, 0.51, PLATE, chamfer=0.6)
+    prism(bm, [(95.6, 7.6), (104.8, 7.6), (104.8, 12.4), (95.6, 12.4)], 0.0, 0.47, PLATE, chamfer=0.5)
+    sweep(bm, [(91.4, 9.6, 0.4, 1.0, 0.07), (99.2, 9.6, 0.4, 1.0, 0.07)], sides=8, mat=DARK)
 
-    # Grey metal collar (columns 57-65): bright above, dark below, with a bright rib beside it.
-    faces = loft_x(bm, [(56.4, 0.8, 13.0, 0.0, 0.0), (56.6, 0.6, 13.2, 0.27, 0.0), (65.6, 0.6, 13.2, 0.27, 0.0),
-                        (65.8, 0.8, 13.0, 0.0, 0.0)], sides=16, mat=COLLAR)
-    split_y = YE(7.0)
-    for f in faces:
-        if f.calc_center_median().y < split_y:
-            f.material_index = CDARK
-    loft_x(bm, [(65.9, 1.0, 13.0, 0.0, -0.01), (66.0, 0.8, 13.2, 0.26, -0.01), (67.0, 0.8, 13.2, 0.26, -0.01),
-                (67.1, 1.0, 13.0, 0.0, -0.01)], sides=14, mat=RIB)
-
-    # Grey-brown box on top (columns 76-82, rows 1-6) with a strut down its right side.
-    block(bm, 75.8, 1.4, 82.6, 6.6, 0.0, 0.36, mat=BOX, bevel=0.6)
-    block(bm, 79.6, 6.4, 82.6, 12.8, -0.12, 0.18, mat=STRUT)
-    # Grey block (columns 84-89, rows 2-6).
-    block(bm, 84.4, 1.8, 89.6, 7.2, 0.0, 0.34, mat=GREY, bevel=0.6)
-    # Small grey bits at the collar's foot (columns 71-73, rows 9-12).
-    block(bm, 70.6, 8.8, 73.4, 12.4, -0.12, 0.12, mat=CLAMP)
-
-    # Grey clamps on the claw (columns 105-111, rows 4-8 and columns 124-129, rows 7-11), each
-    # with a bright rib behind it.
-    block(bm, 104.6, 4.4, 111.4, 8.6, -0.05, 0.23, mat=CLAMP, bevel=0.5)
-    block(bm, 123.6, 6.6, 129.6, 11.4, -0.06, 0.19, mat=CLAMP, bevel=0.5)
-    for u, hz in ((112.0, 0.2), (130.2, 0.16)):
-        top, bot = profile(g, int(u))
-        loft_x(bm, [(u - 0.1, top + 0.3, bot - 0.3, 0.0, 0.0), (u, top - 0.1, bot + 0.1, hz, -0.02),
-                    (u + 1.0, top, bot + 0.1, hz, -0.02), (u + 1.1, top + 0.3, bot - 0.3, 0.0, -0.02)],
-               sides=12, mat=RIB)
-
-    for vert in bm.verts:
-        vert.co.z *= ZS
+    # Claw: two dark steel clamps (cols 106-112 and 124-130), each a ribbed band wrapped round the claw.
+    for u0, u1 in ((106.0, 112.0), (123.8, 130.0)):
+        band(bm, secs, u0, u1, 0.3, 0.045, COLLAR)
+        for uu in (u0 + 0.9, u1 - 0.9):
+            band(bm, secs, uu - 0.4, uu + 0.4, 0.5, 0.07, STEEL, sides=12)
+    band(bm, secs, 112.2, 113.2, 0.3, 0.035, RIM)
+    band(bm, secs, 130.2, 131.2, 0.3, 0.03, RIM)
     return to_object(NAME, bm, mats, coll)
 
 

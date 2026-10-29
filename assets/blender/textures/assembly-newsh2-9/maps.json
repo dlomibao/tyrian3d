@@ -1,0 +1,27 @@
+{
+ "name": "assembly-newsh2-9",
+ "sprite_size": [
+  192,
+  28
+ ],
+ "texels_per_px": 5,
+ "size": [
+  960,
+  140
+ ],
+ "sprite_box": [
+  2,
+  5,
+  192,
+  21
+ ],
+ "concept_box": [
+  44,
+  245,
+  983,
+  327
+ ],
+ "neutral": 0.85,
+ "fit_iou": 0.64,
+ "note": "re-registered: piecewise x warp onto the sprite's ring/collar/flange columns, y fit on the pipe (centre 11.0, x1.6); detail neutral off the concept's pipe"
+}

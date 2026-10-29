@@ -1,0 +1,26 @@
+{
+ "name": "assembly-newsh4-81",
+ "sprite_size": [
+  72,
+  28
+ ],
+ "texels_per_px": 14,
+ "size": [
+  1008,
+  392
+ ],
+ "sprite_box": [
+  8,
+  2,
+  54,
+  28
+ ],
+ "concept_box": [
+  1,
+  6,
+  1024,
+  576
+ ],
+ "neutral": 0.85,
+ "fit_iou": 0.708
+}

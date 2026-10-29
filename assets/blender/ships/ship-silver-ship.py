@@ -6,17 +6,21 @@ a dark canopy, small swept fins beside the canopy, two side pods hugging the rea
 red striped engines at their backs, and three ribs on the tail. The banking frames show the pods
 sit low beside a raised fuselage.
 
-Built as the concept reads it: the fuselage is a hard, faceted hull (a ridged nose that tapers to a
-point, flat flanks) with a separate raised spine deck on top, a flat plate with chamfered edges
-from behind the canopy to the tail; the canopy is a glossy dark glass bubble set in a raised frame;
-the fins are thin plates; the side pods are faceted armour shells sitting lower than the fuselage;
-the tail carries three straight box ribs over a dark recessed block. Hard parts are flat-shaded
-so their edges stay crisp; only the round parts (canopy glass, engines and their bands) are smooth.
+Built part by part where the concept (assets/blender/features/concepts/ship-silver-ship.jpg,
+registered to the sprite in assets/blender/textures/ship-silver-ship/concept.png) draws it, so the
+baked concept detail (texture_bake.py) lands on the matching part, inside the sprite's outline: a
+hard, faceted fuselage with a pointed nose and dark slatted vents behind the wings; a dark glass
+window with chamfered edges in a raised frame; thin swept wings with straight trailing edges; a
+raised bright spine deck with a narrow keel down its middle; rounded, faceted armour pods lower
+than the fuselage, each cut by a dark bay holding two glowing red light tubes across it (rows 18
+and 20) with a grey strut between; angular red engine nozzles behind the pods; and a dark exhaust
+block under three straight box ribs at the tail. Hard parts are flat-shaded so their edges stay
+crisp; only the round parts (light tubes and nozzles) are smooth.
 
 The ship is polished silver metal, so the sprite's drawn light is left to the game: each part is
 one mid-tone grey (the white spots on the deck and the nose ridge are sheen, the dark right flank
 is shadow), and no part paints the sprite's dark outline ring (the game draws it). Real markings
-stay: the red engine stripes and the grey bands between them, and the dark slots between the ribs.
+stay: the red light tubes and the grey strut between them, and the dark slots between the ribs.
 
 Run: blender --background --python assets/blender/ships/ship-silver-ship.py [-- --preview out.png]
 """
@@ -29,7 +33,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "enemies"))
 import bmesh  # noqa: E402
 
 import common  # noqa: E402
-from lib_b002 import P, X, Y, dome, loft, mirror, slab  # noqa: E402
+from lib_b002 import P, X, Y, loft, mirror, slab, tube  # noqa: E402
 
 NAME = "ship-silver-ship"
 MODEL = f"ships/{NAME}"
@@ -68,82 +72,111 @@ def prism(bm, sections, profile, mat):
 
 
 # Cross-sections (u across, v up). A hull with flat flanks and a ridge down the middle; a plate with
-# chamfered top edges; an octagonal armour shell; a box rib with a chamfered top.
+# chamfered top edges; a rounded, faceted armour shell (the concept's pods); a box rib.
 RIDGE = [(1, 0), (1, 0.45), (0.5, 0.82), (0, 1), (-0.5, 0.82), (-1, 0.45), (-1, 0)]
 PLATE = [(1, 0), (1, 0.55), (0.72, 1), (-0.72, 1), (-1, 0.55), (-1, 0)]
-SHELL = [(1, 0.3), (1, 0.68), (0.62, 1), (-0.62, 1), (-1, 0.68), (-1, 0.3), (-0.62, 0), (0.62, 0)]
+SHELL = [(1, 0.25), (0.96, 0.62), (0.78, 0.88), (0.42, 1), (-0.42, 1), (-0.78, 0.88), (-0.96, 0.62),
+         (-1, 0.25), (-0.7, 0), (0.7, 0)]
 RIB = [(1, 0), (1, 0.75), (0.55, 1), (-0.55, 1), (-1, 0.75), (-1, 0)]
+
+
+def span(sections):
+    """(row, outer col, inner col, z0, z1) for the left side to prism sections (row, centre, half)."""
+    return [(r, (o + i) / 2, (i - o) / 2, z0, z1) for r, o, i, z0, z1 in sections]
 
 
 def build(sprite):
     coll = common.reset_collection(NAME)
     pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
     mats = [
-        pal(11, metallic=0.8, roughness=0.28),  # 0 fuselage hull and nose, polished silver
-        pal(13, metallic=0.8, roughness=0.24),  # 1 bright spine deck, polished
-        pal(7, metallic=0.75, roughness=0.3),  # 2 side pods
-        pal(6, metallic=0.75, roughness=0.3),  # 3 fins; also the dark grey band (row 21)
+        pal(10, metallic=0.75, roughness=0.32),  # 0 fuselage hull and nose, gunmetal silver
+        pal(13, metallic=0.75, roughness=0.28),  # 1 bright spine deck, polished
+        pal(7, metallic=0.7, roughness=0.36),  # 2 side pods, dark gunmetal armour
+        pal(7, metallic=0.7, roughness=0.34),  # 3 swept wings
         pal(2, metallic=0.05, roughness=0.06),  # 4 canopy glass, dark and glossy
-        pal(117, metallic=0.3, roughness=0.4, emission_strength=2.0),  # 5 red engines
-        pal(10, metallic=0.75, roughness=0.3),  # 6 light grey band between the red stripes (row 19)
-        pal(3, metallic=0.4, roughness=0.6),  # 7 dark recessed tail block between the ribs
-        pal(9, metallic=0.85, roughness=0.25),  # 8 tail ribs
+        pal(117, metallic=0.2, roughness=0.4, emission_strength=2.5),  # 5 red light tubes, glowing
+        pal(10, metallic=0.75, roughness=0.32),  # 6 light grey strut between the red tubes (row 19)
+        pal(3, metallic=0.4, roughness=0.6),  # 7 dark recesses: tail block, light bays, vents
+        pal(9, metallic=0.8, roughness=0.28),  # 8 tail ribs
+        pal(12, metallic=0.75, roughness=0.28),  # 9 keel down the middle of the deck
+        pal(115, metallic=0.25, roughness=0.45, emission_strength=1.2),  # 10 red engine nozzles
     ]
-    HULL, DECK, POD, FIN, GLASS, RED, BAND, DARK, RIBM = range(9)
-    BAND_DK = FIN
+    HULL, DECK, POD, FIN, GLASS, RED, BAND, DARK, RIBM, KEEL, NOZ = range(11)
     bm = bmesh.new()
     smooth = []  # faces of the round parts; everything else stays flat-shaded and crisp
 
-    # Fuselage, nose (row 0) to the tail (row 21): a hard hull with flat flanks and a ridge down
-    # column 11 that the nose tapers to a point along. (row, half width, z0, z1) in px.
-    hull = [(-0.1, 0, 0, 0.9), (0.7, 1.5, -0.1, 1.5), (1.6, 2.3, -0.3, 2.1), (3.4, 3.2, -0.6, 2.9),
-            (5.0, 3.5, -0.7, 3.3), (9.2, 3.6, -0.8, 3.6), (20.6, 3.5, -0.8, 3.6), (21.4, 3.3, -0.8, 3.0)]
+    # Fuselage, nose (row 0) to the tail (row 24), traced from the concept: a pointed nose that
+    # widens to the canopy, a narrow neck behind the wings (rows 9-12) and a wider body between the
+    # pods. A hard hull with flat flanks and a ridge down column 11. (row, half width, z0, z1) px.
+    hull = [(-0.05, 0, 0.2, 1.0), (0.4, 1.3, -0.1, 1.6), (1.4, 2.2, -0.3, 2.3), (3.2, 3.0, -0.5, 2.9),
+            (4.6, 3.3, -0.7, 3.3), (9.0, 3.3, -0.8, 3.5), (10.0, 3.6, -0.8, 3.6), (16.0, 3.7, -0.8, 3.6),
+            (21.0, 3.6, -0.8, 3.5), (23.0, 3.3, -0.8, 3.0), (24.2, 3.0, -0.7, 2.4)]
     prism(bm, [(r, AXIS, w, z0, z1) for r, w, z0, z1 in hull], RIDGE, HULL)
 
-    # The canopy: a raised frame (columns 9-13, rows 5-9) holding a glossy dark glass bubble
-    # (columns 10-13). The light pixel at column 11, row 6 is its glint: the glass makes it.
-    prism(bm, [(4.6, AXIS, 1.3, 2.4, 3.5), (5.3, AXIS, 2.0, 2.4, 3.85), (9.0, AXIS, 2.15, 2.4, 3.95),
-               (9.5, AXIS, 2.0, 2.4, 3.85)], PLATE, HULL)
-    n = len(bm.faces)
-    dome(bm, AXIS, 7.1, 1.65, 2.05, 1.25, z=3.7, rings=4, sides=16, mat=GLASS)
-    smooth += list(bm.faces)[n:]
-
-    # The spine deck (columns 9-13, rows 9-21): a flat bright plate raised above the hull, straight
-    # sides and chamfered edges, its ends bevelled down.
-    prism(bm, [(8.9, AXIS, 1.7, 3.0, 4.0), (9.6, AXIS, 2.45, 3.0, 4.55), (20.2, AXIS, 2.45, 3.0, 4.55),
-               (21.1, AXIS, 1.9, 3.0, 3.9)], PLATE, DECK)
-
-    # The tail (rows 21-26): a dark block, recessed, under three straight box ribs (columns 9, 11
-    # and 13) with dark slots between them.
-    prism(bm, [(20.5, AXIS, 3.3, -0.6, 2.0), (26.0, AXIS, 3.2, -0.6, 1.9), (26.8, AXIS, 2.9, -0.4, 1.4)],
-          PLATE, DARK)
-    for c in (9.5, 11.5, 13.5):
-        prism(bm, [(20.4, c, 0.45, 1.5, 3.5), (25.4, c, 0.45, 1.5, 3.2), (26.4, c, 0.45, 1.5, 2.2)],
-              RIB, RIBM)
-
-    # Swept fins beside the canopy (rows 5-10, out to columns 4 and 19): thin flat plates.
-    fin = [(9.0, 4.3), (4.2, 8.0), (4.2, 9.8), (8.8, 10.0)]
-    for side in (1, -1):
-        pts = fin if side == 1 else [(mirror(AXIS, c), r) for c, r in fin]
-        slab(bm, pts, 0.25, 0.95, mat=FIN, bevel=0.15)
-
-    # Side pods (rows 10-23, out to columns 2 and 21): faceted armour shells lower than the fuselage,
-    # their fronts angled back from the hull. (row, centre col, half width, z0, z1) for the left one.
-    pod = [(10.0, 7.6, 0.3, 0.2, 0.9), (10.8, 7.3, 1.1, -0.5, 1.4), (12.4, 6.8, 1.9, -0.9, 2.0),
-           (14.0, 6.0, 2.8, -1.2, 2.5), (15.2, 5.6, 3.4, -1.3, 2.75), (20.4, 5.6, 3.4, -1.3, 2.75),
-           (21.3, 5.9, 3.0, -1.2, 2.45), (22.6, 6.6, 2.0, -0.9, 1.7)]
-    # Red engines set into the pods' backs (columns 5-7, rows 18-25), tapering in toward the tail.
-    engine = [(17.6, 6.5, 1.5, 2.8, 0.6), (23.8, 6.6, 1.45, 2.5, 0.3), (24.8, 7.2, 0.9, 1.7, 0.2),
-              (25.8, 7.7, 0.35, 0.8, 0.1)]
+    # Dark vents in the flanks behind the wings (concept: slatted intakes, columns 8 and 15).
     for side in (1, -1):
         m = (lambda c: c) if side == 1 else (lambda c: mirror(AXIS, c))
-        prism(bm, [(r, m(c), w, z0, z1) for r, c, w, z0, z1 in pod], SHELL, POD)
+        slab(bm, [(m(c), r) for c, r in [(7.85, 9.8), (8.6, 9.8), (8.6, 15.5), (7.85, 15.5)]],
+             1.0, 2.6, mat=DARK)
+
+    # The canopy (concept: columns 10.7-12.7, rows 4.8-8.1): a raised frame holding a glossy dark
+    # glass window. The light pixel at column 11, row 6 is its glint: the glass makes it.
+    prism(bm, [(4.6, AXIS, 1.2, 2.6, 3.6), (5.2, AXIS, 1.75, 2.6, 4.0), (8.3, AXIS, 1.8, 2.6, 4.1),
+               (8.9, AXIS, 1.5, 2.6, 3.9)], PLATE, HULL)
+    # The glass is a rounded-off rectangular window (concept), raised in the frame with a crisp
+    # chamfered top, not a ball.
+    glass = [(10.6, 5.6), (11.0, 5.15), (12.0, 5.15), (12.4, 5.6), (12.45, 7.7), (12.1, 8.05),
+             (10.9, 8.05), (10.55, 7.7)]
+    slab(bm, glass, 3.8, 4.75, mat=GLASS, bevel=0.35)
+
+    # The spine deck (columns 9-14, rows 8.6-22): a flat bright plate raised above the hull, straight
+    # sides, chamfered edges, its back end narrowing where the concept's side plates converge.
+    prism(bm, [(8.6, AXIS, 1.6, 3.0, 4.1), (9.4, AXIS, 2.4, 3.0, 4.6), (19.5, AXIS, 2.5, 3.0, 4.6),
+               (22.2, AXIS, 1.9, 3.0, 4.2)], PLATE, DECK)
+    # A narrow raised keel down the middle of the deck (concept: columns 11-12.3, rows 10-22).
+    prism(bm, [(9.8, AXIS, 0.3, 4.4, 4.9), (10.8, AXIS, 0.7, 4.4, 5.2), (21.2, AXIS, 0.7, 4.4, 5.2),
+               (22.0, AXIS, 0.4, 4.4, 4.8)], PLATE, KEEL)
+
+    # The tail (rows 21-26.9): a dark exhaust block, recessed, under three straight box ribs
+    # (columns 9, 11 and 13) with dark slots between them.
+    prism(bm, [(21.0, AXIS, 3.45, -0.6, 2.2), (26.2, AXIS, 3.4, -0.6, 2.0), (26.95, AXIS, 3.0, -0.4, 1.4)],
+          PLATE, DARK)
+    for c in (9.5, 11.5, 13.5):
+        prism(bm, [(21.4, c, 0.45, 1.8, 3.4), (25.4, c, 0.45, 1.8, 3.1), (26.5, c, 0.45, 1.8, 2.2)],
+              RIB, RIBM)
+
+    # Swept wings beside the canopy (concept: root at column 9 row 4.5, tip at column 4.3 rows
+    # 7.4-9.4, straight trailing edge at row 9.4): thin flat plates with crisp edges.
+    fin = [(8.8, 3.8), (5.2, 6.9), (4.05, 7.95), (4.05, 9.95), (7.2, 9.95), (9.6, 10.6)]
+    for side in (1, -1):
+        pts = fin if side == 1 else [(mirror(AXIS, c), r) for c, r in fin]
+        slab(bm, pts, 0.7, 1.25, mat=FIN, bevel=0.12)
+
+    # Side pods (concept: rounded armour shells, rows 12-22.5, out to columns 2 and 21), lower than
+    # the fuselage and tucked under its flanks. Each is cut by a dark bay (rows 17.7-21) holding two
+    # glowing red light tubes, leaving a front shell, an outer rim and a back cowl over the nozzle.
+    # (row, outer col, inner col, z0, z1) for the left one.
+    pod_front = [(11.9, 6.6, 8.6, 0.2, 1.4), (12.6, 4.9, 8.8, -0.4, 2.2), (13.6, 3.7, 8.9, -0.9, 2.6),
+                 (14.8, 2.75, 8.9, -1.2, 2.85), (16.0, 2.15, 8.9, -1.3, 2.95), (17.9, 2.0, 8.9, -1.3, 2.95)]
+    pod_rim = [(17.6, 2.0, 5.1, -1.3, 2.95), (21.2, 2.15, 5.1, -1.3, 2.9)]
+    pod_back = [(20.9, 2.15, 8.9, -1.3, 2.9), (21.9, 3.0, 8.9, -1.2, 2.6), (22.6, 4.0, 8.9, -1.0, 2.2)]
+    for side in (1, -1):
+        m = (lambda c: c) if side == 1 else (lambda c: mirror(AXIS, c))
+        for part in (pod_front, pod_rim, pod_back):
+            prism(bm, [(r, m(c), w, z0, z1) for r, c, w, z0, z1 in span(part)], SHELL, POD)
+        # The bay floor, sunk into the pod, and the light grey strut across it at row 19.
+        slab(bm, [(m(c), r) for c, r in [(5.0, 17.8), (9.0, 17.8), (9.0, 21.0), (5.0, 21.0)]],
+             -0.8, 1.3, mat=DARK)
+        slab(bm, [(m(c), r) for c, r in [(5.0, 19.0), (8.9, 19.0), (8.9, 19.95), (5.0, 19.95)]],
+             1.2, 1.95, mat=BAND)
         n = len(bm.faces)
-        loft(bm, [(r, m(c), w, h, z) for r, c, w, h, z in engine], sides=12, mat=RED, power=0.6)
-        # Raised grey rings between the red stripes (rows 19 and 21).
-        for r, band in ((19.0, BAND), (21.0, BAND_DK)):  # light grey, then mid-dark grey
-            loft(bm, [(r, m(6.5), 1.68, 2.98, 0.6), (r + 1.0, m(6.5), 1.68, 2.95, 0.55)],
-                 sides=12, mat=band, power=0.6)
+        # Two red light tubes lying across the bay (rows 18.4 and 20.4, columns 5.1-8.2).
+        for r in (18.45, 20.45):
+            tube(bm, [(m(5.1), r, 0.45, 0.45, 2.0), (m(8.4), r, 0.45, 0.45, 2.0)], sides=8, mat=RED)
+        # Red engine nozzles behind the pods (rows 22-25.6), tapering in toward the tail.
+        nozzle = [(21.8, 6.4, 2.0, 1.5, 0.9), (23.0, 6.5, 1.95, 1.45, 0.8), (24.4, 6.95, 1.45, 1.15, 0.6),
+                  (25.6, 7.45, 0.75, 0.7, 0.5)]
+        loft(bm, [(r, m(c), w, h, z) for r, c, w, h, z in nozzle], sides=12, mat=NOZ, power=0.55)
         smooth += list(bm.faces)[n:]
 
     bm.faces.index_update()

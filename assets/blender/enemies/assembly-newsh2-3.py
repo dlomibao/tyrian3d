@@ -32,8 +32,7 @@ PIECES = ["newsh2-1", "newsh2-3", "newsh2-5"]
 W, H = 216, 28  # the assembly grid in pixels; its centre is the Blender origin
 PX = 1 / 12
 AXIS = 13.0  # pixel-edge row of the pipe's axis
-ZA = 0.39  # height of the pipe's axis
-ZS = 0.055  # height per pixel of radius (the pipe is a little flatter than round)
+ZA = 6.0 / 12  # height of the pipe's axis: the cans (radius 6 px) rest on the ground
 
 
 def XE(e):
@@ -46,86 +45,145 @@ def YE(e):
     return (H / 2 - e) / 12
 
 
-# Palette slots: grey shades, red shades, the dark brown of the saddles.
-GREYS = [2, 4, 6, 8, 10, 12]
-REDS = [66, 69, 72, 75, 78]
+# Palette slots, one mid-tone per part (the sprite's dark lower halves and lit tops are its
+# lighting, left to the game's light): grey cans, cap and cone; red clamp collars and the copper
+# rod; the dark red of the clamps' split; the near-black brown of the hangers.
+GREY = 7
+RED = 72
+ROD = 73
+SLOT = 66
 BROWN = 16
+ROD_ROW = 11.8  # the rod is drawn a little above the cans' axis (rows 9-13)
 
 
 def build(sprite, grid):
     coll = common.reset_collection(NAME)
     tag = "nsh2a3"
-    mats = []
-    slot = {}
-    for i in GREYS:
-        slot[i] = len(mats)
-        mats.append(common.palette_material(sprite, i, tag, metallic=0.35, roughness=0.4))
-    for i in REDS:
-        slot[i] = len(mats)
-        mats.append(common.palette_material(sprite, i, tag, metallic=0.25, roughness=0.45))
-    slot[BROWN] = len(mats)
-    mats.append(common.palette_material(sprite, BROWN, tag, metallic=0.2, roughness=0.8))
-    DARK, RED_DARK, SADDLE = slot[2], slot[66], slot[BROWN]
-
-    def slot_for(idx):
-        if 1 <= idx <= 13:
-            return slot[min(GREYS, key=lambda g: abs(g - max(idx, 2)))]
-        if 64 <= idx <= 79:
-            return slot[min(REDS, key=lambda g: abs(g - max(idx, 66)))]
-        if 16 <= idx <= 21:
-            return SADDLE
-        return None
-
-    def sample(x, y):
-        c = math.floor(x * 12 + W / 2)
-        r = math.floor(H / 2 - y * 12)
-        if 0 <= r < H and 0 <= c < W:
-            return grid[r][c]
-        return None
+    mats = [
+        common.palette_material(sprite, GREY, tag, metallic=0.45, roughness=0.38),
+        common.palette_material(sprite, RED, tag, metallic=0.3, roughness=0.42),
+        common.palette_material(sprite, ROD, tag, metallic=0.35, roughness=0.35),
+        common.palette_material(sprite, SLOT, tag, metallic=0.1, roughness=0.8),
+        common.palette_material(sprite, BROWN, tag, metallic=0.2, roughness=0.8),
+    ]
+    M_GREY, M_RED, M_ROD, M_SLOT, M_HANGER = range(5)
 
     bm = bmesh.new()
 
-    def tube(profile, mat, centre=AXIS, sides=16):
-        """A tube along +X: profile is (column edge, radius px); painted from the sprite on top."""
+    def lathe(stations, mat, sides=20, slot=None, slot_mat=None, hard=()):
+        """A solid of revolution along +X. stations: (column edge, radius px[, axis row]); a radius
+        of 0 closes the end in a point. `slot` = (a0, a1, depth px): a groove cut along the whole
+        length between those angles (0 = top, positive towards the screen bottom), walls straight
+        down. Rings at the indices in `hard` get crisp (sharp) edges."""
+        angles = [2 * math.pi * k / sides for k in range(sides)]
+        if slot:
+            a0, a1, _ = slot
+            angles = sorted([a for a in angles if not (a0 - 0.05 < a < a1 + 0.05)]
+                            + [a0, a0 + 1e-3, a1 - 1e-3, a1])
+        n = len(angles)
+
+        def scale(i):
+            if slot and slot[0] < angles[i] < slot[1]:
+                return slot[2]
+            return 0.0
+
         first = len(bm.faces)
-        lib.sweep(bm, [(XE(e), YE(centre), ZA, r * PX, r * ZS) for e, r in profile],
-                  sides=sides, mat=mat)
-        lib.paint(bm, first, sample, slot_for)
+        rings = []
+        for st in stations:
+            e, r = st[0], st[1]
+            row = st[2] if len(st) > 2 else AXIS
+            x, yc = XE(e), YE(row)
+            if r <= 0:
+                rings.append([bm.verts.new((x, yc, ZA))])
+                continue
+            ring = []
+            for i, a in enumerate(angles):
+                rr = max(r - scale(i), 0.3) * PX
+                ring.append(bm.verts.new((x, yc - rr * math.sin(a), ZA + rr * math.cos(a))))
+            rings.append(ring)
+        for k, (r0, r1) in enumerate(zip(rings, rings[1:])):
+            for i in range(n):
+                j = (i + 1) % n
+                if len(r0) == 1:
+                    f = bm.faces.new((r0[0], r1[j], r1[i]))
+                elif len(r1) == 1:
+                    f = bm.faces.new((r0[i], r0[j], r1[0]))
+                else:
+                    f = bm.faces.new((r0[i], r0[j], r1[j], r1[i]))
+                f.material_index = mat
+                if slot and slot[0] <= angles[i] and angles[j] <= slot[1] + 1e-6 and j != 0:
+                    f.material_index = slot_mat
+        for ring in (rings[0], rings[-1]):
+            if len(ring) > 1:
+                f = bm.faces.new(ring)
+                f.material_index = mat
+        bm.faces.ensure_lookup_table()
+        for f in bm.faces[first:]:
+            f.smooth = True
+        # Crisp edges: the end rims, the slot's walls and the given rings.
+        for k in set(hard) | {0, len(rings) - 1}:
+            ring = rings[k]
+            if len(ring) == 1:
+                continue
+            for a, b in zip(ring, ring[1:] + ring[:1]):
+                e = bm.edges.get((a, b))
+                if e:
+                    e.smooth = False
+        if slot:  # the slot's wall edges run along X between rings
+            for r0, r1 in zip(rings, rings[1:]):
+                if len(r0) == 1 or len(r1) == 1:
+                    continue
+                for i in range(n):
+                    if abs(angles[i] - slot[0]) < 2e-3 or abs(angles[i] - slot[1]) < 2e-3:
+                        e = bm.edges.get((r0[i], r1[i]))
+                        if e:
+                            e.smooth = False
 
-    def can(e0, e1, r=5.3):
-        tube([(e0, r * 0.7), (e0 + 0.35, r * 0.94), (e0 + 0.9, r), (e1 - 0.9, r), (e1 - 0.35, r * 0.94),
-              (e1, r * 0.7)], DARK)
+    def can(e0, e1, r=6.0):
+        """A grey ring-can: flat sides, rounded tyre-like rims, as tall as it is wide."""
+        lathe([(e0, r * 0.62), (e0 + 0.15, r * 0.82), (e0 + 0.45, r * 0.95), (e0 + 0.9, r),
+               (e1 - 0.9, r), (e1 - 0.45, r * 0.95), (e1 - 0.15, r * 0.82), (e1, r * 0.62)], M_GREY)
 
-    def flange(e0, e1, r):
-        tube([(e0, r * 0.9), (e0 + 0.3, r), (e1 - 0.3, r), (e1, r * 0.9)], RED_DARK, sides=18)
+    # The clamp's split: a groove on the screen-bottom side of each collar (sprite rows 15-17).
+    SPLIT = (math.radians(20), math.radians(46), 1.3)
 
-    def neck(e0, e1):
-        tube([(e0, 2.6), (e1, 2.6)], RED_DARK, centre=11.8, sides=10)
-        lib.box(bm, XE(e0 + 0.4), YE(17.0), XE(e1 - 0.4), YE(14.6), 0.0, ZA - 0.05, mat=SADDLE)
+    def collar(e0, e1, r):
+        """A red clamp collar: a flat-sided band with chamfered edges, split on its lower side."""
+        lathe([(e0, r - 0.6), (e0 + 0.3, r), (e1 - 0.3, r), (e1, r - 0.6)], M_RED, sides=24,
+              slot=SPLIT, slot_mat=M_SLOT, hard=(1, 2))
 
-    # Left end (newsh2-1, columns 0-23): rounded cap and can, coupling, can, big end flange.
-    tube([(0.9, 0.0), (1.2, 2.6), (1.8, 4.0), (2.6, 4.8), (3.6, 5.3), (9.9, 5.3), (10.6, 4.9),
-          (11.0, 3.8)], DARK)
-    neck(10.8, 14.2)
-    can(14.0, 19.0)
-    flange(19.0, 24.0, 7.0)
+    def hanger(e0, e1):
+        """A dark saddle the rod rests on, from the ground up to the rod's underside."""
+        lib.box(bm, XE(e0), YE(17.0), XE(e1), YE(14.4), 0.0, ZA - 1.6 * PX, mat=M_HANGER)
+        lib.box(bm, XE(e0 + 0.5), YE(14.4), XE(e1 - 0.5), YE(13.6), ZA - 3.0 * PX, ZA - 1.6 * PX,
+                mat=M_HANGER)
 
-    # Seven repeating sections (newsh2-3): can, flange, can, coupling, can, coupling, can...
+    # The copper rod runs through the whole pipe (the cans and collars are threaded on it).
+    lathe([(10.0, 2.5, ROD_ROW), (193.0, 2.5, ROD_ROW)], M_ROD, sides=12)
+
+    # Left end (newsh2-1, columns 0-23): domed cap, rod, can, the big end clamp over a can.
+    lathe([(0.6, 0.0), (0.9, 2.6), (1.5, 4.1), (2.4, 5.2), (3.6, 5.85), (5.0, 6.0), (10.4, 6.0),
+           (10.8, 5.4), (11.0, 3.8)], M_GREY, hard=(6,))
+    hanger(11.2, 13.8)
+    can(14.0, 19.2)
+    can(18.6, 24.4)
+    collar(18.8, 23.4, 8.0)
+
+    # Seven repeating sections (newsh2-3): can under a red clamp, rod, ring-can, rod.
     for t in range(1, 8):
         o = 24 * t
-        # The can across the section's left edge (its rim is the previous section's column 23;
-        # the first one starts inside the end flange), so every section is cut alike.
-        can(o - 0.8, o + 3.0)
-        flange(o + 3.0, o + 7.0, 6.2)
-        can(o + 7.0, o + 11.6)
-        neck(o + 11.4, o + 15.2)
-        can(o + 15.0, o + 19.5)
-        neck(o + 19.3, o + 23.4)
+        # The first can runs across the section's left edge (from the previous section's column
+        # 23), so every section is cut alike; the first one starts inside the end clamp.
+        can(o - 1.0, o + 11.8)
+        collar(o + 2.7, o + 7.1, 7.0)
+        hanger(o + 12.3, o + 14.9)
+        can(o + 15.0, o + 19.8)
+        hanger(o + 20.3, o + 22.7)
 
-    # Right end (newsh2-5, columns 192-215): a cone tapering to a point.
+    # Right end (newsh2-5, columns 192-215): a cone tapering to a point, its tip a little high.
     o = 192
-    tube([(o - 0.8, 5.0), (o - 0.4, 5.3), (o + 5, 5.0), (o + 9, 4.2), (o + 13, 3.2), (o + 16, 2.3), (o + 18.5, 1.4),
-          (o + 20.2, 0.6), (o + 20.8, 0.0)], DARK)
+    lathe([(o - 1.0, 4.4), (o - 0.75, 5.7), (o - 0.3, 6.0), (o + 4, 4.9, 12.85), (o + 8, 3.75, 12.7),
+           (o + 12, 2.55, 12.55), (o + 16, 1.4, 12.45), (o + 20.8, 0.0, 12.4)], M_GREY, hard=(2,))
 
     return lib.to_object(NAME, bm, mats, coll)
 

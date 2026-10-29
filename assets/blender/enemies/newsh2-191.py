@@ -1,13 +1,20 @@
 """Spinning arch (newsh2.shp frames 191-205): a 3D version of its sprite.
 
-Seen in episode 1 (levels 25-41) and episode 3. A horseshoe-shaped band, bronze over the top and
-grey down the two legs, with a bronze barrel pod hung in the middle on two short struts. The band
-is a round tube three pixels across seen face on (black edges round a lit centre) and a little
-deeper (frame 199 shows it edge on, wider), and the eight
-frames turn the whole thing about the screen's vertical axis. So the model is built once and
-exported eight times, each turned about Y to the angle its frame shows (read off how far apart the
-two legs are drawn: 12, 9, 6, 4, 0 pixels, then back out on the other side): newsh2-191 (frame
-191), newsh2-191-f2 (193) ... newsh2-191-f8 (205). It spins about column 11.
+Seen in episode 1 (levels 25-41) and episode 3. A horseshoe: a round bronze band over the top,
+built of tiles with dark joints, coming down into two hard, chamfered grey leg housings (dark collars
+at rows 7 and 12), each ending in a thin rod with a pointed tip; a bronze barrel pod with dark rims
+hangs in the middle on twin rods with clamps at both ends. Shapes traced from the concept
+(assets/blender/features/concepts/newsh2-191.jpg, registered as textures/newsh2-191/concept.png),
+kept inside the sprite's outline.
+
+The eight frames turn the whole thing about the screen's vertical axis, so the model is built once
+and exported eight times, each turned about Y to the angle its frame shows (read off how far apart
+the two legs are drawn: 12, 9, 6, 4, 0 pixels, then back out on the other side): newsh2-191 (frame
+191), newsh2-191-f2 (193) ... newsh2-191-f8 (205). It spins about the centre of column 11.
+
+The concept draws the pod 1-3 px higher and a little smaller than the sprite does; the model keeps
+the sprite's pod, and textures/newsh2-191/ holds concept maps warped so the concept's pod and
+struts land on it (see the notes in maps.json).
 
 Run: blender --background --python assets/blender/enemies/newsh2-191.py [-- --preview out.png]
 """
@@ -24,202 +31,178 @@ import common  # noqa: E402
 import lib_b009 as lib  # noqa: E402
 
 NAME = "newsh2-191"
-AXIS = 11  # the column the arch spins about
+AXIS = 11  # the column the arch spins about (its centre is pixel edge 11.5)
 # Leg spacing per frame (px): the angle each frame is turned by is acos(spacing / 12).
 SPACING = [12, 9, 6, 4, 0, -4, -6, -9]
+PX = 1 / 12
 
 
-def X(c):
-    """Sprite column (pixel centre) to X relative to the spin axis."""
-    return (c - AXIS) / 12
+def X(e):
+    """Sprite pixel-edge column to x relative to the spin axis."""
+    return (e - 11.5) * PX
 
 
-TUBE_R = 1.5 / 12  # the band is a round tube three pixels across seen face on (its black edges and lit centre)
-TUBE_FLAT = 1.3  # ... and a little deeper than wide (3.9 px), as the edge-on frames (199) draw it wider
-POD_RX = 3.3 / 12  # the pod is about six and a half pixels across (seven with its black edge)
-POD_RZ = 2.6 / 12  # and a little less deep, so it stays inside the band in the edge-on frames
+def Y(r):
+    """Sprite pixel-edge row to y."""
+    return (14 - r) * PX
 
 
-def sprite_index(pixels, c, r, cols, rows):
-    """The palette index of the sprite pixel nearest (c, r) among columns/rows `cols`/`rows` that
-    isn't the black outline (1) or transparent."""
-    best, best_d = None, 1e9
-    for rr in rows:
-        for cc in cols:
-            v = pixels[rr][cc]
-            if v in (-1, 1):
-                continue
-            d = (cc - c) ** 2 + (rr - r) ** 2
-            if d < best_d:
-                best, best_d = v, d
-    return best
+TUBE_R = 1.5  # px: the band is a round tube three pixels across seen face on
+TUBE_FLAT = 1.25  # ... and a little deeper than wide, as the edge-on frames draw it wider
+CORE_R = 1.3  # the dark core showing in the joints between the bronze tiles
+POD_FLAT = 0.8  # the pod's depth over its width
+CONCEPT_JOINTS = [(5.3, 4.2), (8.0, 2.3), (10.1, 2.3), (12.1, 2.3), (14.9, 2.3), (17.6, 4.3)]
+LEG_C = 5.5  # left leg centre column (edge coordinates); the right one is mirrored about 11.5
+
+
+def chamfer_ring(cx, y, hx, hz, ch, cz=0.0):
+    """Eight points of a chamfered rectangle (half sizes hx, hz, chamfer ch) across the XZ plane at y,
+    counter-clockwise from +X seen along -Y."""
+    pts = [(hx, -hz + ch), (hx, hz - ch), (hx - ch, hz), (-hx + ch, hz), (-hx, hz - ch), (-hx, -hz + ch),
+           (-hx + ch, -hz), (hx - ch, -hz)]
+    return [(cx + x * PX, y, cz + z * PX) for x, z in pts]
+
+
+def prism_y(bm, cx, r0, r1, hx, hz, ch, mat, cz=0.0):
+    """A hard chamfered block along Y between pixel-edge rows r0 and r1."""
+    rings = [chamfer_ring(cx, Y(r), hx, hz, ch, cz) for r in (r0, r1)]
+    lib.ring_loft(bm, rings, mat, smooth=False)
+
+
+def round_ring(cx, y, rx, rz, n=16):
+    return [(cx + rx * PX * math.cos(2 * math.pi * (i + 0.5) / n), y, rz * PX * math.sin(2 * math.pi * (i + 0.5) / n))
+            for i in range(n)]
+
+
+def box(bm, c, half, mat):
+    """An axis-aligned box: centre and half sizes in units."""
+    res = bmesh.ops.create_cube(bm, size=2.0)
+    for v in res["verts"]:
+        v.co.x = c[0] + v.co.x * half[0]
+        v.co.y = c[1] + v.co.y * half[1]
+        v.co.z = c[2] + v.co.z * half[2]
+    for f in {f for v in res["verts"] for f in v.link_faces}:
+        f.material_index = mat
+        f.smooth = False
+
+
+def resample(path, s0, s1, step=1.0 * PX):
+    """Points along the polyline `path` from arc length s0 to s1, at its own corners and about every
+    `step` between."""
+    S = [0.0]
+    for a, b in zip(path, path[1:]):
+        S.append(S[-1] + math.dist(a, b))
+
+    def at(s):
+        for k in range(len(path) - 1):
+            if S[k] <= s <= S[k + 1] + 1e-9:
+                t = (s - S[k]) / max(1e-9, S[k + 1] - S[k])
+                return (path[k][0] + (path[k + 1][0] - path[k][0]) * t, path[k][1] + (path[k + 1][1] - path[k][1]) * t)
+        return path[-1]
+
+    marks = sorted({s0, s1, *[s for s in S if s0 < s < s1]})
+    out = []
+    for a, b in zip(marks, marks[1:]):
+        n = max(1, math.ceil((b - a) / step))
+        out += [at(a + (b - a) * i / n) for i in range(n)]
+    out.append(at(s1))
+    return out, S[-1]
 
 
 def build_one(sprite, name, angle):
     coll = common.reset_collection(name)
-    pixels = [[int(v) for v in (line.split() if isinstance(line, str) else line)] for line in sprite["frames"][0]["pixels"]]
     mats, slot = [], {}
 
-    def mat(i):
-        """Material slot of palette index i (bronze and greys alike are polished metal; the dark
-        collars and the top seam a little less polished). The sprite's highlights and dark sides are
-        its drawn light: the game's lights make them on these metal surfaces."""
+    def mat(i, metallic=0.8, roughness=0.3):
+        """Material slot of palette index i. Bronze and greys are polished metal (the dark joints,
+        collars and clamps a little less): the sprite's highlights and dark sides are its drawn
+        light, which the game's lights make on these surfaces."""
         if i not in slot:
-            dark = i in (4, 5, 21)
             slot[i] = len(mats)
-            mats.append(common.palette_material(sprite, i, NAME, metallic=0.7 if dark else 0.8,
-                                                roughness=0.4 if dark else 0.3))
+            mats.append(common.palette_material(sprite, i, NAME, metallic=metallic, roughness=roughness))
         return slot[i]
 
-    def col_of(x):
-        return AXIS + x * 12
-
-    def row_of(y):
-        return 13.5 - y * 12
+    for i in (4, 5, 21):
+        mat(i, 0.7, 0.42)
+    for i in (7, 9, 10):  # the steel of the legs: satin, so its flat faces don't mirror the sky
+        mat(i, 0.5, 0.5)
 
     bm = bmesh.new()
 
-    # The band: one round tube along the centreline through the pixel centres, from the bottom of
-    # the left leg (row 19, its rounded end) up, over the top (row 2) and down the right leg. Each
-    # stretch takes the colour of the sprite pixels under it, so the arch keeps its alternating
-    # bronze segments, the lit left corners, the dark right corners and the dark collar rows.
-    half = [(5, 19.45), (5, 19.0), (5, 18.55), (5, 12.0), (5, 7.0), (5.15, 5.4), (6.0, 4.0), (7.0, 3.0),
-            (8.2, 2.15), (9.6, 2.0)]
-    half = [(X(c), lib.row(r)) for c, r in half]
-    path = half + [(0.0, lib.row(2.0))] + [(-x, y) for x, y in reversed(half)]
-    radii = [0.45 / 12, 0.85 / 12] + [TUBE_R] * (len(path) - 4) + [0.85 / 12, 0.45 / 12]
-    # One point per pixel or so, then a material per stretch from the sprite.
-    pts, rads = [], []
-    for (p0, r0), (p1, r1) in zip(zip(path, radii), zip(path[1:], radii[1:])):
-        n = max(1, math.ceil(math.dist(p0, p1) * 12 / 1.0))
-        for k in range(n):
-            t = k / n
-            pts.append((p0[0] + (p1[0] - p0[0]) * t, p0[1] + (p1[1] - p0[1]) * t))
-            rads.append(r0 + (r1 - r0) * t)
-    pts.append(path[-1])
-    rads.append(radii[-1])
-    band_pal = []
-    for a, b in zip(pts, pts[1:]):
-        c, r = col_of((a[0] + b[0]) / 2), row_of((a[1] + b[1]) / 2)
-        band_pal.append(sprite_index(pixels, c, min(r, 18.0), range(round(c) - 1, round(c) + 2),
-                                     range(max(0, round(r) - 1), min(19, round(r) + 2))))
-    # On the legs, the stretches under the collars take their neighbour's colour, and the lighter
-    # greys of the leg's middle (10-12) are one: the tube's own lighting gives the highlight. The
-    # bronze is one mid-tone (25) all round: the sprite's lit left corners and dark right corners
-    # are its drawn light, not paint. Only the dark seam at the top centre (21) is kept.
-    for k in range(len(band_pal)):
-        i = band_pal[k]
-        mx, my = (pts[k][0] + pts[k + 1][0]) / 2, (pts[k][1] + pts[k + 1][1]) / 2
-        r = row_of(my)
-        if i >= 16:
-            band_pal[k] = 25
-            continue
-        if r > 6.5:
-            if min(abs(r - 7), abs(r - 12)) < 0.6 and k > 0:
-                i = band_pal[k - 1] if r > 9.5 else 10
-            band_pal[k] = 10 if i in (11, 12) else i
-    # Drop points inside straight runs of one colour (the legs).
-    keep = [0, 1]
-    for i in range(2, len(pts) - 2):
-        a, b, c = pts[keep[-1]], pts[i], pts[i + 1]
-        cross = (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0])
-        if band_pal[i - 1] == band_pal[i] and abs(cross) < 1e-6 and rads[i] == rads[keep[-1]] == rads[i + 1]:
-            continue
-        keep.append(i)
-    keep += [len(pts) - 2, len(pts) - 1]
-    P = [pts[i] for i in keep]
-    R = [rads[i] for i in keep]
-    M = [band_pal[k0] for k0 in keep[:-1]]
+    # --- The bronze band: a row of round tiles with dark joints over a dark core, from the top of
+    # the left leg housing (row 7) over the top (row 2.5) and down to the right one.
+    half = [(LEG_C, 7.0), (LEG_C, 6.2), (5.7, 5.7), (6.3, 4.75), (7.1, 3.85), (8.0, 3.0), (9.4, 2.6),
+            (10.6, 2.5), (11.5, 2.5)]
+    path = [(X(c), Y(r)) for c, r in half] + [(-X(c), Y(r)) for c, r in reversed(half[:-1])]
+    S_total = sum(math.dist(a, b) for a, b in zip(path, path[1:]))
+    S_half = S_total / 2
+    core, _ = resample(path, 0.0, S_total)
+    lib.polyline_tube(bm, [(x, y, 0.0) for x, y in core], CORE_R * PX, sides=8, mat_index=mat(4),
+                      caps=False, flat=TUBE_FLAT)
+    # Eight tiles, with the joints where the concept draws them (pixel edges), the one at column 12
+    # standing for the sprite's dark seam pixel at the top.
+    fine, _ = resample(path, 0.0, S_total, step=0.05 * PX)
+    fine_s = [0.0]
+    for p0, p1 in zip(fine, fine[1:]):
+        fine_s.append(fine_s[-1] + math.dist(p0, p1))
+    joints = []
+    for c, r in CONCEPT_JOINTS:
+        j = min(range(len(fine)), key=lambda i: math.dist(fine[i], (X(c), Y(r))))
+        joints.append(fine_s[j])
+    bounds = [0.0] + sorted(joints) + [S_total]
+    gap = 0.13 * PX
+    for a, b in zip(bounds, bounds[1:]):
+        s0 = a + (gap if a > 1e-9 else 0.0)
+        s1 = b - (gap if b < S_total - 1e-9 else 0.0)
+        pts, _ = resample(path, s0, s1)
+        lib.polyline_tube(bm, [(x, y, 0.0) for x, y in pts], TUBE_R * PX, sides=8, mat_index=mat(25),
+                          caps=True, smooth=True, flat=TUBE_FLAT)
+    # Tile end caps flat.
+    for f in bm.faces:
+        if f.material_index == mat(25) and len(f.verts) == 8:
+            f.smooth = False
 
-    # The bronze is a row of segments (the sprite's row 2 alternates light and dark, with a dark
-    # pixel at the top centre; the concept draws bronze tiles with dark joints): cut a dark V groove
-    # round the tube at the top centre and at two more joints down each side.
-    def arc(P):
-        s = [0.0]
-        for a, b in zip(P, P[1:]):
-            s.append(s[-1] + math.dist(a, b))
-        return s
+    for s in (-1, 1):
+        cx = s * X(LEG_C)
+        # --- The leg housing: a hard chamfered block (rows 7.8-12.2), the dark collar where the band
+        # meets it (row 7) and the dark collar at row 12, then a slightly narrower lower block down
+        # to row 14.4.
+        prism_y(bm, cx, 6.85, 7.8, 1.5, 1.42, 0.45, mat(5))
+        prism_y(bm, cx, 7.8, 12.2, 1.42, 1.3, 0.45, mat(10))
+        prism_y(bm, cx, 12.2, 12.95, 1.5, 1.4, 0.45, mat(5))
+        prism_y(bm, cx, 12.95, 14.45, 1.25, 1.15, 0.4, mat(10))
+        # The raised side plate on the housing's outer face (the concept's panel, rows 8.3-11).
+        box(bm, (cx + s * 1.42 * PX, Y(9.7), 0.0), (0.14 * PX, 1.35 * PX, 0.8 * PX), mat(9))
+        # --- The rod below: a thin round bar with a collar at the top, a ring near the end and a
+        # pointed tip at row 19.9.
+        rod = [(14.45, 0.0), (14.45, 1.45), (15.25, 1.45), (15.25, 1.25), (17.5, 1.25), (17.5, 1.45),
+               (18.3, 1.45), (18.3, 1.2), (19.95, 0.15)]
+        mats_rod = [mat(5), mat(5), mat(5), mat(9), mat(5), mat(5), mat(5), mat(7)]
+        rings = [[(cx, Y(r), 0.0)] if rr == 0 else round_ring(cx, Y(r), rr, rr, n=8) for r, rr in rod]
+        lib.ring_loft(bm, rings, mats_rod, cap_start=True, cap_end=True, smooth=True)
+        # --- The strut: twin thin rods at rows 10 and 11 from the housing to the pod, a clamp block on
+        # the housing and a round clamp collar on the pod's side.
+        for r in (10.0, 11.0):
+            lib.tube(bm, (s * X(6.8), Y(r), 0.0), (s * X(8.5), Y(r), 0.0), 0.38 * PX, sides=6,
+                     mat_index=mat(7), caps=False)
+        box(bm, (s * X(7.4), Y(10.5), 0.0), (0.62 * PX, 1.4 * PX, 0.85 * PX), mat(5))
+        lib.tube(bm, (s * X(7.75), Y(10.5), 0.0), (s * X(8.55), Y(10.5), 0.0), 1.15 * PX, sides=10,
+                 mat_index=mat(4), caps=True, smooth=True)
 
-    def insert(s0):
-        S = arc(P)
-        for k in range(len(P) - 1):
-            if abs(S[k] - s0) < 1e-6:
-                return
-            if S[k] < s0 < S[k + 1]:
-                t = (s0 - S[k]) / (S[k + 1] - S[k])
-                P.insert(k + 1, (P[k][0] + (P[k + 1][0] - P[k][0]) * t, P[k][1] + (P[k + 1][1] - P[k][1]) * t))
-                R.insert(k + 1, R[k] + (R[k + 1] - R[k]) * t)
-                M.insert(k, M[k])
-                return
-
-    s_c = arc(P)[-1] / 2  # the path is symmetric: its middle is the top centre
-    seam_hw, seam_depth = 0.32 / 12, 0.8
-    # Joints about 3 px apart; one near a bend of the centreline sits on it (the bend is the groove's
-    # bottom), so no ring lands a hair from a mitred one and tears the tube.
-    S0 = arc(P)
-    seams = []
-    for d in (-6.0, -3.0, 0.0, 3.0, 6.0):
-        s0 = s_c + d / 12
-        near = min(S0, key=lambda v: abs(v - s0))
-        seams.append(near if abs(near - s0) < 0.45 / 12 else s0)
-    for s0 in seams:
-        for s1 in (s0 - seam_hw, s0, s0 + seam_hw):
-            insert(s1)
-    S = arc(P)
-    for s0 in seams:
-        for i, si in enumerate(S):
-            if abs(si - s0) < seam_hw - 1e-6:
-                R[i] = TUBE_R * (seam_depth + (1 - seam_depth) * abs(si - s0) / seam_hw)
-        for k in range(len(P) - 1):
-            if abs((S[k] + S[k + 1]) / 2 - s0) < seam_hw:
-                M[k] = 21
-    # Each stretch is one colour all round: the sprite's dark band edges are its outline and
-    # shading, which the game draws itself.
-    lib.polyline_tube(bm, [(x, y, 0.0) for x, y in P], R, sides=8, mat_index=[[mat(m)] * 8 for m in M],
-                      flat=TUBE_FLAT)
-    # The grooves' faces are flat shaded, so they stay crisp cuts and don't round the tube's
-    # segments into a chain of bulges.
+    # --- The pod: a round bronze barrel lying along Y (rows 6-14.9): a dark rim round its flat top,
+    # the barrel body, a dark band where its lower end starts to narrow (the sprite's dark row 12),
+    # chamfered lower panels and a dark rim round its small flat bottom.
+    sections = [  # (row edge, half width px, material of the band below)
+        (6.0, 2.3, 21), (6.2, 2.7, 21), (6.75, 2.8, 25), (7.0, 3.2, 25), (7.6, 3.42, 25), (11.4, 3.42, 21),
+        (12.0, 3.42, 25), (12.6, 3.25, 25), (13.4, 2.7, 25), (14.15, 2.0, 21), (14.8, 1.8, 21), (14.95, 1.4, 21)]
+    rings = [round_ring(0.0, Y(r), w, w * POD_FLAT) for r, w, _ in sections]
+    rings = [[(0.0, Y(5.95), 0.0)]] + rings + [[(0.0, Y(14.97), 0.0)]]
+    band_mats = [mat(21)] + [mat(m) for _, _, m in sections[:-1]] + [mat(21)]
+    lib.ring_loft(bm, rings, band_mats, smooth=True)
+    # Make the rims crisp: the dark bands are flat shaded.
     for f in bm.faces:
         if f.material_index == mat(21):
             f.smooth = False
-
-    # Raised dark collars round both legs at rows 7 and 12.
-    for c in (5, 17):
-        for r in (7, 12):
-            y0 = lib.row(r)
-            rings = [lib.ellipse_ring(X(c), 0, 0, TUBE_R * 1.12, TUBE_R * TUBE_FLAT * 1.12, n=8, phase=0.5)
-                     for _ in range(2)]
-            rings = [[(x, y0 + dy, z) for x, z, _ in ring] for ring, dy in zip(rings, (-0.55 / 12, 0.55 / 12))]
-            lib.ring_loft(bm, rings, mat(4), cap_start=False, cap_end=False)
-
-    # Round struts about two pixels thick from the legs to the pod (row 10).
-    for s in (-1, 1):
-        lib.tube(bm, (s * 4.8 / 12, lib.row(10), 0), (s * 2.6 / 12, lib.row(10), 0), 1.1 / 12, sides=8,
-                 mat_index=mat(6), caps=False)
-        # The dark joint where each strut enters its leg (the sprite's dark pixel in columns 6 and 16).
-        lib.tube(bm, (s * 5.0 / 12, lib.row(10), 0), (s * 4.0 / 12, lib.row(10), 0), 1.45 / 12, sides=8,
-                 mat_index=mat(4), caps=True, smooth=False)
-
-    # The pod: a round barrel about six pixels across, rows 6-14, rounded at the bottom, polished
-    # bronze in the band's mid-tone (25). The sprite's pale stripe left of centre, dark column right of it,
-    # dark lower end and black edge are a lit metal cylinder drawn by hand: the game's lights and
-    # outline make them.
-    sections = [(5.6, 2.4), (6.2, 2.95), (6.9, 3.3), (12.0, 3.3), (12.8, 2.85), (13.6, 2.2), (14.3, 1.4),
-                (14.75, 0.6)]
-    rings = []
-    for sr, rx in sections:
-        ring = lib.ellipse_ring(0, 0, 0, rx / 12, rx / 12 * POD_RZ / POD_RX, n=12, phase=0.0)
-        rings.append([(x, lib.row(sr), z) for x, z, _ in ring])
-    rings = [[(0.0, lib.row(5.5), 0.0)]] + rings + [[(0.0, lib.row(14.9), 0.0)]]
-    lib.ring_loft(bm, rings, mat(25), smooth=True)
-    # Raised dark bronze hoops round the barrel: its top rim and the band where its lower end
-    # starts to narrow (the sprite's dark row 12; the concept's rims).
-    for sr, rx, w in ((6.9, 3.3, 0.45), (12.0, 3.3, 0.5)):
-        hoop = []
-        for dy in (-w, w):
-            ring = lib.ellipse_ring(0, 0, 0, rx * 1.07 / 12, rx * 1.07 / 12 * POD_RZ / POD_RX, n=12, phase=0.0)
-            hoop.append([(x, lib.row(sr + dy), z) for x, z, _ in ring])
-        lib.ring_loft(bm, hoop, mat(21), cap_start=False, cap_end=False, smooth=True)
 
     # Turn it about the spin axis and put the axis on column 11.
     bmesh.ops.transform(bm, matrix=Matrix.Translation((lib.px(AXIS), 0, 0)) @ lib.rot_y(angle), verts=bm.verts)

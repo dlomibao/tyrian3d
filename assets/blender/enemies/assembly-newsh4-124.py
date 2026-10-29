@@ -122,6 +122,20 @@ def surf(sections, row, dx=0.0):
     return z + 0.98 * hh * math.sqrt(max(0.0, 1 - u * u))
 
 
+def cable_bundle(bm, path, mat, n=3, spread=0.95, radius=0.55):
+    """`n` round pipes of `radius` px side by side along a path of (col, row, z), `spread` px apart."""
+    for k in range(n):
+        off = (k - (n - 1) / 2) * spread
+        pts = []
+        for i, (c, r, z) in enumerate(path):
+            a, b = path[max(i - 1, 0)], path[min(i + 1, len(path) - 1)]
+            dc, dr = b[0] - a[0], b[1] - a[1]
+            ln = math.hypot(dc, dr) or 1.0
+            # Perpendicular in the plane; the pipes also stack a little in height so they read as a bundle.
+            pts.append((c - dr / ln * off, r + dc / ln * off, z + 0.02 * (1 - abs(off)), radius, radius * PX))
+        sweep(bm, pts, sides=6, mat=mat)
+
+
 def build_left(bm):
     """Everything off the centreline, on the left side (mirrored afterwards). Heights stack like
     the sprite's plates: wings about 3 px, the hull and arm roots 4 px, the chevron (body plate)
@@ -146,10 +160,10 @@ def build_left(bm):
     sweep(bm, [(8.5, 25.4, 0.2, 0.0, 0.0), (8.5, 26.4, 0.2, 2.2, 0.24), (8.5, 30.5, 0.2, 2.6, 0.31),
                (8.3, 35.4, 0.2, 2.2, 0.24), (8.3, 36.5, 0.2, 0.0, 0.0)], sides=10, mat=RED)
     bplate(bm, [(10, 29), (15, 29), (15, 38), (10, 38)], -0.12, 0.44, mat=DSTEEL, bevel=0.6)
-    # Thin tan cable from the pylon's top round to the wing tip (rows 9-22).
-    sweep(bm, [(20.5, 9.0, 0.5, 1.4, 0.06), (16, 9.2, 0.47, 1.4, 0.06), (12.5, 10.5, 0.41, 1.4, 0.06),
-               (9.8, 12.8, 0.33, 1.4, 0.06), (7.5, 16, 0.3, 1.4, 0.06), (5.6, 19.5, 0.22, 1.5, 0.06),
-               (5.2, 22.5, 0.16, 1.5, 0.06)], sides=6, mat=TAN)
+    # Cable bundle from the pylon's top round to the wing tip (rows 9-22): three thin tan pipes of
+    # constant diameter side by side, as the concept draws it (the sprite's single 3 px cable).
+    cable_bundle(bm, [(20.5, 9.0, 0.5), (16, 9.2, 0.47), (12.5, 10.5, 0.41), (9.8, 12.8, 0.33), (7.5, 16, 0.3),
+                      (5.6, 19.5, 0.22), (5.2, 22.5, 0.16)], mat=TAN)
 
     # Grey pylon behind the tower (columns 19-46, rows 3-35): a raised slanted block with a bevelled
     # top, a bright outer post, a tan emblem and a dark brown band, and a bright bar down to the
@@ -211,17 +225,18 @@ def build_left(bm):
     plate(bm, [(18, 72.5), (22.5, 72.5), (22.5, 73.5), (18.5, 77)], 0.39, 0.44, mat=WIN)
     bplate(bm, [(16, 77), (24, 77), (24, 82), (22.5, 84.5), (16.5, 84.5)], -0.08, 0.32, mat=GREY, bevel=0.5)
 
-    # Brown claw curving in to its tip (rows 84-106): a round tube, as tall as it is wide, rooted in
+    # Brown claw curving in to its tip (rows 84-106): a tusk as tall as it is wide with a hard keel
+    # along its top (a flat-shaded hexagon, as the concept draws a blade, not a soft tube), rooted in
     # the wrist and tapering to the point; and the thin grey hook inside it, rooted in the blade's tip.
     # The claw is about 7 px wide in the sprite (columns 17-22 at row 90, with its outline), so as tall as that.
-    sweep(bm, [(19.8, 81.5, 0.25, 3.6, 0.35), (19.5, 84.5, 0.25, 3.8, 0.37), (19.5, 90, 0.26, 3.8, 0.37),
-               (21.1, 96, 0.25, 3.7, 0.36), (24.7, 100.5, 0.22, 3.5, 0.34), (30, 104, 0.17, 3.0, 0.29),
-               (34.4, 105.6, 0.1, 2.0, 0.19), (38.4, 106.5, 0.05, 0.0, 0.0)], sides=10, mat=CLAW)
+    sweep(bm, [(19.8, 81.5, 0.25, 4.14, 0.35), (19.5, 84.5, 0.25, 4.37, 0.37), (19.5, 90, 0.26, 4.37, 0.37),
+               (21.1, 96, 0.25, 4.25, 0.36), (24.7, 100.5, 0.22, 4.02, 0.34), (30, 104, 0.17, 3.45, 0.29),
+               (34.4, 105.6, 0.1, 2.30, 0.19), (38.4, 106.5, 0.05, 0.00, 0.0)], sides=6, mat=CLAW, smooth=False)
     # The hook is a thin rod, about 4 px wide.
     sweep(bm, [(27.0, 73.0, 0.18, 2.0, 0.15), (27.6, 75.5, 0.24, 2.2, 0.2), (28.4, 78.2, 0.3, 2.2, 0.22),
                (29.6, 81.2, 0.3, 2.2, 0.22),
                (31.9, 84.5, 0.28, 2.1, 0.22), (35.8, 86.8, 0.24, 1.8, 0.19), (40.8, 88.3, 0.18, 1.4, 0.15),
-               (45.0, 89.0, 0.12, 0.9, 0.1), (48.0, 89.2, 0.08, 0.0, 0.0)], sides=10, mat=HOOK)
+               (45.0, 89.0, 0.12, 0.9, 0.1), (48.0, 89.2, 0.08, 0.0, 0.0)], sides=6, mat=HOOK, smooth=False)
 
 
 # The tower down the middle: (row, half width px, half height, z) sections of each loft. A round
@@ -347,10 +362,18 @@ def build_centre(bm):
     # is the polished cap's shine, not a stud.)
     loft_y(bm, AXIS, on(BALL, [(77.5, 0.0, 0.0), (78.5, 2.0, 0.09), (84, 2.0, 0.09), (88, 1.8, 0.08),
                                (90.8, 0.0, 0.0)], sink=0.03), sides=8, mat=RED)
-    # The small dark horns at the stinger's upper corners (columns 49-51 and 69-71, rows 75-77).
+    # The crescent horns at the stinger's upper corners (columns 49-51 and 69-71, rows 75-79): thin,
+    # hard-edged blades rising off its shoulders to a point, as the concept draws them.
     for side in (-1, 1):
-        sweep(bm, [(AXIS + side * 9.6, 78.2, 0.3, 1.1, 0.12), (AXIS + side * 10.8, 75.8, 0.27, 0.7, 0.08),
-                   (AXIS + side * 11.1, 74.6, 0.25, 0.0, 0.0)], sides=6, mat=DGREY)
+        sweep(bm, [(AXIS + side * 8.6, 79.6, 0.62, 1.2, 0.07), (AXIS + side * 9.9, 77.6, 0.6, 1.1, 0.07),
+                   (AXIS + side * 10.8, 75.9, 0.55, 0.7, 0.05), (AXIS + side * 11.1, 74.6, 0.5, 0.0, 0.0)],
+              sides=4, mat=DGREY, smooth=False)
+    # Small grey fangs on the stinger's lower rim (rows 89-91).
+    for dx in (-4.2, -1.5, 1.5, 4.2):
+        r0 = 89.2 if abs(dx) > 3 else 89.8
+        z0 = surf(BALL, r0, dx)
+        sweep(bm, [(AXIS + dx, r0, z0 - 0.03, 0.7, 0.06), (AXIS + dx * 0.95, r0 + 1.0, z0 - 0.1, 0.4, 0.04),
+                   (AXIS + dx * 0.9, r0 + 1.9, z0 - 0.18, 0.0, 0.0)], sides=4, mat=LGREY, smooth=False)
     build_pod(bm)
 
     # Light tan crest up the dome from the brim, with a pink light at its top, and another pink

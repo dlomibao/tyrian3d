@@ -1,0 +1,63 @@
+{
+ "name": "assembly-newsh2-245",
+ "sprite_size": [
+  72,
+  28
+ ],
+ "texels_per_px": 14,
+ "size": [
+  1008,
+  392
+ ],
+ "sprite_box": [
+  0,
+  0,
+  72,
+  28
+ ],
+ "concept_box": [
+  8,
+  2,
+  1019,
+  384
+ ],
+ "neutral": 0.85,
+ "fit_iou": 0.757,
+ "warp": {
+  "note": "piecewise-linear warp onto the sprite's parts (scratch warp_maps.py); rock/sand detail neutral",
+  "x_sprite": [
+   0,
+   3,
+   21,
+   25,
+   29.5,
+   36
+  ],
+  "x_concept": [
+   6,
+   12.2,
+   24,
+   27,
+   29.5,
+   36
+  ],
+  "y_sprite": [
+   0,
+   4,
+   5,
+   17,
+   20,
+   25,
+   28
+  ],
+  "y_concept": [
+   0,
+   6.2,
+   6.9,
+   19,
+   20.6,
+   24.8,
+   28
+  ]
+ }
+}

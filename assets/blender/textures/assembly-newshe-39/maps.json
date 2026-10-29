@@ -1,0 +1,26 @@
+{
+ "name": "assembly-newshe-39",
+ "sprite_size": [
+  72,
+  56
+ ],
+ "texels_per_px": 14,
+ "size": [
+  1008,
+  784
+ ],
+ "sprite_box": [
+  0,
+  0,
+  72,
+  56
+ ],
+ "concept_box": [
+  4,
+  8,
+  1011,
+  785
+ ],
+ "neutral": 0.85,
+ "fit_iou": 0.398
+}

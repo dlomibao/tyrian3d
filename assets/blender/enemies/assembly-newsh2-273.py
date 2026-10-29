@@ -34,26 +34,81 @@ KINDS = ["left", "mid", "mid", "right"]
 BAND = "top"
 
 # Heights in units (1 sprite px = 1/12).
-BED_Z = -0.03         # boulders sit half-buried in the bed at this height
+BED_Z = -0.03         # rocks sit on the bed at this height
 BAND_Z = 0.10         # top of the band
 PANEL_Z = 0.18        # band panels
-HOUSING_Z = 0.30      # housings between hatches
-HATCH_Z = 0.36        # hatch rim
-HUB_Z = 0.40          # hatch centre hub
-ROCK_K = 0.9          # boulder height / its smaller half-width
+HOUSING_Z = 0.25      # upper housing between hatches (above the band panels, below the hatches)
+WEDGE_Z = 0.23        # its lower, front step (the V between the hatches)
+HATCH_Z = 0.33        # hatch body (the light ring sits a little below it)
+RING_Z = 0.37         # the armour panel rings on the hatch
+HUB_Z = 0.43          # hatch centre hub
+ROCK_K = 0.75         # rock height / its smaller half-width
+ROCK_MAX = 0.31       # rocks stay below the hatches
+
+# Rocks as (x, y, rx, ry, material key) in tile pixels (pixel-edge coordinates), placed where the
+# sprite draws them (the concept agrees); "edge" rocks sit on every tile boundary, both ends included.
+ROCKS = {
+    "all": [(6.5, 23.0, 4.4, 3.4, "rock"), (12.5, 26.0, 3.5, 2.2, "rock_d"),
+            (17.5, 25.6, 4.0, 2.8, "rock"), (6.5, 27.8, 4.6, 2.5, "beige"),
+            (21.5, 27.0, 3.0, 1.8, "rock_d"), (2.0, 26.0, 2.6, 2.2, "rock_d")],
+    "edge": [(-2.0, 19.8, 5.2, 4.8, "rock_l")],
+    "left": [(5.0, 1.6, 5.4, 2.9, "beige"), (11.6, 1.8, 1.5, 2.2, "rock"),
+             (1.6, 10.0, 2.6, 5.2, "rock"), (4.5, 5.3, 3.2, 1.6, "rock_d")],
+    "right": [(15.6, 1.8, 3.6, 2.5, "rock"), (21.4, 2.0, 2.6, 2.4, "rock"),
+              (22.0, 8.0, 2.5, 4.2, "rock_l"), (22.4, 13.0, 1.6, 2.2, "rock_d")],
+}
 
 
-def rock(bm, x, y, z, rx, ry, rz, mat, seed):
-    """A faceted boulder: a low-poly (icosphere) ellipsoid with its vertices nudged in and out a little."""
+def pebble(bm, x, y, z, rx, ry, rz, mat, seed):
+    """A smooth, round stone (the beige ones): a low-poly ellipsoid, nudged a little."""
     before = set(bm.faces)
     res = bmesh.ops.create_icosphere(bm, subdivisions=2, radius=1.0)
     for k, v in enumerate(res["verts"]):
-        j = 1.0 + 0.08 * math.sin(seed * 12.9898 + k * 78.233)
-        # The buried half is flattened just under the bed so it doesn't poke out below it.
+        j = 1.0 + 0.06 * math.sin(seed * 12.9898 + k * 78.233)
         v.co = Vector((x + v.co.x * rx * j, y + v.co.y * ry * j, max(z + v.co.z * rz * j, z - 0.05)))
     for f in set(bm.faces) - before:
         f.material_index = mat
+        f.smooth = True
+
+
+def slab_rock(bm, x, y, z, rx, ry, h, mat, seed):
+    """A faceted flagstone boulder, as the concept draws the grey rocks: an irregular (but convex)
+    outline, steep chamfered sides and a broad flat top, hard-edged and matte."""
+    n = 7 + seed % 3
+    rnd = lambda k: math.sin(seed * 91.7 + k * 37.3) * 0.5 + 0.5  # noqa: E731
+    angs = sorted(2 * math.pi * (k + 0.55 * (rnd(k) - 0.5)) / n for k in range(n))
+    ring = lambda s, zz: [bm.verts.new((x + math.cos(a) * rx * s, y + math.sin(a) * ry * s, zz)) for a in angs]  # noqa: E731
+    rings = [ring(1.0, z - 0.05), ring(0.97, z + 0.45 * h), ring(0.62, z + h)]
+    faces = []
+    for r0, r1 in zip(rings, rings[1:]):
+        for i in range(n):
+            j = (i + 1) % n
+            faces.append(bm.faces.new((r0[i], r0[j], r1[j], r1[i])))
+    faces.append(bm.faces.new(rings[-1]))
+    faces.append(bm.faces.new(list(reversed(rings[0]))))
+    for f in faces:
+        f.material_index = mat
         f.smooth = False
+
+
+def ngon(cx, cy, r, n=8, rot=math.pi / 8, sx=1.0):
+    return [(cx + math.cos(rot + 2 * math.pi * k / n) * r * sx, cy + math.sin(rot + 2 * math.pi * k / n) * r)
+            for k in range(n)]
+
+
+def ccw(pts):
+    return pts if lib._area(pts) > 0 else list(reversed(pts))
+
+
+def ring_panels(bm, outer, inner, z0, z1, gap, bevel, mats):
+    """A ring of separate armour panels between two corresponding CCW octagons: one chamfered
+    trapezoid per side, with a seam `gap` wide between neighbours."""
+    n = len(outer)
+    for i in range(n):
+        j = (i + 1) % n
+        quad = [outer[i], outer[j], inner[j], inner[i]]
+        quad = lib.inset(ccw(quad), gap / 2)
+        bevel_plate(bm, quad, z0, z1, bevel, mats)
 
 
 def build_wall(sprite, name, tag, kinds, band):
@@ -62,43 +117,49 @@ def build_wall(sprite, name, tag, kinds, band):
     pal = lambda i, **kw: common.palette_material(sprite, i, tag, **kw)  # noqa: E731
     mats = [
         pal(4, metallic=0.0, roughness=0.95),  # 0 rock bed and crevices
-        pal(7, metallic=0.0, roughness=0.85),  # 1 rock (shadowed)
-        pal(8, metallic=0.0, roughness=0.8),  # 2 rock
-        pal(10, metallic=0.0, roughness=0.75),  # 3 rock (lit)
+        pal(7, metallic=0.0, roughness=0.9),  # 1 rock (shadowed)
+        pal(8, metallic=0.0, roughness=0.88),  # 2 rock
+        pal(10, metallic=0.0, roughness=0.85),  # 3 rock (lit)
         pal(170, metallic=0.0, roughness=0.8),  # 4 beige stone
-        pal(88, metallic=0.35, roughness=0.45),  # 5 purple plate
-        pal(90, metallic=0.35, roughness=0.4),  # 6 purple lit edge / panel / housing
-        pal(89, metallic=0.35, roughness=0.45),  # 7 purple mid
-        pal(86, metallic=0.35, roughness=0.5),  # 8 purple shadowed edge
-        pal(85, metallic=0.4, roughness=0.5),  # 9 dark vent
+        pal(88, metallic=0.35, roughness=0.5),  # 5 purple plate
+        pal(90, metallic=0.35, roughness=0.45),  # 6 purple lit edge / panel / housing
+        pal(89, metallic=0.35, roughness=0.5),  # 7 purple mid
+        pal(86, metallic=0.35, roughness=0.55),  # 8 purple shadowed edge
+        pal(85, metallic=0.3, roughness=0.6),  # 9 dark vent / light ring well
+        pal(9, metallic=0.5, roughness=0.45),  # 10 vent ribs (grey metal)
+        # 11 violet hatch lights: a soft glow in the housing's violet (91), kept dim so they stay
+        # below the lit boulder tops (the sprite draws no bright marks on the hatch).
+        common.palette_material(sprite, 91, tag + "_lamp", metallic=0.0, roughness=0.4, emission_strength=0.22),
+        pal(91, metallic=0.3, roughness=0.45),  # 12 light purple: housing tops, hatch rim's lit edge
     ]
-    BED, ROCK_D, ROCK, ROCK_L, BEIGE, PLATE, LIT, MID, SHADE, VENT = range(10)
+    BED, ROCK_D, ROCK, ROCK_L, BEIGE, PLATE, LIT, MID, SHADE, VENT, RIB, LAMP, LIGHT = range(13)
     key = {"rock_d": ROCK_D, "rock": ROCK, "rock_l": ROCK_L, "beige": BEIGE}
     W = 24 * n
     X = lambda c: (c - W / 2) / 12  # noqa: E731
     Y = lambda r: (14 - r) / 12  # noqa: E731
     bm = bmesh.new()
 
-    # Rock bed under the whole row.
+    # Rock bed under the whole row (the concept's dark plating between the rocks).
     box(bm, X(0), Y(28), X(W), Y(0), -0.2, BED_Z, mat=BED)
 
-    # Boulders: round, about ROCK_K times their smaller half-width tall.
-    rocks = lib.WALL_ROCKS[band]
     seed = 0
 
-    def place(x, y, rx, ry, rz, m):
+    def place(x, y, rx, ry, m):
         nonlocal seed
         seed += 1
-        h = max(rz, ROCK_K * min(rx, ry) * PX)
-        rock(bm, x, y, BED_Z, rx * PX, ry * PX, h, key[m], seed)
+        h = min(ROCK_MAX, ROCK_K * min(rx, ry) * PX)
+        if m == "beige":
+            pebble(bm, x, y, BED_Z, rx * PX, ry * PX, max(h, 0.1), key[m], seed)
+        else:
+            slab_rock(bm, x, y, BED_Z, rx * PX, ry * PX, h, key[m], seed)
 
     for i, kind in enumerate(kinds):
         o = 24 * i
-        for x, y, rx, ry, rz, m in rocks["all"] + rocks.get(kind, []):
-            place(X(o + x), Y(y), rx, ry, rz, m)
+        for x, y, rx, ry, m in ROCKS["all"] + ROCKS.get(kind, []):
+            place(X(o + x), Y(y), rx, ry, m)
     for i in range(n + 1):
-        for x, y, rx, ry, rz, m in rocks["edge"]:
-            place(X(24 * i + x), Y(y), rx, ry, rz, m)
+        for x, y, rx, ry, m in ROCKS["edge"]:
+            place(X(24 * i + x), Y(y), rx, ry, m)
 
     # The purple band along the top, with raised panels on it.
     def band_span(kind):
@@ -117,28 +178,58 @@ def build_wall(sprite, name, tag, kinds, band):
                                  (X(o + pb[0]), Y(pa[1])), (X(o + pa[0]), Y(pa[1]))],
                             BAND_Z - 0.02, PANEL_Z, 0.6 * PX, pm)
 
-    # Housings filling the V between neighbouring hatches (rows 4.6-11), each with a ribbed vent
-    # on its front face above the crevice.
+    # The housing between each pair of hatches, as the concept draws it: a wide armoured upper
+    # block along the band (cols b-5.5..b+6.5), stepping down to a narrower front wedge that fills
+    # the V between the hatches (the sprite's light 90/91 wedge, rows 4.6-10.8), with a ribbed
+    # grey vent recessed in its front where it drops into the dark crevice.
     for i in range(1, n):
         o = 24 * i
-        outline = [(o - 7.4, 4.6), (o + 7.4, 4.6), (o + 3, 9), (o + 3, 11), (o - 3, 11), (o - 3, 9)]
-        bevel_plate(bm, [(X(c), Y(r)) for c, r in outline], -0.07, HOUSING_Z, 0.9 * PX,
-                    (LIT, LIT, MID, SHADE))
-        vy0, vy1 = Y(11.6), Y(10.9)
-        box(bm, X(o - 2.2), vy0, X(o + 2.2), vy1, BED_Z, HOUSING_Z - 0.09, mat=VENT)
-        for k in range(3):
-            z = BED_Z + 0.04 + k * 0.065
-            box(bm, X(o - 2.0), Y(11.8), X(o + 2.0), vy1, z, z + 0.025, mat=MID)
+        upper = [(o - 4.6, 0.0), (o + 3.6, 0.0), (o + 3.6, 4.4), (o - 4.6, 4.4)]
+        bevel_plate(bm, ccw([(X(c), Y(r)) for c, r in upper]), -0.07, HOUSING_Z, 0.9 * PX,
+                    (LIT, LIGHT, MID, SHADE))
+        wedge = [(o - 7.4, 4.0), (o + 7.4, 4.0), (o + 3.1, 9.0), (o + 3.1, 10.9), (o - 3.1, 10.9), (o - 3.1, 9.0)]
+        bevel_plate(bm, ccw([(X(c), Y(r)) for c, r in wedge]), -0.07, WEDGE_Z, 0.9 * PX,
+                    (LIGHT, LIGHT, MID, SHADE))
+        # Vent: a small dark recess at the wedge's lower front only, with two grey ribs, so the
+        # light V of the wedge's top survives.
+        box(bm, X(o - 1.9), Y(10.95), X(o + 1.9), Y(9.0), WEDGE_Z - 0.10, WEDGE_Z + 0.005, mat=VENT)
+        for k in range(2):
+            r0 = 9.3 + k * 0.85
+            z = WEDGE_Z - 0.005 - k * 0.03
+            box(bm, X(o - 1.7), Y(r0 + 0.55), X(o + 1.7), Y(r0), z - 0.03, z + 0.012, mat=RIB)
 
-    # The octagon hatch on every tile: a chamfered armour block with a low centre hub.
+    # The octagon hatch on every tile, as in the concept: a chamfered armour body; on it an outer
+    # and an inner ring of separate armour panels (seams between them), a recessed ring well with
+    # eight glowing violet light slits, and a raised octagonal centre hub.
     for i in range(n):
         o = 24 * i
-        outline = [(X(o + c), Y(r)) for c, r in lib.OCTAGON]
-        bevel_plate(bm, outline, -0.05, HATCH_Z, 1.3 * PX, (PLATE, LIT, MID, SHADE))
-        if lib._area(outline) < 0:
-            outline = list(reversed(outline))
-        hub = lib.inset(outline, 3.6 * PX)
-        bevel_plate(bm, hub, HATCH_Z - 0.03, HUB_Z, 1.2 * PX, (PLATE, PLATE, PLATE, PLATE))
+        outline = ccw([(X(o + c), Y(r)) for c, r in lib.OCTAGON])
+        bevel_plate(bm, outline, -0.05, HATCH_Z, 1.5 * PX, (PLATE, LIGHT, MID, SHADE))
+        top = lib.inset(outline, 1.5 * PX)
+        mid_o = lib.inset(outline, 3.4 * PX)
+        mid_i = lib.inset(outline, 3.7 * PX)
+        well = lib.inset(outline, 5.4 * PX)
+        ring_panels(bm, lib.inset(top, 0.2 * PX), mid_o, HATCH_Z - 0.02, RING_Z, 0.25 * PX, 0.5 * PX,
+                    (MID, LIGHT, MID, SHADE))
+        ring_panels(bm, mid_i, well, HATCH_Z - 0.02, RING_Z - 0.01, 0.25 * PX, 0.45 * PX,
+                    (MID, LIGHT, MID, SHADE))
+        # The well inside the inner ring, a step below it.
+        bevel_plate(bm, well, HATCH_Z - 0.02, HATCH_Z + 0.005, 0.3 * PX, (MID, MID, MID, SHADE))
+        cx, cy = X(o + 12), Y(12)
+        for k in range(8):
+            a = 2 * math.pi * k / 8
+            ux, uy = math.cos(a), math.sin(a)
+            r = 3.2 * PX * (1.0 if abs(uy) > 0.5 else 1.12)
+            hw, hl = 0.32 * PX, 0.9 * PX
+            pts = [(cx + ux * (r - hw) - uy * hl, cy + uy * (r - hw) + ux * hl),
+                   (cx + ux * (r + hw) - uy * hl, cy + uy * (r + hw) + ux * hl),
+                   (cx + ux * (r + hw) + uy * hl, cy + uy * (r + hw) - ux * hl),
+                   (cx + ux * (r - hw) + uy * hl, cy + uy * (r - hw) - ux * hl)]
+            lib.prism(bm, pts, HATCH_Z - 0.01, HATCH_Z + 0.02, mat=LAMP)
+        hub = ngon(cx, cy, 2.3 * PX, sx=1.05)
+        bevel_plate(bm, hub, HATCH_Z - 0.02, HUB_Z, 0.8 * PX, (LIT, LIGHT, MID, SHADE))
+        cap = ngon(cx, cy, 1.25 * PX, sx=1.05)
+        bevel_plate(bm, cap, HUB_Z - 0.02, HUB_Z + 0.015, 0.3 * PX, (PLATE, LIT, MID, SHADE))
 
     obj = lib.to_object(name, bm, mats, coll)
     centres = [(24 * i + 12 - W / 2, 0) for i in range(n)]

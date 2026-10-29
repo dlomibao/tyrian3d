@@ -1,9 +1,12 @@
 """Grey fork ship (newsh2.shp frame 269): a 3D version of its sprite.
 
-Seen in episode 1 (levels 1.28, 1.30, 1.36) and 3.17. It flies nose right: a fat grey bullet of
-a fuselage with cream cowls and two red lights at its back, a shiny tail cylinder through a thin
-upright spar, and two thin rails reaching forward above and below it on swept brown struts. The
-sprite is mirror symmetric about row 13. One frame.
+Seen in episode 1 (levels 1.28, 1.30, 1.36) and 3.17. It flies nose right. Traced from its concept
+(features/concepts/newsh2-269.jpg): a riveted grey egg of a fuselage with a darker cone nose, a
+bronze armour band round its rear, a chamfered engine bay in its back holding two glowing red
+grilles and pipework, a copper plate on the centre seam, a big grey tail drum with red exhausts
+on a thin upright spar, and two fork arms (a brown housing and swept strut, a round hub, a
+straight grey rail with a chamfered tip) reaching forward above and below. The sprite is mirror
+symmetric about row 13. One frame. Textured from the concept by texture_bake.py.
 
 Run: blender --background --python assets/blender/enemies/newsh2-269.py [-- --preview out.png]
 """
@@ -28,12 +31,14 @@ ROOT = common.repo_root(__file__)
 AXIS = 13.0  # the sprite's mirror row
 
 
-# Fuselage profile along +X, back (column 3.7) to nose (column 23.6): (column, half width px). The
-# widths follow the sprite's outline (rows 7-19 from column 6 to 16, then the taper to the point).
-HULL = [(3.7, 0.0), (4.0, 3.0), (4.5, 4.6), (5.2, 5.6), (6.2, 6.3), (8.0, 6.45), (12.0, 6.45),
-        (16.3, 6.3), (17.5, 5.6), (18.6, 5.0), (19.6, 4.4), (20.6, 3.7), (21.6, 2.9), (22.5, 1.9),
-        (23.2, 1.0), (23.6, 0.0)]
-ROUND = 0.8  # half height / half width: the sprite shades the fuselage round, so it is nearly as tall
+# Fuselage profile along +X, back (column 3.9) to nose (column 23.75): (column, half width px). The
+# widths follow the sprite's outline ring (rows 6-20 at columns 7-13, then the taper to the blunt
+# point at column 23), the egg the concept draws; a shallow groove at column 20.85 parts the nose cone.
+HULL = [(3.9, 0.0), (4.0, 3.0), (4.3, 4.3), (5.0, 5.4), (6.0, 6.4), (7.0, 7.1), (8.5, 7.35),
+        (13.5, 7.35), (15.0, 7.0), (16.0, 6.4), (17.0, 5.75), (18.5, 5.1), (19.5, 4.6), (20.6, 3.9),
+        (20.85, 3.55), (21.1, 3.6), (21.6, 3.2), (22.5, 2.3), (23.2, 1.45), (23.6, 0.6), (23.75, 0.0)]
+ROUND = 0.78  # half height / half width: the sprite and the concept shade the fuselage round
+NOSE_C = 20.85  # the nose cone's seam
 
 
 def hull_w(c):
@@ -98,42 +103,58 @@ def append_mesh(bm, obj):
     bpy.data.meshes.remove(mesh)
 
 
+def octagon(c0, c1, r0, r1, ch):
+    """A rectangle from columns c0-c1 and rows r0-r1 (sprite px) with its corners cut by ch px,
+    as (x, y) units, counter-clockwise."""
+    pts = [(c0 + ch, r1), (c1 - ch, r1), (c1, r1 - ch), (c1, r0 + ch), (c1 - ch, r0), (c0 + ch, r0),
+           (c0, r0 + ch), (c0, r1 - ch)]
+    return [(X(c), Y(r)) for c, r in pts]
+
+
 def build(sprite):
     coll = common.reset_collection(NAME)
     pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
     mats = [
-        pal(9, metallic=0.55, roughness=0.35),  # 0 grey hull
-        pal(11, metallic=0.6, roughness=0.25),  # 1 light grey: lit seam, collar, tail drum
-        pal(4, metallic=0.4, roughness=0.5),  # 2 dark grey: spar, bay walls, machinery
-        pal(29, metallic=0.3, roughness=0.4),  # 3 cream cowls
-        pal(165, metallic=0.2, roughness=0.6),  # 4 dark brown cowl rims
-        pal(23, metallic=0.3, roughness=0.5),  # 5 brown struts
-        pal(7, metallic=0.6, roughness=0.3),  # 6 rails
+        pal(9, metallic=0.35, roughness=0.5),  # 0 grey hull plating
+        pal(11, metallic=0.3, roughness=0.55),  # 1 light grey: tail drum flanges, rail collar
+        pal(4, metallic=0.4, roughness=0.55),  # 2 dark grey: spar, bay walls, machinery
+        pal(26, metallic=0.45, roughness=0.45),  # 3 bronze armour band
+        pal(167, metallic=0.4, roughness=0.5),  # 4 dark brown rim on the band's front edge
+        pal(24, metallic=0.4, roughness=0.5),  # 5 brown arm struts and their housings
+        pal(7, metallic=0.25, roughness=0.6),  # 6 rails, hubs and the nose cone
         pal(119, emission_strength=3.5),  # 7 red lamps
-        pal(31, emission_strength=2.0),  # 8 pale plate on the back
-        pal(3, metallic=0.2, roughness=0.7),  # 9 near-black bay floor and seams
+        pal(25, metallic=0.6, roughness=0.35),  # 8 copper plate on the centre seam
+        pal(3, metallic=0.2, roughness=0.7),  # 9 near-black bay floor
         pal(121, emission_strength=4.0),  # 10 orange lamp cores
-        pal(5, metallic=0.5, roughness=0.4),  # 11 grey divider between the lamps
+        pal(5, metallic=0.5, roughness=0.45),  # 11 grey lamp frame and pipes
+        pal(10, metallic=0.4, roughness=0.45),  # 12 tail drum body
     ]
-    HULLM, LIGHT, DARK, CREAM, BROWN, STRUT, RAIL, RED, PALE, BLACK, ORANGE, MID = range(12)
+    HULLM, LIGHT, DARK, BRONZE, RIM, STRUT, RAIL, RED, COPPER, BLACK, ORANGE, MID, DRUM = range(13)
     yc = Y(AXIS)
 
-    # ---- the fuselage, with the engine bay cut into its back ----
+    # ---- the fuselage (an egg with a cone nose), with the engine bay cut into its back ----
     hbm = bmesh.new()
     lib.sweep(hbm, [(X(c), yc, 0.0, w * PX, ROUND * w * PX) for c, w in HULL], sides=20, mat=HULLM)
+    hbm.faces.ensure_lookup_table()
+    for f in hbm.faces:
+        if f.calc_center_median().x > X(NOSE_C):
+            f.material_index = RAIL
     body = lib.to_object(NAME + "-hull", hbm, mats, coll)
 
-    # Engine bay (rows 11-14, columns 6-11): a box cut about 2.8 px into the back, walls dark.
-    bx0, bx1, by0, by1, floor_z = X(5.5), X(11.5), Y(14.5), Y(10.5), 0.17
+    # Engine bay (concept: columns 5.4-12.2, rows 10.5-15.5, corners chamfered): cut about 3 px
+    # into the back, walls dark, floor near-black.
+    floor_z = 0.2
+    outline = octagon(5.4, 12.2, 10.6, 15.4, 0.8)
     cbm = bmesh.new()
-    outline = [(bx0, by0), (bx1, by0), (bx1, by1), (bx0, by1)]
     top = [cbm.verts.new((x, y, 1.0)) for x, y in outline]
     bot = [cbm.verts.new((x, y, floor_z)) for x, y in outline]
-    for k in range(4):
-        j = (k + 1) % 4
+    n = len(outline)
+    for k in range(n):
+        j = (k + 1) % n
         cbm.faces.new((bot[k], bot[j], top[j], top[k])).material_index = DARK
     cbm.faces.new(list(reversed(bot))).material_index = BLACK
     cbm.faces.new(top).material_index = BLACK
+    bmesh.ops.recalc_face_normals(cbm, faces=cbm.faces)
     cutter = common.mesh_object(NAME + "-cutter", cbm, mats, coll)
     mod = body.modifiers.new("bay", "BOOLEAN")
     mod.operation = "DIFFERENCE"
@@ -148,51 +169,66 @@ def build(sprite):
     bm = bmesh.new()
     append_mesh(bm, body)
 
-    # Two red lamps in the bay (columns 6 and 8, rows 12-14), upright bars with an orange core on
-    # row 13, a grey divider between them (column 7) and low machinery behind (columns 9-11).
-    for c in (6.0, 8.0):
-        lib.box(bm, X(c) - 0.45 * PX, Y(14.4), X(c) + 0.45 * PX, Y(11.6), floor_z, 0.355, mat=RED)
-        lib.box(bm, X(c) - 0.3 * PX, Y(13.4), X(c) + 0.3 * PX, Y(12.6), 0.355, 0.37, mat=ORANGE)
-    lib.box(bm, X(7.0) - 0.4 * PX, Y(14.3), X(7.0) + 0.4 * PX, Y(11.7), floor_z, 0.30, mat=MID)
-    lib.box(bm, X(8.8), Y(14.3), X(11.3), Y(11.8), floor_z, 0.24, mat=DARK)
-    lib.sweep(bm, [(X(9.0), Y(12.9), 0.27, 0.45 * PX, 0.45 * PX), (X(11.3), Y(12.9), 0.27, 0.45 * PX, 0.45 * PX)],
-              sides=8, mat=MID)
+    # In the bay: a grey frame holding two glowing red grilles (concept columns 6-7.2 and 7.8-9,
+    # rows 11.6-14.4; the sprite's lamps at columns 6 and 8), each with an orange core, and behind
+    # them (columns 9.4-11.9) a machinery block with two pipes running along the ship.
+    lib.box(bm, X(5.8), Y(14.75), X(9.3), Y(11.25), floor_z, floor_z + 0.9 * PX, mat=MID)
+    for c in (6.45, 8.35):
+        lib.box(bm, X(c) - 0.6 * PX, Y(14.4), X(c) + 0.6 * PX, Y(11.6), floor_z, floor_z + 1.9 * PX, mat=RED)
+        lib.box(bm, X(c) - 0.35 * PX, Y(13.6), X(c) + 0.35 * PX, Y(12.4), floor_z + 1.9 * PX,
+                floor_z + 2.05 * PX, mat=ORANGE)
+    lib.box(bm, X(9.6), Y(14.6), X(11.8), Y(11.4), floor_z, floor_z + 0.8 * PX, mat=DARK)
+    for r in (12.2, 13.8):
+        lib.sweep(bm, [(X(9.5), Y(r), floor_z + 1.2 * PX, 0.45 * PX, 0.45 * PX),
+                       (X(11.9), Y(r), floor_z + 1.2 * PX, 0.45 * PX, 0.45 * PX)], sides=8, mat=MID)
 
-    # A lit panel edge across the back at column 12 (rows 11-15), the pale plate on row 13
-    # (columns 12-14) and the dark seam on row 14 (columns 13-16).
-    shell(bm, 11.75, 12.3, -2.6, 2.6, 0.3, lambda c, d: LIGHT, nc=1, nd=6, sink=0.3)
-    shell(bm, 12.4, 14.6, -0.5, 0.5, 0.35, lambda c, d: PALE, nc=2, nd=1, sink=0.3)
-    shell(bm, 13.0, 16.5, -1.5, -0.6, 0.1, lambda c, d: BLACK, nc=2, nd=1, sink=0.3)
+    # The copper plate on the hull's centre seam (row 13, columns 12.3-14.8), just in front of the bay.
+    shell(bm, 12.3, 14.8, -0.5, 0.5, 0.35, lambda c, d: COPPER, nc=2, nd=1, sink=0.3)
 
     # ---- the half above the axis (mirrored below) ----
     first = len(bm.verts)
-    # Armour cowl wrapped round the fuselage's rear shoulder (rows 7-10, columns 5-9) down to its
-    # flank: a cream plate (rows 9-10, columns 5-7) framed by a dark brown rim along its front
-    # (columns 8-9) and outer edge (rows 7-8).
-    def cowl_mat(c, d):
-        return CREAM if c < 7.5 and d < 4.6 else BROWN
-    shell(bm, 4.8, 9.6, 0.4, 0.999, 0.5, cowl_mat, nc=6, nd=6, sink=0.3, rel=True)
+    # Bronze armour band wrapped round the fuselage's rear (concept columns 4.5-9.6, from the bay's
+    # edge down the flank), with a dark brown rim along its front edge (sprite column 8).
+    def band_mat(c, d):
+        return RIM if c > 8.6 else BRONZE
+    shell(bm, 4.3, 9.6, 0.36, 0.999, 0.5, band_mat, nc=7, nd=6, sink=0.3, rel=True)
 
-    # Swept brown strut from the rail's back end down to the spar's top (rows 3-6): a hard bar.
-    lib.sweep(bm, [(X(6.2), Y(3.0), 0.0, 0.0, 0.0), (X(5.6), Y(3.3), 0.0, 1.2 * PX, 1.0 * PX),
-                   (X(3.6), Y(4.9), 0.0, 1.25 * PX, 1.0 * PX), (X(1.0), Y(5.8), 0.0, 1.25 * PX, 1.0 * PX),
-                   (X(-0.4), Y(6.0), 0.0, 0.0, 0.0)], sides=6, mat=STRUT, smooth=False)
-    # Rail reaching forward (row 3, columns 5-15) with a chamfered tip and a bright collar at
-    # column 8.
-    lib.sweep(bm, [(X(5.2), Y(3.0), 0.0, 1.0 * PX, 0.9 * PX), (X(14.6), Y(3.0), 0.0, 1.0 * PX, 0.9 * PX),
-                   (X(15.4), Y(3.0), 0.0, 0.4 * PX, 0.4 * PX)], sides=8, mat=RAIL, smooth=False)
-    lib.sweep(bm, [(X(7.6), Y(3.0), 0.0, 1.25 * PX, 1.15 * PX), (X(8.5), Y(3.0), 0.0, 1.25 * PX, 1.15 * PX)],
+    # The fork arm. A brown housing on the spar's top (sprite rows 5-6, columns 0-3), a hard brown
+    # strut swept up from it to the hub (columns 4-6, rows 3-4), a round hub with a bolt cap at
+    # column 6.6, and the straight grey rail along row 3 to column 15.6 with a chamfered tip.
+    lib.bevel_prism(bm, [(X(-0.4), Y(6.6)), (X(3.2), Y(6.6)), (X(3.2), Y(4.5)), (X(-0.4), Y(4.5))],
+                    -1.2 * PX, 1.2 * PX, 0.3 * PX, mat=STRUT)
+    lib.sweep(bm, [(X(2.4), Y(5.4), 0.0, 1.15 * PX, 0.95 * PX), (X(3.7), Y(4.6), 0.0, 1.15 * PX, 0.95 * PX),
+                   (X(4.7), Y(3.7), 0.0, 1.15 * PX, 0.95 * PX), (X(6.2), Y(3.0), 0.0, 1.15 * PX, 0.95 * PX)],
+              sides=6, mat=STRUT, smooth=False)
+    hub = [(X(6.6) + 1.4 * PX * math.cos(a), Y(3.0) + 1.4 * PX * math.sin(a))
+           for a in (2 * math.pi * k / 10 for k in range(10))]
+    lib.bevel_prism(bm, hub, -1.1 * PX, 1.3 * PX, 0.3 * PX, mat=RAIL)
+    lib.prism(bm, [(X(6.6) + 0.55 * PX * math.cos(a), Y(3.0) + 0.55 * PX * math.sin(a))
+                   for a in (2 * math.pi * k / 6 for k in range(6))], 1.2 * PX, 1.6 * PX, mat=DARK)
+    lib.sweep(bm, [(X(7.4), Y(3.0), 0.0, 1.2 * PX, 0.95 * PX), (X(12.6), Y(3.0), 0.0, 1.2 * PX, 0.95 * PX),
+                   (X(12.8), Y(3.0), 0.0, 0.95 * PX, 0.75 * PX), (X(13.1), Y(3.0), 0.0, 0.95 * PX, 0.75 * PX),
+                   (X(13.3), Y(3.0), 0.0, 1.25 * PX, 1.0 * PX), (X(14.9), Y(3.0), 0.0, 1.25 * PX, 1.0 * PX),
+                   (X(15.6), Y(3.0), 0.0, 0.45 * PX, 0.4 * PX)], sides=8, mat=RAIL, smooth=False)
+    lib.sweep(bm, [(X(7.7), Y(3.0), 0.0, 1.35 * PX, 1.1 * PX), (X(8.6), Y(3.0), 0.0, 1.35 * PX, 1.1 * PX)],
               sides=8, mat=LIGHT, smooth=False)
     lib.mirror(bm, first, axis="y", about=yc)
 
-    # Upright spar at the back (column 2, rows 6-20) and the shiny tail drum through it (columns
-    # 0-4, rows 10-14): a cylinder with chamfered ends, as tall as it is wide.
-    lib.sweep(bm, [(X(2.0), Y(5.6), 0.0, 0.9 * PX, 0.9 * PX), (X(2.0), Y(20.4), 0.0, 0.9 * PX, 0.9 * PX)],
-              sides=8, mat=DARK, smooth=False)
-    r, dy = 2.6 * PX, Y(12.6)
-    lib.sweep(bm, [(X(-0.45), dy, 0.0, 0.0, 0.0), (X(-0.45), dy, 0.0, r - 0.6 * PX, r - 0.6 * PX),
-                   (X(-0.05), dy, 0.0, r, r), (X(4.2), dy, 0.0, r, r),
-                   (X(4.6), dy, 0.0, r - 0.5 * PX, r - 0.5 * PX)], sides=16, mat=LIGHT)
+    # Upright spar at the back (columns 1-3, rows 5-21): a hard dark bar through the tail drum.
+    lib.bevel_prism(bm, [(X(1.1), Y(20.6)), (X(2.9), Y(20.6)), (X(2.9), Y(5.4)), (X(1.1), Y(5.4))],
+                    -1.0 * PX, 1.0 * PX, 0.25 * PX, mat=DARK)
+
+    # The tail drum (concept: a big grey cylinder, columns 0-4.5, rows 9.8-16.2), its axis along the
+    # ship, as tall as it is wide, with a flange at each end and three red exhaust lamps on its back.
+    r, dy = 3.05 * PX, yc
+    lib.sweep(bm, [(X(-0.2), dy, 0.0, r - 0.5 * PX, r - 0.5 * PX), (X(0.0), dy, 0.0, r + 0.15 * PX, r + 0.15 * PX),
+                   (X(0.7), dy, 0.0, r + 0.15 * PX, r + 0.15 * PX), (X(0.8), dy, 0.0, r, r),
+                   (X(3.6), dy, 0.0, r, r), (X(3.7), dy, 0.0, r + 0.15 * PX, r + 0.15 * PX),
+                   (X(4.4), dy, 0.0, r + 0.15 * PX, r + 0.15 * PX), (X(4.6), dy, 0.0, r - 0.6 * PX, r - 0.6 * PX)],
+              sides=16, mat=DRUM)
+    bm.faces.ensure_lookup_table()
+    for row in (11.2, 13.0, 14.8):
+        lib.box(bm, X(-0.45), Y(row + 0.55), X(-0.15), Y(row - 0.55), -0.55 * PX, 0.55 * PX, mat=RED)
 
     return lib.to_object(NAME, bm, mats, coll)
 

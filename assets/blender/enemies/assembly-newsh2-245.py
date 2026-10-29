@@ -52,19 +52,33 @@ def brect(bm, c0, r0, c1, r1, z0, z1, bevel, mat):
                     z0, z1, bevel * PX, mat=mat)
 
 
+def lib_inset(pts, d):
+    """lib.inset for an outline in pixel coordinates."""
+    return lib.inset(pts, d)
+
+
+def sector(cx, cy, r0, r1, a0, a1, n=4, sq=1.0):
+    """Outline of an annulus sector (radii in px, angles in degrees, y squashed by `sq`)."""
+    outer = [(cx + r1 * math.cos(math.radians(a0 + (a1 - a0) * k / n)),
+              cy + sq * r1 * math.sin(math.radians(a0 + (a1 - a0) * k / n))) for k in range(n + 1)]
+    inner = [(cx + r0 * math.cos(math.radians(a1 - (a1 - a0) * k / n)),
+              cy + sq * r0 * math.sin(math.radians(a1 - (a1 - a0) * k / n))) for k in range(n + 1)]
+    return outer + inner
+
+
 def build(sprite, grid):
     coll = common.reset_collection(NAME)
     tag = "nsh2a245"
     pal = lambda i, **kw: common.palette_material(sprite, i, tag, **kw)  # noqa: E731
     mats = [
-        pal(88, metallic=0.25, roughness=0.55),  # 0 purple plating
-        pal(89, metallic=0.25, roughness=0.5),  # 1 lighter purple panels, collar
-        pal(90, metallic=0.3, roughness=0.45),  # 2 pale purple beams
-        pal(85, metallic=0.2, roughness=0.7),  # 3 dark purple seams, grille recess
-        pal(93, metallic=0.35, roughness=0.4),  # 4 pale grille bars
-        pal(52, metallic=0.6, roughness=0.12),  # 5 dark blue glass eye
-        pal(102, metallic=0.6, roughness=0.35),  # 6 blue-grey eye rim
-        pal(55, metallic=0.5, roughness=0.2),  # 7 blue capsules
+        pal(88, metallic=0.25, roughness=0.55),  # 0 purple plating, octagon plates
+        pal(89, metallic=0.25, roughness=0.5),  # 1 lighter purple panels, collar body
+        pal(90, metallic=0.3, roughness=0.45),  # 2 pale purple beam panels, collar ring
+        pal(85, metallic=0.2, roughness=0.7),  # 3 dark purple seams, recess floors
+        pal(93, metallic=0.5, roughness=0.35),  # 4 pale grille bars
+        pal(53, metallic=0.1, roughness=0.05),  # 5 dark blue glass eye
+        pal(103, metallic=0.45, roughness=0.35),  # 6 blue-grey steel: eye ring, clamps, capsule caps
+        pal(57, metallic=0.0, roughness=0.15, emission_strength=1.6),  # 7 glowing blue capsules
         pal(4, metallic=0.05, roughness=0.9),  # 8 dark rock
         pal(7, metallic=0.05, roughness=0.85),  # 9 mid rock
         pal(9, metallic=0.05, roughness=0.8),  # 10 light rock
@@ -78,57 +92,104 @@ def build(sprite, grid):
      SAND0, SAND1, SAND2, PALE) = range(16)
     bm = bmesh.new()
 
-    # Base block under the plating (purple columns 13-60, the full height).
-    rect(bm, 13, -0.5, 61, 28.5, -0.16, 0.0, SEAM)
-    rect(bm, 13.3, -0.5, 60.7, 28.5, -0.15, 0.01, PLATE)
+    def poly(pts, z0, z1, bevel, mat, bevel_h=None, flip=False):
+        """A chamfered plate over an outline in pixel coordinates (flip mirrors it about col 36)."""
+        pts = [((W - c) if flip else c, r) for c, r in pts]
+        lib.bevel_prism(bm, [(XE(c), YE(r)) for c, r in pts], z0, z1, bevel * PX, mat=mat,
+                        bevel_h=None if bevel_h is None else bevel_h * PX)
 
-    # Vertical beams between the pads and the middle (columns 21-26 and 45-50).
-    for c in (21, 45):
-        brect(bm, c, -0.5, c + 6, 28.5, -0.02, 0.13, 0.7, BEAM)
-    # Panels in the bands along the top and bottom edges (they repeat every 24 px).
-    for c0, c1, mat in ((13, 19, PANEL), (29, 36, BEAM), (37, 43, PANEL), (53, 60, BEAM)):
-        brect(bm, c0 + 0.2, -0.5, c1 - 0.2, 3.8, -0.02, 0.09, 0.6, mat)
-        brect(bm, c0 + 0.2, 23.2 if c0 not in (13, 53) else 20.2, c1 - 0.2, 28.5, -0.02, 0.09, 0.6, mat)
+    # Base block under the plating (purple columns 12-60, the full height); dark, so the gaps
+    # between the plates on it read as seams.
+    rect(bm, 12, -0.5, 60, 28.5, -0.16, 0.0, SEAM)
+    rect(bm, 12.6, -0.5, 59.4, 28.5, -0.15, 0.005, PLATE)
 
-    # Octagonal pads on both sides (columns 3-20 and 51-68, rows 4-19), raised and chamfered.
-    octagon = [(8, 4), (16, 4), (21, 9), (21, 15), (16, 20), (8, 20), (3, 15), (3, 9)]
-    for flip in (False, True):
-        pts = [((72 - c) if flip else c, r) for c, r in octagon]
-        lib.bevel_prism(bm, [(XE(c), YE(r)) for c, r in pts], -0.1, 0.32, 1.3 * PX, mat=PLATE,
-                        bevel_h=1.0 * PX)
+    # Traced from the concept (assets/blender/textures/<name>/concept.png, warped onto the sprite's
+    # parts): every plate below is a chamfered armour panel; the left half is mirrored about col 36.
+    for f in (False, True):
+        # Octagonal armour plate (cols 3-21, rows 4-20): a thick backing plate and a raised face
+        # inset about 1.3 px, both with crisp chamfers.
+        octagon = [(8, 4), (16, 4), (21, 9), (21, 15), (16, 20), (8, 20), (3, 15), (3, 9)]
+        poly(octagon, -0.1, 0.22, 0.5, PLATE, flip=f)
+        poly(lib_inset(octagon, 1.3), 0.15, 0.36, 1.0, PLATE, bevel_h=0.8, flip=f)
+        # Top band: a panel over cols 12.5-19.6, then the shoulder (cols 19.8-29) with a dark vent
+        # slot in it (the concept's grey vent under the arc).
+        poly([(12.8, -0.5), (19.4, -0.5), (19.4, 3.8), (13.4, 3.8), (12.8, 3.2)], -0.02, 0.09, 0.5, PANEL, flip=f)
+        poly([(19.8, -0.5), (29.2, -0.5), (29.2, 0.9), (19.8, 0.9)], -0.02, 0.15, 0.35, PLATE, flip=f)
+        poly([(19.8, 3.0), (29.2, 3.0), (29.2, 4.2), (19.8, 4.2)], -0.02, 0.15, 0.35, PLATE, flip=f)
+        poly([(19.8, 0.9), (21.2, 0.9), (21.2, 3.0), (19.8, 3.0)], -0.02, 0.15, 0.2, PLATE, flip=f)
+        poly([(21.2, 0.9), (29.2, 0.9), (29.2, 3.0), (21.2, 3.0)], -0.02, 0.04, 0.1, SEAM, flip=f)
+        for r in (1.45, 2.2):
+            poly([(21.4, r), (28.8, r), (28.8, r + 0.35), (21.4, r + 0.35)], 0.0, 0.1, 0.08, RIM, flip=f)
+        # Beam column between the plate and the eye (cols 21-28.6): an upper panel (pale) and a lower
+        # one, split by a seam at row 11.9.
+        poly([(21.2, 4.6), (27.8, 4.6), (28.8, 5.6), (28.8, 11.6), (21.2, 11.6)], -0.02, 0.16, 0.6, BEAM, flip=f)
+        poly([(21.2, 12.2), (28.8, 12.2), (28.8, 21.4), (23.0, 21.4), (21.2, 19.6)], -0.02, 0.16, 0.6, PANEL, flip=f)
+        # Bottom band: a block under the plate (cols 12.2-19.6, chamfered top-right) and one under
+        # the beam (cols 20.4-28.6, chamfered top corners).
+        poly([(12.4, 20.5), (18.2, 20.5), (19.6, 21.9), (19.6, 28.5), (12.6, 28.5), (12.4, 28.0)], -0.02, 0.12, 0.6, PANEL, flip=f)
+        poly([(20.4, 23.6), (21.6, 22.2), (27.4, 22.2), (28.8, 23.6), (28.8, 28.5), (20.4, 28.5)], -0.02, 0.12, 0.6, PLATE, flip=f)
 
-    # Round collar round the eye (centre column 36, row 10.5) and the eye's blue-grey rim.
-    ex, ey = XE(36.5), YE(11.0)
-    def ellipse(rx, ry, n=20):
-        return [(ex + rx * PX * math.cos(2 * math.pi * k / n), ey + ry * PX * math.sin(2 * math.pi * k / n))
-                for k in range(n)]
-    lib.bevel_prism(bm, ellipse(9.8, 9.6, 24), -0.02, 0.24, 1.6 * PX, mat=PANEL, bevel_h=1.3 * PX)
-    lib.bevel_prism(bm, ellipse(7.6, 6.6, 24), 0.24, 0.29, 0.6 * PX, mat=RIM)
-    # The dark glass eye (columns 30-42, rows 6-16), a big glossy ball standing in the collar.
-    lib.dome(bm, (ex, ey, 0.26), (6.9 * PX, 5.9 * PX, 0.48), mat=GLASS, segments=24, rings=8)
+    # Top centre panel above the collar (cols 29-43) and bottom centre one under the chin.
+    poly([(29.4, -0.5), (42.6, -0.5), (42.6, 3.6), (29.4, 3.6)], -0.02, 0.1, 0.5, BEAM)
+    poly([(29.2, 25.8), (42.8, 25.8), (42.8, 28.5), (29.2, 28.5)], -0.02, 0.1, 0.5, BEAM)
 
-    # Two blue capsules below the eye, slanting outwards.
-    for (c0, r0), (c1, r1) in (((25.2, 16.4), (31.0, 22.4)), ((47.2, 17.0), (41.6, 22.6))):
+    # The round body the eye sits in (centre col 36, row 11.5), and a ring of eight segmented
+    # armour plates round the eye on it.
+    cx, cy = 36.0, 11.5
+    body = [(cx + 9.3 * math.cos(2 * math.pi * k / 28), cy + 9.1 * math.sin(2 * math.pi * k / 28)) for k in range(28)]
+    poly(body, -0.02, 0.2, 0.9, PANEL, bevel_h=0.8)
+    for k in range(8):
+        a0 = 22.5 + 45 * k + 2.2
+        a1 = 22.5 + 45 * (k + 1) - 2.2
+        poly(sector(cx, cy, 6.6, 8.7, a0, a1, n=3), 0.1, 0.31, 0.45, BEAM, bevel_h=0.4)
+    # Chin plate holding the grille (cols 29.4-42.6, rows 17.6-26).
+    chin = [(31.2, 17.6), (40.8, 17.6), (42.6, 19.4), (42.6, 25.0), (41.6, 26.0), (30.4, 26.0), (29.4, 25.0), (29.4, 19.4)]
+    poly(chin, -0.02, 0.24, 0.6, PANEL, bevel_h=0.5)
+    # Grille: a pale frame round a dark recess (cols 32.8-39.2, rows 20.6-24.6) with thin bars.
+    gx0, gx1, gy0, gy1 = 32.6, 39.4, 20.5, 24.7
+    for pts in (
+        [(31.8, 19.6), (40.2, 19.6), (40.2, gy0), (31.8, gy0)],
+        [(31.8, gy1), (40.2, gy1), (40.2, 25.5), (31.8, 25.5)],
+        [(31.8, gy0), (gx0, gy0), (gx0, gy1), (31.8, gy1)],
+        [(gx1, gy0), (40.2, gy0), (40.2, gy1), (gx1, gy1)],
+    ):
+        poly(pts, 0.2, 0.3, 0.2, PANEL)
+    poly([(gx0, gy0), (gx1, gy0), (gx1, gy1), (gx0, gy1)], 0.2, 0.21, 0.0, SEAM)
+    nb = 9
+    for i in range(nb):
+        c = gx0 + (gx1 - gx0) * (i + 0.5) / nb
+        rect(bm, c - 0.17, gy0, c + 0.17, gy1, 0.2, 0.27, BAR)
+
+    # The steel ring the eye is set in, with a clamp on top, and the dark glass ball.
+    for a in (0, 180):
+        poly(sector(cx, cy, 5.5, 6.7, a, a + 180, n=12), 0.2, 0.36, 0.25, RIM, bevel_h=0.25)
+    poly([(34.6, 4.0), (37.4, 4.0), (37.4, 5.3), (34.6, 5.3)], 0.2, 0.4, 0.3, RIM)
+    lib.dome(bm, (XE(cx), YE(cy), 0.27), (5.8 * PX, 5.7 * PX, 0.44), mat=GLASS, segments=24, rings=7)
+
+    # Two capsule lights slanting outwards below the eye: a dark socket, a steel cap at the outer
+    # top end and a glowing blue pill.
+    for f in (False, True):
+        (c0, r0), (c1, r1) = (26.0, 16.4), (30.8, 21.6)
+        if f:
+            c0, c1 = W - c0, W - c1
         x0, y0, x1, y1 = XE(c0), YE(r0), XE(c1), YE(r1)
-        n = 6
-        path = []
-        for k in range(n + 1):
-            t = k / n
-            s = math.sin(math.pi * t) ** 0.35
-            path.append((x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, 0.13, 1.65 * PX * s, 1.6 * PX * s))
-        lib.sweep(bm, path, sides=10, mat=CAPSULE)
-        # A dark socket under each capsule.
-        lib.sweep(bm, [(x0, y0, 0.02, 2.4 * PX, 0.05), (x1, y1, 0.02, 2.4 * PX, 0.05)], sides=8, mat=SEAM)
-
-    # Grille under the eye: a dark recess with four pale bars (columns 33-39, rows 20-23) and a
-    # pale bar across its top (row 18).
-    # The grille sits in a raised frame, so the recess is cut in below the frame's top.
-    for c0, r0, c1, r1 in ((31.6, 18.9, 32.4, 24.9), (40.6, 18.9, 41.4, 24.9), (31.6, 24.1, 41.4, 24.9)):
-        brect(bm, c0, r0, c1, r1, -0.02, 0.16, 0.25, PANEL)
-    rect(bm, 32.3, 19.3, 40.7, 24.2, -0.02, 0.03, SEAM)
-    for c in (33, 35, 37, 39):
-        rect(bm, c + 0.1, 19.6, c + 0.9, 23.8, 0.0, 0.11, BAR)
-    brect(bm, 31.6, 17.4, 41.4, 19.1, -0.02, 0.19, 0.4, PALE)
+        d = math.hypot(x1 - x0, y1 - y0)
+        ux, uy = (x1 - x0) / d, (y1 - y0) / d
+        ext = 0.7 * PX
+        lib.sweep(bm, [(x0 - ux * ext, y0 - uy * ext, 0.02, 2.1 * PX, 0.05),
+                       (x1 + ux * ext, y1 + uy * ext, 0.02, 2.1 * PX, 0.05)], sides=8, mat=SEAM, smooth=False)
+        def pill(t0, t1, mat, w):
+            n = 5
+            path = []
+            for k in range(n + 1):
+                t = t0 + (t1 - t0) * k / n
+                end = min(t, 1 - t)
+                s = min(1.0, (end / 0.18)) ** 0.5 if end < 0.18 else 1.0
+                path.append((x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, 0.17, w * PX * s, w * PX * s))
+            lib.sweep(bm, path, sides=10, mat=mat)
+        pill(0.0, 1.0, CAPSULE, 1.35)
+        lib.sweep(bm, [(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, 0.17, 1.55 * PX * s, 1.55 * PX * s)
+                       for t, s in ((-0.02, 0.6), (0.06, 1.0), (0.3, 1.0), (0.32, 0.85))], sides=10, mat=RIM)
 
     # ---- rocks at both ends, painted from the sprite ----
     rng = random.Random(245)

@@ -1,0 +1,35 @@
+{
+ "name": "assembly-newsh4-123",
+ "sprite_size": [
+  72,
+  28
+ ],
+ "texels_per_px": 14,
+ "size": [
+  1008,
+  392
+ ],
+ "sprite_box": [
+  3,
+  0,
+  59,
+  26
+ ],
+ "concept_box": [
+  17,
+  0,
+  998,
+  440
+ ],
+ "neutral": 0.85,
+ "fit_iou": 0.491,
+ "fit": {
+  "method": "landmarks (wing-tip caps, chest light, dome bottom), isotropic",
+  "axis_col": 30.5,
+  "jpg_px_per_px": 18.24,
+  "row_at_jy": [
+   11.6,
+   205.0
+  ]
+ }
+}

@@ -1,0 +1,26 @@
+{
+ "name": "assembly-newsh2-115",
+ "sprite_size": [
+  48,
+  56
+ ],
+ "texels_per_px": 16,
+ "size": [
+  768,
+  896
+ ],
+ "sprite_box": [
+  0,
+  0,
+  48,
+  56
+ ],
+ "concept_box": [
+  37,
+  33,
+  874,
+  1036
+ ],
+ "neutral": 0.85,
+ "fit_iou": 0.241
+}

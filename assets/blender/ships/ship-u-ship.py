@@ -1,16 +1,15 @@
 """U-Ship (player ship, tyrian.shp#8 frame 271 and its banking frames 267-275): a 3D version of
-its sprite.
+its sprite, shaped after its concept (assets/blender/features/concepts/ship-u-ship.jpg).
 
-A U-shaped band standing on edge, open end forward, with a bell-shaped brown pod hung in the
-middle on two short struts. Seen from above (the level frame) the band is a thin line; the
-banking frames show its grey and brown sides about 3 px deep, so it is a tall flat ribbon with
-chamfered edges (a hard part, as in the concept): grey arms (columns 5 and 17, rows 7-19) with a
-flat front end and dark raised joint bands at rows 14 and 19, turning brown at row 20 where it
-curves round behind the pod in a smooth unbroken half ellipse down to row 24. Short boxy struts at row 16 join the
-arms, at a round hub, to the pod. The pod is a polished brass bell, round in section, round at the
-front (row 12) and flat at the back (row 20), with a framed dark glass window on the nose (rows
-13-15), a raised pale trim strip down its left (column 10, rows 16-19) and a groove cut down its
-right (column 12). Built around the middle of sprite column 11.
+Two steel gun arms (columns 4-6 and 16-18) stand either side of a brass pod, joined behind it by a
+wide brass U-band. Each arm is a chamfered gun body (rows 9.4-19.8) with a thin barrel and muzzle
+ring out front (rows 7-9.4), a lattice rail down its inner side, armour boxes down its outer side
+and dark collars at rows 14 and 19. A round pivot hub on each arm's inner side carries two short
+struts to the pod. The pod is a polished brass egg, round in section, with a small dark glass
+window on its nose (row 14.5), a raised pale trim strip (column 10), a groove (column 12), a collar
+and a short dark exhaust nozzle at its back (rows 20.1-21.4). The U-band is a broad flat brass
+plate with chamfered edges and a dark grey inner rim, from the arms' ends round to row 25.7.
+Built around the middle of sprite column 11.
 
 Run: blender --background --python assets/blender/ships/ship-u-ship.py [-- --preview out.png]
 """
@@ -32,14 +31,13 @@ ROOT = common.repo_root(__file__)
 AXIS = 11.5  # the middle of sprite column 11 (pixel edges)
 LEFT, RIGHT = 5.5, 17.5  # the middle of columns 5 and 17
 
-BAND_W = 0.8  # half thickness of the band, px (the 1 px line seen from above)
-BAND_H = 2.0  # half height of the band, px (the banking frames show about 3 px of side)
-CHAMFER = 0.3  # the band's edge chamfer, px
+CHAMFER = 0.25  # default edge chamfer, px
 SHARP = math.radians(38)  # edges sharper than this stay crisp; the rest is smooth shaded
 
-# The pod: (row, half width, half height), a bell round at the front, flat at the back.
-POD = [(12.0, 0.0, 0.0), (12.2, 1.15, 0.95), (12.6, 1.85, 1.55), (13.3, 2.5, 2.1), (14.2, 2.9, 2.45),
-       (15.2, 3.05, 2.6), (19.6, 3.05, 2.6), (19.9, 2.95, 2.5), (20.2, 2.55, 2.15)]
+# The pod: (row, half width, half height), an egg round at the front, tapering a little to the
+# collar at its back (the concept's pod, rows 12.8-20.3 (its nose a little ahead of the concept's, to fill the sprite), columns 8.5-14.5).
+POD = [(12.8, 0.0, 0.0), (12.95, 1.05, 0.9), (13.3, 1.75, 1.5), (13.9, 2.45, 2.05), (14.7, 2.95, 2.45),
+       (16.0, 3.05, 2.6), (19.2, 2.95, 2.55), (19.9, 2.7, 2.3), (20.3, 2.2, 1.9)]
 POD_W = 3.05
 
 
@@ -98,8 +96,8 @@ def build_pod(bm, POD_M, PALE, GROOVE):
     column 10); their depth and rise ramp in and out along the pod."""
     def ang(x):
         return math.acos(max(-1.0, min(1.0, x / POD_W)))
-    g0, g1 = ang(1.45), ang(0.55)  # groove edges, x = +1.45 .. +0.55 (column 12)
-    s0, s1 = ang(-0.45), ang(-1.5)  # trim strip edges, x = -0.45 .. -1.5 (column 10)
+    g0, g1 = ang(1.5), ang(0.9)  # groove edges, x = +1.5 .. +0.9 (column 12, the plate's right seam)
+    s0, s1 = ang(-0.95), ang(-1.55)  # trim strip edges, x = -0.95 .. -1.55 (column 10)
     base = [2 * math.pi * k / 28 for k in range(28)]
     base = [a for a in base if not (g0 - 0.05 < a < g1 + 0.05 or s0 - 0.05 < a < s1 + 0.05)]
     # (angle, kind): kind 0 plain, 1 groove edge on surface, 2 groove floor, 3 strip top, 4 strip edge
@@ -116,13 +114,13 @@ def build_pod(bm, POD_M, PALE, GROOVE):
             return (d - r) / (d - c)
         return 1.0
 
-    rows = [12.2, 12.6, 13.3, 14.2, 14.7, 15.0, 15.2, 15.6, 15.9, 17.0, 18.5, 19.6, 19.9, 20.2]
+    rows = [12.95, 13.3, 13.9, 14.7, 15.1, 15.4, 16.3, 16.6, 16.9, 18.0, 19.2, 19.5, 19.8, 19.9, 20.3]
     loops = []
-    tip = bm.verts.new((X(AXIS), Y(12.0), 0.0))
+    tip = bm.verts.new((X(AXIS), Y(POD[0][0]), 0.0))
     for r in rows:
         w, h = pod_dims(r)
-        groove = 0.4 * ramp(r, 14.4, 14.7, 19.9, 20.0)
-        strip = 0.28 * ramp(r, 15.3, 15.6, 19.6, 19.9)
+        groove = 0.35 * ramp(r, 15.1, 15.4, 19.5, 19.8)
+        strip = 0.25 * ramp(r, 16.3, 16.6, 19.5, 19.8)
         loop = []
         for a, kind in spec:
             px, pz = w * math.cos(a), h * math.sin(a)
@@ -157,14 +155,14 @@ def build_window(bm, GLASS, FRAME):
     """A dark glass window set in a raised frame on the pod's nose (rows 13-15, a little left of
     the axis like the sprite's dark pixels): the glass follows the nose 0.1 px up, the frame stands
     0.35 px up round it."""
-    x0, x1, r0, r1 = -1.75, 0.4, 13.2, 15.15
+    x0, x1, r0, r1 = -0.8, 0.7, 14.45, 15.25
     fw = 0.35  # frame width, px
     glass_z, frame_z = 0.1, 0.38
 
     def v(dx, r, dz):
         return bm.verts.new((X(AXIS + dx), Y(r), P(pod_top(dx, r) + dz)))
 
-    nx_, nr_ = 6, 5
+    nx_, nr_ = 5, 3
     grid = [[v(x0 + (x1 - x0) * i / nx_, r0 + (r1 - r0) * j / nr_, glass_z) for i in range(nx_ + 1)]
             for j in range(nr_ + 1)]
     for j in range(nr_):
@@ -191,67 +189,108 @@ def build_window(bm, GLASS, FRAME):
             bm.faces.new((a[i], b[i], b[i + 1], a[i + 1])).material_index = FRAME
 
 
-def build(sprite):
-    coll = common.reset_collection(NAME)
-    pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
-    # Polished steel arms and struts, polished brass curve and pod, glossy dark glass. Each part takes
-    # its mid-tone; the sprite's lit and shaded pixels come from the game's lights and outline.
-    mats = [
-        pal(9, metallic=0.75, roughness=0.3),  # 0 grey arm, front
-        pal(10, metallic=0.75, roughness=0.3),  # 1 grey arm, between the joints
-        pal(5, metallic=0.6, roughness=0.4),  # 2 dark joint bands
-        pal(26, metallic=0.6, roughness=0.32),  # 3 brown curve
-        pal(24, metallic=0.6, roughness=0.3),  # 5 brass pod
-        pal(28, metallic=0.65, roughness=0.25),  # 6 pale trim strip on the pod
-        pal(162, metallic=0.4, roughness=0.5),  # 7 the pod's groove
-        pal(163, metallic=0.1, roughness=0.06),  # 8 window glass
-        pal(22, metallic=0.6, roughness=0.32),  # 9 window frame
-        pal(7, metallic=0.75, roughness=0.32),  # 10 struts
-        pal(6, metallic=0.7, roughness=0.35),  # 11 strut hubs
-    ]
-    ARM, ARM2, JOINT, CURVE, POD_M, PALE, GROOVE, GLASS, FRAME, STRUT, HUB = range(11)
-    bm = bmesh.new()
-    sect = octagon(BAND_W, BAND_H)
-    small = octagon(BAND_W - 0.15, BAND_H - 0.15, CHAMFER - 0.1)
-    joint = octagon(BAND_W + 0.18, BAND_H + 0.18)
-    joint_end = octagon(BAND_W + 0.04, BAND_H + 0.04, CHAMFER + 0.04)
+def circle(r, n=12):
+    """A round section of radius r px, counter-clockwise."""
+    return [(r * math.cos(2 * math.pi * k / n), r * math.sin(2 * math.pi * k / n)) for k in range(n)]
 
-    for c in (LEFT, RIGHT):
-        # The arm: a flat front end at row 7.6 with a small chamfer, grey to the joint at row 19.
-        band(bm, [(c, 7.6, small, 0), (c, 7.75, sect, 0), (c, 14.0, sect, 0), (c, 20.0, sect, 0)],
-             [ARM, ARM, ARM2], cap_end=False)
-        # Dark joint bands round it (rows 14 and 19), raised with chamfered ends.
-        for r in (14.0, 19.0):
-            band(bm, [(c, r, joint_end, 0), (c, r + 0.15, joint, 0), (c, r + 0.85, joint, 0),
-                      (c, r + 1.0, joint_end, 0)], JOINT)
-        # Strut from the arm to the pod (row 16): a boxy bar, and a round hub on the arm's inner side.
-        s = 1 if c == LEFT else -1
-        bar = octagon(0.5, 0.6, 0.15)
-        x_arm, x_pod = c + s * 0.6, AXIS - s * 2.6
-        pts = [(x_arm, 16.5, bar, 0), (x_pod, 16.5, bar, 0)]
-        band(bm, pts if s == 1 else list(reversed(pts)), STRUT)
-        hub = [(0.9 * math.cos(2 * math.pi * k / 10), 0.9 * math.sin(2 * math.pi * k / 10)) for k in range(10)]
-        hub_edge = [(u * 0.8, v * 0.8) for u, v in hub]
-        hx = [c + s * 0.6, c + s * 0.95, c + s * 1.1]
-        rings = [(hx[0], 16.5, hub, 0), (hx[1], 16.5, hub, 0), (hx[2], 16.5, hub_edge, 0)]
-        band(bm, rings if s == 1 else list(reversed(rings)), HUB)
 
-    # The U's curve behind the pod, brown: a smooth half ellipse from one arm (row 20) round to the
-    # other, its bottom along row 24, in one piece.
-    cx, cy, rx, ry, p = AXIS, 20.0, 6.0, 4.5, 0.9
-    n = 24
-    rings = []
+def box(bm, c0, c1, r0, r1, z0, z1, mat, ch=0.18):
+    """A chamfered box between columns c0-c1, rows r0-r1 and heights z0-z1 (px)."""
+    prof = octagon((c1 - c0) / 2, (z1 - z0) / 2, ch)
+    zc, cc = (z0 + z1) / 2, (c0 + c1) / 2
+    band(bm, [(cc, r0, prof, zc), (cc, r1, prof, zc)], mat)
+
+
+def cyl_z(bm, cx, cy, r, z0, z1, mat, n=12):
+    """An upright cylinder (a disc seen from above) at column cx, row cy."""
+    rings = [[bm.verts.new((X(cx) + P(r * math.cos(2 * math.pi * k / n)),
+                            Y(cy) + P(r * math.sin(2 * math.pi * k / n)), P(z))) for k in range(n)]
+             for z in (z0, z1)]
+    for k in range(n):
+        j = (k + 1) % n
+        bm.faces.new((rings[0][k], rings[0][j], rings[1][j], rings[1][k])).material_index = mat
+    bm.faces.new(list(reversed(rings[0]))).material_index = mat
+    bm.faces.new(rings[1]).material_index = mat
+
+
+def u_path(rx, ry, top, n=24, p=0.9):
+    """The U-band's centre line: a superellipse from the left arm (row `top`) round to the right."""
+    out = []
     for i in range(n + 1):
         t = math.pi * i / n
         ct, st = math.cos(t), math.sin(t)
-        col = cx - rx * math.copysign(abs(ct) ** p, ct)
-        row = cy + ry * abs(st) ** p
-        rings.append((col, row, sect, 0))
-    rings = [(LEFT, 19.9, sect, 0)] + rings + [(RIGHT, 19.9, sect, 0)]
-    band(bm, rings, CURVE, cap_start=False, cap_end=False)
+        out.append((AXIS - rx * math.copysign(abs(ct) ** p, ct), top + ry * abs(st) ** p))
+    return out
+
+
+def build(sprite):
+    coll = common.reset_collection(NAME)
+    pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
+    # Polished steel guns and struts, polished brass band and pod, glossy dark glass. Each part takes
+    # its mid-tone; the sprite's lit and shaded pixels come from the game's lights and outline.
+    mats = [
+        pal(9, metallic=0.55, roughness=0.4),  # 0 gun bodies
+        pal(7, metallic=0.75, roughness=0.3),  # 1 barrels
+        pal(5, metallic=0.65, roughness=0.35),  # 2 muzzles and dark collars
+        pal(8, metallic=0.7, roughness=0.35),  # 3 outer armour boxes
+        pal(4, metallic=0.6, roughness=0.45),  # 4 lattice rails
+        pal(26, metallic=0.6, roughness=0.32),  # 5 brass U-band
+        pal(6, metallic=0.65, roughness=0.4),  # 6 the band's inner rim, the pod's collar
+        pal(25, metallic=0.6, roughness=0.3),  # 7 brass pod
+        pal(28, metallic=0.65, roughness=0.25),  # 8 pale trim strip on the pod
+        pal(162, metallic=0.4, roughness=0.5),  # 9 the pod's groove
+        pal(163, metallic=0.1, roughness=0.06),  # 10 window glass
+        pal(22, metallic=0.6, roughness=0.32),  # 11 window frame
+        pal(7, metallic=0.75, roughness=0.32),  # 12 struts
+        pal(8, metallic=0.7, roughness=0.3),  # 13 pivot hubs
+        pal(5, metallic=0.7, roughness=0.3),  # 14 exhaust nozzle
+        pal(3, metallic=0.3, roughness=0.6),  # 15 inside the nozzle
+    ]
+    (BODY, BARREL, DARK, SIDE, LATTICE, CURVE, RIM, POD_M, PALE, GROOVE, GLASS, FRAME, STRUT, HUB, NOZ,
+     NOZ_IN) = range(16)
+    bm = bmesh.new()
+
+    for c in (LEFT, RIGHT):
+        s = 1 if c == LEFT else -1  # +1 points inward (towards the pod)
+        # The gun: a muzzle ring and thin barrel out front, then the chamfered body, tapering at its
+        # front end (row 9.4) and running back into the U-band.
+        band(bm, [(c, 7.1, circle(0.5), 0.5), (c, 7.55, circle(0.5), 0.5)], DARK)
+        band(bm, [(c, 7.5, circle(0.36, 10), 0.5), (c, 9.8, circle(0.36, 10), 0.5)], BARREL)
+        band(bm, [(c, 9.4, octagon(0.42, 0.85, 0.2), 0.3), (c, 10.4, octagon(0.72, 1.3), 0.0),
+                  (c, 19.9, octagon(0.72, 1.3), 0.0)], BODY)
+        # Dark collars round the body at rows 14 and 19.
+        for r in (14.3, 19.0):
+            box(bm, c - 0.86, c + 0.86, r, r + 0.6, -1.45, 1.45, DARK, 0.3)
+        # Armour boxes down the outer side, a lattice rail down the inner side (front and back).
+        o0, o1 = sorted((c - s * 1.35, c - s * 0.66))
+        box(bm, o0, o1, 11.8, 14.3, -1.0, 0.6, SIDE, 0.15)
+        box(bm, o0, o1, 14.9, 19.0, -1.0, 0.9, SIDE, 0.15)
+        i0, i1 = sorted((c + s * 0.7, c + s * 1.2))
+        box(bm, i0, i1, 8.6, 13.5, -0.4, 1.0, LATTICE, 0.1)
+        box(bm, i0, i1, 17.6, 19.8, -0.6, 0.8, LATTICE, 0.1)
+        # The pivot hub on the inner side and its two struts to the pod.
+        cyl_z(bm, c + s * 1.2, 17.6, 0.62, -0.55, 0.85, HUB)
+        a0, a1 = sorted((c + s * 1.5, AXIS - s * 2.75))
+        box(bm, a0, a1, 16.4, 17.1, -0.3, 0.5, STRUT, 0.12)
+        pts = [(c + s * 1.6, 18.0, octagon(0.3, 0.35, 0.1), -0.2), (AXIS - s * 2.7, 18.9, octagon(0.3, 0.35, 0.1), -0.2)]
+        band(bm, pts if s == 1 else list(reversed(pts)), STRUT)
+
+    # The U-band: a broad flat brass plate from one gun's back end round to the other, with a dark
+    # grey rim along its inner edge.
+    main = octagon(1.15, 0.9, 0.3)
+    rings = [(LEFT, 19.2, main, -0.1)] + [(cc, r, main, -0.1) for cc, r in u_path(6.0, 5.2, 19.5)] + \
+        [(RIGHT, 19.2, main, -0.1)]
+    band(bm, rings, CURVE)
+    lip = octagon(0.38, 0.55, 0.12)
+    band(bm, [(cc, r, lip, -0.35) for cc, r in u_path(4.85, 4.05, 19.7)], RIM)
 
     build_pod(bm, POD_M, PALE, GROOVE)
     build_window(bm, GLASS, FRAME)
+    # The collar and short exhaust nozzle behind the pod, dark inside.
+    band(bm, [(AXIS, 20.1, circle(2.1, 16), 0), (AXIS, 20.45, circle(2.1, 16), 0),
+              (AXIS, 20.45, circle(1.5, 16), 0), (AXIS, 21.35, circle(1.5, 16), 0),
+              (AXIS, 21.37, circle(1.1, 16), 0)], [RIM, RIM, NOZ, NOZ], cap_end=False)
+    band(bm, [(AXIS, 21.1, circle(1.1, 16), 0), (AXIS, 21.36, circle(1.1, 16), 0)], NOZ_IN, cap_start=False)
 
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     # Hard edges stay hard: mark every crease sharper than SHARP so smooth shading keeps it crisp.
