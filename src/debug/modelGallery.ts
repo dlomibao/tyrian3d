@@ -110,6 +110,15 @@ function drawEntry(res: Resources, entry: SpriteModelEntry, slot: number, tick: 
     return;
   }
   const y = cy + 10 + Math.round(Math.sin(tick / 25 + slot) * 3);
+  if (ref.ungrouped) {
+    // A sidekick: one blit_sprite2 or blit_sprite2x2 with no group, as JE_playerMovement draws it,
+    // beside the sprite (drawn as a group with no model, so it stays a sprite).
+    blitObject(sheet, ref.size, frame, cx + 4, y, true, 100 + slot * 8, filter);
+    drawState.key = 104 + slot * 8;
+    (ref.size === 2 ? blit_sprite2x2 : blit_sprite2)(cx + 36, y, sheet, frame);
+    drawState.key = -1;
+    return;
+  }
   blitObject(sheet, ref.size, frame, cx + 4, y, false, 100 + slot * 8, filter);
   blitObject(sheet, ref.size, frame, cx + 36, y, true, 104 + slot * 8, filter);
 }

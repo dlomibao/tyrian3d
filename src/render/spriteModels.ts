@@ -1,4 +1,4 @@
-// Which sprites are drawn as Blender models (DECISIONS.md D4, D15).
+// Which sprites are drawn as Blender models (DECISIONS.md D4, D15, D49).
 //
 // Each model built by a script in assets/blender/ writes a small JSON file to spriteModels/ beside
 // its .glb in public/models/ (common.export_sprite_model in assets/blender/common.py). It names the
@@ -25,6 +25,12 @@ export interface SpriteRef {
    * rolls with the group's banking frame.
    */
   group?: boolean;
+  /**
+   * The frames are drawn on their own, not as part of an enemy (blit_sprite2 or blit_sprite2x2 with
+   * no drawGroup): the player's sidekicks (JE_playerMovement). The model replaces each such draw of
+   * these frames, centred on the sprite, and shows the frame drawn (animated models, D17).
+   */
+  ungrouped?: boolean;
 }
 
 export interface SpriteModelEntry {
@@ -61,6 +67,8 @@ export interface SpriteModels {
   banked: ModelOverride[];
   /** [two-player] For grouped ships with banking frames: spriteModelKey to the bank, -1..1. */
   groupBank: Map<string, number>;
+  /** spriteModelKey(sheet, size, frame) to model path, for sprites drawn on their own (sidekicks). */
+  ungrouped: Map<string, string>;
 }
 
 /** Index the entries. Throws if two models claim the same frame. */
@@ -68,6 +76,7 @@ export function spriteModels(entries: readonly SpriteModelEntry[] = SPRITE_MODEL
   const grouped = new Map<string, string>();
   const banked: ModelOverride[] = [];
   const groupBank = new Map<string, number>();
+  const ungrouped = new Map<string, string>();
   const claimed = new Map<string, string>();
   const claim = (key: string, model: string) => {
     const other = claimed.get(key);
@@ -96,9 +105,9 @@ export function spriteModels(entries: readonly SpriteModelEntry[] = SPRITE_MODEL
       for (const frame of ref.frames) {
         const key = spriteModelKey(ref.sheet, ref.size, frame);
         claim(key, e.model);
-        grouped.set(key, e.model);
+        (ref.ungrouped ? ungrouped : grouped).set(key, e.model);
       }
     }
   }
-  return { grouped, banked, groupBank };
+  return { grouped, banked, groupBank, ungrouped };
 }

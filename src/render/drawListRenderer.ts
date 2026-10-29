@@ -12,7 +12,8 @@
 // - Positions are interpolated between the last two ticks at display rate (interpolation.ts, D2).
 // - Selected sprites are replaced by hand-made models (D4): the player ship with its banking
 //   frames (MODEL_OVERRIDES), and whole enemies, all of whose tiles become one model
-//   (setSpriteModels, D15). Models load on first use; until then the sprite stays extruded.
+//   (setSpriteModels, D15), and sprites drawn on their own, like sidekicks (D49). Models load on
+//   first use; until then the sprite stays extruded.
 //   Materials named pal_<index> take their colour from the live palette.
 //
 // - Remastered backgrounds (setBackgroundStyle("remaster"), D34): the ground is upscaled 4x
@@ -225,6 +226,8 @@ export class DrawListRenderer {
   private spriteModels = new Map<string, string>();
   /** [two-player] Grouped ships' banking (spriteModels.ts groupBank). */
   private groupBank = new Map<string, number>();
+  /** Sprites drawn on their own (sidekicks) that a model replaces (spriteModels.ts ungrouped). */
+  private ungroupedModels = new Map<string, string>();
   private loader: ModelLoader | null = null;
   private frame = 0;
   private lastTime = performance.now();
@@ -368,14 +371,15 @@ export class DrawListRenderer {
   }
 
   /**
-   * Draw sprites as models (spriteModels.ts): player ships with their banking frames, and grouped
-   * sprites (whole enemies). Models are fetched with `loader` the first time they're seen; until
+   * Draw sprites as models (spriteModels.ts): player ships with their banking frames, grouped
+   * sprites (whole enemies), and sprites drawn on their own (sidekicks). Models are fetched with `loader` the first time they're seen; until
    * then their sprites stay extruded. Models are centred on their origin, forward -Z.
    */
   setSpriteModels(models: SpriteModels, loader: ModelLoader): void {
     this.loader = loader;
     this.spriteModels = models.grouped;
     this.groupBank = models.groupBank ?? new Map();
+    this.ungroupedModels = models.ungrouped ?? new Map();
     this.overridesBySheet.clear();
     for (const override of models.banked) {
       let list = this.overridesBySheet.get(override.sheetId);
@@ -416,6 +420,7 @@ export class DrawListRenderer {
           const flat = sheetArt !== null && sheetArt.frame(d.groupIndex >= 0 ? d.groupIndex : d.index) !== undefined;
           if (!flat && d.groupIndex >= 0 && this.spriteModels.size > 0 && this.drawGroupModel(d, x, y, cam, dt)) continue;
           if (!flat && this.overridesBySheet.size > 0 && this.drawOverride(d, x, y, cam, dt)) continue;
+          if (!flat && d.groupIndex < 0 && this.ungroupedModels.size > 0 && this.drawUngroupedModel(d, x, y, cam)) continue;
           const geometry = this.cache.sprite2Geometry(d.sheet, d.index, d.size);
           if (!geometry) continue;
           const look = fx && VFX_PASSES.has(d.pass) ? fx.sprite(d, geometry, x, y, d.x - prevX[i], d.y - prevY[i]) : SpriteLook.Default;
@@ -724,6 +729,19 @@ export class DrawListRenderer {
         clone.object.rotation.z = clone.roll;
       }
     }
+    return true;
+  }
+
+  /**
+   * Draw a sprite drawn on its own (a sidekick) as its model, if it has one that has loaded: centred
+   * on the sprite, showing the frame drawn. Returns false to draw it as a sprite.
+   */
+  private drawUngroupedModel(d: SpriteDraw, x: number, y: number, cam: THREE.Vector3): boolean {
+    const name = this.ungroupedModels.get(spriteModelKey(d.sheet.id, d.size, d.index));
+    if (name === undefined) return false;
+    const pool = this.modelPool(name);
+    if (!pool.source) return false;
+    this.placeModel(pool, x + d.size * 6, y + d.size * 7, d, cam, d.index);
     return true;
   }
 

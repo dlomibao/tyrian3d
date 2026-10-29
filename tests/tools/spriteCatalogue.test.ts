@@ -1,10 +1,13 @@
 // Opt-in: the catalogue of everything to model in Blender (DECISIONS.md D15).
 //
-//   CATALOGUE_OUT=reference/models npm run catalogue     (CATALOGUE_SHIPS_ONLY=1: just the player ships)
+//   CATALOGUE_OUT=reference/models npm run catalogue     (CATALOGUE_SHIPS_ONLY=1: just the player ships;
+//                                                         CATALOGUE_SIDEKICKS_ONLY=1: just the sidekicks)
 //
 // Plays every level's world (events and enemies, tests/sim/worldDriver.ts) and records each enemy
 // drawn: its sheet, size and animation frames. Frames that one enemy cycles through, and frames
-// whose pictures are identical, are one model. Adds every player ship with its banking frames.
+// whose pictures are identical, are one model. Adds every player ship with its banking frames, and
+// every sidekick (option) with its animation frames (kind "sidekick", DECISIONS.md D49; listed in
+// sidekicks.json, not catalogue.json, so the enemy coverage check doesn't count them).
 // For each model it writes reference/models/<name>/:
 //   sprite.json   what the model replaces (the SpriteModelEntry sprites), how often and where it's
 //                 seen, every frame's pixels as palette indices, and those indices' colours
@@ -26,6 +29,10 @@ import { hasData, readData } from "../data/dataDir";
 const OUT = process.env.CATALOGUE_OUT ?? "";
 /** CATALOGUE_SHIPS_ONLY=1: write only the player ships' folders (no levels played, catalogue.json untouched). */
 const SHIPS_ONLY = process.env.CATALOGUE_SHIPS_ONLY === "1";
+/** CATALOGUE_SIDEKICKS_ONLY=1: write only the sidekicks' folders and sidekicks.json. */
+const SIDEKICKS_ONLY = process.env.CATALOGUE_SIDEKICKS_ONLY === "1";
+/** Only some folders: no levels played, catalogue.json and assemblies.json untouched. */
+const PARTIAL = SHIPS_ONLY || SIDEKICKS_ONLY;
 /** Where the assembly layouts for the model viewer go (src/viewer/assemblies.json, committed). */
 const ASSEMBLIES_OUT = process.env.CATALOGUE_ASSEMBLIES_OUT ?? "src/viewer/assemblies.json";
 const MAX_TICKS = Number(process.env.TICKS ?? 30000);
@@ -153,7 +160,7 @@ describe.skipIf(!OUT || !hasData("levels1.dat", "tyrian1.lvl", "palette.dat", "t
   /** The biggest cluster of touching pieces seen with each frame in it, for assembly.png. */
   const clusterOf = new Map<string, { key: string; cx: number; cy: number }[]>();
 
-  for (let ep = 1; ep <= 4 && !SHIPS_ONLY; ep++) {
+  for (let ep = 1; ep <= 4 && !PARTIAL; ep++) {
     const script = parseEpisodeScript(readData(`levels${ep}.dat`));
     for (const sec of script.sections) {
       if (!sec.lines.some((l) => l.startsWith("]L"))) continue;
@@ -231,8 +238,8 @@ describe.skipIf(!OUT || !hasData("levels1.dat", "tyrian1.lvl", "palette.dat", "t
 
   interface Model {
     name: string;
-    sprites: { sheet: string; size: 1 | 2; frames: number[]; bank?: { step: number; max: number }; group?: boolean }[];
-    kind: "ship" | "air" | "ground";
+    sprites: { sheet: string; size: 1 | 2; frames: number[]; bank?: { step: number; max: number }; group?: boolean; ungrouped?: boolean }[];
+    kind: "ship" | "sidekick" | "air" | "ground";
     ticks: number;
     levels: string[];
     palette: number;
@@ -241,6 +248,8 @@ describe.skipIf(!OUT || !hasData("levels1.dat", "tyrian1.lvl", "palette.dat", "t
     assembly?: string;
     assemblyPieces?: string[];
     assemblyView?: { key: string; cx: number; cy: number }[];
+    /** For a sidekick: the items (options) drawn with it and how each animates. */
+    sidekicks?: { id: number; name: string; style: number; animation: number[]; loops: boolean; charge: number }[];
   }
   const components = new Map<string, FrameStat[]>();
   for (const key of stats.keys()) {
@@ -331,13 +340,14 @@ describe.skipIf(!OUT || !hasData("levels1.dat", "tyrian1.lvl", "palette.dat", "t
   const { buildResources } = await import("../../src/sim/resources");
   const files = { get: (n: string) => (hasData(n) ? readData(n) : undefined) };
   const shipSheet = buildResources(files, 1).spriteSheet9 ?? null;
+  type Sprite2SheetLike = { id: string; data: Uint8Array };
   const shipGraphics = new Map<number, string>();
   for (let ep = 1; ep <= 4; ep++) {
     for (const ship of buildResources(files, ep).items.ships) {
       if (ship.shipGraphic > 0 && ship.name.trim() && !shipGraphics.has(ship.shipGraphic)) shipGraphics.set(ship.shipGraphic, ship.name.trim());
     }
   }
-  if (shipSheet) {
+  if (shipSheet && !SIDEKICKS_ONLY) {
     sheets.set(shipSheet.id, shipSheet.data);
     for (const [graphic, shipName] of shipGraphics) {
       const name = `ship-${shipName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
@@ -371,7 +381,7 @@ describe.skipIf(!OUT || !hasData("levels1.dat", "tyrian1.lvl", "palette.dat", "t
   // [two-player] The dragonwing: player 2's ship in a two-player game (shipGr2 == 0), drawn as two
   // 24x28 halves side by side, 13 and 51, each with banking frames at + bank * 2
   // (JE_playerMovement's shipGr_ == 0 case, blitShipHalves); one model replaces the group.
-  if (shipSheet) {
+  if (shipSheet && !SIDEKICKS_ONLY) {
     const pictures = [-2, -1, 0, 1, 2].map((b) => {
       const pic = new Int16Array(48 * 28).fill(-1);
       [13, 51].forEach((index, half) => {
@@ -391,7 +401,61 @@ describe.skipIf(!OUT || !hasData("levels1.dat", "tyrian1.lvl", "palette.dat", "t
     });
   }
 
-  const order = { ship: 0, air: 1, ground: 2 };
+  // Sidekicks (options, D49): JE_playerMovement draws each on its own (no group) at
+  // gr[animation_frame] + charge, with blit_sprite2 from tyrian.shp#8 (spriteSheet9), or for styles
+  // (tr) 1 and 2 with blit_sprite2x2 from tyrian.shp#9 (spriteSheet10) at x - 6. option 1 loops
+  // through gr[0..ani-1]; option 2 plays it once after each shot. Options sharing a frame are one model.
+  if (!SHIPS_ONLY) {
+    const res = buildResources(files, 1);
+    const skUf = new UnionFind();
+    const byKey = new Map<string, { sheet: Sprite2SheetLike; size: 1 | 2; index: number }>();
+    const users = new Map<string, number[]>();
+    const options = res.items.options;
+    options.forEach((o, id) => {
+      if (id === 0 || o.option <= 0) return;
+      const size: 1 | 2 = o.tr === 1 || o.tr === 2 ? 2 : 1;
+      const sheet = size === 2 ? res.spriteSheet10 : res.spriteSheet9;
+      const keys: string[] = [];
+      for (let f = 0; f < Math.max(1, o.ani); f++)
+        for (let c = 0; c <= o.pwr; c++) {
+          const index = o.gr[f] + c;
+          if (o.gr[f] <= 0 || compose(sheet.data, size, index).every((v) => v < 0)) continue;
+          const key = `${sheet.id}|${size}|${index}`;
+          byKey.set(key, { sheet, size, index });
+          keys.push(key);
+        }
+      if (keys.length === 0) return;
+      for (const k of keys) skUf.union(keys[0], k);
+      users.set(keys[0], [...(users.get(keys[0]) ?? []), id]);
+    });
+    const groups = new Map<string, string[]>();
+    for (const key of byKey.keys()) {
+      const root = skUf.find(key);
+      groups.set(root, [...(groups.get(root) ?? []), key]);
+    }
+    for (const keys of groups.values()) {
+      const ids = [...users].filter(([k]) => skUf.find(k) === skUf.find(keys[0])).flatMap(([, v]) => v).sort((a, b) => a - b);
+      const frames = keys.map((k) => byKey.get(k)!).sort((a, b) => a.index - b.index);
+      const { sheet, size } = frames[0];
+      sheets.set(sheet.id, sheet.data);
+      const first = options[ids[0]].name.replace(/\s+Ammo\s+\d+\s*$/i, "").trim();
+      models.push({
+        name: `sidekick-${first.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`,
+        sprites: [{ sheet: sheet.id, size, frames: frames.map((f) => f.index), ungrouped: true }],
+        kind: "sidekick",
+        ticks: 0,
+        levels: [],
+        palette: 5, // TYRIAN's in-level palette, as for the ships
+        pictures: frames.map((f) => ({ sheet: sheet.id, size, index: f.index, pic: compose(sheet.data, size, f.index) })),
+        sidekicks: ids.map((id) => {
+          const o = options[id];
+          return { id, name: o.name.trim(), style: o.tr, animation: o.gr.slice(0, Math.max(1, o.ani)), loops: o.option === 1, charge: o.pwr };
+        }),
+      });
+    }
+  }
+
+  const order = { ship: 0, sidekick: 1, air: 2, ground: 3 };
   models.sort((a, b) => order[a.kind] - order[b.kind] || b.ticks - a.ticks || a.name.localeCompare(b.name));
   const names = new Set<string>();
   for (const m of models) {
@@ -454,8 +518,9 @@ describe.skipIf(!OUT || !hasData("levels1.dat", "tyrian1.lvl", "palette.dat", "t
       name: m.name,
       kind: m.kind,
       sprites: m.sprites,
-      ticksSeen: m.kind === "ship" ? null : m.ticks,
+      ticksSeen: m.kind === "ship" || m.kind === "sidekick" ? null : m.ticks,
       levels: m.levels,
+      ...(m.sidekicks ? { sidekicks: m.sidekicks } : {}),
       assembly: m.assembly ?? null,
       assemblyPieces: m.assemblyPieces ?? null,
       // Where each piece sits in assembly.png's object: centre offsets in sprite px.
@@ -466,13 +531,19 @@ describe.skipIf(!OUT || !hasData("levels1.dat", "tyrian1.lvl", "palette.dat", "t
     }, (k, v) => (k === "pixels" ? v.map((r: number[]) => r.join(" ")) : v), 1) + "\n");
   }
   if (!SHIPS_ONLY) {
+    // Every sidekick model, with the items drawn with it (kept out of catalogue.json, D49).
+    writeFileSync(join(OUT, "sidekicks.json"), JSON.stringify(models.filter((m) => m.kind === "sidekick").map((m) => ({
+      name: m.name, size: m.sprites[0].size, sheet: m.sprites[0].sheet, frames: m.sprites[0].frames, items: m.sidekicks,
+    })), null, 1) + "\n");
+  }
+  if (!PARTIAL) {
     // Committed (it's only sprite indices and offsets): the model viewer shows assemblies whole.
     assemblyLayouts.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
     writeFileSync(ASSEMBLIES_OUT, JSON.stringify(assemblyLayouts) + "\n");
   }
-  if (!SHIPS_ONLY) writeFileSync(join(OUT, "catalogue.json"), JSON.stringify(models.map((m) => ({
+  if (!PARTIAL) writeFileSync(join(OUT, "catalogue.json"), JSON.stringify(models.filter((m) => m.kind !== "sidekick").map((m) => ({
     name: m.name, kind: m.kind, size: m.sprites[0].size, frames: m.pictures.length, ticksSeen: m.kind === "ship" ? null : m.ticks, levels: m.levels.length,
     assembly: m.assembly ?? null,
   })), null, 1) + "\n");
-  console.log(`${levelsPlayed.length} levels played; ${stats.size} frames; ${models.length} models (${models.filter((m) => m.kind === "ship").length} ships, ${models.filter((m) => m.kind === "air").length} air, ${models.filter((m) => m.kind === "ground").length} ground)`);
+  console.log(`${levelsPlayed.length} levels played; ${stats.size} frames; ${models.length} models (${models.filter((m) => m.kind === "ship").length} ships, ${models.filter((m) => m.kind === "sidekick").length} sidekicks, ${models.filter((m) => m.kind === "air").length} air, ${models.filter((m) => m.kind === "ground").length} ground)`);
 }), 600_000);

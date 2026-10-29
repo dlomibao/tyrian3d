@@ -1684,3 +1684,30 @@ models.
 **Review:** Play TYRIAN with no options and check the 3D bunkers, fortresses and bridges; play a
 later level and check the upscaled ground holds up without structure models. Fallback: flip the
 default back in `src/core/settings.ts`.
+
+## D49 — Sidekicks can be models: `ungrouped` sprite-model entries, catalogued like enemies
+
+2026-10-29
+
+**Decision:** The player's sidekicks (options) get the enemies' model path (D15). JE_playerMovement
+draws each sidekick on its own at `gr[animation_frame] + charge`: `blit_sprite2` from tyrian.shp#8
+(the ship sheet), or for styles (`tr`) 1 and 2 `blit_sprite2x2` from tyrian.shp#9 at x - 6. Those
+draws have no `drawGroup`, so the grouped (enemy) lookup never saw them. A `SpriteRef` can now say
+`"ungrouped": true`: `spriteModels()` indexes it in its own `ungrouped` map (frames are still
+claimed against every other model), and the renderer replaces an ungrouped sprite2 draw of such a
+frame with the model, centred on the sprite and showing the frame drawn (D17 animation). With no
+entries, or a model still loading, every sidekick draws as before. `npm run catalogue` writes each
+sidekick's `reference/models/sidekick-<name>/` (options that share frames are one model; the items
+are in `sprite.json` `sidekicks`) and `sidekicks.json`, not `catalogue.json`, so the enemy
+coverage test doesn't count them; `CATALOGUE_SIDEKICKS_ONLY=1` writes just those.
+
+**Options considered:**
+- *A separate `ungrouped` entry kind (chosen):* no draw that works today can change, and
+  `export_sprite_model` writes it from `load_sprite(...)["sprites"]` unchanged.
+- *Look ungrouped draws up in the grouped map:* no new field, but any loose draw of an enemy's
+  frame (now or in later ports) would silently turn into that enemy's model.
+- *Have the sim set `drawGroup` for sidekicks:* touches the transliterated C for a renderer concern.
+
+**Review:** `?debug=play&left=9&right=16` (and `?debug=models` for a built sidekick) once a model
+exists. Fallback: delete the sidekick's `src/render/spriteModels/` entry.
+

@@ -71,6 +71,12 @@ entry. See `enemies/newshf-1.py` for the pattern:
    entry in `src/render/spriteModels/`, which is how the game finds it.
 4. `common.render_preview(...)` renders the model beside the sprite (top, in-game and 3/4 views).
 
+**Sidekicks** (DECISIONS.md D49) work the same way: `CATALOGUE_SIDEKICKS_ONLY=1 npm run catalogue`
+writes `reference/models/sidekick-<name>/` and `reference/models/sidekicks.json`; their `sprites`
+carry `"ungrouped": true`, which `export_sprite_model` passes through. Put scripts in `sidekicks/`
+and export to `"sidekicks/<name>"`. A 2x2 sidekick (tyrian.shp#9) is centred like an enemy; a
+1x1 one (tyrian.shp#8) on its 12x14 block.
+
 **Animation** (DECISIONS.md D17). When frames change only details, one model covers them and
 animates: `common.frame_part(obj, [frames])` shows a part only on those frames (a flame of each
 length, a light that's on), and `common.palette_material(..., frames={frame: index})` changes a
