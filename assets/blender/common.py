@@ -195,8 +195,9 @@ def mesh_object(name, bm, materials, collection, smooth=False):
     return obj
 
 
-def export_glb(objects, path):
-    """Export only `objects` to a .glb (Y-up, modifiers applied)."""
+def export_glb(objects, path, image_format="AUTO"):
+    """Export only `objects` to a .glb (Y-up, modifiers applied). Textured models (texture_bake.py)
+    pass image_format="WEBP" so their baked maps stay small (EXT_texture_webp; three.js reads it)."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     for obj in bpy.context.view_layer.objects:
@@ -213,6 +214,8 @@ def export_glb(objects, path):
         export_cameras=False,
         export_lights=False,
         export_extras=True,  # custom properties: frame tags on parts and materials (frame_part, palette_material)
+        export_image_format=image_format,
+        export_image_quality=85,
     )
     return path
 

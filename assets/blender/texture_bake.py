@@ -291,7 +291,7 @@ def main():
         for o in roots:
             o.location = Vector(o.location) - off
         bpy.context.view_layer.update()
-        common.export_glb(objs, glb)
+        common.export_glb(objs, glb, image_format="WEBP")
         print(f"textured {glb.relative_to(ROOT)} ({len(meshes)} meshes, {px} px)")
 
 
