@@ -8,13 +8,13 @@ export interface Settings {
   /** Clip the draw-list view to the original's playfield (`?clip=0` shows everything drawn). */
   clip: boolean;
   /**
-   * Backgrounds as the original's tiles, extruded (DECISIONS.md D8), or remastered: upscaled ground
-   * and 3D structure models (D34). `?bg=remaster` or `?bg=original`.
+   * Backgrounds remastered: upscaled ground and 3D structure models (DECISIONS.md D34, the default
+   * since D48), or the original's tiles, extruded (D8). `?bg=original` opts out.
    */
   background: "original" | "remaster";
 }
 
-/** Defaults, overridable from the URL for testing, e.g. `?hz=60&dpr=1&clip=0&bg=remaster`. */
+/** Defaults, overridable from the URL for testing, e.g. `?hz=60&dpr=1&clip=0&bg=original`. */
 export function loadSettings(search: string = location.search): Settings {
   const params = new URLSearchParams(search);
   const num = (key: string, fallback: number) => {
@@ -25,6 +25,6 @@ export function loadSettings(search: string = location.search): Settings {
     logicHz: num("hz", CLASSIC_TICK_HZ),
     maxPixelRatio: num("dpr", 2),
     clip: params.get("clip") !== "0",
-    background: params.get("bg") === "remaster" ? "remaster" : "original",
+    background: params.get("bg") === "original" ? "original" : "remaster",
   };
 }

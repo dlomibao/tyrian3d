@@ -1074,7 +1074,7 @@ that affect which enemies are drawn.
 **Decision:** A pilot of the backgrounds' new look, done fully for the tileset of Episode 1's first
 level (TYRIAN, `shapesz.dat`), behind a switch: `?bg=remaster` (`Settings.background`;
 `DrawListRenderer.setBackgroundStyle`). The default stays `original` (D8) until the other
-tilesets have their structures. Wherever nothing remastered exists, the original tile is drawn.
+tilesets have their structures. (Since D48 remastered is the default and `?bg=original` opts out.) Wherever nothing remastered exists, the original tile is drawn.
 - **Ground (background 1):** every tile is upscaled 4x with MMPX (`src/render/remaster/mmpx.ts`, a
   port of the paper's MIT code) into a palette-index atlas (`groundAtlas.ts`). A tile is upscaled
   with its eight neighbours as they are in the map that tick, and only its own part kept, so a
@@ -1661,3 +1661,26 @@ from the others and from terrain in every level.
 large textures; drop their bake size (`texture_bake.py --size`) if loading matters. Graders left
 polish items: bridge and purple orb (4/5), crater, lava pit and wreck (3/5). Fallback: delete a
 `shapesz-tyrbld-*.json` entry and restore the old per-tile entry from git history.
+
+## D48 — Remastered backgrounds are the default; `?bg=original` opts out
+
+2026-10-29
+
+**Decision:** `Settings.background` now defaults to `remaster` (D34); only `?bg=original` picks the
+original's extruded tiles (D8). With the first level's buildings modelled (D47), the old default
+meant a player saw flat pixel bunkers unless they knew the switch. The game, `?debug=play`,
+`?debug=level` and `?debug=sprites` all read the same setting. Like the effects (`?vfx=`) and sprite
+art (`?sprites=`) looks, it's a URL option only: there's no Options row and nothing is stored. Levels
+other than TYRIAN get the upscaled ground and keep their original structure tiles until they have
+models.
+
+**Options considered:**
+- *Default to remaster, URL opt-out (chosen):* matches the effects look (remastered by default since
+  D35) and needs no new UI.
+- *An Options row stored in the prefs:* lets players switch without the URL, but the other looks
+  aren't there either; worth doing for all three together.
+- *Keep `original` until every tileset has models:* consistent, but hides the finished first level.
+
+**Review:** Play TYRIAN with no options and check the 3D bunkers, fortresses and bridges; play a
+later level and check the upscaled ground holds up without structure models. Fallback: flip the
+default back in `src/core/settings.ts`.

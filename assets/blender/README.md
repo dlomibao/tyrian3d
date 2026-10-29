@@ -100,7 +100,7 @@ shows models in the game's own renderer (`&model=a,b`, `&page=N`, `&flash=1` for
 
 ## Background structures (DECISIONS.md D34)
 
-`?bg=remaster` draws structure tiles (rocks, buildings, trees) as models. Scripts in `tiles/`, one
+The remastered backgrounds (the default; `?bg=original` turns them off) draw structure tiles (rocks, buildings, trees) as models. Scripts in `tiles/`, one
 or more per tileset (`shapesz_bg3.py`, `shapesz_ground.py`), build them from the tiles' pixels:
 
     TILES_SHAPES=z npm run tiles    # writes reference/tiles/shapesz/ (git-ignored, from the data)
