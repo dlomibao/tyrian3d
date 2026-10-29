@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Music and sound pipeline</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+<nav><a href="index.html">Docs</a> › Music and sound</nav>
+<h1>Music and sound remastering</h1>
+<p class="lede">How the original FM soundtrack becomes the Synth and Orchestral versions, and how the sound effects
+and voices are remade.</p>
+
+<div class="flow">
+  <span>music.mus (game data)</span><b>→</b><span>MIDI + analysis</span><b>→</b><span>Arrangement script</span><b>→</b>
+  <span>Render, mix, master</span><b>→</b><span>Report + listening</span><b>→</b><span>Manifest</span><b>→</b><span>Game</span>
+</div>
+
+<h2>Noteworthy: problems we hit and how we solved them</h2>
+<table>
+  <tr><th>Problem</th><th>What we did</th></tr>
+  <tr><td><b>Getting the notes right.</b> The songs are FM chip instructions, not sheet music; parsing the file misses
+    what the player does at runtime (arpeggios, slides, vibrato, drum pitch falls).</td>
+    <td>Record what the game's own player writes to the FM chip, so the MIDI is exactly what you hear. Pitch movement
+    becomes pitch bend, and pitches are the fundamental each FM patch really sounds, not the raw register value.</td></tr>
+  <tr><td><b>Echoes look like extra parts.</b> Tyrian's player often doubles a line on another channel a few ticks later
+    and quieter.</td>
+    <td><code>src.echoes()</code> finds those pairs so an arrangement plays them as a delay or reverb on one instrument,
+    not as a second, clashing instrument.</td></tr>
+  <tr><td><b>Seamless loops with reverb.</b> A loop rendered once ends with reverb and releases cut off, and starts dry.</td>
+    <td>Render the loop twice and keep the second pass: its start already holds the tails of the previous pass, so the
+    file is exactly one loop long and loops cleanly.</td></tr>
+  <tr><td><b>Real instruments have limited ranges.</b> Samples are silent outside their recorded notes.</td>
+    <td><code>check_ranges</code> warns about silent notes; <code>Part.extend</code> stretches the outermost samples;
+    <code>split_by_range</code> hands a line between instruments by register.</td></tr>
+  <tr><td><b>Checking dozens of songs by ear alone is slow.</b></td>
+    <td>Each render writes a report comparing the original's and the new version's spectrograms and loudness over time,
+    so structural mistakes (a missing section, a wrong loop point, a part far too loud) show at a glance.</td></tr>
+  <tr><td><b>8-bit sound effects at 11 kHz</b> are hissy and dull, and simply upsampling keeps that.</td>
+    <td>Resynthesize instead: analyse tones and noise, rebuild them cleanly at 48 kHz, and extend the high end. Match each
+    original's perceived loudness so the game's mix doesn't change. The originals were clipped near full scale, so the
+    files stay below it and tell the game how much gain to add back.</td></tr>
+  <tr><td><b>Voices</b> had to sound like the same ship computer saying the same lines in the same time.</td>
+    <td>Text to speech at the speaking rate that best matches each line's length, time-stretched and pitch-shifted with
+    formants preserved, then a ship-computer effects chain.</td></tr>
+  <tr><td><b>Private work and a public game.</b> The remaster started as a private repo while the rights were unclear.</td>
+    <td>Local builds serve the private pack at the same path as the public one and take priority; the public build ships
+    only what the person decided to publish. When the private folder is missing, requests fall through to the public
+    copy instead of failing. The rights (the soundtrack is sold as all rights reserved through Materia Collective) were
+    researched and reported before publishing; the person decided to publish the covers with credit (D40).</td></tr>
+</table>
+
+<h2>Where things live</h2>
+<table>
+  <tr><th>Repo</th><th>Holds</th></tr>
+  <tr><td><code>tyrian3d</code> (this one, public)</td><td>The game, its port of the Loudness player and OPL (FM) emulator, the MIDI exporter, and the
+    finished recordings in <code>public/tyrian-remaster/</code> (music and sound effects, with a manifest)</td></tr>
+  <tr><td><code>tyrian3d-remaster</code> (private, cloned next to this one)</td><td>The arrangement scripts, the rendering and sound tools, the source MIDI and
+    renders in <code>out/</code>. The sample libraries are downloaded by <code>tools/setup.sh</code> and not committed.</td></tr>
+</table>
+<p>The music is Alexander Brandon's (with additional music by Andreas Molnar). Our versions are arrangements of it,
+credited in <a href="../CREDITS.md">CREDITS.md</a> (D40, D41).</p>
+
+<h2>0. Setup (once, macOS)</h2>
+<pre><code>cd ../tyrian3d-remaster
+tools/setup.sh      # Python venv (numpy, scipy, soundfile, mido, pedalboard, matplotlib), builds sfizz_render,
+                    # downloads the CC0 sample libraries VSCO-2-CE and VCSL into samples/</code></pre>
+
+<h2>1. The original, as notes</h2>
+<p>The game plays <code>music.mus</code> (41 songs in Loudness format) through a port of OpenTyrian's player and an
+OPL2 FM emulator: that's the <b>Original</b> music style. To arrange a song we need it as notes, exactly as the game
+plays it:</p>
+<pre><code>MIDI_OUT=../tyrian3d-remaster/source npm run songs-to-midi</code></pre>
+<p>This runs each song through the same player and records what it writes to the FM chip
+(<code>tests/tools/ldsToMidi.test.ts</code>):</p>
+<ul>
+  <li><code>song-NN.mid</code>: one track per OPL channel (plus a drum track for rhythm mode). One MIDI tick is one
+    player update (69.5 Hz). A note starts where the player strikes one. Slides, vibrato, scoops and drum pitch
+    falls become pitch bend; pitches are the fundamental each FM patch actually sounds; velocity follows the
+    carrier's level.</li>
+  <li><code>song-NN.json</code>: length, loop point, row speed, and per channel the note range, count and FM patches.</li>
+  <li><code>original/song-NN.ogg</code>: the original as the game plays it (one loop), for comparison.</li>
+</ul>
+
+<h2>2. Arranging a song</h2>
+<p>Each song has one script per style: <code>arrangements/orchestral/song-NN.py</code> and
+<code>arrangements/synth/song-NN.py</code>. Its docstring is the analysis: sections and bars, which channel plays
+what, echoes, tuning, and the arrangement chosen. The script assigns the original's lines to instruments with
+<code>tools/remaster.py</code>:</p>
+<pre><code>src = load_source(NN)                         # the original, as notes per OPL channel
+lead = src.channel(2)
+parts = [
+    Part("violins", lead, "sfz:VSCO-2-CE/Strings/1st Violins Sustain.sfz", gain_db=-3, pan=-0.3),
+    Part("bass", src.channel(0), {"osc": "saw", "filter": {"cutoff": 400}}, transpose=-12),
+]
+render_song(NN, "orchestral", parts)</code></pre>
+<ul>
+  <li><b>Orchestral</b> parts use SFZ sample instruments (VSCO-2-CE, VCSL; both CC0), rendered by sfizz. Samples
+    only sound within their recorded range (<code>tools/INSTRUMENTS.md</code>). <code>Part.extend</code> stretches the
+    outermost samples, <code>split_by_range</code> hands a line from violins to violas to cellos by register, and
+    <code>check_ranges</code> warns about notes that would be silent.</li>
+  <li><b>Synth</b> parts use presets of <code>tools/synth.py</code>, a small offline synthesizer: saw, square,
+    pulse, triangle, supersaw, FM and noise oscillators, a resonant filter with envelope, glide, vibrato, sub
+    oscillator and synthesized drums. Nothing third-party is used.</li>
+  <li><b>Faithful to the original.</b> Every note is played as the original strikes it and held as long as it's
+    held, with its pitch movement (scoops, vibrato, drum falls) as bends. Tyrian's player often doubles a line on a
+    second channel a few ticks later and quieter (an echo); <code>src.echoes()</code> finds these so the arrangement
+    can turn them into a delay or reverb instead of a second instrument. Added parts (pads, risers) are tuned to the
+    original, which can sit slightly flat.</li>
+</ul>
+<p>In this project the scripts were written with Claude agents, one song and style at a time, from the analysis and
+by listening against the original.</p>
+
+<h2>3. Rendering</h2>
+<pre><code>.venv/bin/python arrangements/orchestral/song-30.py</code></pre>
+<p><code>render_song</code> renders every part, mixes them with pan, gain and a shared reverb, masters the mix to a
+target level (<code>master_db</code>, -14 by default) and writes:</p>
+<ul>
+  <li><code>out/&lt;style&gt;/song-NN.ogg</code>: the song. A looping song is exactly one loop long and loops
+    seamlessly: it's rendered twice and the second pass is kept, so the reverb tails and releases wrap around.</li>
+  <li><code>out/&lt;style&gt;/song-NN.report.png</code>: spectrograms of the original and the new version, and
+    their loudness over time.</li>
+  <li><code>out/&lt;style&gt;/song-NN.json</code>: file, title, seconds, loops.</li>
+</ul>
+
+<h2>4. Checking it</h2>
+<ul>
+  <li>Read the report: the new spectrogram should follow the original's structure (sections, drops, the loop
+    point), and loudness over time should rise and fall where the original does.</li>
+  <li>Listen side by side: <code>tools/export_listen.sh NN</code> writes WAV and MP3 of the original and every
+    rendered style to <code>listen/</code>.</li>
+  <li>Check the loop: play across the loop point in the game; there should be no click or gap.</li>
+</ul>
+
+<h2>5. Into the game</h2>
+<pre><code>.venv/bin/python tools/build_manifest.py   # collects the .json files into out/manifest.json</code></pre>
+<ul>
+  <li>Local builds (<code>npm run dev</code>, <code>npm run play:local</code>) serve the private
+    <code>out/</code> folder at <code>tyrian-remaster/</code> (<code>TYRIAN_REMASTER</code> overrides the path).</li>
+  <li>To publish, copy the <code>.ogg</code> files and the manifest into <code>public/tyrian-remaster/</code> in
+    this repo. The deployed site then offers them too; when the private folder is missing, local builds fall
+    through to the public copy.</li>
+  <li>In game, <code>M</code> cycles Original, Orchestral and Synth (also in Options; <code>?music=orchestral</code>
+    picks one). The choice is remembered in the browser; until one is made the game starts on Synth (D38). Switching
+    replays the current song in the new style.</li>
+</ul>
+
+<h2>Sound effects and voices</h2>
+<pre><code>.venv/bin/python tools/sfx.py [ids] [--listen]    # macOS; reads the originals from the game data (TYRIAN_DATA)</code></pre>
+<p>All 38 sounds (29 effects from <code>tyrian.snd</code>, 9 voices from <code>voices.snd</code>, originally 8-bit
+mono at 11 kHz) are remade (D36). The originals are only read, never copied.</p>
+<ul>
+  <li><b>Effects are resynthesized.</b> Tonal parts become sinusoidal tracks played on clean oscillators; noisy parts
+    become band-following noise extended above 5.5 kHz. An exciter adds overtones, and some sounds get designed
+    layers (sub-bass drops and debris under explosions, onset transients, three CC0 percussion samples). Each keeps
+    its original's pitch, timing, length and loudness. Files peak at -0.3 dBFS, and the manifest's
+    <code>gain_db</code> tells the game how much to add back.</li>
+  <li><b>Voices</b> are spoken by macOS <code>say</code> (Samantha), timed to the original's length, pitched to
+    match, and given a ship-computer treatment (EQ, compression, a quiet vocoder buzz, a short comb and a small
+    room).</li>
+  <li>Each sound writes <code>out/sfx/remaster/NN-name.ogg</code> with a report and metrics. In game, Options →
+    Sound style → Remaster (or <code>?sound=remaster</code>) switches to them; the original sounds stay the default.</li>
+</ul>
+</main>
+</body>
+</html>
