@@ -269,6 +269,78 @@ def frame_part(obj, frames):
     return obj
 
 
+def outline_shell(obj, collection, voxel=0.012, faces=3000, smooth=6):
+    """A smooth, closed copy of `obj` for the game's ink outline only (DECISIONS.md D51): a voxel
+    remesh (it closes the panel gaps), smoothed, decimated to about `faces` faces and smooth
+    shaded. The outline (three's OutlineEffect, an inverted hull
+    pushed out along the normals) breaks into whiskers along hard edges with split normals and
+    strokes every separate plate; drawn from this shell instead it is one clean contour. The shell
+    gets the material `outline_shell` and the node extra `tyrian_outline: true`; the game draws
+    it only in the outline pass (src/render/models.ts) and turns the model's own outline off."""
+    me = obj.data.copy()
+    me.materials.clear()
+    shell = bpy.data.objects.new(f"{obj.name}_outline", me)
+    collection.objects.link(shell)
+    shell.matrix_world = obj.matrix_world.copy()
+    for mod in list(shell.modifiers):
+        shell.modifiers.remove(mod)
+    rm = shell.modifiers.new("remesh", "REMESH")
+    rm.mode = "VOXEL"
+    rm.voxel_size = voxel
+    rm.adaptivity = 0.0
+    rm.use_smooth_shade = True
+    _apply_modifiers(shell)
+    # Keep the outer surface only (an open model can leave inner shells).
+    bm = bmesh.new()
+    bm.from_mesh(shell.data)
+    islands = []
+    seen = set()
+    for v in bm.verts:
+        if v.index in seen:
+            continue
+        stack, isl = [v], []
+        while stack:
+            x = stack.pop()
+            if x.index in seen:
+                continue
+            seen.add(x.index)
+            isl.append(x)
+            stack.extend(e.other_vert(x) for e in x.link_edges)
+        islands.append(isl)
+    def extent(isl):
+        xs = [v.co.x for v in isl]
+        ys = [v.co.y for v in isl]
+        return (max(xs) - min(xs)) * (max(ys) - min(ys))
+    keep = max(islands, key=extent)
+    keep_ids = {v.index for v in keep}
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if v.index not in keep_ids], context="VERTS")
+    bm.to_mesh(shell.data)
+    bm.free()
+    # Smooth (relaxing the voxel steps and pulling it a hair inside the model's convex edges, so
+    # its back faces stay under the model in creases instead of drawing stray lines), then thin.
+    sm = shell.modifiers.new("smooth", "SMOOTH")
+    sm.factor = 0.6
+    sm.iterations = smooth
+    n = len(shell.data.polygons)
+    if n > faces:
+        dec = shell.modifiers.new("decimate", "DECIMATE")
+        dec.ratio = faces / n
+    _apply_modifiers(shell)
+    shell.data.shade_smooth()
+    shell.data.materials.append(material("outline_shell", (0.0, 0.0, 0.0), roughness=1.0))
+    shell["tyrian_outline"] = True
+    return shell
+
+
+def _apply_modifiers(obj):
+    for o in bpy.context.view_layer.objects:
+        o.select_set(False)
+    obj.select_set(True)
+    bpy.context.view_layer.objects.active = obj
+    for mod in list(obj.modifiers):
+        bpy.ops.object.modifier_apply(modifier=mod.name)
+
+
 def export_sprite_model(root, objects, model, sprites, image_format="AUTO"):
     """Export `objects` to public/models/<model>.glb and register the sprites they replace in
     src/render/spriteModels/<basename>.json. `sprites` is the list of {sheet, size, frames} (and

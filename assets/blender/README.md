@@ -18,7 +18,11 @@ colors and details, not a new design.
 3. `common.reference_image()` puts the sprite on a plane beside the model in Blender (never
    exported) so they can be compared side by side with the MCP's `look`.
 
-In game, a dark outline (`OUTLINE` in `src/render/view.ts`) reproduces the sprites' black edges.
+In game, a dark outline (`OUTLINE` in `src/render/view.ts`) reproduces the sprites' black edges. A
+hard-surface model (split normals, separate plates) can export a smooth outline shell beside it
+(`common.outline_shell`, DECISIONS.md D51) so the outline is one clean contour instead of whiskers
+along every hard edge; and a ship can name its engines (`tyrian_engines` on its object) for the
+menu backdrop's glows. `assets/blender/usp_talon.py` does both.
 
 ## Conventions
 

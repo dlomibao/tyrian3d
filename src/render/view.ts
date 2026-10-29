@@ -7,6 +7,7 @@ import { PLAYFIELD_WORLD_D, PLAYFIELD_WORLD_W, PX_PER_UNIT, screenWorldX, screen
 import type { World } from "../game/world";
 import type { DrawList } from "../sim/draw";
 import { DrawListRenderer } from "./drawListRenderer";
+import { isModelHelper } from "./modelPrep";
 import { ScreenFilterPass } from "./screenFilters";
 import { VFX_LAYER } from "./vfx/vfxMode";
 
@@ -154,7 +155,7 @@ export class View {
   setShipModel(model: THREE.Object3D): void {
     this.ship.remove(this.shipModel);
     model.traverse((o) => {
-      if ((o as THREE.Mesh).isMesh) o.castShadow = true;
+      if ((o as THREE.Mesh).isMesh) o.castShadow = !isModelHelper(o);
     });
     this.shipModel = model;
     this.ship.add(model);

@@ -8,7 +8,7 @@ underside views with dimensions in sprite px) and the top-down concept
 (the hitbox read): a faceted chisel nose with a split raised spine, a framed dark canopy with a
 cross frame, two big engine nacelles with a machined (chamfered, filleted octagon) section, armour
 petals over their front domes and a deep blackened seam, bolted-on outboard armour caps, a banded
-rear body with grilles, engine housings with vents and two deep glowing nozzles, a gunmetal tail
+rear body with grilles, engine housings with vents and two deep glowing nozzles, a boat-tail
 plate; underneath a keel, chin cannons, nacelle intakes, ventral pylons and gear doors.
 
 How it is built:
@@ -25,6 +25,9 @@ How it is built:
   edges polished). Base Color = map x palette colour, so the palette still sets the colour.
 - Materials are palette materials (pal_<index>) so palettes, fades and the hit flash apply; the
   glows and navigation lights are emissive palette colours (orange 121/123, red 118, green 204).
+- Exported beside it: an outline shell (common.outline_shell, D51), a smooth closed copy the game
+  draws only in its outline pass, so the ink outline is one contour, not whiskers along every hard
+  edge; and `tyrian_engines` on the object, where the menu backdrop puts its two engine glows.
 
     Blender --background --factory-startup --python usp_talon.py -- [--out path.glb] [--no-bake] [--preview png]
 
@@ -509,7 +512,7 @@ def build_fuselage(P):
         plate(P, L, 4.3, 9.35, BRASS, *S(0.13, 0.9), d=0.34, c=0.15)
         for y0, y1, mat in ((4.3, 8.4, BRASS), (8.55, 12.2, BRASS_MID), (12.35, 16.0, BRASS_MID)):
             plate(P, L, y0, y1, mat, *S(0.95, 2.55), d=0.3, c=0.15)
-        for y0, y1 in ((4.4, 8.9, ), (9.05, 13.4), (13.55, 16.5)):
+        for y0, y1 in ((4.4, 8.9, ), (9.05, 12.25), (12.4, 16.5)):
             plate(P, L, y0, y1, BRASS_DK, *S(2.6, 4.25))
         # Rear shoulders behind the canopy, partly inside the nacelles.
         plate(P, L, 16.15, 19.15, BRASS, *S(0.95, 2.6))
@@ -747,6 +750,13 @@ def build_pods(P, D):
             ring, (cx, cz) = pod_loop(y, side)
             pts += [(cx + (x - cx) * k, y, cz + (z - cz) * k) for x, z in ring]
         hull(P, pts, BRASS_DK)
+        # A raised gunmetal boss on the bulkhead's upper half (above the exhaust can), a panel line
+        # round it.
+        pts = []
+        for y, k in ((POD_END + 0.1, 0.62), (POD_END + 0.24, 0.62), (POD_END + 0.3, 0.55)):
+            ring, (cx, cz) = pod_loop(y, side)
+            pts += [(cx + (x - cx) * k, y, max(cz + (z - cz) * k, cz + 0.1)) for x, z in ring]
+        hull(P, pts, GUN)
         plate(P, can, 23.95, 24.3, BRASS_DK, d=0.12, c=0.05, ystep=1)
         # Front cowl: polished armour petals over the dome (gaps along the section's chamfers and
         # across the dome at row 14.6), the dark core's nose showing as a cap at the tip. Then the
@@ -756,11 +766,14 @@ def build_pods(P, D):
         def A(a, b, gap=0.0):
             return dict(s0=pod_s(a) + gap, s1=pod_s(b) - gap)
         for a, b in ((-48, 57), (57, 133), (133, 224), (224, 312)):
-            plate(P, L, 12.62, 14.5, BRASS_POL, **A(a, b, 0.12), d=0.22, c=0.1, ystep=0.4)
+            plate(P, L, 13.2, 14.5, BRASS_POL, **A(a, b, 0.12), d=0.22, c=0.1, ystep=0.4)
         plate(P, L, 14.66, 17.5, BRASS_POL, **A(-136, 57), d=0.22, c=0.12, ystep=0.6)
         plate(P, L, 14.66, 17.5, BRASS_POL, **A(59, 221), d=0.22, c=0.12, ystep=0.6)
-        plate(P, L, 18.06, POD_END + 0.12, BRASS_POL, **A(-121, 56), d=0.3, c=0.12, ystep=0.7)
-        plate(P, L, 18.06, POD_END + 0.12, BRASS_POL, **A(59, 236), d=0.3, c=0.12, ystep=0.7)
+        plate(P, L, 18.06, 22.42, BRASS_POL, **A(-121, 56), d=0.3, c=0.12, ystep=0.7)
+        plate(P, L, 18.06, 22.42, BRASS_POL, **A(59, 236), d=0.3, c=0.12, ystep=0.7)
+        # Aft end cap: a thicker dark brass ring round the shell's tail, behind a panel break, so
+        # the tapering rear is not one big smooth surface.
+        plate(P, L, 22.56, POD_END + 0.12, BRASS_DK, d=0.38, c=0.12, ystep=0.5)
         plate(P, L, 18.75, 22.3, BRASS, **A(-34, 70), d=0.5, c=0.16, ystep=0.9)
         # Heat louvres at the panel's aft end: a dark grille with three slats across it.
         plate(P, L, 20.85, 21.95, DEEP, **A(-13.5, 46.5), d=0.54, c=0.03, ystep=2)
@@ -817,26 +830,19 @@ def build_pods(P, D):
             pts += [(side * x, y, z) for x, z in ((1.75, -1.75), (2.95, -1.75), (2.95, bot + 0.2), (2.75, bot),
                                                    (1.95, bot), (1.75, bot + 0.2))]
         hull(D, pts, GUN)
-        # Shoulder sponson: flat-topped chine from the hull flank into the nacelle front.
-        pts = []
-        # In two pieces, each convex, so the plan steps out with the sprite's outline (row 12).
-        for piece in (((10.3, 3.4), (11.95, 3.9)),
-                      ((11.95, 3.9), (12.95, 4.88), (13.95, 5.58), (14.95, 5.93), (15.95, 6.3), (16.95, 6.62), (17.2, 6.68))):
-            pts = []
-            for y, xo in piece:
-                top, bot = 0.85, -1.15
-                pts += [(side * 1.6, y, top), (side * (xo - 0.42), y, top), (side * xo, y, top - 0.42),
-                        (side * xo, y, bot + 0.3), (side * (xo - 0.3), y, bot), (side * 1.6, y, bot)]
-            hull(D, pts, BRASS_MID)
 
 
 def build_aft(D):
-    # Tail plate: a gunmetal wedge under the tail, its top sloping down aft, chamfered.
+    # Tail plate: a dark brass boat-tail that closes the rear body, its top sloping down from the
+    # hatch to a thin trailing edge between the nozzles, rear corners cut: a tail plate, not a
+    # shelf.
     pts = []
-    for y, hw, top in ((24.4, 2.9, 0.1), (26.95, 2.35, -0.35)):
+    for y, hw, top, bot in ((24.4, 2.5, 1.2, -0.95), (25.15, 2.25, 1.2, -0.85), (26.0, 2.2, 0.3, -0.72),
+                            (26.85, 1.45, -0.3, -0.52)):
+        ch = min(0.16, (top - bot) / 3)
         for sx in (-1, 1):
-            pts += [(sx * hw, y, top - 0.18), (sx * (hw - 0.18), y, top), (sx * hw, y, -0.6), (sx * (hw - 0.18), y, -0.78)]
-    hull(D, pts, GUN)
+            pts += [(sx * hw, y, top - ch), (sx * (hw - ch), y, top), (sx * hw, y, bot + ch * 0.5), (sx * (hw - ch * 0.5), y, bot)]
+    hull(D, pts, BRASS_DK)
     # Chevron on the rear hatch.
     for sx in (-1, 1):
         pts = []
@@ -1130,17 +1136,24 @@ def main():
     cull_hidden(obj)
     tris = sum(len(p.vertices) - 2 for p in obj.data.polygons)
     print(f"talon: {len(obj.data.polygons)} faces, {tris} triangles")
+    # Where the menu backdrop puts its engine glows (src/ui/backdrop.ts): just behind the two
+    # nozzles, in glTF axes (x, y up, z aft), with the glow colour (orange, palette 121).
+    obj["tyrian_engines"] = {"color": "#ff8a2a", "at": [[round(sx * 4.15 * PX, 4), round(-0.85 * PX, 4), round((26.15 - 14) * PX, 4)]
+                                                         for sx in (-1, 1)]}
     fmt = "AUTO"
     if "--no-bake" not in argv:
         bake_dir = out.parent if out else root / "assets" / "blender" / "textures" / MODEL / "bake"
         bake_dir.mkdir(parents=True, exist_ok=True)
         bake_maps(obj, bake_dir)
         fmt = "WEBP"
+    # The outline shell (D51), made after the bake so its occlusion rays never hit it.
+    shell = common.outline_shell(obj, coll, faces=1500)
+    print(f"talon: outline shell {len(shell.data.polygons)} faces")
     if out:
-        common.export_glb([obj], out, image_format=fmt)
+        common.export_glb([obj, shell], out, image_format=fmt)
         print(f"exported {out}")
     else:
-        common.export_sprite_model(root, [obj], NAME, SPRITES, image_format=fmt)
+        common.export_sprite_model(root, [obj, shell], NAME, SPRITES, image_format=fmt)
     if "--preview" in argv:
         ref = root / "reference" / "models" / MODEL / "frame-tyrian8-233.png"
         common.render_preview([obj], argv[argv.index("--preview") + 1], ref, size=2)
