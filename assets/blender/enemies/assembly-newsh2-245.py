@@ -46,6 +46,12 @@ def rect(bm, c0, r0, c1, r1, z0, z1, mat):
     lib.box(bm, XE(c0), YE(r1), XE(c1), YE(r0), z0, z1, mat=mat)
 
 
+def brect(bm, c0, r0, c1, r1, z0, z1, bevel, mat):
+    """A box over pixel edges c0..c1, r0..r1 with its top edge chamfered by `bevel` px."""
+    lib.bevel_prism(bm, [(XE(c0), YE(r1)), (XE(c1), YE(r1)), (XE(c1), YE(r0)), (XE(c0), YE(r0))],
+                    z0, z1, bevel * PX, mat=mat)
+
+
 def build(sprite, grid):
     coll = common.reset_collection(NAME)
     tag = "nsh2a245"
@@ -78,27 +84,28 @@ def build(sprite, grid):
 
     # Vertical beams between the pads and the middle (columns 21-26 and 45-50).
     for c in (21, 45):
-        rect(bm, c, -0.5, c + 6, 28.5, 0.0, 0.07, BEAM)
+        brect(bm, c, -0.5, c + 6, 28.5, -0.02, 0.13, 0.7, BEAM)
     # Panels in the bands along the top and bottom edges (they repeat every 24 px).
     for c0, c1, mat in ((13, 19, PANEL), (29, 36, BEAM), (37, 43, PANEL), (53, 60, BEAM)):
-        rect(bm, c0 + 0.2, -0.5, c1 - 0.2, 3.8, 0.0, 0.05, mat)
-        rect(bm, c0 + 0.2, 23.2 if c0 not in (13, 53) else 20.2, c1 - 0.2, 28.5, 0.0, 0.05, mat)
+        brect(bm, c0 + 0.2, -0.5, c1 - 0.2, 3.8, -0.02, 0.09, 0.6, mat)
+        brect(bm, c0 + 0.2, 23.2 if c0 not in (13, 53) else 20.2, c1 - 0.2, 28.5, -0.02, 0.09, 0.6, mat)
 
     # Octagonal pads on both sides (columns 3-20 and 51-68, rows 4-19), raised and chamfered.
     octagon = [(8, 4), (16, 4), (21, 9), (21, 15), (16, 20), (8, 20), (3, 15), (3, 9)]
     for flip in (False, True):
         pts = [((72 - c) if flip else c, r) for c, r in octagon]
-        lib.bevel_prism(bm, [(XE(c), YE(r)) for c, r in pts], -0.1, 0.11, 1.3 * PX, mat=PLATE)
+        lib.bevel_prism(bm, [(XE(c), YE(r)) for c, r in pts], -0.1, 0.32, 1.3 * PX, mat=PLATE,
+                        bevel_h=1.0 * PX)
 
     # Round collar round the eye (centre column 36, row 10.5) and the eye's blue-grey rim.
     ex, ey = XE(36.5), YE(11.0)
     def ellipse(rx, ry, n=20):
         return [(ex + rx * PX * math.cos(2 * math.pi * k / n), ey + ry * PX * math.sin(2 * math.pi * k / n))
                 for k in range(n)]
-    lib.bevel_prism(bm, ellipse(9.8, 9.6), 0.0, 0.09, 1.2 * PX, mat=PANEL)
-    lib.bevel_prism(bm, ellipse(7.6, 6.6), 0.09, 0.12, 0.6 * PX, mat=RIM)
-    # The dark glass eye (columns 30-42, rows 6-16), a big glossy dome.
-    lib.dome(bm, (ex, ey, 0.1), (6.9 * PX, 5.9 * PX, 0.2), mat=GLASS, segments=20, rings=6)
+    lib.bevel_prism(bm, ellipse(9.8, 9.6, 24), -0.02, 0.24, 1.6 * PX, mat=PANEL, bevel_h=1.3 * PX)
+    lib.bevel_prism(bm, ellipse(7.6, 6.6, 24), 0.24, 0.29, 0.6 * PX, mat=RIM)
+    # The dark glass eye (columns 30-42, rows 6-16), a big glossy ball standing in the collar.
+    lib.dome(bm, (ex, ey, 0.26), (6.9 * PX, 5.9 * PX, 0.48), mat=GLASS, segments=24, rings=8)
 
     # Two blue capsules below the eye, slanting outwards.
     for (c0, r0), (c1, r1) in (((25.2, 16.4), (31.0, 22.4)), ((47.2, 17.0), (41.6, 22.6))):
@@ -108,17 +115,20 @@ def build(sprite, grid):
         for k in range(n + 1):
             t = k / n
             s = math.sin(math.pi * t) ** 0.35
-            path.append((x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, 0.07, 1.65 * PX * s, 0.075 * s))
+            path.append((x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, 0.13, 1.65 * PX * s, 1.6 * PX * s))
         lib.sweep(bm, path, sides=10, mat=CAPSULE)
         # A dark socket under each capsule.
-        lib.sweep(bm, [(x0, y0, 0.0, 2.4 * PX, 0.04), (x1, y1, 0.0, 2.4 * PX, 0.04)], sides=8, mat=SEAM)
+        lib.sweep(bm, [(x0, y0, 0.02, 2.4 * PX, 0.05), (x1, y1, 0.02, 2.4 * PX, 0.05)], sides=8, mat=SEAM)
 
     # Grille under the eye: a dark recess with four pale bars (columns 33-39, rows 20-23) and a
     # pale bar across its top (row 18).
-    rect(bm, 32.3, 19.3, 40.7, 24.2, 0.0, 0.035, SEAM)
+    # The grille sits in a raised frame, so the recess is cut in below the frame's top.
+    for c0, r0, c1, r1 in ((31.6, 18.9, 32.4, 24.9), (40.6, 18.9, 41.4, 24.9), (31.6, 24.1, 41.4, 24.9)):
+        brect(bm, c0, r0, c1, r1, -0.02, 0.16, 0.25, PANEL)
+    rect(bm, 32.3, 19.3, 40.7, 24.2, -0.02, 0.03, SEAM)
     for c in (33, 35, 37, 39):
-        rect(bm, c + 0.1, 19.6, c + 0.9, 23.8, 0.0, 0.075, BAR)
-    rect(bm, 33.2, 17.6, 40.8, 18.9, 0.0, 0.08, PALE)
+        rect(bm, c + 0.1, 19.6, c + 0.9, 23.8, 0.0, 0.11, BAR)
+    brect(bm, 31.6, 17.4, 41.4, 19.1, -0.02, 0.19, 0.4, PALE)
 
     # ---- rocks at both ends, painted from the sprite ----
     rng = random.Random(245)
@@ -147,7 +157,7 @@ def build(sprite, grid):
                  for _ in range(4)]
         def bump(d, seeds=seeds):
             return 1.0 + sum(a * max(0.0, d.x * u + d.y * v + d.z * w) for u, v, w, a in seeds)
-        lib.ellipsoid(bm, (XE(c + 0.5), YE(r + 0.5), z), (rx * PX, ry * PX, rz), mat=ROCK1,
+        lib.ellipsoid(bm, (XE(c + 0.5), YE(r + 0.5), z), (rx * PX, ry * PX, 2.0 * rz), mat=ROCK1,
                       segments=10, rings=6, smooth=False, bump=bump)
 
     def sample(x, y):

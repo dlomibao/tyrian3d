@@ -1,0 +1,89 @@
+{
+ "name": "assembly-newsh4-231",
+ "summary": "Golden horned arm, 168 x 28 px from seven 2x2 pieces in a row: a long brown-gold horn that tapers from a 12 px thick root (right) to a point curving down at the far left, clamped by small grey metal brackets along its top, with raised gold bands near its root, a round ball-like knuckle joint (with a lower lobe hanging to a point), a narrow neck, and the start of a thick gold cylinder cut off at the right edge. Shape language: round, polished brass-like tubes and a ball joint (each about as tall as it is wide, lit from the upper left so the sprite's lower half is dark), with small hard grey clamps.",
+ "features": [
+  {
+   "id": "horn",
+   "kind": "hull",
+   "box": [2, 1, 118, 26],
+   "traits": [
+    "one long tube tapering from about 12 px thick at the root (cols 85-112, rows 1-12) to a point at col 2 row 25, curving down to the left",
+    "round in section: about as tall as it is wide along its length (6 px tall at the root, thinning to the tip), not a flat slab",
+    "one mid gold-brown tone; the sprite's lit top edge and dark lower half are light and shadow, not paint"
+   ],
+   "note": "The baseline script calls it the horn; it is the arm's main body."
+  },
+  {
+   "id": "thick-segment",
+   "kind": "pod",
+   "box": [133, 1, 168, 22],
+   "traits": [
+    "a thick gold cylinder 21 px across (rows 1-21) running out past the right edge, open where the assembly ends",
+    "round: about as tall as it is wide, its top highlight band (rows 2-5) a curved surface catching light",
+    "rounded shoulder at its left end (cols 133-140) with a lit rim on the lower left"
+   ],
+   "note": "The start of the next arm segment; the baseline calls it the thick ribbed segment."
+  },
+  {
+   "id": "knuckle",
+   "kind": "other",
+   "box": [113, 1, 135, 20],
+   "traits": [
+    "a round ball joint about 20 x 15 px between the horn root and the thick segment, bulging above and below the horn",
+    "a lower lobe hanging to a point near col 126 row 19, with a lit lower-left edge",
+    "tall and round like a ball (about 8 px high), not a flat lens"
+   ],
+   "note": "Round knuckle; the two bright spots on it are sheen."
+  },
+  {
+   "id": "root-bands",
+   "kind": "panel",
+   "box": [88, 1, 107, 14],
+   "traits": [
+    "three raised rings round the horn root at cols 90, 94 and 104 (bright vertical lines in the sprite)",
+    "each a thin band slightly proud of the horn, following its round section"
+   ],
+   "note": "Raised bands near the root (baseline)."
+  },
+  {
+   "id": "grey-clamps",
+   "kind": "other",
+   "box": [38, 0, 113, 13],
+   "traits": [
+    "small grey metal brackets on the horn: cols 39-45 rows 7-12, cols 58-63 rows 5-9, cols 81-85 rows 2-7, cols 108-112 rows 1-4 (blue-grey)",
+    "hard little boxes raised on the horn surface, metallic grey, not gold"
+   ],
+   "note": "The baseline calls them studs; they read as clamps holding the horn's plating."
+  },
+  {
+   "id": "root-port",
+   "kind": "recess",
+   "box": [95, 7, 101, 13],
+   "traits": [
+    "a small dark grey square (cols 96-99, rows 8-12) on the lower flank of the horn root",
+    "cut in or framed in grey metal, dark inside"
+   ],
+   "note": "Dark grey port with a lighter grey rim; baseline modelled it as a grey stud."
+  },
+  {
+   "id": "lower-rail",
+   "kind": "strut",
+   "box": [66, 10, 118, 14],
+   "traits": [
+    "a thin lit line along the underside of the horn root (row 12, cols 69-117)",
+    "a constant-thickness ridge or rod along the lower flank, catching the light on its top edge"
+   ],
+   "note": "Thin bright line along the part = an edge catching light (rubric)."
+  },
+  {
+   "id": "horn-seams",
+   "kind": "recess",
+   "box": [62, 3, 82, 13],
+   "traits": [
+    "dark vertical seam lines across the horn at cols 64 and 80",
+    "thin dark rings between sections of the horn"
+   ],
+   "note": "Segment joints of the horn's plating."
+  }
+ ]
+}

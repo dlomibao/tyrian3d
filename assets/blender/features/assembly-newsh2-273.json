@@ -1,0 +1,94 @@
+{
+ "name": "assembly-newsh2-273",
+ "summary": "A ground rock wall (a row of 2x2 pieces: newsh2-273 at the left end, newsh2-275 repeated, newsh2-277 at the right end) with a big purple octagonal armour hatch set in each piece. Behind the hatches along the top runs a purple band of panels, and between each pair of hatches a lighter purple housing fills the V-shaped gap; below them lies a bed of grey boulders with beige stones, deep dark crevices between them. Shape language: hard, chamfered purple plates stacked in height (hatch above housing above band) set among round, faceted, matte boulders.",
+ "concept": {
+  "image": "assets/blender/features/concepts/assembly-newsh2-273.jpg",
+  "use": "design guide; the sprite decides outline, proportions and colours"
+ },
+ "features": [
+  {
+   "id": "octagon_hatch",
+   "kind": "panel",
+   "box": [26, 3, 46, 21],
+   "traits": [
+    "one purple octagon per piece, cols 3-20, rows 4-19 of the piece, flat mid-purple (88) top",
+    "a raised armour block several px tall with crisp chamfered edges: lit bevel line on the upper-left edges, darker side on the lower-right",
+    "casts the dark band below it (rows 20-21) and the dark gap to its right (cols 21-23, rows 11-16)",
+    "the tallest part of the wall; a slightly raised inner octagon hub (the concept's centre plate) may show in relief, not in paint"
+   ],
+   "note": "Concept: a heavy octagonal armoured hatch with a chunky rim and a raised central hub; the sprite draws only the rim's lit edge, so the hub stays subtle."
+  },
+  {
+   "id": "gap_housing",
+   "kind": "hull",
+   "box": [18, 3, 30, 12],
+   "traits": [
+    "light purple (90/91) wedge filling the V between two hatches, rows 5-10, wider at the top (about 10 px) than at the bottom (about 6 px)",
+    "a raised hard-surface housing, lower than the hatches but higher than the top band",
+    "its lower end drops into the dark crevice at rows 11-15"
+   ],
+   "note": "Concept: a stepped purple housing between the hatches with a ribbed vent at its lower end."
+  },
+  {
+   "id": "top_band",
+   "kind": "panel",
+   "box": [24, 0, 48, 5],
+   "traits": [
+    "purple band along the top edge, rows 0-4, made of rectangular panels separated by darker seams (cols 4, 12 and 19 of each piece)",
+    "a lighter (90) panel at cols 5-11 and mid (89) panels either side",
+    "low plates, below the housings and the hatches"
+   ],
+   "note": "In the left-end piece (newsh2-273) the band starts at col 13; the right-end piece (newsh2-277) stops it at col 12."
+  },
+  {
+   "id": "boulder",
+   "kind": "rock",
+   "box": [15, 15, 29, 25],
+   "traits": [
+    "a big grey boulder under each gap between hatches, about 10 px across, its lit (10/11) face to the upper-left",
+    "round and faceted, standing about half its width tall, matte rock"
+   ],
+   "note": ""
+  },
+  {
+   "id": "crevices",
+   "kind": "recess",
+   "box": [20, 10, 27, 17],
+   "traits": [
+    "near-black (1-3) gaps between the hatches below the housings and under the hatches' lower edge",
+    "read as depth between tall parts, not as flat black paint"
+   ],
+   "note": ""
+  },
+  {
+   "id": "rubble",
+   "kind": "rock",
+   "box": [24, 19, 48, 28],
+   "traits": [
+    "smaller grey boulders (6-9) along the bottom of each piece, rows 19-27, darker toward the bottom",
+    "each one round and faceted, a few px tall, with dark gaps between them"
+   ],
+   "note": ""
+  },
+  {
+   "id": "beige_stones",
+   "kind": "rock",
+   "box": [1, 24, 12, 28],
+   "traits": [
+    "a beige (169-172) stone at cols 2-10, rows 25-27 of every piece, and a big one in the top-left corner of the left-end piece (cols 1-9, rows 0-3)",
+    "rounded, matte, in the beige palette colours"
+   ],
+   "note": ""
+  },
+  {
+   "id": "left_end_rocks",
+   "kind": "rock",
+   "box": [0, 0, 13, 17],
+   "traits": [
+    "the left-end piece's top-left: the beige stone, then grey rocks down its left edge (cols 0-3, rows 4-15) where the band would be",
+    "the band starts only at col 13 in this piece"
+   ],
+   "note": ""
+  }
+ ]
+}

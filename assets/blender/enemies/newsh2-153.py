@@ -4,7 +4,9 @@ Seen in episode 1 (level 30) and episode 3. The sprite fills its whole block: a 
 plate framed by grey beams down both sides, with beige and brown blocks in the corners, and in
 the middle a five-pointed star round a glowing core: a grey ridge for the upper point, dark red
 arms with grey undersides to the left and right, dark red lower points and a red lip under the
-core. The three frames only brighten the core, so one model covers them all: the core, its
+core. Read as hard-surface armour (the concept's reading): a faceted prow, chamfered side beams
+and shoulder blocks, two engine pods at the bottom (the lower points) round a dark bay cut into the
+deck, and ball studs on dark wing plates behind the prow. The three frames only brighten the core, so one model covers them all: the core, its
 centre and (on the last frame) its collar change palette colour per frame (common.palette_material
 frames=).
 
@@ -15,7 +17,6 @@ import sys
 from pathlib import Path
 
 import bmesh
-from mathutils import Vector
 
 sys.path[:0] = [str(Path(__file__).resolve().parents[1]), str(Path(__file__).resolve().parent)]
 import common  # noqa: E402
@@ -34,24 +35,29 @@ def box(bm, c0, c1, r0, r1, z0, z1, mat):
     lib.ring_loft(bm, [ring0, ring1], mat)
 
 
-def spike(bm, a, b, w0, h0, z0, mat_up, mat_down, w1=0.0, h1=0.0):
-    """A diamond-section point from a (base) to b (tip) in sprite pixels: half width w and half
-    height h (units) at each end. Faces turned toward +Y get mat_up, the others mat_down."""
-    pa = Vector((lib.px(a[0]), lib.row(a[1]), z0))
-    pb = Vector((lib.px(b[0]), lib.row(b[1]), z0))
-    d = (pb - pa).normalized()
-    side = Vector((-d.y, d.x, 0.0))
-    up = Vector((0, 0, 1))
-    def ring(p, w, h):
-        return [tuple(p + side * w), tuple(p + up * h), tuple(p - side * w), tuple(p - up * h * 0.4)]
-    f0 = len(bm.faces)
-    rings = [ring(pa, w0, h0)]
-    rings.append(ring(pb, w1, h1) if w1 else [tuple(pb)])
-    lib.ring_loft(bm, rings, mat_up)
-    bm.faces.ensure_lookup_table()
-    centre = (pa + pb) / 2
-    for f in bm.faces[f0:]:
-        f.material_index = mat_up if (f.calc_center_median() - centre).y >= 0 else mat_down
+def slab(bm, secs, z0, ch, top, side=None):
+    """A hard plate lofted along Y with chamfered top edges all round. secs: (row, c0, c1, z_top) in
+    sprite rows/columns (pixel edges), in order down the sprite. The top and chamfers get `top`,
+    the walls `side`."""
+    side = top if side is None else side
+    pts = [(lib.ey(r), lib.ex(c0), lib.ex(c1), z) for r, c0, c1, z in secs]
+
+    def ring(y, x0, x1, z, end=False):
+        zc = z - ch
+        if end:
+            return [(x0, y, z0), (x1, y, z0), (x1, y, zc), (x1 - ch, y, zc), (x0 + ch, y, zc), (x0, y, zc)]
+        return [(x0, y, z0), (x1, y, z0), (x1, y, zc), (x1 - ch, y, z), (x0 + ch, y, z), (x0, y, zc)]
+
+    rings = [ring(*pts[0], end=True)]
+    for i, (y, x0, x1, z) in enumerate(pts):
+        if i == 0:
+            y -= ch
+        elif i == len(pts) - 1:
+            y += ch
+        rings.append(ring(y, x0, x1, z))
+    rings.append(ring(*pts[-1], end=True))
+    seg = [side, side, top, top, top, side]
+    lib.ring_loft(bm, rings, [seg] * (len(rings) - 1))
 
 
 def build(sprite):
@@ -63,10 +69,10 @@ def build(sprite):
 
     mats = [
         pal(2, metallic=0.1, roughness=0.8),  # 0 dark plate
-        pal(9, metallic=0.6, roughness=0.35),  # 1 grey beams and undersides
+        pal(9, metallic=0.6, roughness=0.35),  # 1 grey beams and ledges
         pal(7, metallic=0.6, roughness=0.35),  # 2 grey ridge
         pal(13, metallic=0.7, roughness=0.2),  # 3 ridge crest
-        pal(67, metallic=0.15, roughness=0.5),  # 4 dark red arms
+        pal(67, metallic=0.35, roughness=0.45),  # 4 dark red armour
         pal(70, metallic=0.4, roughness=0.35),  # 5 red lip
         anim(113, "collar", {157: 116}, metallic=0.3, roughness=0.4),  # 6 core collar
         anim(119, "core", {155: 121, 157: 125}, emission_strength=3.5),  # 7 core
@@ -74,54 +80,82 @@ def build(sprite):
         pal(170, metallic=0.3, roughness=0.5),  # 9 beige blocks
         pal(22, metallic=0.3, roughness=0.5),  # 10 brown blocks
         pal(4, metallic=0.4, roughness=0.5),  # 11 dark grey plates
+        pal(163, metallic=0.3, roughness=0.5),  # 12 dark brown nozzle
+        pal(1, metallic=0.1, roughness=0.9),  # 13 bay floor
+        pal(11, metallic=0.7, roughness=0.25),  # 14 stud balls
     ]
-    PLATE, BEAM, RIDGE, CREST, RED, LIP, COLLAR, CORE, HOT, BEIGE, BROWN, DGREY = range(12)
+    PLATE, BEAM, RIDGE, CREST, RED, LIP, COLLAR, CORE, HOT, BEIGE, BROWN, DGREY, NOZZLE, FLOOR, STUD = range(15)
     bm = bmesh.new()
-
-    # The plate filling the block.
-    box(bm, 0, 24, 0, 28, -0.2, PLATE_TOP, PLATE)
-    # Grey beams down both sides, a grey block top right and a small dark one below it.
     t = PLATE_TOP
-    for c0, c1 in ((0, 4), (21, 24)):
-        x = (lib.ex(c0) + lib.ex(c1)) / 2
-        hw = (lib.ex(c1) - lib.ex(c0)) / 2
-        lib.Profile([(lib.ey(r), hw, h, t) for r, h in ((27.95, 0.06), (26, 0.08), (12, 0.08), (10.6, 0.05))],
-                    power=4.0).build(bm, sides=12, mat_index=BEAM, smooth=False, dx=x)
-    box(bm, 18, 24, 0, 4, t, t + 0.07, BEAM)
-    box(bm, 18, 21, 5, 8, t, t + 0.04, DGREY)
-    # Corner blocks: beige top left and bottom left, brown along the bottom.
-    box(bm, 0, 5, 0, 4, t, t + 0.08, BEIGE)
-    box(bm, 3, 8, 24, 26, t, t + 0.06, BROWN)
-    box(bm, 2, 5, 26, 28, t, t + 0.07, BEIGE)
-    box(bm, 8, 11, 26, 28, t, t + 0.05, BEIGE)
-    box(bm, 16, 21, 26, 28, t, t + 0.05, BROWN)
 
-    # Upper point: a grey ridge from the top edge down to the core, crest on column 11.
+    # The deck filling the block, with the dark central bay (rows 21-26, cols 8-15) cut into it.
+    box(bm, 0, 24, 0, 21, -0.2, t, PLATE)
+    box(bm, 0, 8, 21, 26, -0.2, t, PLATE)
+    box(bm, 15, 24, 21, 26, -0.2, t, PLATE)
+    box(bm, 0, 24, 26, 28, -0.2, t, PLATE)
+    box(bm, 8, 15, 21, 26, -0.2, t - 0.1, FLOOR)
+
+    # Grey beams down both sides: hard chamfered boxes about 3 px tall, sloping down at the top end.
+    for c0, c1 in ((0, 3.9), (20.8, 24)):
+        slab(bm, [(9.6, c0, c1, t + 0.09), (12.5, c0, c1, t + 0.25), (28, c0, c1, t + 0.25)], t, 0.045, BEAM)
+
+    # Corner blocks: beige top left (with a strip along the top edge), grey top right, beige and
+    # brown along the bottom.
+    slab(bm, [(0, 0, 5.2, t + 0.13), (4, 0, 5.2, t + 0.13)], t, 0.03, BEIGE)
+    box(bm, 5.2, 9.8, 0, 1.2, t, t + 0.07, BEIGE)
+    slab(bm, [(0, 18.8, 24, t + 0.12), (4, 18.8, 24, t + 0.12)], t, 0.03, BEAM)
+    box(bm, 2, 5, 26, 28, t, t + 0.08, BEIGE)
+    box(bm, 8, 11, 26, 28, t, t + 0.06, BEIGE)
+    box(bm, 16, 21, 26.2, 28, t, t + 0.07, BROWN)
+
+    # Wing plates behind the prow with a ball stud each and a thin strut in toward the ridge.
+    box(bm, 0, 4.6, 4, 8, t, t + 0.05, DGREY)
+    box(bm, 17.4, 21.2, 4.6, 8, t, t + 0.05, DGREY)
+    for c, r in ((2.3, 6.2), (19.2, 6.2)):
+        lib.ellipsoid(bm, (lib.px(c - 0.5), lib.row(r - 0.5), t + 0.07), (1.1 * U, 1.1 * U, 0.08),
+                      segments=8, rings=4, mat_index=STUD)
+    for a, b in (((3.2, 7.4), (8.6, 8.6)), ((18.2, 7.2), (14.0, 7.6))):
+        lib.polyline_tube(bm, [(lib.ex(a[0]), lib.ey(a[1]), t + 0.06), (lib.ex(b[0]), lib.ey(b[1]), t + 0.08)],
+                          0.4 * U, sides=4, mat_index=DGREY)
+
+    # Upper point: a faceted grey prow from the top edge down to the core, rising toward the core,
+    # with its crest on column 11.
     xc = lib.px(11)
     rings = []
-    for r, w, h in ((0.0, 1.5, 0.03), (5.0, 2.8, 0.08), (11.5, 3.8, 0.15)):
+    for r, w, h in ((0.0, 1.6, 0.06), (5.0, 2.8, 0.16), (11.8, 3.9, 0.33)):
         y = lib.ey(r)
-        rings.append([(xc - w * U, y, t), (xc, y, t + h), (xc + w * U, y, t), (xc, y, t - 0.05)])
+        rings.append([(xc - w * U, y, t), (xc - 0.5 * w * U, y, t + 0.7 * h), (xc, y, t + h),
+                      (xc + 0.5 * w * U, y, t + 0.7 * h), (xc + w * U, y, t)])
     lib.ring_loft(bm, rings, RIDGE)
-    lib.polyline_tube(bm, [(xc, lib.ey(0.3), t + 0.03), (xc, lib.ey(11.5), t + 0.15)], 0.35 * U, sides=6,
-                      mat_index=CREST)
+    lib.polyline_tube(bm, [(xc, lib.ey(0.1), t + 0.06), (xc, lib.ey(5.0), t + 0.16), (xc, lib.ey(11.8), t + 0.33)],
+                      0.35 * U, sides=6, mat_index=CREST)
 
-    # Side arms (red over grey) and the lower points (red), all from the core outward.
-    z = 0.0
-    spike(bm, (10.0, 14.6), (4.0, 15.6), 2.2 * U, 0.1, z, RED, BEAM)
-    spike(bm, (13.0, 14.8), (19.6, 15.6), 2.0 * U, 0.1, z, RED, BEAM)
-    spike(bm, (10.0, 18.0), (4.0, 23.2), 2.8 * U, 0.1, z - 0.01, RED, RED, w1=0.9 * U, h1=0.03)
-    spike(bm, (13.0, 18.4), (18.8, 24.8), 2.8 * U, 0.1, z - 0.01, RED, RED, w1=0.9 * U, h1=0.03)
+    # Shoulders: dark red armour blocks against the collar, each with a grey ledge below it.
+    slab(bm, [(12, 5.6, 9.4, t + 0.2), (16, 5.0, 9.4, t + 0.2)], t, 0.04, RED)
+    slab(bm, [(15.6, 4, 8.6, t + 0.12), (17, 4, 8.6, t + 0.12)], t, 0.03, BEAM)
+    slab(bm, [(12.8, 14.6, 19.4, t + 0.2), (16, 14.6, 19.6, t + 0.2)], t, 0.04, RED)
+    slab(bm, [(15.6, 14.8, 19.2, t + 0.12), (17, 14.8, 19.2, t + 0.12)], t, 0.03, BEAM)
 
-    # Red lip under the core (rows 18-20).
-    lib.ellipsoid(bm, (lib.px(11.0), lib.row(19.0), 0.0), (2.6 * U, 1.3 * U, 0.06), segments=12, rings=6,
-                  mat_index=LIP)
-    # Core: a dark red collar (rows 12 and 17) round a glowing orb with a hotter centre.
+    # Engine pods: rust-red chamfered blocks, the upper-left corner cut diagonally, with a brown
+    # (left) or dark brown (right) rear section.
+    slab(bm, [(20, 6, 8.4, t + 0.28), (23, 3, 8.4, t + 0.28), (24, 3, 8.4, t + 0.28)], t, 0.05, RED)
+    slab(bm, [(23.9, 3.2, 8.2, t + 0.22), (26, 3.2, 8.2, t + 0.22)], t, 0.04, BROWN)
+    slab(bm, [(20.2, 17, 19.8, t + 0.28), (22.8, 15, 20.6, t + 0.28), (25, 15.6, 20.6, t + 0.28)], t, 0.05, RED)
+    slab(bm, [(24.9, 16.8, 20.8, t + 0.22), (26.6, 16.8, 20.8, t + 0.22)], t, 0.04, NOZZLE)
+
+    # Chin: a rounded red lip across rows 18-20, under the core.
+    lib.polyline_tube(bm, [(lib.ex(9.1), lib.ey(19.2), t + 0.1), (lib.ex(13.9), lib.ey(19.2), t + 0.1)],
+                      1.3 * U, sides=8, mat_index=LIP, smooth=True)
+    slab(bm, [(19.4, 9.3, 13.7, t + 0.07), (21, 9.6, 13.4, t + 0.05)], t, 0.02, RED)
+
+    # Core: a raised dark red collar round a glowing orb with a hotter centre.
     cx, cy = lib.px(11.5), lib.row(14.5)
-    lib.ring_loft(bm, [lib.ellipse_ring(cx, cy, -0.04, 3.4 * U, 3.2 * U, n=16),
-                       lib.ellipse_ring(cx, cy, 0.07, 3.3 * U, 3.1 * U, n=16)], COLLAR)
-    lib.ellipsoid(bm, (cx, cy, 0.06), (2.9 * U, 2.7 * U, 0.14), segments=16, rings=8, mat_index=CORE)
-    lib.ellipsoid(bm, (cx, cy + 0.2 * U, 0.12), (1.6 * U, 1.5 * U, 0.1), segments=12, rings=6, mat_index=HOT)
+    lib.ring_loft(bm, [lib.ellipse_ring(cx, cy, t, 3.5 * U, 3.3 * U, n=12),
+                       lib.ellipse_ring(cx, cy, 0.17, 3.4 * U, 3.2 * U, n=12),
+                       lib.ellipse_ring(cx, cy, 0.2, 3.0 * U, 2.8 * U, n=12),
+                       lib.ellipse_ring(cx, cy, 0.15, 2.7 * U, 2.5 * U, n=12)], COLLAR)
+    lib.ellipsoid(bm, (cx, cy, 0.14), (2.8 * U, 2.6 * U, 0.17), segments=12, rings=7, mat_index=CORE)
+    lib.ellipsoid(bm, (cx, cy + 0.2 * U, 0.14), (2.0 * U, 1.9 * U, 0.2), segments=10, rings=5, mat_index=HOT)
 
     obj = lib.finish(NAME, bm, mats, coll)
     return [(NAME, [obj], sprite["sprites"])]

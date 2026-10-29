@@ -42,57 +42,76 @@ def build(sprite):
     coll = common.reset_collection(NAME)
     pal = lambda i, **kw: common.palette_material(sprite, i, "nsh2_123", **kw)  # noqa: E731
     mats = [
-        pal(8, metallic=0.55, roughness=0.4),  # 0 grey cap, shoulders, hips
-        pal(11, metallic=0.6, roughness=0.3),  # 1 light grey ridges
-        pal(9, metallic=0.3, roughness=0.45),  # 2 grey shins and hips
-        pal(5, metallic=0.45, roughness=0.45),  # 3 dark grey shin bottoms
-        pal(2, metallic=0.2, roughness=0.7),  # 4 dark floor
-        pal(155, metallic=0.45, roughness=0.2),  # 5 bright blue tube
-        pal(159, metallic=0.5, roughness=0.2),  # 6 blue highlight
-        pal(132, metallic=0.45, roughness=0.3),  # 7 blue strips and bars
-        pal(58, metallic=0.45, roughness=0.35),  # 8 blue outer rails
-        pal(57, metallic=0.45, roughness=0.35),  # 9 blue boots
-        pal(56, metallic=0.4, roughness=0.4),  # 10 dark end of the tube
+        pal(8, metallic=0.55, roughness=0.4),  # 0 grey head housing and shoulders
+        pal(9, metallic=0.55, roughness=0.35),  # 1 grey hips
+        pal(7, metallic=0.5, roughness=0.4),  # 2 grey shins
+        pal(4, metallic=0.45, roughness=0.5),  # 3 dark grey feet
+        pal(2, metallic=0.2, roughness=0.7),  # 4 dark channel and bay floor
+        pal(155, metallic=0.1, roughness=0.08, emission_strength=0.35),  # 5 glowing glass tube
+        pal(156, metallic=0.1, roughness=0.08, emission_strength=0.3),  # 6 square head light
+        pal(132, metallic=0.5, roughness=0.3),  # 7 blue hip bands, pipes and inner strips
+        pal(58, metallic=0.5, roughness=0.35),  # 8 blue outer pipes and foot rims
+        pal(159, metallic=0.1, roughness=0.1, emission_strength=1.0),  # 9 blue lights on the hips
+        pal(56, metallic=0.4, roughness=0.3),  # 10 dark end of the tube
+        pal(3, metallic=0.5, roughness=0.45),  # 11 dark gear in the bay
     ]
-    CAP, RIDGE, SHIN, SHINDARK, FLOOR, TUBE, TUBEHI, STRIP, RAIL, BOOT, TUBEEND = range(11)
+    CAP, HIP, SHIN, FOOT, FLOOR, TUBE, LIGHT, STRIP, RAIL, HIPLIGHT, TUBEEND, GEAR = range(12)
     bm = bmesh.new()
 
     # ---- left half (mirrored) ----
     start = len(bm.faces)
-    # Cap side beside the tube (columns 19-20, rows 1-4) and the shoulder sloping out (rows 5-6).
-    lib.box(bm, G, 19.0, 0.8, 21.2, 5.2, 0.0, 0.37, mat=CAP, chamfer=0.04)
-    lib.plate(bm, G, [(21.0, 4.8), (18.2, 4.8), (16.4, 7.2), (21.0, 7.2)], 0.0, 0.27, mat=CAP)
-    # Hip block (columns 15-19, rows 9-12) with a light ridge (column 17) and the blue bar across
-    # it out to the rail (row 11).
-    lib.box(bm, G, 15.0, 8.8, 20.0, 13.4, 0.0, 0.3, mat=SHIN, chamfer=0.05)
-    lib.sweep(bm, G, [(17.5, 8.9, 0.3, 0.0, 0.0), (17.5, 9.3, 0.3, 0.55, 0.035), (17.5, 14.6, 0.27, 0.55, 0.035),
-                      (17.5, 15.0, 0.26, 0.0, 0.0)], sides=6, mat=RIDGE)
-    lib.sweep(bm, G, [(12.8, 11.5, 0.22, 0.0, 0.0), (13.2, 11.5, 0.24, 0.6, 0.05), (16.0, 11.5, 0.3, 0.6, 0.05),
-                      (19.4, 11.5, 0.3, 0.6, 0.05), (19.8, 11.5, 0.3, 0.0, 0.0)], sides=6, mat=STRIP)
-    lib.dome(bm, G, 17.3, 11.5, 0.31, 1.1, 0.7, 0.05, mat=TUBEHI, segments=8, rings=2)
-    # Shin (columns 15-17, rows 12-22), darker where it meets the boot, with a blue strip down
-    # its inner side (column 17) and a blue rail down the outside (column 13, rows 11-19).
-    lib.dloft(bm, G, 16.5, [(12.5, 1.5, 0.24), (19.6, 1.5, 0.22)], sides=8, mat=SHIN, power=3)
-    lib.dloft(bm, G, 16.5, [(19.6, 1.5, 0.22), (23.2, 1.5, 0.19)], sides=8, mat=SHINDARK, power=3)
-    lib.sweep(bm, G, [(17.6, 14.4, 0.22, 0.0, 0.0), (17.6, 14.9, 0.225, 0.55, 0.03), (17.6, 23.5, 0.19, 0.55, 0.03),
-                      (17.6, 24.0, 0.18, 0.0, 0.0)], sides=6, mat=STRIP)
-    lib.dloft(bm, G, 13.5, [(11.0, 0.7, 0.2), (19.5, 0.7, 0.15), (20.5, 0.7, 0.13)], sides=6, mat=RAIL, power=2.5)
-    # Blue boot (columns 12-17, rows 20-26).
-    lib.box(bm, G, 12.0, 19.6, 18.2, 26.0, 0.0, 0.15, mat=BOOT, chamfer=0.04)
-    lib.box(bm, G, 13.0, 25.5, 18.0, 27.0, 0.0, 0.09, mat=RAIL, chamfer=0.03)
+    # Shoulder sloping out from the head housing (rows 5-8), over a dark band in its shadow.
+    lib.plate(bm, G, [(23.0, 5.6), (19.0, 5.6), (17.0, 6.1), (16.0, 7.0), (16.0, 8.2), (23.0, 8.2)],
+              0.0, 0.36, mat=CAP)
+    lib.box(bm, G, 14.2, 7.0, 23.0, 9.4, 0.0, 0.18, mat=FLOOR)
+    # Hip (columns 15-19, rows 9-13): the round top of the leg, with a blue band round it (row 11)
+    # carrying a small light where the pipe leaves it.
+    lib.dloft(bm, G, 17.4, [(8.8, 1.6, 0.36), (9.3, 2.4, 0.44), (12.6, 2.4, 0.44), (13.6, 2.0, 0.4)],
+              sides=8, mat=HIP, power=2.2)
+    lib.dloft(bm, G, 17.4, [(10.9, 2.6, 0.465), (12.1, 2.6, 0.465)], sides=8, mat=STRIP, power=2.2)
+    lib.dome(bm, G, 16.9, 11.5, 0.42, 0.9, 0.6, 0.06, mat=HIPLIGHT, segments=8, rings=2)
+    # Shin (columns 15-17, rows 12-21): a round column sloping down to the foot, with a blue
+    # strip down its inner side (column 17, rows 15-23).
+    lib.dloft(bm, G, 16.6, [(12.8, 1.8, 0.38), (16.5, 1.8, 0.33), (21.5, 1.8, 0.25)], sides=8, mat=SHIN,
+              power=2.2)
+    lib.sweep(bm, G, [(17.6, 14.4, 0.28, 0.0, 0.0), (17.6, 14.9, 0.285, 0.55, 0.04), (17.6, 21.0, 0.21, 0.55, 0.04),
+                      (17.6, 24.2, 0.17, 0.55, 0.04), (17.6, 24.7, 0.165, 0.0, 0.0)], sides=6, mat=STRIP)
+    # Blue pipe from the hip band out to column 13 and down the outside of the leg (rows 11-16),
+    # then back into the shin: one constant diameter, round bends.
+    lib.sweep(bm, G, [(16.4, 11.5, 0.36, 0.6, 0.05), (14.4, 11.5, 0.33, 0.6, 0.05), (13.75, 11.7, 0.31, 0.6, 0.05),
+                      (13.5, 12.3, 0.29, 0.6, 0.05)], sides=6, mat=STRIP)
+    lib.sweep(bm, G, [(13.5, 12.0, 0.295, 0.6, 0.05), (13.5, 16.0, 0.24, 0.6, 0.05), (13.75, 16.8, 0.23, 0.6, 0.05),
+                      (14.6, 17.1, 0.23, 0.6, 0.05), (15.6, 17.1, 0.23, 0.6, 0.05)], sides=6, mat=RAIL)
+    # Foot (columns 12-17, rows 19-26): a low dark blade flaring out, with a raised blue rim round
+    # its outer and bottom edge.
+    lib.plate(bm, G, [(13.2, 19.2), (18.3, 19.2), (18.3, 26.8), (14.2, 26.8), (12.9, 25.9), (12.1, 24.2),
+                      (12.0, 20.2)], 0.0, 0.17, mat=FOOT)
+    lib.sweep(bm, G, [(12.6, 19.9, 0.17, 0.0, 0.0), (12.65, 20.3, 0.17, 0.6, 0.045), (12.7, 23.6, 0.17, 0.6, 0.045),
+                      (13.4, 25.0, 0.17, 0.6, 0.045), (14.6, 25.5, 0.17, 0.6, 0.045), (18.0, 25.5, 0.17, 0.6, 0.045),
+                      (18.3, 25.5, 0.17, 0.0, 0.0)], sides=6, mat=RAIL)
     lib.mirror_from(bm, start, G.x(AXIS))
 
     # ---- centre parts ----
-    # The blue tube (columns 21-24, rows 1-14) and the grey collar across it (row 5).
-    lib.sweep(bm, G, [(AXIS, 0.9, 0.22, 1.9, 0.13), (AXIS, 12.6, 0.22, 2.0, 0.13), (AXIS, 13.8, 0.2, 1.5, 0.1),
-                      (AXIS, 14.8, 0.17, 0.9, 0.07)], sides=12, mat=TUBE)
-    lib.sweep(bm, G, [(AXIS, 14.8, 0.17, 0.9, 0.07), (AXIS, 15.3, 0.16, 0.0, 0.0)], sides=12, mat=TUBEEND)
-    lib.sweep(bm, G, [(22.4, 1.4, 0.34, 0.0, 0.0), (22.4, 1.8, 0.348, 0.5, 0.012), (22.4, 12.2, 0.348, 0.5, 0.012),
-                      (22.4, 12.6, 0.34, 0.0, 0.0)], sides=6, mat=TUBEHI)
-    lib.box(bm, G, 18.0, 4.9, 28.0, 6.1, 0.0, 0.38, mat=CAP, chamfer=0.04)
-    # Low dark floor between the legs (rows 13-20) with a small grey pipe (column 23, rows 15-19).
-    lib.box(bm, G, 18.5, 13.0, 27.5, 20.5, 0.0, 0.08, mat=FLOOR, chamfer=0.02)
-    lib.sweep(bm, G, [(23.5, 15.0, 0.1, 0.6, 0.05), (23.5, 19.5, 0.1, 0.6, 0.05)], sides=6, mat=SHIN)
+    # Head housing (columns 19-26, rows 1-5), the tallest part, with the square blue light set in
+    # it (columns 21-24, rows 1-4) and the grey collar band across its foot (row 5).
+    lib.box(bm, G, 18.6, 0.5, 27.4, 5.2, 0.0, 0.56, mat=CAP, chamfer=0.06)
+    lib.box(bm, G, 20.4, 0.7, 25.6, 4.9, 0.4, 0.575, mat=FLOOR, chamfer=0.02)
+    lib.box(bm, G, 20.9, 1.0, 25.1, 4.6, 0.4, 0.6, mat=LIGHT, chamfer=0.03)
+    lib.sweep(bm, G, [(17.9, 5.4, 0.42, 0.0, 0.0), (18.2, 5.4, 0.42, 0.7, 0.07), (27.8, 5.4, 0.42, 0.7, 0.07),
+                      (28.1, 5.4, 0.42, 0.0, 0.0)], sides=6, mat=CAP)
+    # Dark channel down the middle (columns 20-25, rows 5-14) holding the glowing glass tube
+    # (columns 21-24, rows 6-14), round and as tall as it is wide.
+    lib.box(bm, G, 20.2, 5.0, 25.8, 13.6, 0.0, 0.2, mat=FLOOR, chamfer=0.02)
+    lib.sweep(bm, G, [(AXIS, 5.6, 0.31, 1.9, 0.15), (AXIS, 12.8, 0.31, 1.9, 0.15), (AXIS, 13.8, 0.3, 1.5, 0.12),
+                      (AXIS, 14.5, 0.29, 0.9, 0.07)], sides=10, mat=TUBE)
+    lib.sweep(bm, G, [(AXIS, 14.5, 0.29, 0.9, 0.07), (AXIS, 15.0, 0.28, 0.0, 0.0)], sides=10, mat=TUBEEND)
+    # Machinery bay between the legs (rows 13-20): a low dark floor holding a gear and a short
+    # grey shaft (column 23, rows 15-19).
+    lib.box(bm, G, 18.4, 12.5, 27.6, 20.4, 0.0, 0.06, mat=FLOOR, chamfer=0.015)
+    lib.cylinder(bm, G, 21.0, 16.8, 0.06, 0.13, 1.9, mat=GEAR, sides=10)
+    lib.cylinder(bm, G, 25.2, 16.2, 0.06, 0.11, 1.2, mat=GEAR, sides=8)
+    lib.sweep(bm, G, [(23.5, 14.6, 0.17, 0.6, 0.05), (23.5, 19.3, 0.12, 0.6, 0.05)], sides=8, mat=SHIN)
+    lib.cylinder(bm, G, 23.5, 15.2, 0.06, 0.2, 0.9, mat=SHIN, sides=8)
 
     return lib.to_object(NAME, bm, mats, coll)
 

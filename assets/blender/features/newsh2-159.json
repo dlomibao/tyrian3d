@@ -1,0 +1,86 @@
+{
+ "name": "newsh2-159",
+ "summary": "Bronze pod (newsh2 frames 159-167): a round bronze ball, as tall as it is wide, with a steel band strapped round it across its upper half, a short square post on top, and a dark bay below the band holding a small steel pod. Over the frames thin arms telescope out of the band's ends and red-hot fins open round them. Shape language: a smooth round metal ball (round) carrying hard-surface parts (flat bevelled strap, squarish post, a capsule pod sunk in a cut-in bay).",
+ "concept": {
+  "image": "assets/blender/features/concepts/newsh2-159.jpg",
+  "use": "design guide; the sprite decides outline, proportions and colours"
+ },
+ "features": [
+  {
+   "id": "bronze_ball",
+   "kind": "hull",
+   "box": [4, 6, 20, 23],
+   "traits": [
+    "round outline matching the sprite's circle (columns 4-19, rows 6-22)",
+    "round in every section, about as tall as it is wide (~7.5 px half height)",
+    "one bronze mid-tone; the light makes the shading, no painted dark rim ring"
+   ],
+   "note": "The body of the enemy. Must read as a ball, not a lens or slab."
+  },
+  {
+   "id": "steel_band",
+   "kind": "panel",
+   "box": [4, 11, 20, 15],
+   "traits": [
+    "straight grey strap across the full width, rows 11-14 (4 px wide)",
+    "flat outer face with bevelled edges (hard surface), wrapping round the ball",
+    "stands about 1.5 px proud of the ball, sitting in a groove; not a tall handle arch",
+    "polished steel: the sprite's white spots on it are sheen"
+   ],
+   "note": "The concept draws it as a riveted steel strap round the ball. The first fix rounds made it a round tube arching 3 px over the crown, which read as a kettle handle."
+  },
+  {
+   "id": "bay_and_pod",
+   "kind": "recess",
+   "box": [9, 14, 15, 19],
+   "traits": [
+    "a dark rounded-rectangle bay cut into the ball under the band, columns 9-14, rows 14-18",
+    "a dark steel capsule pod lying along the bay (columns 10-13), its top below the rim",
+    "reads dark from above, with the pod visible in it"
+   ],
+   "note": "The sprite's dark mix of grey and dark-brown pixels; the concept reads it as a steel pod in a recess. The baseline had a flat dark slab here."
+  },
+  {
+   "id": "top_post",
+   "kind": "other",
+   "box": [9, 6, 15, 10],
+   "traits": [
+    "short squarish post on the ball's front crown, columns 9-14, rows 6-9",
+    "upright, about 8 px tall, darker bronze with a flat bevelled top",
+    "a dark gap (row 10) between it and the band"
+   ],
+   "note": "The concept draws it as a boxy armoured block with a cap."
+  },
+  {
+   "id": "band_ends_and_arms",
+   "kind": "strut",
+   "box": [3, 10, 21, 16],
+   "traits": [
+    "darker grey stubs at both ends of the band, on the outline",
+    "thin arms slide out a pixel a side per frame (tips 8 to 12 px from centre)"
+   ],
+   "note": "The animated telescoping arms; in frame 159 only the ends show."
+  },
+  {
+   "id": "flank_ribs",
+   "kind": "panel",
+   "box": [5, 15, 19, 19],
+   "traits": [
+    "a tan rib down the left flank beside the bay (columns 6-7, rows 15-18)",
+    "a darker bronze patch on the right flank (columns 17-18, rows 15-17)",
+    "painted markings on the ball, not bumps"
+   ],
+   "note": "The concept reads these as the edges of armour plates either side of the bay."
+  },
+  {
+   "id": "red_fins",
+   "kind": "fin",
+   "box": [3, 11, 21, 19],
+   "traits": [
+    "frames 163-167 only: red-hot fins opening round the arms outside the ball's sides",
+    "glowing (emissive) red"
+   ],
+   "note": "Not visible in frame 159 (the sheet's frame)."
+  }
+ ]
+}

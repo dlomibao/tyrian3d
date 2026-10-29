@@ -1,0 +1,92 @@
+{
+ "name": "assembly-newshe-39",
+ "summary": "Rock outcrop on brown dirt, 72 x 56 px from six 2x2 ground pieces: a big flat-topped grey block at the back right, split down the middle by a fissure, with a bright lit edge running diagonally down its left side and a darker face on the right; a row of smaller blocky boulders to its left; a boulder and splinters in front of its right half; tall shards pointing down the screen below it; and a dark shadow on the ground in front of the heap. Shape language: hard, angular, faceted stone (columnar blocks with flat tops, chamfered shoulders and steep sides, like the concept's basalt), matte grey, nothing rounded or bubbly.",
+ "concept": {
+  "image": "assets/blender/features/concepts/assembly-newshe-39.jpg",
+  "use": "design guide; the sprite decides outline, proportions and colours"
+ },
+ "features": [
+  {
+   "id": "main-block",
+   "kind": "rock",
+   "box": [27, 0, 66, 21],
+   "traits": [
+    "the tallest part of the heap: a flat top (cols 30-60, rows 1-14) about 12-14 px above the ground",
+    "steep, faceted sides: a dark face falling off to the left, a darker face on the right (cols 58-65), a mid-grey face in front (rows 14-20)",
+    "angular hard stone with crisp edges, not a rounded boulder or a dome"
+   ],
+   "note": "The baseline's 'big block at the back'; the concept draws it as a tall columnar basalt block."
+  },
+  {
+   "id": "lit-ridge",
+   "kind": "rock",
+   "box": [28, 4, 43, 16],
+   "traits": [
+    "the bright diagonal line from col 29, row 5 to col 41, row 14 is a crisp edge between the top and the left face",
+    "reads as a sharp edge catching the light, the left face below it darker"
+   ],
+   "note": "A thin bright line along a part is an edge (rubric): the block's top-left edge."
+  },
+  {
+   "id": "top-fissure",
+   "kind": "recess",
+   "box": [42, 0, 49, 18],
+   "traits": [
+    "a crack down the middle of the block's top near col 45 (the sprite's light vertical lines there)",
+    "cut in: a V-shaped groove between two halves of the top, the right half slightly lower"
+   ],
+   "note": "The concept splits the block's top into slabs with a crack down the middle."
+  },
+  {
+   "id": "front-boulder",
+   "kind": "rock",
+   "box": [42, 15, 62, 32],
+   "traits": [
+    "blocky boulder in front of the block's right half, its left edge lit at col 44",
+    "flat top with chamfered shoulders, about 7-9 px tall, lower than the main block"
+   ],
+   "note": "Baseline: 'boulder in front of the block's right half'."
+  },
+  {
+   "id": "left-boulders",
+   "kind": "rock",
+   "box": [0, 11, 33, 32],
+   "traits": [
+    "four blocky boulders left of the main block: left (cols 0-14), upper-left (cols 9-25, rows 11-19), bright (cols 15-27) and grey (cols 23-32)",
+    "each a separate angular block with a flat top and steep chamfered sides, about 7-9 px tall, seams (dark gaps) between them",
+    "the left boulder's left edge and the bright boulder catch the light"
+   ],
+   "note": "The concept reads them as a row of columnar blocks stepping down to the left."
+  },
+  {
+   "id": "shards",
+   "kind": "rock",
+   "box": [28, 19, 46, 43],
+   "traits": [
+    "a low slab (cols 29-38, rows 19-30) and two tall splinters pointing down the screen (cols 29-37 rows 29-42, cols 37-45 rows 20-38)",
+    "angular, narrow and tapering towards their ends, about 5-7 px tall"
+   ],
+   "note": "Baseline: 'shards below the block'."
+  },
+  {
+   "id": "splinters-right",
+   "kind": "rock",
+   "box": [45, 18, 62, 37],
+   "traits": [
+    "small low splinters right of and below the front boulder (cols 50-61, rows 18-34) and a chip at cols 45-51, rows 29-36",
+    "low (2-4 px), angular"
+   ],
+   "note": "Baseline: 'small splinters to its right' and 'a chip at the foot'."
+  },
+  {
+   "id": "ground-shadow",
+   "kind": "other",
+   "box": [0, 26, 72, 50],
+   "traits": [
+    "dark shadow painted on the flat dirt in front of (below) the heap, brown dirt around it",
+    "flat ground, the sprite's dirt pattern in 2 x 2 px cells"
+   ],
+   "note": "The shadow's length (10-15 px below the rocks) says how tall the heap is."
+  }
+ ]
+}

@@ -4,8 +4,10 @@ Seen in episode 1 (level 1.3) and episode 3. Eight 2x2 ground sprites in a row (
 `assemblyLayout`) make one 192x28 px pipe lying across the screen: a light grey bullet nose
 (newsh2-7) on the left, six identical segments (newsh2-9, so one model serves all six) of grey
 rings, narrow red collars and a big red flange with a bracket down to the ground, and an end
-piece (newsh2-11) with a bigger flange and a long grey cylinder with a rounded cap. The pipe
-rests on a low dark sled that shows as the dark band under it.
+piece (newsh2-11) with a bigger flange and a long grey cylinder with a rounded cap. The dark band
+under the pipe is what holds it a few px off the ground: a dark cradle block under each grey ring,
+its south face sloping to the ground, a thin rail joining them, and under each flange a red
+bracket frame with a see-through hole; under the red collars the ground shows through.
 
 The pipe is built once in assembly coordinates (all six segments, so their joins are exact) and
 cut into pieces with common.split_assembly; one of the middle segments is exported as newsh2-9.
@@ -38,7 +40,9 @@ SEGMENTS = [24 + 24 * k for k in range(6)]  # left edges of the six newsh2-9 pie
 EXPORT_9 = 226  # screen cx of the newsh2-9 copy that is exported (a middle one)
 
 ROW = 11.0  # the pipe's axis (sprite row)
-ZC = 0.31  # the pipe's axis height
+ZC = 0.52  # the pipe's axis height: the pipe (radius 3.5 px) stands about 2.7 px off the ground
+ZT = ZC - 0.21  # top of the cradles, just under the pipe's underside where it leaves the top view
+SLOPE_END = 19.0  # pixel edge (row) where the cradles' sloping south faces meet the ground
 EPS = 0.15  # px: tubes that meet at a piece boundary overlap it a little so the cut is clean
 
 
@@ -60,7 +64,37 @@ def ring(bm, c0, c1, r, mat, bevel=(0.5, 0.5), sides=12, smooth=True, row=ROW, z
         path += [(e(c1) - br, row, z, r, r / 12), (e(c1), row, z, r - br, (r - br) / 12)]
     else:
         path += [(e(c1), row, z, r, r / 12)]
-    lib.sweep(bm, G, path, sides=sides, mat=mat, smooth=smooth)
+    faces = lib.sweep(bm, G, path, sides=sides, mat=mat, smooth=smooth)
+    # Crisp ring edges: the chamfers and end faces are flat-shaded, only the round side is smooth.
+    for f in faces:
+        f.normal_update()
+        if abs(f.normal.x) > 0.3:
+            f.smooth = False
+
+
+def prism(bm, c0, c1, profile, mat):
+    """A block from pixel edge c0 to c1 (columns) with a cross-section of (row edge, z) points."""
+    xs = (G.X(e(c0)), G.X(e(c1)))
+    rings = [[bm.verts.new((x, G.Y(r - 0.5), z)) for r, z in profile] for x in xs]
+    n = len(profile)
+    faces = [bm.faces.new(list(reversed(rings[0]))), bm.faces.new(rings[1])]
+    for k in range(n):
+        j = (k + 1) % n
+        faces.append(bm.faces.new((rings[0][k], rings[0][j], rings[1][j], rings[1][k])))
+    for f in faces:
+        f.material_index = mat
+        f.smooth = False
+
+
+def zs(r, end=SLOPE_END):
+    """Height of the cradles' sloping south face at row edge r (14 = under the pipe's edge)."""
+    return max(0.0, ZT * (end - r) / (end - 14.0))
+
+
+def slope_bar(bm, c0, c1, r0, r1, mat, end=SLOPE_END, t=0.07):
+    """A bar t thick lying on the sloping face between row edges r0 and r1."""
+    prism(bm, c0, c1, [(r0, max(0.0, zs(r0, end) - t)), (r0, zs(r0, end) + 0.01),
+                       (r1, zs(r1, end) + 0.01), (r1, max(0.0, zs(r1, end) - t))], mat)
 
 
 def build(sprite):
@@ -76,35 +110,42 @@ def build(sprite):
         pal(77, metallic=0.3, roughness=0.35),  # 5 flanges' lit rims
         pal(67, metallic=0.2, roughness=0.6),  # 6 dark red brackets
         pal(70, metallic=0.2, roughness=0.5),  # 7 bracket feet
-        pal(2, metallic=0.1, roughness=0.8),  # 8 dark sled
+        pal(1, metallic=0.1, roughness=0.85),  # 8 dark cradles (the sprite draws them in index 1)
+        pal(66, metallic=0.1, roughness=0.8),  # 9 darkest red bracket bars
+        pal(16, metallic=0.1, roughness=0.85),  # 10 the rail
     ]
-    GREY, NOSE, GROOVE, COLLAR, FLANGE, FLANGE_LIT, BRACKET, FOOT, SLED = range(9)
+    GREY, NOSE, GROOVE, COLLAR, FLANGE, FLANGE_LIT, BRACKET, FOOT, SLED, BAR, RAIL = range(11)
     bm = bmesh.new()
 
-    # The sled under the pipe's south side (rows 15-18), tapering in under the nose.
-    lib.plate(bm, G, [(6, 14.5), (W, 14.5), (W, 19), (17, 19), (13, 18), (9, 17), (6, 16)], 0.0, 0.05, mat=SLED)
+    # A thin rail along the pipe's south side (rows 15-16) joining the cradles, low on the ground.
+    prism(bm, 13, W, [(15.2, 0.0), (15.2, zs(15.2) * 0.45), (16.8, zs(16.8) * 0.45), (16.8, 0.0)], RAIL)
 
     def flange(c0, r, foot_row):
-        """A big red flange 4 px wide from pixel edge c0, lit on its left rim, with a bracket from
-        its bottom down to a foot on the sled."""
+        """A big red flange 4 px wide from pixel edge c0, lit on its left rim, held by a red bracket
+        frame: a post on its left, a top bar, a hole, a lower bar and a lit foot on the ground at
+        foot_row."""
         ring(bm, c0, c0 + 0.6, r, FLANGE_LIT, bevel=(0.6, 0.0), sides=14)
         ring(bm, c0 + 0.6, c0 + 4, r, FLANGE, bevel=(0.0, 0.5), sides=14)
-        lib.sweep(bm, G, [(c0 + 0.5, ROW + 2.5, ZC - 0.12, 0.6, 0.05), (c0 + 0.5, foot_row - 0.3, 0.09, 0.6, 0.04)],
-                  sides=4, mat=BRACKET, smooth=False)
-        lib.plate(bm, G, [(c0, foot_row - 0.5), (c0 + 4, foot_row - 0.5), (c0 + 4, foot_row + 0.5),
-                          (c0, foot_row + 0.5)], 0.0, 0.1, mat=FOOT)
+        end = foot_row + 1.0
+        prism(bm, c0, c0 + 1, [(9.0, 0.0), (10.0, ZT), (14.0, ZT), (end, 0.0)], BRACKET)
+        prism(bm, c0 + 1, c0 + 4, [(9.0, 0.0), (10.0, ZT), (14.0, ZT), (15.0, zs(15.0, end)), (15.0, 0.0)], BRACKET)
+        slope_bar(bm, c0 + 1, c0 + 4, 15.0, foot_row - 2.0, BAR, end)
+        slope_bar(bm, c0 + 1, c0 + 4, foot_row - 1.0, foot_row, BAR, end)
+        prism(bm, c0, c0 + 4, [(foot_row, 0.0), (foot_row, zs(foot_row, end) + 0.02), (end, 0.04), (end, 0.0)], FOOT)
 
     def foot(c0, c1):
-        """A grey foot under a ring, on the sled (row 17)."""
-        lib.plate(bm, G, [(c0, 16.5), (c1, 16.5), (c1, 17.5), (c0, 17.5)], 0.05, 0.09, mat=GROOVE)
+        """A dark cradle under a grey ring: hidden under the pipe on top, its south face sloping to
+        the ground (rows 15-18), with a ridge across it at row 17."""
+        prism(bm, c0, c1, [(8.5, 0.0), (10.0, ZT), (14.0, ZT), (SLOPE_END, 0.0)], SLED)
+        slope_bar(bm, c0 + 0.3, c1 - 0.3, 17.0, 18.0, GROOVE, t=0.05)
 
-    # Nose (newsh2-7): a light grey ogive from its tip at column 3, drooping to the ground, to the
-    # first segment.
+    # Nose (newsh2-7): a light grey ogive from its tip at column 3, dipping a little, to the first
+    # segment.
     nose = [(2.4, 12.6, 0.0), (3.2, 12.5, 0.5), (5.0, 12.4, 1.1), (8.0, 12.0, 1.8), (11.0, 11.6, 2.4),
             (14.0, 11.3, 2.9), (17.0, 11.1, 3.3), (20.0, 11.0, 3.5), (e(24) + EPS, 11.0, 3.5)]
-    lib.sweep(bm, G, [(c, r, 0.05 + rad / 12 + (ZC - 0.05 - 3.5 / 12) * rad / 3.5, rad, rad / 12)
-                      for c, r, rad in nose], sides=12, mat=NOSE)
-    foot(21, 24)
+    lib.sweep(bm, G, [(c, r, ZC - 0.22 * (1 - rad / 3.5), rad, rad / 12) for c, r, rad in nose],
+              sides=12, mat=NOSE)
+    foot(19, 24)
 
     # Six identical segments (newsh2-9): groove, collar, ring, groove, collar, ring, flange, ring.
     for a0 in SEGMENTS:
@@ -118,9 +159,9 @@ def build(sprite):
         flange(a0 + 17, 4.0, 18)
         # The last ring runs on into the next piece (the next segment's groove, or the end piece).
         ring(bm, a0 + 21, a0 + 24 + EPS, 3.5, GREY, bevel=(0.5, 0.0))
-        foot(a0 + 5, a0 + 7)
-        foot(a0 + 14, a0 + 16)
-        foot(a0 + 22, a0 + 24)
+        foot(a0 + 4, a0 + 8)
+        foot(a0 + 12, a0 + 17)
+        foot(a0 + 21, a0 + 25)
 
     # End piece (newsh2-11): the end of the last ring, a bigger flange, a ring, a groove, a collar
     # and a long cylinder with a rounded cap.
@@ -133,8 +174,8 @@ def build(sprite):
     cap = [(e(a0 + 14), 3.0), (e(a0 + 14) + 0.5, 3.5), (e(a0 + 20), 3.5), (e(a0 + 21.5), 3.2),
            (e(a0 + 22.6), 2.4), (e(a0 + 23.4), 1.3), (e(a0 + 23.8), 0.0)]
     lib.sweep(bm, G, [(c, ROW, ZC, r, r / 12) for c, r in cap], sides=12, mat=GREY)
-    foot(a0 + 7, a0 + 9)
-    foot(a0 + 16, a0 + 20)
+    foot(a0 + 6, a0 + 10)
+    foot(a0 + 14, a0 + 23)
 
     return lib.to_object(NAME, bm, mats, coll)
 

@@ -1,0 +1,91 @@
+{
+ "name": "newsh2-229",
+ "summary": "Shield drone (newsh2 frames 229-243): a small grey shield-shaped core split down the middle into two rounded armour lobes, with a red-orange light on each top corner, floating inside a ring of two polished grey arcs that turns clockwise frame by frame. Shape language: hard polished metal; the core's lobes are rounded plates either side of a cut-in centre seam, the arcs are round tubes of constant diameter with squared-off ends, the lights are glowing lenses set on the lobes.",
+ "concept": {
+  "image": "assets/blender/features/concepts/newsh2-229.jpg",
+  "use": "design guide; the sprite decides outline, proportions and colours"
+ },
+ "features": [
+  {
+   "id": "core",
+   "kind": "hull",
+   "box": [8, 8, 17, 17],
+   "traits": [
+    "shield outline: flat across the top (row 8), straight sides, narrowing to a point at the bottom (rows 14-16)",
+    "rounded and raised: about 4-5 px above the ring's mid-plane at its highest, well above the arcs",
+    "one grey mid-tone (palette 9), polished metal; the sprite's white spots on it are sheen, not bumps"
+   ],
+   "note": "The body of the drone, centred in the ring."
+  },
+  {
+   "id": "left_lobe",
+   "kind": "hull",
+   "box": [9, 9, 12, 16],
+   "traits": [
+    "the core's left half reads as its own rounded lobe, highest in its middle and dipping toward the centre seam",
+    "round in section (a highlight band with darker edges), not a flat slab"
+   ],
+   "note": "The concept draws the two halves as separate armour plates; the baseline built them as two capsules."
+  },
+  {
+   "id": "right_lobe",
+   "kind": "hull",
+   "box": [13, 9, 16, 16],
+   "traits": [
+    "mirror of the left lobe: same shape and colour (the sprite draws it darker only because it is in shadow)"
+   ],
+   "note": ""
+  },
+  {
+   "id": "centre_seam",
+   "kind": "recess",
+   "box": [12, 9, 13, 16],
+   "traits": [
+    "a dark 1 px seam down the core's middle from the top edge to just above the bottom point",
+    "cut in between the two lobes (a valley plus a narrow groove), not painted on"
+   ],
+   "note": "Sprite column 12 (dark values 1-6)."
+  },
+  {
+   "id": "left_light",
+   "kind": "light",
+   "box": [9, 9, 11, 11],
+   "traits": [
+    "orange across the top row (2 px), red on the outer pixel below",
+    "a glowing emissive lens set on the lobe's top corner, slightly domed and raised so it reads from the game camera",
+    "both corners lit the same"
+   ],
+   "note": "The concept draws round glowing lenses in housings on the top corners."
+  },
+  {
+   "id": "right_light",
+   "kind": "light",
+   "box": [14, 9, 16, 11],
+   "traits": [
+    "mirror of the left light: orange top row, red outer pixel below, raised domed lens"
+   ],
+   "note": ""
+  },
+  {
+   "id": "left_arc",
+   "kind": "pipe",
+   "box": [2, 3, 10, 22],
+   "traits": [
+    "an arc of about 140 degrees around the core, radius about 8.5 px",
+    "round tube of constant diameter (about 4 px), about as tall as it is wide, no bulges",
+    "squared-off flat ends",
+    "polished grey metal (palette 10); the white streaks on it are sheen"
+   ],
+   "note": "Turns with the ring 22.5 degrees a frame (one model per frame)."
+  },
+  {
+   "id": "right_arc",
+   "kind": "pipe",
+   "box": [15, 3, 23, 22],
+   "traits": [
+    "mirror of the left arc across the ring's centre, with the same gaps between the two arcs at top and bottom"
+   ],
+   "note": ""
+  }
+ ]
+}

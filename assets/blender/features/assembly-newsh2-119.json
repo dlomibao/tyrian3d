@@ -1,0 +1,103 @@
+{
+  "name": "assembly-newsh2-119",
+  "summary": "A dug-in ground bunker on a dirt tile: a dark grey armoured carapace, rounded at the back (top of the screen) and splitting into two pointed prongs at the front, with a tan stepped pyramid roof on its middle whose wide base ends in two wing tips, two pipe legs a side running from the carapace down into the dirt, a tan spike between the prongs and a long cast shadow to the lower right. Hard surface: plated armour with crisp chamfered edges and seams, flat faces on the pyramid; the legs are round pipes.",
+  "concept": {
+    "image": "assets/blender/features/concepts/assembly-newsh2-119.jpg",
+    "use": "design guide; the sprite decides outline, proportions and colours"
+  },
+  "features": [
+    {
+      "id": "pyramid_roof",
+      "kind": "other",
+      "box": [5, 12, 36, 29],
+      "traits": [
+        "tan pyramid with its point at the back (row 13) and its wide base along rows 27-28 from column 5 to 35",
+        "the tallest part of the structure, clearly standing above the carapace",
+        "flat crisp faces meeting in sharp ridges; the centre ridge from the point to the peak catches the light",
+        "a step (ledge) part way down, as in the concept's stepped roof",
+        "the base corners stick out past the carapace as wing tips"
+      ],
+      "note": "Sprite: lit left face, dark right face; that is the game's light, not paint, so all faces share one tan."
+    },
+    {
+      "id": "carapace",
+      "kind": "hull",
+      "box": [9, 3, 32, 29],
+      "traits": [
+        "dark grey armoured shell about 21 px wide, round at the back",
+        "raised with a flat top and chamfered shoulders, not a thin slab",
+        "seams split it into plates: a raised centre band between grooves at columns 17 and 24"
+      ],
+      "note": "The concept shows riveted plates with an outer rim; the sprite's light streaks on the left are edges catching the light."
+    },
+    {
+      "id": "left_prong",
+      "kind": "hull",
+      "box": [9, 28, 18, 47],
+      "traits": [
+        "grey plated rail running forward from the carapace (columns 10-17)",
+        "front end chamfered to a point on the outside",
+        "about as tall as the carapace's front, with crisp edges"
+      ],
+      "note": ""
+    },
+    {
+      "id": "right_prong",
+      "kind": "hull",
+      "box": [22, 28, 30, 46],
+      "traits": [
+        "mirror of the left prong (columns 23-29)",
+        "its back half lies in the pyramid's cast shadow in the sprite"
+      ],
+      "note": "Same shape as the left prong."
+    },
+    {
+      "id": "left_legs",
+      "kind": "pipe",
+      "box": [4, 8, 11, 19],
+      "traits": [
+        "two tan round pipes of constant diameter running diagonally from the carapace's side down into the dirt",
+        "parallel, about 5 px apart"
+      ],
+      "note": "The concept draws them as pipes with elbows and flanged feet."
+    },
+    {
+      "id": "right_legs",
+      "kind": "pipe",
+      "box": [30, 8, 37, 19],
+      "traits": [
+        "mirror of the left legs",
+        "round pipes reaching into the dirt"
+      ],
+      "note": ""
+    },
+    {
+      "id": "spike",
+      "kind": "other",
+      "box": [19, 27, 22, 36],
+      "traits": [
+        "thin tan rod or spike under the pyramid's front, between the prongs, pointing forward",
+        "tapers to a point at row 35"
+      ],
+      "note": "The concept reads it as a faceted drill-like spike."
+    },
+    {
+      "id": "cast_shadow",
+      "kind": "other",
+      "box": [14, 27, 42, 53],
+      "traits": [
+        "near-black shadow on the dirt to the lower right of the structure"
+      ],
+      "note": "Painted on the ground: the game draws no cast shadows."
+    },
+    {
+      "id": "dirt",
+      "kind": "rock",
+      "box": [0, 0, 48, 56],
+      "traits": [
+        "brown dirt filling the tile, with light pebbles"
+      ],
+      "note": "Ground tile; stays low so neighbouring tiles meet."
+    }
+  ]
+}

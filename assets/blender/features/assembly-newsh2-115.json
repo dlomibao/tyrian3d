@@ -1,0 +1,136 @@
+{
+ "name": "assembly-newsh2-115",
+ "summary": "Brass dome works dug into brown dirt, 48 x 56 px from four 2x2 pieces: on a dark grey machinery bed sits one big polished brass sphere (a raised vertical hatch band down its middle with a visor bar over a dark window, a vertical slot on each side), flanked by grey pylons; two smaller brass spheres below it carry grey gun blocks and are fed by short brass pipes from the big dome; a third brass sphere at the bottom has a round dark gun port; a grey neck with a pipe runs between them and grey struts reach out at the bottom. Shape language: round, polished brass spheres (as tall as half their width or more) set on hard, chamfered grey machinery.",
+ "concept": {
+  "image": "assets/blender/features/concepts/assembly-newsh2-115.jpg",
+  "use": "design guide; the sprite decides outline, proportions and colours"
+ },
+ "features": [
+  {
+   "id": "main-dome",
+   "kind": "dome",
+   "box": [6, 1, 31, 23],
+   "traits": [
+    "brass dome about 25 x 21 px, round outline matching the sprite",
+    "tall: about half its width or more (10-12 px), not a lens",
+    "one mid brass tone, metallic; the sprite's bright spots and dark lower-right rim are sheen and shadow, not paint"
+   ],
+   "note": "The big brass sphere that dominates the structure (concept: a riveted brass ball)."
+  },
+  {
+   "id": "dome-hatch-band",
+   "kind": "panel",
+   "box": [12, 5, 25, 20],
+   "traits": [
+    "raised vertical band down the middle of the dome, cols 13-23, lit left edge at col 13",
+    "upper hatch plate (rows 7-10), a raised visor bar across it (row 11, the bright line)",
+    "a dark window recessed under the visor bar (rows 13-14) and a darker brass lower plate (rows 15-19)",
+    "all conform to the dome's curve with crisp edges"
+   ],
+   "note": "The baseline's visor bar, dark window and brass plate; the concept reads it as a hatch band with an upper and lower hatch."
+  },
+  {
+   "id": "dome-slots",
+   "kind": "recess",
+   "box": [8, 7, 29, 16],
+   "traits": [
+    "one dark vertical slot each side of the hatch band (cols 10-11 and 25-26, rows 9-14)",
+    "cut in: dark inside a raised brass frame, not painted on"
+   ],
+   "note": "Concept: two vertical vents on the sphere's flanks."
+  },
+  {
+   "id": "side-domes",
+   "kind": "dome",
+   "box": [1, 25, 14, 37],
+   "traits": [
+    "two brass spheres about 12 x 10 px (left at col 7, right at col 30, row 31)",
+    "round: about 6 px tall or more, not squashed",
+    "same brass as the main dome"
+   ],
+   "note": "Box: the left one; the right one is identical."
+  },
+  {
+   "id": "gun-blocks",
+   "kind": "gun",
+   "box": [5, 29, 12, 36],
+   "traits": [
+    "grey box on the lower right of each side dome, cols 6-10, rows 30-34",
+    "stands proud of the dome's surface with chamfered edges",
+    "lighter grey than the bed"
+   ],
+   "note": "Box: the left one. Concept: grey gun housings with nozzles below."
+  },
+  {
+   "id": "bottom-dome-port",
+   "kind": "dome",
+   "box": [12, 34, 26, 46],
+   "traits": [
+    "brass sphere about 12 x 10 px at col 18.5, row 40, round, about 5 px tall or more",
+    "a round dark gun port at col 19, row 41.5, set in a brass rim (a bore, not a painted spot)"
+   ],
+   "note": "The baseline's third dome and dark gun port (concept: a ball with a big round muzzle)."
+  },
+  {
+   "id": "feed-pipes",
+   "kind": "pipe",
+   "box": [6, 18, 32, 28],
+   "traits": [
+    "short brass pipes from under the main dome down to each side dome (col 8 and col 30, rows 21-26)",
+    "constant diameter, about 2-3 px, round"
+   ],
+   "note": "The brass pixels between the big and small domes; the concept draws them as elbow pipes."
+  },
+  {
+   "id": "pylons",
+   "kind": "panel",
+   "box": [1, 8, 38, 29],
+   "traits": [
+    "grey blocks either side of the main dome (cols 2-7 and 32-36, rows 9-28) with a wider foot",
+    "hard, chamfered, taller than the bed",
+    "lit left edge (col 3) is a bevel, not a stripe"
+   ],
+   "note": "The grey frame beside the dome."
+  },
+  {
+   "id": "neck",
+   "kind": "other",
+   "box": [12, 21, 26, 37],
+   "traits": [
+    "grey machinery block between the side domes, cols 14-24, rows 22-35",
+    "a vertical pipe down it at col 20 (the lighter column), from under the main dome to the bottom dome"
+   ],
+   "note": "Concept: a bundle of pipes running down the middle."
+  },
+  {
+   "id": "light-rod",
+   "kind": "pipe",
+   "box": [22, 15, 32, 24],
+   "traits": [
+    "thin bright brass rod running diagonally at the main dome's lower right, from about (23, 22) to (30, 17)",
+    "round, constant diameter"
+   ],
+   "note": "The baseline's light rod (the bright diagonal pixels)."
+  },
+  {
+   "id": "struts",
+   "kind": "strut",
+   "box": [6, 37, 34, 50],
+   "traits": [
+    "grey bar running down and right from the bottom-left of the bed (cols 8-14, rows 39-48) and a grey block at the right (cols 27-31, rows 39-42)",
+    "chamfered, a little above the bed"
+   ],
+   "note": "The grey struts at the bottom of the bed."
+  },
+  {
+   "id": "bed",
+   "kind": "panel",
+   "box": [0, 0, 39, 54],
+   "traits": [
+    "dark grey machinery platform following the sprite outline, a low step above the dirt",
+    "brown dirt floor around it"
+   ],
+   "note": "Everything stands on it."
+  }
+ ]
+}

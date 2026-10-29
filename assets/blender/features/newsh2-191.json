@@ -1,0 +1,59 @@
+{
+ "name": "newsh2-191",
+ "summary": "Spinning arch: a horseshoe-shaped round tube band, segmented bronze over the top and grey metal down the two straight legs (dark collars at rows 7 and 12, darker lower legs ending in a point), with a bronze barrel pod hung in the middle of the arch on two short grey struts. Polished metal, round tubes and a round barrel; the eight frames turn it about the vertical axis.",
+ "concept": {
+  "image": "assets/blender/features/concepts/newsh2-191.jpg",
+  "use": "design guide; the sprite decides outline, proportions and colours"
+ },
+ "features": [
+  {
+   "id": "bronze_arch",
+   "kind": "pipe",
+   "box": [4, 1, 19, 7],
+   "traits": ["round tube of constant diameter, about 3 px across and as deep, bending over the top", "bronze mid-tone (25), not two-tone", "the same thickness as the grey legs it continues into"],
+   "note": "The top of the horseshoe; the sprite's lit left corners and dark right corners are its drawn light."
+  },
+  {
+   "id": "pod",
+   "kind": "pod",
+   "box": [8, 6, 15, 15],
+   "traits": ["round barrel about 6-7 px across, rows 6-14, standing about as tall as it is wide", "bronze, polished", "flat-ish top, narrowing to a small rounded bottom end (row 13)"],
+   "note": "The barrel hung in the middle of the arch; the concept draws it as a riveted bronze capsule with rims."
+  },
+  {
+   "id": "left_leg",
+   "kind": "pipe",
+   "box": [4, 6, 7, 20],
+   "traits": ["straight round grey tube, constant 3 px diameter, rows 6-19", "lighter grey above row 12, darker grey below", "ends in a short taper/point at row 19"],
+   "note": "Left leg of the horseshoe."
+  },
+  {
+   "id": "right_leg",
+   "kind": "pipe",
+   "box": [16, 6, 19, 20],
+   "traits": ["mirror of the left leg: straight round grey tube, constant diameter", "ends in a point at row 19"],
+   "note": "Right leg of the horseshoe; drawn darker in the sprite only because it is the shadow side."
+  },
+  {
+   "id": "leg_collars",
+   "kind": "strut",
+   "box": [4, 6, 19, 14],
+   "traits": ["dark raised rings round both legs at rows 7 and 12", "slightly wider than the leg tube, about 1 px long"],
+   "note": "Dark grey (4-6) pixel rows across the legs."
+  },
+  {
+   "id": "struts",
+   "kind": "strut",
+   "box": [5, 9, 18, 12],
+   "traits": ["two short round grey bars at row 10 joining the legs to the pod", "about 2 px thick", "a dark joint where each meets its leg (columns 6 and 16)"],
+   "note": "The pod's mounts; the concept draws them as mechanical clamp joints."
+  },
+  {
+   "id": "arch_segments",
+   "kind": "panel",
+   "box": [7, 1, 16, 4],
+   "traits": ["the bronze band reads as a row of segments with dark seams between them", "a dark seam at the top centre (column 11)"],
+   "note": "Row 2's alternating light/dark bronze pixels; the concept draws the arch as bronze tiles with dark joints."
+  }
+ ]
+}

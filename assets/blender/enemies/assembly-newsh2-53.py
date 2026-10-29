@@ -66,9 +66,10 @@ def build(sprite, grid):
         pal(7, metallic=0.6, roughness=0.35),  # 15 grey metal
         pal(104, metallic=0.2, roughness=0.6),  # 16 blue-grey stones
         pal(16, metallic=0.2, roughness=0.8),  # 17 near-black recess
+        common.palette_material(sprite, 71, tag + "lens", metallic=0.1, roughness=0.12),  # 18 lens
     ]
     (FLOOR_M, ROCK0, ROCK1, ROCK2, ROCK3, SAND, SAND2, RED, DRED, LRED, DBROWN, BROWN, GOLD,
-     PGOLD, LIGHT, METAL, STONE, RECESS) = range(18)
+     PGOLD, LIGHT, METAL, STONE, RECESS, LENS) = range(19)
     bm = bmesh.new()
     rng = random.Random(53)
 
@@ -146,75 +147,116 @@ def build(sprite, grid):
     lib.paint(bm, first, sample, lambda i: ROCK1 if i <= 3 else ground_slot(i), up_only=True)
 
     # ---- machinery ----
-    def block(c0, r0, c1, r1, top, mat, bevel=0.5, top_mat=None):
+    # Heights follow the concept's reading: a dark central housing framed by red trim, boxes
+    # and housings stacked a few px above the black floor, round parts as tall as they are wide.
+    def block(c0, r0, c1, r1, top, mat, bevel=0.5, top_mat=None, base=None):
         pts = [(XE(c0), YE(r1)), (XE(c1), YE(r1)), (XE(c1), YE(r0)), (XE(c0), YE(r0))]
-        lib.bevel_prism(bm, pts, FLOOR - 0.03, top, bevel * PX, mat=mat, top_mat=top_mat)
+        lib.bevel_prism(bm, pts, FLOOR - 0.03 if base is None else base, top, bevel * PX, mat=mat,
+                        top_mat=top_mat)
 
     def pipe(points, r_px, mat, z=None, sides=10):
         h = r_px * PX
         zc = FLOOR + h * 0.9 if z is None else z
         path = [(XE(c), YE(r), zc, h, h) for c, r in points]
-        # Round the bends a little by adding points just before and after each corner.
         lib.sweep(bm, path, sides=sides, mat=mat)
 
-    # Red elbow pipe and its housing, top left (columns 3-16, rows 2-16).
-    pipe([(5.4, 2.2), (5.4, 6.0), (5.9, 7.6), (7.4, 8.8), (9.0, 9.1), (16.6, 9.1)], 2.6, RED, sides=12)
-    block(2.8, 10.2, 11, 16.2, 0.08, RED, bevel=0.8, top_mat=LRED)
-    block(11, 11, 13.6, 15.4, 0.03, METAL, bevel=0.4)
-    block(11, 15, 16.5, 18, 0.05, RED, bevel=0.5)
-    # Two glowing orange lights in dark sockets (columns 14-18, rows 12-14 and 18-20).
-    for r0 in (12, 18):
-        block(13.4, r0 - 0.6, 19.6, r0 + 3.6, 0.03, RECESS, bevel=0.3)
-        block(14, r0, 19, r0 + 3, 0.075, LIGHT, bevel=0.5)
+    def canister(c0, c1, r, r_px, z, mat, sides=12):
+        """A cylinder lying along x (sprite columns c0-c1) at row r."""
+        h = r_px * PX
+        lib.sweep(bm, [(XE(c0), YE(r), z, h, h), (XE(c1), YE(r), z, h, h)], sides=sides, mat=mat)
 
-    # Red box (columns 22-27, rows 8-15) and brown posts and a bar along the top.
-    block(22, 8, 28, 16, 0.11, RED, bevel=0.8, top_mat=RED)
-    block(22.4, 8, 27.6, 9.2, 0.115, LRED, bevel=0.3)
-    pipe([(31.5, 3.6), (31.5, 15.2)], 1.0, BROWN)
-    pipe([(15.0, 4.5), (28.4, 4.5)], 0.7, GOLD)
+    # Chrome fittings and the gold pipe across the top (rows 1-5).
+    canister(6.4, 12.6, 2.6, 1.1, FLOOR + 0.1, METAL)
+    for c in (7.2, 9.6, 11.8):
+        canister(c - 0.4, c + 0.4, 2.6, 1.45, FLOOR + 0.1, ROCK3)
+    canister(27.6, 33.0, 2.6, 1.1, FLOOR + 0.1, METAL)
+    for c in (28.4, 30.6, 32.4):
+        canister(c - 0.4, c + 0.4, 2.6, 1.45, FLOOR + 0.1, ROCK3)
+    pipe([(12.6, 4.5), (27.6, 4.5)], 0.8, GOLD)
+
+    # Red pump housing (columns 3-11, rows 10-16) under the elbow pipe, and the step to its right.
+    block(2.8, 9.6, 11, 16.2, 0.24, RED, bevel=0.9, top_mat=LRED)
+    block(11, 11, 13.6, 15.4, 0.12, METAL, bevel=0.4)
+    block(11, 15, 18.6, 18, 0.14, RED, bevel=0.5)
+    # The elbow pipe, round and resting on the housing (columns 3-16, rows 2-9).
+    pipe([(5.4, 2.2), (5.4, 6.0), (5.9, 7.6), (7.4, 8.8), (9.0, 9.1), (16.6, 9.1)], 2.6, RED,
+         z=0.2, sides=14)
+    pipe([(5.4, 1.4), (5.4, 2.6)], 3.0, DRED, z=0.2, sides=14)  # flange where it leaves the rock
+    pipe([(15.8, 9.1), (16.9, 9.1)], 2.9, DRED, z=0.2, sides=14)  # flange at its end
+
+    # Two glowing canister lights in dark sockets (columns 14-18, rows 12-14 and 18-20).
+    for r0 in (12, 18):
+        block(13.2, r0 - 0.7, 19.8, r0 + 3.7, 0.08, RECESS, bevel=0.3)
+        canister(14.0, 19.0, r0 + 1.5, 1.6, 0.08 + 1.2 * PX, LIGHT, sides=12)
+        for c in (13.4, 19.0):
+            canister(c, c + 0.6, r0 + 1.5, 1.9, 0.08 + 1.2 * PX, METAL, sides=12)
+
+    # Red box (columns 22-27, rows 8-15): a lid on a body, with a seam between them.
+    block(22, 11.2, 28, 16, 0.30, RED, bevel=0.7, top_mat=RED)
+    block(22.2, 8, 27.8, 11.4, 0.38, RED, bevel=0.7, top_mat=LRED, base=0.2)
+    block(21.8, 10.9, 28.2, 11.7, 0.31, DRED, bevel=0.2, base=0.2)
+    # Brown posts.
+    pipe([(31.5, 3.6), (31.5, 15.2)], 1.0, BROWN, z=FLOOR + 0.12)
     pipe([(41.5, 10.8), (41.5, 13.6)], 0.9, BROWN)
 
-    # Red pipe from the lights across and down the right side, and the thin one across row 27.
-    pipe([(18.6, 16.6), (33.2, 16.6), (34.2, 17.2), (34.6, 18.4), (34.6, 33.4)], 1.1, RED)
-    pipe([(20.6, 27.5), (35.0, 27.5)], 0.75, LRED)
-    pipe([(35.2, 33.6), (31.4, 33.6), (30.4, 34.4), (30.0, 35.6), (30.0, 48.4)], 1.5, RED, sides=12)
-    pipe([(30.0, 42.5), (33.6, 42.5), (34.5, 43.4), (34.5, 48.6)], 0.75, DRED)
-    pipe([(27.8, 48.5), (35.0, 48.5)], 0.8, DRED)
+    # Dark central housing (columns 19-34, rows 17-27, and down the right to row 33), built round
+    # the hatch opening (columns 23-30, rows 20-27) so the hatch sits recessed in it.
+    HT = 0.17
+    block(18.6, 17.6, 34.6, 20.4, HT, FLOOR_M, bevel=0.4)
+    block(18.6, 20.0, 23.2, 27.6, HT, FLOOR_M, bevel=0.4)
+    block(33.4, 20.0, 34.6, 27.6, HT, FLOOR_M, bevel=0.2)
+    block(28.0, 27.2, 34.6, 33.2, HT - 0.02, FLOOR_M, bevel=0.4)
+    # The hatch: a brown panel set down in the opening.
+    block(23, 20.2, 30, 27.2, 0.06, DBROWN, bevel=0.3)
+    block(24.2, 21.4, 29.2, 26.4, 0.085, BROWN, bevel=0.4)
+    # Louvres: grey ribs in the housing top beside the hatch (rows 22-26) and along row 19.
+    block(29.8, 20.0, 33.6, 27.6, HT - 0.06, RECESS, bevel=0.2)
+    for r in (22.4, 24.2, 26.0):
+        block(30.0, r - 0.5, 33.4, r + 0.5, HT - 0.02, ROCK3, bevel=0.25, base=HT - 0.08)
+    for (c0, c1) in ((20, 26), (30, 34)):
+        block(c0, 19.0, c1, 20.0, HT + 0.02, ROCK3, bevel=0.3, base=HT - 0.02)
+    # Angular red trim: along the top (rows 16-18), down the right (col 34) and along row 27.
+    block(18.6, 16.0, 35.4, 18.0, HT + 0.05, RED, bevel=0.5, top_mat=LRED)
+    block(33.8, 17.6, 35.4, 33.6, HT + 0.05, RED, bevel=0.4)
+    block(20.6, 27.0, 35.2, 28.2, HT + 0.03, LRED, bevel=0.4)
+
+    # Red pipe turning down the right side, its thin branch and the bar across row 48.
+    pipe([(35.2, 33.6), (31.4, 33.6), (30.4, 34.4), (30.0, 35.6), (30.0, 48.4)], 1.5, RED,
+         z=FLOOR + 0.16, sides=12)
+    pipe([(30.0, 42.5), (33.6, 42.5), (34.5, 43.4), (34.5, 48.6)], 0.8, DRED, z=FLOOR + 0.08)
+    pipe([(27.8, 48.5), (35.0, 48.5)], 0.8, DRED, z=FLOOR + 0.08)
     # Brown pipe down the right (column 36, rows 17-38) with a stub across at row 17.
-    pipe([(36.6, 17.0), (36.6, 38.6)], 0.95, DBROWN)
+    pipe([(36.6, 17.0), (36.6, 38.6)], 1.0, DBROWN)
     pipe([(35.4, 17.6), (39.8, 17.6)], 0.7, BROWN)
 
-    # Grey ribs under the red pipe (row 19) and below (rows 50 and 52).
-    for (c0, c1, r) in ((20, 26, 19.5), (30, 34, 19.5), (17.6, 26.4, 50.5), (17.6, 33.6, 52.5)):
+    # Grey ribs low down (rows 50 and 52).
+    for (c0, c1, r) in ((17.6, 26.4, 50.5), (17.6, 33.6, 52.5)):
         pipe([(c0, r), (c1, r)], 0.6, METAL, sides=6)
 
-    # Brown hatch (columns 23-29, rows 21-26) with grey fins beside it.
-    block(23, 21, 30, 27, 0.05, DBROWN, bevel=0.5)
-    block(24.2, 22.2, 29.6, 26.6, 0.035, BROWN, bevel=0.3)
-    for r in (22.5, 24.5, 26.5):
-        pipe([(30.0, r), (33.6, r)], 0.55, ROCK3, sides=6)
-
-    # Brown frame on the left (columns 0-9, rows 17-27) with a red block in it.
-    block(-0.5, 17, 10, 28, 0.08, BROWN, bevel=0.6, top_mat=BROWN)
-    block(2, 20, 8.5, 26.5, 0.085, RECESS, bevel=0.3)
-    block(3, 21, 7, 25.5, 0.13, RED, bevel=0.6, top_mat=LRED)
-    pipe([(0.5, 17.4), (0.5, 27.4), (10.2, 27.4)], 0.6, PGOLD, z=0.085)
+    # Brass box on the left (columns 0-10, rows 17-28) with a round red lens in a dark socket.
+    block(-0.5, 17, 10, 28, 0.19, BROWN, bevel=0.8, top_mat=BROWN)
+    block(1.8, 19.6, 8.4, 26.4, 0.215, RECESS, bevel=0.4, base=0.1)
+    lib.dome(bm, (XE(5.0), YE(23.0), 0.2), (2.6 * PX, 2.6 * PX, 2.2 * PX), mat=LENS,
+             segments=16, rings=5)
+    pipe([(0.5, 17.4), (0.5, 27.4), (10.2, 27.4)], 0.7, PGOLD, z=0.17)
     pipe([(1.4, 28.0), (1.4, 32.8)], 0.7, GOLD)
-    # Red block beside it (columns 9-18, rows 21-26) with a groove, on a dark red stem below.
-    block(9, 21, 19, 27, 0.08, DBROWN, bevel=0.5)
-    block(10, 21.6, 18.4, 26.4, 0.14, RED, bevel=0.7, top_mat=RED)
-    block(14, 21.8, 15, 27, 0.145, DRED, bevel=0.1)
-    block(11.5, 26, 17.5, 30, 0.06, DRED, bevel=0.5)
-    # Short red pipe below the frame (column 4, rows 29-33).
+    # Twin red panels beside it (columns 11-18, rows 22-26) over a vented dark red skirt.
+    block(9, 21, 19, 27, 0.12, DBROWN, bevel=0.5)
+    block(10.2, 21.6, 14.4, 26.4, 0.22, RED, bevel=0.8, top_mat=RED)
+    block(14.8, 21.6, 18.8, 26.4, 0.22, RED, bevel=0.8, top_mat=RED)
+    block(11.0, 26.0, 18.2, 30.0, 0.12, DRED, bevel=0.5)
+    for c in (12.0, 13.4, 15.6, 17.0):
+        block(c - 0.3, 26.8, c + 0.3, 29.4, 0.125, RECESS, bevel=0.05, base=0.08)
+    # Short red pipe below the brass box (column 4, rows 29-33).
     pipe([(4.6, 28.6), (4.6, 33.6)], 1.6, RED)
 
-    # Slanted brown panel lower left (columns 6-11, rows 33-47) with a gold rib and a grey rail.
-    block(6.6, 33.2, 12, 48, 0.07, DBROWN, bevel=0.6, top_mat=BROWN)
-    pipe([(7.2, 35.0), (11.6, 41.6)], 0.8, PGOLD, z=0.07)
-    pipe([(6.4, 35.6), (6.4, 41.6)], 0.6, ROCK3, z=0.04)
-    # Red block lower middle (columns 13-19, rows 39-47) with a raised top.
-    block(13, 39, 20, 48, 0.07, DRED, bevel=0.6)
-    block(13.2, 39, 19.4, 42.6, 0.12, RED, bevel=0.6, top_mat=LRED)
+    # Slanted brass panel lower left (columns 6-11, rows 33-47): raised, with a gold rib and a rail.
+    block(6.6, 33.2, 12, 48, 0.17, DBROWN, bevel=0.9, top_mat=BROWN)
+    pipe([(7.4, 35.2), (11.4, 41.4)], 0.8, PGOLD, z=0.17)
+    pipe([(6.2, 35.6), (6.2, 41.6)], 0.7, ROCK3, z=0.08)
+    # Red block lower middle (columns 13-19, rows 39-47) with a raised top plate.
+    block(13, 39, 20, 48, 0.14, DRED, bevel=0.6)
+    block(13.2, 39, 19.4, 42.6, 0.23, RED, bevel=0.7, top_mat=LRED, base=0.1)
 
     return lib.to_object(NAME, bm, mats, coll)
 

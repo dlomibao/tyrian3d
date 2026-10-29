@@ -1,0 +1,115 @@
+{
+ "name": "assembly-newsh2-87",
+ "summary": "A blue-armed gun walker standing on the ground (two pieces, 48x27 px, mirror symmetric about the edge between cols 22 and 23): a grey armoured hull at the top with a glowing exhaust vent across its back, light grey side pods and a blue glass canopy; red thruster blocks beside it; bright blue T-shaped arm plates out of its sides that drop into blades; blue-steel legs down the outer edges, each an inner and an outer rail arching down to a foot; under the hull a grey block with red vent strips and a pipe down to a round housing with a glowing red eye. Hard-surface machinery: flat bevelled plates and blocks stacked in height, round only for the pods, the pipe, the housing and the eye.",
+ "concept": {
+  "image": "assets/blender/features/concepts/assembly-newsh2-87.jpg",
+  "use": "design guide; the sprite decides outline, proportions and colours"
+ },
+ "features": [
+  {
+   "id": "canopy",
+   "kind": "glass",
+   "box": [19, 2, 27, 8],
+   "traits": [
+    "blue glass panel (cols 19-26, rows 2-7) on top of the hull, glossy, with crisp chamfered edges",
+    "raised above the hull deck and framed; light blue rim along its lower edge (row 7)",
+    "the bright pixels (131, 133, 136) are glints, not bumps"
+   ],
+   "note": "Concept: a framed blue screen/windshield in the middle of the hull."
+  },
+  {
+   "id": "hull",
+   "kind": "hull",
+   "box": [14, 0, 32, 11],
+   "traits": [
+    "grey armoured block cols 15-30, rows 0-9, the tallest part of the machine (several px above the arms' roots)",
+    "flat deck with crisp bevelled edges, not a soft blob",
+    "darker lower end (rows 8-9) stepping down towards the stem block"
+   ],
+   "note": "Baseline script: 'a grey hull at the top'."
+  },
+  {
+   "id": "side_pods",
+   "kind": "pod",
+   "box": [15, 0, 31, 10],
+   "traits": [
+    "two light grey cylinders along the hull's sides (cols 15-18 and 27-30, rows 0-8)",
+    "round in section, lit on the left, standing above the hull deck about as high as they are wide",
+    "the right pod looks darker in the sprite only because it is in shadow; same shape and colour"
+   ],
+   "note": "Concept: grey armoured side housings flanking the canopy."
+  },
+  {
+   "id": "exhaust_vent",
+   "kind": "light",
+   "box": [18, 0, 28, 2],
+   "traits": [
+    "glowing orange-yellow strip across the hull's back end (row 0, cols 19-26), emissive, hottest in the middle",
+    "a dark slot under it (row 1)"
+   ],
+   "note": "Concept: glowing exhaust ports with grilles at the top."
+  },
+  {
+   "id": "blue_arms",
+   "kind": "wing",
+   "box": [9, 4, 37, 17],
+   "traits": [
+    "bright blue T-shaped armour plates: a bar out of each hull side (rows 5-6), a thick outer part (rows 7-9) and a blade dropping down (rows 10-16)",
+    "flat plates with bevelled lit edges, raised clearly above the legs and red blocks",
+    "the blade tapers and lowers towards its dark tip"
+   ],
+   "note": "Concept: chunky blue T-shaped arm plates with bevels."
+  },
+  {
+   "id": "legs",
+   "kind": "strut",
+   "box": [3, 3, 41, 26],
+   "traits": [
+    "blue-steel legs down the outer edges (cols 4-9 and 35-39, rows 3-25)",
+    "each an inner rail (cols 8-9 / 36-37) and an outer rail with a dark outer face (col 5 / col 39), joined at a foot (rows 20-25)",
+    "rails arch: high at the shoulder by the arms, descending to the foot on the ground, not flat strips on the floor"
+   ],
+   "note": "Concept: segmented armoured claws curving down either side. The sprite's right outer rail is one px narrower than the left."
+  },
+  {
+   "id": "red_blocks",
+   "kind": "engine",
+   "box": [10, 1, 36, 8],
+   "traits": [
+    "red-orange blocks beside the hull (cols 11-13 and 32-34, rows 2-6), hot orange on top",
+    "solid raised blocks with chamfered edges, a few px tall"
+   ],
+   "note": "Concept: red thruster housings with vents behind the arms."
+  },
+  {
+   "id": "eye_housing",
+   "kind": "dome",
+   "box": [18, 17, 28, 27],
+   "traits": [
+    "round grey housing (cols 19-26, rows 18-25), about as tall as half its width or more",
+    "glowing red eye lens set in its upper part (cols 21-24, rows 19-22) with a hot orange core"
+   ],
+   "note": "Concept: a spherical pod with a large red lens."
+  },
+  {
+   "id": "stem",
+   "kind": "pipe",
+   "box": [19, 9, 27, 19],
+   "traits": [
+    "grey block under the hull (cols 20-25, rows 10-13) with dark red vent strips at its sides (cols 20 and 25)",
+    "a round grey pipe of constant diameter (cols 22-23, rows 14-17) down to the eye housing"
+   ],
+   "note": "Concept: a bundle of cables and red-lit vent blocks between the hull and the eye."
+  },
+  {
+   "id": "lights_knobs",
+   "kind": "light",
+   "box": [10, 9, 36, 14],
+   "traits": [
+    "small red indicator lights (col 11 / col 34, row 11) in dark sockets",
+    "grey knobs (col 16, row 11, and its mirror) in dark sockets under the arms"
+   ],
+   "note": ""
+  }
+ ]
+}

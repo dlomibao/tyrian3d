@@ -9,8 +9,10 @@ dome at the bottom with a dark gun port. Grey struts run out from the bed at the
 
 The whole structure is built once in assembly coordinates and cut into its four pieces with
 common.split_assembly. The dirt is a thin floor and the bed a low platform, both made of 2 x 2 px
-cells that take the sprite's colour; the domes and blocks take the sprite's colour under each
-upward facet (holes in the sprite are dark).
+cells that take the sprite's colour. The domes are round, polished brass balls in one mid tone
+(the sprite's bright spots are sheen, its dark rims shadow) with their markings modelled: a
+hatch band on the big dome conforming to its curve, framed slots, a gun port bored into the bottom
+dome, brass feed pipes to the side domes and a pipe down the neck.
 
 Run: blender --background --python assets/blender/enemies/assembly-newsh2-115.py [-- --preview out.png]
 (the preview is the whole structure; each piece also gets <piece>.png next to it).
@@ -77,6 +79,8 @@ def build(sprite, grid):
     for i in DIRT:
         slot[i] = len(mats)
         mats.append(common.palette_material(sprite, i, tag, metallic=0.0, roughness=0.95))
+    slot[25] = len(mats)  # the domes' mid brass
+    mats.append(common.palette_material(sprite, 25, tag, metallic=0.55, roughness=0.3))
     slot["rod"] = len(mats)
     mats.append(common.palette_material(sprite, 30, tag + "rod", metallic=0.6, roughness=0.25))
     DARK, MID, TAN, ROD = slot[2], slot[4], slot[25 - 1], slot["rod"]
@@ -100,13 +104,6 @@ def build(sprite, grid):
             return slot[24]
         if 172 <= idx <= 174:
             return slot[28] if idx == 172 else slot[30]
-        return None
-
-    def sample(x, y):
-        c = math.floor(x * 12 + W / 2)
-        r = math.floor(H / 2 - y * 12)
-        if 0 <= r < H and 0 <= c < W:
-            return grid[r][c]
         return None
 
     bm = bmesh.new()
@@ -136,17 +133,6 @@ def build(sprite, grid):
     # The bed's sides, under its cells.
     lib.prism(bm, [(XE(c), YE(r)) for c, r in BED_OUTLINE], 0.0, BED - 0.004, mat=DARK)
 
-    def dome_slot(idx):
-        """On the domes the outline (1) and dirt past their edge keep the brass; holes are dark."""
-        if idx == 1 or 16 <= idx <= 21:
-            return None
-        return slot_for(idx)
-
-    def painted(make, base):
-        first = len(bm.faces)
-        make(base)
-        lib.paint(bm, first, sample, dome_slot)
-
     def grey_of(c0, r0, c1, r1):
         """The commonest grey (not the outline) of the sprite pixels in a box of pixel edges."""
         pix = [grid[r][c] for r in range(math.floor(r0), math.ceil(r1))
@@ -173,26 +159,92 @@ def build(sprite, grid):
     block(25.5, 38.5, 32.5, 43, 0.2)
 
     # ---- brass domes ----
-    painted(lambda m: lib.dome(bm, (XE(18.5), YE(11.0), BED - 0.02), (12.6 * PX, 10.6 * PX, 0.46),
-                               mat=m, segments=32, rings=9), TAN)
-    # Visor bar over the dome's dark window, and the light rod at its lower right.
-    block(14, 9.6, 24.5, 12.8, 0.6, mat=TAN, z0=0.42)
-    lib.sweep(bm, [(XE(23.2), YE(22.4), 0.2, 0.9 * PX, 0.05), (XE(30.2), YE(16.8), 0.26, 0.9 * PX, 0.05)],
+    # Round, polished brass balls (the concept's reading): each about half its width tall or more,
+    # one mid brass tone; the sprite's bright spots are sheen and its dark lower-right rims shadow,
+    # left to the lighting. Markings are modelled, not painted.
+    BASE = BED - 0.02
+    BRASS = slot[25]  # the domes' mid tone
+    BIG = (18.5, 11.0, 12.6, 10.6, 0.88)  # centre column, row, radii in px, height in units
+
+    def surf(d, c, r):
+        """Height of dome d = (col, row, rx px, ry px, rz) over the pixel point (c, r)."""
+        dc, dr, rx, ry, rz = d
+        q = 1 - ((c - dc) / rx) ** 2 - ((r - dr) / ry) ** 2
+        return BASE + rz * math.sqrt(max(q, 0.0))
+
+    def shell(d, c0, r0, c1, r1, t, mat, n=6, sink=0.04):
+        """A plate on dome d over the pixel box, its top following the curve t above the surface
+        and its sides dropping below it: crisp edges, curved face."""
+        first = len(bm.faces)
+        cs = [c0 + (c1 - c0) * i / n for i in range(n + 1)]
+        rs = [r0 + (r1 - r0) * j / n for j in range(n + 1)]
+        top = [[bm.verts.new((XE(c), YE(r), surf(d, c, r) + t)) for c in cs] for r in rs]
+        bot = [[bm.verts.new((XE(c), YE(r), surf(d, c, r) - sink)) for c in cs] for r in rs]
+        for j in range(n):
+            for i in range(n):
+                bm.faces.new((top[j + 1][i], top[j + 1][i + 1], top[j][i + 1], top[j][i]))
+        ring = ([(0, i) for i in range(n)] + [(j, n) for j in range(n)] +
+                [(n, i) for i in range(n, 0, -1)] + [(j, 0) for j in range(n, 0, -1)])
+        for (j0, i0), (j1, i1) in zip(ring, ring[1:] + ring[:1]):
+            bm.faces.new((top[j0][i0], top[j1][i1], bot[j1][i1], bot[j0][i0]))
+        for f in bm.faces[first:]:
+            f.material_index = mat
+            f.smooth = False
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces[first:])
+
+    def framed_slot(d, c0, r0, c1, r1, w=0.6):
+        """A dark slot cut into dome d: a dark floor just over the surface inside a raised brass
+        frame."""
+        shell(d, c0, r0, c1, r1, 0.006, DARK, n=3)
+        shell(d, c0 - w, r0 - w, c1 + w, r0, 0.04, BRASS, n=3)
+        shell(d, c0 - w, r1, c1 + w, r1 + w, 0.04, BRASS, n=3)
+        shell(d, c0 - w, r0, c0, r1, 0.04, BRASS, n=3)
+        shell(d, c1, r0, c1 + w, r1, 0.04, BRASS, n=3)
+
+    lib.dome(bm, (XE(BIG[0]), YE(BIG[1]), BASE), (BIG[2] * PX, BIG[3] * PX, BIG[4]),
+             mat=BRASS, segments=32, rings=10)
+    # The hatch band down the dome's middle (lit left edge at col 13), its upper hatch plate, the
+    # visor bar (the bright row 11), the dark window under it and the darker lower plate.
+    shell(BIG, 13.0, 5.5, 24.0, 20.0, 0.035, BRASS, n=8)
+    shell(BIG, 15.0, 6.6, 23.0, 10.4, 0.07, slot[24])
+    shell(BIG, 13.4, 10.4, 23.6, 12.5, 0.1, slot[28], n=6)
+    shell(BIG, 15.0, 12.7, 23.0, 15.0, 0.04, DARK, n=4)
+    shell(BIG, 15.6, 15.1, 22.4, 19.4, 0.075, slot[22], n=5)
+    # The vertical slots on the dome's flanks.
+    framed_slot(BIG, 10.0, 9.0, 11.6, 14.6)
+    framed_slot(BIG, 25.0, 9.0, 26.6, 14.6)
+    # The light rod at the dome's lower right.
+    lib.sweep(bm, [(XE(23.2), YE(22.4), 0.2, 0.9 * PX, 0.9 * PX), (XE(30.2), YE(16.8), 0.3, 0.9 * PX, 0.9 * PX)],
               sides=8, mat=ROD)
-    # Dark slots on either side of the big dome, the dark window under the visor and the brass
-    # plate below it.
-    block(8, 8.5, 11, 14.5, 0.44, mat=DARK, z0=0.1)
-    block(25.5, 8.5, 28, 14.5, 0.44, mat=DARK, z0=0.1)
-    block(15, 12.6, 23, 15.2, 0.535, mat=DARK, z0=0.3)
-    block(16, 15, 22, 18.8, 0.5, mat=slot[24], z0=0.3)
-    for cx in (7.0, 30.0):  # the side domes and their grey gun blocks
-        painted(lambda m: lib.dome(bm, (XE(cx), YE(31.0), BED - 0.02), (6.0 * PX, 5.2 * PX, 0.32),
-                                   mat=m, segments=18, rings=5), TAN)
-    block(6, 29.5, 11, 36, 0.42)
-    block(29, 29.5, 34, 35.5, 0.42)
-    painted(lambda m: lib.dome(bm, (XE(18.5), YE(39.6), BED - 0.02), (5.6 * PX, 4.8 * PX, 0.3),
-                               mat=m, segments=18, rings=5), TAN)
-    lib.ellipsoid(bm, (XE(19.0), YE(41.0), 0.36), (2.1 * PX, 1.4 * PX, 0.05), mat=DARK, segments=10, rings=4)
+
+    SIDE = 0.58 # side domes' height
+    for cx in (7.0, 30.0):  # the side domes
+        lib.dome(bm, (XE(cx), YE(31.0), BASE), (6.0 * PX, 5.2 * PX, SIDE), mat=BRASS, segments=20, rings=7)
+    # Their grey gun blocks, standing proud of the dome's front.
+    block(6, 29.5, 11, 36, 0.66)
+    block(29, 29.5, 34, 35.5, 0.66)
+    # Brass feed pipes from under the main dome down into each side dome.
+    rp = 1.3 * PX
+    lib.sweep(bm, [(XE(10.4), YE(17.5), 0.36, rp, rp), (XE(8.6), YE(20.5), 0.3, rp, rp),
+                   (XE(8.2), YE(23.0), 0.28, rp, rp), (XE(8.0), YE(27.5), 0.3, rp, rp)],
+              sides=10, mat=BRASS)
+    lib.sweep(bm, [(XE(27.0), YE(18.0), 0.36, rp, rp), (XE(29.4), YE(20.8), 0.3, rp, rp),
+                   (XE(29.9), YE(23.0), 0.28, rp, rp), (XE(30.0), YE(27.5), 0.3, rp, rp)],
+              sides=10, mat=BRASS)
+    # A pipe down the neck (its lighter column 20), from under the main dome to the bottom dome.
+    lib.sweep(bm, [(XE(20.5), YE(20.0), 0.31, 0.9 * PX, 0.9 * PX), (XE(20.5), YE(36.5), 0.31, 0.9 * PX, 0.9 * PX)],
+              sides=8, mat=slot[6])
+
+    BOT = (18.5, 39.6, 5.6, 4.8, 0.5)
+    lib.dome(bm, (XE(BOT[0]), YE(BOT[1]), BASE), (BOT[2] * PX, BOT[3] * PX, BOT[4]), mat=BRASS, segments=20, rings=7)
+    # Its gun port: a dark bore in a raised brass rim.
+    pc, pr = 19.0, 41.3
+    pz = surf(BOT, pc, pr)
+    up = (0, 1, 0)
+    lib.sweep(bm, [(XE(pc), YE(pr), pz - 0.08, 2.7 * PX, 2.2 * PX), (XE(pc), YE(pr), pz + 0.035, 2.7 * PX, 2.2 * PX)],
+              sides=14, mat=BRASS, up=up, smooth=False)
+    lib.sweep(bm, [(XE(pc), YE(pr), pz - 0.05, 1.9 * PX, 1.5 * PX), (XE(pc), YE(pr), pz + 0.04, 1.9 * PX, 1.5 * PX)],
+              sides=12, mat=slot[2], up=up, smooth=False)
 
     return lib.to_object(NAME, bm, mats, coll)
 

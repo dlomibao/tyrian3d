@@ -55,39 +55,59 @@ def build(sprite):
     ]
     HULL, COLLAR, ENGINE, CANOPY, RED, ORANGE, GOLD, RAIL, ARM, RIM, BAND = range(11)
     bm = bmesh.new()
+    K = 0.85  # the pod is round: about as tall as it is wide
 
-    # The pod along X, nose (column 0) to tail (column 24): (column edge, half width px, half height).
-    nose = [(0.0, 0.0, 0.0), (0.4, 1.3, 0.06), (1.0, 2.3, 0.09), (2.0, 3.3, 0.12), (3.5, 4.2, 0.15),
-            (5.0, 4.8, 0.17), (7.0, 5.6, 0.19), (9.0, 6.3, 0.2), (14.2, 6.5, 0.2)]
-    L.sweep(bm, [(X(c), 0, 0, w * PX, h) for c, w, h in nose], sides=12, mat=HULL)
-    collar = [(14.0, 6.5, 0.2), (14.4, 6.7, 0.21), (18.2, 6.6, 0.21), (18.6, 5.0, 0.17), (19.0, 4.0, 0.14)]
-    L.sweep(bm, [(X(c), 0, 0, w * PX, h) for c, w, h in collar], sides=12, mat=COLLAR)
+    def pod(stations, mat, sides=16, k=K, **kw):
+        """A round section along X: (column edge, half width px), height k * width."""
+        L.sweep(bm, [(X(c), 0, 0, w * PX, k * w * PX) for c, w in stations], sides=sides, mat=mat, **kw)
+
+    # The pod along X, nose (column 0) to tail (column 24). A bullet-shaped nose cap to the
+    # panel seam at column 7 (the dark column), then the body to the collar.
+    pod([(0.0, 0.0), (0.15, 0.9), (0.6, 1.6), (1.5, 2.5), (2.5, 3.3), (3.5, 4.0), (5.0, 4.9), (6.4, 5.6),
+         (7.0, 5.85)], HULL)
+    pod([(6.95, 5.4), (7.3, 6.0), (8.2, 6.6), (9.5, 6.9), (14.2, 6.9)], HULL)
+    # Brown armour collar round the rear half, a plate proud of the hull, rounding off at the back.
+    pod([(13.9, 6.9), (14.3, 7.2), (16.6, 7.2), (17.5, 6.4), (18.3, 5.3), (18.9, 4.2), (19.1, 3.6)],
+        COLLAR)
     # Dark band round the front of the collar (the dark brown pixels at column 14).
-    L.sweep(bm, [(X(14.4), 0, 0, 6.8 * PX, 0.215), (X(15.2), 0, 0, 6.8 * PX, 0.215)], sides=12, mat=BAND,
-            cap_start=False, cap_end=False)
-    tail = [(18.8, 3.6, 0.13), (19.5, 3.6, 0.13), (22.6, 3.4, 0.12), (23.4, 2.6, 0.1), (24.0, 1.6, 0.07)]
-    L.sweep(bm, [(X(c), 0, 0, w * PX, h) for c, w, h in tail], sides=12, mat=ENGINE)
-    L.sweep(bm, [(X(23.8), 0, 0, 2.0 * PX, 0.085), (X(24.15), 0, 0, 1.0 * PX, 0.04),
-                 (X(24.2), 0, 0, 0.0, 0.0)], sides=12, mat=RIM)
+    pod([(14.3, 7.3), (15.0, 7.3)], BAND, cap_start=False, cap_end=False)
+    # Round engine drum at the tail, a groove ring at column 21 (the dark column), nozzle rim.
+    pod([(18.8, 3.2), (19.2, 3.4), (20.8, 3.4), (20.95, 2.95), (21.55, 2.95), (21.7, 3.4),
+         (22.7, 3.3), (23.3, 2.8), (23.8, 2.0)], ENGINE, k=1.0)
+    pod([(23.7, 2.2), (24.1, 1.9), (24.15, 1.1), (23.9, 0.0)], RIM, k=1.0)
 
-    # Dark canopy strip on top (columns 12-18, rows 11-14) with the two red lights in it.
-    L.ellipsoid(bm, X(15.0), 0, 0.17, 3.8 * PX, 2.1 * PX, 0.065, mat=CANOPY, segments=14, rings=6)
-    for c, m in ((15.5, RED), (17.5, RED)):
-        L.ellipsoid(bm, X(c), 0, 0.2, 0.9 * PX, 1.7 * PX, 0.045, mat=m, segments=8, rings=4)
-        L.ellipsoid(bm, X(c), 0, 0.225, 0.4 * PX, 0.5 * PX, 0.025, mat=ORANGE, segments=6, rings=3)
-    # Gold stripe ahead of it (columns 9-11, row 13).
-    L.sweep(bm, [(X(8.8), 0, 0.195, 0.0, 0.0), (X(9.3), 0, 0.2, 0.6 * PX, 0.025),
-                 (X(11.8), 0, 0.2, 0.6 * PX, 0.025), (X(12.3), 0, 0.195, 0.0, 0.0)], sides=6, mat=GOLD)
+    # Sensor bay on top (columns 12-18, rows 11-15): a dark recess framed by raised armour, two
+    # red glass lights in it with orange cores and a dark divider between them.
+    zt = 6.1 * PX  # the collar's top
+    L.box(bm, X(11.8), -2.0 * PX, X(17.8), 2.0 * PX, zt - 2.0 * PX, zt + 0.05 * PX, mat=CANOPY)
+    frame = (COLLAR, COLLAR, COLLAR, COLLAR)
+    for s in (1, -1):  # the side rims (rows 10-11 and 15-16)
+        L.bevel_plate(bm, [(X(11.6), s * 2.0 * PX), (X(18.0), s * 2.0 * PX), (X(18.0), s * 2.9 * PX),
+                           (X(11.6), s * 2.9 * PX)], zt - 1.5 * PX, zt + 0.7 * PX, 0.3 * PX, frame)
+    L.bevel_plate(bm, [(X(11.2), -2.9 * PX), (X(11.8), -2.9 * PX), (X(11.8), 2.9 * PX), (X(11.2), 2.9 * PX)],
+                  zt - 1.6 * PX, zt + 0.55 * PX, 0.25 * PX, (HULL,) * 4)
+    L.bevel_plate(bm, [(X(17.8), -2.9 * PX), (X(18.5), -2.9 * PX), (X(18.5), 2.9 * PX), (X(17.8), 2.9 * PX)],
+                  zt - 3.0 * PX, zt + 0.6 * PX, 0.25 * PX, (COLLAR,) * 4)
+    for c in (15.5, 17.4):
+        L.ellipsoid(bm, X(c), 0, zt + 0.1 * PX, 0.75 * PX, 1.6 * PX, 0.55 * PX, mat=RED, segments=8, rings=4)
+        L.ellipsoid(bm, X(c), 0, zt + 0.42 * PX, 0.35 * PX, 0.55 * PX, 0.35 * PX, mat=ORANGE, segments=6,
+                    rings=3)
+    # Brass plate ahead of it (columns 9-11, row 13), a flat raised plate.
+    L.bevel_plate(bm, [(X(8.9), -0.6 * PX), (X(12.0), -0.6 * PX), (X(12.0), 0.6 * PX), (X(8.9), 0.6 * PX)],
+                  5.2 * PX, 6.3 * PX, 0.25 * PX, (GOLD,) * 4)
 
-    # One rail and its arm (the upper ones on screen), mirrored below.
+    # One rail and its arm (the upper ones on screen), mirrored below. The rail is a flat bar and
+    # the arm an angular beam (square sections: a 4-sided sweep has its corners at 45 degrees).
+    SQ = 2 ** 0.5
     side = bmesh.new()
-    L.sweep(side, [(X(8.6), Yr(3), 0.0, 0.0, 0.0), (X(9.0), Yr(3), 0.0, 0.65 * PX, 0.05),
-                   (X(17.0), Yr(3), 0.0, 0.65 * PX, 0.05)], sides=8, mat=RAIL)
-    L.sweep(side, [(X(16.6), Yr(3.0), 0.0, 0.8 * PX, 0.055), (X(18.6), Yr(3.6), 0.0, 0.85 * PX, 0.055),
-                   (X(21.0), Yr(4.9), 0.0, 0.85 * PX, 0.055), (X(23.3), Yr(5.6), 0.0, 0.8 * PX, 0.05),
-                   (X(23.8), Yr(5.7), 0.0, 0.0, 0.0)], sides=8, mat=ARM)
-    # Grey post from the arm in to the tail (column 21, rows 6-10).
-    L.sweep(side, [(X(21.5), Yr(5.6), 0.0, 0.6 * PX, 0.045), (X(21.5), Yr(10.2), 0.0, 0.6 * PX, 0.045)],
+    L.sweep(side, [(X(8.3), Yr(3), 0.0, 0.8 * SQ * PX, 0.8 * SQ * PX),
+                   (X(17.4), Yr(3), 0.0, 0.8 * SQ * PX, 0.8 * SQ * PX)], sides=4, mat=RAIL, smooth=False)
+    L.sweep(side, [(X(16.6), Yr(3.0), 0.0, 0.95 * SQ * PX, 0.8 * SQ * PX),
+                   (X(18.6), Yr(3.6), 0.0, 0.95 * SQ * PX, 0.8 * SQ * PX),
+                   (X(21.0), Yr(4.9), 0.0, 0.95 * SQ * PX, 0.8 * SQ * PX),
+                   (X(23.6), Yr(5.6), 0.0, 0.9 * SQ * PX, 0.75 * SQ * PX)], sides=4, mat=ARM, smooth=False)
+    # Grey post from the arm in to the engine (column 21, rows 6-10).
+    L.sweep(side, [(X(21.5), Yr(5.4), 0.0, 0.65 * PX, 0.65 * PX), (X(21.5), Yr(10.3), 0.0, 0.65 * PX, 0.65 * PX)],
             sides=8, mat=RAIL)
     me = bpy.data.meshes.new("tmp271")
     side.to_mesh(me)

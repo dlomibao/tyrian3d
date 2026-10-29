@@ -31,8 +31,8 @@ import bmesh
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import common  # noqa: E402
-from lib_b015 import (PX, box, composite_png, ellipsoid, loft_y, merged_sprite, mirror_all, plate,  # noqa: E402
-                      sweep, to_object)
+from lib_b015 import (PX, X, Y, box, composite_png, ellipsoid, loft_y, merged_sprite, mirror_all,  # noqa: E402
+                      plate, sweep, to_object)
 
 NAME = "assembly-newsh4-124"
 ROOT = common.repo_root(__file__)
@@ -81,12 +81,13 @@ def materials(sprite):
         pal(22, **bronze),  # 21 tan lower band of the stinger (the sprite's mid tone, shaded 23 to 163)
         common.palette_material(sprite, 8, f"{TAG}-steel", metallic=0.8, roughness=0.3),  # 22 polished dome, neck
         pal(23, metallic=0.35, roughness=0.45),  # 23 tan wing plates (the sprite's 22 to 24, between them)
+        pal(21, metallic=0.3, roughness=0.6),  # 24 dark tan vent floors in the pod's cheeks
     ]
 
 
 (GREY, LGREY, DGREY, BLACK, TAN, DTAN, LTAN, BROWN, RED, PINK, CLAW, LIGHT, SHUTTER, EYE_RED, GLOW,
- HOT, BARREL, RIB, HOOK, BALLG, WIN, DBROWN, STEEL, WING) = range(24)
-N_MATS = 24
+ HOT, BARREL, RIB, HOOK, BALLG, WIN, DBROWN, STEEL, WING, VENT) = range(25)
+N_MATS = 25
 DSTEEL = HOOK  # the darker grey plates share the hooks' material
 
 
@@ -146,7 +147,7 @@ def build_left(bm):
                (8.3, 35.4, 0.2, 2.2, 0.24), (8.3, 36.5, 0.2, 0.0, 0.0)], sides=10, mat=RED)
     bplate(bm, [(10, 29), (15, 29), (15, 38), (10, 38)], -0.12, 0.44, mat=DSTEEL, bevel=0.6)
     # Thin tan cable from the pylon's top round to the wing tip (rows 9-22).
-    sweep(bm, [(20.5, 9.0, 0.38, 1.4, 0.06), (16, 9.2, 0.37, 1.4, 0.06), (12.5, 10.5, 0.35, 1.4, 0.06),
+    sweep(bm, [(20.5, 9.0, 0.5, 1.4, 0.06), (16, 9.2, 0.47, 1.4, 0.06), (12.5, 10.5, 0.41, 1.4, 0.06),
                (9.8, 12.8, 0.33, 1.4, 0.06), (7.5, 16, 0.3, 1.4, 0.06), (5.6, 19.5, 0.22, 1.5, 0.06),
                (5.2, 22.5, 0.16, 1.5, 0.06)], sides=6, mat=TAN)
 
@@ -157,13 +158,13 @@ def build_left(bm):
     # mirror, see build_recesses).
     bplate(bm, [(20.5, 2.5), (25, 2.5), (34, 7), (43.5, 11.5), (43.5, 18), (46.5, 18.5), (46.5, 21.5),
                 (43, 22), (43, 31), (41, 35.5), (36.5, 34), (36, 30), (30, 22), (22.5, 19), (20, 17.5),
-                (20, 7)], -0.1, 0.4, mat=DSTEEL, bevel=1.0)
-    bplate(bm, [(20.5, 3.2), (24.5, 3.2), (25.5, 4), (25.5, 18.5), (21.5, 18.5), (20.5, 17)], 0.25, 0.46,
+                (20, 7)], -0.1, 0.52, mat=DSTEEL, bevel=1.0)
+    bplate(bm, [(20.5, 3.2), (24.5, 3.2), (25.5, 4), (25.5, 18.5), (21.5, 18.5), (20.5, 17)], 0.37, 0.58,
            mat=LGREY, bevel=0.5)
     plate(bm, [(27, 9.5), (31, 8), (36, 10.5), (36, 12.5), (31, 11), (29.5, 12), (29.5, 15.5), (27, 15.5)],
-          0.3, 0.408, mat=BROWN)
-    plate(bm, [(26.5, 17.5), (45, 17.5), (46, 20.5), (28, 20.5)], 0.3, 0.415, mat=BROWN)
-    box(bm, 37, 22, 38, 34, 0.25, 0.45, mat=LGREY)
+          0.42, 0.528, mat=BROWN)
+    plate(bm, [(26.5, 17.5), (45, 17.5), (46, 20.5), (28, 20.5)], 0.42, 0.535, mat=BROWN)
+    box(bm, 37, 22, 38, 34, 0.37, 0.57, mat=LGREY)
 
     # Arm root from the hull down to the shoulder (columns 28-40, rows 46-58).
     bplate(bm, [(28, 52), (33, 46.5), (41, 45.5), (41, 53), (36, 58.5), (28, 58.5)], -0.12, 0.34, mat=DSTEEL)
@@ -196,6 +197,10 @@ def build_left(bm):
     plate(bm, [(18, 58), (23, 58), (23.5, 60.5), (17.5, 60.5)], top, top + 0.06, mat=LGREY)
     box(bm, 16, 62, 21, 67, rim - 0.02, top - 0.03, mat=BLACK)
     plate(bm, [(16.05, 62.05), (21.95, 62.05), (21.95, 67.95), (16.05, 67.95)], rim, top - 0.01, mat=WIN)
+    # The window's light grey frame (the sprite's bright ring: column 22 and rows 61 and 68 lit, column
+    # 15 a step darker), standing a little proud of the block's top.
+    for c0, r0, c1, r1 in ((15, 61, 22, 61), (15, 68, 22, 68), (15, 62, 15, 67), (22, 62, 22, 67)):
+        box(bm, c0, r0, c1, r1, rim, top + 0.04, mat=LGREY)
     plate(bm, [(14, 69.9), (24, 69.9), (24, 70.9), (14, 70.9)], -0.12, 0.3, mat=BLACK)
     bplate(bm, [(15, 70.8), (24, 70.8), (24, 77), (15, 77)], -0.12, 0.42, mat=GREY, bevel=0.5)
     box(bm, 15, 70.8, 23, 70.8, 0.4, 0.45, mat=LGREY)
@@ -208,13 +213,15 @@ def build_left(bm):
 
     # Brown claw curving in to its tip (rows 84-106): a round tube, as tall as it is wide, rooted in
     # the wrist and tapering to the point; and the thin grey hook inside it, rooted in the blade's tip.
-    sweep(bm, [(19.8, 81.5, 0.25, 4.0, 0.44), (19.5, 84.5, 0.25, 4.5, 0.47), (19.5, 90, 0.26, 4.5, 0.47),
-               (21.0, 96, 0.25, 4.3, 0.46), (24.6, 100.5, 0.22, 3.8, 0.41), (30, 104, 0.17, 3.1, 0.32),
+    # The claw is about 7 px wide in the sprite (columns 17-22 at row 90, with its outline), so as tall as that.
+    sweep(bm, [(19.8, 81.5, 0.25, 3.6, 0.35), (19.5, 84.5, 0.25, 3.8, 0.37), (19.5, 90, 0.26, 3.8, 0.37),
+               (21.1, 96, 0.25, 3.7, 0.36), (24.7, 100.5, 0.22, 3.5, 0.34), (30, 104, 0.17, 3.0, 0.29),
                (34.4, 105.6, 0.1, 2.0, 0.19), (38.4, 106.5, 0.05, 0.0, 0.0)], sides=10, mat=CLAW)
-    sweep(bm, [(27.0, 73.0, 0.18, 2.0, 0.15), (27.6, 75.5, 0.24, 2.5, 0.24), (28.4, 78.2, 0.3, 2.8, 0.3),
-               (29.6, 81.2, 0.3, 2.8, 0.3),
-               (31.9, 84.5, 0.28, 2.6, 0.3), (35.8, 86.8, 0.24, 2.2, 0.26), (40.8, 88.3, 0.18, 1.7, 0.19),
-               (45.0, 89.0, 0.12, 1.1, 0.12), (48.0, 89.2, 0.08, 0.0, 0.0)], sides=10, mat=HOOK)
+    # The hook is a thin rod, about 4 px wide.
+    sweep(bm, [(27.0, 73.0, 0.18, 2.0, 0.15), (27.6, 75.5, 0.24, 2.2, 0.2), (28.4, 78.2, 0.3, 2.2, 0.22),
+               (29.6, 81.2, 0.3, 2.2, 0.22),
+               (31.9, 84.5, 0.28, 2.1, 0.22), (35.8, 86.8, 0.24, 1.8, 0.19), (40.8, 88.3, 0.18, 1.4, 0.15),
+               (45.0, 89.0, 0.12, 0.9, 0.1), (48.0, 89.2, 0.08, 0.0, 0.0)], sides=10, mat=HOOK)
 
 
 # The tower down the middle: (row, half width px, half height, z) sections of each loft. A round
@@ -258,6 +265,54 @@ def on(sections, rows_hw_hh, dx=0.0, sink=0.02):
     return [(r, w, h, surf(sections, r, dx) - sink) for r, w, h in rows_hw_hh]
 
 
+def prism(bm, side, sections, mat):
+    """A hard (flat-shaded) bar along the rows: sections of (row, [(dx_px, dz), ...]), the same number
+    of cross-section points in each, dx measured out from the axis on `side` (+1 right, -1 left),
+    dz above Z_POD. Capped at both ends."""
+    rings = [[bm.verts.new((X(AXIS + side * dx), Y(r), Z_POD + dz)) for dx, dz in pts] for r, pts in sections]
+    faces = [bm.faces.new(rings[0]), bm.faces.new(list(reversed(rings[-1])))]
+    n = len(rings[0])
+    for a, b in zip(rings, rings[1:]):
+        for k in range(n):
+            j = (k + 1) % n
+            faces.append(bm.faces.new((a[k], a[j], b[j], b[k])))
+    for f in faces:
+        f.material_index = mat
+        f.smooth = False
+
+
+def build_pod(bm):
+    """The red pod under the eye (rows 54-67) as the sprite draws it: two red armour cheeks either side
+    of a dark slot down the middle (columns 58-62, the core shows in it). Each cheek is a tall inner
+    ridge (3 px wide, about 11 px above the plane, lit at its front) and a lower outer block (from row
+    56, sloping out to column 50) whose dark tan vent (columns 52-54 and 66-68, rows 58-64) is cut in
+    a red frame. Hard, chamfered plates, not a rounded barrel."""
+    B = -0.25  # the cheeks' bottoms, inside the hull
+
+    def ridge(h):
+        return [(2.5, B), (2.5, 0.66 * h), (3.1, 0.76 * h), (5.0, 0.76 * h), (5.6, 0.64 * h), (5.6, B)]
+
+    def block(o, top=0.64, out=0.34):
+        return [(5.4, B), (5.4, top), (max(o - 0.9, 5.5), top - 0.1), (o, out), (o, B)]
+
+    for side in (-1, 1):
+        prism(bm, side, [(53.6, ridge(0.6)), (54.6, ridge(0.92)), (55.6, ridge(1.0)), (65.6, ridge(1.0)),
+                         (66.8, ridge(0.85))], RED)
+        # Vent floor, then the red frame round it: front band, back band and outer rim.
+        prism(bm, side, [(57.8, block(10.5, 0.44, 0.36)), (65.0, block(10.5, 0.44, 0.36))], VENT)
+        prism(bm, side, [(55.4, block(6.0)), (57.2, block(8.6)), (58.6, block(10.5)), (59.0, block(10.5))], RED)
+        prism(bm, side, [(64.6, block(10.5)), (66.2, block(10.5)), (67.0, block(9.6, 0.5, 0.3))], RED)
+        prism(bm, side, [(58.8, [(8.6, B), (8.6, 0.56), (9.6, 0.5), (10.5, 0.34), (10.5, B)]),
+                         (64.8, [(8.6, B), (8.6, 0.56), (9.6, 0.5), (10.5, 0.34), (10.5, B)])], RED)
+        # Two dark slats across each vent.
+        for r in (60.2, 62.6):
+            prism(bm, side, [(r, [(5.6, 0.3), (5.6, 0.52), (8.6, 0.48), (8.6, 0.3)]),
+                             (r + 0.7, [(5.6, 0.3), (5.6, 0.52), (8.6, 0.48), (8.6, 0.3)])], DTAN)
+        # The grey bolts on the slot's walls (columns 58 and 62, rows 58-61).
+        prism(bm, side, [(57.6, [(1.6, 0.3), (1.6, 0.62), (2.55, 0.62), (2.55, 0.3)]),
+                         (61.4, [(1.6, 0.3), (1.6, 0.62), (2.55, 0.62), (2.55, 0.3)])], LGREY)
+
+
 def build_centre(bm):
     """The tower down the middle and the hull under everything (symmetric about column 60). Every
     loft here is centred on its z, so its lower half is cut flat at CENTRE_FLOOR afterwards: the pod,
@@ -277,7 +332,8 @@ def build_centre(bm):
     loft_y(bm, AXIS, COLLAR, sides=14, mat=PINK)
     loft_y(bm, AXIS, NECK, sides=12, mat=STEEL)
     loft_y(bm, AXIS, SOCKET, sides=12, mat=BLACK)
-    loft_y(bm, AXIS, POD, sides=16, mat=RED)
+    # The pod's dark core (it shows in the slot between the cheeks and under them).
+    loft_y(bm, AXIS, [(r, w, h * 0.66, z) for r, w, h, z in POD], sides=16, mat=BLACK)
     loft_y(bm, AXIS, UNDER, sides=16, mat=BLACK)
     # The stinger is a dome standing on the body plane (its underside cut flat at BALL_FLOOR), not a
     # ball hanging under it: polished grey upper half, tan lower band.
@@ -295,17 +351,7 @@ def build_centre(bm):
     for side in (-1, 1):
         sweep(bm, [(AXIS + side * 9.6, 78.2, 0.3, 1.1, 0.12), (AXIS + side * 10.8, 75.8, 0.27, 0.7, 0.08),
                    (AXIS + side * 11.1, 74.6, 0.25, 0.0, 0.0)], sides=6, mat=DGREY)
-    # The pod's dark spine down the middle, raised ribs either side (lit inner ribs, red outer ones)
-    # and dark brown grooves between them, all following its round top.
-    loft_y(bm, AXIS, on(POD, [(54.2, 0.0, 0.0), (55, 2.0, 0.06), (65.5, 2.0, 0.06), (66.8, 0.0, 0.0)],
-                        sink=0.02), sides=8, mat=BLACK)
-    for side in (-1, 1):
-        for dx, w, mat in ((4.2, 0.9, RIB), (9.0, 0.9, RED)):
-            rows = [(55.6 if dx < 6 else 57.2, 0.0, 0.0), (56.4 if dx < 6 else 58, w, 0.05), (62, w, 0.05),
-                    (65.6, w, 0.05), (66.3, 0.0, 0.0)]
-            loft_y(bm, AXIS + side * dx, on(POD, rows, dx, sink=0.0), sides=6, mat=mat)
-        sweep(bm, [(AXIS + side * 6.5, 57.6, surf(POD, 57.6, 6.5), 0.7, 0.03),
-                   (AXIS + side * 7.0, 64.5, surf(POD, 64.5, 7.0), 0.7, 0.03)], sides=6, mat=BROWN)
+    build_pod(bm)
 
     # Light tan crest up the dome from the brim, with a pink light at its top, and another pink
     # light under the brim.

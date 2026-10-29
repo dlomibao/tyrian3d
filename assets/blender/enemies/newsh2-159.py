@@ -54,12 +54,13 @@ def append_mesh(bm, obj):
     bpy.data.meshes.remove(mesh)
 
 
-# The grey bar strapped over the ball (centre on row edge BAR_ROW): a round tube BAR_R px in radius
-# on an arch whose outer edge is on the outline at the ball's sides (BAR_A + BAR_R = 8 px) and which
-# stands about 3 px proud over the crown. To keep it that proud down to the sides without widening
-# the outline, the ball narrows under the bar (to PINCH_W px) and widens back within PINCH_OUT rows.
-BAR_ROW, BAR_R, BAR_A, BAR_Z = 14.0, 1.6, 6.4, 9.0
-PINCH_W, PINCH_IN, PINCH_OUT = 4.9, 1.35, 2.0
+# The grey band strapped round the ball (rows 12-15, centre on row edge BAR_ROW): a flat steel
+# strap BAR_HW px either side of its centre line, BAR_T px thick with bevelled edges, wrapped right
+# round the ball. Its outer face is on the outline at the ball's sides (PINCH_W + BAR_T = 8 px) and
+# BAR_T px proud over the crown; the ball narrows under it (to PINCH_W px, a groove the strap sits
+# in) and widens back within PINCH_OUT rows.
+BAR_ROW, BAR_HW, BAR_T, BAR_BEV = 14.0, 2.0, 1.6, 0.4
+PINCH_W, PINCH_IN, PINCH_OUT = 6.4, 2.05, 2.8
 
 
 def body_width(r):
@@ -112,6 +113,7 @@ def build_one(sprite, name, tip, shade, up, fins):
         common.palette_material(sprite, 16, NAME, metallic=0.0, roughness=0.9),  # 12 mouth floor
     ]
     HULL, SHOULDER, KNOB, BAR, HUB, SLOT, ARM, CAP, RIB, LOWER, RIM, BAR_SIDE, FLOOR = range(13)
+    POD = ARM  # the steel pod in the bay: the arms' darker grey
     if fins:
         mats.append(common.palette_material(sprite, fins[4], NAME, emission_strength=3.0 if fins[4] == 119 else 1.5))
     FIN = 13
@@ -200,17 +202,43 @@ def build_one(sprite, name, tip, shade, up, fins):
     bm.faces.ensure_lookup_table()
     bm.faces[-1].smooth = False
 
-    # The bar strapped across the ball's upper half (rows 12-15): a 3.2 px round tube on an arch
-    # over the pinched ball, 3 px proud from the crown down to the sides; one polished grey.
+    # The band strapped round the ball (rows 12-15): a flat steel strap with bevelled edges, its
+    # inner face on the pinched ball's cross-section (PINCH_W wide, the ball's full height) and its
+    # outer face BAR_T px further out; a hard surface, one polished grey.
     yb = E(BAR_ROW)
-    pts = []
-    for i in range(17):
-        t = math.pi * i / 16
-        pts.append((-BAR_A * U * math.cos(t), yb, BAR_Z * U * math.sin(t)))
+    a_in, b_in = PINCH_W, ROUND * body_width(BAR_ROW)
+    # Cross-section (radial offset px, y offset px), going round: outer face, bevels, sides, inner.
+    hw, bt, bv = BAR_HW, BAR_T, BAR_BEV
+    sec = [(bt, -hw + bv), (bt, hw - bv), (bt - bv, hw), (0.0, hw), (0.0, -hw), (bt - bv, -hw)]
+    n_arc = 48
     f0 = len(bm.faces)
-    lib.polyline_tube(bm, pts, BAR_R * U, sides=10, mat_index=BAR)
+    # Each face of the section is its own smooth strip (smooth round the ball, crisp at the bevels).
+    for k in range(len(sec)):
+        strip = []
+        for i in range(n_arc):
+            t = 2 * math.pi * i / n_arc
+            c, s = math.cos(t), math.sin(t)
+            strip.append([bm.verts.new((-(a_in + d) * c * U, yb + dy * U, (b_in + d) * s * U))
+                          for d, dy in (sec[k], sec[(k + 1) % len(sec)])])
+        for i in range(n_arc):
+            p, q = strip[i], strip[(i + 1) % n_arc]
+            f = bm.faces.new((p[0], q[0], q[1], p[1]))  # wound to face out of the strap
+            f.material_index = BAR
+            f.smooth = True
+
+    # The steel pod in the dark bay under the band (rows 15-19, columns 10-13): a round capsule
+    # lying along the bay, its top about 1 px below the bay's rim, so the bay still reads dark.
+    py0, py1, pw, pz, ph = 15.0, 19.7, 1.9, 3.2, 2.9
+    psec = []
+    for r in (py0, py0 + 0.6, 17.5, py1 - 1.4, py1 - 0.6, py1 - 0.15, py1):
+        k = 1.0 if r <= py1 - 1.4 else math.sqrt(max(0.0, 1 - ((r - (py1 - 1.4)) / 1.4) ** 2))
+        psec.append((E(r), pw * k * U, ph * k * U, pz * U))
+    f0 = len(bm.faces)
+    common.loft(bm, psec, sides=14, mat_index=POD)
     bm.faces.ensure_lookup_table()
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[f0:])
+    for f in bm.faces[f0:]:
+        f.smooth = True
     # (The sprite's white spots on the bar, columns 10-11 and 7, are its sheen: the steel material
     # makes them, so there is no hub ball.)
     # Dark grey bar ends where the bar meets the sides, and the thin arms out to the tips.

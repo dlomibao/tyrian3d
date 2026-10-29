@@ -1,0 +1,130 @@
+{
+ "name": "assembly-newsh4-124",
+ "summary": "Bronze stag-beetle boss, 120 x 112 px from twenty 2x2 pieces, symmetric about column 60: a central tower (grey steel dome with a tan brim and crest, a tan barrel with grey bars and a ladder, a pink collar, a steel neck), the eye in a black socket, a red armoured pod under it and a grey and tan stinger at the bottom; two big tan wings with red and grey wingtip blocks, thin cables up to grey pylons behind the tower; a tan chevron plate across the body down to grey shoulder blocks with framed red windows; a brown claw and a thin grey hook hanging from each shoulder. Shape language: hard, chamfered bronze and steel armour plates stacked in layers, with round parts only where the sprite draws them (dome, barrel, stinger, claws, cables).",
+ "concept": {
+  "image": "assets/blender/features/concepts/assembly-newsh4-124.jpg",
+  "use": "design guide; the sprite decides outline, proportions and colours"
+ },
+ "features": [
+  {
+   "id": "eye",
+   "kind": "light",
+   "box": [55, 46, 66, 55],
+   "traits": [
+    "glowing eye in a black socket at col 60, rows 48-53, yellow-white core in red-orange glow",
+    "emissive, set in the socket, animated shutter frames kept"
+   ],
+   "note": "The boss's focal point (concept: a glowing red orb)."
+  },
+  {
+   "id": "tower-barrel",
+   "kind": "other",
+   "box": [44, 4, 77, 40],
+   "traits": [
+    "grey steel dome at the top (rows 5-13) with a tan brim and a light tan crest up its middle",
+    "tan barrel below (rows 19-38) as wide as the brim, round, about 10-11 px tall",
+    "two light grey bars down its sides and a ladder down its middle, pink light under the brim",
+    "pink collar and steel neck at its front"
+   ],
+   "note": "Baseline: dome, brim, band, barrel, collar, neck. Concept: a stacked drum with a cap."
+  },
+  {
+   "id": "pod",
+   "kind": "panel",
+   "box": [49, 53, 72, 69],
+   "traits": [
+    "two red armour cheeks either side of a dark slot down the middle (cols 58-62), the slot cut in",
+    "each cheek: a tall inner ridge (cols 55-57 / 63-65, about 11 px high) and a lower outer block out to col 50 / 70",
+    "a dark tan vent cut into each outer block (cols 52-54 / 66-68, rows 58-64) in a red frame",
+    "hard, chamfered plates, not a smooth barrel; black lower pod under them"
+   ],
+   "note": "Baseline: a ribbed red barrel. Concept: two red armour plates with vent grilles round a central slot."
+  },
+  {
+   "id": "stinger",
+   "kind": "dome",
+   "box": [48, 72, 73, 92],
+   "traits": [
+    "dome about 23 px wide and 12-13 px tall standing on the plane, polished grey upper half, tan lower band",
+    "raised red stripe down its front (cols 58-61)",
+    "small dark horns at its upper corners"
+   ],
+   "note": "Concept: a grey and tan cap with a red stripe and side horns."
+  },
+  {
+   "id": "wings",
+   "kind": "wing",
+   "box": [3, 18, 35, 54],
+   "traits": [
+    "big tan slanted plate from the tip (cols 4-14) to the body (col 34), drooping toward the tip",
+    "light tan ridge along its upper edge (a lit bevel), darker lower edge",
+    "red knob and grey block at the wingtip (cols 6-15, rows 26-38)"
+   ],
+   "note": "Box: the left wing; the right is its mirror."
+  },
+  {
+   "id": "pylons",
+   "kind": "panel",
+   "box": [19, 2, 48, 37],
+   "traits": [
+    "dark grey raised slanted block behind the tower, about 6 px tall, bevelled top",
+    "bright light grey post along its outer edge (cols 20-25) and a bar down to the barrel's side",
+    "dark brown L emblem and band on its top",
+    "dark gap cut in between it and the barrel"
+   ],
+   "note": "Box: the left pylon. Concept: stacked armour blocks."
+  },
+  {
+   "id": "cables",
+   "kind": "pipe",
+   "box": [4, 8, 22, 24],
+   "traits": [
+    "thin tan cable arching from the pylon's top round to the wingtip",
+    "round, constant diameter"
+   ],
+   "note": "Box: the left cable. Concept: a bundle of cables."
+  },
+  {
+   "id": "chevron",
+   "kind": "panel",
+   "box": [29, 43, 92, 74],
+   "traits": [
+    "tan body plate in a V from the middle out and down to each shoulder, above the wings",
+    "light outer edge (a bevel), about 7 px tall, crisp edges",
+    "light tan blade hanging below each shoulder (cols 24-28, rows 68-78)"
+   ],
+   "note": "Concept: the big tan V armour across the body."
+  },
+  {
+   "id": "shoulders",
+   "kind": "panel",
+   "box": [13, 56, 36, 85],
+   "traits": [
+    "grey block about 6 px tall (cols 14-35, rows 58-70) with a red window (cols 16-21, rows 62-67) set into its top",
+    "light grey frame round the window, proud of the block",
+    "smaller block under it with a red triangular window, then the grey wrist"
+   ],
+   "note": "Box: the left shoulder. Concept: red-banded armour blocks."
+  },
+  {
+   "id": "claws",
+   "kind": "organic",
+   "box": [14, 80, 40, 107],
+   "traits": [
+    "brown horn curving in from the wrist to a point at col 38, row 106",
+    "round tube about 6-7 px wide and as tall, tapering to the tip"
+   ],
+   "note": "Box: the left claw. Concept: brown curved tusks."
+  },
+  {
+   "id": "hooks",
+   "kind": "strut",
+   "box": [25, 71, 50, 91],
+   "traits": [
+    "thin grey hook (about 3 px wide) from under the blade curving in to a point at col 48, row 89",
+    "round, tapering"
+   ],
+   "note": "Box: the left hook."
+  }
+ ]
+}

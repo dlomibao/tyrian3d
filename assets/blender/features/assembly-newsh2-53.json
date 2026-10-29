@@ -1,0 +1,147 @@
+{
+ "name": "assembly-newsh2-53",
+ "summary": "A red-and-brass machinery block set into grey rock (four ground pieces, 48x56 px): red elbow pipes and a red pump housing top left, two glowing orange canister lights, a stacked red box, a dark central housing with a recessed brown hatch and louvred vents framed by angular red trim, a brass box with a round red lens on the left, twin red panels, a red pipe bending down the right, a slanted brass panel and red blocks lower down, all ringed by boulders. Hard-surface machinery: flat bevelled plates and boxes stacked in height, round only where the sprite draws pipes, canisters and the lens.",
+ "concept": {
+  "image": "assets/blender/features/concepts/assembly-newsh2-53.jpg",
+  "use": "design guide; the sprite decides outline, proportions and colours"
+ },
+ "features": [
+  {
+   "id": "orange_lights",
+   "kind": "light",
+   "box": [13, 11, 20, 21],
+   "traits": [
+    "two glowing orange lights (cols 14-18, rows 12-14 and 18-20), emissive, yellow-white core",
+    "each a horizontal canister lying across the block (round, about as tall as it is wide, ~3 px)",
+    "set in a dark socket with metal end caps, not a flat yellow tile"
+   ],
+   "note": "The concept draws them as glowing hazard-striped canisters stacked one above the other."
+  },
+  {
+   "id": "elbow_pipe",
+   "kind": "pipe",
+   "box": [3, 2, 17, 10],
+   "traits": [
+    "red pipe about 5 px across running down col 5 from row 2, bending right along rows 7-9 to col 16",
+    "constant diameter through the bend, round, standing about as tall as it is wide",
+    "sits above the red pump housing"
+   ],
+   "note": "Concept: red elbow pipes feeding the housing."
+  },
+  {
+   "id": "pump_housing",
+   "kind": "hull",
+   "box": [2, 8, 17, 18],
+   "traits": [
+    "red box cols 3-11 rows 10-16 with a lighter top, clearly raised above the floor (several px)",
+    "a smaller grey/red step to its right (cols 11-16) leading to the lights",
+    "flat top with chamfered edges"
+   ],
+   "note": ""
+  },
+  {
+   "id": "red_tower",
+   "kind": "hull",
+   "box": [22, 8, 28, 16],
+   "traits": [
+    "red box cols 22-27 rows 8-15, the tallest box of the top half",
+    "two stacked parts: a lid (rows 8-11) on a lower body with a dark seam between them"
+   ],
+   "note": "Concept: a stacked red box column beside the lights."
+  },
+  {
+   "id": "central_housing",
+   "kind": "panel",
+   "box": [18, 16, 36, 34],
+   "traits": [
+    "dark metal housing (cols 19-34, rows 17-27, and down the right to row 33) raised above the black floor",
+    "angular red trim along its top edge (rows 16-17), down its right side (col 34) and along row 27",
+    "trim is flat-topped bars with crisp edges, not round pipes"
+   ],
+   "note": "Concept: dark housing framed by red trim."
+  },
+  {
+   "id": "hatch_and_vents",
+   "kind": "recess",
+   "box": [22, 18, 34, 27],
+   "traits": [
+    "brown hatch cols 23-29 rows 21-26 cut into the housing (lower than the housing top)",
+    "grey louvre ribs beside it (cols 30-33, rows 22-26) and along row 19, set into the housing top"
+   ],
+   "note": ""
+  },
+  {
+   "id": "lens_box",
+   "kind": "dome",
+   "box": [0, 16, 11, 29],
+   "traits": [
+    "brown/brass box cols 0-10 rows 17-28 with a gold rim along its left and bottom edges",
+    "round red lens (cols 3-7, rows 20-25) bulging out of a dark socket, glossy",
+    "box raised a few px above the floor"
+   ],
+   "note": "Concept: brass box with a red glass lens."
+  },
+  {
+   "id": "twin_red_panels",
+   "kind": "panel",
+   "box": [9, 21, 19, 31],
+   "traits": [
+    "two red plates side by side (cols 11-14 and 15-18, rows 22-26) with a dark seam between",
+    "dark red vented skirt below them (rows 26-30) with slots cut in",
+    "raised like the lens box"
+   ],
+   "note": "Concept: two red panels with vents below."
+  },
+  {
+   "id": "right_red_pipe",
+   "kind": "pipe",
+   "box": [28, 32, 36, 50],
+   "traits": [
+    "red pipe 3 px across turning down from row 33 along cols 29-31 to row 48",
+    "constant diameter, round, lit down its left side",
+    "a thinner dark red branch to col 34 and a bar across row 48"
+   ],
+   "note": ""
+  },
+  {
+   "id": "brass_panel",
+   "kind": "panel",
+   "box": [5, 33, 13, 48],
+   "traits": [
+    "brown/brass panel cols 6-11 rows 33-47 with a gold diagonal rib",
+    "grey rail on its left edge (col 6, rows 36-41)",
+    "raised plate with chamfered edges"
+   ],
+   "note": "Concept: brass armour block with a chevron."
+  },
+  {
+   "id": "lower_red_block",
+   "kind": "hull",
+   "box": [13, 39, 20, 48],
+   "traits": [
+    "dark red block cols 13-19 rows 39-47 with a lighter red raised top plate (rows 39-42)"
+   ],
+   "note": ""
+  },
+  {
+   "id": "top_pipe",
+   "kind": "pipe",
+   "box": [6, 1, 34, 6],
+   "traits": [
+    "chrome fittings at the top (grey/white pixels cols 6-12 and 28-32, rows 1-3)",
+    "gold pipe along row 4 between them"
+   ],
+   "note": "Concept: horizontal pipe with chrome couplings across the top."
+  },
+  {
+   "id": "boulders",
+   "kind": "rock",
+   "box": [40, 0, 48, 56],
+   "traits": [
+    "grey boulders ringing the block (shown: the right edge), faceted and matte",
+    "sand-coloured stones at the top and bottom edges"
+   ],
+   "note": ""
+  }
+ ]
+}
