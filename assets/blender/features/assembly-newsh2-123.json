@@ -1,0 +1,97 @@
+{
+ "name": "assembly-newsh2-123",
+ "summary": "Grey two-legged ground pylon, 22 x 28 px from two 2x2 pieces, mirror symmetric: a tall grey head housing at the top holds a square blue light in a frame, with a grey collar band below it and shoulders sloping out; from it a glowing blue glass tube runs down the middle to row 14; two round grey legs hang from the shoulders, each with a domed hip carrying a blue pipe that loops out sideways and down the outside of the leg, a blue trim strip down its inner edge, and a dark curved foot edged in blue; between the legs a recessed dark bay holds machinery (a gear and a short shaft). Shape language: hard chamfered grey housings with round leg columns and round blue glass/pipes; the feet are low dark blades with a raised blue rim.",
+ "concept": {
+  "image": "assets/blender/features/concepts/assembly-newsh2-123.jpg",
+  "use": "design guide; the sprite decides outline, proportions and colours"
+ },
+ "features": [
+  {
+   "id": "head-light",
+   "kind": "light",
+   "box": [21, 1, 25, 5],
+   "traits": [
+    "square blue light about 4 x 4 px at cols 21-24, rows 1-4",
+    "glowing glass set in a grey frame of the head housing, flush or slightly raised, emissive blue",
+    "distinct from the tube below it, separated by the grey collar band (row 5)"
+   ],
+   "note": "Concept: a framed glowing square at the top of the housing."
+  },
+  {
+   "id": "blue-tube",
+   "kind": "glass",
+   "box": [21, 6, 25, 15],
+   "traits": [
+    "vertical glass cylinder about 3-4 px wide from row 6 to row 14, constant diameter, rounded end at the bottom",
+    "bright streak down its left-centre (col 22), darker right edge: round, standing about as tall as it is wide",
+    "glossy, emissive blue, set in a dark channel between the legs"
+   ],
+   "note": "The glowing core tube (concept: a glass tube in a capped frame)."
+  },
+  {
+   "id": "head-housing",
+   "kind": "hull",
+   "box": [18, 0, 28, 7],
+   "traits": [
+    "chamfered grey box cols 19-26, rows 1-5, the tallest part of the structure",
+    "grey collar band across it at row 5, crossing the light/tube line",
+    "shoulders sloping out to cols 16-29 at rows 6-7, lower than the head; the rows 7-8 dark band below is shadow"
+   ],
+   "note": "The cap that holds the light and the top of the tube."
+  },
+  {
+   "id": "hips",
+   "kind": "dome",
+   "box": [14, 8, 20, 14],
+   "traits": [
+    "each leg's top is a round grey hip about 5 px wide (cols 15-19, rows 9-12), mirrored at cols 26-30",
+    "round across (bright ridge col 17 / col 28), about as tall as wide, a ring band where the leg starts",
+    "a small blue light spot on the hip where the pipe leaves it"
+   ],
+   "note": "Concept: domed hip caps with ring bands on top of the leg columns."
+  },
+  {
+   "id": "legs",
+   "kind": "strut",
+   "box": [14, 12, 19, 21],
+   "traits": [
+    "round grey leg column cols 15-17, rows 12-20, mid grey, mirrored",
+    "highlight streak down col 17 (a cylinder), constant width, sloping lower toward the foot",
+    "a blue trim strip down its inner edge (col 17 / 28), rows 15-23"
+   ],
+   "note": "The shins running down from the hips to the feet."
+  },
+  {
+   "id": "side-pipes",
+   "kind": "pipe",
+   "box": [12, 10, 19, 18],
+   "traits": [
+    "blue pipe of constant diameter (about 1 px) leaving the hip at row 11, running out to col 13 and down col 13 to row 16, then back into the leg",
+    "a pipe, round, with bends, not a flat strip or a chain of bulges; mirrored at col 32"
+   ],
+   "note": "Concept: the blue conduit that loops out from the hip and back into the leg."
+  },
+  {
+   "id": "feet",
+   "kind": "hull",
+   "box": [12, 19, 19, 28],
+   "traits": [
+    "foot flaring out to col 12 at rows 20-26, a low dark grey blade (sprite 2-5), not a blue box",
+    "raised blue rim along its outer and bottom edge (cols 12-13 and rows 24-25)",
+    "lowest part of the leg, standing on the ground; mirrored on the right"
+   ],
+   "note": "Concept: curved axe-blade feet with glowing blue trim."
+  },
+  {
+   "id": "machinery-bay",
+   "kind": "recess",
+   "box": [18, 13, 28, 20],
+   "traits": [
+    "recessed dark bay between the legs, rows 13-19, cols 19-26",
+    "holds machinery: a dark gear disc and a short grey shaft at col 23 (rows 15-18)",
+    "low, darker than the legs; reads as depth, not flat black floor"
+   ],
+   "note": "Concept: gears and a crank in the bay below the tube."
+  }
+ ]
+}

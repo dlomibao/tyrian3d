@@ -1,0 +1,92 @@
+{
+ "name": "assembly-newsh2-9",
+ "summary": "A long segmented pipe lying across the screen on low supports (8 ground pieces, 192x28 px): a light grey bullet nose on the left, six identical segments of grey rings, narrow red collars and a big red flange with a red bracket stand, and an end piece with a bigger flange and a grey cylinder with a rounded cap. Round, constant-diameter pipe sections with crisp chamfered ring edges; the dark band under the pipe is its supports and rail, with ground showing through under the collars.",
+ "features": [
+  {
+   "id": "grey_rings",
+   "kind": "pipe",
+   "box": [100, 7, 120, 15],
+   "traits": [
+    "three grey ring sections per segment (cols 100-103, 108-112, 117-119), about 8 px across (rows 7-14)",
+    "round: about as tall as they are wide, lit along the upper middle",
+    "crisp chamfered ends with a dark seam between neighbouring rings, not rounded beads"
+   ],
+   "note": "The pipe body of each newsh2-9 segment (here the exported one, cols 96-119)."
+  },
+  {
+   "id": "red_collars",
+   "kind": "pipe",
+   "box": [97, 9, 108, 14],
+   "traits": [
+    "two narrow red bands per segment (cols 97-99 and 105-107), 5 px across (rows 9-13)",
+    "thinner than the grey rings, so they read as a waist between rings",
+    "ground visible beneath them (the sprite is transparent at row 14 below them)"
+   ],
+   "note": "Red collars / couplings between the grey rings."
+  },
+  {
+   "id": "flange",
+   "kind": "other",
+   "box": [113, 6, 117, 15],
+   "traits": [
+    "red disc 4 px wide (cols 113-116), wider than the pipe (rows 6-14)",
+    "lit left rim (pale pink column 113)",
+    "flat faces with a crisp edge"
+   ],
+   "note": "Big flange on each segment."
+  },
+  {
+   "id": "flange_stand",
+   "kind": "strut",
+   "box": [113, 15, 117, 19],
+   "traits": [
+    "red bracket under the flange (cols 113-116, rows 15-18)",
+    "a frame with a see-through hole at row 16: dark red left post, dark top bar, lit foot bar at row 18",
+    "stands on the ground and reaches up to the flange"
+   ],
+   "note": "Support bracket holding each flange."
+  },
+  {
+   "id": "supports",
+   "kind": "strut",
+   "box": [96, 15, 120, 19],
+   "traits": [
+    "dark grey cradle blocks under each grey ring (rows 15-18), sloping from the pipe to the ground",
+    "a thin dark rail along row 15-16 joining them",
+    "gaps showing ground under the red collars"
+   ],
+   "note": "What the sprite draws as the dark band under the pipe: the pipe stands on these, a few px off the ground."
+  },
+  {
+   "id": "nose",
+   "kind": "hull",
+   "box": [2, 7, 24, 17],
+   "traits": [
+    "light grey bullet / ogive, tapering from the pipe's full width to a point at col 2",
+    "round in section, its tip drooping to the ground",
+    "shiny metal: the bright streak is sheen"
+   ],
+   "note": "The left end piece newsh2-7."
+  },
+  {
+   "id": "end_flange",
+   "kind": "other",
+   "box": [169, 5, 175, 21],
+   "traits": [
+    "bigger red flange (cols 170-173, rows 5-14) with a lit left rim",
+    "its own bracket stand below (rows 15-19) with a hole at row 17"
+   ],
+   "note": "Flange of the right end piece newsh2-11."
+  },
+  {
+   "id": "end_cap",
+   "kind": "pipe",
+   "box": [182, 7, 192, 15],
+   "traits": [
+    "grey cylinder of the pipe's diameter (cols 182-191)",
+    "rounded cap at the right end"
+   ],
+   "note": "The closed right end of the pipe."
+  }
+ ]
+}

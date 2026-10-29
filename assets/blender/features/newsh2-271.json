@@ -1,0 +1,28 @@
+{
+ "name": "newsh2-271",
+ "summary": "Grey rail pod (flies sideways, nose to the screen's left): a round, bullet-shaped grey metal pod with a blunt pointed nose, a brown armour collar round its rear half holding a dark recessed sensor bay with two glowing red lights, a small brass plate ahead of the bay and a round bright grey engine drum at the tail. Two flat grey rails run alongside it, above and below on the screen, each carried by an angled brown arm that bends in to a short grey post at the engine. Mostly round parts (pod, engine, posts) with hard flat rails, arms and armour plates; mirror symmetric about row 13.",
+ "concept": {"image": "assets/blender/features/concepts/newsh2-271.jpg", "use": "design guide; the sprite decides outline, proportions and colours"},
+ "features": [
+  {"id": "pod_hull", "kind": "hull", "box": [0, 6, 15, 21],
+   "traits": ["bullet-shaped: blunt point at column 0, widening to about 13 px across by column 9", "round in section, about as tall as it is wide (a pod, not a lens)", "mid grey metal, lit upper-left, shaded by the light not by paint", "a panel seam ring round it at column 7 (the dark column in the sprite) splitting the nose cap from the body"],
+   "note": "The main body. Its height is the main thing the baseline lacks: it is a squashed lens about 5 px tall for a 13 px wide pod."},
+  {"id": "sensor_bay", "kind": "light", "box": [12, 10, 19, 16],
+   "traits": ["dark recessed bay on top of the pod, columns 12-18, rows 11-15", "two red glowing lights (columns 15 and 17) with orange cores, set in the bay as glass lenses", "a dark divider between the lights", "framed by raised armour edges, so the bay reads cut in"],
+   "note": "The pod's 'eye': in the concept a recessed housing with two red glowing lenses. Must stay dark and recessed with clearly emissive red lights."},
+  {"id": "collar", "kind": "panel", "box": [14, 6, 19, 21],
+   "traits": ["brown armour band wrapping the rear half of the pod, columns 14-18", "slightly proud of the grey hull (a plate over it)", "dark brown band at its front edge (column 14)", "follows the pod's round section"],
+   "note": "Brown armour plates around the bay; the light pixels at rows 9-10 and 15 are sheen and lit plate edges, not bumps."},
+  {"id": "engine", "kind": "engine", "box": [19, 9, 24, 18],
+   "traits": ["round bright grey drum at the tail, columns 19-23, about 7 px across", "round in section (as tall as wide)", "a groove ring at column 21 (the dark column)", "a nozzle rim at the very back"],
+   "note": "The bright tail block; the near-white pixel at column 22 is a glint on polished metal."},
+  {"id": "rails", "kind": "strut", "box": [8, 2, 20, 25],
+   "traits": ["two straight grey rails, rows 3 and 23, columns 8-17", "flat bars with crisp edges and constant section (not round tubes or capsules)", "about 2 px wide"],
+   "note": "In the concept, flat grey bars with an inset groove, carried beside the pod."},
+  {"id": "arms", "kind": "strut", "box": [17, 2, 24, 25],
+   "traits": ["brown arm from each rail's rear end angling out and back to column 23", "flat, angular beams (hard surface)", "a short grey post from each arm in to the engine at column 21"],
+   "note": "The brown Y-arms of the concept that hold the rails; the grey posts tie them to the tail."},
+  {"id": "brass_plate", "kind": "panel", "box": [9, 12, 12, 15],
+   "traits": ["small gold/brass plate on the pod's top centre line, columns 9-11, row 13", "flat, slightly raised, with crisp edges"],
+   "note": "The small light-brown plate ahead of the sensor bay."}
+ ]
+}

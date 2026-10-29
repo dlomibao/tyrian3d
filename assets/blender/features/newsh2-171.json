@@ -1,0 +1,83 @@
+{
+ "name": "newsh2-171",
+ "summary": "Spinning brown pod (newsh2 frames 171-266): an armoured brown teardrop, blunt and widest across its top rows and drawn out to a point at the bottom, flattened to about half as thick as it is wide (9 px face on, 5 px edge on). It spins about its long axis over the six frames, each frame its own model turned to match. Shape language: hard-surface armour, a faceted shell with crisp longitudinal edges (shoulder facets either side of a raised central spine, a sharp keel along each side), a groove cut round the shoulder, and a small glossy lens set in the spine.",
+ "concept": {
+  "image": "assets/blender/features/concepts/newsh2-171.jpg",
+  "use": "design guide; the sprite decides outline, proportions and colours"
+ },
+ "features": [
+  {
+   "id": "pod_body",
+   "kind": "hull",
+   "box": [1, 0, 11, 14],
+   "traits": [
+    "teardrop outline: widest (9 px) across rows 2-4, tapering to a 1 px point at row 13",
+    "thick: about 5 px top to bottom at the shoulder (half its width), thinning toward the point",
+    "hard-surface armour shell with flat facets and crisp edges, not a smooth egg",
+    "brown mid-tone, the lower point darker (rows 9-13)"
+   ],
+   "note": "The baseline lofted a smooth 14-sided egg; the concept reads the pod as riveted armour plates."
+  },
+  {
+   "id": "spine",
+   "kind": "panel",
+   "box": [5, 2, 8, 13],
+   "traits": [
+    "a raised, flat-topped bevelled strip down the centre (column 6), rows 3-12, on both faces",
+    "light tan over rows 3-6, fading to the body colour toward the point",
+    "bridges over the shoulder groove (row 3 is light on column 6)"
+   ],
+   "note": "The concept's central armoured spine. The baseline had a round tube with knob ends from row 3.6 to 9.4."
+  },
+  {
+   "id": "lens",
+   "kind": "glass",
+   "box": [5, 4, 8, 7],
+   "traits": [
+    "small elongated near-white lens on the spine at row 5 (column 6), on both faces",
+    "glossy glass set in the spine, slightly raised, faint glow"
+   ],
+   "note": "The sprite's single 31 pixel; the concept draws a glowing yellow lens in the spine. The baseline had a round stud ball."
+  },
+  {
+   "id": "shoulder_groove",
+   "kind": "recess",
+   "box": [1, 3, 11, 4],
+   "traits": [
+    "a dark band right round the shoulder at row 3",
+    "cut into the shell (stepped walls), not a raised painted ring"
+   ],
+   "note": "The baseline built it as a dark ring slightly proud of the body."
+  },
+  {
+   "id": "shoulder_plates",
+   "kind": "panel",
+   "box": [2, 1, 11, 5],
+   "traits": [
+    "light crests at columns 3-4 and 8 in rows 1-4, dark seams at columns 5 and 7 beside the spine",
+    "built as flat shoulder facets with crisp edges either side of the spine, not painted stripes"
+   ],
+   "note": "The concept's rounded armour pads at the top corners."
+  },
+  {
+   "id": "edge_keels",
+   "kind": "hull",
+   "box": [1, 1, 11, 12],
+   "traits": [
+    "a crisp keel edge along both sides of the pod, rows 1-12",
+    "a thin light rib on it, flush with the outline, that shows as the bright centre line on the edge-on frame (228)"
+   ],
+   "note": "The baseline had round tubes standing off the edges like wires."
+  },
+  {
+   "id": "tail_point",
+   "kind": "hull",
+   "box": [4, 8, 9, 14],
+   "traits": [
+    "tapering point, darker brown, rows 8-13",
+    "faceted like the body, ends in a sharp tip"
+   ],
+   "note": "The concept wraps it in V-shaped plates."
+  }
+ ]
+}

@@ -1,0 +1,91 @@
+{
+ "name": "assembly-newsh2-3",
+ "summary": "A long industrial pipe lying on the ground, 216 x 28 px, built from nine 2x2 pieces: a rounded grey end cap and a big red end clamp on the left, seven identical sections (grey can, red clamp collar, grey can, thin red coupling, grey can, thin red coupling) and a grey cone tapering to a point on the right. Round parts throughout (cans, collars, couplings, cone): each is a cylinder about as tall as it is wide, lit on top and shaded on the screen-bottom side; the couplings rest on dark saddles. Hard, crisp rims where cans meet collars and couplings.",
+ "features": [
+  {
+   "id": "cans",
+   "kind": "pipe",
+   "box": [31, 7, 35, 19],
+   "traits": [
+    "grey cylinder segments 12 px across (rows 7-18), round: about 12 px tall, not a squashed capsule",
+    "short chamfered rims at both ends (darker end columns), crisp rather than blobby",
+    "one mid grey; the sprite's dark lower half is shadow, left to the lighting",
+    "three per section, all the same diameter"
+   ],
+   "note": "The body of the pipe. Box: the middle can of the first repeating section (columns 24-47)."
+  },
+  {
+   "id": "clamp-collar",
+   "kind": "pipe",
+   "box": [27, 6, 31, 20],
+   "traits": [
+    "red collar wider than the cans: 14 px across (rows 6-19), round",
+    "crisp lit rim on its left edge (the bright column), flat-sided disc, not a ball",
+    "mid red, one per section"
+   ],
+   "note": "The big red flange/clamp of each section."
+  },
+  {
+   "id": "collar-slot",
+   "kind": "recess",
+   "box": [28, 15, 31, 19],
+   "traits": [
+    "dark band (rows 15-17, open at row 16) cut into the lower side of each red collar, with a lit red lip below it (row 18)",
+    "cut in, not painted on"
+   ],
+   "note": "Reads in the enlarged sprite as an L-shaped red bracket under each collar: the split of the clamp."
+  },
+  {
+   "id": "couplings",
+   "kind": "pipe",
+   "box": [35, 9, 39, 14],
+   "traits": [
+    "thin red rod about 5 px across (rows 9-13), round, constant diameter",
+    "visibly narrower than the cans, so the pipe pinches in between cans",
+    "two per section (columns 12-14 and 20-22 of the section)"
+   ],
+   "note": "Narrow couplings joining the cans."
+  },
+  {
+   "id": "saddles",
+   "kind": "strut",
+   "box": [35, 15, 39, 18],
+   "traits": [
+    "dark brown block under each coupling (row 15-16), standing on the ground up to the coupling",
+    "matte, darker than the pipe"
+   ],
+   "note": "Supports the thin couplings rest on."
+  },
+  {
+   "id": "end-cap",
+   "kind": "pipe",
+   "box": [0, 7, 11, 19],
+   "traits": [
+    "grey can with a rounded, domed left end, same 12 px diameter as the cans",
+    "followed by a thin red coupling and a short can"
+   ],
+   "note": "Left end of the pipe (newsh2-1)."
+  },
+  {
+   "id": "end-clamp",
+   "kind": "pipe",
+   "box": [18, 5, 24, 21],
+   "traits": [
+    "the biggest red collar, 16 px across (rows 5-20), round",
+    "same dark slot and lit lip on its lower side as the section collars"
+   ],
+   "note": "Big red end flange at the right edge of newsh2-1."
+  },
+  {
+   "id": "nose-cone",
+   "kind": "pipe",
+   "box": [192, 7, 213, 19],
+   "traits": [
+    "grey cone tapering from the can diameter to a point at column 212",
+    "round in section, height following the width",
+    "smooth, slightly shiny metal"
+   ],
+   "note": "Right end of the pipe (newsh2-5)."
+  }
+ ]
+}

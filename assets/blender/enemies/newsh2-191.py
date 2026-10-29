@@ -112,7 +112,7 @@ def build_one(sprite, name, angle):
         mx, my = (pts[k][0] + pts[k + 1][0]) / 2, (pts[k][1] + pts[k + 1][1]) / 2
         r = row_of(my)
         if i >= 16:
-            band_pal[k] = 21 if abs(col_of(mx) - AXIS) < 0.6 and r < 2.6 else 25
+            band_pal[k] = 25
             continue
         if r > 6.5:
             if min(abs(r - 7), abs(r - 12)) < 0.6 and k > 0:
@@ -127,11 +127,61 @@ def build_one(sprite, name, angle):
             continue
         keep.append(i)
     keep += [len(pts) - 2, len(pts) - 1]
+    P = [pts[i] for i in keep]
+    R = [rads[i] for i in keep]
+    M = [band_pal[k0] for k0 in keep[:-1]]
+
+    # The bronze is a row of segments (the sprite's row 2 alternates light and dark, with a dark
+    # pixel at the top centre; the concept draws bronze tiles with dark joints): cut a dark V groove
+    # round the tube at the top centre and at two more joints down each side.
+    def arc(P):
+        s = [0.0]
+        for a, b in zip(P, P[1:]):
+            s.append(s[-1] + math.dist(a, b))
+        return s
+
+    def insert(s0):
+        S = arc(P)
+        for k in range(len(P) - 1):
+            if abs(S[k] - s0) < 1e-6:
+                return
+            if S[k] < s0 < S[k + 1]:
+                t = (s0 - S[k]) / (S[k + 1] - S[k])
+                P.insert(k + 1, (P[k][0] + (P[k + 1][0] - P[k][0]) * t, P[k][1] + (P[k + 1][1] - P[k][1]) * t))
+                R.insert(k + 1, R[k] + (R[k + 1] - R[k]) * t)
+                M.insert(k, M[k])
+                return
+
+    s_c = arc(P)[-1] / 2  # the path is symmetric: its middle is the top centre
+    seam_hw, seam_depth = 0.32 / 12, 0.8
+    # Joints about 3 px apart; one near a bend of the centreline sits on it (the bend is the groove's
+    # bottom), so no ring lands a hair from a mitred one and tears the tube.
+    S0 = arc(P)
+    seams = []
+    for d in (-6.0, -3.0, 0.0, 3.0, 6.0):
+        s0 = s_c + d / 12
+        near = min(S0, key=lambda v: abs(v - s0))
+        seams.append(near if abs(near - s0) < 0.45 / 12 else s0)
+    for s0 in seams:
+        for s1 in (s0 - seam_hw, s0, s0 + seam_hw):
+            insert(s1)
+    S = arc(P)
+    for s0 in seams:
+        for i, si in enumerate(S):
+            if abs(si - s0) < seam_hw - 1e-6:
+                R[i] = TUBE_R * (seam_depth + (1 - seam_depth) * abs(si - s0) / seam_hw)
+        for k in range(len(P) - 1):
+            if abs((S[k] + S[k + 1]) / 2 - s0) < seam_hw:
+                M[k] = 21
     # Each stretch is one colour all round: the sprite's dark band edges are its outline and
     # shading, which the game draws itself.
-    band_mats = [[mat(band_pal[k0])] * 8 for k0 in keep[:-1]]
-    lib.polyline_tube(bm, [(pts[i][0], pts[i][1], 0.0) for i in keep], [rads[i] for i in keep], sides=8,
-                      mat_index=band_mats, flat=TUBE_FLAT)
+    lib.polyline_tube(bm, [(x, y, 0.0) for x, y in P], R, sides=8, mat_index=[[mat(m)] * 8 for m in M],
+                      flat=TUBE_FLAT)
+    # The grooves' faces are flat shaded, so they stay crisp cuts and don't round the tube's
+    # segments into a chain of bulges.
+    for f in bm.faces:
+        if f.material_index == mat(21):
+            f.smooth = False
 
     # Raised dark collars round both legs at rows 7 and 12.
     for c in (5, 17):
@@ -146,6 +196,9 @@ def build_one(sprite, name, angle):
     for s in (-1, 1):
         lib.tube(bm, (s * 4.8 / 12, lib.row(10), 0), (s * 2.6 / 12, lib.row(10), 0), 1.1 / 12, sides=8,
                  mat_index=mat(6), caps=False)
+        # The dark joint where each strut enters its leg (the sprite's dark pixel in columns 6 and 16).
+        lib.tube(bm, (s * 5.0 / 12, lib.row(10), 0), (s * 4.0 / 12, lib.row(10), 0), 1.45 / 12, sides=8,
+                 mat_index=mat(4), caps=True, smooth=False)
 
     # The pod: a round barrel about six pixels across, rows 6-14, rounded at the bottom, polished
     # bronze in the band's mid-tone (25). The sprite's pale stripe left of centre, dark column right of it,
@@ -159,6 +212,14 @@ def build_one(sprite, name, angle):
         rings.append([(x, lib.row(sr), z) for x, z, _ in ring])
     rings = [[(0.0, lib.row(5.5), 0.0)]] + rings + [[(0.0, lib.row(14.9), 0.0)]]
     lib.ring_loft(bm, rings, mat(25), smooth=True)
+    # Raised dark bronze hoops round the barrel: its top rim and the band where its lower end
+    # starts to narrow (the sprite's dark row 12; the concept's rims).
+    for sr, rx, w in ((6.9, 3.3, 0.45), (12.0, 3.3, 0.5)):
+        hoop = []
+        for dy in (-w, w):
+            ring = lib.ellipse_ring(0, 0, 0, rx * 1.07 / 12, rx * 1.07 / 12 * POD_RZ / POD_RX, n=12, phase=0.0)
+            hoop.append([(x, lib.row(sr + dy), z) for x, z, _ in ring])
+        lib.ring_loft(bm, hoop, mat(21), cap_start=False, cap_end=False, smooth=True)
 
     # Turn it about the spin axis and put the axis on column 11.
     bmesh.ops.transform(bm, matrix=Matrix.Translation((lib.px(AXIS), 0, 0)) @ lib.rot_y(angle), verts=bm.verts)

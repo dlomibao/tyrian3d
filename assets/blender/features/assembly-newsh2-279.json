@@ -1,0 +1,89 @@
+{
+  "name": "assembly-newsh2-279",
+  "summary": "A ground machine set into a rock wall (three 2x2 pieces in a row: newsh2-279, -281, -283). Three thick purple octagonal armour caps along the middle, a short connector block between each pair of caps, and a row of upright purple canisters (hard-edged tanks running down-screen) under and between the caps. Grey boulders with beige stones surround it along the top edge and at the lower-left and lower-right. Shape language: hard, chamfered purple metal plates stacked in tiers (caps highest, canisters below, connectors between), matte round boulders around them.",
+  "concept": {
+    "image": "assets/blender/features/concepts/assembly-newsh2-279.jpg",
+    "use": "design guide; the sprite decides outline, proportions and colours"
+  },
+  "features": [
+    {
+      "id": "octagon_caps",
+      "kind": "dome",
+      "box": [3, 4, 69, 20],
+      "traits": [
+        "three separate octagonal caps, each 18 px across, centred on its piece",
+        "flat top in palette 88 with a crisp chamfered rim (lit edge upper-left, dark lower-right from the light, not paint)",
+        "the tallest parts of the model: clearly thicker than the canisters and connectors, casting a shadow on them (sprite rows 18-19)",
+        "hard surface: flat top, straight sides, no bulging"
+      ],
+      "note": "The concept draws them as thick armoured caps sitting above the canisters."
+    },
+    {
+      "id": "connectors",
+      "kind": "panel",
+      "box": [19, 11, 30, 20],
+      "traits": [
+        "a block between each pair of caps (sprite cols 20-27 and 44-51, rows 11-19), widening downwards at rows 15-19",
+        "lit top edge at row 12 (a chamfer), body palette 89",
+        "lower than the caps, about as high as the canisters"
+      ],
+      "note": "Concept: the dark coupling block between the caps."
+    },
+    {
+      "id": "canisters",
+      "kind": "tank",
+      "box": [12, 19, 60, 28],
+      "traits": [
+        "six upright canisters side by side from the caps to the bottom edge (cols 12-19, 20-28, 28-35, 36-43, 44-52, 52-59)",
+        "each a separate hard-edged tank with chamfered long edges and a flat top, seams (dark lines) between them",
+        "the canisters at cols 28-35 and 52-59 are lighter (palette 90); the others palette 89",
+        "they run under the caps' lower edge and stand clearly above the rock bed"
+      ],
+      "note": "Concept: the row of upright canisters below the caps."
+    },
+    {
+      "id": "grooved_canister",
+      "kind": "tank",
+      "box": [20, 19, 29, 28],
+      "traits": [
+        "the canisters below each connector (cols 20-28 and 44-52) have a cut-in groove across them at row 23 with a chamfered lower section beyond it",
+        "the groove is a dark recess, not painted"
+      ],
+      "note": "Sprite rows 22-25: dark band then a lit diagonal edge."
+    },
+    {
+      "id": "top_boulders",
+      "kind": "rock",
+      "box": [0, 0, 72, 5],
+      "traits": [
+        "a row of grey boulders along the top edge with a beige stone at each piece's upper-left (cols 0-9)",
+        "round, matte stones about half as tall as they are wide"
+      ]
+    },
+    {
+      "id": "side_boulders",
+      "kind": "rock",
+      "box": [0, 4, 72, 19],
+      "traits": [
+        "grey boulders fill the gaps between the caps above the connectors (cols 20-27 and 44-51, rows 4-11) and the sides at both ends",
+        "matte, rounded, lower than the caps"
+      ]
+    },
+    {
+      "id": "lower_left_rocks",
+      "kind": "rock",
+      "box": [0, 19, 13, 28],
+      "traits": [
+        "a heap of grey boulders left of the canisters with a beige stone at the bottom (cols 2-9, rows 25-27)"
+      ]
+    },
+    {
+      "id": "lower_right_rocks",
+      "kind": "rock",
+      "box": [59, 14, 72, 28],
+      "traits": [
+        "a dark gap right of the last canister (col 60), then light grey boulders at the right end"
+      ]
+    }
+  ]
+}

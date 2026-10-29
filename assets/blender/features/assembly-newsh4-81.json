@@ -1,0 +1,96 @@
+{
+ "name": "assembly-newsh4-81",
+ "summary": "Upper half of a horned episode-4 boss (its body and wings are assembly-newsh4-123, drawn 24 px lower), 72 x 28 px from three 2x2 pieces: a pointed grey helm with a glowing red slit down its ridge in the middle, over a dark machinery block carrying two red inverted-U pipes; on each side a grey shoulder pod (an upright cylinder with a red band) from whose top a long brown horn curves up and in, a thinner grey claw curling in towards the helm, a grey arm joining the pod to a bronze armour block over the wing root. Shape language: hard, faceted armour (the helm is a pointed, ridged shell; the bronze blocks are chamfered plates), with round parts where the sprite draws them round: the shoulder pods, their collars, the horns, the arms and the pipes.",
+ "concept": {
+  "image": "assets/blender/features/concepts/assembly-newsh4-81.jpg",
+  "use": "design guide; the sprite decides outline, proportions and colours"
+ },
+ "features": [
+  {
+   "id": "helm",
+   "kind": "hull",
+   "box": [24, 9, 37, 19],
+   "traits": [
+    "pointed grey head, cols 24-36, rows 9-18, pointing up the screen, widest at rows 13-16",
+    "the tallest part in the middle: about 5 px tall, with a crisp ridge along its centre line",
+    "hard faceted shell with flat sloping faces, not a smooth dome; darker bronze cap at its tip (rows 10-12)"
+   ],
+   "note": "The boss's head (concept: a pointed armoured helm). The baseline's grey face loft and bronze cap."
+  },
+  {
+   "id": "red-slit",
+   "kind": "light",
+   "box": [28, 10, 33, 17],
+   "traits": [
+    "red strip about 2 px wide down the helm's ridge, cols 29-31, rows 11-16",
+    "glows (emissive red), set on the ridge, visible from the game camera"
+   ],
+   "note": "The red crest in the sprite; the concept draws it as a glowing slot in the helm."
+  },
+  {
+   "id": "horns",
+   "kind": "organic",
+   "box": [9, 2, 20, 16],
+   "traits": [
+    "long brown horn (both sides; left one framed), from the pod top at col 11, row 13 curving up and in to a point at cols 15-19, row 2",
+    "round in section, about 3 px wide, tapering to a sharp tip, rising above the pod towards its tip",
+    "lighter brown ridge along the top of each horn"
+   ],
+   "note": "The baseline's curved horns; the concept's big scythe horns on the shoulders."
+  },
+  {
+   "id": "shoulder-pods",
+   "kind": "pod",
+   "box": [7, 12, 17, 28],
+   "traits": [
+    "upright grey cylinder (both sides; left one framed) along the sprite's rows, cols 8-13 and rows 16-27, as tall as it is wide (about 4-5 px)",
+    "a red band around it at rows 21-24, standing slightly proud",
+    "a grey collar at its top end, rows 13-16, where the horn starts"
+   ],
+   "note": "The baseline's shoulder cylinder with its red band; the concept's red-ringed pod under each horn."
+  },
+  {
+   "id": "claws",
+   "kind": "other",
+   "box": [14, 9, 25, 20],
+   "traits": [
+    "thin grey curved blade (both sides; left one framed) from the pod at col 15, row 19 curling up and in to a point near the helm, col 23, row 10",
+    "tapers to a point at the inner tip; about 2 px wide at the root",
+    "rises towards its tip, clear of the bronze block below"
+   ],
+   "note": "The baseline's grey feelers; the concept draws them as the inner, smaller claws."
+  },
+  {
+   "id": "armour-blocks",
+   "kind": "panel",
+   "box": [16, 18, 25, 28],
+   "traits": [
+    "bronze armour block over each wing root (both sides; left one framed), cols 17-23, rows 19-27",
+    "a hard plate about 3 px tall with chamfered top edges, the light catching its upper-left edge",
+    "a small bronze plate behind the pod's collar, cols 13-16, rows 16-21"
+   ],
+   "note": "The baseline's bronze blocks; the concept's bronze armour plates either side of the body."
+  },
+  {
+   "id": "arms",
+   "kind": "strut",
+   "box": [11, 19, 20, 27],
+   "traits": [
+    "grey round arm (both sides) from the pod across to the bronze block, cols 12-18, rows 21-25",
+    "round in section, about 3 px wide and as tall"
+   ],
+   "note": "The baseline's grey arm sweep; the concept's grey connecting housing."
+  },
+  {
+   "id": "red-pipes",
+   "kind": "pipe",
+   "box": [23, 18, 38, 28],
+   "traits": [
+    "two red inverted-U pipes on a dark machinery block below the helm, legs at cols 25-28 and 32-35, rows 21-27",
+    "each pipe a constant-diameter round tube (about 1.5 px) with a bend at its top, not a slab",
+    "the dark block under them about 3 px tall, below the helm, with a dark seam down the middle (col 30)"
+   ],
+   "note": "The baseline built these as pincers; the concept reads them as red coolant pipes on the dark body block."
+  }
+ ]
+}

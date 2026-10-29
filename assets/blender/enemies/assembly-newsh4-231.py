@@ -33,6 +33,10 @@ W, H = 168, 28  # assembly size in px; piece i covers columns 24 i .. 24 i + 23
 # Blender origin is the assembly's centre, which is the centre of newsh4-267 (screen 170, 15).
 CX0, CY0 = 170, 15
 U = 1 / 12
+# The horn, knuckle and segment are round tubes and a ball (the sprite lights their tops and
+# shades their lower halves): each is about as tall as it is wide.
+ROUND = 0.95
+SEAMS = (64.0, 80.0)  # dark seam lines across the horn's plating (sprite columns)
 
 
 def X(e):
@@ -113,7 +117,7 @@ def horn_path(prof):
         m0, _ = prof[max(k - 2, 2)]
         slope = (m1 - m0) / (min(k + 2, 122) - max(k - 2, 2))
         w = vh * math.cos(math.atan(slope)) * U
-        h = min(0.25, 0.55 * w + 0.005)
+        h = ROUND * w + 0.004
         path.append((X(c + 0.5), Y(m), 0.0, w, h))
         c += 1.5 if c > 6 else 1.0
     return path
@@ -123,70 +127,95 @@ def surface_z(prof, c, r):
     """Height of the horn's top surface over pixel (c, r) (edge coordinates), 0 off the horn."""
     m, vh = prof[int(c)]
     w = vh * U
-    h = min(0.25, 0.55 * w + 0.005)
+    h = ROUND * w + 0.004
     t = (r - m) / vh
     return h * math.sqrt(max(0.0, 1 - t * t))
+
+
+def box(bm, x0, x1, y0, y1, z0, z1, mat_index, bevel=0.0):
+    """An axis-aligned box between Blender coordinates, its edges chamfered by `bevel`."""
+    bm.faces.ensure_lookup_table()
+    first = len(bm.faces)
+    res = bmesh.ops.create_cube(bm, size=1.0)
+    for v in res["verts"]:
+        v.co.x = x0 if v.co.x < 0 else x1
+        v.co.y = y0 if v.co.y < 0 else y1
+        v.co.z = z0 if v.co.z < 0 else z1
+    if bevel > 0:
+        vs = set(res["verts"])
+        edges = [e for e in bm.edges if e.verts[0] in vs and e.verts[1] in vs]
+        bmesh.ops.bevel(bm, geom=edges, offset=bevel, segments=1, affect="EDGES", profile=0.5)
+    bm.faces.ensure_lookup_table()
+    for f in bm.faces[first:]:
+        f.material_index = mat_index
+    return first
 
 
 def build(grid, colors):
     coll = common.reset_collection(NAME)
     mats = lib.Mats("nsh4_231", colors)
-    # The sprite's shading, two or three steps lighter: the model's own lighting darkens it again.
-    ramp = {16: 19, 17: 19, 18: 20, 19: 21, 20: 22, 21: 23, 22: 24, 23: 25, 24: 26, 25: 27, 26: 28,
-            27: 29, 28: 29, 29: 29, 30: 29, 31: 29}
-    grey = {1: 2, 2: 3, 3: 5, 4: 6, 5: 7, 6: 7, 7: 8, 8: 8, 10: 10, 106: 106, 109: 109, 169: 169}
-    gold = lambda i: mats(i, metallic=0.1, roughness=0.55)  # noqa: E731
+    gold = lambda i: mats(i, metallic=0.5, roughness=0.35)  # noqa: E731
     metal = lambda i: mats(i, metallic=0.7, roughness=0.3)  # noqa: E731
-
-    def horn_slot(idx):
-        if idx in ramp:
-            return gold(ramp[idx])
-        if idx in grey:
-            return gold(18)  # a stud's pixels just off the stud: plain shadowed horn
-        return None
-
-    def stud_slot(idx):
-        if idx in grey:
-            return metal(grey[idx])
-        return metal(4)
-
-    sample = sampler(grid)
-    under = gold(18)
+    body = gold(22)  # one mid tone: the game's light draws the sprite's lit tops and shaded undersides
     bm = bmesh.new()
 
-    # The horn, from its tip at the bottom left up and along to inside the knuckle.
+    # The horn, from its tip at the bottom left up and along to inside the knuckle: a round tube.
     prof = horn_profile(grid)
-    first = lib.sweep(bm, horn_path(prof), sides=14, mat_index=gold(20))
-    # The knuckle (columns 114-134, rows 1-19, its lower lobe hanging to a point at column 126) and the thick segment beyond it (columns 134-167,
-    # rows 1-21; it runs on past the arm's right edge, where the cut leaves it open).
-    lib.cube_blob(bm, (X(124.5), Y(8.0), 0.0), (9.5 * U, 7.5 * U, 0.27), n=7, mat_index=gold(20))
-    lib.cube_blob(bm, (X(126.5), Y(13.5), -0.02), (5.0 * U, 6.0 * U, 0.2), n=5, mat_index=gold(20))  # lobe under it
-    seg = [(133.3, 10.6, 2.5, 0.08), (133.8, 10.6, 6.0, 0.18), (134.8, 10.8, 8.0, 0.23),
-           (136.2, 11.0, 9.3, 0.26), (137.8, 11.3, 10.1, 0.275), (139.5, 11.5, 10.5, 0.28)]
-    seg += [(x, 11.5, 10.5, 0.28) for x in (141.5, 143.5, 145.5, 147.5, 149.5, 151.5, 153.5, 155.5, 157.5, 159.5, 161.5, 163.5,
-                                       165.5, 167.5, 168.6)]
-    lib.sweep(bm, [(X(x), Y(m), 0.0, w * U, h) for x, m, w, h in seg], sides=26, mat_index=gold(20))
-    lib.paint(bm, first, sample, horn_slot, under_slot=under)
+    first = lib.sweep(bm, horn_path(prof), sides=16, mat_index=body)
+    horn_end = len(bm.faces)
+    # The knuckle (columns 114-134, rows 1-19, its lower lobe hanging to a point at column 126): a
+    # ball, and the thick segment beyond it (columns 134-167, rows 1-21; it runs on past the arm's
+    # right edge, where the cut leaves it open): a round cylinder with a rounded shoulder.
+    lib.cube_blob(bm, (X(124.5), Y(8.0), 0.0), (9.5 * U, 7.5 * U, 7.6 * U), n=8, mat_index=body)
+    lib.cube_blob(bm, (X(125.6), Y(13.2), -0.05), (5.4 * U, 6.2 * U, 4.6 * U), n=6, mat_index=body)  # lobe under it
+    seg = [(133.3, 10.6, 2.5), (133.8, 10.6, 6.0), (134.8, 10.8, 8.0),
+           (136.2, 11.0, 9.3), (137.8, 11.3, 10.1), (139.5, 11.5, 10.5)]
+    seg += [(x, 11.5, 10.5) for x in (141.5, 143.5, 145.5, 147.5, 149.5, 151.5, 153.5, 155.5, 157.5, 159.5, 161.5,
+                                      163.5, 165.5, 167.5, 168.6)]
+    lib.sweep(bm, [(X(x), Y(m), 0.0, w * U, ROUND * w * U) for x, m, w in seg], sides=24, mat_index=body)
+
+    # Dark seams across the horn's plating.
+    bm.faces.ensure_lookup_table()
+    for f in bm.faces[first:horn_end]:
+        col = f.calc_center_median().x / U + W / 2
+        if any(abs(col - s) < 0.8 for s in SEAMS):
+            f.material_index = gold(17)
 
     # Raised bands round the horn near its root (the bright columns 90, 94 and 104).
     for c in (90, 94, 104):
         m, vh = prof[c]
         w = vh * U
-        h = min(0.25, 0.55 * w + 0.005)
-        lib.sweep(bm, [(X(c + 0.1), Y(m), 0.0, w * 1.035, h * 1.05), (X(c + 0.9), Y(m), 0.0, w * 1.035, h * 1.05)],
-                  sides=14, mat_index=gold(24 if c == 104 else 22))
+        h = ROUND * w + 0.004
+        lib.sweep(bm, [(X(c + 0.05), Y(m), 0.0, w * 1.06, h * 1.06), (X(c + 0.95), Y(m), 0.0, w * 1.06, h * 1.06)],
+                  sides=16, mat_index=gold(27 if c == 104 else 25))
 
-    # Grey studs along the horn: (column, row) of their centres (pixel edges) and half sizes in px.
-    studs = [(42.3, 9.4, 3.2, 2.2), (60.8, 6.4, 2.9, 1.9), (83.2, 4.3, 2.3, 2.3), (98.0, 10.9, 2.2, 2.0),
-             (110.4, 2.8, 2.3, 2.0)]
-    start = len(bm.faces)
-    for c, r, rx, ry in studs:
-        z = surface_z(prof, c, r)
-        lib.ellipsoid(bm, (X(c), Y(r), z * 0.85), (rx * U, ry * U, 0.08), segments=10, rings=6,
-                      mat_index=metal(5))
-    lib.paint(bm, start, sampler(grid, skip=(-1,), reach=2), stud_slot, under_slot=metal(4))
+    # A thin rod along the lower flank of the horn's root (the lit line on row 12, columns 68-117).
+    rail = []
+    for c in range(68, 118, 3):
+        z = surface_z(prof, c + 0.5, 12.0)
+        rail.append((X(c + 0.5), Y(12.25), z * 0.9, 0.75 * U, 0.75 * U))
+    lib.sweep(bm, rail, sides=8, mat_index=gold(24))
 
-    return common.mesh_object(NAME, bm, mats.list, coll, smooth=True)
+    # Grey clamps on the horn: (col0, col1, row0, row1) in pixel edges. Each is a hard box from the
+    # horn's centre line to a little above its surface, so it wraps the upper half of the tube.
+    bm.faces.ensure_lookup_table()
+    flat_from = len(bm.faces)
+    clamps = [(39.0, 45.5, 7.0, 12.5, 5), (58.0, 63.5, 4.8, 9.5, 5), (80.8, 85.5, 2.0, 7.5, 6),
+              (108.0, 112.5, 0.8, 4.6, 106)]
+    for c0, c1, r0, r1, idx in clamps:
+        top = max(surface_z(prof, c, r) for c in (c0, (c0 + c1) / 2, c1 - 0.1) for r in (r0, (r0 + r1) / 2, r1))
+        box(bm, X(c0), X(c1), Y(r1), Y(r0), -0.02, top + 1.3 * U, metal(idx), bevel=0.35 * U)
+    # The dark port on the root's lower flank (columns 96-99, rows 8-12): a grey frame, dark inside.
+    pz = max(surface_z(prof, c, r) for c in (95.5, 97.5, 99.5) for r in (7.8, 10.0, 12.2))
+    for c0, c1, r0, r1 in ((95.5, 100.0, 7.6, 8.4), (95.5, 100.0, 11.8, 12.6), (95.5, 96.3, 7.6, 12.6),
+                           (99.2, 100.0, 7.6, 12.6)):
+        box(bm, X(c0), X(c1), Y(r1), Y(r0), 0.0, pz + 1.0 * U, metal(5))
+    box(bm, X(96.3), X(99.2), Y(11.8), Y(8.4), 0.0, pz + 0.15 * U, metal(1))
+
+    obj = common.mesh_object(NAME, bm, mats.list, coll, smooth=True)
+    for poly in obj.data.polygons[flat_from:]:
+        poly.use_smooth = False  # the clamps and port are hard, flat-faced metal
+    return obj
 
 
 def main():

@@ -1,0 +1,107 @@
+{
+  "name": "newsh2-269",
+  "summary": "Grey fork ship flying nose right: a fat, rounded grey bullet of a fuselage (an egg tapering to a conical nose) with a dark engine bay cut into its back holding two red lamps, cream-and-brown armour cowls wrapped round the rear above and below the bay, a bright tail drum on a thin upright spar at the very back, and two fork arms (swept brown struts ending in straight grey rails) reaching forward above and below. Mirror symmetric about row 13. Shape language: a smooth round hull with crisp panel seams; struts and rails are hard tubes and bars; the drum is a cylinder.",
+  "concept": {
+    "image": "assets/blender/features/concepts/newsh2-269.jpg",
+    "use": "design guide; the sprite decides outline, proportions and colours"
+  },
+  "features": [
+    {
+      "id": "fuselage",
+      "kind": "hull",
+      "box": [9, 7, 24, 20],
+      "traits": [
+        "grey bullet fills rows 7-19, tapering from column 16 to a point at column 23",
+        "round in section: about as tall as it is wide (roughly 9-11 px tall for its 13 px width), not a flat lens",
+        "highlight upper-left, darker lower-right from the light only (one mid-grey colour)",
+        "a dark seam across the back at row 14 (columns 13-16)"
+      ],
+      "note": "The concept's riveted egg hull with panel seams and a cone nose."
+    },
+    {
+      "id": "engine-bay",
+      "kind": "recess",
+      "box": [6, 11, 12, 15],
+      "traits": [
+        "dark bay cut into the top of the hull's rear (rows 11-14, columns 6-11)",
+        "visibly sunk below the hull surface, with walls, not a raised dark slab"
+      ],
+      "note": "Concept: a recessed machinery bay with pipes behind the lamps."
+    },
+    {
+      "id": "red-lamps",
+      "kind": "light",
+      "box": [6, 12, 9, 15],
+      "traits": [
+        "two red-orange emissive lamps, columns 6 and 8, rows 12-14, each a short upright bar",
+        "set inside the bay, glowing, with an orange core at row 13"
+      ],
+      "note": "Concept: two glowing red grilles side by side."
+    },
+    {
+      "id": "cowl-upper",
+      "kind": "panel",
+      "box": [5, 7, 10, 11],
+      "traits": [
+        "cream armour cowl (rows 8-10, columns 5-7) on a dark brown band (rows 7-8, columns 6-9)",
+        "wraps the hull's rear shoulder, raised slightly above the grey hull"
+      ],
+      "note": "Concept: brown armour band around the back of the body."
+    },
+    {
+      "id": "cowl-lower",
+      "kind": "panel",
+      "box": [5, 15, 10, 20],
+      "traits": [
+        "mirror of the upper cowl: cream (rows 15-16) over dark brown (rows 16-19)"
+      ]
+    },
+    {
+      "id": "fork-arm-upper",
+      "kind": "strut",
+      "box": [0, 2, 16, 7],
+      "traits": [
+        "brown strut swept from the spar's top (column 0, row 6) up to the rail (column 5, row 3)",
+        "straight grey rail along row 3, columns 5-15, with a bright collar at column 8",
+        "constant-width hard bar, not bulging"
+      ],
+      "note": "Concept: a jointed brown arm with a grey forward prong."
+    },
+    {
+      "id": "fork-arm-lower",
+      "kind": "strut",
+      "box": [0, 20, 16, 25],
+      "traits": [
+        "mirror of the upper arm: brown strut rows 20-22, grey rail along row 23"
+      ]
+    },
+    {
+      "id": "tail-drum",
+      "kind": "engine",
+      "box": [0, 10, 5, 16],
+      "traits": [
+        "bright grey cylinder at the very back (columns 0-4, rows 10-14), its axis along the ship",
+        "round: as tall as it is wide, with a white highlight band"
+      ],
+      "note": "Concept: the big grey drum at the tail with exhausts behind it."
+    },
+    {
+      "id": "spar",
+      "kind": "strut",
+      "box": [1, 6, 4, 21],
+      "traits": [
+        "thin dark grey upright bar at column 2, rows 7-19, joining the two struts through the drum"
+      ]
+    },
+    {
+      "id": "centre-plate",
+      "kind": "panel",
+      "box": [12, 12, 16, 15],
+      "traits": [
+        "small pale cream plate on the hull top at row 13, columns 12-14",
+        "a bright seam above it (column 12, rows 11-15)"
+      ],
+      "note": "Concept: a copper plate on the hull's centre seam."
+    }
+  ]
+}

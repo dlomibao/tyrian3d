@@ -33,6 +33,9 @@ PIECES = ["newsh4-153", "newsh4-155", "newsh4-157", "newsh4-159", "newsh4-191", 
 CX0, CY0 = 122, -18
 W, H = 168, 28
 PX = 1 / 12
+# The arm was laid out at about half its round height; every z is scaled by this at the end so
+# the tubes, the ball and the claw stand about as tall as they are wide, as the sprite shades them.
+ZS = 1.75
 
 
 def XE(u):
@@ -192,8 +195,9 @@ def build(sprite, g):
         pal(4, metallic=0.7, roughness=0.35),  # 9 grey clamps
         pal(19, metallic=0.35, roughness=0.5),  # 10 neck
         pal(164, metallic=0.4, roughness=0.5),  # 11 box strut
+        pal(19, metallic=0.4, roughness=0.45),  # 12 the claw, darker than the forearm
     ]
-    BRONZE, UNDER, ARM, RAIL, RIB, COLLAR, CDARK, BOX, GREY, CLAMP, NECK, STRUT = range(12)
+    BRONZE, UNDER, ARM, RAIL, RIB, COLLAR, CDARK, BOX, GREY, CLAMP, NECK, STRUT, CLAW = range(13)
     bm = bmesh.new()
 
     # Upper arm (columns 0-31): a thick tube, cut off by the piece's left edge, rounded at its end.
@@ -231,7 +235,10 @@ def build(sprite, g):
         secs.append((u, top, bot, hz, z))
     u_tip = 166.2
     secs.append((u_tip, 24.6, 24.6, 0.0, -0.06))
-    loft_x(bm, secs, sides=12, mat=ARM)
+    claw_x = XE(104)
+    for f in loft_x(bm, secs, sides=12, mat=ARM):
+        if f.calc_center_median().x > claw_x:
+            f.material_index = CLAW
 
     # Lighter rail along the forearm's lower side (rows 11-12), widening at its root over the ball.
     loft_x(bm, [(45.5, 11.5, 12.5, 0.0, -0.05), (46.5, 10.2, 14.0, 0.12, -0.05), (52, 10.2, 13.2, 0.14, -0.05),
@@ -249,23 +256,25 @@ def build(sprite, g):
                 (67.1, 1.0, 13.0, 0.0, -0.01)], sides=14, mat=RIB)
 
     # Grey-brown box on top (columns 76-82, rows 1-6) with a strut down its right side.
-    block(bm, 75.8, 1.4, 82.6, 6.6, 0.0, 0.27, mat=BOX, bevel=0.5)
+    block(bm, 75.8, 1.4, 82.6, 6.6, 0.0, 0.36, mat=BOX, bevel=0.6)
     block(bm, 79.6, 6.4, 82.6, 12.8, -0.12, 0.18, mat=STRUT)
     # Grey block (columns 84-89, rows 2-6).
-    block(bm, 84.4, 1.8, 89.6, 7.2, 0.0, 0.26, mat=GREY, bevel=0.5)
+    block(bm, 84.4, 1.8, 89.6, 7.2, 0.0, 0.34, mat=GREY, bevel=0.6)
     # Small grey bits at the collar's foot (columns 71-73, rows 9-12).
     block(bm, 70.6, 8.8, 73.4, 12.4, -0.12, 0.12, mat=CLAMP)
 
     # Grey clamps on the claw (columns 105-111, rows 4-8 and columns 124-129, rows 7-11), each
     # with a bright rib behind it.
-    block(bm, 104.6, 4.4, 111.4, 8.6, -0.05, 0.2, mat=CLAMP, bevel=0.4)
-    block(bm, 123.6, 6.6, 129.6, 11.4, -0.06, 0.16, mat=CLAMP, bevel=0.4)
+    block(bm, 104.6, 4.4, 111.4, 8.6, -0.05, 0.23, mat=CLAMP, bevel=0.5)
+    block(bm, 123.6, 6.6, 129.6, 11.4, -0.06, 0.19, mat=CLAMP, bevel=0.5)
     for u, hz in ((112.0, 0.2), (130.2, 0.16)):
         top, bot = profile(g, int(u))
         loft_x(bm, [(u - 0.1, top + 0.3, bot - 0.3, 0.0, 0.0), (u, top - 0.1, bot + 0.1, hz, -0.02),
                     (u + 1.0, top, bot + 0.1, hz, -0.02), (u + 1.1, top + 0.3, bot - 0.3, 0.0, -0.02)],
                sides=12, mat=RIB)
 
+    for vert in bm.verts:
+        vert.co.z *= ZS
     return to_object(NAME, bm, mats, coll)
 
 

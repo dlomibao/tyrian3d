@@ -1,0 +1,136 @@
+{
+  "name": "newsh2-153",
+  "summary": "Star core panel, a square armoured flyer that fills its whole 24x28 block: a dark machinery deck framed by grey side beams, with a glowing red core in the middle under a grey armoured prow, red armour shoulders either side of the core, a red chin below it and two rust-red engine pods at the bottom around a dark central bay. Hard-surface shape language: chamfered plates, a faceted ridge and boxy pods; only the core orb is round.",
+  "concept": {
+    "image": "assets/blender/features/concepts/newsh2-153.jpg",
+    "use": "design guide; the sprite decides outline, proportions and colours"
+  },
+  "features": [
+    {
+      "id": "core",
+      "kind": "light",
+      "box": [9, 12, 15, 18],
+      "traits": [
+        "glowing red orb with a yellow-orange hot centre, emissive",
+        "set in a raised dark red collar ring, standing clearly above the shoulders",
+        "orb dome about half its width tall",
+        "brightens over frames 153/155/157 (palette animation kept)"
+      ],
+      "note": "The concept reads it as a glass eye in a round housing; the sprite's brightest pixels."
+    },
+    {
+      "id": "nose-ridge",
+      "kind": "hull",
+      "box": [7, 0, 15, 12],
+      "traits": [
+        "grey armoured prow from the top edge down to the core, widening toward the core",
+        "faceted, with a sharp crest along column 11 (bright line) and a darker right flank",
+        "rises toward the core, several px tall where it meets the collar"
+      ],
+      "note": "Upper point of the star; the concept's nose armour plate."
+    },
+    {
+      "id": "beam-left",
+      "kind": "hull",
+      "box": [0, 9, 4, 28],
+      "traits": [
+        "grey beam down the left edge from row ~10 to the bottom",
+        "a hard, chamfered box about 3 px tall, with a sloped top end"
+      ],
+      "note": "Side armour frame (concept: side armour blocks)."
+    },
+    {
+      "id": "beam-right",
+      "kind": "hull",
+      "box": [20, 9, 24, 28],
+      "traits": [
+        "grey beam down the right edge from row ~10 to the bottom",
+        "same height and chamfer as the left beam"
+      ],
+      "note": "Mirror of the left beam."
+    },
+    {
+      "id": "shoulder-left",
+      "kind": "panel",
+      "box": [4, 12, 10, 17],
+      "traits": [
+        "dark red armour block against the core collar",
+        "grey lit ledge along its lower edge (row 16)",
+        "raised, lower than the collar"
+      ],
+      "note": "Left arm of the star; the concept's shoulder plate."
+    },
+    {
+      "id": "shoulder-right",
+      "kind": "panel",
+      "box": [15, 12, 20, 17],
+      "traits": [
+        "dark red armour block against the core collar",
+        "grey lit ledge along its lower edge (row 16)"
+      ],
+      "note": "Right arm of the star."
+    },
+    {
+      "id": "pod-left",
+      "kind": "engine",
+      "box": [3, 20, 9, 26],
+      "traits": [
+        "rust-red engine pod, a chamfered block with its upper-left corner cut diagonally",
+        "brown rear section (rows 24-25)",
+        "clearly raised, about 3 px tall, hard edges"
+      ],
+      "note": "Lower-left point of the star; the concept's engine pod."
+    },
+    {
+      "id": "pod-right",
+      "kind": "engine",
+      "box": [15, 20, 21, 27],
+      "traits": [
+        "rust-red engine pod with its upper-left corner cut",
+        "dark brown nozzle section at its lower end (rows 25-26)"
+      ],
+      "note": "Lower-right point of the star."
+    },
+    {
+      "id": "chin",
+      "kind": "hull",
+      "box": [9, 18, 14, 21],
+      "traits": [
+        "rounded red lip right under the core, highlight band across its top (row 18)",
+        "horizontal half-cylinder, not a blob"
+      ],
+      "note": "The concept's chin block under the eye."
+    },
+    {
+      "id": "central-bay",
+      "kind": "recess",
+      "box": [8, 21, 15, 26],
+      "traits": [
+        "dark bay between the pods, cut below the deck",
+        "framed by the chin above and the pods either side"
+      ],
+      "note": "Black pixels inside the silhouette are depth."
+    },
+    {
+      "id": "wing-studs",
+      "kind": "dome",
+      "box": [0, 4, 21, 9],
+      "traits": [
+        "small grey ball studs at (2,6) and (19,6) on dark wing plates",
+        "thin dark struts running from the studs in toward the ridge"
+      ],
+      "note": "The concept draws angled wings with ball studs and struts behind the nose."
+    },
+    {
+      "id": "corner-blocks",
+      "kind": "panel",
+      "box": [0, 0, 24, 4],
+      "traits": [
+        "beige block top left (cols 0-5) with a beige strip along row 0",
+        "grey block top right (cols 18-24)",
+        "chamfered, about 1.5 px tall"
+      ],
+      "note": "Small beige and brown blocks also sit along the bottom edge (rows 26-28)."
+    }
+  ]
+}

@@ -1,0 +1,87 @@
+{
+  "name": "newsh2-51",
+  "summary": "A mechanical claw (right-hand; newsh2-49 mirrored): a hard-surface armoured arm that arches from a rounded purple housing at the top left, through a grey collar and a dark drum, over and down the right side into purple armour plates with a lattice bay and a grey spine rail ending in a point; from the housing's left end hang twin struts to a clevis knuckle and a glowing red claw tube. Hard panels with chamfered edges; the housing, collar, drum, struts and claw tube are round.",
+  "concept": {
+    "image": "assets/blender/features/concepts/newsh2-51.jpg",
+    "use": "design guide; the sprite decides outline, proportions and colours"
+  },
+  "features": [
+    {
+      "id": "arm_hull",
+      "kind": "hull",
+      "box": [5, 5, 22, 14],
+      "traits": ["grey (pal 7) armoured beam arching from under the housing to the right side", "flat top with crisp chamfered edges, not a tube", "clearly thick: several px tall, the tallest grey mass", "seam (dark row 4) separates it from the housing and drum above"],
+      "note": "The concept's heavy grey hull; the old model made it a thin tube."
+    },
+    {
+      "id": "purple_armour",
+      "kind": "panel",
+      "box": [14, 10, 22, 19],
+      "traits": ["purple (pal 87) armour box on the right, stacked over the hull", "beige L-shaped trim at its upper-left corner (cols 14-15, rows 10-12)", "lower-left edge is a diagonal", "flat top, chamfered edges"],
+      "note": "Upper armour block of the blade in the concept."
+    },
+    {
+      "id": "top_housing",
+      "kind": "pod",
+      "box": [1, 0, 9, 4],
+      "traits": ["purple rounded housing lying along X at the top left", "round in section (lit top row, darker lower row)", "beige marking near its left end (cols 3-4, row 2)"],
+      "note": "The concept's purple capsule housing on top."
+    },
+    {
+      "id": "red_claw",
+      "kind": "light",
+      "box": [1, 17, 5, 25],
+      "traits": ["glowing red (pal 119) emissive tube hanging down", "dark red (pal 67) collar on top and cap at its end", "round, constant diameter"],
+      "note": "The glowing claw tip; the brightest thing on the model."
+    },
+    {
+      "id": "knuckle",
+      "kind": "other",
+      "box": [0, 12, 6, 17],
+      "traits": ["grey jointed block wider than the struts", "split into two cheeks with a dark slot between (clevis)", "pivot bolt on top-left (bright pixel at col 1, row 14)"],
+      "note": "The concept's elbow joint above the red claw."
+    },
+    {
+      "id": "hanging_struts",
+      "kind": "strut",
+      "box": [0, 4, 4, 13],
+      "traits": ["two parallel vertical round bars (col 1 lit, col 2 darker)", "hang from a bracket under the housing's left end to the knuckle", "cross brace to the hull at row 6"],
+      "note": "The concept's lattice arm on the left."
+    },
+    {
+      "id": "drum",
+      "kind": "pod",
+      "box": [12, 2, 19, 6],
+      "traits": ["dark grey cylinder lying along X right of the collar", "round, rounded right end", "sits above the hull, seam below it at row 6"],
+      "note": "The concept's black drum on top of the arch."
+    },
+    {
+      "id": "collar",
+      "kind": "other",
+      "box": [8, 0, 13, 4],
+      "traits": ["grey round segment between the housing and the drum", "a raised ring band (bright col 9)"],
+      "note": "The concept's grey ribbed segment."
+    },
+    {
+      "id": "lower_plate",
+      "kind": "panel",
+      "box": [14, 17, 20, 25],
+      "traits": ["narrow purple plate slanting down-right below the armour", "raised over the lattice bay, chamfered"],
+      "note": "The concept's lower purple plate."
+    },
+    {
+      "id": "lattice_bay",
+      "kind": "recess",
+      "box": [15, 14, 20, 23],
+      "traits": ["dark recessed bay between the armour, the lower plate and the rail", "grey diagonal strut across it"],
+      "note": "Dark pixels here are depth: the concept's open lattice frame."
+    },
+    {
+      "id": "spine_rail",
+      "kind": "strut",
+      "box": [19, 14, 22, 27],
+      "traits": ["grey bar down the right edge", "tapers to the point at row 26"],
+      "note": "The blade's back rail."
+    }
+  ]
+}

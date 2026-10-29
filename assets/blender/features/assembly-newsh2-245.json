@@ -1,0 +1,108 @@
+{
+ "name": "assembly-newsh2-245",
+ "summary": "Purple eye fortress, 72 x 28 px from three 2x2 pieces, mirror symmetric about column 36: a purple armoured block set into grey rock. In the middle a big dark blue glass eye sits in a raised round collar; under it two slanted blue capsule lights and a small barred grille; a large raised octagonal armour plate on each side; pale vertical beams between the plates and the middle; a band of raised panels along the top and bottom edges; grey boulders with sand-coloured stones fill both ends. Shape language: hard chamfered purple plating stacked in layers (plates higher than the beams and bands), with round glass parts (the eye ball and the capsules) and lumpy matte rock.",
+ "concept": {
+  "image": "assets/blender/features/concepts/assembly-newsh2-245.jpg",
+  "use": "design guide; the sprite decides outline, proportions and colours"
+ },
+ "features": [
+  {
+   "id": "eye",
+   "kind": "glass",
+   "box": [29, 4, 44, 18],
+   "traits": [
+    "dark blue glass ball about 13 px wide (cols 30-42, rows 5-16), round outline",
+    "round in profile: stands about half its width or more above the collar, glossy",
+    "bright glint upper-left and a pale rim reflection lower-right come from the material, not geometry",
+    "ringed by a thin blue-grey rim where it meets the collar"
+   ],
+   "note": "Concept: a glass porthole/lens ball set in a metal ring."
+  },
+  {
+   "id": "collar",
+   "kind": "hull",
+   "box": [25, 0, 48, 20],
+   "traits": [
+    "raised round/octagonal purple collar about 20 px across around the eye",
+    "chamfered outer edge (lit pale edge upper-left, dark seam lower-right)",
+    "higher than the beams and bands around it, lower than the eye's top"
+   ],
+   "note": "Concept: the thick armoured housing the eye is set in."
+  },
+  {
+   "id": "pad-left",
+   "kind": "panel",
+   "box": [3, 4, 22, 20],
+   "traits": [
+    "large octagonal armour plate, cols 3-20, rows 4-19, even dark-purple top",
+    "raised well above the plating (a thick plate), with a chamfered rim: pale edge upper-left, dark edge lower-right",
+    "flat top and crisp edges, not domed"
+   ],
+   "note": "Concept: a thick bevelled octagonal armour plate."
+  },
+  {
+   "id": "pad-right",
+   "kind": "panel",
+   "box": [50, 4, 69, 20],
+   "traits": [
+    "mirror of the left plate, cols 51-68, rows 4-19",
+    "same height and chamfer as the left plate"
+   ],
+   "note": "Darker in the sprite only because of the lighting."
+  },
+  {
+   "id": "capsules",
+   "kind": "light",
+   "box": [24, 15, 49, 24],
+   "traits": [
+    "two blue capsules slanting outwards below the eye, about 2.5 px thick and 7 px long",
+    "round pills (as tall as wide) with rounded ends, glossy blue with a bright spot at the outer top end",
+    "each lying in a dark socket"
+   ],
+   "note": "Concept: blue glowing pill lights in metal brackets."
+  },
+  {
+   "id": "grille",
+   "kind": "recess",
+   "box": [31, 16, 42, 25],
+   "traits": [
+    "dark recess under the eye, cols 33-40, rows 19-23, with four pale vertical bars",
+    "a pale bar across its top (row 18)",
+    "cut in: the bars sit below the frame around them"
+   ],
+   "note": "Concept: a barred vent below the eye."
+  },
+  {
+   "id": "beams",
+   "kind": "strut",
+   "box": [20, 0, 28, 28],
+   "traits": [
+    "pale vertical beams the full height at cols 21-26 and 45-50",
+    "raised above the base plating with a lit left edge",
+    "lower than the octagonal plates"
+   ],
+   "note": "The right beam (cols 45-50) is the mirror."
+  },
+  {
+   "id": "edge-panels",
+   "kind": "panel",
+   "box": [12, 19, 62, 28],
+   "traits": [
+    "rectangular panels along the top (rows 0-3) and bottom (rows 20-27) edges, separated by dark seams",
+    "raised slightly, bevelled, alternating mid and pale purple"
+   ],
+   "note": "The top band (rows 0-4) repeats them."
+  },
+  {
+   "id": "rocks",
+   "kind": "rock",
+   "box": [0, 0, 14, 28],
+   "traits": [
+    "grey lumpy boulders filling the ends (cols 0-12 and 61-71), with sand-coloured stones at the top and bottom left",
+    "matte, faceted, rounded mounds about half as tall as they are wide",
+    "the structure looks set into them"
+   ],
+   "note": "The concept turns these into purple armour pods; the sprite's grey rock and sand win."
+  }
+ ]
+}

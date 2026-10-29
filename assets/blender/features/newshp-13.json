@@ -1,0 +1,95 @@
+{
+ "name": "newshp-13",
+ "summary": "Brown ground turret, a small armoured tank seen from above, here aiming up-left (the model turns to eight directions). A grey hard-surface hull with a chunky armoured track pod down each side, two short prongs reaching forward either side of the gun, a notch at the back holding a red lamp, and on the hull a bronze-brown armoured turret dome on a dark ring with a long gun: a grey round sleeve and a brown muzzle block. Flat chamfered armour everywhere except the round dome and the round gun.",
+ "concept": {
+  "image": "assets/blender/features/concepts/newshp-13.jpg",
+  "use": "design guide; the sprite decides outline, proportions and colours"
+ },
+ "features": [
+  {
+   "id": "turret-dome",
+   "kind": "dome",
+   "box": [10, 10, 17, 16],
+   "traits": [
+    "bronze-brown (palette 20-26) turret block centred at cols 11-15, rows 11-14, the brightest, highest part of the hull",
+    "rounded armoured dome: rounded-rect footprint about 5 px across, rising well above the hull deck (about 3 px), lit upper-left by the light, not painted",
+    "sits on a dark ring/skirt (163 at col 14 row 14, the dark gap at row 15)"
+   ],
+   "note": "Baseline: a low flat-topped loft about 1 px above the plate. The concept draws a tall segmented bronze dome; it should read as the turret, the tallest round part."
+  },
+  {
+   "id": "gun-barrel",
+   "kind": "gun",
+   "box": [7, 6, 12, 12],
+   "traits": [
+    "single round barrel running up-left out of the dome's front (pixels 6/9/5 along the diagonal cols 8-10, rows 7-9)",
+    "grey sleeve, constant diameter about 1.5 px, a cylinder not a slab",
+    "raised clear of the hull at dome mid-height, with a mantlet block where it leaves the dome"
+   ],
+   "note": "Baseline gun is a thin tube at 2 px height that stops short of the sprite's muzzle."
+  },
+  {
+   "id": "muzzle",
+   "kind": "gun",
+   "box": [4, 3, 9, 8],
+   "traits": [
+    "brown (24/22) muzzle block at the gun's tip, cols 5-7, rows 4-6",
+    "slightly wider than the sleeve, with a dark neck between them (the concept's muzzle brake)",
+    "reaches the sprite's tip at col 5 row 5"
+   ],
+   "note": "Baseline muzzle is a tapered brown tube that ends about 1.5 px short."
+  },
+  {
+   "id": "left-track-pod",
+   "kind": "hull",
+   "box": [4, 8, 14, 20],
+   "traits": [
+    "long armoured pod down the hull's left side (grey 3-8 band from cols 5-9 rows 10-14 down to cols 9-13 rows 16-18)",
+    "boxy with chamfered top edges, standing above the centre deck (the sprite's lit band along it)",
+    "its front end is the left prong reaching forward beside the gun (cols 5-9, rows 9-13)"
+   ],
+   "note": "Baseline: a 1 px plate; the diagonal frame's base sat about 1 px too far right of the sprite so this side was missing."
+  },
+  {
+   "id": "right-track-pod",
+   "kind": "hull",
+   "box": [14, 9, 20, 18],
+   "traits": [
+    "long armoured pod down the hull's right side (cols 15-18, rows 10-16, grey 4-7)",
+    "same height and chamfered profile as the left pod (its darker shade is the light, not paint)"
+   ],
+   "note": "Baseline: flat plate edge."
+  },
+  {
+   "id": "front-prongs",
+   "kind": "hull",
+   "box": [5, 6, 15, 14],
+   "traits": [
+    "two short blocks reaching forward either side of the gun (right one at cols 11-13 rows 7-9, left one at cols 6-9 rows 10-13)",
+    "about 2 px wide, chamfered front, a little lower than the pods",
+    "a dark gap between each prong and the gun"
+   ],
+   "note": "Baseline has them as 1 px tall plates."
+  },
+  {
+   "id": "red-lamp",
+   "kind": "light",
+   "box": [14, 15, 17, 18],
+   "traits": [
+    "small red (116) glowing lamp at col 15 row 16, behind the dome toward the hull's back",
+    "emissive, set in a dark housing in the rear notch between the pod ends"
+   ],
+   "note": "Baseline: a red tile flat on the plate."
+  },
+  {
+   "id": "rear-notch",
+   "kind": "recess",
+   "box": [13, 14, 19, 19],
+   "traits": [
+    "the hull's back has a notch between the two pods' rear ends (dark 1-2 pixels at cols 14-17 rows 15-17)",
+    "cut into the deck, lower than the pods, holding the lamp housing"
+   ],
+   "note": "Clearest in the up frame (row 18: lobes at cols 7-9 and 13-14, notch at 10-12); the concept draws the red light between two rear fender blocks."
+  }
+ ]
+}

@@ -1,0 +1,115 @@
+{
+ "name": "assembly-newsh4-123",
+ "summary": "Lower half of a bronze episode-4 boss (its head and horns are assembly-newsh4-81), 72 x 28 px from three 2x2 pieces: a central bronze torso carrying a grey ribbed chest block with a glowing red light, red shoulder armour plates, broad swept bronze wings with red armour caps at their tips, thin bronze arcs curving from the wing tips down and in to two grey engine/gun pods slung under the wings on struts, and a pale belly dome over a grey tail nozzle. Shape language: hard, chamfered armour plates and boxy machinery (the concept draws riveted panels and gun blocks), with round parts only where the sprite draws them round: the pods, the belly dome, the nozzles and the red chest light.",
+ "concept": {
+  "image": "assets/blender/features/concepts/assembly-newsh4-123.jpg",
+  "use": "design guide; the sprite decides outline, proportions and colours"
+ },
+ "features": [
+  {
+   "id": "torso",
+   "kind": "hull",
+   "box": [22, 3, 39, 25],
+   "traits": [
+    "bronze central hull about 14 px wide, cols 23-37, rows 4-24",
+    "the tallest part of the body: about 5 px tall, clearly above the wings",
+    "hard armour shell with chamfered edges, not a soft capsule; bronze side columns either side of the grey chest"
+   ],
+   "note": "The body the wings hang from (concept: armoured central stack). The baseline's torso loft."
+  },
+  {
+   "id": "chest-light",
+   "kind": "light",
+   "box": [26, 7, 33, 12],
+   "traits": [
+    "red glowing light at cols 28-30, row 9, with a near-white core",
+    "emissive, set on top of the chest just under the grey chest plate, visible from the game camera"
+   ],
+   "note": "The red eye-like light in the middle of the chest (concept: red lamp in a grey housing)."
+  },
+  {
+   "id": "ribbed-chest",
+   "kind": "panel",
+   "box": [25, 9, 36, 17],
+   "traits": [
+    "grey chest block cols 27-33, rows 10-16, raised on the torso",
+    "two light grey ribs across it, raised above the plate",
+    "a bright rail down its left edge (col 27) and a dark bronze strut down its right (col 36)"
+   ],
+   "note": "The grey ribbed chest plating (concept: machinery block with stacked plates)."
+  },
+  {
+   "id": "left-wing",
+   "kind": "wing",
+   "box": [3, 1, 25, 16],
+   "traits": [
+    "broad swept bronze wing from the shoulder (col 23) out to the tip (col 4), mirrored on the right",
+    "a hard plate a few px thick, thicker at the root and thinner at the tip, with a chamfered lit leading edge",
+    "a light bronze spar ridge along the root and across the middle"
+   ],
+   "note": "The swept wings (concept: armoured wing plates with panel lines)."
+  },
+  {
+   "id": "wing-tip-caps",
+   "kind": "pod",
+   "box": [2, 7, 10, 18],
+   "traits": [
+    "red rounded cap at the wing tip, cols 4-6, rows 9-13, with a pale point below and a grey block inboard",
+    "round: about as tall as it is wide (3 px)"
+   ],
+   "note": "Red armour caps on the wing tips (concept: red armour with a grey block), mirrored on the right."
+  },
+  {
+   "id": "engine-pods",
+   "kind": "engine",
+   "box": [10, 15, 26, 26],
+   "traits": [
+    "grey pod lying across under the wing, cols 12-24, rows 17-22, about 6 px across",
+    "about as tall as it is wide, with crisp end plates and a dark bronze band along its top",
+    "a grey nozzle pointing down at col 13 with a dark mouth"
+   ],
+   "note": "The engine/gun pods slung under the wings (concept: grey gun blocks with grilles), mirrored on the right."
+  },
+  {
+   "id": "wing-arcs",
+   "kind": "strut",
+   "box": [2, 13, 15, 25],
+   "traits": [
+    "thin bronze arc of constant thickness from the wing tip (col 4, row 15) down and round to the pod (col 12, row 23)",
+    "reads as a rail, not a chain of bumps"
+   ],
+   "note": "The curved arms from the wing tips round to the pods (concept: curved armoured arms), mirrored on the right."
+  },
+  {
+   "id": "shoulder-armour",
+   "kind": "panel",
+   "box": [18, 3, 29, 9],
+   "traits": [
+    "red armour plates at the wing roots, rows 5-7: two on the left (cols 20-26), one on the right (cols 37-41)",
+    "raised plates standing above the wing root"
+   ],
+   "note": "Red shoulder armour (concept: red armour panels on the shoulders)."
+  },
+  {
+   "id": "struts",
+   "kind": "strut",
+   "box": [19, 8, 25, 18],
+   "traits": [
+    "grey round strut at col 21-22 from the shoulder (row 9) down to the pod (row 16)",
+    "a thinner bronze rod in the same place on the right (col 40)"
+   ],
+   "note": "The struts that hang the pods from the shoulders."
+  },
+  {
+   "id": "belly-dome-nozzle",
+   "kind": "dome",
+   "box": [24, 15, 36, 26],
+   "traits": [
+    "dark bronze band across the belly (row 17), a pale bronze dome below it (cols 27-32, rows 18-21)",
+    "a grey tail nozzle at the bottom (rows 21-24)",
+    "the dome is round and stands up from the hull, not a flat disc"
+   ],
+   "note": "The rounded belly and tail (concept: a big hemispherical dome at the bottom)."
+  }
+ ]
+}

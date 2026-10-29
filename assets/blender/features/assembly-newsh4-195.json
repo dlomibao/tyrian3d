@@ -1,0 +1,102 @@
+{
+ "name": "assembly-newsh4-195",
+ "summary": "Bronze boss arm, 168 x 28 px from seven 2x2 pieces, reaching out to the right: a thick polished bronze upper arm (a round tube with a dark underside below it ending in a slanted, bright-rimmed edge), a narrow neck into a big bronze ball joint, a long round forearm ringed by a grey metal collar and a bright rib, a grey-brown box and a grey block mounted on top, and a tapering horn-like claw that curves down to a point with two small grey clamps on it. Shape language: round, metallic bronze tubes and a ball (each about as tall as it is wide), with small hard chamfered grey boxes and clamps on them; the claw tapers in width and height to its tip.",
+ "features": [
+  {
+   "id": "ball-joint",
+   "kind": "dome",
+   "box": [33, 1, 53, 21],
+   "traits": [
+    "a bronze ball about 17 px across (cols 35-52, rows 1-17) with a smaller darker lobe under it (rows 14-20)",
+    "a sphere: about as tall as it is wide (12 px or more), not a lens",
+    "its bright spots (col 43 row 3, col 40 row 7) are sheen, not bumps"
+   ],
+   "note": "The elbow: the baseline script's 'ball joint on a narrow neck'."
+  },
+  {
+   "id": "upper-arm",
+   "kind": "hull",
+   "box": [0, 1, 33, 14],
+   "traits": [
+    "a round bronze tube about 12 px wide (rows 1-13), cut off at the left edge, rounded at its right end (cols 26-32)",
+    "round profile: about as tall as it is wide (10-12 px), one mid bronze tone, metallic",
+    "the bright streak along rows 3-5 is the lit top of the cylinder, not a separate strip"
+   ],
+   "note": "The thick bronze upper arm (newsh4-153)."
+  },
+  {
+   "id": "upper-arm-underside",
+   "kind": "hull",
+   "box": [0, 12, 36, 23],
+   "traits": [
+    "a dark bronze lower tube under the upper arm (rows 13-21), lower than the upper arm",
+    "its right end slanted along the diagonal from (29, 21) to (35, 14), with a bright rim along that edge"
+   ],
+   "note": "The baseline's 'dark underside'; reads as a second, shadowed member of the upper arm."
+  },
+  {
+   "id": "neck",
+   "kind": "strut",
+   "box": [29, 1, 38, 14],
+   "traits": [
+    "a narrower round neck joining the upper arm to the ball (cols 30-37)",
+    "lower and narrower than both the arm and the ball, so the joint pinches in"
+   ],
+   "note": "The narrow neck the ball joint sits on."
+  },
+  {
+   "id": "forearm",
+   "kind": "hull",
+   "box": [46, 0, 104, 14],
+   "traits": [
+    "a long round bronze tube about 10 px wide (rows 1-10) running from the ball to the claw",
+    "round: about as tall as wide (8-10 px), constant diameter, smooth metallic bronze",
+    "a lighter rail along its lower side (rows 11-12), widening at its root over the ball"
+   ],
+   "note": "The forearm (newsh4-157, -159)."
+  },
+  {
+   "id": "metal-collar",
+   "kind": "panel",
+   "box": [55, 0, 69, 14],
+   "traits": [
+    "a grey metal ring around the forearm (cols 57-65): bright grey above, dark below",
+    "stands proud of the forearm all round, crisp ends",
+    "a bright bronze rib ring right beside it (col 66)"
+   ],
+   "note": "The baseline's 'grey metal collar and a bright rib'."
+  },
+  {
+   "id": "claw",
+   "kind": "other",
+   "box": [100, 1, 167, 27],
+   "traits": [
+    "a tapering horn-like claw that curves down to a point at about (165, 25)",
+    "its width and height both shrink steadily to the tip, round in section",
+    "darker bronze than the forearm, with light edge lines along its length (edges catching the light)"
+   ],
+   "note": "The claw (newsh4-191, -193, -195), the reach of the arm."
+  },
+  {
+   "id": "top-box",
+   "kind": "panel",
+   "box": [74, 0, 91, 14],
+   "traits": [
+    "a grey-brown box on top of the forearm (cols 76-82, rows 1-6) with a strut down its right side to the rail",
+    "a grey block beside it (cols 84-89, rows 2-7)",
+    "hard, chamfered boxes standing clearly above the forearm's top, not painted on"
+   ],
+   "note": "Machinery mounted on the forearm."
+  },
+  {
+   "id": "claw-clamps",
+   "kind": "other",
+   "box": [103, 3, 132, 13],
+   "traits": [
+    "two small grey clamps on the claw (cols 105-111 rows 4-8, cols 124-129 rows 7-11)",
+    "each a raised, chamfered block wrapped on the claw with a bright bronze rib ring behind it"
+   ],
+   "note": "The baseline's 'two small grey clamps on it'."
+  }
+ ]
+}

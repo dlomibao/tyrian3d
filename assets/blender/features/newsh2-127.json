@@ -1,0 +1,133 @@
+{
+ "name": "newsh2-127",
+ "summary": "Purple armoured shield craft flying nose down the screen: a broad, shield-shaped hard-surface hull, wide and square-shouldered at the back and narrowing to a teal nose block. Stacked armour plates (two big shoulder plates across the back, curved cheek plates and a pale keel plate down the middle) with crisp chamfered edges, a framed cyan glass panel at the back edge, a blue glass cockpit in the middle, a twin-rod yoke between them and round ports cut into the flanks.",
+ "concept": {
+  "image": "assets/blender/features/concepts/newsh2-127.jpg",
+  "use": "design guide; the sprite decides outline, proportions and colours"
+ },
+ "features": [
+  {
+   "id": "cockpit-canopy",
+   "kind": "glass",
+   "box": [9, 8, 16, 14],
+   "traits": [
+    "blue glass block (cols 10-14, rows 9-12) clearly raised above the hull, the highest point of the centre",
+    "glossy glass with crisp chamfered edges, set in a dark frame (col 9/15, rows 8 and 13)",
+    "grey frame bar across it at row 10",
+    "bright lower edge at row 12 is its front chamfer catching the light, not a separate lump"
+   ],
+   "note": "The baseline reads this as a vent grille of slats; the concept reads it as the cockpit glass. Must read as one faceted glass canopy in a frame."
+  },
+  {
+   "id": "rear-glass-panel",
+   "kind": "glass",
+   "box": [8, 1, 17, 5],
+   "traits": [
+    "rectangular cyan glass panel across the back edge (cols 9-15, rows 1-3)",
+    "set in a purple frame (cols 8 and 16, row 4), glass just below the frame rim",
+    "two darker mullions at cols 10 and 14",
+    "angular, not a dome or lens"
+   ],
+   "note": "The baseline's canopy ellipsoid; the concept draws it as a framed, lit glass panel between the shoulder plates."
+  },
+  {
+   "id": "shoulder-plate-left",
+   "kind": "hull",
+   "box": [2, 1, 9, 7],
+   "traits": [
+    "big raised armour plate over the back-left corner, following the hull outline",
+    "flat top over cols 5-8 (the light band), sloping down to the outer edge",
+    "crisp chamfered edges; its lower edge is the dark seam at row 6",
+    "one of the tallest parts of the craft"
+   ],
+   "note": "Concept: the heavy pauldron-like plates across the back. Mirror of shoulder-plate-right."
+  },
+  {
+   "id": "shoulder-plate-right",
+   "kind": "hull",
+   "box": [16, 1, 23, 7],
+   "traits": [
+    "mirror of the left shoulder plate",
+    "drawn darker in the sprite only because it is in shadow; same shape and colour"
+   ],
+   "note": "The dark pixels under it at row 6-7 (cols 15-18) are the seam/shadow below its edge."
+  },
+  {
+   "id": "cheek-plates",
+   "kind": "panel",
+   "box": [4, 7, 20, 19],
+   "traits": [
+    "two light raised armour plates flanking the cockpit (cols 5-8 and 16-18, rows 8-13)",
+    "curving in at the bottom towards the keel (rows 14-17)",
+    "flat tops with chamfered edges, separated from the cockpit frame by a dark seam (col 9/15)"
+   ],
+   "note": "The baseline's light cheek ridges (soft capsules); concept: curved plates bracketing the keel."
+  },
+  {
+   "id": "keel-plate",
+   "kind": "panel",
+   "box": [9, 14, 16, 20],
+   "traits": [
+    "pale raised plate down the middle below the cockpit (cols 9-14, rows 14-19)",
+    "flat, sloping slightly down towards the nose",
+    "lit left edge (col 9) is a bevel, not a stripe"
+   ],
+   "note": "The baseline's pale chin plate."
+  },
+  {
+   "id": "nose-gun-block",
+   "kind": "gun",
+   "box": [7, 22, 18, 27],
+   "traits": [
+    "teal block at the nose (cols 9-14, rows 23-26), narrowing to the front",
+    "top sloping down to the front; light top-back edge at row 23 is a chamfer",
+    "a small dark vent slot at col 12 row 25",
+    "sits in a purple hull lip (row 22)"
+   ],
+   "note": "Baseline: teal gun block; concept: teal nose cowl with vents."
+  },
+  {
+   "id": "flank-ports",
+   "kind": "recess",
+   "box": [2, 10, 22, 21],
+   "traits": [
+    "three round ports per side: by the hull edge (rows 11-13), lower flank (rows 15-16) and beside the keel (rows 18-20)",
+    "dark discs cut into the hull inside a raised rim, not black lumps sticking out",
+    "the same on both sides"
+   ],
+   "note": "Concept: round turbine ports in the flanks. The baseline had protruding black ellipsoids."
+  },
+  {
+   "id": "yoke",
+   "kind": "strut",
+   "box": [10, 4, 15, 9],
+   "traits": [
+    "two light rods (cols 11 and 13, rows 5-7) joining the rear glass panel to the cockpit",
+    "round, about 1 px thick, with a dark gap (col 12) between them",
+    "in the channel between the shoulder plates"
+   ],
+   "note": "The baseline's spine; the concept draws a yoke linkage here."
+  },
+  {
+   "id": "chin-slot",
+   "kind": "recess",
+   "box": [9, 19, 15, 22],
+   "traits": [
+    "dark slot across the craft between the keel plate and the nose block (rows 20-21)",
+    "sunk below the plates either side"
+   ],
+   "note": "Concept: a recessed gap holding the nose mechanism."
+  },
+  {
+   "id": "hull",
+   "kind": "hull",
+   "box": [1, 0, 24, 28],
+   "traits": [
+    "shield outline: square shoulders at the back (cols 1-23, rows 4-13), tapering to the nose",
+    "faceted hard surface with flat top and chamfered flanks, not a soft blob",
+    "dark purple flanks outside the plates"
+   ],
+   "note": "The body everything is mounted on."
+  }
+ ]
+}

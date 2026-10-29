@@ -1,8 +1,8 @@
 """Shield drone in a spinning ring (newsh2.shp frames 229-243): a 3D version of its sprite.
 
-Seen in episode 1 (levels 25-41) and episode 3. A small grey shield-shaped core, one rounded dome
-about 9 px across with a dark crease down the middle and a flat red-orange light on each top
-corner, inside a ring of two polished grey arcs (about 140 degrees each, with gaps between them),
+Seen in episode 1 (levels 25-41) and episode 3. A small grey shield-shaped core about 9 px across, two
+rounded lobes either side of a cut-in seam down the middle, with a domed red-orange light lens on each
+top corner, inside a ring of two polished grey arcs (about 140 degrees each, with gaps between them),
 round pipes about 4 px thick with squared-off ends. The ring turns clockwise 22.5 degrees a frame,
 so the eight frames are eight models of the same thing with the ring turned: newsh2-229 (frame 229),
 newsh2-229-f2 (231) ... newsh2-229-f8 (243). The sprite's whole drone shifts by a pixel between
@@ -29,6 +29,8 @@ HALF_ARC = math.radians(70)
 DOME_H = 4.6  # px above the ring's mid-plane
 BASE = -1.5  # px, the core's underside
 GROOVE = 1.0  # px, depth of the centre groove (flat-bottomed, 1 px wide)
+LOBE_DIP = 0.4  # how far the dome sags toward the seam between the two lobes (fraction of its height)
+LENS_H = 0.9  # px, how far each corner light's lens domes up above its rim
 
 # The core's outline (offset from its centre in px, up = +y): half-width per height, flat across the
 # top (sprite row 8) and narrowing to a point at the bottom (rows 14-16).
@@ -48,7 +50,9 @@ def dome(x, y):
     w = half_width(y)
     u = min(1.0, abs(x) / w)
     e = max(0.0, 1 - (y / 4.5) ** 4) ** 0.5
-    return DOME_H * max(0.0, 1 - u * u) ** 0.5 * e
+    # Two lobes: the surface dips toward the centre seam, so each half crowns about 2 px out.
+    lobe = 1 - LOBE_DIP * math.exp(-(x / 1.3) ** 2)
+    return DOME_H * max(0.0, 1 - u * u) ** 0.5 * e * lobe
 
 
 def frame_centre(frame):
@@ -67,7 +71,7 @@ def groove_depth(y):
     return GROOVE * t * max(0.0, 1 - (y / 4.5) ** 4) ** 0.5
 
 
-def build_core(bm, cx, cy, core_mat, groove_mat, eye_mat, eye2_mat, rim_mat):
+def build_core(bm, cx, cy, core_mat, groove_mat, eye_mat, rim_mat):
     ys = [y for y, _ in OUTLINE]
     grid = []
     # Columns: the groove is a 1 px wide flat-bottomed channel (walls at +-0.5 px, floor +-0.42 px).
@@ -104,23 +108,29 @@ def build_core(bm, cx, cy, core_mat, groove_mat, eye_mat, eye2_mat, rim_mat):
     f.material_index = core_mat
     bmesh.ops.remove_doubles(bm, verts=list(bm.verts), dist=1e-6)
 
-    # Flat red-orange lights on the top corners: 2 x 1 px (row 9) plus the outer px below (row 10).
-    top = lambda x, y: dome((x - cx) / U, (y - cy) / U) * U  # noqa: E731
+    # Red-orange lights on the top corners: 2 x 1 px (row 9) plus the outer px below (row 10), a glowing
+    # lens domed up over the lobe's corner so it reads from the game camera.
     for s in (-1, 1):
-        for (xa, xb, ya, yb), m in (((1.5, 3.5, 2.5, 3.5), eye_mat), ((2.5, 3.5, 1.5, 2.5), eye2_mat)):
+        def top(x, y, s=s):
+            lx, ly = (x - cx) / U, (y - cy) / U
+            r2 = ((abs(lx) - 2.7) ** 2 + (ly - 2.7) ** 2) / 1.35 ** 2
+            return (dome(lx, ly) + LENS_H * max(0.0, 1 - r2) ** 0.5) * U
+
+        # Each pixel in its own colour, brightest at the outer top corner: (outer top, inner top, outer below).
+        cols = eye_mat[0] if s < 0 else eye_mat[1]
+        for (xa, xb, ya, yb), m in zip(((2.5, 3.5, 2.5, 3.5), (1.5, 2.5, 2.5, 3.5), (2.5, 3.5, 1.5, 2.5)), cols):
             x0, x1 = sorted((cx + s * xa * U, cx + s * xb * U))
-            lib.drape_patch(bm, top, x0, x1, cy + ya * U, cy + yb * U, nx=2, ny=1, lift=0.3 * U, depth=1.0 * U,
-                            mat_index=m, smooth=False)
+            lib.drape_patch(bm, top, x0, x1, cy + ya * U, cy + yb * U, nx=2, ny=2, lift=0.35 * U,
+                            depth=1.8 * U, mat_index=m, smooth=True)
 
 
 def build_one(sprite, name, turn, centre):
     coll = common.reset_collection(name)
     pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
     mats = [
-        pal(121, emission_strength=4.0),  # 0 lights' top row: orange (sprite index 121)
-        pal(119, emission_strength=4.0),  # 1 lights' outer drop: red (sprite index 119)
+        pal(121, emission_strength=4.0),  # 0 left light, outer top: orange
+        pal(119, emission_strength=4.0),  # 1 left light, inner top: red
     ]
-    EYE, EYE2 = 0, 1
     # Each part in its mid-tone; the sprite's white streaks on the arcs and silver lobes on the core
     # are sheen on polished metal, and its black ring is the outline the game draws itself, so none
     # of that is painted on: the metallic material and the game's lights make the shine.
@@ -130,6 +140,12 @@ def build_one(sprite, name, turn, centre):
         pal(4, metallic=0.5, roughness=0.45),  # 4 the core's centre crease (a real cut-in groove)
     ]
     RING, CORE, GROOVE = 2, 3, 4
+    mats += [
+        pal(117, emission_strength=4.0),  # 5 left light, outer below: dark red
+        pal(120, emission_strength=4.0),  # 6 right light, outer top: orange
+        pal(118, emission_strength=4.0),  # 7 right light, inner top and outer below: dark red
+    ]
+    EYES = ((0, 1, 5), (6, 7, 7))  # per side (left, right): outer top, inner top, outer below
     cx, cy = (centre[0] - 12) * U, (14 - centre[1]) * U
     bm = bmesh.new()
 
@@ -143,7 +159,7 @@ def build_one(sprite, name, turn, centre):
             pts.append((cx + RING_R * math.cos(a), cy + RING_R * math.sin(a), 0.0))
         lib.polyline_tube(bm, pts, TUBE_R, sides=10, mat_index=RING)
 
-    build_core(bm, cx, cy, CORE, GROOVE, EYE, EYE2, CORE)
+    build_core(bm, cx, cy, CORE, GROOVE, EYES, CORE)
     return lib.finish(name, bm, mats, coll)
 
 

@@ -1,0 +1,118 @@
+{
+ "name": "newsh2-267",
+ "summary": "Grey drilling machine seen from above, lying along the screen with its drill pointing down: a round drum body that tapers into a conical drill bit wrapped in spiral flights, a shiny grey dome cap at the top end, brown armour shoulder plates with cream corner knobs, a dark spine plate with two glowing red light slots and a tan stud, and an axle through the dome carrying a brown yoke whose arms curve down either side to grey piston runners on the ground. Hard armour plates and arms; round drum, cone and dome.",
+ "concept": {
+  "image": "assets/blender/features/concepts/newsh2-267.jpg",
+  "use": "design guide; the sprite decides outline, proportions and colours. Cues: the lower body is a conical drill bit with diagonal spiral flights (the sprite's diagonal light bands); the top is a riveted steel dome cap on a drum; brown/brass armour plates wrap the drum's shoulders; the red lights are glowing slots set in a dark central plate; the side arms are armoured brass links down to vertical piston legs."
+ },
+ "features": [
+  {
+   "id": "drill_body",
+   "kind": "hull",
+   "box": [4, 13, 19, 28],
+   "traits": [
+    "round cross-section: about as tall as half its width (~6-7 px at the widest)",
+    "tapers smoothly from the 13 px wide drum to a point at row 27",
+    "diagonal spiral flights (raised ridges) running down-left across the cone",
+    "mid grey metal, darker right side is shadow"
+   ],
+   "note": "The main grey body below the armour: a drum turning into a conical drill bit. Must not be a low flat slab."
+  },
+  {
+   "id": "head_dome",
+   "kind": "dome",
+   "box": [8, 2, 15, 8],
+   "traits": [
+    "round light-grey dome on a short drum neck, cols 8-14, rows 2-7",
+    "highest point of the machine",
+    "glossy metal; the near-white pixels are sheen, not a knob"
+   ],
+   "note": "Dome cap at the top end of the drum."
+  },
+  {
+   "id": "red_lights",
+   "kind": "light",
+   "box": [10, 9, 13, 12],
+   "traits": [
+    "two horizontal glowing red slots at rows 9 and 11",
+    "orange-white hot centre",
+    "set into the dark spine plate, framed by it (slightly recessed)"
+   ],
+   "note": "Emissive lights; the most eye-catching detail."
+  },
+  {
+   "id": "spine_plate",
+   "kind": "panel",
+   "box": [9, 8, 14, 19],
+   "traits": [
+    "dark charcoal plate down the centre, cols 9-13, rows 8-18",
+    "raised above the drum, crisp chamfered edges",
+    "frames the red lights with bars between them"
+   ],
+   "note": "Dark central plate carrying the lights."
+  },
+  {
+   "id": "shoulder_armour",
+   "kind": "panel",
+   "box": [4, 7, 19, 13],
+   "traits": [
+    "brown armour plates on both upper corners (cols 5-8 and 14-17, rows 8-12)",
+    "wrap the drum's shoulders, standing as tall as the drum",
+    "hard, faceted plates with crisp edges"
+   ],
+   "note": "Brown shoulder armour either side of the spine."
+  },
+  {
+   "id": "cream_knobs",
+   "kind": "other",
+   "box": [6, 7, 16, 11],
+   "traits": [
+    "small cream rounded knobs on the armour's inner top corners",
+    "left one larger (cols 6-8), right one smaller (cols 13-14)"
+   ],
+   "note": "Cream bolts/knobs on the shoulder armour."
+  },
+  {
+   "id": "yoke_arms",
+   "kind": "strut",
+   "box": [0, 1, 24, 11],
+   "traits": [
+    "brown arms rising to tips above the axle at rows 2-3 (cols 3-5 and 17-19)",
+    "curve out and down to the runners at row 10",
+    "constant thickness, about 2 px"
+   ],
+   "note": "Brown yoke either side of the head."
+  },
+  {
+   "id": "axle",
+   "kind": "pipe",
+   "box": [3, 4, 21, 7],
+   "traits": [
+    "thin light-grey rod at row 5 through the dome to both arms",
+    "straight, constant diameter"
+   ],
+   "note": "Cross axle joining the dome and the yoke."
+  },
+  {
+   "id": "piston_runners",
+   "kind": "strut",
+   "box": [0, 9, 24, 19],
+   "traits": [
+    "straight grey round legs at cols 1 and 21, rows 10-18",
+    "constant diameter, round",
+    "lighter at the top (lit), resting on the ground"
+   ],
+   "note": "Grey piston legs/runners at the ends of the yoke."
+  },
+  {
+   "id": "tan_stud",
+   "kind": "other",
+   "box": [10, 14, 13, 19],
+   "traits": [
+    "small tan stud at col 11, rows 15-17",
+    "on a light cross ridge at row 15"
+   ],
+   "note": "Tan stud at the bottom of the spine."
+  }
+ ]
+}

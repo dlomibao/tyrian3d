@@ -51,46 +51,54 @@ def boulders(bm, grid):
     # Low rubble under the heap, filling the gaps between the boulders (the dark rock and crevices
     # between them in the sprite): one mound on the left, one under and in front of the big block.
     block([(0.5, 23), (5, 16), (14, 11.5), (26, 11.5), (31, 14), (31, 32), (20, 33), (8, 31), (1, 29.5)],
-          0.13, inset=5.0)
+          0.2, inset=5.0)
     block([(28, 16), (64, 16), (64.5, 22), (60, 30), (50, 35), (40, 41.5), (33, 42), (28, 33)],
-          0.15, inset=6.0)
+          0.24, inset=6.0)
 
     # The big block at the back: a flat top (cols 30-59, rows 1-13) edged by the bright ridge that
     # runs from column 29, row 5 down to column 41, row 14; a dark face sloping off to the left, a
-    # darker face on the right (cols 58-65) and a mid-grey face in front (rows 12-20).
-    add([(27.5, 4.5), (32, 2.5), (38, 1), (44, 0), (50, 0.8), (56, 3), (62, 5.5), (65.5, 9),
-         (65.5, 16), (62, 20), (52, 20.5), (43, 20), (36, 18.5), (30, 16), (27.5, 12)],
-        [(30, 5.2, 0.66), (34, 2.6, 0.72), (43, 1.4, 0.75), (49, 1.8, 0.73), (56, 4, 0.66),
-         (59, 6.8, 0.6), (59.5, 11, 0.54), (52, 12.5, 0.6), (44, 13.5, 0.64), (40, 13.6, 0.62),
-         (31, 9.5, 0.6)])
+    # darker face on the right (cols 58-65) and a mid-grey face in front (rows 12-20). It is the
+    # tallest part of the heap (its shadow runs 10-15 px down the screen), a columnar block split
+    # down the middle (col 45) by a fissure, as the concept draws it: two hulls whose tops stop
+    # short of the split, leaving a V-shaped groove, the right half a little lower.
+    S = 45.5  # the fissure
+    add([(27.5, 4.5), (32, 2.5), (38, 1), (44, 0), (S + 0.8, 0), (S + 0.8, 20.2), (43, 20),
+         (36, 18.5), (30, 16), (27.5, 12)],
+        [(30, 5.2, 1.0), (34, 2.6, 1.1), (43, 1.4, 1.15), (S - 1.0, 1.5, 1.14), (S - 1.0, 13.4, 1.04),
+         (40, 13.6, 1.0), (31, 9.5, 0.92), (29.2, 12.5, 0.55), (36.5, 17.2, 0.55)])
+    add([(S - 0.8, 0), (50, 0.8), (56, 3), (62, 5.5), (65.5, 9), (65.5, 16), (62, 20), (52, 20.5),
+         (S - 0.8, 20.2)],
+        [(S + 1.0, 1.8, 1.06), (49, 1.8, 1.08), (56, 4, 1.0), (59, 6.8, 0.92), (59.5, 11, 0.84),
+         (52, 12.5, 0.92), (S + 1.0, 13.4, 0.98), (64, 9.5, 0.5), (60.5, 17.5, 0.5),
+         (52, 18.6, 0.6)])
 
     # Boulder in front of the block's right half (cols 42-61, rows 15-31), its edge lit at col 44.
     block([(42, 18), (47, 15), (58, 15.5), (61, 19), (58, 23.5), (53, 28.5), (47.5, 31), (44, 29),
-           (42, 24)], 0.42, inset=2.5, dr=-1.0)
+           (42, 24)], 0.7, inset=2.5, dr=-1.0)
     # Small splinters to its right (cols 50-61, rows 18-34).
     block([(51, 27), (55.5, 19), (60.5, 18.5), (60.5, 21.5), (57, 29), (53, 34), (50, 33)],
-          0.2, inset=1.5)
+          0.3, inset=1.5)
     # Upper-left boulder (cols 9-25, rows 11-19).
     block([(9, 16.5), (12.5, 12.5), (16, 11), (23, 11), (25.5, 13.5), (25, 18.5), (17, 19.5),
-           (11, 19.5)], 0.34, inset=2.0, dr=-0.5)
+           (11, 19.5)], 0.6, inset=2.0, dr=-0.5)
     # Bright boulder below it (cols 15-27, rows 17-31), the brightest of the small ones.
     block([(15, 19.5), (19, 17), (25, 17), (27.5, 21), (27, 28.5), (23, 31.5), (17.5, 30.5),
-           (15, 25.5)], 0.46, inset=2.0, dr=-1.0)
+           (15, 25.5)], 0.74, inset=2.0, dr=-1.0)
     # Grey boulder between it and the big block (cols 23-32, rows 12-31).
     block([(24, 12.5), (29, 12.5), (32.5, 16), (32.5, 29), (29.5, 32), (25.5, 30.5), (23.5, 18)],
-          0.42, inset=2.0, dr=-1.0)
+          0.68, inset=2.0, dr=-1.0)
     # Left boulder (cols 0-14, rows 16-30), its left edge catching the light (col 3, row 21).
     block([(0.5, 21), (3, 17.5), (6, 16), (11, 16), (14.5, 19), (14.5, 26), (12, 29.5), (6, 30.5),
-           (2, 29.5), (0.2, 25)], 0.38, inset=2.5, dr=-1.0)
+           (2, 29.5), (0.2, 25)], 0.62, inset=2.5, dr=-1.0)
 
     # Shards below the block: a low slab (cols 29-38, rows 19-30) and two tall splinters pointing
     # down the screen (cols 29-37, rows 29-42, and cols 37-45, rows 20-38), and a chip at the foot.
-    block([(29, 20.5), (37.5, 19), (38.5, 28), (36, 30.5), (29.5, 30)], 0.27, inset=1.5)
+    block([(29, 20.5), (37.5, 19), (38.5, 28), (36, 30.5), (29.5, 30)], 0.42, inset=1.5)
     block([(28.5, 29.5), (36.5, 28.5), (38.5, 33), (37, 39.5), (34.5, 42), (31, 37.5), (28.5, 33)],
-          0.32, inset=1.5, dr=-1.0)
-    block([(37.5, 21.5), (44, 20), (45.5, 24), (43, 31), (40, 38), (37.5, 34)], 0.3, inset=1.5,
+          0.52, inset=1.5, dr=-1.0)
+    block([(37.5, 21.5), (44, 20), (45.5, 24), (43, 31), (40, 38), (37.5, 34)], 0.5, inset=1.5,
           dr=-1.0)
-    block([(45, 33), (48, 29.5), (51.5, 30), (51, 34), (47, 36.5)], 0.12, inset=1.0)
+    block([(45, 33), (48, 29.5), (51.5, 30), (51, 34), (47, 36.5)], 0.18, inset=1.0)
     return faces
 
 

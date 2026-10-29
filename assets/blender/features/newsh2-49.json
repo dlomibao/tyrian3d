@@ -1,0 +1,19 @@
+{
+  "name": "newsh2-49",
+  "summary": "Left-hand claw (mirror of newsh2-51): a thick curved armoured arm made of two stacked grey bands hooks from a purple head at the top right over to the left and down into a purple blade; a mechanical hanger drops from the head to a block with a white lens and a glowing red crystal tip. Hard-surface shape language: chamfered armour bands with panel seams, a wedge blade with a grey frame, a boxy machine block.",
+  "concept": {
+    "image": "assets/blender/features/concepts/newsh2-49.jpg",
+    "use": "design guide; the sprite decides outline, proportions and colours"
+  },
+  "features": [
+    {"id": "outer_arm", "kind": "hull", "box": [5, 0, 18, 11], "traits": ["thick grey armour band along the top that curves down the left side into the blade", "as wide as the sprite (about 4 px), rounded across and about as tall as wide", "segment seams across it"], "note": "Sprite rows 0-3 and the left mass (cols 5-10, rows 4-9); highlight row 2 means rounded across."},
+    {"id": "inner_arm", "kind": "hull", "box": [9, 4, 18, 13], "traits": ["second grey band under the outer one, separated by a dark seam (row 4)", "flat-topped plate with a lit left edge at col 13", "lower than the outer band, runs into the blade's spine"], "note": "Concept's inner armour arc."},
+    {"id": "blade", "kind": "fin", "box": [2, 10, 11, 27], "traits": ["purple wedge pointing down, thin sharp outer (left) edge, thicker at the spine", "upper part a raised purple armour plate ending in a diagonal edge (cols 3-7, rows 13-17)", "tip at col 3, row 26"], "note": "Purple 91/90; dark 86 pixels are its lower-right edge in shadow."},
+    {"id": "blade_frame", "kind": "strut", "box": [2, 12, 10, 26], "traits": ["grey spine rail along the blade's right edge down to the tip", "diagonal grey brace across the blade (rows 16-20)", "short grey rail on the left edge (rows 18-22) with purple panels set lower between the bars"], "note": "Concept draws this as a frame with recessed purple panels."},
+    {"id": "badge", "kind": "panel", "box": [7, 10, 10, 13], "traits": ["small raised beige/gold plate on the blade's top near the spine"], "note": "Concept's gold emblem plate."},
+    {"id": "head_cap", "kind": "hull", "box": [17, 0, 23, 5], "traits": ["rounded purple head at the right end of the outer band, the tallest point of the arm", "small beige plate on its left end (col 17, row 2)"], "note": "Concept: purple rounded hood with a gold plate."},
+    {"id": "hanger", "kind": "strut", "box": [19, 3, 24, 13], "traits": ["purple link from the head down to a grey joint block (rows 5-7)", "thin round rod (2 px) hanging from the joint to the block"], "note": "Concept: struts and pipes."},
+    {"id": "lens_block", "kind": "light", "box": [18, 12, 24, 18], "traits": ["boxy grey machine block, chamfered", "white glowing lens on its right side (col 22, rows 13-15)"], "note": "The near-white 15 pixel with 110/109 around it is a lens, as in the concept."},
+    {"id": "red_tip", "kind": "light", "box": [19, 18, 23, 25], "traits": ["glowing red faceted crystal pointing down, 2 px wide", "dark red collar at its root (rows 18-19)"], "note": "Emissive."}
+  ]
+}
