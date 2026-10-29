@@ -3,14 +3,12 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { extname, join, resolve, sep } from "node:path";
 import { defineConfig, type Plugin } from "vitest/config";
 
-/** Serve a local folder at a URL path: its files, and index.json listing its top-level files. */
+/** Serve a local folder at a URL path: its files, and index.json listing its top-level files. If the
+ * folder doesn't exist, the request goes on to the next handler. */
 function serveFolder(dir: string, allowSubfolders: boolean) {
-  return (req: IncomingMessage, res: ServerResponse) => {
-    if (!existsSync(dir)) {
-      res.statusCode = 404;
-      res.end(`no folder at ${dir}`);
-      return;
-    }
+  return (req: IncomingMessage, res: ServerResponse, next: () => void) => {
+    // No local folder: fall through to whatever else serves this path (public/tyrian-remaster/).
+    if (!existsSync(dir)) return next();
     const name = decodeURIComponent((req.url ?? "/").replace(/^\//, "").split("?")[0]);
     if (name === "" || name === "index.json") {
       const files = readdirSync(dir).filter((f) => statSync(join(dir, f)).isFile());
@@ -34,8 +32,9 @@ function serveFolder(dir: string, allowSubfolders: boolean) {
 /**
  * Local only: serves the git-ignored Tyrian data at /tyrian-data/ (TYRIAN_DATA, default data/) and,
  * if present, the private remaster pack at /tyrian-remaster/ (TYRIAN_REMASTER, default
- * ../tyrian3d-remaster/out), on the dev server and on `vite preview` (npm run play:local). Nothing
- * is copied into a build, and the public build doesn't request them (DECISIONS.md D3, D18).
+ * ../tyrian3d-remaster/out), on the dev server and on `vite preview` (npm run play:local). The
+ * private pack (music plus the remade sound effects) shadows the public music-only one in
+ * public/tyrian-remaster/ (D40). Nothing private is copied into a build (DECISIONS.md D3, D18).
  */
 function localFiles(): Plugin {
   const data = resolve(process.env.TYRIAN_DATA ?? "data");

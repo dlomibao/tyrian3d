@@ -1,0 +1,500 @@
+{
+ "music": {
+  "orchestral": {
+   "1": {
+    "file": "orchestral/song-01.ogg",
+    "loops": true,
+    "seconds": 103.079,
+    "title": "Asteroid Dance Part 2"
+   },
+   "10": {
+    "file": "orchestral/song-10.ogg",
+    "loops": false,
+    "seconds": 8.583,
+    "title": "End of Level"
+   },
+   "11": {
+    "file": "orchestral/song-11.ogg",
+    "loops": false,
+    "seconds": 13.547,
+    "title": "Game Over Solo"
+   },
+   "12": {
+    "file": "orchestral/song-12.ogg",
+    "loops": true,
+    "seconds": 57.971,
+    "title": "Gryphons of the West"
+   },
+   "13": {
+    "file": "orchestral/song-13.ogg",
+    "loops": true,
+    "seconds": 41.367,
+    "title": "Somebody pick up the Gryphone"
+   },
+   "14": {
+    "file": "orchestral/song-14.ogg",
+    "loops": true,
+    "seconds": 66.245,
+    "title": "Gyges, Will You Please Help Me?"
+   },
+   "15": {
+    "file": "orchestral/song-15.ogg",
+    "loops": true,
+    "seconds": 41.352,
+    "title": "I speak Gygese"
+   },
+   "16": {
+    "file": "orchestral/song-16.ogg",
+    "loops": true,
+    "seconds": 120.23,
+    "title": "Halloween Ramble"
+   },
+   "17": {
+    "file": "orchestral/song-17.ogg",
+    "loops": true,
+    "seconds": 86.619,
+    "title": "Tunneling Trolls"
+   },
+   "18": {
+    "file": "orchestral/song-18.ogg",
+    "loops": true,
+    "seconds": 77.309,
+    "title": "Tyrian, The Level"
+   },
+   "19": {
+    "file": "orchestral/song-19.ogg",
+    "loops": false,
+    "seconds": 8.511,
+    "title": "The MusicMan"
+   },
+   "2": {
+    "file": "orchestral/song-02.ogg",
+    "loops": true,
+    "seconds": 111.813,
+    "title": "Asteroid Dance Part 1"
+   },
+   "20": {
+    "file": "orchestral/song-20.ogg",
+    "loops": true,
+    "seconds": 34.446,
+    "title": "The Navigator"
+   },
+   "21": {
+    "file": "orchestral/song-21.ogg",
+    "loops": true,
+    "seconds": 84.662,
+    "title": "Come Back to Me, Savara"
+   },
+   "22": {
+    "file": "orchestral/song-22.ogg",
+    "loops": true,
+    "seconds": 25.741,
+    "title": "Come Back again to Savara"
+   },
+   "23": {
+    "file": "orchestral/song-23.ogg",
+    "loops": true,
+    "seconds": 96.647,
+    "title": "Space Journey 1"
+   },
+   "24": {
+    "file": "orchestral/song-24.ogg",
+    "loops": true,
+    "seconds": 174.0,
+    "title": "Space Journey 2"
+   },
+   "25": {
+    "file": "orchestral/song-25.ogg",
+    "loops": false,
+    "seconds": 81.489,
+    "title": "The final edge"
+   },
+   "26": {
+    "file": "orchestral/song-26.ogg",
+    "loops": true,
+    "seconds": 58.878,
+    "title": "START5"
+   },
+   "27": {
+    "file": "orchestral/song-27.ogg",
+    "loops": true,
+    "seconds": 38.633,
+    "title": "Parlance"
+   },
+   "28": {
+    "file": "orchestral/song-28.ogg",
+    "loops": true,
+    "seconds": 90.201,
+    "title": "Torm - The Gathering"
+   },
+   "29": {
+    "file": "orchestral/song-29.ogg",
+    "loops": true,
+    "seconds": 86.504,
+    "title": "TRANSON"
+   },
+   "3": {
+    "file": "orchestral/song-03.ogg",
+    "loops": true,
+    "seconds": 60.719,
+    "title": "Buy/Sell Music"
+   },
+   "30": {
+    "file": "orchestral/song-30.ogg",
+    "loops": true,
+    "seconds": 113.669,
+    "title": "Tyrian: The Song"
+   },
+   "31": {
+    "file": "orchestral/song-31.ogg",
+    "loops": false,
+    "seconds": 5.259,
+    "title": "ZANAC3"
+   },
+   "32": {
+    "file": "orchestral/song-32.ogg",
+    "loops": true,
+    "seconds": 57.971,
+    "title": "ZANACS"
+   },
+   "33": {
+    "file": "orchestral/song-33.ogg",
+    "loops": true,
+    "seconds": 69.05,
+    "title": "Return me to Savara"
+   },
+   "34": {
+    "file": "orchestral/song-34.ogg",
+    "loops": false,
+    "seconds": 10.324,
+    "title": "High Score Table"
+   },
+   "35": {
+    "file": "orchestral/song-35.ogg",
+    "loops": true,
+    "seconds": 81.036,
+    "title": "One Mustn't Fall"
+   },
+   "36": {
+    "file": "orchestral/song-36.ogg",
+    "loops": true,
+    "seconds": 73.669,
+    "title": "Sarah's Song"
+   },
+   "37": {
+    "file": "orchestral/song-37.ogg",
+    "loops": true,
+    "seconds": 58.935,
+    "title": "A Field for Mag"
+   },
+   "38": {
+    "file": "orchestral/song-38.ogg",
+    "loops": true,
+    "seconds": 132.604,
+    "title": "Rock Garden"
+   },
+   "39": {
+    "file": "orchestral/song-39.ogg",
+    "loops": true,
+    "seconds": 82.863,
+    "title": "Quest for Peace"
+   },
+   "4": {
+    "file": "orchestral/song-04.ogg",
+    "loops": true,
+    "seconds": 115.986,
+    "title": "CAMANIS"
+   },
+   "40": {
+    "file": "orchestral/song-40.ogg",
+    "loops": true,
+    "seconds": 55.223,
+    "title": "Composition in Q"
+   },
+   "41": {
+    "file": "orchestral/song-41.ogg",
+    "loops": true,
+    "seconds": 37.525,
+    "title": "BEER"
+   },
+   "5": {
+    "file": "orchestral/song-05.ogg",
+    "loops": true,
+    "seconds": 14.676,
+    "title": "CAMANISE"
+   },
+   "6": {
+    "file": "orchestral/song-06.ogg",
+    "loops": true,
+    "seconds": 103.094,
+    "title": "Deli Shop Quartet"
+   },
+   "7": {
+    "file": "orchestral/song-07.ogg",
+    "loops": true,
+    "seconds": 12.36,
+    "title": "Deli Shop Quartet No. 2"
+   },
+   "8": {
+    "file": "orchestral/song-08.ogg",
+    "loops": true,
+    "seconds": 33.079,
+    "title": "Ending Number 1"
+   },
+   "9": {
+    "file": "orchestral/song-09.ogg",
+    "loops": true,
+    "seconds": 182.259,
+    "title": "Ending Number 2"
+   }
+  },
+  "synth": {
+   "1": {
+    "file": "synth/song-01.ogg",
+    "loops": true,
+    "seconds": 103.079,
+    "title": "Asteroid Dance Part 2"
+   },
+   "10": {
+    "file": "synth/song-10.ogg",
+    "loops": false,
+    "seconds": 8.583,
+    "title": "End of Level"
+   },
+   "11": {
+    "file": "synth/song-11.ogg",
+    "loops": false,
+    "seconds": 13.547,
+    "title": "Game Over Solo"
+   },
+   "12": {
+    "file": "synth/song-12.ogg",
+    "loops": true,
+    "seconds": 57.971,
+    "title": "Gryphons of the West"
+   },
+   "13": {
+    "file": "synth/song-13.ogg",
+    "loops": true,
+    "seconds": 41.367,
+    "title": "Somebody pick up the Gryphone"
+   },
+   "14": {
+    "file": "synth/song-14.ogg",
+    "loops": true,
+    "seconds": 66.245,
+    "title": "Gyges, Will You Please Help Me?"
+   },
+   "15": {
+    "file": "synth/song-15.ogg",
+    "loops": true,
+    "seconds": 41.352,
+    "title": "I speak Gygese"
+   },
+   "16": {
+    "file": "synth/song-16.ogg",
+    "loops": true,
+    "seconds": 120.23,
+    "title": "Halloween Ramble"
+   },
+   "17": {
+    "file": "synth/song-17.ogg",
+    "loops": true,
+    "seconds": 86.619,
+    "title": "Tunneling Trolls"
+   },
+   "18": {
+    "file": "synth/song-18.ogg",
+    "loops": true,
+    "seconds": 77.309,
+    "title": "Tyrian, The Level"
+   },
+   "19": {
+    "file": "synth/song-19.ogg",
+    "loops": false,
+    "seconds": 8.511,
+    "title": "The MusicMan"
+   },
+   "2": {
+    "file": "synth/song-02.ogg",
+    "loops": true,
+    "seconds": 111.813,
+    "title": "Asteroid Dance Part 1"
+   },
+   "20": {
+    "file": "synth/song-20.ogg",
+    "loops": true,
+    "seconds": 34.446,
+    "title": "The Navigator"
+   },
+   "21": {
+    "file": "synth/song-21.ogg",
+    "loops": true,
+    "seconds": 84.662,
+    "title": "Come Back to Me, Savara"
+   },
+   "22": {
+    "file": "synth/song-22.ogg",
+    "loops": true,
+    "seconds": 25.741,
+    "title": "Come Back again to Savara"
+   },
+   "23": {
+    "file": "synth/song-23.ogg",
+    "loops": true,
+    "seconds": 96.647,
+    "title": "Space Journey 1"
+   },
+   "24": {
+    "file": "synth/song-24.ogg",
+    "loops": true,
+    "seconds": 174.0,
+    "title": "Space Journey 2"
+   },
+   "25": {
+    "file": "synth/song-25.ogg",
+    "loops": false,
+    "seconds": 81.489,
+    "title": "The final edge"
+   },
+   "26": {
+    "file": "synth/song-26.ogg",
+    "loops": true,
+    "seconds": 58.878,
+    "title": "START5"
+   },
+   "27": {
+    "file": "synth/song-27.ogg",
+    "loops": true,
+    "seconds": 38.633,
+    "title": "Parlance"
+   },
+   "28": {
+    "file": "synth/song-28.ogg",
+    "loops": true,
+    "seconds": 90.201,
+    "title": "Torm - The Gathering"
+   },
+   "29": {
+    "file": "synth/song-29.ogg",
+    "loops": true,
+    "seconds": 86.504,
+    "title": "TRANSON"
+   },
+   "3": {
+    "file": "synth/song-03.ogg",
+    "loops": true,
+    "seconds": 60.719,
+    "title": "Buy/Sell Music"
+   },
+   "30": {
+    "file": "synth/song-30.ogg",
+    "loops": true,
+    "seconds": 113.669,
+    "title": "Tyrian: The Song"
+   },
+   "31": {
+    "file": "synth/song-31.ogg",
+    "loops": false,
+    "seconds": 5.259,
+    "title": "ZANAC3"
+   },
+   "32": {
+    "file": "synth/song-32.ogg",
+    "loops": true,
+    "seconds": 57.971,
+    "title": "ZANACS"
+   },
+   "33": {
+    "file": "synth/song-33.ogg",
+    "loops": true,
+    "seconds": 69.05,
+    "title": "Return me to Savara"
+   },
+   "34": {
+    "file": "synth/song-34.ogg",
+    "loops": false,
+    "seconds": 10.324,
+    "title": "High Score Table"
+   },
+   "35": {
+    "file": "synth/song-35.ogg",
+    "loops": true,
+    "seconds": 81.036,
+    "title": "One Mustn't Fall"
+   },
+   "36": {
+    "file": "synth/song-36.ogg",
+    "loops": true,
+    "seconds": 73.669,
+    "title": "Sarah's Song"
+   },
+   "37": {
+    "file": "synth/song-37.ogg",
+    "loops": true,
+    "seconds": 58.935,
+    "title": "A Field for Mag"
+   },
+   "38": {
+    "file": "synth/song-38.ogg",
+    "loops": true,
+    "seconds": 132.604,
+    "title": "Rock Garden"
+   },
+   "39": {
+    "file": "synth/song-39.ogg",
+    "loops": true,
+    "seconds": 82.863,
+    "title": "Quest for Peace"
+   },
+   "4": {
+    "file": "synth/song-04.ogg",
+    "loops": true,
+    "seconds": 115.986,
+    "title": "CAMANIS"
+   },
+   "40": {
+    "file": "synth/song-40.ogg",
+    "loops": true,
+    "seconds": 55.223,
+    "title": "Composition in Q"
+   },
+   "41": {
+    "file": "synth/song-41.ogg",
+    "loops": true,
+    "seconds": 37.525,
+    "title": "BEER"
+   },
+   "5": {
+    "file": "synth/song-05.ogg",
+    "loops": true,
+    "seconds": 14.676,
+    "title": "CAMANISE"
+   },
+   "6": {
+    "file": "synth/song-06.ogg",
+    "loops": true,
+    "seconds": 103.094,
+    "title": "Deli Shop Quartet"
+   },
+   "7": {
+    "file": "synth/song-07.ogg",
+    "loops": true,
+    "seconds": 12.36,
+    "title": "Deli Shop Quartet No. 2"
+   },
+   "8": {
+    "file": "synth/song-08.ogg",
+    "loops": true,
+    "seconds": 33.079,
+    "title": "Ending Number 1"
+   },
+   "9": {
+    "file": "synth/song-09.ogg",
+    "loops": true,
+    "seconds": 182.259,
+    "title": "Ending Number 2"
+   }
+  }
+ }
+}
