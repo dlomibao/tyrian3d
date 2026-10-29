@@ -2,11 +2,14 @@
 
 Seen in episode 3 (level 3.10). Fifteen 2x2 ground enemies side by side make one 120x84 px
 structure (sprite.json `assemblyLayout`): two big dark-blue pipes run down the screen, each with
-a grey grille clamp, a ribbed grey canister and a glowing blue lamp on its outer side, and bend
-into a heart-shaped loop of pipe at the bottom. The loop sits on a round grey platform with
-lavender side panels and a ribbed collar; inside it is a dark pool with a stepped grey block.
+a grey grille clamp, a ribbed grey canister and, beside it, a glowing blue lamp in an arched
+housing, and bend into a fat heart-shaped manifold at the bottom. The manifold sits on a round grey
+deck with lavender side panels, a curved track and vents; inside it is a navy floor panel with a
+stepped grey block. Remodelled on the concept (assets/blender/features/concepts/): each part sits
+where the registered concept (assets/blender/textures/<name>/concept.png) draws it, within the
+sprite's outline, so the concept detail texture_bake.py projects onto it lands on the right part.
 Two gun ports flank the loop (in newshb-117 and newshb-121), and lattice towers stand at both
-sides, leaning back (they are drawn tall in the sprite).
+sides, leaning back (they are drawn tall in the sprite): antenna masts with chamfered housings.
 
 The structure is built once in assembly coordinates (left half mirrored about the pipes' axis,
 assembly pixel column 59.5), then cut into its fifteen pieces with common.split_assembly. The
@@ -67,49 +70,54 @@ HATCH_271 = 31.0  # on frame 271 the hatch's edge shows at the port's right side
 BASE_TOP = 0.10  # floor of the platform (and of the dark pool inside the loop)
 COLLAR_TOP = 0.45  # the deck: about 5.4 px thick
 DZ = COLLAR_TOP - 0.18  # how far the port, hatch and flashes rose with the deck
-# The big pipes are round cylinders of constant diameter (22 px wide, 20 px tall): centre column,
-# half width (px), axis height and radius (units).
-PIPE_COL, PIPE_W, PIPE_Z, PIPE_RZ = 43.0, 11.0, 0.84, 0.82
-# The loop of pipe: a round tube about 9 px across, standing on the platform.
-LOOP_W, LOOP_Z, LOOP_RZ = 4.5, 0.48, 4.5 / 12
-# Each pipe bends into the loop as one tube: below row TAPER0 it eases (keeping its outer wall
-# straight down the sprite) into the loop's diameter, reached at row TAPER1.
-TAPER0, TAPER1 = 42.0, 56.0
-# The heart-shaped loop's centre line, left half from the top dip round to the bottom centre.
-LOOP_LEFT = [(59.5, 50.2), (55.0, 48.5), (49.0, 47.6), (43.5, 48.2), (39.5, 51.0), (37.9, 56.0), (38.6, 62.0),
-             (41.5, 67.2), (46.5, 70.4), (53.0, 72.0), (59.5, 72.5)]
+# Remodelled on the concept (assets/blender/textures/assembly-newshb-115/concept.png, the concept
+# registered to the sprite): every part sits where the concept draws it, nudged where the concept's
+# left half runs a pixel or two outside the sprite's outline (the sprite decides the outline).
+# The big pipes are round cylinders of constant diameter (22 px wide, as wide as the sprite's): centre column, half width
+# (px), axis height and radius (units).
+PIPE_COL, PIPE_W = 42.9, 11.0
+PIPE_RZ = PIPE_W / 12
+PIPE_Z = PIPE_RZ + 0.01
+# Each pipe runs straight down to row 40, then bends into the fat heart-shaped manifold: its outer
+# wall runs on straight down the sprite while the tube narrows to the manifold's 12 px (rows 40-56),
+# and to 9 px along the bottom, where it passes under the stepped block.
+DOWN = [(PIPE_COL, -1.0), (PIPE_COL, 30.0), (PIPE_COL, 38.0), (41.8, 44.0), (39.6, 50.0), (38.0, 56.0),
+        (37.8, 61.5), (39.4, 66.0), (42.8, 69.0), (47.5, 70.6), (53.5, 70.9), (AXIS, 71.0)]
+# The heart's two upper lobes: from inside each pipe's bend inward to the dip at the top centre.
+LOBE = [(41.0, 48.6), (45.0, 48.3), (49.5, 48.4), (54.0, 49.0), (57.5, 49.7), (AXIS, 50.0)]
+LOBE_W, LOBE_SQ = 4.6, 1.35
 
 
 def materials(sprite):
     tag = "nshb115"
     pal = lambda i, **kw: common.palette_material(sprite, i, tag, **kw)  # noqa: E731
     return [
-        pal(8, metallic=0.5, roughness=0.5),  # 0 base floor grey
-        pal(10, metallic=0.5, roughness=0.45),  # 1 light grey collar
-        pal(12, metallic=0.5, roughness=0.4),  # 2 bright ribs, caps, hatch
+        pal(8, metallic=0.5, roughness=0.5),  # 0 base floor, lower deck
+        pal(11, metallic=0.5, roughness=0.45),  # 1 light grey deck (the concept's deck plating)
+        pal(12, metallic=0.5, roughness=0.4),  # 2 bright ribs, rails, hatch
         pal(90, metallic=0.3, roughness=0.5),  # 3 lavender side panels
-        pal(84, metallic=0.3, roughness=0.55),  # 4 dark purple top plates
-        pal(52, metallic=0.75, roughness=0.3),  # 5 navy pipes, polished metal
-        pal(53, metallic=0.75, roughness=0.28),  # 6 navy loop, polished metal
-        pal(50, metallic=0.3, roughness=0.4),  # 7 dark pool inside the loop
-        pal(4, metallic=0.5, roughness=0.6),  # 8 dark grey clamp body, recesses
-        pal(7, metallic=0.5, roughness=0.45),  # 9 mid grey tiles, block
-        pal(6, metallic=0.5, roughness=0.5),  # 10 tower shafts
-        pal(148, emission_strength=4.0),  # 11 deep blue lamps
-        pal(141, emission_strength=5.0),  # 12 lamp hot spot
-        pal(2, metallic=0.2, roughness=0.8),  # 13 port interior
+        pal(89, metallic=0.3, roughness=0.55),  # 4 purple top plates
+        pal(52, metallic=0.8, roughness=0.3),  # 5 navy pipes, polished metal
+        pal(53, metallic=0.8, roughness=0.28),  # 6 navy manifold and lamp housings, polished metal
+        pal(54, metallic=0.6, roughness=0.35),  # 7 navy floor inside the heart
+        pal(4, metallic=0.5, roughness=0.6),  # 8 dark grey clamp body, canister rod, block, bay strips
+        pal(5, metallic=0.5, roughness=0.45),  # 9 grey tiles, tower boxes, canister discs
+        pal(7, metallic=0.5, roughness=0.5),  # 10 tower masts
+        pal(152, metallic=0.0, roughness=0.1, emission_strength=4.0),  # 11 blue lamp glass (lower)
+        pal(141, metallic=0.0, roughness=0.1, emission_strength=5.0),  # 12 lamp hot spot
+        pal(2, metallic=0.2, roughness=0.8),  # 13 port interior, vents
         pal(116, emission_strength=2.0),  # 14 ember in the right port
         pal(120, emission_strength=3.5),  # 15 muzzle flash
         pal(126, emission_strength=5.0),  # 16 flash core
         pal(5, metallic=0.5, roughness=0.45),  # 17 tower bodies
-        pal(3, metallic=0.5, roughness=0.6),  # 18 (unused: was the shadowed right deck's ribs)
-        pal(80, metallic=0.2, roughness=0.7),  # 19 (unused: was the side panels' outline ring)
-        pal(155, emission_strength=4.5),  # 20 bright upper half of the lamps
+        pal(3, metallic=0.5, roughness=0.6),  # 18 (unused)
+        pal(92, metallic=0.3, roughness=0.5),  # 19 light lavender posts
+        pal(155, metallic=0.0, roughness=0.1, emission_strength=4.5),  # 20 bright upper lamp glass
     ]
 
 
 (BASE, COLLAR, RIB, LAV, PURP, PIPE, LOOP, POOL, CLAMP, TILE, SHAFT, LAMP, HOT, PORT, EMBER, FLASH,
- CORE, TOWER, DRIB, EDGE, LAMP2) = range(21)
+ CORE, TOWER, DRIB, POST, LAMP2) = range(21)
 
 # Muzzle flashes: (centre column, centre row (pixel edges, as in the sprites), {frame: blobs from the
 # outside in, as (material, radius px)}). DIM is the dark red flash_materials() adds.
@@ -132,26 +140,6 @@ def reflect_since(bm, n_verts, axis_x):
     for v in verts:
         v.co.x = 2 * axis_x - v.co.x
     bmesh.ops.reverse_faces(bm, faces=list({f for v in verts for f in v.link_faces}))
-
-
-def shell(bm, cols, r0, r1, ztop, zbot, mat):
-    """A solid between rows r0 and r1 over the columns `cols` (pixel edges, left to right), its top
-    at ztop(col) and its bottom at zbot(col): a plate that follows a curved surface."""
-    n = len(bm.faces)
-    rings = []
-    for c in cols:
-        x, ya, yb = F.x(c), F.y(r0), F.y(r1)
-        rings.append([bm.verts.new((x, ya, ztop(c))), bm.verts.new((x, yb, ztop(c))),
-                      bm.verts.new((x, yb, zbot(c))), bm.verts.new((x, ya, zbot(c)))])
-    for a, b in zip(rings, rings[1:]):
-        for k in range(4):
-            j = (k + 1) % 4
-            bm.faces.new((a[k], a[j], b[j], b[k]))
-    bm.faces.new(rings[0])
-    bm.faces.new(list(reversed(rings[-1])))
-    for f in L.faces_since(bm, n):
-        f.material_index = mat
-        f.smooth = False
 
 
 def strip(bm, outer, inner, z_outer, z_inner, z0, mat):
@@ -239,66 +227,94 @@ def pipe_top(c, grow=0.0, rx=PIPE_W):
     return PIPE_Z + (PIPE_RZ + grow) * math.sqrt(max(0.0, 1.0 - t * t))
 
 
+def seg(bm, col, r0, r1, w0, w1, z0, z1, mat, sides=8, smooth=False):
+    """A segment lying down the sprite from row r0 to r1, its axis at heights z0 to z1 (so it can
+    lean), half width w0 to w1 px and as tall as wide. sides=8 with flat shading is a chamfered box
+    (the concept's tower housings); more sides and smooth shading is a cylinder."""
+    n = len(bm.faces)
+    L.sweep(bm, F, [(col, r0, z0, w0, w0 * L.PX), (col, r1, z1, w1, w1 * L.PX)], sides=sides, mat=mat,
+            smooth=smooth)
+    for f in L.faces_since(bm, n):
+        if len(f.verts) > 4:
+            f.smooth = False
+
+
 def drum(bm, col, r0, r1, half_w, z0, z1, mat, sides=10):
-    """A round segment of a gun stack: a cylinder down the sprite from row r0 to r1 (its axis at
-    heights z0 to z1, so it can lean), as tall as it is wide, with flat (sharp) ends."""
+    """A round segment: a cylinder down the sprite from row r0 to r1 with flat (sharp) ends."""
+    seg(bm, col, r0, r1, half_w, half_w, z0, z1, mat, sides=sides, smooth=True)
+
+
+def side_knob(bm, c0, c1, row, h, z):
+    """A round knob sticking out sideways from a tower housing."""
     n = len(bm.faces)
-    L.sweep(bm, F, [(col, r0, z0, half_w, half_w * L.PX), (col, r1, z1, half_w, half_w * L.PX)],
-            sides=sides, mat=mat)
+    L.sweep(bm, F, [(c0, row, z, h, h * L.PX * 0.9), (c1, row, z, h, h * L.PX * 0.9)], sides=8, mat=TILE)
     for f in L.faces_since(bm, n):
         if len(f.verts) > 4:
             f.smooth = False
 
 
-def tower(bm, segs, z_of, stub):
-    """A gun stack lying down the sprite and leaning back: segs are (axis column, first row, last
-    row, half width px) from its tip down to its foot; z_of(row) is the height of its axis there.
-    stub is a side cylinder sticking out of a drum: (col0, col1, row, half width px)."""
-    for col, r0, r1, w in segs:
-        drum(bm, col, r0 - 0.05, r1 + 0.05, w, z_of(r0), z_of(r1), TOWER)
-    c0, c1, r, h = stub
-    n = len(bm.faces)
-    L.sweep(bm, F, [(c0, r, z_of(r), h, h * L.PX * 0.9), (c1, r, z_of(r), h, h * L.PX * 0.9)], sides=8, mat=TILE)
-    for f in L.faces_since(bm, n):
-        if len(f.verts) > 4:
-            f.smooth = False
+def tower(bm, col, parts, z_of, knob):
+    """An antenna mast lying down the sprite and leaning back (drawn tall): parts are (kind, first
+    row, last row, half width px at each end) from its tip down to its foot, kind "mast" (a round
+    rod) or "box" (a chamfered housing); z_of(row) is the height of its axis there. knob is a round
+    stub out of a housing's side: (col0, col1, row, half width px)."""
+    for kind, r0, r1, w0, w1, *dc in parts:
+        c = col + (dc[0] if dc else 0.0)
+        if kind == "mast":
+            seg(bm, c, r0 - 0.05, r1 + 0.05, w0, w1, z_of(r0), z_of(r1), SHAFT, sides=8, smooth=True)
+        else:
+            seg(bm, c, r0, r1, w0, w1, z_of(r0), z_of(r1), TOWER, sides=8)
+    c0, c1, r, h = knob
+    side_knob(bm, c0, c1, r, h, z_of(r))
+
+
+def arc(cx, cy, radius, a0, a1, n):
+    """(col, row) points on a circle round (cx, cy), angles in degrees (row grows down the sprite)."""
+    return [(cx + radius * math.cos(math.radians(a0 + (a1 - a0) * k / (n - 1))),
+             cy + radius * math.sin(math.radians(a0 + (a1 - a0) * k / (n - 1)))) for k in range(n)]
+
+
+def deck_edge_row(c):
+    """Row of the platform's diagonal upper edge at column c (the concept's long diagonal seam)."""
+    return 52.2 + (c - 4.8) * (38.5 - 52.2) / (33.0 - 4.8)
 
 
 def build_side(bm):
     """The left half of the machine (built twice, the second copy mirrored into the right half:
-    the sprite's dark right half is its lighting, not a different deck)."""
+    the sprite's and the concept's dark right half is their lighting, not a different deck)."""
     deck = COLLAR_TOP
     # Round platform: the bottom of a disc, its upper edge rising diagonally to the pipes.
     outline = [(AXIS, 45.0), (53.0, 44.0), (33.0, 38.5), (17.5, 45.5), (4.8, 52.2), (4.5, 58.0),
                (5.5, 64.0), (7.5, 70.0), (10.5, 76.0), (14.0, 81.0), (16.5, 85.0), (AXIS, 85.0)]
     L.prism(bm, F, outline, 0.0, BASE_TOP, mat=BASE)
-    # Side panel on the outer edge: a bevel rising inward from about 2 px to 4.3 px; its outer
-    # 1.4 px (drawn dark in the sprite: its outline) is the same lavender, the game draws the edge.
+    # Lavender side panel (the concept's wing): a bevel rising inward from about 1 px at the rim to
+    # 4.3 px at its inner edge (column 16), with three raised stripes across it (rows 55-58).
     edge = [(4.0, 46.0), (4.0, 52.2), (4.0, 59.0), (5.0, 65.0), (6.0, 68.0), (7.0, 70.5), (9.0, 74.5), (11.0, 78.5),
             (12.3, 81.5), (13.2, 85.0)]
     edge_in = [(c + 1.4, r) for c, r in edge]
     strip(bm, edge, edge_in, 0.07, 0.17, 0.0, LAV)
-    outer = [(16.0, 44.6), (9.0, 44.6)] + edge_in
-    inner = [(17.0, 44.6), (17.0, 45.0), (17.0, 46.0), (17.0, 50.0), (17.0, 55.0), (17.0, 61.0), (17.0, 65.0), (17.0, 69.0),
-             (17.0, 74.0), (17.0, 78.0), (17.0, 81.5), (17.0, 85.0)]
+    outer = [(15.0, 45.3), (9.0, 45.8)] + edge_in
+    inner = [(16.0, 45.0), (16.0, 45.5)] + [(16.0, r) for _, r in edge_in]
     strip(bm, outer, inner, 0.17, 0.36, 0.0, LAV)
-    L.prism(bm, F, [(17.0, 44.6), (18.2, 44.6), (18.2, 85.0), (17.0, 85.0)], 0.0, 0.4, mat=RIB)
-    # The deck between the rim and the loop, with two ribs down it.
-    L.prism(bm, F, [(18.2, 45.2), (33.0, 38.5), (34.5, 40.0), (34.5, 62.0), (36.0, 70.0), (40.0, 76.0),
-                    (45.0, 81.0), (48.5, 85.0), (18.2, 85.0)], 0.0, deck, mat=COLLAR)
-    for c0, c1 in ((19.0, 20.0), (21.0, 22.0)):
-        L.prism(bm, F, [(c0, 44.8), (c1, 44.2), (c1, 85.0), (c0, 85.0)], 0.1, deck + 0.03, mat=RIB)
-    # Curved steps on the deck, round the loop (the diagonal bands at the bottom left).
-    for radius, a0, a1 in ((34.0, 205, 237), (39.0, 200, 227)):
-        pts = []
-        for k in range(8):
-            a = math.radians(a0 + (a1 - a0) * k / 7)
-            pts.append((AXIS + radius * math.cos(a), 55.0 - radius * math.sin(a), deck, 0.8, 0.025))
-        L.sweep(bm, F, pts, sides=4, mat=SHAFT, smooth=False)
-    # Lavender post beside the loop (columns 28-31, rows 40-58).
-    L.box(bm, F, 28.0, 39.5, 32.0, 58.0, 0.1, deck + 0.09, mat=LAV)
+    slope = lambda c: 0.17 + (c - 5.4) / (16.0 - 5.4) * 0.19  # noqa: E731
+    for r0, r1 in ((55.0, 55.8), (56.3, 57.1), (57.6, 58.4)):
+        cs = [5.6, 16.0, 16.0, 5.6]
+        L.prism(bm, F, [(c, r) for c, r in zip(cs, (r0, r0, r1, r1))], 0.1, [slope(c) + 0.035 for c in cs], mat=LAV)
+    L.prism(bm, F, [(16.0, 45.5), (17.0, 45.0), (17.0, 85.0), (16.0, 85.0)], 0.0, 0.42, mat=RIB)
+    # The deck plating between the side panel and the manifold; it runs under the manifold's tube
+    # (to its centre line) and, below it, in to the middle.
+    down = [(c, r) for c, r in DOWN if r >= 44.0]
+    L.prism(bm, F, [(17.0, 45.0), (33.0, 38.5), (37.0, 38.5)] + down + [(AXIS, 85.0), (17.0, 85.0)], 0.0, deck, mat=COLLAR)
+    # A raised strip down the deck beside the rib (columns 17-20).
+    L.prism(bm, F, [(17.2, deck_edge_row(17.2) + 0.3), (20.2, deck_edge_row(20.2) + 0.3), (20.2, 85.0), (17.2, 85.0)],
+            0.1, deck + 0.05, mat=COLLAR)
+    # Riveted plate round the lavender post (columns 22-31, rows 41-56) and the post itself.
+    L.prism(bm, F, [(22.0, deck_edge_row(22.0) + 0.2), (31.6, deck_edge_row(31.6) + 0.2), (31.6, 56.5), (22.0, 56.5)],
+            0.1, deck + 0.04, mat=COLLAR)
+    L.prism(bm, F, [(26.0, deck_edge_row(26.0) + 0.5), (31.4, deck_edge_row(31.4) + 0.5), (31.4, 55.0), (26.0, 55.0)],
+            0.1, deck + 0.13, mat=POST)
     # Gun port housing (columns 24-33, rows 58-68), standing a px above the deck; the hatch and
-    # flash are added per model.
+    # flash are added per model. Left of it, a slatted vent cut into the deck.
     c0, r0, c1, r1 = PORT_L
     wall = COLLAR
     L.box(bm, F, c0 - 1, r0 - 1.5, c1 + 1, r0, 0.1, 0.28 + DZ, mat=wall)
@@ -306,96 +322,127 @@ def build_side(bm):
     L.box(bm, F, c0 - 1, r0, c0, r1, 0.1, 0.28 + DZ, mat=wall)
     L.box(bm, F, c1, r0, c1 + 1, r1, 0.1, 0.28 + DZ, mat=wall)
     L.box(bm, F, c0, r0, c1, r1, 0.1, 0.19 + DZ, mat=PORT)
-
-    # (The big pipes and the loop they bend into are one tube, built in build_centre.)
-    # Grey grille clamp: an angular block saddled over the pipe's top (columns 35-48, rows 0-16),
-    # flat-topped, a 3x3 grid of raised tiles on it with dark grooves between.
-    ctop = PIPE_Z + PIPE_RZ + 0.08
-    L.box(bm, F, 35.0, -1.0, 48.0, 17.0, PIPE_Z + 0.25, ctop, mat=CLAMP)
-    for r0, r1 in ((-1.0, 3.0), (4.0, 8.0), (10.0, 16.0)):
-        for cc0, cc1 in ((35.0, 40.0), (41.0, 43.0), (44.0, 48.0)):
-            L.box(bm, F, cc0 + 0.25, r0 + 0.25, cc1 - 0.25, r1 - 0.25, ctop - 0.02, ctop + 0.05, mat=TILE)
-    # Ribbed grey canister lying along the pipe's outer flank (columns 36-41, rows 29-44), a separate
-    # part standing mostly proud of the pipe: a dark rod through a stack of six raised grey discs
-    # (rows 29-40), ending in a plain grey sleeve (rows 40-44).
-    z = pipe_top(38.5) + 0.06
-    drum(bm, 38.5, 28.8, 44.2, 1.9, z, z, CLAMP, sides=10)
+    L.box(bm, F, 21.8, 60.3, 23.9, 67.7, 0.1, deck + 0.005, mat=PORT)
     for k in range(6):
-        r = 29.0 + 1.9 * k
-        drum(bm, 38.5, r, r + 1.15, 2.7, z, z, TILE, sides=10)
-    drum(bm, 38.5, 40.6, 44.0, 2.5, z, z, TILE, sides=10)
-    # Glowing lamp pod on the pipe's outer flank (columns 24-31, rows 19-41): deep blue, its upper
-    # half bright blue round a near-white hot spot.
-    L.ellipsoid(bm, F, 28.0, 30.0, 0.5, 4.4, 11.8, 0.34, mat=LAMP, segments=14, rings=8)
-    L.ellipsoid(bm, F, 28.2, 26.5, 0.52, 3.5, 5.5, 0.34, mat=LAMP2, segments=12, rings=6)
-    L.ellipsoid(bm, F, 28.5, 26.5, 0.85, 1.6, 2.2, 0.05, mat=HOT, segments=10, rings=5)
-    # Thin rod between the pipes (column 54, rows 15-31).
-    L.loft_y(bm, F, 54.5, [(14.8, 0.0, 0.0, 0.12), (15.3, 0.75, 0.06, 0.12), (31.5, 0.75, 0.06, 0.12),
-                           (32.0, 0.0, 0.0, 0.12)], sides=6, mat=TILE)
-    # Purple plate reaching in from above (columns 23-31, rows 0-6).
-    L.prism(bm, F, [(22.5, -1.0), (32.0, -1.0), (32.0, 3.5), (30.5, 6.2), (27.0, 6.2), (24.0, 3.0), (22.5, 1.0)],
-            0.0, 0.3, mat=PURP)
+        r = 60.8 + 1.15 * k
+        L.box(bm, F, 22.0, r, 23.7, r + 0.55, deck - 0.04, deck - 0.005, mat=CLAMP)
+    # Curved track on the deck below the port: two raised rails round the manifold, a sunken band
+    # between them (the concept's riveted arc, columns 25-43, rows 70-84).
+    for radius in (26.0, 29.6):
+        pts = [(c, r, deck, 0.55, 0.035) for c, r in arc(52.5, 58.0, radius, 158.0, 113.0, 9) if r <= 85.2]
+        L.sweep(bm, F, pts, sides=4, mat=RIB, smooth=False)
+
+    # Lamp housing (the concept's arched light, columns 23-32, rows 18-44): a dark navy frame
+    # beside the pipe, its glowing blue glass set in it, bright upper half round a hot spot.
+    house = [(32.2, 18.5), (30.0, 18.8), (28.6, 19.8), (27.6, 21.2), (26.6, 23.0), (25.6, 25.0), (24.6, 27.5),
+             (23.8, 30.5), (23.2, 34.0), (23.2, deck_edge_row(23.2) + 1.0), (32.2, deck_edge_row(32.2) + 1.0)]
+    L.prism(bm, F, house, 0.0, 0.5, mat=LOOP)
+    glass = [(31.4, 19.8), (30.2, 20.0), (29.2, 20.8), (28.3, 22.0), (27.3, 23.8), (26.3, 25.8), (25.4, 28.0),
+             (24.9, 30.0), (24.3, 34.0), (24.3, deck_edge_row(24.3) - 0.3), (31.4, deck_edge_row(31.4) - 0.3)]
+    L.prism(bm, F, glass, 0.3, 0.58, mat=LAMP)
+    L.ellipsoid(bm, F, 28.2, 27.0, 0.585, 2.6, 5.0, 0.02, mat=LAMP2, segments=10, rings=4)
+    L.ellipsoid(bm, F, 28.2, 26.0, 0.6, 1.3, 1.8, 0.025, mat=HOT, segments=8, rings=4)
+
+    # Grey grille clamp: an angular box saddled over the pipe's top (columns 35-48, rows 0-18), two
+    # columns of three riveted tiles with a dark strap between, and two strap bands round the pipe.
+    ctop = PIPE_Z + PIPE_RZ + 0.1
+    L.box(bm, F, 35.3, -1.0, 47.5, 18.5, PIPE_Z + 0.2, ctop, mat=CLAMP)
+    for r0, r1 in ((-1.0, 5.4), (6.2, 10.9), (11.7, 18.2)):
+        for cc0, cc1 in ((35.6, 41.0), (41.8, 47.2)):
+            L.box(bm, F, cc0, r0, cc1, r1, ctop - 0.02, ctop + 0.06, mat=TILE)
+    for r0, r1 in ((5.6, 6.9), (11.0, 12.3)):
+        tube(bm, [(PIPE_COL, r0, PIPE_Z), (PIPE_COL, r1, PIPE_Z)], PIPE_RZ + 0.05, TILE, sides=16)
+    # A riveted seam ring round the pipe (row 27).
+    tube(bm, [(PIPE_COL, 26.6, PIPE_Z), (PIPE_COL, 27.4, PIPE_Z)], PIPE_RZ + 0.02, PIPE, sides=16)
+    # Ribbed canister on the pipe (columns 35-41, rows 30-42): a coil of six grey discs on a dark rod,
+    # ending in a plain sleeve, standing proud of the pipe.
+    z = pipe_top(37.4) + 0.1
+    drum(bm, 37.4, 29.6, 42.0, 1.8, z, z, CLAMP, sides=10)
+    for k in range(6):
+        r = 30.0 + 1.4 * k
+        drum(bm, 37.4, r, r + 0.85, 2.6, z, z, TILE, sides=10)
+    drum(bm, 37.4, 38.6, 42.0, 2.5, z, z, TILE, sides=10)
+    # Thin rod lying along the pipe's top (column 44, rows 18-43) with a small clamp on it.
+    zr = pipe_top(44.5) + 0.03
+    drum(bm, 44.5, 17.5, 43.0, 0.45, zr, zr, SHAFT, sides=6)
+    L.box(bm, F, 43.7, 26.0, 45.3, 27.4, zr - 0.05, zr + 0.06, mat=TILE)
+    # The bay between the pipes: a bevelled frame strip and a small pipe along the pipe's inner side
+    # (columns 53-56, rows 15-32: the sprite's thin rods; the rest of the gap stays open, as in the sprite).
+    L.prism(bm, F, [(53.4, 15.0), (54.4, 15.0), (55.2, 16.6), (55.2, 30.0), (54.4, 31.6), (53.4, 31.6)], 0.0, 0.55,
+            mat=CLAMP)
+    drum(bm, 55.6, 15.0, 31.6, 0.45, 0.62, 0.62, TILE, sides=6)
+    # Purple plate reaching in from above (columns 22-32, rows 0-8), its outer corner rounded.
+    L.prism(bm, F, [(22.0, -1.0), (32.0, -1.0), (32.0, 8.2), (29.5, 8.2), (27.6, 7.0), (25.8, 5.2), (24.0, 3.0),
+                    (22.6, 1.0)],
+            0.0, 0.35, mat=PURP)
 
 
 def build_towers(bm):
-    # Tall gun stack (column 15, rows 1-45): mast, node, mast, drum with a side stub, shaft and
-    # a wide base drum (columns 10-18), as stacked cylinders of the sprite's widths.
+    # Tall antenna mast (column 15.5, rows 2-48): tip rod, node housing, rod, a big housing with a
+    # round knob on its side and a chamfered foot, rod, and a wide base housing.
     za = lambda r: 0.38 + (46.0 - r) * 0.0088  # noqa: E731
-    tower(bm, [(15.5, 0.8, 8.0, 1.1), (15.5, 8.0, 10.5, 2.0), (15.5, 10.5, 14.0, 1.2), (15.5, 14.0, 26.0, 3.4),
-               (15.5, 26.0, 36.0, 2.4), (14.5, 36.0, 46.0, 4.4)], za, stub=(10.0, 13.0, 20.0, 3.0))
-    # Short gun stack (column 6, rows 17-50): mast, node, mast, drum with a side stub and a foot.
+    tower(bm, 15.5, [("mast", 1.8, 8.0, 1.4, 1.4), ("box", 8.0, 10.6, 2.4, 2.4), ("mast", 10.6, 13.8, 1.4, 1.4),
+                     ("box", 13.8, 24.5, 3.4, 3.4), ("box", 24.5, 26.5, 3.4, 2.4), ("mast", 26.5, 35.5, 2.4, 2.4),
+                     ("box", 35.5, 47.0, 4.9, 4.9, -1.0)], za, knob=(9.9, 12.4, 20.5, 2.6))
+    # Short antenna mast (column 6.5, rows 17-51).
     zb = lambda r: 0.30 + (51.0 - r) * 0.0095  # noqa: E731
-    tower(bm, [(6.5, 16.8, 24.0, 1.1), (6.5, 24.0, 26.5, 2.0), (6.5, 26.5, 30.0, 1.2), (6.5, 30.0, 42.0, 3.4),
-               (6.5, 42.0, 51.0, 2.4)], zb, stub=(1.0, 4.0, 36.0, 3.0))
+    tower(bm, 6.5, [("mast", 17.0, 23.2, 1.4, 1.4), ("box", 23.2, 26.0, 2.4, 2.4), ("mast", 26.0, 29.4, 1.4, 1.4),
+                    ("box", 29.4, 41.0, 3.4, 3.4), ("box", 41.0, 43.0, 3.4, 2.4), ("box", 43.0, 51.0, 2.4, 2.4)],
+          zb, knob=(1.0, 3.4, 36.8, 3.6))
 
 
 def build_centre(bm):
-    # The two big pipes and the heart-shaped loop: ONE round tube swept along one path, from the
-    # left pipe's top straight down the screen, bending outward and down round the left lobe, along
-    # the loop's bottom, and up round the right lobe into the right pipe. Through the bend the tube
-    # eases from the pipe's diameter into the loop's (its outer wall runs straight on), so the
-    # pipes flow into the loop with no flange, step or cap.
-    rw = PIPE_W / 12
+    # The two big pipes and the heart-shaped manifold: ONE round tube swept along one path, from
+    # the left pipe's top straight down the screen, round the left lobe, along the bottom (under
+    # the stepped block) and up round the right lobe into the right pipe.
+    def radius(row):
+        """Half width (px) of the tube where its centre line is at `row`."""
+        def ease(a, b, t):
+            t = min(1.0, max(0.0, t))
+            return a + (b - a) * t * t * (3 - 2 * t)
+        if row < 58.0:
+            return ease(PIPE_W, 6.0, (row - 40.0) / 16.0)
+        return ease(6.0, 4.5, (row - 60.0) / 9.0)
 
-    def profile(row):
-        """(axis height, half width, height/width) of the tube where its centre line is at `row`."""
-        t = min(1.0, max(0.0, (row - TAPER0) / (TAPER1 - TAPER0)))
-        s = t * t * (3 - 2 * t)
-        return (PIPE_Z + (LOOP_Z - PIPE_Z) * s, rw + (LOOP_RZ - rw) * s,
-                PIPE_RZ / rw + (1.0 - PIPE_RZ / rw) * s)
-
-    down = [(PIPE_COL, -1.0), (PIPE_COL, 30.0), (PIPE_COL, 38.0), (42.7, 44.0), (40.6, 48.0), (38.6, 52.0),
-            (38.0, 56.5), (38.6, 62.0), (41.5, 67.2), (46.5, 70.4), (53.0, 72.0), (AXIS, 72.5)]
-    ctrl = down + [(mirror_col(c), r) for c, r in reversed(down[:-1])]
+    ctrl = DOWN + [(mirror_col(c), r) for c, r in reversed(DOWN[:-1])]
     per = 3
     path = spline([(c, r, 0.0) for c, r in ctrl], per=per, closed=False)
     path = path[:1] + path[per:-per] + path[-1:]  # the straight runs need no rings between their ends
-    prof = [profile(r) for _, r, _ in path]
+    rad = [radius(r) / 12 for _, r, _ in path]
     n = len(bm.faces)
     sides = 16
-    tube(bm, [(c, r, z) for (c, r, _), (z, _, _) in zip(path, prof)], [p[1] for p in prof], PIPE, sides=sides,
-         squash=[p[2] for p in prof])
-    for k, f in enumerate(L.faces_since(bm, n)):  # the loop is drawn a shade brighter than the pipes
+    tube(bm, [(c, r, w + 0.01) for (c, r, _), w in zip(path, rad)], rad, PIPE, sides=sides)
+    for k, f in enumerate(L.faces_since(bm, n)):  # the manifold is drawn a shade brighter than the pipes
         i = k // sides
-        if i + 1 < len(path) and min(path[i][1], path[i + 1][1]) >= 50.0:
+        if i + 1 < len(path) and min(path[i][1], path[i + 1][1]) >= 46.0:
             f.material_index = LOOP
-    # The top of the heart: the loop runs on from inside each pipe's bend, inward under the pipes'
-    # ends to the dip at the top centre (both ends buried in the pipes).
-    top = [(41.0, 47.6), (45.0, 47.4), (49.5, 47.7), (55.0, 48.8), (AXIS, 50.2)]
-    top = top + [(mirror_col(c), r) for c, r in reversed(top[:-1])]
-    tube(bm, spline([(c, r, LOOP_Z) for c, r in top], per=3, closed=False), LOOP_RZ, LOOP, sides=12)
-    loop = LOOP_LEFT + [(mirror_col(c), r) for c, r in reversed(LOOP_LEFT[1:-1])]
-    # Dark pool inside it, a well about 4 px below the deck.
-    L.prism(bm, F, loop, 0.0, BASE_TOP + 0.02, mat=POOL)
-    # Stepped grey block in the middle (columns 51-66, rows 53-83).
-    L.box(bm, F, 55.5, 53.0, 63.5, 58.0, 0.1, 0.30, mat=TILE)
-    L.box(bm, F, 56.5, 54.0, 62.5, 57.0, 0.30, 0.32, mat=RIB)
-    L.box(bm, F, 53.0, 57.5, 66.0, 63.0, 0.1, 0.36, mat=TILE)
-    L.box(bm, F, 54.0, 58.5, 65.0, 61.8, 0.36, 0.38, mat=COLLAR)
-    L.box(bm, F, 51.0, 62.5, 68.0, 85.0, 0.1, 0.50, mat=SHAFT)
-    for r in (63.5, 67.5, 71.5, 75.5, 79.5):
-        L.box(bm, F, 51.6, r, 67.4, r + 1.2, 0.50, 0.52, mat=COLLAR)
-    L.box(bm, F, 58.8, 62.5, 60.2, 85.0, 0.50, 0.53, mat=CLAMP)
+    # The heart's upper lobes, from inside each pipe's bend to the dip at the top centre.
+    top = LOBE + [(mirror_col(c), r) for c, r in reversed(LOBE[:-1])]
+    lz = LOBE_W / 12 * LOBE_SQ + 0.02
+    tube(bm, spline([(c, r, lz) for c, r in top], per=3, closed=False), LOBE_W / 12, LOOP, sides=12, squash=LOBE_SQ)
+    # The navy floor panel inside the heart (about 4 px up), under the inner half of the tube.
+    inner = [(c, r) for c, r in LOBE[::-1]] + [(c, r) for c, r in DOWN if r >= 50.0]
+    inner = inner + [(mirror_col(c), r) for c, r in reversed(inner[1:-1])]
+    L.prism(bm, F, inner, 0.0, 0.34, mat=POOL)
+    # The stepped block inside it: a row of three small tiles, a row of three wider ones, and the
+    # big block over the manifold's bottom (columns 50-66, rows 63-76) with a T-shaped seam.
+    # (The block sits 1.2 px left of the axis, where the concept draws it.)
+    for c0, c1 in ((54.1, 56.7), (57.0, 59.6), (59.9, 62.5)):
+        L.box(bm, F, c0, 54.0, c1, 57.1, 0.2, 0.5, mat=TILE)
+    for c0, c1 in ((52.1, 56.8), (57.0, 59.6), (59.8, 64.5)):
+        L.box(bm, F, c0, 57.8, c1, 61.6, 0.2, 0.62, mat=TILE)
+    L.box(bm, F, 50.3, 63.0, 66.3, 67.0, 0.3, 0.88, mat=TILE)
+    L.box(bm, F, 50.3, 67.4, 58.0, 75.6, 0.3, 0.84, mat=TILE)
+    L.box(bm, F, 58.6, 67.4, 66.3, 75.6, 0.3, 0.84, mat=TILE)
+    L.box(bm, F, 58.0, 67.0, 58.6, 75.6, 0.3, 0.80, mat=TILE)
+    L.box(bm, F, 50.3, 67.0, 66.3, 67.4, 0.3, 0.80, mat=TILE)
+    L.box(bm, F, 63.0, 69.6, 64.6, 74.8, 0.3, 0.845, mat=PORT)  # small vent on its right side
+    # Slatted vents in the deck below it, one each side of the centre (columns 48-56, rows 81-84).
+    for c0, c1 in ((47.2, 54.6), (64.4, 71.8)):
+        L.box(bm, F, c0, 81.3, c1, 84.6, 0.1, COLLAR_TOP + 0.005, mat=PORT)
+        for k in range(5):
+            cc = c0 + 0.4 + 1.4 * k
+            L.box(bm, F, cc, 81.6, cc + 0.7, 84.3, COLLAR_TOP - 0.04, COLLAR_TOP - 0.005, mat=CLAMP)
 
 
 def build(sprite):
