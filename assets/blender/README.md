@@ -98,7 +98,9 @@ A model with concept maps (`textures/<name>/maps.json`, DECISIONS.md D44) is tex
 `texture_bake.py` straight after its build, with all of its animation frames (`-f2`, `-f3` ...),
 so a rebuild never leaves it plain or leaves one frame plain among textured ones (D46). An
 assembly's bake needs `.shape/<name>/regions.json` (`tools/sprite_shape.py <name>`, git-ignored);
-`-n` builds without texturing.
+`-n` builds without texturing. A maps.json with `"bake": "model"` is skipped: that model's own
+script bakes its maps (the USP Talon, `usp_talon.py`: occlusion and edge wear only, no concept
+projection, D50; `--no-bake` builds it plain, `--out x.glb` writes only that file).
 
 Compare a model with its sprite in the model viewer at `?viewer=<name>`: rotate it freely, or use
 Top with "Sprite over model" to check the outline pixel by pixel. `?debug=models` on the dev server

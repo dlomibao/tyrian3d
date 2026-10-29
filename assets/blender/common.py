@@ -269,14 +269,15 @@ def frame_part(obj, frames):
     return obj
 
 
-def export_sprite_model(root, objects, model, sprites):
+def export_sprite_model(root, objects, model, sprites, image_format="AUTO"):
     """Export `objects` to public/models/<model>.glb and register the sprites they replace in
     src/render/spriteModels/<basename>.json. `sprites` is the list of {sheet, size, frames} (and
     `bank` for player ships) this model replaces, usually load_sprite(...)["sprites"], or a subset
-    of its frames when an animation needs more than one model."""
+    of its frames when an animation needs more than one model. A model that bakes its own maps
+    passes image_format="WEBP" (as export_glb)."""
     import json
     root = Path(root)
-    out = export_glb(objects, root / "public" / "models" / f"{model}.glb")
+    out = export_glb(objects, root / "public" / "models" / f"{model}.glb", image_format=image_format)
     entry = root / "src" / "render" / "spriteModels" / f"{Path(model).name}.json"
     entry.parent.mkdir(parents=True, exist_ok=True)
     entry.write_text(json.dumps({"model": model, "sprites": sprites}, indent=1) + "\n")

@@ -1711,3 +1711,50 @@ coverage test doesn't count them; `CATALOGUE_SIDEKICKS_ONLY=1` writes just those
 **Review:** `?debug=play&left=9&right=16` (and `?debug=models` for a built sidekick) once a model
 exists. Fallback: delete the sidekick's `src/render/spriteModels/` entry.
 
+## D50 — The USP Talon is a hand-built flagship: blueprint geometry, modelled detail, no concept bake
+
+2026-10-29
+
+**Decision:** The Talon (the starting ship, large and turning in the menus) is rebuilt by
+`assets/blender/usp_talon.py` as a hard-surface model from a multi-view blueprint drawn for it (top,
+side, front, rear and underside views in sprite px) and the top-down concept, inside the sprite's
+outline. The concept's detail is no longer baked onto it: its maps.json says `"bake": "model"`, so
+tools/build-models.sh and texture_bake.py skip it, and the script bakes its own small maps
+instead.
+- **Geometry:** dark gunmetal cores (pchip-interpolated stations, so lofts never swell) under
+  separate brass armour plates that stand 0.15-0.5 px proud with 45-degree chamfers, so panel lines
+  are real gaps. Flat faces stay flat (sharp by angle, weighted normals); only fillets, the
+  nacelle domes and the glass are smooth. The nacelles have a chamfered, filleted octagon section
+  (not a superellipse), armour petals over their front domes and a deep blackened seam; the nose
+  has a split spine and thick inner and outer panels; the canopy a sill and a proud cross frame;
+  the belly a nose gear door, nacelle gear doors, intakes and ventral pylons. 11.7k triangles,
+  hidden faces culled.
+- **Texture:** a Cycles bake of ambient occlusion at two scales with an edge lift (a colour
+  multiplier) and a roughness/metalness map (crevices rougher, edges polished), WebP in the .glb.
+  No normal map. Base Color = map x palette colour, as in D44.
+- **Materials:** all palette materials, including the glows (orange 121/123, red 118 and green 204
+  navigation lights, emissive), so fades and the hit flash cover the whole ship. The brass is a
+  step lighter than the sprite's mid-tone (26) with a duller belly (24, less metallic) and a darker
+  frame (19, 21).
+- **Process:** three designers built from the blueprint, two judges rendered all three from every
+  angle and in game, and the winner (C) took grafts from the others (A's nacelle section, seam band
+  and underside; B's thick nose plates) and the judges' fixes (pod domes, belly, brightness,
+  outline overspill 1.6 to 0.3 px², cross frame).
+- `common.export_sprite_model` takes `image_format` (default unchanged), so a self-baked model
+  exports its maps as WebP in one pass; tools/concept_maps.py keeps a maps.json's `bake` key.
+
+**Options considered:**
+- *Modelled detail plus a light occlusion bake (chosen):* the user saw the concept bake as "wrinkled
+  tinfoil" up close: the concept projected straight down smears on curved and steep surfaces, and
+  its normal map crinkles the brass. Modelled panel lines read the same from every angle.
+- *Keep the concept bake on flat, upward-facing plates only, with a weak normal map:* keeps the
+  concept's grime, but the Talon is seen from the side and below in the menus, where the plates
+  would differ from the rest; and the sharp modelled panels already carry the layout.
+- *Riveted plates with a full normal map (designer B):* realistic at a glance, but the rivets read as
+  dimples up close, the same family of problem.
+
+**Review:** `?debug=models&model=usp_talon`, the title screen, and the item screen's hangar view.
+Known limits: the menu backdrop's single engine glow sprite sits between the twin nozzles (it is
+placed at the model's tail centre for every ship); OutlineEffect shows small breaks along hard
+edges at large sizes; the .glb is ~740 KB (geometry with split normals plus a 1024 px map). Fallback:
+the previous script is in git history (rebuild it with `"bake"` removed from maps.json).
