@@ -20,13 +20,13 @@ import common  # noqa: E402
 NAME = "usp_talon"
 SPRITE = "ship-usp-talon-top.png"
 
-HULL, POD, CANOPY, GLOW, KEEL, CHANNEL = range(6)
+HULL, POD, CANOPY, GLOW, KEEL, RIB = range(6)
 
 # The ship sprite and its banking frames (233 + bank * 2, bank -2..2) that the model replaces.
 SPRITES = [{"sheet": "tyrian.shp#8", "size": 2, "frames": [233], "bank": {"step": 2, "max": 2}}]
 
 PX = 1 / 12  # one sprite pixel in Blender units
-HULL_PAL, POD_PAL = 24, 25  # mid-tones: the sprite hull averages index 24, its pods 25
+HULL_PAL, POD_PAL, RIB_PAL = 24, 25, 25  # mid-tones: the sprite hull averages index 24, its pods and ribs 25
 
 # Palette colours of the indices used (tyrian.shp#8 ramp 16-31, sampled from the sprite).
 PAL = {16: (16, 8, 0), 17: (28, 16, 0), 18: (44, 24, 4), 19: (56, 36, 8), 20: (73, 44, 16),
@@ -70,13 +70,9 @@ POD_SHAPE = [
     (25.0, 4.2, 1.0), (25.6, 3.8, 0.0),
 ]
 
-# Grooves: the two straight dark lines either side of the keel (sprite columns 9 and 14, rows 14-23),
-# cut 1 px wide and GROOVE_DEPTH px deep into the fuselage.
-GROOVE_X, GROOVE_ROWS, GROOVE_DEPTH = 2.5, (13.8, 25.3), 0.8
-
 # Colours: each part takes its mid-tone and the game's lights shade it. The sprite's drawn light
-# (lit pod crowns, white keel line, dark flanks and black outline) is not painted on: the game lights
-# the model and draws its own outline. Only real markings are coloured: the dark grooves and canopy.
+# (lit pod crowns, white spine line, dark flanks and black outline) is not painted on: the game lights
+# the model and draws its own outline. Only real parts are coloured: the canopy glass and the spine.
 MODEL = "ship-usp-talon-light-fighter"
 
 
@@ -94,11 +90,9 @@ def resample(table, step=1.0):
     return out
 
 
-def fuselage_top(r, x=0.0):
-    """Height in px of the fuselage's top surface at sprite row r, x px off the centreline."""
-    w, top, bot = lerp_table(FUSELAGE, r)
-    zc, h = (top + bot) / 2, (top - bot) / 2
-    return zc + h * max(0.0, 1 - (x / w) ** 2) ** 0.5 if abs(x) < w else bot
+def fuselage_top(r):
+    """Height in px of the fuselage's flat top deck at sprite row r."""
+    return lerp_table(FUSELAGE, r)[1]
 
 
 def loft_px(bm, sections, sides, mat_index, cap_start=True, cap_end=True):
@@ -116,84 +110,124 @@ def loft_px(bm, sections, sides, mat_index, cap_start=True, cap_end=True):
         i += n
 
 
+def hull_profile(w, top, bot):
+    """Right half of the fuselage's faceted section, top centre to bottom centre, as (x, z) px:
+    a flat top deck, a chamfered shoulder, the side and a chamfered belly (angular hard surface)."""
+    h = top - bot
+    return [(0.0, top), (0.42 * w, top), (0.76 * w, top - 0.24 * h), (w, top - 0.55 * h),
+            (0.74 * w, bot + 0.12 * h), (0.34 * w, bot), (0.0, bot)]
+
+
+def section_loft(bm, sections, mat_index, creases=(), cap=True):
+    """Loft closed rings along the sprite's rows. Each section is (row, x offset px, right-half profile
+    [(x, z) px] from top centre to bottom centre); the left half mirrors it. The profile corners in
+    `creases` become hard edges (split), so a smooth-shaded panel stays flat and its edges crisp."""
+    rings = []
+    n = None
+    for r, x0, prof in sections:
+        pts = list(prof) + [(-x, z) for x, z in reversed(prof[1:-1])]
+        n = len(pts)
+        rings.append([bm.verts.new(((x0 + x) * PX, row(r), z * PX)) for x, z in pts])
+    m = len(prof)
+    crease_idx = set()
+    for i in creases:
+        crease_idx.add(i)
+        crease_idx.add((2 * m - 2 - i) % n)
+    split = []
+    for r0, r1 in zip(rings, rings[1:]):
+        for i in range(n):
+            j = (i + 1) % n
+            bm.faces.new((r0[i], r0[j], r1[j], r1[i])).material_index = mat_index
+        for i in crease_idx:
+            split.append((r0[i], r1[i]))
+    if cap:
+        f0 = bm.faces.new(list(reversed(rings[0])))
+        f1 = bm.faces.new(rings[-1])
+        f0.material_index = f1.material_index = mat_index
+    bm.edges.ensure_lookup_table()
+    edges = [bm.edges.get(pair) for pair in split]
+    if cap:
+        edges += list(f0.edges) + list(f1.edges)
+    bmesh.ops.split_edges(bm, edges=[e for e in edges if e is not None])
+
+
 def build(root):
     coll = common.reset_collection(NAME)
     mats = [
-        # Painted metal hull and polished metal pods: the sprite's bright pod and keel spots are
+        # Painted metal hull and polished metal pods: the sprite's bright pod and spine spots are
         # sheen, which these make from the game's lights, not paint or geometry.
-        common.material(f"pal_{HULL_PAL}_talon_hull", common.srgb(*PAL[HULL_PAL]), metallic=0.45, roughness=0.4),
+        common.material(f"pal_{HULL_PAL}_talon_hull", common.srgb(*PAL[HULL_PAL]), metallic=0.5, roughness=0.38),
         common.material(f"pal_{POD_PAL}_talon_pod", common.srgb(*PAL[POD_PAL]), metallic=0.75, roughness=0.3),
-        common.material("pal_16_talon_canopy", common.srgb(*PAL[16]), metallic=0.0, roughness=0.08),
+        common.material("pal_16_talon_canopy", common.srgb(*PAL[16]), metallic=0.0, roughness=0.06),
         common.material("engine_glow", (1.0, 0.45, 0.1), emission=(1.0, 0.5, 0.12), emission_strength=6.0),
-        common.material("pal_28_talon_keel", common.srgb(*PAL[28]), metallic=0.4, roughness=0.3),
-        common.material("pal_20_talon_channel", common.srgb(*PAL[20]), metallic=0.0, roughness=0.85),
+        common.material("pal_27_talon_spine", common.srgb(*PAL[27]), metallic=0.6, roughness=0.32),
+        common.material(f"pal_{RIB_PAL}_talon_rib", common.srgb(*PAL[RIB_PAL]), metallic=0.5, roughness=0.45),
     ]
-
-    # Fuselage: a round body, pointed nose to rounded tail, with the two grooves cut into its back.
-    fbm = bmesh.new()
-    sections = [(2.0, 0.0, 0.0, 0.0, 0.6)]
-    for r, w, top, bot in resample(FUSELAGE):
-        sections.append((r, 0.0, w, (top - bot) / 2, (top + bot) / 2))
-    sections.append((27.45, 0.0, 0.0, 0.0, 0.1))
-    loft_px(fbm, list(reversed(sections)), sides=20, mat_index=HULL)
-    body = common.mesh_object(NAME + "-body", fbm, mats, coll)
-    cbm = bmesh.new()
-    k = 2 ** 0.5  # a 4-sided loft ring is a box whose half extents are (w, h) / sqrt(2)
-    for side in (-1, 1):
-        rows = [GROOVE_ROWS[0] + (GROOVE_ROWS[1] - GROOVE_ROWS[0]) * i / 16 for i in range(17)]
-        box = []
-        for r in rows:
-            bottom = fuselage_top(r, GROOVE_X) - GROOVE_DEPTH
-            top = bottom + 4.0
-            box.append((r, side * GROOVE_X, 0.5 * k, (top - bottom) / 2 * k, (top + bottom) / 2))
-        loft_px(cbm, list(reversed(box)), sides=4, mat_index=CHANNEL)
-    cutter = common.mesh_object(NAME + "-cutter", cbm, mats, coll)
-    mod = body.modifiers.new("grooves", "BOOLEAN")
-    mod.operation = "DIFFERENCE"
-    mod.object = cutter
-    mod.material_mode = "INDEX"
-    with bpy.context.temp_override(object=body, active_object=body):
-        bpy.ops.object.modifier_apply(modifier=mod.name)
-    bpy.data.objects.remove(cutter)
     bm = bmesh.new()
-    bm.from_mesh(body.data)
-    mesh = body.data
-    bpy.data.objects.remove(body)
-    bpy.data.meshes.remove(mesh)
-    # Crisp groove walls: the channel's faces share no normals with the hull or each other.
-    bmesh.ops.split_edges(bm, edges=[e for e in bm.edges if any(f.material_index == CHANNEL for f in e.link_faces)])
 
-    # Engine pods (the highlighted lumps at rows 15-23, cols 4-8 and 15-19): round, as tall as wide.
+    # Fuselage: an angular hull, pointed nose to blunt tail. Its section is faceted (flat deck,
+    # chamfered shoulders and belly); the facets stay crisp and run smooth along the length.
+    secs = [(2.05, 0.0, hull_profile(0.15, 0.9, 0.3))]
+    for r, w, top, bot in resample(FUSELAGE):
+        secs.append((r, 0.0, hull_profile(w, top, bot)))
+    secs.append((27.45, 0.0, hull_profile(0.5, 0.5, -0.3)))
+    section_loft(bm, secs, HULL, creases=(1, 2, 3, 4, 5))
+
+    # Engine pods (the highlighted bulges at rows 15-23, cols 4-8 and 15-19): round, as tall as wide,
+    # set into the hull's flanks so a dark valley (sprite columns 9 and 14) parts them from the deck.
     for side in (-1, 1):
         loft_px(bm, list(reversed([(r, side * x, w, w * 0.95, POD_Z) for r, x, w in resample(POD_SHAPE, 1.0)])),
                 sides=16, mat_index=POD)
 
-    # Keel: the bright 3 px ridge down the back from the canopy to the tail (rows 12-25).
-    # (row, half width, height above the fuselage top): round in section, easing down at both ends.
-    # Round in section (a circle as wide as the keel, its top `up` px above the fuselage, its centre
-    # sunk below it so the ridge stands about 1.5 px proud of the hull at its edges).
-    keel = [(12.0, 0.0, 0.0), (12.5, 1.2, 0.8), (13.5, 1.5, 1.1), (16, 1.5, 1.2), (20, 1.5, 1.2),
-            (22.5, 1.5, 1.1), (24.2, 1.3, 0.9), (25.3, 1.0, 0.6), (25.8, 0.6, 0.35), (26.0, 0.0, 0.0)]
-    keel = [(r, 0.0, w, w, fuselage_top(r) + (up - w if w else 0.0)) for r, w, up in keel]
-    loft_px(bm, list(reversed(keel)), sides=12, mat_index=KEEL)
-    # The sprite's white line down its crest (column 12) is the polished keel's sheen.
+    # Spine: the thin bright crease down the centre of the back (sprite column 12, rows 13-25), a
+    # narrow ridge with a sharp, slim crest; its white pixels are the polished crest's sheen.
+    def spine(r0, r1, up, half, lift_ends=0.15):
+        rows = [r0 + (r1 - r0) * i / 10 for i in range(11)]
+        out = []
+        for i, r in enumerate(rows):
+            e = min(i, 10 - i) / 2.0
+            k = min(1.0, e) if e > 0 else 0.0
+            t = fuselage_top(r)
+            u = lift_ends + (up - lift_ends) * k
+            hw = max(0.25, half * (0.5 + 0.5 * k))
+            out.append((r, 0.0, [(0.0, t + u), (0.22, t + u), (hw, t - 0.05), (hw * 0.8, t - 1.0), (0.0, t - 1.0)]))
+        section_loft(bm, out, KEEL, creases=(1, 2, 3))
+    spine(12.6, 25.7, 0.95, 1.05)
+    # The nose ridge ahead of the cockpit (rows 3-8): the same crease, lower.
+    spine(3.0, 8.4, 0.6, 0.85)
 
-    # Nose ridge: the bright column down the nose (rows 3-9), lower and narrower.
-    nose = [(2.8, 0.0, 0.0, 0.0, fuselage_top(2.8))]
-    for r in (3.5, 5.0, 6.5, 8.0, 9.2):
-        nose.append((r, 0.0, 0.8, 0.9, fuselage_top(r) + 0.05))
-    nose.append((9.8, 0.0, 0.0, 0.0, fuselage_top(9.8)))
-    loft_px(bm, list(reversed(nose)), sides=8, mat_index=KEEL)
+    # Tail ribs (rows 19-25): raised crisp straps across the back between the pods, alternating
+    # with the dark gaps between them (rows 20, 22 and 24).
+    for rc, half_len, grow in ((19.5, 0.42, 0.45), (21.5, 0.42, 0.45), (23.5, 0.42, 0.4), (25.1, 0.32, 0.0)):
+        rib = []
+        for r in (rc - half_len, rc + half_len):
+            w, top, bot = lerp_table(FUSELAGE, rc)
+            rib.append((r, 0.0, hull_profile(w + grow, top + 0.5, bot - 0.2)))
+        section_loft(bm, rib, RIB, creases=(1, 2, 3, 4, 5))
 
-    # Canopy (the dark spot at rows 10-11, cols 11-12): a small glazed dome, an ellipsoid sunk to
-    # its equator so only its upper half shows, about 1 px proud of the hull.
-    dome = []
-    rc, half_len = 10.95, 1.1
-    for i in range(7):
-        t = -1 + 2 * i / 6
-        k = max(0.0, 1 - t * t) ** 0.5
-        dome.append((rc + t * half_len, 0.0, 1.1 * k, 1.45 * k, fuselage_top(rc) - 0.45))
-    loft_px(bm, list(reversed(dome)), sides=12, mat_index=CANOPY)
+    # Cockpit: the dark slit at rows 9-11, cols 10-13. A raised frame (a hull-coloured coaming with a
+    # chamfered rim) holds a long, low glass canopy, pointed at both ends, its base edge crisp.
+    def outline(r, ends, mid):
+        """Half width of a long, blunt-ended outline between rows ends[0] and ends[1]: straight sides
+        that close in over the last quarter at each end."""
+        t = (r - ends[0]) / (ends[1] - ends[0])
+        return max(0.35, mid * min(1.0, 4.0 * min(t, 1 - t)) ** 0.55)
+    frame = []
+    for i in range(13):
+        r = 8.1 + (12.75 - 8.1) * i / 12
+        hw = outline(r, (8.1, 12.75), 2.3)
+        t = fuselage_top(r)
+        frame.append((r, 0.0, [(0.0, t + 0.35), (hw - 0.35, t + 0.35), (hw, t), (hw, t - 1.2), (0.0, t - 1.2)]))
+    section_loft(bm, frame, HULL, creases=(1, 2, 3))
+    glass = []
+    for i in range(13):
+        r = 8.5 + (12.35 - 8.5) * i / 12
+        hw = outline(r, (8.5, 12.35), 1.85)
+        t = fuselage_top(r) + 0.3
+        rise = 1.0 * (hw / 1.85) ** 0.7
+        glass.append((r, 0.0, [(0.0, t + rise), (0.5 * hw, t + 0.9 * rise), (0.85 * hw, t + 0.5 * rise),
+                               (hw, t), (0.0, t)]))
+    section_loft(bm, glass, CANOPY, creases=(3,))
 
     # Exhausts inside the back of the pods: hidden from the top view, there for later effects.
     for side in (-1, 1):

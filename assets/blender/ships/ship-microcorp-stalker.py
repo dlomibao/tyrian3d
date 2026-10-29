@@ -78,30 +78,58 @@ def plate(bm, poly, z0, z1, mat_index, mirror=False):
         bm.faces.new((bot[i], bot[j], top[j], top[i])).material_index = mat_index
 
 
-def notched_loft(bm, sections, arc=13, mat=0, notch_mat=0):
-    """A loft along +Y whose rings can have a flat-floored notch cut into the top (a recessed
-    window). Each section is (row, half width, half height, z centre, notch half width, notch
-    floor z or None), all in px; None leaves the notch flush with the rim (a flat chord)."""
-    rings, notched = [], []
-    for r, w, h, z, nw, floor in sections:
-        tr = math.acos(min(nw / w, 0.99))
-        span = math.pi + 2 * tr
-        pts = [(w * math.cos(tr - k * span / (arc - 1)), z + h * math.sin(tr - k * span / (arc - 1)))
-               for k in range(arc)]
-        rim = z + h * math.sin(tr)
-        f = rim if floor is None else floor
-        pts += [(-0.85 * nw, f), (0.85 * nw, f)]
-        rings.append([bm.verts.new((x * P, ey(r), zz * P)) for x, zz in pts])
-        notched.append(floor is not None)
-    n = arc + 2
-    for s, (r0, r1) in enumerate(zip(rings, rings[1:])):
-        cut = notched[s] or notched[s + 1]
+def hard_loft(bm, sections, mat_index, flat):
+    """A hard-surface body along +Y: each section is (row, side half width, top half width, top z,
+    shoulder z, bottom half width, bottom z), all px, giving a flat top, chamfered shoulders,
+    straight sides and a chamfered keel. Its faces are flagged flat-shaded so the edges stay crisp."""
+    rings = []
+    for r, w, tw, zt, zs, bw, zb in sections:
+        pts = [(tw, zt), (w, zs), (w, zb + 0.8), (bw, zb), (-bw, zb), (-w, zb + 0.8), (-w, zs), (-tw, zt)]
+        rings.append([bm.verts.new((x * P, ey(r), z * P)) for x, z in pts])
+    n = len(rings[0])
+    for r0, r1 in zip(rings, rings[1:]):
         for i in range(n):
             j = (i + 1) % n
-            face = bm.faces.new((r0[i], r0[j], r1[j], r1[i]))
-            face.material_index = notch_mat if cut and i >= arc - 1 else mat
-    bm.faces.new(list(reversed(rings[0]))).material_index = mat
-    bm.faces.new(rings[-1]).material_index = mat
+            f = bm.faces.new((r0[i], r1[i], r1[j], r0[j]))
+            f.material_index = mat_index
+            f[flat] = 1
+    for ring, rev in ((rings[0], False), (rings[-1], True)):
+        f = bm.faces.new(list(reversed(ring)) if rev else ring)
+        f.material_index = mat_index
+        f[flat] = 1
+
+
+def ellipse_dome(bm, x0, y0, a, b, z0, height, mat_index, segs=20, rings=5):
+    """A glass bubble: an elliptical dome (semi-axes a across, b along, px) rising `height` px from z0."""
+    top = bm.verts.new((x0 * P, y0, (z0 + height) * P))
+    loops = []
+    for k in range(rings):
+        phi = (k / rings) * math.pi / 2  # 0 at the base
+        rr, zz = math.cos(phi), z0 + height * math.sin(phi)
+        loops.append([bm.verts.new(((x0 + a * rr * math.cos(t)) * P, y0 + b * rr * math.sin(t) * P, zz * P))
+                      for t in (2 * math.pi * i / segs for i in range(segs))])
+    for l0, l1 in zip(loops, loops[1:]):
+        for i in range(segs):
+            j = (i + 1) % segs
+            bm.faces.new((l0[i], l0[j], l1[j], l1[i])).material_index = mat_index
+    for i in range(segs):
+        bm.faces.new((loops[-1][i], loops[-1][(i + 1) % segs], top)).material_index = mat_index
+    bm.faces.new(list(reversed(loops[0]))).material_index = mat_index
+
+
+def ellipse_frame(bm, y0, a, b, width, z0, z1, mat_index, flat, segs=20):
+    """A flat elliptical rim around the canopy (inner semi-axes a, b; `width` px wide)."""
+    def loop(ea, eb, z):
+        return [bm.verts.new((ea * math.cos(t) * P, y0 + eb * math.sin(t) * P, z * P))
+                for t in (2 * math.pi * i / segs for i in range(segs))]
+    io, it = loop(a, b, z0), loop(a, b, z1)
+    oo, ot = loop(a + width, b + width, z0), loop(a + width, b + width, z1)
+    for i in range(segs):
+        j = (i + 1) % segs
+        for quad in ((it[i], it[j], ot[j], ot[i]), (ot[i], ot[j], oo[j], oo[i]), (io[i], io[j], it[j], it[i])):
+            f = bm.faces.new(quad)
+            f.material_index = mat_index
+            f[flat] = 1
 
 
 def build(sprite):
@@ -116,7 +144,7 @@ def build(sprite):
         pal(11, metallic=0.8, roughness=0.28),  # 2 bright strakes
         pal(11, metallic=0.85, roughness=0.25),  # 3 nose cone
         pal(14, metallic=0.85, roughness=0.25),  # 4 (unused: the nose's highlight is shine)
-        pal(2, metallic=0.05, roughness=0.1),  # 5 dark cockpit window, glossy glass
+        pal(2, metallic=0.1, roughness=0.04),  # 5 dark cockpit glass, glossy
         pal(117, emission_strength=3.0),  # 6 red side lights
         pal(120, emission_strength=5.0),  # 7 engine glow
         pal(7, metallic=0.7, roughness=0.38),  # 8 neck, a darker grey
@@ -128,6 +156,7 @@ def build(sprite):
     ]
     HULL, WING, BRIGHT, NOSE, SHINE, COCKPIT, RED, GLOW, NECK, RING, LEAD, BASE, GLOW2, FLANK = range(14)
     bm = bmesh.new()
+    flat = bm.faces.layers.int.new("flat")  # faces to flat-shade (hard edges)
 
     # Nose cone (rows 0-6), out to the sprite's outline: half width 0.5 * row + 0.5 px covers
     # the staircase's dark edge pixels and none beyond. Round, a little taller than half its width.
@@ -136,17 +165,16 @@ def build(sprite):
     # Its bright streak (columns 10-11, rows 3-6) is the polished cone's shine: no geometry for it.
     common.loft(bm, [(ey(r), w * P, h * P, z * P) for r, w, h, z in nose], sides=12, mat_index=NOSE)
 
-    # Cockpit ring (rows 7-11): a round collar with the dark window (columns 10-12, rows 7-10)
-    # cut into its top, floor about 1.2 px below the rim.
-    nw, fl = 1.5, 1.8
+    # Cockpit housing (rows 7-11): a round collar, and on it the round dark glass bubble (columns
+    # 9-13, rows 7-10, about 3x4 px inside a bright frame) raised above the collar. The lighter
+    # centre pixel is the glossy glass's glint: no geometry for it.
     common_ring = (4.25, 2.9, 0.3)
-    notched_loft(bm, [(6.6, 3.8, 2.75, 0.3, nw, None), (7.0, *common_ring, nw, None), (7.3, *common_ring, nw, fl),
-                      (10.7, *common_ring, nw, fl), (11.0, *common_ring, nw, None), (11.7, 4.15, 2.8, 0.25, nw, None),
-                      (12.1, 3.4, 2.4, 0.2, nw, None)], mat=RING, notch_mat=COCKPIT)
-    # The lighter dot in the window's middle (column 11, rows 8-9).
-    common.loft(bm, [(ey(8.1), 0, 0, (fl + 0.2) * P), (ey(8.5), 0.5 * P, 0.4 * P, (fl + 0.2) * P),
-                     (ey(9.3), 0.5 * P, 0.4 * P, (fl + 0.2) * P), (ey(9.7), 0, 0, (fl + 0.2) * P)],
-                sides=6, mat_index=WING)
+    common.loft(bm, [(ey(r), w * P, h * P, z * P) for r, w, h, z in
+                     ((6.6, 3.8, 2.75, 0.3), (7.0, *common_ring), (11.0, *common_ring), (11.7, 4.15, 2.8, 0.25),
+                      (12.1, 3.4, 2.4, 0.2))], sides=14, mat_index=RING)
+    cy = ey(9.0)
+    ellipse_frame(bm, cy, 1.55, 2.0, 0.55, 2.4, 3.55, RING, flat)
+    ellipse_dome(bm, 0.0, cy, 1.6, 2.05, 2.9, 1.7, COCKPIT)
 
     # Neck (rows 11-16), darker grey, to the outline (columns 8 and 14 at rows 14-15).
     common.loft(bm, [(ey(r), w * P, h * P, z * P) for r, w, h, z in ((11.5, 3.6, 2.5, 0.1), (16.4, 3.3, 2.4, 0.0))],
@@ -157,16 +185,36 @@ def build(sprite):
                        (ey(14.0), s * 3.1 * P, 1.0 * P, 1.0 * P, 0.8 * P), (ey(14.4), s * 3.1 * P, 0, 0, 0.8 * P)],
                   sides=8, mat_index=RED)
 
-    # Rear fuselage (rows 16-24): round, about as tall as wide.
-    hull = [(16.0, 3.3, 2.4, 0.0), (17.0, 3.9, 2.8, 0.0), (21.5, 4.35, 3.0, 0.0), (23.2, 3.6, 2.5, -0.1),
-            (24.3, 2.6, 1.9, -0.2), (24.8, 0, 0, -0.2)]
-    common.loft(bm, [(ey(r), w * P, h * P, z * P) for r, w, h, z in hull], sides=14, mat_index=HULL)
-    # Two ribs: bright strakes on the body's edges (columns 7 and 15), bright on both sides so
-    # real. The bright streak at column 10, left of the centre line, is the round body's shine.
-    strake = [(ey(r), w * P, 0.55 * P, 0.55 * P, z * P) for r, w, z in
-              ((16.6, -3.4, 1.2), (17.5, -3.95, 1.3), (20.5, -4.1, 1.3), (21.8, -3.9, 1.1))]
-    loft_path(bm, strake, sides=6, mat_index=BRIGHT)
-    loft_path(bm, mirrored(strake), sides=6, mat_index=BRIGHT)
+    # Rear fuselage (rows 16-24): a hard, straight-sided body (flat top, chamfered shoulders,
+    # straight sides, a keel), widest between the wings and tapering at the tail into the nozzle.
+    # (row, side half width, top half width, top z, shoulder z, keel half width, keel z)
+    common.loft(bm, [(ey(r), w * P, h * P, z * P) for r, w, h, z in ((15.9, 3.3, 2.4, 0.0), (16.6, 3.3, 2.4, 0.0))],
+                sides=14, mat_index=NECK)
+    hard_loft(bm, [(16.3, 3.4, 2.0, 2.7, 1.5, 1.8, -2.4), (17.2, 4.0, 2.4, 3.1, 1.9, 2.2, -2.8),
+                   (21.6, 4.2, 2.5, 3.2, 2.0, 2.3, -2.9), (23.3, 3.5, 2.0, 2.7, 1.6, 1.9, -2.5),
+                   (24.4, 2.4, 1.4, 2.0, 1.1, 1.3, -1.9)], HULL, flat)
+    # Bright strakes on the shoulders (columns 7 and 15, rows 17-21): crisp square ribs standing on
+    # the shoulder chamfer's outer edge.
+    strake = [(ey(r), w * P, 0.55 * P, 0.6 * P, z * P) for r, w, z in
+              ((16.6, -3.45, 1.9), (17.4, -3.95, 2.3), (21.0, -4.1, 2.4), (22.3, -3.85, 2.2))]
+    for side in (strake, mirrored(strake)):
+        start = len(bm.faces)
+        loft_path(bm, side, sides=4, mat_index=BRIGHT)
+        bm.faces.ensure_lookup_table()
+        for f in bm.faces[start:]:
+            f[flat] = 1
+    # The faint spine down the middle of the top (rows 17-23): a low ridge with a peaked top, whose
+    # lit left face is the sprite's lighter column 10.
+    spine = [(17.0, 0.0, 3.1), (17.4, 0.7, 3.1), (21.8, 0.75, 3.2), (23.3, 0.55, 2.7), (23.8, 0.0, 2.6)]
+    rows = []
+    for r, w, z in spine:
+        rows.append([bm.verts.new((x * P, ey(r), zz * P)) for x, zz in
+                     ((-w, z - 0.1), (0.0, z + 0.55 * (w > 0)), (w, z - 0.1))])
+    for r0, r1 in zip(rows, rows[1:]):
+        for i in range(2):
+            f = bm.faces.new((r0[i], r1[i], r1[i + 1], r0[i + 1]))
+            f.material_index = BRIGHT
+            f[flat] = 1
 
     # Swept wings, level at the fuselage's middle: a base plate cut to the sprite's outline in the
     # wing's grey (the game draws the dark edge), a raised bright leading-edge strip, a dark groove
@@ -179,11 +227,19 @@ def build(sprite):
     # Inside the trailing staircase: col >= 3.9 + (row - 19.5) / 2.
     panel = clip(clip(panel, -1, 0.5, -3.9 + 9.75), 1, 0, 7.3)
     groove = clip(clip(clip(outer, -1, 1, 11.7), 1, -1, -10.5), 1, 0, 7.9)
+    wing_start, wing_faces = len(bm.verts), len(bm.faces)
     for mirror in (False, True):
         plate(bm, outer, 0.2, 1.2, WING, mirror)
         plate(bm, groove, 0.3, 1.3, BASE, mirror)
         plate(bm, panel, 1.1, 1.7, WING, mirror)
         plate(bm, lead, 1.1, 1.9, LEAD, mirror)
+    # Tilted up toward the tips (a slight dihedral outboard of the body's sides).
+    bm.verts.ensure_lookup_table()
+    for v in bm.verts[wing_start:]:
+        v.co.z += max(0.0, abs(v.co.x) - 3.6 * P) * 0.18
+    bm.faces.ensure_lookup_table()
+    for f in bm.faces[wing_faces:]:
+        f[flat] = 1
 
     # Engine (rows 24-26): a dark nozzle 4 px wide (row 24), the red-orange exhaust plug in its
     # mouth (columns 10-12, row 25, hottest in the middle) and the nozzle's dark lower lip (row 26).
@@ -199,6 +255,12 @@ def build(sprite):
                 sides=8, mat_index=GLOW)
 
     obj = common.mesh_object(NAME, bm, mats, coll, smooth=True)
+    # Hard-surface faces flat shaded, so their edges stay crisp; the round parts stay smooth.
+    attr = obj.data.attributes["flat"]
+    for poly, a in zip(obj.data.polygons, attr.data):
+        if a.value:
+            poly.use_smooth = False
+    obj.data.attributes.remove(attr)
     # Move from the mirror axis to the sprite's column 11.
     for v in obj.data.vertices:
         v.co.x -= 0.5 * P
