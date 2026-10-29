@@ -1,0 +1,13 @@
+{
+ "model": "sidekicks/satellite-marlo",
+ "sprites": [
+  {
+   "sheet": "tyrian.shp#8",
+   "size": 1,
+   "frames": [
+    152
+   ],
+   "ungrouped": true
+  }
+ ]
+}

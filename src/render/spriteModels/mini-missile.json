@@ -1,0 +1,15 @@
+{
+ "model": "sidekicks/mini-missile",
+ "sprites": [
+  {
+   "sheet": "tyrian.shp#8",
+   "size": 1,
+   "frames": [
+    163,
+    182,
+    201
+   ],
+   "ungrouped": true
+  }
+ ]
+}
