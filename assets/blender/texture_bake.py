@@ -80,11 +80,18 @@ def glbs(name):
         else:
             entry = ROOT / "src" / "render" / "spriteModels" / f"{name}.json"
             path = json.loads(entry.read_text())["model"] if entry.exists() else "usp_talon"
-        if path in seen:
-            continue
-        seen.add(path)
         off = Vector(((p["x0"] + p["w"] / 2 - W / 2) * PX, -(p["y0"] + p["h"] / 2 - H / 2) * PX, 0))
-        out.append((ROOT / "public" / "models" / f"{path}.glb", off))
+        # The piece's other animation frames (a hatch opening, a light blinking) are models of their
+        # own; each is baked at the same place, or the piece pops between textured and plain (D46).
+        frames = [path]
+        if name.startswith("assembly-"):
+            sprite = json.loads((ROOT / "reference" / "models" / p["model"] / "sprite.json").read_text())["sprites"][0]
+            frames += [paths[k] for k in ((sprite["sheet"], sprite["size"], f) for f in sprite["frames"]) if k in paths]
+        for fp in frames:
+            if fp in seen:
+                continue
+            seen.add(fp)
+            out.append((ROOT / "public" / "models" / f"{fp}.glb", off))
     return out, (W, H)
 
 
