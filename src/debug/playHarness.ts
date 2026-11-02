@@ -16,6 +16,8 @@
 //   &preload=0                     start without waiting for the level's models (D54)
 //   &solid=1                       the bot not invulnerable (its armour kept topped up instead), so the
 //                                  ship draws opaque rather than translucent
+//   &armor=N                       hold the bot's armour at N (under 6: the low-armour warning, which
+//                                  sends the armour ship every 500 ticks)
 //
 // Keys: V switches the effects look, A the sprite art, N the next front weapon, P (or Space) pauses.
 // The bot is the one the episode tests use: invulnerable, always firing, sweeping left and right.
@@ -74,11 +76,12 @@ export async function runPlayHarness(view: View): Promise<void> {
   const stress = num("stress", 0);
   const solid = num("solid", 0) > 0;
   const freezeAt = num("freezeAt", -1);
+  const armor = num("armor", -1);
   const cycleTicks = num("cycle", 0) * (1000 / CLASSIC_TICK_MS);
   const step = (show: boolean) => {
     // tests/sim/bot.ts: invulnerable, always firing, sweeping.
     p.invulnerable_ticks = solid ? 0 : 2;
-    p.armor = Math.max(p.armor, solid ? 28 : 10);
+    p.armor = armor >= 0 ? armor : Math.max(p.armor, solid ? 28 : 10);
     simInput.fire = true;
     simInput.left = Math.floor(t / 50) % 2 === 0;
     simInput.right = !simInput.left;

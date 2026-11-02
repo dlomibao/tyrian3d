@@ -21,6 +21,9 @@ from input sheets of the original sprites. This tool does both ends of that loop
         (12 px wide, as many rows as the sprite decodes to) times `scale`, its top-left at the blit
         position. --check PNG also writes a contact sheet: original (nearest, 8x) | remastered.
 
+A few frames are painted here instead of cut from Gemini's art (PAINTED: the Vulcan Cannon's
+tracers, D56); `cut` draws them with their painter and packs them with the rest.
+
 The original sprites are read from the game data (--data, default data/): tyrian.shp's Sprite2
 tables (src/data/sprites.ts) and palette.dat (src/data/palette.ts).
 """
@@ -448,6 +451,79 @@ def dump_manifest(m: dict) -> str:
     return "\n".join(lines)
 
 
+# --- Painted frames: art drawn here instead of cut from Gemini's ------------------------------------
+
+
+def _smoothstep(e0: float, e1: float, x: np.ndarray) -> np.ndarray:
+    t = np.clip((x - e0) / (e1 - e0), 0.0, 1.0)
+    return t * t * (3 - 2 * t)
+
+
+def paint_tracer(gd: GameData, sheet: str, index: int, palette: int) -> np.ndarray:
+    """A crisp tracer bullet (or a row of them) over the sprite: rgb (h*8, 96, 3) in 0..1.
+
+    Each tracer runs down a column whose pixels are the sprite's brightest (its hot head); along it
+    the colour is that column's own pixels, smoothly interpolated (yellow head, orange, red, dark
+    red tail), and across it the colour falls to the neighbouring columns' pixels as on a round
+    slug, with a white-hot core in the head and a thin lit line on its upper-left side. No flame,
+    no noise: the original's colours and shape, drawn clean and hard (the alpha is the silhouette,
+    as for cut frames).
+    """
+    own = gd.sprite(sheet, index)
+    h = own.shape[0]
+    col = gd.rgba(own, palette)[..., :3].astype(np.float32) / 255
+    luma = (col @ np.array([0.299, 0.587, 0.114], np.float32)) * (own >= 0)
+    axes = sorted({int(c) for c in np.nonzero(luma >= luma.max() * 0.95)[1]})
+
+    def along(c: int, v: np.ndarray, fallback: np.ndarray | None = None) -> np.ndarray:
+        """Column c's colours at rows v (sprite px), linear between row centres, ends held."""
+        rows = np.nonzero(own[:, c] >= 0)[0] if 0 <= c < TILE_W else np.array([], int)
+        if rows.size == 0:
+            return fallback
+        return np.stack([np.interp(v, rows + 0.5, col[rows, c, k]) for k in range(3)], -1)
+
+    v, u = np.mgrid[0:h * SCALE, 0:TILE_W * SCALE].astype(np.float32)
+    u, v = (u + 0.5) / SCALE, (v + 0.5) / SCALE
+    best = np.full(u.shape, np.inf, np.float32)
+    rgb = np.zeros(u.shape + (3,), np.float32)
+    for c in axes:
+        ds = (u - (c + 0.5)) / 1.5  # signed, -1..1 across a 3 px slug
+        core = along(c, v)
+        sides = [s for s in (along(c - 1, v), along(c + 1, v)) if s is not None]
+        edge = np.mean(sides, 0) if sides else core * 0.6
+        d = np.abs(ds)
+        w = _smoothstep(0.15, 1.0, d)[..., None]
+        out = core * (1 - w) + edge * w
+        head = (_smoothstep(0.4, 1.2, v) * (1 - _smoothstep(2.4, 5.0, v)))[..., None]
+        hot = (1 - _smoothstep(0.0, 0.45, d))[..., None] * head
+        out = out * (1 - 0.7 * hot) + np.array([1.0, 0.97, 0.86], np.float32) * 0.7 * hot
+        line = (1 - _smoothstep(0.0, 0.12, np.abs(ds + 0.42)))[..., None] * (1 - _smoothstep(1.0, h, v))[..., None]
+        out = np.clip(out + 0.18 * line, 0, 1)
+        nearer = d < best
+        rgb[nearer] = out[nearer]
+        best = np.where(nearer, d, best)
+    return rgb
+
+
+# Frames drawn by a painter instead of cut from Gemini's art, with why (DECISIONS.md D56).
+# The Vulcan Cannon's bullets: Gemini painted them as flame plumes, the Pulse-Cannon's fire family,
+# so the two weapons read alike; the original draws slim tracers (yellow head, red tail).
+PAINTED = {
+    ("tyrian.shp#7", 67): paint_tracer,  # Vulcan Cannon, power 1-6
+    ("tyrian.shp#7", 70): paint_tracer,  # Vulcan Cannon, power 7-11: two tracers side by side
+}
+
+
+def painted_frame(gd: GameData, sheet: str, index: int, palette: int) -> dict:
+    """A PAINTED frame, its alpha the silhouette as cut frames have it."""
+    own = gd.sprite(sheet, index)
+    alpha = smooth_alpha(own >= 0)
+    rgb = bleed(np.clip(PAINTED[(sheet, index)](gd, sheet, index, palette), 0, 1), alpha)
+    rgba = np.dstack([rgb * 255, alpha * 255]).round().astype(np.uint8)
+    return {"sheet": sheet, "index": index, "rgba": rgba, "fit": {"score": 1.0}, "input": "painted",
+            "cell": None, "mirrored": False, "shared": False}
+
+
 def cut(gd: GameData, inputs: dict, results: Path, out: Path, palette: int, check: Path | None) -> dict:
     frames: dict[tuple[str, int], dict] = {}
     report = []
@@ -462,6 +538,9 @@ def cut(gd: GameData, inputs: dict, results: Path, out: Path, palette: int, chec
         scores = [f["fit"]["score"] for f in got if not f["mirrored"]] or [0.0]
         print(f"  {sheet['name']}: {len(got)} frames, fit score min {min(scores):.2f} mean {np.mean(scores):.2f}")
         report.extend(got)
+    for (sid, index) in PAINTED:
+        frames[(sid, index)] = painted_frame(gd, sid, index, palette)
+    print(f"  painted: {len(PAINTED)} frames ({', '.join(f'{s[7:]}:{i}' for s, i in PAINTED)})")
     out.mkdir(parents=True, exist_ok=True)
     manifest = {"scale": SCALE, "sheets": {}}
     for sid in sorted({k[0] for k in frames}):

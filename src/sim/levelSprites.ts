@@ -4,10 +4,11 @@
 //
 // Call after loadLevel and startLevel (JE_getShipInfo has set the ships). The list over-covers
 // rather than under-covers: every enemy type any event names (whatever the event), the types those
-// launch or leave behind when they die, the random-spawn types, each with every frame of its
-// egraphic and its damaged graphic, on the sheet its shape bank names, as long as some event of the
-// level loads that bank (an enemy of an unloaded bank borrows another's sheet; the C logs "Ignoring
-// sprite from unloaded shape table"). Then the players' ships and sidekicks.
+// launch or leave behind when they die, the random-spawn types, the armour ship and its crates (the
+// game spawns them when armour is low), each with every frame of its egraphic and its damaged
+// graphic, on the sheet its shape bank names, as long as some event of the level loads that bank
+// (an enemy of an unloaded bank borrows another's sheet; the C logs "Ignoring sprite from unloaded
+// shape table"). Then the players' ships and sidekicks.
 // tests/render/modelSwap.test.ts checks that every model level 1 actually shows is in the list.
 
 import { ENEMY_NUM } from "../data/enemies";
@@ -15,6 +16,12 @@ import { MAP_SIZES, TILE_HEIGHT } from "../data/levels";
 import type { Sprite2Sheet } from "./draw";
 import { g } from "./state";
 import { shapeFile } from "./tyrian2";
+
+/**
+ * The armour ship (enemy type 560) and the crates it leaves (561-563, its enemydie, set by the
+ * spawn, not its data): spawned by the game whenever a player's armour is low, in any level.
+ */
+export const ARMOR_SHIP_TYPES = [560, 561, 562, 563];
 
 /** One sprite that may be drawn: grouped (part of an enemy or a two-half ship) or on its own. */
 export interface LevelSprite {
@@ -75,6 +82,9 @@ export function levelSprites(): LevelSprite[] {
   };
   for (const ev of events) for (let k = 0; k < 4; k++) addType(ev.eventDat + k, ev.eventTime);
   for (let i = 0; i < g.levelEnemyMax; i++) addType(g.levelEnemy[i], 0);
+  // The armour ship and its crates, which no event names: JE_main's low-armour warning
+  // (game.ts armorWarning) sends one whenever a player's armour is under 6, at any time.
+  for (const t of ARMOR_SHIP_TYPES) addType(t, 0);
   while (queue.length) {
     const t = queue.pop()!;
     const dat = g.res.enemyDat[t];

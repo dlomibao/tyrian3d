@@ -7,12 +7,15 @@
 //
 // - Preload coverage: every model a level shows is one DrawListRenderer.preloadLevel loads first
 //   (sim/levelSprites.ts), so no enemy waits for its model. Every level of episode 1.
+// - Sprites left, level 1: no enemy is drawn as its extruded sprite but for those damaged frames.
+//   The bot flies level 1 on low armour so the armour ship (spawned only then) and its crates show.
 // - Frame coverage, level 1: each enemy's draws on a tick are one of its model, flat art, the
 //   extruded sprite, or a mix (some tiles one way, some another). An enemy seen two ways over its
 //   life pops on screen. The only ones allowed are KNOWN_DAMAGE_SWAPS below: damaged frames (an
 //   enemy's look once hit hard enough, or destroyed) that have no model of their own yet.
 //
-// MODEL_SWAP_REPORT=1 prints each enemy type's routes, the swaps and the unmodelled damaged frames.
+// MODEL_SWAP_REPORT=1 prints each enemy type's routes, the swaps, the unmodelled damaged frames and
+// every sprite level 1 still draws extruded (enemies, shots, explosions; "still a sprite: ...").
 import { readFileSync, statSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import { decodeSprite2 } from "../../src/data/sprites";
@@ -76,6 +79,8 @@ interface LevelResult {
   types: Map<string, TypeStat>;
   /** Damaged frames per enemy type met (sheet|size|type), and its normal frames. */
   damagedFrames: Map<string, { sheet: SpriteDraw["sheet"]; size: 1 | 2; frames: number[]; normal: number[] }>;
+  /** Every Sprite2 draw left as its extruded sprite: "what sheet frame" -> ticks drawn. */
+  sprites: Map<string, number>;
 }
 
 const sim = async () => ({
@@ -88,6 +93,8 @@ const sim = async () => ({
   ...(await import("../../src/sim/state")),
   ...(await import("../../src/sim/tyrian2")),
   ...(await import("../../src/sim/draw")),
+  ...(await import("../../src/sim/mainint")),
+  ...(await import("../../src/sim/shots")),
   ...(await import("../../src/sim/levelSprites")),
   ...(await import("../sim/bot")),
 });
@@ -111,7 +118,7 @@ function spriteArt(): SpriteArt<object> {
 }
 
 /** Play the level loadLevel has set up (from startLevel on) with the bot, classifying every draw. */
-async function playLevel(main: number, art: SpriteArt<object>): Promise<LevelResult> {
+async function playLevel(main: number, art: SpriteArt<object>, lowArmor: boolean): Promise<LevelResult> {
   const s = await sim();
   const { g } = s;
   s.startLevel();
@@ -123,6 +130,7 @@ async function playLevel(main: number, art: SpriteArt<object>): Promise<LevelRes
   /** Per enemy (serial): its type, and the looks and frames it's been drawn with. */
   const enemies = new Map<number, { type: string; looks: Map<Look, Set<number>> }>();
   const damagedFrames: LevelResult["damagedFrames"] = new Map();
+  const sprites = new Map<string, number>();
   let result = s.tick();
   for (let t = 0; t < 60000 && !result.levelOver; t++) {
     for (let i = 0; i < 100; i++) {
@@ -151,8 +159,14 @@ async function playLevel(main: number, art: SpriteArt<object>): Promise<LevelRes
       const r = router.route(d, art.sheet(d.sheet.id) ?? null, emptyTile);
       const modelled = r.route === Route.Group || r.route === Route.Override || r.route === Route.Ungrouped;
       if (modelled && !shown.has(r.model)) shown.set(r.model, `${d.sheet.id} ${d.groupIndex >= 0 ? `group ${d.groupIndex}` : `sprite ${d.index}`} at tick ${t}`);
-      if (d.groupIndex < 0 || d.key < s.ENEMY_KEY_BASE) continue;
       const look: Look = modelled ? "model" : r.route === Route.Flat ? "flat" : drawsNothing(d, emptyTile) ? "none" : "sprite";
+      if (look === "sprite") {
+        const what = d.key >= s.ENEMY_KEY_BASE ? "enemy" : d.key >= s.PLAYER_SHOT_KEY_BASE ? "shot"
+          : d.key >= 30000 ? "explosion" : d.key >= 20000 ? "enemy-shot" : d.key >= s.PLAYER_KEY_BASE ? "player" : "other";
+        const k = `${what} ${d.sheet.id} ${d.groupIndex >= 0 ? `group ${d.groupSize}x${d.groupSize} ${d.groupIndex}` : `sprite ${d.index}`}`;
+        sprites.set(k, (sprites.get(k) ?? 0) + 1);
+      }
+      if (d.groupIndex < 0 || d.key < s.ENEMY_KEY_BASE) continue;
       const serial = (d.key - s.ENEMY_KEY_BASE) >> 2;
       let e = now.get(serial);
       if (!e) now.set(serial, (e = { d, looks: new Set() }));
@@ -177,13 +191,16 @@ async function playLevel(main: number, art: SpriteArt<object>): Promise<LevelRes
       e.looks.get(look)!.add(d.groupIndex);
     }
     s.botTick(t);
+    // Low on armour (under 6), JE_main's warning sends the armour ship (enemy type 560, dropping
+    // 561-563) every 500 ticks; the bot keeps 10, so on level 1 it flies on 5 to meet it.
+    if (lowArmor) g.player[0].armor = 5;
     result = s.tick();
   }
   for (const [serial, e] of enemies) {
     if (e.looks.size < 2 && !e.looks.has("mixed")) continue;
     types.get(e.type)!.swaps.push({ serial, looks: e.looks });
   }
-  return { main, completed: result.completed, shown, preloaded, types, damagedFrames };
+  return { main, completed: result.completed, shown, preloaded, types, damagedFrames, sprites };
 }
 
 /** Episode 1 from its first level, each level after the last (g.nextLevel), until it comes round again. */
@@ -202,7 +219,7 @@ async function playEpisode1(levels: number): Promise<LevelResult[]> {
     seen.add(main);
     s.loadLevel(files, 1, main);
     g.player[0].items.weapon[0].power = 11;
-    const r = await playLevel(main, art);
+    const r = await playLevel(main, art, n === 0);
     out.push(r);
     if (!r.completed || g.nextLevel <= 0 || g.nextLevel === main) break;
     main = g.nextLevel;
@@ -241,6 +258,7 @@ describe.skipIf(!hasData("tyrian1.lvl", "levels1.dat", "tyrian.hdt", "palette.da
         if (ts.swaps.length > 5) console.log(`   ... ${ts.swaps.length - 5} more`);
       }
       for (const d of damaged) console.log(`unmodelled ${d}`);
+      for (const [k, n] of [...level1.sprites].sort()) console.log(`still a sprite: ${k} (${n} draws)`);
     }
     // A swap is explained when every frame it wasn't a model in is a known unmodelled damaged frame.
     const known = new Map<string, Set<number>>();
@@ -257,6 +275,18 @@ describe.skipIf(!hasData("tyrian1.lvl", "levels1.dat", "tyrian.hdt", "palette.da
     );
     expect(unexplained, "enemies drawn more than one way (a frame without a model? see sprite2Route.ts)").toEqual([]);
     expect(damaged.filter((d) => !KNOWN_DAMAGE_SWAPS.includes(d)), "modelled enemies with new unmodelled damaged frames").toEqual([]);
+  }, 600000);
+
+  test("level 1: every enemy is drawn as its model or flat art, but for known damaged frames (with the armour ship)", async () => {
+    const [level1] = await played();
+    const known = new Set(KNOWN_DAMAGE_SWAPS.map((k) => {
+      const [, sheet, size, frames] = /^([^|]+)\|(\d)\|\d+: damaged frames ([\d,]+)/.exec(k)!;
+      return frames.split(",").map((f) => `enemy ${sheet} group ${size}x${size} ${f}`);
+    }).flat());
+    const sprites = [...level1.sprites.keys()].filter((k) => k.startsWith("enemy ") && !known.has(k));
+    expect(sprites, "enemies still drawn as extruded sprites (MODEL_SWAP_REPORT=1 lists every sprite drawn)").toEqual([]);
+    // The bot flew level 1 on low armour, so the armour ship came, and was drawn as its model.
+    expect([...level1.shown.keys()]).toContain("enemies/tyrian10-279");
   }, 600000);
 
   test("every model a level of episode 1 shows is preloaded before it starts (sim/levelSprites.ts)", async () => {
