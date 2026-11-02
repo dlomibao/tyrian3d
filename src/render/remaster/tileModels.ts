@@ -115,6 +115,21 @@ export class TileModelIndex {
     return [...out];
   }
 
+  /**
+   * The models of tileset `shapes` that a level with these tiles (layer, 0-based tile number, and
+   * when it first shows) can draw, each with the earliest time any of its tiles shows.
+   */
+  modelsOfTiles(shapes: string, tiles: Iterable<{ layer: number; tile: number; time: number }>): Map<string, number> {
+    const out = new Map<string, number>();
+    for (const t of tiles) {
+      for (const c of this.cells.get(cellId(`${shapes}:${t.tile}`, t.layer as 0 | 1 | 2)) ?? []) {
+        if (c.entry.shapes !== shapes) continue;
+        out.set(c.entry.model, Math.min(out.get(c.entry.model) ?? Infinity, t.time));
+      }
+    }
+    return out;
+  }
+
   /** Record the tiles drawn this tick, for checking patterns. */
   prepare(items: readonly Draw[]): void {
     for (const m of this.drawn) m.clear();

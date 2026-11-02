@@ -377,7 +377,13 @@ export function showMessage(heading: string, lines: string[], prompt = "Press En
 
 /** A non-blocking status line (e.g. loading), removed by calling the returned function. */
 export function showStatus(text: string): () => void {
+  return showProgress(text).close;
+}
+
+/** showStatus whose text can change (e.g. a count of models loaded). */
+export function showProgress(text: string): { set(text: string): void; close(): void } {
   const screen = showScreen({ id: "status", backdrop: "title", layout: "narrow", passive: true, label: text });
-  screen.add(h("p", { class: "ui-status" }, h("span", { class: "ui-spinner" }), text));
-  return () => screen.close();
+  const label = h("span", { text });
+  screen.add(h("p", { class: "ui-status" }, h("span", { class: "ui-spinner" }), label));
+  return { set: (t) => void (label.textContent = t), close: () => screen.close() };
 }
