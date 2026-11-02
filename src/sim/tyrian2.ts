@@ -22,7 +22,7 @@ import {
 } from "../data";
 import { fdiv, fmul, mt_rand_mod, roundf } from "./cfloat";
 import { s8, s16, u8, u16, u32 } from "./cint";
-import { blit_sprite2, blit_sprite2_filter, drawGroup, drawList, drawState, type Sprite2Sheet } from "./draw";
+import { blit_sprite2, blit_sprite2_filter, drawGroup, drawList, drawState, ENEMY_KEY_BASE, type Sprite2Sheet } from "./draw";
 import { JE_itemScreenNonInteractive } from "./game_menu";
 import { loadMenuText } from "./helptext";
 import { mt_rand } from "./mtrand";
@@ -78,8 +78,7 @@ const EPISODE_AVAILABLE = 4;
 /** pcxpal (pcxmast.c): palette index for each JE_loadPic picture, [1..PCXnum]. */
 const pcxpal = [0, 7, 5, 8, 10, 5, 18, 19, 19, 20, 21, 22, 5] as const;
 
-/** Base for enemy draw keys (drawState.key), clear of small keys other draw code may use. */
-export const ENEMY_KEY_BASE = 1 << 24;
+export { ENEMY_KEY_BASE };
 
 // Scratch globals (varz.c temp, tempW, b).
 let tempW = 0;
@@ -97,7 +96,7 @@ let enemySheetSlot = new WeakMap<Enemy, number>();
 let enemySerial = new WeakMap<Enemy, number>();
 let nextEnemySerial = 1;
 
-function enemySprite2s(e: Enemy): Sprite2Sheet | null {
+export function enemySprite2s(e: Enemy): Sprite2Sheet | null {
   const slot = enemySheetSlot.get(e);
   if (slot !== undefined && slot >= 0) return g.enemySpriteSheets[slot];
   return e.sprite2s;

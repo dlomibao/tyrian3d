@@ -13,6 +13,7 @@
 //   &sprites=original|remastered   shots and pickups as the original sprites or the flat art (D42)
 //   &bg=original                   the original's tiles instead of the remastered backgrounds (D34, D48)
 //   &stress=N                      add N extra copies of the tick's shots (bullet-hell load test)
+//   &preload=0                     start without waiting for the level's models (D54)
 //   &solid=1                       the bot not invulnerable (its armour kept topped up instead), so the
 //                                  ship draws opaque rather than translucent
 //
@@ -33,6 +34,7 @@ import { g } from "../sim/state";
 import { loadLevel } from "../sim/tyrian2";
 import { JE_drawOptions } from "../sim/varz";
 import type { View } from "../render/view";
+import { levelModelInfo, preloadLevelModels } from "../app/levelPreload";
 
 /** Front weapons the cycle goes through: Pulse, Multi, Laser, Zica, Vulcan, Lightning, Starburst, Sonic, Protron, Missiles, Mega Pulse, Hyper Pulse. */
 const FAVOURITES = [1, 2, 4, 5, 7, 8, 9, 11, 12, 17, 19, 27];
@@ -63,6 +65,9 @@ export async function runPlayHarness(view: View): Promise<void> {
   startLevel();
   JE_drawOptions();
   clearSimInput();
+  // The level's models before its first tick (D54); `&preload=0` skips it, to see what a level
+  // started without them looks like.
+  if (num("preload", 1) !== 0) await preloadLevelModels(view, (text) => (overlay.textContent = text ?? ""));
 
   let t = 0;
   let paused = false;
@@ -83,6 +88,7 @@ export async function runPlayHarness(view: View): Promise<void> {
     if (r.levelOver || r.gameOver) {
       loadLevel(files, episode, g.nextLevel > 0 && r.completed ? g.nextLevel : g.mainLevel);
       startLevel();
+      void view.draws.preloadLevel(levelModelInfo()); // not waited for: the harness keeps ticking (D54)
       view.draws.resetInterpolation();
     }
     if (stress > 0) addStressShots(drawList.items, stress, t);

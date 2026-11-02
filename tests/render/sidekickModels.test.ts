@@ -1,9 +1,10 @@
 // Sprites drawn on their own (the player's sidekicks) as models (spriteModels.ts `ungrouped`,
-// DECISIONS.md D49): with no entry, or the model still loading, they draw exactly as before.
+// DECISIONS.md D49): with no entry they draw exactly as before; with the model still loading they're
+// held back briefly, then drawn as before (D54).
 import * as THREE from "three";
 import { describe, expect, test, vi } from "vitest";
 import { screenWorldX } from "../../src/game/playfield";
-import { DrawListRenderer } from "../../src/render/drawListRenderer";
+import { DrawListRenderer, HOLD_MS } from "../../src/render/drawListRenderer";
 import { spriteModelKey, spriteModels, type SpriteModelEntry } from "../../src/render/spriteModels";
 import { Pass, type DrawList, type Sprite2Sheet, type SpriteDraw } from "../../src/sim/draw";
 import type { Palette } from "../../src/data/palette";
@@ -74,10 +75,17 @@ describe("renderer: a sidekick's sprite as its model", () => {
     expect(s.models).toHaveLength(0);
   });
 
-  test("model still loading: drawn as a sprite", async () => {
+  test("model still loading: held back (drawn as nothing), then a sprite once HOLD_MS has passed (D54)", async () => {
     const sh = sheet(SHEET, 4);
-    const s = await render(make([ENTRY], false), [draw(sh, 3)]);
-    expect(s).toMatchObject({ instances: 1, visiblePools: 1 });
+    const r = make([ENTRY], false);
+    expect(await render(r, [draw(sh, 3)])).toMatchObject({ instances: 0 });
+    const now = performance.now();
+    const clock = vi.spyOn(performance, "now").mockReturnValue(now + HOLD_MS + 1);
+    try {
+      expect(await render(r, [draw(sh, 3)])).toMatchObject({ instances: 1, visiblePools: 1 });
+    } finally {
+      clock.mockRestore();
+    }
   });
 
   test("loaded: the model replaces the draw, centred on the sprite; other frames and grouped draws stay sprites", async () => {

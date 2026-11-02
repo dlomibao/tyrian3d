@@ -16,6 +16,7 @@ import type { TyrianFiles } from "../sim/resources";
 import { g } from "../sim/state";
 import { BLACK, levelFade } from "./fade";
 import type { Hud } from "./hud";
+import { preloadLevelModels } from "./levelPreload";
 
 /** Catch-up cap after a stall, as in a level (run.ts). */
 const MAX_TICKS_PER_FRAME = 8;
@@ -37,6 +38,7 @@ export async function playAttractDemo(c: AttractDemoContext): Promise<boolean> {
   loadDemoLevel(c.files);
   c.view.setPalettes(g.res.palettes); // JE_initEpisode may have switched the item data
   startLevel();
+  await preloadLevelModels(c.view); // D54
   c.view.draws.resetInterpolation();
   c.music.play(g.levelSong - 1);
   clearSimInput();
