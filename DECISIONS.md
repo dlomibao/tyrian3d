@@ -1967,3 +1967,53 @@ fills the window) the pose's own framing stays, the ship behind the panel as bef
 
 **Known limit.** At 1126x720 the hangar's 960 px panel leaves only a strip below it, so the Talon
 is small there (about half scale); at 1280x800 and up it sits large beside the panel.
+
+## D56 — The armour ship and its crates are models; the Vulcan Cannon's bullets are painted tracers
+
+2026-11-02
+
+**Armour ship.** When a player's armour is under 6, JE_main's low-armour warning (tyrian2.c
+L1872-1893, `armorWarning` in src/sim/game.ts) spawns enemy type 560 every 500 ticks: tyrian.shp#10
+(Coins&Gems, shape bank 21) frame 279, a 2x2 object, armour 4, which leaves one of the crates
+561-563 at random (frames 127, 129, 131: +2, +4, +8 armour). No event names them, so the catalogue,
+the preload list and the swap detector (whose bot keeps 10 armour) never met them, and they were
+drawn as extruded sprites, as was every crate but 129 (modelled for level 3.25).
+- Models: `assets/blender/enemies/tyrian10-279.py`, built with the Talon's hard-surface toolkit
+  (D50): the sprite's plan (outline ring included, on its column-12 axis), a red wing bar with the
+  lit crease of column 6, a fuselage tapering to the nose at the bottom (it flies down the screen)
+  with a spine and twin ridges, round brown pods with a collar and a groove (the dark row 12), two
+  engines behind the wing (the lit round tops of rows 0-1), no canopy (the sprite has no glass);
+  palette materials at the sprite's mid-tones, baked occlusion, an outline shell. One frame, no
+  damaged graphic. `tyrian10-127.py` and `tyrian10-131.py` are the strapped crate's block
+  (`tyrian10-129.py`) without straps, in the grey and blue of their sprites.
+- Catalogue: `CONDITIONAL_SPAWNS` (tests/tools/spriteCatalogue.test.ts) adds types 560-563 to every
+  run; `CATALOGUE_SPAWNS_ONLY=1` writes just their missing folders.
+- Preload: `levelSprites` adds `ARMOR_SHIP_TYPES` to every level at time 0 (the ship can come at any
+  time; about 330 KB).
+- Detector: tests/render/modelSwap.test.ts flies level 1 on 5 armour, so the ship comes and is shot
+  down, and now fails if any enemy is drawn as its extruded sprite but for the known damaged frames
+  (D54); `MODEL_SWAP_REPORT=1` lists every sprite still drawn extruded (level 1: those damaged
+  frames and the explosion sheet, which D35 draws as hot sprites on purpose; no shot or pickup).
+- Harness: `?debug=play&armor=N` holds the bot's armour at N (`&armor=3` shows the ship from tick ~60).
+
+**Vulcan Cannon.** Its shots are tyrian.shp#7 frame 67 (power 1-6) and 70 (power 7-11, two side by
+side); the Pulse-Cannon's are 58, 59, 60, 62, 165. The atlas mapping was right (each frame cut from
+its own cell, no shared or mirrored cell). The originals share one palette ramp (113-124: yellow
+head, red tail), the Vulcan's slim (3 px) and twice as fast, the Pulse's 4 px blobs; Gemini painted
+both as soft orange flame plumes, so the difference left was the width. The D35 halo and trail are
+not the cause (the trail is longer for the faster Vulcan, which helps). Fix: `flat_art.py` can draw a
+frame with a painter instead of cutting it (`PAINTED`), and 67 and 70 are `paint_tracer`: down each
+column holding the sprite's brightest pixels, the colour is that column's own pixels, smoothly
+interpolated, falling across the slug to its neighbours' pixels, with a white-hot core in the head
+and a thin lit line; no flame texture. The alpha is the silhouette as for cut frames, and
+`cut` packs them with the rest (the other frames are re-encoded from the same sources).
+The other first-shop weapons (Multi-Cannon front 2 and rear 10, Protron 13, Sonic Wave 11, Heavy
+Guided Bombs 29) were checked frame by frame (original | atlas): every frame they fire is in the
+atlas, from its own cell, facing the right way (mirrored pairs included); no other mismatch.
+
+**Options considered:** for the Vulcan, *re-asking Gemini* (not available here) or *the
+original pixels upscaled* (stays pixel art beside painted neighbours); for the ship, *a concept
+bake* (no concept image exists for it) and *flat art* (it's an enemy, and enemies are models, D15).
+
+**Review:** `?debug=play&armor=3&freezeAt=85` (the ship), `?debug=play&front=7&power=1` and
+`&power=7` against `&front=1` (Vulcan vs Pulse).
