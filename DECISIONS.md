@@ -1890,3 +1890,23 @@ a call for every model, not this one.
 
 **Review:** the title screen, `?debug=play&solid=1&skip=400&freezeAt=402` (the ship over water,
 which makes its pixels easy to separate). The capture and measurement scripts are not in the repo.
+
+## D54 — The ink outline is converted from sRGB; the menu ship goes where the panels leave room
+
+**Outline.** OutlineEffect reads `defaultColor` as linear working-space values, so the (0.07, 0.035, 0)
+that stood for palette 16, (16, 8, 0), rendered as olive-brown (75, 53, 0) (D53 noted it). Every
+outline now takes `INK_OUTLINE` (src/render/outlineColor.ts), (16, 8, 0) converted from sRGB, so it
+draws as the sprites' near-black ring: the game View, the menu backdrop, the model viewer and the
+destruct renderer (whose own 0.05, 0.03, 0 guess is replaced by the same ink).
+
+**Menu ship.** The title and hangar poses put the ship at a fixed off-centre spot, but the panels
+are centred and 28 to 60 rem wide, so at common window sizes the Talon sat partly or wholly behind
+them (hangar frameX -0.62 clipped it at the left). The backdrop now measures the top screen's
+panels each frame and puts the ship in the best gap beside, above or below them (the pose's side
+favoured by 15%), scaled so its reach (a circle on the ground seen from the camera's elevation, plus
+height and bob) fits with a 14 px margin, never larger than the pose's scale (`freeSlot`). Panels'
+design is untouched. Where no gap takes the ship at a quarter of its scale (phones, where the panel
+fills the window) the pose's own framing stays, the ship behind the panel as before.
+
+**Known limit.** At 1126x720 the hangar's 960 px panel leaves only a strip below it, so the Talon
+is small there (about half scale); at 1280x800 and up it sits large beside the panel.
