@@ -2088,3 +2088,74 @@ around `?debug=sprites&episode=1&level=9&row=140&freeze=80`, and Options → Ter
 Verified so far with a synthetic atlas whose gutters are magenta (every 7th tile left out for the
 fallback): no magenta pixel at dpr 2 or 0.3, while widening the rect by 8 texels from the console
 shows 1,306 — the check sees a leak when there is one. Docs: docs/terrain-pipeline.html.
+
+## D58 — HD terrain art: Gemini paints map regions and tile contexts; edge strips are solved jointly
+
+2026-11-02
+
+**Decision:** The art D57 draws is made by Google Gemini from input sheets of the level's tiles and
+brought back by `tools/terrain_hd.py`, the way D43 does it for sprites:
+- **Inventory** (`inventory`): from the level's maps, what is drawn as a tile in the default look:
+  structure-model matches are found on the whole map as `TileModelIndex` finds them (biggest pattern
+  first; layer 1-2 models replace their tiles, ground models keep them). For TYRIAN (map 1-9,
+  `shapesz.dat`): 66 ground tiles (4,200 cells; 29 of them under the trees, bunkers, wreck and boulders
+  of D34/D47, still drawn), 15 cloud tiles on layer 1 (3,208 cells), and none on layer 2 (all 1,290
+  cells are under models). Each tile gets its counts, its neighbours per side, its usual neighbours
+  (also diagonally) and a representative 3x3 neighbourhood from the map, and a material group from its
+  palette ramps (Tyrian's ramps are one colour each).
+- **Sheets** (`sheets`), PNGs on black, padded to one of Gemini's aspect ratios (1:1, 3:4, 4:3, 9:16,
+  16:9), each with its prompt in `sheets/manifest.json` (cell rects, padding, grid, which tile sits
+  where). For the ground, 7x6-tile stretches of the map at 6x (1080 px square), chosen as a set cover
+  so every tile is inside one away from its border: 10 sheets. For the clouds, 3x3 contexts at 4x, 7-9
+  per sheet (1104 px): 2 sheets. Ground contexts by material (dirt and rock, dirt-forest edges, forest
+  under trees, bunker and wreck tiles) are made too, as optional retries (9 sheets).
+- **Cutter** (`cut`): each cell of an answer (any size, same aspect) is registered to the sheet's own
+  picture of it by normalised cross-correlation over a rescale of +-6% and a shift, each tile then by a
+  small shift; the tile is resampled at 8 texels per pixel and its colour matched to the original's
+  (per-channel mean and low-frequency contrast). The best-fitting painting per tile wins (or the mean of
+  the good ones). Alpha on layers 1-2 is the original silhouette upscaled with MMPX among the tile's
+  usual neighbours, blurred and ramped. **Seams:** every tile side has an edge strip (its outer 4 texels,
+  smoothed along the edge); all strips are solved at once, least squares over every pair of tiles the
+  map puts side by side, weighted by how often, plus a pull of 0.15 towards the tile's own painting.
+  The most frequent pairs (a texture next to itself, a tile and its usual neighbour) come out
+  (nearly) identical; a side with many different neighbours gets the strip closest to all of them. Each tile's
+  border is then moved onto its strips: the difference fades in over 40 texels, so the painting's
+  detail stays, and the outer 4 texels are the strip. Atlases are packed to D57's rules.
+- **Check** (`check`): contact sheets of the whole map, original beside HD, and a seam measure over
+  every edge the map has. On stand-in answers (`fake`: the sheets MMPX-upscaled, rescaled +-1.5%,
+  shifted up to 6 px, blurred, noised and colour-shifted), every tile registered with NCC >= 0.94, and
+  the colour step between the two texels at a tile edge is 0.88x (ground) and 0.91x (clouds) the step
+  between neighbouring texels inside a tile; without the seam pass it was 2.8x and 5.2x.
+
+**Options considered:**
+- *Map regions for the ground, contexts for the clouds (chosen):* in a region Gemini paints a tile's
+  real neighbours in the same stroke, so most edges already continue (the pairs in a region are the
+  map's own) and the strips have less to fix; every tile of the sheet is used, at 6x instead of 4x
+  (a 3x3 context spends eight ninths of the sheet on neighbours that are thrown away), so 10 sheets
+  cover the ground instead of 9 sheets at lower resolution. Contexts suit the clouds, whose sheets are
+  mostly black around a few shapes and which are all one material.
+- *Contexts for everything:* the uniform grids Gemini kept well for sprites (D43), but each centre
+  tile is painted on its own, so its edges agree with its neighbours' only as far as the seam pass
+  forces them. Kept as optional retries.
+- *Seams by blending each tile's border to a smooth upscale of its own pixels among its usual
+  neighbours:* exact for usual pairs only; on TYRIAN's clouds, where tile 53 has several different
+  neighbours on every side, steps of ~20 levels were left at edges like 53 over 63 (inside a tile
+  ~2).
+- *Variants (D57) for each neighbour combination:* exact, but 824 ground and 629 cloud combinations;
+  the jointly solved strips get the measured edges below the inside steps with none. Variants stay
+  available for a pair that still shows.
+- *Averaging the alpha strips too:* where one tile's edge is empty and its neighbour's isn't, it drew a
+  faint line of cloud; alpha stays the silhouette.
+
+**Review:** Send the primary sheets to Gemini one at a time (`sheets/manifest.json` lists them with
+their prompts; the ground regions first, then the clouds), save each answer as
+`<work>/results/<sheet name>.png|jpg`, then `python tools/terrain_hd.py --work <work> cut` and
+`check`, and look at `check/*.jpg` and `cut-report.json` (an NCC under ~0.5 means the cell moved or was
+repainted: retry it, or send the optional context sheet for that tile). The atlases in
+`public/art/terrain/shapesz/` are committed with the real answers (with a CREDITS.md row, D41); the
+sheets and answers stay out of git (D3). Known limits: palette cycling and swaps don't reach the
+painting (D57); where only some tiles have art, an HD tile next to a 4x one has an ordinary seam; at
+4x and 6x per pixel Gemini's ~1024 px answers are upsampled to 8x, so detail is at most what fits.
+To extend to another level: `--level <ep-file>` for `inventory`, `sheets`, `cut` and `check` (the
+tileset comes from the level; a tileset shared by several levels should be inventoried for all of
+them before its atlas is cut, which the tool does not do yet).
