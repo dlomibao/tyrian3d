@@ -17,6 +17,7 @@
 
 import * as THREE from "three";
 import { OutlineEffect } from "three/addons/effects/OutlineEffect.js";
+import { INK_OUTLINE } from "../render/outlineColor";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { decodeSprite2, type Palette, vga6To8 } from "../data";
 import { paletteMaterial } from "../render/paletteMaterial";
@@ -34,7 +35,7 @@ const CAMERA_FOV = 30;
 const CAMERA_PITCH = THREE.MathUtils.degToRad(9);
 const FRAME_MARGIN = 1.04;
 const BACKGROUND = 0x020308;
-const OUTLINE = { defaultThickness: 0.0035, defaultColor: [0.05, 0.03, 0.0] };
+const OUTLINE = { defaultThickness: 0.0035, defaultColor: INK_OUTLINE };
 const NO_OUTLINE = { outlineParameters: { visible: false } };
 const UNIT_EXTRUDE: ExtrudeOptions = { maxHeight: 6, edgeHeight: 2, radius: 4, bottom: 6 };
 const WALL_EXTRUDE: ExtrudeOptions = { maxHeight: 9, edgeHeight: 7, radius: 2, bottom: 9 };

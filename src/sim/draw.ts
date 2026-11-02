@@ -149,6 +149,12 @@ export interface DrawList {
 
 export const drawList: DrawList = { items: [], palette: 0, filter: -99, brightness: 0, screen: null };
 
+/**
+ * Base for enemy draw keys (drawState.key), clear of small keys other draw code may use: an enemy's
+ * draws are ENEMY_KEY_BASE + serial * 4 + quarter (tyrian2.ts blit_enemy).
+ */
+export const ENEMY_KEY_BASE = 1 << 24;
+
 /** The pass and key that the next blits record. Set by the sim around each draw section. */
 export const drawState = { pass: Pass.Background1 as Pass, key: -1 };
 

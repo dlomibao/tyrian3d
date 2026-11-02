@@ -36,7 +36,9 @@ function startGame(): void {
   view.draws.setSpriteModels(spriteModels(), loadModel);
   view.draws.setBackgroundStyle(settings.background); // D34
   // Remastered flat art for shots and pickups (D42), where public/art/sprites/ has it.
-  loadSpriteArt()
+  const art = loadSpriteArt();
+  view.draws.setSpriteArtLoading(art); // a level start waits for it (D54)
+  art
     .then((art) => view.draws.setSpriteArt(art))
     .catch((err) => console.warn("sprite art failed to load; using the original sprites", err));
   loadModel("usp_talon")

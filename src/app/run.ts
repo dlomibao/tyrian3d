@@ -29,6 +29,7 @@ import { highScoreCheckDue } from "../sim/highscores"; // [high scores]
 import { PauseButton, showPause } from "./pause"; // ui-framework: pause screen
 import { askForData, showMessage, showStatus, showTitle, type TitleChoice } from "./screens";
 import { runItemScreen } from "./shop";
+import { preloadLevelModels } from "./levelPreload";
 import { playAttractDemo } from "./attractDemo"; // [demos]
 import { TITLE_IDLE_MS } from "./idle"; // [demos]
 import { hasDemos, setNextDemo } from "../sim/demo"; // [demos]
@@ -235,6 +236,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
       await story(); // port-story: the screens after the item screen, and fade_black(50)
       if (!g.doNotSaveBackup) JE_saveGame(lastLevelSlot(), "LAST LEVEL    "); /*Save backup game*/
       startLevel();
+      await preloadLevelModels(view); // D54: the level's models before its first tick
       view.draws.resetInterpolation();
       music.play(g.levelSong - 1);
       clearSimInput();

@@ -30,6 +30,7 @@ import { buildResources, requireFile } from "../sim/resources";
 import { g } from "../sim/state";
 import { loadLevel } from "../sim/tyrian2";
 import type { View } from "../render/view";
+import { preloadLevelModels } from "../app/levelPreload";
 
 export async function runLevelHarness(view: View): Promise<void> {
   const params = new URLSearchParams(location.search);
@@ -73,6 +74,7 @@ export async function runLevelHarness(view: View): Promise<void> {
   loadout();
   startLevel();
   clearSimInput();
+  await preloadLevelModels(view); // D54
 
   const god = params.get("god") === "1";
   for (let i = num("skip", 0); i > 0 && !g.reallyEndLevel; i--) {

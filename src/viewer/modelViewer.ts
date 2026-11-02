@@ -18,6 +18,7 @@ import "./viewer.css";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { OutlineEffect } from "three/addons/effects/OutlineEffect.js";
+import { INK_OUTLINE } from "../render/outlineColor";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { filesFromZip, loadDevFiles, type FileMap } from "../assets/files";
@@ -38,7 +39,7 @@ const LEVEL_PALETTE = 5;
 /** The enemy hit flash's hue (blit_sprite2_filter), for the Flash toggle. */
 const FLASH_HUE = 0x70;
 /** The game's model outline (src/render/view.ts OUTLINE). */
-const OUTLINE = { defaultThickness: 0.0045, defaultColor: [0.07, 0.035, 0.0] };
+const OUTLINE = { defaultThickness: 0.0045, defaultColor: INK_OUTLINE };
 /** Sprite pixels per Blender unit (assets/blender/README.md). */
 const PX_PER_UNIT = 12;
 

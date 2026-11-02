@@ -1890,3 +1890,80 @@ a call for every model, not this one.
 
 **Review:** the title screen, `?debug=play&solid=1&skip=400&freezeAt=402` (the ship over water,
 which makes its pixels easy to separate). The capture and measurement scripts are not in the repo.
+
+## D54 — A level's models load before it starts; an enemy is drawn one way for its life
+
+2026-11-02
+
+**Problem:** in TYRIAN (level 1) enemies appeared as extruded sprites and then popped into their
+models. A model's .glb was fetched the first time its sprite was drawn, and the sprite stood in
+until it arrived, so on the deployed site with a cold cache most first appearances popped (level 1
+needs about 16 MB of enemy models and 16 MB of structure models). A detector also looked for
+frame-coverage swaps (animation frames without a model).
+
+**Decision:**
+- **Preload** (`DrawListRenderer.preloadLevel`, `src/app/levelPreload.ts`): after `startLevel` and
+  before the first tick (the game, the attract demos, `?debug=play`, `?debug=level`), the level's
+  models load: `src/sim/levelSprites.ts` lists every sprite the level can draw (every enemy type any
+  event names, the random spawns, what they launch or leave behind, each with all its egraphic
+  frames and its damaged graphic, on the sheet of its shape bank if an event of the level loads it;
+  the players' ships, two-half ships and sidekicks with their charge frames), with roughly when each
+  is first needed (its event's time), and the background tiles with when they scroll in, which pick
+  the structure models (`TileModelIndex.modelsOfTiles`; previously the first tile drawn fetched the
+  whole tileset). Loads go earliest needed first, six at a time (on-demand loads skip the queue), and
+  reuse what's loaded. The level starts once what's due in its first 1000 curLoc (~30 s of play,
+  `PRELOAD_WAIT_LOC`; level 1: ~10 MB) and the sprite art have loaded, or after 20 s; the rest load
+  in the background while it plays. A status line shows the count if the wait passes 200 ms.
+- **Never pop** (`DrawListRenderer.objectLook`): each object (an enemy, its four quarters sharing
+  one key; a ship; a sidekick) is decided when it first needs a model: its model if loaded; held back
+  (drawn as nothing) for up to `HOLD_MS` = 250 ms if the model is loading; else, or once the hold
+  runs out, its extruded sprite **for its whole life**, even after the model arrives (later enemies
+  of the type get the model). A model that fails to load: the sprite at once. A model-drawn object
+  whose next frame's model isn't in yet is held back that frame. Structures likewise: tiles or model
+  decided when one comes into view, kept while it stays in view.
+- **Frame coverage** (`tests/render/modelSwap.test.ts`): plays level 1 with the bot and routes every
+  draw as the renderer does (`src/render/sprite2Route.ts`, shared with the renderer). The only enemies
+  that mix are 19 pieces whose **damaged** frames have no model: the rocks of newshe.shp (types
+  522-527, frames 7, 9, 11, 45, 47, 49: shot away they show blue beneath) and the pieces of the large
+  multi-part enemy of newsh4.shp (types 46-63, frames 162, 164, 168, 170, 200, 202, 206, 208, 240, 242, 244, 246, 280:
+  battle damage). They turn from model to sprite when damaged; that is a real change of look, so
+  they aren't mapped to their undamaged models, and 19 damaged models is more than a small fix. They
+  are listed in the test (`KNOWN_DAMAGE_SWAPS`), which fails on any other mix. The test also checks,
+  over every level of episode 1, that every model a level shows is in its preload list.
+
+**Options considered:**
+- *Hide every enemy until its model loads* (the earlier WIP): on a slow network enemies would be
+  invisible and still shooting. Rejected for the short hold plus a lifetime choice.
+- *Preload every model of every sheet the level loads:* simpler, but loads models of enemy types the
+  level never makes; the per-type list for level 1 is 150 models (122 actually shown in a bot run).
+- *Wait for all of the level's models:* 32 MB before level 1 starts on a cold cache. The time-ordered
+  queue starts the level after the first third.
+- *Map damaged frames to the undamaged model:* hides the damage the game shows.
+
+**Review:** `tests/render/modelPop.test.ts` (a delayed loader: hold, lifetime sprite, failure,
+queue order, concurrency, wait horizon, timeout), `tests/render/modelSwap.test.ts`. In Chrome
+through a throttling proxy with no cache (no revalidation, `no-store`): at 1.5 MB/s level 1 started
+after ~9 s with every enemy drawn as its model from its first frame (107 objects, none held or
+sprite, no structure as tiles); at 200 KB/s the preload gave up at 20 s with 12 of 72 loaded, and over
+the next 2300 frames 25 objects were sprites for life, 11 were held and then models, and nothing
+went from sprite to model. On `main` the same run shows extruded enemies beside models. `?debug=play`
+takes `&preload=0` to start without waiting.
+## D55 — The ink outline is converted from sRGB; the menu ship goes where the panels leave room
+
+**Outline.** OutlineEffect reads `defaultColor` as linear working-space values, so the (0.07, 0.035, 0)
+that stood for palette 16, (16, 8, 0), rendered as olive-brown (75, 53, 0) (D53 noted it). Every
+outline now takes `INK_OUTLINE` (src/render/outlineColor.ts), (16, 8, 0) converted from sRGB, so it
+draws as the sprites' near-black ring: the game View, the menu backdrop, the model viewer and the
+destruct renderer (whose own 0.05, 0.03, 0 guess is replaced by the same ink).
+
+**Menu ship.** The title and hangar poses put the ship at a fixed off-centre spot, but the panels
+are centred and 28 to 60 rem wide, so at common window sizes the Talon sat partly or wholly behind
+them (hangar frameX -0.62 clipped it at the left). The backdrop now measures the top screen's
+panels each frame and puts the ship in the best gap beside, above or below them (the pose's side
+favoured by 15%), scaled so its reach (a circle on the ground seen from the camera's elevation, plus
+height and bob) fits with a 14 px margin, never larger than the pose's scale (`freeSlot`). Panels'
+design is untouched. Where no gap takes the ship at a quarter of its scale (phones, where the panel
+fills the window) the pose's own framing stays, the ship behind the panel as before.
+
+**Known limit.** At 1126x720 the hangar's 960 px panel leaves only a strip below it, so the Talon
+is small there (about half scale); at 1280x800 and up it sits large beside the panel.

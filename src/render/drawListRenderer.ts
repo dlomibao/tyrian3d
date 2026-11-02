@@ -12,8 +12,12 @@
 // - Positions are interpolated between the last two ticks at display rate (interpolation.ts, D2).
 // - Selected sprites are replaced by hand-made models (D4): the player ship with its banking
 //   frames (MODEL_OVERRIDES), and whole enemies, all of whose tiles become one model
-//   (setSpriteModels, D15), and sprites drawn on their own, like sidekicks (D49). Models load on
-//   first use; until then the sprite stays extruded.
+//   (setSpriteModels, D15), and sprites drawn on their own, like sidekicks (D49). preloadLevel
+//   loads a level's models before it starts. Each object (an enemy, a ship, a sidekick) is drawn
+//   one way for its life (D54): as its model if that had loaded when it appeared; held back (drawn
+//   as nothing) for up to HOLD_MS while it loads; else as its extruded sprite, even after the model
+//   arrives. So a sprite never pops into its model. Which way a sprite is drawn is decided by
+//   sprite2Route.ts.
 //   Materials named pal_<index> take their colour from the live palette.
 //
 // - Remastered backgrounds (setBackgroundStyle("remaster"), D34): the ground is upscaled 4x
@@ -30,7 +34,7 @@
 import * as THREE from "three";
 import type { Palette } from "../data/palette";
 import { PX_PER_UNIT, screenWorldX, screenWorldZ } from "../game/playfield";
-import { Pass, type Draw, type DrawList, type SpriteDraw, type SpriteEffect, type TileDraw } from "../sim/draw";
+import { ENEMY_KEY_BASE, Pass, type Draw, type DrawList, type Sprite2Sheet, type SpriteDraw, type SpriteEffect, type TileDraw } from "../sim/draw";
 import { DrawInterpolator } from "./interpolation";
 import { FxMode, groundTileMaterial, paletteMaterial } from "./paletteMaterial";
 import { PaletteTexture } from "./paletteTexture";
@@ -38,7 +42,9 @@ import { passHeight } from "./passHeights";
 import { SpriteMeshCache } from "./spriteMesh";
 import { colourFrame, rigModel, showFrame, type FrameRig } from "./modelFrames";
 import { isModelHelper, setModelBlended } from "./modelPrep";
-import { spriteModelKey, type ModelOverride, type SpriteModels } from "./spriteModels";
+import type { SpriteModels } from "./spriteModels";
+import { Route, Sprite2Router } from "./sprite2Route";
+import type { LevelSprite, LevelTile } from "../sim/levelSprites";
 import { TileAtlas } from "./tileAtlas";
 import { RemasteredFx, SpriteLook } from "./vfx/remasteredFx";
 import { vfxModeFromSearch, type VfxMode } from "./vfx/vfxMode";
@@ -181,8 +187,79 @@ interface ModelClone {
 interface ModelPool {
   name: string;
   source: THREE.Object3D | null;
+  /** The load failed: the model's sprites are drawn extruded. */
+  failed: boolean;
+  /** Settles when the load has finished, loaded or failed. */
+  settled: Promise<void>;
   clones: ModelClone[];
   used: number;
+}
+
+/** What a level can show (preloadLevel): the sprites it can draw and its background tiles. */
+export interface LevelModelInfo {
+  /** Every sprite the level can draw (sim/levelSprites.ts): enemies' frames, ships, sidekicks. */
+  sprites: readonly LevelSprite[];
+  /** The level's shapes?.dat (the tileId prefix), for its structure models; undefined: none. */
+  tileShapes?: string;
+  /** The tiles on its maps (sim/levelSprites.ts levelTiles), for which structure models it needs. */
+  tiles?: readonly LevelTile[];
+}
+
+/** A model a level can show, and roughly when it's first needed (LevelSprite.time). */
+export interface LevelModel {
+  name: string;
+  time: number;
+  structure: boolean;
+}
+
+/** How preloadLevel went. */
+export interface PreloadResult {
+  /** Loads waited for (models due by `waitUntil`, and the sprite art), and how many had finished. */
+  total: number;
+  done: number;
+  /** Every model of the level, waited for or not, which go on loading in the background. */
+  models: number;
+  /** It gave up waiting after `timeoutMs`; the rest go on loading. */
+  timedOut: boolean;
+}
+
+/** Model loads preloadLevel keeps going at once, earliest needed first (on-demand loads skip the queue). */
+const PRELOAD_CONCURRENCY = 6;
+
+/**
+ * How one object (an enemy, a ship, a sidekick: the draws sharing an object key) is drawn while
+ * its model is shown or due (D54). Decided when the object first needs a model and kept for its
+ * life, so it never pops from sprite to model.
+ */
+const enum ObjectLook {
+  /** Its model was still loading when it appeared: drawn as nothing for up to HOLD_MS. */
+  Holding,
+  Model,
+  /** Its model wasn't there in time (or failed): the extruded sprite for its whole life. */
+  Sprite,
+}
+
+interface ObjectState {
+  look: ObjectLook;
+  /** When it first appeared (performance.now()), for Holding. */
+  since: number;
+  /** The last frame (DrawListRenderer.frame) it was drawn on, for forgetting it. */
+  seen: number;
+}
+
+/**
+ * How long an object whose model is still loading is held back (drawn as nothing) before it's
+ * locked to its sprite for its life (D54). Short enough that an enemy flying in is barely late.
+ */
+export const HOLD_MS = 250;
+
+/**
+ * The object a draw belongs to, for ObjectState: an enemy (its four quarters share one), or the
+ * draw's own key (a player ship, a trail, a sidekick). Null without a key.
+ */
+function objectKey(d: SpriteDraw): number | null {
+  if (d.key < 0) return null;
+  return d.key >= ENEMY_KEY_BASE ? -1 - Math.floor((d.key - ENEMY_KEY_BASE) / 4) : d.key;
 }
 
 /** Loads a model by path in public/models/ (without .glb). */
@@ -220,15 +297,20 @@ export class DrawListRenderer {
   private readonly allPools: Pool[] = [];
   private readonly groundGeometry = groundQuad();
   private readonly unitQuad = unitQuad();
-  private readonly overridesBySheet = new Map<string, { override: ModelOverride; pool: ModelPool }[]>();
   private readonly modelPools = new Map<string, ModelPool>();
+  /** Which way each Sprite2 draw goes: flat, a model, or extruded (sprite2Route.ts, D54). */
+  private router = new Sprite2Router();
+  /** The sheet of the draw being routed, for emptyTile. */
+  private routeSheet: Sprite2Sheet | null = null;
+  private readonly emptyTile = (index: number): boolean => this.cache.sprite2Geometry(this.routeSheet!, index, 1) === null;
+  /** The sprite art (manifest and atlases) while it loads, so preloadLevel can wait for it. */
+  private artLoading: Promise<unknown> = Promise.resolve();
+  /** Per object key (objectKey): whether it's drawn as its model or its sprite (D54). */
+  private readonly objects = new Map<number, ObjectState>();
+  /** Per structure in view (anchor|model): whether it's drawn as its model or its tiles (D54). */
+  private readonly structureLooks = new Map<string, { model: boolean; seen: number }>();
   /** `?height=N`: the models stretched along their up axis (modelHeight.ts). */
   private readonly modelHeight = modelHeightFromUrl();
-  private spriteModels = new Map<string, string>();
-  /** [two-player] Grouped ships' banking (spriteModels.ts groupBank). */
-  private groupBank = new Map<string, number>();
-  /** Sprites drawn on their own (sidekicks) that a model replaces (spriteModels.ts ungrouped). */
-  private ungroupedModels = new Map<string, string>();
   private loader: ModelLoader | null = null;
   private frame = 0;
   private lastTime = performance.now();
@@ -244,7 +326,7 @@ export class DrawListRenderer {
   private readonly placedStructures = new Set<string>();
   private readonly structures = new StructureInstances();
   /** Structure models asked for (loading or loaded). */
-  private readonly structureLoads = new Set<string>();
+  private readonly structureLoads = new Map<string, Promise<void>>();
   private readonly preloadedShapes = new Set<string>();
   /** Remastered flat sprite art (D42): the atlases, if any, and the layer that draws them. */
   private spriteArt: SpriteArt<THREE.Texture> | null = null;
@@ -299,6 +381,15 @@ export class DrawListRenderer {
   setSpriteArt(art: SpriteArt<THREE.Texture> | null): void {
     this.spriteArt = art;
     this.artSheets = new WeakMap();
+  }
+
+  /**
+   * The sprite art while it loads (loadSpriteArt's promise): preloadLevel waits for it and its
+   * atlases, so shots and pickups are flat from the level's first tick rather than turning flat
+   * when the art arrives.
+   */
+  setSpriteArtLoading(loading: Promise<SpriteArt<THREE.Texture> | null>): void {
+    this.artLoading = loading.then((art) => art?.loaded).catch(() => undefined);
   }
 
   /**
@@ -373,20 +464,92 @@ export class DrawListRenderer {
 
   /**
    * Draw sprites as models (spriteModels.ts): player ships with their banking frames, grouped
-   * sprites (whole enemies), and sprites drawn on their own (sidekicks). Models are fetched with `loader` the first time they're seen; until
-   * then their sprites stay extruded. Models are centred on their origin, forward -Z.
+   * sprites (whole enemies), and sprites drawn on their own (sidekicks). Models are fetched with
+   * `loader` by preloadLevel, or the first time they're seen (see objectLook for what's drawn
+   * meanwhile). Models are centred on their origin, forward -Z.
    */
   setSpriteModels(models: SpriteModels, loader: ModelLoader): void {
     this.loader = loader;
-    this.spriteModels = models.grouped;
-    this.groupBank = models.groupBank ?? new Map();
-    this.ungroupedModels = models.ungrouped ?? new Map();
-    this.overridesBySheet.clear();
-    for (const override of models.banked) {
-      let list = this.overridesBySheet.get(override.sheetId);
-      if (!list) this.overridesBySheet.set(override.sheetId, (list = []));
-      list.push({ override, pool: this.modelPool(override.model) });
+    this.router = new Sprite2Router(models);
+    for (const o of models.banked) this.modelPool(o.model);
+  }
+
+  /**
+   * The models a level can show, earliest needed first: those of the sprites it can draw
+   * (sim/levelSprites.ts: its enemies' frames, damaged frames and launched enemies, the players'
+   * ships and sidekicks) and, in the remastered backgrounds, the structure models of its tiles.
+   */
+  levelModels(info: LevelModelInfo): LevelModel[] {
+    const out = new Map<string, LevelModel>();
+    for (const r of info.sprites) {
+      const name = this.router.modelFor(r.sheet, r.size, r.index, r.grouped);
+      if (name === undefined) continue;
+      const had = out.get(name);
+      if (!had || r.time < had.time) out.set(name, { name, time: r.time, structure: false });
     }
+    if (this.background === "remaster" && info.tileShapes) {
+      for (const [name, time] of this.tileModels.modelsOfTiles(info.tileShapes, info.tiles ?? [])) out.set(name, { name, time, structure: true });
+    }
+    return [...out.values()].sort((a, b) => a.time - b.time);
+  }
+
+  /**
+   * Load what a level can show before it starts (D54), so nothing pops from sprite to model during
+   * play. Loads go in order of when they're needed, PRELOAD_CONCURRENCY at a time; models already
+   * loaded or loading are reused. Resolves once the models needed by `waitUntil` (curLoc units;
+   * default all of them) and the sprite art have finished (loaded or failed), or after `timeoutMs`,
+   * whichever is first; the rest go on loading. `progress(done, total)` counts what's waited for.
+   */
+  async preloadLevel(
+    info: LevelModelInfo,
+    { progress, timeoutMs = Infinity, waitUntil = Infinity }: { progress?: (done: number, total: number) => void; timeoutMs?: number; waitUntil?: number } = {},
+  ): Promise<PreloadResult> {
+    const models = this.levelModels(info);
+    // The structures' own first-sight loading (preloadStructures) would fetch the whole tileset.
+    if (info.tileShapes) this.preloadedShapes.add(info.tileShapes);
+    const settled = new Map<string, Promise<void>>();
+    const load = (m: LevelModel): Promise<void> => {
+      let p = settled.get(m.name);
+      if (!p) settled.set(m.name, (p = m.structure ? this.structureSettled(m.name) : this.modelPool(m.name).settled));
+      return p;
+    };
+    // Each waited-for model's promise settles when a worker has loaded it.
+    const due = models.filter((m) => m.time <= waitUntil);
+    const finished = new Map<string, { promise: Promise<void>; resolve: () => void }>();
+    for (const m of due) {
+      let resolve!: () => void;
+      const promise = new Promise<void>((r) => (resolve = r));
+      finished.set(m.name, { promise, resolve });
+    }
+    let next = 0;
+    const worker = async () => {
+      while (next < models.length) {
+        const m = models[next++];
+        await load(m);
+        finished.get(m.name)?.resolve();
+      }
+    };
+    for (let i = 0; i < PRELOAD_CONCURRENCY; i++) void worker();
+
+    const waits = [...[...finished.values()].map((f) => f.promise), this.artLoading];
+    const result: PreloadResult = { total: waits.length, done: 0, models: models.length, timedOut: false };
+    progress?.(0, waits.length);
+    const all = Promise.all(
+      waits.map((w) =>
+        w.finally(() => {
+          result.done++;
+          progress?.(result.done, waits.length);
+        }),
+      ),
+    );
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = Number.isFinite(timeoutMs)
+      ? new Promise<void>((resolve) => (timer = setTimeout(() => ((result.timedOut = true), resolve()), timeoutMs)))
+      : new Promise<void>(() => {});
+    await Promise.race([all, timeout]);
+    clearTimeout(timer);
+    if (result.done === result.total) result.timedOut = false;
+    return result;
   }
 
   /** Build this frame's instances. alpha interpolates from the previous tick (0) to the current (1). */
@@ -418,15 +581,24 @@ export class DrawListRenderer {
           // With flat art for the sprite (for a grouped one, the object's first tile), it's drawn flat
           // instead of as a model (D42).
           const sheetArt = art ? this.artSheet(d.sheet) : null;
-          const flat = sheetArt !== null && sheetArt.frame(d.groupIndex >= 0 ? d.groupIndex : d.index) !== undefined;
-          if (!flat && d.groupIndex >= 0 && this.spriteModels.size > 0 && this.drawGroupModel(d, x, y, cam, dt)) continue;
-          if (!flat && this.overridesBySheet.size > 0 && this.drawOverride(d, x, y, cam, dt)) continue;
-          if (!flat && d.groupIndex < 0 && this.ungroupedModels.size > 0 && this.drawUngroupedModel(d, x, y, cam)) continue;
+          this.routeSheet = d.sheet;
+          const r = this.router.route(d, sheetArt, this.emptyTile);
+          const flat = r.route === Route.Flat;
+          if (r.route === Route.Group || r.route === Route.Override || r.route === Route.Ungrouped) {
+            const pool = this.modelPool(r.model);
+            const look = this.objectLook(d, pool, now, frame);
+            if (look === ObjectLook.Model) {
+              this.drawModel(r.route, pool, r.bank, d, x, y, cam, dt);
+              continue;
+            }
+            // Held back while its model loads, or locked to its sprite (D54).
+            if (look === ObjectLook.Holding) continue;
+          }
           const geometry = this.cache.sprite2Geometry(d.sheet, d.index, d.size);
           if (!geometry) continue;
           const look = fx && VFX_PASSES.has(d.pass) ? fx.sprite(d, geometry, x, y, d.x - prevX[i], d.y - prevY[i]) : SpriteLook.Default;
           if (look === SpriteLook.Hidden) continue;
-          if (flat && this.addFlatSprite2(sheetArt, d, x, y, cam)) {
+          if (flat && this.addFlatSprite2(sheetArt!, d, x, y, cam)) {
             instances++;
             break;
           }
@@ -494,7 +666,10 @@ export class DrawListRenderer {
     this.atlas.flush();
     this.remasterAtlas.flush();
     this.instances = instances;
-    if (frame % 300 === 0) this.evictPools(frame);
+    if (frame % 300 === 0) {
+      this.evictPools(frame);
+      this.forgetObjects(frame);
+    }
   }
 
   stats(): DrawListStats {
@@ -639,7 +814,7 @@ export class DrawListRenderer {
     if (this.tileModels.size > 0) this.preloadStructures(d.tileId);
     if (d.effect === "none" && this.tileModels.has(d)) {
       const match = this.tileModels.match(d);
-      if (match && this.structureLoaded(match.entry.model)) {
+      if (match && this.structureShown(`${match.anchorKey}|${match.entry.model}`, match.entry.model, frame)) {
         const id = `${match.anchorKey}|${match.entry.model}`;
         if (!this.placedStructures.has(id)) {
           this.placedStructures.add(id);
@@ -670,6 +845,18 @@ export class DrawListRenderer {
     return true;
   }
 
+  /**
+   * Whether structure `id` (its anchor and model) is drawn as its model: decided when it first comes
+   * into view, by whether the model has loaded, and kept while it stays in view (D54), so a
+   * structure never pops from its tiles into its model. Starts the model's load if need be.
+   */
+  private structureShown(id: string, model: string, frame: number): boolean {
+    let st = this.structureLooks.get(id);
+    if (!st) this.structureLooks.set(id, (st = { model: this.structureLoaded(model), seen: frame }));
+    st.seen = frame;
+    return st.model;
+  }
+
   /** Start loading every structure model of a tileset the first time one of its tiles is drawn. */
   private preloadStructures(tileId: string): void {
     const shapes = tileId.slice(0, tileId.indexOf(":"));
@@ -681,81 +868,94 @@ export class DrawListRenderer {
   /** Whether a structure model has loaded, starting its load the first time it's asked for. */
   private structureLoaded(name: string): boolean {
     if (this.structures.has(name)) return true;
-    if (!this.structureLoads.has(name) && this.loader) {
-      this.structureLoads.add(name);
-      this.loader(name).then(
-        (model) => this.structures.add(name, model),
-        (err) => console.error(`structure model ${name} failed to load; its tiles stay as they were`, err),
-      );
-    }
-    return false;
-  }
-
-  /** Draw a sprite as its override model (the player ship and its banking frames), if it has one. */
-  private drawOverride(d: SpriteDraw, x: number, y: number, cam: THREE.Vector3, dt: number): boolean {
-    const overrides = this.overridesBySheet.get(d.sheet.id);
-    if (!overrides) return false;
-    for (let p = 0; p < overrides.length; p++) {
-      const { override: o, pool } = overrides[p];
-      const offset = d.index - o.baseIndex;
-      if (d.size !== o.size || offset % o.bankStep !== 0 || Math.abs(offset) > o.bankStep * o.maxBank) continue;
-      if (!pool.source) return false;
-      const bank = offset / o.bankStep / o.maxBank; // -1..1
-      const clone = this.placeModel(pool, x + (d.size * 12) / 2, y + (d.size * 14) / 2, d, cam);
-      // Banking eases per display frame, so the 5 sprite frames become a smooth roll.
-      clone.roll += (-bank * MAX_ROLL - clone.roll) * Math.min(1, dt * ROLL_RATE);
-      clone.object.rotation.z = clone.roll;
-      return true;
-    }
+    this.structureSettled(name);
     return false;
   }
 
   /**
-   * Draw a tile of a grouped object (an enemy) as part of the object's model, if it has one that
-   * has loaded: the model goes at the object's centre on its first tile, and the other tiles draw
-   * nothing. Returns false to draw the tile as a sprite.
+   * Whether the object draw `d` belongs to is drawn as its model (whose pool is `pool`), held back,
+   * or as its sprite (D54). The first time an object needs a model: the model if it has loaded;
+   * held back for up to HOLD_MS if it's loading; else (or once the hold runs out) the sprite, for
+   * the object's life. An object locked to its model whose next frame's model isn't there yet
+   * (preloadLevel loads them all, so only if it wasn't asked for) is held back for that frame.
+   * Draws without a key (never for enemies, ships or sidekicks) aren't remembered.
    */
-  private drawGroupModel(d: SpriteDraw, x: number, y: number, cam: THREE.Vector3, dt: number): boolean {
-    const key = spriteModelKey(d.sheet.id, d.groupSize, d.groupIndex);
-    const name = this.spriteModels.get(key);
-    if (name === undefined) return false;
-    const pool = this.modelPool(name);
-    if (!pool.source) return false;
-    if (d.groupFirst) {
-      const clone = this.placeModel(pool, x + d.groupDx, y + d.groupDy, d, cam, d.groupIndex);
-      // [two-player] a grouped ship that banks (the dragonwing) rolls as drawOverride's ships do
-      const bank = this.groupBank.get(key);
-      if (bank !== undefined) {
-        clone.roll += (-bank * MAX_ROLL - clone.roll) * Math.min(1, dt * ROLL_RATE);
-        clone.object.rotation.z = clone.roll;
-      }
+  private objectLook(d: SpriteDraw, pool: ModelPool, now: number, frame: number): ObjectLook {
+    const key = objectKey(d);
+    let o = key === null ? undefined : this.objects.get(key);
+    if (o === undefined) {
+      const look = pool.source ? ObjectLook.Model : pool.failed ? ObjectLook.Sprite : ObjectLook.Holding;
+      o = { look, since: now, seen: frame };
+      if (key !== null) this.objects.set(key, o);
     }
-    return true;
+    o.seen = frame;
+    if (o.look === ObjectLook.Holding) {
+      if (pool.source) o.look = ObjectLook.Model;
+      else if (pool.failed || now - o.since > HOLD_MS) o.look = ObjectLook.Sprite;
+    }
+    if (o.look === ObjectLook.Model && !pool.source) return pool.failed ? ObjectLook.Sprite : ObjectLook.Holding;
+    return o.look;
+  }
+
+  /** Forget objects not drawn for a while (their keys are never reused: enemy serials, players). */
+  private forgetObjects(frame: number): void {
+    for (const [key, o] of this.objects) if (frame - o.seen > 120) this.objects.delete(key);
+    for (const [id, st] of this.structureLooks) if (frame - st.seen > 120) this.structureLooks.delete(id);
+  }
+
+  /** A structure model's load (started if it hasn't been), settling when loaded or failed. */
+  private structureSettled(name: string): Promise<void> {
+    let load = this.structureLoads.get(name);
+    if (!load) {
+      load = this.loader
+        ? this.loader(name).then(
+            (model) => this.structures.add(name, model),
+            (err) => console.error(`structure model ${name} failed to load; its tiles stay as they were`, err),
+          )
+        : Promise.resolve();
+      this.structureLoads.set(name, load);
+    }
+    return load;
   }
 
   /**
-   * Draw a sprite drawn on its own (a sidekick) as its model, if it has one that has loaded: centred
-   * on the sprite, showing the frame drawn. Returns false to draw it as a sprite.
+   * Draw a sprite as its loaded model (sprite2Route.ts): a player ship's frame (Override) at the
+   * sprite's centre, rolled by its bank; a tile of a grouped object, an enemy (Group), whose model
+   * goes at the object's centre on its first tile while the other tiles draw nothing; or a sprite
+   * drawn on its own, a sidekick (Ungrouped), centred on the sprite and showing the frame drawn.
    */
-  private drawUngroupedModel(d: SpriteDraw, x: number, y: number, cam: THREE.Vector3): boolean {
-    const name = this.ungroupedModels.get(spriteModelKey(d.sheet.id, d.size, d.index));
-    if (name === undefined) return false;
-    const pool = this.modelPool(name);
-    if (!pool.source) return false;
-    this.placeModel(pool, x + d.size * 6, y + d.size * 7, d, cam, d.index);
-    return true;
+  private drawModel(route: Route, pool: ModelPool, bank: number, d: SpriteDraw, x: number, y: number, cam: THREE.Vector3, dt: number): void {
+    let clone: ModelClone;
+    if (route === Route.Override) clone = this.placeModel(pool, x + (d.size * 12) / 2, y + (d.size * 14) / 2, d, cam);
+    else if (route === Route.Ungrouped) {
+      this.placeModel(pool, x + d.size * 6, y + d.size * 7, d, cam, d.index);
+      return;
+    } else {
+      if (!d.groupFirst) return;
+      clone = this.placeModel(pool, x + d.groupDx, y + d.groupDy, d, cam, d.groupIndex);
+      // [two-player] a grouped ship that banks (the dragonwing) rolls as the player ships do
+      if (Number.isNaN(bank)) return;
+    }
+    // Banking eases per display frame, so the 5 sprite frames become a smooth roll.
+    clone.roll += (-bank * MAX_ROLL - clone.roll) * Math.min(1, dt * ROLL_RATE);
+    clone.object.rotation.z = clone.roll;
   }
 
   /** The pool for a model, starting its load the first time it's asked for. */
   private modelPool(name: string): ModelPool {
     let pool = this.modelPools.get(name);
     if (!pool) {
-      const created: ModelPool = { name, source: null, clones: [], used: 0 };
+      const created: ModelPool = { name, source: null, failed: false, settled: Promise.resolve(), clones: [], used: 0 };
       this.modelPools.set(name, (pool = created));
-      this.loader?.(name).then(
-        (model) => (created.source ??= model),
-        (err) => console.error(`model ${name} failed to load; its sprites stay extruded`, err),
-      );
+      if (this.loader) {
+        created.settled = this.loader(name).then(
+          (model) => void (created.source ??= model),
+          (err) => {
+            created.failed = true;
+            console.error(`model ${name} failed to load; its sprites stay extruded`, err);
+          },
+        );
+      } else created.failed = true;
     }
     return pool;
   }
