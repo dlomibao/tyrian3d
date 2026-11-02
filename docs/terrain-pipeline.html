@@ -43,6 +43,15 @@ Gemini, to seam-free atlases the renderer draws, with a setting to switch back.<
   <tr><td><b>Partial art.</b> Gemini rarely gets every tile right in one go, and a level should not wait for all of it.</td>
     <td>The game falls back <b>per tile</b>: a tile missing from the manifest (or of the wrong size, or outside its image,
     or whose atlas failed to load) draws exactly as before, as the 4x MMPX ground or the original tile.</td></tr>
+  <tr><td><b>Gemini copies the pixels.</b> Given a sheet scaled up nearest-neighbour, Gemini often hands back the same
+    square blocks, slightly smoothed, however strongly the prompt says not to.</td>
+    <td>Send a <b>softened</b> sheet (scaled down to the original resolution and back up bicubic): same geometry, no
+    hard blocks to copy. It turned two blocky answers into fully painted ones (section 3).</td></tr>
+  <tr><td><b>The best fit is not the best painting.</b> The answer that copied the pixel blocks matched the original
+    best; one painting of a dirt tile had a twig that repeated on all 150 copies.</td>
+    <td>The cutter scores <b>pixel blocks</b> and <b>made-up marks</b> against each candidate and prefers paintings from
+    map regions; the broad shading follows the original (section 4, D59). Look at <code>check/*.jpg</code> for marks
+    that repeat.</td></tr>
   <tr><td><b>A dev server answers a missing file with the page.</b> Fetching a missing manifest returned index.html.</td>
     <td>The loader treats anything that doesn't parse as a manifest as "no art for this tileset".</td></tr>
 </table>
@@ -74,16 +83,67 @@ stay out of git.</p>
 <h2>3. Generation in Gemini</h2>
 <p>Sheets are sent to Google Gemini in the user's Chrome, one request at a time (Gemini rate-limits). Answers are
 saved as <code>DIR/results/&lt;sheet&gt;.png</code> (any size, same aspect as the sheet).</p>
-<!-- GEMINI OPERATOR: fill in this section (prompt text, how sheets are uploaded, how answers are saved, retries,
-     what Gemini gets wrong and how to ask again). Keep the problems you hit for the table at the top. -->
-<div class="box"><b>To be filled in by the Gemini operator:</b> the prompt used per material group, how the sheets
-were put into Gemini and the answers brought back, pacing and rate limits, and which answers needed a retry and
-why.</div>
+<p><b>What we used for TYRIAN (1-9).</b> The "Create images" page (<code>gemini.google.com/images</code>, Nano
+Banana) with the <b>Pro</b> model, one new chat per sheet, driven by Claude in Chrome. 21 sheets plus 6 retries, 27
+requests in about 40 minutes; each answer took 15 s to 3 min. No rate-limit error came up, but after about 25 requests
+Gemini showed <i>"You're running low on usage. The Pro model can use it up faster."</i>, so plan a level's sheets
+within roughly that budget (or switch to Flash).</p>
+<ol>
+  <li><b>Put the sheet in.</b> Copy the PNG to the macOS clipboard:
+    <code>osascript -e 'set the clipboard to (read (POSIX file "SHEET.png") as «class PNGf»)'</code>, focus the
+    prompt box, press ⌘V and wait about 6 s for the upload. The clipboard is shared, so one sheet at a time. Gemini
+    shows the upload at 1024 px or the sheet's own size; either is fine.</li>
+  <li><b>Aspect ratio.</b> Click the "Aspect ratio" button under the prompt and the sheet's ratio from
+    <code>manifest.json</code> (1:1 for every sheet but <code>ctx-l0-brown-modelled-2</code>, 4:3). Doing this from page
+    JavaScript works: find the button whose label starts with "Aspect ratio", click it, then click the menu entry whose
+    text is the ratio.</li>
+  <li><b>Prompt.</b> The sheet's prompt from <code>manifest.json</code>. Inserting it with
+    <code>document.execCommand('insertText', false, prompt)</code> on the focused <code>[contenteditable=true]</code>
+    box is instant; check the box's <code>innerText.length</code> equals the prompt's length and that the page text
+    contains the ratio, then press Return.</li>
+  <li><b>Wait.</b> Poll from page JavaScript in calls under 40 s (the browser bridge times out at 45 s) for an
+    <code>img</code> inside <code>model-response</code> with <code>naturalWidth</code> ≥ 1000 (the preview is
+    1024 px; the uploaded sheet sits in <code>user-query</code>, so it isn't mistaken for the answer). Watch the body
+    text for "something went wrong" / "hard time" / "limit". Sometimes the URL stays on <code>/images</code> for a
+    minute before the chat appears: keep polling rather than resubmitting.</li>
+  <li><b>Bring it back.</b> Click the answer's <b>"Download full size image"</b> button (from JavaScript: the last
+    <code>model-response button[aria-label="Download full size image"]</code>), about 3 s after the image appears (an
+    immediate click once did nothing). It saves <code>~/Downloads/Gemini_Generated_Image_*.jpeg</code> at 2048x2048
+    (2400x1792 for 4:3), twice the on-page preview. Move it to <code>DIR/results-raw/&lt;sheet&gt;.jpeg</code>, save as
+    <code>DIR/results/&lt;sheet&gt;.png</code>; no padding crop was needed as every answer kept its sheet's aspect.</li>
+  <li><b>Check.</b> A side-by-side with the sheet, a 600 px crop at full size (that is where pixel copying shows),
+    and a quick normalised cross-correlation of the answer against the sheet over scale 0.90-1.15 and shift: every answer
+    registered at scale 1.00, shift 0, so Gemini kept the geometry on all of them.</li>
+</ol>
+<p><b>What Gemini did, and what we asked again.</b></p>
+<table>
+  <tr><th>Sheet</th><th>First answer</th><th>Outcome</th></tr>
+  <tr><td>region-l0-01, 04, 07, 08, 09</td><td>Painted well, layout kept. Gemini fills the sheet's 36 px black frame
+    with more terrain; the cutter ignores it.</td><td>kept</td></tr>
+  <tr><td>region-l0-03, 10 (forest clumps)</td><td>Trees drawn from the side, with trunks, the clump's outline
+    rearranged; 10 also turned olive with invented bushes.</td><td>Retried with "dark green forest floor with a clump of
+    round tree crowns ... seen straight down ... no tree trunks except where the original shows them ... the same dark
+    saturated green, not olive": outline kept. 03's canopy keeps some pixel checker.</td></tr>
+  <tr><td>region-l0-02, 05, 06 (brown rock)</td><td><b>Pixel copying</b>: the dirt came back as the same 6x6 blocks,
+    only the bunkers and ridges repainted.</td><td>02: two more tries with stronger wording, both still blocky; kept
+    the first. 05, 06: retried with a <b>softened input</b> (the sheet scaled down to one pixel per original pixel and
+    back up bicubic, same geometry): fully painted, no blocks. 06's ridge comes back wider.</td></tr>
+  <tr><td>ctx-l1-blue-1, 2 (clouds)</td><td>Painted soft clouds, outlines kept, black stays black. Blue-2 is close to
+    a smoothed copy.</td><td>kept</td></tr>
+  <tr><td>optional ground contexts (all 9)</td><td>Sent softened from the start. brown-1, 3, 4, modelled-1/2,
+    green-modelled-1/2 painted; green-modelled-1/2 come back lighter or olive (the cutter's colour match evens that).
+    brown-2 is a smoothed copy. brown-green-edges-1 came back as pixel blocks even from the softened input.</td>
+    <td>kept; edges-1 not retried (usage warning)</td></tr>
+</table>
+<p><b>For the next level:</b> send the <b>softened</b> sheets from the start (they cut the pixel copying, without
+moving anything the cutter registers against); say the material and the viewpoint in the prompt for anything with
+height (trees, ridges), since "top-down" alone gets trees drawn from the side; check every answer at full size, not
+just the thumbnail.</p>
 <p>Tips that carried over from the sprite art (D43): send the image by putting the PNG on the clipboard and pressing
-⌘V rather than pasting image data through the agent; allow automatic downloads in Chrome for the Gemini site; pick
-the answer image by its largest side; wide strips are refused, so keep sheets close to a supported aspect ratio.
-<code>python tools/terrain_hd.py fake --work DIR</code> makes stand-in answers (MMPX, blurred, shifted, colour-shifted)
-to test the rest of the flow without Gemini.</p>
+⌘V rather than pasting image data through the agent; allow automatic downloads in Chrome for the Gemini site; wide
+strips are refused, so keep sheets close to a supported aspect ratio. <code>python tools/terrain_hd.py fake --work
+DIR</code> makes stand-in answers (MMPX, blurred, shifted, colour-shifted) to test the rest of the flow without
+Gemini.</p>
 
 <h2>4. Cutting and seam fixing</h2>
 <pre><code>python tools/terrain_hd.py cut --work DIR [--results DIR/results] [--out public/art/terrain]</code></pre>
@@ -91,6 +151,20 @@ to test the rest of the flow without Gemini.</p>
 registered art at 8x and colour-matched to the original tile, and the best candidate per tile is kept. Each tile's
 border is blended toward an edge reference shared with its neighbours, so adjacent tiles meet without a step. Layers
 1 and 2 take their alpha from the original silhouette (index 0 is transparent).</p>
+<p><b>Choosing among a tile's paintings (D59).</b> A tile usually appears in several regions and contexts, so it has
+several candidate paintings. The best fit to the original is not the best painting: on TYRIAN the answer that copied
+the pixel blocks fit best. The score is the fit (NCC) minus the colour error, plus:</p>
+<ul>
+  <li><b>pixel blocks</b>: steps between texels that line up with the original pixel grid (ratio ~1 painted, 3-4
+    copied) cost above 2.0;</li>
+  <li><b>made-up marks</b>: detail the original doesn't have (a twig, a crack) costs, relative to the tile's other
+    candidates: one mark repeated on every copy of a dirt tile makes a grid across the map;</li>
+  <li><b>regions over contexts</b>: a region's painting shares its neighbours' texture, a context's may not.</li>
+</ul>
+<p>Then the painting's broad shading (blur at 16 texels) is replaced by the original's, so a tile doesn't show a
+darker corner every time it repeats. <code>cut-report.json</code> lists each tile's source and scores;
+<code>--exclude 0:332</code> leaves a tile out (it falls back), <code>--pick 0:68=region-l0-03#0</code> forces a
+candidate, and <code>--cache FILE</code> keeps the registered candidates between runs (registration takes minutes).</p>
 
 <h2>5. Atlas and manifest</h2>
 <p>One atlas per layer that has art, beside one manifest per tileset:</p>

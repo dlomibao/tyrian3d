@@ -28,7 +28,9 @@ reads (public/art/terrain/<shapes>/manifest.json + <layer>.webp, the format in D
         registered to the sheet's own picture of it (rescale and shift by normalised cross-correlation),
         each tile in it refined by a small shift, resampled from the art and colour-matched to the
         original tile (mean and low-frequency contrast per channel). The best candidate per tile wins
-        (or --combine mean). Alpha (layers 1-2) is the original silhouette, smoothly upscaled among the
+        (or --combine mean): its fit, less its colour error, copied pixel blocks and made-up marks,
+        with a bonus for map regions (D59); --exclude, --pick and --cache adjust and speed this up.
+        The winner's broad shading (16 texels) is then replaced by the original's. Alpha (layers 1-2) is the original silhouette, smoothly upscaled among the
         tile's usual neighbours. Then the seams: every tile side's edge strip is solved jointly, least
         squares over every pair of tiles the map puts side by side (weighted by how often) plus a weak
         pull towards the tile's own painting, and each tile's border is moved onto its strips (the
@@ -685,6 +687,8 @@ STRIP_TEXELS = 4  # an edge strip is the mean of the outermost texels...
 STRIP_SIGMA = 2.0  # ...smoothed along the edge
 BAND_LO = 40  # texels over which a strip's correction fades into the tile
 BAND_HI = 4  # texels at the edge set to the strip itself
+REGION_BONUS = 0.06  # score for paintings from map regions over contexts (their texture matches the neighbours')
+LOWFREQ = 16.0  # texels: shading broader than this follows the original tile (match_lowfreq)
 SIGMA_REF = 3.0  # blur of the MMPX 8x silhouette for alpha, texels
 
 
@@ -942,6 +946,39 @@ def bleed(rgb: np.ndarray, alpha: np.ndarray) -> np.ndarray:
     return rgb[iy, ix]
 
 
+BLOCKY_FREE = 2.0  # pixel-block ratio a painting may have before it costs score
+BLOCKY_COST = 0.15  # score per unit of pixel-block ratio above BLOCKY_FREE
+NOVEL_FREE = 1.0  # novel-detail excess over the tile's median candidate that is free
+NOVEL_COST = 0.03  # score per unit of novel-detail excess above NOVEL_FREE
+
+
+def blockiness(hd: np.ndarray) -> float:
+    """How much the painting kept the original's pixel blocks: the colour steps between texels,
+    averaged by their phase in the 8-texel period of an original pixel; the strongest phase over the
+    mean (x or y). A painting is ~1.0-1.5; a copy of the pixel blocks ~3-4 (steps all at one phase)."""
+    g = gray(hd.astype(np.float32))
+    dx = np.abs(np.diff(g, axis=1)).mean(0)
+    dy = np.abs(np.diff(g, axis=0)).mean(1)
+    px = np.array([dx[k::SCALE].mean() for k in range(SCALE)])
+    py = np.array([dy[k::SCALE].mean() for k in range(SCALE)])
+    return float(max(px.max() / max(px.mean(), 1e-3), py.max() / max(py.mean(), 1e-3)))
+
+
+def novel_detail(hd: np.ndarray, orig_rgb: np.ndarray, mask1: np.ndarray) -> float:
+    """Salient detail the original tile doesn't have (a twig, a crack, a bright blob Gemini made
+    up): local high-pass energy of the painting minus the original's, 99.8th percentile. Such marks
+    are what makes a tile's repeat visible across the map."""
+    from scipy import ndimage
+
+    g = gray(hd.astype(np.float32))
+    o = np.kron(gray(orig_rgb.astype(np.float32)), np.ones((SCALE, SCALE)))
+    hp = np.abs(g - ndimage.gaussian_filter(g, 6))
+    ohp = np.abs(o - ndimage.gaussian_filter(o, 6))
+    e = ndimage.gaussian_filter(hp, 4) - ndimage.gaussian_filter(ohp, 4)
+    m8 = np.kron(mask1, np.ones((SCALE, SCALE), bool))
+    return float(np.percentile(e[m8], 99.8)) if m8.any() else 0.0
+
+
 def load_result(results: Path, name: str) -> np.ndarray | None:
     for ext in ("png", "jpg", "jpeg", "webp"):
         p = results / f"{name}.{ext}"
@@ -984,8 +1021,10 @@ def candidates(L: LevelData, manifest: dict, results: Path) -> dict[tuple[int, i
                 hd = colour_transfer(hd, L.rgb[px].astype(np.float32), mask1)
                 hd1 = hd.reshape(TILE_H, SCALE, TILE_W, SCALE, 3).mean((1, 3))
                 err = float(np.abs(hd1 - L.rgb[px])[mask1].mean() / 255) if mask1.any() else 0.0
+                blk = blockiness(hd)
                 out[(layer, n)].append({"hd": hd, "ncc": score, "cellScore": fit["score"], "err": err,
                                         "interior": t["interior"], "sheet": sh["name"], "cell": cell["index"],
+                                        "blocky": blk, "novel": novel_detail(hd, L.rgb[px], mask1),
                                         "score": score - err + 0.05 * min(t["interior"], 2),
                                         "fit": {k: round(v, 3) for k, v in fit.items()}})
         print(f"  {sh['name']}: {len(sh['cells'])} cells, answer {W}x{H} ({sh['scale'] * fx:.2f} px per original px)")
@@ -1013,6 +1052,29 @@ def pack_atlas(tiles: dict[int, np.ndarray], channels: int) -> tuple[np.ndarray,
     return atlas, rects
 
 
+def match_lowfreq(L: LevelData, inv_tile: dict, layer: int, n: int, hd: np.ndarray, sigma: float) -> np.ndarray:
+    """Give the painting the original's large-scale shading: its blur at `sigma` texels is swapped
+    for the original's (nearest upscale among the tile's usual neighbours, same blur; visible
+    pixels only on layers 1-2). Gemini's paintings drift in brightness inside a tile (a darker
+    corner, a lighter band), which turns into a visible grid when the tile repeats; the detail
+    finer than `sigma` stays the painting's."""
+    from scipy import ndimage
+
+    if sigma <= 0:
+        return hd
+    u = context_units(L, layer, n, inv_tile["usual"])
+    vis = (u >= 0) & ((u != 0) if layer > 0 else True)
+    rgb = np.kron(L.rgb[np.clip(u, 0, 255)].astype(np.float32), np.ones((SCALE, SCALE, 1)))
+    m = np.kron(vis, np.ones((SCALE, SCALE))).astype(np.float32)
+    ys, xs = slice(TILE_H * SCALE, 2 * TILE_H * SCALE), slice(TILE_W * SCALE, 2 * TILE_W * SCALE)
+    lo_o = (ndimage.gaussian_filter(rgb * m[..., None], (sigma, sigma, 0))
+            / np.maximum(ndimage.gaussian_filter(m, sigma), 1e-3)[..., None])[ys, xs]
+    mc = m[ys, xs]
+    lo_h = (ndimage.gaussian_filter(hd * mc[..., None], (sigma, sigma, 0), mode="nearest")
+            / np.maximum(ndimage.gaussian_filter(mc, sigma, mode="nearest"), 1e-3)[..., None])
+    return (hd + (lo_o - lo_h) * (mc[..., None] > 0)).clip(0, 255)
+
+
 def prepare_tile(L: LevelData, inv_tile: dict, layer: int, n: int, hd: np.ndarray) -> np.ndarray:
     """The painting with alpha (layers 1-2: the original silhouette; colour bled under it)."""
     if layer == 0:
@@ -1028,7 +1090,20 @@ def cmd_cut(args) -> None:
     manifest = json.loads((work / "sheets/manifest.json").read_text())
     results = Path(args.results) if args.results else work / "results"
     print(f"cutting answers in {results}")
-    cands = candidates(L, manifest, results)
+    cache = Path(args.cache) if args.cache else None
+    if cache and cache.exists():
+        import pickle
+
+        cands = pickle.loads(cache.read_bytes())
+        print(f"  candidates from {cache} (delete it after changing the answers)")
+    else:
+        cands = candidates(L, manifest, results)
+        if cache:
+            import pickle
+
+            cache.write_bytes(pickle.dumps(cands))
+    exclude = {s.strip() for s in (args.exclude or "").split(",") if s.strip()}
+    picks = dict(s.strip().split("=", 1) for s in (args.pick or "").split(",") if s.strip())
     out_dir = Path(args.out) / L.shapes_name
     out_dir.mkdir(parents=True, exist_ok=True)
     models = load_models(L.shapes_file)
@@ -1044,13 +1119,27 @@ def cmd_cut(args) -> None:
             n = int(key)
             if not t["drawnAsTile"] or not cands.get((layer, n)):
                 continue
+            if f"{layer}:{n}" in exclude:
+                report[f"{layer}:{n}"] = {"excluded": True}
+                continue
+            # Made-up marks cost against the tile's other paintings (a canopy has more detail
+            # than dirt, so the measure is relative to the tile's median candidate).
+            med = float(np.median([c["novel"] for c in cands[(layer, n)]]))
+            for c in cands[(layer, n)]:
+                c["score"] -= NOVEL_COST * max(0.0, c["novel"] - med - NOVEL_FREE) + args.blocky_cost * max(0.0, c["blocky"] - args.blocky_free)
+                c["score"] += args.region_bonus if c["sheet"].startswith("region-") else 0.0
             cs = sorted(cands[(layer, n)], key=lambda c: -c["score"])
+            if f"{layer}:{n}" in picks:  # a hand pick after looking at the contact sheets
+                want = picks[f"{layer}:{n}"]
+                cs = [c for c in cs if f"{c['sheet']}#{c['cell']}" == want] + [c for c in cs if f"{c['sheet']}#{c['cell']}" != want]
+                assert f"{cs[0]['sheet']}#{cs[0]['cell']}" == want, f"--pick {layer}:{n}={want}: no such candidate"
             good = [c for c in cs if c["score"] >= cs[0]["score"] - 0.05] if args.combine == "mean" else cs[:1]
             hd = np.mean([c["hd"] for c in good], 0)
-            done[n] = prepare_tile(L, t, layer, n, hd)
+            done[n] = prepare_tile(L, t, layer, n, match_lowfreq(L, t, layer, n, hd, args.lowfreq))
             report[f"{layer}:{n}"] = {"from": [f"{c['sheet']}#{c['cell']}" for c in good], "score": round(cs[0]["score"], 3),
                                       "ncc": round(cs[0]["ncc"], 3), "colourErr": round(cs[0]["err"], 3),
-                                      "candidates": len(cs)}
+                                      "blocky": round(cs[0]["blocky"], 2), "novel": round(cs[0]["novel"], 1),
+                                      "candidates": len(cs), **({"picked": True} if f"{layer}:{n}" in picks else {})}
         if not done:
             continue
         # Seams: every side's edge strip solved jointly over the pairs the map has, then applied.
@@ -1076,7 +1165,7 @@ def cmd_cut(args) -> None:
               + (f"; no art yet for {len(missing)}: {' '.join(missing)}" if missing else ""))
     (out_dir / "manifest.json").write_text(json.dumps(atlas_manifest, indent=1) + "\n")
     (work / "cut-report.json").write_text(json.dumps(report, indent=1) + "\n")
-    weak = [k for k, r in report.items() if r["ncc"] < 0.5]
+    weak = [k for k, r in report.items() if r.get("ncc", 1.0) < 0.5]
     print(f"-> {out_dir / 'manifest.json'}; per tile: {work / 'cut-report.json'}" + (f"; weak fits (ncc < 0.5): {' '.join(weak)}" if weak else ""))
 
 
@@ -1216,6 +1305,13 @@ def main(argv: list[str] | None = None) -> None:
     c.add_argument("--results", help="folder of answers (default WORK/results)")
     c.add_argument("--out", default=str(ROOT / "public/art/terrain"), help="atlas root (default public/art/terrain)")
     c.add_argument("--combine", choices=["best", "mean"], default="best", help="one candidate per tile, or the mean of the good ones")
+    c.add_argument("--blocky-free", type=float, default=BLOCKY_FREE, help=f"pixel-block ratio that costs nothing (default {BLOCKY_FREE})")
+    c.add_argument("--blocky-cost", type=float, default=BLOCKY_COST, help=f"score per unit of pixel-block ratio above that (default {BLOCKY_COST})")
+    c.add_argument("--region-bonus", type=float, default=REGION_BONUS, help=f"(default {REGION_BONUS}) score added to paintings from map regions (their texture matches their neighbours')")
+    c.add_argument("--lowfreq", type=float, default=LOWFREQ, help=f"blur (texels) above which shading follows the original (default {LOWFREQ}; 0: off)")
+    c.add_argument("--exclude", help="tiles to leave out (they fall back to the original), e.g. 0:332,1:41")
+    c.add_argument("--pick", help="hand-picked candidates, e.g. 0:68=region-l0-03#0 (sheet#cell as in cut-report.json)")
+    c.add_argument("--cache", help="pickle of the registered candidates: written on the first run, read on later ones")
     c.add_argument("--lossless", action="store_true", help="lossless WebP (default quality 92)")
     c.add_argument("--band-lo", type=float, default=BAND_LO, help=f"texels a seam correction fades over (default {BAND_LO}; 0 and --band-hi 0: no seam pass)")
     c.add_argument("--band-hi", type=float, default=BAND_HI, help=f"texels at the edge set to the shared strip (default {BAND_HI})")

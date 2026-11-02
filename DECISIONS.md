@@ -2159,3 +2159,53 @@ painting (D57); where only some tiles have art, an HD tile next to a 4x one has 
 To extend to another level: `--level <ep-file>` for `inventory`, `sheets`, `cut` and `check` (the
 tileset comes from the level; a tileset shared by several levels should be inventoried for all of
 them before its atlas is cut, which the tool does not do yet).
+
+## D59 — TYRIAN's HD terrain from the real Gemini answers; the cutter prefers painted, coherent tiles
+
+2026-11-02
+
+**Decision:** `public/art/terrain/shapesz/` (0.webp 1888x1936 RGB, 1.webp 1056x736 RGBA, manifest.json;
+600 KB) is cut by `tools/terrain_hd.py cut` from the 21 Gemini answers (2048 px, 2400x1792 for the
+4:3 sheet; every cell registered at scale 1.00). It covers every tile the inventory lists: all 66
+ground tiles and all 15 cloud tiles of map 1-9 (layer 2 needs none, D58). None is excluded. On the real
+answers the D58 cutter's choice ("the best-fitting painting wins") picked the wrong ones, so the
+choice now weighs, per candidate:
+- **Pixel blocks** (`blockiness`): the colour steps between texels averaged by phase in the 8-texel
+  period of an original pixel, strongest phase over the mean. A painting is 1.0-1.5; region-l0-02's
+  answer, which copied the 6x6 blocks, is 3.3-3.7 and fit the original best (NCC 0.99), so it won 8
+  tiles. Above 2.0 it costs 0.15 per unit.
+- **Made-up marks** (`novel_detail`): the 99.8th percentile of the painting's local high-pass energy
+  minus the original's. A twig Gemini drew in one copy of the light dirt (tile 46, 150 cells) showed
+  as a grid of marks across the map. It costs 0.03 per unit above the tile's median candidate + 1
+  (relative, since a canopy has more detail than dirt).
+- **Region over context** (+0.06): a tile painted in a map region shares its neighbours' texture; the
+  context sheets painted the dirt around mounds as smooth sand, which showed as tile-shaped patches next
+  to region-painted dirt. Contexts still win where regions are poor (16 of 66 ground tiles).
+- **Shading follows the original** (`match_lowfreq`, 16 texels): the painting's blur at 16 texels is
+  swapped for the original's (among the tile's usual neighbours), so a darker corner Gemini painted
+  doesn't become a grid when the tile repeats, and cloud rim tiles match the inside ones in brightness.
+`cut` gained `--exclude 0:332,...` (leave tiles out; they fall back), `--pick 0:68=region-l0-03#0`
+(hand pick), `--cache FILE` (keeps the registered candidates; registration takes ~3.5 min) and knobs
+for the above; `cut-report.json` lists each tile's source, NCC, colour error, blockiness and novel detail.
+
+**Result** (`check`, every edge the map has): ground, colour step across tile edges 1.85 vs 3.08
+between texels inside tiles (0.60), 8-texel bands 3.99 vs 7.84 (0.51); clouds 2.15 vs 2.62 (0.82),
+bands 7.54 vs 14.74 (0.51). The contact sheets show no seam along the map's own pairs, no labels,
+text or cell bleed; on the ground the painting's mean colour error per original pixel is 0.8-3.7%
+(median 1.4%; `cut-report.json`). Weak spots, kept since
+the fallback would be worse: tiles 37, 39, 110, 224, 332, 333, 350 still have some pixel blocks
+(1.9-2.8; 224 is under trees, 332/333 under a bunker); the forest canopy (region-l0-03, 210-233) keeps
+some checker but sits under the tree models; the cloud rims (ctx-l1-blue-1: 40-44, 50-52) are painted
+as puffier clouds with a little sparkle, colour error up to 0.135, and a few rare vertical pairs
+(42 over 61 and 44 over 53 once each, 42 over 52 16 times) keep a visible step (ratio 2.9-10).
+
+**Options considered:**
+- *Keep the best fit (D58):* chose blocky copies and the twig; rejected after the contact sheets.
+- *Exclude the blocky tiles:* they'd draw as the 4x MMPX ground beside HD neighbours, a seam of
+  style at every edge; region-01/08/09 painted the same tiles acceptably.
+- *Another Gemini round for region-l0-02:* the operator stopped at Gemini's usage warning; the other
+  regions and contexts already cover its tiles. A softened sheet (D58 docs) is the retry if wanted.
+
+**Review:** in game, `?debug=play&seed=1&skip=220&freezeAt=220` against `&terrain=original` was not
+looked at in this step; the contact sheets and the seam metric were. To redo a tile: retry its sheet,
+delete the cache, `cut` again, and look at `check/l*-rows*.jpg`.
