@@ -2017,3 +2017,74 @@ bake* (no concept image exists for it) and *flat art* (it's an enemy, and enemie
 
 **Review:** `?debug=play&armor=3&freezeAt=85` (the ship), `?debug=play&front=7&power=1` and
 `&power=7` against `&front=1` (Vulcan vs Pulse).
+
+## D57 — HD terrain: painted tiles from per-tileset atlases, seam-free sampling, an Options switch
+
+2026-11-02
+
+**Decision:** In the remastered backgrounds (D34, the default since D48), a background tile with an
+HD painting is drawn from it; every other tile draws as before. The art comes from Gemini through
+`tools/terrain_hd.py` (the art pipeline's own entry); this entry is the game side and the contract.
+- **Format.** `public/art/terrain/<tileset>/manifest.json` and one `<layer>.webp` per layer with art.
+  `<tileset>` is the shapes file without `.dat` (`shapesz`), the layer the draw list's (0 ground, 1
+  background 2: TYRIAN's clouds, 2 background 3: islands), a tile key the tile's 0-based record in
+  shapes?.dat. `{ "version": 1, "scale": 8, "layers": { "<layer>": { "image", "tiles": { "<n>": { x, y,
+  w, h } }, "variants"?: { "<n>": [ { "n": { left|right|up|down: tile or -1 }, x, y, w, h } ] } } } }`.
+  Rects are exactly 24x28 times `scale`, at multiples of 16 texels with at least 16 texels of
+  edge-extended gutter, atlases at most 4096 square (a rect may name its own `image`). Layer 0 opaque;
+  1 and 2 straight-alpha RGBA, colour bled under alpha 0, cloud alpha being coverage only (the game
+  applies BLEND_ALPHA). A variant is used where the level's map has all its listed neighbours.
+- **Loading** (`src/render/remaster/terrainLoader.ts`, `terrainArt.ts`). `preloadLevel` requests the
+  level's tileset and waits for its manifest and atlases with the models (D54); `levelModelInfo` now
+  passes the level's maps as tile numbers for the variants. The harnesses, which don't preload, start
+  the load at the first tile drawn. A tileset's art is used only once all its atlases have settled.
+  No manifest, an unparsable one (a dev server's index.html), a failed atlas, a wrong-sized rect, or
+  a rect outside its image: those tiles draw as before.
+- **Drawing** (`terrainMaterial.ts`, `DrawListRenderer.drawHdTile`). After the structure-model check
+  (models still win; ground tiles under `keepTiles` models are HD too), a tile with art is a flat
+  ground quad (the same 24x28 quad and placement as the 4x ground, D6), one instanced draw per atlas
+  and kind: ground (opaque MeshStandardMaterial, relief from the painting's brightness measured a
+  quarter pixel either side, receives shadows, water's ripple mark), blend (clouds: BLEND_ALPHA x the
+  art's coverage, no depth write, the sheets' render order) and cutout (layer 2 and an opaque
+  background 2 without models: alpha cut at 0.5, depth written, shadows cast through a depth material
+  that cuts the same way). Otherwise the 4x MMPX ground, and the original tile if that can't draw.
+- **Seam-free sampling.** The shader picks the mip level from the texel footprint, at most 4, clamps
+  the texel position half a texel of the coarser blended level (0.5 x 2^ceil(lod)) inside the rect and
+  reads with textureLod. With 16-aligned rects no mip texel up to level 4 spans two tiles, so every
+  tap of both blended levels is the cell's own tile, and adjacent cells meet on their own edge
+  texels. Atlases are mipmapped (LinearMipmapLinear), unflipped, sRGB; layers 1-2 premultiplied.
+- **Palette effects** by brightness, as for the flat sprite art (D42): the smoothies' hues (lava, ice,
+  water with its ripple mark) and JE_filterScreen's hue and brightness. Not reachable: palette
+  animation and swaps, and water_filter's exception for grey and cloud-blue indices (all of the art
+  is recoloured).
+- **Switch** (`src/core/terrainStyle.ts`). Options → Graphics → Terrain: Original / HD remaster (a style
+  row like Music/Sound style, `optionsRows`' third list), kept in the prefs (`terrain`), and
+  `?terrain=original|hd` for the page (the player's later choice replaces it). Default HD. The renderer
+  listens and switches at once. "Original" is the terrain as before this entry (the 4x ground);
+  `?bg=original` is still the original tiles, and HD art applies only in the remastered backgrounds.
+  `?terrainart=<dir>/` loads the art from another folder under public/ (test atlases);
+  `stats().hdTiles` counts HD tiles drawn.
+
+**Options considered:**
+- *Per-tileset atlas + manifest like the sprite art (chosen):* the D42 pattern the pipeline already
+  knows; one request per layer; partial art falls back per tile.
+- *Folding HD into the MMPX palette-index atlas (D34):* palette effects would stay exact, but a
+  painting quantised to 16 shades per hue loses what it was painted for.
+- *Per-context paintings for every 3x3 neighbourhood (as the MMPX slots are):* seam-free by
+  construction but 1,000-2,000 paintings per level; one painting per tile, made to meet its
+  neighbours, with optional variants where it can't, is a few hundred.
+- *Clamp at the base level's half texel with hardware mip selection:* trilinear still reads a
+  quarter-texel of the gutter at levels 1+, and anisotropic taps reach further; the shader's own lod
+  with a level-scaled clamp is exact (tested on a CPU model of the sampler).
+- *Extruding the HD islands like the original tiles (D8):* depth, but the painting's soft silhouette
+  and the extruder's walls disagree; flat cutouts with real shadows read as painted islands, and most
+  of TYRIAN's islands are models anyway.
+- *A URL option only (as D42, D48):* the request was a setting; it's the first Graphics row, the
+  natural home for the effects and sprite looks too.
+
+**Review:** With TYRIAN's real atlases: `?debug=play&seed=1&skip=220&freezeAt=220` with and without
+`&terrain=original` (clouds over the ground, forest and roads), `&dpr=0.3` for far mips, the islands
+around `?debug=sprites&episode=1&level=9&row=140&freeze=80`, and Options → Terrain in the game.
+Verified so far with a synthetic atlas whose gutters are magenta (every 7th tile left out for the
+fallback): no magenta pixel at dpr 2 or 0.3, while widening the rect by 8 texels from the console
+shows 1,306 — the check sees a leak when there is one. Docs: docs/terrain-pipeline.html.

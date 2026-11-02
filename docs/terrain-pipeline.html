@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HD terrain pipeline</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+<nav><a href="index.html">Docs</a> › HD terrain</nav>
+<h1>HD terrain remastering</h1>
+<p class="lede">How a level's background tiles become HD paintings in the game: from the tiles the map uses, through
+Gemini, to seam-free atlases the renderer draws, with a setting to switch back.</p>
+
+<div class="flow">
+  <span>Inventory</span><b>→</b><span>Gemini sheets</span><b>→</b><span>Generation in Gemini</span><b>→</b>
+  <span>Cutting and seam fixing</span><b>→</b><span>Atlas + manifest</span><b>→</b><span>Runtime drawing</span><b>→</b>
+  <span>Toggle</span><b>→</b><span>Checks</span>
+</div>
+
+<h2>Noteworthy: problems we hit and how we solved them</h2>
+<table>
+  <tr><th>Problem</th><th>What we did</th></tr>
+  <tr><td><b>Tiles are reused in many arrangements.</b> A tile sits beside a dozen different neighbours across the
+    map, so a painting made for one arrangement shows a seam in another.</td>
+    <td>The sheets show each tile in its <b>usual 3x3 neighbourhood</b> and as continuous map regions, so Gemini paints
+    edges that continue. The cutter then blends each tile's border toward an <b>edge reference its neighbours share</b>.
+    Where one painting can't meet every neighbour, the manifest can list <b>neighbour variants</b> (a version of a tile
+    for a given left/right/up/down neighbour), which the game picks from the level's map.</td></tr>
+  <tr><td><b>Atlas neighbours bleed in.</b> Bilinear filtering at a tile's edge reads half a texel of whatever is next to
+    it in the atlas, and mipmaps average whole blocks of texels across rect boundaries.</td>
+    <td>Rects sit on a <b>16-texel grid</b> with at least 16 texels of edge-extended gutter, so mip levels 0-4 never mix two
+    tiles. The shader picks the mip level itself (at most 4) and <b>clamps the read half a texel of the coarser level
+    inside the rect</b>. Each cell shows only its own tile, its edge texels right at the edge. The browser check uses
+    a test atlas with <b>magenta gutters</b>: a frame with no magenta pixels means nothing bled (and widening the rect by
+    8 texels in the console does turn up magenta, so the check can see a leak).</td></tr>
+  <tr><td><b>Palette effects assume palette indices.</b> The level's filters and the smoothies recolour palette indices
+    (D7, D31); a painting has RGB colours.</td>
+    <td>As for the flat sprite art (D42): each texel's brightness gives the shade (0-15) a palette ramp would have, and a
+    hue change or the level filter uses the palette entry of that hue at that shade. Palette animation and swaps can't
+    reach the art.</td></tr>
+  <tr><td><b>Partial art.</b> Gemini rarely gets every tile right in one go, and a level should not wait for all of it.</td>
+    <td>The game falls back <b>per tile</b>: a tile missing from the manifest (or of the wrong size, or outside its image,
+    or whose atlas failed to load) draws exactly as before, as the 4x MMPX ground or the original tile.</td></tr>
+  <tr><td><b>A dev server answers a missing file with the page.</b> Fetching a missing manifest returned index.html.</td>
+    <td>The loader treats anything that doesn't parse as a manifest as "no art for this tileset".</td></tr>
+</table>
+
+<h2>The goal</h2>
+<p>The ground, the translucent ice clouds and the floating islands of a level are drawn from <b>HD paintings of the
+original tiles</b>, at 8 texels per original pixel, where they exist. They must keep the original's layout, shapes
+and colours (an enemy standing on an island's edge must still be on it), meet seamlessly in every arrangement the map
+uses, and keep the 3D structure models (D34, D47) as they are. The Options screen switches between the HD terrain and
+the terrain as it was. Anything we make from the tiles may be public, credited to the original artists in
+<a href="../CREDITS.md">CREDITS.md</a>; the original data never is (D3, D41).</p>
+
+<h2>1. Inventory</h2>
+<pre><code>python tools/terrain_hd.py inventory --level 1-9 --work DIR</code></pre>
+<p>Every tile the level's map draws on layers 0, 1 and 2 (layer numbers as in the game's draw list: 0 ground, 1 the
+blended background 2, 2 background 3), leaving out tiles a structure model replaces. Each tile gets its usage count,
+usual neighbours, a representative 3x3 neighbourhood and a material group (forest, dirt, road, cloud, rock...).
+For TYRIAN (map 1-9, <code>shapesz.dat</code>) the map uses 85 ground tiles, 23 cloud tiles and 109 layer-2 tiles, many
+of the last replaced by models. <code>npm run tiles</code> writes the per-tile references in
+<code>reference/tiles/&lt;shapes&gt;/</code> (D34), and <code>map-1-9-l{0,1,2}.png</code> show each layer whole.</p>
+
+<h2>2. Gemini sheets</h2>
+<pre><code>python tools/terrain_hd.py sheets --work DIR</code></pre>
+<p>Grids of 3x3-tile contexts (the tile with its usual neighbours, scaled up nearest-neighbour, on black), one
+material group per sheet, plus continuous regions of the ground map, each padded to an aspect ratio Gemini keeps.
+<code>DIR/sheets/manifest.json</code> says where every tile sits. The sheets are rendered from the game data, so they
+stay out of git.</p>
+
+<h2>3. Generation in Gemini</h2>
+<p>Sheets are sent to Google Gemini in the user's Chrome, one request at a time (Gemini rate-limits). Answers are
+saved as <code>DIR/results/&lt;sheet&gt;.png</code> (any size, same aspect as the sheet).</p>
+<!-- GEMINI OPERATOR: fill in this section (prompt text, how sheets are uploaded, how answers are saved, retries,
+     what Gemini gets wrong and how to ask again). Keep the problems you hit for the table at the top. -->
+<div class="box"><b>To be filled in by the Gemini operator:</b> the prompt used per material group, how the sheets
+were put into Gemini and the answers brought back, pacing and rate limits, and which answers needed a retry and
+why.</div>
+<p>Tips that carried over from the sprite art (D43): send the image by putting the PNG on the clipboard and pressing
+⌘V rather than pasting image data through the agent; allow automatic downloads in Chrome for the Gemini site; pick
+the answer image by its largest side; wide strips are refused, so keep sheets close to a supported aspect ratio.
+<code>python tools/terrain_hd.py fake --work DIR</code> makes stand-in answers (MMPX, blurred, shifted, colour-shifted)
+to test the rest of the flow without Gemini.</p>
+
+<h2>4. Cutting and seam fixing</h2>
+<pre><code>python tools/terrain_hd.py cut --work DIR [--results DIR/results] [--out public/art/terrain]</code></pre>
+<p>Each answer cell is registered to the sheet's picture of it (scale and shift), every tile is resampled from the
+registered art at 8x and colour-matched to the original tile, and the best candidate per tile is kept. Each tile's
+border is blended toward an edge reference shared with its neighbours, so adjacent tiles meet without a step. Layers
+1 and 2 take their alpha from the original silhouette (index 0 is transparent).</p>
+
+<h2>5. Atlas and manifest</h2>
+<p>One atlas per layer that has art, beside one manifest per tileset:</p>
+<pre><code>public/art/terrain/&lt;tileset&gt;/manifest.json
+public/art/terrain/&lt;tileset&gt;/&lt;layer&gt;.webp
+
+{ "version": 1, "scale": 8,
+  "layers": { "0": { "image": "0.webp",
+                     "tiles": { "123": { "x": 16, "y": 16, "w": 192, "h": 224 } },
+                     "variants": { "123": [ { "n": { "right": 124 }, "x": 224, "y": 16, "w": 192, "h": 224 } ] } } } }</code></pre>
+<ul>
+  <li><code>&lt;tileset&gt;</code> is the shapes file without <code>.dat</code> (<code>shapesz</code>); a tile key is the
+    tile's 0-based record in it (the number in <code>reference/tiles/…/tiles.json</code> and after the colon in the
+    game's tile id).</li>
+  <li>Every rect is the tile times <code>scale</code> (192 x 224 at 8x), at a multiple of 16 texels, with at least 16
+    texels of edge-extended gutter. Atlases are at most 4096 x 4096; a rect may name its own <code>image</code>.</li>
+  <li>Layer 0 is opaque. Layers 1 and 2 are RGBA with straight alpha and colour bled under alpha 0. Cloud alpha is
+    coverage only: the game applies the 55% translucency itself (D45).</li>
+  <li><code>variants</code> are optional: the first whose listed neighbours (tile numbers, or -1 for none) all match the
+    map is used.</li>
+</ul>
+
+<h2>6. Runtime</h2>
+<p>Files: <code>src/render/remaster/terrainArt.ts</code> (manifest, per-tile lookup, texel maths),
+<code>terrainLoader.ts</code> (fetching), <code>terrainMaterial.ts</code> (shaders), and the hooks in
+<code>drawListRenderer.ts</code>.</p>
+<ul>
+  <li><b>Loading.</b> When a level starts, <code>preloadLevel</code> requests its tileset's manifest and atlases and waits
+    for them with the models (D54), so the ground doesn't change look during play. The debug harnesses, which skip the
+    preload, start the load at the first tile drawn. No manifest, a bad one, or a failed atlas just means those tiles
+    draw as before.</li>
+  <li><b>Drawing.</b> Only in the remastered backgrounds (the default; <code>?bg=original</code> keeps the original
+    tiles). A tile with art is a flat quad in the same place and size as the original tile (D6), one instanced draw per
+    atlas and kind: <i>ground</i> (opaque, lit, a little relief from the painting's brightness, receives shadows),
+    <i>blend</i> (the clouds, translucent at 55% of the art's coverage) and <i>cutout</i> (islands without a model:
+    alpha cut at one half, writing depth and casting island-shaped shadows). Structure models still win over the tiles
+    they replace. Any tile without art goes on to the 4x MMPX ground, and the original tile if that can't draw.</li>
+  <li><b>Sampling.</b> The shader computes the mip level from the texel footprint (at most 4), clamps the texel position
+    half a texel of the coarser blended level inside the rect, and reads with <code>textureLod</code>.</li>
+  <li><b>Palette effects.</b> The smoothies' hues (lava, ice, water, including water's ripple mark) and the level
+    filter's hue and brightness recolour the art by brightness. Not on the art: palette animation and swaps, and
+    water's exception for grey and cloud-blue indices (it recolours all of the art).</li>
+</ul>
+
+<h2>7. Toggle</h2>
+<p>Options → Graphics → <b>Terrain: Original / HD remaster</b> switches at once and is kept with the other settings.
+<code>?terrain=original|hd</code> overrides it for the page. HD is the default; "Original" means the terrain as it
+was before the HD art (the 4x ground). In <code>?debug=play</code> and the other harnesses,
+<code>tyrianHarness.view.draws.setTerrainStyle("original")</code> switches in the console, and
+<code>tyrianHarness.view.draws.stats().hdTiles</code> counts HD tiles drawn this frame. <code>?terrainart=art/other/</code>
+loads the art from another folder under <code>public/</code> (for a test atlas).</p>
+
+<h2>8. Checks</h2>
+<ul>
+  <li><code>python tools/terrain_hd.py check --work DIR</code>: the level's map rebuilt from the atlas, original beside HD,
+    and a seam measure (the colour step across tile edges against the step between texels inside tiles).</li>
+  <li><code>tests/render/terrainArt.test.ts</code>: manifest parsing, per-tile fallback, variants, the loader's failures,
+    and seam-free sampling on a CPU model of the GPU's trilinear filtering over an atlas with magenta gutters, at every
+    mip level the shader may use.</li>
+  <li>In the browser: play TYRIAN with <code>?debug=play&amp;seed=1&amp;skip=220&amp;freezeAt=220</code> and compare
+    with <code>&amp;terrain=original</code>; try a low <code>&amp;dpr=0.3</code> (far mips) and look along tile edges.
+    The level filter and smoothies show at the level's events.</li>
+</ul>
+
+<h2>Extending to another level</h2>
+<ol>
+  <li><code>TILES_SHAPES=&lt;x&gt; npm run tiles</code> for its tileset's references.</li>
+  <li><code>terrain_hd.py inventory --level &lt;ep&gt;-&lt;n&gt;</code>, then <code>sheets</code>, Gemini, <code>cut</code>
+    and <code>check</code>. Levels that share a tileset share its atlas: add the new tiles to it.</li>
+  <li>Play the level in both looks. Nothing in the game needs to change: it loads the tileset's manifest when the level
+    starts.</li>
+</ol>
+<p>Decisions: D34 (remastered backgrounds), D42-D43 (flat sprite art from Gemini), D45 (blended clouds), D48 (remastered
+by default), D57 (HD terrain).</p>
+</main>
+</body>
+</html>
