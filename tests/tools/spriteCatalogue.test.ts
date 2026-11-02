@@ -1,12 +1,14 @@
 // Opt-in: the catalogue of everything to model in Blender (DECISIONS.md D15).
 //
 //   CATALOGUE_OUT=reference/models npm run catalogue     (CATALOGUE_SHIPS_ONLY=1: just the player ships;
-//                                                         CATALOGUE_SIDEKICKS_ONLY=1: just the sidekicks)
+//                                                         CATALOGUE_SIDEKICKS_ONLY=1: just the sidekicks;
+//                                                         CATALOGUE_SPAWNS_ONLY=1: just the conditional spawns)
 //
 // Plays every level's world (events and enemies, tests/sim/worldDriver.ts) and records each enemy
 // drawn: its sheet, size and animation frames. Frames that one enemy cycles through, and frames
 // whose pictures are identical, are one model. Adds every player ship with its banking frames, and
-// every sidekick (option) with its animation frames (kind "sidekick", DECISIONS.md D49; listed in
+// the enemies only some conditions spawn, which a played level never shows (CONDITIONAL_SPAWNS: the
+// armour ship and its drops), and every sidekick (option) with its animation frames (kind "sidekick", DECISIONS.md D49; listed in
 // sidekicks.json, not catalogue.json, so the enemy coverage check doesn't count them).
 // For each model it writes reference/models/<name>/:
 //   sprite.json   what the model replaces (the SpriteModelEntry sprites), how often and where it's
@@ -19,7 +21,7 @@
 // (committed): each multi-piece object's pieces and their offsets, for the model viewer. The output is derived from
 // the game data, so it stays out of git (reference/ is ignored).
 import { describe, test, vi } from "vitest";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { crc32, deflateSync } from "node:zlib";
 import { parseEpisodeScript, parsePalettes, vga6To8 } from "../../src/data";
@@ -31,8 +33,17 @@ const OUT = process.env.CATALOGUE_OUT ?? "";
 const SHIPS_ONLY = process.env.CATALOGUE_SHIPS_ONLY === "1";
 /** CATALOGUE_SIDEKICKS_ONLY=1: write only the sidekicks' folders and sidekicks.json. */
 const SIDEKICKS_ONLY = process.env.CATALOGUE_SIDEKICKS_ONLY === "1";
+/** CATALOGUE_SPAWNS_ONLY=1: write only the conditional spawns' folders not written yet. */
+const SPAWNS_ONLY = process.env.CATALOGUE_SPAWNS_ONLY === "1";
 /** Only some folders: no levels played, catalogue.json and assemblies.json untouched. */
-const PARTIAL = SHIPS_ONLY || SIDEKICKS_ONLY;
+const PARTIAL = SHIPS_ONLY || SIDEKICKS_ONLY || SPAWNS_ONLY;
+/**
+ * Enemy types spawned by the game itself under conditions the catalogue's world never meets:
+ * JE_main's low-armour warning (tyrian2.c L1872-1893, game.ts armorWarning) sends the armour ship,
+ * type 560, whenever a player's armour is under 6, and gives it enemydie 561-563 at random (the
+ * armour crates, +2/+4/+8 armour). Every level can show them.
+ */
+const CONDITIONAL_SPAWNS = [560, 561, 562, 563];
 /** Where the assembly layouts for the model viewer go (src/viewer/assemblies.json, committed). */
 const ASSEMBLIES_OUT = process.env.CATALOGUE_ASSEMBLIES_OUT ?? "src/viewer/assemblies.json";
 const MAX_TICKS = Number(process.env.TICKS ?? 30000);
@@ -224,6 +235,26 @@ describe.skipIf(!OUT || !hasData("levels1.dat", "tyrian1.lvl", "palette.dat", "t
     }
   }
 
+  // The conditional spawns, with every frame of their egraphic (on their shape bank's sheet).
+  if (!SHIPS_ONLY && !SIDEKICKS_ONLY) {
+    const { buildResources } = await import("../../src/sim/resources");
+    const res = buildResources({ get: (n: string) => (hasData(n) ? readData(n) : undefined) }, 1);
+    for (const type of CONDITIONAL_SPAWNS) {
+      const dat = res.enemyDat[type];
+      const sheet = dat.shapeBank === 21 ? res.spriteSheet11 : dat.shapeBank === 26 ? res.spriteSheet10 : null;
+      if (!sheet) throw new Error(`conditional spawn ${type}: shape bank ${dat.shapeBank} has no fixed sheet`);
+      const size: 1 | 2 = dat.eSize === 1 ? 2 : 1;
+      const frames = [...new Set(dat.eGraphic.slice(0, Math.max(1, dat.ani)).filter((f) => f > 0 && f !== 999))];
+      sheets.set(sheet.id, sheet.data);
+      for (const index of frames) {
+        const key = `${sheet.id}|${size}|${index}`;
+        if (SPAWNS_ONLY && existsSync(join(OUT, `${sheetSlug(sheet.id)}-${index}`))) continue;
+        if (!stats.has(key)) stats.set(key, { sheet: sheet.id, size, index, ticks: 1, levels: new Set(["low armour"]), air: 1, ground: 0, palettes: new Map([[5, 1]]) });
+        uf.union(`${sheet.id}|${size}|${frames[0]}`, key);
+      }
+    }
+  }
+
   // Identical pictures are one model.
   const byPicture = new Map<string, string>();
   for (const [key, s] of stats) {
@@ -347,7 +378,7 @@ describe.skipIf(!OUT || !hasData("levels1.dat", "tyrian1.lvl", "palette.dat", "t
       if (ship.shipGraphic > 0 && ship.name.trim() && !shipGraphics.has(ship.shipGraphic)) shipGraphics.set(ship.shipGraphic, ship.name.trim());
     }
   }
-  if (shipSheet && !SIDEKICKS_ONLY) {
+  if (shipSheet && !SIDEKICKS_ONLY && !SPAWNS_ONLY) {
     sheets.set(shipSheet.id, shipSheet.data);
     for (const [graphic, shipName] of shipGraphics) {
       const name = `ship-${shipName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
@@ -381,7 +412,7 @@ describe.skipIf(!OUT || !hasData("levels1.dat", "tyrian1.lvl", "palette.dat", "t
   // [two-player] The dragonwing: player 2's ship in a two-player game (shipGr2 == 0), drawn as two
   // 24x28 halves side by side, 13 and 51, each with banking frames at + bank * 2
   // (JE_playerMovement's shipGr_ == 0 case, blitShipHalves); one model replaces the group.
-  if (shipSheet && !SIDEKICKS_ONLY) {
+  if (shipSheet && !SIDEKICKS_ONLY && !SPAWNS_ONLY) {
     const pictures = [-2, -1, 0, 1, 2].map((b) => {
       const pic = new Int16Array(48 * 28).fill(-1);
       [13, 51].forEach((index, half) => {
@@ -405,7 +436,7 @@ describe.skipIf(!OUT || !hasData("levels1.dat", "tyrian1.lvl", "palette.dat", "t
   // gr[animation_frame] + charge, with blit_sprite2 from tyrian.shp#8 (spriteSheet9), or for styles
   // (tr) 1 and 2 with blit_sprite2x2 from tyrian.shp#9 (spriteSheet10) at x - 6. option 1 loops
   // through gr[0..ani-1]; option 2 plays it once after each shot. Options sharing a frame are one model.
-  if (!SHIPS_ONLY) {
+  if (!SHIPS_ONLY && !SPAWNS_ONLY) {
     const res = buildResources(files, 1);
     const skUf = new UnionFind();
     const byKey = new Map<string, { sheet: Sprite2SheetLike; size: 1 | 2; index: number }>();
@@ -530,7 +561,7 @@ describe.skipIf(!OUT || !hasData("levels1.dat", "tyrian1.lvl", "palette.dat", "t
       frames: m.pictures.map((p) => ({ sheet: p.sheet, size: p.size, index: p.index, width: picW(p), height: picH(p), image: `frame-${sheetSlug(p.sheet)}-${p.index}.png`, pixels: rowsOf(p) })),
     }, (k, v) => (k === "pixels" ? v.map((r: number[]) => r.join(" ")) : v), 1) + "\n");
   }
-  if (!SHIPS_ONLY) {
+  if (!SHIPS_ONLY && !SPAWNS_ONLY) {
     // Every sidekick model, with the items drawn with it (kept out of catalogue.json, D49).
     writeFileSync(join(OUT, "sidekicks.json"), JSON.stringify(models.filter((m) => m.kind === "sidekick").map((m) => ({
       name: m.name, size: m.sprites[0].size, sheet: m.sprites[0].sheet, frames: m.sprites[0].frames, items: m.sidekicks,
