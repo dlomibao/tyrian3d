@@ -23,6 +23,8 @@
 // - Remastered backgrounds (setBackgroundStyle("remaster"), D34): the ground is upscaled 4x
 //   (remaster/groundAtlas.ts) and structure tiles become Blender models found by tile pattern
 //   (remaster/tileModels.ts). Tiles without a model, and models still loading, stay as above.
+//   With HD terrain (setTerrainStyle("hd"), D57), tiles with a painting in public/art/terrain/ are
+//   flat quads from its atlases instead (remaster/terrainMaterial.ts); the rest stay as above.
 //
 // - Remastered flat sprite art (setSpriteArt, D42): sprites with a painting in
 //   public/art/sprites/ (shots and pickups) are flat textured quads (spriteArtLayer.ts) instead of
@@ -56,6 +58,12 @@ import { StructureInstances } from "./remaster/structureInstances";
 import { modelHeightFromUrl } from "./modelHeight";
 import { placeFlatQuad, SPRITE2X2_PARTS, spriteArtModeFromSearch, type FlatQuad, type ReadyFrame, type SpriteArt, type SpriteArtMode, type SpriteArtSheet } from "./spriteArt";
 import { SpriteArtLayer } from "./spriteArtLayer";
+import { BG_KEY_LAYER } from "../sim/backgrnd";
+import { MAP_SIZES } from "../data/levels";
+import { terrainStyle as currentTerrainStyle, type TerrainStyle } from "../core/terrainStyle";
+import { parseTileId, type TerrainTileset } from "./remaster/terrainArt";
+import { TerrainArtSet } from "./remaster/terrainLoader";
+import { terrainDepthMaterial, terrainMaterial, type TerrainKind } from "./remaster/terrainMaterial";
 
 /** How backgrounds are drawn: the original tiles extruded (D8) or remastered (D34). */
 export type BackgroundStyle = "original" | "remaster";
@@ -110,6 +118,8 @@ class Pool {
     private readonly parent: THREE.Object3D,
     private readonly shadows: { cast: boolean; receive: boolean },
     capacity = 16,
+    /** The shadow pass's material (HD terrain cutouts: only their opaque part casts). */
+    private readonly depthMaterial?: THREE.Material,
   ) {
     this.allocate(capacity);
   }
@@ -128,6 +138,7 @@ class Pool {
     mesh.frustumCulled = false;
     mesh.castShadow = this.shadows.cast;
     mesh.receiveShadow = this.shadows.receive;
+    if (this.depthMaterial) mesh.customDepthMaterial = this.depthMaterial;
     mesh.count = 0;
     if (old) {
       mesh.instanceMatrix.array.set(old.instanceMatrix.array);
@@ -203,6 +214,11 @@ export interface LevelModelInfo {
   tileShapes?: string;
   /** The tiles on its maps (sim/levelSprites.ts levelTiles), for which structure models it needs. */
   tiles?: readonly LevelTile[];
+  /**
+   * Its three maps as tile numbers (-1: none), row-major MAP_SIZES[layer].width wide, for the HD
+   * terrain's neighbour variants (D57).
+   */
+  maps?: readonly [ArrayLike<number>, ArrayLike<number>, ArrayLike<number>];
 }
 
 /** A model a level can show, and roughly when it's first needed (LevelSprite.time). */
@@ -278,6 +294,8 @@ export interface DrawListStats {
   /** Flat sprite art quads drawn, and their draw calls (D42). */
   flatSprites: number;
   flatCalls: number;
+  /** HD terrain tiles drawn (D57). */
+  hdTiles: number;
 }
 
 export class DrawListRenderer {
@@ -336,6 +354,17 @@ export class DrawListRenderer {
   /** Each sheet's art, by the sheet object (null: none), so the per-draw lookup builds no strings. */
   private artSheets = new WeakMap<object, SpriteArtSheet<THREE.Texture> | null>();
   private readonly quad: FlatQuad = { x: 0, y: 0, z: 0, w: 0, d: 0 };
+  /** HD terrain (D57): the look, the tilesets' art, its pools by material, and its materials. */
+  private terrain: TerrainStyle = currentTerrainStyle();
+  readonly terrainArt = new TerrainArtSet();
+  private readonly hdPools = new Map<THREE.Material, Pool>();
+  private readonly hdMaterials = new Map<string, { material: THREE.Material; depth?: THREE.Material }>();
+  private readonly terrainLevel = { levelFilter: { value: -99 }, levelBrightness: { value: 0 } };
+  /** tileId → [tileset, tile number] (null: not a tileset tile). */
+  private readonly tileIds = new Map<string, [string, number] | null>();
+  /** The current level's maps for the HD terrain's variants, and its tileset. */
+  private levelMaps: { tileset: string; maps: NonNullable<LevelModelInfo["maps"]> } | null = null;
+  private hdTiles = 0;
 
   constructor() {
     this.root.name = "draw-list";
@@ -452,6 +481,19 @@ export class DrawListRenderer {
     return this.background;
   }
 
+  /**
+   * The terrain look within the remastered backgrounds (D57): "hd" draws tiles from the HD terrain
+   * art where a tileset has it (loaded when its level starts, or its first tile is seen), the rest
+   * as before; "original" draws them all as before. Switches at once.
+   */
+  setTerrainStyle(style: TerrainStyle): void {
+    this.terrain = style;
+  }
+
+  get terrainStyle(): TerrainStyle {
+    return this.terrain;
+  }
+
   /** Forget interpolation history (level start, teleports). */
   resetInterpolation(): void {
     this.interp.reset();
@@ -532,6 +574,10 @@ export class DrawListRenderer {
     for (let i = 0; i < PRELOAD_CONCURRENCY; i++) void worker();
 
     const waits = [...[...finished.values()].map((f) => f.promise), this.artLoading];
+    // The HD terrain of its tileset (D57), so the ground doesn't change look once it's playing.
+    const tileset = info.tileShapes ? parseTileId(`${info.tileShapes}:0`)?.[0] : undefined;
+    this.levelMaps = tileset && info.maps ? { tileset, maps: info.maps } : null;
+    if (tileset && this.background === "remaster") waits.push(this.requestTerrain(tileset).then(() => undefined));
     const result: PreloadResult = { total: waits.length, done: 0, models: models.length, timedOut: false };
     progress?.(0, waits.length);
     const all = Promise.all(
@@ -570,6 +616,9 @@ export class DrawListRenderer {
     this.structures.begin();
     const art = this.spriteArt !== null && this.spriteArtMode === "remastered";
     this.artLayer.begin();
+    this.terrainLevel.levelFilter.value = this.palette.screenFilter;
+    this.terrainLevel.levelBrightness.value = this.palette.screenBrightness;
+    this.hdTiles = 0;
 
     for (let i = 0; i < items.length; i++) {
       const d = items[i];
@@ -684,6 +733,7 @@ export class DrawListRenderer {
       structures: this.structures.stats().instances,
       flatSprites: this.artLayer.instances,
       flatCalls: this.artLayer.drawCalls,
+      hdTiles: this.hdTiles,
     };
   }
 
@@ -831,6 +881,10 @@ export class DrawListRenderer {
       }
     }
     const blend = d.layer !== 0 && d.effect === "blend";
+    // HD terrain where it's painted (D57): ground, cloud sheets, and islands without a model.
+    if (!modelled || d.layer === 0) {
+      if (this.drawHdTile(d, x, y, cam, frame, blend)) return true;
+    }
     if (d.layer !== 0 && !blend) return modelled;
     // The ground, and blended background-2 tiles (TYRIAN's ice clouds) as translucent sheets, both
     // upscaled in context.
@@ -843,6 +897,79 @@ export class DrawListRenderer {
     }
     writeMatrix(pool.mesh.instanceMatrix.array as Float32Array, s, x, y, passHeight(d.pass), 1, 1, cam);
     return true;
+  }
+
+  /**
+   * Draw a tile from the HD terrain art (D57) if the look is "hd" and its tileset has a painting of
+   * it that has loaded. Returns false to draw it as before. The first tile of a tileset starts its
+   * art loading (preloadLevel does so earlier, and waits).
+   */
+  private drawHdTile(d: TileDraw, x: number, y: number, cam: THREE.Vector3, frame: number, blend: boolean): boolean {
+    if (this.terrain !== "hd") return false;
+    let id = this.tileIds.get(d.tileId);
+    if (id === undefined) this.tileIds.set(d.tileId, (id = parseTileId(d.tileId)));
+    if (!id) return false;
+    const tileset = this.terrainArt.get(id[0]);
+    if (tileset === undefined) {
+      void this.requestTerrain(id[0]);
+      return false;
+    }
+    const t = tileset?.tile(d.layer, id[1], d.key - d.layer * BG_KEY_LAYER);
+    if (!t) return false;
+    const kind: TerrainKind = d.layer === 0 ? "ground" : blend ? "blend" : "cutout";
+    const pool = this.hdPool(t.texture, kind, tileset!.scale, frame);
+    if (blend) pool.mesh.renderOrder = blendSheetOrder(d.pass);
+    const s = pool.next(frame);
+    const e = pool.extra.array as Float32Array;
+    e[s * 2] = t.x;
+    e[s * 2 + 1] = t.y;
+    writeMatrix(pool.mesh.instanceMatrix.array as Float32Array, s, x, y, passHeight(d.pass), 1, 1, cam);
+    this.hdTiles++;
+    return true;
+  }
+
+  /**
+   * Send the current level's HD terrain atlases to the GPU now (decode, upload, mipmaps: ~85 ms
+   * for TYRIAN's), so the level's first frame doesn't pay for it (D57). Called after preloadLevel
+   * when the look is "hd"; a later switch to HD uploads them on its first frame instead.
+   */
+  uploadTerrain(renderer: THREE.WebGLRenderer): void {
+    if (this.terrain !== "hd" || this.background !== "remaster" || !this.levelMaps) return;
+    const tileset = this.terrainArt.get(this.levelMaps.tileset);
+    if (!tileset) return;
+    for (const image of tileset.images.values()) if (image) renderer.initTexture(image.texture);
+  }
+
+  /** Load a tileset's HD terrain art (once), and give it the level's maps for its variants. */
+  private requestTerrain(name: string): Promise<TerrainTileset<THREE.Texture> | null> {
+    return this.terrainArt.request(name).then((t) => {
+      if (t) {
+        const maps = this.levelMaps?.tileset === name ? this.levelMaps.maps : undefined;
+        for (const layer of [0, 1, 2] as const) t.setMap(layer, maps ? { width: MAP_SIZES[layer].width, tiles: maps[layer] } : undefined);
+      }
+      return t;
+    });
+  }
+
+  /** The pool of HD terrain quads for one atlas and kind. */
+  private hdPool(texture: THREE.Texture, kind: TerrainKind, scale: number, frame: number): Pool {
+    const key = `${texture.uuid}|${kind}`;
+    let m = this.hdMaterials.get(key);
+    if (!m) {
+      m = {
+        material: terrainMaterial(this.palette, texture, this.terrainLevel, { kind, scale, blend: BLEND_ALPHA }),
+        depth: kind === "cutout" ? terrainDepthMaterial(texture, scale) : undefined,
+      };
+      this.hdMaterials.set(key, m);
+    }
+    let pool = this.hdPools.get(m.material);
+    if (!pool) {
+      pool = new Pool(this.groundGeometry, m.material, "instTile", this.root, { cast: kind === "cutout", receive: true }, 16, m.depth);
+      pool.lastUsed = frame;
+      this.hdPools.set(m.material, pool);
+      this.allPools.push(pool);
+    }
+    return pool;
   }
 
   /**
@@ -1038,6 +1165,13 @@ export class DrawListRenderer {
   private readonly paletteColor = (index: number, target: THREE.Color) => this.palette.color(index, target);
 
   private evictPools(frame: number): void {
+    for (const [material, pool] of this.hdPools) {
+      if (frame - pool.lastUsed > POOL_TTL_FRAMES) {
+        pool.dispose();
+        this.hdPools.delete(material);
+        this.allPools.splice(this.allPools.indexOf(pool), 1);
+      }
+    }
     for (let v = 0; v < this.pools.length; v++) {
       for (const [geometry, pool] of this.pools[v]) {
         if (frame - pool.lastUsed > POOL_TTL_FRAMES) {

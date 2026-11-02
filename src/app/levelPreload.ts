@@ -27,7 +27,15 @@ const SHOW_AFTER_MS = 200;
 
 /** What the current level (g.lvl, g.player) can show. */
 export function levelModelInfo(): LevelModelInfo {
-  return { sprites: levelSprites(), tileShapes: g.lvl?.shapesFile, tiles: levelTiles() };
+  return { sprites: levelSprites(), tileShapes: g.lvl?.shapesFile, tiles: levelTiles(), maps: levelTileMaps() };
+}
+
+/** The current level's three maps as tile numbers (-1: none), for the HD terrain's variants (D57). */
+export function levelTileMaps(): LevelModelInfo["maps"] {
+  const level = g.lvl?.level;
+  if (!level) return undefined;
+  const map = (layer: 0 | 1 | 2) => Int16Array.from(level.maps[layer], (b) => (level.mapSh[layer][b] ?? 0) - 1);
+  return [map(0), map(1), map(2)];
 }
 
 /**
@@ -51,6 +59,7 @@ export async function preloadLevelModels(view: View, report?: (text: string | nu
       waitUntil: PRELOAD_WAIT_LOC,
       progress: (done, total) => show(`Loading models… ${done} / ${total}`),
     });
+    view.draws.uploadTerrain(view.renderer); // the HD terrain's atlases before the first frame (D57)
     if (result.timedOut) console.warn(`level models: started after ${PRELOAD_TIMEOUT_MS} ms with ${result.done} of ${result.total} loaded`);
     return result;
   } finally {

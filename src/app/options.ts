@@ -1,6 +1,6 @@
 // The screens around the Options menu, on the interface framework (src/ui/README.md):
-//   showOptions      the settings screen: music and sound volume, music and sound style, the keyboard
-//                    bindings and a gamepad button check. The title's Options entry opens it, and
+//   showOptions      the settings screen: music and sound volume, music and sound style, the terrain
+//                    look (D57), the keyboard bindings and a gamepad button check. The title's Options entry opens it, and
 //                    so do the item screen's Joystick and Keyboard rows (the C's MENU_JOYSTICK_CONFIG
 //                    and MENU_KEYBOARD_CONFIG, game_menu.c L386-440, L2668-2745).
 //   showLoadScreen   JE_loadScreen (mainint.c L619-901): the title's list of saved games.
@@ -23,6 +23,7 @@ import { JE_changeVolume, set_volume, volume, volumeFromBarCells, VOLUME_STEP } 
 import { backButton, button, h, keyHints, MenuList, moveFocus, reveal, showScreen, title, type InputDevice, type Intent, type KeyHint } from "../ui";
 import { ACTIONS, BINDING_SLOTS, bindKey, clearKey, keyName, playerKeys, resetKeys, type Action, type PlayerIndex } from "./bindings";
 import { savePrefs } from "./prefs";
+import { setTerrainStyle, TERRAIN_STYLES, terrainStyle, type TerrainStyle } from "../core/terrainStyle";
 
 export interface OptionsHost {
   sfx: SoundEffects;
@@ -30,8 +31,11 @@ export interface OptionsHost {
   music: MusicPlayer & { readonly styles?: readonly string[]; readonly style?: string; setStyle?(style: string): void };
 }
 
-/** Which style a style row switches: the music's or the sound effects' (local remaster packs). */
-export type StyleTarget = "music" | "sound";
+/**
+ * Which style a style row switches: the music's or the sound effects' (local remaster packs), or
+ * the terrain's (HD remaster or original, D57).
+ */
+export type StyleTarget = "music" | "sound" | "terrain";
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
 /** Tyrian's text toggles a highlight with '~' (JE_textShade / JE_helpBox). */
@@ -140,9 +144,15 @@ export type OptionsRow =
 export type OptionsFocus = "sound" | "keyboard" | "joystick";
 
 const styleName = (s: string) => `${s[0].toUpperCase()}${s.slice(1)}`;
+/** A style chip's label: the terrain's have names of their own. */
+const STYLE_LABELS: Record<string, string> = { hd: "HD remaster" };
+const styleLabel = (s: string) => STYLE_LABELS[s] ?? styleName(s);
 
-/** The settings screen's rows, labelled from the game's menu text where it has them. */
-export function optionsRows(styles: readonly string[], soundStyles: readonly string[] = []): OptionsRow[] {
+/**
+ * The settings screen's rows, labelled from the game's menu text where it has them. A style row is
+ * there when it has more than one style to choose from.
+ */
+export function optionsRows(styles: readonly string[], soundStyles: readonly string[] = [], terrainStyles: readonly string[] = []): OptionsRow[] {
   const opt = g.menuInt[3] ?? []; // Options, Load, Save, Music, Sound, Joystick, Keyboard, Done
   const keyMenu = g.menuInt[6] ?? []; // KEY CONFIG, UP ... RIGHT SIDEKICK, Reset to Defaults, Done
   const actionLabels = ["Up", "Down", "Left", "Right", "Fire", "Change fire", "Left sidekick", "Right sidekick"];
@@ -151,6 +161,7 @@ export function optionsRows(styles: readonly string[], soundStyles: readonly str
     { kind: "volume", which: "sound", label: opt[4] || "Sound" },
     ...(styles.length > 1 ? [{ kind: "style" as const, which: "music" as const, label: "Music style" }] : []),
     ...(soundStyles.length > 1 ? [{ kind: "style" as const, which: "sound" as const, label: "Sound style" }] : []),
+    ...(terrainStyles.length > 1 ? [{ kind: "style" as const, which: "terrain" as const, label: "Terrain" }] : []),
     // [two-player] player 1's (and the one-player game's) keys, then player 2's
     ...([0, 1] as const).flatMap((player) => [
       ...ACTIONS.map((action, i) => ({ kind: "key" as const, action, label: keyMenu[i + 1] || actionLabels[i], player })),
@@ -172,6 +183,10 @@ export interface SettingsHost {
   soundStyles?: readonly string[];
   soundStyle?(): string | undefined;
   setSoundStyle?(style: string): void;
+  /** The terrain looks (D57), the one in use, and how to switch (it's kept by the host). */
+  terrainStyles?: readonly string[];
+  terrainStyle?(): string | undefined;
+  setTerrainStyle?(style: string): void;
   /** Leave the settings screen. */
   close(): void;
 }
@@ -351,7 +366,9 @@ export class SettingsMenu {
     if (this.capturing) return g.miscText[32] || "Press the key to use for this function.";
     switch (this.row.kind) {
       case "volume": return g.mainMenuHelp[15 - 1] ?? "";
-      case "style": return `Change the ${this.row.which === "sound" ? "sound effects and voices" : "music"} with the left/right arrow keys.`;
+      case "style":
+        if (this.row.which === "terrain") return "HD remaster draws the ground and islands from new paintings where this level has them; Original keeps the upscaled tiles. Left/right switches.";
+        return `Change the ${this.row.which === "sound" ? "sound effects and voices" : "music"} with the left/right arrow keys.`;
       case "key":
         return (
           `${g.mainMenuHelp[20 - 1] ?? ""} Left/right picks the first or second key; Delete clears it.` +
@@ -371,6 +388,7 @@ export class SettingsMenu {
   /** The music's or the sound effects' styles, the one in use, and how to switch. */
   private styleOf(which: StyleTarget): { styles: readonly string[]; current: string; set(style: string): void } {
     const h = this.host;
+    if (which === "terrain") return { styles: h.terrainStyles ?? [], current: h.terrainStyle?.() ?? "original", set: (s) => h.setTerrainStyle?.(s) };
     return which === "sound"
       ? { styles: h.soundStyles ?? [], current: h.soundStyle?.() ?? "original", set: (s) => h.setSoundStyle?.(s) }
       : { styles: h.styles, current: h.style() ?? "original", set: (s) => h.setStyle(s) };
@@ -415,7 +433,8 @@ export function showOptions(host: OptionsHost, focus: OptionsFocus = "sound"): P
       screen.close();
       resolve();
     };
-    const menu = new SettingsMenu(optionsRows(styles, soundStyles), focus, {
+    const terrainStyles = TERRAIN_STYLES;
+    const menu = new SettingsMenu(optionsRows(styles, soundStyles, terrainStyles), focus, {
       sound,
       styles,
       style: () => host.music.style,
@@ -423,6 +442,12 @@ export function showOptions(host: OptionsHost, focus: OptionsFocus = "sound"): P
       soundStyles,
       soundStyle: () => host.sfx.style,
       setSoundStyle: (s) => host.sfx.setStyle(s),
+      terrainStyles,
+      terrainStyle,
+      setTerrainStyle: (s) => {
+        setTerrainStyle(s as TerrainStyle);
+        savePrefs();
+      },
       close: finish,
     });
     const rows = menu.rows;
@@ -445,12 +470,21 @@ export function showOptions(host: OptionsHost, focus: OptionsFocus = "sound"): P
       },
     });
 
-    // The rows, in sections: Sound, Keyboard (the C's KEY CONFIG), player 2's keyboard, Gamepad, then Done.
+    // The rows, in sections: Sound, Graphics, Keyboard (the C's KEY CONFIG), player 2's keyboard,
+    // Gamepad, then Done.
     const keyMenu = g.menuInt[6] ?? [];
     const sectionOf = (r: OptionsRow) =>
-      r.kind === "volume" || r.kind === "style" ? 0 : r.kind === "key" || r.kind === "reset" ? 1 + r.player : r.kind === "pad" ? 3 : 4;
+      r.kind === "style" && r.which === "terrain"
+        ? 1
+        : r.kind === "volume" || r.kind === "style"
+          ? 0
+          : r.kind === "key" || r.kind === "reset"
+            ? 2 + r.player
+            : r.kind === "pad"
+              ? 4
+              : 5;
     const keyboard = keyMenu[0] ? styleName(keyMenu[0].toLowerCase()) : "Keyboard";
-    const sectionTitles = ["Sound", keyboard, `${keyboard} · ${g.miscText[49]?.trim() || "Player 2"}`, (g.menuInt[13] ?? [])[0] || "Gamepad", ""];
+    const sectionTitles = ["Sound", "Graphics", keyboard, `${keyboard} · ${g.miscText[49]?.trim() || "Player 2"}`, (g.menuInt[13] ?? [])[0] || "Gamepad", ""];
     const list = h("ul", { class: "ui-menu opt-list", attrs: { role: "listbox", "aria-label": "Settings" } });
     const rowEls: HTMLLIElement[] = [];
     let section = -1;
@@ -463,7 +497,8 @@ export function showOptions(host: OptionsHost, focus: OptionsFocus = "sound"): P
       const li = h("li", { class: `ui-menu__item opt-row opt-row--${r.kind}`, attrs: { role: "option", "data-i": String(i) } }, h("span", { class: "ui-menu__label opt-row__label", text: r.label }));
       if (r.kind === "volume") li.insertAdjacentHTML("beforeend", volumeSliderHtml(0, r.which, r.label));
       if (r.kind === "style") {
-        li.append(h("span", { class: "opt-styles" }, ...(r.which === "sound" ? soundStyles : styles).map((st) => h("button", { class: "opt-chip", text: styleName(st), attrs: { type: "button", tabindex: "-1", "data-style": st } }))));
+        const list = r.which === "terrain" ? terrainStyles : r.which === "sound" ? soundStyles : styles;
+        li.append(h("span", { class: "opt-styles" }, ...list.map((st) => h("button", { class: "opt-chip", text: styleLabel(st), attrs: { type: "button", tabindex: "-1", "data-style": st } }))));
       }
       if (r.kind === "key") {
         li.append(
@@ -489,7 +524,7 @@ export function showOptions(host: OptionsHost, focus: OptionsFocus = "sound"): P
       const kind = menu.row.kind;
       const side: Partial<Record<OptionsRow["kind"], KeyHint>> = {
         volume: { key: "←→", pad: "✛", touch: "Drag", label: "Volume" },
-        style: { key: "←→", pad: "✛", label: menu.row.kind === "style" && menu.row.which === "sound" ? "Sound" : "Music" },
+        style: { key: "←→", pad: "✛", label: menu.row.kind === "style" ? { music: "Music", sound: "Sound", terrain: "Terrain" }[menu.row.which] : "Music" },
         key: { key: "←→", pad: "✛", label: "Key slot" },
       };
       return [
@@ -511,7 +546,7 @@ export function showOptions(host: OptionsHost, focus: OptionsFocus = "sound"): P
         li.setAttribute("aria-selected", String(focused));
         if (r.kind === "volume") setVolumeSlider(li.querySelector<HTMLElement>(".opt-vol")!, r.which === "music" ? volume.tyrMusicVolume : volume.fxVolume);
         if (r.kind === "style") {
-          const on = r.which === "sound" ? host.sfx.style : host.music.style;
+          const on = r.which === "terrain" ? terrainStyle() : r.which === "sound" ? host.sfx.style : host.music.style;
           li.querySelectorAll<HTMLElement>("[data-style]").forEach((b) => b.classList.toggle("is-on", b.dataset.style === on));
         }
         if (r.kind === "key") {

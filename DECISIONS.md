@@ -2017,3 +2017,243 @@ bake* (no concept image exists for it) and *flat art* (it's an enemy, and enemie
 
 **Review:** `?debug=play&armor=3&freezeAt=85` (the ship), `?debug=play&front=7&power=1` and
 `&power=7` against `&front=1` (Vulcan vs Pulse).
+
+## D57 — HD terrain: painted tiles from per-tileset atlases, seam-free sampling, an Options switch
+
+2026-11-02
+
+**Decision:** In the remastered backgrounds (D34, the default since D48), a background tile with an
+HD painting is drawn from it; every other tile draws as before. The art comes from Gemini through
+`tools/terrain_hd.py` (the art pipeline's own entry); this entry is the game side and the contract.
+- **Format.** `public/art/terrain/<tileset>/manifest.json` and one `<layer>.webp` per layer with art.
+  `<tileset>` is the shapes file without `.dat` (`shapesz`), the layer the draw list's (0 ground, 1
+  background 2: TYRIAN's clouds, 2 background 3: islands), a tile key the tile's 0-based record in
+  shapes?.dat. `{ "version": 1, "scale": 8, "layers": { "<layer>": { "image", "tiles": { "<n>": { x, y,
+  w, h } }, "variants"?: { "<n>": [ { "n": { left|right|up|down: tile or -1 }, x, y, w, h } ] } } } }`.
+  Rects are exactly 24x28 times `scale`, at multiples of 16 texels with at least 16 texels of
+  edge-extended gutter, atlases at most 4096 square (a rect may name its own `image`). Layer 0 opaque;
+  1 and 2 straight-alpha RGBA, colour bled under alpha 0, cloud alpha being coverage only (the game
+  applies BLEND_ALPHA). A variant is used where the level's map has all its listed neighbours.
+- **Loading** (`src/render/remaster/terrainLoader.ts`, `terrainArt.ts`). `preloadLevel` requests the
+  level's tileset and waits for its manifest and atlases with the models (D54); `levelModelInfo` now
+  passes the level's maps as tile numbers for the variants. The harnesses, which don't preload, start
+  the load at the first tile drawn. A tileset's art is used only once all its atlases have settled.
+  No manifest, an unparsable one (a dev server's index.html), a failed atlas, a wrong-sized rect, or
+  a rect outside its image: those tiles draw as before.
+- **Drawing** (`terrainMaterial.ts`, `DrawListRenderer.drawHdTile`). After the structure-model check
+  (models still win; ground tiles under `keepTiles` models are HD too), a tile with art is a flat
+  ground quad (the same 24x28 quad and placement as the 4x ground, D6), one instanced draw per atlas
+  and kind: ground (opaque MeshStandardMaterial, relief from the painting's brightness measured a
+  quarter pixel either side, receives shadows, water's ripple mark), blend (clouds: BLEND_ALPHA x the
+  art's coverage, no depth write, the sheets' render order) and cutout (layer 2 and an opaque
+  background 2 without models: alpha cut at 0.5, depth written, shadows cast through a depth material
+  that cuts the same way). Otherwise the 4x MMPX ground, and the original tile if that can't draw.
+- **Seam-free sampling.** The shader picks the mip level from the texel footprint, at most 4, clamps
+  the texel position half a texel of the coarser blended level (0.5 x 2^ceil(lod)) inside the rect and
+  reads with textureLod. With 16-aligned rects no mip texel up to level 4 spans two tiles, so every
+  tap of both blended levels is the cell's own tile, and adjacent cells meet on their own edge
+  texels. Atlases are mipmapped (LinearMipmapLinear), unflipped, sRGB; layers 1-2 premultiplied.
+- **Palette effects** by brightness, as for the flat sprite art (D42): the smoothies' hues (lava, ice,
+  water with its ripple mark) and JE_filterScreen's hue and brightness. Not reachable: palette
+  animation and swaps, and water_filter's exception for grey and cloud-blue indices (all of the art
+  is recoloured).
+- **Switch** (`src/core/terrainStyle.ts`). Options → Graphics → Terrain: Original / HD remaster (a style
+  row like Music/Sound style, `optionsRows`' third list), kept in the prefs (`terrain`), and
+  `?terrain=original|hd` for the page (the player's later choice replaces it). Default HD. The renderer
+  listens and switches at once. "Original" is the terrain as before this entry (the 4x ground);
+  `?bg=original` is still the original tiles, and HD art applies only in the remastered backgrounds.
+  `?terrainart=<dir>/` loads the art from another folder under public/ (test atlases);
+  `stats().hdTiles` counts HD tiles drawn.
+
+**Options considered:**
+- *Per-tileset atlas + manifest like the sprite art (chosen):* the D42 pattern the pipeline already
+  knows; one request per layer; partial art falls back per tile.
+- *Folding HD into the MMPX palette-index atlas (D34):* palette effects would stay exact, but a
+  painting quantised to 16 shades per hue loses what it was painted for.
+- *Per-context paintings for every 3x3 neighbourhood (as the MMPX slots are):* seam-free by
+  construction but 1,000-2,000 paintings per level; one painting per tile, made to meet its
+  neighbours, with optional variants where it can't, is a few hundred.
+- *Clamp at the base level's half texel with hardware mip selection:* trilinear still reads a
+  quarter-texel of the gutter at levels 1+, and anisotropic taps reach further; the shader's own lod
+  with a level-scaled clamp is exact (tested on a CPU model of the sampler).
+- *Extruding the HD islands like the original tiles (D8):* depth, but the painting's soft silhouette
+  and the extruder's walls disagree; flat cutouts with real shadows read as painted islands, and most
+  of TYRIAN's islands are models anyway.
+- *A URL option only (as D42, D48):* the request was a setting; it's the first Graphics row, the
+  natural home for the effects and sprite looks too.
+
+**Review:** With TYRIAN's real atlases: `?debug=play&seed=1&skip=220&freezeAt=220` with and without
+`&terrain=original` (clouds over the ground, forest and roads), `&dpr=0.3` for far mips, the islands
+around `?debug=sprites&episode=1&level=9&row=140&freeze=80`, and Options → Terrain in the game.
+Verified so far with a synthetic atlas whose gutters are magenta (every 7th tile left out for the
+fallback): no magenta pixel at dpr 2 or 0.3, while widening the rect by 8 texels from the console
+shows 1,306 — the check sees a leak when there is one. Docs: docs/terrain-pipeline.html.
+
+## D58 — HD terrain art: Gemini paints map regions and tile contexts; edge strips are solved jointly
+
+2026-11-02
+
+**Decision:** The art D57 draws is made by Google Gemini from input sheets of the level's tiles and
+brought back by `tools/terrain_hd.py`, the way D43 does it for sprites:
+- **Inventory** (`inventory`): from the level's maps, what is drawn as a tile in the default look:
+  structure-model matches are found on the whole map as `TileModelIndex` finds them (biggest pattern
+  first; layer 1-2 models replace their tiles, ground models keep them). For TYRIAN (map 1-9,
+  `shapesz.dat`): 66 ground tiles (4,200 cells; 29 of them under the trees, bunkers, wreck and boulders
+  of D34/D47, still drawn), 15 cloud tiles on layer 1 (3,208 cells), and none on layer 2 (all 1,290
+  cells are under models). Each tile gets its counts, its neighbours per side, its usual neighbours
+  (also diagonally) and a representative 3x3 neighbourhood from the map, and a material group from its
+  palette ramps (Tyrian's ramps are one colour each).
+- **Sheets** (`sheets`), PNGs on black, padded to one of Gemini's aspect ratios (1:1, 3:4, 4:3, 9:16,
+  16:9), each with its prompt in `sheets/manifest.json` (cell rects, padding, grid, which tile sits
+  where). For the ground, 7x6-tile stretches of the map at 6x (1080 px square), chosen as a set cover
+  so every tile is inside one away from its border: 10 sheets. For the clouds, 3x3 contexts at 4x, 7-9
+  per sheet (1104 px): 2 sheets. Ground contexts by material (dirt and rock, dirt-forest edges, forest
+  under trees, bunker and wreck tiles) are made too, as optional retries (9 sheets).
+- **Cutter** (`cut`): each cell of an answer (any size, same aspect) is registered to the sheet's own
+  picture of it by normalised cross-correlation over a rescale of +-6% and a shift, each tile then by a
+  small shift; the tile is resampled at 8 texels per pixel and its colour matched to the original's
+  (per-channel mean and low-frequency contrast). The best-fitting painting per tile wins (or the mean of
+  the good ones). Alpha on layers 1-2 is the original silhouette upscaled with MMPX among the tile's
+  usual neighbours, blurred and ramped. **Seams:** every tile side has an edge strip (its outer 4 texels,
+  smoothed along the edge); all strips are solved at once, least squares over every pair of tiles the
+  map puts side by side, weighted by how often, plus a pull of 0.15 towards the tile's own painting.
+  The most frequent pairs (a texture next to itself, a tile and its usual neighbour) come out
+  (nearly) identical; a side with many different neighbours gets the strip closest to all of them. Each tile's
+  border is then moved onto its strips: the difference fades in over 40 texels, so the painting's
+  detail stays, and the outer 4 texels are the strip. Atlases are packed to D57's rules.
+- **Check** (`check`): contact sheets of the whole map, original beside HD, and a seam measure over
+  every edge the map has. On stand-in answers (`fake`: the sheets MMPX-upscaled, rescaled +-1.5%,
+  shifted up to 6 px, blurred, noised and colour-shifted), every tile registered with NCC >= 0.94, and
+  the colour step between the two texels at a tile edge is 0.88x (ground) and 0.91x (clouds) the step
+  between neighbouring texels inside a tile; without the seam pass it was 2.8x and 5.2x.
+
+**Options considered:**
+- *Map regions for the ground, contexts for the clouds (chosen):* in a region Gemini paints a tile's
+  real neighbours in the same stroke, so most edges already continue (the pairs in a region are the
+  map's own) and the strips have less to fix; every tile of the sheet is used, at 6x instead of 4x
+  (a 3x3 context spends eight ninths of the sheet on neighbours that are thrown away), so 10 sheets
+  cover the ground instead of 9 sheets at lower resolution. Contexts suit the clouds, whose sheets are
+  mostly black around a few shapes and which are all one material.
+- *Contexts for everything:* the uniform grids Gemini kept well for sprites (D43), but each centre
+  tile is painted on its own, so its edges agree with its neighbours' only as far as the seam pass
+  forces them. Kept as optional retries.
+- *Seams by blending each tile's border to a smooth upscale of its own pixels among its usual
+  neighbours:* exact for usual pairs only; on TYRIAN's clouds, where tile 53 has several different
+  neighbours on every side, steps of ~20 levels were left at edges like 53 over 63 (inside a tile
+  ~2).
+- *Variants (D57) for each neighbour combination:* exact, but 824 ground and 629 cloud combinations;
+  the jointly solved strips get the measured edges below the inside steps with none. Variants stay
+  available for a pair that still shows.
+- *Averaging the alpha strips too:* where one tile's edge is empty and its neighbour's isn't, it drew a
+  faint line of cloud; alpha stays the silhouette.
+
+**Review:** Send the primary sheets to Gemini one at a time (`sheets/manifest.json` lists them with
+their prompts; the ground regions first, then the clouds), save each answer as
+`<work>/results/<sheet name>.png|jpg`, then `python tools/terrain_hd.py --work <work> cut` and
+`check`, and look at `check/*.jpg` and `cut-report.json` (an NCC under ~0.5 means the cell moved or was
+repainted: retry it, or send the optional context sheet for that tile). The atlases in
+`public/art/terrain/shapesz/` are committed with the real answers (with a CREDITS.md row, D41); the
+sheets and answers stay out of git (D3). Known limits: palette cycling and swaps don't reach the
+painting (D57); where only some tiles have art, an HD tile next to a 4x one has an ordinary seam; at
+4x and 6x per pixel Gemini's ~1024 px answers are upsampled to 8x, so detail is at most what fits.
+To extend to another level: `--level <ep-file>` for `inventory`, `sheets`, `cut` and `check` (the
+tileset comes from the level; a tileset shared by several levels should be inventoried for all of
+them before its atlas is cut, which the tool does not do yet).
+
+## D59 — TYRIAN's HD terrain from the real Gemini answers; the cutter prefers painted, coherent tiles
+
+2026-11-02
+
+**Decision:** `public/art/terrain/shapesz/` (0.webp 1888x1936 RGB, 1.webp 1056x736 RGBA, manifest.json;
+600 KB) is cut by `tools/terrain_hd.py cut` from the 21 Gemini answers (2048 px, 2400x1792 for the
+4:3 sheet; every cell registered at scale 1.00). It covers every tile the inventory lists: all 66
+ground tiles and all 15 cloud tiles of map 1-9 (layer 2 needs none, D58). None is excluded. On the real
+answers the D58 cutter's choice ("the best-fitting painting wins") picked the wrong ones, so the
+choice now weighs, per candidate:
+- **Pixel blocks** (`blockiness`): the colour steps between texels averaged by phase in the 8-texel
+  period of an original pixel, strongest phase over the mean. A painting is 1.0-1.5; region-l0-02's
+  answer, which copied the 6x6 blocks, is 3.3-3.7 and fit the original best (NCC 0.99), so it won 8
+  tiles. Above 2.0 it costs 0.15 per unit.
+- **Made-up marks** (`novel_detail`): the 99.8th percentile of the painting's local high-pass energy
+  minus the original's. A twig Gemini drew in one copy of the light dirt (tile 46, 150 cells) showed
+  as a grid of marks across the map. It costs 0.03 per unit above the tile's median candidate + 1
+  (relative, since a canopy has more detail than dirt).
+- **Region over context** (+0.06): a tile painted in a map region shares its neighbours' texture; the
+  context sheets painted the dirt around mounds as smooth sand, which showed as tile-shaped patches next
+  to region-painted dirt. Contexts still win where regions are poor (16 of 66 ground tiles).
+- **Shading follows the original** (`match_lowfreq`, 16 texels): the painting's blur at 16 texels is
+  swapped for the original's (among the tile's usual neighbours), so a darker corner Gemini painted
+  doesn't become a grid when the tile repeats, and cloud rim tiles match the inside ones in brightness.
+`cut` gained `--exclude 0:332,...` (leave tiles out; they fall back), `--pick 0:68=region-l0-03#0`
+(hand pick), `--cache FILE` (keeps the registered candidates; registration takes ~3.5 min) and knobs
+for the above; `cut-report.json` lists each tile's source, NCC, colour error, blockiness and novel detail.
+
+**Result** (`check`, every edge the map has): ground, colour step across tile edges 1.85 vs 3.08
+between texels inside tiles (0.60), 8-texel bands 3.99 vs 7.84 (0.51); clouds 2.15 vs 2.62 (0.82),
+bands 7.54 vs 14.74 (0.51). The contact sheets show no seam along the map's own pairs, no labels,
+text or cell bleed; on the ground the painting's mean colour error per original pixel is 0.8-3.7%
+(median 1.4%; `cut-report.json`). Weak spots, kept since
+the fallback would be worse: tiles 37, 39, 110, 224, 332, 333, 350 still have some pixel blocks
+(1.9-2.8; 224 is under trees, 332/333 under a bunker); the forest canopy (region-l0-03, 210-233) keeps
+some checker but sits under the tree models; the cloud rims (ctx-l1-blue-1: 40-44, 50-52) are painted
+as puffier clouds with a little sparkle, colour error up to 0.135, and a few rare vertical pairs
+(42 over 61 and 44 over 53 once each, 42 over 52 16 times) keep a visible step (ratio 2.9-10).
+
+**Options considered:**
+- *Keep the best fit (D58):* chose blocky copies and the twig; rejected after the contact sheets.
+- *Exclude the blocky tiles:* they'd draw as the 4x MMPX ground beside HD neighbours, a seam of
+  style at every edge; region-01/08/09 painted the same tiles acceptably.
+- *Another Gemini round for region-l0-02:* the operator stopped at Gemini's usage warning; the other
+  regions and contexts already cover its tiles. A softened sheet (D58 docs) is the retry if wanted.
+
+**Review:** in game, `?debug=play&seed=1&skip=220&freezeAt=220` against `&terrain=original` was not
+looked at in this step; the contact sheets and the seam metric were. To redo a tile: retry its sheet,
+delete the cache, `cut` again, and look at `check/l*-rows*.jpg`.
+
+## D60 — HD terrain checked in game: atlases uploaded during the preload, leftover pixel blocks softened
+
+2026-11-02
+
+**Decision:** TYRIAN's HD terrain (D57-D59) was played through in the browser and two things were fixed:
+- **Atlas upload in the preload.** `DrawListRenderer.uploadTerrain(renderer)`, called by
+  `preloadLevelModels` after `preloadLevel`, hands the level's HD atlases to `renderer.initTexture` when
+  the look is HD. Before, the level's first frame decoded and uploaded them with their mipmaps: ~85 ms
+  (first frame 270 ms against 180 ms for the original look, the same three runs each), which in
+  `?debug=play&skip=2000` was enough to run past D54's 250 ms hold, so the worm and its grabbers came
+  out as extruded sprites in HD and as models in Original. Now the first frame is ~180 ms in both. A switch
+  to HD in Options still uploads on its next frame (~110 ms once, in a menu).
+- **Deblocking** (`tools/terrain_hd.py`, `deblock`). A chosen painting whose blockiness (D59) is above 1.6
+  has its block edges softened, fully from 2.4: a 2.5-texel blur mixed in within 3 texels of the columns
+  and rows where the 8-texel period's steps are strongest; the blocks' insides keep their detail. 23 of
+  the 66 ground tiles are touched: 333 2.81 -> 1.57, 39 2.37 -> 1.58, 332 2.19 -> 1.55, 110 2.09 -> 1.63,
+  37 2.03 -> 1.67, 350 2.03 -> 1.64, 224 2.05 -> 1.65; the rest were 1.6-2.0 and end at 1.6-1.7
+  (`cut-report.json`: `deblocked`). It showed in game as a rectangle of pixels around the bunker (330-333
+  under it) and along the dark rock at tick 1000. `--deblock-from 0` turns it off. Seam measure (D58):
+  ground 0.573 (was 0.601), bands 0.50; clouds unchanged (no cloud tile is over 1.6). The atlas is re-cut
+  from the same cache (`0.webp` 512 KB); without deblocking the cut still reproduces D59's byte for byte.
+
+**Checked** (`?debug=play&seed=1&skip=T&freezeAt=T`, T = 1, 8, 30, 300, 1000, 2000, 3000, 4200, 5500,
+HD and `&terrain=original`, plus `&dpr=0.3`): no seams, gaps or misplaced tiles on the ground or the
+clouds at any of them; the clouds translucent over the ground in both looks and seamless; layer 2 is all
+models on TYRIAN, so there are no HD island edges to check; colours match the original's (the grass,
+dirt, ridges and pools). Options → Graphics → Terrain switches at once and is kept in the settings;
+`?terrain=` and a live `setTerrainStyle` switch too. Fallback: a copy of the atlas with tiles 46 (ground)
+and 53 (cloud) deleted from its manifest, through `&terrainart=`, draws those 13 cells at tick 300 as the
+4x ground (`hdTiles` 130 -> 117), nothing missing. Performance: 120 fps and ~2 ms cpu in the overlay in
+both looks. Tests and the typecheck pass.
+
+**Not fixed** (docs/terrain-pipeline.html, "Known limits"): during the level-start fade (levelBrightness
+-14 to 0, ~14 ticks) the art's brightness recolouring (D42's) goes darker than the original, whose
+darkest ramp entries keep some colour (the cloud blue's index 0 is still (9,21,27)), so for half a second
+the HD clouds look grey and the ground black. Doing it right needs each texel's palette hue, which the
+painting doesn't carry; a per-layer floor colour was considered and left out as a guess. The weak tiles
+D59 lists stay weak, though softer.
+
+**Options considered:**
+- *Compile the HD materials in the preload as well:* the upload was 85 of the ~90 ms; after it the
+  difference was within run-to-run noise.
+- *Exclude the blocky tiles:* the 4x ground beside painted neighbours, a seam of style at every edge (D59).
+- *Blur the whole tile:* removes the blocks, and the painting's detail with them; a blur only at the grid
+  lines keeps the rest.
+- *Another Gemini round for those tiles:* Gemini's usage warning had already come up (D59); the deblock
+  needs no new answers.
