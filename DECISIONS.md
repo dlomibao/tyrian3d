@@ -1948,7 +1948,7 @@ sprite, no structure as tiles); at 200 KB/s the preload gave up at 20 s with 12 
 the next 2300 frames 25 objects were sprites for life, 11 were held and then models, and nothing
 went from sprite to model. On `main` the same run shows extruded enemies beside models. `?debug=play`
 takes `&preload=0` to start without waiting.
-## D54 — The ink outline is converted from sRGB; the menu ship goes where the panels leave room
+## D55 — The ink outline is converted from sRGB; the menu ship goes where the panels leave room
 
 **Outline.** OutlineEffect reads `defaultColor` as linear working-space values, so the (0.07, 0.035, 0)
 that stood for palette 16, (16, 8, 0), rendered as olive-brown (75, 53, 0) (D53 noted it). Every

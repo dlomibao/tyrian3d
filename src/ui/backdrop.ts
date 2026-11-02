@@ -262,7 +262,7 @@ export class Backdrop implements BackdropControl {
     // Portrait screens (phones) keep a landscape square's width in view rather than zooming in.
     this.camera.fov = aspect < 1 ? THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(FOV / 2)) / aspect)) : FOV;
 
-    // Where the ship goes: the biggest free space beside, above or below the screen's panels (D54),
+    // Where the ship goes: the biggest free space beside, above or below the screen's panels (D55),
     // sized so the whole ship fits; with no panel up (or no way to measure one), the pose's own framing.
     const box = occupiedBox();
     const dist = p.cam.distanceTo(p.look);
