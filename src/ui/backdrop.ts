@@ -12,6 +12,7 @@
 
 import * as THREE from "three";
 import { OutlineEffect } from "three/addons/effects/OutlineEffect.js";
+import { INK_OUTLINE } from "../render/outlineColor";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { loadModel } from "../render/models";
 import { spriteModelKey, spriteModels, type SpriteModels } from "../render/spriteModels";
@@ -23,8 +24,14 @@ const DEFAULT_SHIP = "usp_talon";
 /** The ship's length in scene units once its model is normalised. */
 const SHIP_LENGTH = 2.4;
 /** View's outline (src/render/view.ts), so the ship looks the same as in play. */
-const OUTLINE = { defaultThickness: 0.0045, defaultColor: [0.07, 0.035, 0.0] };
+const OUTLINE = { defaultThickness: 0.0045, defaultColor: INK_OUTLINE };
 const NO_OUTLINE = { outlineParameters: { visible: false } };
+/** A bound on the model's reach from its centre in scene units (half its length, the bob and the bank). */
+const SHIP_RADIUS = SHIP_LENGTH / 2 + 0.2;
+/** Its height and bob, in scene units. */
+const SHIP_HEIGHT = 0.4;
+/** The smallest ship scale worth moving the ship to a free gap for. */
+const MIN_FIT = 0.25;
 const PLANET_RADIUS = 400;
 /** Vertical field of view on landscape screens. */
 const FOV = 40;
@@ -67,6 +74,65 @@ export const POSES: Record<Exclude<BackdropMood, "none">, Pose> = {
   hangar: { cam: new THREE.Vector3(0, 4.6, 4.4), look: new THREE.Vector3(0, 0, 0), frameX: -0.62, frameXPortrait: 0, frameY: 0.1, liftPortrait: 0, heading: 0, spin: 0.3, scale: 1 },
   space: { cam: new THREE.Vector3(-3.2, 2, 9.5), look: new THREE.Vector3(0, 0, 0), frameX: 0.55, frameXPortrait: 0, frameY: -0.45, liftPortrait: 0, heading: -0.35, spin: 0, scale: 1 },
 };
+
+/** Where the ship goes on screen (pixels) and the largest ship scale that fits there. */
+export interface Slot {
+  cx: number;
+  cy: number;
+  fit: number;
+}
+
+export interface Box {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+/**
+ * The best place in the window beside, above or below `occupied` (the panels) for a ship whose
+ * reach from its centre is `reachX` by `reachY` pixels at scale 1 (the camera looks down on it, so
+ * it is shorter than wide), kept `margin` px from every edge. `prefer` < 0 favours the left gap and
+ * > 0 the right by 15%. Null when no gap takes the ship at `minFit` scale or more (phones, where the
+ * panel fills the window): the caller keeps the pose's own framing, the ship behind the panel. Pure,
+ * for tests.
+ */
+export function freeSlot(w: number, h: number, occupied: Box, prefer: number, reachX: number, reachY: number, minFit: number, margin = 14): Slot | null {
+  const gaps: { box: Box; bias: number }[] = [
+    { box: { left: 0, top: 0, right: occupied.left, bottom: h }, bias: prefer < 0 ? 1.15 : 1 },
+    { box: { left: occupied.right, top: 0, right: w, bottom: h }, bias: prefer > 0 ? 1.15 : 1 },
+    { box: { left: 0, top: 0, right: w, bottom: occupied.top }, bias: 1 },
+    { box: { left: 0, top: occupied.bottom, right: w, bottom: h }, bias: 1 },
+  ];
+  let best: Slot | null = null;
+  let bestScore = -Infinity;
+  for (const { box, bias } of gaps) {
+    const fit = Math.max(0, Math.min(((box.right - box.left) / 2 - margin) / reachX, ((box.bottom - box.top) / 2 - margin) / reachY));
+    const score = fit * bias;
+    if (score > bestScore) {
+      bestScore = score;
+      best = { cx: (box.left + box.right) / 2, cy: (box.top + box.bottom) / 2, fit };
+    }
+  }
+  return best && best.fit >= minFit ? best : null;
+}
+
+/** The screen on top's panels (and anything else it draws) as one box in window pixels, or null. */
+function occupiedBox(): Box | null {
+  const screens = document.querySelectorAll(".ui-screen.is-shown:not(.is-under):not(.is-aside):not(.is-leaving)");
+  const screen = screens[screens.length - 1];
+  if (!screen) return null;
+  let box: Box | null = null;
+  for (const el of Array.from(screen.children)) {
+    if (el.classList.contains("ui-modal")) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0) continue;
+    box = box
+      ? { left: Math.min(box.left, r.left), top: Math.min(box.top, r.top), right: Math.max(box.right, r.right), bottom: Math.max(box.bottom, r.bottom) }
+      : { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+  }
+  return box;
+}
 
 export class Backdrop implements BackdropControl {
   private mood: BackdropMood = "none";
@@ -189,24 +255,40 @@ export class Backdrop implements BackdropControl {
     this.time += dt;
     const t = this.time;
 
-    // Ease toward the mood's pose.
-    const k = 1 - Math.exp(-dt * 1.6);
     const p = this.pose;
-    p.cam.lerp(this.target.cam, k);
-    p.look.lerp(this.target.look, k);
-    p.heading += (this.target.heading - p.heading) * k;
-    p.scale += (this.target.scale - p.scale) * k;
-    p.spin += (this.target.spin - p.spin) * k;
-    p.frameY += (this.target.frameY - p.frameY) * k;
-    this.spinAngle += p.spin * dt;
-    if (this.target.spin === 0) this.spinAngle -= this.spinAngle * k; // unwind once it stops turning
-
     this.renderer.getSize(this.size);
     const { x: w, y: h } = this.size;
     const aspect = w / Math.max(1, h);
-    // Landscape screens use frameX, portrait ones frameXPortrait and liftPortrait, blending between.
+    // Portrait screens (phones) keep a landscape square's width in view rather than zooming in.
+    this.camera.fov = aspect < 1 ? THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(FOV / 2)) / aspect)) : FOV;
+
+    // Where the ship goes: the biggest free space beside, above or below the screen's panels (D54),
+    // sized so the whole ship fits; with no panel up (or no way to measure one), the pose's own framing.
+    const box = occupiedBox();
+    const dist = p.cam.distanceTo(p.look);
+    const pxPerUnit = h / 2 / (dist * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)));
+    // The ship turns about its vertical axis, so its reach is a circle on the ground: seen from
+    // above at `elev` that is an ellipse, plus the ship's height and bob.
+    const elev = Math.asin(Math.min(1, Math.max(0, (p.cam.y - p.look.y) / Math.max(dist, 1e-3))));
+    const reachX = pxPerUnit * SHIP_RADIUS;
+    const reachY = pxPerUnit * (SHIP_RADIUS * Math.sin(elev) + SHIP_HEIGHT);
+    const slot = box ? freeSlot(w, h, box, Math.sign(this.target.frameX), reachX, reachY, MIN_FIT) : null;
+    const wantScale = slot ? Math.min(this.target.scale, slot.fit) : this.target.scale;
+
+    // Ease toward the mood's pose.
+    const k = 1 - Math.exp(-dt * 1.6);
+    p.cam.lerp(this.target.cam, k);
+    p.look.lerp(this.target.look, k);
+    p.heading += (this.target.heading - p.heading) * k;
+    p.scale += (wantScale - p.scale) * k;
+    p.spin += (this.target.spin - p.spin) * k;
+    this.spinAngle += p.spin * dt;
+    if (this.target.spin === 0) this.spinAngle -= this.spinAngle * k; // unwind once it stops turning
+
+    // Landscape screens use frameX, portrait ones frameXPortrait and liftPortrait, blending between
+    // (only without a measured slot).
     const land = Math.min(1, Math.max(0, (aspect - 0.9) / 0.6));
-    this.lift += ((1 - land) * this.target.liftPortrait - this.lift) * k;
+    this.lift += ((slot ? 0 : (1 - land) * this.target.liftPortrait) - this.lift) * k;
 
     // A slow drift: the ship bobs and banks, the planet turns, the stars wheel past.
     this.ship.position.set(Math.sin(t * 0.23) * 0.25, this.lift + Math.sin(t * 0.7) * 0.12, Math.sin(t * 0.17) * 0.2);
@@ -218,11 +300,11 @@ export class Backdrop implements BackdropControl {
     this.stars.rotation.x = t * 0.006;
 
     // Frame the target off centre (beside or above the panels): shift the view window.
-    const fx = this.target.frameXPortrait + (this.target.frameX - this.target.frameXPortrait) * land;
+    const fx = slot ? (slot.cx / w) * 2 - 1 : this.target.frameXPortrait + (this.target.frameX - this.target.frameXPortrait) * land;
+    const fy = slot ? 1 - (slot.cy / h) * 2 : this.target.frameY;
     this.frameX += (fx - this.frameX) * k;
+    p.frameY += (fy - p.frameY) * k;
     this.camera.aspect = aspect;
-    // Portrait screens (phones) keep a landscape square's width in view rather than zooming in.
-    this.camera.fov = aspect < 1 ? THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(FOV / 2)) / aspect)) : FOV;
     this.camera.setViewOffset(w, h, (-this.frameX * w) / 2, (p.frameY * h) / 2, w, h);
     this.camera.position.copy(p.cam);
     this.camera.lookAt(p.look);

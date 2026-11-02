@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { OutlineEffect } from "three/addons/effects/OutlineEffect.js";
+import { INK_OUTLINE } from "./outlineColor";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import type { Settings } from "../core/settings";
 import type { Palette } from "../data/palette";
@@ -22,7 +23,7 @@ const MAX_BANK = THREE.MathUtils.degToRad(35);
 const GROUND_TILE_PX = 64;
 /** Dark outline around models, echoing the sprites' black edges. Thickness is relative to screen
  * size, so it looks the same at any resolution. */
-const OUTLINE = { defaultThickness: 0.0045, defaultColor: [0.07, 0.035, 0.0] };
+const OUTLINE = { defaultThickness: 0.0045, defaultColor: INK_OUTLINE };
 const NO_OUTLINE = { outlineParameters: { visible: false } };
 const BACKGROUND = 0x05070d;
 
