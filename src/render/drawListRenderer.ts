@@ -928,6 +928,18 @@ export class DrawListRenderer {
     return true;
   }
 
+  /**
+   * Send the current level's HD terrain atlases to the GPU now (decode, upload, mipmaps: ~85 ms
+   * for TYRIAN's), so the level's first frame doesn't pay for it (D57). Called after preloadLevel
+   * when the look is "hd"; a later switch to HD uploads them on its first frame instead.
+   */
+  uploadTerrain(renderer: THREE.WebGLRenderer): void {
+    if (this.terrain !== "hd" || this.background !== "remaster" || !this.levelMaps) return;
+    const tileset = this.terrainArt.get(this.levelMaps.tileset);
+    if (!tileset) return;
+    for (const image of tileset.images.values()) if (image) renderer.initTexture(image.texture);
+  }
+
   /** Load a tileset's HD terrain art (once), and give it the level's maps for its variants. */
   private requestTerrain(name: string): Promise<TerrainTileset<THREE.Texture> | null> {
     return this.terrainArt.request(name).then((t) => {

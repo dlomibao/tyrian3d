@@ -59,6 +59,7 @@ export async function preloadLevelModels(view: View, report?: (text: string | nu
       waitUntil: PRELOAD_WAIT_LOC,
       progress: (done, total) => show(`Loading models… ${done} / ${total}`),
     });
+    view.draws.uploadTerrain(view.renderer); // the HD terrain's atlases before the first frame (D57)
     if (result.timedOut) console.warn(`level models: started after ${PRELOAD_TIMEOUT_MS} ms with ${result.done} of ${result.total} loaded`);
     return result;
   } finally {

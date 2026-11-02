@@ -2209,3 +2209,51 @@ as puffier clouds with a little sparkle, colour error up to 0.135, and a few rar
 **Review:** in game, `?debug=play&seed=1&skip=220&freezeAt=220` against `&terrain=original` was not
 looked at in this step; the contact sheets and the seam metric were. To redo a tile: retry its sheet,
 delete the cache, `cut` again, and look at `check/l*-rows*.jpg`.
+
+## D60 — HD terrain checked in game: atlases uploaded during the preload, leftover pixel blocks softened
+
+2026-11-02
+
+**Decision:** TYRIAN's HD terrain (D57-D59) was played through in the browser and two things were fixed:
+- **Atlas upload in the preload.** `DrawListRenderer.uploadTerrain(renderer)`, called by
+  `preloadLevelModels` after `preloadLevel`, hands the level's HD atlases to `renderer.initTexture` when
+  the look is HD. Before, the level's first frame decoded and uploaded them with their mipmaps: ~85 ms
+  (first frame 270 ms against 180 ms for the original look, the same three runs each), which in
+  `?debug=play&skip=2000` was enough to run past D54's 250 ms hold, so the worm and its grabbers came
+  out as extruded sprites in HD and as models in Original. Now the first frame is ~180 ms in both. A switch
+  to HD in Options still uploads on its next frame (~110 ms once, in a menu).
+- **Deblocking** (`tools/terrain_hd.py`, `deblock`). A chosen painting whose blockiness (D59) is above 1.6
+  has its block edges softened, fully from 2.4: a 2.5-texel blur mixed in within 3 texels of the columns
+  and rows where the 8-texel period's steps are strongest; the blocks' insides keep their detail. 23 of
+  the 66 ground tiles are touched: 333 2.81 -> 1.57, 39 2.37 -> 1.58, 332 2.19 -> 1.55, 110 2.09 -> 1.63,
+  37 2.03 -> 1.67, 350 2.03 -> 1.64, 224 2.05 -> 1.65; the rest were 1.6-2.0 and end at 1.6-1.7
+  (`cut-report.json`: `deblocked`). It showed in game as a rectangle of pixels around the bunker (330-333
+  under it) and along the dark rock at tick 1000. `--deblock-from 0` turns it off. Seam measure (D58):
+  ground 0.573 (was 0.601), bands 0.50; clouds unchanged (no cloud tile is over 1.6). The atlas is re-cut
+  from the same cache (`0.webp` 512 KB); without deblocking the cut still reproduces D59's byte for byte.
+
+**Checked** (`?debug=play&seed=1&skip=T&freezeAt=T`, T = 1, 8, 30, 300, 1000, 2000, 3000, 4200, 5500,
+HD and `&terrain=original`, plus `&dpr=0.3`): no seams, gaps or misplaced tiles on the ground or the
+clouds at any of them; the clouds translucent over the ground in both looks and seamless; layer 2 is all
+models on TYRIAN, so there are no HD island edges to check; colours match the original's (the grass,
+dirt, ridges and pools). Options → Graphics → Terrain switches at once and is kept in the settings;
+`?terrain=` and a live `setTerrainStyle` switch too. Fallback: a copy of the atlas with tiles 46 (ground)
+and 53 (cloud) deleted from its manifest, through `&terrainart=`, draws those 13 cells at tick 300 as the
+4x ground (`hdTiles` 130 -> 117), nothing missing. Performance: 120 fps and ~2 ms cpu in the overlay in
+both looks. Tests and the typecheck pass.
+
+**Not fixed** (docs/terrain-pipeline.html, "Known limits"): during the level-start fade (levelBrightness
+-14 to 0, ~14 ticks) the art's brightness recolouring (D42's) goes darker than the original, whose
+darkest ramp entries keep some colour (the cloud blue's index 0 is still (9,21,27)), so for half a second
+the HD clouds look grey and the ground black. Doing it right needs each texel's palette hue, which the
+painting doesn't carry; a per-layer floor colour was considered and left out as a guess. The weak tiles
+D59 lists stay weak, though softer.
+
+**Options considered:**
+- *Compile the HD materials in the preload as well:* the upload was 85 of the ~90 ms; after it the
+  difference was within run-to-run noise.
+- *Exclude the blocky tiles:* the 4x ground beside painted neighbours, a seam of style at every edge (D59).
+- *Blur the whole tile:* removes the blocks, and the painting's detail with them; a blur only at the grid
+  lines keeps the rest.
+- *Another Gemini round for those tiles:* Gemini's usage warning had already come up (D59); the deblock
+  needs no new answers.

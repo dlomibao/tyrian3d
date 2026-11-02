@@ -964,6 +964,40 @@ def blockiness(hd: np.ndarray) -> float:
     return float(max(px.max() / max(px.mean(), 1e-3), py.max() / max(py.mean(), 1e-3)))
 
 
+DEBLOCK_FROM = 1.6  # pixel-block ratio from which a chosen painting's block edges are softened
+DEBLOCK_FULL = 2.4  # ratio at which they are softened fully
+
+
+def deblock(hd: np.ndarray, start: float = DEBLOCK_FROM, full: float = DEBLOCK_FULL) -> np.ndarray:
+    """Soften the pixel-block edges a painting kept (blockiness above `start`): around the texel
+    columns and rows where the 8-texel period's steps are strongest, mix in a blur of ~2.5 texels,
+    fading out 3 texels either side. The blocks' insides keep their painted detail. Some tiles have
+    no better painting (every answer copied the blocks, D59); in game their grid shows as a
+    rectangle of pixels in the soft ground."""
+    from scipy import ndimage
+
+    b = blockiness(hd)
+    k = float(np.clip((b - start) / max(full - start, 1e-3), 0.0, 1.0))
+    if k <= 0:
+        return hd
+    g = gray(hd.astype(np.float32))
+    h, w = g.shape
+
+    def boundary_weight(steps: np.ndarray, n: int) -> np.ndarray:
+        prof = np.array([steps[p::SCALE].mean() for p in range(SCALE)])
+        phase = int(prof.argmax())  # the step between texel phase and phase+1 of each period
+        pos = np.arange(n, dtype=np.float32)
+        d = np.abs(((pos - phase - 0.5) + SCALE / 2) % SCALE - SCALE / 2)  # distance to the nearest edge
+        ratio = prof.max() / max(prof.mean(), 1e-3)
+        return np.clip(1.0 - d / 3.0, 0.0, 1.0) * (ratio > 1.3)
+
+    wx = boundary_weight(np.abs(np.diff(g, axis=1)).mean(0), w)
+    wy = boundary_weight(np.abs(np.diff(g, axis=0)).mean(1), h)
+    wgt = (np.maximum(wx[None, :], wy[:, None]) * k)[..., None]
+    soft = ndimage.gaussian_filter(hd.astype(np.float32), (2.5, 2.5, 0), mode="nearest")
+    return hd * (1 - wgt) + soft * wgt
+
+
 def novel_detail(hd: np.ndarray, orig_rgb: np.ndarray, mask1: np.ndarray) -> float:
     """Salient detail the original tile doesn't have (a twig, a crack, a bright blob Gemini made
     up): local high-pass energy of the painting minus the original's, 99.8th percentile. Such marks
@@ -1135,11 +1169,15 @@ def cmd_cut(args) -> None:
                 assert f"{cs[0]['sheet']}#{cs[0]['cell']}" == want, f"--pick {layer}:{n}={want}: no such candidate"
             good = [c for c in cs if c["score"] >= cs[0]["score"] - 0.05] if args.combine == "mean" else cs[:1]
             hd = np.mean([c["hd"] for c in good], 0)
-            done[n] = prepare_tile(L, t, layer, n, match_lowfreq(L, t, layer, n, hd, args.lowfreq))
+            soft = deblock(hd, args.deblock_from, args.deblock_full) if args.deblock_from > 0 else hd
+            deblocked = soft is not hd
+            hd = soft
+            done[n] =prepare_tile(L, t, layer, n, match_lowfreq(L, t, layer, n, hd, args.lowfreq))
             report[f"{layer}:{n}"] = {"from": [f"{c['sheet']}#{c['cell']}" for c in good], "score": round(cs[0]["score"], 3),
                                       "ncc": round(cs[0]["ncc"], 3), "colourErr": round(cs[0]["err"], 3),
                                       "blocky": round(cs[0]["blocky"], 2), "novel": round(cs[0]["novel"], 1),
-                                      "candidates": len(cs), **({"picked": True} if f"{layer}:{n}" in picks else {})}
+                                      "candidates": len(cs), **({"picked": True} if f"{layer}:{n}" in picks else {}),
+                                      **({"deblocked": round(blockiness(hd), 2)} if deblocked else {})}
         if not done:
             continue
         # Seams: every side's edge strip solved jointly over the pairs the map has, then applied.
@@ -1309,6 +1347,8 @@ def main(argv: list[str] | None = None) -> None:
     c.add_argument("--blocky-cost", type=float, default=BLOCKY_COST, help=f"score per unit of pixel-block ratio above that (default {BLOCKY_COST})")
     c.add_argument("--region-bonus", type=float, default=REGION_BONUS, help=f"(default {REGION_BONUS}) score added to paintings from map regions (their texture matches their neighbours')")
     c.add_argument("--lowfreq", type=float, default=LOWFREQ, help=f"blur (texels) above which shading follows the original (default {LOWFREQ}; 0: off)")
+    c.add_argument("--deblock-from", type=float, default=DEBLOCK_FROM, help=f"pixel-block ratio from which the chosen painting's block edges are softened (default {DEBLOCK_FROM}; 0: off)")
+    c.add_argument("--deblock-full", type=float, default=DEBLOCK_FULL, help=f"ratio at which they are softened fully (default {DEBLOCK_FULL})")
     c.add_argument("--exclude", help="tiles to leave out (they fall back to the original), e.g. 0:332,1:41")
     c.add_argument("--pick", help="hand-picked candidates, e.g. 0:68=region-l0-03#0 (sheet#cell as in cut-report.json)")
     c.add_argument("--cache", help="pickle of the registered candidates: written on the first run, read on later ones")
