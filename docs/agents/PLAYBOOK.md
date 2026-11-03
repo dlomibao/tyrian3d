@@ -124,6 +124,9 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
   `<tileset>-structures.json` like `assets/blender/features/concepts/tyr-structures.json`); existing
   kits `assets/blender/tiles/lib_tiles.py` (`rock_tile`, `sprite_rock`, `export_tile_model`),
   `lib_l1bld.py`, `lib_tyrbld.py`.
+- **Tall buildings** (tiles that paint a roof with a wall below it): check with
+  `tools/tall_buildings.py analyse` first; if tall, follow `docs/agents/TALL-BUILDINGS.md` (D68:
+  the real building drawn in the art's oblique view, `lib_tall.py`), not the top-view IoU rule.
 - **Steps:** (1) Lead: shared kit for the tileset (`lib_<tileset>bld.py`), pattern matching
   (`minRows`, `keepTiles`), one worked example, the real-map test in `tests/render/remaster.test.ts`
   extended. (2) One agent per structure, own `tiles/<prefix>_<unit>.py`. (3) Review from the game

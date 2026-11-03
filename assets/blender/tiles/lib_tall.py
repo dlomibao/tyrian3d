@@ -1,4 +1,4 @@
-"""Tall buildings and structures (DECISIONS.md D67, docs/agents/TALL-BUILDINGS.md): a structure whose
+"""Tall buildings and structures (DECISIONS.md D68, docs/agents/TALL-BUILDINGS.md): a structure whose
 tiles draw a roof with a wall painted below it, built as a real 3D building and drawn the way its
 tiles draw it.
 

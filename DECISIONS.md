@@ -2586,3 +2586,88 @@ show where an enemy's rock meets an unusual neighbour (as D63's tiles), and the 
 sprites (`assembly-newsh2-115`, `-119`, the rock outcrop `assembly-newshe-39`) stand on level 1's dirt,
 not island rock, and are unchanged.
 Fallback: revert the five scripts and their GLBs; `castsShadow` is harmless without the flag.
+
+## D68 — Tall buildings are real buildings drawn in the art's oblique view
+
+2026-11-03
+
+**Decision:** A structure whose tiles paint a roof with a wall below it is built as the real
+building, then drawn the way its tiles draw it.
+- **Is it tall?** `tools/tall_buildings.py analyse` splits the tiles into roof and wall. In each
+  column the edge is the biggest drop in brightness, summed over a tile's width. The structure is
+  tall when all of these hold:
+  - the painted wall band is at least 6 px;
+  - the band runs along ≥ 60% of the building's columns;
+  - it is about as tall everywhere (spread ≤ 0.5);
+  - it is darker than the roof (≥ 0.08);
+  - its detail runs up and down.
+
+  The game camera can't show that much wall. At 15° a vertical wall shows 0.31 px per px of height
+  at mid-screen (0.72 at the top, −0.09 at the bottom), and a ground structure may be 0.8 units
+  tall (D5), about 3 px of wall.
+- **The model** (`assets/blender/tiles/lib_tall.py`):
+  - it stands on the roof's outline moved down by the wall band, i.e. where the wall meets the
+    ground;
+  - its walls are vertical, 1 px of height per px of painted wall;
+  - the roof and the south wall wear their own pixels, row for row, as a low relief in palette
+    materials;
+  - no concept bake.
+- **The renderer** (`src/render/remaster/structureInstances.ts`) reads two extras:
+  - `tyrian_oblique: k` puts each vertex on the camera ray through the base-plane point the art
+    draws it at (k px up the screen per px of height). This is D6's lift, applied per vertex.
+  - `tyrian_depth_band: [lo, hi]` gives each vertex the depth of that ray's point at its height
+    squeezed into the band: [0, 0.04] on the ground, under background 2's under pass at 0.05;
+    [0, 0.38] on background 3.
+
+  So the roof and wall land exactly where the tiles paint them, at every tilt and scroll
+  position. Everything the original drew over the tiles still draws over the building. Normals,
+  light and shadows are the real building's (the shadow pass doesn't use the transform).
+- **Measured** with `tools/tall_buildings.py measure` (`tools/tall_render.py`). It renders the game's
+  three cameras at the screen's top, centre and bottom, projected onto the ground plane, and scores
+  screen IoU, roof/wall IoU, per-region colour, footprint IoU and drift. Acceptance targets are in
+  `docs/agents/TALL-BUILDINGS.md`.
+- **Applied** to SAVARA's two towers (Episode 1, map 1-8; `assets/blender/tiles/savbld_towers.py`,
+  the tiles kept under them). Their tiles are a kit that also makes shorter and taller towers in
+  Episodes 1 and 4, so each pattern needs all its rows drawn (`minRows` 5 and 7). Until then the
+  tiles show, and the model lands exactly on them. TYRIAN (level 1) has no tall structure by the test: its 14
+  analysed patterns fail on band spread, wall darkness or detail direction. In game no variant
+  improved on its drums (a 7 px front face on one tile). So level 1 is unchanged.
+
+**Options considered:** each was built from the same split with the same kit, on SAVARA's wide tower
+(54 px wall under a 57 px roof) and tall tower (110 px under 56), and TYRIAN's drum. Each was judged
+in the game at 0°, 15° and 32° and at three ticks of its pass. Metrics are for the wide tower: screen
+IoU at 0°/15°/32°, mid-screen; drift from the top of the screen to the bottom at 15°.
+- *A, footprint + true height, real perspective:* IoU 0.42/0.64/0.77; drift 37 px (tall tower 86).
+  The roof floats off its tiles, magnified (the tall tower is 9 units, half the camera's height). Big
+  dark side faces show. Turrets or shots on the roof would miss it.
+- *B, fit the 15° camera within the pass budget (0.8 units, walls leaning back):* IoU
+  0.96/0.93/0.88; drift 3 px. It looks like the original, but as a 3D object it is the "sloped slab".
+  Its wall faces up, so it is lit like a roof (wall IoU 0.12).
+- *C0, true height plus a static lean fitted to 15°:* IoU 0.83/0.75/0.74; drift 12 px. A leaning
+  slab.
+- *C, true building, oblique-locked (chosen):* IoU 0.98 at every tilt and place, roof 0.95, wall
+  0.97; colour error 3/4; drift 0. It looks like the original at all three tilts, with wall lighting,
+  relief and a real shadow, and in the viewer it is a true tower.
+- *True height fitted to 15° with vertical walls:* the wide tower would be 172 px (14 units, 74% of
+  the camera's height). Rejected without building it.
+
+**Found on the way:**
+- A raised ground structure hides background 2's under pass (SAVARA's clouds at 0.05). Hence the
+  ground band's top of 0.04. The existing ground structures are up to 0.8 units tall (lib_l1bld
+  TALL_MAX), so they would do the same over clouds; not checked in game.
+- The pass budget (D5) caps every structure's real height at well under a unit. The depth band
+  lifts that cap for any model that needs it.
+
+**Review:**
+- Play SAVARA (`?debug=play&main=29&seed=1&skip=2300&freezeAt=2300`, and 2500 for the tall tower) at
+  each Camera.
+- Known limits:
+  - The building never shows more wall at 32° and has no parallax, like every flat tile.
+  - Its side faces never show.
+  - Its tall shadow falls beside the painted one in the ground tiles.
+  - The wall wears the painted wall's colours and is lit as a south-facing wall, so it reads darker
+    than the tiles in places.
+  - Layer-2 tall structures, and buildings whose roof edge steps, aren't covered by the kit yet.
+  - The wide and tall towers are 12.8k and 13.7k triangles, 0.65 and 0.71 MB (one quad per wall pixel).
+- Fallback: delete `src/render/tileModels/shapesy-savbld-*.json`. The renderer's extras are inert
+  without them.

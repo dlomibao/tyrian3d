@@ -1,5 +1,5 @@
 """SAVARA's stone towers in the sea (Episode 1, map 1-8 SAVARA, shapesy.dat, layer 0): the worked example
-of the tall-building rule (DECISIONS.md D67, docs/agents/TALL-BUILDINGS.md, lib_tall.py).
+of the tall-building rule (DECISIONS.md D68, docs/agents/TALL-BUILDINGS.md, lib_tall.py).
 
 The tiles draw each tower in the art's oblique view: a grey roof of carved slabs with chamfered corners
 (rows 320/330), and below it the south wall, dark stone with pairs of buttress pipes (340, 350 repeated,
@@ -9,7 +9,8 @@ as the real tower: on the roof's outline moved down to the wall's foot, its wall
 as the painted wall, the roof and the wall wearing their pixels as a low relief, and drawn by the
 renderer in the art's oblique view with its depth squeezed under background 2 (lib_tall.export).
 
-The tower tiles are a kit (320-362 also make SAVARA's walls and keeps), so the patterns need minRows.
+The tower tiles are a kit (320-362 also make SAVARA's walls and keeps), so the patterns need minRows
+(MIN_ROWS).
 Run from the repo root (needs `TILES_SHAPES=y npm run tiles` for reference/tiles/shapesy):
 
     blender --background --factory-startup --python assets/blender/tiles/savbld_towers.py
@@ -27,10 +28,13 @@ TOWERS = {
     "savbld-tower-tall": [[320, 321, 322], [330, 331, 332], [340, 341, 342], [350, 351, 352], [350, 351, 352], [350, 351, 352],
                           [360, 361, 362]],
 }
-MIN_ROWS = 3
+# Rows that must be drawn and match: all of them. Both towers share rows with shorter or taller towers of
+# the same width in Episodes 1 and 4 (tests/render/remaster.test.ts). Their
+# tiles show until then; the model lands exactly on them (oblique-locked), so the switch hardly shows.
+MIN_ROWS = {"savbld-tower-wide": 5, "savbld-tower-tall": 7}
 
 for name, pattern in TOWERS.items():
     t = lib_tall.TallBuilding("shapesy", pattern, layer=0, tag=name.replace("-", ""))
     print(name, "wall band", t.shift, "px, roof", t.s["roof_px"], "px, tall:", t.s["tall"])
     block = t.block(name=name)
-    t.export([block], name, min_rows=MIN_ROWS)
+    t.export([block], name, min_rows=MIN_ROWS[name])

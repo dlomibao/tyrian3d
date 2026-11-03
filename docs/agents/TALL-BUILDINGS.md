@@ -58,7 +58,9 @@ Results so far:
    - light, normals and shadows are the real building's.
 5. **Ground (layer 0):** keep the tiles (`keepTiles`). The model covers the painted building, and
    the tiles show round it. Tile kits shared with other walls need `minRows`; check with
-   `tests/render/remaster.test.ts`.
+   `tests/render/remaster.test.ts`. SAVARA's towers needed all their rows: the same kit makes
+   shorter and taller towers. The switch from tiles to model hardly shows, because the model lands
+   on the tiles.
 6. **Background 3 (layer 2):** not done yet. The model replaces its tiles, so it must carry its rock
    (D63), and the rock must not take the oblique view. Use a separate object or model, and check the
    renderer reads the extras per object.
