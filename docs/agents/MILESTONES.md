@@ -66,7 +66,7 @@ Tyrian 2.1 has four episodes (`tyrian1.lvl`..`tyrian4.lvl` in the data); there i
 ## M1: Episode 1
 
 - **Part A, level 1 polish:** close the level-1 pixel sweep (its 8 `pix-*` PRs), revisit the rock
-  outcrop `assembly-newshe-39` (6.5/10, D65), the damaged-frame swaps (`KNOWN_DAMAGE_SWAPS`, D54),
+  outcrop `assembly-newshe-39` (6.5/10, D65), the damaged frames (done: drawn with the intact models, D79),
   and the weak HD tiles D59 lists. Done when a level-1 pixel sweep finds nothing to fix and the user
   has played it.
 - **Part B, the rest of episode 1:** per level, unique models (full), structures, HD terrain if not

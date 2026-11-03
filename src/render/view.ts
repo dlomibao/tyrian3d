@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { OutlineEffect } from "three/addons/effects/OutlineEffect.js";
+import { OutlineEffect } from "./outlineEffect.js"; // three's, with the damage cut (D79)
 import { INK_OUTLINE } from "./outlineColor";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import type { Settings } from "../core/settings";

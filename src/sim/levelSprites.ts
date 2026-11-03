@@ -38,7 +38,7 @@ export interface LevelSprite {
 }
 
 /**
- * [proposal: damage frames] An enemy type's damaged frames and its normal frames, on its sheet
+ * An enemy type's damaged frames and its normal frames, on its sheet
  * (game.ts: edani != 0 animates egraphic[edgr-1 .. |edani|-1], else edgr replaces egraphic[0]).
  */
 export interface LevelDamage {
@@ -56,8 +56,9 @@ export interface LevelTile {
 }
 
 /**
- * [proposal: damage frames] The damaged frames of every enemy type the current level can make, with
- * the normal frames they replace (levelSprites' enemy types; `?damage=a|b|c`, docs/agents/DAMAGE-FRAMES.md).
+ * The damaged frames of every enemy type the current level can make, with the normal frames they
+ * replace (levelSprites' enemy types), for drawing them with the intact models (D79,
+ * render/damage/damageRoute.ts).
  */
 export function levelDamageFrames(): LevelDamage[] {
   const out: LevelDamage[] = [];

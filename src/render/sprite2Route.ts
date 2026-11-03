@@ -1,11 +1,14 @@
-// How the renderer draws one Sprite2 draw (DECISIONS.md D4, D15, D42, D49, D54): as flat art, as part
-// of a model (an enemy's, a player ship's banking frames, a sidekick's), or as the extruded sprite.
+// How the renderer draws one Sprite2 draw (DECISIONS.md D4, D15, D42, D49, D54, D79): as flat art, as
+// part of a model (an enemy's, a player ship's banking frames, a sidekick's; an enemy's damaged frame
+// with its intact model, damage/damageRoute.ts), or as the extruded sprite.
 //
 // The decision only depends on the draw and on which sprites have models and art, never on what has
 // loaded, so drawListRenderer.ts and the model-swap check (tests/render/modelSwap.test.ts) share it:
 // whatever the check says about a level's draws is what the renderer does with them.
 
 import type { SpriteDraw } from "../sim/draw";
+import type { LevelDamage } from "../sim/levelSprites";
+import { DamageRoutes, type DamageRoute } from "./damage/damageRoute";
 import { spriteModelKey, type ModelOverride, type SpriteModels } from "./spriteModels";
 import { SPRITE2X2_PARTS } from "./spriteArt";
 
@@ -35,6 +38,13 @@ export interface Sprite2Route {
   /** Override: the ship and its bank, -1..1. Group: the grouped ship's bank, or NaN. */
   override: ModelOverride | null;
   bank: number;
+  /**
+   * Group: the sprite frame the model shows (its frame-tagged parts and colours, D17): the draw's own,
+   * or for a damaged frame drawn with the intact model (`damaged`), the intact frame.
+   */
+  frame: number;
+  /** Group: a damaged frame drawn with the enemy's intact model, damaged (D79). */
+  damaged: boolean;
 }
 
 export class Sprite2Router {
@@ -42,7 +52,10 @@ export class Sprite2Router {
   private readonly groupBank: ReadonlyMap<string, number>;
   private readonly ungrouped: ReadonlyMap<string, string>;
   private readonly overridesBySheet = new Map<string, ModelOverride[]>();
-  private readonly out: Sprite2Route = { route: Route.Sprite, model: "", override: null, bank: Number.NaN };
+  private readonly out: Sprite2Route = { route: Route.Sprite, model: "", override: null, bank: Number.NaN, frame: -1, damaged: false };
+  /** The levels' damaged frames, drawn with the intact models (D79); null: as sprites, as before. */
+  private damage: DamageRoutes | null = null;
+  private readonly modelOfKey = (key: string): string | undefined => this.grouped.get(key);
 
   constructor(models: SpriteModels = { grouped: new Map(), banked: [], groupBank: new Map(), ungrouped: new Map() }) {
     this.grouped = models.grouped;
@@ -53,6 +66,24 @@ export class Sprite2Router {
       if (!list) this.overridesBySheet.set(o.sheetId, (list = []));
       list.push(o);
     }
+  }
+
+  /**
+   * Draw a level's damaged frames with the enemies' intact models (D79): its damaged frames
+   * (sim/levelSprites.ts levelDamageFrames). Adds to the levels before. `null` turns it off.
+   */
+  setDamage(damage: readonly LevelDamage[] | null): void {
+    if (damage === null) this.damage = null;
+    else (this.damage ??= new DamageRoutes()).addLevel(damage);
+  }
+
+  /**
+   * The intact model and frame that draw damaged frame `index` of `sheet` (D79), or null: not one of
+   * the levels' damaged frames, no intact frame with a model, or blank. Damaged frames with a model
+   * of their own route to it before this.
+   */
+  damagedModel(sheet: SpriteDraw["sheet"], size: 1 | 2, index: number): DamageRoute | null {
+    return this.damage?.resolve(sheet, size, index, this.modelOfKey) ?? null;
   }
 
   /** Every model path the router can route to. */
@@ -96,6 +127,8 @@ export class Sprite2Router {
     out.model = "";
     out.override = null;
     out.bank = Number.NaN;
+    out.frame = d.groupIndex;
+    out.damaged = false;
     // With flat art for the sprite (for a grouped one, the object's first tile), it's drawn flat
     // instead of as a model (D42); a tile without art is then drawn as its sprite.
     if (art !== null && art.frame(d.groupIndex >= 0 ? d.groupIndex : d.index) !== undefined) {
@@ -109,6 +142,14 @@ export class Sprite2Router {
         out.route = Route.Group;
         out.model = model;
         out.bank = this.groupBank.get(key) ?? Number.NaN;
+        return out;
+      }
+      const damaged = this.damage?.resolve(d.sheet, d.groupSize, d.groupIndex, this.modelOfKey);
+      if (damaged) {
+        out.route = Route.Group;
+        out.model = damaged.model;
+        out.frame = damaged.normal;
+        out.damaged = true;
         return out;
       }
     }

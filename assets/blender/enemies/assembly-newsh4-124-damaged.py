@@ -27,15 +27,15 @@ intact parts are exactly D65's), damaged the way each damaged sprite is:
   damaged piece baked (occlusion/edge colour multiplier and roughness/metal map, bake_piece) in
   place among the damaged machine, and its own outline shell (D51) cut from a shell of the damaged
   machine.
-- **Export:** enemies/<piece>-d for each of the eleven, with its spriteModels entry for the damaged
-  frame. The destroyed frames that draw nothing (238, 276, 278, 282, 284) need no model. Two damaged
-  frames show the same picture as their normal frame (280 = 128; 242 = 90 but for five pixels of one
-  edge), so they are drawn with the normal models instead (src/render/damage/cModels/same-picture.json).
-- **Damage prototype (approach C):** common.export_sprite_model writes the JSONs into
-  src/render/spriteModels/; move them to src/render/damage/cModels/ so the default game is unchanged.
+- **Export (D79):** only the two shoulder wrecks (240, 244, `WRECKS`) ship as models,
+  enemies/newsh4-88-d and newsh4-92-d with their spriteModels entries: a wreck whose debris replaces
+  most of the piece is beyond the game's runtime damage. Every other damaged frame is drawn with
+  the intact piece, damaged by the shader from the two sprite frames (src/render/damage/), so the
+  other pieces' damaged models aren't exported (pass --only <pieces> to build them anyway, e.g. to
+  compare). The destroyed frames that draw nothing (238, 276, 278, 282, 284) need nothing.
 
-Started on the pix-boss-damaged-frames branch (an agent's WIP, stopped there); carried over to
-damage-approach as the approach C prototype.
+Started on the pix-boss-damaged-frames branch (an agent's WIP, stopped there) and finished on
+damage-approach (D79).
 
 blender -b --factory-startup --python assets/blender/enemies/assembly-newsh4-124-damaged.py -- \
     [--no-bake] [--no-export] [--design-out whole.glb] [--only newsh4-88,...]
@@ -660,8 +660,8 @@ def main():
         s.hide_render = True
     pieces = common.split_assembly(obj, layout)
     obj.hide_render = True
-    only = argv[argv.index("--only") + 1].split(",") if "--only" in argv else None
-    targets = [n for n in DAMAGE if len(pieces[n].data.polygons) and (only is None or n in only)]
+    only = argv[argv.index("--only") + 1].split(",") if "--only" in argv else sorted(WRECKS)
+    targets = [n for n in DAMAGE if len(pieces[n].data.polygons) and n in only]
     # The eye is the normal one (the damaged frames leave it alone); build it so the bake sees it.
     eye_centre = next((cx / 12, -cy / 12) for name, cx, cy in layout if name == B.EYE)
     emats = B.eye_materials(sprite, mats)
