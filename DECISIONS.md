@@ -2735,3 +2735,43 @@ that same player state behind (episode 2 played alone gives the old numbers).
   pickup instead of rear weapon 232).
 
 Fallback: drop `extendItemTables` and the overrun accessors; the C tables' bounds then throw again.
+
+## D76 — Coin and gem values as crisp flat art, redrawn from their own pixels
+
+2026-11-03
+
+**Decision:** The value a coin, gem or data cube shows when picked up (a fixed-position explosion,
+types 35-52 of newsh6.shp: 10, 25, 50, 75, 100, 250, 500, 1K, 2K, 5K, the brown ALE/375 plaque,
+800, 150, 350, 500, 750, the red 50 and DATA) is drawn as flat sprite art (D42) in the remastered
+look, instead of an extruded sprite: chunky pixel digits standing up off a dark plate.
+- **The art** (`tools/value_art.py`, no Gemini): each of the 18 sprites is redrawn from its own
+  pixels. Every digit pixel is joined to its digit neighbours and the centre lines are drawn with a
+  rounded-square pen a little under a pixel wide, so every digit keeps the original's shape,
+  placement and staircase layout but has clean antialiased edges and softened corners; the colours
+  are the digits' own palette colours (palette 5, as the other flat art) blended smoothly between
+  pixel centres, with a soft bevel lit from the upper left. The plate is the sprite's darkest colour
+  under its whole silhouette, rounded as the flat art's alpha is, shaded slightly top to bottom with
+  a faint glow of the digits round them. The red 150/350/500/750, which have no plate, get a faint
+  dark shadow inside their box.
+- **Wiring:** one atlas, `public/art/sprites/newsh6-shp.webp` (66 KB), and a `newsh6.shp` sheet in
+  the manifest, keyed by the sprite drawn (explosion_data's sprite + 1). None of those indices is a
+  frame of a moving explosion, and no enemy bank loads newsh6, so nothing else changes. The manifest
+  gains an optional per-sheet `scale` (`spriteArt.ts`): these frames are 16 texels per pixel, twice
+  the rest, as the numbers are small and read. `flat_art.py cut` now keeps sheets it didn't make.
+- **The game contract** is the flat art's: `?sprites=original` (or A, or the original effects look)
+  draws them extruded as before; the explosions' "blend" draws them at the renderer's 0.55 opacity;
+  the level filter and brightness recolour them; the atlas is loaded with the others before the level.
+
+**Options considered:**
+- *Vector text in a font (canvas or SDF quad) at the draw's position:* sharp at any size, but the
+  values are partly not text (the ALE/375 plaque, the slanted 1K, the staircases, the multi-coloured
+  800) and the original's plates and colour ramps would be approximations.
+- *Gemini paintings, like the other flat art:* nothing to gain over redrawing 1-px strokes exactly,
+  and a painted digit can drift from the original's.
+- *Keep them extruded, with smoothing:* still a 3D slab with sides for a 2D readout.
+
+**Review:** `?debug=play&seed=1&skip=T&freezeAt=T&armor=99` at T = 301 (75 over a fireball), 815 and
+2031 (DATA), 1670 (two 25s), 6426 (250). The flat draws go before the other transparent draws, so
+a value spawned on a fireball now sits under its glow rather than over it (still readable). Cost:
+66 KB download, one more draw call while a value is on screen. Fallback: drop the manifest's
+`newsh6.shp` entry.
