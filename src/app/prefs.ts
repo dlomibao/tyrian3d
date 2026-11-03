@@ -1,11 +1,13 @@
 // The player's settings, kept in this browser: the music and sound-effect volumes (the C keeps
 // them in opentyrian.cfg) and the keyboard bindings (keySettings there), with player 2's keys and
-// both players' gamepads for two-player games ([two-player]), and the terrain look (D57). The music
+// both players' gamepads for two-player games ([two-player]), the terrain look (D57), and the
+// interface and camera (D61). The music
 // style is kept by MusicSwitch itself (src/audio/remaster.ts). Stored as versioned JSON under
 // PREFS_STORAGE_KEY.
 
 import { keys, keys2, pads, setKeys, setPads } from "./bindings";
 import { loadTerrainStyle, storedTerrainStyle } from "../core/terrainStyle";
+import { cameraStyle, interfaceStyle } from "../core/displayStyle";
 import { DEFAULT_VOLUME, set_volume, setVolumeHandler, volume, volumeFactor } from "../sim/volume";
 
 export const PREFS_STORAGE_KEY = "tyrian3d.settings";
@@ -54,11 +56,13 @@ export function loadPrefs(storage: PrefsStorage | null = defaultStorage()): void
   setKeys(data.keys2, 1); // [two-player]
   setPads(data.pads);
   loadTerrainStyle(data.terrain);
+  interfaceStyle.load(data.interface);
+  cameraStyle.load(data.camera);
 }
 
 /** The settings as stored. */
 export function serializePrefs(): string {
-  return JSON.stringify({ version: PREFS_VERSION, musicVolume: volume.tyrMusicVolume, fxVolume: volume.fxVolume, keys, keys2, pads, terrain: storedTerrainStyle() });
+  return JSON.stringify({ version: PREFS_VERSION, musicVolume: volume.tyrMusicVolume, fxVolume: volume.fxVolume, keys, keys2, pads, terrain: storedTerrainStyle(), interface: interfaceStyle.storedValue(), camera: cameraStyle.storedValue() });
 }
 
 export function savePrefs(storage: PrefsStorage | null = defaultStorage()): void {

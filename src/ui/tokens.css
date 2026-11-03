@@ -17,6 +17,21 @@
   --ui-steel: #8fa3b8;
   --ui-steel-dark: #2b3848;
 
+  /* Colour: the title's copper (the original logo's and menu font's), on maroon and umber (D64) */
+  --ui-copper-hi: #f6dcb0;
+  --ui-copper-lite: #e2b07a;
+  --ui-copper: #b77442;
+  --ui-copper-deep: #7a4020;
+  --ui-copper-dark: #3a1a0c;
+  --ui-bone: #eadfca;
+  --ui-bone-dim: rgba(234, 223, 202, 0.62);
+  --ui-umber-ink: #140805;
+  --ui-maroon: #3a0e0b;
+  --ui-space-warm: #0a0605;
+  /* Copper type: a bevelled gradient clipped to the letters (screens.css, the title menu) */
+  --ui-copper-type: linear-gradient(180deg, #e8bc8a 0%, #c58554 34%, #8f5129 56%, #b6743f 74%, #6e3a1c 100%);
+  --ui-copper-type-lit: linear-gradient(180deg, #fff0d0 0%, #f0bf86 30%, #b9733f 55%, #e0a468 75%, #8a4a22 100%);
+
   /* Colour: text */
   --ui-ink: #eef3f8;
   --ui-ink-dim: #a3b3c4;

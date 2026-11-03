@@ -109,8 +109,13 @@ class Palette:
             opts.update(kw)
             name = f"pal_{int(index)}_{self.tag}" + ("" if not kw else "_" + "_".join(f"{k}{v}" for k, v in sorted(kw.items())))
             emission = opts.pop("emission_strength", 0.0)
+            # `plain=True`: texture_bake.py leaves the material untextured (the island rock, which
+            # must look the same in a structure as on the per-tile models round it).
+            plain = opts.pop("plain", False)
             color = common.srgb(*self.ts.rgb(index))
             mat = common.material(name, color, emission=color if emission else None, emission_strength=emission, **opts)
+            if plain:
+                mat["tyrian_plain"] = True
             self.slots[key] = len(self.materials)
             self.materials.append(mat)
         return self.slots[key]
@@ -483,3 +488,103 @@ def relief_heights(ts, grid, amp, sigma=1.2, lo=None, hi=None):
     lo = sm[grid >= 0].min() if lo is None else lo
     hi = sm[grid >= 0].max() if hi is None else hi
     return np.clip((sm - lo) / max(1e-6, hi - lo), 0, 1) * amp
+
+
+# --- Island rock ---------------------------------------------------------------------------------
+#
+# The floating islands of background 3 (shapesz.dat tiles 120-152: TYRIAN and eight other levels) are
+# cobbles painted to tile seamlessly. Every rock tile model, and the rock round the structures built
+# on the islands (lib_tyrbld.Structure.rock), draws the tile's own 2x pixels as a relief, so that
+# whatever tiles meet, the colours meet as the art does and the heights nearly so:
+# - colour: each pixel snaps to the nearest of ROCK_COLOURS, one shared set (not chosen per tile, so
+#   the same stone keeps its colour across a seam);
+# - height: the pixel's brightness, smoothed a little and mapped by the fixed ROCK_LUM range (not
+#   normalised per tile) to 0..ROCK_RELIEF: stones up, the dark between them down, the island's
+#   edge rounded off. The smoothing sees the tile between its usual neighbours (context()); at the
+#   tile's edge a vertex takes the tile's own pixels only, and the slab's side walls close what
+#   little step is left against a neighbour;
+# - the underside tiles (140-142) hang a face toward the camera from where their stones end, with
+#   the roots painted on it.
+
+#: The palette indices the island rock is drawn in: the grey ramp, the tan and brass stones.
+ROCK_COLOURS = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 24, 25, 27, 28, 163, 165, 167, 169, 171)
+ROCK_DARK = 3  # the slab's sides and bottom
+ROCK_RELIEF = 0.12  # units: how far a stone's top stands over the dark between stones
+ROCK_LUM = (0.16, 0.62)  # smoothed brightness at height 0 and at ROCK_RELIEF
+ROCK_SIGMA = 1.1  # the smoothing, 2x px
+ROCK_BOTTOM = -0.3
+ROCK_MERGE_DEG = 4.0  # nearly flat neighbouring faces of one colour merge (a third fewer triangles)
+ROCK_UNDERSIDE = {140: 0.55, 141: 0.55, 142: 0.55}  # tile: how far its face hangs below the slab
+
+
+class RockColours:
+    """Snap a palette index to the nearest of ROCK_COLOURS (by RGB)."""
+
+    def __init__(self, ts):
+        self.ts = ts
+        self.keep = [k for k in ROCK_COLOURS if k in ts.colors]
+        self.cache = {}
+
+    def __call__(self, index):
+        index = int(index)
+        if index not in self.cache:
+            rgb = self.ts.rgb(index)
+            self.cache[index] = min(self.keep, key=lambda k: sum((a - b) ** 2 for a, b in zip(self.ts.rgb(k), rgb)))
+        return self.cache[index]
+
+
+def rock_heights(ts, grid2):
+    """The relief of `grid2` (2x px, -1 = nothing): smoothed brightness mapped by ROCK_LUM."""
+    lum = lum_of(ts, grid2)
+    sm = blur(lum, ROCK_SIGMA)
+    lo, hi = ROCK_LUM
+    return np.clip((sm - lo) / (hi - lo), 0, 1) * ROCK_RELIEF
+
+
+def underside_drop(own, lum, drop):
+    """The hanging face of an underside tile (2x px): 0 where its stones are, falling to -drop at the
+    bottom from the row in each column where they end."""
+    h, w = own.shape
+    opaque = own >= 0
+    start = np.full(w, h * 0.3)
+    for x in range(w):
+        col = np.nonzero(opaque[:, x] & (lum[:, x] > 0.22))[0]
+        col = col[col < h * 0.55]
+        if len(col):
+            start[x] = col.max() + 1
+    out = np.zeros((h, w))
+    for y in range(h):
+        out[y, :] = -drop * np.clip((y - start) / max(1.0, h - start.min()), 0, 1) ** 0.8
+    return out
+
+
+def rock_tile(ts, n, pal, region=None, flat=None, bottom=ROCK_BOTTOM, plain=False):
+    """The island rock of tile n as a bmesh, centred on the tile (Frame([[n]], 2)): a slab from
+    `bottom` up to its relief (module notes above). `region` (bool, the tile's 2x px) limits it
+    to those of its painted pixels; `flat` pixels (where a structure's own parts stand) are level at
+    z = 0 and dark. `plain` marks the materials so a structure's bake leaves them alone."""
+    ctx = context(ts, n)
+    grid = ts.grid(ctx, 2)
+    th, tw = TILE_H * 2, TILE_W * 2
+    own = grid[th:2 * th, tw:2 * tw]
+    opaque = own >= 0
+    region = opaque if region is None else region & opaque
+    if not region.any():
+        return None
+    heights = rock_heights(ts, grid)[th:2 * th, tw:2 * tw]
+    if n in ROCK_UNDERSIDE:
+        drop = underside_drop(own, lum_of(ts, own), ROCK_UNDERSIDE[n])
+        # The relief fades out as the face starts to hang, so the two join smoothly.
+        heights = heights * (1 - np.clip(-drop / 0.08, 0, 1)) + drop
+    flat = np.zeros_like(region) if flat is None else flat & region
+    heights = np.where(flat, 0.0, heights)
+    snap = RockColours(ts)
+    kw = {"plain": True} if plain else {}
+    dark = pal(ROCK_DARK, **kw)
+    bm = bmesh.new()
+    lt_mats = lambda x, y: dark if flat[y, x] else pal(snap(own[y, x]), **kw)  # noqa: E731
+    mask_slab(bm, region, Frame([[n]], scale=2), bottom + min(0.0, heights.min()), 0.0, lt_mats, dark,
+              top_height=heights, smooth_top=True)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-6)
+    bmesh.ops.dissolve_limit(bm, angle_limit=math.radians(ROCK_MERGE_DEG), verts=bm.verts, edges=bm.edges, delimit={"MATERIAL"})
+    return bm

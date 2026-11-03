@@ -244,9 +244,11 @@ def bake(meshes, mat, kind):
 
 
 def wire(materials, colour_img, normal_img):
-    """Base Color = baked colour x the material's colour; Normal = baked normal map."""
+    """Base Color = baked colour x the material's colour; Normal = baked normal map. A material
+    marked `tyrian_plain` (lib_tiles.Palette(..., plain=True): the island rock round a tile
+    structure, which must match the plain per-tile rock models next to it) is left as it is."""
     for m in materials:
-        if m is None or not m.use_nodes:
+        if m is None or not m.use_nodes or m.get("tyrian_plain"):
             continue
         nt = m.node_tree
         bsdf = next((n for n in nt.nodes if n.type == "BSDF_PRINCIPLED"), None)

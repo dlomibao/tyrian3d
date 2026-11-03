@@ -6,9 +6,10 @@
 // palette) with the View's lighting and outline; the planet and stars are generated here. Without
 // WebGL a CSS stand-in (components.css .ui-backdrop-fallback) takes its place.
 //
-// Moods (BackdropMood, src/ui/screen.ts): "title" flies the ship over the planet's limb, "hangar"
+// Moods (BackdropMood, src/ui/screen.ts): "title" is the painted planet at sunrise with Talons
+// passing (src/ui/titlePlanet.ts, D64; its own passes, nothing of the 3D scene below), "hangar"
 // (the item screen) turns the player's current ship slowly, close up, and "space" (messages) pulls
-// back to the planet. The camera eases between them.
+// back to the planet. The camera eases between hangar and space.
 
 import * as THREE from "three";
 import { OutlineEffect } from "three/addons/effects/OutlineEffect.js";
@@ -17,6 +18,7 @@ import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { loadModel } from "../render/models";
 import { spriteModelKey, spriteModels, type SpriteModels } from "../render/spriteModels";
 import type { BackdropControl, BackdropMood } from "./screen";
+import { TitlePlanet } from "./titlePlanet";
 
 /** The player ships' sprite sheet (spriteSheet9 = tyrian.shp sheet 8, whose shipGraphic indexes). */
 const SHIP_SHEET = "tyrian.shp#8";
@@ -139,7 +141,11 @@ export class Backdrop implements BackdropControl {
   private raf = 0;
   private last = 0;
   private time = 0;
-  private readonly fallback: HTMLDivElement | null = null;
+  private fallback: HTMLDivElement | null = null;
+  /** The title mood's painted planet (null without WebGL). */
+  private readonly title: TitlePlanet | null = null;
+  /** Seconds since the title mood began: its push-in and sunrise start over each time. */
+  private titleTime = 0;
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 2000);
   private readonly outline: OutlineEffect | null = null;
@@ -161,10 +167,7 @@ export class Backdrop implements BackdropControl {
   /** @param renderer the View's renderer, or null without WebGL (then a CSS stand-in shows). */
   constructor(private readonly renderer: THREE.WebGLRenderer | null) {
     if (!renderer) {
-      this.fallback = document.createElement("div");
-      this.fallback.className = "ui-backdrop-fallback";
-      this.fallback.hidden = true;
-      document.body.prepend(this.fallback);
+      this.showFallback("none");
       return;
     }
     this.outline = new OutlineEffect(renderer, OUTLINE);
@@ -197,17 +200,48 @@ export class Backdrop implements BackdropControl {
     this.ship.add(this.shipPivot);
     this.scene.add(this.ship);
     this.setShip(DEFAULT_SHIP);
+
+    this.title = new TitlePlanet(renderer, this.scene.environment);
+    loadModel(DEFAULT_SHIP)
+      .then((model) => this.title?.setFlyer(titleFlyer(model)))
+      .catch((err) => console.warn("backdrop: the title's Talon failed to load", err));
+  }
+
+  /**
+   * The CSS stand-in (components.css .ui-backdrop-fallback) for `mood`, or hidden for "none":
+   * without WebGL, or when the title's shader can't run here.
+   */
+  private showFallback(mood: BackdropMood): void {
+    if (!this.fallback) {
+      this.fallback = document.createElement("div");
+      this.fallback.className = "ui-backdrop-fallback";
+      document.body.prepend(this.fallback);
+    }
+    this.fallback.dataset.mood = mood;
+    this.fallback.hidden = mood === "none";
+  }
+
+  /** Dev: ms per title paint frame, measured on the GPU (window.tyrianUi.backdrop). */
+  benchmarkTitle(frames = 30): { ms: number; width: number; height: number; half: boolean; paints: number } | null {
+    if (!this.title) return null;
+    return { ms: this.title.benchmark(frames), ...this.title.paintPixels, half: this.title.half, paints: this.title.paints };
   }
 
   setMood(mood: BackdropMood): void {
     if (mood === this.mood) return;
     const wasRunning = this.mood !== "none";
+    if (mood === "title" && this.mood !== "title") {
+      // Dev captures can start the shot later (?titlet=seconds), e.g. at the squadron's pass.
+      this.titleTime = import.meta.env.DEV ? Number(new URLSearchParams(location.search).get("titlet")) || 0 : 0;
+      this.title?.invalidate();
+    }
     this.mood = mood;
     if (mood !== "none") this.target = POSES[mood];
-    if (this.fallback) {
-      this.fallback.hidden = mood === "none";
+    if (!this.renderer) {
+      this.showFallback(mood);
       return;
     }
+    if (this.title?.failed) this.showFallback(mood === "title" ? "title" : "none");
     if (mood === "none") cancelAnimationFrame(this.raf);
     else if (!wasRunning) {
       this.last = performance.now();
@@ -255,9 +289,17 @@ export class Backdrop implements BackdropControl {
     this.time += dt;
     const t = this.time;
 
-    const p = this.pose;
     this.renderer.getSize(this.size);
     const { x: w, y: h } = this.size;
+    if (this.mood === "title" && this.title && !this.title.failed) {
+      this.titleTime += dt;
+      this.title.frame(now, this.titleTime, w, h);
+      if (this.title.failed) this.showFallback("title");
+      this.raf = requestAnimationFrame(this.frame);
+      return;
+    }
+
+    const p = this.pose;
     const aspect = w / Math.max(1, h);
     // Portrait screens (phones) keep a landscape square's width in view rather than zooming in.
     this.camera.fov = aspect < 1 ? THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(FOV / 2)) / aspect)) : FOV;
@@ -312,6 +354,27 @@ export class Backdrop implements BackdropControl {
     this.outline.render(this.scene, this.camera);
     this.raf = requestAnimationFrame(this.frame);
   };
+}
+
+/**
+ * The title's flying Talon: the model normalised to length 1 and centred, nose along -Z, with the
+ * engine glows its model names (larger than the item screen's, so they read on a small ship).
+ */
+function titleFlyer(model: THREE.Object3D): THREE.Object3D {
+  const box = new THREE.Box3().setFromObject(model);
+  const size = box.getSize(new THREE.Vector3());
+  const centre = box.getCenter(new THREE.Vector3());
+  const s = 1 / Math.max(size.x, size.z, 1e-3);
+  model.scale.setScalar(s);
+  model.position.copy(centre).multiplyScalar(-s);
+  const pivot = new THREE.Group();
+  pivot.add(model);
+  for (const g of engineGlows(model, pivot, (size.z * s) / 2 + 0.04)) {
+    const sprite = engineGlow(g.color, g.size * 0.85, 0.85);
+    sprite.position.copy(g.position);
+    pivot.add(sprite);
+  }
+  return pivot;
 }
 
 // --- generated pieces ---

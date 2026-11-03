@@ -1,7 +1,6 @@
 /* The data picker, title, message and status screens (src/app/screens.ts), on src/ui's components. */
 
-/* The logo sits above the panel. */
-.ui-screen--title,
+/* The data picker: the logo above the panel. */
 .ui-screen--data {
   align-content: center;
   grid-template-rows: auto minmax(0, auto);
@@ -24,20 +23,306 @@
   transform: none;
 }
 
-/* The title's panel leaves the ship and planet in view: lighter, below the logo. */
-.ui-screen--title > .ui-panel {
-  --ui-panel: rgba(7, 12, 21, 0.72);
+.ui-screen--data > .ui-logo {
+  width: min(70vw, 52vh, 34rem);
 }
 
-.ui-screen--title .ui-label:first-child {
-  margin-top: 0;
+/* --- the title (D64): the original's layout over the painted planet, no panel --- */
+
+.ui-screen--title {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  justify-items: center;
+  align-items: stretch;
+  place-items: initial;
+  padding: max(2vh, env(safe-area-inset-top)) var(--ui-gutter) max(1.5vh, env(safe-area-inset-bottom));
+  color: var(--ui-bone);
+}
+
+.ui-screen--title > .ui-logo {
+  justify-self: center;
+  margin-top: 1vh;
+}
+
+/* The menu floats on the painting: no slab, just a soft umber shade so it reads over bright cloud. */
+.ui-screen--title > .ui-panel {
+  align-self: center;
+  justify-self: center;
+  width: min(36rem, 100%);
+  max-height: none;
+  margin-top: -2vh;
+  padding: 0;
+  overflow: visible;
+  background: none;
+  border: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.title-menu {
+  position: relative;
+}
+
+.title-menu::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  left: 50%;
+  top: 50%;
+  width: min(48rem, 120vw);
+  height: 150%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(closest-side, rgba(20, 7, 4, 0.55), rgba(20, 7, 4, 0.3) 55%, rgba(20, 7, 4, 0));
+  pointer-events: none;
+}
+
+.title-step {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(0.05rem, 0.5vh, 0.4rem);
+}
+
+.title-step.is-entering > * {
+  animation: title-rise 520ms var(--ui-ease) both;
+}
+
+.title-step.is-entering > :nth-child(2) { animation-delay: 40ms; }
+.title-step.is-entering > :nth-child(3) { animation-delay: 80ms; }
+.title-step.is-entering > :nth-child(4) { animation-delay: 120ms; }
+.title-step.is-entering > :nth-child(5) { animation-delay: 160ms; }
+.title-step.is-entering > :nth-child(6) { animation-delay: 200ms; }
+.title-step.is-entering > :nth-child(7) { animation-delay: 240ms; }
+
+@keyframes title-rise {
+  from { opacity: 0; transform: translateY(10px); filter: blur(3px); }
+}
+
+.title-kicker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8em;
+  margin: 0 0 0.35rem !important;
+  padding-left: 0.42em;
+  font-family: var(--ui-font-display);
+  font-weight: 700;
+  font-size: clamp(0.62rem, 0.55rem + 0.25vw, 0.78rem);
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  color: var(--ui-copper-lite) !important;
+  opacity: 0.85;
+  text-shadow: 0 1px 2px #000;
+}
+
+.title-kicker::before,
+.title-kicker::after {
+  content: "";
+  width: 2.4em;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--ui-copper));
+}
+
+.title-kicker::after {
+  transform: scaleX(-1);
+}
+
+/* A line: copper type, with copper diamond ticks and a brush smear behind it when chosen. */
+.title-item {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45em;
+  min-height: var(--ui-hit);
+  padding: 0.1em 1.4em;
+  font: 700 clamp(1.2rem, 0.95rem + 1.05vw, 1.85rem) / 1.1 var(--ui-font-text);
+  letter-spacing: 0.015em;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+
+.title-text {
+  position: relative;
+  z-index: 1;
+  background-image:
+    linear-gradient(100deg, transparent 0 42%, rgba(255, 246, 225, 0.95) 49%, rgba(255, 246, 225, 0.95) 51%, transparent 58% 100%),
+    var(--ui-copper-type);
+  background-size: 260% 100%, 100% 100%;
+  background-position: 130% 0, 0 0;
+  background-repeat: no-repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 -1px 0 rgba(255, 226, 180, 0.35)) drop-shadow(0 0 1.5px rgba(16, 6, 3, 0.95)) drop-shadow(0 1.5px 0 var(--ui-umber-ink)) drop-shadow(0 3px 6px rgba(0, 0, 0, 0.8));
+  transition: transform 260ms var(--ui-ease);
+}
+
+/* The painted smear: a stroke of dark umber laid behind the chosen line. */
+.title-item::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 8% -0.4em 4%;
+  background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 60' preserveAspectRatio='none'><filter id='r' x='-5%' y='-30%' width='110%' height='160%'><feTurbulence type='fractalNoise' baseFrequency='0.012 0.35' numOctaves='3' seed='7'/><feDisplacementMap in='SourceGraphic' scale='14'/></filter><g filter='url(%23r)'><path d='M14 34 C60 14 140 12 230 14 C300 15 360 17 388 24 C394 30 380 44 352 46 C260 52 150 50 70 50 C36 50 8 46 14 34Z' fill='%23180905' fill-opacity='0.82'/><path d='M40 22 C120 16 250 17 372 22' stroke='%23683218' stroke-opacity='0.55' stroke-width='2' fill='none'/></g></svg>") center / 100% 100% no-repeat;
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path 380ms var(--ui-ease);
+}
+
+.title-tick {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  width: 0.62em;
+  height: 0.62em;
+  opacity: 0;
+  transform: scale(0.4) rotate(45deg);
+  transition:
+    opacity 200ms,
+    transform 320ms var(--ui-ease);
+  background: linear-gradient(135deg, var(--ui-copper-hi), var(--ui-copper) 50%, var(--ui-copper-dark));
+  box-shadow: 0 0 0 1px rgba(20, 8, 4, 0.8), 0 0 10px rgba(240, 170, 100, 0.35);
+}
+
+.title-item.is-sel::before {
+  clip-path: inset(0 0 0 0);
+}
+
+.title-item.is-sel .title-text {
+  background-image:
+    linear-gradient(100deg, transparent 0 42%, rgba(255, 250, 235, 1) 49%, rgba(255, 250, 235, 1) 51%, transparent 58% 100%),
+    var(--ui-copper-type-lit);
+  animation:
+    title-glint 900ms var(--ui-ease) 1 both,
+    title-glint 1100ms var(--ui-ease) 3.2s infinite;
+  transform: scale(1.04);
+}
+
+.title-item.is-sel .title-tick {
+  opacity: 1;
+  transform: scale(1) rotate(45deg);
+}
+
+@keyframes title-glint {
+  0% { background-position: 130% 0, 0 0; }
+  60%, 100% { background-position: -30% 0, 0 0; }
+}
+
+/* The arrows of the music and difficulty lines: shown on the chosen line, tappable. */
+.title-arrow {
+  position: relative;
+  z-index: 1;
+  padding: 0.2em 0.15em;
+  font-size: 0.55em;
+  color: var(--ui-copper);
+  text-shadow: 0 1px 0 #000;
+  opacity: 0;
+  transition: opacity 200ms;
+}
+
+.title-item.is-sel .title-arrow {
+  opacity: 1;
+}
+
+.title-mark {
+  position: relative;
+  z-index: 1;
+  min-width: 1.6em;
+  text-align: right;
+  font-family: var(--ui-font-display);
+  font-weight: 900;
+  font-size: 0.55em;
+  letter-spacing: 0.15em;
+  color: var(--ui-copper-lite);
+  opacity: 0.75;
+  text-shadow: 0 1px 0 #000;
+}
+
+.title-step--episodes .title-item {
+  font-size: clamp(1.1rem, 0.9rem + 0.9vw, 1.6rem);
+}
+
+.title-item--difficulty {
+  margin-top: 0.6rem;
+}
+
+.title-caption {
+  position: relative;
+  z-index: 1;
+  font-size: 0.6em;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--ui-copper-lite);
+  opacity: 0.85;
+  text-shadow: 0 1px 2px #000;
+}
+
+.title-pips {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  gap: 0.3em;
+  margin-left: 0.2em;
+}
+
+.title-pips i {
+  width: 0.34em;
+  height: 0.34em;
+  transform: rotate(45deg);
+  background: rgba(183, 116, 66, 0.3);
+  box-shadow: 0 0 0 1px rgba(10, 4, 2, 0.8);
+}
+
+.title-pips i.is-on {
+  background: linear-gradient(135deg, var(--ui-copper-hi), var(--ui-copper));
+}
+
+.title-item--back {
+  margin-top: 0.3rem;
+  font-size: clamp(0.95rem, 0.85rem + 0.4vw, 1.15rem) !important;
+}
+
+/* The foot: the flight controls on the left, the key hints in copper on the right. */
+.title-foot {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: var(--ui-space-2) var(--ui-space-4);
+  flex-wrap: wrap;
+  width: 100%;
+  font-size: var(--ui-text-xs);
+  color: var(--ui-bone-dim);
+  text-shadow: 0 1px 2px #000;
+}
+
+.title-foot__controls {
+  max-width: 30rem;
 }
 
 .title-controls {
-  margin-top: var(--ui-space-3) !important;
-  text-align: center;
-  font-size: var(--ui-text-xs);
-  color: var(--ui-ink-faint) !important;
+  margin: 0;
+  color: var(--ui-bone-dim);
+}
+
+.title-foot .ui-hints {
+  margin: 0;
+  justify-content: flex-end;
+  gap: var(--ui-space-1) var(--ui-space-3);
+}
+
+.title-foot .ui-hint__label {
+  color: var(--ui-bone-dim);
+}
+
+.title-foot .ui-key {
+  color: var(--ui-bone);
+  border-color: rgba(226, 176, 122, 0.4);
+  background: linear-gradient(180deg, rgba(183, 116, 66, 0.35), rgba(58, 26, 12, 0.5));
+  box-shadow: inset 0 0 0 1px rgba(226, 176, 122, 0.25);
 }
 
 /* One line of flight controls per device: the pad's on a pad, none on a touch screen. */
@@ -51,50 +336,66 @@
   display: block;
 }
 
-/* The chosen episode while the focus is on Load Game, Options or High Scores: the focus bar and
-   warm text, without the focus's fill, like the difficulty row's chosen item. */
-.ui-screen--title .ui-menu__item.is-chosen {
-  color: var(--ui-ink-warm);
-  border-color: rgba(240, 176, 72, 0.22);
+/* Portrait phones: a full-width logo, the menu a little below it, the foot centred. */
+@media (max-aspect-ratio: 4/5) {
+  .ui-screen--title > .ui-logo {
+    width: min(94vw, 34rem);
+    margin-top: 4vh;
+  }
+
+  .ui-screen--title > .ui-panel {
+    align-self: start;
+    margin-top: 6vh;
+  }
+
+  .title-item {
+    min-height: 3rem;
+  }
+
+  .title-foot {
+    justify-content: center;
+    text-align: center;
+  }
 }
 
-.ui-screen--title .ui-menu__item.is-chosen::before {
-  height: 40%;
-  opacity: 0.7;
-}
-
-/* Phones in landscape: a smaller logo, and the episodes in two columns, so the menu fits. */
+/* Short screens (phones in landscape): a smaller logo and tighter lines, so the menu fits. */
 @media (max-height: 520px) {
-  .ui-screen--title,
   .ui-screen--data {
     gap: var(--ui-space-2);
   }
 
-  .ui-screen--title > .ui-logo,
-  .ui-screen--data > .ui-logo {
-    font-size: 1.75rem;
+  .ui-screen--title > .ui-logo {
+    width: min(50vw, 70vh);
+    margin-top: 0;
   }
 
   .ui-screen--title > .ui-panel {
-    max-width: 44rem;
-    padding: var(--ui-space-3) var(--ui-space-4);
+    margin-top: 0;
   }
 
-  .ui-screen--title .ui-menu:not(.ui-menu--row) {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+  .title-item {
+    min-height: 2.25rem;
+    font-size: clamp(1rem, 4.4vh, 1.3rem);
   }
 
-  .ui-screen--title .ui-label {
-    margin: var(--ui-space-2) 0 var(--ui-space-1);
+  .title-step--episodes .title-item {
+    font-size: clamp(0.95rem, 4vh, 1.2rem);
   }
 
-  .ui-screen--title .ui-hints {
-    margin-top: var(--ui-space-2);
+  .title-step {
+    gap: 0;
   }
 
-  :root .ui-screen--title .title-controls[data-dev] {
+  .title-foot .ui-hints,
+  :root .title-controls[data-dev] {
     display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .title-item.is-sel .title-text,
+  .title-step.is-entering > * {
+    animation: none;
   }
 }
 
@@ -193,20 +494,3 @@
   font-size: var(--ui-text-lg);
 }
 
-/* [port-options] [high scores] The title's other entries, after the episodes in the same list. */
-.ui-screen--title .title-more--first {
-  margin-top: var(--ui-space-2);
-}
-
-.ui-screen--title .title-more--first::after {
-  content: "";
-  position: absolute;
-  left: var(--ui-space-3);
-  right: var(--ui-space-3);
-  top: calc(var(--ui-space-1) * -1 - 1px);
-  border-top: 1px solid var(--ui-edge);
-}
-
-.ui-screen--title .title-more .ui-menu__label {
-  font-size: var(--ui-text-sm);
-}

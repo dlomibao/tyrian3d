@@ -13,11 +13,14 @@
 //   &sprites=original|remastered   shots and pickups as the original sprites or the flat art (D42)
 //   &bg=original                   the original's tiles instead of the remastered backgrounds (D34, D48)
 //   &stress=N                      add N extra copies of the tick's shots (bullet-hell load test)
-//   &preload=0                     start without waiting for the level's models (D54)
+//   &preload=0                     start without waiting for the level's models (D54); with &skip=,
+//                                  the harness otherwise waits for all of them before fast-forwarding
 //   &solid=1                       the bot not invulnerable (its armour kept topped up instead), so the
 //                                  ship draws opaque rather than translucent
+//   &interface=frame|minimal       the HUD (D61); &camera=overhead|tilted|steep
 //   &armor=N                       hold the bot's armour at N (under 6: the low-armour warning, which
 //                                  sends the armour ship every 500 ticks)
+//   &steer=left|right              hold the ship against that side instead of sweeping (the x limits)
 //
 // Keys: V switches the effects look, A the sprite art, N the next front weapon, P (or Space) pauses.
 // The bot is the one the episode tests use: invulnerable, always firing, sweeping left and right.
@@ -37,6 +40,7 @@ import { loadLevel } from "../sim/tyrian2";
 import { JE_drawOptions } from "../sim/varz";
 import type { View } from "../render/view";
 import { levelModelInfo, preloadLevelModels } from "../app/levelPreload";
+import { Hud } from "../app/hud";
 
 /** Front weapons the cycle goes through: Pulse, Multi, Laser, Zica, Vulcan, Lightning, Starburst, Sonic, Protron, Missiles, Mega Pulse, Hyper Pulse. */
 const FAVOURITES = [1, 2, 4, 5, 7, 8, 9, 11, 12, 17, 19, 27];
@@ -70,6 +74,9 @@ export async function runPlayHarness(view: View): Promise<void> {
   // The level's models before its first tick (D54); `&preload=0` skips it, to see what a level
   // started without them looks like.
   if (num("preload", 1) !== 0) await preloadLevelModels(view, (text) => (overlay.textContent = text ?? ""));
+  // A start part-way in (`&skip=`) shows tiles a real run would only reach once the level's later
+  // models had loaded in the background: wait for all of them, so the first frame looks as it would.
+  if (num("preload", 1) !== 0 && num("skip", 0) > 0) await view.draws.preloadLevel(levelModelInfo());
 
   let t = 0;
   let paused = false;
@@ -77,13 +84,14 @@ export async function runPlayHarness(view: View): Promise<void> {
   const solid = num("solid", 0) > 0;
   const freezeAt = num("freezeAt", -1);
   const armor = num("armor", -1);
+  const steer = params.get("steer");
   const cycleTicks = num("cycle", 0) * (1000 / CLASSIC_TICK_MS);
   const step = (show: boolean) => {
     // tests/sim/bot.ts: invulnerable, always firing, sweeping.
     p.invulnerable_ticks = solid ? 0 : 2;
     p.armor = armor >= 0 ? armor : Math.max(p.armor, solid ? 28 : 10);
     simInput.fire = true;
-    simInput.left = Math.floor(t / 50) % 2 === 0;
+    simInput.left = steer === "left" || (steer !== "right" && Math.floor(t / 50) % 2 === 0);
     simInput.right = !simInput.left;
     if (cycleTicks > 0 && t > 0 && t % Math.round(cycleTicks) === 0) nextWeapon();
     const r = tick();
@@ -112,6 +120,10 @@ export async function runPlayHarness(view: View): Promise<void> {
     e.preventDefault();
   });
 
+  // The game's HUD (`&interface=minimal` for the light one), so it can be checked on a real level.
+  const hud = new Hud(view);
+  hud.visible = true;
+
   const frameTimes: number[] = [];
   let frames = 0;
   let lastReport = performance.now();
@@ -126,6 +138,7 @@ export async function runPlayHarness(view: View): Promise<void> {
       view.draws.vfxTimeScale = frozen ? 0 : 1;
       const t0 = performance.now();
       view.renderer.info.reset();
+      hud.update();
       view.render(null, frozen ? 1 : alpha);
       frameTimes.push(performance.now() - t0);
       frames++;

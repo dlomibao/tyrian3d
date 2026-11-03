@@ -90,7 +90,7 @@ const opened = new Set<string>();
 const cubeKey = (slot: number) => `${g.episodeNum}:${g.cubeList[slot]}`;
 
 /** Paint palette-indexed sprites into a canvas; `map` recolours an index (blit_sprite_hv). */
-function paint(
+export function paint(
   w: number,
   h: number,
   parts: { sprite: DecodedSprite; x: number; y: number; map?: (c: number) => number }[],
@@ -121,7 +121,7 @@ function paint(
   return canvas;
 }
 
-function tableSprite(table: number, index: number): DecodedSprite | null {
+export function tableSprite(table: number, index: number): DecodedSprite | null {
   const raw = g.res.spriteTables[table]?.sprites[index];
   return raw ? decodeTableSprite(raw) : null;
 }

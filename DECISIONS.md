@@ -2257,3 +2257,246 @@ D59 lists stay weak, though softer.
   lines keeps the rest.
 - *Another Gemini round for those tiles:* Gemini's usage warning had already come up (D59); the deblock
   needs no new answers.
+
+## D61 — The in-game HUD as the original's bronze frame, the 3D view fitted into its opening
+
+2026-11-02
+
+**Decision:** The one-player HUD draws the approved design "A — Faithful bronze": the original's
+sidebar and message bar (JE_loadPic 3, `public/art/hud.webp`) redrawn in SVG on the 320x200 grid, with
+the 3D view fitted into the frame's opening, and a gentler default camera. Options → Graphics →
+**Interface** (Remastered frame, the default / Minimal, the HUD before this) and **Camera** (Overhead 0° /
+Tilted 15°, the default / Steep 32°, the look before this), kept in the prefs;
+`?interface=frame|minimal` and `?camera=overhead|tilted|steep` override them for the page
+(`src/core/displayStyle.ts`, the same pattern as D57's terrain).
+- **Wiring** (`src/app/hud.ts`, `hudFrame.ts`): real values throughout. The generator column is
+  `g.power / 10` rows of 90 (tyrian2.c's power bar); shield and armor are one row per point on an
+  absolute 30-row scale like JE_dBar3 (armor caps at 28), with the max-shield marker drawn only below
+  full as JE_drawShield does; pips are the port's power, 11 at most; the mode lamps follow
+  `weapon_mode` (JE_drawPortConfigButtons; both dark without a rear weapon, as the design shows); the
+  sidekick boxes show the C's own HUD icon (OPTION_SHAPES `iconGr - 1` in the in-level palette 5,
+  pixel-sharp) and draw_segmented_gauge's ammo tenths for sidekicks that run out; the score is
+  `p.cash`; the bar shows the message (JE_drawTextWindow) and the level's name at its right. The
+  approved tweaks: weapon names under FRONT GUN and REAR GUN (squeezed to fit when long); read-outs at
+  the top of the power (percent), shield and armor gauges; the score in the sidebar's wide box —
+  **a departure**: JE_inGameDisplays prints it on the playfield at (30, 175); the phone layout as a
+  console under the playfield. Boss bars, WARNING, arcade lives and the cheating line stay HTML, over
+  the opening. The DOM changes only when a value does.
+- **Fitting the view** (`View.setViewport`, `fitCamera`, `playfieldScreenAspect` in
+  `src/render/view.ts`): the canvas still covers the window (the menus' backdrop draws with the same
+  renderer); the camera is fitted to the playfield rectangle's aspect and shifted off-axis
+  (`setViewOffset`) onto it, so all four corners stay on screen and nothing is zoomed. The mask, the
+  steering scale and the screen filters work as before, since they read the camera's matrices.
+- **The gentle tilt** (user's decision on the PR): at the old 32° the playfield on screen is ~2.2:1 (the
+  near edge's width over the foreshortened height), so in the frame's 264x184 opening it left 63 units
+  of the 184 empty above it, 47% of the opening with the wedges. Computed for the 16:10 opening
+  (`playfieldScreenAspect`), and compared on screen (`?debug=play&freezeAt=900&seed=3`):
+  12° 1.59:1, 18-unit band, 16% empty, far edge 86% of the near; 15° 1.65:1, 24 units, 21%, 82%;
+  18° 1.71:1, 30 units, 25%, 79%. The side depth the models show goes with sin(tilt): 0.21, 0.26,
+  0.31 (32°: 0.53). At 12° the sidekick pods and the walker read as top views; at 18° their fronts
+  show clearly, but the band grows by a quarter again. **15°** is the middle of both: half the old
+  side depth, under half the old empty area. A stored or URL `tilted` (which meant 32°) now gets 15°;
+  `steep` is the old look. The View still starts at 32° (`CAMERA_TILT`), so the item screen's weapon
+  preview, whose window size is tuned to it, keeps its look; the game view is set from the choice in
+  main.ts. The menus' backdrop has its own camera and the model viewer's "game" angle is its own
+  approximation; neither reads the tilt and both are unchanged.
+- **Layout** (`src/app/hudLayout.ts`): tilted, the playfield is wider than the original's 264x184 on
+  screen. So on 16:10 the frame
+  keeps the original's grid (a 264-unit opening, 61-unit sidebar, 16-unit bar), the playfield sits on
+  the message bar like the original's, and the opening's rest — the band above it and the wedges by the
+  narrower far edge — is a dark recessed bezel with faint ribs and a lit bronze lip along the
+  playfield's edges. A wider window widens the opening, up to the playfield's own width (21:9 is filled
+  edge to edge); what's left after that is bronze wing plate (the sides on ultrawide, above and below on
+  4:3). Overhead, the playfield is 264:184 and fills the 264-unit opening exactly. Portrait (narrower
+  than square): the playfield across the width, the console under it, the block centred with plate
+  above and below; the safe-area insets are respected.
+- **Two-player** games keep the minimal HUD beside twoPlayerHud.ts (the C's two-player sidebar is a
+  different picture, JE_loadPic 6) and the full-window view.
+- **Fonts:** Gill Sans where the system has it (the original frame's lettering), else the interface's
+  Exo 2, already loaded; nothing new is fetched. SVG keeps it crisp at any DPR.
+- **Performance:** two full-window SVG layers, each `will-change: transform`: the frame with the
+  brushed-metal and shadow filters, built once per layout, and the live layer, whose changed elements
+  only repaint it. `?debug=play` at 1920x1080 DPR 2, unfrozen, at 32°, 8 one-second samples each: frame
+  60 fps / 1.8-2.3 ms cpu, minimal 60 fps / 1.75-2.3 ms (headless Chrome, which caps at 60).
+
+**Checked** in headless Chrome (`?debug=play&freezeAt=900&seed=3&left=1&right=5&rear=15`, which now
+shows the HUD): 16:10, 16:9, 21:9, 4:3 and a 390x844 phone at DPR 3, at 15° and at 32° (16:10 and the
+phone also overhead; 16:10 also at 12° and 18°): all four playfield corners visible each time; `&armor=3` for the WARNING; `&interface=minimal` unchanged
+from before. The real game from the title: no frame on the title, item screen or options; the frame in
+the level; the pause screen's scrim over it; gone again on the level-complete screen and after.
+Tests: `tests/app/hudLayout.test.ts` (gauge maps, pips, ammo, the camera fit, the layout at each window
+shape, the settings and prefs). Not checked: phone landscape in a browser (only in the layout tests), a real phone's notch and touch steering on one, Safari and
+Firefox, the attract demo with the frame, two-player in the browser.
+
+**Options considered:**
+- *The design's fixed 259x184 opening:* tilted, the playfield fits it 259 wide and ~118 tall, a third
+  of the opening empty, and the design's picture filled it only by cropping the near corners.
+- *An opening shaped to the tilted playfield at every size:* a 405x184 opening puts bronze bands over
+  a third of a 16:10 screen and loses the original's proportions; it's what a 21:9 window gets.
+- *Keeping 32° as the default:* nearly half the opening empty on 16:10; it stays as Steep.
+- *Narrowing the field of view instead of the tilt:* flattens the perspective of every model too, and
+  the far edge stays as narrow relative to the depth shown.
+- *Canvas sized to the opening (`fitContainer`):* the menus' backdrop shares the renderer and
+  wants the whole window; the off-axis projection gives the same picture without moving the canvas.
+- *Rasterising the frame to an image:* the SVG on its own layer already costs nothing per frame.
+
+**Review:** Is 15° enough depth in motion (the stills were judged frozen)? Play a level in each Camera and Interface on a 16:10 and a 21:9 screen and on a phone:
+does the recessed band above the tilted playfield read as part of the frame, or should the playfield
+be centred in the opening instead of sitting on the bar? Are the gauge read-outs and weapon names
+readable at 1366x768?
+
+## D62 — Player ship models follow the banking frames' sideways shift; the x limits stay the C's
+
+2026-11-02
+
+**Decision:** Reported: "the player can't travel fully left and right; the original could." It
+couldn't either, and our limits were already the C's: `JE_playerMovement` clamps x to 40..256 and y
+to 10..160 (mainint.c L3857-3880; `src/sim/mainint.ts` L696-712, `PLAYER_MIN_X`/`PLAYER_MAX_X` in
+`src/game/playfield.ts`), keys, digital joystick, analog stick and mouse alike (the mouse is relative,
+mouseGetRelativePosition, clamped to +-30 a tick, L3538-3554; nothing clamps earlier, and
+`src/app/controls.ts` doesn't either, for mouse or touch). The ship's 24-pixel cell is drawn at
+x - 5 into game_screen and showNormal shows game_screen from x 24 (backgrnd.c L1018-1040), so at the
+limits the cell starts 11 pixels into the 264-pixel window and ends 13 short of its right edge.
+Holding a direction banks the ship fully (ship_banking -2/+2, L3883-3884), and the USP Talon's
+hard-bank frames are off-centre in that cell: opaque columns 2-15 banked left and 8-21 banked right,
+against 3-20 level. So the original's ship stops **13 pixels** from the left edge and **15** from the
+right. Ours stopped about 3.5 pixels further in on each side (16.6 / 18.6 overhead, measured from the
+model's projected vertices), because the models are rolled about the cell's centre and so lose the
+frames' three-pixel lean. Now `src/render/bankShift.ts` measures how far each banking frame's opaque
+columns are centred from the level frame's (Talon: -3, -1, 0, +1, +3 pixels) and the renderer moves the
+player ship's model that far sideways, eased with the roll, along the camera ray (D6). At the limits
+the model now covers 13.6-26.9 / 235.0-248.4 overhead, 12.9-26.1 / 235.8-249.1 at 15° and
+11.7-25.9 / 236.2-250.3 at 32°, against the sprite's 13-27 / 235-249 (the rolled model is a little
+narrower than the frame; tilted, its height spreads it a little outward). The playfield fit, the mask
+and the HUD opening are unchanged (D61's four corners stay visible).
+
+Applies to every banked player ship (Override route) from its own sprites: the Gencore Phoenix and
+U-Ship lean like the Talon, the SuperCarrot doesn't, and the Silver Ship's frames lean the other way,
+so its model does too. The two-player dragonwing (Group route) is not shifted.
+
+**Options considered:**
+- *Widen the x limits:* not the C; changes where shots start and what can hit the ship.
+- *Draw the ship's model wider or nearer the edges by moving the camera fit:* breaks D6's "draws land
+  on their original screen positions" and D61's corners.
+- *Leave it:* the 3.5 pixels are 14 CSS pixels on a 1280-wide window, enough to notice next to the
+  original.
+
+**Review:** Hold left and right in a level at each Camera: does the ship's slide toward the bank read
+as natural, or does it look like the ship drifting off its guns' line? Fallback: drop the shift
+(`bankShift` returning 0) and accept the 3.5-pixel gap.
+
+## D63 — TYRIAN's island rock is the tiles' own pixels as a relief, the same on every tile and structure
+
+2026-11-02
+
+**Decision:** The floating islands of background 3 (shapesz.dat rock tiles 120-124, 130-134,
+140-142, 150-152: TYRIAN and eight other levels) are no longer a dark slab with a fitted boulder
+per stone. Each rock tile model is the tile's own 2x pixels as a smooth relief
+(`lib_tiles.rock_tile`): every pixel in the nearest of one shared set of palette colours
+(`ROCK_COLOURS`: the grey ramp, the tan and brass stones), raised by its smoothed brightness through
+a fixed range (`ROCK_LUM`, not normalised per tile) up to 0.12, the underside tiles' face hanging
+toward the camera as before. TYRIAN's structures that stand on the islands (crater, lava pit,
+purple blocks, cross and orb, drums, gates, the fortress's machine) build their rock the same way,
+cell by cell (`Structure.rock`), in materials marked `tyrian_plain` that `texture_bake.py` leaves
+untextured, so a structure's rock is exactly what the per-tile model of that tile would draw. They
+were rebuilt and rebaked; the bridge (its own rim boulders) is unchanged.
+
+Before, an island read as a grid of tiles: each tile fitted its boulders between its *most common*
+neighbours, so stones broke at most seams; each picked its own boulder colours (grey or tan per
+stone, from a per-tile quantile), so a stone changed colour across a seam; the brass highlights of
+the rim tiles came out as flat raised pixel blocks; and the structures' rock was darkened by their
+concept bake, so every crater, lava pit and purple block sat in a dark square. The art itself is
+painted to tile seamlessly, so drawing its pixels keeps it seamless.
+
+`?debug=play&skip=N` now waits for all the level's models before fast-forwarding (it waited only for
+the first ~1000 locs' worth, D54), so a capture part-way in shows what a real run shows instead of the
+original tiles locked in for every structure first seen before its model loaded.
+
+**Options considered:**
+- *The tiles' pixels as a relief in shared colours, structures' rock the same and unbaked (chosen):*
+  seamless by construction, follows the level's palette (palette materials), one kit for both.
+- *Fix the boulders (stones from the real neighbours, shared colours):* a per-tile model can't know
+  its neighbours, so stones crossing seams still break against all but the usual one.
+- *Whole-island models from TYRIAN's map (biggest pattern wins, D47):* exact joins, but some 35
+  models for one level, pops from per-tile to island at the screen's top edge (minRows), and every
+  other level keeps the broken per-tile look.
+- *A baked colour texture per tile instead of per-pixel materials:* fewer draws, but the colours
+  would stop following the level's palette (the tiles are in nine levels).
+
+**Review:** Play TYRIAN to the islands (`?debug=play&seed=1&skip=2700&freezeAt=2702`, also 3300,
+4300, 4850). Costs: the rock tiles have 1.7-3.9k triangles and 95-205 KB each (nearly flat faces of
+one colour merged, `ROCK_MERGE_DEG`; they were 30-135 KB), about +1.4 MB for the 16, and the
+rebuilt structures +3.4 MB (their rock is finer and carries bake UVs): +4.8 MB on the level's ~32
+MB. They have 10-15 palette materials each, so a screen of islands takes more draws. If loading or
+draws matter, coarsen the relief (1x instead of 2x pixels) or trim `ROCK_COLOURS`. The heights still step a little at seams against an unusual neighbour (the slab's
+walls close it). Left as found: some of TYRIAN's enemies that sit on the purple blocks and machines
+(newsh2 models) carry the old boulders and a dark outline round their base, which now stand out
+against the rock; that's in their models. Fallback: revert this commit's scripts and models.
+
+## D64 — The title as the original's: the traced logo and a copper two-step menu over a painted planet at sunrise
+
+2026-11-03
+
+**Decision:** The title screen follows the original's layout: the huge maroon planet arcs from the
+top left down the right, the logo sits at the top, and a centred copper menu sits below it with no
+panel. The user chose the look from four mockups: the "Painted motion" planet with the "Cinematic
+dawn" sunrise and Talons laid over it.
+
+- **Logo:** only the original. `public/art/title/tyrian-logo.svg` is the title sprite
+  (tyrian.shp PLANET_SHAPES #146, palette 8) traced to one vector outline (IoU 0.97 against the
+  sprite at 1x) with a brushed copper fill, bevel and shadow as SVG filters.
+  `tyrian-logo-mask.svg` is the same outline as a silhouette. `logo()` (src/ui/components.ts) shows
+  it as an image, crisp at any size, and sweeps a copper glint across it every 9 s with a CSS mask of
+  the silhouette, so the shapes never change. The traced file's own SMIL sweep was taken out of our
+  copy so the glint follows reduced motion. A test keeps the two files' paths identical. The data
+  picker uses the same logo. The Orbitron "TYRIAN" wordmark is gone.
+- **Backdrop** (`src/ui/titlePlanet.ts`, the "title" mood of `src/ui/backdrop.ts`; hangar and space
+  are unchanged):
+  - **The paint:** one full-screen shader. Its brush strokes flow along a flow map and curl field,
+    with dry-brush bristles, impasto relief, a painted terminator with a copper band, faint
+    night-side lights and a slow breathing light. It renders into a target of at most 0.9 MP (never
+    above CSS pixels) about 30 times a second.
+  - **The dawn, in the same brushwork:** the amber sun climbs past the limb over the first ~30 s, its
+    scatter laid in strokes along the rim. The halo has brushed rays, plus a short anamorphic streak
+    and two faint ghosts. The camera pushes in slowly toward the sunrise and settles, with a drift
+    and a slight roll.
+  - **The composite:** the paint upscaled with a static canvas grain and vignette, plus two flights
+    on a 34 s cycle. The real Talon (`usp_talon.glb`) passes alone, banking away toward the sun, with
+    its own engine glows (`tyrian_engines`). Then a squadron of four crosses the night side. The
+    canvas redraws only when the paint changes or a ship is flying.
+  - **Fallbacks:** reduced motion gets one still at t = 26 s (sun up, no ships). Slow frames (over
+    50 ms on average) or `?titlefx=half` switch to a half-resolution paint, with the ships kept to
+    its pace. Without WebGL, or when the shader fails to compile, a CSS planet stands in
+    (`.ui-backdrop-fallback[data-mood="title"]`).
+- **Menu** (`src/app/titleMenu.ts`, pure, tested):
+  - **Two steps:** Start New Game, Load Game, High Scores, Options, Music: ‹style› (only with music
+    styles). Start New Game opens the second step: the episodes (a numeral and the data's title),
+    a difficulty row with diamond pips, and Back. Choosing an episode starts it.
+  - **The look:** copper type, a brush smear behind the chosen line, copper diamond ticks and a glint.
+  - **Kept behaviour:** the keys L, H, O and M, the pad's LB, Y, Back, X and Start, mouse and touch,
+    the codes and hidden difficulties, the idle demo and arcade starts. Left and right always pick
+    the difficulty on the episodes step, as the old row did; Escape goes back a step. A code that
+    completes puts the step and focus back.
+  - **Order:** the entries follow the original's (Load Game before High Scores); Options comes last.
+- **Colours:** copper, maroon, umber and bone tokens in `tokens.css` (`--ui-copper*`, `--ui-bone`,
+  `--ui-umber-ink`...). There is no blue on the title. The other screens keep their look over the
+  painted planet (Options, Load Game, High Scores, the Players screen). No new fonts or CDNs: the
+  menu is Exo 2 at 700, as already loaded.
+
+**Options considered:**
+- *Painted planet plus the dawn layer and real Talons (chosen):* the user's pick; the painted look
+  carries the original's streaky planet, and the sunrise and ships give it life without a busy 3D
+  scene.
+- *A full 3D ray-traced planet (the "Cinematic dawn" mockup alone):* a photographic look, heavier
+  (simplex fBm per pixel), and less like the original's painting.
+- *Keep the 3D backdrop's blue planet and ship behind a restyled panel:* not the original's layout or
+  palette.
+- *A hand-drawn or reinterpreted script logo:* ruled out by the user. Only the traced original is
+  shown.
+
+**Review:** `npm run dev`. The captures (headless Chrome, `?titlet=24` starts the shot at the
+squadron) show 16:10, 21:9, phone portrait and landscape, the episode step, the reduced-motion
+still, half resolution and the CSS fallback. Cost on an Apple M5 Pro (ANGLE Metal): 0.37 ms a paint
+at 1200 x 750, rAF steady at 60 fps, 30 paints a second. On SwiftShader (software GL, a weak-GPU
+proxy) it switched itself to half resolution (600 x 375): 12.5 ms a paint, about 28 fps overall.
+Not checked: Safari (the SVG filters and the CSS mask), real phones, real low-end GPUs.

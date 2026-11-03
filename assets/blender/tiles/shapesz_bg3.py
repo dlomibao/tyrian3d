@@ -10,7 +10,11 @@ rings (153), white stone blocks in brass frames (185-188, 195-198), a machine of
 dark metal (160/161/170/171), two drums with pointed ends (189, 199) and a blue orb set in purple
 stone (149).
 
-Each tile becomes a rock slab with its outline (MMPX 2x pixels, so diagonals are smooth) and:
+The rock tiles (120-124, 130-134, 140-142, 150-152) are the tile's own 2x pixels as a relief in one
+shared set of colours (lib_tiles.rock_tile), so neighbouring tiles join as the art does; the
+underside tiles hang a face toward the camera with the painted roots on it.
+
+Each other tile becomes a rock slab with its outline (MMPX 2x pixels, so diagonals are smooth) and:
 - a rounded boulder for each stone in the art (lib_tiles.boulders: position, size, angle and
   colour from the stone's pixels, built whole across tile edges and cut at the edge);
 - coloured relief for everything that isn't boulders (purple blocks, metal, rings): each 2x pixel
@@ -46,10 +50,10 @@ STONE_RAMPS = {0x0, 0xA}
 
 #: tile: (recipe, options)
 TILES = {}
-for n in (120, 121, 122, 123, 124, 130, 131, 132, 133, 134, 150, 151, 152):
-    TILES[n] = ("boulders", {})
-for n in (140, 141, 142):
-    TILES[n] = ("underside", {"drop": 0.55})
+# The plain rock and its hanging underside: the tile's pixels as a relief (lib_tiles.rock_tile), the
+# same kit as the rock round TYRIAN's structures, so neighbouring tiles join as the art does.
+for n in (120, 121, 122, 123, 124, 130, 131, 132, 133, 134, 140, 141, 142, 150, 151, 152):
+    TILES[n] = ("rock", {})
 for n in (155, 156, 157, 158, 159, 165, 167, 168, 169, 175, 176, 177):
     TILES[n] = ("boulders", {"relief": 0.16, "base": 0.03, "sigma": 1.6, "colours": 3, "smooth": True})  # purple blocks
 for n in (185, 186, 187, 188, 195, 196, 197, 198):
@@ -75,6 +79,8 @@ def build(ts, n, recipe, opts):
     name = f"t{n}"
     coll = common.reset_collection(f"{SHAPES}-{name}")
     pal = lt.Palette(ts, f"{SHAPES}{name}", roughness=0.55, metallic=0.05)
+    if recipe == "rock":
+        return [lt.mesh(f"{SHAPES}-{name}", lt.rock_tile(ts, n, pal), pal, coll, smooth=False)]
     frame = lt.Frame([[n]], scale=2)
     own = ts.grid([[n]], 2)
     h, w = own.shape
@@ -109,20 +115,6 @@ def build(ts, n, recipe, opts):
             cell_mat[(x, y)] = pal(idx, emission_strength=glow) if glow else pal(idx)
 
     drop = np.zeros_like(lum)
-    if recipe == "underside":
-        # The face hangs from the row where the island's stones end down to -drop at the bottom.
-        start = np.full(w, h * 0.3)
-        for x in range(w):
-            col = np.nonzero(opaque[:, x] & (lum[:, x] > GAP))[0]
-            col = col[col < h * 0.55]
-            if len(col):
-                start[x] = col.max() + 1
-        for y in range(h):
-            drop[y, :] = -opts["drop"] * np.clip((y - start) / max(1.0, h - start.min()), 0, 1) ** 0.8
-        snap = lt.Snapper(ts, own[opaque & (drop < -0.01)], limit=5)
-        for y, x in zip(*np.nonzero(opaque & (drop < -0.01))):
-            cell_mat[(x, y)] = pal(snap(own[y, x]))
-
     bm = bmesh.new()
     bottom = SLAB_BOTTOM + min(0.0, drop.min(), heights.min())
     lt.mask_slab(bm, opaque, frame, bottom, SLAB_TOP, lambda x, y: cell_mat.get((x, y), DARK), DARK,

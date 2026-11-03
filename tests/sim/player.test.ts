@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, test } from "vitest";
 import { type SpriteDraw } from "../../src/sim/draw";
+import { PLAYFIELD_SCREEN_X, PLAYFIELD_W } from "../../src/game/playfield";
 import { simInput } from "../../src/sim/input";
 import { JE_playerCollide, PLAYER_KEY_BASE } from "../../src/sim/mainint";
 import { calc_purple_balls_needed } from "../../src/sim/player";
@@ -113,6 +114,35 @@ describe.skipIf(!havePlayerData())("movement", () => {
     simInput.right = simInput.down = true;
     for (let i = 0; i < 100; i++) tick();
     expect([g.player[0].x, g.player[0].y]).toEqual([256, 160]);
+  });
+
+  test("the mouse reaches the same x limits as the keys, with no earlier clamp (mainint.c L3857-3865)", () => {
+    // Relative steering only (mouseGetRelativePosition), clamped to +-30 a tick, then x to 40..256.
+    for (const [dx, limit] of [[-30, 40], [30, 256]]) {
+      for (let i = 0; i < 100; i++) {
+        simInput.mouseXR = dx;
+        tick();
+        expect(g.player[0].x).toBeGreaterThanOrEqual(40);
+        expect(g.player[0].x).toBeLessThanOrEqual(256);
+      }
+      expect(g.player[0].x).toBe(limit);
+    }
+  });
+
+  test("at the x limits the ship is drawn where the original's window shows it, fully banked", () => {
+    // showNormal (backgrnd.c L1018-1040) copies game_screen from x 24, 264 wide; the ship is drawn
+    // at x - 5, so at x = 40 its 24-pixel cell starts 11 pixels into the window and at x = 256 it
+    // ends 13 pixels short of the window's right edge (PLAYFIELD_SCREEN_X, playfield.ts).
+    for (const [side, x, bank] of [["left", 40, -2], ["right", 256, 2]] as const) {
+      simInput.left = side === "left";
+      simInput.right = side === "right";
+      for (let i = 0; i < 100; i++) tick();
+      const ship = sprite2Draws().find((d) => d.key === PLAYER_KEY_BASE);
+      expect(g.player[0].x).toBe(x);
+      expect(ship).toMatchObject({ index: 233 + bank * 2, x: x - 5 });
+      const windowLeft = ship!.x - PLAYFIELD_SCREEN_X;
+      expect(side === "left" ? windowLeft : PLAYFIELD_W - (windowLeft + 24)).toBe(side === "left" ? 11 : 13);
+    }
   });
 
   test("draws the ship from shipGrPtr at (x - 5, y - 7), banking with velocity", () => {
