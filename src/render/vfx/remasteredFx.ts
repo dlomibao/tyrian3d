@@ -450,6 +450,15 @@ export class RemasteredFx {
     }
   }
 
+  /**
+   * [proposal: damage frames] `?damage=b`: a damaged enemy's smoke, with sparks and, for a wreck, a
+   * flicker of fire. Called now and then per damaged enemy (DrawListRenderer.drawModel).
+   */
+  damageSmoke(sx: number, sy: number, h: number, level: 1 | 2 | 3): void {
+    this.smoke(sx, sy, h, level, 3 + level, 8 + level * 3);
+    if (Math.random() < 0.25 * level) this.sparks(sx, sy, h, level * 2, 30, 90, 0.12, 0.3);
+  }
+
   private smoke(sx: number, sy: number, h: number, n: number, size0: number, size1: number): void {
     const p = this.blended.spec;
     for (let i = 0; i < n; i++) {

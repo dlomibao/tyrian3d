@@ -37,11 +37,76 @@ export interface LevelSprite {
   time: number;
 }
 
+/**
+ * [proposal: damage frames] An enemy type's damaged frames and its normal frames, on its sheet
+ * (game.ts: edani != 0 animates egraphic[edgr-1 .. |edani|-1], else edgr replaces egraphic[0]).
+ */
+export interface LevelDamage {
+  sheet: string;
+  size: 1 | 2;
+  damaged: number[];
+  normal: number[];
+}
+
 /** A background tile of the level: layer, tile number in the shapes file, and roughly when it scrolls in. */
 export interface LevelTile {
   layer: 0 | 1 | 2;
   tile: number;
   time: number;
+}
+
+/**
+ * [proposal: damage frames] The damaged frames of every enemy type the current level can make, with
+ * the normal frames they replace (levelSprites' enemy types; `?damage=a|b|c`, docs/agents/DAMAGE-FRAMES.md).
+ */
+export function levelDamageFrames(): LevelDamage[] {
+  const out: LevelDamage[] = [];
+  forLevelEnemyTypes((dat, sheet, size) => {
+    const damaged: number[] = [];
+    if (dat.dAni !== 0) for (let k = dat.dGr - 1; k < Math.abs(dat.dAni); k++) damaged.push(dat.eGraphic[k]);
+    else if (dat.dGr > 0) damaged.push(dat.dGr);
+    const normal = dat.eGraphic.slice(0, Math.max(1, dat.ani)).filter((f) => f > 0 && f !== 999);
+    const d = damaged.filter((f) => f > 0 && f !== 999 && !normal.includes(f));
+    if (d.length && normal.length) out.push({ sheet, size, damaged: d, normal });
+  });
+  return out;
+}
+
+/** Each enemy type the current level can make (levelSprites' rules), with its sheet and size. */
+function forLevelEnemyTypes(each: (dat: (typeof g.res.enemyDat)[number], sheet: string, size: 1 | 2, time: number) => void): void {
+  const events = g.lvl?.eventRec ?? [];
+  const banks = new Set<number>([21, 26]);
+  for (const ev of events) {
+    if (ev.eventType !== 5) continue;
+    for (const t of [ev.eventDat, ev.eventDat2, ev.eventDat3, ev.eventDat4]) if (t > 0 && t <= shapeFile.length) banks.add(t);
+  }
+  const bankSheet = (bank: number): string | null => {
+    if (!banks.has(bank)) return null;
+    if (bank === 21) return g.res.spriteSheet11.id;
+    if (bank === 26) return g.res.spriteSheet10.id;
+    return `newsh${shapeFile[bank - 1].toLowerCase()}.shp`;
+  };
+  const types = new Map<number, number>();
+  const queue: number[] = [];
+  const addType = (t: number, time: number) => {
+    if (t <= 0 || t > ENEMY_NUM || (types.get(t) ?? Infinity) <= time) return;
+    types.set(t, time);
+    queue.push(t);
+  };
+  for (const ev of events) for (let k = 0; k < 4; k++) addType(ev.eventDat + k, ev.eventTime);
+  for (let i = 0; i < g.levelEnemyMax; i++) addType(g.levelEnemy[i], 0);
+  for (const t of ARMOR_SHIP_TYPES) addType(t, 0);
+  while (queue.length) {
+    const t = queue.pop()!;
+    const dat = g.res.enemyDat[t];
+    addType(dat.eLaunchType % 1000, types.get(t)!);
+    addType(dat.eEnemyDie, types.get(t)!);
+  }
+  for (const [t, time] of types) {
+    const dat = g.res.enemyDat[t];
+    const sheet = bankSheet(dat.shapeBank);
+    if (sheet) each(dat, sheet, dat.eSize === 1 ? 2 : 1, time);
+  }
 }
 
 /** The sprites the current level (g.lvl, g.player) can draw. */

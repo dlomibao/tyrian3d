@@ -44,10 +44,12 @@ import { passHeight } from "./passHeights";
 import { SpriteMeshCache } from "./spriteMesh";
 import { colourFrame, rigModel, showFrame, type FrameRig } from "./modelFrames";
 import { castsShadow, isModelHelper, setModelBlended } from "./modelPrep";
-import type { SpriteModels } from "./spriteModels";
+import { spriteModels as indexSpriteModels, type SpriteModelEntry, type SpriteModels } from "./spriteModels";
+import { DamageFrames, type DamageState } from "./damage/damageFrames";
+import { damageModeFromSearch } from "./damage/damageMode";
 import { Route, Sprite2Router } from "./sprite2Route";
 import { bankShift } from "./bankShift";
-import type { LevelSprite, LevelTile } from "../sim/levelSprites";
+import type { LevelDamage, LevelSprite, LevelTile } from "../sim/levelSprites";
 import { TileAtlas } from "./tileAtlas";
 import { RemasteredFx, SpriteLook } from "./vfx/remasteredFx";
 import { vfxModeFromSearch, type VfxMode } from "./vfx/vfxMode";
@@ -222,7 +224,14 @@ export interface LevelModelInfo {
    * terrain's neighbour variants (D57).
    */
   maps?: readonly [ArrayLike<number>, ArrayLike<number>, ArrayLike<number>];
+  /** [proposal: damage frames] Its enemies' damaged frames (levelDamageFrames), for `?damage=a|b`. */
+  damage?: readonly LevelDamage[];
 }
+
+/** [proposal: damage frames] `?damage=c`: a model per damaged frame (src/render/damage/cModels/). */
+const DAMAGE_C_MODELS = Object.values(
+  import.meta.glob<SpriteModelEntry | SpriteModelEntry[]>("./damage/cModels/*.json", { eager: true, import: "default" }),
+).flat();
 
 /** A model a level can show, and roughly when it's first needed (LevelSprite.time). */
 export interface LevelModel {
@@ -305,6 +314,9 @@ export class DrawListRenderer {
   /** Add this to the scene. */
   readonly root = new THREE.Group();
   readonly palette = new PaletteTexture();
+  /** [proposal: damage frames] `?damage=a|b`: damaged frames drawn with the intact model (damage/). */
+  private damage: DamageFrames | null = null;
+  private readonly damageMode = damageModeFromSearch();
   readonly cache = new SpriteMeshCache();
   readonly atlas = new TileAtlas();
   readonly remasterAtlas = new RemasterGroundAtlas();
@@ -515,7 +527,15 @@ export class DrawListRenderer {
    */
   setSpriteModels(models: SpriteModels, loader: ModelLoader): void {
     this.loader = loader;
+    if (this.damageMode === "c") {
+      const c = indexSpriteModels(DAMAGE_C_MODELS);
+      models = { ...models, grouped: new Map([...models.grouped, ...c.grouped]) };
+    }
     this.router = new Sprite2Router(models);
+    if (this.damageMode === "a" || this.damageMode === "b") {
+      const grouped = models.grouped;
+      this.damage = new DamageFrames(this.damageMode, this.palette, (key) => grouped.get(key));
+    }
     for (const o of models.banked) this.modelPool(o.model);
   }
 
@@ -550,6 +570,7 @@ export class DrawListRenderer {
     { progress, timeoutMs = Infinity, waitUntil = Infinity }: { progress?: (done: number, total: number) => void; timeoutMs?: number; waitUntil?: number } = {},
   ): Promise<PreloadResult> {
     const models = this.levelModels(info);
+    this.damage?.setLevel(info.damage);
     // The structures' own first-sight loading (preloadStructures) would fetch the whole tileset.
     if (info.tileShapes) this.preloadedShapes.add(info.tileShapes);
     const settled = new Map<string, Promise<void>>();
@@ -635,13 +656,22 @@ export class DrawListRenderer {
           const sheetArt = art ? this.artSheet(d.sheet) : null;
           this.routeSheet = d.sheet;
           const r = this.router.route(d, sheetArt, this.emptyTile);
+          // [proposal: damage frames] A damaged frame without a model: its intact model, damaged.
+          let damaged: DamageState | null = null;
+          if (this.damage !== null && r.route === Route.Sprite && d.groupIndex >= 0) {
+            damaged = this.damage.resolve(d);
+            if (damaged) {
+              r.route = Route.Group;
+              r.model = damaged.model;
+            }
+          }
           const flat = r.route === Route.Flat;
           if (r.route === Route.Group || r.route === Route.Override || r.route === Route.Ungrouped) {
             const pool = this.modelPool(r.model);
             const look = this.objectLook(d, pool, now, frame);
             if (look === ObjectLook.Model) {
               const shift = r.override ? bankShift(d.sheet.id, d.sheet.data, r.override.baseIndex, d.index) : 0;
-              this.drawModel(r.route, pool, r.bank, shift, d, x, y, cam, dt);
+              this.drawModel(r.route, pool, r.bank, shift, d, x, y, cam, dt, damaged);
               continue;
             }
             // Held back while its model loads, or locked to its sprite (D54).
@@ -1056,7 +1086,7 @@ export class DrawListRenderer {
    * goes at the object's centre on its first tile while the other tiles draw nothing; or a sprite
    * drawn on its own, a sidekick (Ungrouped), centred on the sprite and showing the frame drawn.
    */
-  private drawModel(route: Route, pool: ModelPool, bank: number, shift: number, d: SpriteDraw, x: number, y: number, cam: THREE.Vector3, dt: number): void {
+  private drawModel(route: Route, pool: ModelPool, bank: number, shift: number, d: SpriteDraw, x: number, y: number, cam: THREE.Vector3, dt: number, damaged: DamageState | null = null): void {
     let clone: ModelClone;
     if (route === Route.Override) {
       clone = this.placeModel(pool, x + (d.size * 12) / 2, y + (d.size * 14) / 2, d, cam);
@@ -1069,7 +1099,14 @@ export class DrawListRenderer {
       return;
     } else {
       if (!d.groupFirst) return;
-      clone = this.placeModel(pool, x + d.groupDx, y + d.groupDy, d, cam, d.groupIndex);
+      clone = this.placeModel(pool, x + d.groupDx, y + d.groupDy, d, cam, damaged ? damaged.normal : d.groupIndex);
+      if (this.damage !== null) {
+        this.damage.apply(clone.object, clone.materials, damaged);
+        // B: smoke and sparks from a damaged enemy, so many per second by its level.
+        if (damaged && this.damageMode === "b" && this.fx && Math.random() < damaged.smoke * dt * this.vfxTimeScale) {
+          this.fx.damageSmoke(x + d.groupDx, y + d.groupDy, passHeight(d.pass) + 0.4, damaged.level);
+        }
+      }
       // [two-player] a grouped ship that banks (the dragonwing) rolls as the player ships do
       if (Number.isNaN(bank)) return;
     }
