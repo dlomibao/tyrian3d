@@ -44,9 +44,21 @@ export function reveal(el: Element | null | undefined): void {
 
 // --- titles ---
 
-/** The game's logo: TYRIAN with a 3D tag. */
-export function logo(sub = "3D"): HTMLElement {
-  return h("h1", { class: "ui-logo", attrs: { "aria-label": `Tyrian ${sub}` } }, h("span", { class: "ui-logo__word", text: "TYRIAN" }), h("span", { class: "ui-logo__tag", text: sub }));
+/**
+ * The original Tyrian logo (the title's sprite, PLANET_SHAPES #146, traced to vector paths:
+ * public/art/title/, D64), crisp at any size, with a 3D tag. A copper glint sweeps across it now and
+ * then, laid over the letters through their silhouette, so the shapes themselves never change.
+ */
+export function logo(sub = "3D", glint = true): HTMLElement {
+  const art = `${import.meta.env.BASE_URL}art/title/`;
+  const glintEl = glint ? h("span", { class: "ui-logo__glint", attrs: { "aria-hidden": "true" } }) : null;
+  glintEl?.style.setProperty("--ui-logo-mask", `url("${art}tyrian-logo-mask.svg")`);
+  return h(
+    "h1",
+    { class: "ui-logo", attrs: { "aria-label": `Tyrian ${sub}` } },
+    h("span", { class: "ui-logo__art" }, h("img", { class: "ui-logo__img", attrs: { src: `${art}tyrian-logo.svg`, alt: "", draggable: "false" } }), glintEl),
+    h("span", { class: "ui-logo__tag", text: sub }),
+  );
 }
 
 /** A screen or section title in the display face, with an optional kicker line above it. */

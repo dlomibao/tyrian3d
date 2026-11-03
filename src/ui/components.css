@@ -124,34 +124,65 @@
 
 /* --- titles --- */
 
+/* The original logo, traced to vector paths (components.ts logo()), with its 3D tag tucked under the n's swash. */
 .ui-logo {
+  position: relative;
   margin: 0;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 0.15em;
-  font-family: var(--ui-font-display);
-  font-weight: 900;
-  font-size: var(--ui-text-hero);
-  line-height: 1;
-  letter-spacing: 0.12em;
+  width: min(62vw, 86vh, 900px);
+  aspect-ratio: 304 / 121;
   user-select: none;
+  line-height: 1;
 }
 
-.ui-logo__word {
-  background: linear-gradient(180deg, #fff6d0 0%, var(--ui-gold-bright) 38%, var(--ui-gold) 55%, var(--ui-gold-deep) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  filter: drop-shadow(0 0.04em 0 #3a2204) drop-shadow(0 0 0.35em rgba(255, 190, 80, 0.35));
+.ui-logo__art {
+  position: absolute;
+  inset: 0;
+}
+
+.ui-logo__img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 0.15vmin 0 var(--ui-umber-ink)) drop-shadow(0 0.6vmin 1.2vmin rgba(8, 3, 2, 0.7));
+  -webkit-user-drag: none;
+}
+
+/* The glint: a band of light crossing the letters every few seconds, inside their silhouette. */
+.ui-logo__glint {
+  position: absolute;
+  inset: 0;
+  -webkit-mask: var(--ui-logo-mask) center / 100% 100% no-repeat;
+  mask: var(--ui-logo-mask) center / 100% 100% no-repeat;
+  background: linear-gradient(105deg, transparent 0 45.5%, rgba(255, 240, 210, 0.5) 49.3%, rgba(255, 246, 228, 0.62) 50%, rgba(255, 240, 210, 0.5) 50.7%, transparent 54.5% 100%) no-repeat;
+  background-size: 260% 100%;
+  background-position: 160% 0;
+  mix-blend-mode: screen;
+  animation: ui-logo-glint 9s ease-in-out 1.2s infinite;
+  pointer-events: none;
+}
+
+@keyframes ui-logo-glint {
+  0% { background-position: 160% 0; }
+  22%, 100% { background-position: -60% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-logo__glint { display: none; }
 }
 
 .ui-logo__tag {
-  font-size: 0.38em;
-  margin-top: 0.08em;
-  color: var(--ui-cyan);
-  letter-spacing: 0.05em;
-  text-shadow: var(--ui-glow-cyan);
+  position: absolute;
+  right: 2%;
+  top: 80%;
+  font-family: var(--ui-font-display);
+  font-weight: 900;
+  font-size: clamp(0.8rem, 2.6vmin, 1.6rem);
+  letter-spacing: 0.16em;
+  background: linear-gradient(180deg, var(--ui-copper-hi) 0%, var(--ui-copper-lite) 45%, var(--ui-copper-deep) 55%, var(--ui-copper) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 1px 0 var(--ui-umber-ink)) drop-shadow(0 0 4px rgba(0, 0, 0, 0.8));
 }
 
 .ui-title {
@@ -624,6 +655,31 @@ h3.ui-title {
     radial-gradient(1.5px 1.5px at 55% 40%, #fff 50%, transparent 51%),
     radial-gradient(1px 1px at 30% 10%, #def 50%, transparent 51%),
     var(--ui-bg);
+}
+
+/* The title's stand-in (no WebGL, or its shader can't run here): the painted planet's arc in
+   maroon, rose and bone, lit from the right, on warm black (D64). */
+.ui-backdrop-fallback[data-mood="title"] {
+  --cx: calc(50% - 30vh);
+  --cy: calc(50% + 56vh);
+  --r: 103vh;
+  background:
+    radial-gradient(circle var(--r) at var(--cx) var(--cy), transparent 0 99.2%, rgba(204, 153, 143, 0.75) 99.6%, rgba(160, 90, 60, 0.25) 101%, transparent 104%),
+    radial-gradient(circle var(--r) at var(--cx) var(--cy), rgba(234, 223, 202, 0) 0 76%, rgba(214, 170, 140, 0.32) 88%, rgba(180, 110, 80, 0.2) 95%, transparent 99.4%),
+    radial-gradient(ellipse 90% 80% at 85% 55%, rgba(120, 50, 30, 0.35), transparent 70%),
+    radial-gradient(circle var(--r) at var(--cx) var(--cy), #5a1e18 0 60%, #6e2a1e 85%, #3a0e0b 99.4%, transparent 99.5%),
+    radial-gradient(1px 1px at 82% 12%, #f2e2c8 50%, transparent 51%),
+    radial-gradient(1px 1px at 91% 30%, #f2e2c8 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 76% 6%, #f2e2c8 50%, transparent 51%),
+    var(--ui-space-warm);
+}
+
+@media (max-aspect-ratio: 4/5) {
+  .ui-backdrop-fallback[data-mood="title"] {
+    --cx: calc(50% - 32vh);
+    --cy: calc(50% + 30vh);
+    --r: 70vh;
+  }
 }
 
 .ui-backdrop-fallback[hidden] {
