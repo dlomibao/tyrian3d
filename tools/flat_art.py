@@ -8,7 +8,7 @@ from input sheets of the original sprites. This tool does both ends of that loop
         DIR/manifest.json saying which sprite sits where. Derived from the game data, so they stay
         out of git (D3); keep them in a scratch folder.
 
-    python tools/flat_art.py cut --inputs DIR/manifest.json --results RESULTS_DIR [--out public/art/sprites]
+    python tools/flat_art.py cut --inputs DIR/manifest.json --results RESULTS_DIR [--out public/art/sprites] [--merge]
         For each input sheet, RESULTS_DIR/<sheet name>.png|jpg|webp (Gemini's answer, any size, same
         aspect as the input) is cut item by item, each item's art registered onto its original sprite
         (scale and offset fitted by matching the art's foreground mask to the sprite's mask), given the
@@ -21,11 +21,14 @@ from input sheets of the original sprites. This tool does both ends of that loop
         (12 px wide, as many rows as the sprite decodes to) times `scale`, its top-left at the blit
         position. --check PNG also writes a contact sheet: original (nearest, 8x) | remastered.
 
+        --merge rebuilds only the atlases these inputs feed and keeps the manifest's other sheets
+        (e.g. the explosions, newsh6.shp, from tools/flat_art_explosions.json, D67).
+
 A few frames are painted here instead of cut from Gemini's art (PAINTED: the Vulcan Cannon's
 tracers, D56); `cut` draws them with their painter and packs them with the rest.
 
 The original sprites are read from the game data (--data, default data/): tyrian.shp's Sprite2
-tables (src/data/sprites.ts) and palette.dat (src/data/palette.ts).
+tables and the newsh<c>.shp sheets (src/data/sprites.ts) and palette.dat (src/data/palette.ts).
 """
 
 from __future__ import annotations
@@ -55,6 +58,8 @@ class GameData:
         count = struct.unpack_from("<H", shp, 0)[0]
         pos = [struct.unpack_from("<I", shp, 2 + i * 4)[0] for i in range(count)] + [len(shp)]
         self.tables = [shp[pos[i]:pos[i + 1]] for i in range(count)]
+        self.data_dir = data_dir
+        self.files: dict[str, bytes] = {}
         pal = (data_dir / "palette.dat").read_bytes()
         self.palettes = []
         for p in range(len(pal) // 768):
@@ -62,8 +67,13 @@ class GameData:
             self.palettes.append(((raw << 2) | (raw >> 4)).astype(np.uint8))
 
     def sheet(self, sheet_id: str) -> bytes:
+        if sheet_id.startswith("newsh") and sheet_id.endswith(".shp"):
+            # A comp-shapes sheet (newsh<c>.shp, resources.ts loadCompShapes): the whole file is one Sprite2 sheet.
+            if sheet_id not in self.files:
+                self.files[sheet_id] = (self.data_dir / sheet_id).read_bytes()
+            return self.files[sheet_id]
         if not sheet_id.startswith("tyrian.shp#"):
-            raise ValueError(f"only tyrian.shp sheets are supported, not {sheet_id}")
+            raise ValueError(f"only tyrian.shp and newsh*.shp sheets are supported, not {sheet_id}")
         return self.tables[int(sheet_id.split("#")[1])]
 
     def sprite(self, sheet_id: str, index: int) -> np.ndarray:
@@ -133,6 +143,21 @@ def smooth_alpha(mask: np.ndarray, scale: int = SCALE, sigma: float = 3.0, ramp:
     return np.clip((blurred - 0.5) / ramp + 0.5, 0.0, 1.0)
 
 
+def soft_alpha(mask: np.ndarray, sigma: float, lo: float, hi: float, scale: int = SCALE) -> np.ndarray:
+    """A softer silhouette than smooth_alpha (inventory "alpha": {"sigma", "lo", "hi"}): the mask
+    upscaled, blurred by sigma texels and smoothstepped from lo to hi. With sigma 5 and lo..hi
+    0.3..0.55 a one-pixel staircase (a fireball's thin ring) becomes a smooth line instead of dashes,
+    and the edge grows by about a third of a sprite pixel (lower lo grows it more, and it is cut at
+    the picture's box)."""
+    from scipy import ndimage
+
+    big = np.kron(mask.astype(np.float32), np.ones((scale, scale), np.float32))
+    pad = int(math.ceil(sigma * 3))
+    blurred = ndimage.gaussian_filter(np.pad(big, pad), sigma)[pad:-pad, pad:-pad]
+    t = np.clip((blurred - lo) / (hi - lo), 0.0, 1.0)
+    return t * t * (3 - 2 * t)
+
+
 def bleed(rgb: np.ndarray, alpha: np.ndarray) -> np.ndarray:
     """Fill colour under alpha ~0 from the nearest visible texel, so bilinear filtering has no dark fringe."""
     from scipy import ndimage
@@ -150,9 +175,20 @@ def bleed(rgb: np.ndarray, alpha: np.ndarray) -> np.ndarray:
 # --- Objects: the picture shown in a cell and the atlas frames (tiles) cut from it ----------------
 
 
-def object_tiles(gd: GameData, sheet: str, index: int, size: int) -> list[dict]:
+# Objects drawn as four separate 12x14 sprites that aren't blit_sprite2x2's index, +1, +19, +20:
+# (index offset, x, y) of each quarter from the top-left one. A big explosion is four explosions of
+# their own (JE_setupExplosionLarge, varz.ts), each animating its own run of newsh6.shp frames:
+# air types 7/9/8/10 start at sprites 1, 39, 20, 58, ground types 2/4/3/5 at 190, 152, 209, 171,
+# placed at (x-6, y-14), (x+6, y-14), (x-6, y), (x+6, y). Painted whole, cut into quarters.
+LAYOUTS = {
+    "explosion-air": ((0, 0, 0), (38, 12, 0), (19, 0, 14), (57, 12, 14)),
+    "explosion-ground": ((0, 0, 0), (-38, 12, 0), (19, 0, 14), (-19, 12, 14)),
+}
+
+
+def object_tiles(gd: GameData, sheet: str, index: int, size: int, layout: str | None = None) -> list[dict]:
     """The tiles a frame is drawn as: (sprite index, offset in the picture, its own pixels)."""
-    offs = ((0, 0, 0),) if size == 1 else ((0, 0, 0), (1, 12, 0), (19, 0, 14), (20, 12, 14))
+    offs = LAYOUTS[layout] if layout else ((0, 0, 0),) if size == 1 else ((0, 0, 0), (1, 12, 0), (19, 0, 14), (20, 12, 14))
     out = []
     for d, ox, oy in offs:
         px = gd.sprite(sheet, index + d)
@@ -162,9 +198,9 @@ def object_tiles(gd: GameData, sheet: str, index: int, size: int) -> list[dict]:
     return out
 
 
-def picture(gd: GameData, sheet: str, index: int, size: int) -> np.ndarray:
+def picture(gd: GameData, sheet: str, index: int, size: int, layout: str | None = None) -> np.ndarray:
     """The frame as drawn: its tiles overlaid in draw order, not cropped (a tile may be taller than 14)."""
-    tiles = object_tiles(gd, sheet, index, size)
+    tiles = object_tiles(gd, sheet, index, size, layout)
     h = max([size * TILE_H] + [t["oy"] + t["pixels"].shape[0] for t in tiles])
     out = np.full((h, size * TILE_W), -1, np.int16)
     for t in tiles:
@@ -201,6 +237,11 @@ SHEET_GROUPS = [
     ("gems", ["gems"]),
     ("datacubes", ["datacube"]),
     ("orbs-capsules", ["power-orb", "capsules"]),
+    # Explosions (newsh6.shp): the fireball's 12 frames and a big explosion's, air and ground, each
+    # frame painted whole (four quarters) so its quarters meet without seams.
+    ("explosions-fireball", ["fireball"]),
+    ("explosions-air", ["explosion-air"]),
+    ("explosions-ground", ["explosion-ground"]),
 ]
 MAX_CELLS = 12
 CELL = 256  # input cell size, px
@@ -217,15 +258,19 @@ def build_sheets(gd: GameData, inventory: dict, out: Path) -> dict:
     manifest = {"cell_note": "rect = [x, y, w, h] in input px; art = where the cell's picture (sprite px) sits: input px = (x + px * scale, y + py * scale). Each frame maps its own sprite px (u, v) to picture px: px = sx * u + tx, py = sy * v + ty (sy defaults to 1; sx = -1 for a mirrored sprite sharing the cell; an animation frame sharing a cell maps its bounding box onto the picture's, e.g. a coin's narrower spin frames squash the face).",
                 "palette": LEVEL1_PALETTE, "sheets": []}
     for name, members in SHEET_GROUPS:
+        members = [m for m in members if m in fams]  # an inventory may cover only some families
+        if not members:
+            continue
         cells = []  # one per distinct picture; mirrored sprites join their twin's cell
         for fam in members:
             for obj in fams[fam]["objects"]:
                 for fr in obj["frames"]:
-                    pic = picture(gd, obj["sheet"], fr, obj["size"])
+                    layout = obj.get("layout")
+                    pic = picture(gd, obj["sheet"], fr, obj["size"], layout)
                     frames = [{"sheet": obj["sheet"], "index": t["index"], "sx": 1, "tx": t["ox"], "ty": t["oy"]}
-                              for t in object_tiles(gd, obj["sheet"], fr, obj["size"])]
+                              for t in object_tiles(gd, obj["sheet"], fr, obj["size"], layout)]
                     twin = None
-                    if obj["size"] == 1:
+                    if obj["size"] == 1 and not obj.get("no_mirror"):
                         for c in cells:
                             if c["size"] == 1 and c["sheet"] == obj["sheet"]:
                                 m = mirror_of(c["pic"], pic)
@@ -234,7 +279,7 @@ def build_sheets(gd: GameData, inventory: dict, out: Path) -> dict:
                                     twin["frames"].append({"sheet": obj["sheet"], "index": fr, "sx": -1, "tx": m[0], "ty": m[1]})
                                     break
                     if twin is None:
-                        cells.append({"object": obj["name"], "family": fam, "sheet": obj["sheet"], "index": fr, "size": obj["size"], "pic": pic, "frames": frames})
+                        cells.append({"object": obj["name"], "family": fam, "sheet": obj["sheet"], "index": fr, "size": obj["size"], "layout": layout, "floor": obj.get("floor"), "alpha": obj.get("alpha"), "pic": pic, "frames": frames})
         # Balanced split, keeping each object's frames (a coin's spin) on one sheet where they fit.
         n_sheets = math.ceil(len(cells) / MAX_CELLS)
         per = math.ceil(len(cells) / n_sheets)
@@ -270,9 +315,9 @@ def build_sheets(gd: GameData, inventory: dict, out: Path) -> dict:
                 m = big[..., 3] > 0
                 region[m] = big[..., :3][m]
                 entry["cells"].append({"row": r, "col": k, "rect": [k * CELL, r * CELL, CELL, CELL], "object": c["object"], "family": c["family"],
-                                       "art": {"sheet": c["sheet"], "index": c["index"], "size": c["size"], "x": ax, "y": ay,
+                                       "art": {"sheet": c["sheet"], "index": c["index"], "size": c["size"], "layout": c["layout"], "x": ax, "y": ay,
                                                "w": int(c["pic"].shape[1]), "h": int(c["pic"].shape[0]), "scale": px},
-                                       "search": CELL // 5, "frames": c["frames"]})
+                                       "search": CELL // 5, "frames": c["frames"], **({"floor": c["floor"]} if c["floor"] else {}), **({"alpha": c["alpha"]} if c["alpha"] else {})})
             Image.fromarray(img).save(out / entry["image"])
             manifest["sheets"].append(entry)
     (out / "manifest.json").write_text(json.dumps(manifest, indent=1))
@@ -361,6 +406,18 @@ def sample(art: np.ndarray, xs: np.ndarray, ys: np.ndarray, footprint: float) ->
     return np.stack([ndimage.map_coordinates(src[..., c], [ys - 0.5, xs - 0.5], order=1, mode="nearest") for c in range(3)], -1)
 
 
+def original_colour(gd: GameData, pic: np.ndarray, palette: int, sigma: float = 0.6) -> np.ndarray:
+    """The picture's own colours at SCALE texels per pixel, smoothed (sigma in sprite px) and
+    normalised by coverage so transparent neighbours don't darken the edges: (h*8, w*8, 3) in 0..1."""
+    from scipy import ndimage
+
+    rgba = gd.rgba(pic, palette).astype(np.float32) / 255.0
+    big = np.kron(rgba, np.ones((SCALE, SCALE, 1), np.float32))
+    a = ndimage.gaussian_filter(big[..., 3], sigma * SCALE)
+    rgb = np.stack([ndimage.gaussian_filter(big[..., c] * big[..., 3], sigma * SCALE) for c in range(3)], -1)
+    return rgb / np.maximum(a, 1e-3)[..., None]
+
+
 def cut_sheet(gd: GameData, sheet: dict, art: np.ndarray, palette: int) -> list[dict]:
     """Every atlas frame of one input sheet: {sheet, index, rgba (h*8, 96, 4), fit}."""
     H, W = art.shape[:2]
@@ -368,7 +425,7 @@ def cut_sheet(gd: GameData, sheet: dict, art: np.ndarray, palette: int) -> list[
     out = []
     for cell in sheet["cells"]:
         a = cell["art"]
-        pic = picture(gd, a["sheet"], a["index"], a["size"])
+        pic = picture(gd, a["sheet"], a["index"], a["size"], a.get("layout"))
         mask = visible_mask(gd, pic, palette)
         s = a["scale"]
         nominal = (a["x"] * rx, a["y"] * ry, s * rx, s * ry)
@@ -382,7 +439,14 @@ def cut_sheet(gd: GameData, sheet: dict, art: np.ndarray, palette: int) -> list[
         fit = register(art, mask, nominal, window, search * max(rx, ry))
         fit["nominal_scale"] = s * (rx + ry) / 2
         # Silhouette alpha of the whole picture, so tiles of a 2x2 object meet without seams.
-        alpha_pic = smooth_alpha(pic >= 0)
+        spec = cell.get("alpha")
+        silhouette = (lambda m: soft_alpha(m, spec["sigma"], spec["lo"], spec["hi"])) if spec else smooth_alpha
+        alpha_pic = silhouette(pic >= 0)
+        # A brightness floor from the original's own colours (inventory "floor": 0..1): where the art
+        # is darker than the original pixel there, it's lifted to floor x the original colour. For
+        # fire, whose painting may put dark smoke where the original has a thin bright ring.
+        floor = cell.get("floor")
+        floor_pic = original_colour(gd, pic, palette) * floor if floor else None
         for fr in cell["frames"]:
             own = gd.sprite(fr["sheet"], fr["index"])
             h = own.shape[0]
@@ -396,7 +460,12 @@ def cut_sheet(gd: GameData, sheet: dict, art: np.ndarray, palette: int) -> list[
                 ty, tx = int(fr["ty"]), int(fr["tx"])
                 alpha = alpha_pic[ty * SCALE:(ty + h) * SCALE, tx * SCALE:(tx + TILE_W) * SCALE]
             else:
-                alpha = smooth_alpha(own >= 0)
+                alpha = silhouette(own >= 0)
+            if floor_pic is not None and whole and fr["sx"] == 1:
+                ty, tx = int(fr["ty"]), int(fr["tx"])
+                under = floor_pic[ty * SCALE:(ty + h) * SCALE, tx * SCALE:(tx + TILE_W) * SCALE]
+                if under.shape[:2] == rgb.shape[:2]:
+                    rgb = np.maximum(rgb, under)
             rgb = bleed(np.clip(rgb, 0, 1), alpha)
             rgba = np.dstack([rgb * 255, alpha * 255]).round().astype(np.uint8)
             out.append({"sheet": fr["sheet"], "index": fr["index"], "rgba": rgba, "fit": fit, "input": sheet["name"],
@@ -524,7 +593,7 @@ def painted_frame(gd: GameData, sheet: str, index: int, palette: int) -> dict:
             "cell": None, "mirrored": False, "shared": False}
 
 
-def cut(gd: GameData, inputs: dict, results: Path, out: Path, palette: int, check: Path | None) -> dict:
+def cut(gd: GameData, inputs: dict, results: Path, out: Path, palette: int, check: Path | None, merge: bool = False) -> dict:
     frames: dict[tuple[str, int], dict] = {}
     report = []
     for sheet in inputs["sheets"]:
@@ -538,17 +607,26 @@ def cut(gd: GameData, inputs: dict, results: Path, out: Path, palette: int, chec
         scores = [f["fit"]["score"] for f in got if not f["mirrored"]] or [0.0]
         print(f"  {sheet['name']}: {len(got)} frames, fit score min {min(scores):.2f} mean {np.mean(scores):.2f}")
         report.extend(got)
-    for (sid, index) in PAINTED:
+    cut_sheets = {k[0] for k in frames}
+    painted = [k for k in PAINTED if not merge or k[0] in cut_sheets]  # --merge: only for atlases rebuilt now
+    for (sid, index) in painted:
         frames[(sid, index)] = painted_frame(gd, sid, index, palette)
-    print(f"  painted: {len(PAINTED)} frames ({', '.join(f'{s[7:]}:{i}' for s, i in PAINTED)})")
+    print(f"  painted: {len(painted)} frames ({', '.join(f'{s[7:]}:{i}' for s, i in painted)})")
     out.mkdir(parents=True, exist_ok=True)
     manifest = {"scale": SCALE, "sheets": {}}
+    if merge and (out / "manifest.json").exists():
+        # Keep the atlases this run doesn't rebuild (their Gemini answers needn't be at hand).
+        old = json.loads((out / "manifest.json").read_text())
+        manifest["sheets"] = {sid: sh for sid, sh in old["sheets"].items() if sid not in cut_sheets}
     for sid in sorted({k[0] for k in frames}):
-        atlas, rects = pack([f for k, f in frames.items() if k[0] == sid])
+        mine = [f for k, f in frames.items() if k[0] == sid]
+        # The narrower of 1024 and 2048 wide unless the wider one halves the (power-of-two) height.
+        atlas, rects = min((pack(mine, w) for w in (1024, 2048)), key=lambda ar: ar[0].shape[0] * ar[0].shape[1])
         name = sheet_file(sid)
         Image.fromarray(atlas, "RGBA").save(out / name, "WEBP", quality=92, alpha_quality=100, method=6, exact=True)
         manifest["sheets"][sid] = {"image": name, "frames": dict(sorted(rects.items(), key=lambda kv: int(kv[0])))}
         print(f"  {out / name}: {len(rects)} frames, {atlas.shape[1]}x{atlas.shape[0]}")
+    manifest["sheets"] = dict(sorted(manifest["sheets"].items()))
     (out / "manifest.json").write_text(dump_manifest(manifest))
     if check:
         contact_sheet(gd, sorted(frames.values(), key=lambda f: (f["sheet"], f["index"])), palette, check)
@@ -595,6 +673,7 @@ def main(argv: list[str] | None = None) -> None:
     c.add_argument("--results", type=Path, required=True, help="folder of <input sheet name>.png|jpg")
     c.add_argument("--out", type=Path, default=ROOT / "public" / "art" / "sprites")
     c.add_argument("--check", type=Path, help="also write a contact sheet here: original | remastered per frame")
+    c.add_argument("--merge", action="store_true", help="rebuild only the atlases these inputs feed; keep the manifest's others")
     args = ap.parse_args(argv)
     gd = GameData(args.data)
     if args.cmd == "sheets":
@@ -602,7 +681,7 @@ def main(argv: list[str] | None = None) -> None:
         for sh in m["sheets"]:
             print(f"  {args.out / sh['image']}: {len(sh['cells'])} cells, {sh['grid']['rows']}x{sh['grid']['cols']}, {sh['scale']}x")
     else:
-        cut(gd, json.loads(args.inputs.read_text()), args.results, args.out, args.palette, args.check)
+        cut(gd, json.loads(args.inputs.read_text()), args.results, args.out, args.palette, args.check, args.merge)
 
 
 if __name__ == "__main__":
