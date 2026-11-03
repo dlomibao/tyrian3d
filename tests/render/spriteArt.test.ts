@@ -97,7 +97,7 @@ describe("sprite art manifest", () => {
     expect(warnings).toHaveLength(4);
   });
 
-  test("a sheet can have its own scale (the coin values' finer atlas, D67)", () => {
+  test("a sheet can have its own scale (the coin values' finer atlas, D76)", () => {
     const warnings: string[] = [];
     const m = parseSpriteArtManifest({
       scale: 8,

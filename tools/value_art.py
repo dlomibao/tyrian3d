@@ -1,4 +1,4 @@
-"""Coin and gem value numbers as clean high-resolution flat art (DECISIONS.md D67).
+"""Coin and gem value numbers as clean high-resolution flat art (DECISIONS.md D76).
 
 When a coin, gem or data cube is picked up, its value floats where it was as a fixed-position
 explosion (mainint.c: JE_setupExplosion(..., enemyDat[].explosionType, fixedPosition = true)): one

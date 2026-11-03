@@ -553,7 +553,7 @@ def cut(gd: GameData, inputs: dict, results: Path, out: Path, palette: int, chec
         Image.fromarray(atlas, "RGBA").save(out / name, "WEBP", quality=92, alpha_quality=100, method=6, exact=True)
         manifest["sheets"][sid] = {"image": name, "frames": dict(sorted(rects.items(), key=lambda kv: int(kv[0])))}
         print(f"  {out / name}: {len(rects)} frames, {atlas.shape[1]}x{atlas.shape[0]}")
-    # Keep sheets other tools add (value_art.py's newsh6.shp values, D67).
+    # Keep sheets other tools add (value_art.py's newsh6.shp values, D76).
     old = out / "manifest.json"
     if old.exists():
         for sid, sh in json.loads(old.read_text())["sheets"].items():
