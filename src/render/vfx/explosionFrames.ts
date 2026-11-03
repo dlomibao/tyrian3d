@@ -35,8 +35,10 @@ export const enum ExplosionKind {
   Large,
   /** Types 6 and 12: smoke puffs (missile trails, burning ground objects). */
   Smoke,
-  /** Types 11, 13 and 14-34: shot trails and the shield's hit arcs; drawn as the original, glowing. */
+  /** Types 11, 13 and 23-34: shot trails; drawn as the original, glowing. */
   Spark,
+  /** Types 14-22: the nine arcs JE_playerDamage draws round a ship whose shield took a hit. */
+  Shield,
 }
 
 export interface ExplosionFrame {
@@ -52,9 +54,36 @@ function kindOf(type: number): ExplosionKind {
   if (type === 1) return ExplosionKind.Fireball;
   if ((type >= 2 && type <= 5) || (type >= 7 && type <= 10)) return ExplosionKind.Large;
   if (type === 6 || type === 12) return ExplosionKind.Smoke;
+  if (type >= SHIELD_FIRST && type <= SHIELD_LAST) return ExplosionKind.Shield;
   if (type <= 34) return ExplosionKind.Spark;
   return ExplosionKind.Other; // 35+: coin and gem values, drawn as they are
 }
+
+const SHIELD_FIRST = 14;
+const SHIELD_LAST = 22;
+
+/**
+ * Where JE_playerDamage (varz.c) puts each shield arc, from the player's x and y: a 4x3 grid of
+ * 12x14 tiles (the bottom right one left out), types 14-22 in order.
+ */
+const SHIELD_ARC_AT: readonly (readonly [number, number])[] = [
+  [-17, -12], [-5, -12], [7, -12], [19, -12],
+  [-17, 2], [19, 2],
+  [-17, 16], [-5, 16], [7, 16],
+];
+
+/** The middle of the arcs' grid, from the player's x and y (the ship's sprite is drawn at x - 5, y - 7, 24x28). */
+const SHIELD_MIDDLE_X = (-17 + 19 + 12) / 2;
+const SHIELD_MIDDLE_Y = (-12 + 16 + 14) / 2;
+
+/**
+ * For a shield arc (types 14-22), the offset from its tile's top-left to the middle of the ring
+ * its type belongs to, so every arc of one hit gives the same point; otherwise undefined.
+ */
+export function shieldArcCentre(type: number): readonly [number, number] | undefined {
+  return SHIELD_CENTRES[type - SHIELD_FIRST];
+}
+const SHIELD_CENTRES: readonly (readonly [number, number])[] = SHIELD_ARC_AT.map(([x, y]) => [SHIELD_MIDDLE_X - x, SHIELD_MIDDLE_Y - y]);
 
 /** Frame table by sprite index (1-based, as drawn). Moving types only. */
 const FRAMES: (ExplosionFrame | undefined)[] = [];

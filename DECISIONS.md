@@ -2586,3 +2586,42 @@ show where an enemy's rock meets an unusual neighbour (as D63's tiles), and the 
 sprites (`assembly-newsh2-115`, `-119`, the rock outcrop `assembly-newshe-39`) stand on level 1's dirt,
 not island rock, and are unchanged.
 Fallback: revert the five scripts and their GLBs; `castsShadow` is harmless without the flag.
+
+## D67 — The shield's hit arcs become one energy bubble round the ship
+
+2026-11-03
+
+**Decision:** When a hit only takes shield, JE_playerDamage draws nine light-blue arc tiles (explosion
+types 14-22, newsh6 sprites 229-237, 248-256 and 267-275) in a 4x3 grid round the ship, for three
+ticks. The remastered effects (D35) drew them as hot extruded sprites: stair-stepped pixel arcs.
+They now draw as one energy bubble (`src/render/vfx/shieldLayer.ts`): a sphere squashed to 20 x 11 x
+19 px round the ship model, at the ship's height, additive, its rim bright by a fresnel term (so from
+the game's camera it reads as the original's ring), with a faint hexagonal cell pattern and a wave
+running from its middle to its rim over the hit. The arcs are hidden.
+- **Placement and timing, from the original:** `explosionFrames.ts` gains an `ExplosionKind.Shield`
+  for types 14-22 and `shieldArcCentre(type)`, each arc's offset to the middle of its grid, so every
+  arc of one hit names the same point (the player's x + 7, y + 9: just below the ship sprite's middle,
+  as the C draws them; a test checks it against the sim's JE_playerDamage). One bubble is drawn per
+  hit and frame, on exactly the frames the arcs are drawn, moving with them (they scroll, as in the
+  C). It grows (0.84, 0.94, 1.04 of its size) and fades (1, 0.8, 0.5) over the three frames, as the
+  arcs widen; two hits a tick apart overlap as two bubbles, each with its own cell pattern.
+- **Colour:** the arc sprite's own palette colour, the way the shot halos take theirs (D35), so
+  palette fades and flashes carry through.
+- **Light:** the first frame also lights the ship's surroundings faintly in that colour, from the
+  explosions' pool of four lights (merged across the nine arcs).
+- **Switch:** `?vfx=original` (or V in the play harness) draws the arcs as the original sprites, as
+  before. Other spark types (11, 13, 23-34: shot trails) are unchanged.
+
+**Options considered:**
+- *A fresnel bubble round the ship (chosen):* one instanced draw, no assets, smooth at any size, and
+  from above it is the original's ring.
+- *Flat art for the arc tiles (D42):* would keep the 4x3 tile seams and the gap at the bottom right
+  (the C draws only nine of twelve tiles); a ring split into nine sprites stays a pixel object.
+- *A full shield mesh that stays round the ship and flashes:* would add a state the sim doesn't have.
+
+**Review:** `?debug=play&seed=1&skip=N&freezeAt=N&solid=1` at 295, 296, 297 (a hit, then a second one
+a tick later) and 636; captures in tyrian-scratch/pixel-sweep/shield-hit-arcs/. At 1920x1080 the
+harness held 60 fps with cpu about 7.3 ms a frame at tick 296 (two bubbles) and about 7.0 at 290 (no
+hit), 311 and 315 draw calls: within the noise of a machine busy with other runs. No
+download beyond the new module (6 KB of source, 2.4 KB gzipped). If the bubble reads too strong or
+weak, the shader's `a` line and `SHIELD_FADE` in remasteredFx.ts set it.
