@@ -8,9 +8,8 @@ side middles) on a low purple base, on the island's rock.
 Every cell carries a top enemy (newsh2 279/281/283, 245/169/207, 273/275/277: the "purple eye
 fortress"), so the whole model stays under L2_ENEMY_MAX (0.33) and shows only after kills. The
 tiles are shared by every purple shape; the plan's minRows 2 tells it apart. It replaces its
-tiles, so it carries the rock they paint: the slab from Structure.rock, and boulders built here
-the way the per-tile models build theirs (lib_tiles.boulders), with the stones of the rock tiles
-round its first copy continued across the edge, so the cobbles join the neighbouring islands'.
+tiles, so it carries the rock they paint (Structure.rock: the per-tile rock models' relief, so the
+cobbles join the neighbouring islands').
 Run from the repo root:
 
     blender --background --factory-startup --python assets/blender/tiles/tyrbld_purple_orb.py
@@ -61,11 +60,6 @@ ORB_Z = (0.235, 0.325)
 CAPSULE_Z = (0.21, 0.27)
 
 ENTRY = "shapesz-tyrbld-purple-orb"
-#: Per-tile rock models next to the first copy (map rows 364-368, cols 2-6, layer 2): pattern
-#: cell -> tile. The row above is walkway (180), so no stones continue from there.
-NEIGHBOURS = {(1, -1): 131, (2, -1): 131, (0, 3): 151, (1, 3): 131, (2, 3): 131,
-              (3, 0): 131, (3, 1): 131, (3, 2): 131}
-ROCK_TILES = {120, 121, 122, 123, 124, 130, 131, 132, 133, 134, 150, 151, 152}  # shapesz_bg3 plain rock
 
 
 def octagon(x0, y0, x1, y1, cut):
@@ -217,97 +211,6 @@ def boss(s, cx, cy, rx, ry, mat):
     s._merge(bm, smooth=False)
 
 
-# Rock ------------------------------------------------------------------------------------------
-
-GAP, SIGMA, MIN_PX, QUANTILE = 0.22, 2.2, 8, 0.3  # as lib_tiles.boulders / shapesz_bg3
-STONE_RAMPS = (0x0, 0xA)  # grey and tan
-ROCK_MAT = {"roughness": 0.55, "metallic": 0.05}  # shapesz_bg3's palette materials
-
-
-def rock_slab(s):
-    """The island's slab under the whole pattern, -0.30 to 0, in the dark the rock tiles round it
-    paint between their stones (Structure.rock would take the purple's dark outline)."""
-    own = s.ts.grid([[131]], 2)
-    lum = lt.lum_of(s.ts, own)
-    dark = lt.dominant(own[(own >= 0) & (lum <= GAP)], prefer="mode")
-    DARK = s.pal(3 if dark is None else dark, **ROCK_MAT)
-    g2 = s.ts.grid(s.pattern, 2)
-    bm = bmesh.new()
-    lt.mask_slab(bm, g2 >= 0, lt.Frame(s.pattern, 2), s.slab_bottom, 0.0, DARK, DARK)
-    lt.dissolve_coplanar(bm)
-    s._merge(bm)
-
-
-def stone(s, bm, ys, xs, oy, ox, grid, chosen):
-    """A boulder for the blob (ys, xs) of `grid` (2x px), placed with grid pixel (oy, ox) at the
-    pattern's top-left, as lib_tiles.boulders builds it."""
-    cx, cy, rx, ry, ang = lt.ellipse(ys, xs)
-    rx, ry = (rx + 0.6) / 24, (ry + 0.6) / 24
-    height = min(0.2, 0.55 * min(rx, ry) + 0.02)
-    colour = lt.snap_shade(lt.dominant(grid[ys, xs], s.ts.lum, quantile=QUANTILE), chosen)
-    lt.dome(bm, s.x((cx - ox) / 2), s.y((cy - oy) / 2), rx, ry, -ang, -0.03, height, s.pal(colour, **ROCK_MAT),
-            sides=10, rings=3, squash=0.2)
-
-
-def rock_boulders(s, exclude):
-    """The boulders on the block's tiles: the stones of the per-tile rock models next to it that
-    cross into it (whole, so each joins its other half), then the tiles' own stones (found with
-    the real neighbours round them) where those leave room and the block doesn't stand."""
-    th, tw = lt.TILE_H * 2, lt.TILE_W * 2
-    H2, W2 = s.H * 2, s.W * 2
-    ex2 = np.kron(exclude, np.ones((2, 2), bool))
-    taken = np.zeros((H2, W2), bool)
-    chosen = []
-    bm = bmesh.new()
-
-    # 1. The neighbours' stones that run over the edge (each neighbour finds its stones between its
-    #    usual neighbours, lib_tiles.context, so do the same here).
-    for (nr, nc), n in NEIGHBOURS.items():
-        ctx = lt.context(s.ts, n)
-        grid = s.ts.grid(ctx, 2)
-        lum = lt.lum_of(s.ts, grid)
-        for ys, xs in lt.hills(lum, grid >= 0, sigma=SIGMA, floor=GAP):
-            if len(ys) < MIN_PX:
-                continue
-            if not ((ys >= th) & (ys < 2 * th) & (xs >= tw) & (xs < 2 * tw)).any():
-                continue  # not the neighbour's own stone
-            py = ys - th + nr * th  # pattern 2x px
-            px = xs - tw + nc * tw
-            ins = (py >= 0) & (py < H2) & (px >= 0) & (px < W2)
-            if not ins.any():
-                continue
-            taken[py[ins], px[ins]] = True
-            stone(s, bm, ys, xs, th - nr * th, tw - nc * tw, grid, chosen)
-
-    # 2. The tiles' own stones, between their real neighbours (first copy).
-    rows, cols = len(s.pattern), len(s.pattern[0])
-    padded = [[-1] * (cols + 2) for _ in range(rows + 2)]
-    for r in range(rows):
-        for c in range(cols):
-            padded[r + 1][c + 1] = s.pattern[r][c]
-    for (nr, nc), n in NEIGHBOURS.items():
-        padded[nr + 1][nc + 1] = n if n in ROCK_TILES else -1
-    grid = s.ts.grid(padded, 2)
-    lum = lt.lum_of(s.ts, grid)
-    # Only the grey and tan stones climb to a peak; the purple block's bright pixels are not stones.
-    lum = np.where(np.isin(np.maximum(grid, 0) >> 4, STONE_RAMPS) & (grid >= 0), lum, 0.0)
-    taken_g = np.zeros(grid.shape, bool)
-    taken_g[th:th + H2, tw:tw + W2] = taken | ex2
-    for ys, xs in lt.hills(lum, grid >= 0, sigma=SIGMA, floor=GAP):
-        if len(ys) < 2 * MIN_PX:
-            continue  # slivers of stone next to the block's outline: no specks
-        ins = (ys >= th) & (ys < th + H2) & (xs >= tw) & (xs < tw + W2)
-        if ins.mean() < 0.5:
-            continue  # mostly a neighbour's stone
-        if taken_g[ys[ins], xs[ins]].mean() > 0.35:
-            continue  # under the block, or where a neighbour's stone runs in
-        stone(s, bm, ys, xs, th, tw, grid, chosen)
-
-    lt.cut_to_tile(bm, cols=cols, rows=rows)
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    s._merge(bm)
-
-
 def build():
     s = tb.Structure("purple-orb")
     purple = s.purple_mask()
@@ -358,10 +261,9 @@ def build():
     for cx, cy, rx, ry in BOSSES:
         boss(s, cx, cy, rx, ry, plate_mat)
 
-    # The island's rock round it: the slab, then boulders joined to the neighbours' (see above).
-    rock_slab(s)
+    # The island's rock round it, as the per-tile rock models draw it (Structure.rock).
     keep_out = block_mask(s.H, s.W, grow=-0.5) | lb.erode(purple, 1)
-    rock_boulders(s, keep_out)
+    s.rock(exclude=keep_out)
 
     objects = s.objects()
     s.check(objects)

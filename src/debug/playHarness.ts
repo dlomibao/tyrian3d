@@ -13,7 +13,8 @@
 //   &sprites=original|remastered   shots and pickups as the original sprites or the flat art (D42)
 //   &bg=original                   the original's tiles instead of the remastered backgrounds (D34, D48)
 //   &stress=N                      add N extra copies of the tick's shots (bullet-hell load test)
-//   &preload=0                     start without waiting for the level's models (D54)
+//   &preload=0                     start without waiting for the level's models (D54); with &skip=,
+//                                  the harness otherwise waits for all of them before fast-forwarding
 //   &solid=1                       the bot not invulnerable (its armour kept topped up instead), so the
 //                                  ship draws opaque rather than translucent
 //   &interface=frame|minimal       the HUD (D61); &camera=overhead|tilted|steep
@@ -73,6 +74,9 @@ export async function runPlayHarness(view: View): Promise<void> {
   // The level's models before its first tick (D54); `&preload=0` skips it, to see what a level
   // started without them looks like.
   if (num("preload", 1) !== 0) await preloadLevelModels(view, (text) => (overlay.textContent = text ?? ""));
+  // A start part-way in (`&skip=`) shows tiles a real run would only reach once the level's later
+  // models had loaded in the background: wait for all of them, so the first frame looks as it would.
+  if (num("preload", 1) !== 0 && num("skip", 0) > 0) await view.draws.preloadLevel(levelModelInfo());
 
   let t = 0;
   let paused = false;
