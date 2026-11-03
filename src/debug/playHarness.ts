@@ -19,6 +19,7 @@
 //   &interface=frame|minimal       the HUD (D61); &camera=overhead|tilted|steep
 //   &armor=N                       hold the bot's armour at N (under 6: the low-armour warning, which
 //                                  sends the armour ship every 500 ticks)
+//   &steer=left|right              hold the ship against that side instead of sweeping (the x limits)
 //
 // Keys: V switches the effects look, A the sprite art, N the next front weapon, P (or Space) pauses.
 // The bot is the one the episode tests use: invulnerable, always firing, sweeping left and right.
@@ -79,13 +80,14 @@ export async function runPlayHarness(view: View): Promise<void> {
   const solid = num("solid", 0) > 0;
   const freezeAt = num("freezeAt", -1);
   const armor = num("armor", -1);
+  const steer = params.get("steer");
   const cycleTicks = num("cycle", 0) * (1000 / CLASSIC_TICK_MS);
   const step = (show: boolean) => {
     // tests/sim/bot.ts: invulnerable, always firing, sweeping.
     p.invulnerable_ticks = solid ? 0 : 2;
     p.armor = armor >= 0 ? armor : Math.max(p.armor, solid ? 28 : 10);
     simInput.fire = true;
-    simInput.left = Math.floor(t / 50) % 2 === 0;
+    simInput.left = steer === "left" || (steer !== "right" && Math.floor(t / 50) % 2 === 0);
     simInput.right = !simInput.left;
     if (cycleTicks > 0 && t > 0 && t % Math.round(cycleTicks) === 0) nextWeapon();
     const r = tick();
