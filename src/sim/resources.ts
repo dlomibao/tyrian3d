@@ -9,6 +9,7 @@ import {
   type EnemyDat,
 } from "../data";
 import type { Sprite2Sheet, SpriteTable } from "./draw";
+import { extendItemTables } from "./overrun";
 import type { Resources } from "./state";
 
 /** Read access to the Tyrian 2.1 files. */
@@ -39,6 +40,8 @@ export function buildResources(files: TyrianFiles, episode = 1): Resources {
     requireFile(files, "tyrian.hdt"),
     episode === 4 ? requireFile(files, "tyrian4.lvl") : undefined,
   );
+  // The records past the tables' ends that the C still reads (galaga mode's wrapped pickups, D75).
+  extendItemTables(items);
   // enemyDat is indexed by enemy type; items.enemies holds types 0..ENEMY_NUM.
   const enemyDat: EnemyDat[] = items.enemies;
   if (enemyDat.length !== ENEMY_NUM + 1) throw new Error(`expected ${ENEMY_NUM + 1} enemies, got ${enemyDat.length}`);

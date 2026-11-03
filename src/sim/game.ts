@@ -40,7 +40,7 @@ import {
   JE_filterScreen,
 } from "./backgrnd";
 import { draw_boss_bar, eventAt, initLevelWorld, JE_drawEnemy, JE_eventJump, JE_eventSystem, JE_newEnemy } from "./tyrian2";
-import { JE_doSP, JE_drawSP, JE_getShipInfo, JE_playerDamage, JE_setupExplosion, JE_setupExplosionLarge } from "./varz";
+import { JE_doSP, JE_drawSP, JE_playerDamage, JE_setupExplosion, JE_setupExplosionLarge } from "./varz";
 import { JE_mainGamePlayerFunctions, JE_playerCollide } from "./mainint";
 import { newPlayerShotMoveOut, player_shot_create, player_shot_move_and_draw, SHOT_MISC } from "./shots";
 import { startLevelPlayerSetup } from "./newgame";
@@ -61,9 +61,8 @@ const loop = {
  * Call once the level is loaded.
  */
 export function startLevel(): void {
-  startLevelPlayerSetup();
+  startLevelPlayerSetup(); // JE_getShipInfo (L751) is in there, once, as in the C: a second call would undo L834's armor cap (D75)
   initLevelWorld();
-  JE_getShipInfo();
 
   // JE_main locals (L765-768, L815)
   warning.col = 120;

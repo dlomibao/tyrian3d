@@ -20,7 +20,7 @@ import { JE_drawTextWindow, JE_initPlayerData } from "./mainint";
 import { calc_purple_balls_needed } from "./player";
 import { playerShotKey } from "./shots";
 import { DIFFICULTY_NORMAL, g, newPlayerShotData } from "./state";
-import { JE_drawOptions, JE_getShipInfo } from "./varz";
+import { JE_drawArmor, JE_drawOptions, JE_drawShield, JE_getShipInfo } from "./varz";
 
 /** tyrian2.c newGame(): starting cash per episode. */
 const initial_cash = [10000, 15000, 20000, 30000];
@@ -106,7 +106,7 @@ export function startLevelPlayerSetup(): void {
   // L820-821: Initial Text
   JE_drawTextWindow(g.miscText[20]);
 
-  // L823-833: Setup Armor/Shield Data (shieldT is a JE_byte)
+  // L823-834: Setup Armor/Shield Data (shieldT is a JE_byte)
   g.shieldWait = 1;
   g.shieldT = u8(g.res.items.shields[player[0].items.shield].tpwr * 20);
 
@@ -114,6 +114,8 @@ export function startLevelPlayerSetup(): void {
     player[i].shield = g.res.items.shields[player[i].items.shield].mpwr;
     player[i].shield_max = player[i].shield * 2;
   }
+  JE_drawShield();
+  JE_drawArmor(); // HUD, but it also caps armor at 28: a ship with more (ENGAGE's Stalker 21.126) starts at 28 (D75)
 
   // L836-837
   for (let i = 0; i < player.length; ++i) player[i].superbombs = 0;
