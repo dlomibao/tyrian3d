@@ -46,3 +46,21 @@ describe("paint out a wreck", () => {
     expect([...paintOutWreck(Uint8Array.from([1, 2]), 2, 1)]).toEqual([1, 2]); // no dirt: as it was
   });
 });
+
+describe("covered paintings (D67)", () => {
+  test("every tile of a wreck pattern (a ground structure that keeps its tiles) has a covered HD painting", async () => {
+    const { readFileSync, readdirSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const root = join(__dirname, "../..");
+    const manifest = JSON.parse(readFileSync(join(root, "public/art/terrain/shapesz/manifest.json"), "utf8"));
+    const covered = new Set(Object.keys(manifest.layers["0"].covered ?? {}).map(Number));
+    const dir = join(root, "src/render/tileModels");
+    const wrecks = readdirSync(dir)
+      .filter((f) => f.startsWith("shapesz-"))
+      .map((f) => JSON.parse(readFileSync(join(dir, f), "utf8")))
+      .filter((e) => e.layer === 0 && e.keepTiles === true);
+    expect(wrecks.length).toBeGreaterThanOrEqual(4); // bunker ring, hull, wreck, wreck-cut
+    const missing = wrecks.flatMap((e) => (e.tiles as number[][]).flat().filter((n) => n >= 0 && !covered.has(n)));
+    expect(missing).toEqual([]);
+  });
+});

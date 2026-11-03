@@ -2602,7 +2602,8 @@ part, palette material, frame, piece and pivot is as it was.
 
 The dirt also had a job: the level puts both bunkers on the tiles of their own wrecks (the
 `tyrbld-bunker-ring` and `-hull` ground structures, D34/D47, shapesz 320/321/330/331 and 322/323/332/333,
-six and three copies), which the original's opaque sprites hide until the enemy dies. Without it the
+six and three copies), and the rock outcrop on the `tyrbld-wreck` crater (340-342/350-352, ticks
+~1320-2100), which the original's opaque sprites hide until the enemy dies. Without it the
 wreck's model and its HD painting showed round and under the live machine (the bunker floats at the
 enemy height over the ground). So:
 
@@ -2616,13 +2617,19 @@ enemy height over the ground). So:
   pixels it draws without the wreck: in the HD terrain look from a "covered" painting, in the other
   looks (Terrain: Original, `bg=original`) as its pixels with every non-dirt pixel taking its nearest
   dirt pixel's index (`paintOutWreck`, TYRIAN's dirt ramp 16-21), which reads as the sprite's dirt did.
+  The crater is scorched dirt drawn in the dirt colours, so painting out leaves its outline; in the
+  pixel looks its covered cells draw as the plain ground tile round it (shapesz 100, `COVERED_STAND_IN`).
+  **The HD look never falls back to pixels:** a covered cell with no covered painting (the trees and
+  boulders 112, 210-233 that enemies pass over at ticks ~2630-5320) keeps its normal HD tile, as on main.
   The covered painting is a new optional manifest key per layer, `"covered": { "<tile>": rect }`
-  (`terrainArt.ts`, `TerrainTileset.coveredTile`), here in its own atlas `0-covered.webp` (8 tiles, 39 KB).
-  `tools/terrain_covered.py` makes it: `sheet` puts both patterns with one ring of their real map
-  neighbours from the HD atlas on a 16:9 sheet; Gemini painted the wrecks out to dirt (one request); `cut`
-  registers the answer (NCC 0.986/0.988 away from the wrecks), takes the painting only over the wreck's
-  pixels (from the original tiles, grown 12 texels, feathered), pulls its low frequencies to the HD tiles
-  round it, and keeps the HD tile elsewhere, so the tiles' edges and seams are unchanged.
+  (`terrainArt.ts`, `TerrainTileset.coveredTile`), here in its own atlas `0-covered.webp` (14 tiles, 66 KB).
+  `tools/terrain_covered.py` makes it, one Gemini request per set: `sheet bunkers` puts both bunker
+  patterns with one ring of their real map neighbours from the HD atlas on a 16:9 sheet, `sheet wreck`
+  the crater's 3x2 on a 1:1 sheet; Gemini painted the wrecks out to dirt; `cut` registers each answer
+  (NCC 0.986/0.988/0.984 away from the wrecks), takes the painting only over the wreck's pixels (from
+  the original tiles, grown 12 texels, feathered; the crater's whole 3x2 area, as it fills it), pulls
+  its low frequencies to the HD tiles round it, and keeps the HD tile elsewhere, so the tiles' edges and
+  seams are unchanged.
   `terrain_hd.py cut` keeps the manifest's `covered` entries; rerun `terrain_covered.py cut` after it.
 
 **Options considered:**
@@ -2635,10 +2642,15 @@ enemy height over the ground). So:
 - *A contact-shadow decal:* not needed; the real shadow and the baked AO seat the machines, and a
   translucent decal would need its own palette and fade handling.
 
-**Checked:** `?debug=play&seed=1&skip=T&freezeAt=T+2&armor=99`, T = 250, 750, 1000, 1500, 1800, at
-3840x2160 before and after, and 750 with `&terrain=original` and `&bg=original`; the destroyed bunker at tick 250 shows its wreck. Draw calls drop (457 → 373,
+**Checked:** `?debug=play&seed=1&skip=T&freezeAt=T+2&armor=99`, T = 250, 750, 1000, 1400, 1500, 1800,
+2000, 4521 at 3840x2160 before and after, and 750 and 1400 (the outcrop) with `&terrain=original` and
+`&bg=original`; the destroyed bunker at tick 250 shows its wreck, and at 1400/2000 the outcrop stands on
+continuous ground in every look with no wreck showing (its structure is left out). A whole-level scan
+(ticks 2-7600, every 3rd frame, the renderer's covered ground cells) finds covered cells only of the 14
+painted wreck tiles and of trees/boulders (which keep their HD tile); 4521 (a covered tree) is pixel-identical to main. Draw calls drop (457 → 373,
 377 → 311, 391 → 325, 305 → 180 at those ticks) and the frame cpu time is no higher. The 14 GLBs are
 3.83 MB → 3.66 MB; with the covered atlas the level downloads ~135 KB less. Tests:
-`tests/render/opaqueCover.test.ts` (cover, `paintOutWreck`) and a covered-tile case in `terrainArt.test.ts`.
+`tests/render/opaqueCover.test.ts` (cover, `paintOutWreck`, every wreck pattern's tile has a covered
+painting) and a covered-tile case in `terrainArt.test.ts`.
 Fallback: revert the three scripts and GLBs and the renderer change (`covered` in the manifest is then
 unused and harmless).

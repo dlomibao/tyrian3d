@@ -78,6 +78,14 @@ const WRECK_TILES = new Set(
   TILE_MODELS.filter((e) => e.layer === 0 && e.keepTiles !== false).flatMap((e) => e.tiles.flat().filter((n) => n >= 0).map((n) => `${e.shapes}:${n}`)),
 );
 
+/**
+ * A wreck that fills its cells (TYRIAN's tyrbld-wreck crater: scorched dirt in the dirt colours, so
+ * paintOutWreck would leave its outline) draws, in the pixel looks, as the plain ground tile the map
+ * puts round it while an enemy covers it (the rock outcrop, D67).
+ */
+const COVERED_STAND_IN = new Map([340, 341, 342, 350, 351, 352].map((n) => [`shapesz.dat:${n}`, "shapesz.dat:100"]));
+const STAND_IN_IDS = new Set(COVERED_STAND_IN.values());
+
 /** Roll at full bank, and how fast the model eases toward its frame's roll (per second). */
 const MAX_ROLL = THREE.MathUtils.degToRad(35);
 const ROLL_RATE = 12;
@@ -361,6 +369,8 @@ export class DrawListRenderer {
   private readonly groundCells: { d: TileDraw; x: number; y: number; remaster: boolean }[] = [];
   /** Wreck tiles with their wreck painted out to dirt (D67), by tile id. */
   private readonly coveredTiles = new Map<string, Uint8Array>();
+  /** The plain ground tiles that stand in for covered wreck tiles (COVERED_STAND_IN), as last drawn. */
+  private readonly standInTiles = new Map<string, Uint8Array>();
   private readonly structures = new StructureInstances();
   /** Structure models asked for (loading or loaded). */
   private readonly structureLoads = new Map<string, Promise<void>>();
@@ -697,6 +707,7 @@ export class DrawListRenderer {
         case "tile": {
           const x = prevX[i] + (d.x - prevX[i]) * alpha;
           const y = prevY[i] + (d.y - prevY[i]) * alpha;
+          if (d.layer === 0 && STAND_IN_IDS.has(d.tileId)) this.standInTiles.set(d.tileId, d.tile);
           if (this.background === "remaster" && this.drawRemasterTile(d, x, y, cam, frame)) {
             instances++;
             break;
@@ -724,11 +735,21 @@ export class DrawListRenderer {
       if (!this.cover.covered(s.left, s.top, s.w, s.h)) this.structures.place(s.model, s.x, s.y, s.z, s.scale);
     }
     // A wreck's ground cell under opaque enemy sprites draws without the wreck: its covered HD
-    // painting, else the tile with its wreck pixels painted out (D67).
+    // painting, else (the pixel looks) its plain-ground stand-in or the tile with its wreck pixels
+    // painted out (D67). The HD look never falls back to pixels: a covered cell with no covered
+    // painting (a tree or boulder under an enemy) keeps its HD tile, as the enemy model is drawn over
+    // it anyway.
     for (const c of this.groundCells) {
       const covered = this.cover.covered(c.x, c.y, TILE_WIDTH, TILE_HEIGHT);
       if (c.remaster && this.drawRemasterGround(c.d, c.x, c.y, cam, frame, covered, true, covered)) continue;
+      if (c.remaster && covered && this.drawRemasterGround(c.d, c.x, c.y, cam, frame, false, true, true)) continue;
       if (covered) {
+        const standIn = COVERED_STAND_IN.get(c.d.tileId);
+        const standInTile = standIn === undefined ? undefined : this.standInTiles.get(standIn);
+        if (standInTile) {
+          this.drawOriginalTile({ ...c.d, tileId: standIn!, tile: standInTile }, c.x, c.y, cam, frame);
+          continue;
+        }
         let tile = this.coveredTiles.get(c.d.tileId);
         if (!tile) this.coveredTiles.set(c.d.tileId, (tile = paintOutWreck(c.d.tile)));
         this.drawOriginalTile({ ...c.d, tileId: `${c.d.tileId}#covered`, tile }, c.x, c.y, cam, frame);
