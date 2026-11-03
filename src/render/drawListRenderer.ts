@@ -46,6 +46,7 @@ import { colourFrame, rigModel, showFrame, type FrameRig } from "./modelFrames";
 import { isModelHelper, setModelBlended } from "./modelPrep";
 import type { SpriteModels } from "./spriteModels";
 import { Route, Sprite2Router } from "./sprite2Route";
+import { bankShift } from "./bankShift";
 import type { LevelSprite, LevelTile } from "../sim/levelSprites";
 import { TileAtlas } from "./tileAtlas";
 import { RemasteredFx, SpriteLook } from "./vfx/remasteredFx";
@@ -184,6 +185,8 @@ class Pool {
 interface ModelClone {
   object: THREE.Object3D;
   roll: number;
+  /** A player ship's sideways shift toward its banking frame's sprite, game pixels (bankShift.ts). */
+  shift: number;
   materials: THREE.Material[];
   /** Its pal_ materials and frame-tagged parts (modelFrames.ts). */
   rig: FrameRig;
@@ -637,7 +640,8 @@ export class DrawListRenderer {
             const pool = this.modelPool(r.model);
             const look = this.objectLook(d, pool, now, frame);
             if (look === ObjectLook.Model) {
-              this.drawModel(r.route, pool, r.bank, d, x, y, cam, dt);
+              const shift = r.override ? bankShift(d.sheet.id, d.sheet.data, r.override.baseIndex, d.index) : 0;
+              this.drawModel(r.route, pool, r.bank, shift, d, x, y, cam, dt);
               continue;
             }
             // Held back while its model loads, or locked to its sprite (D54).
@@ -1047,14 +1051,20 @@ export class DrawListRenderer {
 
   /**
    * Draw a sprite as its loaded model (sprite2Route.ts): a player ship's frame (Override) at the
-   * sprite's centre, rolled by its bank; a tile of a grouped object, an enemy (Group), whose model
+   * sprite's centre, rolled by its bank and moved `shift` game pixels sideways to where the banking
+   * frame's sprite sits (bankShift.ts, D62); a tile of a grouped object, an enemy (Group), whose model
    * goes at the object's centre on its first tile while the other tiles draw nothing; or a sprite
    * drawn on its own, a sidekick (Ungrouped), centred on the sprite and showing the frame drawn.
    */
-  private drawModel(route: Route, pool: ModelPool, bank: number, d: SpriteDraw, x: number, y: number, cam: THREE.Vector3, dt: number): void {
+  private drawModel(route: Route, pool: ModelPool, bank: number, shift: number, d: SpriteDraw, x: number, y: number, cam: THREE.Vector3, dt: number): void {
     let clone: ModelClone;
-    if (route === Route.Override) clone = this.placeModel(pool, x + (d.size * 12) / 2, y + (d.size * 14) / 2, d, cam);
-    else if (route === Route.Ungrouped) {
+    if (route === Route.Override) {
+      clone = this.placeModel(pool, x + (d.size * 12) / 2, y + (d.size * 14) / 2, d, cam);
+      // Eased with the roll, so the two move together. Along X at the model's scale, which keeps it
+      // on the camera ray through the shifted screen point (D6).
+      clone.shift += (shift - clone.shift) * Math.min(1, dt * ROLL_RATE);
+      clone.object.position.x += (clone.shift / PX_PER_UNIT) * clone.object.scale.x;
+    } else if (route === Route.Ungrouped) {
       this.placeModel(pool, x + d.size * 6, y + d.size * 7, d, cam, d.index);
       return;
     } else {
@@ -1159,7 +1169,7 @@ export class DrawListRenderer {
       materials.push(...(Array.isArray(mesh.material) ? mesh.material : [mesh.material]));
     });
     this.root.add(object);
-    return { object, roll: 0, materials, rig: rigModel(object), blended: false, paletteVersion: -1, hue: -1, frame: Number.NaN };
+    return { object, roll: 0, shift: 0, materials, rig: rigModel(object), blended: false, paletteVersion: -1, hue: -1, frame: Number.NaN };
   }
 
   private readonly paletteColor = (index: number, target: THREE.Color) => this.palette.color(index, target);

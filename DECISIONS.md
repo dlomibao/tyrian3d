@@ -2344,3 +2344,43 @@ Firefox, the attract demo with the frame, two-player in the browser.
 does the recessed band above the tilted playfield read as part of the frame, or should the playfield
 be centred in the opening instead of sitting on the bar? Are the gauge read-outs and weapon names
 readable at 1366x768?
+
+## D62 — Player ship models follow the banking frames' sideways shift; the x limits stay the C's
+
+2026-11-02
+
+**Decision:** Reported: "the player can't travel fully left and right; the original could." It
+couldn't either, and our limits were already the C's: `JE_playerMovement` clamps x to 40..256 and y
+to 10..160 (mainint.c L3857-3880; `src/sim/mainint.ts` L696-712, `PLAYER_MIN_X`/`PLAYER_MAX_X` in
+`src/game/playfield.ts`), keys, digital joystick, analog stick and mouse alike (the mouse is relative,
+mouseGetRelativePosition, clamped to +-30 a tick, L3538-3554; nothing clamps earlier, and
+`src/app/controls.ts` doesn't either, for mouse or touch). The ship's 24-pixel cell is drawn at
+x - 5 into game_screen and showNormal shows game_screen from x 24 (backgrnd.c L1018-1040), so at the
+limits the cell starts 11 pixels into the 264-pixel window and ends 13 short of its right edge.
+Holding a direction banks the ship fully (ship_banking -2/+2, L3883-3884), and the USP Talon's
+hard-bank frames are off-centre in that cell: opaque columns 2-15 banked left and 8-21 banked right,
+against 3-20 level. So the original's ship stops **13 pixels** from the left edge and **15** from the
+right. Ours stopped about 3.5 pixels further in on each side (16.6 / 18.6 overhead, measured from the
+model's projected vertices), because the models are rolled about the cell's centre and so lose the
+frames' three-pixel lean. Now `src/render/bankShift.ts` measures how far each banking frame's opaque
+columns are centred from the level frame's (Talon: -3, -1, 0, +1, +3 pixels) and the renderer moves the
+player ship's model that far sideways, eased with the roll, along the camera ray (D6). At the limits
+the model now covers 13.6-26.9 / 235.0-248.4 overhead, 12.9-26.1 / 235.8-249.1 at 15° and
+11.7-25.9 / 236.2-250.3 at 32°, against the sprite's 13-27 / 235-249 (the rolled model is a little
+narrower than the frame; tilted, its height spreads it a little outward). The playfield fit, the mask
+and the HUD opening are unchanged (D61's four corners stay visible).
+
+Applies to every banked player ship (Override route) from its own sprites: the Gencore Phoenix and
+U-Ship lean like the Talon, the SuperCarrot doesn't, and the Silver Ship's frames lean the other way,
+so its model does too. The two-player dragonwing (Group route) is not shifted.
+
+**Options considered:**
+- *Widen the x limits:* not the C; changes where shots start and what can hit the ship.
+- *Draw the ship's model wider or nearer the edges by moving the camera fit:* breaks D6's "draws land
+  on their original screen positions" and D61's corners.
+- *Leave it:* the 3.5 pixels are 14 CSS pixels on a 1280-wide window, enough to notice next to the
+  original.
+
+**Review:** Hold left and right in a level at each Camera: does the ship's slide toward the bank read
+as natural, or does it look like the ship drifting off its guns' line? Fallback: drop the shift
+(`bankShift` returning 0) and accept the 3.5-pixel gap.
