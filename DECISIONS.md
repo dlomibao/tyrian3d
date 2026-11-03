@@ -2666,3 +2666,54 @@ is height, not the border.
 **Review:** the comparison sheets (sprite | current | inner, overhead at game scale, x3 with the
 sprite's edge, 15°) and the scripts are in `tyrian-scratch/outline-border/` (`sheets/`, `ingame.py`,
 `measure.py`, `survey.py`). Fallback: measure against the outer mask again (`iou_outer_grid`).
+
+## D75 — The menus in copper and bronze: the original's layouts on umber glass over the dimmed planet
+
+2026-11-03
+
+**Decision:** Every menu screen outside the title (D64) and the HUD (D61) drops the navy and gold
+look. The user chose direction 3, "Copper and bronze", from three mockups
+(`tyrian-scratch/ui-copper/mockups/d3-hybrid.html`, sheet `sheets/d3-hybrid-sheet.png`).
+
+- **Panes:** dark umber glass (`--ui-pane`, 86%, 8 px blur) in a 2 px bronze rim lit from above.
+  `.ui-panel` and the new `.ui-pane` draw the rim as one border with a shade per side, so the glass
+  stays see-through and the corners round without a wrapper element.
+- **One colour rule:** what you choose is copper: titles in the title menu's copper type, small
+  spaced kickers and section labels, and the chosen line with the title's brush smear, a diamond tick
+  and lit copper words. What the game counts is phosphor green, as on the HUD: credits, prices,
+  scores, gauges (volume, power, armour, shield, the generator) and the help line, which becomes the
+  HUD's message bar (`.ui-msgbar`, a well). There is no glow, and green is used only for numbers and
+  the message bar. Primary buttons (Done, Continue) are drawn as a chosen line with ticks on both
+  sides.
+- **Tokens first** (`src/ui/tokens.css`): the copper, rim, well and phosphor tokens are added, and
+  the old names (`--ui-gold`, `--ui-cyan`, `--ui-ink`, `--ui-steel`...) point at copper and bone, so
+  every screen that read them follows. `--ui-focus-fill` is now a full background value (the
+  smear), not a gradient. `--ui-player1/2` keep the HUD's gold and cyan for telling players apart.
+  The HUDs (`.hud`, `.hud2`) pin their old colours, so play looks the same.
+- **Layouts:** the item screen is the original's. A pane holds the picture (loadout, simulator or
+  cube portrait) over readout wells (credits, power with arrows, upgrade cost). A second pane holds
+  the menu's title and list, with prices on the right. The message bar runs along the bottom.
+  Options lays its sections out in columns on wide screens (settings | keys | player 2's keys and
+  the gamepad check). High Scores puts the episode pager beside the title. On phones the panes fill
+  the window with the message bar at the foot (the mockup's phone renders).
+- **Backdrop** (`src/ui/backdrop.ts`): the blue hangar is retired over the planet. Every mood draws
+  the title's painted planet (`titlePlanet.ts`): "title" as before; "space" (every other menu,
+  including the screens opened over the title) dims it with the mockup's scrim in its composite pass
+  and hides the flying Talons; "hangar" (the item screen, episode-end cards) adds the player's ship,
+  turning, lit warm, in the freeSlot gap beside the panes (D55). Where no gap takes it (phones) the
+  ship isn't drawn rather than showing behind the panes. The planet keeps one clock across moods, so
+  going between the title and a menu only dims or brightens it (it starts over, from 0 on the title
+  or at 30 s in a menu, only when a screen comes up after a level). With reduced motion the planet
+  is one still frame, the ship holds a three-quarter view, and the dimming doesn't fade. The older 3D
+  planet and starfield remain only as the stand-in if the planet's shader can't run. The CSS stand-in
+  without WebGL is the title's planet under the same scrim.
+- No new fonts or CDNs. The title is pixel-identical in a reduced-motion capture, and the HUD in a
+  `?debug=play` capture (only the debug timing line differs).
+
+**Not converted:** pictures and text colours that are the game's own (story pictures and their
+palette-tinted text, the cube portraits, item and planet sprites). The power well shows the upgrade
+cost; the downgrade refund is only in the left arrow's tooltip and label.
+
+**Review:** captures (desktop 1920x1080, phone 430x932) and the contact sheet are in
+`tyrian-scratch/ui-copper/impl/`. The script is `capture-impl.mjs` (scenarios menus, shop, flow,
+extras, two).

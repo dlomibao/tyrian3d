@@ -518,14 +518,20 @@ export function showOptions(host: OptionsHost, focus: OptionsFocus = "sound"): P
               : 5;
     const keyboard = keyMenu[0] ? styleName(keyMenu[0].toLowerCase()) : "Keyboard";
     const sectionTitles = ["Sound", "Graphics", keyboard, `${keyboard} · ${g.miscText[49]?.trim() || "Player 2"}`, (g.menuInt[13] ?? [])[0] || "Gamepad", ""];
-    const list = h("ul", { class: "ui-menu opt-list", attrs: { role: "listbox", "aria-label": "Settings" } });
+    // The sections in columns on wide screens (D75): Sound and Graphics, then each player's keys
+    // (the gamepad's check under player 2's), and Done centred under them.
+    const groups = [0, 1, 2].map(() => h("ul", { class: "ui-menu opt-group", attrs: { role: "presentation" } }));
+    const doneGroup = h("ul", { class: "ui-menu opt-group opt-group--done", attrs: { role: "presentation" } });
+    const list = h("div", { class: "opt-list", attrs: { role: "listbox", "aria-label": "Settings" } }, h("div", { class: "opt-cols" }, ...groups), doneGroup);
+    const groupOf = (s: number) => (s === 5 ? doneGroup : groups[s <= 1 ? 0 : s === 2 ? 1 : 2]);
     const rowEls: HTMLLIElement[] = [];
     let section = -1;
     rows.forEach((r, i) => {
       const s = sectionOf(r);
+      const group = groupOf(s);
       if (s !== section) {
         section = s;
-        if (sectionTitles[s]) list.append(h("li", { class: "ui-label opt-section", attrs: { role: "presentation" }, text: sectionTitles[s] }));
+        if (sectionTitles[s]) group.append(h("li", { class: "ui-label opt-section", attrs: { role: "presentation" }, text: sectionTitles[s] }));
       }
       const li = h("li", { class: `ui-menu__item opt-row opt-row--${r.kind}`, attrs: { role: "option", "data-i": String(i) } }, h("span", { class: "ui-menu__label opt-row__label", text: r.label }));
       if (r.kind === "volume") li.insertAdjacentHTML("beforeend", volumeSliderHtml(0, r.which, r.label));
@@ -539,13 +545,13 @@ export function showOptions(host: OptionsHost, focus: OptionsFocus = "sound"): P
         );
       }
       rowEls.push(li);
-      list.append(li);
+      group.append(li);
     });
     const padEl = h("div", { class: "opt-padcheck", attrs: { hidden: "", role: "status" } });
     const help = h("p", { class: "opt-help", attrs: { "aria-live": "polite" } });
     const hints = h("div", { class: "opt-hints" });
-    // The help and hints stay in view at the panel's foot while the rows scroll.
-    const foot = h("div", { class: "opt-foot" }, help, hints);
+    // The help and hints: the HUD's message bar, in view at the panel's foot while the rows scroll.
+    const foot = h("div", { class: "opt-foot" }, h("div", { class: "ui-msgbar" }, help, hints));
 
     screen.panel.append(backButton(() => (menu.intent("back", "touch"), paint())));
     screen.add(title((g.menuInt[3] ?? [])[0] || "Options", "Settings"), list, padEl, foot);
@@ -778,13 +784,18 @@ export function showLoadScreen(host: Pick<OptionsHost, "sfx">): Promise<number |
     screen.add(
       h("div", { class: "load-pages" }, prev, heading, next),
       list,
-      h("p", { class: "opt-help", text: g.mainMenuHelp[21 - 1] ?? "" }),
-      keyHints([
-        { key: "↑↓", pad: "✛", label: "Move" },
-        { key: "←→", pad: "✛", label: "One / two players" },
-        { key: "Enter", pad: "A", touch: "Tap", label: "Load" },
-        { key: "Esc", pad: "B", label: "Back" },
-      ]),
+      // The help and hints: the HUD's message bar (D75).
+      h(
+        "div",
+        { class: "ui-msgbar load-foot" },
+        h("p", { class: "opt-help", text: g.mainMenuHelp[21 - 1] ?? "" }),
+        keyHints([
+          { key: "↑↓", pad: "✛", label: "Move" },
+          { key: "←→", pad: "✛", label: "One / two players" },
+          { key: "Enter", pad: "A", touch: "Tap", label: "Load" },
+          { key: "Esc", pad: "B", label: "Back" },
+        ]),
+      ),
     );
   });
 }

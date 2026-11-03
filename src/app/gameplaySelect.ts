@@ -35,7 +35,7 @@ export function showGameplaySelect(opts: GameplaySelectOptions): Promise<Gamepla
     };
     const screen = showScreen({
       id: "gameplay",
-      backdrop: "title",
+      backdrop: "space",
       layout: "narrow",
       label: name(0),
       onBack: () => done(null),

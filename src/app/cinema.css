@@ -86,7 +86,7 @@
 }
 
 .ui-screen--cinema > .cinema-text {
-  --ui-panel: rgba(5, 8, 16, 0.6);
+  --ui-panel: rgba(15, 8, 5, 0.66);
   position: absolute;
   top: var(--text-top);
   bottom: var(--text-bottom);
@@ -259,11 +259,12 @@
   font-weight: 700;
   line-height: 1.2;
   letter-spacing: var(--ui-tracking-wide);
-  color: var(--ui-gold-bright);
-  text-shadow: var(--ui-glow-gold);
-  border: 1px solid var(--ui-edge-strong);
-  border-radius: var(--ui-radius);
-  background: rgba(240, 176, 72, 0.08);
+  color: var(--ui-phos-num);
+  font-family: var(--ui-font-phos);
+  text-shadow: var(--ui-phos-glow);
+  border-radius: 4px;
+  background: var(--ui-well);
+  box-shadow: var(--ui-well-edge);
   user-select: all;
   -webkit-user-select: all;
 }

@@ -1,7 +1,7 @@
 // The title's backdrop (DECISIONS.md D64): the original title's huge maroon planet, arcing from the
 // top left down the right, as a painting in motion, with a slow amber sunrise past its limb and the
-// odd Talon crossing. Only the "title" mood draws this (src/ui/backdrop.ts); the hangar and space
-// moods keep their 3D scene.
+// odd Talon crossing. The "title" mood draws it as is; the menus' moods ("hangar", "space") draw it
+// dimmed, without the passing ships, under their own 3D ship (src/ui/backdrop.ts, D75).
 //
 // Two passes on the View's renderer:
 // - the paint: one full-screen fragment shader (planet, flowing brush strokes, sunrise, stars),
@@ -407,11 +407,16 @@ void main() {
   gl_FragColor = vec4(col, 1.0);
 }`;
 
-/** The paint stretched over the canvas, with a static canvas grain and the vignette. */
+/**
+ * The paint stretched over the canvas, with a static canvas grain and the vignette; uDim (0..1)
+ * lays the menus' umber scrim over it (tokens.css --ui-scrim-planet: 55% in the middle, 78% at the
+ * corners).
+ */
 const COMPOSITE_FRAGMENT = /* glsl */ `
 uniform sampler2D uPaint;
 uniform sampler2D uNoise;
 uniform vec2 uRes;
+uniform float uDim;
 varying vec2 vUv;
 void main() {
   vec3 c = texture2D(uPaint, vUv).rgb;
@@ -425,6 +430,9 @@ void main() {
   float g = clamp(0.5 + n * 0.16 + weave, 0.0, 1.0);
   vec3 over = mix(2.0 * c * g, 1.0 - 2.0 * (1.0 - c) * (1.0 - g), step(0.5, c));
   c = mix(c, over, 0.55);
+  // The menus' scrim: an ellipse centred a little above the middle, reaching the corners
+  float e = clamp(length((vUv - vec2(0.5, 0.55)) / vec2(0.7071, 0.7778)), 0.0, 1.0);
+  c = mix(c, vec3(0.039, 0.016, 0.012), uDim * mix(0.55, 0.78, e));
   gl_FragColor = vec4(c, 1.0);
 }`;
 
@@ -483,7 +491,7 @@ export class TitlePlanet {
     this.composite = new THREE.ShaderMaterial({
       vertexShader: FULLSCREEN_VERTEX,
       fragmentShader: COMPOSITE_FRAGMENT,
-      uniforms: { uPaint: { value: this.target.texture }, uNoise: { value: this.noise }, uRes: { value: new THREE.Vector2(1, 1) } },
+      uniforms: { uPaint: { value: this.target.texture }, uNoise: { value: this.noise }, uRes: { value: new THREE.Vector2(1, 1) }, uDim: { value: 0 } },
       depthTest: false,
       depthWrite: false,
       userData: NO_OUTLINE,
@@ -541,22 +549,29 @@ export class TitlePlanet {
 
   /**
    * Draw a frame at `now` (ms) with the title's clock at `time` (s) on a w x h (CSS px) canvas.
-   * Skips the draw when nothing has changed since the last one.
+   * Skips the draw when nothing has changed since the last one, unless `opts.always` (something is
+   * drawn over it every frame: the menus' ship). `opts.dim` (0..1) dims it for the menus and
+   * `opts.ships` (default true) flies the Talons past.
    */
-  frame(now: number, time: number, w: number, h: number): void {
+  frame(now: number, time: number, w: number, h: number, opts: { dim?: number; ships?: boolean; always?: boolean } = {}): void {
     if (this.failed) return;
     const dpr = this.renderer.getPixelRatio();
     const size = paintSize(w, h, dpr, this.half);
     const sizeKey = `${w}x${h}@${dpr}:${size.width}x${size.height}`;
     const resized = sizeKey !== this.paintedSize;
     const t = this.still ? STILL_TIME : time;
-    if (this.still && this.drawn && !resized) return;
+    const dim = opts.dim ?? 0;
+    const dimChanged = dim !== this.composite.uniforms.uDim.value;
+    this.composite.uniforms.uDim.value = dim;
+    if (this.still && this.drawn && !resized && !dimChanged && !opts.always) return;
 
-    const paintDue = resized || !this.drawn || now - this.lastPaint >= PAINT_INTERVAL_MS;
-    const flying = !this.still && this.placeShips(t, w / Math.max(1, h));
+    const paintDue = resized || !this.drawn || (!this.still && now - this.lastPaint >= PAINT_INTERVAL_MS);
+    const ships = opts.ships ?? true;
+    if (!ships) for (const flight of this.flyers) for (const f of flight) f.obj.visible = false;
+    const flying = ships && !this.still && this.placeShips(t, w / Math.max(1, h));
     // Ships in flight redraw every frame, except on the half-resolution path (a weak GPU), where
     // they keep to the paint's pace.
-    if (!paintDue && (!flying || this.half)) return;
+    if (!paintDue && (!flying || this.half) && !dimChanged && !opts.always) return;
 
     if (paintDue) {
       if (resized) {

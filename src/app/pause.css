@@ -7,7 +7,6 @@
 
 .ui-screen--pause .ui-title {
   align-items: center;
-  letter-spacing: var(--ui-tracking-wide);
 }
 
 .ui-screen--pause .ui-menu__item {
@@ -43,8 +42,8 @@
   padding: 0;
   border: 1px solid var(--ui-edge-strong);
   border-radius: 50%;
-  background: rgba(7, 12, 21, 0.55);
-  box-shadow: var(--ui-glow-gold);
+  background: rgba(15, 8, 5, 0.6);
+  box-shadow: 0 0 0 1px var(--ui-rim-ink);
   cursor: pointer;
   touch-action: none;
   -webkit-tap-highlight-color: transparent;
