@@ -279,6 +279,23 @@ def wire(materials, colour_img, normal_img):
         nt.links.new(nm.outputs["Normal"], bsdf.inputs["Normal"])
 
 
+def keep_plain_uvs(materials, uv_name):
+    """A plain material's own textures (the island rock's, lib_tiles.rock_material, D84) stay on the
+    UV map they came with: the bake adds "bake" and makes it the active map, which the export would
+    otherwise give every texture that names no map (as the imported ones don't)."""
+    if not uv_name:
+        return
+    for m in materials:
+        if m is None or not m.use_nodes or not m.get("tyrian_plain"):
+            continue
+        nt = m.node_tree
+        for n in [n for n in nt.nodes if n.type == "TEX_IMAGE"]:
+            if not n.inputs["Vector"].is_linked:
+                uv = nt.nodes.new("ShaderNodeUVMap")
+                uv.uv_map = uv_name
+                nt.links.new(uv.outputs["UV"], n.inputs["Vector"])
+
+
 def frame_glbs(name):
     """The model's other animation frames (src/render/spriteModels/<name>-f<k>.json: one model per
     frame, D17), in frame order. Each must be textured like the first, or the animation pops between
@@ -302,9 +319,25 @@ def import_glb(glb, off):
     bpy.context.view_layer.update()
     meshes = [o for o in objs if o.type == "MESH"]
     for o in meshes:
-        for uv in list(o.data.uv_layers):
-            o.data.uv_layers.remove(uv)
+        # A plain material's own texture (the island rock's, D84) keeps the UV map it came with.
+        keep = None
+        if len(o.data.uv_layers) and any(plain_textured(s.material) for s in o.material_slots):
+            keep = o.data.uv_layers[0].name
+        for name in [uv.name for uv in o.data.uv_layers]:
+            if name != keep:
+                o.data.uv_layers.remove(o.data.uv_layers[name])
+        if keep:
+            o.data.uv_layers[keep].name = PLAIN_UV
     return objs, roots, meshes
+
+
+#: The UV map a plain material's own texture keeps through the bake (import_glb, keep_plain_uvs).
+PLAIN_UV = "plain"
+
+
+def plain_textured(m):
+    """Whether a material is plain (left alone by the bake) and has a texture of its own."""
+    return m is not None and m.use_nodes and bool(m.get("tyrian_plain")) and any(n.type == "TEX_IMAGE" for n in m.node_tree.nodes)
 
 
 def export_in_place(objs, roots, off, glb):
@@ -347,6 +380,7 @@ def main():
         clear()
         is_frame = i >= len(pieces)
         objs, roots, meshes = import_glb(glb, off)
+        own_uv = PLAIN_UV if any(PLAIN_UV in o.data.uv_layers for o in meshes) else None
         if is_frame and shared and topology(meshes) == shared[0]:
             # Same mesh as the first frame, moved or turned: reuse its texture loop by loop, so the
             # detail turns with the parts and every frame has the same brightness.
@@ -355,6 +389,7 @@ def main():
                 for d, co in zip(layer.data, uvs):
                     d.uv = co
             wire({s.material for o in meshes for s in o.material_slots}, *shared[2])
+            keep_plain_uvs({s.material for o in meshes for s in o.material_slots}, own_uv)
             export_in_place(objs, roots, off, glb)
             print(f"textured {glb.relative_to(ROOT)} (the first frame's texture)")
             continue
@@ -379,6 +414,7 @@ def main():
             img.save()
         mats = {s.material for o in meshes for s in o.material_slots}
         wire(mats, colour_img, normal_img)
+        keep_plain_uvs(mats, own_uv)
         for o in meshes:
             o.data.uv_layers.remove(o.data.uv_layers["concept"])
         if i == 0 and frames:
