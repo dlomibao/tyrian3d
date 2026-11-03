@@ -2500,3 +2500,39 @@ still, half resolution and the CSS fallback. Cost on an Apple M5 Pro (ANGLE Meta
 at 1200 x 750, rAF steady at 60 fps, 30 paints a second. On SwiftShader (software GL, a weak-GPU
 proxy) it switched itself to half resolution (600 x 375): 12.5 ms a paint, about 28 fps overall.
 Not checked: Safari (the SVG filters and the CSS mask), real phones, real low-end GPUs.
+
+## D65 — Level 1's enemies and boss rebuilt hard-surface, the way the player ships were
+
+2026-11-03
+
+**Decision:** The 28 models that stand in for level 1's (TYRIAN) enemies and boss are rebuilt in the
+player ships' style (D50–D53): hard-surface lofts with chamfers, modelled panel lines and machined
+detail, an AO/roughness bake only (`"bake": "model"` in each `maps.json`, no concept projection, so
+no "crinkled foil"), and the outline shell. The original sprite stays authoritative for the top-down
+silhouette (IoU ≥ 0.95 at sprite resolution on every frame), the position of canopies, eyes and
+lights, and the major colours (the sprite's palette indices per region). Undersides are only a
+plausible closed shape (user's instruction), since the game camera never sees them.
+
+- **Which models:** found from the game's own data (the level's preload list plus a bot playthrough):
+  the boss (assembly-newsh4-124), 14 multi-piece assemblies (the horned flyby craft, both boss-style
+  arms, both long pipes, the dome works, the carapace bunker, the pylon, the gun walker, the red
+  machinery, the eye fortress, both octagon walls, the rock outcrop) and 13 single-sprite flyers and
+  ground enemies. Player ships, sidekicks, shots, pickups, the armour supply ship and terrain
+  structures are not part of this.
+- **Process:** a multi-view HTML/JS blueprint per model; two competing Blender designs and a judge
+  for the boss and the assemblies, one design for the small ones; a finisher; then a strict review
+  against the sprite with up to three fix rounds (plus one extra round for the four that still
+  failed).
+- **The game contract is unchanged:** palette materials (`pal_<index>`), the same model paths and
+  `spriteModels` entries, every animation frame, and assembly pieces, regions and pivots.
+
+**Options considered:** keep the concept-projected textures from D44 (rejected: the user preferred
+how the player ships turned out, and projected concepts look like foil); rebuild only the boss
+(rejected: the user asked for all of level 1's enemies); two designs for every model (rejected to save
+usage: the 24x28 flyers gain little from it).
+
+**Review:** Final strict-review scores were 7–8 out of 10 for 27 models. The rock outcrop
+(assembly-newshe-39) reached only 6.5: from the game camera it matches the sprite (IoU 0.985), but
+from the side its slabs still look too boxy, so it is the first one to revisit. Its damaged frames
+(newshe 7–49) still swap to sprites (KNOWN_DAMAGE_SWAPS), as before. Check a playthrough of
+level 1 for pops, pivots and turret aim. Fallback: revert a single model's script and `.glb` to main.
