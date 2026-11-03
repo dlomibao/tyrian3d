@@ -28,6 +28,7 @@ import { colourFrame, rigModel, showFrame, type FrameRig } from "../render/model
 import { modelHeightFromUrl } from "../render/modelHeight";
 import { isModelHelper, prepareModel } from "../render/modelPrep";
 import { PaletteTexture } from "../render/paletteTexture";
+import { adoptRockMaterials } from "../render/rockMaterial";
 import { SPRITE_MODELS, spriteModelKey, spriteModels, type SpriteModelEntry } from "../render/spriteModels";
 import { buildResources } from "../sim/resources";
 import type { Resources } from "../sim/state";
@@ -331,6 +332,7 @@ export async function runModelViewer(): Promise<void> {
           const mesh = o as THREE.Mesh;
           if (mesh.isMesh) mesh.material = Array.isArray(mesh.material) ? mesh.material.map((m) => m.clone()) : mesh.material.clone();
         });
+        adoptRockMaterials(clone, paletteTexture); // the island rock round a machine (D75)
         clone.position.set(p.x / PX_PER_UNIT, 0, p.y / PX_PER_UNIT);
         root.add(clone);
         parts.push({ object: clone, rig: rigModel(clone), entry: 0, pieceFrame: p.index });
@@ -338,6 +340,7 @@ export async function runModelViewer(): Promise<void> {
     } else {
       const loaded = await Promise.all(item.entries.map((e) => glb(e.model)));
       loaded.forEach((one, e) => {
+        adoptRockMaterials(one.scene, paletteTexture); // the island rock (D75)
         root.add(one.scene);
         bytes += one.bytes;
         parts.push({ object: one.scene, rig: rigModel(one.scene), entry: e });

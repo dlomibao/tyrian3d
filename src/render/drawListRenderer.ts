@@ -44,6 +44,7 @@ import { passHeight } from "./passHeights";
 import { SpriteMeshCache } from "./spriteMesh";
 import { colourFrame, rigModel, showFrame, type FrameRig } from "./modelFrames";
 import { castsShadow, isModelHelper, setModelBlended } from "./modelPrep";
+import { adoptRockMaterials, cloneRockMaterial, isRockMaterial, rockFades, setRockLook } from "./rockMaterial";
 import type { SpriteModels } from "./spriteModels";
 import { Route, Sprite2Router } from "./sprite2Route";
 import { bankShift } from "./bankShift";
@@ -371,6 +372,7 @@ export class DrawListRenderer {
 
   constructor() {
     this.root.name = "draw-list";
+    setRockLook(this.terrain === "hd");
     this.root.add(this.structures.group);
     const p = this.palette;
     this.materials = [];
@@ -491,6 +493,7 @@ export class DrawListRenderer {
    */
   setTerrainStyle(style: TerrainStyle): void {
     this.terrain = style;
+    setRockLook(style === "hd"); // the island rock: smooth, or the original's pixels (D75)
   }
 
   get terrainStyle(): TerrainStyle {
@@ -514,7 +517,8 @@ export class DrawListRenderer {
    * meanwhile). Models are centred on their origin, forward -Z.
    */
   setSpriteModels(models: SpriteModels, loader: ModelLoader): void {
-    this.loader = loader;
+    // The island rock's HD materials (D75) take their colours from this renderer's palette.
+    this.loader = (name) => loader(name).then((model) => adoptRockMaterials(model, this.palette));
     this.router = new Sprite2Router(models);
     for (const o of models.banked) this.modelPool(o.model);
   }
@@ -878,7 +882,7 @@ export class DrawListRenderer {
           const k = h / cam.y;
           const gx = screenWorldX(x + match.dx);
           const gz = screenWorldZ(y + match.dy);
-          this.structures.place(match.entry.model, gx + (cam.x - gx) * k, h, gz + (cam.z - gz) * k, 1 - k);
+          this.structures.place(match.entry.model, gx + (cam.x - gx) * k, h, gz + (cam.z - gz) * k, 1 - k, this.mapNeighbours(d.layer, match.anchorKey));
         }
         if (!(match.entry.keepTiles ?? d.layer === 0)) return true;
         modelled = true;
@@ -942,6 +946,24 @@ export class DrawListRenderer {
     const tileset = this.terrainArt.get(this.levelMaps.tileset);
     if (!tileset) return;
     for (const image of tileset.images.values()) if (image) renderer.initTexture(image.texture);
+  }
+
+  /**
+   * The tiles on the level's map left of, right of, above and below a cell of a structure whose
+   * pattern's top-left cell is `anchorKey` (-1: none or off the map), so the island rock of each
+   * cell can draw its edge band for each (D75).
+   */
+  private mapNeighbours(layer: 0 | 1 | 2, anchorKey: number): ((row: number, col: number) => number[]) | undefined {
+    if (!this.levelMaps) return undefined;
+    const map = this.levelMaps.maps[layer];
+    const { width } = MAP_SIZES[layer];
+    const anchor = anchorKey - layer * BG_KEY_LAYER;
+    return (row, col) => {
+      const i = anchor + row * width + col;
+      const x = i % width;
+      const at = (j: number, ok: boolean) => (ok && j >= 0 && j < map.length ? map[j] : -1);
+      return [at(i - 1, x > 0), at(i + 1, x < width - 1), at(i - width, true), at(i + width, true)];
+    };
   }
 
   /** Load a tileset's HD terrain art (once), and give it the level's maps for its variants. */
@@ -1125,7 +1147,7 @@ export class DrawListRenderer {
           (m.userData.outlineParameters as { visible?: boolean }).visible = !blended;
           continue;
         }
-        m.transparent = blended;
+        m.transparent = blended || rockFades(m);
         m.opacity = blended ? BLEND_ALPHA : 1;
         m.depthWrite = !blended;
         // The outline shell would show through a translucent model as a dark husk.
@@ -1165,7 +1187,8 @@ export class DrawListRenderer {
       mesh.castShadow = castsShadow(mesh);
       mesh.receiveShadow = !isModelHelper(mesh);
       // Own materials, so one clone can turn translucent (invulnerability) without the others.
-      mesh.material = Array.isArray(mesh.material) ? mesh.material.map((m) => m.clone()) : mesh.material.clone();
+      const clone = (m: THREE.Material) => (isRockMaterial(m) ? cloneRockMaterial(m) : m.clone());
+      mesh.material = Array.isArray(mesh.material) ? mesh.material.map(clone) : clone(mesh.material);
       materials.push(...(Array.isArray(mesh.material) ? mesh.material : [mesh.material]));
     });
     this.root.add(object);

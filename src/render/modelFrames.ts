@@ -9,6 +9,7 @@
 // GLTFLoader puts extras in userData; Object3D.clone and Material.clone copy it.
 
 import type * as THREE from "three";
+import { isRockMaterial, setRockHue } from "./rockMaterial";
 
 export const PALETTE_MATERIAL = /^pal_(\d+)/;
 
@@ -27,6 +28,8 @@ export interface FrameRig {
   /** Nodes shown only on some frames. */
   nodes: { object: THREE.Object3D; frames: Set<number> }[];
   palette: PaletteMaterial[];
+  /** HD rock materials (rockMaterial.ts): their colours come from the palette texture; only the hue is set. */
+  rock: THREE.Material[];
   /** Whether anything depends on the frame. */
   animated: boolean;
 }
@@ -35,6 +38,7 @@ export interface FrameRig {
 export function rigModel(root: THREE.Object3D): FrameRig {
   const nodes: FrameRig["nodes"] = [];
   const palette: PaletteMaterial[] = [];
+  const rock: THREE.Material[] = [];
   const seen = new Set<THREE.Material>();
   root.traverse((o) => {
     const frames = o.userData?.tyrian_frames;
@@ -44,6 +48,10 @@ export function rigModel(root: THREE.Object3D): FrameRig {
     for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
       if (seen.has(m)) continue;
       seen.add(m);
+      if (isRockMaterial(m)) {
+        rock.push(m);
+        continue;
+      }
       const match = PALETTE_MATERIAL.exec(m.name);
       const std = m as THREE.MeshStandardMaterial;
       if (!match || !std.isMeshStandardMaterial) continue;
@@ -55,7 +63,7 @@ export function rigModel(root: THREE.Object3D): FrameRig {
       palette.push(pm);
     }
   });
-  return { nodes, palette, animated: nodes.length > 0 || palette.some((p) => p.byFrame) };
+  return { nodes, palette, rock, animated: nodes.length > 0 || palette.some((p) => p.byFrame) };
 }
 
 /** Show the nodes that belong to sprite frame `frame` (-1: none of the tagged ones). */
@@ -78,4 +86,5 @@ export function colourFrame(rig: FrameRig, frame: number, hue: number, color: (i
     color(paletteIndex(pm, frame, hue), pm.material.color);
     if (pm.emissive) pm.material.emissive.copy(pm.material.color);
   }
+  for (const m of rig.rock) setRockHue(m, hue);
 }

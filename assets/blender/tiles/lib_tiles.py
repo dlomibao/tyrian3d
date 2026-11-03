@@ -24,6 +24,7 @@ import bpy
 import numpy as np
 
 import common
+import lib_rock_hd as rh
 
 TILE_W, TILE_H = 24, 28
 PX = 1 / 12  # units per tile pixel
@@ -120,11 +121,19 @@ class Palette:
             self.materials.append(mat)
         return self.slots[key]
 
+    def add(self, mat):
+        """The slot of a material that isn't a palette colour (the HD rock's, rock_material)."""
+        key = ("material", mat.name)
+        if key not in self.slots:
+            self.slots[key] = len(self.materials)
+            self.materials.append(mat)
+        return self.slots[key]
+
 
 # --- Geometry ------------------------------------------------------------------------------------
 
 def mask_slab(bm, mask, frame, z_bottom, z_top, mat_top, mat_side=None, mat_bottom=None, top_height=None, smooth_top=False,
-              support=None):
+              support=None, walls=None):
     """A slab with the outline of `mask` (bool array in `frame` pixels) from z_bottom to z_top.
 
     `top_height`, an array like mask, raises each top cell by that much (a relief); side walls
@@ -133,7 +142,9 @@ def mask_slab(bm, mask, frame, z_bottom, z_top, mat_top, mat_side=None, mat_bott
     one material can be merged afterwards (dissolve_coplanar). `mat_top` and `mat_side` are a
     material slot or a function (x, y) -> slot of the cell (for a side, the cell it closes).
     `support` (bool, like mask; default mask) is the cells a corner's height comes from: a piece
-    cut from a bigger relief passes the whole relief's cells, so pieces built apart meet exactly."""
+    cut from a bigger relief passes the whole relief's cells, so pieces built apart meet exactly.
+    `walls` (bool, like mask; default mask): a side wall is built only where the next cell is outside
+    it, so pieces cut from one surface have no walls where they meet."""
     mat_side = mat_top if mat_side is None else mat_side
     mat_bottom = mat_side if mat_bottom is None else mat_bottom
     support = mask if support is None else support
@@ -175,7 +186,7 @@ def mask_slab(bm, mask, frame, z_bottom, z_top, mat_top, mat_side=None, mat_bott
             for (dx, dy), (a, b) in (((0, -1), ((x, y), (x + 1, y))), ((1, 0), ((x + 1, y), (x + 1, y + 1))),
                                      ((0, 1), ((x + 1, y + 1), (x, y + 1))), ((-1, 0), ((x, y + 1), (x, y)))):
                 nx, ny = x + dx, y + dy
-                if 0 <= nx < w and 0 <= ny < h and mask[ny, nx]:
+                if 0 <= nx < w and 0 <= ny < h and (mask if walls is None else walls)[ny, nx]:
                     continue
                 bm.faces.new((vb(*a), vb(*b), vt(*b), vt(*a))).material_index = sides(x, y)
 
@@ -340,6 +351,8 @@ def export_tile_model(ts, objects, name, layer, pattern, keep_tiles=None):
     """Export to public/models/tiles/<shapes>/<name>.glb and register the pattern it stands for in
     src/render/tileModels/<shapes>-<name>.json (src/render/remaster/tileModels.ts)."""
     model = f"tiles/{ts.name}/{name}"
+    # The island rock's textures (rock_material; the only images in a tile model) are packed lossless
+    # WebP, which "AUTO" keeps.
     out = common.export_glb(objects, ts.root / "public" / "models" / f"{model}.glb")
     entry = {"model": model, "shapes": ts.file, "layer": layer, "tiles": [list(map(int, r)) for r in pattern]}
     if keep_tiles is not None:
@@ -500,52 +513,195 @@ def relief_heights(ts, grid, amp, sigma=1.2, lo=None, hi=None):
 # --- Island rock ---------------------------------------------------------------------------------
 #
 # The floating islands of background 3 (shapesz.dat tiles 120-152: TYRIAN and eight other levels) are
-# cobbles painted to tile seamlessly. Every rock tile model, and the rock round the structures built
-# on the islands (lib_tyrbld.Structure.rock), draws the tile's own 2x pixels as a relief, so that
-# whatever tiles meet, the colours meet as the art does and the heights nearly so:
-# - colour: each pixel snaps to the nearest of ROCK_COLOURS, one shared set (not chosen per tile, so
-#   the same stone keeps its colour across a seam);
-# - height: the pixel's brightness, smoothed a little and mapped by the fixed ROCK_LUM range (not
-#   normalised per tile) to 0..ROCK_RELIEF: stones up, the dark between them down, the island's
-#   edge rounded off. The smoothing sees the tile between its usual neighbours (context()); at the
-#   tile's edge a vertex takes the tile's own pixels only, and the slab's side walls close what
-#   little step is left against a neighbour;
+# cobbles painted to tile. Every rock tile model, the rock round the structures built on the islands
+# (lib_tyrbld.Structure.rock) and the rock round some enemies' machines (sprite_rock) are drawn the
+# same way (DECISIONS.md D63, D66, D75):
+# - colour: an HD texture made from the art by lib_rock_hd (the stones found in the pixels and
+#   redrawn as smooth cushions with a soft mortar line, at rh.TEX texels per pixel), which the game
+#   colours from the live palette (src/render/rockMaterial.ts): one material per tile, shared by
+#   every tile and structure, so the same stone keeps its colour across a seam and fades, the hit
+#   flash and the smoothies apply;
+# - relief: the texture's height, as the game's bump (the stones' cushions and bevels, the mortar).
+#   The top is level: geometry can't follow a tile's edge bands, and any relief there would differ
+#   from the neighbour's, a crease along every seam. The island's outline is the tile's 2x pixels
+#   with its stair steps rounded off (smooth_outline), its sides closed down to the slab's bottom;
+# - seams: each tile's texture is made among its usual neighbours on TYRIAN's map and its edges
+#   solved against every tile the map puts next to it, and for every pair the map has, both tiles get
+#   an edge band computed together, which the game draws for the neighbour actually there
+#   (lib_rock_hd.island_tiles, rockMaterial.ts);
 # - the underside tiles (140-142) hang a face toward the camera from where their stones end, with
 #   the roots painted on it.
 
-#: The palette indices the island rock is drawn in: the grey ramp, the tan and brass stones.
+#: The island rock tiles of shapesz.dat (shapesz_bg3.py, recipe "rock").
+ROCK_TILES = (120, 121, 122, 123, 124, 130, 131, 132, 133, 134, 140, 141, 142, 150, 151, 152)
+#: The palette indices the original island rock is drawn in: the grey ramp, the tan and brass stones.
+#: The HD rock keeps any shade of their ramps (lib_rock_hd.RAMPS) and snaps other paint to these.
 ROCK_COLOURS = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 24, 25, 27, 28, 163, 165, 167, 169, 171)
-ROCK_DARK = 3  # the slab's sides and bottom
-ROCK_RELIEF = 0.12  # units: how far a stone's top stands over the dark between stones
-ROCK_LUM = (0.16, 0.62)  # smoothed brightness at height 0 and at ROCK_RELIEF
-ROCK_SIGMA = 1.1  # the smoothing, 2x px
 ROCK_BOTTOM = -0.3
-ROCK_MERGE_DEG = 4.0  # nearly flat neighbouring faces of one colour merge (a third fewer triangles)
+ROCK_MERGE_DEG = 2.0  # nearly flat neighbouring faces merge
 ROCK_UNDERSIDE = {140: 0.55, 141: 0.55, 142: 0.55}  # tile: how far its face hangs below the slab
+ROCK_UNDER_SHADE = 2.5  # the shade of the rock under a structure's or enemy's own parts
+ROCK_OUTLINE_SIGMA = 0.9  # 2x px: the outline's stair steps are rounded to this smooth curve
+#: The rock's finish (shapesz_bg3.py's palette).
+ROCK_FINISH = {"roughness": 0.55, "metallic": 0.05}
 
 
-class RockColours:
-    """Snap a palette index to the nearest of ROCK_COLOURS (by RGB)."""
-
-    def __init__(self, ts):
-        self.ts = ts
-        self.keep = [k for k in ROCK_COLOURS if k in ts.colors]
-        self.cache = {}
-
-    def __call__(self, index):
-        index = int(index)
-        if index not in self.cache:
-            rgb = self.ts.rgb(index)
-            self.cache[index] = min(self.keep, key=lambda k: sum((a - b) ** 2 for a, b in zip(self.ts.rgb(k), rgb)))
-        return self.cache[index]
+_ISLAND = {}
 
 
-def rock_heights(ts, grid2):
-    """The relief of `grid2` (2x px, -1 = nothing): smoothed brightness mapped by ROCK_LUM."""
-    lum = lum_of(ts, grid2)
-    sm = blur(lum, ROCK_SIGMA)
-    lo, hi = ROCK_LUM
-    return np.clip((sm - lo) / (hi - lo), 0, 1) * ROCK_RELIEF
+def island_hd(ts):
+    """The HD rock textures' channels of every island tile, {n: lib_rock_hd.compose dict}: made once
+    per tileset (and cached on disk by lib_rock_hd)."""
+    if ts.name not in _ISLAND:
+        # The rock tiles and every tile TYRIAN's islands carry (the structures' cells build their
+        # rock from their own tile's pixels, Structure.rock), solved together at their seams.
+        on_map = {int(n) for n in np.unique(rh.level_map(ts.root, "1-9", 2)) if n >= 0}
+        tiles = sorted((set(ROCK_TILES) | on_map) & set(ts.tiles))
+        _ISLAND[ts.name] = rh.island_tiles(ts.root, tiles, {n: t["px"] for n, t in ts.tiles.items()}, ts.colors,
+                                           [k for k in ROCK_COLOURS if k in ts.colors], band_tiles=tiles)
+    return _ISLAND[ts.name]
+
+
+def _data_image(name, rgb, alpha=None):
+    """A packed, non-colour, lossless WebP image from (H, W, 3) uint8, row 0 at the top; `alpha`
+    (H, W, 0..1) makes it RGBA. The glTF export embeds a packed WebP as it is, whatever its image
+    format (the structures' bake and the enemies export lossy WebP, which would smear this data:
+    its height lives in the colour channels a lossy encoder halves)."""
+    import tempfile
+    h, w = rgb.shape[:2]
+    tmp = bpy.data.images.new(f"{name}-tmp", w, h, alpha=alpha is not None)
+    tmp.colorspace_settings.name = "Non-Color"
+    a = np.ones((h, w, 1), np.float32) if alpha is None else np.round(np.clip(alpha, 0, 1) * 255)[..., None] / 255.0
+    px = np.concatenate([rgb.astype(np.float32) / 255.0, a.astype(np.float32)], -1)[::-1]
+    tmp.pixels.foreach_set(px.ravel())
+    path = str(Path(tempfile.mkdtemp(prefix="rock_hd_")) / f"{name}.webp")
+    tmp.filepath_raw = path
+    tmp.file_format = "WEBP"
+    tmp.save(quality=100)  # 100: lossless
+    bpy.data.images.remove(tmp)
+    img = bpy.data.images.load(path)
+    img.name = name
+    img.colorspace_settings.name = "Non-Color"
+    img.alpha_mode = "STRAIGHT" if alpha is not None else "NONE"
+    img.pack()
+    return img
+
+
+def rock_material(name, ch, ramps=rh.RAMPS, bands=None, alpha=None):
+    """The HD rock material `name` with its texture from `ch` (lib_rock_hd.compose): R the shade,
+    G the ramp code, B the height (the game's bump), sampled on the "rock" UV map. Marked
+    `tyrian_rock_ramps` (the palette ramps the G code steps through; the game draws it with
+    src/render/rockMaterial.ts) and `tyrian_plain` (texture_bake.py leaves it alone). With `bands`
+    (lib_rock_hd.island_tiles: the tile's edge band for each neighbour the map gives it) they go in a
+    second texture (lib_rock_hd.band_texture, on the emission slot, which the game reads as data),
+    their keys in `tyrian_rock_bands`, row by row, BAND_DEPTH rows each. `alpha` (the texture's size,
+    0..1): the rock's coverage, in the texture's alpha; the game draws it translucent by it
+    (`tyrian_rock_fade`: an enemy's rock fading into the island under it)."""
+    mat = bpy.data.materials.get(name)
+    if mat is not None:
+        return mat
+    img = _data_image(f"{name}-tex", rh.texture_rgb(ch), alpha)
+    mat = bpy.data.materials.new(name)
+    mat.use_nodes = True
+    nt = mat.node_tree
+    bsdf = next(n for n in nt.nodes if n.type == "BSDF_PRINCIPLED")
+    bsdf.inputs["Roughness"].default_value = ROCK_FINISH["roughness"]
+    bsdf.inputs["Metallic"].default_value = ROCK_FINISH["metallic"]
+    uv = nt.nodes.new("ShaderNodeUVMap")
+    uv.uv_map = "rock"
+    tex = nt.nodes.new("ShaderNodeTexImage")
+    tex.image = img
+    tex.interpolation = "Linear"
+    tex.extension = "EXTEND"
+    nt.links.new(uv.outputs["UV"], tex.inputs["Vector"])
+    nt.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
+    mat["tyrian_rock_ramps"] = [int(r) for r in ramps]
+    mat["tyrian_plain"] = True
+    if alpha is not None:
+        mat["tyrian_rock_fade"] = True
+    if bands:
+        keys, rgb = rh.band_texture(bands)
+        btex = nt.nodes.new("ShaderNodeTexImage")
+        btex.image = _data_image(f"{name}-bands", rgb)
+        btex.interpolation = "Linear"
+        btex.extension = "EXTEND"
+        nt.links.new(btex.outputs["Color"], bsdf.inputs["Emission Color"])
+        bsdf.inputs["Emission Strength"].default_value = 1.0
+        mat["tyrian_rock_bands"] = list(keys)
+        mat["tyrian_rock_band_depth"] = rh.BAND_DEPTH
+        mat["tyrian_rock_band_fade"] = rh.BAND_FADE
+    # In Blender the texture's raw data is no colour; show a mid grey in the viewport.
+    mat.diffuse_color = (0.4, 0.4, 0.4, 1.0)
+    return mat
+
+
+def rock_uvs(bm, frame):
+    """A "rock" UV map: every vertex's place in `frame` (top view), which the texture covers."""
+    layer = bm.loops.layers.uv.get("rock") or bm.loops.layers.uv.new("rock")
+    for f in bm.faces:
+        for loop in f.loops:
+            co = loop.vert.co
+            px = co.x / frame.unit + frame.w / 2
+            py = frame.h / 2 - co.y / frame.unit
+            loop[layer].uv = (px / frame.w, 1 - py / frame.h)
+
+
+def darken(ch, flat, shade=ROCK_UNDER_SHADE):
+    """The texture channels `ch` with the rock under a part (`flat`, 2x cells) dark and level: its
+    shade at most `shade`, grey, no bump, the edge soft (no pixel steps round the part's feet)."""
+    k = rh.TEX // 2
+    w = rh.smoothstep(0.25, 0.75, rh.blur(rh.nearest(flat.astype(float), k), 0.3 * rh.TEX))
+    out = dict(ch)
+    out["shade"] = ch["shade"] * (1 - w) + np.minimum(ch["shade"], shade) * w
+    out["code"] = ch["code"] * (1 - w)
+    out["height"] = ch["height"] * (1 - w)
+    return out
+
+
+def darken_band(band, key, flat, shade=ROCK_UNDER_SHADE):
+    """An edge band (lib_rock_hd.pair_bands, "<side>:<tile>") darkened as darken() darkens its tile."""
+    k = rh.TEX // 2
+    w = rh.smoothstep(0.25, 0.75, rh.blur(rh.nearest(flat.astype(float), k), 0.3 * rh.TEX))
+    d = rh.BAND_DEPTH
+    side = key.split(":")[0]
+    strip = {"left": w[:, :d].T, "right": w[:, ::-1][:, :d].T, "up": w[:d], "down": w[::-1][:d]}[side]
+    out = dict(band)
+    out["shade"] = band["shade"] * (1 - strip) + np.minimum(band["shade"], shade) * strip
+    out["code"] = band["code"] * (1 - strip)
+    out["height"] = band["height"] * (1 - strip)
+    return out
+
+
+def smooth_outline(bm, mask, frame, sigma=ROCK_OUTLINE_SIGMA, fixed_border=True):
+    """Round the stair steps of a mask_slab's outline: every vertex on the outline (a corner with
+    some of its cells in `mask` and some not) moves onto the 0.5 level of the mask blurred by
+    `sigma` cells, at most 0.6 cells. Corners on the array's border stay, so tiles still meet."""
+    h, w = mask.shape
+    m = rh.blur(mask.astype(float), sigma)
+    mp = np.pad(m, 1, mode="edge")
+    inside = np.pad(mask, 1, constant_values=False)
+    moves = {}
+    for cy in range(1 if fixed_border else 0, h if fixed_border else h + 1):
+        for cx in range(1 if fixed_border else 0, w if fixed_border else w + 1):
+            cells = inside[cy:cy + 2, cx:cx + 2]
+            if cells.all() or not cells.any():
+                continue
+            # The blurred mask at the corner and its gradient (cells: rows cy-1, cy; cols cx-1, cx).
+            q = mp[cy:cy + 2, cx:cx + 2]
+            v = q.mean()
+            gx = (q[:, 1] - q[:, 0]).mean()
+            gy = (q[1] - q[0]).mean()
+            g2 = gx * gx + gy * gy
+            if g2 < 1e-6:
+                continue
+            t = (0.5 - v) / g2
+            dx, dy = np.clip(t * gx, -0.6, 0.6), np.clip(t * gy, -0.6, 0.6)
+            moves[(round(frame.x(cx), 5), round(frame.y(cy), 5))] = (dx * frame.unit, -dy * frame.unit)
+    for v in bm.verts:
+        mv = moves.get((round(v.co.x, 5), round(v.co.y, 5)))
+        if mv:
+            v.co.x += mv[0]
+            v.co.y += mv[1]
 
 
 def underside_drop(own, lum, drop):
@@ -565,62 +721,84 @@ def underside_drop(own, lum, drop):
     return out
 
 
-def rock_tile(ts, n, pal, region=None, flat=None, bottom=ROCK_BOTTOM, plain=False):
+def rock_tile(ts, n, pal, region=None, flat=None, bottom=ROCK_BOTTOM, plain=False, cell=None):
     """The island rock of tile n as a bmesh, centred on the tile (Frame([[n]], 2)): a slab from
-    `bottom` up to its relief (module notes above). `region` (bool, the tile's 2x px) limits it
+    `bottom` up to its level top (module notes above), in the tile's HD rock material with its edge
+    bands (rock_t<n>, the same in every per-tile model). `region` (bool, the tile's 2x px) limits it
     to those of its painted pixels; `flat` pixels (where a structure's own parts stand) are level at
-    z = 0 and dark. `plain` marks the materials so a structure's bake leaves them alone."""
-    ctx = context(ts, n)
-    grid = ts.grid(ctx, 2)
-    th, tw = TILE_H * 2, TILE_W * 2
-    own = grid[th:2 * th, tw:2 * tw]
+    z = 0 and dark, with a soft edge (darken). `cell` (row, col): a structure's cell, which gets a
+    material of its own (`tyrian_rock_cell`), so the game can give each cell the bands of its own
+    neighbours on the map. `plain` is kept for the callers (the rock is always plain)."""
+    own = ts.grid([[n]], 2)
     opaque = own >= 0
     region = opaque if region is None else region & opaque
     if not region.any():
         return None
-    heights = rock_heights(ts, grid)[th:2 * th, tw:2 * tw]
+    ch = island_hd(ts)[n]
+    heights = np.zeros(own.shape)
     if n in ROCK_UNDERSIDE:
-        drop = underside_drop(own, lum_of(ts, own), ROCK_UNDERSIDE[n])
-        # The relief fades out as the face starts to hang, so the two join smoothly.
-        heights = heights * (1 - np.clip(-drop / 0.08, 0, 1)) + drop
+        heights = underside_drop(own, lum_of(ts, own), ROCK_UNDERSIDE[n])
     flat = np.zeros_like(region) if flat is None else flat & region
     heights = np.where(flat, 0.0, heights)
-    snap = RockColours(ts)
-    kw = {"plain": True} if plain else {}
-    dark = pal(ROCK_DARK, **kw)
+    name, tex = f"rock_t{n}", ch
+    if flat.any():
+        # Under a structure's own parts: dark (the tile's texture and bands with that patch).
+        import hashlib
+        name += "_" + hashlib.sha1(np.packbits(flat).tobytes()).hexdigest()[:8]
+        tex = darken(ch, flat)
+        tex["bands"] = {k: darken_band(b, k, flat) for k, b in ch.get("bands", {}).items()}
+    if cell is not None:
+        name += f"_{cell[0]}_{cell[1]}"
+    mat = rock_material(name, tex, bands=tex.get("bands"))
+    if cell is not None:
+        mat["tyrian_rock_cell"] = [int(cell[0]), int(cell[1])]
+    rock = pal.add(mat)
+    frame = Frame([[n]], scale=2)
     bm = bmesh.new()
-    lt_mats = lambda x, y: dark if flat[y, x] else pal(snap(own[y, x]), **kw)  # noqa: E731
-    mask_slab(bm, region, Frame([[n]], scale=2), bottom + min(0.0, heights.min()), 0.0, lt_mats, dark,
-              top_height=heights, smooth_top=True)
+    mask_slab(bm, region, frame, bottom + min(0.0, heights.min()), 0.0, rock, rock, rock,
+              top_height=heights, smooth_top=n in ROCK_UNDERSIDE)
+    smooth_outline(bm, region, frame)
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-6)
-    bmesh.ops.dissolve_limit(bm, angle_limit=math.radians(ROCK_MERGE_DEG), verts=bm.verts, edges=bm.edges, delimit={"MATERIAL"})
+    # Merge the level top into big faces, but keep every vertex along the tile's edge: a neighbour
+    # keeps its own there, and an edge one side has as one long edge and the other as several (a
+    # T-junction) rasterises with hairline gaps along the seam.
+    hw, hh = TILE_W * PX / 2, TILE_H * PX / 2
+    edge = lambda v: abs(abs(v.co.x) - hw) < 1e-5 or abs(abs(v.co.y) - hh) < 1e-5  # noqa: E731
+    keep = {v for v in bm.verts if edge(v)}
+    bmesh.ops.dissolve_limit(bm, angle_limit=math.radians(ROCK_MERGE_DEG), verts=[v for v in bm.verts if v not in keep],
+                             edges=[e for e in bm.edges if not (e.verts[0] in keep and e.verts[1] in keep)], delimit={"MATERIAL"})
+    rock_uvs(bm, frame)
     return bm
 
 
-# --- Island rock round an enemy's machine (DECISIONS.md D66) --------------------------------------
+# --- Island rock round an enemy's machine (DECISIONS.md D66, D75) ---------------------------------
 #
 # Some of TYRIAN's enemies that sit on the islands (the purple octagon walls, the eye fortress, the
 # red machinery, the star core panel) fill their whole sprite: the machine, and round it island rock
-# painted to blend with the tiles beneath. Their models build that rock as the islands do (rock_tile:
-# the pixels as a relief in ROCK_COLOURS, heights by ROCK_LUM, flat shaded, the per-tile models'
-# finish) and leave it out of the outline shell: there is no slab with walls, no boulders and no
+# painted to blend with the tiles beneath. Their models build that rock as the islands do (an HD
+# rock texture from the sprite's own pixels, lib_rock_hd, the same stones, mortar and cushions as
+# rock_tile) and leave it out of the outline shell: there is no slab with walls, no boulders and no
 # outline round the sprite's rectangle, so the rock reads as the island going on under the machine.
 # The enemy is drawn about 0.4 units above the islands (top enemies at 2.5, background 3 at 2.1, D5)
 # and placed on the camera ray through its screen point (D6), so the rock lands on screen exactly
 # where the sprite's rock is drawn; it casts no shadow (`tyrian_ground`, the renderer's isGroundPart),
 # which would otherwise lay a dark band along two of its edges on the island below.
 
-#: Palette ramps (index >> 4) the islands' rock is painted in: greys, brass, tan (ROCK_COLOURS).
-ROCK_RAMPS = (0, 1, 10)
-#: The per-tile rock models' finish (shapesz_bg3.py's palette).
-ROCK_FINISH = {"roughness": 0.55, "metallic": 0.05}
-#: How far the rock's edge walls go below its dark gaps (units): a sliver, in the stones' colours.
+#: How far below its top the rock's (unseen) underside is (units).
 SPRITE_ROCK_SKIRT = 0.03
+#: 2x px a piece's rock reaches over its neighbour's (no hairline between pieces drawn apart).
+SPRITE_ROCK_OVERLAP = 1
+#: How far (px) an enemy's rock fades out from the edge of its painted area into the island under it
+#: (its own stones and the tiles' don't quite meet there).
+SPRITE_ROCK_FADE = 1.5
+#: Pixels (1x) of one other ramp in an enemy's rock for its rock texture to keep that colour (the
+#: blue-grey stone of the red machinery); fewer, and they are snapped to ROCK_COLOURS.
+EXTRA_RAMP_MIN = 12
 
 
 class SpritePalette:
-    """A Tileset-like palette for a sprite: `colors`, `lum` and `rgb(index)` (RockColours, lum_of,
-    Palette) from the level palette's colours, {index: (r, g, b)}."""
+    """A Tileset-like palette for a sprite: `colors`, `lum` and `rgb(index)` (lum_of, Palette) from the
+    level palette's colours, {index: (r, g, b)}."""
 
     def __init__(self, colors):
         self.colors = {int(k): tuple(v) for k, v in colors.items()}
@@ -638,82 +816,6 @@ def island_palette(root, extra=None):
     colors = dict(Tileset(root, "shapesz", layer=2).colors)
     colors.update({int(k): tuple(v) for k, v in (extra or {}).items()})
     return SpritePalette(colors)
-
-
-def mmpx2x(pix, luma):
-    """MMPX 2x on palette indices, edges clamped: a copy of tools/terrain_hd.py's (the port of
-    src/render/remaster/mmpx.ts that made the tiles' `pixels2x`), which needs PIL and so can't be
-    imported in Blender. Sprites have no 2x pixels of their own; this gives them the tiles' look."""
-    h, w = pix.shape
-    P = np.pad(pix.astype(np.int32), 3, mode="edge")
-
-    def s(dx, dy):
-        return P[3 + dy:3 + dy + h, 3 + dx:3 + dx + w]
-
-    A, B, C = s(-1, -1), s(0, -1), s(1, -1)
-    D, E, F = s(-1, 0), s(0, 0), s(1, 0)
-    G, H, I = s(-1, 1), s(0, 1), s(1, 1)
-    Pp, S, Q, R = s(0, -2), s(0, 2), s(-2, 0), s(2, 0)
-    Bl, Dl, El, Fl, Hl = luma[B], luma[D], luma[E], luma[F], luma[H]
-    J, K, L, M = E.copy(), E.copy(), E.copy(), E.copy()
-    act = (A != E) | (B != E) | (C != E) | (D != E) | (F != E) | (G != E) | (H != E) | (I != E)
-
-    def any3(b, a0, a1, a2):
-        return (b == a0) | (b == a1) | (b == a2)
-
-    def all2(b, a0, a1):
-        return (b == a0) & (b == a1)
-
-    def all3(b, a0, a1, a2):
-        return (b == a0) & (b == a1) & (b == a2)
-
-    def all4(b, a0, a1, a2, a3):
-        return (b == a0) & (b == a1) & (b == a2) & (b == a3)
-
-    def none2(b, a0, a1):
-        return (b != a0) & (b != a1)
-
-    def none4(b, a0, a1, a2, a3):
-        return (b != a0) & (b != a1) & (b != a2) & (b != a3)
-
-    def put(cond, *pairs):
-        c = act & cond
-        for dst, src in pairs:
-            dst[c] = src[c] if isinstance(src, np.ndarray) else src
-
-    put((D == B) & (D != H) & (D != F) & ((El >= Dl) | (E == A)) & any3(E, A, C, G) & ((El < Dl) | (A != D) | (E != Pp) | (E != Q)), (J, D))
-    put((B == F) & (B != D) & (B != H) & ((El >= Bl) | (E == C)) & any3(E, A, C, I) & ((El < Bl) | (C != B) | (E != Pp) | (E != R)), (K, B))
-    put((H == D) & (H != F) & (H != B) & ((El >= Hl) | (E == G)) & any3(E, A, G, I) & ((El < Hl) | (G != H) | (E != S) | (E != Q)), (L, H))
-    put((F == H) & (F != B) & (F != D) & ((El >= Fl) | (E == I)) & any3(E, C, G, I) & ((El < Fl) | (I != H) | (E != R) | (E != S)), (M, F))
-
-    put((E != F) & all4(E, C, I, D, Q) & all2(F, B, H) & (F != s(3, 0)), (K, F), (M, F))
-    put((E != D) & all4(E, A, G, F, R) & all2(D, B, H) & (D != s(-3, 0)), (J, D), (L, D))
-    put((E != H) & all4(E, G, I, B, Pp) & all2(H, D, F) & (H != s(0, 3)), (L, H), (M, H))
-    put((E != B) & all4(E, A, C, H, S) & all2(B, D, F) & (B != s(0, -3)), (J, B), (K, B))
-
-    put((Bl < El) & all4(E, G, H, I, S) & none4(E, A, D, C, F), (J, B), (K, B))
-    put((Hl < El) & all4(E, A, B, C, Pp) & none4(E, D, G, I, F), (L, H), (M, H))
-    put((Fl < El) & all4(E, A, D, G, Q) & none4(E, B, C, I, H), (K, F), (M, F))
-    put((Dl < El) & all4(E, C, F, I, R) & none4(E, B, A, G, H), (J, D), (L, D))
-
-    hb = H != B
-    h1 = hb & (H != A) & (H != E) & (H != C)
-    put(h1 & all3(H, G, F, R) & none2(H, D, s(2, -1)), (L, M))
-    put(h1 & all3(H, I, D, Q) & none2(H, F, s(-2, -1)), (M, L))
-    b1 = hb & (B != I) & (B != G) & (B != E)
-    put(b1 & all3(B, A, F, R) & none2(B, D, s(2, 1)), (J, K))
-    put(b1 & all3(B, C, D, Q) & none2(B, F, s(-2, 1)), (K, J))
-    fd = F != D
-    d1 = fd & (D != I) & (D != E) & (D != C)
-    put(d1 & all3(D, A, H, S) & none2(D, B, s(1, 2)), (J, L))
-    put(d1 & all3(D, G, B, Pp) & none2(D, H, s(1, -2)), (L, J))
-    f1 = fd & (F != E) & (F != A) & (F != G)
-    put(f1 & all3(F, C, H, S) & none2(F, B, s(-1, 2)), (K, M))
-    put(f1 & all3(F, I, B, Pp) & none2(F, H, s(-1, -2)), (M, K))
-
-    out = np.empty((h * 2, w * 2), np.int32)
-    out[0::2, 0::2], out[0::2, 1::2], out[1::2, 0::2], out[1::2, 1::2] = J, K, L, M
-    return out.astype(pix.dtype)
 
 
 class GridFrame:
@@ -752,9 +854,25 @@ def machine_footprint(objects, w, h, ground=0.0, eps=0.012, scale=2):
     return out
 
 
-def is_rock_index(index):
-    """Whether a sprite pixel is painted in the islands' rock colours (ROCK_RAMPS)."""
-    return index >= 0 and (int(index) >> 4) in ROCK_RAMPS
+def sprite_ramps(pal, grid, machine):
+    """The ramps an enemy's rock texture uses: lib_rock_hd.RAMPS, plus the most common other ramp
+    painted where the machine doesn't stand if it has EXTRA_RAMP_MIN pixels; and the colours other
+    paint snaps to (ROCK_COLOURS, and that ramp's shades)."""
+    h, w = grid.shape
+    under = machine.reshape(h, 2, w, 2).mean(axis=(1, 3)) > 0.5
+    vals = grid[(grid >= 0) & ~under]
+    counts = {}
+    for v in vals:
+        r = int(v) >> 4
+        if r not in rh.RAMPS:
+            counts[r] = counts.get(r, 0) + 1
+    extra = max(counts, key=lambda r: (counts[r], -r)) if counts else None
+    ramps = tuple(rh.RAMPS)
+    keep = [k for k in ROCK_COLOURS if k in pal.colors]
+    if extra is not None and counts[extra] >= EXTRA_RAMP_MIN:
+        ramps += (extra,)
+        keep += [i for i in range(extra * 16, extra * 16 + 16) if i in pal.colors]
+    return ramps, keep
 
 
 def sprite_rock(pal, grid, machine, layout, coll, tag, ground=0.0, piece=(24, 28), name_fmt="{}_rock"):
@@ -763,41 +881,54 @@ def sprite_rock(pal, grid, machine, layout, coll, tag, ground=0.0, piece=(24, 28
     `pal`: the level palette (island_palette). `grid`: the sprite's pixels at 1x, an (h, w) array of
     palette indices (-1 transparent), the whole assembly for a multi-piece enemy. `machine`: bool
     (2h, 2w), where the machine stands (machine_footprint): the rock there is level at `ground` and
-    dark, under the machine. Elsewhere every painted pixel is relief: in the rock's ramps it takes
-    the nearest of ROCK_COLOURS, as the island tiles do; any other colour (a blue stone, a sliver of
-    the machine's paint where its model doesn't quite reach) keeps its own index. `layout`: [(piece name, cx, cy)], each piece's centre in px from the grid's centre (as
+    dark under the machine, with a soft edge (darken: no pixel steps peek out round its feet). Elsewhere every painted pixel is rock: one HD rock texture for the whole
+    grid (lib_rock_hd, rock_material `rock_<tag>`), the rock ramps' paint as it is, one other ramp
+    kept if there is enough of it (sprite_ramps), the rest snapped to ROCK_COLOURS. `layout`:
+    [(piece name, cx, cy)], each piece's centre in px from the grid's centre (as
     common.split_assembly); `piece`: its (w, h) in px. Each object's origin is its piece's centre;
-    its heights come from the whole grid, so the pieces meet exactly. Materials: pal_<i>_<tag>,
-    the per-tile models' finish. Returns {piece name: object}."""
+    its heights and texture come from the whole grid, so the pieces meet exactly. Returns
+    {piece name: object}."""
     grid = np.asarray(grid, dtype=np.int32)
     h, w = grid.shape
-    g2 = mmpx2x(grid, np.append(pal.lum, 0.0))  # index -1 reads the appended 0 luma
-    opaque = g2 >= 0
-    support = opaque | machine
+    rp = rh.Pal(pal.colors)
+    ramps, keep = sprite_ramps(pal, grid, machine)
+    ch = rh.compose(rh.fields(rp, rh.snap_rock(rp, grid, keep, ramps), ramps))
+    g2 = rh.mmpx2x(grid, np.append(rp.lum[:256] * 765 + 1, 0.0))
+    support = (g2 >= 0) | machine
     flat = machine
-    rocky = np.vectorize(is_rock_index)(g2)
-    heights = np.where(flat, 0.0, rock_heights(pal, g2))
-    snap = RockColours(pal)
+    # Coverage: 0 at the edge of the painted area (or the sprite's rectangle), 1 from SPRITE_ROCK_FADE in.
+    k = rh.TEX // 2
+    pad = int(3 * SPRITE_ROCK_FADE * rh.TEX)
+    cover = np.pad(rh.nearest(support.astype(float), k), pad)
+    cover = rh.blur(cover, SPRITE_ROCK_FADE * rh.TEX / 2)[pad:-pad, pad:-pad]
+    alpha = rh.smoothstep(0.5, 0.98, cover)
+    mat = rock_material(f"rock_{tag}", darken(ch, flat), ramps, alpha=alpha)
     frame = GridFrame(w, h, 2)
     out = {}
     for name, cx, cy in layout:
         x0, y0 = int(round((w / 2 + cx - piece[0] / 2) * 2)), int(round((h / 2 + cy - piece[1] / 2) * 2))
+        # Each piece is drawn on its own (placed by the game at its sprite's place), so neighbouring
+        # pieces can leave a hairline gap: each reaches SPRITE_ROCK_OVERLAP cells over its neighbour's
+        # (same texture, same place: the overlap doesn't show).
+        m = SPRITE_ROCK_OVERLAP
         region = np.zeros_like(support)
-        region[max(0, y0):y0 + piece[1] * 2, max(0, x0):x0 + piece[0] * 2] = True
+        region[max(0, y0 - m):y0 + piece[1] * 2 + m, max(0, x0 - m):x0 + piece[0] * 2 + m] = True
         region &= support
         if not region.any():
             continue
         p = Palette(pal, tag, plain=True, **ROCK_FINISH)
-        dark = p(ROCK_DARK)
-        mats = lambda x, y: dark if flat[y, x] else p(snap(g2[y, x]) if rocky[y, x] else g2[y, x])  # noqa: E731
+        rock = p.add(mat)
         bm = bmesh.new()
-        mask_slab(bm, region, frame, ground - SPRITE_ROCK_SKIRT, ground, mats, mats, dark,
-                  top_height=heights, smooth_top=True, support=support)
+        # A sheet, no side walls: seen past the enemy's edge they drew a dark line round its rock.
+        mask_slab(bm, region, frame, ground - SPRITE_ROCK_SKIRT, ground, rock, rock, rock, support=support,
+                  walls=np.ones_like(support))
+        smooth_outline(bm, support, frame)
         bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-6)
         bmesh.ops.dissolve_limit(bm, angle_limit=math.radians(ROCK_MERGE_DEG), verts=bm.verts, edges=bm.edges,
                                  delimit={"MATERIAL"})
+        rock_uvs(bm, frame)
         bmesh.ops.translate(bm, vec=(-cx * PX, cy * PX, 0), verts=bm.verts)
-        obj = mesh(name_fmt.format(name), bm, p, coll, smooth=False)
+        obj = mesh(name_fmt.format(name), bm, p, coll, smooth=None)
         obj["tyrian_ground"] = True
         out[name] = obj
     return out

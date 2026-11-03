@@ -2666,3 +2666,92 @@ is height, not the border.
 **Review:** the comparison sheets (sprite | current | inner, overhead at game scale, x3 with the
 sprite's edge, 15°) and the scripts are in `tyrian-scratch/outline-border/` (`sheets/`, `ingame.py`,
 `measure.py`, `survey.py`). Fallback: measure against the outer mask again (`iou_outer_grid`).
+
+## D75 — TYRIAN's island rock redrawn HD: the tiles' own stones as smooth cushions in a palette-data texture, an edge band per neighbour
+
+2026-11-03
+
+**Decision:** The island rock (the 16 rock tiles of D63, the rock TYRIAN's structures carry, and the rock
+round the five machines of D66) no longer draws each 2x pixel as a palette-coloured face, which read as
+pixel stair-steps and checker shading next to the painted HD ground. It is the same stones, redrawn:
+- **The stones** (`assets/blender/tiles/lib_rock_hd.py`, numpy only, so Blender and the checks run the same
+  code). From the art among its neighbours: MMPX 2x; each pixel climbs the smoothed brightness to its
+  peak and the pixels of one peak are one stone (grey and warm stones found apart, so a tan stone doesn't
+  climb into the brighter grey one beside it); basins whose shared edge is, on average, nearly as bright
+  as the dimmer peak merge (one stone, two highlights); pixels darker than 0.12 are mortar, outline and
+  roots. Then at 8 texels per pixel: the signed distance to a stone's edge (from the 4x boundary,
+  smoothed, so outlines are curves, not steps), the stone's own shading smoothed (plus the art's
+  highlights kept as crisp glints: sheen, not bumps), its majority ramp; and pointwise a soft mortar line
+  along every edge, a cushion rising over 1.8 px, the shading a little darker toward the edge, a little
+  tile-periodic surface noise. Each stone keeps its place, size, outline and colour from the art.
+- **Palette data, not colour.** The texture is R shade (0..15, continuous), G ramp code (grey, tan, brass;
+  an enemy's rock may add one more, the red machinery's blue-grey stone), B height. The game draws it with
+  `src/render/rockMaterial.ts`: colour = palette[ramp * 16 + shade], interpolated between the two shades,
+  from the live palette texture, so level palettes, fades and JE_filterScreen apply exactly, and the hit
+  flash and smoothie hue (the `hue` that `colourFrame` gives pal_ materials) replace the ramp as the C
+  does. One material per tile instead of 10-15 palette materials. The textures are packed as lossless
+  WebP, which the glTF export embeds as they are (a lossy WebP, as the bakes export, halves the
+  colour channels the height and ramp live in: the bump went flat and seams came back). The tan stones are the art's own tan
+  (D63 snapped many to brass, so they read gold before).
+- **Relief is the bump.** B is a bump map (three.js's, reading B; at a tile's edge the slope is taken
+  looking back, not past the edge). The tops are level: geometry is per tile and can't follow the edge
+  bands below, and any relief there (tried: cushions from the texture, edges pinned to one height, the
+  normals set up along the seams) left a fine crease along every seam. The rock tiles are now 0.6-2k
+  triangles instead of 1.7-3.9k (every vertex along a tile's edge is kept, so neighbours share them:
+  an edge one side merges into one and the other doesn't rasterises with hairline gaps). The island's outline is the 2x pixels with the stair steps rounded off;
+  the underside tiles (140-142) still hang their face toward the camera.
+- **Seams.** A tile's texture is made among its usual neighbours on TYRIAN's map and its edges solved
+  against every tile the map puts beside it (D58's strip solve), but only 34% of the map's seams have both
+  tiles' usual neighbours matching, and a solved compromise showed as a soft light band along the row
+  seams. So for every pair of island tiles the map puts side by side (401 pairs, structures' tiles
+  included), the two are computed together and each gets a 3 px **edge band** for that neighbour
+  (`pair_bands`, in a second texture on the material's emission slot, keys in `tyrian_rock_bands`).
+  `StructureInstances` gives each copy a `rockBands` instance attribute from the level's map (left,
+  right, up, down), and the shader draws the band for the neighbour that is actually there, fading into
+  the tile over 1 px; in a corner the nearer side wins. A structure's rock is one material per cell
+  (`tyrian_rock_cell`: its row and column), so each cell of each copy gets the bands of its own
+  neighbours, inside the structure and round it. A neighbour without a band (other levels' pairs) gets
+  the solved texture.
+- **Structures and enemies use the same builder.** `Structure.rock` builds each cell with `rock_tile`
+  (the concept bake, `texture_bake.py`, now keeps a plain material's own UV map through its round trip:
+  it used to drop every UV map, which gave the rock the bake's);
+  under a structure's own parts the rock is level and darkened in its texture with a soft edge (no
+  pixel-step dark patches). `sprite_rock` (D66) builds the enemy's rock from its sprite with the same
+  code, one texture for the whole assembly, dark under the machine, a sheet without side walls (each
+  piece reaching 0.5 px over its neighbour, as the game places pieces apart), fading out over 1.5 px at
+  the edge of its painted area into the island under it (coverage in the texture's alpha; the material
+  stays translucent).
+- **Original look.** Tied to Options → Graphics → Terrain (D57): "Original" draws the same texture one
+  colour per original 2x pixel (whole shades and ramps, no bump): the pixel look, as the original look
+  draws the ground from its MMPX tiles. It is not D63's exact relief or colours (that would need the old
+  models alongside); `git revert` of this entry's commit is the way back to them.
+
+**Options considered:**
+- *Geometry stones (each stone a bevelled cushion mesh in palette materials):* crisp, but a cushion per
+  stone in every tile is more triangles and draws than D63, the stones' shading would still be one colour
+  per material, and stones crossing seams still break unless both tiles know each other.
+- *Gemini painting (D58/D59's way):* allowed during this work, but a painting doesn't carry palette data
+  (fades, flash and other levels' palettes would only be approximated, D60's limits), the stones would move
+  and need registering, and seams would still need the solve. The deterministic stones keep the art's
+  stones exactly.
+- *A plain RGB texture:* fewer channels, but no exact fades or hit flash, and the tiles are in nine levels'
+  palettes.
+- *Seams by the strip solve alone:* measured smooth (step ratio below 1) but visibly smeared along rows;
+  *per-tile textures with no solve:* a hard grid. *Variants (a model per neighbour set):* hundreds of
+  textures. Edge bands per pair are the variants' cost cut to the 3 px that matter.
+
+**Review:** `?debug=play&seed=1&skip=T&freezeAt=T&armor=99`, T = 2700, 3000, 3300, 3550, 4300, 4900, 5000,
+and at 3840x2160 (before/after in the PR). Seams, `python tools/rock_hd_check.py` (every seam between
+island rock tiles on map 1-9, 1,210, as the game draws them): colour step across a seam 2.12 against 2.00
+between texels inside (ratio 1.06), 8-texel bands 13.6 vs 13.3 (1.02); the original 1x art 1.13 / 1.15;
+the solved textures without bands 0.87 / 0.58 (lower because a smear has no steps: that was the light
+band along the rows). Costs: the 42 models (16 tiles, 12 structures, 14 enemy pieces) are 16.7 MB →
+13.1 MB (tiles 2.6 → 1.6, structures 9.9 → 8.0, enemies 4.2 → 3.5); draw calls in the overlay at
+T = 2700/3000/3300/3550/4300/4900/5000, 1132/1078/875/686/1122/1065/762 → 514/445/255/289/453/541/344;
+CPU per frame (overlay, before and after run alternately on a heavily loaded machine, so only the
+ratio means much) 16.5-18.6 → 8.2-9.7 ms at 2700, 9.9-13.5 → 4.6 ms at 3300, 17.7-19.0 → 8.9-9.2 ms
+at 4300, 51-59 → 60 fps. Known limits: the crater's cell is darker than the rock round it,
+as its art is; an enemy's rock meets the island under it with a 1.5 px fade (its coverage in the
+texture's alpha), and stones there don't line up with the tiles'; pairs from the other eight levels
+that use these tiles fall back to the solved textures.
+Fallback: revert this commit (scripts, models, rockMaterial.ts, the instance attribute).

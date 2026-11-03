@@ -207,7 +207,7 @@ class Structure(lb.Building):
         structure's bake leaves them alone and the rock looks the same as on the per-tile models
         round it. With `boulders=False`, only a flat dark slab from `bottom` (default slab_bottom)
         to z = 0 (and the underside tiles' hanging face), for a structure that builds its own
-        stones (the bridge). `max_height` is unused (the relief stays under lib_tiles.ROCK_RELIEF).
+        stones (the bridge). `max_height` is unused (the rock is level: its relief is its texture's bump, D75).
         Adds to self.parts."""
         bottom = self.slab_bottom if bottom is None else bottom
         k2 = np.ones((2, 2), bool)
@@ -217,10 +217,16 @@ class Structure(lb.Building):
         th, tw = lt.TILE_H * 2, lt.TILE_W * 2
         cells = [(r, c) for r, row in enumerate(self.pattern) for c, t in enumerate(row) if t >= 0] if cells is None else cells
         if boulders:
+            # The rock's "rock" UV map (lib_tiles.rock_uvs) must be on the parts before the first
+            # cell is merged in, or merging drops it when other parts came first.
+            if self.parts.loops.layers.uv.get("rock") is None:
+                self.parts.loops.layers.uv.new("rock")
             for r, c in cells:
                 ys, xs = slice(r * th, (r + 1) * th), slice(c * tw, (c + 1) * tw)
+                # Each cell its own material with the tile's edge bands: the game picks the bands of
+                # the cell's neighbours on the map, inside the structure and round it (D75).
                 bm = lt.rock_tile(self.ts, self.pattern[r][c], self.pal, region=~cut2[ys, xs], flat=ex2[ys, xs],
-                                  bottom=bottom, plain=True)
+                                  bottom=bottom, plain=True, cell=(r, c))
                 if bm is None:
                     continue
                 # rock_tile builds round the tile's own centre: move it to the cell's.

@@ -9,10 +9,13 @@
 
 import * as THREE from "three";
 import { colourFrame, rigModel, type FrameRig } from "../modelFrames";
+import { hasRockBands, ROCK_SIDES, rockBandSlot, rockCell } from "../rockMaterial";
 
 interface Part {
   mesh: THREE.InstancedMesh;
   capacity: number;
+  /** An island rock tile's edge bands per copy (rockMaterial.ts, D75): which band each side draws. */
+  bands?: THREE.InstancedBufferAttribute;
 }
 
 interface Model {
@@ -59,6 +62,12 @@ export class StructureInstances {
         const material = materials[g.materialIndex ?? 0];
         material.userData.outlineParameters = { visible: false }; // tiles join edge to edge (D8)
         const part = groups.length > 1 ? subGeometry(geometry, g.start, g.count) : geometry;
+        let bands: THREE.InstancedBufferAttribute | undefined;
+        if (hasRockBands(material)) {
+          bands = new THREE.InstancedBufferAttribute(new Float32Array(4 * 4), 4);
+          bands.setUsage(THREE.DynamicDrawUsage);
+          part.setAttribute("rockBands", bands);
+        }
         const im = new THREE.InstancedMesh(part, material, 4);
         im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         im.frustumCulled = false;
@@ -66,7 +75,7 @@ export class StructureInstances {
         im.receiveShadow = true;
         im.count = 0;
         this.group.add(im);
-        parts.push({ mesh: im, capacity: 4 });
+        parts.push({ mesh: im, capacity: 4, bands });
       }
     });
     this.models.set(name, { parts, rig: rigModel(source), count: 0, paletteVersion: -1, hue: -1, height: 0 });
@@ -77,8 +86,12 @@ export class StructureInstances {
     for (const m of this.models.values()) m.count = 0;
   }
 
-  /** One copy of a model with its origin at (x, y, z) and uniform scale. */
-  place(name: string, x: number, y: number, z: number, scale: number): void {
+  /**
+   * One copy of a model with its origin at (x, y, z) and uniform scale. `neighbours(row, col)`: the
+   * tiles on the map left of, right of, above and below that cell of the model's pattern (-1: none),
+   * so the island rock of each cell draws the edge band made for each (D75).
+   */
+  place(name: string, x: number, y: number, z: number, scale: number, neighbours?: (row: number, col: number) => readonly number[]): void {
     const model = this.models.get(name);
     if (!model) return;
     const slot = model.count++;
@@ -89,6 +102,15 @@ export class StructureInstances {
     for (const part of model.parts) {
       if (slot >= part.capacity) grow(part, Math.max(slot + 1, part.capacity * 2));
       part.mesh.setMatrixAt(slot, this.matrix);
+      if (part.bands) {
+        const material = part.mesh.material as THREE.Material;
+        const [row, col] = rockCell(material);
+        const nb = neighbours?.(row, col);
+        for (let k = 0; k < 4; k++) {
+          const tile = nb?.[k] ?? -1;
+          part.bands.array[slot * 4 + k] = tile < 0 ? 0 : rockBandSlot(material, ROCK_SIDES[k], tile);
+        }
+      }
     }
   }
 
@@ -107,7 +129,10 @@ export class StructureInstances {
       for (const part of model.parts) {
         part.mesh.count = model.count;
         part.mesh.visible = model.count > 0;
-        if (model.count > 0) part.mesh.instanceMatrix.needsUpdate = true;
+        if (model.count > 0) {
+          part.mesh.instanceMatrix.needsUpdate = true;
+          if (part.bands) part.bands.needsUpdate = true;
+        }
       }
     }
   }
@@ -133,6 +158,13 @@ function grow(part: Part, capacity: number): void {
   mesh.frustumCulled = false;
   mesh.castShadow = old.castShadow;
   mesh.receiveShadow = old.receiveShadow;
+  if (part.bands) {
+    const bands = new THREE.InstancedBufferAttribute(new Float32Array(capacity * 4), 4);
+    bands.setUsage(THREE.DynamicDrawUsage);
+    bands.array.set(part.bands.array);
+    old.geometry.setAttribute("rockBands", bands);
+    part.bands = bands;
+  }
   old.parent?.add(mesh);
   old.parent?.remove(old);
   old.dispose();
