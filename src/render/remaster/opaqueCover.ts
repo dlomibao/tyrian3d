@@ -3,11 +3,20 @@
 // level puts it on the tiles of its own wreck, which the sprite hides until the enemy is killed.
 // The models no longer draw the sprite's dirt (it was a floor of pixel cells), so the wreck's
 // structure model (a ground structure, D34) would show round and under the machine; the renderer
-// leaves out a ground structure whose whole pattern lies under opaque pixels of modelled enemies,
-// as the original's sprites hid its tiles. A covered wreck tile draws without its wreck: its
-// "covered" HD painting (terrainArt.ts), else its pixels with the wreck painted out (paintOutWreck).
+// leaves out a ground structure whose pattern lies under opaque pixels of modelled ground enemies
+// (not aircraft or the ship flying over it), as the original's sprites hid its tiles. A covered
+// wreck tile draws without its wreck: its "covered" HD painting (terrainArt.ts), else its pixels
+// with the wreck painted out (paintOutWreck).
+//
+// Only the part of a pattern inside the playfield has to be covered. The tiles scroll in a row ahead
+// of the screen, but the sim draws an enemy's sprites only once they near it (JE_drawEnemy: a 2x2
+// enemy's top half once ey > -13, its bottom half once ey > -26), so the part above the top edge
+// is never under sprites even when the enemies standing on it are there. Testing it there showed
+// the rock outcrop's crater for the 35 ticks it took the outcrop to scroll fully in. Outside the
+// playfield nothing is seen (View masks it), so what covers it doesn't matter.
 
 import { decodeSprite2, type DecodedSprite } from "../../data/sprites";
+import { PLAYFIELD_H, PLAYFIELD_SCREEN_X, PLAYFIELD_SCREEN_Y, PLAYFIELD_W } from "../../game/playfield";
 import type { Sprite2Sheet } from "../../sim/draw";
 import { composeSprite2x2 } from "../spriteMesh";
 
@@ -21,9 +30,26 @@ interface Cover {
 const STEP = 4;
 const INSET = 3;
 
+/** The part of the draw list's screen that is seen (the playfield, D6), as [x0, y0, x1, y1), screen px. */
+export interface VisibleRect {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
+export const PLAYFIELD_VISIBLE: VisibleRect = {
+  x0: PLAYFIELD_SCREEN_X,
+  y0: PLAYFIELD_SCREEN_Y,
+  x1: PLAYFIELD_SCREEN_X + PLAYFIELD_W,
+  y1: PLAYFIELD_SCREEN_Y + PLAYFIELD_H,
+};
+
 export class OpaqueCover {
   private readonly covers: Cover[] = [];
   private readonly sprites = new Map<string, DecodedSprite>();
+
+  constructor(private readonly visible: VisibleRect = PLAYFIELD_VISIBLE) {}
 
   /** Start a frame: nothing covered. */
   begin(): void {
@@ -52,16 +78,36 @@ export class OpaqueCover {
     return false;
   }
 
-  /** Whether the screen rectangle (left, top, w, h) lies under opaque sprite pixels (sampled every STEP px, INSET px in from its edges). */
+  /**
+   * Whether the seen part of the screen rectangle (left, top, w, h) lies under opaque sprite pixels,
+   * sampled every STEP px, INSET px in from the rectangle's own edges (sprites and patterns can be
+   * a pixel or two apart); a seen sliver narrower than that is sampled down its middle. A rectangle
+   * wholly outside the playfield isn't covered: nothing is known about it.
+   */
   covered(left: number, top: number, w: number, h: number): boolean {
     if (this.covers.length === 0) return false;
-    for (let y = top + INSET; y <= top + h - INSET; y += STEP) {
-      for (let x = left + INSET; x <= left + w - INSET; x += STEP) {
+    const v = this.visible;
+    if (left + w <= v.x0 || left >= v.x1 || top + h <= v.y0 || top >= v.y1) return false;
+    const [x0, x1] = sampleSpan(left, w, v.x0, v.x1);
+    const [y0, y1] = sampleSpan(top, h, v.y0, v.y1);
+    for (let y = y0; y <= y1; y += STEP) {
+      for (let x = x0; x <= x1; x += STEP) {
         if (!this.opaqueAt(x, y)) return false;
       }
     }
     return true;
   }
+}
+
+/**
+ * Where to sample a span (start, length) on one axis, seen between [lo, hi): INSET in from the span's
+ * ends, clipped to what is seen; if that leaves nothing, the middle of the seen part.
+ */
+function sampleSpan(start: number, length: number, lo: number, hi: number): [number, number] {
+  const a = Math.max(start + INSET, lo), b = Math.min(start + length - INSET, hi - 1);
+  if (a <= b) return [a, b];
+  const mid = Math.max(lo, (Math.max(start, lo) + Math.min(start + length, hi) - 1) / 2);
+  return [mid, mid];
 }
 
 /** TYRIAN's dirt ramp (palette indices), what its ground enemies' sprites paint round them. */

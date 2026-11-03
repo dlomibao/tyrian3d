@@ -669,7 +669,9 @@ export class DrawListRenderer {
             const pool = this.modelPool(r.model);
             const look = this.objectLook(d, pool, now, frame);
             if (look === ObjectLook.Model) {
-              if (d.effect !== "blend") this.cover.add(d.sheet, d.index, d.size, x, y);
+              // Only ground enemies stand on the ground's structures and hide them (D67); a ship or
+              // an aircraft model flying over a wreck doesn't erase it.
+              if (d.pass === Pass.GroundEnemies && d.effect !== "blend") this.cover.add(d.sheet, d.index, d.size, x, y);
               const shift = r.override ? bankShift(d.sheet.id, d.sheet.data, r.override.baseIndex, d.index) : 0;
               this.drawModel(r.route, pool, r.bank, shift, d, x, y, cam, dt);
               continue;
@@ -729,8 +731,8 @@ export class DrawListRenderer {
       }
     }
 
-    // A ground structure wholly under opaque enemy sprites (a wreck under its live bunker) is left
-    // out, as the sprites hid its tiles (D67).
+    // A ground structure under opaque ground-enemy sprites (a wreck under its live bunker), as far as
+    // the playfield shows it, is left out, as the sprites hid its tiles (D67).
     for (const s of this.groundStructures) {
       if (!this.cover.covered(s.left, s.top, s.w, s.h)) this.structures.place(s.model, s.x, s.y, s.z, s.scale);
     }

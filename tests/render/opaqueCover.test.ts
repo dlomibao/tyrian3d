@@ -1,5 +1,5 @@
-// D67: a ground structure (a wreck) is left out while opaque enemy sprites drawn as models cover
-// its whole pattern, as the original's sprites hid its tiles.
+// D67: a ground structure (a wreck) is left out while opaque ground-enemy sprites drawn as models
+// cover the part of its pattern inside the playfield, as the original's sprites hid its tiles.
 import { describe, expect, test } from "vitest";
 import { OpaqueCover, paintOutWreck } from "../../src/render/remaster/opaqueCover";
 
@@ -29,12 +29,35 @@ describe("opaque cover", () => {
     expect(c.covered(100, 50, 24, 28)).toBe(false);
   });
 
+  test("only the part inside the playfield has to be covered (the sim draws no sprites above it)", () => {
+    // The rock outcrop scrolling in (tick 1336): its crater's pattern (72x56) starts 37 px above the
+    // playfield's top edge, and only its bottom rocks, which reach above the edge, are drawn yet.
+    const c = new OpaqueCover();
+    const s = sheet();
+    c.begin();
+    for (let col = 0; col < 6; col++) for (const y of [-8, 6]) c.add(s, 1, 1, 212 + col * 12, y);
+    expect(c.covered(212, -37, 72, 56)).toBe(true);
+    expect(c.covered(212, -37, 72, 60)).toBe(false); // reaches past the rocks inside the playfield
+    // a sliver of a pattern inside the top edge, narrower than the inset, is sampled down its middle
+    expect(c.covered(212, -55, 72, 56)).toBe(true);
+    expect(c.covered(140, -55, 72, 56)).toBe(false);
+    // a pattern wholly outside the playfield isn't covered (nothing there is known)
+    c.add(s, 1, 1, 212, -40);
+    expect(c.covered(212, -40, 12, 14)).toBe(false);
+    // custom seen area: the left edge clips the same way
+    const d = new OpaqueCover({ x0: 24, y0: 0, x1: 288, y1: 184 });
+    d.begin();
+    d.add(s, 1, 1, 24, 50);
+    expect(d.covered(0, 50, 36, 14)).toBe(true);
+    expect(d.covered(0, 50, 40, 14)).toBe(false);
+  });
+
   test("transparent sprite pixels don't cover", () => {
     const c = new OpaqueCover();
     c.begin();
-    c.add(sheet(6), 1, 1, 0, 0);
-    expect(c.covered(0, 0, 12, 14)).toBe(false);
-    expect(c.covered(6, 0, 6, 14)).toBe(true);
+    c.add(sheet(6), 1, 1, 100, 50);
+    expect(c.covered(100, 50, 12, 14)).toBe(false);
+    expect(c.covered(106, 50, 6, 14)).toBe(true);
   });
 });
 

@@ -2608,10 +2608,21 @@ wreck's model and its HD painting showed round and under the live machine (the b
 enemy height over the ground). So:
 
 - **Covered structures** (`src/render/remaster/opaqueCover.ts`, `DrawListRenderer`): a ground (layer 0)
-  structure is placed after the frame's draws are known, and left out when its whole pattern lies under
-  opaque pixels of sprites drawn as models (sampled every 4 px, 3 px in from its edges; translucent
-  "blend" draws don't count). This is the original's rule (an opaque sprite hides the tiles under it), so
-  the wreck appears the frame its bunker dies. Layer 1-2 structures are placed as before.
+  structure is placed after the frame's draws are known, and left out when the part of its pattern
+  inside the playfield lies under opaque pixels of ground enemies' sprites drawn as models (sampled
+  every 4 px, 3 px in from its edges, a thinner seen sliver down its middle; translucent "blend" draws
+  don't count). This is the original's rule (an opaque sprite hides the tiles under it), so the wreck
+  appears the frame its bunker dies. Layer 1-2 structures are placed as before.
+  - *Only the playfield part:* the tiles scroll in a row ahead of the screen, but the sim draws an
+    enemy's sprites only near it (`JE_drawEnemy`: a 2x2 enemy's top half once `ey > -13`, its bottom
+    half once `ey > -26`). Testing the whole pattern, the rock outcrop's crater (the outcrop's two rows
+    enter 35 ticks apart) failed the test and showed round the rocks from tick 1318 to 1352, as it
+    scrolled in. Outside the playfield nothing is seen (`View` masks it), and a pattern wholly outside
+    it is placed as without enemies.
+  - *Only ground enemies* (`Pass.GroundEnemies`, `JE_drawEnemy(50/100)`): they stand on the ground's
+    structures. Aircraft and the ship fly over them at their own height, and their models don't erase
+    the ground; counting them made the trees and boulders (112, 210-233) vanish under passing aircraft
+    (level 1 ticks ~2630-5920, HOLES throughout).
 - **Covered tiles**: a ground cell of a ground structure's tile (`WRECK_TILES`, from the tile models)
   is also drawn after the frame's draws, and when its own 24x28 cell lies under opaque modelled enemy
   pixels it draws without the wreck: in the HD terrain look from a "covered" painting, in the other
@@ -2619,8 +2630,8 @@ enemy height over the ground). So:
   dirt pixel's index (`paintOutWreck`, TYRIAN's dirt ramp 16-21), which reads as the sprite's dirt did.
   The crater is scorched dirt drawn in the dirt colours, so painting out leaves its outline; in the
   pixel looks its covered cells draw as the plain ground tile round it (shapesz 100, `COVERED_STAND_IN`).
-  **The HD look never falls back to pixels:** a covered cell with no covered painting (the trees and
-  boulders 112, 210-233 that enemies pass over at ticks ~2630-5320) keeps its normal HD tile, as on main.
+  **The HD look never falls back to pixels:** a covered cell with no covered painting (a tree or boulder
+  a ground enemy stands on) keeps its normal HD tile, as on main.
   The covered painting is a new optional manifest key per layer, `"covered": { "<tile>": rect }`
   (`terrainArt.ts`, `TerrainTileset.coveredTile`), here in its own atlas `0-covered.webp` (14 tiles, 66 KB).
   `tools/terrain_covered.py` makes it, one Gemini request per set: `sheet bunkers` puts both bunker
