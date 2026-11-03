@@ -1,7 +1,7 @@
 // The title's backdrop (DECISIONS.md D64): the original title's huge maroon planet, arcing from the
 // top left down the right, as a painting in motion, with a slow amber sunrise past its limb and the
 // odd Talon crossing. The "title" mood draws it as is; the menus' moods ("hangar", "space") draw it
-// dimmed, without the passing ships, under their own 3D ship (src/ui/backdrop.ts, D75).
+// dimmed, without the passing ships, under their own 3D ship (src/ui/backdrop.ts, D85).
 //
 // Two passes on the View's renderer:
 // - the paint: one full-screen fragment shader (planet, flowing brush strokes, sunrise, stars),

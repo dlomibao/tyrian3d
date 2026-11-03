@@ -1,5 +1,5 @@
 /*
- * The item screen between levels (src/app/shop.ts), in the original's layout (D75): two panes of
+ * The item screen between levels (src/app/shop.ts), in the original's layout (D85): two panes of
  * the interface framework (src/ui/components.css .ui-pane), the picture and its readouts on the
  * left, the menu's title and list on the right, and the HUD's message bar along the bottom. The
  * screen's panel only lays them out; the backdrop's ship turns in the gap beside them.

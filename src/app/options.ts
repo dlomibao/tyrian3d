@@ -518,7 +518,7 @@ export function showOptions(host: OptionsHost, focus: OptionsFocus = "sound"): P
               : 5;
     const keyboard = keyMenu[0] ? styleName(keyMenu[0].toLowerCase()) : "Keyboard";
     const sectionTitles = ["Sound", "Graphics", keyboard, `${keyboard} · ${g.miscText[49]?.trim() || "Player 2"}`, (g.menuInt[13] ?? [])[0] || "Gamepad", ""];
-    // The sections in columns on wide screens (D75): Sound and Graphics, then each player's keys
+    // The sections in columns on wide screens (D85): Sound and Graphics, then each player's keys
     // (the gamepad's check under player 2's), and Done centred under them.
     const groups = [0, 1, 2].map(() => h("ul", { class: "ui-menu opt-group", attrs: { role: "presentation" } }));
     const doneGroup = h("ul", { class: "ui-menu opt-group opt-group--done", attrs: { role: "presentation" } });
@@ -784,7 +784,7 @@ export function showLoadScreen(host: Pick<OptionsHost, "sfx">): Promise<number |
     screen.add(
       h("div", { class: "load-pages" }, prev, heading, next),
       list,
-      // The help and hints: the HUD's message bar (D75).
+      // The help and hints: the HUD's message bar (D85).
       h(
         "div",
         { class: "ui-msgbar load-foot" },

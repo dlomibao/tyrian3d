@@ -163,7 +163,7 @@ export function showHighScoreScreen(opts: HighScoreScreenOptions): Promise<void>
     render();
 
     screen.add(
-      // The original's layout (D75): the title with the episode pager beside it, the tables, Done,
+      // The original's layout (D85): the title with the episode pager beside it, the tables, Done,
       // and the hints in the message bar.
       h("header", { class: "hs-head" }, title(misc(50, "High Scores")), h("div", { class: "hs-paging" }, prev, episodeEl, next)),
       tablesEl,

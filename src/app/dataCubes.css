@@ -164,7 +164,7 @@
   overflow-wrap: anywhere;
 }
 
-/* The terminal glass the text sits on: a well (D75). */
+/* The terminal glass the text sits on: a well (D85). */
 .ui-screen--shop .cube-screen {
   position: relative;
   border-radius: 4px;

@@ -1,7 +1,7 @@
 /* The settings, load-game and save-name screens (src/app/options.ts), on src/ui's components, and
    the volume sliders and save slots of the item screen's Options rows. */
 
-/* --- the settings screen (D75: the sections in columns on wide screens, the message bar at the foot) --- */
+/* --- the settings screen (D85: the sections in columns on wide screens, the message bar at the foot) --- */
 
 .ui-screen--options > .ui-panel {
   max-width: min(100%, 92rem);

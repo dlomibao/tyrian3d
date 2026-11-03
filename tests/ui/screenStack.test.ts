@@ -73,7 +73,7 @@ describe("screens over screens", () => {
     expect(title.open).toBe(true);
     expect(title.root.classList.contains("is-under")).toBe(true);
     expect(manager.current).toBe(options);
-    // The backdrop keeps the title's planet, dimmed for a menu (D75).
+    // The backdrop keeps the title's planet, dimmed for a menu (D85).
     expect(options.opts.backdrop).toBe("space");
     expect(moods.at(-1)).toBe("space");
     press("Enter");

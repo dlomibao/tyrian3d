@@ -2,7 +2,7 @@
 
 Every screen outside the action itself (the data picker, title, item screen, messages, pause, and
 the Data Cubes, Options, high scores, endings and story screens still to come) is an HTML screen
-built from this folder, over a 3D backdrop. That gives them one look (D75: umber glass panes in a
+built from this folder, over a 3D backdrop. That gives them one look (D85: umber glass panes in a
 thin bronze rim over the dimmed painted planet, copper for what you choose, phosphor green for what
 the game counts, crisp vector text at any size) and one way to drive them (keyboard,
 gamepad, mouse and touch). The game rules behind a screen stay in `src/sim/` and don't change;
@@ -121,7 +121,7 @@ same classes: `ui-menu`, `ui-menu__item is-focused`, `ui-menu__icon`, `ui-menu__
 
 ## Look
 
-D75: panes are `.ui-panel` (or `.ui-pane` inside a screen's panel), umber glass in a 2 px bronze
+D85: panes are `.ui-panel` (or `.ui-pane` inside a screen's panel), umber glass in a 2 px bronze
 rim. Colour has one rule. What you choose is copper: titles in the copper type, kickers and labels
 in spaced copper capitals, and the chosen line with the brush smear (`--ui-focus-fill`), a diamond
 tick and lit copper words. What the game counts is phosphor (`.ui-phos`, `--ui-phos*`): credits,
@@ -145,7 +145,7 @@ backdrop mood is up, and stops when none is (it costs nothing during levels). Ev
 painted planet at sunrise (`titlePlanet.ts`, D64: a reduced-resolution paint pass, a
 half-resolution path for slow GPUs, one still frame under reduced motion). "title" shows it with
 passing Talons; "space" (any other menu) dims it under the panes; "hangar" (the item screen) adds the
-player's ship, turning in the gap beside the panes (D55, D75). Without WebGL a CSS stand-in shows
+player's ship, turning in the gap beside the panes (D55, D85). Without WebGL a CSS stand-in shows
 (a maroon planet for the title, the same planet dimmed otherwise).
 `ui.backdrop?.setShipGraphic?.(shipGraphic)` shows a player ship (the item screen does this as ships
 are browsed).

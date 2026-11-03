@@ -2,7 +2,7 @@
  * Design tokens for the remastered interface (src/ui/README.md). Every screen and component reads
  * these custom properties, so a restyle is a change here, not in each screen.
  *
- * The look (D75, "copper and bronze"): the original's layouts on dark umber glass panes with a thin
+ * The look (D85, "copper and bronze"): the original's layouts on dark umber glass panes with a thin
  * bronze rim, over the dimmed painted planet of the title (D64). One rule for colour: what you
  * choose is copper (the title's type, its brush smear, diamond ticks and glint); what the game
  * counts is phosphor green, as on the HUD (D61): credits, prices, scores, gauges and the message
@@ -63,7 +63,7 @@
   --ui-player1: #f0b048;
   --ui-player2: #5cd6ff;
 
-  /* Colour: accents. The older names, pointed at copper (D75). */
+  /* Colour: accents. The older names, pointed at copper (D85). */
   --ui-gold: var(--ui-copper-lite);
   --ui-gold-bright: var(--ui-copper-hi);
   --ui-gold-deep: var(--ui-copper-deep);
@@ -98,7 +98,7 @@
   /* The chosen line's background: a full background value (the smear), not just a colour. */
   --ui-focus-fill: var(--ui-smear) center / 100% 100% no-repeat;
 
-  /* Glows: none on the menus (D75); the names stay for the screens that read them. */
+  /* Glows: none on the menus (D85); the names stay for the screens that read them. */
   --ui-glow-gold: none;
   --ui-glow-cyan: none;
   --ui-shadow: 0 1.4rem 3rem rgba(0, 0, 0, 0.55);

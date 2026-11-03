@@ -155,7 +155,7 @@
   background: var(--ui-well);
 }
 
-/* The players keep the HUD's colours, which tell them apart in play (D61, D75). */
+/* The players keep the HUD's colours, which tell them apart in play (D61, D85). */
 .shop-two__player--1 { --p-color: var(--ui-player1, #e0a040); }
 .shop-two__player--2 { --p-color: var(--ui-player2, #5cd6ff); }
 

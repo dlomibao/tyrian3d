@@ -3275,7 +3275,7 @@ texture's alpha), and stones there don't line up with the tiles'; pairs from the
 that use these tiles fall back to the solved textures.
 Fallback: revert this commit (scripts, models, rockMaterial.ts, the instance attribute).
 
-## D75 — The menus in copper and bronze: the original's layouts on umber glass over the dimmed planet
+## D85 — The menus in copper and bronze: the original's layouts on umber glass over the dimmed planet
 
 2026-11-03
 

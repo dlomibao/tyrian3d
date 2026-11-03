@@ -9,7 +9,7 @@
 // moves the cursor there, a second click on the same row selects it. Behind it the backdrop turns
 // the player's ship over the dimmed planet, in the gap beside the panes.
 //
-// The layout is the original item screen's (D75): a pane with the picture (the loadout, the weapon
+// The layout is the original item screen's (D85): a pane with the picture (the loadout, the weapon
 // simulator or a cube's portrait) over the readouts (credits, weapon power, upgrade cost), a pane
 // with the menu's title and list, and the help line in the HUD's message bar along the bottom. The Options menu's dialogs and settings screen are in options.ts; the Data
 // Cubes menus in dataCubes.ts; the weapon preview in weaponPreview.ts.
@@ -412,7 +412,7 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
     const ox = W / 2 - navState.x;
     const oy = H / 2 - navState.y;
     const bg = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, W * 0.7);
-    // A well of the item screen's panes (D75): umber black, bronze grid lines.
+    // A well of the item screen's panes (D85): umber black, bronze grid lines.
     bg.addColorStop(0, "#1a100a");
     bg.addColorStop(1, "#0a0704");
     ctx.fillStyle = bg;
@@ -530,7 +530,7 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
       inner = optionsRow;
     } else if (menu.curMenu === MENU_UPGRADE_SUB && !e.done) {
       const icon = itemIcon(menu.curSel[MENU_UPGRADES], e.item ?? 0);
-      // The price on the right in phosphor (what the game counts, D75).
+      // The price on the right in phosphor (what the game counts, D85).
       inner = `<span class="ui-menu__icon">${icon ? `<img src="${icon}" alt="">` : ""}</span>
         ${text(e.label)}
         ${e.owned ? `<span class="ui-badge" title="Owned">Owned</span>` : ""}

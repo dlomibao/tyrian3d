@@ -1,7 +1,7 @@
 /*
  * Base components of the remastered interface (src/ui/components.ts, screen.ts). Everything is
  * drawn with borders, gradients and shadows, so it stays crisp at any resolution; colours, sizes
- * and timings come from tokens.css. The look is D75's: umber glass panes in a thin bronze rim,
+ * and timings come from tokens.css. The look is D85's: umber glass panes in a thin bronze rim,
  * copper for what you choose, phosphor for what the game counts.
  */
 
@@ -784,7 +784,7 @@ h3.ui-title {
 }
 
 /* The CSS stand-in for the 3D backdrop when WebGL is missing (src/ui/backdrop.ts): the title's
-   planet (below), dimmed for the menus (D75). */
+   planet (below), dimmed for the menus (D85). */
 .ui-backdrop-fallback {
   position: fixed;
   inset: 0;
@@ -829,7 +829,7 @@ h3.ui-title {
   display: none;
 }
 
-/* Phones (the phone renders, D75): a menu's pane fills the window, its message bar at the foot. */
+/* Phones (the phone renders, D85): a menu's pane fills the window, its message bar at the foot. */
 @media (max-width: 700px) {
   .ui-screen--options,
   .ui-screen--highscores,

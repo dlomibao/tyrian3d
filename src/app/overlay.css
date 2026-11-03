@@ -91,7 +91,7 @@
   color: #ff8a70 !important;
 }
 
-/* The HUDs keep D61's colours whatever the menus' tokens say (D75 points those at copper). */
+/* The HUDs keep D61's colours whatever the menus' tokens say (D85 points those at copper). */
 .hud,
 .hud2 {
   --ink: #eef3f8;

@@ -276,7 +276,7 @@ export class ScreenManager {
     // any other closes it and everything under it.
     const below = opts.over ? prev : null;
     // Without a mood of its own it keeps the one beneath, except the title's: a menu over the
-    // title dims its planet ("space", D75).
+    // title dims its planet ("space", D85).
     const inherited = below?.opts.backdrop === "title" ? "space" : (below?.opts.backdrop ?? "space");
     const screen = new Screen(below && !opts.backdrop ? { ...opts, backdrop: inherited } : opts, this);
     this._current = screen;

@@ -10,7 +10,7 @@
 // Moods (BackdropMood, src/ui/screen.ts): "title" is the painted planet at sunrise with Talons
 // passing; "space" (the other menus) is the same planet dimmed under their panes, without the
 // Talons; "hangar" (the item screen) adds the player's current ship, turning slowly, in the biggest
-// gap beside the panes (D55, D75). The planet keeps one clock across the moods, so moving between
+// gap beside the panes (D55, D85). The planet keeps one clock across the moods, so moving between
 // the title and a menu only dims or brightens it. If the planet's shader can't run, the older 3D
 // scene (a generated dark planet in a starfield) stands in behind the ship.
 
@@ -189,7 +189,7 @@ export class Backdrop implements BackdropControl {
     this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     this.scene.environmentIntensity = 0.7;
     pmrem.dispose();
-    // Warm, for the painted planet's sunrise (D75): a bone sky, the amber of the sun as the rim.
+    // Warm, for the painted planet's sunrise (D85): a bone sky, the amber of the sun as the rim.
     this.scene.add(new THREE.HemisphereLight(0xe8d6c4, 0x20160c, 1.1));
     const sun = new THREE.DirectionalLight(0xfff1dc, 2.6);
     sun.position.set(-30, 26, 8);
@@ -340,7 +340,7 @@ export class Backdrop implements BackdropControl {
     const reachX = pxPerUnit * SHIP_RADIUS;
     const reachY = pxPerUnit * (SHIP_RADIUS * Math.sin(elev) + SHIP_HEIGHT);
     const slot = box ? freeSlot(w, h, box, Math.sign(this.target.frameX), reachX, reachY, MIN_FIT) : null;
-    // Over the painted planet only the item screen shows the ship (D75), and only in a gap beside
+    // Over the painted planet only the item screen shows the ship (D85), and only in a gap beside
     // its panes: where the panes fill the window (phones) it isn't drawn behind them.
     const shown = !planet || (this.mood === "hangar" && (!box || !!slot));
     const wantScale = !shown ? 0 : slot ? Math.min(this.target.scale, slot.fit) : this.target.scale;

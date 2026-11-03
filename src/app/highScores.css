@@ -1,7 +1,7 @@
 /* The high score screens (src/app/highScoresScreen.ts), on src/ui's components and tokens:
    .ui-screen--highscores (the tables) and .ui-screen--highscore-entry (the name entry). */
 
-/* --- the tables (D75: the title and the episode pager on one line, scores in phosphor) --- */
+/* --- the tables (D85: the title and the episode pager on one line, scores in phosphor) --- */
 
 .ui-screen--highscores > .ui-panel {
   max-width: 46rem;
