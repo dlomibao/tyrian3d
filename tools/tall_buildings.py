@@ -1,4 +1,4 @@
-"""Tall buildings (DECISIONS.md D68, docs/agents/TALL-BUILDINGS.md): read a structure's tiles as a
+"""Tall buildings (DECISIONS.md D82, docs/agents/TALL-BUILDINGS.md): read a structure's tiles as a
 roof with a painted wall below it, say whether it counts as tall, and measure a built model against
 its tiles from the game's cameras.
 

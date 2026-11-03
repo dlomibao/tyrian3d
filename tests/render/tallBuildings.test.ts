@@ -1,4 +1,4 @@
-// Tall buildings (DECISIONS.md D68, docs/agents/TALL-BUILDINGS.md): a structure model with the extras
+// Tall buildings (DECISIONS.md D82, docs/agents/TALL-BUILDINGS.md): a structure model with the extras
 // `tyrian_oblique` and `tyrian_depth_band` is drawn in the art's oblique view with its depth squeezed
 // (src/render/remaster/structureInstances.ts).
 import * as THREE from "three";

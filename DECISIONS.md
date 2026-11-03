@@ -3006,7 +3006,8 @@ both, draw calls 380 -> 480 while four damaged pieces are on screen. Six GLBs, 6
 preloads them with the damaged graphics). `tests/render/modelSwap.test.ts` no longer lists types
 522-527 and passes (no model/sprite mix on level 1, preload coverage on episode 1).
 Fallback: delete the six `newshe-*-f2` GLBs and JSONs; the damaged frames go back to extruded sprites.
-## D68 — Tall buildings are real buildings drawn in the art's oblique view
+
+## D82 — Tall buildings are real buildings drawn in the art's oblique view
 
 2026-11-03
 

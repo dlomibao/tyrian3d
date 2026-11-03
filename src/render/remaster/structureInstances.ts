@@ -7,7 +7,7 @@
 // Each model's meshes are flattened into parts (geometry with the node transforms baked in, and a
 // material), and each part gets an InstancedMesh that grows as needed.
 //
-// A tall structure (DECISIONS.md D68, docs/agents/TALL-BUILDINGS.md) is a true building, with
+// A tall structure (DECISIONS.md D82, docs/agents/TALL-BUILDINGS.md) is a true building, with
 // vertical walls and its real height, drawn the way its tiles draw it:
 // - `tyrian_oblique: k` (extra): each vertex goes on the camera ray through the point of its base
 //   plane that the art's oblique view puts it at, `k` px up the screen per px of height (the

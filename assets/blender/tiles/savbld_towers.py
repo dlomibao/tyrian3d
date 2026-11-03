@@ -1,5 +1,5 @@
 """SAVARA's stone towers in the sea (Episode 1, map 1-8 SAVARA, shapesy.dat, layer 0): the worked example
-of the tall-building rule (DECISIONS.md D68, docs/agents/TALL-BUILDINGS.md, lib_tall.py).
+of the tall-building rule (DECISIONS.md D82, docs/agents/TALL-BUILDINGS.md, lib_tall.py).
 
 The tiles draw each tower in the art's oblique view: a grey roof of carved slabs with chamfered corners
 (rows 320/330), and below it the south wall, dark stone with pairs of buttress pipes (340, 350 repeated,

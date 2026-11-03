@@ -1,7 +1,7 @@
 # Tall buildings and structures
 
 How to model a structure whose tiles paint a roof with a wall below it (the art's fake perspective).
-Standard: DECISIONS.md D68. Kit: `assets/blender/tiles/lib_tall.py`. Measure: `tools/tall_buildings.py`.
+Standard: DECISIONS.md D82. Kit: `assets/blender/tiles/lib_tall.py`. Measure: `tools/tall_buildings.py`.
 Worked example: `assets/blender/tiles/savbld_towers.py` (SAVARA's towers).
 
 ## Is it tall?
@@ -87,7 +87,7 @@ Then capture it in game at 0°, 15° and 32° (`?debug=play&main=N&seed=1&skip=T
 next to `&bg=original`, and at three ticks as it scrolls. Check that enemies and shots draw over it,
 that background 2 (clouds) still covers it, and that its shadow falls where it should.
 
-## What was tried (D68)
+## What was tried (D82)
 
 All on SAVARA's wide and tall towers and TYRIAN's drum. "15°" is the default camera.
 
