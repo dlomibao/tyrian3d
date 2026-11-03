@@ -1,4 +1,4 @@
-// The shield's hit flash (DECISIONS.md D67): the nine light-blue arcs JE_playerDamage draws round
+// The shield's hit flash (DECISIONS.md D77): the nine light-blue arcs JE_playerDamage draws round
 // a ship whose shield took a hit, as one energy bubble round the ship model.
 //
 // Each bubble is an instance of a squashed sphere, additive, brightest at its rim (a fresnel term,

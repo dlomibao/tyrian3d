@@ -27,6 +27,10 @@
 //       the bot above; player 2 (rear weapon power 3, so 3 lives) is not invulnerable: it fires,
 //       steers toward player 1 until the two link, turns the linked gun, then breaks away (see
 //       bot2Mouse). The lines also print player 2 and the link.
+//   Environment (D75):
+//     BOT_SEED=<n>  seed mt_rand with n before JE_initPlayerData, as tools/inventory.mjs does (it
+//                   seeds each level with episode * 1000 + section), instead of with 1 after it.
+//     BOT_MORTAL=1  the bot only fires and sweeps: no invulnerability, no armor top-up.
 #include "backgrnd.h"
 #include "config.h"
 #include "demo.h"
@@ -59,6 +63,7 @@ static long every = 1;
 static int routeEpisode, routeSection;
 static const char *gameMode = "full";  // [arcade]
 static bool twoPlayers = false;
+static bool mortal = false;  // BOT_MORTAL
 
 // keyboard.c's mouseGetRelativePosition is patched (run.sh) to return these: player 2's mouse.
 int bot_mouse_x, bot_mouse_y;
@@ -148,9 +153,12 @@ void bot_level_tick(void)
 	if (botTick > 0)
 	{
 		long t = botTick - 1;
-		player[0].invulnerable_ticks = 2;
-		if (player[0].armor < 10)
-			player[0].armor = 10;
+		if (!mortal)
+		{
+			player[0].invulnerable_ticks = 2;
+			if (player[0].armor < 10)
+				player[0].armor = 10;
+		}
 		bool left = (t / 50) % 2 == 0;
 		keysactive[keySettings[KEY_SETTING_FIRE]] = 1;
 		keysactive[keySettings[KEY_SETTING_LEFT]] = left;
@@ -210,6 +218,11 @@ int main(int argc, char **argv)
 	memcpy(keySettings, defaultKeySettings, sizeof(keySettings));
 
 	twoPlayers = strcmp(mode, "play2") == 0;
+
+	const char *seed = getenv("BOT_SEED");
+	mortal = getenv("BOT_MORTAL") != NULL;
+	if (seed)
+		mt_srand(strtoul(seed, NULL, 10));
 
 	// opentyr.c's main loop and newGame() for "1 Player Full Game", normal difficulty (what
 	// newOnePlayerGame in src/sim/newgame.ts follows); for play2, newGame()'s "2 Player Arcade"
@@ -278,7 +291,8 @@ int main(int argc, char **argv)
 		player[0].items.weapon[FRONT_WEAPON].id = 39;  // Atomic RailGun
 	}
 
-	mt_srand(1);
+	if (!seed)
+		mt_srand(1);
 	mainLevel = routeSection;
 
 	if (strcmp(mode, "route") == 0)

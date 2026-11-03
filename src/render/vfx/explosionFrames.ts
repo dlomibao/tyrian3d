@@ -56,7 +56,7 @@ function kindOf(type: number): ExplosionKind {
   if (type === 6 || type === 12) return ExplosionKind.Smoke;
   if (type >= SHIELD_FIRST && type <= SHIELD_LAST) return ExplosionKind.Shield;
   if (type <= 34) return ExplosionKind.Spark;
-  return ExplosionKind.Other; // 35+: coin and gem values, drawn as they are
+  return ExplosionKind.Other; // 35+: coin and gem values, drawn as they are (flat art when remastered, D76)
 }
 
 const SHIELD_FIRST = 14;
