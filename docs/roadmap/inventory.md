@@ -63,13 +63,13 @@ so a tileset shared by many levels is the biggest single piece of terrain work.
 |---|---|---|---|---|---|---|---|---|
 | 1 | assembly-newsh-caret-123 | ground (boss) | basic | 8 | 1 | 488 | 58802 | 4.5, 4.6, 4.7, 4.8, 4.9, 4.12, 4.15, 4.20 |
 | 2 | newsh3-267 | ground | basic | 8 | 1 | 72 | 39094 | 4.5, 4.6, 4.8, 4.9, 4.12, 4.15, 4.16, 4.20 |
-| 3 | newshf-169 | ground | basic | 7 | 4 | 85 | 14828 | 1.8, 1.12, 1.16, 1.17, 2.1, 3.10, 4.3 |
+| 3 | newshf-169 | ground | basic | 7 | 4 | 85 | 14794 | 1.8, 1.12, 1.16, 1.17, 2.1, 3.10, 4.3 |
 | 4 | newshe-195 | ground | basic | 7 | 4 | 124 | 8116 | 1.4, 1.10, 2.3, 2.9, 3.6, 3.7, 4.9 |
 | 5 | assembly-newshf-270 | ground (boss) | basic | 6 | 4 | 42 | 42306 | 1.8, 1.12, 1.17, 2.1, 3.10, 4.3 |
 | 6 | assembly-newshf-195 | ground (boss) | basic | 6 | 4 | 28 | 26394 | 1.8, 1.12, 1.17, 2.1, 3.10, 4.3 |
 | 7 | assembly-newshf-191 | ground | basic | 6 | 4 | 28 | 24074 | 1.8, 1.12, 1.17, 2.1, 3.10, 4.3 |
-| 8 | assembly-newshf-199 | ground | basic | 6 | 4 | 28 | 23596 | 1.8, 1.12, 1.17, 2.1, 3.10, 4.3 |
-| 9 | newshf-171 | ground | basic | 6 | 4 | 0 | 12058 | 1.8, 1.12, 1.17, 2.1, 3.10, 4.3 |
+| 8 | assembly-newshf-199 | ground | basic | 6 | 4 | 28 | 23598 | 1.8, 1.12, 1.17, 2.1, 3.10, 4.3 |
+| 9 | newshf-171 | ground | basic | 6 | 4 | 0 | 12073 | 1.8, 1.12, 1.17, 2.1, 3.10, 4.3 |
 | 10 | newshf-238 | ground | basic | 6 | 4 | 7 | 6135 | 1.8, 1.12, 1.17, 2.1, 3.10, 4.3 |
 | 11 | newshf-230 | ground | basic | 6 | 4 | 7 | 6037 | 1.8, 1.12, 1.17, 2.1, 3.10, 4.3 |
 | 12 | newshd-191 | ground | basic | 6 | 3 | 0 | 8842 | 1.1, 1.2, 1.3, 2.4, 3.1, 3.2 |
@@ -99,7 +99,7 @@ so a tileset shared by many levels is the biggest single piece of terrain work.
 | 36 | newshd-85 | ground | basic | 5 | 3 | 0 | 1410 | 1.1, 1.2, 1.3, 2.4, 3.2 |
 | 37 | assembly-newsh4-124 | decor+ground (boss) | flagship, 13 damaged frames unmodelled | 5 | 2 | 120 | 125701 | 1.9, 1.11, 1.15, 1.16, 3.8 |
 | 38 | newsha-169 | ground | basic | 5 | 2 | 235 | 12769 | 1.6, 1.7, 1.18, 3.3, 3.6 |
-| 39 | newshj-19 | ground | basic | 5 | 2 | 0 | 11700 | 1.13, 2.1, 2.10, 2.11, 2.12 |
+| 39 | newshj-19 | ground | basic | 5 | 2 | 0 | 11127 | 1.13, 2.1, 2.10, 2.11, 2.12 |
 | 40 | newshf-1 | ground | basic | 5 | 2 | 134 | 8130 | 1.8, 1.12, 1.17, 4.3, 4.19 |
 
 458 enemy units are not done; the full list is `ranking.units` in inventory.json.
@@ -141,13 +141,13 @@ every weapon and sidekick the episode's shops sell.
 | 1 | tyrian.shp#7\|1\|286 | enemy and player shot | 17 | 3 | 181014 |
 | 2 | tyrian.shp#7\|1\|287 | enemy and player shot | 16 | 3 | 27708 |
 | 3 | tyrian.shp#7\|1\|288 | enemy and player shot | 16 | 3 | 27461 |
-| 4 | tyrian.shp#7\|1\|168 | enemy shot | 15 | 4 | 20810 |
+| 4 | tyrian.shp#7\|1\|168 | enemy shot | 15 | 4 | 20827 |
 | 5 | tyrian.shp#7\|1\|196 | enemy and player shot | 13 | 4 | 2683 |
 | 6 | tyrian.shp#7\|1\|194 | enemy and player shot | 13 | 4 | 2344 |
 | 7 | tyrian.shp#7\|1\|195 | enemy and player shot | 13 | 4 | 2023 |
 | 8 | tyrian.shp#7\|1\|197 | enemy and player shot | 13 | 4 | 1644 |
-| 9 | tyrian.shp#7\|1\|169 | enemy shot | 12 | 4 | 14106 |
-| 10 | tyrian.shp#7\|1\|214 | enemy and player shot | 9 | 4 | 19650 |
+| 9 | tyrian.shp#7\|1\|169 | enemy shot | 12 | 4 | 14129 |
+| 10 | tyrian.shp#7\|1\|214 | enemy and player shot | 9 | 4 | 19649 |
 | 11 | tyrian.shp#7\|1\|145 | enemy and player shot | 9 | 3 | 553 |
 | 12 | tyrian.shp#7\|1\|192 | enemy and player shot | 7 | 4 | 10580 |
 | 13 | tyrian.shp#7\|1\|191 | enemy and player shot | 7 | 4 | 9584 |
@@ -199,7 +199,7 @@ ticks, and units seen.
 | 1.14 | WINDY | 33 bonus | shapesz | 14/31 15/16 0/2 | 13 | 18 | 7 / 1 / 6 / 0 | - | 26 | - | done, 3080 ticks, 7 seen |
 | 1.16 | ASSASSIN | 36 | shapesz | 14/33 13/14 0/24 | 0 | 53 | 12 / 11 / 1 / 0 | assembly-newsh4-124 | 36, 15, 35 | blur, headlight, lava, music fade, text window, song change, colour filter, difficulty change | done, 5318 ticks, 12 seen |
 | 1.17 | SAVARA V | 38 | shapesy | 0/58 0/50 0/46 | 0 | 63 | 16 / 1 / 15 / 0 | assembly-newshf-195, assembly-newshf-270, assembly-newshi-115, assembly-newshi-154 | 33, 22 | water, text window, music fade, song change | done, 8711 ticks, 17 seen |
-| 1.18 | ** ALE ** | 41 | shapesz | 15/15 0/1 0/1 | 14 | 26 | 15 / 5 / 10 / 0 | - | 41, 35 | difficulty change, text window, music fade, song change, map jump | unfinished, 2815 ticks, 10 seen |
+| 1.18 | ** ALE ** | 41 | shapesz | 15/15 0/1 0/1 | 14 | 26 | 15 / 5 / 10 / 0 | - | 41, 35 | difficulty change, text window, music fade, song change, map jump | unfinished, 60000 ticks, 10 seen |
 
 Between levels (the episode 1 script): section 11: song 16, picture 5, text; section 26: song 31, picture 5, episode end; section 39: song 9, picture 5, text, song 5, picture 5, text; section 42: song 8, picture 9, text, song 22, pan 8, text, song 38, picture 9, text, picture 9, text, picture 9, text.
 
@@ -207,7 +207,7 @@ Between levels (the episode 1 script): section 11: song 16, picture 5, text; sec
 
 | Level | Name | Sections | Tileset | Terrain covered (0/1/2) | Structures | Enemy types | Units | Bosses | Songs | Special | Bot |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| 2.1 | TORM | 2 | shapesx | 0/70 0/1 0/1 | 0 | 118 | 33 / 1 / 32 / 0 | assembly-newshh-159, assembly-newshh-197, assembly-newshj-191, assembly-newshj-267 | 28, 22, 6 | difficulty change, music fade, song change, text window, clear enemies | done, 7710 ticks, 38 seen |
+| 2.1 | TORM | 2 | shapesx | 0/70 0/1 0/1 | 0 | 118 | 33 / 1 / 32 / 0 | assembly-newshh-159, assembly-newshh-197, assembly-newshj-191, assembly-newshj-267 | 28, 22, 6 | difficulty change, music fade, song change, text window, clear enemies | done, 7661 ticks, 38 seen |
 | 2.2 | GYGES | 4 | shapesx | 0/15 0/70 0/37 | 0 | 92 | 31 / 1 / 23 / 7 | assembly-newshn-195, newshn-3, newshn-41, newshn-43 +4 | 14, 12 | text window, music fade, song change, difficulty change | done, 6341 ticks, 32 seen |
 | 2.3 | BONUS | 6 bonus | shapesz | 1/14 0/1 0/1 | 0 | 22 | 12 / 6 / 6 / 0 | - | 28 | - | done, 1568 ticks, 11 seen |
 | 2.4 | ASTCITY | 8 | shapesz | 41/54 0/1 0/1 | 0 | 77 | 31 / 1 / 30 / 0 | - | 1 | difficulty change | done, 6621 ticks, 32 seen |

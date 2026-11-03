@@ -3874,14 +3874,14 @@
    "enemies": [
     {"type":4,"kind":"ground","unit":"newsh2-159","via":"event+launch","events":1,"ticks":382},
     {"type":5,"kind":"ground","unit":"newsh2-229","via":"event","events":10,"ticks":594},
-    {"type":10,"kind":"ground","unit":"newsh2-191","via":"event","events":7,"ticks":2704},
-    {"type":12,"kind":"ground","unit":"newsh2-191","via":"event","events":7,"ticks":2534},
+    {"type":10,"kind":"ground","unit":"newsh2-191","via":"event","events":7,"ticks":174256},
+    {"type":12,"kind":"ground","unit":"newsh2-191","via":"event","events":7,"ticks":116902},
     {"type":17,"kind":"ground","unit":"newsh2-267","via":"event","events":6,"ticks":0},
     {"type":163,"kind":"ground","unit":null,"via":"random","ticks":0,"unloadedBank":10},
     {"type":200,"kind":"pickup","unit":"tyrian9-281","via":"drop","events":2,"ticks":0},
     {"type":394,"kind":"pickup","unit":"tyrian10-32","via":"dies into","ticks":1},
     {"type":455,"kind":"ground","unit":"newshs-171","via":"launch","ticks":0},
-    {"type":474,"kind":"pickup","unit":"tyrian10-241","via":"drop+event","events":52,"ticks":1338},
+    {"type":474,"kind":"pickup","unit":"tyrian10-241","via":"drop+event","events":52,"ticks":115706},
     {"type":478,"kind":"ground","unit":"newshe-233","via":"event","events":21,"ticks":151},
     {"type":554,"kind":"ground","unit":"newsha-169","via":"event","events":11,"ticks":324},
     {"type":555,"kind":"ground","unit":"newshe-201","via":"event","events":4,"ticks":954},
@@ -3954,8 +3954,7 @@
     "section": 41,
     "difficulty": "normal",
     "completed": false,
-    "error": "Cannot read properties of undefined (reading 'name')",
-    "ticks": 2815,
+    "ticks": 60000,
     "unitsSeen": 10,
     "unitsNotSeen": ["newsh2-267","newsha-199","newshe-277","newshm-115","newshm-117","newshs-171","newshs-269","tyrian10-127","tyrian10-129","tyrian10-131","tyrian10-279","tyrian9-281"],
     "unitsFoundByBot": [],
@@ -3994,9 +3993,9 @@
     {"type":142,"kind":"air","unit":null,"via":"random","ticks":0,"unloadedBank":7},
     {"type":143,"kind":"air","unit":null,"via":"random","ticks":0,"unloadedBank":7},
     {"type":144,"kind":"ground","unit":null,"via":"random","ticks":0,"unloadedBank":7},
-    {"type":390,"kind":"pickup","unit":"tyrian10-1","via":"drop","events":10,"ticks":355},
-    {"type":391,"kind":"pickup","unit":"tyrian10-7","via":"drop","events":14,"ticks":695},
-    {"type":392,"kind":"pickup","unit":"tyrian10-26","via":"drop","events":7,"ticks":416},
+    {"type":390,"kind":"pickup","unit":"tyrian10-1","via":"drop","events":10,"ticks":288},
+    {"type":391,"kind":"pickup","unit":"tyrian10-7","via":"drop","events":14,"ticks":706},
+    {"type":392,"kind":"pickup","unit":"tyrian10-26","via":"drop","events":7,"ticks":426},
     {"type":394,"kind":"pickup","unit":"tyrian10-32","via":"launch","ticks":364},
     {"type":396,"kind":"pickup","unit":"tyrian10-51","via":"drop","events":14,"ticks":0},
     {"type":480,"kind":"ground","unit":"assembly-newshf-191","via":"event","events":1,"ticks":321},
@@ -4019,9 +4018,9 @@
     {"type":497,"kind":"ground","unit":"assembly-newshf-270","via":"event","events":1,"ticks":180},
     {"type":498,"kind":"ground","unit":"assembly-newshf-270","via":"event","events":1,"ticks":180},
     {"type":499,"kind":"ground","unit":"assembly-newshf-270","via":"event","events":1,"ticks":180},
-    {"type":500,"kind":"ground","unit":"newshf-169","via":"launch","ticks":124},
-    {"type":501,"kind":"ground","unit":"newshf-171","via":"launch","ticks":295},
-    {"type":512,"kind":"pickup","unit":"tyrian10-191","via":"drop","events":3,"ticks":273},
+    {"type":500,"kind":"ground","unit":"newshf-169","via":"launch","ticks":90},
+    {"type":501,"kind":"ground","unit":"newshf-171","via":"launch","ticks":310},
+    {"type":512,"kind":"pickup","unit":"tyrian10-191","via":"drop","events":3,"ticks":222},
     {"type":533,"kind":"pickup","unit":"tyrian10-165","via":"launch","ticks":76},
     {"type":534,"kind":"pickup","unit":"tyrian10-203","via":"drop","events":1,"ticks":0},
     {"type":560,"kind":"air","unit":"tyrian10-279","via":"armour ship","ticks":0},
@@ -4045,69 +4044,69 @@
     {"type":742,"kind":"decor","unit":"assembly-newshh-129","via":"event","events":11,"ticks":2327},
     {"type":743,"kind":"decor","unit":"assembly-newshh-129","via":"event","events":17,"ticks":3559},
     {"type":744,"kind":"decor","unit":"assembly-newshh-129","via":"event","events":11,"ticks":2327},
-    {"type":745,"kind":"air","unit":"assembly-newshj-43","via":"event","events":5,"ticks":315},
-    {"type":746,"kind":"air","unit":"assembly-newshj-43","via":"event","events":5,"ticks":315},
-    {"type":747,"kind":"air","unit":"assembly-newshj-43","via":"event","events":5,"ticks":315},
-    {"type":748,"kind":"air","unit":"assembly-newshj-43","via":"event","events":5,"ticks":315},
-    {"type":749,"kind":"air","unit":"newshj-77","via":"event","events":11,"ticks":1096},
-    {"type":750,"kind":"air","unit":"newshj-1","via":"event","events":11,"ticks":1180},
-    {"type":751,"kind":"air","unit":"newshj-83","via":"event","events":14,"ticks":1634},
-    {"type":752,"kind":"ground","unit":"newshj-19","via":"launch","ticks":1990},
-    {"type":753,"kind":"air","unit":"assembly-newshg-231","via":"event","events":15,"ticks":1958},
-    {"type":754,"kind":"air","unit":"assembly-newshg-231","via":"event","events":15,"ticks":1958},
-    {"type":755,"kind":"ground","unit":"newshj-19","via":"launch","ticks":888},
-    {"type":756,"kind":"air","unit":"assembly-newshg-267","via":"event","events":8,"ticks":870},
-    {"type":757,"kind":"air","unit":"assembly-newshg-267","via":"event","events":8,"ticks":870},
-    {"type":758,"kind":"air","unit":"assembly-newshg-191","via":"event","events":8,"ticks":1004},
-    {"type":759,"kind":"air","unit":"assembly-newshg-191","via":"event","events":8,"ticks":1004},
+    {"type":745,"kind":"air","unit":"assembly-newshj-43","via":"event","events":5,"ticks":346},
+    {"type":746,"kind":"air","unit":"assembly-newshj-43","via":"event","events":5,"ticks":346},
+    {"type":747,"kind":"air","unit":"assembly-newshj-43","via":"event","events":5,"ticks":346},
+    {"type":748,"kind":"air","unit":"assembly-newshj-43","via":"event","events":5,"ticks":346},
+    {"type":749,"kind":"air","unit":"newshj-77","via":"event","events":11,"ticks":1127},
+    {"type":750,"kind":"air","unit":"newshj-1","via":"event","events":11,"ticks":1025},
+    {"type":751,"kind":"air","unit":"newshj-83","via":"event","events":14,"ticks":1696},
+    {"type":752,"kind":"ground","unit":"newshj-19","via":"launch","ticks":1557},
+    {"type":753,"kind":"air","unit":"assembly-newshg-231","via":"event","events":15,"ticks":1645},
+    {"type":754,"kind":"air","unit":"assembly-newshg-231","via":"event","events":15,"ticks":1645},
+    {"type":755,"kind":"ground","unit":"newshj-19","via":"launch","ticks":753},
+    {"type":756,"kind":"air","unit":"assembly-newshg-267","via":"event","events":8,"ticks":792},
+    {"type":757,"kind":"air","unit":"assembly-newshg-267","via":"event","events":8,"ticks":792},
+    {"type":758,"kind":"air","unit":"assembly-newshg-191","via":"event","events":8,"ticks":1052},
+    {"type":759,"kind":"air","unit":"assembly-newshg-191","via":"event","events":8,"ticks":1052},
     {"type":760,"kind":"ground","unit":"newshj-117","via":"event","events":1,"ticks":59},
-    {"type":761,"kind":"ground","unit":"newshj-117","via":"event","events":7,"ticks":451},
-    {"type":762,"kind":"ground","unit":"newshj-19","via":"launch","ticks":286},
-    {"type":763,"kind":"decor","unit":"assembly-newshj-127","via":"event","events":2,"ticks":365},
+    {"type":761,"kind":"ground","unit":"newshj-117","via":"event","events":7,"ticks":457},
+    {"type":762,"kind":"ground","unit":"newshj-19","via":"launch","ticks":202},
+    {"type":763,"kind":"decor","unit":"assembly-newshj-127","via":"event","events":2,"ticks":289},
     {"type":764,"kind":"air","unit":"assembly-newshj-127","via":"event","events":2,"ticks":494},
-    {"type":765,"kind":"air","unit":"assembly-newshj-127","via":"event","events":2,"ticks":337},
-    {"type":766,"kind":"air","unit":"assembly-newshj-127","via":"event","events":2,"ticks":337},
-    {"type":767,"kind":"ground","unit":"newshj-19","via":"launch","ticks":703},
+    {"type":765,"kind":"air","unit":"assembly-newshj-127","via":"event","events":2,"ticks":289},
+    {"type":766,"kind":"air","unit":"assembly-newshj-127","via":"event","events":2,"ticks":289},
+    {"type":767,"kind":"ground","unit":"newshj-19","via":"launch","ticks":688},
     {"type":768,"kind":"air","unit":"assembly-newshg-203","via":"event","events":5,"ticks":1121},
     {"type":769,"kind":"decor","unit":"newshg-167","via":"event","events":5,"ticks":1121},
     {"type":770,"kind":"air","unit":"assembly-newshg-203","via":"event","events":5,"ticks":917},
     {"type":771,"kind":"air","unit":"assembly-newshg-203","via":"event","events":5,"ticks":917},
-    {"type":772,"kind":"ground","unit":"assembly-newshj-191","via":"event","events":1,"ticks":1586,"boss":true},
-    {"type":773,"kind":"ground","unit":"assembly-newshj-191","via":"event","events":1,"ticks":1586,"boss":true},
-    {"type":774,"kind":"ground","unit":"assembly-newshj-191","via":"event","events":1,"ticks":1586,"boss":true},
-    {"type":775,"kind":"ground","unit":"assembly-newshj-191","via":"event","events":1,"ticks":1586,"boss":true},
+    {"type":772,"kind":"ground","unit":"assembly-newshj-191","via":"event","events":1,"ticks":1561,"boss":true},
+    {"type":773,"kind":"ground","unit":"assembly-newshj-191","via":"event","events":1,"ticks":1561,"boss":true},
+    {"type":774,"kind":"ground","unit":"assembly-newshj-191","via":"event","events":1,"ticks":1561,"boss":true},
+    {"type":775,"kind":"ground","unit":"assembly-newshj-191","via":"event","events":1,"ticks":1561,"boss":true},
     {"type":827,"kind":"pickup","unit":"tyrian9-267","via":"drop","events":1,"ticks":0,"arcadeOnly":true},
-    {"type":0,"kind":"custom","unit":"newshh-155","via":"event","events":14,"ticks":52086},
-    {"type":0,"kind":"custom","unit":"assembly-newshh-159","via":"event","events":14,"ticks":52086,"boss":true},
-    {"type":0,"kind":"custom","unit":"assembly-newshh-159","via":"event","events":14,"ticks":52086,"boss":true},
-    {"type":0,"kind":"custom","unit":"assembly-newshh-159","via":"event","events":14,"ticks":52086,"boss":true},
-    {"type":0,"kind":"custom","unit":"assembly-newshh-192","via":"event","events":14,"ticks":52086},
-    {"type":0,"kind":"custom","unit":"assembly-newshh-192","via":"event","events":14,"ticks":52086},
-    {"type":0,"kind":"custom","unit":"assembly-newshh-197","via":"event","events":14,"ticks":52086,"boss":true},
-    {"type":0,"kind":"custom","unit":"assembly-newshh-197","via":"event","events":14,"ticks":52086,"boss":true},
-    {"type":0,"kind":"custom","unit":"assembly-newshh-197","via":"event","events":14,"ticks":52086,"boss":true},
-    {"type":0,"kind":"custom","unit":"assembly-newshh-230","via":"event","events":14,"ticks":52086},
-    {"type":0,"kind":"custom","unit":"assembly-newshh-230","via":"event","events":14,"ticks":52086},
-    {"type":0,"kind":"custom","unit":"assembly-newshj-51","via":"event","events":21,"ticks":52086},
-    {"type":0,"kind":"custom","unit":"assembly-newshj-51","via":"event","events":21,"ticks":52086},
-    {"type":0,"kind":"custom","unit":"assembly-newshj-51","via":"event","events":21,"ticks":52086},
-    {"type":0,"kind":"custom","unit":"assembly-newshj-51","via":"event","events":21,"ticks":52086},
-    {"type":0,"kind":"custom","unit":"newshj-131","via":"event","events":171,"ticks":52086},
-    {"type":0,"kind":"custom","unit":"assembly-newshj-191","via":"event","events":1,"ticks":52086,"boss":true},
-    {"type":0,"kind":"custom","unit":"assembly-newshj-191","via":"event","events":1,"ticks":52086,"boss":true},
-    {"type":0,"kind":"custom","unit":"assembly-newshj-191","via":"event","events":1,"ticks":52086,"boss":true},
-    {"type":0,"kind":"custom","unit":"assembly-newshj-191","via":"event","events":1,"ticks":52086,"boss":true},
-    {"type":0,"kind":"custom","unit":"assembly-newshj-207","via":"event","events":19,"ticks":52086},
-    {"type":0,"kind":"custom","unit":"assembly-newshj-191","via":"event","events":1,"ticks":52086,"boss":true},
-    {"type":0,"kind":"custom","unit":"assembly-newshj-191","via":"event","events":1,"ticks":52086,"boss":true},
-    {"type":0,"kind":"custom","unit":"assembly-newshj-207","via":"event","events":19,"ticks":52086},
-    {"type":0,"kind":"custom","unit":"assembly-newshj-191","via":"event","events":1,"ticks":52086,"boss":true},
-    {"type":0,"kind":"custom","unit":"assembly-newshj-191","via":"event","events":1,"ticks":52086,"boss":true},
-    {"type":0,"kind":"custom","unit":"assembly-newshj-245","via":"event","events":19,"ticks":52086},
-    {"type":0,"kind":"custom","unit":"assembly-newshj-267","via":"event","events":1,"ticks":52086,"boss":true},
-    {"type":0,"kind":"custom","unit":"assembly-newshj-267","via":"event","events":1,"ticks":52086,"boss":true},
-    {"type":0,"kind":"custom","unit":"assembly-newshj-267","via":"event","events":1,"ticks":52086,"boss":true},
-    {"type":0,"kind":"custom","unit":"assembly-newshj-245","via":"event","events":19,"ticks":52086}
+    {"type":0,"kind":"custom","unit":"newshh-155","via":"event","events":14,"ticks":51686},
+    {"type":0,"kind":"custom","unit":"assembly-newshh-159","via":"event","events":14,"ticks":51686,"boss":true},
+    {"type":0,"kind":"custom","unit":"assembly-newshh-159","via":"event","events":14,"ticks":51686,"boss":true},
+    {"type":0,"kind":"custom","unit":"assembly-newshh-159","via":"event","events":14,"ticks":51686,"boss":true},
+    {"type":0,"kind":"custom","unit":"assembly-newshh-192","via":"event","events":14,"ticks":51686},
+    {"type":0,"kind":"custom","unit":"assembly-newshh-192","via":"event","events":14,"ticks":51686},
+    {"type":0,"kind":"custom","unit":"assembly-newshh-197","via":"event","events":14,"ticks":51686,"boss":true},
+    {"type":0,"kind":"custom","unit":"assembly-newshh-197","via":"event","events":14,"ticks":51686,"boss":true},
+    {"type":0,"kind":"custom","unit":"assembly-newshh-197","via":"event","events":14,"ticks":51686,"boss":true},
+    {"type":0,"kind":"custom","unit":"assembly-newshh-230","via":"event","events":14,"ticks":51686},
+    {"type":0,"kind":"custom","unit":"assembly-newshh-230","via":"event","events":14,"ticks":51686},
+    {"type":0,"kind":"custom","unit":"assembly-newshj-51","via":"event","events":21,"ticks":51686},
+    {"type":0,"kind":"custom","unit":"assembly-newshj-51","via":"event","events":21,"ticks":51686},
+    {"type":0,"kind":"custom","unit":"assembly-newshj-51","via":"event","events":21,"ticks":51686},
+    {"type":0,"kind":"custom","unit":"assembly-newshj-51","via":"event","events":21,"ticks":51686},
+    {"type":0,"kind":"custom","unit":"newshj-131","via":"event","events":171,"ticks":51686},
+    {"type":0,"kind":"custom","unit":"assembly-newshj-191","via":"event","events":1,"ticks":51686,"boss":true},
+    {"type":0,"kind":"custom","unit":"assembly-newshj-191","via":"event","events":1,"ticks":51686,"boss":true},
+    {"type":0,"kind":"custom","unit":"assembly-newshj-191","via":"event","events":1,"ticks":51686,"boss":true},
+    {"type":0,"kind":"custom","unit":"assembly-newshj-191","via":"event","events":1,"ticks":51686,"boss":true},
+    {"type":0,"kind":"custom","unit":"assembly-newshj-207","via":"event","events":19,"ticks":51686},
+    {"type":0,"kind":"custom","unit":"assembly-newshj-191","via":"event","events":1,"ticks":51686,"boss":true},
+    {"type":0,"kind":"custom","unit":"assembly-newshj-191","via":"event","events":1,"ticks":51686,"boss":true},
+    {"type":0,"kind":"custom","unit":"assembly-newshj-207","via":"event","events":19,"ticks":51686},
+    {"type":0,"kind":"custom","unit":"assembly-newshj-191","via":"event","events":1,"ticks":51686,"boss":true},
+    {"type":0,"kind":"custom","unit":"assembly-newshj-191","via":"event","events":1,"ticks":51686,"boss":true},
+    {"type":0,"kind":"custom","unit":"assembly-newshj-245","via":"event","events":19,"ticks":51686},
+    {"type":0,"kind":"custom","unit":"assembly-newshj-267","via":"event","events":1,"ticks":51686,"boss":true},
+    {"type":0,"kind":"custom","unit":"assembly-newshj-267","via":"event","events":1,"ticks":51686,"boss":true},
+    {"type":0,"kind":"custom","unit":"assembly-newshj-267","via":"event","events":1,"ticks":51686,"boss":true},
+    {"type":0,"kind":"custom","unit":"assembly-newshj-245","via":"event","events":19,"ticks":51686}
    ],
    "units": [
     "assembly-newshf-191",
@@ -4231,7 +4230,7 @@
     "section": 2,
     "difficulty": "normal",
     "completed": true,
-    "ticks": 7710,
+    "ticks": 7661,
     "unitsSeen": 38,
     "unitsNotSeen": ["tyrian10-127","tyrian10-129","tyrian10-131","tyrian10-203","tyrian10-279","tyrian10-51","tyrian9-153","tyrian9-155","tyrian9-157","tyrian9-163","tyrian9-191","tyrian9-197","tyrian9-199","tyrian9-235","tyrian9-239","tyrian9-245","tyrian9-267","tyrian9-41"],
     "unitsFoundByBot": [],
@@ -15375,7 +15374,7 @@
     4
    ],
    "events": 28,
-   "ticks": 23596
+   "ticks": 23598
   },
   {
    "id": "assembly-newshf-270",
@@ -15492,7 +15491,7 @@
     2
    ],
    "events": 126,
-   "ticks": 16337
+   "ticks": 16433
   },
   {
    "id": "assembly-newshg-203",
@@ -15560,7 +15559,7 @@
     2
    ],
    "events": 66,
-   "ticks": 8302
+   "ticks": 7676
   },
   {
    "id": "assembly-newshg-267",
@@ -15591,7 +15590,7 @@
     2
    ],
    "events": 74,
-   "ticks": 7994
+   "ticks": 7838
   },
   {
    "id": "assembly-newshh-121",
@@ -15794,7 +15793,7 @@
     2
    ],
    "events": 28,
-   "ticks": 2566
+   "ticks": 2564
   },
   {
    "id": "assembly-newshh-45",
@@ -16046,7 +16045,7 @@
     2
    ],
    "events": 56,
-   "ticks": 6443
+   "ticks": 6340
   },
   {
    "id": "assembly-newshj-191",
@@ -16087,7 +16086,7 @@
     4
    ],
    "events": 48,
-   "ticks": 80634
+   "ticks": 80439
   },
   {
    "id": "assembly-newshj-207",
@@ -16115,7 +16114,7 @@
     2
    ],
    "events": 106,
-   "ticks": 6916
+   "ticks": 6906
   },
   {
    "id": "assembly-newshj-245",
@@ -16143,7 +16142,7 @@
     2
    ],
    "events": 78,
-   "ticks": 4944
+   "ticks": 4901
   },
   {
    "id": "assembly-newshj-267",
@@ -16176,7 +16175,7 @@
     4
    ],
    "events": 12,
-   "ticks": 22018
+   "ticks": 21942
   },
   {
    "id": "assembly-newshj-43",
@@ -16207,7 +16206,7 @@
     2
    ],
    "events": 76,
-   "ticks": 4260
+   "ticks": 4394
   },
   {
    "id": "assembly-newshj-51",
@@ -16236,7 +16235,7 @@
     2
    ],
    "events": 288,
-   "ticks": 15584
+   "ticks": 15554
   },
   {
    "id": "assembly-newshk-121",
@@ -18718,7 +18717,7 @@
     3
    ],
    "events": 147,
-   "ticks": 10211
+   "ticks": 296131
   },
   {
    "id": "newsh2-229",
@@ -23067,7 +23066,7 @@
     4
    ],
    "events": 85,
-   "ticks": 14828
+   "ticks": 14794
   },
   {
    "id": "newshf-171",
@@ -23103,7 +23102,7 @@
     4
    ],
    "events": 0,
-   "ticks": 12058
+   "ticks": 12073
   },
   {
    "id": "newshf-230",
@@ -23725,7 +23724,7 @@
     2
    ],
    "events": 14,
-   "ticks": 1084
+   "ticks": 1085
   },
   {
    "id": "newshh-284",
@@ -23975,7 +23974,7 @@
     2
    ],
    "events": 45,
-   "ticks": 2201
+   "ticks": 2046
   },
   {
    "id": "newshj-117",
@@ -24031,7 +24030,7 @@
     2
    ],
    "events": 175,
-   "ticks": 6695
+   "ticks": 6657
   },
   {
    "id": "newshj-19",
@@ -24067,7 +24066,7 @@
     2
    ],
    "events": 0,
-   "ticks": 11700
+   "ticks": 11127
   },
   {
    "id": "newshj-77",
@@ -24101,7 +24100,7 @@
     2
    ],
    "events": 18,
-   "ticks": 1265
+   "ticks": 1296
   },
   {
    "id": "newshj-83",
@@ -24128,7 +24127,7 @@
     2
    ],
    "events": 14,
-   "ticks": 1606
+   "ticks": 1668
   },
   {
    "id": "newshk-1",
@@ -27415,7 +27414,7 @@
     4
    ],
    "events": 19,
-   "ticks": 15269
+   "ticks": 15202
   },
   {
    "id": "tyrian10-114",
@@ -28017,7 +28016,7 @@
     3
    ],
    "events": 27,
-   "ticks": 1371
+   "ticks": 1320
   },
   {
    "id": "tyrian10-20",
@@ -28144,7 +28143,7 @@
     4
    ],
    "events": 71,
-   "ticks": 1463
+   "ticks": 115831
   },
   {
    "id": "tyrian10-243",
@@ -28249,7 +28248,7 @@
     4
    ],
    "events": 188,
-   "ticks": 33234
+   "ticks": 33244
   },
   {
    "id": "tyrian10-279",
@@ -28618,7 +28617,7 @@
     4
    ],
    "events": 141,
-   "ticks": 23764
+   "ticks": 23775
   },
   {
    "id": "tyrian10-75",
@@ -31042,7 +31041,7 @@
     3,
     4
    ],
-   "ticks": 3323599
+   "ticks": 3323442
   },
   {
    "id": "tyrian.shp#7|1|60",
@@ -31089,7 +31088,7 @@
     3,
     4
    ],
-   "ticks": 804899
+   "ticks": 805003
   },
   {
    "id": "tyrian.shp#7|1|63",
@@ -31180,7 +31179,7 @@
     1,
     3
    ],
-   "ticks": 230173
+   "ticks": 230198
   },
   {
    "id": "tyrian.shp#7|1|73",
@@ -31427,7 +31426,7 @@
     3,
     4
    ],
-   "ticks": 14619
+   "ticks": 14622
   },
   {
    "id": "tyrian.shp#7|1|106",
@@ -31445,7 +31444,7 @@
     3,
     4
    ],
-   "ticks": 13201
+   "ticks": 13198
   },
   {
    "id": "tyrian.shp#7|1|112",
@@ -31458,7 +31457,7 @@
     3,
     4
    ],
-   "ticks": 227424
+   "ticks": 227181
   },
   {
    "id": "tyrian.shp#7|1|113",
@@ -31471,7 +31470,7 @@
     3,
     4
    ],
-   "ticks": 231411
+   "ticks": 231164
   },
   {
    "id": "tyrian.shp#7|1|115",
@@ -31585,7 +31584,7 @@
     3,
     4
    ],
-   "ticks": 16578
+   "ticks": 16500
   },
   {
    "id": "tyrian.shp#7|1|125",
@@ -31603,7 +31602,7 @@
     3,
     4
    ],
-   "ticks": 14711
+   "ticks": 14681
   },
   {
    "id": "tyrian.shp#7|1|126",
@@ -31992,7 +31991,7 @@
     3,
     4
    ],
-   "ticks": 20810
+   "ticks": 20827
   },
   {
    "id": "tyrian.shp#7|1|169",
@@ -32005,7 +32004,7 @@
     3,
     4
    ],
-   "ticks": 14106
+   "ticks": 14129
   },
   {
    "id": "tyrian.shp#7|1|170",
@@ -32565,7 +32564,7 @@
     3,
     4
    ],
-   "ticks": 19650
+   "ticks": 19649
   },
   {
    "id": "tyrian.shp#7|1|215",
@@ -34872,7 +34871,7 @@
     "levels": 7,
     "episodes": 4,
     "events": 85,
-    "ticks": 14828
+    "ticks": 14794
    },
    {
     "id": "newshe-195",
@@ -34917,7 +34916,7 @@
     "levels": 6,
     "episodes": 4,
     "events": 28,
-    "ticks": 23596
+    "ticks": 23598
    },
    {
     "id": "newshf-171",
@@ -34926,7 +34925,7 @@
     "levels": 6,
     "episodes": 4,
     "events": 0,
-    "ticks": 12058
+    "ticks": 12073
    },
    {
     "id": "newshf-238",
@@ -35196,7 +35195,7 @@
     "levels": 5,
     "episodes": 2,
     "events": 0,
-    "ticks": 11700
+    "ticks": 11127
    },
    {
     "id": "newshf-1",
@@ -35403,7 +35402,7 @@
     "levels": 4,
     "episodes": 2,
     "events": 48,
-    "ticks": 80634
+    "ticks": 80439
    },
    {
     "id": "newshi-19",
@@ -35430,7 +35429,7 @@
     "levels": 4,
     "episodes": 2,
     "events": 12,
-    "ticks": 22018
+    "ticks": 21942
    },
    {
     "id": "newshf-39",
@@ -35493,16 +35492,7 @@
     "levels": 4,
     "episodes": 1,
     "events": 126,
-    "ticks": 16337
-   },
-   {
-    "id": "assembly-newshg-231",
-    "what": "air",
-    "status": "basic",
-    "levels": 4,
-    "episodes": 1,
-    "events": 66,
-    "ticks": 8302
+    "ticks": 16433
    },
    {
     "id": "assembly-newshg-267",
@@ -35511,7 +35501,16 @@
     "levels": 4,
     "episodes": 1,
     "events": 74,
-    "ticks": 7994
+    "ticks": 7838
+   },
+   {
+    "id": "assembly-newshg-231",
+    "what": "air",
+    "status": "basic",
+    "levels": 4,
+    "episodes": 1,
+    "events": 66,
+    "ticks": 7676
    },
    {
     "id": "newsh3-271",
@@ -35853,7 +35852,7 @@
     "levels": 3,
     "episodes": 1,
     "events": 288,
-    "ticks": 15584
+    "ticks": 15554
    },
    {
     "id": "newsh3-195",
@@ -35889,7 +35888,7 @@
     "levels": 3,
     "episodes": 1,
     "events": 56,
-    "ticks": 6443
+    "ticks": 6340
    },
    {
     "id": "newsh3-10",
@@ -35925,7 +35924,7 @@
     "levels": 3,
     "episodes": 1,
     "events": 45,
-    "ticks": 2201
+    "ticks": 2046
    },
    {
     "id": "newshg-49",
@@ -36582,7 +36581,7 @@
     "levels": 2,
     "episodes": 1,
     "events": 106,
-    "ticks": 6916
+    "ticks": 6906
    },
    {
     "id": "newshj-131",
@@ -36591,7 +36590,7 @@
     "levels": 2,
     "episodes": 1,
     "events": 175,
-    "ticks": 6695
+    "ticks": 6657
    },
    {
     "id": "assembly-newshd-39",
@@ -36708,7 +36707,7 @@
     "levels": 2,
     "episodes": 1,
     "events": 78,
-    "ticks": 4944
+    "ticks": 4901
    },
    {
     "id": "newshg-1",
@@ -36738,6 +36737,15 @@
     "ticks": 4652
    },
    {
+    "id": "assembly-newshj-43",
+    "what": "air",
+    "status": "basic",
+    "levels": 2,
+    "episodes": 1,
+    "events": 76,
+    "ticks": 4394
+   },
+   {
     "id": "newshc-191",
     "what": "ground",
     "status": "basic",
@@ -36745,15 +36753,6 @@
     "episodes": 1,
     "events": 94,
     "ticks": 4330
-   },
-   {
-    "id": "assembly-newshj-43",
-    "what": "air",
-    "status": "basic",
-    "levels": 2,
-    "episodes": 1,
-    "events": 76,
-    "ticks": 4260
    },
    {
     "id": "newsh9-41",
@@ -36942,7 +36941,7 @@
     "levels": 2,
     "episodes": 1,
     "events": 18,
-    "ticks": 1265
+    "ticks": 1296
    },
    {
     "id": "newsha-281",
@@ -37905,7 +37904,7 @@
     "levels": 1,
     "episodes": 1,
     "events": 28,
-    "ticks": 2566
+    "ticks": 2564
    },
    {
     "id": "assembly-newsh0-91",
@@ -38070,6 +38069,15 @@
     "ticks": 1778
    },
    {
+    "id": "newshj-83",
+    "what": "air",
+    "status": "basic",
+    "levels": 1,
+    "episodes": 1,
+    "events": 14,
+    "ticks": 1668
+   },
+   {
     "id": "assembly-newsh7-203",
     "what": "air (boss)",
     "status": "basic",
@@ -38104,15 +38112,6 @@
     "episodes": 1,
     "events": 5,
     "ticks": 1616
-   },
-   {
-    "id": "newshj-83",
-    "what": "air",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 14,
-    "ticks": 1606
    },
    {
     "id": "newsh5-133",
@@ -38328,7 +38327,7 @@
     "levels": 1,
     "episodes": 1,
     "events": 14,
-    "ticks": 1084
+    "ticks": 1085
    },
    {
     "id": "newshv-165",
@@ -39303,7 +39302,7 @@
     "levels": 9,
     "episodes": 3,
     "events": 27,
-    "ticks": 1371
+    "ticks": 1320
    },
    {
     "id": "tyrian10-1",
@@ -39312,7 +39311,7 @@
     "levels": 8,
     "episodes": 3,
     "events": 19,
-    "ticks": 15269
+    "ticks": 15202
    },
    {
     "id": "tyrian10-77",
@@ -39359,7 +39358,7 @@
     "levels": 5,
     "episodes": 3,
     "events": 71,
-    "ticks": 1463
+    "ticks": 115831
    },
    {
     "id": "tyrian10-115",
@@ -39574,7 +39573,7 @@
     "levels": 15,
     "episodes": 4,
     "events": 0,
-    "ticks": 20810
+    "ticks": 20827
    },
    {
     "kind": "shot",
@@ -39624,7 +39623,7 @@
     "levels": 12,
     "episodes": 4,
     "events": 0,
-    "ticks": 14106
+    "ticks": 14129
    },
    {
     "kind": "shot",
@@ -39634,7 +39633,7 @@
     "levels": 9,
     "episodes": 4,
     "events": 0,
-    "ticks": 19650
+    "ticks": 19649
    },
    {
     "kind": "shot",
@@ -39804,7 +39803,7 @@
     "levels": 3,
     "episodes": 2,
     "events": 0,
-    "ticks": 230173
+    "ticks": 230198
    },
    {
     "kind": "shot",

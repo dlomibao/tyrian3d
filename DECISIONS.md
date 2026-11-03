@@ -2666,3 +2666,72 @@ is height, not the border.
 **Review:** the comparison sheets (sprite | current | inner, overhead at game scale, x3 with the
 sprite's edge, 15°) and the scripts are in `tyrian-scratch/outline-border/` (`sheets/`, `ingame.py`,
 `measure.py`, `survey.py`). Fallback: measure against the outer mask again (`iou_outer_grid`).
+## D75 — Galaga mode's doubled pickups read past the item tables: the port reads what the C's reference build reads
+
+2026-11-03
+
+**Decision:** The two "port bugs" the whole-game inventory found (MILESTONES.md, Known issues) are
+the C's own behaviour. The sim now reproduces it instead of crashing:
+
+- **ALE crash (level 1.18, section 41):** in galaga mode JE_searchFor doubles the value of every
+  enemy it finds (tyrian2.c L4148-4160; tyrian2.ts JE_searchFor), and `evalue` is a JE_integer, so
+  it wraps. Events 70 and 75 search again on every pass of a level's waiting loops, so an enemy of
+  value 15 reaches 30720 after eleven doublings. Touching it, JE_playerCollide (mainint.c L4634-4669; mainint.ts JE_playerCollide) takes
+  it for a front-weapon pickup and reads `weaponPort[720].name`, sets the weapon id to u8(720) = 208
+  and the special to `specialArcadeWeapon[719]`, all past the tables' ends. The port threw on the
+  undefined record (tick 2815 of tools/inventory.mjs's run, seed 1041). Other reachable cases: 375
+  (a cash pickup in ALE) reaches 30464 (weapon 208, special `specialArcadeWeapon[463]` = 125), and
+  250 reaches 32000 (rear weapon u8(1000) = 232, name `weaponPort[1000]`). SQUADRON's enemies can do
+  the same.
+- **What the C does:** undefined behaviour, so whatever its memory holds. On the reference build
+  (tools/opentyrian-bot/run.sh: Apple clang -O1, arm64 macOS, where every bot fixture comes from)
+  the item tables lie back to back: options, powerSys, shields, ships, special, weaponPort, weapons
+  (71,820 bytes; checked with the linker's symbol addresses and by dumping the block from the
+  running C for episodes 1 and 4, byte for byte equal to what src/sim/overrun.ts builds). The
+  constant tables from SAWeapon on are followed by the rest of OpenTyrian's read-only data.
+  src/sim/overrun.ts rebuilds the item block from the item data (JE_loadItemDat's fields at the
+  structs' offsets, `name[min(len, 30)] = '\0'`, zero padding), appends to weaponPorts, specials
+  and options every record a Uint8 id can select (up to 255, decoded from it), reads the pickup's
+  names as `%s` would, and holds the 2,562 compiled bytes from SAWeapon on for
+  `specialArcadeWeapon`, `optionSelect` and `SAWeapon` reads past their ends. Past both blocks
+  (weapon names for values from 30805 or 31805, SAWeapon in a Super Arcade galaga game) the C reads
+  its mutable globals or build-dependent unwind tables; the port reads zeros, "" for a name. Those
+  only feed the text window, or need a Super Arcade game in a galaga level. Weapon 208 then fires
+  nothing (player_shot_create rejects ports over 42), so the bot can't kill the enemies event 70
+  waits for and ALE stalls at curLoc 2601-2610: the C does the same, tick for tick, for 30,000 ticks.
+  JE_playerCollide also gains the C's Uint8 truncation of `items.special` (value - 32100) and of a
+  Super Arcade weapon id.
+- **SQUADRON never ends (level 4.18, section 45):** genuine. Its event list has no end-level event
+  (11) or ready-to-end (36); after the start it jumps to a wave table at 60000 that calls the waves
+  (event 54, each returning through event 76) and jumps back to 60000. The invulnerable bot can't
+  end it; the C, with the same bot, matched the port for 60,000 ticks (seed 4045, every 100th
+  tick). The only end is the ship out of lives: game over, then the C waits for a key (the host's
+  key in src/app/run.ts), as with the bot without its cheats.
+- **Found on the way (the mortal SQUADRON cross-check):** start_level_first's JE_drawArmor
+  (tyrian2.c L834) caps armor at 28, and the port skipped it as HUD; it also called JE_getShipInfo
+  a second time after the level's world setup (game.ts startLevel), which the C doesn't. ENGAGE's
+  Stalker 21.126 has 30 armor, so the port's ship started at 30 instead of 28 and the armour ship
+  came later than the C's. newgame.ts now caps as the C does, and startLevel no longer repeats
+  JE_getShipInfo.
+
+**Tests:** tests/sim/galaga.test.ts (the read-only block starts with the three tables; every
+in-range record decodes from the rebuilt memory as the item data parses it; ALE's inventory run
+survives tick 2815 with weapon 208; SQUADRON's loop, and its game over with a mortal bot). C
+cross-checks in botTrace.test.ts: `ale-seed1041` (the inventory's ALE run, 6,000 ticks) and
+`squadron-mortal` (14,000 ticks: game over at 13,136, then the wait for a key). driver.c gains BOT_SEED (seed
+before JE_initPlayerData, as the inventory does) and BOT_MORTAL (no cheats); run.sh's play_case
+takes `seed=N` and `mortal`. Each botTrace case now starts from new players, as each driver run is a
+fresh process (JE_initPlayerData leaves friction, mouse and sidekick state alone, in the C too).
+docs/roadmap/inventory.* are regenerated: ALE runs its 60,000 ticks. Some counts of later levels
+shift slightly because the inventory plays every level in one process and ALE's full run leaves
+that same player state behind (episode 2 played alone gives the old numbers).
+
+**Options considered:**
+- *Reproduce the reference build's memory (chosen):* the C cross-checks are this build, and with
+  it the port matches the C through and past the overrun.
+- *A guard (skip the pickup, or treat a missing record as empty):* hides the divergence: the C does
+  pick it up, loses its gun and stalls.
+- *Clamp the doubled value:* changes what the C's galaga games do (a 32000 would become a cash
+  pickup instead of rear weapon 232).
+
+Fallback: drop `extendItemTables` and the overrun accessors; the C tables' bounds then throw again.
