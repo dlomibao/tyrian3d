@@ -2586,3 +2586,59 @@ show where an enemy's rock meets an unusual neighbour (as D63's tiles), and the 
 sprites (`assembly-newsh2-115`, `-119`, the rock outcrop `assembly-newshe-39`) stand on level 1's dirt,
 not island rock, and are unchanged.
 Fallback: revert the five scripts and their GLBs; `castsShadow` is harmless without the flag.
+
+## D67 — Level 1's ground bunkers and rock outcrop stand on the HD ground, not on a pad of pixel cells
+
+2026-11-03
+
+**Decision:** The dome works (`assembly-newsh2-115`: newsh2-77/79/115/117), the carapace bunker
+(`assembly-newsh2-119`: newsh2-81/83/119/121) and the rock outcrop (`assembly-newshe-39`: newshe-1/3/5/39/41/43)
+no longer export the sprite's dirt. It was a floor of 2x2-pixel cells in flat palette colours (the
+outcrop's and the dome works') or a 1-px relief grid (the bunker's), which at 4K read as a blocky brown
+rectangle round each machine, and as a pixel square under the clouds. The HD ground (D57-D60) now shows
+round them, and their real shadows fall on it. The dirt is still built for the AO bake, as an occluder
+only, so the machines' feet still darken where they meet the ground; then it is deleted. Every machine
+part, palette material, frame, piece and pivot is as it was.
+
+The dirt also had a job: the level puts both bunkers on the tiles of their own wrecks (the
+`tyrbld-bunker-ring` and `-hull` ground structures, D34/D47, shapesz 320/321/330/331 and 322/323/332/333,
+six and three copies), which the original's opaque sprites hide until the enemy dies. Without it the
+wreck's model and its HD painting showed round and under the live machine (the bunker floats at the
+enemy height over the ground). So:
+
+- **Covered structures** (`src/render/remaster/opaqueCover.ts`, `DrawListRenderer`): a ground (layer 0)
+  structure is placed after the frame's draws are known, and left out when its whole pattern lies under
+  opaque pixels of sprites drawn as models (sampled every 4 px, 3 px in from its edges; translucent
+  "blend" draws don't count). This is the original's rule (an opaque sprite hides the tiles under it), so
+  the wreck appears the frame its bunker dies. Layer 1-2 structures are placed as before.
+- **Covered tiles**: a ground cell of a ground structure's tile (`WRECK_TILES`, from the tile models)
+  is also drawn after the frame's draws, and when its own 24x28 cell lies under opaque modelled enemy
+  pixels it draws without the wreck: in the HD terrain look from a "covered" painting, in the other
+  looks (Terrain: Original, `bg=original`) as its pixels with every non-dirt pixel taking its nearest
+  dirt pixel's index (`paintOutWreck`, TYRIAN's dirt ramp 16-21), which reads as the sprite's dirt did.
+  The covered painting is a new optional manifest key per layer, `"covered": { "<tile>": rect }`
+  (`terrainArt.ts`, `TerrainTileset.coveredTile`), here in its own atlas `0-covered.webp` (8 tiles, 39 KB).
+  `tools/terrain_covered.py` makes it: `sheet` puts both patterns with one ring of their real map
+  neighbours from the HD atlas on a 16:9 sheet; Gemini painted the wrecks out to dirt (one request); `cut`
+  registers the answer (NCC 0.986/0.988 away from the wrecks), takes the painting only over the wreck's
+  pixels (from the original tiles, grown 12 texels, feathered), pulls its low frequencies to the HD tiles
+  round it, and keeps the HD tile elsewhere, so the tiles' edges and seams are unchanged.
+  `terrain_hd.py cut` keeps the manifest's `covered` entries; rerun `terrain_covered.py cut` after it.
+
+**Options considered:**
+- *Drop the dirt, hide the covered wreck and paint its tiles out (chosen):* the HD ground is continuous
+  round the machines, the wreck still appears on the kill, and the rule is the original's.
+- *Keep a pad, smoothed (a dirt-colour gradient, or the sprite's dirt upscaled):* still a rectangle
+  that doesn't match the painted HD ground round it.
+- *Only drop the dirt:* the wreck's brass ring, grey hull and ribbed pipes showed beside and under the
+  bunkers (captured at ticks 250, 750, 1000).
+- *A contact-shadow decal:* not needed; the real shadow and the baked AO seat the machines, and a
+  translucent decal would need its own palette and fade handling.
+
+**Checked:** `?debug=play&seed=1&skip=T&freezeAt=T+2&armor=99`, T = 250, 750, 1000, 1500, 1800, at
+3840x2160 before and after, and 750 with `&terrain=original` and `&bg=original`; the destroyed bunker at tick 250 shows its wreck. Draw calls drop (457 → 373,
+377 → 311, 391 → 325, 305 → 180 at those ticks) and the frame cpu time is no higher. The 14 GLBs are
+3.83 MB → 3.66 MB; with the covered atlas the level downloads ~135 KB less. Tests:
+`tests/render/opaqueCover.test.ts` (cover, `paintOutWreck`) and a covered-tile case in `terrainArt.test.ts`.
+Fallback: revert the three scripts and GLBs and the renderer change (`covered` in the manifest is then
+unused and harmless).

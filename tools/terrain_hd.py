@@ -1198,6 +1198,12 @@ def cmd_cut(args) -> None:
         else:
             img.save(out_dir / name, quality=92, method=6, alpha_quality=100)
         atlas_manifest["layers"][layer_s] = {"image": name, "width": img.width, "height": img.height, "tiles": rects}
+        # The covered tiles (tools/terrain_covered.py, D67) are kept; rerun its `cut` to match a new atlas.
+        old = out_dir / "manifest.json"
+        if old.exists():
+            kept = json.loads(old.read_text()).get("layers", {}).get(layer_s, {}).get("covered")
+            if kept:
+                atlas_manifest["layers"][layer_s]["covered"] = kept
         missing = [k for k, t in d["tiles"].items() if t["drawnAsTile"] and int(k) not in done]
         print(f"layer {layer}: {len(done)} tiles -> {out_dir / name} ({img.width}x{img.height})"
               + (f"; no art yet for {len(missing)}: {' '.join(missing)}" if missing else ""))

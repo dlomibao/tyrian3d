@@ -8,7 +8,11 @@
 //   { "version": 1, "scale": 8,
 //     "layers": { "0": { "image": "0.webp",
 //                        "tiles": { "123": { "x": 16, "y": 16, "w": 192, "h": 224 } },
-//                        "variants": { "123": [ { "n": { "right": 124 }, "x": 240, "y": 16, "w": 192, "h": 224 } ] } } } }
+//                        "variants": { "123": [ { "n": { "right": 124 }, "x": 240, "y": 16, "w": 192, "h": 224 } ] },
+//                        "covered": { "330": { "x": 464, "y": 16, "w": 192, "h": 224 } } } } }
+//
+// "covered" (optional, D67): the tile as it looks under an opaque enemy sprite that hides it, e.g. a
+// bunker's wreck painted out to plain dirt while the live bunker stands on it.
 //
 // Layers are the draw list's: 0 background 1 (ground), 1 background 2 (TYRIAN's clouds), 2
 // background 3 (islands, fortresses). A tile key is its 0-based record in shapes?.dat (the number
@@ -49,6 +53,8 @@ export interface TerrainLayerArt {
   image: string;
   tiles: Map<number, TerrainRect>;
   variants: Map<number, TerrainVariant[]>;
+  /** The tile painted as it looks while an enemy covers it (D67). */
+  covered: Map<number, TerrainRect>;
 }
 
 export interface TerrainManifest {
@@ -91,12 +97,12 @@ export function parseTerrainManifest(json: unknown, warn: (msg: string) => void 
       warn(`terrain art: layer ${key} isn't 0, 1 or 2; skipped`);
       continue;
     }
-    const { image, tiles, variants } = (layer ?? {}) as { image?: unknown; tiles?: unknown; variants?: unknown };
+    const { image, tiles, variants, covered } = (layer ?? {}) as { image?: unknown; tiles?: unknown; variants?: unknown; covered?: unknown };
     if (typeof image !== "string" || image === "" || typeof tiles !== "object" || tiles === null) {
       warn(`terrain art: layer ${key} has no image or tiles; skipped`);
       continue;
     }
-    const art: TerrainLayerArt = { image, tiles: new Map(), variants: new Map() };
+    const art: TerrainLayerArt = { image, tiles: new Map(), variants: new Map(), covered: new Map() };
     for (const [t, rect] of Object.entries(tiles as Record<string, unknown>)) {
       const n = Number(t);
       if (!Number.isInteger(n) || n < 0) {
@@ -127,6 +133,17 @@ export function parseTerrainManifest(json: unknown, warn: (msg: string) => void 
           kept.push({ ...r, n: sides });
         });
         if (kept.length > 0) art.variants.set(n, kept);
+      }
+    }
+    if (typeof covered === "object" && covered !== null) {
+      for (const [t, rect] of Object.entries(covered as Record<string, unknown>)) {
+        const n = Number(t);
+        if (!Number.isInteger(n) || n < 0) {
+          warn(`terrain art: layer ${key} covered tile "${t}" isn't a tile number; skipped`);
+          continue;
+        }
+        const r = parseRect(rect, scale, `layer ${key} covered tile ${t}`, warn);
+        if (r) art.covered.set(n, r);
       }
     }
     if (art.tiles.size > 0 || art.variants.size > 0) out.layers.set(Number(key) as TerrainLayer, art);
@@ -203,6 +220,7 @@ export class TerrainTileset<T = unknown> {
       this.images.set(art.image, null);
       for (const r of art.tiles.values()) if (r.image) this.images.set(r.image, null);
       for (const list of art.variants.values()) for (const r of list) if (r.image) this.images.set(r.image, null);
+      for (const r of art.covered.values()) if (r.image) this.images.set(r.image, null);
     }
   }
 
@@ -241,6 +259,13 @@ export class TerrainTileset<T = unknown> {
     const ready = this.resolve(layer, tile, index);
     cache.set(index, { tile, ready });
     return ready;
+  }
+
+  /** The art for `tile` on `layer` while an enemy sprite covers it (D67), if it has any and it's ready. */
+  coveredTile(layer: TerrainLayer, tile: number): ReadyTerrainTile<T> | undefined {
+    const art = this.manifest.layers.get(layer);
+    const r = art?.covered.get(tile);
+    return art && r ? this.ready(art, r) : undefined;
   }
 
   private resolve(layer: TerrainLayer, tile: number, index: number): ReadyTerrainTile<T> | undefined {

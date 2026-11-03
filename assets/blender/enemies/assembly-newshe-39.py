@@ -31,8 +31,9 @@ underside is a plain flat closed base.
 
 Texture: an occlusion / edge-wear / base-darkening colour multiplier and a roughness/metal map, baked once for the
 whole heap (the ships' bake, PR #84) and shared by the pieces; no concept projection (maps.json says
-"bake": "model"). Each piece gets the flat closed patch of dirt and shadow under it, painted from
-its sprite in 2 x 2 px cells (untextured palette materials), and an outline shell (D51).
+"bake": "model"). Each piece gets an outline shell (D51). The sprite's dirt and shadow round the
+rocks are not modelled (D67; they were a flat patch of 2 x 2 px cells): the game's HD ground shows
+there, and the rocks' real shadow falls on it.
 
 Run: blender --background --python assets/blender/enemies/assembly-newshe-39.py
      [-- --preview out.png] [--no-bake] [--render DIR] [--top-tris out.json]
@@ -974,7 +975,6 @@ def main():
     layout = [(e["model"], e["cx"], e["cy"]) for e in first["assemblyLayout"]]
     corners = [(n, cx - 12 - SX0, cy - 14 - SY0) for n, cx, cy in layout]
     pixels, w, h, colors = lib.assembly_pixels(ROOT, corners)
-    grid = lib.Grid(w, h, pixels)
     obj, mats = build(colors)
     coll = obj.users_collection[0]
     tris = sum(len(p.vertices) - 2 for p in obj.data.polygons)
@@ -993,11 +993,7 @@ def main():
     rel = [(n, cx - CX0, cy - CY0) for n, cx, cy in layout]
     pieces = common.split_assembly(obj, rel)
     shells = split_open(shell, rel, coll)
-    gmats = lib.Mats("nshe39g", colors)
-    for name, ox, oy in corners:
-        add_ground(pieces[name], grid, gmats, ox, oy, mats)
     for p in pieces.values():
-        set_materials(p, mats, gmats)
         cap_uvs(p)
     total = 0
     for name in PIECES:

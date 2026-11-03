@@ -54,13 +54,14 @@ import { vfxModeFromSearch, type VfxMode } from "./vfx/vfxMode";
 import { RemasterGroundAtlas } from "./remaster/groundAtlas";
 import { remasterGroundMaterial } from "./remaster/groundMaterial";
 import { paletteLuma } from "./remaster/mmpx";
-import { TileModelIndex } from "./remaster/tileModels";
+import { TILE_MODELS, TileModelIndex } from "./remaster/tileModels";
 import { StructureInstances } from "./remaster/structureInstances";
+import { OpaqueCover, paintOutWreck } from "./remaster/opaqueCover";
 import { modelHeightFromUrl } from "./modelHeight";
 import { placeFlatQuad, SPRITE2X2_PARTS, spriteArtModeFromSearch, type FlatQuad, type ReadyFrame, type SpriteArt, type SpriteArtMode, type SpriteArtSheet } from "./spriteArt";
 import { SpriteArtLayer } from "./spriteArtLayer";
 import { BG_KEY_LAYER } from "../sim/backgrnd";
-import { MAP_SIZES } from "../data/levels";
+import { MAP_SIZES, TILE_HEIGHT, TILE_WIDTH } from "../data/levels";
 import { terrainStyle as currentTerrainStyle, type TerrainStyle } from "../core/terrainStyle";
 import { parseTileId, type TerrainTileset } from "./remaster/terrainArt";
 import { TerrainArtSet } from "./remaster/terrainLoader";
@@ -68,6 +69,14 @@ import { terrainDepthMaterial, terrainMaterial, type TerrainKind } from "./remas
 
 /** How backgrounds are drawn: the original tiles extruded (D8) or remastered (D34). */
 export type BackgroundStyle = "original" | "remaster";
+
+/**
+ * The ground structures' tiles (layer 0 models that keep their tiles: TYRIAN's wrecks, trees and
+ * boulders), as tile ids. Enemies that stand on them may hide them as their sprites did (D67).
+ */
+const WRECK_TILES = new Set(
+  TILE_MODELS.filter((e) => e.layer === 0 && e.keepTiles !== false).flatMap((e) => e.tiles.flat().filter((n) => n >= 0).map((n) => `${e.shapes}:${n}`)),
+);
 
 /** Roll at full bank, and how fast the model eases toward its frame's roll (per second). */
 const MAX_ROLL = THREE.MathUtils.degToRad(35);
@@ -345,6 +354,13 @@ export class DrawListRenderer {
   private tileModels = new TileModelIndex([]);
   /** Structures already placed this frame, by layer and pattern anchor. */
   private readonly placedStructures = new Set<string>();
+  /** This frame's ground structures, placed once the enemies are known (D67), and what the enemy models cover. */
+  private readonly groundStructures: { model: string; x: number; y: number; z: number; scale: number; left: number; top: number; w: number; h: number }[] = [];
+  private readonly cover = new OpaqueCover();
+  /** This frame's ground cells of wreck tiles, drawn once the frame knows whether enemies cover them (D67). */
+  private readonly groundCells: { d: TileDraw; x: number; y: number; remaster: boolean }[] = [];
+  /** Wreck tiles with their wreck painted out to dirt (D67), by tile id. */
+  private readonly coveredTiles = new Map<string, Uint8Array>();
   private readonly structures = new StructureInstances();
   /** Structure models asked for (loading or loaded). */
   private readonly structureLoads = new Map<string, Promise<void>>();
@@ -617,6 +633,9 @@ export class DrawListRenderer {
     fx?.begin(dt * this.vfxTimeScale, camera);
     this.placedStructures.clear();
     this.structures.begin();
+    this.groundStructures.length = 0;
+    this.groundCells.length = 0;
+    this.cover.begin();
     const art = this.spriteArt !== null && this.spriteArtMode === "remastered";
     this.artLayer.begin();
     this.terrainLevel.levelFilter.value = this.palette.screenFilter;
@@ -640,6 +659,7 @@ export class DrawListRenderer {
             const pool = this.modelPool(r.model);
             const look = this.objectLook(d, pool, now, frame);
             if (look === ObjectLook.Model) {
+              if (d.effect !== "blend") this.cover.add(d.sheet, d.index, d.size, x, y);
               const shift = r.override ? bankShift(d.sheet.id, d.sheet.data, r.override.baseIndex, d.index) : 0;
               this.drawModel(r.route, pool, r.bank, shift, d, x, y, cam, dt);
               continue;
@@ -681,21 +701,10 @@ export class DrawListRenderer {
             instances++;
             break;
           }
-          if (d.layer === 0 || d.effect === "blend") {
-            // The ground, and blended background-2 tiles as flat translucent sheets (an extruded
-            // tile seen through shows its sides and doubles up at the seams).
-            const blend = d.effect === "blend";
-            const pool = this.pool(this.groundGeometry, blend ? Variant.GroundBlend : Variant.Ground, frame);
-            if (blend) pool.mesh.renderOrder = blendSheetOrder(d.pass);
-            const s = pool.next(frame);
-            this.atlas.place(d.tileId, d.tile, pool.extra.array as Float32Array, s * 2);
-            writeMatrix(pool.mesh.instanceMatrix.array as Float32Array, s, x, y, passHeight(d.pass), 1, 1, cam);
-          } else {
-            const geometry = this.cache.tileGeometry(d.tileId, d.tile);
-            if (!geometry) continue;
-            this.addSprite(geometry, d.pass, d.effect, 0, 0, x, y, cam, frame);
-          }
-          instances++;
+          if (this.background !== "remaster" && d.layer === 0 && WRECK_TILES.has(d.tileId)) {
+            this.groundCells.push({ d, x, y, remaster: false }); // D67, as in drawRemasterTile
+            instances++;
+          } else if (this.drawOriginalTile(d, x, y, cam, frame)) instances++;
           break;
         }
         case "pixel":
@@ -707,6 +716,23 @@ export class DrawListRenderer {
           instances++;
           break;
       }
+    }
+
+    // A ground structure wholly under opaque enemy sprites (a wreck under its live bunker) is left
+    // out, as the sprites hid its tiles (D67).
+    for (const s of this.groundStructures) {
+      if (!this.cover.covered(s.left, s.top, s.w, s.h)) this.structures.place(s.model, s.x, s.y, s.z, s.scale);
+    }
+    // A wreck's ground cell under opaque enemy sprites draws without the wreck: its covered HD
+    // painting, else the tile with its wreck pixels painted out (D67).
+    for (const c of this.groundCells) {
+      const covered = this.cover.covered(c.x, c.y, TILE_WIDTH, TILE_HEIGHT);
+      if (c.remaster && this.drawRemasterGround(c.d, c.x, c.y, cam, frame, covered, true, covered)) continue;
+      if (covered) {
+        let tile = this.coveredTiles.get(c.d.tileId);
+        if (!tile) this.coveredTiles.set(c.d.tileId, (tile = paintOutWreck(c.d.tile)));
+        this.drawOriginalTile({ ...c.d, tileId: `${c.d.tileId}#covered`, tile }, c.x, c.y, cam, frame);
+      } else if (!c.remaster || !this.drawRemasterGround(c.d, c.x, c.y, cam, frame, false)) this.drawOriginalTile(c.d, c.x, c.y, cam, frame);
     }
 
     for (let p = 0; p < this.allPools.length; p++) this.allPools[p].commit();
@@ -878,17 +904,36 @@ export class DrawListRenderer {
           const k = h / cam.y;
           const gx = screenWorldX(x + match.dx);
           const gz = screenWorldZ(y + match.dy);
-          this.structures.place(match.entry.model, gx + (cam.x - gx) * k, h, gz + (cam.z - gz) * k, 1 - k);
+          const px = gx + (cam.x - gx) * k, pz = gz + (cam.z - gz) * k;
+          if (d.layer === 0) {
+            const cols = match.entry.tiles[0].length, rows = match.entry.tiles.length;
+            const cx = x + match.dx - (match.entry.offset?.[0] ?? 0), cy = y + match.dy - (match.entry.offset?.[1] ?? 0);
+            this.groundStructures.push({ model: match.entry.model, x: px, y: h, z: pz, scale: 1 - k, left: cx - cols * 12, top: cy - rows * 14, w: cols * 24, h: rows * 28 });
+          } else this.structures.place(match.entry.model, px, h, pz, 1 - k);
         }
         if (!(match.entry.keepTiles ?? d.layer === 0)) return true;
         modelled = true;
+        // A wreck's ground cell draws once the frame knows whether an enemy covers it (D67).
+        if (d.layer === 0 && WRECK_TILES.has(d.tileId)) {
+          this.groundCells.push({ d, x, y, remaster: true });
+          return true;
+        }
       }
     }
+    return this.drawRemasterGround(d, x, y, cam, frame, false, modelled);
+  }
+
+  /**
+   * The rest of drawRemasterTile: the tile from the HD terrain art (only its covered painting if
+   * `covered`, D67), else (unless `hdOnly`) the upscaled ground.
+   */
+  private drawRemasterGround(d: TileDraw, x: number, y: number, cam: THREE.Vector3, frame: number, covered: boolean, modelled = true, hdOnly = false): boolean {
     const blend = d.layer !== 0 && d.effect === "blend";
     // HD terrain where it's painted (D57): ground, cloud sheets, and islands without a model.
     if (!modelled || d.layer === 0) {
-      if (this.drawHdTile(d, x, y, cam, frame, blend)) return true;
+      if (this.drawHdTile(d, x, y, cam, frame, blend, covered)) return true;
     }
+    if (hdOnly) return false;
     if (d.layer !== 0 && !blend) return modelled;
     // The ground, and blended background-2 tiles (TYRIAN's ice clouds) as translucent sheets, both
     // upscaled in context.
@@ -903,12 +948,31 @@ export class DrawListRenderer {
     return true;
   }
 
+  /** Draw a tile the original way: the ground and blended background-2 tiles as flat sheets, the rest extruded. */
+  private drawOriginalTile(d: TileDraw, x: number, y: number, cam: THREE.Vector3, frame: number): boolean {
+    if (d.layer === 0 || d.effect === "blend") {
+      // The ground, and blended background-2 tiles as flat translucent sheets (an extruded
+      // tile seen through shows its sides and doubles up at the seams).
+      const blend = d.effect === "blend";
+      const pool = this.pool(this.groundGeometry, blend ? Variant.GroundBlend : Variant.Ground, frame);
+      if (blend) pool.mesh.renderOrder = blendSheetOrder(d.pass);
+      const s = pool.next(frame);
+      this.atlas.place(d.tileId, d.tile, pool.extra.array as Float32Array, s * 2);
+      writeMatrix(pool.mesh.instanceMatrix.array as Float32Array, s, x, y, passHeight(d.pass), 1, 1, cam);
+    } else {
+      const geometry = this.cache.tileGeometry(d.tileId, d.tile);
+      if (!geometry) return false;
+      this.addSprite(geometry, d.pass, d.effect, 0, 0, x, y, cam, frame);
+    }
+    return true;
+  }
+
   /**
    * Draw a tile from the HD terrain art (D57) if the look is "hd" and its tileset has a painting of
    * it that has loaded. Returns false to draw it as before. The first tile of a tileset starts its
    * art loading (preloadLevel does so earlier, and waits).
    */
-  private drawHdTile(d: TileDraw, x: number, y: number, cam: THREE.Vector3, frame: number, blend: boolean): boolean {
+  private drawHdTile(d: TileDraw, x: number, y: number, cam: THREE.Vector3, frame: number, blend: boolean, covered = false): boolean {
     if (this.terrain !== "hd") return false;
     let id = this.tileIds.get(d.tileId);
     if (id === undefined) this.tileIds.set(d.tileId, (id = parseTileId(d.tileId)));
@@ -918,7 +982,7 @@ export class DrawListRenderer {
       void this.requestTerrain(id[0]);
       return false;
     }
-    const t = tileset?.tile(d.layer, id[1], d.key - d.layer * BG_KEY_LAYER);
+    const t = covered ? tileset?.coveredTile(d.layer, id[1]) : tileset?.tile(d.layer, id[1], d.key - d.layer * BG_KEY_LAYER);
     if (!t) return false;
     const kind: TerrainKind = d.layer === 0 ? "ground" : blend ? "blend" : "cutout";
     const pool = this.hdPool(t.texture, kind, tileset!.scale, frame);
