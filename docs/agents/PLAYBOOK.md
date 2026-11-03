@@ -87,7 +87,9 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
   `?viewer=<name>` (top view with "Sprite over model"); `?debug=models&model=<name>&flash=1`;
   `?debug=play&seed=1&skip=T&freezeAt=T` at a tick where it is on screen;
   `MODEL_SWAP_REPORT=1` with `tests/render/modelSwap.test.ts` lists sprites still drawn extruded.
-- **Accept:** top-view IoU vs the sprite mask ≥ 0.95 at sprite resolution on every frame; canopies,
+- **Accept:** top-view IoU ≥ 0.95 at sprite resolution on every frame against the sprite's *inner*
+  mask, its ink border left to the game's outline (`tools/sprite_mask.py <name> --measure top.png`,
+  `iou_rule_grid`; [OUTLINE-BORDER.md](OUTLINE-BORDER.md), D74); canopies,
   eyes, lights where the sprite has them; each part in the sprite's palette index for that region;
   every frame and assembly piece/pivot as before (`git diff src/render/spriteModels/` shows no frame
   change); no foil, no highlight lumps; triangles ~2-6k small, ~8-20k boss; strict review score ≥ 7/10.
@@ -99,6 +101,7 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
   | Model dark in game, shading painted on | The sprite's ring and shading are lighting; use mid-tone indices (D39 lighting pass). |
   | Wrinkled "tinfoil" surface | Concept projection bake: remove it, `"bake": "model"` (D50, D65). |
   | Outline boxy / tiered where the sprite is round | pchip plan curve fitted to the sprite mask (D52). |
+  | Model reads fatter than its sprite in game | Edge at the inner edge of the ink border; the game's ink is the border (D74). |
   | Colours read saturated brass in game | Judge on headless-Chrome captures, not Blender; lower metalness, cool tint on the bake (D53). |
   | A feature vanished over rounds (Gencore windshield) | Feature list; a lost feature fails review whatever else improved. |
   | Rock round a machine reads as a dark box | Rock is island relief from the sprite's pixels, outside the outline shell (D66). |

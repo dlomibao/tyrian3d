@@ -60,6 +60,9 @@ against what the sprite implies:
   curved surfaces: that darkens it twice (a grey ball turns black from the game camera) and looks
   blocky. Give each part its mid-tone colour and let the light shade it; paint only real markings
   (stripes, lights, panel colours), not shading.
+  The game's outline also takes the place of the ring in the silhouette: the top view matches the
+  sprite inside its ink border, not over it (DECISIONS.md D74, `tools/sprite_mask.py`), or the model
+  reads a pixel fatter than its sprite.
 - **Recesses** (grilles, vents, windows, hatches): dark pixels inside a part are cut in, not
   painted on.
 - **Buildings and ground structures** sometimes show a front wall: a darker band along the bottom
