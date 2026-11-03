@@ -2432,3 +2432,71 @@ draws matter, coarsen the relief (1x instead of 2x pixels) or trim `ROCK_COLOURS
 walls close it). Left as found: some of TYRIAN's enemies that sit on the purple blocks and machines
 (newsh2 models) carry the old boulders and a dark outline round their base, which now stand out
 against the rock; that's in their models. Fallback: revert this commit's scripts and models.
+
+## D64 — The title as the original's: the traced logo and a copper two-step menu over a painted planet at sunrise
+
+2026-11-03
+
+**Decision:** The title screen follows the original's layout: the huge maroon planet arcs from the
+top left down the right, the logo sits at the top, and a centred copper menu sits below it with no
+panel. The user chose the look from four mockups: the "Painted motion" planet with the "Cinematic
+dawn" sunrise and Talons laid over it.
+
+- **Logo:** only the original. `public/art/title/tyrian-logo.svg` is the title sprite
+  (tyrian.shp PLANET_SHAPES #146, palette 8) traced to one vector outline (IoU 0.97 against the
+  sprite at 1x) with a brushed copper fill, bevel and shadow as SVG filters.
+  `tyrian-logo-mask.svg` is the same outline as a silhouette. `logo()` (src/ui/components.ts) shows
+  it as an image, crisp at any size, and sweeps a copper glint across it every 9 s with a CSS mask of
+  the silhouette, so the shapes never change. The traced file's own SMIL sweep was taken out of our
+  copy so the glint follows reduced motion. A test keeps the two files' paths identical. The data
+  picker uses the same logo. The Orbitron "TYRIAN" wordmark is gone.
+- **Backdrop** (`src/ui/titlePlanet.ts`, the "title" mood of `src/ui/backdrop.ts`; hangar and space
+  are unchanged):
+  - **The paint:** one full-screen shader. Its brush strokes flow along a flow map and curl field,
+    with dry-brush bristles, impasto relief, a painted terminator with a copper band, faint
+    night-side lights and a slow breathing light. It renders into a target of at most 0.9 MP (never
+    above CSS pixels) about 30 times a second.
+  - **The dawn, in the same brushwork:** the amber sun climbs past the limb over the first ~30 s, its
+    scatter laid in strokes along the rim. The halo has brushed rays, plus a short anamorphic streak
+    and two faint ghosts. The camera pushes in slowly toward the sunrise and settles, with a drift
+    and a slight roll.
+  - **The composite:** the paint upscaled with a static canvas grain and vignette, plus two flights
+    on a 34 s cycle. The real Talon (`usp_talon.glb`) passes alone, banking away toward the sun, with
+    its own engine glows (`tyrian_engines`). Then a squadron of four crosses the night side. The
+    canvas redraws only when the paint changes or a ship is flying.
+  - **Fallbacks:** reduced motion gets one still at t = 26 s (sun up, no ships). Slow frames (over
+    50 ms on average) or `?titlefx=half` switch to a half-resolution paint, with the ships kept to
+    its pace. Without WebGL, or when the shader fails to compile, a CSS planet stands in
+    (`.ui-backdrop-fallback[data-mood="title"]`).
+- **Menu** (`src/app/titleMenu.ts`, pure, tested):
+  - **Two steps:** Start New Game, Load Game, High Scores, Options, Music: ‹style› (only with music
+    styles). Start New Game opens the second step: the episodes (a numeral and the data's title),
+    a difficulty row with diamond pips, and Back. Choosing an episode starts it.
+  - **The look:** copper type, a brush smear behind the chosen line, copper diamond ticks and a glint.
+  - **Kept behaviour:** the keys L, H, O and M, the pad's LB, Y, Back, X and Start, mouse and touch,
+    the codes and hidden difficulties, the idle demo and arcade starts. Left and right always pick
+    the difficulty on the episodes step, as the old row did; Escape goes back a step. A code that
+    completes puts the step and focus back.
+  - **Order:** the entries follow the original's (Load Game before High Scores); Options comes last.
+- **Colours:** copper, maroon, umber and bone tokens in `tokens.css` (`--ui-copper*`, `--ui-bone`,
+  `--ui-umber-ink`...). There is no blue on the title. The other screens keep their look over the
+  painted planet (Options, Load Game, High Scores, the Players screen). No new fonts or CDNs: the
+  menu is Exo 2 at 700, as already loaded.
+
+**Options considered:**
+- *Painted planet plus the dawn layer and real Talons (chosen):* the user's pick; the painted look
+  carries the original's streaky planet, and the sunrise and ships give it life without a busy 3D
+  scene.
+- *A full 3D ray-traced planet (the "Cinematic dawn" mockup alone):* a photographic look, heavier
+  (simplex fBm per pixel), and less like the original's painting.
+- *Keep the 3D backdrop's blue planet and ship behind a restyled panel:* not the original's layout or
+  palette.
+- *A hand-drawn or reinterpreted script logo:* ruled out by the user. Only the traced original is
+  shown.
+
+**Review:** `npm run dev`. The captures (headless Chrome, `?titlet=24` starts the shot at the
+squadron) show 16:10, 21:9, phone portrait and landscape, the episode step, the reduced-motion
+still, half resolution and the CSS fallback. Cost on an Apple M5 Pro (ANGLE Metal): 0.37 ms a paint
+at 1200 x 750, rAF steady at 60 fps, 30 paints a second. On SwiftShader (software GL, a weak-GPU
+proxy) it switched itself to half resolution (600 x 375): 12.5 ms a paint, about 28 fps overall.
+Not checked: Safari (the SVG filters and the CSS mask), real phones, real low-end GPUs.

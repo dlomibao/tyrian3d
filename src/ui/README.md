@@ -100,7 +100,7 @@ item). Nothing needs a swipe or a drag. Make every target at least `--ui-hit` ta
 
 ## Components
 
-- `panel(...)`, `logo()`, `title(text, kicker?)`, `h("span", { class: "ui-label", text })` for
+- `panel(...)`, `logo()` (the original logo traced to SVG, public/art/title/, with a glint; D64), `title(text, kicker?)`, `h("span", { class: "ui-label", text })` for
   a small section label.
 - `new MenuList({ items, focused, orientation, wrap, onSelect, onFocus })`: items have `label`,
   `detail`, `icon` (URL or element), `badge`, `disabled`. `setItems` replaces them; `focus(i)`.
@@ -120,6 +120,7 @@ same classes: `ui-menu`, `ui-menu__item is-focused`, `ui-menu__icon`, `ui-menu__
 
 ## Look
 
+The title (D64) uses the copper tokens (`--ui-copper*`, `--ui-bone`, `--ui-umber-ink`) and no blue.
 Use the tokens (`var(--ui-gold)`, `var(--ui-space-3)`, `var(--ui-text-lg)`,
 `var(--ui-med)`...) rather than raw values, the display face (`--ui-font-display`, Orbitron) for
 titles and labels and the text face (`--ui-font-text`, Exo 2) for reading. Motion stays subtle and
@@ -133,6 +134,9 @@ moving it onto `showScreen` gives it the navigation, transitions and backdrop.
 ## Backdrop
 
 `main.ts` attaches a `Backdrop` that draws with the game View's renderer while a screen with a
-backdrop mood is up, and stops when none is (it costs nothing during levels). Without WebGL a CSS
-starfield stands in. `ui.backdrop?.setShipGraphic?.(shipGraphic)` shows a player ship (the item
+backdrop mood is up, and stops when none is (it costs nothing during levels). The "title" mood is
+the painted planet at sunrise with passing Talons (`titlePlanet.ts`, D64: a reduced-resolution paint
+pass, a half-resolution path for slow GPUs, one still frame under reduced motion); "hangar" and
+"space" are the 3D scene. Without WebGL a CSS stand-in shows (a maroon planet for the title, a
+starfield otherwise). `ui.backdrop?.setShipGraphic?.(shipGraphic)` shows a player ship (the item
 screen does this as ships are browsed).
