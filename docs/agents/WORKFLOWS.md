@@ -184,8 +184,10 @@ fix-round.js { worktree, scratch, items: [{ name, script, issues: [...from the r
 
 **HD terrain for another tileset:**
 ```
-terrain-hd.js { worktree, scratch, levels: ["<ep>-<n>", ...], tileset: "shapesx", maxRequests: 25, ticks: [1, 500, 1500, 3000] }
+terrain-hd.js { worktree, scratch, levels: ["all"], tileset: "shapesx", maxRequests: 25, ticks: [1, 500, 1500, 3000] }
 ```
+`levels: ["all"]` with `tileset` runs every level of the tileset together (`--tileset`, D75); or list
+`["<ep>-<n>", ...]`. The cut merges into the tileset's atlas, so a batch of levels at a time works too.
 
 **Pixel sweep of a level:**
 ```

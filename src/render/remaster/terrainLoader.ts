@@ -50,7 +50,13 @@ export async function loadTerrainTileset(
   const tileset = new TerrainTileset<THREE.Texture>(name, manifest);
   // Layer 0 is opaque; the others' soft edges filter without fringes premultiplied.
   const opaque = new Set<string>();
-  for (const [layer, art] of manifest.layers) if (layer === (0 as TerrainLayer)) opaque.add(art.image);
+  // That includes the images layer-0 rects name for themselves (a merged tileset's new tiles, D75).
+  for (const [layer, art] of manifest.layers) {
+    if (layer !== (0 as TerrainLayer)) continue;
+    opaque.add(art.image);
+    for (const r of art.tiles.values()) if (r.image) opaque.add(r.image);
+    for (const list of art.variants.values()) for (const r of list) if (r.image) opaque.add(r.image);
+  }
   await Promise.all(
     [...tileset.images.keys()].map((image) =>
       io.loadTexture(root + image.split("/").map(encodeURIComponent).join("/")).then(

@@ -152,38 +152,47 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
 ### 3. HD terrain via Gemini
 
 - **Standard:** D57 (game side, contract), D58 (sheets, cutter, seams), D59 (picking paintings),
-  D60 (checked in game). Full flow and Gemini tips: `docs/terrain-pipeline.html`. Workflow:
-  `tools/workflows/terrain-hd.js`.
-- **Inputs:** the level ids and tileset; `TILES_SHAPES=<x> npm run tiles`; the structure models
-  already matched (they replace or stand on tiles).
-- **Steps:** inventory → sheets (softened from the start; ground as map regions, clouds/islands as
-  contexts) → Gemini, one request at a time under `gemini.lock` → `cut --cache` → `check` →
-  inspect every contact sheet and `cut-report.json` → atlas in `public/art/terrain/<tileset>/` +
-  CREDITS row → play the level in both looks.
+  D60 (checked in game), D75 (a tileset over all its levels, merging cuts). Full flow and Gemini tips:
+  `docs/terrain-pipeline.html`. Workflow: `tools/workflows/terrain-hd.js`.
+- **Inputs:** the tileset (`--tileset shapesz`: every level that uses it) or a list of its levels;
+  `TILES_SHAPES=<x> npm run tiles`; the structure models already matched (they replace or stand on tiles).
+- **Steps:** inventory (all the tileset's levels) → check the layer 1-2 `kind`s (terrain is painted,
+  structure is left to models, empty needs nothing; `--kind` fixes a misread tile) → sheets (softened,
+  in `SEND.md`'s order; ground and layer-2 terrain as map regions, the rest as contexts) → Gemini, one
+  request at a time under `gemini.lock` → `cut --cache` (merges: tiles the atlas has stay byte for
+  byte) → `check` → inspect every contact sheet and `cut-report.json` → atlas in
+  `public/art/terrain/<tileset>/` + CREDITS row → play the levels in both looks.
 - **Commands:**
   ```
   PY=/Users/dlomibao/projects/tyrian3d-remaster/.venv/bin/python; W=/Users/dlomibao/projects/tyrian-scratch/<task>/work
-  $PY tools/terrain_hd.py --level 1-9 --work $W inventory | sheets | fake
-  $PY tools/terrain_hd.py --level 1-9 --work $W cut --cache $W/cands.pkl [--pick 0:68=region-l0-03#0] [--exclude 0:332]
-  $PY tools/terrain_hd.py --level 1-9 --work $W check
-  TYRIAN_DATA=... NODE_OPTIONS= npx vitest run tests/render/terrainArt.test.ts
+  $PY tools/terrain_hd.py --tileset shapesz --work $W inventory | sheets | fake
+  $PY tools/terrain_hd.py --tileset shapesz --work $W cut --cache $W/cands.pkl [--pick 0:68=region-l0-03#0] [--exclude 0:332] [--recut 1:42]
+  $PY tools/terrain_hd.py --tileset shapesz --work $W check [--contact new|all|1-11]
+  TYRIAN_DATA=... NODE_OPTIONS= npx vitest run tests/render/terrainArt.test.ts tests/tools/terrainHd.test.ts
   ?debug=play&seed=1&skip=T&freezeAt=T  [&terrain=original] [&dpr=0.3] [&terrainart=<dir>/]
   ```
-- **Accept:** every inventoried tile covered or deliberately left to fall back; seam ratio (step
-  across tile edges / step inside tiles) ≤ ~0.6 ground, ≤ ~0.85 clouds (TYRIAN: 0.57, 0.82); NCC ≥ ~0.5
-  per cell; blockiness ≤ ~2 (deblock softens 1.6-2.4); colour close to the original; no seams, gaps
-  or misplaced tiles in game at several ticks and at `&dpr=0.3`; fallback works with a tile removed.
-- **Failure modes → fix:** Gemini copies the pixel blocks → send the softened sheet; picks scored
-  by blockiness, deblock (D59, D60). Trees drawn from the side → say the material and "seen straight
-  down, no trunks" (doc §3). A twig repeated across the map → `novel_detail` penalty or `--pick`.
-  Context-painted dirt patches next to region-painted dirt → region bonus (D59). HD first frame
-  slow, worm drawn as sprites → atlases uploaded during preload (D60). Gemini "running low on usage"
-  after ~25 Pro requests → stop, cut with what exists (doc §3). **Known gap:** the tool inventories one
-  level at a time; a tileset used by several levels must be inventoried for all before cutting
-  (doc "Extending"); the template sends that to an Opus tool step.
+  A fake run cuts into a scratch copy of the tileset folder (`--out`), never into `public/`.
+- **Accept:** every terrain tile covered or deliberately left to fall back; `git diff` shows the kept
+  atlas images unchanged (only the manifest and new images change); seam ratio (step across tile
+  edges / step inside tiles) ≤ ~0.6 ground, ≤ ~0.85 clouds and layer-2 cutouts (TYRIAN: 0.57, 0.82),
+  on `check`'s `new` line and per level; NCC ≥ ~0.5 per cell; blockiness ≤ ~2 (deblock softens
+  1.6-2.4); colour close to the original; no seams, gaps or misplaced tiles in game at several ticks
+  and at `&dpr=0.3`; fallback works with a tile removed.
+- **Failure modes → fix:** Gemini copies the pixel blocks → softened sheets (the default now); picks
+  scored by blockiness, deblock (D59, D60). Trees drawn from the side → say the material and "seen
+  straight down, no trunks" (doc §3; the prompts do). A twig repeated across the map → `novel_detail`
+  penalty or `--pick`. Context-painted dirt patches next to region-painted dirt → region bonus (D59).
+  HD first frame slow, worm drawn as sprites → atlases uploaded during preload (D60). Gemini "running
+  low on usage" after ~25 Pro requests → stop, cut with what exists; next session restore the atlas
+  folder (`git checkout -- public/art/terrain/<tileset>`) and cut again with all answers (doc §3).
+  Kept tiles meeting in pairs their level never had (TYRIAN's clouds on HOLES: 1.11) → `--recut` that
+  layer over all levels, or variants (D75). Metal plating/pipes on layers 1-2 → structure models, not
+  paintings (D75).
 - **Cost/time (TYRIAN, shapesz):** 5 agents, 108 min, 1.2M tokens: prep and game side 23 min in
   parallel, Gemini operator 44 min (27 requests: 21 sheets + 6 retries), assemble 25, verify 16.
-  Later tilesets skip the game side.
+  Later tilesets skip the game side. **`shapesz`, its other 31 levels (D75):** 32 primary sheets
+  (~42 requests with retries, 2 Gemini sessions), 28 optional. Registration costs ~7 s of CPU per
+  sheet (TYRIAN: 3.5 min for 21), but on a loaded machine (load ~60) 24 sheets took 18 min.
 
 ### 4. Flat art for shots and pickups
 

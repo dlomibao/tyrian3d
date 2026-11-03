@@ -156,6 +156,23 @@ describe("loading", () => {
     expect([tex.premultiplyAlpha, tex.flipY, tex.generateMipmaps, tex.minFilter, tex.colorSpace]).toEqual([false, false, true, THREE.LinearMipmapLinearFilter, THREE.SRGBColorSpace]);
   });
 
+  test("a merged tileset: rects in images of their own load, layer 0's opaque, the others premultiplied (D75)", async () => {
+    const merged = {
+      scale: 8,
+      layers: {
+        "0": { image: "0.webp", tiles: { "1": rect(16, 16), "5": { ...rect(16, 16), image: "0-2.webp" } } },
+        "2": { image: "2.webp", tiles: { "7": rect(16, 16), "8": { ...rect(224, 16), image: "2-2.webp" } } },
+      },
+    };
+    const f = io({ "/art/terrain/shapesz/manifest.json": merged });
+    const t = (await loadTerrainTileset("shapesz", "/", f, "art/terrain/"))!;
+    expect(new Set(f.asked)).toEqual(new Set(["/art/terrain/shapesz/manifest.json", "/art/terrain/shapesz/0.webp", "/art/terrain/shapesz/0-2.webp",
+      "/art/terrain/shapesz/2.webp", "/art/terrain/shapesz/2-2.webp"]));
+    const premult = (layer: 0 | 2, n: number) => t.tile(layer, n, 0)!.texture.premultiplyAlpha;
+    expect([premult(0, 1), premult(0, 5), premult(2, 7), premult(2, 8)]).toEqual([false, false, true, true]);
+    expect(t.tile(0, 5, 0)!.texture).not.toBe(t.tile(0, 1, 0)!.texture);
+  });
+
   test("the set loads a tileset once and reports it ready only when done", async () => {
     let calls = 0;
     const set = new TerrainArtSet(async () => (calls++, null));

@@ -10,7 +10,7 @@ export const meta = {
 //
 // args = {
 //   worktree, scratch,                 // required; the work folder defaults to <scratch>/work
-//   levels: ['1-9'],                   // episode-file level ids (as terrain_hd.py --level takes); one tileset per run
+//   levels: ['1-9'],                   // episode-file level ids (as terrain_hd.py --level takes), or ['all'] with tileset: every level using it (D75)
 //   tileset: 'shapesz',                // for the briefs and the atlas path public/art/terrain/<tileset>/
 //   gameSide: 'optional brief',        // renderer/settings work this tileset needs (runs beside prep, Opus)
 //   maxRequests: 25,                   // Gemini budget for this run (Pro warned "running low" after ~25)
@@ -29,6 +29,7 @@ const PY = A.python || '/Users/dlomibao/projects/tyrian3d-remaster/.venv/bin/pyt
 const DATA = A.data || '/Users/dlomibao/projects/tyrian/data'
 const LEVELS = A.levels
 const TS = A.tileset || '(the levels\' tileset)'
+const LVARG = LEVELS.length === 1 && LEVELS[0] === 'all' && A.tileset ? `--tileset ${A.tileset}` : `--level ${LEVELS.join(',')}`
 const MAXREQ = A.maxRequests || 25
 const TICKS = A.ticks || [1, 300, 1000, 2000, 3000, 4200, 5500]
 const LOCK = '/Users/dlomibao/projects/tyrian-scratch/gemini.lock'
@@ -90,7 +91,7 @@ if (BENCH && BENCH.stages.includes('gemini')) {
 const REV = A.rev ? `\n[run revision ${A.rev}]` : ''
 
 const COMMON = `Tyrian 3D (browser 3D remake of OpenTyrian, three.js + TypeScript). Worktree ${WT} (data/, reference/, .shape are git-ignored links to the original game data: never commit them, nor sheets, answers or contact sheets made from it). Node commands need NODE_OPTIONS=. Tests: TYRIAN_DATA=${DATA} NODE_OPTIONS= npx vitest run --no-fsModuleCache; typecheck NODE_OPTIONS= npx tsc --noEmit. Python with PIL/numpy/scipy: ${PY}. Work folder (survives restarts): ${W}. Scratch: ${SP}.
-Task: HD terrain for tileset ${TS}, levels ${LEVELS.join(', ')}. Read docs/terrain-pipeline.html (the whole flow, commands, Gemini tips, known limits) and DECISIONS D57-D60 first. Commands: ${PY} tools/terrain_hd.py --level <lvl> --work ${W} inventory|sheets|fake|cut [--cache ${W}/cands.pkl]|check. Structure models (src/render/tileModels) still win over HD tiles; atlases go to public/art/terrain/<tileset>/ with a CREDITS.md row (D41). ${A.context || ''}
+Task: HD terrain for tileset ${TS}, levels ${LEVELS.join(', ')}. Read docs/terrain-pipeline.html (the whole flow, commands, Gemini tips, known limits) and DECISIONS D57-D60 and D75 first. Commands: ${PY} tools/terrain_hd.py ${LVARG} --work ${W} inventory|sheets|fake|cut [--cache ${W}/cands.pkl]|check (one list of levels for every command). Structure models (src/render/tileModels) still win over HD tiles; atlases go to public/art/terrain/<tileset>/ with a CREDITS.md row (D41). ${A.context || ''}
 Other agents may work in this worktree: touch only the files your step names; run no state-changing git commands (the coordinator commits).`
 
 const OUT = { type: 'object', properties: { ok: { type: 'boolean' }, notes: { type: 'string' }, files: { type: 'array', items: { type: 'string' } } }, required: ['ok', 'notes'] }
@@ -102,8 +103,8 @@ const CAP = { type: 'object', properties: { ok: { type: 'boolean' }, captures: {
 phase('Prep')
 const prepTask = () => run('prep', 'prep', `${COMMON}
 
-PREP. For ${LEVELS.length > 1 ? 'each level, then merged for the tileset' : 'the level'}: run inventory and sheets into ${W}; make the softened sheets the primary ones (docs/terrain-pipeline.html section 3: pixel copying is much rarer from softened input; the ground as map regions, clouds/islands as contexts). Order the primary sheets most-used tiles first and estimate the Gemini requests (budget ${MAXREQ}, including retries). Check the inventory: tiles under structure models, layers with no tiles left, any tile the tool can't handle.
-If the tool lacks something this tileset needs (for example terrain_hd.py inventories one level at a time, and a tileset shared by several levels must be inventoried for all of them before its atlas is cut; or a new layer kind), DON'T change it: return needsTool true and toolTask with exactly what is missing. Run ${PY} tools/terrain_hd.py fake and cut/check on the fake answers to prove the flow end to end (don't commit the fake atlas). Return ok, needsTool, toolTask, sheets (primary sheet names in send order), notes (counts per layer, cells, the request estimate).${REV}`, { label: 'prep', phase: 'Prep', schema: PREP })
+PREP. Run inventory and sheets into ${W} for all the levels at once (${LVARG}: the tool merges them per tile and the cut merges into the tileset's existing atlas, D75). The sheets are softened and ordered by the tool (sheets/SEND.md: send order, prompts, request count; ground and layer-2 terrain as map regions, the rest as contexts); estimate the Gemini requests against the budget ${MAXREQ} (including retries). Check the inventory: the layer 1-2 kinds (structure tiles are left to models; fix a misread tile with --kind), tiles under structure models, layers with no tiles left, any tile the tool can't handle.
+If the tool lacks something this tileset needs (a new layer kind, say), DON'T change it: return needsTool true and toolTask with exactly what is missing. Run ${PY} tools/terrain_hd.py fake and cut/check on the fake answers to prove the flow end to end, cutting into a scratch copy of public/art/terrain/<tileset>/ (--out), never into public/. Return ok, needsTool, toolTask, sheets (primary sheet names in send order), notes (counts per layer, cells, the request estimate).${REV}`, { label: 'prep', phase: 'Prep', schema: PREP })
 const gameTask = () => A.gameSide ? run('gameSide', 'game-side', `${COMMON}
 
 GAME-SIDE. You own src/, tests/ and the docs for this change; another agent runs the art tool at the same time. Task: ${A.gameSide}

@@ -11,7 +11,7 @@ Recipes: `PLAYBOOK.md`. Workflows: `WORKFLOWS.md`.
 | Enemy/boss models | Every catalogued frame has a first-generation model (D33). Level 1's 28 rebuilt to the hard-surface standard (D65). | Every other level's models at the D65 standard. |
 | Player ships, sidekicks | 8 ships at the Talon standard (D50-D53); 10 sidekicks modelled (`assets/blender/sidekicks/`, D49). | - |
 | Structures | TYRIAN's tileset `shapesz` (maps 1-3 and 1-9: D34, D44, D47; island rock D63, D66). | Tilesets `shapes)`, `shapesw`, `shapesx`, `shapesy` (levels per tileset: `shapes)` 4-4, 4-5, 4-6, 4-7, 4-9, 4-10, 4-12, 4-15, 4-17, 4-18; `shapesw` 3-1, 3-4, 3-6, 3-9, 4-8, 4-11, 4-20; `shapesx` 2-1, 2-2, 2-6, 2-10, 2-11, 2-12, 4-13; `shapesy` 1-8, 1-12, 1-17, 3-10, 4-3, 4-19). |
-| HD terrain | `shapesz` for map 1-9 only (D57-D60). | Other levels of `shapesz` (the atlas is cut from one level; D58 limit) and the other four tilesets. |
+| HD terrain | `shapesz` for map 1-9 only (D57-D60); the tool now covers a tileset's levels together and merges (D75). | Other levels of `shapesz` (sheets ready, D75: 200 ground, 1 layer-1 and 19 layer-2 tiles to paint) and the other four tilesets. |
 | Flat art (shots, pickups) | Level 1's 179 frames (D43, D56). | Every other weapon, pickup and level palette. |
 | Music, sound effects | All 41 songs x 2 styles (D40); all 38 sounds (D41). | The user's listening notes, as they come. |
 | UI | Title (D64), HUD (D61), item screen, menus (D26), 13 pictures (D19). | Options, load/save, high scores, data cubes, story screens still in their first look (README). |
@@ -29,8 +29,8 @@ Tyrian 2.1 has four episodes (`tyrian1.lvl`..`tyrian4.lvl` in the data); there i
 
 ## Order of work (shared before unique)
 
-1. **Tool gaps** that block everything after: `terrain_hd.py` inventory over several levels of one
-   tileset (D58 limit); a draw recorder for flat-art inventories over every weapon (D43 used one not
+1. **Tool gaps** that block everything after: ~~`terrain_hd.py` inventory over several levels of one
+   tileset (D58 limit)~~ done (D75: `--tileset`, merging cuts); a draw recorder for flat-art inventories over every weapon (D43 used one not
    in `tools/`); `modelSwap`/preload tests over episodes 2-4.
 2. **Shared enemies**: models drawn in more than one episode, by total screen time.
 3. **Tilesets** by number of levels using them: structures kit, then HD terrain.
@@ -58,7 +58,7 @@ Tyrian 2.1 has four episodes (`tyrian1.lvl`..`tyrian4.lvl` in the data); there i
   | Tileset `shapesw` | 113 / 73 / 85 = 271 tiles left / structures n/a (see inventory.md) | E3, E4: 7 levels (3-1, 3-4, 3-6, 3-9, 4-8, 4-11, 4-20) | 0 | same | 5-9 (HD) + ~6 per structure (count n/a) | |
   | Tileset `shapesx` | 199 / 138 / 39 = 376 tiles left / structures n/a (see inventory.md) | E2, E4: 7 levels (2-1, 2-2, 2-6, 2-10, 2-11, 2-12, 4-13) | 0 | same | 5-9 (HD) + ~6 per structure (count n/a) | |
   | Tileset `shapesy` | 108 / 71 / 47 = 226 tiles left / structures n/a (see inventory.md) | E1, E3, E4: 6 levels (1-8, 1-12, 1-17, 3-10, 4-3, 4-19) | 0 | same | 5-9 (HD) + ~6 per structure (count n/a) | |
-  | Tileset `shapesz` (other levels) | 153 / 45 / 123 = 321 tiles left (92 structure models exist) | E1-E4: 32 levels, 29 besides map Z (1-9, 1-15, 3-8) | map 1-9 (HD 66 / 15 / 0, in structure models 85 / 0 / 55) | terrain-hd | 5-9 per run; run count n/a (see inventory.md; D58 limit) | |
+  | Tileset `shapesz` (other levels) | 153 / 45 / 123 = 321 tiles left (92 structure models exist) | E1-E4: 32 levels, 29 besides map Z (1-9, 1-15, 3-8) | map 1-9 (HD 66 / 15 / 0, in structure models 85 / 0 / 55) | terrain-hd | 5-9 per run; one run for all 32 levels: 32 primary sheets, ~42 Gemini requests (D75) | sheets prepared (D75) |
   | Shot frames | 161 without flat art (of 231; 70 flat) | all | level 1's | flat_art.py + Gemini | ~48 Gemini requests (4 episodes x ~12); agents n/a (see inventory.md) | |
   | Pickup frames | 55 pickup units without flat art (95 frames; of 69 units, 14 flat) | all | level 1's | flat_art.py + Gemini | n/a (see inventory.md) | |
   | UI screens | 6 (see table above) | all | 0 | mockups, then build | n/a (see inventory.md) | |
