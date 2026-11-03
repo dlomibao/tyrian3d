@@ -17,6 +17,9 @@ export const BLENDED_MODEL_ORDER = 3;
  * - **Depth prepass.** A depth-only mesh of the whole model (its frame-tagged parts left out),
  *   hidden until the model is drawn translucent (setModelBlended): then it draws just before the
  *   model, so only the outer surface shows through and not the layers inside.
+ * - **Ground.** The meshes of a node with `tyrian_ground: true` (lib_tiles.sprite_rock: the island
+ *   rock round an enemy's machine, D66) are marked so they cast no shadow (castsShadow): the rock
+ *   stands for the island under it and would lay a dark band on the island it floats over.
  */
 export function prepareModel(root: THREE.Object3D): THREE.Object3D {
   const shells: THREE.Mesh[] = [];
@@ -25,6 +28,7 @@ export function prepareModel(root: THREE.Object3D): THREE.Object3D {
   root.traverse((o) => {
     const mesh = o as THREE.Mesh;
     if (!mesh.isMesh) return;
+    if (underTag(mesh, root, "tyrian_ground")) mesh.userData.tyrian_ground = true;
     if (isOutlineShell(mesh)) shells.push(mesh);
     else if (!underFrameTag(mesh, root)) meshes.push(mesh);
   });
@@ -89,9 +93,19 @@ export function isModelHelper(o: THREE.Object3D): boolean {
   return isOutlineShell(o) || o.userData?.depthPrepass === true;
 }
 
+/** Whether a prepared model's mesh casts a shadow: not a helper, nor ground (`tyrian_ground`, D66). */
+export function castsShadow(o: THREE.Object3D): boolean {
+  return !isModelHelper(o) && o.userData?.tyrian_ground !== true;
+}
+
 function underFrameTag(o: THREE.Object3D, root: THREE.Object3D): boolean {
+  return underTag(o, root, "tyrian_frames", Array.isArray);
+}
+
+/** Whether `o` or a node above it (up to `root`) has extra `key` (true, or passing `test`). */
+function underTag(o: THREE.Object3D, root: THREE.Object3D, key: string, test: (v: unknown) => boolean = (v) => v === true): boolean {
   for (let p: THREE.Object3D | null = o; p && p !== root.parent; p = p.parent) {
-    if (Array.isArray(p.userData?.tyrian_frames)) return true;
+    if (test(p.userData?.[key])) return true;
   }
   return false;
 }

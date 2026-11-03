@@ -2,7 +2,7 @@
 // the menu backdrop's engine glows from a model's `tyrian_engines` extras (src/ui/backdrop.ts).
 import * as THREE from "three";
 import { describe, expect, test } from "vitest";
-import { BLENDED_MODEL_ORDER, isModelHelper, prepareModel, setModelBlended } from "../../src/render/modelPrep";
+import { BLENDED_MODEL_ORDER, castsShadow, isModelHelper, prepareModel, setModelBlended } from "../../src/render/modelPrep";
 import { engineGlows } from "../../src/ui/backdrop";
 
 function model(withShell: boolean) {
@@ -30,6 +30,20 @@ const meshes = (root: THREE.Object3D) => {
 };
 
 describe("prepareModel", () => {
+  test("ground under a tyrian_ground node casts no shadow; the rest of the model does (D66)", () => {
+    const { root, hull } = model(true);
+    const rock = new THREE.Group();
+    rock.userData.tyrian_ground = true;
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial({ name: "pal_6_rock" }));
+    rock.add(slab);
+    root.add(rock);
+    prepareModel(root);
+    expect(castsShadow(slab)).toBe(false);
+    expect(castsShadow(hull)).toBe(true);
+    expect(castsShadow(meshes(root).find((m) => m.userData.tyrian_outline)!)).toBe(false);
+    expect(castsShadow(slab.clone())).toBe(false); // clones (the renderer's) keep it
+  });
+
   test("the shell draws only its outline and the model's own outline is off", () => {
     const { root, hull } = model(true);
     prepareModel(root);

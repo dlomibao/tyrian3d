@@ -123,22 +123,27 @@ class Palette:
 
 # --- Geometry ------------------------------------------------------------------------------------
 
-def mask_slab(bm, mask, frame, z_bottom, z_top, mat_top, mat_side=None, mat_bottom=None, top_height=None, smooth_top=False):
+def mask_slab(bm, mask, frame, z_bottom, z_top, mat_top, mat_side=None, mat_bottom=None, top_height=None, smooth_top=False,
+              support=None):
     """A slab with the outline of `mask` (bool array in `frame` pixels) from z_bottom to z_top.
 
     `top_height`, an array like mask, raises each top cell by that much (a relief); side walls
     follow it. With `smooth_top` a corner takes the mean of its cells' heights (else the highest)
     and the top is smooth shaded, for carved surfaces; the sides stay flat. Coplanar top faces of
-    one material can be merged afterwards (dissolve_coplanar)."""
+    one material can be merged afterwards (dissolve_coplanar). `mat_top` and `mat_side` are a
+    material slot or a function (x, y) -> slot of the cell (for a side, the cell it closes).
+    `support` (bool, like mask; default mask) is the cells a corner's height comes from: a piece
+    cut from a bigger relief passes the whole relief's cells, so pieces built apart meet exactly."""
     mat_side = mat_top if mat_side is None else mat_side
     mat_bottom = mat_side if mat_bottom is None else mat_bottom
+    support = mask if support is None else support
     h, w = mask.shape
     top_v, bot_v = {}, {}
 
     def corner_z(cx, cy):
         if top_height is None:
             return z_top
-        vals = [top_height[y, x] for y in (cy - 1, cy) for x in (cx - 1, cx) if 0 <= y < h and 0 <= x < w and mask[y, x]]
+        vals = [top_height[y, x] for y in (cy - 1, cy) for x in (cx - 1, cx) if 0 <= y < h and 0 <= x < w and support[y, x]]
         if not vals:
             return z_top
         return z_top + (sum(vals) / len(vals) if smooth_top else max(vals))
@@ -156,6 +161,8 @@ def mask_slab(bm, mask, frame, z_bottom, z_top, mat_top, mat_side=None, mat_bott
         return v
 
     mats = mat_top if callable(mat_top) else (lambda x, y: mat_top)
+    sides = mat_side if callable(mat_side) else (lambda x, y: mat_side)
+    bottoms = mat_bottom if callable(mat_bottom) else (lambda x, y: mat_bottom)
     for y in range(h):
         for x in range(w):
             if not mask[y, x]:
@@ -164,13 +171,13 @@ def mask_slab(bm, mask, frame, z_bottom, z_top, mat_top, mat_side=None, mat_bott
             f = bm.faces.new((vt(x, y + 1), vt(x + 1, y + 1), vt(x + 1, y), vt(x, y)))
             f.material_index = mats(x, y)
             f.smooth = smooth_top
-            bm.faces.new((vb(x, y), vb(x + 1, y), vb(x + 1, y + 1), vb(x, y + 1))).material_index = mat_bottom
+            bm.faces.new((vb(x, y), vb(x + 1, y), vb(x + 1, y + 1), vb(x, y + 1))).material_index = bottoms(x, y)
             for (dx, dy), (a, b) in (((0, -1), ((x, y), (x + 1, y))), ((1, 0), ((x + 1, y), (x + 1, y + 1))),
                                      ((0, 1), ((x + 1, y + 1), (x, y + 1))), ((-1, 0), ((x, y + 1), (x, y)))):
                 nx, ny = x + dx, y + dy
                 if 0 <= nx < w and 0 <= ny < h and mask[ny, nx]:
                     continue
-                bm.faces.new((vb(*a), vb(*b), vt(*b), vt(*a))).material_index = mat_side
+                bm.faces.new((vb(*a), vb(*b), vt(*b), vt(*a))).material_index = sides(x, y)
 
 
 def dissolve_coplanar(bm):
@@ -588,3 +595,236 @@ def rock_tile(ts, n, pal, region=None, flat=None, bottom=ROCK_BOTTOM, plain=Fals
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-6)
     bmesh.ops.dissolve_limit(bm, angle_limit=math.radians(ROCK_MERGE_DEG), verts=bm.verts, edges=bm.edges, delimit={"MATERIAL"})
     return bm
+
+
+# --- Island rock round an enemy's machine (DECISIONS.md D66) --------------------------------------
+#
+# Some of TYRIAN's enemies that sit on the islands (the purple octagon walls, the eye fortress, the
+# red machinery, the star core panel) fill their whole sprite: the machine, and round it island rock
+# painted to blend with the tiles beneath. Their models build that rock as the islands do (rock_tile:
+# the pixels as a relief in ROCK_COLOURS, heights by ROCK_LUM, flat shaded, the per-tile models'
+# finish) and leave it out of the outline shell: there is no slab with walls, no boulders and no
+# outline round the sprite's rectangle, so the rock reads as the island going on under the machine.
+# The enemy is drawn about 0.4 units above the islands (top enemies at 2.5, background 3 at 2.1, D5)
+# and placed on the camera ray through its screen point (D6), so the rock lands on screen exactly
+# where the sprite's rock is drawn; it casts no shadow (`tyrian_ground`, the renderer's isGroundPart),
+# which would otherwise lay a dark band along two of its edges on the island below.
+
+#: Palette ramps (index >> 4) the islands' rock is painted in: greys, brass, tan (ROCK_COLOURS).
+ROCK_RAMPS = (0, 1, 10)
+#: The per-tile rock models' finish (shapesz_bg3.py's palette).
+ROCK_FINISH = {"roughness": 0.55, "metallic": 0.05}
+#: How far the rock's edge walls go below its dark gaps (units): a sliver, in the stones' colours.
+SPRITE_ROCK_SKIRT = 0.03
+
+
+class SpritePalette:
+    """A Tileset-like palette for a sprite: `colors`, `lum` and `rgb(index)` (RockColours, lum_of,
+    Palette) from the level palette's colours, {index: (r, g, b)}."""
+
+    def __init__(self, colors):
+        self.colors = {int(k): tuple(v) for k, v in colors.items()}
+        self.lum = np.zeros(256)
+        for i, (r, g, b) in self.colors.items():
+            self.lum[i] = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+
+    def rgb(self, index):
+        return self.colors[int(index)]
+
+
+def island_palette(root, extra=None):
+    """The level palette as the island tiles have it (reference/tiles/shapesz), plus `extra` colours
+    (a sprite's), as a SpritePalette."""
+    colors = dict(Tileset(root, "shapesz", layer=2).colors)
+    colors.update({int(k): tuple(v) for k, v in (extra or {}).items()})
+    return SpritePalette(colors)
+
+
+def mmpx2x(pix, luma):
+    """MMPX 2x on palette indices, edges clamped: a copy of tools/terrain_hd.py's (the port of
+    src/render/remaster/mmpx.ts that made the tiles' `pixels2x`), which needs PIL and so can't be
+    imported in Blender. Sprites have no 2x pixels of their own; this gives them the tiles' look."""
+    h, w = pix.shape
+    P = np.pad(pix.astype(np.int32), 3, mode="edge")
+
+    def s(dx, dy):
+        return P[3 + dy:3 + dy + h, 3 + dx:3 + dx + w]
+
+    A, B, C = s(-1, -1), s(0, -1), s(1, -1)
+    D, E, F = s(-1, 0), s(0, 0), s(1, 0)
+    G, H, I = s(-1, 1), s(0, 1), s(1, 1)
+    Pp, S, Q, R = s(0, -2), s(0, 2), s(-2, 0), s(2, 0)
+    Bl, Dl, El, Fl, Hl = luma[B], luma[D], luma[E], luma[F], luma[H]
+    J, K, L, M = E.copy(), E.copy(), E.copy(), E.copy()
+    act = (A != E) | (B != E) | (C != E) | (D != E) | (F != E) | (G != E) | (H != E) | (I != E)
+
+    def any3(b, a0, a1, a2):
+        return (b == a0) | (b == a1) | (b == a2)
+
+    def all2(b, a0, a1):
+        return (b == a0) & (b == a1)
+
+    def all3(b, a0, a1, a2):
+        return (b == a0) & (b == a1) & (b == a2)
+
+    def all4(b, a0, a1, a2, a3):
+        return (b == a0) & (b == a1) & (b == a2) & (b == a3)
+
+    def none2(b, a0, a1):
+        return (b != a0) & (b != a1)
+
+    def none4(b, a0, a1, a2, a3):
+        return (b != a0) & (b != a1) & (b != a2) & (b != a3)
+
+    def put(cond, *pairs):
+        c = act & cond
+        for dst, src in pairs:
+            dst[c] = src[c] if isinstance(src, np.ndarray) else src
+
+    put((D == B) & (D != H) & (D != F) & ((El >= Dl) | (E == A)) & any3(E, A, C, G) & ((El < Dl) | (A != D) | (E != Pp) | (E != Q)), (J, D))
+    put((B == F) & (B != D) & (B != H) & ((El >= Bl) | (E == C)) & any3(E, A, C, I) & ((El < Bl) | (C != B) | (E != Pp) | (E != R)), (K, B))
+    put((H == D) & (H != F) & (H != B) & ((El >= Hl) | (E == G)) & any3(E, A, G, I) & ((El < Hl) | (G != H) | (E != S) | (E != Q)), (L, H))
+    put((F == H) & (F != B) & (F != D) & ((El >= Fl) | (E == I)) & any3(E, C, G, I) & ((El < Fl) | (I != H) | (E != R) | (E != S)), (M, F))
+
+    put((E != F) & all4(E, C, I, D, Q) & all2(F, B, H) & (F != s(3, 0)), (K, F), (M, F))
+    put((E != D) & all4(E, A, G, F, R) & all2(D, B, H) & (D != s(-3, 0)), (J, D), (L, D))
+    put((E != H) & all4(E, G, I, B, Pp) & all2(H, D, F) & (H != s(0, 3)), (L, H), (M, H))
+    put((E != B) & all4(E, A, C, H, S) & all2(B, D, F) & (B != s(0, -3)), (J, B), (K, B))
+
+    put((Bl < El) & all4(E, G, H, I, S) & none4(E, A, D, C, F), (J, B), (K, B))
+    put((Hl < El) & all4(E, A, B, C, Pp) & none4(E, D, G, I, F), (L, H), (M, H))
+    put((Fl < El) & all4(E, A, D, G, Q) & none4(E, B, C, I, H), (K, F), (M, F))
+    put((Dl < El) & all4(E, C, F, I, R) & none4(E, B, A, G, H), (J, D), (L, D))
+
+    hb = H != B
+    h1 = hb & (H != A) & (H != E) & (H != C)
+    put(h1 & all3(H, G, F, R) & none2(H, D, s(2, -1)), (L, M))
+    put(h1 & all3(H, I, D, Q) & none2(H, F, s(-2, -1)), (M, L))
+    b1 = hb & (B != I) & (B != G) & (B != E)
+    put(b1 & all3(B, A, F, R) & none2(B, D, s(2, 1)), (J, K))
+    put(b1 & all3(B, C, D, Q) & none2(B, F, s(-2, 1)), (K, J))
+    fd = F != D
+    d1 = fd & (D != I) & (D != E) & (D != C)
+    put(d1 & all3(D, A, H, S) & none2(D, B, s(1, 2)), (J, L))
+    put(d1 & all3(D, G, B, Pp) & none2(D, H, s(1, -2)), (L, J))
+    f1 = fd & (F != E) & (F != A) & (F != G)
+    put(f1 & all3(F, C, H, S) & none2(F, B, s(-1, 2)), (K, M))
+    put(f1 & all3(F, I, B, Pp) & none2(F, H, s(-1, -2)), (M, K))
+
+    out = np.empty((h * 2, w * 2), np.int32)
+    out[0::2, 0::2], out[0::2, 1::2], out[1::2, 0::2], out[1::2, 1::2] = J, K, L, M
+    return out.astype(pix.dtype)
+
+
+class GridFrame:
+    """Pixel coordinates of a w x h px grid at `scale` to model units, origin at the grid's centre
+    (Frame, for a sprite or assembly instead of a tile pattern)."""
+
+    def __init__(self, w, h, scale=1):
+        self.w, self.h, self.unit = w * scale, h * scale, PX / scale
+
+    def x(self, px):
+        return (px - self.w / 2) * self.unit
+
+    def y(self, py):
+        return (self.h / 2 - py) * self.unit
+
+
+def machine_footprint(objects, w, h, ground=0.0, eps=0.012, scale=2):
+    """Where `objects` (built in units round the w x h px grid's centre, X right, Y screen up) stand
+    above `ground` + eps, seen from straight above: bool (h * scale, w * scale), one cell per
+    `scale`x pixel."""
+    from mathutils import Vector
+    from mathutils.bvhtree import BVHTree
+    deps = bpy.context.evaluated_depsgraph_get()
+    trees = [BVHTree.FromObject(o, deps) for o in objects]
+    frame = GridFrame(w, h, scale)
+    out = np.zeros((h * scale, w * scale), bool)
+    down = Vector((0, 0, -1))
+    for y in range(h * scale):
+        for x in range(w * scale):
+            origin = Vector((frame.x(x + 0.5), frame.y(y + 0.5), 50.0))
+            for t in trees:
+                loc, *_ = t.ray_cast(origin, down)
+                if loc is not None and loc.z > ground + eps:
+                    out[y, x] = True
+                    break
+    return out
+
+
+def is_rock_index(index):
+    """Whether a sprite pixel is painted in the islands' rock colours (ROCK_RAMPS)."""
+    return index >= 0 and (int(index) >> 4) in ROCK_RAMPS
+
+
+def sprite_rock(pal, grid, machine, layout, coll, tag, ground=0.0, piece=(24, 28), name_fmt="{}_rock"):
+    """The island rock of an enemy's sprite (module notes above): one object per piece of `layout`.
+
+    `pal`: the level palette (island_palette). `grid`: the sprite's pixels at 1x, an (h, w) array of
+    palette indices (-1 transparent), the whole assembly for a multi-piece enemy. `machine`: bool
+    (2h, 2w), where the machine stands (machine_footprint): the rock there is level at `ground` and
+    dark, under the machine. Elsewhere every painted pixel is relief: in the rock's ramps it takes
+    the nearest of ROCK_COLOURS, as the island tiles do; any other colour (a blue stone, a sliver of
+    the machine's paint where its model doesn't quite reach) keeps its own index. `layout`: [(piece name, cx, cy)], each piece's centre in px from the grid's centre (as
+    common.split_assembly); `piece`: its (w, h) in px. Each object's origin is its piece's centre;
+    its heights come from the whole grid, so the pieces meet exactly. Materials: pal_<i>_<tag>,
+    the per-tile models' finish. Returns {piece name: object}."""
+    grid = np.asarray(grid, dtype=np.int32)
+    h, w = grid.shape
+    g2 = mmpx2x(grid, np.append(pal.lum, 0.0))  # index -1 reads the appended 0 luma
+    opaque = g2 >= 0
+    support = opaque | machine
+    flat = machine
+    rocky = np.vectorize(is_rock_index)(g2)
+    heights = np.where(flat, 0.0, rock_heights(pal, g2))
+    snap = RockColours(pal)
+    frame = GridFrame(w, h, 2)
+    out = {}
+    for name, cx, cy in layout:
+        x0, y0 = int(round((w / 2 + cx - piece[0] / 2) * 2)), int(round((h / 2 + cy - piece[1] / 2) * 2))
+        region = np.zeros_like(support)
+        region[max(0, y0):y0 + piece[1] * 2, max(0, x0):x0 + piece[0] * 2] = True
+        region &= support
+        if not region.any():
+            continue
+        p = Palette(pal, tag, plain=True, **ROCK_FINISH)
+        dark = p(ROCK_DARK)
+        mats = lambda x, y: dark if flat[y, x] else p(snap(g2[y, x]) if rocky[y, x] else g2[y, x])  # noqa: E731
+        bm = bmesh.new()
+        mask_slab(bm, region, frame, ground - SPRITE_ROCK_SKIRT, ground, mats, mats, dark,
+                  top_height=heights, smooth_top=True, support=support)
+        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-6)
+        bmesh.ops.dissolve_limit(bm, angle_limit=math.radians(ROCK_MERGE_DEG), verts=bm.verts, edges=bm.edges,
+                                 delimit={"MATERIAL"})
+        bmesh.ops.translate(bm, vec=(-cx * PX, cy * PX, 0), verts=bm.verts)
+        obj = mesh(name_fmt.format(name), bm, p, coll, smooth=False)
+        obj["tyrian_ground"] = True
+        out[name] = obj
+    return out
+
+
+def sprite_grid(root, layout, w, h, frame=0, piece=(24, 28)):
+    """The pixels (palette indices, -1 transparent) of `layout`'s pieces ([(model, cx, cy)], centres
+    in px from the grid's centre, as sprite_rock) as one (h, w) array, each piece's `frame`-th frame,
+    and the colours of all of them."""
+    grid = np.full((h, w), -1, dtype=np.int32)
+    colors = {}
+    for name, cx, cy in layout:
+        data = common.load_sprite(root, name)
+        colors.update(data["colors"])
+        px = np.array(data["frames"][min(frame, len(data["frames"]) - 1)]["pixels"], dtype=np.int32)
+        x0, y0 = int(round(w / 2 + cx - piece[0] / 2)), int(round(h / 2 + cy - piece[1] / 2))
+        grid[y0:y0 + px.shape[0], x0:x0 + px.shape[1]] = np.where(px >= 0, px, grid[y0:y0 + px.shape[0], x0:x0 + px.shape[1]])
+    return grid, colors
+
+
+def build_sprite_rock(root, machine_objects, layout, w, h, coll, tag, ground=0.0, piece=(24, 28), grid=None):
+    """sprite_rock for an enemy built round the w x h px grid's centre: the pieces' pixels
+    (sprite_grid, or `grid`), the machine's footprint from `machine_objects` (machine_footprint)
+    and the island palette. Returns {piece name: rock object}."""
+    pix, colors = sprite_grid(root, layout, w, h, piece=piece)
+    if grid is not None:
+        pix = np.asarray(grid, dtype=np.int32)
+    pal = island_palette(root, colors)
+    machine = machine_footprint(machine_objects, w, h, ground=ground)
+    return sprite_rock(pal, pix, machine, layout, coll, tag, ground=ground, piece=piece)

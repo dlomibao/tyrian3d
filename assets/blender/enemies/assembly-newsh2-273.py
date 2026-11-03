@@ -7,10 +7,11 @@ right end. The same wall as assembly-newsh2-279.
 
 The sprite is authoritative (D52): every tile holds one big purple octagon armour hatch (sprite rows
 4-19), a purple rampart band runs along the top behind the hatches (rows 0-4), a lighter purple wedge
-housing fills the V between each pair of hatches, and grey and beige boulders fill the rest, all where
-the sprite draws them; each part takes the sprite's own palette index there (the trimmed median of
-that region's pixels: hatch 88, band 89, wedge 90, stone 6 and its neighbours, beige 170). Satin
-purple metal, matte stone. The concept (assets/blender/features/concepts/assembly-newsh2-273.jpg) only
+housing fills the V between each pair of hatches, all where the sprite draws them; each part takes
+the sprite's own palette index there (the trimmed median of that region's pixels: hatch 88, band 89,
+wedge 90). Satin purple metal. The grey and beige stones round them are island rock: the sprite's
+own pixels as the islands' relief (lib_tiles.sprite_rock, DECISIONS.md D66), one rock object per
+piece with no outline and no shadow, so the wall stands in the island instead of in a rimmed block. The concept (assets/blender/features/concepts/assembly-newsh2-273.jpg) only
 guides the side, front and rear.
 
 The machine (sprite px: c east, r south, z up; 1 px = 1/12 unit):
@@ -22,15 +23,13 @@ The machine (sprite px: c east, r south, z up; 1 px = 1/12 unit):
 - the band is a stepped rampart beam with raised, bolted panels; between the hatches an armoured
   block with cooling ribs sits on it and a lighter (90) wedge housing with an inset plate and a spine
   drops into the V, with a slatted vent at its foot and a ram bracket with two lugs in the crevice;
-- the grey boulders are rounded, smooth-shaded cobbles (as the sprite shades them, and as
-  assembly-newsh2-279's stones) with slightly leaning crowns; the beige stones are closed, convex,
-  smooth rounded stones;
-- the underside is only the closed foundation slab (no detail: almost never seen).
+- the parts stand on the rock (z = 0); their undersides are plain closed solids (almost never seen).
 
 Texture: no concept projection (maps.json "bake": "model"); an ambient-occlusion / edge colour
 multiplier and a roughness / metalness map baked with Cycles, as the player ships, one small atlas
-per piece (baked in the row with its neighbours as occluders), so a GLB carries only its own. Outline shell as
-common.outline_shell (D51), cut into the pieces without filling the seams.
+per piece (baked in the row with its neighbours and the rock as occluders), so a GLB carries only its own.
+Outline shell as common.outline_shell (D51) on the machine, cut into the pieces without filling the
+seams; the rock has none.
 
 Built whole in assembly coordinates (left, two middles, right) and cut into the pieces with
 common.split_assembly (pivot = each piece's centre); everything per tile repeats with a 24 px period,
@@ -51,8 +50,9 @@ from pathlib import Path
 import bmesh
 import bpy
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path[:0] = [str(Path(__file__).resolve().parents[1]), str(Path(__file__).resolve().parents[1] / "tiles")]
 import common  # noqa: E402
+import lib_tiles as lt  # noqa: E402
 
 NAME = "assembly-newsh2-273"
 TILES = ["newsh2-273", "newsh2-275", "newsh2-275", "newsh2-277"]
@@ -61,8 +61,9 @@ TW, TH = 24, 28
 NT = len(TILES)
 W = TW * NT
 
-# Heights in sprite px (z). Low to high: bed, band, wedge, housing, rocks, hatch, hub.
-BED_BOT, BED_TOP = -1.8, 0.5
+# Heights in sprite px (z). Low to high: the rock (z = 0, lib_tiles.sprite_rock), band, wedge,
+# housing, hatch, hub. BED_TOP: the foot of the parts that stand on the rock.
+BED_TOP = 0.0
 Z = dict(band=2.4, band_panel=3.0, housing=3.8, housing_panel=4.25, wedge=3.4,
          hatch_skirt=4.4, hatch=6.2, plate_o=6.75, plate_i=6.6, well=6.3, hub=7.3, cap=7.55)
 OCT = [(8.5, 4), (15.5, 4), (21, 9.5), (21, 14.5), (15.5, 20), (8.5, 20), (3, 14.5), (3, 9.5)]
@@ -97,59 +98,6 @@ def offset(p, d):
     return out
 
 
-def centroid(p):
-    a = area(p)
-    cx = sum((p[i][0] + p[i - 1][0]) * (p[i - 1][0] * p[i][1] - p[i][0] * p[i - 1][1]) for i in range(len(p)))
-    cy = sum((p[i][1] + p[i - 1][1]) * (p[i - 1][0] * p[i][1] - p[i][0] * p[i - 1][1]) for i in range(len(p)))
-    return cx / (6 * a), cy / (6 * a)
-
-
-def scaled(p, s, ctr):
-    return [(ctr[0] + (c - ctr[0]) * s, ctr[1] + (r - ctr[1]) * s) for c, r in p]
-
-
-def hull(pts):
-    pts = sorted(set(pts))
-    cr = lambda o, a, b: (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])  # noqa: E731
-    lo, up = [], []
-    for p in pts:
-        while len(lo) >= 2 and cr(lo[-2], lo[-1], p) <= 0:
-            lo.pop()
-        lo.append(p)
-    for p in reversed(pts):
-        while len(up) >= 2 and cr(up[-2], up[-1], p) <= 0:
-            up.pop()
-        up.append(p)
-    return lo[:-1] + up[:-1]
-
-
-def clip_rect(p, x0, y0, x1, y1):
-    def clip(poly, inside, inter):
-        out = []
-        for i in range(len(poly)):
-            a, b = poly[i], poly[(i + 1) % len(poly)]
-            ia, ib = inside(a), inside(b)
-            if ia:
-                out.append(a)
-            if ia != ib:
-                out.append(inter(a, b))
-        return out
-    lx = lambda x: lambda a, b: (x, a[1] + (x - a[0]) / (b[0] - a[0]) * (b[1] - a[1]))  # noqa: E731
-    ly = lambda y: lambda a, b: (a[0] + (y - a[1]) / (b[1] - a[1]) * (b[0] - a[0]), y)  # noqa: E731
-    p = clip(p, lambda q: q[0] >= x0, lx(x0))
-    p = clip(p, lambda q: q[0] <= x1, lx(x1))
-    p = clip(p, lambda q: q[1] >= y0, ly(y0))
-    p = clip(p, lambda q: q[1] <= y1, ly(y1))
-    # drop near-duplicate points (a hull vertex on the clip line), which would make sliver faces
-    out = []
-    for q in p:
-        if not out or math.hypot(q[0] - out[-1][0], q[1] - out[-1][1]) > 0.08:
-            out.append(q)
-    if len(out) > 3 and math.hypot(out[0][0] - out[-1][0], out[0][1] - out[-1][1]) <= 0.08:
-        out.pop()
-    return out
-
-
 def rect(x0, y0, x1, y1):
     return [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
 
@@ -157,20 +105,6 @@ def rect(x0, y0, x1, y1):
 def ngon(cx, cy, r, n=8, rot=math.pi / 8):
     return [(cx + math.cos(rot + 2 * math.pi * k / n) * r, cy + math.sin(rot + 2 * math.pi * k / n) * r)
             for k in range(n)]
-
-
-def inside(p, x, y):
-    c = False
-    j = len(p) - 1
-    for i in range(len(p)):
-        if (p[i][1] > y) != (p[j][1] > y) and x < (p[j][0] - p[i][0]) * (y - p[i][1]) / (p[j][1] - p[i][1]) + p[i][0]:
-            c = not c
-        j = i
-    return c
-
-
-def rnd(seed, k):
-    return math.sin(seed * 12.9898 + k * 78.233) * 0.5 + 0.5
 
 
 # ---- sprite --------------------------------------------------------------------------------------
@@ -192,15 +126,6 @@ def cls(v):
     if v >= 167:
         return "B"
     return "G"
-
-
-def trimmed_median(vals):
-    if not vals:
-        return None
-    a = sorted(vals)
-    k = int(len(a) * 0.15)
-    b = a[k:len(a) - k] or a
-    return b[(len(b) - 1) // 2]
 
 
 # ---- mesh building -------------------------------------------------------------------------------
@@ -246,10 +171,8 @@ class Builder:
         self.faces_from_rings(rings, pal, top_pal)
 
 
-def build(B, grid):
-    # 1. Foundation slab: the dark cast bed between the stones; its underside tapers in a little so
-    # it reads as a closed block from low angles. No detail underneath.
-    B.loft(4, rect(0, 0, W, TH), [(0.9, BED_BOT), (0.3, BED_BOT + 0.5), (0, -0.6), (0, BED_TOP - 0.3), (0.35, BED_TOP)])
+def build(B):
+    # 1. (The rock round the parts is built apart: lib_tiles.sprite_rock, in main.)
 
     # 2. Rampart band along the top (sprite rows 0-4): stepped rear face, raised panels (90 / 89, as
     # the sprite's lighter and darker band panels) with bolt heads.
@@ -352,102 +275,6 @@ def build(B, grid):
         B.loft(88, ngon(cx, cy, 2.45), [(0, Z["well"] - 0.1), (0, Z["hub"] - 0.5), (0.65, Z["hub"])])
         B.loft(89, ngon(cx, cy, 1.2), [(0, Z["hub"] - 0.1), (0.2, Z["cap"])])
 
-    # 5. Stones, where the sprite draws them; palette = the sprite's own pixels under each stone.
-    seed = [1]
-
-    def stone(x, y, rx, ry, beige=False, h=None, slot=None, pal_dx=0.0):
-        """slot: the stone's index in the per-tile pattern; such stones take the same shape (seed)
-        and colour (sampled at the middle tile 2, pal_dx away) on every tile, so stones crossing a
-        tile edge match across the cut and the middle piece tiles seamlessly. Rings are the convex
-        outline scaled toward its centroid (never inverted), so every stone is a closed convex solid."""
-        if slot is not None:
-            sd = 100 + slot
-        else:
-            sd = seed[0]
-            seed[0] += 1
-        n = 9 + sd % 3
-        pts = []
-        for k in range(n):
-            a = 2 * math.pi * (k + 0.35 * (rnd(sd, k) - 0.5)) / n
-            rr = 0.92 + 0.12 * (math.sin(sd * 4.1 + k * 2.7) * 0.5 + 0.5)
-            pts.append((x + math.cos(a) * rx * rr, y + math.sin(a) * ry * rr))
-        pts = clip_rect(hull(pts), 0.02, 0.02, W - 0.02, TH - 0.02)
-        if area(pts) < 0:
-            pts = pts[::-1]
-        ctr = centroid(pts)
-        mr = min(rx, ry)
-        hh = h if h is not None else min(3.5, 0.8 * mr + 0.6)
-        vals = []
-        sx = x + pal_dx
-        spts = [(c + pal_dx, r) for c, r in pts]
-        for r in range(math.floor(y - ry), math.ceil(y + ry) + 1):
-            for c in range(math.floor(sx - rx), math.ceil(sx + rx) + 1):
-                if not (0 <= r < TH and 0 <= c < W):
-                    continue
-                v = grid[r][c]
-                k = cls(v)
-                if k in "P." or not inside(spts, c + 0.5, r + 0.5):
-                    continue
-                if (k == "B") == beige:
-                    vals.append(v)
-        pal = trimmed_median(vals)
-        if pal is None:
-            pal = 170 if beige else 7
-        if beige:
-            # A smooth, rounded stone: a quarter-ellipse profile closed by an apex.
-            rings = []
-            for k, th in enumerate((0, 20, 42, 62, 78)):
-                s = math.cos(math.radians(th)) if k else 1.0
-                z = BED_TOP - 0.2 if k == 0 else BED_TOP + hh * math.sin(math.radians(th))
-                rings.append([B.v(c, r, z) for c, r in scaled(pts, max(s, 0.2), ctr)])
-            B.faces_from_rings(rings, pal, apex=(ctr[0], ctr[1], BED_TOP + hh), smooth=True)
-            return
-        # A rounded grey cobble, smooth shaded as the sprite draws it: a full, slightly flattened
-        # dome (superellipse profile) whose crown leans a little one way and whose rings are nudged
-        # a touch, so no two stones are the same; the buried bottom ring stays flat shaded so the
-        # smooth normals don't bend down at the foot.
-        tx = (rnd(sd, 91) - 0.5) * 2
-        ty = (rnd(sd, 37) - 0.5) * 2
-        rings = []
-        for si, th in enumerate((0, 16, 32, 48, 62, 75)):
-            s = math.cos(math.radians(th)) ** 0.55 if si else 1.0
-            z = BED_TOP - 0.2 if si == 0 else BED_TOP + hh * math.sin(math.radians(th))
-            lean = 0.12 * hh * (th / 75) ** 1.5
-            ring = []
-            for k, (c, r) in enumerate(scaled(pts, max(s, 0.22), ctr)):
-                dz = 0.0
-                if si >= 2:
-                    dz = ((c - ctr[0]) / max(rx, 0.1) * tx + (r - ctr[1]) / max(ry, 0.1) * ty) * lean
-                    dz += (rnd(sd * 3 + si, k) - 0.5) * 0.05 * hh
-                ring.append(B.v(c, r, z + dz))
-            rings.append(ring)
-        B.faces_from_rings(rings, pal, apex=(ctr[0], ctr[1], BED_TOP + hh), smooth=True)
-
-    for t, kind in enumerate(KINDS):
-        o = t * TW
-        dx = 48 - o  # sample colours at tile 2 (a middle tile between two middle tiles)
-        stone(o - 1.0 + (0.6 if t == 0 else 0), 19.6, 5.4, 4.3, h=3.7, slot=None if t == 0 else 0, pal_dx=0 if t == 0 else dx)
-        stone(o + 5.4, 22.6, 3.6, 2.6, slot=1, pal_dx=dx)
-        stone(o + 9.6, 22.4, 2.0, 1.9, slot=2, pal_dx=dx)
-        stone(o + 17.6, 22.4, 2.8, 2.4, slot=3, pal_dx=dx)
-        stone(o + 1.2, 25.6, 1.9, 2.0, slot=4, pal_dx=dx)
-        stone(o + 6.3, 27.7, 4.8, 2.15, beige=True, h=2.6, slot=5, pal_dx=dx)
-        stone(o + 13.4, 26.5, 2.6, 1.6, slot=6, pal_dx=dx)
-        stone(o + 20.0, 26.0, 4.0, 2.1, slot=7, pal_dx=dx)
-        if t > 0:
-            stone(o + 1.4, 13.6, 1.4, 2.0, h=1.4, slot=8, pal_dx=dx)
-        if kind == "left":
-            stone(5.3, 1.5, 5.8, 3.45, beige=True, h=2.6)
-            stone(12.0, 2.0, 1.25, 2.2)
-            stone(1.4, 10.6, 1.6, 4.6)
-            stone(2.6, 6.3, 2.6, 1.4)
-        if kind == "right":
-            stone(o + 16.0, 2.0, 3.4, 2.4)
-            stone(o + 21.2, 2.2, 2.7, 2.4)
-            stone(o + 22.2, 7.8, 1.7, 3.6)
-            stone(o + 22.4, 13.2, 1.5, 2.0)
-    stone(W - 2.4, 19.6, 2.6, 4.3, h=3.6)
-
 
 MAT_STYLE = {  # (metallic, roughness) per palette family: satin purple metal, matte stone
     "P": (0.3, 0.55),
@@ -457,13 +284,12 @@ MAT_STYLE = {  # (metallic, roughness) per palette family: satin purple metal, m
 
 
 def make_row(root):
-    grid = sprite_grid(root)
     sprite = common.load_sprite(root, TILES[0])
     for t in TILES[1:]:
         sprite["colors"].update(common.load_sprite(root, t)["colors"])
     coll = common.reset_collection(NAME)
     B = Builder()
-    build(B, grid)
+    build(B)
     bm = B.bm
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-6)
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
@@ -706,11 +532,12 @@ def seam_normals(parts, row, layout):
     bpy.context.view_layer.update()
 
 
-def bake_pieces(parts, row_tiles, centres, out_dir):
+def bake_pieces(parts, row_tiles, centres, out_dir, rocks):
     """Bake each piece into its own small atlas (512 colour, 256 roughness / metalness: the same
     texel density as one 1024 atlas over the row, a quarter of the bytes per GLB). Each piece bakes
-    at its place in the row with its neighbours there as occluders (and nothing else render
-    visible), so the occlusion runs on across the seams as on the whole row. The piece gets its own
+    at its place in the row with its neighbours and the row's rock (`rocks`, by piece) there as
+    occluders (and nothing else render visible), so the occlusion runs on across the seams as on
+    the whole row and darkens the parts' feet on the rock. The piece gets its own
     copies of the palette materials (still named pal_<index>_..., so palettes, fades and the hit
     flash work) carrying its atlas."""
     scene_objs = list(bpy.context.scene.objects)
@@ -723,15 +550,18 @@ def bake_pieces(parts, row_tiles, centres, out_dir):
         i0 = row_tiles.index(p)
         temps = []
         for i, (t, (cx, cy)) in enumerate(zip(row_tiles, centres)):
-            if i == i0:
-                continue
-            o = bpy.data.objects.new(f"occl_{p}_{i}", parts[t].data)
-            bpy.context.scene.collection.objects.link(o)
-            o.location = (cx / 12, -cy / 12, 0)
-            temps.append(o)
+            for k, src in enumerate((parts[t], rocks[t])):
+                if i == i0 and k == 0:
+                    continue
+                o = bpy.data.objects.new(f"occl_{p}_{i}_{k}", src.data)
+                bpy.context.scene.collection.objects.link(o)
+                o.location = (cx / 12, -cy / 12, 0)
+                temps.append(o)
         saved = {o.name: o.hide_render for o in scene_objs}
         for o in scene_objs:
             o.hide_render = o is not obj
+        for o in temps:
+            o.hide_render = False
         cx, cy = centres[i0]
         obj.location = (cx / 12, -cy / 12, 0)
         bpy.context.view_layer.update()
@@ -754,27 +584,30 @@ def main(script_file):
         if t not in seen:
             seen.add(t)
             layout.append((t, cx, cy))
+    # The island rock round the machine (D66), from the whole row's pixels (the middle piece between
+    # its neighbours as the row first lays it out).
+    rocks = lt.build_sprite_rock(root, [obj], layout, W, TH, coll, tag="a273rock", grid=sprite_grid(root))
     parts = common.split_assembly(obj, layout, coll)
     seam_normals(parts, obj, layout)
     fmt = "AUTO"
     if "--no-bake" not in argv:
-        bake_pieces(parts, TILES, centres, tempfile.mkdtemp(prefix="nsh2_273_bake_"))
+        bake_pieces(parts, TILES, centres, tempfile.mkdtemp(prefix="nsh2_273_bake_"), rocks)
         fmt = "WEBP"
     shell = common.outline_shell(obj, coll, voxel=0.014, faces=4000)
     shells = split_open(shell, layout, coll)
     for p, _, _ in layout:
         print(f"{NAME} piece {p}: {sum(len(f.vertices) - 2 for f in parts[p].data.polygons)} triangles, "
-              f"outline {len(shells[p].data.polygons)} faces")
+              f"outline {len(shells[p].data.polygons)} faces, rock {sum(len(f.vertices) - 2 for f in rocks[p].data.polygons)} triangles")
     if "--no-export" not in argv:
         for p, _, _ in layout:
             data = common.load_sprite(root, p)
-            common.export_sprite_model(root, [parts[p], shells[p]], f"enemies/{p}", data["sprites"], image_format=fmt)
+            common.export_sprite_model(root, [parts[p], shells[p], rocks[p]], f"enemies/{p}", data["sprites"], image_format=fmt)
     if "--out" in argv:
         # The row as the game lays it out (a check file only): each piece at its tile, the middle
         # piece twice (a linked copy, never exported as a model of its own).
         objs = []
         for i, (t, (cx, cy)) in enumerate(zip(TILES, centres)):
-            for src in (parts[t], shells[t]):
+            for src in (parts[t], shells[t], rocks[t]):
                 o = bpy.data.objects.new(f"{src.name}.row{i}", src.data)
                 for k in src.keys():
                     o[k] = src[k]
@@ -789,7 +622,7 @@ def main(script_file):
         for p, _, _ in layout:
             data = common.load_sprite(root, p)
             img = root / "reference" / "models" / p / data["frames"][0]["image"]
-            common.render_preview([parts[p]], str(out.parent / f"{p}.png"), str(img), size=2)
+            common.render_preview([parts[p], rocks[p]], str(out.parent / f"{p}.png"), str(img), size=2)
 
 
 if __name__ == "__main__":

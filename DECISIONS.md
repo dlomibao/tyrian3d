@@ -2536,3 +2536,53 @@ usage: the 24x28 flyers gain little from it).
 from the side its slabs still look too boxy, so it is the first one to revisit. Its damaged frames
 (newshe 7–49) still swap to sprites (KNOWN_DAMAGE_SWAPS), as before. Check a playthrough of
 level 1 for pops, pivots and turret aim. Fallback: revert a single model's script and `.glb` to main.
+
+## D66 — The island rock round level 1's machines is island rock: no slab, no boulders, no outline
+
+2026-11-03
+
+**Decision:** Five of TYRIAN's enemies that sit on the floating islands fill their whole sprite: the
+machine, and round it island rock painted to blend with the tiles beneath. Their models now build
+that rock as the islands do (D63) instead of as a slab with boulders inside the outline:
+
+- **Which models:** found from the game's draw list over the whole level (the bot's run, the
+  router's model for every grouped draw) and the sprites' pixels: the top enemies (drawn at 2.5 over
+  the islands at 2.1) whose sprites are opaque to the rectangle's edge with rock round the machine.
+  The purple octagon walls `assembly-newsh2-279` (pieces 279/281/283, ticks 2500-5300) and
+  `assembly-newsh2-273` (273/275/277), the eye fortress `assembly-newsh2-245` (245/169/207), the red
+  machinery `assembly-newsh2-53` (15/17/53/55) and the star core panel `newsh2-153`.
+- **The cause:** each model built the sprite's rock as part of the machine: a rock bed slab filling
+  the rectangle (279, 273, 53; 153's deck plate with a skirt), cleaved or rounded boulders on it, and
+  the outline shell (`common.outline_shell`, D51) made from all of it, so the ink outline ran round
+  the sprite's rectangle. Against the D63 islands the boulders were the old look, and the slab's
+  edge with its outline read as a dark box.
+- **The fix:** `lib_tiles.sprite_rock` builds the rock from the sprite's own pixels the way
+  `rock_tile` does: MMPX 2x (a copy of tools/terrain_hd.py's, which needs PIL), rock-ramp pixels
+  snapped to `ROCK_COLOURS`, heights from `ROCK_LUM`, flat shaded, the per-tile models' finish,
+  plain materials (not baked). Where the machine stands (its footprint, ray cast from above) the
+  rock is level and dark under it; any other paint keeps its own index (53's blue stone). It is a
+  separate object per piece (origin at the piece's centre, heights from the whole assembly so the
+  pieces meet), outside the outline shell, marked `tyrian_ground`: the renderer gives it no shadow
+  (`castsShadow`, modelPrep.ts), which would lay a dark band along two of its edges on the island
+  0.4 below. The slabs, boulders, sand blobs, 53's dark deck and 153's plate and corner blocks are
+  gone; every machine part, palette material, frame, piece and pivot is as it was. The bakes keep
+  the rock as an occluder, so the machines' feet still darken on it.
+
+**Options considered:**
+- *The sprite's rock as island relief at the enemy's height, no outline, no shadow (chosen):* the
+  enemy is placed on the camera ray through its screen point (D6), so the rock lands on screen
+  exactly where the sprite draws it and the island goes on under the machine.
+- *Leave the rock out and let the island tiles beneath show:* the sprite's own stones (the beige ones
+  round the caps) would be lost, and what the map has under each enemy was not checked.
+- *Keep the boulders, only drop the slab's outline:* the boulders still don't match the islands.
+- *Lower the rock to the islands' height:* it would cut into the island's own relief and flicker.
+
+**Review:** `?debug=play&seed=1&skip=N&freezeAt=N` at 3300 (purple walls), 4300 and 3800 (star core),
+4600 (eye fortress over both walls), 4850 (red machinery). Costs: the 14 GLBs are 4.2 MB, 0.27 MB
+smaller than before. Left as found: the star core keeps the outline down its sides, where the sprite
+paints straight, symmetric metal beams to the rectangle's edge (machine, not rock); a small step can
+show where an enemy's rock meets an unusual neighbour (as D63's tiles), and the middle wall piece
+(275) has its seams computed between its first neighbours in the row. The ground enemies with full
+sprites (`assembly-newsh2-115`, `-119`, the rock outcrop `assembly-newshe-39`) stand on level 1's dirt,
+not island rock, and are unchanged.
+Fallback: revert the five scripts and their GLBs; `castsShadow` is harmless without the flag.

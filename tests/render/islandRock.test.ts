@@ -1,7 +1,9 @@
 // TYRIAN's floating islands (map 1-9, background 3) look the same from tile to tile (DECISIONS.md
 // D63): every island cell is drawn by a model, the rock tile models are the tiles' own pixels in one
 // shared set of palette colours, and the rock that the structures on the islands carry stays plain
-// (their concept bake leaves it alone), so it matches the per-tile rock next to it.
+// (their concept bake leaves it alone), so it matches the per-tile rock next to it. The enemies that
+// sit on the islands with island rock painted round their machine carry that rock the same way, as
+// ground outside their outline (D66).
 import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import type { TileDraw } from "../../src/sim/draw";
@@ -17,6 +19,22 @@ const ROCK_COLOURS = new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 24, 25,
 /** TYRIAN's structures that stand on the islands and carry their tiles' rock (Structure.rock). */
 const ON_ROCK = ["crater", "lava-pit", "purple-2x2", "purple-2x3", "purple-2x5", "purple-cross", "purple-orb", "drum-e", "drum-w", "white-gate-e", "white-gate-w", "fortress"];
 
+/** The enemy pieces whose sprites paint island rock round the machine (lib_tiles.sprite_rock, D66). */
+const ENEMIES_ON_ROCK = [
+  "newsh2-279", "newsh2-281", "newsh2-283", // purple octagon wall
+  "newsh2-273", "newsh2-275", "newsh2-277", // purple octagon wall, the long row
+  "newsh2-245", "newsh2-169", "newsh2-207", // eye fortress
+  "newsh2-15", "newsh2-17", "newsh2-53", "newsh2-55", // red machinery
+  "newsh2-153", // star core panel
+];
+
+interface GltfNode {
+  name?: string;
+  mesh?: number;
+  children?: number[];
+  extras?: { tyrian_outline?: boolean; tyrian_ground?: boolean };
+}
+
 interface GltfMaterial {
   name: string;
   extras?: { tyrian_plain?: boolean };
@@ -25,7 +43,12 @@ interface GltfMaterial {
 }
 
 /** The JSON chunk of a .glb in public/models/. */
-function gltf(model: string): { materials?: GltfMaterial[]; images?: unknown[] } {
+function gltf(model: string): {
+  materials?: GltfMaterial[];
+  images?: unknown[];
+  nodes?: GltfNode[];
+  meshes?: { primitives: { material?: number }[] }[];
+} {
   const b = readFileSync(new URL(`../../public/models/${model}.glb`, import.meta.url));
   const len = b.readUInt32LE(12);
   return JSON.parse(b.subarray(20, 20 + len).toString("utf8"));
@@ -53,6 +76,32 @@ describe("island rock models", () => {
         expect(m.pbrMetallicRoughness?.baseColorTexture, `tyrbld-${name}: ${m.name} is not baked`).toBeUndefined();
         expect(m.normalTexture, `tyrbld-${name}: ${m.name} has no normal map`).toBeUndefined();
       }
+    }
+  });
+});
+
+describe("enemies on the islands", () => {
+  test("carry their island rock as plain ground, apart from the machine and its outline", () => {
+    for (const piece of ENEMIES_ON_ROCK) {
+      const doc = gltf(`enemies/${piece}`);
+      const nodes = doc.nodes ?? [];
+      const mats = (n: GltfNode) => (n.mesh === undefined ? [] : doc.meshes![n.mesh].primitives.map((p) => p.material!));
+      const ground = nodes.filter((n) => n.extras?.tyrian_ground);
+      expect(ground.length, `${piece} has its rock`).toBe(1);
+      expect(ground[0].extras?.tyrian_outline, `${piece}: the rock has no outline shell`).toBeUndefined();
+      expect(nodes.filter((n) => n.extras?.tyrian_outline).length, `${piece} keeps the machine's outline`).toBe(1);
+      const rockMats = new Set(mats(ground[0]));
+      expect(rockMats.size).toBeGreaterThan(0);
+      for (const i of rockMats) {
+        const m = doc.materials![i];
+        expect(m.extras?.tyrian_plain, `${piece}: ${m.name} is plain`).toBe(true);
+        expect(m.pbrMetallicRoughness?.baseColorTexture, `${piece}: ${m.name} is not baked`).toBeUndefined();
+      }
+      // The machine's own parts never use the rock's materials (nor the rock the machine's baked ones).
+      for (const n of nodes) if (!n.extras?.tyrian_ground) for (const i of mats(n)) expect(rockMats.has(i), `${piece}: ${n.name}`).toBe(false);
+      // The rock is mostly the islands' colours (a few pixels of other paint keep their own).
+      const rocky = [...rockMats].filter((i) => ROCK_COLOURS.has(palIndex(doc.materials![i].name))).length;
+      expect(rocky / rockMats.size, `${piece}: rock colours`).toBeGreaterThan(0.6);
     }
   });
 });
