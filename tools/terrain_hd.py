@@ -32,7 +32,7 @@ reads (public/art/terrain/<shapes>/manifest.json + <layer>.webp, the format in D
         with a bonus for map regions (D59); --exclude, --pick and --cache adjust and speed this up.
         The winner's broad shading (16 texels) is then replaced by the original's. Alpha (layers 1-2) is
         the original silhouette, MMPX-upscaled among the tile's usual neighbours with its contour smoothed
-        at one original pixel (a blurred signed distance, D67), its edges solved like the colour's.
+        at one original pixel (a blurred signed distance, D78), its edges solved like the colour's.
         Then the seams: every tile side's edge strip is solved jointly, least
         squares over every pair of tiles the map puts side by side (weighted by how often) plus a weak
         pull towards the tile's own painting, and each tile's border is moved onto its strips (the
@@ -42,7 +42,7 @@ reads (public/art/terrain/<shapes>/manifest.json + <layer>.webp, the format in D
 
     python tools/terrain_hd.py --work DIR realpha [--out public/art/terrain]
         Redoes only the alpha of the committed atlas's layers 1-2 (as cut makes it), keeping its colour;
-        needs DIR/inventory.json, not the answers (D67).
+        needs DIR/inventory.json, not the answers (D78).
 
     python tools/terrain_hd.py --work DIR check [--out public/art/terrain]
         Reassembles the level's map from the atlas, 12 rows at a time, into contact sheets (original,
@@ -837,8 +837,8 @@ def alpha_level(L: LevelData, layer: int, tile: int, usual: dict, smooth: float 
     """The original tile's silhouette as a smooth level field (texels, > 0 inside, the contour at 0;
     layers 1-2), among its usual neighbours: the MMPX 8x upscale's mask, its signed distance (clamped
     to 3 `smooth`), blurred at `smooth` texels. Blurring the distance rounds the 8-texel stairs MMPX
-    leaves on slopes other than 45 degrees while straight runs stay where they are (D67); alpha is
-    a short ramp across the level's zero (alpha_from_level). Before D67 alpha was the MMPX mask
+    leaves on slopes other than 45 degrees while straight runs stay where they are (D78); alpha is
+    a short ramp across the level's zero (alpha_from_level). Before D78 alpha was the MMPX mask
     blurred at 3 texels, which kept the stairs."""
     from scipy import ndimage
 
