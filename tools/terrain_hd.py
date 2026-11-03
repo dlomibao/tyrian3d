@@ -1,30 +1,40 @@
-"""HD terrain: Gemini-painted background tiles, cut, made seamless and packed as atlases (DECISIONS.md D58).
+"""HD terrain: Gemini-painted background tiles, cut, made seamless and packed as atlases (DECISIONS.md D58, D83).
 
 The remastered look draws the ground (and TYRIAN's ice clouds) upscaled 4x with MMPX at runtime
-(DECISIONS.md D34, D45, D48). This tool brings in HD paintings of a level's background tiles instead,
+(DECISIONS.md D34, D45, D48). This tool brings in HD paintings of a tileset's background tiles instead,
 made by Google Gemini from input sheets of the original tiles, and packs them as the atlases the game
-reads (public/art/terrain/<shapes>/manifest.json + <layer>.webp, the format in D57):
+reads (public/art/terrain/<shapes>/manifest.json + <layer>.webp, the format in D57). A tileset is
+shared by many levels (shapesz by 32), so every command takes a list of levels of one tileset:
+--level 1-9,1-11,4-16, or --tileset shapesz for every level that uses it (D83).
 
-    python tools/terrain_hd.py --level 1-9 --work DIR inventory
-        Every tile the level's map draws on layers 0, 1 and 2 as a tile (tiles a layer-1/2 structure
-        model replaces are left out; ground tiles under ground models are still drawn, D34), with
-        counts, usual neighbours and a representative 3x3 neighbourhood from the map, and a
-        material group per tile. Writes DIR/inventory.json.
+    python tools/terrain_hd.py --tileset shapesz --work DIR inventory [--out public/art/terrain] [--kind 2:575=terrain]
+        Every tile the levels' maps draw on layers 0, 1 and 2 as a tile (tiles a layer-1/2 structure
+        model replaces are left out; ground tiles under ground models are still drawn, D34), merged
+        over the levels: counts (and per level), usual neighbours over all the maps and one
+        representative 3x3 neighbourhood, a material group, whether the atlas already has it
+        (hasArt), and a kind: terrain (to paint), structure (layers 1-2: metal plating, pipes,
+        machines: to model, not painted unless asked) or empty (one colour: nothing to paint).
+        Writes DIR/inventory.json.
 
-    python tools/terrain_hd.py --work DIR sheets
-        Gemini input sheets in DIR/sheets/: grids of 3x3-tile contexts (the tile with its usual
-        neighbours, scaled up nearest-neighbour, on black), one material group per sheet, and for
-        the ground also sheets of continuous map regions (7x6 tiles). Each sheet is padded to one of
-        Gemini's aspect ratios. DIR/sheets/manifest.json says where every tile sits. The sheets are
-        rendered from the game data, so they stay out of git (D3).
+    python tools/terrain_hd.py --tileset shapesz --work DIR sheets [--structures] [--recut 0:46] [--blocks]
+        Gemini input sheets in DIR/sheets/ for the tiles that still need a painting (no art yet,
+        terrain, and no painting of the same tile on another layer to reuse): continuous map regions
+        (7x6 tiles, a set cover over every level's map) for the ground and layer 2's terrain, and
+        grids of 3x3-tile contexts (the tile with its usual neighbours, on black), one material group
+        per sheet. Each sheet is padded to one of Gemini's aspect ratios and softened (one pixel per
+        original pixel scaled up bicubic: Gemini copies hard pixel blocks, D59); <name>-blocks.png is
+        the nearest-neighbour version. DIR/sheets/manifest.json says where every tile sits and the
+        send order (most-used new tiles first); SEND.md and <name>.prompt.txt are for the operator.
+        The sheets are rendered from the game data, so they stay out of git (D3).
 
-        --soft 0.5 also writes softened sheets (MMPX + a half-pixel blur) to DIR/sheets/soft/ (D79).
+        --soft 0.5 also writes sheets softened another way (MMPX + a half-pixel blur, D79's repaint
+        of TYRIAN's ground) to DIR/sheets/soft/, with softFile and softPrompt in the manifest.
 
-    python tools/terrain_hd.py --work DIR fake
+    python tools/terrain_hd.py --tileset shapesz --work DIR fake
         Stand-in "Gemini" answers for testing: each sheet upscaled with MMPX, blurred, shifted,
         rescaled slightly and colour-shifted, in DIR/results-fake/.
 
-    python tools/terrain_hd.py --work DIR cut [--results DIR/results] [--out public/art/terrain]
+    python tools/terrain_hd.py --tileset shapesz --work DIR cut [--results DIR/results] [--out public/art/terrain]
         Cuts every answer (DIR/results/<sheet>.png|jpg|webp, any size, same aspect as the sheet; sheets
         without an answer are skipped) back into tiles at 8 texels per original pixel: each cell is
         registered to the sheet's own picture of it (rescale and shift by normalised cross-correlation),
@@ -32,30 +42,39 @@ reads (public/art/terrain/<shapes>/manifest.json + <layer>.webp, the format in D
         original tile (mean and low-frequency contrast per channel). The best candidate per tile wins
         (or --combine mean): its fit, less its colour error, copied pixel blocks and made-up marks,
         with a bonus for map regions (D59); --exclude, --pick and --cache adjust and speed this up.
-        The winner's broad shading (16 texels) is then replaced by the original's. Alpha (layers 1-2) is
-        the original silhouette, MMPX-upscaled among the tile's usual neighbours with its contour smoothed
-        at one original pixel (a blurred signed distance, D78), its edges solved like the colour's.
-        Then the seams: every tile side's edge strip is solved jointly, least
-        squares over every pair of tiles the map puts side by side (weighted by how often) plus a weak
-        pull towards the tile's own painting, and each tile's border is moved onto its strips (the
-        difference fades in over 40 texels, the outer 4 texels are the strip). One atlas per layer is
-        packed (16-aligned rects, 16 px edge-extended gutters): <out>/<shapes>/<layer>.webp and
-        manifest.json; DIR/cut-report.json says where each tile came from and how well it fitted.
-        --base ATLAS_ROOT lets an existing atlas's tiles compete (a partial round of answers, D79).
+        The winner's broad shading (16 texels) is then replaced by the original's. A tile with no
+        painting of its own takes the same tile's painting from another layer (--no-reuse: don't).
+        Alpha (layers 1-2) is the original silhouette, MMPX-upscaled among the tile's usual neighbours
+        with its contour smoothed at one original pixel (a blurred signed distance, D78), its edges
+        solved like the colour's. Then the seams: every tile side's edge strip is solved jointly, least
+        squares over every pair of tiles the levels' maps put side by side (weighted by how often) plus
+        a weak pull towards the tile's own painting, and each tile's border is moved onto its strips
+        (the difference fades in over 40 texels, the outer 4 texels are the strip); --edge-aware leaves
+        strips untied where the original has a real edge between the tiles.
+        The cut MERGES into the tileset's atlas (D83): every tile it already has is kept as it is (its
+        image file untouched, its rect unchanged) and its strips are held, so the new tiles are solved
+        against them; the new tiles are packed (16-aligned rects, 16 px edge-extended gutters) into new
+        images (<layer>-2.webp, ...) that their rects name. --recut 0:46 cuts a kept tile again;
+        --replace cuts everything into fresh atlases (one per layer, as D58-D60 did).
+        --base ATLAS_ROOT lets an atlas's tiles compete with the new answers for the tiles being cut
+        (a partial round of answers, D79). DIR/cut-report.json says where each tile came from (or that
+        it was kept) and how well it fitted.
 
-    python tools/terrain_hd.py --work DIR realpha [--out public/art/terrain]
-        Redoes only the alpha of the committed atlas's layers 1-2 (as cut makes it), keeping its colour;
-        needs DIR/inventory.json, not the answers (D78).
+    python tools/terrain_hd.py --tileset shapesz --work DIR realpha [--out public/art/terrain]
+        Redoes only the alpha of the committed atlas's layers 1-2 (as cut makes it, solved over all the
+        levels' pairs), keeping its colour; needs DIR/inventory.json, not the answers (D78).
 
-    python tools/terrain_hd.py --work DIR check [--out public/art/terrain]
-        Reassembles the level's map from the atlas, 12 rows at a time, into contact sheets (original,
-        nearest, beside HD, 4 px per original pixel) and measures seams over every tile edge the map
-        has: the colour step between the two edge texels, against the step between neighbouring
-        texels inside tiles (and the same for 8-texel strips). Writes DIR/check/ (seams.json lists the
-        worst pairs).
+    python tools/terrain_hd.py --tileset shapesz --work DIR check [--out public/art/terrain] [--contact new|all|none|1-9,...]
+        Measures seams over every tile edge the levels' maps have: the colour step between the two
+        edge texels, against the step between neighbouring texels inside tiles (and the same for
+        8-texel strips), in all, for the edges with a tile the last cut made ("new"), for the rest
+        ("kept") and per level. Contact sheets (original, nearest, beside HD, 4 px per original pixel,
+        12 rows at a time) of the row blocks that show a new tile. Writes DIR/check/ (seams.json lists
+        the worst pairs).
 
-The options before the command (--data, --level, --work) apply to all of them; --work defaults to
-reference/terrain-hd/ (git-ignored).
+The options before the command (--data, --level/--tileset, --work) apply to all of them; --work
+defaults to reference/terrain-hd/ (git-ignored). With one level and an empty atlas folder the tool
+does what it did for TYRIAN (D58-D60), byte for byte.
 
 The game data is read from --data (default data/): tyrian<ep>.lvl (src/data/levels.ts),
 shapes<x>.dat and palette.dat (src/data/palette.ts); the structure models from
@@ -90,6 +109,67 @@ def vga6to8(c: int) -> int:
     return ((c << 2) | (c >> 4)) & 0xFF
 
 
+_SHAPES: dict[Path, list[np.ndarray | None]] = {}
+
+
+def read_shapes(path: Path) -> list[np.ndarray | None]:
+    """The 600 records of a shapes?.dat (None = blank), read once per file."""
+    if path not in _SHAPES:
+        sb = path.read_bytes()
+        shapes: list[np.ndarray | None] = []
+        q = 0
+        for _ in range(SHAPES_PER_FILE):
+            blank = sb[q] != 0
+            q += 1
+            if blank:
+                shapes.append(None)
+            else:
+                shapes.append(np.frombuffer(sb, np.uint8, TILE_W * TILE_H, q).reshape(TILE_H, TILE_W).copy())
+                q += TILE_W * TILE_H
+        _SHAPES[path] = shapes
+    return _SHAPES[path]
+
+
+def level_shapes_letter(data_dir: Path, ep: int, num: int) -> str | None:
+    """The shapes file letter of level `num` of tyrian<ep>.lvl, or None if there is no such level."""
+    p = data_dir / f"tyrian{ep}.lvl"
+    if not p.exists():
+        return None
+    b = p.read_bytes()
+    lvl_num = min(struct.unpack_from("<H", b, 0)[0], 42)
+    k = (num - 1) * 2
+    if k >= lvl_num:
+        return None
+    pos = struct.unpack_from("<I", b, 2 + 4 * k)[0]
+    if pos + 1 >= len(b):
+        return None
+    letter = chr(b[pos + 1]).lower()
+    return letter if (data_dir / f"shapes{letter}.dat").exists() else None
+
+
+def tileset_levels(data_dir: Path, tileset: str) -> list[str]:
+    """Every level (episode-levelfile id, as --level takes) whose map uses `tileset` (shapesz or z).
+    The level files' own slots, in episode order; for shapesz these are the 32 levels
+    docs/roadmap/inventory.json lists."""
+    want = tileset.lower().removeprefix("shapes").removesuffix(".dat")
+    out = []
+    for ep in range(1, 5):
+        for num in range(1, 22):
+            if level_shapes_letter(data_dir, ep, num) == want:
+                out.append(f"{ep}-{num}")
+    return out
+
+
+def level_list(args) -> list[str]:
+    """--tileset X: every level using X; otherwise --level, a comma-separated list."""
+    if getattr(args, "tileset", None):
+        ids = tileset_levels(Path(args.data), args.tileset)
+        if not ids:
+            raise SystemExit(f"no level uses tileset {args.tileset}")
+        return ids
+    return [s.strip() for s in args.level.split(",") if s.strip()]
+
+
 class LevelData:
     """One level's maps, tiles and palette, read as src/data/levels.ts and palette.ts do."""
 
@@ -112,17 +192,7 @@ class LevelData:
             p += w * h
         self.shapes_file = f"shapes{self.shape_letter}.dat"
         self.shapes_name = f"shapes{self.shape_letter}"
-        sb = (data_dir / self.shapes_file).read_bytes()
-        shapes: list[np.ndarray | None] = []
-        q = 0
-        for _ in range(SHAPES_PER_FILE):
-            blank = sb[q] != 0
-            q += 1
-            if blank:
-                shapes.append(None)
-            else:
-                shapes.append(np.frombuffer(sb, np.uint8, TILE_W * TILE_H, q).reshape(TILE_H, TILE_W).copy())
-                q += TILE_W * TILE_H
+        shapes = read_shapes(data_dir / self.shapes_file)
         # Tile number grids (0-based shapes record, -1 = nothing drawn), as levelTiles() resolves them.
         self.grids: list[np.ndarray] = []
         self.pixels: dict[int, np.ndarray] = {}
@@ -148,6 +218,39 @@ class LevelData:
 
     def tile(self, n: int) -> np.ndarray:
         return self.pixels[n]
+
+
+class TilesetData:
+    """Several levels that share one shapes file: their maps (`levels[i].grids`), and the tiles and
+    palette they have in common. It stands in for a LevelData wherever only tiles and colours are
+    needed (sheets, cutting); maps are read per level."""
+
+    def __init__(self, data_dir: Path, level_ids: list[str]):
+        if not level_ids:
+            raise SystemExit("no levels given")
+        self.levels = [LevelData(data_dir, i) for i in level_ids]
+        names = {L.shapes_name for L in self.levels}
+        if len(names) != 1:
+            raise SystemExit(f"levels {', '.join(level_ids)} use different tilesets ({', '.join(sorted(names))}); one tileset per run")
+        first = self.levels[0]
+        self.ids = [L.id for L in self.levels]
+        self.id = ",".join(self.ids)
+        self.shapes_name, self.shapes_file = first.shapes_name, first.shapes_file
+        self.rgb, self.luma, self.luma_clear = first.rgb, first.luma, first.luma_clear
+        self.shapes = read_shapes(data_dir / self.shapes_file)
+        self.pixels: dict[int, np.ndarray] = {}
+        for L in self.levels:
+            for n, px in L.pixels.items():
+                self.pixels.setdefault(n, px)
+
+    def tile(self, n: int) -> np.ndarray:
+        if n in self.pixels:
+            return self.pixels[n]
+        s = self.shapes[n]
+        return s if s is not None else np.zeros((TILE_H, TILE_W), np.uint8)
+
+    def level(self, level_id: str) -> LevelData:
+        return self.levels[self.ids.index(level_id)]
 
 
 def load_models(shapes_file: str) -> list[dict]:
@@ -353,76 +456,229 @@ def material_group(L: LevelData, layer: int, tile: int, under_model: float) -> s
     return f"l{layer}-{main}"
 
 
-def build_inventory(L: LevelData) -> dict:
-    models = load_models(L.shapes_file)
-    out = {"level": L.id, "shapes": L.shapes_name, "palette": LEVEL_PALETTE, "tileWidth": TILE_W, "tileHeight": TILE_H,
-           "note": "tile = 0-based record in the shapes file; neighbours count the cells drawn as tiles (-1 none, -2 off the map); "
-                   "context = a representative 3x3 neighbourhood from the map (rows of tile numbers, as in the map, -1 none)",
-           "layers": {}}
-    for layer in range(3):
+def layer_masks(L: LevelData, layer: int, models: list[dict]) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """(grid, drawn, under_kept) for one level's layer: drawn = cells drawn as tiles (no structure
+    model replaces them); under_kept = cells a ground model stands on (still drawn). Cached."""
+    key = (L.id, layer)
+    cache = L.__dict__.setdefault("_masks", {})
+    if key not in cache:
         g = L.grids[layer]
         rep, kept = replaced_mask(g, layer, models)
-        drawn = (g >= 0) & ~rep
-        dg = np.where(drawn, g, -1)
-        nbs = {k: shifted(dg, dx, dy) for k, (dx, dy) in SIDES.items()}
-        full = {k: shifted(g, dx, dy) for k, (dx, dy) in SIDES.items()}
+        cache[key] = (g, (g >= 0) & ~rep, kept, rep)
+    g, drawn, kept, _ = cache[key]
+    return g, drawn, kept
+
+
+def existing_art(out_root: Path, shapes: str) -> dict[int, set[int]]:
+    """The tiles that already have HD art in <out_root>/<shapes>/manifest.json, per layer."""
+    p = Path(out_root) / shapes / "manifest.json"
+    if not p.exists():
+        return {}
+    m = json.loads(p.read_text())
+    return {int(k): {int(t) for t in v.get("tiles", {})} for k, v in m.get("layers", {}).items()}
+
+
+def build_inventory(T, art: dict[int, set[int]] | None = None, kinds: dict[str, str] | None = None) -> dict:
+    """The tiles drawn by every level of `T` (a TilesetData, or a single LevelData), merged per tile:
+    counts summed, neighbours counted over all the maps, one representative 3x3 neighbourhood (the
+    occurrence, in any level, whose neighbours are the most usual ones). `art`: the tiles that
+    already have HD art (hasArt; the sheets leave them out)."""
+    if isinstance(T, LevelData):
+        levels = [T]
+    else:
+        levels = T.levels
+    art = art or {}
+    models = load_models(T.shapes_file)
+    out = {"level": levels[0].id, "levels": [L.id for L in levels], "shapes": T.shapes_name, "palette": LEVEL_PALETTE,
+           "tileWidth": TILE_W, "tileHeight": TILE_H,
+           "note": "tile = 0-based record in the shapes file; counts are summed over the levels; neighbours count the cells drawn "
+                   "as tiles (-1 none, -2 off the map); context = a representative 3x3 neighbourhood from one level's map (rows of "
+                   "tile numbers, -1 none); hasArt = already in the tileset's atlas; levels = cells drawn per level",
+           "layers": {}}
+    for layer in range(3):
+        per_level = []  # (L, g, drawn, kept, nbs, full)
+        agg: dict[int, dict] = {}
+        for L in levels:
+            g, drawn, kept = layer_masks(L, layer, models)
+            rep = (g >= 0) & ~drawn
+            dg = np.where(drawn, g, -1)
+            nbs = {k: shifted(dg, dx, dy) for k, (dx, dy) in SIDES.items()}
+            full = {k: shifted(g, dx, dy) for k, (dx, dy) in SIDES.items()}
+            per_level.append((L, g, drawn, nbs, full))
+            for n in sorted(set(g[g >= 0].tolist())):
+                at = g == n
+                a = agg.setdefault(n, {"count": 0, "drawn": 0, "replaced": 0, "underModel": 0, "levels": {},
+                                       "stats": {k: Counter() for k in SIDES}, "rigid": 0})
+                mask = at & drawn
+                cnt = int(mask.sum())
+                a["count"] += int(at.sum())
+                a["drawn"] += cnt
+                a["replaced"] += int((at & rep).sum())
+                a["underModel"] += int((at & kept).sum())
+                if cnt:
+                    a["levels"][L.id] = cnt
+                    for k in SIDES:
+                        a["stats"][k].update(nbs[k][mask].tolist())
+        # Rigidity: how often a tile has exactly its usual neighbour on all four sides (a piece of a
+        # fixed structure: ~1; terrain that meets many different neighbours: low).
+        for n, a in agg.items():
+            if not a["drawn"]:
+                continue
+            a["usual"] = {k: a["stats"][k].most_common(1)[0][0] for k in SIDES}
         tiles = {}
-        for n in sorted(set(g[g >= 0].tolist())):
-            at = g == n
-            cnt = int((at & drawn).sum())
-            entry = {"tile": n, "count": int(at.sum()), "drawn": cnt, "replaced": int((at & rep).sum()),
-                     "underModel": int((at & kept).sum())}
-            if cnt == 0:
+        for n in sorted(agg):
+            a = agg[n]
+            entry = {"tile": n, "count": a["count"], "drawn": a["drawn"], "replaced": a["replaced"], "underModel": a["underModel"]}
+            if a["drawn"] == 0:
                 entry["drawnAsTile"] = False
                 tiles[str(n)] = entry
                 continue
             entry["drawnAsTile"] = True
-            mask = at & drawn
-            stats = {}
-            for k in SIDES:
-                c = Counter(nbs[k][mask].tolist())
-                stats[k] = c
+            stats, cnt = a["stats"], a["drawn"]
+            entry["levels"] = a["levels"]
+            entry["hasArt"] = n in art.get(layer, set())
             entry["neighbours"] = {k: [[t, c] for t, c in stats[k].most_common(6)] for k in EDGE_SIDES}
             entry["diagonals"] = {k: [[t, c] for t, c in stats[k].most_common(3)] for k in SIDES if k not in EDGE_SIDES}
-            entry["usual"] = {k: stats[k].most_common(1)[0][0] for k in SIDES}
+            entry["usual"] = a["usual"]
             # Representative neighbourhood: the occurrence whose neighbours are the most usual ones.
-            ys, xs = np.nonzero(mask)
-            score = np.zeros(len(ys))
-            for k, (dx, dy) in SIDES.items():
-                wgt = 1.0 if k in EDGE_SIDES else 0.5
-                freq = {t: c / cnt for t, c in stats[k].items()}
-                vals = full[k][ys, xs]
-                score += wgt * np.array([freq.get(int(v), 0.0) for v in nbs[k][ys, xs]])
-                score -= 2.0 * (vals == -2)  # off the map
-            best = int(np.argmax(score))
-            y, x = int(ys[best]), int(xs[best])
-            ctx = [[int(g[y + dy, x + dx]) if 0 <= y + dy < g.shape[0] and 0 <= x + dx < g.shape[1] else -2
-                    for dx in (-1, 0, 1)] for dy in (-1, 0, 1)]
-            entry["context"] = {"x": x, "y": y, "grid": ctx, "score": round(float(score[best]), 3)}
-            entry["group"] = material_group(L, layer, n, entry["underModel"] / max(entry["count"], 1))
+            best = None
+            rigid = 0
+            freqs = {k: {t: c / cnt for t, c in stats[k].items()} for k in SIDES}
+            for L, g, drawn, nbs, full in per_level:
+                mask = (g == n) & drawn
+                if not mask.any():
+                    continue
+                ys, xs = np.nonzero(mask)
+                score = np.zeros(len(ys))
+                same = np.ones(len(ys), bool)
+                for k, (dx, dy) in SIDES.items():
+                    wgt = 1.0 if k in EDGE_SIDES else 0.5
+                    vals = full[k][ys, xs]
+                    nv = nbs[k][ys, xs]
+                    score += wgt * np.array([freqs[k].get(int(v), 0.0) for v in nv])
+                    score -= 2.0 * (vals == -2)  # off the map
+                    if k in EDGE_SIDES:
+                        same &= nv == a["usual"][k]
+                rigid += int(same.sum())
+                i = int(np.argmax(score))
+                if best is None or score[i] > best[0]:
+                    y, x = int(ys[i]), int(xs[i])
+                    ctx = [[int(g[y + dy, x + dx]) if 0 <= y + dy < g.shape[0] and 0 <= x + dx < g.shape[1] else -2
+                            for dx in (-1, 0, 1)] for dy in (-1, 0, 1)]
+                    best = (float(score[i]), {"level": L.id, "x": x, "y": y, "grid": ctx, "score": round(float(score[i]), 3)})
+            entry["context"] = best[1]
+            entry["group"] = material_group(T, layer, n, entry["underModel"] / max(entry["count"], 1))
             entry["blend"] = layer == 1  # background 2 draws blended (D45)
             entry["selfTiles"] = bool(stats["right"].get(n, 0) + stats["down"].get(n, 0))
+            entry["rigidity"] = round(rigid / cnt, 3)
+            entry["variety"] = {k: len(stats[k]) for k in EDGE_SIDES}
             tiles[str(n)] = entry
+        drawn_t = [t for t in tiles.values() if t["drawnAsTile"]]
         out["layers"][str(layer)] = {
-            "width": int(g.shape[1]), "height": int(g.shape[0]),
-            "cellsDrawn": int(drawn.sum()), "cellsReplaced": int(rep.sum()),
-            "tilesDrawn": sum(1 for t in tiles.values() if t["drawnAsTile"]),
+            "width": int(per_level[0][1].shape[1]), "height": int(per_level[0][1].shape[0]),
+            "cellsDrawn": sum(int(d.sum()) for _, _, d, _, _ in per_level),
+            "cellsReplaced": sum(int(((g >= 0) & ~d).sum()) for _, g, d, _, _ in per_level),
+            "tilesDrawn": len(drawn_t),
             "tilesReplacedOnly": sum(1 for t in tiles.values() if not t["drawnAsTile"]),
+            "tilesWithArt": sum(1 for t in drawn_t if t["hasArt"]),
+            "tilesLeft": sum(1 for t in drawn_t if not t["hasArt"]),
+            "cellsLeft": sum(t["drawn"] for t in drawn_t if not t["hasArt"]),
             "tiles": tiles,
         }
+    classify_layers(T, out, art, kinds)
     return out
 
 
+NATURAL = ("brown", "green", "yellow")  # rock, dirt, grass, forest: terrain whatever its shape
+FILL_SELF = 0.9  # a fill tile meets itself (or nothing) on at least this share of its edges
+
+
+def classify_layers(T, inv: dict, art: dict[int, set[int]] | None = None, overrides: dict[str, str] | None = None) -> None:
+    """Background 2 and 3 tiles (layers 1-2): terrain to paint, or a piece of a structure to model.
+    Level 1's layer-2 cells all sat under models (D58), but other levels draw rock, grass and metal
+    there as plain tiles. A tile is "terrain" (HD art, drawn as a cutout or blended) if its main
+    palette ramp is natural (brown, green: rock, dirt, grass, canopy), or if it is a fill (its usual
+    neighbour on every side is itself and nearly all its edges meet itself or nothing: a backdrop);
+    otherwise "structure" (metal plating, pipes, walls, machines: hard-surface models by pattern,
+    D34/D47; the sheets leave them out unless asked). A tile that a ground model stands on elsewhere
+    (keepTiles) is terrain too: it is painted beneath the model. Also noted per tile: structure models of the
+    same tile on other layers (`modelsElsewhere`: add a layer entry to reuse the model) and HD art of
+    the same tile on other layers (`artElsewhere`: the cutter can reuse that painting)."""
+    art = art or {}
+    overrides = overrides or {}
+    models = load_models(T.shapes_file)
+    by_tile: dict[int, list[str]] = defaultdict(list)
+    for e in models:
+        for row in e["tiles"]:
+            for t in row:
+                if t >= 0:
+                    by_tile[t].append(f"{e['name']}@{e['layer']}" + ("+keep" if e.get("keepTiles", e["layer"] == 0) else ""))
+    for layer_s, d in inv["layers"].items():
+        layer = int(layer_s)
+        for t in d["tiles"].values():
+            if not t["drawnAsTile"]:
+                continue
+            n = t["tile"]
+            other_models = sorted({m for m in by_tile.get(n, []) if not m.split("@")[1].startswith(layer_s)})
+            other_art = sorted(L for L, s in art.items() if L != layer and n in s)
+            if other_models:
+                t["modelsElsewhere"] = other_models
+            if other_art:
+                t["artElsewhere"] = other_art
+            px = T.tile(n)
+            if len(np.unique(px if layer == 0 else px[px > 0])) <= 1:
+                # One colour (Tyrian's black space): nothing to paint; it falls back to the 4x ground,
+                # which looks the same.
+                t["kind"], t["why"] = "empty", "one colour, nothing to paint"
+                continue
+            if layer == 0:
+                t["kind"] = "terrain"
+                continue
+            colour = t["group"].split("-")[1]
+            edges = sum(c for s in EDGE_SIDES for _, c in t["neighbours"][s])
+            self_or_none = sum(c for s in EDGE_SIDES for m, c in t["neighbours"][s] if m in (n, -1, -2))
+            fill = all(t["usual"][s] == n for s in EDGE_SIDES) and self_or_none >= FILL_SELF * max(edges, 1) \
+                and not (T.tile(n) == 0).any()
+            keep = [m for m in other_models if m.endswith("+keep")]
+            if f"{layer}:{n}" in overrides:
+                t["kind"], t["why"] = overrides[f"{layer}:{n}"], "set by hand (--kind)"
+            elif t.get("hasArt"):
+                t["kind"], t["why"] = "terrain", "already has HD art"
+            elif colour in NATURAL:
+                t["kind"], t["why"] = "terrain", f"natural material ({colour})"
+            elif keep:
+                t["kind"], t["why"] = "terrain", f"drawn under a ground model elsewhere ({keep[0]}): painted beneath it"
+            elif fill:
+                t["kind"], t["why"] = "terrain", "fill: meets itself on every side"
+            else:
+                t["kind"], t["why"] = "structure", f"hard surface ({colour}), part of a pattern"
+        tl = [t for t in d["tiles"].values() if t["drawnAsTile"]]
+        d["kinds"] = {k: {"tiles": sum(1 for t in tl if t.get("kind") == k),
+                          "left": sum(1 for t in tl if t.get("kind") == k and not t["hasArt"]),
+                          "cellsLeft": sum(t["drawn"] for t in tl if t.get("kind") == k and not t["hasArt"])}
+                      for k in ("terrain", "structure", "empty")}
+
+
 def cmd_inventory(args) -> None:
-    L = LevelData(Path(args.data), args.level)
-    inv = build_inventory(L)
+    T = TilesetData(Path(args.data), level_list(args))
+    kinds = dict(s.strip().split("=", 1) for s in (args.kind or "").split(",") if s.strip())
+    bad = [k for k, v in kinds.items() if v not in ("terrain", "structure", "empty")]
+    if bad:
+        raise SystemExit(f"--kind {','.join(bad)}: the kind is terrain, structure or empty")
+    inv = build_inventory(T, existing_art(Path(args.out), T.shapes_name), kinds)
     work = Path(args.work)
     work.mkdir(parents=True, exist_ok=True)
     (work / "inventory.json").write_text(json.dumps(inv, indent=1) + "\n")
+    print(f"{T.shapes_name}: {len(T.levels)} level(s): {', '.join(T.ids)}")
     for layer, d in inv["layers"].items():
         groups = Counter(t["group"] for t in d["tiles"].values() if t["drawnAsTile"])
-        print(f"layer {layer}: {d['tilesDrawn']} tiles drawn ({d['cellsDrawn']} cells), {d['tilesReplacedOnly']} only under "
-              f"models ({d['cellsReplaced']} cells replaced); groups {dict(groups)}")
+        print(f"layer {layer}: {d['tilesDrawn']} tiles drawn ({d['cellsDrawn']} cells), {d['tilesWithArt']} with art, "
+              f"{d['tilesLeft']} left ({d['cellsLeft']} cells); {d['tilesReplacedOnly']} only under models "
+              f"({d['cellsReplaced']} cells replaced); groups {dict(groups)}")
+        k = d["kinds"]
+        print(f"  terrain (HD art) {k['terrain']['left']} left of {k['terrain']['tiles']} ({k['terrain']['cellsLeft']} cells); "
+              f"structure (models) {k['structure']['left']} left of {k['structure']['tiles']} ({k['structure']['cellsLeft']} cells); "
+              f"empty (one colour, no art needed) {k['empty']['tiles']} ({k['empty']['cellsLeft']} cells)")
     print(f"-> {work / 'inventory.json'}")
 
 
@@ -433,34 +689,77 @@ CTX_PER_SHEET = 9
 REGION_TILES = (7, 6)  # a continuous region: 7 x 6 tiles = 168 x 168 px, square
 TARGET_SIDE = 1024  # px, roughly what Gemini answers with
 
+# What each material group is, for the prompts (Tyrian's palette ramps are one colour each, so the
+# group's colours name the material; per tileset, what those colours show was checked on the maps).
+# Things with height say "seen straight down" (D59: "top-down" alone got trees drawn from the side).
 MATERIALS = {
     "brown": "rocky brown dirt, stones and earth ridges",
-    "green": "dense green forest canopy",
+    "green": "dense green forest canopy, round tree crowns seen straight down, no trunks",
     "brown-green-edges": "brown dirt meeting the ragged edge of green grass and forest",
     "blue": "icy translucent clouds drifting over the ground",
     "cyan": "icy translucent clouds drifting over the ground",
     "grey": "grey rock and metal",
 }
+# Overrides per layer: the same colours are other materials on other layers and tilesets.
+LAYER_MATERIALS = {
+    0: {
+        "grey": "grey cratered asteroid rock with scattered stones against black space, and grey metal bases where the "
+                "original shows them",
+        "red": "clusters of glossy red bubbles, round spheres with bright highlights, against black space",
+        "grey-red-edges": "grey asteroid rock meeting clusters of glossy red bubbles",
+        "brown-grey-edges": "grey asteroid rock with tan and brown stones, its ragged edge against black space",
+        "cyan": "dark blue-grey metal deck plating with raised conduits, panels and rivets",
+        "cyan-grey-edges": "dark blue-grey metal deck plating meeting grey machinery",
+        "blue-cyan-edges": "dark blue-grey metal deck plating with blue lit panels",
+    },
+    1: {"blue": "icy translucent clouds drifting over the ground"},
+    2: {
+        "brown": "brown rock plateaus and rubble of a floating rock mass, seen straight down, the raised plateaus lighter",
+        "green": "green grass and forest seen straight down: round tree crowns casting soft shadows, no trunks",
+        "grey": "grey and purple metal plating, pipes and machinery seen straight down",
+        "cyan": "purple and grey metal plating, pipes and machinery seen straight down",
+    },
+}
 
 
-def material_text(group: str) -> str:
+# Single tiles whose colours don't say what they are (checked on the maps).
+TILE_MATERIALS = {
+    ("shapesz", 1, 518): "a dark blue floor of square glowing panels in a regular grid, seen straight down",
+}
+
+
+def material_text(group: str, layer: int | None = None) -> str:
     key = group.split("-", 1)[1].removesuffix("-modelled")
-    return MATERIALS.get(key, f"{key.replace('-', ' ')} terrain")
+    if layer is None:
+        layer = int(group.split("-", 1)[0][1:]) if group[:1] == "l" and group[1:2].isdigit() else 0
+    return LAYER_MATERIALS.get(layer, {}).get(key) or MATERIALS.get(key, f"{key.replace('-', ' ')} terrain")
 
 
-def prompt_for(kind: str, group: str, layer: int, n: int) -> str:
-    what = material_text(group)
-    keep = ("Keep each piece exactly where it is, at the same size, with the same layout, shapes, outlines and colours, so it "
-            "still lines up with the original pixel for pixel. Don't copy the pixel blocks or make pixel-shaped details: paint "
-            "what they show, lit from above. The tiles repeat across the map, so keep the texture even up to the edges.")
-    bg = (" The black background stays pure black: no glow, no shadow, no border." if layer > 0 or kind == "context" else "")
+def prompt_for(kind: str, what: str, layer: int, n: int, softened: bool = True, space: bool = False) -> str:
+    """The Gemini prompt of a sheet. Softened sheets (D59/D60: much less pixel copying) say the picture
+    is a soft enlargement; `space` says the black areas of a ground region are empty space."""
+    keep = (f"Keep {'everything' if n == 1 or kind == 'region' else 'each piece'} exactly where it is, at the same size, with the "
+            "same layout, shapes, outlines and colours, so it still lines up with the original pixel for pixel. ")
+    keep += ("The picture is a soft, blurry enlargement of pixel art: paint crisp, detailed texture in its place, lit from above; "
+             "don't keep the blur and don't make square pixel blocks or pixel-shaped details. " if softened else
+             "Don't copy the pixel blocks or make pixel-shaped details: paint what they show, lit from above. ")
+    keep += "The tiles repeat across the map, so keep the texture even up to the edges."
+    if layer > 0 or kind == "context":
+        bg = " The black background stays pure black: no glow, no shadow, no border."
+    elif space:
+        bg = " The black areas are empty space: keep them pure black."
+    else:
+        bg = ""
+    src = "softened from pixel art" if softened else "enlarged from pixel art"
     if kind == "region":
-        return ("This is a top-down view of a stretch of terrain from the 1995 shooter Tyrian, enlarged from pixel art. Repaint "
+        return (f"This is a top-down view of a stretch of terrain from the 1995 shooter Tyrian, {src}. Repaint "
                 f"it as high-resolution, detailed, painterly top-down terrain ({what}), like StarCraft Remastered. " + keep + bg +
                 " No text, no frame.")
-    return (f"This sheet is a grid of {n} pieces of top-down terrain from the 1995 shooter Tyrian (each a 3x3 block of map "
-            f"tiles, enlarged from pixel art). Repaint every piece as high-resolution, detailed, painterly top-down terrain "
-            f"({what}), like StarCraft Remastered, all in one consistent style. " + keep + bg + " No text, no grid lines.")
+    pieces = "one piece" if n == 1 else f"a grid of {n} pieces"
+    return (f"This sheet is {pieces} of top-down terrain from the 1995 shooter Tyrian ({'a' if n == 1 else 'each a'} 3x3 block "
+            f"of map tiles, {src}). Repaint {'it' if n == 1 else 'every piece'} as high-resolution, detailed, painterly top-down terrain "
+            f"({what}), like StarCraft Remastered{'' if n == 1 else ', all in one consistent style'}. " + keep + bg +
+            (" No text, no frame." if n == 1 else " No text, no lines between the pieces."))
 
 
 def fit_aspect(w: int, h: int) -> tuple[int, int, str]:
@@ -532,28 +831,6 @@ def sheet_units(L: LevelData, sheet: dict) -> np.ndarray:
     return canvas
 
 
-def choose_regions(grid: np.ndarray, wanted: set[int]) -> list[tuple[int, int, set[int]]]:
-    """Windows of REGION_TILES that together show every wanted tile away from the window's border
-    (a border on the map's own edge is fine): greedy set cover."""
-    h, w = grid.shape
-    rw, rh = REGION_TILES
-    cands = []
-    for y0 in range(0, h - rh + 1):
-        for x0 in range(0, w - rw + 1):
-            xa, xb = (x0 if x0 == 0 else x0 + 1), (x0 + rw if x0 + rw == w else x0 + rw - 1)
-            ya, yb = (y0 if y0 == 0 else y0 + 1), (y0 + rh if y0 + rh == h else y0 + rh - 1)
-            inner = set(grid[ya:yb, xa:xb].ravel().tolist()) & wanted
-            cands.append((x0, y0, inner))
-    left, out = set(wanted), []
-    while left:
-        x0, y0, inner = max(cands, key=lambda c: (len(c[2] & left), len(c[2])))
-        if not inner & left:
-            break
-        out.append((x0, y0, inner & left))
-        left -= inner
-    return out
-
-
 def make_sheet(L: LevelData, name: str, kind: str, layer: int, group: str, cells: list[dict], priority: str) -> dict:
     cw = len(cells[0]["grid"][0]) * TILE_W
     ch = len(cells[0]["grid"]) * TILE_H
@@ -566,7 +843,7 @@ def make_sheet(L: LevelData, name: str, kind: str, layer: int, group: str, cells
              "width": W * scale, "height": H * scale, "aspect": aspect, "scale": scale,
              "padding": {"left": pl * scale, "top": pt * scale, "right": (W - w - pl) * scale, "bottom": (H - h - pt) * scale},
              "grid": {"cols": cols, "rows": rows, "cellW": cw * scale, "cellH": ch * scale, "gap": GAP * scale},
-             "prompt": prompt_for(kind, group, layer, len(cells)), "cells": []}
+             "prompt": prompt_for(kind, material_text(group, layer), layer, len(cells)), "cells": []}
     for i, cell in enumerate(cells):
         c, r = i % cols, i // cols
         x = (pl + GAP + c * (cw + GAP)) * scale
@@ -575,11 +852,93 @@ def make_sheet(L: LevelData, name: str, kind: str, layer: int, group: str, cells
     return sheet
 
 
-def build_sheets(L: LevelData, inv: dict) -> list[dict]:
+def choose_regions(grids, wanted: set[int], size: tuple[int, int] = REGION_TILES) -> list[tuple]:
+    """Windows of `size` tiles that together show every wanted tile away from the window's border (a
+    border on the map's own edge is fine): greedy set cover over the windows of every map in `grids`
+    ([(level id, grid)], or one grid). Returns (level, x0, y0, wanted tiles it adds)."""
+    if isinstance(grids, np.ndarray):
+        grids = [(None, grids)]
+    rw, rh = size
+    cands = []
+    seen = set()
+    for level, grid in grids:
+        key = grid.tobytes() + bytes(str(grid.shape), "ascii")
+        if key in seen:  # the same map in another level (TYRIAN is 1-9, 1-15 and 3-8)
+            continue
+        seen.add(key)
+        h, w = grid.shape
+        for y0 in range(0, h - rh + 1):
+            for x0 in range(0, w - rw + 1):
+                xa, xb = (x0 if x0 == 0 else x0 + 1), (x0 + rw if x0 + rw == w else x0 + rw - 1)
+                ya, yb = (y0 if y0 == 0 else y0 + 1), (y0 + rh if y0 + rh == h else y0 + rh - 1)
+                inner = set(grid[ya:yb, xa:xb].ravel().tolist()) & wanted
+                if inner:
+                    cands.append((level, x0, y0, inner))
+    left, out = set(wanted), []
+    while left and cands:
+        level, x0, y0, inner = max(cands, key=lambda c: (len(c[3] & left), len(c[3])))
+        if not inner & left:
+            break
+        out.append((level, x0, y0, inner & left))
+        left -= inner
+    return out
+
+
+def needs_paint(t: dict, layer: int, structures: bool = False, reuse: bool = True, recut: set[str] = frozenset()) -> bool:
+    """Whether a tile still needs a Gemini painting: drawn as a tile, no art yet (or asked for a
+    re-cut), terrain (structures only when asked, D58 layer 2), and no painting of the same tile on
+    another layer to reuse."""
+    if not t.get("drawnAsTile"):
+        return False
+    key = f"{layer}:{t['tile']}"
+    if key in recut:
+        return t.get("kind") != "empty"
+    if t.get("hasArt"):
+        return False
+    kind = t.get("kind", "terrain")
+    if kind == "empty" or (kind == "structure" and not structures):
+        return False
+    return not (reuse and t.get("artElsewhere"))
+
+
+def region_what(T, inv: dict, layer: int, grid: np.ndarray) -> tuple[str, bool]:
+    """The material text of a region: its two biggest material groups by cells (and whether it shows
+    black space: an empty tile)."""
+    tiles = inv["layers"][str(layer)]["tiles"]
+    c = Counter()
+    space = False
+    for v in grid.ravel().tolist():
+        t = tiles.get(str(v))
+        if not t or not t.get("drawnAsTile"):
+            continue
+        if t.get("kind") == "empty":
+            space = True
+            continue
+        c[t["group"]] += 1
+    texts = []
+    total = sum(c.values())
+    for g, k in c.most_common():
+        if texts and k < 0.15 * total:  # a few cells of another material don't name the region
+            break
+        s = material_text(g, layer)
+        if s not in texts:
+            texts.append(s)
+        if len(texts) == 2:
+            break
+    return "; ".join(texts) or "terrain", space
+
+
+def build_sheets(T, inv: dict, structures: bool = False, reuse: bool = True, recut: set[str] = frozenset(),
+                 softened: bool = True) -> list[dict]:
+    """The Gemini sheets for the tiles that still need painting (needs_paint), over every level of
+    `T`: map regions for the ground (and layer 2's terrain, a continuous mass on the levels that have
+    it), 3x3 contexts for every layer (primary on layer 1, optional retries on 0 and 2)."""
+    levels = T.levels if hasattr(T, "levels") else [T]
+    models = load_models(T.shapes_file)
     sheets = []
     for layer_s, d in inv["layers"].items():
         layer = int(layer_s)
-        tiles = [t for t in d["tiles"].values() if t["drawnAsTile"]]
+        tiles = [t for t in d["tiles"].values() if needs_paint(t, layer, structures, reuse, recut)]
         if not tiles:
             continue
         groups = defaultdict(list)
@@ -595,30 +954,52 @@ def build_sheets(L: LevelData, inv: dict) -> list[dict]:
             same = [k for k in others if colour in k.split("-")[1:]]
             into = max(same or others, key=lambda k: len(groups[k]))
             groups[into] = sorted(groups[into] + groups.pop(gname), key=lambda t: t["tile"])
-        # Contexts: every layer, one material group per sheet. On the ground they are the alternative
-        # to the regions below (send them for tiles a region painted badly).
+        regions = layer in (0, 2)
         for group, ts in sorted(groups.items()):
             for k, chunk in enumerate(balanced_chunks(ts, CTX_PER_SHEET)):
-                cells = [{"kind": "context", "mapX": t["context"]["x"] - 1, "mapY": t["context"]["y"] - 1,
+                cells = [{"kind": "context", "level": t["context"].get("level"), "mapX": t["context"]["x"] - 1,
+                          "mapY": t["context"]["y"] - 1,
                           "grid": [[v if v >= 0 else -1 for v in row] for row in t["context"]["grid"]],
                           "tiles": [{"tile": t["tile"], "col": 1, "row": 1, "interior": 1}]} for t in chunk]
-                prio = "optional" if layer == 0 else "primary"
-                sheets.append(make_sheet(L, f"ctx-{group}-{k + 1}", "context", layer, group, cells, prio))
-        # Regions: the ground as continuous stretches of map, every tile inside at least one.
-        if layer == 0:
-            g = L.grids[0]
-            wanted = {t["tile"] for t in tiles}
-            for k, (x0, y0, _) in enumerate(choose_regions(g, wanted)):
-                rw, rh = REGION_TILES
-                sub = g[y0:y0 + rh, x0:x0 + rw]
-                cell_tiles = []
-                for r in range(rh):
-                    for c in range(rw):
-                        dx = min(c if x0 > 0 else 99, rw - 1 - c if x0 + rw < g.shape[1] else 99)
-                        dy = min(r if y0 > 0 else 99, rh - 1 - r if y0 + rh < g.shape[0] else 99)
-                        cell_tiles.append({"tile": int(sub[r, c]), "col": c, "row": r, "interior": int(min(dx, dy, 3))})
-                cells = [{"kind": "region", "mapX": x0, "mapY": y0, "grid": sub.tolist(), "tiles": cell_tiles}]
-                sheets.append(make_sheet(L, f"region-l0-{k + 1:02d}", "region", 0, "l0-ground", cells, "primary"))
+                prio = "optional" if regions else "primary"
+                sh = make_sheet(T, f"ctx-{group}-{k + 1}", "context", layer, group, cells, prio)
+                special = [TILE_MATERIALS[(T.shapes_name, layer, t["tile"])] for t in chunk if (T.shapes_name, layer, t["tile"]) in TILE_MATERIALS]
+                what = "; ".join(dict.fromkeys(special)) if len(special) == len(chunk) else material_text(group, layer)
+                sh["prompt"] = prompt_for("context", what, layer, len(cells), softened)
+                sheets.append(sh)
+        if not regions:
+            continue
+        # Regions: continuous stretches of the maps, every wanted tile inside at least one. Cells a
+        # structure model replaces show black (they aren't drawn as tiles).
+        grids = []
+        for L in levels:
+            g, drawn, _ = layer_masks(L, layer, models)
+            grids.append((L.id, np.where(drawn, g, -1)))
+        by_level = dict(grids)
+        wanted = {t["tile"] for t in tiles}
+        rw, rh = REGION_TILES
+        for k, (level, x0, y0, _) in enumerate(choose_regions(grids, wanted)):
+            g = by_level[level]
+            sub = g[y0:y0 + rh, x0:x0 + rw]
+            cell_tiles = []
+            for r in range(rh):
+                for c in range(rw):
+                    dx = min(c if x0 > 0 else 99, rw - 1 - c if x0 + rw < g.shape[1] else 99)
+                    dy = min(r if y0 > 0 else 99, rh - 1 - r if y0 + rh < g.shape[0] else 99)
+                    cell_tiles.append({"tile": int(sub[r, c]), "col": c, "row": r, "interior": int(min(dx, dy, 3))})
+            cells = [{"kind": "region", "level": level, "mapX": x0, "mapY": y0, "grid": sub.tolist(), "tiles": cell_tiles}]
+            sh = make_sheet(T, f"region-l{layer}-{k + 1:02d}", "region", layer, f"l{layer}-ground", cells, "primary")
+            what, space = region_what(T, inv, layer, sub)
+            sh["prompt"] = prompt_for("region", what, layer, 1, softened, space)
+            sheets.append(sh)
+    # What each sheet adds: the tiles that need painting it shows, and their cells over all the levels.
+    for sh in sheets:
+        layer = sh["layer"]
+        tiles = inv["layers"][str(layer)]["tiles"]
+        new = sorted({ct["tile"] for cell in sh["cells"] for ct in cell["tiles"]
+                      if ct["tile"] >= 0 and needs_paint(tiles.get(str(ct["tile"]), {}), layer, structures, reuse, recut)})
+        sh["newTiles"] = new
+        sh["newCells"] = sum(tiles[str(n)]["drawn"] for n in new)
     return sheets
 
 
@@ -626,7 +1007,7 @@ SOFT_PROMPT = (" The picture is deliberately soft and blurred: invent crisp natu
                "grass blades) at full resolution, with no pixel grid, checkerboard or dither pattern.")
 
 
-def soft_sheet(L: LevelData, sh: dict, units: np.ndarray, sigma: float) -> Image.Image:
+def soft_sheet(L, sh: dict, units: np.ndarray, sigma: float) -> Image.Image:
     """The sheet as a softened picture (the D59 retry): MMPX-smoothed, then blurred by `sigma`
     original pixels, so the answer has no pixel blocks or checker dither to copy (Gemini copies what
     it is shown: region-l0-02's answer kept the 6x6 blocks, D59). The blur's period-2 attenuation at
@@ -650,33 +1031,84 @@ def soft_sheet(L: LevelData, sh: dict, units: np.ndarray, sigma: float) -> Image
     return Image.fromarray(a.round().clip(0, 255).astype(np.uint8))
 
 
+def soften(T, units: np.ndarray, width: int, height: int) -> Image.Image:
+    """The sheet at one pixel per original pixel scaled up bicubic: the same geometry without the hard
+    pixel blocks Gemini copies (doc section 3, D59)."""
+    return Image.fromarray(units_rgb(T, units)).resize((width, height), Image.BICUBIC)
+
+
+GEMINI_SESSION = 25  # requests before Gemini's "running low on usage" warning (Pro, doc section 3)
+RETRY_RATE = 0.3  # TYRIAN: 27 requests for 21 sheets
+
+
 def cmd_sheets(args) -> None:
-    L = LevelData(Path(args.data), args.level)
+    T = TilesetData(Path(args.data), level_list(args))
     work = Path(args.work)
     inv_path = work / "inventory.json"
-    inv = json.loads(inv_path.read_text()) if inv_path.exists() else build_inventory(L)
+    if inv_path.exists():
+        inv = json.loads(inv_path.read_text())
+        if inv.get("levels", [inv.get("level")]) != T.ids:
+            raise SystemExit(f"{inv_path} is for levels {inv.get('levels', [inv.get('level')])}, not {T.ids}: run inventory again")
+    else:
+        inv = build_inventory(T, existing_art(Path(args.out), T.shapes_name))
     out = work / "sheets"
     out.mkdir(parents=True, exist_ok=True)
-    sheets = build_sheets(L, inv)
-    for sh in sheets:
-        units = sheet_units(L, sh)
-        img = Image.fromarray(units_rgb(L, units)).resize((sh["width"], sh["height"]), Image.NEAREST)
-        img.save(out / sh["file"])
-        if args.soft > 0:
+    recut = {s.strip() for s in (args.recut or "").split(",") if s.strip()}
+    sheets = build_sheets(T, inv, structures=args.structures, reuse=not args.no_reuse, recut=recut, softened=not args.blocks)
+    # Send order: primary sheets first, the most-used new tiles first; then the optional retries.
+    sheets.sort(key=lambda s: (s["priority"] != "primary", -s["newCells"], s["name"]))
+    for i, sh in enumerate(sheets):
+        sh["send"] = i + 1
+        units = sheet_units(T, sh)
+        near = Image.fromarray(units_rgb(T, units)).resize((sh["width"], sh["height"]), Image.NEAREST)
+        if args.blocks:
+            near.save(out / sh["file"])
+        else:
+            soften(T, units, sh["width"], sh["height"]).save(out / sh["file"])
+            sh["fileBlocks"] = f"{sh['name']}-blocks.png"
+            near.save(out / sh["fileBlocks"])
+        sh["softened"] = not args.blocks
+        if args.soft > 0:  # D79's other softening (MMPX + a blur), for a retry
             (out / "soft").mkdir(exist_ok=True)
-            soft_sheet(L, sh, units, args.soft).save(out / "soft" / sh["file"])
+            soft_sheet(T, sh, units, args.soft).save(out / "soft" / sh["file"])
             sh["softFile"] = f"soft/{sh['file']}"
             sh["softPrompt"] = sh["prompt"] + SOFT_PROMPT
-    manifest = {"level": L.id, "shapes": L.shapes_name, "tileWidth": TILE_W, "tileHeight": TILE_H,
+        (out / f"{sh['name']}.prompt.txt").write_text(sh["prompt"] + "\n")
+    primary = [s for s in sheets if s["priority"] == "primary"]
+    optional = [s for s in sheets if s["priority"] != "primary"]
+    est = math.ceil(len(primary) * (1 + RETRY_RATE))
+    requests = {"primary": len(primary), "optional": len(optional), "estimate": est,
+                "sessions": math.ceil(est / GEMINI_SESSION),
+                "note": f"one request per primary sheet; estimate adds {RETRY_RATE:.0%} retries (TYRIAN: 27 for 21); Gemini warns "
+                        f"after about {GEMINI_SESSION} Pro requests, so plan that many per session. Optional sheets are retries for "
+                        f"tiles a primary sheet painted badly."}
+    manifest = {"level": T.ids[0], "levels": T.ids, "shapes": T.shapes_name, "tileWidth": TILE_W, "tileHeight": TILE_H,
                 "note": "x, y, w, h and padding in sheet px; grid = the cell's tiles as rows of tile numbers (-1 none); "
                         "tiles = which tile sits where in the cell (col, row in tiles) and how far it is from the cell's "
-                        "border (interior, in tiles; the cutter prefers inner ones)",
-                "sheets": sheets}
+                        "border (interior, in tiles; the cutter prefers inner ones); level = the map a cell comes from; "
+                        "file = the picture to send (softened), fileBlocks = the same nearest-neighbour; send = order to "
+                        "send in; newTiles/newCells = tiles still without art it shows, and their cells in all the levels",
+                "requests": requests, "sheets": sheets}
     (out / "manifest.json").write_text(json.dumps(manifest, indent=1) + "\n")
+    # A send list for the Gemini operator.
+    lines = [f"# Gemini sheets: {T.shapes_name}, {len(T.ids)} level(s)", "",
+             f"Requests: {len(primary)} primary sheets (estimate with retries: {est}, about {requests['sessions']} Gemini "
+             f"session(s) of {GEMINI_SESSION}); {len(optional)} optional retry sheets.", "",
+             "Send each `file` with its prompt (also in `<name>.prompt.txt`) at its aspect ratio; save the answer as "
+             "`results/<name>.png` (docs/terrain-pipeline.html section 3). One request at a time, under the Gemini lock.", "",
+             "| Send | Sheet | Priority | Layer | Kind | Aspect | Size | New tiles | New cells |", "|---|---|---|---|---|---|---|---|---|"]
     for sh in sheets:
-        print(f"{sh['file']}: {sh['priority']}, {sh['kind']}, {len(sh['cells'])} cells, {sh['grid']['cols']}x{sh['grid']['rows']}, "
-              f"{sh['width']}x{sh['height']} ({sh['aspect']}), scale {sh['scale']}")
-    print(f"-> {out / 'manifest.json'}")
+        lines.append(f"| {sh['send']} | {sh['file']} | {sh['priority']} | {sh['layer']} | {sh['kind']} | {sh['aspect']} | "
+                     f"{sh['width']}x{sh['height']} | {len(sh['newTiles'])} | {sh['newCells']} |")
+    lines += ["", "## Prompts", ""]
+    for sh in sheets:
+        lines += [f"**{sh['send']}. {sh['name']}** ({sh['aspect']})", "", sh["prompt"], ""]
+    (out / "SEND.md").write_text("\n".join(lines) + "\n")
+    for sh in sheets:
+        print(f"{sh['send']:3d} {sh['file']}: {sh['priority']}, {sh['kind']}, layer {sh['layer']}, {len(sh['cells'])} cells, "
+              f"{sh['width']}x{sh['height']} ({sh['aspect']}), scale {sh['scale']}, new tiles {len(sh['newTiles'])} ({sh['newCells']} cells)")
+    print(f"requests: {len(primary)} primary (estimate {est} with retries, {requests['sessions']} session(s)), {len(optional)} optional")
+    print(f"-> {out / 'manifest.json'}, {out / 'SEND.md'}")
 
 
 # --- Fake answers (testing) ----------------------------------------------------------------------
@@ -687,7 +1119,7 @@ def cmd_fake(args) -> None:
     given a little noise, at Gemini's usual size: what a faithful but imperfect answer looks like."""
     from scipy import ndimage
 
-    L = LevelData(Path(args.data), args.level)
+    L = TilesetData(Path(args.data), level_list(args))
     work = Path(args.work)
     manifest = json.loads((work / "sheets/manifest.json").read_text())
     out = work / "results-fake"
@@ -895,22 +1327,24 @@ def alpha_from_level(lev: np.ndarray, ramp: float = ALPHA_RAMP) -> np.ndarray:
     return smoothstep(-ramp, ramp, lev)
 
 
-def solve_alpha(L: LevelData, layer: int, inv_tiles: dict, tiles, models: list[dict], min_pairs: int = ALPHA_MIN_PAIRS,
-                lam: float = LAMBDA, band_lo: float = BAND_LO, band_hi: float = BAND_HI) -> dict[int, np.ndarray]:
-    """Alpha (0..1) for each tile in `tiles` on layer 1-2, seamless across the map's pairs: each tile's
+def solve_alpha(T, layer: int, inv_tiles: dict, tiles, models: list[dict], min_pairs: int = ALPHA_MIN_PAIRS,
+                lam: float = LAMBDA, band_lo: float = BAND_LO, band_hi: float = BAND_HI, held=()) -> dict[int, np.ndarray]:
+    """Alpha (0..1) for each tile in `tiles` on layer 1-2, seamless across the levels' pairs: each tile's
     level field (alpha_level) has its edge strips solved jointly like the colour (solve_strips) over
-    the pairs the map has at least `min_pairs` times, and moved onto them (apply_strips). A tile's
-    level near a side depends on the usual neighbour there, so two tiles that are not each other's
-    usual neighbour drew a jog or a sliver where they met (43|44, 63|64). Solving the level, not alpha,
-    moves the contour to a common crossing point without a half-transparent line; rare pairs are
-    left out so a lone pairing of an empty edge with a full one doesn't drag cloud into the gap."""
+    the pairs the levels' maps have at least `min_pairs` times, and moved onto them (apply_strips). A
+    tile's level near a side depends on the usual neighbour there, so two tiles that are not each
+    other's usual neighbour drew a jog or a sliver where they met (43|44, 63|64). Solving the level, not
+    alpha, moves the contour to a common crossing point without a half-transparent line; rare pairs are
+    left out so a lone pairing of an empty edge with a full one doesn't drag cloud into the gap.
+    `held`: tiles that keep their alpha (a merge's kept tiles, D83): their own level fields are held
+    fixed, so the new tiles' edges are pulled onto them."""
     off = 128.0  # apply_strips clips to 0..255; the level is within +-3 ALPHA_SMOOTH
-    lev = {n: (alpha_level(L, layer, n, inv_tiles[str(n)]["usual"]) + off)[..., None] for n in tiles}
+    lev = {n: (alpha_level(T, layer, n, inv_tiles[str(n)]["usual"]) + off)[..., None] for n in tiles}
+    fixed = {n: (alpha_level(T, layer, n, inv_tiles[str(n)]["usual"]) + off)[..., None]
+             for n in held if n not in lev and str(n) in inv_tiles}
     if band_lo > 0 or band_hi > 0:
-        g = L.grids[layer]
-        rep, _ = replaced_mask(g, layer, models)
-        pairs = Counter({k: c for k, c in map_pairs(g, (g >= 0) & ~rep, lev).items() if c >= min_pairs})
-        strips = solve_strips(lev, pairs, lam)
+        pairs = Counter({k: c for k, c in all_pairs(T.levels, layer, models, set(lev) | set(fixed)).items() if c >= min_pairs})
+        strips = solve_strips(lev, pairs, lam, fixed=fixed or None)
         lev = {n: apply_strips(v, {side: strips[(n, side)] for side in OPPOSITE}, band_lo, band_hi) for n, v in lev.items()}
     return {n: alpha_from_level(v[..., 0] - off) for n, v in lev.items()}
 
@@ -944,37 +1378,91 @@ def map_pairs(grid: np.ndarray, drawn: np.ndarray, have) -> Counter:
     return pairs
 
 
-def solve_strips(tiles: dict[int, np.ndarray], pairs: Counter, lam: float = LAMBDA) -> dict[tuple[int, str], np.ndarray]:
+EDGE_FREE = 64.0  # colour step (largest channel, 0-255) between the original's facing edge pixels that still ties two strips
+EDGE_FULL = 128.0  # ...and from which they aren't tied at all: the original has a real edge there (rock against space)
+
+
+def edge_continuity(T, o: str, a: int, b: int, layer: int = 0, free: float = EDGE_FREE, full: float = EDGE_FULL) -> np.ndarray:
+    """Per original pixel along the edge between tile a and tile b (o "h": a left of b, "v": a above
+    b), how continuous the original is across it: 1 where the facing pixels are alike, 0 where the
+    art has a real edge there (rock meeting black space, a cloud's rim against nothing). Smoothed
+    over a pixel either way along the edge."""
+    from scipy.ndimage import gaussian_filter1d
+
+    A, B = T.tile(a), T.tile(b)
+    pa, pb = (A[:, -1], B[:, 0]) if o == "h" else (A[-1], B[0])
+    ca, cb = T.rgb[pa].astype(np.float32), T.rgb[pb].astype(np.float32)
+    if layer > 0:  # index 0 is transparent: nothing against nothing is continuous, nothing against art isn't
+        ca[pa == 0], cb[pb == 0] = 0, 0
+    d = gaussian_filter1d(np.abs(ca - cb).max(1), 1.0, mode="nearest")  # max: a saturated red against black counts in full
+    return 1.0 - smoothstep(free, full, d)
+
+
+def solve_strips(tiles: dict[int, np.ndarray], pairs: Counter, lam: float = LAMBDA,
+                 fixed: dict[int, np.ndarray] | None = None, continuity=None) -> dict[tuple[int, str], np.ndarray]:
     """The edge every tile side is pulled to, chosen for all sides at once: least squares over
     every pair of tiles the map puts side by side (weighted by how often) that the two facing strips
     be equal, plus a weaker pull of each strip towards the tile's own painting. Facing strips of
     the most frequent pairs come out (nearly) identical; a tile with many different neighbours on
     a side gets the strip that is closest to all of them, weighted by frequency. Solved per
-    orientation and per texel along the edge (one small SPD system, many right-hand sides)."""
+    orientation and per texel along the edge (one small SPD system, many right-hand sides).
+    `fixed`: tiles whose strips are held at their own edges (the kept tiles of a merge): the free
+    strips are solved against them, and they come out unchanged.
+    `continuity(o, a, b)`: per original pixel along the edge, how much the pair ties there
+    (edge_continuity); where the original has a real edge (rock against black space, D83), the
+    strips aren't averaged across it, so the black doesn't turn grey. One system per original pixel
+    along the edge then; where every weight is 1 it is the single system above."""
+    fixed = fixed or {}
     out = {}
     for o, (sa, sb) in {"h": ("right", "left"), "v": ("down", "up")}.items():
         nodes = sorted({(n, side) for n in tiles for side in (sa, sb)})
+        nodes += sorted({(n, side) for n in fixed if n not in tiles for side in (sa, sb)})
         idx = {nd: i for i, nd in enumerate(nodes)}
         N = len(nodes)
-        M = np.zeros((N, N))
-        deg = np.zeros(N)
+        own = np.stack([edge_strip((tiles[n] if n in tiles else fixed[n]), side) for n, side in nodes])  # (N, L, C)
+        Lt = own.shape[1]
+        edges = []  # (i, j, count, per-pixel weights or None)
         for (po, a, b), c in pairs.items():
-            if po != o:
+            if po != o or (a, sa) not in idx or (b, sb) not in idx:
                 continue
             i, j = idx[(a, sa)], idx[(b, sb)]
             if i == j:
                 continue
-            M[i, i] += c
-            M[j, j] += c
-            M[i, j] -= c
-            M[j, i] -= c
-            deg[i] += c
-            deg[j] += c
-        lam_i = lam * np.maximum(deg, 1)
-        M[np.arange(N), np.arange(N)] += lam_i
-        own = np.stack([edge_strip(tiles[n], side) for n, side in nodes])  # (N, L, C)
-        rhs = (lam_i[:, None, None] * own).reshape(N, -1)
-        sol = np.linalg.solve(M, rhs).reshape(own.shape)
+            w = continuity(o, a, b) if continuity else None
+            edges.append((i, j, c, None if w is None or w.min() >= 1.0 else w))
+        held = np.array([n not in tiles for n, _ in nodes])
+        F = ~held
+        n_px = Lt // SCALE if Lt % SCALE == 0 else Lt
+        groups = [None] if all(w is None for *_, w in edges) else list(range(n_px))
+        sol = own.astype(np.float64)  # (a float64 solve, as the single system always gave)
+        for gi in groups:
+            M = np.zeros((N, N))
+            deg = np.zeros(N)
+            for i, j, c, w in edges:
+                cw = c if (w is None or gi is None) else c * float(w[gi])
+                M[i, i] += cw
+                M[j, j] += cw
+                M[i, j] -= cw
+                M[j, i] -= cw
+                deg[i] += c
+                deg[j] += c
+            lam_i = lam * np.maximum(deg, 1)
+            M[np.arange(N), np.arange(N)] += lam_i
+            sl = slice(None) if gi is None else slice(gi * (Lt // n_px), (gi + 1) * (Lt // n_px))
+            part = own[:, sl]
+            rhs = (lam_i[:, None, None] * part).reshape(N, -1)
+            if held.any():
+                # Held strips are known: move their terms to the right-hand side and solve for the rest.
+                x = part.reshape(N, -1).copy()
+                x[F] = np.linalg.solve(M[np.ix_(F, F)], rhs[F] - M[np.ix_(F, held)] @ x[held])
+                sol[:, sl] = x.reshape(part.shape)
+            else:
+                sol[:, sl] = np.linalg.solve(M, rhs).reshape(part.shape)
+        if groups != [None]:
+            # Systems per pixel step along the edge: smooth the free strips' joins (held ones stay).
+            from scipy.ndimage import gaussian_filter1d
+
+            sol[F] = gaussian_filter1d(sol[F], STRIP_SIGMA, axis=1, mode="nearest")
         for nd, i in idx.items():
             out[nd] = sol[i]
     return out
@@ -1195,27 +1683,6 @@ def candidates(L: LevelData, manifest: dict, results: Path, only: set[str] | Non
     return out
 
 
-def pack_atlas(tiles: dict[int, np.ndarray], channels: int) -> tuple[np.ndarray, dict]:
-    """Tiles on a grid of 16-aligned rects with 16 px edge-extended gutters (FORMAT.md rules 1-3)."""
-    tw, th, g = TILE_W * SCALE, TILE_H * SCALE, 16
-    n = len(tiles)
-    cols = max(1, min(19, math.ceil(math.sqrt(n * (th + g) / (tw + g)))))
-    rows = math.ceil(n / cols)
-    W, H = g + cols * (tw + g), g + rows * (th + g)
-    atlas = np.zeros((H, W, channels), np.float32)
-    rects = {}
-    order = sorted(tiles)
-    for pass_pad in (g, g // 2):  # wide pads first (atlas border), then each tile's own half gutter
-        for i, n_ in enumerate(order):
-            x, y = g + (i % cols) * (tw + g), g + (i // cols) * (th + g)
-            atlas[y - pass_pad:y + th + pass_pad, x - pass_pad:x + tw + pass_pad] = np.pad(tiles[n_], ((pass_pad, pass_pad), (pass_pad, pass_pad), (0, 0)), mode="edge")
-    for i, n_ in enumerate(order):
-        x, y = g + (i % cols) * (tw + g), g + (i // cols) * (th + g)
-        atlas[y:y + th, x:x + tw] = tiles[n_]
-        rects[str(n_)] = {"x": x, "y": y, "w": tw, "h": th}
-    return atlas, rects
-
-
 def match_lowfreq(L: LevelData, inv_tile: dict, layer: int, n: int, hd: np.ndarray, sigma: float) -> np.ndarray:
     """Give the painting the original's large-scale shading: its blur at `sigma` texels is swapped
     for the original's (nearest upscale among the tile's usual neighbours, same blur; visible
@@ -1248,51 +1715,125 @@ def prepare_tile(L: LevelData, inv_tile: dict, layer: int, n: int, hd: np.ndarra
     return np.concatenate([bleed(hd, alpha), alpha[..., None] * 255], -1).astype(np.float32)
 
 
-def set_alpha(L: LevelData, layer: int, inv_tiles: dict, done: dict[int, np.ndarray], models: list[dict], args) -> None:
-    """Layers 1-2: each tile's alpha from solve_alpha, colour bled under it afresh."""
-    alphas = solve_alpha(L, layer, inv_tiles, done, models, args.alpha_min_pairs, args.lam, args.band_lo, args.band_hi)
+def pack_atlas(tiles: dict[int, np.ndarray], channels: int) -> tuple[np.ndarray, dict]:
+    """Tiles on a grid of 16-aligned rects with 16 px edge-extended gutters (D57's format rules)."""
+    tw, th, g = TILE_W * SCALE, TILE_H * SCALE, 16
+    n = len(tiles)
+    cols = max(1, min(19, math.ceil(math.sqrt(n * (th + g) / (tw + g)))))
+    rows = math.ceil(n / cols)
+    W, H = g + cols * (tw + g), g + rows * (th + g)
+    atlas = np.zeros((H, W, channels), np.float32)
+    rects = {}
+    order = sorted(tiles)
+    for pass_pad in (g, g // 2):  # wide pads first (atlas border), then each tile's own half gutter
+        for i, n_ in enumerate(order):
+            x, y = g + (i % cols) * (tw + g), g + (i // cols) * (th + g)
+            atlas[y - pass_pad:y + th + pass_pad, x - pass_pad:x + tw + pass_pad] = np.pad(tiles[n_], ((pass_pad, pass_pad), (pass_pad, pass_pad), (0, 0)), mode="edge")
+    for i, n_ in enumerate(order):
+        x, y = g + (i % cols) * (tw + g), g + (i // cols) * (th + g)
+        atlas[y:y + th, x:x + tw] = tiles[n_]
+        rects[str(n_)] = {"x": x, "y": y, "w": tw, "h": th}
+    return atlas, rects
+
+
+ATLAS_MAX = 4096  # D57: atlases at most 4096 square
+TILES_PER_ATLAS = 19 * ((ATLAS_MAX - 16) // (TILE_H * SCALE + 16))  # 19 columns (3968 px) x 17 rows = 323
+
+
+def save_atlas(img: Image.Image, path: Path, lossless: bool) -> None:
+    if lossless:
+        img.save(path, lossless=True, method=6)
+    else:
+        img.save(path, quality=92, method=6, alpha_quality=100)
+
+
+def load_tileset_art(out_dir: Path) -> tuple[dict | None, dict[int, dict[int, np.ndarray]]]:
+    """An existing atlas folder: its manifest, and every tile's texels per layer (float RGBA; a rect
+    may name its own image, D57)."""
+    p = out_dir / "manifest.json"
+    if not p.exists():
+        return None, {}
+    m = json.loads(p.read_text())
+    imgs: dict[str, np.ndarray] = {}
+
+    def img(name: str) -> np.ndarray:
+        if name not in imgs:
+            imgs[name] = np.asarray(Image.open(out_dir / name).convert("RGBA")).astype(np.float32)
+        return imgs[name]
+
+    tiles: dict[int, dict[int, np.ndarray]] = {}
+    for layer_s, lay in m.get("layers", {}).items():
+        out = tiles.setdefault(int(layer_s), {})
+        for k, r in lay.get("tiles", {}).items():
+            a = img(r.get("image", lay["image"]))
+            out[int(k)] = a[r["y"]:r["y"] + r["h"], r["x"]:r["x"] + r["w"]].copy()
+    return m, tiles
+
+
+def all_pairs(levels: list, layer: int, models: list[dict], have) -> Counter:
+    """map_pairs over every level's map of this layer (cells drawn as tiles), summed."""
+    pairs = Counter()
+    for L in levels:
+        g, drawn, _ = layer_masks(L, layer, models)
+        pairs.update(map_pairs(g, drawn, have))
+    return pairs
+
+
+def set_alpha(T, layer: int, inv_tiles: dict, done: dict[int, np.ndarray], models: list[dict], args,
+              held=()) -> None:
+    """Layers 1-2: each tile's alpha from solve_alpha (over all the levels' pairs; the `held` tiles,
+    a merge's kept ones, pull the new tiles' edges and stay as they are), colour bled under it afresh."""
+    alphas = solve_alpha(T, layer, inv_tiles, done, models, args.alpha_min_pairs, args.lam, args.band_lo, args.band_hi, held)
     for n, img in done.items():
         img[..., :3] = bleed(img[..., :3], alphas[n])
         img[..., 3] = alphas[n] * 255
 
 
-def save_atlas(done: dict[int, np.ndarray], layer: int, out_dir: Path, lossless: bool) -> tuple[Image.Image, dict]:
-    ch = 3 if layer == 0 else 4
-    atlas, rects = pack_atlas(done, ch)
-    img = Image.fromarray(atlas.round().clip(0, 255).astype(np.uint8), "RGB" if ch == 3 else "RGBA")
-    name = f"{layer}.webp"
-    if lossless:
-        img.save(out_dir / name, lossless=True, method=6)
-    else:
-        img.save(out_dir / name, quality=92, method=6, alpha_quality=100)
-    return img, rects
-
-
 def cmd_realpha(args) -> None:
     """Redo the alpha of an atlas's layers 1-2 in place (set_alpha) without the Gemini answers: the
     colour is the atlas's own, bled from what was visible before; layer 0 and the manifest's other
-    fields are untouched. Re-encodes the layer's WebP (quality 92 unless --lossless)."""
-    L = LevelData(Path(args.data), args.level)
+    fields are untouched. Every image of the layer is re-encoded at the same layout (quality 92
+    unless --lossless). Tiles the inventory doesn't list (no level given draws them) keep their alpha
+    and hold their edges."""
+    T = TilesetData(Path(args.data), level_list(args))
     inv = json.loads((Path(args.work) / "inventory.json").read_text())
-    out_dir = Path(args.out) / L.shapes_name
-    man = json.loads((out_dir / "manifest.json").read_text())
-    atlas = load_atlas(Path(args.out), L.shapes_name)
-    models = load_models(L.shapes_file)
+    if inv.get("levels", [inv.get("level")]) != T.ids:
+        raise SystemExit(f"inventory.json is for levels {inv.get('levels', [inv.get('level')])}, not {T.ids}: run inventory again")
+    out_dir = Path(args.out) / T.shapes_name
+    man, atlas = load_tileset_art(out_dir)
+    if man is None:
+        raise SystemExit(f"no atlas in {out_dir}")
+    models = load_models(T.shapes_file)
     for layer, tiles in sorted(atlas.items()):
         if layer == 0:
             continue
-        done = {n: np.concatenate([bleed(t[..., :3], t[..., 3] / 255), t[..., 3:]], -1) for n, t in tiles.items()}
-        set_alpha(L, layer, inv["layers"][str(layer)]["tiles"], done, models, args)
-        img, rects = save_atlas(done, layer, out_dir, args.lossless)
+        inv_tiles = inv["layers"][str(layer)]["tiles"]
+        done = {n: np.concatenate([bleed(t[..., :3], t[..., 3] / 255), t[..., 3:]], -1) for n, t in tiles.items() if str(n) in inv_tiles}
+        set_alpha(T, layer, inv_tiles, done, models, args, held=[n for n in tiles if n not in done])
         lay = man["layers"][str(layer)]
-        assert (lay["width"], lay["height"], lay["tiles"]) == (img.width, img.height, rects), "atlas layout changed"
-        print(f"layer {layer}: alpha redone for {len(done)} tiles -> {out_dir / lay['image']}")
+        by_image: dict[str, list[int]] = defaultdict(list)
+        for k, r in lay["tiles"].items():
+            by_image[r.get("image", lay["image"])].append(int(k))
+        for name, ns in sorted(by_image.items()):
+            if not any(n in done for n in ns):
+                continue
+            img_tiles = {n: done.get(n, tiles[n]) for n in ns}
+            packed, rects = pack_atlas(img_tiles, 4)
+            want = {str(n): {k: v for k, v in lay["tiles"][str(n)].items() if k != "image"} for n in ns}
+            assert rects == want, f"atlas layout changed ({name})"
+            img = Image.fromarray(packed.round().clip(0, 255).astype(np.uint8), "RGBA")
+            if name == lay["image"]:
+                assert (img.width, img.height) == (lay["width"], lay["height"]), f"atlas size changed ({name})"
+            save_atlas(img, out_dir / name, args.lossless)
+            print(f"layer {layer}: alpha redone for {sum(n in done for n in ns)} tiles -> {out_dir / name}")
 
 
 def cmd_cut(args) -> None:
-    L = LevelData(Path(args.data), args.level)
+    T = TilesetData(Path(args.data), level_list(args))
     work = Path(args.work)
     inv = json.loads((work / "inventory.json").read_text())
+    if inv.get("levels", [inv.get("level")]) != T.ids:
+        raise SystemExit(f"inventory.json is for levels {inv.get('levels', [inv.get('level')])}, not {T.ids}: run inventory again")
     manifest = json.loads((work / "sheets/manifest.json").read_text())
     results = Path(args.results) if args.results else work / "results"
     print(f"cutting answers in {results}")
@@ -1303,15 +1844,23 @@ def cmd_cut(args) -> None:
         import pickle
 
         store = pickle.loads(cache.read_bytes()) if cache.exists() else {}
-        if not (isinstance(store, dict) and all(isinstance(k, str) for k in store)):
-            store = {}  # an older whole-run cache
+        if not isinstance(store, dict):
+            store = {}
+    if cache and store and not all(isinstance(k, str) for k in store):
+        # A whole-run cache ({(layer, tile): [candidates]}, the format before the per-answer one;
+        # tests/tools/terrain_hd_test.py writes one): read as it is (delete it after changing the answers).
+        cands = defaultdict(list, store)
+        print(f"  candidates from {cache} (a whole-run cache)")
+    elif cache:
+        import pickle
+
         stamps = {}
         for sh in manifest["sheets"]:
             p = next((results / f"{sh['name']}.{e}" for e in ("png", "jpg", "jpeg", "webp") if (results / f"{sh['name']}.{e}").exists()), None)
             if p is not None:
                 stamps[sh["name"]] = p.stat().st_mtime
         todo = {n for n, t in stamps.items() if store.get(n, (None,))[0] != t}
-        fresh = candidates(L, manifest, results, todo) if todo else {}
+        fresh = candidates(T, manifest, results, todo) if todo else {}
         for n in todo:
             store[n] = (stamps[n], {k: [c for c in v if c["sheet"] == n] for k, v in fresh.items() if any(c["sheet"] == n for c in v)})
         store = {n: v for n, v in store.items() if n in stamps}
@@ -1322,12 +1871,12 @@ def cmd_cut(args) -> None:
                 cands[k].extend(v)
         print(f"  candidates: {len(store) - len(todo)} answers from {cache}, {len(todo)} registered now")
     else:
-        cands = candidates(L, manifest, results)
+        cands = candidates(T, manifest, results)
     if args.base:
         # A partial round (D79): every candidate is scored on the same footing (the NCC of its
         # per-pixel means against the original, as the base tiles have no registration score),
-        # and the base atlas's tiles compete as candidates.
-        base = base_candidates(L, Path(args.base), inv)
+        # and the base atlas's tiles compete as candidates for the tiles this run cuts.
+        base = base_candidates(T, Path(args.base), inv)
         for key, cs in cands.items():
             for c in cs:
                 c.setdefault("ncc1", c["ncc"])
@@ -1340,204 +1889,390 @@ def cmd_cut(args) -> None:
         print(f"  base: {sum(len(v) for v in base.values())} tiles from {args.base}")
     exclude = {s.strip() for s in (args.exclude or "").split(",") if s.strip()}
     picks = dict(s.strip().split("=", 1) for s in (args.pick or "").split(",") if s.strip())
-    out_dir = Path(args.out) / L.shapes_name
+    recut = {s.strip() for s in (args.recut or "").split(",") if s.strip()}
+    out_dir = Path(args.out) / T.shapes_name
     out_dir.mkdir(parents=True, exist_ok=True)
-    models = load_models(L.shapes_file)
-    atlas_manifest = {"version": 1, "scale": SCALE, "tileWidth": TILE_W, "tileHeight": TILE_H,
-                      "credit": "Painted with Google Gemini from Tyrian's background tiles (Daniel Cook's art), cut and made "
-                                "seamless by tools/terrain_hd.py; see CREDITS.md",
-                      "layers": {}}
+    models = load_models(T.shapes_file)
+    # Merge (the default): the tiles already in the tileset's atlas are kept as they are, their
+    # images untouched, their rects unchanged; new tiles are seam-solved against them and packed
+    # into images of their own. --replace cuts every tile again into fresh atlases (D58-D60).
+    old_manifest, old_tiles = (None, {}) if args.replace else load_tileset_art(out_dir)
+    atlas_manifest = old_manifest or {"version": 1, "scale": SCALE, "tileWidth": TILE_W, "tileHeight": TILE_H,
+                                      "credit": "Painted with Google Gemini from Tyrian's background tiles (Daniel Cook's art), cut and "
+                                                "made seamless by tools/terrain_hd.py; see CREDITS.md",
+                                      "layers": {}}
+    atlas_manifest.setdefault("layers", {})
     report = {}
-    for layer_s, d in inv["layers"].items():
+    final: dict[tuple[int, int], np.ndarray] = {}  # every tile's texels after this run (kept and new), for reuse
+    for layer, tl in old_tiles.items():
+        for n, img in tl.items():
+            final[(layer, n)] = img if layer > 0 else img[..., :3]
+    written = []
+    for layer_s, d in sorted(inv["layers"].items(), key=lambda kv: int(kv[0])):
         layer = int(layer_s)
+        old_layer = old_tiles.get(layer, {})
+        locked = {n: img for n, img in old_layer.items() if f"{layer}:{n}" not in recut}
         done = {}
         for key, t in d["tiles"].items():
             n = int(key)
-            if not t["drawnAsTile"] or not cands.get((layer, n)):
+            k = f"{layer}:{n}"
+            if not t["drawnAsTile"]:
                 continue
-            if f"{layer}:{n}" in exclude:
-                report[f"{layer}:{n}"] = {"excluded": True}
+            if n in locked:
+                report[k] = {"kept": True}
+                continue
+            kind = t.get("kind", "terrain")
+            if kind == "empty" or (kind == "structure" and not args.structures and k not in recut):
+                continue
+            if k in exclude:
+                report[k] = {"excluded": True}
+                continue
+            cs = cands.get((layer, n), [])
+            if not cs:
+                # No painting of its own: the same tile's painting on another layer (D58's per-layer
+                # atlases; layer 2's rock and forest are layer 0's tiles on several levels).
+                src = next(((L, m) for L in t.get("artElsewhere", []) for m in [final.get((L, n))] if m is not None), None) \
+                    if not args.no_reuse else None
+                if src is None:
+                    continue
+                L_, img = src
+                done[n] = prepare_tile(T, t, layer, n, img[..., :3].astype(np.float32))
+                report[k] = {"from": [f"layer{L_}:{n}"], "reused": True}
                 continue
             # Made-up marks cost against the tile's other paintings (a canopy has more detail
             # than dirt, so the measure is relative to the tile's median candidate).
             # (Not against a base tile: a copy of the pixels has no marks of its own, so it would
             # make every new painting's detail look made up.)
-            med = float(np.median([c["novel"] for c in cands[(layer, n)] if c["sheet"] != "base"] or [0.0]))
-            for c in cands[(layer, n)]:
+            med = float(np.median([c["novel"] for c in cs if c["sheet"] != "base"] or [0.0]))
+            for c in cs:
                 c["score"] -= (NOVEL_COST * max(0.0, c["novel"] - med - NOVEL_FREE) if c["sheet"] != "base" else 0.0) + args.blocky_cost * max(0.0, c["blocky"] - args.blocky_free)
                 c["score"] -= args.dither_cost * max(0.0, c.get("dither", 1.0) - args.dither_free)
                 c["score"] += args.region_bonus if c["sheet"].startswith("region-") or c["sheet"] == "base" else 0.0
-            cs = sorted(cands[(layer, n)], key=lambda c: -c["score"])
-            if f"{layer}:{n}" in picks:  # a hand pick after looking at the contact sheets
-                want = picks[f"{layer}:{n}"]
+            cs = sorted(cs, key=lambda c: -c["score"])
+            if k in picks:  # a hand pick after looking at the contact sheets
+                want = picks[k]
                 cs = [c for c in cs if f"{c['sheet']}#{c['cell']}" == want] + [c for c in cs if f"{c['sheet']}#{c['cell']}" != want]
-                assert f"{cs[0]['sheet']}#{cs[0]['cell']}" == want, f"--pick {layer}:{n}={want}: no such candidate"
+                assert f"{cs[0]['sheet']}#{cs[0]['cell']}" == want, f"--pick {k}={want}: no such candidate"
             good = [c for c in cs if c["score"] >= cs[0]["score"] - 0.05] if args.combine == "mean" else cs[:1]
             hd = np.mean([c["hd"] for c in good], 0)
             if all(c["sheet"] == "base" for c in good):
                 # Already deblocked and given the original's shading when it was cut.
                 deblocked = False
-                done[n] = prepare_tile(L, t, layer, n, hd)
+                done[n] = prepare_tile(T, t, layer, n, hd)
             else:
                 soft = deblock(hd, args.deblock_from, args.deblock_full) if args.deblock_from > 0 else hd
                 deblocked = soft is not hd
                 hd = soft
-                done[n] = prepare_tile(L, t, layer, n, match_lowfreq(L, t, layer, n, hd, args.lowfreq))
-            report[f"{layer}:{n}"] = {"from": [f"{c['sheet']}#{c['cell']}" for c in good], "score": round(cs[0]["score"], 3),
-                                      "ncc": round(cs[0]["ncc"], 3), "colourErr": round(cs[0]["err"], 3),
-                                      "blocky": round(cs[0]["blocky"], 2), "dither": round(cs[0].get("dither", 0.0), 2), "novel": round(cs[0]["novel"], 1),
-                                      "candidates": len(cs), **({"picked": True} if f"{layer}:{n}" in picks else {}),
-                                      **({"deblocked": round(blockiness(hd), 2)} if deblocked else {})}
+                done[n] = prepare_tile(T, t, layer, n, match_lowfreq(T, t, layer, n, hd, args.lowfreq))
+            report[k] = {"from": [f"{c['sheet']}#{c['cell']}" for c in good], "score": round(cs[0]["score"], 3),
+                         "ncc": round(cs[0]["ncc"], 3), "colourErr": round(cs[0]["err"], 3),
+                         "blocky": round(cs[0]["blocky"], 2), "dither": round(cs[0].get("dither", 0.0), 2), "novel": round(cs[0]["novel"], 1),
+                         "candidates": len(cs), **({"picked": True} if k in picks else {}),
+                         **({"deblocked": round(blockiness(hd), 2)} if deblocked else {})}
         if not done:
             continue
-        if args.base and all(r.get("from") == ["base#0"] for k, r in report.items() if k.startswith(f"{layer}:")):
-            # Nothing new on this layer: keep the base atlas as it is (no second lossy encode).
+        if args.base and not locked and all(r.get("from") == ["base#0"] for k_, r in report.items() if k_.startswith(f"{layer}:") and "from" in r):
+            # Nothing new on this layer (a partial round, D79): keep the base atlas's layer as it is
+            # (no second lossy encode).
             import shutil
 
-            bm = json.loads((Path(args.base) / L.shapes_name / "manifest.json").read_text())
-            lay = bm["layers"][layer_s]
-            if (Path(args.base) / L.shapes_name / lay["image"]).resolve() != (out_dir / lay["image"]).resolve():
-                shutil.copyfile(Path(args.base) / L.shapes_name / lay["image"], out_dir / lay["image"])
+            base_dir = Path(args.base) / T.shapes_name
+            lay = json.loads((base_dir / "manifest.json").read_text())["layers"][layer_s]
+            for nm in {lay["image"]} | {r["image"] for r in lay["tiles"].values() if "image" in r}:
+                if (base_dir / nm).resolve() != (out_dir / nm).resolve():
+                    shutil.copyfile(base_dir / nm, out_dir / nm)
             atlas_manifest["layers"][layer_s] = lay
+            for n, img in done.items():
+                final[(layer, n)] = img
             print(f"layer {layer}: unchanged, kept from {args.base}")
             continue
-        # Seams: every side's edge strip solved jointly over the pairs the map has, then applied.
+        # Seams: every side's edge strip solved jointly over the pairs all the levels' maps have; the
+        # kept tiles' strips are held as they are, so the new tiles meet them and they don't move.
         if args.band_lo > 0 or args.band_hi > 0:
-            g = L.grids[layer]
-            rep, _ = replaced_mask(g, layer, models)
+            have = set(done) | set(locked)
+            pairs = all_pairs(T.levels, layer, models, have)
             # Colour here; alpha is solved on its own below (averaging alpha itself across a pair
             # would put a faint line of cloud where one tile's edge is empty and its neighbour's isn't).
-            strips = solve_strips({n: img[..., :3] for n, img in done.items()}, map_pairs(g, (g >= 0) & ~rep, done), args.lam)
+            cont = memo_continuity(T, layer, args.edge_free, args.edge_full) if args.edge_aware else None
+            strips = solve_strips({n: img[..., :3] for n, img in done.items()}, pairs, args.lam,
+                                  fixed={n: img[..., :3] for n, img in locked.items()} or None, continuity=cont)
             for n, img in done.items():
                 img[..., :3] = apply_strips(img[..., :3], {side: strips[(n, side)] for side in OPPOSITE}, args.band_lo, args.band_hi)
         if layer > 0:
-            set_alpha(L, layer, d["tiles"], done, models, args)
-        img, rects = save_atlas(done, layer, out_dir, args.lossless)
-        name = f"{layer}.webp"
-        atlas_manifest["layers"][layer_s] = {"image": name, "width": img.width, "height": img.height, "tiles": rects}
-        missing = [k for k, t in d["tiles"].items() if t["drawnAsTile"] and int(k) not in done]
-        print(f"layer {layer}: {len(done)} tiles -> {out_dir / name} ({img.width}x{img.height})"
+            # Alpha (D78): the smoothed silhouette, its edges solved over the levels' pairs; the kept
+            # tiles hold theirs.
+            set_alpha(T, layer, d["tiles"], done, models, args, held=list(locked))
+        ch = 3 if layer == 0 else 4
+        for n, img in done.items():
+            final[(layer, n)] = img
+        # Images: the layer's existing ones stay as they are; the new tiles go into new ones.
+        entry = atlas_manifest["layers"].get(layer_s)
+        if entry is not None and not locked:
+            entry = None  # every tile of this layer is cut again
+        rects_old = {} if entry is None else {k_: r for k_, r in entry["tiles"].items() if int(k_) in locked}
+        used = {r.get("image", entry["image"]) for r in rects_old.values()} if entry else set()
+        names = [f"{layer}.webp"] + [f"{layer}-{i}.webp" for i in range(2, 100)]
+        free = [nm for nm in names if nm not in used]
+        order = sorted(done)
+        new_rects = {}
+        for c0 in range(0, len(order), TILES_PER_ATLAS):
+            chunk = {n: done[n] for n in order[c0:c0 + TILES_PER_ATLAS]}
+            atlas, rects = pack_atlas(chunk, ch)
+            name = free.pop(0)
+            img = Image.fromarray(atlas.round().clip(0, 255).astype(np.uint8), "RGB" if ch == 3 else "RGBA")
+            save_atlas(img, out_dir / name, args.lossless)
+            written.append(name)
+            for k_, r in rects.items():
+                new_rects[k_] = {**r, "image": name}
+            print(f"layer {layer}: {len(chunk)} new tiles -> {out_dir / name} ({img.width}x{img.height})")
+        if entry is None:
+            main = new_rects[str(order[0])]["image"]
+            first = Image.open(out_dir / main)
+            entry = {"image": main, "width": first.width, "height": first.height, "tiles": {}}
+        else:
+            entry = {**entry, "tiles": dict(rects_old)}
+            if "variants" in entry:  # variants of re-cut tiles go with them
+                entry["variants"] = {k_: v for k_, v in entry["variants"].items() if int(k_) in locked}
+                if not entry["variants"]:
+                    del entry["variants"]
+        for k_, r in new_rects.items():
+            entry["tiles"][k_] = {k2: v for k2, v in r.items() if k2 != "image"} if r["image"] == entry["image"] else r
+        entry["tiles"] = dict(sorted(entry["tiles"].items(), key=lambda kv: int(kv[0])))
+        atlas_manifest["layers"][layer_s] = entry
+        missing = [k_ for k_, t in d["tiles"].items() if needs_art(t, layer, args.structures) and k_ not in entry["tiles"]]
+        print(f"layer {layer}: {len(locked)} kept, {len(done)} new, {len(entry['tiles'])} in the atlas"
               + (f"; no art yet for {len(missing)}: {' '.join(missing)}" if missing else ""))
+    atlas_manifest["layers"] = dict(sorted(atlas_manifest["layers"].items(), key=lambda kv: int(kv[0])))
+    # Images no rect refers to any more (every tile in them was cut again) are removed.
+    refs = set()
+    for lay in atlas_manifest["layers"].values():
+        refs.add(lay["image"])
+        refs.update(r["image"] for r in lay["tiles"].values() if "image" in r)
+        refs.update(r["image"] for vs in lay.get("variants", {}).values() for r in vs if "image" in r)
+    for f in out_dir.glob("*.webp"):
+        if f.name not in refs and f.name.split(".")[0].split("-")[0].isdigit():
+            f.unlink()
+            print(f"  removed {f} (no tile refers to it)")
     (out_dir / "manifest.json").write_text(json.dumps(atlas_manifest, indent=1) + "\n")
     (work / "cut-report.json").write_text(json.dumps(report, indent=1) + "\n")
     weak = [k for k, r in report.items() if r.get("ncc", 1.0) < 0.5]
     print(f"-> {out_dir / 'manifest.json'}; per tile: {work / 'cut-report.json'}" + (f"; weak fits (ncc < 0.5): {' '.join(weak)}" if weak else ""))
 
 
+def needs_art(t: dict, layer: int, structures: bool = False) -> bool:
+    """Whether a tile should end up in the atlas: drawn as a tile, not one colour, terrain (or a
+    structure when asked)."""
+    kind = t.get("kind", "terrain")
+    return bool(t.get("drawnAsTile")) and kind != "empty" and (kind != "structure" or structures)
+
+
 # --- Check --------------------------------------------------------------------------------------
 
 
 def load_atlas(out_root: Path, shapes: str) -> dict[int, dict[int, np.ndarray]]:
-    d = out_root / shapes
-    m = json.loads((d / "manifest.json").read_text())
-    tiles: dict[int, dict[int, np.ndarray]] = {}
-    for layer_s, lay in m["layers"].items():
-        img = np.asarray(Image.open(d / lay["image"]).convert("RGBA")).astype(np.float32)
-        tiles[int(layer_s)] = {int(k): img[r["y"]:r["y"] + r["h"], r["x"]:r["x"] + r["w"]] for k, r in lay["tiles"].items()}
-    return tiles
+    return load_tileset_art(Path(out_root) / shapes)[1]
 
 
-def seam_stats(tiles: dict[int, np.ndarray], grid: np.ndarray, drawn: np.ndarray, band: int = 8) -> dict:
-    """Colour steps across every tile edge the map has (both sides with HD art), against the same
+def _step(p: np.ndarray, q: np.ndarray, extra: np.ndarray | None = None) -> float | None:
+    """Mean abs colour difference of two facing strips (N, 4), weighted by the smaller alpha (and `extra`)."""
+    wgt = np.minimum(p[:, 3], q[:, 3]) / 255
+    if extra is not None:
+        wgt = wgt * extra
+    if wgt.sum() < 1:
+        return None
+    return float((np.abs(p[:, :3] - q[:, :3]).mean(1) * wgt).sum() / wgt.sum())
+
+
+def _steps_along(T_: np.ndarray, axis: int) -> list[float]:
+    """_step between every pair of neighbouring texel columns (axis 1) or rows (axis 0), vectorised."""
+    a, b = (T_[:, :-1], T_[:, 1:]) if axis == 1 else (T_[:-1], T_[1:])
+    d = np.abs(a[..., :3] - b[..., :3]).mean(-1)
+    w = np.minimum(a[..., 3], b[..., 3]) / 255
+    red = 0 if axis == 1 else 1  # sum along the strip
+    ws = w.sum(red)
+    num = (d * w).sum(red)
+    return [float(x) for x in (num / np.maximum(ws, 1e-9))[ws >= 1]]
+
+
+def inside_steps(T_: np.ndarray, band: int = 8) -> tuple[float | None, float | None]:
+    """A tile's mean colour step between neighbouring texels, and between neighbouring `band`-texel strips."""
+    vals = _steps_along(T_, 1) + _steps_along(T_, 0)
+    bvals = [_step(T_[:, c - band:c].mean(1), T_[:, c:c + band].mean(1)) for c in range(band, T_.shape[1] - band + 1, band)]
+    bvals += [_step(T_[c - band:c].mean(0), T_[c:c + band].mean(0)) for c in range(band, T_.shape[0] - band + 1, band)]
+    bvals = [v for v in bvals if v is not None]
+    return (float(np.mean(vals)) if vals else None, float(np.mean(bvals)) if bvals else None)
+
+
+def memo_continuity(T, layer: int, free: float = EDGE_FREE, full: float = EDGE_FULL):
+    """edge_continuity for one layer, remembered per pair."""
+    cache: dict = {}
+
+    def cont(o: str, a: int, b: int) -> np.ndarray:
+        if (o, a, b) not in cache:
+            cache[(o, a, b)] = edge_continuity(T, o, a, b, layer, free, full)
+        return cache[(o, a, b)]
+    return cont
+
+
+def seam_stats(tiles: dict[int, np.ndarray], grid, drawn=None, band: int = 8, pair_filter=None, _inside: dict | None = None,
+               continuity=None) -> dict:
+    """Colour steps across every tile edge the map(s) have (both sides with HD art), against the same
     steps between neighbouring texels (and neighbouring `band`-texel strips) inside tiles. Alpha
-    weights the steps on translucent layers. 0-255 RGB, mean abs per channel."""
-    pairs = map_pairs(grid, drawn, tiles)
-    occ = Counter(int(t) for t in grid[drawn] if int(t) in tiles)
-
-    def step(p, q):  # p, q: (N, C) strips facing each other; returns weighted mean abs diff
-        wgt = np.minimum(p[:, 3], q[:, 3]) / 255
-        if wgt.sum() < 1:
-            return None
-        return float((np.abs(p[:, :3] - q[:, :3]).mean(1) * wgt).sum() / wgt.sum())
-
-    edge_t, edge_b, rows = [], [], []
+    weights the steps on translucent layers. 0-255 RGB, mean abs per channel. `grid`, `drawn`: one
+    map, or `grid` a list of (grid, drawn) for several levels (pairs and tile counts summed).
+    `pair_filter(a, b)`: only those pairs, and the tiles in them for the inside steps.
+    `continuity(o, a, b)` (edge_continuity): also the edge step only where the original itself is
+    continuous across the edge (continuousRatio): a real edge in the art (rock against space) is no seam."""
+    maps = grid if isinstance(grid, list) else [(grid, drawn)]
+    tiles = {n: (t if t.shape[2] == 4 else np.concatenate([t, np.full(t.shape[:2] + (1,), 255, np.float32)], -1)) for n, t in tiles.items()}
+    pairs, occ = Counter(), Counter()
+    for g, d in maps:
+        pairs.update(map_pairs(g, d, tiles))
+        occ.update(int(t) for t in g[d] if int(t) in tiles)
+    if pair_filter:
+        pairs = Counter({p: c for p, c in pairs.items() if pair_filter(p[1], p[2])})
+        involved = {x for p in pairs for x in p[1:]}
+        occ = Counter({n: c for n, c in occ.items() if n in involved})
+    edge_t, edge_b, edge_c, rows = [], [], [], []
     for (o, a, b), n in pairs.items():
         A, B = tiles[a], tiles[b]
         if o == "h":
-            t = step(A[:, -1], B[:, 0])
-            bb = step(A[:, -band:].mean(1), B[:, :band].mean(1))
+            t = _step(A[:, -1], B[:, 0])
+            bb = _step(A[:, -band:].mean(1), B[:, :band].mean(1))
         else:
-            t = step(A[-1], B[0])
-            bb = step(A[-band:].mean(0), B[:band].mean(0))
+            t = _step(A[-1], B[0])
+            bb = _step(A[-band:].mean(0), B[:band].mean(0))
         if t is None:
             continue
+        if continuity is not None:
+            w = np.repeat(continuity(o, a, b), SCALE)
+            tc = _step(A[:, -1], B[:, 0], w) if o == "h" else _step(A[-1], B[0], w)
+            if tc is not None:
+                edge_c.append((tc, n * float(w.mean())))
         edge_t.append((t, n))
         edge_b.append((bb, n))
         rows.append({"pair": f"{a}{'|' if o == 'h' else '/'}{b}", "count": n, "texelStep": round(t, 2), "bandStep": round(bb, 2)})
+    cache = _inside if _inside is not None else {}
     in_t, in_b = [], []
-    for n_, T in tiles.items():
+    for n_, T_ in tiles.items():
         k = occ.get(n_, 0)
         if not k:
             continue
-        vals = [step(T[:, j], T[:, j + 1]) for j in range(T.shape[1] - 1)]
-        vals += [step(T[i], T[i + 1]) for i in range(T.shape[0] - 1)]
-        bvals = [step(T[:, c - band:c].mean(1), T[:, c:c + band].mean(1)) for c in range(band, T.shape[1] - band + 1, band)]
-        bvals += [step(T[c - band:c].mean(0), T[c:c + band].mean(0)) for c in range(band, T.shape[0] - band + 1, band)]
-        vals = [v for v in vals if v is not None]
-        bvals = [v for v in bvals if v is not None]
-        if vals:
-            in_t.append((float(np.mean(vals)), k))
-            in_b.append((float(np.mean(bvals)), k))
+        if n_ not in cache:
+            cache[n_] = inside_steps(T_, band)
+        it_, ib_ = cache[n_]
+        if it_ is not None:
+            in_t.append((it_, k))
+            in_b.append((ib_ if ib_ is not None else it_, k))
     wm = lambda xs: sum(v * n for v, n in xs) / max(sum(n for _, n in xs), 1)  # noqa: E731
     et, it, eb, ib = wm(edge_t), wm(in_t), wm(edge_b), wm(in_b)
     for r in rows:
         r["ratio"] = round(r["texelStep"] / max(it, 1e-3), 2)
     rows.sort(key=lambda r: -r["texelStep"] * math.sqrt(r["count"]))
-    return {"edges": sum(n for _, n in edge_t), "edgeTexelStep": round(et, 2), "insideTexelStep": round(it, 2),
-            "texelRatio": round(et / max(it, 1e-3), 3), "edgeBandStep": round(eb, 2), "insideBandStep": round(ib, 2),
-            "bandRatio": round(eb / max(ib, 1e-3), 3), "worst": rows[:15]}
+    out = {"edges": sum(n for _, n in edge_t), "edgeTexelStep": round(et, 2), "insideTexelStep": round(it, 2),
+           "texelRatio": round(et / max(it, 1e-3), 3), "edgeBandStep": round(eb, 2), "insideBandStep": round(ib, 2),
+           "bandRatio": round(eb / max(ib, 1e-3), 3)}
+    if continuity is not None:
+        ec = wm(edge_c)
+        out["continuousEdgeStep"] = round(ec, 2)
+        out["continuousRatio"] = round(ec / max(it, 1e-3), 3)
+    out["worst"] = rows[:15]
+    return out
+
+
+def contact_sheet(L: LevelData, layer: int, tiles: dict[int, np.ndarray], g: np.ndarray, drawn: np.ndarray, y0: int, rows: int) -> Image.Image:
+    """Map rows y0.. of one level, original (nearest) | HD, at 4 px per original pixel."""
+    S = 4
+    k = SCALE // S
+    sub = g[y0:y0 + rows]
+    dsub = drawn[y0:y0 + rows]
+    rh, W = sub.shape
+    img = np.full((rh * TILE_H * S, 2 * W * TILE_W * S + 16, 3), 40, np.float32)
+    for r in range(rh):
+        for c in range(W):
+            if not dsub[r, c]:
+                continue
+            t = int(sub[r, c])
+            px = L.tile(t)
+            o = np.kron(L.rgb[px].astype(np.float32), np.ones((S, S, 1)))
+            oa = np.kron((px != 0) if layer > 0 else np.ones_like(px, bool), np.ones((S, S))).astype(np.float32)[..., None]
+            ys, xs = r * TILE_H * S, c * TILE_W * S
+            cell = img[ys:ys + TILE_H * S, xs:xs + TILE_W * S]
+            img[ys:ys + TILE_H * S, xs:xs + TILE_W * S] = cell * (1 - oa) + o * oa
+            xh = xs + W * TILE_W * S + 16
+            cell = img[ys:ys + TILE_H * S, xh:xh + TILE_W * S]
+            if t in tiles:
+                hd = tiles[t]
+                if hd.shape[2] == 3:
+                    hd = np.concatenate([hd, np.full(hd.shape[:2] + (1,), 255, np.float32)], -1)
+                hd = hd.reshape(TILE_H * S, k, TILE_W * S, k, 4).mean((1, 3))
+                a = hd[..., 3:] / 255
+                img[ys:ys + TILE_H * S, xh:xh + TILE_W * S] = cell * (1 - a) + hd[..., :3] * a
+            else:
+                img[ys:ys + TILE_H * S, xh:xh + TILE_W * S] = cell * (1 - oa) + o * oa
+    return Image.fromarray(img.clip(0, 255).astype(np.uint8))
 
 
 def cmd_check(args) -> None:
-    L = LevelData(Path(args.data), args.level)
+    T = TilesetData(Path(args.data), level_list(args))
     work = Path(args.work)
     out = work / "check"
     out.mkdir(parents=True, exist_ok=True)
-    atlas = load_atlas(Path(args.out), L.shapes_name)
-    models = load_models(L.shapes_file)
+    atlas = load_atlas(Path(args.out), T.shapes_name)
+    models = load_models(T.shapes_file)
+    # Which tiles the last cut made (cut-report.json): their edges are reported on their own, and
+    # the contact sheets show the rows that have them.
+    rp = work / "cut-report.json"
+    cut = json.loads(rp.read_text()) if rp.exists() else {}
+    new = {int(k.split(":")[0]): set() for k in cut}
+    for k, r in cut.items():
+        if "from" in r:
+            new[int(k.split(":")[0])].add(int(k.split(":")[1]))
+    contact = args.contact
     report = {}
     for layer, tiles in sorted(atlas.items()):
-        g = L.grids[layer]
-        rep, _ = replaced_mask(g, layer, models)
-        drawn = (g >= 0) & ~rep
-        st = seam_stats(tiles, g, drawn)
+        maps = []
+        for L in T.levels:
+            g, drawn, _ = layer_masks(L, layer, models)
+            maps.append((g, drawn))
+        inside: dict = {}
+        cont = memo_continuity(T, layer)
+        st = seam_stats(tiles, maps, _inside=inside, continuity=cont)
+        fresh = new.get(layer, set())
+        if fresh:
+            st["new"] = seam_stats(tiles, maps, pair_filter=lambda a, b: a in fresh or b in fresh, _inside=inside, continuity=cont)
+            st["kept"] = seam_stats(tiles, maps, pair_filter=lambda a, b: a not in fresh and b not in fresh, _inside=inside, continuity=cont)
+            del st["kept"]["worst"]
+        st["levels"] = {}
+        for L, (g, drawn) in zip(T.levels, maps):
+            s1 = seam_stats(tiles, g, drawn, _inside=inside, continuity=cont)
+            if s1["edges"]:
+                st["levels"][L.id] = {k: s1[k] for k in ("edges", "texelRatio", "bandRatio", "continuousRatio")}
         report[str(layer)] = st
         print(f"layer {layer}: {st['edges']} edges; texel step across edges {st['edgeTexelStep']} vs inside {st['insideTexelStep']} "
-              f"(ratio {st['texelRatio']}); 8-texel band step {st['edgeBandStep']} vs {st['insideBandStep']} (ratio {st['bandRatio']})")
-        # Contact sheets: original (nearest) | HD, at 4 px per original pixel, `rows` map rows each.
-        S = 4
-        k = SCALE // S
-        H, W = g.shape
+              f"(ratio {st['texelRatio']}; where the original is continuous {st['continuousRatio']}); 8-texel band step "
+              f"{st['edgeBandStep']} vs {st['insideBandStep']} (ratio {st['bandRatio']})")
+        for part in ("new", "kept"):
+            if part in st:
+                p = st[part]
+                print(f"  edges with a {'new' if part == 'new' else 'kept'} tile{'' if part == 'new' else ' only'}: {p['edges']}; "
+                      f"ratio {p['texelRatio']} (continuous {p['continuousRatio']}), bands {p['bandRatio']}")
+        # Contact sheets: original (nearest) | HD; "new": only the row blocks that show a tile the
+        # last cut made, "all": every row block, "none".
         n_sheets = 0
-        for y0 in range(0, H, args.rows):
-            sub = g[y0:y0 + args.rows]
-            dsub = drawn[y0:y0 + args.rows]
-            if not any(int(t) in tiles for t in sub[dsub]):
-                continue
-            rh = sub.shape[0]
-            img = np.full((rh * TILE_H * S, 2 * W * TILE_W * S + 16, 3), 40, np.float32)
-            for r in range(rh):
-                for c in range(W):
-                    if not dsub[r, c]:
+        if contact != "none":
+            for L, (g, drawn) in zip(T.levels, maps):
+                if contact not in ("all", "new") and L.id not in contact.split(","):
+                    continue
+                if contact == "new" and not fresh and len(T.levels) > 3:
+                    continue  # nothing new to look at: a whole tileset's maps would be thousands of sheets
+                for y0 in range(0, g.shape[0], args.rows):
+                    sub, dsub = g[y0:y0 + args.rows], drawn[y0:y0 + args.rows]
+                    shown = {int(t) for t in sub[dsub]}
+                    if not shown & set(tiles) or (contact == "new" and fresh and not shown & fresh):
                         continue
-                    t = int(sub[r, c])
-                    px = L.tile(t)
-                    o = np.kron(L.rgb[px].astype(np.float32), np.ones((S, S, 1)))
-                    oa = np.kron((px != 0) if layer > 0 else np.ones_like(px, bool), np.ones((S, S))).astype(np.float32)[..., None]
-                    ys, xs = r * TILE_H * S, c * TILE_W * S
-                    cell = img[ys:ys + TILE_H * S, xs:xs + TILE_W * S]
-                    img[ys:ys + TILE_H * S, xs:xs + TILE_W * S] = cell * (1 - oa) + o * oa
-                    xh = xs + W * TILE_W * S + 16
-                    if t in tiles:
-                        hd = tiles[t].reshape(TILE_H * S, k, TILE_W * S, k, 4).mean((1, 3))
-                        a = hd[..., 3:] / 255
-                        cell = img[ys:ys + TILE_H * S, xh:xh + TILE_W * S]
-                        img[ys:ys + TILE_H * S, xh:xh + TILE_W * S] = cell * (1 - a) + hd[..., :3] * a
-                    else:
-                        cell = img[ys:ys + TILE_H * S, xh:xh + TILE_W * S]
-                        img[ys:ys + TILE_H * S, xh:xh + TILE_W * S] = cell * (1 - oa) + o * oa
-            Image.fromarray(img.clip(0, 255).astype(np.uint8)).save(out / f"l{layer}-rows{y0:03d}.jpg", quality=88)
-            n_sheets += 1
+                    contact_sheet(L, layer, tiles, g, drawn, y0, args.rows).save(out / f"{L.id}-l{layer}-rows{y0:03d}.jpg", quality=88)
+                    n_sheets += 1
         print(f"  {n_sheets} contact sheets (original | HD) in {out}")
     (out / "seams.json").write_text(json.dumps(report, indent=1) + "\n")
     print(f"-> {out / 'seams.json'}")
@@ -1549,12 +2284,22 @@ def cmd_check(args) -> None:
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--data", default=str(ROOT / "data"), help="the game data (default data/)")
-    ap.add_argument("--level", default="1-9", help="episode-levelfile, as reference/tiles names levels (default 1-9, TYRIAN)")
+    ap.add_argument("--level", default="1-9", help="episode-levelfile, as reference/tiles names levels (default 1-9, TYRIAN); "
+                    "several levels of one tileset comma-separated (1-9,1-11,4-16)")
+    ap.add_argument("--tileset", help="every level that uses this tileset (shapesz or z), instead of --level")
     ap.add_argument("--work", default=str(ROOT / "reference/terrain-hd"), help="working folder (inventory, sheets, results, check)")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("inventory", help="list the tiles the level draws")
-    sh = sub.add_parser("sheets", help="make the Gemini input sheets and their manifest")
-    sh.add_argument("--soft", type=float, default=0.0, help="also write softened sheets (MMPX + a blur of this many original pixels, e.g. 0.5) to sheets/soft/, with softPrompt in the manifest")
+    art_root = str(ROOT / "public/art/terrain")
+    i = sub.add_parser("inventory", help="list the tiles the levels draw")
+    i.add_argument("--out", default=art_root, help="atlas root, to mark the tiles that already have art (default public/art/terrain)")
+    i.add_argument("--kind", help="override the layer 1-2 classification, e.g. 2:575=terrain,1:518=structure")
+    s_ = sub.add_parser("sheets", help="make the Gemini input sheets and their manifest")
+    s_.add_argument("--out", default=art_root, help="atlas root (default public/art/terrain)")
+    s_.add_argument("--structures", action="store_true", help="also sheets for layer 1-2 structure tiles (default: terrain only)")
+    s_.add_argument("--no-reuse", action="store_true", help="also paint tiles whose painting on another layer the cutter would reuse")
+    s_.add_argument("--recut", help="tiles that have art but should be painted again, e.g. 0:46,1:53")
+    s_.add_argument("--blocks", action="store_true", help="send the nearest-neighbour sheets (D58) instead of the softened ones")
+    s_.add_argument("--soft", type=float, default=0.0, help="also write sheets softened by MMPX + a blur of this many original pixels (e.g. 0.5, D79) to sheets/soft/, with softFile and softPrompt in the manifest")
     f = sub.add_parser("fake", help="stand-in Gemini answers for testing")
     f.add_argument("--seed", type=int, default=1)
     c = sub.add_parser("cut", help="cut Gemini's answers into atlases")
@@ -1585,9 +2330,20 @@ def main(argv: list[str] | None = None) -> None:
     ra.add_argument("--band-lo", type=float, default=BAND_LO, help=f"texels an alpha seam correction fades over (default {BAND_LO})")
     ra.add_argument("--band-hi", type=float, default=BAND_HI, help=f"texels at the edge set to the shared strip (default {BAND_HI})")
     ra.add_argument("--lam", type=float, default=LAMBDA, help=f"how much a strip keeps its own (default {LAMBDA})")
+    c.add_argument("--replace", action="store_true", help="cut every tile again into fresh atlases (default: merge, keeping the "
+                   "tiles the atlas already has byte for byte)")
+    c.add_argument("--recut", help="tiles the atlas has that should be cut again from the answers, e.g. 0:46,1:53")
+    c.add_argument("--structures", action="store_true", help="also cut layer 1-2 structure tiles (default: terrain only)")
+    c.add_argument("--no-reuse", action="store_true", help="don't reuse another layer's painting of the same tile")
+    c.add_argument("--edge-aware", action="store_true", help="don't tie facing strips where the original has a real edge between "
+                   "the tiles (rock against space); off by default: on the fake runs it measured the same as tying everywhere (D83)")
+    c.add_argument("--edge-free", type=float, default=EDGE_FREE, help=f"step between the original's facing pixels that still ties the strips fully (default {EDGE_FREE})")
+    c.add_argument("--edge-full", type=float, default=EDGE_FULL, help=f"step from which it doesn't tie them at all (default {EDGE_FULL})")
     k = sub.add_parser("check", help="reassemble the map from the atlas, measure seams")
     k.add_argument("--out", default=str(ROOT / "public/art/terrain"), help="atlas root (default public/art/terrain)")
     k.add_argument("--rows", type=int, default=12, help="map rows per contact sheet")
+    k.add_argument("--contact", default="new", help="contact sheets: new (default: row blocks with a tile the last cut made; "
+                   "every row block when nothing is new and at most 3 levels), all, none, or level ids (1-9,1-11)")
     args = ap.parse_args(argv)
     {"inventory": cmd_inventory, "sheets": cmd_sheets, "fake": cmd_fake, "cut": cmd_cut, "realpha": cmd_realpha, "check": cmd_check}[args.cmd](args)
 

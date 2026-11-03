@@ -3091,3 +3091,97 @@ IoU at 0°/15°/32°, mid-screen; drift from the top of the screen to the bottom
   - The wide and tall towers are 12.8k and 13.7k triangles, 0.65 and 0.71 MB (one quad per wall pixel).
 - Fallback: delete `src/render/tileModels/shapesy-savbld-*.json`. The renderer's extras are inert
   without them.
+
+## D83 — HD terrain per tileset: every level that uses it at once, cuts merged into the atlas, layer 2 sorted into terrain and structures
+
+2026-11-03
+
+**Decision:** `tools/terrain_hd.py` works on a tileset rather than a level, so `shapesz` (32 of the 62 levels) can be
+done without undoing level 1 (D58's limit: a second level's cut replaced the first's atlas).
+- **Levels.** Every command takes `--level 1-9,1-11,...` or `--tileset shapesz` (the levels whose `tyrian<ep>.lvl`
+  slot names that shapes file: the same 32 `docs/roadmap/inventory.json` lists). The inventory merges the tiles
+  over all the maps: counts summed and per level, usual neighbours over every map, one representative 3x3
+  neighbourhood from whichever level fits best; `hasArt` from the atlas already there. One level gives exactly
+  D58's inventory.
+- **Kinds.** Each tile gets a kind: *terrain* (painted: all ground tiles; on layers 1-2 natural materials, brown and
+  green ramps, fills that meet themselves on every side, tiles a ground model stands on elsewhere, tiles with art),
+  *structure* (layers 1-2 hard surface: plating, pipes, walls, machines; left to structure models, D34/D47, painted
+  only with `--structures`), *empty* (one colour, Tyrian's black space: nothing to paint, it falls back to the 4x
+  ground, which looks the same). `--kind 2:575=terrain` overrides. Tiles also list structure models and paintings
+  of the same tile on other layers.
+- **Sheets** only for tiles that still need a painting (no art, terrain, no painting on another layer to reuse):
+  map regions as a set cover over every level's map (also for layer 2's terrain), contexts as before; softened from
+  the start (D59/D60's lesson; the nearest-neighbour picture beside it), prompts naming each region's two main
+  materials (per layer: the same colours are clouds on layer 1 and purple metal on layer 2), a `send` order (most-used
+  new tiles first), `SEND.md` and a prompt file per sheet for the operator, and a request count.
+- **Cut merges.** The tiles already in `public/art/terrain/<tileset>/` are kept: their images are not rewritten, their
+  rects not moved. In the seam solve their edge strips are held (moved to the right-hand side), so new tiles are pulled
+  onto them and they don't move. New tiles go into new images (`0-2.webp`; `2.webp` for a layer without art yet), at
+  most 323 per image, whose rects name them, which D57's format already allowed. A tile without a painting of its own
+  reuses the same tile's painting from another layer. `--recut`, `--replace` (D58-D60's fresh cut), `--no-reuse`. One
+  level into an empty folder (or `--replace`) still writes TYRIAN's fake-answer atlas byte for byte (checked against
+  the previous tool from the same cache).
+- **Game side:** none needed. One fix: the loader marked only a layer's main image as opaque, so a layer-0 rect's own
+  image would have been uploaded premultiplied (harmless for an opaque image, but not the contract); it now marks
+  every layer-0 image (test added).
+- **Check** reports seams over all the levels, for the edges with a new tile and for the rest, per level, and also only
+  where the original itself is continuous across the edge (`continuousRatio`); contact sheets only of the row blocks
+  with a new tile.
+
+**Layer 2 on other levels.** On TYRIAN every layer-2 cell was under a model (D58). Over `shapesz`'s 32 levels, 115
+layer-2 tiles are drawn as plain tiles, on five maps:
+- *terrain, painted* (73 tiles, 16,100 cells): the brown rock masses and plateaus of 1-11 HOLES and 1-16 ASSASSIN
+  (35-57, 76, 80-119), the grass and forest of 4-1 HARVEST (68, 69, 210-234), and HOLES' bunker, wreck and boulder
+  tiles (112, 113, 320-352). 54 of them are TYRIAN's ground tiles, so their paintings are reused; 19 need Gemini (3
+  region sheets). The tree, bunker, wreck and boulder tiles have ground models on level 1 (keepTiles): layer-2 entries
+  for those models would stand them on layer 2 the same way (not done here).
+- *structure, to model* (42 tiles, 2,625 cells): the purple and grey plating, pipes, coils and machines (290-304,
+  550-595) of 1-5 DELIANI, 3-11 New Deli (the same map) and 4-1 HARVEST: a structure kit by pattern, like level 1's.
+- Layer 1 likewise: TYRIAN's island rock (120-142) on 1-6 MINEMAZE and 3-3 GAUNTLET (the layer-2 rock models would
+  serve with layer-1 entries), girders (576-599) on 1-5/3-11 and purple plating (536-581) on 3-5 BONUS (structure), and
+  one fill, 518, the blue panel floor behind all of 1-18 ALE (painted).
+
+**The `shapesz` batch** (not sent; a Gemini operator run follows under the shared lock): 200 ground tiles, 1 layer-1
+and 19 layer-2 tiles to paint, 9 empty; 32 primary sheets (28 ground regions, 3 layer-2 regions, 1 layer-1 context),
+about 42 requests with retries at TYRIAN's rate (27 for 21), so two Gemini sessions; 28 optional context sheets for
+retries. The sheets are made from the game data and stay out of git (D3).
+
+**Fake runs** (stand-in answers, cut into a copy of the committed atlas). The kept images came out byte for byte in
+both. Seams are the step across tile edges over the step inside tiles; on fake answers TYRIAN alone measures 0.81
+(D58: 0.88), against 0.57 on its real answers, so these compare runs rather than meet D60's target.
+- *All 32 levels* (60 sheets): 200 new ground tiles, 1 layer-1 and 73 layer-2 tiles (34 of them reused paintings).
+  Ground: edges with a new tile 0.659 (bands 0.60), kept-only edges 0.568 (bands 0.49); per level median 0.71, TYRIAN
+  0.573 as before; worst 3-5 BONUS 1.49 (the purple pipe kit drawn on the ground, in pairs that occur once or twice),
+  3-7 STARGATE 1.34 and 1-4 BUBBLES 1.12 (glossy red bubbles; faint smears in the black beside the clusters), 1-10/2-3
+  BONUS 1.07. Layer 2: 0.72 (bands 0.39; 1-11 0.70, 4-1 0.75, 1-16 0.82). Layer 1: the new fill 0.91.
+- *Five levels* (1-9, 1-11, 1-16, 1-5, 4-1; 24 sheets): ground new-tile edges 0.585, kept-only 0.561; 1-11 0.588, 1-5
+  0.637, 4-1 0.632, 1-16 0.80 (ASSASSIN's asteroid rock ends at tile borders against space); layer 2 0.73.
+
+Tests: `tests/tools/terrainHd.test.ts` runs `terrain_hd_test.py` (merge byte for byte over 1-9, 1-11, 1-16; new edges
+under 0.65 and over 1.5x worse without the seam pass; level 1's edges as before; a second cut changes nothing; held
+strips stay).
+
+**Found, not fixed:** TYRIAN's 15 cloud tiles were seam-solved over TYRIAN's map only; 1-11, 1-14, 1-16 and 4-16
+use them in other pairs (42 over 52: 16 times in TYRIAN, hundreds there), and the merge keeps them, so the cloud
+measure is 0.82 on 1-9 but 1.11 on 1-11 and 1.13 on 1-16 (bands 0.51 on all). The fix changes level 1's clouds:
+re-cut layer 1 over all the levels (`--recut 1:40,...`; TYRIAN's answers are not kept, so 2 cloud sheets again) or
+D57 variants for the worst pairs.
+
+**Options considered:**
+- *Merge into the atlas, new tiles in new images (chosen):* level 1 untouched by construction; the format already
+  had per-rect images; one more instanced draw per extra image.
+- *Re-cut the whole tileset into one atlas per layer:* one image per layer, but every re-encode of the lossy WebP
+  changes the kept tiles and the strips of the kept tiles would move with the new pairs; TYRIAN's answers aren't
+  kept, so it couldn't be re-cut from its paintings anyway.
+- *Copy the kept tiles' texels into a new packed atlas (lossless):* unchanged texels, but lossless atlases are much
+  bigger (not measured here) and every level's download changes.
+- *Paint layer-2 structures too:* flat paintings of pipes and machines next to D34's models; models are the rule for
+  hard surface.
+- *Edge-aware strips (implemented, `--edge-aware`, off):* don't tie two strips where the original has a real edge
+  between the tiles (its facing pixels differ by 64-128 levels or more in some channel), one system per original pixel.
+  Over the 32 levels it measured no better where the original is continuous (new ground edges 0.642 against 0.641)
+  and kept the real edges (0.725 against 0.659 in all); with 40-100 it was worse (0.758 continuous); the smears beside
+  the bubbles stayed. Kept as an option to try on real answers.
+
+**Review:** `sheets/SEND.md` in the batch folder; the fake run's `check/*.jpg` (HOLES' layer 2, ASSASSIN's asteroid
+rock). In game after the real cut: each level's `?debug=play&episode=E&main=N&seed=1&skip=T&freezeAt=T` in both looks.
