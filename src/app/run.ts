@@ -94,7 +94,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
   const music = new MusicSwitch(audioContext, new Music(requireFile(files, "music.mus"), { context: audioContext }), remaster);
   const sfx = new SoundEffects(requireFile(files, "tyrian.snd"), requireFile(files, "voices.snd"), audioContext, remaster);
   const controls = new Controls(() => view.gamePixelsPerScreenPixel);
-  const hud = new Hud();
+  const hud = new Hud(view);
   const hud2 = new TwoPlayerHud(); // [two-player]
   const pauseButton = new PauseButton(() => (controls.pauseRequested = true)); // ui-framework
   const cheats = new CheatKeys(() => controls.active); // [cheats]

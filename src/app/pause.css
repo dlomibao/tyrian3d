@@ -29,8 +29,9 @@
 .pause-button {
   position: fixed;
   z-index: 5;
-  top: max(8px, env(safe-area-inset-top));
-  right: max(8px, env(safe-area-inset-right));
+  /* Framed (D61): at the opening's top right, set by the HUD. */
+  top: var(--hud-pause-top, max(8px, env(safe-area-inset-top)));
+  right: var(--hud-pause-right, max(8px, env(safe-area-inset-right)));
   width: var(--ui-hit);
   height: var(--ui-hit);
   display: none;
