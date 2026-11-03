@@ -2586,3 +2586,57 @@ show where an enemy's rock meets an unusual neighbour (as D63's tiles), and the 
 sprites (`assembly-newsh2-115`, `-119`, the rock outcrop `assembly-newshe-39`) stand on level 1's dirt,
 not island rock, and are unchanged.
 Fallback: revert the five scripts and their GLBs; `castsShadow` is harmless without the flag.
+
+## D67 — TYRIAN's HD ground repainted from softened sheets: no pixel blocks or checker dither left in the paintings
+
+2026-11-03
+
+**Decision:** About a third of the 66 HD ground tiles (D59/D60) were still upscaled pixel art: 8-texel blocks
+and the original's checker dither, which D60's deblock (block edges only) left inside the blocks. At 4K the dark
+rock (ticks 0-2300), the light dirt (2500-3000) and the jungle floor between the leaf models (4500-7400) showed a
+clear pixel grid. The ground atlas (`public/art/terrain/shapesz/0.webp`, same rects and size, 512 → 508 KB) is
+re-cut with eight new Gemini answers; the clouds (`1.webp`) are untouched.
+- **Softened input** (`sheets --soft 0.5`, the retry D59 suggested): each region sheet MMPX-smoothed, then blurred by
+  half an original pixel, black kept black, written to `sheets/soft/` with a `softPrompt` (paint crisp detail, no
+  pixel grid, checkerboard or dither). The blur keeps ~30% of a one-pixel alternation along an axis and ~10%
+  diagonally, so Gemini has no blocks or dither to copy; every answer came back painted (blockiness 1.03-1.12,
+  against 1.5-1.9 for the tiles it replaced). Sent one at a time, each with a prompt naming what the region shows:
+  region-l0-01 (dirt and the crater mound), 02 (rock and dirt paths), 03 and 10 (forest), 04 and 07 (grass
+  fringe), 06 (rock and the wreck), 08 (dirt and rock patches). 05 (the H-shaped ridges) came back with wider,
+  flatter ridges than the original and is not used.
+- **A partial round** (`cut --base DIR`): the old atlas's tiles compete as candidates, so new answers for some
+  regions replace what they cover without the old answers (which are no longer on disk). Every candidate is then
+  scored the same way: the NCC of its per-pixel means against the original, less its colour error, less 0.12 for a
+  base tile (`--base-cost`: its pixel copying is only partly measured), less the pixel penalties below. A layer
+  with nothing new is copied from the base unchanged; a base tile that wins is not deblocked or reshaded again.
+  The novelty cost (D59) is measured against the new paintings only (a pixel copy has no marks of its own).
+- **Pixel period** (`pixel_period`): blocks and dither alike, the alternation from one original pixel to the next
+  (8-texel cells) against the same over 6- and 11-texel cells, which no pixel grid lines up with. A painting is
+  1.0-1.1; the old light dirt 46 was 1.72, grass fringe 89 1.61, canopy 211 1.52. It costs 0.6 per unit above 1.15.
+  With `--blocky-free 1.2 --blocky-cost 0.3` (the base tiles are deblocked, so their blockiness reads low).
+- **Result:** 54 of the 66 ground tiles are new paintings; kept from the old atlas are 95, 96, 105, 108
+  (ridges, already painted) and the bunker ground 320-323 and 330-333, picked back (`--pick 0:320=base#0`, ...):
+  it sits under the bunker models, and the bunker pads are another change's. Hand picks: 99 (`region-l0-06#0`; the scores kept the old one, whose blocks showed in game at
+  tick 750), 79 (`region-l0-07#0`,
+  its only new painting; it has a few dark sprigs on the sand below the grass patch) and 222 (`region-l0-03#0`;
+  the old one was checker). Seam measure (D58): texel step across edges 0.46 of the step inside tiles (was 0.57),
+  8-texel bands 0.56 (0.50). The cache is now per answer (`--cache`): a new or changed answer is registered and
+  added.
+
+**Checked** in game, `?debug=play&seed=1&skip=T&freezeAt=T&armor=99` at 3840x2160 for T = 750, 1000, 2000, 2750,
+5000, 6000, the old atlas through `&terrainart=` (a temporary copy) against the new: the dark rock's grid, the light
+dirt's checker and the jungle floor's checker between the leaf models are gone; outlines, the crater, the ridges and
+the colours still match the original's; no seams or misplaced tiles. Contact sheets (`check`) for the whole map.
+Overlay at tick 1000 (4K, headless, a loaded machine): 54 fps / 8.3 ms before, 56-58 fps / 8.6-9.6 ms after (run-to-run noise); same draws
+and atlas size. The typecheck passes; the tests pass except tests that time out on a machine
+running many agents (no source file changed; see the PR).
+
+**Options considered:**
+- *Edge-aware smoothing of the blocky tiles (no Gemini):* removes the checker, and the detail inside the 8-texel
+  cells with it; the tiles would be smooth blur among painted neighbours.
+- *A full re-cut from every old answer:* the old answers aren't kept (D3, a scratch folder since deleted); the base
+  mode needs only the new ones, and keeps the old tiles that are still the best.
+- *Region-l0-05 for the ridges:* its ridges are wider and flatter than the original's and lost the bright rim; the
+  old ridge tiles were already painted.
+- *Context sheets for the grass fringe:* D59 found brown-green-edges-1 came back as blocks even softened; the two
+  grass regions covered every fringe tile.

@@ -188,7 +188,16 @@ the pixel blocks fit best. The score is the fit (NCC) minus the colour error, pl
 around the 8-texel grid lines only; <code>--deblock-from 0</code> turns it off, D60), and the painting's broad shading
 (blur at 16 texels) is replaced by the original's, so a tile doesn't show a darker corner every time it repeats. <code>cut-report.json</code> lists each tile's source and scores;
 <code>--exclude 0:332</code> leaves a tile out (it falls back), <code>--pick 0:68=region-l0-03#0</code> forces a
-candidate, and <code>--cache FILE</code> keeps the registered candidates between runs (registration takes minutes).</p>
+candidate, and <code>--cache FILE</code> keeps the registered candidates per answer between runs (registration takes
+minutes; a new or changed answer is registered and added, the rest are read back).</p>
+<p><b>A partial round (D67).</b> <code>--base DIR</code> lets an existing atlas's tiles compete as candidates, so a
+few new answers improve the tiles they cover without every old answer. Every candidate is then scored the same way:
+the NCC of its per-pixel means against the original, less its colour error, less <code>--base-cost</code> (0.12) for a
+base tile. A second pixel measure, <b>pixel period</b> (<code>pixel_period</code>), sees blocks and checker dither
+alike: the alternation from one original pixel to the next (8-texel cells) against the same over 6- and 11-texel
+cells; a painting is ~1.0-1.1, TYRIAN's D59 light dirt 1.72; it costs above 1.15. A layer with nothing new is
+copied from the base unchanged. <code>sheets --soft 0.5</code> writes the softened input sheets (MMPX, then a blur of
+half an original pixel, black kept black) to <code>sheets/soft/</code> with a <code>softPrompt</code> each.</p>
 
 <h2>5. Atlas and manifest</h2>
 <p>One atlas per layer that has art, beside one manifest per tileset:</p>
@@ -272,10 +281,14 @@ $PY tools/terrain_hd.py --level 1-9 --work $W sheets
 $PY tools/terrain_hd.py --level 1-9 --work $W cut --cache $W/cands.pkl     # writes public/art/terrain/&lt;tileset&gt;/
 $PY tools/terrain_hd.py --level 1-9 --work $W check                        # $W/check/*.jpg, seams.json
 $PY tools/terrain_hd.py --level 1-9 --work $W fake                         # stand-in answers, no Gemini
+# D67's partial round: softened sheets, answers for some regions, the old atlas as the base
+$PY tools/terrain_hd.py --level 1-9 --work $W sheets --soft 0.5
+$PY tools/terrain_hd.py --level 1-9 --work $W cut --cache $W/cands.pkl --base $W/base --blocky-free 1.2 --blocky-cost 0.3 \
+    --pick 0:79=region-l0-07#0,0:222=region-l0-03#0,0:99=region-l0-06#0,0:320=base#0,0:321=base#0,0:322=base#0,0:323=base#0,0:330=base#0,0:331=base#0,0:332=base#0,0:333=base#0
 TYRIAN_DATA=../tyrian/data npx vitest run tests/render/terrainArt.test.ts
 npm run dev   # then ?debug=play&amp;seed=1&amp;skip=300&amp;freezeAt=300[&amp;terrain=original]</code></pre>
 <p><code>--data</code> points at the game data (default <code>data/</code>). With the same answers and cache,
-<code>cut</code> writes the same atlas byte for byte. Delete the cache after changing an answer.</p>
+<code>cut</code> writes the same atlas byte for byte.</p>
 
 <h2>Where things live</h2>
 <table>
