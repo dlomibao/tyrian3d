@@ -34,7 +34,8 @@ export interface SpriteArtFrame {
 export interface SpriteArtManifest {
   /** Atlas pixels per original pixel. */
   scale: number;
-  sheets: Map<string, { image: string; frames: Map<number, SpriteArtFrame> }>;
+  /** Each sheet's atlas and frames; `scale` is the sheet's own, when it has one (else the manifest's). */
+  sheets: Map<string, { image: string; scale: number; frames: Map<number, SpriteArtFrame> }>;
 }
 
 const isCount = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= 0;
@@ -49,9 +50,13 @@ export function parseSpriteArtManifest(json: unknown, warn: (msg: string) => voi
   if (!isCount(scale) || scale <= 0 || typeof sheets !== "object" || sheets === null) return null;
   const out: SpriteArtManifest = { scale, sheets: new Map() };
   for (const [id, sheet] of Object.entries(sheets as Record<string, unknown>)) {
-    const { image, frames } = (sheet ?? {}) as { image?: unknown; frames?: unknown };
+    const { image, frames, scale: own } = (sheet ?? {}) as { image?: unknown; frames?: unknown; scale?: unknown };
     if (typeof image !== "string" || image === "" || typeof frames !== "object" || frames === null) {
       warn(`sprite art: sheet ${id} has no image or frames; drawing its sprites as before`);
+      continue;
+    }
+    if (own !== undefined && (!isCount(own) || own <= 0)) {
+      warn(`sprite art: sheet ${id} has a bad scale; drawing its sprites as before`);
       continue;
     }
     const map = new Map<number, SpriteArtFrame>();
@@ -64,7 +69,7 @@ export function parseSpriteArtManifest(json: unknown, warn: (msg: string) => voi
       }
       map.set(index, { x, y, w, h });
     }
-    if (map.size > 0) out.sheets.set(id, { image, frames: map });
+    if (map.size > 0) out.sheets.set(id, { image, scale: own ?? scale, frames: map });
   }
   return out;
 }
@@ -129,7 +134,7 @@ export class SpriteArt<T = unknown> {
   loaded: Promise<void> = Promise.resolve();
 
   constructor(manifest: SpriteArtManifest) {
-    for (const [id, s] of manifest.sheets) this.sheets.set(id, new SpriteArtSheet<T>(id, s.image, s.frames, manifest.scale));
+    for (const [id, s] of manifest.sheets) this.sheets.set(id, new SpriteArtSheet<T>(id, s.image, s.frames, s.scale));
   }
 
   sheet(id: string): SpriteArtSheet<T> | undefined {

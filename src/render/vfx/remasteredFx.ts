@@ -9,7 +9,8 @@
 //   it; when one starts, it throws sparks, embers and tumbling debris, leaves smoke drifting with
 //   the scroll, and lights its surroundings for a moment with one of a few pooled point lights.
 //   A shot's hit puff becomes a spark burst and a flash; smoke sprites become soft smoke puffs.
-//   Coin values, shield arcs and anything else are drawn as before.
+//   Coin values (flat art of their own in the remastered look, D67), shield arcs and anything else
+//   are drawn as before.
 //
 // Nothing here allocates per frame: particles live in GPU ring buffers (particles.ts), glows in
 // reused instanced buffers (glowLayer.ts), and the lights are a fixed pool.

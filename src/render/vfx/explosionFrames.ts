@@ -53,7 +53,7 @@ function kindOf(type: number): ExplosionKind {
   if ((type >= 2 && type <= 5) || (type >= 7 && type <= 10)) return ExplosionKind.Large;
   if (type === 6 || type === 12) return ExplosionKind.Smoke;
   if (type <= 34) return ExplosionKind.Spark;
-  return ExplosionKind.Other; // 35+: coin and gem values, drawn as they are
+  return ExplosionKind.Other; // 35+: coin and gem values, drawn as they are (flat art when remastered, D67)
 }
 
 /** Frame table by sprite index (1-based, as drawn). Moving types only. */
