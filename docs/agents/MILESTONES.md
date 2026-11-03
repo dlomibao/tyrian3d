@@ -95,7 +95,7 @@ Tyrian 2.1 has four episodes (`tyrian1.lvl`..`tyrian4.lvl` in the data); there i
   | 1-14 | WINDY (sec 33) | shapesz | 7 / 7 / 0 / 1 | 13 matched | 28/49 | todo: 4 pickup units, 0 shots | ~3 | todo |
   | 1-16 | ASSASSIN (sec 36) | shapesz | 12 / 12 / 0 / 11 | todo | 27/71 | todo: 12 pickup units, 3 shots | ~3 | todo |
   | 1-17 | SAVARA V (sec 38) | shapesy | 16 / 16 / 0 / 1 | todo | todo | todo: 11 pickup units, 5 shots | ~3 | todo |
-  | 1-18 | ** ALE ** (sec 41) | shapesz | 15 / 15 / 0 / 5 | 14 matched | 13/17 | todo: 6 pickup units, 0 shots | ~3 | todo (bot run unfinished, see Known issues) |
+  | 1-18 | ** ALE ** (sec 41) | shapesz | 15 / 15 / 0 / 5 | 14 matched | 13/17 | todo: 6 pickup units, 0 shots | ~3 | todo (bot run never ends: see Known issues) |
 
 ## M2: Episode 2
 
@@ -166,7 +166,7 @@ Tyrian 2.1 has four episodes (`tyrian1.lvl`..`tyrian4.lvl` in the data); there i
   | 4-9 | LAVA EXIT (sec 31) | shapes) | 9 / 9 / 0 / 1 | todo | todo | todo: 17 pickup units, 10 shots | ~3 | todo |
   | 4-6 | SIDE EXIT (sec 36) | shapes) | 7 / 7 / 0 / 1 | todo | todo | todo: 10 pickup units, 7 shots | ~3 | todo |
   | 4-17 | TIME WAR (sec 40) | shapes) | 29 / 7 / 22 / 1 | todo | todo | todo: 4 pickup units, 2 shots | ~91 | todo |
-  | 4-18 | SQUADRON (sec 45) | shapes) | 8 / 6 / 2 / 1 | todo | todo | todo: 4 pickup units, 0 shots | ~11 | todo (bot run unfinished, see Known issues) |
+  | 4-18 | SQUADRON (sec 45) | shapes) | 8 / 6 / 2 / 1 | todo | todo | todo: 4 pickup units, 0 shots | ~11 | todo (bot run never ends: see Known issues) |
   | 4-19 | APPROACH (sec 47) | shapesy | 11 / 10 / 1 / 1 | todo | todo | todo: 10 pickup units, 2 shots | ~7 | todo |
   | 4-20 | ICESECRET (sec 50) | shapesw | 14 / 14 / 0 / 1 | todo | todo | todo: 11 pickup units, 8 shots | ~3 | todo |
 
@@ -189,7 +189,10 @@ M1-M4 together: 1222 agents; 217 unique + 239 shared = 456 unfinished enemy unit
 
 ## Known issues (from the inventory run)
 
-- **Level 1.18 "** ALE **"** crashed the sim in the bot run at tick 2815, in `JE_playerCollide`
-  ("Cannot read properties of undefined (reading 'name')"). Probably a pickup value pointing past the
-  item tables in `src/sim/mainint.ts`. A likely port bug; fix it in M0 (Shared foundations).
-- **Level 4.18 SQUADRON** ran past the bot's 60,000-tick cap (bot result: unfinished). Cause not looked into.
+- **Level 1.18 "** ALE **"** crashed the sim in the bot run at tick 2815, in `JE_playerCollide`.
+  Fixed (D75): galaga mode doubles enemy values until they wrap, and the C then reads past its item
+  tables; the port now reads what the C's reference build reads. In that run the ship picks up
+  "weapon 208", which fires nothing, so the bot can't finish ALE (the C stalls the same way); the
+  inventory's counts for the level stop growing there.
+- **Level 4.18 SQUADRON** ran past the bot's 60,000-tick cap. Not a bug (D75): its waves loop
+  forever and the level only ends when the ship is out of lives, which the invulnerable bot never is.

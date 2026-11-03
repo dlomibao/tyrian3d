@@ -76,12 +76,21 @@ for r in "${routes[@]}"; do
 done
 echo "wrote $out"
 
-# The sixth argument is play's game mode (arcade, sa1..sa7, supertyrian), or play2 for two players.
-play_case() { # name episode section ticks every [mode|play2]
-  local cmd=play mode=${6:-}
-  if [ "$mode" = play2 ]; then cmd=play2 mode=""; fi
+# The sixth argument is play's game mode (arcade, sa1..sa7, supertyrian), or play2 for two players;
+# seed=N and mortal (anywhere after the fifth) set driver.c's BOT_SEED and BOT_MORTAL and go into the
+# header as they are.
+play_case() { # name episode section ticks every [mode|play2] [seed=N] [mortal]
+  local cmd=play mode="" extra="" envs=() a
+  for a in "${@:6}"; do
+    case "$a" in
+      seed=*) envs+=("BOT_SEED=${a#seed=}"); extra+=" $a" ;;
+      mortal) envs+=("BOT_MORTAL=1"); extra+=" $a" ;;
+      play2) cmd=play2 ;;
+      *) mode=$a ;;
+    esac
+  done
   out="$FIXTURES/bot-$1.c.txt"
-  { echo "# $cmd $2 $3 $4 $5${mode:+ $mode}"; driver "$cmd" "$2" "$3" "$4" "$5" ${mode:+"$mode"}; } > "$out"
+  { echo "# $cmd $2 $3 $4 $5${mode:+ $mode}$extra"; env ${envs[@]+"${envs[@]}"} SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy "$WORK/driver" "$cmd" "$DATA" "$2" "$3" "$4" "$5" ${mode:+"$mode"} 2>/dev/null; } > "$out"
   echo "wrote $out"
 }
 play_case tyrian 1 3 60000 50       # episode 1's first level, played to its end
@@ -89,6 +98,10 @@ play_case squadron 4 45 20000 100   # the episode 4 galaga bonus game (it never 
 play_case two-players 1 3 60000 25 play2 # a two-player game: player 2 links, unlinks, dies
 play_case ale 1 41 30000 100        # the episode 1 galaga bonus game (past tick 22212 the
                                     # dragonwing, player 2, rams an enemy: two-player collisions)
+play_case ale-seed1041 1 41 6000 10 seed=1041  # tools/inventory.mjs's ALE run: at tick 2815 the ship
+                                    # touches an enemy whose doubled value (30720) reads past weaponPort (D75)
+play_case squadron-mortal 4 45 14000 100 mortal # SQUADRON never ends by itself: it ends when the ship
+                                    # is out of lives (game over, then the C waits for a key)
 # [arcade] the same level in the arcade games (tests/sim/arcadeTrace.test.ts)
 play_case arcade-tyrian 1 3 60000 50 arcade        # 1 Player Arcade: the pickups arm the Stalker
 play_case sa-stealth 1 3 60000 50 sa1              # Super Arcade, the Ninja Star (STEALTH)

@@ -164,6 +164,8 @@ export interface ItemDat {
   enemies: EnemyDat[];
   /** Byte offset just past the last record. */
   end: number;
+  /** The block's bytes, header to last record (src/sim/overrun.ts lays them out as the C's memory). */
+  raw: Uint8Array;
 }
 
 function readWeapon(r: BinaryReader): Weapon {
@@ -292,6 +294,7 @@ export function parseItemDat(data: Bytes, offset: number): ItemDat {
     shields: table(SHIELD_NUM + 1, () => readShield(r)),
     enemies: table(ENEMY_NUM + 1, () => readEnemyDat(r)),
     end: r.pos,
+    raw: r.bytes.subarray(offset, r.pos),
   };
 }
 

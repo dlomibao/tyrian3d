@@ -2666,3 +2666,195 @@ is height, not the border.
 **Review:** the comparison sheets (sprite | current | inner, overhead at game scale, x3 with the
 sprite's edge, 15°) and the scripts are in `tyrian-scratch/outline-border/` (`sheets/`, `ingame.py`,
 `measure.py`, `survey.py`). Fallback: measure against the outer mask again (`iou_outer_grid`).
+## D75 — Galaga mode's doubled pickups read past the item tables: the port reads what the C's reference build reads
+
+2026-11-03
+
+**Decision:** The two "port bugs" the whole-game inventory found (MILESTONES.md, Known issues) are
+the C's own behaviour. The sim now reproduces it instead of crashing:
+
+- **ALE crash (level 1.18, section 41):** in galaga mode JE_searchFor doubles the value of every
+  enemy it finds (tyrian2.c L4148-4160; tyrian2.ts JE_searchFor), and `evalue` is a JE_integer, so
+  it wraps. Events 70 and 75 search again on every pass of a level's waiting loops, so an enemy of
+  value 15 reaches 30720 after eleven doublings. Touching it, JE_playerCollide (mainint.c L4634-4669; mainint.ts JE_playerCollide) takes
+  it for a front-weapon pickup and reads `weaponPort[720].name`, sets the weapon id to u8(720) = 208
+  and the special to `specialArcadeWeapon[719]`, all past the tables' ends. The port threw on the
+  undefined record (tick 2815 of tools/inventory.mjs's run, seed 1041). Other reachable cases: 375
+  (a cash pickup in ALE) reaches 30464 (weapon 208, special `specialArcadeWeapon[463]` = 125), and
+  250 reaches 32000 (rear weapon u8(1000) = 232, name `weaponPort[1000]`). SQUADRON's enemies can do
+  the same.
+- **What the C does:** undefined behaviour, so whatever its memory holds. On the reference build
+  (tools/opentyrian-bot/run.sh: Apple clang -O1, arm64 macOS, where every bot fixture comes from)
+  the item tables lie back to back: options, powerSys, shields, ships, special, weaponPort, weapons
+  (71,820 bytes; checked with the linker's symbol addresses and by dumping the block from the
+  running C for episodes 1 and 4, byte for byte equal to what src/sim/overrun.ts builds). The
+  constant tables from SAWeapon on are followed by the rest of OpenTyrian's read-only data.
+  src/sim/overrun.ts rebuilds the item block from the item data (JE_loadItemDat's fields at the
+  structs' offsets, `name[min(len, 30)] = '\0'`, zero padding), appends to weaponPorts, specials
+  and options every record a Uint8 id can select (up to 255, decoded from it), reads the pickup's
+  names as `%s` would, and holds the 2,562 compiled bytes from SAWeapon on for
+  `specialArcadeWeapon`, `optionSelect` and `SAWeapon` reads past their ends. Past both blocks
+  (weapon names for values from 30805 or 31805, SAWeapon in a Super Arcade galaga game) the C reads
+  its mutable globals or build-dependent unwind tables; the port reads zeros, "" for a name. Those
+  only feed the text window, or need a Super Arcade game in a galaga level. Weapon 208 then fires
+  nothing (player_shot_create rejects ports over 42), so the bot can't kill the enemies event 70
+  waits for and ALE stalls at curLoc 2601-2610: the C does the same, tick for tick, for 30,000 ticks.
+  JE_playerCollide also gains the C's Uint8 truncation of `items.special` (value - 32100) and of a
+  Super Arcade weapon id.
+- **SQUADRON never ends (level 4.18, section 45):** genuine. Its event list has no end-level event
+  (11) or ready-to-end (36); after the start it jumps to a wave table at 60000 that calls the waves
+  (event 54, each returning through event 76) and jumps back to 60000. The invulnerable bot can't
+  end it; the C, with the same bot, matched the port for 60,000 ticks (seed 4045, every 100th
+  tick). The only end is the ship out of lives: game over, then the C waits for a key (the host's
+  key in src/app/run.ts), as with the bot without its cheats.
+- **Found on the way (the mortal SQUADRON cross-check):** start_level_first's JE_drawArmor
+  (tyrian2.c L834) caps armor at 28, and the port skipped it as HUD; it also called JE_getShipInfo
+  a second time after the level's world setup (game.ts startLevel), which the C doesn't. ENGAGE's
+  Stalker 21.126 has 30 armor, so the port's ship started at 30 instead of 28 and the armour ship
+  came later than the C's. newgame.ts now caps as the C does, and startLevel no longer repeats
+  JE_getShipInfo.
+
+**Tests:** tests/sim/galaga.test.ts (the read-only block starts with the three tables; every
+in-range record decodes from the rebuilt memory as the item data parses it; ALE's inventory run
+survives tick 2815 with weapon 208; SQUADRON's loop, and its game over with a mortal bot). C
+cross-checks in botTrace.test.ts: `ale-seed1041` (the inventory's ALE run, 6,000 ticks) and
+`squadron-mortal` (14,000 ticks: game over at 13,136, then the wait for a key). driver.c gains BOT_SEED (seed
+before JE_initPlayerData, as the inventory does) and BOT_MORTAL (no cheats); run.sh's play_case
+takes `seed=N` and `mortal`. Each botTrace case now starts from new players, as each driver run is a
+fresh process (JE_initPlayerData leaves friction, mouse and sidekick state alone, in the C too).
+docs/roadmap/inventory.* are regenerated: ALE runs its 60,000 ticks. Some counts of later levels
+shift slightly because the inventory plays every level in one process and ALE's full run leaves
+that same player state behind (episode 2 played alone gives the old numbers).
+
+**Options considered:**
+- *Reproduce the reference build's memory (chosen):* the C cross-checks are this build, and with
+  it the port matches the C through and past the overrun.
+- *A guard (skip the pickup, or treat a missing record as empty):* hides the divergence: the C does
+  pick it up, loses its gun and stalls.
+- *Clamp the doubled value:* changes what the C's galaga games do (a 32000 would become a cash
+  pickup instead of rear weapon 232).
+
+Fallback: drop `extendItemTables` and the overrun accessors; the C tables' bounds then throw again.
+
+## D76 — Coin and gem values as crisp flat art, redrawn from their own pixels
+
+2026-11-03
+
+**Decision:** The value a coin, gem or data cube shows when picked up (a fixed-position explosion,
+types 35-52 of newsh6.shp: 10, 25, 50, 75, 100, 250, 500, 1K, 2K, 5K, the brown ALE/375 plaque,
+800, 150, 350, 500, 750, the red 50 and DATA) is drawn as flat sprite art (D42) in the remastered
+look, instead of an extruded sprite: chunky pixel digits standing up off a dark plate.
+- **The art** (`tools/value_art.py`, no Gemini): each of the 18 sprites is redrawn from its own
+  pixels. Every digit pixel is joined to its digit neighbours and the centre lines are drawn with a
+  rounded-square pen a little under a pixel wide, so every digit keeps the original's shape,
+  placement and staircase layout but has clean antialiased edges and softened corners; the colours
+  are the digits' own palette colours (palette 5, as the other flat art) blended smoothly between
+  pixel centres, with a soft bevel lit from the upper left. The plate is the sprite's darkest colour
+  under its whole silhouette, rounded as the flat art's alpha is, shaded slightly top to bottom with
+  a faint glow of the digits round them. The red 150/350/500/750, which have no plate, get a faint
+  dark shadow inside their box.
+- **Wiring:** one atlas, `public/art/sprites/newsh6-shp.webp` (66 KB), and a `newsh6.shp` sheet in
+  the manifest, keyed by the sprite drawn (explosion_data's sprite + 1). None of those indices is a
+  frame of a moving explosion, and no enemy bank loads newsh6, so nothing else changes. The manifest
+  gains an optional per-sheet `scale` (`spriteArt.ts`): these frames are 16 texels per pixel, twice
+  the rest, as the numbers are small and read. `flat_art.py cut` now keeps sheets it didn't make.
+- **The game contract** is the flat art's: `?sprites=original` (or A, or the original effects look)
+  draws them extruded as before; the explosions' "blend" draws them at the renderer's 0.55 opacity;
+  the level filter and brightness recolour them; the atlas is loaded with the others before the level.
+
+**Options considered:**
+- *Vector text in a font (canvas or SDF quad) at the draw's position:* sharp at any size, but the
+  values are partly not text (the ALE/375 plaque, the slanted 1K, the staircases, the multi-coloured
+  800) and the original's plates and colour ramps would be approximations.
+- *Gemini paintings, like the other flat art:* nothing to gain over redrawing 1-px strokes exactly,
+  and a painted digit can drift from the original's.
+- *Keep them extruded, with smoothing:* still a 3D slab with sides for a 2D readout.
+
+**Review:** `?debug=play&seed=1&skip=T&freezeAt=T&armor=99` at T = 301 (75 over a fireball), 815 and
+2031 (DATA), 1670 (two 25s), 6426 (250). The flat draws go before the other transparent draws, so
+a value spawned on a fireball now sits under its glow rather than over it (still readable). Cost:
+66 KB download, one more draw call while a value is on screen. Fallback: drop the manifest's
+`newsh6.shp` entry.
+
+## D77 — The shield's hit arcs become one energy bubble round the ship
+
+2026-11-03
+
+**Decision:** When a hit only takes shield, JE_playerDamage draws nine light-blue arc tiles (explosion
+types 14-22, newsh6 sprites 229-237, 248-256 and 267-275) in a 4x3 grid round the ship, for three
+ticks. The remastered effects (D35) drew them as hot extruded sprites: stair-stepped pixel arcs.
+They now draw as one energy bubble (`src/render/vfx/shieldLayer.ts`): a sphere squashed to 20 x 11 x
+19 px round the ship model, at the ship's height, additive, its rim bright by a fresnel term (so from
+the game's camera it reads as the original's ring), with a faint hexagonal cell pattern and a wave
+running from its middle to its rim over the hit. The arcs are hidden.
+- **Placement and timing, from the original:** `explosionFrames.ts` gains an `ExplosionKind.Shield`
+  for types 14-22 and `shieldArcCentre(type)`, each arc's offset to the middle of its grid, so every
+  arc of one hit names the same point (the player's x + 7, y + 9: just below the ship sprite's middle,
+  as the C draws them; a test checks it against the sim's JE_playerDamage). One bubble is drawn per
+  hit and frame, on exactly the frames the arcs are drawn, moving with them (they scroll, as in the
+  C). It grows (0.84, 0.94, 1.04 of its size) and fades (1, 0.8, 0.5) over the three frames, as the
+  arcs widen; two hits a tick apart overlap as two bubbles, each with its own cell pattern.
+- **Colour:** the arc sprite's own palette colour, the way the shot halos take theirs (D35), so
+  palette fades and flashes carry through.
+- **Light:** the first frame also lights the ship's surroundings faintly in that colour, from the
+  explosions' pool of four lights (merged across the nine arcs).
+- **Switch:** `?vfx=original` (or V in the play harness) draws the arcs as the original sprites, as
+  before. Other spark types (11, 13, 23-34: shot trails) are unchanged.
+
+**Options considered:**
+- *A fresnel bubble round the ship (chosen):* one instanced draw, no assets, smooth at any size, and
+  from above it is the original's ring.
+- *Flat art for the arc tiles (D42):* would keep the 4x3 tile seams and the gap at the bottom right
+  (the C draws only nine of twelve tiles); a ring split into nine sprites stays a pixel object.
+- *A full shield mesh that stays round the ship and flashes:* would add a state the sim doesn't have.
+
+**Review:** `?debug=play&seed=1&skip=N&freezeAt=N&solid=1` at 295, 296, 297 (a hit, then a second one
+a tick later) and 636; captures in tyrian-scratch/pixel-sweep/shield-hit-arcs/. At 1920x1080 the
+harness held 60 fps with cpu about 7.3 ms a frame at tick 296 (two bubbles) and about 7.0 at 290 (no
+hit), 311 and 315 draw calls: within the noise of a machine busy with other runs. No
+download beyond the new module (6 KB of source, 2.4 KB gzipped). If the bubble reads too strong or
+weak, the shader's `a` line and `SHIELD_FADE` in remasteredFx.ts set it.
+
+## D78 — Cloud rims: the HD cloud tiles' alpha follows a smoothed contour, solved across tile edges
+
+2026-11-03
+
+**Decision:** The alpha of the HD terrain's layers 1-2 (`tools/terrain_hd.py`, `alpha_level`,
+`solve_alpha`) is no longer the MMPX 8x silhouette blurred at 3 texels and ramped (D58), which kept the
+8-texel stairs MMPX leaves on slopes that aren't 45 degrees and drew TYRIAN's cloud rims (40-44, 50-52,
+54, 62-64) as polygons. It is now:
+- **A smoothed contour.** The MMPX mask's signed distance (clamped to +-24 texels), blurred at 8 texels
+  (one original pixel), with alpha a smoothstep over +-2 texels across its zero. Straight runs stay
+  where they were; stairs and one-pixel corners round off. The cloud's shape is still the original's:
+  against D58's alpha the half-alpha contour moves 2-4 texels in most tiles and at most 14 texels
+  (under 2 original pixels; 41 and 51, where the edge solve bends it).
+- **Solved across tile edges.** A tile's contour near a side follows its usual neighbour there, so where
+  two tiles that aren't each other's usual neighbour meet (43|44 23 times, 63|64 21 times) the contours
+  met with a jog, and 44's left edge drew a thin dark sliver above 43's rim. The distance field (not
+  alpha) now gets the colour's seam treatment (D58: strips solved jointly over the map's pairs, faded in
+  over 40 texels), over pairs the map has at least 5 times, so contours bend to a shared crossing point.
+  Alpha itself is still not averaged (D58's faint line), and rare pairs are left out: with 44|53 (once)
+  in, a bar of cloud appeared at 44's empty right edge.
+- **`realpha`**, a new command, redoes just this on the committed atlas (colour bled again from what was
+  visible), since the Gemini answers aren't kept; `cut` does the same after its colour seams.
+
+**Result** (`public/art/terrain/shapesz/1.webp`, 78.6 KB -> 80.4 KB, same layout; layer 0 untouched):
+the stair score (strongest 8-texel phase of the alpha's steps over the mean) of the rim tiles went from
+1.8-3.2 to 1.1-1.9 (63: 3.24 -> 1.68, 52: 2.95 -> 1.74, 43: 2.74 -> 1.59, 54: 2.72 -> 1.91); the
+count-weighted mean alpha step across the map's tile edges from 0.0026 to 0.0005. In game
+(`?debug=play&seed=1&skip=T&freezeAt=T`, T = 300, 1000, 2000, 6500, at 1920x1080 and 3840x2160) the rims
+are soft curves with the original's dark edge colour, and 60 fps with the same cpu ms as before.
+Remaining: the dark edge is the original's outline colour bled under the alpha (kept, it is the
+original's); colour seams inside the clouds are unchanged; pairs seen under 5 times keep their jog.
+
+**Options considered:**
+- *Blur the mask more (sigma 6-8) and keep D58's ramp:* rounds the stairs too, but the ramp's width
+  then grows with the blur (~6 texels, soft edges); the blurred distance keeps a 4-texel ramp.
+- *The painting's own matte:* Gemini's cloud/black edge registered loosely and the rim tiles were
+  painted puffier than the original (D59), so it would move the outline.
+- *Edge-clamped context at the sides* (contour independent of the neighbour): kinks every diagonal
+  contour at a tile edge.
+
+**Review:** before/after captures and crops in `tyrian-scratch/pixel-sweep/cloud-rim-stairsteps/`
+(`cmp_*.png`). Fallback: `git checkout` the previous `1.webp`; `realpha --alpha-min-pairs 1000000` keeps
+the smoothing without the edge solve.

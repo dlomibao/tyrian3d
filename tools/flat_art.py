@@ -51,6 +51,7 @@ class GameData:
     """tyrian.shp's tables and palette.dat, read as src/data/sprites.ts and palette.ts do."""
 
     def __init__(self, data_dir: Path):
+        self.data_dir = data_dir
         shp = (data_dir / "tyrian.shp").read_bytes()
         count = struct.unpack_from("<H", shp, 0)[0]
         pos = [struct.unpack_from("<I", shp, 2 + i * 4)[0] for i in range(count)] + [len(shp)]
@@ -62,8 +63,10 @@ class GameData:
             self.palettes.append(((raw << 2) | (raw >> 4)).astype(np.uint8))
 
     def sheet(self, sheet_id: str) -> bytes:
+        if sheet_id.startswith("newsh") and sheet_id.endswith(".shp"):
+            return (self.data_dir / sheet_id).read_bytes()  # JE_loadCompShapes: the file is one Sprite2 sheet
         if not sheet_id.startswith("tyrian.shp#"):
-            raise ValueError(f"only tyrian.shp sheets are supported, not {sheet_id}")
+            raise ValueError(f"only tyrian.shp and newsh<c>.shp sheets are supported, not {sheet_id}")
         return self.tables[int(sheet_id.split("#")[1])]
 
     def sprite(self, sheet_id: str, index: int) -> np.ndarray:
@@ -442,7 +445,8 @@ def dump_manifest(m: dict) -> str:
     lines = ["{", f'  "scale": {m["scale"]},', '  "sheets": {']
     sheets = list(m["sheets"].items())
     for i, (sid, sh) in enumerate(sheets):
-        lines.append(f'    {json.dumps(sid)}: {{ "image": {json.dumps(sh["image"])}, "frames": {{')
+        scale = f', "scale": {sh["scale"]}' if "scale" in sh else ""  # a sheet's own scale (value_art.py)
+        lines.append(f'    {json.dumps(sid)}: {{ "image": {json.dumps(sh["image"])}{scale}, "frames": {{')
         frames = list(sh["frames"].items())
         for j, (k, r) in enumerate(frames):
             lines.append(f'      {json.dumps(k)}: {json.dumps(r)}' + ("," if j < len(frames) - 1 else ""))
@@ -549,6 +553,11 @@ def cut(gd: GameData, inputs: dict, results: Path, out: Path, palette: int, chec
         Image.fromarray(atlas, "RGBA").save(out / name, "WEBP", quality=92, alpha_quality=100, method=6, exact=True)
         manifest["sheets"][sid] = {"image": name, "frames": dict(sorted(rects.items(), key=lambda kv: int(kv[0])))}
         print(f"  {out / name}: {len(rects)} frames, {atlas.shape[1]}x{atlas.shape[0]}")
+    # Keep sheets other tools add (value_art.py's newsh6.shp values, D76).
+    old = out / "manifest.json"
+    if old.exists():
+        for sid, sh in json.loads(old.read_text())["sheets"].items():
+            manifest["sheets"].setdefault(sid, sh)
     (out / "manifest.json").write_text(dump_manifest(manifest))
     if check:
         contact_sheet(gd, sorted(frames.values(), key=lambda f: (f["sheet"], f["index"])), palette, check)

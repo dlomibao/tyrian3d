@@ -30,13 +30,19 @@ reads (public/art/terrain/<shapes>/manifest.json + <layer>.webp, the format in D
         original tile (mean and low-frequency contrast per channel). The best candidate per tile wins
         (or --combine mean): its fit, less its colour error, copied pixel blocks and made-up marks,
         with a bonus for map regions (D59); --exclude, --pick and --cache adjust and speed this up.
-        The winner's broad shading (16 texels) is then replaced by the original's. Alpha (layers 1-2) is the original silhouette, smoothly upscaled among the
-        tile's usual neighbours. Then the seams: every tile side's edge strip is solved jointly, least
+        The winner's broad shading (16 texels) is then replaced by the original's. Alpha (layers 1-2) is
+        the original silhouette, MMPX-upscaled among the tile's usual neighbours with its contour smoothed
+        at one original pixel (a blurred signed distance, D78), its edges solved like the colour's.
+        Then the seams: every tile side's edge strip is solved jointly, least
         squares over every pair of tiles the map puts side by side (weighted by how often) plus a weak
         pull towards the tile's own painting, and each tile's border is moved onto its strips (the
         difference fades in over 40 texels, the outer 4 texels are the strip). One atlas per layer is
         packed (16-aligned rects, 16 px edge-extended gutters): <out>/<shapes>/<layer>.webp and
         manifest.json; DIR/cut-report.json says where each tile came from and how well it fitted.
+
+    python tools/terrain_hd.py --work DIR realpha [--out public/art/terrain]
+        Redoes only the alpha of the committed atlas's layers 1-2 (as cut makes it), keeping its colour;
+        needs DIR/inventory.json, not the answers (D78).
 
     python tools/terrain_hd.py --work DIR check [--out public/art/terrain]
         Reassembles the level's map from the atlas, 12 rows at a time, into contact sheets (original,
@@ -689,7 +695,9 @@ BAND_LO = 40  # texels over which a strip's correction fades into the tile
 BAND_HI = 4  # texels at the edge set to the strip itself
 REGION_BONUS = 0.06  # score for paintings from map regions over contexts (their texture matches the neighbours')
 LOWFREQ = 16.0  # texels: shading broader than this follows the original tile (match_lowfreq)
-SIGMA_REF = 3.0  # blur of the MMPX 8x silhouette for alpha, texels
+ALPHA_SMOOTH = 8.0  # texels (one original pixel): the silhouette's contour is smoothed at this scale (alpha_level)
+ALPHA_RAMP = 2.0  # texels each side of the contour over which alpha goes 0 -> 1
+ALPHA_MIN_PAIRS = 5  # a pair of tiles the map has fewer times than this doesn't pull their alpha edges together
 
 
 def gray(a: np.ndarray) -> np.ndarray:
@@ -825,25 +833,50 @@ def context_units(L: LevelData, layer: int, tile: int, usual: dict) -> np.ndarra
     return cell_units(L, layer, grid)
 
 
-def edge_reference(L: LevelData, layer: int, tile: int, usual: dict) -> tuple[np.ndarray, np.ndarray]:
-    """The original tile upscaled smoothly among its usual neighbours: the MMPX 8x upscale, blurred
-    a little, centre cut out (RGB float, and coverage 0..1). The coverage is the alpha of layers 1-2:
-    the original silhouette with a ~1-2 texel soft edge, continuous with the usual neighbours'."""
+def alpha_level(L: LevelData, layer: int, tile: int, usual: dict, smooth: float = ALPHA_SMOOTH) -> np.ndarray:
+    """The original tile's silhouette as a smooth level field (texels, > 0 inside, the contour at 0;
+    layers 1-2), among its usual neighbours: the MMPX 8x upscale's mask, its signed distance (clamped
+    to 3 `smooth`), blurred at `smooth` texels. Blurring the distance rounds the 8-texel stairs MMPX
+    leaves on slopes other than 45 degrees while straight runs stay where they are (D78); alpha is
+    a short ramp across the level's zero (alpha_from_level). Before D78 alpha was the MMPX mask
+    blurred at 3 texels, which kept the stairs."""
     from scipy import ndimage
 
     u = context_units(L, layer, tile, usual)
     luma = L.luma_clear if layer > 0 else L.luma
     up = mmpx(np.clip(u, 0, 255).astype(np.uint8), luma, SCALE)
-    vis = np.kron(u >= 0, np.ones((SCALE, SCALE), bool)) & ((up != 0) if layer > 0 else True)
-    rgb = L.rgb[up].astype(np.float32)
-    m = vis.astype(np.float32)
-    num = ndimage.gaussian_filter(rgb * m[..., None], (SIGMA_REF, SIGMA_REF, 0))
-    den = ndimage.gaussian_filter(m, SIGMA_REF)
-    ref = num / np.maximum(den, 1e-3)[..., None]
-    cov = ndimage.gaussian_filter(m, SIGMA_REF)
-    alpha = np.clip((cov - 0.5) / 0.3 + 0.5, 0, 1)  # a steep ramp: a ~1-2 texel soft silhouette
+    vis = np.kron(u >= 0, np.ones((SCALE, SCALE), bool)) & (up != 0)
+    if vis.all() or not vis.any():
+        sdf = np.full(vis.shape, 3 * smooth if vis.all() else -3 * smooth, np.float32)
+    else:
+        sdf = np.where(vis, ndimage.distance_transform_edt(vis) - 0.5, 0.5 - ndimage.distance_transform_edt(~vis))
+    lev = ndimage.gaussian_filter(np.clip(sdf, -3 * smooth, 3 * smooth).astype(np.float32), smooth)
     ys, xs = slice(TILE_H * SCALE, 2 * TILE_H * SCALE), slice(TILE_W * SCALE, 2 * TILE_W * SCALE)
-    return ref[ys, xs], alpha[ys, xs]
+    return lev[ys, xs]
+
+
+def alpha_from_level(lev: np.ndarray, ramp: float = ALPHA_RAMP) -> np.ndarray:
+    return smoothstep(-ramp, ramp, lev)
+
+
+def solve_alpha(L: LevelData, layer: int, inv_tiles: dict, tiles, models: list[dict], min_pairs: int = ALPHA_MIN_PAIRS,
+                lam: float = LAMBDA, band_lo: float = BAND_LO, band_hi: float = BAND_HI) -> dict[int, np.ndarray]:
+    """Alpha (0..1) for each tile in `tiles` on layer 1-2, seamless across the map's pairs: each tile's
+    level field (alpha_level) has its edge strips solved jointly like the colour (solve_strips) over
+    the pairs the map has at least `min_pairs` times, and moved onto them (apply_strips). A tile's
+    level near a side depends on the usual neighbour there, so two tiles that are not each other's
+    usual neighbour drew a jog or a sliver where they met (43|44, 63|64). Solving the level, not alpha,
+    moves the contour to a common crossing point without a half-transparent line; rare pairs are
+    left out so a lone pairing of an empty edge with a full one doesn't drag cloud into the gap."""
+    off = 128.0  # apply_strips clips to 0..255; the level is within +-3 ALPHA_SMOOTH
+    lev = {n: (alpha_level(L, layer, n, inv_tiles[str(n)]["usual"]) + off)[..., None] for n in tiles}
+    if band_lo > 0 or band_hi > 0:
+        g = L.grids[layer]
+        rep, _ = replaced_mask(g, layer, models)
+        pairs = Counter({k: c for k, c in map_pairs(g, (g >= 0) & ~rep, lev).items() if c >= min_pairs})
+        strips = solve_strips(lev, pairs, lam)
+        lev = {n: apply_strips(v, {side: strips[(n, side)] for side in OPPOSITE}, band_lo, band_hi) for n, v in lev.items()}
+    return {n: alpha_from_level(v[..., 0] - off) for n, v in lev.items()}
 
 
 def smoothstep(e0: float, e1: float, x: np.ndarray) -> np.ndarray:
@@ -1110,11 +1143,53 @@ def match_lowfreq(L: LevelData, inv_tile: dict, layer: int, n: int, hd: np.ndarr
 
 
 def prepare_tile(L: LevelData, inv_tile: dict, layer: int, n: int, hd: np.ndarray) -> np.ndarray:
-    """The painting with alpha (layers 1-2: the original silhouette; colour bled under it)."""
+    """The painting with alpha (layers 1-2: the original silhouette, unsolved, alpha_level; colour
+    bled under it). cmd_cut replaces the alpha with solve_alpha's once all the layer's tiles are in."""
     if layer == 0:
         return hd.astype(np.float32)
-    _, alpha = edge_reference(L, layer, n, inv_tile["usual"])
+    alpha = alpha_from_level(alpha_level(L, layer, n, inv_tile["usual"]))
     return np.concatenate([bleed(hd, alpha), alpha[..., None] * 255], -1).astype(np.float32)
+
+
+def set_alpha(L: LevelData, layer: int, inv_tiles: dict, done: dict[int, np.ndarray], models: list[dict], args) -> None:
+    """Layers 1-2: each tile's alpha from solve_alpha, colour bled under it afresh."""
+    alphas = solve_alpha(L, layer, inv_tiles, done, models, args.alpha_min_pairs, args.lam, args.band_lo, args.band_hi)
+    for n, img in done.items():
+        img[..., :3] = bleed(img[..., :3], alphas[n])
+        img[..., 3] = alphas[n] * 255
+
+
+def save_atlas(done: dict[int, np.ndarray], layer: int, out_dir: Path, lossless: bool) -> tuple[Image.Image, dict]:
+    ch = 3 if layer == 0 else 4
+    atlas, rects = pack_atlas(done, ch)
+    img = Image.fromarray(atlas.round().clip(0, 255).astype(np.uint8), "RGB" if ch == 3 else "RGBA")
+    name = f"{layer}.webp"
+    if lossless:
+        img.save(out_dir / name, lossless=True, method=6)
+    else:
+        img.save(out_dir / name, quality=92, method=6, alpha_quality=100)
+    return img, rects
+
+
+def cmd_realpha(args) -> None:
+    """Redo the alpha of an atlas's layers 1-2 in place (set_alpha) without the Gemini answers: the
+    colour is the atlas's own, bled from what was visible before; layer 0 and the manifest's other
+    fields are untouched. Re-encodes the layer's WebP (quality 92 unless --lossless)."""
+    L = LevelData(Path(args.data), args.level)
+    inv = json.loads((Path(args.work) / "inventory.json").read_text())
+    out_dir = Path(args.out) / L.shapes_name
+    man = json.loads((out_dir / "manifest.json").read_text())
+    atlas = load_atlas(Path(args.out), L.shapes_name)
+    models = load_models(L.shapes_file)
+    for layer, tiles in sorted(atlas.items()):
+        if layer == 0:
+            continue
+        done = {n: np.concatenate([bleed(t[..., :3], t[..., 3] / 255), t[..., 3:]], -1) for n, t in tiles.items()}
+        set_alpha(L, layer, inv["layers"][str(layer)]["tiles"], done, models, args)
+        img, rects = save_atlas(done, layer, out_dir, args.lossless)
+        lay = man["layers"][str(layer)]
+        assert (lay["width"], lay["height"], lay["tiles"]) == (img.width, img.height, rects), "atlas layout changed"
+        print(f"layer {layer}: alpha redone for {len(done)} tiles -> {out_dir / lay['image']}")
 
 
 def cmd_cut(args) -> None:
@@ -1184,19 +1259,15 @@ def cmd_cut(args) -> None:
         if args.band_lo > 0 or args.band_hi > 0:
             g = L.grids[layer]
             rep, _ = replaced_mask(g, layer, models)
-            # Colour only: alpha stays the original silhouette (averaging it across a pair would put
-            # a faint line of cloud where one tile's edge is empty and its neighbour's isn't).
+            # Colour here; alpha is solved on its own below (averaging alpha itself across a pair
+            # would put a faint line of cloud where one tile's edge is empty and its neighbour's isn't).
             strips = solve_strips({n: img[..., :3] for n, img in done.items()}, map_pairs(g, (g >= 0) & ~rep, done), args.lam)
             for n, img in done.items():
                 img[..., :3] = apply_strips(img[..., :3], {side: strips[(n, side)] for side in OPPOSITE}, args.band_lo, args.band_hi)
-        ch = 3 if layer == 0 else 4
-        atlas, rects = pack_atlas(done, ch)
-        img = Image.fromarray(atlas.round().clip(0, 255).astype(np.uint8), "RGB" if ch == 3 else "RGBA")
+        if layer > 0:
+            set_alpha(L, layer, d["tiles"], done, models, args)
+        img, rects = save_atlas(done, layer, out_dir, args.lossless)
         name = f"{layer}.webp"
-        if args.lossless:
-            img.save(out_dir / name, lossless=True, method=6)
-        else:
-            img.save(out_dir / name, quality=92, method=6, alpha_quality=100)
         atlas_manifest["layers"][layer_s] = {"image": name, "width": img.width, "height": img.height, "tiles": rects}
         missing = [k for k, t in d["tiles"].items() if t["drawnAsTile"] and int(k) not in done]
         print(f"layer {layer}: {len(done)} tiles -> {out_dir / name} ({img.width}x{img.height})"
@@ -1356,11 +1427,18 @@ def main(argv: list[str] | None = None) -> None:
     c.add_argument("--band-lo", type=float, default=BAND_LO, help=f"texels a seam correction fades over (default {BAND_LO}; 0 and --band-hi 0: no seam pass)")
     c.add_argument("--band-hi", type=float, default=BAND_HI, help=f"texels at the edge set to the shared strip (default {BAND_HI})")
     c.add_argument("--lam", type=float, default=LAMBDA, help=f"how much a strip keeps its own painting (default {LAMBDA})")
+    for p_ in (c, ra := sub.add_parser("realpha", help="redo the alpha of an atlas's layers 1-2 (no answers needed)")):
+        p_.add_argument("--alpha-min-pairs", type=int, default=ALPHA_MIN_PAIRS, help=f"map pairs needed before two tiles' alpha edges are pulled together (default {ALPHA_MIN_PAIRS})")
+    ra.add_argument("--out", default=str(ROOT / "public/art/terrain"), help="atlas root (default public/art/terrain)")
+    ra.add_argument("--lossless", action="store_true", help="lossless WebP (default quality 92)")
+    ra.add_argument("--band-lo", type=float, default=BAND_LO, help=f"texels an alpha seam correction fades over (default {BAND_LO})")
+    ra.add_argument("--band-hi", type=float, default=BAND_HI, help=f"texels at the edge set to the shared strip (default {BAND_HI})")
+    ra.add_argument("--lam", type=float, default=LAMBDA, help=f"how much a strip keeps its own (default {LAMBDA})")
     k = sub.add_parser("check", help="reassemble the map from the atlas, measure seams")
     k.add_argument("--out", default=str(ROOT / "public/art/terrain"), help="atlas root (default public/art/terrain)")
     k.add_argument("--rows", type=int, default=12, help="map rows per contact sheet")
     args = ap.parse_args(argv)
-    {"inventory": cmd_inventory, "sheets": cmd_sheets, "fake": cmd_fake, "cut": cmd_cut, "check": cmd_check}[args.cmd](args)
+    {"inventory": cmd_inventory, "sheets": cmd_sheets, "fake": cmd_fake, "cut": cmd_cut, "realpha": cmd_realpha, "check": cmd_check}[args.cmd](args)
 
 
 if __name__ == "__main__":
