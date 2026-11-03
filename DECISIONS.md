@@ -2586,3 +2586,47 @@ show where an enemy's rock meets an unusual neighbour (as D63's tiles), and the 
 sprites (`assembly-newsh2-115`, `-119`, the rock outcrop `assembly-newshe-39`) stand on level 1's dirt,
 not island rock, and are unchanged.
 Fallback: revert the five scripts and their GLBs; `castsShadow` is harmless without the flag.
+
+## D67 — Cloud rims: the HD cloud tiles' alpha follows a smoothed contour, solved across tile edges
+
+2026-11-03
+
+**Decision:** The alpha of the HD terrain's layers 1-2 (`tools/terrain_hd.py`, `alpha_level`,
+`solve_alpha`) is no longer the MMPX 8x silhouette blurred at 3 texels and ramped (D58), which kept the
+8-texel stairs MMPX leaves on slopes that aren't 45 degrees and drew TYRIAN's cloud rims (40-44, 50-52,
+54, 62-64) as polygons. It is now:
+- **A smoothed contour.** The MMPX mask's signed distance (clamped to +-24 texels), blurred at 8 texels
+  (one original pixel), with alpha a smoothstep over +-2 texels across its zero. Straight runs stay
+  where they were; stairs and one-pixel corners round off. The cloud's shape is still the original's:
+  against D58's alpha the half-alpha contour moves 2-4 texels in most tiles and at most 14 texels
+  (under 2 original pixels; 41 and 51, where the edge solve bends it).
+- **Solved across tile edges.** A tile's contour near a side follows its usual neighbour there, so where
+  two tiles that aren't each other's usual neighbour meet (43|44 23 times, 63|64 21 times) the contours
+  met with a jog, and 44's left edge drew a thin dark sliver above 43's rim. The distance field (not
+  alpha) now gets the colour's seam treatment (D58: strips solved jointly over the map's pairs, faded in
+  over 40 texels), over pairs the map has at least 5 times, so contours bend to a shared crossing point.
+  Alpha itself is still not averaged (D58's faint line), and rare pairs are left out: with 44|53 (once)
+  in, a bar of cloud appeared at 44's empty right edge.
+- **`realpha`**, a new command, redoes just this on the committed atlas (colour bled again from what was
+  visible), since the Gemini answers aren't kept; `cut` does the same after its colour seams.
+
+**Result** (`public/art/terrain/shapesz/1.webp`, 78.6 KB -> 80.4 KB, same layout; layer 0 untouched):
+the stair score (strongest 8-texel phase of the alpha's steps over the mean) of the rim tiles went from
+1.8-3.2 to 1.1-1.9 (63: 3.24 -> 1.68, 52: 2.95 -> 1.74, 43: 2.74 -> 1.59, 54: 2.72 -> 1.91); the
+count-weighted mean alpha step across the map's tile edges from 0.0026 to 0.0005. In game
+(`?debug=play&seed=1&skip=T&freezeAt=T`, T = 300, 1000, 2000, 6500, at 1920x1080 and 3840x2160) the rims
+are soft curves with the original's dark edge colour, and 60 fps with the same cpu ms as before.
+Remaining: the dark edge is the original's outline colour bled under the alpha (kept, it is the
+original's); colour seams inside the clouds are unchanged; pairs seen under 5 times keep their jog.
+
+**Options considered:**
+- *Blur the mask more (sigma 6-8) and keep D58's ramp:* rounds the stairs too, but the ramp's width
+  then grows with the blur (~6 texels, soft edges); the blurred distance keeps a 4-texel ramp.
+- *The painting's own matte:* Gemini's cloud/black edge registered loosely and the rim tiles were
+  painted puffier than the original (D59), so it would move the outline.
+- *Edge-clamped context at the sides* (contour independent of the neighbour): kinks every diagonal
+  contour at a tile edge.
+
+**Review:** before/after captures and crops in `tyrian-scratch/pixel-sweep/cloud-rim-stairsteps/`
+(`cmp_*.png`). Fallback: `git checkout` the previous `1.webp`; `realpha --alpha-min-pairs 1000000` keeps
+the smoothing without the edge solve.

@@ -168,12 +168,17 @@ Gemini.</p>
 <p>Each answer cell is registered to the sheet's picture of it (normalised cross-correlation over a rescale of
 &plusmn;6% and a shift, then each tile by a small shift), every tile is resampled from the registered art at 8x and
 colour-matched to the original tile, and one candidate per tile is chosen (below). Layers 1 and 2 take their alpha from
-the original silhouette, upscaled with MMPX among the tile's usual neighbours (index 0 is transparent).</p>
+the original silhouette, upscaled with MMPX among the tile's usual neighbours (index 0 is transparent), with its contour
+smoothed at one original pixel: the mask's signed distance, blurred at 8 texels, with a 2+2-texel ramp across zero, so
+the 8-texel stairs MMPX leaves on shallow slopes come out as curves (D67).</p>
 <p><b>Seams (D58).</b> Every tile side gets an edge strip (its outer 4 texels, smoothed along the edge). All strips are
 solved at once: least squares over every pair of tiles the map puts side by side, weighted by how often, with a pull
 of 0.15 towards the tile's own painting. Each tile's border is then moved onto its strips, the difference fading in
 over 40 texels, so the painting's detail stays. Alpha is not averaged (it would draw a faint line of cloud where one
-side is empty).</p>
+side is empty); instead the smoothed distance under it is solved the same way, over the pairs the map has at least 5
+times, so contours of tiles that aren't each other's usual neighbours (43|44, 63|64) meet without a jog or sliver (D67).
+<code>terrain_hd.py --work DIR realpha</code> redoes only this alpha on the committed atlas, keeping its colour (it needs
+<code>DIR/inventory.json</code>, not the answers).</p>
 <p><b>Choosing among a tile's paintings (D59).</b> A tile usually appears in several regions and contexts, so it has
 several candidate paintings. The best fit to the original is not the best painting: on TYRIAN the answer that copied
 the pixel blocks fit best. The score is the fit (NCC) minus the colour error, plus:</p>
@@ -289,7 +294,7 @@ npm run dev   # then ?debug=play&amp;seed=1&amp;skip=300&amp;freezeAt=300[&amp;t
     <code>drawListRenderer.ts</code>, <code>src/core/terrainStyle.ts</code>, <code>src/app/options.ts</code>,
     <code>src/app/levelPreload.ts</code></td><td>yes</td></tr>
   <tr><td>Tests</td><td><code>tests/render/terrainArt.test.ts</code></td><td>yes</td></tr>
-  <tr><td>Decisions</td><td>D57 (game side), D58 (art pipeline), D59 (TYRIAN's atlas), D60 (verification)</td><td>yes</td></tr>
+  <tr><td>Decisions</td><td>D57 (game side), D58 (art pipeline), D59 (TYRIAN's atlas), D60 (verification), D67 (smooth cloud rims)</td><td>yes</td></tr>
 </table>
 
 <h2>Extending to another level or tileset</h2>
