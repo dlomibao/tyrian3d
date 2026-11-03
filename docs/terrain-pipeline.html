@@ -195,7 +195,7 @@ around the 8-texel grid lines only; <code>--deblock-from 0</code> turns it off, 
 <code>--exclude 0:332</code> leaves a tile out (it falls back), <code>--pick 0:68=region-l0-03#0</code> forces a
 candidate, and <code>--cache FILE</code> keeps the registered candidates per answer between runs (registration takes
 minutes; a new or changed answer is registered and added, the rest are read back).</p>
-<p><b>A partial round (D67).</b> <code>--base DIR</code> lets an existing atlas's tiles compete as candidates, so a
+<p><b>A partial round (D79).</b> <code>--base DIR</code> lets an existing atlas's tiles compete as candidates, so a
 few new answers improve the tiles they cover without every old answer. Every candidate is then scored the same way:
 the NCC of its per-pixel means against the original, less its colour error, less <code>--base-cost</code> (0.12) for a
 base tile. A second pixel measure, <b>pixel period</b> (<code>pixel_period</code>), sees blocks and checker dither
@@ -286,7 +286,7 @@ $PY tools/terrain_hd.py --level 1-9 --work $W sheets
 $PY tools/terrain_hd.py --level 1-9 --work $W cut --cache $W/cands.pkl     # writes public/art/terrain/&lt;tileset&gt;/
 $PY tools/terrain_hd.py --level 1-9 --work $W check                        # $W/check/*.jpg, seams.json
 $PY tools/terrain_hd.py --level 1-9 --work $W fake                         # stand-in answers, no Gemini
-# D67's partial round: softened sheets, answers for some regions, the old atlas as the base
+# D79's partial round: softened sheets, answers for some regions, the old atlas as the base
 $PY tools/terrain_hd.py --level 1-9 --work $W sheets --soft 0.5
 $PY tools/terrain_hd.py --level 1-9 --work $W cut --cache $W/cands.pkl --base $W/base --blocky-free 1.2 --blocky-cost 0.3 \
     --pick 0:79=region-l0-07#0,0:222=region-l0-03#0,0:99=region-l0-06#0,0:320=base#0,0:321=base#0,0:322=base#0,0:323=base#0,0:330=base#0,0:331=base#0,0:332=base#0,0:333=base#0
@@ -307,7 +307,7 @@ npm run dev   # then ?debug=play&amp;seed=1&amp;skip=300&amp;freezeAt=300[&amp;t
     <code>drawListRenderer.ts</code>, <code>src/core/terrainStyle.ts</code>, <code>src/app/options.ts</code>,
     <code>src/app/levelPreload.ts</code></td><td>yes</td></tr>
   <tr><td>Tests</td><td><code>tests/render/terrainArt.test.ts</code></td><td>yes</td></tr>
-  <tr><td>Decisions</td><td>D57 (game side), D58 (art pipeline), D59 (TYRIAN's atlas), D60 (verification), D78 (smooth cloud rims)</td><td>yes</td></tr>
+  <tr><td>Decisions</td><td>D57 (game side), D58 (art pipeline), D59 (TYRIAN's atlas), D60 (verification), D78 (smooth cloud rims), D79 (ground repainted from softened sheets)</td><td>yes</td></tr>
 </table>
 
 <h2>Extending to another level or tileset</h2>

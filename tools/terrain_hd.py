@@ -18,7 +18,7 @@ reads (public/art/terrain/<shapes>/manifest.json + <layer>.webp, the format in D
         Gemini's aspect ratios. DIR/sheets/manifest.json says where every tile sits. The sheets are
         rendered from the game data, so they stay out of git (D3).
 
-        --soft 0.5 also writes softened sheets (MMPX + a half-pixel blur) to DIR/sheets/soft/ (D67).
+        --soft 0.5 also writes softened sheets (MMPX + a half-pixel blur) to DIR/sheets/soft/ (D79).
 
     python tools/terrain_hd.py --work DIR fake
         Stand-in "Gemini" answers for testing: each sheet upscaled with MMPX, blurred, shifted,
@@ -41,7 +41,7 @@ reads (public/art/terrain/<shapes>/manifest.json + <layer>.webp, the format in D
         difference fades in over 40 texels, the outer 4 texels are the strip). One atlas per layer is
         packed (16-aligned rects, 16 px edge-extended gutters): <out>/<shapes>/<layer>.webp and
         manifest.json; DIR/cut-report.json says where each tile came from and how well it fitted.
-        --base ATLAS_ROOT lets an existing atlas's tiles compete (a partial round of answers, D67).
+        --base ATLAS_ROOT lets an existing atlas's tiles compete (a partial round of answers, D79).
 
     python tools/terrain_hd.py --work DIR realpha [--out public/art/terrain]
         Redoes only the alpha of the committed atlas's layers 1-2 (as cut makes it), keeping its colour;
@@ -1033,7 +1033,7 @@ def blockiness(hd: np.ndarray) -> float:
     return float(max(px.max() / max(px.mean(), 1e-3), py.max() / max(py.mean(), 1e-3)))
 
 
-BASE_COST = 0.12  # a base tile (--base) against new answers: its pixel copying is only partly measured (D67)
+BASE_COST = 0.12  # a base tile (--base) against new answers: its pixel copying is only partly measured (D79)
 DITHER_FREE = 1.15  # pixel-period ratio a painting may have before it costs score (a painting is ~1.0-1.1)
 DITHER_COST = 0.6  # score per unit above DITHER_FREE
 
@@ -1324,7 +1324,7 @@ def cmd_cut(args) -> None:
     else:
         cands = candidates(L, manifest, results)
     if args.base:
-        # A partial round (D67): every candidate is scored on the same footing (the NCC of its
+        # A partial round (D79): every candidate is scored on the same footing (the NCC of its
         # per-pixel means against the original, as the base tiles have no registration score),
         # and the base atlas's tiles compete as candidates.
         base = base_candidates(L, Path(args.base), inv)
@@ -1569,7 +1569,7 @@ def main(argv: list[str] | None = None) -> None:
     c.add_argument("--deblock-full", type=float, default=DEBLOCK_FULL, help=f"ratio at which they are softened fully (default {DEBLOCK_FULL})")
     c.add_argument("--dither-free", type=float, default=DITHER_FREE, help=f"pixel-period ratio (blocks and checker dither) that costs nothing (default {DITHER_FREE})")
     c.add_argument("--dither-cost", type=float, default=DITHER_COST, help=f"score per unit of pixel-period ratio above that (default {DITHER_COST})")
-    c.add_argument("--base", help="atlas root whose tiles compete as candidates (a partial round of answers, D67), e.g. public/art/terrain")
+    c.add_argument("--base", help="atlas root whose tiles compete as candidates (a partial round of answers, D79), e.g. public/art/terrain")
     c.add_argument("--base-cost", type=float, default=BASE_COST, help=f"score taken from a base tile, so a new painting that fits nearly as well replaces it (default {BASE_COST})")
     c.add_argument("--exclude", help="tiles to leave out (they fall back to the original), e.g. 0:332,1:41")
     c.add_argument("--pick", help="hand-picked candidates, e.g. 0:68=region-l0-03#0 (sheet#cell as in cut-report.json)")

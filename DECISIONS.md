@@ -2858,7 +2858,8 @@ original's); colour seams inside the clouds are unchanged; pairs seen under 5 ti
 **Review:** before/after captures and crops in `tyrian-scratch/pixel-sweep/cloud-rim-stairsteps/`
 (`cmp_*.png`). Fallback: `git checkout` the previous `1.webp`; `realpha --alpha-min-pairs 1000000` keeps
 the smoothing without the edge solve.
-## D67 — TYRIAN's HD ground repainted from softened sheets: no pixel blocks or checker dither left in the paintings
+
+## D79 — TYRIAN's HD ground repainted from softened sheets: no pixel blocks or checker dither left in the paintings
 
 2026-11-03
 
