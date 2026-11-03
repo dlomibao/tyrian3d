@@ -1,0 +1,11 @@
+{
+ "note": "flat_art.py sheets --inventory for the explosions (DECISIONS.md D80): newsh6.shp's fireball (type 1, sprites 122-133) and a big explosion's frames, air (types 7-10) and ground (types 2-5), each frame its four quarters as one picture (LAYOUTS). Indices are the drawn sprites (explosionFrames.ts: start + 2 + frame).",
+ "families": [
+  {"family": "fireball", "objects": [{"name": "fireball", "sheet": "newsh6.shp", "size": 1, "no_mirror": true, "floor": 0.8, "alpha": {"sigma": 5, "lo": 0.3, "hi": 0.55},
+   "frames": [122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133]}]},
+  {"family": "explosion-air", "objects": [{"name": "explosion-air", "sheet": "newsh6.shp", "size": 2, "layout": "explosion-air", "floor": 0.8, "alpha": {"sigma": 5, "lo": 0.3, "hi": 0.55},
+   "frames": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]}]},
+  {"family": "explosion-ground", "objects": [{"name": "explosion-ground", "sheet": "newsh6.shp", "size": 2, "layout": "explosion-ground", "floor": 0.8, "alpha": {"sigma": 5, "lo": 0.3, "hi": 0.55},
+   "frames": [192, 193, 194, 195, 196, 197, 198, 199, 200, 201, 202, 203]}]}
+ ]
+}

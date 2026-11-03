@@ -10,9 +10,10 @@ rings (153), white stone blocks in brass frames (185-188, 195-198), a machine of
 dark metal (160/161/170/171), two drums with pointed ends (189, 199) and a blue orb set in purple
 stone (149).
 
-The rock tiles (120-124, 130-134, 140-142, 150-152) are the tile's own 2x pixels as a relief in one
-shared set of colours (lib_tiles.rock_tile), so neighbouring tiles join as the art does; the
-underside tiles hang a face toward the camera with the painted roots on it.
+The rock tiles (120-124, 130-134, 140-142, 150-152) are the tile's stones redrawn smooth in an HD
+texture the game colours from the palette and lights with its bump (lib_tiles.rock_tile, lib_rock_hd,
+DECISIONS.md D84), with an edge band for each neighbour the map gives them, so neighbouring tiles
+join; the underside tiles hang a face toward the camera with the painted roots on it.
 
 Each other tile becomes a rock slab with its outline (MMPX 2x pixels, so diagonals are smooth) and:
 - a rounded boulder for each stone in the art (lib_tiles.boulders: position, size, angle and
@@ -50,7 +51,7 @@ STONE_RAMPS = {0x0, 0xA}
 
 #: tile: (recipe, options)
 TILES = {}
-# The plain rock and its hanging underside: the tile's pixels as a relief (lib_tiles.rock_tile), the
+# The plain rock and its hanging underside: the HD rock (lib_tiles.rock_tile), the
 # same kit as the rock round TYRIAN's structures, so neighbouring tiles join as the art does.
 for n in (120, 121, 122, 123, 124, 130, 131, 132, 133, 134, 140, 141, 142, 150, 151, 152):
     TILES[n] = ("rock", {})
@@ -80,7 +81,7 @@ def build(ts, n, recipe, opts):
     coll = common.reset_collection(f"{SHAPES}-{name}")
     pal = lt.Palette(ts, f"{SHAPES}{name}", roughness=0.55, metallic=0.05)
     if recipe == "rock":
-        return [lt.mesh(f"{SHAPES}-{name}", lt.rock_tile(ts, n, pal), pal, coll, smooth=False)]
+        return [lt.mesh(f"{SHAPES}-{name}", lt.rock_tile(ts, n, pal), pal, coll, smooth=None)]
     frame = lt.Frame([[n]], scale=2)
     own = ts.grid([[n]], 2)
     h, w = own.shape

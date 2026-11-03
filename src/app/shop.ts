@@ -7,7 +7,11 @@
 // '/' changes the rear gun's firing mode, Alt-S / Alt-L save and load. Pad: d-pad or stick, A
 // select, B back, X firing mode. Mouse and touch use the C's mouse rules: the first click on a row
 // moves the cursor there, a second click on the same row selects it. Behind it the backdrop turns
-// the player's ship. The Options menu's dialogs and settings screen are in options.ts; the Data
+// the player's ship over the dimmed planet, in the gap beside the panes.
+//
+// The layout is the original item screen's (D85): a pane with the picture (the loadout, the weapon
+// simulator or a cube's portrait) over the readouts (credits, weapon power, upgrade cost), a pane
+// with the menu's title and list, and the help line in the HUD's message bar along the bottom. The Options menu's dialogs and settings screen are in options.ts; the Data
 // Cubes menus in dataCubes.ts; the weapon preview in weaponPreview.ts.
 
 import "./shop.css";
@@ -79,6 +83,9 @@ const INTENT_KEYS: Record<Intent, ItemScreenKey> = {
 const NAV_SCALE = 3;
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
+
+/** The data's all-capitals labels ("DONE") set as the other lines are ("Done"); others as they are. */
+const lineCase = (s: string) => (/[a-z]/.test(s) || !/[A-Z]/.test(s) ? s : s.charAt(0) + s.slice(1).toLowerCase());
 
 /** Tyrian's help text toggles a highlight colour with '~' (JE_helpBox). */
 const highlight = (s: string) => esc(s).replace(/~([^~]*)~?/g, "<b>$1</b>");
@@ -190,19 +197,19 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
   });
   const root = screen.panel;
   root.innerHTML = `
-      <header class="shop-header">
-        <h2 class="ui-title"><small class="ui-title__kicker">Item screen</small><span data-k="title"></span></h2>
-        <div class="shop-cash"><span>Credits</span><b data-k="cash"></b></div>
-      </header>
-      <div class="shop-body">
+      <section class="ui-pane shop-left">
         <div class="shop-side"><aside class="shop-ship" data-k="ship"></aside></div>
-        <section class="shop-menu">
-          <canvas class="shop-nav" data-k="nav" width="${220 * NAV_SCALE}" height="${160 * NAV_SCALE}" hidden></canvas>
-          <ul class="ui-menu shop-list" data-k="list" role="listbox"></ul>
-          <div class="shop-power" data-k="power" hidden></div>
-        </section>
-      </div>
-      <footer class="shop-help"><p data-k="help"></p><div data-k="hints"></div></footer>
+        <div class="shop-readouts" data-k="readouts"></div>
+      </section>
+      <section class="ui-pane shop-menu">
+        <header class="shop-header">
+          <h2 class="ui-title"><small class="ui-title__kicker" data-k="kicker">Item screen</small><span data-k="title"></span></h2>
+        </header>
+        <canvas class="shop-nav ui-well" data-k="nav" width="${220 * NAV_SCALE}" height="${160 * NAV_SCALE}" hidden></canvas>
+        <ul class="ui-menu shop-list" data-k="list" role="listbox"></ul>
+        <div class="shop-power" data-k="power" hidden></div>
+      </section>
+      <footer class="ui-msgbar shop-help"><p data-k="help"></p><div data-k="hints"></div></footer>
       <div class="ui-modal is-shown shop-dialog" data-k="dialog" hidden></div>`;
   root.querySelector("header")!.append(backButton(() => key("esc")));
   const el = (k: string) => root.querySelector<HTMLElement>(`[data-k="${k}"]`)!;
@@ -308,13 +315,15 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
     const row = (e.target as HTMLElement).closest<HTMLElement>("[data-sel]");
     if (row) click(Number(row.dataset.sel));
   });
-  el("power").addEventListener("click", (e) => {
+  const powerClick = (e: MouseEvent) => {
     const b = (e.target as HTMLElement).closest<HTMLElement>("[data-act]");
-    if (!b) return;
+    if (!b || (b as HTMLButtonElement).disabled) return;
     const act = b.dataset.act!;
     if (act === "slash") key("slash");
     else click(act as "powerDown" | "powerUp");
-  });
+  };
+  el("power").addEventListener("click", powerClick);
+  el("readouts").addEventListener("click", powerClick);
   dialogEl.addEventListener("click", (e) => {
     const b = (e.target as HTMLElement).closest<HTMLElement>("[data-act]");
     if (menu.shipSpecsRequest) {
@@ -403,11 +412,12 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
     const ox = W / 2 - navState.x;
     const oy = H / 2 - navState.y;
     const bg = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, W * 0.7);
-    bg.addColorStop(0, "#0b1a2c");
-    bg.addColorStop(1, "#04080f");
+    // A well of the item screen's panes (D85): umber black, bronze grid lines.
+    bg.addColorStop(0, "#1a100a");
+    bg.addColorStop(1, "#0a0704");
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, W, H);
-    ctx.strokeStyle = "rgba(92, 214, 255, 0.12)";
+    ctx.strokeStyle = "rgba(164, 123, 70, 0.16)";
     ctx.lineWidth = 1 / NAV_SCALE;
     for (let gx = ((ox % 15) + 15) % 15; gx < W; gx += 15) ctx.strokeRect(gx, -1, 0, H + 2);
     for (let gy = ((oy % 15) + 15) % 15; gy < H; gy += 15) ctx.strokeRect(-1, gy, W + 2, 0);
@@ -416,7 +426,7 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
     for (let x = 0; x < g.mapPNum; x++) {
       for (let y = 0; y < menu.planetDots[x]; y++) {
         const lit = x === sel - 2 && y < navState.dots;
-        ctx.fillStyle = lit ? "#ffd75a" : "rgba(160, 190, 220, 0.45)";
+        ctx.fillStyle = lit ? "#f6dcb0" : "rgba(226, 176, 122, 0.4)";
         ctx.beginPath();
         ctx.arc(menu.planetDotX[x][y] + ox, menu.planetDotY[x][y] + oy, lit ? 1.4 : 0.9, 0, Math.PI * 2);
         ctx.fill();
@@ -454,8 +464,8 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
       ctx.fillStyle = color;
       ctx.fillText(text, planetX[n] + ox, planetY[n] + oy + 20);
     };
-    label(g.mapOrigin - 1, g.pName[g.mapOrigin - 1] ?? "", "#a3b3c4");
-    if (sel - 2 < g.mapPNum && sel >= 2) label(g.mapPlanet[sel - 2] - 1, g.pName[g.mapPlanet[sel - 2] - 1] ?? "", "#ffd75a");
+    label(g.mapOrigin - 1, g.pName[g.mapOrigin - 1] ?? "", "rgba(234, 223, 202, 0.62)");
+    if (sel - 2 < g.mapPNum && sel >= 2) label(g.mapPlanet[sel - 2] - 1, g.pName[g.mapPlanet[sel - 2] - 1] ?? "", "#f6dcb0");
   }
 
   function renderShip(): string {
@@ -513,16 +523,18 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
     if (e.unavailable) cls.push("off");
     if (e.done) cls.push("done");
     const text = (label: string, detail = "") =>
-      `<span class="ui-menu__text"><span class="ui-menu__label">${esc(label)}</span>${detail ? `<small class="ui-menu__detail">${detail}</small>` : ""}</span>`;
+      `<span class="ui-menu__text"><span class="ui-menu__label">${esc(e.done ? lineCase(label) : label)}</span>${detail ? `<small class="ui-menu__detail">${detail}</small>` : ""}</span>`;
     let inner = "";
     const optionsRow = itemScreenOptionsRow(e); // [port-options] volume bars, save slots
     if (optionsRow !== null) {
       inner = optionsRow;
     } else if (menu.curMenu === MENU_UPGRADE_SUB && !e.done) {
       const icon = itemIcon(menu.curSel[MENU_UPGRADES], e.item ?? 0);
+      // The price on the right in phosphor (what the game counts, D85).
       inner = `<span class="ui-menu__icon">${icon ? `<img src="${icon}" alt="">` : ""}</span>
-        ${text(e.label, `Cost: ${e.cost}`)}
-        ${e.owned ? `<span class="ui-badge" title="Owned">OWNED</span>` : ""}`;
+        ${text(e.label)}
+        ${e.owned ? `<span class="ui-badge" title="Owned">Owned</span>` : ""}
+        <span class="shop-price ui-phos" title="Cost">${e.cost}</span>`;
     } else if (menu.curMenu === MENU_PLAY_NEXT_LEVEL && !e.done) {
       const level = sectionLevelName(host.files, g.episodeNum, g.mapSection[e.sel - 2]);
       inner = text(e.label, level ? esc(level) : "");
@@ -542,27 +554,46 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
     return [it.ship, it.weapon[0].id, it.weapon[1].id, it.shield, it.generator, it.sidekick[0], it.sidekick[1]][sel - 2] ?? 0;
   }
 
+  /** Whether the current submenu is the front or rear gun's (it has a power level). */
+  function onWeaponMenu(): boolean {
+    const sel = menu.curSel[MENU_UPGRADES];
+    return menu.curMenu === MENU_UPGRADE_SUB && (sel === 3 || sel === 4);
+  }
+
+  /**
+   * The readouts under the picture, in wells: the credits and, in the weapon menus, the power
+   * level (the arrows lower and raise it) and the upgrade's cost. Two players: none (the C shows
+   * both scores instead, in the picture's place).
+   */
+  function renderReadouts(): string {
+    if (g.twoPlayerMode) return "";
+    const cash = `<div class="ui-well shop-ro shop-ro--cash"><span class="shop-ro__lbl">Credits</span><b class="shop-ro__num ui-phos" data-k="cash">${itemScreenCash().toLocaleString("en-US")}</b></div>`;
+    if (!onWeaponMenu()) return cash;
+    const it = g.player[0].items.weapon[menu.curSel[MENU_UPGRADES] - 3];
+    const onWeapon = menu.leftPower || menu.rightPower;
+    const cells = Array.from({ length: 11 }, (_, i) => `<i class="${onWeapon && i < it.power ? "on" : ""}"></i>`).join("");
+    const down = menu.leftPower ? `Lower power (${g.downgradeCost} back)` : "Lower power";
+    const up = menu.rightPower ? `Raise power (${g.upgradeCost})` : "Raise power";
+    const cost = onWeapon && menu.rightPower ? String(g.upgradeCost) : "—";
+    return `${cash}
+      <div class="ui-well shop-ro shop-ro--power${onWeapon ? "" : " is-off"}"><span class="shop-ro__lbl">Power ${onWeapon ? it.power : ""}</span>
+        <div class="shop-pwr">
+          <button class="shop-pwr__arrow" tabindex="-1" data-act="powerDown" ${menu.leftPower ? "" : "disabled"} aria-label="${down}" title="${down}">◀</button>
+          <span class="shop-cells">${cells}</span>
+          <button class="shop-pwr__arrow" tabindex="-1" data-act="powerUp" ${menu.rightPower && menu.rightPowerAfford ? "" : "disabled"} aria-label="${up}" title="${up}">▶</button>
+        </div></div>
+      <div class="ui-well shop-ro shop-ro--cost${onWeapon && menu.rightPower ? "" : " is-off"}${onWeapon && menu.rightPower && !menu.rightPowerAfford ? " is-short" : ""}"><span class="shop-ro__lbl">Upgrade</span><b class="shop-ro__num ui-phos">${cost}</b></div>`;
+  }
+
+  /** The rear gun's firing mode, under the list. */
   function renderPower(): string {
     const sel = menu.curSel[MENU_UPGRADES];
     const p = g.player[0];
-    const weapon = menu.curMenu === MENU_UPGRADE_SUB && (sel === 3 || sel === 4);
-    if (!weapon) return "";
-    const it = p.items.weapon[sel - 3];
-    const onWeapon = menu.leftPower || menu.rightPower;
-    let html = "";
-    if (onWeapon) {
-      const segs = Array.from({ length: 11 }, (_, i) => `<i class="${i < it.power ? "on" : ""}"></i>`).join("");
-      html += `
-        <button class="ui-button" tabindex="-1" data-act="powerDown" ${menu.leftPower ? "" : "disabled"} aria-label="Lower power">◀<small>${menu.leftPower ? g.downgradeCost : ""}</small></button>
-        <span class="meter"><b>Power ${it.power}</b><span class="segs">${segs}</span></span>
-        <button class="ui-button" tabindex="-1" data-act="powerUp" ${menu.rightPower && menu.rightPowerAfford ? "" : "disabled"} aria-label="Raise power">▶<small>${menu.rightPower ? g.upgradeCost : ""}</small></button>`;
-    }
+    if (!onWeaponMenu() || sel !== 4) return "";
     const opNum = g.res.items.weaponPorts[p.items.weapon[REAR_WEAPON].id]?.opNum ?? 1;
-    if (sel === 4 && opNum > 1) {
-      html += `<button class="ui-button mode" tabindex="-1" data-act="slash">Firing mode ${p.weapon_mode} / ${opNum}
+    if (opNum <= 1) return "";
+    return `<button class="ui-button mode" tabindex="-1" data-act="slash">Firing mode ${p.weapon_mode} / ${opNum}
         <span class="ui-glyphs"><kbd class="ui-key" data-dev="keys">/</kbd><kbd class="ui-key ui-key--pad" data-dev="pad">X</kbd></span></button>`;
-    }
-    return html;
   }
 
   /** JE_quitRequest and JE_doShipSpecs, drawn as the framework's modal (components.css .ui-modal). */
@@ -610,8 +641,11 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
   function render(): void {
     const entries = itemScreenEntries();
     el("title").textContent = JE_menuHeader();
-    el("cash").textContent = String(itemScreenCash());
-    el("cash").parentElement!.style.display = g.twoPlayerMode ? "none" : ""; // [two-player] the C shows both scores instead
+    // The kicker names the menu above: Upgrade Ship over a part's list, else the item screen.
+    el("kicker").textContent = menu.curMenu === MENU_UPGRADE_SUB ? g.menuInt[2]?.[0]?.trim() || "Upgrade Ship" : "Item screen";
+    const readouts = renderReadouts();
+    el("readouts").innerHTML = readouts;
+    el("readouts").hidden = !readouts; // [two-player] the C shows both scores instead
     if (!cubes.render(el("ship"), list)) {
       el("ship").innerHTML = renderShip();
       list.innerHTML = entries.map((e) => renderRow(e, e.sel === menu.curSel[menu.curMenu])).join("");

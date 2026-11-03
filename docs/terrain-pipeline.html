@@ -10,8 +10,8 @@
 <main>
 <nav><a href="index.html">Docs</a> › HD terrain</nav>
 <h1>HD terrain remastering</h1>
-<p class="lede">How a level's background tiles become HD paintings in the game: from the tiles the map uses, through
-Gemini, to seam-free atlases the renderer draws, with a setting to switch back.</p>
+<p class="lede">How a tileset's background tiles become HD paintings in the game: from the tiles the maps of every
+level that uses it draw, through Gemini, to seam-free atlases the renderer draws, with a setting to switch back.</p>
 
 <div class="flow">
   <span>Inventory</span><b>→</b><span>Gemini sheets</span><b>→</b><span>Generation in Gemini</span><b>→</b>
@@ -68,6 +68,19 @@ Gemini, to seam-free atlases the renderer draws, with a setting to switch back.<
     starts. The first frame now costs the same in both looks (~180 ms with models, in the harness) (D60).</td></tr>
   <tr><td><b>A dev server answers a missing file with the page.</b> Fetching a missing manifest returned index.html.</td>
     <td>The loader treats anything that doesn't parse as a manifest as "no art for this tileset".</td></tr>
+  <tr><td><b>One atlas, many levels.</b> A tileset's atlas is shared by every level that uses it (<code>shapesz</code>:
+    32 of the 62), but the tool inventoried one level at a time, so cutting a second level replaced the first's atlas
+    (D58's limit).</td>
+    <td>Every command takes a list of levels (<code>--level 1-9,1-11</code>) or <code>--tileset shapesz</code>, and
+    merges them per tile. <code>cut</code> <b>merges</b> into the existing atlas: the tiles it already has keep their
+    image files and rects byte for byte, their edge strips are held in the seam solve so the new tiles meet them, and
+    the new tiles go into images of their own that their rects name (D57 allows it). Level 1's art is unchanged (D83).</td></tr>
+  <tr><td><b>Not every layer-2 tile is an island.</b> On TYRIAN every layer-2 cell sat under a model; on other levels
+    layer 2 draws rock masses, grass and forest, and purple metal plating and pipes as plain tiles.</td>
+    <td>The inventory sorts layer 1-2 tiles into <b>terrain</b> (natural materials and fills: painted) and
+    <b>structure</b> (hard surface: to be modelled, not painted unless asked), and tiles of one colour into
+    <b>empty</b> (nothing to paint). A tile that already has a painting on another layer reuses it: 54 of
+    <code>shapesz</code>'s 73 layer-2 terrain tiles are TYRIAN's ground tiles (D83).</td></tr>
 </table>
 
 <h2>The goal</h2>
@@ -79,8 +92,8 @@ the terrain as it was. Anything we make from the tiles may be public, credited t
 <a href="../CREDITS.md">CREDITS.md</a>; the original data never is (D3, D41).</p>
 
 <h2>1. Inventory</h2>
-<pre><code>python tools/terrain_hd.py inventory --level 1-9 --work DIR</code></pre>
-<p>Every tile the level's map draws on layers 0, 1 and 2 (layer numbers as in the game's draw list: 0 ground, 1 the
+<pre><code>python tools/terrain_hd.py --tileset shapesz --work DIR inventory     # or --level 1-9,1-11,...</code></pre>
+<p>Every tile the levels' maps draw on layers 0, 1 and 2 (layer numbers as in the game's draw list: 0 ground, 1 the
 blended background 2, 2 background 3), leaving out tiles a structure model replaces. Each tile gets its usage count,
 usual neighbours, a representative 3x3 neighbourhood and a material group (forest, dirt, road, cloud, rock...).
 Structure models are matched on the whole map as the game matches them (biggest pattern first): layer 1-2 models
@@ -88,15 +101,65 @@ replace their tiles, ground models keep them (they are still drawn under the mod
 <code>shapesz.dat</code>) that leaves 66 ground tiles (4,200 cells, 29 of the tiles under trees, bunkers and boulders),
 15 cloud tiles (3,208 cells) and no layer-2 tiles: every island cell is under a model. <code>npm run tiles</code> writes the per-tile references in
 <code>reference/tiles/&lt;shapes&gt;/</code> (D34), and <code>map-1-9-l{0,1,2}.png</code> show each layer whole.</p>
+<p><b>Several levels (D83).</b> The tiles are merged over all the levels given: counts summed (and per level), usual
+neighbours counted over every map, one representative 3x3 neighbourhood from whichever level fits best (its
+<code>level</code> is noted). Each tile says whether the tileset's atlas already has it (<code>hasArt</code>, from
+<code>--out</code>) and gets a <b>kind</b>:</p>
+<ul>
+  <li><b>terrain</b>: to paint. All ground tiles; on layers 1-2, tiles of a natural material (brown, green: rock,
+    dirt, grass, canopy), fills (a tile that meets itself on every side, a backdrop), tiles a ground model stands on
+    elsewhere (painted beneath it), and tiles that already have art.</li>
+  <li><b>structure</b> (layers 1-2): hard surface, metal plating, pipes, walls, machines. These belong to structure
+    models by pattern (D34, D47), so the sheets leave them out (<code>--structures</code> to paint them anyway).</li>
+  <li><b>empty</b>: one colour (Tyrian's black space). Nothing to paint; it falls back to the 4x ground, which looks
+    the same.</li>
+</ul>
+<p>The classification is a heuristic on the palette ramps; <code>--kind 2:575=terrain</code> overrides a tile. A
+tile also lists structure models of the same tile on other layers (<code>modelsElsewhere</code>: a layer entry would
+reuse the model) and paintings of it on other layers (<code>artElsewhere</code>: the cutter reuses them).</p>
+<p>For <code>shapesz</code> over its 32 levels: ground 275 tiles (66 with art, 200 to paint, 9 empty: 57,466 cells of
+space); layer 1: 53 (TYRIAN's 15 clouds with art, 1 fill to paint, 37 structure); layer 2: 115 drawn as tiles (and 55
+more only under TYRIAN's island models): 73 terrain, of which 54 reuse a ground painting and 19 need Gemini, and 42
+structure.</p>
+<table>
+  <tr><th>Layer 2 on <code>shapesz</code></th><th>Tiles</th><th>Levels (cells)</th><th>What to do</th></tr>
+  <tr><td>Brown rock masses and plateaus (35-57, 76, 80-119)</td><td>40</td><td>1-11 HOLES (8,216), 1-16 ASSASSIN (574)</td>
+    <td>HD art (cutout). 24 of them (35-57, 95-119) are TYRIAN's ground tiles: their paintings are reused.</td></tr>
+  <tr><td>Grass and forest (68, 69, 210-234)</td><td>17</td><td>4-1 HARVEST (7,150)</td><td>HD art; 68 and 210-233 reuse
+    the ground paintings. The tree tiles also have ground tree models (t210-t234, keepTiles): layer-2 entries would
+    put trees on them as on level 1.</td></tr>
+  <tr><td>Bunker, wreck and boulder tiles (112, 113, 320-352)</td><td>16</td><td>1-11 HOLES (160)</td><td>HD art (reused);
+    their level-1 ground models (bunker, wreck, boulders) could get layer-2 entries.</td></tr>
+  <tr><td>Purple and grey metal plating, pipes, coils, machines (290-304, 550-595)</td><td>42</td><td>1-5 DELIANI,
+    3-11 New Deli (same map, 871 each), 4-1 HARVEST (883)</td><td>Structure models (a kit by pattern, D34/D47); not
+    painted.</td></tr>
+</table>
+<p>Layer 1 the same way: TYRIAN's island rock tiles 120-142 on 1-6 MINEMAZE and 3-3 GAUNTLET (their layer-2 rock models
+would serve with a layer-1 entry), girders 576-599 on 1-5 and 3-11 and purple plating 536-581 on 3-5 BONUS
+(structure), and one blue fill, 518, the whole backdrop of 1-18 ALE (painted).</p>
 
 <h2>2. Gemini sheets</h2>
-<pre><code>python tools/terrain_hd.py sheets --work DIR</code></pre>
+<pre><code>python tools/terrain_hd.py --tileset shapesz --work DIR sheets   # [--structures] [--recut 0:46] [--blocks]</code></pre>
 <p>PNGs on black, padded to an aspect ratio Gemini keeps (1:1, 3:4, 4:3, 9:16, 16:9), each with its prompt. For the
 <b>ground</b>, 7x6-tile stretches of the map at 6x (1080 px), chosen as a set cover so every tile sits inside one away
 from its border (10 sheets for TYRIAN). For the <b>clouds</b>, 3x3 contexts (the tile with its usual neighbours) at 4x,
 7-9 per sheet (2 sheets). Ground contexts by material are made too, as optional retries (9 sheets).
 <code>DIR/sheets/manifest.json</code> lists them with their prompts and says where every tile sits. The sheets are rendered from the game data, so they
 stay out of git.</p>
+<p><b>For a tileset (D83)</b>, sheets are made only for the tiles that still need a painting: drawn as a tile, no art
+yet (or <code>--recut</code>), terrain, and no painting of the same tile on another layer to reuse. The regions are a
+set cover over the maps of <em>every</em> level given (a map shared by levels counts once), for the ground and for
+layer 2's terrain (a continuous mass where a level has it; structure cells show as they are, cells a model replaces
+black); each cell notes its <code>level</code>. Sheets are <b>softened</b> from the start (the lesson of section 3:
+one pixel per original pixel scaled up bicubic; <code>&lt;name&gt;-blocks.png</code> is the nearest-neighbour
+picture, <code>--blocks</code> sends that instead), and the prompt says so and names the region's main materials
+(the two biggest groups, "seen straight down" for anything with height). The manifest gives each sheet a
+<code>send</code> number (primary sheets first, the most-used new tiles first), its <code>newTiles</code> and
+<code>newCells</code>, and a <code>requests</code> count; <code>SEND.md</code> lists them for the operator with
+every prompt, and <code>&lt;name&gt;.prompt.txt</code> holds each prompt alone.</p>
+<p><b><code>shapesz</code>, all 32 levels:</b> 32 primary sheets (28 ground regions, 3 layer-2 regions, 1 layer-1
+context for the blue fill), about 42 requests with retries at TYRIAN's rate (27 for 21), so two Gemini sessions of
+~25; 28 optional context sheets (25 ground, 3 layer 2) for retries.</p>
 
 <h2>3. Generation in Gemini</h2>
 <p>Sheets are sent to Google Gemini in the user's Chrome, one request at a time (Gemini rate-limits). Answers are
@@ -157,6 +220,13 @@ within roughly that budget (or switch to Flash).</p>
 moving anything the cutter registers against); say the material and the viewpoint in the prompt for anything with
 height (trees, ridges), since "top-down" alone gets trees drawn from the side; check every answer at full size, not
 just the thumbnail.</p>
+<p><b>Several levels at once.</b> Name the answer after the sheet as before; the sheets of a tileset batch are sent in
+their <code>send</code> order, so a session that stops at the usage warning has painted the most-used tiles. Stop
+at the warning, cut with what exists, and carry on in the next session: the tiles still missing fall back until
+then. To cut again with more answers, restore the atlas folder to its committed version first
+(<code>git checkout -- public/art/terrain/shapesz</code>), so every new tile is chosen among all the answers rather
+than kept from the earlier cut.</p>
+
 <p>Tips that carried over from the sprite art (D43): send the image by putting the PNG on the clipboard and pressing
 ⌘V rather than pasting image data through the agent; allow automatic downloads in Chrome for the Gemini site; wide
 strips are refused, so keep sheets close to a supported aspect ratio. <code>python tools/terrain_hd.py fake --work
@@ -164,7 +234,7 @@ DIR</code> makes stand-in answers (MMPX, blurred, shifted, colour-shifted) to te
 Gemini.</p>
 
 <h2>4. Cutting and seam fixing</h2>
-<pre><code>python tools/terrain_hd.py cut --work DIR [--results DIR/results] [--out public/art/terrain]</code></pre>
+<pre><code>python tools/terrain_hd.py --tileset shapesz --work DIR cut [--results DIR/results] [--out public/art/terrain]</code></pre>
 <p>Each answer cell is registered to the sheet's picture of it (normalised cross-correlation over a rescale of
 &plusmn;6% and a shift, then each tile by a small shift), every tile is resampled from the registered art at 8x and
 colour-matched to the original tile, and one candidate per tile is chosen (below). Layers 1 and 2 take their alpha from
@@ -193,7 +263,34 @@ the pixel blocks fit best. The score is the fit (NCC) minus the colour error, pl
 around the 8-texel grid lines only; <code>--deblock-from 0</code> turns it off, D60), and the painting's broad shading
 (blur at 16 texels) is replaced by the original's, so a tile doesn't show a darker corner every time it repeats. <code>cut-report.json</code> lists each tile's source and scores;
 <code>--exclude 0:332</code> leaves a tile out (it falls back), <code>--pick 0:68=region-l0-03#0</code> forces a
-candidate, and <code>--cache FILE</code> keeps the registered candidates between runs (registration takes minutes).</p>
+candidate, and <code>--cache FILE</code> keeps the registered candidates per answer between runs (registration takes
+minutes; a new or changed answer is registered and added, the rest are read back).</p>
+<p><b>A partial round (D79).</b> <code>--base DIR</code> lets an existing atlas's tiles compete as candidates, so a
+few new answers improve the tiles they cover without every old answer. Every candidate is then scored the same way:
+the NCC of its per-pixel means against the original, less its colour error, less <code>--base-cost</code> (0.12) for a
+base tile. A second pixel measure, <b>pixel period</b> (<code>pixel_period</code>), sees blocks and checker dither
+alike: the alternation from one original pixel to the next (8-texel cells) against the same over 6- and 11-texel
+cells; a painting is ~1.0-1.1, TYRIAN's D59 light dirt 1.72; it costs above 1.15. A layer with nothing new is
+copied from the base unchanged. Under the merge (below) the base tiles compete only for the tiles a run cuts: new ones and <code>--recut</code> ones. <code>sheets --soft 0.5</code> writes the softened input sheets (MMPX, then a blur of
+half an original pixel, black kept black) to <code>sheets/soft/</code> with a <code>softPrompt</code> each.</p>
+<p><b>Merging into a tileset's atlas (D83).</b> <code>cut</code> reads the atlas already in
+<code>&lt;out&gt;/&lt;tileset&gt;/</code> and keeps every tile it has: the image files are not rewritten, the rects
+not moved, so the art and every level that uses it are unchanged byte for byte. Only tiles without art are cut. In
+the seam solve the kept tiles' edge strips are <b>held</b> (their terms move to the right-hand side), so a new tile
+next to a kept one is pulled onto the kept tile's edge and the kept one doesn't move. The new tiles are packed into
+new images, <code>0-2.webp</code>, <code>2.webp</code>... (a layer without art yet gets <code>&lt;layer&gt;.webp</code>),
+at most 323 tiles each (19 x 17 rects in 4096 px), and their rects name their image, which D57's format already
+allows; the game needed no change (the loader now also treats a layer-0 rect's own image as opaque). A tile with no
+painting of its own takes the same tile's painting from another layer (layer 2's rock on HOLES is TYRIAN's ground;
+<code>--no-reuse</code> turns that off); it is seam-solved with the rest. On layers 1-2 the alpha (D78) is solved the same way, the kept tiles' edges held. <code>--recut 0:46</code> cuts a kept tile
+again (its old texels stay in the old image, unused; an image no rect uses any more is deleted), <code>--replace</code>
+cuts everything into fresh atlases as D58-D60 did, <code>--structures</code> cuts structure tiles too.
+<code>cut-report.json</code> marks kept tiles <code>kept</code> and reused ones <code>reused</code>. With one level
+and no atlas yet (or <code>--replace</code>), the cut is TYRIAN's, byte for byte.</p>
+<p><code>--edge-aware</code> (off by default) doesn't tie two facing strips where the original itself has a real
+edge between the tiles (its facing pixels differ by 64-128 levels and more: rock against space), solving one system per
+original pixel along the edge. It was meant for ASSASSIN's asteroid rock, whose tiles end at their borders against
+black; on the fake runs it measured the same as tying everywhere (D83), so it stays an option to try on real answers.</p>
 
 <h2>5. Atlas and manifest</h2>
 <p>One atlas per layer that has art, beside one manifest per tileset:</p>
@@ -250,8 +347,17 @@ loads the art from another folder under <code>public/</code> (for a test atlas).
 
 <h2>8. Checks</h2>
 <ul>
-  <li><code>python tools/terrain_hd.py check --work DIR</code>: the level's map rebuilt from the atlas, original beside HD,
-    and a seam measure (the colour step across tile edges against the step between texels inside tiles).</li>
+  <li><code>python tools/terrain_hd.py --tileset shapesz --work DIR check</code>: a seam measure (the colour step across
+    tile edges against the step between texels inside tiles) over every edge of every level's map, also for the edges
+    with a tile the last cut made (<code>new</code>), for the rest (<code>kept</code>), per level, and only where the
+    original is itself continuous across the edge (<code>continuousRatio</code>: rock against space is no seam); and
+    contact sheets, original beside HD, of the row blocks that show a new tile (<code>--contact all|none|1-9,...</code>),
+    named <code>&lt;level&gt;-l&lt;layer&gt;-rows&lt;y&gt;.jpg</code>.</li>
+  <li><code>tests/tools/terrainHd.test.ts</code> (runs <code>tests/tools/terrain_hd_test.py</code> when the data and a
+    Python with numpy, scipy and PIL are there): a merge over 1-9, 1-11 and 1-16 into a copy of the committed atlas
+    keeps every kept file, rect and texel byte for byte, new rects follow the format, a second cut changes nothing,
+    the new tiles' edges measure under 0.65 (and much worse without the seam pass), level 1's own edges measure as
+    before; held strips stay put.</li>
   <li><code>tests/render/terrainArt.test.ts</code>: manifest parsing, per-tile fallback, variants, the loader's failures,
     and seam-free sampling on a CPU model of the GPU's trilinear filtering over an atlas with magenta gutters, at every
     mip level the shader may use.</li>
@@ -271,16 +377,23 @@ loads the art from another folder under <code>public/</code> (for a test atlas).
 <h2>Commands</h2>
 <pre><code>PY=/path/to/python-with-PIL-numpy-scipy      # e.g. the remaster project's .venv
 W=reference/terrain-hd                         # work folder (git-ignored); the default --work
-$PY tools/terrain_hd.py --level 1-9 --work $W inventory
-$PY tools/terrain_hd.py --level 1-9 --work $W sheets
+LV="--tileset shapesz"                         # or --level 1-9 (one level), --level 1-9,1-11,4-16
+$PY tools/terrain_hd.py $LV --work $W inventory
+$PY tools/terrain_hd.py $LV --work $W sheets                                # $W/sheets/SEND.md: send order, prompts, request count
 #   ... Gemini, one sheet at a time: $W/results/&lt;sheet&gt;.png ...
-$PY tools/terrain_hd.py --level 1-9 --work $W cut --cache $W/cands.pkl     # writes public/art/terrain/&lt;tileset&gt;/
-$PY tools/terrain_hd.py --level 1-9 --work $W check                        # $W/check/*.jpg, seams.json
-$PY tools/terrain_hd.py --level 1-9 --work $W fake                         # stand-in answers, no Gemini
-TYRIAN_DATA=../tyrian/data npx vitest run tests/render/terrainArt.test.ts
+$PY tools/terrain_hd.py $LV --work $W cut --cache $W/cands.pkl              # merges into public/art/terrain/&lt;tileset&gt;/
+$PY tools/terrain_hd.py $LV --work $W check                                 # $W/check/*.jpg, seams.json
+$PY tools/terrain_hd.py $LV --work $W fake                                  # stand-in answers, no Gemini
+# D79's partial round: softened sheets, answers for some regions, the old atlas as the base
+$PY tools/terrain_hd.py --level 1-9 --work $W sheets --soft 0.5
+$PY tools/terrain_hd.py --level 1-9 --work $W cut --replace --cache $W/cands.pkl --base $W/base --blocky-free 1.2 --blocky-cost 0.3 \
+    --pick 0:79=region-l0-07#0,0:222=region-l0-03#0,0:99=region-l0-06#0,0:320=base#0,0:321=base#0,0:322=base#0,0:323=base#0,0:330=base#0,0:331=base#0,0:332=base#0,0:333=base#0
+TYRIAN_DATA=../tyrian/data npx vitest run tests/render/terrainArt.test.ts tests/tools/terrainHd.test.ts
 npm run dev   # then ?debug=play&amp;seed=1&amp;skip=300&amp;freezeAt=300[&amp;terrain=original]</code></pre>
-<p><code>--data</code> points at the game data (default <code>data/</code>). With the same answers and cache,
-<code>cut</code> writes the same atlas byte for byte. Delete the cache after changing an answer.</p>
+<p><code>--data</code> points at the game data (default <code>data/</code>). With the same answers, cache and atlas
+folder, <code>cut</code> writes the same atlas byte for byte. Delete the cache after changing an answer. For a fake run
+cut into a copy (<code>--out</code> a scratch folder holding a copy of the tileset's folder), never into
+<code>public/</code>.</p>
 
 <h2>Where things live</h2>
 <table>
@@ -293,19 +406,22 @@ npm run dev   # then ?debug=play&amp;seed=1&amp;skip=300&amp;freezeAt=300[&amp;t
   <tr><td>Game side</td><td><code>src/render/remaster/terrain{Art,Loader,Material}.ts</code>,
     <code>drawListRenderer.ts</code>, <code>src/core/terrainStyle.ts</code>, <code>src/app/options.ts</code>,
     <code>src/app/levelPreload.ts</code></td><td>yes</td></tr>
-  <tr><td>Tests</td><td><code>tests/render/terrainArt.test.ts</code></td><td>yes</td></tr>
-  <tr><td>Decisions</td><td>D57 (game side), D58 (art pipeline), D59 (TYRIAN's atlas), D60 (verification), D78 (smooth cloud rims)</td><td>yes</td></tr>
+  <tr><td>Tests</td><td><code>tests/render/terrainArt.test.ts</code>, <code>tests/tools/terrainHd.test.ts</code> +
+    <code>terrain_hd_test.py</code></td><td>yes</td></tr>
+  <tr><td>Decisions</td><td>D57 (game side), D58 (art pipeline), D59 (TYRIAN's atlas), D60 (verification), D78 (smooth cloud
+    rims), D79 (ground repainted from softened sheets), D83 (tilesets shared by many levels)</td><td>yes</td></tr>
 </table>
 
 <h2>Extending to another level or tileset</h2>
 <ol>
   <li><code>TILES_SHAPES=&lt;x&gt; npm run tiles</code> for its tileset's references.</li>
-  <li><code>terrain_hd.py inventory --level &lt;ep&gt;-&lt;n&gt;</code> with a <b>new work folder</b>, then
-    <code>sheets</code>, Gemini (softened sheets from the start, section 3), <code>cut</code> and <code>check</code>. The
-    tileset comes from the level; the atlas goes to <code>public/art/terrain/&lt;tileset&gt;/</code>.</li>
-  <li>Levels that share a tileset share its atlas. The tool inventories one level at a time, so cutting a second level
-    of the same tileset replaces the first's atlas: until the tool can inventory several levels together, merge the
-    inventories by hand or cut the tileset from the level that uses the most of it.</li>
+  <li><code>terrain_hd.py --tileset &lt;shapes&gt; inventory</code> (every level that uses it) with a <b>new work
+    folder</b>, then <code>sheets</code>, Gemini (the softened sheets in <code>SEND.md</code>'s order, section 3),
+    <code>cut</code> and <code>check</code>. The atlas goes to <code>public/art/terrain/&lt;tileset&gt;/</code>; levels
+    that share a tileset share it, and a cut merges into what is there (section 4), so a tileset can be done a batch
+    of levels at a time.</li>
+  <li>Look at the layer 1-2 <code>kind</code>s in <code>inventory.json</code>: structure tiles are left to models; fix
+    a misread tile with <code>--kind</code>.</li>
   <li>Look at the contact sheets and <code>cut-report.json</code> (NCC under ~0.5: the cell moved or was repainted;
     blockiness over 2: retry the sheet softened; a mark that repeats: <code>--pick</code> another candidate).</li>
   <li>Play the level in both looks (section 8). Nothing in the game needs to change: it loads the tileset's manifest
@@ -328,9 +444,22 @@ npm run dev   # then ?debug=play&amp;seed=1&amp;skip=300&amp;freezeAt=300[&amp;t
     clouds' 8x is slightly upsampled.</li>
   <li><b>Original background mode.</b> HD applies only to the remastered backgrounds; <code>?bg=original</code> is the
     raw tiles whatever the Terrain setting.</li>
+  <li><b>TYRIAN's clouds on other levels</b> (D83). The 15 cloud tiles were seam-solved over TYRIAN's map only. HOLES and
+    ASSASSIN (also WINDY and NOSE DRIP) put them side by side in pairs TYRIAN rarely has (42 over 52: 16 times in TYRIAN,
+    hundreds there), and the merge keeps them as they are: the cloud seam measure is 0.82 on 1-9 but 1.11 on 1-11 and
+    1.13 on 1-16 (bands 0.51 everywhere). Fix: re-cut layer 1 over all the levels (<code>--recut 1:40,...</code>,
+    which needs the cloud answers again and changes level 1's clouds), or variants (D57) for the worst pairs.</li>
+  <li><b>Kept tiles in new company.</b> A kept tile's edges stay as they are, so a new arrangement of two kept tiles on
+    another level keeps whatever step it has; <code>check</code>'s <code>kept</code> line and per-level numbers show it.</li>
+  <li><b>Where to look first on <code>shapesz</code>'s real cut</b> (from the fake run over all 32 levels, D83): 3-5 BONUS
+    draws the purple pipe kit on the ground in pairs that occur once or twice (seam measure 1.49 there against a median
+    of 0.71), 3-7 STARGATE and 1-4 BUBBLES the glossy red bubbles (1.34, 1.12; faint smears in the black beside the
+    clusters), ASSASSIN's asteroid rock ends at tile borders against space (0.80).</li>
+  <li><b>Structures on layers 1-2</b> stay as they were (the 4x upscale or the extruded tiles) until a model kit
+    matches them.</li>
 </ul>
 <p>Decisions: D34 (remastered backgrounds), D42-D43 (flat sprite art from Gemini), D45 (blended clouds), D48 (remastered
-by default), D57-D60 (HD terrain).</p>
+by default), D57-D60 and D83 (HD terrain).</p>
 </main>
 </body>
 </html>

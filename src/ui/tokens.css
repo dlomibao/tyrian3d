@@ -2,21 +2,14 @@
  * Design tokens for the remastered interface (src/ui/README.md). Every screen and component reads
  * these custom properties, so a restyle is a change here, not in each screen.
  *
- * Colours come from Tyrian's own palettes: the item screen's amber and gold (pcxpal[0], the shop's
- * frame and highlighted text), the cyan of shields and the navigation map, and the steel greys of
- * the hull plating. Fonts are Google Fonts under the SIL Open Font License (CREDITS.md), loaded by
- * index.html; the fallbacks keep everything readable offline.
+ * The look (D85, "copper and bronze"): the original's layouts on dark umber glass panes with a thin
+ * bronze rim, over the dimmed painted planet of the title (D64). One rule for colour: what you
+ * choose is copper (the title's type, its brush smear, diamond ticks and glint); what the game
+ * counts is phosphor green, as on the HUD (D61): credits, prices, scores, gauges and the message
+ * bar. No glow, and green only for numbers. Fonts are Google Fonts under the SIL Open Font License
+ * (CREDITS.md), loaded by index.html; the fallbacks keep everything readable offline.
  */
 :root {
-  /* Colour: accents */
-  --ui-gold: #f0b048;
-  --ui-gold-bright: #ffd75a;
-  --ui-gold-deep: #8a5a14;
-  --ui-cyan: #5cd6ff;
-  --ui-cyan-dim: #2a8fb8;
-  --ui-steel: #8fa3b8;
-  --ui-steel-dark: #2b3848;
-
   /* Colour: the title's copper (the original logo's and menu font's), on maroon and umber (D64) */
   --ui-copper-hi: #f6dcb0;
   --ui-copper-lite: #e2b07a;
@@ -25,42 +18,95 @@
   --ui-copper-dark: #3a1a0c;
   --ui-bone: #eadfca;
   --ui-bone-dim: rgba(234, 223, 202, 0.62);
+  --ui-bone-faint: rgba(234, 223, 202, 0.36);
   --ui-umber-ink: #140805;
   --ui-maroon: #3a0e0b;
   --ui-space-warm: #0a0605;
-  /* Copper type: a bevelled gradient clipped to the letters (screens.css, the title menu) */
+  /* Copper type: a bevelled gradient clipped to the letters (titles, the chosen line) */
   --ui-copper-type: linear-gradient(180deg, #e8bc8a 0%, #c58554 34%, #8f5129 56%, #b6743f 74%, #6e3a1c 100%);
   --ui-copper-type-lit: linear-gradient(180deg, #fff0d0 0%, #f0bf86 30%, #b9733f 55%, #e0a468 75%, #8a4a22 100%);
+  --ui-type-shadow: drop-shadow(0 -1px 0 rgba(255, 226, 180, 0.3)) drop-shadow(0 0 1.5px rgba(16, 6, 3, 0.95))
+    drop-shadow(0 1.5px 0 #140805) drop-shadow(0 3px 5px rgba(0, 0, 0, 0.7));
+  /* The diamond tick beside the chosen line */
+  --ui-tick: linear-gradient(135deg, var(--ui-copper-hi), var(--ui-copper) 50%, var(--ui-copper-dark));
+  /* The brush smear behind the chosen line: the title's, a shade lighter so it shows on a pane */
+  --ui-smear: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 60' preserveAspectRatio='none'><filter id='r' x='-5%' y='-30%' width='110%' height='160%'><feTurbulence type='fractalNoise' baseFrequency='0.012 0.35' numOctaves='3' seed='7'/><feDisplacementMap in='SourceGraphic' scale='14'/></filter><g filter='url(%23r)'><path d='M14 34 C60 14 140 12 230 14 C300 15 360 17 388 24 C394 30 380 44 352 46 C260 52 150 50 70 50 C36 50 8 46 14 34Z' fill='%23341509' fill-opacity='0.9'/><path d='M40 22 C120 16 250 17 372 22' stroke='%23683218' stroke-opacity='0.6' stroke-width='2' fill='none'/></g></svg>");
+
+  /* Colour: the bronze rim and the umber glass (the HUD frame's tube, thinned to a 2px ring) */
+  --ui-rim-hi: #cfa66b;
+  --ui-rim-mid: #8a6840;
+  --ui-rim-lo: #4a301a;
+  --ui-rim-width: 2px;
+  --ui-rim-ink: #1a0e06;
+  --ui-pane: rgba(15, 8, 5, 0.86);
+  --ui-pane-blur: 8px;
+  --ui-pane-hi: inset 0 1px 0 rgba(233, 201, 147, 0.14), inset 0 0 0 1px rgba(0, 0, 0, 0.6);
+  /* A well: a recessed phosphor screen with a bronze hairline (the HUD's boxes, small) */
+  --ui-well: linear-gradient(180deg, #120c06, #0a0704);
+  --ui-well-solid: #0a0704;
+  --ui-well-edge: 0 0 0 1px rgba(164, 123, 70, 0.55), 0 0 0 2px #1a0e06, inset 0 2px 6px rgba(0, 0, 0, 0.9);
+  --ui-rule: rgba(164, 123, 70, 0.28);
+  /* The painted planet dimmed behind the menus (backdrop.ts draws it; this is the CSS stand-in's) */
+  --ui-scrim-planet: radial-gradient(ellipse at 50% 45%, rgba(10, 4, 3, 0.55), rgba(10, 4, 3, 0.78));
+
+  /* Colour: phosphor, for numbers, gauges and the message bar only (overlay.css .hudf-*) */
+  --ui-phos: #4fe05a;
+  --ui-phos-name: #8ff09a;
+  --ui-phos-num: #e8fff0;
+  --ui-phos-dim: #2f9a38;
+  --ui-phos-cell-off: rgba(79, 224, 90, 0.14);
+  --ui-phos-cell-on: linear-gradient(180deg, #8ff09a, #4fe05a 55%, #2f9a38);
+  --ui-phos-glow: 0 0 5px rgba(79, 224, 90, 0.25);
+  --ui-font-phos: "Gill Sans", "Gill Sans MT", "Gill Sans Nova", var(--ui-font-text);
+
+  /* Colour: the players in two-player games (the HUD's, D61), kept apart from the copper */
+  --ui-player1: #f0b048;
+  --ui-player2: #5cd6ff;
+
+  /* Colour: accents. The older names, pointed at copper (D85). */
+  --ui-gold: var(--ui-copper-lite);
+  --ui-gold-bright: var(--ui-copper-hi);
+  --ui-gold-deep: var(--ui-copper-deep);
+  --ui-cyan: var(--ui-copper-lite);
+  --ui-cyan-dim: var(--ui-copper);
+  --ui-steel: var(--ui-copper);
+  --ui-steel-dark: var(--ui-copper-dark);
 
   /* Colour: text */
-  --ui-ink: #eef3f8;
-  --ui-ink-dim: #a3b3c4;
-  --ui-ink-faint: #66778b;
-  --ui-ink-warm: #fff3c0;
+  --ui-ink: var(--ui-bone);
+  --ui-ink-dim: var(--ui-bone-dim);
+  --ui-ink-faint: var(--ui-bone-faint);
+  --ui-ink-warm: var(--ui-copper-hi);
 
   /* Colour: states */
   --ui-danger: #ff6a4a;
-  --ui-ok: #8fd18f;
+  --ui-ok: var(--ui-phos);
 
-  /* Colour: stat bars (the HUD's armor, shield and generator colours) */
+  /* Colour: stat bars (the HUD's armor, shield and generator colours; menus draw them as phosphor) */
   --ui-armor: #d9c070;
   --ui-shield: #5aa8ff;
   --ui-power: #e07030;
 
   /* Colour: surfaces */
-  --ui-bg: #03050a;
-  --ui-panel: rgba(7, 12, 21, 0.86);
-  --ui-panel-raised: rgba(20, 30, 46, 0.72);
-  --ui-panel-solid: #070c15;
-  --ui-scrim: rgba(1, 3, 8, 0.6);
-  --ui-edge: rgba(143, 163, 184, 0.26);
-  --ui-edge-strong: rgba(240, 176, 72, 0.65);
-  --ui-focus-fill: linear-gradient(90deg, rgba(240, 176, 72, 0.26), rgba(240, 176, 72, 0.06) 70%, transparent);
+  --ui-bg: #0a0605;
+  --ui-panel: var(--ui-pane);
+  --ui-panel-raised: var(--ui-well);
+  --ui-panel-solid: #0f0805;
+  --ui-scrim: rgba(10, 4, 3, 0.7);
+  --ui-edge: var(--ui-rule);
+  --ui-edge-strong: rgba(207, 166, 107, 0.7);
+  /* The chosen line's background: a full background value (the smear), not just a colour. */
+  --ui-focus-fill: var(--ui-smear) center / 100% 100% no-repeat;
 
-  /* Glows */
-  --ui-glow-gold: 0 0 0.55rem rgba(255, 200, 90, 0.45);
-  --ui-glow-cyan: 0 0 0.55rem rgba(92, 214, 255, 0.45);
-  --ui-shadow: 0 1.25rem 3rem rgba(0, 0, 0, 0.6);
+  /* Glows: none on the menus (D85); the names stay for the screens that read them. */
+  --ui-glow-gold: none;
+  --ui-glow-cyan: none;
+  --ui-shadow: 0 1.4rem 3rem rgba(0, 0, 0, 0.55);
+
+  /* Keycaps (the title foot's) */
+  --ui-key-ink: var(--ui-bone);
+  --ui-key-edge: rgba(226, 176, 122, 0.4);
+  --ui-key-fill: linear-gradient(180deg, rgba(183, 116, 66, 0.35), rgba(58, 26, 12, 0.5));
 
   /* Type */
   --ui-font-display: "Orbitron", "Eurostile", "Bank Gothic", "Arial Narrow", system-ui, sans-serif;
@@ -85,7 +131,7 @@
   --ui-hit: 2.75rem;
   --ui-gutter: max(16px, env(safe-area-inset-left), env(safe-area-inset-right));
   --ui-radius: 3px;
-  --ui-corner: 10px;
+  --ui-corner: 8px;
 
   /* Motion */
   --ui-ease: cubic-bezier(0.2, 0.8, 0.2, 1);

@@ -1,7 +1,8 @@
 /*
  * Base components of the remastered interface (src/ui/components.ts, screen.ts). Everything is
  * drawn with borders, gradients and shadows, so it stays crisp at any resolution; colours, sizes
- * and timings come from tokens.css.
+ * and timings come from tokens.css. The look is D85's: umber glass panes in a thin bronze rim,
+ * copper for what you choose, phosphor for what the game counts.
  */
 
 /* --- screens --- */
@@ -46,7 +47,7 @@
 }
 
 .ui-screen--scrim {
-  background: radial-gradient(ellipse at center, rgba(1, 3, 8, 0.45), var(--ui-scrim));
+  background: radial-gradient(ellipse at center, rgba(10, 4, 3, 0.45), var(--ui-scrim));
 }
 
 /* Panels slide up into place as their screen fades in. */
@@ -65,36 +66,40 @@
 
 /* --- panels --- */
 
+/* A pane: umber glass in a 2px bronze rim, lit from above (each side of the border its own shade
+   of the rim's gradient, so one element keeps the glass see-through and the corners round). */
 .ui-panel {
-  --corner: var(--ui-corner);
   position: relative;
   box-sizing: border-box;
   width: 100%;
   max-height: 100%;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: var(--ui-space-5);
-  background:
-    /* gold corner brackets */
-    linear-gradient(var(--ui-gold), var(--ui-gold)) top left / var(--corner) 2px,
-    linear-gradient(var(--ui-gold), var(--ui-gold)) top left / 2px var(--corner),
-    linear-gradient(var(--ui-gold), var(--ui-gold)) top right / var(--corner) 2px,
-    linear-gradient(var(--ui-gold), var(--ui-gold)) top right / 2px var(--corner),
-    linear-gradient(var(--ui-gold), var(--ui-gold)) bottom left / var(--corner) 2px,
-    linear-gradient(var(--ui-gold), var(--ui-gold)) bottom left / 2px var(--corner),
-    linear-gradient(var(--ui-gold), var(--ui-gold)) bottom right / var(--corner) 2px,
-    linear-gradient(var(--ui-gold), var(--ui-gold)) bottom right / 2px var(--corner),
-    /* a faint cyan sheen along the top */
-    linear-gradient(180deg, rgba(92, 214, 255, 0.07), transparent 5rem),
-    var(--ui-panel);
-  background-repeat: no-repeat;
-  border: 1px solid var(--ui-edge);
-  border-radius: var(--ui-radius);
-  box-shadow: var(--ui-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  padding: var(--ui-space-5) 1.6rem;
+  background: var(--ui-panel);
+  border: var(--ui-rim-width) solid;
+  border-color: var(--ui-rim-hi) var(--ui-rim-mid) var(--ui-rim-lo);
+  border-radius: var(--ui-corner);
+  box-shadow: 0 0 0 1px var(--ui-rim-ink), var(--ui-shadow), var(--ui-pane-hi);
+  backdrop-filter: blur(var(--ui-pane-blur));
+  -webkit-backdrop-filter: blur(var(--ui-pane-blur));
   scrollbar-width: thin;
-  scrollbar-color: var(--ui-steel-dark) transparent;
+  scrollbar-color: var(--ui-copper-deep) transparent;
+}
+
+/* A pane inside a screen's panel (the item screen's two): the same glass and rim, no scrolling. */
+.ui-pane {
+  position: relative;
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 1.3rem 1.6rem;
+  background: var(--ui-panel);
+  border: var(--ui-rim-width) solid;
+  border-color: var(--ui-rim-hi) var(--ui-rim-mid) var(--ui-rim-lo);
+  border-radius: var(--ui-corner);
+  box-shadow: 0 0 0 1px var(--ui-rim-ink), var(--ui-shadow), var(--ui-pane-hi);
+  backdrop-filter: blur(var(--ui-pane-blur));
+  -webkit-backdrop-filter: blur(var(--ui-pane-blur));
 }
 
 .ui-panel--narrow { max-width: 28rem; }
@@ -119,7 +124,58 @@
   height: 1px;
   margin: var(--ui-space-4) 0;
   border: 0;
-  background: linear-gradient(90deg, transparent, var(--ui-edge-strong), transparent);
+  background: var(--ui-rule);
+}
+
+/* A well: a recessed screen with a bronze hairline, for the numbers and the message bar. */
+.ui-well {
+  border-radius: 4px;
+  background: var(--ui-well);
+  box-shadow: var(--ui-well-edge);
+}
+
+/* What the game counts: phosphor figures, in the HUD's lettering. */
+.ui-phos {
+  font-family: var(--ui-font-phos);
+  font-weight: 600;
+  color: var(--ui-phos-num);
+  text-shadow: var(--ui-phos-glow);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The message bar (the HUD's): phosphor help text in a well, the key hints on its right. */
+.ui-msgbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-1) 1.4rem;
+  padding: 0.55rem 1rem;
+  border-radius: 4px;
+  background: var(--ui-well);
+  box-shadow: var(--ui-well-edge);
+}
+
+.ui-msgbar > p,
+.ui-panel .ui-msgbar > p {
+  flex: 1 1 16rem;
+  min-height: 1.45em;
+  margin: 0;
+  font-family: var(--ui-font-phos);
+  font-weight: 500;
+  color: var(--ui-phos);
+  text-shadow: var(--ui-phos-glow);
+}
+
+.ui-msgbar > p b,
+.ui-panel .ui-msgbar > p b {
+  color: var(--ui-phos-num);
+  font-weight: 600;
+}
+
+.ui-msgbar .ui-hints {
+  margin: 0;
+  justify-content: flex-end;
 }
 
 /* --- titles --- */
@@ -185,40 +241,74 @@
   filter: drop-shadow(0 1px 0 var(--ui-umber-ink)) drop-shadow(0 0 4px rgba(0, 0, 0, 0.8));
 }
 
+/* A title: the title menu's copper type, with a small spaced kicker above it. */
 .ui-title {
   margin: 0 0 var(--ui-space-3);
   display: flex;
   flex-direction: column;
-  gap: 0.15em;
-  font-family: var(--ui-font-display);
+  align-items: flex-start;
+  gap: 0.2rem;
+  font-family: var(--ui-font-text);
   font-weight: 700;
-  font-size: var(--ui-text-xl);
-  line-height: 1.15;
-  letter-spacing: var(--ui-tracking);
-  text-transform: uppercase;
-  color: var(--ui-gold);
-  text-shadow: var(--ui-glow-gold);
+  font-size: clamp(1.7rem, 1.2rem + 1.5vw, 2.6rem);
+  line-height: 1.05;
+  letter-spacing: 0.01em;
+  color: var(--ui-copper-lite);
 }
 
 h3.ui-title {
-  font-size: var(--ui-text-lg);
+  font-size: var(--ui-text-xl);
+}
+
+.ui-title > span,
+.ui-title:not(:has(> span)) {
+  background-image: var(--ui-copper-type);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: var(--ui-type-shadow);
 }
 
 .ui-title__kicker {
-  font-size: var(--ui-text-xs);
-  letter-spacing: var(--ui-tracking-wide);
-  color: var(--ui-cyan);
-  text-shadow: none;
+  display: flex;
+  align-items: center;
+  gap: 0.8em;
+  font-family: var(--ui-font-display);
+  font-weight: 700;
+  font-size: 0.68rem;
+  line-height: 1.4;
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
+  color: var(--ui-copper-lite);
+  opacity: 0.85;
 }
 
+.ui-title__kicker::after {
+  content: "";
+  width: 2.4em;
+  height: 1px;
+  background: linear-gradient(90deg, var(--ui-copper), transparent);
+}
+
+/* A section label: small spaced copper capitals, with a rule running off to the right. */
 .ui-label {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 0.9em;
   margin: var(--ui-space-4) 0 var(--ui-space-2);
   font-family: var(--ui-font-display);
-  font-size: var(--ui-text-xs);
-  letter-spacing: var(--ui-tracking-wide);
+  font-weight: 700;
+  font-size: 0.64rem;
+  letter-spacing: 0.34em;
   text-transform: uppercase;
-  color: var(--ui-steel);
+  color: var(--ui-copper);
+}
+
+.ui-label::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(183, 116, 66, 0.5), transparent);
 }
 
 /* --- menu lists --- */
@@ -239,50 +329,74 @@ h3.ui-title {
   gap: var(--ui-space-3);
   min-height: var(--ui-hit);
   box-sizing: border-box;
-  padding: var(--ui-space-1) var(--ui-space-3) var(--ui-space-1) var(--ui-space-4);
-  border: 1px solid transparent;
+  padding: var(--ui-space-1) var(--ui-space-3) var(--ui-space-1) 1.5rem;
   border-radius: var(--ui-radius);
-  color: var(--ui-ink-dim);
+  font-weight: 600;
+  color: var(--ui-ink);
   cursor: pointer;
   user-select: none;
-  transition:
-    color var(--ui-fast) var(--ui-ease),
-    background-color var(--ui-fast) var(--ui-ease),
-    border-color var(--ui-fast) var(--ui-ease),
-    box-shadow var(--ui-med) var(--ui-ease);
+  /* The smear sits under the line's words, bare text included, but over what's behind the line. */
+  isolation: isolate;
+  transition: color var(--ui-fast) var(--ui-ease);
 }
 
-/* The focus marker: a gold bar on the left edge that grows in. */
+/* The chosen line: the title's brush smear behind it (--ui-focus-fill)... */
+.ui-menu__item::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 3% -0.4rem 0;
+  background: var(--ui-focus-fill);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--ui-fast) var(--ui-ease);
+}
+
+/* ...and a copper diamond tick on its left. */
 .ui-menu__item::before {
   content: "";
   position: absolute;
-  left: 4px;
+  z-index: 1;
+  left: 0.3rem;
   top: 50%;
-  width: 3px;
-  height: 0;
-  border-radius: 2px;
-  background: var(--ui-gold-bright);
-  box-shadow: var(--ui-glow-gold);
-  transform: translateY(-50%);
-  transition: height var(--ui-med) var(--ui-ease);
+  width: 0.52rem;
+  height: 0.52rem;
+  margin-top: -0.26rem;
+  background: var(--ui-tick);
+  box-shadow: 0 0 0 1px rgba(20, 8, 4, 0.8);
+  opacity: 0;
+  transform: rotate(45deg) scale(0.4);
+  transition:
+    opacity var(--ui-fast) var(--ui-ease),
+    transform var(--ui-med) var(--ui-ease);
 }
 
 @media (hover: hover) {
   .ui-menu__item:hover {
-    color: var(--ui-ink);
-    background-color: rgba(143, 163, 184, 0.07);
+    color: var(--ui-copper-hi);
   }
 }
 
 .ui-menu__item.is-focused {
   color: var(--ui-ink-warm);
-  background: var(--ui-focus-fill);
-  border-color: rgba(240, 176, 72, 0.45);
-  box-shadow: inset 0 0 1.25rem rgba(240, 176, 72, 0.08), 0 0 0.75rem rgba(240, 176, 72, 0.12);
+}
+
+.ui-menu__item.is-focused::after {
+  opacity: 1;
 }
 
 .ui-menu__item.is-focused::before {
-  height: 60%;
+  opacity: 1;
+  transform: rotate(45deg);
+}
+
+/* The chosen line's words in the lit copper type. */
+.ui-menu__item.is-focused .ui-menu__label {
+  background-image: var(--ui-copper-type-lit);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: var(--ui-type-shadow);
 }
 
 .ui-menu__item.is-disabled {
@@ -296,9 +410,7 @@ h3.ui-title {
   height: 2.6rem;
   display: grid;
   place-items: center;
-  border-radius: var(--ui-radius);
-  background: rgba(143, 163, 184, 0.08);
-  box-shadow: inset 0 0 0 1px rgba(143, 163, 184, 0.12);
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.8));
 }
 
 .ui-menu__icon img {
@@ -314,11 +426,12 @@ h3.ui-title {
 
 .ui-menu__label {
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
 }
 
 .ui-menu__detail {
   font-size: 0.8em;
+  font-weight: 400;
   color: var(--ui-ink-faint);
 }
 
@@ -326,15 +439,17 @@ h3.ui-title {
   color: var(--ui-ink-dim);
 }
 
+/* A small tag on a line ("Owned", "New"): spaced copper capitals. */
 .ui-badge {
   margin-left: auto;
-  padding: 1px 6px;
+  padding: 1px 0;
   font-family: var(--ui-font-display);
-  font-size: 0.65rem;
-  letter-spacing: 0.12em;
-  color: var(--ui-ok);
-  border: 1px solid rgba(143, 209, 143, 0.5);
-  border-radius: var(--ui-radius);
+  font-weight: 700;
+  font-size: 0.56rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--ui-copper-lite);
 }
 
 /* A row of choices (difficulty, yes/no): the focused one is the value. */
@@ -347,27 +462,13 @@ h3.ui-title {
 
 .ui-menu--row .ui-menu__item {
   justify-content: center;
-  padding: var(--ui-space-1) var(--ui-space-4);
-  border-color: var(--ui-edge);
-  font-family: var(--ui-font-display);
-  font-size: var(--ui-text-sm);
-  letter-spacing: var(--ui-tracking);
-  text-transform: uppercase;
+  padding: var(--ui-space-1) 1.6rem;
+  font-size: var(--ui-text-lg);
+  font-weight: 700;
 }
 
 .ui-menu--row .ui-menu__item::before {
-  left: 50%;
-  top: auto;
-  bottom: 3px;
-  width: 0;
-  height: 2px;
-  transform: translateX(-50%);
-  transition: width var(--ui-med) var(--ui-ease);
-}
-
-.ui-menu--row .ui-menu__item.is-focused::before {
-  width: 50%;
-  height: 2px;
+  left: 0.45rem;
 }
 
 /* --- buttons --- */
@@ -382,26 +483,30 @@ h3.ui-title {
   font: inherit;
   font-family: var(--ui-font-display);
   font-size: var(--ui-text-sm);
-  font-weight: 600;
-  letter-spacing: var(--ui-tracking);
+  font-weight: 700;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--ui-ink);
-  background: var(--ui-panel-raised);
-  border: 1px solid var(--ui-edge);
+  color: var(--ui-copper-lite);
+  background: var(--ui-key-fill);
+  border: 1px solid var(--ui-key-edge);
   border-radius: var(--ui-radius);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition:
     border-color var(--ui-fast) var(--ui-ease),
-    box-shadow var(--ui-med) var(--ui-ease),
+    background-color var(--ui-fast) var(--ui-ease),
     color var(--ui-fast) var(--ui-ease);
 }
 
 .ui-button:hover,
 .ui-button.is-focused {
-  border-color: var(--ui-edge-strong);
-  color: var(--ui-ink-warm);
-  box-shadow: 0 0 0.75rem rgba(240, 176, 72, 0.2);
+  border-color: var(--ui-copper-lite);
+  color: var(--ui-copper-hi);
+}
+
+/* The keyboard or pad's focus on a button: the smear's colour and a copper ring. */
+.ui-button.is-focused {
+  box-shadow: 0 0 0 1px var(--ui-rim-ink), 0 0 0 2px var(--ui-copper);
 }
 
 .ui-button:active {
@@ -414,31 +519,72 @@ h3.ui-title {
   box-shadow: none;
 }
 
+/* The one thing to press (Done, Continue): drawn as the chosen line, the smear behind its copper
+   words and a diamond tick on either side. */
 .ui-button--primary {
-  color: #1a0f00;
-  background: linear-gradient(180deg, var(--ui-gold-bright), var(--ui-gold));
-  border-color: var(--ui-gold-bright);
-  box-shadow: var(--ui-glow-gold);
+  position: relative;
+  padding: 0.1rem 2.1rem;
+  font-family: var(--ui-font-text);
+  font-size: var(--ui-text-lg);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  color: var(--ui-copper-hi);
+  background: var(--ui-focus-fill);
+  border: 0;
+}
+
+.ui-button--primary > span:first-child {
+  background-image: var(--ui-copper-type-lit);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: var(--ui-type-shadow);
+}
+
+.ui-button--primary::before,
+.ui-button--primary::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 0.52rem;
+  height: 0.52rem;
+  margin-top: -0.26rem;
+  background: var(--ui-tick);
+  box-shadow: 0 0 0 1px rgba(20, 8, 4, 0.8);
+  transform: rotate(45deg);
+}
+
+.ui-button--primary::before {
+  left: 0.55rem;
+}
+
+.ui-button--primary::after {
+  right: 0.55rem;
 }
 
 .ui-button--primary:hover,
 .ui-button--primary.is-focused {
-  color: #1a0f00;
-  box-shadow: 0 0 1.1rem rgba(255, 200, 90, 0.55);
+  box-shadow: none;
+  filter: brightness(1.12);
 }
 
-/* restyle-polish: a key hint inside a gold button, in the button's dark ink (the default light
-   key was barely visible on gold). */
 .ui-button--primary .ui-key {
-  color: #1a0f00;
-  border-color: rgba(26, 15, 0, 0.45);
-  background: rgba(26, 15, 0, 0.1);
+  font-size: 0.7rem;
 }
 
+/* The corner's Back: spaced copper capitals and its key. */
 .ui-button--ghost {
   background: transparent;
   border-color: transparent;
-  color: var(--ui-ink-dim);
+  font-size: 0.66rem;
+  letter-spacing: 0.3em;
+  color: var(--ui-copper-lite);
+}
+
+.ui-button--ghost:hover,
+.ui-button--ghost.is-focused {
+  border-color: transparent;
 }
 
 .ui-actions {
@@ -458,7 +604,7 @@ h3.ui-title {
   gap: var(--ui-space-2) var(--ui-space-4);
   margin-top: var(--ui-space-4);
   font-size: var(--ui-text-xs);
-  color: var(--ui-ink-faint);
+  color: var(--ui-ink-dim);
 }
 
 .ui-hint {
@@ -472,6 +618,7 @@ h3.ui-title {
   gap: 3px;
 }
 
+/* A keycap (the title foot's): bone letters on a copper cap. */
 .ui-key {
   display: inline-grid;
   place-items: center;
@@ -483,18 +630,17 @@ h3.ui-title {
   font-size: 0.9em;
   font-weight: 600;
   line-height: 1;
-  color: var(--ui-ink);
-  border: 1px solid var(--ui-edge);
+  color: var(--ui-key-ink);
+  border: 1px solid var(--ui-key-edge);
   border-bottom-width: 2px;
   border-radius: var(--ui-radius);
-  background: rgba(143, 163, 184, 0.08);
+  background: var(--ui-key-fill);
 }
 
 .ui-key--pad {
   border-radius: 999px;
   border-bottom-width: 1px;
-  color: var(--ui-cyan);
-  border-color: rgba(92, 214, 255, 0.45);
+  color: var(--ui-copper-hi);
 }
 
 .ui-key--touch {
@@ -515,47 +661,45 @@ h3.ui-title {
 
 /* --- stat bars --- */
 
+/* A gauge: phosphor cells in a well (the HUD's), whatever it measures. */
 .ui-stat {
   display: grid;
   grid-template-columns: 4.5rem 1fr;
   align-items: center;
   gap: var(--ui-space-2);
-  font-size: var(--ui-text-xs);
-  letter-spacing: 0.06em;
+  font-family: var(--ui-font-display);
+  font-weight: 700;
+  font-size: 0.6rem;
+  letter-spacing: 0.24em;
   text-transform: uppercase;
-  color: var(--ui-ink-dim);
+  color: var(--ui-copper-lite);
 }
 
 .ui-stat__bar {
   position: relative;
-  height: 8px;
+  height: 0.75rem;
   overflow: hidden;
-  border-radius: 1px;
-  background: rgba(143, 163, 184, 0.16);
+  border: 3px solid var(--ui-well-solid);
+  border-radius: 2px;
+  background: var(--ui-phos-cell-off);
+  box-shadow: 0 0 0 1px rgba(164, 123, 70, 0.4);
 }
 
 .ui-stat__bar > i {
   display: block;
   height: 100%;
   width: 0;
-  background: var(--tone);
-  box-shadow: 0 0 6px var(--tone);
+  background: var(--ui-phos-cell-on);
   transition: width var(--ui-med) var(--ui-ease);
 }
 
-/* Cut the bar into ten segments, over the fill. */
+/* Cut the bar into ten cells, over the fill. */
 .ui-stat__bar::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: repeating-linear-gradient(90deg, transparent 0 calc(10% - 2px), var(--ui-panel-solid) calc(10% - 2px) 10%);
+  background: repeating-linear-gradient(90deg, transparent 0 calc(10% - 2px), var(--ui-well-solid) calc(10% - 2px) 10%);
 }
-
-.ui-stat--armor { --tone: var(--ui-armor); }
-.ui-stat--shield { --tone: var(--ui-shield); }
-.ui-stat--power { --tone: var(--ui-power); }
-.ui-stat--gold { --tone: var(--ui-gold); }
-.ui-stat--cyan { --tone: var(--ui-cyan); }
 
 /* --- scrolling text --- */
 
@@ -566,7 +710,7 @@ h3.ui-title {
   padding-right: var(--ui-space-2);
   outline: none;
   scrollbar-width: thin;
-  scrollbar-color: var(--ui-gold-deep) transparent;
+  scrollbar-color: var(--ui-copper-deep) transparent;
   mask: linear-gradient(180deg, transparent, #000 0.75rem, #000 calc(100% - 0.75rem), transparent);
 }
 
@@ -639,27 +783,26 @@ h3.ui-title {
   .ui-spinner { animation-duration: 3s; }
 }
 
-/* The CSS stand-in for the 3D backdrop when WebGL is missing (src/ui/backdrop.ts). */
+/* The CSS stand-in for the 3D backdrop when WebGL is missing (src/ui/backdrop.ts): the title's
+   planet (below), dimmed for the menus (D85). */
 .ui-backdrop-fallback {
   position: fixed;
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background:
-    radial-gradient(ellipse 120% 60% at 50% 115%, #16304a 0 45%, rgba(92, 214, 255, 0.35) 46%, transparent 52%),
-    radial-gradient(1px 1px at 20% 30%, #fff 50%, transparent 51%),
-    radial-gradient(1px 1px at 70% 20%, #cfe 50%, transparent 51%),
-    radial-gradient(1px 1px at 40% 60%, #fff 50%, transparent 51%),
-    radial-gradient(1px 1px at 85% 55%, #fec 50%, transparent 51%),
-    radial-gradient(1px 1px at 10% 75%, #fff 50%, transparent 51%),
-    radial-gradient(1.5px 1.5px at 55% 40%, #fff 50%, transparent 51%),
-    radial-gradient(1px 1px at 30% 10%, #def 50%, transparent 51%),
-    var(--ui-bg);
+}
+
+/* The menus' (every mood but the title's): the same planet under the menus' dimming. */
+.ui-backdrop-fallback:not([data-mood="title"])::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--ui-scrim-planet);
 }
 
 /* The title's stand-in (no WebGL, or its shader can't run here): the painted planet's arc in
    maroon, rose and bone, lit from the right, on warm black (D64). */
-.ui-backdrop-fallback[data-mood="title"] {
+.ui-backdrop-fallback {
   --cx: calc(50% - 30vh);
   --cy: calc(50% + 56vh);
   --r: 103vh;
@@ -675,7 +818,7 @@ h3.ui-title {
 }
 
 @media (max-aspect-ratio: 4/5) {
-  .ui-backdrop-fallback[data-mood="title"] {
+  .ui-backdrop-fallback {
     --cx: calc(50% - 32vh);
     --cy: calc(50% + 30vh);
     --r: 70vh;
@@ -684,6 +827,33 @@ h3.ui-title {
 
 .ui-backdrop-fallback[hidden] {
   display: none;
+}
+
+/* Phones (the phone renders, D85): a menu's pane fills the window, its message bar at the foot. */
+@media (max-width: 700px) {
+  .ui-screen--options,
+  .ui-screen--highscores,
+  .ui-screen--load {
+    padding: max(10px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom));
+  }
+
+  .ui-screen--options > .ui-panel,
+  .ui-screen--highscores > .ui-panel,
+  .ui-screen--load > .ui-panel {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .ui-screen--highscores > .ui-panel > .ui-msgbar,
+  .ui-screen--load > .ui-panel > .ui-msgbar,
+  .ui-screen--options .opt-foot {
+    margin-top: auto;
+  }
+
+  .ui-screen > .ui-panel > * {
+    flex-shrink: 0;
+  }
 }
 
 /* Phones: tighter panels, full-width rows. */

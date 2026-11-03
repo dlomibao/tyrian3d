@@ -24,10 +24,9 @@
   display: block;
   width: 100%;
   max-width: 17rem;
-  border: 1px solid rgba(92, 214, 255, 0.35);
-  border-radius: var(--ui-radius);
+  border-radius: 4px;
   background: #000;
-  box-shadow: 0 0 1.25rem rgba(92, 214, 255, 0.1), inset 0 0 0 1px rgba(0, 0, 0, 0.6);
+  box-shadow: var(--ui-well-edge);
   overflow: hidden;
 }
 
@@ -45,7 +44,7 @@
   pointer-events: none;
   background:
     repeating-linear-gradient(180deg, rgba(0, 0, 0, 0.18) 0 1px, transparent 1px 3px),
-    linear-gradient(160deg, rgba(92, 214, 255, 0.12), transparent 40%);
+    linear-gradient(160deg, rgba(246, 220, 176, 0.08), transparent 40%);
 }
 
 .ui-screen--shop .cube-portrait.is-idle .cube-portrait__frame {
@@ -75,8 +74,7 @@
   font-weight: 600;
   letter-spacing: var(--ui-tracking);
   text-transform: uppercase;
-  color: var(--ui-cyan);
-  text-shadow: var(--ui-glow-cyan);
+  color: var(--ui-copper-hi);
 }
 
 /* --- the cube list --- */
@@ -100,7 +98,7 @@
 
 /* JE_itemScreen's "flashy cube" on the chosen row. */
 .ui-screen--shop .cube-row.is-focused .cube-ico {
-  box-shadow: inset 0 0 0 1px rgba(92, 214, 255, 0.45);
+  box-shadow: none;
 }
 
 .ui-screen--shop .cube-row.is-focused .cube-ico img {
@@ -122,9 +120,7 @@
 /* NEW: the framework's badge, in the terminal's cyan. */
 .ui-screen--shop .cube-new {
   flex: none;
-  color: var(--ui-cyan);
-  border-color: rgba(92, 214, 255, 0.5);
-  box-shadow: 0 0 0.5rem rgba(92, 214, 255, 0.2);
+  color: var(--ui-copper-lite);
 }
 
 .ui-screen--shop .shop-list .cube-none {
@@ -168,15 +164,14 @@
   overflow-wrap: anywhere;
 }
 
-/* The terminal glass the text sits on. */
+/* The terminal glass the text sits on: a well (D85). */
 .ui-screen--shop .cube-screen {
   position: relative;
-  border: 1px solid rgba(92, 214, 255, 0.3);
-  border-radius: var(--ui-radius);
+  border-radius: 4px;
   background:
-    repeating-linear-gradient(180deg, rgba(92, 214, 255, 0.035) 0 1px, transparent 1px 4px),
-    radial-gradient(120% 90% at 30% 0%, rgba(20, 44, 66, 0.75), rgba(3, 8, 14, 0.92));
-  box-shadow: inset 0 0 2rem rgba(0, 0, 0, 0.6), 0 0 1.25rem rgba(92, 214, 255, 0.08);
+    repeating-linear-gradient(180deg, rgba(234, 223, 202, 0.025) 0 1px, transparent 1px 4px),
+    var(--ui-well);
+  box-shadow: var(--ui-well-edge);
 }
 
 /*
@@ -194,8 +189,8 @@
   overflow-x: hidden;
   font-family: var(--ui-font-text);
   font-size: 1.02rem;
-  color: #d6f2ff;
-  text-shadow: 0 0 0.4rem rgba(92, 214, 255, 0.25);
+  color: var(--ui-bone);
+  text-shadow: 0 1px 2px #000;
   cursor: ns-resize;
   touch-action: pan-y;
   mask: linear-gradient(180deg, transparent, #000 var(--cube-pad), #000 calc(100% - var(--cube-pad)), transparent);

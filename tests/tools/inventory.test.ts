@@ -48,9 +48,9 @@ describe.skipIf(!hasData("levels1.dat", "tyrian1.lvl", "tyrian.hdt", "tyrian.shp
     // newshp-13 also covers newsh2.shp 91, a first frame the level's animation never shows: only
     // the bot run (which this test skips) can say so, so statically it is partial.
     for (const id of LEVEL1_FLAGSHIP.filter((x) => x !== "newshp-13")) expect(units.get(id)?.status, id).toBe("flagship");
-    // The damaged frames D54 lists as still swapping to sprites.
+    // The damaged frames D54 lists as still swapping to sprites; the rock outcrop's are models now (D81).
     expect(units.get("assembly-newsh4-124")?.knownDamageSwap).toBe(true);
-    expect(units.get("assembly-newshe-39")?.knownDamageSwap).toBe(true);
+    expect(units.get("assembly-newshe-39")?.knownDamageSwap).toBeUndefined();
 
     expect(renderMarkdown(inv)).toContain("| 1.9 | TYRIAN |");
   }, 120000);

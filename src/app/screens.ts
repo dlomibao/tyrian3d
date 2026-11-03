@@ -17,7 +17,7 @@ import type { NewGameChoice } from "../sim/arcade"; // [arcade]
 
 /** Ask the player for tyrian21.zip (DECISIONS.md D3). Resolves once valid data is loaded. */
 export function askForData(): Promise<FileMap> {
-  const screen = showScreen({ id: "data", backdrop: "title", layout: "center", label: "Game data" });
+  const screen = showScreen({ id: "data", backdrop: "space", layout: "center", label: "Game data" });
   const input = h("input", { attrs: { type: "file", accept: ".zip,application/zip", hidden: "" } });
   const drop = h(
     "label",
@@ -468,7 +468,7 @@ export function showStatus(text: string): () => void {
 
 /** showStatus whose text can change (e.g. a count of models loaded). */
 export function showProgress(text: string): { set(text: string): void; close(): void } {
-  const screen = showScreen({ id: "status", backdrop: "title", layout: "narrow", passive: true, label: text });
+  const screen = showScreen({ id: "status", backdrop: "space", layout: "narrow", passive: true, label: text });
   const label = h("span", { text });
   screen.add(h("p", { class: "ui-status" }, h("span", { class: "ui-spinner" }), label));
   return { set: (t) => void (label.textContent = t), close: () => screen.close() };
