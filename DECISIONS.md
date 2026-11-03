@@ -2586,3 +2586,83 @@ show where an enemy's rock meets an unusual neighbour (as D63's tiles), and the 
 sprites (`assembly-newsh2-115`, `-119`, the rock outcrop `assembly-newshe-39`) stand on level 1's dirt,
 not island rock, and are unchanged.
 Fallback: revert the five scripts and their GLBs; `castsShadow` is harmless without the flag.
+
+## D74 — A model's top-view edge goes to the inner edge of the sprite's ink border; the game's ink stands in for it
+
+2026-11-03
+
+**Decision:** Models are matched to the sprite **without its ink border**. The border is the ink
+pixels of the sprite's boundary ring (luma < 26: palette 1, 2 and each ramp's darkest steps, 16, 32,
+48, 64, 80, 112, ...; 4-adjacent to transparency or the picture's edge). The model's top view covers
+the rest (the inner mask), and the game's ink outline (`OUTLINE`, unchanged) draws where the border
+was. Where the sprite draws colour to its edge, the edge stays where it is. A part only one colour
+pixel wide inside its ink, or drawn in ink alone, keeps at least half its sprite width (each side
+in by at most a quarter of it); its border pixels count neither way. The hard rule becomes: rule
+IoU ≥ 0.95 on the sprite's grid on every frame, from `tools/sprite_mask.py <name> --measure top.png`
+(`iou_rule_grid`). The rule for agents: docs/agents/OUTLINE-BORDER.md. No shipped model is rebuilt
+here.
+
+- **The border, surveyed** (each model's main frame, assemblies whole): level 1's 28 models: 18 have
+  a closed border (≥ 85% of the ring ink), 2 partial, 4 none, 4 opaque to the rectangle (island
+  machines, rock). All 8 player ships closed. All episodes' 993 enemy sprites (822 not opaque to the
+  rectangle): 28% closed, 42% 50-85% ink, 22% 20-50%, 9% under 20%; the gaps are coloured pixels
+  (lit rims, glows), not a shadow side: every side is ink about equally often (65-68%). One pixel
+  thick: in bordered sprites the next layer in is 6-35% ink (median per group), 26 of 228 closed enemy
+  sprites have a 2 px border. Most common ink: palette 1 (12, 12, 12), then 2, 112, 32, 64, 16, 48.
+- **The experiment.** The current models of the Talon, newsh2-89, newsh2-191 (thin arcs), newsh2-267
+  (thin legs), the boss assembly-newsh4-124 and the eye fortress assembly-newsh2-245 (no border, the
+  control) were drawn still in the game's renderer (`?debug=models`, frame-HUD viewport at
+  1920x1080, 5.4 screen px per sprite px) and compared with the sprite at the same place and scale.
+  Then copies pulled in to the inner edge (a plan warp, scratch only) were drawn the same way.
+  The ink is 3-4 screen px, 0.55-0.75 sprite px.
+
+  | Overhead (15° camera) | silhouette IoU with the sprite, current → inner | edge offset per side, sprite px |
+  |---|---|---|
+  | USP Talon | 0.818 → 0.929 (0.800 → 0.933) | +0.68 → -0.08 (+0.70 → -0.05) |
+  | newsh2-89 | 0.851 → 0.913 (0.795 → 0.846) | +0.97 → +0.30 (+1.19 → +0.54) |
+  | newsh2-191 | 0.689 → 0.816 (0.641 → 0.797) | +0.69 → +0.19 (+0.72 → +0.25) |
+  | newsh2-267 | 0.737 → 0.743 (0.668 → 0.679) | +0.74 → +0.15 (+0.83 → +0.27) |
+  | assembly-newsh4-124 | 0.809 → 0.838 (0.762 → 0.780) | +1.37 → +0.78 (+2.17 → +1.56) |
+  | assembly-newsh2-245 (control) | 0.946 (0.928) | +0.21 (+0.31) |
+
+  Every model matched to the outer edge read fatter than its sprite (the Talon 22% more area);
+  at the inner edge the size matches within a third of a pixel and the thin parts still read.
+  (267's IoU stays low because its legs don't follow the sprite's, whatever the edge.)
+- **Tool:** `tools/sprite_mask.py` finds the border and writes the outer, inner and free masks, a
+  per-sprite survey line, PNG masks to trace, and `--measure` for a top-view render. Standard library
+  only (Blender's Python and the system's); `tests/tools/spriteMask.test.ts`.
+
+**Options considered:**
+- *Inner edge, the game's ink for the border (chosen):* the silhouette with the ink lands on the
+  sprite's; the sprite's dark ring and the model's ink outline are the same thing.
+- *Outer edge, ink thinned or dropped:* the ink is the look of every model (D51, D55) and is set
+  per screen, not per model; at its width the outer-edge models are still 0.7 px fat, and without
+  it the models lose the sprites' dark edge.
+- *Middle of the border pixel:* +0.2 to +0.5 px per side from the numbers above, between the two.
+- *Strip the border only on closed-border sprites:* per-pixel stripping already leaves inkless
+  edges alone, so one rule covers partial borders too.
+
+**Affected (follow-up, not done here).** The models built to the old rule, top views rendered from
+their .glbs (rule IoU on the grid now; each would pull its edge in about 1 px where the sprite has
+ink):
+
+- Player ships: Talon 0.79, Dragonwing 0.83, Gencore Phoenix 0.70, Microcorp Stalker 0.76, Nort
+  ship 0.87, Silver ship 0.83, Supercarrot 0.74, U-Ship 0.71 (its border is 54% of its pixels, 64
+  of them free).
+- Level 1 (D65): assembly-newsh2-3 0.74, -9 0.75, -87 0.80, -123 0.78, assembly-newsh4-81 0.75, the boss
+  assembly-newsh4-124 0.90, newsh2-127 0.86, -159 0.80, -171 0.70, -191 0.72, -229 0.60, -267 0.79, -269 0.80,
+  -271 0.80, -49 0.71, -51 0.72, -89 0.86, newshp-13 0.73. Nearly passing: assembly-newsh4-195 0.94,
+  -231 0.94 (partial borders). Already passing (no border or opaque to the rectangle):
+  assembly-newsh2-53, -115, -119, -245, -273, -279, newshe-39, newsh2-153.
+- The older models (D44 and before): of 1022 sprite-model entries with a reference sprite, 253 have
+  a closed border and 521 a partial one; they change whenever they are rebuilt.
+
+**Found on the way:** `newsh2-159`'s outline shell (and its -f2..-f5 frames') covers only the
+model's middle band, so it shows no ink at all in game (a shell made from the wrong island). Tall
+models also read bigger than their sprites in game: a model's origin plane covers the sprite's
+screen area (D6) and parts above it are nearer the camera (the boss's +0.78 at the inner edge); that
+is height, not the border.
+
+**Review:** the comparison sheets (sprite | current | inner, overhead at game scale, x3 with the
+sprite's edge, 15°) and the scripts are in `tyrian-scratch/outline-border/` (`sheets/`, `ingame.py`,
+`measure.py`, `survey.py`). Fallback: measure against the outer mask again (`iou_outer_grid`).
