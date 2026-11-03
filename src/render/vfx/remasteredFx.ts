@@ -6,7 +6,8 @@
 //   colour that stretches back along their motion into a short trail. A new shot gets a muzzle flash.
 // - Explosions are told apart by their sprite index (explosionFrames.ts), which also says how far
 //   through its life each one is. A fireball's sprite stays, glowing, under a light that fades with
-//   it; when one starts, it throws sparks, embers and tumbling debris, leaves smoke drifting with
+//   it (with remastered sprite art it's the flat painting from public/art/sprites, D80: the router
+//   draws it flat and this look is ignored); when one starts, it throws sparks, embers and tumbling debris, leaves smoke drifting with
 //   the scroll, and lights its surroundings for a moment with one of a few pooled point lights.
 //   A shot's hit puff becomes a spark burst and a flash; smoke sprites become soft smoke puffs.
 // - The shield's hit arcs become one energy bubble round the ship (shieldLayer.ts, D77), in the

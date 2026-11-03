@@ -4,8 +4,9 @@ When a coin, gem or data cube is picked up, its value floats where it was as a f
 explosion (mainint.c: JE_setupExplosion(..., enemyDat[].explosionType, fixedPosition = true)): one
 sprite of newsh6.shp, explosion types 35-52, drawn for the type's ttl. Drawn as before they were
 extruded pixel digits on a dark plate. This paints each of those 18 sprites as vector art instead,
-packs them into one atlas and adds them to the flat sprite art (D42) as sheet "newsh6.shp", so they
-draw as crisp flat quads in the remastered look and as before in the original look.
+packs them into the flat sprite art's (D42) atlas of sheet "newsh6.shp" (which the explosions
+share, D80: their frames are kept and packed again with these), so they draw as crisp flat quads in
+the remastered look and as before in the original look.
 
     python tools/value_art.py [--data data] [--out public/art/sprites] [--check PNG]
 
@@ -22,8 +23,8 @@ The painting is the sprite itself, redrawn: no Gemini, nothing invented.
   slight top-to-bottom shade and a faint glow of the digits' colour round them. Sprites without
   a plate (the red 150 / 350 / 500 / 750 run) get a faint dark shadow instead, inside their box.
 
-The atlas is at SCALE 16 (twice the other flat art's 8, a per-sheet "scale" in the manifest): the
-numbers are 5-7 px tall and are read, so they get the extra texels. 18 frames, ~40 KB.
+The values are at SCALE 16 (twice the other flat art's 8, a per-frame "scale" in the manifest): the
+numbers are 5-7 px tall and are read, so they get the extra texels. 18 frames, ~40 KB of the atlas.
 
 Derived from the game data, like the rest of the flat art (credited in CREDITS.md); the original
 sprite PNGs are never written to the repo (--check is for a scratch folder).
@@ -40,7 +41,7 @@ import numpy as np
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from flat_art import LEVEL1_PALETTE, ROOT, TILE_W, GameData, _smoothstep, bleed, dump_manifest, pack, smooth_alpha  # noqa: E402
+from flat_art import LEVEL1_PALETTE, ROOT, TILE_W, GameData, _smoothstep, atlas_frames, bleed, dump_manifest, pack, smooth_alpha  # noqa: E402
 
 SHEET = "newsh6.shp"
 IMAGE = "newsh6-shp.webp"
@@ -199,12 +200,17 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--check", type=Path, help="write an original | painted contact sheet here (scratch only)")
     a = ap.parse_args(argv)
     gd = GameData(a.data)
-    frames = [{"index": i, "rgba": paint(gd, i, a.palette)} for i in VALUE_SPRITES]
-    atlas, rects = pack(frames, width=832)
-    Image.fromarray(atlas, "RGBA").save(a.out / IMAGE, "WEBP", quality=92, alpha_quality=100, method=6, exact=True)
+    frames = [{"index": i, "rgba": paint(gd, i, a.palette), "scale": SCALE} for i in VALUE_SPRITES]
     path = a.out / "manifest.json"
     manifest = json.loads(path.read_text()) if path.exists() else {"scale": 8, "sheets": {}}
-    manifest["sheets"][SHEET] = {"image": IMAGE, "scale": SCALE, "frames": dict(sorted(rects.items(), key=lambda kv: int(kv[0])))}
+    # The sheet's other frames (flat_art.py's explosions, D80) are kept: cut back out of the atlas
+    # and packed again with the values.
+    if SHEET in manifest["sheets"]:
+        frames += atlas_frames(a.out, manifest["sheets"][SHEET], lambda i, r: i not in VALUE_SPRITES)
+    atlas, rects = min((pack(frames, w) for w in (832, 1024, 2048)), key=lambda ar: ar[0].shape[0] * ar[0].shape[1])
+    Image.fromarray(atlas, "RGBA").save(a.out / IMAGE, "WEBP", quality=92, alpha_quality=100, method=6, exact=True)
+    manifest["sheets"][SHEET] = {"image": IMAGE, "frames": dict(sorted(rects.items(), key=lambda kv: int(kv[0])))}
+    manifest["sheets"] = dict(sorted(manifest["sheets"].items()))
     path.write_text(dump_manifest(manifest))
     print(f"{a.out / IMAGE}: {len(rects)} frames, {atlas.shape[1]}x{atlas.shape[0]}, {(a.out / IMAGE).stat().st_size} bytes")
     if a.check:

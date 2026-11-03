@@ -2912,3 +2912,54 @@ running many agents (no source file changed; see the PR).
   old ridge tiles were already painted.
 - *Context sheets for the grass fringe:* D59 found brown-green-edges-1 came back as blocks even softened; the two
   grass regions covered every fringe tile.
+
+## D80 — Fireballs and big explosions are flat painted art, like the shots (D42/D43)
+
+2026-11-03
+
+**Decision:** Explosion types 1 (the fireball, newsh6.shp sprites 122-133) and 2-5 / 7-10 (a big
+explosion's quarters: air 3-14, 22-33, 41-52, 60-71; ground 154-165, 173-184, 192-203, 211-222) draw
+from painted art instead of extruded voxel sprites. At 4K the extruded, emissive sprites read as
+blocky pink pixel clouds and a stair-stepped red ring, the biggest bright things on screen.
+- **Art:** `tools/flat_art.py` now reads the newsh<c>.shp sheets, and `tools/flat_art_explosions.json`
+  is the inventory: three Gemini sheets of 12 cells (the fireball's 12 frames, then a big
+  explosion's 12 frames for air and for ground, each frame its four quarters composed as one 24x28
+  picture by `LAYOUTS`, as JE_setupExplosionLarge places them) so the quarters are cut from one
+  painting and meet without seams. `cut --merge` rebuilds only `newsh6-shp.webp` (108 frames,
+  1024x2048, 187 KB) and adds its sheet to `public/art/sprites/manifest.json`, keeping the others.
+- **Fire-specific cut options** (inventory, per object): `floor` 0.8 lifts any texel the painting
+  made darker than 0.8x the original pixel's own (smoothed) colour, so Gemini's dark smoke never
+  replaces a bright original ring; `alpha` {sigma 5, lo 0.3, hi 0.55} is a softer silhouette than
+  D43's, so a one-pixel staircase ring becomes a smooth thin line (the edge grows by about a third
+  of a sprite pixel; lo 0.1 grew it ~0.8 px and showed a hard cut where a frame touches its box). Fit scores: air 0.94-0.98, ground 0.84-0.98, fireball 0.49-0.93 (0.49 is the
+  last, faintest ring frame, whose colour is mostly the floor).
+- **One atlas with D76's coin values** (merged with D76, which also drew into newsh6.shp): the
+  values stay at 16 texels per pixel through a per-frame `scale` in the manifest (SpriteArtFrame.scale;
+  the sheet is at the manifest's 8). Either tool rebuilds the shared atlas and keeps the other's
+  frames: `value_art.py` cuts the explosions back out of it and packs them again with the values,
+  and `flat_art.py cut` keeps a rebuilt sheet's frames that have their own scale (and, always, the
+  sheets it doesn't rebuild).
+- **Game side: no other code change.** Sprite2Router already routes a draw with art to Route.Flat before
+  the effects; RemasteredFx.sprite still runs, so the glow behind each explosion, its light, sparks,
+  embers, debris and smoke stay, and its SpriteLook.Hot is ignored for the flat quad. `?sprites=original`
+  (or `?vfx=original`, or A in `?debug=play`) brings back the extruded hot sprites. Palette fades
+  don't reach the art (D42); level 1 has none during explosions.
+- **Cost:** +187 KB download. At the same frozen ticks the flat explosions are one more instanced
+  draw call (the newsh6 atlas) and replace up to dozens of extruded sprite meshes: calls went
+  456 -> 436 (tick 249) and 262 -> 243 (tick 330); the overlay's renderer CPU at 3840x2160 was
+  5.3-6.3 ms after vs 7.1-8.5 ms before at ticks 150/170/249/750 (a busy machine, other agents'
+  captures running, so read it as "no worse"), 60 fps.
+
+**Options considered:**
+- *Flat painted frames via the D43 pipeline (chosen):* reads as the original (same outline, frame
+  timing, holes and colours), and is free at run time.
+- *A procedural fireball shader (noise billboard tinted from the sprite's colours, SpriteLook.Hidden):*
+  smoother animation and no art, but its shape would be ours, not the original's frames.
+- *Original silhouette alpha (D43's smooth_alpha):* keeps the outline exactly, but left the thin
+  rings as dashes at 4K.
+
+**Review:** play `?debug=play&seed=1&skip=249&freezeAt=249&armor=99` (big air explosions) and
+`skip=750` (ground ones), and press A to compare. Known limit: overlapping explosions keep the draw
+list's order, quarter by quarter, so where two big explosions overlap one can cut straight across
+the other at a quarter edge, as in the original (it was there with the extruded sprites too).
+Fallback: remove the `newsh6.shp` sheet from the manifest.
