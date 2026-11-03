@@ -262,3 +262,93 @@ canvas {
   color: #f0a040;
   white-space: nowrap;
 }
+
+/*
+ * The remastered HUD frame (hudFrame.ts, DECISIONS.md D61): two full-window SVG layers under the
+ * HTML HUD, each composited on its own so a gauge change repaints only the live layer. Text is the
+ * system's Gill Sans where it has one (the original frame's lettering), else the interface font.
+ */
+.hudf {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+.hudf[hidden] {
+  display: none;
+}
+
+.hudf-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  will-change: transform;
+}
+
+.hudf-lbl {
+  font-family: "Gill Sans", "Gill Sans MT", "Gill Sans Nova", var(--ui-font-text, "Trebuchet MS", sans-serif);
+  font-weight: 500;
+  fill: #4fe05a;
+  filter: url(#hudf-phos);
+}
+
+.hudf-name {
+  letter-spacing: 0.12px;
+  fill: #8ff09a;
+}
+
+.hudf-num {
+  font-weight: 600;
+  fill: #e8fff0;
+  paint-order: stroke;
+  stroke: #000;
+  stroke-width: 0.6px;
+  stroke-opacity: 0.75;
+}
+
+.hudf-dim {
+  fill: #2f9a38;
+}
+
+.hudf-empty {
+  fill: #1f5a24;
+}
+
+/* Reads env(safe-area-inset-*) for the frame's layout. */
+.hud-inset-probe {
+  position: fixed;
+  visibility: hidden;
+  pointer-events: none;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+/* Framed, the HTML HUD covers only the opening, and the frame draws the rest. */
+.hud.is-framed {
+  inset: auto;
+  font-size: clamp(11px, calc(var(--hud-unit, 5px) * 3), 18px);
+}
+
+.hud.is-framed .score,
+.hud.is-framed .level,
+.hud.is-framed .bars,
+.hud.is-framed .weapon,
+.hud.is-framed .message {
+  display: none;
+}
+
+/* JE_inGameDisplays' lives, at the playfield's top left. */
+.hud.is-framed .top {
+  top: 8px;
+  left: 10px;
+}
+
+.hud.is-framed .boss {
+  top: 10px;
+}
+
+/* "Cheaters always prosper." over the playfield's bottom edge, as the C has it (y 170). */
+.hud.is-framed .cheating {
+  bottom: 10px;
+}

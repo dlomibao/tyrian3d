@@ -12,8 +12,21 @@ import { isModelHelper } from "./modelPrep";
 import { ScreenFilterPass } from "./screenFilters";
 import { VFX_LAYER } from "./vfx/vfxMode";
 
-/** Camera tilt from straight down, in radians. */
-const CAMERA_TILT = THREE.MathUtils.degToRad(32);
+/**
+ * Camera tilt from straight down, in radians: Camera: Steep, the look before D61, and the tilt a
+ * View starts with (the item screen's weapon preview keeps it).
+ */
+export const CAMERA_TILT = THREE.MathUtils.degToRad(32);
+/**
+ * Camera: Tilted, the game's default since D61: enough lean to show the models' sides, little enough
+ * that the playfield nearly fills the HUD frame's opening (DECISIONS.md D61 has the 12-18° comparison).
+ */
+export const CAMERA_TILT_GENTLE = THREE.MathUtils.degToRad(15);
+/**
+ * Camera: Overhead (D61). Not exactly 0: lookAt straight down along the camera's up vector is
+ * degenerate; a ten-millionth of a radian changes nothing on screen.
+ */
+export const CAMERA_TILT_OVERHEAD = 1e-7;
 const CAMERA_FOV = 40;
 /** Extra room around the playfield when fitting the camera. */
 const FRAME_MARGIN = 1.08;
@@ -36,6 +49,14 @@ export interface ViewOptions {
   frame?: { x: number; y: number; w: number; h: number };
   /** Size the canvas to its container (and follow it with a ResizeObserver) instead of the window. */
   fitContainer?: boolean;
+}
+
+/** A rectangle in CSS pixels, from the canvas's top left. */
+export interface ScreenRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
 }
 
 /**
@@ -77,7 +98,13 @@ export class View {
   private lastRender = performance.now();
   private framedForDrawLists = false;
   /** The framed area in world units (x0..x1, z0..z1); the playfield unless ViewOptions.frame. */
-  private readonly frameRect: { x0: number; x1: number; z0: number; z1: number };
+  private readonly frameRect: FrameRect;
+  /** The camera's lean from straight down (CAMERA_TILT, or CAMERA_TILT_OVERHEAD). */
+  private tilt = CAMERA_TILT;
+  /** Where on the canvas the playfield goes (the HUD frame's opening, D61); null: all of it. */
+  private viewport: ScreenRect | null = null;
+  /** The framed area's four ground corners on screen, CSS pixels: far left, far right, near right, near left. */
+  private corners: { x: number; y: number }[] = [];
 
   constructor(
     private readonly container: HTMLElement,
@@ -87,7 +114,7 @@ export class View {
     const f = options.frame;
     this.frameRect = f
       ? { x0: screenWorldX(f.x), x1: screenWorldX(f.x + f.w), z0: screenWorldZ(f.y), z1: screenWorldZ(f.y + f.h) }
-      : { x0: -PLAYFIELD_WORLD_W / 2, x1: PLAYFIELD_WORLD_W / 2, z0: -PLAYFIELD_WORLD_D / 2, z1: PLAYFIELD_WORLD_D / 2 };
+      : PLAYFIELD_RECT;
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -216,59 +243,61 @@ export class View {
     this.groundTexture.offset.y = scrollPx / GROUND_TILE_PX;
   }
 
+  /** Lean the camera (Options → Camera, D61); refits at once. */
+  setTilt(tilt: number): void {
+    if (tilt === this.tilt) return;
+    this.tilt = tilt;
+    this.resize();
+  }
+
+  /**
+   * Fit the playfield into `rect` of the canvas (CSS pixels) rather than all of it: the HUD
+   * frame's opening (D61). The canvas still covers the window; the camera's projection is shifted
+   * off-axis so the playfield lands in the rectangle. null goes back to the whole canvas.
+   */
+  setViewport(rect: ScreenRect | null): void {
+    const v = this.viewport;
+    if (v === rect || (v && rect && v.x === rect.x && v.y === rect.y && v.w === rect.w && v.h === rect.h)) return;
+    this.viewport = rect ? { ...rect } : null;
+    this.resize();
+  }
+
+  /** The framed area's ground corners on screen (CSS pixels): far left, far right, near right, near left. */
+  playfieldCorners(): readonly { x: number; y: number }[] {
+    return this.corners;
+  }
+
   private resize(): void {
     const w = this.options.fitContainer ? this.container.clientWidth : window.innerWidth;
     const h = this.options.fitContainer ? this.container.clientHeight : window.innerHeight;
     if (w <= 0 || h <= 0) return; // a hidden container: wait for the ResizeObserver
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.settings.maxPixelRatio));
     this.renderer.setSize(w, h);
-    this.camera.aspect = w / h;
 
-    // Fit the playfield's on-screen outline to the window, centred, at any aspect ratio. The tilted
-    // perspective makes the near edge wider than the far one, so solve it numerically: project the
-    // four ground corners, then rescale the distance and re-aim until they fill the frame.
+    // Fit the playfield's on-screen outline to the window (or the viewport), centred, at any aspect
+    // ratio (fitCamera). Inside the HUD frame the outline meets the opening's edges exactly.
     // (Draws are projected along camera rays onto their original screen positions (DECISIONS.md D6),
     // so everything drawn stays inside this outline whatever its height.)
-    const margin = this.framedForDrawLists ? DRAW_LIST_FRAME_MARGIN : FRAME_MARGIN;
-    const halfFov = THREE.MathUtils.degToRad(CAMERA_FOV / 2);
+    const vp = this.viewport && this.viewport.w > 0 && this.viewport.h > 0 ? this.viewport : null;
+    const margin = vp ? 1 : this.framedForDrawLists ? DRAW_LIST_FRAME_MARGIN : FRAME_MARGIN;
     const { x0, x1, z0, z1 } = this.frameRect;
-    const cx = (x0 + x1) / 2;
-    let distance = Math.max(z1 - z0, (x1 - x0) / this.camera.aspect) / (2 * Math.tan(halfFov));
-    let aimZ = (z0 + z1) / 2;
-    const corners = [x0, x1].flatMap((x) => [z0, z1].map((z) => new THREE.Vector3(x, 0, z)));
-    const p = new THREE.Vector3();
-    this.camera.updateProjectionMatrix();
-    for (let i = 0; i < 40; i++) {
-      this.camera.position.set(cx, distance * Math.cos(CAMERA_TILT), aimZ + distance * Math.sin(CAMERA_TILT));
-      this.camera.lookAt(cx, 0, aimZ);
-      this.camera.updateMatrixWorld();
-      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-      for (const c of corners) {
-        p.copy(c).project(this.camera);
-        minX = Math.min(minX, p.x);
-        maxX = Math.max(maxX, p.x);
-        minY = Math.min(minY, p.y);
-        maxY = Math.max(maxY, p.y);
-      }
-      const extent = Math.max(maxX - minX, maxY - minY) / 2;
-      const centreY = (minY + maxY) / 2;
-      if (Math.abs(extent * margin - 1) < 1e-4 && Math.abs(centreY) < 1e-4) break;
-      distance *= extent * margin;
-      // Positive centreY means the outline sits high on screen: aim further up the field (-Z).
-      aimZ -= centreY * distance * Math.tan(halfFov);
-    }
+    this.camera.clearViewOffset();
+    this.camera.aspect = vp ? vp.w / vp.h : w / h;
+    fitCamera(this.camera, this.frameRect, this.tilt, margin);
+    // The viewport: the same picture, drawn off-axis into its part of the canvas.
+    if (vp) this.camera.setViewOffset(vp.w, vp.h, -vp.x, -vp.y, w, h);
     this.camera.updateProjectionMatrix();
 
     // Mask everything outside the playfield's outline on screen. Draws are projected along camera
     // rays onto their original screen positions (DECISIONS.md D6), so the area inside shows exactly
     // what the original's 264x184 window showed, at every height.
     this.camera.updateMatrixWorld();
-    const hole = new THREE.Path(
-      [[x0, z0], [x0, z1], [x1, z1], [x1, z0]].map(([hx, hz]) => {
-        const p = new THREE.Vector3(hx, 0, hz).project(this.camera);
-        return new THREE.Vector2(p.x, p.y);
-      }),
-    );
+    const ndc = [[x0, z0], [x1, z0], [x1, z1], [x0, z1]].map(([hx, hz]) => {
+      const p = new THREE.Vector3(hx, 0, hz).project(this.camera);
+      return new THREE.Vector2(p.x, p.y);
+    });
+    this.corners = ndc.map((p) => ({ x: ((p.x + 1) / 2) * w, y: ((1 - p.y) / 2) * h }));
+    const hole = new THREE.Path(ndc);
     const outer = new THREE.Shape([new THREE.Vector2(-2, -2), new THREE.Vector2(2, -2), new THREE.Vector2(2, 2), new THREE.Vector2(-2, 2)]);
     outer.holes.push(hole);
     this.mask.geometry.dispose();
@@ -280,6 +309,78 @@ export class View {
     const widthCss = ((right.x - left.x) / 2) * w;
     this.gamePixelsPerScreenPixel = widthCss > 0 ? ((x1 - x0) * PX_PER_UNIT) / widthCss : 1;
   }
+}
+
+/** A ground rectangle in world units. */
+export interface FrameRect {
+  x0: number;
+  x1: number;
+  z0: number;
+  z1: number;
+}
+
+/** The game's playfield, 264x184 game pixels, in world units. */
+export const PLAYFIELD_RECT: FrameRect = { x0: -PLAYFIELD_WORLD_W / 2, x1: PLAYFIELD_WORLD_W / 2, z0: -PLAYFIELD_WORLD_D / 2, z1: PLAYFIELD_WORLD_D / 2 };
+
+/**
+ * Aim `camera` (its fov and aspect set) at `rect` from `tilt` radians off straight down, so the
+ * rectangle's on-screen outline fills the view, centred, with `margin` (1 = touching the edges in
+ * its tighter dimension). The tilted perspective makes the near edge wider than the far one, so
+ * it's solved numerically: project the four ground corners, then rescale the distance and re-aim
+ * until they fill the frame. Leaves the projection matrix up to date (and any view offset cleared
+ * by the caller).
+ */
+export function fitCamera(camera: THREE.PerspectiveCamera, rect: FrameRect, tilt: number, margin: number): void {
+  const halfFov = THREE.MathUtils.degToRad(camera.fov / 2);
+  const { x0, x1, z0, z1 } = rect;
+  const cx = (x0 + x1) / 2;
+  let distance = Math.max(z1 - z0, (x1 - x0) / camera.aspect) / (2 * Math.tan(halfFov));
+  let aimZ = (z0 + z1) / 2;
+  const corners = [x0, x1].flatMap((x) => [z0, z1].map((z) => new THREE.Vector3(x, 0, z)));
+  const p = new THREE.Vector3();
+  camera.updateProjectionMatrix();
+  for (let i = 0; i < 40; i++) {
+    camera.position.set(cx, distance * Math.cos(tilt), aimZ + distance * Math.sin(tilt));
+    camera.lookAt(cx, 0, aimZ);
+    camera.updateMatrixWorld();
+    const b = projectedBounds(camera, corners, p);
+    const extent = Math.max(b.maxX - b.minX, b.maxY - b.minY) / 2;
+    const centreY = (b.minY + b.maxY) / 2;
+    if (Math.abs(extent * margin - 1) < 1e-4 && Math.abs(centreY) < 1e-4) break;
+    distance *= extent * margin;
+    // Positive centreY means the outline sits high on screen: aim further up the field (-Z).
+    aimZ -= centreY * distance * Math.tan(halfFov);
+  }
+}
+
+function projectedBounds(camera: THREE.Camera, corners: THREE.Vector3[], p = new THREE.Vector3()) {
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const c of corners) {
+    p.copy(c).project(camera);
+    minX = Math.min(minX, p.x);
+    maxX = Math.max(maxX, p.x);
+    minY = Math.min(minY, p.y);
+    maxY = Math.max(maxY, p.y);
+  }
+  return { minX, maxX, minY, maxY };
+}
+
+/**
+ * The playfield's on-screen width over its height with the game camera at `tilt`, once fitted (the
+ * width is the near edge's). A view of exactly this aspect is filled by the playfield edge to edge,
+ * which is how the HUD frame sizes its opening (D61). 264/184 straight down; wider when tilted.
+ */
+export function playfieldScreenAspect(tilt: number, rect: FrameRect = PLAYFIELD_RECT): number {
+  const camera = new THREE.PerspectiveCamera(CAMERA_FOV, (rect.x1 - rect.x0) / (rect.z1 - rect.z0), 0.1, 500);
+  const corners = [rect.x0, rect.x1].flatMap((x) => [rect.z0, rect.z1].map((z) => new THREE.Vector3(x, 0, z)));
+  for (let i = 0; i < 8; i++) {
+    fitCamera(camera, rect, tilt, 1);
+    const b = projectedBounds(camera, corners);
+    const next = (camera.aspect * (b.maxX - b.minX)) / (b.maxY - b.minY);
+    if (Math.abs(next - camera.aspect) < 1e-6) break;
+    camera.aspect = next;
+  }
+  return camera.aspect;
 }
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;

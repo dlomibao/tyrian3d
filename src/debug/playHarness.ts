@@ -16,6 +16,7 @@
 //   &preload=0                     start without waiting for the level's models (D54)
 //   &solid=1                       the bot not invulnerable (its armour kept topped up instead), so the
 //                                  ship draws opaque rather than translucent
+//   &interface=frame|minimal       the HUD (D61); &camera=overhead|tilted|steep
 //   &armor=N                       hold the bot's armour at N (under 6: the low-armour warning, which
 //                                  sends the armour ship every 500 ticks)
 //
@@ -37,6 +38,7 @@ import { loadLevel } from "../sim/tyrian2";
 import { JE_drawOptions } from "../sim/varz";
 import type { View } from "../render/view";
 import { levelModelInfo, preloadLevelModels } from "../app/levelPreload";
+import { Hud } from "../app/hud";
 
 /** Front weapons the cycle goes through: Pulse, Multi, Laser, Zica, Vulcan, Lightning, Starburst, Sonic, Protron, Missiles, Mega Pulse, Hyper Pulse. */
 const FAVOURITES = [1, 2, 4, 5, 7, 8, 9, 11, 12, 17, 19, 27];
@@ -112,6 +114,10 @@ export async function runPlayHarness(view: View): Promise<void> {
     e.preventDefault();
   });
 
+  // The game's HUD (`&interface=minimal` for the light one), so it can be checked on a real level.
+  const hud = new Hud(view);
+  hud.visible = true;
+
   const frameTimes: number[] = [];
   let frames = 0;
   let lastReport = performance.now();
@@ -126,6 +132,7 @@ export async function runPlayHarness(view: View): Promise<void> {
       view.draws.vfxTimeScale = frozen ? 0 : 1;
       const t0 = performance.now();
       view.renderer.info.reset();
+      hud.update();
       view.render(null, frozen ? 1 : alpha);
       frameTimes.push(performance.now() - t0);
       frames++;
