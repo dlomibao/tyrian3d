@@ -38,12 +38,12 @@
 }
 
 .hud2-player--1 {
-  --p-color: var(--ui-gold, #e0a040);
+  --p-color: var(--ui-player1, #e0a040);
   left: 12px;
 }
 
 .hud2-player--2 {
-  --p-color: var(--ui-cyan, #5cd6ff);
+  --p-color: var(--ui-player2, #5cd6ff);
   right: 12px;
   text-align: right;
 }
@@ -151,11 +151,13 @@
   gap: 4px;
   padding: var(--ui-space-2, 8px) var(--ui-space-3, 12px);
   border-left: 3px solid var(--p-color);
-  background: rgba(0, 0, 0, 0.25);
+  border-radius: 0 4px 4px 0;
+  background: var(--ui-well);
 }
 
-.shop-two__player--1 { --p-color: var(--ui-gold, #e0a040); }
-.shop-two__player--2 { --p-color: var(--ui-cyan, #5cd6ff); }
+/* The players keep the HUD's colours, which tell them apart in play (D61, D75). */
+.shop-two__player--1 { --p-color: var(--ui-player1, #e0a040); }
+.shop-two__player--2 { --p-color: var(--ui-player2, #5cd6ff); }
 
 .shop-two__head {
   display: flex;
@@ -169,7 +171,10 @@
 }
 
 .shop-two__score {
+  font-family: var(--ui-font-phos);
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
+  color: var(--ui-phos-num);
 }
 
 .shop-two__line {

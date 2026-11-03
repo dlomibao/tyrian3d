@@ -91,6 +91,17 @@
   color: #ff8a70 !important;
 }
 
+/* The HUDs keep D61's colours whatever the menus' tokens say (D75 points those at copper). */
+.hud,
+.hud2 {
+  --ink: #eef3f8;
+  --ink-dim: #a3b3c4;
+  --ui-gold: #f0b048;
+  --ui-cyan: #5cd6ff;
+  --ui-ink: #eef3f8;
+  --ui-ink-dim: #a3b3c4;
+}
+
 .hud {
   position: fixed;
   inset: 0;

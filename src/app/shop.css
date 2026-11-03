@@ -1,27 +1,39 @@
 /*
- * The item screen between levels (src/app/shop.ts): a wide panel of the interface framework
- * (src/ui/components.css), with the ship's loadout beside the current menu.
+ * The item screen between levels (src/app/shop.ts), in the original's layout (D75): two panes of
+ * the interface framework (src/ui/components.css .ui-pane), the picture and its readouts on the
+ * left, the menu's title and list on the right, and the HUD's message bar along the bottom. The
+ * screen's panel only lays them out; the backdrop's ship turns in the gap beside them.
  */
 
 .ui-screen--shop > .ui-panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ui-space-3);
-  padding: var(--ui-space-4) var(--ui-space-5);
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  grid-template-rows: auto auto;
+  align-items: stretch;
+  gap: 1.1rem;
+  max-width: 76rem;
+  /* Room for the panes' rims and shadows inside the scrolling box. */
+  padding: 3px;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 /* The panel scrolls as a whole on short screens; its parts keep their height. */
 .ui-screen--shop > .ui-panel > * {
-  flex-shrink: 0;
+  min-height: 0;
 }
 
-/* The panel hangs from the top, so its header and menu stay put when a menu's length changes. */
+/* The panel hangs from the top, so the title and menu stay put when a menu's length changes. */
 .ui-screen--shop {
   align-items: start;
   padding-top: max(16px, env(safe-area-inset-top), 8vh);
 }
 
-/* On wide screens the panel sits right of centre, leaving the backdrop's ship in view. */
+/* On wide screens the panes sit right of centre, leaving the backdrop's ship in view. */
 @media (min-aspect-ratio: 3/2) and (min-width: 1100px) {
   .ui-screen--shop {
     justify-items: end;
@@ -29,61 +41,19 @@
   }
 }
 
-.shop-header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--ui-space-4);
-  padding-bottom: var(--ui-space-3);
-  border-bottom: 1px solid var(--ui-edge);
-}
+/* --- the left pane: the picture (loadout, simulator or cube portrait) over the readouts --- */
 
-.shop-header .ui-title {
-  margin: 0;
-}
-
-.shop-header .ui-title {
-  margin-right: auto;
-}
-
-/* The back button sits in the header's flow, after the credits. */
-.shop-header .ui-back {
-  position: static;
-  align-self: center;
-}
-
-.shop-cash {
+.ui-screen--shop .shop-left {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  font-size: var(--ui-text-xs);
-  letter-spacing: var(--ui-tracking-wide);
-  text-transform: uppercase;
-  color: var(--ui-steel);
+  gap: 1rem;
+  padding: 1.1rem;
 }
 
-.shop-cash b {
-  font-family: var(--ui-font-display);
-  font-size: var(--ui-text-lg);
-  letter-spacing: 0.04em;
-  color: var(--ui-gold-bright);
-  text-shadow: var(--ui-glow-gold);
-  font-variant-numeric: tabular-nums;
-}
-
-.shop-body {
-  display: grid;
-  grid-template-columns: minmax(15rem, 22rem) 1fr;
-  gap: var(--ui-space-5);
-  align-items: start;
-  min-height: 0;
-}
-
-/* --- the left column: the loadout, or the weapon simulator (weaponPreview.css) --- */
-
-/* Both in one cell; the hidden one keeps its space, so the column (and the menu beside or under
-   it) doesn't move when the simulator shows or hides. */
+/* Both pictures in one cell; the hidden one keeps its space, so the pane (and the menu beside or
+   under it) doesn't move when the simulator shows or hides. */
 .shop-side {
+  flex: 1 1 auto;
   display: grid;
   align-items: start;
 }
@@ -102,14 +72,110 @@
   display: flex;
 }
 
-/* --- the ship's loadout --- */
-
-.shop-ship {
-  padding: var(--ui-space-3);
-  border: 1px solid var(--ui-edge);
-  border-radius: var(--ui-radius);
-  background: rgba(20, 30, 46, 0.35);
+/* The readouts: wells of phosphor figures under copper labels. */
+.shop-readouts {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr 1fr;
+  gap: 0.8rem;
 }
+
+.shop-readouts[hidden] {
+  display: none;
+}
+
+.shop-readouts > :only-child {
+  grid-column: 1 / -1;
+}
+
+.shop-ro {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  padding: 0.45rem 0.7rem;
+}
+
+.shop-ro__lbl {
+  font-family: var(--ui-font-display);
+  font-size: 0.56rem;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--ui-copper-lite);
+  opacity: 0.85;
+}
+
+.shop-ro__num {
+  font-size: 1.5rem;
+  line-height: 1.15;
+  text-align: right;
+}
+
+.shop-ro.is-off .shop-ro__num,
+.shop-ro.is-off .shop-cells {
+  opacity: 0.35;
+}
+
+/* An upgrade the credits don't cover: its cost in the phosphor's dim green. */
+.shop-ro.is-short .shop-ro__num {
+  color: var(--ui-phos-dim);
+}
+
+.shop-pwr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.3rem;
+}
+
+/* The arrows: copper, tappable (the C's mouse rules: powerDown / powerUp). */
+.shop-pwr__arrow {
+  flex: none;
+  min-width: 1.6rem;
+  min-height: 2rem;
+  padding: 0;
+  font: inherit;
+  font-size: 0.75rem;
+  color: var(--ui-copper-hi);
+  background: none;
+  border: 0;
+  border-radius: var(--ui-radius);
+  cursor: pointer;
+}
+
+.shop-pwr__arrow:hover:not(:disabled) {
+  background: rgba(183, 116, 66, 0.25);
+}
+
+.shop-pwr__arrow:disabled {
+  color: var(--ui-copper);
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Power: eleven phosphor cells, narrower when the well is. */
+.shop-cells {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: inline-flex;
+  gap: 2px;
+  height: 1.2rem;
+  padding: 3px;
+}
+
+.shop-cells i {
+  flex: 0 1 auto;
+  width: 0.55rem;
+  min-width: 2px;
+  background: var(--ui-phos-cell-off);
+}
+
+.shop-cells i.on {
+  background: var(--ui-phos-cell-on);
+}
+
+/* --- the ship's loadout --- */
 
 .shop-bars {
   display: grid;
@@ -130,6 +196,7 @@
   align-items: center;
   gap: var(--ui-space-2);
   font-size: var(--ui-text-sm);
+  font-weight: 600;
 }
 
 .ui-screen--shop .loadout .ui-menu__icon {
@@ -138,20 +205,64 @@
 }
 
 .ui-screen--shop .loadout .ui-menu__detail {
-  font-size: 0.72rem;
-  letter-spacing: 0.06em;
+  font-family: var(--ui-font-display);
+  font-size: 0.56rem;
+  font-weight: 700;
+  letter-spacing: 0.24em;
   text-transform: uppercase;
+  color: var(--ui-copper-lite);
+  opacity: 0.85;
 }
 
+/* The power level after a gun's name: a count. */
 .ui-screen--shop .loadout em {
+  font-family: var(--ui-font-phos);
   font-style: normal;
-  color: var(--ui-gold);
+  color: var(--ui-phos-num);
 }
 
-/* --- the menu --- */
+/* --- the right pane: the title, the list --- */
 
-.shop-list .shop-row.dim {
-  opacity: 0.45;
+.ui-screen--shop .shop-menu {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.shop-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--ui-space-4);
+  padding-bottom: 1rem;
+  margin-bottom: 0.9rem;
+  border-bottom: 1px solid var(--ui-rule);
+}
+
+.shop-header .ui-title {
+  margin: 0 auto 0 0;
+}
+
+/* The back button sits in the header's flow. */
+.shop-header .ui-back {
+  position: static;
+  align-self: flex-end;
+}
+
+.shop-list .shop-row {
+  min-height: 3.1rem;
+  font-size: 1.15rem;
+  gap: 1rem;
+  padding-left: 1.7rem;
+}
+
+.shop-list .shop-row .ui-menu__icon {
+  width: 2.4rem;
+  height: 2.8rem;
+}
+
+.shop-list .shop-row.dim .ui-menu__label {
+  color: var(--ui-ink-dim);
 }
 
 .shop-list .shop-row.off {
@@ -159,31 +270,45 @@
   cursor: default;
 }
 
-.shop-list .shop-row.done .ui-menu__label {
-  color: var(--ui-gold);
-  font-family: var(--ui-font-display);
-  font-size: var(--ui-text-sm);
-  letter-spacing: var(--ui-tracking);
-  text-transform: uppercase;
+/* The price: a phosphor figure at the row's end. */
+.shop-price {
+  margin-left: auto;
+  min-width: 3.4rem;
+  font-size: 1.1rem;
+  text-align: right;
 }
 
-/* The navigation map (JE_updateNavScreen), drawn at three times the C's pixels. */
+.ui-badge + .shop-price {
+  margin-left: 0;
+}
+
+.shop-list .shop-row.dim .shop-price {
+  color: var(--ui-phos-dim);
+}
+
+.shop-list .shop-row.done {
+  min-height: 2.6rem;
+  font-size: 1rem;
+}
+
+.shop-list .shop-row.done:not(.is-focused) .ui-menu__label {
+  color: var(--ui-ink-dim);
+}
+
+/* The navigation map (JE_updateNavScreen), drawn at three times the C's pixels, in a well. */
 .shop-nav {
   display: block;
   width: 100%;
   max-width: 30rem;
   aspect-ratio: 220 / 160;
   margin: 0 auto var(--ui-space-3);
-  border: 1px solid rgba(92, 214, 255, 0.35);
-  border-radius: var(--ui-radius);
-  box-shadow: 0 0 1.25rem rgba(92, 214, 255, 0.08), inset 0 0 2rem rgba(0, 0, 0, 0.6);
 }
 
 .shop-nav[hidden] {
   display: none;
 }
 
-/* --- weapon power and firing mode --- */
+/* --- the rear gun's firing mode --- */
 
 .shop-power {
   display: flex;
@@ -193,71 +318,17 @@
   gap: var(--ui-space-3);
   margin-top: var(--ui-space-3);
   padding-top: var(--ui-space-3);
-  border-top: 1px solid var(--ui-edge);
+  border-top: 1px solid var(--ui-rule);
 }
 
 .shop-power[hidden] {
   display: none;
 }
 
-.shop-power .ui-button small {
-  color: var(--ui-ink-dim);
-  font-family: var(--ui-font-text);
-  font-variant-numeric: tabular-nums;
-  text-transform: none;
-}
+/* --- the message bar --- */
 
-.shop-power .meter {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  font-family: var(--ui-font-display);
-  font-size: var(--ui-text-xs);
-  letter-spacing: var(--ui-tracking);
-  text-transform: uppercase;
-  color: var(--ui-ink-dim);
-}
-
-.shop-power .segs {
-  display: flex;
-  gap: 3px;
-}
-
-.shop-power .segs i {
-  width: 9px;
-  height: 16px;
-  border-radius: 1px;
-  background: rgba(143, 163, 184, 0.16);
-  transition: background-color var(--ui-fast) var(--ui-ease);
-}
-
-.shop-power .segs i.on {
-  background: var(--ui-power);
-  box-shadow: 0 0 6px var(--ui-power);
-}
-
-/* --- help line and hints --- */
-
-.shop-help {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--ui-space-2) var(--ui-space-4);
-  padding-top: var(--ui-space-3);
-  border-top: 1px solid var(--ui-edge);
-}
-
-.shop-help p {
-  flex: 1 1 16rem;
-  min-height: 1.45em;
-  margin: 0 !important;
-  font-size: var(--ui-text-sm);
-}
-
-.shop-help .ui-hints {
-  margin: 0;
+.ui-screen--shop .shop-help {
+  grid-column: 1 / -1;
 }
 
 /* --- quit question and ship specs (the framework's modal) --- */
@@ -275,27 +346,88 @@
 }
 
 .shop-dialog p b {
-  color: var(--ui-gold);
+  color: var(--ui-copper-hi);
   font-weight: inherit;
 }
 
-/* --- phones --- */
+/* --- phones (the phone render's): the menu first, the picture and readouts under it, the
+   message bar at the foot --- */
 
 @media (max-width: 720px) {
   .ui-screen--shop {
-    padding-top: max(8px, env(safe-area-inset-top));
+    padding: max(10px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom));
   }
 
   .ui-screen--shop > .ui-panel {
-    padding: var(--ui-space-3);
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    gap: 0.6rem;
+    height: 100%;
   }
 
-  .shop-body {
-    grid-template-columns: 1fr;
-    gap: var(--ui-space-3);
+  .ui-screen--shop .shop-menu {
+    order: 1;
+    padding: 0.9rem 0.9rem 0.6rem;
   }
 
-  /* The loadout folds into two columns above the menu. */
+  .ui-screen--shop .shop-left {
+    order: 2;
+    padding: 0.7rem;
+    gap: 0.7rem;
+  }
+
+  .ui-screen--shop .shop-help {
+    order: 4;
+    align-self: end;
+  }
+
+  .ui-screen--shop .shop-help .ui-hints {
+    display: none;
+  }
+
+  .shop-header .ui-title {
+    font-size: 1.85rem;
+  }
+
+  .shop-header {
+    padding-bottom: 0.7rem;
+    margin-bottom: 0.6rem;
+  }
+
+  .shop-list .shop-row {
+    min-height: 2.9rem;
+    font-size: 1.05rem;
+  }
+
+  .shop-list .shop-row .ui-menu__icon {
+    width: 2rem;
+    height: 2.33rem;
+  }
+
+  .shop-readouts {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.6rem;
+  }
+
+  .shop-readouts > .shop-ro--power {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .shop-ro__num {
+    font-size: 1.2rem;
+  }
+
+  .shop-cells {
+    flex: 1 1 auto;
+  }
+
+  .shop-cells i {
+    flex: 1 1 auto;
+    width: auto;
+  }
+
+  /* The loadout folds into two columns. */
   .ui-screen--shop .loadout {
     grid-template-columns: 1fr 1fr;
     gap: 2px var(--ui-space-2);
@@ -304,38 +436,6 @@
   .ui-screen--shop .loadout li {
     font-size: 0.78rem;
   }
-
-  /* Weapon power right under the simulator, above the weapons, where a thumb finds it without
-     scrolling past the list. */
-  .shop-menu {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .shop-power {
-    order: -1;
-    margin: 0 0 var(--ui-space-3);
-    padding: 0 0 var(--ui-space-3);
-    border-top: 0;
-    border-bottom: 1px solid var(--ui-edge);
-  }
-
-  .shop-header {
-    flex-wrap: wrap;
-    align-items: center;
-    padding-right: 0;
-  }
-
-  .shop-header .ui-title {
-    flex: 1 1 100%;
-  }
-
-  .shop-cash {
-    flex-direction: row;
-    align-items: baseline;
-    gap: var(--ui-space-2);
-  }
-
 }
 
 /* Short screens (phones in landscape): tighter rows so more of the menu shows. */
@@ -347,18 +447,24 @@
 
   .ui-screen--shop > .ui-panel {
     gap: var(--ui-space-2);
-    padding: var(--ui-space-2) var(--ui-space-4);
+  }
+
+  .ui-screen--shop .shop-menu,
+  .ui-screen--shop .shop-left {
+    padding: var(--ui-space-2) var(--ui-space-3);
   }
 
   .shop-header {
     padding-bottom: var(--ui-space-2);
+    margin-bottom: var(--ui-space-2);
   }
 
   .shop-header .ui-title__kicker {
     display: none;
   }
 
-  .ui-screen--shop .ui-menu__item {
+  .ui-screen--shop .ui-menu__item,
+  .shop-list .shop-row {
     min-height: 2.25rem;
   }
 
