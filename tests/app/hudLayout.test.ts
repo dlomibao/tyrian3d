@@ -20,9 +20,10 @@ import {
   SIDEBAR_W,
   toFrameUnits,
 } from "../../src/app/hudLayout";
-import { CAMERA_TILT, CAMERA_TILT_OVERHEAD, fitCamera, PLAYFIELD_RECT, playfieldScreenAspect } from "../../src/render/view";
+import { CAMERA_TILT, CAMERA_TILT_GENTLE, CAMERA_TILT_OVERHEAD, fitCamera, PLAYFIELD_RECT, playfieldScreenAspect } from "../../src/render/view";
 import { cameraStyle, DisplayChoice, interfaceStyle } from "../../src/core/displayStyle";
 import { optionsRows, SettingsMenu } from "../../src/app/options";
+import { cameraTilt } from "../../src/app/hud";
 import { loadPrefs, PREFS_STORAGE_KEY, PREFS_VERSION, savePrefs, type PrefsStorage } from "../../src/app/prefs";
 
 describe("gauges", () => {
@@ -63,14 +64,26 @@ describe("gauges", () => {
 });
 
 describe("camera fit", () => {
-  test("straight down, the playfield is 264x184 on screen; tilted it's wider than it's tall", () => {
+  test("straight down, the playfield is 264x184 on screen; the more tilted, the wider", () => {
     expect(playfieldScreenAspect(CAMERA_TILT_OVERHEAD)).toBeCloseTo(264 / 184, 3);
-    const tilted = playfieldScreenAspect(CAMERA_TILT);
-    expect(tilted).toBeGreaterThan(264 / 184 + 0.3);
+    const gentle = playfieldScreenAspect(CAMERA_TILT_GENTLE);
+    const steep = playfieldScreenAspect(CAMERA_TILT);
+    expect(gentle).toBeGreaterThan(264 / 184 + 0.1);
+    expect(steep).toBeGreaterThan(gentle + 0.4);
+    // The gentle tilt leaves under a seventh of a 264x184 opening's height above the playfield.
+    expect(184 - 264 / gentle).toBeLessThan(184 / 7);
+  });
+
+  test("the camera choices: Overhead 0°, Tilted 15° (the default), Steep 32°", () => {
+    expect(cameraTilt("overhead")).toBeLessThan(1e-6);
+    expect(THREE.MathUtils.radToDeg(cameraTilt("tilted"))).toBeCloseTo(15, 6);
+    expect(THREE.MathUtils.radToDeg(cameraTilt("steep"))).toBeCloseTo(32, 6);
+    expect(cameraStyle.values).toEqual(["overhead", "tilted", "steep"]);
+    expect(cameraStyle.fallback).toBe("tilted");
   });
 
   test("at the playfield's own aspect, the fitted corners touch all four edges", () => {
-    for (const tilt of [CAMERA_TILT, CAMERA_TILT_OVERHEAD]) {
+    for (const tilt of [CAMERA_TILT, CAMERA_TILT_GENTLE, CAMERA_TILT_OVERHEAD]) {
       const camera = new THREE.PerspectiveCamera(40, playfieldScreenAspect(tilt), 0.1, 500);
       fitCamera(camera, PLAYFIELD_RECT, tilt, 1);
       const r = PLAYFIELD_RECT;
@@ -84,7 +97,8 @@ describe("camera fit", () => {
 });
 
 describe("frame layout", () => {
-  const tilted = playfieldScreenAspect(CAMERA_TILT);
+  const tilted = playfieldScreenAspect(CAMERA_TILT_GENTLE);
+  const steep = playfieldScreenAspect(CAMERA_TILT);
   const overhead = playfieldScreenAspect(CAMERA_TILT_OVERHEAD);
   const inside = (a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }) =>
     a.x >= b.x - 1e-6 && a.y >= b.y - 1e-6 && a.x + a.w <= b.x + b.w + 1e-6 && a.y + a.h <= b.y + b.h + 1e-6;
@@ -98,7 +112,7 @@ describe("frame layout", () => {
   ];
 
   for (const [name, W, H] of screens) {
-    for (const [cam, aspect] of [["tilted", tilted], ["overhead", overhead]] as const) {
+    for (const [cam, aspect] of [["tilted", tilted], ["steep", steep], ["overhead", overhead]] as const) {
       test(`${name}, ${cam}: the playfield keeps its aspect, inside the opening, inside the window`, () => {
         const l = hudLayout(W, H, aspect);
         expect(l.playfield.w / l.playfield.h).toBeCloseTo(aspect, 6);
@@ -130,16 +144,18 @@ describe("frame layout", () => {
   });
 
   test("a wide window widens the opening up to the tilted playfield's width", () => {
-    const l = hudLayout(2560, 1080, tilted);
-    expect(l.openingW).toBeCloseTo(OPENING_H * tilted, 4);
-    expect(l.playfield.w).toBeCloseTo(l.opening.w, 4);
+    for (const aspect of [tilted, steep]) {
+      const l = hudLayout(2560, 1080, aspect);
+      expect(l.openingW).toBeCloseTo(OPENING_H * aspect, 4);
+      expect(l.playfield.w).toBeCloseTo(l.opening.w, 4);
+    }
   });
 
   test("portrait: the playfield across the width, the console under it, the block centred", () => {
     const l = hudLayout(390, 844, tilted, { top: 47, right: 0, bottom: 34, left: 0 });
     expect(l.mode).toBe("portrait");
     expect(l.opening.w).toBeCloseTo(390, 6);
-    expect(l.blockH - l.openingH).toBe(CONSOLE_H);
+    expect(l.blockH - l.openingH).toBeCloseTo(CONSOLE_H, 9);
     expect(l.opening.y).toBeGreaterThanOrEqual(47);
     const above = l.originY - 47;
     const below = 844 - 34 - (l.originY + l.blockH * l.scale);
@@ -167,7 +183,7 @@ describe("Interface and Camera settings", () => {
     expect(c.get()).toBe("frame");
     expect(new DisplayChoice("interface", ["frame", "minimal"] as const, "frame", "?interface=minimal").get()).toBe("minimal");
     expect(new DisplayChoice("interface", ["frame", "minimal"] as const, "frame", "?interface=bogus").get()).toBe("frame");
-    expect(new DisplayChoice("camera", ["tilted", "overhead"] as const, "tilted", "?camera=overhead").get()).toBe("overhead");
+    expect(new DisplayChoice("camera", ["overhead", "tilted", "steep"] as const, "tilted", "?camera=steep").get()).toBe("steep");
   });
 
   test("a choice is kept, replaces the URL's, and tells its listeners", () => {
@@ -202,6 +218,8 @@ describe("Interface and Camera settings", () => {
     menu.cur = rows.findIndex((r) => r.kind === "style" && r.which === "camera");
     menu.intent("left", "keys");
     expect(cameraStyle.get()).toBe("overhead");
+    menu.intent("left", "keys");
+    expect(cameraStyle.get()).toBe("steep");
     interfaceStyle.reset();
     cameraStyle.reset();
   });
@@ -221,6 +239,16 @@ describe("Interface and Camera settings", () => {
     expect(interfaceStyle.get()).toBe("minimal");
     expect(cameraStyle.get()).toBe("overhead");
     interfaceStyle.reset();
+    cameraStyle.reset();
+  });
+
+  test("a camera saved as \"tilted\" before the gentle tilt (when it meant 32°) gets the new default", () => {
+    cameraStyle.reset();
+    const store = memory();
+    store.setItem(PREFS_STORAGE_KEY, JSON.stringify({ version: PREFS_VERSION, camera: "tilted" }));
+    loadPrefs(store);
+    expect(cameraStyle.get()).toBe("tilted");
+    expect(cameraTilt(cameraStyle.get())).toBe(CAMERA_TILT_GENTLE);
     cameraStyle.reset();
   });
 });

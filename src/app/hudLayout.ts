@@ -12,8 +12,9 @@
 // opening, up to the playfield's own on-screen width (the camera's, playfieldScreenAspect in
 // render/view.ts), and anything left after that is bronze "wing" plate at the sides, or above and
 // below on a 4:3 screen. The playfield is fitted into the opening, sitting on the message bar like
-// the original's; with the overhead camera it fills a 264-wide opening exactly. Tilted, it's wider
-// than it's tall and narrower at the far edge, and the opening's rest is a recessed bezel.
+// the original's; with the overhead camera it fills a 264-wide opening exactly. Tilted (15°, or 32°
+// steep), it's wider than 264:184 and narrower at the far edge, and the opening's rest is a
+// recessed bezel.
 //
 // Portrait (narrower than square): the playfield across the top of the screen and the instruments
 // as a console under it (the design's phone layout), centred, with bronze plate above and below

@@ -2264,9 +2264,10 @@ D59 lists stay weak, though softer.
 
 **Decision:** The one-player HUD draws the approved design "A — Faithful bronze": the original's
 sidebar and message bar (JE_loadPic 3, `public/art/hud.webp`) redrawn in SVG on the 320x200 grid, with
-the 3D view fitted into the frame's opening. Options → Graphics → **Interface** (Remastered frame, the
-default / Minimal, the HUD before this) and **Camera** (Tilted, the default / Overhead), kept in the prefs;
-`?interface=frame|minimal` and `?camera=tilted|overhead` override them for the page
+the 3D view fitted into the frame's opening, and a gentler default camera. Options → Graphics →
+**Interface** (Remastered frame, the default / Minimal, the HUD before this) and **Camera** (Overhead 0° /
+Tilted 15°, the default / Steep 32°, the look before this), kept in the prefs;
+`?interface=frame|minimal` and `?camera=overhead|tilted|steep` override them for the page
 (`src/core/displayStyle.ts`, the same pattern as D57's terrain).
 - **Wiring** (`src/app/hud.ts`, `hudFrame.ts`): real values throughout. The generator column is
   `g.power / 10` rows of 90 (tyrian2.c's power bar); shield and armor are one row per point on an
@@ -2286,8 +2287,21 @@ default / Minimal, the HUD before this) and **Camera** (Tilted, the default / Ov
   renderer); the camera is fitted to the playfield rectangle's aspect and shifted off-axis
   (`setViewOffset`) onto it, so all four corners stay on screen and nothing is zoomed. The mask, the
   steering scale and the screen filters work as before, since they read the camera's matrices.
-- **Layout** (`src/app/hudLayout.ts`): tilted 32°, the playfield on screen is ~2.2:1 (the near edge's
-  width over the foreshortened height), far wider than the original's 264x184. So on 16:10 the frame
+- **The gentle tilt** (user's decision on the PR): at the old 32° the playfield on screen is ~2.2:1 (the
+  near edge's width over the foreshortened height), so in the frame's 264x184 opening it left 63 units
+  of the 184 empty above it, 47% of the opening with the wedges. Computed for the 16:10 opening
+  (`playfieldScreenAspect`), and compared on screen (`?debug=play&freezeAt=900&seed=3`):
+  12° 1.59:1, 18-unit band, 16% empty, far edge 86% of the near; 15° 1.65:1, 24 units, 21%, 82%;
+  18° 1.71:1, 30 units, 25%, 79%. The side depth the models show goes with sin(tilt): 0.21, 0.26,
+  0.31 (32°: 0.53). At 12° the sidekick pods and the walker read as top views; at 18° their fronts
+  show clearly, but the band grows by a quarter again. **15°** is the middle of both: half the old
+  side depth, under half the old empty area. A stored or URL `tilted` (which meant 32°) now gets 15°;
+  `steep` is the old look. The View still starts at 32° (`CAMERA_TILT`), so the item screen's weapon
+  preview, whose window size is tuned to it, keeps its look; the game view is set from the choice in
+  main.ts. The menus' backdrop has its own camera and the model viewer's "game" angle is its own
+  approximation; neither reads the tilt and both are unchanged.
+- **Layout** (`src/app/hudLayout.ts`): tilted, the playfield is wider than the original's 264x184 on
+  screen. So on 16:10 the frame
   keeps the original's grid (a 264-unit opening, 61-unit sidebar, 16-unit bar), the playfield sits on
   the message bar like the original's, and the opening's rest — the band above it and the wedges by the
   narrower far edge — is a dark recessed bezel with faint ribs and a lit bronze lip along the
@@ -2302,12 +2316,12 @@ default / Minimal, the HUD before this) and **Camera** (Tilted, the default / Ov
   Exo 2, already loaded; nothing new is fetched. SVG keeps it crisp at any DPR.
 - **Performance:** two full-window SVG layers, each `will-change: transform`: the frame with the
   brushed-metal and shadow filters, built once per layout, and the live layer, whose changed elements
-  only repaint it. `?debug=play` at 1920x1080 DPR 2, unfrozen, 8 one-second samples each: frame
+  only repaint it. `?debug=play` at 1920x1080 DPR 2, unfrozen, at 32°, 8 one-second samples each: frame
   60 fps / 1.8-2.3 ms cpu, minimal 60 fps / 1.75-2.3 ms (headless Chrome, which caps at 60).
 
 **Checked** in headless Chrome (`?debug=play&freezeAt=900&seed=3&left=1&right=5&rear=15`, which now
-shows the HUD): 16:10, 16:9, 21:9, 4:3 and a 390x844 phone at DPR 3 (16:10 and the phone also overhead): all
-four playfield corners visible each time; `&armor=3` for the WARNING; `&interface=minimal` unchanged
+shows the HUD): 16:10, 16:9, 21:9, 4:3 and a 390x844 phone at DPR 3, at 15° and at 32° (16:10 and the
+phone also overhead; 16:10 also at 12° and 18°): all four playfield corners visible each time; `&armor=3` for the WARNING; `&interface=minimal` unchanged
 from before. The real game from the title: no frame on the title, item screen or options; the frame in
 the level; the pause screen's scrim over it; gone again on the level-complete screen and after.
 Tests: `tests/app/hudLayout.test.ts` (gauge maps, pips, ammo, the camera fit, the layout at each window
@@ -2319,13 +2333,14 @@ Firefox, the attract demo with the frame, two-player in the browser.
   of the opening empty, and the design's picture filled it only by cropping the near corners.
 - *An opening shaped to the tilted playfield at every size:* a 405x184 opening puts bronze bands over
   a third of a 16:10 screen and loses the original's proportions; it's what a 21:9 window gets.
-- *Narrowing the field of view or the tilt by default:* changes how every model looks; Overhead is
-  there for a flat, filling view.
+- *Keeping 32° as the default:* nearly half the opening empty on 16:10; it stays as Steep.
+- *Narrowing the field of view instead of the tilt:* flattens the perspective of every model too, and
+  the far edge stays as narrow relative to the depth shown.
 - *Canvas sized to the opening (`fitContainer`):* the menus' backdrop shares the renderer and
   wants the whole window; the off-axis projection gives the same picture without moving the canvas.
 - *Rasterising the frame to an image:* the SVG on its own layer already costs nothing per frame.
 
-**Review:** Play a level in each Camera and Interface on a 16:10 and a 21:9 screen and on a phone:
+**Review:** Is 15° enough depth in motion (the stills were judged frozen)? Play a level in each Camera and Interface on a 16:10 and a 21:9 screen and on a phone:
 does the recessed band above the tilted playfield read as part of the frame, or should the playfield
 be centred in the opening instead of sitting on the bar? Are the gauge read-outs and weapon names
 readable at 1366x768?

@@ -12,7 +12,7 @@
 
 import "./overlay.css";
 import { cameraStyle, interfaceStyle, type CameraStyle } from "../core/displayStyle";
-import { CAMERA_TILT, CAMERA_TILT_OVERHEAD, playfieldScreenAspect, type ScreenRect } from "../render/view";
+import { CAMERA_TILT, CAMERA_TILT_GENTLE, CAMERA_TILT_OVERHEAD, playfieldScreenAspect, type ScreenRect } from "../render/view";
 import { g } from "../sim/state";
 import { hudLives } from "./arcade"; // [arcade]
 import { paint, tableSprite } from "./dataCubes";
@@ -20,7 +20,7 @@ import { HudFrame, type FrameValues, type SidekickView } from "./hudFrame";
 import { gaugeRows, hudLayout, type Insets, pipCount, powerPercent, powerRows, toFrameUnits } from "./hudLayout";
 
 /** The camera's tilt for a Camera choice. */
-export const cameraTilt = (style: CameraStyle): number => (style === "overhead" ? CAMERA_TILT_OVERHEAD : CAMERA_TILT);
+export const cameraTilt = (style: CameraStyle): number => (style === "overhead" ? CAMERA_TILT_OVERHEAD : style === "steep" ? CAMERA_TILT : CAMERA_TILT_GENTLE);
 
 /** What the HUD needs of the game's view: where to fit the playfield, and where it landed. */
 export interface HudView {

@@ -2,10 +2,12 @@
 //   interface  "frame": the remastered bronze frame, the original's sidebar and message bar drawn
 //              around the playfield (src/app/hudFrame.ts); "minimal": the light HUD over a
 //              full-window view (the HUD before D61).
-//   camera     "tilted": the 3D camera leaning 32° from straight down (src/render/view.ts);
-//              "overhead": straight down, so the playfield is a rectangle like the original's.
+//   camera     "overhead": straight down, so the playfield is a rectangle like the original's;
+//              "tilted": leaning 15° from straight down, the default (src/render/view.ts);
+//              "steep": 32°, the look before D61. A stored "tilted" from before the gentle
+//              tilt meant 32°; it now gets the new default, as the user decided.
 // Options → Graphics sets them and the prefs keep them (app/prefs.ts); `?interface=frame|minimal`
-// and `?camera=tilted|overhead` override them for the page. Listeners hear every change.
+// and `?camera=overhead|tilted|steep` override them for the page. Listeners hear every change.
 
 /** One persisted choice among a few values: the URL's, else the stored one, else the default. */
 export class DisplayChoice<T extends string> {
@@ -78,10 +80,10 @@ export class DisplayChoice<T extends string> {
 }
 
 export type InterfaceStyle = "frame" | "minimal";
-export type CameraStyle = "tilted" | "overhead";
+export type CameraStyle = "overhead" | "tilted" | "steep";
 
 /** The in-game interface: the remastered frame unless the player says otherwise. */
 export const interfaceStyle = new DisplayChoice<InterfaceStyle>("interface", ["frame", "minimal"], "frame");
 
-/** The game camera: tilted unless the player says otherwise. */
-export const cameraStyle = new DisplayChoice<CameraStyle>("camera", ["tilted", "overhead"], "tilted");
+/** The game camera: the gentle tilt unless the player says otherwise. */
+export const cameraStyle = new DisplayChoice<CameraStyle>("camera", ["overhead", "tilted", "steep"], "tilted");

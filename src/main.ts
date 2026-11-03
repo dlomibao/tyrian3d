@@ -40,7 +40,7 @@ function startGame(): void {
   view.draws.setBackgroundStyle(settings.background); // D34
   // HD terrain (D57): Options → Terrain, or `?terrain=`; the renderer switches at once.
   onTerrainStyle((style) => view.draws.setTerrainStyle(style));
-  // Camera (D61): Options → Camera, or `?camera=tilted|overhead`; the view refits at once.
+  // Camera (D61): Options → Camera, or `?camera=overhead|tilted|steep`; the view refits at once.
   view.setTilt(cameraTilt(cameraStyle.get()));
   cameraStyle.listen((style) => view.setTilt(cameraTilt(style)));
   // Remastered flat art for shots and pickups (D42), where public/art/sprites/ has it.

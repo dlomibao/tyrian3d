@@ -16,7 +16,7 @@
 //   &preload=0                     start without waiting for the level's models (D54)
 //   &solid=1                       the bot not invulnerable (its armour kept topped up instead), so the
 //                                  ship draws opaque rather than translucent
-//   &interface=frame|minimal       the HUD (D61); &camera=tilted|overhead the camera
+//   &interface=frame|minimal       the HUD (D61); &camera=overhead|tilted|steep
 //   &armor=N                       hold the bot's armour at N (under 6: the low-armour warning, which
 //                                  sends the armour ship every 500 ticks)
 //

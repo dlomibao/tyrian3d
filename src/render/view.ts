@@ -12,8 +12,16 @@ import { isModelHelper } from "./modelPrep";
 import { ScreenFilterPass } from "./screenFilters";
 import { VFX_LAYER } from "./vfx/vfxMode";
 
-/** Camera tilt from straight down, in radians (Camera: Tilted, the default). */
+/**
+ * Camera tilt from straight down, in radians: Camera: Steep, the look before D61, and the tilt a
+ * View starts with (the item screen's weapon preview keeps it).
+ */
 export const CAMERA_TILT = THREE.MathUtils.degToRad(32);
+/**
+ * Camera: Tilted, the game's default since D61: enough lean to show the models' sides, little enough
+ * that the playfield nearly fills the HUD frame's opening (DECISIONS.md D61 has the 12-18° comparison).
+ */
+export const CAMERA_TILT_GENTLE = THREE.MathUtils.degToRad(15);
 /**
  * Camera: Overhead (D61). Not exactly 0: lookAt straight down along the camera's up vector is
  * degenerate; a ten-millionth of a radian changes nothing on screen.

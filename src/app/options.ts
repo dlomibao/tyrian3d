@@ -154,7 +154,7 @@ const STYLE_LABELS: Record<string, string> = { hd: "HD remaster", frame: "Remast
 /** The rows' labels and help (D61). */
 const DISPLAY_ROWS: Record<DisplayTarget, { label: string; help: string }> = {
   interface: { label: "Interface", help: "Remastered frame draws the original's bronze sidebar and message bar around the playfield; Minimal keeps the light overlay on a full-screen view. Left/right switches." },
-  camera: { label: "Camera", help: "Tilted leans the camera to show the models' depth; Overhead looks straight down, so the playfield fills the frame like the original's. Left/right switches." },
+  camera: { label: "Camera", help: "Overhead looks straight down, so the playfield fills the frame like the original's; Tilted leans a little to show the models' sides; Steep leans further for more depth, leaving more of the frame empty. Left/right switches." },
 };
 const styleLabel = (s: string) => STYLE_LABELS[s] ?? styleName(s);
 
