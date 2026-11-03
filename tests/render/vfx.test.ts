@@ -1,12 +1,13 @@
 import * as THREE from "three";
 import { describe, expect, test } from "vitest";
-import { EXPLOSION_DATA, ExplosionKind, explosionFrame } from "../../src/render/vfx/explosionFrames";
+import { EXPLOSION_DATA, ExplosionKind, explosionFrame, shieldArcCentre } from "../../src/render/vfx/explosionFrames";
 import { landingTime, ParticleSystem } from "../../src/render/vfx/particles";
 import { GlowLayer } from "../../src/render/vfx/glowLayer";
+import { ShieldLayer } from "../../src/render/vfx/shieldLayer";
 import { measureSprite } from "../../src/render/vfx/remasteredFx";
 import { vfxModeFromSearch } from "../../src/render/vfx/vfxMode";
 import { extrudeSprite, SPRITE_EXTRUDE, toGeometry } from "../../src/render/spriteMesh";
-import { JE_setupExplosion } from "../../src/sim/varz";
+import { JE_playerDamage, JE_setupExplosion } from "../../src/sim/varz";
 import { g, MAX_EXPLOSIONS } from "../../src/sim/state";
 
 describe("explosion frames", () => {
@@ -35,7 +36,27 @@ describe("explosion frames", () => {
     expect(kind(6)).toBe(ExplosionKind.Smoke);
     expect(kind(12)).toBe(ExplosionKind.Smoke);
     expect(kind(11)).toBe(ExplosionKind.Spark);
-    expect(kind(20)).toBe(ExplosionKind.Spark);
+    expect(kind(13)).toBe(ExplosionKind.Spark);
+    for (let t = 14; t <= 22; t++) expect(kind(t)).toBe(ExplosionKind.Shield);
+    expect(kind(23)).toBe(ExplosionKind.Spark);
+  });
+
+  test("a shield hit's nine arcs all point at one middle, just below the ship's", () => {
+    for (let i = 0; i < MAX_EXPLOSIONS; i++) g.explosions[i].ttl = 0;
+    const p = g.player[0];
+    Object.assign(p, { x: 100, y: 120, shield: 10, armor: 10 });
+    JE_playerDamage(1, p);
+    const arcs = g.explosions.filter((e) => e.ttl > 0);
+    expect(arcs).toHaveLength(9);
+    for (const e of arcs) {
+      // As drawn: sprite + 2 on the first tick, at the explosion's x and y.
+      const f = explosionFrame(e.sprite + 2)!;
+      expect(f.kind).toBe(ExplosionKind.Shield);
+      const at = shieldArcCentre(f.type)!;
+      expect([e.x + at[0], e.y + at[1]]).toEqual([p.x + 7, p.y + 9]);
+    }
+    expect(shieldArcCentre(13)).toBeUndefined();
+    expect(shieldArcCentre(23)).toBeUndefined();
   });
 
   test("the table matches the sim's JE_setupExplosion", () => {
@@ -106,6 +127,20 @@ describe("glow layer", () => {
     expect((geometry.getAttribute("aHead").array as Float32Array)[12]).toBe(4);
     layer.commit();
     expect(geometry.instanceCount).toBe(0);
+    expect(layer.mesh.visible).toBe(false);
+    layer.dispose();
+  });
+});
+
+describe("shield layer", () => {
+  test("grows past its capacity and draws exactly what was added", () => {
+    const layer = new ShieldLayer(1);
+    for (let i = 0; i < 3; i++) layer.add(i, 3, 0, 1, 0.5, 1, 0.4, 0.8, 1, 1, 0.5, 0);
+    layer.commit();
+    const geometry = layer.mesh.geometry as THREE.InstancedBufferGeometry;
+    expect(geometry.instanceCount).toBe(3);
+    expect((geometry.getAttribute("aCentre").array as Float32Array)[6]).toBe(2);
+    layer.commit();
     expect(layer.mesh.visible).toBe(false);
     layer.dispose();
   });
