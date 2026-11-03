@@ -7,9 +7,10 @@ whole in assembly pixels and cut into its pieces with common.split_assembly (piv
 centre, cut faces filled). One sprite frame per piece, one model per piece.
 
 What the sprite fixes (outline, parts, colours; the sprite wins over the concept):
-- A rock bed filling the whole block, grey boulders with beige stones round the machine: a band along
-  the top, notches between the caps, piles at the lower left (cols 0-12) and lower right (cols 60-71).
-  The stones are cleaved, faceted boulders sunk in the bed.
+- Island rock round the machine (a band along the top, notches between the caps, piles at the lower
+  left, cols 0-12, and lower right, cols 60-71): the sprite's own pixels as the islands' relief
+  (lib_tiles.sprite_rock, DECISIONS.md D66), one rock object per piece, no outline, no shadow, so it
+  reads as the island going on under the machine rather than a block with a rim.
 - Three octagonal armour caps (edges cols 3..21 + 24k, rows 4..20; flats 7 px at top and bottom, 5 px
   at the sides, diagonals 5.5 px, fitted to the sprite's stair-steps), flat palette-88 tops whose lit NW /
   dark SE rims are a chamfer. The tallest parts (top about 8.8 px), overhanging a dark recessed
@@ -22,12 +23,13 @@ What the sprite fixes (outline, parts, colours; the sprite wins over the concept
   screen, axis north-south towards the player, with a raised collar, a dark groove band and an end
   flange round a deep glowing bore (the concept's lamps; the sprite cannot see the south faces).
 Colours: palette index per part = the trimmed median of the sprite pixels it covers. Satin metal.
-Underneath: closed solids on the bed slab, no detail.
+Underneath: closed solids standing on the rock, no detail.
 
 Texture: no concept projection (maps.json "bake": "model"); an ambient-occlusion / edge colour
-multiplier and a roughness / metalness map baked with Cycles, as the player ships. Outline shell as
-common.outline_shell (D51) on the whole row, cut into the pieces without filling the seams (no ink
-line down the joints under the couplings).
+multiplier and a roughness / metalness map baked with Cycles, as the player ships (the rock is
+there as an occluder, not baked). Outline shell as common.outline_shell (D51) on the machine of the
+whole row, cut into the pieces without filling the seams (no ink line down the joints under the
+couplings); the rock has none.
 
     blender --background --factory-startup --python assets/blender/enemies/assembly-newsh2-279.py \\
         [-- --no-bake] [--no-export] [--out row.glb] [--preview out.png]
@@ -41,8 +43,9 @@ from pathlib import Path
 import bmesh
 import bpy
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path[:0] = [str(Path(__file__).resolve().parents[1]), str(Path(__file__).resolve().parents[1] / "tiles")]
 import common  # noqa: E402
+import lib_tiles as lt  # noqa: E402
 
 NAME = "assembly-newsh2-279"
 PIECES = ["newsh2-279", "newsh2-281", "newsh2-283"]
@@ -51,8 +54,6 @@ PX = 1 / 12
 
 # Material slots -> (palette index, metallic, roughness, emission)
 SLOTS = {
-    "bed": (5, 0.0, 0.92, 0), "r6": (6, 0.0, 0.85, 0), "r7": (7, 0.0, 0.85, 0),
-    "r8": (8, 0.0, 0.82, 0), "r9": (9, 0.0, 0.8, 0), "beige": (170, 0.0, 0.8, 0),
     "cap": (88, 0.25, 0.42, 0), "side": (87, 0.25, 0.46, 0), "dark": (86, 0.25, 0.55, 0),
     "mid": (89, 0.25, 0.44, 0), "light": (90, 0.25, 0.42, 0), "lens": (173, 0.0, 0.2, 0.9),
     "lamp": (172, 0.0, 0.3, 1.2), "steel": (85, 0.45, 0.48, 0),
@@ -167,61 +168,12 @@ def section(cx, r, hz0, hw, hz, n=20, p=2.3):
     return out
 
 
-def hsh(*v):
-    """A deterministic pseudo-random number in [0, 1)."""
-    x = math.sin(sum(a * b for a, b in zip(v, (12.9898, 78.233, 37.719, 4.581)))) * 43758.5453
-    return x - math.floor(x)
-
-
-def boulder(bm, c, r, rx, ry, rz, mat, seed):
-    """A cleaved stone: an icosphere scaled to the ellipsoid, lumpy, with a few flat cleavage faces
-    cut across it and a flat base sunk into the bed; kept inside the block's edges."""
-    from mathutils import Vector
-    sub = 2 if max(rx, ry) > 2.6 else 1
-    res = bmesh.ops.create_icosphere(bm, subdivisions=sub, radius=1.0)
-    planes = []
-    for k in range(4):
-        th = 2 * math.pi * hsh(seed, k, 1)
-        ph = math.radians(25 + 50 * hsh(seed, k, 2))
-        nrm = Vector((math.cos(th) * math.sin(ph), math.sin(th) * math.sin(ph), math.cos(ph)))
-        planes.append((nrm, 0.72 + 0.16 * hsh(seed, k, 3)))
-    z0 = -0.18 * rz
-    for v in res["verts"]:
-        d = v.co.normalized()
-        lump = 1.0 + 0.13 * math.sin(3.1 * d.x + 6 * hsh(seed, 7)) * math.sin(2.7 * d.y + 6 * hsh(seed, 8)) \
-            + 0.08 * math.sin(5.3 * d.z + 4.1 * d.x + 6 * hsh(seed, 9))
-        p = d * lump
-        for nrm, off in planes:
-            e = p.dot(nrm) - off
-            if e > 0:
-                p = p - nrm * e
-        cc = min(max(c + p.x * rx * 1.12, 0.05), W - 0.05)  # 1.12: the cleaving trims the ellipsoid
-        rr = min(max(r + p.y * ry * 1.12, 0.05), H - 0.05)
-        v.co = Vector(((cc - W / 2) * PX, (H / 2 - rr) * PX, max(z0 + p.z * (rz - z0), -0.35) * PX))
-    for f in {f for v in res["verts"] for f in v.link_faces}:
-        f.material_index = mat
-
-
 # --- the parts ----------------------------------------------------------------------------------
 
 CAP_Z0, CAP_Z1 = 5.6, 8.2  # armour slab
 CAN_HZ, CAN_AXIS = 2.95, 2.95  # canister half height and axis height (px); tops at 5.9
 CANS = [(12.95, 19.95, "mid"), (29.1, 35.95, "light"), (36.05, 43.9, "mid"), (53.05, 59.9, "light")]
 HOUSINGS = [(24.5, 20.6), (48.5, 47.9)]  # (centre column, west end of the back step)
-
-ROCKS = [  # (c, r, rx, ry, rz, slot) in assembly px; rz in px
-    (5, 1.9, 5.2, 2.3, 2.6, "beige"), (14.5, 1.9, 3.8, 2.0, 2.2, "r7"), (21.6, 1.9, 2.6, 2.0, 2.4, "r7"),
-    (29, 1.9, 5.2, 2.3, 2.6, "beige"), (38.5, 1.9, 3.8, 2.0, 2.2, "r7"), (45.6, 1.9, 2.6, 2.0, 2.4, "r7"),
-    (53, 1.9, 5.2, 2.3, 2.6, "beige"), (62.5, 1.9, 3.8, 2.0, 2.2, "r7"), (69.6, 2.2, 2.4, 2.0, 2.0, "r7"),
-    (1.5, 7.0, 1.8, 3.0, 2.4, "r8"), (1.4, 12.0, 1.7, 2.4, 2.2, "r8"),
-    (21.8, 7.4, 2.8, 3.2, 3.0, "r8"), (45.8, 7.4, 2.6, 3.0, 2.6, "r7"), (69.8, 7.6, 2.3, 3.4, 2.8, "r8"),
-    (69.9, 12.0, 2.0, 1.6, 1.6, "r6"), (66.5, 4.6, 1.4, 1.1, 1.1, "r6"),
-    (2.4, 18.8, 2.4, 3.6, 3.2, "r9"), (7.6, 21.2, 3.8, 2.8, 2.8, "r8"), (3.8, 24.0, 3.8, 1.6, 1.8, "r7"),
-    (6.4, 26.8, 4.6, 1.3, 1.8, "beige"), (10.4, 17.6, 1.8, 2.0, 1.6, "r7"),
-    (69.6, 19.4, 2.4, 4.2, 3.2, "r9"), (67.6, 24.8, 3.6, 3.1, 2.6, "r6"), (64.6, 16.8, 2.2, 2.2, 1.8, "r6"),
-    (63.4, 22.0, 1.6, 1.8, 1.3, "r7"), (62.6, 26.8, 1.8, 1.2, 1.2, "r6"),
-]
-
 
 def octagon(cx, cr=12.0):
     """A cap's plan fitted to the sprite's stair-stepped octagon (cols cx-9..cx+9, rows 4..20): flats
@@ -369,15 +321,8 @@ def can(bm, c0, c1, slot):
     loft(bm, rings, mats + [M["lens"]])  # the bore's floor (the end cap) is the glowing lens
 
 
-def rock_bed(bm):
-    prism(bm, rect(0, 0, W, H), -2.4, 0.0, M["bed"], M["bed"])
-    for i, (c, r, rx, ry, rz, slot) in enumerate(ROCKS):
-        boulder(bm, c, r, rx, ry, rz, M[slot], seed=i + 1)
-
-
 def build(sprite, coll):
     bm = bmesh.new()
-    rock_bed(bm)
     # cradle under the canisters (between them, the dark floor of their seams)
     prism(bm, rect(12.9, 15.0, 60.0, 27.95), 0.0, 1.0, M["dark"], M["dark"], ch_top=0.2)
     # a bracket west of the first canister (the sprite's dark column at col 12, rows 20-22)
@@ -631,32 +576,38 @@ def main(script_file, argv=None):
     coll = common.reset_collection(NAME)
     obj = build(sprite, coll)
     print(f"{NAME} row: {len(obj.data.polygons)} faces, {sum(len(p.vertices) - 2 for p in obj.data.polygons)} triangles")
+    layout = layout_px(root)
+    # The island rock round the machine (D66), in the row's place so the bake sees it as an occluder.
+    rocks = lt.build_sprite_rock(root, [obj], layout, W, H, coll, "a279rock")
+    for p, cx, cy in layout:
+        rocks[p].location = (cx * PX, -cy * PX, 0)
     fmt = "AUTO"
     if "--no-bake" not in argv:
         bake_maps(obj, tempfile.mkdtemp(prefix="nsh2_279_bake_"))
         fmt = "WEBP"
     shell = common.outline_shell(obj, coll, voxel=0.012, faces=4500)
-    lay = layout_px(root)
-    layout = [(n, cx, cy) for n, cx, cy in lay]
     parts = common.split_assembly(obj, layout, coll)
     shells = split_open(shell, layout, coll)
     for p, _, _ in layout:
         smooth(parts[p])
+        rocks[p].location = (0, 0, 0)
         print(f"{NAME} piece {p}: {sum(len(f.vertices) - 2 for f in parts[p].data.polygons)} triangles, "
-              f"outline {len(shells[p].data.polygons)} faces")
+              f"outline {len(shells[p].data.polygons)} faces, rock {sum(len(f.vertices) - 2 for f in rocks[p].data.polygons)} triangles")
     if "--no-export" not in argv:
         for p, _, _ in layout:
             data = common.load_sprite(root, p)
-            common.export_sprite_model(root, [parts[p], shells[p]], f"enemies/{p}", data["sprites"], image_format=fmt)
+            common.export_sprite_model(root, [parts[p], shells[p], rocks[p]], f"enemies/{p}", data["sprites"], image_format=fmt)
     for p, cx, cy in layout:  # the pieces back at their places in the row
         parts[p].location = (cx * PX, -cy * PX, 0)
         shells[p].parent = parts[p]
         shells[p].hide_render = True
+        rocks[p].parent = parts[p]
     obj.hide_render = True
     shell.hide_render = True
     if "--out" in argv:
         out = Path(argv[argv.index("--out") + 1])
-        common.export_glb([parts[p] for p, _, _ in layout] + [shells[p] for p, _, _ in layout], out, image_format=fmt)
+        common.export_glb([parts[p] for p, _, _ in layout] + [shells[p] for p, _, _ in layout] + [rocks[p] for p, _, _ in layout],
+                          out, image_format=fmt)
         print("wrote", out)
     if "--preview" in argv:
         out = Path(argv[argv.index("--preview") + 1])
@@ -665,7 +616,7 @@ def main(script_file, argv=None):
             img = root / "reference" / "models" / p / data["frames"][0]["image"]
             loc = parts[p].location.copy()
             parts[p].location = (0, 0, 0)
-            common.render_preview([parts[p]], str(out.parent / f"{p}.png"), str(img), size=2)
+            common.render_preview([parts[p], rocks[p]], str(out.parent / f"{p}.png"), str(img), size=2)
             parts[p].location = loc
     return parts, shells, layout
 

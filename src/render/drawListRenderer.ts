@@ -43,7 +43,7 @@ import { PaletteTexture } from "./paletteTexture";
 import { passHeight } from "./passHeights";
 import { SpriteMeshCache } from "./spriteMesh";
 import { colourFrame, rigModel, showFrame, type FrameRig } from "./modelFrames";
-import { isModelHelper, setModelBlended } from "./modelPrep";
+import { castsShadow, isModelHelper, setModelBlended } from "./modelPrep";
 import type { SpriteModels } from "./spriteModels";
 import { Route, Sprite2Router } from "./sprite2Route";
 import { bankShift } from "./bankShift";
@@ -1162,7 +1162,7 @@ export class DrawListRenderer {
     object.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
-      mesh.castShadow = !isModelHelper(mesh);
+      mesh.castShadow = castsShadow(mesh);
       mesh.receiveShadow = !isModelHelper(mesh);
       // Own materials, so one clone can turn translucent (invulnerability) without the others.
       mesh.material = Array.isArray(mesh.material) ? mesh.material.map((m) => m.clone()) : mesh.material.clone();

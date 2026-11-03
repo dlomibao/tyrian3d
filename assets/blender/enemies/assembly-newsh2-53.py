@@ -4,8 +4,8 @@ Seen in levels 1.30 and 3.17. Four 2x2 enemies (types 42-45, 12 armour) make one
 machinery set into grey rock (sprite.json `assemblyLayout`): a red elbow pipe and a chrome-coupled top
 pipe, two glowing orange canister lights, a red tower, a brass lens box with a red lens, twin red
 vented panels, a gunmetal housing with a plank hatch and louvres framed by red trim (the "P"), a drum
-with a bronze sleeve and brass strut, a red saddle block, brown posts and rods, ringed by boulders
-and sand.
+with a bronze sleeve and brass strut, a red saddle block, brown posts and rods, ringed by island
+rock and sand.
 
 A hard-surface rebuild in the manner of the USP Talon and the player ships (DECISIONS.md D50-D53).
 Every part is drawn in sprite pixels: c = column, r = row (pixel EDGES of the 48 x 56 grid), z = px
@@ -18,8 +18,10 @@ flanks and housing louvres; the lower annex split along its slant as the sprite 
 Sprite authority (tools/calibration/rubric.md): the top view covers the whole 48 x 56 rectangle (the
 sprite is opaque everywhere); each part's palette index is the sprite's own median over that part
 (darkest and brightest 15 % dropped: shading and sheen); satin metal. Bright spots are sheen: no
-geometry for them. The rock bed's sides slope in and down from the rectangle's edge to a flat,
-closed bottom (set into rock, no tray skirt); the underside has no detail.
+geometry for them. The rock and sand round the machine are island rock: the sprite's own pixels as
+the islands' relief (lib_tiles.sprite_rock, DECISIONS.md D66) at the rock ground (z = 0), one rock
+object per piece with no outline and no shadow, so the block stands in the island instead of in a
+rimmed tray. The machine's underside has no detail.
 
 No concept projection bake (maps.json says "bake": "model", so texture_bake.py skips it, like the
 player ships in #84): plain palette materials, the detail is modelled.
@@ -28,7 +30,7 @@ Game contract: palette materials pal_<index>_nsh2a53<finish>; the whole block is
 to the rectangle and cut into the four pieces newsh2-15 / -17 / -53 / -55 with common.split_assembly
 at the layout's centres (pivots = piece centres), each exported as enemies/<piece> with its own
 spriteModels entry and its one sprite frame, plus an outline shell per piece (common.outline_shell,
-D51). No engines.
+D51) round its machine, and its rock. No engines.
 
 Run: blender --background --python assets/blender/enemies/assembly-newsh2-53.py [-- --preview out.png]
 (the preview is the whole block; each piece also gets <piece>.png next to it).
@@ -43,16 +45,18 @@ import bmesh
 import bpy
 from mathutils import Vector
 
-sys.path[:0] = [str(Path(__file__).resolve().parents[1]), str(Path(__file__).resolve().parent)]
+sys.path[:0] = [str(Path(__file__).resolve().parents[1]), str(Path(__file__).resolve().parent),
+                str(Path(__file__).resolve().parents[1] / "tiles")]
 import common  # noqa: E402
 import lib_b053 as lib  # noqa: E402
+import lib_tiles as lt  # noqa: E402
 
 NAME = "assembly-newsh2-53"
 ROOT = common.repo_root(__file__)
 GW, GH = 48, 56
 PX = 1 / 12
 ZOFF = -1.5  # the rock ground (z = 0 px) sits 1.5 px below the origin; machinery up to ~9.5 px above it
-BED = -2.4  # the rock bed's flat bottom (px)
+BED = -2.4  # how far below the rock ground parts are cut off (px)
 TAG = "nsh2a53"
 
 
@@ -369,32 +373,6 @@ def plated(slot, core, c0, r0, c1, r1, z0, z1, ch=0.4, cuts_c=(), cuts_r=(), gap
             box(slot, a, u, b, v, z1 - depth, z1, ch)
 
 
-def rock_bed(slot, seed=53):
-    """The rock the block is set into: its top flush with the 48 x 56 rectangle at z = 0, faceted
-    sides sloping in and down to a flat closed bottom at BED px (no tray skirt)."""
-    rnd = random.Random(seed)
-    per = [(c, 0.0) for c in range(0, 48, 3)] + [(48.0, r) for r in range(0, 56, 3)]
-    per += [(c, 56.0) for c in range(48, 0, -3)] + [(0.0, r) for r in range(56, 0, -3)]
-
-    def pull(q, d):
-        dx, dy = q[0] - 24, q[1] - 28
-        k = max(abs(dx) / 24, abs(dy) / 28)
-        return (24 + dx * (1 - d / 24 / k), 28 + dy * (1 - d / 28 / k))
-    bm = C.bm
-    f0 = len(bm.faces)
-    top = [bm.verts.new(P(c, r, 0.0)) for c, r in per]
-    mid = [bm.verts.new(P(*pull(q, rnd.uniform(0.3, 0.9)), BED * 0.45 + rnd.uniform(-0.25, 0.25))) for q in per]
-    bot = [bm.verts.new(P(*pull(q, rnd.uniform(1.2, 1.8)), BED)) for q in per]
-    n = len(per)
-    for i in range(n):
-        j = (i + 1) % n
-        bm.faces.new((top[i], top[j], mid[j], mid[i]))
-        bm.faces.new((mid[i], mid[j], bot[j], bot[i]))
-    bm.faces.new(top)
-    bm.faces.new(bot[::-1])
-    _done(f0, slot)
-
-
 # ------------------------------------------------------------------------------------------------
 # the model
 # ------------------------------------------------------------------------------------------------
@@ -402,31 +380,9 @@ def rock_bed(slot, seed=53):
 def build():
     C.bm = bmesh.new()
 
-    # ---- ground: rock bed, dark machine pit, boulders, sand ----
-    part("rockBed", g("grey", [[0, 0, 48, 56]]), "rock", rock_bed)
+    # ---- ground: the island rock, and the dark floor between the parts (the sprite's dark pixels
+    # there), are lib_tiles.sprite_rock's, in main ----
     DARK = mat_slot(2, "dark")  # the dark cores showing in the plates' gaps
-    part("deck", g("grey", [[20, 48, 40, 51], [35, 5, 41, 16], [13, 5, 21, 7]]), "deck", prism,
-         [(0, 15.4), (3, 15.0), (3.4, 3.2), (40.6, 3.2), (40.6, 51.2), (6.4, 51.2), (6.0, 34.2), (0, 34.2)], 0, 0.5, 0.2)
-    boulders = [
-        (1.5, 7.5, 2.8, 4.0, 2.9), (1.5, 13.0, 2.6, 3.0, 2.4), (3.0, 16.0, 4.0, 1.8, 1.9),
-        (1.8, 38.0, 3.0, 5.0, 2.9), (3.0, 48.0, 4.6, 5.0, 3.6), (12.0, 1.4, 4.2, 3.0, 2.9),
-        (19.0, 1.5, 4.0, 3.2, 2.9), (33.0, 1.5, 4.0, 3.0, 2.9), (23.0, 5.5, 3.6, 1.8, 1.7),
-        (10.5, 4.6, 3.0, 1.8, 1.7), (44.5, 1.5, 3.6, 3.0, 2.9), (44.5, 7.5, 3.6, 3.6, 3.4), (44.0, 13.6, 3.2, 3.0, 2.4),
-        (44.5, 20.0, 3.6, 4.6, 3.6), (44.5, 28.0, 3.6, 4.0, 3.1), (44.5, 37.0, 3.6, 5.0, 3.4), (45.6, 46.5, 2.6, 5.0, 3.0),
-        (44.0, 53.0, 4.0, 3.0, 2.9), (40.4, 46.0, 1.8, 2.6, 1.9), (11.5, 51.6, 4.2, 3.0, 2.4), (20.0, 55.2, 4.0, 1.4, 1.4),
-        (37.6, 51.0, 3.0, 3.0, 2.4), (39.6, 5.0, 2.2, 3.0, 1.9), (14.5, 51.2, 3.0, 2.0, 1.4),
-        (22.5, 51.6, 4.6, 2.2, 1.7), (30.0, 51.4, 3.4, 2.0, 1.4),
-    ]
-    for i, (c, r, rx, ry, rz) in enumerate(boulders):
-        cc, rr = c + 0.5, r + 0.5
-        blue = False
-        pal = g("blue", [[41, 43, 48, 50]]) if blue else g("grey", [[cc - rx * 0.7, rr - ry * 0.7, cc + rx * 0.7, rr + ry * 0.7]])
-        part(f"boulder{i}", pal, "rock", blob, cc, rr, -0.6, rx, ry, rz, seed=i * 7 + 3, bump=0.16, seg=11, rings=4)
-    part("sandNW", g("sand", [[0, 0, 7, 4]]), "sand", blob, 3.4, 1.6, -0.3, 3.8, 2.4, 1.4, seed=91, bump=0.04, smooth=True)
-    part("sandN", g("sand", [[24, 0, 28, 3]]), "sand", blob, 26.0, 1.0, -0.3, 2.4, 1.8, 1.1, seed=92, bump=0.04, smooth=True)
-    part("sandSW", g("sand", [[2, 53, 11, 56]]), "sand", blob, 6.6, 55.0, -0.3, 4.8, 1.8, 1.2, seed=93, bump=0.04, smooth=True)
-    part("sandS", g("sand", [[26, 53, 35, 56]]), "sand", blob, 30.6, 55.0, -0.3, 4.6, 1.8, 1.2, seed=94, bump=0.04, smooth=True)
-    part("blueStone", g("blue", [[41, 43, 48, 50]]), "rock", blob, 43.8, 46.6, 0.0, 2.6, 2.8, 3.6, seed=95, bump=0.1)
 
     # ---- top pipe (row 3.5): couplings, red flange, polished rod over a brass-studded tray, spring ----
     ZT = 4.6
@@ -667,8 +623,8 @@ def build():
 
 
 def clip_rect(obj):
-    """Cut everything to the 48 x 56 px rectangle (the pieces' boxes) and above the rock bed's
-    bottom, filling the cut faces, so the block stays closed."""
+    """Cut everything to the 48 x 56 px rectangle (the pieces' boxes) and above BED, filling the
+    cut faces, so the block stays closed."""
     bm = bmesh.new()
     bm.from_mesh(obj.data)
     hw, hh = GW / 2 * PX, GH / 2 * PX
@@ -705,6 +661,8 @@ def main():
     obj, grid, colors, pieces_layout = build_block()
     tris = sum(len(p.vertices) - 2 for p in obj.data.polygons)
     print(f"{NAME}: whole block {tris} triangles")
+    # The island rock round the machine (D66), at the rock ground.
+    rocks = lt.build_sprite_rock(ROOT, [obj], pieces_layout, GW, GH, C.coll, TAG + "rock", ground=ZOFF * PX, grid=grid)
     pieces = common.split_assembly(obj, pieces_layout, C.coll)
     shells = {}
     for name, cx, cy in pieces_layout:
@@ -719,10 +677,11 @@ def main():
         shell.hide_render = True
         shells[name] = shell
         data = common.load_sprite(ROOT, name)
-        common.export_sprite_model(ROOT, [p, shell], f"enemies/{name}", data["sprites"])
+        common.export_sprite_model(ROOT, [p, shell, rocks[name]], f"enemies/{name}", data["sprites"])
         pt = sum(len(q.vertices) - 2 for q in p.data.polygons)
         st = sum(len(q.vertices) - 2 for q in shell.data.polygons)
-        print(f"{NAME}: piece {name} at ({cx}, {cy}) px: {pt} triangles; shell {st} triangles")
+        rt = sum(len(q.vertices) - 2 for q in rocks[name].data.polygons)
+        print(f"{NAME}: piece {name} at ({cx}, {cy}) px: {pt} triangles; shell {st} triangles; rock {rt} triangles")
 
     if "--preview" in argv:
         import tempfile
@@ -732,12 +691,15 @@ def main():
         Hp = round(Wp * 28 / 24)
         Wp = max(Wp, round(Hp * 24 / 28))
         ref = lib.composite_png(grid, colors, Path(tempfile.mkdtemp()) / "assembly.png", pad_to=(Wp, Hp))
-        common.render_preview([obj], str(out), str(ref), size=Wp / 12, view_px=640)
+        for name, cx, cy in pieces_layout:
+            rocks[name].location = (cx * PX, -cy * PX, 0)
+        common.render_preview([obj, *rocks.values()], str(out), str(ref), size=Wp / 12, view_px=640)
         for name, _, _ in pieces_layout:
+            rocks[name].location = (0, 0, 0)
             data = common.load_sprite(ROOT, name)
             img = ROOT / "reference" / "models" / name / data["frames"][0]["image"]
-            common.render_preview([pieces[name]], str(out.parent / f"{name}.png"), img, size=2)
-    return dict(obj=obj, pieces=pieces, shells=shells, grid=grid, layout=pieces_layout)
+            common.render_preview([pieces[name], rocks[name]], str(out.parent / f"{name}.png"), img, size=2)
+    return dict(obj=obj, pieces=pieces, shells=shells, rocks=rocks, grid=grid, layout=pieces_layout)
 
 
 if __name__ == "__main__":

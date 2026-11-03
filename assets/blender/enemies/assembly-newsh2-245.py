@@ -4,7 +4,7 @@ Seen in levels 1.30 and 3.17. Three 2x2 enemies in a row make one 72 x 28 px blo
 rock (sprite.json `assemblyLayout`): two octagonal armour hatches (enemy types 38 and 39, pieces
 newsh2-245 and newsh2-207) and between them the eye turret (type 41, 20 armour, piece newsh2-169):
 a dark blue glass eye in a steel socket on a segmented collar, two glowing blue capsule lights and
-a grille below it, with rock and sand at both ends.
+a grille below it, with island rock and sand at both ends.
 
 A hard-surface rebuild in the manner of the USP Talon (D50-D53). Every part is drawn in sprite
 pixels (column c / row r as pixel EDGES of the 72 x 28 grid, z up in px, 1 px = 1/12 unit) as a
@@ -12,20 +12,23 @@ separate chamfered armour block standing on a dark casemate deck, so the sprite'
 real gaps showing the deck (palette 87, the median of the sprite's seam pixels).
 
 Sprite authority (tools/calibration/rubric.md):
-- Outline: the whole 72 x 28 block, rock ends included; the sprite's few transparent pixels in the
-  right-hand rock (cols 61-64 rows 20-26, cols 68-69 rows 14-15) are crevices through it, with
-  rough, leaning rock walls (the top edge stays on the pixel edge, so the plan is unchanged).
+- Outline: the casemate and its hatches; the rock ends (cols 0-12 and 61-71 round the hatches) are
+  island rock, the sprite's own pixels as the islands' relief (lib_tiles.sprite_rock, DECISIONS.md
+  D66), one rock object per piece with no outline and no shadow, so the fortress stands in the
+  island rather than in a rimmed block; the sprite's few transparent pixels in the right-hand rock
+  (cols 61-64 rows 20-26, cols 68-69 rows 14-15) are holes in it, showing the island below.
 - Features at the sprite's pixel edges: octagons cols 3-20 / 52-69, rows 4-20 (mirrored, as the
   sprite draws them); eye centre (36, 11), steel socket 15 x 12 px, glass 13 x 11 px, clamp at
   rows 5-6; capsule lights from (25.6, 16.6) to (30.8, 22.6) and (46.3, 17.1) to (41.5, 22.5) with
   steel end caps; grille cols 32.5-40.5 rows 18-24 with bars at cols 33, 35, 37, 39.
 - Colours: each part's palette index is the trimmed median of the sprite pixels over it; the rock
-  is painted per face from the sprite pixel under it. Satin metal, glass low roughness. Bright
+  takes the islands' colours of the sprite pixels it covers. Satin metal, glass low roughness. Bright
   spots on the eye and plates are sheen: no geometry for them.
 
 Profile: the rear band is a parapet sloping 2.4 -> 3.2 px toward the eye, the front band a glacis
 falling to 2 px at the player-side wall, and the deck's long front and rear walls lean back 0.7 px
 (a casemate seen from the tilted game camera). The hatches' backing plates sink into the rock.
+The rock's dark gaps are at z = 0.
 Underside: a flat closed belly at z = -4 px; no detail.
 
 No concept projection bake (maps.json says "bake": "model", so texture_bake.py skips it, as the
@@ -35,7 +38,8 @@ roughness-metalness map are baked and multiplied into the palette materials.
 Game contract: palette materials pal_<index>_nsh2a245; the three pieces newsh2-245 / -169 / -207 cut
 from one build with common.split_assembly at the layout's centres (pivots = piece centres), each
 exported as enemies/<piece> with its own spriteModels entry and its one sprite frame, plus an
-outline shell per piece (common.outline_shell, D51, cut without capping).
+outline shell per piece (common.outline_shell, D51, cut without capping) round the machine only, and
+the piece's rock.
 
     blender --background --factory-startup --python assets/blender/enemies/assembly-newsh2-245.py -- \
         [--no-bake] [--preview out.png]
@@ -43,7 +47,6 @@ outline shell per piece (common.outline_shell, D51, cut without capping).
 """
 
 import math
-import random
 import sys
 from pathlib import Path
 
@@ -51,9 +54,11 @@ import bmesh
 import bpy
 from mathutils import Vector
 
-sys.path[:0] = [str(Path(__file__).resolve().parents[1]), str(Path(__file__).resolve().parent)]
+sys.path[:0] = [str(Path(__file__).resolve().parents[1]), str(Path(__file__).resolve().parent),
+                str(Path(__file__).resolve().parents[1] / "tiles")]
 import common  # noqa: E402
 import lib_b053 as lib  # noqa: E402
+import lib_tiles as lt  # noqa: E402
 
 NAME = "assembly-newsh2-245"
 ROOT = common.repo_root(__file__)
@@ -89,27 +94,6 @@ def mirror(pts):
 
 def rect(c0, r0, c1, r1):
     return [(c0, r0), (c1, r0), (c1, r1), (c0, r1)]
-
-
-def in_poly(c, r, pts):
-    inside = False
-    n = len(pts)
-    for i in range(n):
-        (x0, y0), (x1, y1) = pts[i], pts[(i + 1) % n]
-        if (y0 > r) != (y1 > r) and c < x0 + (r - y0) * (x1 - x0) / (y1 - y0):
-            inside = not inside
-    return inside
-
-
-def poly_dist(c, r, pts):
-    best = 1e9
-    n = len(pts)
-    for i in range(n):
-        (x0, y0), (x1, y1) = pts[i], pts[(i + 1) % n]
-        vx, vy = x1 - x0, y1 - y0
-        t = max(0.0, min(1.0, ((c - x0) * vx + (r - y0) * vy) / (vx * vx + vy * vy)))
-        best = min(best, math.hypot(c - x0 - t * vx, r - y0 - t * vy))
-    return best
 
 
 class Builder:
@@ -223,10 +207,6 @@ def build(sprite, grid, coll):
     mat(102, 0.35, 0.38)
     mat(103, 0.35, 0.4)
     mat(55, 0.0, 0.2, emis=1.6)  # capsule light
-    for i in range(1, 12):
-        mat(i, 0.05, 0.85)
-    for i in (167, 168, 169, 170, 171, 172):
-        mat(i, 0.0, 0.92)
     S = slot
     B = Builder()
     bm = B.bm
@@ -367,42 +347,6 @@ def build(sprite, grid, coll):
         for d0, d1 in ((-0.35, 1.2), (L - 1.2, L + 0.35)):
             B.tube((c0 + ux * d0, r0 + uy * d0), (c0 + ux * d1, r0 + uy * d1), 1.65, S[102], 3.0, sides=14)
 
-    # ---------------- rock ends, painted from the sprite ----------------
-    rock_first = len(bm.faces)
-    rock(B, grid, 0.0, 13.0, "L")
-    rock(B, grid, 60.5, 72.0, "R")
-
-    def rslot(i):
-        if 1 <= i <= 11:
-            return S[i]
-        if 167 <= i <= 173:
-            return S[min(172, max(167, i))]
-        return None
-
-    bm.normal_update()
-    bm.faces.ensure_lookup_table()
-    wl = bm.faces.layers.int["rock_wall"]
-    for fc in bm.faces[rock_first:]:
-        ce = fc.calc_center_median()
-        if abs(ce.z * 12 - BELLY) < 0.01:
-            fc.material_index = S[4]
-            continue
-        wall = fc[wl] == 1
-        # the heightfield takes the sprite pixel under the facet (each 0.5 px cell lies in one
-        # pixel, so the plan view is the sprite's colours); a wall samples the pixel it bounds
-        # and goes a step darker
-        nx, ny = (fc.normal.x, fc.normal.y) if wall else (0.0, 0.0)
-        c = math.floor(ce.x * 12 + W / 2 - nx * 0.3)
-        r = math.floor(H / 2 - ce.y * 12 + ny * 0.3)
-        c, r = min(W - 1, max(0, c)), min(H - 1, max(0, r))
-        v = grid[r][c]
-        s = rslot(v) if v >= 0 else None
-        if s is None:
-            s = S[7]
-        if wall:
-            s = S[max(2, v - 2)] if 1 <= v <= 11 else S[167] if v >= 160 else S[5]
-        fc.material_index = s
-
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     mesh = bpy.data.meshes.new(NAME)
     bm.to_mesh(mesh)
@@ -412,135 +356,6 @@ def build(sprite, grid, coll):
     obj = bpy.data.objects.new(NAME, mesh)
     coll.objects.link(obj)
     return obj, mats, slot
-
-
-def rock(B, grid, c0, c1, side):
-    """A closed faceted rock heightfield over cols c0-c1 (0.5 px cells) with walls round its edge and
-    the sprite's transparent pixels, and a flat belly. Height follows the sprite's own shading
-    (bright boulder tops high, dark cracks low, sand low), dropping toward the outer cut and banked
-    up against the hatch's outer edge. Every wall is broken into three bands whose inner vertices
-    lean back into the rock by a random amount, so the edges and crevices read as rough fissures;
-    the walls' top and foot stay on the pixel edges, so the plan view is the sprite's."""
-    bm = B.bm
-    step = 0.5
-    nx, ny = round((c1 - c0) / step), round(H / step)
-    rng = random.Random(245 if side == "L" else 207)
-    octo = OCT_L if side == "L" else mirror(OCT_L)
-
-    def val(ci, ri):
-        if 0 <= ri < H and 0 <= ci < W:
-            return grid[ri][ci]
-        return -1
-
-    def bright(v):
-        if 1 <= v <= 11:
-            return (v - 1) / 10
-        if 160 <= v <= 175:
-            return 0.15
-        if v >= 80:
-            return 0.5
-        return 0.0
-
-    jit = {}
-
-    def height(i, j):
-        c, r = c0 + i * step, j * step
-        s = w = 0.0
-        for dr in range(-3, 4):
-            for dc in range(-3, 4):
-                ci, ri = math.floor(c + dc * 0.6 - 0.25), math.floor(r + dr * 0.6 - 0.25)
-                v = val(ci, ri)
-                if v < 0:
-                    continue
-                k = math.exp(-(dc * dc + dr * dr) / 4.0)
-                s += k * bright(v)
-                w += k
-        b = s / w if w else 0.0
-        dist = (c - c0) if side == "L" else (c1 - c)
-        fall = min(1.0, 0.06 + dist / 5.0)
-        h = -3.2 + (3.4 + 7.0 * b) * fall
-        # rock banked against the hatch's outer edge (outside it only; under it is hidden)
-        if not in_poly(c, r, octo):
-            d = poly_dist(c, r, octo)
-            if d < 3.5 and 6.0 < r < 18.0:
-                h = max(h, 3.0 - 0.9 * d)
-        key = (round(c * 2), round(r * 2))
-        if key not in jit:
-            jit[key] = rng.uniform(-0.35, 0.35)
-        return max(BELLY + 0.8, h + jit[key])
-
-    def present(i, j):
-        if not (0 <= i < nx and 0 <= j < ny):
-            return False
-        c, r = c0 + (i + 0.5) * step, (j + 0.5) * step
-        return val(math.floor(c), math.floor(r)) >= 0
-
-    top, bot, mids = {}, {}, {}
-
-    def tv(i, j):
-        if (i, j) not in top:
-            top[(i, j)] = bm.verts.new(V(c0 + i * step, j * step, height(i, j)))
-        return top[(i, j)]
-
-    def bv(i, j):
-        if (i, j) not in bot:
-            bot[(i, j)] = bm.verts.new(V(c0 + i * step, j * step, BELLY))
-        return bot[(i, j)]
-
-    def into_rock(i, j):
-        """Unit direction from the empty cells round grid vertex (i, j) into the rock."""
-        dx = dy = 0.0
-        for ci, cj in ((i - 1, j - 1), (i, j - 1), (i - 1, j), (i, j)):
-            if not present(ci, cj):
-                dx += i - (ci + 0.5)
-                dy += j - (cj + 0.5)
-        L = math.hypot(dx, dy)
-        return (dx / L, dy / L) if L > 1e-6 else (0.0, 0.0)
-
-    def mv(i, j, k):
-        """Wall vertex of band k (0, 1) below top vertex (i, j), leaning back into the rock."""
-        if (i, j, k) not in mids:
-            zt = tv(i, j).co.z * 12
-            f = (0.3, 0.66)[k] + rng.uniform(-0.08, 0.08)
-            z = zt + (BELLY - zt) * f
-            d = rng.uniform(0.15, 0.55)
-            ux, uy = into_rock(i, j)
-            mids[(i, j, k)] = bm.verts.new(V(c0 + i * step + ux * d, j * step + uy * d, z))
-        return mids[(i, j, k)]
-
-    first = len(bm.faces)
-    bottoms, walls = [], []
-    wl = bm.faces.layers.int.get("rock_wall") or bm.faces.layers.int.new("rock_wall")
-    for j in range(ny):
-        for i in range(nx):
-            if not present(i, j):
-                continue
-            a, b, c, d = tv(i, j), tv(i + 1, j), tv(i + 1, j + 1), tv(i, j + 1)
-            # split along the shorter diagonal for a crisper facet
-            if (a.co - c.co).length < (b.co - d.co).length:
-                bm.faces.new((a, d, c))
-                bm.faces.new((a, c, b))
-            else:
-                bm.faces.new((a, d, b))
-                bm.faces.new((b, d, c))
-            bottoms.append(bm.faces.new((bv(i, j), bv(i + 1, j), bv(i + 1, j + 1), bv(i, j + 1))))
-            for (ii, jj), (p, q) in (((i, j - 1), ((i, j), (i + 1, j))), ((i, j + 1), ((i + 1, j + 1), (i, j + 1))),
-                                     ((i - 1, j), ((i, j + 1), (i, j))), ((i + 1, j), ((i + 1, j), (i + 1, j + 1)))):
-                if not present(ii, jj):
-                    cp = [tv(*p), mv(*p, 0), mv(*p, 1), bv(*p)]
-                    cq = [tv(*q), mv(*q, 0), mv(*q, 1), bv(*q)]
-                    for k in range(3):
-                        walls.append(bm.faces.new((cp[k], cp[k + 1], cq[k + 1])))
-                        walls.append(bm.faces.new((cp[k], cq[k + 1], cq[k])))
-    bm.faces.ensure_lookup_table()
-    for f in bm.faces[first:]:
-        f.smooth = False
-        f.material_index = 0
-    for f in walls:
-        f[wl] = 1
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[first:])
-    bmesh.ops.dissolve_limit(bm, angle_limit=0.01, verts=[], edges=list({e for f in bottoms for e in f.edges}),
-                             delimit=set())
 
 
 # ---------------------------------------------------------------------------------------------
@@ -769,6 +584,12 @@ def main(argv=None):
     sprite["colors"] = colors
     coll = common.reset_collection(NAME)
     obj, mats, slot = build(sprite, grid, coll)
+    cx0, cy0 = x0 + W // 2, y0 + H // 2
+    pieces_layout = [(e["model"], e["cx"] - cx0, e["cy"] - cy0) for e in layout]
+    # The island rock round the machine (D66); in its place in the row, so the bake sees it.
+    rocks = lt.build_sprite_rock(ROOT, [obj], pieces_layout, W, H, coll, "a245rock", grid=grid)
+    for name, cx, cy in pieces_layout:
+        rocks[name].location = (cx / 12, -cy / 12, 0)
     # The outline shell (D51) comes from the closed, unculled build: the voxel remesh of an open
     # mesh drops parts (the eye dome, the rock's outer end).
     src = obj.copy()
@@ -789,8 +610,6 @@ def main(argv=None):
     tris = sum(len(p.vertices) - 2 for p in obj.data.polygons)
     print(f"{NAME}: whole {len(obj.data.polygons)} faces, {tris} triangles")
 
-    cx0, cy0 = x0 + W // 2, y0 + H // 2
-    pieces_layout = [(e["model"], e["cx"] - cx0, e["cy"] - cy0) for e in layout]
     pieces = common.split_assembly(obj, pieces_layout, coll)
     shells = split_open(shell, pieces_layout, coll, "_outline")
     outline_mat = common.material("outline_shell", (0.0, 0.0, 0.0), roughness=1.0)
@@ -810,23 +629,29 @@ def main(argv=None):
         s.data.materials.clear()
         s.data.materials.append(outline_mat)
         s.hide_render = True
+        rk = rocks[name]
+        rk.location = (0, 0, 0)
         data = common.load_sprite(ROOT, name)
-        common.export_sprite_model(ROOT, [p, s], f"enemies/{name}", data["sprites"], image_format=fmt)
+        common.export_sprite_model(ROOT, [p, s, rk], f"enemies/{name}", data["sprites"], image_format=fmt)
         pt = sum(len(q.vertices) - 2 for q in p.data.polygons)
         st = sum(len(q.vertices) - 2 for q in s.data.polygons)
-        print(f"{NAME}: piece {name} at ({cx}, {cy}) px: {pt} triangles; shell {st} triangles")
+        rt = sum(len(q.vertices) - 2 for q in rk.data.polygons)
+        print(f"{NAME}: piece {name} at ({cx}, {cy}) px: {pt} triangles; shell {st} triangles; rock {rt} triangles")
 
     out = sys.argv[sys.argv.index("--preview") + 1] if "--preview" in sys.argv else None
     if out:
         import tempfile
         out = Path(out)
         ref = lib.composite_png(grid, colors, Path(tempfile.mkdtemp()) / "assembly.png", pad_to=(W, H))
-        common.render_preview([obj], str(out), str(ref), size=W / 12, view_px=640)
+        for name, cx, cy in pieces_layout:
+            rocks[name].location = (cx / 12, -cy / 12, 0)
+        common.render_preview([obj, *rocks.values()], str(out), str(ref), size=W / 12, view_px=640)
         for name, _, _ in pieces_layout:
+            rocks[name].location = (0, 0, 0)
             data = common.load_sprite(ROOT, name)
             img = ROOT / "reference" / "models" / name / data["frames"][0]["image"]
-            common.render_preview([pieces[name]], str(out.parent / f"{name}.png"), img, size=2)
-    return dict(obj=obj, pieces=pieces, shells=shells, grid=grid, layout=pieces_layout, mats=mats)
+            common.render_preview([pieces[name], rocks[name]], str(out.parent / f"{name}.png"), img, size=2)
+    return dict(obj=obj, pieces=pieces, shells=shells, rocks=rocks, grid=grid, layout=pieces_layout, mats=mats)
 
 
 if __name__ == "__main__":

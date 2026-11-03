@@ -2,8 +2,9 @@
 machine that is its sprite in 3D, built the way the player ships are (usp_talon.py, ships/*.py,
 D50-D53).
 
-Seen in episode 1 and episode 3. A machinery plate that fills its
-whole block (the sprite has no transparent pixels), with the five-pointed star standing on it in
+Seen in episode 1 and episode 3. A machine set into the island (the sprite has no transparent
+pixels: round the machine it paints the island's rock, a tan stone at the top left, grey stones at
+the top right, tan and grey stones along the bottom edge), the five-pointed star standing in
 relief -- the top point a clean chamfered blade (lit left flank, crisp 11 ridge, dark right flank),
 the side points two long pale grey pointed arms falling from the raised core housing to the side
 beams, the lower points two rust legs that taper down and out to a point over engine housings
@@ -17,16 +18,22 @@ design: swept wings with ball studs and struts, rear housings, cable boxes, chin
 Bright pixels (the prow's col-11 streak, the arms' 12 knuckles) are sheen, not parts; the chin's
 row-18 70-78 strip is a light the sprite shows on every frame, modelled as a polished glowing lip.
 
-Units while building: sprite px (X = column edge - 12, Y = 14 - row edge, Z up, deck top Z = 0);
-scaled by 1/12 at the end like every enemy model (24 px = 2 units).
-Underside: a plain closed stepped belly, no detail (almost never seen).
+The rock round and between the parts is island rock: the sprite's own pixels as the islands'
+relief (lib_tiles.sprite_rock, DECISIONS.md D66), a separate object with no outline and no shadow,
+so the machine stands in the island instead of on a plate in a rimmed box; the dark floor between
+the parts is the sprite's dark pixels there, low in that relief.
+
+Units while building: sprite px (X = column edge - 12, Y = 14 - row edge, Z up, the rock's dark
+gaps at Z = 0); scaled by 1/12 at the end like every enemy model (24 px = 2 units).
+Underside: plain closed parts standing on the rock, no detail (almost never seen).
 
 The three frames only brighten the core: one model, the core's collar / orb / heart materials
 change palette index per frame (common.palette_material frames=, D17).
 
 Texture: no concept projection (its maps.json says "bake": "model", as the player ships, D50): an
 ambient occlusion / roughness bake only, Base Color = map x palette colour, so pal_<index>, fades
-and the hit flash still apply. An outline shell (common.outline_shell, D51) rides along as a child.
+and the hit flash still apply (the rock is there as an occluder, not baked). An outline shell
+(common.outline_shell, D51) of the machine rides along as a child.
 No engine glows: the pods' nozzles belong to a fixed panel, not a craft in flight.
 
 Run: blender --background --factory-startup --python assets/blender/enemies/newsh2-153.py
@@ -43,8 +50,9 @@ import bmesh
 import bpy
 from mathutils import Vector
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path[:0] = [str(Path(__file__).resolve().parents[1]), str(Path(__file__).resolve().parents[1] / "tiles")]
 import common  # noqa: E402
+import lib_tiles as lt  # noqa: E402
 import usp_talon  # noqa: E402  (cull_hidden)
 
 NAME = "newsh2-153"
@@ -57,13 +65,12 @@ PX = 1 / 12
 SLOTS = [
     # Greys are satin, low-metal (the Talon scales its metals by 0.3): metal at 0.55 mirrored the
     # dark sky and turned the sprite's light-grey rails and arms charcoal in game.
-    ("deck", 1, 0.25, 0.7, 0, None),        # the plate's floor between parts, bay, panel gaps
     ("dark2", 2, 0.3, 0.55, 0, None),       # swept wings, under-wings, rear housings
     ("dark3", 3, 0.3, 0.5, 0, None),        # struts, ribs, bay pipes, pistons
     ("gun4", 4, 0.3, 0.45, 0, None),        # prow flank plates, lower arms, cable boxes, housing
     ("grey5", 5, 0.3, 0.42, 0, None),       # bottom lip, beam feet, rivets
     ("grey6", 6, 0.3, 0.4, 0, None),        # upper beam runs, top strip
-    ("grey7", 7, 0.3, 0.4, 0, None),        # top-right block
+    ("grey7", 7, 0.3, 0.4, 0, None),        # the left beam's upper run
     ("grey8", 8, 0.35, 0.35, 0, None),      # left nozzle bell
     ("grey9", 9, 0.3, 0.38, 0, None),       # side beams, ledges, studs
     ("grey11", 11, 0.4, 0.3, 0, None),      # beam bolt heads
@@ -72,8 +79,6 @@ SLOTS = [
     ("brown22", 22, 0.3, 0.5, 0, None),     # left pod's aft section
     ("brown163", 163, 0.3, 0.55, 0, None),  # right pod's nozzle housing
     ("brown20", 20, 0.3, 0.45, 0, None),    # right nozzle bell
-    ("beige170", 170, 0.2, 0.5, 0, None),   # top-left block, bottom-left foot
-    ("beige168", 168, 0.2, 0.5, 0, None),   # bottom foot block
     ("collar", 113, 0.3, 0.35, 0.6, {157: 118}),           # core collar (a faint glow: the sprite's bleed)
     # Frame 153's core is mostly dark red (113-116) round a small orange centre (121/123), 155 an
     # orange-yellow glow and 157 near white: the lens starts at dark red 114 and the heart at 121,
@@ -338,35 +343,6 @@ def rivet(b, mat, c, r, z, rad=0.22):
 
 
 # ---- the model ---------------------------------------------------------------------------------------
-def build_hull(b):
-    # The plate: deck slab filling the block (top = the dark floor the sprite shows between parts),
-    # a stepped-in skirt and a plain belly. No underside detail by design.
-    box(b, S["deck"], 0, 0, 24, 28, -1.2, 0.0, bev=0.3)
-    box(b, S["dark2"], 0.8, 0.8, 23.2, 27.2, -2.4, -1.2, bev=0.25)
-    box(b, S["dark2"], 2.6, 2.8, 21.4, 25.2, -3.0, -2.4, bev=0.3)
-
-
-def build_corners(b):
-    # Beige block top-left (sprite 168-172): a main block with a cut lower-left corner and a
-    # lower arm along the top edge, split by a seam; rivets.
-    prism(b, S["beige170"], [(0, 0), (5.7, 0), (5.7, 2.6), (4.9, 3.7), (0.9, 3.7), (0, 2.9)], 0, 1.45, 0.32)
-    prism(b, S["beige170"], [(5.9, 0), (9.9, 0), (9.9, 1.1), (6.4, 1.1), (5.9, 0.7)], 0, 1.0, 0.2)
-    for c, r in ((1.2, 1.0), (4.4, 1.0), (1.5, 2.8)):
-        rivet(b, S["grey5"], c, r, 1.45, 0.22)
-    box(b, S["deck"], 2.2, 1.65, 3.9, 2.0, 1.3, 1.5, bev=0)  # inset seam/slot on the block
-    # Grey block top-right (sprite 5-9) with a raised plate and the low strip along the top edge.
-    prism(b, S["grey7"], [(18.6, 0.9), (24, 0.9), (24, 3.9), (19.4, 3.9), (18.6, 3.1)], 0, 1.15, 0.3)
-    box(b, S["grey7"], 20.0, 1.5, 23.2, 3.2, 1.15, 1.45, bev=0.12)
-    rivet(b, S["grey5"], 19.4, 1.6, 1.15, 0.2)
-    box(b, S["grey6"], 13.2, 0.0, 24, 0.85, 0, 0.6, bev=0.15)
-    # Bottom edge: beige feet (cols 2-5 / 8-10, sprite 168-171) and the grey lip under the bay.
-    box(b, S["beige170"], 2.0, 25.9, 5.1, 28, 0, 0.85, bev=0.2)
-    box(b, S["beige168"], 8.0, 26.1, 10.9, 28, 0, 0.7, bev=0.2)
-    box(b, S["grey5"], 11.1, 26.2, 16.0, 28, 0, 0.5, bev=0.15)
-    for c in (12.0, 15.0):
-        rivet(b, S["grey9"], c, 27.1, 0.5, 0.18)
-
-
 def build_beams(b):
     # Grey beams down both side edges: an upper sloped run (pal 6), the lit middle run (9) with bolt
     # heads, a lower run (6) and the feet (5), each a separate plate so the joins are real seams.
@@ -683,9 +659,9 @@ def build_star_body(b):
 
 
 def build(b):
-    build_hull(b)
+    # No deck plate and no corner blocks: the sprite's stones in the corners and along the bottom
+    # edge, and the dark floor between the parts, are the island rock (lib_tiles.sprite_rock).
     build_star_body(b)
-    build_corners(b)
     build_beams(b)
     build_rear(b)
     build_wings(b)
@@ -873,6 +849,8 @@ def main():
     b = B()
     build(b)
     obj = to_object(b, NAME, mats, coll)
+    # The island rock round the machine (D66); there for the bake as an occluder.
+    rock = lt.build_sprite_rock(ROOT, [obj], [(NAME, 0, 0)], 24, 28, coll, f"{NAME}-rock")[NAME]
     # The outline shell (D51) is made from the closed parts, before hidden faces are culled.
     shell = common.outline_shell(obj, coll, voxel=0.012, faces=2000)
     usp_talon.cull_hidden(obj, grid=4, ndirs=32)
@@ -885,14 +863,16 @@ def main():
         shell.hide_render = False
         fmt = "WEBP"
     shell.parent = obj
+    rock.parent = obj
+    print(f"{NAME}: rock {sum(len(p.vertices) - 2 for p in rock.data.polygons)} triangles")
     if out:
-        common.export_glb([obj, shell], out, image_format=fmt)
+        common.export_glb([obj, shell, rock], out, image_format=fmt)
         print(f"exported {out}")
     else:
-        common.export_sprite_model(ROOT, [obj, shell], MODEL, sprite["sprites"], image_format=fmt)
+        common.export_sprite_model(ROOT, [obj, shell, rock], MODEL, sprite["sprites"], image_format=fmt)
     if "--preview" in argv:
         ref = ROOT / "reference" / "models" / NAME / sprite["frames"][0]["image"]
-        common.render_preview([obj], argv[argv.index("--preview") + 1], ref, size=sprite["frames"][0]["size"])
+        common.render_preview([obj, rock], argv[argv.index("--preview") + 1], ref, size=sprite["frames"][0]["size"])
 
 
 if __name__ == "__main__":
