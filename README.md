@@ -148,6 +148,13 @@ loadout, e.g. `&episode=4&main=3&sidekick=9,9&special=6&skip=3000&god=1`; see
 `/src/audio/debugMusic.html` (music player). `?vfx=original` shows shots and explosions as the
 extruded sprites instead of the remastered effects; `?seed=N` fixes the random seed (D37).
 
+## Working with AI agents
+
+The remaster is made largely by Claude Code agents. [CLAUDE.md](CLAUDE.md) holds the rules every agent
+follows; [docs/agents/](docs/agents/) has the [playbook](docs/agents/PLAYBOOK.md) (how each kind of asset is
+made and checked), the [reusable workflows](docs/agents/WORKFLOWS.md) (`tools/workflows/`) and the
+[episode milestones](docs/agents/MILESTONES.md).
+
 ## License
 
 GPL-2.0-or-later. This project derives from OpenTyrian, which uses the same license; see
