@@ -2384,3 +2384,51 @@ so its model does too. The two-player dragonwing (Group route) is not shifted.
 **Review:** Hold left and right in a level at each Camera: does the ship's slide toward the bank read
 as natural, or does it look like the ship drifting off its guns' line? Fallback: drop the shift
 (`bankShift` returning 0) and accept the 3.5-pixel gap.
+
+## D63 — TYRIAN's island rock is the tiles' own pixels as a relief, the same on every tile and structure
+
+2026-11-02
+
+**Decision:** The floating islands of background 3 (shapesz.dat rock tiles 120-124, 130-134,
+140-142, 150-152: TYRIAN and eight other levels) are no longer a dark slab with a fitted boulder
+per stone. Each rock tile model is the tile's own 2x pixels as a smooth relief
+(`lib_tiles.rock_tile`): every pixel in the nearest of one shared set of palette colours
+(`ROCK_COLOURS`: the grey ramp, the tan and brass stones), raised by its smoothed brightness through
+a fixed range (`ROCK_LUM`, not normalised per tile) up to 0.12, the underside tiles' face hanging
+toward the camera as before. TYRIAN's structures that stand on the islands (crater, lava pit,
+purple blocks, cross and orb, drums, gates, the fortress's machine) build their rock the same way,
+cell by cell (`Structure.rock`), in materials marked `tyrian_plain` that `texture_bake.py` leaves
+untextured, so a structure's rock is exactly what the per-tile model of that tile would draw. They
+were rebuilt and rebaked; the bridge (its own rim boulders) is unchanged.
+
+Before, an island read as a grid of tiles: each tile fitted its boulders between its *most common*
+neighbours, so stones broke at most seams; each picked its own boulder colours (grey or tan per
+stone, from a per-tile quantile), so a stone changed colour across a seam; the brass highlights of
+the rim tiles came out as flat raised pixel blocks; and the structures' rock was darkened by their
+concept bake, so every crater, lava pit and purple block sat in a dark square. The art itself is
+painted to tile seamlessly, so drawing its pixels keeps it seamless.
+
+`?debug=play&skip=N` now waits for all the level's models before fast-forwarding (it waited only for
+the first ~1000 locs' worth, D54), so a capture part-way in shows what a real run shows instead of the
+original tiles locked in for every structure first seen before its model loaded.
+
+**Options considered:**
+- *The tiles' pixels as a relief in shared colours, structures' rock the same and unbaked (chosen):*
+  seamless by construction, follows the level's palette (palette materials), one kit for both.
+- *Fix the boulders (stones from the real neighbours, shared colours):* a per-tile model can't know
+  its neighbours, so stones crossing seams still break against all but the usual one.
+- *Whole-island models from TYRIAN's map (biggest pattern wins, D47):* exact joins, but some 35
+  models for one level, pops from per-tile to island at the screen's top edge (minRows), and every
+  other level keeps the broken per-tile look.
+- *A baked colour texture per tile instead of per-pixel materials:* fewer draws, but the colours
+  would stop following the level's palette (the tiles are in nine levels).
+
+**Review:** Play TYRIAN to the islands (`?debug=play&seed=1&skip=2700&freezeAt=2702`, also 3300,
+4300, 4850). Costs: the rock tiles have 1.7-3.9k triangles and 95-205 KB each (nearly flat faces of
+one colour merged, `ROCK_MERGE_DEG`; they were 30-135 KB), about +1.4 MB for the 16, and the
+rebuilt structures +3.4 MB (their rock is finer and carries bake UVs): +4.8 MB on the level's ~32
+MB. They have 10-15 palette materials each, so a screen of islands takes more draws. If loading or
+draws matter, coarsen the relief (1x instead of 2x pixels) or trim `ROCK_COLOURS`. The heights still step a little at seams against an unusual neighbour (the slab's
+walls close it). Left as found: some of TYRIAN's enemies that sit on the purple blocks and machines
+(newsh2 models) carry the old boulders and a dark outline round their base, which now stand out
+against the rock; that's in their models. Fallback: revert this commit's scripts and models.

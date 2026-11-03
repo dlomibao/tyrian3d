@@ -9,9 +9,10 @@ from the plan, assets/blender/tiles/tyrbld_patterns.json (tests/render/remaster.
 plan against every level), and adds TYRIAN's kits:
 
 - layer 2's frame (below) and the rock of the islands around a structure's own parts: `rock()`
-  rebuilds the per-tile look of shapesz_bg3.py (a dark slab with a boulder per painted stone, the
-  hanging underside of tiles 140-142) for any pixels of the pattern, because layer-2 structures
-  replace their tiles; layer-0 ones stand on their tiles, which stay drawn;
+  builds each cell as its per-tile rock model (lib_tiles.rock_tile: the tile's pixels as a relief,
+  the hanging underside of tiles 140-142) in plain materials the bake leaves alone, because
+  layer-2 structures replace their tiles and must look like the rock round them; layer-0 ones
+  stand on their tiles, which stay drawn;
 - the metal walkway (fortress, bridges): `walkway()` decks the walkway tiles' pixels (their own
   outline, so rounded corners and T-junctions come from the art) with a raised rail along the
   outline, open where the walkway runs off the map's edge; `rail_studs()` adds the studs;
@@ -198,12 +199,16 @@ class Structure(lb.Building):
     # Rock (layer 2's islands) --------------------------------------------------------------------
 
     def rock(self, cells=None, exclude=None, cut=None, bottom=None, boulders=True, max_height=0.2):
-        """The islands' rock as the per-tile models draw it (shapesz_bg3.py), for the painted
-        pixels of `cells` ((row, col) list; default every cell): a slab from `bottom` (default
-        slab_bottom) up to z = 0, dark between the stones, except where `cut` (bool, pattern px at
-        1x: a hole for a part that goes deeper); a rounded boulder for each painted stone mostly
-        outside `exclude` (bool, 1x: where the structure's own parts are); and on the underside
-        tiles (140-142) the face that hangs down with the roots painted on it. Adds to self.parts."""
+        """The islands' rock as the per-tile models draw it (shapesz_bg3.py, lib_tiles.rock_tile),
+        for the painted pixels of `cells` ((row, col) list; default every cell): each cell is the
+        tile's own rock model, the tile's pixels as a relief, cut where `cut` is (bool, pattern px
+        at 1x: a hole for a part that goes deeper) and level and dark at z = 0 where `exclude` is
+        (bool, 1x: where the structure's own parts stand). Its materials are marked plain, so the
+        structure's bake leaves them alone and the rock looks the same as on the per-tile models
+        round it. With `boulders=False`, only a flat dark slab from `bottom` (default slab_bottom)
+        to z = 0 (and the underside tiles' hanging face), for a structure that builds its own
+        stones (the bridge). `max_height` is unused (the relief stays under lib_tiles.ROCK_RELIEF).
+        Adds to self.parts."""
         bottom = self.slab_bottom if bottom is None else bottom
         k2 = np.ones((2, 2), bool)
         ex2 = np.kron(np.zeros((self.H, self.W), bool) if exclude is None else exclude, k2)
@@ -211,6 +216,20 @@ class Structure(lb.Building):
         g2 = self.ts.grid(self.pattern, 2)
         th, tw = lt.TILE_H * 2, lt.TILE_W * 2
         cells = [(r, c) for r, row in enumerate(self.pattern) for c, t in enumerate(row) if t >= 0] if cells is None else cells
+        if boulders:
+            for r, c in cells:
+                ys, xs = slice(r * th, (r + 1) * th), slice(c * tw, (c + 1) * tw)
+                bm = lt.rock_tile(self.ts, self.pattern[r][c], self.pal, region=~cut2[ys, xs], flat=ex2[ys, xs],
+                                  bottom=bottom, plain=True)
+                if bm is None:
+                    continue
+                # rock_tile builds round the tile's own centre: move it to the cell's.
+                ox, oy = self.x((c + 0.5) * lt.TILE_W), self.y((r + 0.5) * lt.TILE_H)
+                for v in bm.verts:
+                    v.co.x += ox
+                    v.co.y += oy
+                self._merge(bm)
+            return
         region = np.zeros(g2.shape, bool)
         for r, c in cells:
             region[r * th:(r + 1) * th, c * tw:(c + 1) * tw] = True
@@ -248,30 +267,6 @@ class Structure(lb.Building):
                      lambda x, y: cell_mat.get((x, y), DARK), DARK, top_height=np.where(region, drop, 0.0))
         lt.dissolve_coplanar(bm)
         self._merge(bm)
-        if not boulders:
-            return
-        chosen = []
-        for r, c in cells:
-            n = self.pattern[r][c]
-            cex = ex2[r * th:(r + 1) * th, c * tw:(c + 1) * tw]
-            cdrop = drop[r * th:(r + 1) * th, c * tw:(c + 1) * tw]
-
-            def keep(ys, xs, cex=cex, cdrop=cdrop):
-                inside = (ys >= 0) & (ys < th) & (xs >= 0) & (xs < tw)
-                yi, xi = ys[inside], xs[inside]
-                if len(yi) == 0:
-                    return True
-                return (~cex[yi, xi] & (cdrop[yi, xi] > -0.05)).mean() > 0.6
-
-            sb = bmesh.new()
-            lt.boulders(self.ts, n, self.pal, sb, keep=keep, gap=0.22, quantile=0.3, max_height=max_height, chosen=chosen)
-            # lt.boulders builds round the tile's own centre: move it to the cell's.
-            ox = self.x((c + 0.5) * lt.TILE_W)
-            oy = self.y((r + 0.5) * lt.TILE_H)
-            for v in sb.verts:
-                v.co.x += ox
-                v.co.y += oy
-            self._merge(sb)
 
     # Walkways (fortress, bridges) ----------------------------------------------------------------
 
