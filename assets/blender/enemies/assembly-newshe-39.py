@@ -36,7 +36,7 @@ its sprite in 2 x 2 px cells (untextured palette materials), and an outline shel
 
 Run: blender --background --python assets/blender/enemies/assembly-newshe-39.py
      [-- --preview out.png] [--no-bake] [--render DIR] [--top-tris out.json]
-     The shot-away pieces (frames 7, 9, 11, 45, 47, 49 -> newshe-<n>-f2; DECISIONS.md D67, read from
+     The shot-away pieces (frames 7, 9, 11, 45, 47, 49 -> newshe-<n>-f2; DECISIONS.md D81, read from
      the game data, so TYRIAN_DATA): blender --background --python <this> -- --damaged [--preview out.png]
      [--render DIR]
 """

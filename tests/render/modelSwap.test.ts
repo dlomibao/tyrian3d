@@ -32,7 +32,7 @@ const REPORT = process.env.MODEL_SWAP_REPORT === "1";
  * Level 1's enemies whose damaged frames have no model while their normal frames do, so they turn
  * from model to sprite when damaged (`sheet|size|enemy type: damaged frames (normal frames)`). Too
  * many to model here (13 damaged pieces); each needs its own damaged model (D54 lists them; the rocks
- * of newshe.shp, types 522-527, got theirs in D67).
+ * of newshe.shp, types 522-527, got theirs in D81).
  */
 const KNOWN_DAMAGE_SWAPS = [
   // The pieces of a large multi-part enemy (newsh4.shp): their battle-damaged frames.

@@ -2963,7 +2963,8 @@ blocky pink pixel clouds and a stair-stepped red ring, the biggest bright things
 list's order, quarter by quarter, so where two big explosions overlap one can cut straight across
 the other at a quarter edge, as in the original (it was there with the extruded sprites too).
 Fallback: remove the `newsh6.shp` sheet from the manifest.
-## D67 — The rock outcrop's shot-away frames are models: a crater with a pool of blue, from the sprite's fields
+
+## D81 — The rock outcrop's shot-away frames are models: a crater with a pool of blue, from the sprite's fields
 
 2026-11-03
 
