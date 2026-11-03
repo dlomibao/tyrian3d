@@ -29,6 +29,7 @@ import {
 import { playDemoKeys } from "./demo"; // [demos]
 import { playerInput } from "./input";
 import { mt_rand } from "./mtrand";
+import { itemName, optionSelectAt, SAWeaponAt, specialArcadeWeaponAt } from "./overrun";
 import { calc_purple_balls_needed, copyPlayerItems, handle_got_purple_ball, point_lives_at_weapon_power, power_up_weapon } from "./player";
 import {
   cosf,
@@ -90,14 +91,11 @@ import {
   JE_wipeShieldArmorBars,
   keyboardCombos,
   linkGunWeapons,
-  optionSelect,
   SASpecialWeapon,
   SASpecialWeaponB,
-  SAWeapon,
   shadowYDist,
   shipCombos,
   shipCombosB,
-  specialArcadeWeapon,
 } from "./varz";
 import { SPECIAL_NUM } from "../data";
 
@@ -1221,7 +1219,7 @@ export function JE_playerCollide(this_player: Player, playerNum_: number): void 
             g.shotMultiPos[SHOT_FRONT] = 0;
             g.shotRepeat[SHOT_FRONT] = 10;
 
-            const tempW = SAWeapon[g.superArcadeMode - 1][evalue - 30000 - 1];
+            const tempW = SAWeaponAt(g.superArcadeMode - 1, evalue - 30000 - 1); // past its end too: overrun.ts
 
             // if picked up already-owned weapon, power weapon up
             if (tempW === player[0].items.weapon[FRONT_WEAPON].id) {
@@ -1233,22 +1231,22 @@ export function JE_playerCollide(this_player: Player, playerNum_: number): void 
               handle_got_purple_ball(this_player);
             }
 
-            player[0].items.weapon[FRONT_WEAPON].id = tempW;
+            player[0].items.weapon[FRONT_WEAPON].id = u8(tempW);
             this_player.cash += 200;
             g.soundQueue[7] = S_POWERUP;
             enemyAvail[z] = 1;
           } else if (evalue > 32100) {
             if (playerNum_ === 1) {
               this_player.cash += 250;
-              player[0].items.special = evalue - 32100;
+              player[0].items.special = u8(evalue - 32100);
               g.shotMultiPos[SHOT_SPECIAL] = 0;
               g.shotRepeat[SHOT_SPECIAL] = 10;
               g.shotMultiPos[SHOT_SPECIAL2] = 0;
               g.shotRepeat[SHOT_SPECIAL2] = 0;
 
-              if (g.isNetworkGame) tempStr = `${JE_getName(1)} ${g.miscTextB[4 - 1]} ${items.specials[evalue - 32100].name}`;
-              else if (g.twoPlayerMode) tempStr = `${miscText[43 - 1]} ${items.specials[evalue - 32100].name}`;
-              else tempStr = `${miscText[64 - 1]} ${items.specials[evalue - 32100].name}`;
+              if (g.isNetworkGame) tempStr = `${JE_getName(1)} ${g.miscTextB[4 - 1]} ${itemName(items, "special", evalue - 32100)}`;
+              else if (g.twoPlayerMode) tempStr = `${miscText[43 - 1]} ${itemName(items, "special", evalue - 32100)}`;
+              else tempStr = `${miscText[64 - 1]} ${itemName(items, "special", evalue - 32100)}`;
               JE_drawTextWindow(tempStr);
               g.soundQueue[7] = S_POWERUP;
               enemyAvail[z] = 1;
@@ -1256,8 +1254,8 @@ export function JE_playerCollide(this_player: Player, playerNum_: number): void 
           } else if (evalue > 32000) {
             if (playerNum_ === 2) {
               enemyAvail[z] = 1;
-              if (g.isNetworkGame) tempStr = `${JE_getName(2)} ${g.miscTextB[4 - 1]} ${items.options[evalue - 32000].name}`;
-              else tempStr = `${miscText[44 - 1]} ${items.options[evalue - 32000].name}`;
+              if (g.isNetworkGame) tempStr = `${JE_getName(2)} ${g.miscTextB[4 - 1]} ${itemName(items, "options", evalue - 32000)}`;
+              else tempStr = `${miscText[44 - 1]} ${itemName(items, "options", evalue - 32000)}`;
               JE_drawTextWindow(tempStr);
 
               // if picked up a different sidekick than player already has, then reset sidekicks to least powerful, else power them up
@@ -1270,7 +1268,7 @@ export function JE_playerCollide(this_player: Player, playerNum_: number): void 
 
               const temp = player[1].items.sidekick_level - 100 - 1;
               for (let i = 0; i < player[1].items.sidekick.length; ++i)
-                player[1].items.sidekick[i] = optionSelect[player[1].items.sidekick_series][temp][i];
+                player[1].items.sidekick[i] = optionSelectAt(player[1].items.sidekick_series, temp, i);
 
               g.shotMultiPos[SHOT_LEFT_SIDEKICK] = 0;
               g.shotMultiPos[SHOT_RIGHT_SIDEKICK] = 0;
@@ -1278,7 +1276,7 @@ export function JE_playerCollide(this_player: Player, playerNum_: number): void 
               g.soundQueue[7] = S_POWERUP;
             } else if (g.onePlayerAction) {
               enemyAvail[z] = 1;
-              tempStr = `${miscText[64 - 1]} ${items.options[evalue - 32000].name}`;
+              tempStr = `${miscText[64 - 1]} ${itemName(items, "options", evalue - 32000)}`;
               JE_drawTextWindow(tempStr);
 
               for (let i = 0; i < player[0].items.sidekick.length; ++i) player[0].items.sidekick[i] = u8(evalue - 32000);
@@ -1292,15 +1290,15 @@ export function JE_playerCollide(this_player: Player, playerNum_: number): void 
           } else if (evalue > 31000) {
             this_player.cash += 250;
             if (playerNum_ === 2) {
-              if (g.isNetworkGame) tempStr = `${JE_getName(2)} ${g.miscTextB[4 - 1]} ${items.weaponPorts[evalue - 31000].name}`;
-              else tempStr = `${miscText[44 - 1]} ${items.weaponPorts[evalue - 31000].name}`;
+              if (g.isNetworkGame) tempStr = `${JE_getName(2)} ${g.miscTextB[4 - 1]} ${itemName(items, "weaponPort", evalue - 31000)}`;
+              else tempStr = `${miscText[44 - 1]} ${itemName(items, "weaponPort", evalue - 31000)}`;
               JE_drawTextWindow(tempStr);
               player[1].items.weapon[REAR_WEAPON].id = u8(evalue - 31000);
               g.shotMultiPos[SHOT_REAR] = 0;
               enemyAvail[z] = 1;
               g.soundQueue[7] = S_POWERUP;
             } else if (g.onePlayerAction) {
-              tempStr = `${miscText[64 - 1]} ${items.weaponPorts[evalue - 31000].name}`;
+              tempStr = `${miscText[64 - 1]} ${itemName(items, "weaponPort", evalue - 31000)}`;
               JE_drawTextWindow(tempStr);
               player[0].items.weapon[REAR_WEAPON].id = u8(evalue - 31000);
               g.shotMultiPos[SHOT_REAR] = 0;
@@ -1313,15 +1311,15 @@ export function JE_playerCollide(this_player: Player, playerNum_: number): void 
             }
           } else if (evalue > 30000) {
             if (playerNum_ === 1 && g.twoPlayerMode) {
-              if (g.isNetworkGame) tempStr = `${JE_getName(1)} ${g.miscTextB[4 - 1]} ${items.weaponPorts[evalue - 30000].name}`;
-              else tempStr = `${miscText[43 - 1]} ${items.weaponPorts[evalue - 30000].name}`;
+              if (g.isNetworkGame) tempStr = `${JE_getName(1)} ${g.miscTextB[4 - 1]} ${itemName(items, "weaponPort", evalue - 30000)}`;
+              else tempStr = `${miscText[43 - 1]} ${itemName(items, "weaponPort", evalue - 30000)}`;
               JE_drawTextWindow(tempStr);
               player[0].items.weapon[FRONT_WEAPON].id = u8(evalue - 30000);
               g.shotMultiPos[SHOT_FRONT] = 0;
               enemyAvail[z] = 1;
               g.soundQueue[7] = S_POWERUP;
             } else if (g.onePlayerAction) {
-              tempStr = `${miscText[64 - 1]} ${items.weaponPorts[evalue - 30000].name}`;
+              tempStr = `${miscText[64 - 1]} ${itemName(items, "weaponPort", evalue - 30000)}`;
               JE_drawTextWindow(tempStr);
               player[0].items.weapon[FRONT_WEAPON].id = u8(evalue - 30000);
               g.shotMultiPos[SHOT_FRONT] = 0;
@@ -1330,7 +1328,7 @@ export function JE_playerCollide(this_player: Player, playerNum_: number): void 
             }
 
             if (enemyAvail[z] === 1) {
-              player[0].items.special = specialArcadeWeapon[evalue - 30000 - 1];
+              player[0].items.special = specialArcadeWeaponAt(evalue - 30000 - 1);
               if (player[0].items.special > 0) {
                 g.shotMultiPos[SHOT_SPECIAL] = 0;
                 g.shotRepeat[SHOT_SPECIAL] = 0;
