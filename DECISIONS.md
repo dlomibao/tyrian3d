@@ -2963,3 +2963,45 @@ blocky pink pixel clouds and a stair-stepped red ring, the biggest bright things
 list's order, quarter by quarter, so where two big explosions overlap one can cut straight across
 the other at a quarter edge, as in the original (it was there with the extruded sprites too).
 Fallback: remove the `newsh6.shp` sheet from the manifest.
+## D67 — The rock outcrop's shot-away frames are models: a crater with a pool of blue, from the sprite's fields
+
+2026-11-03
+
+**Problem:** the ground rock outcrop of level 1 (newshe.shp, six 2x2 enemies, types 522-527 once hit
+hard enough) had models only for its whole frames (1, 3, 5, 39, 41, 43, `assembly-newshe-39`). Its
+damaged frames 7, 9, 11, 45, 47 and 49 (the rock shot away, a pool of blue showing beneath) had none,
+so each piece turned from the 3D rock into extruded pixel blocks when hit (D54's `KNOWN_DAMAGE_SWAPS`;
+ticks ~2012-2115 with `&power=11`, at the right edge).
+
+**Decision:** `assembly-newshe-39.py -- --damaged` builds the damaged state as one assembly cut into
+the same six pieces and exports them as `newshe-<n>-f2` (each listed for its damaged frame in
+`src/render/spriteModels/newshe-<n>-f2.json`, so the existing router, preload (levelSprites lists
+damaged graphics) and never-pop rules apply unchanged). The sprite is authoritative and shows no rock
+left, so the model is what it shows, not a broken boulder: a dark scorched crater, a flat pool of blue
+ringed by its dark rim, loose stones round it and a few broken shards on its south side. Built like
+D63, from smoothed fields of the sprite's own pixels, so no edge is a pixel step:
+- the scorch: a thin slab cut along the 0.5 iso-line of the blurred dark-pixel mask (index 32,
+  160-163); lone dark pixels become small round flecks;
+- the pool: a slab cut from the blurred mask of the blue (144-159) and its rim (80-83); its top is split
+  into isobands of the bilinear sprite (the blue ramp is ordered dark to bright), every other ramp
+  index so a piece has at most ~20 materials; slightly glossy, a faint palette glow on the brighter
+  bands; the bright spots are sheen, kept as colour, not relief;
+- the stones: each 4-connected group of grey pixels (2-11) is a convex stone on its own pixels, height
+  from its size (to ~4.6 px), lit faces in its brightest indices;
+- the ground patch is the undamaged pieces' (2 x 2 px dirt cells, `add_ground`), with the crater's
+  pixels filled by the dirt round them, so a damaged piece meets an undamaged neighbour on the same dirt;
+- an ink outline shell (D51) of the stones and pool only; plain palette materials, no bake.
+The frames are read from the game data at build time (`TYRIAN_DATA`/`data`, palette 5): the catalogue
+only has an enemy's own frames. The undamaged models are not rebuilt.
+
+**Options considered:** *the rocks with a broken top exposing a blue core* (the issue's first idea):
+the damaged sprites show no rock mass at all, so it would not read as the original. *Per-pixel
+coloured pool:* square steps again. *Isobands of every ramp index:* 27 materials on the biggest piece;
+every other index looks the same in game at half the draw calls.
+
+**Review:** in game (`?debug=play&seed=1&skip=2050&freezeAt=2050&armor=99&power=11`) at 1280x800 and
+3840x2160 the shot-away pieces are the crater and pool instead of pixel blocks; 60 fps, cpu ~9 ms in
+both, draw calls 380 -> 480 while four damaged pieces are on screen. Six GLBs, 667 KB in all (level 1
+preloads them with the damaged graphics). `tests/render/modelSwap.test.ts` no longer lists types
+522-527 and passes (no model/sprite mix on level 1, preload coverage on episode 1).
+Fallback: delete the six `newshe-*-f2` GLBs and JSONs; the damaged frames go back to extruded sprites.

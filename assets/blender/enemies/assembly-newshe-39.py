@@ -36,6 +36,9 @@ its sprite in 2 x 2 px cells (untextured palette materials), and an outline shel
 
 Run: blender --background --python assets/blender/enemies/assembly-newshe-39.py
      [-- --preview out.png] [--no-bake] [--render DIR] [--top-tris out.json]
+     The shot-away pieces (frames 7, 9, 11, 45, 47, 49 -> newshe-<n>-f2; DECISIONS.md D67, read from
+     the game data, so TYRIAN_DATA): blender --background --python <this> -- --damaged [--preview out.png]
+     [--render DIR]
 """
 
 import json
@@ -1262,5 +1265,403 @@ def render_views(objs, out_dir, px=520):
     shot("under", (0.2, -0.3, -1))
 
 
+# --- the shot-away state (frames 7, 9, 11, 45, 47, 49) -------------------------------------------
+#
+# Each piece, shot hard enough, turns into its damaged enemy (types 522-527), drawn with the frame
+# six after its own: the rock is gone and a crater shows a pool of blue beneath, ringed by a dark
+# scorch with loose stones and a few broken shards on its south side. Those frames are not in the
+# catalogue (only an enemy's own frames are), so they are read from the game data here (newshe.shp,
+# palette 5); nothing of it is written to the repo but the models.
+#
+# Built like D63's island rock: the sprite's pixels are smoothed into fields and cut along their
+# iso-lines, so the crater's and the pool's edges and the pool's colour bands are smooth curves at
+# any resolution, still in the sprite's palette indices:
+#   - the ground patch: ground_tile in 2 x 2 px cells (as the undamaged pieces, so a damaged piece
+#     beside an undamaged one meets the same dirt), with the crater's pixels filled by the dirt
+#     round them;
+#   - the scorch: a thin slab cut from the blurred mask of the crater's dark pixels (index 32 and the
+#     brown-black 160-163), and the lone dark specks as small round flecks;
+#   - the pool: a slab cut from the blurred mask of the blue and its dark rim (80-83), its top split
+#     into isobands of the bilinear sprite (the blue ramp 144-159 is ordered dark to bright), glossy and
+#     glowing a little; the bright spots are its sheen, kept as colour, not relief;
+#   - the stones: each 4-connected group of grey pixels (2-11) is a convex stone on its own pixels,
+#     taller the bigger it is (the south shards up to ~4 px), lit faces in its brightest index;
+# and an ink outline shell of the stones and pool (D51). No bake: plain palette materials.
+
+DAMAGED = {"newshe-1": 7, "newshe-3": 9, "newshe-5": 11, "newshe-39": 45, "newshe-41": 47, "newshe-43": 49}
+BLUE = set(range(144, 160))
+BLUE_RIM = {80, 81, 82, 83}
+SCORCH = {32, 160, 161, 162, 163}
+GREY = set(range(2, 12))
+DIRT = set(range(16, 24))
+Z_SCORCH, Z_POOL = 0.36, 0.62   # px above the ground patch's foot (the ground top is at 0.24 px)
+
+
+def data_file(name):
+    import os
+    for d in (os.environ.get("TYRIAN_DATA"), ROOT / "data"):
+        if d and (Path(d) / name).exists():
+            return Path(d) / name
+    raise FileNotFoundError(f"{name}: set TYRIAN_DATA to the Tyrian 2.1 data")
+
+
+def sprite2(sheet, index):
+    """src/data/sprites.ts decodeSprite2: Sprite2 #index (1-based) as rows of 12 (-1 transparent)."""
+    rows, row = [], [-1] * 12
+    p = sheet[(index - 1) * 2] | (sheet[(index - 1) * 2 + 1] << 8)
+    x = 0
+    while p < len(sheet) and sheet[p] != 0x0F:
+        x += sheet[p] & 0x0F
+        n = sheet[p] >> 4
+        if n == 0:
+            rows.append(row)
+            row, x = [-1] * 12, 0
+        else:
+            for _ in range(n):
+                p += 1
+                if x < 12:
+                    row[x] = sheet[p]
+                x += 1
+        p += 1
+    if any(v >= 0 for v in row):
+        rows.append(row)
+    return rows
+
+
+def damaged_pixels(corners):
+    """The damaged frames on the assembly grid (as lib.assembly_pixels) and palette 5's colours."""
+    sheet = data_file("newshe.shp").read_bytes()
+    pal = data_file("palette.dat").read_bytes()[5 * 768:6 * 768]
+    w, h = 72, 56
+    pixels = [[-1] * w for _ in range(h)]
+    for name, c0, r0 in corners:
+        f = DAMAGED[name]
+        for (dc, dr), off in (((0, 0), 0), ((12, 0), 1), ((0, 14), 19), ((12, 14), 20)):
+            for r, row in enumerate(sprite2(sheet, f + off)[:14]):
+                for c, v in enumerate(row):
+                    pixels[r0 + dr + r][c0 + dc + c] = v
+    used = {v for row in pixels for v in row if v >= 0}
+    eight = lambda v: (v << 2) | (v >> 4)  # noqa: E731
+    colors = {str(i): [eight(pal[i * 3]), eight(pal[i * 3 + 1]), eight(pal[i * 3 + 2])] for i in used | {17}}
+    return pixels, w, h, colors
+
+
+def blurred(pixels, keep, sigma):
+    import numpy as np
+    m = np.array([[1.0 if v in keep else 0.0 for v in row] for row in pixels])
+    r = int(math.ceil(3 * sigma))
+    k = np.exp(-0.5 * (np.arange(-r, r + 1) / sigma) ** 2)
+    k /= k.sum()
+    m = np.apply_along_axis(lambda a: np.convolve(np.pad(a, r, mode="edge"), k, mode="valid"), 0, m)
+    m = np.apply_along_axis(lambda a: np.convolve(np.pad(a, r, mode="edge"), k, mode="valid"), 1, m)
+    return m
+
+
+def bilinear(field, c, r):
+    """field sampled at pixel centres; (c, r) in pixel-edge coordinates."""
+    h, w = field.shape
+    x, y = min(max(c - 0.5, 0), w - 1), min(max(r - 0.5, 0), h - 1)
+    x0, y0 = min(int(x), w - 2), min(int(y), h - 2)
+    fx, fy = x - x0, y - y0
+    return ((1 - fx) * (1 - fy) * field[y0, x0] + fx * (1 - fy) * field[y0, x0 + 1]
+            + (1 - fx) * fy * field[y0 + 1, x0] + fx * fy * field[y0 + 1, x0 + 1])
+
+
+def clip(poly, keep_above, t):
+    """Sutherland-Hodgman against a level of the field: poly is [(c, r, value)], values linear
+    along the edges; keeps value >= t (keep_above) or value < t."""
+    inside = (lambda v: v >= t) if keep_above else (lambda v: v < t)
+    out = []
+    for i, a in enumerate(poly):
+        b = poly[(i + 1) % len(poly)]
+        if inside(a[2]):
+            out.append(a)
+        if inside(a[2]) != inside(b[2]):
+            f = (t - a[2]) / (b[2] - a[2])
+            out.append((a[0] + f * (b[0] - a[0]), a[1] + f * (b[1] - a[1]), t))
+    return out
+
+
+def iso_cells(mask, value, t, bands, c0, r0, c1, r1, step):
+    """Cells of `step` px over [c0, c1) x [r0, r1), clipped to mask >= t, then split by `value` into
+    bands [(lo, hi, tag)]. Yields (tag, [(c, r)])."""
+    n = 0
+    r = r0
+    while r < r1 - 1e-9:
+        c = c0
+        while c < c1 - 1e-9:
+            sq = [(c, r), (c + step, r), (c + step, r + step), (c, r + step)]
+            mv = [bilinear(mask, *q) for q in sq]
+            if max(mv) >= t:
+                poly = [(q[0], q[1], m) for q, m in zip(sq, mv)]
+                if min(mv) < t:
+                    poly = clip(poly, True, t)
+                if len(poly) >= 3:
+                    if value is None:
+                        yield bands[0][2], [(q[0], q[1]) for q in poly]
+                    else:
+                        vp = [(q[0], q[1], bilinear(value, q[0], q[1])) for q in poly]
+                        for lo, hi, tag in bands:
+                            b = clip(clip(vp, True, lo), False, hi) if lo is not None else clip(vp, False, hi)
+                            if len(b) >= 3:
+                                yield tag, [(q[0], q[1]) for q in b]
+            c += step
+        r += step
+
+
+def slab(M, cells, z, wall_slot, tidy=True):
+    """A closed slab from z = 0 to z (px) whose top is the given cells [(slot, [(c, r)])]: the top
+    welded and flat faces of one slot merged, walls down its outline, a flat bottom."""
+    bm = bmesh.new()
+    for slot, poly in cells:
+        vs = [bm.verts.new(P(c, r, z)) for c, r in poly]
+        try:
+            f = bm.faces.new(vs)
+            f.material_index = slot
+        except ValueError:
+            pass
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
+    bm.faces.ensure_lookup_table()
+    for f in [f for f in bm.faces if f.calc_area() < 1e-9]:
+        bm.faces.remove(f)
+    if tidy:
+        bmesh.ops.dissolve_limit(bm, angle_limit=math.radians(1), verts=bm.verts[:], edges=bm.edges[:],
+                                 delimit={"MATERIAL"})
+    for f in bm.faces:
+        f.normal_update()
+        if f.normal.z < 0:
+            f.normal_flip()
+    # walls: extrude the boundary down to the foot, then cap
+    edges = [e for e in bm.edges if e.is_boundary]
+    ext = bmesh.ops.extrude_edge_only(bm, edges=edges)
+    low = [v for v in ext["geom"] if isinstance(v, bmesh.types.BMVert)]
+    for v in low:
+        v.co.z = 0.0
+    for f in [f for f in ext["geom"] if isinstance(f, bmesh.types.BMFace)]:
+        f.material_index = wall_slot
+    bottom = [e for e in bm.edges if e.is_boundary]
+    if bottom:
+        filled = bmesh.ops.holes_fill(bm, edges=bottom, sides=0)
+        for f in filled["faces"]:
+            f.material_index = wall_slot
+    bmesh.ops.triangulate(bm, faces=[f for f in bm.faces if len(f.verts) > 4])
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    me = bpy.data.meshes.new("slab")
+    bm.to_mesh(me)
+    bm.free()
+    M.bm.from_mesh(me)
+    bpy.data.meshes.remove(me)
+
+
+def stones(M, pixels, mats, rnd):
+    """Each 4-connected group of grey pixels a convex stone on its own pixels."""
+    h, w = len(pixels), len(pixels[0])
+    seen = set()
+    for r0 in range(h):
+        for c0 in range(w):
+            if (r0, c0) in seen or pixels[r0][c0] not in GREY:
+                continue
+            comp, todo = [], [(r0, c0)]
+            seen.add((r0, c0))
+            while todo:
+                r, c = todo.pop()
+                comp.append((r, c))
+                for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                    q = (r + dr, c + dc)
+                    if 0 <= q[0] < h and 0 <= q[1] < w and q not in seen and pixels[q[0]][q[1]] in GREY:
+                        seen.add(q)
+                        todo.append(q)
+            vals = sorted(pixels[r][c] for r, c in comp)
+            n, top_i = len(comp), vals[-1]
+            lit_i = vals[len(vals) * 3 // 4]
+            ht = min(4.6, 0.55 + 0.42 * math.sqrt(n)) * (1.0 if top_i >= 4 else 0.55)
+            cx = sum(c for r, c in comp) / n + 0.5
+            cy = sum(r for r, c in comp) / n + 0.5
+            foot, top = [], []
+            for r, c in comp:
+                for dc, dr in ((0.12, 0.12), (0.88, 0.12), (0.88, 0.88), (0.12, 0.88)):
+                    foot.append((c + dc + rnd.uniform(-0.1, 0.1), r + dr + rnd.uniform(-0.1, 0.1)))
+            bright = [(r, c) for r, c in comp if pixels[r][c] >= lit_i] or comp
+            for r, c in bright:
+                # the crown: brighter pixels high, drawn in towards the stone's centre
+                k = 0.35 if n > 2 else 0.6
+                tc, tr = c + 0.5 + (cx - c - 0.5) * k, r + 0.5 + (cy - r - 0.5) * k
+                top.append((tc + rnd.uniform(-0.15, 0.15), tr + rnd.uniform(-0.15, 0.15),
+                            ht * rnd.uniform(0.7, 1.0)))
+            if n <= 2:
+                top.append((cx, cy, ht))
+            verts = [M.v(P(c, r, Z_SCORCH * 0.5)) for c, r in foot] + [M.v(P(*t)) for t in top]
+            before = set(M.bm.faces)
+            hull = bmesh.ops.convex_hull(M.bm, input=verts)
+            junk = list({v for v in hull["geom_unused"] + hull["geom_interior"] if isinstance(v, bmesh.types.BMVert)})
+            if junk:
+                bmesh.ops.delete(M.bm, geom=junk, context="VERTS")
+            new = [f for f in M.bm.faces if f not in before]
+            bmesh.ops.recalc_face_normals(M.bm, faces=new)
+            for f in new:
+                f.normal_update()
+                no = f.normal
+                sun = no.x * SUN[0] - no.y * SUN[1]
+                if no.z < -0.5:
+                    i = 2
+                elif no.z > 0.75:
+                    i = lit_i
+                elif sun > 0.2:
+                    i = top_i
+                else:
+                    i = max(2, vals[0] if n > 2 else lit_i - 2)
+                f.material_index = mats(i)
+                f.smooth = False
+
+
+def flecks(M, pixels, scorch_mask, slot):
+    """Lone dark pixels outside the scorch: small round flecks instead of square pixels."""
+    for r, row in enumerate(pixels):
+        for c, v in enumerate(row):
+            if v not in SCORCH or bilinear(scorch_mask, c + 0.5, r + 0.5) >= 0.5:
+                continue
+            ring = [(c + 0.5 + 0.55 * math.cos(a * math.pi / 4), r + 0.5 + 0.55 * math.sin(a * math.pi / 4))
+                    for a in range(8)]
+            slab(M, [(slot, ring)], Z_SCORCH, slot, tidy=False)
+
+
+def dirt_only(pixels):
+    """Every non-dirt pixel replaced by the nearest dirt pixel's index (BFS), for the ground patch."""
+    h, w = len(pixels), len(pixels[0])
+    out = [row[:] for row in pixels]
+    front = [(r, c) for r in range(h) for c in range(w) if pixels[r][c] in DIRT]
+    done = set(front)
+    while front:
+        nxt = []
+        for r, c in front:
+            for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                q = (r + dr, c + dc)
+                if 0 <= q[0] < h and 0 <= q[1] < w and q not in done:
+                    done.add(q)
+                    out[q[0]][q[1]] = out[r][c]
+                    nxt.append(q)
+        front = nxt
+    return out
+
+
+def build_damaged(pixels, colors):
+    import random
+    import numpy as np
+    coll = common.reset_collection(NAME + "-damaged")
+    mats = lib.Mats("nshe39d", colors)
+    rock = lambda i: mats(i, metallic=0.05, roughness=0.78)  # noqa: E731
+    M = Mesh()
+    w, h = len(pixels[0]), len(pixels)
+    # scorch
+    scorch = blurred(pixels, SCORCH | GREY | BLUE | BLUE_RIM, 0.9)
+    s32 = mats(32, metallic=0.0, roughness=0.95)
+    slab(M, [(s32, poly) for _, poly in iso_cells(scorch, None, 0.5, [(None, None, 0)], 0, 0, w, h, 1.0)],
+         Z_SCORCH, s32)
+    flecks(M, pixels, scorch, s32)
+    # pool: value = the blue ramp (rim and outside one below the darkest blue)
+    pool = blurred(pixels, BLUE | BLUE_RIM, 0.8)
+    val = np.array([[float(v) if v in BLUE else 143.0 for v in row] for row in pixels])
+    val = 0.65 * val + 0.35 * blurred_values(val, 0.7)
+    used = sorted({v for row in pixels for v in row if v in BLUE})
+    # every other index of the ramp (the brightest kept): half the materials, so half the draw calls
+    used = sorted(set(used[::-2]))
+
+    def pool_mat(i):
+        if i == 82:
+            return mats(82, metallic=0.2, roughness=0.3)
+        glow = 0.1 + 0.5 * max(0, i - 147) / 12
+        return mats(i, metallic=0.2, roughness=0.3, emission_strength=round(glow, 2))
+    bands = [(None, used[0] - 0.5, pool_mat(82))]
+    for k, i in enumerate(used):
+        hi = used[k + 1] - 0.5 if k + 1 < len(used) else None
+        bands.append((i - 0.5, hi if hi is not None else 999.0, pool_mat(i)))
+    cells = list(iso_cells(pool, val, 0.45, bands, 0, 10, w, 36, 0.5))
+    slab(M, cells, Z_POOL, pool_mat(82))
+    stones(M, pixels, rock, random.Random(45))
+    bm = M.bm
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    bm.normal_update()
+    mesh = bpy.data.meshes.new(NAME + "-damaged")
+    bm.to_mesh(mesh)
+    bm.free()
+    for m in mats.list:
+        mesh.materials.append(m)
+    obj = bpy.data.objects.new(NAME + "-damaged", mesh)
+    coll.objects.link(obj)
+    return obj, mats
+
+
+def blurred_values(val, sigma):
+    import numpy as np
+    r = int(math.ceil(3 * sigma))
+    k = np.exp(-0.5 * (np.arange(-r, r + 1) / sigma) ** 2)
+    k /= k.sum()
+    m = np.apply_along_axis(lambda a: np.convolve(np.pad(a, r, mode="edge"), k, mode="valid"), 0, val)
+    return np.apply_along_axis(lambda a: np.convolve(np.pad(a, r, mode="edge"), k, mode="valid"), 1, m)
+
+
+def main_damaged(argv):
+    """Build and export the damaged pieces, <piece>-f2 (one model per damaged frame)."""
+    import tempfile
+    first = common.load_sprite(ROOT, PIECES[0])
+    layout = [(e["model"], e["cx"], e["cy"]) for e in first["assemblyLayout"]]
+    corners = [(n, cx - 12 - SX0, cy - 14 - SY0) for n, cx, cy in layout]
+    pixels, w, h, colors = damaged_pixels(corners)
+    obj, mats = build_damaged(pixels, colors)
+    coll = obj.users_collection[0]
+    print(f"damaged triangles {sum(len(p.vertices) - 2 for p in obj.data.polygons)}")
+    # the outline from the stones and the pool only (not the scorch, which is ground)
+    raised = obj.copy()
+    raised.data = obj.data.copy()
+    coll.objects.link(raised)
+    bm = bmesh.new()
+    bm.from_mesh(raised.data)
+    flat = mats.slots[32]
+    bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.material_index == flat], context="FACES")
+    bm.to_mesh(raised.data)
+    bm.free()
+    shell = common.outline_shell(raised, coll, voxel=0.02, faces=2500, smooth=4)
+    bpy.data.objects.remove(raised)
+    rel = [(n, cx - CX0, cy - CY0) for n, cx, cy in layout]
+    pieces = common.split_assembly(obj, rel)
+    shells = split_open(shell, rel, coll)
+    gmats = lib.Mats("nshe39dg", colors)
+    grid = lib.Grid(w, h, dirt_only(pixels))
+    for name, ox, oy in corners:
+        add_ground(pieces[name], grid, gmats, ox, oy, mats)
+    for p in pieces.values():
+        set_materials(p, mats, gmats)
+    for name in PIECES:
+        data = common.load_sprite(ROOT, name)
+        p = pieces[name]
+        sprites = [{**s, "frames": [DAMAGED[name]]} for s in data["sprites"]]
+        print(f"{name}-f2: {len(p.data.polygons)} faces")
+        common.export_sprite_model(ROOT, [p, shells[name]], f"enemies/{name}-f2", sprites)
+    if "--preview" in argv:
+        out = Path(argv[argv.index("--preview") + 1])
+        ref = lib.pixels_png(pixels, colors, Path(tempfile.mkdtemp()) / "assembly.png", pad_to=(72, 84))
+        whole = []
+        for name, ox, oy in corners:
+            p = pieces[name]
+            p.location = ((ox + 12 - w / 2) / 12, (h / 2 - oy - 14) / 12, 0)
+            whole.append(p)
+        bpy.context.view_layer.update()
+        common.render_preview(whole, str(out), ref, size=6, view_px=640)
+        for p in whole:
+            p.location = (0, 0, 0)
+    if "--render" in argv:
+        for name, cx, cy in layout:
+            pieces[name].location = ((cx - CX0) * U, -(cy - CY0) * U, 0)
+        for o in bpy.data.objects:
+            if o.type == "MESH" and o not in pieces.values():
+                o.hide_render = True
+        bpy.context.view_layer.update()
+        render_views([pieces[n] for n in PIECES], Path(argv[argv.index("--render") + 1]))
+
+
 if __name__ == "__main__":
-    main()
+    _argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+    if "--damaged" in _argv:
+        main_damaged(_argv)
+    else:
+        main()
