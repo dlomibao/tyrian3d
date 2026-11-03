@@ -23,5 +23,6 @@
  ],
  "neutral": 0.85,
  "fit_iou": 0.64,
- "note": "re-registered: piecewise x warp onto the sprite's ring/collar/flange columns, y fit on the pipe (centre 11.0, x1.6); detail neutral off the concept's pipe"
+ "note": "re-registered: piecewise x warp onto the sprite's ring/collar/flange columns, y fit on the pipe (centre 11.0, x1.6); detail neutral off the concept's pipe",
+ "bake": "model"
 }

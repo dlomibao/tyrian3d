@@ -1,16 +1,44 @@
 """Purple eye fortress (newsh2.shp frames 245, 169, 207 side by side): a 3D version of its sprites.
 
-Seen in levels 1.30 and 3.17. Three 2x2 enemies in a row make one 72x28 px block set into grey
-rock (sprite.json `assemblyLayout`): a purple plated structure with a dark blue glass eye in a
-round collar in the middle (newsh2-169), two blue capsules and a grille under the eye, a raised
-octagonal pad on each side (newsh2-245 and newsh2-207), vertical beams between them and a band
-of panels along the top and bottom edges, with boulders and sand at both ends.
+Seen in levels 1.30 and 3.17. Three 2x2 enemies in a row make one 72 x 28 px block set into grey
+rock (sprite.json `assemblyLayout`): two octagonal armour hatches (enemy types 38 and 39, pieces
+newsh2-245 and newsh2-207) and between them the eye turret (type 41, 20 armour, piece newsh2-169):
+a dark blue glass eye in a steel socket on a segmented collar, two glowing blue capsule lights and
+a grille below it, with rock and sand at both ends.
 
-The whole block is built once in assembly coordinates and cut into the three pieces with
-common.split_assembly. It hangs centred on z = 0 like other flying objects; the rocks are lumpy,
-flat-shaded boulders whose facets take the sprite's colour under them.
+A hard-surface rebuild in the manner of the USP Talon (D50-D53). Every part is drawn in sprite
+pixels (column c / row r as pixel EDGES of the 72 x 28 grid, z up in px, 1 px = 1/12 unit) as a
+separate chamfered armour block standing on a dark casemate deck, so the sprite's dark seams are
+real gaps showing the deck (palette 87, the median of the sprite's seam pixels).
 
-Run: blender --background --python assets/blender/enemies/assembly-newsh2-245.py [-- --preview out.png]
+Sprite authority (tools/calibration/rubric.md):
+- Outline: the whole 72 x 28 block, rock ends included; the sprite's few transparent pixels in the
+  right-hand rock (cols 61-64 rows 20-26, cols 68-69 rows 14-15) are crevices through it, with
+  rough, leaning rock walls (the top edge stays on the pixel edge, so the plan is unchanged).
+- Features at the sprite's pixel edges: octagons cols 3-20 / 52-69, rows 4-20 (mirrored, as the
+  sprite draws them); eye centre (36, 11), steel socket 15 x 12 px, glass 13 x 11 px, clamp at
+  rows 5-6; capsule lights from (25.6, 16.6) to (30.8, 22.6) and (46.3, 17.1) to (41.5, 22.5) with
+  steel end caps; grille cols 32.5-40.5 rows 18-24 with bars at cols 33, 35, 37, 39.
+- Colours: each part's palette index is the trimmed median of the sprite pixels over it; the rock
+  is painted per face from the sprite pixel under it. Satin metal, glass low roughness. Bright
+  spots on the eye and plates are sheen: no geometry for them.
+
+Profile: the rear band is a parapet sloping 2.4 -> 3.2 px toward the eye, the front band a glacis
+falling to 2 px at the player-side wall, and the deck's long front and rear walls lean back 0.7 px
+(a casemate seen from the tilted game camera). The hatches' backing plates sink into the rock.
+Underside: a flat closed belly at z = -4 px; no detail.
+
+No concept projection bake (maps.json says "bake": "model", so texture_bake.py skips it, as the
+player ships in D50-D53). Unless --no-bake, an ambient occlusion / edge colour multiplier and a
+roughness-metalness map are baked and multiplied into the palette materials.
+
+Game contract: palette materials pal_<index>_nsh2a245; the three pieces newsh2-245 / -169 / -207 cut
+from one build with common.split_assembly at the layout's centres (pivots = piece centres), each
+exported as enemies/<piece> with its own spriteModels entry and its one sprite frame, plus an
+outline shell per piece (common.outline_shell, D51, cut without capping).
+
+    blender --background --factory-startup --python assets/blender/enemies/assembly-newsh2-245.py -- \
+        [--no-bake] [--preview out.png]
 (the preview is the whole block; each piece also gets <piece>.png next to it).
 """
 
@@ -20,6 +48,8 @@ import sys
 from pathlib import Path
 
 import bmesh
+import bpy
+from mathutils import Vector
 
 sys.path[:0] = [str(Path(__file__).resolve().parents[1]), str(Path(__file__).resolve().parent)]
 import common  # noqa: E402
@@ -27,230 +57,776 @@ import lib_b053 as lib  # noqa: E402
 
 NAME = "assembly-newsh2-245"
 ROOT = common.repo_root(__file__)
-W, H = 72, 28  # the assembly grid in pixels; its centre is the Blender origin
-PX = 1 / 12
+TAG = "nsh2a245"
+W, H = 72, 28
+BELLY = -4.0  # px
+DECK = 1.0  # top of the casemate deck (px); the seams between plates show it
+SHELL_TRIS = 900  # outline shell triangles per piece at most
+LEAN = 0.7  # px the deck's front and rear walls lean back from top to belly
+
+OCT_L = [(8.0, 4.0), (18.4, 4.0), (20.2, 5.8), (20.2, 15.0), (15.6, 20.0), (8.0, 20.0), (3.0, 15.0), (3.0, 9.0)]
 
 
-def XE(e):
-    """Grid pixel edge (column) to Blender X."""
-    return (e - W / 2) / 12
+def V(c, r, z):
+    """Pixel-edge column, row and height in px to Blender units."""
+    return Vector(((c - W / 2) / 12, (H / 2 - r) / 12, z / 12))
 
 
-def YE(e):
-    """Grid pixel edge (row) to Blender Y."""
-    return (H / 2 - e) / 12
+def area2(pts):
+    return sum(x0 * y1 - x1 * y0 for (x0, y0), (x1, y1) in zip(pts, pts[1:] + pts[:1]))
 
 
-def rect(bm, c0, r0, c1, r1, z0, z1, mat):
-    """A box over pixel edges c0..c1, r0..r1."""
-    lib.box(bm, XE(c0), YE(r1), XE(c1), YE(r0), z0, z1, mat=mat)
+def inset(pts, d):
+    """Inset an outline given in (c, r) px by d px."""
+    # lib.inset works in a y-up frame; flip rows so the winding sense is right.
+    q = lib.inset([(c, -r) for c, r in pts], d)
+    return [(c, -r) for c, r in q]
 
 
-def brect(bm, c0, r0, c1, r1, z0, z1, bevel, mat):
-    """A box over pixel edges c0..c1, r0..r1 with its top edge chamfered by `bevel` px."""
-    lib.bevel_prism(bm, [(XE(c0), YE(r1)), (XE(c1), YE(r1)), (XE(c1), YE(r0)), (XE(c0), YE(r0))],
-                    z0, z1, bevel * PX, mat=mat)
+def mirror(pts):
+    return [(W - c, r) for c, r in reversed(pts)]
 
 
-def lib_inset(pts, d):
-    """lib.inset for an outline in pixel coordinates."""
-    return lib.inset(pts, d)
+def rect(c0, r0, c1, r1):
+    return [(c0, r0), (c1, r0), (c1, r1), (c0, r1)]
 
 
-def sector(cx, cy, r0, r1, a0, a1, n=4, sq=1.0):
-    """Outline of an annulus sector (radii in px, angles in degrees, y squashed by `sq`)."""
-    outer = [(cx + r1 * math.cos(math.radians(a0 + (a1 - a0) * k / n)),
-              cy + sq * r1 * math.sin(math.radians(a0 + (a1 - a0) * k / n))) for k in range(n + 1)]
-    inner = [(cx + r0 * math.cos(math.radians(a1 - (a1 - a0) * k / n)),
-              cy + sq * r0 * math.sin(math.radians(a1 - (a1 - a0) * k / n))) for k in range(n + 1)]
-    return outer + inner
+def in_poly(c, r, pts):
+    inside = False
+    n = len(pts)
+    for i in range(n):
+        (x0, y0), (x1, y1) = pts[i], pts[(i + 1) % n]
+        if (y0 > r) != (y1 > r) and c < x0 + (r - y0) * (x1 - x0) / (y1 - y0):
+            inside = not inside
+    return inside
 
 
-def build(sprite, grid):
-    coll = common.reset_collection(NAME)
-    tag = "nsh2a245"
-    pal = lambda i, **kw: common.palette_material(sprite, i, tag, **kw)  # noqa: E731
-    mats = [
-        pal(88, metallic=0.25, roughness=0.55),  # 0 purple plating, octagon plates
-        pal(89, metallic=0.25, roughness=0.5),  # 1 lighter purple panels, collar body
-        pal(90, metallic=0.3, roughness=0.45),  # 2 pale purple beam panels, collar ring
-        pal(85, metallic=0.2, roughness=0.7),  # 3 dark purple seams, recess floors
-        pal(93, metallic=0.5, roughness=0.35),  # 4 pale grille bars
-        pal(53, metallic=0.1, roughness=0.05),  # 5 dark blue glass eye
-        pal(103, metallic=0.45, roughness=0.35),  # 6 blue-grey steel: eye ring, clamps, capsule caps
-        pal(57, metallic=0.0, roughness=0.15, emission_strength=1.6),  # 7 glowing blue capsules
-        pal(4, metallic=0.05, roughness=0.9),  # 8 dark rock
-        pal(7, metallic=0.05, roughness=0.85),  # 9 mid rock
-        pal(9, metallic=0.05, roughness=0.8),  # 10 light rock
-        pal(10, metallic=0.05, roughness=0.75),  # 11 pale rock
-        pal(167, metallic=0.0, roughness=0.9),  # 12 dark sand
-        pal(169, metallic=0.0, roughness=0.9),  # 13 sand
-        pal(171, metallic=0.0, roughness=0.85),  # 14 pale sand
-        pal(91, metallic=0.3, roughness=0.45),  # 15 pale purple rims
-    ]
-    (PLATE, PANEL, BEAM, SEAM, BAR, GLASS, RIM, CAPSULE, ROCK0, ROCK1, ROCK2, ROCK3,
-     SAND0, SAND1, SAND2, PALE) = range(16)
-    bm = bmesh.new()
+def poly_dist(c, r, pts):
+    best = 1e9
+    n = len(pts)
+    for i in range(n):
+        (x0, y0), (x1, y1) = pts[i], pts[(i + 1) % n]
+        vx, vy = x1 - x0, y1 - y0
+        t = max(0.0, min(1.0, ((c - x0) * vx + (r - y0) * vy) / (vx * vx + vy * vy)))
+        best = min(best, math.hypot(c - x0 - t * vx, r - y0 - t * vy))
+    return best
 
-    def poly(pts, z0, z1, bevel, mat, bevel_h=None, flip=False):
-        """A chamfered plate over an outline in pixel coordinates (flip mirrors it about col 36)."""
-        pts = [((W - c) if flip else c, r) for c, r in pts]
-        lib.bevel_prism(bm, [(XE(c), YE(r)) for c, r in pts], z0, z1, bevel * PX, mat=mat,
-                        bevel_h=None if bevel_h is None else bevel_h * PX)
 
-    # Base block under the plating (purple columns 12-60, the full height); dark, so the gaps
-    # between the plates on it read as seams.
-    rect(bm, 12, -0.5, 60, 28.5, -0.16, 0.0, SEAM)
-    rect(bm, 12.6, -0.5, 59.4, 28.5, -0.15, 0.005, PLATE)
+class Builder:
+    def __init__(self):
+        self.bm = bmesh.new()
 
-    # Traced from the concept (assets/blender/textures/<name>/concept.png, warped onto the sprite's
-    # parts): every plate below is a chamfered armour panel; the left half is mirrored about col 36.
+    def _done(self, first, mat, smooth=False):
+        self.bm.faces.ensure_lookup_table()
+        for f in self.bm.faces[first:]:
+            f.material_index = mat
+            f.smooth = smooth
+
+    def cprism(self, pts, z0, top, mat, ch=0.4, chh=None, top_mat=None, base_shift=(0.0, 0.0), base=None):
+        """A chamfered block over a convex outline (c, r px) from z0 up to top (px, or a function
+        top(c, r) for sloped glacis tops); the top edge is chamfered ch px in and chh px down. The
+        base ring is moved by base_shift (c, r px) or replaced by `base` (a leaning wall)."""
+        bm = self.bm
+        first = len(bm.faces)
+        topf = top if callable(top) else (lambda c, r, t=top: t)
+        chh = ch if chh is None else chh
+        flip = area2([(c, -r) for c, r in pts]) < 0
+        if flip:
+            pts = list(reversed(pts))
+            if base is not None:
+                base = list(reversed(base))
+        inn = inset(pts, ch) if ch > 0 else pts
+        bpts = base if base is not None else [(c + base_shift[0], r + base_shift[1]) for c, r in pts]
+        lo = [bm.verts.new(V(c, r, z0)) for c, r in bpts]
+        mid = [bm.verts.new(V(c, r, topf(c, r) - chh)) for c, r in pts]
+        hi = [bm.verts.new(V(c, r, topf(c, r))) for c, r in inn]
+        bm.faces.new(list(reversed(lo)))
+        tf = bm.faces.new(hi)
+        n = len(pts)
+        for i in range(n):
+            j = (i + 1) % n
+            bm.faces.new((lo[i], lo[j], mid[j], mid[i]))
+            if ch > 0:
+                bm.faces.new((mid[i], mid[j], hi[j], hi[i]))
+        self._done(first, mat)
+        if top_mat is not None:
+            tf.material_index = top_mat
+        return tf
+
+    def lathe(self, cx, cy, sx, sy, prof, mat, segs=32, smooth=True, closed=True):
+        """Surface of revolution about the vertical axis through (cx, cy): prof is a list of
+        (radius px, z px), revolved on an ellipse squashed sx, sy. closed=True joins the profile's
+        ends (a ring with a solid section); a radius-0 point is a pole."""
+        bm = self.bm
+        first = len(bm.faces)
+        rings = []
+        for rad, z in prof:
+            if rad <= 1e-9:
+                rings.append([bm.verts.new(V(cx, cy, z))] * segs)
+                continue
+            rings.append([bm.verts.new(V(cx + sx * rad * math.cos(2 * math.pi * k / segs),
+                                         cy - sy * rad * math.sin(2 * math.pi * k / segs), z))
+                          for k in range(segs)])
+        n = len(prof)
+        for i in range(n if closed else n - 1):
+            r0, r1 = rings[i], rings[(i + 1) % n]
+            for k in range(segs):
+                j = (k + 1) % segs
+                f = []
+                for v in (r0[k], r0[j], r1[j], r1[k]):
+                    if v not in f:
+                        f.append(v)
+                if len(f) >= 3:
+                    bm.faces.new(f)
+        if not closed:
+            for ring in (rings[0], rings[-1]):
+                if len(set(ring)) > 1:
+                    bm.faces.new(ring)
+        self._done(first, mat, smooth)
+        return first
+
+    def tube(self, p0, p1, rad, mat, z, sides=14, ends=0.0, smooth=True, squash=1.0):
+        """A capsule/cylinder from p0 to p1 (c, r px) at height z px with radius rad px; `ends` > 0
+        rounds each end with a cap of ends * rad length."""
+        (c0, r0), (c1, r1) = p0, p1
+        L = math.hypot(c1 - c0, r1 - r0)
+        u = ((c1 - c0) / L, (r1 - r0) / L)
+        if ends > 0:
+            n = 4
+            prof = [(rad * ends * (1 - math.sin(math.pi / 2 * k / n)), math.sin(math.pi / 2 * k / n)) for k in range(n + 1)]
+            fwd = prof + [(L - d, s) for d, s in reversed(prof)]
+        else:
+            fwd = [(0, 1), (L, 1)]
+        path = []
+        for d, s in fwd:
+            p = V(c0 + u[0] * d, r0 + u[1] * d, z)
+            path.append((p.x, p.y, p.z, rad * s / 12, rad * s * squash / 12))
+        first = len(self.bm.faces)
+        lib.sweep(self.bm, path, sides=sides, mat=mat, smooth=smooth)
+        return first
+
+
+def build(sprite, grid, coll):
+    mats, slot = [], {}
+
+    def mat(idx, metallic, rough, emis=0.0):
+        slot[idx] = len(mats)
+        mats.append(common.palette_material(sprite, idx, TAG, metallic=metallic, roughness=rough,
+                                            emission_strength=emis))
+
+    for i in (85, 86, 87):
+        mat(i, 0.3, 0.55)
+    for i in (88, 89, 90, 91, 93):
+        mat(i, 0.35, 0.42)
+    mat(52, 0.1, 0.16)  # glass eye: satin sheen, not a mirror
+    mat(101, 0.35, 0.38)
+    mat(102, 0.35, 0.38)
+    mat(103, 0.35, 0.4)
+    mat(55, 0.0, 0.2, emis=1.6)  # capsule light
+    for i in range(1, 12):
+        mat(i, 0.05, 0.85)
+    for i in (167, 168, 169, 170, 171, 172):
+        mat(i, 0.0, 0.92)
+    S = slot
+    B = Builder()
+    bm = B.bm
+
+    # ---------------- casemate deck ----------------
+    # The purple body under all the plates: cols 12.4-61, full depth, in the sprite's seam colour
+    # (87); its long front and rear walls lean back LEAN px from top to belly.
+    deck = [(12.4, 0.0), (61.0, 0.0), (61.0, 28.0), (12.4, 28.0)]
+    B.cprism(deck, BELLY, DECK, S[87], ch=0.3,
+             base=[(12.4, LEAN), (61.0, LEAN), (61.0, 28.0 - LEAN), (12.4, 28.0 - LEAN)])
+
+    def wall_r(z, front):
+        """Row of the leaning deck wall at height z px."""
+        t = (DECK - z) / (DECK - BELLY) * LEAN
+        return 28.0 - t if front else t
+
+    # ---------------- rear band (rows 0-4): parapet sloping up toward the eye ----------------
+    rear_top = lambda zr, zf: (lambda c, r: zr + (zf - zr) * min(1.0, max(0.0, r / 4.2)))  # noqa: E731
+    for a, b, p in ((13.0, 19.4, 89), (19.9, 28.2, 88)):
+        for f in (False, True):
+            pts = rect(a, 0.0, b, 4.1)
+            B.cprism(mirror(pts) if f else pts, 0.5, rear_top(2.4, 3.2), S[p if not f or p != 89 else 90], ch=0.5)
+    # vent slots in the shoulder panels (cols 21-27): dark louvres sunk in the plate
     for f in (False, True):
-        # Octagonal armour plate (cols 3-21, rows 4-20): a thick backing plate and a raised face
-        # inset about 1.3 px, both with crisp chamfers.
-        octagon = [(8, 4), (16, 4), (21, 9), (21, 15), (16, 20), (8, 20), (3, 15), (3, 9)]
-        poly(octagon, -0.1, 0.22, 0.5, PLATE, flip=f)
-        poly(lib_inset(octagon, 1.3), 0.15, 0.36, 1.0, PLATE, bevel_h=0.8, flip=f)
-        # Top band: a panel over cols 12.5-19.6, then the shoulder (cols 19.8-29) with a dark vent
-        # slot in it (the concept's grey vent under the arc).
-        poly([(12.8, -0.5), (19.4, -0.5), (19.4, 3.8), (13.4, 3.8), (12.8, 3.2)], -0.02, 0.09, 0.5, PANEL, flip=f)
-        poly([(19.8, -0.5), (29.2, -0.5), (29.2, 0.9), (19.8, 0.9)], -0.02, 0.15, 0.35, PLATE, flip=f)
-        poly([(19.8, 3.0), (29.2, 3.0), (29.2, 4.2), (19.8, 4.2)], -0.02, 0.15, 0.35, PLATE, flip=f)
-        poly([(19.8, 0.9), (21.2, 0.9), (21.2, 3.0), (19.8, 3.0)], -0.02, 0.15, 0.2, PLATE, flip=f)
-        poly([(21.2, 0.9), (29.2, 0.9), (29.2, 3.0), (21.2, 3.0)], -0.02, 0.04, 0.1, SEAM, flip=f)
-        for r in (1.45, 2.2):
-            poly([(21.4, r), (28.8, r), (28.8, r + 0.35), (21.4, r + 0.35)], 0.0, 0.1, 0.08, RIM, flip=f)
-        # Beam column between the plate and the eye (cols 21-28.6): an upper panel (pale) and a lower
-        # one, split by a seam at row 11.9.
-        poly([(21.2, 4.6), (27.8, 4.6), (28.8, 5.6), (28.8, 11.6), (21.2, 11.6)], -0.02, 0.16, 0.6, BEAM, flip=f)
-        poly([(21.2, 12.2), (28.8, 12.2), (28.8, 21.4), (23.0, 21.4), (21.2, 19.6)], -0.02, 0.16, 0.6, PANEL, flip=f)
-        # Bottom band: a block under the plate (cols 12.2-19.6, chamfered top-right) and one under
-        # the beam (cols 20.4-28.6, chamfered top corners).
-        poly([(12.4, 20.5), (18.2, 20.5), (19.6, 21.9), (19.6, 28.5), (12.6, 28.5), (12.4, 28.0)], -0.02, 0.12, 0.6, PANEL, flip=f)
-        poly([(20.4, 23.6), (21.6, 22.2), (27.4, 22.2), (28.8, 23.6), (28.8, 28.5), (20.4, 28.5)], -0.02, 0.12, 0.6, PLATE, flip=f)
+        for r in (1.2, 2.3):
+            pts = rect(21.2, r, 27.0, r + 0.6)
+            B.cprism(mirror(pts) if f else pts, 2.0, rear_top(2.55, 3.35), S[85], ch=0.1)
+    B.cprism(rect(28.6, 0.0, 43.4, 1.6), 0.5, 2.6, S[90], ch=0.4)
 
-    # Top centre panel above the collar (cols 29-43) and bottom centre one under the chin.
-    poly([(29.4, -0.5), (42.6, -0.5), (42.6, 3.6), (29.4, 3.6)], -0.02, 0.1, 0.5, BEAM)
-    poly([(29.2, 25.8), (42.8, 25.8), (42.8, 28.5), (29.2, 28.5)], -0.02, 0.1, 0.5, BEAM)
+    # ---------------- beams between the hatches and the collar ----------------
+    beam_u = [(20.6, 4.5), (25.7, 4.5), (25.7, 11.4), (20.6, 11.4)]
+    beam_l = [(20.6, 11.9), (25.7, 11.9), (25.7, 16.2), (24.3, 22.7), (20.6, 22.7)]
+    for f in (False, True):
+        B.cprism(mirror(beam_u) if f else beam_u, 0.5, 3.6, S[90], ch=0.5)
+        B.cprism(mirror(beam_l) if f else beam_l, 0.5, 3.3, S[89], ch=0.5)
+        # a machined rib down the upper beam
+        rib = rect(22.6, 5.6, 23.6, 10.4)
+        B.cprism(mirror(rib) if f else rib, 3.0, 4.0, S[91], ch=0.3)
 
-    # The round body the eye sits in (centre col 36, row 11.5), and a ring of eight segmented
-    # armour plates round the eye on it.
-    cx, cy = 36.0, 11.5
-    body = [(cx + 9.3 * math.cos(2 * math.pi * k / 28), cy + 9.1 * math.sin(2 * math.pi * k / 28)) for k in range(28)]
-    poly(body, -0.02, 0.2, 0.9, PANEL, bevel_h=0.8)
+    # ---------------- front band (rows 20-28): glacis sloping toward the player ----------------
+    def glacis(zb, zf, r0):
+        return lambda c, r: zb + (zf - zb) * min(1.0, max(0.0, (r - r0) / (28 - r0)))
+    fl1 = [(12.4, 20.4), (18.3, 20.4), (19.9, 22.0), (19.9, 28.0), (12.4, 28.0)]
+    fl2 = [(20.3, 24.6), (21.5, 23.2), (27.4, 23.2), (28.6, 24.6), (28.6, 28.0), (20.3, 28.0)]
+    for f, (p1, p2) in ((False, (89, 88)), (True, (90, 88))):
+        B.cprism(mirror(fl1) if f else fl1, 0.5, glacis(3.8, 2.0, 20.4), S[p1], ch=0.5)
+        B.cprism(mirror(fl2) if f else fl2, 0.5, glacis(3.1, 2.0, 23.2), S[p2], ch=0.5)
+    B.cprism(rect(28.9, 25.3, 43.1, 28.0), 0.5, glacis(2.9, 2.0, 25.3), S[89], ch=0.4)
+    # panel lines and fasteners on the glacis blocks (thin dark strips riding the sloped tops)
+    for f in (False, True):
+        g1 = glacis(3.8, 2.0, 20.4)
+        strip = rect(13.4, 24.6, 18.9, 25.0)
+        B.cprism(mirror(strip) if f else strip, 0.5, lambda c, r: g1(c, r) + 0.06, S[86], ch=0.0)
+        for c, r in ((14.0, 21.6), (18.3, 26.8), (14.0, 26.8)):
+            cc = W - c if f else c
+            B.lathe(cc, r, 1, 1, [(0.0, 0.5), (0.4, 0.5), (0.4, g1(c, r) + 0.3), (0.0, g1(c, r) + 0.3)], S[87],
+                    segs=6, smooth=False)
+        for c, r in ((22.3, 13.4), (22.3, 21.2)):
+            cc = W - c if f else c
+            B.lathe(cc, r, 1, 1, [(0.0, 0.5), (0.4, 0.5), (0.4, 3.6), (0.0, 3.6)], S[87], segs=6, smooth=False)
+    # front wall vents (seen by the game camera): dark slot plates on the leaning front wall
+    z0v, z1v = -2.8, -0.6
+    for c in (15.0, 17.5, 31.0, 34.0, 38.0, 41.0, 54.5, 57.0):
+        rt = wall_r(z1v, True)
+        rb = wall_r(z0v, True)
+        B.cprism(rect(c - 0.9, rt - 0.5, c + 0.9, rt + 0.12), z0v, z1v, S[85], ch=0.1,
+                 base_shift=(0.0, rb - rt))
+    # buttress ribs on the front and rear walls between the vents, leaning with the walls
+    zb0, zb1 = BELLY + 0.4, 0.9
+    for c in (13.6, 20.0, 24.3, 28.7, 36.0, 43.3, 47.7, 52.0, 58.6):
+        for front in (True, False):
+            rt, rb = wall_r(zb1, front), wall_r(zb0, front)
+            r0, r1 = (rt - 0.45, rt) if front else (rt, rt + 0.45)
+            B.cprism(rect(c - 0.55, r0, c + 0.55, r1), zb0, zb1, S[86], ch=0.15, base_shift=(0.0, rb - rt))
+
+    # ---------------- octagonal armour hatches (types 38 and 39) ----------------
+    for f in (False, True):
+        o = mirror(OCT_L) if f else OCT_L
+        B.cprism(o, -2.6, 4.4, S[88], ch=0.7)  # backing plate, its foot sunk into the rock
+        face = inset(o, 1.1)
+        B.cprism(face, 3.6, 6.0, S[88], ch=1.1, chh=0.9)  # raised face, broad chamfer
+        mc = sum(c for c, _ in o) / len(o)
+        mr = sum(r for _, r in o) / len(o)
+        inner = [(mc + (c - mc) * 0.66, mr + (r - mr) * 0.66) for c, r in o]
+        B.cprism(inner, 5.6, 6.5, S[88], ch=0.4)  # inner armour panel
+        # corner bolts on the face
+        for c, r in inset(o, 2.35):
+            B.lathe(c, r, 1, 1, [(0.0, 5.7), (0.42, 5.7), (0.42, 6.35), (0.0, 6.35)], S[87],
+                    segs=6, smooth=False, closed=True)
+
+    # ---------------- eye collar (type 41) ----------------
+    collar = [(30.0, 1.0), (42.0, 1.0), (45.6, 4.4), (45.6, 14.4), (42.8, 17.2), (29.2, 17.2), (26.4, 14.4), (26.4, 4.4)]
+    B.cprism(collar, 0.5, 4.2, S[88], ch=0.9)
+    cx, cy = 36.0, 11.0
+    # segmented armour ring round the socket (8 plates, split into convex quads)
     for k in range(8):
-        a0 = 22.5 + 45 * k + 2.2
-        a1 = 22.5 + 45 * (k + 1) - 2.2
-        poly(sector(cx, cy, 6.6, 8.7, a0, a1, n=3), 0.1, 0.31, 0.45, BEAM, bevel_h=0.4)
-    # Chin plate holding the grille (cols 29.4-42.6, rows 17.6-26).
-    chin = [(31.2, 17.6), (40.8, 17.6), (42.6, 19.4), (42.6, 25.0), (41.6, 26.0), (30.4, 26.0), (29.4, 25.0), (29.4, 19.4)]
-    poly(chin, -0.02, 0.24, 0.6, PANEL, bevel_h=0.5)
-    # Grille: a pale frame round a dark recess (cols 32.8-39.2, rows 20.6-24.6) with thin bars.
-    gx0, gx1, gy0, gy1 = 32.6, 39.4, 20.5, 24.7
-    for pts in (
-        [(31.8, 19.6), (40.2, 19.6), (40.2, gy0), (31.8, gy0)],
-        [(31.8, gy1), (40.2, gy1), (40.2, 25.5), (31.8, 25.5)],
-        [(31.8, gy0), (gx0, gy0), (gx0, gy1), (31.8, gy1)],
-        [(gx1, gy0), (40.2, gy0), (40.2, gy1), (gx1, gy1)],
-    ):
-        poly(pts, 0.2, 0.3, 0.2, PANEL)
-    poly([(gx0, gy0), (gx1, gy0), (gx1, gy1), (gx0, gy1)], 0.2, 0.21, 0.0, SEAM)
-    nb = 9
-    for i in range(nb):
-        c = gx0 + (gx1 - gx0) * (i + 0.5) / nb
-        rect(bm, c - 0.17, gy0, c + 0.17, gy1, 0.2, 0.27, BAR)
+        a0 = math.radians(22.5 + 45 * k + 3.2)
+        a1 = math.radians(22.5 + 45 * (k + 1) - 3.2)
+        R0, R1, sq = 7.0, 8.7, 0.84
+        o = [(cx + R1 * math.cos(a0 + (a1 - a0) * s / 3), cy + sq * R1 * math.sin(a0 + (a1 - a0) * s / 3)) for s in range(4)]
+        i_ = [(cx + R0 * math.cos(a0 + (a1 - a0) * s / 3), cy + sq * R0 * math.sin(a0 + (a1 - a0) * s / 3)) for s in range(4)]
+        for s in range(3):
+            B.cprism([o[s], o[s + 1], i_[s + 1], i_[s]], 3.6, 5.0, S[88], ch=0.25)
+    # steel socket ring (sprite 101-103) with a lip, matched to the sprite's 15 x 12 px ring
+    B.lathe(cx, cy, 1.0, 0.86, [(5.9, 3.8), (7.6, 3.8), (7.6, 4.9), (7.25, 5.6), (6.35, 5.75), (5.95, 5.3)],
+            S[102], segs=40, smooth=True)
+    # clamp at the top of the ring and two lower lugs (sprite rows 5 and 16)
+    B.cprism(rect(34.8, 4.4, 37.3, 6.0), 4.2, 6.6, S[103], ch=0.3)
+    for c in (32.2, 39.8):
+        B.cprism(rect(c - 0.9, 15.6, c + 0.9, 16.8), 4.0, 5.8, S[101], ch=0.25)
+    # the glass eye: a dark blue lens dome
+    prof = []
+    for k in range(10):
+        a = (math.pi / 2) * k / 9
+        prof.append((6.15 * math.cos(a), 5.0 + 4.0 * math.sin(a)))
+    prof = [(0.0, 4.6), (6.15, 4.6)] + prof
+    prof[-1] = (0.0, prof[-1][1])  # pole at the top
+    B.lathe(cx, cy, 1.0, 0.86, prof, S[52], segs=36, smooth=True, closed=False)
 
-    # The steel ring the eye is set in, with a clamp on top, and the dark glass ball.
-    for a in (0, 180):
-        poly(sector(cx, cy, 5.5, 6.7, a, a + 180, n=12), 0.2, 0.36, 0.25, RIM, bevel_h=0.25)
-    poly([(34.6, 4.0), (37.4, 4.0), (37.4, 5.3), (34.6, 5.3)], 0.2, 0.4, 0.3, RIM)
-    lib.dome(bm, (XE(cx), YE(cy), 0.27), (5.8 * PX, 5.7 * PX, 0.44), mat=GLASS, segments=24, rings=7)
+    # ---------------- chin plate and grille ----------------
+    chin_l = [(30.2, 17.6), (32.5, 17.6), (32.5, 25.3), (29.4, 25.3), (28.6, 24.4), (28.6, 19.2)]
+    B.cprism(chin_l, 0.5, 3.4, S[86], ch=0.5)
+    B.cprism(mirror(chin_l), 0.5, 3.4, S[86], ch=0.5)
+    B.cprism(rect(32.5, 24.2, 39.5, 25.3), 0.5, 3.4, S[86], ch=0.4)
+    B.cprism(rect(32.5, 17.6, 39.5, 19.0), 0.5, 3.8, S[91], ch=0.35)  # grille frame top (sprite 91-93)
+    B.cprism(rect(32.5, 19.0, 39.5, 24.2), 0.5, 1.6, S[85], ch=0.0)  # dark recess
+    for c in (33, 35, 37, 39):
+        B.cprism(rect(c + 0.1, 19.0, c + 0.9, 24.2), 0.5, 3.1, S[90], ch=0.25)
 
-    # Two capsule lights slanting outwards below the eye: a dark socket, a steel cap at the outer
-    # top end and a glowing blue pill.
-    for f in (False, True):
-        (c0, r0), (c1, r1) = (26.0, 16.4), (30.8, 21.6)
-        if f:
-            c0, c1 = W - c0, W - c1
-        x0, y0, x1, y1 = XE(c0), YE(r0), XE(c1), YE(r1)
-        d = math.hypot(x1 - x0, y1 - y0)
-        ux, uy = (x1 - x0) / d, (y1 - y0) / d
-        ext = 0.7 * PX
-        lib.sweep(bm, [(x0 - ux * ext, y0 - uy * ext, 0.02, 2.1 * PX, 0.05),
-                       (x1 + ux * ext, y1 + uy * ext, 0.02, 2.1 * PX, 0.05)], sides=8, mat=SEAM, smooth=False)
-        def pill(t0, t1, mat, w):
-            n = 5
-            path = []
-            for k in range(n + 1):
-                t = t0 + (t1 - t0) * k / n
-                end = min(t, 1 - t)
-                s = min(1.0, (end / 0.18)) ** 0.5 if end < 0.18 else 1.0
-                path.append((x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, 0.17, w * PX * s, w * PX * s))
-            lib.sweep(bm, path, sides=10, mat=mat)
-        pill(0.0, 1.0, CAPSULE, 1.35)
-        lib.sweep(bm, [(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, 0.17, 1.55 * PX * s, 1.55 * PX * s)
-                       for t, s in ((-0.02, 0.6), (0.06, 1.0), (0.3, 1.0), (0.32, 0.85))], sides=10, mat=RIM)
+    # ---------------- capsule lights ----------------
+    caps = (((25.6, 16.6), (30.8, 22.6)), ((46.3, 17.1), (41.5, 22.5)))
+    for p0, p1 in caps:
+        B.tube(p0, p1, 1.95, S[86], 2.0, sides=12, ends=1.0, smooth=True, squash=0.75)  # socket
+        B.tube(p0, p1, 1.45, S[55], 3.0, sides=14, ends=1.0, smooth=True)  # glowing pill
+        (c0, r0), (c1, r1) = p0, p1
+        L = math.hypot(c1 - c0, r1 - r0)
+        ux, uy = (c1 - c0) / L, (r1 - r0) / L
+        for d0, d1 in ((-0.35, 1.2), (L - 1.2, L + 0.35)):
+            B.tube((c0 + ux * d0, r0 + uy * d0), (c0 + ux * d1, r0 + uy * d1), 1.65, S[102], 3.0, sides=14)
 
-    # ---- rocks at both ends, painted from the sprite ----
-    rng = random.Random(245)
-    first_face = len(bm.faces)
-    boulders = [  # (column, row, rx px, ry px, z, rz)
-        (5.0, 1.0, 6.5, 4.2, -0.06, 0.13), (6.0, 27.6, 5.5, 3.0, -0.06, 0.11),
-        (1.5, 10.5, 3.2, 6.8, -0.08, 0.12), (5.3, 20.2, 6.6, 5.0, -0.05, 0.16),
-        (0.8, 25.5, 2.4, 2.8, -0.08, 0.09), (10.3, 23.5, 3.0, 3.0, -0.07, 0.1),
-        (66.0, 1.5, 6.4, 4.4, -0.06, 0.14), (70.0, 7.6, 2.8, 3.6, -0.07, 0.11),
-        (70.6, 13.0, 2.2, 3.0, -0.08, 0.1), (68.2, 21.6, 5.2, 5.4, -0.05, 0.16),
-        (62.6, 18.0, 2.0, 3.6, -0.09, 0.08), (64.2, 26.8, 3.4, 2.4, -0.08, 0.09),
-    ]
-    # A bed of rubble under the boulders so the ends are filled like the sprite's.
-    for c0, c1 in ((-0.5, 13.5), (60.5, 72.5)):
-        first_bed = len(bm.faces)
-        bed = bmesh.ops.create_grid(bm, x_segments=6, y_segments=10, size=0.5)
-        for v in bed["verts"]:
-            u, w = v.co.x + 0.5, v.co.y + 0.5
-            v.co = (XE(c0 + (c1 - c0) * u), YE(-0.5 + 29 * w), -0.04 + rng.uniform(-0.02, 0.03))
-        bm.faces.ensure_lookup_table()
-        for f in bm.faces[first_bed:]:
-            f.material_index = ROCK0
-            f.smooth = False
-    for c, r, rx, ry, z, rz in boulders:
-        seeds = [(rng.uniform(-1, 1), rng.uniform(-1, 1), rng.uniform(-1, 1), rng.uniform(0.08, 0.16))
-                 for _ in range(4)]
-        def bump(d, seeds=seeds):
-            return 1.0 + sum(a * max(0.0, d.x * u + d.y * v + d.z * w) for u, v, w, a in seeds)
-        lib.ellipsoid(bm, (XE(c + 0.5), YE(r + 0.5), z), (rx * PX, ry * PX, 2.0 * rz), mat=ROCK1,
-                      segments=10, rings=6, smooth=False, bump=bump)
+    # ---------------- rock ends, painted from the sprite ----------------
+    rock_first = len(bm.faces)
+    rock(B, grid, 0.0, 13.0, "L")
+    rock(B, grid, 60.5, 72.0, "R")
 
-    def sample(x, y):
-        c, r = math.floor(x * 12 + W / 2), math.floor(H / 2 - y * 12)
-        if 0 <= r < H and 0 <= c < W:
-            return grid[r][c]
+    def rslot(i):
+        if 1 <= i <= 11:
+            return S[i]
+        if 167 <= i <= 173:
+            return S[min(172, max(167, i))]
         return None
 
-    def slot(i):
-        if 2 <= i <= 15:
-            return ROCK0 if i <= 4 else ROCK1 if i <= 7 else ROCK2 if i <= 9 else ROCK3
-        if 160 <= i <= 167:
-            return SAND0
-        if 168 <= i <= 169:
-            return SAND1
-        if 170 <= i <= 173:
-            return SAND2
-        return None
-    lib.paint(bm, first_face, sample, slot, up_only=True)
+    bm.normal_update()
+    bm.faces.ensure_lookup_table()
+    wl = bm.faces.layers.int["rock_wall"]
+    for fc in bm.faces[rock_first:]:
+        ce = fc.calc_center_median()
+        if abs(ce.z * 12 - BELLY) < 0.01:
+            fc.material_index = S[4]
+            continue
+        wall = fc[wl] == 1
+        # the heightfield takes the sprite pixel under the facet (each 0.5 px cell lies in one
+        # pixel, so the plan view is the sprite's colours); a wall samples the pixel it bounds
+        # and goes a step darker
+        nx, ny = (fc.normal.x, fc.normal.y) if wall else (0.0, 0.0)
+        c = math.floor(ce.x * 12 + W / 2 - nx * 0.3)
+        r = math.floor(H / 2 - ce.y * 12 + ny * 0.3)
+        c, r = min(W - 1, max(0, c)), min(H - 1, max(0, r))
+        v = grid[r][c]
+        s = rslot(v) if v >= 0 else None
+        if s is None:
+            s = S[7]
+        if wall:
+            s = S[max(2, v - 2)] if 1 <= v <= 11 else S[167] if v >= 160 else S[5]
+        fc.material_index = s
 
-    return lib.to_object(NAME, bm, mats, coll)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    mesh = bpy.data.meshes.new(NAME)
+    bm.to_mesh(mesh)
+    bm.free()
+    for m in mats:
+        mesh.materials.append(m)
+    obj = bpy.data.objects.new(NAME, mesh)
+    coll.objects.link(obj)
+    return obj, mats, slot
 
 
-def main():
+def rock(B, grid, c0, c1, side):
+    """A closed faceted rock heightfield over cols c0-c1 (0.5 px cells) with walls round its edge and
+    the sprite's transparent pixels, and a flat belly. Height follows the sprite's own shading
+    (bright boulder tops high, dark cracks low, sand low), dropping toward the outer cut and banked
+    up against the hatch's outer edge. Every wall is broken into three bands whose inner vertices
+    lean back into the rock by a random amount, so the edges and crevices read as rough fissures;
+    the walls' top and foot stay on the pixel edges, so the plan view is the sprite's."""
+    bm = B.bm
+    step = 0.5
+    nx, ny = round((c1 - c0) / step), round(H / step)
+    rng = random.Random(245 if side == "L" else 207)
+    octo = OCT_L if side == "L" else mirror(OCT_L)
+
+    def val(ci, ri):
+        if 0 <= ri < H and 0 <= ci < W:
+            return grid[ri][ci]
+        return -1
+
+    def bright(v):
+        if 1 <= v <= 11:
+            return (v - 1) / 10
+        if 160 <= v <= 175:
+            return 0.15
+        if v >= 80:
+            return 0.5
+        return 0.0
+
+    jit = {}
+
+    def height(i, j):
+        c, r = c0 + i * step, j * step
+        s = w = 0.0
+        for dr in range(-3, 4):
+            for dc in range(-3, 4):
+                ci, ri = math.floor(c + dc * 0.6 - 0.25), math.floor(r + dr * 0.6 - 0.25)
+                v = val(ci, ri)
+                if v < 0:
+                    continue
+                k = math.exp(-(dc * dc + dr * dr) / 4.0)
+                s += k * bright(v)
+                w += k
+        b = s / w if w else 0.0
+        dist = (c - c0) if side == "L" else (c1 - c)
+        fall = min(1.0, 0.06 + dist / 5.0)
+        h = -3.2 + (3.4 + 7.0 * b) * fall
+        # rock banked against the hatch's outer edge (outside it only; under it is hidden)
+        if not in_poly(c, r, octo):
+            d = poly_dist(c, r, octo)
+            if d < 3.5 and 6.0 < r < 18.0:
+                h = max(h, 3.0 - 0.9 * d)
+        key = (round(c * 2), round(r * 2))
+        if key not in jit:
+            jit[key] = rng.uniform(-0.35, 0.35)
+        return max(BELLY + 0.8, h + jit[key])
+
+    def present(i, j):
+        if not (0 <= i < nx and 0 <= j < ny):
+            return False
+        c, r = c0 + (i + 0.5) * step, (j + 0.5) * step
+        return val(math.floor(c), math.floor(r)) >= 0
+
+    top, bot, mids = {}, {}, {}
+
+    def tv(i, j):
+        if (i, j) not in top:
+            top[(i, j)] = bm.verts.new(V(c0 + i * step, j * step, height(i, j)))
+        return top[(i, j)]
+
+    def bv(i, j):
+        if (i, j) not in bot:
+            bot[(i, j)] = bm.verts.new(V(c0 + i * step, j * step, BELLY))
+        return bot[(i, j)]
+
+    def into_rock(i, j):
+        """Unit direction from the empty cells round grid vertex (i, j) into the rock."""
+        dx = dy = 0.0
+        for ci, cj in ((i - 1, j - 1), (i, j - 1), (i - 1, j), (i, j)):
+            if not present(ci, cj):
+                dx += i - (ci + 0.5)
+                dy += j - (cj + 0.5)
+        L = math.hypot(dx, dy)
+        return (dx / L, dy / L) if L > 1e-6 else (0.0, 0.0)
+
+    def mv(i, j, k):
+        """Wall vertex of band k (0, 1) below top vertex (i, j), leaning back into the rock."""
+        if (i, j, k) not in mids:
+            zt = tv(i, j).co.z * 12
+            f = (0.3, 0.66)[k] + rng.uniform(-0.08, 0.08)
+            z = zt + (BELLY - zt) * f
+            d = rng.uniform(0.15, 0.55)
+            ux, uy = into_rock(i, j)
+            mids[(i, j, k)] = bm.verts.new(V(c0 + i * step + ux * d, j * step + uy * d, z))
+        return mids[(i, j, k)]
+
+    first = len(bm.faces)
+    bottoms, walls = [], []
+    wl = bm.faces.layers.int.get("rock_wall") or bm.faces.layers.int.new("rock_wall")
+    for j in range(ny):
+        for i in range(nx):
+            if not present(i, j):
+                continue
+            a, b, c, d = tv(i, j), tv(i + 1, j), tv(i + 1, j + 1), tv(i, j + 1)
+            # split along the shorter diagonal for a crisper facet
+            if (a.co - c.co).length < (b.co - d.co).length:
+                bm.faces.new((a, d, c))
+                bm.faces.new((a, c, b))
+            else:
+                bm.faces.new((a, d, b))
+                bm.faces.new((b, d, c))
+            bottoms.append(bm.faces.new((bv(i, j), bv(i + 1, j), bv(i + 1, j + 1), bv(i, j + 1))))
+            for (ii, jj), (p, q) in (((i, j - 1), ((i, j), (i + 1, j))), ((i, j + 1), ((i + 1, j + 1), (i, j + 1))),
+                                     ((i - 1, j), ((i, j + 1), (i, j))), ((i + 1, j), ((i + 1, j), (i + 1, j + 1)))):
+                if not present(ii, jj):
+                    cp = [tv(*p), mv(*p, 0), mv(*p, 1), bv(*p)]
+                    cq = [tv(*q), mv(*q, 0), mv(*q, 1), bv(*q)]
+                    for k in range(3):
+                        walls.append(bm.faces.new((cp[k], cp[k + 1], cq[k + 1])))
+                        walls.append(bm.faces.new((cp[k], cq[k + 1], cq[k])))
+    bm.faces.ensure_lookup_table()
+    for f in bm.faces[first:]:
+        f.smooth = False
+        f.material_index = 0
+    for f in walls:
+        f[wl] = 1
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[first:])
+    bmesh.ops.dissolve_limit(bm, angle_limit=0.01, verts=[], edges=list({e for f in bottoms for e in f.edges}),
+                             delimit=set())
+
+
+# ---------------------------------------------------------------------------------------------
+# Finishing: cull hidden faces, bake, split, outline shell, export
+# ---------------------------------------------------------------------------------------------
+
+def cull_hidden(obj, ndirs=32, n=4):
+    """Delete faces no ray from outside reaches (usp_talon.cull_hidden, but sampling each face
+    densely over its fan triangles, so a thin visible strip of a big n-gon, such as the ledge of a
+    backing plate round the plate on it, keeps its face)."""
+    from mathutils.bvhtree import BVHTree
+    me = obj.data
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    bm.faces.ensure_lookup_table()
+    tree = BVHTree.FromBMesh(bm)
+    golden = math.pi * (3 - math.sqrt(5))
+    dirs = []
+    for i in range(ndirs):
+        z = 1 - 2 * (i + 0.5) / ndirs
+        r = math.sqrt(1 - z * z)
+        dirs.append(Vector((r * math.cos(golden * i), r * math.sin(golden * i), z)))
+    eps = 2e-4
+    dead = []
+    for f in bm.faces:
+        nrm = f.normal
+        vs = [v.co for v in f.verts]
+        c = f.calc_center_median()
+        pts = [c]
+        for k in range(1, len(vs) - 1):
+            a, b, d = vs[0], vs[k], vs[k + 1]
+            for i in range(n + 1):
+                for j in range(n + 1 - i):
+                    u, w = i / n, j / n
+                    p = a + (b - a) * u + (d - a) * w
+                    pts.append(p.lerp(c, 0.04))
+        cand = [d for d in dirs if d.dot(nrm) > 0.05]
+        seen = False
+        for p in pts:
+            o = p + nrm * eps
+            for d in cand:
+                if tree.ray_cast(o, d, 50.0)[0] is None:
+                    seen = True
+                    break
+            if seen:
+                break
+        if not seen:
+            dead.append(f)
+    print(f"{NAME}: culled {len(dead)} hidden faces of {len(bm.faces)}")
+    bmesh.ops.delete(bm, geom=dead, context="FACES_ONLY")
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context="VERTS")
+    bm.to_mesh(me)
+    bm.free()
+
+
+def bake_maps(obj, out_dir, skip=(), size=1024, samples=64):
+    """usp_talon.bake_maps: Smart UV, Cycles bake of an occlusion/edge colour multiplier and a
+    roughness/metallic map, wired into the palette materials (Base Color = map x palette)."""
+    scene = bpy.context.scene
+    try:
+        scene.render.engine = "CYCLES"
+    except TypeError:
+        pass
+    scene.cycles.samples = samples
+    scene.cycles.device = "CPU"
+    try:
+        prefs = bpy.context.preferences.addons["cycles"].preferences
+        prefs.compute_device_type = "METAL"
+        prefs.get_devices()
+        for dev in prefs.devices:
+            dev.use = True
+        if any(d.type == "METAL" for d in prefs.devices):
+            scene.cycles.device = "GPU"
+    except Exception as err:
+        print(f"{NAME}: no GPU bake", err)
+    me = obj.data
+    uv = me.uv_layers.new(name="bake")
+    me.uv_layers.active = uv
+    for o in bpy.context.view_layer.objects:
+        o.select_set(False)
+    obj.select_set(True)
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.mesh.select_all(action="SELECT")
+    bpy.ops.uv.smart_project(angle_limit=math.radians(55), island_margin=0.003, scale_to_bounds=False)
+    bpy.ops.uv.pack_islands(margin=0.002)
+    bpy.ops.object.mode_set(mode="OBJECT")
+    col_img = bpy.data.images.new(f"{TAG}_colour", size, size, alpha=False)
+    rm_img = bpy.data.images.new(f"{TAG}_rm", size // 2, size // 2, alpha=False)
+    rm_img.colorspace_settings.name = "Non-Color"
+    mats = list(me.materials)
+    saved = {}
+    for m in mats:
+        out = next(n for n in m.node_tree.nodes if n.type == "OUTPUT_MATERIAL")
+        saved[m.name] = out.inputs["Surface"].links[0].from_socket if out.inputs["Surface"].links else None
+
+    def bake_shader(m, mode):
+        nt = m.node_tree
+        bsdf = next(n for n in nt.nodes if n.type == "BSDF_PRINCIPLED")
+        rough = bsdf.inputs["Roughness"].default_value
+        metal = bsdf.inputs["Metallic"].default_value
+        tmp = []
+
+        def node(kind):
+            n = nt.nodes.new(kind)
+            tmp.append(n)
+            return n
+
+        def math_(op, a, bb=None):
+            n = node("ShaderNodeMath")
+            n.operation = op
+            for k, v in enumerate((a, bb)):
+                if v is None:
+                    continue
+                if isinstance(v, (int, float)):
+                    n.inputs[k].default_value = v
+                else:
+                    nt.links.new(v, n.inputs[k])
+            return n.outputs[0]
+        ao_s = node("ShaderNodeAmbientOcclusion")
+        ao_s.samples = 24
+        ao_s.inputs["Distance"].default_value = 0.04
+        ao_l = node("ShaderNodeAmbientOcclusion")
+        ao_l.samples = 24
+        ao_l.inputs["Distance"].default_value = 0.25
+        bev = node("ShaderNodeBevel")
+        bev.samples = 8
+        bev.inputs["Radius"].default_value = 0.006
+        geo = node("ShaderNodeNewGeometry")
+        dot = node("ShaderNodeVectorMath")
+        dot.operation = "DOT_PRODUCT"
+        nt.links.new(bev.outputs["Normal"], dot.inputs[0])
+        nt.links.new(geo.outputs["True Normal"], dot.inputs[1])
+        edge = math_("MINIMUM", math_("MULTIPLY", math_("SUBTRACT", 1.0, dot.outputs["Value"]), 8.0), 1.0)
+        occl = math_("MULTIPLY", math_("POWER", ao_s.outputs["AO"], 0.8),
+                     math_("ADD", 0.65, math_("MULTIPLY", ao_l.outputs["AO"], 0.35)))
+        em = node("ShaderNodeEmission")
+        if mode == "colour":
+            v = math_("MINIMUM", math_("ADD", math_("ADD", 0.48, math_("MULTIPLY", occl, 0.62)),
+                                       math_("MULTIPLY", edge, 0.2)), 1.0)
+            nt.links.new(v, em.inputs["Color"])
+        else:
+            r = math_("ADD", rough, math_("SUBTRACT", math_("MULTIPLY", math_("SUBTRACT", 1.0, occl), 0.3),
+                                          math_("MULTIPLY", edge, 0.16)))
+            r = math_("MAXIMUM", math_("MINIMUM", r, 1.0), 0.05)
+            comb = node("ShaderNodeCombineColor")
+            comb.inputs[0].default_value = 1.0
+            nt.links.new(r, comb.inputs[1])
+            comb.inputs[2].default_value = metal
+            nt.links.new(comb.outputs[0], em.inputs["Color"])
+        out = next(n for n in nt.nodes if n.type == "OUTPUT_MATERIAL")
+        nt.links.new(em.outputs[0], out.inputs["Surface"])
+        tgt = node("ShaderNodeTexImage")
+        tgt.image = col_img if mode == "colour" else rm_img
+        uvn = node("ShaderNodeUVMap")
+        uvn.uv_map = "bake"
+        nt.links.new(uvn.outputs["UV"], tgt.inputs["Vector"])
+        nt.nodes.active = tgt
+        return tmp
+
+    for mode, img in (("colour", col_img), ("rm", rm_img)):
+        tmps = {m.name: bake_shader(m, mode) for m in mats}
+        bpy.ops.object.bake(type="EMIT", margin=6, use_clear=True)
+        for m in mats:
+            nt = m.node_tree
+            for n in tmps[m.name]:
+                nt.nodes.remove(n)
+            out = next(n for n in nt.nodes if n.type == "OUTPUT_MATERIAL")
+            if saved[m.name] is not None:
+                nt.links.new(saved[m.name], out.inputs["Surface"])
+        img.filepath_raw = str(Path(out_dir) / f"{img.name}.png")
+        img.file_format = "PNG"
+        img.save()
+    for m in mats:
+        if m in skip:
+            continue
+        nt = m.node_tree
+        bsdf = next(n for n in nt.nodes if n.type == "BSDF_PRINCIPLED")
+        uvn = nt.nodes.new("ShaderNodeUVMap")
+        uvn.uv_map = "bake"
+        ct = nt.nodes.new("ShaderNodeTexImage")
+        ct.image = col_img
+        nt.links.new(uvn.outputs["UV"], ct.inputs["Vector"])
+        mul = nt.nodes.new("ShaderNodeMix")
+        mul.data_type = "RGBA"
+        mul.blend_type = "MULTIPLY"
+        mul.inputs[0].default_value = 1.0
+        nt.links.new(ct.outputs["Color"], mul.inputs[6])
+        mul.inputs[7].default_value = tuple(bsdf.inputs["Base Color"].default_value)
+        nt.links.new(mul.outputs[2], bsdf.inputs["Base Color"])
+        rt = nt.nodes.new("ShaderNodeTexImage")
+        rt.image = rm_img
+        nt.links.new(uvn.outputs["UV"], rt.inputs["Vector"])
+        sep = nt.nodes.new("ShaderNodeSeparateColor")
+        nt.links.new(rt.outputs["Color"], sep.inputs[0])
+        nt.links.new(sep.outputs[1], bsdf.inputs["Roughness"])
+        nt.links.new(sep.outputs[2], bsdf.inputs["Metallic"])
+
+
+def split_open(obj, layout, coll, suffix):
+    """split_assembly without capping the cuts (for the outline shells)."""
+    out = {}
+    for name, cx, cy in layout:
+        x0, y0 = cx / 12, -cy / 12
+        bm = bmesh.new()
+        bm.from_mesh(obj.data)
+        for co, no in (((x0 - 1, 0, 0), (-1, 0, 0)), ((x0 + 1, 0, 0), (1, 0, 0)),
+                       ((0, y0 - 14 / 12, 0), (0, -1, 0)), ((0, y0 + 14 / 12, 0), (0, 1, 0))):
+            bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], plane_co=co,
+                                   plane_no=no, clear_outer=True)
+        bmesh.ops.translate(bm, vec=(-x0, -y0, 0), verts=bm.verts)
+        me = bpy.data.meshes.new(name + suffix)
+        bm.to_mesh(me)
+        bm.free()
+        o = bpy.data.objects.new(name + suffix, me)
+        coll.objects.link(o)
+        out[name] = o
+    return out
+
+
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     grid, colors, x0, y0, layout = lib.assembly_grid(ROOT, "newsh2-245")
     sprite = common.load_sprite(ROOT, "newsh2-245")
     sprite["colors"] = colors
-    obj = build(sprite, grid)
+    coll = common.reset_collection(NAME)
+    obj, mats, slot = build(sprite, grid, coll)
+    # The outline shell (D51) comes from the closed, unculled build: the voxel remesh of an open
+    # mesh drops parts (the eye dome, the rock's outer end).
+    src = obj.copy()
+    src.data = obj.data.copy()
+    coll.objects.link(src)
+    shell = common.outline_shell(src, coll, voxel=0.014, faces=1800)
+    shell.hide_render = True
+    bpy.data.objects.remove(src)
+    cull_hidden(obj)
+
+    fmt = "AUTO"
+    if "--no-bake" not in argv:
+        import tempfile
+        shell.hide_set(True)  # so the bake's occlusion rays never hit it
+        bake_maps(obj, tempfile.mkdtemp(prefix=f"{TAG}_bake_"), skip=(mats[slot[55]],))
+        shell.hide_set(False)
+        fmt = "WEBP"
+    tris = sum(len(p.vertices) - 2 for p in obj.data.polygons)
+    print(f"{NAME}: whole {len(obj.data.polygons)} faces, {tris} triangles")
+
     cx0, cy0 = x0 + W // 2, y0 + H // 2
-    pieces = [(e["model"], e["cx"] - cx0, e["cy"] - cy0) for e in layout]
+    pieces_layout = [(e["model"], e["cx"] - cx0, e["cy"] - cy0) for e in layout]
+    pieces = common.split_assembly(obj, pieces_layout, coll)
+    shells = split_open(shell, pieces_layout, coll, "_outline")
+    outline_mat = common.material("outline_shell", (0.0, 0.0, 0.0), roughness=1.0)
+    for name, cx, cy in pieces_layout:
+        p = pieces[name]
+        wn = p.modifiers.new("weighted", "WEIGHTED_NORMAL")
+        wn.keep_sharp = True
+        wn.weight = 50
+        s = shells[name]
+        st = sum(len(q.vertices) - 2 for q in s.data.polygons)
+        if st > SHELL_TRIS:  # keep each piece's shell small
+            dec = s.modifiers.new("decimate", "DECIMATE")
+            dec.ratio = SHELL_TRIS / st
+            common._apply_modifiers(s)
+        s.data.shade_smooth()
+        s["tyrian_outline"] = True
+        s.data.materials.clear()
+        s.data.materials.append(outline_mat)
+        s.hide_render = True
+        data = common.load_sprite(ROOT, name)
+        common.export_sprite_model(ROOT, [p, s], f"enemies/{name}", data["sprites"], image_format=fmt)
+        pt = sum(len(q.vertices) - 2 for q in p.data.polygons)
+        st = sum(len(q.vertices) - 2 for q in s.data.polygons)
+        print(f"{NAME}: piece {name} at ({cx}, {cy}) px: {pt} triangles; shell {st} triangles")
+
     out = sys.argv[sys.argv.index("--preview") + 1] if "--preview" in sys.argv else None
-    lib.export_assembly(ROOT, obj, pieces, out, grid, colors, size=W / 12)
+    if out:
+        import tempfile
+        out = Path(out)
+        ref = lib.composite_png(grid, colors, Path(tempfile.mkdtemp()) / "assembly.png", pad_to=(W, H))
+        common.render_preview([obj], str(out), str(ref), size=W / 12, view_px=640)
+        for name, _, _ in pieces_layout:
+            data = common.load_sprite(ROOT, name)
+            img = ROOT / "reference" / "models" / name / data["frames"][0]["image"]
+            common.render_preview([pieces[name]], str(out.parent / f"{name}.png"), img, size=2)
+    return dict(obj=obj, pieces=pieces, shells=shells, grid=grid, layout=pieces_layout, mats=mats)
 
 
 if __name__ == "__main__":

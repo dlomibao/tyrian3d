@@ -22,5 +22,6 @@
   952
  ],
  "neutral": 0.85,
- "fit_iou": 0.992
+ "fit_iou": 0.992,
+ "bake": "model"
 }

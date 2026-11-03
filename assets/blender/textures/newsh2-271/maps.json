@@ -22,5 +22,6 @@
   "note": "manual isotropic fit (rails and nose); auto box failed, concept cropped at right"
  },
  "neutral": 0.85,
- "fit_iou": 0.905
+ "fit_iou": 0.905,
+ "bake": "model"
 }

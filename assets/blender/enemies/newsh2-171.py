@@ -1,228 +1,809 @@
-"""Spinning brown pod (newsh2.shp frames 171, 190, 209, 228, 247, 266): a 3D version of its sprite.
+"""Spinning brown pod (newsh2.shp frames 171, 190, 209, 228, 247, 266): a hard-surface armoured
+machine that is its sprite in 3D (the treatment of the player ships, PR #84 / D50-D53).
 
-Seen in episodes 1, 2 and 3 (levels 1.25, 1.3, 2.6, 3.17). A brown armoured heart-shaped pod,
-broad and round-shouldered across its top rows and drawn out to a point at the bottom, flattened
-so that it is 11 px wide face on (frame 171) and 5 px edge on (frame 228). The six frames spin it
-about its long axis (the sprite's vertical), so each frame gets its own model (newsh2-171, -f2 ...
--f6), the same pod turned to match.
+Seen in episodes 1, 2 and 3 (enemy types 3 and 16). A brown heart-shaped pod, 12 x 14 px, spinning
+about its long axis (the sprite's vertical). Six models, one per frame (D46), the same pod turned
+to the frame's measured spin angle: newsh2-171 (frame 171), newsh2-171-f2 (190) ... -f6 (266).
 
-Traced from the concept (assets/blender/textures/newsh2-171/concept.png, lined up with the sprite;
-features in assets/blender/features/newsh2-171.json), the same on both faces: a dark core hull with
-a crisp keel along each side; a raised armoured spine down the middle (rows 0.6-8.9) ending in a
-point, crossed by a dark strap at row 2 and carrying a framed glowing lens at rows 5-7; a big
-curved shoulder pad at each top corner (a crescent of riveted plates round a dark recess); a dark
-strap out to each side at row 5; a block either side of the spine below it (rows 6-8.6); and a
-V-shaped plate wrapping the tail point (rows 9-13.4) with a small block in its notch. It spins in
-the air just above the ground.
+The sprite is authoritative (D52, the user's rule):
+- Plan outline: an envelope (half width and half thickness per row, pchip-interpolated, a p=2.05
+  superellipse section) whose top view gives frame 171's mask including its outline ring; the
+  armour plates all finish on that envelope, so the silhouette is the plates'. Spin angles per frame
+  fitted to each frame's silhouette; with the row-7 thickness bump (THK) every frame's top view
+  matches its sprite mask exactly (IoU 1.0, every row's width), measured both by ray casting
+  (--measure) and by a 20x top ortho render of the exported GLBs.
+- Spin cadence: 0 / 45 / 50 / 90 / 130 / 135 degrees, steps 45, 5, 40, 40, 5, 45. Only 45-50 degrees
+  fits frames 190 / 209 (40 and below, 55 and above fall under IoU 0.95), so the silhouette rule
+  forces the near-equal pairs 190 / 209 and 247 / 266; the sprite tells those apart only by its
+  interior shading. Accepted (fix round 1).
+- Features where the sprite draws them: a narrow raised spine down column 6 (rows 0.3-8.9) with a
+  dark channel beside it (cols 5 and 7, rows 0-9; the blocks stop short of it) carrying louvre slats, the dark strap across it at row 2,
+  the framed glowing lens at rows 5-6, chamfered armour tiles over the shoulders (rows 1-2 and 4,
+  cols 2-4 / 8-10) with rivets and a dark recessed groove across them at row 3, side straps at
+  row 5, armour blocks rows 6-8, a V plate wrapping the tail with a notch block in its V (rows
+  9-10), a machined tip cap (rows 12-13), a keel rib along each edge (frame 228's bright centre
+  line edge on) and, at the blunt end, a dished cap inside a segmented lip with radial vanes, bolts
+  and a stepped hub.
+- No see-through seams: the core hull is closed and sits just under the plates (CORE_EDGE) from the
+  shoulders out, deep (CORE) only under the channel; cull_kept never culls it, and culls the rest
+  densely enough to keep the plates' skirts.
+- Colours: each part takes the median palette index of the sprite pixels it covers (16-17 shading
+  and 29-31 sheen left out): spine 23, pads 22, channel/core 19, strap and lens frame 18, lens 27
+  (emissive), side straps 21, blocks 20 (with the channel now beside them), tail V 20, notch 21, keel 24. Satin metal.
+- The pod spins, so both faces are the same armour mirrored (z -> -z); no separate underside work.
 
-Run: blender --background --python assets/blender/enemies/newsh2-171.py [-- --preview out.png]
+Texture: no concept projection (its maps.json says "bake": "model", as the player ships, D50).
+Cycles bakes a colour multiplier (ambient occlusion, edge lift) and a roughness/metalness map
+(bake_maps, after usp_talon.bake_maps) once on the unturned pod to
+assets/blender/textures/newsh2-171/bake/; every frame is a turned copy of that mesh, so all six
+share the maps. Base Color = map x palette colour, so pal_<index>, fades and the hit flash apply;
+the lens keeps its flat emissive palette colour. Each frame's GLB embeds the two maps (about
+430 KB a frame). Each frame carries an outline shell
+(common.outline_shell, D51). No engines, so no engine glows.
+
+Coordinates while building: sprite px, x = column - 6.5 (the spin axis), y = row (0 the blunt top
+end, 14 the tail point), z up. Moved to Blender at the end: X = x / 12, Y = (7 - y) / 12, Z = z / 12,
+then turned about Y by the frame's spin angle and lifted to SPIN_Z (it spins just above the ground).
+
+Run: blender --background --factory-startup --python assets/blender/enemies/newsh2-171.py
+     [-- --preview out.png] [--no-bake] [--measure out.json]
 (each extra model's preview goes next to out.png as <name>-fN.png).
 """
 
+import json
 import math
 import sys
 from pathlib import Path
 
 import bmesh
-from mathutils import Matrix
+import bpy
+from mathutils import Matrix, Vector
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import common  # noqa: E402
-import lib_b083 as lib  # noqa: E402
+from usp_talon import Part, pchip, hull  # noqa: E402
 
 NAME = "newsh2-171"
 ROOT = common.repo_root(__file__)
-G = lib.Grid(12, 14)
-AXIS_U = 6.5  # the pod's long axis runs down the centre of column 6
-SPIN_Z = 0.38  # height of the spin axis: the pod's tip just clears the ground edge on
-# Turn per frame (degrees); the sprite's silhouettes put frames 2-5 between 40 and 140 degrees.
-ANGLES = [0, 45, 65, 90, 115, 135]
-P = lib.PX
+PX = 1 / 12
+SPIN_Z = 0.38
+# Spin per frame (degrees), from the silhouette fit (top-view IoU 1.0 / 0.95 / 0.98 /
+# 1.0 / 0.98 / 0.95); positive turns the top face toward +X, as the current script.
+ANGLES = [0.0, 45.0, 50.0, 90.0, 130.0, 135.0]
+EXP = 2.05
+TINT = (0.76, 0.86, 1.0)  # D53: lifts blue so the game's tone mapping keeps the sprite's khaki-brown
 
-# Core hull down the pod: (row edge, half width px, half thickness px). Inside the sprite's
-# outline ring: the pads cover its top corners, the tail plate its point.
-HULL = [(0.25, 2.4, 0.8), (0.8, 3.9, 1.1), (1.6, 4.8, 1.3), (2.3, 5.3, 1.4), (4.7, 5.3, 1.4),
-        (5.0, 4.45, 1.4), (6.9, 4.4, 1.35), (7.1, 3.45, 1.3), (8.8, 3.4, 1.2), (9.0, 2.5, 1.1),
-        (11.0, 1.5, 0.9), (12.6, 0.75, 0.6), (13.6, 0.0, 0.0)]
-# Hull section (unit half width, unit half thickness): a crisp keel at each edge, flat faces.
-SHELL = [(1.0, 0.0), (0.82, 0.55), (0.4, 1.0), (-0.4, 1.0), (-0.82, 0.55), (-1.0, 0.0),
-         (-0.82, -0.55), (-0.4, -1.0), (0.4, -1.0), (0.82, -0.55)]
-# Spine: (row edge, half width px, top px); flat-topped with chamfered shoulders.
-SPINE = [(0.55, 1.0, 2.15), (0.8, 1.35, 2.4), (8.0, 1.35, 2.4), (8.95, 0.3, 2.0)]
-SPINE_SEC = [(1.0, 0.0), (1.0, 0.82), (0.72, 1.0), (-0.72, 1.0), (-1.0, 0.82), (-1.0, 0.0)]
-# Shoulder pad (left; the right is its mirror): a crescent about (u, v) = PAD_C, outer and inner
-# elliptical radii (u, v), swept from the top (next to the spine) round to the side.
-PAD_C = (5.15, 4.9)
-PAD_OUT = (4.1, 4.25)
-PAD_IN = (2.7, 1.45)
-# Across the crescent (t outer 0 -> inner 1, top px): low outer rim, domed crown, stepped inner lip.
-PAD_SEC = [(0.0, 0.05), (0.0, 1.35), (0.12, 1.95), (0.42, 2.3), (0.78, 2.2), (1.0, 1.7), (1.0, 0.05)]
-# The edge rib's section, in px from the keel vertex (x outward, z up): a thin bevelled strip.
-RIB = [(0.25, 0.0), (0.0, 0.45), (-0.7, 0.4), (-0.7, -0.4), (0.0, -0.45)]
+# --- envelope (blueprint) -------------------------------------------------------------------------
+_EV = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10, 10.5, 11,
+       11.5, 12, 12.5, 13, 13.5, 14]
+_EW = [2.9, 3.6, 4.35, 4.879, 5.208, 5.402, 5.468, 5.499, 5.45, 5.3, 4.961, 4.6, 4.442, 4.3, 4.094,
+       3.85, 3.554, 3.25, 2.994, 2.75, 2.5, 2.25, 2.0, 1.75, 1.51, 1.25, 0.929, 0.519, 0.0]
+_ET = [1.2, 2.0, 2.577, 2.795, 2.908, 2.95, 2.945, 2.932, 2.91, 2.86, 2.729, 2.6, 2.511, 2.43, 2.35,
+       2.262, 2.174, 2.1, 2.05, 2.008, 1.95, 1.845, 1.7, 1.517, 1.3, 1.067, 0.8, 0.478, 0.0]
+HW = pchip(_EV, _EW)
+HT = pchip(_EV, _ET)
+# Per-row tweaks found by measurement (half thickness scale), so the edge-on frame keeps its widths.
+THK = pchip([0, 5.4, 6.5, 7.4, 8.15, 8.6, 9.6, 10.5, 11.3, 14],
+            [1.0, 1.0, 1.07, 1.13, 1.0, 1.0, 1.0, 1.1, 1.0, 1.0])
+CORE = -0.45  # the core hull's inset under the centre plates (px): the deep dark channel
+CORE_EDGE = -0.17  # its inset toward the edges, just under the plates' chamfers, so no seam sees through
 
 
-def hull_at(v):
-    for (v0, a0, b0), (v1, a1, b1) in zip(HULL, HULL[1:]):
-        if v0 <= v <= v1:
-            t = (v - v0) / (v1 - v0)
-            return a0 + (a1 - a0) * t, b0 + (b1 - b0) * t
-    return 0.0, 0.0
+def smoothstep(e0, e1, x):
+    t = min(1.0, max(0.0, (x - e0) / (e1 - e0)))
+    return t * t * (3 - 2 * t)
 
 
-def lx(u):
-    """Sprite pixel-edge column to local x (units) about the long axis."""
-    return (u - AXIS_U) * P
+def core_g(v, a):
+    """The core's inset at row v, section angle a: deep under the channel beside the spine, shallow
+    (a floor right under every plate seam) from the shoulders out to the keels and at the tail."""
+    A = HW(v)
+    x = abs(P(v, a, 0.0)[0])
+    t = max(smoothstep(1.75, 2.35, x), smoothstep(A - 1.2, A - 0.7, x))
+    return CORE + (CORE_EDGE - CORE) * t
 
 
-def loft(bm, rings, mats, cap_start=True, cap_end=True):
-    """Join rings of 3D points (same count, or a single point) into a tube; mats[k] is the material
-    between rings k and k+1. All faces flat; caps on the open ends."""
-    vr = [[bm.verts.new(p) for p in r] for r in rings]
-    n = max(len(r) for r in vr)
-    for k, (r0, r1) in enumerate(zip(vr, vr[1:])):
-        for i in range(n):
-            j = (i + 1) % n
-            if len(r0) == 1:
-                f = (r0[0], r1[j], r1[i])
-            elif len(r1) == 1:
-                f = (r0[i], r0[j], r1[0])
-            else:
-                f = (r0[i], r0[j], r1[j], r1[i])
-            bm.faces.new(f).material_index = mats[k]
-    if cap_start and len(vr[0]) > 2:
-        bm.faces.new(list(reversed(vr[0]))).material_index = mats[0]
-    if cap_end and len(vr[-1]) > 2:
-        bm.faces.new(vr[-1]).material_index = mats[-1]
+def semi(v, g):
+    a = max(0.04, HW(v) + g)
+    b = max(0.04, HT(v) * THK(v) + g)
+    return a, b
 
 
-def prism(bm, outline, z0, z1, ch, mat, sgn):
-    """A plate over an outline of (u, v) pixel edges from z0 to z1 px (mirrored by sgn), its top
-    edge chamfered by ch px (mitred inset, so concave outlines work)."""
-    pts = [(lx(u) / P, -v) for u, v in outline]  # px, y up
-    area = sum(x0 * y1 - x1 * y0 for (x0, y0), (x1, y1) in zip(pts, pts[1:] + pts[:1]))
-    if area < 0:
-        pts = pts[::-1]
-    n = len(pts)
-    inset = []
-    for i in range(n):
-        (ax, ay), (bx, by), (cx, cy) = pts[i - 1], pts[i], pts[(i + 1) % n]
-        n1 = (-(by - ay), bx - ax)
-        n2 = (-(cy - by), cx - bx)
-        l1, l2 = math.hypot(*n1), math.hypot(*n2)
-        n1 = (n1[0] / l1, n1[1] / l1)
-        n2 = (n2[0] / l2, n2[1] / l2)
-        d = 1 + n1[0] * n2[0] + n1[1] * n2[1]
-        inset.append((bx + ch * (n1[0] + n2[0]) / d, by + ch * (n1[1] + n2[1]) / d))
-
-    def ring2(ps, z):
-        return [(x * P, G.y(-y), z * P * sgn) for x, y in ps]
-
-    loft(bm, [ring2(pts, z0), ring2(pts, z1 - ch), ring2(inset, z1)], [mat, mat])
+def P(v, a, g=0.0):
+    """Surface point at row v, section angle a (0 = +x keel, pi/2 = top centre), grown by g."""
+    A, B = semi(v, g)
+    c, s = math.cos(a), math.sin(a)
+    e = 2.0 / EXP
+    return (A * math.copysign(abs(c) ** e, c), v, B * math.copysign(abs(s) ** e, s))
 
 
-def build_mesh(m):
-    bm = bmesh.new()
-    y = G.y
+def ang_x(v, x, g=0.0, top=True):
+    """Section angle where the top (or bottom) face reaches x."""
+    A, _ = semi(v, g)
+    r = min(1.0, abs(x) / A) ** (EXP / 2)
+    a = math.acos(r)
+    if x < 0:
+        a = math.pi - a
+    return a if top else -a
 
-    # Core hull.
+
+def dPda(v, a, g=0.0):
+    h = 1e-3
+    p0, p1 = P(v, a - h, g), P(v, a + h, g)
+    return math.dist(p0, p1) / (2 * h)
+
+
+def normal(v, a, g=0.0):
+    h = 1e-3
+    pa = Vector(P(v, a + h, g)) - Vector(P(v, a - h, g))
+    pv = Vector(P(v + h, a, g)) - Vector(P(v - h, a, g))
+    n = pa.cross(pv).normalized()
+    c = Vector(P(v, a, g))
+    if n.dot(Vector((c.x, 0, c.z))) < 0:
+        n = -n
+    return n
+
+
+# --- primitives -----------------------------------------------------------------------------------
+
+def band(part, v0, v1, alo, ahi, mat, g=0.0, c=0.15, depth=-0.75, vstep=0.6, astep=0.23,
+         chv=(True, True)):
+    """An armour plate on the envelope: rows v0..v1, section angles alo(v)..ahi(v) (functions or
+    numbers), its top at grow g, 45-degree chamfered borders c wide, skirts down to `depth`."""
+    fl = alo if callable(alo) else (lambda v, k=alo: k)
+    fh = ahi if callable(ahi) else (lambda v, k=ahi: k)
+    c = min(c, (v1 - v0) / 3)
+    vs = [v0]
+    if chv[0]:
+        vs.append(v0 + c)
+    a, b = (v0 + c if chv[0] else v0), (v1 - c if chv[1] else v1)
+    n = max(1, math.ceil((b - a) / vstep))
+    vs += [a + (b - a) * i / n for i in range(1, n)]
+    if chv[1]:
+        vs.append(v1 - c)
+    vs.append(v1)
+    spans = [fh(v) - fl(v) for v in vs]
+    na = max(1, math.ceil(max(spans) / astep))
+    grid, lows = [], []
+    for ri, v in enumerate(vs):
+        lo, hi = fl(v), fh(v)
+        span = hi - lo
+        d0 = min(c / max(dPda(v, lo, g), 1e-3), 0.3 * span)
+        d1 = min(c / max(dPda(v, hi, g), 1e-3), 0.3 * span)
+        ia, ib = lo + d0, hi - d1
+        cols = [(lo, True)] + [(ia + (ib - ia) * i / na, False) for i in range(na + 1)] + [(hi, True)]
+        rb = (ri == 0 and chv[0]) or (ri == len(vs) - 1 and chv[1])
+        row = []
+        for k, (an, bc) in enumerate(cols):
+            off = g - c if (rb or bc) else g
+            row.append((part.v(P(v, an, off)), v, an))
+        grid.append(row)
+    nr, nc = len(grid), len(grid[0])
+    for r in range(nr - 1):
+        for k in range(nc - 1):
+            q = (grid[r][k][0], grid[r][k + 1][0], grid[r + 1][k + 1][0], grid[r + 1][k][0])
+            vm = (grid[r][k][1] + grid[r + 1][k][1]) / 2
+            am = (grid[r][k][2] + grid[r][k + 1][2]) / 2
+            part.f(q, mat, out=tuple(normal(vm, am, g)))
+
+    def skirt(chain, inner):
+        low = [part.v(P(v, an, depth)) for _, v, an in chain]
+        for i in range(len(chain) - 1):
+            ctr = (Vector(chain[i][0].co) + Vector(chain[i + 1][0].co)) / 2
+            ref = (Vector(inner[i][0].co) + Vector(inner[i + 1][0].co)) / 2
+            part.f((chain[i][0], chain[i + 1][0], low[i + 1], low[i]), mat, out=tuple(ctr - ref))
+    skirt(grid[0], grid[1])
+    skirt(grid[-1], grid[-2])
+    skirt([grid[r][0] for r in range(nr)], [grid[r][1] for r in range(nr)])
+    skirt([grid[r][-1] for r in range(nr)], [grid[r][-2] for r in range(nr)])
+
+
+def surf_box(part, v, x, w, l, h, mat, g=CORE, ch=0.05, top=True, along=None):
+    """A chamfered box standing on the surface (grow g) at row v, top-face x: w across, l along
+    the row axis, h tall."""
+    a = ang_x(v, x, g, top)
+    o = Vector(P(v, a, g))
+    n = normal(v, a, g)
+    t = Vector(P(v, a + 1e-3, g)) - Vector(P(v, a - 1e-3, g))
+    t.normalize()
+    u = n.cross(t).normalized()  # along the length (about +-y)
+    if along is not None:
+        u = Vector(along).normalized()
+        t = u.cross(n).normalized()
+    pts = []
+    for sx in (-1, 1):
+        for su in (-1, 1):
+            for z, cz in (((-0.3, 0.0), (h, 0.0)) if ch <= 0 else ((-0.3, 0.0), (h - ch, 0.0), (h, ch))):
+                pts.append(o + t * sx * (w / 2 - cz) + u * su * (l / 2 - cz) + n * z)
+    hull(part, [tuple(p) for p in pts], mat)
+
+
+def rivet(part, v, a, mat, g=0.0, r=0.12, h=0.09):
+    o = Vector(P(v, a, g))
+    n = normal(v, a, g)
+    t = Vector(P(v, a + 1e-3, g)) - Vector(P(v, a - 1e-3, g))
+    t.normalize()
+    u = n.cross(t)
+    pts = []
+    for k in range(6):
+        th = 2 * math.pi * k / 6
+        d = t * math.cos(th) + u * math.sin(th)
+        pts.append(o + d * r - n * 0.05)
+        pts.append(o + d * (r * 0.6) + n * h)
+    hull(part, [tuple(p) for p in pts], mat)
+
+
+def mirror_x(f):
+    return (lambda v: math.pi - f(v)) if callable(f) else math.pi - f
+
+
+def mirror_z(f):
+    return (lambda v: -f(v)) if callable(f) else -f
+
+
+def quad(part, v0, v1, lo, hi, mat, **kw):
+    """A plate on the right-top quadrant and its three mirrors (left-top, right-bottom, left-bottom)."""
+    band(part, v0, v1, lo, hi, mat, **kw)
+    band(part, v0, v1, mirror_x(hi), mirror_x(lo), mat, **kw)
+    band(part, v0, v1, mirror_z(hi), mirror_z(lo), mat, **kw)
+    band(part, v0, v1, mirror_z(mirror_x(lo)), mirror_z(mirror_x(hi)), mat, **kw)
+
+
+def faces2(part, v0, v1, lo, hi, mat, **kw):
+    """A plate across the top centre and its mirror on the bottom face."""
+    band(part, v0, v1, lo, hi, mat, **kw)
+    band(part, v0, v1, mirror_z(hi), mirror_z(lo), mat, **kw)
+
+
+# --- the pod --------------------------------------------------------------------------------------
+
+M_CORE, M_PAD, M_SPINE, M_STRAP, M_FRAME, M_LENS, M_SSTRAP, M_BLOCK, M_TAIL, M_NOTCH, M_KEEL, M_RIVET, M_NOSE = range(13)
+PAL_OF = {M_CORE: 19, M_PAD: 22, M_SPINE: 23, M_STRAP: 18, M_FRAME: 18, M_LENS: 27, M_SSTRAP: 21,
+          M_BLOCK: 20, M_TAIL: 20, M_NOTCH: 21, M_KEEL: 24, M_RIVET: 24, M_NOSE: 20}
+KEEL = math.radians(10)  # keel rib half angle
+GAP = 0.035  # seam between plates (radians on the section)
+
+
+def build_core(part):
+    vs = [0.25 + i * 0.7 for i in range(30) if 0.25 + i * 0.7 < 13.5] + [13.6]
+    N = 24
     rings = []
-    for v, a, b in HULL:
-        if a == 0:
-            rings.append([(0.0, y(v), 0.0)])
-        else:
-            rings.append([(a * P * s, y(v), b * P * t) for s, t in SHELL])
-    loft(bm, rings, [m["hull"]] * (len(rings) - 1))
+    for v in vs:
+        ring = []
+        for k in range(N):
+            a = 2 * math.pi * k / N
+            ring.append(part.v(P(v, a, max(core_g(v, a), -0.4 * HW(v)))))
+        rings.append(ring)
+    tip = part.v((0.0, 13.95, 0.0))
+    for r0, r1, v in zip(rings, rings[1:], vs):
+        for k in range(N):
+            j = (k + 1) % N
+            part.f((r0[k], r0[j], r1[j], r1[k]), M_CORE, away=(0.0, v, 0.0))
+    for k in range(N):
+        part.f((rings[-1][k], rings[-1][(k + 1) % N], tip), M_CORE, away=(0.0, 13.0, 0.0))
+    part.f(rings[0], M_CORE, out=(0, -1, 0))
 
-    for sgn in (1, -1):
-        # Spine, with a dark strap across it at row 2 and a framed lens at rows 5-7.
-        rings = [[(hw * P * s, y(v), sgn * top * P * t) for s, t in SPINE_SEC] for v, hw, top in SPINE]
-        loft(bm, rings, [m["spine"]] * (len(rings) - 1))
-        prism(bm, [(4.95, 1.85), (8.05, 1.85), (8.05, 2.75), (4.95, 2.75)], 0.0, 2.6, 0.15, m["strap"], sgn)
-        oct_ = lambda hw, v0, v1, c: [(AXIS_U - hw, v0 + c), (AXIS_U - hw + c, v0), (AXIS_U + hw - c, v0),  # noqa: E731
-                                     (AXIS_U + hw, v0 + c), (AXIS_U + hw, v1 - c), (AXIS_U + hw - c, v1),
-                                     (AXIS_U - hw + c, v1), (AXIS_U - hw, v1 - c)]
-        prism(bm, oct_(0.62, 4.8, 7.05, 0.35), 1.5, 2.55, 0.08, m["frame"], sgn)
-        prism(bm, oct_(0.38, 5.05, 6.8, 0.25), 1.5, 2.72, 0.1, m["lens"], sgn)
 
-        for side in (1, -1):
-            U = lambda u: AXIS_U + side * (u - AXIS_U)  # noqa: E731  mirror left -> right
-            # Shoulder pad: a crescent of armour plates round a dark recess.
-            rings = []
-            for k in range(8):
-                a = math.radians(90 * k / 7)
-                o = (PAD_C[0] - PAD_OUT[0] * math.sin(a), PAD_C[1] - PAD_OUT[1] * math.cos(a))
-                i = (PAD_C[0] - PAD_IN[0] * math.sin(a), PAD_C[1] - PAD_IN[1] * math.cos(a))
-                ring = []
-                for t, z in PAD_SEC:
-                    u, v = o[0] + t * (i[0] - o[0]), o[1] + t * (i[1] - o[1])
-                    ring.append((lx(U(u)), y(v), sgn * z * P))
-                rings.append(ring)
-            loft(bm, rings, [m["pad"]] * 7)
-            # Strap out to the side at row 5, a block below it beside the spine.
-            prism(bm, [(U(2.2), 4.95), (U(5.2), 4.95), (U(5.2), 6.05), (U(2.2), 6.05)], 0.0, 2.0, 0.15,
-                  m["strap2"], sgn)
-            prism(bm, [(U(2.45), 6.05), (U(5.2), 6.05), (U(5.2), 8.6), (U(3.15), 8.6), (U(3.05), 7.1),
-                       (U(2.45), 6.95)], 0.0, 1.85, 0.2, m["box"], sgn)
+def build_nose(part):
+    """The blunt end: a dished cap recessed inside a segmented machined lip, eight radial vanes and
+    a stepped hub (the viewer's front views; the game camera hardly sees it)."""
+    A0, B0 = semi(0.3, 0.0)
+    e = 2.0 / EXP
 
-        # V plate round the tail point, a small block in its notch.
-        prism(bm, [(4.05, 8.9), (5.3, 8.9), (6.5, 11.1), (7.7, 8.9), (8.95, 8.9), (6.5, 13.45)],
-              0.0, 1.65, 0.18, m["tail"], sgn)
-        prism(bm, [(6.0, 8.9), (7.0, 8.9), (7.0, 10.0), (6.5, 10.6), (6.0, 10.0)], 0.0, 1.4, 0.12,
-              m["box"], sgn)
+    def ell(a, sc, v):
+        c, s_ = math.cos(a), math.sin(a)
+        return (sc * A0 * math.copysign(abs(c) ** e, c), v, sc * B0 * math.copysign(abs(s_) ** e, s_))
+    # Dish: its face sits back at v 0.17, inside the lip.
+    hull(part, [ell(2 * math.pi * k / 24, sc, v) for k in range(24) for sc, v in ((0.7, 0.17), (0.8, 0.32))],
+         M_NOSE)
+    # Lip: 16 chamfered segments round the dish.
+    n = 12
+    for k in range(n):
+        a0, a1 = 2 * math.pi * (k + 0.06) / n, 2 * math.pi * (k + 0.94) / n
+        pts = []
+        for a in (a0, (a0 + a1) / 2, a1):
+            for sc, v in ((0.67, 0.24), (0.69, 0.06), (0.77, 0.03), (0.81, 0.24)):
+                pts.append(ell(a, sc, v))
+        hull(part, pts, M_PAD)
+    # Vanes from the hub to the lip, and a bolt at each one's outer end.
+    for k in range(8):
+        a = 2 * math.pi * (k + 0.5) / 8
+        c, s_ = math.cos(a), math.sin(a)
+        t = (-s_, 0.0, c)
+        pts = []
+        for sc in (0.2, 0.64):
+            x, _, z = ell(a, sc, 0.0)
+            for w in (-0.07, 0.07):
+                for v in (0.1, 0.2):
+                    pts.append((x + t[0] * w, v, z + t[2] * w))
+        hull(part, pts, M_STRAP)
+        x, _, z = ell(a, 0.59, 0.0)
+        hull(part, [(x + 0.11 * math.cos(b), v, z + 0.11 * math.sin(b))
+                    for b in (2 * math.pi * j / 6 for j in range(6)) for v in (0.06, 0.18)], M_RIVET)
+    # Hub: a boss and a smaller cap on it.
+    hub = []
+    for v, r in ((0.06, 0.5), (0.18, 0.62)):
+        for k in range(8):
+            a = 2 * math.pi * (k + 0.5) / 8
+            hub.append((r * 1.5 * math.cos(a), v, r * 0.8 * math.sin(a)))
+    hull(part, hub, M_KEEL)
+    cap = []
+    for v, r in ((0.0, 0.26), (0.08, 0.34)):
+        for k in range(8):
+            a = 2 * math.pi * (k + 0.5) / 8
+            cap.append((r * 1.5 * math.cos(a), v, r * 0.8 * math.sin(a)))
+    hull(part, cap, M_STRAP)
 
-    # A thin light rib along the keel at each edge, below the pads.
+
+def pad_in(v):
+    """Inner edge x of the shoulder tiles (the sprite's cols 3-4 / 8-9 are pad, col 5 / 7 channel)."""
+    return 1.62 + 0.18 * max(0.0, v - 3.5) / 1.5
+
+
+def build_pads(part, det):
+    top = lambda x: (lambda v: ang_x(v, x(v) if callable(x) else x))  # noqa: E731
+    lo_keel = KEEL + GAP
+    inner = lambda v: ang_x(v, pad_in(v)) - 0.0  # noqa: E731
+    # The split between the outer and inner tiles: an arc (the concept's curved shoulder rows).
+    split = lambda v: ang_x(v, 3.15 + 0.35 * min(v, 3.0) / 3.0)  # noqa: E731
+    for v0, v1 in ((0.12, 2.98),):
+        quad(part, v0, v1, lo_keel, lambda v: split(v) - GAP, M_PAD, g=0.0, c=0.14, astep=0.27)
+        quad(part, v0, v1, lambda v: split(v) + GAP, inner, M_PAD, g=0.0, c=0.14)
+    # The dark recessed band across the shoulders at row 3 (the sprite's dark row).
+    quad(part, 3.04, 3.79, lo_keel, inner, M_CORE, g=-0.14, c=0.08, astep=0.3)
+    # Lower tile (row 4): one piece from the keel to the channel.
+    quad(part, 3.85, 4.95, lo_keel, inner, M_PAD, g=0.0, c=0.14, astep=0.27)
+    # Rivets on the tiles.
+    for v in (0.8, 2.3):
+        for x in (2.45, 4.25):
+            if x < HW(v) - 0.6:
+                for sx in (1, -1):
+                    for top_ in (True, False):
+                        rivet(det, v, ang_x(v, sx * x, 0.0, top_), M_RIVET)
+    for sx in (1, -1):
+        for top_ in (True, False):
+            rivet(det, 4.4, ang_x(4.4, sx * 3.0, 0.0, top_), M_RIVET)
+    del top
+
+
+def build_keel(part):
+    for side in (0.0, math.pi):
+        band(part, 0.3, 8.82, side - KEEL, side + KEEL, M_KEEL, g=0.06, c=0.16, vstep=0.7)
+
+
+def build_spine(part, det):
+    def half(v):
+        if v > 8.0:
+            return 0.75 + (0.14 - 0.75) * (v - 8.0) / 0.9
+        return 0.75
+    lo = lambda v: ang_x(v, half(v))  # noqa: E731
+    hi = lambda v: ang_x(v, -half(v))  # noqa: E731
+    faces2(part, 0.3, 8.9, lo, hi, M_SPINE, g=0.38, c=0.2, vstep=0.5)
+    # Strap across the spine (row 2).
+    faces2(part, 1.95, 2.85, lambda v: ang_x(v, 0.92), lambda v: ang_x(v, -0.92), M_STRAP, g=0.55, c=0.12)
+
+    # Lens: an elongated octagonal frame (rows 4.85-7.15) and the glowing glass in it (rows 5-7).
+    def octo(v0, v1, w, cut):
+        def h(v):
+            d = min(v - v0, v1 - v)
+            return max(0.08, w - max(0.0, cut - d))
+        return h
+    fh = octo(4.85, 7.15, 0.6, 0.3)
+    faces2(part, 4.85, 7.15, lambda v: ang_x(v, fh(v)), lambda v: ang_x(v, -fh(v)), M_FRAME, g=0.52, c=0.1)
+    gh = octo(5.08, 6.92, 0.37, 0.22)
+    faces2(det, 5.08, 6.92, lambda v: ang_x(v, gh(v)), lambda v: ang_x(v, -gh(v)), M_LENS, g=0.6, c=0.08,
+           vstep=0.3)
+    # Louvre slats across the channel beside the spine (rows 0.6-2.8 and 7.2-8.6).
+    for v in (0.85, 1.4, 7.6, 8.2):
+        for sx in (1, -1):
+            for top_ in (True, False):
+                x = 1.2 if v < 3 or v > 7 else 1.3
+                surf_box(det, v, sx * x, 0.62, 0.22, 0.32, M_STRAP, top=top_, ch=0.0)
+
+
+def build_body(part):
+    """Side straps (row 5), armour blocks (rows 6-8), the tail V and its notch block."""
+    lo_keel = KEEL + GAP
+    quad(part, 5.05, 5.95, lo_keel, lambda v: ang_x(v, 1.5), M_SSTRAP, g=0.1, c=0.12)
+    # The blocks stop at x 1.55 so the dark channel (cols 5 / 7) runs on down beside the spine.
+    quad(part, 6.08, 7.32, lo_keel, lambda v: ang_x(v, 1.55), M_BLOCK, g=0.0, c=0.14)
+    quad(part, 7.44, 8.75, lo_keel, lambda v: ang_x(v, 1.55), M_BLOCK, g=0.0, c=0.14)
+
+    # Tail V: each arm wraps its edge from the top face round to the bottom face.
+    def xin(v):
+        if v < 10.55:
+            return 0.55
+        return max(0.07, 0.55 - 0.48 * (v - 10.55) / 0.75)
     for side in (1, -1):
-        rib_v = [5.2 + (12.4 - 5.2) * i / 8 for i in range(9)]
-        rings = []
-        for k, v in enumerate(rib_v):
-            a, _ = hull_at(v)
-            sc = 0.5 if k in (0, len(rib_v) - 1) else 1.0
-            rings.append([(side * (a + sc * du) * P, y(v), sc * dz * P) for du, dz in RIB])
-        loft(bm, rings, [m["rib"]] * (len(rings) - 1))
-    return bm
+        if side > 0:
+            lo = lambda v: -ang_x(v, xin(v))  # noqa: E731
+            hi = lambda v: ang_x(v, xin(v))  # noqa: E731
+        else:
+            lo = lambda v: ang_x(v, -xin(v))  # noqa: E731
+            hi = lambda v: 2 * math.pi - ang_x(v, -xin(v))  # noqa: E731
+        band(part, 8.9, 11.2, lo, hi, M_TAIL, g=0.06, c=0.16, vstep=0.8, astep=0.3)
+        band(part, 11.32, 12.2, lo, hi, M_TAIL, g=0.0, c=0.14, vstep=1.0, astep=0.42)
+    # A dark machined tip cap (rows 12-13, the sprite's 18 there), in two halves.
+    for a0 in (-math.pi / 2, math.pi / 2):
+        band(part, 12.3, 13.72, a0, a0 + math.pi, M_STRAP, g=0.02, c=0.1, vstep=0.8, astep=0.5)
+    # Notch block in the V (rows 9-10, the sprite's 21 down col 6).
+    def nh(v):
+        return 0.43 if v < 10.3 else max(0.06, 0.43 * (11.0 - v) / 0.7)
+    faces2(part, 8.98, 11.0, lambda v: ang_x(v, nh(v)), lambda v: ang_x(v, -nh(v)), M_NOTCH, g=0.12, c=0.1)
 
 
-def build(sprite, angle, name, coll):
-    tag = "nsh2_171"
-    pal = lambda i, **kw: common.palette_material(sprite, i, tag, **kw)  # noqa: E731
-    spec = [
-        ("hull", pal(19, metallic=0.15, roughness=0.65)),  # dark core between the plates
-        ("pad", pal(22, metallic=0.4, roughness=0.42)),  # shoulder pads
-        ("spine", pal(24, metallic=0.45, roughness=0.38)),  # light central spine
-        ("strap", pal(18, metallic=0.35, roughness=0.5)),  # dark strap across the spine
-        ("frame", pal(17, metallic=0.4, roughness=0.4)),  # lens frame
-        ("lens", pal(30, metallic=0.0, roughness=0.06, emission_strength=0.6)),  # glowing lens
-        ("strap2", pal(20, metallic=0.25, roughness=0.55)),  # side straps
-        ("box", pal(21, metallic=0.4, roughness=0.45)),  # blocks beside the spine
-        ("tail", pal(20, metallic=0.4, roughness=0.45)),  # V plate on the darker point
-        ("rib", pal(25, metallic=0.45, roughness=0.35)),  # keel ribs
-    ]
-    mats, idx = [], {}
-    for key, mat in spec:
-        if mat not in mats:
-            mats.append(mat)
-        idx[key] = mats.index(mat)
-    bm = build_mesh(idx)
-    # Spin about the long axis (positive turns the top face toward +X), then lift and centre.
-    rot = Matrix.Rotation(math.radians(angle), 4, "Y")
-    bmesh.ops.transform(bm, matrix=Matrix.Translation((G.x(AXIS_U), 0.0, SPIN_Z)) @ rot, verts=bm.verts)
-    return common.mesh_object(name, bm, mats, coll, smooth=False)
+def materials(sprite):
+    mats = []
+    spec = {M_CORE: (0.3, 0.62), M_PAD: (0.45, 0.42), M_SPINE: (0.5, 0.36), M_STRAP: (0.35, 0.55),
+            M_FRAME: (0.45, 0.4), M_SSTRAP: (0.4, 0.46), M_BLOCK: (0.45, 0.44), M_TAIL: (0.45, 0.42),
+            M_NOTCH: (0.45, 0.42), M_KEEL: (0.5, 0.34), M_RIVET: (0.55, 0.32), M_NOSE: (0.4, 0.45)}
+    tags = {M_CORE: "core", M_PAD: "pad", M_SPINE: "spine", M_STRAP: "strap", M_FRAME: "frame", M_LENS: "lens",
+            M_SSTRAP: "sstrap", M_BLOCK: "block", M_TAIL: "tail", M_NOTCH: "notch", M_KEEL: "keel",
+            M_RIVET: "rivet", M_NOSE: "nose"}
+    for i in range(13):
+        tag = f"nsh2_171_{tags[i]}"
+        if i == M_LENS:
+            mats.append(common.palette_material(sprite, PAL_OF[i], tag, metallic=0.0, roughness=0.08,
+                                                emission_strength=0.45))
+        else:
+            met, rough = spec[i]
+            mats.append(common.palette_material(sprite, PAL_OF[i], tag, metallic=met * 0.3, roughness=rough))
+    return mats
+
+
+def finish(part, mats, coll, smooth_angle):
+    part.orient()
+    bm = part.bm
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
+    m = Matrix(((PX, 0, 0, 0), (0, -PX, 0, 7 * PX), (0, 0, PX, 0), (0, 0, 0, 1)))
+    bmesh.ops.transform(bm, matrix=m, verts=bm.verts)
+    bmesh.ops.reverse_faces(bm, faces=bm.faces)
+    me = bpy.data.meshes.new(part.name)
+    bm.to_mesh(me)
+    bm.free()
+    for mat in mats:
+        me.materials.append(mat)
+    obj = bpy.data.objects.new(part.name, me)
+    coll.objects.link(obj)
+    me.shade_smooth()
+    me.set_sharp_from_angle(angle=math.radians(smooth_angle))
+    return obj
+
+
+def join(objs, name):
+    for o in bpy.context.view_layer.objects:
+        o.select_set(False)
+    for o in objs:
+        o.select_set(True)
+    bpy.context.view_layer.objects.active = objs[0]
+    bpy.ops.object.join()
+    obj = bpy.context.view_layer.objects.active
+    obj.name = name
+    obj.data.name = name
+    return obj
+
+
+def build(coll, mats):
+    core = Part("pod_core", smooth_angle=40)
+    build_core(core)
+    plates = Part("pod_plates", smooth_angle=34)
+    det = Part("pod_detail", smooth_angle=30)
+    build_nose(det)
+    build_pads(plates, det)
+    build_keel(plates)
+    build_spine(plates, det)
+    build_body(plates)
+    core_obj = finish(core, mats, coll, 40)
+    # The core is the closed body every seam bottoms out on: cull_kept never removes its faces.
+    keep = core_obj.data.attributes.new(KEEP, "INT", "FACE")
+    keep.data.foreach_set("value", [1] * len(core_obj.data.polygons))
+    objs = [core_obj, finish(plates, mats, coll, 34), finish(det, mats, coll, 30)]
+    return join(objs, NAME + "_base")
+
+
+KEEP = "nsh2_keep"
+
+
+def cull_kept(obj, grid=6, ndirs=48):
+    """usp_talon.cull_hidden, except that faces marked KEEP (the core) always stay. The core sits
+    under narrow plate seams that the cull's sample grid can miss; culling it there opens slits
+    you can see through (fix round 1). The marker attribute is removed afterwards."""
+    from mathutils.bvhtree import BVHTree
+    me = obj.data
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    bm.faces.ensure_lookup_table()
+    layer = bm.faces.layers.int.get(KEEP)
+    tree = BVHTree.FromBMesh(bm)
+    golden = math.pi * (3 - math.sqrt(5))
+    dirs = []
+    for i in range(ndirs):
+        z = 1 - 2 * (i + 0.5) / ndirs
+        r = math.sqrt(1 - z * z)
+        dirs.append(Vector((r * math.cos(golden * i), r * math.sin(golden * i), z)))
+    dead = []
+    for f in bm.faces:
+        if layer is not None and f[layer]:
+            continue
+        n = f.normal
+        vs = [v.co for v in f.verts]
+        c = f.calc_center_median()
+        pts = [c]
+        if len(vs) == 4:
+            for i in range(grid):
+                for j in range(grid):
+                    a = vs[0].lerp(vs[1], (i + 0.5) / grid)
+                    b = vs[3].lerp(vs[2], (i + 0.5) / grid)
+                    pts.append(a.lerp(b, (j + 0.5) / grid))
+        else:
+            for vco in vs:
+                for t in (0.35, 0.7, 0.92):
+                    pts.append(c.lerp(vco, t))
+        cand = [d for d in dirs if d.dot(n) > 0.05]
+        if not any(tree.ray_cast(p + n * 2e-4, d, 50.0)[0] is None for p in pts for d in cand):
+            dead.append(f)
+    print(f"{NAME}: culled {len(dead)} hidden faces of {len(bm.faces)}")
+    bmesh.ops.delete(bm, geom=dead, context="FACES_ONLY")
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context="VERTS")
+    bm.to_mesh(me)
+    bm.free()
+    if KEEP in me.attributes:
+        me.attributes.remove(me.attributes[KEEP])
+
+
+# --- bake (AO + edge lift, roughness/metal), as usp_talon.bake_maps -------------------------------
+
+def bake_maps(obj, out_dir, size=512, samples=64):
+    scene = bpy.context.scene
+    scene.render.engine = "CYCLES"
+    scene.cycles.samples = samples
+    scene.cycles.device = "CPU"
+    try:
+        prefs = bpy.context.preferences.addons["cycles"].preferences
+        prefs.compute_device_type = "METAL"
+        prefs.get_devices()
+        for dev in prefs.devices:
+            dev.use = True
+        if any(d.type == "METAL" for d in prefs.devices):
+            scene.cycles.device = "GPU"
+    except Exception as err:
+        print(f"{NAME}: no GPU bake", err)
+    me = obj.data
+    uv = me.uv_layers.new(name="bake")
+    me.uv_layers.active = uv
+    for o in bpy.context.view_layer.objects:
+        o.select_set(False)
+    obj.select_set(True)
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.mesh.select_all(action="SELECT")
+    bpy.ops.uv.smart_project(angle_limit=math.radians(55), island_margin=0.004, scale_to_bounds=False)
+    bpy.ops.uv.pack_islands(margin=0.003)
+    bpy.ops.object.mode_set(mode="OBJECT")
+    col_img = bpy.data.images.new("nsh2_171_colour", size, size, alpha=False)
+    rm_img = bpy.data.images.new("nsh2_171_rm", size // 2, size // 2, alpha=False)
+    rm_img.colorspace_settings.name = "Non-Color"
+    mats = list(me.materials)
+    saved = {}
+    for m in mats:
+        out = next(n for n in m.node_tree.nodes if n.type == "OUTPUT_MATERIAL")
+        saved[m.name] = out.inputs["Surface"].links[0].from_socket if out.inputs["Surface"].links else None
+
+    def bake_shader(m, mode):
+        nt = m.node_tree
+        bsdf = next(n for n in nt.nodes if n.type == "BSDF_PRINCIPLED")
+        rough = bsdf.inputs["Roughness"].default_value
+        metal = bsdf.inputs["Metallic"].default_value
+        L = nt.links.new
+        tmp = []
+
+        def node(kind):
+            n = nt.nodes.new(kind)
+            tmp.append(n)
+            return n
+
+        def math_(op, a, b=None):
+            n = node("ShaderNodeMath")
+            n.operation = op
+            for k, val in enumerate((a, b)):
+                if val is None:
+                    continue
+                if isinstance(val, (int, float)):
+                    n.inputs[k].default_value = val
+                else:
+                    L(val, n.inputs[k])
+            return n.outputs[0]
+        ao_s = node("ShaderNodeAmbientOcclusion")
+        ao_s.samples = 24
+        ao_s.inputs["Distance"].default_value = 0.025
+        ao_l = node("ShaderNodeAmbientOcclusion")
+        ao_l.samples = 24
+        ao_l.inputs["Distance"].default_value = 0.12
+        bev = node("ShaderNodeBevel")
+        bev.samples = 8
+        bev.inputs["Radius"].default_value = 0.004
+        geo = node("ShaderNodeNewGeometry")
+        dot = node("ShaderNodeVectorMath")
+        dot.operation = "DOT_PRODUCT"
+        L(bev.outputs["Normal"], dot.inputs[0])
+        L(geo.outputs["True Normal"], dot.inputs[1])
+        edge = math_("MINIMUM", math_("MULTIPLY", math_("SUBTRACT", 1.0, dot.outputs["Value"]), 8.0), 1.0)
+        occl = math_("MULTIPLY", math_("POWER", ao_s.outputs["AO"], 0.8),
+                     math_("ADD", 0.65, math_("MULTIPLY", ao_l.outputs["AO"], 0.35)))
+        em = node("ShaderNodeEmission")
+        if mode == "colour":
+            val = math_("MINIMUM", math_("ADD", math_("ADD", 0.48, math_("MULTIPLY", occl, 0.62)),
+                                         math_("MULTIPLY", edge, 0.2)), 1.0)
+            tint = node("ShaderNodeCombineColor")
+            for k in range(3):
+                L(math_("MULTIPLY", val, TINT[k]), tint.inputs[k])
+            L(tint.outputs[0], em.inputs["Color"])
+        else:
+            r = math_("ADD", rough, math_("SUBTRACT", math_("MULTIPLY", math_("SUBTRACT", 1.0, occl), 0.3),
+                                          math_("MULTIPLY", edge, 0.16)))
+            r = math_("MAXIMUM", math_("MINIMUM", r, 1.0), 0.05)
+            comb = node("ShaderNodeCombineColor")
+            comb.inputs[0].default_value = 1.0
+            L(r, comb.inputs[1])
+            comb.inputs[2].default_value = metal
+            L(comb.outputs[0], em.inputs["Color"])
+        out = next(n for n in nt.nodes if n.type == "OUTPUT_MATERIAL")
+        L(em.outputs[0], out.inputs["Surface"])
+        tgt = node("ShaderNodeTexImage")
+        tgt.image = col_img if mode == "colour" else rm_img
+        uvn = node("ShaderNodeUVMap")
+        uvn.uv_map = "bake"
+        L(uvn.outputs["UV"], tgt.inputs["Vector"])
+        nt.nodes.active = tgt
+        return tmp
+
+    for mode, img in (("colour", col_img), ("rm", rm_img)):
+        tmps = {m.name: bake_shader(m, mode) for m in mats}
+        bpy.ops.object.bake(type="EMIT", margin=4, use_clear=True)
+        for m in mats:
+            nt = m.node_tree
+            for n in tmps[m.name]:
+                nt.nodes.remove(n)
+            out = next(n for n in nt.nodes if n.type == "OUTPUT_MATERIAL")
+            if saved[m.name] is not None:
+                nt.links.new(saved[m.name], out.inputs["Surface"])
+        img.filepath_raw = str(Path(out_dir) / f"{img.name}.png")
+        img.file_format = "PNG"
+        img.save()
+
+    for i, m in enumerate(mats):
+        if i == M_LENS:
+            continue
+        nt = m.node_tree
+        bsdf = next(n for n in nt.nodes if n.type == "BSDF_PRINCIPLED")
+        uvn = nt.nodes.new("ShaderNodeUVMap")
+        uvn.uv_map = "bake"
+        ct = nt.nodes.new("ShaderNodeTexImage")
+        ct.image = col_img
+        nt.links.new(uvn.outputs["UV"], ct.inputs["Vector"])
+        mul = nt.nodes.new("ShaderNodeMix")
+        mul.data_type = "RGBA"
+        mul.blend_type = "MULTIPLY"
+        mul.inputs[0].default_value = 1.0
+        nt.links.new(ct.outputs["Color"], mul.inputs[6])
+        mul.inputs[7].default_value = tuple(bsdf.inputs["Base Color"].default_value)
+        nt.links.new(mul.outputs[2], bsdf.inputs["Base Color"])
+        rt = nt.nodes.new("ShaderNodeTexImage")
+        rt.image = rm_img
+        nt.links.new(uvn.outputs["UV"], rt.inputs["Vector"])
+        sep = nt.nodes.new("ShaderNodeSeparateColor")
+        nt.links.new(rt.outputs["Color"], sep.inputs[0])
+        nt.links.new(sep.outputs[1], bsdf.inputs["Roughness"])
+        nt.links.new(sep.outputs[2], bsdf.inputs["Metallic"])
+
+
+# --- frames, measure, export ----------------------------------------------------------------------
+
+def frame_matrix(angle):
+    return Matrix.Translation((0.5 * PX, 0.0, SPIN_Z)) @ Matrix.Rotation(math.radians(angle), 4, "Y")
+
+
+def frame_copy(src, name, coll, angle, weighted=True):
+    me = src.data.copy()
+    me.transform(frame_matrix(angle))
+    obj = bpy.data.objects.new(name, me)
+    coll.objects.link(obj)
+    for k in src.keys():
+        obj[k] = src[k]
+    if weighted:
+        wn = obj.modifiers.new("weighted", "WEIGHTED_NORMAL")
+        wn.keep_sharp = True
+        wn.weight = 50
+    return obj
+
+
+def measure(objs, sprite, sub=8):
+    """Top-down coverage of each frame model on the sprite's 12 x 14 grid (ray cast straight down,
+    sub x sub samples per pixel), IoU vs the sprite mask (outline ring included), per-row widths,
+    and per-material sprite palette medians (the region colour check)."""
+    from mathutils.bvhtree import BVHTree
+    res = []
+    for obj, fr in zip(objs, sprite["frames"]):
+        dg = bpy.context.evaluated_depsgraph_get()
+        ev = obj.evaluated_get(dg)
+        bm = bmesh.new()
+        bm.from_mesh(ev.to_mesh())
+        bm.faces.ensure_lookup_table()
+        tree = BVHTree.FromBMesh(bm)
+        mats = [f.material_index for f in bm.faces]
+        pix = fr["pixels"]
+        cov = [[0.0] * 12 for _ in range(14)]
+        matpix = [[None] * 12 for _ in range(14)]
+        for r in range(14):
+            for cidx in range(12):
+                hits, counts = 0, {}
+                for i in range(sub):
+                    for j in range(sub):
+                        u = cidx + (i + 0.5) / sub
+                        v = r + (j + 0.5) / sub
+                        X, Y = (u - 6) * PX, (7 - v) * PX
+                        hit = tree.ray_cast(Vector((X, Y, 5.0)), Vector((0, 0, -1)), 20.0)
+                        if hit[0] is not None:
+                            hits += 1
+                            mi = mats[hit[2]]
+                            counts[mi] = counts.get(mi, 0) + 1
+                cov[r][cidx] = hits / sub / sub
+                if counts:
+                    matpix[r][cidx] = max(counts, key=counts.get)
+        model = [[cov[r][c] >= 0.5 for c in range(12)] for r in range(14)]
+        spr = [[pix[r][c] >= 0 for c in range(12)] for r in range(14)]
+        inter = sum(model[r][c] and spr[r][c] for r in range(14) for c in range(12))
+        union = sum(model[r][c] or spr[r][c] for r in range(14) for c in range(12))
+        regions = {}
+        for r in range(14):
+            for c in range(12):
+                if matpix[r][c] is not None and pix[r][c] > 1 and cov[r][c] >= 0.5:
+                    regions.setdefault(matpix[r][c], []).append(pix[r][c])
+        res.append({"frame": fr["index"], "iou": round(inter / union, 4),
+                    "rowsSprite": [sum(row) for row in spr], "rowsModel": [sum(row) for row in model],
+                    "cov": [[round(x, 2) for x in row] for row in cov],
+                    "mat": matpix, "regions": {str(k): v for k, v in regions.items()}})
+        bm.free()
+        ev.to_mesh_clear()
+    return res
 
 
 def main():
+    argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     sprite = common.load_sprite(ROOT, NAME)
     coll = common.reset_collection(NAME)
+    mats = materials(sprite)
+    base = build(coll, mats)
+    if "--no-cull" not in argv:
+        cull_kept(base, grid=10, ndirs=200)
+    tris = sum(len(p.vertices) - 2 for p in base.data.polygons)
+    print(f"{NAME}: {len(base.data.polygons)} faces, {tris} triangles")
+    fmt = "AUTO"
+    if "--no-bake" not in argv:
+        bake_dir = ROOT / "assets" / "blender" / "textures" / NAME / "bake"
+        bake_dir.mkdir(parents=True, exist_ok=True)
+        bake_maps(base, bake_dir)  # before the shell exists, so it can't occlude the model
+        fmt = "WEBP"
+    shell = common.outline_shell(base, coll, faces=1200)
     sheet = sprite["sprites"][0]
     objs = []
     for k, (frame, angle) in enumerate(zip(sprite["frames"], ANGLES)):
         name = NAME if k == 0 else f"{NAME}-f{k + 1}"
-        obj = build(sprite, angle, name, coll)
+        obj = frame_copy(base, name, coll, angle)
+        obj["tyrian_frame"] = frame["index"]
+        sh = frame_copy(shell, f"{name}_outline", coll, angle, weighted=False)
+        sh.parent = obj
         subset = [{**sheet, "frames": [frame["index"]]}]
-        common.export_sprite_model(ROOT, [obj], f"enemies/{name}", subset)
+        common.export_sprite_model(ROOT, [obj, sh], f"enemies/{name}", subset, image_format=fmt)
         objs.append((name, obj, frame))
-    if "--preview" in sys.argv:
-        out = Path(sys.argv[sys.argv.index("--preview") + 1])
+    base.hide_render = True
+    shell.hide_render = True
+    if "--measure" in argv:
+        info = {"triangles": tris, "angles": ANGLES, "frames": measure([o for _, o, _ in objs], sprite),
+                "matPal": {str(i): PAL_OF[i] for i in PAL_OF}}
+        Path(argv[argv.index("--measure") + 1]).write_text(json.dumps(info, indent=1))
+    if "--preview" in argv:
+        out = Path(argv[argv.index("--preview") + 1])
         for name, obj, frame in objs:
             ref = ROOT / "reference" / "models" / NAME / frame["image"]
             path = out if name == NAME else out.parent / f"{name}.png"
