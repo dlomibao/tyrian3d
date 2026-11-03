@@ -2630,3 +2630,230 @@ original's); colour seams inside the clouds are unchanged; pairs seen under 5 ti
 **Review:** before/after captures and crops in `tyrian-scratch/pixel-sweep/cloud-rim-stairsteps/`
 (`cmp_*.png`). Fallback: `git checkout` the previous `1.webp`; `realpha --alpha-min-pairs 1000000` keeps
 the smoothing without the edge solve.
+## D74 — A model's top-view edge goes to the inner edge of the sprite's ink border; the game's ink stands in for it
+
+2026-11-03
+
+**Decision:** Models are matched to the sprite **without its ink border**. The border is the ink
+pixels of the sprite's boundary ring (luma < 26: palette 1, 2 and each ramp's darkest steps, 16, 32,
+48, 64, 80, 112, ...; 4-adjacent to transparency or the picture's edge). The model's top view covers
+the rest (the inner mask), and the game's ink outline (`OUTLINE`, unchanged) draws where the border
+was. Where the sprite draws colour to its edge, the edge stays where it is. A part only one colour
+pixel wide inside its ink, or drawn in ink alone, keeps at least half its sprite width (each side
+in by at most a quarter of it); its border pixels count neither way. The hard rule becomes: rule
+IoU ≥ 0.95 on the sprite's grid on every frame, from `tools/sprite_mask.py <name> --measure top.png`
+(`iou_rule_grid`). The rule for agents: docs/agents/OUTLINE-BORDER.md. No shipped model is rebuilt
+here.
+
+- **The border, surveyed** (each model's main frame, assemblies whole): level 1's 28 models: 18 have
+  a closed border (≥ 85% of the ring ink), 2 partial, 4 none, 4 opaque to the rectangle (island
+  machines, rock). All 8 player ships closed. All episodes' 993 enemy sprites (822 not opaque to the
+  rectangle): 28% closed, 42% 50-85% ink, 22% 20-50%, 9% under 20%; the gaps are coloured pixels
+  (lit rims, glows), not a shadow side: every side is ink about equally often (65-68%). One pixel
+  thick: in bordered sprites the next layer in is 6-35% ink (median per group), 26 of 228 closed enemy
+  sprites have a 2 px border. Most common ink: palette 1 (12, 12, 12), then 2, 112, 32, 64, 16, 48.
+- **The experiment.** The current models of the Talon, newsh2-89, newsh2-191 (thin arcs), newsh2-267
+  (thin legs), the boss assembly-newsh4-124 and the eye fortress assembly-newsh2-245 (no border, the
+  control) were drawn still in the game's renderer (`?debug=models`, frame-HUD viewport at
+  1920x1080, 5.4 screen px per sprite px) and compared with the sprite at the same place and scale.
+  Then copies pulled in to the inner edge (a plan warp, scratch only) were drawn the same way.
+  The ink is 3-4 screen px, 0.55-0.75 sprite px.
+
+  | Overhead (15° camera) | silhouette IoU with the sprite, current → inner | edge offset per side, sprite px |
+  |---|---|---|
+  | USP Talon | 0.818 → 0.929 (0.800 → 0.933) | +0.68 → -0.08 (+0.70 → -0.05) |
+  | newsh2-89 | 0.851 → 0.913 (0.795 → 0.846) | +0.97 → +0.30 (+1.19 → +0.54) |
+  | newsh2-191 | 0.689 → 0.816 (0.641 → 0.797) | +0.69 → +0.19 (+0.72 → +0.25) |
+  | newsh2-267 | 0.737 → 0.743 (0.668 → 0.679) | +0.74 → +0.15 (+0.83 → +0.27) |
+  | assembly-newsh4-124 | 0.809 → 0.838 (0.762 → 0.780) | +1.37 → +0.78 (+2.17 → +1.56) |
+  | assembly-newsh2-245 (control) | 0.946 (0.928) | +0.21 (+0.31) |
+
+  Every model matched to the outer edge read fatter than its sprite (the Talon 22% more area);
+  at the inner edge the size matches within a third of a pixel and the thin parts still read.
+  (267's IoU stays low because its legs don't follow the sprite's, whatever the edge.)
+- **Tool:** `tools/sprite_mask.py` finds the border and writes the outer, inner and free masks, a
+  per-sprite survey line, PNG masks to trace, and `--measure` for a top-view render. Standard library
+  only (Blender's Python and the system's); `tests/tools/spriteMask.test.ts`.
+
+**Options considered:**
+- *Inner edge, the game's ink for the border (chosen):* the silhouette with the ink lands on the
+  sprite's; the sprite's dark ring and the model's ink outline are the same thing.
+- *Outer edge, ink thinned or dropped:* the ink is the look of every model (D51, D55) and is set
+  per screen, not per model; at its width the outer-edge models are still 0.7 px fat, and without
+  it the models lose the sprites' dark edge.
+- *Middle of the border pixel:* +0.2 to +0.5 px per side from the numbers above, between the two.
+- *Strip the border only on closed-border sprites:* per-pixel stripping already leaves inkless
+  edges alone, so one rule covers partial borders too.
+
+**Affected (follow-up, not done here).** The models built to the old rule, top views rendered from
+their .glbs (rule IoU on the grid now; each would pull its edge in about 1 px where the sprite has
+ink):
+
+- Player ships: Talon 0.79, Dragonwing 0.83, Gencore Phoenix 0.70, Microcorp Stalker 0.76, Nort
+  ship 0.87, Silver ship 0.83, Supercarrot 0.74, U-Ship 0.71 (its border is 54% of its pixels, 64
+  of them free).
+- Level 1 (D65): assembly-newsh2-3 0.74, -9 0.75, -87 0.80, -123 0.78, assembly-newsh4-81 0.75, the boss
+  assembly-newsh4-124 0.90, newsh2-127 0.86, -159 0.80, -171 0.70, -191 0.72, -229 0.60, -267 0.79, -269 0.80,
+  -271 0.80, -49 0.71, -51 0.72, -89 0.86, newshp-13 0.73. Nearly passing: assembly-newsh4-195 0.94,
+  -231 0.94 (partial borders). Already passing (no border or opaque to the rectangle):
+  assembly-newsh2-53, -115, -119, -245, -273, -279, newshe-39, newsh2-153.
+- The older models (D44 and before): of 1022 sprite-model entries with a reference sprite, 253 have
+  a closed border and 521 a partial one; they change whenever they are rebuilt.
+
+**Found on the way:** `newsh2-159`'s outline shell (and its -f2..-f5 frames') covers only the
+model's middle band, so it shows no ink at all in game (a shell made from the wrong island). Tall
+models also read bigger than their sprites in game: a model's origin plane covers the sprite's
+screen area (D6) and parts above it are nearer the camera (the boss's +0.78 at the inner edge); that
+is height, not the border.
+
+**Review:** the comparison sheets (sprite | current | inner, overhead at game scale, x3 with the
+sprite's edge, 15°) and the scripts are in `tyrian-scratch/outline-border/` (`sheets/`, `ingame.py`,
+`measure.py`, `survey.py`). Fallback: measure against the outer mask again (`iou_outer_grid`).
+## D75 — Galaga mode's doubled pickups read past the item tables: the port reads what the C's reference build reads
+
+2026-11-03
+
+**Decision:** The two "port bugs" the whole-game inventory found (MILESTONES.md, Known issues) are
+the C's own behaviour. The sim now reproduces it instead of crashing:
+
+- **ALE crash (level 1.18, section 41):** in galaga mode JE_searchFor doubles the value of every
+  enemy it finds (tyrian2.c L4148-4160; tyrian2.ts JE_searchFor), and `evalue` is a JE_integer, so
+  it wraps. Events 70 and 75 search again on every pass of a level's waiting loops, so an enemy of
+  value 15 reaches 30720 after eleven doublings. Touching it, JE_playerCollide (mainint.c L4634-4669; mainint.ts JE_playerCollide) takes
+  it for a front-weapon pickup and reads `weaponPort[720].name`, sets the weapon id to u8(720) = 208
+  and the special to `specialArcadeWeapon[719]`, all past the tables' ends. The port threw on the
+  undefined record (tick 2815 of tools/inventory.mjs's run, seed 1041). Other reachable cases: 375
+  (a cash pickup in ALE) reaches 30464 (weapon 208, special `specialArcadeWeapon[463]` = 125), and
+  250 reaches 32000 (rear weapon u8(1000) = 232, name `weaponPort[1000]`). SQUADRON's enemies can do
+  the same.
+- **What the C does:** undefined behaviour, so whatever its memory holds. On the reference build
+  (tools/opentyrian-bot/run.sh: Apple clang -O1, arm64 macOS, where every bot fixture comes from)
+  the item tables lie back to back: options, powerSys, shields, ships, special, weaponPort, weapons
+  (71,820 bytes; checked with the linker's symbol addresses and by dumping the block from the
+  running C for episodes 1 and 4, byte for byte equal to what src/sim/overrun.ts builds). The
+  constant tables from SAWeapon on are followed by the rest of OpenTyrian's read-only data.
+  src/sim/overrun.ts rebuilds the item block from the item data (JE_loadItemDat's fields at the
+  structs' offsets, `name[min(len, 30)] = '\0'`, zero padding), appends to weaponPorts, specials
+  and options every record a Uint8 id can select (up to 255, decoded from it), reads the pickup's
+  names as `%s` would, and holds the 2,562 compiled bytes from SAWeapon on for
+  `specialArcadeWeapon`, `optionSelect` and `SAWeapon` reads past their ends. Past both blocks
+  (weapon names for values from 30805 or 31805, SAWeapon in a Super Arcade galaga game) the C reads
+  its mutable globals or build-dependent unwind tables; the port reads zeros, "" for a name. Those
+  only feed the text window, or need a Super Arcade game in a galaga level. Weapon 208 then fires
+  nothing (player_shot_create rejects ports over 42), so the bot can't kill the enemies event 70
+  waits for and ALE stalls at curLoc 2601-2610: the C does the same, tick for tick, for 30,000 ticks.
+  JE_playerCollide also gains the C's Uint8 truncation of `items.special` (value - 32100) and of a
+  Super Arcade weapon id.
+- **SQUADRON never ends (level 4.18, section 45):** genuine. Its event list has no end-level event
+  (11) or ready-to-end (36); after the start it jumps to a wave table at 60000 that calls the waves
+  (event 54, each returning through event 76) and jumps back to 60000. The invulnerable bot can't
+  end it; the C, with the same bot, matched the port for 60,000 ticks (seed 4045, every 100th
+  tick). The only end is the ship out of lives: game over, then the C waits for a key (the host's
+  key in src/app/run.ts), as with the bot without its cheats.
+- **Found on the way (the mortal SQUADRON cross-check):** start_level_first's JE_drawArmor
+  (tyrian2.c L834) caps armor at 28, and the port skipped it as HUD; it also called JE_getShipInfo
+  a second time after the level's world setup (game.ts startLevel), which the C doesn't. ENGAGE's
+  Stalker 21.126 has 30 armor, so the port's ship started at 30 instead of 28 and the armour ship
+  came later than the C's. newgame.ts now caps as the C does, and startLevel no longer repeats
+  JE_getShipInfo.
+
+**Tests:** tests/sim/galaga.test.ts (the read-only block starts with the three tables; every
+in-range record decodes from the rebuilt memory as the item data parses it; ALE's inventory run
+survives tick 2815 with weapon 208; SQUADRON's loop, and its game over with a mortal bot). C
+cross-checks in botTrace.test.ts: `ale-seed1041` (the inventory's ALE run, 6,000 ticks) and
+`squadron-mortal` (14,000 ticks: game over at 13,136, then the wait for a key). driver.c gains BOT_SEED (seed
+before JE_initPlayerData, as the inventory does) and BOT_MORTAL (no cheats); run.sh's play_case
+takes `seed=N` and `mortal`. Each botTrace case now starts from new players, as each driver run is a
+fresh process (JE_initPlayerData leaves friction, mouse and sidekick state alone, in the C too).
+docs/roadmap/inventory.* are regenerated: ALE runs its 60,000 ticks. Some counts of later levels
+shift slightly because the inventory plays every level in one process and ALE's full run leaves
+that same player state behind (episode 2 played alone gives the old numbers).
+
+**Options considered:**
+- *Reproduce the reference build's memory (chosen):* the C cross-checks are this build, and with
+  it the port matches the C through and past the overrun.
+- *A guard (skip the pickup, or treat a missing record as empty):* hides the divergence: the C does
+  pick it up, loses its gun and stalls.
+- *Clamp the doubled value:* changes what the C's galaga games do (a 32000 would become a cash
+  pickup instead of rear weapon 232).
+
+Fallback: drop `extendItemTables` and the overrun accessors; the C tables' bounds then throw again.
+
+## D76 — Coin and gem values as crisp flat art, redrawn from their own pixels
+
+2026-11-03
+
+**Decision:** The value a coin, gem or data cube shows when picked up (a fixed-position explosion,
+types 35-52 of newsh6.shp: 10, 25, 50, 75, 100, 250, 500, 1K, 2K, 5K, the brown ALE/375 plaque,
+800, 150, 350, 500, 750, the red 50 and DATA) is drawn as flat sprite art (D42) in the remastered
+look, instead of an extruded sprite: chunky pixel digits standing up off a dark plate.
+- **The art** (`tools/value_art.py`, no Gemini): each of the 18 sprites is redrawn from its own
+  pixels. Every digit pixel is joined to its digit neighbours and the centre lines are drawn with a
+  rounded-square pen a little under a pixel wide, so every digit keeps the original's shape,
+  placement and staircase layout but has clean antialiased edges and softened corners; the colours
+  are the digits' own palette colours (palette 5, as the other flat art) blended smoothly between
+  pixel centres, with a soft bevel lit from the upper left. The plate is the sprite's darkest colour
+  under its whole silhouette, rounded as the flat art's alpha is, shaded slightly top to bottom with
+  a faint glow of the digits round them. The red 150/350/500/750, which have no plate, get a faint
+  dark shadow inside their box.
+- **Wiring:** one atlas, `public/art/sprites/newsh6-shp.webp` (66 KB), and a `newsh6.shp` sheet in
+  the manifest, keyed by the sprite drawn (explosion_data's sprite + 1). None of those indices is a
+  frame of a moving explosion, and no enemy bank loads newsh6, so nothing else changes. The manifest
+  gains an optional per-sheet `scale` (`spriteArt.ts`): these frames are 16 texels per pixel, twice
+  the rest, as the numbers are small and read. `flat_art.py cut` now keeps sheets it didn't make.
+- **The game contract** is the flat art's: `?sprites=original` (or A, or the original effects look)
+  draws them extruded as before; the explosions' "blend" draws them at the renderer's 0.55 opacity;
+  the level filter and brightness recolour them; the atlas is loaded with the others before the level.
+
+**Options considered:**
+- *Vector text in a font (canvas or SDF quad) at the draw's position:* sharp at any size, but the
+  values are partly not text (the ALE/375 plaque, the slanted 1K, the staircases, the multi-coloured
+  800) and the original's plates and colour ramps would be approximations.
+- *Gemini paintings, like the other flat art:* nothing to gain over redrawing 1-px strokes exactly,
+  and a painted digit can drift from the original's.
+- *Keep them extruded, with smoothing:* still a 3D slab with sides for a 2D readout.
+
+**Review:** `?debug=play&seed=1&skip=T&freezeAt=T&armor=99` at T = 301 (75 over a fireball), 815 and
+2031 (DATA), 1670 (two 25s), 6426 (250). The flat draws go before the other transparent draws, so
+a value spawned on a fireball now sits under its glow rather than over it (still readable). Cost:
+66 KB download, one more draw call while a value is on screen. Fallback: drop the manifest's
+`newsh6.shp` entry.
+
+## D77 — The shield's hit arcs become one energy bubble round the ship
+
+2026-11-03
+
+**Decision:** When a hit only takes shield, JE_playerDamage draws nine light-blue arc tiles (explosion
+types 14-22, newsh6 sprites 229-237, 248-256 and 267-275) in a 4x3 grid round the ship, for three
+ticks. The remastered effects (D35) drew them as hot extruded sprites: stair-stepped pixel arcs.
+They now draw as one energy bubble (`src/render/vfx/shieldLayer.ts`): a sphere squashed to 20 x 11 x
+19 px round the ship model, at the ship's height, additive, its rim bright by a fresnel term (so from
+the game's camera it reads as the original's ring), with a faint hexagonal cell pattern and a wave
+running from its middle to its rim over the hit. The arcs are hidden.
+- **Placement and timing, from the original:** `explosionFrames.ts` gains an `ExplosionKind.Shield`
+  for types 14-22 and `shieldArcCentre(type)`, each arc's offset to the middle of its grid, so every
+  arc of one hit names the same point (the player's x + 7, y + 9: just below the ship sprite's middle,
+  as the C draws them; a test checks it against the sim's JE_playerDamage). One bubble is drawn per
+  hit and frame, on exactly the frames the arcs are drawn, moving with them (they scroll, as in the
+  C). It grows (0.84, 0.94, 1.04 of its size) and fades (1, 0.8, 0.5) over the three frames, as the
+  arcs widen; two hits a tick apart overlap as two bubbles, each with its own cell pattern.
+- **Colour:** the arc sprite's own palette colour, the way the shot halos take theirs (D35), so
+  palette fades and flashes carry through.
+- **Light:** the first frame also lights the ship's surroundings faintly in that colour, from the
+  explosions' pool of four lights (merged across the nine arcs).
+- **Switch:** `?vfx=original` (or V in the play harness) draws the arcs as the original sprites, as
+  before. Other spark types (11, 13, 23-34: shot trails) are unchanged.
+
+**Options considered:**
+- *A fresnel bubble round the ship (chosen):* one instanced draw, no assets, smooth at any size, and
+  from above it is the original's ring.
+- *Flat art for the arc tiles (D42):* would keep the 4x3 tile seams and the gap at the bottom right
+  (the C draws only nine of twelve tiles); a ring split into nine sprites stays a pixel object.
+- *A full shield mesh that stays round the ship and flashes:* would add a state the sim doesn't have.
+
+**Review:** `?debug=play&seed=1&skip=N&freezeAt=N&solid=1` at 295, 296, 297 (a hit, then a second one
+a tick later) and 636; captures in tyrian-scratch/pixel-sweep/shield-hit-arcs/. At 1920x1080 the
+harness held 60 fps with cpu about 7.3 ms a frame at tick 296 (two bubbles) and about 7.0 at 290 (no
+hit), 311 and 315 draw calls: within the noise of a machine busy with other runs. No
+download beyond the new module (6 KB of source, 2.4 KB gzipped). If the bubble reads too strong or
+weak, the shader's `a` line and `SHIELD_FADE` in remasteredFx.ts set it.

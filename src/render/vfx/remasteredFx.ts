@@ -9,7 +9,10 @@
 //   it; when one starts, it throws sparks, embers and tumbling debris, leaves smoke drifting with
 //   the scroll, and lights its surroundings for a moment with one of a few pooled point lights.
 //   A shot's hit puff becomes a spark burst and a flash; smoke sprites become soft smoke puffs.
-//   Coin values, shield arcs and anything else are drawn as before.
+// - The shield's hit arcs become one energy bubble round the ship (shieldLayer.ts, D77), in the
+//   arcs' colour and for their three ticks, with a faint flash of light.
+//   Coin values (flat art of their own in the remastered look, D76), shot trails and anything else
+//   are drawn as before.
 //
 // Nothing here allocates per frame: particles live in GPU ring buffers (particles.ts), glows in
 // reused instanced buffers (glowLayer.ts), and the lights are a fixed pool.
@@ -22,9 +25,10 @@ import { Pass, type Draw, type SpriteDraw, type TableSpriteDraw } from "../../si
 import type { PaletteTexture } from "../paletteTexture";
 import { passHeight } from "../passHeights";
 import type { SpriteMeshCache } from "../spriteMesh";
-import { EXPLOSION_SHEET_ID, ExplosionKind, explosionFrame } from "./explosionFrames";
+import { EXPLOSION_SHEET_ID, ExplosionKind, explosionFrame, shieldArcCentre } from "./explosionFrames";
 import { GlowLayer, GlowShape } from "./glowLayer";
 import { ParticleShape, ParticleSystem } from "./particles";
+import { ShieldLayer } from "./shieldLayer";
 
 /** How the draw-list renderer should draw a sprite the effects have seen. */
 export const enum SpriteLook {
@@ -47,6 +51,15 @@ const LIGHTS = 4;
 /** Lights sit this high, between the ground and the enemies, at the explosion's screen position. */
 const LIGHT_HEIGHT = 2.2;
 const LIGHT_RANGE = 9;
+/** The shield bubble's radii in screen px: across, down the screen and (as px at its height) up. */
+const SHIELD_RX = 20;
+const SHIELD_RZ = 19;
+const SHIELD_RY = 11;
+/** Its intensity and size over the hit's three frames: it grows as the arcs do. */
+const SHIELD_FADE = [1, 0.8, 0.5];
+const SHIELD_GROW = [0.84, 0.94, 1.04];
+/** Bubbles one frame can draw (a hit a tick for three ticks, for two players, with room to spare). */
+const MAX_SHIELDS = 16;
 /** Births queued between ticks and frames (a big boss death starts dozens at once). */
 const MAX_BIRTHS = 256;
 
@@ -56,6 +69,7 @@ const enum Birth {
   Large,
   PlayerShot,
   EnemyShot,
+  Shield,
 }
 
 /** What the effects need to know about a sprite: its middle, its size and its glow colour. */
@@ -92,9 +106,14 @@ export class RemasteredFx {
   private readonly blended = new ParticleSystem(2048, THREE.NormalBlending);
   private readonly glows = new GlowLayer(THREE.AdditiveBlending, 512);
   private readonly puffs = new GlowLayer(THREE.NormalBlending, 128);
+  private readonly shields = new ShieldLayer();
+  /** This frame's shield bubbles so far (screen x, y and the hit's frame), so a hit's nine arcs make one. */
+  private readonly shieldSeen = new Float32Array(MAX_SHIELDS * 3);
+  private shieldCount = 0;
   private readonly lights: FlashLight[] = [];
   private readonly info = new WeakMap<THREE.BufferGeometry, SpriteInfo | null>();
   private readonly colour = new THREE.Color();
+  private readonly shieldPos = new THREE.Vector3();
   private cam = new THREE.Vector3(0, 30, 10);
   private tickCount = 0;
   /** Births seen in the last tick, spawned at the next frame (when the camera is known). */
@@ -111,9 +130,9 @@ export class RemasteredFx {
     private readonly palette: PaletteTexture,
   ) {
     this.root.name = "vfx";
-    this.root.add(this.blended.mesh, this.puffs.mesh, this.glows.mesh, this.additive.mesh);
+    this.root.add(this.blended.mesh, this.puffs.mesh, this.glows.mesh, this.shields.mesh, this.additive.mesh);
     // [filters] On their own layer, so the screen filters can draw them after the smoothies (D35).
-    for (const mesh of [this.blended.mesh, this.puffs.mesh, this.glows.mesh, this.additive.mesh]) mesh.layers.set(VFX_LAYER);
+    for (const mesh of [this.blended.mesh, this.puffs.mesh, this.glows.mesh, this.shields.mesh, this.additive.mesh]) mesh.layers.set(VFX_LAYER);
     for (let i = 0; i < LIGHTS; i++) {
       const light = new THREE.PointLight(0xffa040, 0, LIGHT_RANGE, 1.6);
       light.castShadow = false;
@@ -154,7 +173,12 @@ export class RemasteredFx {
         if (f.kind === ExplosionKind.Hit) birth = Birth.Hit;
         else if (f.kind === ExplosionKind.Fireball) birth = Birth.Fireball;
         else if (f.kind === ExplosionKind.Large) birth = Birth.Large;
-        else continue;
+        else if (f.kind === ExplosionKind.Shield) {
+          // One light for the hit's nine arcs (light() merges the rest into it).
+          const at = shieldArcCentre(f.type)!;
+          this.queueBirth(Birth.Shield, d.x + at[0], d.y + at[1], SHIELD_RX, d.pass, this.cache.sprite2Geometry(d.sheet, d.index, 1));
+          continue;
+        } else continue;
         const geometry = this.cache.sprite2Geometry(d.sheet, d.index, 1);
         const info = geometry && this.spriteInfo(geometry);
         // A large explosion's quarters are drawn toward its middle; its first frames are tiny, so
@@ -185,6 +209,7 @@ export class RemasteredFx {
   /** Start a display frame: age the particles and lights, and spawn what the last tick started. */
   begin(dt: number, camera: THREE.Camera): void {
     this.cam = camera.position;
+    this.shieldCount = 0;
     this.additive.advance(dt);
     this.blended.advance(dt);
     for (let b = 0; b < this.birthCount; b++) {
@@ -251,13 +276,44 @@ export class RemasteredFx {
       }
       case ExplosionKind.Spark:
         return SpriteLook.Hot;
+      case ExplosionKind.Shield:
+        this.shield(x, y, f.type, f.frame, info);
+        return SpriteLook.Hidden;
       default:
         return SpriteLook.Default;
     }
   }
 
+  /**
+   * The bubble for a shield arc's hit, drawn once for its nine arcs: centred where the arcs' ring
+   * is (just below the ship's middle), at the ship's height, round the ship model.
+   */
+  private shield(x: number, y: number, type: number, frame: number, info: SpriteInfo): void {
+    const at = shieldArcCentre(type)!;
+    const sx = x + at[0];
+    const sy = y + at[1];
+    const seen = this.shieldSeen;
+    for (let i = 0; i < this.shieldCount; i++) {
+      const o = i * 3;
+      if (seen[o + 2] === frame && Math.abs(seen[o] - sx) < 1 && Math.abs(seen[o + 1] - sy) < 1) return;
+    }
+    if (this.shieldCount >= MAX_SHIELDS) return;
+    const o = this.shieldCount++ * 3;
+    seen[o] = sx;
+    seen[o + 1] = sy;
+    seen[o + 2] = frame;
+    const p = this.shieldPos;
+    const s = this.place(p, sx, sy, passHeight(Pass.Player));
+    // Two hits on one ship overlap: each keeps its own cell pattern, from the tick it started.
+    const seed = ((this.tickCount - frame) % 7) * 0.37;
+    const k = (SHIELD_GROW[frame] ?? 1) * s;
+    this.shields.add(p.x, p.y, p.z, SHIELD_RX * k, SHIELD_RY * k, SHIELD_RZ * k, info.r, info.g, info.b,
+      SHIELD_FADE[frame] ?? 0.3, (frame + 0.5) / 3, seed);
+  }
+
   /** Upload this frame's glows and new particles. */
   end(): void {
+    this.shields.commit();
     this.glows.commit();
     this.puffs.commit();
     this.additive.flush();
@@ -285,6 +341,7 @@ export class RemasteredFx {
     this.blended.dispose();
     this.glows.dispose();
     this.puffs.dispose();
+    this.shields.dispose();
     for (const f of this.lights) f.light.dispose();
     this.root.removeFromParent();
   }
@@ -320,6 +377,9 @@ export class RemasteredFx {
         this.debris(sx, sy, h, 2, 1.3);
         this.smoke(sx, sy, h, 1, 6, 14);
         this.light(sx, sy, 7, 0.36, r, g, b);
+        break;
+      case Birth.Shield:
+        this.light(sx, sy, 1.2, 0.12, r, g, b);
         break;
     }
   }

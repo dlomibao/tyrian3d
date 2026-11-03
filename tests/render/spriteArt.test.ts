@@ -97,6 +97,37 @@ describe("sprite art manifest", () => {
     expect(warnings).toHaveLength(4);
   });
 
+  test("a sheet can have its own scale (the coin values' finer atlas, D76)", () => {
+    const warnings: string[] = [];
+    const m = parseSpriteArtManifest({
+      scale: 8,
+      sheets: {
+        fine: { image: "f.webp", scale: 16, frames: { "1": { x: 0, y: 0, w: 192, h: 160 } } },
+        bad: { image: "b.webp", scale: -2, frames: { "1": { x: 0, y: 0, w: 8, h: 8 } } },
+        plain: { image: "p.webp", frames: { "1": { x: 0, y: 0, w: 96, h: 112 } } },
+      },
+    }, (w) => warnings.push(w))!;
+    expect([...m.sheets.keys()]).toEqual(["fine", "plain"]);
+    expect(warnings).toHaveLength(1);
+    const art = new SpriteArt<string>(m);
+    art.sheet("fine")!.setTexture("t", 256, 256);
+    art.sheet("plain")!.setTexture("t", 256, 256);
+    expect(art.frame("fine", 1)).toMatchObject({ w: 12, h: 10 });
+    expect(art.frame("plain", 1)).toMatchObject({ w: 12, h: 14 });
+  });
+
+  test("the shipped manifest paints every coin and gem value sprite (explosion types 35-52)", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { EXPLOSION_DATA } = await import("../../src/render/vfx/explosionFrames");
+    const m = parseSpriteArtManifest(JSON.parse(readFileSync("public/art/sprites/manifest.json", "utf8")))!;
+    const values = m.sheets.get("newsh6.shp")!;
+    expect(values.scale).toBe(16);
+    // drawExplosions blits sprite + 1 and never advances a fixed-position explosion.
+    const wanted = EXPLOSION_DATA.slice(35).map(([sprite]) => sprite + 1).sort((a, b) => a - b);
+    expect([...values.frames.keys()].sort((a, b) => a - b)).toEqual(wanted);
+    for (const f of values.frames.values()) expect(f.w).toBe(12 * 16);
+  });
+
   test("image URLs are escaped (sheet ids have '#')", () => {
     expect(spriteArtImageUrl("/art/sprites/", "tyrian.shp#7.webp")).toBe("/art/sprites/tyrian.shp%237.webp");
   });
