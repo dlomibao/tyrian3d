@@ -2,7 +2,9 @@
 Talon's manner (assets/blender/usp_talon.py, DECISIONS.md D50-D53).
 
 The sprite is authoritative for the plan outline, the windshield and the colours (D52): the top view
-follows frame 220 row by row (a pointed nose cowl with two blue canards, red gun barrels standing
+follows frame 220 row by row, its edge on the INNER edge of the sprite's ink border (D74,
+docs/agents/OUTLINE-BORDER.md: the game's own outline stands in for the ring; tools/sprite_mask.py
+--measure, iou_rule_grid >= 0.95) (a pointed nose cowl with two blue canards, red gun barrels standing
 on its shoulders, a wide delta of two swept wings with blue leading-edge bands and two tall body
 blocks, two engine nozzles and the V notch between them), the small dark windshield sits exactly
 over the sprite's glass pixels (rows 4-6, three columns wide), and each part takes the palette index
@@ -298,22 +300,22 @@ def tube(part, path, r, mat, n=8):
 # --- the nose cowl ---------------------------------------------------------------------------------
 
 COWL_PLATE = 0.3  # how far the cowl's flank plates stand out of its core
-# The cowl's plan half width with its plates (sprite px), fitted to the sprite's nose (its dark
-# outline ring included, the hitbox read): a blunt point at row 0 widening about a pixel a row to
-# row 4, rounding over into the shoulders at row 5 (the sprite's nose is no wider there), then on
-# under the guns to the drum.
-_CY = [0.12, 0.4, 0.8, 1.3, 2.0, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 7.0, 8.0, 9.0, 10.0, 10.9]
-_CW = [0.5, 1.05, 1.55, 2.0, 2.6, 3.62, 4.18, 4.75, 5.2, 5.45, 5.6, 5.8, 6.15, 6.42, 6.58, 6.62, 6.55]
+# The cowl's plan half width with its plates (sprite px), fitted to the INNER edge of the sprite's
+# nose (D74: the game draws the ink ring itself): a blunt point at row 0.7 widening about a pixel a
+# row to row 3.5, then 4.4 to row 5.7 (the sprite's nose, canards at 3.5-4.5 beside it), a step out
+# to 5.4 at row 6, then on under the guns to the drum.
+_CY = [0.7, 0.95, 1.4, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0, 5.7, 6.2, 6.8, 7.5, 8.5, 9.5, 10.2, 10.9]
+_CW = [0.45, 0.95, 1.5, 2.05, 2.5, 3.25, 3.9, 4.25, 4.38, 4.45, 5.3, 5.45, 5.75, 6.15, 6.42, 6.5, 6.45]
 PLAN_C = pchip(_CY, _CW)
 CW = pchip(_CY, [max(0.25, w - COWL_PLATE) for w in _CW])
-_FY = [0.12, 1.0, 2.0, 3.0, 4.0, 5.5, 7.0, 9.0, 10.9]
+_FY = [0.7, 1.4, 2.3, 3.0, 4.0, 5.5, 7.0, 9.0, 10.9]
 CT = pchip(_FY, [0.45, 0.95, 1.45, 1.9, 2.25, 2.65, 2.95, 3.2, 3.3])
 CB = pchip(_FY, [0.15, -0.25, -0.65, -0.95, -1.2, -1.5, -1.7, -1.85, -1.9])
 DECK = 0.55
 SHOULDER = 0.32
 FLANK = 0.5
 CHINE = 0.1
-COWL_Y0, COWL_Y1 = 0.12, 10.9
+COWL_Y0, COWL_Y1 = 0.7, 10.9
 
 
 def cowl_loop(y):
@@ -332,11 +334,11 @@ def deck_top(y):
 
 def build_cowl(P):
     L = cowl_loop
-    T.loft(P, L, [COWL_Y0, 0.3, 0.6] + frange(1.0, COWL_Y1, 0.8), DARK3, cap0=False)
+    T.loft(P, L, [COWL_Y0, 0.85, 1.05] + frange(1.3, COWL_Y1, 0.8), DARK3, cap0=False)
     # Nose cap all round, its back edge chamfered, and a polished point.
-    plate(P, L, 0.3, 2.05, HULL9, d=0.28, ch0=False, ystep=0.35)
-    sec = T.Section(L, 0.3)
-    hull(P, [sec.at(k, 0.28) for k in range(sec.n)] + [(0.0, 0.1, (CT(0.12) + CB(0.12)) / 2)], EDGE7)
+    plate(P, L, 0.85, 2.05, HULL9, d=0.28, ch0=False, ystep=0.3)
+    sec = T.Section(L, 0.85)
+    hull(P, [sec.at(k, 0.28) for k in range(sec.n)] + [(0.0, 0.66, (CT(0.7) + CB(0.7)) / 2)], EDGE7)
     # Top centre plate round the windshield, and on under the drum.
     plate(P, L, 2.2, 7.4, HULL9, s0=-0.9, s1=0.9, d=0.28, c=0.12)
     plate(P, L, 7.55, 10.75, HULL9, s0=-0.9, s1=0.9, d=0.28, c=0.12)
@@ -366,7 +368,7 @@ def build_canards(D):
     """Small blue canards on the nose flanks (sprite rows 2-3, |x| 3.5-4.5), swept, with a little
     dihedral."""
     def side(sd, X):
-        poly = X([(3.0, 1.88), (4.45, 2.35), (4.5, 3.35), (3.25, 3.95)])
+        poly = X([(3.0, 2.95), (3.55, 2.0), (4.45, 2.05), (4.45, 3.6), (3.3, 4.0)])
         slab(D, poly, 0.45, 0.78, CANARD, ch=0.08, chb=0.06, top=lambda x, y: (abs(x) - 3.0) * 0.28,
              bot=lambda x, y: (abs(x) - 3.0) * 0.28)
     both(side)
@@ -483,28 +485,31 @@ def build_drum(D):
 # --- chassis, blocks, spine, engines ---------------------------------------------------------------
 
 # The machinery deck under everything (right half and its mirror), seen in the channels between the
-# cowl, guns, wings and blocks. Its front stays behind row 5.85 beside the cowl (the sprite's nose is
-# alone at row 5), its rear ends in the V between the nozzles.
-CHASSIS_R = [(0.0, 5.8), (5.2, 5.8), (6.2, 5.9), (8.9, 5.9), (9.2, 6.3), (9.2, 9.95), (10.9, 10.25),
-             (12.95, 17.9), (12.95, 24.15), (11.7, 24.2), (2.45, 24.2), (0.0, 21.95)]
+# cowl, guns, wings and blocks. Its front stays behind row 6.95 beside the cowl (the sprite's nose is
+# alone at rows 5-6), x 8.4 beside the guns (the inner edge), a notch at row 23 (the gap between block
+# and wing), its rear ends in the V between the nozzles (x = y - 21, as the spine).
+CHASSIS_R = [(0.0, 5.8), (5.0, 5.8), (5.3, 6.95), (8.4, 6.95), (8.4, 10.0), (9.25, 10.0), (9.25, 10.75), (10.4, 10.95),
+             (12.95, 17.9), (12.95, 23.0), (11.45, 23.0), (11.45, 24.2), (3.2, 24.2), (0.0, 21.0)]
 CHASSIS = CHASSIS_R + mirror(CHASSIS_R[1:-1])[::-1]
 DECK_Z = 0.6
 
 # Body block (right): front edge at row 12, a 45-degree front (x = y - 6, the sprite's bevel and
 # highlight lines), the outer side at x 12.4, a step in at the rear lip, the inner side at x 2.9 (a
 # wide bevel down to the spine).
-BLOCK = [(2.9, 12.0), (6.0, 12.0), (12.4, 18.4), (12.4, 20.75), (11.6, 21.55), (11.6, 23.65), (2.9, 23.65)]
+BLOCK = [(2.9, 12.0), (6.0, 12.0), (12.4, 18.4), (12.4, 20.75), (11.45, 21.7), (11.45, 23.65), (2.9, 23.65)]
 BLOCK_INSET = [0.25, 1.0, 0.3, 0.3, 0.3, 0.3, 1.6]
 BLOCK_Z0, BLOCK_Z1 = -2.1, 4.6
 PLATE_TOP = 4.95
 SEAM_X = 7.3   # the lengthwise seam on the block's top
 BAY_Y0, BAY_Y1 = 20.65, 22.95
 
-# Wing (right): leading edge x = y + 1 from the front tip (row 10) to the outer corner (row 17.4),
-# outer edge x 18.4, trailing edge x = 39 - y to the tip at row 24.95; inboard the edge runs
-# x = 9.55 then x = y - 5 (parallel to the leading edge, the sprite's channel) and x 12.95.
-WING = [(9.6, 10.1), (11.1, 10.1), (18.4, 17.4), (18.4, 20.6), (14.35, 24.65), (14.05, 24.95),
-        (12.95, 24.95), (12.95, 17.95), (9.55, 14.55)]
+# Wing (right), on the inner edge of the sprite's ink border (D74, docs/agents/OUTLINE-BORDER.md):
+# leading edge x = y from the front tip (row 10.75) to the outer corner (row 17.45), outer edge
+# x 17.45, trailing edge x = 38 - y, a step out at rows 22.5-23.6 and the tip (x 13.5-14.45) to row
+# 25; inboard the edge runs x = 9.4 then x = y - 5 (parallel to the leading edge, the sprite's
+# channel) and x 12.55, stepping out to 13.5 behind row 24 (the sprite's gap beside the nozzle).
+WING = [(9.4, 10.75), (10.75, 10.75), (17.45, 17.45), (17.45, 20.5), (15.45, 22.5), (15.45, 23.6), (14.45, 24.6),
+        (14.45, 25.0), (13.5, 25.0), (13.5, 24.0), (12.55, 24.0), (12.55, 17.55), (9.4, 14.4)]
 
 
 def wing_top(x, y):
@@ -536,7 +541,7 @@ def build_block(P, D):
         slab(P, X([(8.0, 16.4), (8.6, 16.4), (10.4, 18.2), (10.4, 19.6), (8.0, 19.6)]), PLATE_TOP - 0.2, PLATE_TOP + 0.16, HULL8, ch=0.08, chb=0.0)
         # Intake bays: a dark recess either side of a post, louvres across it.
         post = (SEAM_X - 0.42, SEAM_X + 0.42)
-        bays = ((4.62, post[0] - 0.1), (post[1] + 0.1, 11.25))
+        bays = ((4.62, post[0] - 0.1), (post[1] + 0.1, 11.1))
         slab(P, X([(post[0], BAY_Y0), (post[1], BAY_Y0), (post[1], BAY_Y1), (post[0], BAY_Y1)]),
              BLOCK_Z1 - 0.3, PLATE_TOP, HULL9, ch=0.1, chb=0.0)
         for x0, x1 in bays:
@@ -544,7 +549,7 @@ def build_block(P, D):
             for yy in frange(BAY_Y0 + 0.42, BAY_Y1 - 0.42, 0.5):
                 hull(D, [(sd * x, y, z) for x, y, z in cbox(x0 + 0.05, x1 - 0.05, yy - 0.08, yy + 0.08, BLOCK_Z1 - 0.4, BLOCK_Z1 + 0.12, 0.03)], DARK3)
         # Rear lip behind the intake, sloping down aft.
-        slab(P, X([(3.0, BAY_Y1 + 0.12), (11.62, BAY_Y1 + 0.12), (11.62, 23.68), (3.0, 23.68)]), BLOCK_Z1 - 0.4, PLATE_TOP - 0.1,
+        slab(P, X([(3.0, BAY_Y1 + 0.12), (11.47, BAY_Y1 + 0.12), (11.47, 23.68), (3.0, 23.68)]), BLOCK_Z1 - 0.4, PLATE_TOP - 0.1,
              EDGE7, ch=0.12, chb=0.0, top=lambda x, y: -0.45 * (y - BAY_Y1))
         # Wide inner bevel plate (the dark wall the sprite shows beside the spine).
         x_in, x_top = BLOCK[0][0], BLOCK[0][0] + BLOCK_INSET[6]
@@ -564,44 +569,49 @@ def build_block(P, D):
 def build_spine(P):
     """The spine between the blocks: a core, a top plate with a V tail, a raised centre strip and
     a dark vent at its rear, a keel underneath."""
-    spine = [(-2.75, 13.3), (2.75, 13.3), (2.75, 24.55), (0.0, 21.9), (-2.75, 24.55)]
+    spine = [(-2.75, 13.3), (2.75, 13.3), (2.75, 23.75), (0.0, 21.0), (-2.75, 23.75)]
     slab(P, spine, -1.6, 3.2, CORE5, ch=0.2, chb=0.2)
-    top = [(-2.5, 13.55), (2.5, 13.55), (2.5, 23.4), (0.0, 21.0)]
-    top = top + [(-2.5, 23.4)]
+    top = [(-2.5, 13.55), (2.5, 13.55), (2.5, 23.15), (0.0, 20.65)]
+    top = top + [(-2.5, 23.15)]
     slab(P, top, 2.9, 3.55, HULL9, ch=0.14, chb=0.0)
-    slab(P, [(-0.95, 13.9), (0.95, 13.9), (0.95, 19.9), (0.0, 20.6), (-0.95, 19.9)], 3.3, 3.9, STRIP, ch=0.14, chb=0.0)
-    slab(P, [(-1.5, 20.5), (1.5, 20.5), (1.5, 21.9), (0.0, 21.15), (-1.5, 21.9)], 3.05, 3.43, REC2, ch=0.05, chb=0.0)
+    slab(P, [(-0.95, 13.9), (0.95, 13.9), (0.95, 19.4), (0.0, 20.05), (-0.95, 19.4)], 3.3, 3.9, STRIP, ch=0.14, chb=0.0)
+    slab(P, [(-1.5, 20.0), (1.5, 20.0), (1.5, 21.3), (0.0, 20.55), (-1.5, 21.3)], 3.05, 3.43, REC2, ch=0.05, chb=0.0)
     for xx in (-0.75, 0.0, 0.75):
-        hull(P, cbox(xx - 0.12, xx + 0.12, 20.65, 21.0 + abs(xx) * 0.8, 3.25, 3.53, 0.03), DARK3)
+        hull(P, cbox(xx - 0.12, xx + 0.12, 20.15, 20.45 + abs(xx) * 0.8, 3.25, 3.53, 0.03), DARK3)
     # Keel strake under the spine.
     pts = []
-    for y, drop in ((12.5, 0.0), (14.0, 0.75), (19.5, 0.75), (21.4, 0.1)):
+    for y, drop in ((12.5, 0.0), (14.0, 0.75), (19.2, 0.75), (20.8, 0.1)):
         pts += [(sx * x, y, z) for sx in (-1, 1) for x, z in ((0.45, -1.3), (0.32, -1.6 - drop), (0.15, -1.7 - drop))]
     hull(P, pts, CORE5)
+
+
+NOZ_X, NOZ_Z, NOZ_END = 5.5, 0.7, 27.4
 
 
 def build_engines(P, D):
     def side(sd, X):
         # Housing behind the block, its outboard rear corner cut back (the sprite's tapering rows 24-26).
-        slab(P, X([(2.75, 23.45), (11.4, 23.45), (11.4, 24.55), (9.0, 26.0), (2.75, 26.0)]), -1.85, 3.35, CORE5, ch=0.22, chb=0.22)
+        slab(P, X([(3.1, 23.45), (11.45, 23.45), (11.45, 23.7), (10.3, 23.7), (8.0, 26.0), (3.1, 26.0)]), -1.85, 3.35, CORE5, ch=0.22, chb=0.22)
         # A dark band and a bright collar where the nozzle leaves the housing.
-        cx, cz = sd * 5.45, 0.7
+        # Sized to the inner edge of the sprite's nozzle (rows 25-27, x 3.5-7.5; D74): NR scales the radii.
+        cx, cz = sd * NOZ_X, NOZ_Z
+        NR = 0.74
         prof = [
-            (2.55, 25.4, NOZ6, False), (2.78, 25.62, NOZ6, False), (2.78, 26.3, DARK3, False),
-            (2.64, 26.3, DARK3, False), (2.64, 26.45, NOZ6, False), (2.69, 26.45, NOZ6, False),
-            (2.32, 27.86, DARK3, False),   # converging petals to the lip
-            (1.98, 27.86, DARK3, True),    # lip face, then the bore
-            (1.86, 27.25, REC2, True), (1.5, 26.5, GLOW, True), (1.0, 26.3, THROAT, True), (0.0, 26.3, THROAT, True),
+            (2.55 * NR, 25.4, NOZ6, False), (2.78 * NR, 25.62, NOZ6, False), (2.78 * NR, 26.3, DARK3, False),
+            (2.64 * NR, 26.3, DARK3, False), (2.64 * NR, 26.45, NOZ6, False), (2.69 * NR, 26.45, NOZ6, False),
+            (2.32 * NR, NOZ_END, DARK3, False),   # converging petals to the lip
+            (1.98 * NR, NOZ_END, DARK3, True),    # lip face, then the bore
+            (1.86 * NR, 26.95, REC2, True), (1.5 * NR, 26.5, GLOW, True), (1.0 * NR, 26.3, THROAT, True), (0.0, 26.3, THROAT, True),
         ]
         yrev(D, cx, cz, prof, n=24)
         # A bright trim ring round the nozzle on the housing's rear face.
-        yrev(D, cx, cz, [(2.62, 25.82, EDGE7, 0), (3.0, 25.95, EDGE7, 0), (3.0, 26.15, EDGE7, 0), (2.8, 26.27, EDGE7, 0),
-                         (2.6, 26.27, EDGE7, 0)], n=24)
+        yrev(D, cx, cz, [(2.62 * NR, 25.82, EDGE7, 0), (3.0 * NR, 25.95, EDGE7, 0), (3.0 * NR, 26.15, EDGE7, 0),
+                         (2.8 * NR, 26.27, EDGE7, 0), (2.6 * NR, 26.27, EDGE7, 0)], n=24)
         # Petal seams: thin dark strips along the converging section.
         for k in range(8):
             a = 2 * math.pi * (k + 0.5) / 8
-            p0 = (cx + 2.71 * math.cos(a), 26.55, cz + 2.71 * math.sin(a))
-            p1 = (cx + 2.36 * math.cos(a), 27.75, cz + 2.36 * math.sin(a))
+            p0 = (cx + 2.71 * NR * math.cos(a), 26.52, cz + 2.71 * NR * math.sin(a))
+            p1 = (cx + 2.36 * NR * math.cos(a), NOZ_END - 0.1, cz + 2.36 * NR * math.sin(a))
             tube(D, [p0, p1], 0.07, DARK3, n=4)
     both(side)
 
@@ -615,14 +625,14 @@ def build_guns(D):
     def side(sd, X):
         cx = sd * GUN_X
         prof = [
-            (0.0, 5.75, REC2, True), (0.46, 5.25, REC2, True), (0.7, 5.15, RED, False),
-            (0.95, 5.5, RED, False), (1.1, 5.9, RED, False), (1.1, 7.35, DARK3, False), (1.02, 7.35, DARK3, False),
-            (1.02, 7.5, RED, False), (1.1, 7.5, RED, False), (1.1, 9.15, EDGE7, False), (1.22, 9.27, EDGE7, False),
-            (1.22, 10.15, EDGE7, False), (1.0, 10.35, DECK4, False), (0.9, 11.4, DECK4, False), (0.0, 11.5, DECK4, False),
+            (0.0, 5.75, REC2, True), (0.4, 5.25, REC2, True), (0.6, 5.15, RED, False),
+            (0.78, 5.5, RED, False), (0.9, 5.9, RED, False), (0.9, 7.35, DARK3, False), (0.84, 7.35, DARK3, False),
+            (0.84, 7.5, RED, False), (0.9, 7.5, RED, False), (0.9, 9.15, EDGE7, False), (1.0, 9.27, EDGE7, False),
+            (1.0, 10.15, EDGE7, False), (0.85, 10.35, DECK4, False), (0.75, 11.4, DECK4, False), (0.0, 11.5, DECK4, False),
         ]
         yrev(D, cx, GUN_Z, prof, n=18)
         # Mount under the barrel, down to the deck.
-        hull(D, [(sd * x, y, z) for x, y, z in cbox(GUN_X - 0.75, GUN_X + 0.75, 7.6, 11.5, DECK_Z - 0.2, GUN_Z - 0.3, 0.15)], DECK4)
+        hull(D, [(sd * x, y, z) for x, y, z in cbox(GUN_X - 0.65, GUN_X + 0.65, 7.6, 11.5, DECK_Z - 0.2, GUN_Z - 0.3, 0.15)], DECK4)
         # The red light at its foot (sprite row 12).
         hull(D, [(sd * x, y, z) for x, y, z in cbox(GUN_X - 0.45, GUN_X + 0.45, 11.95, 12.75, DECK_Z - 0.1, DECK_Z + 0.55, 0.15)], LIGHT)
     both(side)
@@ -649,7 +659,7 @@ def build_wings(P, D):
             slab(P, X(poly), 0.0, 0.0, mat, ch=0.12, chb=0.0,
                  top=lambda x, y, lift=lift: wing_top(x, y) + lift, bot=lambda x, y: wing_top(x, y) - 0.85)
         # Tip rail along the outer edge (the concept's tip prong).
-        slab(P, X([(17.45, 17.75), (18.42, 17.75), (18.42, 20.55), (17.45, 21.05)]), 0.0, 0.0, EDGE7, ch=0.15, chb=0.1,
+        slab(P, X([(16.5, 17.75), (17.47, 17.75), (17.47, 20.48), (16.5, 20.98)]), 0.0, 0.0, EDGE7, ch=0.15, chb=0.1,
              top=lambda x, y: wing_top(x, y) + 0.45, bot=lambda x, y: wing_bot(x, y) - 0.1)
         # Ventral strake under the wing.
         pts = []
@@ -665,14 +675,14 @@ def build_channel(D):
     """The machinery in the channel between each wing and block: a pipe run on the deck with
     clamps."""
     def side(sd, X):
-        path = [(8.85, 10.6), (8.95, 12.4), (12.45, 17.6), (12.6, 18.2), (12.62, 24.0)]
+        path = [(8.6, 10.6), (8.95, 12.4), (12.45, 17.6), (12.6, 18.2), (12.62, 23.9)]
         z = DECK_Z + 0.28
         tube(D, [(sd * x, y, z) for x, y in path], 0.26, DECK4, n=8)
         for y in (13.6, 15.4, 17.0, 19.5, 21.2, 22.9):
             x = 9.4 + (y - 13.0) * (12.45 - 8.95) / (17.6 - 12.4) if y < 17.6 else 12.6
             hull(D, [(sd * xx, yy, zz) for xx, yy, zz in cbox(x - 0.42, x + 0.42, y - 0.17, y + 0.17, DECK_Z - 0.1, z + 0.36, 0.05)], NOZ6)
         # A second, thinner line along the rear channel where it widens.
-        tube(D, [(sd * x, y, z - 0.08) for x, y in ((11.95, 21.7), (11.95, 24.05))], 0.2, NOZ6, n=6)
+        tube(D, [(sd * x, y, z - 0.08) for x, y in ((11.95, 21.2), (11.95, 22.8))], 0.2, NOZ6, n=6)
     both(side)
 
 
@@ -875,8 +885,6 @@ def bake_maps(obj, out_dir, size=1024, samples=96):
         nt.links.new(sep.outputs[1], bsdf.inputs["Roughness"])
         nt.links.new(sep.outputs[2], bsdf.inputs["Metallic"])
 
-
-NOZ_X, NOZ_Z, NOZ_END = 5.45, 0.7, 27.86
 
 
 def main():

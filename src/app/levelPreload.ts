@@ -4,7 +4,7 @@
 
 import type { LevelModelInfo, PreloadResult } from "../render/drawListRenderer";
 import type { View } from "../render/view";
-import { levelSprites, levelTiles } from "../sim/levelSprites";
+import { levelDamageFrames, levelSprites, levelTiles } from "../sim/levelSprites";
 import { g } from "../sim/state";
 import { showProgress } from "./screens";
 
@@ -27,7 +27,7 @@ const SHOW_AFTER_MS = 200;
 
 /** What the current level (g.lvl, g.player) can show. */
 export function levelModelInfo(): LevelModelInfo {
-  return { sprites: levelSprites(), tileShapes: g.lvl?.shapesFile, tiles: levelTiles(), maps: levelTileMaps() };
+  return { sprites: levelSprites(), tileShapes: g.lvl?.shapesFile, tiles: levelTiles(), maps: levelTileMaps(), damage: levelDamageFrames() };
 }
 
 /** The current level's three maps as tile numbers (-1: none), for the HD terrain's variants (D57). */

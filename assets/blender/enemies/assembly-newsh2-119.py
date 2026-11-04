@@ -28,7 +28,9 @@ their palette colours; the detail goes where the tilted game camera sees it.
 - Ground: the dirt tile, low relief from the sprite's own dirt pattern (palette 17-20 per facet,
   border flat so neighbouring tiles meet), and the sprite's black area at the lower right painted
   on it as a flat pal 1 stain (no modelled debris): the sprite's one asymmetry (the structure
-  itself is mirror symmetric about pixel-edge column 20.5).
+  itself is mirror symmetric about pixel-edge column 20.5). It is built only as the bake's
+  occluder and not exported (D86): in the game the HD ground shows round the bunker, and the
+  bunker's real shadow falls on it.
 Colours are the sprite's per-region medians (darkest shading and brightest highlight pixels left
 out). Satin metal (metallic <= 0.2, roughness >= 0.5), no concept projection (maps.json
 "bake": "model"): the script bakes the Talon's occlusion / roughness maps (usp_talon.bake_maps)
@@ -813,26 +815,28 @@ def merged_sprite():
 
 
 def build(coll):
-    """The whole tile as one object, and the structure alone (for the outline shell)."""
+    """The whole bunker as one object, the structure alone (for the outline shell) and the dirt
+    ground (the bake's occluder only, not exported: D86)."""
     A = sprite_grid()
     body, spike, legs = masks(A)
     sprite = merged_sprite()
     mats = materials(sprite)
     objs = []
-    for part in ("tile", "structure"):
+    for part in ("tile", "structure", "ground"):
         M = Mesh()
-        if part == "tile":
+        if part == "ground":
             build_dirt(M, A, body | spike | legs)
-        Mc = Mesh()
-        build_carapace(Mc)
-        crown_carapace(Mc)
-        tmp = bpy.data.meshes.new("_carapace")
-        Mc.bm.to_mesh(tmp)
-        Mc.bm.free()
-        M.bm.from_mesh(tmp)
-        bpy.data.meshes.remove(tmp)
-        build_roof(M)
-        build_legs(M)
+        else:
+            Mc = Mesh()
+            build_carapace(Mc)
+            crown_carapace(Mc)
+            tmp = bpy.data.meshes.new("_carapace")
+            Mc.bm.to_mesh(tmp)
+            Mc.bm.free()
+            M.bm.from_mesh(tmp)
+            bpy.data.meshes.remove(tmp)
+            build_roof(M)
+            build_legs(M)
         bm = M.bm
         bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-6)
         # n-gon caps (concave: the carapace's prongs, the roof's wings) as triangles before the tile
@@ -840,7 +844,7 @@ def build(coll):
         bmesh.ops.triangulate(bm, faces=[f for f in bm.faces if len(f.verts) > 4], quad_method="BEAUTY",
                               ngon_method="EAR_CLIP")
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-        me = bpy.data.meshes.new(NAME if part == "tile" else NAME + "_structure")
+        me = bpy.data.meshes.new(NAME if part == "tile" else f"{NAME}_{part}")
         bm.to_mesh(me)
         bm.free()
         for m in mats:
@@ -849,7 +853,7 @@ def build(coll):
         coll.objects.link(obj)
         me.set_sharp_from_angle(angle=math.radians(32))
         objs.append(obj)
-    return objs[0], objs[1], sprite
+    return objs[0], objs[1], objs[2], sprite
 
 
 def bake(obj, out_dir):
@@ -1000,11 +1004,14 @@ def main():
         bpy.data.objects.remove(o, do_unlink=True)
     bpy.context.view_layer.update()
     coll = common.reset_collection(NAME)
-    obj, structure, sprite = build(coll)
+    obj, structure, ground, sprite = build(coll)
     fmt = "AUTO"
     if "--no-bake" not in argv:
         bake(obj, tempfile.mkdtemp(prefix="nsh2_119_bake_"))
         fmt = "WEBP"
+    # The dirt only darkened the bake where the legs and carapace meet the ground; the game's HD
+    # ground shows round the bunker, and its real shadow falls there (D86).
+    bpy.data.objects.remove(ground, do_unlink=True)
     # The outline shell (D51) of the structure alone, cut like the tile: each piece outlines its part.
     shell = common.outline_shell(structure, coll, voxel=0.013, faces=3000, smooth=4)
     structure.hide_render = True

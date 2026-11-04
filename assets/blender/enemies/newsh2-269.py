@@ -86,9 +86,9 @@ def E(e):
 
 
 # --- the fuselage plan (blueprint pchip, outline ring included) ---------------------------------
-_PX = [3.7, 3.9, 4.5, 5.5, 6.5, 7.5, 9, 14.5, 15.5, 16.5, 17.5, 18.5, 19.5, 20.5, 21.5, 22.5, 23.3, 23.8, 24.05]
-_PW = [0, 2.7, 4.35, 5.35, 6.3, 7.1, 7.3, 7.3, 7.15, 6.4, 5.75, 5.2, 4.65, 4.15, 3.4, 2.5, 1.6, 0.95, 0]
-_PW = [w + 0.15 if 0 < w else w for w in _PW]  # +0.15: fill the outline ring's pixels (area IoU)
+# D74: the plan is the sprite's INNER mask (its 1 px ink ring left to the game's outline shell).
+_PX = [3.7, 3.9, 4.5, 5.5, 6.5, 7.5, 9, 14.5, 15.5, 16.5, 17.5, 18.5, 19.5, 20.5, 21.5, 22.5, 23.5, 23.8, 24.0]
+_PW = [0, 2.0, 3.4, 4.6, 5.6, 6.4, 6.5, 6.5, 6.0, 5.3, 4.5, 4.4, 3.9, 3.35, 2.5, 1.5, 0.55, 0.3, 0]
 _PLAN = pchip(_PX, _PW)
 PL = 0.28          # plate stand-off
 TOP, BOT, SE = 0.8, 0.62, 2.4  # top / belly half height over half width, superellipse exponent
@@ -339,24 +339,31 @@ def build_tail(D):
     # red exhausts.
     prof = [(0.38, 0.0), (0.38, 2.45), (0.05, 2.75), (0.05, 3.1), (0.28, 3.41), (1.42, 3.41), (1.65, 3.12),
             (1.65, 2.6), (2.65, 2.6), (2.65, 3.12), (2.88, 3.41), (4.42, 3.41), (4.65, 3.12), (4.65, 0.0)]
+    DR = 0.84  # D74: drum radius scale (inner mask)
+    prof = [(t, r * DR) for t, r in prof]
     mats = [DEEP, CORE, DRUM, DRUM, DRUM, DRUM, CORE, CORE, CORE, DRUM, DRUM, DRUM, DRUM]
     lathe(D, (0.0, E(0.0), 0.0), (0, -1, 0), prof, sides=16, mats=mats)
     # Raised bands on the rings and bolt heads round the rear ring.
-    lathe(D, (0.0, E(0.0), 0.0), (0, -1, 0), [(0.6, 3.3), (0.6, 3.52), (1.05, 3.52), (1.05, 3.3)],
+    lathe(D, (0.0, E(0.0), 0.0), (0, -1, 0), [(0.6, 3.3 * DR), (0.6, 3.52 * DR), (1.05, 3.52 * DR), (1.05, 3.3 * DR)],
           sides=16, mats=[DRUM, DRUM, DRUM])
-    lathe(D, (0.0, E(0.0), 0.0), (0, -1, 0), [(3.4, 3.3), (3.4, 3.52), (3.85, 3.52), (3.85, 3.3)],
+    lathe(D, (0.0, E(0.0), 0.0), (0, -1, 0), [(3.4, 3.3 * DR), (3.4, 3.52 * DR), (3.85, 3.52 * DR), (3.85, 3.3 * DR)],
           sides=16, mats=[DRUM, DRUM, DRUM])
     for k in range(8):
         a = 2 * math.pi * (k + 0.5) / 8
-        lathe(D, (2.9 * math.cos(a), E(0.0), 2.9 * math.sin(a)), (0, -1, 0),
+        lathe(D, (2.9 * DR * math.cos(a), E(0.0), 2.9 * DR * math.sin(a)), (0, -1, 0),
               [(-0.08, 0.0), (-0.08, 0.17), (0.12, 0.17)], sides=5, mats=[FRAME, FRAME])
     for x in (-1.25, 1.25):
         lathe(D, (x, E(0.0), 0.25), (0, -1, 0),
               [(0.45, 0.0), (0.45, 0.95), (0.0, 0.95), (0.0, 0.72), (0.18, 0.72), (0.18, 0.0)],
               sides=12, mats=[DEEP, DEEP, DEEP, DEEP, GLOW])
     # The spar: a chamfered beam across the ship through the drum, into the housings.
-    hull(D, cbox(-6.7, 6.7, E(4.0), E(1.0), -1.0, 1.0, 0.25), CORE)
-    hull(D, cbox(-6.4, 6.4, E(3.4), E(1.6), 0.85, 1.2, 0.12), CORE)
+    # Cross beam inside the drum's width, and a diagonal brace each side up to the housing.
+    hull(D, cbox(-3.4, 3.4, E(4.0), E(1.0), -1.0, 1.0, 0.25), CORE)
+    for sx in (-1, 1):
+        hull(D, cbox(sx * 4.2 - 0.5, sx * 4.2 + 0.5, E(3.0), E(2.0), -0.9, 0.9, 0.2), CORE)
+        pts = cbox(sx * 5.9 - 0.45, sx * 5.9 + 0.45, E(2.6), E(1.9), -1.0, 1.0, 0.2) + \
+            cbox(sx * 3.9 - 0.45, sx * 3.9 + 0.45, E(3.8), E(3.1), -1.0, 1.0, 0.2)
+        hull(D, pts, CORE)
 
 
 def build_arms(D):
@@ -364,35 +371,35 @@ def build_arms(D):
         def X(a, b, sx=sx):
             return (min(sx * a, sx * b), max(sx * a, sx * b))
         # Housing (columns 0-4, rows 4-7): rear outer corner cut, inner front corner cut.
-        poly = [(5.75, 0.05), (8.4, 0.05), (9.45, 1.1), (9.45, 4.0), (8.6, 4.9), (7.2, 4.9), (6.4, 4.2), (5.75, 1.0)]
+        poly = [(8.5, 0.7), (8.5, 4.9), (7.0, 4.0), (5.9, 3.0), (5.9, 1.0), (6.5, 0.7)]
         hull(D, prism_pts([(sx * x, E(e)) for x, e in poly], -1.6, 1.7, 0.3), STRUT)
-        cap = [(6.5, 0.7), (8.3, 0.7), (8.9, 1.3), (8.9, 3.6), (8.3, 4.2), (7.2, 4.2), (6.5, 3.5)]
+        cap = [(6.8, 1.2), (8.2, 0.9), (8.2, 3.6), (7.4, 4.0), (6.8, 3.0)]
         hull(D, prism_pts([(sx * x, E(e)) for x, e in cap], 1.5, 1.95, 0.12), STRUT)
         # Strut: a diagonal beam from the housing's front to the hub.
-        pts = cbox(*X(7.2, 9.4), E(4.9), E(3.0), -0.85, 1.45, 0.25) + cbox(*X(8.8, 11.2), E(6.8), E(5.2), -0.85, 1.45, 0.25)
+        pts = cbox(*X(7.2, 8.7), E(4.9), E(3.0), -0.85, 1.45, 0.25) + cbox(*X(9.45, 10.8), E(6.8), E(5.2), -0.85, 1.45, 0.25)
         hull(D, pts, STRUT)
-        pts = cbox(*X(7.7, 9.0), E(4.6), E(3.6), 1.3, 1.62, 0.1) + cbox(*X(9.2, 10.6), E(6.4), E(5.6), 1.3, 1.62, 0.1)
+        pts = cbox(*X(7.7, 8.5), E(4.6), E(3.6), 1.3, 1.62, 0.1) + cbox(*X(9.4, 10.6), E(6.4), E(5.6), 1.3, 1.62, 0.1)
         hull(D, pts, STRUT)
         # Hydraulic ram along the strut's outer side.
-        tube(D, [(sx * 9.25, E(2.4), -0.15), (sx * 10.55, E(5.9), -0.15)], 0.26, RAIL_LT, sides=8)
+        tube(D, [(sx * 9.9, E(4.3), -0.15), (sx * 10.1, E(5.9), -0.15)], 0.25, RAIL_LT, sides=8)
         # Rail: main bar, top strip, collar groove, tip block, blade.
-        hull(D, cbox(*X(8.55, 11.45), E(12.85), E(5.0), -0.8, 1.0, 0.3), RAIL)
-        hull(D, cbox(*X(9.55, 10.45), E(12.55), E(9.6), 0.85, 1.18, 0.1), RAIL)
-        hull(D, box8(*X(8.55, 11.45), E(13.32), E(12.83), -0.6, 0.72), DEEP)
-        hull(D, cbox(*X(8.5, 11.5), E(15.0), E(13.3), -0.95, 1.35, 0.3), RAIL)
+        hull(D, cbox(*X(9.15, 10.85), E(12.85), E(5.0), -0.8, 1.0, 0.3), RAIL)
+        hull(D, cbox(*X(9.4, 10.6), E(12.55), E(9.6), 0.85, 1.18, 0.1), RAIL)
+        hull(D, box8(*X(9.15, 10.85), E(13.32), E(12.83), -0.6, 0.72), DEEP)
+        hull(D, cbox(*X(9.1, 10.9), E(14.3), E(13.3), -0.95, 1.35, 0.3), RAIL)
         for e in (13.75, 14.55):
             lathe(D, (sx * 10.0, E(e), 1.3), (0, 0, 1), [(-0.05, 0.0), (-0.05, 0.2), (0.12, 0.2), (0.12, 0.0)],
                   sides=6, mats=[FRAME, FRAME, FRAME])
         blade = []
-        for x0, x1, e, z0, z1 in ((8.55, 11.45, 15.0, -0.55, 1.1), (8.62, 11.38, 15.98, -0.3, 0.2)):
+        for x0, x1, e, z0, z1 in ((9.15, 10.85, 14.3, -0.55, 1.1), (9.1, 10.9, 14.98, -0.3, 0.2)):
             blade += [(sx * x0, E(e), z0), (sx * x1, E(e), z0), (sx * x0, E(e), z1), (sx * x1, E(e), z1)]
-        blade += [(sx * 8.58, E(15.75), 0.55), (sx * 11.42, E(15.75), 0.55)]
+        blade += [(sx * 9.08, E(14.75), 0.55), (sx * 10.92, E(14.75), 0.55)]
         hull(D, blade, HUB)
         # Hub: a round boss at columns 6-9 with a slotted bolt cap.
         lathe(D, (sx * 10.0, E(8.0), 0.0), (0, 0, 1),
-              [(-1.1, 0.0), (-1.1, 1.25), (-0.88, 1.47), (1.32, 1.47), (1.55, 1.22), (1.55, 0.0)],
+              [(-1.1, 0.0), (-1.1, 0.85), (-0.88, 1.0), (1.32, 1.0), (1.55, 0.85), (1.55, 0.0)],
               sides=14, mats=[HUB] * 5)
-        lathe(D, (sx * 10.0, E(8.0), 0.0), (0, 0, 1), [(1.45, 0.0), (1.45, 0.45), (1.88, 0.42), (1.98, 0.32), (1.98, 0.0)],
+        lathe(D, (sx * 10.0, E(8.0), 0.0), (0, 0, 1), [(1.45, 0.0), (1.45, 0.3), (1.88, 0.3), (1.98, 0.25), (1.98, 0.0)],
               sides=10, mats=[CORE] * 4)
         hull(D, box8(sx * 10.0 - 0.3, sx * 10.0 + 0.3, E(8.06), E(7.94), 1.9, 2.02), DEEP)
 

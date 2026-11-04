@@ -47,7 +47,7 @@
     "enemyUnits": 166,
     "enemyUnitsModelled": 162,
     "enemyUnitsFlagship": 30,
-    "damageFramesMissing": 110,
+    "damageFramesMissing": 0,
     "tilesets": 2,
     "tilesetsWithHd": 1,
     "tilesetsWithModels": 1,
@@ -92,7 +92,7 @@
     "enemyUnits": 152,
     "enemyUnitsModelled": 144,
     "enemyUnitsFlagship": 6,
-    "damageFramesMissing": 26,
+    "damageFramesMissing": 4,
     "tilesets": 2,
     "tilesetsWithHd": 1,
     "tilesetsWithModels": 1,
@@ -136,7 +136,7 @@
     "enemyUnits": 198,
     "enemyUnitsModelled": 196,
     "enemyUnitsFlagship": 28,
-    "damageFramesMissing": 127,
+    "damageFramesMissing": 0,
     "tilesets": 3,
     "tilesetsWithHd": 1,
     "tilesetsWithModels": 1,
@@ -199,7 +199,7 @@
     "enemyUnits": 197,
     "enemyUnitsModelled": 159,
     "enemyUnitsFlagship": 1,
-    "damageFramesMissing": 27,
+    "damageFramesMissing": 0,
     "tilesets": 5,
     "tilesetsWithHd": 1,
     "tilesetsWithModels": 1,
@@ -12391,11 +12391,7 @@
     "newsh^.shp|2": [1,3,5,39,41,43]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newsh^.shp|2": [1,3,5,39,41,43]
-   },
-   "damageMissingCount": 6,
+   "damage": "modelled",
    "framesSeen": {
     "newsh^.shp|2": [1,3,5,7,9,39,41,43,77,79,81,115,117,119]
    },
@@ -13042,11 +13038,7 @@
     "newsh3.shp|2": [239,277]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newsh3.shp|2": [239,277]
-   },
-   "damageMissingCount": 2,
+   "damage": "modelled",
    "framesSeen": {
     "newsh3.shp|2": [237,239,275,277]
    },
@@ -13197,12 +13189,7 @@
     "newsh4.shp|2": [162,164,168,170,200,202,206,208,238,240,242,244,246,278,280,282]
    },
    "status": "flagship",
-   "damage": "missing",
-   "damageMissing": {
-    "newsh4.shp|2": [162,164,168,170,200,202,206,208,240,242,244,246,280]
-   },
-   "damageMissingCount": 13,
-   "knownDamageSwap": true,
+   "damage": "modelled",
    "bake": "model",
    "framesSeen": {
     "newsh4.shp|2": [1,3,5,7,10,12,14,16,18,39,41,43,45,48,50,54,56,86,88,90,92,94,124,126,128,130,132,162,164,168,170,200,202,206,208,240,242,244,246,280]
@@ -13937,11 +13924,7 @@
     "newsh8.shp|2": [163,201,239]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newsh8.shp|2": [163,201,239]
-   },
-   "damageMissingCount": 3,
+   "damage": "modelled",
    "framesSeen": {
     "newsh8.shp|2": [161,163,165,167,169,199,201,203,205,207,237,239,241,243,245,277,279,281]
    },
@@ -14606,11 +14589,7 @@
     "newshb.shp|2": [49,51,53,55,87,89,91,93,125,127,129,131,208,246,284]
    },
    "status": "concept",
-   "damage": "missing",
-   "damageMissing": {
-    "newshb.shp|2": [49,51,53,55,87,89,91,93,125,127,129,131,208,246,284]
-   },
-   "damageMissingCount": 15,
+   "damage": "modelled",
    "bake": "concept",
    "framesSeen": {
     "newshb.shp|2": [39,41,43,45,47,49,51,53,55,77,79,81,83,85,87,89,91,93,115,117,119,121,123,125,127,129,131,195,197,199,201,208,233,235,237,246,271,273,275,284]
@@ -14655,11 +14634,7 @@
     "newshb.shp|2": [164,166,168,170]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshb.shp|2": [164,166,168,170]
-   },
-   "damageMissingCount": 4,
+   "damage": "modelled",
    "framesSeen": {
     "newshb.shp|2": [154,156,158,160,164,166,168,170,191,193,229,231,267,269]
    },
@@ -14694,11 +14669,7 @@
     "newshb.shp|2": [12,14,16,18]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshb.shp|2": [12,14,16,18]
-   },
-   "damageMissingCount": 4,
+   "damage": "modelled",
    "framesSeen": {
     "newshb.shp|2": [2,4,6,8,12,14,16,18]
    },
@@ -14759,11 +14730,7 @@
     "newshc.shp|2": [45,47]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshc.shp|2": [45,47]
-   },
-   "damageMissingCount": 2,
+   "damage": "modelled",
    "framesSeen": {
     "newshc.shp|2": [45,47,197,199,201,203,205,207]
    },
@@ -14797,11 +14764,7 @@
     "newshc.shp|2": [277,279,281]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshc.shp|2": [277,279,281]
-   },
-   "damageMissingCount": 3,
+   "damage": "modelled",
    "framesSeen": {
     "newshc.shp|2": [239,241,243,277,279,281]
    },
@@ -14835,11 +14798,7 @@
     "newshc.shp|2": [231,233,235]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshc.shp|2": [231,233,235]
-   },
-   "damageMissingCount": 3,
+   "damage": "modelled",
    "framesSeen": {
     "newshc.shp|2": [231,233,235,269,271,273]
    },
@@ -14873,11 +14832,7 @@
     "newshc.shp|2": [93,129,131,229,267]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshc.shp|2": [93,129,131,229,267]
-   },
-   "damageMissingCount": 5,
+   "damage": "modelled",
    "framesSeen": {
     "newshc.shp|2": [17,55,93,115,129,131,229,245,267,283]
    },
@@ -14949,12 +14904,7 @@
     "newshp.shp|2": [125,129]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshd.shp|2": [163,167],
-    "newshp.shp|2": [125,129]
-   },
-   "damageMissingCount": 4,
+   "damage": "modelled",
    "framesSeen": {
     "newshd.shp|2": [155,163,165,167],
     "newshp.shp|2": [123,125,127,129]
@@ -15211,12 +15161,7 @@
     "newshe.shp|2": [7,9,11,45,47,49]
    },
    "status": "flagship",
-   "damage": "missing",
-   "damageMissing": {
-    "newshe.shp|2": [7,9,11,45,47,49]
-   },
-   "damageMissingCount": 6,
-   "knownDamageSwap": true,
+   "damage": "modelled",
    "bake": "model",
    "framesSeen": {
     "newshe.shp|2": [1,3,5,7,9,11,39,41,43,45,47]
@@ -15505,11 +15450,7 @@
     "newshg.shp|2": [169]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshg.shp|2": [169]
-   },
-   "damageMissingCount": 1,
+   "damage": "modelled",
    "framesSeen": {
     "newshg.shp|2": [165,169,203,205,241,245,279,281]
    },
@@ -15895,11 +15836,7 @@
     "newshi.shp|2": [11,13,47,49,51,53,85,87,89,91,123,125,127,129]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshi.shp|2": [11,13,47,49,51,53,85,87,89,91,123,125,127,129]
-   },
-   "damageMissingCount": 14,
+   "damage": "modelled",
    "framesSeen": {
     "newshi.shp|2": [3,5,17,39,41,43,45,47,49,51,53,55,77,79,81,83,85,87,89,91,93,115,117,119,121,123,125,127,129,131]
    },
@@ -15946,11 +15883,7 @@
     "newshi.shp|2": [162,164,166]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshi.shp|2": [162,164,166]
-   },
-   "damageMissingCount": 3,
+   "damage": "modelled",
    "framesSeen": {
     "newshi.shp|2": [154,156,158,162,164,166]
    },
@@ -16021,11 +15954,7 @@
     "newshj.shp|2": [273]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshj.shp|2": [273]
-   },
-   "damageMissingCount": 1,
+   "damage": "modelled",
    "framesSeen": {
     "newshj.shp|2": [17,55,89,91,93,127,129,273,279,281]
    },
@@ -16447,11 +16376,7 @@
     "newshl.shp|2": [83,85,121,123]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshl.shp|2": [83,85,121,123]
-   },
-   "damageMissingCount": 4,
+   "damage": "modelled",
    "framesSeen": {
     "newshl.shp|2": [7,9,45,47,83,85,121,123]
    },
@@ -16483,11 +16408,7 @@
     "newshl.shp|2": [87,89,125,127]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshl.shp|2": [87,89,125,127]
-   },
-   "damageMissingCount": 4,
+   "damage": "modelled",
    "framesSeen": {
     "newshl.shp|2": [11,13,49,51,87,89,125,127]
    },
@@ -16547,11 +16468,7 @@
     "newshm.shp|2": [2,3]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshm.shp|2": [2,3]
-   },
-   "damageMissingCount": 2,
+   "damage": "modelled",
    "framesSeen": {
     "newshm.shp|2": [1,3]
    },
@@ -16587,11 +16504,7 @@
     "newshm.shp|2": [39,41,43,77,81]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshm.shp|2": [39,41,43,77,81]
-   },
-   "damageMissingCount": 5,
+   "damage": "modelled",
    "framesSeen": {
     "newshm.shp|2": [39,41,43,45,47,49,77,81,83,87]
    },
@@ -16627,11 +16540,7 @@
     "newshn.shp|2": [87,89,91,93,127,129,131,165,167,169]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshn.shp|2": [87,89,91,93,127,129,131,165,167,169]
-   },
-   "damageMissingCount": 10,
+   "damage": "modelled",
    "framesSeen": {
     "newshn.shp|2": [77,79,81,83,87,89,91,93,115,117,119,121,123,127,129,131,153,155,157,159,161,165,167,169,193,195,197,229,231,233,235,237,239,241,243,267,269,271,273,275,277,279,281]
    },
@@ -16791,11 +16700,7 @@
     "newshp.shp|2": [169,207]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshp.shp|2": [169,207]
-   },
-   "damageMissingCount": 2,
+   "damage": "modelled",
    "framesSeen": {
     "newshp.shp|2": [165,167,169,203,205,207,241,243]
    },
@@ -16834,11 +16739,7 @@
     "newshp.shp|2": [121]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshp.shp|2": [121]
-   },
-   "damageMissingCount": 1,
+   "damage": "modelled",
    "framesSeen": {
     "newshp.shp|2": [115,117,119,121,229,231,267,269]
    },
@@ -16877,11 +16778,7 @@
     "newshp.shp|2": [47,49]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshp.shp|2": [47,49]
-   },
-   "damageMissingCount": 2,
+   "damage": "modelled",
    "framesSeen": {
     "newshp.shp|2": [1,3,5,7,9,11,39,41,43,45,77,79,81,83]
    },
@@ -17094,11 +16991,7 @@
     "newshs.shp|2": [17,55]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshs.shp|2": [17,55]
-   },
-   "damageMissingCount": 2,
+   "damage": "modelled",
    "framesSeen": {
     "newshs.shp|2": [13,15,17,51,53,55,89,91]
    },
@@ -17136,11 +17029,7 @@
     "newshs.shp|2": [169,207,245,283]
    },
    "status": "partial",
-   "damage": "missing",
-   "damageMissing": {
-    "newshs.shp|2": [169,207,245,283]
-   },
-   "damageMissingCount": 4,
+   "damage": "modelled",
    "framesSeen": {
     "newshs.shp|2": [165,167,169,203,205,207,241,243,245,279,281,283]
    },
@@ -17243,11 +17132,7 @@
     "newsht.shp|2": [115,119,121,125,153,163]
    },
    "status": "partial",
-   "damage": "missing",
-   "damageMissing": {
-    "newsht.shp|2": [115,119,121,125,153,163]
-   },
-   "damageMissingCount": 6,
+   "damage": "modelled",
    "framesSeen": {
     "newsht.shp|2": [1,3,5,7,9,11,39,41,43,45,47,49,77,79,85,87,115,117,119,121,123,125,153,157,159,163]
    },
@@ -17304,11 +17189,7 @@
     "newshu.shp|2": [7,9,11,77,115,117,119,121,123,125,127]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshu.shp|2": [7,9,11,77,115,117,119,121,123,125,127]
-   },
-   "damageMissingCount": 11,
+   "damage": "modelled",
    "framesSeen": {
     "newshu.shp|2": [1,3,5,7,9,11,39,41,43,77,79,115,117,119,121,123,125,127]
    },
@@ -20599,11 +20480,7 @@
     "newsh8.shp|1": [140]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newsh8.shp|1": [140]
-   },
-   "damageMissingCount": 1,
+   "damage": "modelled",
    "framesSeen": {
     "newsh8.shp|1": [102,140]
    },
@@ -21678,11 +21555,7 @@
     "newshc.shp|1": [276]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshc.shp|1": [276]
-   },
-   "damageMissingCount": 1,
+   "damage": "modelled",
    "framesSeen": {
     "newshc.shp|1": [238,276]
    },
@@ -21714,11 +21587,7 @@
     "newshc.shp|1": [237]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshc.shp|1": [237]
-   },
-   "damageMissingCount": 1,
+   "damage": "modelled",
    "framesSeen": {
     "newshc.shp|1": [237,275]
    },
@@ -21813,11 +21682,7 @@
     "newshc.shp|2": [91]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshc.shp|2": [91]
-   },
-   "damageMissingCount": 1,
+   "damage": "modelled",
    "framesSeen": {
     "newshc.shp|2": [77,79,81,83,85,87,89,91]
    },
@@ -23479,11 +23344,7 @@
     "newshg.shp|2": [207]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshg.shp|2": [207]
-   },
-   "damageMissingCount": 1,
+   "damage": "modelled",
    "framesSeen": {
     "newshg.shp|2": [167,207,243,283]
    },
@@ -23766,11 +23627,7 @@
     "newshh.shp|2": [41]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshh.shp|2": [41]
-   },
-   "damageMissingCount": 1,
+   "damage": "modelled",
    "framesSeen": {
     "newshh.shp|2": [79]
    },
@@ -23880,11 +23737,7 @@
     "newshi.shp|1": [114]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshi.shp|1": [114]
-   },
-   "damageMissingCount": 1,
+   "damage": "modelled",
    "framesSeen": {
     "newshi.shp|1": [19,38,57,76,95,114]
    },
@@ -23917,11 +23770,7 @@
     "newshi.shp|2": [268,270,272]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshi.shp|2": [268,270,272]
-   },
-   "damageMissingCount": 3,
+   "damage": "modelled",
    "framesSeen": {
     "newshi.shp|2": [268,270,272,278]
    },
@@ -23953,11 +23802,7 @@
     "newshj.shp|2": [3]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshj.shp|2": [3]
-   },
-   "damageMissingCount": 1,
+   "damage": "modelled",
    "framesSeen": {
     "newshj.shp|2": [1,3]
    },
@@ -24080,11 +23925,7 @@
     "newshj.shp|2": [41]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshj.shp|2": [41]
-   },
-   "damageMissingCount": 1,
+   "damage": "modelled",
    "framesSeen": {
     "newshj.shp|2": [41,77,79,81]
    },
@@ -24866,11 +24707,7 @@
     "newshl.shp|2": [100]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshl.shp|2": [100]
-   },
-   "damageMissingCount": 1,
+   "damage": "modelled",
    "framesSeen": {
     "newshl.shp|2": [24,100]
    },
@@ -24926,11 +24763,7 @@
     "newshl.shp|2": [110]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshl.shp|2": [110]
-   },
-   "damageMissingCount": 1,
+   "damage": "modelled",
    "framesSeen": {
     "newshl.shp|2": [34,110]
    },
@@ -25149,11 +24982,7 @@
     "newshm.shp|2": [2]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshm.shp|2": [2]
-   },
-   "damageMissingCount": 1,
+   "damage": "modelled",
    "framesSeen": {
     "newshm.shp|2": [153]
    },
@@ -25272,11 +25101,7 @@
     "newshm.shp|2": [79]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshm.shp|2": [79]
-   },
-   "damageMissingCount": 1,
+   "damage": "modelled",
    "framesSeen": {
     "newshm.shp|2": [7,9,11,79,85]
    },
@@ -25916,11 +25741,7 @@
     "newshp.shp|2": [87]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshp.shp|2": [87]
-   },
-   "damageMissingCount": 1,
+   "damage": "modelled",
    "framesSeen": {
     "newshp.shp|2": [87,237,239,245,279,281,283]
    },
@@ -25949,11 +25770,7 @@
     "newshp.shp|2": [235]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshp.shp|2": [235]
-   },
-   "damageMissingCount": 1,
+   "damage": "modelled",
    "framesSeen": {
     "newshp.shp|2": [271,273,275,277]
    },
@@ -25982,11 +25799,7 @@
     "newshp.shp|2": [87]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshp.shp|2": [87]
-   },
-   "damageMissingCount": 1,
+   "damage": "modelled",
    "framesSeen": {
     "newshp.shp|2": [53]
    },
@@ -26308,11 +26121,7 @@
     "newshs.shp|2": [273]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshs.shp|2": [273]
-   },
-   "damageMissingCount": 1,
+   "damage": "modelled",
    "framesSeen": {
     "newshs.shp|2": [267,273]
    },
@@ -26344,11 +26153,7 @@
     "newshs.shp|2": [275]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshs.shp|2": [275]
-   },
-   "damageMissingCount": 1,
+   "damage": "modelled",
    "framesSeen": {
     "newshs.shp|2": [269,275]
    },
@@ -26384,11 +26189,7 @@
     "newshs.shp|2": [237]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshs.shp|2": [237]
-   },
-   "damageMissingCount": 1,
+   "damage": "modelled",
    "framesSeen": {
     "newshs.shp|2": [237,271]
    },
@@ -26543,11 +26344,7 @@
     "newshu.shp|2": [9]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshu.shp|2": [9]
-   },
-   "damageMissingCount": 1,
+   "damage": "modelled",
    "framesSeen": {
     "newshu.shp|2": [15]
    },
@@ -26578,11 +26375,7 @@
     "newshu.shp|2": [11]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshu.shp|2": [11]
-   },
-   "damageMissingCount": 1,
+   "damage": "modelled",
    "framesSeen": {
     "newshu.shp|2": [17]
    },
@@ -26644,11 +26437,7 @@
     "newshu.shp|1": [57,76,95]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshu.shp|1": [57,76,95]
-   },
-   "damageMissingCount": 3,
+   "damage": "modelled",
    "framesSeen": {
     "newshu.shp|1": [38,57,76,95]
    },
@@ -26709,11 +26498,7 @@
     "newshu.shp|2": [83,85,87]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshu.shp|2": [83,85,87]
-   },
-   "damageMissingCount": 3,
+   "damage": "modelled",
    "framesSeen": {
     "newshu.shp|2": [53,83,85,87]
    },
@@ -26744,11 +26529,7 @@
     "newshu.shp|2": [127]
    },
    "status": "basic",
-   "damage": "missing",
-   "damageMissing": {
-    "newshu.shp|2": [127]
-   },
-   "damageMissingCount": 1,
+   "damage": "modelled",
    "framesSeen": {
     "newshu.shp|2": [55]
    },
@@ -34975,7 +34756,7 @@
    {
     "id": "newshs-269",
     "what": "air",
-    "status": "basic, 1 damaged frames unmodelled",
+    "status": "basic",
     "levels": 6,
     "episodes": 3,
     "events": 43,
@@ -35047,7 +34828,7 @@
    {
     "id": "assembly-newshp-267",
     "what": "air",
-    "status": "basic, 1 damaged frames unmodelled",
+    "status": "basic",
     "levels": 5,
     "episodes": 3,
     "events": 85,
@@ -35171,15 +34952,6 @@
     "ticks": 1410
    },
    {
-    "id": "assembly-newsh4-124",
-    "what": "decor+ground (boss)",
-    "status": "flagship, 13 damaged frames unmodelled",
-    "levels": 5,
-    "episodes": 2,
-    "events": 120,
-    "ticks": 125701
-   },
-   {
     "id": "newsha-169",
     "what": "ground",
     "status": "basic",
@@ -35290,7 +35062,7 @@
    {
     "id": "assembly-newshp-165",
     "what": "air",
-    "status": "basic, 2 damaged frames unmodelled",
+    "status": "basic",
     "levels": 4,
     "episodes": 3,
     "events": 30,
@@ -35380,7 +35152,7 @@
    {
     "id": "assembly-newshm-1",
     "what": "air+ground",
-    "status": "basic, 2 damaged frames unmodelled",
+    "status": "basic",
     "levels": 4,
     "episodes": 2,
     "events": 1288,
@@ -35389,7 +35161,7 @@
    {
     "id": "assembly-newshi-115",
     "what": "ground (boss)",
-    "status": "basic, 14 damaged frames unmodelled",
+    "status": "basic",
     "levels": 4,
     "episodes": 2,
     "events": 504,
@@ -35407,7 +35179,7 @@
    {
     "id": "newshi-19",
     "what": "ground",
-    "status": "basic, 1 damaged frames unmodelled",
+    "status": "basic",
     "levels": 4,
     "episodes": 2,
     "events": 0,
@@ -35416,7 +35188,7 @@
    {
     "id": "assembly-newshi-154",
     "what": "ground (boss)",
-    "status": "basic, 3 damaged frames unmodelled",
+    "status": "basic",
     "levels": 4,
     "episodes": 2,
     "events": 108,
@@ -35448,15 +35220,6 @@
     "episodes": 2,
     "events": 127,
     "ticks": 5185
-   },
-   {
-    "id": "assembly-newshe-39",
-    "what": "air",
-    "status": "flagship, 6 damaged frames unmodelled",
-    "levels": 4,
-    "episodes": 2,
-    "events": 42,
-    "ticks": 4282
    },
    {
     "id": "newsh-caret-163",
@@ -35524,7 +35287,7 @@
    {
     "id": "assembly-newsht-39",
     "what": "air+decor+ground (boss)",
-    "status": "partial, 6 damaged frames unmodelled",
+    "status": "partial",
     "levels": 3,
     "episodes": 3,
     "events": 288,
@@ -35551,7 +35314,7 @@
    {
     "id": "assembly-newshs-13",
     "what": "air",
-    "status": "basic, 2 damaged frames unmodelled",
+    "status": "basic",
     "levels": 3,
     "episodes": 3,
     "events": 18,
@@ -35578,7 +35341,7 @@
    {
     "id": "assembly-newshc-197",
     "what": "ground (boss)",
-    "status": "basic, 2 damaged frames unmodelled",
+    "status": "basic",
     "levels": 3,
     "episodes": 2,
     "events": 270,
@@ -35731,7 +35494,7 @@
    {
     "id": "newshi-278",
     "what": "ground",
-    "status": "basic, 3 damaged frames unmodelled",
+    "status": "basic",
     "levels": 3,
     "episodes": 2,
     "events": 26,
@@ -35875,7 +35638,7 @@
    {
     "id": "assembly-newshg-203",
     "what": "air",
-    "status": "basic, 1 damaged frames unmodelled",
+    "status": "basic",
     "levels": 3,
     "episodes": 1,
     "events": 48,
@@ -35884,7 +35647,7 @@
    {
     "id": "assembly-newshj-127",
     "what": "air+decor",
-    "status": "basic, 1 damaged frames unmodelled",
+    "status": "basic",
     "levels": 3,
     "episodes": 1,
     "events": 56,
@@ -35902,7 +35665,7 @@
    {
     "id": "newshg-167",
     "what": "decor",
-    "status": "basic, 1 damaged frames unmodelled",
+    "status": "basic",
     "levels": 3,
     "episodes": 1,
     "events": 16,
@@ -35920,7 +35683,7 @@
    {
     "id": "newshj-1",
     "what": "air",
-    "status": "basic, 1 damaged frames unmodelled",
+    "status": "basic",
     "levels": 3,
     "episodes": 1,
     "events": 45,
@@ -35956,7 +35719,7 @@
    {
     "id": "assembly-newshc-283",
     "what": "air",
-    "status": "basic, 5 damaged frames unmodelled",
+    "status": "basic",
     "levels": 2,
     "episodes": 2,
     "events": 94,
@@ -35965,7 +35728,7 @@
    {
     "id": "assembly-newshs-165",
     "what": "air (boss)",
-    "status": "partial, 4 damaged frames unmodelled",
+    "status": "partial",
     "levels": 2,
     "episodes": 2,
     "events": 52,
@@ -35974,7 +35737,7 @@
    {
     "id": "assembly-newshm-45",
     "what": "air (boss)",
-    "status": "basic, 5 damaged frames unmodelled",
+    "status": "basic",
     "levels": 2,
     "episodes": 2,
     "events": 25,
@@ -36055,7 +35818,7 @@
    {
     "id": "assembly-newshu-79",
     "what": "air",
-    "status": "basic, 11 damaged frames unmodelled",
+    "status": "basic",
     "levels": 2,
     "episodes": 2,
     "events": 32,
@@ -36091,7 +35854,7 @@
    {
     "id": "newshc-77",
     "what": "air",
-    "status": "basic, 1 damaged frames unmodelled",
+    "status": "basic",
     "levels": 2,
     "episodes": 2,
     "events": 14,
@@ -36118,7 +35881,7 @@
    {
     "id": "assembly-newshc-271",
     "what": "air (boss)",
-    "status": "basic, 3 damaged frames unmodelled",
+    "status": "basic",
     "levels": 2,
     "episodes": 2,
     "events": 36,
@@ -36136,7 +35899,7 @@
    {
     "id": "newshm-7",
     "what": "air (boss)",
-    "status": "basic, 1 damaged frames unmodelled",
+    "status": "basic",
     "levels": 2,
     "episodes": 2,
     "events": 5,
@@ -36145,7 +35908,7 @@
    {
     "id": "newshs-267",
     "what": "air (boss)",
-    "status": "basic, 1 damaged frames unmodelled",
+    "status": "basic",
     "levels": 2,
     "episodes": 2,
     "events": 5,
@@ -36163,7 +35926,7 @@
    {
     "id": "assembly-newshc-243",
     "what": "air (boss)",
-    "status": "basic, 3 damaged frames unmodelled",
+    "status": "basic",
     "levels": 2,
     "episodes": 2,
     "events": 24,
@@ -36172,7 +35935,7 @@
    {
     "id": "newshc-275",
     "what": "air (boss)",
-    "status": "basic, 1 damaged frames unmodelled",
+    "status": "basic",
     "levels": 2,
     "episodes": 2,
     "events": 12,
@@ -36181,7 +35944,7 @@
    {
     "id": "newshu-53",
     "what": "air",
-    "status": "basic, 3 damaged frames unmodelled",
+    "status": "basic",
     "levels": 2,
     "episodes": 2,
     "events": 4,
@@ -36199,7 +35962,7 @@
    {
     "id": "newshu-38",
     "what": "air",
-    "status": "basic, 3 damaged frames unmodelled",
+    "status": "basic",
     "levels": 2,
     "episodes": 2,
     "events": 4,
@@ -36208,7 +35971,7 @@
    {
     "id": "newshu-55",
     "what": "air",
-    "status": "basic, 1 damaged frames unmodelled",
+    "status": "basic",
     "levels": 2,
     "episodes": 2,
     "events": 4,
@@ -36235,7 +35998,7 @@
    {
     "id": "newshc-238",
     "what": "air (boss)",
-    "status": "basic, 1 damaged frames unmodelled",
+    "status": "basic",
     "levels": 2,
     "episodes": 2,
     "events": 8,
@@ -36244,7 +36007,7 @@
    {
     "id": "newshu-15",
     "what": "air",
-    "status": "basic, 1 damaged frames unmodelled",
+    "status": "basic",
     "levels": 2,
     "episodes": 2,
     "events": 4,
@@ -36253,7 +36016,7 @@
    {
     "id": "newshu-17",
     "what": "air",
-    "status": "basic, 1 damaged frames unmodelled",
+    "status": "basic",
     "levels": 2,
     "episodes": 2,
     "events": 4,
@@ -36352,7 +36115,7 @@
    {
     "id": "newsh8-102",
     "what": "ground",
-    "status": "basic, 1 damaged frames unmodelled",
+    "status": "basic",
     "levels": 2,
     "episodes": 1,
     "events": 0,
@@ -36361,7 +36124,7 @@
    {
     "id": "assembly-newsh8-243",
     "what": "decor+ground",
-    "status": "basic, 3 damaged frames unmodelled",
+    "status": "basic",
     "levels": 2,
     "episodes": 1,
     "events": 204,
@@ -36811,7 +36574,7 @@
    {
     "id": "assembly-newshd-165",
     "what": "air",
-    "status": "basic, 4 damaged frames unmodelled",
+    "status": "basic",
     "levels": 2,
     "episodes": 1,
     "events": 36,
@@ -36937,7 +36700,7 @@
    {
     "id": "newshj-77",
     "what": "air",
-    "status": "basic, 1 damaged frames unmodelled",
+    "status": "basic",
     "levels": 2,
     "episodes": 1,
     "events": 18,
@@ -37072,7 +36835,7 @@
    {
     "id": "assembly-newshb-115",
     "what": "ground (boss)",
-    "status": "concept, 15 damaged frames unmodelled",
+    "status": "concept",
     "levels": 1,
     "episodes": 1,
     "events": 90,
@@ -37099,7 +36862,7 @@
    {
     "id": "assembly-newshn-195",
     "what": "decor+ground (boss)",
-    "status": "basic, 10 damaged frames unmodelled",
+    "status": "basic",
     "levels": 1,
     "episodes": 1,
     "events": 17,
@@ -37180,7 +36943,7 @@
    {
     "id": "assembly-newshl-45",
     "what": "ground",
-    "status": "basic, 4 damaged frames unmodelled",
+    "status": "basic",
     "levels": 1,
     "episodes": 1,
     "events": 4,
@@ -37189,7 +36952,7 @@
    {
     "id": "assembly-newshl-49",
     "what": "ground",
-    "status": "basic, 4 damaged frames unmodelled",
+    "status": "basic",
     "levels": 1,
     "episodes": 1,
     "events": 4,
@@ -37234,7 +36997,7 @@
    {
     "id": "assembly-newsh-caret-77",
     "what": "air+decor (boss)",
-    "status": "basic, 6 damaged frames unmodelled",
+    "status": "basic",
     "levels": 1,
     "episodes": 1,
     "events": 24,
@@ -37387,7 +37150,7 @@
    {
     "id": "assembly-newshb-154",
     "what": "ground (boss)",
-    "status": "basic, 4 damaged frames unmodelled",
+    "status": "basic",
     "levels": 1,
     "episodes": 1,
     "events": 24,
@@ -37423,7 +37186,7 @@
    {
     "id": "assembly-newshb-2",
     "what": "ground (boss)",
-    "status": "basic, 4 damaged frames unmodelled",
+    "status": "basic",
     "levels": 1,
     "episodes": 1,
     "events": 24,
@@ -37711,7 +37474,7 @@
    {
     "id": "newshl-24",
     "what": "ground",
-    "status": "basic, 1 damaged frames unmodelled",
+    "status": "basic",
     "levels": 1,
     "episodes": 1,
     "events": 1,
@@ -37720,7 +37483,7 @@
    {
     "id": "newshl-34",
     "what": "ground",
-    "status": "basic, 1 damaged frames unmodelled",
+    "status": "basic",
     "levels": 1,
     "episodes": 1,
     "events": 1,
@@ -37792,7 +37555,7 @@
    {
     "id": "assembly-newshp-9",
     "what": "air",
-    "status": "basic, 2 damaged frames unmodelled",
+    "status": "basic",
     "levels": 1,
     "episodes": 1,
     "events": 30,
@@ -37891,7 +37654,7 @@
    {
     "id": "assembly-newsh3-275",
     "what": "air+ground",
-    "status": "basic, 2 damaged frames unmodelled",
+    "status": "basic",
     "levels": 1,
     "episodes": 1,
     "events": 12,
@@ -38107,7 +37870,7 @@
    {
     "id": "newshp-237",
     "what": "air",
-    "status": "basic, 1 damaged frames unmodelled",
+    "status": "basic",
     "levels": 1,
     "episodes": 1,
     "events": 5,
@@ -38287,7 +38050,7 @@
    {
     "id": "newshs-271",
     "what": "ground",
-    "status": "basic, 1 damaged frames unmodelled",
+    "status": "basic",
     "levels": 1,
     "episodes": 1,
     "events": 6,
@@ -38566,7 +38329,7 @@
    {
     "id": "newshm-153",
     "what": "ground",
-    "status": "basic, 1 damaged frames unmodelled",
+    "status": "basic",
     "levels": 1,
     "episodes": 1,
     "events": 94,
@@ -38701,7 +38464,7 @@
    {
     "id": "newshp-271",
     "what": "air",
-    "status": "basic, 1 damaged frames unmodelled",
+    "status": "basic",
     "levels": 1,
     "episodes": 1,
     "events": 2,
@@ -38719,7 +38482,7 @@
    {
     "id": "newshp-53",
     "what": "air",
-    "status": "basic, 1 damaged frames unmodelled",
+    "status": "basic",
     "levels": 1,
     "episodes": 1,
     "events": 2,
@@ -38800,7 +38563,7 @@
    {
     "id": "newshh-79",
     "what": "air",
-    "status": "basic, 1 damaged frames unmodelled",
+    "status": "basic",
     "levels": 1,
     "episodes": 1,
     "events": 2,

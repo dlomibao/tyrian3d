@@ -140,11 +140,37 @@ PLAN = T.fillet(_CORNERS, 0.9, 3)
 UPPER = clip(PLAN, 1, 14.2, True)
 
 
+# D74 inner-edge refit: the model is built on the sprite's whole mask (outer edge of its ink ring)
+# above, then its plan is pulled in to the INNER edge of the ring (docs/agents/OUTLINE-BORDER.md),
+# so the game's own ink lands where the sprite's ring is. Only the outer band moves: the sides
+# c 1 -> 2 and 24 -> 23, the deck's nose edge r 1 -> 2, the tail r 26 -> 25 (piecewise linear
+# maps, identity over the middle, so the window, cage, spines, vents and nacelles keep their
+# sprite positions). The window housing (proud of the nose, the sprite's row 0, ink) has its own
+# map: its front face moves from r 0.05 to the inner edge at r 1 and the glass stays on row 1.
+
+def _pl(x, knots):
+    for (a, a2), (b, b2) in zip(knots, knots[1:]):
+        if x <= b or (b, b2) == knots[-1]:
+            return a2 + (x - a) * (b2 - a2) / (b - a)
+    return x
+
+
+def refit_c(c):
+    return _pl(c, ((-1.0, 0.0), (1.0, 2.0), (4.0, 4.0), (21.0, 21.0), (24.0, 23.0), (26.0, 25.0)))
+
+
+def refit_r(r, zone="body"):
+    if zone == "window":
+        return _pl(r, ((-1.0, 0.95), (0.0, 0.95), (1.0, 1.15), (1.6, 1.6), (30.0, 30.0)))
+    return _pl(r, ((-1.0, 1.0), (1.0, 2.0), (4.0, 4.0), (20.0, 20.0), (26.0, 25.0), (30.0, 29.0)))
+
+
 # --- solids --------------------------------------------------------------------------------------
 
 class Model:
     def __init__(self):
-        self.parts = []  # (bmesh, smooth_angle)
+        self.parts = []  # (bmesh, smooth_angle, zone)
+        self.zone = "body"  # which refit map (refit_c/refit_r) the next parts take
 
     def hull(self, pts, mat, by_normal=None, smooth=30):
         """A closed convex block through pts [(c, r, z)]; by_normal(n) -> material overrides."""
@@ -163,7 +189,7 @@ class Model:
                 m = by_normal(f.normal)
                 if m is not None:
                     f.material_index = m
-        self.parts.append((bm, smooth))
+        self.parts.append((bm, smooth, self.zone))
         return bm
 
     def prism(self, poly, z0, z1, mat, ch=0.12, chb=0.0, by_normal=None):
@@ -201,7 +227,7 @@ class Model:
                 f.material_index = mat
         bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-        self.parts.append((bm, smooth))
+        self.parts.append((bm, smooth, self.zone))
         return bm
 
     def strap(self, path, r0, r1, thick, mat, ch=0.14):
@@ -320,8 +346,10 @@ def build_window(m):
     m.hull([(c, r, z) for c in (8.3, 16.7) for r, z in ((0.55, 3.4), (0.75, 2.2), (1.6, 1.0), (2.4, 1.0), (2.4, 3.4))]
            + [(c, r, z) for c in (8.8, 16.2) for r, z in ((0.45, 3.2), (0.65, 2.3))], M["housing"])
     # Cheek plates either side of it, angled, meeting the window housing's sides.
+    m.zone = "body"  # they sit on the deck's front face, so they follow the deck's refit
     for c0, c1 in ((5.6, 8.3), (mirror_c(8.3), mirror_c(5.6))):
         m.hull([(c, r, z) for c in (c0, c1) for r, z in ((1.08, 6.3), (1.05, 2.6), (1.6, 1.5), (1.75, 6.3))], M["wall"])
+    m.zone = "window"
     # Faceted glass block, cols 9-16 rows 0.8-3.9: raked front facet, flat top, bevelled rear.
     def glass_mat(n):
         if n.y > 0.3 or n.x < -0.3:   # rear and left facets: the sprite's bright 134 rows
@@ -416,7 +444,9 @@ def finish(m, mats, coll):
     from mathutils import Matrix
     mat4 = Matrix(((PX, 0, 0, -12 * PX), (0, -PX, 0, 14 * PX), (0, 0, PX, Z0 * PX), (0, 0, 0, 1)))
     objs = []
-    for k, (bm, smooth) in enumerate(m.parts):
+    for k, (bm, smooth, zone) in enumerate(m.parts):
+        for v in bm.verts:
+            v.co.x, v.co.y = refit_c(v.co.x), refit_r(v.co.y, zone)
         bmesh.ops.transform(bm, matrix=mat4, verts=bm.verts)
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
         me = bpy.data.meshes.new(f"{NAME}_p{k}")
@@ -436,7 +466,9 @@ def build(coll, sprite):
     mats = materials(sprite)
     m = Model()
     build_hull(m)
+    m.zone = "window"
     build_window(m)
+    m.zone = "body"
     build_cage(m)
     build_deck_details(m)
     build_bay(m)
@@ -462,7 +494,8 @@ def main():
     # Engine glows: the two nozzles (sprite cols 7.5 and 17.5, axis z 4.75, exit row 22.45), in
     # glTF axes (x, y up, z aft = toward the bottom of the sprite).
     obj["tyrian_engines"] = {"color": "#ff4a12", "at": [
-        [round((c - 12) * PX, 4), round((4.75 + Z0) * PX, 4), round((22.3 - 14) * PX, 4)] for c in (7.5, mirror_c(7.5))]}
+        [round((refit_c(c) - 12) * PX, 4), round((4.75 + Z0) * PX, 4), round((refit_r(22.3) - 14) * PX, 4)]
+        for c in (7.5, mirror_c(7.5))]}
     fmt = "AUTO"
     if "--no-bake" not in argv:
         T.TEXTURED = tuple(i for i in range(len(MATS)) if i not in UNBAKED)

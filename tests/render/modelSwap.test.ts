@@ -11,8 +11,9 @@
 //   The bot flies level 1 on low armour so the armour ship (spawned only then) and its crates show.
 // - Frame coverage, level 1: each enemy's draws on a tick are one of its model, flat art, the
 //   extruded sprite, or a mix (some tiles one way, some another). An enemy seen two ways over its
-//   life pops on screen. The only ones allowed are KNOWN_DAMAGE_SWAPS below: damaged frames (an
-//   enemy's look once hit hard enough, or destroyed) that have no model of their own yet.
+//   life pops on screen. None may: damaged frames (an enemy's look once hit hard enough) are drawn
+//   with a model of their own or with the intact model, damaged by the shader (D87); a destroyed
+//   piece's blank frame draws nothing.
 //
 // MODEL_SWAP_REPORT=1 prints each enemy type's routes, the swaps, the unmodelled damaged frames and
 // every sprite level 1 still draws extruded (enemies, shots, explosions; "still a sprite: ...").
@@ -27,29 +28,6 @@ import { hasData, readData } from "../data/dataDir";
 
 const files = { get: (name: string) => (hasData(name) ? readData(name) : undefined) };
 const REPORT = process.env.MODEL_SWAP_REPORT === "1";
-
-/**
- * Level 1's enemies whose damaged frames have no model while their normal frames do, so they turn
- * from model to sprite when damaged (`sheet|size|enemy type: damaged frames (normal frames)`). Too
- * many to model here (13 damaged pieces); each needs its own damaged model (D54 lists them; the rocks
- * of newshe.shp, types 522-527, got theirs in D81).
- */
-const KNOWN_DAMAGE_SWAPS = [
-  // The pieces of a large multi-part enemy (newsh4.shp): their battle-damaged frames.
-  "newsh4.shp|2|46: damaged frames 162 (normal 10)",
-  "newsh4.shp|2|47: damaged frames 164 (normal 12)",
-  "newsh4.shp|2|49: damaged frames 168 (normal 16)",
-  "newsh4.shp|2|50: damaged frames 170 (normal 18)",
-  "newsh4.shp|2|51: damaged frames 200 (normal 48)",
-  "newsh4.shp|2|52: damaged frames 202 (normal 50)",
-  "newsh4.shp|2|54: damaged frames 206 (normal 54)",
-  "newsh4.shp|2|55: damaged frames 208 (normal 56)",
-  "newsh4.shp|2|57: damaged frames 240 (normal 88)",
-  "newsh4.shp|2|58: damaged frames 242 (normal 90)",
-  "newsh4.shp|2|59: damaged frames 244 (normal 92)",
-  "newsh4.shp|2|60: damaged frames 246 (normal 94)",
-  "newsh4.shp|2|63: damaged frames 280 (normal 128)",
-];
 
 type Look = "model" | "flat" | "sprite" | "mixed" | "none";
 
@@ -118,6 +96,7 @@ async function playLevel(main: number, art: SpriteArt<object>, lowArmor: boolean
   s.startLevel();
   s.clearSimInput();
   const preloaded = router.modelsOf(s.levelSprites());
+  router.setDamage(s.levelDamageFrames()); // D87: damaged frames with the intact models
 
   const shown = new Map<string, string>();
   const types = new Map<string, TypeStat>();
@@ -223,12 +202,15 @@ async function playEpisode1(levels: number): Promise<LevelResult[]> {
 
 const fmtFrames = (m: Map<Look, Set<number>>) => [...m].map(([look, f]) => `${look}: ${[...f].sort((a, b) => a - b).join(",")}`).join("; ");
 
-/** Damaged frames without a model, of enemy types whose own frames have one. */
+/**
+ * Damaged frames drawn by no model (neither their own nor the intact one, D87), of enemy types whose
+ * own frames have one.
+ */
 function unmodelledDamage(r: LevelResult): string[] {
   const grouped = spriteModels().grouped;
   const out: string[] = [];
   for (const [key, { sheet, size, frames, normal }] of r.damagedFrames) {
-    const modelled = (f: number) => grouped.has(`${sheet.id}|${size}|${f}`);
+    const modelled = (f: number) => grouped.has(`${sheet.id}|${size}|${f}`) || router.damagedModel(sheet, size, f) !== null;
     const blank = (f: number) => drawsNothing({ index: f, size }, emptyTileOf({ sheet }));
     if (!normal.some(modelled)) continue;
     const missing = frames.filter((f) => !modelled(f) && !blank(f));
@@ -241,7 +223,7 @@ describe.skipIf(!hasData("tyrian1.lvl", "levels1.dat", "tyrian.hdt", "palette.da
   let episode: Promise<LevelResult[]> | null = null;
   const played = () => (episode ??= playEpisode1(Number(process.env.MODEL_SWAP_LEVELS ?? 99)));
 
-  test("level 1: no enemy is drawn as its model on some ticks and as a sprite on others, but for known damaged frames", async () => {
+  test("level 1: no enemy is drawn as its model on some ticks and as a sprite on others, damaged frames included", async () => {
     const [level1] = await played();
     expect(level1.completed, "the bot finishes level 1").toBe(true);
     const damaged = unmodelledDamage(level1);
@@ -254,30 +236,14 @@ describe.skipIf(!hasData("tyrian1.lvl", "levels1.dat", "tyrian.hdt", "palette.da
       for (const d of damaged) console.log(`unmodelled ${d}`);
       for (const [k, n] of [...level1.sprites].sort()) console.log(`still a sprite: ${k} (${n} draws)`);
     }
-    // A swap is explained when every frame it wasn't a model in is a known unmodelled damaged frame.
-    const known = new Map<string, Set<number>>();
-    for (const k of KNOWN_DAMAGE_SWAPS) {
-      const [, sheet, size, frames] = /^([^|]+)\|(\d)\|\d+: damaged frames ([\d,]+)/.exec(k)!;
-      const set = known.get(`${sheet}|${size}`) ?? new Set<number>();
-      for (const f of frames.split(",")) set.add(Number(f));
-      known.set(`${sheet}|${size}`, set);
-    }
-    const unexplained = [...level1.types.values()].flatMap((ts) =>
-      ts.swaps
-        .filter((sw) => sw.looks.has("mixed") || sw.looks.has("flat") || [...(sw.looks.get("sprite") ?? [])].some((f) => !known.get(ts.sheet)?.has(f)))
-        .map((sw) => `${ts.sheet} #${sw.serial} ${fmtFrames(sw.looks)}`),
-    );
-    expect(unexplained, "enemies drawn more than one way (a frame without a model? see sprite2Route.ts)").toEqual([]);
-    expect(damaged.filter((d) => !KNOWN_DAMAGE_SWAPS.includes(d)), "modelled enemies with new unmodelled damaged frames").toEqual([]);
+    const swaps = [...level1.types.values()].flatMap((ts) => ts.swaps.map((sw) => `${ts.sheet} #${sw.serial} ${fmtFrames(sw.looks)}`));
+    expect(swaps, "enemies drawn more than one way (a frame without a model? see sprite2Route.ts)").toEqual([]);
+    expect(damaged, "modelled enemies with damaged frames no model draws").toEqual([]);
   }, 600000);
 
-  test("level 1: every enemy is drawn as its model or flat art, but for known damaged frames (with the armour ship)", async () => {
+  test("level 1: every enemy is drawn as its model or flat art, damaged frames included (with the armour ship)", async () => {
     const [level1] = await played();
-    const known = new Set(KNOWN_DAMAGE_SWAPS.map((k) => {
-      const [, sheet, size, frames] = /^([^|]+)\|(\d)\|\d+: damaged frames ([\d,]+)/.exec(k)!;
-      return frames.split(",").map((f) => `enemy ${sheet} group ${size}x${size} ${f}`);
-    }).flat());
-    const sprites = [...level1.sprites.keys()].filter((k) => k.startsWith("enemy ") && !known.has(k));
+    const sprites = [...level1.sprites.keys()].filter((k) => k.startsWith("enemy "));
     expect(sprites, "enemies still drawn as extruded sprites (MODEL_SWAP_REPORT=1 lists every sprite drawn)").toEqual([]);
     // The bot flew level 1 on low armour, so the armour ship came, and was drawn as its model.
     expect([...level1.shown.keys()]).toContain("enemies/tyrian10-279");

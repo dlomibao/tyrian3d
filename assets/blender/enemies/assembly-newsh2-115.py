@@ -38,7 +38,8 @@ Blueprint (plan, sprite rows top to bottom):
 - BOTTOM DOME (centre 19.5, 40.5; 6.5 x 5.2 px; 5.4 px tall) with the gun port where the sprite has
   it (col 19.0, row 41.5): a short machined muzzle normal to the dome, a dark bore.
 - BRACKETS: two grey blocks on the lower bed (cols 7.8-12.2 and 26.8-31.2, rows 37.8-42.2).
-- DIRT: a floor of 2 x 2 px cells in the sprite's dirt colours, closed underneath.
+- DIRT: a floor of 2 x 2 px cells in the sprite's dirt colours, closed underneath, built only as an
+  occluder for the bake and not exported: the game's HD ground shows round the machine (D86).
 
 No concept projection bake (maps.json says "bake": "model", so texture_bake.py skips it, as the
 player ships in D50-D53). Unless --no-bake, an ambient occlusion / edge-wear colour multiplier and a
@@ -518,7 +519,8 @@ def build_structure(b):
 
 
 def build_floor(b, grid):
-    """Dirt: 2 x 2 px cells in the sprite's dirt colours, on a thin closed slab."""
+    """Dirt: 2 x 2 px cells in the sprite's dirt colours, on a thin closed slab (the bake's occluder
+    only, D86)."""
     first = b.nfaces()
     verts = {}
 
@@ -836,16 +838,12 @@ def main(argv=None):
     # The outline shell (D51), made after the bake so its occlusion rays never hit it.
     shell = common.outline_shell(struct, coll, voxel=0.014, faces=2400)
 
-    # Join the floor in, then cull the floor cells under the bed.
-    for o in bpy.context.view_layer.objects:
-        o.select_set(False)
-    struct.select_set(True)
-    floor.select_set(True)
-    bpy.context.view_layer.objects.active = struct
-    bpy.ops.object.join()
-    obj = bpy.context.view_layer.objects.active
+    # The dirt floor was only the bake's occluder (so the machine's feet darken where they meet the
+    # ground): it is not exported. The game's HD ground shows round the machine instead of a floor
+    # of 2 x 2 px cells, and the machine's real shadow falls on it (D86).
+    bpy.data.objects.remove(floor, do_unlink=True)
+    obj = struct
     obj.name = NAME
-    cull_hidden(obj)
     tris = sum(len(p.vertices) - 2 for p in obj.data.polygons)
     print(f"{NAME}: whole {len(obj.data.polygons)} faces, {tris} triangles")
 

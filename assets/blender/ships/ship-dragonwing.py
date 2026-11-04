@@ -48,8 +48,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import common  # noqa: E402
 # The Talon's generic hard-surface helpers: pchip curves, parts, sections, lofts, armour plates,
 # chamfered hulls, the machined pod section, hidden-face culling and the join with weighted normals.
-from usp_talon import (POD_UNIT, Part, Section, cbox, cull_hidden, frange, hull, join, loft,  # noqa: E402
-                       loft_rings, pchip, plate, pod_s)
+from usp_talon import (Part, Section, cbox, cull_hidden, fillet, frange, hull, join, loft,  # noqa: E402
+                       loft_rings, pchip, plate)
 
 NAME = "ship-dragonwing"
 MODEL = f"ships/{NAME}"
@@ -110,26 +110,66 @@ def smooth01(t):
 # Engine pods. The plan's outboard and inboard edges (x_o, x_i) by row, fitted to frame 13's mask
 # including its dark outline ring: a round nose at row 6 (the inboard side sweeping in faster, to
 # column 13 at row 8), widest at rows 10-12, then straight under the fin to a square tail at row 21.
-_PY = [6.05, 6.3, 6.6, 7.0, 7.5, 8.0, 8.5, 9.0, 9.5, 10.0, 10.5, 11.5, 12.5, 14.0, 16.0, 18.0, 19.0, 20.0,
-       21.0, 21.5, 21.8, 21.95]
-_PXO = [15.75, 16.85, 17.5, 17.95, 18.5, 19.0, 19.45, 19.55, 19.62, 20.05, 20.42, 20.5, 20.45, 20.3, 20.2,
-        20.0, 19.6, 19.5, 19.5, 19.45, 19.3, 19.1]
-_PXI = [15.35, 14.3, 13.6, 13.1, 12.5, 11.4, 10.62, 10.5, 10.5, 10.5, 10.5, 10.5, 10.5, 10.5, 10.5, 10.5,
-        10.5, 10.5, 10.5, 10.55, 10.75, 10.95]
+_PY = [7.0, 7.2, 7.45, 7.75, 8.1, 8.5, 9.0, 9.5, 10.0, 10.5, 11.5, 12.5, 14.0, 16.0, 18.0, 18.6, 19.2, 19.7,
+       20.2, 20.5, 20.75, 20.9]
+_PXO = [15.8, 16.9, 17.6, 18.0, 18.25, 18.35, 18.35, 18.37, 18.8, 19.17, 19.25, 19.2, 19.1, 19.0, 18.8, 18.55,
+        18.3, 18.25, 18.25, 18.2, 18.05, 17.85]
+_PXI = [15.5, 14.6, 13.9, 13.4, 13.0, 12.4, 11.2, 10.55, 10.5, 10.5, 10.5, 10.5, 10.5, 10.5, 10.5, 10.5, 10.5,
+        10.7, 11.3, 11.5, 11.7, 11.9]
 PXO = pchip(_PY, _PXO)
-# The sprite's one asymmetry: the right pod's nose is a pixel fuller at row 7 (column 43).
-PXO_R = pchip(_PY, _PXO[:3] + [18.55, 19.2, 19.4] + _PXO[6:])
+PXO_R = PXO  # the inner mask is symmetric (the outer ring's one-pixel asymmetry at row 7 is ink)
 PXI = pchip(_PY, _PXI)
-_PZY = [6.05, 6.3, 6.6, 7.0, 7.5, 8.5, 10.0, 19.0, 21.0, 21.6, 21.95]
-PRZ = pchip(_PZY, [0.6, 1.25, 1.65, 1.95, 2.2, 2.45, 2.55, 2.55, 2.45, 2.25, 2.0])
-POD_CZ = 0.35
+_PZY = [7.0, 7.2, 7.45, 7.75, 8.1, 9.0, 10.0, 18.6, 20.2, 20.6, 20.9]
+PRZ = pchip(_PZY, [1.1, 2.0, 2.65, 3.0, 3.25, 3.6, 4.15, 4.15, 4.05, 3.85, 3.55])
+POD_CZ = 0.0
+POD_KEEL_R = 1.8
 POD_PLATE = 0.3
-POD_START, POD_END = 6.05, 21.85
+POD_START, POD_END = 7.0, 20.85
+
+
+def _pod_unit():
+    """The pod section, half sizes 1 x 1 (u outboard, v up): the Talon's machined octagon (same
+    vertex order) with a tall outboard flank that leans in from its middle to near-square corners
+    (a shallow chevron). The model rolls 35 degrees for the full banking frames (drawListRenderer
+    MAX_ROLL), yet those frames are barely narrower than the level one (one pixel per edge per bank
+    step): the flank's middle sets the level edge, its tall corners (a little inboard) the rolled
+    ones, so every frame keeps the sprite's edge (D74). FENCE does the same on the fins."""
+    a, b = 2.6, 2.3
+    t = 0.17 * a  # tumblehome
+    # Inboard, where the pod meets the deck, a deep chamfer on top and a belly sloping up from the
+    # outboard keel: rolled, the pod's inboard edge stays where the banking frames draw it.
+    corners = [(-0.3 * a, b), (a - t - 0.12 * a, b), (a - t, 0.9 * b), (a, 0.0), (a - t, -0.9 * b),
+               (a - t - 0.12 * a, -b), (-0.3 * a, -0.75 * b), (-a, -0.3 * b), (-a, 0.45 * b)]
+    pts = fillet(corners, (1.0, 0.2, 0.2, 0.08, 0.2, 0.3, 0.8, 0.8, 0.9), (2, 2, 2, 1, 2, 2, 2, 2, 2))
+    return [(u / a, v / b) for u, v in pts]
+
+
+POD_UNIT = _pod_unit()
+POD_N = len(POD_UNIT)
+
+
+def pod_s(deg):
+    """Loop parameter (vertex index + fraction) where the ray at `deg` degrees from straight up,
+    toward outboard (negative: inboard), meets the pod section (as usp_talon.pod_s)."""
+    t = math.radians(deg % 360)
+    dx, dz = math.sin(t), math.cos(t)
+    best = None
+    for i in range(POD_N):
+        (ax, az), (bx, bz) = POD_UNIT[i], POD_UNIT[(i + 1) % POD_N]
+        ex, ez = bx - ax, bz - az
+        den = dx * ez - dz * ex
+        if abs(den) < 1e-12:
+            continue
+        r = (ax * ez - az * ex) / den
+        u = (ax * dz - az * dx) / den
+        if r > 0 and -1e-9 <= u <= 1 + 1e-9 and (best is None or r < best[0]):
+            best = (r, i + u)
+    return best[1] - (POD_N if deg < 0 and best[1] > POD_N / 2 else 0)
 
 
 def pod_inset(y):
     """The core is the plan minus the plates, except at the bare gunmetal nose cap."""
-    return POD_PLATE * smooth01((y - 6.3) / 0.6)
+    return POD_PLATE * smooth01((y - 7.25) / 0.6)
 
 
 def pod_loop(y, side=1, grow=0.0):
@@ -137,16 +177,19 @@ def pod_loop(y, side=1, grow=0.0):
     cx = side * (xo + xi) / 2
     rx = max(0.15, (xo - xi) / 2 - pod_inset(y) + grow)
     rz = max(0.15, PRZ(y) - pod_inset(y) + grow)
-    return [(cx + side * rx * u, POD_CZ + rz * v) for u, v in POD_UNIT], (cx, POD_CZ)
+    # The right pod's belly hangs a little deeper (POD_KEEL_R): frame 9, the hard bank that lifts
+    # the right side, is drawn a pixel wider on the right than frame 17 is on the left.
+    k = POD_KEEL_R - 1.0 if side > 0 else 0.0
+    return [(cx + side * rx * u, POD_CZ + rz * v * (1.0 + k * max(0.0, u) if v < 0 else 1.0)) for u, v in POD_UNIT], (cx, POD_CZ)
 
 
 # Body: the core between the decks, from its front face at row 8.25 (between the jaws) to the
 # engine's dark rear lip at row 25.95. (row, half width, top, keel)
-_BY = [8.25, 8.5, 9.0, 10.0, 12.0, 15.0, 19.0, 20.5, 22.5, 24.6, 25.1, 25.5, 25.95]
-BW = pchip(_BY, [6.05, 6.42, 6.5, 6.5, 6.5, 6.5, 6.5, 6.5, 6.5, 6.5, 6.2, 5.6, 5.2])
-BT = pchip(_BY, [1.35, 1.5, 1.8, 2.0, 2.1, 2.1, 2.0, 1.45, 1.15, 1.1, 1.1, 1.05, 1.0])
-BB = pchip(_BY, [-0.5, -0.85, -1.3, -1.7, -2.05, -2.15, -2.15, -2.1, -2.0, -1.85, -1.75, -1.6, -1.45])
-B_DECK, B_SHOULDER, B_FLANK, B_CHINE = 0.62, 0.22, 0.4, 0.12
+_BY = [9.0, 9.2, 9.6, 10.4, 12.0, 15.0, 19.0, 20.5, 21.6, 22.5, 23.0, 24.2, 24.55, 24.8, 25.0]
+BW = pchip(_BY, [5.7, 6.1, 6.2, 6.2, 6.2, 6.2, 6.2, 6.2, 6.2, 6.2, 5.25, 5.2, 5.15, 5.0, 4.7])
+BT = pchip(_BY, [1.35, 1.5, 1.8, 2.0, 2.1, 2.1, 2.0, 1.45, 1.2, 1.15, 1.1, 1.1, 1.1, 1.05, 1.0])
+BB = pchip(_BY, [-0.5, -0.85, -1.3, -1.7, -2.05, -2.15, -2.15, -2.1, -2.05, -2.0, -1.9, -1.8, -1.7, -1.6, -1.45])
+B_DECK, B_SHOULDER, B_FLANK, B_CHINE = 0.62, 0.22, 0.15, 0.0
 
 
 def body_loop(y):
@@ -236,28 +279,28 @@ def build_pods(P, D):
 
         def G(y, grow, side=side):
             return pod_loop(y, side, grow)
-        rings = [(G, y, 0.0) for y in [POD_START, 6.15, 6.3, 6.45, 6.65, 6.9] + frange(7.2, POD_END, 0.7)]
+        rings = [(G, y, 0.0) for y in [POD_START, 7.1, 7.25, 7.4, 7.6, 7.85] + frange(8.15, POD_END, 0.7)]
         loft_rings(P, rings, [GUN] * len(rings))
 
         def A(a, b, gap=0.0):
             return dict(s0=pod_s(a) + gap, s1=pod_s(b) - gap)
         # Front cowl: four armour petals over the round nose, the bare gunmetal cap at its tip.
         for a, b in ((-48, 57), (57, 133), (133, 224), (224, 312)):
-            plate(P, L, 6.75, 9.55, POD, **A(a, b, 0.1), d=POD_PLATE, c=0.12, ystep=0.35)
+            plate(P, L, 7.6, 10.0, POD, **A(a, b, 0.1), d=POD_PLATE, c=0.12, ystep=0.35)
         # Shell: two thick top strips with a lengthwise seam, from the cowl to the tail cap (the
         # sprite's seams run lengthwise; its bright top pixels are sheen on them).
-        plate(P, L, 9.7, 21.2, POD, **A(-38, 2), d=0.42, c=0.14, ystep=0.7)
-        plate(P, L, 9.7, 21.2, POD, **A(4, 46), d=0.42, c=0.14, ystep=0.7)
+        plate(P, L, 10.15, 20.25, POD, **A(-38, 2), d=0.42, c=0.14, ystep=0.7)
+        plate(P, L, 10.15, 20.25, POD, **A(4, 46), d=0.42, c=0.14, ystep=0.7)
         # Outboard flank (the plan's outer edge), in two behind the fin root; lower; inboard.
-        plate(P, L, 9.7, 15.85, POD, **A(48, 134), d=POD_PLATE, c=0.12, ystep=0.7)
-        plate(P, L, 16.0, 21.2, POD, **A(48, 134), d=POD_PLATE, c=0.12, ystep=0.7)
-        plate(P, L, 9.7, 21.2, POD_DK, **A(136, 222), d=POD_PLATE, c=0.12, ystep=0.7)
-        plate(P, L, 9.7, 21.2, POD, **A(224, 318), d=POD_PLATE, c=0.12, ystep=0.7)
+        plate(P, L, 10.15, 15.85, POD, **A(48, 134), d=POD_PLATE, c=0.12, ystep=0.7)
+        plate(P, L, 16.0, 20.25, POD, **A(48, 134), d=POD_PLATE, c=0.12, ystep=0.7)
+        plate(P, L, 10.15, 20.25, POD_DK, **A(136, 222), d=POD_PLATE, c=0.12, ystep=0.7)
+        plate(P, L, 10.15, 20.25, POD, **A(224, 318), d=POD_PLATE, c=0.12, ystep=0.7)
         # Access hatch on the outer top strip.
         plate(P, L, 12.4, 15.2, POD_DK, **A(14, 38), d=0.55, c=0.1, ystep=0.7)
         # Tail cap: four darker petals round the square tail, behind a panel break.
         for a, b in ((-48, 57), (57, 133), (133, 224), (224, 312)):
-            plate(P, L, 21.35, POD_END + 0.1, POD_DK, **A(a, b, 0.1), d=POD_PLATE, c=0.1, ystep=0.4)
+            plate(P, L, 20.4, POD_END + 0.1, POD_DK, **A(a, b, 0.1), d=POD_PLATE, c=0.1, ystep=0.4)
         # Aft bulkhead inside the cap, and a deep nozzle in it (dark, unlit: the sprite's only glow
         # is the engine block).
         pts = []
@@ -265,17 +308,17 @@ def build_pods(P, D):
             ring, (cx, cz) = pod_loop(y, side)
             pts += [(cx + (x - cx) * k, y, cz + (z - cz) * k) for x, z in ring]
         hull(P, pts, POD_DK)
-        nx, nz = side * (PXO(21.5) + PXI(21.5)) / 2, POD_CZ - 0.1
-        y0 = POD_END + 0.02
+        nx, nz = side * (PXO(20.5) + PXI(20.5)) / 2, POD_CZ - 0.1
+        y0 = POD_END - 0.08
         prof = [(1.25, y0, GUN), (1.3, y0 + 0.12, GUN), (1.18, y0 + 0.22, GUN), (1.0, y0 + 0.22, GUN),
                 (0.9, y0 - 0.5, DEEP), (0.0, y0 - 0.5, DEEP)]
         tube_profile(D, nx, nz, prof, axis_y=True)
         # Intake scoop under the pod's front: gunmetal lip, dark mouth.
         cx = side * (PXO(11.0) + PXI(11.0)) / 2
-        hull(D, [(cx + side * x, y, z) for x, y, z in cbox(-1.3, 1.3, 9.2, 13.4, -2.65, -1.4, 0.25)], GUN)
-        hull(D, [(cx + side * x, y, z) for x, y, z in cbox(-1.05, 1.05, 9.1, 9.35, -2.42, -1.62, 0.05)], DEEP)
+        hull(D, [(cx + side * x, y, z) for x, y, z in cbox(-1.3, 1.3, 9.9, 13.6, -3.45, -2.4, 0.25)], GUN)
+        hull(D, [(cx + side * x, y, z) for x, y, z in cbox(-1.05, 1.05, 9.8, 10.05, -3.25, -2.6, 0.05)], DEEP)
         # Gear door under the pod's rear: a proud panel on the shell's belly, with hinge blocks.
-        plate(P, L, 15.4, 19.8, BELLY, **A(160, 200), d=0.45, c=0.1, ystep=0.9)
+        plate(P, L, 15.4, 19.3, BELLY, **A(160, 200), d=0.45, c=0.1, ystep=0.9)
 
 
 def tube_profile(D, cx, cz, prof, axis_y=True, n=18):
@@ -304,55 +347,70 @@ def tube_profile(D, cx, cz, prof, axis_y=True, n=18):
 
 # Fins: out of each pod's flank to a blunt tip at rows 15-17 (column 1), a 45-degree leading edge
 # from row 12 and a steep trailing edge back to the pod at row 19. Thin, thicker at the root.
-FIN_POLY = [(18.6, 11.75), (20.05, 11.75), (23.3, 15.0), (23.45, 15.25), (23.45, 17.8), (23.2, 17.97),
-            (19.6, 19.25), (18.6, 19.25)]
+FIN_POLY = [(17.6, 12.0), (18.7, 12.0), (21.95, 15.25), (22.15, 15.6), (22.15, 16.75), (21.1, 17.5),
+            (19.1, 18.5), (17.6, 19.3)]
 FIN_Z = 0.05
+FENCE_KEEL_R = 1.25
+# The tip fence along the fin's outer edge: (x, y, half height).
+FENCE = [(19.0, 13.0, 2.2), (19.5, 13.5, 4.2), (20.5, 14.5, 4.8), (21.2, 15.2, 4.9), (21.35, 15.55, 4.9),
+         (21.35, 16.8, 5.0), (20.4, 17.45, 5.1), (18.6, 18.35, 4.8), (18.0, 18.65, 3.3)]
 
 
 def fin_top(x, y):
-    return FIN_Z + 0.65 - 0.33 * max(0.0, x - 19.0) / 4.45
+    return FIN_Z + 0.65 - 0.33 * max(0.0, x - 18.0) / 4.55
 
 
 def fin_bot(x, y):
-    return FIN_Z - 0.55 + 0.25 * max(0.0, x - 19.0) / 4.45
+    return FIN_Z - 0.55 + 0.25 * max(0.0, x - 18.0) / 4.55
 
 
 def build_fins(P, D):
     for side in (1, -1):
         slab(P, FIN_POLY, fin_top, fin_bot, 0.14, FIN, side)
         # A raised top plate inset from the edges (its gap reads as a panel line).
-        top = inset_poly([(20.4, 12.3), (23.2, 15.1), (23.3, 15.3), (23.3, 17.75), (23.15, 17.95), (20.4, 18.95)], 0.3)
+        top = inset_poly([(19.4, 12.75), (22.35, 15.7), (22.4, 15.95), (22.4, 16.65), (21.35, 17.35), (19.4, 18.3)], 0.3)
         slab(P, top, lambda x, y: fin_top(x, y) + 0.16, lambda x, y: fin_top(x, y) - 0.2, 0.08, FIN, side)
         # Navigation light flush in the tip's face (red to port, green to starboard is not in the
         # palette, so a small dark lens).
-        hull(D, mirror_pts(cbox(23.2, 23.5, 16.0, 17.0, FIN_Z - 0.12, FIN_Z + 0.22, 0.05), side), DEEP)
+        hull(D, mirror_pts(cbox(22.25, 22.55, 15.75, 16.6, FIN_Z - 0.12, FIN_Z + 0.22, 0.05), side), DEEP)
+        # Tip fence: a blade standing up and down along the fin's outer edge (the sprite's dark
+        # blunt tip, rows 14-18). Seen from above it is only the edge; rolled to the full banking
+        # frames it keeps the fin rows as wide as the sprite draws them.
+        # (The right one reaches a little lower, as the right pod's belly: see pod_loop.)
+        kb = FENCE_KEEL_R if side > 0 else 1.0
+        for (x0, y0, h0), (x1, y1, h1) in zip(FENCE, FENCE[1:]):
+            pts = []
+            for x, y, h in ((x0, y0, h0), (x1, y1, h1)):
+                for dx, k in ((0.0, 1.0), (-0.42, 0.92)):
+                    pts += [(x + dx, y, FIN_Z + h * k), (x + dx, y, FIN_Z - h * k * kb)]
+            hull(P, mirror_pts(pts, side), FIN)
 
 
 def build_deck(P, D):
     for side in (1, -1):
         # The low deck between pod and body (columns 14-17, rows 9-19): a chamfered block buried in
         # both, two raised plates on top, an intake under its front edge.
-        hull(P, mirror_pts(cbox(6.0, 11.0, 9.3, 19.9, -1.35, 0.95, 0.22), side), DECK)
-        for y0, y1 in ((9.65, 14.45), (14.6, 19.55)):
+        hull(P, mirror_pts(cbox(6.0, 11.0, 10.0, 19.0, -1.35, 0.95, 0.22), side), DECK)
+        for y0, y1 in ((10.35, 14.45), (14.6, 18.65)):
             hull(P, mirror_pts(cbox(6.55, 10.45, y0, y1, 0.6, 1.2, 0.14), side), DECK)
-        hull(D, mirror_pts(cbox(6.9, 10.1, 9.2, 9.6, -1.05, 0.4, 0.06), side), DEEP)
+        hull(D, mirror_pts(cbox(6.9, 10.1, 9.9, 10.3, -1.05, 0.4, 0.06), side), DEEP)
         for x in (7.9, 9.1):
-            hull(D, mirror_pts(cbox(x - 0.09, x + 0.09, 9.14, 9.6, -1.05, 0.4, 0.03), side), GUN)
+            hull(D, mirror_pts(cbox(x - 0.09, x + 0.09, 9.84, 10.3, -1.05, 0.4, 0.03), side), GUN)
 
 
 def build_body(P, D):
     L = body_loop
-    loft(P, L, [8.25, 8.5, 8.8] + frange(9.2, 25.95, 0.8), GUN)
+    loft(P, L, [9.0, 9.25, 9.55] + frange(9.95, 25.0, 0.8), GUN)
     for side in (1, -1):
         def S(a, b):
             return (a, b) if side > 0 else (10 - b, 10 - a)
         # Shoulder and flank plates (columns 18 and 30, the sprite's flank tone), and the rear flanks
         # past the shoulders.
-        plate(P, L, 8.55, 18.4, BODY, *S(0.75, 2.6), d=0.3, c=0.12)
-        plate(P, L, 22.95, 25.7, BODY, *S(0.75, 2.6), d=0.3, c=0.12)
+        plate(P, L, 9.3, 18.4, BODY, *S(0.75, 2.6), d=0.3, c=0.12)
+        plate(P, L, 22.95, 24.75, BODY, *S(0.75, 2.6), d=0.3, c=0.12)
         # Lower flank and belly plates.
-        plate(P, L, 8.9, 25.4, BELLY, *S(2.7, 3.95), d=0.25, c=0.12, ystep=0.8)
-    for y0, y1 in ((9.0, 15.9), (16.05, 25.3)):
+        plate(P, L, 9.6, 24.6, BELLY, *S(2.7, 3.95), d=0.25, c=0.12, ystep=0.8)
+    for y0, y1 in ((9.7, 15.9), (16.05, 24.5)):
         plate(P, L, y0, y1, BELLY, s0=4.15, s1=5.85, d=0.22, c=0.1, ystep=0.8)
     # Rear deck behind the hump, down to the engine (rows 19-20, the sprite's darker tone).
     plate(P, L, 18.9, 20.75, REAR, s0=-0.85, s1=0.85, d=0.2, c=0.1, ystep=0.5)
@@ -364,22 +422,22 @@ def build_body(P, D):
     hull(D, pts, GUN)
     # Chin guns under the jaws: twin barrels in a fairing.
     pts = []
-    for y in (8.0, 9.2, 11.0):
-        b = BB(max(y, 8.6)) + 0.1
+    for y in (8.9, 9.8, 11.4):
+        b = BB(max(y, 9.3)) + 0.1
         pts += [(sx * x, y, z) for sx in (-1, 1) for x, z in ((1.9, b + 0.3), (1.9, b - 0.35), (1.6, b - 0.55))]
     hull(D, pts, GUN)
     for sx in (-1, 1):
-        prof = [(0.0, 7.75, GUN), (0.2, 7.75, GUN), (0.2, 8.2, GUN), (0.26, 8.3, GUN), (0.26, 9.0, GUN), (0.0, 9.0, GUN)]
-        tube_profile(D, sx * 1.25, BB(8.6) - 0.15, prof, n=8)
+        prof = [(0.0, 8.7, GUN), (0.2, 8.7, GUN), (0.2, 9.1, GUN), (0.26, 9.2, GUN), (0.26, 9.9, GUN), (0.0, 9.9, GUN)]
+        tube_profile(D, sx * 1.25, BB(9.3) - 0.15, prof, n=8)
     # The front face between the jaws: a dark sensor slot.
-    hull(D, cbox(-2.1, 2.1, 8.15, 8.4, BT(8.25) - 0.75, BT(8.25) - 0.35, 0.05), DEEP)
+    hull(D, cbox(-2.1, 2.1, 8.9, 9.15, BT(9.0) - 0.75, BT(9.0) - 0.35, 0.05), DEEP)
 
 
 # Jaw ridges either side of the cockpit (columns 19-20 and 28-29), their tips hooking in to column 21
 # at row 7 in front of the windshield. (row, x in, x out, z bottom, z top)
-RIDGE_ST = [(7.15, 2.75, 5.3, 0.15, 1.85), (7.45, 2.45, 5.6, -0.1, 2.15), (8.6, 2.45, 5.6, 0.2, 2.75),
-            (8.75, 3.45, 5.6, 0.3, 2.85), (9.6, 3.45, 5.6, 0.8, 3.2), (12.0, 3.45, 5.6, 1.2, 3.35),
-            (16.0, 3.45, 5.6, 1.2, 3.25), (18.4, 3.6, 5.45, 1.2, 2.55)]
+RIDGE_ST = [(8.0, 2.75, 5.2, 0.4, 2.0), (8.25, 2.45, 5.45, 0.2, 2.3), (9.25, 2.45, 5.45, 0.5, 2.85),
+            (9.4, 3.45, 5.45, 0.6, 2.95), (10.0, 3.45, 5.45, 0.9, 3.2), (12.0, 3.45, 5.45, 1.2, 3.35),
+            (16.0, 3.45, 5.45, 1.2, 3.25), (18.4, 3.6, 5.3, 1.2, 2.55)]
 
 
 def build_top(P, D):
@@ -390,10 +448,13 @@ def build_top(P, D):
         stations_hull(P, st, SPINE, side, ch=0.07)
         # Rear shoulders flanking the engine (columns 16-18, rows 19-22): chamfered blocks with a
         # dark vent of three slots on top.
-        hull(P, mirror_pts(cbox(5.9, 8.45, 18.55, 22.85, -1.7, 1.75, 0.3), side), SHOULDER)
-        hull(D, mirror_pts(cbox(6.55, 7.85, 19.5, 22.1, 1.5, 1.8, 0.06), side), DEEP)
-        for y in (19.95, 20.75, 21.55):
-            hull(D, mirror_pts(cbox(6.5, 7.9, y - 0.13, y + 0.13, 1.5, 1.85, 0.04), side), SHOULDER)
+        # (Tall: rolled to the banking frames, their corners hold the rear's width.)
+        hull(P, mirror_pts(cbox(5.9, 8.45, 18.55, 19.95, -2.0, 2.1, 0.25), side), SHOULDER)
+        hull(P, mirror_pts(cbox(5.9, 7.45, 18.55, 21.95, -2.0, 2.1, 0.2), side), SHOULDER)
+        hull(P, mirror_pts(cbox(5.5, 6.45, 21.5, 22.95, -1.75, 1.95, 0.2), side), SHOULDER)
+        hull(D, mirror_pts(cbox(6.3, 7.1, 19.0, 21.6, 1.85, 2.15, 0.06), side), DEEP)
+        for y in (19.45, 20.25, 21.05):
+            hull(D, mirror_pts(cbox(6.25, 7.15, y - 0.13, y + 0.13, 1.85, 2.2, 0.04), side), SHOULDER)
     # Dorsal hump behind the cockpit (rows 14-19), with a spine strip.
     st = [(14.0, -3.5, 3.5, 1.5, 3.15), (15.5, -3.5, 3.5, 1.5, 3.25), (18.0, -3.5, 3.5, 1.5, 3.05),
           (19.45, -3.3, 3.3, 1.4, 2.3)]
@@ -405,15 +466,15 @@ def build_top(P, D):
 
 # Windshield: fills the sunken cockpit between the ridges (columns 21-27, rows 9-13), raked from a
 # low front sill at row 8.9 up to a crown at row 12, its rear edge on the hump at row 14.
-GL_Y0, GL_Y1, GL_W = 8.9, 14.05, 3.47
+GL_Y0, GL_Y1, GL_W = 9.4, 14.05, 3.47
 
 
 def glass_crown(y):
-    return pchip([8.9, 9.5, 10.5, 12.0, 13.5, 14.05], [1.95, 2.5, 2.92, 3.12, 3.12, 3.05])(y)
+    return pchip([9.4, 9.9, 10.8, 12.0, 13.5, 14.05], [2.05, 2.55, 2.92, 3.12, 3.12, 3.05])(y)
 
 
 def build_canopy(G, D):
-    ys = [8.9, 9.1, 9.4, 9.8, 10.3, 10.9, 11.6, 12.4, 13.2, 13.7, 14.05]
+    ys = [9.4, 9.55, 9.8, 10.15, 10.6, 11.1, 11.7, 12.4, 13.2, 13.7, 14.05]
     xs = [-1 + 2 * k / 12 for k in range(13)]
     grid = []
     for y in ys:
@@ -439,7 +500,7 @@ def build_canopy(G, D):
         for i in range(len(col) - 1):
             G.f((col[i], col[i + 1], low[i + 1], low[i]), GLASS, out=(sx, 0, 0))
     # Front sill: a gunmetal bar across the foot of the windshield.
-    hull(D, cbox(-GL_W, GL_W, 8.55, 9.0, BT(8.7) - 0.2, glass_crown(8.9) + 0.05, 0.08), GUN)
+    hull(D, cbox(-GL_W, GL_W, 9.05, 9.5, BT(9.3) - 0.2, glass_crown(9.4) + 0.05, 0.08), GUN)
 
 
 def build_engine(P, D):
@@ -447,15 +508,15 @@ def build_engine(P, D):
     # with four dark vanes along it (the sprite's dark columns 21, 23, 25, 27); the bed's hot cores
     # in the middle slots. The dark lip behind it is the body's end (row 25).
     z0, ztop, zbed = 0.9, 1.75, 1.35
-    hull(P, cbox(-5.5, 5.5, 20.7, 25.05, z0, ztop, 0.15), ENG)
-    hull(D, cbox(-4.6, 4.6, 21.05, 24.75, zbed - 0.1, ztop + 0.02, 0.04), GLOW)
+    hull(P, cbox(-5.4, 5.4, 20.7, 24.95, z0, ztop, 0.15), ENG)
+    hull(D, cbox(-4.5, 4.5, 21.05, 24.65, zbed - 0.1, ztop + 0.02, 0.04), GLOW)
     for x in (-3.0, -1.0, 1.0, 3.0):
-        hull(D, cbox(x - 0.45, x + 0.45, 20.95, 24.85, zbed, ztop + 0.1, 0.12), VANE)
+        hull(D, cbox(x - 0.45, x + 0.45, 20.95, 24.75, zbed, ztop + 0.1, 0.12), VANE)
     for x in (-2.0, 0.0, 2.0):
         hull(D, cbox(x - 0.4, x + 0.4, 22.15, 23.85, zbed, zbed + 0.06, 0.02), HOT)
     # Rear face: the exhaust grille on the body's end (below the lip): a dark frame, a glowing bed,
     # vanes continuing the top's.
-    y = 25.95
+    y = 24.95
     hull(D, cbox(-4.9, 4.9, y - 0.2, y + 0.06, -1.05, 0.75, 0.06), DEEP)
     hull(D, cbox(-4.5, 4.5, y - 0.15, y + 0.1, -0.85, 0.55, 0.04), GLOW)
     for x in (-3.0, -1.0, 1.0, 3.0):
@@ -655,7 +716,7 @@ def main():
     # The menu backdrop's engine glows (src/ui/backdrop.ts): just behind the engine's rear grille,
     # in glTF axes (x, y up, z aft), red-orange (palette 120's hue).
     obj["tyrian_engines"] = {"color": "#ff4a12", "at": [[round((sx * 2.5 + 0.5) * PX, 4), round(-0.15 * PX, 4),
-                                                          round((26.8 - 14) * PX, 4)] for sx in (-1, 1)]}
+                                                          round((25.8 - 14) * PX, 4)] for sx in (-1, 1)]}
     fmt = "AUTO"
     if "--no-bake" not in argv:
         bake_maps(obj, tempfile.mkdtemp(prefix="dragonwing_bake_"))

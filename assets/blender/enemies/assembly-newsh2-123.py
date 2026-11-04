@@ -2,8 +2,9 @@
 an assembly of two 2x2 pieces side by side (48x28 px), seen just below the gun walker
 (assembly-newsh2-87) in levels 1.25, 1.3, 1.36 and 3.17. Hard-surface, as the player ships (D50-D53).
 
-The sprite is authoritative (D52): the plan outline covers the composite sprite's mask row by row
-(its dark outline ring included), the square beacon and the glass tube sit on the sprite's own
+The sprite is authoritative (D52): the plan outline covers the composite sprite's INNER mask row by
+row (D74, docs/agents/OUTLINE-BORDER.md: inside the dark ink ring, which the game's outline draws;
+out to the edge only where the sprite has no ink, the feet's outer rim at rows 20-23), the square beacon and the glass tube sit on the sprite's own
 pixels, and every part takes the palette index the sprite uses there (median of the part's pixels
 without the outline, the darkest shading and the brightest sheen; see `PAL`). The concept
 (assets/blender/features/concepts/assembly-newsh2-123.jpg) only guides the side, front and rear.
@@ -310,16 +311,30 @@ def ring(cx, y, cz, r, n=20, p=2.2, rz=None):
 # --- the machine --------------------------------------------------------------------------------
 
 # Leg axis (centre x of the left leg, height of its axis) along y; the right leg is mirrored.
-LEG_X = pchip([6.0, 12.7, 13.7, 23.0], [-6.0, -6.0, -6.5, -6.5])
+# Fitted to the sprite's inner mask (D74): the hip sits at x -5.5 (rows 7-10 stair out to the
+# shoulder), the leg barrel at -6 with radius 2 (row 18: columns 15-18 inside the ink).
+# Past row 18 the barrel tapers and leans out into the ankle fairing (rows 19-23 inside x -5).
+LEG_X = pchip([6.0, 10.5, 13.0, 18.6, 19.6, 23.0], [-5.5, -5.5, -6.0, -6.0, -6.5, -6.5])
 LEG_Z = pchip([6.0, 11.5, 16.0, 21.0, 23.0], [4.0, 4.0, 3.4, 1.9, 1.5])
-LEG_R = 2.5
-HIP_R = 3.0
+LEG_R = 2.0
+HIP_R = 3.4
+
+
+def leg_r(y):
+    return max(1.45, LEG_R - 0.7 * max(0.0, y - 18.6))
 
 
 def foot_plan(s):
-    """The foot's plan (sprite rows 19-27): straight inner edge at column 19 / 27, outer edge at
-    column 12 / 34 rounding into the toe (radius 3.5)."""
-    pts = [(-4.0, 19.0), (-11.0, 19.0)] + arc(-7.5, 24.5, 3.5, 180, 90, 8) + [(-4.0, 28.0)]
+    """The foot's plan (sprite rows 19-26, the inner mask): straight inner edge at column 18 / 28
+    (x -5), the heel chamfered from column 14 (row 19) out to column 12 / 33 (rows 20-23, the
+    sprite's lit rim there has no ink), then rounding into the toe (rows 24-26) and ending at row 27."""
+    pts = [(-5.0, 19.95), (-10.6, 19.95), (-11.0, 20.3), (-11.0, 23.5), (-9.0, 26.5), (-8.0, 27.0), (-5.0, 27.0)]
+    return [(-x if s > 0 else x, y) for x, y in pts]
+
+
+def heel_plan(s):
+    """The heel (row 19, columns 14-17 / 28-31): narrower than the foot, so its own block."""
+    pts = [(-5.0, 19.0), (-8.9, 19.0), (-9.1, 20.1), (-5.0, 20.1)]
     return [(-x if s > 0 else x, y) for x, y in pts]
 
 
@@ -332,29 +347,34 @@ def build_side(B, s):
     X = lambda x: -x if s > 0 else x  # noqa: E731  (left-side numbers, mirrored for the right)
 
     # Hip: ribbed heat-sink end cap, polished ring band, collar, housing; one loft along y.
-    st = [(6.95, 2.2, FRAME), (7.2, 2.75, FRAME), (7.55, 3.0, FRAME), (7.85, 3.0, FRAME), (7.95, 2.72, FRAME),
-          (8.15, 2.72, FRAME), (8.25, 3.0, FRAME), (8.55, 3.0, FRAME), (8.65, 2.72, FRAME), (8.85, 2.72, FRAME),
-          (8.95, 2.95, HIPRING), (9.08, 3.15, HIPRING), (9.72, 3.15, HIPRING), (9.85, 2.95, FRAME),
-          (10.0, 2.85, HIPRING), (10.05, 3.05, HIPRING), (10.65, 3.05, LEG), (10.7, 3.0, LEG),
-          (12.0, 3.0, LEG), (12.7, 3.0, LEG), (13.25, 2.62, LEG), (13.4, 2.55, LEG)]
+    # The cap is a stepped dome (the sprite's rows 7-10 stair out by a pixel a row): its ribs grow from
+    # radius 1.3 at row 7 to 2.4 at rows 8-9, the ring band and the housing reach 3.2 from row 10.
+    st = [(6.95, 0.9, FRAME), (7.1, 1.25, FRAME), (7.4, 1.45, FRAME), (7.7, 1.45, FRAME), (7.8, 1.3, FRAME),
+          (7.95, 1.3, FRAME), (8.05, 2.1, FRAME), (8.35, 2.3, FRAME), (8.45, 2.1, FRAME), (8.6, 2.1, FRAME),
+          (8.7, 2.4, FRAME), (8.85, 2.4, FRAME),
+          (8.95, 2.45, HIPRING), (9.08, 2.55, HIPRING), (9.72, 2.55, HIPRING), (9.85, 2.4, FRAME),
+          (10.0, 2.6, HIPRING), (10.05, 3.3, HIPRING), (10.65, 3.3, LEG), (10.8, 3.4, LEG),
+          (12.0, 3.4, LEG), (12.7, 3.1, LEG), (13.25, 2.2, LEG), (13.4, 2.05, LEG)]
     rings = [ring(X(LEG_X(y)), y, LEG_Z(y), r) for y, r, _ in st]
     B.loft(rings, [m for _, _, m in st[:-1]])
     # Leg barrel, sinking into the foot; a dark collar at the ankle.
     ys = frange(13.3, 21.6, 0.6)
-    B.loft([ring(X(LEG_X(y)), y, LEG_Z(y), LEG_R) for y in ys], LEG)
-    B.loft([ring(X(LEG_X(y)), y, LEG_Z(y), r) for y, r in ((18.4, 2.5), (18.5, 2.68), (19.1, 2.68), (19.2, 2.5))],
+    B.loft([ring(X(LEG_X(y)), y, LEG_Z(y), leg_r(y)) for y in ys], LEG)
+    B.loft([ring(X(LEG_X(y)), y, LEG_Z(y), r) for y, r in ((17.4, 2.0), (17.5, 2.15), (18.1, 2.15), (18.2, 2.0))],
            FRAME)
-    B.loft([ring(X(LEG_X(y)), y, LEG_Z(y), r) for y, r in ((13.6, 2.5), (13.7, 2.64), (14.1, 2.64), (14.2, 2.5))],
+    B.loft([ring(X(LEG_X(y)), y, LEG_Z(y), r) for y, r in ((13.6, 2.0), (13.7, 2.14), (14.1, 2.14), (14.2, 2.0))],
            HIPRING)
     # Hip mount under the raised hip (closes the side view).
-    B.box(X(-7.6) if s < 0 else X(-4.4), X(-4.4) if s < 0 else X(-7.6), 7.6, 12.8, 0.0, 3.4, 0.3, FRAME)
+    B.box(X(-7.4) if s < 0 else X(-4.0), X(-4.0) if s < 0 else X(-7.4), 8.3, 12.8, 0.0, 3.4, 0.3, FRAME)
+    # A low sill along under the leg (the sprite's dark pixels either side of it, rows 12-17).
+    B.box(X(-9.0) if s < 0 else X(-3.9), X(-3.9) if s < 0 else X(-9.0), 12.5, 17.95, 0.0, 1.6, 0.2, FRAME)
 
     # Light strip along the leg's inner top edge (column 17 / 28) onto the foot's armour.
     path, ups = [], []
     for y in frange(13.9, 24.1, 0.5):
         cx, cz = LEG_X(y), LEG_Z(y)
         dx = -5.5 - cx
-        zb = cz + math.sqrt(max(0.0, LEG_R ** 2 - dx * dx)) if y < 22.0 else -9
+        zb = cz + math.sqrt(max(0.0, leg_r(y) ** 2 - dx * dx)) if y < 22.0 else -9
         zf = foot_top(y) if y > 19.0 else -9
         if 18.95 <= y <= 22.6:  # over the ankle fairing (its chamfered top edge sits 0.45 below)
             zf = max(zf, 5.0 - 0.38 * (y - 19.0))
@@ -371,21 +391,24 @@ def build_side(B, s):
     # on the hip's inner top, straight out over the hip's crown (row 11, pal 131), down its outer end
     # into a coupling, then (pal 58) forward along the leg's outer edge (column 13 / 32) and into the leg.
     pr = 0.7
-    zc = LEG_Z(11.3) + HIP_R + pr + 0.05
-    run = fillet_path([(-3.7, 11.3, zc), (-9.95, 11.3, zc), (-9.95, 11.3, 5.0)], 1.0, k=6)
+    # Its outer face is the plan's edge at rows 11-16 (x -10, inside the ink at column 12 / 33).
+    px, py, pe = -9.3, 11.6, 16.2
+    zc = LEG_Z(py) + HIP_R + pr + 0.05
+    run = fillet_path([(-3.4, py, zc), (px, py, zc), (px, py, 5.0)], 1.0, k=6)
     B.tube([(X(x), y, z) for x, y, z in run], pr, PIPE, n=12)
-    flank = fillet_path([(-9.95, 11.3, 5.2), (-9.95, 11.3, 4.0), (-9.95, 16.75, 3.4), (-7.9, 16.75, 3.4)], 1.0, k=6)
+    flank = fillet_path([(px, py, 5.2), (px, py, 4.0), (px, pe, 3.4), (-7.4, pe, 3.4)], 1.0, k=6)
     B.tube([(X(x), y, z) for x, y, z in flank], pr, CONDUIT, n=12)
     # Coupling at the joint (a collar round the pipe) and a bracket from it to the hip mount.
-    B.cylinder(X(-9.95), 11.3, 4.55, 5.45, 1.05, FRAME, n=12, ct=0.12)
-    B.box(min(X(-9.6), X(-8.2)), max(X(-9.6), X(-8.2)), 10.75, 11.85, 2.6, 4.9, 0.2, FRAME)
+    B.cylinder(X(px), py, 4.55, 5.45, 0.72, FRAME, n=12, ct=0.12)
+    B.box(min(X(-9.0), X(-7.4)), max(X(-9.0), X(-7.4)), py - 0.5, py + 0.5, 2.6, 4.9, 0.2, FRAME)
     # Two pipe clamps along the leg's flank, and the coupling where the pipe turns into the leg.
-    for yc in (13.0, 14.95):
-        zp = 4.0 + (3.4 - 4.0) * (yc - 11.3) / (16.75 - 11.3)
-        B.box(min(X(-10.8), X(-8.4)), max(X(-10.8), X(-8.4)), yc - 0.28, yc + 0.28, zp - 0.95, zp + 0.95, 0.15, FRAME)
-    B.box(X(-10.95) if s < 0 else X(-8.6), X(-8.6) if s < 0 else X(-10.95), 16.6, 17.9, 1.9, 4.6, 0.25, FRAME)
+    for yc in (13.2, 15.0):
+        zp = 4.0 + (3.4 - 4.0) * (yc - py) / (pe - py)
+        B.box(min(X(-10.0), X(-8.6)), max(X(-10.0), X(-8.6)), yc - 0.28, yc + 0.28, zp - 0.9, zp + 0.9, 0.15, FRAME)
+    B.box(X(-9.9) if s < 0 else X(-8.0), X(-8.0) if s < 0 else X(-9.9), 15.7, 16.95, 1.9, 4.5, 0.25, FRAME)
     # Manifold on the hip's inner top where the pipe starts.
-    B.box(min(X(-4.05), X(-2.95)), max(X(-4.05), X(-2.95)), 10.5, 12.1, LEG_Z(11.3) + 1.5, zc + 0.8, 0.25, FRAME)
+    B.box(min(X(-3.85), X(-2.75)), max(X(-3.85), X(-2.75)), py - 0.8, py + 0.8, LEG_Z(py) + 1.5, zc + 0.8, 0.25,
+          FRAME)
 
     # Hydraulic ram along the leg's outer top (45 degrees out from the top) on a bolted saddle plate.
     def leg_pt(y, ang, r):  # a point at radius r round the leg axis, ang degrees out from the top
@@ -411,73 +434,77 @@ def build_side(B, s):
     # Foot: dark sole, glowing light-bar layer, chamfered armour shoe.
     plan = foot_plan(s)
     B.prism(plan, 0.0, 1.25, 0.25, FOOT, cb=0.15)
+    B.prism(heel_plan(s), 0.0, 1.25, 0.25, FOOT, cb=0.15)
     glow = inset(plan, 0.3)
     B.prism(glow, 1.2, 1.8, 0.12, RIM)
+    B.prism(inset(heel_plan(s), [0.3, 0.3, 0.0, 0.3]), 1.2, 1.8, 0.12, RIM)
     # Armour: inner edge flush, rear flush, outer edge in by 1 (column 13 / 32), front at row 24.
-    shoe = [(-4.0, 19.0), (-10.0, 19.0), (-10.0, 23.2), (-9.2, 24.0), (-4.0, 24.0)]
+    shoe = [(-5.0, 19.0), (-8.6, 19.0), (-8.85, 20.0), (-5.0, 20.0)]
+    B.prism([(X(x), y) for x, y in shoe], 1.75, lambda x, y: foot_top(y), 0.45, FOOT)
+    shoe = [(-5.0, 19.9), (-9.9, 19.9), (-10.2, 20.3), (-10.2, 23.2), (-9.4, 24.0), (-5.0, 24.0)]
     shoe = [(X(x), y) for x, y in shoe]
     B.prism(shoe, 1.75, lambda x, y: foot_top(y), 0.45, FOOT)
     # Ankle fairing: a sloped block from the shoe up round the barrel's end.
-    ank = [(-9.0, 18.95), (-4.05, 18.95), (-4.05, 22.6), (-9.0, 22.6)]
+    ank = [(-8.4, 18.95), (-5.05, 18.95), (-5.05, 22.6), (-8.4, 22.6)]
     B.prism([(X(x), y) for x, y in ank], 1.75, lambda x, y: 5.0 - 0.38 * (y - 19.0), 0.45, FOOT)
-    if s > 0:  # the sprite's right foot is a column wider at rows 19-23: an outer guard plate
-        B.prism([(10.9, 19.0), (11.85, 19.0), (11.85, 23.3), (11.3, 23.95), (10.9, 23.95)], 0.0, 2.6, 0.3, FRAME)
     # Two dark cleats on the sole's outer flank.
     for y0 in (20.2, 22.2):
-        B.box(X(-11.0) if s < 0 else X(-10.65), X(-10.65) if s < 0 else X(-11.0), y0, y0 + 1.0, 0.2, 1.1, 0.1, FRAME)
+        B.box(X(-10.95) if s < 0 else X(-10.6), X(-10.6) if s < 0 else X(-10.95), y0, y0 + 1.0, 0.2, 1.1, 0.1, FRAME)
 
 
 def build_centre(B):
     # Beacon tower: cheek plates either side of the beacon column.
     for s in (-1, 1):
         X = lambda x: -x if s > 0 else x  # noqa: E731
-        cheek = [(-4.95, 1.0), (-3.95, 0.05), (-2.2, 0.05), (-2.2, 5.3), (-5.0, 5.3)]
+        cheek = [(-3.95, 1.35), (-3.65, 1.05), (-2.2, 1.05), (-2.2, 5.3), (-3.95, 5.3)]
         B.prism([(X(x), y) for x, y in cheek], 0.0, 9.1, 0.55, HEAD)
         # Louvres on the tower front (seen by the game camera) and its outer flank.
         for z in (7.1, 7.75, 8.4):
-            B.box(min(X(-4.6), X(-2.6)), max(X(-4.6), X(-2.6)), 5.25, 5.45, z, z + 0.35, 0.06, FRAME)
+            B.box(min(X(-3.65), X(-2.45)), max(X(-3.65), X(-2.45)), 5.25, 5.45, z, z + 0.35, 0.06, FRAME)
         for z in (4.2, 5.0, 5.8):
-            x0, x1 = (-5.25, -4.95) if s < 0 else (4.95, 5.25)
-            B.box(x0, x1, 1.3, 4.0, z, z + 0.4, 0.06, FRAME)
+            x0, x1 = (-4.08, -3.9) if s < 0 else (3.9, 4.08)
+            B.box(x0, x1, 2.0, 4.6, z, z + 0.4, 0.06, FRAME)
         # Rear (north): a service hatch on each cheek's back face with a vent grille, two ribs above it
         # and a bolted strap below.
-        x0, x1 = sorted((X(-3.8), X(-2.4)))
-        B.box(x0, x1, -0.12, 0.1, 1.6, 6.6, 0.08, FRAME)
+        # (The tower's back face is at row 1, y 1.05, inside the sprite's ink row 0; these stand
+        # proud of it by at most 0.25.)
+        x0, x1 = sorted((X(-3.6), X(-2.4)))
+        B.box(x0, x1, 0.93, 1.15, 1.6, 6.6, 0.08, FRAME)
         for z in (2.2, 2.9, 3.6, 4.3, 5.0, 5.7):
-            B.box(x0 + 0.2, x1 - 0.2, -0.24, -0.06, z, z + 0.32, 0.04, HUB)
+            B.box(x0 + 0.2, x1 - 0.2, 0.81, 0.99, z, z + 0.32, 0.04, HUB)
         for z in (7.15, 7.85):
-            B.box(x0 - 0.1, x1 + 0.15, -0.16, 0.1, z, z + 0.35, 0.08, FRAME)
-        B.box(x0 - 0.1, x1 + 0.15, -0.14, 0.1, 0.5, 1.1, 0.08, FRAME)
+            B.box(x0 - 0.1, x1 + 0.1, 0.89, 1.15, z, z + 0.35, 0.08, FRAME)
+        B.box(x0 - 0.1, x1 + 0.1, 0.91, 1.15, 0.5, 1.1, 0.08, FRAME)
         for xb in (x0 + 0.3, x1 - 0.3):
-            B.tube([(xb, 0.0, 0.8), (xb, -0.3, 0.8)], 0.14, HUB, n=6)
-    B.box(-2.15, 2.15, 0.1, 5.15, 0.0, 8.4, 0.2, FRAME)  # beacon column
+            B.tube([(xb, 1.05, 0.8), (xb, 0.9, 0.8)], 0.14, HUB, n=6)
+    B.box(-2.15, 2.15, 1.1, 5.15, 0.0, 8.4, 0.2, FRAME)  # beacon column
     # Its back (north) face: a vent grille of upright slats in a frame, a rib across the top.
-    B.box(-1.95, 1.95, -0.02, 0.15, 1.0, 1.4, 0.06, HEAD)
-    B.box(-1.95, 1.95, -0.02, 0.15, 6.8, 7.2, 0.06, HEAD)
+    B.box(-1.95, 1.95, 0.98, 1.15, 1.0, 1.4, 0.06, HEAD)
+    B.box(-1.95, 1.95, 0.98, 1.15, 6.8, 7.2, 0.06, HEAD)
     for xs in (-1.45, -0.725, 0.0, 0.725, 1.45):
-        B.box(xs - 0.2, xs + 0.2, -0.22, 0.15, 1.4, 6.8, 0.07, HEAD)
-    B.box(-2.25, 2.25, -0.2, 0.15, 7.45, 7.85, 0.1, HUB)
-    # Bezel: four chamfered bars round the glass, standing proud of it.
-    B.box(-2.15, 2.15, 0.1, 1.15, 8.0, 9.35, 0.25, FRAME)
+        B.box(xs - 0.2, xs + 0.2, 0.83, 1.15, 1.4, 6.8, 0.07, HEAD)
+    B.box(-2.25, 2.25, 0.85, 1.15, 7.45, 7.85, 0.1, HUB)
+    # Bezel: four chamfered bars round the glass (the sprite's 4x4 light, columns 21-24, rows 1-4).
+    B.box(-2.15, 2.15, 1.1, 1.45, 8.0, 9.35, 0.12, FRAME)
     B.box(-2.15, 2.15, 4.85, 5.15, 8.0, 9.35, 0.12, FRAME)
-    B.box(-2.15, -1.8, 0.1, 5.15, 8.0, 9.35, 0.12, FRAME)
-    B.box(1.8, 2.15, 0.1, 5.15, 8.0, 9.35, 0.12, FRAME)
-    B.box(-1.85, 1.85, 1.1, 4.9, 7.0, 9.15, 0.35, LIGHT)  # the glass beacon, bevelled
+    B.box(-2.15, -1.8, 1.1, 5.15, 8.0, 9.35, 0.12, FRAME)
+    B.box(1.8, 2.15, 1.1, 5.15, 8.0, 9.35, 0.12, FRAME)
+    B.box(-1.85, 1.85, 1.35, 4.9, 7.0, 9.15, 0.35, LIGHT)  # the glass beacon, bevelled
     # Shoulder housing: top slopes forward and out (the sprite's shaded rows 5-6).
     pts = []
-    for y, hw, zt in ((4.6, 5.2, 7.4), (5.95, 6.9, 6.95)):
+    for y, hw, zt in ((4.95, 4.45, 7.4), (6.0, 5.5, 6.95)):
         for sx in (-1, 1):
             pts += [(sx * hw, y, 0.0), (sx * hw, y, zt - 1.1), (sx * (hw - 1.1), y, zt)]
     B.hull(pts, SHOULDER)
     for sx in (-1, 1):  # the shoulders run on beside the tube, under the hip caps
         pts = []
-        for y, hw, zt in ((5.4, 6.4, 7.1), (6.0, 7.0, 6.95), (7.8, 7.0, 6.5)):
+        for y, hw, zt in ((5.5, 5.0, 7.1), (7.5, 7.0, 6.75), (8.4, 7.0, 6.5)):
             pts += [(sx * hw, y, 0.0), (sx * hw, y, zt - 1.1), (sx * (hw - 1.1), y, zt),
                     (sx * 2.6, y, 0.0), (sx * 2.6, y, zt - 0.3)]
         B.hull(pts, SHOULDER)
         # Cooling fins on the shoulder's back face, beside the tower.
         for z in (1.6, 2.8, 4.0, 5.2):
-            B.box(min(sx * 5.15, sx * 6.25), max(sx * 5.15, sx * 6.25), 5.0, 5.45, z, z + 0.55, 0.12, FRAME)
+            B.box(min(sx * 4.0, sx * 4.85), max(sx * 4.0, sx * 4.85), 5.0, 5.45, z, z + 0.55, 0.12, FRAME)
     # Tube cradle: channel walls, floor, end block.
     for s in (-1, 1):
         x0, x1 = (-3.1, -2.05) if s < 0 else (2.05, 3.1)
@@ -492,9 +519,11 @@ def build_centre(B):
     B.loft([ring(0.0, y, tz, r, n=20, p=2.0) for y, r in ((13.95, 2.05), (14.05, 2.12), (14.6, 2.12))], FRAME)
     B.loft([ring(0.0, y, tz, r, n=20, p=2.0) for y, r in ((9.85, 2.02), (10.15, 2.02))], HIPRING)
     # Gearbox between the legs: rounded front (rows 19-20).
-    half = [(4.0, 13.4), (4.0, 18.6), (3.3, 19.4), (2.8, 20.1), (1.9, 20.9), (1.3, 21.05)]
+    half = [(3.0, 13.4), (3.0, 18.4), (2.7, 18.9), (2.2, 19.5), (1.6, 19.9), (1.1, 20.05)]
     case = half + [(-x, y) for x, y in reversed(half)]
     B.prism(case, 0.0, 1.6, 0.25, FLOOR)
+    # Its base plate, out to the legs (the sprite's dark column 19 / 26 at rows 13-17).
+    B.box(-4.1, 4.1, 13.4, 17.95, 0.0, 1.2, 0.15, FLOOR)
     # Two upright gears facing the camera (south), each on a boss, either side of the drive shaft.
     B.gear_y(-2.1, 3.1, 15.5, 16.3, 1.9, 10, FRAME)
     B.tube([(-2.1, 15.0, 3.1), (-2.1, 16.85, 3.1)], 0.62, SHOULDER, n=12)

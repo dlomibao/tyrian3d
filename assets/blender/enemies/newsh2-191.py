@@ -20,11 +20,18 @@ Units in the builders: sprite px. X = pixel-edge column (0..24), Y = pixel-edge 
 = rear), Z = height off the spin plane.
 
 The eight frames turn the whole thing about the screen's vertical axis, so the model is built once
-(frame 191, unturned) and exported eight times, each turned about Y through column edge 11.5 to the
-angle its frame shows (ANGLES, fitted to each frame's mask: 0, 40, 59, 74.5, 90, then back out
-on the other side): newsh2-191 (frame 191), newsh2-191-f2 (193) ... newsh2-191-f8 (205). Frames 197
-and 201 draw the leg housings 8 px across (an even count, centred half a pixel off the axis that
-frames 191 and 199 fix), so no turned rigid model matches their housing rows exactly.
+(frame 191, unturned) and exported eight times: newsh2-191 (frame 191), newsh2-191-f2 (193) ...
+newsh2-191-f8 (205). Each later one is that model turned about Y through column edge 11.5 and
+reshaped a little (FRAME_FIT, fit_point): a rigid turned copy cannot be as narrow as the sprite's
+inner mask in the frames between (the legs are 2-3 px across at 40 degrees but 5 edge-on, and in
+frames 197 and 201 the housings are 6 px across over 7 px blades), so each frame's model scales its
+depth and its legs' thickness along the arch and sets the arch's width, all fitted to that frame's
+inner mask (D74, docs/agents/OUTLINE-BORDER.md).
+
+Plan (D74): the top view goes to the INNER edge of the sprite's ink border, which the game's
+outline then stands in for. In frame 191 the arcs are 1.7 px across (the sprite's colour pixel is
+1 px inside its ink, so thin-part rule: at least half the 3 px the sprite draws), the pod is 5 px,
+and the pod's strut stays out of the ink pixels beside it.
 
 Palette materials (pal_<index>) so palettes, fades and the hit flash apply; satin metal.
 Texture: no concept projection (its maps.json says "bake": "model", as the player ships, D50).
@@ -53,19 +60,57 @@ TAG = "newsh2_191"
 NAME = "newsh2-191"
 PX = 1 / 12
 AX = 11.5  # spin axis (pixel-edge column)
-# turn per frame (degrees about Y), fitted to the eight sprite frames' masks (top ortho IoU)
-ANGLES = [0.0, 40.0, 59.0, 74.5, 90.0, 105.5, 121.0, 140.0]
+# Each later frame turns the model about Y (ang, degrees) and reshapes it a little first, fitted
+# to that frame's INNER mask (D74, tools/sprite_mask.py --measure, rule IoU on the sprite grid).
+# The sprite is not one rigid object turning (its leg housings are 6 px across in frame 197 but 7
+# in the blades, the arch is 5 px across edge-on but only 2-3 px at 40 degrees), so a frame's model
+# scales its depth (sz, about the spin plane) and its legs' thickness across (lw, about each leg's
+# own centre line) along the arch, shifts it in depth (dz) and sets the arch's width (sx) and
+# place (dx, px). sz, lw and dz are values at the rows of FIT_ROWS, interpolated. See fit_point.
+FIT_ROWS = [1.5, 3.0, 4.5, 6.0, 7.5, 10.0, 12.5, 14.0, 16.0, 19.5]
+FRAME_FIT = [
+    None,  # frame 191 is the model as built
+    dict(ang=39.89, sx=0.930, dx=0.003,  # frame 193
+         sz=[0.391, 0.328, 0.812, 0.614, 0.971, 0.801, 0.883, 0.676, 0.374, 0.369],
+         lw=[0.643, 0.515, 0.508, 0.533, 0.517, 0.781, 0.907, 0.779, 1.043, 1.096],
+         dz=[0.147, -0.03, -0.004, 0, 0, -0.017, 0, 0, -0.046, 0.018]),
+    dict(ang=60.76, sx=0.971, dx=0.116,  # frame 195
+         sz=[0.597, 1.288, 0.733, 0.719, 0.864, 0.651, 0.749, 1.146, 0.75, 0.64],
+         lw=[0.75, 0.608, 0.549, 0.593, 0.739, 0.859, 0.738, 1.083, 0.943, 0.993],
+         dz=[-0.006, 0.015, -0.021, -0.035, 0.007, 0.002, -0.022, 0.082, -0.089, 0.023]),
+    dict(ang=74.65, sx=0.876, dx=0.237,  # frame 197
+         sz=[0.69, 1.025, 1.078, 0.673, 0.673, 0.455, 0.668, 1.278, 1.174, 0.86],
+         lw=[1.018, 1.082, 0.843, 0.869, 0.749, 0.711, 0.552, 0.912, 0.869, 1.063],
+         dz=[-0.087, 0.007, -0.028, -0.023, -0.077, -0.181, -0.039, -0.064, -0.17, 0.047]),
+    dict(ang=88.65, sx=0.949, dx=0.137,  # frame 199
+         sz=[0.368, 0.796, 1.111, 0.811, 0.997, 0.772, 0.949, 1.263, 1.177, 0.975],
+         lw=[1.005, 1.082, 0.86, 0.711, 0.547, 0.874, 0.617, 0.97, 0.691, 0.893],
+         dz=[0.129, -0.051, -0.007, -0.009, 0.003, 0.08, -0.011, 0.058, 0.043, -0.054]),
+    dict(ang=100.60, sx=0.810, dx=0.158,  # frame 201
+         sz=[0.351, 1.116, 1.237, 0.823, 0.859, 0.6, 0.872, 1.24, 1.221, 1.153],
+         lw=[1.02, 0.857, 0.883, 0.789, 0.736, 0.871, 0.661, 0.991, 0.718, 0.843],
+         dz=[-0.027, -0.021, -0.013, -0.022, 0.057, 0.102, 0.01, -0.033, -0.042, -0.019]),
+    dict(ang=124.01, sx=0.939, dx=-0.047,  # frame 203
+         sz=[0.59, 1.3, 0.56, 0.606, 0.64, 1.078, 0.529, 1.135, 1.077, 0.611],
+         lw=[0.867, 0.683, 0.507, 0.672, 0.876, 1.059, 0.693, 0.826, 0.5, 0.583],
+         dz=[0.005, 0.006, 0.004, 0.012, 0.022, -0.009, 0.012, 0.003, 0.02, -0.007]),
+    dict(ang=136.60, sx=0.986, dx=0.084,  # frame 205
+         sz=[0.952, 0.576, 0.607, 0.375, 0.853, 0.698, 0.789, 0.263, 0.336, 0.269],
+         lw=[0.641, 0.612, 0.507, 0.922, 1.077, 1.044, 1.073, 1.003, 1.035, 1.075],
+         dz=[-0.081, -0.042, 0.029, 0, -0.032, 0.002, -0.002, -0.009, 0.024, -0.02]),
+]
+
 
 # ---------------- tunables (sprite px) ----------------
 T = dict(
-    bandHW=1.48,   # band radial half width (1 colour px + outline = 3 px)
-    bandHD=3.3,    # band half depth at its inner edge: edge-on frame 199 is 7 px across (ring included)
-    crestZ=1.3,    # half depth at its outer edge on the crown (199's crown: 3 px, then 5, then 7)
-    crestRise=0.5,  # ... deeper where the band turns down (x |tangent y|): 195/203's shoulders
+    bandHW=0.9,    # band radial half width (1 colour px + outline = 3 px)
+    bandHD=2.5,    # band half depth at its inner edge: edge-on frame 199 is 7 px across (ring included)
+    crestZ=1.1,    # half depth at its outer edge on the crown (199's crown: 3 px, then 5, then 7)
+    crestRise=0.45,  # ... deeper where the band turns down (x |tangent y|): 195/203's shoulders
     bandK=0.65,    # the faces slope from the outer edge to 30% inside the centre line (a wedge)
-    legHX=1.42, legHZ=3.1,       # leg housing half sizes (199: legs 7 px deep, ring included)
-    bladeHX=1.5, bladeHZ=3.05,   # blade half sizes
-    legCU=1.17, legCV=1.4,        # leg corner chamfers across (X) and along the depth (Z): the deep
+    legHX=0.85, legHZ=2.5,       # leg housing half sizes (199: legs 7 px deep, ring included)
+    bladeHX=0.85, bladeHZ=2.45,   # blade half sizes
+    legCU=0.72, legCV=1.14,        # leg corner chamfers across (X) and along the depth (Z): the deep
                                  # chamfers keep the near-edge-on frames (193-197) as narrow as drawn
     podFlat=0.8,   # pod depth / width
 )
@@ -316,11 +361,11 @@ def build_geometry(B):
     H, D, BX, E = T["legHX"], T["legHZ"], T["bladeHX"], T["bladeHZ"]
     CU, CV = T["legCU"], T["legCV"]
     secs = [  # y, hx, hz, chamfer across, chamfer in depth, palette of the band that starts here
-        (6.55, H + 0.08, D + 0.03, CU + 0.08, CV, "collar"), (7.55, H + 0.08, D + 0.03, CU + 0.08, CV, "collar"),
+        (6.55, H + 0.04, D + 0.03, CU + 0.04, CV, "collar"), (7.55, H + 0.04, D + 0.03, CU + 0.04, CV, "collar"),
         (7.55, H, D, CU, CV, "housing"), (12.0, H, D, CU, CV, "housing"),
-        (12.0, H + 0.08, D + 0.03, CU + 0.08, CV, "collar"), (12.85, H + 0.08, D + 0.03, CU + 0.08, CV, "collar"),
-        (12.85, BX, E, BX - 0.25, CV, "blade"), (18.7, BX, E, BX - 0.25, CV, "blade"),
-        (19.3, 0.8, E - 0.6, 0.68, CV * 0.7, "tip"), (19.78, 0.3, E - 1.15, 0.25, CV * 0.5, None)]
+        (12.0, H + 0.04, D + 0.03, CU + 0.04, CV, "collar"), (12.85, H + 0.04, D + 0.03, CU + 0.04, CV, "collar"),
+        (12.85, BX, E, BX - 0.25, CV, "blade"), (18.4, BX, E, BX - 0.25, CV, "blade"),
+        (18.8, 0.7, E - 0.6, 0.58, CV * 0.7, "tip"), (19.15, 0.3, E - 1.15, 0.25, CV * 0.5, None)]
     zs = D - CV  # half height of the legs' flat side faces
     for side in (1, -1):
         mx = lambda x: x if side > 0 else 2 * AX - x
@@ -330,7 +375,7 @@ def build_geometry(B):
         B.loft(rings, pals, cap_pals=(PAL["collar"], PAL["tip"]))
         # outer side plate on the housing (raised armour panel)
         ox = cx - side * H
-        B.box((min(ox, ox - side * 0.08), 8.05, -(zs - 0.15)), (max(ox, ox - side * 0.08), 11.55, zs - 0.15), PAL["plate"])
+        B.box((min(ox, ox - side * 0.03), 8.05, -(zs - 0.15)), (max(ox, ox - side * 0.03), 11.55, zs - 0.15), PAL["plate"])
         # inner side: three vent slots (dark inserts)
         ix = cx + side * H
         for z in (-0.62 * (zs - 0.4), 0.0, 0.62 * (zs - 0.4)):
@@ -356,10 +401,10 @@ def build_geometry(B):
         for sz in (1, -1):
             for sx in (1, -1):
                 panel(sx, sz, 0.08, 0.92, 9.95, 10.08, PAL["groove"], "housing")     # cross seams
-                panel(sx, sz, 0.08, 0.92, 15.6, 15.72, PAL["groove"], "blade")
+                panel(sx, sz, 0.08, 0.92, 15.4, 15.52, PAL["groove"], "blade")
             for y in (8.15, 8.6, 9.05):                                            # louvres, outer slope
                 panel(-1, sz, 0.25, 0.75, y, y + 0.2, PAL["slot"], "housing")
-            for y in (13.4, 17.7):                                                 # bolts, inner slope
+            for y in (13.4, 17.3):                                                 # bolts, inner slope
                 hu, hv, cu = BX, E, BX - 0.25
                 c = slope(1, sz, 0.55, y, hu, hv, cu, 0.0)
                 ln = math.hypot(cu, CV)
@@ -370,37 +415,36 @@ def build_geometry(B):
                         [add(c, nrm, 0.12)]], PAL["bolt"], cap1=False)
         # --- STRUT: chamfered beam from the housing to the pod, clamp block, bearing collar
         xs = [mx(x) for x in (6.7, 6.95, 7.7, 8.5)]
-        sr = [ch_ring((x, 10.5, 0.0), (0, 1, 0), Z, 1.5 if i < 1 else 1.42, 1.6 if i < 1 else 1.35, 0.35)
+        sr = [ch_ring((x, 10.5, 0.0), (0, 1, 0), Z, 0.62 if i < 1 else 0.6, 1.6 if i < 1 else 1.35, 0.3)
               for i, x in enumerate(xs)]
         B.loft(sr, PAL["strut"])
-        lo, hi = mx(6.75), mx(7.35)
+        lo, hi = mx(6.3), mx(7.1)
         B.box((min(lo, hi), 9.05, -2.2), (max(lo, hi), 11.95, 2.2), PAL["clamp"])
         for sz in (1, -1):  # clamp bolts
-            c = mx(7.05)
-            for y in (9.6, 11.4):
+            c = mx(6.85)
+            for y in (10.1, 10.9):
                 z0 = sz * 2.2
                 B.loft([ell_ring((c, y, z0 - sz * 0.05), (1, 0, 0), (0, 1, 0), 0.15, 0.15, 6),
                         ell_ring((c, y, z0 + sz * 0.08), (1, 0, 0), (0, 1, 0), 0.12, 0.12, 6),
                         [(c, y, z0 + sz * 0.1)]], PAL["bolt"], cap1=False)
         br = [ell_ring((mx(x), 10.5, 0.0), (0, 1, 0), Z, 1.4 if i % 3 else 1.2, 1.55 if i % 3 else 1.3, 12)
-              for i, x in enumerate((7.75, 7.9, 8.35, 8.6))]
+              for i, x in enumerate((7.85, 7.97, 8.5, 9.0))]
         B.loft(br, PAL["bearing"])
 
     # --- POD: flattened bronze barrel lying along Y; a hub at the rear, a deep dark port in the nose
     pf = T["podFlat"]
-    pod = [(5.95, 0.85, "pod_cap"), (6.1, 0.85, "pod_cap"), (6.1, 1.65, "pod_cap"), (6.35, 2.35, "pod_cap"),
-           (6.65, 2.8, "pod"), (7.05, 3.3, "pod"), (7.55, 3.52, "pod"), (11.55, 3.52, "pod_seam"),
-           (11.75, 3.32, "pod_seam"), (11.95, 3.44, "pod_low"), (12.6, 3.3, "pod_low"), (13.25, 2.75, "pod_low"),
-           (13.95, 2.0, "pod_cap"), (14.3, 1.7, "pod_cap"), (14.78, 1.18, "pod_cap"), (14.78, 0.78, "port"),
-           (14.25, 0.7, None)]
-    rings = [[(AX, 5.9, 0.0)]] + [ell_ring((AX, y, 0.0), (1, 0, 0), Z, w, w * pf, 20) for y, w, _ in pod] + \
-        [[(AX, 14.25, 0.0)]]
+    pod = [(6.95, 0.9, "pod_cap"), (7.05, 1.7, "pod_cap"), (7.2, 2.3, "pod"), (7.5, 2.5, "pod"),
+           (8.0, 2.5, "pod"), (11.55, 2.5, "pod_seam"), (11.7, 2.35, "pod_seam"), (11.9, 2.5, "pod_low"),
+           (12.4, 2.5, "pod_low"), (12.9, 2.2, "pod_low"), (13.3, 1.8, "pod_cap"), (13.65, 1.45, "pod_cap"),
+           (14.0, 1.1, "pod_cap"), (14.0, 0.75, "port"), (13.55, 0.65, None)]
+    rings = [[(AX, 6.9, 0.0)]] + [ell_ring((AX, y, 0.0), (1, 0, 0), Z, w, w * pf, 20) for y, w, _ in pod] + \
+        [[(AX, 13.55, 0.0)]]
     pals = [PAL["pod_cap"]] + [PAL[r] if r else PAL["port"] for _, _, r in pod]
     pals[-2] = PAL["port"]
     B.loft(rings, pals)
 
     def pod_hw(y):
-        body = [s for s in pod[2:14]]
+        body = [s for s in pod[2:13]]
         for (y0, w0, _), (y1, w1, _) in zip(body, body[1:]):
             if y0 <= y <= y1:
                 return w0 + (w1 - w0) * (y - y0) / max(1e-9, y1 - y0)
@@ -427,26 +471,54 @@ def build_geometry(B):
     for sz in (1, -1):
         strip(seg((AX - 1.0, 7.5), (AX - 1.0, 11.5), 6), 0.07, PAL["pod_seam"], sz)
         strip(seg((AX + 1.0, 7.5), (AX + 1.0, 11.5), 6), 0.07, PAL["pod_seam"], sz)
-        strip(seg((AX - 2.6, 12.6), (AX - 1.2, 13.4), 3), 0.06, PAL["pod_seam"], sz)
-        strip(seg((AX - 1.2, 13.4), (AX + 1.2, 13.4), 3), 0.06, PAL["pod_seam"], sz)
-        strip(seg((AX + 1.2, 13.4), (AX + 2.6, 12.6), 3), 0.06, PAL["pod_seam"], sz)
-        strip(seg((AX - 3.0, 7.15), (AX + 3.0, 7.15), 12), 0.05, PAL["pod_seam"], sz)
+        strip(seg((AX - 1.9, 12.5), (AX - 1.0, 13.2), 3), 0.06, PAL["pod_seam"], sz)
+        strip(seg((AX - 1.0, 13.2), (AX + 1.0, 13.2), 3), 0.06, PAL["pod_seam"], sz)
+        strip(seg((AX + 1.0, 13.2), (AX + 1.9, 12.5), 3), 0.06, PAL["pod_seam"], sz)
+        strip(seg((AX - 2.1, 7.25), (AX + 2.1, 7.25), 12), 0.05, PAL["pod_seam"], sz)
         # hatch near the rear of the pod (four dark louvres) and two oval slots on the lower panels
         for i in range(4):
             x0 = AX - 0.7 + i * 0.35
             B.decal([surf(x0 + 0.03, 7.55, sz, 0.045), surf(x0 + 0.32, 7.55, sz, 0.045),
                      surf(x0 + 0.32, 8.3, sz, 0.045), surf(x0 + 0.03, 8.3, sz, 0.045)], PAL["hatch"], (0, 0, sz))
         for sx in (-1, 1):
-            c = AX + sx * 1.95
-            B.decal([surf(c + 0.32 * math.cos(2 * math.pi * k / 10), 13.0 + 0.45 * math.sin(2 * math.pi * k / 10), sz, 0.045)
+            c = AX + sx * 1.2
+            B.decal([surf(c + 0.24 * math.cos(2 * math.pi * k / 10), 12.6 + 0.34 * math.sin(2 * math.pi * k / 10), sz, 0.045)
                      for k in range(10)], PAL["slot"], (0, 0, sz))
 
 
 
-def turn_matrix(angle):
-    """Turn about the spin axis (column edge 11.5) by `angle` about Y."""
-    t = (AX - 12) * PX
-    return Matrix.Translation((t, 0, 0)) @ Matrix.Rotation(angle, 4, "Y") @ Matrix.Translation((-t, 0, 0))
+def _smooth(y, a, b):
+    t = min(1.0, max(0.0, (y - a) / (b - a)))
+    return t * t * (3 - 2 * t)
+
+
+def _along(row, values):
+    """`values` (at FIT_ROWS) linearly interpolated at sprite row `row`."""
+    if row <= FIT_ROWS[0]:
+        return values[0]
+    for r0, r1, v0, v1 in zip(FIT_ROWS, FIT_ROWS[1:], values, values[1:]):
+        if row <= r1:
+            return v0 + (v1 - v0) * (row - r0) / (r1 - r0)
+    return values[-1]
+
+
+def fit_point(co, fit):
+    """One vertex of frame 191's model (units, local) moved to the shape and turn `fit` gives it
+    (FRAME_FIT): a smooth, continuous reshaping of the real geometry, no image warping."""
+    row = 14 - co.y / PX
+    z = co.z * _along(row, fit["sz"]) + _along(row, fit["dz"])
+    u = co.x / PX - (AX - 12)  # px from the spin axis
+    u += (math.copysign(6.0, u) - u) * (1 - _along(row, fit["lw"])) * _smooth(abs(u), 3.0, 4.5)
+    x = u * PX * fit["sx"]
+    a = math.radians(fit["ang"])
+    c, s = math.cos(a), math.sin(a)
+    return Vector((x * c + z * s + (AX - 12) * PX + fit["dx"] * PX, co.y, -x * s + z * c))
+
+
+def fit_mesh(mesh, fit):
+    for v in mesh.vertices:
+        v.co = fit_point(v.co, fit)
+    mesh.update()
 
 
 def build_base(sprite, coll):
@@ -643,15 +715,14 @@ def build(sprite, bake=True):
             obj, shell = base, base_shell
         else:
             fc = common.reset_collection(name)
-            m = turn_matrix(math.radians(ANGLES[k]))
             obj = base.copy()
             obj.data = base.data.copy()
-            obj.data.transform(m)
+            fit_mesh(obj.data, FRAME_FIT[k])
             obj.name = obj.data.name = name
             fc.objects.link(obj)
             shell = base_shell.copy()
             shell.data = base_shell.data.copy()
-            shell.data.transform(m)
+            fit_mesh(shell.data, FRAME_FIT[k])
             shell.name = shell.data.name = f"{name}_outline"
             fc.objects.link(shell)
         shell.parent = obj

@@ -58,17 +58,75 @@ TAG = "newsh2-229"
 U = 1 / 12
 D2R = math.pi / 180
 
-# The ring's two arcs per sprite frame: (start, end) degrees counter-clockwise from +x, fitted to
-# each frame's pixels (top-view IoU 0.96-0.97 for the ring alone).
+# The ring's two arcs per sprite frame: (start, end) degrees counter-clockwise from +x, then the
+# arc's inner and outer radius (px) at 13 knots evenly spaced from start to end, fitted to the INNER
+# mask of each frame's pixels (D74): a 2 px band (r 7.5-9.5) with a flared clamp near one end where
+# the sprite's arc is up to 4 px wide.
 RING_FIT = {
-    229: ((109.0, 251.0), (289.0, 71.0)),
-    231: ((82.5, 230.5), (262.5, 50.5)),
-    233: ((63.0, 207.0), (243.0, 27.0)),
-    235: ((39.5, 187.5), (219.5, 7.5)),
-    237: ((6.0, 174.0), (192.0, 350.0)),
-    239: ((352.5, 140.5), (172.5, 320.5)),
-    241: ((333.0, 117.0), (153.0, 297.0)),
-    243: ((309.5, 97.5), (129.5, 277.5)),
+    229: (
+        (113, 247,
+         (7.5, 6.5, 6.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5),
+         (9.5, 10.5, 10.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5)),
+        (289, 67,
+         (7.5, 6.5, 6.5, 6.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5),
+         (10.5, 9.5, 10.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5)),
+    ),
+    231: (
+        (86.5, 226.5,
+         (7.5, 6.5, 7.5, 6.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5),
+         (9.5, 10.25, 10.5, 9.5, 10.5, 10.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5)),
+        (262.5, 46.5,
+         (7.5, 6.5, 6.5, 7, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5),
+         (9, 10.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5)),
+    ),
+    233: (
+        (67, 203,
+         (7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5),
+         (9.5, 10.5, 10.5, 10, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5)),
+        (247, 23,
+         (6.5, 6.5, 6.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5),
+         (9.5, 10.5, 10.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5)),
+    ),
+    235: (
+        (43.5, 179.5,
+         (7.5, 6.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5),
+         (9.5, 9.5, 10.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5)),
+        (223.5, 359.5,
+         (7.5, 6.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5),
+         (10.5, 10, 10.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5)),
+    ),
+    237: (
+        (10, 170,
+         (7.5, 7.5, 6.5, 7, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5),
+         (10.5, 10.5, 10.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5)),
+        (192, 344,
+         (7.5, 7.5, 6.5, 7, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5),
+         (8.5, 10.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5)),
+    ),
+    239: (
+        (356.5, 136.5,
+         (7.5, 6.5, 7.5, 6.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5),
+         (9.5, 10.25, 10.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5)),
+        (172.5, 316.5,
+         (7.5, 6.5, 6.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5),
+         (9.5, 10.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5)),
+    ),
+    241: (
+        (337, 113,
+         (6.5, 6.5, 6.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5),
+         (9.5, 10.5, 10.5, 10, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5)),
+        (153, 293,
+         (7.5, 6.5, 6.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5),
+         (10.5, 10.5, 10.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5)),
+    ),
+    243: (
+        (301.5, 89.5,
+         (7.5, 7.5, 6.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5),
+         (9.5, 10.5, 10, 10.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5)),
+        (133.5, 269.5,
+         (7.5, 6.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5),
+         (10.5, 10, 10.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5)),
+    ),
 }
 
 # ------------------------------------------------------------------------------------------------
@@ -187,9 +245,15 @@ class Part:
             rings.append(([(mx + (x - mx) * f, my + (y - my) * f) for x, y in o], zc + (z1 - zc) * math.sin(t)))
         self.stack(rings, mat, mat, mat)
 
-    def polar(self, a0, a1, prof, mats, n, ch0, ch1, cap_mat):
+    def polar(self, a0, a1, prof, mats, n, ch0, ch1, cap_mat, rmap=None):
         """Sweep a closed (r, z) profile around the origin from a0 to a1 (radians, ccw), with
-        chamfered ends (ch0/ch1 px: an inset ring at the end angle)."""
+        chamfered ends (ch0/ch1 px: an inset ring at the end angle). rmap(angle) -> (inner, outer)
+        radius: the profile's radii BAND_R0..BAND_R1 are stretched to that band at each angle."""
+        def mp(a, r):
+            if rmap is None:
+                return r
+            ri, ro = rmap(a)
+            return ri + (r - BAND_R0) * (ro - ri) / (BAND_R1 - BAND_R0)
         cr = sum(p[0] for p in prof) / len(prof)
         cz = sum(p[1] for p in prof) / len(prof)
 
@@ -213,7 +277,8 @@ class Part:
             rings.append(ring)
         if ch1 > 0:
             rings.append([(a1, r, z) for r, z in ins(ch1)])
-        vs = [[self.bm.verts.new((r * math.cos(a), r * math.sin(a), z)) for a, r, z in ring] for ring in rings]
+        vs = [[self.bm.verts.new((mp(a, r) * math.cos(a), mp(a, r) * math.sin(a), z)) for a, r, z in ring]
+              for ring in rings]
         m = len(prof)
         for k in range(len(vs) - 1):
             for i in range(m):
@@ -312,16 +377,17 @@ def boolean(obj, cutter_part, mats, coll):
 # ------------------------------------------------------------------------------------------------
 # The core (fixed, built once at the origin)
 # ------------------------------------------------------------------------------------------------
-CORE_R = [(0, 4.55), (3.4, 4.55), (3.95, 4.25), (4.25, 4.0), (4.55, 3.4), (4.55, -1.3), (3.45, -2.5),
-          (2.45, -3.5), (1.45, -4.42), (0.5, -4.68)]
+# The core's plan is the sprite's INNER mask (D74): 7 px wide, rows 9-15, the front edge a 45 degree
+# diagonal through the sprite's pixel steps (x = y + 4.5), a short flat tip.
+CORE_R = [(0, 3.5), (3.2, 3.5), (3.5, 3.2), (3.5, -1.0), (2.25, -2.25), (1.0, -3.5), (0.5, -3.5)]
 CORE = CORE_R + [(-x, y) for x, y in reversed(CORE_R[1:])]
 CORE = [p for i, p in enumerate(CORE) if i == 0 or p != CORE[i - 1]]
-LOBE = [(-0.45, 2.9), (-1.0, 2.85), (-2.6, 1.35), (-3.5, 0.7), (-3.45, -1.0), (-2.95, -1.8), (-1.95, -2.8),
-        (-1.3, -3.45), (-0.85, -3.85), (-0.45, -3.85)]
-LIGHT = (2.75, 2.75)
+LOBE = [(-0.36, 2.26), (-0.78, 2.22), (-2.03, 1.05), (-2.7, 0.55), (-2.7, -0.78), (-2.3, -1.4), (-1.52, -2.18),
+        (-1.0, -2.7), (-0.66, -3.0), (-0.36, -3.0)]
+LIGHT = (2.5, 2.5)
 Z_BOT, Z_BELT, Z_TOP = -2.3, 0.0, 2.5
 # Front faces of the shell (the diagonal from (4.55,-1.3) to (0.5,-4.68)): direction and normal.
-FRONT_A, FRONT_B = Vector((4.55, -1.3)), Vector((0.5, -4.68))
+FRONT_A, FRONT_B = Vector((3.5, -1.0)), Vector((1.0, -3.5))
 
 
 def build_core(mats, coll):
@@ -346,17 +412,17 @@ def build_core(mats, coll):
             c = (s * (mid.x + nrm.x * 0.0), mid.y, z)
             cut.box(c, (2.1, 0.62, 0.26), rot if s > 0 else math.pi - rot, DARK)
         for z in (-1.55, -1.1, -0.65):  # lower tier, side walls: three vent slots
-            cut.box((s * 4.55, 0.9, z), (0.62, 2.4, 0.24), 0.0, DARK)
+            cut.box((s * 3.5, 0.9, z), (0.62, 2.4, 0.24), 0.0, DARK)
         for z in (0.75, 1.3):  # upper tier, side walls: two longer slots
-            cut.box((s * 4.55, 1.3, z), (0.62, 3.2, 0.26), 0.0, DARK)
+            cut.box((s * 3.5, 1.2, z), (0.62, 3.0, 0.26), 0.0, DARK)
     for s in (-1, 1):  # rear nozzles: deep bores in the flat rear face, counterbored at the mouth
-        cut.cylinder((s * 1.75, 2.55, 1.1), (0, 1, 0), 0.62, 2.4, DARK, sides=16)
+        cut.cylinder((s * 1.4, 1.55, 1.1), (0, 1, 0), 0.55, 2.4, DARK, sides=16)
     boolean(shell, cut, mats, coll)
     # The counterbores at the nozzle mouths: a pass of their own (overlapping the bores in one
     # cutter would make the exact solver keep a cap over each bore).
     cut = Part()
     for s in (-1, 1):
-        cut.cylinder((s * 1.75, 4.3, 1.1), (0, 1, 0), 0.8, 0.6, HOUSING, sides=16)
+        cut.cylinder((s * 1.4, 3.25, 1.1), (0, 1, 0), 0.7, 0.6, HOUSING, sides=16)
     boolean(shell, cut, mats, coll)
 
     parts = [shell]
@@ -364,28 +430,28 @@ def build_core(mats, coll):
     # throat ring part-way down, so the straight rear view reads as a deep stepped nozzle.
     det = Part()
     for s in (-1, 1):
-        det.cylinder((s * 1.75, 2.6, 1.1), (0, 1, 0), 0.4, 0.08, NOZ_GLOW, sides=16)
-        det.tube((s * 1.75, 3.45, 1.1), (0, 1, 0), 0.44, 0.66, 0.22, GROOVE, sides=16)
+        det.cylinder((s * 1.4, 1.6, 1.1), (0, 1, 0), 0.35, 0.08, NOZ_GLOW, sides=16)
+        det.tube((s * 1.4, 2.4, 1.1), (0, 1, 0), 0.38, 0.58, 0.22, GROOVE, sides=16)
     # Seam: the dark channel between the lobes.
-    det.plate([(-0.42, 3.0), (0.42, 3.0), (0.42, -4.0), (-0.42, -4.0)], 2.2, 2.78, 0.0, 0.06, SEAM)
+    det.plate([(-0.4, 2.4), (0.4, 2.4), (0.4, -2.9), (-0.4, -2.9)], 2.2, 2.78, 0.0, 0.06, SEAM)
     # Top plate between the lights, a V foot pointing down the seam.
-    det.plate([(-1.35, 4.4), (1.35, 4.4), (1.35, 3.25), (0.45, 2.6), (-0.45, 2.6), (-1.35, 3.25)],
+    det.plate([(-1.3, 3.4), (1.3, 3.4), (1.3, 2.5), (0.45, 1.9), (-0.45, 1.9), (-1.3, 2.5)],
               2.4, 3.85, 0.0, 0.3, TOP)
     # A recessed dark slot across the top plate's rear (a sensor slit).
-    det.box((0, 3.95, 3.86), (1.5, 0.28, 0.06), 0.0, DARK)
+    det.box((0, 3.0, 3.86), (1.5, 0.28, 0.06), 0.0, DARK)
     # Hex housings and faceted lenses.
     for s in (-1, 1):
         lx, ly = s * LIGHT[0], LIGHT[1]
-        hexo = [(lx + 1.45 * math.cos(math.pi / 3 * k), ly + 1.3 * math.sin(math.pi / 3 * k)) for k in range(6)]
+        hexo = [(lx + 1.0 * math.cos(math.pi / 3 * k), ly + 0.95 * math.sin(math.pi / 3 * k)) for k in range(6)]
         det.plate(hexo, 2.2, 3.55, 0.0, 0.25, HOUSING)
         # Faceted lens: a shallow octagonal lens set into the housing, barely proud of its rim.
-        oct_ = lambda r, z: ([(lx + r * math.cos(math.pi / 4 * (k + 0.5)), ly + r * 0.95 * math.sin(math.pi / 4 * (k + 0.5)))  # noqa: E731
+        oct_ = lambda r, z: ([(lx + 0.8 * r * math.cos(math.pi / 4 * (k + 0.5)), ly + 0.8 * r * 0.95 * math.sin(math.pi / 4 * (k + 0.5)))  # noqa: E731
                               for k in range(8)], z)
         det.stack([oct_(1.0, 3.3), oct_(1.02, 3.48), oct_(0.8, 3.64), oct_(0.42, 3.72)],
                   [LENS_SIDE, LENS_MID, LENS_MID], LENS_TOP, LENS_SIDE)
     # Nose sensor at the tip: a chamfered block with a dark slit.
-    det.box((0, -4.55, -0.15), (1.0, 0.7, 1.7), 0.0, HOUSING, ch=0.12)
-    det.box((0, -4.86, 0.25), (0.5, 0.12, 0.22), 0.0, DARK)
+    det.box((0, -3.2, -0.15), (0.9, 0.6, 1.7), 0.0, HOUSING, ch=0.12)
+    det.box((0, -3.5, 0.25), (0.5, 0.12, 0.22), 0.0, DARK)
     parts.append(to_obj(to_mesh(det.done(), "core_detail", mats), coll))
 
     # Lobes, each split by a panel groove and with a small vent grille on its lower plate.
@@ -395,14 +461,14 @@ def build_core(mats, coll):
         lobe = to_obj(to_mesh(lp.done(), f"lobe_{s}", mats), coll)
         cut = Part()
         # Groove across the lobe: from the seam at y -1.0 slanting up to the outer edge at y -0.2.
-        a, b = Vector((s * 0.2, -1.25)), Vector((s * 4.0, -0.35))
+        a, b = Vector((s * 0.16, -0.97)), Vector((s * 3.1, -0.27))
         mid = (a + b) / 2
         ang = math.atan2(b.y - a.y, b.x - a.x)
         cut.box((mid.x, mid.y, 4.85), ((b - a).length, 0.24, 2.2), ang, GROOVE)
         # Vent grille on the lower plate: three short slots parallel to the groove.
         for k, off in enumerate((0.75, 1.15, 1.55)):
-            c = Vector((s * 1.85, -1.1 - off * 0.85 - 0.1))
-            cut.box((c.x, c.y, 5.05), (0.95, 0.17, 2.2), ang, GROOVE)
+            c = Vector((s * 1.45, -0.86 - off * 0.66 - 0.08))
+            cut.box((c.x, c.y, 5.05), (0.75, 0.14, 2.2), ang, GROOVE)
         boolean(lobe, cut, mats, coll)
         parts.append(lobe)
     # Merge to one mesh, in a fixed order.
@@ -432,45 +498,49 @@ def chamfer_rect(r0, r1, z0, z1, c):
             (r0, z0 + c)]
 
 
-RAIL_P = chamfer_rect(6.5, 7.3, -1.15, 0.95, 0.12)
-RIB_P = chamfer_rect(6.4, 7.25, -1.0, 1.2, 0.12)
-CLAMP_P = chamfer_rect(6.4, 8.25, -1.35, 1.62, 0.18)
 SEG_BOUNDS = (0.0, 0.24, 0.5, 0.76, 1.0)
 GAP = 0.24  # px, the panel gaps between band plates
-RIB_AT = (0.13, 0.37, 0.63, 0.87)
 N_ARC = 30
+EXT = 0.25
+BAND_R0, BAND_R1 = 7.2, 10.5  # the profile's own radii (the fitted band replaces them)
 
 
-def build_arc(p, a0d, span_d):
-    a0 = a0d * D2R
-    span = span_d * D2R
+def arc_rmap(a0d, span_d, rin, rout):
+    n = len(rin)
+
+    def rmap(a):
+        u = (a / D2R - a0d) / span_d * (n - 1)
+        u = min(max(u, 0.0), n - 1.0)
+        k = min(int(u), n - 2)
+        t = u - k
+        return rin[k] + (rin[k + 1] - rin[k]) * t, rout[k] + (rout[k + 1] - rout[k]) * t
+    return rmap
+
+
+def build_arc(p, a0d, span_d, rin, rout):
+    rm = 8.5
+    rmap = arc_rmap(a0d, span_d, rin, rout)
+    # The end chamfers pull the silhouette in, so the plates run EXT px past the fitted ends.
+    ext = EXT / rm
+    a0 = a0d * D2R - ext
+    span = span_d * D2R + 2 * ext
     a1 = a0 + span
-    rm = 8.8
-    # Band plates over a dark spine.
+    # Band plates over a dark spine. The whole arc stays inside the sprite's inner mask (r 7.5-9.5,
+    # flared at one end), so there is no mechanism rail inside it.
     for k in range(4):
         u0, u1 = SEG_BOUNDS[k], SEG_BOUNDS[k + 1]
         s0 = a0 + span * u0 + (GAP / 2 / rm if k > 0 else 0)
         s1 = a0 + span * u1 - (GAP / 2 / rm if k < 3 else 0)
         n = max(3, round(N_ARC * (u1 - u0)))
-        p.polar(s0, s1, BAND, BAND_MATS, n, 0.12 if k > 0 else 0.32, 0.12 if k < 3 else 0.32, WALL)
-    p.polar(a0 + 0.8 / rm, a1 - 0.8 / rm, SPINE_P, SPINE, N_ARC, 0, 0, SPINE)
-    # Mechanism rail inside, with ribs.
-    p.polar(a0 + 0.5 / 7, a1 - 0.5 / 7, RAIL_P, RAIL, N_ARC, 0.08, 0.08, RAIL)
-    for u in RIB_AT:
-        c = a0 + span * u
-        w = 0.32 / 6.8
-        p.polar(c - w, c + w, RIB_P, RIB, 1, 0.08, 0.08, RIB)
-    # Clamp blocks at the ends (inner side).
-    w = 1.35 / 7.3
-    p.polar(a0, a0 + w, CLAMP_P, CLAMP, 2, 0.15, 0.15, CLAMP)
-    p.polar(a1 - w, a1, CLAMP_P, CLAMP, 2, 0.15, 0.15, CLAMP)
+        p.polar(s0, s1, BAND, BAND_MATS, n, 0.12 if k > 0 else 0.2, 0.12 if k < 3 else 0.2, WALL, rmap)
+    p.polar(a0 + 0.8 / rm, a1 - 0.8 / rm, SPINE_P, SPINE, N_ARC, 0, 0, SPINE, rmap)
 
 
 def build_arcs_bm(arcs):
     p = Part()
-    for a0d, a1d in arcs:
+    for a0d, a1d, rin, rout in arcs:
         span = (a1d - a0d) % 360
-        build_arc(p, a0d, span)
+        build_arc(p, a0d, span, rin, rout)
     return p.done()
 
 

@@ -2,21 +2,25 @@
 model led by the sprite's silhouette and its readability from the small tilted game camera.
 
 The sprite (8 x 2x2 ground sprites in a row, 192 x 28 px, sprite.json `assemblyLayout`) is
-authoritative for the plan outline, the parts' positions and their colours:
+authoritative for the plan outline, the parts' positions and their colours. The plan edge sits on the
+INNER edge of the sprite's 1 px ink border (D74, docs/agents/OUTLINE-BORDER.md; the game's outline
+stands in for the ink), so the rows below are the ones inside that ink:
 - a light grey bullet nose (newsh2-7) whose tip droops to rows 12-13, riding on a dark sled prow
   whose south edge curves out row by row to row 18;
 - six identical segments (newsh2-9): a dark bolt ring (col 0), a narrow red collar (cols 1-3), a
   grey ring (4-7), a bolt ring (8), a red collar (9-11), a broad grey ring (12-16), a red flange
-  (17-20, rows 6-18) on a red bracket down to the ground with a see-through hole (row 16), and a
+  (17-20, rows 7-18) on a red bracket plate down to the ground with a round lightening hole (the
+sprite's see-through row 16 and the ink round it), and a
   short grey ring (21-23) that runs on into the next segment; the flange's top (row 6) is 6 px
   wide, so the grey rings swell into a weld-neck hub either side of it (cols 16 and 21);
-- the end piece (newsh2-11): a bigger flange (rows 5-19) on a deeper bracket, a ring, a bolt ring, a
-  collar and a long grey cylinder with a rounded end.
-The dark band under the pipe (rows 15-18) is the sled: a stepped buttress under every grey ring that
-slopes from the pipe's south side to the ground at row 19, with a ledge (the sprite's lighter row
-17); a low rail at ground level joins them (seen under the collars, rows 15-16) and a hydraulic line
-runs along the pipe's south flank (the collars' dark bottom row 13). Under the collars the ground
-shows through (rows 14 and 17-18), as in the sprite.
+- the end piece (newsh2-11): a bigger flange (rows 6-19) on a deeper bracket, a ring, a bolt ring, a
+  collar and a long grey cylinder with a rounded end and a boss on its end face.
+The dark band under the pipe (rows 14-17) is the sled: a stepped buttress under every grey ring that
+slopes from the pipe's south side to the ground at row edge 18, with a ledge (the sprite's lighter
+row 17); a low rail at ground level joins them (seen under the collars, rows 15-16, drawn in ink
+alone, so it keeps about half its width) held by clamp blocks under the columns either side, and a
+hydraulic line runs along the pipe's south flank (the thin collars' row 12). Under the collars the
+ground shows through (rows 13-14 and 17), as in the sprite.
 
 Detail goes where the tilted game camera looks (top, south side, ends): chamfered ring edges with
 machined grooves and rivet rows, hex nuts on the bolt rings, banded collars, flanges with a rim
@@ -58,14 +62,18 @@ SEG0 = [24 + 24 * k for k in range(6)]  # left edges of the six segments
 EXPORT_9 = 226  # screen cx of the newsh2-9 copy that is exported (a middle one)
 PX = 1 / 12
 
-YC = 11.0  # pipe axis (row edge): the rings cover rows 7-14
-ZC = 6.3  # axis height in px: the big end flange (r 6) just clears the ground
-R_RING = 4.0
-R_BOLT = 3.85
-R_COLLAR = 2.35
-R_FAT = 3.0
-R_FLANGE = 5.0
-R_FLANGE_END = 6.0
+# Sizes are fitted to the sprite's INNER mask (D74, docs/agents/OUTLINE-BORDER.md: the plan edge sits
+# on the inner edge of the sprite's 1 px ink border; the game's own outline stands in for the ink).
+YC = 11.0  # pipe axis (row edge): the rings cover rows 8-13 inside the ink
+ZC = 5.4  # axis height in px: the big end flange (r 5) just clears the ground
+R_RING = 3.0
+R_BOLT = 3.0  # the bolt ring between a grey ring and the fat collar (rows 8-13)
+R_BOLT0 = 2.5  # the segment's first bolt ring, beside the thin collar (rows 9-13)
+R_COLLAR = 1.45  # thin collar rows 10-11 (row 12 is the hydraulic line beside it)
+R_FAT = 2.0  # fat collar rows 9-12
+R_FLANGE = 4.0  # flange rows 7-14 (the bracket below it)
+R_FLANGE_END = 5.0  # end flange rows 6-15
+HOLE_R = 2.1  # the round lightening hole in each flange bracket (the sprite's see-through pixels)
 SIDES = 28
 
 # --- materials: the sprite's palette index per part (median of the part's pixels, the outline ink
@@ -138,9 +146,12 @@ def pchip(xs, ys):
 
 # The nose's plan, fitted to newsh2-7's mask: its north edge (row edge) and the bullet's south edge
 # (the sled prow takes the rest down to SLED_S).
-NOSE_N = pchip([1.9, 2.6, 4.0, 6.0, 9.0, 13.0, 17.0, 19.5, 24.0], [12.7, 12.05, 11.5, 10.5, 9.5, 8.5, 7.45, 7.0, 7.0])
-NOSE_S = pchip([1.9, 2.6, 4.0, 6.0, 9.0, 13.0, 17.0, 19.5, 24.0], [13.3, 13.95, 14.2, 14.4, 14.7, 14.95, 15.0, 15.0, 15.0])
-SLED_S = pchip([3.6, 4.0, 6.0, 9.0, 13.0, 17.0, 18.6, 24.0], [14.0, 14.5, 15.5, 16.5, 17.5, 18.5, 19.0, 19.0])
+# Fitted to the inner mask: the nose and its prow form a diamond about row edge 13 whose half height
+# steps 1, 2, 3, 4, 5 px at columns 4, 6, 9, 13, 17; the curves cross each step at its middle.
+_NX = [3.4, 4.0, 6.0, 9.0, 13.0, 17.0, 19.0, 24.0]
+NOSE_N = pchip(_NX, [13.0, 12.45, 11.5, 10.5, 9.5, 8.5, 8.0, 8.0])
+NOSE_S = pchip(_NX, [13.0, 13.4, 13.6, 13.8, 13.95, 14.0, 14.0, 14.0])
+SLED_S = pchip([3.8, 4.0, 6.0, 9.0, 13.0, 17.0, 19.0, 24.0], [13.3, 13.55, 14.5, 15.5, 16.5, 17.5, 18.0, 18.0])
 
 
 # --- mesh building (px space) -----------------------------------------------------------------
@@ -287,46 +298,77 @@ def grey_ring(M, x0, x1, rivets=True, ch0=0.45, ch1=0.45, mat=GREY):
                 stud(M, (xr, p.y, p.z), d, 0.2, 0.16, mat)
 
 
-def bolt_ring(M, x0, x1):
+def bolt_ring(M, x0, x1, r=R_BOLT):
     """A dark bolt ring between parts (the sprite's dark columns) with hex nuts round the top."""
-    lathe(M, [(x0, R_BOLT - 0.3), (x0 + 0.15, R_BOLT), (x1 - 0.15, R_BOLT), (x1, R_BOLT - 0.3)], BOLT)
+    lathe(M, [(x0, r - 0.3), (x0 + 0.15, r), (x1 - 0.15, r), (x1, r - 0.3)], BOLT)
     for ang in range(-35, 106, 35):
-        p, d = radial(ang, R_BOLT)
+        p, d = radial(ang, r)
         stud(M, ((x0 + x1) / 2, p.y, p.z), d, 0.3, 0.22, BOLT, dome=False)
 
 
 def collar(M, x0, x1, band=R_COLLAR):
-    """A red coupling: a rod with two raised bands. The thin one (r 2.35, the segment's first,
-    rows 9-12; the hydraulic line on its south flank gives the sprite's dark row 13) or the fat
-    sleeve (r 3.0, rows 8-13: the second collar's outline reaches row 8)."""
+    """A red coupling: a rod with two raised bands. The thin one (r 1.45, the segment's first,
+    rows 10-11 inside its ink; the hydraulic line on its south flank fills row 12) or the fat
+    sleeve (r 2.0, rows 9-12)."""
     rod = band - 0.3
     w = (x1 - x0)
     a, b = x0 + w * 0.18, x1 - w * 0.18
     lathe(M, [(x0 - 0.2, rod), (a, rod), (a, band - 0.12), (a + 0.12, band), (a + 0.55, band), (a + 0.67, band - 0.12),
               (a + 0.67, rod), (b - 0.67, rod), (b - 0.67, band - 0.12), (b - 0.55, band), (b - 0.12, band),
               (b, band - 0.12), (b, rod), (x1 + 0.2, rod)], COLLAR, sides=20)
-    # Two grey tie rods across the coupling, bolt ring to bolt ring, on its upper flanks (at 45
+    # Two grey tie rods across the coupling, bolt ring to bolt ring, on its upper flanks (at 40
     # degrees they stay inside the sprite's collar rows).
-    rr = band + 0.4
+    rr = band + 0.32
     for s in (-1, 1):
-        t = math.radians(45 * s)
-        lathe(M, [(x0 - 0.3, 0.3), (x1 + 0.3, 0.3)], GREY, sides=6, yc=YC + rr * math.sin(t), zc=ZC + rr * math.cos(t))
+        t = math.radians(40 * s)
+        lathe(M, [(x0 - 0.3, 0.25), (x1 + 0.3, 0.25)], GREY, sides=6, yc=YC + rr * math.sin(t), zc=ZC + rr * math.cos(t))
 
 
 def hydraulic_line(M, x0, x1):
     """A thin line along the south flank, through the rings (hidden there), seen at the collars."""
-    lathe(M, [(x0, 0.48), (x1, 0.48)], LINE, sides=8, yc=13.45, zc=ZC - 1.05)
+    lathe(M, [(x0, 0.35), (x1, 0.35)], LINE, sides=8, yc=12.65, zc=ZC - 0.6)
 
 
-def flange(M, x0, x1, r, foot_y):
-    """A broad red flange band with chamfered sides and a rim groove, bolts on its faces, on a
-    sloped bracket frame down to a foot on the ground (plan: a post at its west column, bars at
-    rows foot_y-4 / foot_y-2, a hole between, the foot at foot_y-1 .. foot_y+0.6)."""
+def plate_with_hole(M, xa, xb, ya, yb, zs, th, hole, hr, mat, west_mat, west_x):
+    """A sloped plate over the plan rectangle xa..xb, ya..yb (top at z = zs(y), th thick) with a round
+    hole of radius hr about the plan point `hole` cut through it (an ellipse in the slope, a circle
+    from above). Faces whose outer edge lies west of west_x get west_mat (the bracket's post)."""
+    hx, hy = hole
+    corners = [(xb, yb), (xa, yb), (xa, ya), (xb, ya)]
+    angs = sorted({2 * math.pi * k / 24 for k in range(24)} |
+                  {math.atan2(cy - hy, cx - hx) % (2 * math.pi) for cx, cy in corners})
+
+    def outer(a):
+        c, s = math.cos(a), math.sin(a)
+        t = min(((xb - hx) / c if c > 1e-9 else (xa - hx) / c if c < -1e-9 else 1e9),
+                ((yb - hy) / s if s > 1e-9 else (ya - hy) / s if s < -1e-9 else 1e9))
+        return hx + t * c, hy + t * s
+    outs = [outer(a) for a in angs]
+    ins = [(hx + hr * math.cos(a), hy + hr * math.sin(a)) for a in angs]
+    top_o = [M.v(x, y, zs(y)) for x, y in outs]
+    top_i = [M.v(x, y, zs(y)) for x, y in ins]
+    bot_o = [M.v(x, y, zs(y) - th) for x, y in outs]
+    bot_i = [M.v(x, y, zs(y) - th) for x, y in ins]
+    n = len(angs)
+    for k in range(n):
+        j = (k + 1) % n
+        m = west_mat if (outs[k][0] + outs[j][0]) / 2 < west_x else mat
+        M.f((top_o[k], top_o[j], top_i[j], top_i[k]), m, smooth=False)
+        M.f((bot_o[j], bot_o[k], bot_i[k], bot_i[j]), m, smooth=False)
+        M.f((top_o[j], top_o[k], bot_o[k], bot_o[j]), m, smooth=False)
+        M.f((top_i[k], top_i[j], bot_i[j], bot_i[k]), mat, smooth=False)
+
+
+def flange(M, x0, x1, r, foot_y, hole_y, hub=None):
+    """A broad red flange band with chamfered sides and a rim groove on weld-neck hubs, on a sloped
+    bracket plate down to a foot on the ground. Plan (inner mask): the flange and hubs cover x0-1 ..
+    x1+1, the plate runs on south of the flange to the foot (foot_y-1 .. foot_y) with a round
+    lightening hole about row edge hole_y (the sprite's see-through pixels and the ink round them)."""
     m = (x0 + x1) / 2
-    # The sprite's flange top (rows 5-6) is a column wider each side than the flange band: the grey
-    # rings swell into a tapered weld-neck hub (1 px long) on both sides, its crown reaching the
-    # flange's tips; the red band stands on it with chamfered edges and a rim groove.
-    hub = [(-1.0, -0.7), (-0.7, -0.48), (-0.35, -0.38), (0.0, -0.34)]  # (dx from the face, r offset)
+    # The sprite's flange top is a column wider each side than the flange band: the grey rings swell
+    # into a tapered weld-neck hub (1 px long) on both sides, its crown reaching near the flange's
+    # tips; the red band stands on it with chamfered edges and a rim groove.
+    hub = hub or [(-1.0, -0.45), (-0.7, -0.3), (-0.35, -0.2), (0.0, -0.15)]  # (dx from the face, r offset)
     prof = [(x0 - 1.05, R_RING - 0.1)] + [(x0 + dx, r + dr) for dx, dr in hub]
     mats = [GREY] * 4
     prof += [(x0 + 0.34, r), (m - 0.22, r), (m - 0.22, r - 0.2), (m + 0.22, r - 0.2), (m + 0.22, r), (x1 - 0.34, r)]
@@ -334,62 +376,65 @@ def flange(M, x0, x1, r, foot_y):
     prof += [(x1 - dx, r + dr) for dx, dr in reversed(hub)] + [(x1 + 1.05, R_RING - 0.1)]
     mats += [GREY] * 4
     lathe(M, prof, mats, sides=32)
-    # Sloped bracket plate: z on the plane through (y_top, z_top) and (y_bot, z_bot).
-    y_top = YC + math.sqrt(max(r * r - (r - 1.0) ** 2, 0)) * 0 + (r - 1.0)  # under the flange's south flank
+    # Sloped bracket plate from inside the flange's south flank down into the foot's top.
+    y_top = hole_y - HOLE_R - 0.2
     z_top = ZC - math.sqrt(max(r * r - (y_top - YC) ** 2, 0.0)) + 0.4
-    y_bot, z_bot = foot_y - 0.6, 0.55
+    y_bot, z_bot = foot_y - 0.2, 0.75
     th = 0.7
 
     def zs(y):
         return z_top + (z_bot - z_top) * (y - y_top) / (y_bot - y_top)
-
-    def plate(xa, xb, ya, yb, mat):
-        prism(M, xa, xb, [(ya, zs(ya) - th), (yb, zs(yb) - th), (yb, zs(yb)), (ya, zs(ya))], mat, ch=0.12)
-    hole0, hole1 = foot_y - 3.0, foot_y - 2.0  # the see-through row
-    plate(x0, x0 + 1.0, y_top - 1.0, y_bot, POST)  # west post
-    plate(x0 + 0.9, x1 + 0.6, y_top - 1.0, hole0, BAR)  # top bar (mostly under the flange)
-    plate(x0 + 0.9, x1 + 0.6, hole1, y_bot, BAR)  # lower bar
-    plate(x1, x1 + 0.6, y_top - 1.0, y_bot, POST)  # east post (inside the next buttress)
+    # The hole sits half a px east of the band's middle, as the sprite's see-through pixels do.
+    plate_with_hole(M, x0 - 1.0, x1 + 1.0, y_top, y_bot, zs, th, (m + 0.5, hole_y), HOLE_R, BAR, POST, x0 - 0.2)
     # Foot pad on the ground with a chamfered top and two bolts.
-    box(M, x0 - 1.0, x1 + 1.0, foot_y - 1.0, foot_y + 0.65, 0.0, 0.75, FOOT, ch=0.2)
-    for xb in (x0 + 0.3, x1 - 0.3):
-        stud(M, (xb, foot_y - 0.2, 0.75), (0, 0, 1), 0.22, 0.15, BOLT, dome=False)
+    box(M, x0 - 1.0, x1 + 1.0, foot_y - 1.0, foot_y, 0.0, 0.75, FOOT, ch=0.2)
+    for xb in (x0 - 0.4, x1 + 0.4):
+        stud(M, (xb, foot_y - 0.5, 0.75), (0, 0, 1), 0.22, 0.15, BOLT, dome=False)
 
 
 def buttress(M, x0, x1, ledge=True):
     """The sled under a grey ring: hidden under the pipe from above, its south face slopes from the
-    pipe's flank to the ground at row 19 with a ledge across it (the sprite's row 17)."""
-    sec = [(8.6, 0.0), (19.0, 0.0), (19.0, 0.35), (17.75, 1.75), (17.75, 2.15), (16.9, 2.15),
-           (15.0, ZC - 2.05), (14.4, ZC - 0.6), (8.6, ZC - 0.6)]
+    pipe's flank to the ground at row edge 18 with a ledge across it (the sprite's lighter row 17)."""
+    sec = [(9.6, 0.0), (18.0, 0.0), (18.0, 0.3), (17.6, 0.9), (17.6, 1.25), (17.0, 1.25),
+           (14.3, ZC - 1.9), (13.5, ZC - 0.6), (9.6, ZC - 0.6)]
     mats = [SLED, SLED, SLED, LEDGE, LEDGE, SLED, SLED, SLED, SLED]
-    prism(M, x0, x1, sec, SLED, ch=0.25, mats=mats)
-    if ledge and x1 - x0 >= 3.5:
-        for xb in (x0 + 0.9, x1 - 0.9):
-            stud(M, (xb, 17.3, 2.15), (0, 0, 1), 0.22, 0.14, BOLT, dome=False)
+    prism(M, x0, x1, sec, SLED, ch=0.2, mats=mats)
+    if ledge and x1 - x0 >= 2.5:
+        for xb in (x0 + 0.7, x1 - 0.7):
+            stud(M, (xb, 17.3, 1.25), (0, 0, 1), 0.2, 0.14, BOLT, dome=False)
 
 
-def rail(M, x0, x1, y0=15.45, y1=16.85):
+def rail(M, x0, x1, y0=15.58, y1=16.42):
     """The low rail at ground level that ties the buttresses together (seen under the collars: rows
-    15-16 under the thin collar, row 16 under the fat one)."""
-    prism(M, x0, x1, [(y0, 0.0), (y1, 0.0), (y1, 0.9), (y1 - 0.3, 1.25), (y0 + 0.3, 1.25), (y0, 0.9)], RAIL)
+    15-16 under the thin collar, drawn in ink alone, so it keeps half its width; row 16 under the
+    fat one)."""
+    prism(M, x0, x1, [(y0, 0.0), (y1, 0.0), (y1, 0.8), (y1 - 0.25, 1.05), (y0 + 0.25, 1.05), (y0, 0.8)], RAIL)
+
+
+def clamp(M, x0):
+    """A rail clamp block under a column at x0 (rows 15-16 of the sprite: under the first bolt ring
+    and the first grey ring's west end), holding the thin rail."""
+    box(M, x0, x0 + 1.0, 15.0, 17.0, 0.0, 1.5, SLED, ch=0.15)
 
 
 def segment(M, a):
     """One newsh2-9 segment from assembly column a (its 24 columns)."""
-    bolt_ring(M, a, a + 1)
+    bolt_ring(M, a, a + 1, R_BOLT0)
     collar(M, a + 1, a + 4)
     grey_ring(M, a + 4, a + 8)
     bolt_ring(M, a + 8, a + 9)
     collar(M, a + 9, a + 12, R_FAT)
     grey_ring(M, a + 12, a + 16.05, ch1=0.0)  # runs into the flange's hub
-    flange(M, a + 17, a + 21, R_FLANGE, 19.0)
+    flange(M, a + 17, a + 21, R_FLANGE, 19.0, 16.5)
     if a + 24 < 168:
         grey_ring(M, a + 21.95, a + 24, ch0=0.0, ch1=0.0)
-    buttress(M, a + 4, a + 9)
-    buttress(M, a + 12, a + 17)
-    buttress(M, a + 21, a + 25 if a + 24 < 168 else a + 26)
-    rail(M, a - 0.3, a + 4.3)
-    rail(M, a + 8.7, a + 12.3, 15.95)
+    buttress(M, a + 5, a + 8)
+    buttress(M, a + 13, a + 16.2)
+    buttress(M, a + 22, a + 24 if a + 24 < 168 else a + 25)
+    clamp(M, a)
+    clamp(M, a + 4)
+    rail(M, a + 0.5, a + 4.5)
+    rail(M, a + 8.0, a + 13.0, 16.0, 17.0)
     hydraulic_line(M, a - 0.2, a + 24.2)
 
 
@@ -400,11 +445,11 @@ def nose(M):
         n, s = NOSE_N(x), NOSE_S(x)
         yc = (n + s) / 2
         return yc, ZC - (yc - YC) * 0.9
-    xs = [1.9, 2.15, 2.6, 3.2, 4.0, 5.0, 6.0, 7.5, 9.0, 11.0, 13.0, 15.0, 17.0, 18.3, 19.5, 20.5, 20.5, 20.8, 20.8, 24.05]
+    xs = [3.4, 3.55, 3.8, 4.2, 4.8, 5.4, 6.0, 7.5, 9.0, 11.0, 13.0, 15.0, 17.0, 18.3, 19.5, 20.5, 20.5, 20.8, 20.8, 24.05]
     prof = []
     for i, x in enumerate(xs):
         r = (NOSE_S(x) - NOSE_N(x)) / 2
-        if x == 1.9:
+        if x == xs[0]:
             r = 0.0
         prof.append((x, r))
     # a seam groove at x 20.5-20.8
@@ -413,7 +458,7 @@ def nose(M):
     mats = [NOSE] * (len(prof) - 1)
     lathe(M, prof, mats, centre=centre, sides=SIDES)
     # The sled prow: a long buttress whose south edge follows SLED_S, sloping to the ground.
-    xs = [3.6, 4.5, 5.5, 6.5, 8.0, 9.5, 11.5, 13.5, 15.5, 17.5, 19.0, 21.3]
+    xs = [3.8, 4.5, 5.5, 6.5, 8.0, 9.5, 11.5, 13.5, 15.5, 17.5, 19.0, 21.3]
     rings = []
     for x in xs:
         yc, zc = centre(x)
@@ -421,7 +466,7 @@ def nose(M):
         s = SLED_S(x)
         top = zc - 0.6 * (r / R_RING)
         ledge_y = s - 1.25
-        k = min(1.0, (x - 3.6) / 4.0)
+        k = min(1.0, (x - 3.8) / 4.0)
         sec = [(yc - r * 0.55, 0.0), (s, 0.0), (s, 0.05 + 0.3 * k), (s - 0.35, 0.05 + 0.65 * k),
                (yc + r * 0.95, max(top - 1.2 * (r / R_RING), 0.6)), (yc + r * 0.5, top), (yc - r * 0.55, top)]
         rings.append([M.v(x, y, z) for y, z in sec])
@@ -434,7 +479,7 @@ def nose(M):
     M.f(list(reversed(rings[0])), SLED, smooth=False)
     M.f(rings[-1], SLED, smooth=False)
     # The first buttress under the nose's base joins the prow to the first segment.
-    buttress(M, 20.6, 25.0)
+    buttress(M, 20.6, 24.0)
 
 
 def tail(M):
@@ -442,35 +487,37 @@ def tail(M):
     a ring, a bolt ring, a collar, a bolt ring and the long cylinder with a filleted end cap."""
     a = 168
     grey_ring(M, a - 2.05, a + 1.05, ch0=0.0, ch1=0.0)  # hub to hub
-    flange(M, a + 2, a + 6, R_FLANGE_END, 20.0)
+    # The end flange's hubs stay a px lower than its rim (the sprite's row 6 is 4 px wide).
+    flange(M, a + 2, a + 6, R_FLANGE_END, 20.0, 17.5, hub=[(-1.0, -1.0), (-0.7, -0.85), (-0.35, -0.7), (0.0, -0.6)])
     grey_ring(M, a + 6.95, a + 10, ch0=0.0)
     bolt_ring(M, a + 10, a + 11)
     collar(M, a + 11, a + 14, R_FAT)
     bolt_ring(M, a + 14, a + 15)
     # The long cylinder: a raised band near its root, a groove, and a filleted cap with a boss.
-    x0, x1 = a + 15, a + 24
+    x0, x1 = a + 15, a + 23
     prof = [(x0, R_RING - 0.3), (x0 + 0.3, R_RING), (x0 + 1.6, R_RING), (x0 + 1.6, R_RING - 0.2), (x0 + 1.9, R_RING - 0.2),
             (x0 + 1.9, R_RING), (x1 - 2.4, R_RING), (x1 - 2.4, R_RING - 0.2), (x1 - 2.1, R_RING - 0.2), (x1 - 2.1, R_RING)]
     mats = [GREY] * 9
-    fil = 1.3
+    fil = 1.0
     for k in range(1, 7):
         t = k / 6 * math.pi / 2
         prof.append((x1 - fil + fil * math.sin(t), R_RING - fil + fil * math.cos(t)))
         mats.append(CAP if k > 1 else GREY)
-    # The end face (inside the fillet, r < 2.7): a machined ring of bolts round a recessed hub.
-    prof += [(x1, 1.55), (x1 - 0.3, 1.45), (x1 - 0.3, 0.75), (x1 - 0.12, 0.62), (x1 - 0.12, 0.0)]
-    mats += [CAP, BOLT, BOLT, BOLT, BOLT]
+    # The end face (inside the fillet, r < 2): a ring of bolts round a raised boss with a recessed
+    # centre (the sprite's rows 10-12 run a column further east than the cylinder's rim).
+    prof += [(x1, 1.45), (x1 + 0.55, 1.45), (x1 + 0.7, 1.3), (x1 + 0.7, 0.7), (x1 + 0.55, 0.6), (x1 + 0.55, 0.0)]
+    mats += [CAP, CAP, CAP, BOLT, BOLT, BOLT]
     lathe(M, prof, mats)
     for k in range(8):
         t = 2 * math.pi * (k + 0.5) / 8
-        stud(M, (x1, YC - 2.1 * math.sin(t), ZC + 2.1 * math.cos(t)), (1, 0, 0), 0.22, 0.12, BOLT, dome=False)
+        stud(M, (x1, YC - 1.73 * math.sin(t), ZC + 1.73 * math.cos(t)), (1, 0, 0), 0.15, 0.1, BOLT, dome=False)
     for xr in (x0 + 0.85, x1 - 3.0):
         for ang in range(-50, 111, 40):
             p, d = radial(ang, R_RING)
             stud(M, (xr, p.y, p.z), d, 0.2, 0.16, GREY)
-    buttress(M, a + 6, a + 11)
-    buttress(M, a + 14, a + 23.85)
-    rail(M, a + 10.7, a + 14.3, 15.95)
+    buttress(M, a + 7, a + 10)
+    buttress(M, a + 15, a + 22.9)
+    rail(M, a + 10.0, a + 15.0, 16.0, 17.0)
     hydraulic_line(M, a - 0.2, a + 15.5)
 
 

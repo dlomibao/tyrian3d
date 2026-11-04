@@ -5,9 +5,14 @@ map instead of a concept projection, an outline shell and named engine glows.
 
 The sprite is authoritative (D52) for the plan outline, the eye (the ship's cockpit) and the colours:
 - Plan: the carrot root follows frame 119's teardrop row by row (PLAN, a smooth pchip fitted to the
-  sprite's mask including its dark outline ring: a pointed tip widening steadily to a round belly at
-  rows 14-16 and a rounded back), the tail its three leaves (a blade out to the left with a narrow
-  tip at row 27, a long keel down the middle, a short blade to the right) and the stem between.
+  INNER edge of the sprite's ink border, D74 / docs/agents/OUTLINE-BORDER.md: the game's own ink
+  outline stands in for the border; a pointed tip at row 1 widening steadily to a round belly at
+  rows 13-16 and a rounded back at row 19), the tail its three leaves (a blade out to the left, a
+  keel down the middle, a short blade to the right) and the stem between.
+- Banking: the game rolls this one model up to 35 degrees for frames 115-123, so every frame is
+  matched by the rolled top view (tools/sprite_mask.py rule IoU >= 0.95 on each). The root's section
+  is round enough (SE_N, HT, HB) that its rolled outline stays on the sprite's; the tail parts sit at
+  heights that roll to where the banking frames draw them (see the tail's plan outlines).
 - Eye: the sprite's round bronze patch (rows 9-13, 21 pixels, a disc of radius 2.5 px round
   column/row 11.5) is a raised bronze housing with a glossy lens; the pale centre pixel is sheen.
 - Colours: each part takes the palette index the sprite uses where it covers it (the median of
@@ -109,26 +114,30 @@ def materials(sprite):
 
 # --- the root's shape ---------------------------------------------------------------------------
 
-# The plan outline (half width by row, sprite px), fitted to frame 119's mask including its outline
-# ring: a pointed tip widening steadily to the round belly at rows 14-16 and a rounded back.
-PLAN_Y = [0.0, 0.6, 1.5, 3.0, 5.0, 7.5, 10.0, 12.5, 14.5, 15.8, 16.8, 17.6, 18.3, 18.8, 19.05]
-PLAN_W = [0.0, 0.656, 1.212, 1.987, 2.988, 4.198, 4.956, 5.798, 6.512, 6.507, 6.4, 5.3, 4.45, 3.9, 3.4]
+# The plan outline (half width by row, sprite px), fitted to the INNER edge of frame 119's ink
+# border (D74, docs/agents/OUTLINE-BORDER.md: the game's own ink outline stands in for the sprite's
+# border): a pointed tip at row 1 widening steadily to the round belly at rows 13-16 and a rounded
+# back ending at row 19. Each row's half width sits within half a pixel of the inner mask's
+# staircase (cols 11, 10-12, 9-13, 8-14, 7-15, 6-16, 7-15, 9-13 round column 11.5).
+TIP0 = 0.85  # the point
+PLAN_Y = [TIP0, 1.5, 2.5, 3.5, 4.5, 5.5, 7.0, 8.5, 10.0, 11.5, 13.0, 13.6, 14.5, 15.5, 16.3, 17.0, 17.6, 18.2, 18.6, 19.0]
+PLAN_W = [0.0, 0.42, 0.75, 1.3, 1.85, 2.38, 3.05, 3.5, 4.05, 4.6, 5.06, 5.36, 5.5, 5.55, 5.48, 5.05, 4.35, 2.75, 2.4, 1.9]
 PLAN = pchip(PLAN_Y, PLAN_W)
 D = 0.3  # how far the armour plates stand out of the core
 RAIL = 0.12  # and the side rails stand out of the plates (the rails make the plan outline)
-Y_END = 19.05  # the root's back
+Y_END = 19.0  # the root's back
 
 # Section: a superellipse (a little square, so it reads machined, not inflated), taller above the
 # axis than below.
-SE_N = 2.3
+SE_N = 2.5
 SE_E = 2 / SE_N
-HT, HB = 0.82, 0.68  # top and bottom heights, fractions of the half width
+HT, HB = 0.86, 0.85  # top and bottom heights, fractions of the half width
 ZC = 0.0
 
 
 def CW(y):
     """Core half width."""
-    return max(0.08, PLAN(min(max(y, 0.0), Y_END)) - D - RAIL)
+    return max(0.08, PLAN(min(max(y, TIP0), Y_END)) - D - RAIL)
 
 
 def core_pt(y, a):
@@ -165,7 +174,7 @@ def top_z(x, y):
 # --- mesh helpers -------------------------------------------------------------------------------
 
 def body_core(P):
-    ys = [0.22, 0.35, 0.55, 0.8, 1.1, 1.5] + frange(2.0, 18.6, 0.55) + [18.85, Y_END]
+    ys = [TIP0 + d for d in (0.25, 0.38, 0.55, 0.8, 1.1)] + frange(2.4, 18.6, 0.55) + [18.8, Y_END]
     angs = [360 * k / 36 for k in range(36)]
     rings = [[P.v(tuple(core_pt(y, a))) for a in angs] for y in ys]
     for y, r0, r1 in zip(ys, rings, rings[1:]):
@@ -356,7 +365,7 @@ def nozzle(P, nx, nz, y0, s, shroud=True):
 # --- the root -----------------------------------------------------------------------------------
 
 EYE_X, EYE_Y = -0.5, 11.5  # the eye's centre: sprite column/row 11.5
-R_RIM, R_RIM_IN, R_LENS, R_SOCK = 2.5, 2.02, 1.78, 3.05
+R_RIM, R_RIM_IN, R_LENS, R_SOCK = 2.5, 2.02, 1.78, 2.8
 G = 0.16  # panel gap
 
 S0 = seam(3.6, 2.8)     # the tip cap's back edge
@@ -364,7 +373,7 @@ S1 = seam(6.6, 4.4)
 S2 = seam(10.0, 7.1)
 S3 = seam(13.6, 15.6)   # behind the eye the seam arches back round it
 S4 = seam(17.2, 17.2)  # the collar
-COLLAR_END = 18.85
+COLLAR_END = 18.8
 
 
 def lo(f):
@@ -394,9 +403,9 @@ def eye_angle(ynom):
 def build_root(P):
     body_core(P)
     # Tip cap all round, its front meeting a polished point.
-    pplate(P, const(0.32), hi(S0), 0, 360, TIP, closed=True, ch0=False, skirt0=False, ystep=0.4, astep=12)
-    ring = [surf(0.32, 360 * k / 30, D) for k in range(30)]
-    hull(P, [tuple(p) for p in ring] + [(AX, -0.02, ZC + 0.05)], TIP)
+    pplate(P, const(TIP0 + 0.4), hi(S0), 0, 360, TIP, closed=True, ch0=False, skirt0=False, ystep=0.4, astep=12)
+    ring = [surf(TIP0 + 0.4, 360 * k / 30, D) for k in range(30)]
+    hull(P, [tuple(p) for p in ring] + [(AX, TIP0 - 0.05, ZC + 0.05)], TIP)
     # Band A: top, flanks and belly.
     for a0, a1, mat in ((-48, 48, ARMOUR), (48, 132, ARMOUR), (132, 228, BELLY), (228, 312, ARMOUR)):
         g = math.degrees(G / 2 / max(CW(5.0), 1))
@@ -564,56 +573,96 @@ def build_eye(P):
 
 # --- the tail -----------------------------------------------------------------------------------
 
-# Plan outlines (x = column - 12, y = row), fitted to the sprite's three leaves.
-LEFT_FIN = [(-1.6, 20.35), (-3.0, 19.95), (-4.2, 20.0), (-5.3, 20.45), (-6.05, 21.25), (-6.05, 22.45), (-6.95, 23.35),
-            (-7.0, 26.6), (-6.85, 27.12), (-6.5, 27.0), (-4.0, 24.3), (-3.15, 23.6)]
-KEEL = [(-1.6, 19.9), (0.1, 19.9), (0.95, 21.2), (1.0, 25.35), (0.05, 26.35), (0.0, 27.55), (-0.35, 27.95),
-        (-1.75, 27.95), (-2.15, 27.45), (-3.0, 26.55), (-3.0, 21.6)]
-RIGHT_FIN = [(0.4, 20.35), (2.0, 20.9), (3.1, 21.25), (4.0, 22.05), (4.05, 24.6), (3.75, 24.95), (0.6, 24.95),
-             (0.4, 22.0)]
-HUB = [(-5.0, 20.9), (2.6, 20.9), (3.5, 21.9), (3.5, 23.9), (-3.4, 23.9), (-5.4, 22.6)]
+# Plan outlines (x = column - 12, y = row), fitted to the inner edge of frame 119's ink round its
+# three leaves (D74): the stem (cols 10-12 at row 19, 9-11 at row 20), the left blade (cols 7-8 at
+# rows 21-22, out to col 6 at rows 23-24), the keel down the middle (cols 9-14 at row 22, 10-12 at
+# row 24, 10 at row 26) and the short right blade (cols 13-14 at rows 22-23). The gaps between them
+# (col 8 at row 23, cols 7-9 at row 24) stay open.
+#
+# The banking frames (115-123) are this model rolled up to 35 degrees (src/render/drawListRenderer.ts
+# MAX_ROLL), and their tails differ from a flat one rolled: the left blade tucks in, the keel's back
+# widens both ways and the right blade reaches further out when the ship banks left. So the parts
+# sit at heights that roll to where the sprite draws them: the left blade flat at the roll axis (it
+# narrows, cols 7-8 on every frame), the keel a tall blade rising aft (its height swings out to col 8
+# banked left and col 13 banked right), the right blade drooping aft (it swings out to col 15 banked
+# left and tucks under banked right) and a ventral skeg under the keel (hidden level, col 13 banked
+# left).
+LEFT_FIN = [(-2.8, 20.8), (-4.1, 20.85), (-4.55, 21.15), (-4.55, 22.75), (-5.6, 23.1), (-5.65, 24.5), (-5.45, 24.95),
+            (-4.7, 24.85), (-4.05, 24.0), (-3.6, 23.0)]
+KEEL = [(-2.0, 20.95), (-0.8, 21.05), (0.2, 21.45), (0.6, 22.0), (0.8, 23.9), (0.5, 24.7), (-0.3, 25.4), (-0.6, 26.4),
+        (-0.75, 27.0), (-1.45, 27.0), (-1.6, 26.3), (-2.1, 25.0), (-2.7, 23.5), (-2.9, 21.9), (-2.8, 21.0)]
+KEEL_SPLIT = 25.5  # the keel's top rises to here, then its trailing blade falls away
+RIGHT_FIN = [(0.4, 21.6), (1.4, 21.85), (2.35, 22.1), (2.65, 22.4), (2.65, 22.8), (3.1, 23.05), (3.1, 23.75),
+             (2.8, 24.0), (0.6, 23.95), (0.4, 22.2)]
+HUB = [(-3.9, 20.95), (0.3, 21.05), (0.55, 21.5), (0.55, 22.8), (-2.6, 22.8), (-3.9, 22.5)]
+
+
+def clip_y(poly, y, keep_below):
+    """The part of a closed plan polygon [(x, y)] with row < y (keep_below) or > y."""
+    def inside(p):
+        return p[1] <= y if keep_below else p[1] >= y
+    out = []
+    for i in range(len(poly)):
+        p, q = poly[i - 1], poly[i]
+        if inside(q):
+            if not inside(p):
+                t = (y - p[1]) / (q[1] - p[1])
+                out.append((p[0] + t * (q[0] - p[0]), y))
+            out.append(q)
+        elif inside(p):
+            t = (y - p[1]) / (q[1] - p[1])
+            out.append((p[0] + t * (q[0] - p[0]), y))
+    return out
 
 
 def build_tail(P):
-    # The stem: a machined octagonal coupling out of the root's back, a flange at each end.
-    tube_y(P, AX, 0.0, [(18.2, 2.2), (18.95, 2.2), (18.95, 2.5), (19.95, 2.5), (19.95, 2.2), (20.15, 1.5),
-                        (20.15, 1.62), (20.5, 1.55), (20.7, 1.3)], STEM, sides=8, rnd=0.3)
+    # The stem: a machined octagonal coupling out of the root's back, a flange at each end, into an
+    # elbow collar leaning left (the sprite's stem steps a pixel left at row 20).
+    tube_y(P, AX, 0.0, [(18.2, 1.75), (18.9, 1.75), (18.9, 1.85), (19.75, 1.85), (19.75, 1.5), (19.9, 1.3),
+                        (20.2, 1.2)], STEM, sides=8, rnd=0.3)
+    tube_y(P, -1.4, 0.0, [(19.85, 1.3), (20.05, 1.55), (20.75, 1.55), (20.95, 1.3)], STEM, sides=8, rnd=0.3)
     # Conduits from the root into the machinery, under the stem.
     for sx in (1, -1):
-        tube_y(P, AX + sx * 1.55, -1.25, [(18.0, 0.32), (21.4, 0.32)], GCORE, sides=6, rnd=0.2)
+        tube_y(P, AX + sx * 0.75, -1.1, [(18.0, 0.28), (20.0, 0.28)], GCORE, sides=6, rnd=0.2)
     # Machinery deck under the blades.
-    slab(P, smooth_poly(HUB, 0.4, 2), plane(-0.2), plane(-1.25), GCORE, c=0.15)
-    # Left blade: drooping outboard, a raised armour panel along it and a panel line.
-    zl = plane(0.95, x0=-3.0, kx=0.24)
-    slab(P, smooth_poly(LEFT_FIN, [0.3, 0.5, 0.6, 0.5, 0.4, 0.5, 0.6, 0.3, 0.15, 0.2, 0.4, 0.5], 2), zl,
-         lambda x, y: zl(x, y) - 0.75, FIN_L, c=0.16)
-    panel = [(-4.1, 20.8), (-5.4, 21.4), (-5.55, 22.6), (-6.4, 23.5), (-6.45, 26.0), (-4.3, 23.95), (-3.6, 23.3), (-3.5, 21.2)]
-    slab(P, smooth_poly(panel, 0.25, 2), lambda x, y: zl(x, y) + 0.2, lambda x, y: zl(x, y) - 0.3, FIN_L, c=0.1)
-    # Right blade.
-    zr = plane(0.95, x0=0.6, kx=-0.24)
-    slab(P, smooth_poly(RIGHT_FIN, [0.4, 0.5, 0.5, 0.5, 0.3, 0.2, 0.2, 0.3], 2), zr,
-         lambda x, y: zr(x, y) - 0.75, FIN_R, c=0.16)
-    panel = [(1.0, 21.0), (2.9, 21.7), (3.5, 22.4), (3.5, 24.4), (1.1, 24.4)]
-    slab(P, smooth_poly(panel, 0.25, 2), lambda x, y: zr(x, y) + 0.2, lambda x, y: zr(x, y) - 0.3, FIN_R, c=0.1)
-    # The keel down the middle: a thick armour blade, highest at its root, with a raised spine.
-    zk = plane(2.7, y0=20.0, ky=-0.25)
-    slab(P, smooth_poly(KEEL, [0.5, 0.5, 0.4, 0.4, 0.4, 0.3, 0.15, 0.15, 0.3, 0.4, 0.5], 2), zk, plane(-1.1), FIN_R, c=0.2)
-    spine = [(-1.15, 20.6), (-0.35, 20.6), (0.05, 21.6), (0.1, 25.0), (-0.75, 26.3), (-0.85, 27.4), (-1.3, 27.4),
-             (-1.55, 26.3), (-2.2, 25.2), (-2.25, 21.9)]
-    slab(P, smooth_poly(spine, 0.3, 2), lambda x, y: zk(x, y) + 0.32, lambda x, y: zk(x, y) - 0.3, SPINE, c=0.12)
+    slab(P, smooth_poly(HUB, 0.3, 2), plane(-0.2), plane(-1.1), GCORE, c=0.15)
+    # Left blade: near the roll axis, drooping a little outboard, a raised armour panel along it.
+    zl = plane(0.1, x0=-4.55, kx=0.32)
+    slab(P, smooth_poly(LEFT_FIN, 0.25, 2), zl, lambda x, y: zl(x, y) - 0.4, FIN_L, c=0.12)
+    panel = [(-3.7, 21.3), (-4.3, 21.45), (-4.3, 22.9), (-5.2, 23.4), (-5.25, 24.3), (-4.45, 23.6), (-3.8, 22.9)]
+    slab(P, smooth_poly(panel, 0.2, 2), lambda x, y: zl(x, y) + 0.17, lambda x, y: zl(x, y) - 0.25, FIN_L, c=0.08)
+    # Right blade: drooping aft (50 degrees), a raised panel along it.
+    zr = plane(0.1, y0=22.5, ky=-2.0)
+    slab(P, smooth_poly(RIGHT_FIN, 0.22, 2), zr, lambda x, y: zr(x, y) - 0.38, FIN_R, c=0.1)
+    panel = [(1.0, 22.3), (2.2, 22.45), (2.35, 23.0), (2.75, 23.25), (2.75, 23.65), (1.05, 23.65)]
+    slab(P, smooth_poly(panel, 0.15, 2), lambda x, y: zr(x, y) + 0.16, lambda x, y: zr(x, y) - 0.2, FIN_R, c=0.07)
+    # The keel down the middle: a tall armour blade rising aft with a raised spine, its trailing
+    # blade falling away behind row 25.5.
+    zk = plane(2.3, y0=20.5, ky=0.35)
+    keel = smooth_poly(KEEL, 0.3, 2)
+    fore = clip_y(keel, KEEL_SPLIT + 0.1, True)
+    slab(P, fore, zk, plane(-1.35), FIN_R, c=0.2)
+    spine = [(-1.75, 21.25), (-0.75, 21.3), (0.0, 21.85), (0.25, 23.8), (-0.4, 24.8), (-1.0, 25.6), (-1.6, 25.6),
+             (-1.95, 24.6), (-2.3, 23.4), (-2.3, 21.8)]
+    slab(P, smooth_poly(spine, 0.25, 2), lambda x, y: zk(x, y) + 0.3, lambda x, y: zk(x, y) - 0.3, SPINE, c=0.12)
+    zt = plane(zk(0, KEEL_SPLIT), y0=KEEL_SPLIT, ky=-0.6)
+    aft = clip_y(keel, KEEL_SPLIT - 0.3, False)
+    slab(P, aft, zt, plane(-1.35 + 0.5 * (KEEL_SPLIT - 0.3 - 24.5), y0=KEEL_SPLIT - 0.3, ky=0.5), SPINE, c=0.15)
+    # A ventral skeg under the keel.
+    slab(P, smooth_poly([(-0.45, 23.4), (0.05, 23.4), (0.05, 25.0), (-0.45, 25.0)], 0.12, 2), plane(-0.9),
+         plane(-3.1, y0=23.4, ky=0.25), FIN_R, c=0.08)
     # Vents along the keel's flanks: a dark grille with four slats on each side, and a panel strip
     # below it.
-    for xs, sgn in ((-3.0, -1), (1.0, 1)):
-        y0, y1 = 21.9, 24.9
+    for xs, sgn, y0, y1 in ((-2.85, -1, 21.6, 23.3), (0.72, 1, 22.0, 23.8)):
         hull(P, [(xs + sgn * x, y, z) for x, y, z in cbox(-0.2, 0.06, y0, y1, 0.0, 1.25, 0.04)], DEEP)
         for k in range(4):
-            yy = y0 + 0.3 + k * (y1 - y0 - 0.6) / 3
-            hull(P, [(xs + sgn * x, y, z) for x, y, z in cbox(-0.2, 0.14, yy - 0.11, yy + 0.11, 0.05, 1.2, 0.03)], GCORE)
-        hull(P, [(xs + sgn * x, y, z) for x, y, z in cbox(-0.2, 0.1, 21.4, 25.2, -0.75, -0.3, 0.05)], FIN_R)
+            yy = y0 + 0.25 + k * (y1 - y0 - 0.5) / 3
+            hull(P, [(xs + sgn * x, y, z) for x, y, z in cbox(-0.2, 0.12, yy - 0.09, yy + 0.09, 0.05, 1.2, 0.03)], GCORE)
+        hull(P, [(xs + sgn * x, y, z) for x, y, z in cbox(-0.2, 0.08, y0 - 0.3, y1 + 0.2, -0.75, -0.3, 0.05)], FIN_R)
     # Engines under the blades and the keel: pods with nozzles glowing green at their backs.
     engines = []
-    for cx, cz, y0, y1, r, s in ((-5.75, -0.85, 22.4, 25.4, 0.5, 0.62), (2.3, -0.75, 21.5, 24.3, 0.52, 0.62),
-                                 (-1.05, -1.75, 21.0, 26.9, 0.85, 1.0)):
+    for cx, cz, y0, y1, r, s in ((-5.0, -0.5, 22.9, 24.6, 0.34, 0.42), (1.3, -0.65, 22.3, 23.8, 0.4, 0.48),
+                                 (-1.1, -1.6, 21.0, 24.9, 0.55, 0.65)):
         tube_y(P, cx, cz, [(y0, r * 0.7), (y0 + 0.35, r), (y1 - 0.2, r), (y1, r * 0.95)], GCORE, sides=8, rnd=0.3)
         nozzle(P, cx, cz, y1 - 0.12, s)
         engines.append((cx, cz, y1 - 0.12 + 0.75 * s))

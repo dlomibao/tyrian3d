@@ -120,6 +120,21 @@ def spans(g):
     return out
 
 
+def inner_spans():
+    """Top and bottom pixel edges of each column of the sprite's INNER mask (D74,
+    docs/agents/OUTLINE-BORDER.md: the sprite minus its ink border, thin parts' free border kept),
+    the edge the model's plan goes to; the game's ink outline stands in for the border."""
+    sys.path.insert(0, str(ROOT / "tools"))
+    import sprite_mask  # noqa: E402  (pure standard library)
+    idx, colors = sprite_mask.load(NAME)
+    m = sprite_mask.masks(idx, colors)
+    out = []
+    for c in range(W):
+        rows = [r for r in range(H) if m["inner"][r][c] or m["free"][r][c]]
+        out.append((rows[0], rows[-1] + 1) if rows else None)
+    return out
+
+
 def edge_curve(sp, c0, c1, which, passes=1):
     """A pchip through the column centres of the sprite's top (0) or bottom (1) edge over columns
     c0..c1, its stairs relaxed by a [1 2 1] filter (ends held)."""
@@ -224,20 +239,24 @@ def radial_bolt(part, u, vc, zc, r, a, size, h, mat):
 
 def build(coll, sprite, g):
     mats = materials(sprite)
-    sp = spans(g)
+    sp = inner_spans()
     P = Part("arm_body", smooth_angle=34)   # big round masses
     D = Part("arm_detail", smooth_angle=34)  # plates, boxes, pipes
 
     # ---------------- upper arm: canister (rows 1-13) --------------------------------------
     can_r = 6.0
+    # Top edge on the inner mask (D74): row 2 over the root (cols 0-8, the ink-topped rear flange),
+    # row 1 over cols 9-30, a step to row 2 (cols 31-32), then the shoulder drops to row 4 (col 33)
+    # into the neck. The bottom (under the housing) stays at row 13.
+    can_top = pchip([0.0, 8.3, 9.7, 30.7, 31.3, 32.5, 33.0, 33.7, 35.0],
+                    [2.4, 2.4, 1.0, 1.0, 1.9, 2.15, 3.6, 4.2, 4.3])
 
     def can_fn(u):
-        # Round, 12 px across (rows 1-13), shouldering in over cols 27-33 into the neck.
-        k = min(max((u - 30.2) / 4.0, 0.0), 1.0)
-        s = k * k * (3 - 2 * k)
-        hw = can_r - 1.25 * s
-        vc = 7.0 + 1.2 * s
-        return vc, hw, 0.0, can_r - 1.5 * s, 2.0
+        # Round, 12 px across (rows 1-13), shouldering in over cols 31-33 into the neck.
+        top = can_top(min(max(u, 0.0), 35.0))
+        hw = (13.0 - top) / 2
+        s = min(max((u - 30.7) / 3.0, 0.0), 1.0)
+        return 13.0 - hw, hw, 0.0, can_r - 1.6 * s, 2.0
     CAN_CORE = mkloop(can_fn, inset=0.45)
     loft(P, CAN_CORE, [0.4] + frange(1.0, 33.0, 1.0) + [33.4], DEEP)
     # Three armour sleeves with real gaps (panel lines) and a shoulder cone.
@@ -249,43 +268,49 @@ def build(coll, sprite, g):
         plate(D, CAN_CORE, a - 0.15, b + 0.15, FLANGE, d=0.62, c=0.12, depth=0.4, ystep=1.0)
     # Rear flange (the arm's root, col 0): a heavy bright ring and a dark socket with bolts.
     def flange_fn(u):
-        return 7.0, 6.25, 0.0, 6.25, 2.0
+        return 7.6, 5.4, 0.0, 6.25, 2.0
     loft(D, mkloop(flange_fn), [0.0, 1.85], FLANGE)
     plate(D, mkloop(flange_fn), 0.0, 1.85, FLANGE, d=0.0001, c=0.3, depth=0.5)
     def socket_fn(u):
         return 7.0, 3.2, 0.0, 3.2, 2.0
     loft(D, mkloop(socket_fn), [-0.5, 0.05], DEEP)
-    disc_bolts(D, 7.0, 0.0, 0.0, 4.6, 8, 0.42, STEEL, a0=math.pi / 8)
+    disc_bolts(D, 7.6, 0.0, 0.0, 4.0, 8, 0.42, STEEL, a0=math.pi / 8)
     # Front flange (where the canister shoulders into the neck): a bright bolted ring.
     plate(D, CAN_CORE, 26.3, 27.65, FLANGE, d=0.7, c=0.2, depth=0.5, ystep=1.0)
     # Bolt circles round both flanges' outer faces (the upper half: the part the camera sees).
-    for u in (0.92, 26.97):
+    for u, vc, r in ((0.92, 7.6, 5.4), (26.97, 7.0, 6.0)):
         for deg in (-66, -33, 0, 33, 66):
-            radial_bolt(D, u, 7.0, 0.0, 6.25, math.radians(deg), 0.36, 0.28, STEEL)
+            radial_bolt(D, u, vc, 0.0, r, math.radians(deg), 0.36, 0.28, STEEL)
 
     # ---------------- upper arm: housing (rows 13-22) ---------------------------------------
+    # South edge on the inner mask (D74): row 21 under the root (cols 0-11, where the sprite's
+    # bottom row is ink), row 22 over cols 12-29 (a cover plate over the ram), then the slanted end.
     south = pchip([29.5, 30.5, 31.5, 32.5, 33.5, 34.5, 35.5, 36.6],
-                  [22.0, 21.2, 20.6, 19.6, 18.2, 17.1, 16.3, 15.7])
+                  [22.0, 21.15, 20.75, 19.75, 18.0, 16.9, 15.25, 14.9])
+    root = pchip([0.0, 11.35, 12.35, 29.5], [21.05, 21.05, 22.0, 22.0])
 
     def hsec(u, grow=0.0):
-        sv = 22.0 if u <= 29.5 else south(u)
+        sv = root(max(u, 0.0)) if u <= 29.5 else south(u)
         k = 0.0 if u <= 29.5 else min((u - 29.5) / 7.1, 1.0)
         top = 2.6 - 0.9 * k
         bot = -5.8 + 1.8 * k
         g = grow
         # South flank: an upper face on the silhouette, a channel for the ram, a lower face.
+        cv = min(sv - 1.4, 19.6)  # the ram channel's inner wall
         return [(12.2, top + g), (sv - 0.9 - g * 0.4, top + g), (sv + g, top - 0.9), (sv + g, -0.7),
-                (sv - 1.4 + g, -1.3), (sv - 1.4 + g, -3.5), (sv - 0.5 + g, -4.1), (sv - 1.8, bot - g),
+                (cv + g, -1.3), (cv + g, -3.5), (sv - 0.5 + g, -4.1), (sv - 1.8, bot - g),
                 (13.0, bot - g), (11.8, bot + 1.4)]
-    stations = [0.25, 0.9] + frange(2.0, 29.5, 2.75) + [30.5, 31.5, 32.5, 33.5, 34.5, 35.5, 36.6]
+    # The housing starts a pixel in from the canister's root: the sprite's col 0 is ink below row 9.
+    stations = [1.0, 1.6] + frange(2.6, 11.0, 2.8) + [11.35, 11.85, 12.35] + frange(13.5, 29.5, 2.7) \
+        + [30.5, 31.5, 32.5, 33.5, 34.5, 35.5, 36.6]
     poly_loft(P, [(u, hsec(u)) for u in stations], HOUS)
     # Rear flange of the housing.
-    poly_loft(D, [(-0.2, hsec(0.0, 0.0)), (0.0, hsec(0.0, 0.3)), (1.6, hsec(0.0, 0.3)), (1.85, hsec(0.0, 0.0))], HRIB)
-    for v, z in ((14.2, 1.4), (20.4, 1.4), (14.2, -4.4), (19.2, -4.4)):
-        hull(D, cbox(v - 0.42, v + 0.42, -0.5, 0.05, z - 0.42, z + 0.42, 0.15), STEEL)
+    poly_loft(D, [(0.75, hsec(1.0, 0.0)), (0.95, hsec(1.0, 0.3)), (2.45, hsec(1.0, 0.3)), (2.7, hsec(1.0, 0.0))], HRIB)
+    for v, z in ((14.2, 1.4), (19.6, 1.4), (14.2, -4.4), (18.6, -4.4)):
+        hull(D, cbox(v - 0.42, v + 0.42, 0.4, 0.85, z - 0.42, z + 0.42, 0.15), STEEL)
     # Ribs along the housing's top edges (sprite rows 14 and 20-21: lit edges).
-    hull(D, cbox(13.3, 14.9, 2.0, 29.0, 2.0, 3.25, 0.4), HRIB)
-    hull(D, cbox(19.6, 21.15, 2.0, 28.8, 2.0, 3.15, 0.4), HRIB)
+    hull(D, cbox(13.3, 14.9, 2.7, 29.0, 2.0, 3.25, 0.4), HRIB)
+    hull(D, cbox(19.4, 20.95, 2.7, 28.8, 2.0, 3.15, 0.4), HRIB)
     # Four louvred cooling grilles on the deck between them: a raised frame round a dark well,
     # four bronze slats across it.
     for i in range(4):
@@ -299,25 +324,25 @@ def build(coll, sprite, g):
             hull(D, cbox(15.75, 18.75, u - 0.2, u + 0.2, 2.4, 2.92, 0.1), HOUS)
     # Hydraulic ram on brackets along the housing's south flank (seen by the tilted game camera and
     # the side views; inside the sprite's outline from above): cylinder, gland, polished rod, eyes.
-    RV, RZ = 21.25, -2.4
-    sweep(D, [(RV, 3.4, RZ), (RV, 15.6, RZ)], 0.66, STEEL, sides=12)    # cylinder
+    RV, RZ = 20.3, -2.4
+    sweep(D, [(RV, 3.6, RZ), (RV, 15.6, RZ)], 0.66, STEEL, sides=12)    # cylinder
     sweep(D, [(RV, 15.6, RZ), (RV, 16.8, RZ)], 0.72, FLANGE, sides=12)  # gland
     sweep(D, [(RV, 16.8, RZ), (RV, 26.6, RZ)], 0.36, RAIL, sides=10)    # rod
-    sweep(D, [(RV, 2.6, RZ), (RV, 3.4, RZ)], 0.72, FLANGE, sides=12)    # end cap
-    for u in (2.0, 27.2):  # end eyes on brackets bolted to the flank, the pins across them
-        hull(D, cbox(19.9, 21.9, u - 0.85, u + 0.85, RZ - 1.3, RZ + 1.3, 0.3), HRIB)
-        sweep(D, [(21.4, u, RZ), (21.98, u, RZ)], 0.5, STEEL, sides=8)
-    hull(D, cbox(19.9, 21.98, 9.0, 10.2, RZ - 1.0, RZ + 1.0, 0.25), HRIB)  # mid strap
+    sweep(D, [(RV, 3.0, RZ), (RV, 3.6, RZ)], 0.72, FLANGE, sides=12)    # end cap
+    for u in (3.0, 27.2):  # end eyes on brackets bolted to the flank, the pins across them
+        hull(D, cbox(19.0, 20.95, u - 0.85, u + 0.85, RZ - 1.3, RZ + 1.3, 0.3), HRIB)
+        sweep(D, [(20.45, u, RZ), (21.0, u, RZ)], 0.5, STEEL, sides=8)
+    hull(D, cbox(19.0, 21.0, 9.0, 10.2, RZ - 1.0, RZ + 1.0, 0.25), HRIB)  # mid strap
     # Bright hydraulic pipe up the slanted end into the ball (sprite cols 29-33, rows 17-21).
-    sweep(D, [(20.6, 25.0, 1.2), (20.7, 28.6, 1.6), (19.7, 30.6, 2.1), (18.2, 32.4, 2.6), (16.4, 34.4, 3.0),
-              (15.0, 36.6, 3.4), (14.2, 38.8, 3.6)], 0.62, PIPE, sides=8)
+    sweep(D, [(20.6, 25.0, 1.2), (20.7, 28.6, 1.6), (19.7, 30.6, 2.1), (18.2, 32.4, 2.6), (16.4, 34.0, 3.0),
+              (14.6, 35.5, 3.4), (13.6, 37.5, 3.6)], 0.62, PIPE, sides=8)
 
     # ---------------- neck (cols 31-37) ------------------------------------------------------
     def neck_fn(u):
-        return 8.2, 5.0, 0.0, 4.6, 2.2
+        return 8.6, 4.4, 0.0, 4.4, 2.2  # rows 4.2-13 (the inner mask: row 3 is ink over the neck)
     loft(P, mkloop(neck_fn), [30.5, 33.0, 35.6, 38.2], NECK)
-    for a in (32.8, 35.0):
-        plate(D, mkloop(neck_fn), a, a + 1.0, EDGE, d=0.4, c=0.18, depth=0.3)
+    for a in (32.9, 35.0):
+        plate(D, mkloop(neck_fn), a, a + 1.0, EDGE, d=0.3, c=0.18, depth=0.3)
 
     # ---------------- ball joint (cols 37-57) -------------------------------------------------
     btop = edge_curve(sp, 35, 58, 0, passes=2)
@@ -340,21 +365,29 @@ def build(coll, sprite, g):
     plate(P, BALL_CORE, 40.3, 46.9, BALL, d=0.4, c=0.3, depth=0.3, ystep=0.8)
     plate(P, BALL_CORE, 47.5, 57.5, BALL, d=0.4, c=0.3, depth=0.3, ystep=0.8)
     # Socket lip where the neck enters the ball.
-    plate(D, mkloop(lambda u: (8.3, 5.6, 0.0, 5.3, 2.2)), 36.6, 37.9, EDGE, d=0.3, c=0.25, depth=0.6)
+    plate(D, mkloop(lambda u: (8.7, 5.0, 0.0, 5.3, 2.2)), 36.6, 37.9, EDGE, d=0.3, c=0.25, depth=0.6)
 
     # ---------------- forearm and claw: one tapering core, armoured -------------------------
-    ftop = edge_curve(sp, 55, 165, 0, passes=2)
-    fbot = edge_curve(sp, 55, 165, 1, passes=2)
-    U_TIP = 166.2
-    hz_f = pchip([56.0, 66.0, 77.0, 84.0, 100.0, 127.0, 140.0, 152.0, 160.0, 166.2],
+    # The inner mask's last full column is 162 (cols 163-165 are the tip's ink, D74).
+    ftop = edge_curve(sp, 55, 162, 0, passes=2)
+    fbot_s = edge_curve(sp, 55, 162, 1, passes=2)
+    # Near the tip the claw's south edge follows the inner mask's own stairs (no relaxing): it is
+    # only 2-4 px wide there, and the relaxed curve drops a pixel each side of col 153's notch.
+    fbot_r = edge_curve(sp, 140, 162, 1, passes=0)
+
+    def fbot(u):
+        k = min(max((u - 144.0) / 4.0, 0.0), 1.0)
+        return fbot_s(u) * (1 - k) + fbot_r(min(max(u, 140.5), 162.5)) * k
+    U_TIP, U_TAPER = 163.6, 162.2
+    hz_f = pchip([56.0, 66.0, 77.0, 84.0, 100.0, 127.0, 140.0, 150.5, 158.5, U_TIP],
                  [5.6, 5.4, 5.3, 5.0, 4.7, 3.9, 3.0, 2.0, 1.2, 0.15])
-    zc_f = pchip([56.0, 127.0, 140.0, 155.0, 166.2], [0.0, 0.0, -0.8, -2.4, -4.2])
+    zc_f = pchip([56.0, 127.0, 140.0, 153.5, U_TIP], [0.0, 0.0, -0.8, -2.4, -4.2])
 
     def fore_fn(u):
-        t = ftop(min(u, 165.5))
-        b = fbot(min(u, 165.5))
-        if u > 165.0:
-            k = (u - 165.0) / (U_TIP - 165.0)
+        t = ftop(min(u, 162.5))
+        b = fbot(min(u, 162.5))
+        if u > U_TAPER:
+            k = (u - U_TAPER) / (U_TIP - U_TAPER)
             c = (t + b) / 2 + 0.4 * k
             hw = max((b - t) / 2 * (1 - k), 0.06)
             return c, hw, zc_f(u), max(hz_f(u), 0.06), 2.0
@@ -367,13 +400,13 @@ def build(coll, sprite, g):
     def FORE_CORE(u):
         # The core comes up flush with the outline past the last claw segment, so the tip itself
         # is the outline (the sprite's last rows) rather than a step inside it.
-        if u <= 159.6:
+        if u <= 158.2:
             return CORE_IN(u)
-        k = min((u - 159.6) / 1.4, 1.0)
+        k = min((u - 158.2) / 1.4, 1.0)
         (pa, c), (pb, _) = CORE_IN(u), CORE_TIP(u)
         return [(a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k) for a, b in zip(pa, pb)], c
-    loft(P, FORE_CORE, frange(56.4, 57.2, 1.0) + frange(57.2, 160.0, 1.2) + frange(160.6, 165.6, 0.7)
-         + [U_TIP - 0.3, U_TIP], DEEP)
+    loft(P, FORE_CORE, frange(56.4, 57.2, 1.0) + frange(57.2, 158.6, 1.2) + frange(159.2, U_TAPER, 0.6)
+         + frange(U_TAPER + 0.4, U_TIP - 0.3, 0.4) + [U_TIP], DEEP)
 
     # Collar ring where the ball meets the forearm.
     plate(D, FORE_CORE, 55.6, 57.0, RING, d=0.7, c=0.25, depth=0.6)
@@ -395,7 +428,7 @@ def build(coll, sprite, g):
         sweep(D, [(v, 67.6, 3.6), (v, 68.6, 4.65), (v, 73.1, 4.65), (v, 74.2, 3.6)], 0.34, STEEL, sides=6)
     # Junction box (cols 76-83, rows 1-6) and its strap round the arm (cols 80-82).
     plate(D, FORE_CORE, 79.8, 82.9, BOX, d=0.5, c=0.25, depth=0.4)
-    hull(D, cbox(1.25, 6.9, 76.1, 78.9, 1.0, 6.25, 0.45), BOX)
+    hull(D, cbox(1.9, 6.9, 76.1, 78.9, 1.0, 6.25, 0.45), BOX)
     hull(D, cbox(2.1, 6.9, 78.9, 83.8, 1.0, 6.25, 0.45), BOX)
     for u in (77.4, 80.0, 82.6):  # lid seams
         hull(D, cbox(1.7, 6.5, u - 0.18, u + 0.18, 6.1, 6.42, 0.06), BOXDK)
@@ -403,7 +436,7 @@ def build(coll, sprite, g):
         hull(D, cbox(v - 0.35, v + 0.35, u - 0.35, u + 0.35, 6.1, 6.55, 0.15), STEEL)
     plate(D, FORE_CORE, 76.2, 79.8, FORE_A, d=0.4, c=0.25, depth=0.3)
     # Grey block on the forearm (cols 83-89, rows 2-7), with a vent.
-    hull(D, cbox(2.25, 7.4, 83.8, 89.6, 1.0, 6.0, 0.5), GREY)
+    hull(D, cbox(3.05, 7.4, 83.8, 89.6, 1.0, 6.0, 0.5), GREY)
     for k in range(3):
         u = 85.0 + k * 1.3
         hull(D, cbox(3.0, 6.6, u, u + 0.6, 5.7, 6.15, 0.1), DEEP)
@@ -412,8 +445,8 @@ def build(coll, sprite, g):
         plate(D, FORE_CORE, a, b, FORE_B, d=0.4, c=0.25, depth=0.3, ystep=1.2)
     # The claw is one smooth taper (as the sprite): its segments meet in narrow, shallow grooves
     # with small chamfers, so no step shows in the outline.
-    for a, b in ((130.2, 138.65), (138.95, 151.45), (151.75, 159.6)):
-        plate(D, FORE_CORE, a, b, CLAW, d=0.4, c=0.1, depth=0.3, ystep=1.0, ch1=b < 159)
+    for a, b in ((130.2, 138.65), (138.95, 150.45), (150.75, 158.2)):
+        plate(D, FORE_CORE, a, b, CLAW, d=0.4, c=0.1, depth=0.3, ystep=1.0, ch1=b < 158)
     # 104.6-112.6 and 120.8-130.2 are the clamps' saddles: the sleeve under them.
     plate(D, FORE_CORE, 104.6, 112.6, FORE_B, d=0.4, c=0.2, depth=0.3, ystep=1.2)
     plate(D, FORE_CORE, 120.8, 130.2, FORE_B, d=0.4, c=0.2, depth=0.3, ystep=1.2)
@@ -425,7 +458,7 @@ def build(coll, sprite, g):
     # cols 105-111, rows 7-11 at cols 123-128), bolted at its corners.
     for a, b, s0, s1, (bv0, bv1, bu0, bu1), (rv0, rv1) in (
             (105.0, 112.4, TOP - 2.4, TOP + 3.2, (4.9, 8.9, 105.3, 111.3), (6.0, 7.0)),
-            (121.4, 129.6, TOP - 2.6, TOP + 3.0, (7.6, 11.4, 123.6, 128.6), (9.0, 10.0))):
+            (121.4, 129.6, TOP - 2.6, TOP + 3.0, (8.55, 11.6, 123.6, 128.6), (9.6, 10.6))):
         plate(D, mkloop(fore_fn), a, b, CLAMP, s0=s0, s1=s1, d=0.75, c=0.3, depth=0.5, ystep=1.0)
         lo = min(surface_z(fore_fn, u, v) for u in (bu0, bu1) for v in (bv0, bv1))
         hi = max(surface_z(fore_fn, u, v) for u in (bu0, bu1) for v in (bv0, bv1, (bv0 + bv1) / 2))
@@ -437,7 +470,7 @@ def build(coll, sprite, g):
             for u in (bu0 + 0.55, bu1 - 0.55):
                 hull(D, cbox(v - 0.28, v + 0.28, u - 0.28, u + 0.28, top - 0.2, top + 0.2, 0.1), STEEL)
     # Claw: the cutting edge along its inner (south) flank, a bright ridge.
-    edge = [(fbot(u) - 0.7, u, zc_f(u) - 0.1) for u in frange(130.0, 163.0, 1.5)]
+    edge = [(fbot(u) - 0.7, u, zc_f(u) - 0.1) for u in frange(130.0, 160.5, 1.5)]
     sweep(D, edge, 0.32, EDGE, sides=6)
 
     objs = [finish(p, mats, coll) for p in (P, D)]
