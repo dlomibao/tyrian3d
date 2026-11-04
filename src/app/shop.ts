@@ -17,8 +17,6 @@
 import "./shop.css";
 import { createDataCubes } from "./dataCubes";
 import { decodeSprite2, decodeTableSprite, type DecodedSprite, type Palette, vga6To8 } from "../data";
-import type { MusicPlayer } from "../audio/remaster";
-import type { SoundEffects } from "../audio/sfx";
 import {
   itemName,
   itemScreenCash,
@@ -47,7 +45,7 @@ import {
 } from "../sim/game_menu";
 import type { TyrianFiles } from "../sim/resources";
 import { JE_operation_saveName } from "../sim/savegame";
-import { itemScreenOptionsRow, promptSaveName, showOptions, volumeBarCells } from "./options";
+import { itemScreenOptionsRow, promptSaveName, showOptions, volumeBarCells, type OptionsHost } from "./options";
 import { g, REAR_WEAPON } from "../sim/state";
 import { sectionLevelName } from "../sim/tyrian2";
 import { backButton, keyHints, reveal, showScreen, ui, type Intent } from "../ui";
@@ -55,10 +53,9 @@ import { WeaponPreview } from "./weaponPreview";
 import { superArcadeLoadout } from "./arcade"; // [arcade]
 import { inputDevicesText, twoPlayerInputRequest, twoPlayerSideHtml } from "./twoPlayerShop"; // [two-player]
 
-export interface ItemScreenHost {
+/** The shop's host: the files, and the same OptionsHost the title's Options gets (see run.ts), so the settings screen is one. */
+export interface ItemScreenHost extends OptionsHost {
   files: TyrianFiles;
-  sfx: SoundEffects;
-  music: MusicPlayer;
 }
 
 /** sprite_table index of PLANET_SHAPES (sprite.h). */
@@ -180,7 +177,7 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
     id: "shop",
     backdrop: "hangar",
     layout: "wide",
-    label: "Item screen",
+    label: JE_menuHeader() || "Shop", // the menu's own title; render() keeps it on the open menu
     // [port-options] Alt-S / Alt-L: quick save and load (game_menu.c L1539-1580).
     onKey: (e) => {
       if (cubes.key(e)) return true; // [restyle-cubes] the cube reader's Page Up/Down, Home, End
@@ -203,7 +200,7 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
       </section>
       <section class="ui-pane shop-menu">
         <header class="shop-header">
-          <h2 class="ui-title"><small class="ui-title__kicker" data-k="kicker">Item screen</small><span data-k="title"></span></h2>
+          <h2 class="ui-title"><span data-k="title"></span></h2>
         </header>
         <canvas class="shop-nav ui-well" data-k="nav" width="${220 * NAV_SCALE}" height="${160 * NAV_SCALE}" hidden></canvas>
         <ul class="ui-menu shop-list" data-k="list" role="listbox"></ul>
@@ -632,7 +629,7 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
         { key: "↑↓", pad: "✛", label: "Move" },
         ...(weapon ? [{ key: "←→", pad: "✛", label: "Power" }] : []),
         ...(volume ? [{ key: "←→", pad: "✛", label: "Volume" }] : []),
-        { key: "Enter", pad: "A", touch: "Tap twice", label: "Select" },
+        { key: "Enter", pad: "A", touch: "Tap twice", label: volume ? "All settings" : "Select" },
         { key: "Esc", pad: "B", label: "Back" },
       ]),
     );
@@ -640,9 +637,10 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
 
   function render(): void {
     const entries = itemScreenEntries();
-    el("title").textContent = JE_menuHeader();
-    // The kicker names the menu above: Upgrade Ship over a part's list, else the item screen.
-    el("kicker").textContent = menu.curMenu === MENU_UPGRADE_SUB ? g.menuInt[2]?.[0]?.trim() || "Upgrade Ship" : "Item screen";
+    // The menu's own title, as the original draws it (JE_drawMenuHeader); no kicker above it (D99).
+    const heading = JE_menuHeader();
+    el("title").textContent = heading;
+    screen.root.setAttribute("aria-label", heading || "Shop");
     const readouts = renderReadouts();
     el("readouts").innerHTML = readouts;
     el("readouts").hidden = !readouts; // [two-player] the C shows both scores instead

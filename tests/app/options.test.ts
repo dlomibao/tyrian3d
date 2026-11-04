@@ -1,8 +1,10 @@
 // The settings screen's rules (SettingsMenu in src/app/options.ts) and its volume sliders: what
 // each intent, key and tap does, as the first, self-driven version of the screen did it.
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { beforeEach, describe, expect, test } from "vitest";
 import { DEFAULT_KEYS, keys, resetKeys } from "../../src/app/bindings";
-import { optionsRows, PAD_CHECK_HOLD_MS, SettingsMenu, VOLUME_CELLS, volumeCellsAt, volumeFill, type OptionsFocus } from "../../src/app/options";
+import { optionsRows, optionsRowsFor, type OptionsHost, PAD_CHECK_HOLD_MS, SettingsMenu, VOLUME_CELLS, volumeCellsAt, volumeFill, type OptionsFocus } from "../../src/app/options";
 import { S_CLICK, S_CLINK, S_CURSOR, S_SPRING } from "../../src/sim/sndmast";
 import { DEFAULT_VOLUME, setVolumeHandler, volume, VOLUME_STEP } from "../../src/sim/volume";
 
@@ -246,5 +248,21 @@ describe("sound style (local remaster packs)", () => {
     menu.intent("left", "keys");
     expect(music()).toBe("synth");
     expect(sound()).toBe("remaster");
+  });
+});
+
+describe("the shop's Options and the title's Options (D99)", () => {
+  const read = (f: string) => readFileSync(join(__dirname, "..", "..", "src", f), "utf8");
+  const host = { sfx: { styles: ["original", "remaster"] }, music: { styles: ["original", "synth"] } } as unknown as OptionsHost;
+
+  test("both open the settings screen with the same host, so they show the same rows", () => {
+    const run = read("app/run.ts");
+    expect(run).toMatch(/showOptions\(optionsHost\)/); // the title
+    expect(run).toMatch(/runItemScreen\(\{ files, \.\.\.optionsHost \}\)/); // the shop
+    expect(read("app/shop.ts")).toMatch(/showOptions\(host, section\)/); // the shop passes that host on whole
+    // Every setting is a row: the styles, terrain and the three display choices, then the keys.
+    const labels = optionsRowsFor(host).map((r) => r.label);
+    expect(labels).toEqual(expect.arrayContaining(["Music style", "Sound style", "Terrain", "Interface", "Camera", "Resolution"]));
+    expect(optionsRowsFor(host)).toEqual(optionsRowsFor(host));
   });
 });

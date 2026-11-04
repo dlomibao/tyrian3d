@@ -8,7 +8,7 @@ const scoreLabel = (i: number) => g.miscText[40 + i]?.trim() || `Player ${i + 1}
 
 /** The "Level complete" message's lines. */
 export function levelCompleteLines(): string[] {
-  const scores = g.twoPlayerMode ? [0, 1].map((i) => `${scoreLabel(i)} ${g.player[i].cash}`) : [`Score ${g.player[0].cash}`];
+  const scores = g.twoPlayerMode ? [0, 1].map((i) => `${scoreLabel(i)} ${g.player[i].cash}`) : [`Credits ${g.player[0].cash}`];
   return [g.levelName.trim(), ...scores, `Enemies destroyed ${g.enemyKilled} of ${g.totalEnemy}`];
 }
 
