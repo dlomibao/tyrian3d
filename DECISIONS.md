@@ -2663,5 +2663,518 @@ painted wreck tiles and of trees/boulders (which keep their HD tile); 4521 (a co
 3.83 MB → 3.66 MB; with the covered atlas the level downloads ~135 KB less. Tests:
 `tests/render/opaqueCover.test.ts` (cover, `paintOutWreck`, every wreck pattern's tile has a covered
 painting) and a covered-tile case in `terrainArt.test.ts`.
+**Fix round (review):** the crater (`tyrbld-wreck`) showed round the outcrop for ticks 1318-1352 as it
+scrolled in (the whole-pattern test; see *Only the playfield part* above). A frame-by-frame probe
+(stepping `tyrianHarness`, reading `groundStructures` and `cover.covered()`) over ticks 1301-1370 now
+finds the crater and its six ground cells covered on every tick the outcrop is on screen, and a scan of
+ticks 0-2300, every tick, finds no bunker or crater structure placed while a live ground enemy overlaps
+it (the only overlaps are aircraft over real wrecks); `episode=3&main=17` (TYRIAN X, map Z) likewise.
+The damaged outcrop frames (D81) drop their dirt plate as well, and the covered paintings were
+recomposed (`terrain_covered.py cut`) against D79's repainted atlas.
 Fallback: revert the three scripts and GLBs and the renderer change (`covered` in the manifest is then
 unused and harmless).
+## D74 — A model's top-view edge goes to the inner edge of the sprite's ink border; the game's ink stands in for it
+
+2026-11-03
+
+**Decision:** Models are matched to the sprite **without its ink border**. The border is the ink
+pixels of the sprite's boundary ring (luma < 26: palette 1, 2 and each ramp's darkest steps, 16, 32,
+48, 64, 80, 112, ...; 4-adjacent to transparency or the picture's edge). The model's top view covers
+the rest (the inner mask), and the game's ink outline (`OUTLINE`, unchanged) draws where the border
+was. Where the sprite draws colour to its edge, the edge stays where it is. A part only one colour
+pixel wide inside its ink, or drawn in ink alone, keeps at least half its sprite width (each side
+in by at most a quarter of it); its border pixels count neither way. The hard rule becomes: rule
+IoU ≥ 0.95 on the sprite's grid on every frame, from `tools/sprite_mask.py <name> --measure top.png`
+(`iou_rule_grid`). The rule for agents: docs/agents/OUTLINE-BORDER.md. No shipped model is rebuilt
+here.
+
+- **The border, surveyed** (each model's main frame, assemblies whole): level 1's 28 models: 18 have
+  a closed border (≥ 85% of the ring ink), 2 partial, 4 none, 4 opaque to the rectangle (island
+  machines, rock). All 8 player ships closed. All episodes' 993 enemy sprites (822 not opaque to the
+  rectangle): 28% closed, 42% 50-85% ink, 22% 20-50%, 9% under 20%; the gaps are coloured pixels
+  (lit rims, glows), not a shadow side: every side is ink about equally often (65-68%). One pixel
+  thick: in bordered sprites the next layer in is 6-35% ink (median per group), 26 of 228 closed enemy
+  sprites have a 2 px border. Most common ink: palette 1 (12, 12, 12), then 2, 112, 32, 64, 16, 48.
+- **The experiment.** The current models of the Talon, newsh2-89, newsh2-191 (thin arcs), newsh2-267
+  (thin legs), the boss assembly-newsh4-124 and the eye fortress assembly-newsh2-245 (no border, the
+  control) were drawn still in the game's renderer (`?debug=models`, frame-HUD viewport at
+  1920x1080, 5.4 screen px per sprite px) and compared with the sprite at the same place and scale.
+  Then copies pulled in to the inner edge (a plan warp, scratch only) were drawn the same way.
+  The ink is 3-4 screen px, 0.55-0.75 sprite px.
+
+  | Overhead (15° camera) | silhouette IoU with the sprite, current → inner | edge offset per side, sprite px |
+  |---|---|---|
+  | USP Talon | 0.818 → 0.929 (0.800 → 0.933) | +0.68 → -0.08 (+0.70 → -0.05) |
+  | newsh2-89 | 0.851 → 0.913 (0.795 → 0.846) | +0.97 → +0.30 (+1.19 → +0.54) |
+  | newsh2-191 | 0.689 → 0.816 (0.641 → 0.797) | +0.69 → +0.19 (+0.72 → +0.25) |
+  | newsh2-267 | 0.737 → 0.743 (0.668 → 0.679) | +0.74 → +0.15 (+0.83 → +0.27) |
+  | assembly-newsh4-124 | 0.809 → 0.838 (0.762 → 0.780) | +1.37 → +0.78 (+2.17 → +1.56) |
+  | assembly-newsh2-245 (control) | 0.946 (0.928) | +0.21 (+0.31) |
+
+  Every model matched to the outer edge read fatter than its sprite (the Talon 22% more area);
+  at the inner edge the size matches within a third of a pixel and the thin parts still read.
+  (267's IoU stays low because its legs don't follow the sprite's, whatever the edge.)
+- **Tool:** `tools/sprite_mask.py` finds the border and writes the outer, inner and free masks, a
+  per-sprite survey line, PNG masks to trace, and `--measure` for a top-view render. Standard library
+  only (Blender's Python and the system's); `tests/tools/spriteMask.test.ts`.
+
+**Options considered:**
+- *Inner edge, the game's ink for the border (chosen):* the silhouette with the ink lands on the
+  sprite's; the sprite's dark ring and the model's ink outline are the same thing.
+- *Outer edge, ink thinned or dropped:* the ink is the look of every model (D51, D55) and is set
+  per screen, not per model; at its width the outer-edge models are still 0.7 px fat, and without
+  it the models lose the sprites' dark edge.
+- *Middle of the border pixel:* +0.2 to +0.5 px per side from the numbers above, between the two.
+- *Strip the border only on closed-border sprites:* per-pixel stripping already leaves inkless
+  edges alone, so one rule covers partial borders too.
+
+**Affected (follow-up, not done here).** The models built to the old rule, top views rendered from
+their .glbs (rule IoU on the grid now; each would pull its edge in about 1 px where the sprite has
+ink):
+
+- Player ships: Talon 0.79, Dragonwing 0.83, Gencore Phoenix 0.70, Microcorp Stalker 0.76, Nort
+  ship 0.87, Silver ship 0.83, Supercarrot 0.74, U-Ship 0.71 (its border is 54% of its pixels, 64
+  of them free).
+- Level 1 (D65): assembly-newsh2-3 0.74, -9 0.75, -87 0.80, -123 0.78, assembly-newsh4-81 0.75, the boss
+  assembly-newsh4-124 0.90, newsh2-127 0.86, -159 0.80, -171 0.70, -191 0.72, -229 0.60, -267 0.79, -269 0.80,
+  -271 0.80, -49 0.71, -51 0.72, -89 0.86, newshp-13 0.73. Nearly passing: assembly-newsh4-195 0.94,
+  -231 0.94 (partial borders). Already passing (no border or opaque to the rectangle):
+  assembly-newsh2-53, -115, -119, -245, -273, -279, newshe-39, newsh2-153.
+- The older models (D44 and before): of 1022 sprite-model entries with a reference sprite, 253 have
+  a closed border and 521 a partial one; they change whenever they are rebuilt.
+
+**Found on the way:** `newsh2-159`'s outline shell (and its -f2..-f5 frames') covers only the
+model's middle band, so it shows no ink at all in game (a shell made from the wrong island). Tall
+models also read bigger than their sprites in game: a model's origin plane covers the sprite's
+screen area (D6) and parts above it are nearer the camera (the boss's +0.78 at the inner edge); that
+is height, not the border.
+
+**Review:** the comparison sheets (sprite | current | inner, overhead at game scale, x3 with the
+sprite's edge, 15°) and the scripts are in `tyrian-scratch/outline-border/` (`sheets/`, `ingame.py`,
+`measure.py`, `survey.py`). Fallback: measure against the outer mask again (`iou_outer_grid`).
+## D75 — Galaga mode's doubled pickups read past the item tables: the port reads what the C's reference build reads
+
+2026-11-03
+
+**Decision:** The two "port bugs" the whole-game inventory found (MILESTONES.md, Known issues) are
+the C's own behaviour. The sim now reproduces it instead of crashing:
+
+- **ALE crash (level 1.18, section 41):** in galaga mode JE_searchFor doubles the value of every
+  enemy it finds (tyrian2.c L4148-4160; tyrian2.ts JE_searchFor), and `evalue` is a JE_integer, so
+  it wraps. Events 70 and 75 search again on every pass of a level's waiting loops, so an enemy of
+  value 15 reaches 30720 after eleven doublings. Touching it, JE_playerCollide (mainint.c L4634-4669; mainint.ts JE_playerCollide) takes
+  it for a front-weapon pickup and reads `weaponPort[720].name`, sets the weapon id to u8(720) = 208
+  and the special to `specialArcadeWeapon[719]`, all past the tables' ends. The port threw on the
+  undefined record (tick 2815 of tools/inventory.mjs's run, seed 1041). Other reachable cases: 375
+  (a cash pickup in ALE) reaches 30464 (weapon 208, special `specialArcadeWeapon[463]` = 125), and
+  250 reaches 32000 (rear weapon u8(1000) = 232, name `weaponPort[1000]`). SQUADRON's enemies can do
+  the same.
+- **What the C does:** undefined behaviour, so whatever its memory holds. On the reference build
+  (tools/opentyrian-bot/run.sh: Apple clang -O1, arm64 macOS, where every bot fixture comes from)
+  the item tables lie back to back: options, powerSys, shields, ships, special, weaponPort, weapons
+  (71,820 bytes; checked with the linker's symbol addresses and by dumping the block from the
+  running C for episodes 1 and 4, byte for byte equal to what src/sim/overrun.ts builds). The
+  constant tables from SAWeapon on are followed by the rest of OpenTyrian's read-only data.
+  src/sim/overrun.ts rebuilds the item block from the item data (JE_loadItemDat's fields at the
+  structs' offsets, `name[min(len, 30)] = '\0'`, zero padding), appends to weaponPorts, specials
+  and options every record a Uint8 id can select (up to 255, decoded from it), reads the pickup's
+  names as `%s` would, and holds the 2,562 compiled bytes from SAWeapon on for
+  `specialArcadeWeapon`, `optionSelect` and `SAWeapon` reads past their ends. Past both blocks
+  (weapon names for values from 30805 or 31805, SAWeapon in a Super Arcade galaga game) the C reads
+  its mutable globals or build-dependent unwind tables; the port reads zeros, "" for a name. Those
+  only feed the text window, or need a Super Arcade game in a galaga level. Weapon 208 then fires
+  nothing (player_shot_create rejects ports over 42), so the bot can't kill the enemies event 70
+  waits for and ALE stalls at curLoc 2601-2610: the C does the same, tick for tick, for 30,000 ticks.
+  JE_playerCollide also gains the C's Uint8 truncation of `items.special` (value - 32100) and of a
+  Super Arcade weapon id.
+- **SQUADRON never ends (level 4.18, section 45):** genuine. Its event list has no end-level event
+  (11) or ready-to-end (36); after the start it jumps to a wave table at 60000 that calls the waves
+  (event 54, each returning through event 76) and jumps back to 60000. The invulnerable bot can't
+  end it; the C, with the same bot, matched the port for 60,000 ticks (seed 4045, every 100th
+  tick). The only end is the ship out of lives: game over, then the C waits for a key (the host's
+  key in src/app/run.ts), as with the bot without its cheats.
+- **Found on the way (the mortal SQUADRON cross-check):** start_level_first's JE_drawArmor
+  (tyrian2.c L834) caps armor at 28, and the port skipped it as HUD; it also called JE_getShipInfo
+  a second time after the level's world setup (game.ts startLevel), which the C doesn't. ENGAGE's
+  Stalker 21.126 has 30 armor, so the port's ship started at 30 instead of 28 and the armour ship
+  came later than the C's. newgame.ts now caps as the C does, and startLevel no longer repeats
+  JE_getShipInfo.
+
+**Tests:** tests/sim/galaga.test.ts (the read-only block starts with the three tables; every
+in-range record decodes from the rebuilt memory as the item data parses it; ALE's inventory run
+survives tick 2815 with weapon 208; SQUADRON's loop, and its game over with a mortal bot). C
+cross-checks in botTrace.test.ts: `ale-seed1041` (the inventory's ALE run, 6,000 ticks) and
+`squadron-mortal` (14,000 ticks: game over at 13,136, then the wait for a key). driver.c gains BOT_SEED (seed
+before JE_initPlayerData, as the inventory does) and BOT_MORTAL (no cheats); run.sh's play_case
+takes `seed=N` and `mortal`. Each botTrace case now starts from new players, as each driver run is a
+fresh process (JE_initPlayerData leaves friction, mouse and sidekick state alone, in the C too).
+docs/roadmap/inventory.* are regenerated: ALE runs its 60,000 ticks. Some counts of later levels
+shift slightly because the inventory plays every level in one process and ALE's full run leaves
+that same player state behind (episode 2 played alone gives the old numbers).
+
+**Options considered:**
+- *Reproduce the reference build's memory (chosen):* the C cross-checks are this build, and with
+  it the port matches the C through and past the overrun.
+- *A guard (skip the pickup, or treat a missing record as empty):* hides the divergence: the C does
+  pick it up, loses its gun and stalls.
+- *Clamp the doubled value:* changes what the C's galaga games do (a 32000 would become a cash
+  pickup instead of rear weapon 232).
+
+Fallback: drop `extendItemTables` and the overrun accessors; the C tables' bounds then throw again.
+
+## D76 — Coin and gem values as crisp flat art, redrawn from their own pixels
+
+2026-11-03
+
+**Decision:** The value a coin, gem or data cube shows when picked up (a fixed-position explosion,
+types 35-52 of newsh6.shp: 10, 25, 50, 75, 100, 250, 500, 1K, 2K, 5K, the brown ALE/375 plaque,
+800, 150, 350, 500, 750, the red 50 and DATA) is drawn as flat sprite art (D42) in the remastered
+look, instead of an extruded sprite: chunky pixel digits standing up off a dark plate.
+- **The art** (`tools/value_art.py`, no Gemini): each of the 18 sprites is redrawn from its own
+  pixels. Every digit pixel is joined to its digit neighbours and the centre lines are drawn with a
+  rounded-square pen a little under a pixel wide, so every digit keeps the original's shape,
+  placement and staircase layout but has clean antialiased edges and softened corners; the colours
+  are the digits' own palette colours (palette 5, as the other flat art) blended smoothly between
+  pixel centres, with a soft bevel lit from the upper left. The plate is the sprite's darkest colour
+  under its whole silhouette, rounded as the flat art's alpha is, shaded slightly top to bottom with
+  a faint glow of the digits round them. The red 150/350/500/750, which have no plate, get a faint
+  dark shadow inside their box.
+- **Wiring:** one atlas, `public/art/sprites/newsh6-shp.webp` (66 KB), and a `newsh6.shp` sheet in
+  the manifest, keyed by the sprite drawn (explosion_data's sprite + 1). None of those indices is a
+  frame of a moving explosion, and no enemy bank loads newsh6, so nothing else changes. The manifest
+  gains an optional per-sheet `scale` (`spriteArt.ts`): these frames are 16 texels per pixel, twice
+  the rest, as the numbers are small and read. `flat_art.py cut` now keeps sheets it didn't make.
+- **The game contract** is the flat art's: `?sprites=original` (or A, or the original effects look)
+  draws them extruded as before; the explosions' "blend" draws them at the renderer's 0.55 opacity;
+  the level filter and brightness recolour them; the atlas is loaded with the others before the level.
+
+**Options considered:**
+- *Vector text in a font (canvas or SDF quad) at the draw's position:* sharp at any size, but the
+  values are partly not text (the ALE/375 plaque, the slanted 1K, the staircases, the multi-coloured
+  800) and the original's plates and colour ramps would be approximations.
+- *Gemini paintings, like the other flat art:* nothing to gain over redrawing 1-px strokes exactly,
+  and a painted digit can drift from the original's.
+- *Keep them extruded, with smoothing:* still a 3D slab with sides for a 2D readout.
+
+**Review:** `?debug=play&seed=1&skip=T&freezeAt=T&armor=99` at T = 301 (75 over a fireball), 815 and
+2031 (DATA), 1670 (two 25s), 6426 (250). The flat draws go before the other transparent draws, so
+a value spawned on a fireball now sits under its glow rather than over it (still readable). Cost:
+66 KB download, one more draw call while a value is on screen. Fallback: drop the manifest's
+`newsh6.shp` entry.
+
+## D77 — The shield's hit arcs become one energy bubble round the ship
+
+2026-11-03
+
+**Decision:** When a hit only takes shield, JE_playerDamage draws nine light-blue arc tiles (explosion
+types 14-22, newsh6 sprites 229-237, 248-256 and 267-275) in a 4x3 grid round the ship, for three
+ticks. The remastered effects (D35) drew them as hot extruded sprites: stair-stepped pixel arcs.
+They now draw as one energy bubble (`src/render/vfx/shieldLayer.ts`): a sphere squashed to 20 x 11 x
+19 px round the ship model, at the ship's height, additive, its rim bright by a fresnel term (so from
+the game's camera it reads as the original's ring), with a faint hexagonal cell pattern and a wave
+running from its middle to its rim over the hit. The arcs are hidden.
+- **Placement and timing, from the original:** `explosionFrames.ts` gains an `ExplosionKind.Shield`
+  for types 14-22 and `shieldArcCentre(type)`, each arc's offset to the middle of its grid, so every
+  arc of one hit names the same point (the player's x + 7, y + 9: just below the ship sprite's middle,
+  as the C draws them; a test checks it against the sim's JE_playerDamage). One bubble is drawn per
+  hit and frame, on exactly the frames the arcs are drawn, moving with them (they scroll, as in the
+  C). It grows (0.84, 0.94, 1.04 of its size) and fades (1, 0.8, 0.5) over the three frames, as the
+  arcs widen; two hits a tick apart overlap as two bubbles, each with its own cell pattern.
+- **Colour:** the arc sprite's own palette colour, the way the shot halos take theirs (D35), so
+  palette fades and flashes carry through.
+- **Light:** the first frame also lights the ship's surroundings faintly in that colour, from the
+  explosions' pool of four lights (merged across the nine arcs).
+- **Switch:** `?vfx=original` (or V in the play harness) draws the arcs as the original sprites, as
+  before. Other spark types (11, 13, 23-34: shot trails) are unchanged.
+
+**Options considered:**
+- *A fresnel bubble round the ship (chosen):* one instanced draw, no assets, smooth at any size, and
+  from above it is the original's ring.
+- *Flat art for the arc tiles (D42):* would keep the 4x3 tile seams and the gap at the bottom right
+  (the C draws only nine of twelve tiles); a ring split into nine sprites stays a pixel object.
+- *A full shield mesh that stays round the ship and flashes:* would add a state the sim doesn't have.
+
+**Review:** `?debug=play&seed=1&skip=N&freezeAt=N&solid=1` at 295, 296, 297 (a hit, then a second one
+a tick later) and 636; captures in tyrian-scratch/pixel-sweep/shield-hit-arcs/. At 1920x1080 the
+harness held 60 fps with cpu about 7.3 ms a frame at tick 296 (two bubbles) and about 7.0 at 290 (no
+hit), 311 and 315 draw calls: within the noise of a machine busy with other runs. No
+download beyond the new module (6 KB of source, 2.4 KB gzipped). If the bubble reads too strong or
+weak, the shader's `a` line and `SHIELD_FADE` in remasteredFx.ts set it.
+
+## D78 — Cloud rims: the HD cloud tiles' alpha follows a smoothed contour, solved across tile edges
+
+2026-11-03
+
+**Decision:** The alpha of the HD terrain's layers 1-2 (`tools/terrain_hd.py`, `alpha_level`,
+`solve_alpha`) is no longer the MMPX 8x silhouette blurred at 3 texels and ramped (D58), which kept the
+8-texel stairs MMPX leaves on slopes that aren't 45 degrees and drew TYRIAN's cloud rims (40-44, 50-52,
+54, 62-64) as polygons. It is now:
+- **A smoothed contour.** The MMPX mask's signed distance (clamped to +-24 texels), blurred at 8 texels
+  (one original pixel), with alpha a smoothstep over +-2 texels across its zero. Straight runs stay
+  where they were; stairs and one-pixel corners round off. The cloud's shape is still the original's:
+  against D58's alpha the half-alpha contour moves 2-4 texels in most tiles and at most 14 texels
+  (under 2 original pixels; 41 and 51, where the edge solve bends it).
+- **Solved across tile edges.** A tile's contour near a side follows its usual neighbour there, so where
+  two tiles that aren't each other's usual neighbour meet (43|44 23 times, 63|64 21 times) the contours
+  met with a jog, and 44's left edge drew a thin dark sliver above 43's rim. The distance field (not
+  alpha) now gets the colour's seam treatment (D58: strips solved jointly over the map's pairs, faded in
+  over 40 texels), over pairs the map has at least 5 times, so contours bend to a shared crossing point.
+  Alpha itself is still not averaged (D58's faint line), and rare pairs are left out: with 44|53 (once)
+  in, a bar of cloud appeared at 44's empty right edge.
+- **`realpha`**, a new command, redoes just this on the committed atlas (colour bled again from what was
+  visible), since the Gemini answers aren't kept; `cut` does the same after its colour seams.
+
+**Result** (`public/art/terrain/shapesz/1.webp`, 78.6 KB -> 80.4 KB, same layout; layer 0 untouched):
+the stair score (strongest 8-texel phase of the alpha's steps over the mean) of the rim tiles went from
+1.8-3.2 to 1.1-1.9 (63: 3.24 -> 1.68, 52: 2.95 -> 1.74, 43: 2.74 -> 1.59, 54: 2.72 -> 1.91); the
+count-weighted mean alpha step across the map's tile edges from 0.0026 to 0.0005. In game
+(`?debug=play&seed=1&skip=T&freezeAt=T`, T = 300, 1000, 2000, 6500, at 1920x1080 and 3840x2160) the rims
+are soft curves with the original's dark edge colour, and 60 fps with the same cpu ms as before.
+Remaining: the dark edge is the original's outline colour bled under the alpha (kept, it is the
+original's); colour seams inside the clouds are unchanged; pairs seen under 5 times keep their jog.
+
+**Options considered:**
+- *Blur the mask more (sigma 6-8) and keep D58's ramp:* rounds the stairs too, but the ramp's width
+  then grows with the blur (~6 texels, soft edges); the blurred distance keeps a 4-texel ramp.
+- *The painting's own matte:* Gemini's cloud/black edge registered loosely and the rim tiles were
+  painted puffier than the original (D59), so it would move the outline.
+- *Edge-clamped context at the sides* (contour independent of the neighbour): kinks every diagonal
+  contour at a tile edge.
+
+**Review:** before/after captures and crops in `tyrian-scratch/pixel-sweep/cloud-rim-stairsteps/`
+(`cmp_*.png`). Fallback: `git checkout` the previous `1.webp`; `realpha --alpha-min-pairs 1000000` keeps
+the smoothing without the edge solve.
+
+## D79 — TYRIAN's HD ground repainted from softened sheets: no pixel blocks or checker dither left in the paintings
+
+2026-11-03
+
+**Decision:** About a third of the 66 HD ground tiles (D59/D60) were still upscaled pixel art: 8-texel blocks
+and the original's checker dither, which D60's deblock (block edges only) left inside the blocks. At 4K the dark
+rock (ticks 0-2300), the light dirt (2500-3000) and the jungle floor between the leaf models (4500-7400) showed a
+clear pixel grid. The ground atlas (`public/art/terrain/shapesz/0.webp`, same rects and size, 512 → 508 KB) is
+re-cut with eight new Gemini answers; the clouds (`1.webp`) are untouched.
+- **Softened input** (`sheets --soft 0.5`, the retry D59 suggested): each region sheet MMPX-smoothed, then blurred by
+  half an original pixel, black kept black, written to `sheets/soft/` with a `softPrompt` (paint crisp detail, no
+  pixel grid, checkerboard or dither). The blur keeps ~30% of a one-pixel alternation along an axis and ~10%
+  diagonally, so Gemini has no blocks or dither to copy; every answer came back painted (blockiness 1.03-1.12,
+  against 1.5-1.9 for the tiles it replaced). Sent one at a time, each with a prompt naming what the region shows:
+  region-l0-01 (dirt and the crater mound), 02 (rock and dirt paths), 03 and 10 (forest), 04 and 07 (grass
+  fringe), 06 (rock and the wreck), 08 (dirt and rock patches). 05 (the H-shaped ridges) came back with wider,
+  flatter ridges than the original and is not used.
+- **A partial round** (`cut --base DIR`): the old atlas's tiles compete as candidates, so new answers for some
+  regions replace what they cover without the old answers (which are no longer on disk). Every candidate is then
+  scored the same way: the NCC of its per-pixel means against the original, less its colour error, less 0.12 for a
+  base tile (`--base-cost`: its pixel copying is only partly measured), less the pixel penalties below. A layer
+  with nothing new is copied from the base unchanged; a base tile that wins is not deblocked or reshaded again.
+  The novelty cost (D59) is measured against the new paintings only (a pixel copy has no marks of its own).
+- **Pixel period** (`pixel_period`): blocks and dither alike, the alternation from one original pixel to the next
+  (8-texel cells) against the same over 6- and 11-texel cells, which no pixel grid lines up with. A painting is
+  1.0-1.1; the old light dirt 46 was 1.72, grass fringe 89 1.61, canopy 211 1.52. It costs 0.6 per unit above 1.15.
+  With `--blocky-free 1.2 --blocky-cost 0.3` (the base tiles are deblocked, so their blockiness reads low).
+- **Result:** 54 of the 66 ground tiles are new paintings; kept from the old atlas are 95, 96, 105, 108
+  (ridges, already painted) and the bunker ground 320-323 and 330-333, picked back (`--pick 0:320=base#0`, ...):
+  it sits under the bunker models, and the bunker pads are another change's. Hand picks: 99 (`region-l0-06#0`; the scores kept the old one, whose blocks showed in game at
+  tick 750), 79 (`region-l0-07#0`,
+  its only new painting; it has a few dark sprigs on the sand below the grass patch) and 222 (`region-l0-03#0`;
+  the old one was checker). Seam measure (D58): texel step across edges 0.46 of the step inside tiles (was 0.57),
+  8-texel bands 0.56 (0.50). The cache is now per answer (`--cache`): a new or changed answer is registered and
+  added.
+
+**Checked** in game, `?debug=play&seed=1&skip=T&freezeAt=T&armor=99` at 3840x2160 for T = 750, 1000, 2000, 2750,
+5000, 6000, the old atlas through `&terrainart=` (a temporary copy) against the new: the dark rock's grid, the light
+dirt's checker and the jungle floor's checker between the leaf models are gone; outlines, the crater, the ridges and
+the colours still match the original's; no seams or misplaced tiles. Contact sheets (`check`) for the whole map.
+Overlay at tick 1000 (4K, headless, a loaded machine): 54 fps / 8.3 ms before, 56-58 fps / 8.6-9.6 ms after (run-to-run noise); same draws
+and atlas size. The typecheck passes; the tests pass except tests that time out on a machine
+running many agents (no source file changed; see the PR).
+
+**Options considered:**
+- *Edge-aware smoothing of the blocky tiles (no Gemini):* removes the checker, and the detail inside the 8-texel
+  cells with it; the tiles would be smooth blur among painted neighbours.
+- *A full re-cut from every old answer:* the old answers aren't kept (D3, a scratch folder since deleted); the base
+  mode needs only the new ones, and keeps the old tiles that are still the best.
+- *Region-l0-05 for the ridges:* its ridges are wider and flatter than the original's and lost the bright rim; the
+  old ridge tiles were already painted.
+- *Context sheets for the grass fringe:* D59 found brown-green-edges-1 came back as blocks even softened; the two
+  grass regions covered every fringe tile.
+
+## D80 — Fireballs and big explosions are flat painted art, like the shots (D42/D43)
+
+2026-11-03
+
+**Decision:** Explosion types 1 (the fireball, newsh6.shp sprites 122-133) and 2-5 / 7-10 (a big
+explosion's quarters: air 3-14, 22-33, 41-52, 60-71; ground 154-165, 173-184, 192-203, 211-222) draw
+from painted art instead of extruded voxel sprites. At 4K the extruded, emissive sprites read as
+blocky pink pixel clouds and a stair-stepped red ring, the biggest bright things on screen.
+- **Art:** `tools/flat_art.py` now reads the newsh<c>.shp sheets, and `tools/flat_art_explosions.json`
+  is the inventory: three Gemini sheets of 12 cells (the fireball's 12 frames, then a big
+  explosion's 12 frames for air and for ground, each frame its four quarters composed as one 24x28
+  picture by `LAYOUTS`, as JE_setupExplosionLarge places them) so the quarters are cut from one
+  painting and meet without seams. `cut --merge` rebuilds only `newsh6-shp.webp` (108 frames,
+  1024x2048, 187 KB) and adds its sheet to `public/art/sprites/manifest.json`, keeping the others.
+- **Fire-specific cut options** (inventory, per object): `floor` 0.8 lifts any texel the painting
+  made darker than 0.8x the original pixel's own (smoothed) colour, so Gemini's dark smoke never
+  replaces a bright original ring; `alpha` {sigma 5, lo 0.3, hi 0.55} is a softer silhouette than
+  D43's, so a one-pixel staircase ring becomes a smooth thin line (the edge grows by about a third
+  of a sprite pixel; lo 0.1 grew it ~0.8 px and showed a hard cut where a frame touches its box). Fit scores: air 0.94-0.98, ground 0.84-0.98, fireball 0.49-0.93 (0.49 is the
+  last, faintest ring frame, whose colour is mostly the floor).
+- **One atlas with D76's coin values** (merged with D76, which also drew into newsh6.shp): the
+  values stay at 16 texels per pixel through a per-frame `scale` in the manifest (SpriteArtFrame.scale;
+  the sheet is at the manifest's 8). Either tool rebuilds the shared atlas and keeps the other's
+  frames: `value_art.py` cuts the explosions back out of it and packs them again with the values,
+  and `flat_art.py cut` keeps a rebuilt sheet's frames that have their own scale (and, always, the
+  sheets it doesn't rebuild).
+- **Game side: no other code change.** Sprite2Router already routes a draw with art to Route.Flat before
+  the effects; RemasteredFx.sprite still runs, so the glow behind each explosion, its light, sparks,
+  embers, debris and smoke stay, and its SpriteLook.Hot is ignored for the flat quad. `?sprites=original`
+  (or `?vfx=original`, or A in `?debug=play`) brings back the extruded hot sprites. Palette fades
+  don't reach the art (D42); level 1 has none during explosions.
+- **Cost:** +187 KB download. At the same frozen ticks the flat explosions are one more instanced
+  draw call (the newsh6 atlas) and replace up to dozens of extruded sprite meshes: calls went
+  456 -> 436 (tick 249) and 262 -> 243 (tick 330); the overlay's renderer CPU at 3840x2160 was
+  5.3-6.3 ms after vs 7.1-8.5 ms before at ticks 150/170/249/750 (a busy machine, other agents'
+  captures running, so read it as "no worse"), 60 fps.
+
+**Options considered:**
+- *Flat painted frames via the D43 pipeline (chosen):* reads as the original (same outline, frame
+  timing, holes and colours), and is free at run time.
+- *A procedural fireball shader (noise billboard tinted from the sprite's colours, SpriteLook.Hidden):*
+  smoother animation and no art, but its shape would be ours, not the original's frames.
+- *Original silhouette alpha (D43's smooth_alpha):* keeps the outline exactly, but left the thin
+  rings as dashes at 4K.
+
+**Review:** play `?debug=play&seed=1&skip=249&freezeAt=249&armor=99` (big air explosions) and
+`skip=750` (ground ones), and press A to compare. Known limit: overlapping explosions keep the draw
+list's order, quarter by quarter, so where two big explosions overlap one can cut straight across
+the other at a quarter edge, as in the original (it was there with the extruded sprites too).
+Fallback: remove the `newsh6.shp` sheet from the manifest.
+
+## D81 — The rock outcrop's shot-away frames are models: a crater with a pool of blue, from the sprite's fields
+
+2026-11-03
+
+**Problem:** the ground rock outcrop of level 1 (newshe.shp, six 2x2 enemies, types 522-527 once hit
+hard enough) had models only for its whole frames (1, 3, 5, 39, 41, 43, `assembly-newshe-39`). Its
+damaged frames 7, 9, 11, 45, 47 and 49 (the rock shot away, a pool of blue showing beneath) had none,
+so each piece turned from the 3D rock into extruded pixel blocks when hit (D54's `KNOWN_DAMAGE_SWAPS`;
+ticks ~2012-2115 with `&power=11`, at the right edge).
+
+**Decision:** `assembly-newshe-39.py -- --damaged` builds the damaged state as one assembly cut into
+the same six pieces and exports them as `newshe-<n>-f2` (each listed for its damaged frame in
+`src/render/spriteModels/newshe-<n>-f2.json`, so the existing router, preload (levelSprites lists
+damaged graphics) and never-pop rules apply unchanged). The sprite is authoritative and shows no rock
+left, so the model is what it shows, not a broken boulder: a dark scorched crater, a flat pool of blue
+ringed by its dark rim, loose stones round it and a few broken shards on its south side. Built like
+D63, from smoothed fields of the sprite's own pixels, so no edge is a pixel step:
+- the scorch: a thin slab cut along the 0.5 iso-line of the blurred dark-pixel mask (index 32,
+  160-163); lone dark pixels become small round flecks;
+- the pool: a slab cut from the blurred mask of the blue (144-159) and its rim (80-83); its top is split
+  into isobands of the bilinear sprite (the blue ramp is ordered dark to bright), every other ramp
+  index so a piece has at most ~20 materials; slightly glossy, a faint palette glow on the brighter
+  bands; the bright spots are sheen, kept as colour, not relief;
+- the stones: each 4-connected group of grey pixels (2-11) is a convex stone on its own pixels, height
+  from its size (to ~4.6 px), lit faces in its brightest indices;
+- no ground patch: like the undamaged pieces (D67), the sprite's dirt round the crater is not
+  modelled (it was a plate of 2 x 2 px dirt cells with a hard edge against the HD ground); the HD
+  ground shows there, and the covered crater tiles under it (D67) keep the original crater hidden;
+- an ink outline shell (D51) of the stones and pool only; plain palette materials, no bake.
+The frames are read from the game data at build time (`TYRIAN_DATA`/`data`, palette 5): the catalogue
+only has an enemy's own frames.
+
+**Options considered:** *the rocks with a broken top exposing a blue core* (the issue's first idea):
+the damaged sprites show no rock mass at all, so it would not read as the original. *Per-pixel
+coloured pool:* square steps again. *Isobands of every ramp index:* 27 materials on the biggest piece;
+every other index looks the same in game at half the draw calls.
+
+**Review:** in game (`?debug=play&seed=1&skip=2050&freezeAt=2050&armor=99&power=11`) at 1280x800 and
+3840x2160 the shot-away pieces are the crater and pool instead of pixel blocks; 60 fps, cpu ~9 ms in
+both, draw calls 380 -> 480 while four damaged pieces are on screen. Six GLBs, 667 KB in all (level 1
+preloads them with the damaged graphics). `tests/render/modelSwap.test.ts` no longer lists types
+522-527 and passes (no model/sprite mix on level 1, preload coverage on episode 1).
+Fallback: delete the six `newshe-*-f2` GLBs and JSONs; the damaged frames go back to extruded sprites.
+
+## D82 — Tall buildings are real buildings drawn in the art's oblique view
+
+2026-11-03
+
+**Decision:** A structure whose tiles paint a roof with a wall below it is built as the real
+building, then drawn the way its tiles draw it.
+- **Is it tall?** `tools/tall_buildings.py analyse` splits the tiles into roof and wall. In each
+  column the edge is the biggest drop in brightness, summed over a tile's width. The structure is
+  tall when all of these hold:
+  - the painted wall band is at least 6 px;
+  - the band runs along ≥ 60% of the building's columns;
+  - it is about as tall everywhere (spread ≤ 0.5);
+  - it is darker than the roof (≥ 0.08);
+  - its detail runs up and down.
+
+  The game camera can't show that much wall. At 15° a vertical wall shows 0.31 px per px of height
+  at mid-screen (0.72 at the top, −0.09 at the bottom), and a ground structure may be 0.8 units
+  tall (D5), about 3 px of wall.
+- **The model** (`assets/blender/tiles/lib_tall.py`):
+  - it stands on the roof's outline moved down by the wall band, i.e. where the wall meets the
+    ground;
+  - its walls are vertical, 1 px of height per px of painted wall;
+  - the roof and the south wall wear their own pixels, row for row, as a low relief in palette
+    materials;
+  - no concept bake.
+- **The renderer** (`src/render/remaster/structureInstances.ts`) reads two extras:
+  - `tyrian_oblique: k` puts each vertex on the camera ray through the base-plane point the art
+    draws it at (k px up the screen per px of height). This is D6's lift, applied per vertex.
+  - `tyrian_depth_band: [lo, hi]` gives each vertex the depth of that ray's point at its height
+    squeezed into the band: [0, 0.04] on the ground, under background 2's under pass at 0.05;
+    [0, 0.38] on background 3.
+
+  So the roof and wall land exactly where the tiles paint them, at every tilt and scroll
+  position. Everything the original drew over the tiles still draws over the building. Normals,
+  light and shadows are the real building's (the shadow pass doesn't use the transform).
+- **Measured** with `tools/tall_buildings.py measure` (`tools/tall_render.py`). It renders the game's
+  three cameras at the screen's top, centre and bottom, projected onto the ground plane, and scores
+  screen IoU, roof/wall IoU, per-region colour, footprint IoU and drift. Acceptance targets are in
+  `docs/agents/TALL-BUILDINGS.md`.
+- **Applied** to SAVARA's two towers (Episode 1, map 1-8; `assets/blender/tiles/savbld_towers.py`,
+  the tiles kept under them). Their tiles are a kit that also makes shorter and taller towers in
+  Episodes 1 and 4, so each pattern needs all its rows drawn (`minRows` 5 and 7). Until then the
+  tiles show, and the model lands exactly on them. TYRIAN (level 1) has no tall structure by the test: its 14
+  analysed patterns fail on band spread, wall darkness or detail direction. In game no variant
+  improved on its drums (a 7 px front face on one tile). So level 1 is unchanged.
+
+**Options considered:** each was built from the same split with the same kit, on SAVARA's wide tower
+(54 px wall under a 57 px roof) and tall tower (110 px under 56), and TYRIAN's drum. Each was judged
+in the game at 0°, 15° and 32° and at three ticks of its pass. Metrics are for the wide tower: screen
+IoU at 0°/15°/32°, mid-screen; drift from the top of the screen to the bottom at 15°.
+- *A, footprint + true height, real perspective:* IoU 0.42/0.64/0.77; drift 37 px (tall tower 86).
+  The roof floats off its tiles, magnified (the tall tower is 9 units, half the camera's height). Big
+  dark side faces show. Turrets or shots on the roof would miss it.
+- *B, fit the 15° camera within the pass budget (0.8 units, walls leaning back):* IoU
+  0.96/0.93/0.88; drift 3 px. It looks like the original, but as a 3D object it is the "sloped slab".
+  Its wall faces up, so it is lit like a roof (wall IoU 0.12).
+- *C0, true height plus a static lean fitted to 15°:* IoU 0.83/0.75/0.74; drift 12 px. A leaning
+  slab.
+- *C, true building, oblique-locked (chosen):* IoU 0.98 at every tilt and place, roof 0.95, wall
+  0.97; colour error 3/4; drift 0. It looks like the original at all three tilts, with wall lighting,
+  relief and a real shadow, and in the viewer it is a true tower.
+- *True height fitted to 15° with vertical walls:* the wide tower would be 172 px (14 units, 74% of
+  the camera's height). Rejected without building it.
+
+**Found on the way:**
+- A raised ground structure hides background 2's under pass (SAVARA's clouds at 0.05). Hence the
+  ground band's top of 0.04. The existing ground structures are up to 0.8 units tall (lib_l1bld
+  TALL_MAX), so they would do the same over clouds; not checked in game.
+- The pass budget (D5) caps every structure's real height at well under a unit. The depth band
+  lifts that cap for any model that needs it.
+
+**Review:**
+- Play SAVARA (`?debug=play&main=29&seed=1&skip=2300&freezeAt=2300`, and 2500 for the tall tower) at
+  each Camera.
+- Known limits:
+  - The building never shows more wall at 32° and has no parallax, like every flat tile.
+  - Its side faces never show.
+  - Its tall shadow falls beside the painted one in the ground tiles.
+  - The wall wears the painted wall's colours and is lit as a south-facing wall, so it reads darker
+    than the tiles in places.
+  - Layer-2 tall structures, and buildings whose roof edge steps, aren't covered by the kit yet.
+  - The wide and tall towers are 12.8k and 13.7k triangles, 0.65 and 0.71 MB (one quad per wall pixel).
+- Fallback: delete `src/render/tileModels/shapesy-savbld-*.json`. The renderer's extras are inert
+  without them.

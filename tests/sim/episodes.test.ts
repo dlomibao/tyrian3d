@@ -2,7 +2,6 @@
 // into the next episode's first section with what the C carries over (tyrian2.c L2547-2659,
 // mainint.c L954-1001, episodes.c L247-298).
 import { beforeEach, describe, expect, test } from "vitest";
-import { loadItemDat } from "../../src/data";
 import { JE_itemScreenNonInteractive } from "../../src/sim/game_menu";
 import { loadHelpText } from "../../src/sim/helptext";
 import { JE_totalScore } from "../../src/sim/mainint";
@@ -93,7 +92,7 @@ describe.skipIf(!hasData(...NEEDED))("the end of an episode (]Q[, JE_nextEpisode
     expect(g.saveLevel).toBe(1); // JE_nextEpisode's FIRST_LEVEL; the loaded level came from section 1's item screen
     expect(g.levelName.trim()).toBe("TORM");
     // JE_initEpisode reloaded the item data for episode 2.
-    expect(g.res.items).toEqual(loadItemDat(2, readData("tyrian.hdt")));
+    expect(g.res.items).toEqual(buildResources(files, 2).items); // episode 2's item data (with D75's overrun records)
     // What carries over: the player's items, cash and difficulty, and the data cubes.
     expect(g.player[0].items).toEqual(items);
     expect(g.player[0].cash).toBe(123456);
@@ -108,7 +107,7 @@ describe.skipIf(!hasData(...NEEDED))("the end of an episode (]Q[, JE_nextEpisode
     expect(loaded).toBe(true);
     expect(pauses).toEqual(["anim", "displayText", "highScoreCheck", "nextEpisode", "itemScreen"]);
     expect(g.episodeNum).toBe(4);
-    expect(g.res.items).toEqual(loadItemDat(4, readData("tyrian.hdt"), readData("tyrian4.lvl")));
+    expect(g.res.items).toEqual(buildResources(files, 4).items); // episode 4's, from tyrian4.lvl
     expect(g.player[0].cash).toBe(123456);
   });
 

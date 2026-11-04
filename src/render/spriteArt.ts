@@ -14,7 +14,8 @@
 // index as the C passes it (1-based for Sprite2 sheets, 0-based for sprite tables). A frame is the
 // original sprite's box times `scale`: 12 wide by the decoded height for a Sprite2 sprite, the
 // table's width and height for a table sprite. A blit_sprite2x2 draw is the four 12x14 sprites
-// index, index+1, index+19 and index+20, each with its own frame.
+// index, index+1, index+19 and index+20, each with its own frame. A sheet may have a "scale" of its
+// own, and a frame too (newsh6.shp's coin values are drawn at 16 in the explosions' atlas at 8, D80).
 //
 // This module is the pure part (parsing, lookup, placement); spriteArtLayer.ts draws.
 
@@ -29,12 +30,15 @@ export interface SpriteArtFrame {
   y: number;
   w: number;
   h: number;
+  /** Atlas pixels per original pixel for this frame, when not its sheet's. */
+  scale?: number;
 }
 
 export interface SpriteArtManifest {
   /** Atlas pixels per original pixel. */
   scale: number;
-  sheets: Map<string, { image: string; frames: Map<number, SpriteArtFrame> }>;
+  /** Each sheet's atlas and frames; `scale` is the sheet's own, when it has one (else the manifest's). */
+  sheets: Map<string, { image: string; scale: number; frames: Map<number, SpriteArtFrame> }>;
 }
 
 const isCount = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= 0;
@@ -49,22 +53,27 @@ export function parseSpriteArtManifest(json: unknown, warn: (msg: string) => voi
   if (!isCount(scale) || scale <= 0 || typeof sheets !== "object" || sheets === null) return null;
   const out: SpriteArtManifest = { scale, sheets: new Map() };
   for (const [id, sheet] of Object.entries(sheets as Record<string, unknown>)) {
-    const { image, frames } = (sheet ?? {}) as { image?: unknown; frames?: unknown };
+    const { image, frames, scale: own } = (sheet ?? {}) as { image?: unknown; frames?: unknown; scale?: unknown };
     if (typeof image !== "string" || image === "" || typeof frames !== "object" || frames === null) {
       warn(`sprite art: sheet ${id} has no image or frames; drawing its sprites as before`);
+      continue;
+    }
+    if (own !== undefined && (!isCount(own) || own <= 0)) {
+      warn(`sprite art: sheet ${id} has a bad scale; drawing its sprites as before`);
       continue;
     }
     const map = new Map<number, SpriteArtFrame>();
     for (const [key, f] of Object.entries(frames as Record<string, unknown>)) {
       const index = Number(key);
-      const { x, y, w, h } = (f ?? {}) as Record<string, unknown>;
-      if (!Number.isInteger(index) || index < 0 || !isCount(x) || !isCount(y) || !isCount(w) || !isCount(h) || w === 0 || h === 0) {
+      const { x, y, w, h, scale: fs } = (f ?? {}) as Record<string, unknown>;
+      if (!Number.isInteger(index) || index < 0 || !isCount(x) || !isCount(y) || !isCount(w) || !isCount(h) || w === 0 || h === 0 ||
+          (fs !== undefined && (!isCount(fs) || fs <= 0))) {
         warn(`sprite art: ${id} frame ${key} is malformed; skipped`);
         continue;
       }
-      map.set(index, { x, y, w, h });
+      map.set(index, fs === undefined ? { x, y, w, h } : { x, y, w, h, scale: fs });
     }
-    if (map.size > 0) out.sheets.set(id, { image, frames: map });
+    if (map.size > 0) out.sheets.set(id, { image, scale: own ?? scale, frames: map });
   }
   return out;
 }
@@ -83,7 +92,7 @@ export interface ReadyFrame {
   v0: number;
   u1: number;
   v1: number;
-  /** Size in the original's pixels: the frame's size over the manifest's scale. */
+  /** Size in the original's pixels: the frame's size over its scale (its own, its sheet's or the manifest's). */
   w: number;
   h: number;
 }
@@ -106,7 +115,8 @@ export class SpriteArtSheet<T = unknown> {
     this.ready.clear();
     for (const [index, f] of this.frames) {
       if (f.x + f.w > width || f.y + f.h > height) continue; // Outside the image: draw as before.
-      this.ready.set(index, { u0: f.x / width, v0: f.y / height, u1: (f.x + f.w) / width, v1: (f.y + f.h) / height, w: f.w / this.scale, h: f.h / this.scale });
+      const scale = f.scale ?? this.scale;
+      this.ready.set(index, { u0: f.x / width, v0: f.y / height, u1: (f.x + f.w) / width, v1: (f.y + f.h) / height, w: f.w / scale, h: f.h / scale });
     }
     this.texture = texture;
   }
@@ -129,7 +139,7 @@ export class SpriteArt<T = unknown> {
   loaded: Promise<void> = Promise.resolve();
 
   constructor(manifest: SpriteArtManifest) {
-    for (const [id, s] of manifest.sheets) this.sheets.set(id, new SpriteArtSheet<T>(id, s.image, s.frames, manifest.scale));
+    for (const [id, s] of manifest.sheets) this.sheets.set(id, new SpriteArtSheet<T>(id, s.image, s.frames, s.scale));
   }
 
   sheet(id: string): SpriteArtSheet<T> | undefined {

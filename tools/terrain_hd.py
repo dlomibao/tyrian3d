@@ -18,6 +18,8 @@ reads (public/art/terrain/<shapes>/manifest.json + <layer>.webp, the format in D
         Gemini's aspect ratios. DIR/sheets/manifest.json says where every tile sits. The sheets are
         rendered from the game data, so they stay out of git (D3).
 
+        --soft 0.5 also writes softened sheets (MMPX + a half-pixel blur) to DIR/sheets/soft/ (D79).
+
     python tools/terrain_hd.py --work DIR fake
         Stand-in "Gemini" answers for testing: each sheet upscaled with MMPX, blurred, shifted,
         rescaled slightly and colour-shifted, in DIR/results-fake/.
@@ -30,13 +32,20 @@ reads (public/art/terrain/<shapes>/manifest.json + <layer>.webp, the format in D
         original tile (mean and low-frequency contrast per channel). The best candidate per tile wins
         (or --combine mean): its fit, less its colour error, copied pixel blocks and made-up marks,
         with a bonus for map regions (D59); --exclude, --pick and --cache adjust and speed this up.
-        The winner's broad shading (16 texels) is then replaced by the original's. Alpha (layers 1-2) is the original silhouette, smoothly upscaled among the
-        tile's usual neighbours. Then the seams: every tile side's edge strip is solved jointly, least
+        The winner's broad shading (16 texels) is then replaced by the original's. Alpha (layers 1-2) is
+        the original silhouette, MMPX-upscaled among the tile's usual neighbours with its contour smoothed
+        at one original pixel (a blurred signed distance, D78), its edges solved like the colour's.
+        Then the seams: every tile side's edge strip is solved jointly, least
         squares over every pair of tiles the map puts side by side (weighted by how often) plus a weak
         pull towards the tile's own painting, and each tile's border is moved onto its strips (the
         difference fades in over 40 texels, the outer 4 texels are the strip). One atlas per layer is
         packed (16-aligned rects, 16 px edge-extended gutters): <out>/<shapes>/<layer>.webp and
         manifest.json; DIR/cut-report.json says where each tile came from and how well it fitted.
+        --base ATLAS_ROOT lets an existing atlas's tiles compete (a partial round of answers, D79).
+
+    python tools/terrain_hd.py --work DIR realpha [--out public/art/terrain]
+        Redoes only the alpha of the committed atlas's layers 1-2 (as cut makes it), keeping its colour;
+        needs DIR/inventory.json, not the answers (D78).
 
     python tools/terrain_hd.py --work DIR check [--out public/art/terrain]
         Reassembles the level's map from the atlas, 12 rows at a time, into contact sheets (original,
@@ -613,6 +622,34 @@ def build_sheets(L: LevelData, inv: dict) -> list[dict]:
     return sheets
 
 
+SOFT_PROMPT = (" The picture is deliberately soft and blurred: invent crisp natural detail (pebbles, cracks, grain, leaves, "
+               "grass blades) at full resolution, with no pixel grid, checkerboard or dither pattern.")
+
+
+def soft_sheet(L: LevelData, sh: dict, units: np.ndarray, sigma: float) -> Image.Image:
+    """The sheet as a softened picture (the D59 retry): MMPX-smoothed, then blurred by `sigma`
+    original pixels, so the answer has no pixel blocks or checker dither to copy (Gemini copies what
+    it is shown: region-l0-02's answer kept the 6x6 blocks, D59). The blur's period-2 attenuation at
+    sigma 0.5 is ~0.3 along an axis and ~0.1 diagonally, where the dither is; shapes a few pixels
+    across keep their outline. Black (nothing drawn) stays black: the blur is normalised by coverage."""
+    from scipy import ndimage
+
+    luma = L.luma_clear if sh["layer"] > 0 else L.luma
+    f = 1 << math.ceil(math.log2(sh["scale"]))
+    up = mmpx(np.clip(units, 0, 255).astype(np.uint8), luma, f)
+    rgb = L.rgb[up].astype(np.float32)
+    vis = ~np.kron(units < 0, np.ones((f, f), bool))
+    rgb[~vis] = 0
+    img = Image.fromarray(rgb.clip(0, 255).astype(np.uint8)).resize((sh["width"], sh["height"]), Image.LANCZOS)
+    m = np.asarray(Image.fromarray(vis.astype(np.uint8) * 255).resize((sh["width"], sh["height"]), Image.NEAREST)) > 127
+    a = np.asarray(img).astype(np.float32)
+    s = sigma * sh["scale"]
+    num = ndimage.gaussian_filter(a * m[..., None], (s, s, 0))
+    den = np.maximum(ndimage.gaussian_filter(m.astype(np.float32), s), 1e-3)[..., None]
+    a = np.where(m[..., None], num / den, 0)
+    return Image.fromarray(a.round().clip(0, 255).astype(np.uint8))
+
+
 def cmd_sheets(args) -> None:
     L = LevelData(Path(args.data), args.level)
     work = Path(args.work)
@@ -625,6 +662,11 @@ def cmd_sheets(args) -> None:
         units = sheet_units(L, sh)
         img = Image.fromarray(units_rgb(L, units)).resize((sh["width"], sh["height"]), Image.NEAREST)
         img.save(out / sh["file"])
+        if args.soft > 0:
+            (out / "soft").mkdir(exist_ok=True)
+            soft_sheet(L, sh, units, args.soft).save(out / "soft" / sh["file"])
+            sh["softFile"] = f"soft/{sh['file']}"
+            sh["softPrompt"] = sh["prompt"] + SOFT_PROMPT
     manifest = {"level": L.id, "shapes": L.shapes_name, "tileWidth": TILE_W, "tileHeight": TILE_H,
                 "note": "x, y, w, h and padding in sheet px; grid = the cell's tiles as rows of tile numbers (-1 none); "
                         "tiles = which tile sits where in the cell (col, row in tiles) and how far it is from the cell's "
@@ -689,7 +731,9 @@ BAND_LO = 40  # texels over which a strip's correction fades into the tile
 BAND_HI = 4  # texels at the edge set to the strip itself
 REGION_BONUS = 0.06  # score for paintings from map regions over contexts (their texture matches the neighbours')
 LOWFREQ = 16.0  # texels: shading broader than this follows the original tile (match_lowfreq)
-SIGMA_REF = 3.0  # blur of the MMPX 8x silhouette for alpha, texels
+ALPHA_SMOOTH = 8.0  # texels (one original pixel): the silhouette's contour is smoothed at this scale (alpha_level)
+ALPHA_RAMP = 2.0  # texels each side of the contour over which alpha goes 0 -> 1
+ALPHA_MIN_PAIRS = 5  # a pair of tiles the map has fewer times than this doesn't pull their alpha edges together
 
 
 def gray(a: np.ndarray) -> np.ndarray:
@@ -825,25 +869,50 @@ def context_units(L: LevelData, layer: int, tile: int, usual: dict) -> np.ndarra
     return cell_units(L, layer, grid)
 
 
-def edge_reference(L: LevelData, layer: int, tile: int, usual: dict) -> tuple[np.ndarray, np.ndarray]:
-    """The original tile upscaled smoothly among its usual neighbours: the MMPX 8x upscale, blurred
-    a little, centre cut out (RGB float, and coverage 0..1). The coverage is the alpha of layers 1-2:
-    the original silhouette with a ~1-2 texel soft edge, continuous with the usual neighbours'."""
+def alpha_level(L: LevelData, layer: int, tile: int, usual: dict, smooth: float = ALPHA_SMOOTH) -> np.ndarray:
+    """The original tile's silhouette as a smooth level field (texels, > 0 inside, the contour at 0;
+    layers 1-2), among its usual neighbours: the MMPX 8x upscale's mask, its signed distance (clamped
+    to 3 `smooth`), blurred at `smooth` texels. Blurring the distance rounds the 8-texel stairs MMPX
+    leaves on slopes other than 45 degrees while straight runs stay where they are (D78); alpha is
+    a short ramp across the level's zero (alpha_from_level). Before D78 alpha was the MMPX mask
+    blurred at 3 texels, which kept the stairs."""
     from scipy import ndimage
 
     u = context_units(L, layer, tile, usual)
     luma = L.luma_clear if layer > 0 else L.luma
     up = mmpx(np.clip(u, 0, 255).astype(np.uint8), luma, SCALE)
-    vis = np.kron(u >= 0, np.ones((SCALE, SCALE), bool)) & ((up != 0) if layer > 0 else True)
-    rgb = L.rgb[up].astype(np.float32)
-    m = vis.astype(np.float32)
-    num = ndimage.gaussian_filter(rgb * m[..., None], (SIGMA_REF, SIGMA_REF, 0))
-    den = ndimage.gaussian_filter(m, SIGMA_REF)
-    ref = num / np.maximum(den, 1e-3)[..., None]
-    cov = ndimage.gaussian_filter(m, SIGMA_REF)
-    alpha = np.clip((cov - 0.5) / 0.3 + 0.5, 0, 1)  # a steep ramp: a ~1-2 texel soft silhouette
+    vis = np.kron(u >= 0, np.ones((SCALE, SCALE), bool)) & (up != 0)
+    if vis.all() or not vis.any():
+        sdf = np.full(vis.shape, 3 * smooth if vis.all() else -3 * smooth, np.float32)
+    else:
+        sdf = np.where(vis, ndimage.distance_transform_edt(vis) - 0.5, 0.5 - ndimage.distance_transform_edt(~vis))
+    lev = ndimage.gaussian_filter(np.clip(sdf, -3 * smooth, 3 * smooth).astype(np.float32), smooth)
     ys, xs = slice(TILE_H * SCALE, 2 * TILE_H * SCALE), slice(TILE_W * SCALE, 2 * TILE_W * SCALE)
-    return ref[ys, xs], alpha[ys, xs]
+    return lev[ys, xs]
+
+
+def alpha_from_level(lev: np.ndarray, ramp: float = ALPHA_RAMP) -> np.ndarray:
+    return smoothstep(-ramp, ramp, lev)
+
+
+def solve_alpha(L: LevelData, layer: int, inv_tiles: dict, tiles, models: list[dict], min_pairs: int = ALPHA_MIN_PAIRS,
+                lam: float = LAMBDA, band_lo: float = BAND_LO, band_hi: float = BAND_HI) -> dict[int, np.ndarray]:
+    """Alpha (0..1) for each tile in `tiles` on layer 1-2, seamless across the map's pairs: each tile's
+    level field (alpha_level) has its edge strips solved jointly like the colour (solve_strips) over
+    the pairs the map has at least `min_pairs` times, and moved onto them (apply_strips). A tile's
+    level near a side depends on the usual neighbour there, so two tiles that are not each other's
+    usual neighbour drew a jog or a sliver where they met (43|44, 63|64). Solving the level, not alpha,
+    moves the contour to a common crossing point without a half-transparent line; rare pairs are
+    left out so a lone pairing of an empty edge with a full one doesn't drag cloud into the gap."""
+    off = 128.0  # apply_strips clips to 0..255; the level is within +-3 ALPHA_SMOOTH
+    lev = {n: (alpha_level(L, layer, n, inv_tiles[str(n)]["usual"]) + off)[..., None] for n in tiles}
+    if band_lo > 0 or band_hi > 0:
+        g = L.grids[layer]
+        rep, _ = replaced_mask(g, layer, models)
+        pairs = Counter({k: c for k, c in map_pairs(g, (g >= 0) & ~rep, lev).items() if c >= min_pairs})
+        strips = solve_strips(lev, pairs, lam)
+        lev = {n: apply_strips(v, {side: strips[(n, side)] for side in OPPOSITE}, band_lo, band_hi) for n, v in lev.items()}
+    return {n: alpha_from_level(v[..., 0] - off) for n, v in lev.items()}
 
 
 def smoothstep(e0: float, e1: float, x: np.ndarray) -> np.ndarray:
@@ -964,6 +1033,37 @@ def blockiness(hd: np.ndarray) -> float:
     return float(max(px.max() / max(px.mean(), 1e-3), py.max() / max(py.mean(), 1e-3)))
 
 
+BASE_COST = 0.12  # a base tile (--base) against new answers: its pixel copying is only partly measured (D79)
+DITHER_FREE = 1.15  # pixel-period ratio a painting may have before it costs score (a painting is ~1.0-1.1)
+DITHER_COST = 0.6  # score per unit above DITHER_FREE
+
+
+def _alternation(g: np.ndarray, s: int) -> float:
+    """Strongest 1-cell alternation of `g` averaged over s x s cells (any phase): the diagonal
+    checker [1 -1; -1 1] plus half of each axis' [1 -2 1], mean absolute response."""
+    best = 0.0
+    for py in range(s):
+        for px in range(s):
+            h, w = (g.shape[0] - py) // s, (g.shape[1] - px) // s
+            m = g[py:py + h * s, px:px + w * s].reshape(h, s, w, s).mean((1, 3))
+            dg = np.abs(m[:-1, :-1] + m[1:, 1:] - m[1:, :-1] - m[:-1, 1:]).mean() / 4
+            dx = np.abs(m[:, :-2] - 2 * m[:, 1:-1] + m[:, 2:]).mean() / 4
+            dy = np.abs(m[:-2] - 2 * m[1:-1] + m[2:]).mean() / 4
+            best = max(best, float(dg + 0.5 * dx + 0.5 * dy))
+    return best
+
+
+def pixel_period(hd: np.ndarray) -> float:
+    """How much of the original's pixel grid a painting kept, blocks and checker dither alike: the
+    alternation from one original pixel to the next (8-texel cells), against the same measure over 6-
+    and 11-texel cells, which no pixel grid lines up with. A painting's detail has no preferred
+    scale, so it is ~1.0-1.1; a copy of the blocks or the dither is 1.3-1.8 (TYRIAN's light dirt 46
+    1.72, grass fringe 89 1.61, canopy 211 1.52 in D59's cut). `blockiness` sees only block edges,
+    which D60's deblock softens; this sees the alternation inside them too."""
+    g = gray(hd[..., :3].astype(np.float32))
+    return float(_alternation(g, SCALE) / max(math.sqrt(_alternation(g, 6) * _alternation(g, 11)), 1e-3))
+
+
 DEBLOCK_FROM = 1.6  # pixel-block ratio from which a chosen painting's block edges are softened
 DEBLOCK_FULL = 2.4  # ratio at which they are softened fully
 
@@ -1013,6 +1113,32 @@ def novel_detail(hd: np.ndarray, orig_rgb: np.ndarray, mask1: np.ndarray) -> flo
     return float(np.percentile(e[m8], 99.8)) if m8.any() else 0.0
 
 
+def tile_ncc(hd: np.ndarray, orig_rgb: np.ndarray, mask1: np.ndarray) -> float:
+    """NCC of the painting averaged back to one value per original pixel against the original
+    (grey): how well it still reads as the tile, on the same footing for every candidate."""
+    a = gray(hd[..., :3].astype(np.float32).reshape(TILE_H, SCALE, TILE_W, SCALE, 3).mean((1, 3)))[mask1]
+    b = gray(orig_rgb.astype(np.float32))[mask1]
+    a, b = a - a.mean(), b - b.mean()
+    return float((a * b).sum() / max(math.sqrt((a * a).sum() * (b * b).sum()), 1e-6))
+
+
+def base_candidates(L: LevelData, base_root: Path, inv: dict) -> dict[tuple[int, int], list[dict]]:
+    """The tiles of an existing atlas as candidates (sheet "base"), so a new round of answers for
+    some sheets competes with what is already cut instead of needing every answer again."""
+    out: dict[tuple[int, int], list[dict]] = defaultdict(list)
+    for layer, tiles in load_atlas(base_root, L.shapes_name).items():
+        for n, img in tiles.items():
+            px = L.tile(n)
+            mask1 = px != 0 if layer > 0 else np.ones_like(px, bool)
+            hd = img[..., :3].astype(np.float32)
+            hd1 = hd.reshape(TILE_H, SCALE, TILE_W, SCALE, 3).mean((1, 3))
+            err = float(np.abs(hd1 - L.rgb[px])[mask1].mean() / 255) if mask1.any() else 0.0
+            out[(layer, n)].append({"hd": hd, "ncc": 1.0, "ncc1": tile_ncc(hd, L.rgb[px], mask1), "cellScore": 1.0, "err": err,
+                                    "interior": 3, "sheet": "base", "cell": 0, "blocky": blockiness(hd), "dither": pixel_period(hd),
+                                    "novel": novel_detail(hd, L.rgb[px], mask1), "score": 0.0, "fit": {}})
+    return out
+
+
 def load_result(results: Path, name: str) -> np.ndarray | None:
     for ext in ("png", "jpg", "jpeg", "webp"):
         p = results / f"{name}.{ext}"
@@ -1021,10 +1147,12 @@ def load_result(results: Path, name: str) -> np.ndarray | None:
     return None
 
 
-def candidates(L: LevelData, manifest: dict, results: Path) -> dict[tuple[int, int], list[dict]]:
+def candidates(L: LevelData, manifest: dict, results: Path, only: set[str] | None = None) -> dict[tuple[int, int], list[dict]]:
     """Every painting of every tile found in the answers, registered and colour-matched."""
     out: dict[tuple[int, int], list[dict]] = defaultdict(list)
     for sh in manifest["sheets"]:
+        if only is not None and sh["name"] not in only:
+            continue
         art = load_result(results, sh["name"])
         if art is None:
             continue
@@ -1056,9 +1184,11 @@ def candidates(L: LevelData, manifest: dict, results: Path) -> dict[tuple[int, i
                 hd1 = hd.reshape(TILE_H, SCALE, TILE_W, SCALE, 3).mean((1, 3))
                 err = float(np.abs(hd1 - L.rgb[px])[mask1].mean() / 255) if mask1.any() else 0.0
                 blk = blockiness(hd)
+                dith = pixel_period(hd)
+                ncc1 = tile_ncc(hd, L.rgb[px], mask1)
                 out[(layer, n)].append({"hd": hd, "ncc": score, "cellScore": fit["score"], "err": err,
                                         "interior": t["interior"], "sheet": sh["name"], "cell": cell["index"],
-                                        "blocky": blk, "novel": novel_detail(hd, L.rgb[px], mask1),
+                                        "blocky": blk, "dither": dith, "ncc1": ncc1, "novel": novel_detail(hd, L.rgb[px], mask1),
                                         "score": score - err + 0.05 * min(t["interior"], 2),
                                         "fit": {k: round(v, 3) for k, v in fit.items()}})
         print(f"  {sh['name']}: {len(sh['cells'])} cells, answer {W}x{H} ({sh['scale'] * fx:.2f} px per original px)")
@@ -1110,11 +1240,53 @@ def match_lowfreq(L: LevelData, inv_tile: dict, layer: int, n: int, hd: np.ndarr
 
 
 def prepare_tile(L: LevelData, inv_tile: dict, layer: int, n: int, hd: np.ndarray) -> np.ndarray:
-    """The painting with alpha (layers 1-2: the original silhouette; colour bled under it)."""
+    """The painting with alpha (layers 1-2: the original silhouette, unsolved, alpha_level; colour
+    bled under it). cmd_cut replaces the alpha with solve_alpha's once all the layer's tiles are in."""
     if layer == 0:
         return hd.astype(np.float32)
-    _, alpha = edge_reference(L, layer, n, inv_tile["usual"])
+    alpha = alpha_from_level(alpha_level(L, layer, n, inv_tile["usual"]))
     return np.concatenate([bleed(hd, alpha), alpha[..., None] * 255], -1).astype(np.float32)
+
+
+def set_alpha(L: LevelData, layer: int, inv_tiles: dict, done: dict[int, np.ndarray], models: list[dict], args) -> None:
+    """Layers 1-2: each tile's alpha from solve_alpha, colour bled under it afresh."""
+    alphas = solve_alpha(L, layer, inv_tiles, done, models, args.alpha_min_pairs, args.lam, args.band_lo, args.band_hi)
+    for n, img in done.items():
+        img[..., :3] = bleed(img[..., :3], alphas[n])
+        img[..., 3] = alphas[n] * 255
+
+
+def save_atlas(done: dict[int, np.ndarray], layer: int, out_dir: Path, lossless: bool) -> tuple[Image.Image, dict]:
+    ch = 3 if layer == 0 else 4
+    atlas, rects = pack_atlas(done, ch)
+    img = Image.fromarray(atlas.round().clip(0, 255).astype(np.uint8), "RGB" if ch == 3 else "RGBA")
+    name = f"{layer}.webp"
+    if lossless:
+        img.save(out_dir / name, lossless=True, method=6)
+    else:
+        img.save(out_dir / name, quality=92, method=6, alpha_quality=100)
+    return img, rects
+
+
+def cmd_realpha(args) -> None:
+    """Redo the alpha of an atlas's layers 1-2 in place (set_alpha) without the Gemini answers: the
+    colour is the atlas's own, bled from what was visible before; layer 0 and the manifest's other
+    fields are untouched. Re-encodes the layer's WebP (quality 92 unless --lossless)."""
+    L = LevelData(Path(args.data), args.level)
+    inv = json.loads((Path(args.work) / "inventory.json").read_text())
+    out_dir = Path(args.out) / L.shapes_name
+    man = json.loads((out_dir / "manifest.json").read_text())
+    atlas = load_atlas(Path(args.out), L.shapes_name)
+    models = load_models(L.shapes_file)
+    for layer, tiles in sorted(atlas.items()):
+        if layer == 0:
+            continue
+        done = {n: np.concatenate([bleed(t[..., :3], t[..., 3] / 255), t[..., 3:]], -1) for n, t in tiles.items()}
+        set_alpha(L, layer, inv["layers"][str(layer)]["tiles"], done, models, args)
+        img, rects = save_atlas(done, layer, out_dir, args.lossless)
+        lay = man["layers"][str(layer)]
+        assert (lay["width"], lay["height"], lay["tiles"]) == (img.width, img.height, rects), "atlas layout changed"
+        print(f"layer {layer}: alpha redone for {len(done)} tiles -> {out_dir / lay['image']}")
 
 
 def cmd_cut(args) -> None:
@@ -1125,17 +1297,47 @@ def cmd_cut(args) -> None:
     results = Path(args.results) if args.results else work / "results"
     print(f"cutting answers in {results}")
     cache = Path(args.cache) if args.cache else None
-    if cache and cache.exists():
+    if cache:
+        # Per answer: {sheet: (answer mtime, {key: [candidates]})}; answers added or changed since
+        # are registered and added, the rest come from the cache.
         import pickle
 
-        cands = pickle.loads(cache.read_bytes())
-        print(f"  candidates from {cache} (delete it after changing the answers)")
+        store = pickle.loads(cache.read_bytes()) if cache.exists() else {}
+        if not (isinstance(store, dict) and all(isinstance(k, str) for k in store)):
+            store = {}  # an older whole-run cache
+        stamps = {}
+        for sh in manifest["sheets"]:
+            p = next((results / f"{sh['name']}.{e}" for e in ("png", "jpg", "jpeg", "webp") if (results / f"{sh['name']}.{e}").exists()), None)
+            if p is not None:
+                stamps[sh["name"]] = p.stat().st_mtime
+        todo = {n for n, t in stamps.items() if store.get(n, (None,))[0] != t}
+        fresh = candidates(L, manifest, results, todo) if todo else {}
+        for n in todo:
+            store[n] = (stamps[n], {k: [c for c in v if c["sheet"] == n] for k, v in fresh.items() if any(c["sheet"] == n for c in v)})
+        store = {n: v for n, v in store.items() if n in stamps}
+        cache.write_bytes(pickle.dumps(store))
+        cands = defaultdict(list)
+        for n, (_, by_key) in sorted(store.items()):
+            for k, v in by_key.items():
+                cands[k].extend(v)
+        print(f"  candidates: {len(store) - len(todo)} answers from {cache}, {len(todo)} registered now")
     else:
         cands = candidates(L, manifest, results)
-        if cache:
-            import pickle
-
-            cache.write_bytes(pickle.dumps(cands))
+    if args.base:
+        # A partial round (D79): every candidate is scored on the same footing (the NCC of its
+        # per-pixel means against the original, as the base tiles have no registration score),
+        # and the base atlas's tiles compete as candidates.
+        base = base_candidates(L, Path(args.base), inv)
+        for key, cs in cands.items():
+            for c in cs:
+                c.setdefault("ncc1", c["ncc"])
+                c.setdefault("dither", pixel_period(c["hd"]))
+                c["score"] = c["ncc1"] - c["err"] + 0.05 * min(c["interior"], 2)
+        for key, cs in base.items():
+            for c in cs:
+                c["score"] = c["ncc1"] - c["err"] + 0.05 * 2 - args.base_cost
+            cands[key] = list(cands.get(key, [])) + cs
+        print(f"  base: {sum(len(v) for v in base.values())} tiles from {args.base}")
     exclude = {s.strip() for s in (args.exclude or "").split(",") if s.strip()}
     picks = dict(s.strip().split("=", 1) for s in (args.pick or "").split(",") if s.strip())
     out_dir = Path(args.out) / L.shapes_name
@@ -1158,10 +1360,13 @@ def cmd_cut(args) -> None:
                 continue
             # Made-up marks cost against the tile's other paintings (a canopy has more detail
             # than dirt, so the measure is relative to the tile's median candidate).
-            med = float(np.median([c["novel"] for c in cands[(layer, n)]]))
+            # (Not against a base tile: a copy of the pixels has no marks of its own, so it would
+            # make every new painting's detail look made up.)
+            med = float(np.median([c["novel"] for c in cands[(layer, n)] if c["sheet"] != "base"] or [0.0]))
             for c in cands[(layer, n)]:
-                c["score"] -= NOVEL_COST * max(0.0, c["novel"] - med - NOVEL_FREE) + args.blocky_cost * max(0.0, c["blocky"] - args.blocky_free)
-                c["score"] += args.region_bonus if c["sheet"].startswith("region-") else 0.0
+                c["score"] -= (NOVEL_COST * max(0.0, c["novel"] - med - NOVEL_FREE) if c["sheet"] != "base" else 0.0) + args.blocky_cost * max(0.0, c["blocky"] - args.blocky_free)
+                c["score"] -= args.dither_cost * max(0.0, c.get("dither", 1.0) - args.dither_free)
+                c["score"] += args.region_bonus if c["sheet"].startswith("region-") or c["sheet"] == "base" else 0.0
             cs = sorted(cands[(layer, n)], key=lambda c: -c["score"])
             if f"{layer}:{n}" in picks:  # a hand pick after looking at the contact sheets
                 want = picks[f"{layer}:{n}"]
@@ -1169,34 +1374,46 @@ def cmd_cut(args) -> None:
                 assert f"{cs[0]['sheet']}#{cs[0]['cell']}" == want, f"--pick {layer}:{n}={want}: no such candidate"
             good = [c for c in cs if c["score"] >= cs[0]["score"] - 0.05] if args.combine == "mean" else cs[:1]
             hd = np.mean([c["hd"] for c in good], 0)
-            soft = deblock(hd, args.deblock_from, args.deblock_full) if args.deblock_from > 0 else hd
-            deblocked = soft is not hd
-            hd = soft
-            done[n] =prepare_tile(L, t, layer, n, match_lowfreq(L, t, layer, n, hd, args.lowfreq))
+            if all(c["sheet"] == "base" for c in good):
+                # Already deblocked and given the original's shading when it was cut.
+                deblocked = False
+                done[n] = prepare_tile(L, t, layer, n, hd)
+            else:
+                soft = deblock(hd, args.deblock_from, args.deblock_full) if args.deblock_from > 0 else hd
+                deblocked = soft is not hd
+                hd = soft
+                done[n] = prepare_tile(L, t, layer, n, match_lowfreq(L, t, layer, n, hd, args.lowfreq))
             report[f"{layer}:{n}"] = {"from": [f"{c['sheet']}#{c['cell']}" for c in good], "score": round(cs[0]["score"], 3),
                                       "ncc": round(cs[0]["ncc"], 3), "colourErr": round(cs[0]["err"], 3),
-                                      "blocky": round(cs[0]["blocky"], 2), "novel": round(cs[0]["novel"], 1),
+                                      "blocky": round(cs[0]["blocky"], 2), "dither": round(cs[0].get("dither", 0.0), 2), "novel": round(cs[0]["novel"], 1),
                                       "candidates": len(cs), **({"picked": True} if f"{layer}:{n}" in picks else {}),
                                       **({"deblocked": round(blockiness(hd), 2)} if deblocked else {})}
         if not done:
+            continue
+        if args.base and all(r.get("from") == ["base#0"] for k, r in report.items() if k.startswith(f"{layer}:")):
+            # Nothing new on this layer: keep the base atlas as it is (no second lossy encode).
+            import shutil
+
+            bm = json.loads((Path(args.base) / L.shapes_name / "manifest.json").read_text())
+            lay = bm["layers"][layer_s]
+            if (Path(args.base) / L.shapes_name / lay["image"]).resolve() != (out_dir / lay["image"]).resolve():
+                shutil.copyfile(Path(args.base) / L.shapes_name / lay["image"], out_dir / lay["image"])
+            atlas_manifest["layers"][layer_s] = lay
+            print(f"layer {layer}: unchanged, kept from {args.base}")
             continue
         # Seams: every side's edge strip solved jointly over the pairs the map has, then applied.
         if args.band_lo > 0 or args.band_hi > 0:
             g = L.grids[layer]
             rep, _ = replaced_mask(g, layer, models)
-            # Colour only: alpha stays the original silhouette (averaging it across a pair would put
-            # a faint line of cloud where one tile's edge is empty and its neighbour's isn't).
+            # Colour here; alpha is solved on its own below (averaging alpha itself across a pair
+            # would put a faint line of cloud where one tile's edge is empty and its neighbour's isn't).
             strips = solve_strips({n: img[..., :3] for n, img in done.items()}, map_pairs(g, (g >= 0) & ~rep, done), args.lam)
             for n, img in done.items():
                 img[..., :3] = apply_strips(img[..., :3], {side: strips[(n, side)] for side in OPPOSITE}, args.band_lo, args.band_hi)
-        ch = 3 if layer == 0 else 4
-        atlas, rects = pack_atlas(done, ch)
-        img = Image.fromarray(atlas.round().clip(0, 255).astype(np.uint8), "RGB" if ch == 3 else "RGBA")
+        if layer > 0:
+            set_alpha(L, layer, d["tiles"], done, models, args)
+        img, rects = save_atlas(done, layer, out_dir, args.lossless)
         name = f"{layer}.webp"
-        if args.lossless:
-            img.save(out_dir / name, lossless=True, method=6)
-        else:
-            img.save(out_dir / name, quality=92, method=6, alpha_quality=100)
         atlas_manifest["layers"][layer_s] = {"image": name, "width": img.width, "height": img.height, "tiles": rects}
         # The covered tiles (tools/terrain_covered.py, D67) are kept; rerun its `cut` to match a new atlas.
         old = out_dir / "manifest.json"
@@ -1342,7 +1559,8 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--work", default=str(ROOT / "reference/terrain-hd"), help="working folder (inventory, sheets, results, check)")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("inventory", help="list the tiles the level draws")
-    sub.add_parser("sheets", help="make the Gemini input sheets and their manifest")
+    sh = sub.add_parser("sheets", help="make the Gemini input sheets and their manifest")
+    sh.add_argument("--soft", type=float, default=0.0, help="also write softened sheets (MMPX + a blur of this many original pixels, e.g. 0.5) to sheets/soft/, with softPrompt in the manifest")
     f = sub.add_parser("fake", help="stand-in Gemini answers for testing")
     f.add_argument("--seed", type=int, default=1)
     c = sub.add_parser("cut", help="cut Gemini's answers into atlases")
@@ -1355,18 +1573,29 @@ def main(argv: list[str] | None = None) -> None:
     c.add_argument("--lowfreq", type=float, default=LOWFREQ, help=f"blur (texels) above which shading follows the original (default {LOWFREQ}; 0: off)")
     c.add_argument("--deblock-from", type=float, default=DEBLOCK_FROM, help=f"pixel-block ratio from which the chosen painting's block edges are softened (default {DEBLOCK_FROM}; 0: off)")
     c.add_argument("--deblock-full", type=float, default=DEBLOCK_FULL, help=f"ratio at which they are softened fully (default {DEBLOCK_FULL})")
+    c.add_argument("--dither-free", type=float, default=DITHER_FREE, help=f"pixel-period ratio (blocks and checker dither) that costs nothing (default {DITHER_FREE})")
+    c.add_argument("--dither-cost", type=float, default=DITHER_COST, help=f"score per unit of pixel-period ratio above that (default {DITHER_COST})")
+    c.add_argument("--base", help="atlas root whose tiles compete as candidates (a partial round of answers, D79), e.g. public/art/terrain")
+    c.add_argument("--base-cost", type=float, default=BASE_COST, help=f"score taken from a base tile, so a new painting that fits nearly as well replaces it (default {BASE_COST})")
     c.add_argument("--exclude", help="tiles to leave out (they fall back to the original), e.g. 0:332,1:41")
     c.add_argument("--pick", help="hand-picked candidates, e.g. 0:68=region-l0-03#0 (sheet#cell as in cut-report.json)")
-    c.add_argument("--cache", help="pickle of the registered candidates: written on the first run, read on later ones")
+    c.add_argument("--cache", help="pickle of the registered candidates per answer: answers new or changed since are registered and added, the rest are read back")
     c.add_argument("--lossless", action="store_true", help="lossless WebP (default quality 92)")
     c.add_argument("--band-lo", type=float, default=BAND_LO, help=f"texels a seam correction fades over (default {BAND_LO}; 0 and --band-hi 0: no seam pass)")
     c.add_argument("--band-hi", type=float, default=BAND_HI, help=f"texels at the edge set to the shared strip (default {BAND_HI})")
     c.add_argument("--lam", type=float, default=LAMBDA, help=f"how much a strip keeps its own painting (default {LAMBDA})")
+    for p_ in (c, ra := sub.add_parser("realpha", help="redo the alpha of an atlas's layers 1-2 (no answers needed)")):
+        p_.add_argument("--alpha-min-pairs", type=int, default=ALPHA_MIN_PAIRS, help=f"map pairs needed before two tiles' alpha edges are pulled together (default {ALPHA_MIN_PAIRS})")
+    ra.add_argument("--out", default=str(ROOT / "public/art/terrain"), help="atlas root (default public/art/terrain)")
+    ra.add_argument("--lossless", action="store_true", help="lossless WebP (default quality 92)")
+    ra.add_argument("--band-lo", type=float, default=BAND_LO, help=f"texels an alpha seam correction fades over (default {BAND_LO})")
+    ra.add_argument("--band-hi", type=float, default=BAND_HI, help=f"texels at the edge set to the shared strip (default {BAND_HI})")
+    ra.add_argument("--lam", type=float, default=LAMBDA, help=f"how much a strip keeps its own (default {LAMBDA})")
     k = sub.add_parser("check", help="reassemble the map from the atlas, measure seams")
     k.add_argument("--out", default=str(ROOT / "public/art/terrain"), help="atlas root (default public/art/terrain)")
     k.add_argument("--rows", type=int, default=12, help="map rows per contact sheet")
     args = ap.parse_args(argv)
-    {"inventory": cmd_inventory, "sheets": cmd_sheets, "fake": cmd_fake, "cut": cmd_cut, "check": cmd_check}[args.cmd](args)
+    {"inventory": cmd_inventory, "sheets": cmd_sheets, "fake": cmd_fake, "cut": cmd_cut, "realpha": cmd_realpha, "check": cmd_check}[args.cmd](args)
 
 
 if __name__ == "__main__":
