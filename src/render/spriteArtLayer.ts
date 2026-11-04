@@ -28,6 +28,9 @@ export const SPRITE_ART_DIR = "art/sprites/";
  * halo over the shot), and as the art writes no depth, whatever draws later lands on top.
  */
 const RENDER_ORDER = -1;
+/** Explosion layers per screen pixel; each needs EXPLOSION_LAYER_EVERY more explosions overlapping (a power of two). */
+const EXPLOSION_LAYERS = 3;
+const EXPLOSION_LAYER_EVERY = 2;
 
 const VERTEX = /* glsl */ `
 attribute vec3 aOrigin;   // world position of the quad's top-left corner
@@ -74,8 +77,8 @@ void main() {
   vec2 halfTexel = 0.5 / vec2(textureSize(map, 0));
   vec4 tex = texture2D(map, clamp(vUv, vUvRect.xy + halfTexel, vUvRect.zw - halfTexel));
   float a = tex.a * vFx.w;
-  // Faint edge texels write nothing (and, under the explosions' stencil, don't block a layer behind).
-  if (a < 0.004 || tex.a < 0.1) discard;
+  // Soft edge texels write nothing: the dark rim of a puff would claim the stencil and leave a dark seam over the puff behind (D106).
+  if (a < 0.004 || tex.a < 0.5) discard;
   vec3 rgb = tex.rgb / max(tex.a, 1e-4);
   // The shade (0..15) a palette ramp would give this brightness.
   float lum = pow(max(dot(rgb, vec3(0.2126, 0.7152, 0.0722)), 0.0), 1.0 / 2.2);
@@ -197,6 +200,7 @@ export class SpriteArtLayer {
   private readonly materials = new Map<SpriteArtSheet<THREE.Texture>, THREE.ShaderMaterial>();
   private readonly batches = new Map<SpriteArtSheet<THREE.Texture>, Batch[]>();
   private readonly all: Batch[] = [];
+  private setter: THREE.Mesh | undefined;
   private readonly levelUniforms = { levelFilter: { value: -99 }, levelBrightness: { value: 0 } };
   /** Instances drawn last frame. */
   instances = 0;
@@ -257,21 +261,54 @@ export class SpriteArtLayer {
       b = list[pass] = new Batch(pass === Pass.Explosions ? this.stencilled(sheet) : this.material(sheet), RENDER_ORDER + pass / 100);
       this.all.push(b);
       this.root.add(b.mesh);
+      if (pass === Pass.Explosions && !this.setter) this.root.add((this.setter = this.stencilSetter()));
     }
     return b;
   }
 
   /**
-   * The sheet's material for explosions: each screen pixel takes one explosion layer, the first
-   * drawn. Dozens overlap in a boss's death, and blending each at its own opacity would pile up
-   * to solid fire; this way the ground shows through the whole fireball at that opacity (D105).
+   * The sheet's material for explosions: up to EXPLOSION_LAYERS layers per screen pixel, the 1st,
+   * (N+1)th and (2N+1)th explosion drawn there (N = EXPLOSION_LAYER_EVERY), none after. Dozens
+   * overlap in a boss's death, and blending each at its own opacity would pile up to solid fire (D105, D106).
+   *
+   * The stencil starts at 256 - 3N (`stencilSetter`) and every draw increments it, saturating at 255, pass
+   * or fail. Passing needs (stencil & (N-1)) == 0, which is true at counts 0, N and 2N, and false for good
+   * once it saturates (255 & (N-1) != 0). N must be a power of two.
    */
   private stencilled(sheet: SpriteArtSheet<THREE.Texture>): THREE.ShaderMaterial {
     const m = this.material(sheet).clone();
     m.stencilWrite = true;
-    m.stencilRef = 1;
-    m.stencilFunc = THREE.NotEqualStencilFunc;
-    m.stencilZPass = THREE.ReplaceStencilOp;
+    m.stencilRef = 0;
+    m.stencilFuncMask = EXPLOSION_LAYER_EVERY - 1;
+    m.stencilWriteMask = 0xff;
+    m.stencilFunc = THREE.EqualStencilFunc;
+    m.stencilZPass = THREE.IncrementStencilOp;
+    m.stencilFail = THREE.IncrementStencilOp;
+    m.stencilZFail = THREE.IncrementStencilOp;
+    return m;
+  }
+
+  /** A full-screen, colourless quad that sets the stencil to 256 - 3N, drawn just before the explosions. */
+  private stencilSetter(): THREE.Mesh {
+    const m = new THREE.Mesh(
+      new THREE.PlaneGeometry(2, 2),
+      new THREE.ShaderMaterial({
+        vertexShader: "void main() { gl_Position = vec4(position.xy, 0.0, 1.0); }",
+        fragmentShader: "void main() { gl_FragColor = vec4(0.0); }",
+        transparent: true,
+        colorWrite: false,
+        depthTest: false,
+        depthWrite: false,
+        stencilWrite: true,
+        stencilRef: 256 - EXPLOSION_LAYERS * EXPLOSION_LAYER_EVERY,
+        stencilFunc: THREE.AlwaysStencilFunc,
+        stencilZPass: THREE.ReplaceStencilOp,
+        side: THREE.DoubleSide,
+      }),
+    );
+    m.frustumCulled = false;
+    m.renderOrder = RENDER_ORDER + Pass.Explosions / 100 - 0.001;
+    m.userData.outlineParameters = { visible: false };
     return m;
   }
 

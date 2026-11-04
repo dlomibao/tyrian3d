@@ -4257,3 +4257,19 @@ also not it: with them off, 0.12 still came out solid).
   flash and sparks add density. Layers no longer show depth ordering in a stack (the first drawn wins).
 
 Captures: `tyrian-scratch/explosion-alpha/` (`cmp2_700.png`, `cmp2_1000.png`: before = main before #135, after = this).
+
+## D106 — Explosions take up to three layers per pixel, and soft puff edges no longer leave dark seams (extends D105)
+
+2026-11-04
+
+**Decision.**
+- D105's one layer per pixel becomes three: the 1st, (N+1)th and (2N+1)th explosion drawn on a pixel, none after, with
+  `EXPLOSION_LAYER_EVERY` N = 2 (`spriteArtLayer.ts`). A colourless full-screen quad sets the stencil to 256 - 3N just
+  before the explosion pass; each explosion draw (pass or fail) increments it, saturating at 255, and passes where
+  `stencil & (N-1) == 0` (counts 0, N, 2N; 255 never passes). N must be a power of two. Only N = 2 was tried.
+- `EXPLOSION_ALPHA` 0.4 -> 0.33: three stacked layers cover 1 - 0.67^3 = 0.70, so the ground still shows a little.
+- **Seams.** The dark lines where puffs overlapped were the first-drawn puff's soft rim (dark red, alpha 0.1-0.5)
+  claiming the stencil and blocking the puff behind. Texels under 0.5 source alpha are now discarded in the art shader
+  (D105 used 0.1), so only a puff's solid body claims a layer; its edge is a touch harder.
+
+Captures: `tyrian-scratch/explosion-alpha/` (`cmp_L2b_700.png`, `cmp_L2b_1000.png`: left = main after #136, right = this).
