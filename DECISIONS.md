@@ -3672,3 +3672,42 @@ Sheets in `tyrian-scratch/damage-ship-fix/ship-sheet.png`:
 - 40% and 10% armour;
 - recovery 10% → 40% → 80%;
 - the title flights.
+
+## D91 — Twenty enemies shared across episodes rebuilt hard-surface; a palette-pulsed ring counts as ink
+
+2026-11-04
+
+**Decision:** The first batch of shared enemies (drawn in more than one episode; MILESTONES.md
+"Order of work", step 2) is rebuilt to the D65 standard and D74's inner-edge fit, the way level 1's
+were: blueprint, competing designs for the heroes, judge, finisher, strict review, fix rounds (all
+on Opus; Sonnet only in the bench below). Top-view rule IoU on the grid (`iou_rule_grid`, inner
+mask, every frame):
+- **Heroes (assemblies and bosses):** assembly-newsh-caret-123 0.9698 (design B), assembly-newshf-270
+  0.9827 (B), assembly-newshf-191 0.9827, assembly-newshf-195 0.9986, assembly-newshf-199 0.9877.
+- **Standard:** newsh3-267 0.9887, newshe-195 0.9726, newshe-235 0.9688, newshf-123 0.981,
+  newshf-169 1.0, newshf-171 1.0, newshf-230 0.9761, newshf-238 0.9886, newshd-79 1.0, newshd-127
+  0.9747, newshd-191 0.9644, newshs-153 0.9955, newshs-171 1.0, newshs-269 0.9651, newshm-115 1.0
+  (rule 0.9529).
+- newshf-230, newshd-79 and newshs-269 shipped after a fix round. newshm-115 (the blue mine ball)
+  took two: the glints, then the sheen. Its sheen is a polished, clear-coated patch at the upper
+  left, where the sprite draws its white blob (SHEEN_PATCHES); its glb is the only one with
+  KHR_materials_clearcoat (three loads MeshPhysicalMaterial).
+
+**Palette-pulse rule** (`tools/sprite_mask.py`, OUTLINE-BORDER.md rule 1): a boundary-ring pixel at
+a ramp's darkest step counts as ink when the palette pulses it above the luma limit. When another
+frame of the same model is the same drawing with the palette shifted (same opaque mask, at least
+90% of its pixels one constant index shift away in the same 16-colour ramp: a pulse partner), a ring
+pixel above luma 26 is ink if it is ink, in the same ramp, on a pulse partner. newshm-115's ring is
+palette 53 (luma 41) on frames 115 and 279 and ink on the darker pulse frames 165/203/241. It is one
+border, so the inner edge now holds on all five frames. The rule also changes tyrian10-14/-32/-51,
+newsha-199, newshk-115 and newshl-115, and no other frame in reference/models. `--no-pulse` measures
+by luma alone. Test: `tests/tools/spriteMask.test.ts`.
+
+**Bench** (PLAYBOOK "Bench results"): Sonnet finishing from an approved design is cheap-ok. On
+newsh3-267 its glb was byte-identical to Opus's, and on assembly-newsh-caret-123 it needed minor
+integration fixes only, such as uncapped outline shells at the piece seams. Sonnet fix rounds are
+opus-needed: on newsh3-267 it painted colour regions face by face from a level field, which left
+stair-stepped, blotchy regions.
+
+**Review:** comparison sheets and captures are in `tyrian-scratch/shared-enemies-1/<model>/`.
+Fallback: revert the 20 scripts and their GLBs; `--no-pulse` for the old measure.

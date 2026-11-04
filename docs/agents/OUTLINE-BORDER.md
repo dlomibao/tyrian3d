@@ -12,6 +12,14 @@ That ink stands in for the sprite's border, so:
 1. **The model's top-view edge goes to the INNER edge of the sprite's ink border.** The border is
    the ink pixels of the sprite's boundary ring: luma < 26 (palette 1, 2 and each ramp's darkest
    steps: 16, 32, 48, 64, 80, 112, ...) and 4-adjacent to transparency or the picture's edge.
+   **Palette-pulse rule:** a frame that is another frame of the same model with the palette
+   shifted (same opaque mask, at least 90% of its pixels one constant index shift away in the same
+   16-colour ramp: a "pulse partner") shares that frame's ink border. A ring pixel above luma 26
+   is ink when it is ink, in the same ramp, on a pulse partner. Example: newshm-115's ring is
+   palette 53 (luma 41) on frames newshm 115 / newsha 279 and 48/50/51 (ink) on the darker pulse
+   frames 165/203/241: the same border at the ramp's darkest step, so the inner edge stands on all
+   five frames. Also tyrian10-14/-32/-51 (level 1), newsha-199, newshk-115, newshl-115; no other
+   frame in reference/models changes. `--no-pulse` measures by luma alone.
 2. **Where the sprite has no ink at its edge** (colour drawn to the edge: island rock, glows,
    flames, a lit rim), the edge stays at the outer edge. The inner mask already keeps those pixels.
 3. **Thin parts keep at least half their sprite width.** A part only 1 colour pixel wide inside
