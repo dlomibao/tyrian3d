@@ -4008,3 +4008,41 @@ bricks). Sheet: `tyrian-scratch/shapesy-hd/captures/shapesy-compare.jpg`. 1-17 a
 
 **Review:** sheets, answers, per-answer registration and `cut-report.json` are in
 `tyrian-scratch/shapesy-hd/work/` (not in git, D3).
+
+## D96 — A shot-off enemy leaves a scorch mark on the structure it stood on (remastered backgrounds)
+
+**Context:** on TYRIAN's islands the purple eye fortress (`shapesz-tyrbld-purple-orb`) carries nine cap
+enemies (newsh2 273-283, enemy types 32-37). The user found it jarring that a destroyed cap reveals an intact
+machine. Checked against the real OpenTyrian, not our reproduction: `tools/opentyrian-bot` gained
+`BOT_DUMP`/`BOT_DUMP_TICKS` (the shown frame, VGAScreenSeg through the live palette, as PPM),
+`BOT_WATCH=lo-hi` (prints each watched enemy's death and its enemyDat death fields) and `BOT_POWER` (the
+harness's power 5). With `BOT_SEED=1` level 1 plays as `?debug=play&seed=1` does (caps 53/54 die at tick 2581
+in both). The caps have `dgr 0, dlevel 0, dani 0, enemydie 0`, the explosions only blit to the screen
+(`blit_sprite2` into VGAScreen each frame), and no tile changes: **the original stamps nothing.** The mark is
+the terrain itself: the background-3 tile under each cap already paints a cracked, broken socket, hidden while
+the cap sprite covers it. Our original look shows that tile too; the remastered structure model builds intact
+faceted bosses there, so a dead cap reveals a clean machine.
+
+**Decision:** render-only scorch marks (`src/render/remaster/scorchLayer.ts`), in the remastered backgrounds
+only (the original look already shows the painted socket):
+- The sim records, output only, each enemy destroyed without a dead look in `DrawList.deaths`
+  (`recordEnemyDeath` at the two places JE_main frees a shot enemy's slot: key, centre, the layer its slot
+  group scrolls with, size). Nothing reads it back; game logic is unchanged.
+- The renderer marks a death when the enemy stood on a **structure** tile (a tile model matches it) of its
+  layer, opaque at its centre, and had moved with that tile over its last tick (so aircraft flying over a
+  structure leave nothing). The mark is pinned to that tile's draw key and offset: it scrolls with the layer
+  exactly and lasts until the tile leaves the screen, as the original's painted socket does.
+- Look: a procedural decal, 11.5 px radius for a 24x28 enemy (6.5 px for 12x14): ragged near-black soot, a
+  shattered-plate crack network (Voronoi edges, finer toward the impact) plus a few radial cracks, a dark
+  centre; the cracks glow orange and cool within about a second. Drawn just above what the models build under
+  an enemy (0.35 on backgrounds 2/3, 0.40 on the ground) and below the enemies' pass, projected on the camera
+  ray (D6), premultiplied alpha (dark char plus additive embers).
+- Cost: one instanced draw call; a fixed pool of 64 marks (the oldest gives way); per tick a scan of the
+  draw list only while marks exist or something died.
+
+**Not done:** rebuilding the purple-orb model's bosses broken (the mark covers it, and generalises to every
+structure with enemies on it); scorch on plain ground or HD terrain without a structure model. The harness's
+`&skip=` only shows its last two ticks, so a capture must skip to before the death to see a mark.
+
+**Checked:** comparison sheets (real C | ours original | ours remastered, ticks 2579/2582/2616/2650) in
+`tyrian-scratch/cap-scorch/` (`sheet-before.png`, `sheet-after.png`); the original look is unchanged.

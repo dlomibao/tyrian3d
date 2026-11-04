@@ -39,7 +39,7 @@ import {
   JE_checkSmoothies,
   JE_filterScreen,
 } from "./backgrnd";
-import { draw_boss_bar, eventAt, initLevelWorld, JE_drawEnemy, JE_eventJump, JE_eventSystem, JE_newEnemy } from "./tyrian2";
+import { draw_boss_bar, eventAt, initLevelWorld, JE_drawEnemy, JE_eventJump, JE_eventSystem, JE_newEnemy, recordEnemyDeath } from "./tyrian2";
 import { JE_doSP, JE_drawSP, JE_playerDamage, JE_setupExplosion, JE_setupExplosionLarge } from "./varz";
 import { JE_mainGamePlayerFunctions, JE_playerCollide } from "./mainint";
 import { newPlayerShotMoveOut, player_shot_create, player_shot_move_and_draw, SHOT_MISC } from "./shots";
@@ -551,6 +551,7 @@ function playerShotsAndCollisions(): void {
               } else {
                 g.enemyAvail[temp3] = 1;
                 g.enemyKilled++;
+                recordEnemyDeath(temp3);
               }
 
               o.aniwhenfire = 0;
@@ -620,6 +621,7 @@ function playerShotsAndCollisions(): void {
             } else {
               g.enemyAvail[t2] = 1;
               g.enemyKilled++;
+              recordEnemyDeath(t2);
             }
 
             if (g.res.enemyDat[o.enemytype].eSize === 1) {

@@ -164,6 +164,23 @@ function blit_enemy(i: number, x_offset: number, y_offset: number, sprite_offset
 }
 
 /**
+ * Records enemy slot `i`'s destruction in the draw list (DrawList.deaths), for the renderer's
+ * scorch marks (D96). Output only: called where the C frees the slot of an enemy shot down.
+ */
+export function recordEnemyDeath(i: number): void {
+  const e = g.enemy[i];
+  const offset = i - (i % 25);
+  drawList.deaths?.push({
+    key: ENEMY_KEY_BASE + (enemySerial.get(e) ?? 0) * 4,
+    x: e.ex + e.mapoffset + 6,
+    y: e.ey + 7,
+    // JE_newEnemy's scroll per slot group: 0 moves with background 2, 50 with background 3, 25 and 75 with the ground.
+    layer: offset === 0 ? 1 : offset === 50 ? 2 : 0,
+    size: e.size === 1 ? 2 : 1,
+  });
+}
+
+/**
  * JE_drawEnemy (tyrian2.c L124-568): moves, animates, fires and launches the 25 enemies in slots
  * enemyOffset-25 .. enemyOffset-1, and draws them. The caller sets tempMapXOfs, tempBackMove and
  * drawState.pass first, as JE_main does.

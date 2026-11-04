@@ -31,6 +31,11 @@
 //     BOT_SEED=<n>  seed mt_rand with n before JE_initPlayerData, as tools/inventory.mjs does (it
 //                   seeds each level with episode * 1000 + section), instead of with 1 after it.
 //     BOT_MORTAL=1  the bot only fires and sweeps: no invulnerability, no armor top-up.
+//     BOT_POWER=<p> the front weapon's power once the level is loaded (default 11; ?debug=play uses 5).
+//     BOT_DUMP=<dir> BOT_DUMP_TICKS=<t,t,...>  write the frame shown at the end of each listed tick
+//                   (VGAScreenSeg, 320x200, through the live palette) as <dir>/tick-<t>.ppm.
+//     BOT_WATCH=<lo>-<hi>  print `DIE <tick> <slot> <type> <x> <y> <avail>` whenever an enemy of
+//                   enemyDat type lo..hi leaves its slot (or turns into its dead look, avail 2).
 #include "backgrnd.h"
 #include "config.h"
 #include "demo.h"
@@ -64,6 +69,60 @@ static int routeEpisode, routeSection;
 static const char *gameMode = "full";  // [arcade]
 static bool twoPlayers = false;
 static bool mortal = false;  // BOT_MORTAL
+static const char *dumpDir, *dumpTicks;  // BOT_DUMP, BOT_DUMP_TICKS
+static int watchLo = -1, watchHi = -1;  // BOT_WATCH
+static int watchType[100], watchAvail[100];
+
+static bool dumpWanted(long t)
+{
+	if (!dumpDir || !dumpTicks)
+		return false;
+	for (const char *p = dumpTicks; *p; )
+	{
+		char *end;
+		long v = strtol(p, &end, 10);
+		if (end == p)
+			break;
+		if (v == t)
+			return true;
+		p = *end ? end + 1 : end;
+	}
+	return false;
+}
+
+static void dumpFrame(long t)
+{
+	char path[1024];
+	snprintf(path, sizeof(path), "%s/tick-%ld.ppm", dumpDir, t);
+	FILE *f = fopen(path, "wb");
+	if (!f)
+		return;
+	fprintf(f, "P6\n320 200\n255\n");
+	for (int y = 0; y < 200; y++)
+	{
+		const Uint8 *row = (const Uint8 *)VGAScreenSeg->pixels + y * VGAScreenSeg->pitch;
+		for (int x = 0; x < 320; x++)
+		{
+			SDL_Color c = colors[row[x]];
+			fputc(c.r, f); fputc(c.g, f); fputc(c.b, f);
+		}
+	}
+	fclose(f);
+}
+
+static void watchEnemies(long t)
+{
+	for (int i = 0; i < 100; i++)
+	{
+		int type = enemyAvail[i] == 1 ? -1 : enemy[i].enemytype;
+		int avail = enemyAvail[i];
+		bool was = watchType[i] >= watchLo && watchType[i] <= watchHi;
+		if (was && (type != watchType[i] || avail != watchAvail[i]))
+			printf("DIE %ld %d %d %d %d %d\n", t, i, watchType[i], enemy[i].ex + enemy[i].mapoffset, enemy[i].ey, avail);
+		watchType[i] = type;
+		watchAvail[i] = avail;
+	}
+}
 
 // keyboard.c's mouseGetRelativePosition is patched (run.sh) to return these: player 2's mouse.
 int bot_mouse_x, bot_mouse_y;
@@ -126,7 +185,13 @@ void bot_level_loaded(void)
 	       mainLevel, nextLevel, lvlFileNum, galagaMode, onePlayerAction, superTyrian, player[0].items.ship,
 	       player[0].items.weapon[FRONT_WEAPON].id);
 	if (strcmp(gameMode, "full") == 0)  // [arcade] in arcade games the front weapon's power is the lives
-		player[0].items.weapon[FRONT_WEAPON].power = 11;
+		player[0].items.weapon[FRONT_WEAPON].power = getenv("BOT_POWER") ? atoi(getenv("BOT_POWER")) : 11;
+	for (int i = 0; i < 100; i++)
+		watchType[i] = -1;
+	for (int t = watchLo; t >= 0 && t <= watchHi; t++)
+		printf("ENEMYDAT %d egr %u esize %u explosion %u dgr %u dlevel %d dani %d enemydie %u value %d\n", t,
+		       enemyDat[t].egraphic[0], enemyDat[t].esize, enemyDat[t].explosiontype, enemyDat[t].dgr,
+		       enemyDat[t].dlevel, enemyDat[t].dani, enemyDat[t].eenemydie, enemyDat[t].value);
 	if (twoPlayers)
 	{
 		printf("PLAYERS twoPlayerMode %d difficulty %d input %u %u ship2 %u rear2 %u\n", twoPlayerMode, difficultyLevel,
@@ -139,6 +204,13 @@ void bot_level_loaded(void)
 void bot_level_tick(void)
 {
 	botTick++;
+	if (botTick > 0)
+	{
+		if (dumpWanted(botTick - 1))
+			dumpFrame(botTick - 1);
+		if (watchLo >= 0)
+			watchEnemies(botTick - 1);
+	}
 	if (botTick > 0 && (botTick - 1) % every == 0)
 		printTick(botTick - 1);
 	if (botTick >= maxTicks)
@@ -221,6 +293,10 @@ int main(int argc, char **argv)
 
 	const char *seed = getenv("BOT_SEED");
 	mortal = getenv("BOT_MORTAL") != NULL;
+	dumpDir = getenv("BOT_DUMP");
+	dumpTicks = getenv("BOT_DUMP_TICKS");
+	if (getenv("BOT_WATCH"))
+		sscanf(getenv("BOT_WATCH"), "%d-%d", &watchLo, &watchHi);
 	if (seed)
 		mt_srand(strtoul(seed, NULL, 10));
 
