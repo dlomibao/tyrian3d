@@ -290,7 +290,12 @@ and no atlas yet (or <code>--replace</code>), the cut is TYRIAN's, byte for byte
 <p><code>--edge-aware</code> (off by default) doesn't tie two facing strips where the original itself has a real
 edge between the tiles (its facing pixels differ by 64-128 levels and more: rock against space), solving one system per
 original pixel along the edge. It was meant for ASSASSIN's asteroid rock, whose tiles end at their borders against
-black; on the fake runs it measured the same as tying everywhere (D83), so it stays an option to try on real answers.</p>
+black; on the fake runs it measured the same as tying everywhere (D83). On <code>shapesz</code>'s real answers it is what
+keeps the black space black, so the committed atlas is cut with it (D89). The ground's <em>empty</em> tiles (one colour,
+the black space) take part in the solve as neighbours held at their colour (<code>--no-empty-edges</code> turns that off),
+so a painted tile meets the black where its map puts black, rather than taking its strip from whatever it meets on other
+maps: without it a purple plate's bottom edge on 3-5 BONUS turned green from HARVEST's grass, and tiles beside space
+showed as grey boxes and smears around the bubbles (D89).</p>
 
 <h2>5. Atlas and manifest</h2>
 <p>One atlas per layer that has art, beside one manifest per tileset:</p>
@@ -444,22 +449,20 @@ cut into a copy (<code>--out</code> a scratch folder holding a copy of the tiles
     clouds' 8x is slightly upsampled.</li>
   <li><b>Original background mode.</b> HD applies only to the remastered backgrounds; <code>?bg=original</code> is the
     raw tiles whatever the Terrain setting.</li>
-  <li><b>TYRIAN's clouds on other levels</b> (D83). The 15 cloud tiles were seam-solved over TYRIAN's map only. HOLES and
-    ASSASSIN (also WINDY and NOSE DRIP) put them side by side in pairs TYRIAN rarely has (42 over 52: 16 times in TYRIAN,
-    hundreds there), and the merge keeps them as they are: the cloud seam measure is 0.82 on 1-9 but 1.11 on 1-11 and
-    1.13 on 1-16 (bands 0.51 everywhere). Fix: re-cut layer 1 over all the levels (<code>--recut 1:40,...</code>,
-    which needs the cloud answers again and changes level 1's clouds), or variants (D57) for the worst pairs.</li>
+  <li><b>TYRIAN's clouds on other levels</b> (D83, fixed in D89). The 15 cloud tiles were seam-solved over TYRIAN's map
+    only, so HOLES and ASSASSIN measured 1.11 and 1.13. D89 painted them again (2 sheets) and re-cut layer 1 over all the
+    levels: 1-11 0.84, 1-16 0.82, 4-16 0.86, TYRIAN 0.70 (was 0.82); level 1's clouds changed slightly.</li>
   <li><b>Kept tiles in new company.</b> A kept tile's edges stay as they are, so a new arrangement of two kept tiles on
     another level keeps whatever step it has; <code>check</code>'s <code>kept</code> line and per-level numbers show it.</li>
-  <li><b>Where to look first on <code>shapesz</code>'s real cut</b> (from the fake run over all 32 levels, D83): 3-5 BONUS
-    draws the purple pipe kit on the ground in pairs that occur once or twice (seam measure 1.49 there against a median
-    of 0.71), 3-7 STARGATE and 1-4 BUBBLES the glossy red bubbles (1.34, 1.12; faint smears in the black beside the
-    clusters), ASSASSIN's asteroid rock ends at tile borders against space (0.80).</li>
+  <li><b>The worst levels on <code>shapesz</code>'s real cut</b> (D89): 3-5 BONUS (the purple pipe kit drawn on the
+    ground, pairs that occur once or twice), 3-7 STARGATE and 1-4 BUBBLES (the glossy red bubbles against space). Their
+    seam measure is high (2.8, 1.4, 1.3) mostly because the HD keeps the real edge where the plating or a bubble meets
+    black; where the original is continuous it is 1.39, 1.04, 0.86. Some faint smears beside the bubble clusters remain.</li>
   <li><b>Structures on layers 1-2</b> stay as they were (the 4x upscale or the extruded tiles) until a model kit
     matches them.</li>
 </ul>
 <p>Decisions: D34 (remastered backgrounds), D42-D43 (flat sprite art from Gemini), D45 (blended clouds), D48 (remastered
-by default), D57-D60 and D83 (HD terrain).</p>
+by default), D57-D60, D83, D86 and D89 (HD terrain).</p>
 </main>
 </body>
 </html>

@@ -193,12 +193,18 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
   folder (`git checkout -- public/art/terrain/<tileset>`) and cut again with all answers (doc §3).
   Kept tiles meeting in pairs their level never had (TYRIAN's clouds on HOLES: 1.11) → `--recut` that
   layer over all levels, or variants (D83). Metal plating/pipes on layers 1-2 → structure models, not
-  paintings (D83).
+  paintings (D83). Grey boxes or smears in black space, an edge taking a colour from another level's
+  neighbour (green under BONUS's plates) → `cut --edge-aware` (empty tiles are held black by default, D89).
+  Gemini repaints what the prompt's material names: SEND.md's group labels can be wrong (grey brick floors
+  called "asteroid rock" got buildings and dirt paths); look at the sheet and name its material (D89).
 - **Cost/time (TYRIAN, shapesz):** 5 agents, 108 min, 1.2M tokens: prep and game side 23 min in
   parallel, Gemini operator 44 min (27 requests: 21 sheets + 6 retries), assemble 25, verify 16.
   Later tilesets skip the game side. **`shapesz`, its other 31 levels (D83):** 32 primary sheets
   (~42 requests with retries, 2 Gemini sessions), 28 optional. Registration costs ~7 s of CPU per
   sheet (TYRIAN: 3.5 min for 21), but on a loaded machine (load ~60) 24 sheets took 18 min.
+  Actual (D89, one operator session): 45 requests (33 primary incl. 2 cloud sheets, 12 retries), no
+  usage warning, ~2.5 h of Gemini; the cut of 45 answers took ~2.7 h on a machine at load ~60 (35
+  CPU-min), later cuts from `--cache` minutes. Check each answer as it lands (registration per sheet).
 
 ### 4. Flat art for shots and pickups
 

@@ -39,6 +39,26 @@ def sha(p: Path) -> str:
     return hashlib.sha256(p.read_bytes()).hexdigest()
 
 
+def level1_atlas(d: Path) -> None:
+    """Trim the atlas folder `d` to the tiles TYRIAN's map (1-9) draws, removing images no rect uses."""
+    L = th.TilesetData(DATA, ["1-9"]).level("1-9")
+    models = th.load_models("shapesz.dat")
+    man = json.loads((d / "manifest.json").read_text())
+    for layer_s in list(man["layers"]):
+        g, drawn, _ = th.layer_masks(L, int(layer_s), models)
+        used = {str(int(n)) for n in np.unique(g[drawn])}
+        lay = man["layers"][layer_s]
+        lay["tiles"] = {k: r for k, r in lay["tiles"].items() if k in used}
+        if not lay["tiles"]:
+            del man["layers"][layer_s]
+    refs = {lay["image"] for lay in man["layers"].values()}
+    refs |= {r["image"] for lay in man["layers"].values() for r in lay["tiles"].values() if "image" in r}
+    for f in d.glob("*.webp"):
+        if f.name not in refs:
+            f.unlink()
+    (d / "manifest.json").write_text(json.dumps(man, indent=1) + "\n")
+
+
 def fake_candidates(T: th.TilesetData, inv: dict, seed: int = 3) -> dict:
     """One stand-in painting per tile that needs art: the original upscaled bicubic to 8 texels per
     pixel, a per-tile brightness offset of up to +-14 levels, and noise."""
@@ -66,8 +86,11 @@ class MergeTest(unittest.TestCase):
         cls.tmp = Path(tempfile.mkdtemp(prefix="terrain-hd-test-"))
         cls.out = cls.tmp / "out"
         shutil.copytree(ART, cls.out / "shapesz")
+        # The committed atlas covers every level of the tileset (D86); the merge is tested from
+        # level 1's part of it, so HOLES and ASSASSIN have new tiles to cut.
+        level1_atlas(cls.out / "shapesz")
         cls.before = {f.name: sha(f) for f in (cls.out / "shapesz").iterdir()}
-        cls.old_manifest = json.loads((ART / "manifest.json").read_text())
+        cls.old_manifest = json.loads((cls.out / "shapesz/manifest.json").read_text())
         cls.work = cls.tmp / "work"
         args = ["--data", str(DATA), "--level", ",".join(LEVELS), "--work", str(cls.work)]
         th.main(args + ["inventory", "--out", str(cls.out)])
@@ -124,6 +147,8 @@ class MergeTest(unittest.TestCase):
         _, now = th.load_tileset_art(d)
         for layer, tiles in old.items():
             for n, img in tiles.items():
+                if str(n) not in self.old_manifest["layers"].get(str(layer), {}).get("tiles", {}):
+                    continue  # not in level 1's part of the atlas, which the test merges into
                 self.assertTrue(np.array_equal(now[layer][n], img), f"texels of {layer}:{n}")
 
     def test_new_tiles_follow_the_format(self):

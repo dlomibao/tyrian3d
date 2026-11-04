@@ -3529,3 +3529,81 @@ nozzles, pods moved in), not mask warping.
 
 **Review:** the comparison sheets and measurements are in `tyrian-scratch/inner-refit/<model>/`.
 Fallback: revert the scripts and GLBs listed above.
+
+## D89 — `shapesz` HD terrain over all 32 levels: the batch painted, the clouds re-cut over every level, empty tiles held black in the seam solve
+
+2026-11-04
+
+**Decision:** The `shapesz` batch D83 prepared is painted and cut into the tileset's atlas
+(`public/art/terrain/shapesz/`): every level that uses the tileset now draws its ground, clouds and layer-2
+terrain from HD paintings.
+- **Merged, level 1 kept.** The 66 ground tiles and their `covered` paintings (D86) are kept byte for byte
+  (`0.webp`, `0-covered.webp` unchanged, rects unchanged); 200 new ground tiles in `0-2.webp` (1.3 MB);
+  layer 2's 73 terrain tiles in `2.webp` (39 painted, 34 reusing a ground painting, D83); layer 1 in a
+  new `1.webp`.
+- **Clouds re-cut over all the levels** (the user's call): D83 found TYRIAN's clouds, solved on TYRIAN's
+  map only, seamed on HOLES and ASSASSIN (1.11, 1.13). `sheets --recut 1:40,...,1:64` gave two cloud
+  context sheets (the 15 cloud tiles and the 518 blue panel fill of 1-18 ALE), painted again and cut
+  with `cut --recut` over all 32 levels. Level 1's clouds change slightly (captures below).
+- **Gemini:** 45 requests in one session, no usage warning: 33 primary sheets (the batch's 32, with the
+  fill's own sheet folded into the two cloud sheets) and 12 retries. Two first sends vanished without an
+  answer while a page script polled for 35 s at a time; sending and then waiting with plain waits worked.
+  Every answer was registered against its sheet as it landed (NCC, blockiness, pixel period per tile).
+  Retries, each a second candidate (`<sheet>-r2` in the manifest, so the cutter chooses per tile):
+  the 518 fill (painted as large panels, NCC 0.04 → 0.91), region-l0-24 (pods turned into a silo,
+  0.56 → 0.91), 07 (pixel copy, blockiness 2.48 → 1.33, sent as D79's MMPX-and-blur sheet), 12 (black
+  space filled with bricks, 0.70 → 0.99), 10 (0.63 → 0.90), the bubbles 01, 17, 23, 09 (bubbles moved,
+  rock invented: 0.68-0.81 → 0.87-0.99), 26 (raised ridges painted as pipes), 16 (a sunken floor painted
+  as grilles) and 08 (rock added in the black).
+- **Prompts name the material.** SEND.md's labels come from the palette groups, and several were wrong:
+  grey woven-brick floors were "grey cratered asteroid rock", purple plating "dark blue-grey metal deck",
+  grass meadows "dense forest canopy". Gemini repaints what it is told: 24 grew a building, 12 and 10
+  dirt paths. 19 primary sheets went with the material named from the sheet (purple plating, grey brick,
+  grass meadow, brown ridges); the prompts sent are in `tyrian-scratch/shapesz-hd/work/sheets/sent/`.
+- **Seams: the empty tiles are held, and the cut is edge-aware.** In game the first cut showed (a) a
+  green band under BONUS's purple plates (3-5): tile 571's bottom strip was solved against HARVEST's
+  grass below it, as the black below it on BONUS is an *empty* tile (one colour, no painting, D83) that
+  took no part in the solve; and (b) grey tile-shaped boxes and smears in the black round the plates and
+  the bubbles (3-5, 3-7, 1-4), strips pulled towards their painted neighbours. `cut` now holds the
+  ground's empty tiles as fixed neighbours at their own colour (`--no-empty-edges` to turn it off), and
+  this atlas is cut with `--edge-aware` (D83's option: strips are not tied across a real edge of the
+  original). The two together removed the green band and the boxes and most of the smears (captures
+  `*-variants.jpg`: original, plain, edge-aware, empty-held, both). The empty tiles only matter on
+  levels that have them; level 1 has none.
+
+**Result** (`check`, every edge of all 32 maps; step across tile edges over step inside tiles):
+- Ground: edges with a new tile 0.609 (0.541 where the original is continuous), kept-only 0.477, bands
+  0.60. Per level (all / continuous): 1-9 0.456 (as before), most levels 0.44-0.66; the worst 3-5 BONUS
+  2.83 / 1.39, 3-7 STARGATE 1.38 / 1.04, 1-4 BUBBLES 1.31 / 0.86, 1-10 and 2-3 BONUS 0.95 / 0.94. The
+  edge-aware cut keeps the hard step where plating or a bubble meets black, which the measure counts as
+  a seam: the plain cut measured 3-5 1.07 / 1.00, 3-7 1.17 / 1.08, 1-4 0.96 / 0.87, but showed (a)
+  and (b) in game. Faint smears beside some bubble clusters remain.
+- Clouds (layer 1): 0.706 (continuous 0.673); 1-11 0.84, 1-16 0.82, 4-16 0.86 (were 1.11, 1.13 and
+  unmeasured), 1-9 0.70 (was 0.82), 1-18 (the fill) 0.57.
+- Layer 2: 0.533; 1-11 0.60, 1-16 0.69, 4-1 0.47.
+- 46 ground tiles deblocked (D60); remaining blockiness above 2: 116, 430, 431, 545, 547, 549, 568,
+  584, 585 (pixel-sized brick and plating patterns; 549 comes from 16-r2, a smoothed copy).
+
+**Checked** in game (`?debug=play&episode=E&main=N&seed=1&skip=T&freezeAt=T`, against `&terrain=original`):
+1-9 TYRIAN t300, t1500, t2000 (ground unchanged: mean pixel difference 0.37 at t2000 against the atlas
+before; the clouds re-cut), 1-4 BUBBLES t1200, 3-7 STARGATE t1500, 3-5 BONUS t1500, 1-11 HOLES t1200 (clouds
+and layer-2 rock), 1-18 ALE t400 (the blue fill), 1-16 ASSASSIN t1500, 4-1 HARVEST t1500 (grass, trees),
+1-5 DELIANI t1500. Captures in `tyrian-scratch/shapesz-hd/captures/` (`*-pair.jpg` original | HD,
+`*-variants.jpg`, `1-9-t*-before-after.jpg`). No seams, gaps or misplaced tiles beyond the limits above.
+Typecheck and `terrainArt`, `terrainHd` and `inventory` tests pass. `terrain_hd_test.py` now merges into
+level 1's part of the committed atlas (it covers every level now, so there would be nothing new to cut).
+
+**Options considered:**
+- *Keep TYRIAN's clouds and add variants (D57) for the worst pairs:* level 1 unchanged, but variants
+  for 42 over 52 and the like on four levels; the user chose the re-cut.
+- *The plain cut (D83's defaults):* the best seam measure on the worst levels, but the green band and
+  grey boxes in game.
+- *Variants for tiles that meet black on one map and grass on another (571):* exact, but the tool makes
+  no variants yet; holding the empty tiles fixes it for every such pair at once.
+- *More retries (16's sunken floor, the remaining bubble smears):* the session had used 45 of an estimated
+  ~42; the cutter already prefers the better candidate per tile.
+
+**Review:** the sheets, answers (`results-raw/`), per-answer registration (`review/*.txt`, side-by-sides),
+contact sheets (`check/`) and `cut-report.json` are in `tyrian-scratch/shapesz-hd/work/` (not in git, D3).
+Recut from the cache: `terrain_hd.py --tileset shapesz --work W cut --cache W/cands.pkl --edge-aware --recut
+1:40,...,1:64` reproduces this atlas byte for byte.

@@ -1989,13 +1989,24 @@ def cmd_cut(args) -> None:
         # Seams: every side's edge strip solved jointly over the pairs all the levels' maps have; the
         # kept tiles' strips are held as they are, so the new tiles meet them and they don't move.
         if args.band_lo > 0 or args.band_hi > 0:
-            have = set(done) | set(locked)
+            fixed = {n: img[..., :3] for n, img in locked.items()}
+            if layer == 0 and not args.no_empty_edges:
+                # The empty tiles (one colour, Tyrian's black space, D83) get no painting and draw as
+                # the 4x ground, which looks the same; their edges are held at that colour, so a
+                # painted tile meets the black where the map puts it next to black instead of
+                # taking its strip from whatever else it meets on other maps (a purple plate's
+                # bottom edge turned green on BONUS from HARVEST's grass below it; D89).
+                for t in d["tiles"].values():
+                    n = t["tile"]
+                    if t.get("kind") == "empty" and n not in done and n not in fixed:
+                        fixed[n] = np.kron(T.rgb[T.tile(n)].astype(np.float32), np.ones((SCALE, SCALE, 1), np.float32))
+            have = set(done) | set(fixed)
             pairs = all_pairs(T.levels, layer, models, have)
             # Colour here; alpha is solved on its own below (averaging alpha itself across a pair
             # would put a faint line of cloud where one tile's edge is empty and its neighbour's isn't).
             cont = memo_continuity(T, layer, args.edge_free, args.edge_full) if args.edge_aware else None
             strips = solve_strips({n: img[..., :3] for n, img in done.items()}, pairs, args.lam,
-                                  fixed={n: img[..., :3] for n, img in locked.items()} or None, continuity=cont)
+                                  fixed=fixed or None, continuity=cont)
             for n, img in done.items():
                 img[..., :3] = apply_strips(img[..., :3], {side: strips[(n, side)] for side in OPPOSITE}, args.band_lo, args.band_hi)
         if layer > 0:
@@ -2343,6 +2354,8 @@ def main(argv: list[str] | None = None) -> None:
     c.add_argument("--no-reuse", action="store_true", help="don't reuse another layer's painting of the same tile")
     c.add_argument("--edge-aware", action="store_true", help="don't tie facing strips where the original has a real edge between "
                    "the tiles (rock against space); off by default: on the fake runs it measured the same as tying everywhere (D83)")
+    c.add_argument("--no-empty-edges", action="store_true", help="don't hold the ground's empty tiles (one-colour black space) as "
+                   "fixed neighbours in the seam solve (D89)")
     c.add_argument("--edge-free", type=float, default=EDGE_FREE, help=f"step between the original's facing pixels that still ties the strips fully (default {EDGE_FREE})")
     c.add_argument("--edge-full", type=float, default=EDGE_FULL, help=f"step from which it doesn't tie them at all (default {EDGE_FULL})")
     k = sub.add_parser("check", help="reassemble the map from the atlas, measure seams")
