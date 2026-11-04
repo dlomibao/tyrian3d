@@ -3711,3 +3711,104 @@ stair-stepped, blotchy regions.
 
 **Review:** comparison sheets and captures are in `tyrian-scratch/shared-enemies-1/<model>/`.
 Fallback: revert the 20 scripts and their GLBs; `--no-pulse` for the old measure.
+
+## D92 — Player ships' banking frames: the level model at a fitted roll and shift, never reshaped for them; their own bars
+
+2026-11-04
+
+**Decision:** A player ship's model is fitted to its level frame only (D74: rule IoU ≥ 0.95). Its
+banking frames are that model rolled and moved sideways by the game, and the **pose is fitted per
+ship** to its banking sprites, not the model: `bank.roll` (degrees at bank steps 1..max) and, where
+it beats bankShift.ts's guess, `bank.shift` (game px per frame) in its spriteModels entry, written by
+the script with `common.with_bank_roll`. `tools/bank_roll.py <name> --fit` finds them; it keeps the
+old pose (35° × step / max, bankShift.ts) unless another roll is better by more than 0.02 mean IoU,
+or another shift by more than 0.01. **Accept:** level frame ≥ 0.95, each half-bank frame ≥ 0.80,
+each full-bank frame ≥ 0.70 (`tools/bank_roll.py <name>`). No part, height or offset is added to a
+model for its banking frames. The rule for agents: docs/agents/OUTLINE-BORDER.md "Banking frames".
+
+- **Renderer:** `bankRoll` (spriteModels.ts) gives each banking frame's roll from the entry (default
+  `DEFAULT_FULL_ROLL` = 35 × n / max, as `MAX_ROLL` did); `Sprite2Route.roll` replaces `bank`, and
+  the eased roll in drawListRenderer.ts is unchanged otherwise. An entry's `shift` replaces
+  bankShift.ts for that ship (D62); the two-halves Dragonwing still isn't shifted.
+- **Ships:** U-Ship roll 40 / 55. Gencore Phoenix 40 / 50, shift −3.5, −1.5, 0, 1.5, 3.5
+  (bankShift: −2.5, −1, 0, 1, 3.5). Microcorp Stalker 17.5 / 27.5, shift −0.5, −0.5, 0, 0.5, 2.5
+  (bankShift: 1, 0, 0, 0, 1). The other five keep the old pose: the fit found nothing better.
+  The three models are the D74 inner-edge refit with its bank-only parts taken out: the Phoenix's
+  5 px ventral fins, 4 px strakes and 1 px lift; the Stalker's 3 px endplate fins, forked tip
+  prongs and body raised 3 px over the wings (now a 0.45 px tip rail, the body level with the
+  wings). The U-Ship had none.
+
+**Why (measured).** The D74 refit asked ≥ 0.95 on every frame, banking frames included, and U-Ship
+(0.43-0.55), Phoenix (0.61-0.75) and Stalker (0.83-0.91) failed after two fix rounds each and were
+left as they were (D88). This decision refits them.
+
+- *The measurement was right.* An independent harness (Blender top view, k = 10) reproduces the
+  fixers' numbers to the digit (U-Ship 0.442 / 0.553 / 1.000 / 0.538 / 0.434). Checked against the
+  code: frame base − 4 is ship_banking −2, moving left (mainint.ts L712-715); rotation.z = −bank ×
+  35° is +Y × bank × 35° in Blender (glTF +Z is Blender −Y), the ship's top leaning into the turn; the pivot
+  is the model origin at the cell's centre; the shift is bankShift.ts's opaque-column centre; the
+  frames are the 2x2 composites the game draws (sprite.json, the draw list's index); `?height` is 1.
+  In game (`?debug=play&ship=10`, new `&ship=`) the clone reads roll 40.0° and shift −1 on frame 269.
+- *The art draws a different roll per ship.* IoU of each banking sprite with the level sprite
+  (shifted, no roll) says how far the art moved, and the best rigid roll of the level model says
+  how far a roll gets (half-bank frames, full-bank frames):
+
+  | Ship | level sprite vs bank sprite | old pose (17.5 / 35°, bankShift) | fitted pose (this decision) |
+  |---|---|---|---|
+  | USP Talon | 0.89, 0.88 / 0.79, 0.80 | 0.984, 0.984 / 0.959, 0.965 | same |
+  | Silver ship | 0.89, 0.90 / 0.79, 0.81 | 0.982, 0.982 / 0.965, 0.996 | same |
+  | Supercarrot | 0.91, 0.93 / 0.88, 0.90 | 0.958, 0.981 / 0.970, 0.981 | same |
+  | Dragonwing | 0.93, 0.93 / 0.88, 0.87 | 0.965, 0.989 / 0.957, 0.967 | same |
+  | U-Ship | 0.39, 0.38 / 0.30, 0.30 | 0.553, 0.538 / 0.442, 0.434 | 0.873, 0.876 / 0.781, 0.776 |
+  | Gencore Phoenix | 0.57, 0.56 / 0.53, 0.59 | 0.620, 0.613 / 0.626, 0.703 | 0.831, 0.838 / 0.849, 0.859 |
+  | Microcorp Stalker | 0.83, 0.83 / 0.68, 0.70 | 0.816, 0.818 / 0.585, 0.611 | 0.879, 0.856 / 0.791, 0.779 |
+
+  Level frames: Talon 0.952, Silver 0.989, Supercarrot 1.000, Dragonwing 0.996, Nort 0.996 (no
+  banks), U-Ship 1.000, Phoenix 0.996, Stalker 0.974. The five that passed are the refit's models
+  (inner-refit worktree). The old pose suits the Talon, whose art is a true roll (0.79 → 0.96 at full
+  bank). The U-Ship's arms close from 12 px apart (centre to centre) to 9 at half bank and 6 at full,
+  and the Phoenix's 20 px plan becomes one solid wedge 15-17 px wide (inside the ink): both draw about
+  40° at half bank, more than twice the old 17.5°. The Stalker's art is hardly a roll at all: its
+  banks keep the full 21 px span; its best half-bank roll is 0° and the old 17.5° is within 0.01 of it.
+- *bankShift.ts misplaces some redraws.* The opaque columns' centre tracks the Talon, Silver,
+  Supercarrot and U-Ship exactly (the fit moves none), but the Stalker's both hard-bank frames sit
+  1 px right though its nose leans into the turn, and the Phoenix's are 0.5-1 px short. At the
+  fitted roll the fitted shift adds +0.04 to +0.14 to the Stalker's frames and +0.00 to +0.07 to the
+  Phoenix's. (The refit's raised Stalker body was mostly making up for that shift.)
+- *What is left is hand drawing no rigid pose follows:* the U-Ship's arms drawn touching at full
+  bank, the Phoenix's slots between hull and blades filled in, the Stalker's far wing redrawn shorter
+  with its tip in place. The art isn't consistent with itself either: each left bank against the
+  mirrored right bank scores 0.93 (Phoenix, full) and 0.94-0.95 (Stalker), so no mirror-symmetric
+  model matches both sides.
+
+**Options considered:**
+- *Fitted pose, model untouched, lower bars on banks (chosen):* one number or two per ship, the
+  roll stays a smooth ease (the frames change instantly and often; the roll eases with a 1/12 s time
+  constant), nothing to rebuild, and the passing ships stay as they are. The bars sit below the
+  fitted worst (0.831 half, 0.776 full), and each of the three fails them at its old pose (U-Ship and
+  Phoenix at half bank, 0.54-0.62; the Stalker at full bank, 0.59-0.61).
+- *Bank-only geometry (the refit's rounds):* the Phoenix's fins and lift reached 0.68-0.75, the
+  Stalker's endplates and prongs 0.83-0.91, and both show as tall plates and keels in the side, front
+  and hangar views (D85 shows the ship large and turning).
+- *Per-frame models or morph targets:* swapping nodes per frame (`tyrian_frames`) pops, since the
+  sprite frame flips at once while the roll eases; morph targets need the same morphs on the
+  outline shell and four hand-made poses per ship, to chase art whose left and right banks
+  disagree by 5-7%.
+- *Roll plus a sideways stretch* (a world-X scale after the roll, exact in the top view, measured
+  at bankShift's shift): +0.00 to +0.10 over the best roll alone, the big gains only at ×1.2-1.4
+  (Phoenix: 0.91 half, 0.84-0.86 full; U-Ship ×1.4 at 70°: 0.83 full) and none near 0.95: a
+  visibly squashed 3D model for a few hundredths.
+- *Keep ≥ 0.95 on banking frames:* none of the three can pass without the parts above.
+
+**Found on the way:** the game's perspective camera adds or takes away roll by where the ship is:
+it sees a ship at the playfield's side edge about atan(11 / 22.9) ≈ 26° off vertical (overhead
+camera), so a ship banking toward the middle looks rolled less and one banking toward the edge more.
+That is D6's lift along camera rays, the same for every model; the fit (orthographic) holds for the
+middle of the screen, and the in-game captures here are taken there. The play harness gains
+`&ship=ID` (item number) to fly any ship.
+
+**Review:** `tyrian-scratch/ship-banking/`: `fail3.png` and `pass.png` (all banking sprites, 10x),
+`final/cmp-<ship>.png` (the refit's model at the old pose | this model at the old pose | at the
+fitted pose, each frame's sprite beside the diff: green model on inner, red outside, blue missed),
+`game/` (in-game crops, old and new pose), `stalker/views.png` (the Stalker main / refit / this,
+front, side, 3/4, top). Fallback: delete an entry's `roll`/`shift` for the old pose.

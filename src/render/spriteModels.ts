@@ -15,10 +15,14 @@ export interface SpriteRef {
   frames: number[];
   /**
    * For a player ship: frames[0] is the level frame and the banking frames are frames[0] + n * step
-   * for n = -max..max (blit_sprite2x2 at shipGraphic + ship_banking * 2). The model rolls with them.
-   * Without it, the sprites are a grouped object (an enemy) and the model stays level.
+   * for n = -max..max (blit_sprite2x2 at shipGraphic + ship_banking * 2). The model rolls with them:
+   * `roll[n - 1]` degrees at bank step n (toward the side it moves to), fitted to the ship's banking
+   * sprites (tools/bank_roll.py, D92); without it, DEFAULT_FULL_ROLL * n / max. And it moves sideways
+   * `shift[n + max]` game pixels where the fit gives one (0 at n = 0; not for a `group` ship), else by
+   * bankShift.ts (the frame's opaque columns, D62).
+   * Without `bank`, the sprites are a grouped object (an enemy) and the model stays level.
    */
-  bank?: { step: number; max: number };
+  bank?: { step: number; max: number; roll?: number[]; shift?: number[] };
   /**
    * [two-player] With `bank`: the frames are the first sprite of a grouped draw (a ship drawn in
    * two halves, blitShipHalves, like the dragonwing), so the model replaces the whole group and
@@ -44,6 +48,19 @@ const files = import.meta.glob<SpriteModelEntry>("./spriteModels/*.json", { eage
 /** Every model entry in spriteModels/. */
 export const SPRITE_MODELS: readonly SpriteModelEntry[] = Object.values(files);
 
+/** Degrees a ship rolls at full bank when its entry gives no `bank.roll` (the USP Talon's, D92). */
+export const DEFAULT_FULL_ROLL = 35;
+
+/**
+ * Radians a ship rolls at bank step `n` (-max..max; < 0 is a bank to the left): its entry's
+ * `bank.roll` for |n|, or DEFAULT_FULL_ROLL * n / max. Throws on a `roll` without one angle per step.
+ */
+export function bankRoll(bank: { max: number; roll?: number[] }, n: number): number {
+  if (bank.roll && bank.roll.length !== bank.max) throw new Error(`bank.roll needs ${bank.max} angles, got ${bank.roll.length}`);
+  const deg = n === 0 ? 0 : bank.roll ? Math.sign(n) * bank.roll[Math.abs(n) - 1] : (DEFAULT_FULL_ROLL * n) / bank.max;
+  return (deg * Math.PI) / 180;
+}
+
 export const spriteModelKey = (sheet: string, size: number, index: number): string => `${sheet}|${size}|${index}`;
 
 /** A model that replaces a player ship's sprite and its banking frames. */
@@ -54,6 +71,10 @@ export interface ModelOverride {
   /** Index step between banking frames, and how many frames there are to each side. */
   bankStep: number;
   maxBank: number;
+  /** Radians the model rolls at bank step n, at index n + maxBank (bankRoll). */
+  rolls: number[];
+  /** Game pixels the model moves sideways at bank step n, at index n + maxBank, if the entry fits them (else bankShift.ts). */
+  shifts?: number[];
   /** The size the sprite is drawn at (2 for blit_sprite2x2). */
   size: 1 | 2;
   /** Model path in public/models/. */
@@ -65,8 +86,8 @@ export interface SpriteModels {
   grouped: Map<string, string>;
   /** Player ships with banking frames. */
   banked: ModelOverride[];
-  /** [two-player] For grouped ships with banking frames: spriteModelKey to the bank, -1..1. */
-  groupBank: Map<string, number>;
+  /** [two-player] For grouped ships with banking frames: spriteModelKey to the roll, radians (bankRoll). */
+  groupRoll: Map<string, number>;
   /** spriteModelKey(sheet, size, frame) to model path, for sprites drawn on their own (sidekicks). */
   ungrouped: Map<string, string>;
 }
@@ -75,7 +96,7 @@ export interface SpriteModels {
 export function spriteModels(entries: readonly SpriteModelEntry[] = SPRITE_MODELS): SpriteModels {
   const grouped = new Map<string, string>();
   const banked: ModelOverride[] = [];
-  const groupBank = new Map<string, number>();
+  const groupRoll = new Map<string, number>();
   const ungrouped = new Map<string, string>();
   const claimed = new Map<string, string>();
   const claim = (key: string, model: string) => {
@@ -92,14 +113,24 @@ export function spriteModels(entries: readonly SpriteModelEntry[] = SPRITE_MODEL
           const key = spriteModelKey(ref.sheet, ref.size, base + n * ref.bank.step);
           claim(key, e.model);
           grouped.set(key, e.model);
-          groupBank.set(key, n / ref.bank.max);
+          groupRoll.set(key, bankRoll(ref.bank, n));
         }
         continue;
       }
       if (ref.bank) {
         const [base] = ref.frames;
-        for (let n = -ref.bank.max; n <= ref.bank.max; n++) claim(spriteModelKey(ref.sheet, ref.size, base + n * ref.bank.step), e.model);
-        banked.push({ sheetId: ref.sheet, baseIndex: base, bankStep: ref.bank.step, maxBank: ref.bank.max, size: ref.size, model: e.model });
+        const rolls: number[] = [];
+        for (let n = -ref.bank.max; n <= ref.bank.max; n++) {
+          claim(spriteModelKey(ref.sheet, ref.size, base + n * ref.bank.step), e.model);
+          rolls.push(bankRoll(ref.bank, n));
+        }
+        const shift = ref.bank.shift;
+        if (shift && (shift.length !== 2 * ref.bank.max + 1 || shift[ref.bank.max] !== 0)) {
+          throw new Error(`${e.model}: bank.shift needs ${2 * ref.bank.max + 1} values, 0 in the middle`);
+        }
+        const o: ModelOverride = { sheetId: ref.sheet, baseIndex: base, bankStep: ref.bank.step, maxBank: ref.bank.max, rolls, size: ref.size, model: e.model };
+        if (shift) o.shifts = [...shift];
+        banked.push(o);
         continue;
       }
       for (const frame of ref.frames) {
@@ -109,5 +140,5 @@ export function spriteModels(entries: readonly SpriteModelEntry[] = SPRITE_MODEL
       }
     }
   }
-  return { grouped, banked, groupBank, ungrouped };
+  return { grouped, banked, groupRoll, ungrouped };
 }

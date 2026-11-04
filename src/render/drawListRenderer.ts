@@ -90,8 +90,7 @@ const WRECK_TILES = new Set(
 const COVERED_STAND_IN = new Map([340, 341, 342, 350, 351, 352].map((n) => [`shapesz.dat:${n}`, "shapesz.dat:100"]));
 const STAND_IN_IDS = new Set(COVERED_STAND_IN.values());
 
-/** Roll at full bank, and how fast the model eases toward its frame's roll (per second). */
-const MAX_ROLL = THREE.MathUtils.degToRad(35);
+/** How fast a ship's model eases toward its banking frame's roll (per second; the roll: spriteModels.ts bankRoll, D92). */
 const ROLL_RATE = 12;
 /** Opacity standing in for the C's value-averaging blend. */
 const BLEND_ALPHA = 0.55;
@@ -721,8 +720,9 @@ export class DrawListRenderer {
               // Only ground enemies stand on the ground's structures and hide them (D86); a ship or
               // an aircraft model flying over a wreck doesn't erase it.
               if (d.pass === Pass.GroundEnemies && d.effect !== "blend") this.cover.add(d.sheet, d.index, d.size, x, y);
-              const shift = r.override ? bankShift(d.sheet.id, d.sheet.data, r.override.baseIndex, d.index) : 0;
-              this.drawModel(r.route, pool, r.bank, shift, d, x, y, cam, dt, r.frame, damaged);
+              const o = r.override;
+              const shift = o ? (o.shifts?.[(d.index - o.baseIndex) / o.bankStep + o.maxBank] ?? bankShift(d.sheet.id, d.sheet.data, o.baseIndex, d.index)) : 0;
+              this.drawModel(r.route, pool, r.roll, shift, d, x, y, cam, dt, r.frame, damaged);
               continue;
             }
             // Held back while its model loads, or locked to its sprite (D54).
@@ -1206,12 +1206,12 @@ export class DrawListRenderer {
 
   /**
    * Draw a sprite as its loaded model (sprite2Route.ts): a player ship's frame (Override) at the
-   * sprite's centre, rolled by its bank and moved `shift` game pixels sideways to where the banking
-   * frame's sprite sits (bankShift.ts, D62); a tile of a grouped object, an enemy (Group), whose model
+   * sprite's centre, rolled by its banking frame's roll and moved `shift` game pixels sideways to where
+   * the frame's sprite sits (bankShift.ts, D62, or the entry's fitted shift, D92); a tile of a grouped object, an enemy (Group), whose model
    * goes at the object's centre on its first tile while the other tiles draw nothing; or a sprite
    * drawn on its own, a sidekick (Ungrouped), centred on the sprite and showing the frame drawn.
    */
-  private drawModel(route: Route, pool: ModelPool, bank: number, shift: number, d: SpriteDraw, x: number, y: number, cam: THREE.Vector3, dt: number, frame: number, damaged: DamageState | null): void {
+  private drawModel(route: Route, pool: ModelPool, roll: number, shift: number, d: SpriteDraw, x: number, y: number, cam: THREE.Vector3, dt: number, frame: number, damaged: DamageState | null): void {
     let clone: ModelClone;
     if (route === Route.Override) {
       clone = this.placeModel(pool, x + (d.size * 12) / 2, y + (d.size * 14) / 2, d, cam);
@@ -1226,13 +1226,13 @@ export class DrawListRenderer {
       if (!d.groupFirst) return;
       clone = this.placeModel(pool, x + d.groupDx, y + d.groupDy, d, cam, frame);
       // [two-player] a grouped ship that banks (the dragonwing) rolls as the player ships do
-      if (Number.isNaN(bank)) {
+      if (Number.isNaN(roll)) {
         this.damage?.apply(clone.object, clone.materials, damaged);
         return;
       }
     }
     // Banking eases per display frame, so the 5 sprite frames become a smooth roll.
-    clone.roll += (-bank * MAX_ROLL - clone.roll) * Math.min(1, dt * ROLL_RATE);
+    clone.roll += (-roll - clone.roll) * Math.min(1, dt * ROLL_RATE);
     clone.object.rotation.z = clone.roll;
     // A player ship's wear by its armour (D90), after the roll so the scorch rolls with the ship.
     const player = playerOfKey(d.key);

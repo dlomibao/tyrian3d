@@ -37,9 +37,28 @@ python3 tools/sprite_mask.py <name> --measure <top.png>     # top view on the sp
 ```
 
 `iou_rule_grid` ≥ 0.95 on every frame (the old "IoU ≥ 0.95 vs the sprite mask", now against the
-inner mask with the free pixels left out). Render the top view without the outline shell and
+inner mask with the free pixels left out); a player ship's banking frames have their own bars
+(below, D92). Render the top view without the outline shell and
 without `tyrian_ground` rock. `--json` prints the masks (`o` = border, `#` = inner); `--png ... --inner`
 writes the inner mask to trace in a blueprint or fit a plan curve (D52's pchip) to.
+
+## Banking frames (player ships, D92)
+
+A player ship's banking frames are its level-frame model rolled and moved sideways by the game; the
+model is fitted to the level frame only.
+
+1. **Never shape the model for a banking frame.** No parts, heights or offsets that only help a bank
+   (ventral fins, endplates, a body raised off the roll axis, forked tips): the 1995 banking sprites
+   are hand drawn, not rotations, and such parts didn't get there (the D74 refit's tries: Phoenix
+   0.68-0.75, Stalker 0.83-0.91 on its banks), while they show in the side, front and hangar views.
+2. **Fit the pose instead:** `tools/bank_roll.py <name> --fit` (Blender) sweeps the roll per bank
+   step and the shift per frame, as the game draws them, and prints `"roll"` (and `"shift"` where it
+   beats bankShift.ts's). Put them in the script's export with
+   `common.with_bank_roll(sprite["sprites"], BANK_ROLL, BANK_SHIFT)`; they land in the ship's
+   spriteModels entry as `bank.roll` / `bank.shift`. The fit keeps the game's 17.5 / 35 degrees
+   unless the art clearly draws another roll (U-Ship 40 / 55, Phoenix 40 / 50).
+3. **Accept:** `tools/bank_roll.py <name>` prints every frame's `iou_rule_grid` at the ship's pose:
+   level frame ≥ 0.95, half-bank frames ≥ 0.80, full-bank frames ≥ 0.70.
 
 ## Why (measured, D74)
 
