@@ -35,9 +35,10 @@ export interface Sprite2Route {
   route: Route;
   /** Model path in public/models/ (Group, Override, Ungrouped). */
   model: string;
-  /** Override: the ship and its bank, -1..1. Group: the grouped ship's bank, or NaN. */
+  /** Override: the ship. */
   override: ModelOverride | null;
-  bank: number;
+  /** Override, or a grouped ship that banks: the roll of its banking frame, radians (bankRoll); else NaN. */
+  roll: number;
   /**
    * Group: the sprite frame the model shows (its frame-tagged parts and colours, D17): the draw's own,
    * or for a damaged frame drawn with the intact model (`damaged`), the intact frame.
@@ -49,17 +50,17 @@ export interface Sprite2Route {
 
 export class Sprite2Router {
   private readonly grouped: ReadonlyMap<string, string>;
-  private readonly groupBank: ReadonlyMap<string, number>;
+  private readonly groupRoll: ReadonlyMap<string, number>;
   private readonly ungrouped: ReadonlyMap<string, string>;
   private readonly overridesBySheet = new Map<string, ModelOverride[]>();
-  private readonly out: Sprite2Route = { route: Route.Sprite, model: "", override: null, bank: Number.NaN, frame: -1, damaged: false };
+  private readonly out: Sprite2Route = { route: Route.Sprite, model: "", override: null, roll: Number.NaN, frame: -1, damaged: false };
   /** The levels' damaged frames, drawn with the intact models (D87); null: as sprites, as before. */
   private damage: DamageRoutes | null = null;
   private readonly modelOfKey = (key: string): string | undefined => this.grouped.get(key);
 
-  constructor(models: SpriteModels = { grouped: new Map(), banked: [], groupBank: new Map(), ungrouped: new Map() }) {
+  constructor(models: SpriteModels = { grouped: new Map(), banked: [], groupRoll: new Map(), ungrouped: new Map() }) {
     this.grouped = models.grouped;
-    this.groupBank = models.groupBank ?? new Map();
+    this.groupRoll = models.groupRoll ?? new Map();
     this.ungrouped = models.ungrouped ?? new Map();
     for (const o of models.banked) {
       let list = this.overridesBySheet.get(o.sheetId);
@@ -126,7 +127,7 @@ export class Sprite2Router {
     const out = this.out;
     out.model = "";
     out.override = null;
-    out.bank = Number.NaN;
+    out.roll = Number.NaN;
     out.frame = d.groupIndex;
     out.damaged = false;
     // With flat art for the sprite (for a grouped one, the object's first tile), it's drawn flat
@@ -141,7 +142,7 @@ export class Sprite2Router {
       if (model !== undefined) {
         out.route = Route.Group;
         out.model = model;
-        out.bank = this.groupBank.get(key) ?? Number.NaN;
+        out.roll = this.groupRoll.get(key) ?? Number.NaN;
         return out;
       }
       const damaged = this.damage?.resolve(d.sheet, d.groupSize, d.groupIndex, this.modelOfKey);
@@ -161,7 +162,7 @@ export class Sprite2Router {
         out.route = Route.Override;
         out.model = o.model;
         out.override = o;
-        out.bank = offset / o.bankStep / o.maxBank;
+        out.roll = o.rolls[offset / o.bankStep + o.maxBank];
         return out;
       }
     }

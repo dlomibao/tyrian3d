@@ -92,10 +92,12 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
   `MODEL_SWAP_REPORT=1` with `tests/render/modelSwap.test.ts` lists sprites still drawn extruded.
 - **Accept:** top-view IoU ≥ 0.95 at sprite resolution on every frame against the sprite's *inner*
   mask, its ink border left to the game's outline (`tools/sprite_mask.py <name> --measure top.png`,
-  `iou_rule_grid`; [OUTLINE-BORDER.md](OUTLINE-BORDER.md), D74); canopies,
+  `iou_rule_grid`; [OUTLINE-BORDER.md](OUTLINE-BORDER.md), D74); a player ship's banking frames
+  instead ≥ 0.80 (half bank) and ≥ 0.70 (full bank) at its fitted roll and shift, the model never
+  reshaped for them (`tools/bank_roll.py <name> --fit`; OUTLINE-BORDER.md "Banking frames", D89); canopies,
   eyes, lights where the sprite has them; each part in the sprite's palette index for that region;
   every frame and assembly piece/pivot as before (`git diff src/render/spriteModels/` shows no frame
-  change); no foil, no highlight lumps; triangles ~2-6k small, ~8-20k boss; strict review score ≥ 7/10.
+  change; a ship's `bank.roll`/`bank.shift` may change, D89); no foil, no highlight lumps; triangles ~2-6k small, ~8-20k boss; strict review score ≥ 7/10.
 - **Failure modes → fix:**
 
   | Symptom | Fix |
