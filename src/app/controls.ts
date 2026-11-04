@@ -17,6 +17,10 @@ import { joystick_analog_angle, joystick_axis_reduce, simInput, simInputs, type 
 import { g } from "../sim/state";
 import { ACTIONS, isBound, keys as KEYS, keys2 as KEYS2, pads as PADS, type Action } from "./bindings";
 
+/** What the HUD's touch targets press (hud.ts): the inputs the keys and a pad's buttons set. */
+export type TouchAction = "leftSidekick" | "changeFire" | "rightSidekick";
+const TOUCH_ACTIONS: readonly TouchAction[] = ["leftSidekick", "changeFire", "rightSidekick"];
+
 export class Controls {
   private readonly held = new Set<string>();
   private readonly tapped = new Set<string>();
@@ -30,6 +34,9 @@ export class Controls {
   private moveY = 0;
   private mouseButtons = 0;
   private touches = new Map<number, { x: number; y: number }>();
+  /** The HUD's touch targets: held while a finger is on one; tapped latches a press shorter than a tick. */
+  private readonly buttonHeld = new Set<TouchAction>();
+  private readonly buttonTapped = new Set<TouchAction>();
   /** Whether the last sample() saw any key held or tapped. */
   private sampledInput = false;
   private releasing = false;
@@ -123,8 +130,12 @@ export class Controls {
     };
     fill(simInput, KEYS, taken);
     if (two) fill(simInputs[1], KEYS2, null);
+    // The HUD's touch targets (hud.ts): player 1's, like the keys.
+    for (const a of TOUCH_ACTIONS) if (this.buttonHeld.has(a) || this.buttonTapped.has(a)) simInput[a] = true;
+    const buttons = this.buttonHeld.size > 0 || this.buttonTapped.size > 0;
+    this.buttonTapped.clear();
     // Remember whether this sample saw any key, so anyInput() still sees a tap after it's cleared.
-    this.sampledInput = this.held.size > 0 || this.tapped.size > 0;
+    this.sampledInput = this.held.size > 0 || this.tapped.size > 0 || buttons;
     this.tapped.clear();
 
     // Mouse / touch: relative steering in game pixels (the C's mouseGetRelativePosition).
@@ -180,10 +191,20 @@ export class Controls {
     this.startHeld = (navigator.getGamepads?.() ?? []).some((p) => p?.buttons[9]?.pressed);
     this.held.clear();
     this.tapped.clear();
+    this.buttonHeld.clear();
+    this.buttonTapped.clear();
     this.pauseRequested = false;
     this.moveX = this.moveY = 0;
     this.touches.clear();
     this.sampledInput = false;
+  }
+
+  /** A HUD touch target went down (hud.ts): its action is held until it comes up, and a tap shorter than a tick still counts once. */
+  touchAction(action: TouchAction, down: boolean): void {
+    if (down) {
+      this.buttonHeld.add(action);
+      this.buttonTapped.add(action);
+    } else this.buttonHeld.delete(action);
   }
 
   /** Leave pointer lock (pauses, level ends). */
