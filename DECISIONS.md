@@ -3672,3 +3672,26 @@ Sheets in `tyrian-scratch/damage-ship-fix/ship-sheet.png`:
 - 40% and 10% armour;
 - recovery 10% → 40% → 80%;
 - the title flights.
+
+## D91 — Gameplay performance: measured, then the hitches moved out of play
+
+2026-11-04
+
+**Problem:** the user found play "struggling a bit". Measured first (`?debug=play&solid=1`, the production
+build, headless Chrome on the real GPU, 1512x900 at DPR 2 = 3024x1800, 60 Hz; a WebGL wrapper times
+shader compiles and texture uploads per frame; scripts in `tyrian-scratch/perf-1/`):
+- **Steady play is not the problem.** Main thread ~3 ms a frame (sim 0.2, draw list 0.2, three's
+  submit with outline and shadows 2.3), GPU 5-9 ms; level 1, the boss and HOLES held 60 fps with p95
+  16.7-17.5 ms. The outline pass adds ~15 draw calls (models outline only their shells), not a second
+  scene; the shadow pass ~115.
+- **The stutter is first-use work during play:** a texture's first draw uploads it (the flat art's
+  atlases 18-30 ms: newsh6's 832x4096 at the first explosion, tyrian.shp#10's 1024x2048 at its first
+  shot), a new enemy model's textures (20-45 ms for a batch of 24), and a material variant's first
+  draw compiles its shaders (20-35 ms each time mid-level; 130-730 ms over the first two frames of a
+  level).
+
+**Decision (one fix per PR, each measured):**
+1. **Flat art atlases at preload.** `preloadLevelModels` uploads the sprite art's atlases
+   (`uploadSpriteArt`) after the HD terrain's. The same atlases serve every level, so only the first
+   level's preload pays (~250 ms more of preload). The first-explosion and first-shot hitches are gone:
+   HOLES 5 → 3 frames over 33 ms (the 3 left are the level's first two frames), the boss 5 → 3.

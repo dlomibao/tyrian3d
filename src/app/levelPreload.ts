@@ -60,6 +60,7 @@ export async function preloadLevelModels(view: View, report?: (text: string | nu
       progress: (done, total) => show(`Loading models… ${done} / ${total}`),
     });
     view.draws.uploadTerrain(view.renderer); // the HD terrain's atlases before the first frame (D57)
+    view.draws.uploadSpriteArt(view.renderer); // and the flat art's, not at the first shot or explosion
     if (result.timedOut) console.warn(`level models: started after ${PRELOAD_TIMEOUT_MS} ms with ${result.done} of ${result.total} loaded`);
     return result;
   } finally {
