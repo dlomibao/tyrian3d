@@ -4220,3 +4220,20 @@ are not involved.
   kind of pad but are in episodes 3-4; check them in those levels' passes.
 
 Captures: `tyrian-scratch/qa-quick/` (`before_*`/`after_*`: 1.5 t5531, 1.13 t300 and t1615).
+
+## D104 — Explosions are drawn more see-through than other blends, so the ground shows through the fire (extends D35, D80)
+
+2026-11-04
+
+**Problem.** The C blends explosions about 50/50 with the ground (`explosionTransparent`, `blit_sprite2_blend`). Ours drew
+them at the shared `BLEND_ALPHA` 0.55 and then added glow (emissive 1.6, a 0.65 halo), and a big explosion stacks many
+overlapping sprites, so the fire read as opaque.
+
+**Decision.**
+- `EXPLOSION_ALPHA = 0.28` for blend draws in `Pass.Explosions` (flat art and sprite models); every other blend keeps
+  `BLEND_ALPHA`. 0.40 was tried first: overlapping puffs still covered the ground, so it was lowered until the ground
+  pattern shows through a stack of them.
+- `HOT_BLEND_GLOW` 1.6 -> 0.9 and the fireball halo 0.65 -> 0.3, so the fire does not wash the ground out.
+  Lights and sparks are unchanged, so explosions keep their flash.
+
+Captures: `tyrian-scratch/explosion-alpha/` (`scan700.png`/`after700.png`, `scan1000.png`/`after1000.png`: 1.1 seed 1, power 8).
