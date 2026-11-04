@@ -266,7 +266,7 @@ export class RemasteredFx {
       case ExplosionKind.Fireball:
       case ExplosionKind.Large: {
         const fade = 1 - t;
-        this.glow(this.glows, cx, cy, cx, cy, h, Math.max(3, info.radius * 2) * s, info.r, info.g, info.b, 0.65 * fade, 0, GlowShape.Glow, 0);
+        this.glow(this.glows, cx, cy, cx, cy, h, Math.max(3, info.radius * 2) * s, info.r, info.g, info.b, 0.3 * fade, 0, GlowShape.Glow, 0);
         return SpriteLook.Hot;
       }
       case ExplosionKind.Smoke: {

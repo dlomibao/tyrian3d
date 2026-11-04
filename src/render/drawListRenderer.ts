@@ -95,13 +95,15 @@ const STAND_IN_IDS = new Set(COVERED_STAND_IN.values());
 const ROLL_RATE = 12;
 /** Opacity standing in for the C's value-averaging blend. */
 const BLEND_ALPHA = 0.55;
+/** Explosions blend thinner than the rest, so the ground pattern shows through the fire (D104). */
+const EXPLOSION_ALPHA = 0.28;
 /** Passes drawn with a partly emissive material: energy shots, explosions, sparks. */
 const GLOW_PASSES = new Set<Pass>([Pass.PlayerShots, Pass.EnemyShots, Pass.Explosions, Pass.Effects]);
 const GLOW = 0.65;
 /** Shots and fireballs under the remastered effects (D35): fully emissive, no outline. */
 const HOT_GLOW = 1.0;
 /** Translucent ones (the C's blended explosions) glow harder, so they read as fire over anything. */
-const HOT_BLEND_GLOW = 1.6;
+const HOT_BLEND_GLOW = 0.9;
 /** Passes the remastered effects see (src/render/vfx/remasteredFx.ts). */
 const VFX_PASSES = new Set<Pass>([Pass.PlayerShots, Pass.EnemyShots, Pass.Explosions]);
 /** Pools unused for this many frames are freed. */
@@ -932,7 +934,7 @@ export class DrawListRenderer {
       fx[o + 1] = 0;
       fx[o + 2] = 0;
     }
-    fx[o + 3] = blend ? BLEND_ALPHA : 1;
+    fx[o + 3] = blend ? (pass === Pass.Explosions ? EXPLOSION_ALPHA : BLEND_ALPHA) : 1;
   }
 
   /** A sheet's flat art (D42), or null if it has none. */
@@ -972,7 +974,7 @@ export class DrawListRenderer {
     effect: SpriteEffect, filter: number, value: number, x: number, y: number, cam: THREE.Vector3,
   ): void {
     const q = placeFlatQuad(x + dx, y + dy, f.w, f.h, passHeight(pass), cam, this.quad);
-    const alpha = effect === "blend" ? BLEND_ALPHA : 1;
+    const alpha = effect === "blend" ? (pass === Pass.Explosions ? EXPLOSION_ALPHA : BLEND_ALPHA) : 1;
     if (effect === "filter") this.artLayer.add(art, pass, q, f, FxMode.Filter, (filter >> 4) & 0x0f, 0, alpha);
     else if (effect === "hv") this.artLayer.add(art, pass, q, f, FxMode.HueValue, filter & 0x0f, value, alpha);
     else this.artLayer.add(art, pass, q, f, FxMode.None, 0, 0, alpha);
