@@ -3678,31 +3678,6 @@ Sheets in `tyrian-scratch/damage-ship-fix/ship-sheet.png`:
 - recovery 10% → 40% → 80%;
 - the title flights.
 
-## D94 — Episode 1's remaining pickups drawn from Gemini flat art (D42/D43)
-
-2026-11-04
-
-**Decision:** Every pickup unit episode 1 draws that still showed as an extruded `sprite` or
-`basic` unit (inventory.json, kind `pickup`) now has flat art: 80 objects (some 2x2), 266 new atlas
-frames in `tyrian.shp#10` (76 -> 226), `tyrian.shp#9` (32 -> 148) and a new `newshp.shp` atlas
-(`newshp-shp.webp`, 12 frames; its three objects are the pickup newshp-85 used on 11 levels).
-This includes `tyrian.shp#9` 155 and 199 (about 30 levels each).
-- **Inputs:** an inventory of those objects in the D43 format (kept in `tyrian-scratch/e1-pickups/`),
-  four families (`e1-pickups-10`, `-10-small`, `-9`, `-newshp`) added to `SHEET_GROUPS`: 9 sheets of
-  8-12 cells, 9 Gemini requests, no retries and no usage warning. Level palette 5 for all: every
-  level's in-level palette is `pcxpal[2]` (tyrian2.ts), so one palette serves episode 1.
-- **Cut:** fit scores min 0.58 / mean 0.81-0.93 per sheet; the lowest are the two-letter bomb
-  pickup (10:89, 108-109: 0.67) and a few `#9` capsules (0.58-0.7), which read right in game.
-- **Tool change:** `cut --merge` now keeps the frames an atlas already has when only part of it is
-  re-cut (before, only frames with their own scale survived), so a new batch adds to
-  `tyrian-shp-9/10` instead of replacing them. A sheet of 8 cells is now 3x3 (was 4x2, 2:1, which
-  Gemini cannot answer).
-- **In game:** no code change; `?sprites=original` brings back the extruded pickups. Checked on
-  level 1 (ticks 625, 1135) and level 7 (tick 100).
-
-**Options considered:**
-- *Hand-pick the frames per level:* fewer requests, but the shared pickups would still differ
-  between levels; the whole episode's set is only 9 requests.
 ## D91 — Gameplay performance: measured, then the hitches moved out of play
 
 2026-11-04
@@ -3910,3 +3885,29 @@ middle of the screen, and the in-game captures here are taken there. The play ha
 fitted pose, each frame's sprite beside the diff: green model on inner, red outside, blue missed),
 `game/` (in-game crops, old and new pose), `stalker/views.png` (the Stalker main / refit / this,
 front, side, 3/4, top). Fallback: delete an entry's `roll`/`shift` for the old pose.
+
+## D94 — Episode 1's remaining pickups drawn from Gemini flat art (D42/D43)
+
+2026-11-04
+
+**Decision:** Every pickup unit episode 1 draws that still showed as an extruded `sprite` or
+`basic` unit (inventory.json, kind `pickup`) now has flat art: 80 objects (some 2x2), 266 new atlas
+frames in `tyrian.shp#10` (76 -> 226), `tyrian.shp#9` (32 -> 148) and a new `newshp.shp` atlas
+(`newshp-shp.webp`, 12 frames; its three objects are the pickup newshp-85 used on 11 levels).
+This includes `tyrian.shp#9` 155 and 199 (about 30 levels each).
+- **Inputs:** an inventory of those objects in the D43 format (kept in `tyrian-scratch/e1-pickups/`),
+  four families (`e1-pickups-10`, `-10-small`, `-9`, `-newshp`) added to `SHEET_GROUPS`: 9 sheets of
+  8-12 cells, 9 Gemini requests, no retries and no usage warning. Level palette 5 for all: every
+  level's in-level palette is `pcxpal[2]` (tyrian2.ts), so one palette serves episode 1.
+- **Cut:** fit scores min 0.58 / mean 0.81-0.93 per sheet; the lowest are the two-letter bomb
+  pickup (10:89, 108-109: 0.67) and a few `#9` capsules (0.58-0.7), which read right in game.
+- **Tool change:** `cut --merge` now keeps the frames an atlas already has when only part of it is
+  re-cut (before, only frames with their own scale survived), so a new batch adds to
+  `tyrian-shp-9/10` instead of replacing them. A sheet of 8 cells is now 3x3 (was 4x2, 2:1, which
+  Gemini cannot answer).
+- **In game:** no code change; `?sprites=original` brings back the extruded pickups. Checked on
+  level 1 (ticks 625, 1135) and level 7 (tick 100).
+
+**Options considered:**
+- *Hand-pick the frames per level:* fewer requests, but the shared pickups would still differ
+  between levels; the whole episode's set is only 9 requests.
