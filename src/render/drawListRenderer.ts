@@ -1423,6 +1423,11 @@ export class DrawListRenderer {
         m.transparent = blended || rockFades(m);
         m.opacity = blended ? BLEND_ALPHA : 1;
         m.depthWrite = !blended;
+        // A translucent two-sided material is drawn by three in two passes (back faces, then front),
+        // flipping its side with needsUpdate each time: every program recomputed twice a frame (~2 ms
+        // with the invulnerable Talon, D91). The depth prepass already hides the far faces, so one
+        // pass draws the same.
+        m.forceSinglePass = blended;
         // The outline shell would show through a translucent model as a dark husk.
         const outline = (m.userData.outlineParameters ??= {}) as { visible?: boolean; opaqueVisible?: boolean };
         if (blended) {

@@ -3759,6 +3759,14 @@ shared materials).
    prepares them all again. `setDrawList` 0.7-0.9 → 0.1 ms a tick, a level's first tick 24-50 →
    1-2 ms, ~17% less garbage (HOLES 604 → 499 MB freed over 1000 ticks). Captures identical.
 
+7. **A translucent model draws in one pass.** three.js draws a transparent two-sided material twice
+   (back faces, then front) and flips its `side` with `needsUpdate` for each, so every material of a
+   translucent model recomputed its shader program twice a frame: the invulnerable Talon (every
+   level's first 100 ticks, pickups, the harness's bot) cost ~0.35 ms a frame in program lookups
+   and doubled the garbage (23 → 13 MB/s). Blended clones set `forceSinglePass`; the depth prepass
+   (D51) already hides the far faces, so the picture matches (29 edge pixels within 31 levels at
+   tick 400).
+
 ## D92 — Twenty enemies shared across episodes rebuilt hard-surface; a palette-pulsed ring counts as ink
 
 2026-11-04
