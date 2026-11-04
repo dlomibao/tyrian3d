@@ -357,7 +357,9 @@ export class DrawListRenderer {
   /** Per object key (objectKey): whether it's drawn as its model or its sprite (D54). */
   private readonly objects = new Map<number, ObjectState>();
   /** Per structure in view (anchor|model): whether it's drawn as its model or its tiles (D54). */
-  private readonly structureLooks = new Map<string, { model: boolean; seen: number }>();
+  private readonly structureLooks = new Map<number, { model: boolean; seen: number }>();
+  /** A number per structure model name, for structureId (D91: no per-tile key strings). */
+  private readonly structureModelIds = new Map<string, number>();
   /** `?height=N`: the models stretched along their up axis (modelHeight.ts). */
   private readonly modelHeight = modelHeightFromUrl();
   private loader: ModelLoader | null = null;
@@ -372,7 +374,7 @@ export class DrawListRenderer {
   private background: BackgroundStyle = "original";
   private tileModels = new TileModelIndex([]);
   /** Structures already placed this frame, by layer and pattern anchor. */
-  private readonly placedStructures = new Set<string>();
+  private readonly placedStructures = new Set<number>();
   /** This frame's ground structures, placed once the enemies are known (D86), and what the enemy models cover. */
   private readonly groundStructures: {
     model: string; x: number; y: number; z: number; scale: number;
@@ -390,6 +392,8 @@ export class DrawListRenderer {
   /** Structure models asked for (loading or loaded). */
   private readonly structureLoads = new Map<string, Promise<void>>();
   private readonly preloadedShapes = new Set<string>();
+  /** Tile ids preloadStructures has seen. */
+  private readonly preloadSeen = new Set<string>();
   /** Remastered flat sprite art (D42): the atlases, if any, and the layer that draws them. */
   private spriteArt: SpriteArt<THREE.Texture> | null = null;
   private readonly artLayer: SpriteArtLayer;
@@ -402,7 +406,7 @@ export class DrawListRenderer {
   private terrain: TerrainStyle = currentTerrainStyle();
   readonly terrainArt = new TerrainArtSet();
   private readonly hdPools = new Map<THREE.Material, Pool>();
-  private readonly hdMaterials = new Map<string, { material: THREE.Material; depth?: THREE.Material }>();
+  private readonly hdMaterials = new Map<THREE.Texture, Map<TerrainKind, { material: THREE.Material; depth?: THREE.Material }>>();
   private readonly terrainLevel = { levelFilter: { value: -99 }, levelBrightness: { value: 0 } };
   /** tileId → [tileset, tile number] (null: not a tileset tile). */
   private readonly tileIds = new Map<string, [string, number] | null>();
@@ -987,8 +991,8 @@ export class DrawListRenderer {
     if (this.tileModels.size > 0) this.preloadStructures(d.tileId);
     if (d.effect === "none" && this.tileModels.has(d)) {
       const match = this.tileModels.match(d);
-      if (match && this.structureShown(`${match.anchorKey}|${match.entry.model}`, match.entry.model, frame)) {
-        const id = `${match.anchorKey}|${match.entry.model}`;
+      const id = match ? this.structureId(match.anchorKey, match.entry.model) : 0;
+      if (match && this.structureShown(id, match.entry.model, frame)) {
         if (!this.placedStructures.has(id)) {
           this.placedStructures.add(id);
           // At the pass's height, on the camera ray through its screen point, scaled to keep its
@@ -1221,14 +1225,15 @@ export class DrawListRenderer {
 
   /** The pool of HD terrain quads for one atlas and kind. */
   private hdPool(texture: THREE.Texture, kind: TerrainKind, scale: number, frame: number): Pool {
-    const key = `${texture.uuid}|${kind}`;
-    let m = this.hdMaterials.get(key);
+    let byKind = this.hdMaterials.get(texture);
+    if (!byKind) this.hdMaterials.set(texture, (byKind = new Map()));
+    let m = byKind.get(kind);
     if (!m) {
       m = {
         material: terrainMaterial(this.palette, texture, this.terrainLevel, { kind, scale, blend: BLEND_ALPHA }),
         depth: kind === "cutout" ? terrainDepthMaterial(texture, scale) : undefined,
       };
-      this.hdMaterials.set(key, m);
+      byKind.set(kind, m);
     }
     let pool = this.hdPools.get(m.material);
     if (!pool) {
@@ -1245,7 +1250,14 @@ export class DrawListRenderer {
    * into view, by whether the model has loaded, and kept while it stays in view (D54), so a
    * structure never pops from its tiles into its model. Starts the model's load if need be.
    */
-  private structureShown(id: string, model: string, frame: number): boolean {
+  /** One structure in view (its pattern's anchor cell and model) as a number. */
+  private structureId(anchorKey: number, model: string): number {
+    let m = this.structureModelIds.get(model);
+    if (m === undefined) this.structureModelIds.set(model, (m = this.structureModelIds.size));
+    return anchorKey * 4096 + m;
+  }
+
+  private structureShown(id: number, model: string, frame: number): boolean {
     let st = this.structureLooks.get(id);
     if (!st) this.structureLooks.set(id, (st = { model: this.structureLoaded(model), seen: frame }));
     st.seen = frame;
@@ -1254,6 +1266,8 @@ export class DrawListRenderer {
 
   /** Start loading every structure model of a tileset the first time one of its tiles is drawn. */
   private preloadStructures(tileId: string): void {
+    if (this.preloadSeen.has(tileId)) return; // (D91: no string per tile per frame)
+    this.preloadSeen.add(tileId);
     const shapes = tileId.slice(0, tileId.indexOf(":"));
     if (this.preloadedShapes.has(shapes)) return;
     this.preloadedShapes.add(shapes);

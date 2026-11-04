@@ -77,19 +77,27 @@ export const TILE_MODELS: readonly TileModelEntry[] = Object.values(files);
 
 export class TileModelIndex {
   private readonly cells = new Map<string, Cell[]>();
+  /** The same cells per layer by tile id, for the per-draw lookups (D91: no key string per draw). */
+  private readonly byLayer = [new Map<string, Cell[]>(), new Map<string, Cell[]>(), new Map<string, Cell[]>()];
+  /** A number per entry, for the verdicts' keys. */
+  private readonly entryIds = new Map<TileModelEntry, number>();
   /** This tick's tile ids by draw key, per layer. */
   private readonly drawn = [new Map<number, string>(), new Map<number, string>(), new Map<number, string>()];
   /** This tick's verdicts on (pattern, anchor) pairs: a big pattern is checked once, not per tile. */
-  private readonly verdicts = new Map<string, boolean>();
+  private readonly verdicts = new Map<number, boolean>();
 
   constructor(entries: readonly TileModelEntry[] = TILE_MODELS) {
     for (const entry of entries) {
+      this.entryIds.set(entry, this.entryIds.size);
       entry.tiles.forEach((row, r) =>
         row.forEach((tile, c) => {
           if (tile < 0) return;
           const id = cellId(`${entry.shapes}:${tile}`, entry.layer);
           let list = this.cells.get(id);
-          if (!list) this.cells.set(id, (list = []));
+          if (!list) {
+            this.cells.set(id, (list = []));
+            this.byLayer[entry.layer].set(`${entry.shapes}:${tile}`, list);
+          }
           list.push({ entry, row: r, col: c });
         }),
       );
@@ -105,7 +113,7 @@ export class TileModelIndex {
 
   /** Whether any model stands for this tile (cheap check before match()). */
   has(d: TileDraw): boolean {
-    return this.cells.has(cellId(d.tileId, d.layer));
+    return this.byLayer[d.layer].has(d.tileId);
   }
 
   /** Every model path in the index, or those of one tileset ("shapesz.dat"). */
@@ -139,22 +147,21 @@ export class TileModelIndex {
 
   /** The structure this tile belongs to, or null if no pattern with it matches. */
   match(d: TileDraw): StructureMatch | null {
-    const list = this.cells.get(cellId(d.tileId, d.layer));
+    const list = this.byLayer[d.layer].get(d.tileId);
     if (!list) return null;
     const width = MAP_WIDTHS[d.layer];
     const index = d.key - d.layer * BG_KEY_LAYER;
     const drawn = this.drawn[d.layer];
-    const shapes = d.tileId.slice(0, d.tileId.indexOf(":"));
     for (const { entry, row, col } of list) {
       const rows = entry.tiles.length;
       const cols = entry.tiles[0].length;
       const left = (index % width) - col;
       if (left < 0 || left + cols > width) continue; // the pattern would wrap around the map's edge
       const anchor = index - row * width - col;
-      const memo = `${d.layer}|${anchor}|${entry.model}`;
+      const memo = (d.layer * BG_KEY_LAYER + anchor) * 4096 + this.entryIds.get(entry)!;
       let ok = this.verdicts.get(memo);
       if (ok === undefined) {
-        ok = this.fits(entry, d.layer * BG_KEY_LAYER + anchor, drawn, shapes);
+        ok = this.fits(entry, d.layer * BG_KEY_LAYER + anchor, drawn, d.tileId.slice(0, d.tileId.indexOf(":")));
         this.verdicts.set(memo, ok);
       }
       if (!ok) continue;
