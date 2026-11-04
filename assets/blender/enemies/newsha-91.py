@@ -1,6 +1,6 @@
 """Sand pod (newsha.shp frames 91, 129): a 3D version of its sprite.
 
-Seen in episode 1 (level 31). A ground tile of brown sand with a glossy tan dome sunk in a dark
+Seen in episode 1 (level 31). A glossy tan dome (the sprite's ground tile of brown sand is not exported, D103) sunk in a dark
 crater: a round hatch ring on its top, a small knob on a stalk at its upper right, a spike lying
 on the sand below it and a glowing red vent slanting across its lower-left flank. The two frames
 only brighten the vent, so one model covers both: on frame 129 its glow and hot spot step up to
@@ -23,7 +23,7 @@ import lib_b087 as lib  # noqa: E402
 NAME = "newsha-91"
 C, R = 10.0, 11.6  # dome centre (pixel column / row)
 RX, RY, H = 7.6 / 12, 7.0 / 12, 0.42  # dome radii and height
-Z0 = 0.05  # top of the sand
+Z0 = 0.0  # the ground (the sprite's sand is the tile's background, not exported: D103)
 
 
 def surface(c, r, lift=0.0):
@@ -54,8 +54,7 @@ def build(sprite):
     SAND, CRATER, DOME, RING, HATCH, KNOB, SPIKE, LIP, GLOW, HOT = range(10)
     bm = bmesh.new()
 
-    # Sand filling the tile, and the dark crater the dome sits in.
-    lib.box(bm, lib.ex(0), lib.ey(28), lib.ex(24), lib.ey(0), 0.0, Z0, mat=SAND)
+    # The dark crater the dome sits in (no sand plate: the game's HD ground shows round the pod).
     lib.dome(bm, lib.px(11.8), lib.row(13.6), Z0 + 0.002, 8.6 / 12, 9.0 / 12, 0.006, segments=24, rings=1,
              mat=CRATER, smooth=False)
 

@@ -1,7 +1,8 @@
 """Sand dome turret (newshf.shp frames 39, 41): a 3D version of its sprite.
 
-Seen in episodes 1 and 3 (levels 1.10, 1.29, 1.31, 3.21). A shiny tan dome set into a patch of
-sand that fills the whole tile, with a red eye on a raised boss looking out of its top, a small
+Seen in episodes 1 and 3 (levels 1.10, 1.29, 1.31, 3.21). A shiny tan dome (the sprite sets it into a patch of
+sand that fills the whole tile; the model does not export the sand, D103: the game's HD ground shows round
+it instead of a beige rectangle) with a red eye on a raised boss looking out of its top, a small
 ball on a stalk at its upper right, and a curved barrel that wraps round its lower right and
 points down the screen. The two frames only brighten the eye: on frame 41 it is lit right out to
 its socket, its red brighter and its core white-hot, so one model covers both and the eye, socket
@@ -24,7 +25,7 @@ NAME = "newshf-39"
 ROOT = common.repo_root(__file__)
 G = lib.Grid(24, 28)
 
-BASE = 0.03  # top of the sand plate
+BASE = 0.0  # the ground the dome stands on (the sprite's sand plate is not exported)
 DOME = (10.6, 11.6, 8.4, 7.1, 0.40)  # centre col, row, radius x px, radius y px, height
 
 
@@ -53,8 +54,7 @@ def build(sprite):
     SAND, SHELL, COLLAR, SOCKET, EYE, CORE, BALL, BARREL = range(8)
     bm = bmesh.new()
 
-    # Sand plate over the whole tile.
-    lib.box(bm, G, 0, 0, 24, 28, 0.0, BASE, mat=SAND)
+    # (No sand plate: the sprite's patch of sand is the tile's background, which the game draws in HD.)
 
     # A dark collar where the dome meets the sand, then the dome itself.
     dc, dr, rx, ry, hz = DOME
