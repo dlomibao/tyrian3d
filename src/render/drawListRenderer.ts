@@ -832,7 +832,7 @@ export class DrawListRenderer {
     this.artLayer.end();
     fx?.end();
     for (const mp of this.modelPools.values()) {
-      for (let c = mp.used; c < mp.clones.length; c++) mp.clones[c].object.visible = false;
+      for (let c = mp.used; c < mp.clones.length; c++) hideClone(mp.clones[c]);
     }
     this.structures.end(this.palette.version, this.paletteColor, (h) => this.palette.screenHue.modelHue(h)); // [filters] smoothie hue
     this.atlas.flush();
@@ -1124,6 +1124,7 @@ export class DrawListRenderer {
       if (pool.clones.length === 0) pool.clones.push(this.cloneModel(pool.source));
       const c = pool.clones[0];
       c.object.visible = true;
+      c.object.matrixWorldAutoUpdate = true;
       c.object.position.set(gx + (cam.x - gx) * k, h, gz + (cam.z - gz) * k);
       c.object.scale.setScalar(1 - k);
       clones.push(c);
@@ -1149,7 +1150,7 @@ export class DrawListRenderer {
       end: () => {
         for (const c of clones) {
           this.setCloneBlended(c, false);
-          c.object.visible = false;
+          hideClone(c);
         }
         for (const p of pools) {
           p.mesh.count = 0;
@@ -1169,7 +1170,7 @@ export class DrawListRenderer {
     for (const pool of this.lateModels) {
       if (!pool.source) continue;
       if (pool.clones.length === 0) pool.clones.push(this.cloneModel(pool.source));
-      pool.clones[0].object.visible = false;
+      hideClone(pool.clones[0]);
       objects.push(pool.clones[0].object);
     }
     this.lateModels.length = 0;
@@ -1382,6 +1383,7 @@ export class DrawListRenderer {
     const clone = pool.clones[pool.used++];
     const { object } = clone;
     object.visible = true;
+    object.matrixWorldAutoUpdate = true;
     const h = passHeight(d.pass);
     const k = h / cam.y;
     const gx = screenWorldX(cx);
@@ -1457,6 +1459,12 @@ export class DrawListRenderer {
     // Patched for damage now rather than at its first damaged frame (D91): one shader program per
     // material kind for every clone, compiled by the level's warm-up.
     this.damage?.prepare(object, materials);
+    // Only the root moves (placeModel); its parts' local matrices never change (D91).
+    object.traverse((o) => {
+      if (o === object) return;
+      o.updateMatrix();
+      o.matrixAutoUpdate = false;
+    });
     this.root.add(object);
     return { object, roll: 0, shift: 0, materials, rig: rigModel(object), blended: false, paletteVersion: -1, hue: -1, frame: Number.NaN };
   }
@@ -1481,6 +1489,16 @@ export class DrawListRenderer {
       }
     }
   }
+}
+
+/**
+ * Hide a pooled model clone, and leave it out of three's per-frame matrix update until it's shown
+ * again (D91): a level keeps a clone of every model it has loaded, and walking their hidden parts
+ * was the largest JS cost of a frame (~0.7 ms in the boss fight).
+ */
+function hideClone(c: ModelClone): void {
+  c.object.visible = false;
+  c.object.matrixWorldAutoUpdate = false;
 }
 
 /**
