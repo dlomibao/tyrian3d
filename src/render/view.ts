@@ -120,7 +120,7 @@ export class View {
     this.frameRect = f
       ? { x0: screenWorldX(f.x), x1: screenWorldX(f.x + f.w), z0: screenWorldZ(f.y), z1: screenWorldZ(f.y + f.h) }
       : PLAYFIELD_RECT;
-    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, stencil: true });
     // Shader error checks query every new program's logs, a stall per program on its first use; a
     // shader that fails to build is a development bug, so production skips them (D91).
     this.renderer.debug.checkShaderErrors = import.meta.env.DEV;

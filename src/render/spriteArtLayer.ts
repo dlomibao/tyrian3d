@@ -13,6 +13,7 @@
 // JE_filterScreen's level hue and brightness and the smoothies' hues (D31) recolour or scale it the
 // same way, from the live palette texture.
 
+import { Pass } from "../sim/draw";
 import * as THREE from "three";
 import type { PaletteTexture } from "./paletteTexture";
 import { SCREEN_HUE_PARS } from "./screenHue";
@@ -73,7 +74,8 @@ void main() {
   vec2 halfTexel = 0.5 / vec2(textureSize(map, 0));
   vec4 tex = texture2D(map, clamp(vUv, vUvRect.xy + halfTexel, vUvRect.zw - halfTexel));
   float a = tex.a * vFx.w;
-  if (a < 0.004) discard;
+  // Faint edge texels write nothing (and, under the explosions' stencil, don't block a layer behind).
+  if (a < 0.004 || tex.a < 0.1) discard;
   vec3 rgb = tex.rgb / max(tex.a, 1e-4);
   // The shade (0..15) a palette ramp would give this brightness.
   float lum = pow(max(dot(rgb, vec3(0.2126, 0.7152, 0.0722)), 0.0), 1.0 / 2.2);
@@ -252,11 +254,25 @@ export class SpriteArtLayer {
     if (!list) this.batches.set(sheet, (list = []));
     let b = list[pass];
     if (!b) {
-      b = list[pass] = new Batch(this.material(sheet), RENDER_ORDER + pass / 100);
+      b = list[pass] = new Batch(pass === Pass.Explosions ? this.stencilled(sheet) : this.material(sheet), RENDER_ORDER + pass / 100);
       this.all.push(b);
       this.root.add(b.mesh);
     }
     return b;
+  }
+
+  /**
+   * The sheet's material for explosions: each screen pixel takes one explosion layer, the first
+   * drawn. Dozens overlap in a boss's death, and blending each at its own opacity would pile up
+   * to solid fire; this way the ground shows through the whole fireball at that opacity (D105).
+   */
+  private stencilled(sheet: SpriteArtSheet<THREE.Texture>): THREE.ShaderMaterial {
+    const m = this.material(sheet).clone();
+    m.stencilWrite = true;
+    m.stencilRef = 1;
+    m.stencilFunc = THREE.NotEqualStencilFunc;
+    m.stencilZPass = THREE.ReplaceStencilOp;
+    return m;
   }
 
   private material(sheet: SpriteArtSheet<THREE.Texture>): THREE.ShaderMaterial {

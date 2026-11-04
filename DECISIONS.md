@@ -4237,3 +4237,23 @@ overlapping sprites, so the fire read as opaque.
   Lights and sparks are unchanged, so explosions keep their flash.
 
 Captures: `tyrian-scratch/explosion-alpha/` (`scan700.png`/`after700.png`, `scan1000.png`/`after1000.png`: 1.1 seed 1, power 8).
+
+## D105 — Explosions draw through a stencil, so stacked fire stays as see-through as one layer (extends D104)
+
+2026-11-04
+
+**Cause.** D104's 0.28 looked no different: a boss's death piles dozens of explosion sprites on one spot, and
+n layers at opacity a cover 1 - (1 - a)^n, so any single-layer alpha ends solid. The atlas alpha is not the problem
+(checked: `newsh6-shp.webp` has about 1% faint texels, tight frames, no background quads; the glow, lights and halo were
+also not it: with them off, 0.12 still came out solid).
+
+**Decision.**
+- The flat art's explosion pass (`spriteArtLayer.ts` `stencilled`) writes a stencil and skips pixels already
+  written: each pixel takes one explosion layer (the first drawn), blended at `EXPLOSION_ALPHA` 0.4 (D104: 0.28).
+  The renderer and the screen-filter target now carry a stencil buffer.
+- Texels with source alpha under 0.1 are discarded, so faint edges neither show as a halo nor block the layer behind.
+- Glow settings stay as D104 set them.
+- The look: ground and structures show through the whole fireball; overlapping puffs no longer pile up, only the
+  flash and sparks add density. Layers no longer show depth ordering in a stack (the first drawn wins).
+
+Captures: `tyrian-scratch/explosion-alpha/` (`cmp2_700.png`, `cmp2_1000.png`: before = main before #135, after = this).

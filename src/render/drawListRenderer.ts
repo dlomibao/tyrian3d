@@ -95,8 +95,8 @@ const STAND_IN_IDS = new Set(COVERED_STAND_IN.values());
 const ROLL_RATE = 12;
 /** Opacity standing in for the C's value-averaging blend. */
 const BLEND_ALPHA = 0.55;
-/** Explosions blend thinner than the rest, so the ground pattern shows through the fire (D104). */
-const EXPLOSION_ALPHA = 0.28;
+/** Explosions blend thinner than the rest, so the ground pattern shows through the fire (D104, D105). */
+const EXPLOSION_ALPHA = 0.4;
 /** Passes drawn with a partly emissive material: energy shots, explosions, sparks. */
 const GLOW_PASSES = new Set<Pass>([Pass.PlayerShots, Pass.EnemyShots, Pass.Explosions, Pass.Effects]);
 const GLOW = 0.65;
