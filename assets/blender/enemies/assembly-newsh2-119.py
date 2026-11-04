@@ -29,7 +29,7 @@ their palette colours; the detail goes where the tilted game camera sees it.
   border flat so neighbouring tiles meet), and the sprite's black area at the lower right painted
   on it as a flat pal 1 stain (no modelled debris): the sprite's one asymmetry (the structure
   itself is mirror symmetric about pixel-edge column 20.5). It is built only as the bake's
-  occluder and not exported (D67): in the game the HD ground shows round the bunker, and the
+  occluder and not exported (D86): in the game the HD ground shows round the bunker, and the
   bunker's real shadow falls on it.
 Colours are the sprite's per-region medians (darkest shading and brightest highlight pixels left
 out). Satin metal (metallic <= 0.2, roughness >= 0.5), no concept projection (maps.json
@@ -816,7 +816,7 @@ def merged_sprite():
 
 def build(coll):
     """The whole bunker as one object, the structure alone (for the outline shell) and the dirt
-    ground (the bake's occluder only, not exported: D67)."""
+    ground (the bake's occluder only, not exported: D86)."""
     A = sprite_grid()
     body, spike, legs = masks(A)
     sprite = merged_sprite()
@@ -1010,7 +1010,7 @@ def main():
         bake(obj, tempfile.mkdtemp(prefix="nsh2_119_bake_"))
         fmt = "WEBP"
     # The dirt only darkened the bake where the legs and carapace meet the ground; the game's HD
-    # ground shows round the bunker, and its real shadow falls there (D67).
+    # ground shows round the bunker, and its real shadow falls there (D86).
     bpy.data.objects.remove(ground, do_unlink=True)
     # The outline shell (D51) of the structure alone, cut like the tile: each piece outlines its part.
     shell = common.outline_shell(structure, coll, voxel=0.013, faces=3000, smooth=4)

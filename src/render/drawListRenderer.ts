@@ -73,7 +73,7 @@ export type BackgroundStyle = "original" | "remaster";
 
 /**
  * The ground structures' tiles (layer 0 models that keep their tiles: TYRIAN's wrecks, trees and
- * boulders), as tile ids. Enemies that stand on them may hide them as their sprites did (D67).
+ * boulders), as tile ids. Enemies that stand on them may hide them as their sprites did (D86).
  */
 const WRECK_TILES = new Set(
   TILE_MODELS.filter((e) => e.layer === 0 && e.keepTiles !== false).flatMap((e) => e.tiles.flat().filter((n) => n >= 0).map((n) => `${e.shapes}:${n}`)),
@@ -82,7 +82,7 @@ const WRECK_TILES = new Set(
 /**
  * A wreck that fills its cells (TYRIAN's tyrbld-wreck crater: scorched dirt in the dirt colours, so
  * paintOutWreck would leave its outline) draws, in the pixel looks, as the plain ground tile the map
- * puts round it while an enemy covers it (the rock outcrop, D67).
+ * puts round it while an enemy covers it (the rock outcrop, D86).
  */
 const COVERED_STAND_IN = new Map([340, 341, 342, 350, 351, 352].map((n) => [`shapesz.dat:${n}`, "shapesz.dat:100"]));
 const STAND_IN_IDS = new Set(COVERED_STAND_IN.values());
@@ -363,16 +363,16 @@ export class DrawListRenderer {
   private tileModels = new TileModelIndex([]);
   /** Structures already placed this frame, by layer and pattern anchor. */
   private readonly placedStructures = new Set<string>();
-  /** This frame's ground structures, placed once the enemies are known (D67), and what the enemy models cover. */
+  /** This frame's ground structures, placed once the enemies are known (D86), and what the enemy models cover. */
   private readonly groundStructures: {
     model: string; x: number; y: number; z: number; scale: number;
     neighbours: ((row: number, col: number) => number[]) | undefined;
     left: number; top: number; w: number; h: number;
   }[] = [];
   private readonly cover = new OpaqueCover();
-  /** This frame's ground cells of wreck tiles, drawn once the frame knows whether enemies cover them (D67). */
+  /** This frame's ground cells of wreck tiles, drawn once the frame knows whether enemies cover them (D86). */
   private readonly groundCells: { d: TileDraw; x: number; y: number; remaster: boolean }[] = [];
-  /** Wreck tiles with their wreck painted out to dirt (D67), by tile id. */
+  /** Wreck tiles with their wreck painted out to dirt (D86), by tile id. */
   private readonly coveredTiles = new Map<string, Uint8Array>();
   /** The plain ground tiles that stand in for covered wreck tiles (COVERED_STAND_IN), as last drawn. */
   private readonly standInTiles = new Map<string, Uint8Array>();
@@ -677,7 +677,7 @@ export class DrawListRenderer {
             const pool = this.modelPool(r.model);
             const look = this.objectLook(d, pool, now, frame);
             if (look === ObjectLook.Model) {
-              // Only ground enemies stand on the ground's structures and hide them (D67); a ship or
+              // Only ground enemies stand on the ground's structures and hide them (D86); a ship or
               // an aircraft model flying over a wreck doesn't erase it.
               if (d.pass === Pass.GroundEnemies && d.effect !== "blend") this.cover.add(d.sheet, d.index, d.size, x, y);
               const shift = r.override ? bankShift(d.sheet.id, d.sheet.data, r.override.baseIndex, d.index) : 0;
@@ -723,7 +723,7 @@ export class DrawListRenderer {
             break;
           }
           if (this.background !== "remaster" && d.layer === 0 && WRECK_TILES.has(d.tileId)) {
-            this.groundCells.push({ d, x, y, remaster: false }); // D67, as in drawRemasterTile
+            this.groundCells.push({ d, x, y, remaster: false }); // D86, as in drawRemasterTile
             instances++;
           } else if (this.drawOriginalTile(d, x, y, cam, frame)) instances++;
           break;
@@ -740,13 +740,13 @@ export class DrawListRenderer {
     }
 
     // A ground structure under opaque ground-enemy sprites (a wreck under its live bunker), as far as
-    // the playfield shows it, is left out, as the sprites hid its tiles (D67).
+    // the playfield shows it, is left out, as the sprites hid its tiles (D86).
     for (const s of this.groundStructures) {
       if (!this.cover.covered(s.left, s.top, s.w, s.h)) this.structures.place(s.model, s.x, s.y, s.z, s.scale, s.neighbours);
     }
     // A wreck's ground cell under opaque enemy sprites draws without the wreck: its covered HD
     // painting, else (the pixel looks) its plain-ground stand-in or the tile with its wreck pixels
-    // painted out (D67). The HD look never falls back to pixels: a covered cell with no covered
+    // painted out (D86). The HD look never falls back to pixels: a covered cell with no covered
     // painting (a tree or boulder under an enemy) keeps its HD tile, as the enemy model is drawn over
     // it anyway.
     for (const c of this.groundCells) {
@@ -945,7 +945,7 @@ export class DrawListRenderer {
         }
         if (!(match.entry.keepTiles ?? d.layer === 0)) return true;
         modelled = true;
-        // A wreck's ground cell draws once the frame knows whether an enemy covers it (D67).
+        // A wreck's ground cell draws once the frame knows whether an enemy covers it (D86).
         if (d.layer === 0 && WRECK_TILES.has(d.tileId)) {
           this.groundCells.push({ d, x, y, remaster: true });
           return true;
@@ -957,7 +957,7 @@ export class DrawListRenderer {
 
   /**
    * The rest of drawRemasterTile: the tile from the HD terrain art (only its covered painting if
-   * `covered`, D67), else (unless `hdOnly`) the upscaled ground.
+   * `covered`, D86), else (unless `hdOnly`) the upscaled ground.
    */
   private drawRemasterGround(d: TileDraw, x: number, y: number, cam: THREE.Vector3, frame: number, covered: boolean, modelled = true, hdOnly = false): boolean {
     const blend = d.layer !== 0 && d.effect === "blend";

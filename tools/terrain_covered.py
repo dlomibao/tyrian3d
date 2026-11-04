@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""HD terrain for wreck tiles while their live enemy covers them (DECISIONS.md D67).
+"""HD terrain for wreck tiles while their live enemy covers them (DECISIONS.md D86).
 
 TYRIAN's dome works (assembly-newsh2-115) and carapace bunker (assembly-newsh2-119) stand on the
 tiles of their own wrecks (the tyrbld-bunker-ring and -hull patterns, shapesz 320/321/330/331 and

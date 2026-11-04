@@ -11,7 +11,7 @@
 //                        "variants": { "123": [ { "n": { "right": 124 }, "x": 240, "y": 16, "w": 192, "h": 224 } ] },
 //                        "covered": { "330": { "x": 464, "y": 16, "w": 192, "h": 224 } } } } }
 //
-// "covered" (optional, D67): the tile as it looks under an opaque enemy sprite that hides it, e.g. a
+// "covered" (optional, D86): the tile as it looks under an opaque enemy sprite that hides it, e.g. a
 // bunker's wreck painted out to plain dirt while the live bunker stands on it.
 //
 // Layers are the draw list's: 0 background 1 (ground), 1 background 2 (TYRIAN's clouds), 2
@@ -53,7 +53,7 @@ export interface TerrainLayerArt {
   image: string;
   tiles: Map<number, TerrainRect>;
   variants: Map<number, TerrainVariant[]>;
-  /** The tile painted as it looks while an enemy covers it (D67). */
+  /** The tile painted as it looks while an enemy covers it (D86). */
   covered: Map<number, TerrainRect>;
 }
 
@@ -261,7 +261,7 @@ export class TerrainTileset<T = unknown> {
     return ready;
   }
 
-  /** The art for `tile` on `layer` while an enemy sprite covers it (D67), if it has any and it's ready. */
+  /** The art for `tile` on `layer` while an enemy sprite covers it (D86), if it has any and it's ready. */
   coveredTile(layer: TerrainLayer, tile: number): ReadyTerrainTile<T> | undefined {
     const art = this.manifest.layers.get(layer);
     const r = art?.covered.get(tile);

@@ -32,7 +32,7 @@ underside is a plain flat closed base.
 Texture: an occlusion / edge-wear / base-darkening colour multiplier and a roughness/metal map, baked once for the
 whole heap (the ships' bake, PR #84) and shared by the pieces; no concept projection (maps.json says
 "bake": "model"). Each piece gets an outline shell (D51). The sprite's dirt and shadow round the
-rocks are not modelled (D67; they were a flat patch of 2 x 2 px cells): the game's HD ground shows
+rocks are not modelled (D86; they were a flat patch of 2 x 2 px cells): the game's HD ground shows
 there, and the rocks' real shadow falls on it.
 
 Run: blender --background --python assets/blender/enemies/assembly-newshe-39.py
@@ -1206,7 +1206,7 @@ def render_views(objs, out_dir, px=520):
 # iso-lines, so the crater's and the pool's edges and the pool's colour bands are smooth curves at
 # any resolution, still in the sprite's palette indices:
 #   - no ground patch: the sprite's dirt round the crater is not modelled (as on the undamaged pieces,
-#     D67); the game's HD ground shows there;
+#     D86); the game's HD ground shows there;
 #   - the scorch: a thin slab cut from the blurred mask of the crater's dark pixels (index 32 and the
 #     brown-black 160-163), and the lone dark specks as small round flecks;
 #   - the pool: a slab cut from the blurred mask of the blue and its dark rim (80-83), its top split

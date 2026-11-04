@@ -114,7 +114,7 @@ describe("fallback per tile", () => {
     expect(t.tile(0, 2, 0)?.x).toBe(224);
   });
 
-  test("a covered tile (D67) has its own painting, possibly in an atlas of its own; others have none", () => {
+  test("a covered tile (D86) has its own painting, possibly in an atlas of its own; others have none", () => {
     const warnings: string[] = [];
     const m = parseTerrainManifest(
       { scale: 8, layers: { "0": { image: "0.webp", tiles: { "1": rect(16, 16) }, covered: { "1": { ...rect(16, 16), image: "0-covered.webp" }, "2": { x: 3 } } } } },

@@ -2038,7 +2038,7 @@ def cmd_cut(args) -> None:
         for k_, r in new_rects.items():
             entry["tiles"][k_] = {k2: v for k2, v in r.items() if k2 != "image"} if r["image"] == entry["image"] else r
         entry["tiles"] = dict(sorted(entry["tiles"].items(), key=lambda kv: int(kv[0])))
-        # The covered tiles (tools/terrain_covered.py, D67) are kept, also when the whole layer is cut
+        # The covered tiles (tools/terrain_covered.py, D86) are kept, also when the whole layer is cut
         # again; rerun its `cut` to match a new atlas.
         kept = (atlas_manifest["layers"].get(layer_s) or {}).get("covered")
         if kept:
@@ -2054,7 +2054,7 @@ def cmd_cut(args) -> None:
         refs.add(lay["image"])
         refs.update(r["image"] for r in lay["tiles"].values() if "image" in r)
         refs.update(r["image"] for vs in lay.get("variants", {}).values() for r in vs if "image" in r)
-        refs.update(r["image"] for r in lay.get("covered", {}).values() if "image" in r)  # D67
+        refs.update(r["image"] for r in lay.get("covered", {}).values() if "image" in r)  # D86
     for f in out_dir.glob("*.webp"):
         if f.name not in refs and f.name.split(".")[0].split("-")[0].isdigit():
             f.unlink()

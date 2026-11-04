@@ -39,7 +39,7 @@ Blueprint (plan, sprite rows top to bottom):
   it (col 19.0, row 41.5): a short machined muzzle normal to the dome, a dark bore.
 - BRACKETS: two grey blocks on the lower bed (cols 7.8-12.2 and 26.8-31.2, rows 37.8-42.2).
 - DIRT: a floor of 2 x 2 px cells in the sprite's dirt colours, closed underneath, built only as an
-  occluder for the bake and not exported: the game's HD ground shows round the machine (D67).
+  occluder for the bake and not exported: the game's HD ground shows round the machine (D86).
 
 No concept projection bake (maps.json says "bake": "model", so texture_bake.py skips it, as the
 player ships in D50-D53). Unless --no-bake, an ambient occlusion / edge-wear colour multiplier and a
@@ -520,7 +520,7 @@ def build_structure(b):
 
 def build_floor(b, grid):
     """Dirt: 2 x 2 px cells in the sprite's dirt colours, on a thin closed slab (the bake's occluder
-    only, D67)."""
+    only, D86)."""
     first = b.nfaces()
     verts = {}
 
@@ -840,7 +840,7 @@ def main(argv=None):
 
     # The dirt floor was only the bake's occluder (so the machine's feet darken where they meet the
     # ground): it is not exported. The game's HD ground shows round the machine instead of a floor
-    # of 2 x 2 px cells, and the machine's real shadow falls on it (D67).
+    # of 2 x 2 px cells, and the machine's real shadow falls on it (D86).
     bpy.data.objects.remove(floor, do_unlink=True)
     obj = struct
     obj.name = NAME

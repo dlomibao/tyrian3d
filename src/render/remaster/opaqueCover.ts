@@ -1,4 +1,4 @@
-// What the frame's enemy models cover the way their sprites did (D67). A ground enemy such as the
+// What the frame's enemy models cover the way their sprites did (D86). A ground enemy such as the
 // dome works or the carapace bunker is an opaque sprite with dirt to its rectangle's edge, and the
 // level puts it on the tiles of its own wreck, which the sprite hides until the enemy is killed.
 // The models no longer draw the sprite's dirt (it was a floor of pixel cells), so the wreck's
@@ -116,7 +116,7 @@ const DIRT_LAST = 21;
 
 /**
  * A ground tile with every pixel that isn't dirt replaced by the nearest dirt pixel's index (ties to
- * the first found, breadth first from the dirt), as the tile would read with its wreck dug out (D67).
+ * the first found, breadth first from the dirt), as the tile would read with its wreck dug out (D86).
  * A tile with no dirt is returned as it is.
  */
 export function paintOutWreck(tile: Uint8Array, width = 24, height = 28): Uint8Array {

@@ -1,4 +1,4 @@
-// D67: a ground structure (a wreck) is left out while opaque ground-enemy sprites drawn as models
+// D86: a ground structure (a wreck) is left out while opaque ground-enemy sprites drawn as models
 // cover the part of its pattern inside the playfield, as the original's sprites hid its tiles.
 import { describe, expect, test } from "vitest";
 import { OpaqueCover, paintOutWreck } from "../../src/render/remaster/opaqueCover";
@@ -70,7 +70,7 @@ describe("paint out a wreck", () => {
   });
 });
 
-describe("covered paintings (D67)", () => {
+describe("covered paintings (D86)", () => {
   test("every tile of a wreck pattern (a ground structure that keeps its tiles) has a covered HD painting", async () => {
     const { readFileSync, readdirSync } = await import("node:fs");
     const { join } = await import("node:path");

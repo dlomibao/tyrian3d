@@ -2587,92 +2587,6 @@ sprites (`assembly-newsh2-115`, `-119`, the rock outcrop `assembly-newshe-39`) s
 not island rock, and are unchanged.
 Fallback: revert the five scripts and their GLBs; `castsShadow` is harmless without the flag.
 
-## D67 — Level 1's ground bunkers and rock outcrop stand on the HD ground, not on a pad of pixel cells
-
-2026-11-03
-
-**Decision:** The dome works (`assembly-newsh2-115`: newsh2-77/79/115/117), the carapace bunker
-(`assembly-newsh2-119`: newsh2-81/83/119/121) and the rock outcrop (`assembly-newshe-39`: newshe-1/3/5/39/41/43)
-no longer export the sprite's dirt. It was a floor of 2x2-pixel cells in flat palette colours (the
-outcrop's and the dome works') or a 1-px relief grid (the bunker's), which at 4K read as a blocky brown
-rectangle round each machine, and as a pixel square under the clouds. The HD ground (D57-D60) now shows
-round them, and their real shadows fall on it. The dirt is still built for the AO bake, as an occluder
-only, so the machines' feet still darken where they meet the ground; then it is deleted. Every machine
-part, palette material, frame, piece and pivot is as it was.
-
-The dirt also had a job: the level puts both bunkers on the tiles of their own wrecks (the
-`tyrbld-bunker-ring` and `-hull` ground structures, D34/D47, shapesz 320/321/330/331 and 322/323/332/333,
-six and three copies), and the rock outcrop on the `tyrbld-wreck` crater (340-342/350-352, ticks
-~1320-2100), which the original's opaque sprites hide until the enemy dies. Without it the
-wreck's model and its HD painting showed round and under the live machine (the bunker floats at the
-enemy height over the ground). So:
-
-- **Covered structures** (`src/render/remaster/opaqueCover.ts`, `DrawListRenderer`): a ground (layer 0)
-  structure is placed after the frame's draws are known, and left out when the part of its pattern
-  inside the playfield lies under opaque pixels of ground enemies' sprites drawn as models (sampled
-  every 4 px, 3 px in from its edges, a thinner seen sliver down its middle; translucent "blend" draws
-  don't count). This is the original's rule (an opaque sprite hides the tiles under it), so the wreck
-  appears the frame its bunker dies. Layer 1-2 structures are placed as before.
-  - *Only the playfield part:* the tiles scroll in a row ahead of the screen, but the sim draws an
-    enemy's sprites only near it (`JE_drawEnemy`: a 2x2 enemy's top half once `ey > -13`, its bottom
-    half once `ey > -26`). Testing the whole pattern, the rock outcrop's crater (the outcrop's two rows
-    enter 35 ticks apart) failed the test and showed round the rocks from tick 1318 to 1352, as it
-    scrolled in. Outside the playfield nothing is seen (`View` masks it), and a pattern wholly outside
-    it is placed as without enemies.
-  - *Only ground enemies* (`Pass.GroundEnemies`, `JE_drawEnemy(50/100)`): they stand on the ground's
-    structures. Aircraft and the ship fly over them at their own height, and their models don't erase
-    the ground; counting them made the trees and boulders (112, 210-233) vanish under passing aircraft
-    (level 1 ticks ~2630-5920, HOLES throughout).
-- **Covered tiles**: a ground cell of a ground structure's tile (`WRECK_TILES`, from the tile models)
-  is also drawn after the frame's draws, and when its own 24x28 cell lies under opaque modelled enemy
-  pixels it draws without the wreck: in the HD terrain look from a "covered" painting, in the other
-  looks (Terrain: Original, `bg=original`) as its pixels with every non-dirt pixel taking its nearest
-  dirt pixel's index (`paintOutWreck`, TYRIAN's dirt ramp 16-21), which reads as the sprite's dirt did.
-  The crater is scorched dirt drawn in the dirt colours, so painting out leaves its outline; in the
-  pixel looks its covered cells draw as the plain ground tile round it (shapesz 100, `COVERED_STAND_IN`).
-  **The HD look never falls back to pixels:** a covered cell with no covered painting (a tree or boulder
-  a ground enemy stands on) keeps its normal HD tile, as on main.
-  The covered painting is a new optional manifest key per layer, `"covered": { "<tile>": rect }`
-  (`terrainArt.ts`, `TerrainTileset.coveredTile`), here in its own atlas `0-covered.webp` (14 tiles, 66 KB).
-  `tools/terrain_covered.py` makes it, one Gemini request per set: `sheet bunkers` puts both bunker
-  patterns with one ring of their real map neighbours from the HD atlas on a 16:9 sheet, `sheet wreck`
-  the crater's 3x2 on a 1:1 sheet; Gemini painted the wrecks out to dirt; `cut` registers each answer
-  (NCC 0.986/0.988/0.984 away from the wrecks), takes the painting only over the wreck's pixels (from
-  the original tiles, grown 12 texels, feathered; the crater's whole 3x2 area, as it fills it), pulls
-  its low frequencies to the HD tiles round it, and keeps the HD tile elsewhere, so the tiles' edges and
-  seams are unchanged.
-  `terrain_hd.py cut` keeps the manifest's `covered` entries; rerun `terrain_covered.py cut` after it.
-
-**Options considered:**
-- *Drop the dirt, hide the covered wreck and paint its tiles out (chosen):* the HD ground is continuous
-  round the machines, the wreck still appears on the kill, and the rule is the original's.
-- *Keep a pad, smoothed (a dirt-colour gradient, or the sprite's dirt upscaled):* still a rectangle
-  that doesn't match the painted HD ground round it.
-- *Only drop the dirt:* the wreck's brass ring, grey hull and ribbed pipes showed beside and under the
-  bunkers (captured at ticks 250, 750, 1000).
-- *A contact-shadow decal:* not needed; the real shadow and the baked AO seat the machines, and a
-  translucent decal would need its own palette and fade handling.
-
-**Checked:** `?debug=play&seed=1&skip=T&freezeAt=T+2&armor=99`, T = 250, 750, 1000, 1400, 1500, 1800,
-2000, 4521 at 3840x2160 before and after, and 750 and 1400 (the outcrop) with `&terrain=original` and
-`&bg=original`; the destroyed bunker at tick 250 shows its wreck, and at 1400/2000 the outcrop stands on
-continuous ground in every look with no wreck showing (its structure is left out). A whole-level scan
-(ticks 2-7600, every 3rd frame, the renderer's covered ground cells) finds covered cells only of the 14
-painted wreck tiles and of trees/boulders (which keep their HD tile); 4521 (a covered tree) is pixel-identical to main. Draw calls drop (457 → 373,
-377 → 311, 391 → 325, 305 → 180 at those ticks) and the frame cpu time is no higher. The 14 GLBs are
-3.83 MB → 3.66 MB; with the covered atlas the level downloads ~135 KB less. Tests:
-`tests/render/opaqueCover.test.ts` (cover, `paintOutWreck`, every wreck pattern's tile has a covered
-painting) and a covered-tile case in `terrainArt.test.ts`.
-**Fix round (review):** the crater (`tyrbld-wreck`) showed round the outcrop for ticks 1318-1352 as it
-scrolled in (the whole-pattern test; see *Only the playfield part* above). A frame-by-frame probe
-(stepping `tyrianHarness`, reading `groundStructures` and `cover.covered()`) over ticks 1301-1370 now
-finds the crater and its six ground cells covered on every tick the outcrop is on screen, and a scan of
-ticks 0-2300, every tick, finds no bunker or crater structure placed while a live ground enemy overlaps
-it (the only overlaps are aircraft over real wrecks); `episode=3&main=17` (TYRIAN X, map Z) likewise.
-The damaged outcrop frames (D81) drop their dirt plate as well, and the covered paintings were
-recomposed (`terrain_covered.py cut`) against D79's repainted atlas.
-Fallback: revert the three scripts and GLBs and the renderer change (`covered` in the manifest is then
-unused and harmless).
 ## D74 — A model's top-view edge goes to the inner edge of the sprite's ink border; the game's ink stands in for it
 
 2026-11-03
@@ -3412,3 +3326,90 @@ cost; the downgrade refund is only in the left arrow's tooltip and label.
 **Review:** captures (desktop 1920x1080, phone 430x932) and the contact sheet are in
 `tyrian-scratch/ui-copper/impl/`. The script is `capture-impl.mjs` (scenarios menus, shop, flow,
 extras, two).
+
+## D86 — Level 1's ground bunkers and rock outcrop stand on the HD ground, not on a pad of pixel cells
+
+2026-11-03
+
+**Decision:** The dome works (`assembly-newsh2-115`: newsh2-77/79/115/117), the carapace bunker
+(`assembly-newsh2-119`: newsh2-81/83/119/121) and the rock outcrop (`assembly-newshe-39`: newshe-1/3/5/39/41/43)
+no longer export the sprite's dirt. It was a floor of 2x2-pixel cells in flat palette colours (the
+outcrop's and the dome works') or a 1-px relief grid (the bunker's), which at 4K read as a blocky brown
+rectangle round each machine, and as a pixel square under the clouds. The HD ground (D57-D60) now shows
+round them, and their real shadows fall on it. The dirt is still built for the AO bake, as an occluder
+only, so the machines' feet still darken where they meet the ground; then it is deleted. Every machine
+part, palette material, frame, piece and pivot is as it was.
+
+The dirt also had a job: the level puts both bunkers on the tiles of their own wrecks (the
+`tyrbld-bunker-ring` and `-hull` ground structures, D34/D47, shapesz 320/321/330/331 and 322/323/332/333,
+six and three copies), and the rock outcrop on the `tyrbld-wreck` crater (340-342/350-352, ticks
+~1320-2100), which the original's opaque sprites hide until the enemy dies. Without it the
+wreck's model and its HD painting showed round and under the live machine (the bunker floats at the
+enemy height over the ground). So:
+
+- **Covered structures** (`src/render/remaster/opaqueCover.ts`, `DrawListRenderer`): a ground (layer 0)
+  structure is placed after the frame's draws are known, and left out when the part of its pattern
+  inside the playfield lies under opaque pixels of ground enemies' sprites drawn as models (sampled
+  every 4 px, 3 px in from its edges, a thinner seen sliver down its middle; translucent "blend" draws
+  don't count). This is the original's rule (an opaque sprite hides the tiles under it), so the wreck
+  appears the frame its bunker dies. Layer 1-2 structures are placed as before.
+  - *Only the playfield part:* the tiles scroll in a row ahead of the screen, but the sim draws an
+    enemy's sprites only near it (`JE_drawEnemy`: a 2x2 enemy's top half once `ey > -13`, its bottom
+    half once `ey > -26`). Testing the whole pattern, the rock outcrop's crater (the outcrop's two rows
+    enter 35 ticks apart) failed the test and showed round the rocks from tick 1318 to 1352, as it
+    scrolled in. Outside the playfield nothing is seen (`View` masks it), and a pattern wholly outside
+    it is placed as without enemies.
+  - *Only ground enemies* (`Pass.GroundEnemies`, `JE_drawEnemy(50/100)`): they stand on the ground's
+    structures. Aircraft and the ship fly over them at their own height, and their models don't erase
+    the ground; counting them made the trees and boulders (112, 210-233) vanish under passing aircraft
+    (level 1 ticks ~2630-5920, HOLES throughout).
+- **Covered tiles**: a ground cell of a ground structure's tile (`WRECK_TILES`, from the tile models)
+  is also drawn after the frame's draws, and when its own 24x28 cell lies under opaque modelled enemy
+  pixels it draws without the wreck: in the HD terrain look from a "covered" painting, in the other
+  looks (Terrain: Original, `bg=original`) as its pixels with every non-dirt pixel taking its nearest
+  dirt pixel's index (`paintOutWreck`, TYRIAN's dirt ramp 16-21), which reads as the sprite's dirt did.
+  The crater is scorched dirt drawn in the dirt colours, so painting out leaves its outline; in the
+  pixel looks its covered cells draw as the plain ground tile round it (shapesz 100, `COVERED_STAND_IN`).
+  **The HD look never falls back to pixels:** a covered cell with no covered painting (a tree or boulder
+  a ground enemy stands on) keeps its normal HD tile, as on main.
+  The covered painting is a new optional manifest key per layer, `"covered": { "<tile>": rect }`
+  (`terrainArt.ts`, `TerrainTileset.coveredTile`), here in its own atlas `0-covered.webp` (14 tiles, 66 KB).
+  `tools/terrain_covered.py` makes it, one Gemini request per set: `sheet bunkers` puts both bunker
+  patterns with one ring of their real map neighbours from the HD atlas on a 16:9 sheet, `sheet wreck`
+  the crater's 3x2 on a 1:1 sheet; Gemini painted the wrecks out to dirt; `cut` registers each answer
+  (NCC 0.986/0.988/0.984 away from the wrecks), takes the painting only over the wreck's pixels (from
+  the original tiles, grown 12 texels, feathered; the crater's whole 3x2 area, as it fills it), pulls
+  its low frequencies to the HD tiles round it, and keeps the HD tile elsewhere, so the tiles' edges and
+  seams are unchanged.
+  `terrain_hd.py cut` keeps the manifest's `covered` entries; rerun `terrain_covered.py cut` after it.
+
+**Options considered:**
+- *Drop the dirt, hide the covered wreck and paint its tiles out (chosen):* the HD ground is continuous
+  round the machines, the wreck still appears on the kill, and the rule is the original's.
+- *Keep a pad, smoothed (a dirt-colour gradient, or the sprite's dirt upscaled):* still a rectangle
+  that doesn't match the painted HD ground round it.
+- *Only drop the dirt:* the wreck's brass ring, grey hull and ribbed pipes showed beside and under the
+  bunkers (captured at ticks 250, 750, 1000).
+- *A contact-shadow decal:* not needed; the real shadow and the baked AO seat the machines, and a
+  translucent decal would need its own palette and fade handling.
+
+**Checked:** `?debug=play&seed=1&skip=T&freezeAt=T+2&armor=99`, T = 250, 750, 1000, 1400, 1500, 1800,
+2000, 4521 at 3840x2160 before and after, and 750 and 1400 (the outcrop) with `&terrain=original` and
+`&bg=original`; the destroyed bunker at tick 250 shows its wreck, and at 1400/2000 the outcrop stands on
+continuous ground in every look with no wreck showing (its structure is left out). A whole-level scan
+(ticks 2-7600, every 3rd frame, the renderer's covered ground cells) finds covered cells only of the 14
+painted wreck tiles and of trees/boulders (which keep their HD tile); 4521 (a covered tree) is pixel-identical to main. Draw calls drop (457 → 373,
+377 → 311, 391 → 325, 305 → 180 at those ticks) and the frame cpu time is no higher. The 14 GLBs are
+3.83 MB → 3.66 MB; with the covered atlas the level downloads ~135 KB less. Tests:
+`tests/render/opaqueCover.test.ts` (cover, `paintOutWreck`, every wreck pattern's tile has a covered
+painting) and a covered-tile case in `terrainArt.test.ts`.
+**Fix round (review):** the crater (`tyrbld-wreck`) showed round the outcrop for ticks 1318-1352 as it
+scrolled in (the whole-pattern test; see *Only the playfield part* above). A frame-by-frame probe
+(stepping `tyrianHarness`, reading `groundStructures` and `cover.covered()`) over ticks 1301-1370 now
+finds the crater and its six ground cells covered on every tick the outcrop is on screen, and a scan of
+ticks 0-2300, every tick, finds no bunker or crater structure placed while a live ground enemy overlaps
+it (the only overlaps are aircraft over real wrecks); `episode=3&main=17` (TYRIAN X, map Z) likewise.
+The damaged outcrop frames (D81) drop their dirt plate as well, and the covered paintings were
+recomposed (`terrain_covered.py cut`) against D79's repainted atlas.
+Fallback: revert the three scripts and GLBs and the renderer change (`covered` in the manifest is then
+unused and harmless).
