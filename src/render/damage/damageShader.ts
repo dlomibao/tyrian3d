@@ -129,24 +129,36 @@ if (uDmgOn > 0.5) {
  * Patch `material` (a clone's own) to draw damage from `uniforms`; true if it was patched now. Lit
  * standard materials only (not the outline shell or the depth prepass). The uniforms are also left
  * in userData.damageUniforms for the outline pass (outlineEffect.js).
+ *
+ * A material with a shader patch of its own (the island rock's, rockMaterial.ts, D84) keeps it: the
+ * damage goes in first and the material's own patch runs after it on the same source (the rock's
+ * colour replaces `map_fragment`, and the damage colour follows it), and its program cache key is
+ * kept as part of this one. Replacing it drew the rock's palette-data texture as colour (D88).
  */
 export function patchDamage(material: THREE.Material, uniforms: DamageUniforms): boolean {
   const std = material as THREE.MeshStandardMaterial;
   if (!std.isMeshStandardMaterial || material.userData.damageUniforms) return false;
   material.userData.damageUniforms = uniforms;
-  material.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, uniforms);
-    shader.vertexShader = shader.vertexShader
-      .replace("#include <common>", `#include <common>\n${VERTEX_PARS}`)
-      .replace("#include <project_vertex>", `#include <project_vertex>\n${VERTEX}`);
-    shader.fragmentShader = shader.fragmentShader
-      .replace("#include <common>", `#include <common>\n${FRAGMENT_PARS}`)
-      .replace("#include <map_fragment>", `#include <map_fragment>\n${FRAGMENT_COLOUR}`)
-      .replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>\n${FRAGMENT_EMISSIVE}`);
+  const own = material.onBeforeCompile;
+  const ownKey = material.customProgramCacheKey.bind(material);
+  material.onBeforeCompile = (shader, renderer) => {
+    damageSource(shader, uniforms);
+    own.call(material, shader, renderer);
   };
-  material.customProgramCacheKey = () => "tyrian-damage-2";
+  material.customProgramCacheKey = () => `${ownKey()}|tyrian-damage-2`;
   material.needsUpdate = true;
   return true;
+}
+
+function damageSource(shader: THREE.WebGLProgramParametersWithUniforms, uniforms: DamageUniforms): void {
+  Object.assign(shader.uniforms, uniforms);
+  shader.vertexShader = shader.vertexShader
+    .replace("#include <common>", `#include <common>\n${VERTEX_PARS}`)
+    .replace("#include <project_vertex>", `#include <project_vertex>\n${VERTEX}`);
+  shader.fragmentShader = shader.fragmentShader
+    .replace("#include <common>", `#include <common>\n${FRAGMENT_PARS}`)
+    .replace("#include <map_fragment>", `#include <map_fragment>\n${FRAGMENT_COLOUR}`)
+    .replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>\n${FRAGMENT_EMISSIVE}`);
 }
 
 /**
