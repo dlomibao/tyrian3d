@@ -46,11 +46,11 @@
     "units": 229,
     "enemyUnits": 166,
     "enemyUnitsModelled": 162,
-    "enemyUnitsFlagship": 30,
+    "enemyUnitsFlagship": 48,
     "damageFramesMissing": 0,
     "tilesets": 2,
-    "tilesetsWithHd": 1,
-    "tilesetsWithModels": 1,
+    "tilesetsWithHd": 2,
+    "tilesetsWithModels": 2,
     "bossLevels": 9,
     "bossUnits": 17,
     "songs": 15,
@@ -91,7 +91,7 @@
     "units": 198,
     "enemyUnits": 152,
     "enemyUnitsModelled": 144,
-    "enemyUnitsFlagship": 6,
+    "enemyUnitsFlagship": 22,
     "damageFramesMissing": 4,
     "tilesets": 2,
     "tilesetsWithHd": 1,
@@ -135,11 +135,11 @@
     "units": 256,
     "enemyUnits": 198,
     "enemyUnitsModelled": 196,
-    "enemyUnitsFlagship": 28,
+    "enemyUnitsFlagship": 46,
     "damageFramesMissing": 0,
     "tilesets": 3,
-    "tilesetsWithHd": 1,
-    "tilesetsWithModels": 1,
+    "tilesetsWithHd": 2,
+    "tilesetsWithModels": 2,
     "bossLevels": 6,
     "bossUnits": 22,
     "songs": 15,
@@ -198,11 +198,11 @@
     "units": 257,
     "enemyUnits": 197,
     "enemyUnitsModelled": 159,
-    "enemyUnitsFlagship": 1,
+    "enemyUnitsFlagship": 13,
     "damageFramesMissing": 0,
     "tilesets": 5,
-    "tilesetsWithHd": 1,
-    "tilesetsWithModels": 1,
+    "tilesetsWithHd": 2,
+    "tilesetsWithModels": 2,
     "bossLevels": 15,
     "bossUnits": 56,
     "songs": 18,
@@ -951,7 +951,7 @@
    ],
    "tileset": "shapesz",
    "layers": [
-    {"layer":0,"tiles":60,"hd":0,"modelled":47,"covered":47},
+    {"layer":0,"tiles":60,"hd":59,"modelled":47,"covered":59},
     {"layer":1,"tiles":1,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
@@ -1218,7 +1218,7 @@
    ],
    "tileset": "shapesz",
    "layers": [
-    {"layer":0,"tiles":63,"hd":0,"modelled":50,"covered":50},
+    {"layer":0,"tiles":63,"hd":62,"modelled":50,"covered":62},
     {"layer":1,"tiles":1,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
@@ -1504,7 +1504,7 @@
    ],
    "tileset": "shapesy",
    "layers": [
-    {"layer":0,"tiles":56,"hd":0,"modelled":0,"covered":0},
+    {"layer":0,"tiles":56,"hd":56,"modelled":15,"covered":56},
     {"layer":1,"tiles":10,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
@@ -1748,7 +1748,7 @@
    ],
    "tileset": "shapesz",
    "layers": [
-    {"layer":0,"tiles":18,"hd":0,"modelled":0,"covered":0},
+    {"layer":0,"tiles":18,"hd":17,"modelled":0,"covered":17},
     {"layer":1,"tiles":1,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
@@ -1895,7 +1895,7 @@
    ],
    "tileset": "shapesz",
    "layers": [
-    {"layer":0,"tiles":42,"hd":0,"modelled":0,"covered":0},
+    {"layer":0,"tiles":42,"hd":41,"modelled":0,"covered":41},
     {"layer":1,"tiles":1,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
@@ -2017,7 +2017,7 @@
    ],
    "tileset": "shapesz",
    "layers": [
-    {"layer":0,"tiles":24,"hd":0,"modelled":0,"covered":0},
+    {"layer":0,"tiles":24,"hd":24,"modelled":0,"covered":24},
     {"layer":1,"tiles":13,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":42,"hd":0,"modelled":0,"covered":0}
    ],
@@ -2274,7 +2274,7 @@
    ],
    "tileset": "shapesz",
    "layers": [
-    {"layer":0,"tiles":55,"hd":0,"modelled":54,"covered":54},
+    {"layer":0,"tiles":55,"hd":54,"modelled":54,"covered":54},
     {"layer":1,"tiles":1,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
@@ -2506,7 +2506,7 @@
    ],
    "tileset": "shapesz",
    "layers": [
-    {"layer":0,"tiles":20,"hd":0,"modelled":0,"covered":0},
+    {"layer":0,"tiles":20,"hd":19,"modelled":0,"covered":19},
     {"layer":1,"tiles":9,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
@@ -2661,7 +2661,7 @@
    ],
    "tileset": "shapesz",
    "layers": [
-    {"layer":0,"tiles":14,"hd":1,"modelled":0,"covered":1},
+    {"layer":0,"tiles":14,"hd":13,"modelled":0,"covered":13},
     {"layer":1,"tiles":1,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
@@ -2803,9 +2803,9 @@
    ],
    "tileset": "shapesz",
    "layers": [
-    {"layer":0,"tiles":27,"hd":21,"modelled":13,"covered":22},
+    {"layer":0,"tiles":27,"hd":27,"modelled":13,"covered":27},
     {"layer":1,"tiles":16,"hd":15,"modelled":0,"covered":15},
-    {"layer":2,"tiles":47,"hd":0,"modelled":0,"covered":0}
+    {"layer":2,"tiles":47,"hd":46,"modelled":0,"covered":46}
    ],
    "tileModels": {
     "tiles/shapesz/t210": 124,
@@ -2985,11 +2985,14 @@
    ],
    "tileset": "shapesy",
    "layers": [
-    {"layer":0,"tiles":67,"hd":0,"modelled":0,"covered":0},
+    {"layer":0,"tiles":67,"hd":67,"modelled":15,"covered":67},
     {"layer":1,"tiles":50,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":46,"hd":0,"modelled":0,"covered":0}
    ],
-   "tileModels": {},
+   "tileModels": {
+    "tiles/shapesy/savbld-tower-tall": 1,
+    "tiles/shapesy/savbld-tower-wide": 1
+   },
    "banks": [
     "newshf.shp",
     "newshi.shp",
@@ -3215,7 +3218,7 @@
    ],
    "tileset": "shapesz",
    "layers": [
-    {"layer":0,"tiles":16,"hd":15,"modelled":0,"covered":15},
+    {"layer":0,"tiles":16,"hd":16,"modelled":0,"covered":16},
     {"layer":1,"tiles":1,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
@@ -3380,7 +3383,7 @@
    ],
    "tileset": "shapesz",
    "layers": [
-    {"layer":0,"tiles":31,"hd":13,"modelled":13,"covered":14},
+    {"layer":0,"tiles":31,"hd":27,"modelled":13,"covered":27},
     {"layer":1,"tiles":16,"hd":15,"modelled":0,"covered":15},
     {"layer":2,"tiles":2,"hd":0,"modelled":0,"covered":0}
    ],
@@ -3476,9 +3479,9 @@
    ],
    "tileset": "shapesz",
    "layers": [
-    {"layer":0,"tiles":33,"hd":14,"modelled":0,"covered":14},
+    {"layer":0,"tiles":33,"hd":32,"modelled":0,"covered":32},
     {"layer":1,"tiles":14,"hd":13,"modelled":0,"covered":13},
-    {"layer":2,"tiles":24,"hd":0,"modelled":0,"covered":0}
+    {"layer":2,"tiles":24,"hd":23,"modelled":0,"covered":23}
    ],
    "tileModels": {},
    "banks": [
@@ -3654,7 +3657,7 @@
    ],
    "tileset": "shapesy",
    "layers": [
-    {"layer":0,"tiles":58,"hd":0,"modelled":0,"covered":0},
+    {"layer":0,"tiles":58,"hd":58,"modelled":15,"covered":58},
     {"layer":1,"tiles":50,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":46,"hd":0,"modelled":0,"covered":0}
    ],
@@ -3841,8 +3844,8 @@
    ],
    "tileset": "shapesz",
    "layers": [
-    {"layer":0,"tiles":15,"hd":13,"modelled":14,"covered":15},
-    {"layer":1,"tiles":1,"hd":0,"modelled":0,"covered":0},
+    {"layer":0,"tiles":15,"hd":15,"modelled":14,"covered":15},
+    {"layer":1,"tiles":1,"hd":1,"modelled":0,"covered":1},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
    "tileModels": {
@@ -4489,7 +4492,7 @@
    ],
    "tileset": "shapesz",
    "layers": [
-    {"layer":0,"tiles":14,"hd":1,"modelled":0,"covered":1},
+    {"layer":0,"tiles":14,"hd":13,"modelled":0,"covered":13},
     {"layer":1,"tiles":1,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
@@ -4596,7 +4599,7 @@
    ],
    "tileset": "shapesz",
    "layers": [
-    {"layer":0,"tiles":54,"hd":0,"modelled":41,"covered":41},
+    {"layer":0,"tiles":54,"hd":54,"modelled":41,"covered":54},
     {"layer":1,"tiles":1,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
@@ -5940,7 +5943,7 @@
    ],
    "tileset": "shapesz",
    "layers": [
-    {"layer":0,"tiles":31,"hd":1,"modelled":0,"covered":1},
+    {"layer":0,"tiles":31,"hd":29,"modelled":0,"covered":29},
     {"layer":1,"tiles":9,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
@@ -6422,7 +6425,7 @@
    ],
    "tileset": "shapesz",
    "layers": [
-    {"layer":0,"tiles":24,"hd":0,"modelled":0,"covered":0},
+    {"layer":0,"tiles":24,"hd":23,"modelled":0,"covered":23},
     {"layer":1,"tiles":21,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":2,"hd":0,"modelled":0,"covered":0}
    ],
@@ -6596,7 +6599,7 @@
    ],
    "tileset": "shapesz",
    "layers": [
-    {"layer":0,"tiles":44,"hd":0,"modelled":0,"covered":0},
+    {"layer":0,"tiles":44,"hd":42,"modelled":0,"covered":42},
     {"layer":1,"tiles":1,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
@@ -7253,7 +7256,7 @@
    ],
    "tileset": "shapesz",
    "layers": [
-    {"layer":0,"tiles":67,"hd":0,"modelled":53,"covered":53},
+    {"layer":0,"tiles":67,"hd":66,"modelled":53,"covered":66},
     {"layer":1,"tiles":1,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
@@ -8100,11 +8103,14 @@
    ],
    "tileset": "shapesy",
    "layers": [
-    {"layer":0,"tiles":67,"hd":0,"modelled":0,"covered":0},
+    {"layer":0,"tiles":67,"hd":67,"modelled":15,"covered":67},
     {"layer":1,"tiles":50,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":46,"hd":0,"modelled":0,"covered":0}
    ],
-   "tileModels": {},
+   "tileModels": {
+    "tiles/shapesy/savbld-tower-tall": 1,
+    "tiles/shapesy/savbld-tower-wide": 1
+   },
    "banks": [
     "newshf.shp",
     "newshi.shp",
@@ -8343,7 +8349,7 @@
    ],
    "tileset": "shapesz",
    "layers": [
-    {"layer":0,"tiles":24,"hd":0,"modelled":0,"covered":0},
+    {"layer":0,"tiles":24,"hd":24,"modelled":0,"covered":24},
     {"layer":1,"tiles":13,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":42,"hd":0,"modelled":0,"covered":0}
    ],
@@ -8600,7 +8606,7 @@
    ],
    "tileset": "shapesz",
    "layers": [
-    {"layer":0,"tiles":14,"hd":0,"modelled":0,"covered":0},
+    {"layer":0,"tiles":14,"hd":13,"modelled":0,"covered":13},
     {"layer":1,"tiles":1,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
@@ -9659,9 +9665,9 @@
    ],
    "tileset": "shapesz",
    "layers": [
-    {"layer":0,"tiles":16,"hd":0,"modelled":0,"covered":0},
+    {"layer":0,"tiles":16,"hd":16,"modelled":0,"covered":16},
     {"layer":1,"tiles":1,"hd":0,"modelled":0,"covered":0},
-    {"layer":2,"tiles":53,"hd":0,"modelled":1,"covered":1}
+    {"layer":2,"tiles":53,"hd":17,"modelled":1,"covered":18}
    ],
    "tileModels": {
     "tiles/shapesz/tyrbld-lava-pit": 13
@@ -10065,7 +10071,7 @@
    ],
    "tileset": "shapesy",
    "layers": [
-    {"layer":0,"tiles":68,"hd":0,"modelled":0,"covered":0},
+    {"layer":0,"tiles":68,"hd":68,"modelled":15,"covered":68},
     {"layer":1,"tiles":1,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
@@ -11087,7 +11093,7 @@
    ],
    "tileset": "shapesz",
    "layers": [
-    {"layer":0,"tiles":17,"hd":14,"modelled":15,"covered":16},
+    {"layer":0,"tiles":17,"hd":17,"modelled":15,"covered":17},
     {"layer":1,"tiles":1,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":3,"hd":0,"modelled":0,"covered":0}
    ],
@@ -11860,7 +11866,7 @@
    ],
    "tileset": "shapesy",
    "layers": [
-    {"layer":0,"tiles":1,"hd":0,"modelled":0,"covered":0},
+    {"layer":0,"tiles":1,"hd":1,"modelled":0,"covered":1},
     {"layer":1,"tiles":14,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
@@ -12192,7 +12198,7 @@
     "newsh^.shp|2": [83,85,87,89,121,123,125,127]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh^.shp|2": [83,85,87,89,121,123,125,127]
@@ -15203,7 +15209,7 @@
     "newshf.shp|2": [153,155,191,193]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshf.shp|2": [153,155,191,193]
@@ -15245,7 +15251,7 @@
     "newshf.shp|2": [157,159,195,197]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshf.shp|2": [157,159,195,197]
@@ -15288,7 +15294,7 @@
     "newshf.shp|2": [161,163,199,201]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshf.shp|2": [161,163,199,201]
@@ -15330,7 +15336,7 @@
     "newshf.shp|2": [165,167,203,205,232,234,236,241,243,270,272,274,279,281]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshf.shp|2": [165,167,203,205,232,234,236,241,243,270,272,274,279,281]
@@ -19172,7 +19178,7 @@
     "newsh3.shp|2": [267,269]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh3.shp|2": [267,269]
@@ -21836,7 +21842,7 @@
     "newshd.shp|2": [127,129,131]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshd.shp|2": [127,129,131]
@@ -22083,7 +22089,7 @@
     "newshd.shp|2": [191]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshd.shp|2": [191]
@@ -22420,7 +22426,7 @@
     "newshd.shp|2": [79,81,83]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshd.shp|2": [79,81,83]
@@ -22635,7 +22641,7 @@
     "newshe.shp|2": [195]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshe.shp|2": [195]
@@ -22734,7 +22740,7 @@
     "newshe.shp|2": [235]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshe.shp|2": [235]
@@ -22869,7 +22875,7 @@
     "newshf.shp|2": [123,125,127]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshf.shp|2": [123,125,127]
@@ -22904,7 +22910,7 @@
     "newshf.shp|2": [169]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshf.shp|2": [169]
@@ -22942,7 +22948,7 @@
     "newshf.shp|1": [171,190,209,228]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshf.shp|1": [171,190,209,228]
@@ -22978,7 +22984,7 @@
     "newshf.shp|2": [230]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshf.shp|2": [230]
@@ -23014,7 +23020,7 @@
     "newshf.shp|2": [238]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshf.shp|2": [238]
@@ -24844,7 +24850,7 @@
     "newshm.shp|2": [115]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsha.shp|2": [165,203,241,279],
@@ -25825,7 +25831,7 @@
     "newshp.shp|2": [85,131,233]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "newshp.shp|2": [85,131,233]
@@ -25986,7 +25992,7 @@
     "newshs.shp|2": [153,155,157,159,161,163]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshs.shp|2": [153,155,157,159,161,163]
@@ -26019,7 +26025,7 @@
     "newshs.shp|1": [171,190,209,228]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshs.shp|1": [171,190,209,228]
@@ -26152,7 +26158,7 @@
    "damageFrames": {
     "newshs.shp|2": [275]
    },
-   "status": "basic",
+   "status": "flagship",
    "damage": "modelled",
    "framesSeen": {
     "newshs.shp|2": [269,275]
@@ -27169,7 +27175,7 @@
     "tyrian.shp#10|1": [1,2,3,4,5,6]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "tyrian.shp#10|1": [1,2,3,4,5,6]
@@ -27233,7 +27239,7 @@
     "tyrian.shp#10|2": [115,117,119,121,123,125]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "tyrian.shp#10|2": [115,117,119,121,123,125]
@@ -27267,7 +27273,7 @@
     "tyrian.shp#10|2": [127]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {},
    "conditional": true,
@@ -27357,7 +27363,7 @@
     "tyrian.shp#10|2": [129]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "tyrian.shp#10|2": [129]
@@ -27449,7 +27455,7 @@
     "tyrian.shp#10|2": [131]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {},
    "conditional": true,
@@ -27618,7 +27624,7 @@
     "tyrian.shp#10|2": [153,155,157]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "tyrian.shp#10|2": [153,155,157]
@@ -27692,7 +27698,7 @@
     "tyrian.shp#10|2": [165,167,169]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "tyrian.shp#10|2": [165,167,169]
@@ -27741,7 +27747,7 @@
     "tyrian.shp#10|1": [19]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "tyrian.shp#10|1": [19]
@@ -27848,7 +27854,7 @@
     "tyrian.shp#10|2": [203,205,207]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "tyrian.shp#10|2": [203,205,207]
@@ -27901,7 +27907,7 @@
     "tyrian.shp#10|2": [241]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "tyrian.shp#10|2": [241]
@@ -27935,7 +27941,7 @@
     "tyrian.shp#10|2": [243]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "tyrian.shp#10|2": [243]
@@ -27962,7 +27968,7 @@
     "tyrian.shp#10|2": [245]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "tyrian.shp#10|2": [245]
@@ -28221,7 +28227,7 @@
     "tyrian.shp#10|1": [38]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "tyrian.shp#10|1": [38]
@@ -28248,7 +28254,7 @@
     "tyrian.shp#10|2": [39,41,43,45,47,49]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "tyrian.shp#10|2": [39,41,43,45,47,49]
@@ -28295,7 +28301,7 @@
     "tyrian.shp#10|1": [51,52,53,54,55]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "tyrian.shp#10|1": [51,52,53,54,55]
@@ -28409,7 +28415,7 @@
     "tyrian.shp#10|1": [75]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "tyrian.shp#10|1": [75]
@@ -28477,7 +28483,7 @@
     "tyrian.shp#10|2": [77,79,81,83,85,87]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "tyrian.shp#10|2": [77,79,81,83,85,87]
@@ -28514,7 +28520,7 @@
     "tyrian.shp#10|2": [89]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "tyrian.shp#10|2": [89]
@@ -28570,7 +28576,7 @@
     "tyrian.shp#9|2": [121]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "tyrian.shp#9|2": [121]
@@ -28616,7 +28622,7 @@
     "tyrian.shp#9|2": [123]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "tyrian.shp#9|2": [123]
@@ -28722,7 +28728,7 @@
     "tyrian.shp#9|2": [155]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {},
    "types": [
@@ -28781,7 +28787,7 @@
     "tyrian.shp#9|2": [157]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {},
    "twoPlayerOnly": true,
@@ -28837,7 +28843,7 @@
     "tyrian.shp#9|2": [159]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {},
    "twoPlayerOnly": true,
@@ -28878,7 +28884,7 @@
     "tyrian.shp#9|2": [161]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {},
    "twoPlayerOnly": true,
@@ -29026,7 +29032,7 @@
     "tyrian.shp#9|2": [167]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {},
    "twoPlayerOnly": true,
@@ -29069,7 +29075,7 @@
     "tyrian.shp#9|2": [169]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {},
    "twoPlayerOnly": true,
@@ -29108,7 +29114,7 @@
     "tyrian.shp#9|2": [191]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {},
    "types": [
@@ -29219,7 +29225,7 @@
     "tyrian.shp#9|2": [195]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {},
    "twoPlayerOnly": true,
@@ -29262,7 +29268,7 @@
     "tyrian.shp#9|2": [197]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {},
    "twoPlayerOnly": true,
@@ -29316,7 +29322,7 @@
     "tyrian.shp#9|2": [199]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {},
    "types": [
@@ -29372,7 +29378,7 @@
     "tyrian.shp#9|2": [201]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {},
    "twoPlayerOnly": true,
@@ -29417,7 +29423,7 @@
     "tyrian.shp#9|2": [203]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {},
    "twoPlayerOnly": true,
@@ -29511,7 +29517,7 @@
     "tyrian.shp#9|2": [207]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {},
    "twoPlayerOnly": true,
@@ -29555,7 +29561,7 @@
     "tyrian.shp#9|2": [229]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {},
    "twoPlayerOnly": true,
@@ -29603,7 +29609,7 @@
     "tyrian.shp#9|2": [231]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {},
    "twoPlayerOnly": true,
@@ -29638,7 +29644,7 @@
     "tyrian.shp#9|2": [233]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {},
    "twoPlayerOnly": true,
@@ -29725,7 +29731,7 @@
     "tyrian.shp#9|2": [237]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {},
    "twoPlayerOnly": true,
@@ -29815,7 +29821,7 @@
     "tyrian.shp#9|2": [241]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {},
    "twoPlayerOnly": true,
@@ -29848,7 +29854,7 @@
     "tyrian.shp#9|2": [243]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {},
    "twoPlayerOnly": true,
@@ -29890,7 +29896,7 @@
     "tyrian.shp#9|2": [245]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {},
    "twoPlayerOnly": true,
@@ -29944,7 +29950,7 @@
     "tyrian.shp#9|2": [267]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {},
    "twoPlayerOnly": true,
@@ -29984,7 +29990,7 @@
     "tyrian.shp#9|2": [269]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {},
    "twoPlayerOnly": true,
@@ -30021,7 +30027,7 @@
     "tyrian.shp#9|2": [271]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "tyrian.shp#9|2": [271]
@@ -30067,7 +30073,7 @@
     "tyrian.shp#9|2": [273]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "tyrian.shp#9|2": [273]
@@ -30113,7 +30119,7 @@
     "tyrian.shp#9|2": [275]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "tyrian.shp#9|2": [275]
@@ -30159,7 +30165,7 @@
     "tyrian.shp#9|2": [277]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {},
    "types": [
@@ -30202,7 +30208,7 @@
     "tyrian.shp#9|2": [281]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {},
    "types": [
@@ -30382,7 +30388,7 @@
   },
   {
    "id": "tyrian.shp#7|1|7",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 2,
    "playerEpisodes": [],
    "episodes": [
@@ -30489,7 +30495,7 @@
   },
   {
    "id": "tyrian.shp#7|1|21",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 3,
    "playerEpisodes": [
     4
@@ -30515,7 +30521,7 @@
   },
   {
    "id": "tyrian.shp#7|1|31",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -30533,7 +30539,7 @@
   },
   {
    "id": "tyrian.shp#7|1|32",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -30551,7 +30557,7 @@
   },
   {
    "id": "tyrian.shp#7|1|33",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -30569,7 +30575,7 @@
   },
   {
    "id": "tyrian.shp#7|1|35",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -30587,7 +30593,7 @@
   },
   {
    "id": "tyrian.shp#7|1|36",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -30605,7 +30611,7 @@
   },
   {
    "id": "tyrian.shp#7|1|37",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -30623,7 +30629,7 @@
   },
   {
    "id": "tyrian.shp#7|1|38",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -30731,7 +30737,7 @@
   },
   {
    "id": "tyrian.shp#7|1|45",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 2,
    "playerEpisodes": [],
    "episodes": [
@@ -30772,7 +30778,7 @@
   },
   {
    "id": "tyrian.shp#7|1|57",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -30891,7 +30897,7 @@
   },
   {
    "id": "tyrian.shp#7|1|64",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 1,
    "playerEpisodes": [
     1,
@@ -30907,7 +30913,7 @@
   },
   {
    "id": "tyrian.shp#7|1|65",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 6,
    "playerEpisodes": [
     1,
@@ -30953,7 +30959,7 @@
   },
   {
    "id": "tyrian.shp#7|1|72",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 3,
    "playerEpisodes": [],
    "episodes": [
@@ -30982,7 +30988,7 @@
   },
   {
    "id": "tyrian.shp#7|1|75",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -30998,7 +31004,7 @@
   },
   {
    "id": "tyrian.shp#7|1|76",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -31062,7 +31068,7 @@
   },
   {
    "id": "tyrian.shp#7|1|91",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 6,
    "playerEpisodes": [],
    "episodes": [
@@ -31085,7 +31091,7 @@
   },
   {
    "id": "tyrian.shp#7|1|95",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -31127,7 +31133,7 @@
   },
   {
    "id": "tyrian.shp#7|1|98",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -31145,7 +31151,7 @@
   },
   {
    "id": "tyrian.shp#7|1|99",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 1,
    "playerEpisodes": [
     1,
@@ -31163,7 +31169,7 @@
   },
   {
    "id": "tyrian.shp#7|1|100",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -31279,7 +31285,7 @@
   },
   {
    "id": "tyrian.shp#7|1|117",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 7,
    "playerEpisodes": [],
    "episodes": [
@@ -31291,7 +31297,7 @@
   },
   {
    "id": "tyrian.shp#7|1|118",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 7,
    "playerEpisodes": [],
    "episodes": [
@@ -31387,7 +31393,7 @@
   },
   {
    "id": "tyrian.shp#7|1|126",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -31439,7 +31445,7 @@
   },
   {
    "id": "tyrian.shp#7|1|132",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -31457,7 +31463,7 @@
   },
   {
    "id": "tyrian.shp#7|1|133",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -31487,7 +31493,7 @@
   },
   {
    "id": "tyrian.shp#7|1|136",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 7,
    "playerEpisodes": [],
    "episodes": [
@@ -31499,7 +31505,7 @@
   },
   {
    "id": "tyrian.shp#7|1|137",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 7,
    "playerEpisodes": [],
    "episodes": [
@@ -31579,7 +31585,7 @@
   },
   {
    "id": "tyrian.shp#7|1|145",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 9,
    "playerEpisodes": [
     2,
@@ -31652,7 +31658,7 @@
   },
   {
    "id": "tyrian.shp#7|1|151",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -31670,7 +31676,7 @@
   },
   {
    "id": "tyrian.shp#7|1|152",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -31763,7 +31769,7 @@
   },
   {
    "id": "tyrian.shp#7|1|168",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 15,
    "playerEpisodes": [],
    "episodes": [
@@ -31776,7 +31782,7 @@
   },
   {
    "id": "tyrian.shp#7|1|169",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 12,
    "playerEpisodes": [],
    "episodes": [
@@ -31803,7 +31809,7 @@
   },
   {
    "id": "tyrian.shp#7|1|171",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -31817,7 +31823,7 @@
   },
   {
    "id": "tyrian.shp#7|1|172",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -31835,7 +31841,7 @@
   },
   {
    "id": "tyrian.shp#7|1|173",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -31853,7 +31859,7 @@
   },
   {
    "id": "tyrian.shp#7|1|174",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -31871,7 +31877,7 @@
   },
   {
    "id": "tyrian.shp#7|1|175",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -31889,7 +31895,7 @@
   },
   {
    "id": "tyrian.shp#7|1|176",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -31907,7 +31913,7 @@
   },
   {
    "id": "tyrian.shp#7|1|177",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -31925,7 +31931,7 @@
   },
   {
    "id": "tyrian.shp#7|1|178",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -31943,7 +31949,7 @@
   },
   {
    "id": "tyrian.shp#7|1|179",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -31961,7 +31967,7 @@
   },
   {
    "id": "tyrian.shp#7|1|180",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -31979,7 +31985,7 @@
   },
   {
    "id": "tyrian.shp#7|1|181",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -32033,7 +32039,7 @@
   },
   {
    "id": "tyrian.shp#7|1|191",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 7,
    "playerEpisodes": [
     1,
@@ -32050,7 +32056,7 @@
   },
   {
    "id": "tyrian.shp#7|1|192",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 7,
    "playerEpisodes": [
     1,
@@ -32067,7 +32073,7 @@
   },
   {
    "id": "tyrian.shp#7|1|193",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 4,
    "playerEpisodes": [
     1,
@@ -32084,7 +32090,7 @@
   },
   {
    "id": "tyrian.shp#7|1|194",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 13,
    "playerEpisodes": [
     1,
@@ -32101,7 +32107,7 @@
   },
   {
    "id": "tyrian.shp#7|1|195",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 13,
    "playerEpisodes": [
     1,
@@ -32118,7 +32124,7 @@
   },
   {
    "id": "tyrian.shp#7|1|196",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 13,
    "playerEpisodes": [
     1,
@@ -32135,7 +32141,7 @@
   },
   {
    "id": "tyrian.shp#7|1|197",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 13,
    "playerEpisodes": [
     1,
@@ -32236,7 +32242,7 @@
   },
   {
    "id": "tyrian.shp#7|1|208",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -32252,7 +32258,7 @@
   },
   {
    "id": "tyrian.shp#7|1|209",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -32268,7 +32274,7 @@
   },
   {
    "id": "tyrian.shp#7|1|210",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 2,
    "playerEpisodes": [
     1,
@@ -32284,7 +32290,7 @@
   },
   {
    "id": "tyrian.shp#7|1|211",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 2,
    "playerEpisodes": [
     1,
@@ -32300,7 +32306,7 @@
   },
   {
    "id": "tyrian.shp#7|1|212",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -32316,7 +32322,7 @@
   },
   {
    "id": "tyrian.shp#7|1|213",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -32332,7 +32338,7 @@
   },
   {
    "id": "tyrian.shp#7|1|214",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 9,
    "playerEpisodes": [
     1,
@@ -32461,7 +32467,7 @@
   },
   {
    "id": "tyrian.shp#7|1|227",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 5,
    "playerEpisodes": [
     1,
@@ -32479,7 +32485,7 @@
   },
   {
    "id": "tyrian.shp#7|1|229",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 2,
    "playerEpisodes": [
     1,
@@ -32495,7 +32501,7 @@
   },
   {
    "id": "tyrian.shp#7|1|230",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 2,
    "playerEpisodes": [
     1,
@@ -32511,7 +32517,7 @@
   },
   {
    "id": "tyrian.shp#7|1|231",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -32527,7 +32533,7 @@
   },
   {
    "id": "tyrian.shp#7|1|232",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -32597,7 +32603,7 @@
   },
   {
    "id": "tyrian.shp#7|1|245",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 1,
    "playerEpisodes": [],
    "episodes": [
@@ -32607,7 +32613,7 @@
   },
   {
    "id": "tyrian.shp#7|1|248",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 2,
    "playerEpisodes": [
     1,
@@ -32623,7 +32629,7 @@
   },
   {
    "id": "tyrian.shp#7|1|249",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 2,
    "playerEpisodes": [
     1,
@@ -32639,7 +32645,7 @@
   },
   {
    "id": "tyrian.shp#7|1|250",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -32655,7 +32661,7 @@
   },
   {
    "id": "tyrian.shp#7|1|251",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -32671,7 +32677,7 @@
   },
   {
    "id": "tyrian.shp#7|1|256",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -32687,7 +32693,7 @@
   },
   {
    "id": "tyrian.shp#7|1|257",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -32713,7 +32719,7 @@
   },
   {
    "id": "tyrian.shp#7|1|263",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -32729,7 +32735,7 @@
   },
   {
    "id": "tyrian.shp#7|1|267",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 2,
    "playerEpisodes": [
     1,
@@ -32745,7 +32751,7 @@
   },
   {
    "id": "tyrian.shp#7|1|268",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 2,
    "playerEpisodes": [
     1,
@@ -32761,7 +32767,7 @@
   },
   {
    "id": "tyrian.shp#7|1|269",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -32777,7 +32783,7 @@
   },
   {
    "id": "tyrian.shp#7|1|270",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -32915,7 +32921,7 @@
   },
   {
    "id": "tyrian.shp#7|1|286",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 17,
    "playerEpisodes": [
     3
@@ -32929,7 +32935,7 @@
   },
   {
    "id": "tyrian.shp#7|1|287",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 16,
    "playerEpisodes": [
     3
@@ -32943,7 +32949,7 @@
   },
   {
    "id": "tyrian.shp#7|1|288",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 16,
    "playerEpisodes": [
     3
@@ -33161,7 +33167,7 @@
   },
   {
    "id": "tyrian.shp#7|1|304",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 7,
    "playerEpisodes": [],
    "episodes": [
@@ -33197,7 +33203,7 @@
   },
   {
    "id": "tyrian.shp#11|1|82",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -33215,7 +33221,7 @@
   },
   {
    "id": "tyrian.shp#11|1|83",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -33233,7 +33239,7 @@
   },
   {
    "id": "tyrian.shp#11|1|84",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -33251,7 +33257,7 @@
   },
   {
    "id": "tyrian.shp#11|1|85",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -33269,7 +33275,7 @@
   },
   {
    "id": "tyrian.shp#11|1|86",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -33287,7 +33293,7 @@
   },
   {
    "id": "tyrian.shp#11|1|87",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -33305,7 +33311,7 @@
   },
   {
    "id": "tyrian.shp#11|1|96",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -33321,7 +33327,7 @@
   },
   {
    "id": "tyrian.shp#11|1|97",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -33337,7 +33343,7 @@
   },
   {
    "id": "tyrian.shp#11|1|98",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -33353,7 +33359,7 @@
   },
   {
    "id": "tyrian.shp#11|1|99",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -33369,7 +33375,7 @@
   },
   {
    "id": "tyrian.shp#11|1|101",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 1,
    "playerEpisodes": [
     1,
@@ -33387,7 +33393,7 @@
   },
   {
    "id": "tyrian.shp#11|1|102",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 1,
    "playerEpisodes": [
     1,
@@ -33405,7 +33411,7 @@
   },
   {
    "id": "tyrian.shp#11|1|103",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 1,
    "playerEpisodes": [
     1,
@@ -33423,7 +33429,7 @@
   },
   {
    "id": "tyrian.shp#11|1|104",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 1,
    "playerEpisodes": [
     1,
@@ -33441,7 +33447,7 @@
   },
   {
    "id": "tyrian.shp#11|1|105",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 1,
    "playerEpisodes": [
     1,
@@ -33459,7 +33465,7 @@
   },
   {
    "id": "tyrian.shp#11|1|106",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 1,
    "playerEpisodes": [
     1,
@@ -33477,7 +33483,7 @@
   },
   {
    "id": "tyrian.shp#11|1|107",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 1,
    "playerEpisodes": [
     1,
@@ -33495,7 +33501,7 @@
   },
   {
    "id": "tyrian.shp#11|1|108",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -33513,7 +33519,7 @@
   },
   {
    "id": "tyrian.shp#11|1|115",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -33529,7 +33535,7 @@
   },
   {
    "id": "tyrian.shp#11|1|116",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -33545,7 +33551,7 @@
   },
   {
    "id": "tyrian.shp#11|1|117",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -33561,7 +33567,7 @@
   },
   {
    "id": "tyrian.shp#11|1|118",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     1,
@@ -33833,9 +33839,9 @@
     178
    ],
    "hd": [
-    66,
-    15,
-    0
+    266,
+    16,
+    73
    ],
    "modelled": [
     85,
@@ -33843,14 +33849,14 @@
     55
    ],
    "covered": [
-    122,
-    15,
-    55
+    266,
+    16,
+    128
    ],
    "tileModels": 92,
    "tileModelTiers": {
-    "concept": 24,
-    "basic": 68
+    "concept": 40,
+    "basic": 52
    }
   },
   {
@@ -33990,22 +33996,24 @@
     47
    ],
    "hd": [
-    0,
+    108,
     0,
     0
    ],
    "modelled": [
-    0,
+    15,
     0,
     0
    ],
    "covered": [
-    0,
+    108,
     0,
     0
    ],
-   "tileModels": 0,
-   "tileModelTiers": {}
+   "tileModels": 2,
+   "tileModelTiers": {
+    "basic": 2
+   }
   }
  ],
  "songs": [
@@ -34628,168 +34636,6 @@
  "ranking": {
   "units": [
    {
-    "id": "assembly-newsh-caret-123",
-    "what": "ground (boss)",
-    "status": "basic",
-    "levels": 8,
-    "episodes": 1,
-    "events": 488,
-    "ticks": 58802
-   },
-   {
-    "id": "newsh3-267",
-    "what": "ground",
-    "status": "basic",
-    "levels": 8,
-    "episodes": 1,
-    "events": 72,
-    "ticks": 39094
-   },
-   {
-    "id": "newshf-169",
-    "what": "ground",
-    "status": "basic",
-    "levels": 7,
-    "episodes": 4,
-    "events": 85,
-    "ticks": 14794
-   },
-   {
-    "id": "newshe-195",
-    "what": "ground",
-    "status": "basic",
-    "levels": 7,
-    "episodes": 4,
-    "events": 124,
-    "ticks": 8116
-   },
-   {
-    "id": "assembly-newshf-270",
-    "what": "ground (boss)",
-    "status": "basic",
-    "levels": 6,
-    "episodes": 4,
-    "events": 42,
-    "ticks": 42306
-   },
-   {
-    "id": "assembly-newshf-195",
-    "what": "ground (boss)",
-    "status": "basic",
-    "levels": 6,
-    "episodes": 4,
-    "events": 28,
-    "ticks": 26394
-   },
-   {
-    "id": "assembly-newshf-191",
-    "what": "ground",
-    "status": "basic",
-    "levels": 6,
-    "episodes": 4,
-    "events": 28,
-    "ticks": 24074
-   },
-   {
-    "id": "assembly-newshf-199",
-    "what": "ground",
-    "status": "basic",
-    "levels": 6,
-    "episodes": 4,
-    "events": 28,
-    "ticks": 23598
-   },
-   {
-    "id": "newshf-171",
-    "what": "ground",
-    "status": "basic",
-    "levels": 6,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 12073
-   },
-   {
-    "id": "newshf-238",
-    "what": "ground",
-    "status": "basic",
-    "levels": 6,
-    "episodes": 4,
-    "events": 7,
-    "ticks": 6135
-   },
-   {
-    "id": "newshf-230",
-    "what": "ground",
-    "status": "basic",
-    "levels": 6,
-    "episodes": 4,
-    "events": 7,
-    "ticks": 6037
-   },
-   {
-    "id": "newshd-191",
-    "what": "ground",
-    "status": "basic",
-    "levels": 6,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 8842
-   },
-   {
-    "id": "newshe-235",
-    "what": "ground",
-    "status": "basic",
-    "levels": 6,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 7716
-   },
-   {
-    "id": "newshd-79",
-    "what": "ground",
-    "status": "basic",
-    "levels": 6,
-    "episodes": 3,
-    "events": 233,
-    "ticks": 7180
-   },
-   {
-    "id": "newshs-269",
-    "what": "air",
-    "status": "basic",
-    "levels": 6,
-    "episodes": 3,
-    "events": 43,
-    "ticks": 6072
-   },
-   {
-    "id": "newshs-171",
-    "what": "ground",
-    "status": "basic",
-    "levels": 6,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 4949
-   },
-   {
-    "id": "newshf-123",
-    "what": "ground",
-    "status": "basic",
-    "levels": 6,
-    "episodes": 3,
-    "events": 150,
-    "ticks": 3944
-   },
-   {
-    "id": "newshm-115",
-    "what": "air+ground",
-    "status": "basic",
-    "levels": 6,
-    "episodes": 2,
-    "events": 268,
-    "ticks": 14325
-   },
-   {
     "id": "newsh-caret-171",
     "what": "ground",
     "status": "basic",
@@ -34797,24 +34643,6 @@
     "episodes": 3,
     "events": 0,
     "ticks": 19196
-   },
-   {
-    "id": "newshs-153",
-    "what": "air",
-    "status": "basic",
-    "levels": 5,
-    "episodes": 3,
-    "events": 172,
-    "ticks": 17581
-   },
-   {
-    "id": "newshd-127",
-    "what": "air",
-    "status": "basic",
-    "levels": 5,
-    "episodes": 3,
-    "events": 136,
-    "ticks": 12623
    },
    {
     "id": "newshd-275",
@@ -38734,331 +38562,6 @@
   ],
   "pickups": [
    {
-    "id": "tyrian10-129",
-    "what": "pickup",
-    "status": "basic",
-    "levels": 62,
-    "episodes": 4,
-    "events": 5,
-    "ticks": 1004
-   },
-   {
-    "id": "tyrian10-127",
-    "what": "pickup",
-    "status": "basic",
-    "levels": 62,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 0,
-    "conditional": true
-   },
-   {
-    "id": "tyrian10-131",
-    "what": "pickup",
-    "status": "basic",
-    "levels": 62,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 0,
-    "conditional": true
-   },
-   {
-    "id": "tyrian9-155",
-    "what": "pickup",
-    "status": "sprite",
-    "levels": 32,
-    "episodes": 4,
-    "events": 44,
-    "ticks": 0
-   },
-   {
-    "id": "tyrian9-199",
-    "what": "pickup",
-    "status": "sprite",
-    "levels": 29,
-    "episodes": 4,
-    "events": 38,
-    "ticks": 0
-   },
-   {
-    "id": "tyrian9-157",
-    "what": "pickup",
-    "status": "sprite",
-    "levels": 28,
-    "episodes": 4,
-    "events": 34,
-    "ticks": 0,
-    "twoPlayerOnly": true
-   },
-   {
-    "id": "tyrian9-191",
-    "what": "pickup",
-    "status": "sprite",
-    "levels": 27,
-    "episodes": 4,
-    "events": 31,
-    "ticks": 0
-   },
-   {
-    "id": "tyrian9-245",
-    "what": "pickup",
-    "status": "sprite",
-    "levels": 26,
-    "episodes": 4,
-    "events": 30,
-    "ticks": 0,
-    "twoPlayerOnly": true
-   },
-   {
-    "id": "tyrian9-197",
-    "what": "pickup",
-    "status": "sprite",
-    "levels": 26,
-    "episodes": 4,
-    "events": 29,
-    "ticks": 0,
-    "twoPlayerOnly": true
-   },
-   {
-    "id": "tyrian9-203",
-    "what": "pickup",
-    "status": "sprite",
-    "levels": 24,
-    "episodes": 4,
-    "events": 30,
-    "ticks": 0,
-    "twoPlayerOnly": true
-   },
-   {
-    "id": "tyrian10-203",
-    "what": "pickup",
-    "status": "basic",
-    "levels": 23,
-    "episodes": 4,
-    "events": 31,
-    "ticks": 878
-   },
-   {
-    "id": "tyrian9-229",
-    "what": "pickup",
-    "status": "sprite",
-    "levels": 20,
-    "episodes": 4,
-    "events": 21,
-    "ticks": 0,
-    "twoPlayerOnly": true
-   },
-   {
-    "id": "tyrian10-165",
-    "what": "pickup",
-    "status": "basic",
-    "levels": 19,
-    "episodes": 4,
-    "events": 27,
-    "ticks": 586
-   },
-   {
-    "id": "tyrian10-39",
-    "what": "pickup",
-    "status": "basic",
-    "levels": 17,
-    "episodes": 4,
-    "events": 92,
-    "ticks": 7419
-   },
-   {
-    "id": "tyrian9-201",
-    "what": "pickup",
-    "status": "sprite",
-    "levels": 17,
-    "episodes": 4,
-    "events": 19,
-    "ticks": 0,
-    "twoPlayerOnly": true
-   },
-   {
-    "id": "tyrian9-237",
-    "what": "pickup",
-    "status": "sprite",
-    "levels": 17,
-    "episodes": 4,
-    "events": 19,
-    "ticks": 0,
-    "twoPlayerOnly": true
-   },
-   {
-    "id": "tyrian9-275",
-    "what": "pickup",
-    "status": "sprite",
-    "levels": 17,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 283
-   },
-   {
-    "id": "tyrian9-123",
-    "what": "pickup",
-    "status": "sprite",
-    "levels": 17,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 256
-   },
-   {
-    "id": "tyrian9-273",
-    "what": "pickup",
-    "status": "sprite",
-    "levels": 17,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 180
-   },
-   {
-    "id": "tyrian9-271",
-    "what": "pickup",
-    "status": "sprite",
-    "levels": 17,
-    "episodes": 3,
-    "events": 1,
-    "ticks": 102
-   },
-   {
-    "id": "tyrian9-121",
-    "what": "pickup",
-    "status": "sprite",
-    "levels": 17,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 95
-   },
-   {
-    "id": "tyrian9-277",
-    "what": "pickup",
-    "status": "sprite",
-    "levels": 17,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "id": "tyrian9-233",
-    "what": "pickup",
-    "status": "sprite",
-    "levels": 16,
-    "episodes": 4,
-    "events": 24,
-    "ticks": 0,
-    "twoPlayerOnly": true
-   },
-   {
-    "id": "tyrian9-207",
-    "what": "pickup",
-    "status": "sprite",
-    "levels": 16,
-    "episodes": 4,
-    "events": 17,
-    "ticks": 0,
-    "twoPlayerOnly": true
-   },
-   {
-    "id": "tyrian9-167",
-    "what": "pickup",
-    "status": "sprite",
-    "levels": 15,
-    "episodes": 4,
-    "events": 17,
-    "ticks": 0,
-    "twoPlayerOnly": true
-   },
-   {
-    "id": "tyrian9-195",
-    "what": "pickup",
-    "status": "sprite",
-    "levels": 15,
-    "episodes": 4,
-    "events": 17,
-    "ticks": 0,
-    "twoPlayerOnly": true
-   },
-   {
-    "id": "tyrian9-161",
-    "what": "pickup",
-    "status": "sprite",
-    "levels": 14,
-    "episodes": 4,
-    "events": 15,
-    "ticks": 0,
-    "twoPlayerOnly": true
-   },
-   {
-    "id": "tyrian9-243",
-    "what": "pickup",
-    "status": "sprite",
-    "levels": 14,
-    "episodes": 4,
-    "events": 14,
-    "ticks": 0,
-    "twoPlayerOnly": true
-   },
-   {
-    "id": "tyrian9-159",
-    "what": "pickup",
-    "status": "sprite",
-    "levels": 14,
-    "episodes": 3,
-    "events": 16,
-    "ticks": 0,
-    "twoPlayerOnly": true
-   },
-   {
-    "id": "tyrian10-51",
-    "what": "pickup",
-    "status": "basic",
-    "levels": 13,
-    "episodes": 4,
-    "events": 90,
-    "ticks": 4577
-   },
-   {
-    "id": "tyrian9-267",
-    "what": "pickup",
-    "status": "sprite",
-    "levels": 12,
-    "episodes": 4,
-    "events": 13,
-    "ticks": 0,
-    "twoPlayerOnly": true
-   },
-   {
-    "id": "newshp-85",
-    "what": "pickup",
-    "status": "basic",
-    "levels": 11,
-    "episodes": 4,
-    "events": 16,
-    "ticks": 1330
-   },
-   {
-    "id": "tyrian9-169",
-    "what": "pickup",
-    "status": "sprite",
-    "levels": 11,
-    "episodes": 4,
-    "events": 13,
-    "ticks": 0,
-    "twoPlayerOnly": true
-   },
-   {
-    "id": "tyrian9-269",
-    "what": "pickup",
-    "status": "sprite",
-    "levels": 9,
-    "episodes": 4,
-    "events": 9,
-    "ticks": 0,
-    "twoPlayerOnly": true
-   },
-   {
     "id": "tyrian10-191",
     "what": "pickup",
     "status": "partial",
@@ -39066,34 +38569,6 @@
     "episodes": 3,
     "events": 27,
     "ticks": 1320
-   },
-   {
-    "id": "tyrian10-1",
-    "what": "pickup",
-    "status": "basic",
-    "levels": 8,
-    "episodes": 3,
-    "events": 19,
-    "ticks": 15202
-   },
-   {
-    "id": "tyrian10-77",
-    "what": "pickup",
-    "status": "basic",
-    "levels": 8,
-    "episodes": 3,
-    "events": 18,
-    "ticks": 1244
-   },
-   {
-    "id": "tyrian9-231",
-    "what": "pickup",
-    "status": "sprite",
-    "levels": 8,
-    "episodes": 3,
-    "events": 8,
-    "ticks": 0,
-    "twoPlayerOnly": true
    },
    {
     "id": "tyrian10-76",
@@ -39105,52 +38580,6 @@
     "ticks": 13258
    },
    {
-    "id": "tyrian9-241",
-    "what": "pickup",
-    "status": "sprite",
-    "levels": 6,
-    "episodes": 3,
-    "events": 6,
-    "ticks": 0,
-    "twoPlayerOnly": true
-   },
-   {
-    "id": "tyrian10-241",
-    "what": "pickup",
-    "status": "basic",
-    "levels": 5,
-    "episodes": 3,
-    "events": 71,
-    "ticks": 115831
-   },
-   {
-    "id": "tyrian10-115",
-    "what": "pickup",
-    "status": "sprite",
-    "levels": 4,
-    "episodes": 3,
-    "events": 5,
-    "ticks": 129
-   },
-   {
-    "id": "tyrian10-75",
-    "what": "pickup",
-    "status": "basic",
-    "levels": 4,
-    "episodes": 2,
-    "events": 17,
-    "ticks": 4251
-   },
-   {
-    "id": "tyrian10-89",
-    "what": "pickup",
-    "status": "sprite",
-    "levels": 3,
-    "episodes": 3,
-    "events": 38,
-    "ticks": 3837
-   },
-   {
     "id": "tyrian10-57",
     "what": "pickup",
     "status": "basic",
@@ -39158,33 +38587,6 @@
     "episodes": 2,
     "events": 1,
     "ticks": 3054
-   },
-   {
-    "id": "tyrian10-19",
-    "what": "pickup",
-    "status": "sprite",
-    "levels": 3,
-    "episodes": 2,
-    "events": 1,
-    "ticks": 70
-   },
-   {
-    "id": "tyrian10-245",
-    "what": "pickup",
-    "status": "sprite",
-    "levels": 2,
-    "episodes": 2,
-    "events": 6,
-    "ticks": 82
-   },
-   {
-    "id": "tyrian9-281",
-    "what": "pickup",
-    "status": "sprite",
-    "levels": 2,
-    "episodes": 2,
-    "events": 3,
-    "ticks": 0
    },
    {
     "id": "tyrian10-37",
@@ -39196,15 +38598,6 @@
     "ticks": 469
    },
    {
-    "id": "tyrian10-243",
-    "what": "pickup",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 29,
-    "ticks": 5734
-   },
-   {
     "id": "tyrian10-133",
     "what": "pickup",
     "status": "basic",
@@ -39212,24 +38605,6 @@
     "episodes": 1,
     "events": 0,
     "ticks": 1307
-   },
-   {
-    "id": "tyrian10-38",
-    "what": "pickup",
-    "status": "sprite",
-    "levels": 1,
-    "episodes": 1,
-    "events": 2,
-    "ticks": 864
-   },
-   {
-    "id": "tyrian10-153",
-    "what": "pickup",
-    "status": "sprite",
-    "levels": 1,
-    "episodes": 1,
-    "events": 4,
-    "ticks": 597
    },
    {
     "id": "tyrian10-114",
@@ -39254,8 +38629,8 @@
    {
     "id": "shapesz",
     "what": "tiles 275/60/178 (layers 0/1/2)",
-    "status": "HD art 66/15/0, in structure models 85/0/55, 92 structure models",
-    "uncovered": [153,45,123],
+    "status": "HD art 266/16/73, in structure models 85/0/55, 92 structure models",
+    "uncovered": [9,44,50],
     "levels": 32,
     "episodes": 4,
     "events": 0
@@ -39290,144 +38665,14 @@
    {
     "id": "shapesy",
     "what": "tiles 108/71/47 (layers 0/1/2)",
-    "status": "HD art 0/0/0, in structure models 0/0/0, 0 structure models",
-    "uncovered": [108,71,47],
+    "status": "HD art 108/0/0, in structure models 15/0/0, 2 structure models",
+    "uncovered": [0,71,47],
     "levels": 6,
     "episodes": 3,
     "events": 0
    }
   ],
   "shots": [
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|286",
-    "what": "enemy and player shot",
-    "status": "no flat art",
-    "levels": 17,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 181014
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|287",
-    "what": "enemy and player shot",
-    "status": "no flat art",
-    "levels": 16,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 27708
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|288",
-    "what": "enemy and player shot",
-    "status": "no flat art",
-    "levels": 16,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 27461
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|168",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 15,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 20827
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|196",
-    "what": "enemy and player shot",
-    "status": "no flat art",
-    "levels": 13,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 2683
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|194",
-    "what": "enemy and player shot",
-    "status": "no flat art",
-    "levels": 13,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 2344
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|195",
-    "what": "enemy and player shot",
-    "status": "no flat art",
-    "levels": 13,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 2023
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|197",
-    "what": "enemy and player shot",
-    "status": "no flat art",
-    "levels": 13,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 1644
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|169",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 12,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 14129
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|214",
-    "what": "enemy and player shot",
-    "status": "no flat art",
-    "levels": 9,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 19649
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|145",
-    "what": "enemy and player shot",
-    "status": "no flat art",
-    "levels": 9,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 553
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|192",
-    "what": "enemy and player shot",
-    "status": "no flat art",
-    "levels": 7,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 10580
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|191",
-    "what": "enemy and player shot",
-    "status": "no flat art",
-    "levels": 7,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 9584
-   },
    {
     "kind": "shot",
     "id": "tyrian.shp#7|1|198",
@@ -39437,86 +38682,6 @@
     "episodes": 3,
     "events": 0,
     "ticks": 103914
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|118",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 7,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 7140
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|117",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 7,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 6818
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|137",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 7,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 6552
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|136",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 7,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 6254
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|304",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 7,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 4244
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|65",
-    "what": "enemy and player shot",
-    "status": "no flat art",
-    "levels": 6,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|91",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 6,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 3613
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|227",
-    "what": "enemy and player shot",
-    "status": "no flat art",
-    "levels": 5,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 26373
    },
    {
     "kind": "shot",
@@ -39540,36 +38705,6 @@
    },
    {
     "kind": "shot",
-    "id": "tyrian.shp#7|1|193",
-    "what": "enemy and player shot",
-    "status": "no flat art",
-    "levels": 4,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 855
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|21",
-    "what": "enemy and player shot",
-    "status": "no flat art",
-    "levels": 3,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 4016
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|72",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 3,
-    "episodes": 2,
-    "events": 0,
-    "ticks": 230198
-   },
-   {
-    "kind": "shot",
     "id": "tyrian.shp#7|1|162",
     "what": "enemy shot",
     "status": "no flat art",
@@ -39587,86 +38722,6 @@
     "episodes": 1,
     "events": 0,
     "ticks": 96631
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|211",
-    "what": "enemy and player shot",
-    "status": "no flat art",
-    "levels": 2,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 615
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|230",
-    "what": "enemy and player shot",
-    "status": "no flat art",
-    "levels": 2,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 471
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|249",
-    "what": "enemy and player shot",
-    "status": "no flat art",
-    "levels": 2,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 467
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|210",
-    "what": "enemy and player shot",
-    "status": "no flat art",
-    "levels": 2,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 465
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|248",
-    "what": "enemy and player shot",
-    "status": "no flat art",
-    "levels": 2,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 459
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|268",
-    "what": "enemy and player shot",
-    "status": "no flat art",
-    "levels": 2,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 458
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|229",
-    "what": "enemy and player shot",
-    "status": "no flat art",
-    "levels": 2,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 457
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|267",
-    "what": "enemy and player shot",
-    "status": "no flat art",
-    "levels": 2,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 308
    },
    {
     "kind": "shot",
@@ -39700,26 +38755,6 @@
    },
    {
     "kind": "shot",
-    "id": "tyrian.shp#7|1|7",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 2,
-    "episodes": 2,
-    "events": 0,
-    "ticks": 434
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|45",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 2,
-    "episodes": 2,
-    "events": 0,
-    "ticks": 66
-   },
-   {
-    "kind": "shot",
     "id": "tyrian.shp#7|1|166",
     "what": "enemy shot",
     "status": "no flat art",
@@ -39727,96 +38762,6 @@
     "episodes": 1,
     "events": 0,
     "ticks": 3079
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|99",
-    "what": "enemy and player shot",
-    "status": "no flat art",
-    "levels": 1,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 256
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|102",
-    "what": "enemy and player shot",
-    "status": "no flat art",
-    "levels": 1,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 141
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|103",
-    "what": "enemy and player shot",
-    "status": "no flat art",
-    "levels": 1,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 138
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|104",
-    "what": "enemy and player shot",
-    "status": "no flat art",
-    "levels": 1,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 133
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|105",
-    "what": "enemy and player shot",
-    "status": "no flat art",
-    "levels": 1,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 121
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|106",
-    "what": "enemy and player shot",
-    "status": "no flat art",
-    "levels": 1,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 107
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|107",
-    "what": "enemy and player shot",
-    "status": "no flat art",
-    "levels": 1,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 101
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|101",
-    "what": "enemy and player shot",
-    "status": "no flat art",
-    "levels": 1,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 97
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|64",
-    "what": "enemy and player shot",
-    "status": "no flat art",
-    "levels": 1,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 120
    },
    {
     "kind": "shot",
@@ -39890,587 +38835,7 @@
    },
    {
     "kind": "shot",
-    "id": "tyrian.shp#7|1|245",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 1,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 240
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|98",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 500
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|108",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|82",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|83",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|84",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|85",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|86",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|87",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|100",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|132",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|133",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|151",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|152",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|172",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|173",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|174",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|175",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|176",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|177",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|178",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|179",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|180",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|181",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|31",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|32",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|33",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|35",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|36",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|37",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|38",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|57",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|76",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|95",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 4,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|115",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|116",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|117",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|118",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|96",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|97",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|98",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|99",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|126",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|208",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|209",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|212",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|213",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|231",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|232",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|250",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|251",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|256",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|257",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|263",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|269",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|270",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|75",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
     "id": "tyrian.shp#7|1|170",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 2,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|171",
     "what": "player shot",
     "status": "no flat art",
     "levels": 0,
