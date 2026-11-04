@@ -255,7 +255,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
       controls.active = true;
       pauseButton.visible = true; // ui-framework
       const huds = { update: () => (hud.update(), hud2.update()) }; // [two-player]
-      const outcome = await playLevel(view, controls, sfx, music, huds, pauseButton, cheats);
+      const outcome = await playLevel(view, controls, sfx, music, huds, pauseButton, cheats, optionsHost);
       view.resetResolution(); // the menus draw at full resolution (D91)
       controls.active = false;
       controls.release();
@@ -303,7 +303,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
 
 type Outcome = "completed" | "died" | "quit";
 
-function playLevel(view: View, controls: Controls, sfx: SoundEffects, music: MusicPlayer, hud: Pick<Hud, "update">, pauseButton: PauseButton, cheats: CheatKeys): Promise<Outcome> {
+function playLevel(view: View, controls: Controls, sfx: SoundEffects, music: MusicPlayer, hud: Pick<Hud, "update">, pauseButton: PauseButton, cheats: CheatKeys, optionsHost: OptionsHost): Promise<Outcome> {
   return new Promise((resolve) => {
     let last = performance.now();
     let acc = 0;
@@ -319,7 +319,7 @@ function playLevel(view: View, controls: Controls, sfx: SoundEffects, music: Mus
         controls.active = false;
         music.volume = musicLevel(0.3); // [port-options] relative to the music volume setting
         pauseButton.visible = false; // restyle-polish: not over the pause screen
-        void showPause().then((choice) => {
+        void showPause(optionsHost).then((choice) => {
           paused = false;
           pauseButton.visible = choice !== "quit"; // restyle-polish
           quit = choice === "quit";

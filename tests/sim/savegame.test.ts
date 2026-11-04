@@ -16,6 +16,7 @@ import {
   MENU_FULL_GAME,
   MENU_LOAD_SAVE,
   MENU_OPTIONS,
+  ALL_SETTINGS_LABEL,
   MENU_UPGRADES,
   menu,
   type ItemScreenKey,
@@ -264,14 +265,35 @@ describe.skipIf(!HAVE)("the item screen's Options menu", () => {
       expect(menu.curMenu).toBe(MENU_OPTIONS);
       expect(JE_menuHeader()).toBe(g.menuInt[3][0]);
       const rows = itemScreenEntries();
-      expect(rows.map((e) => e.label)).toEqual(g.menuInt[3].slice(1, 8));
+      // the original's rows in order, with "All settings" added before Done (D102)
+      expect(rows.map((e) => e.label)).toEqual([...g.menuInt[3].slice(1, 7), ALL_SETTINGS_LABEL, g.menuInt[3][7]]);
       expect(rows.some((e) => e.unavailable)).toBe(false);
       expect(rows.find((e) => e.sel === 4)?.volume).toBe(DEFAULT_VOLUME);
       expect(JE_mainMenuHelpText()).toBe(g.mainMenuHelp[13 - 1]);
       press("up");
-      expect(menu.curSel[MENU_OPTIONS]).toBe(8);
+      expect(menu.curSel[MENU_OPTIONS]).toBe(9);
+      press("up");
+      expect(menu.curSel[MENU_OPTIONS]).toBe(8); // All settings: one Enter (or tap) asks the host for the settings screen
       press("enter");
+      expect(menu.setupRequest).toBe("sound");
+      expect(menu.curMenu).toBe(MENU_OPTIONS);
+      menu.setupRequest = null;
+      press("down", "enter");
       expect(menu.curMenu).toBe(MENU_FULL_GAME);
+    });
+  });
+
+  test("one tap on All settings opens the settings screen; the original's rows still take a second tap", () => {
+    withItemScreen(1, 2, () => {
+      openOptions();
+      JE_itemScreen_mouse(8);
+      expect(menu.setupRequest).toBe("sound");
+      menu.setupRequest = null;
+      JE_itemScreen_mouse(6); // Joystick: the first tap only moves the cursor
+      expect(menu.setupRequest).toBeNull();
+      JE_itemScreen_mouse(6);
+      expect(menu.setupRequest).toBe("joystick");
+      menu.setupRequest = null;
     });
   });
 

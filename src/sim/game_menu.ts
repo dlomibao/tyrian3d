@@ -41,6 +41,9 @@ import { JE_changeVolume, set_volume, volume, volumeFromBarCells, VOLUME_STEP } 
 export const MENU_FULL_GAME = 0;
 export const MENU_UPGRADES = 1;
 export const MENU_OPTIONS = 2;
+/** [pause-options] The row added to the shop's Options menu (the original has none): the full settings screen. */
+export const ALL_SETTINGS_LABEL = "All settings…";
+const ALL_SETTINGS_SEL = 8; // its row in the Options menu, before Done (9)
 export const MENU_PLAY_NEXT_LEVEL = 3;
 export const MENU_UPGRADE_SUB = 4;
 export const MENU_KEYBOARD_CONFIG = 5;
@@ -57,7 +60,8 @@ const MENU_MAX = 14;
 /** config.h SAVE_FILES_NUM */
 const SAVE_FILES_NUM = 11 * 2;
 
-const menuChoicesDefault = [7, 9, 8, 0, 0, 11, SAVE_FILES_NUM / 2 + 2, 0, 0, 6, 4, 6, 7, 5];
+// [pause-options] Options has 9 choices: the original's 8 plus "All settings" before Done (D102).
+const menuChoicesDefault = [7, 9, 9, 0, 0, 11, SAVE_FILES_NUM / 2 + 2, 0, 0, 6, 4, 6, 7, 5];
 const menuEsc = [0, 1, 1, 1, 2, 3, 3, 1, 8, 0, 0, 11, 3, 0];
 /** Which itemAvail row (1-based) each Upgrade Ship choice (curSel[MENU_UPGRADES] - 2) sells from. */
 export const itemAvailMap = [1, 2, 3, 9, 4, 6, 7];
@@ -546,7 +550,9 @@ export function JE_itemScreen_mouse(selection: number | "powerDown" | "powerUp")
       JE_playSampleNum(S_ITEM);
     } else {
       JE_playSampleNum(S_CLICK);
-      if (curSel[curMenu] === selection) {
+      if (curSel[curMenu] === selection || (curMenu === MENU_OPTIONS && selection === ALL_SETTINGS_SEL)) {
+        // [pause-options] the added "All settings" row opens on the first tap (the original's rows ask for a second, D102)
+        curSel[curMenu] = selection;
         JE_menuFunction(curSel[curMenu]);
       } else {
         if (curMenu === MENU_UPGRADE_SUB && JE_getCost(curSel[MENU_UPGRADES], g.itemAvail[availRow(curSel[MENU_UPGRADES])][selection - 2]) > g.player[0].cash) {
@@ -679,7 +685,10 @@ export function JE_menuFunction(select: number): void {
         case 7:
           menu.setupRequest = "keyboard"; // curMenu = MENU_KEYBOARD_CONFIG: the host's settings screen
           break;
-        case 8:
+        case 8: // [pause-options] "All settings": the host's settings screen, one tap on any input (D102)
+          menu.setupRequest = "sound";
+          break;
+        case 9:
           menu.curMenu = MENU_FULL_GAME;
           break;
       }
@@ -821,6 +830,7 @@ export function JE_mainMenuHelpText(): string {
   const { curSel, menuChoices, curMenu } = menu;
   const temp = curSel[curMenu] - 2;
 
+  if (curMenu === MENU_OPTIONS && menuHelp[curMenu][temp] === -1) return "Music and sound styles, terrain, interface, camera, resolution and the keys.";
   if (curMenu < MENU_PLAY_NEXT_LEVEL || curMenu === MENU_2_PLAYER_ARCADE || curMenu > MENU_1_PLAYER_ARCADE) {
     return g.mainMenuHelp[menuHelp[curMenu][temp] - 1] ?? "";
   } else if (menu.leftPower || menu.rightPower) {
@@ -836,7 +846,7 @@ export function JE_mainMenuHelpText(): string {
 const menuHelp = [
   [1, 34, 2, 3, 4, 5, 0, 0, 0, 0, 0],
   [6, 7, 8, 9, 10, 11, 11, 12, 0, 0, 0],
-  [13, 14, 15, 15, 16, 17, 12, 0, 0, 0, 0],
+  [13, 14, 15, 15, 16, 17, -1, 12, 0, 0, 0], // [pause-options] -1: the added "All settings" row
   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -954,7 +964,11 @@ export function itemScreenEntries(): ItemScreenEntry[] {
     const entry: ItemScreenEntry = { sel: x, label: labels[x - 1] ?? "" };
     if (curMenu === MENU_OPTIONS && x === 4) entry.volume = volume.tyrMusicVolume; // [port-options]
     if (curMenu === MENU_OPTIONS && x === 5) entry.volume = volume.fxVolume;
-    if (curMenu === MENU_OPTIONS && x === 8) entry.done = true;
+    if (curMenu === MENU_OPTIONS && x === 8) entry.label = ALL_SETTINGS_LABEL; // [pause-options]
+    if (curMenu === MENU_OPTIONS && x === 9) {
+      entry.label = labels[8 - 1] ?? ""; // the original's Done
+      entry.done = true;
+    }
     if (curMenu === MENU_UPGRADES && x === 9) entry.done = true;
     if (curMenu === MENU_PLAY_NEXT_LEVEL && x === menuChoices[curMenu]) entry.done = true;
     if (curMenu === MENU_2_PLAYER_ARCADE && (x === 3 || x === 4)) entry.inputPlayer = x === 3 ? 0 : 1; // [two-player]

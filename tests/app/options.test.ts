@@ -266,3 +266,23 @@ describe("the shop's Options and the title's Options (D99)", () => {
     expect(optionsRowsFor(host)).toEqual(optionsRowsFor(host));
   });
 });
+
+describe("settings are reachable on every input from inside a game (D102)", () => {
+  const read = (f: string) => readFileSync(join(__dirname, "..", "..", "src", f), "utf8");
+
+  test("the pause menu lists Resume, Options, Quit to title and opens the shared settings screen", () => {
+    const pause = read("app/pause.ts");
+    expect(pause).toMatch(/PAUSE_ITEMS = \["Resume", "Options", "Quit to title"\] as const/);
+    expect(pause).toMatch(/showOptions\(host\)/);
+    expect(read("app/run.ts")).toMatch(/showPause\(optionsHost\)/); // the same host as the title and the shop
+  });
+
+  test("the shop's Options menu has an All settings row before Done that asks for the settings screen", () => {
+    const menu = read("sim/game_menu.ts");
+    expect(menu).toMatch(/menuChoicesDefault = \[7, 9, 9,/); // Options: the original's 8 plus one
+    expect(menu).toMatch(/case 8:[^\n]*\n\s*menu\.setupRequest = "sound";/);
+    expect(menu).toMatch(/case 9:\s*menu\.curMenu = MENU_FULL_GAME;/);
+    // the two-player and arcade menus reach the same Options menu (tests/sim/twoPlayer.test.ts, arcade.test.ts)
+    expect(menu.match(/menu\.curMenu = MENU_OPTIONS;/g)?.length).toBeGreaterThanOrEqual(3);
+  });
+});

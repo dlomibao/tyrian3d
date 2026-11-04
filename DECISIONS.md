@@ -4173,3 +4173,25 @@ measures about 81 against the original's 86 and no longer steps at the swap. The
 structure is decided when it first shows); only the brightness mismatch was visible.
 
 Captures: `tyrian-scratch/road-dark/strip-compare.png` (before/after ticks 4186-4198).
+
+## D102 — Every setting is reachable from inside a game on touch, gamepad and keys: Options on the pause menu, and an "All settings…" row in the shop's Options (extends D99)
+
+**Reported (phone).** (1) The pause menu in a level offered only Resume and Quit to title. (2) The shop's Options pane
+(D99) showed the original's rows; the full settings screen was behind Enter, or "tap twice" on Music or Sound, which a
+tap on a volume bar never does, so nothing said it was there.
+
+**Decision.**
+- `showPause(optionsHost)` lists Resume, **Options**, Quit to title. Options opens `showOptions` with the run's one
+  `OptionsHost` (D99) over the pause screen (`over: true`, so closing it returns to the pause menu). The game never
+  leaves its paused state; changes apply live and are saved by the same code (volume, music and sound style, terrain,
+  interface, camera, resolution). The settings screen's own D98 scrolling and Back/Done work on touch, pad and keys.
+- The shop's Options menu gets a ninth row, "All settings…", between Keyboard and Done (`menuChoices[MENU_OPTIONS]`
+  8 to 9; Done is now 9). It sets `menu.setupRequest = "sound"`. The original's rows and their behaviour are
+  unchanged, but this one opens on the **first** tap (the original's rows focus on the first tap and act on the
+  second, `JE_itemScreen_mouse`). It has a help line of its own. Enter on Music or Sound still opens it too.
+- Other paths: the two-player and arcade menus (and Super Tyrian) all reach this same Options menu
+  (`menu.curMenu = MENU_OPTIONS`), so they gain the row; the title already had Options. No other settings entry was
+  keyboard-only. Modem/network's `MENU_LIMITED_OPTIONS` isn't ported.
+
+Captures: `tyrian-scratch/pause-options/captures/` (L1 = 844x390, L2 = 390x844 touch: pause, Options, Camera applied,
+resume; p1 = shop row and settings; D = desktop keys).
