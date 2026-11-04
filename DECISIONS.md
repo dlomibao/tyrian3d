@@ -4065,3 +4065,37 @@ Includes the enemy shots drawn on the most levels: #7 286-288 (17/16/16 levels) 
 - **In game:** no code change; `?sprites=original` brings back the extruded shots. Checked on level 1 with
   Multi-Cannon (t700), Protron + sidekicks (t1200), Mega Pulse (t1800); sheet
   `tyrian-scratch/e1-shots/before-after.png`. Not captured: the other weapons' frames.
+
+## D98 — Menus scroll on short phones: one definite track per screen, panes that scroll, a help bar that stays (extends D85)
+
+**Reported:** on a phone the item screens (shop, its submenus, Data Cubes reader, ship specs), Options, Load
+and the two-player shop were cut off at the window's edge with no way to reach the rest.
+
+**Cause.** `.ui-screen` is a fixed, `overflow: hidden` grid whose one row was `auto`. A percentage height
+resolves against a definite track, so the pane's `max-height: 100%` (and the shop's phone `height: 100%`)
+resolved to nothing, the pane grew to its content and the screen clipped it. `overflow-y: auto` on `.ui-panel`
+(D85) never had anything to scroll. Options and Load looked fine only because their flex column got a height
+from elsewhere. No touch handler was involved: `controls.ts` only handles pointers on the canvas, during play.
+
+**Decision.**
+- `.ui-screen` gets `grid-template: minmax(0, 1fr) / minmax(0, 1fr)`: one track the size of the window, so
+  panes size against it; `touch-action: pan-y` lets a finger pan a menu (and nothing else), `overscroll-behavior`
+  keeps the page still. Panes and `.ui-scroll` also get `-webkit-overflow-scrolling: touch`.
+- The shop panel's children lose `min-height: 0` (it let the rows squeeze into the window and the panes
+  overlap once the height was definite); its rows are `max-content`. On short windows (width <= 720 or height
+  <= 520) the help bar spans every row, `position: sticky` at the foot of the scrolling panel, with a last row
+  of its height so it never covers a pane; the panes are placed by hand (a definite-row item makes
+  auto-placement skip its cells). Load and High Scores' message bars stick the same way.
+- The title's row is `minmax(min-content, 1fr)` and the screen scrolls, for a window too short for its menu.
+- Focus reveal was already there (`reveal()` = `scrollIntoView({block: "nearest"})`: menus, options, shop,
+  high score picker); `scroll-padding-block` keeps it clear of the sticky bar.
+- `tests/app/menuScroll.test.ts` pins the structure and fails if a screen id is opened that isn't on its list,
+  or a screen's CSS sets its pane's overflow to hidden/visible.
+
+**Checked** (headless Chrome, mobile + touch emulation, `Input.synthesizeScrollGesture` swipes; every menu item
+brought into view by scrolling) at 375x667, 390x844, 667x375 and 844x390: title steps, Options, Load, High Scores,
+Players, the item screen in every submenu (front gun with its simulator, sidekicks, Options, nav, Data list,
+cube reader, specs, quit), two-player shop, data picker, game over, save name, high score entry, pause, story
+text. Desktop (1920x1080) captures of the title and item screen match. Captures:
+`tyrian-scratch/mobile-scroll/` (`before-*`, `b3-*`). Not covered: the arcade and episode-end screens (not
+reachable headless without a level), the destruct mode picker.
