@@ -20,7 +20,7 @@
 // scrolling are in cubes.ts), Quit, and the one-player arcade, two-player arcade and Super Tyrian
 // menus (the two-player menu's input rows ask the host, menu.inputRequest).
 // Options (load and save game, the music and sound volumes, Alt-S/Alt-L quick save and load); its
-// Joystick and Keyboard rows ask the host for its settings screen (menu.setupRequest) instead of
+// Music, Sound (on Enter), Joystick and Keyboard rows ask the host for its settings screen (menu.setupRequest) instead of
 // the C's in-menu MENU_JOYSTICK_CONFIG/MENU_KEYBOARD_CONFIG, and JE_operation (load or save a slot)
 // is the host's to run (menu.operationRequest), since saving asks for a name.
 // The weapon simulator (JE_initWeaponView/JE_weaponSimUpdate) is in weaponSim.ts, which the host
@@ -114,7 +114,7 @@ export const menu = {
    */
   operationRequest: 0,
   /** The Options menu's Joystick or Keyboard row: the host shows its settings screen there. */
-  setupRequest: null as "joystick" | "keyboard" | null,
+  setupRequest: null as "sound" | "joystick" | "keyboard" | null,
   /**
    * [two-player] The 2 Player Arcade menu's "Player 1 Input" / "Player 2 Input" row (0 or 1): the
    * host changes that player's devices, as the C cycles inputDevice[] (DECISIONS.md D28).
@@ -668,6 +668,10 @@ export function JE_menuFunction(select: number): void {
           menu.curMenu = MENU_LOAD_SAVE;
           menu.performSave = true;
           menu.quikSave = false;
+          break;
+        case 4: // Music and Sound: Enter opens the whole settings screen, the same as the title's Options
+        case 5:
+          menu.setupRequest = "sound";
           break;
         case 6:
           menu.setupRequest = "joystick"; // curMenu = MENU_JOYSTICK_CONFIG: the host's settings screen

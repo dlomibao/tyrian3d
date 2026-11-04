@@ -190,6 +190,28 @@ export function optionsRows(
   ];
 }
 
+/** The display choices (interface, camera, resolution) as the settings screen offers them: their values, current one and setter (kept on change). */
+function displayChoices() {
+  const choice = <T extends string>(c: DisplayChoice<T>) => ({
+    styles: c.values,
+    current: () => c.get(),
+    set: (s: string) => {
+      if (c.is(s)) c.set(s);
+      savePrefs();
+    },
+  });
+  return { interface: choice(interfaceStyle), camera: choice(cameraStyle), resolution: choice(resolutionStyle) };
+}
+
+/**
+ * Every row of the settings screen for a host. showOptions builds its screen from this, and the
+ * title's and the shop's Options both reach it with the one host (run.ts), so they can't differ.
+ */
+export function optionsRowsFor(host: OptionsHost): OptionsRow[] {
+  const d = displayChoices();
+  return optionsRows(host.music.styles ?? [], host.sfx.styles ?? [], TERRAIN_STYLES, { interface: d.interface.styles, camera: d.camera.styles, resolution: d.resolution.styles });
+}
+
 /** What the settings rules act on besides the volumes and bindings (the screen, or a test). */
 export interface SettingsHost {
   sound(sample: number): void;
@@ -459,16 +481,8 @@ export function showOptions(host: OptionsHost, focus: OptionsFocus = "sound"): P
       resolve();
     };
     const terrainStyles = TERRAIN_STYLES;
-    const choice = <T extends string>(c: DisplayChoice<T>) => ({
-      styles: c.values,
-      current: () => c.get(),
-      set: (s: string) => {
-        if (c.is(s)) c.set(s);
-        savePrefs();
-      },
-    });
-    const display = { interface: choice(interfaceStyle), camera: choice(cameraStyle), resolution: choice(resolutionStyle) };
-    const menu = new SettingsMenu(optionsRows(styles, soundStyles, terrainStyles, { interface: display.interface.styles, camera: display.camera.styles, resolution: display.resolution.styles }), focus, {
+    const display = displayChoices();
+    const menu = new SettingsMenu(optionsRowsFor(host), focus, {
       sound,
       styles,
       style: () => host.music.style,

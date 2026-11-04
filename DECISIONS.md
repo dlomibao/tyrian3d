@@ -4099,3 +4099,29 @@ cube reader, specs, quit), two-player shop, data picker, game over, save name, h
 text. Desktop (1920x1080) captures of the title and item screen match. Captures:
 `tyrian-scratch/mobile-scroll/` (`before-*`, `b3-*`). Not covered: the arcade and episode-end screens (not
 reachable headless without a level), the destruct mode picker.
+
+## D99 — The shop's Options reach the one settings screen; the shop shows the original's titles; the HUD says CREDITS (extends D85, D61)
+
+**Reported:** (1) Options from the shop lacked settings the title's Options has; (2) the shop showed an invented
+"Item screen" kicker; (3) the HUD's "SCORE" is really the player's cash.
+
+**Found.** Both entries already call the same `showOptions` with the same sfx and music. The gap was the shop's
+Options *menu*: the original's pane (Load, Save, Music and Sound sliders, Joystick, Keyboard, Done) shows only the
+volumes, and the settings screen with the music and sound styles, Terrain, Interface, Camera and Resolution
+rows was behind Joystick and Keyboard only.
+
+**Decision.**
+- `run.ts` builds one `OptionsHost`; the title's `showOptions(optionsHost)` and the shop (`ItemScreenHost extends
+  OptionsHost`, `runItemScreen({ files, ...optionsHost })`) use it, and `optionsRowsFor(host)` is the one source of
+  the rows, so they cannot drift. Changes apply live and are saved by the same code (`savePrefs`).
+- In the shop's Options pane, Enter (or tapping a selected row) on Music or Sound now opens the same settings screen
+  (`menu.setupRequest = "sound"`), like Joystick and Keyboard (sections "joystick", "keyboard" still focus their part).
+  The hint reads "All settings". The original's rows and their order are unchanged.
+- Headings are the original's: `JE_drawMenuHeader` / the submenu title (`menuInt`) and nothing above them. The
+  "Item screen" kicker (an internal name, `JE_itemScreen`) and the invented "Upgrade Ship" kicker are gone; the
+  dialog's aria-label is the open menu's title. "Retry from the item screen" now says "the shop".
+- The in-game HUD label is "CREDITS" in the bronze frame (wide and phone console), the minimal HUD and the
+  two-player HUD (these two had no label; they now show one), and the level-complete line. Number format is
+  unchanged. "High Scores" and the original's "Player 1 Score:" text are left alone.
+
+Captures: shop top menu, Front Gun submenu, Options pane and the settings screen opened from it, beside the title's Options, and the three HUDs.

@@ -423,7 +423,7 @@ function buildLandscape(layout: HudLayout, corners: readonly { x: number; y: num
 
   // The score, in the wide box (tweak 3: the C prints it on the playfield).
   P.screen(X(265), 113.4, 52.5, 12.6);
-  P.text(X(267.3), 117.6, "SCORE", 3.1, { ls: 0.3, fill: "#2f9a38" });
+  P.text(X(267.3), 117.6, "CREDITS", 3.1, { ls: 0.3, fill: "#2f9a38" });
   P.liveLayer(() => {
     P.text(X(315.6), 124, "", 8.6, { anchor: "end", ls: 0.2, key: "score" });
     P.glare(X(265), 113.4, 52.5, 12.6);
@@ -527,7 +527,7 @@ function buildPortrait(layout: HudLayout, corners: readonly { x: number; y: numb
   // Score.
   const sy = my + 11.5;
   P.screen(gx, sy, gw, 16);
-  P.text(gx + 1.8, sy + 4.4, "SCORE", 3, { ls: 0.3, fill: "#2f9a38" });
+  P.text(gx + 1.8, sy + 4.4, "CREDITS", 3, { ls: 0.3, fill: "#2f9a38" });
   P.liveLayer(() => {
     P.text(gx + gw - 1.8, sy + 13.2, "", 9.4, { anchor: "end", ls: 0.2, key: "score" });
     P.glare(gx, sy, gw, 16);
