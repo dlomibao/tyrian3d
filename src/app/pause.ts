@@ -5,16 +5,24 @@
 // mainint.c, also has a Quit, but it sets reallyEndLevel and playerEndLevel, so start_level reloads
 // the "LAST LEVEL" backup and goes back to the item screen; a way back to the title is what's
 // missing here, and retrying is what a death already does: DECISIONS.md D14.)
+//
+// "Options" opens the full settings screen (the title's and the shop's, with the same host) over this
+// one, so every setting is reachable from inside a level on any input (D102).
 
 import "./pause.css";
 import { h, keyHints, MenuList, showScreen, title } from "../ui";
+import { showOptions, type OptionsHost } from "./options";
 
 export type PauseChoice = "resume" | "quit";
 
+/** The pause menu's rows, in order. */
+export const PAUSE_ITEMS = ["Resume", "Options", "Quit to title"] as const;
+
 /** Show the pause screen over the frozen game; resolves with the player's choice. */
-export function showPause(): Promise<PauseChoice> {
+export function showPause(host: OptionsHost): Promise<PauseChoice> {
   return new Promise((resolve) => {
     let asking = false;
+    let inOptions = false;
     const done = (choice: PauseChoice) => {
       screen.close();
       resolve(choice);
@@ -25,6 +33,12 @@ export function showPause(): Promise<PauseChoice> {
       const sure = await screen.confirm("Your progress in this game will be lost.", { title: "Quit to title?", yes: "Quit", no: "Keep playing" });
       asking = false;
       if (sure) done("quit");
+    };
+    const options = async () => {
+      if (inOptions) return;
+      inOptions = true;
+      await showOptions(host); // over this screen; the game stays paused underneath
+      inOptions = false;
     };
     const screen = showScreen({
       id: "pause",
@@ -45,8 +59,8 @@ export function showPause(): Promise<PauseChoice> {
     });
     const menu = new MenuList({
       label: "Paused",
-      items: [{ label: "Resume" }, { label: "Quit to title" }],
-      onSelect: (i) => (i === 0 ? done("resume") : void quit()),
+      items: PAUSE_ITEMS.map((label) => ({ label })),
+      onSelect: (i) => (i === 0 ? done("resume") : i === 1 ? void options() : void quit()),
     });
     screen.add(
       title("Paused"),
