@@ -112,3 +112,20 @@ Measured in headless Chrome at 1920x1080 (Tilted, three runs each; all at 60 fps
 
 Most of the extra cost is drawing the damaged pieces as models rather than instanced sprites.
 Before/after sheets: `tyrian-scratch/damage-approach/prod/sheets/damage-{boss,levels}.png`.
+
+## The player ship's wear (D90)
+
+The player ship has no damaged frames. Its look follows its current armour instead, both ways
+(`src/render/damage/shipDamage.ts`):
+- **Ratio:** `ratio = armor / initial_armor`, clamped to [0, 1]. Armour above the ship's maximum
+  counts as full; a missing reference counts as healthy.
+- **Levels:** clean at 50% and above, a light scorch below 50%, and heavier scorch with embers
+  below 25%.
+- **Recovering:** each threshold needs 3% more to go back up.
+- **Fade:** the look eases in and out.
+
+The thresholds and looks are the constants at the top of that file. Only a level's draw list
+carries armour, so menus, the hangar, the shop's preview and the viewer always show the ship
+clean. Check it with `?debug=play&solid=1&armor=4` (40% of the Talon's 10), `&armor=1`, or a
+schedule `&armor=1@0,8@400`.
+

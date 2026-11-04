@@ -145,9 +145,15 @@ export interface DrawList {
   brightness: number;
   /** The smoothies, headlight, flip and JE_barBright of this tick, or null (src/sim/smoothies.ts). */
   screen: ScreenFilters | null;
+  /**
+   * Each player's armour and the ship's maximum (`initial_armor`), by player index, for the ship's
+   * wear (render/damage/shipDamage.ts, D90). Filled by a level's tick only; empty elsewhere (the
+   * item screen's preview), where ships are drawn clean.
+   */
+  ships?: { armor: number; reference: number }[];
 }
 
-export const drawList: DrawList = { items: [], palette: 0, filter: -99, brightness: 0, screen: null };
+export const drawList: DrawList = { items: [], palette: 0, filter: -99, brightness: 0, screen: null, ships: [] };
 
 /**
  * Base for enemy draw keys (drawState.key), clear of small keys other draw code may use: an enemy's
@@ -163,6 +169,7 @@ export const drawGroup = { index: -1, size: 1 as 1 | 2, dx: 0, dy: 0, first: fal
 
 export function beginDrawList(): void {
   drawList.items = [];
+  drawList.ships = [];
   drawState.pass = Pass.Background1;
   drawState.key = -1;
 }

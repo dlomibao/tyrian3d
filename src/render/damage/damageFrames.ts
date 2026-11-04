@@ -13,6 +13,7 @@ import type { PaletteTexture } from "../paletteTexture";
 import { spriteModelKey } from "../spriteModels";
 import { damageDepthMaterial, damageUniforms, patchDamage, type DamageUniforms } from "./damageShader";
 import { damageStats, framePixels } from "./damageRoute";
+import type { ShipCondition } from "./shipDamage";
 
 /** What the shaders need to draw one damaged frame over one intact frame. */
 export interface DamageState {
@@ -173,6 +174,95 @@ export class DamageFrames {
    * meshes get a depth material with the same cut, so cut parts cast no shadow.
    */
   apply(object: THREE.Object3D, materials: readonly THREE.Material[], s: DamageState | null): void {
+    const c = this.clone(object, materials);
+    const u = c.uniforms;
+    u.uDmgCover.value = -1;
+    if (!s || s.same) {
+      u.uDmgOn.value = 0;
+      this.twoSided(c, false);
+      return;
+    }
+    u.uDmgOn.value = 1;
+    object.updateMatrixWorld(true);
+    u.uDmgInv.value.copy(object.matrixWorld).invert();
+    u.uDmgSize.value.set(s.w, s.h);
+    u.uDmgMask.value = s.mask;
+    u.uDmgTint.value = s.tint;
+    u.uDmgPaint.value = s.paint;
+    this.twoSided(c, s.cuts);
+  }
+
+  /**
+   * Set a placed player ship's wear (D90): `ship` its condition (null or clean: drawn clean), `size`
+   * its sprite's size in tiles. Paint only: never a cut.
+   */
+  applyShip(object: THREE.Object3D, materials: readonly THREE.Material[], ship: ShipCondition | null, size: 1 | 2): void {
+    const c = this.clone(object, materials);
+    const u = c.uniforms;
+    this.twoSided(c, false);
+    if (!ship || !ship.damaged) {
+      u.uDmgOn.value = 0;
+      return;
+    }
+    const w = size * 12;
+    const h = size * 14;
+    u.uDmgOn.value = 1;
+    u.uDmgCover.value = ship.cover;
+    u.uDmgHot.value = ship.hot;
+    object.updateMatrixWorld(true);
+    u.uDmgInv.value.copy(object.matrixWorld).invert();
+    u.uDmgSize.value.set(w, h);
+    u.uDmgMask.value = this.wearPattern(w, h);
+    u.uDmgTint.value = null;
+    u.uDmgPaint.value = null;
+  }
+
+  private readonly patterns = new Map<string, THREE.DataTexture>();
+
+  /**
+   * The ship's scorch pattern: blotches of value noise, g = the coverage each texel scorches at
+   * (ranked, so coverage c scorches a share c of the texels), b = where embers glow. Fixed.
+   */
+  private wearPattern(w: number, h: number): THREE.DataTexture {
+    const key = `${w}x${h}`;
+    let t = this.patterns.get(key);
+    if (t) return t;
+    const n = w * h;
+    const noise = (x: number, y: number, seed: number, cell: number) => {
+      const hash = (i: number, j: number) => {
+        const v = Math.sin(i * 127.1 + j * 311.7 + seed * 74.7) * 43758.5453;
+        return v - Math.floor(v);
+      };
+      const fx = x / cell;
+      const fy = y / cell;
+      const i = Math.floor(fx);
+      const j = Math.floor(fy);
+      const u = fx - i;
+      const v = fy - j;
+      const su = u * u * (3 - 2 * u);
+      const sv = v * v * (3 - 2 * v);
+      const a = hash(i, j) + (hash(i + 1, j) - hash(i, j)) * su;
+      const b = hash(i, j + 1) + (hash(i + 1, j + 1) - hash(i, j + 1)) * su;
+      return a + (b - a) * sv;
+    };
+    const g = new Float32Array(n);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) g[y * w + x] = 0.65 * noise(x, y, 1, 4) + 0.35 * noise(x, y, 2, 2);
+    const order = [...g.keys()].sort((a, b) => g[a] - g[b]);
+    const data = new Uint8Array(n * 4);
+    order.forEach((i, rank) => (data[i * 4 + 1] = Math.round((rank / (n - 1)) * 255)));
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) data[(y * w + x) * 4 + 2] = Math.round(noise(x, y, 3, 1.5) * 255);
+    t = new THREE.DataTexture(data, w, h, THREE.RGBAFormat, THREE.UnsignedByteType);
+    t.magFilter = THREE.LinearFilter;
+    t.minFilter = THREE.LinearFilter;
+    t.generateMipmaps = false;
+    t.colorSpace = THREE.NoColorSpace;
+    t.needsUpdate = true;
+    this.patterns.set(key, t);
+    return t;
+  }
+
+  /** A clone's damage uniforms; the first time, its materials are patched and its depth material set. */
+  private clone(object: THREE.Object3D, materials: readonly THREE.Material[]): CloneDamage {
     let c = this.clones.get(object);
     if (!c) {
       const uniforms = damageUniforms();
@@ -188,20 +278,7 @@ export class DamageFrames {
       });
       this.clones.set(object, (c = { uniforms, patched, twoSided: false }));
     }
-    const u = c.uniforms;
-    if (!s || s.same) {
-      u.uDmgOn.value = 0;
-      this.twoSided(c, false);
-      return;
-    }
-    u.uDmgOn.value = 1;
-    object.updateMatrixWorld(true);
-    u.uDmgInv.value.copy(object.matrixWorld).invert();
-    u.uDmgSize.value.set(s.w, s.h);
-    u.uDmgMask.value = s.mask;
-    u.uDmgTint.value = s.tint;
-    u.uDmgPaint.value = s.paint;
-    this.twoSided(c, s.cuts);
+    return c;
   }
 
   /** While cut, the materials draw their back faces too (charred), so a cut shows a wall, not a gap. */

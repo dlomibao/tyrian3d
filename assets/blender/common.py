@@ -270,14 +270,19 @@ def frame_part(obj, frames):
     return obj
 
 
-def outline_shell(obj, collection, voxel=0.012, faces=3000, smooth=6):
+def outline_shell(obj, collection, voxel=0.012, faces=3000, smooth=6, inside=0.0):
     """A smooth, closed copy of `obj` for the game's ink outline only (DECISIONS.md D51): a voxel
     remesh (it closes the panel gaps), smoothed, decimated to about `faces` faces and smooth
     shaded. The outline (three's OutlineEffect, an inverted hull
     pushed out along the normals) breaks into whiskers along hard edges with split normals and
     strokes every separate plate; drawn from this shell instead it is one clean contour. The shell
     gets the material `outline_shell` and the node extra `tyrian_outline: true`; the game draws
-    it only in the outline pass (src/render/models.ts) and turns the model's own outline off."""
+    it only in the outline pass (src/render/models.ts) and turns the model's own outline off.
+
+    `inside` > 0: afterwards every shell vertex outside the model is pulled back onto it, that far
+    inside (Shrinkwrap, inside mode). Smoothing fills a model's creases, so on a ship with hard
+    chines and deep seams (the D88 Talon) the shell stood outside the hull along them and its back
+    faces drew as black cracks across the pods; held inside, the ink stays on the silhouette."""
     me = obj.data.copy()
     me.materials.clear()
     shell = bpy.data.objects.new(f"{obj.name}_outline", me)
@@ -327,6 +332,13 @@ def outline_shell(obj, collection, voxel=0.012, faces=3000, smooth=6):
         dec = shell.modifiers.new("decimate", "DECIMATE")
         dec.ratio = faces / n
     _apply_modifiers(shell)
+    if inside > 0:
+        sw = shell.modifiers.new("inside", "SHRINKWRAP")
+        sw.target = obj
+        sw.wrap_method = "NEAREST_SURFACEPOINT"
+        sw.wrap_mode = "INSIDE"
+        sw.offset = -inside
+        _apply_modifiers(shell)
     shell.data.shade_smooth()
     shell.data.materials.append(material("outline_shell", (0.0, 0.0, 0.0), roughness=1.0))
     shell["tyrian_outline"] = True

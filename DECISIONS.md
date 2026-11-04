@@ -3607,3 +3607,68 @@ level 1's part of the committed atlas (it covers every level now, so there would
 contact sheets (`check/`) and `cut-report.json` are in `tyrian-scratch/shapesz-hd/work/` (not in git, D3).
 Recut from the cache: `terrain_hd.py --tileset shapesz --work W cut --cache W/cands.pkl --edge-aware --recut
 1:40,...,1:64` reproduces this atlas byte for byte.
+
+## D90 — The Talon's outline shell bridges the refitted hull; the player ship wears with its armour
+
+2026-11-04
+
+**Problem:** after D88 the USP Talon showed black cracks across its pods and body.
+- **Where:** in the item screen's hangar, at full armour, and in flight. The user read it as the
+  runtime damage (D87).
+- **Not the cause:** the damage code. `?damage=off` showed the same cracks, and the menus' backdrop
+  doesn't use it at all.
+- **Not the geometry:** in `?viewer=usp_talon` the cracks went away with Outline off.
+- **The cause: the outline shell (D51).** It is a voxel remesh at 0.012, smoothed and decimated, and
+  on the refitted hull it followed the new chines and seams into the creases. Its back faces there
+  drew ink across the surface. The pre-D88 Talon, with rounder pods, didn't do this.
+
+**Decision:**
+- **Shell.** `common.outline_shell` takes `inside`: after smoothing, every shell vertex outside the
+  model goes back onto it, that far inside (Shrinkwrap, inside mode). The Talon's shell is now made
+  from 0.03 voxels (it bridges the seams), held 0.004 inside; it was 0.012. Nothing else is
+  rebuilt; the default is unchanged.
+  - Tried first, and the cracks stayed: a 1500- or 4000-face shell held 0.004-0.035 inside, and an
+    undecimated one.
+  - Of the other D88 ships, the Silver Ship shows a few faint lines in the viewer (not fixed here).
+    Dragonwing, Nort Ship and Supercarrot look clean.
+- **The player ship's wear (the user's rule).** The player ship has no damaged frames, so its look
+  follows its current armour, both ways, never latched (`src/render/damage/shipDamage.ts`):
+  - **Reference:** the ship's maximum, `initial_armor`, not the level-start armour (D75: the C caps
+    that at 28).
+  - **Ratio:** `ratio = armor / initial_armor`, clamped to [0, 1]. Armour above the reference
+    (pickups, the armour ship's crates) is full. A zero or missing reference is healthy.
+  - **Levels:**
+    - clean at 50% and above;
+    - light scorch below 50% (`LIGHT`);
+    - heavier scorch with embers below 25% (`HEAVY`).
+  - **Going down** happens at once. **Going back up** needs `HYSTERESIS` = 3% of the maximum above
+    the threshold, so it doesn't flicker. A pickup from under 25% to over 53% goes straight to clean.
+  - **Fade:** the look eases at `FADE_PER_S` = 0.8 coverage per second, kept within [0, 1].
+  - **Look:** scorch is a fixed blotch pattern projected top-down like D87's damage. `COVER`
+    0.28 / 0.55 of the ship, `HOT` embers in the heavy level. Paint only, never a cut.
+  - The user can tune all of these: they are the constants at the top of `shipDamage.ts`.
+  - **Two players:** each ship follows its own armour and reference.
+- **Never in menus.** A level's tick puts each player's armour in the draw list (`DrawList.ships`,
+  `sim/game.ts`). The renderer draws a ship worn only from that. The item screen's preview
+  (`weaponSim`), the menus' backdrop (title flights, hangar) and the model viewer never carry it,
+  so they show the ship clean. The first draw list with armour snaps to it; after that the look
+  eases.
+- **Debug:** `?debug=play&armor=N@T,N@T` holds N from tick T on, e.g. `1@0,4@330,8@420` for a
+  pickup.
+
+**Review:** `tests/render/shipDamage.test.ts`:
+- armour at 150%, exactly at the thresholds, at 0, and a zero or missing reference;
+- down through the thresholds and back up;
+- hovering at a threshold;
+- the pickup jump;
+- fade bounds;
+- two players;
+- clean ships drawn without armour;
+- no cut in ship mode.
+
+Sheets in `tyrian-scratch/damage-ship-fix/ship-sheet.png`:
+- the hangar, before and after;
+- in flight at full armour, before and after;
+- 40% and 10% armour;
+- recovery 10% → 40% → 80%;
+- the title flights.
