@@ -46,9 +46,11 @@ import { colourFrame, rigModel, showFrame, type FrameRig } from "./modelFrames";
 import { castsShadow, isModelHelper, setModelBlended } from "./modelPrep";
 import { adoptRockMaterials, cloneRockMaterial, isRockMaterial, rockFades, setRockLook } from "./rockMaterial";
 import type { SpriteModels } from "./spriteModels";
+import { DamageFrames, type DamageState } from "./damage/damageFrames";
+import { damageModeFromSearch } from "./damage/damageMode";
 import { Route, Sprite2Router } from "./sprite2Route";
 import { bankShift } from "./bankShift";
-import type { LevelSprite, LevelTile } from "../sim/levelSprites";
+import type { LevelDamage, LevelSprite, LevelTile } from "../sim/levelSprites";
 import { TileAtlas } from "./tileAtlas";
 import { RemasteredFx, SpriteLook } from "./vfx/remasteredFx";
 import { vfxModeFromSearch, type VfxMode } from "./vfx/vfxMode";
@@ -240,6 +242,8 @@ export interface LevelModelInfo {
    * terrain's neighbour variants (D57).
    */
   maps?: readonly [ArrayLike<number>, ArrayLike<number>, ArrayLike<number>];
+  /** Its enemies' damaged frames (levelDamageFrames), drawn with their intact models (D86). */
+  damage?: readonly LevelDamage[];
 }
 
 /** A model a level can show, and roughly when it's first needed (LevelSprite.time). */
@@ -323,6 +327,8 @@ export class DrawListRenderer {
   /** Add this to the scene. */
   readonly root = new THREE.Group();
   readonly palette = new PaletteTexture();
+  /** Damaged frames drawn with the intact models (D86); null with `?damage=off` (as sprites). */
+  private readonly damage: DamageFrames | null = damageModeFromSearch() === "off" ? null : new DamageFrames(this.palette);
   readonly cache = new SpriteMeshCache();
   readonly atlas = new TileAtlas();
   readonly remasterAtlas = new RemasterGroundAtlas();
@@ -550,6 +556,7 @@ export class DrawListRenderer {
     // The island rock's HD materials (D84) take their colours from this renderer's palette.
     this.loader = (name) => loader(name).then((model) => adoptRockMaterials(model, this.palette));
     this.router = new Sprite2Router(models);
+    if (this.damage !== null) this.router.setDamage([]);
     for (const o of models.banked) this.modelPool(o.model);
   }
 
@@ -584,6 +591,7 @@ export class DrawListRenderer {
     { progress, timeoutMs = Infinity, waitUntil = Infinity }: { progress?: (done: number, total: number) => void; timeoutMs?: number; waitUntil?: number } = {},
   ): Promise<PreloadResult> {
     const models = this.levelModels(info);
+    this.setLevelDamage(info.damage);
     // The structures' own first-sight loading (preloadStructures) would fetch the whole tileset.
     if (info.tileShapes) this.preloadedShapes.add(info.tileShapes);
     const settled = new Map<string, Promise<void>>();
@@ -635,6 +643,14 @@ export class DrawListRenderer {
     return result;
   }
 
+  /**
+   * The level's damaged frames (sim/levelSprites.ts levelDamageFrames), so they're drawn with the
+   * intact models (D86). preloadLevel sets them; call it directly when a level starts without one.
+   */
+  setLevelDamage(damage: readonly LevelDamage[] | undefined): void {
+    if (this.damage !== null && damage) this.router.setDamage(damage);
+  }
+
   /** Build this frame's instances. alpha interpolates from the previous tick (0) to the current (1). */
   update(alpha: number, camera: THREE.Camera): void {
     const now = performance.now();
@@ -672,6 +688,8 @@ export class DrawListRenderer {
           const sheetArt = art ? this.artSheet(d.sheet) : null;
           this.routeSheet = d.sheet;
           const r = this.router.route(d, sheetArt, this.emptyTile);
+          // A damaged frame drawn with the intact model (D86): its damage, for the shaders.
+          const damaged = r.damaged && this.damage !== null ? this.damage.state(d, r.frame) : null;
           const flat = r.route === Route.Flat;
           if (r.route === Route.Group || r.route === Route.Override || r.route === Route.Ungrouped) {
             const pool = this.modelPool(r.model);
@@ -681,7 +699,7 @@ export class DrawListRenderer {
               // an aircraft model flying over a wreck doesn't erase it.
               if (d.pass === Pass.GroundEnemies && d.effect !== "blend") this.cover.add(d.sheet, d.index, d.size, x, y);
               const shift = r.override ? bankShift(d.sheet.id, d.sheet.data, r.override.baseIndex, d.index) : 0;
-              this.drawModel(r.route, pool, r.bank, shift, d, x, y, cam, dt);
+              this.drawModel(r.route, pool, r.bank, shift, d, x, y, cam, dt, r.frame, damaged);
               continue;
             }
             // Held back while its model loads, or locked to its sprite (D54).
@@ -1170,7 +1188,7 @@ export class DrawListRenderer {
    * goes at the object's centre on its first tile while the other tiles draw nothing; or a sprite
    * drawn on its own, a sidekick (Ungrouped), centred on the sprite and showing the frame drawn.
    */
-  private drawModel(route: Route, pool: ModelPool, bank: number, shift: number, d: SpriteDraw, x: number, y: number, cam: THREE.Vector3, dt: number): void {
+  private drawModel(route: Route, pool: ModelPool, bank: number, shift: number, d: SpriteDraw, x: number, y: number, cam: THREE.Vector3, dt: number, frame: number, damaged: DamageState | null): void {
     let clone: ModelClone;
     if (route === Route.Override) {
       clone = this.placeModel(pool, x + (d.size * 12) / 2, y + (d.size * 14) / 2, d, cam);
@@ -1183,7 +1201,8 @@ export class DrawListRenderer {
       return;
     } else {
       if (!d.groupFirst) return;
-      clone = this.placeModel(pool, x + d.groupDx, y + d.groupDy, d, cam, d.groupIndex);
+      clone = this.placeModel(pool, x + d.groupDx, y + d.groupDy, d, cam, frame);
+      this.damage?.apply(clone.object, clone.materials, damaged);
       // [two-player] a grouped ship that banks (the dragonwing) rolls as the player ships do
       if (Number.isNaN(bank)) return;
     }

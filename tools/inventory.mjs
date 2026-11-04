@@ -33,7 +33,8 @@
 // objects, one script each), public/art/sprites/manifest.json (flat art, D42), public/art/terrain/
 // <tileset>/manifest.json (HD terrain, D57), src/render/tileModels/*.json (structure models, D34/D47),
 // public/tyrian-remaster/manifest.json (music arrangements, D40), public/art/pictures.json (D19),
-// and KNOWN_DAMAGE_SWAPS in tests/render/modelSwap.test.ts (D54).
+// and the damaged frames the intact models draw (D86; KNOWN_DAMAGE_SWAPS in tests/render/modelSwap.test.ts
+// before it, D54).
 //
 // Deterministic: fixed seeds, sorted output, no timestamps. Never writes game data or pixels.
 
@@ -922,7 +923,10 @@ export async function buildInventory(m, files, { play = true, episodes, root = R
     else if (st.every((s) => s === "flagship" || s === "concept" || s === "basic")) status = st.includes("basic") ? "basic" : "concept";
     else if (st.some((s) => s !== "sprite")) status = "partial";
     else status = "sprite";
-    const damageMissing = [...u.damageFrames].filter((k) => keyStatus(k) === "sprite").sort(keySort);
+    // A damaged frame without a model of its own is drawn with the unit's intact model, damaged by
+    // the shader (D86): missing only while no intact frame has a model.
+    const intactModel = st.some((s) => s === "flagship" || s === "concept" || s === "basic");
+    const damageMissing = intactModel ? [] : [...u.damageFrames].filter((k) => keyStatus(k) === "sprite").sort(keySort);
     return { status, damage: dmg.length === 0 ? "none" : damageMissing.length ? "missing" : "modelled", damageMissing };
   };
   const unitList = [...units.values()].map((u) => {
