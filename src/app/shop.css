@@ -22,9 +22,11 @@
   -webkit-backdrop-filter: none;
 }
 
-/* The panel scrolls as a whole on short screens; its parts keep their height. */
+/* The panel scrolls as a whole on short screens; its parts keep their height (a grid item's
+   automatic minimum is its content: min-height: 0 here let the rows squeeze into the screen and
+   the panes overlap, D97). */
 .ui-screen--shop > .ui-panel > * {
-  min-height: 0;
+  min-height: min-content;
 }
 
 /* The panel hangs from the top, so the title and menu stay put when a menu's length changes. */
@@ -360,7 +362,6 @@
 
   .ui-screen--shop > .ui-panel {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto auto minmax(0, 1fr) auto;
     gap: 0.6rem;
     height: 100%;
   }
@@ -378,7 +379,6 @@
 
   .ui-screen--shop .shop-help {
     order: 4;
-    align-self: end;
   }
 
   .ui-screen--shop .shop-help .ui-hints {
@@ -435,6 +435,49 @@
 
   .ui-screen--shop .loadout li {
     font-size: 0.78rem;
+  }
+}
+
+/* Short windows: the panel scrolls (D97) and the help bar stays at its foot. The bar spans every
+   row and sticks to the bottom of the scrolling box; the last row is the room it takes at the end
+   of the content, so it never covers the panes. */
+@media (max-width: 720px), (max-height: 520px) {
+  .ui-screen--shop > .ui-panel {
+    --shop-help-room: 4.6rem;
+    grid-template-rows: max-content max-content var(--shop-help-room);
+    scroll-padding-block: 0.5rem var(--shop-help-room);
+  }
+
+  .ui-screen--shop .shop-help {
+    grid-row: 1 / -1;
+    align-self: end;
+    position: sticky;
+    bottom: -3px;
+    z-index: 2;
+  }
+
+  /* The bar's rows are taken, so the panes are placed by hand rather than around it. */
+  .ui-screen--shop .shop-menu {
+    grid-area: 1 / 1;
+  }
+
+  .ui-screen--shop .shop-left {
+    grid-area: 2 / 1;
+  }
+}
+
+@media (min-width: 721px) and (max-height: 520px) {
+  .ui-screen--shop > .ui-panel {
+    --shop-help-room: 3.4rem;
+    grid-template-rows: max-content var(--shop-help-room);
+  }
+
+  .ui-screen--shop .shop-left {
+    grid-area: 1 / 1;
+  }
+
+  .ui-screen--shop .shop-menu {
+    grid-area: 1 / 2;
   }
 }
 

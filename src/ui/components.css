@@ -12,9 +12,16 @@
   inset: 0;
   z-index: 10;
   display: grid;
+  /* One definite track, the size of the window: a pane's max-height / height: 100% then resolve
+     against it. With the default auto track they don't, a tall pane outgrows the screen and
+     overflow: hidden cuts it off with nothing to scroll (the phones' bug, D97). */
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
   place-items: center;
   padding: max(16px, env(safe-area-inset-top)) var(--ui-gutter) max(16px, env(safe-area-inset-bottom));
   overflow: hidden;
+  /* A finger may pan a menu up and down (and nothing else: no page zoom or bounce). */
+  touch-action: pan-y;
+  overscroll-behavior: none;
   color: var(--ui-ink);
   font-family: var(--ui-font-text);
   font-size: var(--ui-text-md);
@@ -75,6 +82,7 @@
   max-height: 100%;
   overflow-y: auto;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   padding: var(--ui-space-5) 1.6rem;
   background: var(--ui-panel);
   border: var(--ui-rim-width) solid;
@@ -707,6 +715,7 @@ h3.ui-title {
   max-height: min(50vh, 22rem);
   overflow-y: auto;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   padding-right: var(--ui-space-2);
   outline: none;
   scrollbar-width: thin;
@@ -853,6 +862,29 @@ h3.ui-title {
 
   .ui-screen > .ui-panel > * {
     flex-shrink: 0;
+  }
+}
+
+/* Short windows (phones, either way up): the pane scrolls and its message bar stays at the foot,
+   in view over the scrolled rows. (The sticky offset is the pane's padding, which the bar covers.) */
+@media (max-width: 700px), (max-height: 520px) {
+  .ui-screen--highscores > .ui-panel > .ui-msgbar,
+  .ui-screen--load > .ui-panel > .ui-msgbar {
+    position: sticky;
+    bottom: calc(-1 * var(--ui-space-5));
+    z-index: 2;
+  }
+
+  /* Keyboard and pad focus scrolls a row into view clear of that bar. */
+  .ui-panel {
+    scroll-padding-block: var(--ui-space-3) 5rem;
+  }
+}
+
+@media (max-width: 560px) {
+  .ui-screen--highscores > .ui-panel > .ui-msgbar,
+  .ui-screen--load > .ui-panel > .ui-msgbar {
+    bottom: calc(-1 * var(--ui-space-4));
   }
 }
 
