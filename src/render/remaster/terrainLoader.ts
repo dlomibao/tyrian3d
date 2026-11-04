@@ -56,6 +56,7 @@ export async function loadTerrainTileset(
     opaque.add(art.image);
     for (const r of art.tiles.values()) if (r.image) opaque.add(r.image);
     for (const list of art.variants.values()) for (const r of list) if (r.image) opaque.add(r.image);
+    for (const r of art.covered.values()) if (r.image) opaque.add(r.image); // covered paintings (D67)
   }
   await Promise.all(
     [...tileset.images.keys()].map((image) =>

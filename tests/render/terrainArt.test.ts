@@ -114,6 +114,23 @@ describe("fallback per tile", () => {
     expect(t.tile(0, 2, 0)?.x).toBe(224);
   });
 
+  test("a covered tile (D67) has its own painting, possibly in an atlas of its own; others have none", () => {
+    const warnings: string[] = [];
+    const m = parseTerrainManifest(
+      { scale: 8, layers: { "0": { image: "0.webp", tiles: { "1": rect(16, 16) }, covered: { "1": { ...rect(16, 16), image: "0-covered.webp" }, "2": { x: 3 } } } } },
+      (w) => warnings.push(w),
+    )!;
+    expect(warnings.length).toBe(1); // "2" is malformed
+    const t = new TerrainTileset<string>("shapesz", m);
+    expect([...t.images.keys()].sort()).toEqual(["0-covered.webp", "0.webp"]);
+    t.setImage("0.webp", { texture: "a", width: 1024, height: 512 });
+    expect(t.coveredTile(0, 1)).toBeUndefined(); // its atlas hasn't loaded
+    t.setImage("0-covered.webp", { texture: "c", width: 1024, height: 512 });
+    expect(t.coveredTile(0, 1)).toEqual({ texture: "c", x: 16, y: 16 });
+    expect(t.coveredTile(0, 2)).toBeUndefined();
+    expect(t.tile(0, 1, 0)).toEqual({ texture: "a", x: 16, y: 16 });
+  });
+
   test("neighbours: outside the map or another row's edge is -1", () => {
     const map: TerrainMap = { width: 2, tiles: [10, 11, 12, 13] };
     expect([neighbourTile(map, 0, "left"), neighbourTile(map, 0, "right"), neighbourTile(map, 0, "up"), neighbourTile(map, 0, "down")]).toEqual([-1, 11, -1, 12]);

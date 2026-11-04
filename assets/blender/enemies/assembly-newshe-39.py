@@ -31,8 +31,9 @@ underside is a plain flat closed base.
 
 Texture: an occlusion / edge-wear / base-darkening colour multiplier and a roughness/metal map, baked once for the
 whole heap (the ships' bake, PR #84) and shared by the pieces; no concept projection (maps.json says
-"bake": "model"). Each piece gets the flat closed patch of dirt and shadow under it, painted from
-its sprite in 2 x 2 px cells (untextured palette materials), and an outline shell (D51).
+"bake": "model"). Each piece gets an outline shell (D51). The sprite's dirt and shadow round the
+rocks are not modelled (D67; they were a flat patch of 2 x 2 px cells): the game's HD ground shows
+there, and the rocks' real shadow falls on it.
 
 Run: blender --background --python assets/blender/enemies/assembly-newshe-39.py
      [-- --preview out.png] [--no-bake] [--render DIR] [--top-tris out.json]
@@ -842,73 +843,6 @@ def build(colors):
     return obj, mats
 
 
-def ground_tile(bm, grid, ox, oy, slot_for, z=0.02, w=24, h=28, cell=2):
-    """lib_b134.ground_tile with a bottom face (closed slab)."""
-    from collections import Counter
-    nx, ny = w // cell, h // cell
-    vx = lambda i: (i * cell - w / 2) * U  # noqa: E731
-    vy = lambda j: (h / 2 - j * cell) * U  # noqa: E731
-    top = [[bm.verts.new((vx(i), vy(j), z)) for i in range(nx + 1)] for j in range(ny + 1)]
-    for j in range(ny):
-        for i in range(nx):
-            counts = Counter(grid.pixels[oy + j * cell + b][ox + i * cell + a]
-                             for a in range(cell) for b in range(cell))
-            f = bm.faces.new((top[j + 1][i], top[j + 1][i + 1], top[j][i + 1], top[j][i]))
-            f.material_index = slot_for(counts.most_common(1)[0][0])
-            f.smooth = False
-    ring = ([top[0][i] for i in range(nx + 1)] + [top[j][nx] for j in range(1, ny + 1)]
-            + [top[ny][i] for i in range(nx - 1, -1, -1)] + [top[j][0] for j in range(ny - 1, 0, -1)])
-    low = [bm.verts.new((v.co.x, v.co.y, 0.0)) for v in ring]
-    for k in range(len(ring)):
-        q = (k + 1) % len(ring)
-        f = bm.faces.new((ring[k], ring[q], low[q], low[k]))
-        f.material_index = slot_for(-2)
-        f.smooth = False
-    corners = [bm.verts.new((vx(0), vy(0), 0.0)), bm.verts.new((vx(nx), vy(0), 0.0)),
-               bm.verts.new((vx(nx), vy(ny), 0.0)), bm.verts.new((vx(0), vy(ny), 0.0))]
-    f = bm.faces.new(corners)  # bottom (facing down)
-    f.material_index = slot_for(-2)
-    f.normal_update()
-    if f.normal.z > 0:
-        f.normal_flip()
-
-
-ROCK = set(range(4, 12))
-CREVICE = {2, 3}
-
-
-def add_ground(piece, grid, mats, ox, oy, rock_mats):
-    """The ground patch under piece (top-left assembly pixel ox, oy), with its own (untextured)
-    palette materials after the rock's; the material list is set by set_materials()."""
-    off = len(rock_mats.list)
-
-    def slot(idx):
-        if idx == -2:
-            return off + mats(17, roughness=0.95, metallic=0.0)
-        if idx in ROCK or idx in CREVICE:
-            return off + mats(idx if idx in CREVICE else 3, metallic=0.1, roughness=0.9)
-        return off + mats(idx, metallic=0.0, roughness=0.95)
-
-    bm = bmesh.new()
-    bm.from_mesh(piece.data)
-    ground_tile(bm, grid, ox, oy, slot)
-    bm.to_mesh(piece.data)
-    bm.free()
-
-
-def set_materials(piece, rock_mats, ground_mats):
-    """Give every piece the same slots (rock, then ground); clearing the slots resets the faces'
-    material indices, so they are saved and put back."""
-    me = piece.data
-    idx = [0] * len(me.polygons)
-    me.polygons.foreach_get("material_index", idx)
-    me.materials.clear()
-    for m in rock_mats.list + ground_mats.list:
-        me.materials.append(m)
-    me.polygons.foreach_set("material_index", idx)
-    me.update()
-
-
 def top_mask(obj, out_json):
     """Top-view coverage of the rocks (no ground) in assembly px, rasterised from the triangles:
     written as triangles in (col, row) for the measuring script."""
@@ -977,7 +911,6 @@ def main():
     layout = [(e["model"], e["cx"], e["cy"]) for e in first["assemblyLayout"]]
     corners = [(n, cx - 12 - SX0, cy - 14 - SY0) for n, cx, cy in layout]
     pixels, w, h, colors = lib.assembly_pixels(ROOT, corners)
-    grid = lib.Grid(w, h, pixels)
     obj, mats = build(colors)
     coll = obj.users_collection[0]
     tris = sum(len(p.vertices) - 2 for p in obj.data.polygons)
@@ -996,11 +929,7 @@ def main():
     rel = [(n, cx - CX0, cy - CY0) for n, cx, cy in layout]
     pieces = common.split_assembly(obj, rel)
     shells = split_open(shell, rel, coll)
-    gmats = lib.Mats("nshe39g", colors)
-    for name, ox, oy in corners:
-        add_ground(pieces[name], grid, gmats, ox, oy, mats)
     for p in pieces.values():
-        set_materials(p, mats, gmats)
         cap_uvs(p)
     total = 0
     for name in PIECES:
@@ -1276,9 +1205,8 @@ def render_views(objs, out_dir, px=520):
 # Built like D63's island rock: the sprite's pixels are smoothed into fields and cut along their
 # iso-lines, so the crater's and the pool's edges and the pool's colour bands are smooth curves at
 # any resolution, still in the sprite's palette indices:
-#   - the ground patch: ground_tile in 2 x 2 px cells (as the undamaged pieces, so a damaged piece
-#     beside an undamaged one meets the same dirt), with the crater's pixels filled by the dirt
-#     round them;
+#   - no ground patch: the sprite's dirt round the crater is not modelled (as on the undamaged pieces,
+#     D67); the game's HD ground shows there;
 #   - the scorch: a thin slab cut from the blurred mask of the crater's dark pixels (index 32 and the
 #     brown-black 160-163), and the lone dark specks as small round flecks;
 #   - the pool: a slab cut from the blurred mask of the blue and its dark rim (80-83), its top split
@@ -1293,8 +1221,7 @@ BLUE = set(range(144, 160))
 BLUE_RIM = {80, 81, 82, 83}
 SCORCH = {32, 160, 161, 162, 163}
 GREY = set(range(2, 12))
-DIRT = set(range(16, 24))
-Z_SCORCH, Z_POOL = 0.36, 0.62   # px above the ground patch's foot (the ground top is at 0.24 px)
+Z_SCORCH, Z_POOL = 0.36, 0.62   # px above the ground
 
 
 def data_file(name):
@@ -1525,25 +1452,6 @@ def flecks(M, pixels, scorch_mask, slot):
             slab(M, [(slot, ring)], Z_SCORCH, slot, tidy=False)
 
 
-def dirt_only(pixels):
-    """Every non-dirt pixel replaced by the nearest dirt pixel's index (BFS), for the ground patch."""
-    h, w = len(pixels), len(pixels[0])
-    out = [row[:] for row in pixels]
-    front = [(r, c) for r in range(h) for c in range(w) if pixels[r][c] in DIRT]
-    done = set(front)
-    while front:
-        nxt = []
-        for r, c in front:
-            for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-                q = (r + dr, c + dc)
-                if 0 <= q[0] < h and 0 <= q[1] < w and q not in done:
-                    done.add(q)
-                    out[q[0]][q[1]] = out[r][c]
-                    nxt.append(q)
-        front = nxt
-    return out
-
-
 def build_damaged(pixels, colors):
     import random
     import numpy as np
@@ -1625,12 +1533,6 @@ def main_damaged(argv):
     rel = [(n, cx - CX0, cy - CY0) for n, cx, cy in layout]
     pieces = common.split_assembly(obj, rel)
     shells = split_open(shell, rel, coll)
-    gmats = lib.Mats("nshe39dg", colors)
-    grid = lib.Grid(w, h, dirt_only(pixels))
-    for name, ox, oy in corners:
-        add_ground(pieces[name], grid, gmats, ox, oy, mats)
-    for p in pieces.values():
-        set_materials(p, mats, gmats)
     for name in PIECES:
         data = common.load_sprite(ROOT, name)
         p = pieces[name]
