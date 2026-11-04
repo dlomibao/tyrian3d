@@ -12,7 +12,7 @@ rows 15-17 by a pivot hub on each arm, a one-row pylon (row 16) and a dark saddl
 The windshield is the sprite's own glass pixels (rows 13-15: column 11, then 9-11, then 9: a slanted
 lens left of the centre line), and each part takes the palette index the sprite uses where it covers
 it. The banking frames are the same model rolled by the game, 40 degrees at half bank and 55 at full
-(BANK_ROLL, fitted to sprites 267-275 with tools/bank_roll.py, D92): the sprite's banks draw a much
+(BANK_ROLL, fitted to sprites 267-275 with tools/bank_roll.py, D93): the sprite's banks draw a much
 harder roll than the Talon's 17.5 / 35 (the arms close to 4 px apart at full bank). Nothing in the
 model is shaped for them; at that roll they measure 0.87-0.88 (half) and 0.78 (full).
 The concept (assets/blender/features/concepts/ship-u-ship.jpg) guides the rest: guns with a muzzle
@@ -803,7 +803,7 @@ def bake_maps(obj, out_dir, size=1024, samples=96):
         nt.links.new(sep.outputs[2], bsdf.inputs["Metallic"])
 
 
-# The game's roll at bank steps 1 and 2, degrees (spriteModels bank.roll, D92).
+# The game's roll at bank steps 1 and 2, degrees (spriteModels bank.roll, D93).
 BANK_ROLL = [40, 55]
 
 

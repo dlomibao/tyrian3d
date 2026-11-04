@@ -38,11 +38,11 @@ python3 tools/sprite_mask.py <name> --measure <top.png>     # top view on the sp
 
 `iou_rule_grid` ≥ 0.95 on every frame (the old "IoU ≥ 0.95 vs the sprite mask", now against the
 inner mask with the free pixels left out); a player ship's banking frames have their own bars
-(below, D92). Render the top view without the outline shell and
+(below, D93). Render the top view without the outline shell and
 without `tyrian_ground` rock. `--json` prints the masks (`o` = border, `#` = inner); `--png ... --inner`
 writes the inner mask to trace in a blueprint or fit a plan curve (D52's pchip) to.
 
-## Banking frames (player ships, D92)
+## Banking frames (player ships, D93)
 
 A player ship's banking frames are its level-frame model rolled and moved sideways by the game; the
 model is fitted to the level frame only.

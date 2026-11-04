@@ -35,8 +35,8 @@ Rules (user, 2026-11-03):
 | Novel fixes (new renderer path, new tool feature, first-of-kind asset) | Opus | none | - | Problem-solving; the pixel-sweep fixes were all different. |
 | Music arrangement | Opus | Sonnet | proposed, unbenched | Creative and blind (agents can't hear); the user caught chopped slides once. Bench only with the user listening. |
 | UI mockups | Opus | none | - | Taste; the user picks from mockups. |
-| Finish from an approved design (port a winning design into the real script, export contract) | Sonnet | Sonnet | benched 2026-11-04: cheap-ok | Shared-enemies bench (D91, below): on newsh3-267 Sonnet's glb was byte-identical to Opus's; on assembly-newsh-caret-123 it needed minor integration fixes only (uncapped outline shells at the piece seams). The strict review that follows stays Opus; escalate a failing fix round to Opus. |
-| Fix round with a concrete issue list | Opus | Sonnet | benched: opus-needed (2026-11-04); earlier cheap-ok only for a measurement-only single-sprite refit (2026-11-03) | Shared-enemies bench (D91): Sonnet's fix round on newsh3-267 painted colour regions face by face from a level field, stair-stepped and blotchy, where Opus cut smooth region boundaries. D74 refit bench: Sonnet passed a single-sprite refit (newsh2-89) but hacked the multi-piece assembly-newsh2-87. Fix rounds run on Opus. |
+| Finish from an approved design (port a winning design into the real script, export contract) | Sonnet | Sonnet | benched 2026-11-04: cheap-ok | Shared-enemies bench (D92, below): on newsh3-267 Sonnet's glb was byte-identical to Opus's; on assembly-newsh-caret-123 it needed minor integration fixes only (uncapped outline shells at the piece seams). The strict review that follows stays Opus; escalate a failing fix round to Opus. |
+| Fix round with a concrete issue list | Opus | Sonnet | benched: opus-needed (2026-11-04); earlier cheap-ok only for a measurement-only single-sprite refit (2026-11-03) | Shared-enemies bench (D92): Sonnet's fix round on newsh3-267 painted colour regions face by face from a level field, stair-stepped and blotchy, where Opus cut smooth region boundaries. D74 refit bench: Sonnet passed a single-sprite refit (newsh2-89) but hacked the multi-piece assembly-newsh2-87. Fix rounds run on Opus. |
 | Revert from backups + rebuild | Opus | Sonnet (effort low) | proposed, unbenched | Used 7 times on Sonnet in the logs (model-fix-loop, lighting pass, level1-models, model-features-2); every one restored the script and rebuilt, rebuilding where `.glb` backups were missing. No Opus comparison was made, so it's not a bench. |
 | Small UI/code fix with a precise spec | Opus | Sonnet | proposed, unbenched | forward-push's `ui-fixes` (outline colour, menu ship placement, D55) ran on Sonnet and merged. Single sample. |
 | Scout / inventory listing from the game's data | Opus | Sonnet | proposed, unbenched | Reading code and JSON into a list. Mistakes here (merged scripts, missed models) cost every later stage, so bench before switching. |
@@ -97,10 +97,10 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
   mask, its ink border left to the game's outline (`tools/sprite_mask.py <name> --measure top.png`,
   `iou_rule_grid`; [OUTLINE-BORDER.md](OUTLINE-BORDER.md), D74); a player ship's banking frames
   instead ≥ 0.80 (half bank) and ≥ 0.70 (full bank) at its fitted roll and shift, the model never
-  reshaped for them (`tools/bank_roll.py <name> --fit`; OUTLINE-BORDER.md "Banking frames", D92); canopies,
+  reshaped for them (`tools/bank_roll.py <name> --fit`; OUTLINE-BORDER.md "Banking frames", D93); canopies,
   eyes, lights where the sprite has them; each part in the sprite's palette index for that region;
   every frame and assembly piece/pivot as before (`git diff src/render/spriteModels/` shows no frame
-  change; a ship's `bank.roll`/`bank.shift` may change, D92); no foil, no highlight lumps; triangles ~2-6k small, ~8-20k boss; strict review score ≥ 7/10.
+  change; a ship's `bank.roll`/`bank.shift` may change, D93); no foil, no highlight lumps; triangles ~2-6k small, ~8-20k boss; strict review score ≥ 7/10.
 - **Failure modes → fix:**
 
   | Symptom | Fix |

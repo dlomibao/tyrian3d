@@ -12,7 +12,7 @@ The sprite is authoritative for the plan outline, the windshield and the colours
   booms at rows 20-21. Rule IoU on the grid 0.996 (tools/sprite_mask.py --measure). The banking
   frames are this model rolled by the game, 40 degrees at half bank and 50 at full, and moved 1.5 /
   3.5 px toward the bank (BANK_ROLL, BANK_SHIFT, fitted to sprites 153-161 with tools/bank_roll.py,
-  D92): the sprites draw one solid wedge 15-17 px wide (inside the ink), a harder roll than the Talon's 17.5 / 35.
+  D93): the sprites draw one solid wedge 15-17 px wide (inside the ink), a harder roll than the Talon's 17.5 / 35.
   Nothing in the model is shaped for them; at that pose they measure 0.83-0.84 (half) and 0.85-0.86
   (full).
 - Windshield: dark glossy glass in a frame over the sprite's dark cockpit pixels (rows 6-9, columns
@@ -450,7 +450,7 @@ def bake_maps(obj, out_dir, size=1024, samples=96):
 
 
 # The game's roll at bank steps 1 and 2, degrees, and shift per frame (hard left .. hard right), game px
-# (spriteModels bank.roll and bank.shift, D92; bankShift.ts would give -2.5, -1, 0, 1, 3.5).
+# (spriteModels bank.roll and bank.shift, D93; bankShift.ts would give -2.5, -1, 0, 1, 3.5).
 BANK_ROLL = [40, 50]
 BANK_SHIFT = [-3.5, -1.5, 0, 1.5, 3.5]
 

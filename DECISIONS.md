@@ -3633,7 +3633,7 @@ Recut from the cache: `terrain_hd.py --tileset shapesz --work W cut --cache W/ca
     Dragonwing, Nort Ship and Supercarrot look clean.
   - Later the same day: the Silver Ship takes the Talon's shell (0.03 voxels, held 0.004 inside),
     which removes its ink wedges across the hull by the vents. Dragonwing, Nort Ship, Supercarrot and
-    D92's U-Ship, Gencore Phoenix and Microcorp Stalker, checked in `?viewer=` with Outline on and
+    D93's U-Ship, Gencore Phoenix and Microcorp Stalker, checked in `?viewer=` with Outline on and
     off, show ink only on their silhouettes and where one part overlaps another, so they are left
     as they are.
 - **The player ship's wear (the user's rule).** The player ship has no damaged frames, so its look
@@ -3678,7 +3678,30 @@ Sheets in `tyrian-scratch/damage-ship-fix/ship-sheet.png`:
 - recovery 10% → 40% → 80%;
 - the title flights.
 
-## D91 — Twenty enemies shared across episodes rebuilt hard-surface; a palette-pulsed ring counts as ink
+## D91 — Gameplay performance: measured, then the hitches moved out of play
+
+2026-11-04
+
+**Problem:** the user found play "struggling a bit". Measured first (`?debug=play&solid=1`, the production
+build, headless Chrome on the real GPU, 1512x900 at DPR 2 = 3024x1800, 60 Hz; a WebGL wrapper times
+shader compiles and texture uploads per frame; scripts in `tyrian-scratch/perf-1/`):
+- **Steady play is not the problem.** Main thread ~3 ms a frame (sim 0.2, draw list 0.2, three's
+  submit with outline and shadows 2.3), GPU 5-9 ms; level 1, the boss and HOLES held 60 fps with p95
+  16.7-17.5 ms. The outline pass adds ~15 draw calls (models outline only their shells), not a second
+  scene; the shadow pass ~115.
+- **The stutter is first-use work during play:** a texture's first draw uploads it (the flat art's
+  atlases 18-30 ms: newsh6's 832x4096 at the first explosion, tyrian.shp#10's 1024x2048 at its first
+  shot), a new enemy model's textures (20-45 ms for a batch of 24), and a material variant's first
+  draw compiles its shaders (20-35 ms each time mid-level; 130-730 ms over the first two frames of a
+  level).
+
+**Decision (one fix per PR, each measured):**
+1. **Flat art atlases at preload.** `preloadLevelModels` uploads the sprite art's atlases
+   (`uploadSpriteArt`) after the HD terrain's. The same atlases serve every level, so only the first
+   level's preload pays (~250 ms more of preload). The first-explosion and first-shot hitches are gone:
+   HOLES 5 → 3 frames over 33 ms (the 3 left are the level's first two frames), the boss 5 → 3.
+
+## D92 — Twenty enemies shared across episodes rebuilt hard-surface; a palette-pulsed ring counts as ink
 
 2026-11-04
 
@@ -3722,7 +3745,7 @@ stair-stepped, blotchy regions.
 **Review:** comparison sheets and captures are in `tyrian-scratch/shared-enemies-1/<model>/`.
 Fallback: revert the 20 scripts and their GLBs; `--no-pulse` for the old measure.
 
-## D92 — Player ships' banking frames: the level model at a fitted roll and shift, never reshaped for them; their own bars
+## D93 — Player ships' banking frames: the level model at a fitted roll and shift, never reshaped for them; their own bars
 
 2026-11-04
 
@@ -3822,25 +3845,3 @@ middle of the screen, and the in-game captures here are taken there. The play ha
 fitted pose, each frame's sprite beside the diff: green model on inner, red outside, blue missed),
 `game/` (in-game crops, old and new pose), `stalker/views.png` (the Stalker main / refit / this,
 front, side, 3/4, top). Fallback: delete an entry's `roll`/`shift` for the old pose.
-## D91 — Gameplay performance: measured, then the hitches moved out of play
-
-2026-11-04
-
-**Problem:** the user found play "struggling a bit". Measured first (`?debug=play&solid=1`, the production
-build, headless Chrome on the real GPU, 1512x900 at DPR 2 = 3024x1800, 60 Hz; a WebGL wrapper times
-shader compiles and texture uploads per frame; scripts in `tyrian-scratch/perf-1/`):
-- **Steady play is not the problem.** Main thread ~3 ms a frame (sim 0.2, draw list 0.2, three's
-  submit with outline and shadows 2.3), GPU 5-9 ms; level 1, the boss and HOLES held 60 fps with p95
-  16.7-17.5 ms. The outline pass adds ~15 draw calls (models outline only their shells), not a second
-  scene; the shadow pass ~115.
-- **The stutter is first-use work during play:** a texture's first draw uploads it (the flat art's
-  atlases 18-30 ms: newsh6's 832x4096 at the first explosion, tyrian.shp#10's 1024x2048 at its first
-  shot), a new enemy model's textures (20-45 ms for a batch of 24), and a material variant's first
-  draw compiles its shaders (20-35 ms each time mid-level; 130-730 ms over the first two frames of a
-  level).
-
-**Decision (one fix per PR, each measured):**
-1. **Flat art atlases at preload.** `preloadLevelModels` uploads the sprite art's atlases
-   (`uploadSpriteArt`) after the HD terrain's. The same atlases serve every level, so only the first
-   level's preload pays (~250 ms more of preload). The first-explosion and first-shot hitches are gone:
-   HOLES 5 → 3 frames over 33 ms (the 3 left are the level's first two frames), the boss 5 → 3.

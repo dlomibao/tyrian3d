@@ -177,7 +177,7 @@ CONE_B = 0.7
 
 # The body (fuselage, pods, roots, engine, canopy) sits Z_BODY px above the wings' plane. The banking
 # frames are this model rolled by the game, 17.5 degrees at half bank and 27.5 at full, and moved by
-# BANK_SHIFT (BANK_ROLL, D92): the sprite's banks keep the wings' full span and redraw them (the far wing
+# BANK_SHIFT (BANK_ROLL, D93): the sprite's banks keep the wings' full span and redraw them (the far wing
 # foreshortened while its tip stays put), and their opaque columns move right on both hard banks
 # though the nose leans into the turn, so bankShift.ts's shift (+1 both ways) is replaced by a fitted
 # one. Nothing in the model is shaped for them (no raised body or endplate fins). At that pose they
@@ -780,7 +780,7 @@ def bake_maps(obj, out_dir, size=1024, samples=96):
 
 
 # The game's roll at bank steps 1 and 2, degrees, and shift per frame (hard left .. hard right), game px
-# (spriteModels bank.roll and bank.shift, D92; bankShift.ts would give 1, 0, 0, 0, 1).
+# (spriteModels bank.roll and bank.shift, D93; bankShift.ts would give 1, 0, 0, 0, 1).
 BANK_ROLL = [17.5, 27.5]
 BANK_SHIFT = [-0.5, -0.5, 0, 0.5, 2.5]
 

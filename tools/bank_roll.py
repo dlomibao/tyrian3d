@@ -1,5 +1,5 @@
 """A player ship's banking frames as the game draws them: the model rolled and moved sideways, measured
-against each banking sprite (DECISIONS.md D92, docs/agents/OUTLINE-BORDER.md "Banking frames").
+against each banking sprite (DECISIONS.md D93, docs/agents/OUTLINE-BORDER.md "Banking frames").
 
     blender -b --factory-startup --python tools/bank_roll.py -- <name> [--glb model.glb] [--fit] [--k 10]
             [--roll HALF,FULL] [--shift L2,L1,0,R1,R2] [--png sheet.png]
@@ -16,7 +16,7 @@ tyrian_ground hidden) the way src/render/drawListRenderer.ts draws it:
   the frame's opaque-column centre minus the level frame's (src/render/bankShift.ts, D62); a ship
   drawn in two halves (`group`) isn't moved;
 
-and measured with tools/sprite_mask.py (iou_rule_grid, D74). Accept (D92): the level frame >= 0.95,
+and measured with tools/sprite_mask.py (iou_rule_grid, D74). Accept (D93): the level frame >= 0.95,
 each half-bank frame >= 0.80 and each full-bank frame >= 0.70, at the ship's roll and shift.
 
 --fit sweeps each bank step's roll (2.5 degree steps, never less than the step below it) and each
@@ -226,7 +226,7 @@ def main():
     k = o["k"]
 
     def best_shift(n, deg):
-        """(IoU, shift): the frame at roll deg, at bankShift's shift or a better one (D92)."""
+        """(IoU, shift): the frame at roll deg, at bankShift's shift or a better one (D93)."""
         top = view.render(deg, bank_shift(n))[0]
         at = rule_iou(masks[n], top)
         if grouped:

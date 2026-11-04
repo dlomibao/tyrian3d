@@ -52,7 +52,7 @@ describe("spriteModels()", () => {
     expect(spriteModels().groupRoll.get(spriteModelKey("tyrian.shp#8", 2, 13))).toBe(0);
   });
 
-  // D92: a ship whose banking sprites draw another roll than the Talon's says so in its entry.
+  // D93: a ship whose banking sprites draw another roll than the Talon's says so in its entry.
   test("a ship's bank.roll sets its roll per bank step, mirrored to the left", () => {
     const m = spriteModels([{ model: "u", sprites: [{ sheet: "s", size: 2, frames: [271], bank: { step: 2, max: 2, roll: [40, 55] } }] }]);
     expect(m.banked[0].rolls.map((r) => Math.round((r * 180) / Math.PI))).toEqual([-55, -40, 0, 40, 55]);

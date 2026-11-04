@@ -357,7 +357,7 @@ def _apply_modifiers(obj):
 def with_bank_roll(sprites, roll, shift=None):
     """`sprites` with `roll` (degrees at bank steps 1..max) and, if given, `shift` (game px per frame,
     hardest left bank to hardest right, 0 for the level frame) in each player ship entry's `bank`: the
-    game's pose for this ship's banking frames, fitted with tools/bank_roll.py --fit (DECISIONS.md D92).
+    game's pose for this ship's banking frames, fitted with tools/bank_roll.py --fit (DECISIONS.md D93).
     Without them the game rolls 35 degrees * step / max and shifts by src/render/bankShift.ts."""
     def pose(bank):
         out = dict(bank, roll=list(roll))

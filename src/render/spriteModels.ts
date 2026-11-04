@@ -17,7 +17,7 @@ export interface SpriteRef {
    * For a player ship: frames[0] is the level frame and the banking frames are frames[0] + n * step
    * for n = -max..max (blit_sprite2x2 at shipGraphic + ship_banking * 2). The model rolls with them:
    * `roll[n - 1]` degrees at bank step n (toward the side it moves to), fitted to the ship's banking
-   * sprites (tools/bank_roll.py, D92); without it, DEFAULT_FULL_ROLL * n / max. And it moves sideways
+   * sprites (tools/bank_roll.py, D93); without it, DEFAULT_FULL_ROLL * n / max. And it moves sideways
    * `shift[n + max]` game pixels where the fit gives one (0 at n = 0; not for a `group` ship), else by
    * bankShift.ts (the frame's opaque columns, D62).
    * Without `bank`, the sprites are a grouped object (an enemy) and the model stays level.
@@ -48,7 +48,7 @@ const files = import.meta.glob<SpriteModelEntry>("./spriteModels/*.json", { eage
 /** Every model entry in spriteModels/. */
 export const SPRITE_MODELS: readonly SpriteModelEntry[] = Object.values(files);
 
-/** Degrees a ship rolls at full bank when its entry gives no `bank.roll` (the USP Talon's, D92). */
+/** Degrees a ship rolls at full bank when its entry gives no `bank.roll` (the USP Talon's, D93). */
 export const DEFAULT_FULL_ROLL = 35;
 
 /**

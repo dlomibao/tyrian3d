@@ -90,7 +90,7 @@ const WRECK_TILES = new Set(
 const COVERED_STAND_IN = new Map([340, 341, 342, 350, 351, 352].map((n) => [`shapesz.dat:${n}`, "shapesz.dat:100"]));
 const STAND_IN_IDS = new Set(COVERED_STAND_IN.values());
 
-/** How fast a ship's model eases toward its banking frame's roll (per second; the roll: spriteModels.ts bankRoll, D92). */
+/** How fast a ship's model eases toward its banking frame's roll (per second; the roll: spriteModels.ts bankRoll, D93). */
 const ROLL_RATE = 12;
 /** Opacity standing in for the C's value-averaging blend. */
 const BLEND_ALPHA = 0.55;
@@ -1218,7 +1218,7 @@ export class DrawListRenderer {
   /**
    * Draw a sprite as its loaded model (sprite2Route.ts): a player ship's frame (Override) at the
    * sprite's centre, rolled by its banking frame's roll and moved `shift` game pixels sideways to where
-   * the frame's sprite sits (bankShift.ts, D62, or the entry's fitted shift, D92); a tile of a grouped object, an enemy (Group), whose model
+   * the frame's sprite sits (bankShift.ts, D62, or the entry's fitted shift, D93); a tile of a grouped object, an enemy (Group), whose model
    * goes at the object's centre on its first tile while the other tiles draw nothing; or a sprite
    * drawn on its own, a sidekick (Ungrouped), centred on the sprite and showing the frame drawn.
    */
