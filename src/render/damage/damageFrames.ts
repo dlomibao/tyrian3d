@@ -261,6 +261,14 @@ export class DamageFrames {
     return t;
   }
 
+  /**
+   * Patch a new model clone's materials up front (D91), intact (uDmgOn = 0 draws as unpatched), so
+   * its first damaged frame swaps no shader and the level's warm-up compiles the patched programs.
+   */
+  prepare(object: THREE.Object3D, materials: readonly THREE.Material[]): void {
+    this.clone(object, materials);
+  }
+
   /** A clone's damage uniforms; the first time, its materials are patched and its depth material set. */
   private clone(object: THREE.Object3D, materials: readonly THREE.Material[]): CloneDamage {
     let c = this.clones.get(object);

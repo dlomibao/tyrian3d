@@ -3700,6 +3700,46 @@ shader compiles and texture uploads per frame; scripts in `tyrian-scratch/perf-1
    (`uploadSpriteArt`) after the HD terrain's. The same atlases serve every level, so only the first
    level's preload pays (~250 ms more of preload). The first-explosion and first-shot hitches are gone:
    HOLES 5 → 3 frames over 33 ms (the 3 left are the level's first two frames), the boss 5 → 3.
+2. **Shaders and textures warmed at preload, the rest as they load.** After the uploads,
+   `preloadLevelModels` awaits `View.warmUp()`:
+   - `DrawListRenderer.beginWarmUp` puts in front of the camera a clone of every loaded model (the
+     clone stays in its pool for play), a quad of every instanced material variant, each HD terrain
+     material kind of the level's tileset and a batch per sprite art atlas;
+   - for each way a clone is drawn (opaque, then translucent: the invulnerable ship) the main and
+     outline passes compile in parallel (`renderer.compileAsync`, and `compileAsync` added to the
+     forked OutlineEffect), every texture is uploaded (`initTexture`), and one draw into a single
+     pixel (scissor) builds the shadow pass's programs;
+   - clones are patched for damage when they're made, not at their first damaged frame (`uDmgOn` 0
+     draws exactly as unpatched), so the warm-up covers that program;
+   - models and structures that finish loading during play (D54 waits only for the first ~30 s of a
+     level) are compiled in parallel when they arrive (`View.warmLate`) and their textures uploaded
+     one a frame before they are due;
+   - production skips three's shader error checks (`debug.checkShaderErrors` off outside dev),
+     which query every program's logs at its first use.
+3. **Model textures capped at 1024** (`MAX_MODEL_TEXTURE`, `models.ts`). Fifteen models carry
+   2048 or 4096 maps (TYRIAN's bridge, fortress and base buildings, seven of the boss's arm pieces):
+   one 2048 upload stalls ~50 ms, a 4096 ~200 ms. They are scaled down in a worker
+   (`textureResize.worker.ts`; createImageBitmap with a resize is synchronous on its thread, 400 ms of
+   main thread over a level start when done there). A model fills a few hundred pixels, so 1024
+   still gives a texel per pixel; the in-game captures and the model gallery match main to within
+   1-2 levels. The island rock's palette-data textures (D84) are never resampled.
+4. **The outline pass's bookkeeping.** Its per-frame maps were plain objects whose keys (every
+   material and object ever outlined) piled up and were listed with `Object.keys` every frame; they
+   are Maps, cleared. It swaps materials on visible objects only (`traverseVisible`): the warm-up's
+   hidden clones made the full traverse cost ~1.4 ms a frame.
+
+Measured (60 Hz, 3024x1800; load average 5-7, other agents' GPU work shows as frames with a slow GPU
+and little JS, counted apart): frames over 33 ms caused by the main thread, main → this change;
+max rAF JS time; shader programs linked during play.
+
+| Scene | > 33 ms (main thread) | max frame JS | programs linked in play |
+|---|---|---|---|
+| Level 1, ticks 0-2000 | 8 (2) → 3 (1) | 139 → 135 ms (first frame) | 25 → 4 |
+| Boss, ticks 6650-7400 | 5 (4) → 3 (1) | 727 → 47 ms | 23 → 1 |
+| HOLES, ticks 0-2000 | 5 (4) → 1 (1) | 173 → 75 ms (first frame) | 28 → 0 |
+
+Level preload is longer by the warm-up (~0.3-0.6 s, compiles in parallel; once per session for the
+shared materials).
 
 ## D92 — Twenty enemies shared across episodes rebuilt hard-surface; a palette-pulsed ring counts as ink
 

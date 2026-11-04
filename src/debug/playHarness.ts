@@ -85,7 +85,10 @@ export async function runPlayHarness(view: View): Promise<void> {
   else view.draws.setLevelDamage(levelDamageFrames()); // D87 (preloadLevel sets it otherwise)
   // A start part-way in (`&skip=`) shows tiles a real run would only reach once the level's later
   // models had loaded in the background: wait for all of them, so the first frame looks as it would.
-  if (num("preload", 1) !== 0 && num("skip", 0) > 0) await view.draws.preloadLevel(levelModelInfo());
+  if (num("preload", 1) !== 0 && num("skip", 0) > 0) {
+    await view.draws.preloadLevel(levelModelInfo());
+    await view.warmUp(); // and warmed, as preloadLevelModels warms what it waited for (D91)
+  }
 
   let t = 0;
   let paused = false;
