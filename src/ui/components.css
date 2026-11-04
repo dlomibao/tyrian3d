@@ -14,7 +14,7 @@
   display: grid;
   /* One definite track, the size of the window: a pane's max-height / height: 100% then resolve
      against it. With the default auto track they don't, a tall pane outgrows the screen and
-     overflow: hidden cuts it off with nothing to scroll (the phones' bug, D97). */
+     overflow: hidden cuts it off with nothing to scroll (the phones' bug, D98). */
   grid-template: minmax(0, 1fr) / minmax(0, 1fr);
   place-items: center;
   padding: max(16px, env(safe-area-inset-top)) var(--ui-gutter) max(16px, env(safe-area-inset-bottom));

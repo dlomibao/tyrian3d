@@ -31,7 +31,7 @@
 
 .ui-screen--title {
   /* The menu's own height is the row's floor: on a window too short for it (a small phone on its
-     side) the title scrolls instead of cutting the menu off (D97). */
+     side) the title scrolls instead of cutting the menu off (D98). */
   grid-template-rows: auto minmax(min-content, 1fr) auto;
   overflow-y: auto;
   overscroll-behavior: contain;

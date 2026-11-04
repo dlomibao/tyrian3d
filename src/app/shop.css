@@ -24,7 +24,7 @@
 
 /* The panel scrolls as a whole on short screens; its parts keep their height (a grid item's
    automatic minimum is its content: min-height: 0 here let the rows squeeze into the screen and
-   the panes overlap, D97). */
+   the panes overlap, D98). */
 .ui-screen--shop > .ui-panel > * {
   min-height: min-content;
 }
@@ -438,7 +438,7 @@
   }
 }
 
-/* Short windows: the panel scrolls (D97) and the help bar stays at its foot. The bar spans every
+/* Short windows: the panel scrolls (D98) and the help bar stays at its foot. The bar spans every
    row and sticks to the bottom of the scrolling box; the last row is the room it takes at the end
    of the content, so it never covers the panes. */
 @media (max-width: 720px), (max-height: 520px) {

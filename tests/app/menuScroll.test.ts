@@ -1,4 +1,4 @@
-// Every menu screen must scroll when its content doesn't fit a short phone (D97). The bug was
+// Every menu screen must scroll when its content doesn't fit a short phone (D98). The bug was
 // structural (a screen's one grid track was `auto`, so a pane's `max-height: 100%` and the shop's
 // `height: 100%` never resolved and `overflow: hidden` cut the pane off), so this pins the structure:
 // the screen has a definite track, its pane scrolls, nothing turns that scroll off, and every screen
