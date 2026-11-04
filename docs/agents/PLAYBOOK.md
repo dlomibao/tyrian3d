@@ -30,13 +30,13 @@ Rules (user, 2026-11-03):
 |---|---|---|---|---|
 | Design: blueprint, competing designs | Opus | none | - | Invents side engineering and shape language; the whole result rests on it (D50, D65). |
 | Judge (pick a winner, grafts) | Opus | none | - | Taste plus measurement; cheap (median 1.3 min). |
-| Strict review / regrade | Opus | none | - | **Sonnet was lenient here.** forward-push (2026-11-02) used Sonnet reviewers for the 7 player ships: all 7 shipped on round 1, including Supercarrot at IoU 0.944 (target 0.95) and U-Ship with windshield IoU 0.69. The Opus reviewers on the 28 level-1 enemies asked for 15 fix rounds and still failed 4 at the end. |
+| Strict review / regrade | Opus; Sonnet for measurement-based refit re-reviews | Sonnet (refit re-reviews only) | benched 2026-11-03: cheap-ok for refit re-reviews | The D74 refit re-review bench (below) gave Sonnet the same verdicts and numbers as Opus, so re-reviews that only remeasure a refit may run on Sonnet. Strict design reviews stay Opus: **Sonnet was lenient here.** forward-push (2026-11-02) used Sonnet reviewers for the 7 player ships: all 7 shipped on round 1, including Supercarrot at IoU 0.944 (target 0.95) and U-Ship with windshield IoU 0.69. The Opus reviewers on the 28 level-1 enemies asked for 15 fix rounds and still failed 4 at the end. |
 | Audit (find what's still pixelated, group into issues) | Opus | none | - | Judgement over many captures. |
 | Novel fixes (new renderer path, new tool feature, first-of-kind asset) | Opus | none | - | Problem-solving; the pixel-sweep fixes were all different. |
 | Music arrangement | Opus | Sonnet | proposed, unbenched | Creative and blind (agents can't hear); the user caught chopped slides once. Bench only with the user listening. |
 | UI mockups | Opus | none | - | Taste; the user picks from mockups. |
 | Finish from an approved design (port a winning design into the real script, export contract) | Opus | Sonnet | proposed, unbenched | Mostly mechanical once the judge has picked, but it was the longest stage (median 21 min) and absorbed grafts. Escalate a failing fix round to Opus. |
-| Fix round with a concrete issue list | Opus | Sonnet | proposed, unbenched | Issues are spelled out by the reviewer; the review that follows is Opus. |
+| Fix round with a concrete issue list | Sonnet for a single-sprite model refit; Opus otherwise | Sonnet | benched 2026-11-03: cheap-ok (single-sprite refit), opus-needed (multi-piece assembly refit) | D74 inner-edge refit bench (below): on newsh2-89 both passed the gate (rule IoU Sonnet 0.9745, Opus 0.9904) with small porting rework; on assembly-newsh2-87 Sonnet passed by 0.01 (0.96 vs Opus 0.9888) only through a geometry hack (an embedded ink mask warping vertices near the edges, squashed bevels). The review that follows is Opus. |
 | Revert from backups + rebuild | Opus | Sonnet (effort low) | proposed, unbenched | Used 7 times on Sonnet in the logs (model-fix-loop, lighting pass, level1-models, model-features-2); every one restored the script and rebuilt, rebuilding where `.glb` backups were missing. No Opus comparison was made, so it's not a bench. |
 | Small UI/code fix with a precise spec | Opus | Sonnet | proposed, unbenched | forward-push's `ui-fixes` (outline colour, menu ship placement, D55) ran on Sonnet and merged. Single sample. |
 | Scout / inventory listing from the game's data | Opus | Sonnet | proposed, unbenched | Reading code and JSON into a list. Mistakes here (merged scripts, missed models) cost every later stage, so bench before switching. |
@@ -58,6 +58,9 @@ row may use the cheaper model via `args.tiers`; until then it runs on Opus.
 | Step type | Models | Sample | Metric | Verdict | Date |
 |---|---|---|---|---|---|
 | Docs: fill tables from a data file (MILESTONES from inventory.json) | Sonnet 5.5 (medium) vs Opus review | All TODO(inventory) cells in MILESTONES.md | Opus recomputed the headline counts from inventory.json | cheap-ok with a numbers check: structure and per-level rows right; 2 of ~10 headline counts off by 2 (it counted 2 pickups as enemy units) and it called its total "matching" when it did not. Have the agent compute counts with a script, and have the coordinator recheck totals | 2026-11-03 |
+| Fix: single-sprite model refit (D74 inner edge) | Sonnet 5.5 (medium) vs Opus (medium), judged by Opus | newsh2-89 | Rule IoU (inner mask): Sonnet 0.9745, Opus 0.9904 | cheap-ok: both pass the gate; small porting rework only | 2026-11-03 |
+| Fix: multi-piece assembly refit (D74 inner edge) | Sonnet 5.5 (medium) vs Opus (medium), judged by Opus | assembly-newsh2-87 | Grid IoU: Sonnet 0.96, Opus 0.9888 | opus-needed: Sonnet passed by 0.01 with a geometry hack (an embedded ink mask that warps vertices near edges and squashes bevels) | 2026-11-03 |
+| Review: refit re-review | Sonnet 5.5 (medium) vs Opus (medium), judged by Opus | newsh2-89, assembly-newsh2-87 | Verdicts and measured numbers against Opus's | cheap-ok for measurement-based refit re-reviews only (same verdicts, same numbers); strict design reviews stay Opus, given the earlier evidence of Sonnet leniency | 2026-11-03 |
 
 ## Recipes
 
@@ -127,6 +130,9 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
   `<tileset>-structures.json` like `assets/blender/features/concepts/tyr-structures.json`); existing
   kits `assets/blender/tiles/lib_tiles.py` (`rock_tile`, `sprite_rock`, `export_tile_model`),
   `lib_l1bld.py`, `lib_tyrbld.py`.
+- **Tall buildings** (tiles that paint a roof with a wall below it): check with
+  `tools/tall_buildings.py analyse` first; if tall, follow `docs/agents/TALL-BUILDINGS.md` (D82:
+  the real building drawn in the art's oblique view, `lib_tall.py`), not the top-view IoU rule.
 - **Steps:** (1) Lead: shared kit for the tileset (`lib_<tileset>bld.py`), pattern matching
   (`minRows`, `keepTiles`), one worked example, the real-map test in `tests/render/remaster.test.ts`
   extended. (2) One agent per structure, own `tiles/<prefix>_<unit>.py`. (3) Review from the game
@@ -152,38 +158,47 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
 ### 3. HD terrain via Gemini
 
 - **Standard:** D57 (game side, contract), D58 (sheets, cutter, seams), D59 (picking paintings),
-  D60 (checked in game). Full flow and Gemini tips: `docs/terrain-pipeline.html`. Workflow:
-  `tools/workflows/terrain-hd.js`.
-- **Inputs:** the level ids and tileset; `TILES_SHAPES=<x> npm run tiles`; the structure models
-  already matched (they replace or stand on tiles).
-- **Steps:** inventory → sheets (softened from the start; ground as map regions, clouds/islands as
-  contexts) → Gemini, one request at a time under `gemini.lock` → `cut --cache` → `check` →
-  inspect every contact sheet and `cut-report.json` → atlas in `public/art/terrain/<tileset>/` +
-  CREDITS row → play the level in both looks.
+  D60 (checked in game), D83 (a tileset over all its levels, merging cuts). Full flow and Gemini tips:
+  `docs/terrain-pipeline.html`. Workflow: `tools/workflows/terrain-hd.js`.
+- **Inputs:** the tileset (`--tileset shapesz`: every level that uses it) or a list of its levels;
+  `TILES_SHAPES=<x> npm run tiles`; the structure models already matched (they replace or stand on tiles).
+- **Steps:** inventory (all the tileset's levels) → check the layer 1-2 `kind`s (terrain is painted,
+  structure is left to models, empty needs nothing; `--kind` fixes a misread tile) → sheets (softened,
+  in `SEND.md`'s order; ground and layer-2 terrain as map regions, the rest as contexts) → Gemini, one
+  request at a time under `gemini.lock` → `cut --cache` (merges: tiles the atlas has stay byte for
+  byte) → `check` → inspect every contact sheet and `cut-report.json` → atlas in
+  `public/art/terrain/<tileset>/` + CREDITS row → play the levels in both looks.
 - **Commands:**
   ```
   PY=/Users/dlomibao/projects/tyrian3d-remaster/.venv/bin/python; W=/Users/dlomibao/projects/tyrian-scratch/<task>/work
-  $PY tools/terrain_hd.py --level 1-9 --work $W inventory | sheets | fake
-  $PY tools/terrain_hd.py --level 1-9 --work $W cut --cache $W/cands.pkl [--pick 0:68=region-l0-03#0] [--exclude 0:332]
-  $PY tools/terrain_hd.py --level 1-9 --work $W check
-  TYRIAN_DATA=... NODE_OPTIONS= npx vitest run tests/render/terrainArt.test.ts
+  $PY tools/terrain_hd.py --tileset shapesz --work $W inventory | sheets | fake
+  $PY tools/terrain_hd.py --tileset shapesz --work $W cut --cache $W/cands.pkl [--pick 0:68=region-l0-03#0] [--exclude 0:332] [--recut 1:42]
+  $PY tools/terrain_hd.py --tileset shapesz --work $W check [--contact new|all|1-11]
+  TYRIAN_DATA=... NODE_OPTIONS= npx vitest run tests/render/terrainArt.test.ts tests/tools/terrainHd.test.ts
   ?debug=play&seed=1&skip=T&freezeAt=T  [&terrain=original] [&dpr=0.3] [&terrainart=<dir>/]
   ```
-- **Accept:** every inventoried tile covered or deliberately left to fall back; seam ratio (step
-  across tile edges / step inside tiles) ≤ ~0.6 ground, ≤ ~0.85 clouds (TYRIAN: 0.57, 0.82); NCC ≥ ~0.5
-  per cell; blockiness ≤ ~2 (deblock softens 1.6-2.4); colour close to the original; no seams, gaps
-  or misplaced tiles in game at several ticks and at `&dpr=0.3`; fallback works with a tile removed.
-- **Failure modes → fix:** Gemini copies the pixel blocks → send the softened sheet; picks scored
-  by blockiness, deblock (D59, D60). Trees drawn from the side → say the material and "seen straight
-  down, no trunks" (doc §3). A twig repeated across the map → `novel_detail` penalty or `--pick`.
-  Context-painted dirt patches next to region-painted dirt → region bonus (D59). HD first frame
-  slow, worm drawn as sprites → atlases uploaded during preload (D60). Gemini "running low on usage"
-  after ~25 Pro requests → stop, cut with what exists (doc §3). **Known gap:** the tool inventories one
-  level at a time; a tileset used by several levels must be inventoried for all before cutting
-  (doc "Extending"); the template sends that to an Opus tool step.
+  A fake run cuts into a scratch copy of the tileset folder (`--out`), never into `public/`.
+- **Accept:** every terrain tile covered or deliberately left to fall back; `git diff` shows the kept
+  atlas images unchanged (only the manifest and new images change); seam ratio (step across tile
+  edges / step inside tiles) ≤ ~0.6 ground, ≤ ~0.85 clouds and layer-2 cutouts (TYRIAN: 0.57, 0.82),
+  on `check`'s `new` line and per level; NCC ≥ ~0.5 per cell; blockiness ≤ ~2 (deblock softens
+  1.6-2.4); colour close to the original; no seams, gaps or misplaced tiles in game at several ticks
+  and at `&dpr=0.3`; fallback works with a tile removed.
+- **Failure modes → fix:** Gemini copies the pixel blocks → softened sheets (the default now); picks
+  scored by blockiness, deblock (D59, D60). Trees drawn from the side → say the material and "seen
+  straight down, no trunks" (doc §3; the prompts do). A twig repeated across the map → `novel_detail`
+  penalty or `--pick`. Context-painted dirt patches next to region-painted dirt → region bonus (D59).
+  HD first frame slow, worm drawn as sprites → atlases uploaded during preload (D60). Gemini "running
+  low on usage" after ~25 Pro requests → stop, cut with what exists; next session restore the atlas
+  folder (`git checkout -- public/art/terrain/<tileset>`) and cut again with all answers (doc §3).
+  Kept tiles meeting in pairs their level never had (TYRIAN's clouds on HOLES: 1.11) → `--recut` that
+  layer over all levels, or variants (D83). Metal plating/pipes on layers 1-2 → structure models, not
+  paintings (D83).
 - **Cost/time (TYRIAN, shapesz):** 5 agents, 108 min, 1.2M tokens: prep and game side 23 min in
   parallel, Gemini operator 44 min (27 requests: 21 sheets + 6 retries), assemble 25, verify 16.
-  Later tilesets skip the game side.
+  Later tilesets skip the game side. **`shapesz`, its other 31 levels (D83):** 32 primary sheets
+  (~42 requests with retries, 2 Gemini sessions), 28 optional. Registration costs ~7 s of CPU per
+  sheet (TYRIAN: 3.5 min for 21), but on a loaded machine (load ~60) 24 sheets took 18 min.
 
 ### 4. Flat art for shots and pickups
 

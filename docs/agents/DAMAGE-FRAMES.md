@@ -1,6 +1,6 @@
 # Damaged frames
 
-**Decided (D79, 2026-11-03):** the user picked approach D from the proposal on this branch (PR #104):
+**Decided (D86, 2026-11-03):** the user picked approach D from the proposal on this branch (PR #104):
 - **A** for every damaged frame: the enemy's intact model, damaged at runtime by the difference
   between its intact and damaged sprite frames;
 - **C**, a model of its own, only where A can't show the frame.
@@ -18,7 +18,7 @@ frame with the intact model. That frame is then:
 No bake, no data, no script.
 
 Check it in the game with `?debug=play&hurt=1`: every enemy that has a damaged look takes it at its
-next hit. Compare with `&damage=off` (the extruded sprite, as before D79).
+next hit. Compare with `&damage=off` (the extruded sprite, as before D86).
 
 Make a model of the damaged frame itself (C) only if it fails review the way the boss's arm wrecks
 did: the damaged frame is mostly a different picture, debris instead of the piece. A cut and repaint
@@ -48,7 +48,10 @@ Blank damaged frames (a destroyed piece) draw nothing; no model is needed.
 | `newsh4.shp` 240 | level-1 boss, left shoulder (assembly-newsh4-124, piece newsh4-88) → `enemies/newsh4-88-d` | the shoulder becomes a wreck: 30% of the piece gone, 47% of the rest repainted as debris. A reads as the intact shoulder, burning |
 | `newsh4.shp` 244 | level-1 boss, right shoulder (newsh4-92) → `enemies/newsh4-92-d` | the same: 23% gone, 47% repainted |
 
-Both are built by `assembly-newsh4-124-damaged.py`, which now exports only these two. Together they
+The rock outcrop's shot-away frames (`newshe.shp` 7, 9, 11, 45, 47, 49) also have models of their own,
+from D81 (PR #95, merged before this decision); they are kept.
+
+Both boss wrecks are built by `assembly-newsh4-124-damaged.py`, which now exports only these two. Together they
 add 0.83 MB. The other ten damaged boss pieces it once exported (2.46 MB in all, with the dome
 turret's 0.1 MB) were dropped: A draws those frames.
 

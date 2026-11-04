@@ -6,13 +6,27 @@
 //
 // Each model's meshes are flattened into parts (geometry with the node transforms baked in, and a
 // material), and each part gets an InstancedMesh that grows as needed.
+//
+// A tall structure (DECISIONS.md D82, docs/agents/TALL-BUILDINGS.md) is a true building, with
+// vertical walls and its real height, drawn the way its tiles draw it:
+// - `tyrian_oblique: k` (extra): each vertex goes on the camera ray through the point of its base
+//   plane that the art's oblique view puts it at, `k` px up the screen per px of height (the
+//   building's foot stays where it is). This is D6's lift, applied per vertex: the roof and the wall
+//   land where the tiles paint them at every tilt and scroll position, while normals, light and
+//   shadows are the real building's;
+// - `tyrian_depth_band: [lo, hi]` (model units above its base): each vertex writes the depth of the
+//   point on its ray at its height squeezed into that band, so a tall building still stays under
+//   everything the original drew over its tiles (`depthBand`).
 
 import * as THREE from "three";
 import { colourFrame, rigModel, type FrameRig } from "../modelFrames";
+import { hasRockBands, ROCK_SIDES, rockBandSlot, rockCell } from "../rockMaterial";
 
 interface Part {
   mesh: THREE.InstancedMesh;
   capacity: number;
+  /** An island rock tile's edge bands per copy (rockMaterial.ts, D84): which band each side draws. */
+  bands?: THREE.InstancedBufferAttribute;
 }
 
 interface Model {
@@ -47,6 +61,7 @@ export class StructureInstances {
   add(name: string, source: THREE.Object3D): void {
     if (this.models.has(name)) return;
     source.updateMatrixWorld(true);
+    const band = depthBandOf(source);
     const parts: Part[] = [];
     source.traverse((o) => {
       const mesh = o as THREE.Mesh;
@@ -59,6 +74,13 @@ export class StructureInstances {
         const material = materials[g.materialIndex ?? 0];
         material.userData.outlineParameters = { visible: false }; // tiles join edge to edge (D8)
         const part = groups.length > 1 ? subGeometry(geometry, g.start, g.count) : geometry;
+        if (band) depthBand(material, band);
+        let bands: THREE.InstancedBufferAttribute | undefined;
+        if (hasRockBands(material)) {
+          bands = new THREE.InstancedBufferAttribute(new Float32Array(4 * 4), 4);
+          bands.setUsage(THREE.DynamicDrawUsage);
+          part.setAttribute("rockBands", bands);
+        }
         const im = new THREE.InstancedMesh(part, material, 4);
         im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         im.frustumCulled = false;
@@ -66,7 +88,7 @@ export class StructureInstances {
         im.receiveShadow = true;
         im.count = 0;
         this.group.add(im);
-        parts.push({ mesh: im, capacity: 4 });
+        parts.push({ mesh: im, capacity: 4, bands });
       }
     });
     this.models.set(name, { parts, rig: rigModel(source), count: 0, paletteVersion: -1, hue: -1, height: 0 });
@@ -77,8 +99,12 @@ export class StructureInstances {
     for (const m of this.models.values()) m.count = 0;
   }
 
-  /** One copy of a model with its origin at (x, y, z) and uniform scale. */
-  place(name: string, x: number, y: number, z: number, scale: number): void {
+  /**
+   * One copy of a model with its origin at (x, y, z) and uniform scale. `neighbours(row, col)`: the
+   * tiles on the map left of, right of, above and below that cell of the model's pattern (-1: none),
+   * so the island rock of each cell draws the edge band made for each (D84).
+   */
+  place(name: string, x: number, y: number, z: number, scale: number, neighbours?: (row: number, col: number) => readonly number[]): void {
     const model = this.models.get(name);
     if (!model) return;
     const slot = model.count++;
@@ -89,6 +115,15 @@ export class StructureInstances {
     for (const part of model.parts) {
       if (slot >= part.capacity) grow(part, Math.max(slot + 1, part.capacity * 2));
       part.mesh.setMatrixAt(slot, this.matrix);
+      if (part.bands) {
+        const material = part.mesh.material as THREE.Material;
+        const [row, col] = rockCell(material);
+        const nb = neighbours?.(row, col);
+        for (let k = 0; k < 4; k++) {
+          const tile = nb?.[k] ?? -1;
+          part.bands.array[slot * 4 + k] = tile < 0 ? 0 : rockBandSlot(material, ROCK_SIDES[k], tile);
+        }
+      }
     }
   }
 
@@ -107,7 +142,10 @@ export class StructureInstances {
       for (const part of model.parts) {
         part.mesh.count = model.count;
         part.mesh.visible = model.count > 0;
-        if (model.count > 0) part.mesh.instanceMatrix.needsUpdate = true;
+        if (model.count > 0) {
+          part.mesh.instanceMatrix.needsUpdate = true;
+          if (part.bands) part.bands.needsUpdate = true;
+        }
       }
     }
   }
@@ -125,6 +163,111 @@ export class StructureInstances {
   }
 }
 
+/** A model's depth band: its `tyrian_depth_band` extra, and the height range it squeezes. */
+export interface DepthBand {
+  /** `tyrian_oblique`: px up the screen per px of height, or 0 for the true perspective. */
+  oblique: number;
+  /** The band its depth is squeezed into, in model units above its base. */
+  lo: number;
+  hi: number;
+  /** The model's own height range (its geometry's bounds), which maps onto the band. */
+  zMin: number;
+  zMax: number;
+}
+
+/** The depth band a loaded structure asks for, or null (also when it already fits in the band). */
+export function depthBandOf(source: THREE.Object3D): DepthBand | null {
+  let asked: unknown = null;
+  let oblique = 0;
+  source.traverse((o) => {
+    if (asked === null && Array.isArray(o.userData?.tyrian_depth_band)) asked = o.userData.tyrian_depth_band;
+    if (!oblique && Number.isFinite(Number(o.userData?.tyrian_oblique))) oblique = Number(o.userData.tyrian_oblique);
+  });
+  if (!Array.isArray(asked) || asked.length !== 2) return null;
+  const [lo, hi] = asked.map(Number);
+  if (!(Number.isFinite(lo) && Number.isFinite(hi) && hi > lo)) return null;
+  source.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(source);
+  if (box.isEmpty() || (!oblique && box.min.y >= lo && box.max.y <= hi)) return null;
+  return { oblique, lo, hi, zMin: box.min.y, zMax: box.max.y };
+}
+
+/**
+ * The height on its camera ray whose depth a vertex at model height `z` writes: the band's
+ * linear map of the model's range (the shader's sum, for tests).
+ */
+export function bandHeight(band: DepthBand, z: number): number {
+  const t = (Math.min(Math.max(z, band.zMin), band.zMax) - band.zMin) / Math.max(1e-4, band.zMax - band.zMin);
+  return band.lo + t * (band.hi - band.lo);
+}
+
+/**
+ * The point of a model's base plane (model coordinates, y = 0) whose camera ray a vertex at `p` is
+ * drawn on: its own place with the true perspective, or the art's oblique view's (the shader's sum,
+ * for tests). Three's -z is up the screen.
+ */
+export function rayPoint(band: DepthBand, p: THREE.Vector3): THREE.Vector3 {
+  return band.oblique ? new THREE.Vector3(p.x, 0, p.z - band.oblique * p.y) : p.clone();
+}
+
+/**
+ * Where the shader puts a vertex at model point `p` of a copy placed by `toWorld`, seen from a camera
+ * at `camera` (world): on the camera ray through rayPoint, at its band height. Its screen point is
+ * rayPoint's; its depth is the squeezed copy's (the shader's sum, for tests).
+ */
+export function placeVertex(band: DepthBand, p: THREE.Vector3, toWorld: THREE.Matrix4, camera: THREE.Vector3): THREE.Vector3 {
+  const ray = rayPoint(band, p).applyMatrix4(toWorld);
+  const base = new THREE.Vector3().applyMatrix4(toWorld);
+  const scale = new THREE.Vector3().setFromMatrixScale(toWorld).y;
+  const squeezed = base.y + bandHeight(band, p.y) * scale;
+  const k = (camera.y - squeezed) / Math.max(1e-4, camera.y - ray.y);
+  return camera.clone().add(ray.sub(camera).multiplyScalar(k));
+}
+
+/**
+ * Draw `material` on the camera rays rayPoint picks, with the depth of a squeezed copy: each
+ * vertex's depth is that of the point on its ray at its band height (bandHeight). Normals, and so
+ * light, are the true geometry's, and so are shadows (the shadow pass uses its own depth material).
+ */
+function depthBand(material: THREE.Material, band: DepthBand): void {
+  if (material.userData.depthBand) return; // a material shared by several parts
+  material.userData.depthBand = band;
+  const before = material.onBeforeCompile;
+  material.onBeforeCompile = (shader, renderer) => {
+    before.call(material, shader, renderer);
+    shader.uniforms.depthBand = { value: new THREE.Vector4(band.lo, band.hi, band.zMin, band.zMax) };
+    shader.uniforms.oblique = { value: band.oblique };
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", "#include <common>\nuniform vec4 depthBand;\nuniform float oblique;")
+      .replace("#include <project_vertex>", DEPTH_BAND_VERTEX);
+  };
+  const key = material.customProgramCacheKey.bind(material);
+  material.customProgramCacheKey = () => `${key()}|depth-band`;
+  material.needsUpdate = true;
+}
+
+const DEPTH_BAND_VERTEX = `#include <project_vertex>
+#ifdef USE_INSTANCING
+{
+  mat4 toWorld = modelMatrix * instanceMatrix;
+  vec3 local = oblique > 0.0 ? vec3(transformed.x, 0.0, transformed.z - oblique * transformed.y) : transformed;
+  vec3 ray = (toWorld * vec4(local, 1.0)).xyz;
+  vec3 base = (toWorld * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+  float scale = length((toWorld * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+  float t = clamp((transformed.y - depthBand.z) / max(1e-4, depthBand.w - depthBand.z), 0.0, 1.0);
+  float squeezed = base.y + (depthBand.x + t * (depthBand.y - depthBand.x)) * scale;
+  float k = (cameraPosition.y - squeezed) / max(1e-4, cameraPosition.y - ray.y);
+  vec4 placed = vec4(cameraPosition + (ray - cameraPosition) * k, 1.0);
+  vec4 clip = projectionMatrix * viewMatrix * placed;
+  if (oblique > 0.0) {
+    mvPosition = viewMatrix * placed;
+    gl_Position = clip;
+  } else {
+    gl_Position.z = clip.z / clip.w * gl_Position.w;
+  }
+}
+#endif`;
+
 function grow(part: Part, capacity: number): void {
   const old = part.mesh;
   const mesh = new THREE.InstancedMesh(old.geometry, old.material, capacity);
@@ -133,6 +276,13 @@ function grow(part: Part, capacity: number): void {
   mesh.frustumCulled = false;
   mesh.castShadow = old.castShadow;
   mesh.receiveShadow = old.receiveShadow;
+  if (part.bands) {
+    const bands = new THREE.InstancedBufferAttribute(new Float32Array(capacity * 4), 4);
+    bands.setUsage(THREE.DynamicDrawUsage);
+    bands.array.set(part.bands.array);
+    old.geometry.setAttribute("rockBands", bands);
+    part.bands = bands;
+  }
   old.parent?.add(mesh);
   old.parent?.remove(old);
   old.dispose();

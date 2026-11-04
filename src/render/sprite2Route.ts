@@ -1,4 +1,4 @@
-// How the renderer draws one Sprite2 draw (DECISIONS.md D4, D15, D42, D49, D54, D79): as flat art, as
+// How the renderer draws one Sprite2 draw (DECISIONS.md D4, D15, D42, D49, D54, D86): as flat art, as
 // part of a model (an enemy's, a player ship's banking frames, a sidekick's; an enemy's damaged frame
 // with its intact model, damage/damageRoute.ts), or as the extruded sprite.
 //
@@ -43,7 +43,7 @@ export interface Sprite2Route {
    * or for a damaged frame drawn with the intact model (`damaged`), the intact frame.
    */
   frame: number;
-  /** Group: a damaged frame drawn with the enemy's intact model, damaged (D79). */
+  /** Group: a damaged frame drawn with the enemy's intact model, damaged (D86). */
   damaged: boolean;
 }
 
@@ -53,7 +53,7 @@ export class Sprite2Router {
   private readonly ungrouped: ReadonlyMap<string, string>;
   private readonly overridesBySheet = new Map<string, ModelOverride[]>();
   private readonly out: Sprite2Route = { route: Route.Sprite, model: "", override: null, bank: Number.NaN, frame: -1, damaged: false };
-  /** The levels' damaged frames, drawn with the intact models (D79); null: as sprites, as before. */
+  /** The levels' damaged frames, drawn with the intact models (D86); null: as sprites, as before. */
   private damage: DamageRoutes | null = null;
   private readonly modelOfKey = (key: string): string | undefined => this.grouped.get(key);
 
@@ -69,7 +69,7 @@ export class Sprite2Router {
   }
 
   /**
-   * Draw a level's damaged frames with the enemies' intact models (D79): its damaged frames
+   * Draw a level's damaged frames with the enemies' intact models (D86): its damaged frames
    * (sim/levelSprites.ts levelDamageFrames). Adds to the levels before. `null` turns it off.
    */
   setDamage(damage: readonly LevelDamage[] | null): void {
@@ -78,7 +78,7 @@ export class Sprite2Router {
   }
 
   /**
-   * The intact model and frame that draw damaged frame `index` of `sheet` (D79), or null: not one of
+   * The intact model and frame that draw damaged frame `index` of `sheet` (D86), or null: not one of
    * the levels' damaged frames, no intact frame with a model, or blank. Damaged frames with a model
    * of their own route to it before this.
    */

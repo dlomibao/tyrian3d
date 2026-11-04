@@ -116,16 +116,35 @@ describe("sprite art manifest", () => {
     expect(art.frame("plain", 1)).toMatchObject({ w: 12, h: 14 });
   });
 
-  test("the shipped manifest paints every coin and gem value sprite (explosion types 35-52)", async () => {
+  test("a frame can have its own scale (the coin values among the explosions, D80)", () => {
+    const warnings: string[] = [];
+    const m = parseSpriteArtManifest({
+      scale: 8,
+      sheets: {
+        mixed: { image: "m.webp", frames: { "1": { x: 0, y: 0, w: 96, h: 112 }, "2": { x: 0, y: 128, w: 192, h: 160, scale: 16 }, "3": { x: 0, y: 0, w: 8, h: 8, scale: 0 } } },
+      },
+    }, (w) => warnings.push(w))!;
+    expect([...m.sheets.get("mixed")!.frames.keys()]).toEqual([1, 2]);
+    expect(warnings).toHaveLength(1);
+    const art = new SpriteArt<string>(m);
+    art.sheet("mixed")!.setTexture("t", 256, 512);
+    expect(art.frame("mixed", 1)).toMatchObject({ w: 12, h: 14 });
+    expect(art.frame("mixed", 2)).toMatchObject({ w: 12, h: 10 });
+  });
+
+  test("the shipped manifest paints every coin and gem value sprite (explosion types 35-52) and the explosions", async () => {
     const { readFileSync } = await import("node:fs");
     const { EXPLOSION_DATA } = await import("../../src/render/vfx/explosionFrames");
     const m = parseSpriteArtManifest(JSON.parse(readFileSync("public/art/sprites/manifest.json", "utf8")))!;
-    const values = m.sheets.get("newsh6.shp")!;
-    expect(values.scale).toBe(16);
+    const sheet = m.sheets.get("newsh6.shp")!;
+    expect(sheet.scale).toBe(8);
     // drawExplosions blits sprite + 1 and never advances a fixed-position explosion.
-    const wanted = EXPLOSION_DATA.slice(35).map(([sprite]) => sprite + 1).sort((a, b) => a - b);
-    expect([...values.frames.keys()].sort((a, b) => a - b)).toEqual(wanted);
-    for (const f of values.frames.values()) expect(f.w).toBe(12 * 16);
+    const wanted = EXPLOSION_DATA.slice(35).map(([sprite]) => sprite + 1);
+    for (const i of wanted) expect(sheet.frames.get(i)).toMatchObject({ w: 12 * 16, scale: 16 });
+    // The fireball (type 1, sprites 122-133) and big explosions (D80) at the sheet's scale.
+    for (let i = 122; i <= 133; i++) expect(sheet.frames.get(i)).toMatchObject({ w: 12 * 8 });
+    expect(sheet.frames.get(122)!.scale).toBeUndefined();
+    expect(sheet.frames.size).toBe(wanted.length + 108);
   });
 
   test("image URLs are escaped (sheet ids have '#')", () => {

@@ -11,7 +11,11 @@ import "./components.css";
 import { button, h, MenuList, type Navigable } from "./components";
 import { Nav, type InputDevice, type Intent, type NavTarget } from "./nav";
 
-/** What the 3D backdrop shows behind a screen (src/ui/backdrop.ts); "none" leaves the game visible. */
+/**
+ * What the backdrop shows behind a screen (src/ui/backdrop.ts): "title" the painted planet with
+ * Talons passing (the title only), "space" the planet dimmed under a menu's panes, "hangar" that
+ * and the player's ship turning (the item screen); "none" leaves the game visible.
+ */
 export type BackdropMood = "title" | "hangar" | "space" | "none";
 
 /** The part of the backdrop the manager drives. */
@@ -271,7 +275,10 @@ export class ScreenManager {
     // [restyle-options] A screen shown over another keeps it (and its backdrop mood) underneath;
     // any other closes it and everything under it.
     const below = opts.over ? prev : null;
-    const screen = new Screen(below && !opts.backdrop ? { ...opts, backdrop: below.opts.backdrop ?? "space" } : opts, this);
+    // Without a mood of its own it keeps the one beneath, except the title's: a menu over the
+    // title dims its planet ("space", D85).
+    const inherited = below?.opts.backdrop === "title" ? "space" : (below?.opts.backdrop ?? "space");
+    const screen = new Screen(below && !opts.backdrop ? { ...opts, backdrop: inherited } : opts, this);
     this._current = screen;
     if (below) {
       this.under.push(below);

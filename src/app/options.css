@@ -1,14 +1,78 @@
 /* The settings, load-game and save-name screens (src/app/options.ts), on src/ui's components, and
    the volume sliders and save slots of the item screen's Options rows. */
 
-/* --- the settings screen --- */
+/* --- the settings screen (D85: the sections in columns on wide screens, the message bar at the foot) --- */
 
-.opt-list {
-  gap: 2px;
+.ui-screen--options > .ui-panel {
+  max-width: min(100%, 92rem);
+  width: auto;
 }
 
 .opt-list[hidden] {
   display: none;
+}
+
+.opt-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0 2.6rem;
+}
+
+.opt-group {
+  gap: 2px;
+}
+
+.opt-group:empty {
+  display: none;
+}
+
+/* Three columns where the window is wide: the settings, then each player's keys, a hairline between. */
+@media (min-width: 1400px) {
+  .ui-screen--options > .ui-panel {
+    width: 100%;
+  }
+
+  .opt-cols {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 760px) and (max-width: 1399.98px) {
+  .ui-screen--options > .ui-panel {
+    width: 100%;
+    max-width: 62rem;
+  }
+
+  .opt-cols {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 760px) {
+  .opt-group + .opt-group {
+    position: relative;
+  }
+
+  .opt-group + .opt-group::before {
+    content: "";
+    position: absolute;
+    left: -1.3rem;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: linear-gradient(180deg, transparent, rgba(164, 123, 70, 0.4) 15%, rgba(164, 123, 70, 0.4) 85%, transparent);
+  }
+
+  /* Two columns: the third group wraps under the first, with no rule beside it. */
+  .opt-group:nth-child(3)::before {
+    display: none;
+  }
+}
+
+@media (min-width: 1400px) {
+  .opt-group:nth-child(3)::before {
+    display: block;
+  }
 }
 
 .ui-label.opt-section {
@@ -20,63 +84,103 @@
 }
 
 .opt-row {
+  justify-content: space-between;
   flex-wrap: wrap;
   column-gap: var(--ui-space-3);
   row-gap: var(--ui-space-1);
+  min-height: 2.5rem;
 }
 
 .opt-row__label {
-  flex: 1 1 8rem;
+  flex: 1 1 7rem;
   min-width: 0;
 }
 
-.opt-row--done .opt-row__label {
-  color: var(--ui-gold);
-  font-family: var(--ui-font-display);
-  font-size: var(--ui-text-sm);
-  letter-spacing: var(--ui-tracking);
+/* The C's key names are capitals ("CHANGE FIRE"): set them as the other lines ("Change fire"). */
+.opt-row--key .opt-row__label {
+  text-transform: lowercase;
+}
+
+.opt-row--key .opt-row__label::first-letter {
   text-transform: uppercase;
 }
 
-/* Two keys per control, and the music styles: small buttons the focus moves between. */
+/* Done, centred under the columns, with a tick on either side when chosen. */
+.opt-group--done {
+  align-items: center;
+  margin-top: var(--ui-space-3);
+}
+
+.opt-row--done {
+  justify-content: center;
+  padding-inline: 2.1rem;
+  font-size: var(--ui-text-lg);
+}
+
+.opt-row--done .opt-row__label {
+  flex: none;
+}
+
+.opt-row--done.is-focused {
+  background: var(--ui-tick) calc(100% - 0.4rem) 50% / 0.52rem 0.52rem no-repeat;
+}
+
+/* Two keys per control: keycaps (the title foot's); the music styles: words, the chosen one ticked. */
 .opt-keys,
 .opt-styles {
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: var(--ui-space-2);
 }
 
-.opt-key,
-.opt-chip {
-  min-width: 6.5rem;
-  min-height: 2.25rem;
-  padding: 0 var(--ui-space-3);
+.opt-styles {
+  gap: 0 var(--ui-space-1);
+}
+
+.opt-key {
+  min-width: 5.4rem;
+  min-height: 1.85rem;
+  padding: 0 var(--ui-space-2);
   font: inherit;
-  font-size: var(--ui-text-sm);
-  font-weight: 600;
-  color: var(--ui-ink);
-  background: var(--ui-panel-raised);
-  border: 1px solid var(--ui-edge);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--ui-key-ink);
+  background: var(--ui-key-fill);
+  border: 1px solid var(--ui-key-edge);
   border-radius: var(--ui-radius);
   cursor: pointer;
   transition:
     border-color var(--ui-fast) var(--ui-ease),
-    box-shadow var(--ui-med) var(--ui-ease),
     color var(--ui-fast) var(--ui-ease);
 }
 
 .opt-chip {
-  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  min-height: 2rem;
+  padding: 0 var(--ui-space-2);
   font-family: var(--ui-font-display);
-  font-size: var(--ui-text-xs);
-  letter-spacing: var(--ui-tracking);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
+  color: var(--ui-bone-faint);
+  background: none;
+  border: 0;
+  border-radius: var(--ui-radius);
+  cursor: pointer;
+  transition: color var(--ui-fast) var(--ui-ease);
 }
 
 @media (hover: hover) {
-  .opt-key:hover,
+  .opt-key:hover {
+    border-color: var(--ui-copper-lite);
+  }
+
   .opt-chip:hover {
-    border-color: var(--ui-edge-strong);
+    color: var(--ui-bone);
   }
 }
 
@@ -84,12 +188,24 @@
   color: var(--ui-ink-faint);
 }
 
-/* The slot the cursor is on (only on the focused row) and the chosen music style. */
-.opt-key.is-focused,
+/* The chosen style: copper, with a diamond before it. */
 .opt-chip.is-on {
-  color: var(--ui-ink-warm);
-  border-color: var(--ui-gold-bright);
-  box-shadow: var(--ui-glow-gold);
+  color: var(--ui-copper-hi);
+}
+
+.opt-chip.is-on::before {
+  content: "";
+  width: 0.42em;
+  height: 0.42em;
+  transform: rotate(45deg);
+  background: linear-gradient(135deg, var(--ui-copper-hi), var(--ui-copper));
+}
+
+/* The slot the cursor is on (only on the focused row): a lit cap in a copper ring. */
+.opt-key.is-focused {
+  color: var(--ui-copper-hi);
+  border-color: var(--ui-copper-hi);
+  box-shadow: 0 0 0 1px var(--ui-rim-ink), 0 0 0 2px var(--ui-copper);
 }
 
 .opt-key.is-waiting {
@@ -98,60 +214,60 @@
 
 @keyframes opt-wait {
   50% {
-    background: rgba(240, 176, 72, 0.35);
-    box-shadow: 0 0 1.1rem rgba(255, 200, 90, 0.55);
+    background: rgba(183, 116, 66, 0.6);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .opt-key.is-waiting {
     animation: none;
-    background: rgba(240, 176, 72, 0.3);
+    background: rgba(183, 116, 66, 0.55);
   }
 }
 
-/* Titles keep clear of the back button in the corner. */
-.ui-screen--options .ui-title,
-.ui-screen--load .ui-title {
-  padding-right: 5.5rem;
+/* The load screen: the page's title between its arrows, on one line where it fits. */
+.ui-screen--load > .ui-panel {
+  max-width: 44rem;
 }
 
-/* The help line and key hints under the list; on the settings screen they stay at the panel's
-   foot while the rows scroll. */
+.ui-screen--load .ui-title {
+  font-size: clamp(1.5rem, 1.1rem + 1.1vw, 2.2rem);
+}
+
+/* The help line and key hints (the message bar) under the list; on the settings screen they stay
+   at the panel's foot while the rows scroll. */
 .ui-panel .opt-help {
   min-height: 1.45em;
   margin: var(--ui-space-4) 0 0;
-  padding-top: var(--ui-space-3);
-  border-top: 1px solid var(--ui-edge);
-  font-size: var(--ui-text-sm);
+}
+
+.ui-msgbar > .opt-help {
+  margin: 0;
 }
 
 .opt-foot {
   position: sticky;
   bottom: calc(-1 * var(--ui-space-5));
-  z-index: 1;
-  margin: 0 calc(-1 * var(--ui-space-5)) calc(-1 * var(--ui-space-5));
-  padding: 0 var(--ui-space-5) var(--ui-space-4);
-  background: linear-gradient(180deg, rgba(7, 12, 21, 0.9), var(--ui-panel-solid) 2rem);
-}
-
-.opt-foot .ui-hints {
-  margin-top: var(--ui-space-3);
+  z-index: 2;
+  margin: 0 -1.6rem calc(-1 * var(--ui-space-5));
+  padding: var(--ui-space-3) 1.6rem var(--ui-space-4);
+  background: linear-gradient(180deg, rgba(15, 8, 5, 0), rgba(15, 8, 5, 0.95) 0.8rem);
 }
 
 .ui-panel .opt-help b {
-  color: var(--ui-gold);
+  color: var(--ui-phos-num);
   font-weight: 600;
 }
 
-/* --- volume sliders: a stat bar cut into JE_barDrawShadow's 21 cells --- */
+/* --- volume sliders: phosphor cells, JE_barDrawShadow's 21 --- */
 
 .opt-vol {
-  flex: 1 1 10rem;
+  flex: 0 1 10rem;
   max-width: 18rem;
   min-height: 2rem;
   display: flex;
   align-items: center;
+  margin-left: auto;
   cursor: pointer;
   /* A drag sets the volume rather than scrolling the page. */
   touch-action: none;
@@ -159,34 +275,32 @@
 
 .opt-vol .ui-stat__bar {
   flex: 1;
-  height: 12px;
+  height: 0.85rem;
 }
 
 .opt-vol .ui-stat__bar::after {
-  background: repeating-linear-gradient(90deg, transparent 0 calc(100% / 21 - 2px), var(--ui-panel-solid) calc(100% / 21 - 2px) calc(100% / 21));
+  background: repeating-linear-gradient(90deg, transparent 0 calc(100% / 21 - 2px), var(--ui-well-solid) calc(100% / 21 - 2px) calc(100% / 21));
 }
 
 .opt-vol__num {
   flex: none;
   width: 2.25rem;
   text-align: right;
-  font-family: var(--ui-font-display);
-  font-size: var(--ui-text-xs);
+  font-family: var(--ui-font-phos);
+  font-size: 0.95rem;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: var(--ui-ink-dim);
-}
-
-.is-focused > .opt-vol__num {
-  color: var(--ui-ink-warm);
+  color: var(--ui-phos-num);
+  text-shadow: var(--ui-phos-glow);
 }
 
 /* --- the gamepad check --- */
 
 .opt-padcheck {
   padding: var(--ui-space-3);
-  border: 1px solid var(--ui-edge);
-  border-radius: var(--ui-radius);
-  background: var(--ui-panel-raised);
+  border-radius: 4px;
+  background: var(--ui-well);
+  box-shadow: var(--ui-well-edge);
   cursor: pointer;
 }
 
@@ -212,7 +326,7 @@
   height: 64px;
   border: 1px solid var(--ui-edge-strong);
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(92, 214, 255, 0.08), transparent 70%);
+  background: radial-gradient(circle, rgba(183, 116, 66, 0.12), transparent 70%);
 }
 
 .opt-pad__stick i {
@@ -221,8 +335,7 @@
   height: 12px;
   margin: -6px 0 0 -6px;
   border-radius: 50%;
-  background: var(--ui-gold-bright);
-  box-shadow: var(--ui-glow-gold);
+  background: var(--ui-phos);
 }
 
 .opt-pad__stick small {
@@ -247,16 +360,15 @@
   padding: var(--ui-space-1) var(--ui-space-2);
   border: 1px solid var(--ui-edge);
   border-radius: var(--ui-radius);
-  background: linear-gradient(to top, rgba(240, 176, 72, 0.35) var(--fill, 0%), transparent var(--fill, 0%));
+  background: linear-gradient(to top, rgba(79, 224, 90, 0.3) var(--fill, 0%), transparent var(--fill, 0%));
   font-family: var(--ui-font-display);
   font-size: var(--ui-text-xs);
   letter-spacing: 0.04em;
 }
 
 .opt-pad__chip.is-on {
-  color: var(--ui-ink-warm);
-  border-color: var(--ui-gold-bright);
-  box-shadow: var(--ui-glow-gold);
+  color: var(--ui-phos-num);
+  border-color: var(--ui-phos);
 }
 
 .opt-pad__chip small {
@@ -268,8 +380,6 @@
 /* --- the load screen --- */
 
 .load-list .ui-badge {
-  color: var(--ui-cyan);
-  border-color: rgba(92, 214, 255, 0.45);
   white-space: nowrap;
 }
 
@@ -282,12 +392,8 @@
   margin-top: var(--ui-space-2);
 }
 
-.load-list .load-exit .ui-menu__label {
-  color: var(--ui-gold);
-  font-family: var(--ui-font-display);
-  font-size: var(--ui-text-sm);
-  letter-spacing: var(--ui-tracking);
-  text-transform: uppercase;
+.load-list .load-exit:not(.is-focused) .ui-menu__label {
+  color: var(--ui-ink-dim);
 }
 
 /* --- the save-name prompt --- */
@@ -325,16 +431,16 @@
   font-family: var(--ui-font-display);
   letter-spacing: var(--ui-tracking);
   color: var(--ui-ink-warm);
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--ui-well);
   border: 1px solid var(--ui-edge-strong);
   border-radius: var(--ui-radius);
   outline: none;
-  caret-color: var(--ui-gold-bright);
+  caret-color: var(--ui-copper-hi);
 }
 
 .save-name__input:focus {
-  border-color: var(--ui-gold-bright);
-  box-shadow: var(--ui-glow-gold);
+  border-color: var(--ui-copper-hi);
+  box-shadow: 0 0 0 1px var(--ui-rim-ink), 0 0 0 2px var(--ui-copper);
 }
 
 /* --- the item screen's Options rows: sliders and slot details line up on the right --- */
@@ -367,29 +473,34 @@
   .opt-foot {
     bottom: calc(-1 * var(--ui-space-4));
     margin: 0 calc(-1 * var(--ui-space-4)) calc(-1 * var(--ui-space-4));
-    padding: 0 var(--ui-space-4) var(--ui-space-3);
+    padding: var(--ui-space-2) var(--ui-space-3) var(--ui-space-3);
   }
 
-  /* Key slots and sliders go under their label, full width. */
-  .opt-row--key .opt-row__label,
-  .opt-row--volume .opt-row__label,
+  .opt-foot .ui-hints {
+    display: none;
+  }
+
+  /* The styles go under their label, left-aligned (the phone render's). */
   .opt-row--style .opt-row__label {
     flex-basis: 100%;
   }
 
-  .opt-keys {
-    flex: 1;
-    flex-wrap: nowrap;
+  .opt-row--style .opt-styles {
+    justify-content: flex-start;
+    margin-left: -0.5rem;
+  }
+
+  .opt-row {
+    padding-left: 1.2rem;
   }
 
   .opt-key {
-    flex: 1 1 0;
-    min-width: 0;
-    min-height: var(--ui-hit);
+    min-width: 4.6rem;
+    min-height: 2.25rem;
   }
 
   .opt-vol {
-    max-width: none;
+    flex-basis: 8rem;
     min-height: var(--ui-hit);
   }
 
@@ -410,4 +521,8 @@
 .load-pages .ui-button[hidden] {
   visibility: hidden;
   display: inline-flex;
+}
+
+.load-foot {
+  margin-top: var(--ui-space-4);
 }

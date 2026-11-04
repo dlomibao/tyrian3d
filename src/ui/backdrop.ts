@@ -1,15 +1,18 @@
-// The 3D scene behind the menus: the player's ship over a dark planet, in a slowly turning
-// starfield. It draws with the game View's renderer (one canvas, one WebGL context) and only while
-// a screen asks for it: during a level no screen is up, so it doesn't run at all.
+// The scene behind the menus: the title's painted planet (src/ui/titlePlanet.ts, D64), and on the
+// item screen the player's ship turning beside the panels. It draws with the game View's renderer
+// (one canvas, one WebGL context) and only while a screen asks for it: during a level no screen is
+// up, so it doesn't run at all.
 //
 // The ship is the game's own model (public/models, the colours its Blender script baked from the
-// palette) with the View's lighting and outline; the planet and stars are generated here. Without
-// WebGL a CSS stand-in (components.css .ui-backdrop-fallback) takes its place.
+// palette) with the View's outline, lit warm to sit in the planet's sunrise. Without WebGL a CSS
+// stand-in (components.css .ui-backdrop-fallback) takes its place.
 //
 // Moods (BackdropMood, src/ui/screen.ts): "title" is the painted planet at sunrise with Talons
-// passing (src/ui/titlePlanet.ts, D64; its own passes, nothing of the 3D scene below), "hangar"
-// (the item screen) turns the player's current ship slowly, close up, and "space" (messages) pulls
-// back to the planet. The camera eases between hangar and space.
+// passing; "space" (the other menus) is the same planet dimmed under their panes, without the
+// Talons; "hangar" (the item screen) adds the player's current ship, turning slowly, in the biggest
+// gap beside the panes (D55, D85). The planet keeps one clock across the moods, so moving between
+// the title and a menu only dims or brightens it. If the planet's shader can't run, the older 3D
+// scene (a generated dark planet in a starfield) stands in behind the ship.
 
 import * as THREE from "three";
 import { OutlineEffect } from "three/addons/effects/OutlineEffect.js";
@@ -38,6 +41,8 @@ const PLANET_RADIUS = 400;
 /** Vertical field of view on landscape screens. */
 const FOV = 40;
 const BACKGROUND = 0x03050a;
+/** The planet's clock when a menu opens with no title before it (a level just ended): sunrise is over. */
+const MENU_PLANET_TIME = 30;
 
 /**
  * The model that draws a player ship (its banked sprite at `shipGraphic` in the ship sheet, or a
@@ -144,9 +149,14 @@ export class Backdrop implements BackdropControl {
   private fallback: HTMLDivElement | null = null;
   /** The title mood's painted planet (null without WebGL). */
   private readonly title: TitlePlanet | null = null;
-  /** Seconds since the title mood began: its push-in and sunrise start over each time. */
-  private titleTime = 0;
+  /** The planet's clock (s): its push-in and sunrise start over when the title comes back from a level. */
+  private planetTime = 0;
+  /** How far the planet is dimmed for the menus (0 the title, 1 a menu), easing between. */
+  private dim = 0;
+  /** prefers-reduced-motion: the ship holds still and the dimming doesn't fade. */
+  private still = false;
   private readonly scene = new THREE.Scene();
+  private readonly background = new THREE.Color(BACKGROUND);
   private readonly camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 2000);
   private readonly outline: OutlineEffect | null = null;
   private readonly ship = new THREE.Group();
@@ -171,7 +181,7 @@ export class Backdrop implements BackdropControl {
       return;
     }
     this.outline = new OutlineEffect(renderer, OUTLINE);
-    this.scene.background = new THREE.Color(BACKGROUND);
+    this.scene.background = this.background;
 
     // View's lighting (src/render/view.ts): image-based light for metal highlights, a sky/ground
     // hemisphere and a sun, here from the upper left so the planet shows a lit limb and a night side.
@@ -179,11 +189,12 @@ export class Backdrop implements BackdropControl {
     this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     this.scene.environmentIntensity = 0.7;
     pmrem.dispose();
-    this.scene.add(new THREE.HemisphereLight(0x9fb8ff, 0x20160c, 1.1));
+    // Warm, for the painted planet's sunrise (D85): a bone sky, the amber of the sun as the rim.
+    this.scene.add(new THREE.HemisphereLight(0xe8d6c4, 0x20160c, 1.1));
     const sun = new THREE.DirectionalLight(0xfff1dc, 2.6);
     sun.position.set(-30, 26, 8);
     this.scene.add(sun);
-    const rim = new THREE.DirectionalLight(0x5cd6ff, 0.9);
+    const rim = new THREE.DirectionalLight(0xffa060, 1);
     rim.position.set(20, 4, -30);
     this.scene.add(rim);
 
@@ -202,6 +213,9 @@ export class Backdrop implements BackdropControl {
     this.setShip(DEFAULT_SHIP);
 
     this.title = new TitlePlanet(renderer, this.scene.environment);
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    this.still = !!reduce?.matches;
+    reduce?.addEventListener?.("change", (e) => (this.still = e.matches));
     loadModel(DEFAULT_SHIP)
       .then((model) => this.title?.setFlyer(titleFlyer(model)))
       .catch((err) => console.warn("backdrop: the title's Talon failed to load", err));
@@ -230,11 +244,17 @@ export class Backdrop implements BackdropControl {
   setMood(mood: BackdropMood): void {
     if (mood === this.mood) return;
     const wasRunning = this.mood !== "none";
-    if (mood === "title" && this.mood !== "title") {
+    if (mood !== "none" && !wasRunning) {
+      // Back from a level (or the first screen): the title's push-in and sunrise start over, a
+      // menu's planet is already in the morning, and the canvas must be drawn afresh.
       // Dev captures can start the shot later (?titlet=seconds), e.g. at the squadron's pass.
-      this.titleTime = import.meta.env.DEV ? Number(new URLSearchParams(location.search).get("titlet")) || 0 : 0;
+      const start = import.meta.env.DEV ? Number(new URLSearchParams(location.search).get("titlet")) || 0 : 0;
+      this.planetTime = mood === "title" ? start : Math.max(start, MENU_PLANET_TIME);
+      this.dim = mood === "title" ? 0 : 1;
       this.title?.invalidate();
     }
+    // Over the planet the ship grows in on the item screen and is gone at once elsewhere.
+    if (this.title && !this.title.failed) this.pose.scale = 0;
     this.mood = mood;
     if (mood !== "none") this.target = POSES[mood];
     if (!this.renderer) {
@@ -287,16 +307,21 @@ export class Backdrop implements BackdropControl {
     const dt = Math.min(0.1, (now - this.last) / 1000);
     this.last = now;
     this.time += dt;
-    const t = this.time;
+    const t = this.still ? 0 : this.time;
 
     this.renderer.getSize(this.size);
     const { x: w, y: h } = this.size;
-    if (this.mood === "title" && this.title && !this.title.failed) {
-      this.titleTime += dt;
-      this.title.frame(now, this.titleTime, w, h);
-      if (this.title.failed) this.showFallback("title");
-      this.raf = requestAnimationFrame(this.frame);
-      return;
+    const planet = !!this.title && !this.title.failed;
+    if (planet) {
+      this.planetTime += dt;
+      const wantDim = this.mood === "title" ? 0 : 1;
+      this.dim = this.still || Math.abs(wantDim - this.dim) < 0.004 ? wantDim : this.dim + (wantDim - this.dim) * (1 - Math.exp(-dt * 7));
+      if (this.mood === "title") {
+        this.title!.frame(now, this.planetTime, w, h, { dim: this.dim });
+        if (this.title!.failed) this.showFallback("title");
+        this.raf = requestAnimationFrame(this.frame);
+        return;
+      }
     }
 
     const p = this.pose;
@@ -315,10 +340,13 @@ export class Backdrop implements BackdropControl {
     const reachX = pxPerUnit * SHIP_RADIUS;
     const reachY = pxPerUnit * (SHIP_RADIUS * Math.sin(elev) + SHIP_HEIGHT);
     const slot = box ? freeSlot(w, h, box, Math.sign(this.target.frameX), reachX, reachY, MIN_FIT) : null;
-    const wantScale = slot ? Math.min(this.target.scale, slot.fit) : this.target.scale;
+    // Over the painted planet only the item screen shows the ship (D85), and only in a gap beside
+    // its panes: where the panes fill the window (phones) it isn't drawn behind them.
+    const shown = !planet || (this.mood === "hangar" && (!box || !!slot));
+    const wantScale = !shown ? 0 : slot ? Math.min(this.target.scale, slot.fit) : this.target.scale;
 
-    // Ease toward the mood's pose.
-    const k = 1 - Math.exp(-dt * 1.6);
+    // Ease toward the mood's pose (at once with reduced motion).
+    const k = this.still ? 1 : 1 - Math.exp(-dt * 1.6);
     p.cam.lerp(this.target.cam, k);
     p.look.lerp(this.target.look, k);
     p.heading += (this.target.heading - p.heading) * k;
@@ -332,7 +360,9 @@ export class Backdrop implements BackdropControl {
     const land = Math.min(1, Math.max(0, (aspect - 0.9) / 0.6));
     this.lift += ((slot ? 0 : (1 - land) * this.target.liftPortrait) - this.lift) * k;
 
-    // A slow drift: the ship bobs and banks, the planet turns, the stars wheel past.
+    // A slow drift: the ship bobs and banks, the planet turns, the stars wheel past. With reduced
+    // motion it holds a three-quarter view.
+    if (this.still) this.spinAngle = 0.6;
     this.ship.position.set(Math.sin(t * 0.23) * 0.25, this.lift + Math.sin(t * 0.7) * 0.12, Math.sin(t * 0.17) * 0.2);
     this.ship.rotation.set(Math.sin(t * 0.5) * 0.04, p.heading + this.spinAngle + Math.sin(t * 0.21) * 0.06, Math.sin(t * 0.4 + 1) * 0.14);
     this.ship.scale.setScalar(p.scale);
@@ -351,7 +381,24 @@ export class Backdrop implements BackdropControl {
     this.camera.position.copy(p.cam);
     this.camera.lookAt(p.look);
 
-    this.outline.render(this.scene, this.camera);
+    if (planet) {
+      // The planet, dimmed, then the ship over it (no 3D planet, stars or background of its own).
+      this.title!.frame(now, this.planetTime, w, h, { dim: this.dim, ships: false, always: true });
+      if (p.scale > 0.01) {
+        this.scene.background = null;
+        this.planet.visible = this.stars.visible = false;
+        const autoClear = this.outline.autoClear;
+        this.outline.autoClear = false;
+        this.renderer.clearDepth();
+        this.outline.render(this.scene, this.camera);
+        this.outline.autoClear = autoClear;
+      }
+      if (this.title!.failed) this.showFallback("none");
+    } else {
+      this.scene.background = this.background;
+      this.planet.visible = this.stars.visible = true;
+      this.outline.render(this.scene, this.camera);
+    }
     this.raf = requestAnimationFrame(this.frame);
   };
 }

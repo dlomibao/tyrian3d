@@ -1,4 +1,4 @@
-// An enemy's damaged frame drawn on its intact model by the model's shaders (DECISIONS.md D79).
+// An enemy's damaged frame drawn on its intact model by the model's shaders (DECISIONS.md D86).
 //
 // Every material of a model clone gets the same small patch (one shader program per material kind,
 // shared by all enemies). Its uniforms say where the damage is, in the sprite's own pixels: each

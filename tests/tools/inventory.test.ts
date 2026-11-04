@@ -49,7 +49,7 @@ describe.skipIf(!hasData("levels1.dat", "tyrian1.lvl", "tyrian.hdt", "tyrian.shp
     // newshp-13 also covers newsh2.shp 91, a first frame the level's animation never shows: only
     // the bot run (which this test skips) can say so, so statically it is partial.
     for (const id of LEVEL1_FLAGSHIP.filter((x) => x !== "newshp-13")) expect(units.get(id)?.status, id).toBe("flagship");
-    // Their damaged frames are drawn with the intact models (D79), no longer swapping to sprites (D54).
+    // Their damaged frames are drawn by models: the intact ones (D86), the rock outcrop's own (D81).
     for (const id of ["assembly-newsh4-124", "assembly-newshe-39"]) {
       expect(units.get(id)?.damage, id).toBe("modelled");
       expect(units.get(id)?.knownDamageSwap, id).toBeUndefined();

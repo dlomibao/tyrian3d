@@ -186,8 +186,9 @@ def mesh_object(name, bm, materials, collection, smooth=False):
     mesh = bpy.data.meshes.new(name)
     bm.to_mesh(mesh)
     bm.free()
-    for poly in mesh.polygons:
-        poly.use_smooth = smooth
+    if smooth is not None:  # None: keep each face's own flag from the bmesh
+        for poly in mesh.polygons:
+            poly.use_smooth = smooth
     for mat in materials:
         mesh.materials.append(mat)
     obj = bpy.data.objects.new(name, mesh)

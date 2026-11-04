@@ -1,7 +1,7 @@
 // three.js's OutlineEffect (examples/jsm/effects/OutlineEffect.js, r186), MIT licence, copyright
 // 2010-2026 three.js authors: https://github.com/mrdoob/three.js/blob/dev/LICENSE
 //
-// Tyrian 3D change (DECISIONS.md D79): an outline material made for a material that carries
+// Tyrian 3D change (DECISIONS.md D86): an outline material made for a material that carries
 // userData.damageUniforms (render/damage/damageShader.ts, an enemy drawing a damaged frame on its intact
 // model) cuts away the same pixels as the model, so the ink follows the cut silhouette. The rest is
 // three.js's code unchanged. Types: outlineEffect.d.ts (three's own).
