@@ -3779,6 +3779,31 @@ shared materials).
    key, the tileset prefix): numeric keys and per-layer maps instead. HOLES allocates 15.8 → 12.5
    MB/s (the three functions 64 → 16 MB over 15 s); captures identical.
 
+**The whole run, main before D91 → after items 1-8** (same machine minutes, load average 4-5;
+`?debug=play&solid=1`, 3024x1800, 60 Hz; frame interval ms; "JS" = frames over 33 ms whose own
+JS took over 25 ms; max JS = the longest frame's JS; programs linked during play):
+
+| Scene | mean | p95 | p99 | max | > 33 ms (JS) | max JS | programs |
+|---|---|---|---|---|---|---|---|
+| Level 1, ticks 0-2000 | 16.8 → 16.7 | 18.3 → 18.1 | 18.7 → 18.6 | 380 → 69 | 6 (3) → 5 (0) | 138 → 25 | 25 → 4 |
+| Boss, ticks 6650-7400 | 17.3 → 16.9 | 17.0 → 17.0 | 32.1 → 17.6 | 318 → 259* | 12 (2) → 2 (0) | 315 → 14 | 23 → 1 |
+| HOLES, ticks 0-2000 | 16.8 → 16.7 | 16.8 → 17.9 | 17.6 → 18.5 | 368 → 25 | 4 (3) → 0 (0) | 176 → 12 | 28 → 0 |
+
+\* the harness's first frame after fast-forwarding 6650 ticks. A second round of the same runs was
+spoiled by other agents' load (load average 74-220) and is not counted. What's left in level 1 is
+its first second (models that load in the background at a level's start arrive, D54), which plays
+under the level's fade-in, and GPU time taken by other processes.
+
+**Not done (estimates):**
+- *Instancing enemy models* (one clone per enemy, a draw per part, plus outline shell and shadow):
+  250-500 draw calls a frame, ~2-3 ms of three's submit; per-instance damage, flash and blend
+  make it a large change (days). Not needed for 60 fps on this machine.
+- *Shadow pass*: ~25% of the GPU frame in busy scenes (1-3 ms at 3024x1800). A tighter shadow camera
+  or caster culling changes how shadows look; left to a design call.
+- *Level start*: wait in preload for every model (or for the ones in flight) instead of the first
+  ~30 s of them (D54) to take the background parses out of the first second; costs preload time
+  on a cold network.
+
 ## D92 — Twenty enemies shared across episodes rebuilt hard-surface; a palette-pulsed ring counts as ink
 
 2026-11-04
@@ -3983,3 +4008,60 @@ bricks). Sheet: `tyrian-scratch/shapesy-hd/captures/shapesy-compare.jpg`. 1-17 a
 
 **Review:** sheets, answers, per-answer registration and `cut-report.json` are in
 `tyrian-scratch/shapesy-hd/work/` (not in git, D3).
+
+## D96 — A shot-off enemy leaves a scorch mark on the structure it stood on (remastered backgrounds)
+
+**Context:** on TYRIAN's islands the purple eye fortress (`shapesz-tyrbld-purple-orb`) carries nine cap
+enemies (newsh2 273-283, enemy types 32-37). The user found it jarring that a destroyed cap reveals an intact
+machine. Checked against the real OpenTyrian, not our reproduction: `tools/opentyrian-bot` gained
+`BOT_DUMP`/`BOT_DUMP_TICKS` (the shown frame, VGAScreenSeg through the live palette, as PPM),
+`BOT_WATCH=lo-hi` (prints each watched enemy's death and its enemyDat death fields) and `BOT_POWER` (the
+harness's power 5). With `BOT_SEED=1` level 1 plays as `?debug=play&seed=1` does (caps 53/54 die at tick 2581
+in both). The caps have `dgr 0, dlevel 0, dani 0, enemydie 0`, the explosions only blit to the screen
+(`blit_sprite2` into VGAScreen each frame), and no tile changes: **the original stamps nothing.** The mark is
+the terrain itself: the background-3 tile under each cap already paints a cracked, broken socket, hidden while
+the cap sprite covers it. Our original look shows that tile too; the remastered structure model builds intact
+faceted bosses there, so a dead cap reveals a clean machine.
+
+**Decision:** render-only scorch marks (`src/render/remaster/scorchLayer.ts`), in the remastered backgrounds
+only (the original look already shows the painted socket):
+- The sim records, output only, each enemy destroyed without a dead look in `DrawList.deaths`
+  (`recordEnemyDeath` at the two places JE_main frees a shot enemy's slot: key, centre, the layer its slot
+  group scrolls with, size). Nothing reads it back; game logic is unchanged.
+- The renderer marks a death when the enemy stood on a **structure** tile (a tile model matches it) of its
+  layer, opaque at its centre, and had moved with that tile over its last tick (so aircraft flying over a
+  structure leave nothing). The mark is pinned to that tile's draw key and offset: it scrolls with the layer
+  exactly and lasts until the tile leaves the screen, as the original's painted socket does.
+- Look: a procedural decal, 11.5 px radius for a 24x28 enemy (6.5 px for 12x14): ragged near-black soot, a
+  shattered-plate crack network (Voronoi edges, finer toward the impact) plus a few radial cracks, a dark
+  centre; the cracks glow orange and cool within about a second. Drawn just above what the models build under
+  an enemy (0.35 on backgrounds 2/3, 0.40 on the ground) and below the enemies' pass, projected on the camera
+  ray (D6), premultiplied alpha (dark char plus additive embers).
+- Cost: one instanced draw call; a fixed pool of 64 marks (the oldest gives way); per tick a scan of the
+  draw list only while marks exist or something died.
+
+**Not done:** rebuilding the purple-orb model's bosses broken (the mark covers it, and generalises to every
+structure with enemies on it); scorch on plain ground or HD terrain without a structure model. The harness's
+`&skip=` only shows its last two ticks, so a capture must skip to before the death to see a mark.
+
+**Checked:** comparison sheets (real C | ours original | ours remastered, ticks 2579/2582/2616/2650) in
+`tyrian-scratch/cap-scorch/` (`sheet-before.png`, `sheet-after.png`); the original look is unchanged.
+
+## D97 — Episode 1's remaining shots drawn from Gemini flat art (D42/D43)
+
+2026-11-04
+
+**Decision:** every shot frame episode 1 draws (player weapons, sidekick shots, enemy bullets) that still
+showed as an extruded sprite (inventory.json `shots`, status `sprite`) now has flat art: 101 frames, 79 new in
+`tyrian.shp#7` (71 -> 150) and 22 in a new `tyrian.shp#11` atlas (`tyrian-shp-11.webp`, the Sidekick/orb shots).
+Includes the enemy shots drawn on the most levels: #7 286-288 (17/16/16 levels) and 168 (15).
+- **Inputs:** inventory in `tyrian-scratch/e1-shots/` (enemy shots first by level count), three families
+  (`e1-shots-enemy`, `-player`, `-11`) in `SHEET_GROUPS`: 9 sheets of 9-12 cells, 9 Gemini requests, no
+  retries, no usage warning. Level palette 5.
+- **Cut:** `cut --merge`; fit min 0.71 / mean 0.79-0.97 per sheet (lowest: #7 208-209 and 175, 177, 181, 0.71-0.77,
+  small red stars/rings). Mirrored pairs share a cell; 2 frames stay painted tracers (D56, #7 67, 70).
+  Gemini redrew the tiny rocket shots (#7 31-33, 57, 76, 95) as small ships/rockets; they keep the sprite's
+  outline and read as missiles in game.
+- **In game:** no code change; `?sprites=original` brings back the extruded shots. Checked on level 1 with
+  Multi-Cannon (t700), Protron + sidekicks (t1200), Mega Pulse (t1800); sheet
+  `tyrian-scratch/e1-shots/before-after.png`. Not captured: the other weapons' frames.

@@ -59,6 +59,7 @@ import { RemasterGroundAtlas } from "./remaster/groundAtlas";
 import { remasterGroundMaterial } from "./remaster/groundMaterial";
 import { paletteLuma } from "./remaster/mmpx";
 import { TILE_MODELS, TileModelIndex } from "./remaster/tileModels";
+import { ScorchLayer } from "./remaster/scorchLayer";
 import { StructureInstances } from "./remaster/structureInstances";
 import { OpaqueCover, paintOutWreck } from "./remaster/opaqueCover";
 import { modelHeightFromUrl } from "./modelHeight";
@@ -389,6 +390,9 @@ export class DrawListRenderer {
   /** The plain ground tiles that stand in for covered wreck tiles (COVERED_STAND_IN), as last drawn. */
   private readonly standInTiles = new Map<string, Uint8Array>();
   private readonly structures = new StructureInstances();
+  /** Scorch marks where enemies were shot off structures, remastered backgrounds only (D96). */
+  private readonly scorch = new ScorchLayer();
+  private readonly isStructure = (d: TileDraw): boolean => this.tileModels.has(d) && this.tileModels.match(d) !== null;
   /** Structure models asked for (loading or loaded). */
   private readonly structureLoads = new Map<string, Promise<void>>();
   private readonly preloadedShapes = new Set<string>();
@@ -423,6 +427,7 @@ export class DrawListRenderer {
     this.root.name = "draw-list";
     setRockLook(this.terrain === "hd");
     this.root.add(this.structures.group);
+    this.root.add(this.scorch.mesh);
     const p = this.palette;
     this.materials = [];
     this.materials[Variant.Lit] = paletteMaterial(p, { lit: true, transparent: false, outline: true });
@@ -514,6 +519,7 @@ export class DrawListRenderer {
       if (palette) this.remasterAtlas.setLuma(paletteLuma(palette));
       this.remasterAtlas.prepare(list.items, this.needsGroundAtlas);
       this.tileModels.prepare(list.items);
+      this.scorch.tick(list, this.interp.prevX, this.interp.prevY, this.isStructure);
     }
   }
 
@@ -569,6 +575,7 @@ export class DrawListRenderer {
   resetInterpolation(): void {
     this.interp.reset();
     this.fx?.reset();
+    this.scorch.clear();
   }
 
   get active(): boolean {
@@ -833,6 +840,8 @@ export class DrawListRenderer {
     }
 
     for (let p = 0; p < this.allPools.length; p++) this.allPools[p].commit();
+    if (this.background === "remaster") this.scorch.update(items, prevX, prevY, alpha, cam);
+    else this.scorch.clear();
     this.artLayer.end();
     fx?.end();
     for (const mp of this.modelPools.values()) {

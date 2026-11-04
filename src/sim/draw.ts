@@ -151,9 +151,28 @@ export interface DrawList {
    * item screen's preview), where ships are drawn clean.
    */
   ships?: { armor: number; reference: number }[];
+  /**
+   * The enemies destroyed this tick that leave no dead look (they leave their slot rather than
+   * turn into a damaged frame): where the renderer may leave a scorch mark (render/remaster/scorchLayer.ts,
+   * D96). Output only; nothing in the sim reads it.
+   */
+  deaths?: EnemyDeath[];
 }
 
-export const drawList: DrawList = { items: [], palette: 0, filter: -99, brightness: 0, screen: null, ships: [] };
+/** One destroyed enemy (DrawList.deaths). */
+export interface EnemyDeath {
+  /** Its draws' object key (ENEMY_KEY_BASE + serial * 4; its tiles add 0..3). */
+  key: number;
+  /** Its centre on the screen this tick, where it was drawn (VGA px). */
+  x: number;
+  y: number;
+  /** The background layer it moves with (0 ground, 1 background 2, 2 background 3), by its slot. */
+  layer: 0 | 1 | 2;
+  /** 2 for a 24x28 enemy, 1 for a 12x14 one. */
+  size: 1 | 2;
+}
+
+export const drawList: DrawList = { items: [], palette: 0, filter: -99, brightness: 0, screen: null, ships: [], deaths: [] };
 
 /**
  * Base for enemy draw keys (drawState.key), clear of small keys other draw code may use: an enemy's
@@ -170,6 +189,7 @@ export const drawGroup = { index: -1, size: 1 as 1 | 2, dx: 0, dy: 0, first: fal
 export function beginDrawList(): void {
   drawList.items = [];
   drawList.ships = [];
+  drawList.deaths = [];
   drawState.pass = Pass.Background1;
   drawState.key = -1;
 }
