@@ -4155,3 +4155,21 @@ rows was behind Joystick and Keyboard only.
   unchanged. "High Scores" and the original's "Player 1 Score:" text are left alone.
 
 Captures: shop top menu, Front Gun submenu, Options pane and the settings screen opened from it, beside the title's Options, and the three HUDs.
+
+## D101 — TYRIAN's walkway deck is not metallic, so the road keeps the original's brightness when the fortress model swaps in (extends D47)
+
+**Reported:** "Road in level 1 on floating platforms becomes dark after it initially pops in."
+
+**Found.** The road is the fortress (and bridge) model's walkway deck. A structure with `minRows` is only placed
+once two of its rows are on screen, so for the first ticks the road draws as its HD tile (luma about 86, the
+original's); then the model replaces it (tick 4193 in `?debug=play&seed=1`). The model's deck was palette grey 5
+(dark) with `metallic=0.5`; under the scene's lights and room environment a half-metallic dark grey keeps only
+half its diffuse, so it drew at luma about 58. Not a load swap, the shadow map or a late texture: it happens with
+every model preloaded, and `castShadow = false` changes nothing on the road.
+
+**Decision.** The `walk` and `walk_dark` kinds in `lib_tyrbld.py` are non-metallic (roughness 0.55) and `rail`
+is 0.3 metallic (was 0.6); fortress and bridge rebuilt with their documented bakes (2048 / 4096 px). The road
+measures about 81 against the original's 86 and no longer steps at the swap. The swap itself stays (D54: the
+structure is decided when it first shows); only the brightness mismatch was visible.
+
+Captures: `tyrian-scratch/road-dark/strip-compare.png` (before/after ticks 4186-4198).
