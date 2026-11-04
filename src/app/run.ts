@@ -22,7 +22,7 @@ import type { View } from "../render/view";
 import { Controls } from "./controls";
 import { episodeEndScreens } from "./episodeEnd";
 import { Hud } from "./hud";
-import { showLoadScreen, showOptions } from "./options";
+import { showLoadScreen, showOptions, type OptionsHost } from "./options";
 import { connectVolumes, loadPrefs, musicLevel } from "./prefs";
 import { highScoreCheck, showHighScoreScreen } from "./highScoresScreen"; // [high scores]
 import { highScoreCheckDue } from "../sim/highscores"; // [high scores]
@@ -93,6 +93,8 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
   const remaster = await loadRemasterManifest();
   const music = new MusicSwitch(audioContext, new Music(requireFile(files, "music.mus"), { context: audioContext }), remaster);
   const sfx = new SoundEffects(requireFile(files, "tyrian.snd"), requireFile(files, "voices.snd"), audioContext, remaster);
+  // The one host for the settings screen: the title's Options and the shop's both open it with this, so they show the same rows.
+  const optionsHost: OptionsHost = { sfx, music };
   const controls = new Controls(() => view.gamePixelsPerScreenPixel);
   const hud = new Hud(view);
   hud.attachTouch((action, down) => controls.touchAction(action, down)); // the HUD's rear-mode and sidekick boxes on touch screens (D99)
@@ -152,7 +154,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
         g.jumpSection = false;
         return JE_loadScreen_select(slot, files);
       },
-      onOptions: () => showOptions({ sfx, music }),
+      onOptions: () => showOptions(optionsHost),
       currentMusicStyle: () => music.style,
       // [high scores] the title menu's High Scores (JE_highScoreScreen)
       highScoresLabel: g.miscText[50]?.trim() || undefined,
@@ -219,7 +221,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
           await story(); // port-story
           // The item screen's backdrop draws in the game's canvas, under the level fade: clear it.
           levelFade().set(0);
-          await runItemScreen({ files, sfx, music });
+          await runItemScreen({ files, ...optionsHost });
         },
         async (pause) => {
           await story(); // port-story: e.g. the screens before `]Q[`
@@ -279,7 +281,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
         if (g.mainLevel === 0) break; // end of the episode
       } else {
         music.play(SONG_GAME_OVER);
-        await showMessage("Game over", gameOverLines(), "Press Enter to retry from the item screen"); // [two-player]
+        await showMessage("Game over", gameOverLines(), "Press Enter to retry from the shop"); // [two-player]
         await levelFade().fade(1, 10, BLACK); // port-story: fade_black(10) (tyrian2.c L639)
         JE_loadGame(lastLevelSlot(), files);
         if (g.doNotSaveBackup) {

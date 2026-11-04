@@ -306,6 +306,18 @@ describe.skipIf(!HAVE)("the item screen's Options menu", () => {
     expect(sounds).toEqual([S_CLINK]);
   });
 
+  test("Enter on Music or Sound asks for the settings screen too (the title's Options, D99)", () => {
+    withItemScreen(1, 2, () => {
+      openOptions();
+      press("down", "down", "enter");
+      expect(menu.curSel[MENU_OPTIONS]).toBe(4);
+      expect(menu.setupRequest).toBe("sound");
+      menu.setupRequest = null;
+      press("down", "enter");
+      expect(menu.setupRequest).toBe("sound");
+    });
+  });
+
   test("Joystick and Keyboard ask the host for its settings screen", () => {
     withItemScreen(1, 2, () => {
       openOptions();

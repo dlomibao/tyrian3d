@@ -127,6 +127,15 @@
   color: #fff3c0;
 }
 
+/* The number is the player's cash, the shop's credits (D99). */
+.hud .score::before {
+  content: "CREDITS";
+  margin-right: 0.6em;
+  font-size: 0.45em;
+  letter-spacing: 0.2em;
+  color: var(--ink-dim);
+}
+
 .hud .level {
   color: var(--ink-dim);
   letter-spacing: 0.15em;

@@ -11,7 +11,7 @@ describe("actionLabel", () => {
   test("turns the callers' keyboard prompts into button labels", () => {
     expect(actionLabel("Press Enter to continue")).toBe("Continue");
     expect(actionLabel("Press Enter for the title")).toBe("Title screen");
-    expect(actionLabel("Press Enter to retry from the item screen")).toBe("Retry from the item screen");
+    expect(actionLabel("Press Enter to retry from the shop")).toBe("Retry from the shop");
     expect(actionLabel("Next")).toBe("Next");
     expect(actionLabel("")).toBe("Continue");
   });
