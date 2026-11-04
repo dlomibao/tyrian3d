@@ -24,10 +24,12 @@ joints are short grooves on its upper and lower halves that leave the equator wh
 bolt each side of every joint on the upper half. The underside is plain (no detail, by design).
 
 Colours (median palette index per region, the ring and >= 61 highlights left out as lighting):
-belt 55, gores/crown/seams 57, belt joints 54, bolts 57, lower 57. Satin steel (roughness 0.62) with
-one polished, clear-coated patch (0.34, coat 0.32) where the sprite draws its sheen, so in game one
-broad white sheen sits at the upper left instead of the four lobes a uniform roughness gives (see
-the SHEEN constants).
+belt 55, gores/crown/seams 57, belt joints 54, bolts 57, lower 57. Satin steel (roughness 0.66,
+metallic 0.35 of the parts' own) with one polished, clear-coated patch (0.20, coat 0.22, 26 degrees
+round the sheen direction) where the sprite draws its sheen, so in game one clear white sheen sits at
+the upper left instead of the four lobes a uniform roughness gives. Tuned at game scale (MINES,
+tick 1640): coat 0.32 / patch 27 degrees read matte, coat 0.18 / 34 degrees split into wet glints
+(see the SHEEN constants).
 
 Texture: no concept projection; an ambient occlusion / roughness bake only (usp_talon.bake_maps,
 the sheen patch added to its roughness map, and a clear-coat weight map),
@@ -108,7 +110,7 @@ PAL_OF = {BELT: 55, GORE: 57, CAP: 57, SEAM: 57, JOINT: 54, BOLT: 57, LOWER: 57}
 PULSE = {165: -5, 203: -3, 241: -2}
 TEXTURED = (BELT, GORE, CAP, SEAM, JOINT, BOLT, LOWER)
 TINT = (1.0, 0.93, 0.84)  # game capture: blue/red 3.3 vs the sprite's 2.6 untinted; this pulls it back
-METAL = 0.45
+METAL = 0.35
 # The sheen (game lighting: view.ts sun from the left and the camera's side, RoomEnvironment panels).
 # A sphere's highlights sit where the lights put them, and a uniform roughness gives the game's four
 # light lobes (0.40: lower centre, left, top, right; 0.52: none, satin). So the steel is satin
@@ -117,10 +119,10 @@ METAL = 0.45
 # patch makes the room's upper-left panels read as one broad white sheen. Roughness is baked into
 # the metallic-roughness map (aim_sheen), the coat into its own weight map (add_coat).
 ROUGH = 0.40            # the materials' base roughness (the bake adds occlusion and edge terms)
-R_LO, R_HI = 0.34, 0.62  # patch / elsewhere
-COAT, COAT_ROUGH = 1.0, 0.32
+R_LO, R_HI = 0.20, 0.66  # patch / elsewhere
+COAT, COAT_ROUGH = 1.0, 0.22
 SHEEN_PATCHES = [  # (direction, outer angle, inner angle, weight)
-    (Vector((-0.42, 0.10, 0.90)).normalized(), 27, 8, 1.0),
+    (Vector((-0.42, 0.10, 0.90)).normalized(), 26, 9, 1.0),
 ]
 
 

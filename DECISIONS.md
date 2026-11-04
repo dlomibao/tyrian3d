@@ -3696,7 +3696,12 @@ mask, every frame):
 - newshf-230, newshd-79 and newshs-269 shipped after a fix round. newshm-115 (the blue mine ball)
   took two: the glints, then the sheen. Its sheen is a polished, clear-coated patch at the upper
   left, where the sprite draws its white blob (SHEEN_PATCHES); its glb is the only one with
-  KHR_materials_clearcoat (three loads MeshPhysicalMaterial).
+  KHR_materials_clearcoat (three loads MeshPhysicalMaterial). The last round left the sheen too
+  weak, and the one before had too many wet glints. Tuned between them at game scale (MINES, tick
+  1640): patch roughness 0.20, coat 0.22, 26 degrees, satin 0.66 elsewhere, metallic 0.35. The
+  ball nearer the middle now shows one clear white sheen at the upper left. The one near the
+  field's top-left corner still shows only a small glint, because the room's reflection depends on
+  the ball's place on screen.
 
 **Palette-pulse rule** (`tools/sprite_mask.py`, OUTLINE-BORDER.md rule 1): a boundary-ring pixel at
 a ramp's darkest step counts as ink when the palette pulses it above the luma limit. When another
