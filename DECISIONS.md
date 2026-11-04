@@ -4273,3 +4273,30 @@ Captures: `tyrian-scratch/explosion-alpha/` (`cmp2_700.png`, `cmp2_1000.png`: be
   (D105 used 0.1), so only a puff's solid body claims a layer; its edge is a touch harder.
 
 Captures: `tyrian-scratch/explosion-alpha/` (`cmp_L2b_700.png`, `cmp_L2b_1000.png`: left = main after #136, right = this).
+
+## D107 — SAVARA's clouds (`shapesy` layers 1 and 2) are painted terrain, from 13 Gemini sheets
+
+2026-11-04
+
+**How clouds are drawn.** Clouds are not sprites: they are background-2 and background-3 *tiles* (`TileDraw`,
+`src/sim/draw.ts:102`), drawn by the terrain path (`src/render/remaster/terrainArt.ts`, `groundAtlas.ts`;
+D45, D57). On SAVARA the layer-2 (background 3) cloud tiles draw opaque (`effect "none"`, pass 5) and layer 1
+(background 2) draws blended; TYRIAN's/WINDY/HOLES clouds (`shapesz`, layer 1) were already painted by D89, so the
+QA report's issue 3 (clouds with stair-stepped edges) was only still true for `shapesy`. D95 had left layers 1-2
+unpainted because its inventory classed all 68 + 45 tiles as `structure`; they are all cloud pieces plus the
+water tiles layer 1 repeats (these reuse layer 0's paintings).
+
+**Decision.** `inventory --kind` marks every layer 1-2 `shapesy` tile `terrain`; `sheets`, Gemini, `cut --edge-aware`,
+`check` as D83. 13 primary sheets (7 `ctx-l1-*`, 6 `region-l2-*`), prompts' material changed from SEND.md's "icy
+translucent clouds" to "soft fluffy white and pale-blue cumulus cloud puffs seen from above, with soft feathered wispy
+edges, no ice, no rock" (D89: name the real material). Atlas: `public/art/terrain/shapesy/1.webp` (68 tiles) and
+`2.webp` (45), alpha is the original silhouette (translucency and shapes kept); colour is matched to the original.
+- **Gemini:** 14 requests (1 lost: the first answer never appeared in the chat after a page reload, resent), 0 bad
+  answers, no usage warning. Layout was kept on every sheet (registration 7.42 / 11.38 px per original px).
+- **Seams** (`check`): layer 1 0.628 (continuous 0.565), bands 0.451; layer 2 0.977 (continuous 0.803), bands 0.631.
+  Weak fits (NCC < 0.5): 1:125, 1:242, 2:237, 2:246, 2:266, 2:278.
+- **Not covered:** clouds on tilesets with no HD atlas (other episodes' tilesets, `shapes*` other than y and z): they
+  have no HD ground either, so a cloud-only atlas would sit on pixel terrain; do them with their tileset's run.
+
+**Checked** in game (`?debug=play&episode=1&main=8&seed=1&skip=300&freezeAt=300`), before/after under
+`tyrian-scratch/clouds/captures/`. Answers, sheets and prompts: `tyrian-scratch/clouds/work/shapesy/` (not in git, D3).
