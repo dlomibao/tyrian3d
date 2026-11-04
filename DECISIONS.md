@@ -2858,3 +2858,83 @@ original's); colour seams inside the clouds are unchanged; pairs seen under 5 ti
 **Review:** before/after captures and crops in `tyrian-scratch/pixel-sweep/cloud-rim-stairsteps/`
 (`cmp_*.png`). Fallback: `git checkout` the previous `1.webp`; `realpha --alpha-min-pairs 1000000` keeps
 the smoothing without the edge solve.
+
+## D79 — Damaged frames are drawn with the intact model, damaged by the difference between the two sprite frames
+
+2026-11-03
+
+**Problem:** when an enemy is hit hard enough the game swaps it to a damaged frame: burns, holes,
+shot-away plates, wrecks. The models covered the intact frames only, so those frames fell back to
+the extruded sprite beside the HD models (`KNOWN_DAMAGE_SWAPS`, D54). The game uses 178 such frames
+(about 290 counted per episode); modelling each one doesn't scale. Proposal and comparison: PR #104,
+`docs/agents/DAMAGE-FRAMES.md`. The user picked the hybrid (D).
+
+**Decision:**
+- **A, for every damaged frame by default** (`src/render/damage/`).
+  - **Routing.** `Sprite2Router` sends a damaged frame without a model of its own to the enemy's
+    intact model, at the intact frame whose pixels it matches best. The level's damaged frames come
+    from the enemy data (`levelDamageFrames`: `dgr`, `dani` as `game.ts` uses them). The renderer and
+    `modelSwap.test.ts` share this routing.
+  - **Textures.** The model's shaders get three tiny textures of the difference between the two
+    frames, built from the sheet's pixels and the live palette the first time the frame is drawn.
+    They are projected straight down onto the model:
+    - pixels gone are cut away, with a charred, glowing rim;
+    - pixels changed are tinted by damaged ÷ intact colour, or replaced outright where no multiplier
+      reaches (a new hue);
+    - pixels that got darker get scorch;
+    - pixels that turned hot glow.
+  - **Tilted and Steep.** Paint and scorch fade to a third on faces that don't look up, so the
+    projection doesn't streak down the sides. While anything is cut, the materials are two-sided and
+    draw a charred inside, so a cut reads as a burnt-through wall.
+  - **Outline.** OutlineEffect is forked (`src/render/outlineEffect.js`) so the ink outline is cut the
+    same way and follows the cut silhouette.
+  - **Shadows.** A depth material with the same cut (`customDepthMaterial`), so cut-away parts cast no
+    shadow.
+  - Blank damaged frames (destroyed pieces) draw nothing, as before.
+- **C, a model of its own, only where A fails review:** the level-1 boss's shoulder wrecks, frames 240
+  and 244 (`enemies/newsh4-88-d`, `newsh4-92-d` from `assembly-newsh4-124-damaged.py`, 0.83 MB).
+  Their damage replaces most of the piece with debris (23-30% gone, 47% repainted), and A drew them as
+  the intact shoulder, burning. A damaged frame with its own `spriteModels` entry always uses it.
+- **B (generic noise damage, smoke) dropped.**
+- `KNOWN_DAMAGE_SWAPS` is gone. `modelSwap.test.ts` now requires every damaged frame of level 1 to be
+  drawn by a model. `tools/inventory.mjs` counts a damaged frame as covered when its unit has an
+  intact model.
+- Debug: `?damage=off` draws damaged frames as before; `?debug=play&hurt=1` damages every enemy at
+  its next hit.
+
+**Census correction.** The proposal said 2% of damaged frames grow a new shape outside the intact
+outline. That came from pairing frames across a multi-piece unit. Paired with each enemy's own intact
+frames, none adds more than 18% outside its outline (the boss's 240 and 244: 1% and 3%). So the C rule
+is "fails review", not a pixel threshold. By kind:
+
+| Kind | Frames |
+|---|---|
+| Scorch and holes | 93 |
+| Repainted | 38 |
+| Shot away | 33 |
+| Same picture | 9 |
+| Blank | 5 |
+
+**Options considered (PR #104):**
+- *C, a model per frame:* the most faithful, with crater depth and debris. The dome turret took one
+  agent 16 min; the boss pieces are a 750-line script and 36 min of Blender per build; 2.5 MB for the
+  boss alone. Kept only for the two wrecks.
+- *B, generic damage levels:* cheap, but the damage lands in the wrong places and doesn't read as the
+  original's frame.
+- *Leave the sprites (D54):* a pixel-art patch on an HD model.
+
+**Review:** before/after sheets (`?damage=off` vs default) in `tyrian-scratch/damage-approach/prod/sheets/`:
+- the boss at ticks 6835 (`&hurt=1`), 7400 and 7950;
+- SAVARA's damaged cruiser (`main=29`, tick 2660);
+- the dome turret (`main=21`, tick 3470);
+
+each in Overhead, Tilted and Steep. Frame times, headless Chrome, 1920x1080, Tilted, three runs each, `?damage=off` (as main) vs default. All
+runs were at 60 fps.
+
+| Scene | Renderer CPU per frame, off → on | Draw calls, off → on |
+|---|---|---|
+| Boss, tick 7950 (13 damaged pieces) | 8.5-10.1 → 11.1-12.2 ms | 346 → 448 |
+| SAVARA cruiser, tick 2660 | 5.2-5.5 → 8.1-8.5 ms | 389 → 569 |
+
+The cost is drawing the damaged pieces as models instead of instanced sprites, plus their outline
+and shadow passes, as any model costs.

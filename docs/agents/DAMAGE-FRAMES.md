@@ -99,4 +99,13 @@ Repainted frames are the ones to watch in review: the boss wrecks are among them
 | Download | 0 for A; boss C models 0.83 MB |
 | Runtime | per damaged frame on screen: three tiny textures, built once. Per fragment of a damaged model: 3 texture reads and a few dozen ALU. One extra shader program per material kind (shared by every enemy), a depth material per clone mesh for shadows, and an outline program variant for damaged clones |
 
-The sheets and frame times are in `tyrian-scratch/damage-approach/prod/` and in PR #104.
+Measured in headless Chrome at 1920x1080 (Tilted, three runs each; all at 60 fps). The comparison is
+`?damage=off`, which behaves as main:
+
+| Scene | Renderer CPU per frame, off → on | Draw calls, off → on |
+|---|---|---|
+| Boss, tick 7950 | 8.5-10.1 → 11.1-12.2 ms | 346 → 448 |
+| SAVARA cruiser, tick 2660 | 5.2-5.5 → 8.1-8.5 ms | 389 → 569 |
+
+Most of the extra cost is drawing the damaged pieces as models rather than instanced sprites.
+Before/after sheets: `tyrian-scratch/damage-approach/prod/sheets/damage-{boss,levels}.png`.

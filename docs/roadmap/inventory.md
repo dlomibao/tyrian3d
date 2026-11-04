@@ -29,10 +29,10 @@ the game data and the repo by `tools/inventory.mjs`; the machine-readable versio
 
 | Episode | Levels | Unique sprites | Enemy units: flagship / older model / total | Damaged frames unmodelled | Tilesets: HD / structure models / total | Boss levels (boss units) | Songs (remastered) | Story pictures (redrawn) |
 |---|---|---|---|---|---|---|---|---|
-| 1 | 18 | 888 | 30 / 132 / 166 | 110 | 1 / 1 / 2 | 9 (17) | 15 (15) | 3 (3) |
-| 2 | 12 | 683 | 6 / 138 / 152 | 26 | 1 / 1 / 2 | 6 (22) | 11 (11) | 2 (2) |
-| 3 | 12 | 1202 | 28 / 168 / 198 | 127 | 1 / 1 / 3 | 6 (22) | 15 (15) | 1 (1) |
-| 4 | 20 | 762 | 1 / 158 / 197 | 27 | 1 / 1 / 5 | 15 (56) | 18 (18) | 3 (3) |
+| 1 | 18 | 888 | 30 / 132 / 166 | 0 | 1 / 1 / 2 | 9 (17) | 15 (15) | 3 (3) |
+| 2 | 12 | 683 | 6 / 138 / 152 | 4 | 1 / 1 / 2 | 6 (22) | 11 (11) | 2 (2) |
+| 3 | 12 | 1202 | 28 / 168 / 198 | 0 | 1 / 1 / 3 | 6 (22) | 15 (15) | 1 (1) |
+| 4 | 20 | 762 | 1 / 158 / 197 | 0 | 1 / 1 / 5 | 15 (56) | 18 (18) | 3 (3) |
 
 Whole game: 62 levels; 486 enemy units (30 flagship, 407 older-style models, 49 with frames still unmodelled), decor (indestructible boss and scenery pieces) included; 69 pickup and empty units; 5 tilesets (1 with HD art, 1 with structure models); 231 shot frames (70 with flat art); 33 songs used (33 remastered).
 
@@ -75,7 +75,7 @@ so a tileset shared by many levels is the biggest single piece of terrain work.
 | 12 | newshd-191 | ground | basic | 6 | 3 | 0 | 8842 | 1.1, 1.2, 1.3, 2.4, 3.1, 3.2 |
 | 13 | newshe-235 | ground | basic | 6 | 3 | 0 | 7716 | 1.4, 1.10, 2.3, 2.9, 3.6, 3.7 |
 | 14 | newshd-79 | ground | basic | 6 | 3 | 233 | 7180 | 1.1, 1.2, 1.3, 1.11, 2.4, 3.2 |
-| 15 | newshs-269 | air | basic, 1 damaged frames unmodelled | 6 | 3 | 43 | 6072 | 1.3, 1.6, 1.10, 1.18, 2.3, 3.2 |
+| 15 | newshs-269 | air | basic | 6 | 3 | 43 | 6072 | 1.3, 1.6, 1.10, 1.18, 2.3, 3.2 |
 | 16 | newshs-171 | ground | basic | 6 | 3 | 0 | 4949 | 1.3, 1.6, 1.10, 1.18, 2.3, 3.2 |
 | 17 | newshf-123 | ground | basic | 6 | 3 | 150 | 3944 | 1.8, 1.12, 1.13, 1.17, 3.10, 4.3 |
 | 18 | newshm-115 | air+ground | basic | 6 | 2 | 268 | 14325 | 1.3, 1.6, 1.7, 1.18, 3.3, 3.12 |
@@ -83,7 +83,7 @@ so a tileset shared by many levels is the biggest single piece of terrain work.
 | 20 | newshs-153 | air | basic | 5 | 3 | 172 | 17581 | 1.1, 1.2, 1.3, 2.4, 3.2 |
 | 21 | newshd-127 | air | basic | 5 | 3 | 136 | 12623 | 1.1, 1.2, 1.3, 2.4, 3.2 |
 | 22 | newshd-275 | air | basic | 5 | 3 | 45 | 10336 | 1.1, 1.2, 1.3, 2.4, 3.2 |
-| 23 | assembly-newshp-267 | air | basic, 1 damaged frames unmodelled | 5 | 3 | 85 | 10044 | 1.1, 1.2, 1.3, 2.4, 3.2 |
+| 23 | assembly-newshp-267 | air | basic | 5 | 3 | 85 | 10044 | 1.1, 1.2, 1.3, 2.4, 3.2 |
 | 24 | newsha-199 | ground (boss) | basic | 5 | 3 | 35 | 9259 | 1.13, 1.18, 2.5, 2.9, 4.19 |
 | 25 | newshs-229 | air | basic | 5 | 3 | 102 | 8615 | 1.1, 1.2, 1.3, 2.4, 3.2 |
 | 26 | assembly-newshs-39 | air | basic | 5 | 3 | 60 | 8440 | 1.1, 1.2, 1.3, 2.4, 3.2 |
@@ -97,12 +97,12 @@ so a tileset shared by many levels is the biggest single piece of terrain work.
 | 34 | newshf-11 | ground | basic | 5 | 3 | 77 | 1868 | 1.8, 1.12, 1.17, 3.10, 4.3 |
 | 35 | newshd-43 | ground | basic | 5 | 3 | 3 | 1803 | 1.1, 1.2, 1.3, 2.4, 3.2 |
 | 36 | newshd-85 | ground | basic | 5 | 3 | 0 | 1410 | 1.1, 1.2, 1.3, 2.4, 3.2 |
-| 37 | assembly-newsh4-124 | decor+ground (boss) | flagship, 13 damaged frames unmodelled | 5 | 2 | 120 | 125701 | 1.9, 1.11, 1.15, 1.16, 3.8 |
-| 38 | newsha-169 | ground | basic | 5 | 2 | 235 | 12769 | 1.6, 1.7, 1.18, 3.3, 3.6 |
-| 39 | newshj-19 | ground | basic | 5 | 2 | 0 | 11127 | 1.13, 2.1, 2.10, 2.11, 2.12 |
-| 40 | newshf-1 | ground | basic | 5 | 2 | 134 | 8130 | 1.8, 1.12, 1.17, 4.3, 4.19 |
+| 37 | newsha-169 | ground | basic | 5 | 2 | 235 | 12769 | 1.6, 1.7, 1.18, 3.3, 3.6 |
+| 38 | newshj-19 | ground | basic | 5 | 2 | 0 | 11127 | 1.13, 2.1, 2.10, 2.11, 2.12 |
+| 39 | newshf-1 | ground | basic | 5 | 2 | 134 | 8130 | 1.8, 1.12, 1.17, 4.3, 4.19 |
+| 40 | newsh3-229 | air+ground | basic | 5 | 1 | 26 | 6135 | 4.5, 4.6, 4.8, 4.15, 4.20 |
 
-458 enemy units are not done; the full list is `ranking.units` in inventory.json.
+456 enemy units are not done; the full list is `ranking.units` in inventory.json.
 
 ### Pickups without flat art (top 20)
 
