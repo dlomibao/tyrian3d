@@ -3779,6 +3779,31 @@ shared materials).
    key, the tileset prefix): numeric keys and per-layer maps instead. HOLES allocates 15.8 → 12.5
    MB/s (the three functions 64 → 16 MB over 15 s); captures identical.
 
+**The whole run, main before D91 → after items 1-8** (same machine minutes, load average 4-5;
+`?debug=play&solid=1`, 3024x1800, 60 Hz; frame interval ms; "JS" = frames over 33 ms whose own
+JS took over 25 ms; max JS = the longest frame's JS; programs linked during play):
+
+| Scene | mean | p95 | p99 | max | > 33 ms (JS) | max JS | programs |
+|---|---|---|---|---|---|---|---|
+| Level 1, ticks 0-2000 | 16.8 → 16.7 | 18.3 → 18.1 | 18.7 → 18.6 | 380 → 69 | 6 (3) → 5 (0) | 138 → 25 | 25 → 4 |
+| Boss, ticks 6650-7400 | 17.3 → 16.9 | 17.0 → 17.0 | 32.1 → 17.6 | 318 → 259* | 12 (2) → 2 (0) | 315 → 14 | 23 → 1 |
+| HOLES, ticks 0-2000 | 16.8 → 16.7 | 16.8 → 17.9 | 17.6 → 18.5 | 368 → 25 | 4 (3) → 0 (0) | 176 → 12 | 28 → 0 |
+
+\* the harness's first frame after fast-forwarding 6650 ticks. A second round of the same runs was
+spoiled by other agents' load (load average 74-220) and is not counted. What's left in level 1 is
+its first second (models that load in the background at a level's start arrive, D54), which plays
+under the level's fade-in, and GPU time taken by other processes.
+
+**Not done (estimates):**
+- *Instancing enemy models* (one clone per enemy, a draw per part, plus outline shell and shadow):
+  250-500 draw calls a frame, ~2-3 ms of three's submit; per-instance damage, flash and blend
+  make it a large change (days). Not needed for 60 fps on this machine.
+- *Shadow pass*: ~25% of the GPU frame in busy scenes (1-3 ms at 3024x1800). A tighter shadow camera
+  or caster culling changes how shadows look; left to a design call.
+- *Level start*: wait in preload for every model (or for the ones in flight) instead of the first
+  ~30 s of them (D54) to take the background parses out of the first second; costs preload time
+  on a cold network.
+
 ## D92 — Twenty enemies shared across episodes rebuilt hard-surface; a palette-pulsed ring counts as ink
 
 2026-11-04
