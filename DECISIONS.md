@@ -3774,6 +3774,11 @@ shared materials).
    (only the root is placed), keep fixed local matrices. `updateMatrixWorld` 0.21 → 0.15 ms
    (median of three runs each, boss tick 7000); captures identical.
 
+9. **No key strings per tile per frame.** The remastered background's per-draw lookups built
+   strings for every tile every frame (structure ids, pattern verdicts, the HD terrain's material
+   key, the tileset prefix): numeric keys and per-layer maps instead. HOLES allocates 15.8 → 12.5
+   MB/s (the three functions 64 → 16 MB over 15 s); captures identical.
+
 ## D92 — Twenty enemies shared across episodes rebuilt hard-surface; a palette-pulsed ring counts as ink
 
 2026-11-04
