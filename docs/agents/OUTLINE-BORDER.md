@@ -12,6 +12,14 @@ That ink stands in for the sprite's border, so:
 1. **The model's top-view edge goes to the INNER edge of the sprite's ink border.** The border is
    the ink pixels of the sprite's boundary ring: luma < 26 (palette 1, 2 and each ramp's darkest
    steps: 16, 32, 48, 64, 80, 112, ...) and 4-adjacent to transparency or the picture's edge.
+   **Palette-pulse rule:** a frame that is another frame of the same model with the palette
+   shifted (same opaque mask, at least 90% of its pixels one constant index shift away in the same
+   16-colour ramp: a "pulse partner") shares that frame's ink border. A ring pixel above luma 26
+   is ink when it is ink, in the same ramp, on a pulse partner. Example: newshm-115's ring is
+   palette 53 (luma 41) on frames newshm 115 / newsha 279 and 48/50/51 (ink) on the darker pulse
+   frames 165/203/241: the same border at the ramp's darkest step, so the inner edge stands on all
+   five frames. Also tyrian10-14/-32/-51 (level 1), newsha-199, newshk-115, newshl-115; no other
+   frame in reference/models changes. `--no-pulse` measures by luma alone.
 2. **Where the sprite has no ink at its edge** (colour drawn to the edge: island rock, glows,
    flames, a lit rim), the edge stays at the outer edge. The inner mask already keeps those pixels.
 3. **Thin parts keep at least half their sprite width.** A part only 1 colour pixel wide inside
@@ -29,9 +37,28 @@ python3 tools/sprite_mask.py <name> --measure <top.png>     # top view on the sp
 ```
 
 `iou_rule_grid` ≥ 0.95 on every frame (the old "IoU ≥ 0.95 vs the sprite mask", now against the
-inner mask with the free pixels left out). Render the top view without the outline shell and
+inner mask with the free pixels left out); a player ship's banking frames have their own bars
+(below, D93). Render the top view without the outline shell and
 without `tyrian_ground` rock. `--json` prints the masks (`o` = border, `#` = inner); `--png ... --inner`
 writes the inner mask to trace in a blueprint or fit a plan curve (D52's pchip) to.
+
+## Banking frames (player ships, D93)
+
+A player ship's banking frames are its level-frame model rolled and moved sideways by the game; the
+model is fitted to the level frame only.
+
+1. **Never shape the model for a banking frame.** No parts, heights or offsets that only help a bank
+   (ventral fins, endplates, a body raised off the roll axis, forked tips): the 1995 banking sprites
+   are hand drawn, not rotations, and such parts didn't get there (the D74 refit's tries: Phoenix
+   0.68-0.75, Stalker 0.83-0.91 on its banks), while they show in the side, front and hangar views.
+2. **Fit the pose instead:** `tools/bank_roll.py <name> --fit` (Blender) sweeps the roll per bank
+   step and the shift per frame, as the game draws them, and prints `"roll"` (and `"shift"` where it
+   beats bankShift.ts's). Put them in the script's export with
+   `common.with_bank_roll(sprite["sprites"], BANK_ROLL, BANK_SHIFT)`; they land in the ship's
+   spriteModels entry as `bank.roll` / `bank.shift`. The fit keeps the game's 17.5 / 35 degrees
+   unless the art clearly draws another roll (U-Ship 40 / 55, Phoenix 40 / 50).
+3. **Accept:** `tools/bank_roll.py <name>` prints every frame's `iou_rule_grid` at the ship's pose:
+   level frame ≥ 0.95, half-bank frames ≥ 0.80, full-bank frames ≥ 0.70.
 
 ## Why (measured, D74)
 

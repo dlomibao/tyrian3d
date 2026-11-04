@@ -5,6 +5,8 @@
 //   &episode=E&main=N              the episode and episode-script level (mainLevel) to play
 //   &front=ID&power=P&rear=ID      weapon ports (item numbers, as in the item screen's lists)
 //   &left=ID&right=ID              sidekicks (options)
+//   &ship=ID                       the player's ship (item number: 1 USP Talon, 2 SuperCarrot, 3 Gencore
+//                                  Phoenix, 5 MicroCorp Stalker, 10 U-Ship, 11 Silver Ship, 12 Nort Ship)
 //   &cycle=S                       change the front weapon every S seconds (through a few favourites)
 //   &seed=N                        the random seed, so two runs play the same (default 1)
 //   &skip=T                        fast-forward T ticks before showing anything
@@ -73,6 +75,7 @@ export async function runPlayHarness(view: View): Promise<void> {
   p.items.weapon[1] = { id: num("rear", 0), power: num("power", 5) };
   p.items.sidekick[0] = num("left", 0);
   p.items.sidekick[1] = num("right", 0);
+  p.items.ship = num("ship", p.items.ship);
   startLevel();
   JE_drawOptions();
   clearSimInput();
@@ -82,7 +85,10 @@ export async function runPlayHarness(view: View): Promise<void> {
   else view.draws.setLevelDamage(levelDamageFrames()); // D87 (preloadLevel sets it otherwise)
   // A start part-way in (`&skip=`) shows tiles a real run would only reach once the level's later
   // models had loaded in the background: wait for all of them, so the first frame looks as it would.
-  if (num("preload", 1) !== 0 && num("skip", 0) > 0) await view.draws.preloadLevel(levelModelInfo());
+  if (num("preload", 1) !== 0 && num("skip", 0) > 0) {
+    await view.draws.preloadLevel(levelModelInfo());
+    await view.warmUp(); // and warmed, as preloadLevelModels warms what it waited for (D91)
+  }
 
   let t = 0;
   let paused = false;

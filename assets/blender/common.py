@@ -354,6 +354,19 @@ def _apply_modifiers(obj):
         bpy.ops.object.modifier_apply(modifier=mod.name)
 
 
+def with_bank_roll(sprites, roll, shift=None):
+    """`sprites` with `roll` (degrees at bank steps 1..max) and, if given, `shift` (game px per frame,
+    hardest left bank to hardest right, 0 for the level frame) in each player ship entry's `bank`: the
+    game's pose for this ship's banking frames, fitted with tools/bank_roll.py --fit (DECISIONS.md D93).
+    Without them the game rolls 35 degrees * step / max and shifts by src/render/bankShift.ts."""
+    def pose(bank):
+        out = dict(bank, roll=list(roll))
+        if shift is not None:
+            out["shift"] = list(shift)
+        return out
+    return [dict(s, bank=pose(s["bank"])) if s.get("bank") else s for s in sprites]
+
+
 def export_sprite_model(root, objects, model, sprites, image_format="AUTO"):
     """Export `objects` to public/models/<model>.glb and register the sprites they replace in
     src/render/spriteModels/<basename>.json. `sprites` is the list of {sheet, size, frames} (and

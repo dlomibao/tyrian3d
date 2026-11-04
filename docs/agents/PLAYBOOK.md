@@ -30,13 +30,13 @@ Rules (user, 2026-11-03):
 |---|---|---|---|---|
 | Design: blueprint, competing designs | Opus | none | - | Invents side engineering and shape language; the whole result rests on it (D50, D65). |
 | Judge (pick a winner, grafts) | Opus | none | - | Taste plus measurement; cheap (median 1.3 min). |
-| Strict review / regrade | Opus; Sonnet for measurement-based refit re-reviews | Sonnet (refit re-reviews only) | benched 2026-11-03: cheap-ok for refit re-reviews | The D74 refit re-review bench (below) gave Sonnet the same verdicts and numbers as Opus, so re-reviews that only remeasure a refit may run on Sonnet. Strict design reviews stay Opus: **Sonnet was lenient here.** forward-push (2026-11-02) used Sonnet reviewers for the 7 player ships: all 7 shipped on round 1, including Supercarrot at IoU 0.944 (target 0.95) and U-Ship with windshield IoU 0.69. The Opus reviewers on the 28 level-1 enemies asked for 15 fix rounds and still failed 4 at the end. |
+| Strict review / regrade | Opus for strict design reviews; Sonnet only for measurement-based refit re-reviews | Sonnet (refit re-reviews only) | benched 2026-11-03: cheap-ok for refit re-reviews | The D74 refit re-review bench (below) gave Sonnet the same verdicts and numbers as Opus, so re-reviews that only remeasure a refit may run on Sonnet. Strict design reviews stay Opus: **Sonnet was lenient here.** forward-push (2026-11-02) used Sonnet reviewers for the 7 player ships: all 7 shipped on round 1, including Supercarrot at IoU 0.944 (target 0.95) and U-Ship with windshield IoU 0.69. The Opus reviewers on the 28 level-1 enemies asked for 15 fix rounds and still failed 4 at the end. |
 | Audit (find what's still pixelated, group into issues) | Opus | none | - | Judgement over many captures. |
 | Novel fixes (new renderer path, new tool feature, first-of-kind asset) | Opus | none | - | Problem-solving; the pixel-sweep fixes were all different. |
 | Music arrangement | Opus | Sonnet | proposed, unbenched | Creative and blind (agents can't hear); the user caught chopped slides once. Bench only with the user listening. |
 | UI mockups | Opus | none | - | Taste; the user picks from mockups. |
-| Finish from an approved design (port a winning design into the real script, export contract) | Opus | Sonnet | proposed, unbenched | Mostly mechanical once the judge has picked, but it was the longest stage (median 21 min) and absorbed grafts. Escalate a failing fix round to Opus. |
-| Fix round with a concrete issue list | Sonnet for a single-sprite model refit; Opus otherwise | Sonnet | benched 2026-11-03: cheap-ok (single-sprite refit), opus-needed (multi-piece assembly refit) | D74 inner-edge refit bench (below): on newsh2-89 both passed the gate (rule IoU Sonnet 0.9745, Opus 0.9904) with small porting rework; on assembly-newsh2-87 Sonnet passed by 0.01 (0.96 vs Opus 0.9888) only through a geometry hack (an embedded ink mask warping vertices near the edges, squashed bevels). The review that follows is Opus. |
+| Finish from an approved design (port a winning design into the real script, export contract) | Sonnet | Sonnet | benched 2026-11-04: cheap-ok | Shared-enemies bench (D92, below): on newsh3-267 Sonnet's glb was byte-identical to Opus's; on assembly-newsh-caret-123 it needed minor integration fixes only (uncapped outline shells at the piece seams). The strict review that follows stays Opus; escalate a failing fix round to Opus. |
+| Fix round with a concrete issue list | Opus | Sonnet | benched: opus-needed (2026-11-04); earlier cheap-ok only for a measurement-only single-sprite refit (2026-11-03) | Shared-enemies bench (D92): Sonnet's fix round on newsh3-267 painted colour regions face by face from a level field, stair-stepped and blotchy, where Opus cut smooth region boundaries. D74 refit bench: Sonnet passed a single-sprite refit (newsh2-89) but hacked the multi-piece assembly-newsh2-87. Fix rounds run on Opus. |
 | Revert from backups + rebuild | Opus | Sonnet (effort low) | proposed, unbenched | Used 7 times on Sonnet in the logs (model-fix-loop, lighting pass, level1-models, model-features-2); every one restored the script and rebuilt, rebuilding where `.glb` backups were missing. No Opus comparison was made, so it's not a bench. |
 | Small UI/code fix with a precise spec | Opus | Sonnet | proposed, unbenched | forward-push's `ui-fixes` (outline colour, menu ship placement, D55) ran on Sonnet and merged. Single sample. |
 | Scout / inventory listing from the game's data | Opus | Sonnet | proposed, unbenched | Reading code and JSON into a list. Mistakes here (merged scripts, missed models) cost every later stage, so bench before switching. |
@@ -61,6 +61,9 @@ row may use the cheaper model via `args.tiers`; until then it runs on Opus.
 | Fix: single-sprite model refit (D74 inner edge) | Sonnet 5.5 (medium) vs Opus (medium), judged by Opus | newsh2-89 | Rule IoU (inner mask): Sonnet 0.9745, Opus 0.9904 | cheap-ok: both pass the gate; small porting rework only | 2026-11-03 |
 | Fix: multi-piece assembly refit (D74 inner edge) | Sonnet 5.5 (medium) vs Opus (medium), judged by Opus | assembly-newsh2-87 | Grid IoU: Sonnet 0.96, Opus 0.9888 | opus-needed: Sonnet passed by 0.01 with a geometry hack (an embedded ink mask that warps vertices near edges and squashes bevels) | 2026-11-03 |
 | Review: refit re-review | Sonnet 5.5 (medium) vs Opus (medium), judged by Opus | newsh2-89, assembly-newsh2-87 | Verdicts and measured numbers against Opus's | cheap-ok for measurement-based refit re-reviews only (same verdicts, same numbers); strict design reviews stay Opus, given the earlier evidence of Sonnet leniency | 2026-11-03 |
+| Finish from an approved design | Sonnet 5.5 vs Opus, judged by Opus | newsh3-267 | GLB and spriteModels entries vs Opus's; sprite_mask rule IoU | cheap-ok: byte-identical glb (310,216 bytes), iou_rule_grid 1.0 on both frames, same as Opus | 2026-11-04 |
+| Finish from an approved design | Sonnet 5.5 vs Opus, judged by Opus | assembly-newsh-caret-123 | Script line by line vs Opus's; grid IoU, per-piece IoU | cheap-ok: same design-B geometry, grid IoU 0.9924 both, per-piece IoU identical, the 8 spriteModels JSONs byte-identical; minor integration fixes (uncapped outline shells) | 2026-11-04 |
+| Fix round (design issues) | Sonnet 5.5 vs Opus, judged by Opus | newsh3-267 round 1 | sprite_mask rule IoU; colour regions | opus-needed: both pass the gate (Sonnet rule 0.9527 / grid 1.0, Opus 0.9495 / 0.9887), but Sonnet coloured whole faces from a level field: stair-stepped, blotchy colour regions | 2026-11-04 |
 
 ## Recipes
 
@@ -92,10 +95,12 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
   `MODEL_SWAP_REPORT=1` with `tests/render/modelSwap.test.ts` lists sprites still drawn extruded.
 - **Accept:** top-view IoU ≥ 0.95 at sprite resolution on every frame against the sprite's *inner*
   mask, its ink border left to the game's outline (`tools/sprite_mask.py <name> --measure top.png`,
-  `iou_rule_grid`; [OUTLINE-BORDER.md](OUTLINE-BORDER.md), D74); canopies,
+  `iou_rule_grid`; [OUTLINE-BORDER.md](OUTLINE-BORDER.md), D74); a player ship's banking frames
+  instead ≥ 0.80 (half bank) and ≥ 0.70 (full bank) at its fitted roll and shift, the model never
+  reshaped for them (`tools/bank_roll.py <name> --fit`; OUTLINE-BORDER.md "Banking frames", D93); canopies,
   eyes, lights where the sprite has them; each part in the sprite's palette index for that region;
   every frame and assembly piece/pivot as before (`git diff src/render/spriteModels/` shows no frame
-  change); no foil, no highlight lumps; triangles ~2-6k small, ~8-20k boss; strict review score ≥ 7/10.
+  change; a ship's `bank.roll`/`bank.shift` may change, D93); no foil, no highlight lumps; triangles ~2-6k small, ~8-20k boss; strict review score ≥ 7/10.
 - **Failure modes → fix:**
 
   | Symptom | Fix |

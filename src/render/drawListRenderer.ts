@@ -90,8 +90,7 @@ const WRECK_TILES = new Set(
 const COVERED_STAND_IN = new Map([340, 341, 342, 350, 351, 352].map((n) => [`shapesz.dat:${n}`, "shapesz.dat:100"]));
 const STAND_IN_IDS = new Set(COVERED_STAND_IN.values());
 
-/** Roll at full bank, and how fast the model eases toward its frame's roll (per second). */
-const MAX_ROLL = THREE.MathUtils.degToRad(35);
+/** How fast a ship's model eases toward its banking frame's roll (per second; the roll: spriteModels.ts bankRoll, D93). */
 const ROLL_RATE = 12;
 /** Opacity standing in for the C's value-averaging blend. */
 const BLEND_ALPHA = 0.55;
@@ -410,6 +409,11 @@ export class DrawListRenderer {
   /** The current level's maps for the HD terrain's variants, and its tileset. */
   private levelMaps: { tileset: string; maps: NonNullable<LevelModelInfo["maps"]> } | null = null;
   private hdTiles = 0;
+  /** The level's warm-up has run (D91): models that load from now on are warmed as they arrive. */
+  private warmed = false;
+  /** Models (by pool) and structures loaded since the warm-up, not yet handed to takeLateWarm. */
+  private readonly lateModels: ModelPool[] = [];
+  private readonly lateStructures: string[] = [];
 
   constructor() {
     this.root.name = "draw-list";
@@ -721,8 +725,9 @@ export class DrawListRenderer {
               // Only ground enemies stand on the ground's structures and hide them (D86); a ship or
               // an aircraft model flying over a wreck doesn't erase it.
               if (d.pass === Pass.GroundEnemies && d.effect !== "blend") this.cover.add(d.sheet, d.index, d.size, x, y);
-              const shift = r.override ? bankShift(d.sheet.id, d.sheet.data, r.override.baseIndex, d.index) : 0;
-              this.drawModel(r.route, pool, r.bank, shift, d, x, y, cam, dt, r.frame, damaged);
+              const o = r.override;
+              const shift = o ? (o.shifts?.[(d.index - o.baseIndex) / o.bankStep + o.maxBank] ?? bankShift(d.sheet.id, d.sheet.data, o.baseIndex, d.index)) : 0;
+              this.drawModel(r.route, pool, r.roll, shift, d, x, y, cam, dt, r.frame, damaged);
               continue;
             }
             // Held back while its model loads, or locked to its sprite (D54).
@@ -1082,6 +1087,93 @@ export class DrawListRenderer {
   }
 
   /**
+   * Put what the level can draw in front of the camera for its warm-up (View.warmUp, D91): a clone of
+   * every loaded model, a quad of every instanced material variant, every HD terrain material of the
+   * level's tileset (each kind) and a batch per sprite art atlas. Each of `states` sets the clones one
+   * way they can be drawn (opaque, translucent); `end` hides it all again. The clones stay in their
+   * pools for play. From now on, models that load are handed to takeLateWarm.
+   */
+  beginWarmUp(cam: THREE.Vector3): { states: (() => void)[]; end: () => void } {
+    this.warmed = true;
+    this.lateModels.length = 0;
+    this.lateStructures.length = 0;
+    const frame = this.frame;
+    // The middle of the playfield, at the ground enemies' height.
+    const x = 24 + 264 / 2, y = 184 / 2, h = passHeight(Pass.GroundEnemies);
+    const k = h / cam.y;
+    const gx = screenWorldX(x), gz = screenWorldZ(y);
+    const clones: ModelClone[] = [];
+    for (const pool of this.modelPools.values()) {
+      if (!pool.source) continue;
+      if (pool.clones.length === 0) pool.clones.push(this.cloneModel(pool.source));
+      const c = pool.clones[0];
+      c.object.visible = true;
+      c.object.position.set(gx + (cam.x - gx) * k, h, gz + (cam.z - gz) * k);
+      c.object.scale.setScalar(1 - k);
+      clones.push(c);
+    }
+    const pools: Pool[] = [];
+    const quad = (pool: Pool) => {
+      const s = pool.next(frame);
+      writeMatrix(pool.mesh.instanceMatrix.array as Float32Array, s, x - 12, y - 14, h, 1, 1, cam);
+      (pool.extra.array as Float32Array).fill(0, s * pool.extra.itemSize, (s + 1) * pool.extra.itemSize);
+      pool.commit();
+      pools.push(pool);
+    };
+    for (let v = 0; v <= Variant.RemasterGroundBlend; v++) quad(this.pool(TILE_VARIANTS.has(v) ? this.groundGeometry : this.unitQuad, v, frame));
+    const tileset = this.levelMaps && this.background === "remaster" && this.terrain === "hd" ? this.terrainArt.get(this.levelMaps.tileset) : null;
+    if (tileset) {
+      for (const image of tileset.images.values()) {
+        if (image) for (const kind of ["ground", "cutout", "blend"] as const) quad(this.hdPool(image.texture, kind, tileset.scale, frame));
+      }
+    }
+    if (this.spriteArt) for (const sheet of this.spriteArt.sheets.values()) if (sheet.texture) this.artLayer.warm(sheet as SpriteArtSheet<THREE.Texture>);
+    return {
+      states: [() => clones.forEach((c) => this.setCloneBlended(c, false)), () => clones.forEach((c) => this.setCloneBlended(c, true))],
+      end: () => {
+        for (const c of clones) {
+          this.setCloneBlended(c, false);
+          c.object.visible = false;
+        }
+        for (const p of pools) {
+          p.mesh.count = 0;
+          p.mesh.visible = false;
+        }
+      },
+    };
+  }
+
+  /**
+   * What has loaded since the level's warm-up (D91), for View to compile and upload a little at a
+   * time before it's drawn: a (hidden) clone of each new model, and each new structure's instanced
+   * meshes.
+   */
+  takeLateWarm(): THREE.Object3D[] {
+    const objects: THREE.Object3D[] = [];
+    for (const pool of this.lateModels) {
+      if (!pool.source) continue;
+      if (pool.clones.length === 0) pool.clones.push(this.cloneModel(pool.source));
+      pool.clones[0].object.visible = false;
+      objects.push(pool.clones[0].object);
+    }
+    this.lateModels.length = 0;
+    for (const name of this.lateStructures) objects.push(...this.structures.meshes(name));
+    this.lateStructures.length = 0;
+    return objects;
+  }
+
+  /**
+   * Send the flat sprite art's atlases (shots, pickups, explosions: D42) to the GPU now. Uploaded on
+   * their first draw instead, mid-level, each cost a frame 18-30 ms (newsh6's 832x4096 at the first
+   * explosion; decode, upload, mipmaps). The same atlases serve every level, so after the first
+   * level's preload this does nothing (initTexture skips an uploaded texture).
+   */
+  uploadSpriteArt(renderer: THREE.WebGLRenderer): void {
+    if (!this.spriteArt) return;
+    for (const sheet of this.spriteArt.sheets.values()) if (sheet.texture) renderer.initTexture(sheet.texture);
+  }
+
+  /**
    * The tiles on the level's map left of, right of, above and below a cell of a structure whose
    * pattern's top-left cell is `anchorKey` (-1: none or off the map), so the island rock of each
    * cell can draw its edge band for each (D84).
@@ -1195,7 +1287,10 @@ export class DrawListRenderer {
     if (!load) {
       load = this.loader
         ? this.loader(name).then(
-            (model) => this.structures.add(name, model),
+            (model) => {
+              this.structures.add(name, model);
+              if (this.warmed) this.lateStructures.push(name);
+            },
             (err) => console.error(`structure model ${name} failed to load; its tiles stay as they were`, err),
           )
         : Promise.resolve();
@@ -1206,12 +1301,12 @@ export class DrawListRenderer {
 
   /**
    * Draw a sprite as its loaded model (sprite2Route.ts): a player ship's frame (Override) at the
-   * sprite's centre, rolled by its bank and moved `shift` game pixels sideways to where the banking
-   * frame's sprite sits (bankShift.ts, D62); a tile of a grouped object, an enemy (Group), whose model
+   * sprite's centre, rolled by its banking frame's roll and moved `shift` game pixels sideways to where
+   * the frame's sprite sits (bankShift.ts, D62, or the entry's fitted shift, D93); a tile of a grouped object, an enemy (Group), whose model
    * goes at the object's centre on its first tile while the other tiles draw nothing; or a sprite
    * drawn on its own, a sidekick (Ungrouped), centred on the sprite and showing the frame drawn.
    */
-  private drawModel(route: Route, pool: ModelPool, bank: number, shift: number, d: SpriteDraw, x: number, y: number, cam: THREE.Vector3, dt: number, frame: number, damaged: DamageState | null): void {
+  private drawModel(route: Route, pool: ModelPool, roll: number, shift: number, d: SpriteDraw, x: number, y: number, cam: THREE.Vector3, dt: number, frame: number, damaged: DamageState | null): void {
     let clone: ModelClone;
     if (route === Route.Override) {
       clone = this.placeModel(pool, x + (d.size * 12) / 2, y + (d.size * 14) / 2, d, cam);
@@ -1226,13 +1321,13 @@ export class DrawListRenderer {
       if (!d.groupFirst) return;
       clone = this.placeModel(pool, x + d.groupDx, y + d.groupDy, d, cam, frame);
       // [two-player] a grouped ship that banks (the dragonwing) rolls as the player ships do
-      if (Number.isNaN(bank)) {
+      if (Number.isNaN(roll)) {
         this.damage?.apply(clone.object, clone.materials, damaged);
         return;
       }
     }
     // Banking eases per display frame, so the 5 sprite frames become a smooth roll.
-    clone.roll += (-bank * MAX_ROLL - clone.roll) * Math.min(1, dt * ROLL_RATE);
+    clone.roll += (-roll - clone.roll) * Math.min(1, dt * ROLL_RATE);
     clone.object.rotation.z = clone.roll;
     // A player ship's wear by its armour (D90), after the roll so the scorch rolls with the ship.
     const player = playerOfKey(d.key);
@@ -1247,7 +1342,10 @@ export class DrawListRenderer {
       this.modelPools.set(name, (pool = created));
       if (this.loader) {
         created.settled = this.loader(name).then(
-          (model) => void (created.source ??= model),
+          (model) => {
+            created.source ??= model;
+            if (this.warmed) this.lateModels.push(created);
+          },
           (err) => {
             created.failed = true;
             console.error(`model ${name} failed to load; its sprites stay extruded`, err);
@@ -1275,7 +1373,27 @@ export class DrawListRenderer {
     object.position.set(gx + (cam.x - gx) * k, h, gz + (cam.z - gz) * k);
     object.scale.set(1 - k, (1 - k) * this.modelHeight, 1 - k);
 
-    const blended = d.effect === "blend";
+    this.setCloneBlended(clone, d.effect === "blend");
+
+    // blit_sprite2_filter draws (filter & 0xf0) | (index & 0x0f): the same shade in another hue.
+    // [filters] A smoothie's hue covers that, as its filter runs after the draw (screenHue.ts).
+    const screenHue = this.palette.screenHue.modelHue(h);
+    const hue = screenHue >= 0 ? screenHue : d.effect === "filter" ? d.filter & 0xf0 : -1;
+    const { rig } = clone;
+    const frameChanged = rig.animated && clone.frame !== frame;
+    if (frameChanged) showFrame(rig, frame);
+    if (rig.palette.length > 0 && (frameChanged || clone.paletteVersion !== this.palette.version || clone.hue !== hue)) {
+      clone.paletteVersion = this.palette.version;
+      clone.hue = hue;
+      colourFrame(rig, frame, hue, this.paletteColor);
+    }
+    clone.frame = frame;
+    return clone;
+  }
+
+  /** Draw a clone translucent (the C's "blend": an invulnerable ship) or opaque. */
+  private setCloneBlended(clone: ModelClone, blended: boolean): void {
+    const { object } = clone;
     if (blended !== clone.blended) {
       clone.blended = blended;
       setModelBlended(object, blended);
@@ -1300,21 +1418,6 @@ export class DrawListRenderer {
         m.needsUpdate = true;
       }
     }
-
-    // blit_sprite2_filter draws (filter & 0xf0) | (index & 0x0f): the same shade in another hue.
-    // [filters] A smoothie's hue covers that, as its filter runs after the draw (screenHue.ts).
-    const screenHue = this.palette.screenHue.modelHue(h);
-    const hue = screenHue >= 0 ? screenHue : d.effect === "filter" ? d.filter & 0xf0 : -1;
-    const { rig } = clone;
-    const frameChanged = rig.animated && clone.frame !== frame;
-    if (frameChanged) showFrame(rig, frame);
-    if (rig.palette.length > 0 && (frameChanged || clone.paletteVersion !== this.palette.version || clone.hue !== hue)) {
-      clone.paletteVersion = this.palette.version;
-      clone.hue = hue;
-      colourFrame(rig, frame, hue, this.paletteColor);
-    }
-    clone.frame = frame;
-    return clone;
   }
 
   private cloneModel(source: THREE.Object3D): ModelClone {
@@ -1330,6 +1433,9 @@ export class DrawListRenderer {
       mesh.material = Array.isArray(mesh.material) ? mesh.material.map(clone) : clone(mesh.material);
       materials.push(...(Array.isArray(mesh.material) ? mesh.material : [mesh.material]));
     });
+    // Patched for damage now rather than at its first damaged frame (D91): one shader program per
+    // material kind for every clone, compiled by the level's warm-up.
+    this.damage?.prepare(object, materials);
     this.root.add(object);
     return { object, roll: 0, shift: 0, materials, rig: rigModel(object), blended: false, paletteVersion: -1, hue: -1, frame: Number.NaN };
   }

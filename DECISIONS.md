@@ -3631,6 +3631,11 @@ Recut from the cache: `terrain_hd.py --tileset shapesz --work W cut --cache W/ca
     undecimated one.
   - Of the other D88 ships, the Silver Ship shows a few faint lines in the viewer (not fixed here).
     Dragonwing, Nort Ship and Supercarrot look clean.
+  - Later the same day: the Silver Ship takes the Talon's shell (0.03 voxels, held 0.004 inside),
+    which removes its ink wedges across the hull by the vents. Dragonwing, Nort Ship, Supercarrot and
+    D93's U-Ship, Gencore Phoenix and Microcorp Stalker, checked in `?viewer=` with Outline on and
+    off, show ink only on their silhouettes and where one part overlaps another, so they are left
+    as they are.
 - **The player ship's wear (the user's rule).** The player ship has no damaged frames, so its look
   follows its current armour, both ways, never latched (`src/render/damage/shipDamage.ts`):
   - **Reference:** the ship's maximum, `initial_armor`, not the level-start armour (D75: the C caps
@@ -3698,3 +3703,210 @@ This includes `tyrian.shp#9` 155 and 199 (about 30 levels each).
 **Options considered:**
 - *Hand-pick the frames per level:* fewer requests, but the shared pickups would still differ
   between levels; the whole episode's set is only 9 requests.
+## D91 — Gameplay performance: measured, then the hitches moved out of play
+
+2026-11-04
+
+**Problem:** the user found play "struggling a bit". Measured first (`?debug=play&solid=1`, the production
+build, headless Chrome on the real GPU, 1512x900 at DPR 2 = 3024x1800, 60 Hz; a WebGL wrapper times
+shader compiles and texture uploads per frame; scripts in `tyrian-scratch/perf-1/`):
+- **Steady play is not the problem.** Main thread ~3 ms a frame (sim 0.2, draw list 0.2, three's
+  submit with outline and shadows 2.3), GPU 5-9 ms; level 1, the boss and HOLES held 60 fps with p95
+  16.7-17.5 ms. The outline pass adds ~15 draw calls (models outline only their shells), not a second
+  scene; the shadow pass ~115.
+- **The stutter is first-use work during play:** a texture's first draw uploads it (the flat art's
+  atlases 18-30 ms: newsh6's 832x4096 at the first explosion, tyrian.shp#10's 1024x2048 at its first
+  shot), a new enemy model's textures (20-45 ms for a batch of 24), and a material variant's first
+  draw compiles its shaders (20-35 ms each time mid-level; 130-730 ms over the first two frames of a
+  level).
+
+**Decision (one fix per PR, each measured):**
+1. **Flat art atlases at preload.** `preloadLevelModels` uploads the sprite art's atlases
+   (`uploadSpriteArt`) after the HD terrain's. The same atlases serve every level, so only the first
+   level's preload pays (~250 ms more of preload). The first-explosion and first-shot hitches are gone:
+   HOLES 5 → 3 frames over 33 ms (the 3 left are the level's first two frames), the boss 5 → 3.
+2. **Shaders and textures warmed at preload, the rest as they load.** After the uploads,
+   `preloadLevelModels` awaits `View.warmUp()`:
+   - `DrawListRenderer.beginWarmUp` puts in front of the camera a clone of every loaded model (the
+     clone stays in its pool for play), a quad of every instanced material variant, each HD terrain
+     material kind of the level's tileset and a batch per sprite art atlas;
+   - for each way a clone is drawn (opaque, then translucent: the invulnerable ship) the main and
+     outline passes compile in parallel (`renderer.compileAsync`, and `compileAsync` added to the
+     forked OutlineEffect), every texture is uploaded (`initTexture`), and one draw into a single
+     pixel (scissor) builds the shadow pass's programs;
+   - clones are patched for damage when they're made, not at their first damaged frame (`uDmgOn` 0
+     draws exactly as unpatched), so the warm-up covers that program;
+   - models and structures that finish loading during play (D54 waits only for the first ~30 s of a
+     level) are compiled in parallel when they arrive (`View.warmLate`) and their textures uploaded
+     one a frame before they are due;
+   - production skips three's shader error checks (`debug.checkShaderErrors` off outside dev),
+     which query every program's logs at its first use.
+3. **Model textures capped at 1024** (`MAX_MODEL_TEXTURE`, `models.ts`). Fifteen models carry
+   2048 or 4096 maps (TYRIAN's bridge, fortress and base buildings, seven of the boss's arm pieces):
+   one 2048 upload stalls ~50 ms, a 4096 ~200 ms. They are scaled down in a worker
+   (`textureResize.worker.ts`; createImageBitmap with a resize is synchronous on its thread, 400 ms of
+   main thread over a level start when done there). A model fills a few hundred pixels, so 1024
+   still gives a texel per pixel; the in-game captures and the model gallery match main to within
+   1-2 levels. The island rock's palette-data textures (D84) are never resampled.
+4. **The outline pass's bookkeeping.** Its per-frame maps were plain objects whose keys (every
+   material and object ever outlined) piled up and were listed with `Object.keys` every frame; they
+   are Maps, cleared. It swaps materials on visible objects only (`traverseVisible`): the warm-up's
+   hidden clones made the full traverse cost ~1.4 ms a frame.
+
+Measured (60 Hz, 3024x1800; load average 5-7, other agents' GPU work shows as frames with a slow GPU
+and little JS, counted apart): frames over 33 ms caused by the main thread, main → this change;
+max rAF JS time; shader programs linked during play.
+
+| Scene | > 33 ms (main thread) | max frame JS | programs linked in play |
+|---|---|---|---|
+| Level 1, ticks 0-2000 | 8 (2) → 3 (1) | 139 → 135 ms (first frame) | 25 → 4 |
+| Boss, ticks 6650-7400 | 5 (4) → 3 (1) | 727 → 47 ms | 23 → 1 |
+| HOLES, ticks 0-2000 | 5 (4) → 1 (1) | 173 → 75 ms (first frame) | 28 → 0 |
+
+Level preload is longer by the warm-up (~0.3-0.6 s, compiles in parallel; once per session for the
+shared materials).
+
+## D92 — Twenty enemies shared across episodes rebuilt hard-surface; a palette-pulsed ring counts as ink
+
+2026-11-04
+
+**Decision:** The first batch of shared enemies (drawn in more than one episode; MILESTONES.md
+"Order of work", step 2) is rebuilt to the D65 standard and D74's inner-edge fit, the way level 1's
+were: blueprint, competing designs for the heroes, judge, finisher, strict review, fix rounds (all
+on Opus; Sonnet only in the bench below). Top-view rule IoU on the grid (`iou_rule_grid`, inner
+mask, every frame):
+- **Heroes (assemblies and bosses):** assembly-newsh-caret-123 0.9698 (design B), assembly-newshf-270
+  0.9827 (B), assembly-newshf-191 0.9827, assembly-newshf-195 0.9986, assembly-newshf-199 0.9877.
+- **Standard:** newsh3-267 0.9887, newshe-195 0.9726, newshe-235 0.9688, newshf-123 0.981,
+  newshf-169 1.0, newshf-171 1.0, newshf-230 0.9761, newshf-238 0.9886, newshd-79 1.0, newshd-127
+  0.9747, newshd-191 0.9644, newshs-153 0.9955, newshs-171 1.0, newshs-269 0.9651, newshm-115 1.0
+  (rule 0.9529).
+- newshf-230, newshd-79 and newshs-269 shipped after a fix round. newshm-115 (the blue mine ball)
+  took two: the glints, then the sheen. Its sheen is a polished, clear-coated patch at the upper
+  left, where the sprite draws its white blob (SHEEN_PATCHES); its glb is the only one with
+  KHR_materials_clearcoat (three loads MeshPhysicalMaterial). The last round left the sheen too
+  weak, and the one before had too many wet glints. Tuned between them at game scale (MINES, tick
+  1640): patch roughness 0.20, coat 0.22, 26 degrees, satin 0.66 elsewhere, metallic 0.35. The
+  ball nearer the middle now shows one clear white sheen at the upper left. The one near the
+  field's top-left corner still shows only a small glint, because the room's reflection depends on
+  the ball's place on screen.
+
+**Palette-pulse rule** (`tools/sprite_mask.py`, OUTLINE-BORDER.md rule 1): a boundary-ring pixel at
+a ramp's darkest step counts as ink when the palette pulses it above the luma limit. When another
+frame of the same model is the same drawing with the palette shifted (same opaque mask, at least
+90% of its pixels one constant index shift away in the same 16-colour ramp: a pulse partner), a ring
+pixel above luma 26 is ink if it is ink, in the same ramp, on a pulse partner. newshm-115's ring is
+palette 53 (luma 41) on frames 115 and 279 and ink on the darker pulse frames 165/203/241. It is one
+border, so the inner edge now holds on all five frames. The rule also changes tyrian10-14/-32/-51,
+newsha-199, newshk-115 and newshl-115, and no other frame in reference/models. `--no-pulse` measures
+by luma alone. Test: `tests/tools/spriteMask.test.ts`.
+
+**Bench** (PLAYBOOK "Bench results"): Sonnet finishing from an approved design is cheap-ok. On
+newsh3-267 its glb was byte-identical to Opus's, and on assembly-newsh-caret-123 it needed minor
+integration fixes only, such as uncapped outline shells at the piece seams. Sonnet fix rounds are
+opus-needed: on newsh3-267 it painted colour regions face by face from a level field, which left
+stair-stepped, blotchy regions.
+
+**Review:** comparison sheets and captures are in `tyrian-scratch/shared-enemies-1/<model>/`.
+Fallback: revert the 20 scripts and their GLBs; `--no-pulse` for the old measure.
+
+## D93 — Player ships' banking frames: the level model at a fitted roll and shift, never reshaped for them; their own bars
+
+2026-11-04
+
+**Decision:** A player ship's model is fitted to its level frame only (D74: rule IoU ≥ 0.95). Its
+banking frames are that model rolled and moved sideways by the game, and the **pose is fitted per
+ship** to its banking sprites, not the model: `bank.roll` (degrees at bank steps 1..max) and, where
+it beats bankShift.ts's guess, `bank.shift` (game px per frame) in its spriteModels entry, written by
+the script with `common.with_bank_roll`. `tools/bank_roll.py <name> --fit` finds them; it keeps the
+old pose (35° × step / max, bankShift.ts) unless another roll is better by more than 0.02 mean IoU,
+or another shift by more than 0.01. **Accept:** level frame ≥ 0.95, each half-bank frame ≥ 0.80,
+each full-bank frame ≥ 0.70 (`tools/bank_roll.py <name>`). No part, height or offset is added to a
+model for its banking frames. The rule for agents: docs/agents/OUTLINE-BORDER.md "Banking frames".
+
+- **Renderer:** `bankRoll` (spriteModels.ts) gives each banking frame's roll from the entry (default
+  `DEFAULT_FULL_ROLL` = 35 × n / max, as `MAX_ROLL` did); `Sprite2Route.roll` replaces `bank`, and
+  the eased roll in drawListRenderer.ts is unchanged otherwise. An entry's `shift` replaces
+  bankShift.ts for that ship (D62); the two-halves Dragonwing still isn't shifted.
+- **Ships:** U-Ship roll 40 / 55. Gencore Phoenix 40 / 50, shift −3.5, −1.5, 0, 1.5, 3.5
+  (bankShift: −2.5, −1, 0, 1, 3.5). Microcorp Stalker 17.5 / 27.5, shift −0.5, −0.5, 0, 0.5, 2.5
+  (bankShift: 1, 0, 0, 0, 1). The other five keep the old pose: the fit found nothing better.
+  The three models are the D74 inner-edge refit with its bank-only parts taken out: the Phoenix's
+  5 px ventral fins, 4 px strakes and 1 px lift; the Stalker's 3 px endplate fins, forked tip
+  prongs and body raised 3 px over the wings (now a 0.45 px tip rail, the body level with the
+  wings). The U-Ship had none.
+
+**Why (measured).** The D74 refit asked ≥ 0.95 on every frame, banking frames included, and U-Ship
+(0.43-0.55), Phoenix (0.61-0.75) and Stalker (0.83-0.91) failed after two fix rounds each and were
+left as they were (D88). This decision refits them.
+
+- *The measurement was right.* An independent harness (Blender top view, k = 10) reproduces the
+  fixers' numbers to the digit (U-Ship 0.442 / 0.553 / 1.000 / 0.538 / 0.434). Checked against the
+  code: frame base − 4 is ship_banking −2, moving left (mainint.ts L712-715); rotation.z = −bank ×
+  35° is +Y × bank × 35° in Blender (glTF +Z is Blender −Y), the ship's top leaning into the turn; the pivot
+  is the model origin at the cell's centre; the shift is bankShift.ts's opaque-column centre; the
+  frames are the 2x2 composites the game draws (sprite.json, the draw list's index); `?height` is 1.
+  In game (`?debug=play&ship=10`, new `&ship=`) the clone reads roll 40.0° and shift −1 on frame 269.
+- *The art draws a different roll per ship.* IoU of each banking sprite with the level sprite
+  (shifted, no roll) says how far the art moved, and the best rigid roll of the level model says
+  how far a roll gets (half-bank frames, full-bank frames):
+
+  | Ship | level sprite vs bank sprite | old pose (17.5 / 35°, bankShift) | fitted pose (this decision) |
+  |---|---|---|---|
+  | USP Talon | 0.89, 0.88 / 0.79, 0.80 | 0.984, 0.984 / 0.959, 0.965 | same |
+  | Silver ship | 0.89, 0.90 / 0.79, 0.81 | 0.982, 0.982 / 0.965, 0.996 | same |
+  | Supercarrot | 0.91, 0.93 / 0.88, 0.90 | 0.958, 0.981 / 0.970, 0.981 | same |
+  | Dragonwing | 0.93, 0.93 / 0.88, 0.87 | 0.965, 0.989 / 0.957, 0.967 | same |
+  | U-Ship | 0.39, 0.38 / 0.30, 0.30 | 0.553, 0.538 / 0.442, 0.434 | 0.873, 0.876 / 0.781, 0.776 |
+  | Gencore Phoenix | 0.57, 0.56 / 0.53, 0.59 | 0.620, 0.613 / 0.626, 0.703 | 0.831, 0.838 / 0.849, 0.859 |
+  | Microcorp Stalker | 0.83, 0.83 / 0.68, 0.70 | 0.816, 0.818 / 0.585, 0.611 | 0.879, 0.856 / 0.791, 0.779 |
+
+  Level frames: Talon 0.952, Silver 0.989, Supercarrot 1.000, Dragonwing 0.996, Nort 0.996 (no
+  banks), U-Ship 1.000, Phoenix 0.996, Stalker 0.974. The five that passed are the refit's models
+  (inner-refit worktree). The old pose suits the Talon, whose art is a true roll (0.79 → 0.96 at full
+  bank). The U-Ship's arms close from 12 px apart (centre to centre) to 9 at half bank and 6 at full,
+  and the Phoenix's 20 px plan becomes one solid wedge 15-17 px wide (inside the ink): both draw about
+  40° at half bank, more than twice the old 17.5°. The Stalker's art is hardly a roll at all: its
+  banks keep the full 21 px span; its best half-bank roll is 0° and the old 17.5° is within 0.01 of it.
+- *bankShift.ts misplaces some redraws.* The opaque columns' centre tracks the Talon, Silver,
+  Supercarrot and U-Ship exactly (the fit moves none), but the Stalker's both hard-bank frames sit
+  1 px right though its nose leans into the turn, and the Phoenix's are 0.5-1 px short. At the
+  fitted roll the fitted shift adds +0.04 to +0.14 to the Stalker's frames and +0.00 to +0.07 to the
+  Phoenix's. (The refit's raised Stalker body was mostly making up for that shift.)
+- *What is left is hand drawing no rigid pose follows:* the U-Ship's arms drawn touching at full
+  bank, the Phoenix's slots between hull and blades filled in, the Stalker's far wing redrawn shorter
+  with its tip in place. The art isn't consistent with itself either: each left bank against the
+  mirrored right bank scores 0.93 (Phoenix, full) and 0.94-0.95 (Stalker), so no mirror-symmetric
+  model matches both sides.
+
+**Options considered:**
+- *Fitted pose, model untouched, lower bars on banks (chosen):* one number or two per ship, the
+  roll stays a smooth ease (the frames change instantly and often; the roll eases with a 1/12 s time
+  constant), nothing to rebuild, and the passing ships stay as they are. The bars sit below the
+  fitted worst (0.831 half, 0.776 full), and each of the three fails them at its old pose (U-Ship and
+  Phoenix at half bank, 0.54-0.62; the Stalker at full bank, 0.59-0.61).
+- *Bank-only geometry (the refit's rounds):* the Phoenix's fins and lift reached 0.68-0.75, the
+  Stalker's endplates and prongs 0.83-0.91, and both show as tall plates and keels in the side, front
+  and hangar views (D85 shows the ship large and turning).
+- *Per-frame models or morph targets:* swapping nodes per frame (`tyrian_frames`) pops, since the
+  sprite frame flips at once while the roll eases; morph targets need the same morphs on the
+  outline shell and four hand-made poses per ship, to chase art whose left and right banks
+  disagree by 5-7%.
+- *Roll plus a sideways stretch* (a world-X scale after the roll, exact in the top view, measured
+  at bankShift's shift): +0.00 to +0.10 over the best roll alone, the big gains only at ×1.2-1.4
+  (Phoenix: 0.91 half, 0.84-0.86 full; U-Ship ×1.4 at 70°: 0.83 full) and none near 0.95: a
+  visibly squashed 3D model for a few hundredths.
+- *Keep ≥ 0.95 on banking frames:* none of the three can pass without the parts above.
+
+**Found on the way:** the game's perspective camera adds or takes away roll by where the ship is:
+it sees a ship at the playfield's side edge about atan(11 / 22.9) ≈ 26° off vertical (overhead
+camera), so a ship banking toward the middle looks rolled less and one banking toward the edge more.
+That is D6's lift along camera rays, the same for every model; the fit (orthographic) holds for the
+middle of the screen, and the in-game captures here are taken there. The play harness gains
+`&ship=ID` (item number) to fly any ship.
+
+**Review:** `tyrian-scratch/ship-banking/`: `fail3.png` and `pass.png` (all banking sprites, 10x),
+`final/cmp-<ship>.png` (the refit's model at the old pose | this model at the old pose | at the
+fitted pose, each frame's sprite beside the diff: green model on inner, red outside, blue missed),
+`game/` (in-game crops, old and new pose), `stalker/views.png` (the Stalker main / refit / this,
+front, side, 3/4, top). Fallback: delete an entry's `roll`/`shift` for the old pose.
