@@ -4195,3 +4195,28 @@ tap on a volume bar never does, so nothing said it was there.
 
 Captures: `tyrian-scratch/pause-options/captures/` (L1 = 844x390, L2 = 390x844 touch: pause, Options, Camera applied,
 resume; p1 = shop row and settings; D = desktop keys).
+
+## D103 — Level 1's sand-pad turrets stand on the HD ground, and DELIANI's glass orbs are painted in blobs (extends D86)
+
+2026-11-04
+
+**Cause.** The episode-1 QA sweep (issues 5, 7) found two models that read wrong in the game's render, neither a
+pipeline bug: models carry palette-index materials, not textures, so D91's texture worker and D87's damage masks
+are not involved.
+- **SOH JIN (1.13):** the bell turret `newshf-39` and the sand pod `newsha-91` exported the sprite's tile
+  background as a box of sand (`SAND` plate over the whole 24x28 tile), the same fault as D86's dirt pads. It
+  showed as a beige rectangle round each turret on the HD ground.
+- **DELIANI (1.5):** the glass orb (`assembly-newshu-129`, four 2x2 pieces, two orbs overlapped at tick 5531) paints
+  its cube-sphere faces cell by cell from the sprite's colour classes, so the sprite's pixel dithering and its 1 px
+  dark gaps came out as speckled green, grey and violet squares on the glass.
+
+**Decision.**
+- `newshf-39` and `newsha-91` no longer export the sand; the dome stands at z = 0 (the pod's dark crater disc stays).
+  The HD ground shows round them. Frames, pieces and exports are as they were.
+- `assembly-newshu-129.py` filters the part map before painting (`smooth_parts`, 7x7 majority; DARK casts no votes
+  and is replaced by its neighbours' part). The mass, lobes and lamp stay; the stray dark/violet squares and
+  one-pixel specks go. All three states (grey, green, purple) are rebuilt.
+- Not changed: `assembly-newsh3-191` (sand plate) and `assembly-newshj-127` (jungle ground plate) have the same
+  kind of pad but are in episodes 3-4; check them in those levels' passes.
+
+Captures: `tyrian-scratch/qa-quick/` (`before_*`/`after_*`: 1.5 t5531, 1.13 t300 and t1615).

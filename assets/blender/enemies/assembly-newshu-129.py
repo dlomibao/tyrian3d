@@ -148,8 +148,33 @@ def Q(c, r):
     return x, cy + (y - cy) * RX / RY
 
 
+def smooth_parts(grid, radius=3):
+    """Majority filter over the part map (7x7): the sprite's dithering of one colour class into
+    another, pixel by pixel, painted on the glass cell by cell reads as noise (green and black
+    speckle, DELIANI QA issue 5); the filter keeps the mass, its lobes and the lamp, and drops
+    the specks. DARK (the sprite's 1 px gaps and outline ring) casts no votes and is replaced by
+    its neighbours' part: as paint it showed as stray dark squares on the glass, and the outer
+    ring takes the glass's colour in shading() anyway. Ties keep the cell's own part."""
+    out = [row[:] for row in grid]
+    for r in range(H):
+        for c in range(W):
+            if grid[r][c] < 0:
+                continue
+            votes = Counter()
+            for rr in range(max(0, r - radius), min(H, r + radius + 1)):
+                for cc in range(max(0, c - radius), min(W, c + radius + 1)):
+                    if grid[rr][cc] >= 0 and grid[rr][cc] != DARK:
+                        votes[grid[rr][cc]] += 1
+            if not votes:
+                continue
+            top = max(votes.values())
+            if grid[r][c] == DARK or votes[grid[r][c]] < top:
+                out[r][c] = votes.most_common(1)[0][0]
+    return out
+
+
 def grey_pixels(sprites):
-    """The whole orb's first grey frame, as rows of palette indices (-1 = transparent)."""
+    """The whole orb's first grey frame, as rows of parts (-1 = transparent)."""
     grid = [[-1] * W for _ in range(H)]
     for name, dx, dy in PIECES:
         frame = fade_steps(sprites[name])[0]
@@ -157,8 +182,8 @@ def grey_pixels(sprites):
         for r, row in enumerate(frame["pixels"]):
             for c, v in enumerate(row):
                 if v >= 0:
-                    grid[oy + r][ox + c] = v
-    return grid
+                    grid[oy + r][ox + c] = PAINT.get(v, SHELL)
+    return smooth_parts(grid)
 
 
 def paint_part(grid, x, y):
@@ -171,7 +196,7 @@ def paint_part(grid, x, y):
         c = round(px_x * 12 + W / 2 - 0.5)
         r = round(H / 2 - px_y * 12 - 0.5)
         if 0 <= r < H and 0 <= c < W and grid[r][c] >= 0:
-            return PAINT.get(grid[r][c], SHELL)
+            return grid[r][c]
     return DARK
 
 
