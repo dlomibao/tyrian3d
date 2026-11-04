@@ -53,7 +53,10 @@ float terrainClampValue(float v) {
 vec3 terrainPalette(vec3 rgb, float height, inout float water) {
   float lum = pow(max(dot(rgb, vec3(0.2126, 0.7152, 0.0722)), 0.0), 1.0 / 2.2);
   float shade = clamp(floor(lum * 15.0 + 0.5), 0.0, 15.0);
-  float index = 16.0 + shade;
+  // Grey paintings take a grey index (0..15), which water_filter leaves alone as it does the
+  // original's grey bricks; the rest take the hue ramp's.
+  float chroma = max(rgb.r, max(rgb.g, rgb.b)) - min(rgb.r, min(rgb.g, rgb.b));
+  float index = (chroma < 0.04 ? 0.0 : 16.0) + shade;
   float hued = screenHueIndex(index, height, water);
   if (hued != index || levelFilter > -98.5) {
     // The palette texture already holds the level filter and brightness (paletteTexture.ts).
