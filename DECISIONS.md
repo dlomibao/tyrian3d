@@ -3631,6 +3631,11 @@ Recut from the cache: `terrain_hd.py --tileset shapesz --work W cut --cache W/ca
     undecimated one.
   - Of the other D88 ships, the Silver Ship shows a few faint lines in the viewer (not fixed here).
     Dragonwing, Nort Ship and Supercarrot look clean.
+  - Later the same day: the Silver Ship takes the Talon's shell (0.03 voxels, held 0.004 inside),
+    which removes its ink wedges across the hull by the vents. Dragonwing, Nort Ship, Supercarrot and
+    D92's U-Ship, Gencore Phoenix and Microcorp Stalker, checked in `?viewer=` with Outline on and
+    off, show ink only on their silhouettes and where one part overlaps another, so they are left
+    as they are.
 - **The player ship's wear (the user's rule).** The player ship has no damaged frames, so its look
   follows its current armour, both ways, never latched (`src/render/damage/shipDamage.ts`):
   - **Reference:** the ship's maximum, `initial_armor`, not the level-start armour (D75: the C caps
