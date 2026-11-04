@@ -3413,7 +3413,8 @@ The damaged outcrop frames (D81) drop their dirt plate as well, and the covered 
 recomposed (`terrain_covered.py cut`) against D79's repainted atlas.
 Fallback: revert the three scripts and GLBs and the renderer change (`covered` in the manifest is then
 unused and harmless).
-## D86 — Damaged frames are drawn with the intact model, damaged by the difference between the two sprite frames
+
+## D87 — Damaged frames are drawn with the intact model, damaged by the difference between the two sprite frames
 
 2026-11-03
 

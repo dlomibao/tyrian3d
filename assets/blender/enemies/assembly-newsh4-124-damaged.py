@@ -27,7 +27,7 @@ intact parts are exactly D65's), damaged the way each damaged sprite is:
   damaged piece baked (occlusion/edge colour multiplier and roughness/metal map, bake_piece) in
   place among the damaged machine, and its own outline shell (D51) cut from a shell of the damaged
   machine.
-- **Export (D86):** only the two shoulder wrecks (240, 244, `WRECKS`) ship as models,
+- **Export (D87):** only the two shoulder wrecks (240, 244, `WRECKS`) ship as models,
   enemies/newsh4-88-d and newsh4-92-d with their spriteModels entries: a wreck whose debris replaces
   most of the piece is beyond the game's runtime damage. Every other damaged frame is drawn with
   the intact piece, damaged by the shader from the two sprite frames (src/render/damage/), so the
@@ -35,7 +35,7 @@ intact parts are exactly D65's), damaged the way each damaged sprite is:
   compare). The destroyed frames that draw nothing (238, 276, 278, 282, 284) need nothing.
 
 Started on the pix-boss-damaged-frames branch (an agent's WIP, stopped there) and finished on
-damage-approach (D86).
+damage-approach (D87).
 
 blender -b --factory-startup --python assets/blender/enemies/assembly-newsh4-124-damaged.py -- \
     [--no-bake] [--no-export] [--design-out whole.glb] [--only newsh4-88,...]

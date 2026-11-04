@@ -242,7 +242,7 @@ export interface LevelModelInfo {
    * terrain's neighbour variants (D57).
    */
   maps?: readonly [ArrayLike<number>, ArrayLike<number>, ArrayLike<number>];
-  /** Its enemies' damaged frames (levelDamageFrames), drawn with their intact models (D86). */
+  /** Its enemies' damaged frames (levelDamageFrames), drawn with their intact models (D87). */
   damage?: readonly LevelDamage[];
 }
 
@@ -327,7 +327,7 @@ export class DrawListRenderer {
   /** Add this to the scene. */
   readonly root = new THREE.Group();
   readonly palette = new PaletteTexture();
-  /** Damaged frames drawn with the intact models (D86); null with `?damage=off` (as sprites). */
+  /** Damaged frames drawn with the intact models (D87); null with `?damage=off` (as sprites). */
   private readonly damage: DamageFrames | null = damageModeFromSearch() === "off" ? null : new DamageFrames(this.palette);
   readonly cache = new SpriteMeshCache();
   readonly atlas = new TileAtlas();
@@ -645,7 +645,7 @@ export class DrawListRenderer {
 
   /**
    * The level's damaged frames (sim/levelSprites.ts levelDamageFrames), so they're drawn with the
-   * intact models (D86). preloadLevel sets them; call it directly when a level starts without one.
+   * intact models (D87). preloadLevel sets them; call it directly when a level starts without one.
    */
   setLevelDamage(damage: readonly LevelDamage[] | undefined): void {
     if (this.damage !== null && damage) this.router.setDamage(damage);
@@ -688,7 +688,7 @@ export class DrawListRenderer {
           const sheetArt = art ? this.artSheet(d.sheet) : null;
           this.routeSheet = d.sheet;
           const r = this.router.route(d, sheetArt, this.emptyTile);
-          // A damaged frame drawn with the intact model (D86): its damage, for the shaders.
+          // A damaged frame drawn with the intact model (D87): its damage, for the shaders.
           const damaged = r.damaged && this.damage !== null ? this.damage.state(d, r.frame) : null;
           const flat = r.route === Route.Flat;
           if (r.route === Route.Group || r.route === Route.Override || r.route === Route.Ungrouped) {

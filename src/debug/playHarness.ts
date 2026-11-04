@@ -22,8 +22,8 @@
 //                                  sends the armour ship every 500 ticks)
 //   &steer=left|right              hold the ship against that side instead of sweeping (the x limits)
 //   &hurt=1                        every enemy that has a damaged look takes it at its next hit (armour
-//                                  cut to just above its damage level), to look at damaged frames (D86)
-//   &damage=off                    damaged frames as before D86 (extruded sprites where no model)
+//                                  cut to just above its damage level), to look at damaged frames (D87)
+//   &damage=off                    damaged frames as before D87 (extruded sprites where no model)
 //
 // Keys: V switches the effects look, A the sprite art, N the next front weapon, P (or Space) pauses.
 // The bot is the one the episode tests use: invulnerable, always firing, sweeping left and right.
@@ -78,7 +78,7 @@ export async function runPlayHarness(view: View): Promise<void> {
   // The level's models before its first tick (D54); `&preload=0` skips it, to see what a level
   // started without them looks like.
   if (num("preload", 1) !== 0) await preloadLevelModels(view, (text) => (overlay.textContent = text ?? ""));
-  else view.draws.setLevelDamage(levelDamageFrames()); // D86 (preloadLevel sets it otherwise)
+  else view.draws.setLevelDamage(levelDamageFrames()); // D87 (preloadLevel sets it otherwise)
   // A start part-way in (`&skip=`) shows tiles a real run would only reach once the level's later
   // models had loaded in the background: wait for all of them, so the first frame looks as it would.
   if (num("preload", 1) !== 0 && num("skip", 0) > 0) await view.draws.preloadLevel(levelModelInfo());

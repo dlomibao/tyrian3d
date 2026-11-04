@@ -1,4 +1,4 @@
-// Which model draws an enemy's damaged frame (DECISIONS.md D86, docs/agents/DAMAGE-FRAMES.md).
+// Which model draws an enemy's damaged frame (DECISIONS.md D87, docs/agents/DAMAGE-FRAMES.md).
 //
 // When an enemy is hit hard enough the game swaps it to a damaged frame (game.ts: edgr, edani).
 // A damaged frame with a model of its own (spriteModels/*.json) is drawn with it, like any frame.

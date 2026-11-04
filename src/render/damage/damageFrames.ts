@@ -1,4 +1,4 @@
-// An enemy's damaged frame drawn with its intact model (DECISIONS.md D86).
+// An enemy's damaged frame drawn with its intact model (DECISIONS.md D87).
 //
 // Sprite2Router (damageRoute.ts) says which intact model and frame draw a damaged frame. This builds,
 // the first time the frame is drawn, what the model's shaders (damageShader.ts) need to damage it:

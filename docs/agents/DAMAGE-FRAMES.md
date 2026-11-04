@@ -1,6 +1,6 @@
 # Damaged frames
 
-**Decided (D86, 2026-11-03):** the user picked approach D from the proposal on this branch (PR #104):
+**Decided (D87, 2026-11-03):** the user picked approach D from the proposal on this branch (PR #104):
 - **A** for every damaged frame: the enemy's intact model, damaged at runtime by the difference
   between its intact and damaged sprite frames;
 - **C**, a model of its own, only where A can't show the frame.
@@ -18,7 +18,7 @@ frame with the intact model. That frame is then:
 No bake, no data, no script.
 
 Check it in the game with `?debug=play&hurt=1`: every enemy that has a damaged look takes it at its
-next hit. Compare with `&damage=off` (the extruded sprite, as before D86).
+next hit. Compare with `&damage=off` (the extruded sprite, as before D87).
 
 Make a model of the damaged frame itself (C) only if it fails review the way the boss's arm wrecks
 did: the damaged frame is mostly a different picture, debris instead of the piece. A cut and repaint

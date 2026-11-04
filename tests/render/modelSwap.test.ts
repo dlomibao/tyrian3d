@@ -12,7 +12,7 @@
 // - Frame coverage, level 1: each enemy's draws on a tick are one of its model, flat art, the
 //   extruded sprite, or a mix (some tiles one way, some another). An enemy seen two ways over its
 //   life pops on screen. None may: damaged frames (an enemy's look once hit hard enough) are drawn
-//   with a model of their own or with the intact model, damaged by the shader (D86); a destroyed
+//   with a model of their own or with the intact model, damaged by the shader (D87); a destroyed
 //   piece's blank frame draws nothing.
 //
 // MODEL_SWAP_REPORT=1 prints each enemy type's routes, the swaps, the unmodelled damaged frames and
@@ -96,7 +96,7 @@ async function playLevel(main: number, art: SpriteArt<object>, lowArmor: boolean
   s.startLevel();
   s.clearSimInput();
   const preloaded = router.modelsOf(s.levelSprites());
-  router.setDamage(s.levelDamageFrames()); // D86: damaged frames with the intact models
+  router.setDamage(s.levelDamageFrames()); // D87: damaged frames with the intact models
 
   const shown = new Map<string, string>();
   const types = new Map<string, TypeStat>();
@@ -203,7 +203,7 @@ async function playEpisode1(levels: number): Promise<LevelResult[]> {
 const fmtFrames = (m: Map<Look, Set<number>>) => [...m].map(([look, f]) => `${look}: ${[...f].sort((a, b) => a - b).join(",")}`).join("; ");
 
 /**
- * Damaged frames drawn by no model (neither their own nor the intact one, D86), of enemy types whose
+ * Damaged frames drawn by no model (neither their own nor the intact one, D87), of enemy types whose
  * own frames have one.
  */
 function unmodelledDamage(r: LevelResult): string[] {

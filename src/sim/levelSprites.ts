@@ -57,7 +57,7 @@ export interface LevelTile {
 
 /**
  * The damaged frames of every enemy type the current level can make, with the normal frames they
- * replace (levelSprites' enemy types), for drawing them with the intact models (D86,
+ * replace (levelSprites' enemy types), for drawing them with the intact models (D87,
  * render/damage/damageRoute.ts).
  */
 export function levelDamageFrames(): LevelDamage[] {
