@@ -94,6 +94,11 @@ export class StructureInstances {
     this.models.set(name, { parts, rig: rigModel(source), count: 0, paletteVersion: -1, hue: -1, height: 0 });
   }
 
+  /** A loaded model's instanced meshes (none if it isn't loaded), to compile ahead of its first draw (D91). */
+  meshes(name: string): THREE.InstancedMesh[] {
+    return this.models.get(name)?.parts.map((p) => p.mesh) ?? [];
+  }
+
   /** Start a frame: no instances. */
   begin(): void {
     for (const m of this.models.values()) m.count = 0;

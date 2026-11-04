@@ -116,6 +116,9 @@ export class View {
       ? { x0: screenWorldX(f.x), x1: screenWorldX(f.x + f.w), z0: screenWorldZ(f.y), z1: screenWorldZ(f.y + f.h) }
       : PLAYFIELD_RECT;
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    // Shader error checks query every new program's logs, a stall per program on its first use; a
+    // shader that fails to build is a development bug, so production skips them (D91).
+    this.renderer.debug.checkShaderErrors = import.meta.env.DEV;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     // Neutral keeps the palette's hues and brightness closer to the original than ACES does.
@@ -200,9 +203,71 @@ export class View {
     this.screenFilters.setDrawList(list);
   }
 
+  /**
+   * Compile every shader and upload every texture the level can use, before it starts (D91): its
+   * loaded models (opaque and translucent), the draw list's material variants, the HD terrain's
+   * and the sprite art's. Drawn the first time mid-level instead, each new variant stalled a frame
+   * 20-35 ms (130-730 ms over a level's first two frames) and each new model's textures 20-45 ms.
+   * The main and outline passes compile in parallel (compileAsync); one draw of a single pixel per
+   * state then makes the shadow pass's programs and uploads the textures. Models that load later are
+   * warmed a little each frame (warmLate).
+   */
+  async warmUp(): Promise<void> {
+    const warm = this.draws.beginWarmUp(this.camera.position);
+    try {
+      for (const state of warm.states) {
+        state();
+        this.scene.updateMatrixWorld();
+        await Promise.all([this.renderer.compileAsync(this.scene, this.camera), this.outline.compileAsync(this.scene, this.camera, this.scene)]);
+        for (const t of texturesOf(this.scene)) this.renderer.initTexture(t);
+        this.renderPixel();
+      }
+      await this.renderer.compileAsync(this.maskScene, this.maskCamera);
+    } finally {
+      warm.end();
+    }
+  }
+
+  /** Textures of models loaded since the warm-up, uploaded one a frame (warmLate). */
+  private readonly lateTextures: THREE.Texture[] = [];
+
+  /**
+   * Models and structures that loaded after the level's warm-up (they load in the background, D54):
+   * compile their materials in parallel, and upload their textures one a frame, before they're due.
+   */
+  private warmLate(): void {
+    const late = this.draws.takeLateWarm();
+    if (late.length > 0) {
+      // One compile for all of them (each call walks the scene for its lights).
+      const root = new ObjectList(late);
+      void this.renderer.compileAsync(root, this.camera, this.scene);
+      void this.outline.compileAsync(root, this.camera, this.scene);
+      for (const t of texturesOf(root)) if (!this.uploaded(t)) this.lateTextures.push(t);
+    }
+    const t = this.lateTextures.shift();
+    if (t && !this.uploaded(t)) this.renderer.initTexture(t);
+  }
+
+  private uploaded(t: THREE.Texture): boolean {
+    return (this.renderer.properties.get(t) as { __version?: number }).__version === t.version;
+  }
+
+  /** Draw the scene into one pixel of the canvas: as a frame does, but for its side effects (warmUp). */
+  private renderPixel(): void {
+    const r = this.renderer;
+    r.setScissorTest(true);
+    r.setScissor(0, 0, 1, 1);
+    try {
+      this.outline.render(this.scene, this.camera);
+    } finally {
+      r.setScissorTest(false);
+    }
+  }
+
   /** Draw a frame. alpha interpolates between the last two logic ticks (0 = previous, 1 = latest). */
   render(world: World | null, alpha: number): void {
     const drawLists = this.draws.active;
+    this.warmLate();
     if (drawLists !== this.framedForDrawLists) {
       this.framedForDrawLists = drawLists;
       this.resize();
@@ -384,6 +449,40 @@ export function playfieldScreenAspect(tilt: number, rect: FrameRect = PLAYFIELD_
 }
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+
+/**
+ * Objects that stay where they are in the scene, walked as one root by WebGLRenderer.compile and
+ * OutlineEffect.compileAsync (which only traverse it); it has no lights of its own.
+ */
+class ObjectList extends THREE.Object3D {
+  constructor(private readonly list: readonly THREE.Object3D[]) {
+    super();
+  }
+
+  override traverse(callback: (object: THREE.Object3D) => void): void {
+    for (const o of this.list) o.traverse(callback);
+  }
+
+  override traverseVisible(): void {}
+}
+
+/** Every texture the materials under `root` use (their texture properties and shader uniforms). */
+function texturesOf(root: THREE.Object3D): Set<THREE.Texture> {
+  const out = new Set<THREE.Texture>();
+  const add = (v: unknown) => {
+    if ((v as THREE.Texture | null)?.isTexture) out.add(v as THREE.Texture);
+  };
+  root.traverse((o) => {
+    const m = (o as THREE.Mesh).material;
+    if (!m) return;
+    for (const mat of Array.isArray(m) ? m : [m]) {
+      for (const v of Object.values(mat)) add(v);
+      const uniforms = (mat as THREE.ShaderMaterial).uniforms;
+      if (uniforms) for (const u of Object.values(uniforms)) add(u?.value);
+    }
+  });
+  return out;
+}
 
 function makeGridTexture(): THREE.CanvasTexture {
   const size = 256;

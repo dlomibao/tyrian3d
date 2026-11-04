@@ -227,6 +227,11 @@ export class SpriteArtLayer {
     this.instances = n;
   }
 
+  /** Make an atlas's material and batch now, so the level's warm-up compiles it (D91). */
+  warm(sheet: SpriteArtSheet<THREE.Texture>): void {
+    this.batch(sheet, 0);
+  }
+
   /** The batch for an atlas and pass, for tests. */
   peek(sheet: SpriteArtSheet<THREE.Texture>, pass: number): Batch | undefined {
     return this.batches.get(sheet)?.[pass];

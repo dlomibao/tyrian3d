@@ -3,8 +3,10 @@
 //
 // Tyrian 3D change (DECISIONS.md D87): an outline material made for a material that carries
 // userData.damageUniforms (render/damage/damageShader.ts, an enemy drawing a damaged frame on its intact
-// model) cuts away the same pixels as the model, so the ink follows the cut silhouette. The rest is
-// three.js's code unchanged. Types: outlineEffect.d.ts (three's own).
+// model) cuts away the same pixels as the model, so the ink follows the cut silhouette; and
+// compileAsync (D91) compiles the outline materials of a scene or subtree ahead of its first draw;
+// renderOutline swaps materials on visible objects only and keeps its bookkeeping in Maps (D91).
+// The rest is three.js's code unchanged. Types: outlineEffect.d.ts (three's own).
 
 import {
 	DAMAGE_CUT_FRAGMENT,
@@ -60,18 +62,18 @@ class OutlineEffect {
 		// save at the outline material creation and release
 		// if it's unused removeThresholdCount frames
 		// unless keepAlive is true.
-		const cache = {};
+		const cache = new Map();
 
 		const removeThresholdCount = 60;
 
 		// outlineMaterial.uuid -> object.material or
 		// outlineMaterial.uuid -> object.material[ n ]
 		// save before render and release after render.
-		const originalMaterials = {};
+		const originalMaterials = new Map();
 
 		// object.uuid -> originalOnBeforeRender
 		// save before render and release after render.
-		const originalOnBeforeRenders = {};
+		const originalOnBeforeRenders = new Map();
 
 		//this.cache = cache;  // for debug
 
@@ -181,7 +183,7 @@ class OutlineEffect {
 
 		function getOutlineMaterialFromCache( originalMaterial ) {
 
-			let data = cache[ originalMaterial.uuid ];
+			let data = cache.get( originalMaterial.uuid );
 
 			if ( data === undefined ) {
 
@@ -192,7 +194,7 @@ class OutlineEffect {
 					count: 0
 				};
 
-				cache[ originalMaterial.uuid ] = data;
+				cache.set( originalMaterial.uuid, data );
 
 			}
 
@@ -206,7 +208,7 @@ class OutlineEffect {
 
 			const outlineMaterial = getOutlineMaterialFromCache( originalMaterial );
 
-			originalMaterials[ outlineMaterial.uuid ] = originalMaterial;
+			originalMaterials.set( outlineMaterial.uuid, originalMaterial );
 
 			updateOutlineMaterial( outlineMaterial, originalMaterial );
 
@@ -241,7 +243,7 @@ class OutlineEffect {
 
 			}
 
-			originalOnBeforeRenders[ object.uuid ] = object.onBeforeRender;
+			originalOnBeforeRenders.set( object.uuid, object.onBeforeRender );
 			object.onBeforeRender = onBeforeRender;
 
 		}
@@ -254,23 +256,23 @@ class OutlineEffect {
 
 				for ( let i = 0, il = object.material.length; i < il; i ++ ) {
 
-					object.material[ i ] = originalMaterials[ object.material[ i ].uuid ];
+					object.material[ i ] = originalMaterials.get( object.material[ i ].uuid );
 
 				}
 
 			} else {
 
-				object.material = originalMaterials[ object.material.uuid ];
+				object.material = originalMaterials.get( object.material.uuid );
 
 			}
 
-			object.onBeforeRender = originalOnBeforeRenders[ object.uuid ];
+			object.onBeforeRender = originalOnBeforeRenders.get( object.uuid );
 
 		}
 
 		function onBeforeRender( renderer, scene, camera, geometry, material ) {
 
-			const originalMaterial = originalMaterials[ material.uuid ];
+			const originalMaterial = originalMaterials.get( material.uuid );
 
 			// just in case
 			if ( originalMaterial === undefined ) return;
@@ -328,7 +330,7 @@ class OutlineEffect {
 
 				material.transparent = ( outlineParameters.alpha !== undefined && outlineParameters.alpha < 1.0 ) ? true : originalMaterial.transparent;
 
-				if ( outlineParameters.keepAlive !== undefined ) cache[ originalMaterial.uuid ].keepAlive = outlineParameters.keepAlive;
+				if ( outlineParameters.keepAlive !== undefined ) cache.get( originalMaterial.uuid ).keepAlive = outlineParameters.keepAlive;
 
 			} else {
 
@@ -355,47 +357,29 @@ class OutlineEffect {
 
 		function cleanupCache() {
 
-			let keys;
-
-			// clear originalMaterials
-			keys = Object.keys( originalMaterials );
-
-			for ( let i = 0, il = keys.length; i < il; i ++ ) {
-
-				originalMaterials[ keys[ i ] ] = undefined;
-
-			}
-
-			// clear originalOnBeforeRenders
-			keys = Object.keys( originalOnBeforeRenders );
-
-			for ( let i = 0, il = keys.length; i < il; i ++ ) {
-
-				originalOnBeforeRenders[ keys[ i ] ] = undefined;
-
-			}
+			// Tyrian 3D (D91): Maps, cleared, rather than objects whose keys (every material and
+			// object ever outlined) piled up and were listed with Object.keys every frame.
+			originalMaterials.clear();
+			originalOnBeforeRenders.clear();
 
 			// remove unused outlineMaterial from cache
-			keys = Object.keys( cache );
 
-			for ( let i = 0, il = keys.length; i < il; i ++ ) {
+			for ( const [ key, entry ] of cache ) {
 
-				const key = keys[ i ];
+				if ( entry.used === false ) {
 
-				if ( cache[ key ].used === false ) {
+					entry.count ++;
 
-					cache[ key ].count ++;
+					if ( entry.keepAlive === false && entry.count > removeThresholdCount ) {
 
-					if ( cache[ key ].keepAlive === false && cache[ key ].count > removeThresholdCount ) {
-
-						delete cache[ key ];
+						cache.delete( key );
 
 					}
 
 				} else {
 
-					cache[ key ].used = false;
-					cache[ key ].count = 0;
+					entry.used = false;
+					entry.count = 0;
 
 				}
 
@@ -466,11 +450,11 @@ class OutlineEffect {
 			renderer.autoClear = false;
 			renderer.shadowMap.enabled = false;
 
-			scene.traverse( setOutlineMaterial );
+			scene.traverseVisible( setOutlineMaterial ); // Tyrian 3D (D91): hidden objects aren't drawn
 
 			renderer.render( scene, camera );
 
-			scene.traverse( restoreOriginalMaterial );
+			scene.traverseVisible( restoreOriginalMaterial );
 
 			cleanupCache();
 
@@ -478,6 +462,35 @@ class OutlineEffect {
 			scene.background = currentSceneBackground;
 			renderer.autoClear = currentAutoClear;
 			renderer.shadowMap.enabled = currentShadowMapEnabled;
+
+		};
+
+		/**
+		 * Tyrian 3D (D91): compile the outline materials `scene` (a scene or any subtree) would draw
+		 * with, as renderOutline sets them up, without drawing; resolves when they're ready
+		 * (WebGLRenderer.compileAsync, parallel where KHR_parallel_shader_compile allows).
+		 *
+		 * @param {Object3D} scene - What to compile.
+		 * @param {Camera} camera - The camera.
+		 * @param {?Scene} [targetScene=null] - The scene it is drawn in (lights, environment).
+		 * @return {Promise} Resolves once the programs are ready.
+		 */
+		this.compileAsync = function ( scene, camera, targetScene = null ) {
+
+			const currentShadowMapEnabled = renderer.shadowMap.enabled;
+			renderer.shadowMap.enabled = false;
+			scene.traverse( setOutlineMaterial );
+
+			try {
+
+				return renderer.compileAsync( scene, camera, targetScene );
+
+			} finally {
+
+				scene.traverse( restoreOriginalMaterial );
+				renderer.shadowMap.enabled = currentShadowMapEnabled;
+
+			}
 
 		};
 
