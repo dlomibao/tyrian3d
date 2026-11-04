@@ -116,6 +116,9 @@ def warp(stages, c, r):
     return c, r
 
 
+# Frames whose sprite has a see-through pixel inside the object (the pixels' corners in sprite px-edge coords, with the ink pixels round it): the model gets a square shaft cut through hull and tub there, so the top view shows it too.
+HOLE = {f"{NAME}-f3": [(10, 15), (11, 15), (12, 15), (11, 16)], f"{NAME}-f6": [(11, 9)]}
+
 GUN_SPLIT = (2.9, 6.8)  # turret px: the barrel between these stretches, the neck and muzzle beyond move
 
 
@@ -131,8 +134,8 @@ SLOTS = {
     "black": (1, 0.0, 0.9, 0),      # bores, exhaust ports
     "barrel": (7, 0.4, 0.4, 0),
     "ring": (16, 0.3, 0.55, 0),
-    "dome": (22, 0.42, 0.38, 0),
-    "muzzle": (24, 0.42, 0.4, 0),
+    "dome": (22, 0.2, 0.42, 0),     # low metal: a full-metal bronze goes dark chocolate under the
+    "muzzle": (24, 0.2, 0.42, 0),   # game's light, the sprite's dome reads tan / gold
     "lamp": (116, 0.0, 0.3, 3.0),
 }
 ORDER = list(SLOTS)
@@ -683,10 +686,64 @@ def make_direction(base, model, angle, pc, pr, hx, hy, yaw, lamp_dx, lit, coll, 
             if p.material_index == lamp:
                 p.material_index = dark
     hard = {p.index for p in me.polygons if not tur[p.index].value}
+    flag = me.attributes.new("tur_i", "INT", "FACE")
+    flag.data.foreach_set("value", [int(tur[i].value) for i in range(len(me.polygons))])
     me.attributes.remove(me.attributes["turret"])
     finish(obj, hard)
     rigid_normals(obj, rigid)
+    if model in HOLE:
+        cut_hole(obj, me, HOLE[model], S["dark"])
+    me.attributes.remove(me.attributes["tur_i"])
     return obj
+
+
+def cut_hole(obj, me, pixels, slot):
+    """Cut a shaft straight down through the model where the sprite shows through (the pixels: the
+    see-through one plus the ink pixels round it): split every face on the shaft's pixel edges, drop
+    the faces inside it and line it with walls (the `deep` slot). (An exact boolean misjudges the
+    culled, open hull, so this is done by hand.)"""
+    px = set(pixels)
+    box = lambda c, r: ((c - 12) * PX, (c + 1 - 12) * PX, (14 - r - 1) * PX, (14 - r) * PX)  # noqa: E731
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    xs = sorted({(c - 12) * PX for c, r in px} | {(c + 1 - 12) * PX for c, r in px})
+    ys = sorted({(14 - r - 1) * PX for c, r in px} | {(14 - r) * PX for c, r in px})
+    for co, no in [((x, 0, 0), (1, 0, 0)) for x in xs] + [((0, y, 0), (0, 1, 0)) for y in ys]:
+        geom = list(bm.verts) + list(bm.edges) + list(bm.faces)
+        bmesh.ops.bisect_plane(bm, geom=geom, plane_co=co, plane_no=no, dist=1e-7)
+
+    def in_hole(p):
+        return any(box(c, r)[0] < p.x < box(c, r)[1] and box(c, r)[2] < p.y < box(c, r)[3] for c, r in px)
+    tl = bm.faces.layers.int.get("tur_i")
+    uvl = bm.loops.layers.uv.get("bake")
+    # only the hull and the bearing ring are cut: the dome stays whole over the gap, so the game camera sees
+    # a slot between the hull's pieces under the dome's rim, not a shaft through the casting
+    inside = [f for f in bm.faces if in_hole(f.calc_center_median())
+              and (not (tl and f[tl]) or f.material_index == S["ring"])]
+    zs = [v.co.z for f in inside for v in f.verts]
+    # the slot's walls take the bake texel of the highest face cut away (the hull's lit top), so they
+    # shade as the hull's own dark armour instead of an unbaked black
+    top = max(inside, key=lambda f: f.calc_center_median().z, default=None)
+    wall_uv = top.loops[0][uvl].uv.copy() if (top is not None and uvl) else None
+    bmesh.ops.delete(bm, geom=inside, context="FACES")
+    if zs:
+        z0, z1 = min(zs), max(zs)
+        for c, r in px:
+            x0, x1, y0, y1 = box(c, r)
+            # (neighbour pixel, wall from a to b: CCW seen from above, so it faces into the shaft)
+            for (dc, dr), a_, b_ in (((0, 1), (x0, y0), (x1, y0)), ((1, 0), (x1, y0), (x1, y1)),
+                                     ((0, -1), (x1, y1), (x0, y1)), ((-1, 0), (x0, y1), (x0, y0))):
+                if (c + dc, r + dr) in px:
+                    continue
+                f = bm.faces.new([bm.verts.new((a_[0], a_[1], z0)), bm.verts.new((b_[0], b_[1], z0)),
+                                  bm.verts.new((b_[0], b_[1], z1)), bm.verts.new((a_[0], a_[1], z1))])
+                f.material_index = slot
+                if wall_uv is not None:
+                    for lp in f.loops:
+                        lp[uvl].uv = wall_uv
+        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-6)
+    bm.to_mesh(me)
+    bm.free()
 
 
 def rigid_normals(obj, rigid):
@@ -823,7 +880,7 @@ def bake_maps(obj, out_dir, size=512, samples=64):
 
     bronze = {S["dome"], S["muzzle"], S["ring"]}
     for mode, img in (("colour", col_img), ("rm", rm_img)):
-        tmps = {m.name: bake_shader(m, mode, (0.8, 0.88, 1.0) if i in bronze else (1.0, 0.97, 0.93))
+        tmps = {m.name: bake_shader(m, mode, (1.0, 0.98, 0.94) if i in bronze else (1.0, 0.97, 0.93))
                 for i, m in enumerate(mats)}
         bpy.ops.object.bake(type="EMIT", margin=4, use_clear=True)
         for m in mats:

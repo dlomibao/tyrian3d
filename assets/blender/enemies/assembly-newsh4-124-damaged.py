@@ -55,7 +55,7 @@ from mathutils.bvhtree import BVHTree
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tiles"))
 import common  # noqa: E402
-from lib_tiles import mmpx2x  # noqa: E402
+from lib_rock_hd import mmpx2x  # noqa: E402  (moved from lib_tiles with D84)
 
 _spec = importlib.util.spec_from_file_location("nsh4_boss", Path(__file__).with_name("assembly-newsh4-124.py"))
 B = importlib.util.module_from_spec(_spec)

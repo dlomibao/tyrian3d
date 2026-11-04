@@ -13,8 +13,10 @@ each a dark chamfered bar with a light conductor bar in a groove and a bored muz
 brown cranked arm out to the tail and a dark strut through the engine.
 
 The sprite is authoritative (D52, the user's rule; tools/calibration/rubric.md):
-- Plan: the outline follows the sprite mask row by row (pchip nose stations); mirror plane row
-  edge 13.5. Top-view IoU vs the sprite mask 0.96 (area), 0.995 (pixel centres).
+- Plan: the top-view edge goes to the INNER edge of the sprite's ink border (D74,
+  docs/agents/OUTLINE-BORDER.md): body half width 6.5 px, a pchip nose, a 45 degree rear taper to the
+  3.5 px engine, the rails one colour pixel wide (inner row 3, border pixels free) and the arm and
+  strut following the inner mask's steps. Mirror plane row edge 13.5.
 - Features: the bay, lenses, plaque, collar, engine, struts, arms and rails sit on their pixels.
 - Colours: every part takes the palette index of the sprite pixels it covers (trimmed medians:
   nose 5, hull 6, collar 167, bay 4, lip 7, lens 119, core 121, plaque 26, drum 8, nozzle 10, arm
@@ -284,8 +286,8 @@ def cut(target, cutter_bm, mats, coll):
 # Plan outline (half width by column edge, px), fitted to the sprite mask (dark outline pixels
 # included, the hitbox read) row by row: a blunt round nose widening to the seam at column 7, the
 # body at 7.3 px, the collar a touch proud, rounding down to the engine at column 19.
-NOSE_X = [0.0, 0.04, 0.15, 0.4, 1.0, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 6.95]
-NOSE_R = [0.0, 0.9, 1.3, 1.55, 2.0, 2.5, 3.5, 4.3, 4.85, 5.4, 5.85, 6.05]
+NOSE_X = [0.0, 0.5, 1.0, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.2]
+NOSE_R = [0.35, 0.65, 1.05, 1.5, 2.5, 3.45, 3.95, 4.4, 4.8, 5.55, 6.3, 6.5]
 NOSEF = T.pchip(NOSE_X, NOSE_R)
 
 # (x, r, mat of the band that follows)
@@ -298,18 +300,20 @@ def pod_profile():
     for x in [0.5, 0.9, 1.5, 2.2, 3.0, 3.9, 4.9, 6.0, 6.95]:
         p.append((x, NOSEF(x), NOSE))
     p[-1] = (6.95, NOSEF(6.95), LINE)
+    F = lambda x: NOSEF(min(x, 9.2))  # noqa: E731  (the body envelope)
     p += [
-        (6.95, 5.6, LINE), (7.2, 5.6, NOSE),               # seam groove
-        (7.2, 6.15, NOSE), (7.35, 6.4, NOSE), (7.85, 6.62, NOSE), (7.95, 6.5, LINE),  # seam ring band
-        (8.1, 6.5, HULL), (8.15, 6.9, HULL), (8.6, 7.15, HULL), (9.3, 7.35, HULL),
-        (10.85, 7.4, HULL),                               # rib band ahead of the bay
-        (10.95, 7.6, HULL), (11.85, 7.6, HULL), (11.95, 7.4, HULL),
-        (16.7, 7.4, HULL), (17.2, 6.8, HULL), (18.0, 5.9, HULL), (19.0, 4.6, HULL), (19.0, 0.0, HULL),
+        (6.95, F(6.95) - 0.45, LINE), (7.2, F(7.2) - 0.45, NOSE),               # seam groove
+        (7.2, F(7.2), NOSE), (7.35, F(7.35) + 0.12, NOSE), (7.85, F(7.85) + 0.12, NOSE),  # seam ring band
+        (7.95, F(7.95) - 0.05, LINE),
+        (8.1, F(8.1) - 0.05, HULL), (8.15, F(8.15), HULL), (8.6, F(8.6), HULL), (9.3, 6.5, HULL),
+        (10.85, 6.5, HULL),                               # rib band ahead of the bay
+        (10.95, 6.65, HULL), (11.85, 6.65, HULL), (11.95, 6.5, HULL),
+        (16.5, 6.5, HULL), (17.5, 5.5, HULL), (18.5, 4.5, HULL), (19.0, 4.0, HULL), (19.0, 0.0, HULL),
     ]
     return p
 
 
-COLLAR_REAR = [(16.8, 7.55), (17.1, 7.05), (17.5, 6.6), (18.5, 5.6), (18.95, 5.1), (19.1, 4.7)]
+COLLAR_REAR = [(16.4, 6.65), (16.8, 6.3), (17.5, 5.65), (18.5, 4.65), (18.95, 4.15), (19.1, 3.9)]
 
 
 def collar_front(th):
@@ -326,7 +330,7 @@ def collar_shell(bm, segs=SEGS):
     cols = []
     for t in ths:
         xf = collar_front(t)
-        st = [(xf, 7.1), (xf, 7.38), (xf + 0.17, 7.55)] + COLLAR_REAR
+        st = [(xf, 6.3), (xf, 6.5), (xf + 0.15, 6.65)] + COLLAR_REAR
         cols.append([bm.verts.new(ring_pt(x, r, t)) for x, r in st])
     front = bm.verts.new((13.9, AY, 0.0))
     rear = bm.verts.new((19.1, AY, 0.0))
@@ -363,11 +367,11 @@ def build_pod(mats, coll):
     pod = to_obj("pod", bm, mats, coll)
     bm.free()
     rb = rlin(prof)
-    rc = rlin([(14.0, 7.55, 0)] + [(x, r, 0) for x, r in COLLAR_REAR])
+    rc = rlin([(14.0, 6.65, 0)] + [(x, r, 0) for x, r in COLLAR_REAR])
     R = lambda x: max(rb(x), rc(x))  # noqa: E731
     c = bmesh.new()
     # Sensor bay: a recess in the top, columns 12-18 (sprite rows 11-15).
-    block(c, 12.05, 18.15, 11.1, 15.3, 4.9, 10.0, 0.0, BAY)
+    block(c, 12.05, 18.15, 11.1, 15.3, 3.7, 10.0, 0.0, BAY)
     # Nose: a ring line at column 3.6 and two lengthwise lines over the top.
     ring_cut(c, R, 3.6, -1.75, 1.75, LINE, w=0.28, depth=0.25)
     for s in (-1, 1):
@@ -389,7 +393,7 @@ def build_pod(mats, coll):
     # The bay floor takes the bay colour; its walls stay dark line.
     for f in pod.data.polygons:
         cx, cy, cz = f.center
-        if 12.0 < cx < 18.2 and 11.0 < cy < 15.4 and cz > 4.8 and f.normal.z > 0.9 and abs(cz - 4.9) < 0.05:
+        if 12.0 < cx < 18.2 and 11.0 < cy < 15.4 and cz > 3.6 and f.normal.z > 0.9 and abs(cz - 3.7) < 0.05:
             f.material_index = BAY
     return pod
 
@@ -398,60 +402,65 @@ def build_bay(bm):
     """The sensor bay's contents: cooling fins, a dark housing, two red lenses with orange cores,
     a divider, and the grey rear bulkhead (the sprite's column 18)."""
     for x0 in (12.45, 13.3):
-        block(bm, x0, x0 + 0.4, 11.35, 15.05, 4.8, 6.35, 0.08, LINE)
-    block(bm, 14.15, 18.05, 11.55, 15.05, 4.8, 6.0, 0.15, BAY)
+        block(bm, x0, x0 + 0.4, 11.35, 15.05, 3.6, 5.15, 0.08, LINE)
+    block(bm, 14.15, 18.05, 11.55, 15.05, 3.6, 4.8, 0.15, BAY)
     for x0, x1 in ((15.0, 15.98), (17.02, 17.98)):
-        block(bm, x0, x1, 12.0, 15.0, 5.7, 6.85, 0.22, LENS)
-        block(bm, x0 + 0.12, x1 - 0.12, 13.0, 14.0, 6.6, 7.0, 0.12, CORE)
-    block(bm, 16.05, 16.95, 11.75, 15.05, 5.7, 6.7, 0.12, NOSE)
+        block(bm, x0, x1, 12.0, 15.0, 4.5, 5.4, 0.22, LENS)
+        block(bm, x0 + 0.12, x1 - 0.12, 13.0, 14.0, 5.2, 5.6, 0.12, CORE)
+    block(bm, 16.05, 16.95, 11.75, 15.05, 4.5, 5.4, 0.12, NOSE)
     # Rear bulkhead: a raised grey frame across the bay's back edge.
     pts = []
     for y, ch in ((10.95, 1), (15.95, -1)):
-        for x, zt in ((17.98, 7.15), (18.95, 6.25)):
-            pts += [(x, y, 4.8), (x, y + ch * 0.2, zt), (x + (0.18 if x < 18.5 else -0.18), y + ch * 0.2, zt),
+        for x, zt in ((17.98, 5.9), (18.95, 4.9)):
+            pts += [(x, y, 2.9), (x, y + ch * 0.2, zt), (x + (0.18 if x < 18.5 else -0.18), y + ch * 0.2, zt),
                     (x + (0.18 if x < 18.5 else -0.18), y, zt - 0.18), (x, y, zt - 0.18)]
     hull_pts(bm, pts, LIP)
     # Front sill under the rib band.
-    block(bm, 11.75, 12.2, 11.0, 15.6, 4.8, 7.35, 0.1, HULL)
+    block(bm, 11.75, 12.2, 11.0, 15.6, 3.7, 6.35, 0.1, HULL)
 
 
 def build_plate(bm):
     """The brass plaque on the spine (sprite columns 9-11, row 13) and its two rivets."""
-    block(bm, 9.0, 11.85, 12.95, 14.05, 6.6, 7.72, 0.16, PLATE)
+    block(bm, 9.0, 11.85, 12.95, 14.05, 5.7, 6.85, 0.16, PLATE)
     for x in (9.35, 11.45):
-        disc_z(bm, x, 13.5, 7.6, 7.85, 0.18, NOSE, sides=8, ch=0.06)
+        disc_z(bm, x, 13.5, 6.75, 7.0, 0.18, NOSE, sides=8, ch=0.06)
 
 
 def build_engine(bm):
     prof = [
-        (18.9, 0.0, DRUM), (18.9, 4.3, DRUM), (19.05, 4.55, DRUM), (19.75, 4.55, DRUM), (19.9, 4.3, DRUM),
-        (19.9, 3.3, DRUM), (20.05, 3.45, DRUM), (20.25, 3.62, DRUM), (20.45, 3.45, DRUM), (20.65, 3.62, DRUM),
+        (18.9, 0.0, DRUM), (18.9, 3.4, DRUM), (19.05, 3.55, DRUM), (19.75, 3.55, DRUM), (19.9, 3.4, DRUM),
+        (19.9, 3.3, DRUM), (20.05, 3.45, DRUM), (20.25, 3.55, DRUM), (20.45, 3.45, DRUM), (20.65, 3.55, DRUM),
         (20.85, 3.45, DRUM), (21.0, 3.45, BAY),
-        (21.0, 3.0, BAY), (21.9, 3.0, NOZZLE),               # dark groove
-        (21.9, 3.15, NOZZLE), (22.05, 3.52, NOZZLE), (23.75, 3.58, NOZZLE), (24.0, 3.35, NOZZLE),
-        (24.0, 2.95, DEEP),                                  # lip, then the deep inner wall
-        (23.7, 2.8, DEEP), (22.7, 2.45, GLOW), (22.5, 2.2, GLOW), (22.5, 1.55, BAY),
-        (23.0, 1.35, BAY), (23.45, 0.7, BAY), (23.6, 0.0, BAY),          # exhaust plug
+        (21.0, 3.15, BAY), (21.9, 3.15, NOZZLE),               # dark groove
+        (21.9, 3.25, NOZZLE), (22.05, 3.5, NOZZLE), (23.0, 3.5, NOZZLE), (23.3, 3.0, NOZZLE),
+        (24.0, 2.85, NOZZLE),
+        (24.0, 2.45, DEEP),                                  # lip, then the deep inner wall
+        (23.7, 2.4, DEEP), (22.7, 2.1, GLOW), (22.5, 1.9, GLOW), (22.5, 1.45, BAY),
+        (23.0, 1.3, BAY), (23.45, 0.7, BAY), (23.6, 0.0, BAY),          # exhaust plug
     ]
     revolve(bm, prof, segs=24)
 
 
 def build_rail(bm):
-    """The rail: a dark chamfered bar, rows 2-5, columns 8-19.3 (screen-top one)."""
-    block(bm, 8.0, 19.0, 2.05, 4.95, -1.25, 1.45, 0.32, RAIL)
+    """The rail: a dark chamfered bar one colour pixel wide (inner row 3, its ink rows 2 and 4 are
+    free pixels), columns 8.5-20 (screen-top one)."""
+    block(bm, 8.5, 20.0, 2.65, 4.35, -1.1, 1.3, 0.3, RAIL)
 
 
 def rail_cutters(bm):
-    block(bm, 8.75, 16.35, 2.75, 4.25, 0.55, 3.0, 0.0, DEEP)   # groove for the conductor bar
-    block(bm, 7.5, 8.9, 3.0, 4.0, -0.55, 0.55, 0.0, DEEP)      # bored muzzle
-    block(bm, 9.5, 15.0, 1.5, 2.4, -0.3, 0.3, 0.0, DEEP)       # slot down the outer side
+    block(bm, 9.0, 16.35, 2.95, 4.05, 0.5, 3.0, 0.0, DEEP)    # groove for the conductor bar
+    block(bm, 7.5, 9.4, 3.1, 3.9, -0.5, 0.5, 0.0, DEEP)       # bored muzzle
+    block(bm, 9.5, 15.0, 2.4, 2.8, -0.3, 0.3, 0.0, DEEP)      # slot down the outer side
     for i in range(4):                                         # vent louvres at its rear
         x = 15.7 + 0.6 * i
-        block(bm, x, x + 0.3, 1.5, 2.35, -0.75, 0.75, 0.0, DEEP)
+        block(bm, x, x + 0.3, 2.4, 2.85, -0.7, 0.7, 0.0, DEEP)
 
 
-ARM_POLY = [(17.0, 2.9), (19.75, 2.9), (20.05, 4.0), (22.75, 4.0), (23.25, 4.75), (24.0, 5.0), (24.0, 7.95),
-            (20.1, 7.95), (19.0, 6.95), (18.6, 6.0), (18.0, 5.0), (17.0, 4.9)]
+# The arm and strut: the inner mask's steps (rows 4-9, a diagonal from the rail's end out to column 24,
+# then down to the engine drum), convex corners trimmed a little.
+ARM_POLY = [(17.5, 4.0), (20.0, 4.0), (20.0, 4.9), (22.85, 4.9), (23.15, 5.0), (23.1, 5.9), (23.9, 6.0),
+            (24.0, 6.15), (24.0, 6.9), (23.1, 7.0), (23.0, 7.9), (22.1, 8.0), (22.0, 10.6), (20.0, 10.6),
+            (20.0, 9.0), (21.0, 9.0), (21.0, 7.5)]
 
 
 def build_arm(bm):
@@ -460,17 +469,17 @@ def build_arm(bm):
 
 
 def arm_cutters(bm):
-    block(bm, 20.8, 22.9, 4.4, 5.05, 1.3, 3.0, 0.0, LINE)  # pocket in its top
+    block(bm, 20.9, 22.6, 5.25, 5.8, 1.2, 3.0, 0.0, LINE)  # pocket in its top
 
 
 def build_side(bm):
     """Parts of one side that need no cuts: conductor bar, bolts, strut."""
-    block(bm, 9.0, 16.1, 3.0, 4.0, 0.6, 1.38, 0.1, INSERT)
-    disc_z(bm, 18.0, 3.95, 1.6, 2.0, 0.42, POST, sides=8)
-    disc_z(bm, 22.45, 5.95, 1.6, 2.05, 0.55, POST, sides=10)
-    disc_z(bm, 22.45, 5.95, 1.95, 2.2, 0.25, DRUM, sides=8, ch=0.06)
-    tube_y(bm, 21.5, 0.0, 6.6, 10.6, 1.38, 1.15, DRUM, sides=10)
-    tube_y(bm, 21.5, 0.0, 8.9, 9.6, 1.6, 1.38, LIP, sides=10)
+    block(bm, 9.0, 16.1, 3.15, 3.85, 0.5, 1.28, 0.1, INSERT)
+    disc_z(bm, 18.4, 3.75, 1.2, 1.6, 0.35, POST, sides=8)
+    disc_z(bm, 22.45, 5.9, 1.6, 2.05, 0.5, POST, sides=10)
+    disc_z(bm, 22.45, 5.9, 1.95, 2.2, 0.25, DRUM, sides=8, ch=0.06)
+    tube_y(bm, 21.5, 0.0, 7.2, 10.6, 0.7, 1.15, DRUM, sides=10)
+    tube_y(bm, 21.5, 0.0, 8.9, 9.6, 0.85, 1.35, LIP, sides=10)
 
 
 def cut_part(buildf, cutf, mats, coll, name):

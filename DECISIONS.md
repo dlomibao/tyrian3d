@@ -3493,3 +3493,39 @@ runs were at 60 fps.
 
 The cost is drawing the damaged pieces as models instead of instanced sprites, plus their outline
 and shadow passes, as any model costs.
+
+## D88 — Level 1's enemies, the boss and five player ships refitted to the inner edge (D74)
+
+2026-11-03
+
+**Decision:** D74's refit is applied to the models that passed its strict re-review: their top
+views now end on the inner edge of the sprite's ink border, and the game's ink outline draws the
+border. Each passed the acceptance gate, rule IoU >= 0.95 against the inner mask on every frame
+(`tools/sprite_mask.py --measure`, `iou_rule_grid`), with real geometry changes (plans, plates,
+nozzles, pods moved in), not mask warping.
+- **Single-sprite enemies** (fixes on Sonnet 5.5, two second-round fixes escalated to Opus:
+  newsh2-267 and newshp-13; re-reviews on Sonnet): newsh2-127 0.9977, newsh2-159 0.9571,
+  newsh2-171 0.963, newsh2-191 0.9603, newsh2-229 0.9724, newsh2-267 0.9927, newsh2-269 0.9818,
+  newsh2-271 0.9819, newsh2-49 0.9557, newsh2-51 0.9666, newshp-13 0.96 (all frames).
+- **From the bench** (Opus's versions, PLAYBOOK "Bench results"): newsh2-89 0.9904;
+  assembly-newsh2-87 0.9888 for the whole assembly (pieces newsh2-85 0.9933, newsh2-87 0.9536).
+- **Assemblies** (fixes on Opus, re-reviews on Sonnet): assembly-newsh2-3 1.0, assembly-newsh2-9
+  0.9954, assembly-newsh2-123 0.9944, assembly-newsh4-81 0.9583 (its shared `lib_b065.py`, also
+  assembly-newsh4-123's), the boss assembly-newsh4-124 0.9943 (22 pieces rebuilt),
+  assembly-newsh4-195 0.9624, assembly-newsh4-231 0.9568.
+- **Player ships** (fixes on Opus, re-reviews on Sonnet): the USP Talon 0.9535 (rolled and shifted
+  as the game banks it, on every banking frame: chined pods, the ship shortened to the inner edge's
+  length), Dragonwing 0.9567, Nort Ship 0.9963, Silver Ship 0.9613, Supercarrot 0.9699.
+- **Not refitted (failed the re-review, left as they were):** Gencore Phoenix 0.6858, Microcorp
+  Stalker 0.849, U-Ship 0.4393. Their scripts, models and entries are main's; they are being
+  investigated separately.
+- **Shared code:** `usp_talon.py`'s changes are to the Talon's own plan, sections and parts (the
+  helpers other scripts import, `Part`, `plate`, `hull`, `pchip`, `fillet`, `bake_maps`,
+  `cull_hidden`, `POD_UNIT`, ..., are unchanged), so the other ships and enemies built on it build as
+  before. `lib_b065.py` is used only by assembly-newsh4-81 and -123, both refitted.
+- **The boss's wrecks (D87)** are rebuilt from the refitted boss: `assembly-newsh4-124-damaged.py`
+  imports the boss's build, so newsh4-88-d and newsh4-92-d follow its new geometry. (It now imports
+  `mmpx2x` from `lib_rock_hd`, where D84 moved it.)
+
+**Review:** the comparison sheets and measurements are in `tyrian-scratch/inner-refit/<model>/`.
+Fallback: revert the scripts and GLBs listed above.

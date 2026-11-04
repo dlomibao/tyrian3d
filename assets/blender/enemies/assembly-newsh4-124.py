@@ -5,23 +5,27 @@ machine is built once in sprite pixels, cut into its twenty 24 x 28 px pieces
 (common.split_assembly, sprite.json `assemblyLayout`) and, for the eye piece (newsh4-1), given
 three animated eye models: closed (frames 1, 3), open and red (5, 7, 39), glowing (41, 43, 45).
 
-The ORIGINAL SPRITE decides the plan (D52): every part's outline is the sprite's own mask inside
-that part's region (a generous hand-drawn polygon), traced on the pixel edges and smoothed
-(stair midpoints, Douglas-Peucker), so the top view follows the sprite row by row; round parts
-(cables, claws, hooks) take their width from the region's distance field along a centreline;
-the tower's lofts take each row's half width from the mask. Heights and sections are designed
-(cross-sections first):
+The ORIGINAL SPRITE decides the plan (D52): every part's outline is the sprite's INNER mask (D74,
+docs/agents/OUTLINE-BORDER.md: the sprite less its ink border ring, which the game's ink outline
+stands in for) inside that part's region (a generous hand-drawn polygon), traced on the pixel edges
+and smoothed (stair midpoints, Douglas-Peucker), so the top view follows the sprite row by row;
+round parts (cables, claws, hooks) take their width from the region's distance field along a
+centreline; the tower's lofts take each row's half width from the mask. Each side is traced on its
+own half of the sprite (the right built as the left on the mirrored mask, then flipped). The
+hand-set widths (dome, brim, pod cheeks, stinger neck, hull) sit at the inner edge too; the tall
+parts' plan stays inside the sprite (D74: what is nearer the camera draws larger in game). Heights
+and sections are designed (cross-sections first):
 
     part            rows       z (px)        section
     hull / belly    16-73      -5 .. 3.5     chamfered octagon, closed keel
-    rear cap        5.5-13.5   ..16          squircle drum, domed rear end, tan crest + lamp
+    rear cap        7-13.5     ..16          squircle drum, domed rear end, tan crest + lamp
     brim flange     13.5-18.5  ..17          machined ring, chamfered faces, bolts
     drum            18.5-38    ..15 -> 13    squircle drum, axis rising to the rear, lengthwise
                                              steel straps, recessed ladder hatch, red beacon
     collar / neck   33-45      ..10          red ring, steel neck
     eye socket      44.5-54.5  ..8           black housing ring round the eye
     pod             54-70      ..11          red armour cheeks round a slot, vents cut in
-    stinger         72.5-91.5  ..12          dome, raised red stripe, horns, fangs
+    stinger         72.5-91    ..12          dome, raised red stripe, horns rising, fangs
     wings           20-53      -1.5 .. 3.5   armour plate on a core, drooping to the tip,
                                              lit leading-edge spar, panel seam, wingtip blocks
     pylons          3-38       -1 .. 9       ram (horizontal cylinder) + armour block, emblem
@@ -46,7 +50,10 @@ palette materials. Faces no outside ray reaches are culled. Underside: closed, p
 Export as before: twenty pieces cut from the whole machine (common.split_assembly), each to
 enemies/<piece> with its spriteModels entry, the eye piece as three models (newsh4-1 frames 1, 3;
 -f2 frames 5, 7, 39; -f3 frames 41, 43, 45), and an outline shell per piece (D51: one shell of the
-whole machine, cut open at the piece boxes so no seams are outlined).
+whole machine, cut open at the piece boxes so no seams are outlined). The shell keeps about 1200
+faces a piece (12k quads, 24k triangles for the whole): thinned to 1300 its facets were 5-6 px
+across and cut inside the model's curved edges, which thins the game's ink there (the D74 in-game
+survey put the boss's ink band at about 0.3 px).
 
 blender -b --factory-startup --python assets/blender/enemies/assembly-newsh4-124.py -- \
     [--no-bake] [--no-export] [--design-out whole.glb]
@@ -110,8 +117,29 @@ def load_assembly():
 GRID, COLOURS, LAYOUT = load_assembly()
 
 
+def inner_mask():
+    """The sprite's INNER mask (D74, docs/agents/OUTLINE-BORDER.md, tools/sprite_mask.py): every
+    opaque pixel but the ink border ring, which the game's own ink outline stands in for. Thin parts'
+    border pixels (`free`: a part one colour pixel wide inside its ink) stay in, so they keep their
+    width."""
+    sys.path.insert(0, str(GAME_ROOT / "tools"))
+    import sprite_mask
+    m = sprite_mask.masks(GRID, {int(k): tuple(v) for k, v in COLOURS.items()})
+    return [[a or b for a, b in zip(ri, rf)] for ri, rf in zip(m["inner"], m["free"])]
+
+
+INNER = inner_mask()
+# While the right side is built (as the left, then flipped) the mask is read mirrored, so each side's
+# parts trace that side's own pixels (the sprite isn't quite symmetric).
+MIRRORED = [False]
+
+
 def masked(c, r):
-    return 0 <= c < W and 0 <= r < H and GRID[r][c] >= 0
+    """In the inner mask: every part's plan is traced on this (the top view's edge at the inner
+    edge of the sprite's ink border)."""
+    if MIRRORED[0]:
+        c = 120 - c  # column c's centre c + 0.5 mirrored about AX = 60.5
+    return 0 <= c < W and 0 <= r < H and INNER[r][c]
 
 
 def inside(poly, x, y):
@@ -545,6 +573,13 @@ def mirror(P):
     bmesh.ops.reverse_faces(bm, faces=[e for e in dup if isinstance(e, bmesh.types.BMFace)])
 
 
+def flip(P):
+    """Mirror everything in P about the axis, in place."""
+    for v in P.bm.verts:
+        v.co.x = 2 * AX - v.co.x
+    bmesh.ops.reverse_faces(P.bm, faces=P.bm.faces[:])
+
+
 def to_object(P, name, mats, coll, smooth_angle=32.0):
     bm = P.bm
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-4)
@@ -683,8 +718,9 @@ def build_centre(P):
         run[r] = AX - c
     def hwr(r):
         return min(run.get(r + k, 99) for k in (-1, 0, 1)) - 0.6
-    st = [(16.5, 11.5)] + [(r + 0.5, 31.7 if 51 < r < 56 else max(4.0, min(30.0, hwr(r)))) for r in range(18, 57, 2)] + [
-        (57.5, 16.9), (62.4, 16.9), (63.0, 11.0), (69.5, 10.8), (70.6, 9.0), (72.5, 8.0), (74.5, 5.0)]
+    st = [(16.5, 11.5)] + [(r + 0.5, 30.6 if 51 < r < 56 else max(4.0, min(30.0, hwr(r)))) for r in range(18, 57, 2)] + [
+        (57.5, 16.9), (61.6, 16.9), (62.1, 11.2), (63.0, 10.2), (67.6, 10.1), (68.5, 9.2), (70.6, 8.1), (72.5, 7.1),
+        (74.5, 4.8)]
     rings = []
     for y, hw in st:
         # a deep keel, deepest under the drum and wings: the machine's mass from the side (plain)
@@ -703,31 +739,33 @@ def build_centre(P):
     HC, HD = 10.0, 11.4  # dome cap / drum half heights: a tall crowned drum (mass from the side)
     # axis height: rises toward the rear
     zc = pchip([5.5, 14, 19, 37, 40], [9.6, 9.4, 8.6, 6.2, 5.4])
-    cap_rows = [6.1, 6.4, 6.8, 7.5, 8.5, 9.5, 11.0, 12.5, 13.6]
-    capw = pchip([5.5, 6.5, 7.5, 8.5, 9.5, 13.6], [4.5, hwc[6.5] - 0.2, hwc[7.5] - 0.2, hwc[8.5] - 0.1, 10.5, 10.5])
+    # (the inner mask, D74: the dome's rear edge is row 7, its sides one column in on rows 7-11)
+    cap_rows = [7.1, 7.4, 7.8, 8.5, 9.4, 10.4, 11.5, 12.5, 13.6]
+    capw = pchip([6.6, 7.5, 8.5, 9.5, 10.5, 11.6, 12.5, 13.6],
+                 [4.2, hwc[7.5] - 0.2, hwc[8.5] - 0.2, hwc[9.5] - 0.15, hwc[10.5] - 0.15, hwc[11.5] - 0.1, 10.4, 10.4])
     rings = []
     for y in cap_rows:
         hw = capw(y)
-        f = max(0.0, min(1.0, (y - 5.5) / 4.2))
+        f = max(0.0, min(1.0, (y - 6.6) / 4.0))
         hz = HC * math.sqrt(max(0.05, 1 - (1 - f) ** 2))
         rings.append(tower_ring(y, hw, zc(y), hz, p=2.3, zfloor=-0.5))
-    rings.insert(0, [(AX, 5.95, zc(5.5) + 1.2)])
+    rings.insert(0, [(AX, 6.95, zc(6.6) + 1.2)])
     loft(P, rings, DOME)
     # rear service hatch on the dome's back face: a plate with louvres and a step ring round it
     # (below the dome's crown, so the top view is unchanged; it breaks up the rear view)
-    z0 = zc(6.0)
-    hull(P, cbox(AX - 4.0, AX + 4.0, 6.0, 8.0, z0 - 4.4, z0 + 1.4, 0.35), STEEL)
+    z0 = zc(7.0)
+    hull(P, cbox(AX - 4.0, AX + 4.0, 7.0, 9.0, z0 - 4.4, z0 + 1.4, 0.35), STEEL)
     for dz in (-3.4, -1.9, -0.4):
-        hull(P, cbox(AX - 3.3, AX + 3.3, 5.85, 6.6, z0 + dz, z0 + dz + 0.75, 0.15), NOZZLE)
+        hull(P, cbox(AX - 3.3, AX + 3.3, 6.85, 7.6, z0 + dz, z0 + dz + 0.75, 0.15), NOZZLE)
     for dx in (-4.6, 4.6):  # hinge lugs either side
-        hull(P, cbox(AX + dx - 0.6, AX + dx + 0.6, 6.4, 8.0, z0 - 3.6, z0 + 0.6, 0.2), LGREY)
+        hull(P, cbox(AX + dx - 0.6, AX + dx + 0.6, 7.6, 9.2, z0 - 3.6, z0 + 0.6, 0.2), LGREY)
     # crest: a raised tan rib up the cap to the brim, with a lamp at its top
     crest = [(9.6, 0.0), (10.2, 1.4), (11.0, 2.0), (13.6, 2.2)]
     for i in range(len(crest) - 1):
         pass
     cr = []
     for y, w in crest:
-        ztop = zc(y) + HC * math.sqrt(max(0.05, 1 - (1 - max(0, min(1, (y - 5.5) / 4.2))) ** 2))
+        ztop = zc(y) + HC * math.sqrt(max(0.05, 1 - (1 - max(0, min(1, (y - 6.6) / 4.0))) ** 2))
         cr.append([(AX - w, y, ztop - 0.8), (AX - w * 0.7, y, ztop + 0.5), (AX + w * 0.7, y, ztop + 0.5),
                    (AX + w, y, ztop - 0.8)] if w > 0 else [(AX, y, ztop - 0.2)])
     cr = [ring if len(ring) == 4 else ring for ring in cr]
@@ -737,7 +775,7 @@ def build_centre(P):
     cyl(P, AX - 1.5, 10.6, cr[1][1][2] - 0.25, 0.75, 0.33, LENS, n=10)  # flush lens (the sprite's 79 pair)
 
     # brim flange (rows 13.5-18.5): a machined ring, chamfered fore and aft
-    bw = pchip([13.4, 14.5, 15.5, 16.5, 18.5], [10.4, 12.4, 14.4, 15.4, 15.4])
+    bw = pchip([13.4, 14.6, 15.5, 16.4, 17.6, 18.6], [10.3, 10.6, 12.9, 14.5, 14.5, 15.3])  # the inner mask
     b_rows = [13.4, 14.2, 15.0, 15.8, 16.6, 17.6, 18.2, 18.6]
     rings = [tower_ring(y, bw(y), zc(y), HD + 0.9 * min(1, (y - 13.4) / 2.0), p=2.4) for y in b_rows]
     loft(P, rings, BRIM)
@@ -814,7 +852,7 @@ def build_centre(P):
     hwp = dict(half_widths(66, 76, 49, 72))
     lp_rows = [66.0, 68.5, 70.5, 72.5, 74.5, 76.0]
     lpw = pchip([66.0, 68.5, 70.5, 72.5, 74.5, 76.0], [10.4, hwp.get(68.5, 10.5) - 0.2, hwp.get(70.5, 9.5) - 0.3,
-                                                       hwp.get(72.5, 7.5) - 0.05, 6.2, 5.0])
+                                                       hwp.get(72.5, 7.5) - 0.05, 5.3, 4.8])
     loft(P, [tower_ring(y, lpw(y), 2.0, 4.6 - (y - 66) * 0.12, n=20, p=2.4, zfloor=-3.0) for y in lp_rows], BLACK)
 
     build_stinger(P)
@@ -839,16 +877,16 @@ def build_pod(P):
 
     # dark core in the slot and under the cheeks
     loft(P, [tower_ring(y, w, ZP, h, n=16, p=2.2, zfloor=-2.5) for y, w, h in
-             ((54.0, 5.5, 3.0), (55.5, 9.0, 5.0), (58.0, 10.5, 5.8), (64.0, 10.5, 5.8), (67.5, 10.0, 5.0))], BLACK)
+             ((54.0, 5.5, 3.0), (55.5, 9.0, 5.0), (58.0, 10.3, 5.8), (64.0, 10.3, 5.8), (67.5, 9.4, 5.0))], BLACK)
     for side in (-1, 1):
         prism_y(side, [(54.1, ridge(0.55)), (55.4, ridge(0.72)), (57.2, ridge(0.9)), (58.8, ridge(1.0)), (66.1, ridge(1.0)),
                        (67.3, ridge(0.85))], PODRED)
-        prism_y(side, [(58.3, block(10.6, 5.3, 4.3)), (65.5, block(10.6, 5.3, 4.3))], VENT)
-        prism_y(side, [(55.9, block(6.0)), (57.7, block(8.6)), (59.1, block(10.6)), (59.5, block(10.6))], PODRED)
-        prism_y(side, [(65.1, block(11.2)), (66.7, block(11.2)), (67.8, block(10.4, 6.0, 3.6))], PODRED)
-        prism_y(side, [(59.3, [(8.6, B), (8.6, 6.7), (9.6, 6.0), (10.6, 4.1), (10.6, B)]),
-                       (62.6, [(8.6, B), (8.6, 6.7), (9.6, 6.0), (10.6, 4.1), (10.6, B)]),
-                       (65.3, [(8.6, B), (8.6, 6.7), (9.6, 6.0), (11.2, 4.1), (11.2, B)])], PODRED)
+        prism_y(side, [(58.3, block(10.2, 5.3, 4.3)), (65.5, block(10.2, 5.3, 4.3))], VENT)
+        prism_y(side, [(55.9, block(6.0)), (57.7, block(8.6)), (59.1, block(10.3)), (59.5, block(10.3))], PODRED)
+        prism_y(side, [(65.1, block(10.3)), (66.7, block(10.3)), (67.8, block(9.5, 6.0, 3.6))], PODRED)
+        prism_y(side, [(59.3, [(8.6, B), (8.6, 6.7), (9.6, 6.0), (10.3, 4.1), (10.3, B)]),
+                       (62.6, [(8.6, B), (8.6, 6.7), (9.6, 6.0), (10.3, 4.1), (10.3, B)]),
+                       (65.3, [(8.6, B), (8.6, 6.7), (9.6, 6.0), (10.3, 4.1), (10.3, B)])], PODRED)
         # inner red cheek strip: the vent is a narrow slot (cols 52-54 / 66-68), as the sprite
         prism_y(side, [(58.3, [(5.4, B), (5.4, 7.7), (6.3, 7.5), (6.3, B)]),
                        (65.5, [(5.4, B), (5.4, 7.7), (6.3, 7.5), (6.3, B)])], PODRED)
@@ -861,21 +899,21 @@ def build_pod(P):
 
 def build_stinger(P):
     hws = dict(half_widths(73, 92, 47, 74))
-    rows = [72.6, 73.5, 74.5, 75.5, 76.5, 77.5, 79.0, 81.0, 83.0, 84.5, 85.5, 86.5, 87.5, 88.5, 89.5, 90.5,
-            91.3, 91.8]
+    rows = [72.6, 73.5, 74.5, 75.5, 76.5, 77.5, 78.05, 79.0, 80.9, 81.0, 83.0, 84.5, 85.5, 86.5, 87.5, 88.5, 89.5,
+            90.3, 90.8]
     # the mask's half width per row (the horns at rows 75-79 left out: they are built separately)
-    raw = {72.6: 6.4, 73.5: 6.6, 74.5: 6.6, 75.5: 6.6, 76.5: 6.9}
+    raw = {72.6: 6.4, 73.5: 5.9, 74.5: 5.4, 75.5: 5.4, 76.5: 5.6, 77.5: 6.4, 78.05: 11.3, 80.9: 11.3}
     def hw_at(y):
         if y in raw:
             return raw[y]
         return hws.get(math.floor(y) + 0.5, 0.0)
-    hz = pchip([72.6, 74.5, 76.5, 78.5, 81.5, 84.5, 87.5, 89.5, 91.0, 91.8], [3.0, 5.5, 9.0, 11.3, 12.0, 11.4, 9.2, 6.6, 3.6, 1.2])
+    hz = pchip([72.6, 74.5, 76.5, 78.5, 81.5, 84.5, 87.5, 89.5, 90.4, 91.0], [3.0, 5.5, 9.0, 11.3, 12.0, 11.4, 9.2, 6.6, 3.6, 1.2])
     zc = -0.5
     rings = []
     for y in rows:
         hw = max(0.6, hw_at(y) - 0.05)
         rings.append(sec_loop(AX, y, hw, zc, hz(y), n=20, p=2.3, zfloor=-3.5))
-    rings.append([(AX, 92.0, -0.5)])
+    rings.append([(AX, 91.05, -0.5)])
     mats = []
     for y in rows:  # grey shell (the sprite's 3-7 flanks), the dark bronze lip, a dark tip (the 1-2 shade)
         mats.append(STING if y < 86.5 else DBROWN if y < 89.2 else BLACK)
@@ -908,8 +946,8 @@ def build_stinger(P):
     loft(P, srings, STRIPE)
     # horns: crescent blades rising off the stinger's shoulders (cols 49-51 / 69-71, rows 75-79)
     for side in (-1, 1):
-        path = [(AX + side * 8.0, 80.4, 7.4), (AX + side * 9.2, 78.4, 7.8), (AX + side * 10.3, 76.6, 8.4),
-                (AX + side * 11.0, 75.4, 8.9), (AX + side * 11.6, 74.7, 9.2)]
+        path = [(AX + side * 8.0, 80.4, 7.4), (AX + side * 9.0, 79.2, 8.2), (AX + side * 9.8, 78.4, 9.3),
+                (AX + side * 10.3, 77.9, 10.4), (AX + side * 10.6, 77.6, 11.2)]
         sweep(P, path, [(1.0, 0.55), (0.95, 0.5), (0.8, 0.42), (0.55, 0.3), (0.0, 0.0)], DGREY,
               profile=[(1, 0), (0, 1), (-1, 0), (0, -1)])
     # small fangs under the stinger's front rim (rows 89-91)
@@ -927,7 +965,7 @@ def build_stinger(P):
 
 def build_left(P):
     # --- wing: core plate + two armour panels + lit leading-edge spar, drooping to the tip ---
-    wing = offset_poly(trace(region(R_WING), 0.55), 0.2)
+    wing = offset_poly(trace(region(R_WING), 0.4), 0.15)
     def droop(x, y):  # wing top: anhedral, high at the root, low at the tip (blueprint)
         t = max(0.0, min(1.0, (x - 5) / 36))
         return 6.4 + 4.2 * t + 0.6 * max(0.0, min(1.0, (40 - y) / 18)) - 0.3 * max(0.0, y - 37.0)
@@ -954,7 +992,8 @@ def build_left(P):
             sweep(P, [(x, y, droop(x, y) + 0.02) for x, y in pts], [(0.85, 0.2)] * len(pts), WBAND,
                   profile=[(1.0, -1.0), (1.0, 0.4), (0.6, 1.0), (-0.6, 1.0), (-1.0, 0.4), (-1.0, -1.0)])
     # leading-edge spar (the sprite's light ridge along the wing's upper edge)
-    lead = [(5.2, 22.6), (13.0, 25.0), (23.0, 29.6), (33.6, 34.6)]
+    # (on the inner edge's line, y = 24 + (x - 12) / 2, moved in by the spar's half width)
+    lead = [(6.2, 21.9), (12.7, 25.1), (22.7, 30.1), (32.7, 35.1)]
     sweep(P, [(x, y, droop(x, y)) for x, y in catmull(lead, 3)], [(0.75, 0.55)] * len(catmull(lead, 3)), RIDGE, n=6)
     # bolts on the armour panels
     for x, y in ((14, 30.5), (20, 33.5), (26, 36.5), (22, 42.0), (27.5, 47.0), (30.0, 41.0)):
@@ -988,7 +1027,7 @@ def build_left(P):
         cx, hw = (ex[0] + ex[1]) / 2, (ex[1] - ex[0]) / 2
         loft(P, [sec_loop(cx, y - 0.5, hw - 0.05, ZRAM, 3.4, n=16, zfloor=ZRAM - 3.0),
                  sec_loop(cx, y + 0.5, hw - 0.05, ZRAM, 3.4, n=16, zfloor=ZRAM - 3.0)], STEEL)
-    pyl = offset_poly(trace(region(R_PYLON), 0.5), 0.2)
+    pyl = offset_poly(trace(region(R_PYLON), 0.45), 0.2)
     def ptilt(x, y):  # the arm rises toward its outer rear end (blueprint)
         return 3.0 * max(0.0, min(1.0, (44 - x) / 25))
     prism(P, pyl, 5.0, 11.8, GREY, ch=0.8, chb=0.5, tilt=ptilt)
@@ -1005,7 +1044,7 @@ def build_left(P):
     band = [(28.0, 17.8), (45.0, 17.8), (45.6, 20.6), (29.5, 20.6)]
     prism(P, band, 11.0, 12.15, BROWN, ch=0.2, chb=0.0, tilt=ptilt)
     # bright bar down to the drum's side (col 37-38, rows 22-35)
-    hull(P, cbox(36.8, 38.6, 21.5, 35.0, 10.2 + ptilt(37.5, 0), 13.1 + ptilt(37.5, 0), 0.35), LGREY)
+    hull(P, cbox(37.3, 39.0, 21.5, 35.0, 10.2 + ptilt(37.5, 0), 13.1 + ptilt(37.5, 0), 0.35), LGREY)
     # lower bolts
     for x, y in ((40.5, 25.0), (40.5, 31.0), (33.0, 12.5), (42.0, 13.5)):
         cyl(P, x, y, 12.4 + ptilt(x, y) if y < 17 else 11.6 + ptilt(x, y), 0.45, 0.45, LGREY, n=6)
@@ -1013,7 +1052,7 @@ def build_left(P):
     # --- twin rear thrusters under the pylon: deep nozzles opening to the rear, set just inside
     # its slanted back edge (hidden from the top; they break up the rear face)
     NZ, NR = 3.2, 2.3
-    for NX, Y0 in ((31.6, 8.8), (38.6, 10.8)):
+    for NX, Y0 in ((31.6, 9.6), (38.6, 12.9)):
         rings = [[(NX, Y0 + 7.2, NZ)], sec_loop(NX, Y0 + 6.8, NR - 0.4, NZ, NR - 0.4, n=16),
                  sec_loop(NX, Y0 + 6.2, NR, NZ, NR, n=16), sec_loop(NX, Y0 + 1.2, NR, NZ, NR, n=16),
                  sec_loop(NX, Y0 + 0.4, NR + 0.15, NZ, NR + 0.15, n=16), sec_loop(NX, Y0, NR - 0.15, NZ, NR - 0.15, n=16),
@@ -1029,10 +1068,10 @@ def build_left(P):
 
     # rear face of the pylon block: inset service panels with steel straps over the thrusters
     # (the block's back edge runs from (26.5, 4) to (44.6, 10); its outward normal points to the rear)
-    ex, ey = 18.1 / 19.07, 6.0 / 19.07
+    ex, ey = 2 / 5 ** 0.5, 1 / 5 ** 0.5
     nx, ny = ey, -ex
     for cxp in (31.2, 38.4):
-        cyp = 4.0 + (cxp - 26.5) * 6.0 / 18.1 + 0.25
+        cyp = 5.5 + (cxp - 27.0) * 0.5 + 0.75
         zb = 6.4 + ptilt(cxp, cyp)
 
         def obox(u0, u1, d0, d1, z0, z1, mat):
@@ -1054,12 +1093,11 @@ def build_left(P):
     mid = centre_on(field, guide[1:-1], 1.2)
     guide = [guide[0]] + mid + [guide[-1]]
     # the sprite's cable lies a little further in along its curve (rows 10-17)
-    guide = [(x + 0.25 * (1.0 if 9 < y < 18 else 0.0), y + 0.15 * (1.0 if 9 < y < 18 else 0.0)) for x, y in guide]
     path2 = catmull(guide, 2)
     zs = pchip([0, 0.25, 0.6, 1.0], [ZRAM, ZRAM + 1.0, 12.4, 8.6])
     L = len(path2) - 1
     path3 = [(x, y, zs(i / L)) for i, (x, y) in enumerate(path2)]
-    hws = [max(1.0, min(2.2, field(x, y) + 0.5)) for x, y in path2]
+    hws = [max(0.8, min(1.9, field(x, y) + 0.15)) for x, y in path2]
     for k in (-1, 0, 1):
         pts = []
         rad = []
@@ -1079,11 +1117,11 @@ def build_left(P):
         sweep(P, seg, [(hws[i] + 0.05, hws[i] * 0.55 + 0.25)] * len(seg), STEEL, n=8)
 
     # --- red panels (rows 39-44) and hull plates between the wing and the chevron ---
-    prism(P, trace(region(R_REDPANEL), 0.5), 4.0, 10.6, RED, ch=0.6, chb=0.0)
+    prism(P, trace(region(R_REDPANEL), 0.3), 4.0, 10.6, RED, ch=0.6, chb=0.0)
     hull(P, cbox(37.5, 42.5, 44.5, 56.5, 4.5, 7.4, 0.4), DGREY)
 
     # --- chevron: the V armour plate, lit outer bevel ---
-    chev = trace(region(R_CHEV), 0.6)
+    chev = trace(region(R_CHEV), 0.3)
     def ctop(x, y):  # the yoke: highest over the neck, lower toward the shoulders (blueprint)
         return 11.8 + 1.4 * max(0.0, min(1.0, (x - 30) / 28)) - 1.2 * max(0.0, min(1.0, (y - 50) / 22))
     prism(P, chev, 5.0, ctop, CHEV, ch=1.1, chb=0.5)
@@ -1100,7 +1138,7 @@ def build_left(P):
             cyl(P, x, y, ctop(x, y) - 0.2, 0.5, 0.4, LGREY, n=6)
 
     # --- shoulder: a block with a recessed red window in a light frame ---
-    sh = trace(region(R_SHOULDER), 0.5)
+    sh = trace(region(R_SHOULDER), 0.3)
     prism(P, sh, -3.0, 10.0, GREY, ch=0.9, chb=2.6)  # undercut: the piston rides under it
     # window frame (proud) and recessed red glass (cols 16-21, rows 62-67)
     prism(P, [(14.9, 60.9), (23.1, 60.9), (23.1, 69.1), (14.9, 69.1)], 8.0, 10.8, LGREY, ch=0.4, chb=0.0)
@@ -1109,21 +1147,22 @@ def build_left(P):
     # top light strip on the shoulder's rear edge (cols 18-23, rows 58-60)
     hull(P, cbox(17.8, 23.4, 57.8, 60.4, 9.2, 10.6, 0.35), LGREY)
     # forearm block with a triangular red window
-    fa = trace(region(R_FOREARM), 0.5)
+    fa = trace(region(R_FOREARM), 0.3)
     prism(P, fa, -3.0, 7.4, GREY, ch=0.6, chb=2.2)
     prism(P, [(17.6, 72.1), (22.9, 72.1), (22.9, 74.0), (18.3, 77.5)], 6.0, 7.55, BLACK, ch=0.0, chb=0.0)
     prism(P, [(18.0, 72.5), (22.5, 72.5), (22.5, 73.6), (18.6, 76.9)], 6.0, 7.75, WIN, ch=0.25, chb=0.0)
-    hull(P, cbox(15.2, 23.6, 70.3, 71.5, 6.8, 8.0, 0.3), LGREY)
+    hull(P, cbox(16.9, 23.6, 70.3, 71.5, 6.8, 8.0, 0.3), LGREY)
     # wrist
-    wr = trace(region(R_WRIST), 0.5)
+    wr = trace(region(R_WRIST), 0.3)
     prism(P, wr, -3.0, 5.6, GREY, ch=0.6, chb=2.0)
     # hydraulic piston along the outer flank, shoulder to wrist (seen from the side)
-    sweep(P, [(16.4, 60.0, -1.7), (17.6, 85.0, -1.7)], [(0.7, 0.7)] * 2, STEEL, n=8)
-    sweep(P, [(16.5, 62.0, -1.7), (17.0, 73.0, -1.7)], [(1.05, 1.05)] * 2, DGREY, n=8)
+    # (a pixel in from the flank: the inner edge, cols 16-17 on rows 70-85)
+    sweep(P, [(17.2, 60.0, -1.7), (18.4, 85.0, -1.7)], [(0.7, 0.7)] * 2, STEEL, n=8)
+    sweep(P, [(17.3, 62.0, -1.7), (17.8, 73.0, -1.7)], [(1.05, 1.05)] * 2, DGREY, n=8)
     for y0 in (61.0, 83.0):  # clevis lugs
-        hull(P, cbox(15.6, 18.6, y0, y0 + 2.0, -3.0, -0.4, 0.3), STEEL)
+        hull(P, cbox(16.9, 19.6, y0, y0 + 2.0, -3.0, -0.4, 0.3), STEEL)
     # tan blade hanging below the shoulder (cols 24-28, rows 68-79), a standing fin
-    bl = trace(region(R_BLADE), 0.5)
+    bl = trace(region(R_BLADE), 0.3)
     prism(P, bl, -1.0, 10.6, BLADE, ch=0.7, chb=0.4)
     # the dark root block under the blade (cols 24-26, rows 76-80: the sprite's 1-5 shading)
     rb = trace(region([(23.6, 75.6), (27.0, 75.6), (27.0, 81.0), (23.6, 81.0)]), 0.5)
@@ -1133,23 +1172,18 @@ def build_left(P):
     claw = region(R_CLAW)
     fc = Field(claw)
     guide = [(20.0, 82.0), (20.0, 85.5), (20.2, 89.0), (20.8, 92.5), (22.2, 95.8), (24.2, 98.8), (26.8, 101.8),
-             (29.8, 104.0), (33.0, 105.5), (36.2, 106.0)]
+             (29.8, 104.0), (33.0, 105.3), (35.8, 105.6)]
     mid = centre_on(fc, guide[1:-1], 1.6)
     g2 = catmull([guide[0]] + mid + [guide[-1]], 3)
-    tipx = (38.9, 105.9)
+    tipx = (37.4, 105.7)
     hw = [max(0.2, fc(x, y)) for x, y in g2]
     hw[0] = hw[1]
-    hw = [min(h + 0.6, 4.8) for h in hw]
-    # the blade section sits a little outboard of the region's ridge on its outer curve (rows 88-101)
-    # and lower toward the tip (the sprite's outer and lower edge pixels)
-    def ramp(y, a, b, c, d):  # 0 below a, 1 between b and c, 0 above d
-        return max(0.0, min(1.0, (y - a) / (b - a), (d - y) / (d - c)))
-    hw = [h - 0.35 * ramp(y, 85, 87, 92, 94) for h, (x, y) in zip(hw, g2)]
-    g2 = [(x - 0.15 * ramp(y, 85, 87, 92, 94) - 0.65 * ramp(y, 93, 96, 101, 104), y) for x, y in g2]
+    hw = [min(h + 0.3, 4.4) for h in hw]
+    # (on the inner region's ridge: no shift toward the outer edge's pixels)
     L = len(g2)
     zcl = pchip([0, 0.3, 0.65, 1.0], [1.6, 0.6, -3.2, -6.6])  # mandibles reach down (blueprint)
     path = [(x, y, zcl(i / L)) for i, (x, y) in enumerate(g2)] + [(tipx[0], tipx[1], -7.0)]
-    hw = [h * (1.0 - 0.15 * max(0.0, (i / L - 0.7) / 0.3)) for i, h in enumerate(hw)]
+    hw = [h * (1.0 - 0.05 * max(0.0, (i / L - 0.7) / 0.3)) for i, h in enumerate(hw)]
     rad = [(h, h * 0.95) for h in hw] + [(0.0, 0.0)]
     sweep(P, path, rad, CLAW, profile=hexblade())
     # a steel ferrule where the claw leaves the wrist
@@ -1160,13 +1194,13 @@ def build_left(P):
     hk = region(R_HOOK)
     fh = Field(hk)
     guide = [(27.0, 73.4), (27.2, 76.0), (27.7, 79.0), (28.8, 81.6), (30.6, 83.6), (33.4, 85.6), (36.5, 87.2),
-             (39.5, 88.0), (42.4, 89.0)]
+             (39.5, 87.8), (42.0, 88.4)]
     mid = centre_on(fh, guide[1:-1], 1.0)
     g2 = catmull([guide[0]] + mid + [guide[-1]], 3)
-    hw = [max(0.6, min(2.5, fh(x, y) + 0.55)) for x, y in g2]
+    hw = [max(0.6, min(2.3, fh(x, y) + 0.35)) for x, y in g2]
     L = len(g2)
     zh = pchip([0, 0.5, 1.0], [3.4, 0.6, -3.6])
-    path = [(x, y, zh(i / L)) for i, (x, y) in enumerate(g2)] + [(45.2, 89.4, -4.0)]
+    path = [(x, y, zh(i / L)) for i, (x, y) in enumerate(g2)] + [(43.6, 88.7, -4.0)]
     rad = [(h, h * 0.9) for h in hw] + [(0.0, 0.0)]
     sweep(P, path, rad, HOOK, n=10)
 
@@ -1256,7 +1290,18 @@ def build(sprite, coll):
     mats = materials(sprite)
     P = Part()
     build_left(P)
-    mirror(P)
+    R = Part()  # the right side: built as the left on the mirrored mask, then flipped across
+    MIRRORED[0] = True
+    try:
+        build_left(R)
+    finally:
+        MIRRORED[0] = False
+    flip(R)
+    me = bpy.data.meshes.new("right_tmp")
+    R.bm.to_mesh(me)
+    R.bm.free()
+    P.bm.from_mesh(me)
+    bpy.data.meshes.remove(me)
     build_centre(P)
     return to_object(P, NAME, mats, coll), mats
 
@@ -1475,7 +1520,7 @@ def bake_piece(obj, out_dir, size=512, samples=48, colour_mul=None):
         nt.links.new(sep.outputs[2], bsdf.inputs["Metallic"])
 
 
-def whole_shell(obj, coll, voxel=0.016, faces=1300, smooth=4):
+def whole_shell(obj, coll, voxel=0.016, faces=12000, smooth=4):
     """common.outline_shell for the whole machine (D51), keeping every outer island: a voxel
     remesh of the closed build (before the hidden faces are culled), smoothed and thinned. Islands
     that lie inside another island's box are inner shells and are dropped; the separate outer parts
@@ -1505,16 +1550,27 @@ def whole_shell(obj, coll, voxel=0.016, faces=1300, smooth=4):
             stack.extend(e.other_vert(x) for e in x.link_edges)
         islands.append(isl)
 
-    def box(isl):
-        return [min(v.co[k] for v in isl) for k in range(3)] + [max(v.co[k] for v in isl) for k in range(3)]
-    boxes = [box(i) for i in islands]
-
-    def within(a, b):
-        return all(a[k] > b[k] + 1e-4 for k in range(3)) and all(a[k + 3] < b[k + 3] - 1e-4 for k in range(3))
+    # An inner shell (the wall of a void closed inside the build) faces inward: its signed volume is
+    # negative. Those go, and voxel crumbs. (A box test dropped separate outer parts lying inside another island's
+    # box, such as one side's pylon armour, leaving them with no ink outline.)
+    def volume(isl):
+        ids = {v.index for v in isl}
+        faces = {f for v in isl for f in v.link_faces}
+        vol = 0.0
+        for f in faces:
+            if f.verts[0].index not in ids:
+                continue
+            p0 = f.verts[0].co
+            for k in range(1, len(f.verts) - 1):
+                vol += p0.dot(f.verts[k].co.cross(f.verts[k + 1].co)) / 6.0
+        return vol
     drop = set()
-    for i, a in enumerate(boxes):
-        if len(islands[i]) < 12 or any(within(a, b) for j, b in enumerate(boxes) if j != i):
-            drop.update(v.index for v in islands[i])
+    for isl in islands:
+        vol = volume(isl)
+        if len(isl) < 12 or vol < 1e-4:  # (1e-4 = 0.17 px^3: voxel crumbs)
+            drop.update(v.index for v in isl)
+        else:
+            print(f"{NAME}: shell island {len(isl)} verts, volume {vol * 1728:.1f} px^3")
     bmesh.ops.delete(bm, geom=[v for v in bm.verts if v.index in drop], context="VERTS")
     bm.to_mesh(shell.data)
     bm.free()

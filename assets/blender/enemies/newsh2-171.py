@@ -6,16 +6,14 @@ about its long axis (the sprite's vertical). Six models, one per frame (D46), th
 to the frame's measured spin angle: newsh2-171 (frame 171), newsh2-171-f2 (190) ... -f6 (266).
 
 The sprite is authoritative (D52, the user's rule):
-- Plan outline: an envelope (half width and half thickness per row, pchip-interpolated, a p=2.05
-  superellipse section) whose top view gives frame 171's mask including its outline ring; the
-  armour plates all finish on that envelope, so the silhouette is the plates'. Spin angles per frame
-  fitted to each frame's silhouette; with the row-7 thickness bump (THK) every frame's top view
-  matches its sprite mask exactly (IoU 1.0, every row's width), measured both by ray casting
-  (--measure) and by a 20x top ortho render of the exported GLBs.
-- Spin cadence: 0 / 45 / 50 / 90 / 130 / 135 degrees, steps 45, 5, 40, 40, 5, 45. Only 45-50 degrees
-  fits frames 190 / 209 (40 and below, 55 and above fall under IoU 0.95), so the silhouette rule
-  forces the near-equal pairs 190 / 209 and 247 / 266; the sprite tells those apart only by its
-  interior shading. Accepted (fix round 1).
+- Plan outline (D74): an envelope (half width and half thickness per row, pchip-interpolated, a p=2.05
+  superellipse section) whose top view goes to the INNER edge of the sprite's ink border (rows 1-12;
+  row 0 and row 13 are ink, the tip may run into row 13), measured with tools/sprite_mask.py
+  --measure: iou_rule_grid 1.0 / 0.963 / 1.0 / 1.0 / 1.0 / 0.963 for frames 171 ... 266 (the --fast
+  --measure --top-dir options of this script write the top views).
+- Spin cadence: 0 / 48 / 50 / 90 / 130 / 132 degrees. Frames 190 / 209 and 247 / 266 have identical
+  inner masks (the sprite tells them apart only by interior shading); 45 / 135 degrees fall under the
+  rule's fit, 48 / 132 pass.
 - Features where the sprite draws them: a narrow raised spine down column 6 (rows 0.3-8.9) with a
   dark channel beside it (cols 5 and 7, rows 0-9; the blocks stop short of it) carrying louvre slats, the dark strap across it at row 2,
   the framed glowing lens at rows 5-6, chamfered armour tiles over the shoulders (rows 1-2 and 4,
@@ -69,22 +67,24 @@ PX = 1 / 12
 SPIN_Z = 0.38
 # Spin per frame (degrees), from the silhouette fit (top-view IoU 1.0 / 0.95 / 0.98 /
 # 1.0 / 0.98 / 0.95); positive turns the top face toward +X, as the current script.
-ANGLES = [0.0, 45.0, 50.0, 90.0, 130.0, 135.0]
+ANGLES = [0.0, 48.0, 50.0, 90.0, 130.0, 132.0]
 EXP = 2.05
 TINT = (0.76, 0.86, 1.0)  # D53: lifts blue so the game's tone mapping keeps the sprite's khaki-brown
 
 # --- envelope (blueprint) -------------------------------------------------------------------------
-_EV = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10, 10.5, 11,
+_EV = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10, 10.5, 11,
        11.5, 12, 12.5, 13, 13.5, 14]
-_EW = [2.9, 3.6, 4.35, 4.879, 5.208, 5.402, 5.468, 5.499, 5.45, 5.3, 4.961, 4.6, 4.442, 4.3, 4.094,
-       3.85, 3.554, 3.25, 2.994, 2.75, 2.5, 2.25, 2.0, 1.75, 1.51, 1.25, 0.929, 0.519, 0.0]
-_ET = [1.2, 2.0, 2.577, 2.795, 2.908, 2.95, 2.945, 2.932, 2.91, 2.86, 2.729, 2.6, 2.511, 2.43, 2.35,
-       2.262, 2.174, 2.1, 2.05, 2.008, 1.95, 1.845, 1.7, 1.517, 1.3, 1.067, 0.8, 0.478, 0.0]
+# D74: the plan goes to the INNER edge of the sprite's ink border (rows 1-12; row 0 and row 13 are the
+# ink), so the blunt end starts at row 1 and the half widths are the old outer ones less the ring.
+_EW = [3.45, 3.9, 4.25, 4.45, 4.5, 4.52, 4.5, 4.4, 4.2, 3.95, 3.6, 3.4, 3.1, 2.9, 2.7, 2.5, 2.25, 2.0,
+       1.5, 1.25, 1.0, 0.7, 0.58, 0.52, 0.45, 0.3, 0.0]
+_ET = [1.6, 1.9, 2.0, 2.05, 2.05, 2.05, 2.0, 1.95, 1.85, 1.75, 1.65, 1.6, 1.55, 1.5, 1.45, 1.4, 1.35,
+       1.3, 1.25, 1.2, 1.1, 0.95, 0.8, 0.65, 0.5, 0.3, 0.0]
 HW = pchip(_EV, _EW)
 HT = pchip(_EV, _ET)
 # Per-row tweaks found by measurement (half thickness scale), so the edge-on frame keeps its widths.
 THK = pchip([0, 5.4, 6.5, 7.4, 8.15, 8.6, 9.6, 10.5, 11.3, 14],
-            [1.0, 1.0, 1.07, 1.13, 1.0, 1.0, 1.0, 1.1, 1.0, 1.0])
+            [1.0] * 10)
 CORE = -0.45  # the core hull's inset under the centre plates (px): the deep dark channel
 CORE_EDGE = -0.17  # its inset toward the edges, just under the plates' chamfers, so no seam sees through
 
@@ -265,7 +265,7 @@ GAP = 0.035  # seam between plates (radians on the section)
 
 
 def build_core(part):
-    vs = [0.25 + i * 0.7 for i in range(30) if 0.25 + i * 0.7 < 13.5] + [13.6]
+    vs = [1.05 + i * 0.7 for i in range(30) if 1.05 + i * 0.7 < 13.5] + [13.6]
     N = 24
     rings = []
     for v in vs:
@@ -287,12 +287,13 @@ def build_core(part):
 def build_nose(part):
     """The blunt end: a dished cap recessed inside a segmented machined lip, eight radial vanes and
     a stepped hub (the viewer's front views; the game camera hardly sees it)."""
-    A0, B0 = semi(0.3, 0.0)
+    A0, B0 = semi(1.15, 0.0)
+    N0 = 0.85  # the nose starts at row 1 (row 0 is the ink border)
     e = 2.0 / EXP
 
     def ell(a, sc, v):
         c, s_ = math.cos(a), math.sin(a)
-        return (sc * A0 * math.copysign(abs(c) ** e, c), v, sc * B0 * math.copysign(abs(s_) ** e, s_))
+        return (sc * A0 * math.copysign(abs(c) ** e, c), v + N0, sc * B0 * math.copysign(abs(s_) ** e, s_))
     # Dish: its face sits back at v 0.17, inside the lip.
     hull(part, [ell(2 * math.pi * k / 24, sc, v) for k in range(24) for sc, v in ((0.7, 0.17), (0.8, 0.32))],
          M_NOSE)
@@ -315,23 +316,23 @@ def build_nose(part):
             x, _, z = ell(a, sc, 0.0)
             for w in (-0.07, 0.07):
                 for v in (0.1, 0.2):
-                    pts.append((x + t[0] * w, v, z + t[2] * w))
+                    pts.append((x + t[0] * w, v + N0, z + t[2] * w))
         hull(part, pts, M_STRAP)
         x, _, z = ell(a, 0.59, 0.0)
-        hull(part, [(x + 0.11 * math.cos(b), v, z + 0.11 * math.sin(b))
+        hull(part, [(x + 0.11 * math.cos(b), v + N0, z + 0.11 * math.sin(b))
                     for b in (2 * math.pi * j / 6 for j in range(6)) for v in (0.06, 0.18)], M_RIVET)
     # Hub: a boss and a smaller cap on it.
     hub = []
     for v, r in ((0.06, 0.5), (0.18, 0.62)):
         for k in range(8):
             a = 2 * math.pi * (k + 0.5) / 8
-            hub.append((r * 1.5 * math.cos(a), v, r * 0.8 * math.sin(a)))
+            hub.append((r * 1.5 * math.cos(a), v + N0, r * 0.8 * math.sin(a)))
     hull(part, hub, M_KEEL)
     cap = []
     for v, r in ((0.0, 0.26), (0.08, 0.34)):
         for k in range(8):
             a = 2 * math.pi * (k + 0.5) / 8
-            cap.append((r * 1.5 * math.cos(a), v, r * 0.8 * math.sin(a)))
+            cap.append((r * 1.5 * math.cos(a), v + N0, r * 0.8 * math.sin(a)))
     hull(part, cap, M_STRAP)
 
 
@@ -346,7 +347,7 @@ def build_pads(part, det):
     inner = lambda v: ang_x(v, pad_in(v)) - 0.0  # noqa: E731
     # The split between the outer and inner tiles: an arc (the concept's curved shoulder rows).
     split = lambda v: ang_x(v, 3.15 + 0.35 * min(v, 3.0) / 3.0)  # noqa: E731
-    for v0, v1 in ((0.12, 2.98),):
+    for v0, v1 in ((1.0, 2.98),):
         quad(part, v0, v1, lo_keel, lambda v: split(v) - GAP, M_PAD, g=0.0, c=0.14, astep=0.27)
         quad(part, v0, v1, lambda v: split(v) + GAP, inner, M_PAD, g=0.0, c=0.14)
     # The dark recessed band across the shoulders at row 3 (the sprite's dark row).
@@ -354,8 +355,8 @@ def build_pads(part, det):
     # Lower tile (row 4): one piece from the keel to the channel.
     quad(part, 3.85, 4.95, lo_keel, inner, M_PAD, g=0.0, c=0.14, astep=0.27)
     # Rivets on the tiles.
-    for v in (0.8, 2.3):
-        for x in (2.45, 4.25):
+    for v in (1.4, 2.3):
+        for x in (2.45, 3.9):
             if x < HW(v) - 0.6:
                 for sx in (1, -1):
                     for top_ in (True, False):
@@ -368,7 +369,7 @@ def build_pads(part, det):
 
 def build_keel(part):
     for side in (0.0, math.pi):
-        band(part, 0.3, 8.82, side - KEEL, side + KEEL, M_KEEL, g=0.06, c=0.16, vstep=0.7)
+        band(part, 1.05, 8.82, side - KEEL, side + KEEL, M_KEEL, g=0.06, c=0.16, vstep=0.7)
 
 
 def build_spine(part, det):
@@ -378,7 +379,7 @@ def build_spine(part, det):
         return 0.75
     lo = lambda v: ang_x(v, half(v))  # noqa: E731
     hi = lambda v: ang_x(v, -half(v))  # noqa: E731
-    faces2(part, 0.3, 8.9, lo, hi, M_SPINE, g=0.38, c=0.2, vstep=0.5)
+    faces2(part, 1.05, 8.9, lo, hi, M_SPINE, g=0.38, c=0.2, vstep=0.5)
     # Strap across the spine (row 2).
     faces2(part, 1.95, 2.85, lambda v: ang_x(v, 0.92), lambda v: ang_x(v, -0.92), M_STRAP, g=0.55, c=0.12)
 
@@ -394,7 +395,7 @@ def build_spine(part, det):
     faces2(det, 5.08, 6.92, lambda v: ang_x(v, gh(v)), lambda v: ang_x(v, -gh(v)), M_LENS, g=0.6, c=0.08,
            vstep=0.3)
     # Louvre slats across the channel beside the spine (rows 0.6-2.8 and 7.2-8.6).
-    for v in (0.85, 1.4, 7.6, 8.2):
+    for v in (1.5, 2.0, 7.6, 8.2):
         for sx in (1, -1):
             for top_ in (True, False):
                 x = 1.2 if v < 3 or v > 7 else 1.3
@@ -425,7 +426,7 @@ def build_body(part):
         band(part, 11.32, 12.2, lo, hi, M_TAIL, g=0.0, c=0.14, vstep=1.0, astep=0.42)
     # A dark machined tip cap (rows 12-13, the sprite's 18 there), in two halves.
     for a0 in (-math.pi / 2, math.pi / 2):
-        band(part, 12.3, 13.72, a0, a0 + math.pi, M_STRAP, g=0.02, c=0.1, vstep=0.8, astep=0.5)
+        band(part, 12.3, 13.5, a0, a0 + math.pi, M_STRAP, g=0.02, c=0.1, vstep=0.8, astep=0.5)
     # Notch block in the V (rows 9-10, the sprite's 21 down col 6).
     def nh(v):
         return 0.43 if v < 10.3 else max(0.06, 0.43 * (11.0 - v) / 0.7)
@@ -717,7 +718,28 @@ def frame_copy(src, name, coll, angle, weighted=True):
     return obj
 
 
-def measure(objs, sprite, sub=8):
+def _sprite_mask():
+    sys.path.insert(0, str(ROOT / "tools"))
+    import sprite_mask
+    return sprite_mask
+
+
+def rule_iou(model, frame_index):
+    sm = _sprite_mask()
+    idx, colors = sm.load(NAME, frame_index)
+    m = sm.masks(idx, colors)
+    gi = sum(g and s for rg, rs, rf in zip(model, m["inner"], m["free"]) for g, s, f in zip(rg, rs, rf) if not f)
+    gu = sum(g or s for rg, rs, rf in zip(model, m["inner"], m["free"]) for g, s, f in zip(rg, rs, rf) if not f)
+    return round(gi / gu if gu else 1.0, 4)
+
+
+def hit_at(tree, c, r, sub, i, j):
+    u = c + (i + 0.5) / sub
+    v = r + (j + 0.5) / sub
+    return tree.ray_cast(Vector(((u - 6) * PX, (7 - v) * PX, 5.0)), Vector((0, 0, -1)), 20.0)[0] is not None
+
+
+def measure(objs, sprite, sub=8, top_dir=None):
     """Top-down coverage of each frame model on the sprite's 12 x 14 grid (ray cast straight down,
     sub x sub samples per pixel), IoU vs the sprite mask (outline ring included), per-row widths,
     and per-material sprite palette medians (the region colour check)."""
@@ -759,7 +781,13 @@ def measure(objs, sprite, sub=8):
             for c in range(12):
                 if matpix[r][c] is not None and pix[r][c] > 1 and cov[r][c] >= 0.5:
                     regions.setdefault(matpix[r][c], []).append(pix[r][c])
-        res.append({"frame": fr["index"], "iou": round(inter / union, 4),
+        rule = rule_iou(model, fr["index"])
+        if top_dir:
+            sm = _sprite_mask()
+            hi = [[hit_at(tree, c, r, sub, ii, jj) for c in range(12) for ii in range(sub)]
+                  for r in range(14) for jj in range(sub)]
+            sm.write_png(Path(top_dir) / f"top-{fr['index']}.png", hi, 1)
+        res.append({"frame": fr["index"], "iou": round(inter / union, 4), "iou_rule_grid": rule,
                     "rowsSprite": [sum(row) for row in spr], "rowsModel": [sum(row) for row in model],
                     "cov": [[round(x, 2) for x in row] for row in cov],
                     "mat": matpix, "regions": {str(k): v for k, v in regions.items()}})
@@ -774,12 +802,13 @@ def main():
     coll = common.reset_collection(NAME)
     mats = materials(sprite)
     base = build(coll, mats)
-    if "--no-cull" not in argv:
+    fast = "--fast" in argv
+    if "--no-cull" not in argv and not fast:
         cull_kept(base, grid=10, ndirs=200)
     tris = sum(len(p.vertices) - 2 for p in base.data.polygons)
     print(f"{NAME}: {len(base.data.polygons)} faces, {tris} triangles")
     fmt = "AUTO"
-    if "--no-bake" not in argv:
+    if "--no-bake" not in argv and not fast:
         bake_dir = ROOT / "assets" / "blender" / "textures" / NAME / "bake"
         bake_dir.mkdir(parents=True, exist_ok=True)
         bake_maps(base, bake_dir)  # before the shell exists, so it can't occlude the model
@@ -794,12 +823,13 @@ def main():
         sh = frame_copy(shell, f"{name}_outline", coll, angle, weighted=False)
         sh.parent = obj
         subset = [{**sheet, "frames": [frame["index"]]}]
-        common.export_sprite_model(ROOT, [obj, sh], f"enemies/{name}", subset, image_format=fmt)
+        if not fast:
+            common.export_sprite_model(ROOT, [obj, sh], f"enemies/{name}", subset, image_format=fmt)
         objs.append((name, obj, frame))
     base.hide_render = True
     shell.hide_render = True
     if "--measure" in argv:
-        info = {"triangles": tris, "angles": ANGLES, "frames": measure([o for _, o, _ in objs], sprite),
+        info = {"triangles": tris, "angles": ANGLES, "frames": measure([o for _, o, _ in objs], sprite, top_dir=(argv[argv.index("--top-dir") + 1] if "--top-dir" in argv else None)),
                 "matPal": {str(i): PAL_OF[i] for i in PAL_OF}}
         Path(argv[argv.index("--measure") + 1]).write_text(json.dumps(info, indent=1))
     if "--preview" in argv:
