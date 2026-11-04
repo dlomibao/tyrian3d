@@ -416,6 +416,10 @@ export function tick(): TickResult {
     }
   }
 
+  // The ships' armour for their wear (D90), as it stands at the end of the tick.
+  const players = g.twoPlayerMode ? g.player : g.player.slice(0, 1);
+  drawList.ships = players.map((p) => ({ armor: p.armor, reference: p.initial_armor }));
+
   return {
     levelOver: g.reallyEndLevel,
     completed: g.reallyEndLevel && !all_players_dead(),

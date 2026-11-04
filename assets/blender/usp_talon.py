@@ -1227,7 +1227,10 @@ def main():
         bake_maps(obj, bake_dir)
         fmt = "WEBP"
     # The outline shell (D51), made after the bake so its occlusion rays never hit it.
-    shell = common.outline_shell(obj, coll, faces=1500)
+    # D90: from coarser voxels (0.03) so it bridges the refitted hull's seams and chines (D88), and
+    # held just inside the hull; from 0.012 it followed them in and its back faces drew as black
+    # cracks across the pods and body in the menus and in flight.
+    shell = common.outline_shell(obj, coll, voxel=0.03, faces=3000, inside=0.004)
     print(f"talon: outline shell {len(shell.data.polygons)} faces")
     if out:
         common.export_glb([obj, shell], out, image_format=fmt)

@@ -48,6 +48,7 @@ import { adoptRockMaterials, cloneRockMaterial, isRockMaterial, rockFades, setRo
 import type { SpriteModels } from "./spriteModels";
 import { DamageFrames, type DamageState } from "./damage/damageFrames";
 import { damageModeFromSearch } from "./damage/damageMode";
+import { ShipCondition } from "./damage/shipDamage";
 import { Route, Sprite2Router } from "./sprite2Route";
 import { bankShift } from "./bankShift";
 import type { LevelDamage, LevelSprite, LevelTile } from "../sim/levelSprites";
@@ -327,6 +328,10 @@ export class DrawListRenderer {
   /** Add this to the scene. */
   readonly root = new THREE.Group();
   readonly palette = new PaletteTexture();
+  /** Each player ship's wear by its armour (D90), by player index; reset where no armour is drawn. */
+  private readonly ships: ShipCondition[] = [];
+  /** The ships' wear is following armour (a level's draw lists); false: the next one snaps to it. */
+  private shipsLive = false;
   /** Damaged frames drawn with the intact models (D87); null with `?damage=off` (as sprites). */
   private readonly damage: DamageFrames | null = damageModeFromSearch() === "off" ? null : new DamageFrames(this.palette);
   readonly cache = new SpriteMeshCache();
@@ -644,6 +649,23 @@ export class DrawListRenderer {
   }
 
   /**
+   * Follow each player's armour (DrawList.ships, D90). Without it (the menus' and the item screen's
+   * draw lists) the ships are clean; the first draw list with it snaps to it (a level's start, a
+   * capture part-way in), after which the look eases.
+   */
+  private updateShips(dt: number): void {
+    const ships = this.list?.ships;
+    if (!ships || ships.length === 0) {
+      for (const c of this.ships) c.reset();
+      this.shipsLive = false;
+      return;
+    }
+    const step = this.shipsLive ? dt * (this.vfxTimeScale > 0 ? 1 : 0) : Infinity;
+    ships.forEach((s, i) => (this.ships[i] ??= new ShipCondition()).update(s.armor, s.reference, step));
+    this.shipsLive = true;
+  }
+
+  /**
    * The level's damaged frames (sim/levelSprites.ts levelDamageFrames), so they're drawn with the
    * intact models (D87). preloadLevel sets them; call it directly when a level starts without one.
    */
@@ -656,6 +678,7 @@ export class DrawListRenderer {
     const now = performance.now();
     const dt = Math.min(0.1, (now - this.lastTime) / 1000);
     this.lastTime = now;
+    this.updateShips(dt);
     this.frame++;
     const frame = this.frame;
     const items = this.items;
@@ -1202,13 +1225,18 @@ export class DrawListRenderer {
     } else {
       if (!d.groupFirst) return;
       clone = this.placeModel(pool, x + d.groupDx, y + d.groupDy, d, cam, frame);
-      this.damage?.apply(clone.object, clone.materials, damaged);
       // [two-player] a grouped ship that banks (the dragonwing) rolls as the player ships do
-      if (Number.isNaN(bank)) return;
+      if (Number.isNaN(bank)) {
+        this.damage?.apply(clone.object, clone.materials, damaged);
+        return;
+      }
     }
     // Banking eases per display frame, so the 5 sprite frames become a smooth roll.
     clone.roll += (-bank * MAX_ROLL - clone.roll) * Math.min(1, dt * ROLL_RATE);
     clone.object.rotation.z = clone.roll;
+    // A player ship's wear by its armour (D90), after the roll so the scorch rolls with the ship.
+    const player = playerOfKey(d.key);
+    if (player >= 0) this.damage?.applyShip(clone.object, clone.materials, this.ships[player] ?? null, route === Route.Group ? d.groupSize : d.size);
   }
 
   /** The pool for a model, starting its load the first time it's asked for. */
@@ -1385,4 +1413,15 @@ function unitQuad(): THREE.BufferGeometry {
   g.setAttribute("palIndex", new THREE.Float32BufferAttribute([0, 0, 0, 0], 1));
   g.setIndex([0, 2, 1, 0, 3, 2]);
   return g;
+}
+
+/**
+ * The player index of a player ship's draw (sim/mainint.ts playerKey: PLAYER_KEY_BASE + 100 * p, part
+ * 0 the ship or its left half, 1 its right half), or -1.
+ */
+export function playerOfKey(key: number): number {
+  const k = key - 10000;
+  if (k < 0 || k >= 200) return -1;
+  const part = k % 100;
+  return part === 0 || part === 1 ? Math.floor(k / 100) : -1;
 }
