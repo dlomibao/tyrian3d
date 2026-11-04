@@ -3741,6 +3741,17 @@ max rAF JS time; shader programs linked during play.
 Level preload is longer by the warm-up (~0.3-0.6 s, compiles in parallel; once per session for the
 shared materials).
 
+5. **Dynamic resolution, Options → Graphics → Resolution: Auto (default) or Full**
+   (`src/render/resolutionScaler.ts`, `resolutionStyle`, `?resolution=auto|full`). Every 60 frames: if
+   a quarter came later than 60 fps allows (> 20.8 ms) while the view's own main-thread work stayed
+   under 10 ms (so the GPU is the late part), the render scale drops a step (x0.8, down to half the
+   pixel ratio); after 5 s with no late frames it steps back up, waiting twice as long each time a
+   raise is undone at once. At 60 fps, and on a 120 Hz screen alternating 8 and 17 ms frames, it never
+   moves, so the picture is the full one whenever the GPU keeps up; a level's end restores full
+   resolution for the menus. Measured: the boss at 4800x2700 (GPU-bound) 33 → 52 fps, frames over
+   33 ms 208 → 45 (scale settled at 0.64); at 3024x1800 HOLES stayed at full scale, and the boss
+   dipped to 0.8 for 23% of its frames while other agents loaded the GPU (load 12), back to 1 after.
+
 ## D92 — Twenty enemies shared across episodes rebuilt hard-surface; a palette-pulsed ring counts as ink
 
 2026-11-04

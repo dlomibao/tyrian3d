@@ -5,7 +5,7 @@ import { spriteModels } from "./render/spriteModels";
 import { loadSpriteArt } from "./render/spriteArtLayer";
 import { View } from "./render/view";
 import { onTerrainStyle } from "./core/terrainStyle";
-import { cameraStyle } from "./core/displayStyle";
+import { cameraStyle, resolutionStyle } from "./core/displayStyle";
 import { cameraTilt } from "./app/hud";
 import { Backdrop, POSES } from "./ui/backdrop"; // ui-framework
 import { showMessage } from "./app/screens"; // ui-framework
@@ -43,6 +43,9 @@ function startGame(): void {
   // Camera (D61): Options → Camera, or `?camera=overhead|tilted|steep`; the view refits at once.
   view.setTilt(cameraTilt(cameraStyle.get()));
   cameraStyle.listen((style) => view.setTilt(cameraTilt(style)));
+  // Resolution (D91): Options → Resolution, or `?resolution=auto|full`.
+  view.setDynamicResolution(resolutionStyle.get() === "auto");
+  resolutionStyle.listen((style) => view.setDynamicResolution(style === "auto"));
   // Remastered flat art for shots and pickups (D42), where public/art/sprites/ has it.
   const art = loadSpriteArt();
   view.draws.setSpriteArtLoading(art); // a level start waits for it (D54)

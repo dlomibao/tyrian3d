@@ -253,6 +253,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
       pauseButton.visible = true; // ui-framework
       const huds = { update: () => (hud.update(), hud2.update()) }; // [two-player]
       const outcome = await playLevel(view, controls, sfx, music, huds, pauseButton, cheats);
+      view.resetResolution(); // the menus draw at full resolution (D91)
       controls.active = false;
       controls.release();
       hud.visible = false;

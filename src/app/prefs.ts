@@ -7,7 +7,7 @@
 
 import { keys, keys2, pads, setKeys, setPads } from "./bindings";
 import { loadTerrainStyle, storedTerrainStyle } from "../core/terrainStyle";
-import { cameraStyle, interfaceStyle } from "../core/displayStyle";
+import { cameraStyle, interfaceStyle, resolutionStyle } from "../core/displayStyle";
 import { DEFAULT_VOLUME, set_volume, setVolumeHandler, volume, volumeFactor } from "../sim/volume";
 
 export const PREFS_STORAGE_KEY = "tyrian3d.settings";
@@ -58,11 +58,12 @@ export function loadPrefs(storage: PrefsStorage | null = defaultStorage()): void
   loadTerrainStyle(data.terrain);
   interfaceStyle.load(data.interface);
   cameraStyle.load(data.camera);
+  resolutionStyle.load(data.resolution);
 }
 
 /** The settings as stored. */
 export function serializePrefs(): string {
-  return JSON.stringify({ version: PREFS_VERSION, musicVolume: volume.tyrMusicVolume, fxVolume: volume.fxVolume, keys, keys2, pads, terrain: storedTerrainStyle(), interface: interfaceStyle.storedValue(), camera: cameraStyle.storedValue() });
+  return JSON.stringify({ version: PREFS_VERSION, musicVolume: volume.tyrMusicVolume, fxVolume: volume.fxVolume, keys, keys2, pads, terrain: storedTerrainStyle(), interface: interfaceStyle.storedValue(), camera: cameraStyle.storedValue(), resolution: resolutionStyle.storedValue() });
 }
 
 export function savePrefs(storage: PrefsStorage | null = defaultStorage()): void {

@@ -24,7 +24,7 @@ import { backButton, button, h, keyHints, MenuList, moveFocus, reveal, showScree
 import { ACTIONS, BINDING_SLOTS, bindKey, clearKey, keyName, playerKeys, resetKeys, type Action, type PlayerIndex } from "./bindings";
 import { savePrefs } from "./prefs";
 import { setTerrainStyle, TERRAIN_STYLES, terrainStyle, type TerrainStyle } from "../core/terrainStyle";
-import { cameraStyle, interfaceStyle, type DisplayChoice } from "../core/displayStyle";
+import { cameraStyle, interfaceStyle, resolutionStyle, type DisplayChoice } from "../core/displayStyle";
 
 export interface OptionsHost {
   sfx: SoundEffects;
@@ -38,9 +38,10 @@ export interface OptionsHost {
  */
 export type StyleTarget = "music" | "sound" | "terrain" | DisplayTarget;
 /** The Graphics rows kept as DisplayChoices (D61). */
-export type DisplayTarget = "interface" | "camera";
+export type DisplayTarget = "interface" | "camera" | "resolution";
 /** Graphics rows: the terrain and the display choices. */
-const isGraphics = (which: StyleTarget) => which === "terrain" || which === "interface" || which === "camera";
+const isDisplay = (which: StyleTarget): which is DisplayTarget => which === "interface" || which === "camera" || which === "resolution";
+const isGraphics = (which: StyleTarget) => which === "terrain" || isDisplay(which);
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
 /** Tyrian's text toggles a highlight with '~' (JE_textShade / JE_helpBox). */
@@ -155,6 +156,7 @@ const STYLE_LABELS: Record<string, string> = { hd: "HD remaster", frame: "Remast
 const DISPLAY_ROWS: Record<DisplayTarget, { label: string; help: string }> = {
   interface: { label: "Interface", help: "Remastered frame draws the original's bronze sidebar and message bar around the playfield; Minimal keeps the light overlay on a full-screen view. Left/right switches." },
   camera: { label: "Camera", help: "Overhead looks straight down, so the playfield fills the frame like the original's; Tilted leans a little to show the models' sides; Steep leans further for more depth, leaving more of the frame empty. Left/right switches." },
+  resolution: { label: "Resolution", help: "Auto draws fewer pixels only while the graphics card can't keep up 60 frames a second, and goes back to full when it can; Full always draws every pixel. Left/right switches." },
 };
 const styleLabel = (s: string) => STYLE_LABELS[s] ?? styleName(s);
 
@@ -177,7 +179,7 @@ export function optionsRows(
     ...(styles.length > 1 ? [{ kind: "style" as const, which: "music" as const, label: "Music style" }] : []),
     ...(soundStyles.length > 1 ? [{ kind: "style" as const, which: "sound" as const, label: "Sound style" }] : []),
     ...(terrainStyles.length > 1 ? [{ kind: "style" as const, which: "terrain" as const, label: "Terrain" }] : []),
-    ...(["interface", "camera"] as const).flatMap((which) => ((display[which]?.length ?? 0) > 1 ? [{ kind: "style" as const, which, label: DISPLAY_ROWS[which].label }] : [])),
+    ...(["interface", "camera", "resolution"] as const).flatMap((which) => ((display[which]?.length ?? 0) > 1 ? [{ kind: "style" as const, which, label: DISPLAY_ROWS[which].label }] : [])),
     // [two-player] player 1's (and the one-player game's) keys, then player 2's
     ...([0, 1] as const).flatMap((player) => [
       ...ACTIONS.map((action, i) => ({ kind: "key" as const, action, label: keyMenu[i + 1] || actionLabels[i], player })),
@@ -386,7 +388,7 @@ export class SettingsMenu {
       case "volume": return g.mainMenuHelp[15 - 1] ?? "";
       case "style":
         if (this.row.which === "terrain") return "HD remaster draws the ground and islands from new paintings where this level has them; Original keeps the upscaled tiles. Left/right switches.";
-        if (this.row.which === "interface" || this.row.which === "camera") return DISPLAY_ROWS[this.row.which].help;
+        if (isDisplay(this.row.which)) return DISPLAY_ROWS[this.row.which].help;
         return `Change the ${this.row.which === "sound" ? "sound effects and voices" : "music"} with the left/right arrow keys.`;
       case "key":
         return (
@@ -408,7 +410,7 @@ export class SettingsMenu {
   private styleOf(which: StyleTarget): { styles: readonly string[]; current: string; set(style: string): void } {
     const h = this.host;
     if (which === "terrain") return { styles: h.terrainStyles ?? [], current: h.terrainStyle?.() ?? "original", set: (s) => h.setTerrainStyle?.(s) };
-    if (which === "interface" || which === "camera") {
+    if (isDisplay(which)) {
       const d = h.display?.[which];
       return { styles: d?.styles ?? [], current: d?.current() ?? "", set: (s) => d?.set(s) };
     }
@@ -465,8 +467,8 @@ export function showOptions(host: OptionsHost, focus: OptionsFocus = "sound"): P
         savePrefs();
       },
     });
-    const display = { interface: choice(interfaceStyle), camera: choice(cameraStyle) };
-    const menu = new SettingsMenu(optionsRows(styles, soundStyles, terrainStyles, { interface: display.interface.styles, camera: display.camera.styles }), focus, {
+    const display = { interface: choice(interfaceStyle), camera: choice(cameraStyle), resolution: choice(resolutionStyle) };
+    const menu = new SettingsMenu(optionsRows(styles, soundStyles, terrainStyles, { interface: display.interface.styles, camera: display.camera.styles, resolution: display.resolution.styles }), focus, {
       sound,
       styles,
       style: () => host.music.style,
@@ -536,7 +538,7 @@ export function showOptions(host: OptionsHost, focus: OptionsFocus = "sound"): P
       const li = h("li", { class: `ui-menu__item opt-row opt-row--${r.kind}`, attrs: { role: "option", "data-i": String(i) } }, h("span", { class: "ui-menu__label opt-row__label", text: r.label }));
       if (r.kind === "volume") li.insertAdjacentHTML("beforeend", volumeSliderHtml(0, r.which, r.label));
       if (r.kind === "style") {
-        const list = r.which === "terrain" ? terrainStyles : r.which === "interface" || r.which === "camera" ? display[r.which].styles : r.which === "sound" ? soundStyles : styles;
+        const list = r.which === "terrain" ? terrainStyles : isDisplay(r.which) ? display[r.which].styles : r.which === "sound" ? soundStyles : styles;
         li.append(h("span", { class: "opt-styles" }, ...list.map((st) => h("button", { class: "opt-chip", text: styleLabel(st), attrs: { type: "button", tabindex: "-1", "data-style": st } }))));
       }
       if (r.kind === "key") {
@@ -563,7 +565,7 @@ export function showOptions(host: OptionsHost, focus: OptionsFocus = "sound"): P
       const kind = menu.row.kind;
       const side: Partial<Record<OptionsRow["kind"], KeyHint>> = {
         volume: { key: "←→", pad: "✛", touch: "Drag", label: "Volume" },
-        style: { key: "←→", pad: "✛", label: menu.row.kind === "style" ? { music: "Music", sound: "Sound", terrain: "Terrain", interface: "Interface", camera: "Camera" }[menu.row.which] : "Music" },
+        style: { key: "←→", pad: "✛", label: menu.row.kind === "style" ? { music: "Music", sound: "Sound", terrain: "Terrain", interface: "Interface", camera: "Camera", resolution: "Resolution" }[menu.row.which] : "Music" },
         key: { key: "←→", pad: "✛", label: "Key slot" },
       };
       return [
@@ -585,7 +587,7 @@ export function showOptions(host: OptionsHost, focus: OptionsFocus = "sound"): P
         li.setAttribute("aria-selected", String(focused));
         if (r.kind === "volume") setVolumeSlider(li.querySelector<HTMLElement>(".opt-vol")!, r.which === "music" ? volume.tyrMusicVolume : volume.fxVolume);
         if (r.kind === "style") {
-          const on = r.which === "terrain" ? terrainStyle() : r.which === "interface" || r.which === "camera" ? display[r.which].current() : r.which === "sound" ? host.sfx.style : host.music.style;
+          const on = r.which === "terrain" ? terrainStyle() : isDisplay(r.which) ? display[r.which].current() : r.which === "sound" ? host.sfx.style : host.music.style;
           li.querySelectorAll<HTMLElement>("[data-style]").forEach((b) => b.classList.toggle("is-on", b.dataset.style === on));
         }
         if (r.kind === "key") {
