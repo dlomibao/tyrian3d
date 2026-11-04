@@ -3767,6 +3767,13 @@ shared materials).
    (D51) already hides the far faces, so the picture matches (29 edge pixels within 31 levels at
    tick 400).
 
+8. **Hidden clones skip three's matrix update.** A level keeps a clone of every model it has
+   loaded (3,100 objects in the boss fight, 250 visible), and `scene.updateMatrixWorld` walked
+   them all every render, recomposing every part's matrix: the largest JS item of a frame in a
+   CPU profile. Hidden clones set `matrixWorldAutoUpdate` false; a clone's parts, which never move
+   (only the root is placed), keep fixed local matrices. `updateMatrixWorld` 0.21 → 0.15 ms
+   (median of three runs each, boss tick 7000); captures identical.
+
 ## D92 — Twenty enemies shared across episodes rebuilt hard-surface; a palette-pulsed ring counts as ink
 
 2026-11-04
