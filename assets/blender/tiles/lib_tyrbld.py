@@ -99,8 +99,10 @@ PAL_T = {
 _KIND_DEFAULTS = {
     "red": dict(emission_strength=2.5, roughness=0.3), "lava": dict(emission_strength=2.0, roughness=0.5),
     "blue": dict(emission_strength=0.8, roughness=0.2, metallic=0.1),
-    "metal": dict(metallic=0.6, roughness=0.4), "rail": dict(metallic=0.6, roughness=0.35),
-    "walk": dict(metallic=0.5, roughness=0.5), "walk_dark": dict(metallic=0.5, roughness=0.5),
+    "metal": dict(metallic=0.6, roughness=0.4), "rail": dict(metallic=0.3, roughness=0.4),
+    # The deck stays non-metallic: under the scene's lights and environment a metallic dark grey
+    # drew at two thirds of the original road's brightness (D101).
+    "walk": dict(metallic=0.0, roughness=0.55), "walk_dark": dict(metallic=0.0, roughness=0.55),
     "brass": dict(metallic=0.7, roughness=0.35), "brass_dark": dict(metallic=0.6, roughness=0.45),
     "brass_light": dict(metallic=0.7, roughness=0.3),
     "red_dark": dict(metallic=0.3, roughness=0.5), "dark": dict(roughness=0.9),
