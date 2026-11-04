@@ -3178,3 +3178,237 @@ IoU at 0°/15°/32°, mid-screen; drift from the top of the screen to the bottom
   - The wide and tall towers are 12.8k and 13.7k triangles, 0.65 and 0.71 MB (one quad per wall pixel).
 - Fallback: delete `src/render/tileModels/shapesy-savbld-*.json`. The renderer's extras are inert
   without them.
+
+## D83 — HD terrain per tileset: every level that uses it at once, cuts merged into the atlas, layer 2 sorted into terrain and structures
+
+2026-11-03
+
+**Decision:** `tools/terrain_hd.py` works on a tileset rather than a level, so `shapesz` (32 of the 62 levels) can be
+done without undoing level 1 (D58's limit: a second level's cut replaced the first's atlas).
+- **Levels.** Every command takes `--level 1-9,1-11,...` or `--tileset shapesz` (the levels whose `tyrian<ep>.lvl`
+  slot names that shapes file: the same 32 `docs/roadmap/inventory.json` lists). The inventory merges the tiles
+  over all the maps: counts summed and per level, usual neighbours over every map, one representative 3x3
+  neighbourhood from whichever level fits best; `hasArt` from the atlas already there. One level gives exactly
+  D58's inventory.
+- **Kinds.** Each tile gets a kind: *terrain* (painted: all ground tiles; on layers 1-2 natural materials, brown and
+  green ramps, fills that meet themselves on every side, tiles a ground model stands on elsewhere, tiles with art),
+  *structure* (layers 1-2 hard surface: plating, pipes, walls, machines; left to structure models, D34/D47, painted
+  only with `--structures`), *empty* (one colour, Tyrian's black space: nothing to paint, it falls back to the 4x
+  ground, which looks the same). `--kind 2:575=terrain` overrides. Tiles also list structure models and paintings
+  of the same tile on other layers.
+- **Sheets** only for tiles that still need a painting (no art, terrain, no painting on another layer to reuse):
+  map regions as a set cover over every level's map (also for layer 2's terrain), contexts as before; softened from
+  the start (D59/D60's lesson; the nearest-neighbour picture beside it), prompts naming each region's two main
+  materials (per layer: the same colours are clouds on layer 1 and purple metal on layer 2), a `send` order (most-used
+  new tiles first), `SEND.md` and a prompt file per sheet for the operator, and a request count.
+- **Cut merges.** The tiles already in `public/art/terrain/<tileset>/` are kept: their images are not rewritten, their
+  rects not moved. In the seam solve their edge strips are held (moved to the right-hand side), so new tiles are pulled
+  onto them and they don't move. New tiles go into new images (`0-2.webp`; `2.webp` for a layer without art yet), at
+  most 323 per image, whose rects name them, which D57's format already allowed. A tile without a painting of its own
+  reuses the same tile's painting from another layer. `--recut`, `--replace` (D58-D60's fresh cut), `--no-reuse`. One
+  level into an empty folder (or `--replace`) still writes TYRIAN's fake-answer atlas byte for byte (checked against
+  the previous tool from the same cache).
+- **Game side:** none needed. One fix: the loader marked only a layer's main image as opaque, so a layer-0 rect's own
+  image would have been uploaded premultiplied (harmless for an opaque image, but not the contract); it now marks
+  every layer-0 image (test added).
+- **Check** reports seams over all the levels, for the edges with a new tile and for the rest, per level, and also only
+  where the original itself is continuous across the edge (`continuousRatio`); contact sheets only of the row blocks
+  with a new tile.
+
+**Layer 2 on other levels.** On TYRIAN every layer-2 cell was under a model (D58). Over `shapesz`'s 32 levels, 115
+layer-2 tiles are drawn as plain tiles, on five maps:
+- *terrain, painted* (73 tiles, 16,100 cells): the brown rock masses and plateaus of 1-11 HOLES and 1-16 ASSASSIN
+  (35-57, 76, 80-119), the grass and forest of 4-1 HARVEST (68, 69, 210-234), and HOLES' bunker, wreck and boulder
+  tiles (112, 113, 320-352). 54 of them are TYRIAN's ground tiles, so their paintings are reused; 19 need Gemini (3
+  region sheets). The tree, bunker, wreck and boulder tiles have ground models on level 1 (keepTiles): layer-2 entries
+  for those models would stand them on layer 2 the same way (not done here).
+- *structure, to model* (42 tiles, 2,625 cells): the purple and grey plating, pipes, coils and machines (290-304,
+  550-595) of 1-5 DELIANI, 3-11 New Deli (the same map) and 4-1 HARVEST: a structure kit by pattern, like level 1's.
+- Layer 1 likewise: TYRIAN's island rock (120-142) on 1-6 MINEMAZE and 3-3 GAUNTLET (the layer-2 rock models would
+  serve with layer-1 entries), girders (576-599) on 1-5/3-11 and purple plating (536-581) on 3-5 BONUS (structure), and
+  one fill, 518, the blue panel floor behind all of 1-18 ALE (painted).
+
+**The `shapesz` batch** (not sent; a Gemini operator run follows under the shared lock): 200 ground tiles, 1 layer-1
+and 19 layer-2 tiles to paint, 9 empty; 32 primary sheets (28 ground regions, 3 layer-2 regions, 1 layer-1 context),
+about 42 requests with retries at TYRIAN's rate (27 for 21), so two Gemini sessions; 28 optional context sheets for
+retries. The sheets are made from the game data and stay out of git (D3).
+
+**Fake runs** (stand-in answers, cut into a copy of the committed atlas). The kept images came out byte for byte in
+both. Seams are the step across tile edges over the step inside tiles; on fake answers TYRIAN alone measures 0.81
+(D58: 0.88), against 0.57 on its real answers, so these compare runs rather than meet D60's target.
+- *All 32 levels* (60 sheets): 200 new ground tiles, 1 layer-1 and 73 layer-2 tiles (34 of them reused paintings).
+  Ground: edges with a new tile 0.659 (bands 0.60), kept-only edges 0.568 (bands 0.49); per level median 0.71, TYRIAN
+  0.573 as before; worst 3-5 BONUS 1.49 (the purple pipe kit drawn on the ground, in pairs that occur once or twice),
+  3-7 STARGATE 1.34 and 1-4 BUBBLES 1.12 (glossy red bubbles; faint smears in the black beside the clusters), 1-10/2-3
+  BONUS 1.07. Layer 2: 0.72 (bands 0.39; 1-11 0.70, 4-1 0.75, 1-16 0.82). Layer 1: the new fill 0.91.
+- *Five levels* (1-9, 1-11, 1-16, 1-5, 4-1; 24 sheets): ground new-tile edges 0.585, kept-only 0.561; 1-11 0.588, 1-5
+  0.637, 4-1 0.632, 1-16 0.80 (ASSASSIN's asteroid rock ends at tile borders against space); layer 2 0.73.
+
+Tests: `tests/tools/terrainHd.test.ts` runs `terrain_hd_test.py` (merge byte for byte over 1-9, 1-11, 1-16; new edges
+under 0.65 and over 1.5x worse without the seam pass; level 1's edges as before; a second cut changes nothing; held
+strips stay).
+
+**Found, not fixed:** TYRIAN's 15 cloud tiles were seam-solved over TYRIAN's map only; 1-11, 1-14, 1-16 and 4-16
+use them in other pairs (42 over 52: 16 times in TYRIAN, hundreds there), and the merge keeps them, so the cloud
+measure is 0.82 on 1-9 but 1.11 on 1-11 and 1.13 on 1-16 (bands 0.51 on all). The fix changes level 1's clouds:
+re-cut layer 1 over all the levels (`--recut 1:40,...`; TYRIAN's answers are not kept, so 2 cloud sheets again) or
+D57 variants for the worst pairs.
+
+**Options considered:**
+- *Merge into the atlas, new tiles in new images (chosen):* level 1 untouched by construction; the format already
+  had per-rect images; one more instanced draw per extra image.
+- *Re-cut the whole tileset into one atlas per layer:* one image per layer, but every re-encode of the lossy WebP
+  changes the kept tiles and the strips of the kept tiles would move with the new pairs; TYRIAN's answers aren't
+  kept, so it couldn't be re-cut from its paintings anyway.
+- *Copy the kept tiles' texels into a new packed atlas (lossless):* unchanged texels, but lossless atlases are much
+  bigger (not measured here) and every level's download changes.
+- *Paint layer-2 structures too:* flat paintings of pipes and machines next to D34's models; models are the rule for
+  hard surface.
+- *Edge-aware strips (implemented, `--edge-aware`, off):* don't tie two strips where the original has a real edge
+  between the tiles (its facing pixels differ by 64-128 levels or more in some channel), one system per original pixel.
+  Over the 32 levels it measured no better where the original is continuous (new ground edges 0.642 against 0.641)
+  and kept the real edges (0.725 against 0.659 in all); with 40-100 it was worse (0.758 continuous); the smears beside
+  the bubbles stayed. Kept as an option to try on real answers.
+
+**Review:** `sheets/SEND.md` in the batch folder; the fake run's `check/*.jpg` (HOLES' layer 2, ASSASSIN's asteroid
+rock). In game after the real cut: each level's `?debug=play&episode=E&main=N&seed=1&skip=T&freezeAt=T` in both looks.
+
+## D84 — TYRIAN's island rock redrawn HD: the tiles' own stones as smooth cushions in a palette-data texture, an edge band per neighbour
+
+2026-11-03
+
+**Decision:** The island rock (the 16 rock tiles of D63, the rock TYRIAN's structures carry, and the rock
+round the five machines of D66) no longer draws each 2x pixel as a palette-coloured face, which read as
+pixel stair-steps and checker shading next to the painted HD ground. It is the same stones, redrawn:
+- **The stones** (`assets/blender/tiles/lib_rock_hd.py`, numpy only, so Blender and the checks run the same
+  code). From the art among its neighbours: MMPX 2x; each pixel climbs the smoothed brightness to its
+  peak and the pixels of one peak are one stone (grey and warm stones found apart, so a tan stone doesn't
+  climb into the brighter grey one beside it); basins whose shared edge is, on average, nearly as bright
+  as the dimmer peak merge (one stone, two highlights); pixels darker than 0.12 are mortar, outline and
+  roots. Then at 8 texels per pixel: the signed distance to a stone's edge (from the 4x boundary,
+  smoothed, so outlines are curves, not steps), the stone's own shading smoothed (plus the art's
+  highlights kept as crisp glints: sheen, not bumps), its majority ramp; and pointwise a soft mortar line
+  along every edge, a cushion rising over 1.8 px, the shading a little darker toward the edge, a little
+  tile-periodic surface noise. Each stone keeps its place, size, outline and colour from the art.
+- **Palette data, not colour.** The texture is R shade (0..15, continuous), G ramp code (grey, tan, brass;
+  an enemy's rock may add one more, the red machinery's blue-grey stone), B height. The game draws it with
+  `src/render/rockMaterial.ts`: colour = palette[ramp * 16 + shade], interpolated between the two shades,
+  from the live palette texture, so level palettes, fades and JE_filterScreen apply exactly, and the hit
+  flash and smoothie hue (the `hue` that `colourFrame` gives pal_ materials) replace the ramp as the C
+  does. One material per tile instead of 10-15 palette materials. The textures are packed as lossless
+  WebP, which the glTF export embeds as they are (a lossy WebP, as the bakes export, halves the
+  colour channels the height and ramp live in: the bump went flat and seams came back). The tan stones are the art's own tan
+  (D63 snapped many to brass, so they read gold before).
+- **Relief is the bump.** B is a bump map (three.js's, reading B; at a tile's edge the slope is taken
+  looking back, not past the edge). The tops are level: geometry is per tile and can't follow the edge
+  bands below, and any relief there (tried: cushions from the texture, edges pinned to one height, the
+  normals set up along the seams) left a fine crease along every seam. The rock tiles are now 0.6-2k
+  triangles instead of 1.7-3.9k (every vertex along a tile's edge is kept, so neighbours share them:
+  an edge one side merges into one and the other doesn't rasterises with hairline gaps). The island's outline is the 2x pixels with the stair steps rounded off;
+  the underside tiles (140-142) still hang their face toward the camera.
+- **Seams.** A tile's texture is made among its usual neighbours on TYRIAN's map and its edges solved
+  against every tile the map puts beside it (D58's strip solve), but only 34% of the map's seams have both
+  tiles' usual neighbours matching, and a solved compromise showed as a soft light band along the row
+  seams. So for every pair of island tiles the map puts side by side (401 pairs, structures' tiles
+  included), the two are computed together and each gets a 3 px **edge band** for that neighbour
+  (`pair_bands`, in a second texture on the material's emission slot, keys in `tyrian_rock_bands`).
+  `StructureInstances` gives each copy a `rockBands` instance attribute from the level's map (left,
+  right, up, down), and the shader draws the band for the neighbour that is actually there, fading into
+  the tile over 1 px; in a corner the nearer side wins. A structure's rock is one material per cell
+  (`tyrian_rock_cell`: its row and column), so each cell of each copy gets the bands of its own
+  neighbours, inside the structure and round it. A neighbour without a band (other levels' pairs) gets
+  the solved texture.
+- **Structures and enemies use the same builder.** `Structure.rock` builds each cell with `rock_tile`
+  (the concept bake, `texture_bake.py`, now keeps a plain material's own UV map through its round trip:
+  it used to drop every UV map, which gave the rock the bake's);
+  under a structure's own parts the rock is level and darkened in its texture with a soft edge (no
+  pixel-step dark patches). `sprite_rock` (D66) builds the enemy's rock from its sprite with the same
+  code, one texture for the whole assembly, dark under the machine, a sheet without side walls (each
+  piece reaching 0.5 px over its neighbour, as the game places pieces apart), fading out over 1.5 px at
+  the edge of its painted area into the island under it (coverage in the texture's alpha; the material
+  stays translucent).
+- **Original look.** Tied to Options → Graphics → Terrain (D57): "Original" draws the same texture one
+  colour per original 2x pixel (whole shades and ramps, no bump): the pixel look, as the original look
+  draws the ground from its MMPX tiles. It is not D63's exact relief or colours (that would need the old
+  models alongside); `git revert` of this entry's commit is the way back to them.
+
+**Options considered:**
+- *Geometry stones (each stone a bevelled cushion mesh in palette materials):* crisp, but a cushion per
+  stone in every tile is more triangles and draws than D63, the stones' shading would still be one colour
+  per material, and stones crossing seams still break unless both tiles know each other.
+- *Gemini painting (D58/D59's way):* allowed during this work, but a painting doesn't carry palette data
+  (fades, flash and other levels' palettes would only be approximated, D60's limits), the stones would move
+  and need registering, and seams would still need the solve. The deterministic stones keep the art's
+  stones exactly.
+- *A plain RGB texture:* fewer channels, but no exact fades or hit flash, and the tiles are in nine levels'
+  palettes.
+- *Seams by the strip solve alone:* measured smooth (step ratio below 1) but visibly smeared along rows;
+  *per-tile textures with no solve:* a hard grid. *Variants (a model per neighbour set):* hundreds of
+  textures. Edge bands per pair are the variants' cost cut to the 3 px that matter.
+
+**Review:** `?debug=play&seed=1&skip=T&freezeAt=T&armor=99`, T = 2700, 3000, 3300, 3550, 4300, 4900, 5000,
+and at 3840x2160 (before/after in the PR). Seams, `python tools/rock_hd_check.py` (every seam between
+island rock tiles on map 1-9, 1,210, as the game draws them): colour step across a seam 2.12 against 2.00
+between texels inside (ratio 1.06), 8-texel bands 13.6 vs 13.3 (1.02); the original 1x art 1.13 / 1.15;
+the solved textures without bands 0.87 / 0.58 (lower because a smear has no steps: that was the light
+band along the rows). Costs: the 42 models (16 tiles, 12 structures, 14 enemy pieces) are 16.7 MB →
+13.1 MB (tiles 2.6 → 1.6, structures 9.9 → 8.0, enemies 4.2 → 3.5); draw calls in the overlay at
+T = 2700/3000/3300/3550/4300/4900/5000, 1132/1078/875/686/1122/1065/762 → 514/445/255/289/453/541/344;
+CPU per frame (overlay, before and after run alternately on a heavily loaded machine, so only the
+ratio means much) 16.5-18.6 → 8.2-9.7 ms at 2700, 9.9-13.5 → 4.6 ms at 3300, 17.7-19.0 → 8.9-9.2 ms
+at 4300, 51-59 → 60 fps. Known limits: the crater's cell is darker than the rock round it,
+as its art is; an enemy's rock meets the island under it with a 1.5 px fade (its coverage in the
+texture's alpha), and stones there don't line up with the tiles'; pairs from the other eight levels
+that use these tiles fall back to the solved textures.
+Fallback: revert this commit (scripts, models, rockMaterial.ts, the instance attribute).
+
+## D85 — The menus in copper and bronze: the original's layouts on umber glass over the dimmed planet
+
+2026-11-03
+
+**Decision:** Every menu screen outside the title (D64) and the HUD (D61) drops the navy and gold
+look. The user chose direction 3, "Copper and bronze", from three mockups
+(`tyrian-scratch/ui-copper/mockups/d3-hybrid.html`, sheet `sheets/d3-hybrid-sheet.png`).
+
+- **Panes:** dark umber glass (`--ui-pane`, 86%, 8 px blur) in a 2 px bronze rim lit from above.
+  `.ui-panel` and the new `.ui-pane` draw the rim as one border with a shade per side, so the glass
+  stays see-through and the corners round without a wrapper element.
+- **One colour rule:** what you choose is copper: titles in the title menu's copper type, small
+  spaced kickers and section labels, and the chosen line with the title's brush smear, a diamond tick
+  and lit copper words. What the game counts is phosphor green, as on the HUD: credits, prices,
+  scores, gauges (volume, power, armour, shield, the generator) and the help line, which becomes the
+  HUD's message bar (`.ui-msgbar`, a well). There is no glow, and green is used only for numbers and
+  the message bar. Primary buttons (Done, Continue) are drawn as a chosen line with ticks on both
+  sides.
+- **Tokens first** (`src/ui/tokens.css`): the copper, rim, well and phosphor tokens are added, and
+  the old names (`--ui-gold`, `--ui-cyan`, `--ui-ink`, `--ui-steel`...) point at copper and bone, so
+  every screen that read them follows. `--ui-focus-fill` is now a full background value (the
+  smear), not a gradient. `--ui-player1/2` keep the HUD's gold and cyan for telling players apart.
+  The HUDs (`.hud`, `.hud2`) pin their old colours, so play looks the same.
+- **Layouts:** the item screen is the original's. A pane holds the picture (loadout, simulator or
+  cube portrait) over readout wells (credits, power with arrows, upgrade cost). A second pane holds
+  the menu's title and list, with prices on the right. The message bar runs along the bottom.
+  Options lays its sections out in columns on wide screens (settings | keys | player 2's keys and
+  the gamepad check). High Scores puts the episode pager beside the title. On phones the panes fill
+  the window with the message bar at the foot (the mockup's phone renders).
+- **Backdrop** (`src/ui/backdrop.ts`): the blue hangar is retired over the planet. Every mood draws
+  the title's painted planet (`titlePlanet.ts`): "title" as before; "space" (every other menu,
+  including the screens opened over the title) dims it with the mockup's scrim in its composite pass
+  and hides the flying Talons; "hangar" (the item screen, episode-end cards) adds the player's ship,
+  turning, lit warm, in the freeSlot gap beside the panes (D55). Where no gap takes it (phones) the
+  ship isn't drawn rather than showing behind the panes. The planet keeps one clock across moods, so
+  going between the title and a menu only dims or brightens it (it starts over, from 0 on the title
+  or at 30 s in a menu, only when a screen comes up after a level). With reduced motion the planet
+  is one still frame, the ship holds a three-quarter view, and the dimming doesn't fade. The older 3D
+  planet and starfield remain only as the stand-in if the planet's shader can't run. The CSS stand-in
+  without WebGL is the title's planet under the same scrim.
+- No new fonts or CDNs. The title is pixel-identical in a reduced-motion capture, and the HUD in a
+  `?debug=play` capture (only the debug timing line differs).
+
+**Not converted:** pictures and text colours that are the game's own (story pictures and their
+palette-tinted text, the cube portraits, item and planet sprites). The power well shows the upgrade
+cost; the downgrade refund is only in the left arrow's tooltip and label.
+
+**Review:** captures (desktop 1920x1080, phone 430x932) and the contact sheet are in
+`tyrian-scratch/ui-copper/impl/`. The script is `capture-impl.mjs` (scenarios menus, shop, flow,
+extras, two).

@@ -44,6 +44,7 @@ import { passHeight } from "./passHeights";
 import { SpriteMeshCache } from "./spriteMesh";
 import { colourFrame, rigModel, showFrame, type FrameRig } from "./modelFrames";
 import { castsShadow, isModelHelper, setModelBlended } from "./modelPrep";
+import { adoptRockMaterials, cloneRockMaterial, isRockMaterial, rockFades, setRockLook } from "./rockMaterial";
 import type { SpriteModels } from "./spriteModels";
 import { Route, Sprite2Router } from "./sprite2Route";
 import { bankShift } from "./bankShift";
@@ -363,7 +364,11 @@ export class DrawListRenderer {
   /** Structures already placed this frame, by layer and pattern anchor. */
   private readonly placedStructures = new Set<string>();
   /** This frame's ground structures, placed once the enemies are known (D67), and what the enemy models cover. */
-  private readonly groundStructures: { model: string; x: number; y: number; z: number; scale: number; left: number; top: number; w: number; h: number }[] = [];
+  private readonly groundStructures: {
+    model: string; x: number; y: number; z: number; scale: number;
+    neighbours: ((row: number, col: number) => number[]) | undefined;
+    left: number; top: number; w: number; h: number;
+  }[] = [];
   private readonly cover = new OpaqueCover();
   /** This frame's ground cells of wreck tiles, drawn once the frame knows whether enemies cover them (D67). */
   private readonly groundCells: { d: TileDraw; x: number; y: number; remaster: boolean }[] = [];
@@ -397,6 +402,7 @@ export class DrawListRenderer {
 
   constructor() {
     this.root.name = "draw-list";
+    setRockLook(this.terrain === "hd");
     this.root.add(this.structures.group);
     const p = this.palette;
     this.materials = [];
@@ -517,6 +523,7 @@ export class DrawListRenderer {
    */
   setTerrainStyle(style: TerrainStyle): void {
     this.terrain = style;
+    setRockLook(style === "hd"); // the island rock: smooth, or the original's pixels (D84)
   }
 
   get terrainStyle(): TerrainStyle {
@@ -540,7 +547,8 @@ export class DrawListRenderer {
    * meanwhile). Models are centred on their origin, forward -Z.
    */
   setSpriteModels(models: SpriteModels, loader: ModelLoader): void {
-    this.loader = loader;
+    // The island rock's HD materials (D84) take their colours from this renderer's palette.
+    this.loader = (name) => loader(name).then((model) => adoptRockMaterials(model, this.palette));
     this.router = new Sprite2Router(models);
     for (const o of models.banked) this.modelPool(o.model);
   }
@@ -734,7 +742,7 @@ export class DrawListRenderer {
     // A ground structure under opaque ground-enemy sprites (a wreck under its live bunker), as far as
     // the playfield shows it, is left out, as the sprites hid its tiles (D67).
     for (const s of this.groundStructures) {
-      if (!this.cover.covered(s.left, s.top, s.w, s.h)) this.structures.place(s.model, s.x, s.y, s.z, s.scale);
+      if (!this.cover.covered(s.left, s.top, s.w, s.h)) this.structures.place(s.model, s.x, s.y, s.z, s.scale, s.neighbours);
     }
     // A wreck's ground cell under opaque enemy sprites draws without the wreck: its covered HD
     // painting, else (the pixel looks) its plain-ground stand-in or the tile with its wreck pixels
@@ -928,11 +936,12 @@ export class DrawListRenderer {
           const gx = screenWorldX(x + match.dx);
           const gz = screenWorldZ(y + match.dy);
           const px = gx + (cam.x - gx) * k, pz = gz + (cam.z - gz) * k;
+          const neighbours = this.mapNeighbours(d.layer, match.anchorKey);
           if (d.layer === 0) {
             const cols = match.entry.tiles[0].length, rows = match.entry.tiles.length;
             const cx = x + match.dx - (match.entry.offset?.[0] ?? 0), cy = y + match.dy - (match.entry.offset?.[1] ?? 0);
-            this.groundStructures.push({ model: match.entry.model, x: px, y: h, z: pz, scale: 1 - k, left: cx - cols * 12, top: cy - rows * 14, w: cols * 24, h: rows * 28 });
-          } else this.structures.place(match.entry.model, px, h, pz, 1 - k);
+            this.groundStructures.push({ model: match.entry.model, x: px, y: h, z: pz, scale: 1 - k, neighbours, left: cx - cols * 12, top: cy - rows * 14, w: cols * 24, h: rows * 28 });
+          } else this.structures.place(match.entry.model, px, h, pz, 1 - k, neighbours);
         }
         if (!(match.entry.keepTiles ?? d.layer === 0)) return true;
         modelled = true;
@@ -1029,6 +1038,24 @@ export class DrawListRenderer {
     const tileset = this.terrainArt.get(this.levelMaps.tileset);
     if (!tileset) return;
     for (const image of tileset.images.values()) if (image) renderer.initTexture(image.texture);
+  }
+
+  /**
+   * The tiles on the level's map left of, right of, above and below a cell of a structure whose
+   * pattern's top-left cell is `anchorKey` (-1: none or off the map), so the island rock of each
+   * cell can draw its edge band for each (D84).
+   */
+  private mapNeighbours(layer: 0 | 1 | 2, anchorKey: number): ((row: number, col: number) => number[]) | undefined {
+    if (!this.levelMaps) return undefined;
+    const map = this.levelMaps.maps[layer];
+    const { width } = MAP_SIZES[layer];
+    const anchor = anchorKey - layer * BG_KEY_LAYER;
+    return (row, col) => {
+      const i = anchor + row * width + col;
+      const x = i % width;
+      const at = (j: number, ok: boolean) => (ok && j >= 0 && j < map.length ? map[j] : -1);
+      return [at(i - 1, x > 0), at(i + 1, x < width - 1), at(i - width, true), at(i + width, true)];
+    };
   }
 
   /** Load a tileset's HD terrain art (once), and give it the level's maps for its variants. */
@@ -1212,7 +1239,7 @@ export class DrawListRenderer {
           (m.userData.outlineParameters as { visible?: boolean }).visible = !blended;
           continue;
         }
-        m.transparent = blended;
+        m.transparent = blended || rockFades(m);
         m.opacity = blended ? BLEND_ALPHA : 1;
         m.depthWrite = !blended;
         // The outline shell would show through a translucent model as a dark husk.
@@ -1252,7 +1279,8 @@ export class DrawListRenderer {
       mesh.castShadow = castsShadow(mesh);
       mesh.receiveShadow = !isModelHelper(mesh);
       // Own materials, so one clone can turn translucent (invulnerability) without the others.
-      mesh.material = Array.isArray(mesh.material) ? mesh.material.map((m) => m.clone()) : mesh.material.clone();
+      const clone = (m: THREE.Material) => (isRockMaterial(m) ? cloneRockMaterial(m) : m.clone());
+      mesh.material = Array.isArray(mesh.material) ? mesh.material.map(clone) : clone(mesh.material);
       materials.push(...(Array.isArray(mesh.material) ? mesh.material : [mesh.material]));
     });
     this.root.add(object);

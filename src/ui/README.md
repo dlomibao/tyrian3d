@@ -2,8 +2,9 @@
 
 Every screen outside the action itself (the data picker, title, item screen, messages, pause, and
 the Data Cubes, Options, high scores, endings and story screens still to come) is an HTML screen
-built from this folder, over a 3D backdrop. That gives them one look (a remastered Tyrian: dark
-panels, gold and cyan accents, crisp vector text at any size) and one way to drive them (keyboard,
+built from this folder, over a 3D backdrop. That gives them one look (D85: umber glass panes in a
+thin bronze rim over the dimmed painted planet, copper for what you choose, phosphor green for what
+the game counts, crisp vector text at any size) and one way to drive them (keyboard,
 gamepad, mouse and touch). The game rules behind a screen stay in `src/sim/` and don't change;
 a screen only draws the state and turns input into the rules' inputs.
 
@@ -30,7 +31,7 @@ export function showOptions(): Promise<string | null> {
     };
     const screen = showScreen({
       id: "options",          // root gets .ui-screen--options for screen-specific CSS
-      backdrop: "space",      // "title" | "hangar" | "space" | "none" (the game stays visible)
+      backdrop: "space",      // "title" | "hangar" | "space" | "none" (the game stays visible): see Backdrop
       layout: "center",       // panel width: "narrow" | "center" | "wide"
       onBack: () => done(null), // Escape, Backspace, pad B
     });
@@ -58,7 +59,7 @@ export function showOptions(): Promise<string | null> {
   the settings or save prompt from the item screen) passes `over: true`: the one beneath stays
   open, hidden and without input, and gets the input back when this one closes, so its caller just
   awaits it. `over: "show"` leaves the one beneath in view (a dialog over the item screen). Without
-  a `backdrop` of its own, the mood stays the one beneath. A screen shown without `over` closes
+  a `backdrop` of its own, the mood stays the one beneath (over the title: "space", the planet dimmed). A screen shown without `over` closes
   them all.
 - **Content** goes in `screen.panel` (`screen.add(...)` appends nodes and Navigables). Anything
   outside the panel, such as the title's logo, goes in `screen.root`.
@@ -120,12 +121,18 @@ same classes: `ui-menu`, `ui-menu__item is-focused`, `ui-menu__icon`, `ui-menu__
 
 ## Look
 
-The title (D64) uses the copper tokens (`--ui-copper*`, `--ui-bone`, `--ui-umber-ink`) and no blue.
-Use the tokens (`var(--ui-gold)`, `var(--ui-space-3)`, `var(--ui-text-lg)`,
-`var(--ui-med)`...) rather than raw values, the display face (`--ui-font-display`, Orbitron) for
-titles and labels and the text face (`--ui-font-text`, Exo 2) for reading. Motion stays subtle and
-honours `prefers-reduced-motion` through the tokens. Check a new screen at phone size (a 390 px
-wide portrait screen and a landscape one) as well as on a desktop.
+D85: panes are `.ui-panel` (or `.ui-pane` inside a screen's panel), umber glass in a 2 px bronze
+rim. Colour has one rule. What you choose is copper: titles in the copper type, kickers and labels
+in spaced copper capitals, and the chosen line with the brush smear (`--ui-focus-fill`), a diamond
+tick and lit copper words. What the game counts is phosphor (`.ui-phos`, `--ui-phos*`): credits,
+prices, scores and gauges. The help line goes in the HUD's message bar (`.ui-msgbar`, a `.ui-well`).
+There is no glow. Use the tokens (`var(--ui-copper-lite)`, `var(--ui-space-3)`, `var(--ui-text-lg)`,
+`var(--ui-med)`...) rather than raw values: the text face (`--ui-font-text`, Exo 2) for titles and
+reading, the display face (`--ui-font-display`, Orbitron) for small spaced labels, and the HUD's
+lettering (`--ui-font-phos`) for figures. The older names (`--ui-gold`, `--ui-cyan`, `--ui-ink`)
+point at copper and bone. Motion stays subtle and honours `prefers-reduced-motion` through the
+tokens. Check a new screen at phone size (a 390 px wide portrait screen and a landscape one) as well
+as on a desktop.
 
 The older classes in `src/app/overlay.css` (`.overlay`, `.panel`, `.choices`, `.key`) still
 work and take the tokens' colours and font, so a screen written with them looks close already;
@@ -134,9 +141,11 @@ moving it onto `showScreen` gives it the navigation, transitions and backdrop.
 ## Backdrop
 
 `main.ts` attaches a `Backdrop` that draws with the game View's renderer while a screen with a
-backdrop mood is up, and stops when none is (it costs nothing during levels). The "title" mood is
-the painted planet at sunrise with passing Talons (`titlePlanet.ts`, D64: a reduced-resolution paint
-pass, a half-resolution path for slow GPUs, one still frame under reduced motion); "hangar" and
-"space" are the 3D scene. Without WebGL a CSS stand-in shows (a maroon planet for the title, a
-starfield otherwise). `ui.backdrop?.setShipGraphic?.(shipGraphic)` shows a player ship (the item
-screen does this as ships are browsed).
+backdrop mood is up, and stops when none is (it costs nothing during levels). Every mood is the
+painted planet at sunrise (`titlePlanet.ts`, D64: a reduced-resolution paint pass, a
+half-resolution path for slow GPUs, one still frame under reduced motion). "title" shows it with
+passing Talons; "space" (any other menu) dims it under the panes; "hangar" (the item screen) adds the
+player's ship, turning in the gap beside the panes (D55, D85). Without WebGL a CSS stand-in shows
+(a maroon planet for the title, the same planet dimmed otherwise).
+`ui.backdrop?.setShipGraphic?.(shipGraphic)` shows a player ship (the item screen does this as ships
+are browsed).

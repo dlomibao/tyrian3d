@@ -73,9 +73,9 @@ describe("screens over screens", () => {
     expect(title.open).toBe(true);
     expect(title.root.classList.contains("is-under")).toBe(true);
     expect(manager.current).toBe(options);
-    // The backdrop keeps the title's mood.
-    expect(options.opts.backdrop).toBe("title");
-    expect(moods.at(-1)).toBe("title");
+    // The backdrop keeps the title's planet, dimmed for a menu (D85).
+    expect(options.opts.backdrop).toBe("space");
+    expect(moods.at(-1)).toBe("space");
     press("Enter");
     options.close();
     expect(manager.current).toBe(title);
@@ -83,6 +83,13 @@ describe("screens over screens", () => {
     press("ArrowDown");
     expect(got).toEqual(["options accept", "title down"]);
     expect(moods.at(-1)).toBe("title");
+  });
+
+  test("a screen over the item screen keeps its mood (the ship)", () => {
+    manager.show({ id: "shop", backdrop: "hangar" });
+    const options = manager.show({ id: "options", over: true });
+    expect(options.opts.backdrop).toBe("hangar");
+    expect(moods.at(-1)).toBe("hangar");
   });
 
   test('"show" leaves the screen beneath in view; a mood of its own replaces the one beneath until it closes', () => {

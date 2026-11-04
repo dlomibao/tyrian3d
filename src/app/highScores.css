@@ -1,39 +1,58 @@
 /* The high score screens (src/app/highScoresScreen.ts), on src/ui's components and tokens:
    .ui-screen--highscores (the tables) and .ui-screen--highscore-entry (the name entry). */
 
-/* --- the tables --- */
+/* --- the tables (D85: the title and the episode pager on one line, scores in phosphor) --- */
 
-.ui-screen--highscores .ui-title {
-  text-align: center;
-  align-items: center;
+.ui-screen--highscores > .ui-panel {
+  max-width: 46rem;
+}
+
+.hs-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: var(--ui-space-2) var(--ui-space-4);
+  padding-bottom: var(--ui-space-3);
+  margin-bottom: var(--ui-space-2);
+  border-bottom: 1px solid var(--ui-rule);
+}
+
+.hs-head .ui-title {
+  margin: 0;
 }
 
 .ui-screen--highscores .hs-paging {
-  display: grid;
-  grid-template-columns: var(--ui-hit) minmax(0, 1fr) var(--ui-hit);
+  display: flex;
   align-items: center;
-  gap: var(--ui-space-2);
+  gap: var(--ui-space-1);
 }
 
 .ui-screen--highscores .hs-page {
+  min-width: var(--ui-hit);
   padding: 0;
-  color: var(--ui-cyan);
+  font-size: 0.75rem;
+  letter-spacing: 0;
+  color: var(--ui-copper);
+}
+
+.ui-screen--highscores .hs-page:hover {
+  color: var(--ui-copper-hi);
 }
 
 .ui-screen--highscores .hs-episode {
   margin: 0;
   text-align: center;
-  font-family: var(--ui-font-display);
-  font-size: var(--ui-text-md);
+  font-family: var(--ui-font-text);
+  font-size: 1.05rem;
   font-weight: 600;
-  letter-spacing: var(--ui-tracking);
-  text-transform: uppercase;
   color: var(--ui-ink);
 }
 
 /* The table after a name entry: the episode under the title. */
 .ui-screen--highscores .ui-panel > .hs-episode {
   margin-bottom: var(--ui-space-3);
+  text-align: left;
 }
 
 /* An episode without data (episodeAvail): its header is dimmed. */
@@ -51,35 +70,38 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
 }
 
-/* "~#1:~  16000", the name, the difficulty. */
+/* The rank, the score, the name, the difficulty. */
 .hs-row {
   display: grid;
-  grid-template-columns: 2.25rem 5.5rem minmax(0, 1fr) auto;
-  align-items: baseline;
-  gap: var(--ui-space-3);
-  padding: var(--ui-space-2) var(--ui-space-3);
+  grid-template-columns: 1.6rem 5.5rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1.2rem;
+  min-height: 2.75rem;
+  padding: 0 var(--ui-space-2);
   border-radius: var(--ui-radius);
-  background: rgba(143, 163, 184, 0.05);
-  color: var(--ui-ink-dim);
-}
-
-.hs-row:first-child {
-  background: linear-gradient(90deg, rgba(240, 176, 72, 0.14), rgba(240, 176, 72, 0.03) 70%, transparent);
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--ui-ink);
 }
 
 .hs-rank {
+  text-align: center;
   font-family: var(--ui-font-display);
-  font-weight: 700;
-  color: var(--ui-gold);
+  font-size: 0.9rem;
+  font-weight: 900;
+  color: var(--ui-copper-lite);
 }
 
 .hs-score {
   text-align: right;
+  font-family: var(--ui-font-phos);
+  font-size: 1.2rem;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: var(--ui-ink);
+  color: var(--ui-phos-num);
+  text-shadow: var(--ui-phos-glow);
 }
 
 .hs-name {
@@ -93,30 +115,34 @@
 /* JE_textShade's brightness: higher difficulty ranks are drawn brighter (--shade 0..9). */
 .hs-diff {
   justify-self: end;
-  font-size: var(--ui-text-sm);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   white-space: nowrap;
-  color: color-mix(in srgb, var(--ui-gold-bright) calc(25% + var(--shade, 0) * 8%), var(--ui-ink-faint));
+  color: color-mix(in srgb, var(--ui-copper-hi) calc(var(--shade, 0) * 9%), var(--ui-bone-faint));
 }
 
-/* JE_outTextGlow: the new entry fades in bright. */
+/* JE_outTextGlow: the new entry, the chosen line's smear and copper, fading in. */
 .hs-row.hs-new {
-  border: 1px solid var(--ui-edge-strong);
   background: var(--ui-focus-fill);
-  color: var(--ui-ink-warm);
+}
+
+.hs-row.hs-new > .hs-name {
+  background-image: var(--ui-copper-type-lit);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: var(--ui-type-shadow);
 }
 
 .hs-row.hs-new > span {
-  color: var(--ui-ink-warm);
   animation: hs-glow 1.2s var(--ui-ease);
 }
 
 @keyframes hs-glow {
   from {
-    color: #000;
-    text-shadow: 0 0 0 transparent;
-  }
-  60% {
-    text-shadow: var(--ui-glow-gold);
+    opacity: 0;
   }
 }
 
@@ -124,6 +150,28 @@
   .hs-row.hs-new > span {
     animation: none;
   }
+}
+
+/* Done: the chosen line. DONE is the data's capitals; set it as the other lines. */
+.ui-screen--highscores .hs-done > span:first-child {
+  text-transform: lowercase;
+}
+
+.ui-screen--highscores .hs-done > span:first-child::first-letter {
+  text-transform: uppercase;
+}
+
+.ui-screen--highscores .ui-actions {
+  margin-top: var(--ui-space-3);
+}
+
+.hs-foot {
+  justify-content: center;
+  margin-top: var(--ui-space-3);
+}
+
+.hs-foot .ui-hints {
+  justify-content: center;
 }
 
 /* "Press a key" (miscText[4]), or a tap on a touch screen. */
@@ -134,7 +182,7 @@
   font-size: var(--ui-text-xs);
   letter-spacing: var(--ui-tracking-wide);
   text-transform: uppercase;
-  color: var(--ui-cyan);
+  color: var(--ui-copper-lite);
 }
 
 .hs-press__touch,
@@ -169,11 +217,12 @@
 }
 
 .ui-screen--highscore-entry .hs-total b {
-  font-family: var(--ui-font-display);
-  font-size: var(--ui-text-lg);
+  font-family: var(--ui-font-phos);
+  font-size: var(--ui-text-xl);
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: var(--ui-gold);
-  text-shadow: var(--ui-glow-gold);
+  color: var(--ui-phos-num);
+  text-shadow: var(--ui-phos-glow);
 }
 
 .hs-field {
@@ -190,17 +239,17 @@
   font-weight: 600;
   letter-spacing: 0.04em;
   color: var(--ui-ink-warm);
-  caret-color: var(--ui-gold-bright);
-  background: rgba(0, 0, 0, 0.45);
+  caret-color: var(--ui-copper-hi);
+  background: var(--ui-well);
   border: 1px solid var(--ui-edge-strong);
   border-radius: var(--ui-radius);
-  box-shadow: inset 0 0 1rem rgba(240, 176, 72, 0.08);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.9);
   outline: none;
 }
 
 .hs-input:focus {
-  border-color: var(--ui-gold-bright);
-  box-shadow: inset 0 0 1rem rgba(240, 176, 72, 0.12), 0 0 0.75rem rgba(240, 176, 72, 0.25);
+  border-color: var(--ui-copper-hi);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.9), 0 0 0 1px var(--ui-rim-ink), 0 0 0 2px var(--ui-copper);
 }
 
 .hs-count {
@@ -229,9 +278,9 @@
   padding: 0;
   font: inherit;
   font-weight: 600;
-  color: var(--ui-ink-dim);
-  background: var(--ui-panel-raised);
-  border: 1px solid var(--ui-edge);
+  color: var(--ui-key-ink);
+  background: var(--ui-key-fill);
+  border: 1px solid var(--ui-key-edge);
   border-radius: var(--ui-radius);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -256,9 +305,9 @@
 }
 
 .hs-key--ok {
-  color: #1a0f00;
-  background: linear-gradient(180deg, var(--ui-gold-bright), var(--ui-gold));
-  border-color: var(--ui-gold-bright);
+  color: var(--ui-umber-ink);
+  background: var(--ui-copper-type-lit);
+  border-color: var(--ui-copper-hi);
 }
 
 @media (hover: hover) {
@@ -274,15 +323,15 @@
 
 /* The focus: always drawn, whichever device moved it. */
 .hs-key.is-focused {
-  color: var(--ui-ink-warm);
-  border-color: var(--ui-gold-bright);
-  background: rgba(240, 176, 72, 0.2);
-  box-shadow: 0 0 0.75rem rgba(240, 176, 72, 0.35), inset 0 0 0 1px var(--ui-gold-bright);
+  color: var(--ui-copper-hi);
+  border-color: var(--ui-copper-hi);
+  background: rgba(183, 116, 66, 0.5);
+  box-shadow: 0 0 0 1px var(--ui-rim-ink), 0 0 0 2px var(--ui-copper);
 }
 
 .hs-key--ok.is-focused {
-  color: #1a0f00;
-  background: linear-gradient(180deg, #fff2b0, var(--ui-gold-bright));
+  color: var(--ui-umber-ink);
+  background: linear-gradient(180deg, #fff0d0, var(--ui-copper-lite));
 }
 
 /* The keyboard's hints, or the pad's on a pad; neither on a touch screen (the grid takes taps). */
@@ -296,17 +345,28 @@
 }
 
 /* Phones: less space around the rows, the difficulty under the name. */
-@media (max-width: 480px) {
+@media (max-width: 560px) {
   .hs-row {
-    grid-template-columns: 2rem 4.75rem minmax(0, 1fr);
-    gap: 0 var(--ui-space-2);
-    padding: var(--ui-space-1) var(--ui-space-2);
+    grid-template-columns: 1.6rem 4.4rem minmax(0, 1fr);
+    gap: 0.8rem;
+    font-size: 1rem;
+  }
+
+  .hs-score {
+    font-size: 1.05rem;
   }
 
   .hs-diff {
-    grid-column: 3;
-    justify-self: start;
-    font-size: var(--ui-text-xs);
+    display: none;
+  }
+
+  .hs-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ui-screen--highscores .hs-paging {
+    justify-content: space-between;
   }
 
   .hs-picker {

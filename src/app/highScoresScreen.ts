@@ -82,7 +82,7 @@ function row(rank: number, e: HighScoreEntry, difficultyNameB: string[] | null, 
   return h(
     "li",
     { class: `hs-row${isNew ? " hs-new" : ""}` },
-    h("span", { class: "hs-rank", text: `#${rank}` }),
+    h("span", { class: "hs-rank", text: String(rank) }),
     h("span", { class: "hs-score", text: String(e.highScore1) }),
     h("span", { class: "hs-name", text: e.highScoreName.trimEnd() }),
     diff,
@@ -163,14 +163,20 @@ export function showHighScoreScreen(opts: HighScoreScreenOptions): Promise<void>
     render();
 
     screen.add(
-      title(misc(50, "High Scores")),
-      h("div", { class: "hs-paging" }, prev, episodeEl, next),
+      // The original's layout (D85): the title with the episode pager beside it, the tables, Done,
+      // and the hints in the message bar.
+      h("header", { class: "hs-head" }, title(misc(50, "High Scores")), h("div", { class: "hs-paging" }, prev, episodeEl, next)),
       tablesEl,
-      h("div", { class: "ui-actions" }, button({ label: misc(13, "DONE"), variant: "primary", hint: { key: "Enter", pad: "A" }, onPress: done })),
-      keyHints([
-        { key: "←→", pad: "✛ LB RB", label: "Episode" },
-        { key: "Esc", pad: "B", label: "Back" },
-      ]),
+      h("div", { class: "ui-actions" }, button({ label: misc(13, "DONE"), variant: "primary", class: "hs-done", onPress: done })),
+      h(
+        "div",
+        { class: "ui-msgbar hs-foot" },
+        keyHints([
+          { key: "←→", pad: "✛ LB RB", label: "Episode" },
+          { key: "Enter", pad: "A", label: "Done" },
+          { key: "Esc", pad: "B", label: "Back" },
+        ]),
+      ),
     );
     // A right click closes, as in the C.
     screen.root.addEventListener("contextmenu", (e) => {
