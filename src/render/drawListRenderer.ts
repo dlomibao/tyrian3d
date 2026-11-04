@@ -1082,6 +1082,17 @@ export class DrawListRenderer {
   }
 
   /**
+   * Send the flat sprite art's atlases (shots, pickups, explosions: D42) to the GPU now. Uploaded on
+   * their first draw instead, mid-level, each cost a frame 18-30 ms (newsh6's 832x4096 at the first
+   * explosion; decode, upload, mipmaps). The same atlases serve every level, so after the first
+   * level's preload this does nothing (initTexture skips an uploaded texture).
+   */
+  uploadSpriteArt(renderer: THREE.WebGLRenderer): void {
+    if (!this.spriteArt) return;
+    for (const sheet of this.spriteArt.sheets.values()) if (sheet.texture) renderer.initTexture(sheet.texture);
+  }
+
+  /**
    * The tiles on the level's map left of, right of, above and below a cell of a structure whose
    * pattern's top-left cell is `anchorKey` (-1: none or off the map), so the island rock of each
    * cell can draw its edge band for each (D84).
