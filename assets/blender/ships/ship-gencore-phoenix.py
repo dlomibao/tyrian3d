@@ -4,11 +4,17 @@ as a real spaceship from every angle (it turns in the menus and the hangar; the 
 down at a tilt).
 
 The sprite is authoritative for the plan outline, the windshield and the colours (D52):
-- Outline: the top view follows frame 157's mask (its dark outline ring included) row by row, as
-  smooth curves: an ogive nose widening in steps the curve rounds off to the 10 px body at row 9, a
-  1 px waist at rows 17-18, the tail tapering over rows 23-25; two crescent blade wings (straight
-  inner edge, convex outer edge, a pointed front at row 9 and a tail spike at rows 23-24) a pixel
-  clear of the body, joined to it only by the box-section booms at rows 19-22.
+- Outline: the top view follows frame 157's INNER mask (its ink ring left to the game's outline,
+  D74, docs/agents/OUTLINE-BORDER.md) row by row, as smooth curves: an ogive nose widening in steps
+  the curve rounds off to the 8 px body at row 9, a narrower waist at rows 17-18, the tail tapering
+  over rows 23-24; two crescent blade wings (straight inner edge, convex outer edge, a pointed front
+  at row 9 and a tail spike at rows 23-24) clear of the body, joined to it only by the box-section
+  booms at rows 20-21. Rule IoU on the grid 0.996 (tools/sprite_mask.py --measure). The banking
+  frames are this model rolled by the game, 40 degrees at half bank and 50 at full, and moved 1.5 /
+  3.5 px toward the bank (BANK_ROLL, BANK_SHIFT, fitted to sprites 153-161 with tools/bank_roll.py,
+  D93): the sprites draw one solid wedge 15-17 px wide (inside the ink), a harder roll than the Talon's 17.5 / 35.
+  Nothing in the model is shaped for them; at that pose they measure 0.83-0.84 (half) and 0.85-0.86
+  (full).
 - Windshield: dark glossy glass in a frame over the sprite's dark cockpit pixels (rows 6-9, columns
   10-13), pointed forward; the bright pixel at row 7 is its glint.
 - Colours: each part takes the palette index the sprite uses where it covers it (the median of those
@@ -98,17 +104,17 @@ def materials(sprite):
 
 # Fuselage half width including the outline ring: pchip through the midpoints of the sprite's steps
 # (rows 1 / 2-3 / 4-5 / 6-8 / 9-16 / 17-22 / 23 / 24 / 25 are 1 / 2 / 3 / 4 / 5 / 4 / 4 / 3 / 2 px).
-PLAN = pchip([1.0, 1.35, 2.0, 3.0, 4.0, 5.0, 6.0, 7.5, 8.6, 8.85, 9.15, 9.6, 16.4, 16.8, 17.2, 17.6, 22.6,
-              23.5, 24.5, 25.4, 26.0],
-             [0.15, 0.85, 1.45, 2.0, 2.5, 3.0, 3.5, 4.0, 4.3, 4.5, 4.85, 5.0, 5.0, 4.75, 4.2, 4.0, 4.0,
-              3.95, 3.05, 2.1, 1.7])
-NOSE_Y, TAIL_Y = 1.0, 25.6  # the core's end; the nozzles reach row edge 26
+PLAN = pchip([1.9, 2.2, 3.0, 4.0, 5.0, 6.0, 7.5, 8.6, 8.85, 9.15, 9.6, 16.4, 16.8, 17.2, 17.5, 18.5, 18.8,
+              19.2, 19.5, 22.6, 23.5, 24.5, 25.0],
+             [0.1, 0.6, 0.95, 1.5, 2.0, 2.5, 3.0, 3.3, 3.5, 3.85, 4.0, 4.0, 3.75, 3.1, 3.0, 3.0, 3.25,
+              3.9, 4.0, 3.9, 3.0, 2.0, 1.7])
+NOSE_Y, TAIL_Y = 1.9, 24.9  # the core's end; the nozzles reach row edge 25
 FUSE_PLATE = 0.28
 FY = [1.0, 2.0, 3.5, 5.0, 6.5, 9.0, 12.0, 16.0, 19.0, 22.0, 24.0, 25.5, 26.0]
 FT = pchip(FY, [0.35, 0.95, 1.55, 2.0, 2.3, 2.55, 2.65, 2.65, 2.5, 2.3, 2.1, 1.8, 1.65])
 FB = pchip(FY, [0.05, -0.5, -1.05, -1.5, -1.85, -2.15, -2.3, -2.3, -2.25, -2.15, -1.95, -1.6, -1.45])
 # The nose's raised centre ridge (a crisp crease down the faceted nose), gone at the windshield.
-RIDGE = pchip([1.0, 4.5, 5.6, 6.3], [0.15, 0.4, 0.3, 0.0])
+RIDGE = pchip([1.9, 4.5, 5.6, 6.3], [0.15, 0.4, 0.3, 0.0])
 DECK, SHOULDER, FLANK, CHINE = 0.6, 0.3, 0.42, 0.1
 
 
@@ -142,12 +148,12 @@ def hull_top(x, y):
 # outline ring), crest height ZT and keel ZB. Straight inner edge a pixel clear of the body, a
 # convex outer edge from the pointed front (row 9) out to column 1, swept in at row 23 to the tail
 # spike, which ends at row 25.
-WING_Y0, WING_Y1 = 9.0, 25.0
-XI = pchip([9.0, 22.8, 23.5, 24.2, 25.0], [6.2, 6.2, 6.3, 6.8, 7.75])
-XO = pchip([9.0, 9.5, 10.5, 11.5, 12.5, 13.5, 14.5, 16.0, 19.0, 22.0, 22.5, 22.9, 23.2, 23.6, 24.4, 25.0],
-           [6.6, 7.6, 8.75, 9.2, 9.85, 10.2, 10.9, 11.0, 11.05, 11.0, 10.95, 9.9, 9.0, 8.9, 8.8, 8.05])
-ZT = pchip([9.0, 10.0, 12.0, 15.0, 19.0, 22.0, 23.5, 25.0], [0.35, 0.95, 1.6, 1.95, 2.0, 1.75, 1.15, 0.45])
-ZB = pchip([9.0, 10.0, 12.0, 15.0, 19.0, 22.0, 23.5, 25.0], [-0.05, -0.45, -0.85, -1.05, -1.1, -1.0, -0.65, -0.1])
+WING_Y0, WING_Y1 = 9.5, 24.2
+XI = pchip([9.5, 18.7, 19.05, 22.8, 23.1, 23.5, 23.8, 24.2], [7.0, 7.0, 6.45, 6.45, 7.0, 7.15, 7.6, 8.3])
+XO = pchip([9.5, 10.0, 10.5, 11.5, 12.5, 13.5, 14.5, 16.0, 19.0, 21.9, 22.25, 22.8, 23.3, 23.8, 24.2],
+           [7.3, 7.9, 8.1, 8.3, 8.95, 9.25, 9.9, 10.0, 10.05, 10.0, 9.2, 9.0, 8.9, 8.7, 8.4])
+ZT = pchip([9.5, 10.3, 12.0, 15.0, 19.0, 22.0, 23.3, 24.2], [0.3, 0.7, 1.1, 1.3, 1.35, 1.2, 0.8, 0.35])
+ZB = pchip([9.5, 10.3, 12.0, 15.0, 19.0, 22.0, 23.3, 24.2], [-0.05, -0.3, -0.58, -0.7, -0.75, -0.68, -0.45, -0.08])
 ZE = 0.1  # knife edge height
 
 
@@ -210,13 +216,13 @@ def S2(side, a, b, n=10):
 
 def build_fuselage(P, D):
     L = fuselage_loop
-    ys = [NOSE_Y, 1.15, 1.35] + frange(1.6, 25.4, 0.5) + [TAIL_Y]
+    ys = [NOSE_Y, 2.05, 2.25] + frange(2.5, 24.5, 0.5) + [TAIL_Y]
     loft(P, L, ys, GUN, cap0=False)
     # Nose cone: one armour shell all round, folding crisply over the ridge, and a polished tip.
-    plate(P, L, 1.3, 5.7, LT, d=FUSE_PLATE, c=0.14, ch0=False, ystep=0.4)
-    sec = Section(L, 1.3)
+    plate(P, L, 2.2, 5.7, LT, d=FUSE_PLATE, c=0.14, ch0=False, ystep=0.4)
+    sec = Section(L, 2.2)
     tip = [sec.at(k, FUSE_PLATE) for k in range(sec.n)]
-    hull(P, tip + [(0.0, 1.02, (FT(1.0) + FB(1.0)) / 2 + 0.05)], STRIP)
+    hull(P, tip + [(0.0, 1.92, (FT(1.9) + FB(1.9)) / 2 + 0.05)], STRIP)
     for side in (1, -1):
         def S(a, b, side=side):
             return S2(side, a, b)
@@ -239,12 +245,12 @@ def build_fuselage(P, D):
         plate(P, L, 16.9, 22.85, MID, *S(1.04, 2.95), d=FUSE_PLATE, c=0.14)
         plate(P, L, 18.0, 22.85, MID, *S(0.42, 0.98), d=0.25, c=0.12)
         # Tail housing (rows 23-25): darker plates round the rod's channel.
-        plate(P, L, 23.0, 25.5, DK, *S(0.42, 0.98), d=0.25, c=0.12, ystep=0.5)
-        plate(P, L, 23.0, 25.5, DK, *S(1.04, 2.95), d=FUSE_PLATE, c=0.14, ystep=0.5)
+        plate(P, L, 23.0, 24.8, DK, *S(0.42, 0.98), d=0.25, c=0.12, ystep=0.5)
+        plate(P, L, 23.0, 24.8, DK, *S(1.04, 2.95), d=FUSE_PLATE, c=0.14, ystep=0.5)
         # Lower chamfer and belly panels.
-        for y0, y1 in ((5.85, 11.9), (12.05, 17.85), (18.0, 25.45)):
+        for y0, y1 in ((5.85, 11.9), (12.05, 17.85), (18.0, 24.75)):
             plate(P, L, y0, y1, BELLY, *S(3.05, 3.95), d=0.2, c=0.1)
-    for y0, y1 in ((9.4, 13.1), (16.9, 21.5), (21.65, 25.4)):
+    for y0, y1 in ((9.4, 13.1), (16.9, 21.5), (21.65, 24.7)):
         plate(P, L, y0, y1, BELLY, s0=4.05, s1=5.95, d=0.2, c=0.1)
     # Nose gear door: proud on the belly, with hinge blocks; a keel strake behind it.
     plate(P, L, 5.85, 9.25, MID, s0=4.1, s1=5.9, d=0.32, c=0.1, ystep=0.6)
@@ -328,11 +334,11 @@ def build_top(P, D):
         hull(P, cbox(sx - 0.07, sx + 0.07, 18.3, 20.1, FT(19) - 0.4, FT(19) + 0.08, 0.03), GUN)
     # A clamp bar, then the channel down the tail with the rod lying in it.
     hull(P, cbox(-1.0, 1.0, 20.3, 20.75, FT(20.5) - 0.3, FT(20.5) + 0.32, 0.08), LT)
-    hull(P, cbox(-0.85, 0.85, 20.75, 25.62, FT(23) - 0.75, FT(23) - 0.15, 0.06), DEEP)
+    hull(P, cbox(-0.85, 0.85, 20.75, 24.95, FT(23) - 0.75, FT(23) - 0.15, 0.06), DEEP)
     rz, rr = FT(23) - 0.12, 0.34
     n = 12
     rod = []
-    for y in (20.6, 25.45):
+    for y in (20.6, 24.8):
         rod.append([P.v((rr * math.cos(2 * math.pi * (k + 0.5) / n), y, rz + rr * math.sin(2 * math.pi * (k + 0.5) / n)))
                     for k in range(n)])
     for k in range(n):
@@ -341,7 +347,7 @@ def build_top(P, D):
     P.f(rod[1], HATCH, out=(0, 1, 0))
     # Tail face: a dark recessed panel in the core's end, the twin nozzles through it.
     zc = (FT(TAIL_Y) + FB(TAIL_Y)) / 2
-    hull(D, cbox(-1.6, 1.6, 25.55, 25.68, zc - 1.1, zc + 0.9, 0.05), DEEP)
+    hull(D, cbox(-1.5, 1.5, 24.85, 24.98, zc - 1.1, zc + 0.9, 0.05), DEEP)
     for sx in (-1, 1):
         nx, nz = sx * 0.88, zc - 0.15
         y0 = TAIL_Y - 0.1
@@ -378,41 +384,41 @@ def build_wings(P, D):
 
         def S(a, b):
             return (a, b)  # the left wing's loop is the right's mirror image, same indices
-        ys = [WING_Y0, 9.1, 9.3, 9.6] + frange(10.0, 24.0, 0.5) + [24.4, 24.7, 24.9, WING_Y1]
+        ys = [WING_Y0, 9.6, 9.8, 10.1] + frange(10.5, 23.5, 0.5) + [23.75, 23.95, 24.1, WING_Y1]
         loft(P, L, ys, GUN)
         # The front point and the tail spike: one armour shell each, all round.
-        plate(P, L, 9.12, 10.25, LT, d=0.16, c=0.08, ch0=False, ystep=0.3)
-        plate(P, L, 22.75, 24.85, HATCH, d=0.18, c=0.1, ch1=False, ystep=0.4)
+        plate(P, L, 9.62, 10.65, LT, d=0.16, c=0.08, ch0=False, ystep=0.3)
+        plate(P, L, 22.75, 24.1, HATCH, d=0.18, c=0.1, ch1=False, ystep=0.4)
         # Top armour in three bands along the blade (the sprite's light inner ridge, darker middle
         # and light outer blade): an inner strip over the crest and the inner chamfer, a mid plate,
         # the outer blade plate down to the knife edge.
-        plate(P, L, 10.4, 22.6, STRIP, *S(-0.75, 0.32), d=0.22, c=0.1)
-        plate(P, L, 10.6, 22.4, MID, *S(0.4, 1.0), d=0.16, c=0.08)
-        plate(P, L, 10.4, 22.6, LT, *S(1.06, 1.94), d=0.24, c=0.1)
+        plate(P, L, 10.8, 22.6, STRIP, *S(-0.75, 0.32), d=0.17, c=0.08)
+        plate(P, L, 11.0, 22.4, MID, *S(0.4, 1.0), d=0.12, c=0.06)
+        plate(P, L, 10.8, 22.6, LT, *S(1.06, 1.94), d=0.17, c=0.08)
         # A raised inset on the outer blade (the concept's layered armour), and the inner face's
         # panel below the strip.
-        plate(P, L, 13.2, 18.6, STRIP, *S(1.2, 1.7), d=0.36, c=0.08, ystep=0.8)
-        plate(P, L, 10.6, 22.4, DK, *S(5.05, 5.9), d=0.18, c=0.08)
+        plate(P, L, 13.2, 18.6, STRIP, *S(1.2, 1.7), d=0.26, c=0.06, ystep=0.8)
+        plate(P, L, 11.0, 22.4, DK, *S(5.05, 5.9), d=0.18, c=0.08)
         # Underneath: two panels and a gear door.
-        plate(P, L, 10.6, 22.4, BELLY, *S(2.08, 2.95), d=0.18, c=0.08)
-        plate(P, L, 10.6, 15.8, BELLY, *S(3.05, 3.95), d=0.18, c=0.08)
+        plate(P, L, 11.0, 22.4, BELLY, *S(2.08, 2.95), d=0.18, c=0.08)
+        plate(P, L, 11.0, 15.8, BELLY, *S(3.05, 3.95), d=0.18, c=0.08)
         plate(P, L, 15.95, 22.4, MID, *S(3.05, 3.95), d=0.3, c=0.08, ystep=0.8)
         # Boom: a box-section beam from the body's flank into the blade's inner face, its top a
         # light plate; two pipes under it.
-        hull(D, [(side * x, y, z) for x, y, z in cbox(3.4, 6.5, 19.03, 22.98, -0.95, 1.25, 0.3)], LT)
-        hull(D, [(side * x, y, z) for x, y, z in cbox(3.7, 6.25, 19.35, 21.9, 1.0, 1.52, 0.16)], STRIP)
-        hull(D, [(side * x, y, z) for x, y, z in cbox(3.6, 6.3, 22.0, 22.75, 0.6, 1.15, 0.1)], DK)
-        for y, r in ((19.9, 0.2), (21.9, 0.2)):
+        hull(D, [(side * x, y, z) for x, y, z in cbox(3.2, 7.3, 20.0, 22.0, -0.8, 1.0, 0.25)], LT)
+        hull(D, [(side * x, y, z) for x, y, z in cbox(3.6, 6.9, 20.2, 21.45, 0.8, 1.25, 0.14)], STRIP)
+        hull(D, [(side * x, y, z) for x, y, z in cbox(3.6, 6.9, 21.5, 21.95, 0.5, 1.15, 0.1)], DK)
+        for y, r in ((20.35, 0.2), (21.65, 0.2)):
             n = 8
             ring = []
-            for x in (3.6, 6.4):
-                ring.append([D.v((side * x, y + r * math.cos(2 * math.pi * k / n), -1.25 + r * math.sin(2 * math.pi * k / n)))
+            for x in (3.6, 6.9):
+                ring.append([D.v((side * x, y + r * math.cos(2 * math.pi * k / n), -1.0 + r * math.sin(2 * math.pi * k / n)))
                              for k in range(n)])
             for k in range(n):
                 kk = (k + 1) % n
-                D.f((ring[0][k], ring[0][kk], ring[1][kk], ring[1][k]), GUN, away=(side * 5.0, y, -1.25))
+                D.f((ring[0][k], ring[0][kk], ring[1][kk], ring[1][k]), GUN, away=(side * 5.0, y, -1.0))
         # A hinge fairing under the blade where the boom meets it.
-        hull(D, [(side * x, y, z) for x, y, z in cbox(6.0, 7.4, 18.6, 22.9, ZB(21) - 0.35, ZB(21) + 0.3, 0.18)], GUN)
+        hull(D, [(side * x, y, z) for x, y, z in cbox(6.6, 8.0, 19.2, 22.6, ZB(21) - 0.35, ZB(21) + 0.3, 0.18)], GUN)
 
 
 def build(coll, sprite):
@@ -443,6 +449,12 @@ def bake_maps(obj, out_dir, size=1024, samples=96):
             img.name = img.name.replace("talon", "phoenix")
 
 
+# The game's roll at bank steps 1 and 2, degrees, and shift per frame (hard left .. hard right), game px
+# (spriteModels bank.roll and bank.shift, D93; bankShift.ts would give -2.5, -1, 0, 1, 3.5).
+BANK_ROLL = [40, 50]
+BANK_SHIFT = [-3.5, -1.5, 0, 1.5, 3.5]
+
+
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     out = Path(argv[argv.index("--out") + 1]) if "--out" in argv else None
@@ -467,7 +479,8 @@ def main():
         common.export_glb([obj, shell], out, image_format=fmt)
         print(f"exported {out}")
     else:
-        common.export_sprite_model(ROOT, [obj, shell], MODEL, sprite["sprites"], image_format=fmt)
+        common.export_sprite_model(ROOT, [obj, shell], MODEL, common.with_bank_roll(sprite["sprites"], BANK_ROLL, BANK_SHIFT),
+                                   image_format=fmt)
     if "--preview" in argv:
         level = next(f for f in sprite["frames"] if f["index"] == sprite["sprites"][0]["frames"][0])
         ref = ROOT / "reference" / "models" / NAME / level["image"]

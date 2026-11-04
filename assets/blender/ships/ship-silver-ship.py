@@ -970,8 +970,10 @@ def main():
     if "--no-bake" not in argv:
         bake_maps(obj, tempfile.mkdtemp(prefix="silver_bake_"))
         fmt = "WEBP"
-    # The outline shell (D51), made after the bake so its occlusion rays never hit it.
-    shell = common.outline_shell(closed, coll, faces=1500)
+    # The outline shell (D51), made after the bake so its occlusion rays never hit it. As the Talon's
+    # (D90): from coarser voxels (0.03) so it bridges the refitted hull's seams and vents, and held
+    # just inside the hull; from 0.012 it followed them in and drew ink wedges across the hull.
+    shell = common.outline_shell(closed, coll, voxel=0.03, faces=3000, inside=0.004)
     shell.name = shell.data.name = f"{NAME}_outline"
     bpy.data.objects.remove(closed)
     print(f"silver: outline shell {len(shell.data.polygons)} faces")

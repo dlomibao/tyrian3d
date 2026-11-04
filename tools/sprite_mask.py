@@ -8,7 +8,10 @@ This tool finds the border and gives the masks:
   outer   every opaque pixel (the whole sprite; what models were matched to before D74)
   border  the ink pixels of the boundary ring: dark (luma < INK_LUMA) and 4-adjacent to the outside
           (transparency or the picture's edge). Where the sprite draws colour to its edge there is
-          no border, and the model goes to the outer edge there.
+          no border, and the model goes to the outer edge there. Palette-pulse rule: a ring pixel
+          above INK_LUMA is ink too when another frame of the same model is the same drawing with
+          the palette shifted (a pulse partner, see pulse_partners) and that frame has ink there
+          (newshm-115: the ring is 53 on frames 115/279 and 48/50/51, ink, on the pulse frames).
   inner   outer minus border: what a model's top view should cover
   free    border pixels of thin parts (no part of the inner mask 2 px wide touches them): a part
           one colour pixel wide inside its ink, or drawn in ink alone, keeps at least half its
@@ -43,6 +46,9 @@ REF = ROOT / "reference" / "models"
 #: (palette 1 and 2, greys 12 and 24; each ramp's darkest steps: 16, 32, 48, 64, 80, 112, ...) and
 #: not the dark shading steps above them (palette 18-19, browns of luma 28-39).
 INK_LUMA = 26
+#: Palette-pulse rule: another frame is a pulse partner of this one when both have the same opaque
+#: mask and at least this share of opaque pixels differ by one constant index shift in the same ramp.
+PULSE_SHARE = 0.9
 #: A sprite "has a border" when at least this share of its boundary ring is ink.
 CLOSED = 0.85
 NONE = 0.2
@@ -69,6 +75,38 @@ def load(name, frame=None, ref=REF):
         (s["frames"][0] for s in data.get("sprites") or [] if s.get("frames")), None)
     fr = next((f for f in data["frames"] if f["index"] == want), data["frames"][0])
     return _rows(fr), _colors(data)
+
+
+def load_frames(name, ref=REF):
+    """Every frame of a plain model, as idx rows ([] for an assembly)."""
+    if name.startswith("assembly-"):
+        return []
+    data = json.loads((Path(ref) / name / "sprite.json").read_text())
+    return [_rows(f) for f in data["frames"]]
+
+
+def pulse_partners(idx, frames):
+    """The frames among `frames` that are `idx` with the palette pulsed: the same opaque mask, and at
+    least PULSE_SHARE of the opaque pixels one constant index shift (non-zero) away in the same
+    16-colour ramp. Such a frame's ink ring stands for this frame's ring (the palette-pulse rule)."""
+    out = []
+    px = [(y, x) for y, row in enumerate(idx) for x, v in enumerate(row) if v >= 0]
+    for other in frames:
+        if len(other) != len(idx) or len(other[0]) != len(idx[0]):
+            continue
+        if any((idx[y][x] >= 0) != (other[y][x] >= 0) for y in range(len(idx)) for x in range(len(idx[0]))):
+            continue
+        shifts = {}
+        for y, x in px:
+            a, b = idx[y][x], other[y][x]
+            if a >> 4 == b >> 4:
+                shifts[b - a] = shifts.get(b - a, 0) + 1
+        if not shifts:
+            continue
+        shift, n = max(shifts.items(), key=lambda kv: kv[1])
+        if shift != 0 and n >= PULSE_SHARE * len(px):
+            out.append(other)
+    return out
 
 
 def _load_assembly(asm, ref):
@@ -141,15 +179,25 @@ def _thick(mask):
     return out
 
 
-def masks(idx, colors):
-    """{"outer", "border", "inner", "free"}: rows of bools (see the module doc). `free` is the
+def _ring_ink(idx, colors, partners=()):
+    """Rows of bools: boundary-ring pixels that are ink, by luma or by the palette-pulse rule (the
+    same pixel is ink, in the same ramp, on a pulse partner frame; see pulse_partners)."""
+    outer = [[v >= 0 for v in row] for row in idx]
+    d = depth(outer)
+    return [[d[y][x] == 1 and (is_ink(v, colors) or any(
+        p[y][x] >> 4 == v >> 4 and is_ink(p[y][x], colors) for p in partners))
+        for x, v in enumerate(row)] for y, row in enumerate(idx)]
+
+
+def masks(idx, colors, partners=()):
+    """{"outer", "border", "inner", "free"}: rows of bools (see the module doc). `partners`: the
+    frame's pulse partners (pulse_partners), whose ink ring counts as this frame's. `free` is the
     border pixels of thin parts, where the model may go either way: border that touches (8-way) no
     part of the inner mask 2 px wide, i.e. the ink round a part only 1 px wide inside its ink, or a
     part drawn in ink alone (antennae, legs). Such parts keep at least half their sprite width."""
     outer = [[v >= 0 for v in row] for row in idx]
     h, w = len(idx), len(idx[0])
-    d = depth(outer)
-    border = [[d[y][x] == 1 and is_ink(v, colors) for x, v in enumerate(row)] for y, row in enumerate(idx)]
+    border = _ring_ink(idx, colors, partners)
     inner = [[o and not b for o, b in zip(ro, rb)] for ro, rb in zip(outer, border)]
     thick = _thick(inner)
     free = [[border[y][x] and not any(thick[yy][xx] for yy in range(max(0, y - 1), min(h, y + 2))
@@ -173,7 +221,7 @@ def perimeter(mask):
     return n
 
 
-def survey(idx, colors):
+def survey(idx, colors, partners=()):
     """How the sprite's border looks: the ring's ink share overall and per side, the share of the
     next layer in that is ink too (a border thicker than 1 px), and a kind."""
     outer = [[v >= 0 for v in row] for row in idx]
@@ -181,7 +229,10 @@ def survey(idx, colors):
     d = depth(outer)
     ring = [(y, x) for y in range(h) for x in range(w) if d[y][x] == 1]
     layer2 = [(y, x) for y in range(h) for x in range(w) if d[y][x] == 2]
-    ink = lambda yx: is_ink(idx[yx[0]][yx[1]], colors)  # noqa: E731
+    ring_is_ink = _ring_ink(idx, colors, partners)
+    # Ring pixels by the border rule (palette pulse included); the next layer in by luma.
+    ink = lambda yx: ring_is_ink[yx[0]][yx[1]] if d[yx[0]][yx[1]] == 1 else (  # noqa: E731
+        is_ink(idx[yx[0]][yx[1]], colors))
     share = lambda px: round(sum(map(ink, px)) / len(px), 3) if px else 0.0  # noqa: E731
     sides = {}
     for side, (dy, dx) in {"top": (-1, 0), "bottom": (1, 0), "left": (0, -1), "right": (0, 1)}.items():
@@ -193,7 +244,7 @@ def survey(idx, colors):
     kind = ("full-rect" if full_rect else "closed" if ring_ink >= CLOSED else
             "partial" if ring_ink >= NONE else "none")
     border = sum(map(ink, ring))
-    free = sum(map(sum, masks(idx, colors)["free"]))
+    free = sum(map(sum, masks(idx, colors, partners)["free"]))
     return {"size": [w, h], "opaque_px": sum(map(sum, outer)), "ring_px": len(ring), "ring_ink": ring_ink,
             "layer2_ink": share(layer2), "sides": sides, "border_px": border, "free_px": free, "kind": kind,
             "inner_px": sum(map(sum, outer)) - border}
@@ -310,12 +361,15 @@ def main(argv=None):
     ap.add_argument("--png", help="write the mask to this PNG (outer, or --inner)")
     ap.add_argument("--inner", action="store_true")
     ap.add_argument("--scale", type=int, default=1)
+    ap.add_argument("--no-pulse", action="store_true", help="leave out the palette-pulse rule (luma only)")
     ap.add_argument("--measure", help="a top-view render on the sprite's grid to compare with both masks")
     a = ap.parse_args(argv)
     for name in a.names:
         idx, colors = load(name, a.frame, a.ref)
-        info = survey(idx, colors)
-        m = masks(idx, colors)
+        partners = [] if a.no_pulse else pulse_partners(idx, load_frames(name, a.ref))
+        info = survey(idx, colors, partners)
+        info["pulse_partners"] = len(partners)
+        m = masks(idx, colors, partners)
         if a.png:
             write_png(a.png, m["inner" if a.inner else "outer"], a.scale)
         if a.measure:
@@ -329,7 +383,8 @@ def main(argv=None):
             line = (f"{name}: {info['kind']}, ring {info['ring_px']} px, {info['ring_ink']:.0%} ink "
                     f"(top {s['top']:.0%} left {s['left']:.0%} bottom {s['bottom']:.0%} right {s['right']:.0%}), "
                     f"next layer {info['layer2_ink']:.0%} ink; outer {info['opaque_px']} px, inner {info['inner_px']} px, "
-                    f"thin-part border {info['free_px']} px")
+                    f"thin-part border {info['free_px']} px"
+                    + (f"; {len(partners)} pulse partner frame(s)" if partners else ""))
             if a.measure:
                 mm = info["measure"]
                 line += (f"\n  top view: rule IoU {mm['iou_rule']} (grid {mm['iou_rule_grid']}); inner {mm['iou_inner']}"

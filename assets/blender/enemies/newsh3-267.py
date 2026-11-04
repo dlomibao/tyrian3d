@@ -1,12 +1,27 @@
-"""Fireball (newsh3.shp frames 267, 269): a 3D version of its sprite.
+"""Fireball (newsh3.shp frames 267, 269): one smooth teardrop of fire with its hot layers inlaid.
 
-Seen in episode 4 (levels 6, 22 and 31). A teardrop of fire, tip up the screen and a round hot
-belly below: one smooth ball, about 9-10 px tall over the belly and tapering to the tip, its
-surface painted pixel by pixel in the sprite's own palette shades (dark red rim, orange and yellow
-tongues, a white-hot heart). The two frames only flicker the flame: each gets its own ball from
-its own pixels, shown on that frame (common.frame_part). Everything glows.
+Seen in 8 levels (docs/roadmap/inventory.json). The sprite is a teardrop of fire, tip up the
+screen and a round belly below, with an orange body, a yellow core and white-hot sparks inside a
+dark-red rim. Its two frames flicker the inner flame.
 
-Run: blender --background --python assets/blender/enemies/newsh3-267.py [-- --preview out.png]
+- Body: one closed, smooth loft per frame, its plan the sprite's INNER mask (D74: inside the ink
+  border, tools/sprite_mask.py) fitted row by row with pchip (left and right edges separately, so
+  the flame's lean and lopsided belly stay), a pointed tip and a squircle-rounded belly end.
+  Sections are superellipse domes whose height follows their half-width (soft-capped), so the
+  round end is an ellipsoid cap and the tip a smooth cone that licks upward.
+- Flame layers: not plates but the body's own surface. The sprite's palette levels (blurred) give
+  a heat field; the hot layers swell the dome a little (an elongated, blurred version of the same
+  field, so the tongues stream along the flame) and the colour regions are cut into the mesh along
+  the heat iso-lines (marching triangles), so there are no ledges or seams. The orange layer is
+  read from a slightly dilated heat field and stops only at a low red band round the base, so it
+  wraps down the flanks as the sprite's orange runs out to its shaded rim.
+- Colours: each region's palette index (pal_<index>) is the trimmed median of the sprite pixels of
+  that layer (darkest/brightest 15% ignored). No emission: the game copies the full palette colour
+  into the emissive of any glowing material (src/render/modelFrames.ts), which washes it out.
+- Frames: each frame gets its own body + outline shell (common.outline_shell, D51), shown on that
+  frame only (common.frame_part, D17).
+
+Run: blender --background --python assets/blender/enemies/newsh3-267.py
 """
 
 import math
@@ -14,229 +29,461 @@ import sys
 from pathlib import Path
 
 import bmesh
+import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import lib_b011 as lib  # noqa: E402
-from lib_b011 import common, ex, ey  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import common  # noqa: E402
+
+WT = common.repo_root(__file__)
+sys.path.insert(0, str(WT / "tools"))
+import sprite_mask as SM  # noqa: E402
 
 NAME = "newsh3-267"
-
-
-def smooth(values, n=1):
-    out = list(values)
-    for _ in range(n):
-        out = [out[0]] + [(out[i - 1] + 2 * out[i] + out[i + 1]) / 4 for i in range(1, len(out) - 1)] + [out[-1]]
-    return out
-
-
-# Palette index of each sprite pixel -> the material it gets: pairs of the dark reds share one,
-# the bright yellows and white keep their own so the hot core reads as it does in the sprite.
-MAT_OF = {112: 113, 113: 113, 114: 115, 115: 115, 116: 117, 117: 117, 118: 119, 119: 119,
-          120: 121, 121: 121, 122: 123, 123: 123, 124: 124, 125: 125, 126: 126, 127: 127}
-MAT_INDICES = sorted(set(MAT_OF.values()))
-
 PX = 1 / 12
-H_MAX = 9.6     # px, the ball's height over its belly
-ROUND = 1.2     # height per px of half width: the cross-section is a little taller than a half circle
-RIM = 1.0       # px, the outline's height (a short wall round the edge, the ball's steep side)
-TIP_MIN = 3.2   # px, the tip still stands this tall
-SMOOTH_PASSES = 2
-OUTLINE_PASSES = 3
-EDGE_OFFSET = 0.5  # px: the ball's round side starts this far outside the pixel outline
-BLUR = [(0.55, 0.55), (-0.55, 0.55), (0.55, -0.55), (-0.55, -0.55), (0.7, 0.0), (-0.7, 0.0), (0.0, 0.7), (0.0, -0.7)]
+W, H = 24, 28
+S = 4                     # sub-samples per sprite px for the fields
+
+# Body shape (sprite px)
+H_RATIO = 1.0             # cap on section height per px of half-width
+H_MAX = 6.8               # soft cap on the height
+H_SOFT = 0.8
+P_DOME = 2.2              # superellipse exponent of a section (2 = half ellipse)
+RING = 26                 # segments on a body section's dome
+STEP = 0.4                # station spacing
+EDGE_SMOOTH = 2
+TIP_A = 1.2               # px over which the plan closes to the point
+TIP_SPAN = 11.0           # px from the tip that rise
+TIP_LIFT = 0.9            # px the point rises
+REAR_A = 2.0              # px over which the belly end closes (squircle)
+REAR_N = 2.3
+
+# Heat field / layers (levels are palette index - 112)
+BLUR = 0.85               # colour field gaussian sigma (px)
+BUMP_SIG = (1.9, 0.9)     # bump field sigma (y, x): tongues stream along the flame
+T_O, T_Y, T_W = 7.2, 10.0, 13.0
+DILATE = 0.5              # px the orange layer's field is dilated (wraps down the flanks)
+ZR = 0.42                 # the red band: below this fraction of the section height
+MIN_AREA = 2.2            # px^2: smaller islands are dropped
+A_O, A_Y = 0.35, 0.8      # px the orange and yellow layers swell the dome
+EMIT = {"body": 0.0, "orange": 0.0, "yellow": 0.0, "white": 0.0}
+NAMES = ["body", "orange", "yellow", "white"]
 
 
-def height_field(frames):
-    """f(col, row) -> height in px of a smooth round ball over the sprite's pixels: a round
-    cross-section whose height at a point follows its distance d from the pixel outline,
-    h = H * sqrt(1 - (1 - d / R)^2), with R the (smoothed) half width of the body at that row and
-    H = ROUND * R capped at H_MAX, so the belly stands about 9-10 px and the tip tapers. The
-    outline itself sits at RIM (a short wall). One field serves every frame (over the union of
-    their pixels), so the frames' surfaces agree where they overlap."""
-    h, w = len(frames[0]), len(frames[0][0])
-    on = lambda c, r: 0 <= r < h and 0 <= c < w and any(p[r][c] >= 0 for p in frames)  # noqa: E731
-    rows = [r for r in range(h) if any(on(c, r) for c in range(w))]
-    hws = smooth([(max(c for c in range(w) if on(c, r)) + 1 - min(c for c in range(w) if on(c, r))) / 2
-                  for r in rows], 1)
-    segs = []
-    for r in range(h):
-        for c in range(w):
-            if not on(c, r):
-                continue
-            if not on(c, r - 1):
-                segs.append((c, r, c + 1, r))
-            if not on(c, r + 1):
-                segs.append((c, r + 1, c + 1, r + 1))
-            if not on(c - 1, r):
-                segs.append((c, r, c, r + 1))
-            if not on(c + 1, r):
-                segs.append((c + 1, r, c + 1, r + 1))
+def X(x):
+    return (x - W / 2) * PX
 
-    def dist(x, y):
-        best = 1e9
-        for x0, y0, x1, y1 in segs:
-            px_ = min(max(x, min(x0, x1)), max(x0, x1))
-            py_ = min(max(y, min(y0, y1)), max(y0, y1))
-            best = min(best, (x - px_) ** 2 + (y - py_) ** 2)
-        return math.sqrt(best)
 
-    def half_width(y):
-        t = y - (rows[0] + 0.5)
-        i = max(0, min(len(rows) - 2, int(math.floor(t))))
-        f = max(0.0, min(1.0, t - i))
-        return hws[i] * (1 - f) + hws[i + 1] * f
+def Y(y):
+    return (H / 2 - y) * PX
 
-    def signed(x, y):
-        d = dist(x, y)
-        return d if on(int(math.floor(x)), int(math.floor(y))) else -d
 
-    def f(c, y):
-        # signed distance blurred over about a pixel, so the outline's stair steps round off: the
-        # outer corners of a step stay at the rim and the inner ones rise with the ball's side
-        d = max(0.0, sum(signed(c + dx, y + dy) for dx, dy in BLUR) / len(BLUR) + EDGE_OFFSET)
-        rad = max(1.0, half_width(y))
-        top = max(min(H_MAX, ROUND * rad), TIP_MIN)
-        k = min(1.0, d / rad)
-        return RIM + (top - RIM) * math.sqrt(1.0 - (1.0 - k) ** 2)
+def pchip(xs, ys):
+    """Monotone cubic interpolation (copied from usp_talon.pchip)."""
+    import bisect
+    n = len(xs)
+    h = [xs[i + 1] - xs[i] for i in range(n - 1)]
+    d = [(ys[i + 1] - ys[i]) / h[i] for i in range(n - 1)]
+    m = [0.0] * n
+    m[0], m[-1] = d[0], d[-1]
+    for i in range(1, n - 1):
+        if d[i - 1] * d[i] <= 0:
+            m[i] = 0.0
+        else:
+            w1, w2 = 2 * h[i] + h[i - 1], h[i] + 2 * h[i - 1]
+            m[i] = (w1 + w2) / (w1 / d[i - 1] + w2 / d[i])
 
-    def rim(y):
-        """The height where the round side meets the wall (at d = EDGE_OFFSET)."""
-        rad = max(1.0, half_width(y))
-        top = max(min(H_MAX, ROUND * rad), TIP_MIN)
-        k = min(1.0, EDGE_OFFSET / rad)
-        return RIM + (top - RIM) * math.sqrt(1.0 - (1.0 - k) ** 2)
-    f.rim = rim
+    def f(x):
+        if x <= xs[0]:
+            return ys[0]
+        if x >= xs[-1]:
+            return ys[-1]
+        i = bisect.bisect_right(xs, x) - 1
+        t = (x - xs[i]) / h[i]
+        t2, t3 = t * t, t * t * t
+        return ((2 * t3 - 3 * t2 + 1) * ys[i] + (t3 - 2 * t2 + t) * h[i] * m[i]
+                + (-2 * t3 + 3 * t2) * ys[i + 1] + (t3 - t2) * h[i] * m[i + 1])
     return f
 
 
-OUTLINE_IDX = 112   # the sprite's drawn outline ring (near black); the game draws its own outline
-EDGE_MIN = 115      # the coolest flame red the surface shows: 113/114 are the outline's soft inner edge
+def frange(a, b, step):
+    n = max(1, int(math.ceil((b - a) / step - 1e-9)))
+    return [a + (b - a) * i / n for i in range(n + 1)]
 
 
-def flame_colours(pixels):
-    """The sprite's pixels with its drawn outline taken off: each outline pixel takes the mean
-    colour of its flame neighbours (filled inward-out, so the ring and the tip get the cool red
-    next to them), and nothing is darker than EDGE_MIN. The flame's own pattern (hot core, cooler
-    edges) is the fire, not shading, and stays."""
-    h, w = len(pixels), len(pixels[0])
-    out = [list(row) for row in pixels]
-    todo = {(c, r) for r in range(h) for c in range(w) if out[r][c] == OUTLINE_IDX}
-    while todo:
-        done = {}
-        for c, r in todo:
-            nb = [out[r + dr][c + dc] for dc in (-1, 0, 1) for dr in (-1, 0, 1)
-                  if (dc or dr) and 0 <= r + dr < h and 0 <= c + dc < w
-                  and out[r + dr][c + dc] >= 0 and (c + dc, r + dr) not in todo]
-            if nb:
-                done[(c, r)] = round(sum(nb) / len(nb))
-        if not done:
-            for c, r in todo:
-                done[(c, r)] = EDGE_MIN
-        for (c, r), v in done.items():
-            out[r][c] = v
-        todo -= set(done)
-    return [[max(v, EDGE_MIN) if v >= 0 else v for v in row] for row in out]
+def smoothstep(a, b, x):
+    t = min(1.0, max(0.0, (x - a) / (b - a)))
+    return t * t * (3 - 2 * t)
 
 
-def fireball(bm, pixels, slot, f, drop=0.0):
-    """One smooth closed ball over the sprite's pixels: a top surface with a vertex at every pixel
-    corner and centre (four triangles a pixel, each pixel in its own palette colour), a short wall
-    round the pixel outline and a flat base at z = 0. f is height_field(...); `drop` (px) lowers
-    the surface off the outline."""
-    pixels = flame_colours(pixels)
-    h, w = len(pixels), len(pixels[0])
-    on = lambda c, r: 0 <= r < h and 0 <= c < w and pixels[r][c] >= 0  # noqa: E731
-    corner, base = {}, {}
+# --- Sprite analysis --------------------------------------------------------------------------
 
-    def edge(c, r):
-        return not all(on(c - dc, r - dr) for dc in (0, 1) for dr in (0, 1))
+def gauss_blur(field, weight, sy, sx=None):
+    sx = sy if sx is None else sx
 
-    def cv(c, r):
-        if (c, r) not in corner:
-            z = f(c, r) if edge(c, r) else f(c, r) - drop
-            corner[(c, r)] = bm.verts.new((ex(c, w), ey(r, h), z * PX))
-        return corner[(c, r)]
+    def kern(sig):
+        r = int(math.ceil(3 * sig))
+        k = np.exp(-0.5 * (np.arange(-r, r + 1) / sig) ** 2)
+        return k / k.sum()
+    ky, kx = kern(sy), kern(sx)
 
-    def bv(c, r):
-        if (c, r) not in base:
-            base[(c, r)] = bm.verts.new((ex(c, w), ey(r, h), 0.0))
-        return base[(c, r)]
-    top_faces, flat_faces, inner, links = [], [], [], {}
-    for r in range(h):
-        for c in range(w):
-            if not on(c, r):
+    def conv(a):
+        a = np.apply_along_axis(lambda v: np.convolve(v, ky, mode="same"), 0, a)
+        return np.apply_along_axis(lambda v: np.convolve(v, kx, mode="same"), 1, a)
+    num = conv(field * weight)
+    den = conv(weight)
+    return np.where(den > 1e-6, num / np.maximum(den, 1e-6), 0.0)
+
+
+def upsample(sm):
+    """Bilinear upsample of a per-px field to S samples per px (sample centres)."""
+    ys = (np.arange(H * S) + 0.5) / S - 0.5
+    xs = (np.arange(W * S) + 0.5) / S - 0.5
+    y0 = np.clip(np.floor(ys).astype(int), 0, H - 2)
+    x0 = np.clip(np.floor(xs).astype(int), 0, W - 2)
+    fy = np.clip(ys - y0, 0, 1)[:, None]
+    fx = np.clip(xs - x0, 0, 1)[None, :]
+    a = sm[y0][:, x0]
+    b = sm[y0][:, x0 + 1]
+    c = sm[y0 + 1][:, x0]
+    d = sm[y0 + 1][:, x0 + 1]
+    return (a * (1 - fx) + b * fx) * (1 - fy) + (c * (1 - fx) + d * fx) * fy
+
+
+def dilate(f, r):
+    """Grey dilation (max) over a disc of radius r samples."""
+    out = f.copy()
+    ri = int(math.ceil(r))
+    pad = np.pad(f, ri, mode="edge")
+    for dy in range(-ri, ri + 1):
+        for dx in range(-ri, ri + 1):
+            if dx * dx + dy * dy <= r * r:
+                out = np.maximum(out, pad[ri + dy:ri + dy + f.shape[0], ri + dx:ri + dx + f.shape[1]])
+    return out
+
+
+def components(mask):
+    h, w = mask.shape
+    lab = np.zeros(mask.shape, int)
+    out = []
+    n = 0
+    for j in range(h):
+        for i in range(w):
+            if mask[j, i] and not lab[j, i]:
+                n += 1
+                stack = [(j, i)]
+                lab[j, i] = n
+                while stack:
+                    y, x = stack.pop()
+                    for dy, dx in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                        yy, xx = y + dy, x + dx
+                        if 0 <= yy < h and 0 <= xx < w and mask[yy, xx] and not lab[yy, xx]:
+                            lab[yy, xx] = n
+                            stack.append((yy, xx))
+                out.append(lab == n)
+    return out
+
+
+def drop_islands(f):
+    """Push small positive islands of a field below zero."""
+    f = f.copy()
+    for c in components(f > 0):
+        if c.sum() / (S * S) < MIN_AREA:
+            f[c] = -0.05
+    return f
+
+
+def sample(grid, x, y):
+    """Bilinear sample of an upsampled field at plan point (x, y) in sprite px."""
+    fx, fy = x * S - 0.5, y * S - 0.5
+    i0 = int(min(max(math.floor(fx), 0), grid.shape[1] - 2))
+    j0 = int(min(max(math.floor(fy), 0), grid.shape[0] - 2))
+    tx, ty = min(max(fx - i0, 0.0), 1.0), min(max(fy - j0, 0.0), 1.0)
+    return ((grid[j0, i0] * (1 - tx) + grid[j0, i0 + 1] * tx) * (1 - ty)
+            + (grid[j0 + 1, i0] * (1 - tx) + grid[j0 + 1, i0 + 1] * tx) * ty)
+
+
+class Heat:
+    """The sprite's heat fields for one frame: colour layer fields and the bump field."""
+
+    def __init__(self, frame, colors):
+        self.idx = np.array(frame["pixels"], dtype=int)
+        m = SM.masks(self.idx.tolist(), colors)
+        self.inner = np.array(m["inner"], dtype=bool)
+        level = np.where(self.idx >= 0, self.idx - 112, 0).astype(float)
+        wgt = self.inner.astype(float)
+        heat = upsample(gauss_blur(level, wgt, BLUR))
+        self.heat = heat
+        ones = np.ones_like(heat)
+        self.f_o = drop_islands(gauss_blur(dilate(heat, DILATE * S), ones, 0.5 * S) - T_O)
+        self.f_y = drop_islands(heat - T_Y)
+        self.f_w = drop_islands(heat - T_W)
+        self.f_o_top = drop_islands(heat - T_O)   # the sprite's own orange part (colour median)
+        self.bump = upsample(gauss_blur(level, wgt, *BUMP_SIG))
+
+    def swell(self, x, y):
+        b = sample(self.bump, x, y)
+        return A_O * smoothstep(T_O - 1.5, T_O + 1.0, b) + A_Y * smoothstep(T_Y - 1.5, T_Y + 1.0, b)
+
+    def fields(self, x, y, zf):
+        """Per-layer fields (>= 0 inside) at plan (x, y) and section height fraction zf."""
+        fo = min(sample(self.f_o, x, y), 6.0 * (zf - ZR))
+        fy = sample(self.f_y, x, y)
+        fw = sample(self.f_w, x, y)
+        return (fo, fy, fw)
+
+
+# --- Body -------------------------------------------------------------------------------------
+
+def softmin(a, b, k):
+    m = min(a, b)
+    return m - k * math.log(math.exp(-(a - m) / k) + math.exp(-(b - m) / k))
+
+
+class Body:
+    """The flame's plan (inner mask, pchip per row) and its section heights."""
+
+    def __init__(self, inner):
+        rows = [r for r in range(H) if inner[r].any()]
+        L = [float(np.argmax(inner[r])) for r in rows]
+        R = [float(W - np.argmax(inner[r][::-1])) for r in rows]
+        yc = [r + 0.5 for r in rows]
+        # the sprite's row edges are stair steps: relax them (ends fixed) so the sides run smooth
+        for _ in range(EDGE_SMOOTH):
+            L = [L[0]] + [(L[i - 1] + 2 * L[i] + L[i + 1]) / 4 for i in range(1, len(L) - 1)] + [L[-1]]
+            R = [R[0]] + [(R[i - 1] + 2 * R[i] + R[i + 1]) / 4 for i in range(1, len(R) - 1)] + [R[-1]]
+        self.fl, self.fr = pchip(yc, L), pchip(yc, R)
+        self.y_tip = rows[0] + 0.5 - 0.55        # the point, half a px into the tip row
+        self.y_bot = rows[-1] + 1.0               # the last row's lower edge
+        self.y_c = self.y_bot - REAR_A            # where the belly end starts closing
+        widths = [R[i] - L[i] for i in range(len(rows))]
+        self.y_pk = yc[int(np.argmax(widths))]    # the belly's widest row
+
+    def extent(self, y):
+        """(centre, half-width) of the plan at y (sprite px)."""
+        y = min(max(y, self.y_tip), self.y_bot)
+        ya = self.y_tip + TIP_A
+        if y < ya:   # pointed tip: in to the point along a gentle curve
+            t = (y - self.y_tip) / TIP_A
+            l, r = self.fl(ya), self.fr(ya)
+            c = 0.5 * (l + r)
+            # keep the slope continuous with the side at ya (t ** 0.9 is nearly straight)
+            return c, 0.5 * (r - l) * t ** 0.9
+        yy = min(y, self.y_bot - 0.5)
+        l, r = self.fl(yy), self.fr(yy)
+        c, hw = 0.5 * (l + r), 0.5 * (r - l)
+        if y > self.y_c:   # the belly end: a squircle quarter in to the centre
+            t = min(1.0, (y - self.y_c) / (self.y_bot - self.y_c))
+            hw *= max(0.0, 1 - t ** REAR_N) ** (1 / REAR_N)
+        return c, hw
+
+    def height(self, y):
+        """A convex side profile rising from the tip to the belly's widest row, capped by the
+        section's own width (so the tip stays a round cone and the belly end an ellipsoid cap)."""
+        _, hw = self.extent(y)
+        if hw < 1e-6:
+            return 0.0
+        s = min(1.0, max(0.0, (y - self.y_tip) / (self.y_pk - self.y_tip)))
+        rise = H_MAX * (1 - (1 - s) ** 2)
+        return max(0.0, softmin(rise, H_RATIO * hw, H_SOFT))
+
+    def lift(self, y):
+        """The tip licks upward: the flame's front third rises off the ground, curving."""
+        t = (self.y_tip + TIP_SPAN - y) / TIP_SPAN
+        return TIP_LIFT * max(0.0, t) ** 2
+
+    def stations(self):
+        ys = [self.y_tip + TIP_A * (i / 6) ** 1.6 for i in range(6)]
+        ys += frange(self.y_tip + TIP_A, self.y_c, STEP)[:-1]
+        ys += [self.y_c + (self.y_bot - self.y_c) * math.sin(0.5 * math.pi * i / 9) for i in range(10)]
+        return ys
+
+
+def section_profile(k):
+    """Ring point k of RING: (u in [-1, 1] across, height fraction)."""
+    a = math.pi * k / RING          # 0 = right edge, pi = left edge
+    cu, su = math.cos(a), math.sin(a)
+    return math.copysign(abs(cu) ** (2 / P_DOME), cu), abs(su) ** (2 / P_DOME)
+
+
+def build_mesh(body, heat):
+    """Vertices (x, y px, z px, height fraction) and triangles (a, b, c, base?) of the body."""
+    verts, tris = [], []
+    rings = []
+    for y in body.stations():
+        c, hw = body.extent(y)
+        h = body.height(y)
+        lift = body.lift(y)
+        if hw < 1e-6:
+            verts.append([c, y, lift, 0.0])
+            rings.append([len(verts) - 1])
+            continue
+        ring = []
+        for k in range(RING + 1):
+            u, zf = section_profile(k)
+            x = c + hw * u
+            z = lift + (h + heat.swell(x, y)) * zf
+            verts.append([x, y, z, zf])
+            ring.append(len(verts) - 1)
+        rings.append(ring)
+    for r0, r1 in zip(rings, rings[1:]):
+        if len(r0) == 1 and len(r1) == 1:
+            continue
+        n = max(len(r0), len(r1))
+        for i in range(n):
+            j = (i + 1) % n
+            base = i == n - 1           # the chord from the left edge back to the right edge
+            if len(r0) == 1:
+                tris.append([r0[0], r1[j], r1[i], base])
+            elif len(r1) == 1:
+                tris.append([r0[i], r0[j], r1[0], base])
+            else:
+                tris.append([r0[i], r0[j], r1[j], base])
+                tris.append([r0[i], r1[j], r1[i], base])
+    return verts, tris
+
+
+def cut_layers(verts, tris, heat):
+    """Split the triangles along each layer's iso-line (marching triangles); returns triangles with
+    the layer each one belongs to (0 body .. 3 white). Base triangles stay body."""
+    labels = [[] for _ in tris]
+    for li in range(3):
+        vals = [heat.fields(v[0], v[1], v[3])[li] for v in verts]
+        vals = [v if abs(v) > 1e-5 else 1e-5 for v in vals]
+        cache = {}
+
+        def mid(a, b):
+            key = (min(a, b), max(a, b))
+            if key not in cache:
+                t = vals[a] / (vals[a] - vals[b])
+                va, vb = verts[a], verts[b]
+                verts.append([va[q] + (vb[q] - va[q]) * t for q in range(4)])
+                vals.append(0.0)
+                cache[key] = len(verts) - 1
+            return cache[key]
+
+        out, out_lab = [], []
+        for tri, lab in zip(tris, labels):
+            a, b, c, base = tri
+            if base:
+                out.append(tri)
+                out_lab.append(lab + [False])
                 continue
-            m = slot[MAT_OF[pixels[r][c]]]
-            mid = bm.verts.new((ex(c + 0.5, w), ey(r + 0.5, h), (f(c + 0.5, r + 0.5) - drop) * PX))
-            inner.append(mid)
-            a, b, d, e = cv(c, r), cv(c + 1, r), cv(c + 1, r + 1), cv(c, r + 1)
-            for p, q in ((a, e), (e, d), (d, b), (b, a)):
-                face = bm.faces.new((p, q, mid))
-                face.material_index = m
-                top_faces.append(face)
-            face = bm.faces.new((bv(c, r), bv(c + 1, r), bv(c + 1, r + 1), bv(c, r + 1)))
-            face.material_index = slot[113]
-            flat_faces.append(face)
-            # walls on the outline edges
-            for (c0, r0), (c1, r1), (nc, nr) in (((c, r), (c + 1, r), (c, r - 1)),
-                                                 ((c + 1, r), (c + 1, r + 1), (c + 1, r)),
-                                                 ((c + 1, r + 1), (c, r + 1), (c, r + 1)),
-                                                 ((c, r + 1), (c, r), (c - 1, r))):
-                if on(nc, nr):
-                    continue
-                face = bm.faces.new((cv(c0, r0), cv(c1, r1), bv(c1, r1), bv(c0, r0)))
-                face.material_index = m
-                flat_faces.append(face)
-                links.setdefault((c0, r0), set()).add((c1, r1))
-                links.setdefault((c1, r1), set()).add((c0, r0))
-    # Round the outline's stair steps off: smooth the outline corners along the outline (top and
-    # base together), so the wall's top runs level instead of rising and falling at every step.
-    pos = {k: (float(k[0]), float(k[1])) for k in links}
-    for _ in range(OUTLINE_PASSES):
-        pos = {k: (0.5 * pos[k][0] + 0.5 * sum(pos[n][0] for n in links[k]) / len(links[k]),
-                   0.5 * pos[k][1] + 0.5 * sum(pos[n][1] for n in links[k]) / len(links[k]))
-               for k in links}
-    for k, (x, y) in pos.items():
-        for v in (corner[k], base[k]):
-            v.co.x, v.co.y = ex(x, w), ey(y, h)
-        corner[k].co.z = f.rim(y) * PX
-    # Soften the top: a few smoothing passes over the vertices off the outline (the distance field
-    # has creases along the body's middle and at the outline's steps).
-    walls = set(flat_faces)
-    rim = {v for v in corner.values() if any(f_ in walls for f_ in v.link_faces)}
-    free = [v for v in list(corner.values()) + inner if v not in rim]
-    for _ in range(SMOOTH_PASSES):
-        new = {}
-        for v in free:
-            nb = [e.other_vert(v) for e in v.link_edges if e.other_vert(v).co.z > 0]
-            new[v] = 0.5 * v.co.z + 0.5 * sum(n.co.z for n in nb) / len(nb)
-        for v, z in new.items():
-            v.co.z = z
-    for face in top_faces:
-        face.smooth = True
-    for face in flat_faces:
-        face.smooth = False
+            s = [vals[a] > 0, vals[b] > 0, vals[c] > 0]
+            if s[0] == s[1] == s[2]:
+                out.append(tri)
+                out_lab.append(lab + [s[0]])
+                continue
+            # rotate so vertex p is the odd one out
+            vs = [a, b, c]
+            odd = [i for i in range(3) if s[i] != s[(i + 1) % 3] and s[i] != s[(i + 2) % 3]][0]
+            p, q, r = vs[odd], vs[(odd + 1) % 3], vs[(odd + 2) % 3]
+            mq, mr = mid(p, q), mid(p, r)
+            sp = vals[p] > 0
+            out.append([p, mq, mr, False])
+            out_lab.append(lab + [sp])
+            out.append([mq, q, r, False])
+            out_lab.append(lab + [not sp])
+            out.append([mq, r, mr, False])
+            out_lab.append(lab + [not sp])
+        tris, labels = out, out_lab
+    layer = []
+    for lab in labels:
+        n = 0
+        for v in lab:
+            if not v:
+                break
+            n += 1
+        layer.append(n)
+    return verts, tris, layer
+
+
+# --- Colours ------------------------------------------------------------------------------------
+
+def trimmed_median(vals):
+    v = np.sort(np.array(vals))
+    if len(v) >= 6:
+        k = int(len(v) * 0.15)
+        v = v[k:len(v) - k]
+    return int(round(float(np.median(v))))
+
+
+def region_indices(heat):
+    """Palette index per layer: the trimmed median of the sprite pixels of that layer (its own
+    heat bands at the pixel centres, the orange without the flank dilation)."""
+    idx, inner = heat.idx, heat.inner
+    groups = {li: [] for li in range(4)}
+    for r in range(H):
+        for c in range(W):
+            if not inner[r, c]:
+                continue
+            x, y = c + 0.5, r + 0.5
+            f = [sample(heat.f_o_top, x, y), sample(heat.f_y, x, y), sample(heat.f_w, x, y)]
+            n = 0
+            for v in f:
+                if v <= 0:
+                    break
+                n += 1
+            groups[n].append(int(idx[r, c]))
+    return {li: trimmed_median(v) for li, v in groups.items() if v}
 
 
 def build(sprite):
     coll = common.reset_collection(NAME)
-    mats, slot = [], {}
-    for i in MAT_INDICES:
-        slot[i] = len(mats)
-        # Fire: no metal sheen, a soft rough surface; the glow carries the colour.
-        mats.append(common.palette_material(sprite, i, NAME, metallic=0.0, roughness=0.85,
-                                            emission_strength=1.5 + 0.25 * (i - 112)))
-    field = height_field([fr["pixels"] for fr in sprite["frames"]])
-    parts = []
-    for k, frame in enumerate(sprite["frames"]):
+    colors = {int(k): tuple(v) for k, v in sprite["colors"].items()}
+    objs, report = [], {}
+    mat_cache = {}
+
+    def mat(index, emit):
+        key = (index, emit)
+        if key not in mat_cache:
+            mat_cache[key] = common.palette_material(sprite, index, NAME, metallic=0.0, roughness=0.7,
+                                                     emission_strength=emit)
+        return mat_cache[key]
+
+    for frame in sprite["frames"]:
+        fi = frame["index"]
+        heat = Heat(frame, colors)
+        body = Body(heat.inner)
+        regions = region_indices(heat)
+        verts, tris = build_mesh(body, heat)
+        verts, tris, layer = cut_layers(verts, tris, heat)
+        used = sorted(set(layer))
+        mats, slot = [], {}
+        for li in used:
+            pal = regions.get(li, regions[max(k for k in regions if k <= li)])
+            slot[li] = len(mats)
+            mats.append(mat(pal, EMIT[NAMES[li]]))
+        report[fi] = {NAMES[k]: v for k, v in regions.items()}
         bm = bmesh.new()
-        # The flickered frame stands a hair lower so where both are drawn at once (previews, the
-        # review sheet) the first frame's surface is the one seen; in game only one shows.
-        fireball(bm, frame["pixels"], slot, field, drop=0.0 if k == 0 else 0.25)
+        bv = [bm.verts.new((X(v[0]), Y(v[1]), v[2] * PX)) for v in verts]
+        for (a, b, c, base), li in zip(tris, layer):
+            if len({a, b, c}) < 3:
+                continue
+            try:
+                f = bm.faces.new((bv[a], bv[b], bv[c]))
+            except ValueError:
+                continue
+            f.material_index = slot[li]
+            f.smooth = not base
         bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-6)
-        obj = lib.mesh_object_mixed(f"{NAME}-{frame['index']}", bm, mats, coll)
-        parts.append(common.frame_part(obj, [frame["index"]]))
-    return [(NAME, parts, sprite["sprites"])]
+        bmesh.ops.dissolve_degenerate(bm, edges=bm.edges, dist=1e-7)
+        body_obj = common.mesh_object(f"{NAME}-{fi}", bm, mats, coll, smooth=None)
+        shell = common.outline_shell(body_obj, coll, voxel=0.008, faces=1400, smooth=3)
+        shell.name = shell.data.name = f"{NAME}-{fi}_outline"
+        body_obj.name = body_obj.data.name = f"{NAME}-{fi}"
+        common.frame_part(body_obj, [fi])
+        common.frame_part(shell, [fi])
+        objs += [body_obj, shell]
+        report[fi]["layers_used"] = used
+    return objs, report
+
+
+def main():
+    sprite = common.load_sprite(WT, NAME)
+    objs, report = build(sprite)
+    common.export_sprite_model(WT, objs, f"enemies/{NAME}", sprite["sprites"])
+    print("colours", {k: v for k, v in report.items()})
+
 
 if __name__ == "__main__":
-    lib.run(NAME, build, __file__)
+    main()
