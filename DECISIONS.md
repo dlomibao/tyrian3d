@@ -3937,3 +3937,37 @@ This includes `tyrian.shp#9` 155 and 199 (about 30 levels each).
 **Options considered:**
 - *Hand-pick the frames per level:* fewer requests, but the shared pickups would still differ
   between levels; the whole episode's set is only 9 requests.
+
+## D95 — `shapesy` HD terrain over its six SAVARA levels: 15 sheets, no retries; grey paintings keep water_filter's exception
+
+2026-11-04
+
+**Decision:** the `shapesy` tileset (SAVARA: levels 1-8, 1-12, 1-17, 3-10, 4-3, 4-19) now draws its ground
+from HD paintings (`public/art/terrain/shapesy/`: 108 ground tiles, `0.webp`, 0.7 MB), made with D83's
+multi-level pipeline: `inventory`, `sheets`, Gemini, `cut --edge-aware`, `check`.
+- **Layers 1 and 2 are not painted.** All 68 + 45 tiles are `structure` (SAVARA's towers are modelled, D82), so
+  one layer (0) and 15 primary sheets (7x6-tile map regions) cover everything; the 16 optional context sheets
+  were not needed (every tile is on a region sheet).
+- **Gemini:** 15 requests, no retries, no usage warning. Prompts named each sheet's real material, written from
+  the contact sheet (grey stone-brick fortress floor with dark brick walls; deep blue rippled water; brown sandy
+  dirt with palm jungle seen from above; sheet 13's island with its bronze ring) rather than SEND.md's
+  palette-group labels (D89); sheets softened (the default). Every answer registered at scale 11.38, shift 0:
+  fit 0.84-0.99 (0.70 on the two water-heavy sheets 07 and 13, where the texture gives the match little to
+  hold; the layout is kept by eye), tile NCC median 0.85-0.99, blockiness max 2.75 (08, painted flat, not
+  copied). Another agent held the lock for ~25 minutes in the middle of the run.
+- **Seams** (`check`, every edge of the six maps; step across edges over step inside tiles): ground 0.563
+  (where the original is continuous 0.562), bands 0.496. Per level: 1-8 0.524, 1-12 0.664, 1-17 0.597, 3-10
+  0.524, 4-3 0.642, 4-19 0.465. The cut's weak fits (NCC < 0.5): tiles 20, 21 (open water).
+- **Shader fix, found in game.** On 4-3 (SAVARA IV) the grey fortress floor came out blue: that level runs
+  water_filter, which in the original leaves grey indices (`index & 0x30 == 0`) alone, and the HD terrain
+  shader (D57) hands every painted colour the hue ramp's index (16 + shade), so greys were recoloured.
+  `terrainPalette` now gives a near-grey painting (chroma < 0.04) a grey index (0 + shade). Other tilesets
+  only differ on grey paintings under a hue filter.
+
+**Checked** in game (`?debug=play&seed=1&skip=T&freezeAt=T`, against `&terrain=original`): 1-8 t600, t1800;
+1-12 t1200; 3-10 t1000; 4-3 t1200, t2500 (blue before the fix, grey after; a few bluish specks remain in the
+bricks). Sheet: `tyrian-scratch/shapesy-hd/captures/shapesy-compare.jpg`. 1-17 and 4-19 were not captured
+(4-19 is all one brown tile). Not looked at: the seams at `&dpr=0.3`.
+
+**Review:** sheets, answers, per-answer registration and `cut-report.json` are in
+`tyrian-scratch/shapesy-hd/work/` (not in git, D3).
