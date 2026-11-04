@@ -4100,6 +4100,36 @@ text. Desktop (1920x1080) captures of the title and item screen match. Captures:
 `tyrian-scratch/mobile-scroll/` (`before-*`, `b3-*`). Not covered: the arcade and episode-end screens (not
 reachable headless without a level), the destruct mode picker.
 
+## D100 — Touch play: the HUD's own boxes are the rear-mode and sidekick buttons (extends D61)
+
+**Asked:** on a phone, drag-anywhere steering with firing while touched is fine as it is; what's missing is a way to
+fire the sidekicks and change the rear gun's mode. A first draft added separate on-screen buttons in a strip or
+column outside the frame; the user's better idea replaced it: the instruments themselves are the controls.
+
+**Decision.**
+- **Tap the REAR GUN box or its MODE lamps** to change the rear mode (`changeFire`, as Enter does). **Hold a
+  SIDEKICK box** to fire that sidekick (`leftSidekick` / `rightSidekick`, held inputs in the sim like the keys).
+  No new buttons, and the frame looks as it did; a held target gets a faint copper wash and rim (`.is-down`).
+- **Hit areas** are invisible boxes laid over the SVG by `HudFrame.build` from `hudTargets(layout)`
+  (`hudFrame.ts`, pure, so it is tested): each box grown evenly to 44 px on the window (`growTarget`) where its
+  neighbours leave room. Landscape: one column in the sidebar, the sidekicks reaching down over plain plate, so
+  41-44 px tall at 390-375 px heights (the MODE label caps the first). Portrait: the rear box (44) plus the MODE row
+  (33, the score box is under it), and each sidekick grown down over the console's greebles to 44.
+- **The finger belongs to the target.** `pointerdown` there is `preventDefault`ed, stopped, and
+  pointer-captured; `Controls` only steers from touches that start on the canvas, so a press neither steers nor
+  fires, and it works while another finger steers. `Controls.touchAction` holds the action while down and latches a tap
+  shorter than a tick for one sample (the sim's `portConfigChange` makes a held MODE change once).
+- **Only on touch, only in play.** On for a coarse pointer or after a finger was the last input
+  (`<html data-input="touch">`), in the framed HUD while a level runs; `?touchhud=1|0` forces it either way (to try
+  it with a mouse). Desktop is unchanged. Two-player has no framed HUD and no touch path (player 2 has none); the
+  minimal interface has no boxes, so neither has targets.
+- The existing touch pause button stays; steering and auto-fire are untouched.
+
+**Checked** (headless Chrome, mobile + touch emulation, `Input.dispatchTouchEvent` with two fingers, `?debug` off,
+a real level, the bot's rear weapon fitted) at 390x844, 375x667, 844x390, 667x375: a finger alone on a sidekick box
+holds it and doesn't move or fire the ship; tapping MODE toggles the mode once (also when held 600 ms); with finger 1
+steering on the playfield, finger 2 on each target presses it, finger 1's steering carries on, and release clears it.
+At 1920x1080 the targets are off. Captures: `tyrian-scratch/mobile-scroll/th-*`. Tests: `tests/app/hudTargets.test.ts`.
 ## D99 — The shop's Options reach the one settings screen; the shop shows the original's titles; the HUD says CREDITS (extends D85, D61)
 
 **Reported:** (1) Options from the shop lacked settings the title's Options has; (2) the shop showed an invented

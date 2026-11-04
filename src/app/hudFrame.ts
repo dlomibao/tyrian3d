@@ -141,6 +141,79 @@ interface GaugeGeo {
   rows: number;
 }
 
+/** The HUD's touch targets (D100): tap the rear gun's box or its MODE lamps to change its mode, hold a sidekick's box to fire it. */
+export type HudTargetId = "rearMode" | "sk0" | "sk1";
+export interface HudTarget {
+  id: HudTargetId;
+  /** The hit area, in frame units (invisible: the boxes look as they did). */
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** The hit area's least size on the window, CSS pixels (a touch target's floor is 44-48). */
+export const TARGET_MIN_PX = 44;
+
+/** `r` grown evenly to at least `min` tall and wide, but not past the limits (the neighbours'). */
+export function growTarget(
+  r: { x: number; y: number; w: number; h: number },
+  min: number,
+  limits: { top?: number; bottom?: number; left?: number; right?: number } = {},
+): { x: number; y: number; w: number; h: number } {
+  const axis = (a: number, len: number, lo: number, hi: number): [number, number] => {
+    const grow = Math.max(0, min - len);
+    let start = a - grow / 2;
+    let end = a + len + grow / 2;
+    // Past a limit: slide the shortfall to the other side.
+    if (start < lo) {
+      end = Math.min(hi, end + (lo - start));
+      start = lo;
+    }
+    if (end > hi) {
+      start = Math.max(lo, start - (end - hi));
+      end = hi;
+    }
+    return [start, end];
+  };
+  const [y0, y1] = axis(r.y, r.h, limits.top ?? -Infinity, limits.bottom ?? Infinity);
+  const [x0, x1] = axis(r.x, r.w, limits.left ?? -Infinity, limits.right ?? Infinity);
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+
+/**
+ * Where the touch targets are for `layout`: the rear gun's box with its MODE lamps (landscape: one
+ * column; portrait: the box, and the MODE row in the left column) and the two sidekick boxes, each
+ * grown to TARGET_MIN_PX on the window where the neighbours leave room.
+ */
+export function hudTargets(layout: HudLayout): HudTarget[] {
+  const min = TARGET_MIN_PX / layout.scale;
+  const out: HudTarget[] = [];
+  if (layout.mode === "landscape") {
+    const x = layout.openingW - 259 + 284; // the sidebar's boxes (X() in buildLandscape)
+    out.push({ id: "rearMode", x, y: 24.6, w: 30.5, h: 59.8 - 24.6 });
+    // The two boxes share the gap between them; the first can't grow up into MODE (59.8), the second
+    // may grow down over the sidebar's plain plate (to the greebles' rod, y 109).
+    const mid = (63.6 + 16.4 + 82.6) / 2;
+    const need = Math.max(16.4, min);
+    out.push({ id: "sk0", x, y: Math.max(60.4, mid - need), w: 30.5, h: mid - Math.max(60.4, mid - need) });
+    out.push({ id: "sk1", x, y: mid, w: 30.5, h: Math.min(108, mid + need) - mid });
+    return out;
+  }
+  const top = layout.openingH + 4.5;
+  const my = top + PORTRAIT_MODE_DY;
+  const rear = growTarget({ x: PORTRAIT_G2, y: top, w: PORTRAIT_GW, h: 14.5 }, min, { top: layout.openingH + 1.4, bottom: my - 0.5 });
+  out.push({ id: "rearMode", ...rear });
+  out.push({ id: "rearMode", ...growTarget({ x: PORTRAIT_GX, y: my, w: PORTRAIT_GW, h: 7 }, min, { top: top + 15, bottom: my + 11 }) });
+  const sw = (PORTRAIT_GW - 4) / 2;
+  [PORTRAIT_G2, PORTRAIT_G2 + sw + 4].forEach((x, i) => {
+    // Down over the greebles (my + 17 .. 27); sideways into the gap between the two.
+    const t = growTarget({ x, y: my, w: sw, h: 17 }, min, { top: my, bottom: my + 27 });
+    out.push({ id: i === 0 ? "sk0" : "sk1", ...t });
+  });
+  return out;
+}
+
 interface SidekickGeo {
   /** The box. */
   x: number;
@@ -148,6 +221,12 @@ interface SidekickGeo {
   w: number;
   h: number;
 }
+
+/** The portrait console's columns and the MODE row's offset from the guns' top (frame units). */
+const PORTRAIT_GX = 22;
+const PORTRAIT_GW = 46;
+const PORTRAIT_G2 = PORTRAIT_GX + PORTRAIT_GW + 5;
+const PORTRAIT_MODE_DY = 19;
 
 /** The SVG markup of one layout, and where the live parts went. */
 interface Built {
@@ -494,9 +573,9 @@ function buildPortrait(layout: HudLayout, corners: readonly { x: number; y: numb
   P.rodV(18, top - 2, gh + 8, 1);
 
   // Guns.
-  const gx = 22;
-  const gw = 46;
-  const g2 = gx + gw + 5;
+  const gx = PORTRAIT_GX;
+  const gw = PORTRAIT_GW;
+  const g2 = PORTRAIT_G2;
   const nameW = gw - 4;
   for (const [x, label, key] of [[gx, "FRONT GUN", "front"], [g2, "REAR GUN", "rear"]] as const) {
     P.screen(x, top, gw, 14.5);
@@ -506,7 +585,7 @@ function buildPortrait(layout: HudLayout, corners: readonly { x: number; y: numb
     P.liveLayer(() => P.glare(x, top, gw, 14.5));
   }
   // Mode: the label and the two lamps.
-  const my = top + 19;
+  const my = top + PORTRAIT_MODE_DY;
   P.screen(gx, my, 20, 7, { rim: 1.1 });
   P.text(gx + 1.8, my + 5.6, "MODE", 5.4);
   for (const [x, m] of [[gx + 24, 1], [gx + 36, 2]] as const) {
@@ -611,6 +690,10 @@ export class HudFrame {
   private built: Built | null = null;
   private el: Record<string, SVGElement> = {};
   private readonly last = new Map<string, string>();
+  /** The touch targets' layer (D100): invisible boxes over the instruments, off until a touch device wants them. */
+  private readonly targets = document.createElement("div");
+  /** A finger went down on (`down`) or came off (the last one on) a target. */
+  onTarget: ((id: HudTargetId, down: boolean) => void) | null = null;
 
   constructor() {
     this.root.className = "hudf";
@@ -620,6 +703,62 @@ export class HudFrame {
       svg.setAttribute("preserveAspectRatio", "none");
       svg.setAttribute("aria-hidden", "true");
       this.root.appendChild(svg);
+    }
+    this.targets.className = "hudf-targets";
+    this.targets.hidden = true;
+    this.root.appendChild(this.targets);
+    this.listenTargets();
+  }
+
+  /** Whether the touch targets take touches. */
+  set touchEnabled(on: boolean) {
+    this.targets.hidden = !on;
+    if (!on) this.releaseTargets();
+  }
+
+  private readonly fingers = new Map<number, HudTargetId>();
+
+  private listenTargets(): void {
+    const set = (id: HudTargetId, on: boolean) => {
+      for (const el of this.targets.querySelectorAll(`[data-target="${id}"]`)) el.classList.toggle("is-down", on);
+    };
+    const count = (id: HudTargetId) => [...this.fingers.values()].filter((v) => v === id).length;
+    this.targets.addEventListener("pointerdown", (e) => {
+      const id = (e.target as HTMLElement).dataset.target as HudTargetId | undefined;
+      if (!id) return;
+      // The finger is the target's: not the playfield's steering (Controls only steers from the canvas), not the browser's.
+      e.preventDefault();
+      e.stopPropagation();
+      try {
+        (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      } catch {
+        // a synthetic pointer without an active id: the press still counts
+      }
+      this.fingers.set(e.pointerId, id);
+      set(id, true);
+      if (count(id) === 1) this.onTarget?.(id, true);
+    });
+    const lift = (e: PointerEvent) => {
+      const id = this.fingers.get(e.pointerId);
+      if (!id) return;
+      this.fingers.delete(e.pointerId);
+      if (count(id) === 0) {
+        set(id, false);
+        this.onTarget?.(id, false);
+      }
+    };
+    this.targets.addEventListener("pointerup", lift);
+    this.targets.addEventListener("pointercancel", lift);
+    this.targets.addEventListener("lostpointercapture", lift);
+    this.targets.addEventListener("contextmenu", (e) => e.preventDefault());
+  }
+
+  private releaseTargets(): void {
+    const ids = new Set(this.fingers.values());
+    this.fingers.clear();
+    for (const id of ids) {
+      for (const el of this.targets.querySelectorAll(`[data-target="${id}"]`)) el.classList.remove("is-down");
+      this.onTarget?.(id, false);
     }
   }
 
@@ -633,6 +772,21 @@ export class HudFrame {
     this.liveSvg.setAttribute("viewBox", viewBox);
     this.frameSvg.innerHTML = DEFS + b.frame;
     this.liveSvg.innerHTML = b.live;
+    this.releaseTargets();
+    this.targets.replaceChildren(
+      ...hudTargets(layout).map((t) => {
+        const el = document.createElement("div");
+        el.className = "hudf-target";
+        el.dataset.target = t.id;
+        Object.assign(el.style, {
+          left: `${f((t.x - v.x) * layout.scale)}px`,
+          top: `${f((t.y - v.y) * layout.scale)}px`,
+          width: `${f(t.w * layout.scale)}px`,
+          height: `${f(t.h * layout.scale)}px`,
+        });
+        return el;
+      }),
+    );
     this.el = {};
     for (const node of this.liveSvg.querySelectorAll<SVGElement>("[data-k]")) this.el[node.dataset.k!] = node;
     this.last.clear();

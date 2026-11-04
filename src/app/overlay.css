@@ -298,6 +298,33 @@ canvas {
   display: none;
 }
 
+/* The touch targets over the rear gun's box and MODE lamps and the sidekick boxes (hudFrame.ts, D100):
+   invisible until held, then the lamp's copper. The game owns these fingers: no pan, zoom or menu. */
+.hudf-targets {
+  position: absolute;
+  inset: 0;
+}
+
+.hudf-targets[hidden] {
+  display: none;
+}
+
+.hudf-target {
+  position: absolute;
+  pointer-events: auto;
+  border-radius: 4px;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.hudf-target.is-down {
+  background: rgba(246, 220, 176, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(207, 166, 107, 0.65);
+}
+
 .hudf-layer {
   position: absolute;
   inset: 0;

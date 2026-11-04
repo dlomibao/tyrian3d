@@ -16,7 +16,9 @@ import { CAMERA_TILT, CAMERA_TILT_GENTLE, CAMERA_TILT_OVERHEAD, playfieldScreenA
 import { g } from "../sim/state";
 import { hudLives } from "./arcade"; // [arcade]
 import { paint, tableSprite } from "./dataCubes";
-import { HudFrame, type FrameValues, type SidekickView } from "./hudFrame";
+import type { TouchAction } from "./controls";
+import { HudFrame, type FrameValues, type HudTargetId, type SidekickView } from "./hudFrame";
+import { touchHudParam, touchHudWanted } from "./touchHud";
 import { gaugeRows, hudLayout, type Insets, pipCount, powerPercent, powerRows, toFrameUnits } from "./hudLayout";
 
 /** The camera's tilt for a Camera choice. */
@@ -74,6 +76,28 @@ export class Hud {
     this.shown = v;
     this.root.hidden = !v;
     this.sync();
+    this.syncTouch();
+  }
+
+  /**
+   * Touch play (D100): the rear gun's box and MODE lamps change its mode, the sidekick boxes fire
+   * them while held. `press` is Controls.pressButton; targets work in the framed HUD, on a touch
+   * device (a coarse pointer, or a finger just used), or when `?touchhud=1` says so.
+   */
+  attachTouch(press: (action: TouchAction, down: boolean) => void): void {
+    const action: Record<HudTargetId, TouchAction> = { rearMode: "changeFire", sk0: "leftSidekick", sk1: "rightSidekick" };
+    this.frame.onTarget = (id, down) => press(action[id], down);
+    const coarse = window.matchMedia?.("(pointer: coarse)");
+    const param = touchHudParam(location.search);
+    this.touchWanted = () => touchHudWanted(param, coarse?.matches ?? false, document.documentElement.dataset.input);
+    coarse?.addEventListener?.("change", () => this.syncTouch());
+    new MutationObserver(() => this.syncTouch()).observe(document.documentElement, { attributes: true, attributeFilter: ["data-input"] });
+  }
+
+  private touchWanted: () => boolean = () => false;
+
+  private syncTouch(): void {
+    this.frame.touchEnabled = this.shown && this.framed && this.touchWanted();
   }
 
   update(): void {
@@ -138,6 +162,7 @@ export class Hud {
     const framed = this.shown && this.view !== null && interfaceStyle.get() === "frame" && !g.twoPlayerMode;
     if (framed === this.framed) return;
     this.framed = framed;
+    this.syncTouch();
     this.root.classList.toggle("is-framed", framed);
     this.frame.root.hidden = !framed;
     this.last.clear();
