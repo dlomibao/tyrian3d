@@ -4046,3 +4046,22 @@ structure with enemies on it); scorch on plain ground or HD terrain without a st
 
 **Checked:** comparison sheets (real C | ours original | ours remastered, ticks 2579/2582/2616/2650) in
 `tyrian-scratch/cap-scorch/` (`sheet-before.png`, `sheet-after.png`); the original look is unchanged.
+
+## D97 — Episode 1's remaining shots drawn from Gemini flat art (D42/D43)
+
+2026-11-04
+
+**Decision:** every shot frame episode 1 draws (player weapons, sidekick shots, enemy bullets) that still
+showed as an extruded sprite (inventory.json `shots`, status `sprite`) now has flat art: 101 frames, 79 new in
+`tyrian.shp#7` (71 -> 150) and 22 in a new `tyrian.shp#11` atlas (`tyrian-shp-11.webp`, the Sidekick/orb shots).
+Includes the enemy shots drawn on the most levels: #7 286-288 (17/16/16 levels) and 168 (15).
+- **Inputs:** inventory in `tyrian-scratch/e1-shots/` (enemy shots first by level count), three families
+  (`e1-shots-enemy`, `-player`, `-11`) in `SHEET_GROUPS`: 9 sheets of 9-12 cells, 9 Gemini requests, no
+  retries, no usage warning. Level palette 5.
+- **Cut:** `cut --merge`; fit min 0.71 / mean 0.79-0.97 per sheet (lowest: #7 208-209 and 175, 177, 181, 0.71-0.77,
+  small red stars/rings). Mirrored pairs share a cell; 2 frames stay painted tracers (D56, #7 67, 70).
+  Gemini redrew the tiny rocket shots (#7 31-33, 57, 76, 95) as small ships/rockets; they keep the sprite's
+  outline and read as missiles in game.
+- **In game:** no code change; `?sprites=original` brings back the extruded shots. Checked on level 1 with
+  Multi-Cannon (t700), Protron + sidekicks (t1200), Mega Pulse (t1800); sheet
+  `tyrian-scratch/e1-shots/before-after.png`. Not captured: the other weapons' frames.
