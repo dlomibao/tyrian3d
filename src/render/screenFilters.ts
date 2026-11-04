@@ -285,6 +285,7 @@ const renderTarget = (samples: number) =>
     minFilter: THREE.LinearFilter,
     magFilter: THREE.LinearFilter,
     depthBuffer: true,
+    stencilBuffer: true, // explosions draw through a stencil (spriteArtLayer.ts)
     samples,
   });
 
