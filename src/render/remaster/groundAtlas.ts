@@ -119,8 +119,10 @@ export class RemasterGroundAtlas {
   /**
    * Find or make the slot of every background-1 cell in this tick's draw list, and of every blended
    * background-2 cell (draw_background_2_blend: drawn as translucent sheets from this atlas too).
+   * `needed(d)` false: the cell is drawn another way (the HD terrain's painting, D57), so it gets no
+   * slot and isn't upscaled; it still gives its neighbours context (D91).
    */
-  prepare(items: readonly Draw[]): void {
+  prepare(items: readonly Draw[], needed?: (d: TileDraw) => boolean): void {
     this.tick++;
     this.cells.clear();
     if (!this.luma) return;
@@ -131,8 +133,8 @@ export class RemasterGroundAtlas {
       if (d.layer === 0) ground.set(d.key, d);
       else if (d.layer === 1 && d.effect === "blend") blended.set(d.key, d);
     }
-    if (ground.size > 0) this.prepareLayer(ground, 0);
-    if (blended.size > 0) this.prepareLayer(blended, 1);
+    if (ground.size > 0) this.prepareLayer(ground, 0, needed);
+    if (blended.size > 0) this.prepareLayer(blended, 1, needed);
   }
 
   /**
@@ -140,7 +142,7 @@ export class RemasterGroundAtlas {
    * unknown (the cell's edge is repeated); on background 2, one inside them that wasn't drawn is a
    * transparent tile, so it's empty and the sheet's outline is upscaled against nothing.
    */
-  private prepareLayer(byKey: Map<number, TileDraw>, layer: 0 | 1): void {
+  private prepareLayer(byKey: Map<number, TileDraw>, layer: 0 | 1, needed?: (d: TileDraw) => boolean): void {
     const luma = this.luma!;
     const base = layer * BG_KEY_LAYER;
     let minRow = Infinity, maxRow = -Infinity, minCol = Infinity, maxCol = -Infinity;
@@ -153,7 +155,8 @@ export class RemasterGroundAtlas {
     }
     const ids: string[] = new Array(9);
     const neighbours: (Uint8Array | null)[][] = [[null, null, null], [null, null, null], [null, null, null]];
-    for (const key of byKey.keys()) {
+    for (const [key, d] of byKey) {
+      if (needed && !needed(d)) continue;
       const row = Math.floor((key - base) / MAP_WIDTH), col = (key - base) % MAP_WIDTH;
       for (let dy = -1; dy <= 1; dy++) {
         for (let dx = -1; dx <= 1; dx++) {

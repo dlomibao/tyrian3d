@@ -508,10 +508,24 @@ export class DrawListRenderer {
     if (this.background === "remaster") {
       const palette = this.palettes[list.palette] ?? this.palettes[0];
       if (palette) this.remasterAtlas.setLuma(paletteLuma(palette));
-      this.remasterAtlas.prepare(list.items);
+      this.remasterAtlas.prepare(list.items, this.needsGroundAtlas);
       this.tileModels.prepare(list.items);
     }
   }
+
+  /**
+   * Whether a tile draw may need the upscaled ground atlas: not when the HD terrain has a painting of
+   * it (drawHdTile's lookup), which is what draws it then. Upscaling every visible cell each tick
+   * regardless was the draw list's biggest garbage source and ~25 ms of a level's first tick (D91).
+   */
+  private readonly needsGroundAtlas = (d: TileDraw): boolean => {
+    if (this.terrain !== "hd") return true;
+    let id = this.tileIds.get(d.tileId);
+    if (id === undefined) this.tileIds.set(d.tileId, (id = parseTileId(d.tileId)));
+    if (!id) return true;
+    const tileset = this.terrainArt.get(id[0]);
+    return !tileset || !tileset.tile(d.layer, id[1], d.key - d.layer * BG_KEY_LAYER);
+  };
 
   /**
    * Draw backgrounds as the original's tiles (extruded, D8) or remastered (D34): the ground
@@ -522,7 +536,7 @@ export class DrawListRenderer {
     this.background = style;
     this.tileModels = style === "remaster" ? tileModels : new TileModelIndex([]);
     if (style === "remaster" && this.list) {
-      this.remasterAtlas.prepare(this.list.items);
+      this.remasterAtlas.prepare(this.list.items, this.needsGroundAtlas);
       this.tileModels.prepare(this.list.items);
     }
   }
@@ -538,6 +552,8 @@ export class DrawListRenderer {
    */
   setTerrainStyle(style: TerrainStyle): void {
     this.terrain = style;
+    // The upscaled ground of every cell from this tick on (only the unpainted ones were prepared).
+    if (this.background === "remaster" && this.list) this.remasterAtlas.prepare(this.list.items, this.needsGroundAtlas);
     setRockLook(style === "hd"); // the island rock: smooth, or the original's pixels (D84)
   }
 

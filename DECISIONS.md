@@ -3752,6 +3752,13 @@ shared materials).
    33 ms 208 → 45 (scale settled at 0.64); at 3024x1800 HOLES stayed at full scale, and the boss
    dipped to 0.8 for 23% of its frames while other agents loaded the GPU (load 12), back to 1 after.
 
+6. **The upscaled ground only where the HD terrain has no painting.** Every tick the remastered
+   ground atlas (D34) upscaled (MMPX) and looked up every visible ground cell, though with HD terrain
+   (D57, the default) the painting draws nearly all of them: `prepare` now skips cells the HD art
+   covers (they still give their neighbours context); a switch to the original terrain look
+   prepares them all again. `setDrawList` 0.7-0.9 → 0.1 ms a tick, a level's first tick 24-50 →
+   1-2 ms, ~17% less garbage (HOLES 604 → 499 MB freed over 1000 ticks). Captures identical.
+
 ## D92 — Twenty enemies shared across episodes rebuilt hard-surface; a palette-pulsed ring counts as ink
 
 2026-11-04
