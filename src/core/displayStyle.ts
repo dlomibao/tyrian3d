@@ -80,6 +80,8 @@ export class DisplayChoice<T extends string> {
 }
 
 export type InterfaceStyle = "frame" | "minimal";
+/** "auto": dynamic resolution, fewer pixels only while the GPU can't hold 60 fps (D91); "full": never. */
+export type ResolutionStyle = "auto" | "full";
 export type CameraStyle = "overhead" | "tilted" | "steep";
 
 /** The in-game interface: the remastered frame unless the player says otherwise. */
@@ -87,3 +89,6 @@ export const interfaceStyle = new DisplayChoice<InterfaceStyle>("interface", ["f
 
 /** The game camera: the gentle tilt unless the player says otherwise. */
 export const cameraStyle = new DisplayChoice<CameraStyle>("camera", ["overhead", "tilted", "steep"], "tilted");
+
+/** The render resolution: dynamic (D91) unless the player says otherwise. */
+export const resolutionStyle = new DisplayChoice<ResolutionStyle>("resolution", ["auto", "full"], "auto");

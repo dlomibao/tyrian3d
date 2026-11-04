@@ -9,6 +9,7 @@ import type { World } from "../game/world";
 import type { DrawList } from "../sim/draw";
 import { DrawListRenderer } from "./drawListRenderer";
 import { isModelHelper } from "./modelPrep";
+import { ResolutionScaler } from "./resolutionScaler";
 import { ScreenFilterPass } from "./screenFilters";
 import { VFX_LAYER } from "./vfx/vfxMode";
 
@@ -105,6 +106,10 @@ export class View {
   private viewport: ScreenRect | null = null;
   /** The framed area's four ground corners on screen, CSS pixels: far left, far right, near right, near left. */
   private corners: { x: number; y: number }[] = [];
+  /** Dynamic resolution (D91): fewer pixels while the GPU can't hold 60 fps. */
+  readonly scaler = new ResolutionScaler();
+  /** The main thread's time in the last render(), for the scaler. */
+  private lastRenderMs = 0;
 
   constructor(
     private readonly container: HTMLElement,
@@ -177,6 +182,7 @@ export class View {
     this.ship.add(this.shipModel);
     this.fallback.add(this.ship);
 
+    if (options.fitContainer) this.scaler.enabled = false; // the item screen's preview: tiny, never late
     this.resize();
     if (options.fitContainer) new ResizeObserver(() => this.resize()).observe(container);
     else window.addEventListener("resize", () => this.resize());
@@ -266,6 +272,31 @@ export class View {
 
   /** Draw a frame. alpha interpolates between the last two logic ticks (0 = previous, 1 = latest). */
   render(world: World | null, alpha: number): void {
+    const start = performance.now();
+    if (this.scaler.frame(start, this.lastRenderMs)) this.resize();
+    try {
+      this.renderFrame(world, alpha);
+    } finally {
+      this.lastRenderMs = performance.now() - start;
+    }
+  }
+
+  /** Dynamic resolution on (Options → Resolution: Auto, the default) or off (Full) (D91). */
+  setDynamicResolution(on: boolean): void {
+    if (this.options.fitContainer) return;
+    this.scaler.enabled = on;
+    if (!on) this.resetResolution();
+  }
+
+  /**
+   * Back to full resolution (D91), e.g. when a level ends: the menus' backdrop draws with this
+   * renderer at whatever resolution the last level left.
+   */
+  resetResolution(): void {
+    if (this.scaler.reset()) this.resize();
+  }
+
+  private renderFrame(world: World | null, alpha: number): void {
     const drawLists = this.draws.active;
     this.warmLate();
     if (drawLists !== this.framedForDrawLists) {
@@ -336,7 +367,7 @@ export class View {
     const w = this.options.fitContainer ? this.container.clientWidth : window.innerWidth;
     const h = this.options.fitContainer ? this.container.clientHeight : window.innerHeight;
     if (w <= 0 || h <= 0) return; // a hidden container: wait for the ResizeObserver
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.settings.maxPixelRatio));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.settings.maxPixelRatio) * this.scaler.scale);
     this.renderer.setSize(w, h);
 
     // Fit the playfield's on-screen outline to the window (or the viewport), centred, at any aspect
