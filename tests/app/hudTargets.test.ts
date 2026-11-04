@@ -1,4 +1,4 @@
-// The HUD's touch targets (DECISIONS.md D99): the rear gun's box and MODE lamps change the rear
+// The HUD's touch targets (DECISIONS.md D100): the rear gun's box and MODE lamps change the rear
 // mode, a sidekick box fires that sidekick while held. Their geometry, the switch that turns them
 // on, and the Controls input they set.
 import { afterEach, describe, expect, test, vi } from "vitest";

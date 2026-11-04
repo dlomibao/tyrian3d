@@ -97,7 +97,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
   const optionsHost: OptionsHost = { sfx, music };
   const controls = new Controls(() => view.gamePixelsPerScreenPixel);
   const hud = new Hud(view);
-  hud.attachTouch((action, down) => controls.touchAction(action, down)); // the HUD's rear-mode and sidekick boxes on touch screens (D99)
+  hud.attachTouch((action, down) => controls.touchAction(action, down)); // the HUD's rear-mode and sidekick boxes on touch screens (D100)
   const hud2 = new TwoPlayerHud(); // [two-player]
   const pauseButton = new PauseButton(() => (controls.pauseRequested = true)); // ui-framework
   const cheats = new CheatKeys(() => controls.active); // [cheats]

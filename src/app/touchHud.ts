@@ -1,4 +1,4 @@
-// Whether the HUD's touch targets are on (D99), kept free of the DOM so it can be tested.
+// Whether the HUD's touch targets are on (D100), kept free of the DOM so it can be tested.
 
 /** The URL's `?touchhud=1|0` forces them on (to try them with a mouse) or off. */
 export function touchHudParam(search: string): boolean | null {

@@ -80,7 +80,7 @@ export class Hud {
   }
 
   /**
-   * Touch play (D99): the rear gun's box and MODE lamps change its mode, the sidekick boxes fire
+   * Touch play (D100): the rear gun's box and MODE lamps change its mode, the sidekick boxes fire
    * them while held. `press` is Controls.pressButton; targets work in the framed HUD, on a touch
    * device (a coarse pointer, or a finger just used), or when `?touchhud=1` says so.
    */

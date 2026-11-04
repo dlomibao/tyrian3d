@@ -141,7 +141,7 @@ interface GaugeGeo {
   rows: number;
 }
 
-/** The HUD's touch targets (D99): tap the rear gun's box or its MODE lamps to change its mode, hold a sidekick's box to fire it. */
+/** The HUD's touch targets (D100): tap the rear gun's box or its MODE lamps to change its mode, hold a sidekick's box to fire it. */
 export type HudTargetId = "rearMode" | "sk0" | "sk1";
 export interface HudTarget {
   id: HudTargetId;
@@ -690,7 +690,7 @@ export class HudFrame {
   private built: Built | null = null;
   private el: Record<string, SVGElement> = {};
   private readonly last = new Map<string, string>();
-  /** The touch targets' layer (D99): invisible boxes over the instruments, off until a touch device wants them. */
+  /** The touch targets' layer (D100): invisible boxes over the instruments, off until a touch device wants them. */
   private readonly targets = document.createElement("div");
   /** A finger went down on (`down`) or came off (the last one on) a target. */
   onTarget: ((id: HudTargetId, down: boolean) => void) | null = null;

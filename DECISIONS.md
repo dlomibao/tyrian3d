@@ -4100,7 +4100,7 @@ text. Desktop (1920x1080) captures of the title and item screen match. Captures:
 `tyrian-scratch/mobile-scroll/` (`before-*`, `b3-*`). Not covered: the arcade and episode-end screens (not
 reachable headless without a level), the destruct mode picker.
 
-## D99 — Touch play: the HUD's own boxes are the rear-mode and sidekick buttons (extends D61)
+## D100 — Touch play: the HUD's own boxes are the rear-mode and sidekick buttons (extends D61)
 
 **Asked:** on a phone, drag-anywhere steering with firing while touched is fine as it is; what's missing is a way to
 fire the sidekicks and change the rear gun's mode. A first draft added separate on-screen buttons in a strip or
