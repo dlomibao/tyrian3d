@@ -241,6 +241,9 @@ SHEET_GROUPS = [
     ("orbs-capsules", ["power-orb", "capsules"]),
     # Explosions (newsh6.shp): the fireball's 12 frames and a big explosion's, air and ground, each
     # frame painted whole (four quarters) so its quarters meet without seams.
+    ("e1-pickups-10-small", ["e1-pickups-10-small", "e1-pickups-newshp"]),
+    ("e1-pickups-10", ["e1-pickups-10"]),
+    ("e1-pickups-9", ["e1-pickups-9"]),
     ("explosions-fireball", ["fireball"]),
     ("explosions-air", ["explosion-air"]),
     ("explosions-ground", ["explosion-ground"]),
@@ -295,7 +298,7 @@ def build_sheets(gd: GameData, inventory: dict, out: Path) -> dict:
         n_sheets = len(parts)
         for s, part in enumerate(parts):
             sheet_name = name if n_sheets == 1 else f"{name}-{s + 1}"
-            cols = 3 if len(part) <= 9 and len(part) not in (4, 8) else 4
+            cols = 3 if len(part) <= 9 and len(part) != 4 else 4
             if len(part) <= 3:
                 cols = len(part)
             rows = math.ceil(len(part) / cols)
@@ -644,7 +647,7 @@ def cut(gd: GameData, inputs: dict, results: Path, out: Path, palette: int, chec
         # in newsh6.shp, D76, which the explosions share, D80): those with a scale of their own.
         if sid in old["sheets"]:
             ours = {f["index"] for f in mine}
-            mine += atlas_frames(out, old["sheets"][sid], lambda i, r: i not in ours and "scale" in r)
+            mine += atlas_frames(out, old["sheets"][sid], lambda i, r: i not in ours and ("scale" in r or merge))
         # The narrower of 1024 and 2048 wide unless the wider one halves the (power-of-two) height.
         atlas, rects = min((pack(mine, w) for w in (1024, 2048)), key=lambda ar: ar[0].shape[0] * ar[0].shape[1])
         name = sheet_file(sid)
