@@ -4336,3 +4336,40 @@ The most-drawn one is #7 198 (7 levels, 3 episodes), with #7 199 (96,631 ticks) 
 - *Painting the thin wiggles and streaks procedurally (D56):* not needed, Gemini kept their outline and read as energy.
 
 Answers, sheets and prompts: `tyrian-scratch/flat-art-rest/` (not in git, D3).
+
+## D109 — `shapes)` HD terrain, first round: 89 of 112 ground tiles and 7 of 14 layer-1 rock tiles, Gemini limit hit at request 16
+
+2026-11-04
+
+**Decision:** the tileset `shapes)` (episode 4's SURFACE, CORE, SIDE EXIT, UNDERDELI, LAVA EXIT, DESERTRUN, LAVA RUN,
+BRAINIAC, TIME WAR, SQUADRON: 4.4-4.7, 4.9, 4.10, 4.12, 4.15, 4.17, 4.18) gets a partial atlas,
+`public/art/terrain/shapes)/` (`0.webp` ground, `1.webp` layer 1, 0.7 MB), from D83's pipeline: `inventory`, `sheets`,
+Gemini, `cut --edge-aware`, `check`. Tiles without a painting fall back per tile (D57), so the rest is a follow-up round.
+- **Folder name.** The tileset's letter is ")" (`data/shapes).dat`); `tileset_levels` strips "shapes" and `parseTileId` only
+  strips ".dat", so the folder is literally `shapes)` and nothing needed changing. Quote it in shells:
+  `--tileset 'shapes)'`. The dev server serves `/art/terrain/shapes)/manifest.json` (200) and the levels draw it.
+- **Kinds.** Layer 0: 112 terrain + 1 empty; layer 1: 14 terrain (rock chunks on lava, a dark-blue fill) and 35
+  structure (left to models); layer 2: all 24 structure, nothing painted.
+- **Gemini:** 13 answered requests for 10 answers kept (ctx-l1-brown-2, region-l0-02, 13, 09, 10, 05, 01, 07, 03, 04),
+  3 retries: 02's first send came back 4:3 (the default ratio; not downloaded), 02's second and 13's first went
+  out with the image not attached (the paste raced the page load) and came back as invented art. Then the Gemini usage limit hit while sending region-l0-14 ("Continuing with Flash-Lite";
+  limit resets Nov 4 11:05 PM); stopped there. Prompts named each sheet's real material (SEND.md's group labels were
+  wrong: "asteroid rock" for a desert with metal bases, "flesh" wording made Gemini rearrange the red cells, so the
+  text now says to keep every cell and patch where it is) and add "do not rearrange, invent or move anything".
+  Workflow lessons: set the aspect ratio to 1:1 on every request (the default is 4:3), and check the upload
+  (`user-query img` count 1) before pressing Return. Registration: fit 0.99+ on every sheet but the invented first
+  02/13 (resent), tile NCC median 0.98-0.99 (0.56 on 04, a low-contrast dark brick floor).
+- **Seams** (`check`, all ten maps): ground 0.558 (continuous original 0.545), bands 0.501; layer 1 1.059
+  (original continuous 1.048: its tiles are alpha rock shapes over a flat fill, so the ratio is the original's own).
+- **Weak cells:** NCC < 0.5 on tile 0:79 only. Uncovered, falling back to the original: ground 63 70 73 74 75 76 85 86
+  92 (dark deck, sheets 08/12/14) and 130-134, 140-144, 150-153 (purple plates, sheets 06/11); layer 1 31-35, 41, 42
+  (sheet ctx-l1-brown-1). Next round: send region-l0-14, 08, 12, 06, 11 and ctx-l1-brown-1 (6 requests), then `cut`
+  again with `--cache`; keep the atlas (merge) or restore it first to re-pick among all answers (doc §3).
+- **Known defect, game side:** on 4.9 LAVA EXIT the pink fuzzy patches draw as saturated red in the HD look (the
+  atlas holds salmon pink; the palette-ramp shader of D57 maps its brightness onto the red ramp). Same cause as D95's
+  grey fix, not touched here; needs the shader's per-hue ramp to know pink.
+
+**Checked** in game (`?debug=play&episode=4&main=2` (4.4) and `main=31` (4.9)`&seed=1&skip=T&freezeAt=T`, T 300 and 900,
+`&terrain=original` for the other half): the desert and metal plating on 4.4 match the original's layout; 4.12's lava
+reads well. Captures: `tyrian-scratch/terrain-shapes-paren/captures/compare-4-4.jpg`, `compare-4-9.jpg`. Tests
+`terrainArt` + `terrainHd`: 21 passed. Answers, sheets, prompts, `cands.pkl`: `tyrian-scratch/terrain-shapes-paren/work/` (not in git, D3).
