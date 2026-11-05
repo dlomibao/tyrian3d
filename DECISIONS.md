@@ -4322,6 +4322,11 @@ The most-drawn one is #7 198 (7 levels, 3 episodes), with #7 199 (96,631 ticks) 
   `PAINTED` entry (the two Vulcan tracers stay). Weak fits: #10 114 (grapes, 0.33), #10 57 and 133 (gems, 0.45-0.48),
   #7 120 (blue beam, 0.62), the 2x2 #10 92 (a hot-dog sign, 0.62); all read as the right object in the contact sheet. #7 198,
   199 and 200 (the blue lightning wiggles) fit 0.80-0.83.
+- **Removed after review:** the 2x2 hot-dog pickup (#10 92, 93, 111, 112) is not shipped: its red/yellow "HOT DOG"
+  lettering was lost and tile 92 was a black blob, so those 4 frames are taken out of the manifest and draw as the
+  original sprite (unit 92 stays extruded; the atlas still holds their unused pixels, and a plain re-cut would add them
+  back). Follow-up: redo that cell with a prompt that keeps the lettering, or a painter (D56). Counts above include them:
+  net +37 frames in `tyrian.shp#10`, 263 frames, and 6 of the 7 pickup units.
 - **In game:** no code change; `?sprites=original` brings back the old look. Checked on 3.7 STARGATE (tick 2473) and
   4.9 LAVA EXIT (tick 14), the levels where #7 198/199 are drawn; the status line's "flat in" count rises (0 -> 2, 0 -> 1).
   Captures: `tyrian-scratch/flat-art-rest/before-after.png`; contact sheet `.../check.png`. Tests: tsc, vitest (703 passed).
