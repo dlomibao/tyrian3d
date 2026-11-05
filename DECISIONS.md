@@ -4300,3 +4300,39 @@ edges, no ice, no rock" (D89: name the real material). Atlas: `public/art/terrai
 
 **Checked** in game (`?debug=play&episode=1&main=8&seed=1&skip=300&freezeAt=300`), before/after under
 `tyrian-scratch/clouds/captures/`. Answers, sheets and prompts: `tyrian-scratch/clouds/work/shapesy/` (not in git, D3).
+
+## D108 — The remaining 60 shot frames and 7 pickup units drawn from Gemini flat art (D42/D43, finishes D94/D97)
+
+2026-11-04
+
+**Decision:** every shot frame and pickup unit that `docs/roadmap/inventory.json` listed as still extruded
+(`sprite`/`basic`/`partial`) now has flat art, so no shot or pickup draws as an extruded sprite in any episode:
+60 shot frames (`tyrian.shp#7` +34, 150 -> 184, `tyrian.shp#11` +26, 22 -> 48) and 7 pickup units (`tyrian.shp#10`
++41 frames, 226 -> 267: 37, 57, 76, 114, 133, the 2x2 92 and the 2x2 191 family). The inventory was not stale:
+checked against the manifest, 60 shot frames and 14 pickup frames were missing (frame 273 of 191 already had art).
+The most-drawn one is #7 198 (7 levels, 3 episodes), with #7 199 (96,631 ticks) and #7 162, 285, 61.
+- **Inputs:** an inventory in the D43 format (`tyrian-scratch/flat-art-rest/inventory.json`, shots in order of ticks
+  drawn), four families (`rest-shots-enemy`, `-player`, `-11`, `rest-pickups`) added to `SHEET_GROUPS`: 8 sheets of 6-12
+  cells, palette 5 (every level of every episode draws with `pcxpal[2]`, hud.ts).
+- **Gemini:** 8 sheets, 10 requests (two of the first run went out with no image attached, because the page had not
+  finished loading when the sheet was pasted: they answered with a generic grid and were discarded; `player-1` and
+  `enemy-2` were sent again), no usage warning. Take-away for the operator: wait for the page after navigating and
+  check the pasted thumbnail before sending.
+- **Cut:** `cut --merge`; fit min 0.33 / mean 0.57-0.98 per sheet. Frames Gemini painted wrongly (D56): none, so no new
+  `PAINTED` entry (the two Vulcan tracers stay). Weak fits: #10 114 (grapes, 0.33), #10 57 and 133 (gems, 0.45-0.48),
+  #7 120 (blue beam, 0.62), the 2x2 #10 92 (a hot-dog sign, 0.62); all read as the right object in the contact sheet. #7 198,
+  199 and 200 (the blue lightning wiggles) fit 0.80-0.83.
+- **Removed after review:** the 2x2 hot-dog pickup (#10 92, 93, 111, 112) is not shipped: its red/yellow "HOT DOG"
+  lettering was lost and tile 92 was a black blob, so those 4 frames are taken out of the manifest and draw as the
+  original sprite (unit 92 stays extruded; the atlas still holds their unused pixels, and a plain re-cut would add them
+  back). Follow-up: redo that cell with a prompt that keeps the lettering, or a painter (D56). Counts above include them:
+  net +37 frames in `tyrian.shp#10`, 263 frames, and 6 of the 7 pickup units.
+- **In game:** no code change; `?sprites=original` brings back the old look. Checked on 3.7 STARGATE (tick 2473) and
+  4.9 LAVA EXIT (tick 14), the levels where #7 198/199 are drawn; the status line's "flat in" count rises (0 -> 2, 0 -> 1).
+  Captures: `tyrian-scratch/flat-art-rest/before-after.png`; contact sheet `.../check.png`. Tests: tsc, vitest (703 passed).
+  Not captured: the pickups, the sidekick shots #11 134-153.
+
+**Options considered:**
+- *Painting the thin wiggles and streaks procedurally (D56):* not needed, Gemini kept their outline and read as energy.
+
+Answers, sheets and prompts: `tyrian-scratch/flat-art-rest/` (not in git, D3).
