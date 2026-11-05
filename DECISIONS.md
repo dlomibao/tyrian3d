@@ -4336,3 +4336,31 @@ The most-drawn one is #7 198 (7 levels, 3 episodes), with #7 199 (96,631 ticks) 
 - *Painting the thin wiggles and streaks procedurally (D56):* not needed, Gemini kept their outline and read as energy.
 
 Answers, sheets and prompts: `tyrian-scratch/flat-art-rest/` (not in git, D3).
+
+## D109 — `shapesx` HD terrain, first round: 70 of 196 ground tiles from 4 Gemini sheets, stopped at the Pro usage limit (D83, D95)
+
+2026-11-04
+
+**Decision:** the `shapesx` tileset (levels 2-1 TORM, 2-2, 2-6, 2-10 BOTANY A, 2-11, 2-12, 4-13 EYESPY) gets a
+partial HD atlas (`public/art/terrain/shapesx/`: `0.webp`, 70 ground tiles, 0.56 MB). The tiles it lacks fall back
+per tile to the original (D57), so every level plays; the rest is a second round.
+- **Inventory:** layer 0 has 196 terrain tiles to paint (+3 empty); layer 1 has 14 terrain and 120 structure
+  (cyan plating, left to models); layer 2 has 13 terrain and 21 structure. 24 primary sheets (20 ground regions, 2
+  layer-2 regions, 2 layer-1 contexts); layers 1 and 2 have no art yet.
+- **Prompts rewritten by hand** (D89): SEND.md calls the biomechanical hull and alien flesh "cyan" and the horns
+  "brown rock". The real materials: forest canopy with blue water, cliffs and grey pipes (regions 03, 05, 06, 09, 13,
+  14, 16, 19); purple veined tissue (08, 20); steel hull plating and pipes (01, 02, 07, 10, 11, 15, 18); alien
+  flesh with eyes and bone spikes (04, 12, 17); tan horns and claws on black (layer 2, layer-1 contexts). Generator:
+  `tyrian-scratch/terrain-shapesx/bin/mkprompts.py`.
+- **Gemini:** 4 requests sent (regions 05, 03, 13, 06: all forest and water), 0 retries, all painted well,
+  registered at scale 11.38, NCC median 0.60-0.67. Then Pro, 3.8 Flash, 3.1 Pro and 4 Argon were greyed out in the
+  mode picker ("Limit resets Nov 4, 11:05 PM"; the account is shared by four agents and ~14 min waits for the lock
+  kept the pace low), so sending stopped. 20 primary sheets are unsent (SEND.md order: 19, 09, 16, 14 forest,
+  then 08, 20, 01, 17, 04, 15, 10, 12, 02, 18, 11, 07, layer 2, layer 1).
+- **Seams** (`check`, ground edges that include fallback tiles, so inflated): 0.73 overall (continuous 0.73,
+  bands 0.51); per level 2-1 0.75, 2-10 0.62, 2-11 0.73, 2-12 0.74. Weak fit (NCC < 0.5): tile 596. Re-measure after the full cut.
+- **Checked in game** (2-1, 2-10 at ticks 1200 and 2400, both looks): painted forest, water and cliffs meet cleanly;
+  unpainted tiles show as the original beside them.
+
+**Next:** with the answers cached in `tyrian-scratch/terrain-shapesx/work/` (cands.pkl, results/), send the 20 remaining sheets
+(`bin/lock.sh`, driver notes in the PR), `git checkout -- public/art/terrain/shapesx`, `cut --cache`, `check`.
