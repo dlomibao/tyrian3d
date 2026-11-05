@@ -4300,3 +4300,34 @@ edges, no ice, no rock" (D89: name the real material). Atlas: `public/art/terrai
 
 **Checked** in game (`?debug=play&episode=1&main=8&seed=1&skip=300&freezeAt=300`), before/after under
 `tyrian-scratch/clouds/captures/`. Answers, sheets and prompts: `tyrian-scratch/clouds/work/shapesy/` (not in git, D3).
+
+## D109 — `shapesw` HD terrain, first pass: 60 of its 110 layer-0 tiles painted from 7 Gemini sheets (Gemini's Pro limit hit)
+
+2026-11-04
+
+**Decision:** the `shapesw` tileset (levels 3-1, 3-4, 3-6, 3-9, 4-8, 4-11, 4-20) gets `public/art/terrain/shapesw/`
+(`0.webp`, 60 ground tiles, 0.4 MB), made with D83's pipeline (`inventory`, `sheets`, Gemini, `cut --edge-aware`,
+`check`). Partial: the run stopped at Gemini's usage limit (every Pro image model showed "limit resets Nov 4, 11:05
+PM") after 7 of 26 primary sheets; the other 50 layer-0 tiles and all of layers 1-2 still fall back to the original
+(per-tile fallback, D57). Not finished.
+- **Layer 1-2 kinds corrected by hand.** The classifier called the 3-6 FLEET layer-2 ship hulls (brown and grey plated
+  machinery) terrain because the main ramp is brown. They are structure: 158 layer-2 tiles overridden with `--kind`
+  (list in the scratch folder, `kinds.txt`), left to models. That leaves 27 layer-2 and 33 layer-1 terrain tiles (brown
+  rock) to paint. Layer 0 of 3-6 (grey hull plating on black) stays in the sheets: layer 0 has no structure kind.
+- **Sheet prompts rewritten** from the contact sheets (D89): SEND.md's labels were wrong ("icy translucent clouds" for
+  what is a frozen glacier: turquoise sheet ice, frosted ice shelves with icicle cliffs, navy paved roads; "asteroid
+  rock" for 3-6's ship hull). Brown dirt on 3-4, brown rock plateaus on layers 1-2, hull plating on 3-6.
+- **Gemini:** 7 answers kept (3-4 dirt 2, 3-1 ice 5; 3-1 sheets also feed 4-8). Requests: 9 sent (1 stray "Paris
+  postcard" suggestion tile click, stopped; 1 sheet dropped silently by Gemini and re-sent). Every answer registered at
+  scale 11.38: fit 0.80-0.99, tile NCC median 0.85-0.99 (min 0.62 on a cell), blockiness max 1.97.
+- **Seams** (`check`, layer 0, every edge): 0.831 across / inside (where the original is continuous 0.754), bands
+  0.481. Above the ~0.6 ground target but the original is itself 0.754 on this icy texture; the worst pairs (ratio 7-10)
+  are a painted tile meeting a not-yet-painted one, which goes away as sheets are added. Weak cells (NCC < 0.5): none.
+
+**Checked** in game (`?debug=play&episode=E&main=10&seed=1&skip=T&freezeAt=T`, against `&terrain=original`): 3-1
+(CAMANIS) t600, t1500; 4-8 (ICE EXIT) t600, t1500. Sheet: `tyrian-scratch/terrain-shapesw/shapesw-compare.jpg`.
+terrainArt and terrainHd tests pass. Not looked at: other levels, `&dpr=0.3`.
+
+**Next:** when the Pro limit resets, send the remaining 19 primary sheets (SEND.md order, prompts in
+`work/prompts/`), then `cut --cache work/cands.pkl --edge-aware` and `check`. Sheets, answers, `cands.pkl`,
+`cut-report.json` are in `tyrian-scratch/terrain-shapesw/work/` (not in git, D3).
