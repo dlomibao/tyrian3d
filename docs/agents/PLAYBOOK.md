@@ -124,6 +124,13 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
   (medians include the agents redone after the scratch wipe). Result: 24 shipped, 4 needed
   `enemies-fix-round` (12 agents, 44 min, 1.5M); 27 of 28 ended at 7-8/10 (D65). Rule of thumb:
   ~6 agents and ~0.8M tokens per model in full mode.
+- **Cost/time (e1-enemies, D116, 32 items = ~40 inventory units: 19 hero, 13 standard):** 198 agents
+  (1 scout, 19 blueprints, 51 designs, 19 judges, 54 finish/fix, 54 reviews), 27.4M subagent tokens,
+  about 5.5 h wall clock at `maxAgents: 8`. Per-agent median: blueprint 9 min, design 18 (max 43),
+  judge 1.5, finish/fix 10 (max 75), review 4 (max 12). Then `fix-round.js` on 3 items: 8 agents,
+  0.93M tokens, ~45 min. 31 of 32 passed strict review (one shipped at 6/10 by the coordinator).
+  Rule of thumb: ~6.4 agents and ~0.9M tokens per item (~5 agents, ~0.7M per inventory unit); at 8
+  concurrent, plan ~10 min of wall clock per item.
   Lean mode (no blueprint, one design, Opus build + review) is what forward-push did for the 7
   player ships: 16 agents for ships + two unrelated fixes, 42 min (its reviews were Sonnet; see tiers).
 

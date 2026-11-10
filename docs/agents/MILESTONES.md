@@ -53,14 +53,14 @@ Tyrian 2.1 has four episodes (`tyrian1.lvl`..`tyrian4.lvl` in the data); there i
 
   | Asset group | Count | Used in episodes | Already at standard | Workflow | Est. agents | Status |
   |---|---|---|---|---|---|---|
-  | Shared enemy/boss models | 219 enemy units not flagship-done, used by ≥ 2 levels (111 of them span ≥ 2 episodes). Top: assembly-newshp-267 (5 levels), assembly-newshs-39 (5 levels), newsh-caret-171 (5 levels), newsh3-229 (5 levels), newsh3-246 (5 levels) | 108 units in 1 episode, 74 in 2, 37 in 3, 0 in 4 | 50 of 269 shared units | model-flagship (full) | ~1314 (219 x ~6) | |
-  | Tileset `shapes)` | 113 / 57 / 26 = 196 tiles left / structures n/a (see inventory.md) | E4: 10 levels (4-4, 4-5, 4-6, 4-7, 4-9, 4-10, 4-12, 4-15, 4-17, 4-18) | 0 | terrain-hd + model-flagship (structure) | 5-9 (HD) + ~6 per structure (count n/a) | |
-  | Tileset `shapesw` | 113 / 73 / 85 = 271 tiles left / structures n/a (see inventory.md) | E3, E4: 7 levels (3-1, 3-4, 3-6, 3-9, 4-8, 4-11, 4-20) | 0 | same | 5-9 (HD) + ~6 per structure (count n/a) | |
-  | Tileset `shapesx` | 199 / 138 / 39 = 376 tiles left / structures n/a (see inventory.md) | E2, E4: 7 levels (2-1, 2-2, 2-6, 2-10, 2-11, 2-12, 4-13) | 0 | same | 5-9 (HD) + ~6 per structure (count n/a) | |
-  | Tileset `shapesy` | 0 / 71 / 47 = 118 tiles left / structures n/a (see inventory.md) | E1, E3, E4: 6 levels (1-8, 1-12, 1-17, 3-10, 4-3, 4-19) | 0 | same | 5-9 (HD) + ~6 per structure (count n/a) | |
+  | Shared enemy/boss models | 180 enemy units not flagship-done, used by ≥ 2 levels (74 of them span ≥ 2 episodes). Top: newsh3-229 (5 levels), newsh3-246 (5 levels), newshd-114 (5 levels), newshd-123 (5 levels), newshd-133 (5 levels) | 106 units in 1 episode, 53 in 2, 21 in 3, 0 in 4 | 88 of 268 shared units | model-flagship (full) | ~1080 (180 x ~6) | |
+  | Tileset `shapes)` | 1 / 43 / 26 = 70 tiles left / structures n/a (see inventory.md) | E4: 10 levels (4-4, 4-5, 4-6, 4-7, 4-9, 4-10, 4-12, 4-15, 4-17, 4-18) | 0 | terrain-hd + model-flagship (structure) | 5-9 (HD) + ~6 per structure (count n/a) | |
+  | Tileset `shapesw` | 13 / 45 / 68 = 126 tiles left / structures n/a (see inventory.md) | E3, E4: 7 levels (3-1, 3-4, 3-6, 3-9, 4-8, 4-11, 4-20) | 0 | same | 5-9 (HD) + ~6 per structure (count n/a) | |
+  | Tileset `shapesx` | 8 / 131 / 28 = 167 tiles left / structures n/a (see inventory.md) | E2, E4: 7 levels (2-1, 2-2, 2-6, 2-10, 2-11, 2-12, 4-13) | 0 | same | 5-9 (HD) + ~6 per structure (count n/a) | |
+  | Tileset `shapesy` | 0 / 3 / 2 = 5 tiles left / structures n/a (see inventory.md) | E1, E3, E4: 6 levels (1-8, 1-12, 1-17, 3-10, 4-3, 4-19) | 0 | same | 5-9 (HD) + ~6 per structure (count n/a) | |
   | Tileset `shapesz` (other levels) | 9 / 44 / 50 = 103 tiles left (92 structure models exist) | E1-E4: 32 levels, 29 besides map Z (1-9, 1-15, 3-8) | map 1-9 (HD 66 / 15 / 0, in structure models 85 / 0 / 55) | terrain-hd | 5-9 per run; one run for all 32 levels: 32 primary sheets, ~42 Gemini requests (D83) | sheets prepared (D83) |
-  | Shot frames | 60 without flat art (of 231; 171 flat) | all | level 1's | flat_art.py + Gemini | ~48 Gemini requests (4 episodes x ~12); agents n/a (see inventory.md) | |
-  | Pickup frames | 7 pickup units without flat art (15 frames; of 69 units, 62 flat) | all | level 1's | flat_art.py + Gemini | n/a (see inventory.md) | |
+  | Shot frames | 0 without flat art (of 231; 231 flat) | all | level 1's | flat_art.py + Gemini | ~48 Gemini requests (4 episodes x ~12); agents n/a (see inventory.md) | |
+  | Pickup frames | 0 pickup units without flat art (0 frames; of 69 units, 69 flat) | all | level 1's | flat_art.py + Gemini | n/a (see inventory.md) | |
   | UI screens | 6 (see table above) | all | 0 | mockups, then build | n/a (see inventory.md) | |
 
 ## M1: Episode 1
@@ -80,22 +80,22 @@ Tyrian 2.1 has four episodes (`tyrian1.lvl`..`tyrian4.lvl` in the data); there i
   |---|---|---|---|---|---|---|---|---|
   | 1-9 | TYRIAN (first level, sec 3) | shapesz | 28 rebuilt (D65) / 30 flagship of 30 total (30 shared, 0 unique) | done (D47, D63, D66) | done (D59) | done (D43) | sweep in flight | polish |
   | 1-15 | TYRIAN (sec 3) | shapesz | 30 / 30 / 0 / 30 | done (map Z, as 1-9) | 81/138 | done | ~3 | todo (same map and models as 1-9) |
-  | 1-1 | ASTEROID1 (sec 5) | shapesz | 40 / 33 / 7 / 5 | todo | 59/62 | todo: 1 pickup units, 0 shots | ~45 | todo |
-  | 1-2 | ASTEROID2 (sec 6) | shapesz | 36 / 35 / 1 / 6 | todo | 62/65 | todo: 1 pickup units, 0 shots | ~9 | todo |
-  | 1-12 | SAVARA (sec 10) | shapesy | 21 / 21 / 0 / 10 | todo | 56/67 | done | ~3 | todo |
-  | 1-7 | MINES (sec 13) | shapesz | 9 / 8 / 1 / 2 | todo | 17/20 | done | ~9 | todo |
-  | 1-4 | BUBBLES (sec 16) | shapesz | 6 / 4 / 2 / 3 | todo | 41/44 | todo: 1 pickup units, 0 shots | ~15 | todo |
-  | 1-5 | DELIANI (sec 19) | shapesz | 27 / 27 / 0 / 1 | todo | 24/79 | done | ~3 | todo |
-  | 1-3 | ASTEROID? (sec 21) | shapesz | 41 / 33 / 8 / 9 | 7 matched | 54/57 | done | ~51 | todo |
-  | 1-6 | MINEMAZE (sec 23) | shapesz | 12 / 12 / 0 / 4 | todo | 19/30 | done | ~3 | todo |
+  | 1-1 | ASTEROID1 (sec 5) | shapesz | 39 / 32 / 7 / 16 | todo | 59/62 | done | ~45 | todo |
+  | 1-2 | ASTEROID2 (sec 6) | shapesz | 36 / 35 / 1 / 14 | todo | 62/65 | done | ~9 | todo |
+  | 1-12 | SAVARA (sec 10) | shapesy | 21 / 21 / 0 / 17 | todo | 65/67 | done | ~3 | todo |
+  | 1-7 | MINES (sec 13) | shapesz | 9 / 8 / 1 / 5 | todo | 17/20 | done | ~9 | todo |
+  | 1-4 | BUBBLES (sec 16) | shapesz | 6 / 4 / 2 / 5 | todo | 41/44 | done | ~9 | todo |
+  | 1-5 | DELIANI (sec 19) | shapesz | 27 / 27 / 0 / 9 | todo | 24/79 | done | ~3 | todo |
+  | 1-3 | ASTEROID? (sec 21) | shapesz | 41 / 33 / 8 / 17 | 7 matched | 54/57 | done | ~51 | todo |
+  | 1-6 | MINEMAZE (sec 23) | shapesz | 12 / 12 / 0 / 8 | todo | 19/30 | done | ~3 | todo |
   | 1-10 | BONUS (sec 25) | shapesz | 14 / 14 / 0 / 14 | todo | 13/16 | done | ~3 | todo |
-  | 1-11 | HOLES (sec 28) | shapesz | 18 / 17 / 1 / 16 | 13 matched | 88/90 | todo: 1 pickup units, 0 shots | ~9 | todo |
-  | 1-8 | SAVARA (sec 29) | shapesy | 24 / 23 / 1 / 10 | todo | 67/163 | todo: 1 pickup units, 0 shots | ~9 | todo |
-  | 1-13 | SOH JIN (sec 31) | shapesz | 8 / 6 / 2 / 2 | todo | 16/18 | todo: 1 pickup units, 0 shots | ~15 | todo |
-  | 1-14 | WINDY (sec 33) | shapesz | 7 / 7 / 0 / 1 | 13 matched | 42/49 | done | ~3 | todo |
+  | 1-11 | HOLES (sec 28) | shapesz | 18 / 17 / 1 / 16 | 13 matched | 88/90 | done | ~9 | todo |
+  | 1-8 | SAVARA (sec 29) | shapesy | 24 / 23 / 1 / 17 | todo | 161/163 | done | ~9 | todo |
+  | 1-13 | SOH JIN (sec 31) | shapesz | 8 / 6 / 2 / 6 | todo | 16/18 | done | ~15 | todo |
+  | 1-14 | WINDY (sec 33) | shapesz | 7 / 7 / 0 / 5 | 13 matched | 42/49 | done | ~3 | todo |
   | 1-16 | ASSASSIN (sec 36) | shapesz | 12 / 12 / 0 / 12 | todo | 68/71 | done | ~3 | todo |
-  | 1-17 | SAVARA V (sec 38) | shapesy | 16 / 16 / 0 / 10 | todo | 58/154 | done | ~3 | todo |
-  | 1-18 | ** ALE ** (sec 41) | shapesz | 15 / 15 / 0 / 8 | 14 matched | 16/17 | done | ~3 | todo (bot run never ends: see Known issues) |
+  | 1-17 | SAVARA V (sec 38) | shapesy | 16 / 16 / 0 / 14 | todo | 152/154 | done | ~3 | todo |
+  | 1-18 | ** ALE ** (sec 41) | shapesz | 15 / 15 / 0 / 12 | 14 matched | 16/17 | done | ~3 | todo (bot run never ends: see Known issues) |
 
 ## M2: Episode 2
 
@@ -105,18 +105,18 @@ Tyrian 2.1 has four episodes (`tyrian1.lvl`..`tyrian4.lvl` in the data); there i
 
   | Level (map id, as `terrain_hd.py --level`) | Name | Tileset | Models: total / shared / unique / at standard | Structures | HD tiles | New flat-art frames | Est. agents | Status |
   |---|---|---|---|---|---|---|---|---|
-  | 2-1 | TORM (sec 2) | shapesx | 33 / 26 / 7 / 9 | todo | 0/72 | todo: 1 pickup units, 0 shots | ~45 | todo |
-  | 2-2 | GYGES (sec 4) | shapesx | 31 / 6 / 25 / 1 | todo | 0/122 | todo: 0 pickup units, 2 shots | ~153 | todo |
-  | 2-3 | BONUS (sec 6) | shapesz | 12 / 12 / 0 / 10 | todo | 13/16 | todo: 0 pickup units, 1 shots | ~3 | todo |
-  | 2-4 | ASTCITY (sec 8) | shapesz | 31 / 31 / 0 / 5 | todo | 54/56 | done | ~3 | todo |
-  | 2-5 | SOH JIN (sec 10) | shapesz | 10 / 9 / 1 / 1 | todo | 0/5 | todo: 0 pickup units, 1 shots | ~9 | todo |
-  | 2-6 | GRYPHON (sec 12) | shapesx | 22 / 11 / 11 / 1 | todo | 0/121 | todo: 0 pickup units, 1 shots | ~69 | todo |
-  | 2-7 | GEM WAR (sec 15) | shapesz | 9 / 4 / 5 / 1 | todo | 0/5 | todo: 1 pickup units, 1 shots | ~33 | todo |
-  | 2-8 | MARKERS (sec 17) | shapesz | 13 / 3 / 10 / 1 | todo | 0/5 | todo: 2 pickup units, 1 shots | ~63 | todo |
-  | 2-9 | MISTAKES (sec 19) | shapesz | 23 / 23 / 0 / 3 | todo | 0/5 | todo: 2 pickup units, 3 shots | ~3 | todo |
-  | 2-10 | BOTANY A (sec 21) | shapesx | 14 / 14 / 0 / 1 | todo | 0/74 | done | ~3 | todo |
-  | 2-11 | BOTANY B (sec 22) | shapesx | 11 / 9 / 2 / 1 | todo | 0/71 | todo: 0 pickup units, 1 shots | ~15 | todo |
-  | 2-12 | BONUS (sec 24) | shapesx | 12 / 12 / 0 / 1 | todo | 0/72 | done | ~3 | todo |
+  | 2-1 | TORM (sec 2) | shapesx | 33 / 26 / 7 / 10 | todo | 68/72 | done | ~45 | todo |
+  | 2-2 | GYGES (sec 4) | shapesx | 31 / 6 / 25 / 1 | todo | 31/122 | done | ~153 | todo |
+  | 2-3 | BONUS (sec 6) | shapesz | 12 / 12 / 0 / 10 | todo | 13/16 | done | ~3 | todo |
+  | 2-4 | ASTCITY (sec 8) | shapesz | 31 / 31 / 0 / 12 | todo | 54/56 | done | ~3 | todo |
+  | 2-5 | SOH JIN (sec 10) | shapesz | 10 / 9 / 1 / 2 | todo | 0/5 | done | ~9 | todo |
+  | 2-6 | GRYPHON (sec 12) | shapesx | 22 / 11 / 11 / 1 | todo | 64/121 | done | ~69 | todo |
+  | 2-7 | GEM WAR (sec 15) | shapesz | 9 / 4 / 5 / 1 | todo | 0/5 | done | ~33 | todo |
+  | 2-8 | MARKERS (sec 17) | shapesz | 13 / 3 / 10 / 1 | todo | 0/5 | done | ~63 | todo |
+  | 2-9 | MISTAKES (sec 19) | shapesz | 23 / 23 / 0 / 4 | todo | 0/5 | done | ~3 | todo |
+  | 2-10 | BOTANY A (sec 21) | shapesx | 14 / 14 / 0 / 2 | todo | 69/74 | done | ~3 | todo |
+  | 2-11 | BOTANY B (sec 22) | shapesx | 11 / 9 / 2 / 2 | todo | 66/71 | done | ~15 | todo |
+  | 2-12 | BONUS (sec 24) | shapesx | 12 / 12 / 0 / 2 | todo | 68/72 | done | ~3 | todo |
 
 ## M3: Episode 3
 
@@ -129,17 +129,17 @@ Tyrian 2.1 has four episodes (`tyrian1.lvl`..`tyrian4.lvl` in the data); there i
 
   | Level (map id, as `terrain_hd.py --level`) | Name | Tileset | Models: total / shared / unique / at standard | Structures | HD tiles | New flat-art frames | Est. agents | Status |
   |---|---|---|---|---|---|---|---|---|
-  | 3-3 | GAUNTLET (sec 2) | shapesz | 18 / 18 / 0 / 2 | todo | 29/41 | todo: 1 pickup units, 0 shots | ~3 | todo |
-  | 3-4 | IXMUCANE (sec 4) | shapesw | 24 / 18 / 6 / 1 | todo | 0/75 | todo: 3 pickup units, 0 shots | ~27 | todo |
-  | 3-5 | BONUS (sec 6) | shapesz | 13 / 12 / 1 / 1 | todo | 23/47 | done | ~7 | todo |
-  | 3-7 | STARGATE (sec 8) | shapesz | 9 / 6 / 3 / 3 | todo | 42/46 | todo: 0 pickup units, 1 shots | ~15 | todo |
-  | 3-1 | CAMANIS (sec 10) | shapesw | 17 / 10 / 7 / 2 | todo | 0/84 | todo: 0 pickup units, 3 shots | ~31 | todo |
-  | 3-6 | FLEET (sec 12) | shapesw | 26 / 10 / 16 / 3 | todo | 0/90 | todo: 0 pickup units, 1 shots | ~67 | todo |
-  | 3-2 | AST. CITY (sec 15) | shapesz | 37 / 36 / 1 / 7 | todo | 66/69 | todo: 0 pickup units, 3 shots | ~7 | todo |
+  | 3-3 | GAUNTLET (sec 2) | shapesz | 18 / 18 / 0 / 6 | todo | 29/41 | done | ~3 | todo |
+  | 3-4 | IXMUCANE (sec 4) | shapesw | 24 / 18 / 6 / 1 | todo | 58/75 | done | ~27 | todo |
+  | 3-5 | BONUS (sec 6) | shapesz | 13 / 12 / 1 / 6 | todo | 23/47 | done | ~7 | todo |
+  | 3-7 | STARGATE (sec 8) | shapesz | 9 / 6 / 3 / 5 | todo | 42/46 | done | ~15 | todo |
+  | 3-1 | CAMANIS (sec 10) | shapesw | 17 / 10 / 7 / 2 | todo | 57/84 | done | ~31 | todo |
+  | 3-6 | FLEET (sec 12) | shapesw | 26 / 10 / 16 / 4 | todo | 23/90 | done | ~67 | todo |
+  | 3-2 | AST. CITY (sec 15) | shapesz | 36 / 35 / 1 / 16 | todo | 66/69 | done | ~7 | todo |
   | 3-8 | TYRIAN X (sec 17) | shapesz | 28 / 28 / 0 / 28 | done (map Z, as 1-9) | 81/138 | done | ~3 | todo (same map and models as 1-9) |
-  | 3-9 | SAWBLADES (sec 19) | shapesw | 19 / 18 / 1 / 1 | todo | 0/72 | todo: 3 pickup units, 0 shots | ~7 | todo |
-  | 3-10 | SAVARA Y (sec 21) | shapesy | 22 / 22 / 0 / 10 | todo | 67/163 | done | ~3 | todo |
-  | 3-11 | New Deli (sec 23) | shapesz | 28 / 28 / 0 / 1 | todo | 24/79 | done | ~3 | todo |
+  | 3-9 | SAWBLADES (sec 19) | shapesw | 19 / 18 / 1 / 1 | todo | 56/72 | done | ~7 | todo |
+  | 3-10 | SAVARA Y (sec 21) | shapesy | 22 / 22 / 0 / 16 | todo | 161/163 | done | ~3 | todo |
+  | 3-11 | New Deli (sec 23) | shapesz | 28 / 28 / 0 / 9 | todo | 24/79 | done | ~3 | todo |
   | 3-12 | MACES (sec 25) | shapesz | 8 / 8 / 0 / 2 | todo | 13/16 | done | ~3 | todo |
 
 ## M4: Episode 4
@@ -149,26 +149,26 @@ Tyrian 2.1 has four episodes (`tyrian1.lvl`..`tyrian4.lvl` in the data); there i
 
   | Level (map id, as `terrain_hd.py --level`) | Name | Tileset | Models: total / shared / unique / at standard | Structures | HD tiles | New flat-art frames | Est. agents | Status |
   |---|---|---|---|---|---|---|---|---|
-  | 4-4 | SURFACE (sec 2) | shapes) | 28 / 11 / 17 / 1 | todo | 0/38 | todo: 1 pickup units, 4 shots | ~71 | todo |
-  | 4-12 | LAVA RUN (sec 4) | shapes) | 22 / 22 / 0 / 3 | todo | 0/36 | todo: 0 pickup units, 1 shots | ~3 | todo |
-  | 4-5 | CORE (sec 6) | shapes) | 15 / 9 / 6 / 3 | todo | 0/31 | todo: 2 pickup units, 0 shots | ~27 | todo |
-  | 4-11 | ?TUNNEL? (sec 8) | shapesw | 8 / 7 / 1 / 1 | todo | 0/31 | done | ~7 | todo |
-  | 4-8 | ICE EXIT (sec 10) | shapesw | 13 / 13 / 0 / 3 | todo | 0/25 | todo: 1 pickup units, 0 shots | ~3 | todo |
-  | 4-1 | HARVEST (sec 12) | shapesz | 13 / 9 / 4 / 1 | 1 matched | 33/70 | done | ~19 | todo |
-  | 4-7 | UNDERDELI (sec 14) | shapes) | 24 / 14 / 10 / 2 | todo | 0/24 | todo: 0 pickup units, 1 shots | ~43 | todo |
-  | 4-3 | SAVARA IV (sec 16) | shapesy | 16 / 16 / 0 / 10 | todo | 68/70 | done | ~3 | todo |
-  | 4-14 | DREAD-NOT (sec 18) | shapesz | 24 / 14 / 10 / 1 | todo | 0/5 | todo: 0 pickup units, 1 shots | ~43 | todo |
-  | 4-13 | EYESPY (sec 20) | shapesx | 14 / 7 / 7 / 1 | todo | 0/45 | todo: 0 pickup units, 5 shots | ~31 | todo |
-  | 4-15 | BRAINIAC (sec 22) | shapes) | 24 / 14 / 10 / 3 | todo | 0/51 | todo: 0 pickup units, 3 shots | ~43 | todo |
+  | 4-4 | SURFACE (sec 2) | shapes) | 28 / 11 / 17 / 1 | todo | 32/38 | done | ~71 | todo |
+  | 4-12 | LAVA RUN (sec 4) | shapes) | 22 / 22 / 0 / 4 | todo | 14/36 | done | ~3 | todo |
+  | 4-5 | CORE (sec 6) | shapes) | 15 / 9 / 6 / 3 | todo | 29/31 | done | ~27 | todo |
+  | 4-11 | ?TUNNEL? (sec 8) | shapesw | 8 / 7 / 1 / 1 | todo | 25/31 | done | ~7 | todo |
+  | 4-8 | ICE EXIT (sec 10) | shapesw | 13 / 13 / 0 / 3 | todo | 3/25 | done | ~3 | todo |
+  | 4-1 | HARVEST (sec 12) | shapesz | 13 / 9 / 4 / 6 | 1 matched | 33/70 | done | ~19 | todo |
+  | 4-7 | UNDERDELI (sec 14) | shapes) | 24 / 14 / 10 / 3 | todo | 22/24 | done | ~43 | todo |
+  | 4-3 | SAVARA IV (sec 16) | shapesy | 16 / 16 / 0 / 12 | todo | 68/70 | done | ~3 | todo |
+  | 4-14 | DREAD-NOT (sec 18) | shapesz | 24 / 14 / 10 / 1 | todo | 0/5 | done | ~43 | todo |
+  | 4-13 | EYESPY (sec 20) | shapesx | 14 / 7 / 7 / 1 | todo | 29/45 | done | ~31 | todo |
+  | 4-15 | BRAINIAC (sec 22) | shapes) | 24 / 14 / 10 / 3 | todo | 15/51 | done | ~43 | todo |
   | 4-16 | NOSE DRIP (sec 25) | shapesz | 13 / 7 / 6 / 2 | 13 matched | 27/42 | done | ~27 | todo |
-  | 4-2 | WINDY (sec 27) | shapesz | 8 / 7 / 1 / 1 | 15 matched | 17/21 | done | ~7 | todo |
-  | 4-10 | DESERTRUN (sec 29) | shapes) | 7 / 6 / 1 / 1 | todo | 0/41 | done | ~7 | todo |
-  | 4-9 | LAVA EXIT (sec 31) | shapes) | 9 / 9 / 0 / 4 | todo | 0/42 | todo: 1 pickup units, 2 shots | ~3 | todo |
-  | 4-6 | SIDE EXIT (sec 36) | shapes) | 7 / 7 / 0 / 3 | todo | 0/22 | done | ~3 | todo |
-  | 4-17 | TIME WAR (sec 40) | shapes) | 29 / 7 / 22 / 1 | todo | 0/29 | todo: 0 pickup units, 2 shots | ~91 | todo |
-  | 4-18 | SQUADRON (sec 45) | shapes) | 8 / 6 / 2 / 1 | todo | 0/3 | done | ~11 | todo (bot run never ends: see Known issues) |
-  | 4-19 | APPROACH (sec 47) | shapesy | 11 / 10 / 1 / 1 | todo | 1/16 | done | ~7 | todo |
-  | 4-20 | ICESECRET (sec 50) | shapesw | 14 / 14 / 0 / 3 | todo | 0/38 | done | ~3 | todo |
+  | 4-2 | WINDY (sec 27) | shapesz | 8 / 7 / 1 / 5 | 15 matched | 17/21 | done | ~7 | todo |
+  | 4-10 | DESERTRUN (sec 29) | shapes) | 7 / 6 / 1 / 1 | todo | 35/41 | done | ~7 | todo |
+  | 4-9 | LAVA EXIT (sec 31) | shapes) | 9 / 9 / 0 / 5 | todo | 20/42 | done | ~3 | todo |
+  | 4-6 | SIDE EXIT (sec 36) | shapes) | 7 / 7 / 0 / 3 | todo | 20/22 | done | ~3 | todo |
+  | 4-17 | TIME WAR (sec 40) | shapes) | 29 / 7 / 22 / 1 | todo | 22/29 | done | ~91 | todo |
+  | 4-18 | SQUADRON (sec 45) | shapes) | 8 / 6 / 2 / 1 | todo | 1/3 | done | ~11 | todo (bot run never ends: see Known issues) |
+  | 4-19 | APPROACH (sec 47) | shapesy | 11 / 10 / 1 / 3 | todo | 15/16 | done | ~7 | todo |
+  | 4-20 | ICESECRET (sec 50) | shapesw | 14 / 14 / 0 / 3 | todo | 22/38 | done | ~3 | todo |
 
 ## Estimating agents
 
@@ -179,13 +179,13 @@ Totals from the tables above (agents by that formula; M0 is the shared enemy mod
 
 | Milestone | Levels | Unique unfinished enemy units | Est. agents |
 |---|---|---|---|
-| M0 | all 62 (shared work) | 219 shared | ~1314 for models + 5-9 per tileset HD run (structures n/a, see inventory.md) + ~48 Gemini requests for flat art |
-| M1 | 18 | 23 | 192 |
+| M0 | all 62 (shared work) | 180 shared | ~1080 for models + 5-9 per tileset HD run (structures n/a, see inventory.md) + ~48 Gemini requests for flat art |
+| M1 | 18 | 22 | 186 |
 | M2 | 12 | 61 | 402 |
 | M3 | 12 | 35 | 176 |
 | M4 | 20 | 98 | 452 |
 
-M1-M4 together: 1222 agents; 217 unique + 219 shared = 436 unfinished enemy units (486 enemy units − 50 flagship, per `inventory.json`).
+M1-M4 together: 1216 agents; 216 unique + 180 shared = 396 unfinished enemy units (485 enemy units − 89 flagship, per `inventory.json`).
 
 ## Known issues (from the inventory run)
 

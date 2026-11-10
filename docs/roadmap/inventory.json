@@ -43,16 +43,16 @@
    "summary": {
     "levels": 18,
     "uniqueSprites": 888,
-    "units": 229,
-    "enemyUnits": 166,
-    "enemyUnitsModelled": 162,
-    "enemyUnitsFlagship": 48,
+    "units": 228,
+    "enemyUnits": 165,
+    "enemyUnitsModelled": 163,
+    "enemyUnitsFlagship": 87,
     "damageFramesMissing": 0,
     "tilesets": 2,
     "tilesetsWithHd": 2,
     "tilesetsWithModels": 2,
     "bossLevels": 9,
-    "bossUnits": 17,
+    "bossUnits": 16,
     "songs": 15,
     "songsRemastered": 15,
     "pictures": 3,
@@ -91,10 +91,10 @@
     "units": 198,
     "enemyUnits": 152,
     "enemyUnitsModelled": 144,
-    "enemyUnitsFlagship": 22,
+    "enemyUnitsFlagship": 31,
     "damageFramesMissing": 4,
     "tilesets": 2,
-    "tilesetsWithHd": 1,
+    "tilesetsWithHd": 2,
     "tilesetsWithModels": 1,
     "bossLevels": 6,
     "bossUnits": 22,
@@ -132,13 +132,13 @@
    "summary": {
     "levels": 12,
     "uniqueSprites": 1202,
-    "units": 256,
-    "enemyUnits": 198,
-    "enemyUnitsModelled": 196,
-    "enemyUnitsFlagship": 46,
+    "units": 255,
+    "enemyUnits": 197,
+    "enemyUnitsModelled": 197,
+    "enemyUnitsFlagship": 75,
     "damageFramesMissing": 0,
     "tilesets": 3,
-    "tilesetsWithHd": 2,
+    "tilesetsWithHd": 3,
     "tilesetsWithModels": 2,
     "bossLevels": 6,
     "bossUnits": 22,
@@ -197,11 +197,11 @@
     "uniqueSprites": 762,
     "units": 257,
     "enemyUnits": 197,
-    "enemyUnitsModelled": 159,
-    "enemyUnitsFlagship": 13,
+    "enemyUnitsModelled": 160,
+    "enemyUnitsFlagship": 27,
     "damageFramesMissing": 0,
     "tilesets": 5,
-    "tilesetsWithHd": 2,
+    "tilesetsWithHd": 5,
     "tilesetsWithModels": 2,
     "bossLevels": 15,
     "bossUnits": 56,
@@ -1048,7 +1048,7 @@
     {"type":537,"kind":"air","unit":"assembly-newshm-45","via":"event","events":1,"ticks":1194,"boss":true},
     {"type":538,"kind":"air","unit":"assembly-newshm-45","via":"event","events":1,"ticks":1194,"boss":true},
     {"type":539,"kind":"air","unit":"assembly-newshm-45","via":"event","events":1,"ticks":1166,"boss":true},
-    {"type":540,"kind":"air","unit":"newshm-7","via":"event","events":1,"ticks":1166,"boss":true},
+    {"type":540,"kind":"air","unit":"assembly-newshm-45","via":"event","events":1,"ticks":1166,"boss":true},
     {"type":541,"kind":"air","unit":"assembly-newshm-45","via":"event","events":1,"ticks":1166,"boss":true},
     {"type":542,"kind":"air","unit":"assembly-newshm-1","via":"event","events":4,"ticks":4012},
     {"type":543,"kind":"ground","unit":"newsh-caret-171","via":"launch","ticks":307},
@@ -1114,7 +1114,6 @@
     "newshd-85",
     "newshd-88",
     "newshd-95",
-    "newshm-7",
     "newshp-85",
     "newshs-11",
     "newshs-153",
@@ -1148,8 +1147,7 @@
     69
    ],
    "bossUnits": [
-    "assembly-newshm-45",
-    "newshm-7"
+    "assembly-newshm-45"
    ],
    "enemyShots": [
     "tyrian.shp#7|1|112",
@@ -1199,7 +1197,7 @@
     "difficulty": "normal",
     "completed": true,
     "ticks": 6116,
-    "unitsSeen": 42,
+    "unitsSeen": 41,
     "unitsNotSeen": ["tyrian10-127","tyrian10-129","tyrian10-131","tyrian10-165","tyrian10-203","tyrian10-279","tyrian9-121","tyrian9-123","tyrian9-155","tyrian9-163","tyrian9-191","tyrian9-193","tyrian9-199","tyrian9-201","tyrian9-205","tyrian9-235","tyrian9-271","tyrian9-273","tyrian9-275","tyrian9-277","tyrian9-41"],
     "unitsFoundByBot": [],
     "typesNotListed": [],
@@ -1505,7 +1503,7 @@
    "tileset": "shapesy",
    "layers": [
     {"layer":0,"tiles":56,"hd":56,"modelled":15,"covered":56},
-    {"layer":1,"tiles":10,"hd":0,"modelled":0,"covered":0},
+    {"layer":1,"tiles":10,"hd":9,"modelled":0,"covered":9},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
    "tileModels": {},
@@ -2986,8 +2984,8 @@
    "tileset": "shapesy",
    "layers": [
     {"layer":0,"tiles":67,"hd":67,"modelled":15,"covered":67},
-    {"layer":1,"tiles":50,"hd":0,"modelled":0,"covered":0},
-    {"layer":2,"tiles":46,"hd":0,"modelled":0,"covered":0}
+    {"layer":1,"tiles":50,"hd":49,"modelled":0,"covered":49},
+    {"layer":2,"tiles":46,"hd":45,"modelled":0,"covered":45}
    ],
    "tileModels": {
     "tiles/shapesy/savbld-tower-tall": 1,
@@ -3658,8 +3656,8 @@
    "tileset": "shapesy",
    "layers": [
     {"layer":0,"tiles":58,"hd":58,"modelled":15,"covered":58},
-    {"layer":1,"tiles":50,"hd":0,"modelled":0,"covered":0},
-    {"layer":2,"tiles":46,"hd":0,"modelled":0,"covered":0}
+    {"layer":1,"tiles":50,"hd":49,"modelled":0,"covered":49},
+    {"layer":2,"tiles":46,"hd":45,"modelled":0,"covered":45}
    ],
    "tileModels": {},
    "banks": [
@@ -3977,7 +3975,7 @@
    ],
    "tileset": "shapesx",
    "layers": [
-    {"layer":0,"tiles":70,"hd":0,"modelled":0,"covered":0},
+    {"layer":0,"tiles":70,"hd":68,"modelled":0,"covered":68},
     {"layer":1,"tiles":1,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
@@ -4253,9 +4251,9 @@
    ],
    "tileset": "shapesx",
    "layers": [
-    {"layer":0,"tiles":15,"hd":0,"modelled":0,"covered":0},
-    {"layer":1,"tiles":70,"hd":0,"modelled":0,"covered":0},
-    {"layer":2,"tiles":37,"hd":0,"modelled":0,"covered":0}
+    {"layer":0,"tiles":15,"hd":13,"modelled":0,"covered":13},
+    {"layer":1,"tiles":70,"hd":7,"modelled":0,"covered":7},
+    {"layer":2,"tiles":37,"hd":11,"modelled":0,"covered":11}
    ],
    "tileModels": {},
    "banks": [
@@ -4940,7 +4938,7 @@
    ],
    "tileset": "shapesx",
    "layers": [
-    {"layer":0,"tiles":67,"hd":0,"modelled":0,"covered":0},
+    {"layer":0,"tiles":67,"hd":64,"modelled":0,"covered":64},
     {"layer":1,"tiles":53,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
@@ -5556,7 +5554,7 @@
    ],
    "tileset": "shapesx",
    "layers": [
-    {"layer":0,"tiles":72,"hd":0,"modelled":0,"covered":0},
+    {"layer":0,"tiles":72,"hd":69,"modelled":0,"covered":69},
     {"layer":1,"tiles":1,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
@@ -5697,7 +5695,7 @@
    ],
    "tileset": "shapesx",
    "layers": [
-    {"layer":0,"tiles":69,"hd":0,"modelled":0,"covered":0},
+    {"layer":0,"tiles":69,"hd":66,"modelled":0,"covered":66},
     {"layer":1,"tiles":1,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
@@ -5822,7 +5820,7 @@
    ],
    "tileset": "shapesx",
    "layers": [
-    {"layer":0,"tiles":70,"hd":0,"modelled":0,"covered":0},
+    {"layer":0,"tiles":70,"hd":68,"modelled":0,"covered":68},
     {"layer":1,"tiles":1,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
@@ -6149,9 +6147,9 @@
    ],
    "tileset": "shapesw",
    "layers": [
-    {"layer":0,"tiles":15,"hd":0,"modelled":0,"covered":0},
-    {"layer":1,"tiles":32,"hd":0,"modelled":0,"covered":0},
-    {"layer":2,"tiles":28,"hd":0,"modelled":0,"covered":0}
+    {"layer":0,"tiles":15,"hd":15,"modelled":0,"covered":15},
+    {"layer":1,"tiles":32,"hd":26,"modelled":0,"covered":26},
+    {"layer":2,"tiles":28,"hd":17,"modelled":0,"covered":17}
    ],
    "tileModels": {},
    "banks": [
@@ -6760,7 +6758,7 @@
    ],
    "tileset": "shapesw",
    "layers": [
-    {"layer":0,"tiles":59,"hd":0,"modelled":0,"covered":0},
+    {"layer":0,"tiles":59,"hd":57,"modelled":0,"covered":57},
     {"layer":1,"tiles":23,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":2,"hd":0,"modelled":0,"covered":0}
    ],
@@ -6993,7 +6991,7 @@
    ],
    "tileset": "shapesw",
    "layers": [
-    {"layer":0,"tiles":34,"hd":0,"modelled":0,"covered":0},
+    {"layer":0,"tiles":34,"hd":23,"modelled":0,"covered":23},
     {"layer":1,"tiles":1,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":55,"hd":0,"modelled":0,"covered":0}
    ],
@@ -7335,7 +7333,7 @@
     {"type":537,"kind":"air","unit":"assembly-newshm-45","via":"event","events":4,"ticks":988},
     {"type":538,"kind":"air","unit":"assembly-newshm-45","via":"event","events":4,"ticks":988},
     {"type":539,"kind":"air","unit":"assembly-newshm-45","via":"event","events":4,"ticks":876},
-    {"type":540,"kind":"air","unit":"newshm-7","via":"event","events":4,"ticks":876},
+    {"type":540,"kind":"air","unit":"assembly-newshm-45","via":"event","events":4,"ticks":876},
     {"type":541,"kind":"air","unit":"assembly-newshm-45","via":"event","events":4,"ticks":876},
     {"type":543,"kind":"ground","unit":"newsh-caret-171","via":"launch","ticks":152},
     {"type":544,"kind":"ground","unit":"newsh-caret-171","via":"launch","ticks":117},
@@ -7396,7 +7394,6 @@
     "newshd-79",
     "newshd-85",
     "newshd-95",
-    "newshm-7",
     "newshp-153",
     "newshp-155",
     "newshp-191",
@@ -7497,7 +7494,7 @@
     "difficulty": "normal",
     "completed": true,
     "ticks": 7102,
-    "unitsSeen": 38,
+    "unitsSeen": 37,
     "unitsNotSeen": ["tyrian10-127","tyrian10-129","tyrian10-131","tyrian10-165","tyrian10-241","tyrian10-245","tyrian10-279","tyrian9-121","tyrian9-123","tyrian9-157","tyrian9-159","tyrian9-161","tyrian9-167","tyrian9-197","tyrian9-199","tyrian9-203","tyrian9-231","tyrian9-233","tyrian9-237","tyrian9-243","tyrian9-245","tyrian9-271","tyrian9-275","tyrian9-277","tyrian9-41"],
     "unitsFoundByBot": [],
     "typesNotListed": [],
@@ -7892,9 +7889,9 @@
    ],
    "tileset": "shapesw",
    "layers": [
-    {"layer":0,"tiles":15,"hd":0,"modelled":0,"covered":0},
-    {"layer":1,"tiles":29,"hd":0,"modelled":0,"covered":0},
-    {"layer":2,"tiles":28,"hd":0,"modelled":0,"covered":0}
+    {"layer":0,"tiles":15,"hd":15,"modelled":0,"covered":15},
+    {"layer":1,"tiles":29,"hd":24,"modelled":0,"covered":24},
+    {"layer":2,"tiles":28,"hd":17,"modelled":0,"covered":17}
    ],
    "tileModels": {},
    "banks": [
@@ -8104,8 +8101,8 @@
    "tileset": "shapesy",
    "layers": [
     {"layer":0,"tiles":67,"hd":67,"modelled":15,"covered":67},
-    {"layer":1,"tiles":50,"hd":0,"modelled":0,"covered":0},
-    {"layer":2,"tiles":46,"hd":0,"modelled":0,"covered":0}
+    {"layer":1,"tiles":50,"hd":49,"modelled":0,"covered":49},
+    {"layer":2,"tiles":46,"hd":45,"modelled":0,"covered":45}
    ],
    "tileModels": {
     "tiles/shapesy/savbld-tower-tall": 1,
@@ -8719,7 +8716,7 @@
    ],
    "tileset": "shapes)",
    "layers": [
-    {"layer":0,"tiles":32,"hd":0,"modelled":0,"covered":0},
+    {"layer":0,"tiles":32,"hd":32,"modelled":0,"covered":32},
     {"layer":1,"tiles":5,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
@@ -8932,7 +8929,7 @@
    ],
    "tileset": "shapes)",
    "layers": [
-    {"layer":0,"tiles":14,"hd":0,"modelled":0,"covered":0},
+    {"layer":0,"tiles":14,"hd":14,"modelled":0,"covered":14},
     {"layer":1,"tiles":21,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
@@ -9159,8 +9156,8 @@
    ],
    "tileset": "shapes)",
    "layers": [
-    {"layer":0,"tiles":16,"hd":0,"modelled":0,"covered":0},
-    {"layer":1,"tiles":14,"hd":0,"modelled":0,"covered":0},
+    {"layer":0,"tiles":16,"hd":16,"modelled":0,"covered":16},
+    {"layer":1,"tiles":14,"hd":13,"modelled":0,"covered":13},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
    "tileModels": {},
@@ -9360,9 +9357,9 @@
    ],
    "tileset": "shapesw",
    "layers": [
-    {"layer":0,"tiles":2,"hd":0,"modelled":0,"covered":0},
-    {"layer":1,"tiles":20,"hd":0,"modelled":0,"covered":0},
-    {"layer":2,"tiles":9,"hd":0,"modelled":0,"covered":0}
+    {"layer":0,"tiles":2,"hd":2,"modelled":0,"covered":2},
+    {"layer":1,"tiles":20,"hd":15,"modelled":0,"covered":15},
+    {"layer":2,"tiles":9,"hd":8,"modelled":0,"covered":8}
    ],
    "tileModels": {},
    "banks": [
@@ -9487,7 +9484,7 @@
    ],
    "tileset": "shapesw",
    "layers": [
-    {"layer":0,"tiles":3,"hd":0,"modelled":0,"covered":0},
+    {"layer":0,"tiles":3,"hd":3,"modelled":0,"covered":3},
     {"layer":1,"tiles":21,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
@@ -9838,7 +9835,7 @@
    ],
    "tileset": "shapes)",
    "layers": [
-    {"layer":0,"tiles":22,"hd":0,"modelled":0,"covered":0},
+    {"layer":0,"tiles":22,"hd":22,"modelled":0,"covered":22},
     {"layer":1,"tiles":1,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
@@ -10465,7 +10462,7 @@
    ],
    "tileset": "shapesx",
    "layers": [
-    {"layer":0,"tiles":30,"hd":0,"modelled":0,"covered":0},
+    {"layer":0,"tiles":30,"hd":29,"modelled":0,"covered":29},
     {"layer":1,"tiles":14,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
@@ -10659,8 +10656,8 @@
    ],
    "tileset": "shapes)",
    "layers": [
-    {"layer":0,"tiles":15,"hd":0,"modelled":0,"covered":0},
-    {"layer":1,"tiles":17,"hd":0,"modelled":0,"covered":0},
+    {"layer":0,"tiles":15,"hd":14,"modelled":0,"covered":14},
+    {"layer":1,"tiles":17,"hd":1,"modelled":0,"covered":1},
     {"layer":2,"tiles":19,"hd":0,"modelled":0,"covered":0}
    ],
    "tileModels": {},
@@ -11196,7 +11193,7 @@
    ],
    "tileset": "shapes)",
    "layers": [
-    {"layer":0,"tiles":35,"hd":0,"modelled":0,"covered":0},
+    {"layer":0,"tiles":35,"hd":35,"modelled":0,"covered":35},
     {"layer":1,"tiles":5,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
@@ -11320,7 +11317,7 @@
    ],
    "tileset": "shapes)",
    "layers": [
-    {"layer":0,"tiles":20,"hd":0,"modelled":0,"covered":0},
+    {"layer":0,"tiles":20,"hd":20,"modelled":0,"covered":20},
     {"layer":1,"tiles":21,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
@@ -11494,8 +11491,8 @@
    ],
    "tileset": "shapes)",
    "layers": [
-    {"layer":0,"tiles":7,"hd":0,"modelled":0,"covered":0},
-    {"layer":1,"tiles":14,"hd":0,"modelled":0,"covered":0},
+    {"layer":0,"tiles":7,"hd":7,"modelled":0,"covered":7},
+    {"layer":1,"tiles":14,"hd":13,"modelled":0,"covered":13},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
    "tileModels": {},
@@ -11643,8 +11640,8 @@
    ],
    "tileset": "shapes)",
    "layers": [
-    {"layer":0,"tiles":21,"hd":0,"modelled":0,"covered":0},
-    {"layer":1,"tiles":1,"hd":0,"modelled":0,"covered":0},
+    {"layer":0,"tiles":21,"hd":21,"modelled":0,"covered":21},
+    {"layer":1,"tiles":1,"hd":1,"modelled":0,"covered":1},
     {"layer":2,"tiles":7,"hd":0,"modelled":0,"covered":0}
    ],
    "tileModels": {},
@@ -11778,7 +11775,7 @@
    "tileset": "shapes)",
    "layers": [
     {"layer":0,"tiles":1,"hd":0,"modelled":0,"covered":0},
-    {"layer":1,"tiles":1,"hd":0,"modelled":0,"covered":0},
+    {"layer":1,"tiles":1,"hd":1,"modelled":0,"covered":1},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
    "tileModels": {},
@@ -11867,7 +11864,7 @@
    "tileset": "shapesy",
    "layers": [
     {"layer":0,"tiles":1,"hd":1,"modelled":0,"covered":1},
-    {"layer":1,"tiles":14,"hd":0,"modelled":0,"covered":0},
+    {"layer":1,"tiles":14,"hd":14,"modelled":0,"covered":14},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
    "tileModels": {},
@@ -12020,7 +12017,7 @@
    ],
    "tileset": "shapesw",
    "layers": [
-    {"layer":0,"tiles":23,"hd":0,"modelled":0,"covered":0},
+    {"layer":0,"tiles":23,"hd":22,"modelled":0,"covered":22},
     {"layer":1,"tiles":14,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
@@ -14735,7 +14732,7 @@
    "damageFrames": {
     "newshc.shp|2": [45,47]
    },
-   "status": "basic",
+   "status": "flagship",
    "damage": "modelled",
    "framesSeen": {
     "newshc.shp|2": [45,47,197,199,201,203,205,207]
@@ -14837,7 +14834,7 @@
    "damageFrames": {
     "newshc.shp|2": [93,129,131,229,267]
    },
-   "status": "basic",
+   "status": "flagship",
    "damage": "modelled",
    "framesSeen": {
     "newshc.shp|2": [17,55,93,115,129,131,229,245,267,283]
@@ -14941,7 +14938,7 @@
     "newshd.shp|2": [1,3,39,41]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshd.shp|2": [1,3,39,41]
@@ -14972,7 +14969,7 @@
     "newshd.shp|2": [7,9,45,47]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshd.shp|2": [7,9,45,47]
@@ -15383,7 +15380,7 @@
     "newshf.shp|2": [43,45,81,83,119,121]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshf.shp|2": [43,81,119,121]
@@ -15841,7 +15838,7 @@
    "damageFrames": {
     "newshi.shp|2": [11,13,47,49,51,53,85,87,89,91,123,125,127,129]
    },
-   "status": "basic",
+   "status": "flagship",
    "damage": "modelled",
    "framesSeen": {
     "newshi.shp|2": [3,5,17,39,41,43,45,47,49,51,53,55,77,79,81,83,85,87,89,91,93,115,117,119,121,123,125,127,129,131]
@@ -15888,8 +15885,9 @@
    "damageFrames": {
     "newshi.shp|2": [162,164,166]
    },
-   "status": "basic",
+   "status": "flagship",
    "damage": "modelled",
+   "bake": "model",
    "framesSeen": {
     "newshi.shp|2": [154,156,158,162,164,166]
    },
@@ -15922,7 +15920,7 @@
     "newshi.shp|2": [201,203,237,239,241,243]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshi.shp|2": [201,203,237,239,241,243]
@@ -16473,7 +16471,7 @@
    "damageFrames": {
     "newshm.shp|2": [2,3]
    },
-   "status": "basic",
+   "status": "flagship",
    "damage": "modelled",
    "framesSeen": {
     "newshm.shp|2": [1,3]
@@ -16504,15 +16502,16 @@
    "sheet": "newshm.shp",
    "size": 2,
    "frames": {
-    "newshm.shp|2": [45,47,49,83,87]
+    "newshm.shp|2": [7,9,11,45,47,49,83,85,87]
    },
    "damageFrames": {
-    "newshm.shp|2": [39,41,43,77,81]
+    "newshm.shp|2": [39,41,43,77,79,81]
    },
    "status": "basic",
    "damage": "modelled",
+   "bake": "model",
    "framesSeen": {
-    "newshm.shp|2": [39,41,43,45,47,49,77,81,83,87]
+    "newshm.shp|2": [7,9,11,39,41,43,45,47,49,77,79,81,83,85,87]
    },
    "unmodelledUnseen": {},
    "boss": true,
@@ -16521,6 +16520,7 @@
     "e1-3:537",
     "e1-3:538",
     "e1-3:539",
+    "e1-3:540",
     "e1-3:541"
    ],
    "levels": [
@@ -16531,8 +16531,8 @@
     1,
     3
    ],
-   "events": 25,
-   "ticks": 10207
+   "events": 30,
+   "ticks": 12240
   },
   {
    "id": "assembly-newshn-195",
@@ -16705,8 +16705,9 @@
    "damageFrames": {
     "newshp.shp|2": [169,207]
    },
-   "status": "basic",
+   "status": "flagship",
    "damage": "modelled",
+   "bake": "model",
    "framesSeen": {
     "newshp.shp|2": [165,167,169,203,205,207,241,243]
    },
@@ -16744,7 +16745,7 @@
    "damageFrames": {
     "newshp.shp|2": [121]
    },
-   "status": "basic",
+   "status": "flagship",
    "damage": "modelled",
    "framesSeen": {
     "newshp.shp|2": [115,117,119,121,229,231,267,269]
@@ -17034,8 +17035,9 @@
    "damageFrames": {
     "newshs.shp|2": [169,207,245,283]
    },
-   "status": "partial",
+   "status": "flagship",
    "damage": "modelled",
+   "bake": "model",
    "framesSeen": {
     "newshs.shp|2": [165,167,169,203,205,207,241,243,245,279,281,283]
    },
@@ -17067,7 +17069,7 @@
     "newshs.shp|2": [39,41,43,45,47,49,77,79,81,83,85,87]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshs.shp|2": [39,41,43,45,47,49,77,79,81,83,85,87]
@@ -17103,7 +17105,7 @@
     "newshs.shp|2": [1,3,7,115,117,119,121,123]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshs.shp|2": [1,3,7,115,117,119,121,123]
@@ -17137,7 +17139,7 @@
    "damageFrames": {
     "newsht.shp|2": [115,119,121,125,153,163]
    },
-   "status": "partial",
+   "status": "flagship",
    "damage": "modelled",
    "framesSeen": {
     "newsht.shp|2": [1,3,5,7,9,11,39,41,43,45,47,49,77,79,85,87,115,117,119,121,123,125,153,157,159,163]
@@ -17194,7 +17196,7 @@
    "damageFrames": {
     "newshu.shp|2": [7,9,11,77,115,117,119,121,123,125,127]
    },
-   "status": "basic",
+   "status": "flagship",
    "damage": "modelled",
    "framesSeen": {
     "newshu.shp|2": [1,3,5,7,9,11,39,41,43,77,79,115,117,119,121,123,125,127]
@@ -17611,7 +17613,7 @@
     "newshd.shp|1": [171,190,209]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh^.shp|1": [171],
@@ -21140,7 +21142,7 @@
     "newsha.shp|2": [169,207,245]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsha.shp|2": [169,207,245]
@@ -21173,7 +21175,7 @@
     "newsha.shp|2": [17,55]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsha.shp|2": [17,55]
@@ -21203,8 +21205,9 @@
     "newsha.shp|2": [199,201,239,277]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
+   "bake": "model",
    "framesSeen": {
     "newsha.shp|2": [199,201,239,277]
    },
@@ -21376,7 +21379,7 @@
     "newsha.shp|2": [93,131]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsha.shp|2": [93,131]
@@ -22241,7 +22244,7 @@
     "newshd.shp|2": [275,277,279]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshd.shp|2": [275,277,279]
@@ -22585,7 +22588,7 @@
     "newshe.shp|2": [153]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshe.shp|2": [153]
@@ -22707,7 +22710,7 @@
     "newshe.shp|2": [233]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshe.shp|2": [233]
@@ -22775,7 +22778,7 @@
     "newshe.shp|2": [277,279,281,283]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshe.shp|2": [277,279,281,283]
@@ -22805,7 +22808,7 @@
     "newshf.shp|2": [1,3,5]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshf.shp|2": [1,3,5]
@@ -23056,7 +23059,7 @@
     "newshf.shp|2": [39,41]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshf.shp|2": [39,41]
@@ -23742,7 +23745,7 @@
    "damageFrames": {
     "newshi.shp|1": [114]
    },
-   "status": "basic",
+   "status": "flagship",
    "damage": "modelled",
    "framesSeen": {
     "newshi.shp|1": [19,38,57,76,95,114]
@@ -23892,7 +23895,7 @@
     "newshj.shp|1": [19,38,57,76]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshj.shp|1": [19,38,57,76]
@@ -24955,7 +24958,7 @@
     "newshm.shp|2": [15]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshm.shp|2": [15]
@@ -25014,7 +25017,7 @@
     "newshm.shp|2": [17]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshm.shp|2": [17]
@@ -25044,7 +25047,7 @@
     "newshm.shp|2": [53]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshm.shp|2": [53]
@@ -25094,38 +25097,6 @@
    ],
    "events": 8,
    "ticks": 290
-  },
-  {
-   "id": "newshm-7",
-   "kind": "air",
-   "sheet": "newshm.shp",
-   "size": 2,
-   "frames": {
-    "newshm.shp|2": [7,9,11,85]
-   },
-   "damageFrames": {
-    "newshm.shp|2": [79]
-   },
-   "status": "basic",
-   "damage": "modelled",
-   "framesSeen": {
-    "newshm.shp|2": [7,9,11,79,85]
-   },
-   "unmodelledUnseen": {},
-   "boss": true,
-   "types": [
-    "e1-3:540"
-   ],
-   "levels": [
-    "1.1",
-    "3.2"
-   ],
-   "episodes": [
-    1,
-    3
-   ],
-   "events": 5,
-   "ticks": 2033
   },
   {
    "id": "newshm-89",
@@ -25959,7 +25930,7 @@
     "newshs.shp|2": [11,125,277]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshs.shp|2": [11,125,277]
@@ -26059,7 +26030,7 @@
     "newshs.shp|2": [191,193,195,197,199,201]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshs.shp|2": [191,193,195,197,199,201]
@@ -26091,7 +26062,7 @@
     "newshs.shp|2": [229,231,233,235]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshs.shp|2": [229,231,233,235]
@@ -26281,7 +26252,7 @@
     "newshu.shp|2": [129,191,195,199,203,267,271,275,279,284]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshu.shp|2": [129,191,195,199,203,267,271,275,279,284]
@@ -26314,7 +26285,7 @@
     "newshu.shp|2": [131,193,197,201,205,208,269,273,277,281]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshu.shp|2": [131,193,197,201,205,208,269,273,277,281]
@@ -26563,7 +26534,7 @@
     "newshu.shp|2": [91,153,157,161,165,229,233,237,241,246]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshu.shp|2": [91,153,157,161,165,229,233,237,241,246]
@@ -26596,7 +26567,7 @@
     "newshu.shp|2": [93,155,159,163,167,170,231,235,239,243]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshu.shp|2": [93,155,159,163,167,170,231,235,239,243]
@@ -27212,7 +27183,7 @@
     "tyrian.shp#10|1": [114]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "tyrian.shp#10|1": [114]
@@ -27545,7 +27516,7 @@
     "tyrian.shp#10|1": [133]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "tyrian.shp#10|1": [133]
@@ -27777,7 +27748,7 @@
     "tyrian.shp#10|2": [191,193,195,229,231,233,269,271,273]
    },
    "damageFrames": {},
-   "status": "partial",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "tyrian.shp#10|2": [191,193,195,229,231,233,269,271,273]
@@ -28199,7 +28170,7 @@
     "tyrian.shp#10|1": [37]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "tyrian.shp#10|1": [37]
@@ -28344,7 +28315,7 @@
     "tyrian.shp#10|1": [57]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "tyrian.shp#10|1": [57]
@@ -28447,7 +28418,7 @@
     "tyrian.shp#10|1": [76]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "tyrian.shp#10|1": [76]
@@ -28552,7 +28523,7 @@
     "tyrian.shp#10|2": [92]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {},
    "types": [
@@ -30399,7 +30370,7 @@
   },
   {
    "id": "tyrian.shp#7|1|11",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [],
    "episodes": [],
@@ -30407,7 +30378,7 @@
   },
   {
    "id": "tyrian.shp#7|1|13",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     3
@@ -30419,7 +30390,7 @@
   },
   {
    "id": "tyrian.shp#7|1|14",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     3
@@ -30431,7 +30402,7 @@
   },
   {
    "id": "tyrian.shp#7|1|15",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     3
@@ -30509,7 +30480,7 @@
   },
   {
    "id": "tyrian.shp#7|1|22",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     4
@@ -30748,7 +30719,7 @@
   },
   {
    "id": "tyrian.shp#7|1|53",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     3
@@ -30850,7 +30821,7 @@
   },
   {
    "id": "tyrian.shp#7|1|61",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 5,
    "playerEpisodes": [],
    "episodes": [
@@ -31040,7 +31011,7 @@
   },
   {
    "id": "tyrian.shp#7|1|80",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 1,
    "playerEpisodes": [],
    "episodes": [
@@ -31080,7 +31051,7 @@
   },
   {
    "id": "tyrian.shp#7|1|94",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 2,
    "playerEpisodes": [],
    "episodes": [
@@ -31109,7 +31080,7 @@
   },
   {
    "id": "tyrian.shp#7|1|96",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     3
@@ -31121,7 +31092,7 @@
   },
   {
    "id": "tyrian.shp#7|1|97",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     3
@@ -31187,7 +31158,7 @@
   },
   {
    "id": "tyrian.shp#7|1|101",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 1,
    "playerEpisodes": [
     3
@@ -31261,7 +31232,7 @@
   },
   {
    "id": "tyrian.shp#7|1|115",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     3
@@ -31273,7 +31244,7 @@
   },
   {
    "id": "tyrian.shp#7|1|116",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     3
@@ -31309,7 +31280,7 @@
   },
   {
    "id": "tyrian.shp#7|1|120",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 1,
    "playerEpisodes": [
     3
@@ -31481,7 +31452,7 @@
   },
   {
    "id": "tyrian.shp#7|1|135",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     3
@@ -31517,7 +31488,7 @@
   },
   {
    "id": "tyrian.shp#7|1|139",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 1,
    "playerEpisodes": [
     3
@@ -31529,7 +31500,7 @@
   },
   {
    "id": "tyrian.shp#7|1|140",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 1,
    "playerEpisodes": [],
    "episodes": [
@@ -31539,7 +31510,7 @@
   },
   {
    "id": "tyrian.shp#7|1|141",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 1,
    "playerEpisodes": [],
    "episodes": [
@@ -31694,7 +31665,7 @@
   },
   {
    "id": "tyrian.shp#7|1|162",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 3,
    "playerEpisodes": [],
    "episodes": [
@@ -31759,7 +31730,7 @@
   },
   {
    "id": "tyrian.shp#7|1|166",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 2,
    "playerEpisodes": [],
    "episodes": [
@@ -31795,7 +31766,7 @@
   },
   {
    "id": "tyrian.shp#7|1|170",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     2,
@@ -32158,7 +32129,7 @@
   },
   {
    "id": "tyrian.shp#7|1|198",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 7,
    "playerEpisodes": [],
    "episodes": [
@@ -32170,7 +32141,7 @@
   },
   {
    "id": "tyrian.shp#7|1|199",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 3,
    "playerEpisodes": [],
    "episodes": [
@@ -32180,7 +32151,7 @@
   },
   {
    "id": "tyrian.shp#7|1|200",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [],
    "episodes": [],
@@ -32355,7 +32326,7 @@
   },
   {
    "id": "tyrian.shp#7|1|215",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 2,
    "playerEpisodes": [],
    "episodes": [
@@ -32366,7 +32337,7 @@
   },
   {
    "id": "tyrian.shp#7|1|216",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 2,
    "playerEpisodes": [],
    "episodes": [
@@ -32709,7 +32680,7 @@
   },
   {
    "id": "tyrian.shp#7|1|260",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 1,
    "playerEpisodes": [],
    "episodes": [
@@ -32907,7 +32878,7 @@
   },
   {
    "id": "tyrian.shp#7|1|285",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 5,
    "playerEpisodes": [
     2,
@@ -32963,7 +32934,7 @@
   },
   {
    "id": "tyrian.shp#7|1|289",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     3
@@ -32975,7 +32946,7 @@
   },
   {
    "id": "tyrian.shp#7|1|290",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     3
@@ -32987,7 +32958,7 @@
   },
   {
    "id": "tyrian.shp#7|1|291",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     3
@@ -32999,7 +32970,7 @@
   },
   {
    "id": "tyrian.shp#7|1|292",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     3
@@ -33011,7 +32982,7 @@
   },
   {
    "id": "tyrian.shp#7|1|293",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     3
@@ -33179,7 +33150,7 @@
   },
   {
    "id": "tyrian.shp#11|1|1",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     4
@@ -33191,7 +33162,7 @@
   },
   {
    "id": "tyrian.shp#11|1|20",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     4
@@ -33583,7 +33554,7 @@
   },
   {
    "id": "tyrian.shp#11|1|134",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [],
    "episodes": [],
@@ -33591,7 +33562,7 @@
   },
   {
    "id": "tyrian.shp#11|1|135",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [],
    "episodes": [],
@@ -33599,7 +33570,7 @@
   },
   {
    "id": "tyrian.shp#11|1|136",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [],
    "episodes": [],
@@ -33607,7 +33578,7 @@
   },
   {
    "id": "tyrian.shp#11|1|137",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [],
    "episodes": [],
@@ -33615,7 +33586,7 @@
   },
   {
    "id": "tyrian.shp#11|1|138",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [],
    "episodes": [],
@@ -33623,7 +33594,7 @@
   },
   {
    "id": "tyrian.shp#11|1|139",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [],
    "episodes": [],
@@ -33631,7 +33602,7 @@
   },
   {
    "id": "tyrian.shp#11|1|140",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [],
    "episodes": [],
@@ -33639,7 +33610,7 @@
   },
   {
    "id": "tyrian.shp#11|1|141",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [],
    "episodes": [],
@@ -33647,7 +33618,7 @@
   },
   {
    "id": "tyrian.shp#11|1|142",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [],
    "episodes": [],
@@ -33655,7 +33626,7 @@
   },
   {
    "id": "tyrian.shp#11|1|143",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [],
    "episodes": [],
@@ -33663,7 +33634,7 @@
   },
   {
    "id": "tyrian.shp#11|1|144",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [],
    "episodes": [],
@@ -33671,7 +33642,7 @@
   },
   {
    "id": "tyrian.shp#11|1|145",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [],
    "episodes": [],
@@ -33679,7 +33650,7 @@
   },
   {
    "id": "tyrian.shp#11|1|146",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [],
    "episodes": [],
@@ -33687,7 +33658,7 @@
   },
   {
    "id": "tyrian.shp#11|1|147",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [],
    "episodes": [],
@@ -33695,7 +33666,7 @@
   },
   {
    "id": "tyrian.shp#11|1|148",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [],
    "episodes": [],
@@ -33703,7 +33674,7 @@
   },
   {
    "id": "tyrian.shp#11|1|149",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [],
    "episodes": [],
@@ -33711,7 +33682,7 @@
   },
   {
    "id": "tyrian.shp#11|1|150",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [],
    "episodes": [],
@@ -33719,7 +33690,7 @@
   },
   {
    "id": "tyrian.shp#11|1|151",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [],
    "episodes": [],
@@ -33727,7 +33698,7 @@
   },
   {
    "id": "tyrian.shp#11|1|152",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [],
    "episodes": [],
@@ -33735,7 +33706,7 @@
   },
   {
    "id": "tyrian.shp#11|1|153",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [],
    "episodes": [],
@@ -33743,7 +33714,7 @@
   },
   {
    "id": "tyrian.shp#11|1|248",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     4
@@ -33755,7 +33726,7 @@
   },
   {
    "id": "tyrian.shp#11|1|249",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     4
@@ -33767,7 +33738,7 @@
   },
   {
    "id": "tyrian.shp#11|1|250",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     4
@@ -33779,7 +33750,7 @@
   },
   {
    "id": "tyrian.shp#11|1|251",
-   "status": "sprite",
+   "status": "flat",
    "enemyLevels": 0,
    "playerEpisodes": [
     4
@@ -33882,8 +33853,8 @@
     26
    ],
    "hd": [
-    0,
-    0,
+    112,
+    14,
     0
    ],
    "modelled": [
@@ -33892,8 +33863,8 @@
     0
    ],
    "covered": [
-    0,
-    0,
+    112,
+    14,
     0
    ],
    "tileModels": 0,
@@ -33920,9 +33891,9 @@
     85
    ],
    "hd": [
-    0,
-    0,
-    0
+    100,
+    28,
+    17
    ],
    "modelled": [
     0,
@@ -33930,9 +33901,9 @@
     0
    ],
    "covered": [
-    0,
-    0,
-    0
+    100,
+    28,
+    17
    ],
    "tileModels": 0,
    "tileModelTiers": {}
@@ -33958,9 +33929,9 @@
     39
    ],
    "hd": [
-    0,
-    0,
-    0
+    191,
+    7,
+    11
    ],
    "modelled": [
     0,
@@ -33968,9 +33939,9 @@
     0
    ],
    "covered": [
-    0,
-    0,
-    0
+    191,
+    7,
+    11
    ],
    "tileModels": 0,
    "tileModelTiers": {}
@@ -33997,8 +33968,8 @@
    ],
    "hd": [
     108,
-    0,
-    0
+    68,
+    45
    ],
    "modelled": [
     15,
@@ -34007,8 +33978,8 @@
    ],
    "covered": [
     108,
-    0,
-    0
+    68,
+    45
    ],
    "tileModels": 2,
    "tileModelTiers": {
@@ -34636,69 +34607,6 @@
  "ranking": {
   "units": [
    {
-    "id": "newsh-caret-171",
-    "what": "ground",
-    "status": "basic",
-    "levels": 5,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 19196
-   },
-   {
-    "id": "newshd-275",
-    "what": "air",
-    "status": "basic",
-    "levels": 5,
-    "episodes": 3,
-    "events": 45,
-    "ticks": 10336
-   },
-   {
-    "id": "assembly-newshp-267",
-    "what": "air",
-    "status": "basic",
-    "levels": 5,
-    "episodes": 3,
-    "events": 85,
-    "ticks": 10044
-   },
-   {
-    "id": "newsha-199",
-    "what": "ground (boss)",
-    "status": "basic",
-    "levels": 5,
-    "episodes": 3,
-    "events": 35,
-    "ticks": 9259
-   },
-   {
-    "id": "newshs-229",
-    "what": "air",
-    "status": "basic",
-    "levels": 5,
-    "episodes": 3,
-    "events": 102,
-    "ticks": 8615
-   },
-   {
-    "id": "assembly-newshs-39",
-    "what": "air",
-    "status": "basic",
-    "levels": 5,
-    "episodes": 3,
-    "events": 60,
-    "ticks": 8440
-   },
-   {
-    "id": "newshs-11",
-    "what": "air",
-    "status": "basic",
-    "levels": 5,
-    "episodes": 3,
-    "events": 65,
-    "ticks": 5331
-   },
-   {
     "id": "newshd-95",
     "what": "ground",
     "status": "basic",
@@ -34780,33 +34688,6 @@
     "ticks": 1410
    },
    {
-    "id": "newsha-169",
-    "what": "ground",
-    "status": "basic",
-    "levels": 5,
-    "episodes": 2,
-    "events": 235,
-    "ticks": 12769
-   },
-   {
-    "id": "newshj-19",
-    "what": "ground",
-    "status": "basic",
-    "levels": 5,
-    "episodes": 2,
-    "events": 0,
-    "ticks": 11127
-   },
-   {
-    "id": "newshf-1",
-    "what": "ground",
-    "status": "basic",
-    "levels": 5,
-    "episodes": 2,
-    "events": 134,
-    "ticks": 8130
-   },
-   {
     "id": "newsh3-229",
     "what": "air+ground",
     "status": "basic",
@@ -34823,78 +34704,6 @@
     "episodes": 1,
     "events": 72,
     "ticks": 4584
-   },
-   {
-    "id": "assembly-newshf-81",
-    "what": "air",
-    "status": "basic",
-    "levels": 4,
-    "episodes": 3,
-    "events": 171,
-    "ticks": 17917
-   },
-   {
-    "id": "newshs-191",
-    "what": "air",
-    "status": "basic",
-    "levels": 4,
-    "episodes": 3,
-    "events": 119,
-    "ticks": 13305
-   },
-   {
-    "id": "newshu-129",
-    "what": "air",
-    "status": "basic",
-    "levels": 4,
-    "episodes": 3,
-    "events": 19,
-    "ticks": 6200
-   },
-   {
-    "id": "newshu-131",
-    "what": "air",
-    "status": "basic",
-    "levels": 4,
-    "episodes": 3,
-    "events": 19,
-    "ticks": 6200
-   },
-   {
-    "id": "newshu-91",
-    "what": "air",
-    "status": "basic",
-    "levels": 4,
-    "episodes": 3,
-    "events": 19,
-    "ticks": 6018
-   },
-   {
-    "id": "newshu-93",
-    "what": "air",
-    "status": "basic",
-    "levels": 4,
-    "episodes": 3,
-    "events": 19,
-    "ticks": 6018
-   },
-   {
-    "id": "newshe-233",
-    "what": "ground",
-    "status": "basic",
-    "levels": 4,
-    "episodes": 3,
-    "events": 166,
-    "ticks": 5717
-   },
-   {
-    "id": "assembly-newshp-165",
-    "what": "air",
-    "status": "basic",
-    "levels": 4,
-    "episodes": 3,
-    "events": 30,
-    "ticks": 5634
    },
    {
     "id": "newshp-191",
@@ -34978,24 +34787,6 @@
     "ticks": 1168
    },
    {
-    "id": "assembly-newshm-1",
-    "what": "air+ground",
-    "status": "basic",
-    "levels": 4,
-    "episodes": 2,
-    "events": 1288,
-    "ticks": 102522
-   },
-   {
-    "id": "assembly-newshi-115",
-    "what": "ground (boss)",
-    "status": "basic",
-    "levels": 4,
-    "episodes": 2,
-    "events": 504,
-    "ticks": 98932
-   },
-   {
     "id": "assembly-newshj-191",
     "what": "custom+ground (boss)",
     "status": "basic",
@@ -35005,24 +34796,6 @@
     "ticks": 80439
    },
    {
-    "id": "newshi-19",
-    "what": "ground",
-    "status": "basic",
-    "levels": 4,
-    "episodes": 2,
-    "events": 0,
-    "ticks": 41899
-   },
-   {
-    "id": "assembly-newshi-154",
-    "what": "ground (boss)",
-    "status": "basic",
-    "levels": 4,
-    "episodes": 2,
-    "events": 108,
-    "ticks": 23745
-   },
-   {
     "id": "assembly-newshj-267",
     "what": "custom (boss)",
     "status": "basic",
@@ -35030,15 +34803,6 @@
     "episodes": 2,
     "events": 12,
     "ticks": 21942
-   },
-   {
-    "id": "newshf-39",
-    "what": "air",
-    "status": "basic",
-    "levels": 4,
-    "episodes": 2,
-    "events": 84,
-    "ticks": 8496
    },
    {
     "id": "newshm-117",
@@ -35113,15 +34877,6 @@
     "ticks": 4940
    },
    {
-    "id": "assembly-newsht-39",
-    "what": "air+decor+ground (boss)",
-    "status": "partial",
-    "levels": 3,
-    "episodes": 3,
-    "events": 288,
-    "ticks": 56292
-   },
-   {
     "id": "newshd-228",
     "what": "ground",
     "status": "basic",
@@ -35167,33 +34922,6 @@
     "ticks": 31308
    },
    {
-    "id": "assembly-newshc-197",
-    "what": "ground (boss)",
-    "status": "basic",
-    "levels": 3,
-    "episodes": 2,
-    "events": 270,
-    "ticks": 27009
-   },
-   {
-    "id": "newsha-93",
-    "what": "decor",
-    "status": "basic",
-    "levels": 3,
-    "episodes": 2,
-    "events": 194,
-    "ticks": 24971
-   },
-   {
-    "id": "newsha-17",
-    "what": "decor",
-    "status": "basic",
-    "levels": 3,
-    "episodes": 2,
-    "events": 202,
-    "ticks": 20527
-   },
-   {
     "id": "newsh7-53",
     "what": "ground (boss)",
     "status": "basic",
@@ -35201,15 +34929,6 @@
     "episodes": 2,
     "events": 182,
     "ticks": 15300
-   },
-   {
-    "id": "assembly-newshi-243",
-    "what": "ground",
-    "status": "basic",
-    "levels": 3,
-    "episodes": 2,
-    "events": 156,
-    "ticks": 14540
    },
    {
     "id": "newsh-hash-41",
@@ -35536,58 +35255,13 @@
     "ticks": 32317
    },
    {
-    "id": "assembly-newshs-7",
-    "what": "ground",
-    "status": "basic",
-    "levels": 2,
-    "episodes": 2,
-    "events": 195,
-    "ticks": 16036
-   },
-   {
-    "id": "assembly-newshc-283",
-    "what": "air",
-    "status": "basic",
-    "levels": 2,
-    "episodes": 2,
-    "events": 94,
-    "ticks": 13360
-   },
-   {
-    "id": "assembly-newshs-165",
-    "what": "air (boss)",
-    "status": "partial",
-    "levels": 2,
-    "episodes": 2,
-    "events": 52,
-    "ticks": 11821
-   },
-   {
     "id": "assembly-newshm-45",
     "what": "air (boss)",
     "status": "basic",
     "levels": 2,
     "episodes": 2,
-    "events": 25,
-    "ticks": 10207
-   },
-   {
-    "id": "newshm-15",
-    "what": "ground",
-    "status": "basic",
-    "levels": 2,
-    "episodes": 2,
-    "events": 206,
-    "ticks": 8499
-   },
-   {
-    "id": "newshe-277",
-    "what": "ground",
-    "status": "basic",
-    "levels": 2,
-    "episodes": 2,
-    "events": 118,
-    "ticks": 8358
+    "events": 30,
+    "ticks": 12240
    },
    {
     "id": "assembly-newshk-17",
@@ -35624,33 +35298,6 @@
     "episodes": 2,
     "events": 72,
     "ticks": 6072
-   },
-   {
-    "id": "newshm-53",
-    "what": "ground",
-    "status": "basic",
-    "levels": 2,
-    "episodes": 2,
-    "events": 279,
-    "ticks": 5858
-   },
-   {
-    "id": "newshm-17",
-    "what": "ground",
-    "status": "basic",
-    "levels": 2,
-    "episodes": 2,
-    "events": 132,
-    "ticks": 5672
-   },
-   {
-    "id": "assembly-newshu-79",
-    "what": "air",
-    "status": "basic",
-    "levels": 2,
-    "episodes": 2,
-    "events": 32,
-    "ticks": 5500
    },
    {
     "id": "newsh7-55",
@@ -35723,15 +35370,6 @@
     "episodes": 2,
     "events": 46,
     "ticks": 2115
-   },
-   {
-    "id": "newshm-7",
-    "what": "air (boss)",
-    "status": "basic",
-    "levels": 2,
-    "episodes": 2,
-    "events": 5,
-    "ticks": 2033
    },
    {
     "id": "newshs-267",
@@ -36103,15 +35741,6 @@
     "ticks": 10525
    },
    {
-    "id": "assembly-newshd-45",
-    "what": "ground",
-    "status": "basic",
-    "levels": 2,
-    "episodes": 1,
-    "events": 160,
-    "ticks": 9456
-   },
-   {
     "id": "assembly-newsh8-191",
     "what": "ground",
     "status": "basic",
@@ -36182,15 +35811,6 @@
     "episodes": 1,
     "events": 175,
     "ticks": 6657
-   },
-   {
-    "id": "assembly-newshd-39",
-    "what": "ground",
-    "status": "basic",
-    "levels": 2,
-    "episodes": 1,
-    "events": 156,
-    "ticks": 6594
    },
    {
     "id": "newsh3-180",
@@ -36857,15 +36477,6 @@
     "episodes": 1,
     "events": 10,
     "ticks": 12580
-   },
-   {
-    "id": "newshe-153",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 120,
-    "ticks": 12571
    },
    {
     "id": "assembly-newsho-156",
@@ -38560,71 +38171,7 @@
     "ticks": 0
    }
   ],
-  "pickups": [
-   {
-    "id": "tyrian10-191",
-    "what": "pickup",
-    "status": "partial",
-    "levels": 9,
-    "episodes": 3,
-    "events": 27,
-    "ticks": 1320
-   },
-   {
-    "id": "tyrian10-76",
-    "what": "pickup",
-    "status": "basic",
-    "levels": 7,
-    "episodes": 3,
-    "events": 21,
-    "ticks": 13258
-   },
-   {
-    "id": "tyrian10-57",
-    "what": "pickup",
-    "status": "basic",
-    "levels": 3,
-    "episodes": 2,
-    "events": 1,
-    "ticks": 3054
-   },
-   {
-    "id": "tyrian10-37",
-    "what": "pickup",
-    "status": "sprite",
-    "levels": 2,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 469
-   },
-   {
-    "id": "tyrian10-133",
-    "what": "pickup",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 1307
-   },
-   {
-    "id": "tyrian10-114",
-    "what": "pickup",
-    "status": "sprite",
-    "levels": 1,
-    "episodes": 1,
-    "events": 6,
-    "ticks": 394
-   },
-   {
-    "id": "tyrian10-92",
-    "what": "pickup",
-    "status": "sprite",
-    "levels": 1,
-    "episodes": 1,
-    "events": 1,
-    "ticks": 0
-   }
-  ],
+  "pickups": [],
   "tilesets": [
    {
     "id": "shapesz",
@@ -38638,8 +38185,8 @@
    {
     "id": "shapes)",
     "what": "tiles 113/57/26 (layers 0/1/2)",
-    "status": "HD art 0/0/0, in structure models 0/0/0, 0 structure models",
-    "uncovered": [113,57,26],
+    "status": "HD art 112/14/0, in structure models 0/0/0, 0 structure models",
+    "uncovered": [1,43,26],
     "levels": 10,
     "episodes": 1,
     "events": 0
@@ -38647,8 +38194,8 @@
    {
     "id": "shapesw",
     "what": "tiles 113/73/85 (layers 0/1/2)",
-    "status": "HD art 0/0/0, in structure models 0/0/0, 0 structure models",
-    "uncovered": [113,73,85],
+    "status": "HD art 100/28/17, in structure models 0/0/0, 0 structure models",
+    "uncovered": [13,45,68],
     "levels": 7,
     "episodes": 2,
     "events": 0
@@ -38656,8 +38203,8 @@
    {
     "id": "shapesx",
     "what": "tiles 199/138/39 (layers 0/1/2)",
-    "status": "HD art 0/0/0, in structure models 0/0/0, 0 structure models",
-    "uncovered": [199,138,39],
+    "status": "HD art 191/7/11, in structure models 0/0/0, 0 structure models",
+    "uncovered": [8,131,28],
     "levels": 7,
     "episodes": 2,
     "events": 0
@@ -38665,615 +38212,14 @@
    {
     "id": "shapesy",
     "what": "tiles 108/71/47 (layers 0/1/2)",
-    "status": "HD art 108/0/0, in structure models 15/0/0, 2 structure models",
-    "uncovered": [0,71,47],
+    "status": "HD art 108/68/45, in structure models 15/0/0, 2 structure models",
+    "uncovered": [0,3,2],
     "levels": 6,
     "episodes": 3,
     "events": 0
    }
   ],
-  "shots": [
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|198",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 7,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 103914
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|285",
-    "what": "enemy and player shot",
-    "status": "no flat art",
-    "levels": 5,
-    "episodes": 2,
-    "events": 0,
-    "ticks": 11197
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|61",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 5,
-    "episodes": 2,
-    "events": 0,
-    "ticks": 3664
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|162",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 3,
-    "episodes": 2,
-    "events": 0,
-    "ticks": 12101
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|199",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 3,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 96631
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|215",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 2,
-    "episodes": 2,
-    "events": 0,
-    "ticks": 1694
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|216",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 2,
-    "episodes": 2,
-    "events": 0,
-    "ticks": 1548
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|94",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 2,
-    "episodes": 2,
-    "events": 0,
-    "ticks": 787
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|166",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 2,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 3079
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|260",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 1,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 8553
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|80",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 1,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 435
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|139",
-    "what": "enemy and player shot",
-    "status": "no flat art",
-    "levels": 1,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 304
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|141",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 1,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 294
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|120",
-    "what": "enemy and player shot",
-    "status": "no flat art",
-    "levels": 1,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 289
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|140",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 1,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 272
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|101",
-    "what": "enemy and player shot",
-    "status": "no flat art",
-    "levels": 1,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 263
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|170",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 2,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|1",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|20",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|248",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|249",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|250",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|251",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|115",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|116",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|13",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|135",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|14",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|15",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|22",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|289",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|290",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|291",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|292",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|293",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|53",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|96",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|97",
-    "what": "player shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 0
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|11",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 0,
-    "events": 0,
-    "ticks": 32321
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#7|1|200",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 0,
-    "events": 0,
-    "ticks": 6
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|134",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 0,
-    "events": 0,
-    "ticks": 1
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|135",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 0,
-    "events": 0,
-    "ticks": 1
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|136",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 0,
-    "events": 0,
-    "ticks": 1
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|137",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 0,
-    "events": 0,
-    "ticks": 1
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|138",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 0,
-    "events": 0,
-    "ticks": 1
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|139",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 0,
-    "events": 0,
-    "ticks": 1
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|140",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 0,
-    "events": 0,
-    "ticks": 1
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|141",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 0,
-    "events": 0,
-    "ticks": 1
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|142",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 0,
-    "events": 0,
-    "ticks": 1
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|143",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 0,
-    "events": 0,
-    "ticks": 1
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|144",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 0,
-    "events": 0,
-    "ticks": 1
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|145",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 0,
-    "events": 0,
-    "ticks": 1
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|146",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 0,
-    "events": 0,
-    "ticks": 1
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|147",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 0,
-    "events": 0,
-    "ticks": 1
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|148",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 0,
-    "events": 0,
-    "ticks": 1
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|149",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 0,
-    "events": 0,
-    "ticks": 1
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|150",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 0,
-    "events": 0,
-    "ticks": 1
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|151",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 0,
-    "events": 0,
-    "ticks": 1
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|152",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 0,
-    "events": 0,
-    "ticks": 1
-   },
-   {
-    "kind": "shot",
-    "id": "tyrian.shp#11|1|153",
-    "what": "enemy shot",
-    "status": "no flat art",
-    "levels": 0,
-    "episodes": 0,
-    "events": 0,
-    "ticks": 1
-   }
-  ],
+  "shots": [],
   "songs": []
  },
  "notes": {
