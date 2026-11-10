@@ -1713,6 +1713,16 @@ function strPopInts(s: string): number[] {
   }
 }
 
+/**
+ * One of the 9 lines after an `]I[` (JE_loadMap's "Load Items Available Information"): the item
+ * numbers from column 8 on (` WeapF  13 2 7`), as the sim stores them in itemAvail (u8). The debug
+ * console's `shop all` reads every item screen's lists through this too (D110).
+ */
+export function itemAvailLine(s: string): number[] {
+  const buf = s.length > 8 ? s.slice(8) : "";
+  return strPopInts(buf).map(u8);
+}
+
 const scriptCache = new WeakMap<Uint8Array, EpisodeScript>();
 
 /** Reads levelsN.dat line by line, as JE_loadMap's readEpisodeString does. */
@@ -1972,10 +1982,8 @@ function* JE_loadMap_newGame(files: TyrianFiles): Generator<LoadMapPause, boolea
               for (let i = 0; i < 9; ++i) {
                 s = episodeFile.read();
 
-                const buf = s.length > 8 ? s.slice(8) : "";
-
                 let j = 0;
-                for (const temp of strPopInts(buf)) g.itemAvail[i][j++] = u8(temp);
+                for (const temp of itemAvailLine(s)) g.itemAvail[i][j++] = temp;
                 g.itemAvailMax[i] = j;
               }
 

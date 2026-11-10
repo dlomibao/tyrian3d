@@ -1,0 +1,215 @@
+/*
+ * The debug console (src/debug/console/index.ts, D109): the menus' umber pane in its bronze rim
+ * (D85, the HUD frame's tube thinned, D61), at the top of the window over the paused game, with a
+ * plain monospace scrollback in a phosphor well and the input line under it. On a phone it takes
+ * the whole width and the part of the window above the on-screen keyboard (index.ts fits the screen
+ * to visualViewport), and the scrollback is what scrolls.
+ */
+
+.ui-screen--console {
+  box-sizing: border-box; /* index.ts sets its height to the visible window's */
+  place-items: start center;
+  z-index: 30;
+}
+
+.ui-screen--console > .ui-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+  height: min(36rem, 100%);
+  max-width: 64rem;
+  padding: var(--ui-space-3) var(--ui-space-4);
+}
+
+.con-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 1rem;
+  padding-right: 5.5rem; /* clear of the Close button */
+}
+
+.ui-screen--console .con-title {
+  margin: 0;
+  font-size: var(--ui-text-xl, 1.4rem);
+}
+
+.con-where {
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-text-sm);
+}
+
+/* (Specific enough to beat the phones' `.ui-screen > .ui-panel > * { flex-shrink: 0 }`.) */
+.ui-screen--console > .ui-panel > .con-log {
+  flex: 1 1 0;
+  min-height: 6rem;
+}
+
+.con-log {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 0.5rem 0.7rem;
+  font: 0.86rem/1.4 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color: var(--ui-phos-name);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+  -webkit-user-select: text;
+  touch-action: pan-y;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ui-copper-deep) transparent;
+}
+
+/* A two-column line (help: the command and its arguments, then what it does). */
+.con-l--row {
+  display: grid;
+  grid-template-columns: 34ch minmax(0, 1fr);
+  column-gap: 1ch;
+}
+
+.con-l--row > span:first-child {
+  color: var(--ui-copper-hi);
+}
+
+.con-l--cmd {
+  color: var(--ui-copper-hi);
+}
+
+.con-l--out {
+  color: var(--ui-phos-num);
+}
+
+.con-l--err {
+  color: #ff8a70;
+}
+
+.con-l--info {
+  color: var(--ui-ink-dim);
+}
+
+.con-line {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 0 0 auto;
+}
+
+.con-prompt {
+  font: 600 1rem ui-monospace, Menlo, monospace;
+  color: var(--ui-copper-lite);
+}
+
+.con-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 2.4rem;
+  box-sizing: border-box;
+  padding: 0.35rem 0.6rem;
+  /* 16px or more: iOS zooms the page into a smaller field */
+  font: 1rem/1.3 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color: var(--ui-bone);
+  background: var(--ui-well-solid);
+  border: 1px solid var(--ui-rim-mid);
+  border-radius: 4px;
+  outline: none;
+  caret-color: var(--ui-copper-hi);
+}
+
+.con-input:focus {
+  border-color: var(--ui-rim-hi);
+  box-shadow: 0 0 0 1px var(--ui-copper-deep);
+}
+
+.con-input::placeholder {
+  color: var(--ui-ink-faint);
+}
+
+.con-keys {
+  display: none;
+  gap: 0.3rem;
+}
+
+.con-btn {
+  min-width: 2.6rem;
+  min-height: 2.4rem;
+  padding: 0 0.6rem;
+  font: 600 0.9rem var(--ui-font-text);
+  color: var(--ui-copper-hi);
+  background: rgba(58, 26, 12, 0.7);
+  border: 1px solid var(--ui-rim-mid);
+  border-radius: 4px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.con-btn:active {
+  background: rgba(122, 64, 32, 0.8);
+}
+
+/* The Tab and history buttons: touch screens only (the keys do it otherwise). */
+@media (pointer: coarse) {
+  .con-keys { display: flex; }
+}
+:root[data-input="touch"] .con-keys { display: flex; }
+
+/* A phone: the whole width, the whole height above the keyboard, the buttons on their own row. */
+@media (max-width: 600px) {
+  .ui-screen--console {
+    padding-inline: max(8px, env(safe-area-inset-left)) max(8px, env(safe-area-inset-right));
+    padding-top: max(8px, env(safe-area-inset-top));
+    padding-bottom: 8px;
+  }
+
+  /* The top of the window, the game in view under it; all of it once the keyboard is up. */
+  .ui-screen--console > .ui-panel {
+    height: min(100%, 34rem);
+    padding: var(--ui-space-2) var(--ui-space-3);
+  }
+
+  .con-log {
+    font-size: 0.8rem;
+  }
+
+  /* The help's description under its command, indented. */
+  .con-l--row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .con-l--row > span + span {
+    padding-left: 2ch;
+    color: var(--ui-ink-dim);
+  }
+
+  .con-line {
+    flex-wrap: wrap;
+  }
+
+  .con-input {
+    flex-basis: calc(100% - 2rem);
+  }
+
+  .con-keys {
+    flex: 1 1 auto;
+  }
+
+  .con-keys .con-btn {
+    flex: 1 1 0;
+  }
+}
+
+/* The `fps` overlay: a line of text in the top left corner, over everything, taking no input. */
+.con-perf {
+  position: fixed;
+  z-index: 40;
+  left: max(6px, env(safe-area-inset-left));
+  top: max(6px, env(safe-area-inset-top));
+  padding: 2px 7px;
+  font: 11px/1.4 ui-monospace, Menlo, monospace;
+  color: var(--ui-phos-name, #8ff09a);
+  background: rgba(10, 6, 4, 0.7);
+  border: 1px solid rgba(164, 123, 70, 0.5);
+  border-radius: 3px;
+  pointer-events: none;
+  white-space: nowrap;
+}

@@ -14,6 +14,7 @@ import { TitleCodeListener } from "./titleCodes"; // [cheats] [arcade]
 import { IdleTimer } from "./idle"; // [demos]
 import { arcadeTitle, type ArcadeTitleOptions } from "./arcade"; // [arcade]
 import type { NewGameChoice } from "../sim/arcade"; // [arcade]
+import { consoleBridge } from "./consoleBridge";
 
 /** Ask the player for tyrian21.zip (DECISIONS.md D3). Resolves once valid data is loaded. */
 export function askForData(): Promise<FileMap> {
@@ -167,6 +168,7 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
   let resolveFn: (c: TitleChoice) => void = () => {};
   const finish = (extra: Partial<TitleChoice> = {}) => {
     if (!screen.open) return;
+    if (consoleBridge.leave?.screen === screen) consoleBridge.leave = null;
     idle?.stop(); // [demos]
     screen.close();
     // [arcade] a ship smuggled out of a Super Arcade start
@@ -239,6 +241,8 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
       return true;
     },
   });
+  // The debug console's `level` and `shop` (D109) start a game from here: run.ts reads its jump.
+  consoleBridge.leave = { screen, go: () => finish() };
 
   /** Do what the menu asks, and redraw it. */
   const act = (a: TitleAction) => {

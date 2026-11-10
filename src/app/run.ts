@@ -26,7 +26,7 @@ import { showLoadScreen, showOptions, type OptionsHost } from "./options";
 import { connectVolumes, loadPrefs, musicLevel } from "./prefs";
 import { highScoreCheck, showHighScoreScreen } from "./highScoresScreen"; // [high scores]
 import { highScoreCheckDue } from "../sim/highscores"; // [high scores]
-import { PauseButton, showPause } from "./pause"; // ui-framework: pause screen
+import { PauseButton, showPause, type PauseChoice } from "./pause"; // ui-framework: pause screen
 import { askForData, showMessage, showStatus, showTitle, type TitleChoice } from "./screens";
 import { runItemScreen } from "./shop";
 import { preloadLevelModels } from "./levelPreload";
@@ -47,6 +47,9 @@ import { seedAtStartup } from "./seed";
 import { showGameplaySelect } from "./gameplaySelect";
 import { TwoPlayerHud } from "./twoPlayerHud";
 import { gameOverLines, levelCompleteLines } from "./twoPlayer";
+// The debug console (D109): its hold on the game flow; the console itself loads on demand.
+import { consoleBridge, inPlace, installDebugConsole, showDebugConsole, takeConsoleJump } from "./consoleBridge";
+import { JE_initEpisode } from "../sim/episodes";
 
 /** OpenTyrian song numbers (0-based, as passed to play_song). */
 const SONG_TITLE = 29;
@@ -80,7 +83,7 @@ const lastLevelSlot = () => (g.twoPlayerMode ? 22 : 11);
 
 /** `onPlay` fires once the first level starts, so the caller can stop its idle rendering. */
 export async function runGame(view: View, onPlay: () => void = () => {}): Promise<void> {
-  seedAtStartup(); // opentyr.c L757: mt_srand(time(NULL)), or ?seed=N (D37)
+  consoleBridge.seed = seedAtStartup(); // opentyr.c L757: mt_srand(time(NULL)), or ?seed=N (D37)
   const files = await getFiles();
   const loading = showStatus("Loading…");
   g.res = buildResources(files, 1);
@@ -95,6 +98,8 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
   const sfx = new SoundEffects(requireFile(files, "tyrian.snd"), requireFile(files, "voices.snd"), audioContext, remaster);
   // The one host for the settings screen: the title's Options and the shop's both open it with this, so they show the same rows.
   const optionsHost: OptionsHost = { sfx, music };
+  Object.assign(consoleBridge, { files, view, host: optionsHost }); // D109
+  installDebugConsole();
   const controls = new Controls(() => view.gamePixelsPerScreenPixel);
   const hud = new Hud(view);
   hud.attachTouch((action, down) => controls.touchAction(action, down)); // the HUD's rear-mode and sidekick boxes on touch screens (D100)
@@ -133,7 +138,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
     }
     music.play(SONG_TITLE);
     levelFade().set(0); // the title's backdrop draws under the level fade (port-story)
-    choice = await showTitle({
+    choice = await inPlace("title", () => showTitle({
       episodeNames: names.episodeName,
       episodes,
       // [cheats] difficultySelect's six, the last three hidden until their keys are typed.
@@ -170,7 +175,11 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
         song: (n) => music.play(n),
         onDestruct: () => runDestruct({ files, sfx, specialName: names.specialName }), // [cheats] destructHook
       },
-    });
+    }));
+    // D109: the debug console's `level` or `shop` on the title starts a one-player game there
+    // (episode 0: the title's choice), at the console's section.
+    const consoleStart = takeConsoleJump();
+    if (consoleStart) choice = { episode: consoleStart.episode || choice.episode, difficulty: choice.difficulty };
     if (choice.destruct) {
       // [destruct] loadDestruct: JE_destructGame, then the main loop shows the title again.
       choice = { episode: choice.episode, difficulty: choice.difficulty };
@@ -186,7 +195,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
 
     // [two-player] [arcade] gameplaySelect (menus.c): which kind of game; Escape goes back to the
     // title. A code typed at the title has already picked its game (Super Arcade, Super Tyrian).
-    if (!choice.loaded && !choice.superArcade && !choice.superTyrian) {
+    if (!choice.loaded && !choice.superArcade && !choice.superTyrian && !consoleStart) {
       const picked = await showGameplaySelect({
         names: names.gameplayName,
         available: new Set(["fullGame", "arcade", "twoPlayerArcade"] as const),
@@ -202,7 +211,8 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
     view.setPalettes(g.res.palettes);
     // [arcade] newGame() for the chosen mode (1 Player Full Game or Arcade, 2 Player Arcade), or a
     // Super Arcade or Super Tyrian game (src/sim/arcade.ts).
-    if (!choice.loaded) startNewGame({ ...choice, mode: gameplay });
+    if (!choice.loaded) startNewGame({ ...choice, mode: consoleStart ? "fullGame" : gameplay });
+    if (consoleStart?.section) g.mainLevel = consoleStart.section; // D109
     onPlay();
     // port-story: JE_loadMap's pictures, text and fades play where the C would have drawn them.
     const story = (keepOpen = false) => playStoryScreens(takeStorySteps(), { files, sfx, music }, { keepOpen });
@@ -221,7 +231,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
           await story(); // port-story
           // The item screen's backdrop draws in the game's canvas, under the level fade: clear it.
           levelFade().set(0);
-          await runItemScreen({ files, ...optionsHost });
+          await inPlace("shop", () => runItemScreen({ files, ...optionsHost }));
         },
         async (pause) => {
           await story(); // port-story: e.g. the screens before `]Q[`
@@ -265,6 +275,18 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
 
       if (g.galagaMode) g.twoPlayerMode = false; // [two-player] start_level (tyrian2.c L597-598)
       g.difficultyLevel = g.oldDifficultyLevel; /*Return difficulty to normal*/
+      if (outcome === "jump") {
+        // D109: the debug console's `level` or `shop`: on to that episode's section, as a game
+        // loaded there would go (JE_initEpisode, then JE_loadMap from mainLevel).
+        const jump = takeConsoleJump();
+        if (jump) {
+          JE_initEpisode(jump.episode, files);
+          view.setPalettes(g.res.palettes);
+          if (jump.section !== null) g.mainLevel = jump.section;
+        }
+        g.doNotSaveBackup = false;
+        continue;
+      }
       if (outcome === "quit") {
         // ui-framework: "Quit to title" on the pause screen (src/app/pause.ts). [high scores] As
         // quitting from the item screen, it ends the game, so its score is checked.
@@ -301,7 +323,8 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
   }
 }
 
-type Outcome = "completed" | "died" | "quit";
+/** "jump": the debug console asked for another level (consoleBridge.jump, D109). */
+type Outcome = "completed" | "died" | "quit" | "jump";
 
 function playLevel(view: View, controls: Controls, sfx: SoundEffects, music: MusicPlayer, hud: Pick<Hud, "update">, pauseButton: PauseButton, cheats: CheatKeys, optionsHost: OptionsHost): Promise<Outcome> {
   return new Promise((resolve) => {
@@ -309,38 +332,67 @@ function playLevel(view: View, controls: Controls, sfx: SoundEffects, music: Mus
     let acc = 0;
     let paused = false;
     let quit = false;
+    let consoleRequested = false; // D109: backtick, or Options → Debug console with the game running
+    const b = consoleBridge;
+    b.place = "level";
+    b.leave = null;
+    b.ticks = 0;
+    b.openInLevel = () => (consoleRequested = true);
+    const end = (outcome: Outcome) => {
+      b.place = "menu";
+      b.openInLevel = null;
+      view.draws.vfxTimeScale = 1;
+      resolve(outcome);
+    };
+
+    /** Freeze the game while `screen` is up (the pause screen, or the debug console over the game). */
+    const hold = (screen: () => Promise<PauseChoice>) => {
+      paused = true;
+      b.openInLevel = null; // the console now opens over the screen that's up
+      controls.release();
+      controls.active = false;
+      music.volume = musicLevel(0.3); // [port-options] relative to the music volume setting
+      pauseButton.visible = false; // restyle-polish: not over the pause screen
+      void screen().then((choice) => {
+        paused = false;
+        b.openInLevel = () => (consoleRequested = true);
+        pauseButton.visible = choice !== "quit"; // restyle-polish
+        quit = choice === "quit";
+        controls.clear();
+        controls.active = true;
+        music.volume = musicLevel();
+      });
+    };
 
     const frame = (now: number) => {
       // ui-framework: the pause screen (src/app/pause.ts) replaces the "Paused" status line.
       if (controls.pauseRequested && !paused) {
         controls.pauseRequested = false;
-        paused = true;
-        controls.release();
-        controls.active = false;
-        music.volume = musicLevel(0.3); // [port-options] relative to the music volume setting
-        pauseButton.visible = false; // restyle-polish: not over the pause screen
-        void showPause(optionsHost).then((choice) => {
-          paused = false;
-          pauseButton.visible = choice !== "quit"; // restyle-polish
-          quit = choice === "quit";
-          controls.clear();
-          controls.active = true;
-          music.volume = musicLevel();
-        });
+        hold(() => showPause(optionsHost));
+      }
+      if (consoleRequested && !paused) {
+        consoleRequested = false;
+        hold(() => showDebugConsole().then(() => "resume" as const));
+      }
+      if (b.jump && !paused) {
+        end("jump");
+        return;
       }
       if (quit) {
-        resolve("quit");
+        end("quit");
         return;
       }
       if (paused) {
         last = now;
+        hud.update(); // the debug console's cheats show at once (D109)
         view.render(null, 1);
         requestAnimationFrame(frame);
         return;
       }
 
-      acc += now - last;
+      acc += (now - last) * b.speed; // D109: the console's sim speed (more or fewer fixed ticks)
       last = now;
+      view.draws.vfxTimeScale = b.speed;
       let steps = Math.floor(acc / CLASSIC_TICK_MS);
       if (steps > MAX_TICKS_PER_FRAME) {
         steps = MAX_TICKS_PER_FRAME;
@@ -353,6 +405,7 @@ function playLevel(view: View, controls: Controls, sfx: SoundEffects, music: Mus
         controls.sample();
         cheats.poll(); // [cheats] JE_mainKeyboardInput, at the end of the C's frame
         const result = tick();
+        b.ticks++;
         sfx.playQueue(g.soundQueue);
         view.setDrawList(drawList);
 
@@ -362,7 +415,7 @@ function playLevel(view: View, controls: Controls, sfx: SoundEffects, music: Mus
         if (g.reallyEndLevel) {
           hud.update();
           view.render(null, 1);
-          resolve(result.completed || !g.allPlayersGone ? "completed" : "died");
+          end(result.completed || !g.allPlayersGone ? "completed" : "died");
           return;
         }
       }

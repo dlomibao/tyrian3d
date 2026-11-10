@@ -1,6 +1,7 @@
 // The screens around the Options menu, on the interface framework (src/ui/README.md):
 //   showOptions      the settings screen: music and sound volume, music and sound style, the terrain
-//                    look (D57), the interface and camera (D61), the keyboard bindings and a gamepad button check. The title's Options entry opens it, and
+//                    look (D57), the interface and camera (D61), the keyboard bindings, a gamepad button check
+//                    and the debug console's entry (D109). The title's Options entry opens it, and
 //                    so do the item screen's Joystick and Keyboard rows (the C's MENU_JOYSTICK_CONFIG
 //                    and MENU_KEYBOARD_CONFIG, game_menu.c L386-440, L2668-2745).
 //   showLoadScreen   JE_loadScreen (mainint.c L619-901): the title's list of saved games.
@@ -23,6 +24,7 @@ import { JE_changeVolume, set_volume, volume, volumeFromBarCells, VOLUME_STEP } 
 import { backButton, button, h, keyHints, MenuList, moveFocus, reveal, showScreen, title, type InputDevice, type Intent, type KeyHint } from "../ui";
 import { ACTIONS, BINDING_SLOTS, bindKey, clearKey, keyName, playerKeys, resetKeys, type Action, type PlayerIndex } from "./bindings";
 import { savePrefs } from "./prefs";
+import { openDebugConsole } from "./consoleBridge";
 import { setTerrainStyle, TERRAIN_STYLES, terrainStyle, type TerrainStyle } from "../core/terrainStyle";
 import { cameraStyle, interfaceStyle, resolutionStyle, type DisplayChoice } from "../core/displayStyle";
 
@@ -145,6 +147,7 @@ export type OptionsRow =
   | { kind: "key"; action: Action; label: string; player: PlayerIndex }
   | { kind: "reset"; label: string; player: PlayerIndex }
   | { kind: "pad"; label: string }
+  | { kind: "console"; label: string }
   | { kind: "done"; label: string };
 
 export type OptionsFocus = "sound" | "keyboard" | "joystick";
@@ -186,6 +189,7 @@ export function optionsRows(
       { kind: "reset" as const, label: keyMenu[9] || "Reset to Defaults", player },
     ]),
     { kind: "pad", label: "Check gamepad buttons" },
+    { kind: "console", label: "Debug console" }, // D109: cheats, hidden settings, level jumps
     { kind: "done", label: keyMenu[10] || "Done" },
   ];
 }
@@ -231,6 +235,8 @@ export interface SettingsHost {
   display?: Partial<Record<DisplayTarget, { styles: readonly string[]; current(): string; set(style: string): void }>>;
   /** Leave the settings screen. */
   close(): void;
+  /** The debug console (D109): opened once the settings screen has closed, over the screen beneath. */
+  openConsole?(): void;
 }
 
 /**
@@ -344,6 +350,11 @@ export class SettingsMenu {
         this.checking = true;
         this.bHeldSince = 0;
         break;
+      case "console":
+        sound(S_CLICK);
+        this.host.close();
+        this.host.openConsole?.();
+        break;
       case "done":
         sound(S_CLICK);
         this.host.close();
@@ -419,6 +430,7 @@ export class SettingsMenu {
         );
       case "reset": return g.mainMenuHelp[25 - 1] ?? "";
       case "pad": return "See which gamepad buttons the game reads, and what they do.";
+      case "console": return "A command line for testing: cheats, hidden settings and looks, and jumps to any level. ` (backtick) opens it too.";
       case "done": return g.mainMenuHelp[12 - 1] ?? "";
     }
   }
@@ -498,6 +510,8 @@ export function showOptions(host: OptionsHost, focus: OptionsFocus = "sound"): P
       },
       display,
       close: finish,
+      // After this screen has closed, so the console is right over the title, pause screen or shop.
+      openConsole: () => void openDebugConsole(),
     });
     const rows = menu.rows;
 
@@ -520,7 +534,7 @@ export function showOptions(host: OptionsHost, focus: OptionsFocus = "sound"): P
     });
 
     // The rows, in sections: Sound, Graphics, Keyboard (the C's KEY CONFIG), player 2's keyboard,
-    // Gamepad, then Done.
+    // Gamepad, Testing (the debug console), then Done.
     const keyMenu = g.menuInt[6] ?? [];
     const sectionOf = (r: OptionsRow) =>
       r.kind === "style" && isGraphics(r.which)
@@ -531,15 +545,17 @@ export function showOptions(host: OptionsHost, focus: OptionsFocus = "sound"): P
             ? 2 + r.player
             : r.kind === "pad"
               ? 4
-              : 5;
+              : r.kind === "console"
+                ? 5
+                : 6;
     const keyboard = keyMenu[0] ? styleName(keyMenu[0].toLowerCase()) : "Keyboard";
-    const sectionTitles = ["Sound", "Graphics", keyboard, `${keyboard} · ${g.miscText[49]?.trim() || "Player 2"}`, (g.menuInt[13] ?? [])[0] || "Gamepad", ""];
+    const sectionTitles = ["Sound", "Graphics", keyboard, `${keyboard} · ${g.miscText[49]?.trim() || "Player 2"}`, (g.menuInt[13] ?? [])[0] || "Gamepad", "Testing", ""];
     // The sections in columns on wide screens (D85): Sound and Graphics, then each player's keys
     // (the gamepad's check under player 2's), and Done centred under them.
     const groups = [0, 1, 2].map(() => h("ul", { class: "ui-menu opt-group", attrs: { role: "presentation" } }));
     const doneGroup = h("ul", { class: "ui-menu opt-group opt-group--done", attrs: { role: "presentation" } });
     const list = h("div", { class: "opt-list", attrs: { role: "listbox", "aria-label": "Settings" } }, h("div", { class: "opt-cols" }, ...groups), doneGroup);
-    const groupOf = (s: number) => (s === 5 ? doneGroup : groups[s <= 1 ? 0 : s === 2 ? 1 : 2]);
+    const groupOf = (s: number) => (s === 6 ? doneGroup : groups[s <= 1 ? 0 : s === 2 ? 1 : 2]);
     const rowEls: HTMLLIElement[] = [];
     let section = -1;
     rows.forEach((r, i) => {

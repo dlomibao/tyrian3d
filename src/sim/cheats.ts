@@ -79,11 +79,19 @@ export function JE_mainKeyboardInput(keysactive: KeysActive): void {
   /* {CHEAT-SKIP LEVEL} */
   if (k("F2") && k("F6") && (k("F7") || k("F8")) && !k("F9") && !g.superTyrian && g.superArcadeMode === SA_NONE) {
     // (isNetworkGame: skipLevelRequest)
-    g.levelTimer = true;
-    g.levelTimerCountdown = 0;
-    g.endLevel = true;
-    g.levelEnd = 40;
+    cheatSkipLevel();
   }
+}
+
+/**
+ * {CHEAT-SKIP LEVEL}'s effect (JE_mainKeyboardInput, above): the level ends as though its timer had run
+ * out, so it finishes as a completed level 40 ticks later. Also the debug console's `skip`.
+ */
+export function cheatSkipLevel(): void {
+  g.levelTimer = true;
+  g.levelTimerCountdown = 0;
+  g.endLevel = true;
+  g.levelEnd = 40;
 }
 
 /** difficultySelect's menu items in order (menus.c L612-629): item i sets this difficultyLevel. */
