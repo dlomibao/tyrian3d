@@ -5115,6 +5115,9 @@ sub-pixel `iou_rule` on its five frames, the round orbs against the stair-steppe
 `tools/sprite_mask.py --measure`; edge -0.01 to +0.06 px). Like `newsh-caret-171` in D116, it ships on the grid value.
 Every other item is ≥ 0.95 on the rule as reported.
 
+**Inventory** (regenerated, bot run): 36 of the 40 units are `flagship`, `assembly-newshm-45` included; episode 1 is
+now 123 flagship / 40 older / 165 enemy units (was 87 / 76). The 4 left are the asteroids `newshd-152/114/133/5`.
+
 **Rebuild check:** `newshs-9.py`, `newshc-77.py` and `newsha-89.py` rebuilt clean in a throwaway worktree
 (`build-models.sh -j 2 -n`). `newsha-89` and all eight `newshc-77` glbs are byte-identical; `newshs-93`/`-93-f2` differ
 only in triangle index order, and `newshs-9`'s outline shell in vertex order (decimation; same vertex count, bounds

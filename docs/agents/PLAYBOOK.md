@@ -136,7 +136,7 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
   0.93M tokens, ~45 min. 31 of 32 passed strict review (one shipped at 6/10 by the coordinator).
   Rule of thumb: ~6.4 agents and ~0.9M tokens per item (~5 agents, ~0.7M per inventory unit); at 8
   concurrent, plan ~10 min of wall clock per item.
-- **Cost/time (e1-enemies-2, D121, 32 items = ~40 inventory units: 11 hero, 21 standard):** 172 agents
+- **Cost/time (e1-enemies-2, D121, 32 items = 40 inventory units, 36 done: 11 hero, 21 standard):** 172 agents
   (1 scout, 11 blueprints, 43 designs, 11 judges, 32 finishes on Sonnet, 21 fixes, 53 reviews), 21.8M
   subagent tokens, about 5.8 h wall clock at `maxAgents: 7`. Per-agent median: blueprint 10.5 min,
   design 18.6 (max 64), judge 1.9, finish 6.4 (max 41), fix 17.7 (max 57), review 5.5 (max 20). Then
