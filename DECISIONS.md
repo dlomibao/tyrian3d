@@ -4993,3 +4993,37 @@ the pre-D88 model), `viewer-nort-ship.png`, `viewer-ink-outline-on-vs-off.png`, 
 `game-*.png` (main | this), `silver-banking-frames-iou.png` (each frame's sprite beside the model's
 top view at the fitted pose). Raw captures beside it; the pre-D88 script and GLB in `ref/`. Fallback: the two scripts, GLBs and the Silver Ship's
 spriteModels entry from main.
+
+## D119 — The play harness no longer holds the armour at 0 without `&armor=`; the wear rule was right
+
+2026-11-10
+
+**Problem:** in `?debug=play` captures the Silver Ship showed heavy wear (D90: orange scorch, embers)
+from tick 12 on, at what should be full armour; its hangar render was clean. The PR #150 captures
+(`tyrian-scratch/ship-refit-fixes/sheets/game-silver-ship.png`) used
+`?debug=play&seed=1&ship=11&freezeAt=T&steer=left|right&solid=1`, without `&armor=`.
+- **The armour really was 0.** `tyrianHarness.g.player[0].armor` read 0 at every tick (12, 300, 700),
+  for the Talon too; the draw list's `ships` was `[{armor: 0, reference: 10}]`, so wear level 2.
+- **The cause: D90's `&armor=` parser.** Without the parameter it split `""` into `[""]`, and
+  `Number("")` is 0, so the plan was "hold 0 from tick 0". The harness's own default (top the
+  armour up to 28 with `&solid=1`, else 10) never ran. Every `?debug=play` run since D90 without
+  `&armor=` held the armour at 0: every ship looked heavily worn, and with `&solid=1` the first hull
+  hit would kill the bot.
+- **Not the cause:** `shipDamage.ts`, the reference, the Silver Ship's model. The reference is the
+  ship's `initial_armor` (its item's `dmg`: Silver Ship 10, Talon 10), as D90 says. With
+  `&armor=28` / `4` / `2` the old code drew clean / light / heavy. A real game start (console
+  `level 1 tyrian`, the Talon and then the Silver Ship) read `armor 9 of 10`, wear level 0.
+
+**Decision:**
+- `src/debug/armorPlan.ts` parses `&armor=`: empty or malformed entries are dropped, so without the
+  parameter nothing is held and the harness tops the armour up as documented. `&armor=0` still holds 0.
+- No change to the wear rule or its constants.
+- Tests: `tests/debug/armorPlan.test.ts` (absent, empty, single values, schedules, junk);
+  `tests/sim/shipWear.test.ts` starts level 1 with each ship 1-13 and checks the draw list carries
+  the level-start armour (`min(dmg, 28)`) against `dmg`: clean at the start, light at 40%, heavy
+  at 20%, clean at exactly 50%.
+
+**Review:** `tyrian-scratch/ship-wear-check/ship-wear-sheet.png`: the Silver Ship and the Talon
+before (no `&armor=`: held at 0, heavy) and after (full: clean; `&armor=4`: light; `&armor=2`:
+heavy), and SuperCarrot, Phoenix, Stalker, U-Ship and Nort Ship clean at full. Ships 1-13 at ticks
+12, 300 and 700, with and without `&armor=28`: armour 28, wear level 0 (`caps/ticks-*.txt`).

@@ -22,7 +22,9 @@
 //   &interface=frame|minimal       the HUD (D61); &camera=overhead|tilted|steep
 //   &armor=N                       hold the bot's armour at N, or N@T,N@T from tick T on (D90: the
 //                                  ship's wear; under 6: the low-armour warning, which
-//                                  sends the armour ship every 500 ticks)
+//                                  sends the armour ship every 500 ticks). Without it the armour
+//                                  is never held, only topped up (to 28 with &solid=1, else 10),
+//                                  so the ship is drawn clean (D119)
 //   &steer=left|right              hold the ship against that side instead of sweeping (the x limits)
 //   &hurt=1                        every enemy that has a damaged look takes it at its next hit (armour
 //                                  cut to just above its damage level), to look at damaged frames (D87)
@@ -48,6 +50,7 @@ import type { View } from "../render/view";
 import { levelModelInfo, preloadLevelModels } from "../app/levelPreload";
 import { levelDamageFrames } from "../sim/levelSprites";
 import { Hud } from "../app/hud";
+import { armorAt, parseArmorPlan } from "./armorPlan";
 
 /** Front weapons the cycle goes through: Pulse, Multi, Laser, Zica, Vulcan, Lightning, Starburst, Sonic, Protron, Missiles, Mega Pulse, Hyper Pulse. */
 const FAVOURITES = [1, 2, 4, 5, 7, 8, 9, 11, 12, 17, 19, 27];
@@ -96,20 +99,14 @@ export async function runPlayHarness(view: View): Promise<void> {
   const solid = num("solid", 0) > 0;
   const freezeAt = num("freezeAt", -1);
   // `&armor=N`, or a schedule `N@T,N@T,...` (hold N from tick T on), e.g. 1@0,8@400 for a pickup.
-  const armorPlan = (params.get("armor") ?? "")
-    .split(",")
-    .map((s) => s.split("@").map(Number))
-    .filter(([n]) => Number.isFinite(n) && n >= 0)
-    .map(([n, at]) => ({ n, at: Number.isFinite(at) ? at : 0 }))
-    .sort((a, b) => a.at - b.at);
-  const armorAt = (tick: number) => armorPlan.reduce((v, s) => (tick >= s.at ? s.n : v), -1);
+  const armorPlan = parseArmorPlan(params.get("armor"));
   const steer = params.get("steer");
   const hurt = num("hurt", 0) > 0;
   const cycleTicks = num("cycle", 0) * (1000 / CLASSIC_TICK_MS);
   const step = (show: boolean) => {
     // tests/sim/bot.ts: invulnerable, always firing, sweeping.
     p.invulnerable_ticks = solid ? 0 : 2;
-    const armor = armorAt(t);
+    const armor = armorAt(armorPlan, t);
     p.armor = armor >= 0 ? armor : Math.max(p.armor, solid ? 28 : 10);
     simInput.fire = true;
     simInput.left = steer === "left" || (steer !== "right" && Math.floor(t / 50) % 2 === 0);
