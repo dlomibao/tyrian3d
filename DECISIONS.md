@@ -5056,3 +5056,106 @@ right object, a clear improvement over D116's ground dome. Review sheet:
 **Lesson:** establish what an object *is* before modelling it, and judge "does it read as that object" first, before
 outline IoU, colours or detail. D116's dome matched the numbers and was still the wrong thing. The scout/design brief
 names the object type (blimp, ground bunker, rock, ship), and reviewers score object reading before anything else.
+
+## D121 — Episode-1 enemy rebuild, batch 2: 32 more models to the D65 hard-surface standard
+
+2026-11-10
+
+**Decision:** the next 40 episode-1 inventory units still in the older look (D116's ranking: not `flagship`, not
+pickups, most-seen first by the bot run's ticks on screen) are rebuilt with `tools/workflows/model-flagship.js`, as D116
+did (full mode, blueprints for heroes; D65's recipe: hard-surface geometry, AO/roughness bake `"bake": "model"`,
+outline shell, art rules 1-5). The scout folded the 40 units into 32 items: `assembly-newshm-45` is `newshm-7.py` (the
+lamp frames D116 left basic), `assembly-newshp-191` builds `newshp-191/193/153/155`, `assembly-newshd-127` is
+`assembly-newshd-245.py`, `newshs-9.py` absorbs `newshs-93.py` (deleted; `lib_b040` had no other user), and the five
+`lib_b014` asteroids were one item, `newshd-95` (see follow-ups: only `newshd-95` was rebuilt). No shared lib
+(`lib_b0xx`, `common.py`, `usp_talon.py`) was edited; several items went standalone instead. `newshc-77` gains
+`newshc-77-f8` for its wrecked frame 91. This also closes two D116 follow-ups: `newshm-7` is rebuilt (so
+`assembly-newshm-45` can count as flagship) and `newshc-77`'s eye socket, chrome and neck are redone.
+
+| Model | Tier | Top-view IoU (finisher, worst frame) | Review IoU | Score |
+|---|---|---|---|---|
+| newshm-7 (unit assembly-newshm-45) | hero | 0.9702 | 1.0 | 8 (fix round) |
+| newshm-117 | standard | 0.9846 | 0.9846 | 8 (fix round) |
+| newshd-95 | standard | 0.9823 | 0.9823 | 7 |
+| newshc-163 | hero | 0.9633 | 0.9633 | 8 |
+| newshd-228 | standard | 0.8577 (sub-pixel; grid 1.0) | 1.0 | 7.5 |
+| newshf-47 | standard | 0.9797 | 0.9847 | 8 |
+| newshd-77 | standard | 1.0 | 0.9961 | 8 |
+| assembly-newshp-191 (newshp-191/193/153/155) | hero | 1.0 | 1.0 | 7 |
+| newsha-167 | standard | 0.969 | 0.969 | 7 |
+| assembly-newshd-165 | hero | 1.0 | 1.0 | 7 |
+| newshc-49 | hero | 0.9858 | 0.9858 | 7.5 |
+| assembly-newshs-13 | hero | 0.987 | 0.9568 | 8 |
+| newshe-13 | standard | 1.0 | 0.9748 | 8 (fix round) |
+| assembly-newshp-9 | hero | 0.9831 | 0.9831 | 7 |
+| newsha-91 | standard | 0.9908 | 0.9908 | 8 |
+| newshc-77 (+ -f8, frame 91) | hero | 0.9535 | 0.9535 | 8 |
+| assembly-newshd-89 | hero | 0.9864 | 0.9766 | 8 |
+| newshd-121 | standard | 0.9943 | 0.9943 | 8 |
+| newshu-45 | standard | 0.9645 | 0.9645 | 7 |
+| newshi-278 | standard | 0.9541 | 0.9541 | 7.5 |
+| newsh-caret-163 | standard | 0.9655 | 0.9655 | 7 |
+| newshc-1 | standard | 0.9715 | 0.9717 | 8 (fix round) |
+| newsha-89 | standard | 0.9608 | 0.9721 | 8 (fix round) |
+| newshs-9 (+ newshs-93, -93-f2) | standard | 1.0 | 1.0 | 8 (fix round) |
+| newsha-283 | standard | 0.9718 | 0.9718 | 8 |
+| assembly-newshc-271 | hero | 0.9922 | 0.9922 | 8 |
+| assembly-newshd-245 (unit assembly-newshd-127) | hero | 0.9916 | 0.9916 | 8 |
+| newshe-155 | standard | 0.9647 | 0.9624 | 8 |
+| newshc-171 | standard | 0.9544 | 0.9544 (grid 1.0) | 7.5 |
+| newshd-123 | standard | 0.9662 | 0.9662 | 7 |
+| newshe-201 | standard | 0.973 | 0.9865 | 8 |
+| newshf-11 | standard | 1.0 | 1.0 | 8 |
+
+26 shipped by strict review in the run; `newshm-7`, `newshm-117`, `newshe-13`, `newshc-1`, `newsha-89` and `newshs-9`
+after one `fix-round.js` pass (all 8/10). **IoU gate** (D116, OUTLINE-BORDER.md: `iou_rule_grid` ≥ 0.95):
+`newshd-228` (the merging ice orbs, a size-1 sprite of 4-px orbs, inner masks of 12-24 px) is 0.8577-0.8701 on the
+sub-pixel `iou_rule` on its five frames, the round orbs against the stair-stepped mask, and grid 1.0 on all five
+(228, 247, 266, 304, 285; the coordinator re-rendered the shipped glbs' top views with the shells hidden and ran
+`tools/sprite_mask.py --measure`; edge -0.01 to +0.06 px). Like `newsh-caret-171` in D116, it ships on the grid value.
+Every other item is ≥ 0.95 on the rule as reported.
+
+**Inventory** (regenerated, bot run): 36 of the 40 units are `flagship`, `assembly-newshm-45` included; episode 1 is
+now 123 flagship / 40 older / 165 enemy units (was 87 / 76). The 4 left are the asteroids `newshd-152/114/133/5`.
+
+**Rebuild check:** `newshs-9.py`, `newshc-77.py` and `newsha-89.py` rebuilt clean in a throwaway worktree
+(`build-models.sh -j 2 -n`). `newsha-89` and all eight `newshc-77` glbs are byte-identical; `newshs-93`/`-93-f2` differ
+only in triangle index order, and `newshs-9`'s outline shell in vertex order (decimation; same vertex count, bounds
+within 3e-5).
+
+**Follow-ups (known):**
+- Glow materials wash out in the game: `src/render/modelFrames.ts` (line 87) copies the palette colour into
+  `emissive`, and the environment and sun light add on top. `newshm-7`'s lens reads salmon/pink-red instead of a
+  yellow core in orange/red (frame 9) or a dim ember (frame 7); `newsha-89`'s pit floor reads about pal 118 against the
+  sprite's 116 and its collar/core go pink-peach; `newsh-caret-163`'s outer bands do not glow. Needs an emissive-only
+  or unlit path for glow materials. `newshd-121` works round it with a local `dim_visor()` (a base-colour multiplier
+  on red visors), which belongs in `usp_talon.py`/`common.py` if kept.
+- The `lib_b014` asteroid family: only `newshd-95` was rebuilt (standalone; its `rock()` is spec-driven). Move
+  `rock()` into a new `lib_newshd_rock.py` and rebuild `newshd-152/114/133/5` (and `newshd-18/43`, the lib's other
+  users) so `lib_b014` can go; `newshd-123` (on `lib_b036`) should keep matching that rock look.
+- `newshc-77.py` reads frame 91's sprite from `tyrian-scratch/e1-enemies-2/newshc-77/blueprint/ref91/` (it is not in
+  `reference/models/newshc-77/`), and without it skips frame 91's extra colours silently. Make the catalogue write
+  frame 91 into the reference instead. `newshd-77`, `newshd-121`, `newshe-155` and `newshc-171` also write their bakes
+  or stats under `tyrian-scratch/` (as `newshf-1` and `newsha-169` already did): move them to `textures/<name>/`.
+- `assembly-newshc-283.py` (D65) reads `newshc-77.glb` for context; re-check that machine in a level after this
+  rebuild. Not captured in a level either: `assembly-newshp-191` (its seams against `newshs-191`/`newshm`
+  neighbours), `newshd-77`, `newshd-95` (no frame-95 asteroid in 6000 ticks of 1.1), and `newshi-278`'s damaged frames
+  268/270/272 (D87 should route them to the intact model).
+- Shared code: `common.split_assembly` keeps faces that lie on the cut plane, so a part flush with a seam leaks into
+  the next piece (`assembly-newshc-271` pulled its plinth in to 24.02..47.98); `common.export_glb` should take a
+  `vertex_color_name` (`assembly-newshd-245` patches it for its COLOR_0 lens glow); `newsha-169.py` and
+  `newshe-201.py` are near-duplicates (a `lib_mine.py` with ramp and slot arguments); `common.outline_shell` keeps
+  only the largest island, so `newshc-77`'s wreck (frame 91, loose parts) shells each part in a local `wreck_shell()`:
+  give it a keep-all-islands option.
+- `?viewer=` cannot show `assembly-newshp-9` or `newshe-201-f2/-f3` (they fall back to atom-bombs); capture the
+  pieces (`?viewer=newshp-1`) until `src/viewer/assemblies.json` is regenerated (`npm run catalogue`).
+- Polish the reviews listed as optional: `assembly-newshp-9`'s derrick leans only ~12° (reads as a low ramp from the
+  side); `assembly-newshp-191`'s sinking-stone liners show before the stones drop and its rubble borders read as
+  beads; `assembly-newshs-13`'s eave tips float when `newshs-89/91` are shown alone; `newshm-117`'s shell is still
+  3,000 faces (asked 1,500-2,000); `newshc-77`'s sight slit reads as two specks; `assembly-newshd-165`'s docstring
+  is stale.
+
+**Cost:** 172 agents (1 scout, 11 blueprints, 43 designs, 11 judges, 32 finishes on Sonnet, 21 fixes, 53 reviews),
+21.8M subagent tokens, about 5.8 h at `maxAgents: 7`; the fix round (`fix-round.js`, 6 items) 12 agents, 1.18M
+tokens, about 27 min. Sheets: `tyrian-scratch/e1-enemies-2/<name>/final/` and `.../fixround/<name>/final/` (not in
+git, D3).

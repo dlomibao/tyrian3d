@@ -136,6 +136,13 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
   0.93M tokens, ~45 min. 31 of 32 passed strict review (one shipped at 6/10 by the coordinator).
   Rule of thumb: ~6.4 agents and ~0.9M tokens per item (~5 agents, ~0.7M per inventory unit); at 8
   concurrent, plan ~10 min of wall clock per item.
+- **Cost/time (e1-enemies-2, D121, 32 items = 40 inventory units, 36 done: 11 hero, 21 standard):** 172 agents
+  (1 scout, 11 blueprints, 43 designs, 11 judges, 32 finishes on Sonnet, 21 fixes, 53 reviews), 21.8M
+  subagent tokens, about 5.8 h wall clock at `maxAgents: 7`. Per-agent median: blueprint 10.5 min,
+  design 18.6 (max 64), judge 1.9, finish 6.4 (max 41), fix 17.7 (max 57), review 5.5 (max 20). Then
+  `fix-round.js` on 6 items: 12 agents (6 fixes, 6 reviews), 1.18M tokens, ~27 min. 26 of 32 passed
+  strict review in the run, the other 6 after the fix round (all 8/10). Rule of thumb with fewer
+  heroes: ~5.75 agents and ~0.72M tokens per item; at 7 concurrent, plan ~11 min of wall clock per item.
   Lean mode (no blueprint, one design, Opus build + review) is what forward-push did for the 7
   player ships: 16 agents for ships + two unrelated fixes, 42 min (its reviews were Sonnet; see tiers).
 
