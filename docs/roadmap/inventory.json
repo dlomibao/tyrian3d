@@ -45,8 +45,8 @@
     "uniqueSprites": 888,
     "units": 222,
     "enemyUnits": 159,
-    "enemyUnitsModelled": 158,
-    "enemyUnitsFlagship": 149,
+    "enemyUnitsModelled": 159,
+    "enemyUnitsFlagship": 153,
     "damageFramesMissing": 0,
     "tilesets": 2,
     "tilesetsWithHd": 2,
@@ -135,7 +135,7 @@
     "units": 249,
     "enemyUnits": 191,
     "enemyUnitsModelled": 191,
-    "enemyUnitsFlagship": 111,
+    "enemyUnitsFlagship": 112,
     "damageFramesMissing": 0,
     "tilesets": 3,
     "tilesetsWithHd": 3,
@@ -21623,8 +21623,9 @@
     "newshc.shp|2": [39,41,43]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
+   "bake": "model",
    "framesSeen": {
     "newshc.shp|2": [39,41,43]
    },
@@ -22157,7 +22158,7 @@
     "newshd.shp|2": [229,231,233,235]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshd.shp|2": [229,231,233,235]
@@ -25745,7 +25746,7 @@
    "damageFrames": {
     "newshp.shp|2": [235]
    },
-   "status": "basic",
+   "status": "flagship",
    "damage": "modelled",
    "framesSeen": {
     "newshp.shp|2": [271,273,275,277]
@@ -25849,7 +25850,7 @@
     "newshp.shp|1": [95,114,133,152]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {},
    "types": [
@@ -34654,15 +34655,6 @@
     "ticks": 4000
    },
    {
-    "id": "newshc-39",
-    "what": "air",
-    "status": "basic",
-    "levels": 3,
-    "episodes": 2,
-    "events": 6,
-    "ticks": 145
-   },
-   {
     "id": "newshl-115",
     "what": "ground",
     "status": "basic",
@@ -37138,15 +37130,6 @@
     "ticks": 434
    },
    {
-    "id": "newshp-271",
-    "what": "air",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 2,
-    "ticks": 434
-   },
-   {
     "id": "newshj-117",
     "what": "ground",
     "status": "basic",
@@ -37264,15 +37247,6 @@
     "ticks": 165
    },
    {
-    "id": "newshd-229",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 163
-   },
-   {
     "id": "newshl-157",
     "what": "air",
     "status": "sprite",
@@ -37361,15 +37335,6 @@
     "episodes": 1,
     "events": 0,
     "ticks": 9
-   },
-   {
-    "id": "newshp-95",
-    "what": "ground",
-    "status": "sprite",
-    "levels": 1,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 0
    }
   ],
   "pickups": [],

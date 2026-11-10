@@ -5325,3 +5325,56 @@ subagent tokens, about 2.2 h at 6 concurrent, for 16 items covering 36 units (4 
 median: design 10.8 min (max 35), finish 2.1 (max 33), fix 11.4, review 3.5 (max 34). Sheets:
 `tyrian-scratch/e1-enemies-3/<name>/final/`, the coordinator's measurements in `tyrian-scratch/e1-enemies-3/integrate/`
 (not in git, D3).
+
+## D124 — Episode-1 enemy rebuild, batch 4: the last four units to the D65 hard-surface standard
+
+2026-11-10
+
+The four units D123 left (its follow-ups) were rebuilt by a `model-flagship` run (wf_896154b4-68b) to the same rules
+as D123 (original sprite wins on outline, features and colour; D52, D65; outline shell D50, D51). All four shipped, no
+unit failed. Episode 1 is now **153 flagship / 6 not / 159 enemy units**; the six left are the `lib_b014` asteroids
+(`newshd-152/114/133/5/43/18`, the `asteroids` branch).
+
+| Unit | Identity | Top-view IoU (worst frame) | Review score |
+|---|---|---|---|
+| newshp-271 | fixed twin-cannon ground turret on its stone pad, four frames (271/273/275/277) | 0.9541 (turret only; grid 0.9688-0.9851) | 7 |
+| newshp-95 (new script, spriteModels entry, GLB) | launched green missile (type 460, mv 0,5, launched by `newshs-93`), the green palette swap of `newshp-19`; one geometry, four frames | 0.951 (dark outline ring excluded, as D51) | 8 |
+| newshc-39 | fixed vent block with a gun emplacement on `assembly-newshc-283`'s floor, frames 39/41/43; `maps.json` with `"bake": "model"` | 0.958 | 8 |
+| newshd-229 | free-flying crystal asteroid (rock plus a per-frame emissive gem), frames 229/231/233/235 | 0.984 | 7.5 |
+
+**Notes on the build.**
+- `newshp-95.py` loads `newshp-19.py` read-only (importlib) and calls its `build_missile` with the green body pair (39,
+  41) read from the sprite. It depends on `newshp-19.py`'s `build_missile` signature. Its input,
+  `reference/models/newshp-95/` (`sprite.json` plus frame PNGs, made from the game data because the catalogue bot never
+  saw it on screen), lives in the git-ignored `reference/` symlink, as every script's input does (`newshp-19` reads
+  `reference/models/newshp-19/`). The committed GLBs mean CI doesn't rebuild models; to rebuild on a fresh checkout,
+  regenerate the reference entry first (the catalogue or `tools/sprite_mask.py`'s sprite.json step).
+- `newshc-39.py` was fixed in one round (boolean palette transfer, groove-free outline-shell source, a darker apron, the
+  mantlet and gun on the plate lip) and its `tube()` degenerate-axis bug on the x axis fixed.
+- `newshp-271.py` and `newshd-229.py` are rewritten on `common.export_sprite_model` with repo-relative paths; their
+  spriteModels entries came out byte-identical.
+- `lib_b123`, `lib_b110` and `lib_b036` have no users left and are deleted.
+
+**Follow-ups (known):**
+- `newshp-271`: the muzzle-brake boxes have square outer bottom corners (sprite rounds them; a 1 px chamfer would raise
+  the turret-only IoU, which has little margin, 0.954-0.958); side lamps stick out about 1 px; the muzzle bore is a flat
+  red disc that reads as a lamp lens from the front. It has no texture bake (`textures/newsh2-271` is an old name).
+- `newshp-95` (inherited from `newshp-19`'s shared `build_missile`, already in D123): the dorsal fin draws a dark line
+  down the bell from above and hides the exhaust core from the tilted camera. Colour drift of one ramp step in places
+  (row 4 reads 8 for 9; vane lips 103 for 101). Not checked in a level (the missile appears in 1.3 and the bot saw 0
+  ticks of it); IoU was measured from the design-step render of the same geometry, not the final GLB.
+- `newshc-39`: the block reads a step paler than the sprite, and the pal_8 bolt heads throw small specular pings (lower
+  pal_8's metallic or raise its roughness toward pal_7's 0.45/0.42); glow bars start at col 8 where the sprite's slot
+  wall is ink (trivial). IoU has little margin: any edit must not pull the base in.
+- `newshd-229`: from the game camera the V grooves read as four pillow lobes round the gem (narrow them away from the
+  junction); the 233 crystal reads pale periwinkle (124,124,252) against the sprite's royal blue, a renderer matter
+  (`modelFrames.ts` adds the colour to the emissive): re-capture 231/233/235 after the emissive fix and lower the GEMS
+  strengths (3.5-6.0) only if 233 still washes out. The rock recipe is copied inline from `newshd-85`: move it into a
+  shared `lib_rock` helper in a separate change.
+- Not run in a level (`?debug=play`): `newshp-271`, `newshp-95`, `newshd-229` (viewer only); `newshc-39` was captured in
+  1.5 at tick 2542.
+
+**Inventory** (regenerated, bot run): episode 1 is 153 flagship / 6 not / 159 enemy units (was 149 / 10 / 159); whole
+game 155 flagship of 479. M0 shared units not flagship-done: 130.
+
+**Cost:** 15 agents, 1.63M subagent tokens. Sheets: `tyrian-scratch/e1-enemies-4/<name>/final/` (not in git, D3).

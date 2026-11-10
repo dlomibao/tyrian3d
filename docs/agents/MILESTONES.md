@@ -53,7 +53,7 @@ Tyrian 2.1 has four episodes (`tyrian1.lvl`..`tyrian4.lvl` in the data); there i
 
   | Asset group | Count | Used in episodes | Already at standard | Workflow | Est. agents | Status |
   |---|---|---|---|---|---|---|
-  | Shared enemy/boss models | 131 enemy units not flagship-done, used by ≥ 2 levels (30 of them span ≥ 2 episodes). Top: newsh3-229 (5 levels), newsh3-246 (5 levels), newshd-114 (5 levels), newshd-133 (5 levels), newshd-152 (5 levels) | 101 units in 1 episode, 24 in 2, 6 in 3, 0 in 4 | 131 of 262 shared units | model-flagship (full) | ~786 (131 x ~6) | |
+  | Shared enemy/boss models | 130 enemy units not flagship-done, used by ≥ 2 levels (29 of them span ≥ 2 episodes). Top: newsh3-229 (5 levels), newsh3-246 (5 levels), newshd-114 (5 levels), newshd-133 (5 levels), newshd-152 (5 levels) | 101 units in 1 episode, 23 in 2, 6 in 3, 0 in 4 | 132 of 262 shared units | model-flagship (full) | ~780 (130 x ~6) | |
   | Tileset `shapes)` | 1 / 43 / 26 = 70 tiles left / structures n/a (see inventory.md) | E4: 10 levels (4-4, 4-5, 4-6, 4-7, 4-9, 4-10, 4-12, 4-15, 4-17, 4-18) | 0 | terrain-hd + model-flagship (structure) | 5-9 (HD) + ~6 per structure (count n/a) | |
   | Tileset `shapesw` | 13 / 45 / 68 = 126 tiles left / structures n/a (see inventory.md) | E3, E4: 7 levels (3-1, 3-4, 3-6, 3-9, 4-8, 4-11, 4-20) | 0 | same | 5-9 (HD) + ~6 per structure (count n/a) | |
   | Tileset `shapesx` | 8 / 131 / 28 = 167 tiles left / structures n/a (see inventory.md) | E2, E4: 7 levels (2-1, 2-2, 2-6, 2-10, 2-11, 2-12, 4-13) | 0 | same | 5-9 (HD) + ~6 per structure (count n/a) | |
@@ -80,13 +80,13 @@ Tyrian 2.1 has four episodes (`tyrian1.lvl`..`tyrian4.lvl` in the data); there i
   |---|---|---|---|---|---|---|---|---|
   | 1-9 | TYRIAN (first level, sec 3) | shapesz | 28 rebuilt (D65) / 30 flagship of 30 total (30 shared, 0 unique) | done (D47, D63, D66) | done (D59) | done (D43) | sweep in flight | polish |
   | 1-15 | TYRIAN (sec 3) | shapesz | 30 / 30 / 0 / 30 | done (map Z, as 1-9) | 81/138 | done | ~3 | todo (same map and models as 1-9) |
-  | 1-1 | ASTEROID1 (sec 5) | shapesz | 39 / 32 / 7 / 33 | todo | 59/62 | done | ~9 | todo |
+  | 1-1 | ASTEROID1 (sec 5) | shapesz | 39 / 32 / 7 / 34 | todo | 59/62 | done | ~3 | todo |
   | 1-2 | ASTEROID2 (sec 6) | shapesz | 36 / 35 / 1 / 30 | todo | 62/65 | done | ~3 | todo |
   | 1-12 | SAVARA (sec 10) | shapesy | 21 / 21 / 0 / 21 | todo | 65/67 | done | ~3 | todo |
   | 1-7 | MINES (sec 13) | shapesz | 9 / 8 / 1 / 9 | todo | 17/20 | done | ~3 | todo |
   | 1-4 | BUBBLES (sec 16) | shapesz | 6 / 4 / 2 / 6 | todo | 41/44 | done | ~3 | todo |
-  | 1-5 | DELIANI (sec 19) | shapesz | 21 / 21 / 0 / 20 | todo | 24/79 | done | ~3 | todo |
-  | 1-3 | ASTEROID? (sec 21) | shapesz | 41 / 33 / 8 / 33 | 7 matched | 54/57 | done | ~15 | todo |
+  | 1-5 | DELIANI (sec 19) | shapesz | 21 / 21 / 0 / 21 | todo | 24/79 | done | ~3 | todo |
+  | 1-3 | ASTEROID? (sec 21) | shapesz | 41 / 33 / 8 / 35 | 7 matched | 54/57 | done | ~3 | todo |
   | 1-6 | MINEMAZE (sec 23) | shapesz | 12 / 12 / 0 / 12 | todo | 19/30 | done | ~3 | todo |
   | 1-10 | BONUS (sec 25) | shapesz | 14 / 14 / 0 / 14 | todo | 13/16 | done | ~3 | todo |
   | 1-11 | HOLES (sec 28) | shapesz | 18 / 17 / 1 / 18 | 13 matched | 88/90 | done | ~3 | todo |
@@ -131,7 +131,7 @@ Tyrian 2.1 has four episodes (`tyrian1.lvl`..`tyrian4.lvl` in the data); there i
   |---|---|---|---|---|---|---|---|---|
   | 3-3 | GAUNTLET (sec 2) | shapesz | 18 / 18 / 0 / 10 | todo | 29/41 | done | ~3 | todo |
   | 3-4 | IXMUCANE (sec 4) | shapesw | 24 / 18 / 6 / 1 | todo | 58/75 | done | ~27 | todo |
-  | 3-5 | BONUS (sec 6) | shapesz | 13 / 12 / 1 / 10 | todo | 23/47 | done | ~7 | todo |
+  | 3-5 | BONUS (sec 6) | shapesz | 13 / 12 / 1 / 11 | todo | 23/47 | done | ~7 | todo |
   | 3-7 | STARGATE (sec 8) | shapesz | 9 / 6 / 3 / 5 | todo | 42/46 | done | ~15 | todo |
   | 3-1 | CAMANIS (sec 10) | shapesw | 17 / 10 / 7 / 3 | todo | 57/84 | done | ~31 | todo |
   | 3-6 | FLEET (sec 12) | shapesw | 26 / 10 / 16 / 5 | todo | 23/90 | done | ~67 | todo |
@@ -139,7 +139,7 @@ Tyrian 2.1 has four episodes (`tyrian1.lvl`..`tyrian4.lvl` in the data); there i
   | 3-8 | TYRIAN X (sec 17) | shapesz | 28 / 28 / 0 / 28 | done (map Z, as 1-9) | 81/138 | done | ~3 | todo (same map and models as 1-9) |
   | 3-9 | SAWBLADES (sec 19) | shapesw | 19 / 18 / 1 / 1 | todo | 56/72 | done | ~7 | todo |
   | 3-10 | SAVARA Y (sec 21) | shapesy | 22 / 22 / 0 / 22 | todo | 161/163 | done | ~3 | todo |
-  | 3-11 | New Deli (sec 23) | shapesz | 22 / 22 / 0 / 20 | todo | 24/79 | done | ~3 | todo |
+  | 3-11 | New Deli (sec 23) | shapesz | 22 / 22 / 0 / 21 | todo | 24/79 | done | ~3 | todo |
   | 3-12 | MACES (sec 25) | shapesz | 8 / 8 / 0 / 2 | todo | 13/16 | done | ~3 | todo |
 
 ## M4: Episode 4
@@ -179,13 +179,13 @@ Totals from the tables above (agents by that formula; M0 is the shared enemy mod
 
 | Milestone | Levels | Unique unfinished enemy units | Est. agents |
 |---|---|---|---|
-| M0 | all 62 (shared work) | 131 shared | ~786 for models + 5-9 per tileset HD run (structures n/a, see inventory.md) + ~48 Gemini requests for flat art |
-| M1 | 18 | 3 | 72 |
+| M0 | all 62 (shared work) | 130 shared | ~780 for models + 5-9 per tileset HD run (structures n/a, see inventory.md) + ~48 Gemini requests for flat art |
+| M1 | 18 | 0 | 54 |
 | M2 | 12 | 61 | 402 |
 | M3 | 12 | 35 | 176 |
 | M4 | 20 | 98 | 452 |
 
-M1-M4 together: 1102 agents; 197 unique + 131 shared = 328 unfinished enemy units (479 enemy units − 151 flagship, per `inventory.json`).
+M1-M4 together: 1084 agents; 194 unique + 130 shared = 324 unfinished enemy units (479 enemy units − 155 flagship, per `inventory.json`).
 
 ## Known issues (from the inventory run)
 
