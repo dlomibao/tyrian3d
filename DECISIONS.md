@@ -4794,6 +4794,9 @@ every frame: `newsh-caret-171` (0.9237, a size-1 sprite), `newshj-19` (0.9367 on
   `lib_b110.build_head`/`head_materials`), outside the item's scope: recess the eye socket (a dark disc with the eye in it,
   not thin ellipsoids on the dome), raise the ball/stem roughness to ~0.42-0.45 (now chrome), and make the neck a collar
   on the pillar axis (h = 5 px). Its own five models pass.
+- `assembly-newshm-45` stays `basic` in the regenerated inventory: the unit also draws frames 7/9/11, which
+  `newshm-7.json` maps to the older `newshm-7.glb` (`newshm-7.py`, lib_b073), and the item rebuilt only its six pieces
+  (45/47/49, 83/85/87). Rebuild `newshm-7` to match. The other 39 units of the batch are `flagship` now.
 - `newshm-55/123/153` still use `lib_b078`; move them to `lib_newshm_block.py` (variants plus emblems) so the family
   matches.
 - `src/viewer/assemblies.json` has no layout for `assembly-newshs-165`, `-newshm-45`, `-newshs-39`, `-newshp-165`, so
