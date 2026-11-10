@@ -4787,9 +4787,7 @@ every frame: `newsh-caret-171` (0.9237, a size-1 sprite), `newshj-19` (0.9367 on
 `newshe-233` (0.9446, 16x15 px). The reviewers shipped them on the grid value.
 
 **Follow-ups (known):**
-- `assembly-newshi-115` (SAVARA dome fortress) is 6/10 after four fix rounds: the cowl's ink grooves, the dome's egg
-  shading (it reads as a flat-topped canister from the side) and the rotor blades. Clearly better than the old basic
-  model, so it ships; it needs its own task.
+- `assembly-newshi-115` (SAVARA) was built here as a dome fortress, which was wrong: it is a blimp. Redone in D120.
 - `assembly-newshc-283`'s run ended `ok: false` only because of the pillar head `newshc-77` (`newshc-77.py` with
   `lib_b110.build_head`/`head_materials`), outside the item's scope: recess the eye socket (a dark disc with the eye in it,
   not thin ellipsoids on the dome), raise the ball/stem roughness to ~0.42-0.45 (now chrome), and make the neck a collar
@@ -5027,3 +5025,34 @@ from tick 12 on, at what should be full armour; its hangar render was clean. The
 before (no `&armor=`: held at 0, heavy) and after (full: clean; `&armor=4`: light; `&armor=2`:
 heavy), and SuperCarrot, Phoenix, Stalker, U-Ship and Nort Ship clean at full. Ships 1-13 at ticks
 12, 300 and 700, with and without `&armor=28`: armour 28, wear level 0 (`caps/ticks-*.txt`).
+
+## D120 — The SAVARA boss is a blimp: `assembly-newshi-115` rebuilt as an airship (corrects D116)
+
+**Problem:** D116 built `assembly-newshi-115` (the SAVARA boss, levels 1.8 / 1.12 / 1.17 / 3.10) as a flat-bottomed ground
+dome fortress. The user pointed out it is a **blimp**. The sprite's lozenge body, tail cap (`newshi-154`), propeller and
+nacelles are an airship's; a dome on the ground reads as the wrong object however well the outline matches.
+
+**Decision:** rebuilt as an airship in `assets/blender/enemies/assembly-newshi-115.py`:
+- a floating gas envelope: round underside, meridian seams converging toward the nose and the tail cap;
+- a propeller of airfoil blades on a hub inside a closed duct-guard loop;
+- a closed tail dome; nacelle colour corrected to the sprite's palette index.
+The pieces `newshi-{3,5,39,41,43,45,77,79,81,83,115,117,119,121}` and the `-f2` frames of 3/5/41/43 were rebuilt;
+`src/render/spriteModels/*.json` are unchanged.
+
+**Measured:** rule IoU grid 0.9801 (frame 1) / 0.9799 (frame 2); every piece >= 0.95 (worst `newshi-5` f2, 0.9531).
+Six fix rounds; the last strict review was still 6/10 "fix". Shipped by the coordinator because it now reads as the
+right object, a clear improvement over D116's ground dome. Review sheet:
+`tyrian-scratch/savara-blimp/assembly-newshi-115/final/cmp.png`.
+
+**Follow-ups (known):**
+- The propeller blades are irregular in size (the sprite's two frames are not a rotation of one real propeller).
+- The duct ring is lumpy; it should be a smooth constant-section ring parallel to the rotor disc.
+- The red centre mast crosses the rotor disc.
+- The envelope height is 0.55 of its width, not the 0.6-0.8 asked. **Needs a user decision:** the pass-height budget
+  is belly -5 against water -5.4, crown 31.5, fittings 33.6, with the ship passing at 34.2; may the envelope go higher?
+- The bow shoulder masses are lumpy.
+- The envelope shading is fairly flat from the game camera.
+
+**Lesson:** establish what an object *is* before modelling it, and judge "does it read as that object" first, before
+outline IoU, colours or detail. D116's dome matched the numbers and was still the wrong thing. The scout/design brief
+names the object type (blimp, ground bunker, rock, ship), and reviewers score object reading before anything else.
