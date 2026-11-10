@@ -251,6 +251,7 @@ SHEET_GROUPS = [
     ("rest-shots-player", ["rest-shots-player"]),
     ("rest-shots-11", ["rest-shots-11"]),
     ("rest-pickups", ["rest-pickups"]),
+    ("rest-hotdog", ["rest-hotdog"]),  # D108 follow-up: the 2x2 hot-dog alone, with a lettering prompt
     ("explosions-fireball", ["fireball"]),
     ("explosions-air", ["explosion-air"]),
     ("explosions-ground", ["explosion-ground"]),

@@ -4382,6 +4382,13 @@ The most-drawn one is #7 198 (7 levels, 3 episodes), with #7 199 (96,631 ticks) 
   original sprite (unit 92 stays extruded; the atlas still holds their unused pixels, and a plain re-cut would add them
   back). Follow-up: redo that cell with a prompt that keeps the lettering, or a painter (D56). Counts above include them:
   net +37 frames in `tyrian.shp#10`, 263 frames, and 6 of the 7 pickup units.
+- **Hot-dog redone (Nov 10, branch `hotdog-art`):** a sheet of just the hot-dog (new `SHEET_GROUPS` family
+  `rest-hotdog`, one 24x28 cell: hot dog on a blue steel dish, "HOT" above, "DOG" below) with a prompt that spells
+  out the dish, the two words, the letter layout and the red/orange glossy-block lettering. One Gemini request, no
+  retry: the lettering is Gemini's and reads "HOT" / "DOG" in the sprite's layout, no black blob in tile 92.
+  `cut --merge` (palette 5): fit 0.87 on all four tiles, so frames 92, 93, 111, 112 are back in the manifest
+  (`tyrian.shp#10`: 267 frames, all 7 pickup units flat). No painter needed (D56 untouched).
+  Comparison (original | flat art): `tyrian-scratch/hotdog-art/compare.png`; contact sheet `.../check.png`.
 - **In game:** no code change; `?sprites=original` brings back the old look. Checked on 3.7 STARGATE (tick 2473) and
   4.9 LAVA EXIT (tick 14), the levels where #7 198/199 are drawn; the status line's "flat in" count rises (0 -> 2, 0 -> 1).
   Captures: `tyrian-scratch/flat-art-rest/before-after.png`; contact sheet `.../check.png`. Tests: tsc, vitest (703 passed).
