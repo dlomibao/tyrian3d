@@ -49,9 +49,26 @@ describe("volume sliders", () => {
 describe("SettingsMenu", () => {
   test("rows: volumes, a music style only with more than one, eight keys and reset per player, gamepad, done", () => {
     const keyRows = [...Array(8).fill("key"), "reset"];
-    expect(optionsRows([]).map((r) => r.kind)).toEqual(["volume", "volume", ...keyRows, ...keyRows, "pad", "done"]);
+    expect(optionsRows([]).map((r) => r.kind)).toEqual(["volume", "volume", ...keyRows, ...keyRows, "pad", "console", "done"]);
     expect(optionsRows([]).flatMap((r) => ("player" in r ? [r.player] : []))).toEqual([...Array(9).fill(0), ...Array(9).fill(1)]);
     expect(optionsRows(["original", "remaster"]).map((r) => r.kind)).toContain("style");
+  });
+
+  test("Debug console (D109): Enter or a tap closes the settings, then opens the console", () => {
+    const order: string[] = [];
+    const menu = new SettingsMenu(optionsRows([]), "sound", {
+      sound: () => {},
+      styles: [],
+      style: () => undefined,
+      setStyle: () => {},
+      close: () => order.push("close"),
+      openConsole: () => order.push("console"),
+    });
+    const i = menu.rows.findIndex((r) => r.kind === "console");
+    expect(menu.rows[i + 1].kind).toBe("done");
+    menu.tap(i);
+    expect(order).toEqual(["close", "console"]);
+    expect(menu.helpText()).toMatch(/backtick/);
   });
 
   test("where it opens: sound, keyboard, or the gamepad check", () => {

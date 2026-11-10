@@ -63,6 +63,7 @@ const SCREENS: Record<string, "panel" | "fits"> = {
   title: "panel", // its own grid (D64): the logo, the steps' panel, the foot
   cinema: "fits", // story and episode-end text: a stage; the text pane scrolls (.cinema-text is a .ui-panel)
   "destruct-modes": "panel",
+  console: "panel", // the debug console (D109): its scrollback scrolls inside the panel, which scrolls too if it must
 };
 
 describe("menu screens scroll on a short window", () => {

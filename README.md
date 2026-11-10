@@ -22,6 +22,7 @@ OpenTyrian links to, and choose or drop it on the page. It stays in your browser
 | Change rear-weapon mode | Enter / L | X |
 | Sidekicks | Left Ctrl, Left Alt / K, ; | LB, RB |
 | Pause | Esc / P | Start |
+| Debug console | ` (backtick) | Options → Debug console |
 
 In a two-player game, player 2 moves with W/A/S/D, fires with F, changes the rear weapon's mode
 with R and fires the sidekicks with Q and E (or the keypad: 8/5/4/6, 0, `.`, 7 and 9), or uses
@@ -57,6 +58,12 @@ score table (episodes 1-3, as in the original), which the title screen shows und
   F7 F9 \ / for the Nort ship. On the title, Shift+G, Shift+] and then L O R D reveal the
   Impossible, Suicide and Lord of the Game difficulties. `?loot` starts new games with 1,000,000
   credits. See [DECISIONS.md](DECISIONS.md) D32.
+- **Debug console:** for testing, backtick (or Options → Debug console, also from the shop and the
+  pause menu, and on phones) opens a command line over the paused game: cheats (`god`, `armor N`,
+  `shield N`, `heal`, `credits N`, `weapon front|rear ID [power]`, `power N`, `sidekick left|right ID`,
+  `kill`), levels (`levels`, `level 2 gyges`, `skip`, `shop`), settings and looks (`camera`, `terrain`,
+  `interface`, `vfx`, `sprites`, `bg`, `music`, `sound`, `fps`, `speed N`, `seed`, `reset`). `help` lists
+  them all; Tab completes, Up/Down recall. See [DECISIONS.md](DECISIONS.md) D109.
 - **Attract mode:** left alone for 30 seconds, the title screen plays the original's five recorded
   demos in turn, replayed exactly as OpenTyrian plays them; any key, button or tap returns to the
   title (`?demo` or `?demo=1`..`5` plays one at once).
@@ -146,7 +153,9 @@ bot, with chosen weapons; see `src/debug/playHarness.ts`), `?debug=level` (one l
 loadout, e.g. `&episode=4&main=3&sidekick=9,9&special=6&skip=3000&god=1`; see
 [`src/debug/levelHarness.ts`](src/debug/levelHarness.ts)), `?destruct` (straight into Destruct),
 `/src/audio/debugMusic.html` (music player). `?vfx=original` shows shots and explosions as the
-extruded sprites instead of the remastered effects; `?seed=N` fixes the random seed (D37).
+extruded sprites instead of the remastered effects; `?seed=N` fixes the random seed (D37). In the game
+itself the debug console (backtick; D109) jumps to any level (`level <episode> <number|name|s<section>>`,
+where a section is the harness's `main=`) and runs cheats; `tyrianConsole.run("…")` runs a line from devtools.
 
 ## Working with AI agents
 
