@@ -4301,7 +4301,7 @@ edges, no ice, no rock" (D89: name the real material). Atlas: `public/art/terrai
 **Checked** in game (`?debug=play&episode=1&main=8&seed=1&skip=300&freezeAt=300`), before/after under
 `tyrian-scratch/clouds/captures/`. Answers, sheets and prompts: `tyrian-scratch/clouds/work/shapesy/` (not in git, D3).
 
-## D109 — `shapesw` HD terrain: 100 of 110 ground, 28 of 33 layer-1 and 17 of 27 layer-2 tiles from 26 Gemini sheets (two passes)
+## D112 — `shapesw` HD terrain: 100 of 110 ground, 28 of 33 layer-1 and 17 of 27 layer-2 tiles from 26 Gemini sheets (two passes)
 
 2026-11-04
 
