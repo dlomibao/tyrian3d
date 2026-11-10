@@ -236,8 +236,14 @@ def run(file, name, build):
 # --- the newshm wall tiles -----------------------------------------------------------------------
 
 def tile_materials(sprite, name, top, rim_light, rim, front, front_low, glint, metallic=0.35, roughness=0.3):
-    """Palette materials for the block roles; returns (mats list, role -> index dict)."""
-    roles = dict(top=top, rim_light=rim_light, rim=rim, front=front, front_low=front_low, glint=glint)
+    """Palette materials for the block roles; returns (mats list, role -> index dict).
+
+    Every role takes the body colour (`top`, the sprite's flat top), as newshm-1 does: the sprite's
+    lit rim, glints and dark front band are its drawn lighting, which the game's lights make on the
+    rounded block (art rule 2). Painted, the dark front band read as a seam where a gem block
+    overlaps the red block below it (WINDY, episode-1 QA), and the rim light as yellow patches.
+    The other role colours are kept in the signature as a record of the sprite's shading."""
+    roles = dict(top=top, rim_light=top, rim=top, front=top, front_low=top, glint=top)
     mats, index, by_pal = [], {}, {}
     for role, pal in roles.items():
         if pal not in by_pal:

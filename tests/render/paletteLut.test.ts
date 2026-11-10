@@ -102,5 +102,7 @@ test("the HD terrain shader picks the index's bank from the lookup", () => {
   };
   m.onBeforeCompile(shader as never, {} as never);
   expect(shader.uniforms.paletteLut.value).toBe(pt.indexLut);
-  expect(shader.fragmentShader).toMatch(/float index = \(chroma < 0\.04 \? 0\.0 : terrainBank\(rgb\)\) \+ shade;/);
+  expect(shader.fragmentShader).toMatch(/float index = \(chroma < 0\.04 \? 0\.0 : terrainBank\(srgb\)\) \+ shade;/);
+  // The near-grey test is on the sRGB colour (dark saturated colours aren't grey).
+  expect(shader.fragmentShader).toMatch(/vec3 srgb = terrainSrgb\(rgb\);\s+float chroma = max\(srgb\.r/);
 });

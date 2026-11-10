@@ -54,10 +54,13 @@ ${SCREEN_HUE_PARS}
 float terrainClampValue(float v) {
   return v < 0.0 ? 0.0 : (v > 15.0 ? (v >= 31.0 ? 0.0 : 15.0) : v);
 }
-// The bank (index & 0xf0) of the raw palette's nearest colour to a linear RGB colour.
-float terrainBank(vec3 rgb) {
+// A linear RGB colour in sRGB (0..1).
+vec3 terrainSrgb(vec3 rgb) {
   rgb = clamp(rgb, 0.0, 1.0);
-  vec3 s = mix(1.055 * pow(rgb, vec3(1.0 / 2.4)) - 0.055, rgb * 12.92, step(rgb, vec3(0.0031308)));
+  return mix(1.055 * pow(rgb, vec3(1.0 / 2.4)) - 0.055, rgb * 12.92, step(rgb, vec3(0.0031308)));
+}
+// The bank (index & 0xf0) of the raw palette's nearest colour to an sRGB colour.
+float terrainBank(vec3 s) {
   ivec3 c = clamp(ivec3(s * ${L}.0), 0, ${L - 1});
   float index = floor(texelFetch(paletteLut, ivec2(c.r + ${L} * (c.b & 7), c.g + ${L} * (c.b >> 3)), 0).r * 255.0 + 0.5);
   return floor(index / 16.0) * 16.0;
@@ -70,9 +73,12 @@ vec3 terrainPalette(vec3 rgb, float height, inout float water) {
   // original's exempt banks drew (LAVA EXIT's pink, 0x40, stays pink: D111); near-grey paintings
   // always take the grey bank (0), which water_filter leaves alone as it does the original's grey
   // bricks (D95). Only the bank matters: the hue filters replace it, and untouched texels keep
-  // their painted colour.
-  float chroma = max(rgb.r, max(rgb.g, rgb.b)) - min(rgb.r, min(rgb.g, rgb.b));
-  float index = (chroma < 0.04 ? 0.0 : terrainBank(rgb)) + shade;
+  // their painted colour. Chroma is measured in sRGB: in linear light every dark colour is near
+  // grey, so SAVARA V's dark jungle greens and shore browns took the exempt grey bank and stayed
+  // green and brown under its blue water (episode-1 QA).
+  vec3 srgb = terrainSrgb(rgb);
+  float chroma = max(srgb.r, max(srgb.g, srgb.b)) - min(srgb.r, min(srgb.g, srgb.b));
+  float index = (chroma < 0.04 ? 0.0 : terrainBank(srgb)) + shade;
   float hued = screenHueIndex(index, height, water);
   if (hued != index || levelFilter > -98.5) {
     // The palette texture already holds the level filter and brightness (paletteTexture.ts).
