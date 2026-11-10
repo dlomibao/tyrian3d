@@ -4911,3 +4911,85 @@ GLBs, outline shells left out, 8x):
 **Review:** sheets in `tyrian-scratch/enemy-refit-fixes/sheets/`: `before-after-closeups.png`,
 `before-after-viewer.png`, `before-after-game-scale.png`. Measures in `measure/`. Fallback: revert
 the five scripts and their GLBs.
+
+## D118 — The Silver Ship rebuilt from its pre-refit parts on the inner edge; the Nort Ship's shell held inside
+
+2026-11-10
+
+**Problem:** the refit audit (`tyrian-scratch/refit-audit/`, `closeups/`) found two player ships that
+look worse than their numbers:
+- **Nort Ship:** black ink cracks across the white nose and cockpit plates in the hangar and the
+  viewer, gone with Outline off. They predate D88. The shell (D51, 0.012 voxels) was remeshed from
+  the culled hull: the open plates' both sides were wrapped, the shell followed the seams between
+  the plates in, and its back faces drew ink across them (D90's cause, on the Talon).
+- **Silver Ship, after D88:**
+  - The fuselage's half width was fitted to the inner mask row by row (`FW` 4.12 → 4.95 → 4.25 →
+    5.15 over rows 7-14), so the top plates' edges followed the pixel staircase: jagged and crumpled
+    in the hangar.
+  - The fuselage rode 3 px high to suit the banking frames (D88, before D93 forbade bank-only
+    shaping) and covered the pods' bays: the sprite's two red light tubes per side (rows 18 and 20)
+    showed as one thin bar.
+  - The pods' outboard corners were made tight (0.35 fillets) so the rolled pods kept the banks'
+    span: boxy red and grey blocks, seen when the ship banks.
+
+**Decision:**
+- **Silver Ship: the pre-D88 ship (afcea65b) pulled in one pixel, not reshaped.** The inner mask is
+  the whole sprite's mask one pixel in at every row (nose rows 1-2 1.5, wing tip row 8 6.5, waist
+  4.5, pods 8.5, the rear diagonal x + y = 29, the tail's end at row 26), so each part keeps its
+  pre-refit shape and its outboard edge moves in, as one smooth curve through the inner mask's steps:
+  - the nose: an ogive from row 0.95, the old outline 1 px in;
+  - the wings: the leading edge on half width y - 2.1, a short tip at 6.5 (row 8), the trailing edge
+    one straight sweep in through row 9 to the waist;
+  - the pods: the old round section (`_pod_unit`, large fillets), outboard edge 1 px in, so 1 px
+    narrower;
+  - the nozzles: exits on x + y = 29;
+  - the tail block shortened from row 26.9 to 26.05 (`T`).
+  - Back from before D88: the two glowing tubes and the strut in each pod's bay, the rounded pods,
+    the single-level hull (no 3 px lift, no keel, no anhedral).
+  - Kept from D90: the shell from 0.03 voxels, held 0.004 inside.
+- **The Silver Ship's banking pose (D93):** the fit keeps the game's roll (17.5 / 35°) but moves
+  the banked ship sideways 0 / 0.5 px, not bankShift.ts's 1 / 2 (`bank.shift` [0.5, 0, 0, 0, -0.5]).
+  Rolled about its axis, the model's top view already moves sideways (its parts stand above and
+  below the axis); with bankShift's slide on top it overshot the sprites. (D88's 3 px lift made up
+  for the same slide the other way.)
+- **Nort Ship: D90's shell, from a closed copy.** The shell is made from the joined model before
+  `cull_hidden` (as the Silver Ship's always was), kept out of the scene during the bake, from 0.03
+  voxels, held 0.004 inside. The model itself is unchanged.
+
+**Result:**
+
+| | rule IoU (grid), level frame | half bank 79 / 83 | full bank 77 / 85 |
+|---|---|---|---|
+| Silver Ship, this | 0.9965 | 0.9379 / 0.9276 | 0.8657 / 0.8688 |
+| Silver Ship, this at bankShift's shift | 0.9965 | 0.8733 / 0.8949 | 0.7175 / 0.7508 |
+| Silver Ship, main (D88, D93's table) | 0.989 | 0.982 / 0.982 | 0.965 / 0.996 |
+| Nort Ship | 0.9963 (main 0.9963) | - | - |
+
+(`tools/bank_roll.py <name>`, k = 10; `tools/sprite_mask.py --measure` of a 20x top render gives the
+same grid numbers.) The banks are below main's, which was shaped for them; D93's bars are 0.80 / 0.70.
+
+Interior ink the outline adds in `?viewer=` (outline on vs off, 4 views round the model at the
+free view's height, pixels inside the silhouette that go dark): Nort 3763-4479 px per view on main →
+689-1142 (the rest is where one part overlaps another; one view's count was a camera still settling);
+Silver 169-1090 → 386-669, also overlaps only.
+
+**Checked:** `?viewer=` both ships from four sides at 3/4 height, outline on and off; the hangar
+backdrop (`tyrianUi.backdrop.setMood('hangar')`, `setShip`), four moments each; in game
+(`?debug=play&seed=1&ship=11|12&solid=1`) at ticks 300 and 700, and banking (`&steer=left|right`,
+ticks 12 and 30): the Silver Ship's two tubes a side and round pods read in the banks, the Nort's
+dark specks on the nose and cockpit plates are gone.
+
+**Options considered:**
+- *Smooth D88's model in place (a pchip through its jagged half widths, rounder pod corners):* keeps
+  the 3 px lift and keel that cover the bays and only exist for the banks, which D93 no longer asks
+  for.
+- *The pre-D88 model unchanged:* rule IoU 0.83 (D74's survey), it reads a pixel fat per edge in game.
+- *A uniform plan scale instead of the 1 px pull-in:* the inner mask is an offset, not a scale (the
+  nose loses a whole row, the pods half a pixel per side), and a scale moves the windshield off the
+  cockpit pixels.
+
+**Review:** `tyrian-scratch/ship-refit-fixes/sheets/`: `viewer-silver-ship.png` (main, this, and
+the pre-D88 model), `viewer-nort-ship.png`, `viewer-ink-outline-on-vs-off.png`, `hangar-*.png`,
+`game-*.png` (main | this), `silver-banking-frames-iou.png` (each frame's sprite beside the model's
+top view at the fitted pose). Raw captures beside it; the pre-D88 script and GLB in `ref/`. Fallback: the two scripts, GLBs and the Silver Ship's
+spriteModels entry from main.

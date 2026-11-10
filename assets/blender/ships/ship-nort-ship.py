@@ -895,6 +895,10 @@ def main():
     coll = common.reset_collection(NAME)
     objs = build(coll, sprite)
     obj = T.join(objs, NAME)
+    # The outline shell is made from a closed copy, taken before hidden faces are culled (remeshing the
+    # culled, open hull wraps both sides of every open plate) and kept out of the scene during the bake.
+    closed = obj.copy()
+    closed.data = obj.data.copy()
     T.cull_hidden(obj)
     tris = sum(len(p.vertices) - 2 for p in obj.data.polygons)
     print(f"nort: {len(obj.data.polygons)} faces, {tris} triangles")
@@ -907,7 +911,13 @@ def main():
         bake_dir.mkdir(parents=True, exist_ok=True)
         bake_maps(obj, bake_dir)
         fmt = "WEBP"
-    shell = common.outline_shell(obj, coll, faces=1500)
+    # The outline shell (D51), as the Talon's (D90): from coarser voxels (0.03) so it bridges the
+    # plates' seams, and held just inside the hull. From 0.012 it followed the seams between the white
+    # nose and cockpit plates in, and its back faces drew ink cracks across them.
+    coll.objects.link(closed)
+    shell = common.outline_shell(closed, coll, voxel=0.03, faces=3000, inside=0.004)
+    shell.name = shell.data.name = f"{NAME}_outline"
+    bpy.data.objects.remove(closed)
     print(f"nort: outline shell {len(shell.data.polygons)} faces")
     if out:
         common.export_glb([obj, shell], out, image_format=fmt)
