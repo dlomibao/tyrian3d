@@ -4337,14 +4337,15 @@ The most-drawn one is #7 198 (7 levels, 3 episodes), with #7 199 (96,631 ticks) 
 
 Answers, sheets and prompts: `tyrian-scratch/flat-art-rest/` (not in git, D3).
 
-## D109 — `shapes)` HD terrain, first round: 89 of 112 ground tiles and 7 of 14 layer-1 rock tiles, Gemini limit hit at request 16
+## D109 — `shapes)` HD terrain: all 112 ground tiles and all 14 layer-1 rock tiles, from 16 Gemini sheets (two rounds)
 
 2026-11-04
 
 **Decision:** the tileset `shapes)` (episode 4's SURFACE, CORE, SIDE EXIT, UNDERDELI, LAVA EXIT, DESERTRUN, LAVA RUN,
-BRAINIAC, TIME WAR, SQUADRON: 4.4-4.7, 4.9, 4.10, 4.12, 4.15, 4.17, 4.18) gets a partial atlas,
-`public/art/terrain/shapes)/` (`0.webp` ground, `1.webp` layer 1, 0.7 MB), from D83's pipeline: `inventory`, `sheets`,
-Gemini, `cut --edge-aware`, `check`. Tiles without a painting fall back per tile (D57), so the rest is a follow-up round.
+BRAINIAC, TIME WAR, SQUADRON: 4.4-4.7, 4.9, 4.10, 4.12, 4.15, 4.17, 4.18) gets an atlas,
+`public/art/terrain/shapes)/` (`0.webp`+`0-2.webp` ground, `1.webp`+`1-2.webp` layer 1, 0.9 MB), from D83's pipeline: `inventory`, `sheets`,
+Gemini, `cut --edge-aware`, `check`. Round 1 (first commit) painted 89+7 tiles and stopped at the Pro limit; round 2 (Nov 9) sent the six remaining sheets and merged
+  them over the kept atlas (`git checkout` of the folder, then `cut --cache --edge-aware`: 89+7 kept byte for byte, 23+7 new).
 - **Folder name.** The tileset's letter is ")" (`data/shapes).dat`); `tileset_levels` strips "shapes" and `parseTileId` only
   strips ".dat", so the folder is literally `shapes)` and nothing needed changing. Quote it in shells:
   `--tileset 'shapes)'`. The dev server serves `/art/terrain/shapes)/manifest.json` (200) and the levels draw it.
@@ -4386,3 +4387,13 @@ Gemini, `cut --edge-aware`, `check`. Tiles without a painting fall back per tile
 `&terrain=original` for the other half): the desert and metal plating on 4.4 match the original's layout; 4.12's lava
 reads well. Captures: `tyrian-scratch/terrain-shapes-paren/captures/compare-4-4.jpg`, `compare-4-9.jpg`. Tests
 `terrainArt` + `terrainHd`: 21 passed. Answers, sheets, prompts, `cands.pkl`: `tyrian-scratch/terrain-shapes-paren/work/` (not in git, D3).
+
+**Round 2 (Nov 9):** sent region-l0-14, 08, 12, 06, 11 and ctx-l1-brown-1 (7 requests: region-l0-06's first answer came
+back as invented art and was resent once; no usage warning, no limit hit). Fits 0.69-0.98 (06's first try 0.24), tile
+NCC medians 0.70-0.86 (14 lava 0.86, 08 dark deck 0.98, 12 0.81, 11 purple 0.70, 06 0.82, ctx-l1-brown-1 0.98). Every
+ground and layer-1 tile now has a painting. Seams after the merge (`check`, all maps): layer 0 0.564 overall (original
+continuous 0.548; the 4,568 edges touching a new tile 0.637 vs continuous 0.588), bands 0.534; layer 1 1.178 (continuous
+1.170, alpha rock shapes over a flat fill, the original's own ratio). Weakest new tiles (cut-report score): ground 0:143
+0.50, 0:150 0.58 (purple, sheet 06), layer 1 31-35 0.58-0.96. Blockiness on the dark-deck and purple sheets is 1.8-4.4
+(Gemini kept the pixel blocks there; the cut deblocks). In game 4.4 and 4.9 at t300/t900 read cleanly; captures
+`tyrian-scratch/terrain-shapes-paren/captures/compare-4-4-r2.jpg`, `compare-4-9-r2.jpg` (original | round 1 | round 2).
