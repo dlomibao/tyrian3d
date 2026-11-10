@@ -5159,3 +5159,53 @@ within 3e-5).
 21.8M subagent tokens, about 5.8 h at `maxAgents: 7`; the fix round (`fix-round.js`, 6 items) 12 agents, 1.18M
 tokens, about 27 min. Sheets: `tyrian-scratch/e1-enemies-2/<name>/final/` and `.../fixround/<name>/final/` (not in
 git, D3).
+
+## D122 — Launched projectiles and orbs rebuilt as what they are (object-identity audit)
+
+2026-11-10
+
+**Decision:** D120 found the SAVARA boss built as a grounded fortress when it was a blimp, with the outline IoU
+passing. A read-only audit then checked every episode-1 model's *behaviour* against what it was built as. Method
+(`tools/enemy_behaviour.mjs`, run per inventory unit): for each enemy type that draws the unit, its **launcher** (the
+type whose `launch` field spawns it), its **motion** (`mv(xc,yc)` in px/tick, turret/no turret) and the **layers** its
+spawn events use. A unit launched by another enemy and moving at 3-5 px/tick is a projectile, whatever layer it spawns
+on: the ground/air layer (25/50/75 vs 0) does not mean grounded or flying. Six models were built as grounded objects
+though they are launched or float; each was rebuilt with `tools/workflows/fix-round.js` (6 items) and shipped.
+
+| Model | Behaviour | Now (was) | IoU (worst frame) | Score |
+|---|---|---|---|---|
+| newshj-19 | types 752/755/762/767/839, launched by 754/756/763/769/838, mv(±4,0) or (±3,±3) | launched fireball, one floating oval turned through 4 frames, heat bands white to dark red (a campfire) | 1.0 | 8 |
+| newsha-199 | flying orb | glowing orb with a rim crescent (a lamp on a ring) | 0.9509 (grid 1.0; bar 0.95, little margin) | 8 |
+| newshi-19 | the blimp's dropped mine | glossy pulsing sphere, bore through it where the sprite is transparent (a washer with a blade) | 0.974 on the fixer's constant-ink metric | 7 |
+| newshm-117 | floating orb, 3 growth frames | round floating spiral orb, closed belly (a flat shell on a base) | 0.9808 | 7 |
+| newshe-277 | three orbs | three floating glowing orbs (pods on sleds) | 0.9825 | 7, verdict "fix" on minor points only |
+| newshs-9 | type 592, launched by `newshs-93`'s 590, mv(0,4) | missile with the nose at row 11, tail and exhaust at row 1 (was reversed); also closes `newsh-caret-171`'s nose hole (launched, mv(±2,5)/(0,1)) | 1.0 | 8 |
+
+The coordinator ships all six. `newshe-277`'s object reading is resolved; its remaining review issues are follow-ups.
+Sheets: `tyrian-scratch/object-fixes/<name>/final/cmp.png`, audit output `tyrian-scratch/object-audit/` (not in git, D3).
+
+**IoU note (`newshi-19`):** the review's `tools/sprite_mask.py --measure` gives 0.77/0.86/1.0/0.80/0.79 on its five frames
+because the sprite's ink pulses 32 -> 1 -> 2 -> 3 and index 3 (luma 40) is above `INK_LUMA` and missed by the pulse
+rule; no single geometry passes the tool on all frames. The fixer's constant-ink metric (ink = 32/1/2/3 on the
+boundary) gives 1.0/1.0/1.0/1.0/0.974. Shipped on that, like `newshd-228` (D121); fixing the tool's pulse rule is open.
+
+**Renderer finding:** `src/render/modelFrames.ts` (`colourFrame`, line 87) copies the palette colour into `emissive`, so
+a model's own emissive strength below 1 cannot take effect; glow wash-out is the same cause as D121's glow follow-up.
+`newshj-19` works round it with metallic 1.0 / roughness 0.6 (no environment diffuse). A real fix is an emissive-only or
+unlit path for glow materials (the D121 follow-up).
+
+**Follow-ups (known):**
+- `newshe-277` (review issues): flame lick and tail tip read salmon not orange (model uses pal 120, sprite median 121);
+  1-2 px dark specks on every orb in game (shell or body showing between flush patches); the swirl band ends in a hard
+  square cut above y 4.4 (taper it like the tail); a faint dark crease across the upper body.
+- `newshm-117`: the 9 radial seams make a pumpkin shell, the sprite's dark crescent groove should run deeper; band one
+  index lighter than the sprite. `newsha-199`: the lower-right rim cap reads as a second lamp from the side.
+  `newshi-19`: the bore leaves open holes in the lower hemisphere in side/3/4 views. `newshs-9`: tail nozzle rim could be
+  wider; `newsh-caret-171` nose dome has AO specks and its docstring still says "lying flat" (it is launched).
+- Audit minor items: `assembly-newshd-39` and `-89` drift in space but have flat bases; `newshd-121` is a flying drone on
+  a ground stalk; `assembly-newshu-129` has a foot; `assembly-newshi-154`: reconcile D120's "tail" label with the audit and
+  round its underside.
+- **Could not determine from behaviour** (need the user or a closer look): `assembly-newshp-267` and
+  `assembly-newshc-283` (towers or tanks?); `newshf-1` and `newshf-47` (which end is the head?); `assembly-newshu-79`
+  (wreck or working machine?).
+- `tools/enemy_behaviour.mjs` covers episodes 1 and 3 only and reads `docs/roadmap/inventory.json`.

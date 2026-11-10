@@ -17,7 +17,7 @@ only in the band's colour):
 Design: a small air-dropped dart (a sensor/mine dart) lying flat on its fins, the rod on the
 ground. One lathed body: a machined nozzle collar at the back (a recessed bore), a seam groove, the
 round body with a seam groove between the fin sets, the glowing band set between two raised rims,
-a blunt chamfered nose with a sensor pit. Horizontal fins as chamfered tapered plates at the rod's
+a closed, blunt rounded nose. Horizontal fins as chamfered tapered plates at the rod's
 axis height: the tail fins with a separate trailing flap (a real hinge gap), the mid fins plain,
 both with chamfered root fairings. Two upright blades on top (a cruciform set seen from above as
 the sprite's bright centre line): a swept tail blade and a lower mid blade. Underside: the rod and
@@ -84,7 +84,7 @@ TEXTURED = (ROD, BACK, FIN, BLADE, DEEP, EDGE)
 # --- the lathed body ---------------------------------------------------------------------------
 
 # (y, radius, material of the span to the next point) of the body's profile, traversed round the
-# outside from the bottom of the nozzle bore (on the axis) to the bottom of the nose's sensor pit.
+# outside from the bottom of the nozzle bore (on the axis) to the tip of the closed nose.
 PROFILE = [
     (1.62, 0.00, DEEP),   # bore bottom
     (1.62, 0.52, DEEP),
@@ -112,12 +112,11 @@ PROFILE = [
     (11.10, 1.53, RIM),
     (11.10, 1.42, ROD),
     (11.45, 1.40, ROD),   # the nose
-    (11.78, 1.24, ROD),
-    (11.98, 0.98, BACK),  # chamfer to the blunt front face (a machined cap)
-    (11.98, 0.42, DEEP),  # sensor pit
-    (11.86, 0.42, ROD),
-    (11.86, 0.24, ROD),   # the sensor's domed eye in the pit
-    (11.93, 0.00, ROD),
+    (11.70, 1.28, ROD),
+    (11.86, 1.06, ROD),   # a closed, blunt rounded nose (no pit: the dart leads with it)
+    (11.95, 0.72, ROD),
+    (11.99, 0.36, ROD),
+    (12.00, 0.00, ROD),
 ]
 
 
