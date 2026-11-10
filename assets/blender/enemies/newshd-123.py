@@ -25,7 +25,7 @@ back from the seam and the groove floor pushed past it, so neighbouring lumps in
 V groove ~1.5-2 px wide at the lip (LIP), its floor just past the seam (NEAR) and top points held
 back behind the lip, so its pal_5 walls show from the tilted camera; under each seam a filler hull closes the crease lower down the flanks, so the
 rock reads as one boulder, not a bunch of pebbles. Matte stone (metallic 0.05, roughness 0.82) as
-the lib_b014 asteroids it flies with (newshd-95). Underside: the lumps' bellies merge into one closed
+the newshd asteroids it flies with (newshd-95, lib_newshd_rock). Underside: the lumps' bellies merge into one closed
 rounded bottom (no detail). No crack floor or filler hull may round off a notch of the outline (Grid.outside_in; the
 upper-left step). AO/roughness bake as newshd-95 (T.bake_maps, 512 px, untinted; --no-bake skips
 it), then the outline shell (D51) from the joined lumps.
@@ -447,7 +447,7 @@ def main():
     sprite, obj, coll = build()
     fmt = "AUTO"
     if "--no-bake" not in argv:
-        # AO/roughness bake as the lib_b014 asteroids it flies with (newshd-95): grey occlusion in
+        # AO/roughness bake as the newshd asteroids it flies with (newshd-95, lib_newshd_rock): grey occlusion in
         # the cracks and facet roots, untinted (TINT 1,1,1), on every palette material
         tint, textured = T.TINT, T.TEXTURED
         T.TINT, T.TEXTURED = (1.0, 1.0, 1.0), tuple(range(len(obj.data.materials)))

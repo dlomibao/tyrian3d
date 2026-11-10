@@ -46,7 +46,7 @@
     "units": 222,
     "enemyUnits": 159,
     "enemyUnitsModelled": 159,
-    "enemyUnitsFlagship": 153,
+    "enemyUnitsFlagship": 159,
     "damageFramesMissing": 0,
     "tilesets": 2,
     "tilesetsWithHd": 2,
@@ -91,7 +91,7 @@
     "units": 198,
     "enemyUnits": 152,
     "enemyUnitsModelled": 144,
-    "enemyUnitsFlagship": 43,
+    "enemyUnitsFlagship": 49,
     "damageFramesMissing": 4,
     "tilesets": 2,
     "tilesetsWithHd": 2,
@@ -135,7 +135,7 @@
     "units": 249,
     "enemyUnits": 191,
     "enemyUnitsModelled": 191,
-    "enemyUnitsFlagship": 112,
+    "enemyUnitsFlagship": 118,
     "damageFramesMissing": 0,
     "tilesets": 3,
     "tilesetsWithHd": 3,
@@ -21719,7 +21719,7 @@
     "newshd.shp|1": [114]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshd.shp|1": [114]
@@ -21878,7 +21878,7 @@
     "newshd.shp|1": [133]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshd.shp|1": [133]
@@ -21939,7 +21939,7 @@
     "newshd.shp|1": [152]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshd.shp|1": [152]
@@ -22060,7 +22060,7 @@
     "newshd.shp|2": [18,55,93]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshd.shp|2": [18,55,93]
@@ -22331,7 +22331,7 @@
     "newshd.shp|2": [43]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshd.shp|2": [43]
@@ -22366,7 +22366,7 @@
     "newshd.shp|2": [5]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshd.shp|2": [5]
@@ -34421,51 +34421,6 @@
  "ranking": {
   "units": [
    {
-    "id": "newshd-152",
-    "what": "ground",
-    "status": "basic",
-    "levels": 5,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 4140
-   },
-   {
-    "id": "newshd-114",
-    "what": "ground",
-    "status": "basic",
-    "levels": 5,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 3909
-   },
-   {
-    "id": "newshd-133",
-    "what": "ground",
-    "status": "basic",
-    "levels": 5,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 3027
-   },
-   {
-    "id": "newshd-5",
-    "what": "ground",
-    "status": "basic",
-    "levels": 5,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 2311
-   },
-   {
-    "id": "newshd-43",
-    "what": "ground",
-    "status": "basic",
-    "levels": 5,
-    "episodes": 3,
-    "events": 3,
-    "ticks": 1803
-   },
-   {
     "id": "newsh3-229",
     "what": "air+ground",
     "status": "basic",
@@ -34482,15 +34437,6 @@
     "episodes": 1,
     "events": 72,
     "ticks": 4584
-   },
-   {
-    "id": "newshd-18",
-    "what": "ground",
-    "status": "basic",
-    "levels": 4,
-    "episodes": 3,
-    "events": 0,
-    "ticks": 1793
    },
    {
     "id": "assembly-newshj-191",

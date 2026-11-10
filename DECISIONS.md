@@ -5378,3 +5378,72 @@ unit failed. Episode 1 is now **153 flagship / 6 not / 159 enemy units**; the si
 game 155 flagship of 479. M0 shared units not flagship-done: 130.
 
 **Cost:** 15 agents, 1.63M subagent tokens. Sheets: `tyrian-scratch/e1-enemies-4/<name>/final/` (not in git, D3).
+
+## D125 — The newshd asteroid family on one rock builder (`lib_newshd_rock`), the last six episode-1 units
+
+2026-11-10
+
+**Problem:** D121 rebuilt only `newshd-95` of the asteroids that shared `lib_b014`; `newshd-152/114/133/5` (and the
+lib's other users `newshd-18/43`) stayed in the older look, which the QA sweep called "blocky faceted grey,
+voxel-like stair steps on the silhouette" (icosphere pushed to a pixel-traced outline, faces painted with the sprite's
+shading ramp). They are asteroids floating in space (ASTEROID1-3 and later episodes): round all over, the underside
+seen from the side at the tilted camera, no base.
+
+**Decision:**
+- **One builder.** `newshd-95.py`'s spec-driven `rock()` moves into `assets/blender/enemies/lib_newshd_rock.py`
+  (`main(NAME, SPEC, paint=, parts=)`): a body lofted from the sprite's inner mask (D74), its top raised into the
+  summit and the lumps, crests and creases the sprite draws (`bumps`, `crests`, `valleys`, new), planar fracture faces
+  (`cuts`, `fine`, and `rim_spalls`, new, so the waist never reads as a belt), crack grooves and impact pits;
+  matte palette material, AO/roughness bake (`"bake"` by the script, D50/D65), outline shell. `newshd-95` builds the
+  same: geometry and shell identical, bake within run-to-run noise (its committed glb is kept). It keeps D121's shell
+  (0.012 voxels) and its bake with the shell's source copy in the scene (`bake_with_copy`: the coincident copy darkens
+  its AO about 12%); the six new ones use D90's shell (0.03 voxels, held 0.004 inside) from a sealed copy kept out of
+  the bake (D118). `lib_b014` has no users left and is deleted.
+- **Each rock from its own sprite** (art rules 1-3; rocks: highlights are lit faces, not sheen): the sprite's lit
+  patches become lumps cut by fracture faces turned to the light, its dark creases become valleys (a fine crack in
+  some), its dark spots pits, its shadowed side falls away; a rounder dome than 95's (`rise`/`fall` 0.7/0.8) and no flat
+  underside plane (95's -82° cut is not used). One matte material per rock region (metallic 0, roughness 0.9): the
+  trimmed median of the sprite's own ramp, its ink ring, dark limb and glints being lighting.
+  - `newshd-152`: three lit facets (upper-left, the upper-right strip, lower-left), the crease between the upper two,
+    the pit under the strip; pal_104.
+  - `newshd-114`: the leaning egg; the upper lit strip and the lower-left patch with the crease and crack between; pal_104.
+  - `newshd-133`: the summit right of middle with its lit streak down-left, the dark upper right; pal_103.
+  - `newshd-5`: the large rock: the bright upper mass, the right and lower lobes, the two creases with cracks, five pits;
+    a finer outline trace (144 rays, 1 smoothing pass) so its flat sides hold; pal_7.
+  - `newshd-18`: `newshd-5`'s SPEC (read from its script) plus the vent: a bed pressed into the right lobe's face
+    (scorched pal_5, frame 93), a plate and low lens in it (119/117/122/126, a step cooler on 55, `frame_part` 18/55),
+    the rock round it glow-lit pal_11 on frame 18 only (`frames={55: 7, 93: 7}`).
+  - `newshd-43`: the three-lobed rock with the notch on its right; the upper lobe's bright ridge, the bright cluster low
+    in the middle, the two creases between the lobes; pal_7.
+
+**Result** (`tools/sprite_mask.py --measure` on the shipped glbs' top views, shells hidden; colours: the model's flat
+top palette index vs the sprite's, trimmed medians per region):
+
+| Model | grid IoU (rule) | rock colour model / sprite | other region | tris (rock + shell) |
+|---|---|---|---|---|
+| newshd-152 | 0.9921 (0.9376) | 104 / 104 | - | 2530 + 3000 |
+| newshd-114 | 0.9906 (0.9342) | 104 / 104 | - | 1936 + 3000 |
+| newshd-133 | 1.0 (0.9342) | 103 / 103 | - | 1854 + 3000 |
+| newshd-5 | 0.9705 (0.9490) | 7 / 7 | - | 4162 + 3000 |
+| newshd-18 (18 / 55 / 93) | 0.9705 each | 7 / 7 | vent 119/119, 117/117; bed 5/5 | 4162 + 3000 + 346 |
+| newshd-43 | 0.9727 (0.9482) | 7 / 7 | - | 4008 + 3000 |
+| newshd-95 (unchanged) | 0.9823 (0.9322) | 104 / 104 | - | 1602 + 2400 |
+
+Built with `tools/build-models.sh -j 2`; captured in ASTEROID1/2 (`?debug=play&episode=1&main=5|6&seed=1&solid=1`,
+ticks 1.5: 282, 680, 1737, 3029, 3446, 3558; 1.6: 119, 2414, 3028, 5742, 5772, 5773, 5819). Sheets (sprite beside the
+model: top, game angle, 3/4, sides, underside, in-game crops): `tyrian-scratch/asteroids/final/<name>/sheet-<frame>.png`
+(not in git, D3).
+
+**Inventory** (regenerated, bot run): episode 1 is **159 flagship / 0 not / 159 enemy units** (was 153 / 6 / 159);
+whole game 161 flagship of 479. M0 shared units not flagship-done: 124 (was 130).
+
+**Follow-ups (known):**
+- In game the rocks read lighter and smoother than their mottled sprites (one matte mid-tone, lit from high up); the
+  big rocks' tops still close towards the summit in a few broad faces. A local faceting pass ("chisel": facets pressed
+  in at sites over the top) was tried and dropped: on the loft it bunched at the summit, on a voxel remesh it tore the
+  mesh and tripled the triangles.
+- `newshd-18`: the vent is small and dull red in game (D121's glow wash-out follow-up); its bed shows a light wedge on
+  the lobe's uphill side and the plate's upper edge stands a little proud of the steep lobe from the 3/4 views.
+- `newshd-95` keeps D121's darker bake (`bake_with_copy`) and its flat underside; rebuild it on D90/D118 with the
+  family's matte roughness if the user wants the family to match exactly.
+- `newshd-114` has a small facet cluster where its crease meets the summit's faces (0.3 px; invisible in game).
