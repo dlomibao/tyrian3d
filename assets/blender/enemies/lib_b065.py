@@ -707,8 +707,10 @@ def side_x(x, s):
     return x if s > 0 else 2 * CX - x
 
 
-def build_upper(P):
-    # ---- shoulder pods: machined cylinders along the rows ----
+def build_upper(P, pods=None):
+    # ---- shoulder pods: machined cylinders along the rows (into `pods`: each assembly ends them
+    # its own way, see clip_variant) ----
+    pods = pods or P
     sec = superellipse(20, 3.2, start=math.pi / 2)  # starts at the top
 
     for side in ("L", "R"):
@@ -742,13 +744,13 @@ def build_upper(P):
             if k >= tip_from:
                 return M["block"]
             return M["pod"]
-        loft(P, rings, pod_mat)
+        loft(pods, rings, pod_mat)
         # Rib grooves on the red ring: thin dark bands
         for yb in (17.3, 17.95):
             ex = x_extent(loop, yb)
             rr = [[(x, y, z) for x, z in pod_sec(yb, ex[0], ex[1], 0.2)] for y in (yb - 0.12, yb + 0.12)]
             rr = [[(x, yy, z) for (x, _y, z) in ring] for ring, yy in zip(rr, (yb - 0.12, yb + 0.12))]
-            loft(P, rr, lambda k: M["deep"])
+            loft(pods, rr, lambda k: M["deep"])
 
     # ---- horns: keel-section sweeps from inside the pod's collar up to the tip ----
     horn_sec = [(1.0, 0.0), (0.82, 0.55), (0.4, 0.92), (0.0, 1.08), (-0.4, 0.92), (-0.82, 0.55), (-1.0, 0.0),
@@ -1090,15 +1092,214 @@ def finish(P, mats, coll, name):
     return obj
 
 
-def build(sprite, coll):
+# ---------------------------------------------------------------------------------------------
+# The two assemblies' versions of the craft (D74 inner edge in the 4 rows they share)
+# ---------------------------------------------------------------------------------------------
+
+# The two assemblies share frame rows 24-27 and each sprite draws them its own way: newsh4-81's
+# rows 24-26 run the full width (pods, arms, wing roots, torso) and its row 27 is half ink, half
+# colour; newsh4-119/-121/-123's row 24 starts the body inside cols 15-45, half ink, and draws the
+# pods' ends only as two ink pixels each (cols 10-11 and 50-51, free pixels). Each script builds
+# the craft its own way there, part by part before the parts are joined (D88's cut of the joined,
+# culled pieces left open sections, slivers, and a shell sticking out past them): every part (a
+# closed solid) that crosses one of its assembly's lines is cut on it and capped; a part with less
+# than CLIP_MIN px on the kept side is dropped whole, so no slivers. Each part ends on the shared
+# row by itself: at the row's near or far edge, whichever its own pixels of that row vote for
+# (colour inside the ink +1, ink or nothing -1, free pixels 0), so plates end straight, each at
+# its own length. The piece boxes of common.split_assembly then cut nothing along those rows, and
+# the outline shell is made from this version, so it ends where the model does.
+# Lines are half-planes a*x + b*y + c >= 0 kept, in frame px (x column, y row).
+CLIP_MIN = 0.4
+CAP_STEP = 0.03
+
+
+def components(bm):
+    """Connected vertex sets (lists of BMVerts) of a bmesh: one per closed part."""
+    seen, out = set(), []
+    for v in bm.verts:
+        if v in seen:
+            continue
+        stack, comp = [v], []
+        seen.add(v)
+        while stack:
+            x = stack.pop()
+            comp.append(x)
+            for e in x.link_edges:
+                o = e.other_vert(x)
+                if o not in seen:
+                    seen.add(o)
+                    stack.append(o)
+        out.append(comp)
+    return out
+
+
+def frame_xy(co):
+    return co.x / PX + AXIS_X, MID_Y - co.y / PX
+
+
+def line(a, b, c, below=None):
+    """A fixed half-plane; with `below`, only for parts that start above that row."""
+    return lambda comp, pts: (a, b, c) if below is None or min(y for _, y in pts) < below else None
+
+
+def row_vote(asm, row, sign, near, far):
+    """A part's end on the frame row `row` of assembly `asm` (its sprite's own row): sign -1 keeps
+    y <= end (the part's rear end, newsh4-81), +1 keeps y >= end (its front, newsh4-119..). The
+    end is `far` (the row covered) when the part's pixels in that row are more colour than ink or
+    nothing, else `near`."""
+    m = sprite_mask.masks(*sprite_mask.load(asm, ref=ROOT / "reference" / "models"))
+    r = row - (0 if asm.endswith("81") else 24)
+    score = [1 if m["inner"][r][c] else 0 if m["free"][r][c] else -1 for c in range(72)]
+    yc = row + 0.5
+
+    def rule(comp, pts):
+        ys = [y for _, y in pts]
+        if min(ys) > max(near, far) or max(ys) < min(near, far):
+            return None
+        from mathutils.bvhtree import BVHTree
+        faces = {f for v in comp for f in v.link_faces}
+        idx = {v: i for i, v in enumerate(comp)}
+        tree = BVHTree.FromPolygons([v.co for v in comp], [[idx[v] for v in f.verts] for f in faces])
+        vote = 0
+        for c in range(72):
+            o = Vector(((c + 0.5 - AXIS_X) * PX, (MID_Y - yc) * PX, 50.0))
+            if tree.ray_cast(o, Vector((0, 0, -1)), 100.0)[0] is not None:
+                vote += score[c]
+        end = far if vote > 0 else near
+        return (0.0, -1.0, end) if sign < 0 else (0.0, 1.0, -end)
+    return rule
+
+
+def clip_part(P, rules, min_keep=CLIP_MIN, step=CAP_STEP):
+    """Cut every closed part of P (a Part, in Blender coordinates) by `rules` in turn and cap the
+    cuts. A rule gives each part its half-plane (a, b, c), a*x + b*y + c >= 0 kept in frame px,
+    or None. Parts entirely outside a half-plane, or reaching less than `min_keep` px inside it,
+    are deleted whole. Parts cut on the same line whose caps would overlap (one part through
+    another, as the core under the hood) are cut `step` px apart, the taller part outermost, so no
+    two caps are coplanar (they z-fought, and the occlusion bake drew a stipple on them)."""
+    bm = P.bm
+    dropped = cut = 0
+    for rule in rules:
+        groups = {}
+        dead = []
+        for comp in components(bm):
+            pts = [frame_xy(v.co) for v in comp]
+            plane = rule(comp, pts)
+            if plane is None:
+                continue
+            a, b, c = plane
+            nrm = math.hypot(a, b)
+            ds = [(a * x + b * y + c) / nrm for x, y in pts]
+            if max(ds) < min_keep:
+                dead.extend(comp)
+                dropped += 1
+            elif min(ds) < 0:
+                # the cap's extent: along the line, and in z
+                ts = [(-b * x + a * y) / nrm for x, y in pts]
+                zs = [v.co.z for v in comp]
+                groups.setdefault(plane, []).append((comp, (min(ts), max(ts)), (min(zs), max(zs))))
+                cut += 1
+        bmesh.ops.delete(bm, geom=dead, context="VERTS")
+        for (a, b, c), comps in groups.items():
+            nrm = math.hypot(a, b)
+            comps.sort(key=lambda e: -e[2][1])
+            ks = []
+            for i, (_comp, (t0, t1), (z0, z1)) in enumerate(comps):
+                over = [ks[j] for j, (_c, (u0, u1), (w0, w1)) in enumerate(comps[:i])
+                        if t0 < u1 and u0 < t1 and z0 < w1 and w0 < z1]
+                ks.append(max(over) + 1 if over else 0)
+            for (comp, _t, _z), k in zip(comps, ks):
+                cc = c - k * step * nrm  # moved k steps into the kept side
+                # a point on the line and the normal of the side cleared (bisect_plane clears the
+                # +normal side), in Blender coordinates: X = (x - AXIS_X) * PX, Y = (MID_Y - y) * PX
+                x0, y0 = -a * cc / nrm ** 2, -b * cc / nrm ** 2
+                co = Vector(((x0 - AXIS_X) * PX, (MID_Y - y0) * PX, 0.0))
+                no = Vector((-a, b, 0.0)).normalized()
+                vs = [v for v in comp if v.is_valid]
+                edges = {e for v in vs for e in v.link_edges}
+                faces = {f for v in vs for f in v.link_faces}
+                res = bmesh.ops.bisect_plane(bm, geom=vs + list(edges) + list(faces), plane_co=co,
+                                             plane_no=no, clear_outer=True)
+                new = [e for e in res["geom_cut"] if isinstance(e, bmesh.types.BMEdge)]
+                if new:
+                    bmesh.ops.holes_fill(bm, edges=new, sides=0)
+    print(f"clip: {dropped} parts dropped, {cut} cut and capped")
+
+
+# Per assembly and part group: the rules (newsh4-81 = "upper", newsh4-119/-121/-123 = "lower").
+#  upper: every part ends on row 27 by its vote; the body's parts (wing roots, torso, armour) also
+#    stay inside cols 14.6..46.4 (the sprite's rows 26-27 are ink beside the pods); the shoulder
+#    pods run to their own tapered ends (row 27.95, inside the piece box).
+#  lower: every part starts on row 24 by its vote (24.02: just inside the piece box); the head's
+#    parts (arms, armour blocks, core) stay inside cols 15.6..46.4, where the sprite's rows 24-25
+#    start, and the wings' leading edges inside the sprite's diagonal (x + y >= 41.3, and its
+#    mirror) above row 29; the pods are not drawn: pod_nozzles stand for their ends. (This sprite
+#    is symmetric about column edge 31, newsh4-81 about 30.5.)
+def clip_rules(variant):
+    if variant == "upper":
+        end = row_vote("assembly-newsh4-81", 27, -1, 27.0, 27.55)
+        return {"up": [end], "lo": [line(1.0, 0.0, -14.6), line(-1.0, 0.0, 46.4), end], "pods": None}
+    start = row_vote("assembly-newsh4-123", 24, 1, 24.55, 24.02)
+    return {"up": [line(1.0, 0.0, -15.6), line(-1.0, 0.0, 46.4), start],
+            "lo": [line(1.0, 1.0, -41.3, below=29.0), line(-1.0, 1.0, 62.0 - 41.3, below=29.0), start],
+            "pods": "drop"}
+
+
+def pod_nozzles(P):
+    """newsh4-119/-123's red-rimmed nozzles: the shoulder pods' aft ends as the lower assembly
+    draws them, scaled in to the two free ink pixels of its row 24 (cols 10-11, 50-51) and rows
+    24.0-25.4, so they add no pixel to its top view, each on a thin rod from the arm. While
+    newsh4-81 flies they sit inside its pods (radius ~1.75 there), so the two assemblies together
+    look as one craft; alone, the lower one shows them where its sprite draws the pods' ends.
+    Section as the pods' (n 3.2), the axis at the pods' z 2.7: a red lip round a dark throat, a
+    red band, the grey housing and a tapered back."""
+    m = sprite_mask.masks(*sprite_mask.load("assembly-newsh4-123", ref=ROOT / "reference" / "models"))
+    free = m["free"][0]
+    runs, c = [], 0
+    while c < 72:
+        if free[c]:
+            c0 = c
+            while c < 72 and free[c]:
+                c += 1
+            runs.append((c0, c))
+        c += 1
+    sec = superellipse(20, 3.2, start=math.pi / 2)
+    zc = 2.7
+    for c0, c1 in runs:
+        xc, r = (c0 + c1) / 2, min(1.1, (c1 - c0) / 2 + 0.1)
+        ring = lambda y, f: [(xc + u * r * f, y, zc + v * r * f) for u, v in sec]  # noqa: E731
+        rings = [ring(25.35, 0.72), ring(25.1, 0.95), ring(24.55, 1.0), ring(24.35, 1.0),
+                 ring(24.04, 0.96), ring(24.03, 0.84), ring(24.03, 0.68), ring(24.6, 0.62)]
+        mats = [M["block"], M["pod"], M["pod"], M["red"], M["red"], M["red"], M["deep"]]
+        loft(P, [[(x, y, z) for x, y, z in rg] for rg in rings], lambda k: mats[k],
+             mat_cap0=M["block"], mat_cap1=M["deep"])
+        # Its mount: a thin rod in to the arm's cut end (cols 15.6 / 46.4), 0.34 px across in
+        # plan, so it covers no pixel of row 24.
+        xe = 16.2 if xc < 31.0 else 45.8
+        sweep(P, [(xc, 24.62, zc, 0.17, 0.42), (xe, 24.62, zc, 0.17, 0.42)], superellipse(8, 2.0),
+              lambda k: M["arm"])
+        print(f"pod nozzle at col {xc}, radius {r} px")
+
+
+def build(sprite, coll, variant=None):
+    """The craft; `variant` "upper" or "lower" builds that assembly's version (CLIP), None the
+    whole craft as both assemblies draw it together."""
     mats = materials(sprite)
-    up = Part()
-    build_upper(up)
-    lo = Part()
+    up, pods, lo = Part(), Part(), Part()
+    build_upper(up, pods)
     build_lower(lo)
+    if variant:
+        spec = clip_rules(variant)
+        clip_part(up, spec["up"])
+        clip_part(lo, spec["lo"])
+        if spec["pods"] == "drop":
+            pods.bm.free()
+            pods = Part()
+            pod_nozzles(pods)
     a = finish(up, mats, coll, NAME + "_upper")
+    p = finish(pods, mats, coll, NAME + "_pods")
     b = finish(lo, mats, coll, NAME + "_lower")
-    return join([a, b], NAME)
+    return join([a, p, b], NAME)
 
 
 def join(objs, name):
@@ -1124,87 +1325,6 @@ def layout(sprite_of, pieces):
     data = sprite_of(pieces[0])
     return [(e["model"], e["cx"] - 135 - AXIS_X, e["cy"] - 159 - MID_Y) for e in data["assemblyLayout"]
             if e["model"] in pieces]
-
-
-def overlap_limits():
-    """Where each assembly's pieces end in the 4 rows they share (frame rows 24-27), per frame
-    column: (b, t), the upper pieces keep rows < b and the lower pieces rows >= t (t <= b wherever
-    either sprite draws inside its ink, so the two together still cover the craft). Each keeps the rows its own sprite draws inside its
-    ink (D74 inner mask plus free pixels) and gives up the rows only the other sprite draws, so
-    each assembly's top view matches its own sprite there and a piece left alone (its partner
-    destroyed) does not show its partner's edge."""
-    ref = ROOT / "reference" / "models"
-    own = []
-    for asm in ("assembly-newsh4-81", "assembly-newsh4-123"):
-        m = sprite_mask.masks(*sprite_mask.load(asm, ref=ref))
-        own.append(np.array(m["inner"]) | np.array(m["free"]))
-    up, lo = own[0][24:28], own[1][0:4]
-    out = []
-    for x in range(72):
-        # Each keeps the run of rows that best fits its own sprite: +1 for a row it draws, -1 for a
-        # row only the other draws (rows neither draws are free).
-        def score(rows, mine, other):
-            return sum(1 if mine[r, x] else -1 if other[r, x] else 0 for r in rows)
-        b = max(range(24, 29), key=lambda v: (score(range(0, v - 24), up, lo), -v))
-        t = min(range(24, 29), key=lambda v: (-score(range(v - 24, 4), lo, up), -v))
-        gap = range(b - 24, t - 24)
-        if t > b and any(up[r, x] or lo[r, x] for r in gap):  # rows a sprite draws would be dropped
-            if score(gap, up, lo) >= score(gap, lo, up):
-                b = t
-            else:
-                t = b
-        out.append((b, t))
-    return out
-
-
-def trim_overlap(piece, ox, oy, limits, coll):
-    """Cut the piece (common.split_assembly's 24 x 28 px box at frame column ox, row oy, centred on
-    the origin) back to overlap_limits in the shared rows: the box is split into runs of columns
-    with the same limit, each cut at its own row with bisect and capped like split_assembly's cuts,
-    and the runs joined again."""
-    upper = oy == 0
-    lim = [limits[c][0] if upper else limits[c][1] for c in range(ox, ox + 24)]
-    full = 28 if upper else 24
-    if all(v == full for v in lim):
-        return piece
-    runs = []
-    for i, v in enumerate(lim):
-        if runs and runs[-1][2] == v:
-            runs[-1][1] = i + 1
-        else:
-            runs.append([i, i + 1, v])
-    chunks = []
-    for c0, c1, v in runs:
-        bm = bmesh.new()
-        bm.from_mesh(piece.data)
-        planes = []
-        if c0 > 0:
-            planes.append((((c0 - 12) * PX, 0, 0), (-1, 0, 0)))
-        if c1 < 24:
-            planes.append((((c1 - 12) * PX, 0, 0), (1, 0, 0)))
-        if v != full:
-            y = (oy + 14 - v) * PX
-            planes.append(((0, y, 0), (0, -1, 0) if upper else (0, 1, 0)))
-        for co, no in planes:
-            geom = bm.verts[:] + bm.edges[:] + bm.faces[:]
-            cut = bmesh.ops.bisect_plane(bm, geom=geom, plane_co=co, plane_no=no, clear_outer=True)
-            edges = [e for e in cut["geom_cut"] if isinstance(e, bmesh.types.BMEdge)]
-            if edges:
-                bmesh.ops.holes_fill(bm, edges=edges, sides=0)
-        me = bpy.data.meshes.new(f"{piece.name}_run{c0}")
-        bm.to_mesh(me)
-        bm.free()
-        for m in piece.data.materials:
-            me.materials.append(m)
-        o = bpy.data.objects.new(me.name, me)
-        coll.objects.link(o)
-        chunks.append(o)
-    name = piece.name
-    bpy.data.objects.remove(piece, do_unlink=True)
-    obj = join(chunks, name)
-    obj.data.shade_smooth()
-    print(f"trim {name}: {len(runs)} column runs, limits {lim}")
-    return obj
 
 
 def measure_pieces(parts, offsets, oy, out_png, ss=8):
@@ -1651,10 +1771,11 @@ def cull_hidden(obj, grid=4, ndirs=40):
     print(f"culled {len(dead)} hidden faces")
 
 
-def outline_shell(obj, coll, voxel=0.016, faces=6000, smooth=8):
+def outline_shell(obj, coll, voxel=0.016, faces=6000, smooth=8, inside=0.0):
     """common.outline_shell (D51), but keeping every outer island of the voxel remesh: the horns,
-    claws and wing-tip arcs stand free of the hull, and common's shell keeps only the largest
-    island. Inner shells (cavities, negative volume) are dropped."""
+    claws, wing-tip arcs and pod nozzles stand free of the hull, and common's shell keeps only the
+    largest island. Inner shells (cavities, negative volume) are dropped. `inside` as common's
+    (D90): every shell vertex outside the model goes back onto it, that far inside."""
     me = obj.data.copy()
     me.materials.clear()
     shell = bpy.data.objects.new(f"{obj.name}_outline", me)
@@ -1705,6 +1826,13 @@ def outline_shell(obj, coll, voxel=0.016, faces=6000, smooth=8):
         dec = shell.modifiers.new("decimate", "DECIMATE")
         dec.ratio = faces / n
     common._apply_modifiers(shell)
+    if inside > 0:
+        sw = shell.modifiers.new("inside", "SHRINKWRAP")
+        sw.target = obj
+        sw.wrap_method = "NEAREST_SURFACEPOINT"
+        sw.wrap_mode = "INSIDE"
+        sw.offset = -inside
+        common._apply_modifiers(shell)
     shell.data.shade_smooth()
     shell.data.materials.append(common.material("outline_shell", (0.0, 0.0, 0.0), roughness=1.0))
     shell["tyrian_outline"] = True
@@ -1750,7 +1878,7 @@ def run(pieces, argv):
         sprite["colors"].update(sprite_of(n)["colors"])
     set_inner(sprite_of)
     coll = common.reset_collection(NAME)
-    obj = build(sprite, coll)
+    obj = build(sprite, coll, "upper" if pieces == UPPER else "lower")
     print(f"model: {len(obj.data.polygons)} faces, {tris(obj)} triangles")
     if arg("--measure"):
         measure([obj], sprite_of, arg("--measure"))
@@ -1769,23 +1897,16 @@ def run(pieces, argv):
     export = "--no-export" not in argv
     if not export and not arg("--measure-pieces"):
         return obj
-    # The outline shell of the whole craft, cut like the model, so the contour runs on across the
-    # piece seams.
-    shell = outline_shell(obj, coll, voxel=0.016, faces=6000, smooth=8) if export else None
+    # The outline shell of this assembly's craft (D90: 0.03 voxels bridge the panel seams, held
+    # 0.004 inside the model), cut like the model, so the contour runs on across the piece seams
+    # and ends where the model does along the rows the assemblies share.
+    shell = outline_shell(obj, coll, voxel=0.03, faces=6000, smooth=8, inside=0.004) if export else None
     lay = layout(sprite_of, pieces)
     parts = common.split_assembly(obj, lay, coll)
     shells = common.split_assembly(shell, lay, coll) if export else {}
-    # The two assemblies share frame rows 24-27: cut each piece back to the rows its own sprite
-    # draws there (overlap_limits). The outline shells keep split_assembly's box, so no new caps
-    # come into the shell (the partner's model covers the difference while both fly).
-    limits = overlap_limits()
-    offsets = {}
-    for e in sprite_of(pieces[0])["assemblyLayout"]:
-        offsets[e["model"]] = e["cx"] - 12 - 135
-    oy = sprite_of(pieces[0])["assemblyLayout"][0]["cy"] - 14 - 159
-    for name in pieces:
-        parts[name] = trim_overlap(parts[name], offsets[name], oy, limits, coll)
     if arg("--measure-pieces"):
+        offsets = {e["model"]: e["cx"] - 12 - 135 for e in sprite_of(pieces[0])["assemblyLayout"]}
+        oy = sprite_of(pieces[0])["assemblyLayout"][0]["cy"] - 14 - 159
         measure_pieces({n: parts[n] for n in pieces}, offsets, oy, arg("--measure-pieces"))
     if not export:
         return obj

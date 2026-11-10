@@ -17,7 +17,8 @@ The bottom-left corner of the red side tower of the Savara fortress (levels 1.8,
   (the exposed inner edge of the tower shows it from the side), the collar ends in a flat wall there.
 
 Satin metal (metallic 0.3, roughness 0.45-0.5): the sprite's bright pixels are sheen on the chamfers
-and the ball, not geometry. Outline shell (D51). Ground object: base at z = 0.
+and the ball, not geometry. Outline shell (D51; D90's 0.03 voxels held 0.004 inside). Ground
+object: base at z = 0.
 
 Run: blender --background --python assets/blender/enemies/newshf-230.py [-- --preview out.png]
 """
@@ -46,10 +47,11 @@ Z_RIB = 0.34      # rib tops
 Z_LEDGE_IN, Z_LEDGE_OUT = 0.20, 0.13
 Z_FLOOR = 0.12    # socket floor
 
-TOP = 0.55        # the top tile seam. Row 0 is deck and ledge (65/66) continuing the piece above, but
+TOP = 0.6         # the top tile seam. Row 0 is deck and ledge (65/66) continuing the piece above, but
                   # sprite_mask counts dark 65 at the picture's edge as ink (D74 border), and a top edge
-                  # nearer than 0.5 px to row 0's top drops the grid IoU to 0.93 (< 0.95). The game's
-                  # outline ink (0.55-0.75 px) closes the 0.55 px gap: no ground shows at the seam
+                  # at or nearer than 0.5 px to row 0's top drops the grid IoU to 0.93 (< 0.95): at 0.55
+                  # an 8x top render's sample rows still covered half of row 0 (0.9316), so 0.6. The
+                  # game's outline ink (0.55-0.75 px) closes the gap: no ground shows at the seam
                   # (checked in Savara, tick 4650). Ribs run to the seam (row 0 is theirs in the mask).
 LIP = 0.9         # the deck lip over the socket (row 0, cols 18-21 are 65)
 RIGHT = 24.0
@@ -116,6 +118,56 @@ def offset_polygon(poly, dists):
         den = u[0] * v[1] - u[1] * v[0]
         t = ((q[0] - p[0]) * v[1] - (q[1] - p[1]) * v[0]) / den
         out.append((p[0] + u[0] * t, p[1] + u[1] * t))
+    return out
+
+
+def hold_offsets(poly, dists, top):
+    """offset_polygon's ring with its flipped edges collapsed. At an acute corner next to a short
+    edge (rib B where its arm meets the band at the panel seam, and the band's corner clipped by
+    the curved deck) the step of offset_polygon carries a short edge's top past itself: the top ring
+    crossed itself and the plates' top faces poked through each other as a pale sliver at the bend.
+    An edge whose top runs backwards is collapsed: its two top vertices become one, where the offset
+    lines of the edges either side of it meet (a straight-skeleton edge event), repeated until no
+    top edge runs backwards. Vertices of edges that never flip are left as they were."""
+    n = len(poly)
+
+    def line(i):
+        (x0, y0), (x1, y1) = poly[i % n], poly[(i + 1) % n]
+        dx, dy = x1 - x0, y1 - y0
+        ln = math.hypot(dx, dy) or 1.0
+        nx, ny = -dy / ln, dx / ln
+        return (x0 + nx * dists[i % n], y0 + ny * dists[i % n]), (dx, dy)
+
+    groups = [[i, i, top[i]] for i in range(n)]  # first and last original vertex, top position
+    for _ in range(n):
+        m = len(groups)
+        if m < 3:
+            break
+        for g in range(m):
+            ga, gb = groups[g], groups[(g + 1) % m]
+            e = ga[1]  # the original edge from ga's last vertex to gb's first
+            ed = (poly[(e + 1) % n][0] - poly[e][0], poly[(e + 1) % n][1] - poly[e][1])
+            td = (gb[2][0] - ga[2][0], gb[2][1] - ga[2][1])
+            if ed[0] * td[0] + ed[1] * td[1] < 0:
+                break
+        else:
+            break
+        (p, u), (q, v) = line(ga[0] - 1), line(gb[1])
+        den = u[0] * v[1] - u[1] * v[0]
+        if abs(den) < 1e-12:
+            break
+        k = ((q[0] - p[0]) * v[1] - (q[1] - p[1]) * v[0]) / den
+        merged = [ga[0], gb[1], (p[0] + u[0] * k, p[1] + u[1] * k)]
+        groups[g] = merged
+        del groups[(g + 1) % m]
+    out = [None] * n
+    for first, last, pos in groups:
+        i = first
+        while True:
+            out[i] = pos
+            if i == last:
+                break
+            i = (i + 1) % n
     return out
 
 
@@ -386,7 +438,7 @@ def build(sprite, coll):
             else:
                 ch.append(0.55 * PX)
         chz = 0.035
-        top_r = offset_polygon(poly, ch)
+        top_r = hold_offsets(poly, ch, offset_polygon(poly, ch))
         # ramps run all the way down to the deck; other edges a 45-degree chamfer.
         rings = [[(x, y, z0) for x, y in poly],
                  [(x, y, (Z_DECK + 0.004) if ch[i] > 0.6 * PX or ch[i - 1] > 0.6 * PX else Z_RIB - chz)
@@ -475,7 +527,7 @@ def main():
     sprite = common.load_sprite(ROOT, NAME)
     coll = common.reset_collection(NAME)
     obj = build(sprite, coll)
-    shell = common.outline_shell(obj, coll)
+    shell = common.outline_shell(obj, coll, voxel=0.03, inside=0.004)
     common.export_sprite_model(ROOT, [obj, shell], MODEL, sprite["sprites"])
     tris = sum(len(p.vertices) - 2 for p in obj.data.polygons)
     print(f"{NAME}: {tris} triangles (+ shell {len(shell.data.polygons)} faces)")

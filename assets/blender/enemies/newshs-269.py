@@ -581,9 +581,19 @@ def outline_shell(coll, n=72):
             px, py = DC[0] + d[0] * t, DC[1] + d[1] * t
             rho = math.hypot((px - cx) / sa, (py - cy) / sb)
             prof.append((t, cap_z(rho, base=sz, h=sh, rad=sa)))
+        # The crest comes down where the model does (D90, held inside): into the chin, to its channel
+        # floor (0.5; rails top 1.05-1.5, spine 0.98), and over the plates' seams (their gap floor, the
+        # core, at 1.55), so no part of the shell stands above the model there and its back faces
+        # draw no ink sheet behind the chin or wedges in the seams.
+        crest = chin_amount(th)
+        low = 0.45 * crest + 9.0 * (1 - crest)
+        for sd in SEAM_G:
+            if ang_dist(th, sd) < 4.0:
+                low = min(low, 1.45)
+        cz = lambda z: min(z, low)  # noqa: E731
         prof += [(max(tD + 0.12, tL - 0.35), sz),
-                 (tL + uc, 2.16), (tL + (uc + u4) / 2, 2.26), (tL + u4, 2.24),
-                 (tB - 0.45, 1.94), (tB - 0.1, 1.36), (tB - 0.1, 0.4), (tB - 0.42, 0.02),
+                 (tL + uc, cz(2.16)), (tL + (uc + u4) / 2, cz(2.26)), (tL + u4, cz(2.24)),
+                 (tB - 0.45, cz(1.94)), (tB - 0.1, cz(1.36)), (tB - 0.1, 0.4), (tB - 0.42, 0.02),
                  (tB - 1.05, -0.28), (tB - 1.3, -0.62), (0.72 * tB, -1.62), (0.45 * tB, -2.32),
                  (0.2 * tB, -2.72)]
         loops.append([(DC[0] + d[0] * t, DC[1] + d[1] * t, z) for t, z in prof])
@@ -611,6 +621,16 @@ def outline_shell(coll, n=72):
     me.materials.append(common.material("outline_shell", (0.0, 0.0, 0.0), roughness=1.0))
     shell["tyrian_outline"] = True
     return shell
+
+
+def hold_inside(shell, obj, inside=0.004):
+    """D90: every shell vertex outside the model goes back onto it, `inside` inside (Shrinkwrap)."""
+    sw = shell.modifiers.new("inside", "SHRINKWRAP")
+    sw.target = obj
+    sw.wrap_method = "NEAREST_SURFACEPOINT"
+    sw.wrap_mode = "INSIDE"
+    sw.offset = -inside
+    common._apply_modifiers(shell)
 
 
 def bake_maps(obj, out_dir, size=1024, samples=64):
@@ -786,7 +806,10 @@ def main():
     if "--no-bake" not in argv:
         bake_maps(obj, tempfile.mkdtemp(prefix=f"{NAME}_bake_"), size=1024, samples=64)
         fmt = "WEBP"
+    # The built shell, held 0.004 inside the model (D90). A voxel shell (common.outline_shell, even
+    # D90's 0.03 voxels held inside) drew ink specks round the dome's well and the drum.
     shell = outline_shell(coll)
+    hold_inside(shell, obj)
     print(f"{NAME}: outline shell {len(shell.data.polygons)} faces")
     common.export_sprite_model(ROOT, [obj, shell], MODEL, sprite["sprites"], image_format=fmt)
     shell.hide_render = True

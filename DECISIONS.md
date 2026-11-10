@@ -4808,3 +4808,106 @@ every frame: `newsh-caret-171` (0.9237, a size-1 sprite), `newshj-19` (0.9367 on
 Sonnet, the rest Opus), 27.4M subagent tokens, about 5.5 h at `maxAgents: 8`; the fix round (`fix-round.js`, 3 items)
 8 agents, 0.93M tokens, about 45 min. Sheets: `tyrian-scratch/e1-enemies/<name>/final/` and
 `.../fixround/<name>/final/` (not in git, D3).
+
+## D117 — Refit and outline-shell fixes: the level-1 flagship's halves end inside their own sprites, five shells held inside
+
+2026-11-10
+
+**Problem:** a visual audit of D88 and D92 (`tyrian-scratch/refit-audit/`) found artefacts the IoU gate
+cannot see:
+- **assembly-newsh4-123 / assembly-newsh4-81** (`lib_b065.py`, used only by these two; the boss
+  assembly-newsh4-124 and its wrecks don't import it): D88 cut the joined model of each piece back
+  to its own sprite's rows in the 4 rows the two halves share (per column, `trim_overlap`). The
+  cut went through the model after `cull_hidden`, so it was no longer closed: open sections, sliver
+  fragments and stair steps along -123's front and -81's rear. The outline shell kept the piece box,
+  so past the cut it stood out as a black slab with an ink loop, visible in `?debug=models` at game
+  scale. The same cut removed -123's red-rimmed nozzles (the shoulder pods' aft ends).
+- **D92 enemies, outline on only:** assembly-newshf-195 ink wedges on the dome's right half,
+  newshs-171 two ink slits beside the hub, newshs-269 an ink sheet behind the chin (rear right in
+  the 3/4 view) and a wedge at the left seam.
+- **newshf-230, outline off:** a pale sliver through the red rail at the bend.
+
+**Decision:**
+- **Each half of the flagship is built its own way, part by part, before the join** (`clip_rules`,
+  `clip_part`). Every closed part that crosses one of its assembly's lines is cut there and capped;
+  a part reaching less than 0.4 px inside is dropped whole (no slivers). Parts cut on the same line
+  whose caps would overlap are cut 0.03 px apart, so no two caps are coplanar (they z-fought, and
+  the occlusion bake stippled them). The piece boxes then cut nothing along the shared rows.
+  - **Each part ends straight, at its own length.** On the shared row (-81's row 27, -123's row 24,
+    half colour and half ink in both sprites) a part ends at the row's near or far edge, whichever
+    its own pixels of that row vote for: colour inside the ink +1, ink or nothing -1, free 0. This
+    replaces D88's per-column stair steps and keeps the rule IoU over 0.95 per piece.
+  - **Side lines:** -81's body parts (wing roots, torso, armour) stay inside cols 14.6-46.4 (its
+    rows 26-27 are ink beside the pods); -123's head parts (arm, armour block, core stubs) inside
+    15.6-46.4, and its wings' leading edges inside the sprite's diagonal above row 29. The lower
+    sprite is symmetric about column edge 31, the upper about 30.5.
+  - **The shoulder pods** are their own part: -81 keeps them whole (they end at row 27.95, in its
+    box); -123 drops them.
+- **-123's nozzles are back, scaled in:** a red lip round a dark throat, a red band, the grey housing
+  and a tapered back, the pods' section (`pod_nozzles`). They sit on the two free ink pixels the
+  lower sprite draws for each pod's end (cols 10-11, 50-51), radius 1.1 px, rows 24.0-25.4, so they
+  add no pixel to its top view. Each is mounted on a thin rod (0.34 px across) to the arm's cut end,
+  so it does not float. With -81 present they sit inside its pods.
+- **D90's shell for these models:** 0.03 voxels, held 0.004 inside.
+  - **The flagship:** `lib_b065.outline_shell` (it keeps every outer island, so horns, claws, arcs
+    and nozzles keep their ink) takes `inside`. It is made from each half's own build, so it ends
+    where the model does.
+  - **assembly-newshf-195** at 2000 faces (1000 left an ink streak on the dome).
+  - **newshs-171** at 3000 faces.
+  - **newshf-230:** D90's shell too; it also clears ink ticks beside its studs.
+  - **newshs-269 keeps its built shell**, held inside by the same Shrinkwrap. Its crest comes down
+    to the chin's channel floor (0.45) and to 1.45 over the plates' seams. A voxel shell, even D90's,
+    drew ink specks round the dome's well and the drum.
+- **newshf-230's sliver:** where the band of rib B is clipped by the curved deck next to its panel
+  seam (and where the arm meets that seam), offset_polygon's step carried a short edge's top past
+  itself, so the top ring crossed itself. `hold_offsets` collapses such a flipped edge where the
+  offset lines on either side of it meet, repeating until no top edge runs backwards; no other
+  vertex moves.
+  - Its top seam moves from 0.55 to 0.6 px. At 0.55, an 8x top render still covered half of row 0
+    (rule IoU 0.9316); at 0.6 it is D92's 0.9761.
+
+**Result** (rule IoU on the grid, `tools/sprite_mask.py --measure` of top renders of the exported
+GLBs, outline shells left out, 8x):
+
+| Model | after | before (main) |
+|---|---|---|
+| newsh4-81 / -83 / -85 | 0.9521 / 0.9583 / 0.9875 | 0.9728 / 0.9731 / 0.9875 |
+| newsh4-119 / -121 / -123 | 0.955 / 0.9618 / 0.9881 | 0.9583 / 0.9756 / 0.9881 |
+| assembly-newsh4-81 / -123 (grid) | 0.97 / 0.9908 | 0.9885 / 1.0 |
+| newshf-157 / -159 / -195 / -197 | 0.9924 / 0.9423 / 0.9969 / 0.9532 | same (shell only) |
+| assembly-newshf-195 (grid) | 0.9986 | 0.9986 |
+| newshs-171, all 4 frames | 1.0 | 1.0 |
+| newshs-269 | 0.9901 | 0.9901 |
+| newshf-230 | 0.9761 | 0.9316 (by this measure) |
+
+- **The flagship's lower per-piece numbers** come from the straight part ends. D88's stair steps
+  matched row 27 pixel for pixel.
+- **newshf-159 below 0.95:** every pixel it misses is on the piece seam: the per-piece mask counts
+  the dark column at the shared edge as border. Its grid is 0.9986; it was not changed here.
+- **Ink outside the silhouette** (`inkout`, px beyond the normal ink width, 3/4 front):
+  assembly-newsh4-123 20558 → 17, assembly-newsh4-81 2132 → 830, newshs-269 8171 → 2415.
+- **Interior ink** (outline on minus off, per mille, front / 3/4 rear / top):
+  | Model | before | after |
+  |---|---|---|
+  | -123 | 20.3 / 11.0 / 6.3 | 12.3 / 5.6 / 1.1 |
+  | -81 | 32.5 / 21.2 / 8.6 | 12.2 / 7.6 / 4.3 |
+  | newshs-171 | 5.5 / 5.4 / 9.1 | 0.04 / 0.06 / 0.0 |
+  | newshs-269 top | 2.35 | 0.42 |
+
+  What is left is ink where one part overlaps another, plus small marks at the right horn's crease
+  (a fold in the horn's sweep).
+
+**Checked:** `?viewer=` (top, game angle, 3/4 front and rear, outline on and off) and
+`?debug=models` at 1920x1080, before and after.
+
+**Options considered:**
+- *Keep D88's per-column cut and only cap it:* the caps of a culled mesh don't close, and the stair
+  steps remain.
+- *One straight line per assembly:* row 27 is half ink, half colour, so either edge missed the 0.95
+  per piece (-83 0.92-0.94).
+- *Bigger nozzles:* the lower sprite draws only two ink pixels there; anything wider adds pixels.
+- *A voxel shell for newshs-269:* specks round the well.
+
+**Review:** sheets in `tyrian-scratch/enemy-refit-fixes/sheets/`: `before-after-closeups.png`,
+`before-after-viewer.png`, `before-after-game-scale.png`. Measures in `measure/`. Fallback: revert
+the five scripts and their GLBs.
