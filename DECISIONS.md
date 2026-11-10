@@ -4392,6 +4392,71 @@ The most-drawn one is #7 198 (7 levels, 3 episodes), with #7 199 (96,631 ticks) 
 
 Answers, sheets and prompts: `tyrian-scratch/flat-art-rest/` (not in git, D3).
 
+## D113 — `shapesx` HD terrain: 191 of 196 ground, 7 of 14 layer-1 and 11 of 13 layer-2 tiles from 24 Gemini sheets (two rounds; D83, D95)
+
+2026-11-04
+
+**Decision:** the `shapesx` tileset (levels 2-1 TORM, 2-2, 2-6, 2-10 BOTANY A, 2-11, 2-12, 4-13 EYESPY) gets a
+partial HD atlas (`public/art/terrain/shapesx/`: `0.webp`, 70 ground tiles, 0.56 MB). The tiles it lacks fall back
+per tile to the original (D57), so every level plays; the rest is a second round.
+- **Inventory:** layer 0 has 196 terrain tiles to paint (+3 empty); layer 1 has 14 terrain and 120 structure
+  (cyan plating, left to models); layer 2 has 13 terrain and 21 structure. 24 primary sheets (20 ground regions, 2
+  layer-2 regions, 2 layer-1 contexts); layers 1 and 2 have no art yet.
+- **Prompts rewritten by hand** (D89): SEND.md calls the biomechanical hull and alien flesh "cyan" and the horns
+  "brown rock". The real materials: forest canopy with blue water, cliffs and grey pipes (regions 03, 05, 06, 09, 13,
+  14, 16, 19); purple veined tissue (08, 20); steel hull plating and pipes (01, 02, 07, 10, 11, 15, 18); alien
+  flesh with eyes and bone spikes (04, 12, 17); tan horns and claws on black (layer 2, layer-1 contexts). Generator:
+  `tyrian-scratch/terrain-shapesx/bin/mkprompts.py`.
+- **Gemini:** 4 requests sent (regions 05, 03, 13, 06: all forest and water), 0 retries, all painted well,
+  registered at scale 11.38, NCC median 0.60-0.67. Then Pro, 3.8 Flash, 3.1 Pro and 4 Argon were greyed out in the
+  mode picker ("Limit resets Nov 4, 11:05 PM"; the account is shared by four agents and ~14 min waits for the lock
+  kept the pace low), so sending stopped. 20 primary sheets are unsent (SEND.md order: 19, 09, 16, 14 forest,
+  then 08, 20, 01, 17, 04, 15, 10, 12, 02, 18, 11, 07, layer 2, layer 1).
+- **Seams** (`check`, ground edges that include fallback tiles, so inflated): 0.73 overall (continuous 0.73,
+  bands 0.51); per level 2-1 0.75, 2-10 0.62, 2-11 0.73, 2-12 0.74. Weak fit (NCC < 0.5): tile 596. Re-measure after the full cut.
+- **Checked in game** (2-1, 2-10 at ticks 1200 and 2400, both looks): painted forest, water and cliffs meet cleanly;
+  unpainted tiles show as the original beside them.
+
+**Second round (Nov 9):** the 20 remaining primary sheets sent (25 requests, 5 of them retries: 09, 10, 20, 12, 02; no usage
+warning, no limit hit). Atlas folder restored, then `cut --cache --edge-aware --exclude <14 tiles>`: 70 ground tiles kept
+byte for byte, 121 new ground, 7 layer-1, 11 layer-2 (`0-2.webp`, `1.webp`, `2.webp`; 1.4 MB in all).
+- **Sheet quality** (tile NCC median, after the retry where there was one): forest 19 0.73, 16 0.52, 14 0.95, 09 0.24
+  (first try 0.10: stayed weak); purple 08 0.66, 20 0.94; hull 01 0.87, 15 0.89, 18 0.78, 11 0.77, 07 0.71, 02 0.98, 10 0.06
+  (two tries, both failed to register); flesh 17 0.83, 04 0.49, 12 0.98; layer 2: 02 0.81, 01 0.57; layer 1: ctx-2 1.00,
+  ctx-1 0.70. Sheets 20, 15, 12 and 02 came back as near copies of the pixel blocks (blockiness 4.2-4.8, NCC 0.9+) even after
+  an "anti-aliased, no pixel grid" retry on 20 and 02; the cut deblocks them. Hull prompts now say "flat game-map floor
+  texture, not a ship or vehicle" (Gemini drew a ship in space for the same wording in `shapesw`); layer-2 and context
+  prompts say "on a pure black background ... do not paint a cave, sky or scenery". The layer-1 prompts written by
+  `mkprompts.py` had lost their "Repaint every piece" sentence (it replaced everything from the first parenthesis), so
+  both contexts were resent with the full text.
+- **Left to the original** (best candidate scored under 0.4): ground 86 111 127 566 567, layer 1 62 450 451 452 458 459
+  467 (the other 7 are painted), layer 2 313 314.
+- **Seams** (`check`, every edge): layer 0 0.865 across / inside (original continuous 0.823), bands 0.544; the 19,625
+  edges between kept tiles 0.730 (continuous 0.729), the 17,611 edges that touch a new tile 1.018 (continuous 0.932),
+  bands 0.617; layer 1 0.804 (continuous 0.801; only 5 edges); layer 2 0.398 (continuous 0.398), bands 0.678. Ground is
+  above the ~0.6 target, but within 0.04-0.09 of the original's own ratio on this forest and hull texture.
+- **In game** (`episode=2&main=M&seed=1&skip=T&freezeAt=T`, both looks; section numbers: 2-1 TORM main 2, 2-10 BOTANY A main
+  21, 2-6 GRYPHON main 12, 2-12 BONUS main 24): 2-1 and 2-10 at t1200/t2400 (original | round 1 | round 2:
+  `tyrian-scratch/terrain-shapesx/captures/compare-2-1-r2.jpg`, `compare-2-10-r2.jpg`), 2-6 t1500 and 2-12 t900
+  (`compare-2-6-2-12-r2.jpg`, original | HD). Forest, water, cliffs and hull slabs line up with the original; the repainted
+  hull slabs on 2-10 are darker steel with a faint teal halo at their edges, and 2-6's central hull block shows a green
+  tint (found and fixed below). Left tiles show as the original beside them. terrainArt
+  and terrainHd tests pass. Not looked at: 2-2, 2-11, 4-13, `&dpr=0.3`, fallback with a tile removed.
+
+**The teal rim (found after round 2, fixed with `terrain_hd.py rimfix`):** the 2-6 tint and the 2-10 halo were one
+thing, and not a shader recolouring (`paletteTexture.ts` / `terrainMaterial.ts` of D111 changed nothing; with the
+whole palette path bypassed the tint stayed). The atlas itself had it: the seam strips (the outer 4 texels, solved
+across tile pairs) took the lighter cyan of the original's edge pixels, so every blue-grey plating tile carried an
+8-texel ring greener than its interior (green sits 0.78 of the way from red to blue in the ring, 0.56-0.60 inside:
+tile 12 edge [41,66,73] vs inside [40,54,65]). Tiled, the rings drew a teal grid, and the 2-6 block read as a green
+rectangle. `fix_rim` lowers the green to the plating's ratio (`RIM_RHO` 0.58) within 12 texels of the edge, fading
+over 12 more; red and blue stay, so the rim keeps its light. It is one colour function of the texel (two tiles that
+met in one edge colour still do) and runs only on tiles whose interior is blue over green over red (jungle, rock
+and water come back as they were). It changed 95 of the 191 ground tiles (82 in `0-2.webp`, 13 in `0.webp`),
+re-encoded at the same layout and quality 92; layers 1-2 don't have it. `tests/tools/terrain_hd_test.py` (RimFix).
+The same pass is worth running on a new tileset after its cut (`rimfix <tileset> --dry-run` lists the tiles).
+After: 2-6 t1500 and 2-10 t1200/t2400, original | HD, `tyrian-scratch/terrain-shapesx/captures/r3/compare-2-6-r3.jpg`,
+`compare-2-10-t1200-r3.jpg`, `compare-2-10-t2400-r3.jpg`: no tint, no halo.
 ## D111 — `shapes)` HD terrain: all 112 ground tiles and all 14 layer-1 rock tiles, from 16 Gemini sheets (two rounds)
 
 2026-11-04
