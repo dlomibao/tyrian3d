@@ -2,8 +2,9 @@
 155/156/157, 165/149/167, 175/176/177), after the concept assets/blender/features/concepts/
 tyr-purple-orb.jpg: a carved purple stone plate with chamfered corners, quartered by grooves into
 four raised panels, a carved ring round a brass ring holding a glowing blue orb in the middle and
-two blue capsule lights below it, eight faceted cracked-stone bosses round its edge (corners and
-side middles) on a low purple base, on the island's rock.
+two blue capsule lights below it, eight broken sockets round its edge (corners and side middles:
+the shattered stone the tiles paint under the caps, read off them by lib_sockets.py, D115) on a
+low purple base, on the island's rock.
 
 Every cell carries a top enemy (newsh2 279/281/283, 245/169/207, 273/275/277: the "purple eye
 fortress"), so the whole model stays under L2_ENEMY_MAX (0.33) and shows only after kills. The
@@ -15,6 +16,7 @@ Run from the repo root:
     blender --background --factory-startup --python assets/blender/tiles/tyrbld_purple_orb.py
     python tools/concept_maps.py tile:shapesz-tyrbld-purple-orb --concept tyr-purple-orb --span -0.19,-0.07,2.38,2.09 --px 32
     python assets/blender/tiles/tyrbld_purple_orb.py --maps
+    python assets/blender/tiles/lib_sockets.py --maps  (no concept detail on the broken sockets, D115)
     blender --background --factory-startup --python assets/blender/texture_bake.py -- tile:shapesz-tyrbld-purple-orb
 
 The span is fractional: the Gemini concept is squeezed vertically against the tiles (its bosses at
@@ -55,7 +57,7 @@ PLATE_Z = 0.145  # its frame (and the grooves between the panels)
 PANEL_Z = (0.185, 0.22)  # the four raised panels: bevel foot, top
 CARVED_Z = 0.232
 RING_Z = (PANEL_Z[1] - 0.01, 0.255)
-BOSS_Z = (0.0, 0.31)  # bosses: from the rock up to their crown
+BOSS_Z = (0.0, 0.30)  # the broken sockets: from the rock up to their highest chunk
 ORB_Z = (0.235, 0.325)
 CAPSULE_Z = (0.21, 0.27)
 
@@ -201,16 +203,6 @@ def capsule(s, px, py, angle, mat):
     s._merge(bm, smooth=True)
 
 
-def boss(s, cx, cy, rx, ry, mat):
-    """A faceted boss: an octagonal dome in two flat-shaded rings, flat crowned (the original's
-    panelled knobs, the concept's cracked-plate domes; the bake adds the cracks)."""
-    bm = bmesh.new()
-    lt.dome(bm, s.x(cx), s.y(cy), rx * lt.PX, ry * lt.PX, math.pi / 8, BOSS_Z[0], BOSS_Z[1] - BOSS_Z[0], mat,
-            sides=8, rings=2, squash=0.45)
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    s._merge(bm, smooth=False)
-
-
 def build():
     s = tb.Structure("purple-orb")
     purple = s.purple_mask()
@@ -257,9 +249,8 @@ def build():
     for (px, py), ang in CAPSULES:
         capsule(s, px, py, ang, blue)
 
-    # The bosses: faceted cracked stones.
-    for cx, cy, rx, ry in BOSSES:
-        boss(s, cx, cy, rx, ry, plate_mat)
+    # The bosses: the broken sockets the tiles paint under the caps (D115).
+    s.broken_sockets(BOSS_Z[0])
 
     # The island's rock round it, as the per-tile rock models draw it (Structure.rock).
     keep_out = block_mask(s.H, s.W, grow=-0.5) | lb.erode(purple, 1)

@@ -54,6 +54,7 @@ import numpy as np
 
 import common
 import lib_l1bld as lb
+import lib_sockets as ls
 import lib_tiles as lt
 
 ROOT = lb.ROOT
@@ -71,6 +72,13 @@ L2_TALL_MAX = 0.70
 L2_OVER_MAX = 0.38
 L2_SLAB_BOTTOM = -0.30
 L2_Z_MIN = -0.90
+
+# Broken sockets (D115): the highest chunk's top, how much a chunk rises per px outward (the middle
+# sagged where the cap was torn out), and the dark floor between the chunks (palette 5's index).
+SOCKET_TOP = 0.30
+SOCKET_SAG = 0.012
+SOCKET_FLOOR = 82
+SOCKET_BURST = 0.5  # px: how far the outermost chunks are pushed out
 
 #: TYRIAN's tiles by kind (shapesz_bg3.py).
 WALK = {180, 181, 183, 184, 191, 192, 193, 194, 200, 201}
@@ -348,6 +356,79 @@ class Structure(lb.Building):
                  math.pi / sides if angle is None else angle, z0, z1 - z0, mat, sides=sides, bevel=bevel)
         self._merge(bm)
 
+    def broken_sockets(self, z0, top=SOCKET_TOP):
+        """Every boss tile's broken socket (lib_sockets, D115), where the tile paints its boss: the
+        shattered stone the original shows once a cap is shot off it. Under a live cap the cap's
+        model covers it, as the cap's sprite covers the tile in the original. Returns the centres
+        (pattern px)."""
+        centres = []
+        for r, row in enumerate(self.pattern):
+            for c, tile in enumerate(row):
+                if tile in ls.BOSS_AT:
+                    ox, oy = c * lt.TILE_W, r * lt.TILE_H
+                    bx, by = ls.BOSS_AT[tile]
+                    self.broken_socket(tile, ox, oy, z0, top)
+                    centres.append((ox + bx, oy + by))
+        self.broken_sockets_built = True
+        return centres
+
+    def broken_socket(self, tile, ox, oy, z0, top=SOCKET_TOP):
+        """One broken socket: the chunks lib_sockets reads off the tile (at pattern px ox, oy), each
+        a prism from z0 with a chamfered top tilted as the plates sag toward the torn-out middle,
+        over a dark floor that shows in the cracks."""
+        cx, cy = ls.BOSS_AT[tile]
+        parts, _ = ls.chunks(tile, self.ts.tiles[tile]["px"], cx, cy, ls.BOSS_R)
+        rng = random.Random(f"socket-{self.name}-{tile}-{ox}-{oy}")
+        floor_z = z0 + (top - z0) * 0.3
+        bm = bmesh.new()
+        ring = ls.octagon(ox + cx, oy + cy, ls.BOSS_R * 0.96)
+        self._prism(bm, ring, lambda x, y: floor_z, z0, self.m(SOCKET_FLOOR, roughness=0.9), chamfer=0.0)
+        for p in parts:
+            pcx, pcy = p["centre"]
+            dx, dy = pcx - cx, pcy - cy
+            d = math.hypot(dx, dy)
+            ux, uy = (dx / d, dy / d) if d > 1e-6 else (0.0, 0.0)
+            h = top - 0.06 * (1 - min(d / ls.BOSS_R, 1)) - rng.uniform(0.0, 0.07)
+            a = rng.uniform(0, 2 * math.pi)
+            # Height per px: higher outward (the middle sagged), plus a turn of its own.
+            gx = SOCKET_SAG * ux + 0.014 * math.cos(a)
+            gy = SOCKET_SAG * uy + 0.014 * math.sin(a)
+            # Burst: each chunk pushed out from the middle a little, so the cracks open toward the rim.
+            push = SOCKET_BURST * min(d / ls.BOSS_R, 1)
+            pcx, pcy = pcx + ux * push, pcy + uy * push
+
+            def zf(x, y, h=h, gx=gx, gy=gy, pcx=pcx, pcy=pcy):
+                return min(top, max(floor_z + 0.04, h + gx * (x - pcx) + gy * (y - pcy)))
+
+            poly = [(ox + x + ux * push, oy + y + uy * push) for x, y in p["poly"]]
+            self._prism(bm, poly, lambda x, y, zf=zf: zf(x - ox, y - oy), z0, self.m(p["index"], roughness=0.6))
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        self._merge(bm)
+
+    def _prism(self, bm, poly, zf, z0, mat, chamfer=0.4, drop=0.03):
+        """A prism over the polygon `poly` (pattern px) from z0 up to the surface z = zf(px, py), its
+        top chamfered `chamfer` px in and `drop` down at the edge (flat shaded: a cut stone)."""
+        pts = [(float(x), float(y)) for x, y in poly]
+        if ls.area(pts) < 0:  # screen y down: make it counter-clockwise in Blender's Y-up
+            pts.reverse()
+        n = len(pts)
+        inner = ls.inset(pts, chamfer) if chamfer else pts
+        if chamfer and ls.area(inner) * ls.area(pts) < 0.3 * ls.area(pts) ** 2:
+            inner = pts  # a sliver: the chamfer would turn it inside out
+        base = [bm.verts.new((self.x(x), self.y(y), z0)) for x, y in pts]
+        if chamfer:
+            edge = [bm.verts.new((self.x(x), self.y(y), zf(x, y) - drop)) for x, y in pts]
+        else:
+            edge = base
+        topv = [bm.verts.new((self.x(x), self.y(y), zf(x, y))) for x, y in inner]
+        rings = [base, edge, topv] if chamfer else [base, topv]
+        for a, b in zip(rings, rings[1:]):
+            for i in range(n):
+                j = (i + 1) % n
+                bm.faces.new((a[j], a[i], b[i], b[j])).material_index = mat
+        bm.faces.new(list(reversed(topv))).material_index = mat
+        bm.faces.new(base).material_index = mat
+
     # Round parts, prisms and lights ------------------------------------------------------------
 
     def prism(self, profile, a0, a1, axis="x", mat=None, mats=None):
@@ -442,6 +523,12 @@ class Structure(lb.Building):
         out = super().export(objects, name)
         model = f"tiles/{SHAPES}/{self.prefix}-{name}"
         tm = ROOT / "src" / "render" / "tileModels"
+        if getattr(self, "broken_sockets_built", False):
+            # The renderer's scorch marks (D96) leave such sockets to the model (D115).
+            path = tm / f"{SHAPES}-{self.prefix}-{name}.json"
+            entry = json.loads(path.read_text())
+            entry["brokenSockets"] = True
+            path.write_text(json.dumps(entry, indent=1) + "\n")
         for v in self.plan.get("variants", []):
             entry = {"model": model, "shapes": self.ts.file, "layer": self.layer, "tiles": v["tiles"], "offset": v["offset"]}
             if self.min_rows is not None:

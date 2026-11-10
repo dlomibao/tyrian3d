@@ -28,5 +28,6 @@
    -1
   ]
  ],
- "minRows": 2
+ "minRows": 2,
+ "brokenSockets": true
 }

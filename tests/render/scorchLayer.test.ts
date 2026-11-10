@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { ENEMY_KEY_BASE, Pass, type Draw, type DrawList, type EnemyDeath, type SpriteDraw, type TileDraw } from "../../src/sim/draw";
 import { DrawInterpolator } from "../../src/render/interpolation";
-import { ScorchLayer } from "../../src/render/remaster/scorchLayer";
+import { ScorchLayer, StructureMark } from "../../src/render/remaster/scorchLayer";
 
 const sheet = { id: "test", data: new Uint8Array(0) };
 const solid = new Uint8Array(24 * 28).fill(5);
@@ -24,9 +24,8 @@ function list(items: Draw[], deaths: EnemyDeath[] = []): DrawList {
 
 describe("ScorchLayer (D96)", () => {
   const key = ENEMY_KEY_BASE + 4 * 7;
-  const structure = () => true;
-
-  function run(enemyStep: number) {
+  function run(enemyStep: number, mark: StructureMark = StructureMark.Scorch) {
+    const structure = () => mark;
     const layer = new ScorchLayer();
     const interp = new DrawInterpolator();
     const push = (l: DrawList) => {
@@ -52,5 +51,18 @@ describe("ScorchLayer (D96)", () => {
 
   it("leaves no mark for an enemy that moved over the structure", () => {
     expect(run(3).layer.count).toBe(0);
+  });
+
+  it("marks a structure whose model shows the broken socket as a socket mark (D115)", () => {
+    const { layer, interp } = run(0, StructureMark.Socket);
+    expect(layer.count).toBe(1);
+    layer.update(list([tile(500, 100, 41)]).items, interp.prevX, interp.prevY, 0.5, new THREE.Vector3(0, 30, 10));
+    const params = layer.mesh.geometry.getAttribute("aParams");
+    expect(params.itemSize).toBe(3);
+    expect(params.getZ(0)).toBe(1);
+  });
+
+  it("leaves no mark off structures", () => {
+    expect(run(0, StructureMark.None).layer.count).toBe(0);
   });
 });
