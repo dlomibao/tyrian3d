@@ -567,72 +567,7 @@ function playerShotsAndCollisions(): void {
           }
         }
       } else {
-        if (temp === 254 && g.superEnemy254Jump > 0) JE_eventJump(g.superEnemy254Jump);
-
-        for (let t2 = 0; t2 < 100; t2++) {
-          if (g.enemyAvail[t2] === 1) continue;
-          const o = g.enemy[t2];
-          const temp3 = o.linknum;
-          if (
-            t2 === b ||
-            temp === 254 ||
-            (temp !== 255 &&
-              (temp === temp3 || temp - 100 === temp3 || (temp3 > 40 && Math.trunc(temp3 / 20) === Math.trunc(temp / 20) && temp3 <= temp)))
-          ) {
-            const enemy_screen_x = s16(o.ex + o.mapoffset);
-
-            if (o.special) g.globalFlags[o.flagnum - 1] = o.setto;
-
-            if (o.enemydie > 0 && !(g.superArcadeMode !== 0 && g.res.enemyDat[o.enemydie].value === 30000)) {
-              const tempW = o.enemydie;
-              let enemy_offset = t2 - (t2 % 25);
-              if (g.res.enemyDat[tempW].value > 30000) enemy_offset = 0;
-              const nb = JE_newEnemy(enemy_offset, tempW, 0);
-              if (nb !== 0) {
-                const n = g.enemy[nb - 1];
-                // [arcade] Super Arcade weapon drops take turns through the ship's five weapons (tyrian2.c L1548-1555).
-                if (g.superArcadeMode !== 0 && n.evalue > 30000) {
-                  g.superArcadePowerUp++;
-                  if (g.superArcadePowerUp > 5) g.superArcadePowerUp = 1;
-                  n.egr[1 - 1] = 5 + g.superArcadePowerUp * 2;
-                  n.evalue = 30000 + g.superArcadePowerUp;
-                }
-                n.scoreitem = n.evalue !== 0;
-                n.ex = o.ex;
-                n.ey = o.ey;
-              }
-            }
-
-            if (o.evalue > 0 && o.evalue < 10000) {
-              if (o.evalue === 1) g.cubeMax++;
-              else g.player[playerNum - 1].cash += o.evalue;
-            }
-
-            if (o.edlevel === -1 && temp === temp3) {
-              o.edlevel = 0;
-              g.enemyAvail[t2] = 2;
-              o.egr[0] = o.edgr;
-              o.ani = 1;
-              o.aniactive = 0;
-              o.animax = 0;
-              o.animin = 1;
-              o.edamaged = true;
-              o.enemycycle = 1;
-            } else {
-              g.enemyAvail[t2] = 1;
-              g.enemyKilled++;
-              recordEnemyDeath(t2);
-            }
-
-            if (g.res.enemyDat[o.enemytype].eSize === 1) {
-              JE_setupExplosionLarge(o.enemyground, o.explonum, enemy_screen_x, o.ey);
-              g.soundQueue[6] = S_EXPLOSION_9;
-            } else {
-              JE_setupExplosion(enemy_screen_x, o.ey, 0, 1, false, false);
-              g.soundQueue[6] = S_EXPLOSION_8;
-            }
-          }
-        }
+        destroyEnemy(b, temp, playerNum);
       }
 
       if (g.infiniteShot) {
@@ -644,6 +579,82 @@ function playerShotsAndCollisions(): void {
         } else {
           g.playerShotData[z].shotDmg = u8(g.playerShotData[z].shotDmg - armorleft);
         }
+      }
+    }
+  }
+}
+
+/**
+ * The kill half of a player shot hitting enemy `b` (JE_main's shot loop, the `else` of
+ * `armorleft > damage`): `b` and the
+ * enemies linked to it (`temp`: b's linknum, 255 for none, 254 for every enemy) die, with their
+ * drops, flags, cash, explosions and sounds. The debug console's `kill` calls it too, so a killed
+ * enemy goes the way a shot one does.
+ */
+export function destroyEnemy(b: number, temp: number, playerNum: number): void {
+  if (temp === 254 && g.superEnemy254Jump > 0) JE_eventJump(g.superEnemy254Jump);
+
+  for (let t2 = 0; t2 < 100; t2++) {
+    if (g.enemyAvail[t2] === 1) continue;
+    const o = g.enemy[t2];
+    const temp3 = o.linknum;
+    if (
+      t2 === b ||
+      temp === 254 ||
+      (temp !== 255 &&
+        (temp === temp3 || temp - 100 === temp3 || (temp3 > 40 && Math.trunc(temp3 / 20) === Math.trunc(temp / 20) && temp3 <= temp)))
+    ) {
+      const enemy_screen_x = s16(o.ex + o.mapoffset);
+
+      if (o.special) g.globalFlags[o.flagnum - 1] = o.setto;
+
+      if (o.enemydie > 0 && !(g.superArcadeMode !== 0 && g.res.enemyDat[o.enemydie].value === 30000)) {
+        const tempW = o.enemydie;
+        let enemy_offset = t2 - (t2 % 25);
+        if (g.res.enemyDat[tempW].value > 30000) enemy_offset = 0;
+        const nb = JE_newEnemy(enemy_offset, tempW, 0);
+        if (nb !== 0) {
+          const n = g.enemy[nb - 1];
+          // [arcade] Super Arcade weapon drops take turns through the ship's five weapons (tyrian2.c L1548-1555).
+          if (g.superArcadeMode !== 0 && n.evalue > 30000) {
+            g.superArcadePowerUp++;
+            if (g.superArcadePowerUp > 5) g.superArcadePowerUp = 1;
+            n.egr[1 - 1] = 5 + g.superArcadePowerUp * 2;
+            n.evalue = 30000 + g.superArcadePowerUp;
+          }
+          n.scoreitem = n.evalue !== 0;
+          n.ex = o.ex;
+          n.ey = o.ey;
+        }
+      }
+
+      if (o.evalue > 0 && o.evalue < 10000) {
+        if (o.evalue === 1) g.cubeMax++;
+        else g.player[playerNum - 1].cash += o.evalue;
+      }
+
+      if (o.edlevel === -1 && temp === temp3) {
+        o.edlevel = 0;
+        g.enemyAvail[t2] = 2;
+        o.egr[0] = o.edgr;
+        o.ani = 1;
+        o.aniactive = 0;
+        o.animax = 0;
+        o.animin = 1;
+        o.edamaged = true;
+        o.enemycycle = 1;
+      } else {
+        g.enemyAvail[t2] = 1;
+        g.enemyKilled++;
+        recordEnemyDeath(t2);
+      }
+
+      if (g.res.enemyDat[o.enemytype].eSize === 1) {
+        JE_setupExplosionLarge(o.enemyground, o.explonum, enemy_screen_x, o.ey);
+        g.soundQueue[6] = S_EXPLOSION_9;
+      } else {
+        JE_setupExplosion(enemy_screen_x, o.ey, 0, 1, false, false);
+        g.soundQueue[6] = S_EXPLOSION_8;
       }
     }
   }

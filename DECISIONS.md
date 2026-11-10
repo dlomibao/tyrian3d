@@ -4397,3 +4397,122 @@ continuous 0.548; the 4,568 edges touching a new tile 0.637 vs continuous 0.588)
 0.50, 0:150 0.58 (purple, sheet 06), layer 1 31-35 0.58-0.96. Blockiness on the dark-deck and purple sheets is 1.8-4.4
 (Gemini kept the pixel blocks there; the cut deblocks). In game 4.4 and 4.9 at t300/t900 read cleanly; captures
 `tyrian-scratch/terrain-shapes-paren/captures/compare-4-4-r2.jpg`, `compare-4-9-r2.jpg` (original | round 1 | round 2).
+## D109 — A debug console for testing: cheats, hidden settings and level jumps, through the game's own state and flow
+
+**Asked:** a console to type cheats, switch hidden settings and change or skip levels, on desktop and phone,
+in the deployed build too.
+
+**Decision.**
+- **Ways in.** Options → **Debug console** (a "Testing" row on the one settings screen, so the title's
+  Options, the shop's "All settings…" and the pause menu's Options all have it, D99/D102; the settings
+  screen closes first, so the console sits right over the title, shop or pause screen), **backtick** anywhere
+  (in a running level the loop pauses first, as for the pause screen), and `tyrianConsole.open()` /
+  `tyrianConsole.run("line")` in devtools for scripted checks. Esc, backtick, Close or B closes it; a level
+  resumes.
+- **The screen.** A framework screen (`id: "console"`) in the menus' bronze-rimmed umber pane (D85, the HUD's
+  look, D61), at the top of the window over the paused game: a monospace scrollback in a phosphor well, the
+  input line under it with history (Up/Down, kept in this browser) and Tab completion (commands, then each
+  command's words: ports, sides, styles, episodes, level names). On touch screens Tab, ↑, ↓ and Run are
+  buttons that don't take the focus from the field; the field takes the on-screen keyboard and the screen
+  fits itself to `visualViewport` (the part above the keyboard); the scrollback scrolls (D98). `help` lists
+  every command with its arguments (two columns, or one under the other on a phone).
+- **Cheats act through the sim**, so they behave as the real game's: `god` is the original's invulnerability
+  (`youAreCheating`, F2 F3 F6); `armor N` goes through JE_drawArmor's cap (28); `shield N` up to
+  `shield_max`; `heal`; `credits N`; `weapon front|rear ID [power]` as a pickup (shot pattern reset, the
+  message bar's "You got the …", `calc_purple_balls_needed` since lives alias the power); `power N`;
+  `sidekick left|right ID` set up by JE_drawOptions; `kill` kills each destructible enemy on screen (not
+  armour 255, not pickups) through `destroyEnemy`, the shot loop's kill branch moved into a function of its
+  own (no change to the loop: the bot traces match); `skip`/`next` is the original's skip-level cheat
+  (`cheatSkipLevel`, moved out of JE_mainKeyboardInput), so the level ends as completed 40 ticks later.
+  `weapons` and `sidekicks` list the ids. The HUD updates while the console is open.
+- **Levels are sections.** `levels [episode]` numbers each section with an `]L[` 1..N in script order
+  (TYRIAN's normal and hard variants share section 3: one entry) and shows its section (the harness's
+  `main=`, g.mainLevel) and tyrianN.lvl number. `level [episode] <number|name|s<section>>` takes the list's
+  number, a name (any case, spaces ignored, a unique start is enough; a shared name such as SAVARA takes
+  the first and says so) or a raw section. The jump goes through the game flow: in a level the loop ends
+  with outcome "jump" and run.ts does JE_initEpisode and loads from that section (JE_loadMap plays its
+  `]L[` straight away; items carry over); in the shop the sim's own exits (mainLevel + jumpSection, the
+  map's choice, or gameLoaded for another episode, as loading a game from the shop does); on the title a
+  one-player full game starts there. `shop` goes to the item screen whose map leads to this level (a section
+  with `]I[` and a `]G[` naming it), or from the title to a new game's first. A jump needs the console right
+  over the title, pause screen or shop, not over a screen opened from them.
+- **Settings and looks.** Each shows its value without an argument. Real settings go through the setters
+  Options uses and are saved by `savePrefs` (terrain, camera, interface, resolution; music and sound styles
+  keep themselves). The URL-only looks switch live in the renderer for this page (`vfx`, `sprites`, `bg`;
+  structures already placed keep their look). `fps`/`perf` toggles a corner overlay (fps, frame time, tick,
+  speed, draw-list size; remembered). `tick` shows the level's tick count; `speed N` (0-8) scales the time
+  the fixed-step loop accumulates, so ticks stay the classic fixed ones and only more or fewer run per
+  frame (0 freezes; the effects' clock follows); `seed` shows the start-up seed, `seed N` reseeds mt_rand.
+  `reset` puts the settings, looks, styles, speed and overlay back to their defaults (not volumes or keys).
+  `clear`, `close`.
+- **Bundle.** `src/app/consoleBridge.ts` (the place, hooks, speed, ticks, the backtick key) is in the main
+  bundle; the console (`src/debug/console/`, ~21 kB) loads on first use.
+
+**Not covered:** the `?debug=play|level` harnesses (their own loops; their URL params still work) and
+two-player games' player 2 (the cheats act on player 1).
+
+Tests: `tests/debug/console.test.ts` (parser, completion, history, level numbering and sections, the
+commands on a real level: armour cap, god vs a lethal hit, a fitted gun firing, sidekick setup, kill, skip
+to a completed level), `tests/app/options.test.ts` (the row). Captures: `tyrian-scratch/debug-console/captures/`
+(`d-*` 1920x1080, `p-*` 390x844 touch through Options on the title and the pause menu, `f-*` shop jumps and skip).
+
+## D110 — Shop lists in the debug console: `shop all` and per-category edits, through an override layer the item screen reads (extends D109, D85, D98)
+
+**Asked:** console commands to see how the shop looks with long lists: an unlocked shop selling everything the
+real game sells, and temporary edits of one category's list, without breaking the sim's C-shaped lists.
+
+**Decision.**
+- **Commands** (the `shop` command's subcommands; `shop [episode]` still goes to an item screen, D109):
+  `shop all [on|off]` (no argument: the state), `shop list [category]`, `shop items <category> [filter]`,
+  `shop set <category> <id|name…>`, `shop add|remove <category> <id|name…>`, `shop clear <category>`,
+  `shop reset [category]`. Categories are the Upgrade Ship rows in the shop's order and words: `ships`, `front`,
+  `rear`, `shields`, `generators`, `left`, `right`, with aliases (`ship`, `f`, `front-gun`, `shield`, `gen`, `ls`,
+  `rs`, …; case, spaces, dashes and a plural "s" don't matter). Items by id or name (whole or a unique start;
+  `zica-laser`, `"Zica Laser"`); a name two items share (the two Vulcan Cannons) takes the one the real game sells
+  in that category if only one is, else asks for the id. Tab completes subcommands, categories, ids and names.
+  `help shop` lists the subcommands.
+- **`shop all` is computed from the data**: every `]I[` in levels1-4.dat (61 item screens), its 9 lines read by
+  the sim's own `itemAvailLine` (factored out of JE_loadMap's `]I[`, so the sim and the console parse them the
+  same way; a test checks each of episode 1's screens against itemAvail as JE_loadMap leaves it). The union per
+  category, in the merchant's order (ascending, None last): ships 9, front 18, rear 13 (with None), shields 9,
+  generators 6, left 23 and right 30 sidekicks (with None). The shop rows Engine and Armor are never shown
+  (itemAvailMap skips them). Nothing outside a shop list gets in: the ships no item screen sells (Stalker 8,
+  U-Ship, Silver Ship, Nort Ship), the internal "Miscellaneous Option Weapons" port, the joke guns (Banana Blast, HotDog),
+  the Nort and rear-only guns in the front list, Companion Ship Quicksilver and the HXS Class C shield. Shop
+  lists that the data does have stay, odd ones included: SuperCarrot (episode 2), Tropical Cherry Companion and
+  the episode 4 secret-route screens (The Stalker 21.126, Beno Protron System -B-); the front-firing sidekicks
+  only in the right list, as the data sells them. Edits may use any id in the category's item table (with a note
+  when no shop sells it there): front 1-42, rear 0-42, ships 1-13, shields 1-10, generators 1-6, sidekicks 0-30.
+- **An override layer, not bigger arrays.** `g.itemAvail[9][10]` / `itemAvailMax` stay exactly the level's: the
+  item screen reads every list through `availList(row)` / `availCount(row)` in `game_menu.ts` (the update's
+  weapon powers, the cursor skip, the mouse's cost check, JE_genItemMenu, Enter's "Done" power, the rows), which
+  give the console's list for an overridden row and the C arrays otherwise. JE_itemScreen_init's merge of
+  last_items still runs on the real arrays (factored sort `sortMerchantRow`, same loop); the console's lists get
+  the same treatment: what the player has (last_items and items) is added and the list sorted, so the screen
+  always offers the item owned, as the game does. Buying, selling, power, Escape and the preview are the C's own
+  code on the longer list; `temp_weapon_power` has room for any u8-length list. With no console list every read
+  is the C array's: `shop reset` restores normal behaviour exactly, and the C cross-check trace still matches.
+- **A change while the shop is up** applies at once (`JE_itemScreen_listsChanged`): in an Upgrade Ship list the
+  list is left as Escape leaves it (loadout and credits as when it opened) and opened again on the new list, with
+  no sounds. Turning lists off after buying an item from them leaves the level's lists as they are; that item is
+  listed from the next item screen on (last_items), like anything the player flew in with.
+- **Lifetime: until `shop reset` (or `shop all off`), through level changes and new games**, for the page only.
+  Chosen over "until the level changes" so a selection can be checked across several item screens and jumps
+  (`level`, `shop`) without retyping, and so `shop all` and edits follow one rule. Nothing is stored: not in
+  localStorage, not in saved games (the lists aren't part of a save); an item bought from a console list is
+  the player's like any purchase.
+- **Long lists in the UI.** An item list (`.shop-list--items`, only in the Upgrade Ship lists; the game's own have
+  at most 7 rows) scrolls inside the menu pane: on desktop it is capped at the window less the panes' other parts
+  (`100dvh − 8vh − 13rem`, at least 18rem), so the title, the simulator, the credits/power/upgrade readouts and
+  the help bar stay in view instead of the whole panel scrolling them away; on phones at 56dvh, so the simulator
+  is a short swipe below, and a swipe past the list's end carries on down the panel. `reveal()` already brought
+  the cursor's row into view and now scrolls the list. Keys and pad wrap through all rows (the C's); a tap or
+  click on any row works; short windows (≤ 520 px tall) keep the panel's scroll (D98).
+
+**Checked** (headless Chrome, `tools/cdpshot.mjs` with `tyrianConsole.run(...)`, and touch emulation with swipes):
+1920x1080 and 390x844 with `shop all` on the front-gun list scrolled to its middle, a `shop set` list, the 31-row
+right-sidekick list opened on the owned None at its end, swiped, a row tapped twice and bought, the swipe chaining
+to the panel. Captures: `tyrian-scratch/shop-cheats/captures/`. Tests: `tests/debug/console.test.ts` (categories
+and aliases, completion, the union: counts, ranges, order, nothing never sold, the sim's own lists; set, add,
+remove, clear, reset, items; buying the Widget Beam from `shop all` as a normal purchase; off restoring the
+level's lists exactly; lists lasting through later item screens; every row of a 31-row list reachable).
