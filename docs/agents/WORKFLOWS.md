@@ -46,6 +46,7 @@ Workflow({
 | `bench` | `{ stages: [...], model: 'sonnet'\|'haiku', n: 2, only: true }`: see Bench mode |
 | `context` | extra brief prepended for every agent (episode, level, what changed upstream) |
 | `rev`, `items[i].rev` | bump to force a live re-run on resume (the cache is a prefix: everything from the first changed call on runs live; see Resume) |
+| `maxAgents` | model-flagship only: at most this many of the run's agents at once (0/unset: the Workflow tool's own cap). Use it to leave room under the session's subagent limit for other work (e1-enemies ran at 8). |
 | `python`, `blender`, `data` | tool paths; defaults are this Mac's (`tyrian3d-remaster/.venv`, `/Applications/Blender.app`, `~/projects/tyrian/data`) |
 
 ### Stage names (keys of `tiers` and `bench.stages`)
@@ -92,7 +93,7 @@ From the logged runs (PLAYBOOK.md explains the token figure). Wall clock assumes
 
 | Script | Agents | Logged run it is based on |
 |---|---|---|
-| model-flagship, full | hero 7-10 (blueprint, 2 designs, judge, finish, ≤3 reviews, ≤2 fixes); standard 4-6; +1 setup, +1 scout | 28 models: 173 agents, 147 min, 21.8M tokens (~6.2 agents, ~0.8M per model) |
+| model-flagship, full | hero 7-10 (blueprint, 2 designs, judge, finish, ≤3 reviews, ≤2 fixes); standard 4-6; +1 setup, +1 scout | 28 models: 173 agents, 147 min, 21.8M tokens (~6.2 agents, ~0.8M per model); e1-enemies (D116), 32 items: 198 agents, ~5.5 h at `maxAgents: 8`, 27.4M |
 | model-flagship, `mode: 'lean'` | 3-5 per item (design, finish, ≤2 reviews, ≤1 fix) | forward-push ships: 16 agents incl. 2 other fixes, 42 min |
 | fix-round | 2-4 per item | 4 items: 12 agents, 44 min, 1.5M |
 | terrain-hd | 5-9 (prep, game side?, tool?, Gemini, assemble, capture, verify) | TYRIAN: 5 agents, 108 min, 1.2M; the Gemini operator alone 44 min for 27 requests |

@@ -4336,3 +4336,78 @@ The most-drawn one is #7 198 (7 levels, 3 episodes), with #7 199 (96,631 ticks) 
 - *Painting the thin wiggles and streaks procedurally (D56):* not needed, Gemini kept their outline and read as energy.
 
 Answers, sheets and prompts: `tyrian-scratch/flat-art-rest/` (not in git, D3).
+
+## D116 — Episode-1 enemy rebuild: 32 models (about 40 inventory units) to the D65 hard-surface standard
+
+2026-11-10
+
+**Decision:** the 32 episode-1 enemy, boss and assembly items the scout listed from the inventory (still the older
+`basic` look; most-seen first, by the bot run's ticks on screen) are rebuilt with `tools/workflows/model-flagship.js`
+(full mode, blueprints for heroes; D65's recipe: hard-surface geometry, AO/roughness bake `"bake": "model"`, outline shell,
+art rules 1-5). The scout merged items whose scripts share a lib only between themselves, so no two agents edited one
+file: the wall-block family `newshm-1/15/17/53` (one new `lib_newshm_block.py`; `lib_b078` stays for `newshm-55/123/153`),
+`assembly-newshi-154` + `newshi-19` (`lib_b069.py` deleted, no user left), the twin pads `newsha-93` + `newsha-17`,
+and `assembly-newshu-129` (one script, 4 units). No shared lib (`lib_b073`, `common.py`, ...) was edited. Damaged
+frames the intact models now draw (D87): `newshs` 241/243/279/281, `newsht` 117/123/157/159, `newshu` 239 (moved to
+`newshu-93-f2`).
+
+| Model | Tier | Top-view IoU (finisher, worst frame) | Review IoU | Score |
+|---|---|---|---|---|
+| newshm-1 (+15, 17, 53) | hero | 0.9759 | 0.9759 | 8 |
+| assembly-newshi-115 | hero | 0.9847 | 0.9847 | 6 (fix round, shipped, see below) |
+| assembly-newsht-39 | hero | 0.963 | 0.9969 | 8 |
+| assembly-newshi-154 (+ newshi-19) | hero | 0.9642 | 0.9607 | 8 |
+| assembly-newshc-197 | hero | 0.9678 | 0.9557 | 8 |
+| newsha-93 (+ newsha-17) | standard | 0.9519 | 0.9519 | 8 |
+| newsh-caret-171 | standard | 0.9237 (sub-pixel; grid 1.0) | 1.0 | 8 |
+| assembly-newshf-81 | hero | 0.9896 | 0.9896 | 8 |
+| assembly-newshs-7 | hero | 0.9934 | 0.9934 | 8 |
+| assembly-newshi-243 | hero | 0.9678 | 0.9678 | 8 |
+| assembly-newshc-283 | hero | 0.974 | 0.974 | 7 |
+| newshs-191 | standard | 1.0 | 1.0 | 8 |
+| newsha-169 | standard | 0.9656 | 0.9656 | 8 |
+| newshe-153 | standard | 0.9755 | 0.9782 | 7 |
+| assembly-newshs-165 | hero | 0.986 | 0.986 | 8 |
+| newshj-19 | standard | 0.9367 (sub-pixel; grid 1.0) | 1.0 | 7 |
+| newshd-275 | standard | 0.9792 | 0.9792 | 8 |
+| assembly-newshm-45 | hero | 1.0 | 1.0 | 8 |
+| assembly-newshp-267 | hero | 0.994 | 0.994 | 8 |
+| assembly-newshd-45 | hero | 0.962 | 0.962 | 7.5 |
+| newsha-199 | hero | 0.951 | 0.9503 | 7 |
+| newshs-229 | standard | 0.9955 | 0.9955 | 7 |
+| newshf-39 | standard | 0.9953 | 0.9953 | 8 (fix round) |
+| assembly-newshs-39 | hero | 0.9664 | 0.97 | 8 |
+| newshe-277 | standard | 0.9825 | 0.9825 | 8 |
+| newshf-1 | standard | 0.974 | 0.974 | 7.5 |
+| assembly-newshd-39 | hero | 0.9763 | 0.9763 | 7 |
+| assembly-newshu-129 | hero | 0.9679 | 0.9648 | 7.5 |
+| newshe-233 | standard | 1.0 (grid) | 0.9446 (sub-pixel; grid 1.0) | 7 (fix round) |
+| assembly-newshp-165 | hero | 0.9858 | 0.9858 | 8 |
+| assembly-newshu-79 | hero | 0.9877 | 0.9907 | 7.5 |
+| newshs-11 | standard | 0.994 | 0.994 | 8 |
+
+31 shipped by strict review (3 of them after a fix round); `assembly-newshi-115` is shipped by the coordinator's call.
+**IoU gate:** `tools/sprite_mask.py`'s accept line is `iou_rule_grid` ≥ 0.95 (OUTLINE-BORDER.md); three small models
+miss 0.95 only on the sub-pixel `iou_rule`, from the smoothed diagonal steps of a tiny sprite, with grid IoU 1.0 on
+every frame: `newsh-caret-171` (0.9237, a size-1 sprite), `newshj-19` (0.9367 on frames 38 and 76, size 1) and
+`newshe-233` (0.9446, 16x15 px). The reviewers shipped them on the grid value.
+
+**Follow-ups (known):**
+- `assembly-newshi-115` (SAVARA dome fortress) is 6/10 after four fix rounds: the cowl's ink grooves, the dome's egg
+  shading (it reads as a flat-topped canister from the side) and the rotor blades. Clearly better than the old basic
+  model, so it ships; it needs its own task.
+- `assembly-newshc-283`'s run ended `ok: false` only because of the pillar head `newshc-77` (`newshc-77.py` with
+  `lib_b110.build_head`/`head_materials`), outside the item's scope: recess the eye socket (a dark disc with the eye in it,
+  not thin ellipsoids on the dome), raise the ball/stem roughness to ~0.42-0.45 (now chrome), and make the neck a collar
+  on the pillar axis (h = 5 px). Its own five models pass.
+- `newshm-55/123/153` still use `lib_b078`; move them to `lib_newshm_block.py` (variants plus emblems) so the family
+  matches.
+- `src/viewer/assemblies.json` has no layout for `assembly-newshs-165`, `-newshm-45`, `-newshs-39`, `-newshp-165`, so
+  `?viewer=` can't show them whole (the catalogue writes that file; regenerate with `npm run catalogue`).
+- `tools/sprite_mask.py` can't score `newshi-19` (it counts the dark browns 64/65/66/161 as ink on frame 19 and finds
+  no ink on 76/95): the ink set should be per sprite.
+
+**Cost:** 198 agents (1 scout, 19 blueprints, 51 designs, 19 judges, 54 finish/fix, 54 reviews; first finishes on
+Sonnet, the rest Opus), 27.4M subagent tokens, about 5.5 h at `maxAgents: 8`; the fix round (`fix-round.js`, 3 items)
+8 agents, 0.93M tokens, about 45 min. Sheets: `tyrian-scratch/e1-enemies/<name>/final/` and
+`.../fixround/<name>/final/` (not in git, D3).
