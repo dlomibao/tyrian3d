@@ -118,6 +118,8 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
   | Animation frame flashes plain | All frames textured/exported together (D46). |
   | Enemy pops from sprite to model | Level preload list (D54); add conditional spawns (D56). |
   | Two agents edited one script | Merge such models into one item at scout time. |
+  | Black slab, ink loop or slivers where an assembly piece ends; open cut sections | Never cut the joined, culled model: clip each closed part before the join, capped, and make the shell from that (lib_b065 `clip_part`, D117). |
+  | Ink wedges or slits across a hull in `?viewer=` (outline on only) | D90's shell: `common.outline_shell(..., voxel=0.03, inside=0.004)`; a hand-built shell gets the same Shrinkwrap hold and comes down where the model is low (newshs-269, D117). |
 - **Cost/time (enemies-flagship, 28 models: 15 hero, 13 standard):** 173 agents, 147 min wall clock,
   21.8M tokens; 28 blueprints, 43 designs, 15 judges, 43 finish/fix, 43 reviews. Per-agent median:
   blueprint 8 min, design 11 (max 53), judge 1.3, finish/fix 21 (max 49), review 1.3 (max 6.5)
