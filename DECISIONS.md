@@ -4636,3 +4636,36 @@ to the panel. Captures: `tyrian-scratch/shop-cheats/captures/`. Tests: `tests/de
 and aliases, completion, the union: counts, ranges, order, nothing never sold, the sim's own lists; set, add,
 remove, clear, reset, items; buying the Widget Beam from `shop all` as a normal purchase; off restoring the
 level's lists exactly; lists lasting through later item screens; every row of a 31-row list reachable).
+
+## D114 — Episode-1 QA bugs: the glass orb's paint follows smooth edges, HD terrain's near-grey test is in sRGB, the gem blocks are one colour (extends D103, D95, D111)
+
+2026-11-10
+
+From `tyrian-scratch/e1-qa/REPORT.md` (issues 3, 5, 7), checked on main before changing anything.
+- **DELIANI glass orb (1.5, `assembly-newshu-129`).** The same model D103 fixed, not a regression: D103 removed the
+  speckle, but the glass was still painted cell by cell on a 20x20-per-face cube sphere, so the green mass and the grey
+  lobes showed as hard pixel squares (about 1.6 sprite px each), which still read as a corrupt texture. Now
+  `PartField` blurs each part of the (D103-smoothed) part map (Gaussian, sigma 0.9 px), samples it bilinearly and takes
+  the strongest part; cells an edge between parts runs through are split 3 ways per edge (`subdivide_edges` with grid
+  fill, new vertices put back on the ball) and every face is painted by its centre. Same parts, colours, states and
+  frames; the eight painted GLBs grow from 32-47 KB to 57-119 KB (the purple states are unchanged).
+- **SAVARA V (1.17): jungle and shore stayed green and brown under the blue water.** Not the clouds (D107's clouds
+  match the original at t300). SAVARA V runs water_filter (hue 3) over the ground; the HD shader (D95) gives a texel
+  the exempt grey bank when its chroma is under 0.04, but measured that chroma on the *linear* colour, where every dark
+  colour is near grey: 44% of a jungle tile's texels (the original's tile has 6% grey pixels) and the dark shore
+  browns kept their painted colour. The test is now on the sRGB colour (the same 0.04), and `terrainBank` takes that
+  sRGB colour. Blurred mean |HD - original| (1920x1080 playfield): 1.17 t5800 10.0 -> 8.8, t8400 12.9 -> 11.2, t2900
+  2.8 -> 1.6; regressions: SAVARA IV (4.16, D95's grey floor) t1200 3.7 -> 3.5, t2500 3.8 -> 3.7, the floor stays grey;
+  LAVA EXIT (4.9, D111's pink) t300 4.3 -> 2.5, the pink stays pink and the dark lava now takes the red hue as the
+  original does. Levels without a hue stage draw as before.
+- **WINDY (1.14) seam.** The orange gem block (`newshm-17`) and its siblings (`-15` green $, `-53`, `-55`, `-153`, all
+  `lib_b078.tile_materials`) painted the sprite's lighting: a dark red front band (the seam where the block overlaps
+  the red block below it, 1 px apart as in the C) and yellow rim-light patches. Every role now takes the body colour,
+  as `newshm-1` (the red block) already did (art rule 2). Geometry unchanged.
+- **Already fixed on main, not changed:** SOH JIN's bell turrets have no sand pad (D103). The key there
+  (`tyrian.shp#10` 243, flat art from D94) never had a tile rectangle: what shows round it is the sprite's own black
+  drop shadow, painted into the flat art (stair-stepped). Left as is; a cutter rule that drops the shadow indices
+  (160, 161) from the silhouette would remove it.
+
+Captures: `tyrian-scratch/e1-qa-bugs/` (`bug1_*` orb, `bug2_*` SOH JIN, `bug3_*` and `cmp_*.jpg` SAVARA V and the
+regression levels: original | before | after, `bug4_*` WINDY).

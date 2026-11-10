@@ -186,18 +186,47 @@ def grey_pixels(sprites):
     return smooth_parts(grid)
 
 
-def paint_part(grid, x, y):
-    """The part whose colour the sprite shows at final (stretched) XY, looking inward from the
-    outline for points outside it."""
-    cx, cy = P(CC, CR)
-    for k in range(40):
-        t = 1 - k * 0.012
-        px_x, px_y = cx + (x - cx) * t, cy + (y - cy) * t
-        c = round(px_x * 12 + W / 2 - 0.5)
-        r = round(H / 2 - px_y * 12 - 0.5)
-        if 0 <= r < H and 0 <= c < W and grid[r][c] >= 0:
-            return grid[r][c]
-    return DARK
+class PartField:
+    """The part map as smooth areas: each part's cells blurred (Gaussian, `sigma` sprite px) and
+    sampled bilinearly between cell centres, the strongest part winning. Painted from this, the
+    machinery has curved edges instead of the sprite's pixel stairs: cell by cell, its green and
+    grey areas came out as hard-edged squares that read as a corrupt texture (episode-1 QA, after
+    D103's speckle fix)."""
+
+    def __init__(self, grid, sigma=0.9):
+        import numpy as np
+        self.np = np
+        g = np.array(grid)
+        k = int(math.ceil(3 * sigma))
+        kernel = np.exp(-0.5 * (np.arange(-k, k + 1) / sigma) ** 2)
+        kernel /= kernel.sum()
+        self.fields = np.zeros((NPARTS, H, W))
+        for part in range(NPARTS):
+            f = np.pad((g == part).astype(float), k)
+            rows = sum(kernel[i] * f[:, i:i + W] for i in range(2 * k + 1))
+            self.fields[part] = sum(kernel[i] * rows[i:i + H, :] for i in range(2 * k + 1))
+
+    def weights(self, x, y):
+        """Each part's blurred weight at final (stretched) XY; None off the grid."""
+        c = x * 12 + W / 2 - 0.5
+        r = H / 2 - y * 12 - 0.5
+        if not (0 <= c <= W - 1 and 0 <= r <= H - 1):
+            return None
+        c0, r0 = min(int(c), W - 2), min(int(r), H - 2)
+        fc, fr = c - c0, r - r0
+        f = self.fields
+        return ((1 - fr) * ((1 - fc) * f[:, r0, c0] + fc * f[:, r0, c0 + 1])
+                + fr * ((1 - fc) * f[:, r0 + 1, c0] + fc * f[:, r0 + 1, c0 + 1]))
+
+    def part(self, x, y):
+        """The part painted at final XY, looking inward from the outline for points outside it."""
+        cx, cy = P(CC, CR)
+        for k in range(40):
+            t = 1 - k * 0.012
+            w = self.weights(cx + (x - cx) * t, cy + (y - cy) * t)
+            if w is not None and w.sum() > 0.3:
+                return int(self.np.argmax(w))
+        return DARK
 
 
 def shading(part, x, y):
@@ -213,11 +242,23 @@ def shading(part, x, y):
     return part
 
 
-def ball(bm, grid, paint, n=20):
+def ball(bm, grid, paint, n=20, cuts=3):
     """A cube-sphere (even top-view cells for painting): RX wide, HZ tall, faces painted from the
-    grey sprite (or all shell when `paint` is False)."""
+    grey sprite (or all shell when `paint` is False). Cells where two parts meet are split
+    (`cuts` per edge) so the paint follows PartField's curved edges; the rest stay coarse."""
     cx, cy = P(CC, CR)
     verts = {}
+    field = PartField(grid) if paint else None
+
+    def face_part(co):
+        """The material of a face centred at `co` (pre-stretch XY)."""
+        # The sides and underside are glass too: the game draws the outline.
+        if co.z < 0.2 * HZ:
+            return SHELL
+        y = cy + (co.y - cy) * RY / RX
+        return shading(field.part(co.x, y), co.x, y)
+
+    faces = []
 
     def vert(cube):
         key = tuple(round(v, 6) for v in cube)
@@ -239,23 +280,27 @@ def ball(bm, grid, paint, n=20):
                         p[axis], p[a1], p[a2] = sign, ts[i + di], ts[j + dj]
                         quad.append(vert(p))
                     f = bm.faces.new(quad if sign > 0 else quad[::-1])
-                    if not paint:
-                        f.material_index = SHELL
-                        continue
-                    centre = sum((v.co for v in quad), Vector()) / 4
-                    votes = Counter()
-                    for q in [centre] + [centre.lerp(v.co, 0.6) for v in quad]:
-                        votes[paint_part(grid, q.x, cy + (q.y - cy) * RY / RX)] += 1
-                    ranked = votes.most_common()
-                    part = ranked[0][0]
-                    # The dark gaps between the machinery are 1 px lines: a cell takes them only
-                    # where they fill most of it, not as stray dark squares.
-                    if part == DARK and ranked[0][1] < 3 and len(ranked) > 1:
-                        part = ranked[1][0]
-                    # The sides and underside are glass too: the game draws the outline.
-                    if centre.z < 0.2 * HZ:
-                        part = SHELL
-                    f.material_index = shading(part, centre.x, cy + (centre.y - cy) * RY / RX)
+                    f.material_index = SHELL
+                    faces.append(f)
+    if not paint:
+        return
+
+    # Split the cells an edge between parts runs through (any of nine samples differs), put the
+    # new vertices back on the ball, then paint every face by its centre.
+    edges = set()
+    for f in faces:
+        co = [v.co for v in f.verts]
+        centre = sum(co, Vector()) / 4
+        samples = [centre] + co + [a.lerp(b, 0.5) for a, b in zip(co, co[1:] + co[:1])]
+        if len({face_part(q) for q in samples}) > 1:
+            edges.update(f.edges)
+    if edges:
+        bmesh.ops.subdivide_edges(bm, edges=list(edges), cuts=cuts, use_grid_fill=True)
+    for v in bm.verts:
+        d = Vector(((v.co.x - cx) / RX, (v.co.y - cy) / RX, v.co.z / HZ)).normalized()
+        v.co = (cx + RX * d.x, cy + RX * d.y, HZ * d.z)
+    for f in bm.faces:
+        f.material_index = face_part(f.calc_center_median())
 
 
 def build(state, palette, sprites):
