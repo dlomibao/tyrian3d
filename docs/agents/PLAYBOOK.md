@@ -118,6 +118,11 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
   | Animation frame flashes plain | All frames textured/exported together (D46). |
   | Enemy pops from sprite to model | Level preload list (D54); add conditional spawns (D56). |
   | Two agents edited one script | Merge such models into one item at scout time. |
+  | Black slab, ink loop or slivers where an assembly piece ends; open cut sections | Never cut the joined, culled model: clip each closed part before the join, capped, and make the shell from that (lib_b065 `clip_part`, D117). |
+  | Ink wedges or slits across a hull in `?viewer=` (outline on only) | D90's shell: `common.outline_shell(..., voxel=0.03, inside=0.004)`; a hand-built shell gets the same Shrinkwrap hold and comes down where the model is low (newshs-269, D117). |
+  | Ink cracks across plates though the shell is D90's | Make the shell from a closed copy taken before `cull_hidden`, kept out of the bake's scene: a culled, open hull's plates are wrapped on both sides (Nort Ship, D118). |
+  | Plates jagged and crumpled, their edges following the sprite's pixel steps | One smooth curve (pchip) through the middles of the inner mask's steps, never a width per row; refitting an existing design, pull its parts in by the border's width instead of re-tracing each row (Silver Ship, D118). |
+  | A refit lost detail (bays, round pods) to pass the banking frames | Never shape a ship for its banks (D93): fit the pose, `bank_roll.py --fit`, its `shift` too (Silver Ship, D118). |
 - **Cost/time (enemies-flagship, 28 models: 15 hero, 13 standard):** 173 agents, 147 min wall clock,
   21.8M tokens; 28 blueprints, 43 designs, 15 judges, 43 finish/fix, 43 reviews. Per-agent median:
   blueprint 8 min, design 11 (max 53), judge 1.3, finish/fix 21 (max 49), review 1.3 (max 6.5)
@@ -360,3 +365,6 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
     asset swap for level 1?": answer from the draw list (pixel sweep), not from memory.
 18. **Public by default, credited; original data never.** Derived art, music and sfx are public with
     a CREDITS.md row; the zip's contents and extracts stay out of git (D41).
+19. **Establish what the object is, then judge "does it read as that?" first.** The SAVARA boss was built as a ground
+    dome fortress and was a blimp (D116, corrected in D120), with the outline IoU passing. The scout/design brief must
+    name the object type (airship, bunker, rock, ship), and reviewers judge object reading before IoU, colour or detail.

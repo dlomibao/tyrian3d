@@ -40,7 +40,8 @@ The machine:
 The underside is only closed (every part stands on z = 0), no detail.
 
 Texture: no concept projection; usp_talon.bake_maps (AO and edge colour multiplier, roughness /
-metalness map), tint neutral. Outline shell as common.outline_shell (D51), cut into the pieces open.
+metalness map), tint neutral. Outline shell as common.outline_shell (D51; D90's 0.03 voxels held
+0.004 inside, 2000 faces), cut into the pieces open.
 
     blender --background --factory-startup --python assets/blender/enemies/assembly-newshf-195.py --
         [--no-bake] [--out review.glb]
@@ -69,10 +70,11 @@ NAME = "assembly-newshf-195"
 PIECES = ["newshf-157", "newshf-159", "newshf-195", "newshf-197"]
 CX0, CY0 = 154, -4  # the block's centre in screen px (the current script's origin)
 PX = 1 / 12
-# Triangle budget (boss, about 8-20k with the outline shells): the shell's face target, the pipes'
+# Triangle budget (boss, about 8-20k with the outline shells): the shell's face target (2000 for D90's
+# 0.03-voxel shell held inside; at 1000 an ink streak stayed on the dome), the pipes'
 # tube sides and the station spacing of the seam rails and chevron bead are where it is trimmed; the
 # silhouette and the tower lofts are not touched.
-OUTLINE_FACES = 1000
+OUTLINE_FACES = 2000
 PIPE_SIDES = 10
 AX = 24.5  # mirror plane / seam axis (x)
 
@@ -750,8 +752,10 @@ def main():
     if "--no-bake" not in argv:
         bake_maps(obj, tempfile.mkdtemp(prefix="nshf195_bake_"))
         fmt = "WEBP"
-    # The outline shell (D51), made after the bake so its occlusion rays never hit it.
-    shell = common.outline_shell(obj, coll, faces=OUTLINE_FACES)
+    # The outline shell (D51), made after the bake so its occlusion rays never hit it. D90's shell:
+    # 0.03 voxels bridge the dome's panel seams, held 0.004 inside the model (at 0.012 its back faces
+    # stood out of the seams and drew ink wedges across the dome).
+    shell = common.outline_shell(obj, coll, voxel=0.03, faces=OUTLINE_FACES, inside=0.004)
     shell.hide_render = True
     layout = [(e["model"], e["cx"] - CX0, e["cy"] - CY0) for e in sprite["assemblyLayout"] if e["model"] in PIECES]
     parts = common.split_assembly(obj, layout, coll)

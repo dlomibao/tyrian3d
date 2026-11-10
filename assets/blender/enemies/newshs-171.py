@@ -29,7 +29,7 @@ Build (sprite px; x across the blade, y along it, z up; to Blender X = x / 12 ..
 - Hub: a chamfered collar through the blade, a domed cap with a stepped edge, a hex nut and three
   cap screws; the underside is the same hub mirrored (closed, no further detail).
 - Texture: AO / roughness bake only (no concept projection), embedded in the GLB.
-- Outline shell (common.outline_shell, D51).
+- Outline shell (common.outline_shell, D51; D90's 0.03 voxels held 0.004 inside).
 
 Run: blender --background --factory-startup --python assets/blender/enemies/newshs-171.py
      [-- --no-bake] [--preview out.png] [--views DIR] [--measure out.json]
@@ -566,7 +566,9 @@ def main():
     if "--no-bake" not in argv:
         bake_maps(base, tempfile.mkdtemp(prefix="nshs171_bake_"))
         fmt = "WEBP"
-    shell = common.outline_shell(base, coll, voxel=0.006, faces=1200)
+    # D90's shell: 0.03 voxels bridge the seams round the hub, held 0.004 inside (at 0.006 its back
+    # faces stood out of them and drew two ink slits beside the hub).
+    shell = common.outline_shell(base, coll, voxel=0.03, faces=3000, inside=0.004)
     frames = {f["index"]: f for f in sprite["frames"]}
     objs, info = [], {"triangles": tris, "frames": []}
     for frame, suffix, turn, off in FRAMES:

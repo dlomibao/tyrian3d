@@ -4787,9 +4787,7 @@ every frame: `newsh-caret-171` (0.9237, a size-1 sprite), `newshj-19` (0.9367 on
 `newshe-233` (0.9446, 16x15 px). The reviewers shipped them on the grid value.
 
 **Follow-ups (known):**
-- `assembly-newshi-115` (SAVARA dome fortress) is 6/10 after four fix rounds: the cowl's ink grooves, the dome's egg
-  shading (it reads as a flat-topped canister from the side) and the rotor blades. Clearly better than the old basic
-  model, so it ships; it needs its own task.
+- `assembly-newshi-115` (SAVARA) was built here as a dome fortress, which was wrong: it is a blimp. Redone in D120.
 - `assembly-newshc-283`'s run ended `ok: false` only because of the pillar head `newshc-77` (`newshc-77.py` with
   `lib_b110.build_head`/`head_materials`), outside the item's scope: recess the eye socket (a dark disc with the eye in it,
   not thin ellipsoids on the dome), raise the ball/stem roughness to ~0.42-0.45 (now chrome), and make the neck a collar
@@ -4808,6 +4806,256 @@ every frame: `newsh-caret-171` (0.9237, a size-1 sprite), `newshj-19` (0.9367 on
 Sonnet, the rest Opus), 27.4M subagent tokens, about 5.5 h at `maxAgents: 8`; the fix round (`fix-round.js`, 3 items)
 8 agents, 0.93M tokens, about 45 min. Sheets: `tyrian-scratch/e1-enemies/<name>/final/` and
 `.../fixround/<name>/final/` (not in git, D3).
+
+## D117 — Refit and outline-shell fixes: the level-1 flagship's halves end inside their own sprites, five shells held inside
+
+2026-11-10
+
+**Problem:** a visual audit of D88 and D92 (`tyrian-scratch/refit-audit/`) found artefacts the IoU gate
+cannot see:
+- **assembly-newsh4-123 / assembly-newsh4-81** (`lib_b065.py`, used only by these two; the boss
+  assembly-newsh4-124 and its wrecks don't import it): D88 cut the joined model of each piece back
+  to its own sprite's rows in the 4 rows the two halves share (per column, `trim_overlap`). The
+  cut went through the model after `cull_hidden`, so it was no longer closed: open sections, sliver
+  fragments and stair steps along -123's front and -81's rear. The outline shell kept the piece box,
+  so past the cut it stood out as a black slab with an ink loop, visible in `?debug=models` at game
+  scale. The same cut removed -123's red-rimmed nozzles (the shoulder pods' aft ends).
+- **D92 enemies, outline on only:** assembly-newshf-195 ink wedges on the dome's right half,
+  newshs-171 two ink slits beside the hub, newshs-269 an ink sheet behind the chin (rear right in
+  the 3/4 view) and a wedge at the left seam.
+- **newshf-230, outline off:** a pale sliver through the red rail at the bend.
+
+**Decision:**
+- **Each half of the flagship is built its own way, part by part, before the join** (`clip_rules`,
+  `clip_part`). Every closed part that crosses one of its assembly's lines is cut there and capped;
+  a part reaching less than 0.4 px inside is dropped whole (no slivers). Parts cut on the same line
+  whose caps would overlap are cut 0.03 px apart, so no two caps are coplanar (they z-fought, and
+  the occlusion bake stippled them). The piece boxes then cut nothing along the shared rows.
+  - **Each part ends straight, at its own length.** On the shared row (-81's row 27, -123's row 24,
+    half colour and half ink in both sprites) a part ends at the row's near or far edge, whichever
+    its own pixels of that row vote for: colour inside the ink +1, ink or nothing -1, free 0. This
+    replaces D88's per-column stair steps and keeps the rule IoU over 0.95 per piece.
+  - **Side lines:** -81's body parts (wing roots, torso, armour) stay inside cols 14.6-46.4 (its
+    rows 26-27 are ink beside the pods); -123's head parts (arm, armour block, core stubs) inside
+    15.6-46.4, and its wings' leading edges inside the sprite's diagonal above row 29. The lower
+    sprite is symmetric about column edge 31, the upper about 30.5.
+  - **The shoulder pods** are their own part: -81 keeps them whole (they end at row 27.95, in its
+    box); -123 drops them.
+- **-123's nozzles are back, scaled in:** a red lip round a dark throat, a red band, the grey housing
+  and a tapered back, the pods' section (`pod_nozzles`). They sit on the two free ink pixels the
+  lower sprite draws for each pod's end (cols 10-11, 50-51), radius 1.1 px, rows 24.0-25.4, so they
+  add no pixel to its top view. Each is mounted on a thin rod (0.34 px across) to the arm's cut end,
+  so it does not float. With -81 present they sit inside its pods.
+- **D90's shell for these models:** 0.03 voxels, held 0.004 inside.
+  - **The flagship:** `lib_b065.outline_shell` (it keeps every outer island, so horns, claws, arcs
+    and nozzles keep their ink) takes `inside`. It is made from each half's own build, so it ends
+    where the model does.
+  - **assembly-newshf-195** at 2000 faces (1000 left an ink streak on the dome).
+  - **newshs-171** at 3000 faces.
+  - **newshf-230:** D90's shell too; it also clears ink ticks beside its studs.
+  - **newshs-269 keeps its built shell**, held inside by the same Shrinkwrap. Its crest comes down
+    to the chin's channel floor (0.45) and to 1.45 over the plates' seams. A voxel shell, even D90's,
+    drew ink specks round the dome's well and the drum.
+- **newshf-230's sliver:** where the band of rib B is clipped by the curved deck next to its panel
+  seam (and where the arm meets that seam), offset_polygon's step carried a short edge's top past
+  itself, so the top ring crossed itself. `hold_offsets` collapses such a flipped edge where the
+  offset lines on either side of it meet, repeating until no top edge runs backwards; no other
+  vertex moves.
+  - Its top seam moves from 0.55 to 0.6 px. At 0.55, an 8x top render still covered half of row 0
+    (rule IoU 0.9316); at 0.6 it is D92's 0.9761.
+
+**Result** (rule IoU on the grid, `tools/sprite_mask.py --measure` of top renders of the exported
+GLBs, outline shells left out, 8x):
+
+| Model | after | before (main) |
+|---|---|---|
+| newsh4-81 / -83 / -85 | 0.9521 / 0.9583 / 0.9875 | 0.9728 / 0.9731 / 0.9875 |
+| newsh4-119 / -121 / -123 | 0.955 / 0.9618 / 0.9881 | 0.9583 / 0.9756 / 0.9881 |
+| assembly-newsh4-81 / -123 (grid) | 0.97 / 0.9908 | 0.9885 / 1.0 |
+| newshf-157 / -159 / -195 / -197 | 0.9924 / 0.9423 / 0.9969 / 0.9532 | same (shell only) |
+| assembly-newshf-195 (grid) | 0.9986 | 0.9986 |
+| newshs-171, all 4 frames | 1.0 | 1.0 |
+| newshs-269 | 0.9901 | 0.9901 |
+| newshf-230 | 0.9761 | 0.9316 (by this measure) |
+
+- **The flagship's lower per-piece numbers** come from the straight part ends. D88's stair steps
+  matched row 27 pixel for pixel.
+- **newshf-159 below 0.95:** every pixel it misses is on the piece seam: the per-piece mask counts
+  the dark column at the shared edge as border. Its grid is 0.9986; it was not changed here.
+- **Ink outside the silhouette** (`inkout`, px beyond the normal ink width, 3/4 front):
+  assembly-newsh4-123 20558 → 17, assembly-newsh4-81 2132 → 830, newshs-269 8171 → 2415.
+- **Interior ink** (outline on minus off, per mille, front / 3/4 rear / top):
+  | Model | before | after |
+  |---|---|---|
+  | -123 | 20.3 / 11.0 / 6.3 | 12.3 / 5.6 / 1.1 |
+  | -81 | 32.5 / 21.2 / 8.6 | 12.2 / 7.6 / 4.3 |
+  | newshs-171 | 5.5 / 5.4 / 9.1 | 0.04 / 0.06 / 0.0 |
+  | newshs-269 top | 2.35 | 0.42 |
+
+  What is left is ink where one part overlaps another, plus small marks at the right horn's crease
+  (a fold in the horn's sweep).
+
+**Checked:** `?viewer=` (top, game angle, 3/4 front and rear, outline on and off) and
+`?debug=models` at 1920x1080, before and after.
+
+**Options considered:**
+- *Keep D88's per-column cut and only cap it:* the caps of a culled mesh don't close, and the stair
+  steps remain.
+- *One straight line per assembly:* row 27 is half ink, half colour, so either edge missed the 0.95
+  per piece (-83 0.92-0.94).
+- *Bigger nozzles:* the lower sprite draws only two ink pixels there; anything wider adds pixels.
+- *A voxel shell for newshs-269:* specks round the well.
+
+**Review:** sheets in `tyrian-scratch/enemy-refit-fixes/sheets/`: `before-after-closeups.png`,
+`before-after-viewer.png`, `before-after-game-scale.png`. Measures in `measure/`. Fallback: revert
+the five scripts and their GLBs.
+
+## D118 — The Silver Ship rebuilt from its pre-refit parts on the inner edge; the Nort Ship's shell held inside
+
+2026-11-10
+
+**Problem:** the refit audit (`tyrian-scratch/refit-audit/`, `closeups/`) found two player ships that
+look worse than their numbers:
+- **Nort Ship:** black ink cracks across the white nose and cockpit plates in the hangar and the
+  viewer, gone with Outline off. They predate D88. The shell (D51, 0.012 voxels) was remeshed from
+  the culled hull: the open plates' both sides were wrapped, the shell followed the seams between
+  the plates in, and its back faces drew ink across them (D90's cause, on the Talon).
+- **Silver Ship, after D88:**
+  - The fuselage's half width was fitted to the inner mask row by row (`FW` 4.12 → 4.95 → 4.25 →
+    5.15 over rows 7-14), so the top plates' edges followed the pixel staircase: jagged and crumpled
+    in the hangar.
+  - The fuselage rode 3 px high to suit the banking frames (D88, before D93 forbade bank-only
+    shaping) and covered the pods' bays: the sprite's two red light tubes per side (rows 18 and 20)
+    showed as one thin bar.
+  - The pods' outboard corners were made tight (0.35 fillets) so the rolled pods kept the banks'
+    span: boxy red and grey blocks, seen when the ship banks.
+
+**Decision:**
+- **Silver Ship: the pre-D88 ship (afcea65b) pulled in one pixel, not reshaped.** The inner mask is
+  the whole sprite's mask one pixel in at every row (nose rows 1-2 1.5, wing tip row 8 6.5, waist
+  4.5, pods 8.5, the rear diagonal x + y = 29, the tail's end at row 26), so each part keeps its
+  pre-refit shape and its outboard edge moves in, as one smooth curve through the inner mask's steps:
+  - the nose: an ogive from row 0.95, the old outline 1 px in;
+  - the wings: the leading edge on half width y - 2.1, a short tip at 6.5 (row 8), the trailing edge
+    one straight sweep in through row 9 to the waist;
+  - the pods: the old round section (`_pod_unit`, large fillets), outboard edge 1 px in, so 1 px
+    narrower;
+  - the nozzles: exits on x + y = 29;
+  - the tail block shortened from row 26.9 to 26.05 (`T`).
+  - Back from before D88: the two glowing tubes and the strut in each pod's bay, the rounded pods,
+    the single-level hull (no 3 px lift, no keel, no anhedral).
+  - Kept from D90: the shell from 0.03 voxels, held 0.004 inside.
+- **The Silver Ship's banking pose (D93):** the fit keeps the game's roll (17.5 / 35°) but moves
+  the banked ship sideways 0 / 0.5 px, not bankShift.ts's 1 / 2 (`bank.shift` [0.5, 0, 0, 0, -0.5]).
+  Rolled about its axis, the model's top view already moves sideways (its parts stand above and
+  below the axis); with bankShift's slide on top it overshot the sprites. (D88's 3 px lift made up
+  for the same slide the other way.)
+- **Nort Ship: D90's shell, from a closed copy.** The shell is made from the joined model before
+  `cull_hidden` (as the Silver Ship's always was), kept out of the scene during the bake, from 0.03
+  voxels, held 0.004 inside. The model itself is unchanged.
+
+**Result:**
+
+| | rule IoU (grid), level frame | half bank 79 / 83 | full bank 77 / 85 |
+|---|---|---|---|
+| Silver Ship, this | 0.9965 | 0.9379 / 0.9276 | 0.8657 / 0.8688 |
+| Silver Ship, this at bankShift's shift | 0.9965 | 0.8733 / 0.8949 | 0.7175 / 0.7508 |
+| Silver Ship, main (D88, D93's table) | 0.989 | 0.982 / 0.982 | 0.965 / 0.996 |
+| Nort Ship | 0.9963 (main 0.9963) | - | - |
+
+(`tools/bank_roll.py <name>`, k = 10; `tools/sprite_mask.py --measure` of a 20x top render gives the
+same grid numbers.) The banks are below main's, which was shaped for them; D93's bars are 0.80 / 0.70.
+
+Interior ink the outline adds in `?viewer=` (outline on vs off, 4 views round the model at the
+free view's height, pixels inside the silhouette that go dark): Nort 3763-4479 px per view on main →
+689-1142 (the rest is where one part overlaps another; one view's count was a camera still settling);
+Silver 169-1090 → 386-669, also overlaps only.
+
+**Checked:** `?viewer=` both ships from four sides at 3/4 height, outline on and off; the hangar
+backdrop (`tyrianUi.backdrop.setMood('hangar')`, `setShip`), four moments each; in game
+(`?debug=play&seed=1&ship=11|12&solid=1`) at ticks 300 and 700, and banking (`&steer=left|right`,
+ticks 12 and 30): the Silver Ship's two tubes a side and round pods read in the banks, the Nort's
+dark specks on the nose and cockpit plates are gone.
+
+**Options considered:**
+- *Smooth D88's model in place (a pchip through its jagged half widths, rounder pod corners):* keeps
+  the 3 px lift and keel that cover the bays and only exist for the banks, which D93 no longer asks
+  for.
+- *The pre-D88 model unchanged:* rule IoU 0.83 (D74's survey), it reads a pixel fat per edge in game.
+- *A uniform plan scale instead of the 1 px pull-in:* the inner mask is an offset, not a scale (the
+  nose loses a whole row, the pods half a pixel per side), and a scale moves the windshield off the
+  cockpit pixels.
+
+**Review:** `tyrian-scratch/ship-refit-fixes/sheets/`: `viewer-silver-ship.png` (main, this, and
+the pre-D88 model), `viewer-nort-ship.png`, `viewer-ink-outline-on-vs-off.png`, `hangar-*.png`,
+`game-*.png` (main | this), `silver-banking-frames-iou.png` (each frame's sprite beside the model's
+top view at the fitted pose). Raw captures beside it; the pre-D88 script and GLB in `ref/`. Fallback: the two scripts, GLBs and the Silver Ship's
+spriteModels entry from main.
+
+## D119 — The play harness no longer holds the armour at 0 without `&armor=`; the wear rule was right
+
+2026-11-10
+
+**Problem:** in `?debug=play` captures the Silver Ship showed heavy wear (D90: orange scorch, embers)
+from tick 12 on, at what should be full armour; its hangar render was clean. The PR #150 captures
+(`tyrian-scratch/ship-refit-fixes/sheets/game-silver-ship.png`) used
+`?debug=play&seed=1&ship=11&freezeAt=T&steer=left|right&solid=1`, without `&armor=`.
+- **The armour really was 0.** `tyrianHarness.g.player[0].armor` read 0 at every tick (12, 300, 700),
+  for the Talon too; the draw list's `ships` was `[{armor: 0, reference: 10}]`, so wear level 2.
+- **The cause: D90's `&armor=` parser.** Without the parameter it split `""` into `[""]`, and
+  `Number("")` is 0, so the plan was "hold 0 from tick 0". The harness's own default (top the
+  armour up to 28 with `&solid=1`, else 10) never ran. Every `?debug=play` run since D90 without
+  `&armor=` held the armour at 0: every ship looked heavily worn, and with `&solid=1` the first hull
+  hit would kill the bot.
+- **Not the cause:** `shipDamage.ts`, the reference, the Silver Ship's model. The reference is the
+  ship's `initial_armor` (its item's `dmg`: Silver Ship 10, Talon 10), as D90 says. With
+  `&armor=28` / `4` / `2` the old code drew clean / light / heavy. A real game start (console
+  `level 1 tyrian`, the Talon and then the Silver Ship) read `armor 9 of 10`, wear level 0.
+
+**Decision:**
+- `src/debug/armorPlan.ts` parses `&armor=`: empty or malformed entries are dropped, so without the
+  parameter nothing is held and the harness tops the armour up as documented. `&armor=0` still holds 0.
+- No change to the wear rule or its constants.
+- Tests: `tests/debug/armorPlan.test.ts` (absent, empty, single values, schedules, junk);
+  `tests/sim/shipWear.test.ts` starts level 1 with each ship 1-13 and checks the draw list carries
+  the level-start armour (`min(dmg, 28)`) against `dmg`: clean at the start, light at 40%, heavy
+  at 20%, clean at exactly 50%.
+
+**Review:** `tyrian-scratch/ship-wear-check/ship-wear-sheet.png`: the Silver Ship and the Talon
+before (no `&armor=`: held at 0, heavy) and after (full: clean; `&armor=4`: light; `&armor=2`:
+heavy), and SuperCarrot, Phoenix, Stalker, U-Ship and Nort Ship clean at full. Ships 1-13 at ticks
+12, 300 and 700, with and without `&armor=28`: armour 28, wear level 0 (`caps/ticks-*.txt`).
+
+## D120 — The SAVARA boss is a blimp: `assembly-newshi-115` rebuilt as an airship (corrects D116)
+
+**Problem:** D116 built `assembly-newshi-115` (the SAVARA boss, levels 1.8 / 1.12 / 1.17 / 3.10) as a flat-bottomed ground
+dome fortress. The user pointed out it is a **blimp**. The sprite's lozenge body, tail cap (`newshi-154`), propeller and
+nacelles are an airship's; a dome on the ground reads as the wrong object however well the outline matches.
+
+**Decision:** rebuilt as an airship in `assets/blender/enemies/assembly-newshi-115.py`:
+- a floating gas envelope: round underside, meridian seams converging toward the nose and the tail cap;
+- a propeller of airfoil blades on a hub inside a closed duct-guard loop;
+- a closed tail dome; nacelle colour corrected to the sprite's palette index.
+The pieces `newshi-{3,5,39,41,43,45,77,79,81,83,115,117,119,121}` and the `-f2` frames of 3/5/41/43 were rebuilt;
+`src/render/spriteModels/*.json` are unchanged.
+
+**Measured:** rule IoU grid 0.9801 (frame 1) / 0.9799 (frame 2); every piece >= 0.95 (worst `newshi-5` f2, 0.9531).
+Six fix rounds; the last strict review was still 6/10 "fix". Shipped by the coordinator because it now reads as the
+right object, a clear improvement over D116's ground dome. Review sheet:
+`tyrian-scratch/savara-blimp/assembly-newshi-115/final/cmp.png`.
+
+**Follow-ups (known):**
+- The propeller blades are irregular in size (the sprite's two frames are not a rotation of one real propeller).
+- The duct ring is lumpy; it should be a smooth constant-section ring parallel to the rotor disc.
+- The red centre mast crosses the rotor disc.
+- The envelope height is 0.55 of its width, not the 0.6-0.8 asked. **Needs a user decision:** the pass-height budget
+  is belly -5 against water -5.4, crown 31.5, fittings 33.6, with the ship passing at 34.2; may the envelope go higher?
+- The bow shoulder masses are lumpy.
+- The envelope shading is fairly flat from the game camera.
+
+**Lesson:** establish what an object *is* before modelling it, and judge "does it read as that object" first, before
+outline IoU, colours or detail. D116's dome matched the numbers and was still the wrong thing. The scout/design brief
+names the object type (blimp, ground bunker, rock, ship), and reviewers score object reading before anything else.
 
 ## D121 — Episode-1 enemy rebuild, batch 2: 32 more models to the D65 hard-surface standard
 

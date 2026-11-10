@@ -1,31 +1,41 @@
-"""Grey dome fortress (newshi.shp, assembly-newshi-115, 14 pieces): blueprint-led.
+"""SAVARA airship, front half (newshi.shp, assembly-newshi-115, 14 pieces): blueprint-led.
+
+User correction: this is a BLIMP. The tail cap is assembly-newshi-154 (the egg's south end: enemies
+87-89 of the same formation, drawn on the same ground pass right under this assembly's last row), a
+separate enemy object; this envelope tapers into its cut section.
 
 A hard-surface rebuild in the player ships' style (D50-D53, D65), its top-view edge on the INNER
-edge of the sprite's ink (D74). Engineering read, cross-sections first (blueprint gen.py):
+edge of the sprite's ink (D74). Engineering read, cross-sections first:
 
-  dome     armoured hangar dome on a foundation curb: superellipse sections (n 2.2) lofted down
-           the screen through pchip widths measured from the sprite's inner mask (blunt rounded nose
-           at row 28.6, 33.5 px half width from row 65, a slight taper to the rear wall at 111.6),
-           crest 16 px. Raised longitudinal ribs (the sprite's light lines: cols 23-24, 34, 48-49),
-           two transverse panel grooves arched forward (rows 78, 96), a raised V seam strap where
-           the nose cap meets the dome (row 44 at the axis, row 54 at the flanks), a darker collar
-           band on the cap's flanks, a central trench in the cap for the mast neck and capsule, a
-           dark rotor slot across the nose front. Rear bulkhead with a framed blast door.
-  hoop     red rotor shroud: a chamfered box-section band between two superellipses over the nose
-           (outer A 23.5 / B 17 about (48.5, 28), inner A 21.5 / B 17.95 about (48.5, 35)), crown
-           z 21.5, legs down the cap flanks into ribbed grey mount brackets (rows 38.5-45.5).
-  mast     grey box beam from the hoop crown down to a pylon standing in front of the nose, five
-           red lights (lenses) in a dark channel down its spine, dark head clamp over the crown,
-           neck in the trench, capsule on the neck.
-  rotor    white blades on a ring of radius ~24 about (48.5, 46.5), coming out of the slot in the
-           cap's front on short spokes; frame 2 (newshi-3/5/41/43 -f2) is the ring turned. Blade
-           footprints are the sprite's blade pixels inside its ink (convex hulls, per frame).
-  gantry   red docking clamp lying on the cap (two L brackets, stem, cross bar, four rails, two
-           cross pieces over a dark slot) and the red loop (hatch ring) further back.
-  arms     outrigger legs (left built, mirrored about 48.5): red pipe out of the flank, grey
-           elbow, grey and red struts, red drum housing on a base, dark leg frame with a red ram,
-           red knee, grey piston, red rod, foot pad with a red hood and an orange lamp.
-  underside  flat closed belly at z = 0 (user's rule: a plausible closed shape only).
+  envelope  a closed gas envelope floating above the water: elliptical sections (round above and
+           below the equator), the plan the sprite's egg (pchip widths from the sprite's inner
+           mask: blunt nose at row 28.6, 33.45 px half width from row 65), heights proportional to
+           the half width ahead of the crown (an ellipsoidal nose), crown highest at row 70. Fix
+           round 5: 36.5 px high on the crown (z -5 .. 31.5: the belly just over the water, the crown
+           just over the player's shots and under the player's ship, 0.55 of the width), the tail
+           tapering top and bottom into newshi-154's own cut section at row 112 (z 0 .. 14.2, its
+           equator 3.4 up). Meridian seams (the sprite's light lines) above and below the equator,
+           converging toward the tail; two latitude panel joints round the whole section; a riveted
+           joint flange before the tail cut, where newshi-154 carries the envelope on.
+  propeller a tilted nose fan (a vectoring propeller): hub housing and spinner on the nose tip,
+           thrust axis forward and down (the disc rises TILT px per row toward the screen top, so
+           the guard's plan is the sprite's ellipse). Twisted, pitched blades on the sprite's blade
+           footprints (per frame: the second frame is the rotor turned), shanks to the spinner.
+  duct     the red ring guard (fix round 5): a duct, a short tube round the disc with a bore
+           parallel to the thrust axis and a rounded leading lip, its plan the sprite's band; its
+           side frames carry it down the nose flanks into clamp blocks on the envelope's equator.
+  mast     the duct's top strut: a grey box beam in the guard's plane from the crown down to the
+           hub, five red lights in a dark channel on its spine, a clamp over the crown.
+  nose     the gull-wing cowl plates and a dark collar plate (the propeller's bearing plate) round
+           the nose; the socket, neck tube and red pendant on the nose top.
+  gantry   the red dorsal fitting on the envelope (two L brackets, cross bar, rails, slots) and the
+           red hatch ring further back.
+  pods     (fix round 5) engine pods on pylons: the red pipe and the struts out of the flank are the
+           pylons; each side arm's hardware (drum, frame plates, ram, knee, piston) sits on a
+           streamlined nacelle hanging under it below the equator, with an intake (red lip, dark
+           face, spinner) at the front and a nozzle with the exhaust glow at the back; a small tail
+           pod under the foot carries the orange lamp.
+  underside  the envelope's round belly; the nacelles (a plausible closed shape only).
 
 Build space: x = sprite column edge (0..96), y = row edge (0..112, down the screen), z up, sprite
 px. Blender: X = (x - 48) / 12, Y = (56 - y) / 12, Z = z / 12 (the assembly centre, screen
@@ -75,16 +85,16 @@ def mx(x):
 # ---------------------------------------------------------------------------------------------
 SLOTS = [
     # name, palette index, metallic, roughness, emission
-    ("dome", 8, 0.16, 0.42, 0),
-    ("rib", 8, 0.18, 0.36, 0),
+    ("dome", 8, 0.18, 0.34, 0),
+    ("rib", 9, 0.18, 0.36, 0),   # fix round 6: the seams sit on the sprite's light lines (9)
     ("collar", 5, 0.15, 0.46, 0),
-    ("seam", 7, 0.16, 0.40, 0),
+    ("seam", 6, 0.16, 0.40, 0),
     ("trench", 4, 0.12, 0.55, 0),
     ("slot", 7, 0.05, 0.75, 0),
     ("plinth", 4, 0.14, 0.50, 0),
     ("groove", 7, 0.10, 0.60, 0),
     ("hoop", 69, 0.06, 0.45, 0),
-    ("mount", 4, 0.15, 0.45, 0),
+    ("mount", 1, 0.15, 0.45, 0),
     ("mast", 6, 0.16, 0.42, 0),
     ("head", 3, 0.15, 0.48, 0),
     ("channel", 3, 0.06, 0.70, 0),
@@ -98,7 +108,7 @@ SLOTS = [
     ("gslot", 5, 0.05, 0.75, 0),
     ("loop", 72, 0.06, 0.42, 0),
     ("rotor", 13, 0.10, 0.36, 0),
-    ("spoke", 5, 0.15, 0.45, 0),
+    ("spoke", 1, 0.15, 0.45, 0),
     ("pipe", 70, 0.06, 0.42, 0),
     ("elbow", 5, 0.15, 0.45, 0),
     ("strut", 5, 0.15, 0.48, 0),
@@ -115,13 +125,15 @@ SLOTS = [
     ("door", 3, 0.15, 0.50, 0),
     ("doorframe", 6, 0.16, 0.42, 0),
     ("cowl", 6, 0.20, 0.34, 0),
-    ("cslot", 6, 0.05, 0.80, 0),
-    ("pendant", 73, 0.06, 0.42, 0),
-    ("socket", 5, 0.15, 0.50, 0),
+    ("cslot", 8, 0.05, 0.80, 0),
+    ("pendant", 75, 0.06, 0.42, 0),
+    ("socket", 7, 0.15, 0.50, 0),
     ("cowlrim", 6, 0.45, 0.22, 0),  # sheen on the chamfer: the lit rim
     ("lip", 4, 0.05, 0.75, 0),
     ("crown", 8, 0.20, 0.30, 0),
     ("wingout", 5, 0.18, 0.40, 0),
+    ("nacelle", 1, 0.20, 0.34, 0),  # fix round 6: the sprite's 1 (dark gaps between the arm plates)
+    ("intake", 2, 0.05, 0.80, 0),
 ]
 S = {name: i for i, (name, *_r) in enumerate(SLOTS)}
 GLOWING = {S["light1"], S["light2"], S["light3"], S["light4"], S["lamp"]}
@@ -333,14 +345,31 @@ _wf = pchip([a for a, _ in W_ST], [b for _, b in W_ST])
 WS_ST = [(y, w) for y, w in W_ST if y <= 58.0] + [(62.0, 32.75), (70.0, 33.45), (100.0, 33.45), (106.0, 32.4),
                                                   (109.0, 31.4), (112.0, 30.6)]
 _wsf = pchip([a for a, _ in WS_ST], [b for _, b in WS_ST])
-PL = 1.6           # foundation curb height
-LEDGE = 0.7        # the dome shell stands this far inside the curb's edge
-HMAX = 15.6        # shell height above the curb at the crown (row 70)
+# Blimp redesign (user correction: it is an airship). The envelope is a closed, floating body: its
+# plan exactly the sprite's egg (widest at the equator), its sections ellipses about an equator that
+# runs level under the crown and drops toward the tail. Heights, fix round 5 (the review: too flat):
+# the belly goes down to just above the water (5.4 px under the model's origin: the ground-enemy pass
+# is 0.45 units up) and the crown up to 31.5 px, just over the player's shots (2.9 units, 29.4 px
+# over the origin) and under the player's ship (3.3 units, 34.2 px); the dorsal fittings stay under
+# 33.5. That is 36.5 px of height on the crown's 66.9 px width (0.55; 0.6 would need 40 px, into the
+# ship's pass or the water). The tail tapers top and bottom into the tail cap, assembly-newshi-154
+# (enemies 87-89, the same formation, drawn on the same ground pass right under this assembly's last
+# row): at the cut (row 112, 154's top edge) the section is 154's own cut section, a dome from z 0 (its flat
+# underside) to 14.2 on the axis, its equator 3.4 up (measured from public/models/enemies/newshi-15x).
+ZC = 13.25         # envelope axis height under the crown (sprite px above the model origin)
+HMAX = 18.25       # envelope half height at the crown (row 70); half width there 33.45
 NXS = 2.0          # section superellipse exponent
-SEC_M = 0.72       # section outer exponent (0.5 = ellipse with vertical walls; higher rolls the flank)
+NXS_U = 1.8        # fix round 6: the upper half a little rounder over the crown (less flat top, so the
+                   # game light falls off across the width as the sprite's shading does)
+SEC_M = 0.5        # section exponent: 0.5 = a true ellipse, round above and below the equator
 Y_CROWN = 70.0     # the egg's crown (the sprite's highlight ellipses centre near row 70)
 TR_HALF, TR_DEPTH, TR_END = 4.0, 2.4, 45.0
-Y_END = 111.6      # rear bulkhead
+Y_END = 112.0      # the cut where the tail cap (assembly-newshi-154) continues the envelope
+# along the body (rows): equator height, upper half height, lower half depth
+_PR_Y = [20.0, 76.0, 88.0, 98.0, 106.0, 112.0, 114.0]
+_zcf = pchip(_PR_Y, [ZC, ZC, 12.2, 9.4, 6.2, 3.4, 3.4])
+_huf = pchip(_PR_Y, [HMAX, HMAX, 17.6, 15.6, 13.0, 10.8, 10.8])
+_hlf = pchip(_PR_Y, [HMAX, HMAX, 17.2, 13.2, 7.6, 3.4, 3.4])
 
 
 def dome_w(y):
@@ -351,25 +380,44 @@ def smooth_w(y):
     return max(0.0, _wsf(min(max(y, 28.6), 112.0))) if y >= 28.6 else 0.0
 
 
+def nose_k(y):
+    """The nose is an ellipsoid: heights in proportion to the plan's half width ahead of the crown."""
+    if y >= Y_CROWN:
+        return 1.0
+    return min(smooth_w(y), 33.45) / 33.45
+
+
+def env_c(y):
+    return float(_zcf(min(max(y, 20.0), 114.0)))
+
+
+def env_u(y):
+    """Envelope upper half height at row y."""
+    return float(_huf(min(max(y, 20.0), 114.0))) * nose_k(y)
+
+
+def env_l(y):
+    """Envelope lower half depth at row y."""
+    return float(_hlf(min(max(y, 20.0), 114.0))) * nose_k(y)
+
+
 def dome_h(y):
-    """Egg crown: highest at row 70, falling smoothly to the nose shoulder and to the tail."""
-    w = smooth_w(y)
-    if w <= 0:
-        return 0.0
-    if y < Y_CROWN:
-        s = (Y_CROWN - y) / (Y_CROWN - 28.6)
-        lon = 1 - 0.20 * s * s
-    else:
-        # fix round 4: the tail rounds down to a low rear wall (0.16 of the crest) instead of
-        # ending in a tall bulkhead, so the tail reads as the egg's end, not a cut
-        s = (y - Y_CROWN) / (Y_END - Y_CROWN)
-        lon = 0.16 + 0.84 * max(0.0, 1 - s ** 2.3) ** 0.62
-    return HMAX * (min(w, 33.5) / 33.5) ** 0.5 * lon
+    return env_u(y)
 
 
 def shell_w(y):
+    # the envelope's equator is the plan's edge (its top-view edge on the sprite's inner mask, D74)
     w = dome_w(y)
-    return max(min(smooth_w(y) - LEDGE, w - 0.25), w * 0.55)
+    return max(min(smooth_w(y), w), w * 0.55)
+
+
+def lower_z(x, y):
+    """The envelope's lower half (no trench): an ellipse quadrant under the equator."""
+    w = shell_w(y)
+    if w <= 0:
+        return env_c(y)
+    u = min(1.0, abs(x - AX) / w)
+    return env_c(y) - env_l(y) * max(0.0, 1 - u ** NXS) ** SEC_M
 
 
 def trench_k(y):
@@ -377,14 +425,12 @@ def trench_k(y):
 
 
 def surf(x, y, trench=True):
-    """Height of the dome (shell) at (x, y); PL at the shell's edge, 0 outside."""
+    """Height of the envelope's upper surface at (x, y); ZC at the equator and outside."""
     w = shell_w(y)
     if w <= 0:
-        return 0.0
+        return env_c(y)
     u = min(1.0, abs(x - AX) / w)
-    # fix round 4: the flanks roll into the curb (outer exponent SEC_M, not the ellipse's 1/2: less
-    # vertical wall), so the light falls off across the width as the sprite's shading does
-    z = PL + dome_h(y) * max(0.0, 1 - u ** NXS) ** SEC_M
+    z = env_c(y) + env_u(y) * max(0.0, 1 - u ** NXS_U) ** SEC_M
     if trench and y < TR_END + 0.6:
         k = trench_k(y)
         d = abs(x - AX)
@@ -411,7 +457,7 @@ def seam_y(x):
     return TR_END - 1 + max(0.0, abs(x - AX) - TR_HALF) * 0.42
 
 
-U_OUT = [0.20, 0.30, 0.43, 0.52, 0.61, 0.68, 0.746, 0.80, 0.85, 0.895, 0.93, 0.96, 0.98, 0.993, 1.0]
+U_OUT = [0.20, 0.30, 0.43, 0.52, 0.61, 0.68, 0.746, 0.80, 0.85, 0.895, 0.93, 0.96, 0.98, 0.993, 0.9985, 1.0]
 GROOVES = [66.0, 94.0]
 # Groove arcs (fix round 3): the sprite's latitude arcs ring the crown, the front one bowing forward
 # at the axis (row 62 there, 66 at the flanks), the rear one bowing back (row 97 at the axis).
@@ -450,8 +496,9 @@ def build_dome(P):
     for t in rows:
         w, ws = dome_w(t), shell_w(t)
         if w <= 0:
-            apex = P.v((AX, t, 0.0))
-            loops.append([apex] * (2 * (len(section_offsets(30.0)) - 1) + 1 + 6))
+            apex = P.v((AX, t, env_c(t)))
+            nn = 2 * (len(section_offsets(30.0)) - 1) + 1
+            loops.append([apex] * (2 * nn - 2))
             continue
         offs = section_offsets(t)
         right = []
@@ -469,32 +516,52 @@ def build_dome(P):
             if round(t, 3) in groove_bottom and u < 0.999:
                 p -= normal(x, y) * 0.45
             shell.append(P.v(tuple(p)))
-        # the curb: ledge, chamfer, wall (right side first)
-        gR = P.v((AX + w * kR, t, 0.0))
-        cR = P.v((AX + w * kR, t, PL - 0.3))
-        lR = P.v((AX + (w - 0.3) * kR, t, PL))
-        gL = P.v((AX - w, t, 0.0))
-        cL = P.v((AX - w, t, PL - 0.3))
-        lL = P.v((AX - w + 0.3, t, PL))
-        loops.append([gR, cR, lR] + shell + [lL, cL, gL])
+        # the lower half, left to right (the equator points are the upper list's ends): a round
+        # belly, the panel joints carried round it
+        lower = []
+        for x in reversed(xs[1:-1]):
+            u = min(1.0, abs(x - AX) / ws)
+            y = arch(t, u)
+            z = lower_z(x, y)
+            if round(t, 3) in groove_bottom and u < 0.999:
+                z += 0.45 * (1 - u * u) ** 0.5
+            lower.append(P.v((x if x <= AX else AX + (x - AX) * kR, y, z)))
+        loops.append(shell + lower)
     n = len(loops[0])
+    nu = 2 * (len(section_offsets(30.0)) - 1) + 1  # upper vertices per loop
     for i in range(len(loops) - 1):
         t0, t1 = rows[i], rows[i + 1]
         r0, r1 = loops[i], loops[i + 1]
-        for k in range(n - 1):
-            q = (r0[k], r1[k], r1[k + 1], r0[k + 1])
+        for k in range(n):
+            j = (k + 1) % n
+            q = (r0[k], r1[k], r1[j], r0[j])
             cx = sum(v.co.x for v in q) / 4
             cy = sum(v.co.y for v in q) / 4
             cz = sum(v.co.z for v in q) / 4
-            if k < 3 or k >= n - 4:
-                mat = S["plinth"]
-            else:
+            if k < nu - 1:
                 mat = dome_region(cx, cy, cz, t0, t1, groove_bottom)
-            P.f(q, mat, away=(AX, cy, -20.0) if (k < 3 or k >= n - 4) else None)
-    # belly and rear bulkhead
-    ground = [lp[0] for lp in loops] + [lp[-1] for lp in reversed(loops)]
-    P.f(ground, S["belly"], out=(0, 0, -1))
-    P.f(loops[-1], S["dome"], out=(0, 1, 0))
+            else:
+                g = round(t0, 3) in groove_bottom or round(t1, 3) in groove_bottom
+                mat = S["groove"] if g else S["dome"]
+            P.f(q, mat)  # one cyclic ring, built in one direction: the winding is outward
+    # the cut at the tail, where the tail cap (assembly-newshi-154) carries the envelope on
+    # Fix round 6: the cut closed by a shallow dome (2.4 px aft), so the envelope is closed on its own;
+    # in the formation the tail cap (assembly-newshi-154) sits over it.
+    last = loops[-1]
+    zs = [v.co.z for v in last]
+    cc = Vector((AX, Y_END, (min(zs) + max(zs)) / 2))
+    prev = last
+    for ph in (30.0, 55.0, 75.0):
+        a = math.radians(ph)
+        ring = [P.v((cc.x + (v.co.x - cc.x) * math.cos(a), Y_END + 2.4 * math.sin(a), cc.z + (v.co.z - cc.z) * math.cos(a)))
+                for v in last]
+        for i in range(len(ring)):
+            j = (i + 1) % len(ring)
+            P.f((prev[i], prev[j], ring[j], ring[i]), S["dome"], away=(cc.x, Y_END - 3.0, cc.z))
+        prev = ring
+    apex = P.v((cc.x, Y_END + 2.4, cc.z))
+    for i in range(len(prev)):
+        P.f((prev[i], prev[(i + 1) % len(prev)], apex), S["dome"], away=(cc.x, Y_END - 3.0, cc.z))
     return rows, loops
 
 
@@ -506,20 +573,29 @@ def dome_region(x, y, z, t0, t1, groove_bottom):
         if round(t0, 3) in groove_bottom and round(t1, 3) in groove_bottom:
             return S["groove"]
         return S["groove"]
-    if y < 30.7 and 5.0 < z < 7.8 and d > 4.5:
-        return S["slot"]
     if y < seam_y(x):
         u = d / max(shell_w(y), 1e-3)
         return S["collar"] if u > 0.746 + 0.004 else S["dome"]
     return S["dome"]
 
 
-_ew = pchip([28.0, 82.0, 96.0, 104.0, 112.0], [33.45, 33.45, 30.6, 27.6, 24.0])
+EGG_TAIL = 124.0   # fix round 6: the virtual tail of the egg the meridians are drawn on (inside 154)
+
+
+def egg_w(y):
+    """Half width of the whole egg (this envelope and the tail cap, 154, under it): the plan's own
+    width ahead of the crown, then an ellipse closing at EGG_TAIL. The meridian seams are lines of
+    constant fraction of it, so they bunch toward the nose (where the plan narrows) and toward the
+    tail (where the egg does, though this piece is cut off at row 112, still 30 px wide)."""
+    if y <= Y_CROWN:
+        return shell_w(y)
+    k = min(1.0, (y - Y_CROWN) / (EGG_TAIL - Y_CROWN))
+    return min(shell_w(y), 33.45 * math.sqrt(max(0.0, 1 - k * k)))
 
 
 def meridian(u, p, y):
     """Signed offset from the axis of the meridian seam u at row y."""
-    ew = float(_ew(min(max(y, 28.0), 112.0)))
+    ew = egg_w(y)
     return u * ew * (ew / 33.45) ** p
 
 
@@ -536,7 +612,7 @@ def build_dome_detail(P):
     # half width EW, which narrows behind row 82 (the plan is cut off by the sprite's edge, the egg
     # is not), so the seams bow in and converge toward the tail as the sprite's do (cols 23 -> 30 and
     # 34 -> 41 between rows 82 and 110; the inner pair converges faster, as drawn).
-    for u, p in ((0.0, 0.0), (0.419, 0.8), (-0.419, 0.8), (0.747, 0.0), (-0.747, 0.0)):
+    for u, p in ((0.0, 0.0), (0.419, 0.4), (-0.419, 0.4), (0.747, 0.0), (-0.747, 0.0)):
         if u == 0.0:
             y0 = 74.6
         else:
@@ -559,11 +635,37 @@ def build_dome_detail(P):
                 x = AX + s * d
             pts.append((x, y))
         on_dome(P, pts, 0.5, 0.28, 0.12, S["seam"])
-    # Rear: blast door in a frame on the bulkhead.
-    # (fix round 4: the rear wall is low now, the door a low hatch under it)
-    block(P, 38.5, 58.5, Y_END - 0.4, 111.95, 0.0, 3.5, S["doorframe"], ch=0.3)
-    block(P, 40.0, 48.25, 111.5, 111.99, 0.0, 2.8, S["door"], ch=0.2)
-    block(P, 48.75, 57.0, 111.5, 111.99, 0.0, 2.8, S["door"], ch=0.2)
+    # Blimp: the meridian seams carry on round the lower half (seen from the side at the tilted
+    # camera), from the nose to the tail cut; angles below the equator.
+    # (fix round 6: on the egg too, so they converge toward the nose and the tail, not run parallel)
+    for phi in (30.0, 62.0):
+        cp = math.cos(math.radians(phi))
+        for s in (1, -1):
+            st, ups = [], []
+            for k in range(41):
+                y = 33.0 + (Y_END - 0.05 - 33.0) * k / 40
+                w, h = shell_w(y) - 0.15, env_l(y)
+                c_ = min(cp * egg_w(y), w - 0.15) / max(w, 1e-3)
+                s_ = math.sqrt(max(0.0, 1 - c_ * c_))
+                nx, nz = c_ / max(w, 1e-3), -s_ / max(h, 1e-3)
+                L = math.hypot(nx, nz)
+                st.append((AX + s * w * c_ + s * nx / L * 0.05, y, env_c(y) - h * s_ + nz / L * 0.05, 0.4, 0.2))
+                ups.append((s * nx / L, 0.0, nz / L))
+            sweep(P, st, S["rib"], prof=box_prof(0.15), ups=ups)
+    # the joint flange at the tail cut (a riveted ring round the section, the tail cap bolts on here)
+    st, ups = [], []
+    yj = 110.4
+    w = shell_w(yj) - 0.45
+    for k in range(49):
+        a = 2 * math.pi * k / 48
+        h = (env_u(yj) if math.sin(a) >= 0 else env_l(yj)) - 0.3
+        nx, nz = math.cos(a) / w, math.sin(a) / h
+        L = math.hypot(nx, nz)
+        x_ = AX + w * math.cos(a)
+        z_ = (surf_nt(x_, yj) - 0.3 * nz / L) if math.sin(a) >= 0 else env_c(yj) + h * math.sin(a)
+        st.append((x_, yj, z_, 0.55, 0.3))
+        ups.append((nx / L, 0.0, nz / L))
+    sweep(P, st, S["seam"], prof=box_prof(0.15), ups=ups)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -583,9 +685,27 @@ HOOP_LEG = [(28.0, 24.95, 28.9), (30.0, 25.0, 27.4), (32.0, 25.0, 26.6), (34.0, 
             (38.0, 25.2, 26.6), (39.8, 25.3, 26.9)]
 _hro = pchip([a for a, _, _ in HOOP_R], [b for _, b, _ in HOOP_R])
 _hri = pchip([a for a, _, _ in HOOP_R], [c for _, _, c in HOOP_R])
-HOOP_Z = [(10.0, 21.5), (12.0, 21.2), (16.0, 19.8), (22.0, 17.0), (28.0, 13.6), (32.0, 11.6), (35.0, 9.8),
-          (37.5, 7.4), (39.8, 4.2)]
-_hz = pchip([a for a, _ in HOOP_Z], [b for _, b in HOOP_Z])
+# Blimp: the hoop is the ring guard of a tilted nose propeller (a vectoring fan). Its front half is
+# a flat annulus in the propeller's disc plane, which rises TILT px per row toward the screen top
+# from the hub on the nose tip (so the plan is the sprite's ellipse: A 23.5, B 17); behind the hub
+# the ring's legs ease back down the nose flanks into the brackets at the equator.
+TILT = 0.85
+HUB = (AX, 28.5, ZC)
+_TN = math.hypot(1.0, TILT)
+AXIS = Vector((0.0, -TILT / _TN, -1.0 / _TN))   # propeller thrust axis: forward and down
+
+
+def _hz(y):
+    """Height of the ring guard's mid-plane at row y."""
+    y = float(y)
+    if y <= HUB[1]:
+        return ZC + TILT * (HUB[1] - y)
+    return ZC - 3.4 * (1 - math.exp(-(y - HUB[1]) * TILT / 3.4))
+
+
+def disc_z(y):
+    """The propeller disc: the ring's plane moved 1 px back along the axis (inside the guard)."""
+    return ZC + TILT * (HUB[1] - y) - _TN * 1.0
 
 
 def hoop_pts(deg):
@@ -608,20 +728,48 @@ def hoop_stations():
     return st
 
 
+DUCT_C = 5.0      # the duct's chord along the thrust axis (px)
+DUCT_TMIN = 1.5   # its thinnest wall (on the crown, where the chord takes most of the band's plan)
+
+
 def build_hoop(P):
+    """Fix round 5: the ring guard is a DUCT, a short tube round the propeller disc, not a flat band
+    lying in the disc. Each station's section stands in the plane of the thrust axis and the ring's
+    radius: an inner wall parallel to the axis (the duct's bore, chord DUCT_C, the blades 1 px into
+    it from the trailing edge), a thick rounded lip at the leading edge, the outer skin easing in to
+    a thinner trailing edge. Its plan is the sprite's band exactly: the trailing edge's bore on the
+    band's inner edge, the leading lip on its outer edge. On the crown the axis runs across the band,
+    so the chord takes most of its 4.5 px and the wall is thin; on the sides the axis runs along the
+    band, so the wall is the band's whole 4 px (the duct's side frames, which carry it down to the
+    clamps on the equator)."""
     st = hoop_stations()
-    hh, ch = 1.3, 0.45
+    a_ = AXIS
+    ay = -a_.y   # the axis' plan component (north) per px of chord
     rings = []
     for (xo, yo), (xi, yi) in st:
-        z = _hz((yo + yi) / 2)
-        L = math.hypot(xi - xo, yi - yo) or 1
-        ux, uy = (xi - xo) / L, (yi - yo) / L
-        c = min(ch, L * 0.3)
-        O, I = (xo, yo), (xi, yi)
-        Oc, Ic = (xo + ux * c, yo + uy * c), (xi - ux * c, yi - uy * c)
-        ring = [(O[0], O[1], z - hh + c), (O[0], O[1], z + hh - c), (Oc[0], Oc[1], z + hh), (Ic[0], Ic[1], z + hh),
-                (I[0], I[1], z + hh - c), (I[0], I[1], z - hh + c), (Ic[0], Ic[1], z - hh), (Oc[0], Oc[1], z - hh)]
-        rings.append(([P.v(p) for p in ring], ((xo + xi) / 2, (yo + yi) / 2, z)))
+        I3 = Vector((xi, yi, _hz(yi)))
+        O3 = Vector((xo, yo, _hz(yo)))
+        r3 = O3 - I3
+        Lp = math.hypot(xo - xi, yo - yi) or 1e-3
+        r_hat = r3.normalized()
+        kr = Lp / max(r3.length, 1e-3)   # plan px per px of the in-plane radius
+        ny = (yo - yi) / Lp
+        # on the side frames below the hub the chord shrinks (their plan runs north-south, and a long
+        # chord would carry the bore off the frame's inner edge)
+        c = DUCT_C if max(yo, yi) <= HUB[1] else max(1.0, DUCT_C * (1 - (max(yo, yi) - HUB[1]) / 4.0))
+        # the lip and skin held 0.5 px inside the band's outer edge (a full-width skin covered the
+        # edge pixels the old chamfered band left)
+        # (none on the crown, most on the diagonals, where the axis' shift runs off the curve)
+        nx = (xo - xi) / Lp
+        inset = 0.55 * (1 - ny * ny) + 0.6 * 2 * abs(nx * ny) * max(0.0, min(1.0, (0.8 - abs(ny)) / 0.1))
+        inset -= 0.4 * max(0.0, (abs(ny) - 0.8) / 0.2)   # the crown's lip reaches the edge (rounded corner)
+        t = max(DUCT_TMIN, (Lp - inset - c * ay * max(0.0, -ny)) / kr)
+        # (axial, radial) section corners: trailing edge at 0, leading lip at c; bore at 0, skin at t
+        sec = [(0.0, 0.2), (0.0, 0.62 * t), (0.35 * c, t), (0.94 * c, t), (c, 0.9 * t), (c, 0.22 * t),
+               (0.88 * c, 0.0), (0.12 * c, 0.0)]
+        ring = [I3 + a_ * ax_ + r_hat * rr for ax_, rr in sec]
+        cen = I3 + a_ * (0.5 * c) + r_hat * (0.5 * t)
+        rings.append(([P.v(tuple(p)) for p in ring], tuple(cen)))
     for (r0, c0), (r1, c1) in zip(rings, rings[1:]):
         cc = tuple((a + b) / 2 for a, b in zip(c0, c1))
         for k in range(8):
@@ -629,15 +777,6 @@ def build_hoop(P):
             P.f((r0[k], r0[j], r1[j], r1[k]), S["hoop"], away=cc)
     P.f(rings[0][0], S["hoop"], out=(0, 1, -0.3))
     P.f(rings[-1][0], S["hoop"], out=(0, 1, -0.3))
-    # A raised rim strip along the band's outer edge (the shroud's lip), and a darker web groove
-    # along its inner edge on the thick shoulders.
-    lip = []
-    N = 40
-    for k in range(7, N - 6):
-        (xo, yo), (xi, yi) = hoop_pts(180.0 * (1 - k / N))
-        L = math.hypot(xi - xo, yi - yo) or 1
-        lip.append((xo + (xi - xo) / L * 0.9, yo + (yi - yo) / L * 0.9, _hz((yo + yi) / 2) + 1.3, 0.38, 0.22))
-    sweep(P, lip, S["hoop"], prof=box_prof(0.12))
 
 
 def build_mounts(P):
@@ -645,46 +784,55 @@ def build_mounts(P):
     outer edge steps out a pixel every two rows, as the sprite's does."""
     poly = [(25.0, 38.6), (29.6, 38.6), (29.6, 46.0), (21.0, 46.0), (21.0, 45.6), (22.6, 44.0), (23.6, 42.0),
             (24.6, 40.0), (25.0, 39.0)]
-    zf = lambda x, y: min(surf_nt(x, y), 5.0) if surf_nt(x, y) > 0 else 0.0  # noqa: E731
-    prism(P, poly, -0.8, 2.1, S["mount"], ch=0.45, zf=zf)
+    # blimp: a clamp block on the envelope's equator, where the guard's leg is pinned
+    prism(P, poly, ZC - 4.2, ZC + 1.6, S["mount"], ch=0.45)
     for xr in (25.8, 27.1, 28.4):
         x1 = xr - 1.6
-        sweep(P, [(xr, 39.4, surf_nt(xr, 39.4) + 2.2, 0.3, 0.3), (x1, 45.2, max(surf_nt(x1, 45.2), 0.0) + 2.2, 0.3, 0.3)],
-              S["mount"], prof=box_prof(0.1))
+        sweep(P, [(xr, 39.4, ZC + 1.7, 0.3, 0.3), (x1, 45.2, ZC + 1.7, 0.3, 0.3)], S["mount"], prof=box_prof(0.1))
     # pin through the leg's foot
-    sweep(P, [(25.3, 39.9, 4.1, 0.7, 0.7), (28.6, 39.9, 4.1, 0.7, 0.7)], S["head"], prof=round_prof(8))
+    zp = _hz(39.9) - 0.6
+    sweep(P, [(25.3, 39.9, zp, 0.7, 0.7), (28.6, 39.9, zp, 0.7, 0.7)], S["head"], prof=round_prof(8))
 
 
 # ---------------------------------------------------------------------------------------------
 # Mast, lights, pylon, neck, capsule
 # ---------------------------------------------------------------------------------------------
+MAST_HH = 1.8   # the beam's half depth (across the ring plane)
+
+
 def mast_top(y):
-    return 23.5 - (y - 10.3) * (5.0 / 19.2)
+    """Top of the guard's top strut (the mast) at row y: the beam lies in the ring plane."""
+    return _hz(y) - 0.3 + MAST_HH * _TN
 
 
 def build_mast(P):
-    # box beam (4 px deep), half width 4.4
-    st = [(AX, y, mast_top(y) - 2.0, 4.4, 2.0) for y in (12.4, 19.5, 26.7)]
+    # blimp: the mast is the ring guard's top strut, a box beam in the guard's plane from the crown
+    # down to the hub on the nose (half width 4.4)
+    st = [(AX, y, _hz(y) - 0.3, 4.4, MAST_HH) for y in (12.6, 16.0, 19.5, 23.0, 26.7)]
     sweep(P, st, S["mast"], prof=box_prof(0.55))
     # side flanges along the beam's foot
     for s in (1, -1):
-        sweep(P, [(AX + s * 4.1, y, mast_top(y) - 3.6, 0.5, 0.45) for y in (13.0, 26.2)], S["head"], prof=box_prof(0.15))
+        sweep(P, [(AX + s * 4.1, y, _hz(y) - 1.6, 0.5, 0.45) for y in (13.0, 19.5, 26.2)], S["head"], prof=box_prof(0.15))
     # head clamp over the hoop crown
-    sweep(P, [(AX, 11.05, 21.6, 4.4, 2.75), (AX, 13.3, 21.5, 4.4, 2.75)], S["head"], prof=box_prof(0.6))
-    sweep(P, [(AX, 11.2, 24.5, 2.0, 0.35), (AX, 12.6, 24.45, 2.0, 0.35)], S["mast"], prof=box_prof(0.15))
+    sweep(P, [(AX, 12.15, _hz(12.15) - 0.4, 4.4, 1.6), (AX, 13.6, _hz(13.6) - 0.4, 4.4, 1.6)], S["head"],
+          prof=box_prof(0.5))
     # spine channel (dark) and the five lights in it (rows 14, 16, 18-19, 21-22, 24-25)
     prism(P, rect(46.5, 13.4, 51.0, 26.4), -0.2, 0.12, S["channel"], ch=0.05, zf=lambda x, y: mast_top(y))
     lights = ((13.9, 15.1, "light1"), (15.9, 17.1, "light1"), (17.9, 20.1, "light2"), (20.9, 23.1, "light3"),
               (23.9, 26.1, "light4"))
     for a, b, m in lights:
         prism(P, rect(47.0, a, 50.9, b), 0.0, 0.42, S[m], ch=0.18, zf=lambda x, y: mast_top(y))
-    # the cowl's dark lip across the nose front, under the mast foot (rows 28-29.6)
+    # the nose cap's dark collar plate behind the hub (rows 28-30.2): the propeller's bearing plate
     lip = [(39.6, 28.0), (57.4, 28.0), (58.9, 29.1), (59.6, 30.2), (37.4, 30.2), (38.1, 29.1)]
-    prism(P, lip, 0.0, 6.2, S["lip"], ch=0.35)
-    # pylon in front of the nose: from the ground up under the beam's foot (rows 26.4-29.6)
-    ztop = mast_top(28.0) + 0.3
-    block(P, 43.3, 53.7, 26.5, 29.7, 0.0, ztop, S["pylon"], ch=0.55)
-    block(P, 44.3, 52.7, 26.2, 26.6, 2.0, ztop - 1.4, S["head"], ch=0.15)  # front face panel
+    prism(P, lip, ZC - 4.6, ZC + 3.6, S["lip"], ch=0.35)
+    # the hub: a housing on the nose tip and a spinner along the thrust axis (forward and down)
+    hc = Vector(HUB)
+    st = []
+    for s_, r_ in ((-3.6, 4.0), (-1.2, 4.5), (0.4, 4.5), (0.9, 4.1), (1.2, 3.6), (2.6, 3.1), (3.8, 2.2), (4.7, 1.1),
+                   (5.2, 0.0)):
+        p_ = hc + AXIS * s_
+        st.append((p_.x, p_.y, p_.z, r_ * (1.15 if s_ < 0.5 else 1.0), r_))
+    sweep(P, st, S["pylon"], prof=round_prof(16))
     # the neck: a round tube in the trench from a dark socket under the mast foot down to the red
     # clamp on the cross bar, then (slimmer) along the slot between the rails into the hatch ring
     zt = lambda y: surf(AX, y) + 2.2  # noqa: E731  tube axis, sunk 0.5 into the trench floor
@@ -700,7 +848,7 @@ def build_mast(P):
     zc = zt(43.3) + 2.7
     block(P, 47.0, 50.0, 41.4, 45.3, zc - 1.6, zc + 0.8, S["pendant"], ch=0.5)
     # slim tube on beyond the cross bar, between the rails, into the hatch ring
-    zl = lambda y: surf_nt(AX, y) + 0.7  # noqa: E731
+    zl = lambda y: surf_nt(AX, y) + 0.3  # noqa: E731
     sweep(P, [(AX, y, zl(y), 1.5, 1.5) for y in (47.0, 52.0, 57.0, 62.0, 66.5)], S["neck"], prof=round_prof(12))
 
 
@@ -714,27 +862,27 @@ def build_gantry(P):
     rails = [rect(38.4, 48.4, 41.2, 61.2), rect(43.4, 47.6, 46.2, 62.6)]
     cross = [rect(38.4, 57.4, 46.4, 60.2)]
     for poly in Lb:
-        prism(P, poly, -0.5, 2.8, S["gantry"], ch=0.6, zf=surf_nt)
-        prism(P, mir(poly), -0.5, 2.8, S["gantry"], ch=0.6, zf=surf_nt)
+        prism(P, poly, -0.5, 2.2, S["gantry"], ch=0.6, zf=surf_nt)
+        prism(P, mir(poly), -0.5, 2.2, S["gantry"], ch=0.6, zf=surf_nt)
     for poly in rails:
-        prism(P, poly, -0.5, 2.3, S["gantry"], ch=0.55, zf=surf_nt)
-        prism(P, mir(poly), -0.5, 2.3, S["gantry"], ch=0.55, zf=surf_nt)
+        prism(P, poly, -0.5, 1.4, S["gantry"], ch=0.55, zf=surf_nt)
+        prism(P, mir(poly), -0.5, 1.9, S["gantry"], ch=0.55, zf=surf_nt)
     for poly in cross:
-        prism(P, poly, -0.5, 2.6, S["gantry"], ch=0.5, zf=surf_nt)
-        prism(P, mir(poly), -0.5, 2.6, S["gantry"], ch=0.5, zf=surf_nt)
+        prism(P, poly, -0.5, 2.1, S["gantry"], ch=0.5, zf=surf_nt)
+        prism(P, mir(poly), -0.5, 2.1, S["gantry"], ch=0.5, zf=surf_nt)
     # dark slots either side of the slim neck tube, and between the rails
     for poly in (rect(46.15, 48.4, 47.2, 62.6), rect(41.15, 48.4, 43.45, 57.5)):
         prism(P, poly, -0.5, 0.2, S["gslot"], ch=0.06, zf=surf_nt)
         prism(P, mir(poly), -0.5, 0.2, S["gslot"], ch=0.06, zf=surf_nt)
-    prism(P, rect(41.4, 44.6, 56.6, 48.6), -0.5, 3.2, S["gantry"], ch=0.6, zf=surf_nt)  # cross bar
+    prism(P, rect(41.4, 44.6, 56.6, 48.6), -0.5, 2.6, S["gantry"], ch=0.6, zf=surf_nt)  # cross bar
     # bolts on the cross bar
     for x in (43.0, 54.0):
-        prism(P, [(x - 0.6, 46.0), (x + 0.6, 46.0), (x + 0.6, 47.2), (x - 0.6, 47.2)], 3.0, 3.5, S["head"], ch=0.15,
+        prism(P, [(x - 0.6, 46.0), (x + 0.6, 46.0), (x + 0.6, 47.2), (x - 0.6, 47.2)], 2.4, 2.9, S["head"], ch=0.15,
               zf=surf_nt)
     # loop emblem (hatch ring) and its slot
     loop = [(49.4 + 3.4 * math.sin(2 * math.pi * k / 18), 69.5 - 5.0 * math.cos(2 * math.pi * k / 18)) for k in range(18)]
-    prism(P, loop, -0.5, 1.6, S["loop"], ch=0.45, zf=surf_nt, step=3)
-    prism(P, rect(48.1, 69.0, 50.7, 73.2), -0.5, 1.75, S["gslot"], ch=0.1, zf=surf_nt)
+    prism(P, loop, -0.5, 1.0, S["loop"], ch=0.45, zf=surf_nt, step=3)
+    prism(P, rect(48.1, 69.0, 50.7, 73.2), -0.5, 1.15, S["gslot"], ch=0.1, zf=surf_nt)
 
 
 def strip(P, a, b, w, z0, z1, mat, ch=0.2):
@@ -854,10 +1002,8 @@ BLADES = {
         [(62, 29), (63, 28), (66, 26), (67, 26), (69, 28), (70, 30), (70, 32), (67, 33), (66, 33), (62, 31)],
     ],
 }
-RING_C = (48.5, 46.5)
 BLADE_K = (4, 2.2)   # corners per blade, most area one dropped edge may add (px^2)
 BLADE_IN = 0.25     # pulled in so the extended corners stay on the sprite
-BLADE_Z = (5.4, 7.8)
 
 
 def inset(poly, d):
@@ -925,39 +1071,40 @@ def vane(P, poly, z0, z1, mat, ch=0.75):
 
 
 def fin_top(x, y):
-    """Fin crest height above the hub plane: thin by the ring centre, rising toward the tips."""
-    # fix round 4: constant thickness, so the pitched top is one plane (a thickness growing toward
-    # the tip warped it, and its triangulation shaded as crumpled facets)
-    return 1.0
+    """Blade thickness (vertical): constant, so the blade's faces stay smooth."""
+    return 0.9
 
 
-PITCH = 1.1  # px the blade's trailing edge stands above its leading edge
+PITCH = (3.0, 1.4)  # px the trailing edge stands above the disc at the blade's root and tip (twist)
 
 
-def fin(P, poly, z0, mat, ch=0.3):
-    """A thin rotor fin on the blade's footprint: vertical walls up to a chamfer, a top that rises
-    from the ring-centre end (0.45 px thick) to the tip (1.6 px), triangulated from its centre."""
+def fin(P, poly, mat, ch=0.3):
+    """A propeller blade on its footprint, lying in the tilted disc (disc_z): vertical walls up to a
+    chamfer; pitched about its radial axis (the trailing edge raised), the pitch easing from the
+    root to the tip (a twisted blade). Footprint = the sprite's blade pixels, so the plan is kept."""
     n = len(poly)
     cx = sum(p[0] for p in poly) / n
     cy = sum(p[1] for p in poly) / n
     xs, ys = [p[0] for p in poly], [p[1] for p in poly]
     ch = min(ch, 0.25 * min(max(xs) - min(xs), max(ys) - min(ys)))
     inner = offset_in(poly, ch)
-    # Fix round 3: a pitched fan blade, not a flat shard. The plate is tilted about its radial axis
-    # (from the hub through the blade's centre), its leading edge PITCH px lower than its trailing
-    # edge, so each blade catches the light differently and shades like a fan blade on a hub.
-    rx, ry = cx - RING_C[0], cy - RING_C[1]
+    rx, ry = cx - HUB[0], cy - HUB[1]
     rl = math.hypot(rx, ry) or 1
     tx, ty = -ry / rl, rx / rl
     smax = max(abs((x - cx) * tx + (y - cy) * ty) for x, y in poly) or 1
+    rads = [(x - HUB[0]) * rx / rl + (y - HUB[1]) * ry / rl for x, y in poly]
+    r0, r1 = min(rads), max(rads)
 
     def zb(x, y):
-        return z0 + PITCH * ((x - cx) * tx + (y - cy) * ty) / smax
+        r = (x - HUB[0]) * rx / rl + (y - HUB[1]) * ry / rl
+        k = min(1.0, max(0.0, (r - r0) / max(r1 - r0, 1e-3)))
+        pitch = PITCH[0] + (PITCH[1] - PITCH[0]) * k
+        return disc_z(y) + pitch * ((x - cx) * tx + (y - cy) * ty) / smax
 
     lo = [P.v((x, y, zb(x, y))) for x, y in poly]
     mid = [P.v((x, y, zb(x, y) + fin_top(x, y) - min(ch, 0.5 * fin_top(x, y)))) for x, y in poly]
     hi = [P.v((x, y, zb(x, y) + fin_top(x, y))) for x, y in inner]
-    away = (cx, cy, z0 + 0.2)
+    away = (cx, cy, zb(cx, cy) + 0.45)
     for i in range(n):
         j = (i + 1) % n
         P.f((lo[i], lo[j], mid[j], mid[i]), mat, away=away)
@@ -970,6 +1117,15 @@ def fin(P, poly, z0, mat, ch=0.3):
         if face.normal.z * up < 0:
             face.normal_flip()
         bmesh.ops.triangulate(P.bm, faces=[face])
+    # the root: the blade's shank back to the spinner, in the disc
+    k_ = min(range(n), key=lambda i: rads[i])
+    rx0 = HUB[0] + rx / rl * (r0 + 0.8)
+    ry0 = HUB[1] + ry / rl * (r0 + 0.8)
+    hub_c = Vector(HUB) + AXIS * 1.0
+    a_ = Vector((rx0, ry0, zb(rx0, ry0) + 0.45))
+    d_ = hub_c - a_
+    e_ = a_ + d_ * max(0.0, 1 - 2.6 / max(d_.length, 1e-3))
+    sweep(P, [(a_.x, a_.y, a_.z - 0.3, 0.3, 0.6), (e_.x, e_.y, e_.z, 0.3, 0.6)], S["spoke"], prof=box_prof(0.1))
 
 
 def convex(pts):
@@ -1036,19 +1192,190 @@ def build_blades(P, frame):
             hp = clean_hull(convex([(float(x), float(y)) for x, y in poly]))
             hp = clean_hull(sharpen(hp, *BLADE_K))
         hp = offset_in(hp, BLADE_IN)
-        cx = sum(p[0] for p in hp) / len(hp)
-        cy = sum(p[1] for p in hp) / len(hp)
-        fin(P, hp, BLADE_Z[0], S["rotor"], ch=0.3)
-        # a slim spoke from the fin's root toward the ring's centre (under the cap)
-        dx, dy = RING_C[0] - cx, RING_C[1] - cy
-        L = math.hypot(dx, dy)
-        sweep(P, [(cx + dx / L * 1.5, cy + dy / L * 1.5, 5.6, 0.5, 0.45), (cx + dx / L * 9.0, cy + dy / L * 9.0, 5.6, 0.5, 0.45)],
-              S["spoke"], prof=box_prof(0.25))
+        hp = clip_reach(hp)
+        blade(P, round_corners(hp))
+
+
+def round_corners(poly, q=0.16, it=2, grow=1.04):
+    """Chaikin corner cutting (q of each edge per side): the footprint's sharp corners become the
+    blade's rounded tip and edges (a paddle-shaped blade, not a card)."""
+    pts = list(poly)
+    for _ in range(it):
+        out = []
+        for a, b in zip(pts, pts[1:] + pts[:1]):
+            out.append((a[0] + (b[0] - a[0]) * q, a[1] + (b[1] - a[1]) * q))
+            out.append((a[0] + (b[0] - a[0]) * (1 - q), a[1] + (b[1] - a[1]) * (1 - q)))
+        pts = out
+        q *= 0.6
+    # grown back a little about the centre, so the rounded blade still covers the footprint's pixels
+    cx = sum(p[0] for p in poly) / len(poly)
+    cy = sum(p[1] for p in poly) / len(poly)
+    pts = [(cx + (x - cx) * grow, cy + (y - cy) * grow) for x, y in pts]
+    return clean_hull(pts, tol=0.002)
+
+
+# Fix round 6 (re-review: the blades read as loose cards). Every blade is now one airfoil blade of
+# the same make, lying in the propeller disc (the plane through DISC_C normal to the thrust axis) and
+# rooted on the hub: a thin lens section (rounded leading and trailing edges, flatter underside),
+# twisted (pitch BL_PITCH root to tip), its root a round shank into the spinner. The plan of each
+# blade's plate is still the sprite's blade footprint (the white diamonds, per frame); the blade
+# runs on inward from the footprint's root end to the hub (under the hub housing or, for the low
+# blades whose tips show beside the nose, inside the envelope), so all of them meet at the hub.
+DISC_C = Vector(HUB) + AXIS * 1.0       # the disc's centre on the thrust axis (disc_z's plane)
+NUP = -AXIS                              # the disc's upper (trailing) side
+ZUP = Vector((0.0, 0.0, 1.0))
+_E1 = Vector((1.0, 0.0, 0.0))
+_E2 = AXIS.cross(_E1).normalized()       # in the disc, up the slope (north and up)
+BL_TH = 0.55                             # blade half thickness (mid plate)
+BL_PITCH = (7.0, 3.0)                    # blade angle to the disc, root to tip (degrees)
+BL_REACH = 21.0                          # the blades stop inside the lower guard ring (plan |x - AX|)
+
+
+def on_disc(x, y):
+    return Vector((x, y, disc_z(y)))
+
+
+def clip_reach(poly):
+    """Clip a convex plan polygon to |x - AX| <= BL_REACH (the lower guard ring runs down the legs)."""
+    out = poly
+    for s in (1, -1):
+        res = []
+        n = len(out)
+        for i in range(n):
+            a, b = out[i], out[(i + 1) % n]
+            ina, inb = s * (a[0] - AX) <= BL_REACH, s * (b[0] - AX) <= BL_REACH
+            if ina:
+                res.append(a)
+            if ina != inb:
+                xc = AX + s * BL_REACH
+                t = (xc - a[0]) / (b[0] - a[0])
+                res.append((xc, a[1] + (b[1] - a[1]) * t))
+        out = res
+    return out
+
+
+def blade(P, hp):
+    """One blade on the plan footprint hp (convex): its plate (a pillowed lens, twisted) on the
+    disc and its root (shank and inner blade) from the footprint's inner end to the spinner."""
+    C = DISC_C
+    n_ = len(hp)
+    cx = sum(p[0] for p in hp) / n_
+    cy = sum(p[1] for p in hp) / n_
+    cen = on_disc(cx, cy)
+    d_hat = (cen - C)
+    d_hat -= NUP * d_hat.dot(NUP)
+    d_hat.normalize()
+    t_hat = NUP.cross(d_hat).normalized()     # lateral, in the disc
+    rads = [(on_disc(x, y) - C).length for x, y in hp]
+    r_in, r_out = min(rads), max(rads)
+
+    def pitch_off(p):
+        r = (p - C).length
+        k = min(1.0, max(0.0, (r - r_in) / max(r_out - r_in, 1e-3)))
+        a = math.radians(BL_PITCH[0] + (BL_PITCH[1] - BL_PITCH[0]) * k)
+        # (offsets go straight up, not along the disc normal, so the plan stays the footprint)
+        return ZUP * ((p - cen).dot(t_hat) * math.tan(a) / NUP.z)
+
+    def taper(p):
+        r = (p - C).length
+        return 1.0 - 0.45 * min(1.0, max(0.0, (r - r_in) / max(r_out - r_in, 1e-3)))
+
+    # inset rings (plan), deepest limited by the footprint's in-radius
+    def in_radius(poly):
+        best = 1e9
+        for (x0, y0), (x1, y1) in zip(poly, poly[1:] + poly[:1]):
+            L = math.hypot(x1 - x0, y1 - y0) or 1
+            best = min(best, abs((x1 - x0) * (cy - y0) - (y1 - y0) * (cx - x0)) / L)
+        return best
+    ccw = sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(hp, hp[1:] + hp[:1])) > 0
+    base = hp if ccw else list(reversed(hp))
+    dmax = min(1.3, 0.55 * in_radius(base))
+    levels = [(0.0, 0.0), (0.3, 0.55), (0.65, 0.85), (1.0, 1.0)]
+    rings_t, rings_b = [], []
+    edge = None
+    for fr, hk in levels:
+        poly = base if fr == 0 else offset_in(base, dmax * fr)
+        if fr > 0 and not (sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(poly, poly[1:] + poly[:1])) > 0):
+            break
+        top, bot = [], []
+        for x, y in poly:
+            p = on_disc(x, y)
+            po = p + pitch_off(p)
+            h = BL_TH * hk * taper(p)
+            if fr == 0:
+                v = P.v(tuple(po))
+                top.append(v)
+                bot.append(v)
+            else:
+                top.append(P.v(tuple(po + ZUP * (h / NUP.z))))
+                bot.append(P.v(tuple(po - ZUP * (0.55 * h / NUP.z))))
+        rings_t.append(top)
+        rings_b.append(bot)
+    mat = S["rotor"]
+    for rings, sgn in ((rings_t, 1.0), (rings_b, -1.0)):
+        o = tuple(NUP * sgn)
+        for r0, r1 in zip(rings, rings[1:]):
+            for i in range(len(r0)):
+                j = (i + 1) % len(r0)
+                P.f((r0[i], r0[j], r1[j], r1[i]), mat, out=o)
+        last = rings[-1]
+        cpt = sum((v.co for v in last), Vector()) / len(last)
+        cv = P.v(tuple(cpt))
+        for i in range(len(last)):
+            P.f((last[i], last[(i + 1) % len(last)], cv), mat, out=o)
+    # the root: from the footprint's inner end (its vertex nearest the hub, 0.7 px in) to the spinner
+    # (the low tips beside the nose, whose plate starts far out, root from their lowest corner, so the
+    # inner blade runs under the hub bar and the bow and not across the sprite's open gaps)
+    if r_in > 10.0:
+        k_ = max(range(n_), key=lambda i: hp[i][1])
+    else:
+        k_ = min(range(n_), key=lambda i: rads[i])
+    rx, ry = hp[k_]
+    L = math.hypot(cx - rx, cy - ry) or 1
+    rx, ry = rx + (cx - rx) / L * 0.7, ry + (cy - ry) / L * 0.7
+    root = on_disc(rx, ry)
+    dr = root - C
+    rl = dr.length
+    u_ = dr / max(rl, 1e-3)
+    st, ups = [], []
+    r0_ = 2.2
+    rs_ = [r0_ + (rl - r0_) * k / 6 for k in range(7)] if rl > r0_ + 0.5 else [r0_, r0_ + 0.5]
+    for r in rs_:
+        q = C + u_ * r
+        hw = 0.55 + 0.5 * min(1.0, max(0.0, (r - 4.6) / 6.0))
+        st.append((q.x, q.y, q.z, hw, 0.3))
+        ups.append(tuple(NUP))
+    shank = [s for s in st if (Vector(s[:3]) - C).length <= 4.7]
+    rest = [s for s in st if (Vector(s[:3]) - C).length >= 4.5]
+    if len(shank) >= 2:
+        sweep(P, shank, S["spoke"], prof=round_prof(8), ups=ups[:len(shank)])
+    if len(rest) >= 2:
+        sweep(P, rest, S["rotor"], prof=round_prof(8), ups=ups[:len(rest)])
+
+
+def build_lower_guard(P):
+    """Fix round 6 (re-review: the guard was only an upper arch): the duct guard closes under the hub.
+    From each leg of the ring at hub height the guard drops down the leg (in plan inside the leg's
+    band) and curves in under the nose, below the envelope, to meet under the bow, where it rides on
+    the belly (its strut). The blades' lower half lies inside the envelope's bow; the tips that show
+    beside the nose turn inside this ring."""
+    path = [(25.8, 28.4, ZC + 0.6), (25.8, 30.0, ZC - 3.2), (25.8, 32.5, ZC - 6.8), (25.9, 35.5, ZC - 9.8),
+            (26.8, 38.8, ZC - 12.6), (30.0, 41.8, ZC - 14.4), (34.5, 44.0, ZC - 15.4), (41.0, 45.4, ZC - 15.8),
+            (AX, 45.8, ZC - 15.9)]
+    full = path + [(mx(x), y, z) for x, y, z in reversed(path[:-1])]
+    st = [(x, y, z, 0.95, 0.95) for x, y, z in full]
+    sweep(P, st, S["hoop"], prof=round_prof(12))
+    # saddle where it rides on the belly
+    zb = lower_z(AX, 45.8)
+    block(P, AX - 2.2, AX + 2.2, 45.0, 46.6, ZC - 16.4, zb + 0.6, S["mount"], ch=0.3)
 
 
 # ---------------------------------------------------------------------------------------------
 # Outrigger arm (left; mirrored)
 # ---------------------------------------------------------------------------------------------
+ARM_DZ = ZC - 4.0   # the arms (built from z 0) lifted so the engine drum's axis is on the equator
+
+
 def build_arm(P, side="L"):
     """One outrigger leg in left-side coordinates. The sprite's two legs differ in a few pixels (the
     right pipe sits a pixel further out and stops short of the flank, its strut is notched, its lower
@@ -1057,7 +1384,7 @@ def build_arm(P, side="L"):
     right = side == "R"
     # red pipe out of the flank, bending down to the elbow
     if right:
-        pipe = [(17.95, 47.0, 5.0, 1.0, 1.25), (14.8, 47.0, 5.0, 1.0, 1.25), (13.5, 47.3, 5.0, 0.85, 1.25),
+        pipe = [(21.5, 47.0, 4.2, 0.8, 0.9), (17.95, 47.0, 5.0, 1.0, 1.25), (14.8, 47.0, 5.0, 1.0, 1.25), (13.5, 47.3, 5.0, 0.85, 1.25),
                 (12.5, 48.0, 4.9, 0.75, 1.25), (11.6, 48.9, 4.8, 0.75, 1.2), (11.0, 50.0, 4.7, 0.9, 1.2),
                 (10.9, 51.0, 4.6, 1.0, 1.2)]
     else:
@@ -1139,6 +1466,28 @@ def build_arm(P, side="L"):
     sweep(P, [(2.6, 86.8, 2.2, 0.75, 0.9), (2.7, 90.4, 2.2, 0.75, 0.9), (3.9, 91.6, 2.1, 0.9, 0.95),
               (5.0, 92.6, 2.0, 1.0, 1.0), (5.0, 99.5, 2.0, 1.0, 1.0)], S["rod"], prof=R8)
     block(P, 3.0, 4.3, 97.9, 99.4, 0.0, 2.6, S["rod"], ch=0.3)
+    # Fix round 5: an ENGINE POD. The arm's hardware (frame plates, ram, knee, piston) is mounted on
+    # top of a streamlined nacelle that hangs under it, below the envelope's equator: a round body
+    # from the intake under the drum (row 55) back to the exhaust nozzle under the end block (row
+    # 90), inside the arm's plan, so the top view keeps the sprite's hardware. At its front a red
+    # intake lip, a dark intake face and a spinner (the fan); at its back a dark nozzle ring with the
+    # exhaust glow in it. The rod and foot behind carry a small tail pod with the orange lamp.
+    zn = -2.0
+    R16 = round_prof(16)
+    sweep(P, [(6.2, 55.0, zn, 3.0, 3.1), (6.2, 56.2, zn, 3.4, 3.6), (6.1, 61.0, zn, 3.5, 3.8),
+              (6.1, 68.0, zn, 3.5, 3.8), (5.9, 78.0, zn, 3.3, 3.5), (5.6, 85.0, zn, 2.95, 3.0),
+              (5.4, 89.0, zn, 2.45, 2.45), (5.4, 90.0, zn, 2.3, 2.25)], S["nacelle"], prof=R16)
+    # intake: lip ring, dark face, spinner
+    sweep(P, [(6.2, 54.8, zn, 3.05, 3.15), (6.2, 55.4, zn, 3.3, 3.45)], S["strut_red"], prof=R16)
+    sweep(P, [(6.2, 54.62, zn, 2.45, 2.55), (6.2, 54.9, zn, 2.45, 2.55)], S["intake"], prof=R16)
+    sweep(P, [(6.2, 54.7, zn, 1.15, 1.15), (6.2, 54.45, zn, 0.75, 0.75), (6.2, 54.3, zn, 0.0, 0.0)], S["pylon"],
+          prof=round_prof(12), cap1=False)
+    # exhaust: nozzle ring and the glow inside it
+    sweep(P, [(5.4, 89.8, zn, 2.4, 2.3), (5.4, 90.6, zn, 2.05, 1.95)], S["head"], prof=R16)
+    sweep(P, [(5.4, 90.5, zn, 1.55, 1.45), (5.4, 90.75, zn, 1.55, 1.45)], S["lamp"], prof=R16)
+    # the tail pod under the foot
+    sweep(P, [(3.6, 98.9, 0.5, 0.0, 0.0), (3.6, 99.6, 0.5, 1.7, 1.6), (3.6, 103.0, 0.5, 2.0, 1.8),
+              (3.6, 105.2, 0.8, 1.35, 1.3), (3.6, 105.7, 0.9, 0.0, 0.0)], S["nacelle"], prof=R16)
     # foot pad, hood and lamp
     if right:
         foot = [(2.0, 99.2), (6.0, 99.2), (6.0, 104.0), (2.4, 104.0), (1.0, 102.4), (1.0, 100.0)]
@@ -1157,16 +1506,19 @@ def build_body(coll, mats):
     build_dome(P)
     build_dome_detail(P)
     build_hoop(P)
+    build_lower_guard(P)
     build_mast(P)
     build_gantry(P)
     build_cowl(P)
     dome = finish(P, mats, coll)
     A = Part(f"{NAME}_armL")
     build_arm(A, "L")
+    bmesh.ops.translate(A.bm, vec=(0, 0, ARM_DZ), verts=A.bm.verts)  # the pods hang at the equator
     build_mounts(A)
     arm_l = finish(A, mats, coll)
     B = Part(f"{NAME}_armR")
     build_arm(B, "R")
+    bmesh.ops.translate(B.bm, vec=(0, 0, ARM_DZ), verts=B.bm.verts)
     build_mounts(B)
     mirror_only(B)
     arm_r = finish(B, mats, coll, oriented=True)
@@ -1176,7 +1528,7 @@ def build_body(coll, mats):
 def build_rotor(coll, mats, frame):
     B = Part(f"{NAME}_rotor{frame}")
     build_blades(B, frame)
-    return finish(B, mats, coll, smooth_angle=1.0)  # flat plates, crisp edges
+    return finish(B, mats, coll, smooth_angle=30.0)  # twisted blades: smooth faces, crisp edges
 
 
 def tri_count(o):
@@ -1218,6 +1570,9 @@ def bake(obj, out_dir):
             img.name = img.name.replace("talon", "nshi115")
 
 
+TAIL_DOME_PAD = 3.0   # px past the last row: the closing dome of the tail cut (fix round 6)
+
+
 def split_open(obj, layout, coll, suffix):
     """Cut the outline shell per piece without capping (as newsh2-115): capped cuts get outlined.
     Fix round 2: each piece keeps the WHOLE shell's vertex normals (custom normals), so the
@@ -1233,13 +1588,15 @@ def split_open(obj, layout, coll, suffix):
     nrm = [v.normal.copy() for v in full.vertices]
     edges = [(e.vertices[0], e.vertices[1]) for e in full.edges]
     out = {}
+    cy_last = max(cy for _, _, cy in layout)
     for name, cx, cy in layout:
         x0, y0 = cx / 12, -cy / 12
         bm = bmesh.new()
         bm.from_mesh(obj.data)
         bmesh.ops.transform(bm, matrix=obj.matrix_world, verts=bm.verts)
+        hb = (14 + (TAIL_DOME_PAD if cy == cy_last else 0.0)) / 12   # the tail dome stays on the last row
         for co, no in (((x0 - 1, 0, 0), (-1, 0, 0)), ((x0 + 1, 0, 0), (1, 0, 0)),
-                       ((0, y0 - 14 / 12, 0), (0, -1, 0)), ((0, y0 + 14 / 12, 0), (0, 1, 0))):
+                       ((0, y0 - hb, 0), (0, -1, 0)), ((0, y0 + 14 / 12, 0), (0, 1, 0))):
             bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], plane_co=co,
                                    plane_no=no, clear_outer=True)
         # the normal each vertex had in the whole shell (a cut vertex: blended from its two ends)
@@ -1289,13 +1646,15 @@ def split_body(obj, layout, coll, pad=0.15):
     the cap could not be filled)."""
     result = {}
     hw, hh = (12 + pad) / 12, (14 + pad) / 12
+    cy_last = max(cy for _, _, cy in layout)
     for name, cx, cy in layout:
         x0, y0 = cx / 12, -cy / 12
         bm = bmesh.new()
         bm.from_mesh(obj.data)
         bmesh.ops.transform(bm, matrix=obj.matrix_world, verts=bm.verts)
+        hb = hh + (TAIL_DOME_PAD / 12 if cy == cy_last else 0.0)   # the tail dome stays on the last row
         for co, no in (((x0 - hw, 0, 0), (-1, 0, 0)), ((x0 + hw, 0, 0), (1, 0, 0)),
-                       ((0, y0 - hh, 0), (0, -1, 0)), ((0, y0 + hh, 0), (0, 1, 0))):
+                       ((0, y0 - hb, 0), (0, -1, 0)), ((0, y0 + hh, 0), (0, 1, 0))):
             geom = bm.verts[:] + bm.edges[:] + bm.faces[:]
             cut = bmesh.ops.bisect_plane(bm, geom=geom, plane_co=co, plane_no=no, clear_outer=True)
             edges = [e for e in cut["geom_cut"] if isinstance(e, bmesh.types.BMEdge)]
