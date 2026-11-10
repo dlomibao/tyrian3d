@@ -4301,6 +4301,61 @@ edges, no ice, no rock" (D89: name the real material). Atlas: `public/art/terrai
 **Checked** in game (`?debug=play&episode=1&main=8&seed=1&skip=300&freezeAt=300`), before/after under
 `tyrian-scratch/clouds/captures/`. Answers, sheets and prompts: `tyrian-scratch/clouds/work/shapesy/` (not in git, D3).
 
+## D112 — `shapesw` HD terrain: 100 of 110 ground, 28 of 33 layer-1 and 17 of 27 layer-2 tiles from 26 Gemini sheets (two passes)
+
+2026-11-04
+
+**Decision:** the `shapesw` tileset (levels 3-1, 3-4, 3-6, 3-9, 4-8, 4-11, 4-20) gets `public/art/terrain/shapesw/`
+(`0.webp`, 60 ground tiles, 0.4 MB), made with D83's pipeline (`inventory`, `sheets`, Gemini, `cut --edge-aware`,
+`check`). Partial: the run stopped at Gemini's usage limit (every Pro image model showed "limit resets Nov 4, 11:05
+PM") after 7 of 26 primary sheets; the other 50 layer-0 tiles and all of layers 1-2 still fall back to the original
+(per-tile fallback, D57). Not finished.
+- **Layer 1-2 kinds corrected by hand.** The classifier called the 3-6 FLEET layer-2 ship hulls (brown and grey plated
+  machinery) terrain because the main ramp is brown. They are structure: 158 layer-2 tiles overridden with `--kind`
+  (list in the scratch folder, `kinds.txt`), left to models. That leaves 27 layer-2 and 33 layer-1 terrain tiles (brown
+  rock) to paint. Layer 0 of 3-6 (grey hull plating on black) stays in the sheets: layer 0 has no structure kind.
+- **Sheet prompts rewritten** from the contact sheets (D89): SEND.md's labels were wrong ("icy translucent clouds" for
+  what is a frozen glacier: turquoise sheet ice, frosted ice shelves with icicle cliffs, navy paved roads; "asteroid
+  rock" for 3-6's ship hull). Brown dirt on 3-4, brown rock plateaus on layers 1-2, hull plating on 3-6.
+- **Gemini:** 7 answers kept (3-4 dirt 2, 3-1 ice 5; 3-1 sheets also feed 4-8). Requests: 9 sent (1 stray "Paris
+  postcard" suggestion tile click, stopped; 1 sheet dropped silently by Gemini and re-sent). Every answer registered at
+  scale 11.38: fit 0.80-0.99, tile NCC median 0.85-0.99 (min 0.62 on a cell), blockiness max 1.97.
+- **Seams** (`check`, layer 0, every edge): 0.831 across / inside (where the original is continuous 0.754), bands
+  0.481. Above the ~0.6 ground target but the original is itself 0.754 on this icy texture; the worst pairs (ratio 7-10)
+  are a painted tile meeting a not-yet-painted one, which goes away as sheets are added. Weak cells (NCC < 0.5): none.
+
+**Checked** in game (`?debug=play&episode=E&main=10&seed=1&skip=T&freezeAt=T`, against `&terrain=original`): 3-1
+(CAMANIS) t600, t1500; 4-8 (ICE EXIT) t600, t1500. Sheet: `tyrian-scratch/terrain-shapesw/shapesw-compare.jpg`.
+terrainArt and terrainHd tests pass. Not looked at: other levels, `&dpr=0.3`.
+
+**Next:** when the Pro limit resets, send the remaining 19 primary sheets (SEND.md order, prompts in
+`work/prompts/`), then `cut --cache work/cands.pkl --edge-aware` and `check`. Sheets, answers, `cands.pkl`,
+`cut-report.json` are in `tyrian-scratch/terrain-shapesw/work/` (not in git, D3).
+
+**Second pass (Nov 9):** the other 19 primary sheets sent (29 requests, 10 of them retries; no usage warning, no limit
+hit; four sends were stopped before going out because the page was in the wrong state). Atlas folder restored, then
+`cut --cache --edge-aware --exclude <25 tiles>`: 60 ground tiles kept byte for byte, 40 new ground, 28 layer-1, 17 layer-2
+(0-2.webp, 1.webp, 2.webp; 0.85 MB in all).
+- **Prompts changed after two failures.** The glacier answers came back as dramatic ice caves (fit 0.29, NCC 0.00) and
+  the first layer-2 answers as a pixel tile kit or a cave scene. Prompts now say "Do not rearrange, invent or move
+  anything", "flat, straight top-down view, no perspective, no dramatic lighting", and for layer 2 / contexts "on a pure
+  black background ... do not paint a cave, sky, ground or scenery". The word "spaceship" made Gemini draw a ship in
+  space (sheets 08, 12; "flat game-map floor texture ... not a ship" did not cure it).
+- **Sheets that stayed poor** after their one retry (sheet NCC median): ground 02 0.80 (fine), 03 0.97, 14 0.50, 10 0.56,
+  05 0.51, 15 0.25, 16 0.59, 17 0.94 (after an anti-pixel-grid retry; first answer was a pixel copy), 06 0.16 and 08 0.05 and
+  12 0.04 (hull plating; Gemini redraws it as a ship), layer-2 02 0.16. Tiles whose best candidate scored under 0.4 are
+  excluded and fall back to the original: ground 3 6 7 21 22 31 32 33 267 268 (hull sheets, ice 267-268), layer 1 498 500
+  501 506 518, layer 2 450 451 452 454 470 472 473 474 475 488.
+- **Seams** (`check`, every edge): layer 0 0.885 across / inside (original continuous 0.769; the 41,593 edges between
+  kept tiles 0.831 vs 0.754), bands 0.503; layer 1 0.836 (continuous 0.830), bands 0.416; layer 2 0.949 (continuous 0.931),
+  bands 0.537. Above the ~0.6 / 0.85 targets on ground and layer 2, but each is within about 0.1 of the original's own
+  ratio on this high-contrast ice and rock; edges that touch a new ground tile are 1.91 (continuous 1.27), the
+  painted-next-to-fallback pairs.
+- **In game** (`episode=E&main=M&seed=1&skip=T&freezeAt=T`, both looks; section numbers: 3-1 CAMANIS E3 main 10, 4-8
+  ICE EXIT E4 main 10, 3-4 IXMUCANE main 4, 3-6 FLEET main 12, 3-9 SAWBLADES main 19): 3-1 and 4-8 at t600/t1500 (before |
+  after: `tyrian-scratch/terrain-shapesw/captures/compare-3-1-r2.jpg`, `compare-4-8-r2.jpg`), 3-4, 3-6, 3-9 at t900
+  (`compare-3-4-3-6-3-9-r2.jpg`, original | HD). No gaps or misplaced tiles seen. terrainArt and terrainHd tests pass.
+  Not looked at: 4-11, 4-20, `&dpr=0.3`, fallback with a tile removed.
 ## D108 — The remaining 60 shot frames and 7 pickup units drawn from Gemini flat art (D42/D43, finishes D94/D97)
 
 2026-11-04
@@ -4387,3 +4442,182 @@ byte for byte, 121 new ground, 7 layer-1, 11 layer-2 (`0-2.webp`, `1.webp`, `2.w
   hull slabs on 2-10 are darker steel with a faint teal halo at their edges, and 2-6's central hull block shows a green
   tint (cause not investigated). Left tiles show as the original beside them. terrainArt
   and terrainHd tests pass. Not looked at: 2-2, 2-11, 4-13, `&dpr=0.3`, fallback with a tile removed.
+## D111 — `shapes)` HD terrain: all 112 ground tiles and all 14 layer-1 rock tiles, from 16 Gemini sheets (two rounds)
+
+2026-11-04
+
+**Decision:** the tileset `shapes)` (episode 4's SURFACE, CORE, SIDE EXIT, UNDERDELI, LAVA EXIT, DESERTRUN, LAVA RUN,
+BRAINIAC, TIME WAR, SQUADRON: 4.4-4.7, 4.9, 4.10, 4.12, 4.15, 4.17, 4.18) gets an atlas,
+`public/art/terrain/shapes)/` (`0.webp`+`0-2.webp` ground, `1.webp`+`1-2.webp` layer 1, 0.9 MB), from D83's pipeline: `inventory`, `sheets`,
+Gemini, `cut --edge-aware`, `check`. Round 1 (first commit) painted 89+7 tiles and stopped at the Pro limit; round 2 (Nov 9) sent the six remaining sheets and merged
+  them over the kept atlas (`git checkout` of the folder, then `cut --cache --edge-aware`: 89+7 kept byte for byte, 23+7 new).
+- **Folder name.** The tileset's letter is ")" (`data/shapes).dat`); `tileset_levels` strips "shapes" and `parseTileId` only
+  strips ".dat", so the folder is literally `shapes)` and nothing needed changing. Quote it in shells:
+  `--tileset 'shapes)'`. The dev server serves `/art/terrain/shapes)/manifest.json` (200) and the levels draw it.
+- **Kinds.** Layer 0: 112 terrain + 1 empty; layer 1: 14 terrain (rock chunks on lava, a dark-blue fill) and 35
+  structure (left to models); layer 2: all 24 structure, nothing painted.
+- **Gemini:** 13 answered requests for 10 answers kept (ctx-l1-brown-2, region-l0-02, 13, 09, 10, 05, 01, 07, 03, 04),
+  3 retries: 02's first send came back 4:3 (the default ratio; not downloaded), 02's second and 13's first went
+  out with the image not attached (the paste raced the page load) and came back as invented art. Then the Gemini usage limit hit while sending region-l0-14 ("Continuing with Flash-Lite";
+  limit resets Nov 4 11:05 PM); stopped there. Prompts named each sheet's real material (SEND.md's group labels were
+  wrong: "asteroid rock" for a desert with metal bases, "flesh" wording made Gemini rearrange the red cells, so the
+  text now says to keep every cell and patch where it is) and add "do not rearrange, invent or move anything".
+  Workflow lessons: set the aspect ratio to 1:1 on every request (the default is 4:3), and check the upload
+  (`user-query img` count 1) before pressing Return. Registration: fit 0.99+ on every sheet but the invented first
+  02/13 (resent), tile NCC median 0.98-0.99 (0.56 on 04, a low-contrast dark brick floor).
+- **Seams** (`check`, all ten maps): ground 0.558 (continuous original 0.545), bands 0.501; layer 1 1.059
+  (original continuous 1.048: its tiles are alpha rock shapes over a flat fill, so the ratio is the original's own).
+- **Weak cells:** NCC < 0.5 on tile 0:79 only. Uncovered, falling back to the original: ground 63 70 73 74 75 76 85 86
+  92 (dark deck, sheets 08/12/14) and 130-134, 140-144, 150-153 (purple plates, sheets 06/11); layer 1 31-35, 41, 42
+  (sheet ctx-l1-brown-1). Next round: send region-l0-14, 08, 12, 06, 11 and ctx-l1-brown-1 (6 requests), then `cut`
+  again with `--cache`; keep the atlas (merge) or restore it first to re-pick among all answers (doc §3).
+- **Shader fix, found in game: LAVA EXIT's pink.** On 4.9 the pink fuzzy patches drew as flat saturated red. 4.9 runs
+  water_filter with hue 7 (smoothie 2, below the ground's ceiling); the original draws the patches with palette 5's
+  salmon bank (0x46-0x4b), which water_filter leaves alone (`index & 0x30 == 0`), and the lava with 0x7x. The HD shader
+  (D57) gave every painted texel the hue ramp's index (16 + shade, D95 added only grey 0 + shade), so the pink was
+  recoloured to 0x70 + shade: red. Now each texel's bank is the raw palette's nearest colour's:
+  `PaletteTexture.indexLut` is a 32³ sRGB cube (256x128 R8 texture, built on first use per palette, ~22 ms, cached)
+  holding the nearest index by redmean distance, and `terrainPalette` takes `bank + shade` (near-greys still take bank
+  0, D95). Only the bank matters, and only for water_filter's exception: the hue filters replace it and untouched
+  texels keep their painted colour, so levels without water_filter draw exactly as before. Checked against the
+  original (blurred mean |HD - original|, before -> after): 4.9 t300 12.4 -> 4.4, t900 18.3 -> 4.7 (the patches 34-37
+  -> 3); SAVARA IV (episode 4 `main=16`, water_filter hue 3) t1200 6.4 -> 4.2, t2500 5.7 -> 4.4: its water's lighter
+  blues now keep their painted colour (about half the original's water pixels there are the exempt bank 0x80, the
+  rest 0x3x), where all of it was darkened to 0x30 + shade before; the grey floor is unchanged; TYRIAN (episode 1 `main=1`) t300, t1500 identical (no hue stage). Captures:
+  `tyrian-scratch/terrain-shapes-paren/captures/pink-fix/` (`compare-4-9-fix.jpg`, `compare-regression.jpg`: original
+  | HD before | HD after). Test `tests/render/paletteLut.test.ts`. The flat sprite art (`spriteArtLayer.ts`, D42)
+  still takes 16 + shade; nothing of it was seen under a water_filter, so it is left alone.
+
+**Checked** in game (`?debug=play&episode=4&main=2` (4.4) and `main=31` (4.9)`&seed=1&skip=T&freezeAt=T`, T 300 and 900,
+`&terrain=original` for the other half): the desert and metal plating on 4.4 match the original's layout; 4.12's lava
+reads well. Captures: `tyrian-scratch/terrain-shapes-paren/captures/compare-4-4.jpg`, `compare-4-9.jpg`. Tests
+`terrainArt` + `terrainHd`: 21 passed. Answers, sheets, prompts, `cands.pkl`: `tyrian-scratch/terrain-shapes-paren/work/` (not in git, D3).
+
+**Round 2 (Nov 9):** sent region-l0-14, 08, 12, 06, 11 and ctx-l1-brown-1 (7 requests: region-l0-06's first answer came
+back as invented art and was resent once; no usage warning, no limit hit). Fits 0.69-0.98 (06's first try 0.24), tile
+NCC medians 0.70-0.86 (14 lava 0.86, 08 dark deck 0.98, 12 0.81, 11 purple 0.70, 06 0.82, ctx-l1-brown-1 0.98). Every
+ground and layer-1 tile now has a painting. Seams after the merge (`check`, all maps): layer 0 0.564 overall (original
+continuous 0.548; the 4,568 edges touching a new tile 0.637 vs continuous 0.588), bands 0.534; layer 1 1.178 (continuous
+1.170, alpha rock shapes over a flat fill, the original's own ratio). Weakest new tiles (cut-report score): ground 0:143
+0.50, 0:150 0.58 (purple, sheet 06), layer 1 31-35 0.58-0.96. Blockiness on the dark-deck and purple sheets is 1.8-4.4
+(Gemini kept the pixel blocks there; the cut deblocks). In game 4.4 and 4.9 at t300/t900 read cleanly; captures
+`tyrian-scratch/terrain-shapes-paren/captures/compare-4-4-r2.jpg`, `compare-4-9-r2.jpg` (original | round 1 | round 2).
+## D109 — A debug console for testing: cheats, hidden settings and level jumps, through the game's own state and flow
+
+**Asked:** a console to type cheats, switch hidden settings and change or skip levels, on desktop and phone,
+in the deployed build too.
+
+**Decision.**
+- **Ways in.** Options → **Debug console** (a "Testing" row on the one settings screen, so the title's
+  Options, the shop's "All settings…" and the pause menu's Options all have it, D99/D102; the settings
+  screen closes first, so the console sits right over the title, shop or pause screen), **backtick** anywhere
+  (in a running level the loop pauses first, as for the pause screen), and `tyrianConsole.open()` /
+  `tyrianConsole.run("line")` in devtools for scripted checks. Esc, backtick, Close or B closes it; a level
+  resumes.
+- **The screen.** A framework screen (`id: "console"`) in the menus' bronze-rimmed umber pane (D85, the HUD's
+  look, D61), at the top of the window over the paused game: a monospace scrollback in a phosphor well, the
+  input line under it with history (Up/Down, kept in this browser) and Tab completion (commands, then each
+  command's words: ports, sides, styles, episodes, level names). On touch screens Tab, ↑, ↓ and Run are
+  buttons that don't take the focus from the field; the field takes the on-screen keyboard and the screen
+  fits itself to `visualViewport` (the part above the keyboard); the scrollback scrolls (D98). `help` lists
+  every command with its arguments (two columns, or one under the other on a phone).
+- **Cheats act through the sim**, so they behave as the real game's: `god` is the original's invulnerability
+  (`youAreCheating`, F2 F3 F6); `armor N` goes through JE_drawArmor's cap (28); `shield N` up to
+  `shield_max`; `heal`; `credits N`; `weapon front|rear ID [power]` as a pickup (shot pattern reset, the
+  message bar's "You got the …", `calc_purple_balls_needed` since lives alias the power); `power N`;
+  `sidekick left|right ID` set up by JE_drawOptions; `kill` kills each destructible enemy on screen (not
+  armour 255, not pickups) through `destroyEnemy`, the shot loop's kill branch moved into a function of its
+  own (no change to the loop: the bot traces match); `skip`/`next` is the original's skip-level cheat
+  (`cheatSkipLevel`, moved out of JE_mainKeyboardInput), so the level ends as completed 40 ticks later.
+  `weapons` and `sidekicks` list the ids. The HUD updates while the console is open.
+- **Levels are sections.** `levels [episode]` numbers each section with an `]L[` 1..N in script order
+  (TYRIAN's normal and hard variants share section 3: one entry) and shows its section (the harness's
+  `main=`, g.mainLevel) and tyrianN.lvl number. `level [episode] <number|name|s<section>>` takes the list's
+  number, a name (any case, spaces ignored, a unique start is enough; a shared name such as SAVARA takes
+  the first and says so) or a raw section. The jump goes through the game flow: in a level the loop ends
+  with outcome "jump" and run.ts does JE_initEpisode and loads from that section (JE_loadMap plays its
+  `]L[` straight away; items carry over); in the shop the sim's own exits (mainLevel + jumpSection, the
+  map's choice, or gameLoaded for another episode, as loading a game from the shop does); on the title a
+  one-player full game starts there. `shop` goes to the item screen whose map leads to this level (a section
+  with `]I[` and a `]G[` naming it), or from the title to a new game's first. A jump needs the console right
+  over the title, pause screen or shop, not over a screen opened from them.
+- **Settings and looks.** Each shows its value without an argument. Real settings go through the setters
+  Options uses and are saved by `savePrefs` (terrain, camera, interface, resolution; music and sound styles
+  keep themselves). The URL-only looks switch live in the renderer for this page (`vfx`, `sprites`, `bg`;
+  structures already placed keep their look). `fps`/`perf` toggles a corner overlay (fps, frame time, tick,
+  speed, draw-list size; remembered). `tick` shows the level's tick count; `speed N` (0-8) scales the time
+  the fixed-step loop accumulates, so ticks stay the classic fixed ones and only more or fewer run per
+  frame (0 freezes; the effects' clock follows); `seed` shows the start-up seed, `seed N` reseeds mt_rand.
+  `reset` puts the settings, looks, styles, speed and overlay back to their defaults (not volumes or keys).
+  `clear`, `close`.
+- **Bundle.** `src/app/consoleBridge.ts` (the place, hooks, speed, ticks, the backtick key) is in the main
+  bundle; the console (`src/debug/console/`, ~21 kB) loads on first use.
+
+**Not covered:** the `?debug=play|level` harnesses (their own loops; their URL params still work) and
+two-player games' player 2 (the cheats act on player 1).
+
+Tests: `tests/debug/console.test.ts` (parser, completion, history, level numbering and sections, the
+commands on a real level: armour cap, god vs a lethal hit, a fitted gun firing, sidekick setup, kill, skip
+to a completed level), `tests/app/options.test.ts` (the row). Captures: `tyrian-scratch/debug-console/captures/`
+(`d-*` 1920x1080, `p-*` 390x844 touch through Options on the title and the pause menu, `f-*` shop jumps and skip).
+
+## D110 — Shop lists in the debug console: `shop all` and per-category edits, through an override layer the item screen reads (extends D109, D85, D98)
+
+**Asked:** console commands to see how the shop looks with long lists: an unlocked shop selling everything the
+real game sells, and temporary edits of one category's list, without breaking the sim's C-shaped lists.
+
+**Decision.**
+- **Commands** (the `shop` command's subcommands; `shop [episode]` still goes to an item screen, D109):
+  `shop all [on|off]` (no argument: the state), `shop list [category]`, `shop items <category> [filter]`,
+  `shop set <category> <id|name…>`, `shop add|remove <category> <id|name…>`, `shop clear <category>`,
+  `shop reset [category]`. Categories are the Upgrade Ship rows in the shop's order and words: `ships`, `front`,
+  `rear`, `shields`, `generators`, `left`, `right`, with aliases (`ship`, `f`, `front-gun`, `shield`, `gen`, `ls`,
+  `rs`, …; case, spaces, dashes and a plural "s" don't matter). Items by id or name (whole or a unique start;
+  `zica-laser`, `"Zica Laser"`); a name two items share (the two Vulcan Cannons) takes the one the real game sells
+  in that category if only one is, else asks for the id. Tab completes subcommands, categories, ids and names.
+  `help shop` lists the subcommands.
+- **`shop all` is computed from the data**: every `]I[` in levels1-4.dat (61 item screens), its 9 lines read by
+  the sim's own `itemAvailLine` (factored out of JE_loadMap's `]I[`, so the sim and the console parse them the
+  same way; a test checks each of episode 1's screens against itemAvail as JE_loadMap leaves it). The union per
+  category, in the merchant's order (ascending, None last): ships 9, front 18, rear 13 (with None), shields 9,
+  generators 6, left 23 and right 30 sidekicks (with None). The shop rows Engine and Armor are never shown
+  (itemAvailMap skips them). Nothing outside a shop list gets in: the ships no item screen sells (Stalker 8,
+  U-Ship, Silver Ship, Nort Ship), the internal "Miscellaneous Option Weapons" port, the joke guns (Banana Blast, HotDog),
+  the Nort and rear-only guns in the front list, Companion Ship Quicksilver and the HXS Class C shield. Shop
+  lists that the data does have stay, odd ones included: SuperCarrot (episode 2), Tropical Cherry Companion and
+  the episode 4 secret-route screens (The Stalker 21.126, Beno Protron System -B-); the front-firing sidekicks
+  only in the right list, as the data sells them. Edits may use any id in the category's item table (with a note
+  when no shop sells it there): front 1-42, rear 0-42, ships 1-13, shields 1-10, generators 1-6, sidekicks 0-30.
+- **An override layer, not bigger arrays.** `g.itemAvail[9][10]` / `itemAvailMax` stay exactly the level's: the
+  item screen reads every list through `availList(row)` / `availCount(row)` in `game_menu.ts` (the update's
+  weapon powers, the cursor skip, the mouse's cost check, JE_genItemMenu, Enter's "Done" power, the rows), which
+  give the console's list for an overridden row and the C arrays otherwise. JE_itemScreen_init's merge of
+  last_items still runs on the real arrays (factored sort `sortMerchantRow`, same loop); the console's lists get
+  the same treatment: what the player has (last_items and items) is added and the list sorted, so the screen
+  always offers the item owned, as the game does. Buying, selling, power, Escape and the preview are the C's own
+  code on the longer list; `temp_weapon_power` has room for any u8-length list. With no console list every read
+  is the C array's: `shop reset` restores normal behaviour exactly, and the C cross-check trace still matches.
+- **A change while the shop is up** applies at once (`JE_itemScreen_listsChanged`): in an Upgrade Ship list the
+  list is left as Escape leaves it (loadout and credits as when it opened) and opened again on the new list, with
+  no sounds. Turning lists off after buying an item from them leaves the level's lists as they are; that item is
+  listed from the next item screen on (last_items), like anything the player flew in with.
+- **Lifetime: until `shop reset` (or `shop all off`), through level changes and new games**, for the page only.
+  Chosen over "until the level changes" so a selection can be checked across several item screens and jumps
+  (`level`, `shop`) without retyping, and so `shop all` and edits follow one rule. Nothing is stored: not in
+  localStorage, not in saved games (the lists aren't part of a save); an item bought from a console list is
+  the player's like any purchase.
+- **Long lists in the UI.** An item list (`.shop-list--items`, only in the Upgrade Ship lists; the game's own have
+  at most 7 rows) scrolls inside the menu pane: on desktop it is capped at the window less the panes' other parts
+  (`100dvh − 8vh − 13rem`, at least 18rem), so the title, the simulator, the credits/power/upgrade readouts and
+  the help bar stay in view instead of the whole panel scrolling them away; on phones at 56dvh, so the simulator
+  is a short swipe below, and a swipe past the list's end carries on down the panel. `reveal()` already brought
+  the cursor's row into view and now scrolls the list. Keys and pad wrap through all rows (the C's); a tap or
+  click on any row works; short windows (≤ 520 px tall) keep the panel's scroll (D98).
+
+**Checked** (headless Chrome, `tools/cdpshot.mjs` with `tyrianConsole.run(...)`, and touch emulation with swipes):
+1920x1080 and 390x844 with `shop all` on the front-gun list scrolled to its middle, a `shop set` list, the 31-row
+right-sidekick list opened on the owned None at its end, swiped, a row tapped twice and bought, the swipe chaining
+to the panel. Captures: `tyrian-scratch/shop-cheats/captures/`. Tests: `tests/debug/console.test.ts` (categories
+and aliases, completion, the union: counts, ranges, order, nothing never sold, the sim's own lists; set, add,
+remove, clear, reset, items; buying the Widget Beam from `shop all` as a normal purchase; off restoring the
+level's lists exactly; lists lasting through later item screens; every row of a 31-row list reachable).

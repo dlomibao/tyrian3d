@@ -297,6 +297,27 @@
   color: var(--ui-ink-dim);
 }
 
+/* A long item list (the debug console's `shop all`, D110: up to 31 rows; the game's own lists have
+   at most 7) scrolls inside the menu pane, so the title, the simulator, the credits and power
+   readouts and the help bar stay in view; reveal() brings the cursor's row into view. The cap is
+   the window less the screen's padding and the panes' other parts, so the game's lists never
+   reach it. Phones (below) cap it lower, so the simulator under the list is a short scroll away;
+   short windows keep the panel's own scroll (D98). */
+@media (min-width: 721px) and (min-height: 521px) {
+  .shop-list--items {
+    max-height: max(18rem, calc(100dvh - 8vh - 13rem));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--ui-copper) transparent;
+  }
+}
+
+/* Rows keep their height in a capped list (a flex column would squeeze them). */
+.shop-list--items > * {
+  flex-shrink: 0;
+}
+
 /* The navigation map (JE_updateNavScreen), drawn at three times the C's pixels, in a well. */
 .shop-nav {
   display: block;
@@ -402,6 +423,13 @@
   .shop-list .shop-row .ui-menu__icon {
     width: 2rem;
     height: 2.33rem;
+  }
+
+  /* A long item list scrolls inside the pane (above); a swipe past its end carries on down the panel. */
+  .shop-list--items {
+    max-height: max(16rem, 56dvh);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .shop-readouts {

@@ -52,6 +52,7 @@ import { backButton, keyHints, reveal, showScreen, ui, type Intent } from "../ui
 import { WeaponPreview } from "./weaponPreview";
 import { superArcadeLoadout } from "./arcade"; // [arcade]
 import { inputDevicesText, twoPlayerInputRequest, twoPlayerSideHtml } from "./twoPlayerShop"; // [two-player]
+import { consoleBridge } from "./consoleBridge";
 
 /** The shop's host: the files, and the same OptionsHost the title's Options gets (see run.ts), so the settings screen is one. */
 export interface ItemScreenHost extends OptionsHost {
@@ -223,6 +224,11 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
   // and the menu's places.
   const cubes = createDataCubes({ files: host.files, menuColumn: list.parentElement!, back: () => key("esc") });
 
+  // The debug console (D109): its cheats redraw this screen; its jumps set the sim's own way out
+  // (mainLevel and jumpSection, or gameLoaded) and step, so JE_itemScreen_done ends it.
+  consoleBridge.leave = { screen, go: () => step() };
+  consoleBridge.refresh = () => step();
+
   let quitYes = false;
   let finished = false;
   let resolveDone: () => void = () => {};
@@ -349,6 +355,7 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
   function finish(): void {
     if (finished) return;
     finished = true;
+    if (consoleBridge.leave?.screen === screen) consoleBridge.leave = consoleBridge.refresh = null;
     cancelAnimationFrame(raf);
     preview.close();
     cubes.destroy();
@@ -648,6 +655,7 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
       el("ship").innerHTML = renderShip();
       list.innerHTML = entries.map((e) => renderRow(e, e.sel === menu.curSel[menu.curMenu])).join("");
     }
+    list.classList.toggle("shop-list--items", menu.curMenu === MENU_UPGRADE_SUB); // a long list scrolls in its pane (D110)
     el("ship").hidden = preview.sync();
     const power = renderPower();
     el("power").innerHTML = power;

@@ -17,12 +17,15 @@
 // Palette effects work on the painting's brightness, as for the flat sprite art (D42): the
 // smoothies' hues (D31) recolour each texel with the palette entry of the hue at the shade its
 // brightness gives (water_filter's ripple mark included), and JE_filterScreen's level hue and
-// brightness recolour or scale it. What can't reach the art: palette animation and swaps (its
-// colours aren't palette indices), and water_filter's exception for grey and cloud-blue indices.
+// brightness recolour or scale it. Each texel's bank is the one of the raw palette's nearest
+// colour (PaletteTexture.indexLut), so water_filter leaves alone what the original's
+// (index & 0x30) == 0 banks drew (greys, cloud blue, and whatever else a palette keeps there, like
+// LAVA EXIT's salmon pink: D95, D111); untouched texels keep their painted colour. What can't reach
+// the art: palette animation and swaps (its colours aren't palette indices).
 
 import * as THREE from "three";
 import { WATER_ALPHA } from "../paletteMaterial";
-import type { PaletteTexture } from "../paletteTexture";
+import { PALETTE_LUT_SIZE, type PaletteTexture } from "../paletteTexture";
 import { SCREEN_HUE_PARS } from "../screenHue";
 import { TERRAIN_MAX_LOD } from "./terrainArt";
 
@@ -42,21 +45,34 @@ export const TERRAIN_RELIEF = 1.2;
 /** The cutout kinds' alpha threshold. */
 const CUT = 0.5;
 
+const L = PALETTE_LUT_SIZE;
 const LEVEL_PARS = /* glsl */ `
 uniform float levelFilter;     // JE_filterScreen's hue, or -99
 uniform float levelBrightness; // and its brightness (0 or -99: none)
+uniform sampler2D paletteLut;  // PaletteTexture.indexLut: sRGB cube cell -> nearest raw index
 ${SCREEN_HUE_PARS}
 float terrainClampValue(float v) {
   return v < 0.0 ? 0.0 : (v > 15.0 ? (v >= 31.0 ? 0.0 : 15.0) : v);
+}
+// The bank (index & 0xf0) of the raw palette's nearest colour to a linear RGB colour.
+float terrainBank(vec3 rgb) {
+  rgb = clamp(rgb, 0.0, 1.0);
+  vec3 s = mix(1.055 * pow(rgb, vec3(1.0 / 2.4)) - 0.055, rgb * 12.92, step(rgb, vec3(0.0031308)));
+  ivec3 c = clamp(ivec3(s * ${L}.0), 0, ${L - 1});
+  float index = floor(texelFetch(paletteLut, ivec2(c.r + ${L} * (c.b & 7), c.g + ${L} * (c.b >> 3)), 0).r * 255.0 + 0.5);
+  return floor(index / 16.0) * 16.0;
 }
 // The palette effects on a painted colour (linear RGB), by the shade (0..15) its brightness gives.
 vec3 terrainPalette(vec3 rgb, float height, inout float water) {
   float lum = pow(max(dot(rgb, vec3(0.2126, 0.7152, 0.0722)), 0.0), 1.0 / 2.2);
   float shade = clamp(floor(lum * 15.0 + 0.5), 0.0, 15.0);
-  // Grey paintings take a grey index (0..15), which water_filter leaves alone as it does the
-  // original's grey bricks; the rest take the hue ramp's.
+  // The index's bank is the nearest palette colour's, so water_filter leaves alone what the
+  // original's exempt banks drew (LAVA EXIT's pink, 0x40, stays pink: D111); near-grey paintings
+  // always take the grey bank (0), which water_filter leaves alone as it does the original's grey
+  // bricks (D95). Only the bank matters: the hue filters replace it, and untouched texels keep
+  // their painted colour.
   float chroma = max(rgb.r, max(rgb.g, rgb.b)) - min(rgb.r, min(rgb.g, rgb.b));
-  float index = (chroma < 0.04 ? 0.0 : 16.0) + shade;
+  float index = (chroma < 0.04 ? 0.0 : terrainBank(rgb)) + shade;
   float hued = screenHueIndex(index, height, water);
   if (hued != index || levelFilter > -98.5) {
     // The palette texture already holds the level filter and brightness (paletteTexture.ts).
@@ -135,6 +151,7 @@ export function terrainMaterial(
   const uniforms = {
     ...uniformsFor(texture, scale),
     paletteMap: { value: palette.texture },
+    paletteLut: { value: palette.indexLut },
     relief: { value: kind === "ground" ? (opts.relief ?? TERRAIN_RELIEF) : 0 },
     // Relief is measured over a quarter of an original pixel either side, as the 4x ground's is.
     reliefStep: { value: Math.max(1, scale / 4) },
