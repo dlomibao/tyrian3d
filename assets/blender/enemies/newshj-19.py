@@ -1,14 +1,18 @@
-"""Fireball on the ground, newshj-19 (design A): the fireball on the ground turning on the spot (newshj.shp 19/38/57/76).
+"""Fireball bolt, newshj-19: a launched fireball spinning end over end (newshj.shp 19/38/57/76).
 
-A burning mound of fire: nested flame crowns, dark red at the rim through orange and yellow to a
-white-hot tip, each crown a ring of pointed tongues that swirl round the centre (it turns on the
-spot), each hotter crown rising out of the one around it. Emissive throughout, no hard surface.
+Object: a projectile, not ground fire (D120 lesson). Its enemy types (752/755/762/767/839) are only
+ever launched (by 754/756/763/769 in episode 2, by newsha-91 in 1.13 SOH JIN) and fly straight at
+3-4 px/tick; the four frames are one oval blob drawn at four angles (a spinning bolt).
 
-Every frame is its own model (the game contract: newshj-19, -f2, -f3, -f4). The plan of each
-crown is the sprite's own heat band (palette index >= threshold), traced as a smoothed polar
-contour from the frame's mask, so the top view is the sprite's rings; the outer edge goes to the
-inner edge of the sprite's dark-red ink (sprite_mask.py inner mask, D74). One mesh per frame: a
-polar height field (angles x radial stations), material per band; flat closed underside.
+So the model is a free-floating glowing oval: a closed, round-all-over ellipsoid of fire with no
+ground skirt. Its plan is the sprite's heat bands (palette index >= threshold), each traced as a
+smoothed polar contour of the frame's mask, so from above it shows the sprite's rings, dark red
+rim through orange and yellow to the white-hot core; the outer edge is the inner edge of the
+sprite's dark-red ink (sprite_mask.py inner mask, D74). The top is a dome over that plan (the hot
+core is the crest, the cooler bands wrap the flanks), the underside a shallower plain dome in the
+rim colour (round from the side at the tilted camera, no detail). Every face emits its palette
+colour (strength 1 on a metallic surface, so the game shows the palette bands, not a pale wash). Each frame is its own model (newshj-19, -f2, -f3, -f4), the
+oval turned as the sprite turns it.
 
     blender -b --factory-startup -P assets/blender/enemies/newshj-19.py
 exports public/models/enemies/newshj-19.glb and -f2/-f3/-f4 plus their spriteModels entries.
@@ -34,19 +38,31 @@ PX = 1 / 12
 UP = 4          # supersampling of the mask for the contour
 SIGMA = 0.50    # blur in sprite px: rounds the pixel corners, keeps straight runs on the pixel edge
 
-# Heat bands from the rim in: (min palette index, crest height units, tongues, tongue amp, emission)
-# Band 0 is the whole inner mask. Colour = the frame's median index inside the band's own ring.
+# Heat bands from the rim in: (min palette index, emission strength). Band 0 is the whole inner
+# mask. Colour = the frame's median index inside the band's own ring.
+# In the game the emissive colour is the live palette colour times max(1, strength) (modelFrames.ts
+# copies the colour over the exported emissive, and only a strength > 1 survives export as
+# KHR_materials_emissive_strength), added to the lit colour, then Neutral tone mapping. At 2-6.5 the
+# yellow and orange bands (121-125) washed to cream and pink; at 1 with a metallic surface (no
+# diffuse term on top of the glow) each band shows its own palette colour, sheen only from the
+# lights. Only the white-hot core (127) goes over.
 BANDS = [
-    (0,   0.105, 9, 0.55, 2.0),
-    (120, 0.165, 8, 0.50, 2.8),
-    (122, 0.225, 7, 0.45, 3.4),
-    (124, 0.285, 6, 0.40, 4.2),
-    (126, 0.335, 5, 0.30, 5.2),
-    (127, 0.400, 0, 0.0, 6.5),
+    (0,   1.0),
+    (120, 1.0),
+    (122, 1.0),
+    (124, 1.0),
+    (126, 1.0),
+    (127, 1.3),
 ]
-NA = 96             # angles round the mound
-SWIRL = 0.85         # radians of twist from a band's base to its crest (the turning fire)
-MIN_GAP = 0.45       # px between nested contours
+METALLIC = 1.0
+ROUGHNESS = 0.6
+CREST_CUT = 0.03     # how far below the crest (and above the bottom pole) the outline shell is cut flat
+NA = 96             # angles round the oval
+MIN_GAP = 0.45      # px between nested contours
+TOP = 0.95          # dome height over the equator, times the oval's half width
+BOTTOM = 0.80       # underside depth below the equator, times the oval's half width
+ANG_SMOOTH = 4.0    # degrees of angular smoothing on every band contour
+PROFILE = 0.5       # dome exponent on (1 - q^2): 0.5 is a true ellipse section, round at the ends seen from the side (0.65 gave a lens)
 
 
 def frame_masks(sprite, fidx):
@@ -102,19 +118,25 @@ def polar(field, cx, cy, n=720):
     return rs
 
 
+def smooth_polar(rs, deg=ANG_SMOOTH):
+    """Circular Gaussian over angle: irons the pixel staircase out of a contour, so the oval's
+    flanks are one smooth round surface instead of a row of creases seen from the side."""
+    n = len(rs)
+    s = deg / 360 * n
+    r = int(math.ceil(3 * s))
+    x = np.arange(-r, r + 1)
+    g = np.exp(-x * x / (2 * s * s))
+    g /= g.sum()
+    ext = np.concatenate([rs[-r:], rs, rs[:r]])
+    return np.convolve(ext, g, mode="same")[r:r + n]
+
+
 def interp(rs, a):
     n = len(rs)
     f = (a % (2 * math.pi)) / (2 * math.pi) * n
     i = int(f) % n
     t = f - int(f)
     return rs[i] * (1 - t) + rs[(i + 1) % n] * t
-
-
-def tongue(a, n, phase):
-    if n == 0:
-        return 0.0
-    c = 0.5 + 0.5 * math.cos(n * (a - phase))
-    return c ** 2.2
 
 
 def band_color(pix, masks, k):
@@ -131,88 +153,69 @@ def build(sprite, fidx, name, coll):
     present = [k for k, m in enumerate(masks) if m.sum() >= 1]
     masks = [masks[k] for k in present]
     bands = [BANDS[k] for k in present]
-    core = masks[-1]
     ys, xs = np.nonzero(masks[min(len(masks) - 1, 3)])
     cx, cy = xs.mean() + 0.5, ys.mean() + 0.5
-    radii = [polar(blur_field(m, SIGMA if k == 0 else 0.42), cx, cy) for k, m in enumerate(masks)]
+    radii = [smooth_polar(polar(blur_field(m, SIGMA if k == 0 else 0.42), cx, cy))
+             for k, m in enumerate(masks)]
     for k in range(1, len(radii)):
         radii[k] = np.minimum(radii[k], radii[k - 1] - (0.15 if k == len(radii) - 1 else MIN_GAP))
         radii[k] = np.maximum(radii[k], 0.6)
     colors = [band_color(pix, masks, k) for k in range(len(masks))]
-    mats = [common.palette_material(sprite, c, NAME, metallic=0.0, roughness=0.55,
-                                    emission_strength=bands[k][4]) for k, c in enumerate(colors)]
+    mats = [common.palette_material(sprite, c, NAME, metallic=METALLIC, roughness=ROUGHNESS,
+                                    emission_strength=bands[k][1]) for k, c in enumerate(colors)]
 
     X0 = (cx - w / 2) * PX
     Y0 = (h / 2 - cy) * PX
-    bm = bmesh.new()
+    half = float(np.percentile(radii[0], 5))        # half the oval's short axis, px
+    htop = TOP * half * PX
+    hbot = BOTTOM * half * PX
+    zeq = hbot                                       # equator height: the underside rests on z = 0
     nb = len(bands)
-    # Radial stations: (band, t in the band 0..1, height function of angle)
-    rows = []  # list of (band index, list of verts)
-    for i_st in range(nb):
-        crest_h, nt, amp = bands[i_st][1], bands[i_st][2], bands[i_st][3]
-        prev_valley = 0.0 if i_st == 0 else bands[i_st - 1][1] * 0.80
-        phase = i_st * 0.9
-        last = i_st == nb - 1
-        if last:
-            stations = [(0.0, "base"), (0.18, "wall"), (0.45, "mid"), (0.75, "upper"), (1.0, "tip")]
-        else:
-            stations = [(0.0, "base"), (0.12, "wall"), (0.38, "shoulder"), (0.62, "crest"), (1.0, "valley")]
-        for t, kind in stations:
-            if i_st > 0 and t == 0.0:
-                continue  # shared with the previous band's valley ring
+
+    def dome(r, ro):
+        q = min(1.0, r / ro) if ro > 1e-6 else 1.0
+        return zeq + htop * max(0.0, 1.0 - q * q) ** PROFILE
+
+    bm = bmesh.new()
+    # Top: rings from the equator (band 0's contour) in to the core; each ring's radius follows its
+    # band's contour, the height the dome over the outer contour at that angle.
+    rows = []  # (band of the faces inside this ring, ring verts)
+    for k in range(nb):
+        last = k == nb - 1
+        ts = [0.0, 0.03, 0.09, 0.18, 0.32, 0.5, 0.72] if k == 0 else [0.0, 0.35, 0.7]
+        for t in ts:
             ring = []
             for j in range(NA):
-                th = 2 * math.pi * j / NA
-                a = th + SWIRL * t + i_st * 0.25
-                ro = interp(radii[i_st], a)
-                ri = 0.0 if last else interp(radii[i_st + 1], a)
-                r = ro - t * (ro - ri)
-                tg = tongue(a, nt, phase)
-                crest = crest_h * (0.78 + amp * tg)
-                if kind == "base":
-                    z = prev_valley
-                elif kind == "wall":
-                    z = prev_valley + (crest - prev_valley) * (0.55 if i_st == 0 else 0.6)
-                elif kind == "shoulder":
-                    z = prev_valley + (crest - prev_valley) * 0.9
-                elif kind == "crest":
-                    z = crest
-                elif kind == "valley":
-                    z = crest_h * 0.80
-                elif kind == "mid":
-                    z = prev_valley + (crest_h - prev_valley) * 0.55
-                elif kind == "upper":
-                    z = prev_valley + (crest_h - prev_valley) * 0.85
-                else:
-                    z = crest_h
-                if kind == "tip":
-                    ring = [bm.verts.new((X0, Y0, crest_h))]
-                    break
-                x = X0 + r * PX * math.cos(a)
-                y = Y0 + r * PX * math.sin(a)
-                ring.append(bm.verts.new((x, y, z)))
-            rows.append((i_st, ring))
-    # The outer foot: a short rounded skirt down to the ground just inside the edge, so the wall is
-    # not a knife edge and the mound sits on the ground.
-    foot = rows[0][1]
-    under = [bm.verts.new((v.co.x - (v.co.x - X0) * 0.04, v.co.y - (v.co.y - Y0) * 0.04, -0.012)) for v in foot]
-    for j in range(NA):
-        k = (j + 1) % NA
-        f = bm.faces.new((under[j], under[k], foot[k], foot[j]))
-        f.material_index = 0
-    centre = bm.verts.new((X0, Y0, -0.012))
-    for j in range(NA):
-        k = (j + 1) % NA
-        f = bm.faces.new((centre, under[k], under[j]))
-        f.material_index = 0
-    for (b0, r0), (b1, r1) in zip(rows, rows[1:]):
+                a = 2 * math.pi * j / NA
+                ro = interp(radii[0], a)
+                rk = interp(radii[k], a)
+                rn = 0.0 if last else interp(radii[k + 1], a)
+                r = rk - t * (rk - rn)
+                ring.append(bm.verts.new((X0 + r * PX * math.cos(a), Y0 + r * PX * math.sin(a), dome(r, ro))))
+            rows.append((k, ring))
+    tip = bm.verts.new((X0, Y0, zeq + htop))
+    for i, (k, ring) in enumerate(rows):
+        nxt = rows[i + 1][1] if i + 1 < len(rows) else None
+        band = rows[i + 1][0] if i + 1 < len(rows) else k
         for j in range(NA):
-            k = (j + 1) % NA
-            if len(r1) == 1:
-                f = bm.faces.new((r0[j], r0[k], r1[0]))
-            else:
-                f = bm.faces.new((r0[j], r0[k], r1[k], r1[j]))
-            f.material_index = b1
+            jj = (j + 1) % NA
+            f = bm.faces.new((ring[j], ring[jj], nxt[jj], nxt[j]) if nxt else (ring[j], ring[jj], tip))
+            f.material_index = band
+    # Underside: the top's rings mirrored below the equator at the shallower depth, so the ball
+    # glows the same from below and a side view shows hot bands above and below the dark-red waist
+    # (a glowing ball, not a cooled lump); no detail of its own.
+    equator = rows[0][1]
+    scale = hbot / htop
+    low = [(k, [bm.verts.new((v.co.x, v.co.y, zeq - (v.co.z - zeq) * scale)) for v in ring]) for k, ring in rows[1:]]
+    pole = bm.verts.new((X0, Y0, 0.0))
+    seq = [(0, equator)] + low
+    for i, (k, ring) in enumerate(seq):
+        nxt = seq[i + 1][1] if i + 1 < len(seq) else None
+        band = seq[i + 1][0] if i + 1 < len(seq) else k
+        for j in range(NA):
+            jj = (j + 1) % NA
+            f = bm.faces.new((nxt[j], nxt[jj], ring[jj], ring[j]) if nxt else (pole, ring[jj], ring[j]))
+            f.material_index = band
     for f in bm.faces:
         f.smooth = True
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
@@ -224,8 +227,45 @@ def build(sprite, fidx, name, coll):
     obj = bpy.data.objects.new(name, mesh)
     coll.objects.link(obj)
     print(f"frame {fidx}: bands {[b[0] for b in bands]} colours {colors} centre ({cx:.2f},{cy:.2f}) "
+          f"half {half:.2f}px top {htop:.3f} bottom {hbot:.3f} "
           f"triangles {sum(len(p.vertices) - 2 for p in mesh.polygons)}")
     return obj
+
+
+def inset_shell(obj, shell, depth=0.006):
+    """Make the outline shell (D90) the model's own surface moved `depth` inward along its vertex
+    normals. The voxel-remeshed, decimated shell from common.outline_shell has its own tessellation;
+    on this smooth thin oval its facets cross the model's here and there however far its vertices
+    are sunk, and its back faces drew as dark dots on the bright face (f2, f4). An offset copy of
+    the model's own mesh is parallel to it everywhere, so it stays under the surface; the shell keeps
+    its material and its tyrian_outline flag."""
+    me = obj.data.copy()
+    me.materials.clear()
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-6)
+    bm.normal_update()
+    for v in bm.verts:
+        v.co = v.co - v.normal * depth
+    # Cut the crest and the pole flat a little lower: a plateau faces straight up (no back faces),
+    # where the pole's fan of thin faces, pushed out along their normals by the inverted hull,
+    # showed as a dark dot in the white core. Never near the silhouette.
+    zs = [v.co.z for v in bm.verts]
+    top, bot = max(zs) - CREST_CUT, min(zs) + CREST_CUT
+    for v in bm.verts:
+        v.co.z = min(top, max(bot, v.co.z))
+    for f in bm.faces:
+        f.material_index = 0
+        f.smooth = True
+    bm.to_mesh(me)
+    bm.free()
+    for m in shell.data.materials:
+        me.materials.append(m)
+    old = shell.data
+    shell.data = me
+    shell.matrix_world = obj.matrix_world.copy()
+    bpy.data.meshes.remove(old)
+    print(f"{shell.name}: model mesh inset {depth}, {len(me.polygons)} faces")
 
 
 def main():
@@ -234,7 +274,8 @@ def main():
         name = NAME if k == 0 else f"{NAME}-f{k + 1}"
         coll = common.reset_collection(name)
         obj = build(sprite, fidx, name, coll)
-        shell = common.outline_shell(obj, coll, voxel=0.01, faces=2500)
+        shell = common.outline_shell(obj, coll, voxel=0.02, faces=500)
+        inset_shell(obj, shell)
         sprites = [dict(s, frames=[fidx]) for s in sprite["sprites"]]
         common.export_sprite_model(WT, [obj, shell], f"enemies/{name}", sprites)
 

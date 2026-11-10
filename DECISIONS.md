@@ -5159,3 +5159,222 @@ within 3e-5).
 21.8M subagent tokens, about 5.8 h at `maxAgents: 7`; the fix round (`fix-round.js`, 6 items) 12 agents, 1.18M
 tokens, about 27 min. Sheets: `tyrian-scratch/e1-enemies-2/<name>/final/` and `.../fixround/<name>/final/` (not in
 git, D3).
+
+## D122 — Launched projectiles and orbs rebuilt as what they are (object-identity audit)
+
+2026-11-10
+
+**Decision:** D120 found the SAVARA boss built as a grounded fortress when it was a blimp, with the outline IoU
+passing. A read-only audit then checked every episode-1 model's *behaviour* against what it was built as. Method
+(`tools/enemy_behaviour.mjs`, run per inventory unit): for each enemy type that draws the unit, its **launcher** (the
+type whose `launch` field spawns it), its **motion** (`mv(xc,yc)` in px/tick, turret/no turret) and the **layers** its
+spawn events use. A unit launched by another enemy and moving at 3-5 px/tick is a projectile, whatever layer it spawns
+on: the ground/air layer (25/50/75 vs 0) does not mean grounded or flying. Six models were built as grounded objects
+though they are launched or float; each was rebuilt with `tools/workflows/fix-round.js` (6 items) and shipped.
+
+| Model | Behaviour | Now (was) | IoU (worst frame) | Score |
+|---|---|---|---|---|
+| newshj-19 | types 752/755/762/767/839, launched by 754/756/763/769/838, mv(±4,0) or (±3,±3) | launched fireball, one floating oval turned through 4 frames, heat bands white to dark red (a campfire) | 1.0 | 8 |
+| newsha-199 | flying orb | glowing orb with a rim crescent (a lamp on a ring) | 0.9509 (grid 1.0; bar 0.95, little margin) | 8 |
+| newshi-19 | the blimp's dropped mine | glossy pulsing sphere, bore through it where the sprite is transparent (a washer with a blade) | 0.974 on the fixer's constant-ink metric | 7 |
+| newshm-117 | floating orb, 3 growth frames | round floating spiral orb, closed belly (a flat shell on a base) | 0.9808 | 7 |
+| newshe-277 | three orbs | three floating glowing orbs (pods on sleds) | 0.9825 | 7, verdict "fix" on minor points only |
+| newshs-9 | type 592, launched by `newshs-93`'s 590, mv(0,4) | missile with the nose at row 11, tail and exhaust at row 1 (was reversed); also closes `newsh-caret-171`'s nose hole (launched, mv(±2,5)/(0,1)) | 1.0 | 8 |
+
+The coordinator ships all six. `newshe-277`'s object reading is resolved; its remaining review issues are follow-ups.
+Sheets: `tyrian-scratch/object-fixes/<name>/final/cmp.png`, audit output `tyrian-scratch/object-audit/` (not in git, D3).
+
+**IoU note (`newshi-19`):** the review's `tools/sprite_mask.py --measure` gives 0.77/0.86/1.0/0.80/0.79 on its five frames
+because the sprite's ink pulses 32 -> 1 -> 2 -> 3 and index 3 (luma 40) is above `INK_LUMA` and missed by the pulse
+rule; no single geometry passes the tool on all frames. The fixer's constant-ink metric (ink = 32/1/2/3 on the
+boundary) gives 1.0/1.0/1.0/1.0/0.974. Shipped on that, like `newshd-228` (D121); fixing the tool's pulse rule is open.
+
+**Renderer finding:** `src/render/modelFrames.ts` (`colourFrame`, line 87) copies the palette colour into `emissive`, so
+a model's own emissive strength below 1 cannot take effect; glow wash-out is the same cause as D121's glow follow-up.
+`newshj-19` works round it with metallic 1.0 / roughness 0.6 (no environment diffuse). A real fix is an emissive-only or
+unlit path for glow materials (the D121 follow-up).
+
+**Follow-ups (known):**
+- `newshe-277` (review issues): flame lick and tail tip read salmon not orange (model uses pal 120, sprite median 121);
+  1-2 px dark specks on every orb in game (shell or body showing between flush patches); the swirl band ends in a hard
+  square cut above y 4.4 (taper it like the tail); a faint dark crease across the upper body.
+- `newshm-117`: the 9 radial seams make a pumpkin shell, the sprite's dark crescent groove should run deeper; band one
+  index lighter than the sprite. `newsha-199`: the lower-right rim cap reads as a second lamp from the side.
+  `newshi-19`: the bore leaves open holes in the lower hemisphere in side/3/4 views. `newshs-9`: tail nozzle rim could be
+  wider; `newsh-caret-171` nose dome has AO specks and its docstring still says "lying flat" (it is launched).
+- Audit minor items: `assembly-newshd-39` and `-89` drift in space but have flat bases; `newshd-121` is a flying drone on
+  a ground stalk; `assembly-newshu-129` has a foot; `assembly-newshi-154`: reconcile D120's "tail" label with the audit and
+  round its underside.
+- **Could not determine from behaviour** (need the user or a closer look): `assembly-newshp-267` and
+  `assembly-newshc-283` (towers or tanks?); `newshf-1` and `newshf-47` (which end is the head?); `assembly-newshu-79`
+  (wreck or working machine?).
+- `tools/enemy_behaviour.mjs` covers episodes 1 and 3 only and reads `docs/roadmap/inventory.json`.
+
+## D123 — Episode-1 enemy rebuild, batch 3: the last 16 items (36 units) to the D65 hard-surface standard
+
+2026-11-10
+
+**Decision:** the 36 episode-1 inventory units still in the older look after D121 (all of them except the six
+`lib_b014` asteroids, which the `asteroids` branch rebuilds) are rebuilt with `tools/workflows/model-flagship.js` as
+D116 and D121 did (full mode, blueprints for heroes; D65's recipe: hard-surface geometry, AO/roughness bake
+`"bake": "model"`, outline shell, art rules 1-5). New in this batch, after D120/D122: the scout recorded each item's
+**object identity** with evidence from the game's data (`tools/enemy_behaviour.mjs`: launcher, motion, spawn layers;
+D122's rule that the ground/air layer and the AIR explosion bit do not say grounded or flying), and the designs were
+built to it (launched things closed and free-flying, fixed things standing on the ground). The scout folded the 36
+units into 16 items, merging every family that shares one `lib_b0xx` so one agent keeps it consistent. Shared libs
+used by flagships were not edited (items went standalone); `lib_b138` was edited because all five of its users were in
+one item. `newshd-115` is a new model (script, glb and spriteModels entry).
+
+| Model (glbs) | Identity (evidence) | IoU: sub-pixel rule (grid), worst frame | Score |
+|---|---|---|---|
+| newshp-237 (+ -f2..-f5), newshp-53, newshp-171 | 237: fixed ground bunker (ground events, mv 0, turret 60, launches 171); 53: the same housing as a missile silo (launches newshp-19); 171: launched homing mine (lby 198, acc 94/94), free-flying round mine | bunker and silo 0.994 (0.994); mine 0.894 (1.0) | 7 |
+| newshd-267 | fixed ground power housing (ground events, mv 0, no turret, 20-step glow) | 0.9911 (0.9911) with its `tyrian_ground` stone floor (full-rect tile; the housing alone measures 0.70 against it) | 8 |
+| newshd-85 | free-flying asteroid (random spawns only, falls at 4-6 px/tick); closed round underside | 0.963 (0.9825) | 8 |
+| newshs-267 | turret module riding the link-45 tracked tank `assembly-newshs-165` at a constant offset (+12, +4 from piece 548); the scout's "hovering launcher" and the old "ground structure" both superseded, confirmed at 1.2 ticks 10010/10300 | 0.9864 (1.0) | 8 |
+| newshd-169 (+ -f2..-f6) | fixed ground turret-silo (ground events, mv 0, turret 144, iris animation) | 0.9658 (0.9658) | 8 |
+| newsha-281 | space mine (mv 0, walls of mines in 1.6, ground2 in 1.7); whole round ball, closed underside | 0.9509 (1.0) | 8 |
+| newshf-85 (+ -f2, -f3), newshf-77 (+ -f2), newshf-55, newshf-53 | the SAVARA fighter squadron: flying fighters, sky layer, 2-4 px/tick down; nose at the sprite's bottom | 0.885 (0.961, newshf-85-f3) | 8 |
+| assembly-newshc-243 (newshc-239/241/243), newshc-238 | the big blue rifle: a heavy gun unit moved by global ev19 velocities, muzzle tip 238 carries turret 55; pairs with `assembly-newshc-271` (D121) | whole 0.985 (0.9948); worst piece newshc-239 0.9461 (0.9714); 238 0.8914 (1.0) | 8 |
+| newshc-275 | muzzle cap of the moving gun `assembly-newshc-271` (turret 46) | 0.9692 (1.0) | 8 |
+| newshd-88, newshd-34, newshd-157 (+ -f2, -f3), newshd-16, newshd-239 | 88/34: edge pieces of the drifting rock heap `assembly-newshd-89`; 157: flying clamshell pod (sky layer, turret 24); 16: tusked crawler moving down-screen, built hovering (no legs drawn), closed keel; 239: fixed wall spawner (launches `newshs-171`) | 0.9321 (0.9747, newshd-16) | 7.5 |
+| newshd-31, newshd-15 | edge pieces of the drifting rock heap `assembly-newshd-89`; closed rock undersides | 0.8568 (1.0, newshd-15); 31: 0.9417 (1.0) | 7 |
+| newshp-19 | launched missile (lby `newshp-53`, mv 0,3): nose down-screen at the sprite's bottom, exhaust glow at the top | 0.9529 (0.9783) | 8 |
+| newshc-19 | launched purple shell (lby `newshu-55` and `newshu-43`), free-flying, round closed hull | 0.9282 (1.0) | 8 |
+| assembly-newshu-15 (newshu-15/17/53/55/19/38) | one intact fixed ground station (all ev6 ground, mv 0), laid out from the 1.5 spawn positions; `newshu-19`/`-38` are its left fringe, `newshu-79` its base; `newshu-55` launches `newshc-19` | whole machine 0.9833 (0.9993); **newshu-19 alone 0.9222 (0.9375)**; newshu-38 alone 0.9377 (0.9626) | 8 |
+| newshm-55 | wall block of the WINDY block wall (`assembly-newshm-1` family; ground2, dat3 +2, mv 0, as newshm-15/-53) | 0.9997 (1.0) | 7, "fix" (fixed by the coordinator, below) |
+| newshd-115 (new) | flying craft (sky layer at the screen edges, mv 0,2, turret 5, swung round by ev19) | 0.9399 (0.966) | 8 |
+
+15 shipped by strict review in the run. **IoU check:** the coordinator re-rendered every shipped glb's top view on
+its sprite grid with the outline shell, `tyrian_ground` parts and other frames' parts hidden, ran
+`tools/sprite_mask.py --measure` per frame (66 renders), and composed the two machines from their pieces (the rifle
+from the catalogue layout, the station from `assembly-newshu-15.py`'s `PIECES`). The three low figures the finishers
+reported are sub-pixel `iou_rule` values, not the gate (`iou_rule_grid` ≥ 0.95, D116/D121): `newshp-237`'s 0.8904 is
+the mine `newshp-171` (0.894 rule, grid 1.0 on all seven frames); `newshd-88`'s 0.9323 is `newshd-16` (0.9321, grid
+0.9747); `assembly-newshu-15`'s 0.9375 is `newshu-19` measured alone, and its grid value is 0.9375 too. Every
+mismatch there is a sprite pixel on the seam with the 2x2 pieces: the tool counts the tile's edge as outside, so dark
+seam pixels become border the model should not cover, though in the machine they are interior (the whole machine is
+0.9993 on the grid). It ships on the whole-machine value; the per-unit figure is a follow-up. Everything else is ≥ 0.95
+on the grid. `newshd-169` re-measures 0.9658 (the finisher reported 0.9975), still above the bar.
+
+**newshm-55 fix (coordinator):** the review found the family's dark foot missing from the export (`pal_52` spanned
+only y 0.217-0.375 m against `newshm-15`'s 0.0-0.375), so the block floated about 0.66 px over its bed plate, and the
+outline shell (y 0.075-0.761) did not wrap the plate. Cause: the bed plate was built into the block's bmesh, both capped
+at z 0 and overlapping the foot, and `lib_newshm_block.cut_sockets`'s exact boolean dropped the foot. The plate is now
+its own closed part, built after the socket cut and joined (`T.join`) like the emblem; the block shell, foot, sockets
+and bolts come from `lib_newshm_block` unchanged, with D114's single body colour (57). Rebuilt (`build-models.sh -j 2`):
+`pal_52` spans 0.0-0.375 as on `newshm-15`, the shell spans 0.0-0.761 and reaches the plate's four corners (to within
+0.01 m), the side view shows the foot standing on the plate with no gap, and the top view is 0.9997 (grid 1.0). In
+WINDY (`?debug=play&episode=1&main=33&skip=895&freezeAt=895&camera=tilted`) the ? block sits in the wall between the
+red and X blocks with its black plate corners outlined, as the sprite's.
+
+**Coordinator clean-up:** `newshd-15.py` (the old boulder on `lib_b137`, which would have overwritten the new
+`newshd-15.glb` on a full rebuild) now runs `newshd-31.py`, which exports both, as `newshc-238.py` runs
+`assembly-newshc-243.py`: list only one of each pair to `build-models.sh`. `lib_b023`, `lib_b058`, `lib_b135` and
+`lib_b137` had no users left and are deleted.
+
+**Rebuild check:** `newshd-15.py` (so `newshd-31` and `newshd-15`), `newsha-281.py` and `newshp-171.py` rebuilt in a
+throwaway worktree (`build-models.sh -j 2 -n`): all four glbs and their spriteModels entries byte-identical.
+
+**Inventory** (regenerated, bot run): episode 1 is 149 flagship / 10 not / 159 enemy units (was 123 / 42 / 165; the
+assembly scripts now group `newshu-15/17/19/38/53/55` as `assembly-newshu-15` and fold `newshc-238` into
+`assembly-newshc-243`). Of the batch's 36 units, 32 are flagship. Left: the six `lib_b014` asteroids
+(`newshd-152/114/133/5/43/18`, the `asteroids` branch) and four units their items did not rebuild (below).
+
+**Identity answers:** `newshf-85`'s head is the bottom end (mouth and fang at rows 17-19); `newshf-55` flies down the
+screen with a mask pixel-identical to `newshf-47`'s, so `newshf-47`'s nose is also at the bottom, which is how D121
+built it: D122's open question is closed for `newshf-47` (`newshf-1` stays open). `newshs-267` is a turret module on
+the tank, not a free platform.
+
+**Follow-ups (known):**
+- Not rebuilt though in the scout's items: `newshp-271` (twin-cannon ground turret, still on `lib_b123`), `newshp-95`
+  (the green copy of the `newshp-19` missile, launched by `newshs-93`; no script or spriteModels entry yet; share
+  `newshp-19`'s geometry as a palette swap), `newshc-39` (vent block with a gun on `assembly-newshc-283`'s floor, still
+  on `lib_b110`) and `newshd-229` (the crystal asteroid, still on `lib_b036`; match `newshd-85` and the asteroid
+  family). One small run.
+- `newshu-19`'s per-unit grid IoU is 0.9375 (seam pixels; the machine is 0.9993). Either teach `sprite_mask.py` to
+  measure a piece inside its machine's layout (pieces that are separate units of one assembly script) or accept it
+  on the whole machine as recorded here.
+- Colour, one step each: `newshp-237`'s ditch is pal 2 (sprite 1); `newshd-267`'s lower front band is 71 (sprite 69)
+  and its slit post reads as a black hole from the game camera; `newshs-267`'s rack walls 8 (sprite 6); `newshf-77`'s
+  fuselage 106 (sprite median 103); `newshd-88`/`-34` boulder faces one step off; `newshd-31`'s ledge reads 6 (sprite
+  8); `newshd-115`'s exhaust bells 115 (sprite 118 with hot 121-124 cores) and its glow slot one strip where the
+  sprite has two hot spots; `newshm-55`'s shell 57 (sprite median 56).
+- Form polish: `newshp-237`'s rubble edge reads as a riveted plate; `newshd-267`'s lower housing reads soft (a cushion);
+  `newshd-31`'s three boulders show gaps and a spiky lump in free views (fine in the heap); `newshp-19`'s dorsal fin
+  hides the exhaust core from the tilted camera and draws a dark line down the bell from above; `assembly-newshu-15`'s
+  lens dome has a notch where it meets the drum, and its west drum head reads as a hole from low west; `newshd-85`'s
+  V-grooves show the outline shell as black ink lines (as `newshd-123`); `newshd-115`'s wing-bar ends are chamfered
+  boxes (sprite slightly rounded).
+- Mesh tidiness (hidden): open loops in `newshp-171` (40 edges in the belt), `newshd-267` (bolt bottoms), `newshc-19`
+  (96 edges), `assembly-newshc-243` (tube ends and seams). Triangle counts above the small-enemy guide (2-6k):
+  `newshd-169` 7.7-8.2k per stage, `newshd-16` 8.7k, `newshd-239` 7.8k, `newshd-157` frames 6.8-7.4k.
+- `newshc-19.py` (line 42) bakes into a hard-coded `tyrian-scratch` path (as `newshd-77`, `newshd-121`, `newshe-155`,
+  `newshc-171` in D121); move bakes to a temp dir or `textures/<name>/`.
+- Not captured in a level: `newsha-281` (1.6 MINEMAZE), `assembly-newshc-243` (1.5 at about tick 5700 with `seed=1`
+  and no skip), the `newshd-88` family, `newshd-115`, `newshc-19` against its launchers; `newshs-267`'s +12/+4 offset
+  was not re-run. Its docstring and `sprite.json` still say "3.15 ground structure", and its "4 spawns in 3.2" is
+  unverified.
+- Renderer: `newsha-281`'s bronze reads lighter and yellower than the sprite (as `newsha-283`), `newshc-275`'s red
+  charge ring (emission 3.0) reads brighter than the sprite's one 114 pixel: both wait on the emissive fix (D121, D122).
+  `newsha-283`'s squash (a ball flattened on the ground, though it moves) is worth a look.
+- `tools/review_sheet.py --which current` renders `newshp-19` all black (old outer-mask metric): use
+  `sprite_mask.py --measure` and the viewer.
+
+**Cost:** 73 agents (1 scout, 4 blueprints, 20 designs, 4 judges, 16 finishes on Sonnet, 6 fixes, 22 reviews), 8.78M
+subagent tokens, about 2.2 h at 6 concurrent, for 16 items covering 36 units (4 hero, 12 standard). Per-agent
+median: design 10.8 min (max 35), finish 2.1 (max 33), fix 11.4, review 3.5 (max 34). Sheets:
+`tyrian-scratch/e1-enemies-3/<name>/final/`, the coordinator's measurements in `tyrian-scratch/e1-enemies-3/integrate/`
+(not in git, D3).
+
+## D124 — Episode-1 enemy rebuild, batch 4: the last four units to the D65 hard-surface standard
+
+2026-11-10
+
+The four units D123 left (its follow-ups) were rebuilt by a `model-flagship` run (wf_896154b4-68b) to the same rules
+as D123 (original sprite wins on outline, features and colour; D52, D65; outline shell D50, D51). All four shipped, no
+unit failed. Episode 1 is now **153 flagship / 6 not / 159 enemy units**; the six left are the `lib_b014` asteroids
+(`newshd-152/114/133/5/43/18`, the `asteroids` branch).
+
+| Unit | Identity | Top-view IoU (worst frame) | Review score |
+|---|---|---|---|
+| newshp-271 | fixed twin-cannon ground turret on its stone pad, four frames (271/273/275/277) | 0.9541 (turret only; grid 0.9688-0.9851) | 7 |
+| newshp-95 (new script, spriteModels entry, GLB) | launched green missile (type 460, mv 0,5, launched by `newshs-93`), the green palette swap of `newshp-19`; one geometry, four frames | 0.951 (dark outline ring excluded, as D51) | 8 |
+| newshc-39 | fixed vent block with a gun emplacement on `assembly-newshc-283`'s floor, frames 39/41/43; `maps.json` with `"bake": "model"` | 0.958 | 8 |
+| newshd-229 | free-flying crystal asteroid (rock plus a per-frame emissive gem), frames 229/231/233/235 | 0.984 | 7.5 |
+
+**Notes on the build.**
+- `newshp-95.py` loads `newshp-19.py` read-only (importlib) and calls its `build_missile` with the green body pair (39,
+  41) read from the sprite. It depends on `newshp-19.py`'s `build_missile` signature. Its input,
+  `reference/models/newshp-95/` (`sprite.json` plus frame PNGs, made from the game data because the catalogue bot never
+  saw it on screen), lives in the git-ignored `reference/` symlink, as every script's input does (`newshp-19` reads
+  `reference/models/newshp-19/`). The committed GLBs mean CI doesn't rebuild models; to rebuild on a fresh checkout,
+  regenerate the reference entry first (the catalogue or `tools/sprite_mask.py`'s sprite.json step).
+- `newshc-39.py` was fixed in one round (boolean palette transfer, groove-free outline-shell source, a darker apron, the
+  mantlet and gun on the plate lip) and its `tube()` degenerate-axis bug on the x axis fixed.
+- `newshp-271.py` and `newshd-229.py` are rewritten on `common.export_sprite_model` with repo-relative paths; their
+  spriteModels entries came out byte-identical.
+- `lib_b123`, `lib_b110` and `lib_b036` have no users left and are deleted.
+
+**Follow-ups (known):**
+- `newshp-271`: the muzzle-brake boxes have square outer bottom corners (sprite rounds them; a 1 px chamfer would raise
+  the turret-only IoU, which has little margin, 0.954-0.958); side lamps stick out about 1 px; the muzzle bore is a flat
+  red disc that reads as a lamp lens from the front. It has no texture bake (`textures/newsh2-271` is an old name).
+- `newshp-95` (inherited from `newshp-19`'s shared `build_missile`, already in D123): the dorsal fin draws a dark line
+  down the bell from above and hides the exhaust core from the tilted camera. Colour drift of one ramp step in places
+  (row 4 reads 8 for 9; vane lips 103 for 101). Not checked in a level (the missile appears in 1.3 and the bot saw 0
+  ticks of it); IoU was measured from the design-step render of the same geometry, not the final GLB.
+- `newshc-39`: the block reads a step paler than the sprite, and the pal_8 bolt heads throw small specular pings (lower
+  pal_8's metallic or raise its roughness toward pal_7's 0.45/0.42); glow bars start at col 8 where the sprite's slot
+  wall is ink (trivial). IoU has little margin: any edit must not pull the base in.
+- `newshd-229`: from the game camera the V grooves read as four pillow lobes round the gem (narrow them away from the
+  junction); the 233 crystal reads pale periwinkle (124,124,252) against the sprite's royal blue, a renderer matter
+  (`modelFrames.ts` adds the colour to the emissive): re-capture 231/233/235 after the emissive fix and lower the GEMS
+  strengths (3.5-6.0) only if 233 still washes out. The rock recipe is copied inline from `newshd-85`: move it into a
+  shared `lib_rock` helper in a separate change.
+- Not run in a level (`?debug=play`): `newshp-271`, `newshp-95`, `newshd-229` (viewer only); `newshc-39` was captured in
+  1.5 at tick 2542.
+
+**Inventory** (regenerated, bot run): episode 1 is 153 flagship / 6 not / 159 enemy units (was 149 / 10 / 159); whole
+game 155 flagship of 479. M0 shared units not flagship-done: 130.
+
+**Cost:** 15 agents, 1.63M subagent tokens. Sheets: `tyrian-scratch/e1-enemies-4/<name>/final/` (not in git, D3).

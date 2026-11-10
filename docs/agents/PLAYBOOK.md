@@ -118,6 +118,7 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
   | Animation frame flashes plain | All frames textured/exported together (D46). |
   | Enemy pops from sprite to model | Level preload list (D54); add conditional spawns (D56). |
   | Two agents edited one script | Merge such models into one item at scout time. |
+| Model built as a grounded object but it is launched or floats (campfire fireball, lamp-on-ring orb, missile reversed) | Run `NODE_OPTIONS= node tools/enemy_behaviour.mjs <unit>` at scout time: launcher, px/tick, spawn layers. The ground/air layer does not mean grounded or flying; a launched thing at 3-5 px/tick is a projectile (D122). |
   | Black slab, ink loop or slivers where an assembly piece ends; open cut sections | Never cut the joined, culled model: clip each closed part before the join, capped, and make the shell from that (lib_b065 `clip_part`, D117). |
   | Ink wedges or slits across a hull in `?viewer=` (outline on only) | D90's shell: `common.outline_shell(..., voxel=0.03, inside=0.004)`; a hand-built shell gets the same Shrinkwrap hold and comes down where the model is low (newshs-269, D117). |
   | Ink cracks across plates though the shell is D90's | Make the shell from a closed copy taken before `cull_hidden`, kept out of the bake's scene: a culled, open hull's plates are wrapped on both sides (Nort Ship, D118). |
@@ -143,6 +144,12 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
   `fix-round.js` on 6 items: 12 agents (6 fixes, 6 reviews), 1.18M tokens, ~27 min. 26 of 32 passed
   strict review in the run, the other 6 after the fix round (all 8/10). Rule of thumb with fewer
   heroes: ~5.75 agents and ~0.72M tokens per item; at 7 concurrent, plan ~11 min of wall clock per item.
+- **Cost/time (e1-enemies-3, D123, 16 items = 36 inventory units: 4 hero, 12 standard):** 73 agents (1 scout,
+  4 blueprints, 20 designs, 4 judges, 16 finishes on Sonnet, 6 fixes, 22 reviews), 8.78M subagent tokens, about
+  2.2 h wall clock at 6 concurrent. Per-agent median: design 10.8 min, finish 2.1, fix 11.4, review 3.5. 15 of 16
+  passed strict review; the 16th (a missing foot) was fixed by the coordinator. Merging lib families into one item
+  made items bigger: ~4.6 agents and ~0.55M tokens per item (~2 agents, ~0.24M per unit); at 6 concurrent, plan
+  ~8 min of wall clock per item.
   Lean mode (no blueprint, one design, Opus build + review) is what forward-push did for the 7
   player ships: 16 agents for ships + two unrelated fixes, 42 min (its reviews were Sonnet; see tiers).
 
