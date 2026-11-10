@@ -4365,9 +4365,22 @@ Gemini, `cut --edge-aware`, `check`. Tiles without a painting fall back per tile
   92 (dark deck, sheets 08/12/14) and 130-134, 140-144, 150-153 (purple plates, sheets 06/11); layer 1 31-35, 41, 42
   (sheet ctx-l1-brown-1). Next round: send region-l0-14, 08, 12, 06, 11 and ctx-l1-brown-1 (6 requests), then `cut`
   again with `--cache`; keep the atlas (merge) or restore it first to re-pick among all answers (doc §3).
-- **Known defect, game side:** on 4.9 LAVA EXIT the pink fuzzy patches draw as saturated red in the HD look (the
-  atlas holds salmon pink; the palette-ramp shader of D57 maps its brightness onto the red ramp). Same cause as D95's
-  grey fix, not touched here; needs the shader's per-hue ramp to know pink.
+- **Shader fix, found in game: LAVA EXIT's pink.** On 4.9 the pink fuzzy patches drew as flat saturated red. 4.9 runs
+  water_filter with hue 7 (smoothie 2, below the ground's ceiling); the original draws the patches with palette 5's
+  salmon bank (0x46-0x4b), which water_filter leaves alone (`index & 0x30 == 0`), and the lava with 0x7x. The HD shader
+  (D57) gave every painted texel the hue ramp's index (16 + shade, D95 added only grey 0 + shade), so the pink was
+  recoloured to 0x70 + shade: red. Now each texel's bank is the raw palette's nearest colour's:
+  `PaletteTexture.indexLut` is a 32³ sRGB cube (256x128 R8 texture, built on first use per palette, ~22 ms, cached)
+  holding the nearest index by redmean distance, and `terrainPalette` takes `bank + shade` (near-greys still take bank
+  0, D95). Only the bank matters, and only for water_filter's exception: the hue filters replace it and untouched
+  texels keep their painted colour, so levels without water_filter draw exactly as before. Checked against the
+  original (blurred mean |HD - original|, before -> after): 4.9 t300 12.4 -> 4.4, t900 18.3 -> 4.7 (the patches 34-37
+  -> 3); SAVARA IV (episode 4 `main=16`, water_filter hue 3) t1200 6.4 -> 4.2, t2500 5.7 -> 4.4: its water's lighter
+  blues now keep their painted colour (about half the original's water pixels there are the exempt bank 0x80, the
+  rest 0x3x), where all of it was darkened to 0x30 + shade before; the grey floor is unchanged; TYRIAN (episode 1 `main=1`) t300, t1500 identical (no hue stage). Captures:
+  `tyrian-scratch/terrain-shapes-paren/captures/pink-fix/` (`compare-4-9-fix.jpg`, `compare-regression.jpg`: original
+  | HD before | HD after). Test `tests/render/paletteLut.test.ts`. The flat sprite art (`spriteArtLayer.ts`, D42)
+  still takes 16 + shade; nothing of it was seen under a water_filter, so it is left alone.
 
 **Checked** in game (`?debug=play&episode=4&main=2` (4.4) and `main=31` (4.9)`&seed=1&skip=T&freezeAt=T`, T 300 and 900,
 `&terrain=original` for the other half): the desert and metal plating on 4.4 match the original's layout; 4.12's lava
