@@ -4440,8 +4440,23 @@ byte for byte, 121 new ground, 7 layer-1, 11 layer-2 (`0-2.webp`, `1.webp`, `2.w
   `tyrian-scratch/terrain-shapesx/captures/compare-2-1-r2.jpg`, `compare-2-10-r2.jpg`), 2-6 t1500 and 2-12 t900
   (`compare-2-6-2-12-r2.jpg`, original | HD). Forest, water, cliffs and hull slabs line up with the original; the repainted
   hull slabs on 2-10 are darker steel with a faint teal halo at their edges, and 2-6's central hull block shows a green
-  tint (cause not investigated). Left tiles show as the original beside them. terrainArt
+  tint (found and fixed below). Left tiles show as the original beside them. terrainArt
   and terrainHd tests pass. Not looked at: 2-2, 2-11, 4-13, `&dpr=0.3`, fallback with a tile removed.
+
+**The teal rim (found after round 2, fixed with `terrain_hd.py rimfix`):** the 2-6 tint and the 2-10 halo were one
+thing, and not a shader recolouring (`paletteTexture.ts` / `terrainMaterial.ts` of D111 changed nothing; with the
+whole palette path bypassed the tint stayed). The atlas itself had it: the seam strips (the outer 4 texels, solved
+across tile pairs) took the lighter cyan of the original's edge pixels, so every blue-grey plating tile carried an
+8-texel ring greener than its interior (green sits 0.78 of the way from red to blue in the ring, 0.56-0.60 inside:
+tile 12 edge [41,66,73] vs inside [40,54,65]). Tiled, the rings drew a teal grid, and the 2-6 block read as a green
+rectangle. `fix_rim` lowers the green to the plating's ratio (`RIM_RHO` 0.58) within 12 texels of the edge, fading
+over 12 more; red and blue stay, so the rim keeps its light. It is one colour function of the texel (two tiles that
+met in one edge colour still do) and runs only on tiles whose interior is blue over green over red (jungle, rock
+and water come back as they were). It changed 95 of the 191 ground tiles (82 in `0-2.webp`, 13 in `0.webp`),
+re-encoded at the same layout and quality 92; layers 1-2 don't have it. `tests/tools/terrain_hd_test.py` (RimFix).
+The same pass is worth running on a new tileset after its cut (`rimfix <tileset> --dry-run` lists the tiles).
+After: 2-6 t1500 and 2-10 t1200/t2400, original | HD, `tyrian-scratch/terrain-shapesx/captures/r3/compare-2-6-r3.jpg`,
+`compare-2-10-t1200-r3.jpg`, `compare-2-10-t2400-r3.jpg`: no tint, no halo.
 ## D111 — `shapes)` HD terrain: all 112 ground tiles and all 14 layer-1 rock tiles, from 16 Gemini sheets (two rounds)
 
 2026-11-04
