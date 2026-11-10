@@ -358,3 +358,6 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
     asset swap for level 1?": answer from the draw list (pixel sweep), not from memory.
 18. **Public by default, credited; original data never.** Derived art, music and sfx are public with
     a CREDITS.md row; the zip's contents and extracts stay out of git (D41).
+19. **Establish what the object is, then judge "does it read as that?" first.** The SAVARA boss was built as a ground
+    dome fortress and was a blimp (D116, corrected in D120), with the outline IoU passing. The scout/design brief must
+    name the object type (airship, bunker, rock, ship), and reviewers judge object reading before IoU, colour or detail.
