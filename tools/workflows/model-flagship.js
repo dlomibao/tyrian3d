@@ -34,6 +34,7 @@ export const meta = {
 //   date: 'YYYY-MM-DD',          // stamped on bench rows (scripts can't read the clock)
 //   python, blender, data,       // tool paths (defaults below)
 //   rev: 0,                      // bump to force a live re-run on resume (the cache is a prefix of calls)
+//   maxAgents: 8,                // optional cap on this run's concurrent agents (the session's subagent limit)
 // }
 
 const A = args || {}
@@ -63,25 +64,41 @@ const tier = (stage) => asTier((A.tiers && A.tiers[stage]) || 'opus')
 // those n items. Paste the rows into PLAYBOOK.md "Bench results".
 const BENCH = A.bench ? { model: 'sonnet', n: 2, only: true, stages: [], ...A.bench } : null
 const benchRows = []
+// args.maxAgents: at most this many agents at once (0 = only the Workflow tool's own cap).
+const MAX_AGENTS = A.maxAgents || 0
+let activeAgents = 0
+const agentWaiters = []
+async function callAgent(prompt, opts) {
+  if (!MAX_AGENTS) return agent(prompt, opts)
+  while (activeAgents >= MAX_AGENTS) await new Promise((r) => agentWaiters.push(r))
+  activeAgents++
+  try {
+    return await agent(prompt, opts)
+  } finally {
+    activeAgents--
+    const next = agentWaiters.shift()
+    if (next) next()
+  }
+}
 const BV = { type: 'object', properties: { verdict: { type: 'string', enum: ['cheap-ok', 'opus-needed'] }, metric: { type: 'string' }, rework: { type: 'string' }, notes: { type: 'string' } }, required: ['verdict', 'metric', 'rework', 'notes'] }
 const SANDBOX = (dir) => `BENCH RUN: an Opus agent does this same step for real after you, so do NOT create or edit anything outside ${dir} (not in the worktree, not elsewhere in scratch, no git, no PRs, no Gemini lock unless the step is the Gemini operator). Copy every file you would edit into ${dir} and change the copies; write every output (scripts, .glb, renders, sheets, captures, reports) under ${dir}. Blender: run it on your copy and export only into ${dir} (the script's --out option if it has one, otherwise change your copy's export to common.export_glb(objects, '${dir}/<name>.glb')); never tools/build-models.sh, export_sprite_model or export_tile_model. Tools with --out/--work options: point them into ${dir}. Report paths under ${dir}.`
 async function run(stage, key, prompt, opts, readOnly) {
   const benched = BENCH && BENCH.stages.includes(stage) && (!BENCH.keys || BENCH.keys.has(String(key).split(':')[0]))
-  if (!benched) return agent(prompt, { ...tier(stage), ...opts })
+  if (!benched) return callAgent(prompt, { ...tier(stage), ...opts })
   const cheapTier = asTier(BENCH.model)
   const dir = `${BENCH_ROOT}/${stage}/${String(key).replace(/[^A-Za-z0-9_.-]/g, '_')}-${cheapTier.model}`
   const cheapPrompt = readOnly ? prompt : `${prompt}\n\n${SANDBOX(dir)}`
   let cheap, canon
   if (readOnly) {
     [cheap, canon] = await parallel([
-      () => agent(cheapPrompt, { ...cheapTier, ...opts, label: `${opts.label}:bench-${cheapTier.model}` }),
-      () => agent(prompt, { ...TIER.opus, ...opts }),
+      () => callAgent(cheapPrompt, { ...cheapTier, ...opts, label: `${opts.label}:bench-${cheapTier.model}` }),
+      () => callAgent(prompt, { ...TIER.opus, ...opts }),
     ])
   } else {
-    cheap = await agent(cheapPrompt, { ...cheapTier, ...opts, label: `${opts.label}:bench-${cheapTier.model}` })
-    canon = await agent(prompt, { ...TIER.opus, ...opts })
+    cheap = await callAgent(cheapPrompt, { ...cheapTier, ...opts, label: `${opts.label}:bench-${cheapTier.model}` })
+    canon = await callAgent(prompt, { ...TIER.opus, ...opts })
   }
-  const v = await agent(`BENCH JUDGE for Tyrian 3D (don't edit files). The step "${stage}" (item ${key}) was done twice from the same brief: by ${cheapTier.model}${readOnly ? '' : ' in a sandbox (' + dir + ')'} and by Opus (the real result, used downstream).
+  const v = await callAgent(`BENCH JUDGE for Tyrian 3D (don't edit files). The step "${stage}" (item ${key}) was done twice from the same brief: by ${cheapTier.model}${readOnly ? '' : ' in a sandbox (' + dir + ')'} and by Opus (the real result, used downstream).
 Brief (start): ${prompt.slice(0, 2500)}
 ${cheapTier.model} result: ${JSON.stringify(cheap).slice(0, 3000)}
 Opus result: ${JSON.stringify(canon).slice(0, 3000)}
