@@ -4,7 +4,9 @@
 // cells: the tile under each cap already paints the cap's broken socket, so in the original a
 // destroyed cap leaves cracked, blackened stone where it stood. The remastered structure models
 // carry the intact block, so the renderer leaves a mark there instead: a ragged soot stain over a
-// shattered-crack network whose cracks glow and cool for a second or so.
+// shattered-crack network whose cracks glow and cool for a second or so. A structure whose model
+// already builds the broken socket (the purple machines, D115: `brokenSockets` in its entry) gets a
+// lighter mark: the fresh break's glow, cooling, and a faint soot, so the modelled break shows.
 //
 // A mark is pinned to the background tile it fell on (by draw key), so it scrolls with that layer
 // exactly, and lasts until the tile leaves the screen, as the original's painted socket does. All
@@ -27,14 +29,24 @@ const RADIUS_PX = { 1: 6.5, 2: 11.5 } as const;
  * enemies' own pass, so a live neighbour's model still covers it.
  */
 const LIFT = [0.4, 0.35, 0.35] as const;
+/** What a structure tile takes when an enemy standing on it is shot off (D96, D115). */
+export const enum StructureMark {
+  /** Not a structure: no mark. */
+  None = 0,
+  /** A full scorch mark: soot and a shattered-crack network over the intact model. */
+  Scorch = 1,
+  /** The model shows the broken socket itself: only the glow of the fresh break and a light soot. */
+  Socket = 2,
+}
+
 /** An enemy counts as standing on the tile if the two moved together (px, either axis) over its last tick. */
 const STILL_PX = 1;
 
 const VERTEX = /* glsl */ `
 attribute vec4 aPlace;  // world x, y, z, radius
-attribute vec2 aParams; // age (s), seed
+attribute vec3 aParams; // age (s), seed, socket (1: the model shows the break, D115)
 varying vec2 vP;
-varying vec2 vParams;
+varying vec3 vParams;
 void main() {
   vP = position.xy;
   vParams = aParams;
@@ -45,7 +57,7 @@ void main() {
 
 const FRAGMENT = /* glsl */ `
 varying vec2 vP;
-varying vec2 vParams;
+varying vec3 vParams;
 
 vec2 hash2(vec2 p) {
   p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
@@ -90,11 +102,16 @@ void main() {
   float rays = pow(abs(sin(ang * 2.5 + seed * 11.0 + n * 2.5)), 30.0) * smoothstep(1.0, 0.25, e) * step(0.12, d);
   crack = max(crack, 0.85 * rays);
   float hole = smoothstep(0.34, 0.1, e);
+  float heat = exp(-age * 3.0);
+  // Over a modelled broken socket: no painted cracks once cool, only a light soot (D115).
+  float socket = vParams.z;
+  crack *= mix(1.0, heat, socket);
+  hole *= mix(1.0, heat, socket);
+  soot *= mix(1.0, 0.35, socket);
   float a = clamp(0.5 * soot + 0.4 * crack + 0.3 * hole, 0.0, 0.9);
   // Burnt metal: near-black char, a little warm toward the stain's edge.
   vec3 charred = mix(vec3(0.03, 0.025, 0.03), vec3(0.11, 0.06, 0.04), smoothstep(0.35, 0.95, e) * (1.0 - crack));
   // The cracks and the hole glow, cooling within about a second.
-  float heat = exp(-age * 3.0);
   vec3 ember = vec3(1.0, 0.38, 0.08) * (crack + hole) * heat * 1.3;
   gl_FragColor = vec4(charred * a + ember * a, a);
   #include <tonemapping_fragment>
@@ -111,6 +128,8 @@ interface Mark {
   seed: number;
   /** The tick it was made (ScorchLayer's tick count). */
   born: number;
+  /** Its structure's model shows the broken socket (D115). */
+  socket: boolean;
   /** This tick's draw index of its tile, or -1. */
   at: number;
 }
@@ -119,7 +138,7 @@ export class ScorchLayer {
   readonly mesh: THREE.Mesh;
   private readonly geometry = new THREE.InstancedBufferGeometry();
   private readonly place = new THREE.InstancedBufferAttribute(new Float32Array(CAPACITY * 4), 4);
-  private readonly params = new THREE.InstancedBufferAttribute(new Float32Array(CAPACITY * 2), 2);
+  private readonly params = new THREE.InstancedBufferAttribute(new Float32Array(CAPACITY * 3), 3);
   private readonly marks: Mark[] = [];
   private ticks = 0;
   private serial = 0;
@@ -160,10 +179,10 @@ export class ScorchLayer {
 
   /**
    * Take a tick's draw list: drop the marks whose tile left the screen, and add one for each enemy
-   * destroyed this tick that stood on a structure tile (`structure`) of its layer. `prevX`/`prevY`
+   * destroyed this tick that stood on a structure tile of its layer (`structure`: which mark it takes). `prevX`/`prevY`
    * are the draws' positions last tick (DrawInterpolator), to tell standing enemies from flying ones.
    */
-  tick(list: DrawList, prevX: Float32Array, prevY: Float32Array, structure: (d: TileDraw) => boolean): void {
+  tick(list: DrawList, prevX: Float32Array, prevY: Float32Array, structure: (d: TileDraw) => StructureMark): void {
     this.ticks++;
     const items = list.items;
     const deaths = list.deaths;
@@ -188,6 +207,7 @@ export class ScorchLayer {
       this.marks.push({
         tileKey: td.key, dx: death.x - td.x, dy: death.y - td.y, radius: RADIUS_PX[death.size],
         seed: fract(this.serial++ * 0.618034 + death.x * 0.0137), born: this.ticks, at: t,
+        socket: structure(td) === StructureMark.Socket,
       });
     }
     let n = 0;
@@ -215,8 +235,9 @@ export class ScorchLayer {
       pl[j * 4 + 1] = h;
       pl[j * 4 + 2] = gz + (cam.z - gz) * k;
       pl[j * 4 + 3] = (m.radius / PX_PER_UNIT) * (1 - k);
-      pa[j * 2] = ((this.ticks - m.born + alpha) * CLASSIC_TICK_MS) / 1000;
-      pa[j * 2 + 1] = m.seed;
+      pa[j * 3] = ((this.ticks - m.born + alpha) * CLASSIC_TICK_MS) / 1000;
+      pa[j * 3 + 1] = m.seed;
+      pa[j * 3 + 2] = m.socket ? 1 : 0;
     }
     this.geometry.instanceCount = n;
     for (const attr of [this.place, this.params]) {
@@ -247,7 +268,7 @@ function findEnemy(items: readonly Draw[], key: number): number {
 }
 
 /** The last-drawn (topmost) structure tile of `layer` with an opaque pixel at (x, y), or -1. */
-function findTile(items: readonly Draw[], layer: 0 | 1 | 2, x: number, y: number, structure: (d: TileDraw) => boolean): number {
+function findTile(items: readonly Draw[], layer: 0 | 1 | 2, x: number, y: number, structure: (d: TileDraw) => StructureMark): number {
   let found = -1;
   const px = Math.floor(x), py = Math.floor(y);
   for (let i = 0; i < items.length; i++) {
@@ -256,7 +277,7 @@ function findTile(items: readonly Draw[], layer: 0 | 1 | 2, x: number, y: number
     const tx = px - d.x, ty = py - d.y;
     if (tx < 0 || tx >= 24 || ty < 0 || ty >= 28) continue;
     if (layer !== 0 && d.tile[ty * 24 + tx] === 0) continue;
-    if (structure(d)) found = i;
+    if (structure(d) !== StructureMark.None) found = i;
   }
   return found;
 }

@@ -49,6 +49,11 @@ export interface TileModelEntry {
    * left two columns of a three-column one.
    */
   offset?: [number, number];
+  /**
+   * The model already shows the broken sockets its tiles paint under their enemies (D115), so a
+   * shot-off enemy there leaves only the fresh break's glow and a light soot, not a full scorch mark.
+   */
+  brokenSockets?: boolean;
 }
 
 /** Map widths in tiles per layer (JE_MapType, JE_MapType2, JE_MapType3). */

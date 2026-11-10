@@ -4669,3 +4669,49 @@ From `tyrian-scratch/e1-qa/REPORT.md` (issues 3, 5, 7), checked on main before c
 
 Captures: `tyrian-scratch/e1-qa-bugs/` (`bug1_*` orb, `bug2_*` SOH JIN, `bug3_*` and `cmp_*.jpg` SAVARA V and the
 regression levels: original | before | after, `bug4_*` WINDY).
+
+## D115 — The purple machines build the broken sockets their tiles paint; the scorch over them is only the fresh break (extends D96, D47)
+
+2026-11-10
+
+**Context:** the user compared TYRIAN (1.3) with the real OpenTyrian: when a cap of the island machines is shot off,
+the original shows a cracked, broken stone where it sat; ours showed an intact octagonal boss (the orb) or a ringed dome
+(the 2x2/2x3/2x5 blocks, the cross) under D96's procedural scorch, which read as a decal on an intact socket. D96 had
+found why: the original stamps nothing; the background-3 tile under each cap *is* the broken socket, hidden while the
+cap's sprite covers it.
+
+**Options:** (a) broken-socket geometry in the machine models, shown per cap when that cap dies; (b) D96's decal
+upgraded to a mesh or decal matching the crack art; (c) the models' bosses built broken, always, as the tiles paint
+them. (a) needs per-instance, per-part visibility in the instanced structures (D34) plus a reliable death record per
+cap (the harness's `skip=` only renders its last ticks, saves and level starts never see the deaths). (b) can only add
+over the intact boss, not take it away, and still depends on seeing the death. (c) is what the original does: no
+runtime state, every machine instance and cap position at once, every camera tilt (the cap's model covers its socket
+on screen as the sprite covers the tile, D6).
+
+**Decision:** (c).
+- `assets/blender/tiles/lib_sockets.py` (numpy only): per boss tile (155-157, 165, 167, 175-177) the cracks read off
+  its art as polylines (`CRACKS`; ends near the rim run on to it), plus its darkest pits (palette 80-83); the octagon
+  minus those, rasterised at 8 samples per px, gives the chunks (outlines simplified to px/3); each chunk takes the
+  palette index its pixels mostly paint, kept to the stone's 86-89. `--overlay out.png` draws them over the tiles.
+- `lib_tyrbld.Structure.broken_sockets(z0)`: a socket wherever the pattern has a boss tile, at the tile's own boss
+  centre (`BOSS_AT`): each chunk a prism with a chamfered top, tilted (rising 0.012 per px outward: the middle sagged
+  where the cap was torn out, plus a turn of its own), dropped up to 0.13 and pushed up to 0.5 px outward, over a dark
+  floor (index 82) at 30% height that shows in the cracks. Tops ≤ 0.30, under the enemies' 0.33 (`check()`).
+  Hard-surface prisms, flat shaded; undersides closed and plain.
+- The orb, the 2x2/2x3/2x5 blocks and the cross call it in place of their bosses/domes/knobs. Their other parts are
+  unchanged. The orb and the cross are baked from concept maps as before, but `lib_sockets.py --maps` sets the detail
+  to neutral and the relief flat under every socket, so the sockets get occlusion only (art rule 4); the blocks were
+  and stay plain (build-models.sh finds no maps for `tyrbld_purple_blocks.py`). Structure models draw no outline (D8),
+  so no outline shell.
+- The entries carry `brokenSockets: true`; D96's scorch layer takes the structure's mark kind
+  (`StructureMark`: none / scorch / socket). Over a socket the painted crack network and the hole glow only while hot
+  (about a second), and the soot is at 35%: the fresh break still flashes, then the modelled break shows. Other
+  structures (bunkers, wreck, fortress, pits) keep the full D96 mark.
+- A boss whose cell never carries a cap (the 2x5's last column) now shows broken from the start, as its tile does.
+
+**Checked:** intact machine (all caps alive, t2560): mean |after - before| 0.017 per channel over the machine's
+600x400 crop, 113 of 240000 px over 10 (the scorch's sparks). Captures in `tyrian-scratch/island-sockets/final/`:
+`cmp-2560.png`, `cmp-2650.png`, `cmp-3300.png`, `zoom-3300.png` (before | after | `&bg=original&terrain=original
+&sprites=original`), `closeup-socket-3300.png` (one socket, 4K); `model-cross.png`, `model-2x5.png` (Blender views).
+GLB sizes (KB, before → after): orb 813 → 893, 2x2 467 → 463, 2x3 658 → 648, 2x5 1027 → 1010, cross 1278 → 1341;
+triangles after: orb 10.1k, 2x2 4.9k, 2x3 7.2k, 2x5 11.4k, cross 15.4k.
