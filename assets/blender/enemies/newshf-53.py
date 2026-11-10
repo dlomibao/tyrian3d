@@ -1,26 +1,14 @@
-"""Green swept-wing fighter (newshf.shp frame 53): a 3D version of its sprite.
+"""Green swept-wing fighter (newshf.shp frame 53), flying down the screen.
 
-Seen in episodes 1 and 3. The same craft as newshf-11 in green: a round fuselage with a bright
-spine, wings swept back to tips beside the tail, a small tailplane under an upright fin, a dark
-slot canopy and two short guns at the wing roots. Its palette indices are newshf-11's plus 32.
-One frame, one model.
-
-Run: blender --background --python assets/blender/enemies/newshf-53.py [-- --preview out.png]
+Built by newshf-85.py (the SAVARA fighter squadron, batch b023): newshf-11's craft recoloured (+32); model newshf-53.
+Run: blender --background --python assets/blender/enemies/newshf-53.py [-- --no-bake]
 """
-
-import sys
+import importlib.util
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import lib_b023 as lib  # noqa: E402
-
-NAME = "newshf-53"
-
-
-def build(sprite):
-    objects, coll, x0 = lib.build_swept(sprite, NAME, remap=lambda i: i + 32)
-    return [(NAME, objects, sprite["sprites"])]
-
+spec = importlib.util.spec_from_file_location("newshf_85_squadron", Path(__file__).resolve().parent / "newshf-85.py")
+squadron = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(squadron)
 
 if __name__ == "__main__":
-    lib.run(NAME, build, __file__)
+    squadron.run({"53"})

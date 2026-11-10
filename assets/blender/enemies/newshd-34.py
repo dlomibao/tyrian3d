@@ -1,11 +1,6 @@
-"""Grey boulder, right half (newshd.shp frame 34, a 12x14 tile): a 3D version of its sprite.
+"""newshd-34, rebuilt from design A in lib_b138 (D123): see lib_b138.py for what it is and how it is built.
 
-Seen in episode 1 (level 1.5). Tiles 88 and 34 sit side by side as one grey boulder; this is its
-right flank, the outline running down its right side. Both halves come from one rounded
-height field (lib_b138.boulder) so they meet seamlessly, the lit areas of the sprite standing proud
-and each facet painted with the sprite's own grey ramp. One frame, one model.
-
-Run: blender --background --python assets/blender/enemies/newshd-34.py [-- --preview out.png]
+Run: blender --background --python assets/blender/enemies/newshd-34.py
 """
 
 import sys
@@ -17,4 +12,4 @@ import lib_b138 as lib  # noqa: E402
 NAME = "newshd-34"
 
 if __name__ == "__main__":
-    lib.boulder(NAME, __file__)
+    lib.build(NAME, __file__)

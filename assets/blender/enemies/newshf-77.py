@@ -1,28 +1,14 @@
-"""Blue-grey straight-winged fighter (newshf.shp frames 77, 79): a 3D version of its sprite.
+"""Blue-grey straight-winged fighter (newshf.shp frames 77, 79), flying down the screen.
 
-Seen in episodes 1 and 3. The same craft as newshf-123 in blue-grey steel: thin fuselage with a
-needle nose, straight wing with chamfered leading tips, tailplane, upright fin and a dark canopy.
-Its palette indices are newshf-123's plus 99. Frame 77 is rolled with the right wing up and 79 is
-level, so each gets its own model (newshf-77, newshf-77-f2).
-
-Run: blender --background --python assets/blender/enemies/newshf-77.py [-- --preview out.png]
+Built by newshf-85.py (the SAVARA fighter squadron, batch b023): newshf-123's craft recoloured (+99); models newshf-77, newshf-77-f2.
+Run: blender --background --python assets/blender/enemies/newshf-77.py [-- --no-bake]
 """
-
-import math
-import sys
+import importlib.util
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import lib_b023 as lib  # noqa: E402
-
-NAME = "newshf-77"
-ROLL = math.radians(26)
-
-
-def build(sprite):
-    objects, coll, x0 = lib.build_tailplane(sprite, NAME, remap=lambda i: i + 99)
-    return lib.rocking_models(NAME, sprite, objects, x0, [-ROLL, 0.0], coll)
-
+spec = importlib.util.spec_from_file_location("newshf_85_squadron", Path(__file__).resolve().parent / "newshf-85.py")
+squadron = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(squadron)
 
 if __name__ == "__main__":
-    lib.run(NAME, build, __file__)
+    squadron.run({"77"})
