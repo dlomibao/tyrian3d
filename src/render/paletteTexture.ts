@@ -7,7 +7,7 @@
 //
 // Painted art (HD terrain, D57) has colours, not indices; `indexLut` gives a colour the index of
 // the raw palette's nearest entry, so index rules such as water_filter's exception for the
-// (index & 0x30) == 0 banks can reach it (D109).
+// (index & 0x30) == 0 banks can reach it (D111).
 
 import * as THREE from "three";
 import { vga6To8, type Palette } from "../data/palette";

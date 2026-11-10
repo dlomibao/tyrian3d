@@ -1,4 +1,4 @@
-// HD terrain's palette bank lookup (paletteTexture.ts nearestIndexLut, terrainMaterial.ts, D109):
+// HD terrain's palette bank lookup (paletteTexture.ts nearestIndexLut, terrainMaterial.ts, D111):
 // painted colours find the raw palette's nearest index, so water_filter's exception for the
 // (index & 0x30) == 0 banks reaches them. LAVA EXIT (4.9) drew its salmon-pink patches as
 // saturated red when every painting took the hue ramp's bank (16 + shade).

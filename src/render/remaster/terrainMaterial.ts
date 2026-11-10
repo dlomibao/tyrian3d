@@ -20,7 +20,7 @@
 // brightness recolour or scale it. Each texel's bank is the one of the raw palette's nearest
 // colour (PaletteTexture.indexLut), so water_filter leaves alone what the original's
 // (index & 0x30) == 0 banks drew (greys, cloud blue, and whatever else a palette keeps there, like
-// LAVA EXIT's salmon pink: D95, D109); untouched texels keep their painted colour. What can't reach
+// LAVA EXIT's salmon pink: D95, D111); untouched texels keep their painted colour. What can't reach
 // the art: palette animation and swaps (its colours aren't palette indices).
 
 import * as THREE from "three";
@@ -67,7 +67,7 @@ vec3 terrainPalette(vec3 rgb, float height, inout float water) {
   float lum = pow(max(dot(rgb, vec3(0.2126, 0.7152, 0.0722)), 0.0), 1.0 / 2.2);
   float shade = clamp(floor(lum * 15.0 + 0.5), 0.0, 15.0);
   // The index's bank is the nearest palette colour's, so water_filter leaves alone what the
-  // original's exempt banks drew (LAVA EXIT's pink, 0x40, stays pink: D109); near-grey paintings
+  // original's exempt banks drew (LAVA EXIT's pink, 0x40, stays pink: D111); near-grey paintings
   // always take the grey bank (0), which water_filter leaves alone as it does the original's grey
   // bricks (D95). Only the bank matters: the hue filters replace it, and untouched texels keep
   // their painted colour.

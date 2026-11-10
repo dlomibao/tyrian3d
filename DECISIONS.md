@@ -4337,7 +4337,7 @@ The most-drawn one is #7 198 (7 levels, 3 episodes), with #7 199 (96,631 ticks) 
 
 Answers, sheets and prompts: `tyrian-scratch/flat-art-rest/` (not in git, D3).
 
-## D109 — `shapes)` HD terrain: all 112 ground tiles and all 14 layer-1 rock tiles, from 16 Gemini sheets (two rounds)
+## D111 — `shapes)` HD terrain: all 112 ground tiles and all 14 layer-1 rock tiles, from 16 Gemini sheets (two rounds)
 
 2026-11-04
 
