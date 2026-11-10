@@ -1,241 +1,1060 @@
-"""Grey ribbed dome (newshi.shp frames 154, 156 and 158, one assembly): a 3D version of its sprites.
+"""assembly-newshi-154, the grey ribbed end cap of the SAVARA boss hull, cross-sections first.
 
-Seen in episode 1 (level sections 10, 29 and 38) and level 3.21, on the ground. Three 2x2
-enemies side by side (sprite.json `assemblyLayout`) make the lower part of one big dark grey
-dome, 72 px across at its top edge and narrowing to a rounded point at the bottom. Light ribs
-run over its surface and meet at a small blue-grey hub in front of its crown (newshi-156, column
-13, row 16); a second blue-grey rivet sits on the rib to its upper right (newshi-158). The dome
-is lit from the top and falls into deep shadow along its lower rim.
+newshi.shp frames 154 | 156 | 158 (three 2x2 ground enemies side by side, 72 x 28 px, one frame
+each; episode 1 sections 10, 29, 38 and 3.21). The sprite is the tapered south end of a ribbed
+egg-shaped hull, cut flat along its top edge where it joins the structure above. Nine raised
+meridian ribs meet at a blue-grey hub (col 37, row 16); a blue-grey rivet sits on the north-east
+rib at (49, 1).
 
-The whole dome is built once in assembly coordinates and cut into the three pieces with
-common.split_assembly. The sprites stop at their top edge, so the dome is cut flat there.
+Engineering reading (blueprint.json, same scratch folder):
 
-Run: blender --background --python assets/blender/enemies/assembly-newshi-154.py [-- --preview out.png]
-(the preview is the whole dome; each piece also gets <piece>.png next to it).
+  plan        the sprite's INNER mask (D74: its dark ring is the game's ink outline), row by row,
+              lightly smoothed; a rounded point at the bottom; the hull continues north beyond the
+              cut (a virtual arc to y = -14.5 so the north rays have a rim to aim at)
+  shell       a cap built on rays from the pole P = (37.5, 16.5): z = (HP + G*north*s)*sqrt(1-s^2),
+              s = distance / rim distance along the ray; HP 14 px at the pole, the crest rising
+              4 px more towards the north cut (the pole is tipped south: the north half runs almost
+              level into the joint, the south half falls steeply to the ground, the sprite's dark
+              band); the base of the cap is a vertical skirt (sqrt profile) so the top view is the plan
+  seams       three latitude panel grooves round the pole (s 0.42, 0.72, 0.93): real chamfered
+              grooves 0.8 px wide, 0.2 px deep, cut along the surface normal (AO reads them)
+  skirt       the band below the last seam carries a ring of hex bolt heads (pitch 4 px)
+  ribs        chamfered straps (1.2 px wide, 0.7 px high, 0.18 chamfer) along the traced
+              meridians, standing on the shell normal, bolts every 5.5 px; they start at the hub
+              collar and end against the joint flange or run on down onto the skirt lip, where a
+              bigger bolt pins each foot
+  hub         chamfered collar ring (r 1.7, h 0.75) with six bolts, blue-grey domed cap (r 0.95)
+  rivet       blue-grey domed head (r 0.6) on the north-east rib at (49, 1.5)
+  joint       the north cut: a flat vertical mating wall (strips welded to the shell, no slivers to
+              bake black) and a chamfered bolted flange lip along the top of the cut
+  underside   flat plate at z = 0 (a plausible closed shape only)
+
+Colours (sprite medians, darkest shading and brightest highlight left out; the blueprint regions):
+shell 4, ribs 6, hub cap and rivet 102, flange and skirt bolts 5. The north-south brightness
+gradient in the sprite is lighting, not paint. Satin metal (metallic 0.2, roughness 0.36-0.45).
+
+Units: sprite px; Blender X = (x - 36) / 12, Y = (14 - y) / 12, Z = z / 12 (assembly origin = the
+centre of newshi-156, screen (150, -17)). Built whole, the outline shell (D51) built whole from the
+smooth dome (build_outline_shell: no grooves to crack), both cut into the three pieces (split_pieces:
+clean inset caps, no holes_fill, the hull's normals on the cut). AO/roughness bake only ("bake": "model"), no concept
+projection.
+
+Run: blender --background --factory-startup --python assets/blender/enemies/assembly-newshi-154.py -- \
+       [--measure DIR] [--views DIR] [--no-bake] [--no-export] [--glb ASSEMBLY.glb]
+Exports the three pieces (each with its outline shell, at its own origin) with
+common.export_sprite_model to enemies/newshi-154, -156 and -158. Maps: AO/roughness bake of the
+model itself (textures/assembly-newshi-154/maps.json says "bake": "model"), no concept projection.
 """
 
+import json
 import math
-import statistics
 import sys
+import tempfile
 from pathlib import Path
 
 import bmesh
-from mathutils import Vector
+import bpy
+import numpy as np
+from mathutils import Matrix, Vector
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-sys.path.insert(0, str(Path(__file__).resolve().parent))
 import common  # noqa: E402
-import lib_b069 as lib  # noqa: E402
 
-NAME = "assembly-newshi-154"
 ROOT = common.repo_root(__file__)
+sys.path.insert(0, str(ROOT / "tools"))
+import sprite_mask  # noqa: E402
+NAME = "assembly-newshi-154"
 PIECES = ["newshi-154", "newshi-156", "newshi-158"]
-# Assembly pixel (0, 0) is the top-left corner of newshi-154 (screen 114, -31); the three pieces
-# make a 72 x 28 px strip whose centre (screen 150, -17, the centre of newshi-156) is the origin.
 CX0, CY0 = 150, -17
-PX = 1 / 12
-H = 1.05  # the dome's height at its crown
-APEX = (36.5, -1.0)  # the crown, just inside the top edge (assembly px)
-HUB = (37.5, 16.5)  # where the ribs meet
+
+# The meridian ribs traced from the sprite (assembly px, hub first): the hub is where they meet.
+RIBS = [["rib_n", [[37.5, 16.5], [37.5, -1.0]]], ["rib_nw1", [[37.5, 16.5], [36.5, 14.0], [34.5, 11.0], [33.5, 8.5], [32.5, 6.0], [31.5, 4.0], [30.5, 1.0], [30.2, -1.0]]], ["rib_nw2", [[37.5, 16.5], [34.0, 14.5], [31.5, 12.5], [24.5, 5.5], [22.5, 2.5], [21.5, 0.5], [21.0, -1.0]]], ["rib_w", [[37.5, 16.5], [31.0, 15.5], [27.0, 14.3], [24.5, 13.3], [22.0, 12.0], [19.5, 9.5], [16.5, 6.5], [14.5, 4.0], [12.5, 1.0], [11.8, -1.0]]], ["rib_ne1", [[37.5, 16.5], [41.5, 12.5], [43.5, 10.5], [44.5, 8.5], [45.5, 7.0], [46.5, 5.5], [47.5, 3.5], [48.5, 1.0], [49.0, -1.0]]], ["rib_ne2", [[37.5, 16.5], [44.0, 14.0], [48.5, 12.5], [51.5, 10.5], [54.5, 7.5], [56.5, 4.5], [58.5, 1.5], [59.3, -1.0]]], ["rib_s", [[37.5, 16.5], [37.5, 27.2]]], ["rib_sw", [[37.5, 16.5], [34.5, 17.5], [32.5, 18.5], [31.5, 19.5], [28.5, 20.5], [24.5, 21.2], [21.6, 21.7]]], ["rib_se", [[37.5, 16.5], [39.5, 19.5], [41.5, 20.5], [43.5, 21.5], [45.5, 22.5], [48.5, 24.0]]]]
+
+POLE = (37.5, 16.5)
+HP = 14.0       # pole (hub) height, px
+G = 4.0         # extra crest height towards the north cut
+SEAMS = (0.42, 0.72, 0.93)
+SEAM_HW = 0.45   # groove half width, px
+SEAM_D = 0.28    # groove depth, px
+RW, RH, RCH = 0.6, 0.7, 0.18   # rib half width, height, chamfer (px)
 
 
-def X(c):
-    """Assembly pixel x (edge coordinates: 0 = left edge of column 0) to Blender X."""
-    return (c - 36) / 12
+def W(x, y, z):
+    """Sprite px (x east, y south, z up) to Blender units."""
+    return Vector(((x - 36) / 12, (14 - y) / 12, z / 12))
 
 
-def Y(r):
-    """Assembly pixel y (edge coordinates) to Blender Y: sprite up is +Y."""
-    return (14 - r) / 12
+# ---------------------------------------------------------------------------------------------
+# The sprite
+# ---------------------------------------------------------------------------------------------
+
+def sprite_grid():
+    idx = -np.ones((28, 72), dtype=int)
+    colours = {}
+    for i, n in enumerate(PIECES):
+        d = common.load_sprite(ROOT, n)
+        colours.update({int(k): tuple(v) for k, v in d["colors"].items()})
+        for r, row in enumerate(d["frames"][0]["pixels"]):
+            for c, v in enumerate(row):
+                idx[r, i * 24 + c] = v
+    return idx, colours
 
 
-def grid():
-    """The three pieces' pixels side by side: 28 rows of 72 palette indices (-1 transparent)."""
-    g = [[-1] * 72 for _ in range(28)]
-    for i, name in enumerate(PIECES):
-        for r, line in enumerate(common.load_sprite(ROOT, name)["frames"][0]["pixels"]):
-            for c, v in enumerate(line):
-                g[r][i * 24 + c] = v
-    return g
+IDX, COLOURS = sprite_grid()
+MASKS = sprite_mask.masks(IDX.tolist(), COLOURS)
+INNER = np.array(MASKS["inner"], dtype=bool)
+FREE = np.array(MASKS["free"], dtype=bool)
 
 
-def outline(g):
-    """The dome's footprint (counter-clockwise, assembly px): the sprites' filled extent row by
-    row (smoothed), a rounded bottom, and an arc over the top beyond the cut."""
-    left, right = [], []
-    for r in range(28):
-        xs = [c for c in range(72) if g[r][c] >= 0]
-        left.append(min(xs))
-        right.append(max(xs) + 1)
+def footprint():
+    """The plan (assembly px), counter-clockwise in screen space read y-down... the order only
+    matters for the ray test: the inner mask's extent per row, smoothed, a rounded point at the
+    bottom and a virtual arc beyond the north cut."""
+    L, R = [], []
+    rows = [r for r in range(28) if INNER[r].any()]
+    for r in rows:
+        xs = np.nonzero(INNER[r])[0]
+        L.append(float(xs.min()))
+        R.append(float(xs.max() + 1))
 
-    def smooth(v):
-        return [sum(v[max(i - 1, 0):i + 2]) / len(v[max(i - 1, 0):i + 2]) for i in range(len(v))]
-
-    left, right = smooth(left), smooth(right)
-    pts = []
-    # Over the top (beyond the cut), right to left.
-    top = [(68.0, -4.0), (62.0, -10.0), (50.0, -13.5), (36.5, -14.5), (23.0, -13.5), (11.0, -10.0), (5.0, -4.0)]
-    pts += top
-    pts += [(left[r], r + 0.5) for r in range(0, 27, 2)]
-    pts += [(left[27] + 0.5, 27.6), (34.0, 28.0), (39.0, 28.0), (right[27] - 0.5, 27.6)]
-    pts += [(right[r], r + 0.5) for r in range(26, -1, -2)]
-    # Our list runs clockwise in screen space (y down), which is counter-clockwise in Blender.
+    def sm(v):
+        out = []
+        for i in range(len(v)):
+            w = v[max(i - 1, 0):i + 2]
+            out.append(0.25 * w[0] + 0.5 * v[i] + 0.25 * w[-1] if len(w) == 3 else v[i])
+        return out
+    R[0] = max(R[0], R[1])  # the top row's last 3 px are ink only where the rim meets the cut
+    L, R = sm(sm(L)), sm(sm(R))
+    last = rows[-1]
+    pts = [(max(R[0], R[1]) + 1.0, -4.0), (62.0, -10.0), (50.0, -13.5), (36.5, -14.5), (23.0, -13.5), (11.0, -10.0),
+           (L[0] - 1.0, -4.0)]
+    pts += [(L[i], r + 0.5) for i, r in enumerate(rows)]
+    mid = 0.5 * (L[-1] + R[-1])
+    pts += [(L[-1] + 1.2, last + 1.15), (mid - 2.0, last + 1.45), (mid + 2.0, last + 1.45), (R[-1] - 1.2, last + 1.15)]
+    pts += [(R[i], r + 0.5) for i, r in reversed(list(enumerate(rows)))]
     return pts
 
 
-def rim_distance(pts, a, d):
-    """Distance from `a` along unit direction `d` to the outline (all in assembly px)."""
-    best = None
-    n = len(pts)
+OUTLINE = footprint()
+
+
+def rim_dist_raw(dx, dy):
+    best = 1e9
+    n = len(OUTLINE)
     for i in range(n):
-        p, q = Vector(pts[i]), Vector(pts[(i + 1) % n])
-        e = q - p
-        den = d.x * e.y - d.y * e.x
+        p, q = OUTLINE[i], OUTLINE[(i + 1) % n]
+        ex, ey = q[0] - p[0], q[1] - p[1]
+        den = dx * ey - dy * ex
         if abs(den) < 1e-9:
             continue
-        w = p - a
-        t = (w.x * e.y - w.y * e.x) / den
-        u = (w.x * d.y - w.y * d.x) / den
+        wx, wy = p[0] - POLE[0], p[1] - POLE[1]
+        t = (wx * ey - wy * ex) / den
+        u = (wx * dy - wy * dx) / den
         if t > 0 and -1e-6 <= u <= 1 + 1e-6:
-            best = t if best is None else min(best, t)
+            best = min(best, t)
     return best
 
 
-def height(s):
-    """The dome's profile: height at fraction s of the way from the crown to the rim."""
-    return H * max(1 - s * s, 0.0) ** 0.55
+_NA = 1440
+_RAW = np.array([rim_dist_raw(math.cos(2 * math.pi * i / _NA), math.sin(2 * math.pi * i / _NA)) for i in range(_NA)])
+_K = np.exp(-0.5 * (np.arange(-24, 25) / 8.0) ** 2)  # sigma 2 degrees
+_K /= _K.sum()
+_RIM = np.convolve(np.concatenate([_RAW[-24:], _RAW, _RAW[:24]]), _K, mode="valid")
 
 
-def surface_z(pts, c, r):
-    a = Vector(APEX)
-    p = Vector((c, r))
-    v = p - a
-    if v.length < 1e-6:
-        return H
-    return height(v.length / rim_distance(pts, a, v.normalized()))
+def rim_dist(dx, dy):
+    """The rim distance along a ray from the pole, smoothed over the ray angle (sigma 2 degrees) so
+    the skirt is one fair surface instead of following the plan's pixel steps."""
+    a = (math.atan2(dy, dx) / (2 * math.pi)) % 1.0 * _NA
+    i = int(a)
+    f = a - i
+    return float(_RIM[i % _NA] * (1 - f) + _RIM[(i + 1) % _NA] * f)
 
 
-def shade_map(g):
-    """Each pixel's shade with the ribs smoothed out: the median index of its 7x7 neighbourhood
-    (outline pixels count as the darkest grey)."""
-    out = [[2] * 72 for _ in range(28)]
-    for r in range(28):
-        for c in range(72):
-            vals = [max(g[rr][cc], 2) for rr in range(max(r - 3, 0), min(r + 4, 28))
-                    for cc in range(max(c - 3, 0), min(c + 4, 72)) if 0 <= g[rr][cc] < 100]
-            if vals:
-                out[r][c] = int(round(statistics.median(vals)))
+def z_at(x, y):
+    vx, vy = x - POLE[0], y - POLE[1]
+    t = math.hypot(vx, vy)
+    if t < 1e-6:
+        return HP
+    dx, dy = vx / t, vy / t
+    s = min(t / rim_dist(dx, dy), 1.0)
+    north = (0.5 * (1 - dy)) ** 2
+    return (HP + G * north * s) * math.sqrt(max(0.0, 1 - s * s))
+
+
+def n_at(x, y, e=0.05):
+    zx = (z_at(x + e, y) - z_at(x - e, y)) / (2 * e)
+    zy = (z_at(x, y + e) - z_at(x, y - e)) / (2 * e)
+    v = Vector((-zx, -zy, 1.0))
+    return v.normalized()
+
+
+def frame_at(x, y):
+    """Local frame on the shell at (x, y): origin, tangent t (east-ish), b, normal n, in px."""
+    n = n_at(x, y)
+    t = Vector((0, 1, 0)).cross(n).normalized()
+    b = n.cross(t)
+    return Vector((x, y, z_at(x, y))), t, b, n
+
+
+def P(p):
+    """A px-space Vector to Blender."""
+    return W(p.x, p.y, p.z)
+
+
+# ---------------------------------------------------------------------------------------------
+# Mesh building
+# ---------------------------------------------------------------------------------------------
+
+class Mesh:
+    def __init__(self):
+        self.bm = bmesh.new()
+
+    def v(self, p):
+        return self.bm.verts.new(P(p))
+
+    def f(self, vs, mat):
+        try:
+            face = self.bm.faces.new(vs)
+        except ValueError:
+            return None
+        face.material_index = mat
+        return face
+
+
+SHELL, RIB, BOLT, CAP = range(4)
+
+
+def materials(sprite):
+    tag = "nshi154A"
+    return [
+        common.palette_material(sprite, 4, tag, metallic=0.2, roughness=0.45),
+        common.palette_material(sprite, 6, tag, metallic=0.22, roughness=0.36),
+        common.palette_material(sprite, 5, tag, metallic=0.22, roughness=0.4),
+        common.palette_material(sprite, 102, tag, metallic=0.25, roughness=0.32),
+    ]
+
+
+def build_shell(M, NT=112):
+    """The cap: rays from the pole, latitude grooves cut along the normal, closed by a flat floor."""
+    grid = []
+    for i in range(NT):
+        a = 2 * math.pi * i / NT
+        dx, dy = math.cos(a), math.sin(a)
+        Rr = rim_dist(dx, dy)
+        st = []
+        e = [(s0 - SEAM_HW / Rr, s0 + SEAM_HW / Rr) for s0 in SEAMS]
+        a0 = e[0][0]
+        st += [(a0 * (1 - (1 - k / 10) ** 1.25), 0.0, False) for k in range(1, 11)]
+        st += [(v, 0.0, False) for v in np.linspace(e[0][1], e[1][0], 7)]
+        st += [(v, 0.0, False) for v in np.linspace(e[1][1], e[2][0], 5)]
+        st += [(e[2][1], 0.0, False)] + [(v, 0.0, False) for v in (0.978, 0.99, 0.997, 1.0)]
+        for s0, (lo, hi) in zip(SEAMS, e):
+            ds = hi - s0
+            st += [(s0 - 0.45 * ds, SEAM_D, True), (s0 + 0.45 * ds, SEAM_D, True)]
+        st.sort()
+        ring = []
+        for s, d, _ in st:
+            if s == 0.0:
+                continue
+            x, y = POLE[0] + dx * s * Rr, POLE[1] + dy * s * Rr
+            z = 0.0 if s >= 1.0 else z_at(x, y)
+            p = Vector((x, y, z))
+            if d:
+                p -= n_at(x, y) * d
+            ring.append(p)
+        grid.append(ring)
+    nst = len(grid[0])
+    assert all(len(r) == nst for r in grid)
+    pole = M.v(Vector((POLE[0], POLE[1], HP)))
+    vg = [[M.v(p) for p in ring] for ring in grid]
+    floor = M.v(Vector((POLE[0], POLE[1], 0.0)))
+    for i in range(NT):
+        j = (i + 1) % NT
+        M.f((pole, vg[i][0], vg[j][0]), SHELL)
+        for k in range(nst - 1):
+            M.f((vg[i][k], vg[i][k + 1], vg[j][k + 1], vg[j][k]), SHELL)
+        M.f((vg[i][-1], floor, vg[j][-1]), SHELL)
+
+
+def cut_north(bm):
+    """Cut the hull flat at the sprite's top edge (y = 0) and close it with a flat joint wall: one
+    vertical strip under each shell vertex of the cut (welded to the shell, standing on the floor's
+    cut line), so the wall has no long slivers to bake black."""
+    geom = bm.verts[:] + bm.edges[:] + bm.faces[:]
+    yc = 14 / 12
+    bmesh.ops.bisect_plane(bm, geom=geom, plane_co=(0, yc, 0), plane_no=(0, 1, 0), clear_outer=True)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
+    top = sorted({v for e in bm.edges if e.is_boundary for v in e.verts
+                  if abs(v.co.y - yc) < 1e-4 and v.co.z > 1e-4}, key=lambda v: v.co.x)
+    ends = sorted({v for e in bm.edges if e.is_boundary for v in e.verts
+                   if abs(v.co.y - yc) < 1e-4 and v.co.z <= 1e-4}, key=lambda v: v.co.x)
+    left, right = ends[0], ends[-1]
+    bot = [bm.verts.new((v.co.x, yc, 0.0)) for v in top]
+    chain_t = [left] + top + [right]
+    chain_b = [left] + bot + [right]
+    faces = []
+    for i in range(len(chain_t) - 1):
+        q = [chain_b[i], chain_b[i + 1], chain_t[i + 1], chain_t[i]]
+        q = [v for k, v in enumerate(q) if v not in q[:k]]
+        if len(q) >= 3:
+            try:
+                faces.append(bm.faces.new(q))
+            except ValueError:
+                pass
+    for f in faces:
+        f.material_index = SHELL
+        for e in f.edges:
+            e.smooth = False
+    return faces
+
+
+def bolt(M, x, y, r, h, lift, mat, sides=6, frame=None):
+    o, t, b, n = frame or frame_at(x, y)
+    lo, mid, hi = [], [], []
+    for k in range(sides):
+        a = 2 * math.pi * (k + 0.5) / sides
+        c, s = math.cos(a), math.sin(a)
+        lo.append(M.v(o + t * (r * c) + b * (r * s) + n * (lift - 0.12)))
+        mid.append(M.v(o + t * (r * c) + b * (r * s) + n * (lift + 0.6 * h)))
+        hi.append(M.v(o + t * (0.72 * r * c) + b * (0.72 * r * s) + n * (lift + h)))
+    for k in range(sides):
+        j = (k + 1) % sides
+        M.f((lo[k], lo[j], mid[j], mid[k]), mat)
+        M.f((mid[k], mid[j], hi[j], hi[k]), mat)
+    M.f(hi, mat)
+    M.f(list(reversed(lo)), mat)
+
+
+def lathe(M, o, t, b, n, prof, mat, sides=24):
+    """Revolve a (radius, height) profile round normal n at o; radius 0 collapses to a centre point."""
+    rings = []
+    for r, h in prof:
+        if r == 0:
+            rings.append([M.v(o + n * h)])
+            continue
+        rings.append([M.v(o + t * (r * math.cos(2 * math.pi * k / sides)) + b * (r * math.sin(2 * math.pi * k / sides)) + n * h)
+                      for k in range(sides)])
+    for r0, r1 in zip(rings, rings[1:]):
+        for k in range(sides):
+            j = (k + 1) % sides
+            if len(r0) == 1:
+                M.f((r0[0], r1[k], r1[j]), mat)
+            elif len(r1) == 1:
+                M.f((r0[k], r1[0], r0[j]), mat)
+            else:
+                M.f((r0[k], r1[k], r1[j], r0[j]), mat)
+
+
+def dome(M, x, y, r, h, lift, mat, sides=16, nr=5):
+    o, t, b, n = frame_at(x, y)
+    prof = [(0, lift - 0.2), (r, lift - 0.2)]
+    prof += [(r * math.cos(0.5 * math.pi * i / nr), lift + h * math.sin(0.5 * math.pi * i / nr)) for i in range(nr)]
+    prof += [(0, lift + h)]
+    lathe(M, o, t, b, n, prof, mat, sides)
+
+
+def resample(pl, step):
+    out = []
+    for a, b in zip(pl, pl[1:]):
+        n = max(1, math.ceil(math.hypot(b[0] - a[0], b[1] - a[1]) / step))
+        for k in range(n):
+            out.append((a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n))
+    out.append(tuple(pl[-1]))
     return out
 
 
-def build(sprite):
-    coll = common.reset_collection(NAME)
-    tag = "nshi154"
-    pal = lambda i, **kw: common.palette_material(sprite, i, tag, **kw)  # noqa: E731
-    shades = [2, 3, 4, 5, 6, 7, 8]
-    mats = [pal(i, metallic=0.2, roughness=0.5) for i in shades]  # 0-6 dome greys
-    mats += [
-        pal(8, metallic=0.3, roughness=0.35),  # 7 bright ribs
-        pal(7, metallic=0.3, roughness=0.35),  # 8 ribs
-        pal(6, metallic=0.3, roughness=0.4),  # 9 ribs in half shadow
-        pal(5, metallic=0.3, roughness=0.4),  # 10 ribs in shadow
-        pal(4, metallic=0.3, roughness=0.45),  # 11 ribs in deep shadow
-        pal(102, metallic=0.5, roughness=0.3, emission_strength=2.0),  # 12 blue-grey hub and rivet
-    ]
-    RIB8, RIB7, RIB6, RIB5, RIB4, HUBM = range(7, 13)
-    g = grid()
-    shade = shade_map(g)
-    pts = outline(g)
-    bm = bmesh.new()
+def chaikin(pl, n=3):
+    pts = [tuple(p) for p in pl]
+    for _ in range(n):
+        out = [pts[0]]
+        for a, b in zip(pts, pts[1:]):
+            out += [(0.75 * a[0] + 0.25 * b[0], 0.75 * a[1] + 0.25 * b[1]), (0.25 * a[0] + 0.75 * b[0], 0.25 * a[1] + 0.75 * b[1])]
+        out.append(pts[-1])
+        pts = out
+    return pts
 
-    # The dome: copies of the footprint shrunk towards the crown, rising as they go.
-    a = Vector(APEX)
-    steps = [1.0, 0.975, 0.94, 0.89, 0.82, 0.73, 0.62, 0.49, 0.34, 0.18]
-    rings = []
-    for s in steps:
-        z = height(s)
-        rings.append([bm.verts.new((X(a.x + (x - a.x) * s), Y(a.y + (y - a.y) * s), z)) for x, y in pts])
-    crown = bm.verts.new((X(a.x), Y(a.y), H))
-    n = len(pts)
-    faces = []
+
+def s_at(x, y):
+    """Fraction of the rim distance along the ray from the pole (0 at the hub, 1 at the rim)."""
+    vx, vy = x - POLE[0], y - POLE[1]
+    t = math.hypot(vx, vy)
+    return 0.0 if t < 1e-6 else t / rim_dist(vx / t, vy / t)
+
+
+RIB_END_S = 0.952   # the ribs run down onto the skirt lip (s 0.944 .. 0.985)
+
+
+def build_ribs(M):
+    ribs = [(n, chaikin(pl)) for n, pl in RIBS]
+    prof = [(-RW, -0.12), (RW, -0.12), (RW, RH - RCH), (RW - RCH, RH), (-RW + RCH, RH), (-RW, RH - RCH)]
+    for name, pl in ribs:
+        pts = [p for p in resample(pl, 0.5) if math.hypot(p[0] - POLE[0], p[1] - POLE[1]) >= 1.5]
+        # a rib traced short of the rim carries on in its last direction down to the skirt lip
+        (ax, ay), (bx, by) = pts[-2], pts[-1]
+        L = math.hypot(bx - ax, by - ay)
+        while pts[-1][1] > 0.95 and s_at(*pts[-1]) < RIB_END_S:
+            pts.append((pts[-1][0] + 0.5 * (bx - ax) / L, pts[-1][1] + 0.5 * (by - ay) / L))
+        pts = [p for p in pts if p[1] >= 0.95 and s_at(*p) <= RIB_END_S]
+        if len(pts) < 2:
+            continue
+        rings = []
+        for i, p in enumerate(pts):
+            q, o = pts[min(i + 1, len(pts) - 1)], pts[max(i - 1, 0)]
+            n = n_at(*p)
+            base = Vector((p[0], p[1], z_at(*p)))
+            nxt = Vector((q[0], q[1], z_at(*q)))
+            prv = Vector((o[0], o[1], z_at(*o)))
+            tg = (nxt - prv).normalized()
+            side = tg.cross(n).normalized()
+            rings.append([M.v(base + side * u + n * h) for u, h in prof])
+        for r0, r1 in zip(rings, rings[1:]):
+            for k in range(len(prof)):
+                j = (k + 1) % len(prof)
+                M.f((r0[k], r0[j], r1[j], r1[k]), RIB)
+        M.f(list(reversed(rings[0])), RIB)
+        M.f(rings[-1], RIB)
+        acc = 0.0
+        for i in range(1, len(pts) - 4):
+            acc += math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1])
+            if acc >= 5.5:
+                acc = 0.0
+                bolt(M, pts[i][0], pts[i][1], 0.2, 0.15, RH, RIB)
+        if pts[-1][1] > 1.5:  # the foot on the skirt lip: a bigger bolt through the rib's end
+            q = pts[-2]
+            bolt(M, q[0], q[1], 0.32, 0.18, RH, BOLT)
+
+
+def build_hub(M):
+    o, t, b, n = frame_at(*POLE)
+    lathe(M, o, t, b, n, [(0, -0.3), (1.7, -0.3), (1.7, 0.55), (1.52, 0.75), (0, 0.75)], RIB, sides=28)
+    for k in range(6):
+        a = 2 * math.pi * (k + 0.5) / 6
+        c = o + t * (1.27 * math.cos(a)) + b * (1.27 * math.sin(a))
+        bolt(M, c.x, c.y, 0.17, 0.13, 0.0, RIB, frame=(o + (c - o) + n * 0.75 - n * 0.0, t, b, n))
+    lathe(M, o, t, b, n, [(0, 0.55), (0.95, 0.55), (0.95, 0.8), (0.88, 1.12), (0.68, 1.4), (0.38, 1.58), (0, 1.66)],
+          CAP, sides=20)
+    # the rivet on the north-east rib
+    dome(M, 49.0, 1.5, 0.6, 0.35, RH + 0.02, CAP, sides=14, nr=4)
+
+
+def build_flange(M):
+    """A chamfered lip along the top of the north cut (y 0 .. 0.9) with bolts every 4 px."""
+    xs = [x / 4 for x in range(0, 72 * 4) if z_at(x / 4, 0.01) > 0.6 and z_at(x / 4, 0.95) > 0.6]
+    prof = [(0.0, -0.15), (0.0, 0.28), (0.72, 0.28), (0.95, 0.06), (0.95, -0.15)]
+    rings = [[M.v(Vector((x, y, z_at(x, max(y, 0.001)) + h))) for y, h in prof] for x in xs]
     for r0, r1 in zip(rings, rings[1:]):
-        for i in range(n):
-            j = (i + 1) % n
-            faces.append(bm.faces.new((r0[i], r0[j], r1[j], r1[i])))
+        for k in range(len(prof)):
+            j = (k + 1) % len(prof)
+            M.f((r0[k], r1[k], r1[j], r0[j]), SHELL)
+    M.f(rings[0], SHELL)
+    M.f(list(reversed(rings[-1])), SHELL)
+    for k in range(-12, 13):  # a row at an even 4 px pitch about the centre (x = 36), heads 0.3 px
+        x = 36 + 4 * k
+        if not xs[0] + 1.5 < x < xs[-1] - 1.5:
+            continue
+        o = Vector((x, 0.38, z_at(x, 0.38) + 0.28))
+        bolt(M, x, 0.38, 0.3, 0.22, 0.0, BOLT, frame=(o, Vector((1, 0, 0)), Vector((0, 1, 0)), Vector((0, 0, 1))))
+
+
+def build_skirt_lip(M):
+    """The machined lip round the base: a raised, chamfered band on the skirt (s 0.945 .. 0.984,
+    0.2 px proud of the shell, so it stays inside the plan), with the gores below it."""
+    NT = 160
+    prof = [(0.944, -0.08), (0.953, 0.22), (0.976, 0.22), (0.985, -0.08)]  # closed: its foot is buried
+    rings = []
+    for i in range(NT):
+        a = 2 * math.pi * i / NT
+        dx, dy = math.cos(a), math.sin(a)
+        Rr = rim_dist(dx, dy)
+        ring = []
+        for s, d in prof:
+            x, y = POLE[0] + dx * s * Rr, POLE[1] + dy * s * Rr
+            ring.append(M.v(Vector((x, y, z_at(x, y))) + n_at(x, y) * (d - 0.04)))
+        rings.append(ring)
+    ok = [max(v.co.y for v in r) <= (14 - 1.0) / 12 for r in rings]  # stops 1 px short of the north cut
+    start = next(i for i in range(NT) if ok[i] and not ok[i - 1])
+    run = []
+    i = start
+    while ok[i % NT] and len(run) < NT:
+        run.append(rings[i % NT])
+        i += 1
+    for r0, r1 in zip(run, run[1:]):
+        for k in range(len(prof)):
+            j = (k + 1) % len(prof)
+            M.f((r0[k], r0[j], r1[j], r1[k]), SHELL)
+    M.f(list(reversed(run[0])), SHELL)
+    M.f(run[-1], SHELL)
+
+
+def build_skirt_bolts(M, pitch=4.0):
+    """Hex bolt heads round the skirt band (between the last seam and the ground)."""
+    s0 = 0.963
+    n = 720
+    pts = []
     for i in range(n):
-        faces.append(bm.faces.new((rings[-1][i], rings[-1][(i + 1) % n], crown)))
-    bottom = bm.faces.new(list(reversed(rings[0])))
-    bottom.material_index = 0
-    for f in faces:
-        f.smooth = True
-        cen = f.calc_center_median()
-        c = int(min(max(cen.x * 12 + 36, 0), 71))
-        r = int(min(max(14 - cen.y * 12, 0), 27))
-        f.material_index = shades.index(min(max(shade[r][c], 2), 8))
+        a = 2 * math.pi * i / n
+        dx, dy = math.cos(a), math.sin(a)
+        Rr = rim_dist(dx, dy)
+        pts.append((POLE[0] + dx * s0 * Rr, POLE[1] + dy * s0 * Rr))
+    acc = pitch / 2
+    for i in range(1, n):
+        acc += math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1])
+        x, y = pts[i]
+        if acc >= pitch and y >= 1.6:
+            acc = 0.0
+            bolt(M, x, y, 0.24, 0.16, 0.22, BOLT)
 
-    # The ribs: polylines over the dome from the hub out to the rim (assembly px, pixel centres).
-    ribs = [
-        (RIB8, [HUB, (37.5, -1.0)]),  # straight up
-        (RIB8, [HUB, (36.5, 14.0), (34.5, 11.0), (33.5, 8.5), (32.5, 6.0), (31.5, 4.0), (30.5, 1.0), (30.2, -1.0)]),
-        (RIB7, [HUB, (34.0, 14.5), (31.5, 12.5), (24.5, 5.5), (22.5, 2.5), (21.5, 0.5), (21.0, -1.0)]),
-        (RIB7, [HUB, (31.0, 15.5), (27.0, 14.3), (24.5, 13.3), (22.0, 12.0), (19.5, 9.5), (16.5, 6.5),
-                (14.5, 4.0), (12.5, 1.0), (11.8, -1.0)]),
-        (RIB6, [HUB, (41.5, 12.5), (43.5, 10.5), (44.5, 8.5), (45.5, 7.0), (46.5, 5.5), (47.5, 3.5),
-                (48.5, 1.0), (49.0, -1.0)]),
-        (RIB5, [HUB, (44.0, 14.0), (48.5, 12.5), (51.5, 10.5), (54.5, 7.5), (56.5, 4.5), (58.5, 1.5),
-                (59.3, -1.0)]),
-        (RIB5, [HUB, (37.5, 27.2)]),  # straight down
-        (RIB5, [HUB, (34.5, 17.5), (32.5, 18.5), (31.5, 19.5), (28.5, 20.5), (24.5, 21.2), (21.6, 21.7)]),
-        (RIB4, [HUB, (39.5, 19.5), (41.5, 20.5), (43.5, 21.5), (45.5, 22.5), (48.5, 24.0)]),
+
+def build(sprite, coll):
+    M = Mesh()
+    build_shell(M)
+    cut_north(M.bm)
+    build_ribs(M)
+    build_hub(M)
+    build_flange(M)
+    build_skirt_lip(M)
+    build_skirt_bolts(M)
+    bm = M.bm
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-6)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    for f in bm.faces:  # the joint wall faces north
+        if abs(f.calc_center_median().y - 14 / 12) < 1e-4 and abs(f.normal.y) > 0.9 and f.normal.y < 0:
+            f.normal_flip()
+    me = bpy.data.meshes.new(NAME)
+    bm.to_mesh(me)
+    bm.free()
+    for m in materials(sprite):
+        me.materials.append(m)
+    obj = bpy.data.objects.new(NAME, me)
+    coll.objects.link(obj)
+    sharp = [not e.use_edge_sharp for e in me.edges]
+    me.shade_smooth()
+    me.set_sharp_from_angle(angle=math.radians(38))
+    for e, keep in zip(me.edges, sharp):
+        if not keep:
+            e.use_edge_sharp = True
+    return obj
+
+
+def tris(obj):
+    return sum(len(p.vertices) - 2 for p in obj.data.polygons)
+
+
+# ---------------------------------------------------------------------------------------------
+# Measure and views
+# ---------------------------------------------------------------------------------------------
+
+def set_engine(scene, want):
+    try:
+        scene.render.engine = want
+    except TypeError as err:
+        names = [w for w in str(err).replace("'", " ").replace(",", " ").replace("(", " ").replace(")", " ").split() if w.isupper()]
+        scene.render.engine = next(n for n in names if want.split("_")[1] in n)
+
+
+def render_array(scene, cam, path):
+    scene.camera = cam
+    scene.render.filepath = str(path)
+    bpy.ops.render.render(write_still=True)
+    img = bpy.data.images.load(str(path))
+    px = np.array(img.pixels[:], dtype=np.float32).reshape(img.size[1], img.size[0], img.channels)
+    bpy.data.images.remove(img)
+    return px[::-1]
+
+
+def measure(objs, out_dir, ss=8):
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    scene = bpy.context.scene
+    hidden = [o for o in scene.objects if o.type == "MESH" and o not in objs and not o.hide_render]
+    for o in hidden:
+        o.hide_render = True
+    set_engine(scene, "BLENDER_WORKBENCH")
+    sh = scene.display.shading
+    sh.light = "FLAT"
+    sh.show_cavity = False
+    sh.show_object_outline = False
+    sh.show_specular_highlight = False
+    scene.display.render_aa = "OFF"
+    scene.view_settings.view_transform = "Standard"
+    scene.render.film_transparent = False
+    if scene.world is None:
+        scene.world = bpy.data.worlds.new("w")
+    scene.world.color = (0, 0, 0)
+    cd = bpy.data.cameras.new("measure")
+    cd.type = "ORTHO"
+    cd.ortho_scale = 72 / 12
+    cam = bpy.data.objects.new("measure", cd)
+    scene.collection.objects.link(cam)
+    cam.location = (0, 0, 5)
+    scene.render.resolution_x = 72 * ss
+    scene.render.resolution_y = 28 * ss
+    scene.render.resolution_percentage = 100
+    sh.color_type = "SINGLE"
+    sh.single_color = (1, 1, 1)
+    sil = render_array(scene, cam, out_dir / "top_silhouette.png")[..., 0]
+    cov = sil.reshape(28, ss, 72, ss).mean(axis=(1, 3))
+    model = cov >= 0.5
+    keep = ~FREE
+    res = {}
+
+    def iou(cols):
+        m, s, k = model[:, cols], INNER[:, cols], keep[:, cols]
+        return float(((m & s) & k).sum() / max(1, ((m | s) & k).sum()))
+    res["iou_rule_grid"] = round(iou(slice(0, 72)), 4)
+    res["pieces"] = {n: round(iou(slice(24 * i, 24 * i + 24)), 4) for i, n in enumerate(PIECES)}
+    # render-resolution IoU against the inner mask
+    big = np.kron(INNER, np.ones((ss, ss), dtype=bool))
+    top = sil > 0.5
+    res["iou_rule_hires"] = round(float((big & top).sum() / max(1, (big | top).sum())), 4)
+    diff = np.full((28, 72), ".")
+    diff[INNER] = "-"
+    diff[model & INNER] = "#"
+    diff[model & ~INNER] = "+"
+    (out_dir / "diff.txt").write_text("\n".join("".join(r) for r in diff) + "\n")
+    # colour: flat material colours from above, nearest palette index of the materials
+    sh.color_type = "MATERIAL"
+    for o in objs:
+        for m in o.data.materials:
+            bsdf = next(n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+            m.diffuse_color = tuple(bsdf.inputs["Base Color"].default_value)
+    flat = render_array(scene, cam, out_dir / "top_flat.png")[..., :3]
+    centre = flat[ss // 2::ss, ss // 2::ss]
+    keys = [4, 5, 6, 102]
+    arr = np.array([[c / 255 for c in COLOURS[k]] for k in keys])
+    d = ((centre[..., None, :] - arr[None, None]) ** 2).sum(-1)
+    seen = np.array(keys)[d.argmin(-1)]
+    seen[~model] = -1
+    regions = {"shell": {"index": 4}, "ribs": {"index": 6}, "hub_rivet": {"index": 102}}
+    ribs = RIBS
+    lab = np.full((28, 72), "shell", dtype=object)
+
+    def dseg(p, a, b):
+        ax, ay = a
+        bx, by = b
+        dx, dy = bx - ax, by - ay
+        L = dx * dx + dy * dy
+        t = 0 if L == 0 else max(0, min(1, ((p[0] - ax) * dx + (p[1] - ay) * dy) / L))
+        return math.hypot(p[0] - ax - t * dx, p[1] - ay - t * dy)
+    for r in range(28):
+        for c in range(72):
+            p = (c + 0.5, r + 0.5)
+            if IDX[r, c] == 102:
+                lab[r, c] = "hub_rivet"
+                continue
+            for _n, pl in ribs:
+                if min(dseg(p, a, b) for a, b in zip(pl, pl[1:])) < 0.75 and math.hypot(p[0] - 37.5, p[1] - 16.5) > 1.2:
+                    lab[r, c] = "ribs"
+    col = {}
+    for L in ("shell", "ribs", "hub_rivet"):
+        sel = (lab == L) & model
+        vals, cnt = np.unique(seen[sel], return_counts=True)
+        col[L] = {"sprite_median": regions[L]["index"], "model_seen": {int(v): int(c) for v, c in zip(vals, cnt)}}
+    res["colours"] = col
+    # feature check: what the model shows at the sprite's 102 pixels
+    res["features102"] = {f"{c},{r}": int(seen[r, c]) for r, c in zip(*np.nonzero(IDX == 102))}
+    (out_dir / "metrics.json").write_text(json.dumps(res, indent=1))
+    bpy.data.objects.remove(cam, do_unlink=True)
+    for o in hidden:
+        o.hide_render = False
+    print("MEASURE", json.dumps(res))
+    return res
+
+
+def render_views(objs, out_dir, size=900):
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    scene = bpy.context.scene
+    hidden = [o for o in scene.objects if o.type == "MESH" and o not in objs and not o.hide_render]
+    for o in hidden:
+        o.hide_render = True
+    # Cycles: EEVEE's screen-space reflections paint blocky ghosts on the satin dome
+    set_engine(scene, "CYCLES")
+    scene.cycles.samples = 48
+    scene.cycles.use_denoising = True
+    scene.view_settings.view_transform = "Standard"
+    scene.render.film_transparent = False
+    scene.render.resolution_x = size
+    scene.render.resolution_y = size
+    scene.render.resolution_percentage = 100
+    world = scene.world or bpy.data.worlds.new("w")
+    scene.world = world
+    world.use_nodes = True
+    bg = next(n for n in world.node_tree.nodes if n.type == "BACKGROUND")
+    bg.inputs["Color"].default_value = (0.20, 0.21, 0.24, 1)
+    bg.inputs["Strength"].default_value = 1.0
+    lights = []
+    for name, rot, energy in (("key", (math.radians(35), math.radians(-25), math.radians(-20)), 3.6),
+                              ("fill", (math.radians(60), math.radians(40), math.radians(160)), 0.9)):
+        ld = bpy.data.lights.new(name, "SUN")
+        ld.energy = energy
+        ld.angle = math.radians(3)
+        ld.use_shadow = "--no-shadow" not in sys.argv
+        lo = bpy.data.objects.new(name, ld)
+        lo.rotation_euler = rot
+        scene.collection.objects.link(lo)
+        lights.append(lo)
+    centre = Vector((0, 0, 0.45))
+    d = 14.0
+    specs = [
+        ("top", (0, 0, 10), 6.6),
+        ("front_south", (0, -10, 0), 6.6),
+        ("side_west", (-10, 0, 0), 6.6),
+        ("side_east", (10, 0, 0), 6.6),
+        ("rear_north", (0, 10, 0), 6.6),
+        ("high34_sw", (-d * 0.5, -d * 0.55, d * 0.55), None),
+        ("high34_ne", (d * 0.55, d * 0.5, d * 0.5), None),
+        ("game", (0, -d * 0.53, d * 0.85), None),
+        ("under", (d * 0.35, -d * 0.45, -d * 0.6), None),
     ]
-    for mat, poly in ribs:
-        path = []
-        for (c0, r0), (c1, r1) in zip(poly, poly[1:]):
-            seg = math.hypot(c1 - c0, r1 - r0)
-            k = max(1, int(math.ceil(seg / 2.5)))
-            for t in range(k):
-                f = t / k
-                path.append((c0 + (c1 - c0) * f, r0 + (r1 - r0) * f))
-        path.append(poly[-1])
-        tube = []
-        for c, r in path:
-            z = surface_z(pts, c, r)
-            tube.append((X(c), Y(r), z + 0.01, 0.75 * PX, 0.035))
-        lib.sweep(bm, tube, sides=6, mat=mat)
+    paths = {}
+    for name, loc, ortho in specs:
+        cd = bpy.data.cameras.new(name)
+        if ortho:
+            cd.type = "ORTHO"
+            cd.ortho_scale = ortho
+        else:
+            cd.lens = 70
+        co = bpy.data.objects.new(name, cd)
+        scene.collection.objects.link(co)
+        co.location = centre + Vector(loc)
+        co.rotation_euler = (centre - co.location).to_track_quat("-Z", "Y").to_euler()
+        if name == "top":
+            co.rotation_euler = (0, 0, 0)
+        scene.camera = co
+        p = out_dir / f"{name}.png"
+        scene.render.filepath = str(p)
+        bpy.ops.render.render(write_still=True)
+        paths[name] = str(p)
+        bpy.data.objects.remove(co, do_unlink=True)
+    for lo in lights:
+        bpy.data.objects.remove(lo, do_unlink=True)
+    for o in hidden:
+        o.hide_render = False
+    return paths
 
-    # The hub where the ribs meet and the rivet on the rib to its upper right.
-    for (c, r), size in ((HUB, 1.3), ((49.5, 1.5), 1.0)):
-        z = surface_z(pts, c, r)
-        lib.ellipsoid(bm, X(c), Y(r), z + 0.02, size * PX, size * PX, 0.06, mat=HUBM, segments=10, rings=5)
 
-    return lib.to_object(NAME, bm, mats, coll)
+# ---------------------------------------------------------------------------------------------
+# Bake: occlusion and edge wear into a grey colour multiplier and a roughness/metal map
+# (no concept projection; maps.json "bake": "model")
+# ---------------------------------------------------------------------------------------------
+
+def bake_maps(obj, out_dir, size=1024, samples=48):
+    scene = bpy.context.scene
+    set_engine(scene, "CYCLES")
+    scene.cycles.samples = samples
+    scene.cycles.device = "CPU"
+    me = obj.data
+    uv = me.uv_layers.new(name="bake")
+    me.uv_layers.active = uv
+    for o in bpy.context.view_layer.objects:
+        o.select_set(False)
+    obj.select_set(True)
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.mesh.select_all(action="SELECT")
+    bpy.ops.uv.smart_project(angle_limit=math.radians(55), island_margin=0.003, scale_to_bounds=False)
+    bpy.ops.uv.pack_islands(margin=0.002)
+    bpy.ops.object.mode_set(mode="OBJECT")
+    col_img = bpy.data.images.new("nshi154A_colour", size, size, alpha=False)
+    rm_img = bpy.data.images.new("nshi154A_rm", size // 2, size // 2, alpha=False)
+    rm_img.colorspace_settings.name = "Non-Color"
+    mats = list(me.materials)
+    saved = {}
+    for m in mats:
+        out = next(n for n in m.node_tree.nodes if n.type == "OUTPUT_MATERIAL")
+        saved[m.name] = out.inputs["Surface"].links[0].from_socket if out.inputs["Surface"].links else None
+
+    def bake_shader(m, mode):
+        nt = m.node_tree
+        bsdf = next(n for n in nt.nodes if n.type == "BSDF_PRINCIPLED")
+        rough = bsdf.inputs["Roughness"].default_value
+        metal = bsdf.inputs["Metallic"].default_value
+        tmp = []
+
+        def node(kind):
+            n = nt.nodes.new(kind)
+            tmp.append(n)
+            return n
+
+        def mth(op, a, b=None):
+            n = node("ShaderNodeMath")
+            n.operation = op
+            for k, v in enumerate((a, b)):
+                if v is None:
+                    continue
+                if isinstance(v, (int, float)):
+                    n.inputs[k].default_value = v
+                else:
+                    nt.links.new(v, n.inputs[k])
+            return n.outputs[0]
+        ao_s = node("ShaderNodeAmbientOcclusion")
+        ao_s.only_local = True  # this hull alone (main also drops the factory scene's cube)
+        ao_s.samples = 24
+        ao_s.inputs["Distance"].default_value = 0.04
+        ao_l = node("ShaderNodeAmbientOcclusion")
+        ao_l.only_local = True
+        ao_l.samples = 24
+        ao_l.inputs["Distance"].default_value = 0.2
+        bev = node("ShaderNodeBevel")
+        bev.samples = 8
+        bev.inputs["Radius"].default_value = 0.006
+        geo = node("ShaderNodeNewGeometry")
+        dot = node("ShaderNodeVectorMath")
+        dot.operation = "DOT_PRODUCT"
+        nt.links.new(bev.outputs["Normal"], dot.inputs[0])
+        nt.links.new(geo.outputs["True Normal"], dot.inputs[1])
+        edge = mth("MINIMUM", mth("MULTIPLY", mth("SUBTRACT", 1.0, dot.outputs["Value"]), 8.0), 1.0)
+        occl = mth("MULTIPLY", mth("POWER", ao_s.outputs["AO"], 0.8),
+                   mth("ADD", 0.65, mth("MULTIPLY", ao_l.outputs["AO"], 0.35)))
+        em = node("ShaderNodeEmission")
+        comb = node("ShaderNodeCombineColor")
+        if mode == "colour":
+            v = mth("MINIMUM", mth("ADD", mth("ADD", 0.5, mth("MULTIPLY", occl, 0.6)), mth("MULTIPLY", edge, 0.18)), 1.0)
+            for k in range(3):
+                nt.links.new(v, comb.inputs[k])
+        else:
+            r = mth("ADD", rough, mth("SUBTRACT", mth("MULTIPLY", mth("SUBTRACT", 1.0, occl), 0.3), mth("MULTIPLY", edge, 0.15)))
+            r = mth("MAXIMUM", mth("MINIMUM", r, 1.0), 0.05)
+            comb.inputs[0].default_value = 1.0
+            nt.links.new(r, comb.inputs[1])
+            comb.inputs[2].default_value = metal
+        nt.links.new(comb.outputs[0], em.inputs["Color"])
+        out = next(n for n in nt.nodes if n.type == "OUTPUT_MATERIAL")
+        nt.links.new(em.outputs[0], out.inputs["Surface"])
+        tgt = node("ShaderNodeTexImage")
+        tgt.image = col_img if mode == "colour" else rm_img
+        uvn = node("ShaderNodeUVMap")
+        uvn.uv_map = "bake"
+        nt.links.new(uvn.outputs["UV"], tgt.inputs["Vector"])
+        nt.nodes.active = tgt
+        return tmp
+
+    for mode, img in (("colour", col_img), ("rm", rm_img)):
+        tmps = {m.name: bake_shader(m, mode) for m in mats}
+        bpy.ops.object.bake(type="EMIT", margin=6, use_clear=True)
+        for m in mats:
+            nt = m.node_tree
+            for n in tmps[m.name]:
+                nt.nodes.remove(n)
+            out = next(n for n in nt.nodes if n.type == "OUTPUT_MATERIAL")
+            if saved[m.name] is not None:
+                nt.links.new(saved[m.name], out.inputs["Surface"])
+        img.filepath_raw = str(Path(out_dir) / f"{img.name}.png")
+        img.file_format = "PNG"
+        img.save()
+    for m in mats:
+        nt = m.node_tree
+        bsdf = next(n for n in nt.nodes if n.type == "BSDF_PRINCIPLED")
+        uvn = nt.nodes.new("ShaderNodeUVMap")
+        uvn.uv_map = "bake"
+        ct = nt.nodes.new("ShaderNodeTexImage")
+        ct.image = col_img
+        nt.links.new(uvn.outputs["UV"], ct.inputs["Vector"])
+        mul = nt.nodes.new("ShaderNodeMix")
+        mul.data_type = "RGBA"
+        mul.blend_type = "MULTIPLY"
+        mul.inputs[0].default_value = 1.0
+        nt.links.new(ct.outputs["Color"], mul.inputs[6])
+        mul.inputs[7].default_value = tuple(bsdf.inputs["Base Color"].default_value)
+        nt.links.new(mul.outputs[2], bsdf.inputs["Base Color"])
+        rt = nt.nodes.new("ShaderNodeTexImage")
+        rt.image = rm_img
+        nt.links.new(uvn.outputs["UV"], rt.inputs["Vector"])
+        sep = nt.nodes.new("ShaderNodeSeparateColor")
+        nt.links.new(rt.outputs["Color"], sep.inputs[0])
+        nt.links.new(sep.outputs[1], bsdf.inputs["Roughness"])
+        nt.links.new(sep.outputs[2], bsdf.inputs["Metallic"])
+
+
+# ---------------------------------------------------------------------------------------------
+
+def build_outline_shell(coll, NT=96):
+    """The outline shell (D51) built from the dome's own smooth surface: the cap without its grooves,
+    ribs, lip and bolts, closed by the floor and the flat north wall, smooth shaded. A voxel shell
+    held inside the hull with a shrinkwrap folded over the 0.8 px grooves and the rib edges, and its
+    flipped faces drew as black scribbles in the outline pass; this one has no folds and lies on or
+    under the hull everywhere above the skirt, so only its silhouette draws."""
+    M = Mesh()
+    stations = [k / 10 for k in range(1, 9)] + [0.86, 0.91, 0.95, 0.975, 0.99, 1.0]
+    grid = []
+    for i in range(NT):
+        a = 2 * math.pi * i / NT
+        dx, dy = math.cos(a), math.sin(a)
+        Rr = rim_dist(dx, dy)
+        ring = []
+        for st in stations:
+            x, y = POLE[0] + dx * st * Rr, POLE[1] + dy * st * Rr
+            ring.append(M.v(Vector((x, y, 0.0 if st >= 1.0 else z_at(x, y)))))
+        grid.append(ring)
+    pole = M.v(Vector((POLE[0], POLE[1], HP)))
+    floor = M.v(Vector((POLE[0], POLE[1], 0.0)))
+    for i in range(NT):
+        j = (i + 1) % NT
+        M.f((pole, grid[i][0], grid[j][0]), 0)
+        for k in range(len(stations) - 1):
+            M.f((grid[i][k], grid[i][k + 1], grid[j][k + 1], grid[j][k]), 0)
+        M.f((grid[i][-1], floor, grid[j][-1]), 0)
+    bm = M.bm
+    cut_north(bm)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-6)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    for f in bm.faces:
+        f.material_index = 0
+    for e in bm.edges:
+        e.smooth = True
+    me = bpy.data.meshes.new(f"{NAME}_outline")
+    bm.to_mesh(me)
+    bm.free()
+    me.materials.append(common.material("outline_shell", (0.0, 0.0, 0.0), roughness=1.0))
+    shell = bpy.data.objects.new(f"{NAME}_outline", me)
+    coll.objects.link(shell)
+    me.shade_smooth()
+    shell["tyrian_outline"] = True
+    return shell
+
+
+def cut_cap(bm, xs, side, eps=0.04, depth=0.4):
+    """A clean flat cap for a piece's cut at sprite x = xs: the dome's cross-section there, pulled
+    `depth` px in along the surface normal (under the grooves, lip and ribs) and `eps` px back into
+    the piece (`side` -1: the piece lies west of the cut), so it never shows from outside or meets
+    the neighbour's cap. One face, its own vertices: flat, split normals."""
+    x = xs + side * eps
+    top = []
+    for k in range(1, 400):
+        y = 0.12 + k * 0.1
+        if z_at(x, y) <= 0.0:
+            break
+        p = Vector((x, y, z_at(x, y))) - n_at(x, y) * depth
+        if p.z <= 0.06:
+            break
+        top.append((p.y, p.z))
+    if len(top) < 3:
+        return []
+    loop = [(0.12, 0.06)] + [(y, z) for y, z in top] + [(top[-1][0], 0.06)]
+    vs = [bm.verts.new(W(x, y, z)) for y, z in loop]
+    f = bm.faces.new(vs)
+    f.material_index = SHELL
+    f.normal_update()
+    if (f.normal.x > 0) != (side < 0):
+        f.normal_flip()
+    f.smooth = False
+    return vs
+
+
+# Each piece closes its cuts with an inset cap (cut_cap), so it stays a closed shape when its
+# neighbour is gone; with the neighbour there the cap is out of sight.
+CAP_CUTS = True
+
+
+def split_pieces(obj, layout, coll, cap=True, transfer_normals=True):
+    """common.split_assembly without its holes_fill caps (on this layered hull they overlapped and
+    left jagged, non-planar caps and smoothed normals along the cut): bisect each piece's box and
+    add one clean inset cap per cut that has a neighbour (cut_cap; `cap`), welded to nothing so its
+    normals are flat; the vertices on the cut take the whole hull's normals. The outline shells
+    are left open at the cuts (a capped shell drew its cap as an ink line across the dome)."""
+    result = {}
+    centres = {(round(cx), round(cy)) for _, cx, cy in layout}
+    for name, cx, cy in layout:
+        x0, y0 = cx / 12, -cy / 12
+        bm = bmesh.new()
+        bm.from_mesh(obj.data)
+        bmesh.ops.transform(bm, matrix=obj.matrix_world, verts=bm.verts)
+        hw, hh = 12 / 12, 14 / 12
+        for co, no in (((x0 - hw, 0, 0), (-1, 0, 0)), ((x0 + hw, 0, 0), (1, 0, 0)),
+                       ((0, y0 - hh, 0), (0, -1, 0)), ((0, y0 + hh, 0), (0, 1, 0))):
+            geom = bm.verts[:] + bm.edges[:] + bm.faces[:]
+            bmesh.ops.bisect_plane(bm, geom=geom, plane_co=co, plane_no=no, clear_outer=True)
+        caps = []
+        if cap:
+            xs = cx + 36  # sprite x of the piece's centre (assembly origin = sprite x 36)
+            for side in (-1, 1):
+                if (round(cx + side * 24), round(cy)) in centres:
+                    caps += cut_cap(bm, xs + side * 12, -side)
+        bm.verts.index_update()
+        cap_ids = {v.index for v in caps}
+        mesh = bpy.data.meshes.new(name)
+        bm.to_mesh(mesh)
+        bm.free()
+        for mat in obj.data.materials:
+            mesh.materials.append(mat)
+        piece = bpy.data.objects.new(name, mesh)
+        coll.objects.link(piece)
+        if transfer_normals:
+            # The vertices on a cut take the whole hull's normals (not ones averaged over one side of
+            # the cut only), so neighbouring pieces shade as one surface across the cut.
+            vg = piece.vertex_groups.new(name="hull")
+            on_cut = [v.index for v in mesh.vertices if v.index not in cap_ids
+                      and min(abs(v.co.x - x0 - hw), abs(v.co.x - x0 + hw)) < 1e-5]
+            vg.add(on_cut, 1.0, "REPLACE")
+            dt = piece.modifiers.new("normals", "DATA_TRANSFER")
+            dt.object = obj
+            dt.use_loop_data = True
+            dt.data_types_loops = {"CUSTOM_NORMAL"}
+            dt.loop_mapping = "POLYINTERP_NEAREST"
+            dt.vertex_group = "hull"
+            common._apply_modifiers(piece)
+            piece.vertex_groups.clear()
+        mesh.transform(Matrix.Translation((-x0, -y0, 0)))
+        result[name] = piece
+    return result
 
 
 def merged_sprite():
-    """newshi-154's sprite.json with the colours of every piece, so any piece's index is valid."""
     data = common.load_sprite(ROOT, PIECES[0])
-    for name in PIECES[1:]:
-        data["colors"].update(common.load_sprite(ROOT, name)["colors"])
+    for n in PIECES[1:]:
+        data["colors"].update(common.load_sprite(ROOT, n)["colors"])
     return data
 
 
 def main():
+    argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+    arg = lambda k: argv[argv.index(k) + 1] if k in argv else None  # noqa: E731
     sprite = merged_sprite()
-    obj = build(sprite)
+    # --factory-startup's default cube (2 units = 24 px wide, at the origin) sat inside the hull from
+    # sprite x 24 to 48, exactly the middle piece: the AO bake drew its walls as two dark bands down
+    # the dome that read as seams at the piece cuts.
+    for o in bpy.context.view_layer.objects:
+        o.select_set(o.type == "MESH")
+    if bpy.context.selected_objects:
+        bpy.ops.object.delete()
+    coll = common.reset_collection(NAME)
+    obj = build(sprite, coll)
+    print(f"model: {len(obj.data.polygons)} faces, {tris(obj)} triangles")
+    if arg("--measure"):
+        measure([obj], arg("--measure"))
+    fmt = "AUTO"
+    if "--no-bake" not in argv:
+        bdir = Path(tempfile.mkdtemp())  # the PNGs are only a stop on the way into the glb
+        bake_maps(obj, bdir)
+        fmt = "WEBP"
+    if arg("--views"):
+        render_views([obj], arg("--views"))
+    if "--no-export" in argv:
+        return
+    # The outline shell from the smooth dome itself (build_outline_shell): common.outline_shell's voxel
+    # shell, even held inside with inside=0.02, folded over the grooves and rib edges (the D88 crack:
+    # black scribbles along them in the game's outline pass).
+    shell = build_outline_shell(coll)
     layout = [(e["model"], e["cx"] - CX0, e["cy"] - CY0) for e in sprite["assemblyLayout"]]
-    pieces = common.split_assembly(obj, layout)
-    for name in PIECES:
+    parts = split_pieces(obj, layout, coll, cap=CAP_CUTS)
+    shells = split_pieces(shell, layout, coll, cap=False, transfer_normals=False)
+    out_objs = []
+    for name, cx, cy in layout:
+        p, sh = parts[name], shells[name]
+        sh.name = f"{name}_outline"
+        sh["tyrian_outline"] = True
+        print(f"piece {name}: {tris(p)} triangles, outline {len(sh.data.polygons)} faces")
+        out_objs += [p, sh]
+    for name, cx, cy in layout:
         data = common.load_sprite(ROOT, name)
-        common.export_sprite_model(ROOT, [pieces[name]], f"enemies/{name}", data["sprites"])
-    if "--preview" in sys.argv:
-        out = Path(sys.argv[sys.argv.index("--preview") + 1])
-        import tempfile
-        ref = lib.composite_png(ROOT, layout, Path(tempfile.mkdtemp()) / "assembly.png", 72, 84)
-        common.render_preview([obj], str(out), ref, size=6, view_px=480)
-        for name in PIECES:
-            data = common.load_sprite(ROOT, name)
-            img = ROOT / "reference" / "models" / name / data["frames"][0]["image"]
-            common.render_preview([pieces[name]], str(out.parent / f"{name}.png"), img, size=2)
+        common.export_sprite_model(ROOT, [parts[name], shells[name]], f"enemies/{name}", data["sprites"], image_format=fmt)
+    if arg("--glb"):  # the whole assembly (each piece at its place) for the measure and view scripts
+        for name, cx, cy in layout:
+            for o in (parts[name], shells[name]):
+                o.location = (cx / 12, -cy / 12, 0)
+        common.export_glb(out_objs, Path(arg("--glb")), image_format=fmt)
 
 
 if __name__ == "__main__":
