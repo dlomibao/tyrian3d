@@ -4337,6 +4337,66 @@ The most-drawn one is #7 198 (7 levels, 3 episodes), with #7 199 (96,631 ticks) 
 
 Answers, sheets and prompts: `tyrian-scratch/flat-art-rest/` (not in git, D3).
 
+## D111 — `shapes)` HD terrain: all 112 ground tiles and all 14 layer-1 rock tiles, from 16 Gemini sheets (two rounds)
+
+2026-11-04
+
+**Decision:** the tileset `shapes)` (episode 4's SURFACE, CORE, SIDE EXIT, UNDERDELI, LAVA EXIT, DESERTRUN, LAVA RUN,
+BRAINIAC, TIME WAR, SQUADRON: 4.4-4.7, 4.9, 4.10, 4.12, 4.15, 4.17, 4.18) gets an atlas,
+`public/art/terrain/shapes)/` (`0.webp`+`0-2.webp` ground, `1.webp`+`1-2.webp` layer 1, 0.9 MB), from D83's pipeline: `inventory`, `sheets`,
+Gemini, `cut --edge-aware`, `check`. Round 1 (first commit) painted 89+7 tiles and stopped at the Pro limit; round 2 (Nov 9) sent the six remaining sheets and merged
+  them over the kept atlas (`git checkout` of the folder, then `cut --cache --edge-aware`: 89+7 kept byte for byte, 23+7 new).
+- **Folder name.** The tileset's letter is ")" (`data/shapes).dat`); `tileset_levels` strips "shapes" and `parseTileId` only
+  strips ".dat", so the folder is literally `shapes)` and nothing needed changing. Quote it in shells:
+  `--tileset 'shapes)'`. The dev server serves `/art/terrain/shapes)/manifest.json` (200) and the levels draw it.
+- **Kinds.** Layer 0: 112 terrain + 1 empty; layer 1: 14 terrain (rock chunks on lava, a dark-blue fill) and 35
+  structure (left to models); layer 2: all 24 structure, nothing painted.
+- **Gemini:** 13 answered requests for 10 answers kept (ctx-l1-brown-2, region-l0-02, 13, 09, 10, 05, 01, 07, 03, 04),
+  3 retries: 02's first send came back 4:3 (the default ratio; not downloaded), 02's second and 13's first went
+  out with the image not attached (the paste raced the page load) and came back as invented art. Then the Gemini usage limit hit while sending region-l0-14 ("Continuing with Flash-Lite";
+  limit resets Nov 4 11:05 PM); stopped there. Prompts named each sheet's real material (SEND.md's group labels were
+  wrong: "asteroid rock" for a desert with metal bases, "flesh" wording made Gemini rearrange the red cells, so the
+  text now says to keep every cell and patch where it is) and add "do not rearrange, invent or move anything".
+  Workflow lessons: set the aspect ratio to 1:1 on every request (the default is 4:3), and check the upload
+  (`user-query img` count 1) before pressing Return. Registration: fit 0.99+ on every sheet but the invented first
+  02/13 (resent), tile NCC median 0.98-0.99 (0.56 on 04, a low-contrast dark brick floor).
+- **Seams** (`check`, all ten maps): ground 0.558 (continuous original 0.545), bands 0.501; layer 1 1.059
+  (original continuous 1.048: its tiles are alpha rock shapes over a flat fill, so the ratio is the original's own).
+- **Weak cells:** NCC < 0.5 on tile 0:79 only. Uncovered, falling back to the original: ground 63 70 73 74 75 76 85 86
+  92 (dark deck, sheets 08/12/14) and 130-134, 140-144, 150-153 (purple plates, sheets 06/11); layer 1 31-35, 41, 42
+  (sheet ctx-l1-brown-1). Next round: send region-l0-14, 08, 12, 06, 11 and ctx-l1-brown-1 (6 requests), then `cut`
+  again with `--cache`; keep the atlas (merge) or restore it first to re-pick among all answers (doc §3).
+- **Shader fix, found in game: LAVA EXIT's pink.** On 4.9 the pink fuzzy patches drew as flat saturated red. 4.9 runs
+  water_filter with hue 7 (smoothie 2, below the ground's ceiling); the original draws the patches with palette 5's
+  salmon bank (0x46-0x4b), which water_filter leaves alone (`index & 0x30 == 0`), and the lava with 0x7x. The HD shader
+  (D57) gave every painted texel the hue ramp's index (16 + shade, D95 added only grey 0 + shade), so the pink was
+  recoloured to 0x70 + shade: red. Now each texel's bank is the raw palette's nearest colour's:
+  `PaletteTexture.indexLut` is a 32³ sRGB cube (256x128 R8 texture, built on first use per palette, ~22 ms, cached)
+  holding the nearest index by redmean distance, and `terrainPalette` takes `bank + shade` (near-greys still take bank
+  0, D95). Only the bank matters, and only for water_filter's exception: the hue filters replace it and untouched
+  texels keep their painted colour, so levels without water_filter draw exactly as before. Checked against the
+  original (blurred mean |HD - original|, before -> after): 4.9 t300 12.4 -> 4.4, t900 18.3 -> 4.7 (the patches 34-37
+  -> 3); SAVARA IV (episode 4 `main=16`, water_filter hue 3) t1200 6.4 -> 4.2, t2500 5.7 -> 4.4: its water's lighter
+  blues now keep their painted colour (about half the original's water pixels there are the exempt bank 0x80, the
+  rest 0x3x), where all of it was darkened to 0x30 + shade before; the grey floor is unchanged; TYRIAN (episode 1 `main=1`) t300, t1500 identical (no hue stage). Captures:
+  `tyrian-scratch/terrain-shapes-paren/captures/pink-fix/` (`compare-4-9-fix.jpg`, `compare-regression.jpg`: original
+  | HD before | HD after). Test `tests/render/paletteLut.test.ts`. The flat sprite art (`spriteArtLayer.ts`, D42)
+  still takes 16 + shade; nothing of it was seen under a water_filter, so it is left alone.
+
+**Checked** in game (`?debug=play&episode=4&main=2` (4.4) and `main=31` (4.9)`&seed=1&skip=T&freezeAt=T`, T 300 and 900,
+`&terrain=original` for the other half): the desert and metal plating on 4.4 match the original's layout; 4.12's lava
+reads well. Captures: `tyrian-scratch/terrain-shapes-paren/captures/compare-4-4.jpg`, `compare-4-9.jpg`. Tests
+`terrainArt` + `terrainHd`: 21 passed. Answers, sheets, prompts, `cands.pkl`: `tyrian-scratch/terrain-shapes-paren/work/` (not in git, D3).
+
+**Round 2 (Nov 9):** sent region-l0-14, 08, 12, 06, 11 and ctx-l1-brown-1 (7 requests: region-l0-06's first answer came
+back as invented art and was resent once; no usage warning, no limit hit). Fits 0.69-0.98 (06's first try 0.24), tile
+NCC medians 0.70-0.86 (14 lava 0.86, 08 dark deck 0.98, 12 0.81, 11 purple 0.70, 06 0.82, ctx-l1-brown-1 0.98). Every
+ground and layer-1 tile now has a painting. Seams after the merge (`check`, all maps): layer 0 0.564 overall (original
+continuous 0.548; the 4,568 edges touching a new tile 0.637 vs continuous 0.588), bands 0.534; layer 1 1.178 (continuous
+1.170, alpha rock shapes over a flat fill, the original's own ratio). Weakest new tiles (cut-report score): ground 0:143
+0.50, 0:150 0.58 (purple, sheet 06), layer 1 31-35 0.58-0.96. Blockiness on the dark-deck and purple sheets is 1.8-4.4
+(Gemini kept the pixel blocks there; the cut deblocks). In game 4.4 and 4.9 at t300/t900 read cleanly; captures
+`tyrian-scratch/terrain-shapes-paren/captures/compare-4-4-r2.jpg`, `compare-4-9-r2.jpg` (original | round 1 | round 2).
 ## D109 — A debug console for testing: cheats, hidden settings and level jumps, through the game's own state and flow
 
 **Asked:** a console to type cheats, switch hidden settings and change or skip levels, on desktop and phone,
