@@ -59,7 +59,7 @@ import { RemasterGroundAtlas } from "./remaster/groundAtlas";
 import { remasterGroundMaterial } from "./remaster/groundMaterial";
 import { paletteLuma } from "./remaster/mmpx";
 import { TILE_MODELS, TileModelIndex } from "./remaster/tileModels";
-import { ScorchLayer } from "./remaster/scorchLayer";
+import { ScorchLayer, StructureMark } from "./remaster/scorchLayer";
 import { StructureInstances } from "./remaster/structureInstances";
 import { OpaqueCover, paintOutWreck } from "./remaster/opaqueCover";
 import { modelHeightFromUrl } from "./modelHeight";
@@ -394,7 +394,11 @@ export class DrawListRenderer {
   private readonly structures = new StructureInstances();
   /** Scorch marks where enemies were shot off structures, remastered backgrounds only (D96). */
   private readonly scorch = new ScorchLayer();
-  private readonly isStructure = (d: TileDraw): boolean => this.tileModels.has(d) && this.tileModels.match(d) !== null;
+  private readonly isStructure = (d: TileDraw): StructureMark => {
+    if (!this.tileModels.has(d)) return StructureMark.None;
+    const m = this.tileModels.match(d);
+    return m === null ? StructureMark.None : m.entry.brokenSockets ? StructureMark.Socket : StructureMark.Scorch;
+  };
   /** Structure models asked for (loading or loaded). */
   private readonly structureLoads = new Map<string, Promise<void>>();
   private readonly preloadedShapes = new Set<string>();

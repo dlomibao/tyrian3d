@@ -1,7 +1,8 @@
 """The purple carved cross on TYRIAN's islands (map 1-9, layer 2; a 4x4 pattern with its corners cut,
 centre tiles 158/159/168/169), after the concept assets/blender/features/concepts/tyr-purple-cross.jpg:
-a cross of chamfered purple stone sunk into the island's rock, eight cracked octagonal bosses round
-its rim (two at the end of each arm; top enemies sit on them), four big round discs in the arms'
+a cross of chamfered purple stone sunk into the island's rock, eight broken sockets round its rim
+(two at the end of each arm, where the top enemies sit; the shattered stone the tiles paint, read
+off them by lib_sockets.py, D115), four big round discs in the arms'
 inner corners, a ringed medallion on each arm and a bigger one at the centre, and slotted panels
 either side of the centre. The eight outer cells carry enemies (tops 0.22..0.33); the four centre
 cells are always visible and stand a little higher.
@@ -12,6 +13,7 @@ Run from the repo root:
     blender --background --factory-startup --python assets/blender/tiles/tyrbld_purple_cross.py
     python tools/concept_maps.py tile:shapesz-tyrbld-purple-cross --concept tyr-purple-cross --span 0,0,3,3
     python assets/blender/tiles/tyrbld_purple_cross.py --rock-detail
+    python assets/blender/tiles/lib_sockets.py --maps  (no concept detail on the broken sockets, D115)
     blender --background --factory-startup --python assets/blender/texture_bake.py -- tile:shapesz-tyrbld-purple-cross
 """
 
@@ -26,11 +28,6 @@ if not ROCK_DETAIL:
 
 CX = 48.0  # the cross's vertical axis (px)
 CY = 57.0  # its horizontal axis (px)
-# The eight rim bosses (px centre, radius), from the art (tiles 155/157/175/177).
-RIM_KNOBS = [(37.0, 14.0, 10.0), (59.5, 14.0, 10.0),
-             (12.5, 42.0, 10.0), (83.0, 42.0, 10.0),
-             (12.5, 72.0, 10.5), (83.0, 71.5, 10.0),
-             (36.5, 97.5, 10.0), (60.0, 97.5, 10.0)]
 # The four discs in the arms' inner corners (tiles 158/159/168/169).
 INNER_DISCS = [(37.0, 41.5, 8.5), (59.0, 41.5, 8.5), (37.0, 71.0, 8.5), (59.0, 71.0, 8.5)]
 # The ringed medallions on the arms (they reach into enemy cells: kept low).
@@ -79,10 +76,8 @@ def build(name):
         s.raise_box(45, y0 + 2, 51, y1 - 2, SLOT_Z, dark)
     deck = s.terrace(bottom=-0.04, wall_mat=dark)
 
-    # The rim bosses: two-tier cracked octagons under the enemies.
-    for px, py, r in RIM_KNOBS:
-        s.knob(px, py, r, BASE_Z - 0.05, 0.25, mat=dark, sides=8, bevel=0.2)
-        s.knob(px, py, r * 0.72, 0.24, 0.31, mat=purple, sides=8, bevel=0.3, angle=0.0)
+    # The rim's broken sockets under the enemies (D115).
+    s.broken_sockets(BASE_Z - 0.05)
     # The inner-corner discs (always visible): a round slab with a raised cap.
     for px, py, r in INNER_DISCS:
         s.knob(px, py, r, ARM_Z - 0.03, 0.30, mat=purple, sides=12, bevel=0.2)

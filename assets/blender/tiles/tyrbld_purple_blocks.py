@@ -2,7 +2,8 @@
 (tiles 155 157 / 175 177), the 2x3 (155 156 157 / 175 176 177) and the 2x5 (155 156 156 156 157 /
 175 176 176 176 177), after the concepts assets/blender/features/concepts/tyr-purple-2x2.jpg,
 tyr-purple-2x3.jpg and tyr-purple-2x5.jpg: a low carved slab framed by a raised brick border, with
-a ringed round dome (stacked carved tiers, a disc cap) on every cell's corner, and the slab's face
+a broken socket on every cell's corner (the shattered stone the tiles paint under the caps, read
+off the tiles by lib_sockets.py, D115; the concept's ringed domes are gone), and the slab's face
 carved with ring bosses and upright bars (2x3, 2x5) or a block of glyph relief (2x2), on the
 island's rock.
 
@@ -45,7 +46,6 @@ DOME_R = 8.3  # px: the dome's foot
 # Heights (layer 2: z = 0 the island's surface).
 SLAB_Z = 0.13  # the slab's face
 FRAME_Z = 0.17  # the raised brick border round it
-DOME_TOP = 0.32  # under L2_ENEMY_MAX
 SINK = -0.03
 
 # Each block's slab (x0, y0, x1, y1 px, frame included), its frame's width and the carvings on its
@@ -57,21 +57,6 @@ LAYOUT = {
     "purple-2x5": dict(slab=(6.5, 11.5, 113.5, 40.5), frame=4.0, face_y=26.0,
                        bosses=(22.0, 45.8, 69.8, 94.0), boss_r=3.8, bars=(33.8, 57.6, 81.6), bar=(2.0, 6.5)),
 }
-
-
-def dome(s, px, py, mats):
-    """A ringed carved dome: a broad bulging foot tier, a narrower second tier and a disc cap,
-    each its own smooth band (so the steps stay crisp)."""
-    base, mid, top = mats
-    r = DOME_R
-    # (z0, z1, r_foot, r_shoulder): each tier rises from its foot and rounds over its shoulder.
-    tiers = [(SINK, 0.20, r, r * 0.80, base), (0.18, 0.28, r * 0.72, r * 0.56, mid), (0.26, DOME_TOP, r * 0.44, r * 0.34, top)]
-    for z0, z1, rf, rs, mat in tiers:
-        h = (z1 - z0) * 12.0  # px
-        prof = [(0.0, rf), (h * 0.4, rf * 0.98), (h * 0.72, rf * 0.93), (h * 0.92, (rf + rs) / 2), (h, rs), (h, 0.0)]
-        s.lathe(prof, px, py, axis="z", z=z0, mat=mat, sides=20)
-    # The cap's sunken centre ring (the concept's disc with a ring round it).
-    s.lathe([(0.0, r * 0.26), (0.25, r * 0.26), (0.25, 0.0)], px, py, axis="z", z=DOME_TOP - 0.012, mat=base, sides=16)
 
 
 def boss(s, px, py, r, z, mats):
@@ -134,8 +119,8 @@ def build(name):
         hw, hh = lay["bar"]
         bar(s, bx - hw, cy - hh, bx + hw, cy + hh, SLAB_Z, (dark, light))
 
-    for px, py in domes:
-        dome(s, px, py, (dark, purple, light))
+    # The broken sockets under the caps (D115), where the tiles paint them.
+    s.broken_sockets(SINK)
 
     # The rock round it: the tiles' own stones, none under the domes or the slab.
     keep_out = s.box_mask(lx - 1, ty - 1, rx + 1, by + 1)

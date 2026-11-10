@@ -4301,6 +4301,61 @@ edges, no ice, no rock" (D89: name the real material). Atlas: `public/art/terrai
 **Checked** in game (`?debug=play&episode=1&main=8&seed=1&skip=300&freezeAt=300`), before/after under
 `tyrian-scratch/clouds/captures/`. Answers, sheets and prompts: `tyrian-scratch/clouds/work/shapesy/` (not in git, D3).
 
+## D112 — `shapesw` HD terrain: 100 of 110 ground, 28 of 33 layer-1 and 17 of 27 layer-2 tiles from 26 Gemini sheets (two passes)
+
+2026-11-04
+
+**Decision:** the `shapesw` tileset (levels 3-1, 3-4, 3-6, 3-9, 4-8, 4-11, 4-20) gets `public/art/terrain/shapesw/`
+(`0.webp`, 60 ground tiles, 0.4 MB), made with D83's pipeline (`inventory`, `sheets`, Gemini, `cut --edge-aware`,
+`check`). Partial: the run stopped at Gemini's usage limit (every Pro image model showed "limit resets Nov 4, 11:05
+PM") after 7 of 26 primary sheets; the other 50 layer-0 tiles and all of layers 1-2 still fall back to the original
+(per-tile fallback, D57). Not finished.
+- **Layer 1-2 kinds corrected by hand.** The classifier called the 3-6 FLEET layer-2 ship hulls (brown and grey plated
+  machinery) terrain because the main ramp is brown. They are structure: 158 layer-2 tiles overridden with `--kind`
+  (list in the scratch folder, `kinds.txt`), left to models. That leaves 27 layer-2 and 33 layer-1 terrain tiles (brown
+  rock) to paint. Layer 0 of 3-6 (grey hull plating on black) stays in the sheets: layer 0 has no structure kind.
+- **Sheet prompts rewritten** from the contact sheets (D89): SEND.md's labels were wrong ("icy translucent clouds" for
+  what is a frozen glacier: turquoise sheet ice, frosted ice shelves with icicle cliffs, navy paved roads; "asteroid
+  rock" for 3-6's ship hull). Brown dirt on 3-4, brown rock plateaus on layers 1-2, hull plating on 3-6.
+- **Gemini:** 7 answers kept (3-4 dirt 2, 3-1 ice 5; 3-1 sheets also feed 4-8). Requests: 9 sent (1 stray "Paris
+  postcard" suggestion tile click, stopped; 1 sheet dropped silently by Gemini and re-sent). Every answer registered at
+  scale 11.38: fit 0.80-0.99, tile NCC median 0.85-0.99 (min 0.62 on a cell), blockiness max 1.97.
+- **Seams** (`check`, layer 0, every edge): 0.831 across / inside (where the original is continuous 0.754), bands
+  0.481. Above the ~0.6 ground target but the original is itself 0.754 on this icy texture; the worst pairs (ratio 7-10)
+  are a painted tile meeting a not-yet-painted one, which goes away as sheets are added. Weak cells (NCC < 0.5): none.
+
+**Checked** in game (`?debug=play&episode=E&main=10&seed=1&skip=T&freezeAt=T`, against `&terrain=original`): 3-1
+(CAMANIS) t600, t1500; 4-8 (ICE EXIT) t600, t1500. Sheet: `tyrian-scratch/terrain-shapesw/shapesw-compare.jpg`.
+terrainArt and terrainHd tests pass. Not looked at: other levels, `&dpr=0.3`.
+
+**Next:** when the Pro limit resets, send the remaining 19 primary sheets (SEND.md order, prompts in
+`work/prompts/`), then `cut --cache work/cands.pkl --edge-aware` and `check`. Sheets, answers, `cands.pkl`,
+`cut-report.json` are in `tyrian-scratch/terrain-shapesw/work/` (not in git, D3).
+
+**Second pass (Nov 9):** the other 19 primary sheets sent (29 requests, 10 of them retries; no usage warning, no limit
+hit; four sends were stopped before going out because the page was in the wrong state). Atlas folder restored, then
+`cut --cache --edge-aware --exclude <25 tiles>`: 60 ground tiles kept byte for byte, 40 new ground, 28 layer-1, 17 layer-2
+(0-2.webp, 1.webp, 2.webp; 0.85 MB in all).
+- **Prompts changed after two failures.** The glacier answers came back as dramatic ice caves (fit 0.29, NCC 0.00) and
+  the first layer-2 answers as a pixel tile kit or a cave scene. Prompts now say "Do not rearrange, invent or move
+  anything", "flat, straight top-down view, no perspective, no dramatic lighting", and for layer 2 / contexts "on a pure
+  black background ... do not paint a cave, sky, ground or scenery". The word "spaceship" made Gemini draw a ship in
+  space (sheets 08, 12; "flat game-map floor texture ... not a ship" did not cure it).
+- **Sheets that stayed poor** after their one retry (sheet NCC median): ground 02 0.80 (fine), 03 0.97, 14 0.50, 10 0.56,
+  05 0.51, 15 0.25, 16 0.59, 17 0.94 (after an anti-pixel-grid retry; first answer was a pixel copy), 06 0.16 and 08 0.05 and
+  12 0.04 (hull plating; Gemini redraws it as a ship), layer-2 02 0.16. Tiles whose best candidate scored under 0.4 are
+  excluded and fall back to the original: ground 3 6 7 21 22 31 32 33 267 268 (hull sheets, ice 267-268), layer 1 498 500
+  501 506 518, layer 2 450 451 452 454 470 472 473 474 475 488.
+- **Seams** (`check`, every edge): layer 0 0.885 across / inside (original continuous 0.769; the 41,593 edges between
+  kept tiles 0.831 vs 0.754), bands 0.503; layer 1 0.836 (continuous 0.830), bands 0.416; layer 2 0.949 (continuous 0.931),
+  bands 0.537. Above the ~0.6 / 0.85 targets on ground and layer 2, but each is within about 0.1 of the original's own
+  ratio on this high-contrast ice and rock; edges that touch a new ground tile are 1.91 (continuous 1.27), the
+  painted-next-to-fallback pairs.
+- **In game** (`episode=E&main=M&seed=1&skip=T&freezeAt=T`, both looks; section numbers: 3-1 CAMANIS E3 main 10, 4-8
+  ICE EXIT E4 main 10, 3-4 IXMUCANE main 4, 3-6 FLEET main 12, 3-9 SAWBLADES main 19): 3-1 and 4-8 at t600/t1500 (before |
+  after: `tyrian-scratch/terrain-shapesw/captures/compare-3-1-r2.jpg`, `compare-4-8-r2.jpg`), 3-4, 3-6, 3-9 at t900
+  (`compare-3-4-3-6-3-9-r2.jpg`, original | HD). No gaps or misplaced tiles seen. terrainArt and terrainHd tests pass.
+  Not looked at: 4-11, 4-20, `&dpr=0.3`, fallback with a tile removed.
 ## D108 — The remaining 60 shot frames and 7 pickup units drawn from Gemini flat art (D42/D43, finishes D94/D97)
 
 2026-11-04
@@ -4327,6 +4382,13 @@ The most-drawn one is #7 198 (7 levels, 3 episodes), with #7 199 (96,631 ticks) 
   original sprite (unit 92 stays extruded; the atlas still holds their unused pixels, and a plain re-cut would add them
   back). Follow-up: redo that cell with a prompt that keeps the lettering, or a painter (D56). Counts above include them:
   net +37 frames in `tyrian.shp#10`, 263 frames, and 6 of the 7 pickup units.
+- **Hot-dog redone (Nov 10, branch `hotdog-art`):** a sheet of just the hot-dog (new `SHEET_GROUPS` family
+  `rest-hotdog`, one 24x28 cell: hot dog on a blue steel dish, "HOT" above, "DOG" below) with a prompt that spells
+  out the dish, the two words, the letter layout and the red/orange glossy-block lettering. One Gemini request, no
+  retry: the lettering is Gemini's and reads "HOT" / "DOG" in the sprite's layout, no black blob in tile 92.
+  `cut --merge` (palette 5): fit 0.87 on all four tiles, so frames 92, 93, 111, 112 are back in the manifest
+  (`tyrian.shp#10`: 267 frames, all 7 pickup units flat). No painter needed (D56 untouched).
+  Comparison (original | flat art): `tyrian-scratch/hotdog-art/compare.png`; contact sheet `.../check.png`.
 - **In game:** no code change; `?sprites=original` brings back the old look. Checked on 3.7 STARGATE (tick 2473) and
   4.9 LAVA EXIT (tick 14), the levels where #7 198/199 are drawn; the status line's "flat in" count rises (0 -> 2, 0 -> 1).
   Captures: `tyrian-scratch/flat-art-rest/before-after.png`; contact sheet `.../check.png`. Tests: tsc, vitest (703 passed).
@@ -4336,6 +4398,330 @@ The most-drawn one is #7 198 (7 levels, 3 episodes), with #7 199 (96,631 ticks) 
 - *Painting the thin wiggles and streaks procedurally (D56):* not needed, Gemini kept their outline and read as energy.
 
 Answers, sheets and prompts: `tyrian-scratch/flat-art-rest/` (not in git, D3).
+
+## D113 — `shapesx` HD terrain: 191 of 196 ground, 7 of 14 layer-1 and 11 of 13 layer-2 tiles from 24 Gemini sheets (two rounds; D83, D95)
+
+2026-11-04
+
+**Decision:** the `shapesx` tileset (levels 2-1 TORM, 2-2, 2-6, 2-10 BOTANY A, 2-11, 2-12, 4-13 EYESPY) gets a
+partial HD atlas (`public/art/terrain/shapesx/`: `0.webp`, 70 ground tiles, 0.56 MB). The tiles it lacks fall back
+per tile to the original (D57), so every level plays; the rest is a second round.
+- **Inventory:** layer 0 has 196 terrain tiles to paint (+3 empty); layer 1 has 14 terrain and 120 structure
+  (cyan plating, left to models); layer 2 has 13 terrain and 21 structure. 24 primary sheets (20 ground regions, 2
+  layer-2 regions, 2 layer-1 contexts); layers 1 and 2 have no art yet.
+- **Prompts rewritten by hand** (D89): SEND.md calls the biomechanical hull and alien flesh "cyan" and the horns
+  "brown rock". The real materials: forest canopy with blue water, cliffs and grey pipes (regions 03, 05, 06, 09, 13,
+  14, 16, 19); purple veined tissue (08, 20); steel hull plating and pipes (01, 02, 07, 10, 11, 15, 18); alien
+  flesh with eyes and bone spikes (04, 12, 17); tan horns and claws on black (layer 2, layer-1 contexts). Generator:
+  `tyrian-scratch/terrain-shapesx/bin/mkprompts.py`.
+- **Gemini:** 4 requests sent (regions 05, 03, 13, 06: all forest and water), 0 retries, all painted well,
+  registered at scale 11.38, NCC median 0.60-0.67. Then Pro, 3.8 Flash, 3.1 Pro and 4 Argon were greyed out in the
+  mode picker ("Limit resets Nov 4, 11:05 PM"; the account is shared by four agents and ~14 min waits for the lock
+  kept the pace low), so sending stopped. 20 primary sheets are unsent (SEND.md order: 19, 09, 16, 14 forest,
+  then 08, 20, 01, 17, 04, 15, 10, 12, 02, 18, 11, 07, layer 2, layer 1).
+- **Seams** (`check`, ground edges that include fallback tiles, so inflated): 0.73 overall (continuous 0.73,
+  bands 0.51); per level 2-1 0.75, 2-10 0.62, 2-11 0.73, 2-12 0.74. Weak fit (NCC < 0.5): tile 596. Re-measure after the full cut.
+- **Checked in game** (2-1, 2-10 at ticks 1200 and 2400, both looks): painted forest, water and cliffs meet cleanly;
+  unpainted tiles show as the original beside them.
+
+**Second round (Nov 9):** the 20 remaining primary sheets sent (25 requests, 5 of them retries: 09, 10, 20, 12, 02; no usage
+warning, no limit hit). Atlas folder restored, then `cut --cache --edge-aware --exclude <14 tiles>`: 70 ground tiles kept
+byte for byte, 121 new ground, 7 layer-1, 11 layer-2 (`0-2.webp`, `1.webp`, `2.webp`; 1.4 MB in all).
+- **Sheet quality** (tile NCC median, after the retry where there was one): forest 19 0.73, 16 0.52, 14 0.95, 09 0.24
+  (first try 0.10: stayed weak); purple 08 0.66, 20 0.94; hull 01 0.87, 15 0.89, 18 0.78, 11 0.77, 07 0.71, 02 0.98, 10 0.06
+  (two tries, both failed to register); flesh 17 0.83, 04 0.49, 12 0.98; layer 2: 02 0.81, 01 0.57; layer 1: ctx-2 1.00,
+  ctx-1 0.70. Sheets 20, 15, 12 and 02 came back as near copies of the pixel blocks (blockiness 4.2-4.8, NCC 0.9+) even after
+  an "anti-aliased, no pixel grid" retry on 20 and 02; the cut deblocks them. Hull prompts now say "flat game-map floor
+  texture, not a ship or vehicle" (Gemini drew a ship in space for the same wording in `shapesw`); layer-2 and context
+  prompts say "on a pure black background ... do not paint a cave, sky or scenery". The layer-1 prompts written by
+  `mkprompts.py` had lost their "Repaint every piece" sentence (it replaced everything from the first parenthesis), so
+  both contexts were resent with the full text.
+- **Left to the original** (best candidate scored under 0.4): ground 86 111 127 566 567, layer 1 62 450 451 452 458 459
+  467 (the other 7 are painted), layer 2 313 314.
+- **Seams** (`check`, every edge): layer 0 0.865 across / inside (original continuous 0.823), bands 0.544; the 19,625
+  edges between kept tiles 0.730 (continuous 0.729), the 17,611 edges that touch a new tile 1.018 (continuous 0.932),
+  bands 0.617; layer 1 0.804 (continuous 0.801; only 5 edges); layer 2 0.398 (continuous 0.398), bands 0.678. Ground is
+  above the ~0.6 target, but within 0.04-0.09 of the original's own ratio on this forest and hull texture.
+- **In game** (`episode=2&main=M&seed=1&skip=T&freezeAt=T`, both looks; section numbers: 2-1 TORM main 2, 2-10 BOTANY A main
+  21, 2-6 GRYPHON main 12, 2-12 BONUS main 24): 2-1 and 2-10 at t1200/t2400 (original | round 1 | round 2:
+  `tyrian-scratch/terrain-shapesx/captures/compare-2-1-r2.jpg`, `compare-2-10-r2.jpg`), 2-6 t1500 and 2-12 t900
+  (`compare-2-6-2-12-r2.jpg`, original | HD). Forest, water, cliffs and hull slabs line up with the original; the repainted
+  hull slabs on 2-10 are darker steel with a faint teal halo at their edges, and 2-6's central hull block shows a green
+  tint (found and fixed below). Left tiles show as the original beside them. terrainArt
+  and terrainHd tests pass. Not looked at: 2-2, 2-11, 4-13, `&dpr=0.3`, fallback with a tile removed.
+
+**The teal rim (found after round 2, fixed with `terrain_hd.py rimfix`):** the 2-6 tint and the 2-10 halo were one
+thing, and not a shader recolouring (`paletteTexture.ts` / `terrainMaterial.ts` of D111 changed nothing; with the
+whole palette path bypassed the tint stayed). The atlas itself had it: the seam strips (the outer 4 texels, solved
+across tile pairs) took the lighter cyan of the original's edge pixels, so every blue-grey plating tile carried an
+8-texel ring greener than its interior (green sits 0.78 of the way from red to blue in the ring, 0.56-0.60 inside:
+tile 12 edge [41,66,73] vs inside [40,54,65]). Tiled, the rings drew a teal grid, and the 2-6 block read as a green
+rectangle. `fix_rim` lowers the green to the plating's ratio (`RIM_RHO` 0.58) within 12 texels of the edge, fading
+over 12 more; red and blue stay, so the rim keeps its light. It is one colour function of the texel (two tiles that
+met in one edge colour still do) and runs only on tiles whose interior is blue over green over red (jungle, rock
+and water come back as they were). It changed 95 of the 191 ground tiles (82 in `0-2.webp`, 13 in `0.webp`),
+re-encoded at the same layout and quality 92; layers 1-2 don't have it. `tests/tools/terrain_hd_test.py` (RimFix).
+The same pass is worth running on a new tileset after its cut (`rimfix <tileset> --dry-run` lists the tiles).
+After: 2-6 t1500 and 2-10 t1200/t2400, original | HD, `tyrian-scratch/terrain-shapesx/captures/r3/compare-2-6-r3.jpg`,
+`compare-2-10-t1200-r3.jpg`, `compare-2-10-t2400-r3.jpg`: no tint, no halo.
+## D111 — `shapes)` HD terrain: all 112 ground tiles and all 14 layer-1 rock tiles, from 16 Gemini sheets (two rounds)
+
+2026-11-04
+
+**Decision:** the tileset `shapes)` (episode 4's SURFACE, CORE, SIDE EXIT, UNDERDELI, LAVA EXIT, DESERTRUN, LAVA RUN,
+BRAINIAC, TIME WAR, SQUADRON: 4.4-4.7, 4.9, 4.10, 4.12, 4.15, 4.17, 4.18) gets an atlas,
+`public/art/terrain/shapes)/` (`0.webp`+`0-2.webp` ground, `1.webp`+`1-2.webp` layer 1, 0.9 MB), from D83's pipeline: `inventory`, `sheets`,
+Gemini, `cut --edge-aware`, `check`. Round 1 (first commit) painted 89+7 tiles and stopped at the Pro limit; round 2 (Nov 9) sent the six remaining sheets and merged
+  them over the kept atlas (`git checkout` of the folder, then `cut --cache --edge-aware`: 89+7 kept byte for byte, 23+7 new).
+- **Folder name.** The tileset's letter is ")" (`data/shapes).dat`); `tileset_levels` strips "shapes" and `parseTileId` only
+  strips ".dat", so the folder is literally `shapes)` and nothing needed changing. Quote it in shells:
+  `--tileset 'shapes)'`. The dev server serves `/art/terrain/shapes)/manifest.json` (200) and the levels draw it.
+- **Kinds.** Layer 0: 112 terrain + 1 empty; layer 1: 14 terrain (rock chunks on lava, a dark-blue fill) and 35
+  structure (left to models); layer 2: all 24 structure, nothing painted.
+- **Gemini:** 13 answered requests for 10 answers kept (ctx-l1-brown-2, region-l0-02, 13, 09, 10, 05, 01, 07, 03, 04),
+  3 retries: 02's first send came back 4:3 (the default ratio; not downloaded), 02's second and 13's first went
+  out with the image not attached (the paste raced the page load) and came back as invented art. Then the Gemini usage limit hit while sending region-l0-14 ("Continuing with Flash-Lite";
+  limit resets Nov 4 11:05 PM); stopped there. Prompts named each sheet's real material (SEND.md's group labels were
+  wrong: "asteroid rock" for a desert with metal bases, "flesh" wording made Gemini rearrange the red cells, so the
+  text now says to keep every cell and patch where it is) and add "do not rearrange, invent or move anything".
+  Workflow lessons: set the aspect ratio to 1:1 on every request (the default is 4:3), and check the upload
+  (`user-query img` count 1) before pressing Return. Registration: fit 0.99+ on every sheet but the invented first
+  02/13 (resent), tile NCC median 0.98-0.99 (0.56 on 04, a low-contrast dark brick floor).
+- **Seams** (`check`, all ten maps): ground 0.558 (continuous original 0.545), bands 0.501; layer 1 1.059
+  (original continuous 1.048: its tiles are alpha rock shapes over a flat fill, so the ratio is the original's own).
+- **Weak cells:** NCC < 0.5 on tile 0:79 only. Uncovered, falling back to the original: ground 63 70 73 74 75 76 85 86
+  92 (dark deck, sheets 08/12/14) and 130-134, 140-144, 150-153 (purple plates, sheets 06/11); layer 1 31-35, 41, 42
+  (sheet ctx-l1-brown-1). Next round: send region-l0-14, 08, 12, 06, 11 and ctx-l1-brown-1 (6 requests), then `cut`
+  again with `--cache`; keep the atlas (merge) or restore it first to re-pick among all answers (doc §3).
+- **Shader fix, found in game: LAVA EXIT's pink.** On 4.9 the pink fuzzy patches drew as flat saturated red. 4.9 runs
+  water_filter with hue 7 (smoothie 2, below the ground's ceiling); the original draws the patches with palette 5's
+  salmon bank (0x46-0x4b), which water_filter leaves alone (`index & 0x30 == 0`), and the lava with 0x7x. The HD shader
+  (D57) gave every painted texel the hue ramp's index (16 + shade, D95 added only grey 0 + shade), so the pink was
+  recoloured to 0x70 + shade: red. Now each texel's bank is the raw palette's nearest colour's:
+  `PaletteTexture.indexLut` is a 32³ sRGB cube (256x128 R8 texture, built on first use per palette, ~22 ms, cached)
+  holding the nearest index by redmean distance, and `terrainPalette` takes `bank + shade` (near-greys still take bank
+  0, D95). Only the bank matters, and only for water_filter's exception: the hue filters replace it and untouched
+  texels keep their painted colour, so levels without water_filter draw exactly as before. Checked against the
+  original (blurred mean |HD - original|, before -> after): 4.9 t300 12.4 -> 4.4, t900 18.3 -> 4.7 (the patches 34-37
+  -> 3); SAVARA IV (episode 4 `main=16`, water_filter hue 3) t1200 6.4 -> 4.2, t2500 5.7 -> 4.4: its water's lighter
+  blues now keep their painted colour (about half the original's water pixels there are the exempt bank 0x80, the
+  rest 0x3x), where all of it was darkened to 0x30 + shade before; the grey floor is unchanged; TYRIAN (episode 1 `main=1`) t300, t1500 identical (no hue stage). Captures:
+  `tyrian-scratch/terrain-shapes-paren/captures/pink-fix/` (`compare-4-9-fix.jpg`, `compare-regression.jpg`: original
+  | HD before | HD after). Test `tests/render/paletteLut.test.ts`. The flat sprite art (`spriteArtLayer.ts`, D42)
+  still takes 16 + shade; nothing of it was seen under a water_filter, so it is left alone.
+
+**Checked** in game (`?debug=play&episode=4&main=2` (4.4) and `main=31` (4.9)`&seed=1&skip=T&freezeAt=T`, T 300 and 900,
+`&terrain=original` for the other half): the desert and metal plating on 4.4 match the original's layout; 4.12's lava
+reads well. Captures: `tyrian-scratch/terrain-shapes-paren/captures/compare-4-4.jpg`, `compare-4-9.jpg`. Tests
+`terrainArt` + `terrainHd`: 21 passed. Answers, sheets, prompts, `cands.pkl`: `tyrian-scratch/terrain-shapes-paren/work/` (not in git, D3).
+
+**Round 2 (Nov 9):** sent region-l0-14, 08, 12, 06, 11 and ctx-l1-brown-1 (7 requests: region-l0-06's first answer came
+back as invented art and was resent once; no usage warning, no limit hit). Fits 0.69-0.98 (06's first try 0.24), tile
+NCC medians 0.70-0.86 (14 lava 0.86, 08 dark deck 0.98, 12 0.81, 11 purple 0.70, 06 0.82, ctx-l1-brown-1 0.98). Every
+ground and layer-1 tile now has a painting. Seams after the merge (`check`, all maps): layer 0 0.564 overall (original
+continuous 0.548; the 4,568 edges touching a new tile 0.637 vs continuous 0.588), bands 0.534; layer 1 1.178 (continuous
+1.170, alpha rock shapes over a flat fill, the original's own ratio). Weakest new tiles (cut-report score): ground 0:143
+0.50, 0:150 0.58 (purple, sheet 06), layer 1 31-35 0.58-0.96. Blockiness on the dark-deck and purple sheets is 1.8-4.4
+(Gemini kept the pixel blocks there; the cut deblocks). In game 4.4 and 4.9 at t300/t900 read cleanly; captures
+`tyrian-scratch/terrain-shapes-paren/captures/compare-4-4-r2.jpg`, `compare-4-9-r2.jpg` (original | round 1 | round 2).
+## D109 — A debug console for testing: cheats, hidden settings and level jumps, through the game's own state and flow
+
+**Asked:** a console to type cheats, switch hidden settings and change or skip levels, on desktop and phone,
+in the deployed build too.
+
+**Decision.**
+- **Ways in.** Options → **Debug console** (a "Testing" row on the one settings screen, so the title's
+  Options, the shop's "All settings…" and the pause menu's Options all have it, D99/D102; the settings
+  screen closes first, so the console sits right over the title, shop or pause screen), **backtick** anywhere
+  (in a running level the loop pauses first, as for the pause screen), and `tyrianConsole.open()` /
+  `tyrianConsole.run("line")` in devtools for scripted checks. Esc, backtick, Close or B closes it; a level
+  resumes.
+- **The screen.** A framework screen (`id: "console"`) in the menus' bronze-rimmed umber pane (D85, the HUD's
+  look, D61), at the top of the window over the paused game: a monospace scrollback in a phosphor well, the
+  input line under it with history (Up/Down, kept in this browser) and Tab completion (commands, then each
+  command's words: ports, sides, styles, episodes, level names). On touch screens Tab, ↑, ↓ and Run are
+  buttons that don't take the focus from the field; the field takes the on-screen keyboard and the screen
+  fits itself to `visualViewport` (the part above the keyboard); the scrollback scrolls (D98). `help` lists
+  every command with its arguments (two columns, or one under the other on a phone).
+- **Cheats act through the sim**, so they behave as the real game's: `god` is the original's invulnerability
+  (`youAreCheating`, F2 F3 F6); `armor N` goes through JE_drawArmor's cap (28); `shield N` up to
+  `shield_max`; `heal`; `credits N`; `weapon front|rear ID [power]` as a pickup (shot pattern reset, the
+  message bar's "You got the …", `calc_purple_balls_needed` since lives alias the power); `power N`;
+  `sidekick left|right ID` set up by JE_drawOptions; `kill` kills each destructible enemy on screen (not
+  armour 255, not pickups) through `destroyEnemy`, the shot loop's kill branch moved into a function of its
+  own (no change to the loop: the bot traces match); `skip`/`next` is the original's skip-level cheat
+  (`cheatSkipLevel`, moved out of JE_mainKeyboardInput), so the level ends as completed 40 ticks later.
+  `weapons` and `sidekicks` list the ids. The HUD updates while the console is open.
+- **Levels are sections.** `levels [episode]` numbers each section with an `]L[` 1..N in script order
+  (TYRIAN's normal and hard variants share section 3: one entry) and shows its section (the harness's
+  `main=`, g.mainLevel) and tyrianN.lvl number. `level [episode] <number|name|s<section>>` takes the list's
+  number, a name (any case, spaces ignored, a unique start is enough; a shared name such as SAVARA takes
+  the first and says so) or a raw section. The jump goes through the game flow: in a level the loop ends
+  with outcome "jump" and run.ts does JE_initEpisode and loads from that section (JE_loadMap plays its
+  `]L[` straight away; items carry over); in the shop the sim's own exits (mainLevel + jumpSection, the
+  map's choice, or gameLoaded for another episode, as loading a game from the shop does); on the title a
+  one-player full game starts there. `shop` goes to the item screen whose map leads to this level (a section
+  with `]I[` and a `]G[` naming it), or from the title to a new game's first. A jump needs the console right
+  over the title, pause screen or shop, not over a screen opened from them.
+- **Settings and looks.** Each shows its value without an argument. Real settings go through the setters
+  Options uses and are saved by `savePrefs` (terrain, camera, interface, resolution; music and sound styles
+  keep themselves). The URL-only looks switch live in the renderer for this page (`vfx`, `sprites`, `bg`;
+  structures already placed keep their look). `fps`/`perf` toggles a corner overlay (fps, frame time, tick,
+  speed, draw-list size; remembered). `tick` shows the level's tick count; `speed N` (0-8) scales the time
+  the fixed-step loop accumulates, so ticks stay the classic fixed ones and only more or fewer run per
+  frame (0 freezes; the effects' clock follows); `seed` shows the start-up seed, `seed N` reseeds mt_rand.
+  `reset` puts the settings, looks, styles, speed and overlay back to their defaults (not volumes or keys).
+  `clear`, `close`.
+- **Bundle.** `src/app/consoleBridge.ts` (the place, hooks, speed, ticks, the backtick key) is in the main
+  bundle; the console (`src/debug/console/`, ~21 kB) loads on first use.
+
+**Not covered:** the `?debug=play|level` harnesses (their own loops; their URL params still work) and
+two-player games' player 2 (the cheats act on player 1).
+
+Tests: `tests/debug/console.test.ts` (parser, completion, history, level numbering and sections, the
+commands on a real level: armour cap, god vs a lethal hit, a fitted gun firing, sidekick setup, kill, skip
+to a completed level), `tests/app/options.test.ts` (the row). Captures: `tyrian-scratch/debug-console/captures/`
+(`d-*` 1920x1080, `p-*` 390x844 touch through Options on the title and the pause menu, `f-*` shop jumps and skip).
+
+## D110 — Shop lists in the debug console: `shop all` and per-category edits, through an override layer the item screen reads (extends D109, D85, D98)
+
+**Asked:** console commands to see how the shop looks with long lists: an unlocked shop selling everything the
+real game sells, and temporary edits of one category's list, without breaking the sim's C-shaped lists.
+
+**Decision.**
+- **Commands** (the `shop` command's subcommands; `shop [episode]` still goes to an item screen, D109):
+  `shop all [on|off]` (no argument: the state), `shop list [category]`, `shop items <category> [filter]`,
+  `shop set <category> <id|name…>`, `shop add|remove <category> <id|name…>`, `shop clear <category>`,
+  `shop reset [category]`. Categories are the Upgrade Ship rows in the shop's order and words: `ships`, `front`,
+  `rear`, `shields`, `generators`, `left`, `right`, with aliases (`ship`, `f`, `front-gun`, `shield`, `gen`, `ls`,
+  `rs`, …; case, spaces, dashes and a plural "s" don't matter). Items by id or name (whole or a unique start;
+  `zica-laser`, `"Zica Laser"`); a name two items share (the two Vulcan Cannons) takes the one the real game sells
+  in that category if only one is, else asks for the id. Tab completes subcommands, categories, ids and names.
+  `help shop` lists the subcommands.
+- **`shop all` is computed from the data**: every `]I[` in levels1-4.dat (61 item screens), its 9 lines read by
+  the sim's own `itemAvailLine` (factored out of JE_loadMap's `]I[`, so the sim and the console parse them the
+  same way; a test checks each of episode 1's screens against itemAvail as JE_loadMap leaves it). The union per
+  category, in the merchant's order (ascending, None last): ships 9, front 18, rear 13 (with None), shields 9,
+  generators 6, left 23 and right 30 sidekicks (with None). The shop rows Engine and Armor are never shown
+  (itemAvailMap skips them). Nothing outside a shop list gets in: the ships no item screen sells (Stalker 8,
+  U-Ship, Silver Ship, Nort Ship), the internal "Miscellaneous Option Weapons" port, the joke guns (Banana Blast, HotDog),
+  the Nort and rear-only guns in the front list, Companion Ship Quicksilver and the HXS Class C shield. Shop
+  lists that the data does have stay, odd ones included: SuperCarrot (episode 2), Tropical Cherry Companion and
+  the episode 4 secret-route screens (The Stalker 21.126, Beno Protron System -B-); the front-firing sidekicks
+  only in the right list, as the data sells them. Edits may use any id in the category's item table (with a note
+  when no shop sells it there): front 1-42, rear 0-42, ships 1-13, shields 1-10, generators 1-6, sidekicks 0-30.
+- **An override layer, not bigger arrays.** `g.itemAvail[9][10]` / `itemAvailMax` stay exactly the level's: the
+  item screen reads every list through `availList(row)` / `availCount(row)` in `game_menu.ts` (the update's
+  weapon powers, the cursor skip, the mouse's cost check, JE_genItemMenu, Enter's "Done" power, the rows), which
+  give the console's list for an overridden row and the C arrays otherwise. JE_itemScreen_init's merge of
+  last_items still runs on the real arrays (factored sort `sortMerchantRow`, same loop); the console's lists get
+  the same treatment: what the player has (last_items and items) is added and the list sorted, so the screen
+  always offers the item owned, as the game does. Buying, selling, power, Escape and the preview are the C's own
+  code on the longer list; `temp_weapon_power` has room for any u8-length list. With no console list every read
+  is the C array's: `shop reset` restores normal behaviour exactly, and the C cross-check trace still matches.
+- **A change while the shop is up** applies at once (`JE_itemScreen_listsChanged`): in an Upgrade Ship list the
+  list is left as Escape leaves it (loadout and credits as when it opened) and opened again on the new list, with
+  no sounds. Turning lists off after buying an item from them leaves the level's lists as they are; that item is
+  listed from the next item screen on (last_items), like anything the player flew in with.
+- **Lifetime: until `shop reset` (or `shop all off`), through level changes and new games**, for the page only.
+  Chosen over "until the level changes" so a selection can be checked across several item screens and jumps
+  (`level`, `shop`) without retyping, and so `shop all` and edits follow one rule. Nothing is stored: not in
+  localStorage, not in saved games (the lists aren't part of a save); an item bought from a console list is
+  the player's like any purchase.
+- **Long lists in the UI.** An item list (`.shop-list--items`, only in the Upgrade Ship lists; the game's own have
+  at most 7 rows) scrolls inside the menu pane: on desktop it is capped at the window less the panes' other parts
+  (`100dvh − 8vh − 13rem`, at least 18rem), so the title, the simulator, the credits/power/upgrade readouts and
+  the help bar stay in view instead of the whole panel scrolling them away; on phones at 56dvh, so the simulator
+  is a short swipe below, and a swipe past the list's end carries on down the panel. `reveal()` already brought
+  the cursor's row into view and now scrolls the list. Keys and pad wrap through all rows (the C's); a tap or
+  click on any row works; short windows (≤ 520 px tall) keep the panel's scroll (D98).
+
+**Checked** (headless Chrome, `tools/cdpshot.mjs` with `tyrianConsole.run(...)`, and touch emulation with swipes):
+1920x1080 and 390x844 with `shop all` on the front-gun list scrolled to its middle, a `shop set` list, the 31-row
+right-sidekick list opened on the owned None at its end, swiped, a row tapped twice and bought, the swipe chaining
+to the panel. Captures: `tyrian-scratch/shop-cheats/captures/`. Tests: `tests/debug/console.test.ts` (categories
+and aliases, completion, the union: counts, ranges, order, nothing never sold, the sim's own lists; set, add,
+remove, clear, reset, items; buying the Widget Beam from `shop all` as a normal purchase; off restoring the
+level's lists exactly; lists lasting through later item screens; every row of a 31-row list reachable).
+
+## D114 — Episode-1 QA bugs: the glass orb's paint follows smooth edges, HD terrain's near-grey test is in sRGB, the gem blocks are one colour (extends D103, D95, D111)
+
+2026-11-10
+
+From `tyrian-scratch/e1-qa/REPORT.md` (issues 3, 5, 7), checked on main before changing anything.
+- **DELIANI glass orb (1.5, `assembly-newshu-129`).** The same model D103 fixed, not a regression: D103 removed the
+  speckle, but the glass was still painted cell by cell on a 20x20-per-face cube sphere, so the green mass and the grey
+  lobes showed as hard pixel squares (about 1.6 sprite px each), which still read as a corrupt texture. Now
+  `PartField` blurs each part of the (D103-smoothed) part map (Gaussian, sigma 0.9 px), samples it bilinearly and takes
+  the strongest part; cells an edge between parts runs through are split 3 ways per edge (`subdivide_edges` with grid
+  fill, new vertices put back on the ball) and every face is painted by its centre. Same parts, colours, states and
+  frames; the eight painted GLBs grow from 32-47 KB to 57-119 KB (the purple states are unchanged).
+- **SAVARA V (1.17): jungle and shore stayed green and brown under the blue water.** Not the clouds (D107's clouds
+  match the original at t300). SAVARA V runs water_filter (hue 3) over the ground; the HD shader (D95) gives a texel
+  the exempt grey bank when its chroma is under 0.04, but measured that chroma on the *linear* colour, where every dark
+  colour is near grey: 44% of a jungle tile's texels (the original's tile has 6% grey pixels) and the dark shore
+  browns kept their painted colour. The test is now on the sRGB colour (the same 0.04), and `terrainBank` takes that
+  sRGB colour. Blurred mean |HD - original| (1920x1080 playfield): 1.17 t5800 10.0 -> 8.8, t8400 12.9 -> 11.2, t2900
+  2.8 -> 1.6; regressions: SAVARA IV (4.16, D95's grey floor) t1200 3.7 -> 3.5, t2500 3.8 -> 3.7, the floor stays grey;
+  LAVA EXIT (4.9, D111's pink) t300 4.3 -> 2.5, the pink stays pink and the dark lava now takes the red hue as the
+  original does. Levels without a hue stage draw as before.
+- **WINDY (1.14) seam.** The orange gem block (`newshm-17`) and its siblings (`-15` green $, `-53`, `-55`, `-153`, all
+  `lib_b078.tile_materials`) painted the sprite's lighting: a dark red front band (the seam where the block overlaps
+  the red block below it, 1 px apart as in the C) and yellow rim-light patches. Every role now takes the body colour,
+  as `newshm-1` (the red block) already did (art rule 2). Geometry unchanged.
+- **Already fixed on main, not changed:** SOH JIN's bell turrets have no sand pad (D103). The key there
+  (`tyrian.shp#10` 243, flat art from D94) never had a tile rectangle: what shows round it is the sprite's own black
+  drop shadow, painted into the flat art (stair-stepped). Left as is; a cutter rule that drops the shadow indices
+  (160, 161) from the silhouette would remove it.
+
+Captures: `tyrian-scratch/e1-qa-bugs/` (`bug1_*` orb, `bug2_*` SOH JIN, `bug3_*` and `cmp_*.jpg` SAVARA V and the
+regression levels: original | before | after, `bug4_*` WINDY).
+
+## D115 — The purple machines build the broken sockets their tiles paint; the scorch over them is only the fresh break (extends D96, D47)
+
+2026-11-10
+
+**Context:** the user compared TYRIAN (1.3) with the real OpenTyrian: when a cap of the island machines is shot off,
+the original shows a cracked, broken stone where it sat; ours showed an intact octagonal boss (the orb) or a ringed dome
+(the 2x2/2x3/2x5 blocks, the cross) under D96's procedural scorch, which read as a decal on an intact socket. D96 had
+found why: the original stamps nothing; the background-3 tile under each cap *is* the broken socket, hidden while the
+cap's sprite covers it.
+
+**Options:** (a) broken-socket geometry in the machine models, shown per cap when that cap dies; (b) D96's decal
+upgraded to a mesh or decal matching the crack art; (c) the models' bosses built broken, always, as the tiles paint
+them. (a) needs per-instance, per-part visibility in the instanced structures (D34) plus a reliable death record per
+cap (the harness's `skip=` only renders its last ticks, saves and level starts never see the deaths). (b) can only add
+over the intact boss, not take it away, and still depends on seeing the death. (c) is what the original does: no
+runtime state, every machine instance and cap position at once, every camera tilt (the cap's model covers its socket
+on screen as the sprite covers the tile, D6).
+
+**Decision:** (c).
+- `assets/blender/tiles/lib_sockets.py` (numpy only): per boss tile (155-157, 165, 167, 175-177) the cracks read off
+  its art as polylines (`CRACKS`; ends near the rim run on to it), plus its darkest pits (palette 80-83); the octagon
+  minus those, rasterised at 8 samples per px, gives the chunks (outlines simplified to px/3); each chunk takes the
+  palette index its pixels mostly paint, kept to the stone's 86-89. `--overlay out.png` draws them over the tiles.
+- `lib_tyrbld.Structure.broken_sockets(z0)`: a socket wherever the pattern has a boss tile, at the tile's own boss
+  centre (`BOSS_AT`): each chunk a prism with a chamfered top, tilted (rising 0.012 per px outward: the middle sagged
+  where the cap was torn out, plus a turn of its own), dropped up to 0.13 and pushed up to 0.5 px outward, over a dark
+  floor (index 82) at 30% height that shows in the cracks. Tops ≤ 0.30, under the enemies' 0.33 (`check()`).
+  Hard-surface prisms, flat shaded; undersides closed and plain.
+- The orb, the 2x2/2x3/2x5 blocks and the cross call it in place of their bosses/domes/knobs. Their other parts are
+  unchanged. The orb and the cross are baked from concept maps as before, but `lib_sockets.py --maps` sets the detail
+  to neutral and the relief flat under every socket, so the sockets get occlusion only (art rule 4); the blocks were
+  and stay plain (build-models.sh finds no maps for `tyrbld_purple_blocks.py`). Structure models draw no outline (D8),
+  so no outline shell.
+- The entries carry `brokenSockets: true`; D96's scorch layer takes the structure's mark kind
+  (`StructureMark`: none / scorch / socket). Over a socket the painted crack network and the hole glow only while hot
+  (about a second), and the soot is at 35%: the fresh break still flashes, then the modelled break shows. Other
+  structures (bunkers, wreck, fortress, pits) keep the full D96 mark.
+- A boss whose cell never carries a cap (the 2x5's last column) now shows broken from the start, as its tile does.
+
+**Checked:** intact machine (all caps alive, t2560): mean |after - before| 0.017 per channel over the machine's
+600x400 crop, 113 of 240000 px over 10 (the scorch's sparks). Captures in `tyrian-scratch/island-sockets/final/`:
+`cmp-2560.png`, `cmp-2650.png`, `cmp-3300.png`, `zoom-3300.png` (before | after | `&bg=original&terrain=original
+&sprites=original`), `closeup-socket-3300.png` (one socket, 4K); `model-cross.png`, `model-2x5.png` (Blender views).
+GLB sizes (KB, before → after): orb 813 → 893, 2x2 467 → 463, 2x3 658 → 648, 2x5 1027 → 1010, cross 1278 → 1341;
+triangles after: orb 10.1k, 2x2 4.9k, 2x3 7.2k, 2x5 11.4k, cross 15.4k.
 
 ## D116 — Episode-1 enemy rebuild: 32 models (about 40 inventory units) to the D65 hard-surface standard
 
@@ -4385,6 +4771,14 @@ frames the intact models now draw (D87): `newshs` 241/243/279/281, `newsht` 117/
 | assembly-newshp-165 | hero | 0.9858 | 0.9858 | 8 |
 | assembly-newshu-79 | hero | 0.9877 | 0.9907 | 7.5 |
 | newshs-11 | standard | 0.994 | 0.994 | 8 |
+
+**Merged with D114 (#145, which changed the same models while this ran):** the DELIANI orb (`assembly-newshu-129`,
+units newshu-91/93/129/131) takes this rebuild, not D114's repaint: its continents are painted smooth on the new
+geometry (coordinator's review). The WINDY gem blocks `newshm-15/17/53` take this rebuild (`lib_newshm_block.py`), which
+keeps D114's rule: the shell is one body colour (the sprite's flat-top index), no painted rim light or dark front band;
+the only dark parts are geometry (the inset foot plate under the shell and the small lifting sockets). WINDY at tick
+1026 shows no seam where a gem block overlaps the red block below (`tyrian-scratch/e1-enemies/merge-check/
+windy_1.14_t1026.png`; `windy_seam_cmp.png`: before D114 | D114 | this). `newshm-55/153` keep D114's `lib_b078` fix.
 
 31 shipped by strict review (3 of them after a fix round); `assembly-newshi-115` is shipped by the coordinator's call.
 **IoU gate:** `tools/sprite_mask.py`'s accept line is `iou_rule_grid` ≥ 0.95 (OUTLINE-BORDER.md); three small models

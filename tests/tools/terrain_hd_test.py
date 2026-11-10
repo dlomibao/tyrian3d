@@ -230,5 +230,40 @@ class StripTest(unittest.TestCase):
             np.testing.assert_array_equal(s1[k], s2[k])
 
 
+class RimFix(unittest.TestCase):
+    """fix_rim (D113): the teal ring the seam strips left on blue-grey plating."""
+
+    @staticmethod
+    def tile(inner, rim, w=192, h=224, rim_w=8):
+        a = np.zeros((h, w, 4), np.float32)
+        a[..., :3] = inner
+        a[..., 3] = 255
+        a[:rim_w] = a[-rim_w:] = a[:, :rim_w] = a[:, -rim_w:] = [*rim, 255]
+        return a
+
+    def test_teal_rim_goes_plating_blue(self):
+        t = self.tile([40, 54, 65], [41, 66, 73])
+        out, change = th.fix_rim(t)
+        self.assertGreater(change, 5)
+        r = out[0, 0, :3]
+        self.assertAlmostEqual(r[1], 41 + th.RIM_RHO * (73 - 41), delta=0.5)  # green at the plating's ratio
+        self.assertEqual((r[0], r[2]), (41, 73))  # red and blue stay
+        np.testing.assert_array_equal(out[24:-24, 24:-24], t[24:-24, 24:-24])  # the interior is untouched
+        again, change2 = th.fix_rim(out)
+        self.assertLess(change2, 0.5)  # and it settles
+
+    def test_other_materials_are_left_alone(self):
+        for inner, rim in (([30, 70, 25], [20, 90, 20]), ([90, 70, 50], [100, 90, 60])):  # jungle, rock
+            t = self.tile(inner, rim)
+            out, change = th.fix_rim(t)
+            self.assertEqual(change, 0.0)
+            np.testing.assert_array_equal(out, t)
+
+    def test_plating_with_a_plating_rim_is_unchanged(self):
+        t = self.tile([40, 54, 65], [44, 58, 70])
+        out, change = th.fix_rim(t)
+        self.assertLess(change, 0.5)
+
+
 if __name__ == "__main__":
     unittest.main()

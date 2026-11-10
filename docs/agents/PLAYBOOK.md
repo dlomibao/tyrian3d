@@ -164,7 +164,9 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
   `ROCK_COLOURS`, not per-tile boulders (D63); structure sits in a dark square → its rock unbaked,
   `tyrian_plain` (D63); dark band on the island under an enemy's rock → `tyrian_ground`, no shadow
   (D66); a structure shares tiles with terrain → `minRows` and a real-map test (D44); 970 draw calls
-  for a fortress → instanced structures (D34).
+  for a fortress → instanced structures (D34); a shot-off enemy reveals an intact boss where the original shows
+  a broken one → the tile under an enemy is what the original shows after the kill: model that (the purple
+  machines' `broken_sockets()`, `lib_sockets.py`, D115), not a decal over the intact part.
 - **Cost/time:** tyrian-buildings (12 TYRIAN structures, concept-based, D47): 41 agents, 48 min,
   3.4M tokens; lead 19 min; build median 8 min; grade 0.6; fix 5.5. The concept-bake look it used is
   superseded by the hard-surface rule; budget about one flagship item per structure.

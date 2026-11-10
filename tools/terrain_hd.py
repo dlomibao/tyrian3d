@@ -51,6 +51,7 @@ shared by many levels (shapesz by 32), so every command takes a list of levels o
         a weak pull towards the tile's own painting, and each tile's border is moved onto its strips
         (the difference fades in over 40 texels, the outer 4 texels are the strip); --edge-aware leaves
         strips untied where the original has a real edge between the tiles.
+        `rimfix <tileset>` then takes the teal ring off blue-grey plating tiles (fix_rim, D113).
         The cut MERGES into the tileset's atlas (D83): every tile it already has is kept as it is (its
         image file untouched, its rect unchanged) and its strips are held, so the new tiles are solved
         against them; the new tiles are packed (16-aligned rects, 16 px edge-extended gutters) into new
@@ -1828,6 +1829,69 @@ def cmd_realpha(args) -> None:
             print(f"layer {layer}: alpha redone for {sum(n in done for n in ns)} tiles -> {out_dir / name}")
 
 
+RIM_FULL = 12  # texels at a tile's edge the rim correction applies to in full...
+RIM_FADE = 12  # ...and the texels it then fades out over
+RIM_RHO = 0.58  # where a blue-grey hull's green sits between its red and its blue (measured on the plating)
+
+
+def fix_rim(tile: np.ndarray, full: int = RIM_FULL, fade: int = RIM_FADE, rho: float = RIM_RHO) -> tuple[np.ndarray, float]:
+    """A teal rim off a blue-grey tile (D113). The cut's seam strips take the colours of the original's
+    edge pixels, a lighter cyan, so a tile of blue-grey plating comes out with a teal ring round it
+    (the rim is a stripe of the tile's own edge texels, where the plating's green sits at 0.8 of the
+    way from red to blue against 0.58 inside). Within `full` texels of the edge, fading over `fade`
+    more, the green is lowered to the plating's own ratio where it is above it; red and blue stay, so
+    the rim keeps its brightness. The same colour function everywhere, so two tiles whose edge
+    colours were one still meet in one. Returns (tile, the largest green change); a tile whose
+    interior isn't blue-leaning (jungle, rock, water) comes back as it was."""
+    h, w = tile.shape[:2]
+    inner = tile[24:h - 24, 24:w - 24, :3].reshape(-1, 3).mean(0)
+    if not inner[2] > inner[1] + 3 > inner[0] + 3:  # blue over green over red: plating
+        return tile, 0.0
+    yy, xx = np.mgrid[:h, :w]
+    depth = np.minimum(np.minimum(xx, w - 1 - xx), np.minimum(yy, h - 1 - yy)).astype(np.float32)
+    weight = np.clip(1 - (depth - full) / fade, 0, 1)
+    r, g, b = tile[..., 0], tile[..., 1], tile[..., 2]
+    target = r + rho * (b - r)
+    drop = weight * np.where(b > r, np.maximum(g - target, 0), 0)
+    out = tile.copy()
+    out[..., 1] = g - drop
+    return out, float(drop.max())
+
+
+def cmd_rimfix(args) -> None:
+    """Take the teal rim (fix_rim) off the blue-grey ground tiles of an atlas, in place: layer 0's
+    images are re-encoded at the same layout (quality 92 unless --lossless); the manifest is
+    untouched. --dry-run lists the tiles it would change."""
+    out_dir = Path(args.out) / args.tileset
+    man, atlas = load_tileset_art(out_dir)
+    if man is None:
+        raise SystemExit(f"no atlas in {out_dir}")
+    tiles = atlas.get(0, {})
+    lay = man["layers"]["0"]
+    done = {}
+    for n, t in sorted(tiles.items()):
+        fixed, change = fix_rim(t)
+        if change > 0.5:
+            done[n] = fixed
+    print(f"layer 0: {len(done)} of {len(tiles)} tiles have a teal rim: {' '.join(map(str, done))}")
+    if args.dry_run or not done:
+        return
+    by_image: dict[str, list[int]] = defaultdict(list)
+    for k, r in lay["tiles"].items():
+        by_image[r.get("image", lay["image"])].append(int(k))
+    for name, ns in sorted(by_image.items()):
+        if not any(n in done for n in ns):
+            continue
+        packed, rects = pack_atlas({n: done.get(n, tiles[n]) for n in ns}, 4)
+        want = {str(n): {k: v for k, v in lay["tiles"][str(n)].items() if k != "image"} for n in ns}
+        assert rects == want, f"atlas layout changed ({name})"
+        img = Image.fromarray(packed.round().clip(0, 255).astype(np.uint8), "RGBA")
+        if name == lay["image"]:
+            assert (img.width, img.height) == (lay["width"], lay["height"]), f"atlas size changed ({name})"
+        save_atlas(img, out_dir / name, args.lossless)
+        print(f"layer 0: rim fixed for {sum(n in done for n in ns)} tiles -> {out_dir / name}")
+
+
 def cmd_cut(args) -> None:
     T = TilesetData(Path(args.data), level_list(args))
     work = Path(args.work)
@@ -2358,13 +2422,18 @@ def main(argv: list[str] | None = None) -> None:
                    "fixed neighbours in the seam solve (D89)")
     c.add_argument("--edge-free", type=float, default=EDGE_FREE, help=f"step between the original's facing pixels that still ties the strips fully (default {EDGE_FREE})")
     c.add_argument("--edge-full", type=float, default=EDGE_FULL, help=f"step from which it doesn't tie them at all (default {EDGE_FULL})")
+    rf = sub.add_parser("rimfix", help="take the teal rim off an atlas's blue-grey ground tiles (no answers needed)")
+    rf.add_argument("tileset", help="the tileset's folder name, e.g. shapesx")
+    rf.add_argument("--out", default=str(ROOT / "public/art/terrain"), help="atlas root (default public/art/terrain)")
+    rf.add_argument("--lossless", action="store_true", help="lossless WebP (default quality 92)")
+    rf.add_argument("--dry-run", action="store_true", help="only list the tiles it would change")
     k = sub.add_parser("check", help="reassemble the map from the atlas, measure seams")
     k.add_argument("--out", default=str(ROOT / "public/art/terrain"), help="atlas root (default public/art/terrain)")
     k.add_argument("--rows", type=int, default=12, help="map rows per contact sheet")
     k.add_argument("--contact", default="new", help="contact sheets: new (default: row blocks with a tile the last cut made; "
                    "every row block when nothing is new and at most 3 levels), all, none, or level ids (1-9,1-11)")
     args = ap.parse_args(argv)
-    {"inventory": cmd_inventory, "sheets": cmd_sheets, "fake": cmd_fake, "cut": cmd_cut, "realpha": cmd_realpha, "check": cmd_check}[args.cmd](args)
+    {"inventory": cmd_inventory, "sheets": cmd_sheets, "fake": cmd_fake, "cut": cmd_cut, "realpha": cmd_realpha, "rimfix": cmd_rimfix, "check": cmd_check}[args.cmd](args)
 
 
 if __name__ == "__main__":
