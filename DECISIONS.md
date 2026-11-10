@@ -4336,3 +4336,62 @@ The most-drawn one is #7 198 (7 levels, 3 episodes), with #7 199 (96,631 ticks) 
 - *Painting the thin wiggles and streaks procedurally (D56):* not needed, Gemini kept their outline and read as energy.
 
 Answers, sheets and prompts: `tyrian-scratch/flat-art-rest/` (not in git, D3).
+
+## D109 — A debug console for testing: cheats, hidden settings and level jumps, through the game's own state and flow
+
+**Asked:** a console to type cheats, switch hidden settings and change or skip levels, on desktop and phone,
+in the deployed build too.
+
+**Decision.**
+- **Ways in.** Options → **Debug console** (a "Testing" row on the one settings screen, so the title's
+  Options, the shop's "All settings…" and the pause menu's Options all have it, D99/D102; the settings
+  screen closes first, so the console sits right over the title, shop or pause screen), **backtick** anywhere
+  (in a running level the loop pauses first, as for the pause screen), and `tyrianConsole.open()` /
+  `tyrianConsole.run("line")` in devtools for scripted checks. Esc, backtick, Close or B closes it; a level
+  resumes.
+- **The screen.** A framework screen (`id: "console"`) in the menus' bronze-rimmed umber pane (D85, the HUD's
+  look, D61), at the top of the window over the paused game: a monospace scrollback in a phosphor well, the
+  input line under it with history (Up/Down, kept in this browser) and Tab completion (commands, then each
+  command's words: ports, sides, styles, episodes, level names). On touch screens Tab, ↑, ↓ and Run are
+  buttons that don't take the focus from the field; the field takes the on-screen keyboard and the screen
+  fits itself to `visualViewport` (the part above the keyboard); the scrollback scrolls (D98). `help` lists
+  every command with its arguments (two columns, or one under the other on a phone).
+- **Cheats act through the sim**, so they behave as the real game's: `god` is the original's invulnerability
+  (`youAreCheating`, F2 F3 F6); `armor N` goes through JE_drawArmor's cap (28); `shield N` up to
+  `shield_max`; `heal`; `credits N`; `weapon front|rear ID [power]` as a pickup (shot pattern reset, the
+  message bar's "You got the …", `calc_purple_balls_needed` since lives alias the power); `power N`;
+  `sidekick left|right ID` set up by JE_drawOptions; `kill` kills each destructible enemy on screen (not
+  armour 255, not pickups) through `destroyEnemy`, the shot loop's kill branch moved into a function of its
+  own (no change to the loop: the bot traces match); `skip`/`next` is the original's skip-level cheat
+  (`cheatSkipLevel`, moved out of JE_mainKeyboardInput), so the level ends as completed 40 ticks later.
+  `weapons` and `sidekicks` list the ids. The HUD updates while the console is open.
+- **Levels are sections.** `levels [episode]` numbers each section with an `]L[` 1..N in script order
+  (TYRIAN's normal and hard variants share section 3: one entry) and shows its section (the harness's
+  `main=`, g.mainLevel) and tyrianN.lvl number. `level [episode] <number|name|s<section>>` takes the list's
+  number, a name (any case, spaces ignored, a unique start is enough; a shared name such as SAVARA takes
+  the first and says so) or a raw section. The jump goes through the game flow: in a level the loop ends
+  with outcome "jump" and run.ts does JE_initEpisode and loads from that section (JE_loadMap plays its
+  `]L[` straight away; items carry over); in the shop the sim's own exits (mainLevel + jumpSection, the
+  map's choice, or gameLoaded for another episode, as loading a game from the shop does); on the title a
+  one-player full game starts there. `shop` goes to the item screen whose map leads to this level (a section
+  with `]I[` and a `]G[` naming it), or from the title to a new game's first. A jump needs the console right
+  over the title, pause screen or shop, not over a screen opened from them.
+- **Settings and looks.** Each shows its value without an argument. Real settings go through the setters
+  Options uses and are saved by `savePrefs` (terrain, camera, interface, resolution; music and sound styles
+  keep themselves). The URL-only looks switch live in the renderer for this page (`vfx`, `sprites`, `bg`;
+  structures already placed keep their look). `fps`/`perf` toggles a corner overlay (fps, frame time, tick,
+  speed, draw-list size; remembered). `tick` shows the level's tick count; `speed N` (0-8) scales the time
+  the fixed-step loop accumulates, so ticks stay the classic fixed ones and only more or fewer run per
+  frame (0 freezes; the effects' clock follows); `seed` shows the start-up seed, `seed N` reseeds mt_rand.
+  `reset` puts the settings, looks, styles, speed and overlay back to their defaults (not volumes or keys).
+  `clear`, `close`.
+- **Bundle.** `src/app/consoleBridge.ts` (the place, hooks, speed, ticks, the backtick key) is in the main
+  bundle; the console (`src/debug/console/`, ~21 kB) loads on first use.
+
+**Not covered:** the `?debug=play|level` harnesses (their own loops; their URL params still work) and
+two-player games' player 2 (the cheats act on player 1).
+
+Tests: `tests/debug/console.test.ts` (parser, completion, history, level numbering and sections, the
+commands on a real level: armour cap, god vs a lethal hit, a fitted gun firing, sidekick setup, kill, skip
+to a completed level), `tests/app/options.test.ts` (the row). Captures: `tyrian-scratch/debug-console/captures/`
+(`d-*` 1920x1080, `p-*` 390x844 touch through Options on the title and the pause menu, `f-*` shop jumps and skip).

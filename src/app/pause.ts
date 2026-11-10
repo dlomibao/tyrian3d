@@ -12,6 +12,7 @@
 import "./pause.css";
 import { h, keyHints, MenuList, showScreen, title } from "../ui";
 import { showOptions, type OptionsHost } from "./options";
+import { consoleBridge } from "./consoleBridge";
 
 export type PauseChoice = "resume" | "quit";
 
@@ -24,6 +25,7 @@ export function showPause(host: OptionsHost): Promise<PauseChoice> {
     let asking = false;
     let inOptions = false;
     const done = (choice: PauseChoice) => {
+      if (consoleBridge.leave?.screen === screen) consoleBridge.leave = null;
       screen.close();
       resolve(choice);
     };
@@ -62,6 +64,8 @@ export function showPause(host: OptionsHost): Promise<PauseChoice> {
       items: PAUSE_ITEMS.map((label) => ({ label })),
       onSelect: (i) => (i === 0 ? done("resume") : i === 1 ? void options() : void quit()),
     });
+    // The debug console's jumps (D109) resume the game, which then leaves the level.
+    consoleBridge.leave = { screen, go: () => done("resume") };
     screen.add(
       title("Paused"),
       menu,
