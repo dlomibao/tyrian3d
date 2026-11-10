@@ -9,6 +9,8 @@ export interface CommandSpec {
   usage: string;
   /** One line for `help`. */
   help: string;
+  /** More lines for `help <command>` (a command with subcommands lists them here). */
+  details?: readonly string[];
   /** Words that may come at argument `index` (0-based) after `args` so far, for tab completion. */
   complete?(index: number, args: readonly string[]): readonly string[];
 }

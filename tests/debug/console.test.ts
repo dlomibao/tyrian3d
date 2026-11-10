@@ -1,9 +1,25 @@
 // The debug console (src/debug/console/, D109): its command line (words, completion, history), the
 // level numbering and jumps (sections, not levels: the harness's main=), and its cheats acting on a
 // real level through the sim's own functions.
-import { beforeEach, describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { commonPrefix, completeLine, findCommand, helpLines, History, tokenize, type CommandSpec } from "../../src/debug/console/parse";
 import { listLevels, navTargets, resolveLevel, shopSectionFor } from "../../src/debug/console/levels";
+import { categoryLabel, findCategory, itemScreenLists, offered, resetShopLists, SHOP_CATEGORIES, soldEverywhere } from "../../src/debug/console/shopLists";
+import {
+  itemScreenEntries,
+  JE_itemScreen_done,
+  JE_itemScreen_init,
+  JE_itemScreen_key,
+  JE_itemScreen_mouse,
+  JE_itemScreen_update,
+  JE_itemScreenNonInteractive,
+  MENU_FULL_GAME,
+  MENU_UPGRADE_SUB,
+  MENU_UPGRADES,
+  menu,
+  type ItemScreenKey,
+} from "../../src/sim/game_menu";
+import { JE_getValue, JE_initPlayerData } from "../../src/sim/mainint";
 import { createCommands, runLine, type ConsoleCtx } from "../../src/debug/console/commands";
 import { consoleBridge, type ConsoleBridge } from "../../src/app/consoleBridge";
 import { parseEpisodeScript, type EpisodeScript } from "../../src/data/episodeScript";
@@ -301,3 +317,271 @@ describe.skipIf(!hasData("tyrian1.lvl", "tyrian.hdt", "tyrian.shp", "levels1.dat
     expect(r.completed).toBe(true);
   });
 });
+
+// --- the shop's lists (D110) ---
+
+const HAVE_SHOP = hasData("tyrian.hdt", "tyrian.shp", "levels1.dat", "levels2.dat", "levels3.dat", "levels4.dat", "tyrian1.lvl", "palette.dat", "newsh1.shp");
+
+/** A one-player game in episode 1 with `cash`, as tests/sim/shop.test.ts sets one up. */
+function shopGame(cash: number): void {
+  mt_srand(1);
+  if (!g.res || g.episodeNum !== 1) g.res = buildResources(files, 1);
+  g.episodeNum = 1;
+  loadHelpText(readData("tyrian.hdt"));
+  JE_initPlayerData();
+  Object.assign(g, { playDemo: false, jumpSection: false, onePlayerAction: false, twoPlayerMode: false, superTyrian: false, constantPlay: false, gameLoaded: true, cubeMax: 0, mapPNum: 0 });
+  g.player[0].cash = cash;
+}
+
+/** Run the item screen of episode 1's section `section`, `drive` playing it (it must leave it). */
+function inItemScreen(section: number, drive: () => void): void {
+  loadLevel(files, 1, section, () => {
+    JE_itemScreen_init();
+    JE_itemScreen_update();
+    drive();
+  });
+}
+
+const press = (...keys: ItemScreenKey[]) => {
+  for (const k of keys) {
+    JE_itemScreen_key(k);
+    if (JE_itemScreen_done()) return;
+    JE_itemScreen_update();
+  }
+};
+/** Open category `sel`'s list (2 ship .. 8 right sidekick) through Upgrade Ship, from wherever the screen is. */
+const openList = (sel: number) => {
+  while (menu.curMenu !== MENU_FULL_GAME) press("esc");
+  menu.curSel[MENU_FULL_GAME] = 4; // Upgrade Ship
+  press("enter");
+  menu.curSel[MENU_UPGRADES] = sel;
+  press("enter");
+};
+/** Out of the screen: back to the main menu, Play Next Level, its first destination. */
+const leave = () => {
+  while (menu.curMenu !== MENU_FULL_GAME) press("esc");
+  menu.curSel[MENU_FULL_GAME] = 6;
+  press("enter", "enter");
+};
+const listed = () => itemScreenEntries().filter((e) => !e.done).map((e) => e.item);
+const rows = () => g.itemAvail.map((r, i) => r.slice(0, g.itemAvailMax[i]));
+const category = (k: string) => findCategory(k)!;
+
+describe("shop lists: the command line", () => {
+  test("categories by the shop's names and short aliases", () => {
+    expect(SHOP_CATEGORIES.map((c) => [c.key, c.sel, c.row])).toEqual([
+      ["ships", 2, 0],
+      ["front", 3, 1],
+      ["rear", 4, 2],
+      ["shields", 5, 8],
+      ["generators", 6, 3],
+      ["left", 7, 5],
+      ["right", 8, 6],
+    ]);
+    for (const [w, k] of [["ship", "ships"], ["FRONT-GUNS", "front"], ["front gun", "front"], ["f", "front"], ["reargun", "rear"], ["shield", "shields"], ["gen", "generators"], ["generator", "generators"], ["ls", "left"], ["left-sidekick", "left"], ["rs", "right"], ["Right Sidekick", "right"]])
+      expect(findCategory(w)?.key, w).toBe(k);
+    expect(findCategory("hat")).toBeUndefined();
+  });
+
+  test("Tab completes the subcommands, categories and item ids and names", () => {
+    const cmds = createCommands();
+    expect(completeLine(cmds, "shop a")).toEqual({ line: "shop a", options: ["add", "all"] });
+    expect(completeLine(cmds, "shop all o")).toEqual({ line: "shop all o", options: ["off", "on"] });
+    expect(completeLine(cmds, "shop set fr")).toEqual({ line: "shop set front ", options: [] });
+    expect(completeLine(cmds, "shop items g")).toEqual({ line: "shop items generators ", options: [] });
+  });
+});
+
+describe.skipIf(!HAVE_SHOP)("shop lists: what the real game sells (shop all)", () => {
+  beforeEach(() => shopGame(0));
+
+  test("the union of every item screen in episodes 1-4: non-empty, in each category's range, sorted as the shop sorts", () => {
+    const s = soldEverywhere(files);
+    expect(s.episodes).toEqual([1, 2, 3, 4]);
+    expect(s.screens).toBe(16 + 11 + 12 + 22);
+    expect(s.dropped).toEqual([]);
+    const counts = Object.fromEntries(SHOP_CATEGORIES.map((c) => [c.key, s.lists[c.key].length]));
+    expect(counts).toEqual({ ships: 9, front: 18, rear: 13, shields: 9, generators: 6, left: 23, right: 30 });
+    for (const c of SHOP_CATEGORIES) {
+      const l = s.lists[c.key];
+      expect(l.length, c.key).toBeGreaterThan(0);
+      for (const id of l) expect(id >= c.min && id <= c.max, `${c.key} ${id}`).toBe(true);
+      expect(new Set(l).size).toBe(l.length);
+      expect(l.filter((x) => x !== 0)).toEqual([...l.filter((x) => x !== 0)].sort((a, b) => a - b));
+      if (l.includes(0)) expect(l.at(-1)).toBe(0); // None last, as the merchant sorts
+    }
+    // Nothing the game never sells: no front "None", no ship no screen sells (Stalker, U-Ship,
+    // Silver, Nort), no internal, joke or Nort guns, no Quicksilver, no HXS Class C.
+    expect(s.lists.front).not.toContain(0);
+    for (const id of [8, 10, 11, 12]) expect(s.lists.ships).not.toContain(id);
+    for (const id of [16, 23, 24, 25, 26, 36, 37, 38, 39]) {
+      expect(s.lists.front).not.toContain(id);
+      expect(s.lists.rear).not.toContain(id);
+    }
+    expect(s.lists.left).not.toContain(24);
+    expect(s.lists.right).not.toContain(24);
+    expect(s.lists.shields).not.toContain(10);
+    // The right sidekicks include the front-firing ones only the right side is sold.
+    for (const id of [20, 22, 23, 25, 26, 27, 28]) {
+      expect(s.lists.right).toContain(id);
+      expect(s.lists.left).not.toContain(id);
+    }
+  });
+
+  test("the lists are the sim's own: each item screen's itemAvail as the sim loads it at its ]I[", () => {
+    const screens = itemScreenLists(readData("levels1.dat"));
+    const script = parseEpisodeScript(readData("levels1.dat"));
+    const withShop = script.sections.filter((sec) => sec.lines.some((l) => l.startsWith("]I[")));
+    expect(withShop).toHaveLength(screens.length);
+    for (const [k, sec] of withShop.entries()) {
+      if (!sec.lines.some((l) => l.startsWith("]G["))) continue; // no destinations of its own
+      shopGame(0);
+      let seen: number[][] | null = null;
+      loadLevel(files, 1, sec.number, () => {
+        seen ??= rows(); // before JE_itemScreen_init adds the loadout
+        JE_itemScreenNonInteractive();
+      });
+      expect(seen, `section ${sec.number}`).toEqual(screens[k]);
+    }
+  });
+});
+
+describe.skipIf(!HAVE_SHOP)("shop lists in the item screen", () => {
+  const cmds = createCommands();
+  let ctx: ConsoleCtx;
+  const out = (line: string) => runLine(cmds, line, ctx).map((l) => `${l.kind}: ${l.text}`);
+  beforeEach(() => {
+    shopGame(1_000_000);
+    ctx = ctxFor("shop").ctx;
+  });
+  afterEach(() => resetShopLists(false));
+
+  test("shop all sells the union in every list, and buying from it is a normal purchase; off restores the level's lists exactly", () => {
+    const union = soldEverywhere(files).lists;
+    inItemScreen(2, () => {
+      const level = rows().map((r) => [...r]);
+      openList(3);
+      const own = listed();
+      expect(own).toEqual([1, 2, 7, 13]); // section 2's WeapF 13 2 7 and the Pulse-Cannon
+      expect(out("shop all")).toEqual(["out: shop all: off (the level's lists)"]);
+      expect(out("shop all on")[0]).toMatch(/^out: shop all: on\. Every list is the union of 61 item screens in episodes 1, 2, 3, 4:$/);
+      // Still in the front gun list, now the union's (the Pulse-Cannon is in it).
+      expect(menu.curMenu).toBe(MENU_UPGRADE_SUB);
+      expect(listed()).toEqual(union.front);
+      expect(itemScreenEntries().find((e) => e.item === 1)?.owned).toBe(true);
+      expect(menu.curSel[MENU_UPGRADE_SUB]).toBe(2); // on the owned Pulse-Cannon
+      expect(rows()).toEqual(level); // the level's lists untouched
+
+      // Buy the Widget Beam (40, sold only in episode 4) the way a player does: click it twice, then Done.
+      const widget = itemScreenEntries().find((e) => e.item === 40)!;
+      const cost = widget.cost!;
+      JE_itemScreen_mouse(widget.sel);
+      JE_itemScreen_update();
+      expect(g.player[0].items.weapon[0].id).toBe(40); // previewed
+      JE_itemScreen_mouse(widget.sel);
+      JE_itemScreen_update();
+      press("enter"); // Done
+      expect(menu.curMenu).toBe(MENU_UPGRADES);
+      expect(g.player[0].items.weapon[0]).toEqual({ id: 40, power: 1 });
+      expect(g.player[0].cash).toBe(1_000_000 + JE_getValue(3, 1) - cost);
+
+      // Every other category sells the union too.
+      for (const c of SHOP_CATEGORIES) expect(offered(c)).toEqual(merchantOrderOf([...union[c.key], playerItemOf(c.sel)]));
+
+      expect(out("shop all off")).toEqual(["out: shop all: off; the level's own lists"]);
+      expect(rows()).toEqual(level);
+      openList(3);
+      expect(listed()).toEqual([1, 2, 7, 13]); // the level's again (the Widget Beam comes with the next screen's last_items)
+      leave();
+    });
+  });
+
+  test("set, add, remove and clear edit one list; the shop shows the player's own item too", () => {
+    inItemScreen(2, () => {
+      expect(out("shop set front 40 zica-laser 3")).toEqual(["out: front (3): 3 Mega Cannon · 5 Zica Laser · 40 Widget Beam", "out: the shop still lists 1 Pulse-Cannon, what you have"]);
+      openList(3);
+      expect(listed()).toEqual([1, 3, 5, 40]);
+      expect(out("shop add f 41 42")).toEqual(["out: front (5): 3 Mega Cannon · 5 Zica Laser · 40 Widget Beam · 41 Sonic Impulse · 42 RetroBall", "out: the shop still lists 1 Pulse-Cannon, what you have"]);
+      expect(listed()).toEqual([1, 3, 5, 40, 41, 42]);
+      expect(out("shop remove front 5 retroball")[0]).toBe("out: front (3): 3 Mega Cannon · 40 Widget Beam · 41 Sonic Impulse");
+      expect(listed()).toEqual([1, 3, 40, 41]);
+      expect(out("shop clear front")[0]).toBe("out: front (0): (nothing)");
+      expect(listed()).toEqual([1]);
+      expect(out("shop list front")).toEqual([`out: ${categoryLabel(category("front"))} (front), edited list: 1 item`, "out:   1  Pulse-Cannon                    500  (yours)"]);
+      // Not sold anywhere: allowed, and said so.
+      expect(out("shop set rear 24")).toEqual(["out: rear (1): 24 Banana Blast Rear", "out: not sold here in the real game: 24 Banana Blast Rear", "out: the shop still lists 0 None, what you have"]);
+      // Two Vulcan Cannons: the rear list takes the one sold as a rear gun; the front list sells both.
+      expect(out("shop set rear vulcan")[0]).toBe("out: rear (1): 15 Vulcan Cannon");
+      expect(out("shop set front vulcan")[0]).toBe('err: front: "vulcan" could be 7 Vulcan Cannon, 15 Vulcan Cannon: use the id');
+      expect(out("shop set front 0")[0]).toBe("err: front: ids are 1-42 (`shop items front` lists them)");
+      expect(out("shop set hats 1")[0]).toMatch(/^err: no category "hats": one of ships, front/);
+      expect(out("shop set front")[0]).toBe("err: usage: shop set <category> <id|name…>");
+      expect(out("shop all")).toEqual(["out: shop all: off; console lists for front, rear"]);
+      expect(out("shop reset front")).toEqual(["out: front: the level's own list"]);
+      expect(listed()).toEqual([1, 2, 7, 13]);
+      expect(out("shop reset")).toEqual(["out: the level's own lists; shop all off"]);
+      leave();
+    });
+  });
+
+  test("the lists last through the next item screens until shop reset; items lists the ids to pick from", () => {
+    const title = ctxFor("title").ctx;
+    expect(runLine(cmds, "shop set front 40", title).map((l) => l.text)[0]).toBe("front (1): 40 Widget Beam (from the next item screen on)");
+    ctx = ctxFor("shop").ctx;
+    for (const section of [2, 4]) {
+      inItemScreen(section, () => {
+        openList(3);
+        expect(listed(), `section ${section}`).toEqual([1, 40]);
+        leave();
+      });
+    }
+    const items = out("shop items front zica");
+    expect(items).toEqual([expect.stringMatching(/^out: .+ \(front\): ids 1-42; · = no shop in the game sells it here$/), "out:    5  Zica Laser                     1100"]);
+    expect(out("shop items front").length).toBe(1 + 42);
+    expect(out("shop items front").filter((l) => /^out: ·/.test(l)).length).toBe(42 - 18);
+    resetShopLists(false);
+    inItemScreen(4, () => {
+      openList(3);
+      expect(listed()).toEqual([1, 2, 13, 17]);
+      leave();
+    });
+  });
+
+  test("Tab completes item names and ids; help shop lists the subcommands", () => {
+    expect(completeLine(cmds, "shop add front zica")).toEqual({ line: "shop add front zica-laser ", options: [] });
+    expect(completeLine(cmds, "shop set rs beno-")).toEqual({ line: "shop set rs beno-", options: ["beno-protron-system-b", "beno-wallop-beam"] });
+    expect(completeLine(cmds, "shop set shields 1").options).toEqual(["1", "10"]);
+    const help = out("help shop");
+    expect(help[0]).toMatch(/^out: shop \[episode\] \| all \[on\|off\]/);
+    for (const sub of ["all", "list", "items", "set", "add|remove", "clear", "reset"]) expect(help.some((l) => l.startsWith(`out: shop ${sub}`)), sub).toBe(true);
+  });
+
+  test("a long list: every row reachable with the keys, the cursor wrapping at both ends", () => {
+    inItemScreen(2, () => {
+      out("shop all on");
+      openList(8); // right sidekicks: 30 and Done
+      const n = menu.menuChoices[MENU_UPGRADE_SUB];
+      expect(n).toBe(30 + 2);
+      const seen = new Set<number>();
+      for (let i = 0; i < n; i++) {
+        seen.add(menu.curSel[MENU_UPGRADE_SUB]);
+        press("down");
+      }
+      expect(seen.size).toBe(n - 1); // every row 2..n
+      press("up");
+      expect(menu.curSel[MENU_UPGRADE_SUB]).toBeGreaterThanOrEqual(2);
+      leave();
+    });
+  });
+});
+
+/** The merchant's order, for expectations. */
+const merchantOrderOf = (ids: number[]) => {
+  const all = [...new Set(ids)];
+  return [...all.filter((x) => x !== 0).sort((a, b) => a - b), ...all.filter((x) => x === 0)];
+};
+/** The player's item in Upgrade Ship category `sel`. */
+const playerItemOf = (sel: number) => {
+  const it = g.player[0].items;
+  return [it.ship, it.weapon[0].id, it.weapon[1].id, it.shield, it.generator, it.sidekick[0], it.sidekick[1]][sel - 2];
+};

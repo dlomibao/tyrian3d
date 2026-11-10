@@ -9,6 +9,25 @@
 import { CheatError, heal, killAll, POWER_MAX, setArmor, setCredits, setGod, setPower, setShield, setSidekick, setWeapon, sidekickName, skipLevel, weaponName } from "./cheats";
 import { findCommand, helpLines, tokenize, type CommandSpec } from "./parse";
 import { hasItemScreen, listLevels, resolveLevel, shopSectionFor, type ConsoleLevel } from "./levels";
+import {
+  categoryLabel,
+  consoleList,
+  editedCategories,
+  findCategory,
+  itemCost,
+  itemLabel,
+  itemSlug,
+  offered,
+  overridden,
+  resetShopLists,
+  setCategoryList,
+  setShopAll,
+  SHOP_CATEGORIES,
+  shopAllOn,
+  sold,
+  validIds,
+  type ShopCategory,
+} from "./shopLists";
 import { parseEpisodeScript, type EpisodeScript } from "../../data/episodeScript";
 import { OPTION_NUM, PORT_NUM } from "../../data/items";
 import type { ConsoleBridge } from "../../app/consoleBridge";
@@ -150,6 +169,151 @@ const displayCommand = <T extends string>(name: string, choice: DisplayChoice<T>
     },
   );
 
+// --- the shop's lists (D110) ---
+
+const SHOP_SUBS = ["all", "list", "items", "set", "add", "remove", "clear", "reset"];
+
+const SHOP_DETAILS = [
+  "shop all [on|off]\tevery category sells all the real game sells somewhere (episodes 1-4); no argument: the state",
+  "shop list [category]\twhat each category offers now, with ids (one category: with prices)",
+  "shop items <category> [filter]\tevery id the category can take (filter: part of a name, or an id)",
+  "shop set <category> <id|name…>\treplace the category's list",
+  "shop add|remove <category> <id|name…>\tadd to or take from it",
+  "shop clear <category>\tempty it (the shop still lists what you have)",
+  "shop reset [category]\tthe level's own lists again, and shop all off",
+  `categories: ${SHOP_CATEGORIES.map((c) => c.key).join(", ")} (or ship, f, rear, shield, gen, ls, rs…). Lists last for this page until \`shop reset\`, through level changes; never saved. What you have is always listed, as the game lists it.`,
+];
+
+/** A category word, or a usage error naming them. */
+function category(word: string | undefined): ShopCategory {
+  const c = word === undefined ? undefined : findCategory(word);
+  if (!c) throw fail(`${word === undefined ? "which category?" : `no category "${word}":`} one of ${SHOP_CATEGORIES.map((x) => x.key).join(", ")}`);
+  return c;
+}
+
+const key = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+/**
+ * An item by id or name (whole or the start, any case, punctuation ignored: `pulse-cannon`,
+ * `"Pulse Cannon"`, `zica`). Names two items share (two Vulcan Cannons) take the one the real game
+ * sells in this category, if just one is; otherwise the ids are asked for.
+ */
+function resolveItem(c: ShopCategory, word: string, soldHere: readonly number[]): number {
+  if (/^\d+$/.test(word)) {
+    const id = Number(word);
+    if (id < c.min || id > c.max) throw fail(`${c.key}: ids are ${c.min}-${c.max} (\`shop items ${c.key}\` lists them)`);
+    return id;
+  }
+  const k = key(word);
+  const ids = validIds(c);
+  const exact = ids.filter((id) => key(itemLabel(c, id)) === k);
+  let found = exact.length ? exact : ids.filter((id) => key(itemLabel(c, id)).startsWith(k));
+  if (found.length > 1) {
+    const here = found.filter((id) => soldHere.includes(id));
+    if (here.length === 1) found = here;
+  }
+  if (!k || found.length === 0) throw fail(`${c.key}: no item called "${word}" (\`shop items ${c.key}\` lists them)`);
+  if (found.length > 1) throw fail(`${c.key}: "${word}" could be ${found.map((id) => `${id} ${itemLabel(c, id)}`).join(", ")}: use the id`);
+  return found[0];
+}
+
+/** "1 Pulse-Cannon · 2 Multi-Cannon", wrapped by the console. */
+const itemRun = (c: ShopCategory, ids: readonly number[]) => (ids.length ? ids.map((id) => `${id} ${itemLabel(c, id)}`).join(" · ") : "(nothing)");
+
+/** The item the player has in a category (what the shop always lists). */
+function owned(c: ShopCategory): number {
+  const it = g.player[0].items;
+  return [it.ship, it.weapon[0].id, it.weapon[1].id, it.shield, it.generator, it.sidekick[0], it.sidekick[1]][c.sel - 2];
+}
+
+/** Where a category's list comes from, for `shop list`. */
+function source(c: ShopCategory): string {
+  if (consoleList(c) === null) return "the level's";
+  if (editedCategories().includes(c)) return "edited";
+  return "shop all";
+}
+
+function shopListsCommand(sub: string, args: string[], ctx: ConsoleCtx): Output {
+  const b = ctx.bridge;
+  const inShop = b.place === "shop";
+  const files = b.files;
+  if (!files) throw fail("no game data loaded");
+  const state = () => {
+    const ed = editedCategories();
+    const on = overridden();
+    if (shopAllOn()) return `shop all: on${ed.length ? ` (edited: ${ed.map((c) => c.key).join(", ")})` : ""}`;
+    return on.length ? `shop all: off; console lists for ${on.map((c) => c.key).join(", ")}` : "shop all: off (the level's lists)";
+  };
+  const where = inShop ? "" : " (from the next item screen on)";
+  switch (sub) {
+    case "all": {
+      if (!args.length) return state();
+      const v = args[0].toLowerCase();
+      if (/^(on|1|true|yes)$/.test(v)) {
+        const s = setShopAll(files, inShop);
+        const lines = [`shop all: on${where}. Every list is the union of ${s.screens} item screens in episodes ${s.episodes.join(", ")}:`, ...SHOP_CATEGORIES.map((c) => `  ${c.key.padEnd(10)} ${String(s.lists[c.key].length).padStart(2)}  ${categoryLabel(c)}`)];
+        if (s.dropped.length) lines.push(`dropped (outside the item tables): ${s.dropped.map((d) => `${d.key} ${d.id}`).join(", ")}`);
+        return lines;
+      }
+      if (/^(off|0|false|no)$/.test(v)) {
+        resetShopLists(inShop);
+        return "shop all: off; the level's own lists";
+      }
+      throw fail(`"${args[0]}": on or off`);
+    }
+    case "reset": {
+      const c = args.length ? category(args[0]) : undefined;
+      resetShopLists(inShop, c);
+      return c ? `${c.key}: the level's own list` : "the level's own lists; shop all off";
+    }
+    case "list": {
+      if (!args.length) {
+        return [
+          `${state()}${inShop ? "" : "; outside the shop the level's lists are the last item screen's"}:`,
+          ...SHOP_CATEGORIES.map((c) => `${c.key} (${categoryLabel(c)}, ${source(c)}, ${offered(c).length}): ${itemRun(c, offered(c))}`),
+        ];
+      }
+      const c = category(args[0]);
+      const list = offered(c);
+      const mine = owned(c);
+      return [
+        `${categoryLabel(c)} (${c.key}), ${source(c)} list: ${list.length} item${list.length === 1 ? "" : "s"}`,
+        ...list.map((id) => `${String(id).padStart(3)}  ${itemLabel(c, id).padEnd(28)} ${String(itemCost(c, id)).padStart(6)}${id === mine ? "  (yours)" : ""}`),
+      ];
+    }
+    case "items": {
+      const c = category(args[0]);
+      const soldHere = sold(files).lists[c.key];
+      const f = args.slice(1).join(" ");
+      const k = key(f);
+      const ids = validIds(c).filter((id) => !f || String(id) === f.trim() || key(itemLabel(c, id)).includes(k));
+      if (!ids.length) throw fail(`${c.key}: nothing matches "${f}"`);
+      return [
+        `${categoryLabel(c)} (${c.key}): ids ${c.min}-${c.max}; · = no shop in the game sells it here`,
+        ...ids.map((id) => `${soldHere.includes(id) ? " " : "·"}${String(id).padStart(3)}  ${itemLabel(c, id).padEnd(28)} ${String(itemCost(c, id)).padStart(6)}`),
+      ];
+    }
+    case "set":
+    case "add":
+    case "remove":
+    case "clear": {
+      const c = category(args[0]);
+      const words = args.slice(1);
+      if (sub === "clear" ? words.length : !words.length) throw fail(sub === "clear" ? "usage: shop clear <category>" : `usage: shop ${sub} <category> <id|name…>`);
+      const soldHere = sold(files).lists[c.key];
+      const ids = words.map((w) => resolveItem(c, w, soldHere));
+      const base = consoleList(c) ?? offered(c);
+      const next = sub === "set" ? ids : sub === "add" ? [...base, ...ids] : sub === "remove" ? base.filter((id) => !ids.includes(id)) : [];
+      const list = setCategoryList(c, next, inShop);
+      const notes: string[] = [];
+      const unsold = ids.filter((id) => !soldHere.includes(id));
+      if (sub !== "remove" && unsold.length) notes.push(`not sold here in the real game: ${itemRun(c, unsold)}`);
+      if (!list.includes(owned(c)) && b.place !== "title") notes.push(`the shop still lists ${owned(c)} ${itemLabel(c, owned(c))}, what you have`);
+      return [`${c.key} (${list.length}): ${itemRun(c, list)}${where}`, ...notes];
+    }
+  }
+}
+
 /** The console's commands, in `help` order. */
 export function createCommands(): Command[] {
   const cmds: Command[] = [];
@@ -166,7 +330,7 @@ export function createCommands(): Command[] {
       if (args.length) {
         const c = findCommand(cmds, args[0]);
         if (!c) throw fail(`no command "${args[0]}"`);
-        return helpLines([c]);
+        return [...helpLines([c]), ...(c.details ?? [])];
       }
       return [...helpLines(cmds), "Tab completes, Up/Down go through the history, ` (backtick) or Esc closes."];
     },
@@ -374,10 +538,23 @@ export function createCommands(): Command[] {
   });
   add({
     name: "shop",
-    usage: "[episode]",
-    help: "to the item screen before this level (from the title: a new game's first)",
-    complete: (i) => (i === 0 ? ["1", "2", "3", "4"] : []),
+    usage: "[episode] | all [on|off] | list|items|set|add|remove|clear|reset …",
+    help: "to the item screen before this level (from the title: a new game's first); or what the shop sells (`help shop`)",
+    details: SHOP_DETAILS,
+    complete(i, args) {
+      if (i === 0) return ["1", "2", "3", "4", ...SHOP_SUBS];
+      const sub = args[0]?.toLowerCase();
+      if (sub === "all") return i === 1 ? ["on", "off"] : [];
+      if (!SHOP_SUBS.includes(sub)) return [];
+      if (i === 1) return SHOP_CATEGORIES.map((c) => c.key);
+      const c = findCategory(args[1] ?? "");
+      if (!c || !["set", "add", "remove"].includes(sub)) return [];
+      const ids = sub === "remove" ? (consoleList(c) ?? offered(c)) : validIds(c);
+      return [...ids.map(String), ...ids.map((id) => itemSlug(c, id)).filter(Boolean)];
+    },
     run(args, ctx) {
+      const sub = args[0]?.toLowerCase();
+      if (sub !== undefined && SHOP_SUBS.includes(sub)) return shopListsCommand(sub, args.slice(1), ctx);
       const b = ctx.bridge;
       if (b.place === "shop") throw fail("already in the shop");
       if (b.place === "title") {

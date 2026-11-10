@@ -89,9 +89,10 @@ export const menu = {
   old_items: newPlayerItems(),
   /**
    * JE_itemScreen's temp_weapon_power[7]: the power each weapon in the submenu shows, then "Done".
-   * (The C array assumes at most 6 weapons per list; this one has room for a full row.)
+   * (The C array assumes at most 6 weapons per list; this one has room for any list, the debug
+   * console's included: a list's length is a u8, D110.)
    */
-  temp_weapon_power: new Array<number>(12).fill(0),
+  temp_weapon_power: new Array<number>(256).fill(0),
   /** JE_computeDots: route dots from mapOrigin to each destination. */
   planetDots: new Array<number>(5).fill(0),
   planetDotX: Array.from({ length: 5 }, () => new Array<number>(10).fill(0)),
@@ -162,6 +163,83 @@ function playeritem_set(items: PlayerItems, i: number, v: number): void {
 /** The itemAvail row (0-based) the Upgrade Ship choice `sel` (2..8) sells from. */
 const availRow = (sel: number): number => itemAvailMap[sel - 2] - 1;
 
+// --- [console] The debug console's shop lists (D110) ---
+//
+// The debug console can have the item screen sell other lists than the level's (`shop all`, `shop
+// set`, ...). It never touches the level's itemAvail / itemAvailMax (the C's 10-slot rows): the
+// screen reads every list through availList / availCount, which give the console's list for a row
+// that has one and the level's otherwise. With no console list (the default, and after `shop
+// reset`) they are the C's arrays, read exactly as before.
+
+/** Per itemAvail row: the console's list (null: the level's). For the page only; never saved. */
+const consoleLists: (number[] | null)[] = new Array(9).fill(null);
+/** Per itemAvail row: what the screen sells from a console list (with the player's own items, sorted). */
+const shownLists: (number[] | null)[] = new Array(9).fill(null);
+
+/** The list the item screen sells from itemAvail row `row`: the console's, or the level's itemAvail. */
+const availList = (row: number): readonly number[] => shownLists[row] ?? g.itemAvail[row];
+/** How many items availList(row) has (the level's itemAvailMax without a console list). */
+const availCount = (row: number): number => shownLists[row]?.length ?? g.itemAvailMax[row];
+
+/** [console] The merchant's order (JE_itemScreen_init's sort, on a list without repeats): ascending, None (0) last. */
+export function merchantOrder(items: Iterable<number>): number[] {
+  const all = [...new Set(items)];
+  return [...all.filter((x) => x !== 0).sort((a, b) => a - b), ...all.filter((x) => x === 0)];
+}
+
+/**
+ * The console's lists as the screen shows them: what the player has is listed too, as
+ * JE_itemScreen_init adds last_items to the level's lists, so the screen always offers the item
+ * owned (and "None" where that is what the player has).
+ */
+function buildShownLists(): void {
+  const p = g.player[0];
+  for (let i = 0; i < 7; i++) {
+    const row = itemAvailMap[i] - 1;
+    const list = consoleLists[row];
+    shownLists[row] = list ? merchantOrder([...list, playeritem_get(p.last_items, i), playeritem_get(p.items, i)]) : null;
+  }
+}
+
+/**
+ * [console] Have the item screen sell `list` from itemAvail row `row` (0-based) instead of the
+ * level's; null goes back to the level's. Call JE_itemScreen_listsChanged afterwards while the
+ * screen is up.
+ */
+export function setConsoleShopList(row: number, list: readonly number[] | null): void {
+  consoleLists[row] = list ? list.map(u8) : null;
+  buildShownLists();
+}
+
+/** [console] The console's list for itemAvail row `row` (null: none, the level's is sold). */
+export function consoleShopList(row: number): readonly number[] | null {
+  return consoleLists[row];
+}
+
+/** [console] What the item screen sells from itemAvail row `row` now (the console's list with the player's items, or the level's). */
+export function shopListShown(row: number): number[] {
+  return availList(row).slice(0, availCount(row));
+}
+
+/**
+ * [console] The console changed the lists while the item screen is up. In an Upgrade Ship list,
+ * the list is left as Escape leaves it (the loadout and credits as they were when it opened) and
+ * opened again, so its rows, cursor and weapon powers are the new list's. No sounds. The level's
+ * own lists are left as they are: an item bought from a console list and then turned off is
+ * listed again from the next item screen on (last_items), as anything the player flew in with.
+ */
+export function JE_itemScreen_listsChanged(): void {
+  const sounds = menu.sounds.length;
+  const inList = menu.curMenu === MENU_UPGRADE_SUB;
+  if (inList) JE_itemScreen_key("esc");
+  buildShownLists();
+  if (inList) {
+    JE_itemScreen_update(); // MENU_UPGRADES: the weapon powers for the new list
+    JE_menuFunction(menu.curSel[MENU_UPGRADES]);
+  }
+  menu.sounds.length = sounds;
+}
+
 /**
  * JE_cashLeft (game_menu.c L133-155): cash after paying for the item in the current Upgrade Ship
  * category and its power upgrades. The upgrades are summed in tempW, a JE_word, so they wrap.
@@ -223,16 +301,21 @@ export function JE_itemScreen_init(): void {
   }
 
   /* JE: Sort items in merchant inventory */
-  for (let x = 0; x < 9; x++) {
-    const a = g.itemAvail[x];
-    if (g.itemAvailMax[x] > 1) {
-      for (let temp = 0; temp < g.itemAvailMax[x] - 1; temp++) {
-        for (let temp2 = temp; temp2 < g.itemAvailMax[x]; temp2++) {
-          if (a[temp] === 0 || (a[temp] > a[temp2] && a[temp2] !== 0)) {
-            const temp3 = a[temp];
-            a[temp] = a[temp2];
-            a[temp2] = temp3;
-          }
+  for (let x = 0; x < 9; x++) sortMerchantRow(x);
+
+  buildShownLists(); // [console] the debug console's lists, with this screen's last_items (D110)
+}
+
+/** JE_itemScreen_init's sort of itemAvail row x (game_menu.c L228-246): ascending, None (0) last. */
+function sortMerchantRow(x: number): void {
+  const a = g.itemAvail[x];
+  if (g.itemAvailMax[x] > 1) {
+    for (let temp = 0; temp < g.itemAvailMax[x] - 1; temp++) {
+      for (let temp2 = temp; temp2 < g.itemAvailMax[x]; temp2++) {
+        if (a[temp] === 0 || (a[temp] > a[temp2] && a[temp2] !== 0)) {
+          const temp3 = a[temp];
+          a[temp] = a[temp2];
+          a[temp2] = temp3;
         }
       }
     }
@@ -269,13 +352,13 @@ export function JE_itemScreen_update(): void {
       row = availRow(curSel[MENU_UPGRADES]);
 
     // set power level of owned weapon
-    for (let slot = 0; slot < g.itemAvailMax[row]; ++slot) {
-      if (g.itemAvail[row][slot] === item) menu.temp_weapon_power[slot] = item_power;
+    for (let slot = 0; slot < availCount(row); ++slot) {
+      if (availList(row)[slot] === item) menu.temp_weapon_power[slot] = item_power;
       else menu.temp_weapon_power[slot] = 1;
     }
 
     // set power level for "Done"
-    menu.temp_weapon_power[g.itemAvailMax[row]] = item_power;
+    menu.temp_weapon_power[availCount(row)] = item_power;
   }
 
   // MENU_PLAY_NEXT_LEVEL: the navigation map's animation (JE_updateNavScreen) is the host's.
@@ -287,7 +370,7 @@ export function JE_itemScreen_update(): void {
   if (menu.curMenu === MENU_UPGRADE_SUB) {
     const sel = curSel[MENU_UPGRADES];
     const row = availRow(sel);
-    const avail = g.itemAvail[row];
+    const avail = availList(row);
 
     /* Move cursor until we hit either "Done" or a weapon the player can afford */
     while (curSel[MENU_UPGRADE_SUB] < menuChoices[MENU_UPGRADE_SUB] && JE_getCost(sel, avail[curSel[MENU_UPGRADE_SUB] - 2]) > player[0].cash) {
@@ -359,7 +442,7 @@ export function JE_itemScreen_key(key: ItemScreenKey): void {
     case "enter":
       // if front or rear weapon, update "Done" power level
       if (weaponSub)
-        menu.temp_weapon_power[g.itemAvailMax[availRow(curSel[MENU_UPGRADES])]] = player[0].items.weapon[curSel[MENU_UPGRADES] - 3].power;
+        menu.temp_weapon_power[availCount(availRow(curSel[MENU_UPGRADES]))] = player[0].items.weapon[curSel[MENU_UPGRADES] - 3].power;
 
       JE_menuFunction(curSel[curMenu]);
       break;
@@ -555,7 +638,7 @@ export function JE_itemScreen_mouse(selection: number | "powerDown" | "powerUp")
         curSel[curMenu] = selection;
         JE_menuFunction(curSel[curMenu]);
       } else {
-        if (curMenu === MENU_UPGRADE_SUB && JE_getCost(curSel[MENU_UPGRADES], g.itemAvail[availRow(curSel[MENU_UPGRADES])][selection - 2]) > g.player[0].cash) {
+        if (curMenu === MENU_UPGRADE_SUB && JE_getCost(curSel[MENU_UPGRADES], availList(availRow(curSel[MENU_UPGRADES]))[selection - 2]) > g.player[0].cash) {
           JE_playSampleNum(S_CLINK);
         } else {
           if (curSel[MENU_UPGRADES] === 4) g.player[0].weapon_mode = 1;
@@ -585,14 +668,14 @@ export function JE_itemScreen_quitAnswer(quit: boolean): void {
 /** JE_genItemMenu (game_menu.c L2464-2506): the submenu for Upgrade Ship choice itemNum (2..8). */
 export function JE_genItemMenu(itemNum: number): void {
   const row = availRow(itemNum);
-  menu.menuChoices[MENU_UPGRADE_SUB] = g.itemAvailMax[row] + 2;
+  menu.menuChoices[MENU_UPGRADE_SUB] = availCount(row) + 2;
 
   let temp3 = 2;
   const temp2 = playeritem_get(g.player[0].items, itemNum - 2);
 
   // (The C also copies the item names into menuInt[5]; itemScreenEntries builds them.)
-  for (let tempW = 0; tempW < g.itemAvailMax[row]; tempW++) {
-    if (g.itemAvail[row][tempW] === temp2) temp3 = tempW + 2;
+  for (let tempW = 0; tempW < availCount(row); tempW++) {
+    if (availList(row)[tempW] === temp2) temp3 = tempW + 2;
   }
 
   menu.curSel[MENU_UPGRADE_SUB] = temp3;
@@ -927,7 +1010,7 @@ export function itemScreenEntries(): ItemScreenEntry[] {
         out.push({ sel: tempW + 1, label: g.miscText[13], done: true });
         continue;
       }
-      const temp = g.itemAvail[row][tempW - 1]; /* Item ID */
+      const temp = availList(row)[tempW - 1]; /* Item ID */
       const temp_cost = JE_getCost(sel, temp);
       out.push({
         sel: tempW + 1,

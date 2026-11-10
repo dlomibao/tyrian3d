@@ -62,8 +62,10 @@ score table (episodes 1-3, as in the original), which the title screen shows und
   pause menu, and on phones) opens a command line over the paused game: cheats (`god`, `armor N`,
   `shield N`, `heal`, `credits N`, `weapon front|rear ID [power]`, `power N`, `sidekick left|right ID`,
   `kill`), levels (`levels`, `level 2 gyges`, `skip`, `shop`), settings and looks (`camera`, `terrain`,
-  `interface`, `vfx`, `sprites`, `bg`, `music`, `sound`, `fps`, `speed N`, `seed`, `reset`). `help` lists
-  them all; Tab completes, Up/Down recall. See [DECISIONS.md](DECISIONS.md) D109.
+  `interface`, `vfx`, `sprites`, `bg`, `music`, `sound`, `fps`, `speed N`, `seed`, `reset`), and what the shop
+  sells (`shop all` for everything the game sells somewhere, `shop list`, `shop items front`, `shop set front 40
+  zica-laser`, `shop add|remove|clear`, `shop reset`; for this page only, until `shop reset`). `help` (and
+  `help shop`) lists them all; Tab completes, Up/Down recall. See [DECISIONS.md](DECISIONS.md) D109, D110.
 - **Attract mode:** left alone for 30 seconds, the title screen plays the original's five recorded
   demos in turn, replayed exactly as OpenTyrian plays them; any key, button or tap returns to the
   title (`?demo` or `?demo=1`..`5` plays one at once).

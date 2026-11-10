@@ -655,6 +655,7 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
       el("ship").innerHTML = renderShip();
       list.innerHTML = entries.map((e) => renderRow(e, e.sel === menu.curSel[menu.curMenu])).join("");
     }
+    list.classList.toggle("shop-list--items", menu.curMenu === MENU_UPGRADE_SUB); // a long list scrolls in its pane (D110)
     el("ship").hidden = preview.sync();
     const power = renderPower();
     el("power").innerHTML = power;
