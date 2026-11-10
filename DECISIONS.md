@@ -4385,5 +4385,5 @@ byte for byte, 121 new ground, 7 layer-1, 11 layer-2 (`0-2.webp`, `1.webp`, `2.w
   `tyrian-scratch/terrain-shapesx/captures/compare-2-1-r2.jpg`, `compare-2-10-r2.jpg`), 2-6 t1500 and 2-12 t900
   (`compare-2-6-2-12-r2.jpg`, original | HD). Forest, water, cliffs and hull slabs line up with the original; the repainted
   hull slabs on 2-10 are darker steel with a faint teal halo at their edges, and 2-6's central hull block shows a green
-  tint where the edge-aware blend borrowed the neighbouring forest. Left tiles show as the original beside them. terrainArt
+  tint (cause not investigated). Left tiles show as the original beside them. terrainArt
   and terrainHd tests pass. Not looked at: 2-2, 2-11, 4-13, `&dpr=0.3`, fallback with a tile removed.
