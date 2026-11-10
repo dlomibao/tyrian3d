@@ -4337,7 +4337,7 @@ The most-drawn one is #7 198 (7 levels, 3 episodes), with #7 199 (96,631 ticks) 
 
 Answers, sheets and prompts: `tyrian-scratch/flat-art-rest/` (not in git, D3).
 
-## D109 — `shapesx` HD terrain, first round: 70 of 196 ground tiles from 4 Gemini sheets, stopped at the Pro usage limit (D83, D95)
+## D109 — `shapesx` HD terrain: 191 of 196 ground, 7 of 14 layer-1 and 11 of 13 layer-2 tiles from 24 Gemini sheets (two rounds; D83, D95)
 
 2026-11-04
 
@@ -4362,5 +4362,28 @@ per tile to the original (D57), so every level plays; the rest is a second round
 - **Checked in game** (2-1, 2-10 at ticks 1200 and 2400, both looks): painted forest, water and cliffs meet cleanly;
   unpainted tiles show as the original beside them.
 
-**Next:** with the answers cached in `tyrian-scratch/terrain-shapesx/work/` (cands.pkl, results/), send the 20 remaining sheets
-(`bin/lock.sh`, driver notes in the PR), `git checkout -- public/art/terrain/shapesx`, `cut --cache`, `check`.
+**Second round (Nov 9):** the 20 remaining primary sheets sent (25 requests, 5 of them retries: 09, 10, 20, 12, 02; no usage
+warning, no limit hit). Atlas folder restored, then `cut --cache --edge-aware --exclude <14 tiles>`: 70 ground tiles kept
+byte for byte, 121 new ground, 7 layer-1, 11 layer-2 (`0-2.webp`, `1.webp`, `2.webp`; 1.4 MB in all).
+- **Sheet quality** (tile NCC median, after the retry where there was one): forest 19 0.73, 16 0.52, 14 0.95, 09 0.24
+  (first try 0.10: stayed weak); purple 08 0.66, 20 0.94; hull 01 0.87, 15 0.89, 18 0.78, 11 0.77, 07 0.71, 02 0.98, 10 0.06
+  (two tries, both failed to register); flesh 17 0.83, 04 0.49, 12 0.98; layer 2: 02 0.81, 01 0.57; layer 1: ctx-2 1.00,
+  ctx-1 0.70. Sheets 20, 15, 12 and 02 came back as near copies of the pixel blocks (blockiness 4.2-4.8, NCC 0.9+) even after
+  an "anti-aliased, no pixel grid" retry on 20 and 02; the cut deblocks them. Hull prompts now say "flat game-map floor
+  texture, not a ship or vehicle" (Gemini drew a ship in space for the same wording in `shapesw`); layer-2 and context
+  prompts say "on a pure black background ... do not paint a cave, sky or scenery". The layer-1 prompts written by
+  `mkprompts.py` had lost their "Repaint every piece" sentence (it replaced everything from the first parenthesis), so
+  both contexts were resent with the full text.
+- **Left to the original** (best candidate scored under 0.4): ground 86 111 127 566 567, layer 1 62 450 451 452 458 459
+  467 (the other 7 are painted), layer 2 313 314.
+- **Seams** (`check`, every edge): layer 0 0.865 across / inside (original continuous 0.823), bands 0.544; the 19,625
+  edges between kept tiles 0.730 (continuous 0.729), the 17,611 edges that touch a new tile 1.018 (continuous 0.932),
+  bands 0.617; layer 1 0.804 (continuous 0.801; only 5 edges); layer 2 0.398 (continuous 0.398), bands 0.678. Ground is
+  above the ~0.6 target, but within 0.04-0.09 of the original's own ratio on this forest and hull texture.
+- **In game** (`episode=2&main=M&seed=1&skip=T&freezeAt=T`, both looks; section numbers: 2-1 TORM main 2, 2-10 BOTANY A main
+  21, 2-6 GRYPHON main 12, 2-12 BONUS main 24): 2-1 and 2-10 at t1200/t2400 (original | round 1 | round 2:
+  `tyrian-scratch/terrain-shapesx/captures/compare-2-1-r2.jpg`, `compare-2-10-r2.jpg`), 2-6 t1500 and 2-12 t900
+  (`compare-2-6-2-12-r2.jpg`, original | HD). Forest, water, cliffs and hull slabs line up with the original; the repainted
+  hull slabs on 2-10 are darker steel with a faint teal halo at their edges, and 2-6's central hull block shows a green
+  tint where the edge-aware blend borrowed the neighbouring forest. Left tiles show as the original beside them. terrainArt
+  and terrainHd tests pass. Not looked at: 2-2, 2-11, 4-13, `&dpr=0.3`, fallback with a tile removed.
