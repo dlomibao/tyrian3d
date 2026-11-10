@@ -3,16 +3,19 @@ hard-surface to the D65 standard. One script, three models (as before): newshs-9
 newshs-93 (frame 93, hatch shut) and newshs-93-f2 (frame 131, red eye open).
 
 Reading of newshs-9 (12 x 14, symmetric about column edge 5.5; tools/calibration/rubric.md):
+- WHAT IT IS: a missile launched by the gunship newshs-93 (behaviour: lby 590, mv(0,4), flying
+  DOWN the screen at 4 px/tick). The bottom end (row 11) leads: a closed nose cone; the top end
+  (row 1) is the tail with the exhaust nozzle; the hammerhead pods are its tail fins.
 - Column 5 is a round fuselage (cols 4-6, 3 px): the bright 13/14 stripe down its middle with
-  darker 10/9/8 flanks is a cylinder's sheen, not a ridge. It runs from the nose (row 1, the 15
-  glint) to the nozzle (row 11).
-- Rows 1-3: the hammerhead, two blunt tip pods (cols 2-3 / 7-8, lit 12/14 inner edge) on a low
+  darker 10/9/8 flanks is a cylinder's sheen, not a ridge. It runs from the exhaust nozzle (row 1,
+  the 15 glint on the bell's crown) to the nose cone (row 11).
+- Rows 1-3: the tail's hammerhead fins, two blunt tip pods (cols 2-3 / 7-8, lit 12/14 inner edge) on a low
   cross wing (the dark 5/8/7 beside the nose is the wing, sunk between pods and fuselage); the
   pods' tails curve in over row 3 (inner mask cols 3-7) and the neck (row 4) is the bare fuselage.
 - Rows 5-9: two rounded side nacelles (cols 2-3 / 7-8, 14/13 tops), blunt front on row 5, widest
   6-8, tails curling in on row 9; the dark cols 4 / 6 are the crevices between them and the body.
 - Row 10: a glowing band round the fuselage (120 centre, 116 sides on frame 9; the frames step it
-  up to 122/118, 124/121, 126/123); row 9's collar and row 11's nozzle brighten with it (10 -> 11
+  up to 122/118, 124/121, 126/123); row 9's collar and row 11's nose cone brighten with it (10 -> 11
   -> 12): palette_material frames=, one model for all four frames (D17).
 
 Reading of newshs-93 (24 x 28, symmetric about column edge 12, nose down the screen):
@@ -223,7 +226,7 @@ def tube_cloud(st, n=12, p=2.6, grow=0.0):
 # =================================================================================================
 D_AX = -0.5   # its symmetry axis (column edge 5.5) in x = column edge - 6
 
-# Fuselage half width (px) by row edge; cols 4-6 from the nose (row 1) to the nozzle (row 11).
+# Fuselage half width (px) by row edge; cols 4-6 from the tail nozzle (row 1) to the nose (row 11).
 _FY = [0.95, 1.1, 1.6, 2.2, 2.8, 3.3, 3.7, 4.8, 5.6, 8.6, 9.3, 9.6]
 _FW = [0.0, 0.38, 0.55, 0.72, 1.0, 1.36, 1.48, 1.48, 1.08, 1.08, 1.45, 1.48]
 fus_w = T.pchip(_FY, _FW)
@@ -244,14 +247,20 @@ nac_c, nac_w = T.pchip(_NY, _NC), T.pchip(_NY, _NW)
 
 
 def drone_stations(M):
-    """Fuselage: nose cap, body with V-cut panel lines, collar, glow band, rear collar, nozzle."""
+    """Fuselage: tail nozzle, body with V-cut panel lines, collar, glow band, closed nose cone."""
     st = []
     body = M["body"]
-    nose = M["nose"]
-    ys = [0.95, 1.05, 1.15, 1.3, 1.6, 2.0, 2.4, 2.8, 3.1, 3.4, 3.7]
-    for y in ys:
+    noz = M["nozzle_rim"]
+    # exhaust nozzle at the tail (row 1, the back end: the missile flies down the screen): a short
+    # bell flaring rearward from a waist, its exit a recessed dark throat facing up the screen
+    zn = 0.42
+    st += [(1.45, 0.0, 0.34, zn, 0.32, 0.3, M["throat"], "in"), (1.0, 0.0, 0.44, zn, 0.42, 0.38, noz, "-y"),
+           (1.0, 0.0, 0.7, zn, 0.68, 0.6, noz),
+           (1.12, 0.0, 0.72, zn, 0.7, 0.62, noz), (1.4, 0.0, 0.6, zn, 0.58, 0.52, M["seam"]),
+           (1.6, 0.0, 0.56, zn - 0.02, 0.56, 0.5, body)]
+    for y in (2.0, 2.4, 2.8, 3.1, 3.4, 3.7):
         h = fus_h(y)
-        st.append((y, 0.0, fus_w(y), 0.1 + (1.3 - h) * 0.35, h, h * 0.85, nose if y < 1.5 else body))
+        st.append((y, 0.0, fus_w(y), 0.1 + (1.3 - h) * 0.35, h, h * 0.85, body))
     # V-cut panel line behind the hammerhead (row 4's front edge) and one behind the nacelles' noses
     for y in (3.87, 3.95, 4.03, 4.5, 4.9, 5.12, 5.2, 5.28, 5.6, 6.2, 7.4, 8.3, 8.6, 8.95, 9.25):
         k = 0.9 if y in (3.95, 5.2) else 1.0
@@ -263,10 +272,12 @@ def drone_stations(M):
     # glow band (row 10), recessed a hair between the collars; top 120-family, sides 116-family
     band = lambda a: M["glow"] if math.sin(a) > 0.55 else M["glow_side"]  # noqa: E731
     st += [(9.95, 0.0, 1.4, 0.1, 1.22, 1.04, band), (10.95, 0.0, 1.4, 0.1, 1.22, 1.04, band, "-y")]
-    # rear collar and nozzle bell (row 11), its exit a recessed throat
-    st += [(10.95, 0.0, 1.5, 0.1, 1.32, 1.12, M["nozzle"]), (11.15, 0.0, 1.5, 0.1, 1.32, 1.12, M["nozzle"]),
-           (11.25, 0.0, 1.38, 0.1, 1.2, 1.0, M["nozzle"]), (11.95, 0.0, 1.22, 0.1, 1.02, 0.86, M["nozzle"], "+y"),
-           (11.95, 0.0, 0.82, 0.1, 0.66, 0.56, M["throat"], "in"), (11.55, 0.0, 0.62, 0.1, 0.48, 0.4, M["throat"])]
+    # front collar and the closed, blunt rounded nose cone (row 11, the leading end), lit with the band
+    nc = M["nosecone"]
+    st += [(10.95, 0.0, 1.5, 0.1, 1.32, 1.12, nc), (11.15, 0.0, 1.5, 0.1, 1.32, 1.12, nc),
+           (11.4, 0.0, 1.46, 0.1, 1.28, 1.08, nc), (11.62, 0.0, 1.34, 0.1, 1.18, 1.0, nc),
+           (11.8, 0.0, 1.1, 0.1, 0.97, 0.82, nc), (11.93, 0.0, 0.72, 0.1, 0.64, 0.54, nc),
+           (11.99, 0.0, 0.34, 0.1, 0.3, 0.26, nc), (12.01, 0.0, 0.0, 0.1, 0.0, 0.0, nc)]
     return st
 
 
@@ -320,7 +331,7 @@ def build_drone(coll):
     Mt = Mats(sprite, name)
     M = {
         "body": Mt(10, "body", metallic=0.5, roughness=0.34),
-        "nose": Mt(11, "nose", metallic=0.55, roughness=0.28),
+        "nozzle_rim": Mt(11, "nozzle_rim", metallic=0.55, roughness=0.28),
         "seam": Mt(8, "seam", metallic=0.4, roughness=0.5),
         "tip": Mt(11, "tip", metallic=0.5, roughness=0.34),
         "tip_front": Mt(10, "tip_front", metallic=0.5, roughness=0.36),
@@ -329,9 +340,9 @@ def build_drone(coll):
         "pod": Mt(11, "pod", metallic=0.5, roughness=0.32),
         "pod_lip": Mt(11, "pod_lip", metallic=0.5, roughness=0.36),
         "deck": Mt(9, "deck", metallic=0.45, roughness=0.42),
-        # collar (row 9) and nozzle (row 11) brighten with the band: 10 -> 11 -> 12
+        # collar (row 9) and nose cone (row 11) brighten with the band: 10 -> 11 -> 12
         "collar": Mt(10, "collar", frames={10: 11, 28: 11, 29: 11}, metallic=0.5, roughness=0.34),
-        "nozzle": Mt(10, "nozzle", frames={10: 11, 28: 12, 29: 12}, metallic=0.5, roughness=0.34),
+        "nosecone": Mt(10, "nosecone", frames={10: 11, 28: 12, 29: 12}, metallic=0.5, roughness=0.34),
         "throat": Mt(5, "throat", metallic=0.3, roughness=0.6),
         # the band: no emission (modelFrames.ts copies the full colour into any emissive, so a
         # strength <= 1 still glows at 1 and washes 120 out to salmon in the game's lit, tone-mapped
@@ -364,7 +375,7 @@ def build_drone(coll):
         T.hull(P, T.cbox(x0, x1, 5.7, 9.1, -0.55, 0.3, 0.2), M["deck"])
     obj = finish(P, Mt.list, coll, 14, D_AX)
     # outline shell from a closed proxy (D51)
-    clouds = [tube_cloud(fst[:-2], grow=0.05)] + [tube_cloud(st[2:], grow=0.05) for st in tips + nacs]
+    clouds = [tube_cloud(fst[2:], grow=0.05)] + [tube_cloud(st[2:], grow=0.05) for st in tips + nacs]
     for s in (-1, 1):
         x0, x1 = sorted((s * 0.3, s * 2.4))
         clouds.append(T.cbox(x0, x1, 1.15, 3.45, -0.3, 0.45, 0.1))
