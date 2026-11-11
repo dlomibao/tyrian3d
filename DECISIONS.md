@@ -5447,3 +5447,57 @@ whole game 161 flagship of 479. M0 shared units not flagship-done: 124 (was 130)
 - `newshd-95` keeps D121's darker bake (`bake_with_copy`) and its flat underside; rebuild it on D90/D118 with the
   family's matte roughness if the user wants the family to match exactly.
 - `newshd-114` has a small facet cluster where its crease meets the summit's faces (0.3 px; invisible in game).
+
+## D126 — A model's glow takes its authored strength, below 1 too, and replaces its lit colour
+
+2026-11-10
+
+**Problem (the D121 and D122 glow wash-out).** `colourFrame` (`src/render/modelFrames.ts`, line 87 before this change)
+copied the palette colour into a pal_ material's `emissive`. Blender's glTF exporter writes a glow (emission colour =
+base colour, from `common.palette_material`) as colour × strength in `emissiveFactor`, and only the part that doesn't
+fit under 1 into `KHR_materials_emissive_strength` (three's `emissiveIntensity`). So the copy kept the extension and
+dropped the strength in the factor: in game a glow emitted palette × the extension (1 for every strength whose
+colour × strength fits under 1: 0.4, 0.12, 2.5 on a dark red all showed as 1), and on top of that the material was lit
+in full in the same colour, then Neutral tone mapped. A lit-plus-glowing orange or red runs past 1 and goes pale:
+`newshm-7`'s lens salmon, `newsha-89`'s core peach, `newshj-19`'s bands cream and pink, `newshe-277`'s orbs salmon.
+All 1,730 pal_ glow materials in `public/models/` have emission colour = base colour (scanned), so the authored strength
+is exactly `max(emissive) / max(colour) × emissiveIntensity`.
+
+**Decision:** `rigModel` reads that strength once per material (`glowStrength`, kept in `userData.tyrianGlow` so
+recolouring and `Material.clone` don't lose it; `emissiveIntensity` becomes 1). `colourFrame` then sets
+`emissive = palette × strength` and `colour = palette × max(0, 1 − strength)`: the glow's light stands in for the lit
+colour. Strength 1 or more is the palette colour unlit (what the sprite pixel is); 0.4 is 60% lit and 40% glow (an
+ember). Colour still comes from the live palette per frame (D7: fades, level palettes, the hit flash's hue,
+`tyrian_frame_pal`). It is the default for every model, not opt-in. D35's hot shots and fireballs are extruded
+sprites with their own palette material (`paletteMaterial.ts`) and don't go through `colourFrame`: unchanged.
+
+**Options considered:**
+- *Honour the strength and fade the lit colour (chosen):* fixes both halves of the wash-out with no model rebuilt.
+- *Honour the strength only (emissive = palette × strength, lit colour kept):* tried; the lenses and pits barely
+  changed, since the lit term was most of the wash-out (`newsha-89` is authored at 1 and was already "honoured").
+- *Opt-in per material (a glTF extra or a name convention):* safest for untested models, but needs every glowing model
+  rebuilt to benefit, and leaves two meanings of `emission_strength`. Not needed: the check below found no model worse.
+- *An unlit material for glows (MeshBasicMaterial):* loses the damage shader patch (D87), shadows received, the
+  outline shell's material contract and the partial glows below 1.
+- *Clamp the glow at the palette colour:* would keep saturated colours from going pale at high strengths, but
+  discards what the scripts authored above 1 (white-hot cores); left to the scripts instead (follow-ups).
+
+**Check.** Before (origin/main) against after, in `?viewer=` at the game angle and free, against the sprite: `newshm-7`
+(frames 7/9/11), `newsha-89`, `newsh-caret-163`, `newshj-19` (4 frames), `newshe-277`, `newsha-199`, `usp_talon`,
+`ship-microcorp-stalker`, `ship-silver-ship`, the level 1 glows (`newsh2-229`, `newsh2-87`, `newsh4-1`, `tyrian10-14`,
+`newsh2-123`, `newsh2-127`, `newshe-1`, `newshe-39`, `newshp-13`, `tyrian10-39`, `newsh2-153`, `newsh2-171`,
+`newsh2-267`, `newshp-85`) and `newshd-229` (231/233/235), `newshc-275`, `newsha-281`, `newshd-121`. And in game
+(`?debug=play`, seed 1, frozen): TYRIAN (main 1) at ticks 300/900/1500/2400 (the Talon's engines, shots, explosions,
+level 1 enemies) and SOH JIN (main 31) at 1304/2920/3004 (`newsha-89`, `newshj-19`, `newsha-199`); shots, explosions
+and the Talon came out the same. Sheets: `tyrian-scratch/emissive-fix/` (`emissive-fix-sheet.png`). The reported glows now read in their palette bands (yellow core
+in orange and red rings, ember on frame 7, the pit at its own dark red, orange orbs, blue rings on the caret); the rest
+look the same or closer to the sprite. Of the 1,730 glow materials, 219 (authored below 1) emit less than before and
+1,118 more (their strength was in `emissiveFactor`); with the lit colour gone, totals moved little. Viewer only: `newshm-7`
+(ASTEROID1, main 5: on the draw list at 6860/7372 but not on screen in the frozen frames), `newsh-caret-163` (WINDY)
+and `newshe-277` (ALE), which did not show in 8,000 ticks of `main=33`/`41`.
+
+**Follow-ups (art, in the model scripts):**
+- Saturated colours at high strength still go pale under Neutral tone mapping: `newshp-85`'s pulse (reds at 2.5-4.5)
+  reads pink, `newshd-229`'s 233 gem (3.5-6.0) periwinkle. Lower those strengths toward 1 / brightest channel.
+- Workarounds that can go: `newshj-19`'s metallic 1.0 / roughness 0.6 (D122) and `newshd-121`'s `dim_visor()` (D121).
+- `palette_material`'s docstring (`assets/blender/common.py`) now says what a strength means in game.
