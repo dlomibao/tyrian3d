@@ -6460,3 +6460,89 @@ art's direction would need painted light, which art rule 2 rules out. D143's oth
 Captures: `tyrian-scratch/ring-dome-dome/shots/` (`orig_`, `before_`, `after_` t3280, t3310, t3515) and `cmp/`
 (`t3280.png`, `t3310.png`, `t3515.png`, `crop_dome_t3280.png`, `crop_dome_t3310.png`: original | before | after; not in
 git, D3).
+
+## D149 — DELIANI's hull and the TYRIAN dome works' bed: smooth edges through the art's steps, not its pixel stairs (fixes QA round 3 N4 and N5; extends D134, D136, D118, D86)
+
+2026-11-11
+
+**Problem** (`tyrian-scratch/e1-qa-3/REPORT.md`):
+- *N4:* at 4K, DELIANI's purple hull (`delbld_hull.py`, D134/D136) is pixel-stepped. The clamps have per-pixel
+  stair carving and noisy shading, and the plating's edges and seams follow the art's stairs. The hull is a height
+  field on the art's 2x MMPX grid (`lib_tiles.mask_slab`, one quad per 2x pixel), so its outline and every edge
+  between two parts run along pixel edges. The deck's clamp feet were flat-shaded steps of an erosion profile:
+  each 2x pixel showed as a lit facet.
+- *N5:* the TYRIAN dome works' (`assembly-newsh2-115`) steel bed was traced row by row (`BED_OUTLINE`), each
+  pixel step a jog, so the game's ink outline round the dome's base is a black staircase (1.9 and 1.15 t300). This
+  makes N1 (outlines over the ice) worse.
+
+**Decision:**
+- *Hull edges* (`lib_delbld.boundary_moves`, `move_grid_verts`): each cell gets a part (its material, or a
+  carving that shares one: a deck or bracket groove, a segment seam, a grille bar, a spring plate). Every edge
+  between two parts, and the outline, is a chain of grid corners. Each corner moves to a Gaussian average of its
+  chain: sigma 2 corners, applied twice with the shrinkage taken back (2G - GG), at most 0.6 of a 2x pixel.
+  Straight runs stay, a staircase becomes a straight or curved line through the middles of its steps (D118's
+  rule), and a square corner (two runs of 3+ cells) stays square. Junctions of three parts and loops under 8
+  corners stay put.
+- *The outline* is smoothed as much, except on the four outer elbows (550, 552, 570, 572). Their outline is one
+  long arc of 1x steps, and a curve through all of them leaves them at IoU 0.985-0.988 against the tile's 1x
+  pixels. So there it is smoothed less (sigma 0.9) and its smoothed stretches are pushed out 0.06 cell, to stay
+  at or above 0.99. The 2x stairs go; the 1x arc's shallow steps soften but stay faintly.
+- *Seams:* a corner on a tile edge stays put where the art has pixels on both sides, so a tile and its
+  neighbour, each built in its own block (D134), still meet on the art's grid. Where nothing is across (a rim's
+  outer edge), it moves too, and the notches there smooth. A tile's edge rows and columns keep their heights as
+  before (no speck merging there, the clamp feet's erosion profile), because a seam's height is the mean of both
+  sides and the tile across may be built with a different neighbour.
+- *Specks:* pieces of a part of at most 3 2x pixels join the part round them, at its height.
+- *Shading:* each part is smooth-shaded within itself and creases where it meets another (sharp edges between
+  parts), so grooves and housings read crisp without per-pixel facets (flat-shading the recesses was tried: every
+  2x pixel became a facet again). The deck's clamp feet are smooth-shaded and rounded by a blurred mask, and their
+  thin ink lines are their own part, so the feet stay separate chunky blocks.
+- *Bake:* `field_bake` samples the moved surface (4 samples per 2x pixel, corner heights bilinear as the mesh is),
+  so the occlusion follows the smooth edges and has no steps. Sampling per cell striped the tubes.
+- *Size:* flat faces within 5 degrees merge (`tidy_flat(angle=)`, was 0.5). Each slope quad round a smoothed plate
+  is its own plane, and at 0.5 degrees the deck tile 575 grew by half.
+- Kept: D136's ink-floored grooves, housings and seams (the same palette index per part), the clamp brackets,
+  the tube primitives, colours, heights, the in-context build and its cut, every tileModels entry.
+- *Dome works' bed* (`assembly-newsh2-115.py`): `BED_POLY` and `RIM_POLY` are straight runs and chamfers fitted
+  through the middles of the sprite's steps (its machine mask), every corner filleted (`fillet`, radius 0.9 px).
+  The rim is one open frame (one prism, `offset_open`), not ten segment prisms with a notch at each joint. The
+  bolts, the rest of the machine, the pieces, the frame and the pivots are unchanged. The dirt is still only the
+  bake's occluder and is not exported (D86).
+
+**Measured:**
+- Hull, top-view IoU of each model against its tile's 1x opaque pixels (4x sampling, D134's measure): at least
+  0.9909 for all 42 tiles (552; 570 and 572 0.9911, 550 0.9927), median 1.0. Main: at least 0.9906.
+- Hull seams: the 147 tile pairs the maps put side by side (`seams.py`: the top surface's height along the shared
+  edge from each model, and where only one has geometry). No pair is worse than main: height gaps within 0.005
+  (median 0.045 on both, from D134's non-mutual contexts) and one-sided samples 3361 against 3362 in all.
+- Size: hull 6.05 MB, now 6.31 MB (+4.3%); the dome works' four pieces 1.14 MB, now 1.18 MB (+3.5%;
+  15.3k triangles with their outline shells, was 14.5k).
+- Dome works, top-view IoU per piece against the sprite's machine mask. The sprite is opaque to its rectangle
+  (dirt), so `sprite_mask.py`'s rule mask is the whole rectangle. The mask used: the pixels not reached from the
+  picture's edge through dirt (16-21), with the dirt's 1-px dark cracks opened off and closed. Main → this: 77
+  0.9847 → 0.9841, 79 0.9730 → 0.9785, 115 0.9814 → 0.9853, 117 0.9323 → 0.9589; whole 0.9719 → 0.9787. Main's
+  117 was under 0.95 by this mask; the new right side follows the sprite closer.
+- Builds: `tools/build-models.sh -j 2` (exit 0): 42 hull exports and 4 dome works pieces, all fresh. Typecheck and
+  `npm run build` pass. vitest: all pass but three timeouts on a machine at load 40-190 (`remaster.test.ts`'s
+  minRows scan, 265 s alone against its own 60 s limit, `botTrace`, `demo`). The last two pass alone; the minRows
+  scan reads only tileModels entries, which are unchanged.
+
+**In game** (`?debug=play&episode=1&main=19|3&seed=1`, main | this branch, 4K and 1080p): at 1.5 t300 the hull
+rim's outer edge is a straight line, the purple segments' recesses and the deck's seams end round, the clamp
+feet are three rounded blocks, and no pixel facets are left. The clamps' left half (the art's slats and their
+dark housing) is still busy, now in smooth shapes. 1.5 t1800 and t2550 are unchanged (the hull is off screen and
+the girders untouched). At 1.9 and 1.15 t300 (hard) the ink round the dome's base runs in straight chamfers and
+round corners instead of steps; the outline shell's own small waviness is left. HARVEST t800: the elbows'
+grooves and slots are smooth.
+
+**Options considered:**
+- *Rebuild the clamps and plates as analytic hard-surface parts (QA's suggestion):* every tile's carving is its
+  own art (slats, greek keys, plates); a per-tile hand model of 42 tiles is weeks of work, and D136's art-driven
+  carving is what the coordinator accepted.
+- *A finer grid (4x) instead of moved corners:* the stairs only shrink and the hull's size quadruples.
+- *One sigma for the outline everywhere:* sigma 2 leaves the outer elbows at 0.985-0.988 IoU; sigma 0.9
+  everywhere keeps 2-cell notches on the straight rims.
+
+**Review:** `tyrian-scratch/qa3-stairs/`: `before/`, `after/` (4K and 1080p at 1.5 t300, t1800, t2550, 1.9 t300,
+1.15 t300 hard), `crops/` (main | this), `iou_hull_after.txt`, `iou115*`, `seams_before.txt`, `seams_after.txt`,
+`REPORT.md`. Not in git (D3).

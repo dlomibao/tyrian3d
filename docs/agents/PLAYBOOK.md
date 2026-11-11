@@ -191,8 +191,10 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
   track, a rimmed hull: the same dozen pieces in every layout) → one model per tile, built in a 3x3 block of its
   usual neighbours and cut to the centre so bevels and occlusion cross the seams (`lib_delbld.py`, D134). Dark
   triangles over smooth tessellated tubes after a Cycles bake → bake the occlusion from the height field
-  (`field_bake`). Rails and clamps reading black → metalness ≤ 0.2 (metal darkens the diffuse). QA frames every 750
-  ticks miss tiles: sweep every tick of the level for the tiles drawn.
+  (`field_bake`). Rails and clamps reading black → metalness ≤ 0.2 (metal darkens the diffuse). A height-field
+  tile's outline and carving stair-stepped at 4K → move its part edges onto curves through the steps
+  (`lib_delbld.boundary_moves`, tile edges with art across pinned), crease between parts, bake from the moved
+  surface (D149). QA frames every 750 ticks miss tiles: sweep every tick of the level for the tiles drawn.
 - **Cost/time:** tyrian-buildings (12 TYRIAN structures, concept-based, D47): 41 agents, 48 min,
   3.4M tokens; lead 19 min; build median 8 min; grade 0.6; fix 5.5. The concept-bake look it used is
   superseded by the hard-surface rule; budget about one flagship item per structure.

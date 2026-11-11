@@ -37,6 +37,13 @@ pixels' brightness (art rule 2: the art's shading and sheen are lighting):
   regions between its ink lines), each standing by its brightness with rounded edges, so a thin arm is a
   round bar and a block a box; the ink between them is a groove; each plate takes its own median palette
   index (the art's dark blocks stay dark), snapped within its ramp to one set of shades for all spring tiles.
+Smooth edges (D149): the height field is a grid of 2x pixels, so the outline and every edge between two
+parts (clamp and housing, plate and seam, tube and groove) would follow the art's pixel staircases. Each
+such edge is moved onto a smooth curve through the middles of its steps (lib_delbld.boundary_moves:
+straight runs and square corners stay, stairs become lines and curves); the corners on a tile edge with
+art on both sides stay put, so neighbours built in their own blocks still meet. Specks of a part (at most
+SPECK 2x pixels) join the part round them; each part shades smooth within itself and creases where it
+meets another; the occlusion bake samples the moved surface.
 Colours: one palette index per part (grey clamps, from the face of the clamp; purple tube, deck, seams,
 housings, the tubes' ink, brackets, blue, red; a spring's plates each their own), the median of its
 pixels with the darkest and brightest 15% dropped. In game the sun shines from the camera's side into
@@ -78,6 +85,18 @@ HOUSING = -0.07
 SEAM_DARK = 0.05
 CROSS_H = 0.22
 SPRING_H = 0.24
+#: A part's piece of at most this many 2x cells is a speck of the art, not a shape (D149).
+SPECK = 3
+#: How far the part edges and the outline are smoothed (lib_delbld.boundary_moves' sigma, in 2x pixel
+#: corners) and how far the outline's smoothed stretches are pushed out (cells), D149. The outer elbows'
+#: outline is one long arc of 1x steps: a curve through them all leaves it at IoU 0.985-0.988 against the
+#: tile's 1x pixels (D134's measure), so there it is smoothed less and grown a little to stay >= 0.99.
+EDGE_SIGMA = 2.0
+OUTLINE = {550: (0.9, 0.06), 552: (0.9, 0.06), 570: (0.9, 0.06), 572: (0.9, 0.06)}
+OUTLINE_DEFAULT = (2.0, 0.0)
+#: Flat faces within this many degrees merge (lib_delbld.tidy_flat): the slopes round a smoothed plate turn
+#: a few degrees per cell, and each as its own face made the deck half as big again.
+FLAT_MERGE = 5.0
 #: The shades a spring's plates snap to, within their own ramp (grey, purple), every other step.
 SPRING_SHADES = (2, 4, 6, 8, 10, 12, 81, 83, 85, 87, 89, 91)
 HULL = dict(metallic=0.12, roughness=0.5)
@@ -277,6 +296,29 @@ def erosion_depth(lab, steps):
     return depth
 
 
+def absorb_specks(part_id, height, solid, max_px, tile=None):
+    """Pieces of a part (4-connected) of at most `max_px` cells take the part most common round them
+    and that part's mean height there (in place). `tile` (th, tw): a piece touching a tile's edge row or
+    column is left as it is, as its size there depends on the neighbour the block was built with."""
+    H, W = part_id.shape
+    lab = labels(np.where(solid, part_id.astype(str), ""))
+    ids, counts = np.unique(lab[lab > 0], return_counts=True)
+    for k in ids[counts <= max_px]:
+        ys, xs = np.nonzero(lab == k)
+        if tile and (np.isin(ys % tile[0], (0, tile[0] - 1)).any() or np.isin(xs % tile[1], (0, tile[1] - 1)).any()):
+            continue
+        nb = {}
+        for y, x in zip(ys, xs):
+            for yy, xx in ((y - 1, x), (y + 1, x), (y, x - 1), (y, x + 1)):
+                if 0 <= yy < H and 0 <= xx < W and solid[yy, xx] and lab[yy, xx] != k:
+                    nb.setdefault(int(part_id[yy, xx]), []).append(height[yy, xx])
+        if not nb:
+            continue
+        best = max(nb, key=lambda p: len(nb[p]))
+        part_id[ys, xs] = best
+        height[ys, xs] = float(np.mean(nb[best]))
+
+
 def centre_of(PR, PC, TH, TW):
     """The pattern's cells in its block (one ring of context round it)."""
     return (slice(TH, (PR + 1) * TH), slice(TW, (PC + 1) * TW))
@@ -376,8 +418,14 @@ def build(ts, pattern, name, coll, bake_on, block_kind=None):
     height[deck & line_ink] += GROOVE
     # Grey brackets on the deck (a clamp's foot): blocks with rounded edges, their ink lines grooves.
     bracket = deck & (cls == "grey") & ~ink
+    # Rounded by a blurred mask, not by whole-pixel erosion steps, so they shade smooth (D149); on a tile's
+    # edge rows and columns the erosion steps as before, as the seam's heights are the mean of both
+    # sides' and the tile across may be built with a different neighbour.
     lab_b = labels(np.where(bracket, "b", ""))
     edge_b = np.clip(erosion_depth(lab_b, 2) / 2.0, 0, 1)
+    ys, xs = np.mgrid[0:H, 0:W]
+    rim = np.isin(ys % TH, (0, TH - 1)) | np.isin(xs % TW, (0, TW - 1))
+    edge_b = np.where(rim, edge_b, np.clip((lt.blur(bracket.astype(float), 1.2) - 0.4) / 0.45, 0, 1))
     height[bracket] += (BRACKET_UP * (0.35 + 0.65 * np.sqrt(edge_b)))[bracket]
     # Tube clamps: a squarer section than the round purple segments, standing proud, with their ends
     # rounded (the raise is eased over a pixel), so each reads as a chunky bracket round the tube.
@@ -422,8 +470,10 @@ def build(ts, pattern, name, coll, bake_on, block_kind=None):
     # tile, so neighbours meet) with rounded edges, so a thin arm is a round bar and a block a box.
     spring = solid & (kind == "spring")
     plate_index = np.full((H, W), -1)
+    spring_lab = np.zeros((H, W), dtype=int)
     if spring.any():
         lab = labels(np.where(spring & ~ink, cls, ""))
+        spring_lab = lab
         lo, hi = ts.lum[84], ts.lum[92]
         # Each pixel's brightness smoothed within its colour (not across the ink lines' other side much),
         # so a plate stands about level and plates that cross a tile edge meet.
@@ -497,37 +547,60 @@ def build(ts, pattern, name, coll, bake_on, block_kind=None):
             slot[part] = mats(idx, **kw)
     fallback = slot.get("deck") or slot.get("tube_purple") or next(iter(slot.values()))
 
-    def mat_at(x, y):
+    def part_at(x, y):
+        """The part a cell belongs to (a material, or a carving that shares one): the edges between
+        parts are what boundary_moves smooths."""
         c = cls[y, x]
         if spring[y, x] and plate_index[y, x] >= 0 and c in ("grey", "purple", "other"):
-            return mats(plate_index[y, x], **(dict(metallic=0.2, roughness=0.35) if c == "grey" else {}))
-        if c == "red":
-            return slot.get("red", fallback)
-        if c == "blue":
-            return slot.get("blue", fallback)
-        if c == "steel":
-            return slot.get("steel", fallback)
+            return ("plate", int(plate_index[y, x]), c == "grey", int(spring_lab[y, x]))
+        if c in ("red", "blue", "steel"):
+            return (c, bool(grille[y, x] and height[y, x] > 0))
         if housing[y, x] and "housing" in slot:
-            return slot["housing"]
+            return ("housing",)
         if seam[y, x] and "seam" in slot:
-            return slot["seam"]
+            return ("seam",)
         if tube_ink[y, x]:
             part = "ink_grey" if c == "grey" else "ink_purple"
             if part in slot:
-                return slot[part]
+                return (part,)
         if tube[y, x]:
-            return slot.get("tube_grey" if c == "grey" else "tube_purple", fallback)
+            return ("tube_grey" if c == "grey" else "tube_purple", bool(pseam_t[y, x]))
         if c == "grey":
-            return slot.get("bracket", fallback)
-        return slot.get("deck", fallback)
+            return ("bracket", bool(line_ink[y, x] and deck[y, x]))
+        return ("deck", bool(line_ink[y, x] and deck[y, x]), bool(grille[y, x] and height[y, x] > 0))
+
+    part_slot = {
+        "housing": "housing", "seam": "seam", "ink_grey": "ink_grey", "ink_purple": "ink_purple",
+        "tube_grey": "tube_grey", "tube_purple": "tube_purple", "bracket": "bracket", "deck": "deck",
+        "red": "red", "blue": "blue", "steel": "steel",
+    }
+
+    def mat_for(part):
+        if part[0] == "plate":
+            return mats(part[1], **(dict(metallic=0.2, roughness=0.35) if part[2] else {}))
+        return slot.get(part_slot[part[0]], fallback)
+
+    parts = {}
+    part_id = np.full((H, W), -1)
+    for y, x in zip(*np.nonzero(solid)):
+        part_id[y, x] = parts.setdefault(part_at(x, y), len(parts))
+    # Specks of a part (a few 2x pixels: the 2x art's shading, not a shape) join the part round them,
+    # at its height, so they neither stay square nor pin the edges round them to the art's steps.
+    absorb_specks(part_id, height, solid, SPECK, tile=(TH, TW))
+    part_mat = {i: mat_for(p) for p, i in parts.items()}
+
+    def mat_at(x, y):
+        return part_mat[part_id[y, x]]
 
     frame = lt.Frame(cells, S)
     bm = bmesh.new()
     lt.mask_slab(bm, solid, frame, BOTTOM, 0.0, mat_at, top_height=height, smooth_top=True, support=solid)
     # The tubes and springs smooth-shaded, the rest flat; then only the flat parts merged (the underside,
     # the deck's plates): merging a tube's coplanar strips into long faces spoils its shading.
-    smooth_cells = tube | spring
+    # The deck's brackets too: rounded blocks, flat-shaded they read as pixel facets (D149).
+    smooth_cells = tube | spring | np.isin(part_id, [i for p, i in parts.items() if p[0] == "bracket"])
     bm.normal_update()
+    face_part = {}
     for f in bm.faces:
         f.smooth = False
         if f.normal.z > 0.2:
@@ -536,7 +609,21 @@ def build(ts, pattern, name, coll, bake_on, block_kind=None):
             y = int(frame.h / 2 - c.y / frame.unit)
             if 0 <= x < W and 0 <= y < H:
                 f.smooth = bool(smooth_cells[y, x])
-    kit.tidy_flat(bm)
+                face_part[f] = part_id[y, x]
+    # Each part shades smooth within itself and creases where it meets another (a groove's lip, a
+    # bracket's foot), so the carving reads crisp without per-pixel facets (D149).
+    for e in bm.edges:
+        fs = e.link_faces
+        if len(fs) == 2 and fs[0] in face_part and fs[1] in face_part and face_part[fs[0]] != face_part[fs[1]]:
+            e.smooth = False
+    # The outline and the edges between parts follow the art's pixel steps: move them onto smooth
+    # curves through the steps (D149), the tile edges pinned so neighbours still meet.
+    o_sigma, o_grow = OUTLINE.get(n, OUTLINE_DEFAULT) if not block_kind else OUTLINE_DEFAULT
+    dx, dy = kit.boundary_moves(part_id, sigma=EDGE_SIGMA, outline_sigma=o_sigma, outline_grow=o_grow,
+                                pin_x=range(0, W + 1, TW), pin_y=range(0, H + 1, TH), pin_solid=solid)
+    kit.move_grid_verts(bm, frame, dx, dy)
+    _debug_dump(name + "-parts", part_id=part_id, dx=dx, dy=dy, height=height, solid=solid)
+    kit.tidy_flat(bm, angle=FLAT_MERGE)
     glow = {slot["red"]} if "red" in slot else set()
     # The maps come from the height field (lib_delbld.field_bake): roughness and metalness per part.
     rough = np.full((H, W), HULL["roughness"])
@@ -544,7 +631,11 @@ def build(ts, pattern, name, coll, bake_on, block_kind=None):
     shiny = (cls == "grey")
     rough[shiny], metal[shiny] = 0.35, 0.2
     rough[cls == "blue"], metal[cls == "blue"] = 0.3, 0.2
-    field = dict(height=height, solid=solid, rough=rough, metal=metal, scale=S)
+    # The bake's field follows the moved edges too (4 samples per cell), so its occlusion has no steps.
+    k = 4
+    f_solid, f_rough, f_metal, f_height = kit.warp_cells((solid, rough, metal), dx, dy, k,
+                                                         corners=kit.corner_heights(height, solid))
+    field = dict(height=f_height, solid=f_solid, rough=f_rough, metal=f_metal, scale=S * k)
     return kit.finish(ts, coll, name, bm, mats, LAYER, bake_on=bake_on, skip_slots=glow, field=field, cols=PC, rows=PR)
 
 
