@@ -6,30 +6,33 @@ placement and colours):
 
   section through the rim, outside -> in (z in units, 1 unit = 12 px, z = 0 the HD ground):
 
-      stones 0.36..0.47 (<= 0.374 on enemy cells)     kerb posts 0.366   plates 0.345   grating 0.314
-        __    __    __                                     ||  ||  ||    ______  ______    _ _
-   ____/  \__/  \__/  \_ bed top 0.14 (rubble, pal 2) _____||__||__||___|______||______|__| | |_ deck 0.30
-  /  talus chamfer                                                                       (joints, pal 3)
+      stones 0.36..0.47 (<= 0.374 on enemy cells)     kerb posts ~0.366   bricks 0.345   dirt ~0.306
+        __    __    __                                     ||  ||  ||    _/\_/\_/\_    ~~~~~~~~~
+   ____/  \__/  \__/  \_ bed top 0.14 (rubble, pal 2) _____||__||__||___|seams 0.318|__|        |_ deck 0.30
+  /  talus chamfer                                                                       (pal 3)
  /_____________________________________________________________ slab bottom -0.04 (plain, closed)
 
 - foundation bed: the painted footprint (pits, the yard, the fork's slots are holes) as one closed
   prism, its outer edge a talus chamfer, top in the rubble colour the rocks stand in;
 - rim rocks: one chain of craggy, angular stones (8-11 px across) with small stones in its gaps,
-  flat-shaded (an irregular 5-8 sided foot, a tilted shoulder ring, an off-centre peak), sunk into
-  the dark bed, which shows in the crevices round each stone as the art's near-black gaps; crown
-  facets pal 5 (the band's median with the bed's 0-2 left out), sides pal 4, a few facets pal 6-7
-  (sheen); kept under the enemies on enemy cells;
+  flat-shaded (an irregular 5-8 sided foot, a tilted shoulder ring, a crown ring, an off-centre
+  peak), sunk into the dark bed, which shows in the crevices round each stone as the art's
+  near-black gaps; each facet in the kit's ramp by its face to the sun (3 in shadow .. 8 lit,
+  round the band's median 5: lib_l1kit.facet_index, D148); kept under the enemies on enemy cells;
 - kerb: the art's dashed comb of light stubs inside the rocks, as separate closed posts every 4 px,
-  deduplicated across all outlines (none closer than 3.6 px) and kept clear of the stones;
-- paving: the art's basket weave (2 x 2 alternating units of three bricks per cell, WEAVE) as low
-  chamfered bricks on a deck at the mortar colour, which shows in the 1 px seams;
-- channels: a recessed grating: dark bars (pal 3) on a 4 px lattice over a brown fill (pal 164),
-  the art's bright brown squares (pal 21) in alternate cells;
+  deduplicated across all outlines (none closer than 3.6 px), kept clear of the stones, each a
+  little different in size, lean and height (lib_l1kit.Kit.kerb);
+- paving: the art's basket weave (2 x 2 alternating units of three bricks per cell, lib_l1kit.WEAVE)
+  as bevelled bricks 0.027 proud of a groove floor in the seams' colour, some chipped
+  (lib_l1kit.Kit.paving, D148);
+- channels: the kit's dirt (D148): a soft, jittered ground of the art's dark earth (3) with its rust
+  mud (164, 163, 21 clods) winding through it, pebbles on the earth (lib_l1kit.Kit.dirt);
 - the lights (338/339/347: domed dark-red lenses, faintly lit), the sensor pods (384), the round hatch (305-316), the two blasted
   hatches (318-329) and the turret block (298-309) as machined parts, each region in the art's
   own palette index (trimmed median of its pixels; table in blueprint.json "regions").
 
-Only AO/roughness from the model's own bake (Building.bake_model, ground=0.0 occluder, D86); no
+Only AO/roughness from the model's own bake (Building.bake_model, ground=0.0 occluder, D86, with the
+kit's worn finish lib_l1kit.GRIT: deeper occlusion, edge sheen, a grime mottle, D148); no
 concept projection ("bake": "model" in textures/shapesz-l1bld-base-complex/maps.json). No D51 outline shell
 (tile models draw no ink outline: structureInstances.ts, D8, D141). Exported through Building.export (the
 tile contract: model l1bld-base-complex, layer 0, the pattern, default keepTiles / minRows).
@@ -50,6 +53,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import common  # noqa: E402
 import lib_l1bld as lb  # noqa: E402
+import lib_l1kit as kit  # noqa: E402
 import lib_sockets as ls  # noqa: E402
 import lib_tiles as lt  # noqa: E402
 
@@ -60,15 +64,8 @@ ENEMY_MAX, RIM_MAX = lb.ENEMY_MAX, lb.RIM_MAX
 BOTTOM = -0.04
 BED_TOP = 0.14  # low, so the boulders show a real dome above it (the deck's walls hide behind the kerb)
 DECK_TOP = 0.300
-PLATE_TOP = 0.345  # brick tops
-MORTAR_TOP = 0.337  # the mortar bed plate under the bricks (relief 0.008, as the art's shallow seams)
-CH_TOP = 0.314  # grating bars
-CH_FILL = 0.303  # the brown fill under them
-CH_SQ = 0.307  # the bright squares
 CAV_FLOOR = 0.12  # the blasted hatches' cavity floor
-KERB_TOP = 0.366
 ROCK_BAND, KERB_W = 13, 4
-KERB_STEP, KERB_IN = 4.0, 2.0  # post spacing along the edge, post centre in from it (px)
 OPEN = [(120, 0, 192, 21), (300, 31 * 28, 312, 39 * 28)]  # platform runs on past the pattern (top: the junction's stem): no rim
 # The join with the pipe junction (l1bld_pipe_junction.py, whose stem ends in these cells): above
 # JOIN_Y in cells (0, 5)-(0, 7) the stem's rock, brick walls and channel are the junction's (it builds
@@ -78,12 +75,10 @@ JOIN_Y = 19  # the row-0 deck's top edge (the rim band ends there all along the 
 JOIN_BOX = (120, 0, 192, JOIN_Y)
 
 # ---- the art's palette index per region (trimmed medians, blueprint.json "regions") ----
-PAL_BED, PAL_MORTAR, PAL_KERB, PAL_PAVE = 2, 3, 7, 6  # bricks: trimmed median of the weave's brick px 6, its seams 3
-PAL_CHANNEL, PAL_RIB, PAL_GRATE, PAL_SQUARE = 164, 163, 3, 21
-# the rim rocks: over the 12 px band with the bed / gap pixels (pal 0-2) left out the counts are 3:10481
-# 4:8133 5:7007 6:5642 7:4674 8:3749, median 5 (the 3s are the darkest shading): bodies 5, the under-edge
-# 4, a few stones' upper faces 6 / 7 (sheen)
-PAL_ROCK, PAL_ROCK_DARK, PAL_ROCK_SHEEN, PAL_ROCK_HI = 5, 4, 6, 7
+# The shared parts' (bed 2, mortar 3, kerb 7, bricks 6, the channels' dirt, the rim rocks' facet ramp
+# round the band's median 5: counts with the bed / gap px left out 3:10481 4:8133 5:7007 6:5642
+# 7:4674 8:3749) are lib_l1kit's PAL_* and facet_index (D148); this building's own parts:
+PAL_BED, PAL_MORTAR = 2, 3
 PAL_LENS, PAL_LENS_FAT, PAL_HOUSING, PAL_POD, PAL_EYE = 113, 114, 8, 8, 113  # lens medians: capsules 113, big lights 114
 PAL_RH_DISC, PAL_RH_SPOKE, PAL_RH_CLAMP, PAL_FRAME = 1, 4, 163, 9
 PAL_RH_SEAT = 3  # the round hatch is dark all through in the art (annulus medians 1 / 1 / 3 / 5 from the centre out)
@@ -101,17 +96,9 @@ RHATCH = (165.5, 475.0, 20.0, 24.5)
 HATCH = [(124, 840, 166, 890), (196, 840, 238, 890)]
 TURRET = (246, 588, 288, 642)
 
-# The paving's basket weave (every floor cell is the same tile; seams at x = 3, 7, 11, 15, 19, 23 and
-# y = 13, 27 between the units): 2 x 2 units per cell, alternating, three bricks each (tile px, x0 y0 x1 y1)
-WEAVE = ([(x, 0, x + 3, 13) for x in (0, 4, 8)] + [(12, y0, 23, y1) for y0, y1 in ((0, 4), (5, 9), (10, 13))]
-         + [(0, y0, 11, y1) for y0, y1 in ((14, 18), (19, 23), (24, 27))] + [(x, 14, x + 3, 27) for x in (12, 16, 20)])
-
-ARMS = {389: "ud", 379: "lr", 365: "dr", 367: "dl", 385: "ur", 387: "ul", 366: "lrd", 386: "lru", 376: "udlr",
-        375: "udr", 377: "udl", 388: "u", 378: "d", 369: "l", 368: "r"}
-STUB = {388: ("u", 17), 378: ("d", 6), 369: ("l", 14), 368: ("r", 6)}
-# Channel strips: centre (CH_X, CH_Y) in the cell, half widths as the art's 389 (x 3.5..18.5) and 379
-# (y 4.5..22.5), across a vertical run (CH_HX) / a horizontal one (CH_HY); the pipe junction's stem
-# channel is the same strip, so the two meet edge to edge (lib_l1kit holds the values).
+# Channel strips (lib_l1kit.ARMS / STUB / CH_*): centre (CH_X, CH_Y) in the cell, half widths as the
+# art's 389 (x 3.5..18.5) and 379 (y 4.5..22.5); the pipe junction's stem channel is the same strip,
+# so the two meet edge to edge. The paving's basket weave is lib_l1kit.WEAVE.
 from lib_l1kit import CH_HX, CH_HY, CH_X, CH_Y  # noqa: E402
 
 
@@ -160,11 +147,6 @@ def build(bake=True):
     # materials (surface finish per part: satin metal, rough rubble and stone)
     m_bed = M(PAL_BED, roughness=0.95)
     m_mortar = M(PAL_MORTAR, roughness=0.9)
-    m_mortar_plate = M(PAL_MORTAR, roughness=0.85, metallic=0.05)
-    m_kerb = M(PAL_KERB, roughness=0.6, metallic=0.25, plain=True)  # plain: 1345 tiny posts would crowd the bake atlas
-    m_pave = M(PAL_PAVE, roughness=0.7, metallic=0.1)
-    m_chan = M(PAL_CHANNEL, roughness=0.55, metallic=0.35)
-    m_rock = M(PAL_ROCK, roughness=0.9, plain=True)  # plain (unbaked) like the island rock: the bake's tiny islands on 1k stones bled glossy texels
     m_house = M(PAL_HOUSING, roughness=0.4, metallic=0.55)
     m_lens = M(PAL_LENS, roughness=0.22, metallic=0.1, emission_strength=0.45)  # a dark red glass that glows a little
     m_lens_fat = M(PAL_LENS_FAT, roughness=0.22, metallic=0.1, emission_strength=0.45)
@@ -203,6 +185,9 @@ def build(bake=True):
         for h in hs:
             g.walls(h, h, BED_TOP - 0.02, DECK_TOP, m_mortar)
         g.cap([o] + hs, DECK_TOP, m_mortar)
+    # the station kit's parts (lib_l1kit, D148) on this model's mesh: dirt, paving, rocks
+    kt = kit.Kit(s)
+    kt.g = g
 
     # Rim-rock layout (placed now, built in step 6, so the kerb can keep clear of the stones): as the
     #    art paints them, one chain of angular stones (about 9-10 px across) down the middle of the
@@ -268,16 +253,6 @@ def build(bake=True):
             pts.append((a, r))
         feet.append(pts)
 
-    def in_poly(px_, py_, poly):
-        c_ = False
-        for i in range(len(poly)):
-            (x1_, y1_), (x2_, y2_) = poly[i], poly[i - 1]
-            if (y1_ > py_) != (y2_ > py_) and px_ < (x2_ - x1_) * (py_ - y1_) / (y2_ - y1_) + x1_:
-                c_ = not c_
-        return c_
-
-    foot_polys = [[(t[0] + r * math.cos(a), t[1] + r * math.sin(a)) for a, r in pts] for t, pts in zip(taken, feet)]
-
     # 3. Kerb: the art's dashed comb of short light stubs along the paving's edge, as separate closed
     #    posts every KERB_STEP px round every deck outline (the dark mortar deck shows between them);
     #    none where the platform runs on past the pattern, nor at the hatch frames. Candidates from all
@@ -288,203 +263,18 @@ def build(bake=True):
     ccx0 = JOIN_BOX[0] + TW + CH_X
     mouth = box(ccx0 - CH_HX - 1, 0, ccx0 + CH_HX + 1, JOIN_Y + 8)
     no_post = dil4(openm & ~box(*OPEN[0]), 3) | cav_near | feat | mouth
-    nposts = 0
-    KERB_MIN = 3.6  # > the post's diagonal (1.7 x 3.2 px): posts this far apart never overlap
+    kt.stones = [[x, y, rad, kind, pts] for (x, y, rad, kind), pts in zip(taken, feet)]
+    nposts = kt.kerb(deck_mask, no_post=no_post)  # the kit's worn, jittered posts (D148)
 
-    cands = []  # (cx, cy, tx, ty, nx, ny)
-    for outer, holes in regions(deck_mask, tol=1.2, min_px=30):
-        for loop in [outer] + holes:
-            loop = Geo.clean(loop)
-            n_ = len(loop)
-            segs = [(loop[i], loop[(i + 1) % n_]) for i in range(n_)]
-            per = sum(math.dist(p, q) for p, q in segs)
-            if per < 3 * KERB_STEP:
-                continue
-            npost = max(1, int(round(per / KERB_STEP)))
-            step = per / npost
-            t_next, acc = step / 2, 0.0
-            for p, q in segs:
-                L = math.dist(p, q)
-                if L < 1e-6:
-                    continue
-                tx, ty = (q[0] - p[0]) / L, (q[1] - p[1]) / L
-                nx, ny = -ty, tx
-                mx_, my_ = (p[0] + q[0]) / 2, (p[1] + q[1]) / 2
-                if not inside(deck_mask, mx_ + nx * 2.5, my_ + ny * 2.5):
-                    nx, ny = -nx, -ny
-                while t_next <= acc + L:
-                    u = t_next - acc
-                    t_next += step
-                    ex_, ey_ = p[0] + tx * u, p[1] + ty * u
-                    cx_, cy_ = ex_ + nx * KERB_IN, ey_ + ny * KERB_IN
-                    if not inside(deck_mask, cx_, cy_) or not inside(deck_mask, ex_ + nx * 3.4, ey_ + ny * 3.4) or inside(no_post, cx_, cy_):
-                        continue
-                    cands.append((cx_, cy_, tx, ty, nx, ny))
-                acc += L
-    rock_xy = np.array([(t[0], t[1]) for t in taken]) if taken else np.zeros((0, 2))
-    kept = []
-    nrock_skip = 0
-    for (cx_, cy_, tx, ty, nx, ny) in cands:
-        if any(math.hypot(cx_ - kx, cy_ - ky) < KERB_MIN for kx, ky in kept):
-            continue
-        hw, hl = 0.85, 1.6  # 1.7 px along the edge, 3.2 px deep, as the art's stubs
-        corners = [(cx_ + tx * a_ * hw + nx * b_ * hl, cy_ + ty * a_ * hw + ny * b_ * hl) for a_, b_ in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
-        near = np.nonzero(np.hypot(rock_xy[:, 0] - cx_, rock_xy[:, 1] - cy_) < 12)[0] if len(rock_xy) else []
-        if any(in_poly(px_, py_, foot_polys[k]) for k in near for px_, py_ in corners + [(cx_, cy_)]):
-            nrock_skip += 1
-            continue  # a stone covers it
-        kept.append((cx_, cy_))
-        quad = Geo.outer(corners)
-        # the post: a closed box (an open back showed its side walls as thin bright slivers from the
-        #    rim side); tops staggered a hair so no two neighbours are coplanar
-        ztop = KERB_TOP + 0.004 * ((len(kept) % 3) - 1)
-        lo_ = [g.v(px_, py_, DECK_TOP - 0.005) for px_, py_ in quad]
-        hi_ = [g.v(px_, py_, ztop) for px_, py_ in quad]
-        g.face(hi_, m_kerb)
-        for i in range(4):
-            j = (i + 1) % 4
-            g.face((lo_[i], lo_[j], hi_[j], hi_[i]), m_kerb)
-        nposts += 1
-    print(f"kerb: {len(cands)} candidates, {nposts} posts, {nrock_skip} under stones")
+    # 4. Channels: the channel tiles' strips (arms meeting at the centre square, clipped to the
+    #    footprint), floored with the kit's dirt (D148: the art's dark earth and rust mud, not a grating).
+    chan = kt.channels(fpg)
 
-    # 4. Channels: the clean conduit strips from the channel tiles' arms.
-    chan = np.zeros((H, W), bool)
-    for r, row in enumerate(s.pattern):
-        for c, t in enumerate(row):
-            arms = ARMS.get(t)
-            if not arms:
-                continue
-            x0, y0 = c * TW, r * TH
-            ccx, ccy = x0 + CH_X, y0 + CH_Y
-            st = STUB.get(t)
-            for a in arms:
-                if a == "u":
-                    b = (ccx - CH_HX, y0, ccx + CH_HX, (y0 + st[1]) if st else ccy + CH_HY)
-                elif a == "d":
-                    b = (ccx - CH_HX, (y0 + st[1]) if st else ccy - CH_HY, ccx + CH_HX, y0 + TH)
-                elif a == "l":
-                    b = (x0, ccy - CH_HY, (x0 + st[1]) if st else ccx + CH_HX, ccy + CH_HY)
-                else:
-                    b = ((x0 + st[1]) if st else ccx - CH_HX, ccy - CH_HY, x0 + TW, ccy + CH_HY)
-                chan[int(round(b[1])):int(round(b[3])), int(round(b[0])):int(round(b[2]))] = True
-    chan &= fpg
-    # the conduit as a recessed grating per box (the arms meeting at a centre square, edge to edge, each
-    #    clipped to the footprint's rows / columns): a brown fill (pal 164), dark bars (pal 3) on a 4 px
-    #    lattice centred on the channel's axis (cross bars, and one bar down the middle), and the art's
-    #    bright brown squares (pal 21) in alternate cells
-    # plain (left out of the AO bake): its texel islands on these 1-2 px faces bled black / glossy
-    m_grate = M(PAL_GRATE, roughness=0.8, metallic=0.15, plain=True)
-    m_sq = M(PAL_SQUARE, roughness=0.8, metallic=0.1, plain=True)
-    ngrate = 0
-
-    def bar(x0_, y0_, x1_, y1_, z0_, z1_, mat):
-        """A grating bar: its top and its two long sides (its ends butt into the trough's walls)."""
-        if x1_ - x0_ < 0.2 or y1_ - y0_ < 0.2:
-            return
-        a_ = [g.v(x0_, y0_, z1_), g.v(x1_, y0_, z1_), g.v(x1_, y1_, z1_), g.v(x0_, y1_, z1_)]
-        g.face(a_[::-1], mat)
-        b_ = [g.v(x0_, y0_, z0_), g.v(x1_, y0_, z0_), g.v(x1_, y1_, z0_), g.v(x0_, y1_, z0_)]
-        sides = ((0, 1), (2, 3)) if (x1_ - x0_) > (y1_ - y0_) else ((1, 2), (3, 0))
-        for i, j in sides:
-            g.face((b_[j], b_[i], a_[i], a_[j]), mat)
-
-    def lattice(lo, hi, c):
-        k0, k1 = math.ceil((lo - c - 0.5) / 4), math.floor((hi - c + 0.5) / 4)
-        return [c + 4 * k for k in range(k0, k1 + 1) if lo - 0.5 <= c + 4 * k <= hi + 0.5]
-
-    def grating(X0, Y0, X1, Y1, ax, ay, along):
-        g.prism(rbox(X0, Y0, X1, Y1, 0), [], DECK_TOP - 0.01, CH_FILL, m_chan, bottom=False)
-        xs_l = lattice(X0, X1, ax) if along in ("x", "xy") else [ax] if X0 <= ax <= X1 else []
-        ys_l = lattice(Y0, Y1, ay) if along in ("y", "xy") else [ay] if Y0 <= ay <= Y1 else []
-        for xb in xs_l:  # bars across x (constant x)
-            bar(max(X0, xb - 0.5), Y0, min(X1, xb + 0.5), Y1, CH_FILL - 0.002, CH_TOP, m_grate)
-        for yb in ys_l:
-            bar(X0, max(Y0, yb - 0.5), X1, min(Y1, yb + 0.5), CH_FILL - 0.002, CH_TOP - 0.001, m_grate)
-        # squares in the cells, checkerwise on the global lattice
-        for cxq in [ax + 2 + 4 * k for k in range(-8, 8)]:
-            for cyq in [ay + 2 + 4 * k for k in range(-8, 8)]:
-                if not (X0 + 1.2 <= cxq <= X1 - 1.2 and Y0 + 1.2 <= cyq <= Y1 - 1.2):
-                    continue
-                kx, ky = round((cxq - ax - 2) / 4), round((cyq - ay - 2) / 4)
-                if (kx + ky) % 2:
-                    continue
-                hx = 0.9
-                g.face([g.v(cxq - hx, cyq + hx, CH_SQ), g.v(cxq + hx, cyq + hx, CH_SQ), g.v(cxq + hx, cyq - hx, CH_SQ), g.v(cxq - hx, cyq - hx, CH_SQ)], m_sq)
-
-    for r, row in enumerate(s.pattern):
-        for c, t in enumerate(row):
-            arms = ARMS.get(t)
-            if not arms:
-                continue
-            x0, y0 = c * TW, r * TH
-            ccx, ccy = x0 + CH_X, y0 + CH_Y
-            st = STUB.get(t)
-            bx0, bx1, by0, by1 = ccx - CH_HX, ccx + CH_HX, ccy - CH_HY, ccy + CH_HY
-            boxes = []
-            if st:
-                a = arms[0]
-                boxes.append(({"u": (bx0, y0, bx1, y0 + st[1]), "d": (bx0, y0 + st[1], bx1, y0 + TH),
-                               "l": (x0, by0, x0 + st[1], by1), "r": (x0 + st[1], by0, x0 + TW, by1)}[a], "y" if a in "ud" else "x"))
-            else:
-                boxes.append(((bx0, by0, bx1, by1), "xy"))
-                for a in arms:
-                    boxes.append(({"u": (bx0, y0, bx1, by0), "d": (bx0, by1, bx1, y0 + TH),
-                                   "l": (x0, by0, bx0, by1), "r": (bx1, by0, x0 + TW, by1)}[a], "y" if a in "ud" else "x"))
-            for (X0, Y0, X1, Y1), along in boxes:
-                X0, Y0, X1, Y1 = round(X0), round(Y0), round(X1), round(Y1)
-                m = fpg[Y0:Y1, X0:X1]
-                if X1 - X0 < 1 or Y1 - Y0 < 1 or not m.any():
-                    continue
-                ys_, xs_ = np.nonzero(m)
-                X0, X1, Y0, Y1 = X0 + xs_.min(), X0 + xs_.max() + 1, Y0 + ys_.min(), Y0 + ys_.max() + 1
-                grating(X0, Y0, X1, Y1, x0 + CH_X, y0 + CH_Y, along)
-                ngrate += 1
-
-    # 5. Paving: the art's basket weave as modelled bricks standing on the mortar deck (its 1 px seams
-    #    are the gaps between them), each a brick face 0.008 proud of the mortar plate in the paving's index; bricks the kerb,
-    #    a channel or a feature cuts are trimmed along their length, slivers dropped.
+    # 5. Paving: the art's basket weave as bevelled bricks 0.027 proud of a groove floor in the seams'
+    #    colour (the art's 1 px seams are the grooves); bricks the kerb, a channel or a feature cuts
+    #    are trimmed along their length, slivers dropped.
     zone = ero_disk(deck_mask, KERB_W) & ~chan & ~feat
-    nplates = 0
-    # the mortar plate: one chamfered slab per cell over the zone (its edges fall in the weave's seams)
-    for r in range(H // TH):
-        for c in range(W // TW):
-            x0, y0 = c * TW, r * TH
-            m = zone[y0:y0 + TH, x0:x0 + TW]
-            if m.sum() < 6:
-                continue
-            if m.all():
-                polys = [rbox(x0, y0, x0 + TW, y0 + TH, 0)]
-            else:
-                sub = np.zeros((H, W), bool)
-                sub[y0:y0 + TH, x0:x0 + TW] = m
-                polys = [o for o, _ in regions(sub, tol=1.0, min_px=6)]
-            for poly in polys:
-                g.frustum(poly, DECK_TOP - 0.002, MORTAR_TOP, 0.3, m_mortar_plate)
-    for r in range(H // TH):
-        for c in range(W // TW):
-            x0, y0 = c * TW, r * TH
-            if not zone[y0:y0 + TH, x0:x0 + TW].any():
-                continue
-            for bx0, by0, bx1, by1 in WEAVE:
-                X0, Y0, X1, Y1 = x0 + bx0, y0 + by0, x0 + bx1, y0 + by1
-                m = zone[Y0:Y1, X0:X1]
-                horiz = (X1 - X0) > (Y1 - Y0)
-                full = list(m.all(axis=0) if horiz else m.all(axis=1)) + [False]
-                start = None
-                for k, ok in enumerate(full):  # every run of the brick inside the zone, slivers dropped
-                    if ok and start is None:
-                        start = k
-                    elif not ok and start is not None:
-                        a_, b_ = start, k
-                        start = None
-                        if b_ - a_ < 2:
-                            continue
-                        e0 = 0.05 if a_ == 0 else 0.5  # a cut end keeps a joint off the channel or feature
-                        e1 = 0.05 if b_ == len(full) - 1 else 0.5
-                        rect = (X0 + a_ + e0, Y0 + 0.05, X0 + b_ - e1, Y1 - 0.05) if horiz else (X0 + 0.05, Y0 + a_ + e0, X1 - 0.05, Y0 + b_ - e1)
-                        x_a, y_a, x_b, y_b = rect
-                        g.face([g.v(x_a, y_b, PLATE_TOP), g.v(x_b, y_b, PLATE_TOP), g.v(x_b, y_a, PLATE_TOP), g.v(x_a, y_a, PLATE_TOP)], m_pave)
-                        nplates += 1
+    nplates = kt.paving(zone)  # bevelled, worn bricks on the seams' groove floor (lib_l1kit, D148)
 
     # Where the platform runs on past the pattern (OPEN), every edge is cut square at the pattern's
     #    border: no chamfer or frustum slope there to catch the light where the next piece joins.
@@ -503,56 +293,11 @@ def build(bake=True):
     coll = common.reset_collection("shapesz-l1bld-base-complex")
 
     # 6. Rim rocks (the layout above): craggy, angular stones as the art's, never smooth domes. Each a
-    #    flat-shaded faceted lump: an irregular 5-8 sided foot sunk just under the bed's top, a
-    #    shoulder ring at uneven heights (the crown tilted), and an off-centre peak, so its top is 5-8
-    #    flat facets that catch the light one by one; the dark bed (pal 2) shows in the crevices
-    #    round it. Sides pal 4 (the art's dark under-edge; pal 3 on the darkest stones), crown facets
-    #    pal 5 (the band's median), one or two facets pal 6 on most stones and pal 7 on a few (sheen).
-    m_rock_dark = M(PAL_ROCK_DARK, roughness=0.92, plain=True)
-    m_rock_sheen = M(PAL_ROCK_SHEEN, roughness=0.8, plain=True)
-    m_rock_hi = M(PAL_ROCK_HI, roughness=0.75, plain=True)
-    m_rock_deep = M(PAL_ROCK_DARK - 1, roughness=0.95, plain=True)  # the sides of the darkest stones
-    for (x, y, rad, kind), pts in zip(taken, feet):
-        big = kind == 0
-        if big:
-            top = 0.36 + 0.008 * rad + 0.07 * rng.random()
-        else:
-            top = 0.23 + 0.016 * rad + 0.035 * rng.random()  # small stones low and blunt, no spikes
-        top = min(RIM_MAX, top)
-        rr = int(math.ceil(1.25 * rad))
-        if enemy[max(0, int(y) - rr):int(y) + rr + 1, max(0, int(x) - rr):int(x) + rr + 1].any():
-            top = min(top, ENEMY_MAX - 0.006 - 0.02 * rng.random())
-        n = len(pts)
-        zs = BED_TOP - 0.03  # the foot, just under the bed's top
-        hgt = top - zs
-        ta_ = rng.random() * math.tau  # the crown's tilt: the shoulder rises on one side, falls on the other
-        tilt = 0.18 + 0.14 * rng.random()
-        shs = 0.72 + 0.12 * rng.random()  # the shoulder ring's scale: the crown fills most of the top view
-        foot, shoulder = [], []
-        for a, r in pts:
-            ca, sa = math.cos(a), math.sin(a)
-            foot.append(g.v(x + r * ca, y + r * sa, zs))
-            zsh = zs + hgt * (0.58 + 0.16 * rng.random() + tilt * math.cos(a - ta_))  # a blunt crown
-            g_ = shs * (0.85 + 0.3 * rng.random())
-            shoulder.append(g.v(x + r * g_ * ca, y + r * g_ * sa, min(zsh, top - 0.02)))
-        foot, shoulder = foot[::-1], shoulder[::-1]  # px y down: reverse to world CCW
-        rs_min = min(r for _, r in pts) * shs * 0.85
-        po = min(0.32 * rad * rng.random(), 0.45 * rs_min)  # the peak stays well inside the shoulder ring: no folded facets
-        pa = ta_ + (rng.random() - 0.5) * 1.2  # the peak toward the high side
-        apex = g.v(x + po * math.cos(pa), y + po * math.sin(pa), top)
-        u = rng.random()  # crowns spread round the band's median 5, as the art's stones vary
-        crown = m_rock_dark if u < 0.1 else m_rock
-        side = m_rock_deep if crown == m_rock_dark else m_rock_dark
-        k0 = int(rng.integers(n))  # sheen: one or two neighbouring crown facets lighter (pal 6, a few 7)
-        lit = ({k0} if u > 0.3 else set()) | ({(k0 + 1) % n} if u > 0.6 else set())
-        for i in range(n):
-            j = (i + 1) % n
-            g.face((foot[i], foot[j], shoulder[j]), side)
-            g.face((foot[i], shoulder[j], shoulder[i]), side)
-            mat = crown
-            if i in lit:
-                mat = m_rock_hi if (u > 0.85 and i == k0) else m_rock_sheen
-            g.face((shoulder[i], shoulder[j], apex), mat)
+    #    flat-shaded faceted lump (lib_l1kit.Kit.stone): an irregular 5-8 sided foot sunk just under the
+    #    bed's top, a shoulder ring at uneven heights (the crown tilted), a crown ring and an off-centre
+    #    peak, so its top is many flat facets that catch the light one by one; the dark bed (pal 2)
+    #    shows in the crevices round it.
+    kt.rocks()  # each facet in the index of its face to the sun (lib_l1kit.facet_index, D148)
 
     # 7. Red light capsules (338 x2, 339) and the big lights (347): a machined housing, a dark seat and
     #    a domed dark-red lens over a rounded rectangle (the art paints rounded capsules), faintly lit, under the enemies drawn over.
@@ -739,7 +484,7 @@ def main(bake=True, preview=None):
     s.check(objects)
     iou = s.top_iou(objects, fp, scale=1)
     if bake:
-        objects = s.bake_model(objects, size=2048, ground=0.0)
+        objects = s.bake_model(objects, size=2048, ground=0.0, grit=kit.GRIT)
     hard = objects[0]
     hard_tris = sum(len(p.vertices) - 2 for p in hard.data.polygons)
     print(f"base-complex: {hard_tris} triangles (hard), IoU {iou:.4f}")

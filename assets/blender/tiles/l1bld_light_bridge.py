@@ -245,7 +245,7 @@ def build(bake=True, views=None, preview=None):
     k.no_needles()
     objects = k.objects()
 
-    res = b.finish(objects, fp, bake=bake, preview=preview)
+    res = b.finish(objects, fp, bake=bake, preview=preview, grit=kit.GRIT)
     if views:
         render_views(objects, Path(views), b)
     return objects
