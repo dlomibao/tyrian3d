@@ -65,6 +65,7 @@ import { OpaqueCover, paintOutWreck } from "./remaster/opaqueCover";
 import { modelHeightFromUrl } from "./modelHeight";
 import { placeFlatQuad, SPRITE2X2_PARTS, spriteArtModeFromSearch, type FlatQuad, type ReadyFrame, type SpriteArt, type SpriteArtMode, type SpriteArtSheet } from "./spriteArt";
 import { SpriteArtLayer } from "./spriteArtLayer";
+import { StarCover } from "./starCover";
 import { BG_KEY_LAYER } from "../sim/backgrnd";
 import { MAP_SIZES, TILE_HEIGHT, TILE_WIDTH } from "../data/levels";
 import { terrainStyle as currentTerrainStyle, type TerrainStyle } from "../core/terrainStyle";
@@ -385,6 +386,8 @@ export class DrawListRenderer {
     left: number; top: number; w: number; h: number;
   }[] = [];
   private readonly cover = new OpaqueCover();
+  /** Which star pixels background 1 hides (D127). */
+  private readonly starCover = new StarCover();
   /** This frame's ground cells of wreck tiles, drawn once the frame knows whether enemies cover them (D86). */
   private readonly groundCells: { d: TileDraw; x: number; y: number; remaster: boolean }[] = [];
   /** Wreck tiles with their wreck painted out to dirt (D86), by tile id. */
@@ -808,6 +811,8 @@ export class DrawListRenderer {
           break;
         }
         case "pixel":
+          // A star shows only where background 1 left the screen black (D127).
+          if (d.pass === Pass.Starfield && this.starCover.hides(items, d.x, d.y)) continue;
           this.addSolid(d.color, d.x, d.y, 1, 1, d.pass, cam, frame);
           instances++;
           break;

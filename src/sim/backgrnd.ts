@@ -227,7 +227,8 @@ function drawStarPixel(p: number, color: number): void {
 /**
  * update_and_draw_starfield (backgrnd.c L1067-1101). The C only paints pixels that are still 0
  * (black) on the screen, so stars show only through gaps in background 1; the draw list has no
- * screen to test, so every star pixel is recorded and the renderer decides what hides them.
+ * screen to test, so every star pixel is recorded and the renderer hides those over background 1's
+ * non-black pixels (src/render/starCover.ts, D127).
  */
 export function update_and_draw_starfield(move_speed: number): void {
   for (let i = MAX_STARS - 1; i >= 0; --i) {
