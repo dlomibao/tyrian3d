@@ -1329,7 +1329,8 @@ def alpha_from_level(lev: np.ndarray, ramp: float = ALPHA_RAMP) -> np.ndarray:
 
 
 def solve_alpha(T, layer: int, inv_tiles: dict, tiles, models: list[dict], min_pairs: int = ALPHA_MIN_PAIRS,
-                lam: float = LAMBDA, band_lo: float = BAND_LO, band_hi: float = BAND_HI, held=()) -> dict[int, np.ndarray]:
+                lam: float = LAMBDA, band_lo: float = BAND_LO, band_hi: float = BAND_HI, held=(),
+                smooth: float = ALPHA_SMOOTH, ramp: float = ALPHA_RAMP) -> dict[int, np.ndarray]:
     """Alpha (0..1) for each tile in `tiles` on layer 1-2, seamless across the levels' pairs: each tile's
     level field (alpha_level) has its edge strips solved jointly like the colour (solve_strips) over
     the pairs the levels' maps have at least `min_pairs` times, and moved onto them (apply_strips). A
@@ -1339,15 +1340,15 @@ def solve_alpha(T, layer: int, inv_tiles: dict, tiles, models: list[dict], min_p
     left out so a lone pairing of an empty edge with a full one doesn't drag cloud into the gap.
     `held`: tiles that keep their alpha (a merge's kept tiles, D83): their own level fields are held
     fixed, so the new tiles' edges are pulled onto them."""
-    off = 128.0  # apply_strips clips to 0..255; the level is within +-3 ALPHA_SMOOTH
-    lev = {n: (alpha_level(T, layer, n, inv_tiles[str(n)]["usual"]) + off)[..., None] for n in tiles}
-    fixed = {n: (alpha_level(T, layer, n, inv_tiles[str(n)]["usual"]) + off)[..., None]
+    off = 128.0  # apply_strips clips to 0..255; the level is within +-3 smooth (so smooth <= 40)
+    lev = {n: (alpha_level(T, layer, n, inv_tiles[str(n)]["usual"], smooth) + off)[..., None] for n in tiles}
+    fixed = {n: (alpha_level(T, layer, n, inv_tiles[str(n)]["usual"], smooth) + off)[..., None]
              for n in held if n not in lev and str(n) in inv_tiles}
     if band_lo > 0 or band_hi > 0:
         pairs = Counter({k: c for k, c in all_pairs(T.levels, layer, models, set(lev) | set(fixed)).items() if c >= min_pairs})
         strips = solve_strips(lev, pairs, lam, fixed=fixed or None)
         lev = {n: apply_strips(v, {side: strips[(n, side)] for side in OPPOSITE}, band_lo, band_hi) for n, v in lev.items()}
-    return {n: alpha_from_level(v[..., 0] - off) for n, v in lev.items()}
+    return {n: alpha_from_level(v[..., 0] - off, ramp) for n, v in lev.items()}
 
 
 def smoothstep(e0: float, e1: float, x: np.ndarray) -> np.ndarray:
@@ -1784,10 +1785,24 @@ def set_alpha(T, layer: int, inv_tiles: dict, done: dict[int, np.ndarray], model
               held=()) -> None:
     """Layers 1-2: each tile's alpha from solve_alpha (over all the levels' pairs; the `held` tiles,
     a merge's kept ones, pull the new tiles' edges and stay as they are), colour bled under it afresh."""
-    alphas = solve_alpha(T, layer, inv_tiles, done, models, args.alpha_min_pairs, args.lam, args.band_lo, args.band_hi, held)
+    alphas = solve_alpha(T, layer, inv_tiles, done, models, args.alpha_min_pairs, args.lam, args.band_lo, args.band_hi, held,
+                         getattr(args, "alpha_smooth", ALPHA_SMOOTH), getattr(args, "alpha_ramp", ALPHA_RAMP))
+    inset = getattr(args, "rim_inset", 0)
     for n, img in done.items():
+        if inset:
+            img[..., :3] = bleed(img[..., :3], inside_alpha(img[..., 3] / 255, inset))
         img[..., :3] = bleed(img[..., :3], alphas[n])
         img[..., 3] = alphas[n] * 255
+
+
+def inside_alpha(alpha: np.ndarray, inset: int) -> np.ndarray:
+    """`alpha` eroded by `inset` texels (a tile's edges count as inside: the cloud goes on in the next tile):
+    the part of the painting whose colour is kept when a wider soft edge is bled out of it (rim_inset), so
+    the original's dark outline colour under the old edge doesn't show through the new one."""
+    from scipy import ndimage
+
+    core = ndimage.binary_erosion(alpha > 0.98, iterations=inset, border_value=1)
+    return core.astype(np.float32)
 
 
 def cmd_realpha(args) -> None:
@@ -1805,8 +1820,9 @@ def cmd_realpha(args) -> None:
     if man is None:
         raise SystemExit(f"no atlas in {out_dir}")
     models = load_models(T.shapes_file)
+    only = {int(x) for x in args.layers.split(",")} if args.layers else None
     for layer, tiles in sorted(atlas.items()):
-        if layer == 0:
+        if layer == 0 or (only and layer not in only):
             continue
         inv_tiles = inv["layers"][str(layer)]["tiles"]
         done = {n: np.concatenate([bleed(t[..., :3], t[..., 3] / 255), t[..., 3:]], -1) for n, t in tiles.items() if str(n) in inv_tiles}
@@ -2408,6 +2424,11 @@ def main(argv: list[str] | None = None) -> None:
         p_.add_argument("--alpha-min-pairs", type=int, default=ALPHA_MIN_PAIRS, help=f"map pairs needed before two tiles' alpha edges are pulled together (default {ALPHA_MIN_PAIRS})")
     ra.add_argument("--out", default=str(ROOT / "public/art/terrain"), help="atlas root (default public/art/terrain)")
     ra.add_argument("--lossless", action="store_true", help="lossless WebP (default quality 92)")
+    ra.add_argument("--layers", help="only these layers, e.g. 2 (default: 1 and 2)")
+    ra.add_argument("--alpha-smooth", type=float, default=ALPHA_SMOOTH, help=f"texels the contour is smoothed at (default {ALPHA_SMOOTH}; at most 40)")
+    ra.add_argument("--alpha-ramp", type=float, default=ALPHA_RAMP, help=f"texels each side of the contour alpha goes 0 -> 1 over (default {ALPHA_RAMP})")
+    ra.add_argument("--rim-inset", type=int, default=0, help="texels in from the old edge whose colour is bled outwards, so the original's dark outline "
+                    "doesn't ring a wider soft edge (default 0: colour as it is)")
     ra.add_argument("--band-lo", type=float, default=BAND_LO, help=f"texels an alpha seam correction fades over (default {BAND_LO})")
     ra.add_argument("--band-hi", type=float, default=BAND_HI, help=f"texels at the edge set to the shared strip (default {BAND_HI})")
     ra.add_argument("--lam", type=float, default=LAMBDA, help=f"how much a strip keeps its own (default {LAMBDA})")

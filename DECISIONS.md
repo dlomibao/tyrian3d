@@ -5676,3 +5676,41 @@ thicker ring).
 
 Test: `tests/render/explosionFade.test.ts`. Captures: `tyrian-scratch/qa2-renderer/` (`redbox-before/`,
 `redbox-after/`, `redbox-after/cmp_all.png`: left before, right after, one row per tick above).
+## D132 — Two flat-art fixes from the episode-1 QA sweep: the SOH JIN key's shadow, and SAVARA's cloud edge (extends D94, D107, D78)
+
+2026-11-10
+
+**Issue 11: the key sat on a black slab.** `tyrian.shp#10` 243 (a 2x2 object: 243, 244, 262, 263) is the SOH JIN key. The
+original sprite draws its own hard drop shadow in palette indices 160 and 161 (D94's notes, D114's note), and the cutter
+(`flat_art.py cut_sheet`) took the alpha from every non-transparent pixel, shadow included, so Gemini's painting of the
+key got a black offset silhouette. *Fix:* a new inventory cell field `"shadow": {"indices": [160, 161], "strength": 0.4,
+"sigma": 5}`: those pixels leave the silhouette (the key's own alpha, `smooth_alpha`), and where they were a soft shadow
+(the shadow mask blurred 5 texels, at 40% alpha, colour black, `shadow_alpha`) stays behind the key. Only the key's four
+frames changed: re-cut from the saved Gemini answer (`e1-pickups-10-2`, no new request) with `cut --merge`, so the
+manifest is unchanged and the one atlas `tyrian-shp-10.webp` is re-encoded (every kept frame goes through WebP again,
+as in any merge).
+
+**Issue 12: SAVARA's layer-2 clouds drew like stickers.** Not the alpha (the cut had already given layers 1-2 D78's
+smoothed contour): `terrainMaterial` drew the "cutout" kind (background 3, and an opaque background 2) with
+`if (cover < 0.5) discard`, so whatever soft edge the atlas had was cut off into a hard, anti-alias-free line. The C
+draws background 3 opaque (`draw_background_3` blits, no blend: only `draw_background_2_blend` blends), so the clouds
+stay opaque inside; only the edge changes. *Fix:*
+- **Shader.** "Cutout" tiles are drawn translucent with alpha = the art's coverage (discard under 0.004) but still write
+  depth, so models and sprites over them order as before; their shadow pass still cuts at one half. They draw before
+  every other translucent draw (`CUTOUT_ORDER` -2; blend sheets and the flat sprite art are at -1: with the clouds at
+  the default 0 the ring of an explosion over a pickup was painted over). This applies to every tileset's cutout tiles:
+  those whose alpha is D58's or D78's short ramp (+-2 texels at 8x) gain only an anti-aliased edge.
+- **Atlas.** `terrain_hd.py realpha` takes `--layers`, `--alpha-smooth`, `--alpha-ramp` and `--rim-inset`;
+  `shapesy` layer 2 was redone with `--layers 2 --alpha-ramp 14 --rim-inset 12` (smoothing stays D78's 8 texels,
+  the contour does not move; alpha goes 0 to 1 over +-14 texels, under two original pixels). `--rim-inset` bleeds the
+  colour of the cloud's interior (12 texels in from the old edge, tile borders counting as inside) outwards over the
+  edge band, so the original's dark outline colour that D78 kept doesn't ring a wide soft edge. Tried first: smoothing 20
+  with ramp 20, which rounded away the small peaks (the original's shape wins), and ramp 8 alone, which the discard
+  made no softer.
+- Layer 1 (`1.webp`) and the other tilesets' atlases are untouched.
+
+**Checked** in game (`?debug=play&episode=1&main=<section>&seed=1&skip=T&freezeAt=T`, 1920x1080), before/after in
+`tyrian-scratch/qa2-flat/cap/`: SAVARA sections 10 (1.12; t300, t1050, t1800), 29 (1.8; t300, t1050, t1800) and 38 (1.17;
+t300); SOH JIN section 31 (t4446). The explosion ring over a pickup on a cloud (1.12 t300) draws over the cloud.
+Not checked: other tilesets' cutout tiles in game (only their atlas alpha decides what changes); `&dpr` lower.
+Tests: `tests/tools`, `tests/render/terrainArt`, `spriteArt` pass. Fallback: `git checkout` the two atlases and revert the shader.

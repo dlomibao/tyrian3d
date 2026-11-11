@@ -160,6 +160,19 @@ def soft_alpha(mask: np.ndarray, sigma: float, lo: float, hi: float, scale: int 
     return t * t * (3 - 2 * t)
 
 
+def shadow_alpha(pic: np.ndarray, silhouette, spec: dict) -> tuple[np.ndarray, np.ndarray]:
+    """Alpha of a picture whose drop shadow is the palette indices spec["indices"]: the rest of the
+    picture as the silhouette, plus the shadow's pixels as a blurred translucent layer behind it.
+    Also the shadow's own texels (a mask), whose colour is drawn black instead of bled from the body."""
+    from scipy import ndimage
+
+    is_shadow = np.isin(pic, spec["indices"])
+    body = silhouette((pic >= 0) & ~is_shadow)
+    big = np.kron(is_shadow.astype(np.float32), np.ones((SCALE, SCALE), np.float32))
+    soft = np.clip(ndimage.gaussian_filter(big, spec.get("sigma", 5.0)) * 1.3, 0.0, 1.0)
+    return np.maximum(body, spec.get("strength", 0.4) * soft), np.kron(is_shadow, np.ones((SCALE, SCALE), bool))
+
+
 def bleed(rgb: np.ndarray, alpha: np.ndarray) -> np.ndarray:
     """Fill colour under alpha ~0 from the nearest visible texel, so bilinear filtering has no dark fringe."""
     from scipy import ndimage
@@ -455,6 +468,13 @@ def cut_sheet(gd: GameData, sheet: dict, art: np.ndarray, palette: int) -> list[
         spec = cell.get("alpha")
         silhouette = (lambda m: soft_alpha(m, spec["sigma"], spec["lo"], spec["hi"])) if spec else smooth_alpha
         alpha_pic = silhouette(pic >= 0)
+        # Inventory "shadow": {"indices": [160, 161], "strength": 0.4, "sigma": 5}: the original's drop
+        # shadow is pixels of those palette indices. They leave the silhouette; a soft shadow of the
+        # given strength (0..1, blurred by sigma texels) stays where they were (D132: the SOH JIN key).
+        shadow = cell.get("shadow")
+        shadow_pic = None
+        if shadow:
+            alpha_pic, shadow_pic = shadow_alpha(pic, silhouette, shadow)
         # A brightness floor from the original's own colours (inventory "floor": 0..1): where the art
         # is darker than the original pixel there, it's lifted to floor x the original colour. For
         # fire, whose painting may put dark smoke where the original has a thin bright ring.
@@ -480,6 +500,11 @@ def cut_sheet(gd: GameData, sheet: dict, art: np.ndarray, palette: int) -> list[
                 if under.shape[:2] == rgb.shape[:2]:
                     rgb = np.maximum(rgb, under)
             rgb = bleed(np.clip(rgb, 0, 1), alpha)
+            if shadow_pic is not None and whole and fr["sx"] == 1:
+                ty, tx = int(fr["ty"]), int(fr["tx"])
+                sh = shadow_pic[ty * SCALE:(ty + h) * SCALE, tx * SCALE:(tx + TILE_W) * SCALE]
+                if sh.shape == alpha.shape:  # the shadow is black, not the body's colour bled under it
+                    rgb = np.where((sh & (alpha < 0.98))[..., None], 0.0, rgb)
             rgba = np.dstack([rgb * 255, alpha * 255]).round().astype(np.uint8)
             out.append({"sheet": fr["sheet"], "index": fr["index"], "rgba": rgba, "fit": fit, "input": sheet["name"],
                         "cell": [cell["row"], cell["col"]], "mirrored": fr["sx"] < 0, "shared": fr["index"] != a["index"] and fr["sx"] > 0 and cell["art"]["size"] == 1})

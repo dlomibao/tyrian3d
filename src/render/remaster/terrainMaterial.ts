@@ -5,9 +5,9 @@
 //   the 4x ground (D34), receiving shadows;
 // - "blend" (draw_background_2_blend: TYRIAN's ice clouds, D45): translucent sheets at
 //   BLEND_ALPHA times the art's coverage, no depth write;
-// - "cutout" (background 3's islands and an opaque background 2 without models): the art's alpha
-//   cut at one half, writing depth and casting island-shaped shadows (a depth material that cuts the
-//   same way).
+// - "cutout" (background 3's islands and an opaque background 2 without models): drawn with the art's
+//   alpha (so the painted soft edge shows, D132) but writing depth like an opaque tile, and casting
+//   island-shaped shadows (a depth material that cuts the alpha at one half).
 //
 // Seam-free sampling: the texel position is clamped half a texel of the coarser mip level inside
 // the tile's rect (clampTerrainTexel), and the level chosen here (textureLod) is at most
@@ -42,7 +42,7 @@ export interface TerrainMaterialOptions {
 }
 
 export const TERRAIN_RELIEF = 1.2;
-/** The cutout kinds' alpha threshold. */
+/** The alpha threshold of the cutout kind's shadows. */
 const CUT = 0.5;
 
 const L = PALETTE_LUT_SIZE;
@@ -150,7 +150,7 @@ export function terrainMaterial(
     roughness: 0.9,
     metalness: 0,
     envMapIntensity: 0.25,
-    transparent: blended,
+    transparent: blended || kind === "cutout",
     depthWrite: !blended,
     userData: { outlineParameters: { visible: false } },
   });
@@ -195,7 +195,7 @@ float lod = terrainLod();
 vec4 tex = terrainSample(vTileTexel, lod);
 float cover = tex.a;
 vec3 painted = ${premultiplied ? "tex.rgb / max(cover, 1e-4)" : "tex.rgb"};
-${kind === "cutout" ? `if (cover < ${CUT.toFixed(2)}) discard;` : ""}
+${kind === "cutout" ? `if (cover < 0.004) discard;\ndiffuseColor.a = cover;` : ""}
 ${blended ? `if (cover < 0.004) discard;\ndiffuseColor.a = ${(opts.blend ?? 0.55).toFixed(3)} * cover;` : ""}
 diffuseColor.rgb *= terrainPalette(painted, vPassY, vScreenWater);
 vec2 reliefSlope = vec2(0.0);
