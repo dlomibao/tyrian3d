@@ -1124,6 +1124,7 @@ export class DrawListRenderer {
     const kind: TerrainKind = d.layer === 0 ? "ground" : blend ? "blend" : "cutout";
     const pool = this.hdPool(t.texture, kind, tileset!.scale, frame);
     if (blend) pool.mesh.renderOrder = blendSheetOrder(d.pass);
+    else if (kind === "cutout") pool.mesh.renderOrder = CUTOUT_ORDER;
     const s = pool.next(frame);
     const e = pool.extra.array as Float32Array;
     e[s * 2] = t.x;
@@ -1625,6 +1626,12 @@ function localBox(source: THREE.Object3D): THREE.Box3 {
 function blendSheetOrder(pass: Pass): number {
   return pass === Pass.Background2Top ? 1 : -1;
 }
+
+/**
+ * A "cutout" terrain tile is drawn with its soft alpha edge (D132), so it is translucent to three.js: before
+ * every other translucent draw (blend sheets, the flat sprite art, explosions are all above it).
+ */
+const CUTOUT_ORDER = -2;
 
 function groundQuad(): THREE.BufferGeometry {
   const g = new THREE.BufferGeometry();
