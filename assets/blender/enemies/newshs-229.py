@@ -16,7 +16,9 @@ Reading of the sprite (tools/calibration/rubric.md, "Reading a sprite"):
 - Cross bars: a grey bar at the top edge (rows 0-1, cols 8-14, lit top edge on row 0) and a
   dimmer one at the bottom (rows 26-27), each with a dark gap (rows 2-3 / 24-25) between it and the
   gem: depth, so the gem stands proud of the floor there.
-- Rows 0-3 / 24-27 and the rest: the fortress's stone floor, painted per pixel as lib_b073 does.
+- Rows 0-3 / 24-27 and the rest: the fortress's stone floor. Built as a plate painted per pixel (as
+  lib_b073 did) for the review renders only; not exported (D130: the game draws the tile's ground in HD, and the
+  plate painted per pixel from the sprite showed as grey pixel cells on it).
 - Frames only pulse the glow: every red index is one lower on 229 and +1 / +3 on 233 / 235 than on
   231. One model; the gem's materials follow the frame (palette_material frames=, D17).
 
@@ -682,7 +684,9 @@ def renders(objs, sprite, out):
 if __name__ == "__main__":
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     sprite, objs = build()
-    common.export_sprite_model(WT, objs, f"enemies/{NAME}", sprite["sprites"])
+    # the floor plate (tyrian_ground) stays out of the game's model (D130)
+    common.export_sprite_model(WT, [o for o in objs if not o.get("tyrian_ground")], f"enemies/{NAME}",
+                               sprite["sprites"])
     tris = 0
     for o in objs[:2]:
         o.data.calc_loop_triangles()
