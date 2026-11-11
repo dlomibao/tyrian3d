@@ -115,12 +115,13 @@ def tidy(bm):
     lt.dissolve_coplanar(bm)
 
 
-def tidy_flat(bm):
-    """dissolve_coplanar on the flat-shaded faces only (smooth surfaces keep their grid)."""
+def tidy_flat(bm, angle=0.5):
+    """dissolve_coplanar on the flat-shaded faces only (smooth surfaces keep their grid); faces within
+    `angle` degrees of each other count as one plane."""
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-6)
     edges = [e for e in bm.edges if e.link_faces and not any(f.smooth for f in e.link_faces)]
     verts = [v for v in bm.verts if v.link_faces and not any(f.smooth for f in v.link_faces)]
-    bmesh.ops.dissolve_limit(bm, angle_limit=math.radians(0.5), verts=verts, edges=edges, delimit={"MATERIAL"})
+    bmesh.ops.dissolve_limit(bm, angle_limit=math.radians(angle), verts=verts, edges=edges, delimit={"MATERIAL"})
 
 
 def copy_bm(bm):
@@ -143,6 +144,245 @@ def outside_centre(bm, cols=1, rows=1):
     inner = [f for f in bm.faces if abs(f.calc_center_median().x) < hw - eps and abs(f.calc_center_median().y) < hh - eps]
     bmesh.ops.delete(bm, geom=inner, context="FACES")
     return bm
+
+
+# --- Smooth part edges (D149) ----------------------------------------------------------------------
+# A height-field tile (mask_slab) is a grid of cells, so its outline and every edge between two parts
+# (a clamp and its housing, a plate and its seam) run along the cells' edges: the art's pixel
+# staircases, which read as stairs at 4K. The edges are moved instead onto smooth curves fitted through
+# the art's edges: each edge between two parts is a chain of grid corners, and each corner moves to a
+# Gaussian average of its chain, as D118 fitted the Silver Ship's plates through the middles of the
+# mask's steps. Straight runs stay where they are, a staircase becomes a straight or curved line, and a
+# real corner (two straight runs of at least `corner_run` cells meeting square) stays square.
+
+
+def boundary_moves(labels, sigma=2.0, max_move=0.6, corner_run=3, min_loop=8, pin_x=(), pin_y=(), pin_solid=None,
+                   outline_sigma=None, outline_grow=0.0):
+    """Where each grid corner of `labels` (an int per cell, -1 outside) moves, in cells (dx right, dy
+    down), arrays of shape (h + 1, w + 1). A corner on one edge between two parts (two of its four
+    edges are part edges) moves along that edge's chain; junctions of three parts, the array's border,
+    the columns `pin_x` and rows `pin_y` (tile edges: pinned, so a tile and its neighbour, each built
+    in its own block, meet exactly; with `pin_solid`, only where it has solid cells on both sides of
+    the line, as an edge with nothing across it has no neighbour to meet), square corners and loops
+    shorter than `min_loop` stay put. The
+    average is applied twice and the second's shrinkage taken back (2 G(p) - G(G(p))), so a curve keeps
+    its size while the steps go. `outline_sigma` (default `sigma`): the outline's own, smaller where the
+    model's top view must stay close to the art's 1x mask. `outline_grow` (cells): the outline's
+    smoothed stretches are pushed out by this much, as the 2x art and the curve through its steps both
+    sit inside the 1x art's steps."""
+    lab = np.asarray(labels)
+    h, w = lab.shape
+    lp = np.pad(lab, 1, constant_values=-1)
+    vb = lp[1:-1, :-1] != lp[1:-1, 1:]  # (h, w + 1): edge (cx, cy)-(cx, cy + 1)
+    hb = lp[:-1, 1:-1] != lp[1:, 1:-1]  # (h + 1, w): edge (cx, cy)-(cx + 1, cy)
+
+    def nbrs(cx, cy):
+        out = []
+        if cy > 0 and vb[cy - 1, cx]:
+            out.append((cx, cy - 1))
+        if cy < h and vb[cy, cx]:
+            out.append((cx, cy + 1))
+        if cx > 0 and hb[cy, cx - 1]:
+            out.append((cx - 1, cy))
+        if cx < w and hb[cy, cx]:
+            out.append((cx + 1, cy))
+        return out
+
+    def run(cx, cy, ddx, ddy):
+        n = 0
+        while n < corner_run:
+            nx, ny = cx + ddx, cy + ddy
+            if ddx and not (0 <= min(cx, nx) and max(cx, nx) <= w and 0 <= cy <= h and hb[cy, min(cx, nx)]):
+                break
+            if ddy and not (0 <= min(cy, ny) and max(cy, ny) <= h and 0 <= cx <= w and vb[min(cy, ny), cx]):
+                break
+            cx, cy, n = nx, ny, n + 1
+        return n
+
+    pin_x, pin_y = set(pin_x), set(pin_y)
+    sp = None if pin_solid is None else np.pad(np.asarray(pin_solid, dtype=bool), 1)
+
+    def pinned(cx, cy):
+        if cx not in pin_x and cy not in pin_y:
+            return False
+        if sp is None:
+            return True
+        q = sp[cy:cy + 2, cx:cx + 2]  # cells (cy - 1, cy) x (cx - 1, cx)
+        return bool((cx in pin_x and q[:, 0].any() and q[:, 1].any()) or (cy in pin_y and q[0].any() and q[1].any()))
+    nb = {}
+    fixed = set()
+    ys, xs = np.nonzero(np.pad(vb, ((0, 1), (0, 0))) | np.pad(vb, ((1, 0), (0, 0)))
+                        | np.pad(hb, ((0, 0), (0, 1))) | np.pad(hb, ((0, 0), (1, 0))))
+    for cy, cx in zip(ys.tolist(), xs.tolist()):
+        n = nbrs(cx, cy)
+        nb[(cx, cy)] = n
+        if len(n) != 2 or cx in (0, w) or cy in (0, h) or pinned(cx, cy):
+            fixed.add((cx, cy))
+            continue
+        (ax, ay), (bx, by) = n
+        if ax != bx and ay != by:  # a turn: square if both runs are long
+            if run(cx, cy, ax - cx, ay - cy) >= corner_run and run(cx, cy, bx - cx, by - cy) >= corner_run:
+                fixed.add((cx, cy))
+
+    def smooth_open(p, sig):
+        K = int(math.ceil(3 * sig))
+        wts = np.exp(-0.5 * (np.arange(-K, K + 1) / sig) ** 2)
+        n = len(p)
+        out = p.copy()
+        for i in range(1, n - 1):
+            k = min(K, i, n - 1 - i)
+            ww = wts[K - k:K + k + 1]
+            out[i] = (p[i - k:i + k + 1] * ww[:, None]).sum(0) / ww.sum()
+        return out
+
+    def chain_sigma(a, b):
+        """The outline (an edge with the outside on one side) takes outline_sigma."""
+        if outline_sigma is None:
+            return sigma
+        (ax, ay), (bx, by) = a, b
+        if ax == bx:  # vertical edge: cells left and right
+            cy = min(ay, by)
+            pair = (lp[cy + 1, ax], lp[cy + 1, ax + 1])
+        else:
+            cx = min(ax, bx)
+            pair = (lp[ay, cx + 1], lp[ay + 1, cx + 1])
+        return outline_sigma if -1 in pair else sigma
+
+    def smooth_loop(p, sig):
+        n = len(p)
+        k = min(int(math.ceil(3 * sig)), (n - 1) // 2)
+        ww = np.exp(-0.5 * (np.arange(-k, k + 1) / sig) ** 2)
+        idx = (np.arange(n)[:, None] + np.arange(-k, k + 1)[None, :]) % n
+        return (p[idx] * ww[None, :, None]).sum(1) / ww.sum()
+
+    dx = np.zeros((h + 1, w + 1))
+    dy = np.zeros((h + 1, w + 1))
+    seen = set()
+
+    def outward(chain):
+        """+1 when the outside (-1) lies to the right of the chain's first edge (x right, y down), -1
+        when to the left, 0 when the chain is not on the outline."""
+        (ax, ay), (bx, by) = chain[0], chain[1]
+        rx, ry = -(by - ay), bx - ax
+        cx, cy = int(math.floor((ax + bx) / 2 + 0.5 * rx)), int(math.floor((ay + by) / 2 + 0.5 * ry))
+        lx, ly = int(math.floor((ax + bx) / 2 - 0.5 * rx)), int(math.floor((ay + by) / 2 - 0.5 * ry))
+        right, left = lp[cy + 1, cx + 1], lp[ly + 1, lx + 1]
+        return 1 if right == -1 and left != -1 else (-1 if left == -1 and right != -1 else 0)
+
+    def grow(chain, s, closed):
+        """Push the moved stretches of an outline chain out by outline_grow."""
+        side = outward(chain)
+        if not side or not outline_grow:
+            return s
+        s = s.copy()
+        n = len(chain)
+        for i in range(n):
+            if not closed and i in (0, n - 1):
+                continue
+            if math.hypot(s[i][0] - chain[i][0], s[i][1] - chain[i][1]) < 0.05:
+                continue
+            tx, ty = s[(i + 1) % n] - s[i - 1]
+            t = math.hypot(tx, ty)
+            if t > 1e-9:
+                s[i] = s[i] + outline_grow * side * np.array([-ty, tx]) / t
+        return s
+
+    def apply(chain, s):
+        for (cx, cy), q in zip(chain, s):
+            mx, my = q[0] - cx, q[1] - cy
+            m = math.hypot(mx, my)
+            if m > max_move:
+                mx, my = mx * max_move / m, my * max_move / m
+            dx[cy, cx], dy[cy, cx] = mx, my
+
+    # Open chains, from each fixed corner along each of its part edges to the next fixed corner.
+    for start in fixed:
+        for first in nb[start]:
+            if (start, first) in seen:
+                continue
+            chain = [start]
+            prev, cur = start, first
+            while True:
+                chain.append(cur)
+                seen.add((prev, cur))
+                seen.add((cur, prev))
+                if cur in fixed:
+                    break
+                a, b = nb[cur]
+                prev, cur = cur, (b if a == prev else a)
+            if len(chain) < 3:
+                continue
+            p = np.array(chain, dtype=float)
+            sig = chain_sigma(chain[0], chain[1])
+            s1 = smooth_open(p, sig)
+            apply(chain[1:-1], grow(chain, 2 * s1 - smooth_open(s1, sig), False)[1:-1])
+    # Closed loops (no fixed corner on them).
+    for c0 in list(nb):
+        if c0 in fixed or not nb[c0] or (c0, nb[c0][0]) in seen:
+            continue
+        chain = [c0]
+        prev, cur = c0, nb[c0][0]
+        seen.add((prev, cur))
+        seen.add((cur, prev))
+        while cur != c0:
+            chain.append(cur)
+            a, b = nb[cur]
+            prev, cur = cur, (b if a == prev else a)
+            seen.add((prev, cur))
+            seen.add((cur, prev))
+        if len(chain) < min_loop:
+            continue
+        p = np.array(chain, dtype=float)
+        sig = min(chain_sigma(chain[0], chain[1]), len(chain) / 8)
+        s1 = smooth_loop(p, sig)
+        apply(chain, grow(chain, 2 * s1 - smooth_loop(s1, sig), True))
+    return dx, dy
+
+
+def move_grid_verts(bm, frame, dx, dy):
+    """Move a mask_slab mesh's vertices (still on their grid corners, top and bottom alike) by
+    boundary_moves' dx, dy (cells)."""
+    h, w = dx.shape[0] - 1, dx.shape[1] - 1
+    for v in bm.verts:
+        cx = int(round(v.co.x / frame.unit + frame.w / 2))
+        cy = int(round(frame.h / 2 - v.co.y / frame.unit))
+        if 0 <= cx <= w and 0 <= cy <= h:
+            v.co.x += dx[cy, cx] * frame.unit
+            v.co.y -= dy[cy, cx] * frame.unit
+
+
+def corner_heights(height, support):
+    """mask_slab's corner heights with `smooth_top`: the mean of the supporting cells round each corner
+    (h + 1, w + 1)."""
+    hp = np.pad(np.where(support, height, 0.0), 1)
+    sp = np.pad(support.astype(float), 1)
+    tot = hp[:-1, :-1] + hp[:-1, 1:] + hp[1:, :-1] + hp[1:, 1:]
+    cnt = sp[:-1, :-1] + sp[:-1, 1:] + sp[1:, :-1] + sp[1:, 1:]
+    return tot / np.maximum(cnt, 1)
+
+
+def warp_cells(arrays, dx, dy, k, corners=None):
+    """Per-cell arrays resampled at `k` samples per cell through the same moves, so a bake computed
+    from them follows the smoothed edges, not the art's steps: each sample takes the cell it came
+    from (its position less the corners' moves there, bilinear). `corners` (h + 1, w + 1), e.g.
+    corner_heights: also sampled bilinearly at the same source points, as the mesh's surface is, and
+    returned last."""
+    h, w = dx.shape[0] - 1, dx.shape[1] - 1
+    fx = (np.arange(w * k) + 0.5) / k
+    fy = (np.arange(h * k) + 0.5) / k
+    mx = _resample(dx, h * k, w * k, fy, fx)
+    my = _resample(dy, h * k, w * k, fy, fx)
+    qx = np.clip(fx[None, :] - mx, 0, w - 1e-6)
+    qy = np.clip(fy[:, None] - my, 0, h - 1e-6)
+    sx = np.floor(qx).astype(int)
+    sy = np.floor(qy).astype(int)
+    out = [np.asarray(a)[sy, sx] for a in arrays]
+    if corners is not None:
+        tx, ty = qx - sx, qy - sy
+        c = np.asarray(corners)
+        out.append((c[sy, sx] * (1 - tx) + c[sy, sx + 1] * tx) * (1 - ty)
+                   + (c[sy + 1, sx] * (1 - tx) + c[sy + 1, sx + 1] * tx) * ty)
+    return out
 
 
 # --- Materials -------------------------------------------------------------------------------------

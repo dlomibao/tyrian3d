@@ -14,7 +14,9 @@ domes and hatches 24, pylons and the pipe housing 4, gun blocks 6, brackets and 
 
 Blueprint (plan, sprite rows top to bottom):
 - BED: one dark steel slab (z 0-1.4) in the sprite's outline including its dark ring, chamfered
-  45 degrees all round; a raised rim frames its lower octagon (the sprite's lit grey struts).
+  45 degrees all round; a raised rim frames its lower octagon (the sprite's lit grey struts). Both
+  outlines are straight runs and chamfers through the middles of the sprite's steps with rounded
+  corners, not its staircase (D149).
 - PYLONS (cols 2.6-7.8 and 31.2-36.4, rows 12.6-26.9): two armour plates each, split at row 20 by a
   seam (the sprite's dark row 20, lit row 21), clipped outer corners, bolt heads.
 - BIG DOME (centre 19.25, 11.0; 13.3 x 10.5 px; 9 px tall): a revolved section - a machined base
@@ -84,21 +86,22 @@ def V(c, r, z):
 # ---------------------------------------------------------------------------------------------
 
 BED_TOP = 1.4
-BED_OUTLINE = [  # pixel edges, from the sprite mask incl. its dark ring (rows 5-52), row by row
-    (6.2, 8.6), (5.0, 9.0), (5.0, 12.0), (3.4, 13.0), (2.0, 14.6), (2.0, 28.4), (1.2, 29.0),
-    (1.0, 29.6), (1.0, 33.6), (1.4, 34.0), (2.0, 34.2), (2.0, 38.0), (2.6, 39.0), (6.6, 39.0),
-    (7.0, 39.4), (7.0, 44.4), (9.6, 45.4), (11.0, 47.4), (13.4, 50.2), (14.6, 51.0), (20.9, 51.0),
-    (21.1, 52.0), (25.9, 52.0), (26.4, 50.8), (27.0, 49.8), (28.0, 49.1), (32.0, 48.9),
-    (32.6, 46.6), (33.4, 45.0), (34.0, 40.2), (36.1, 39.3), (38.0, 38.9), (38.1, 36.2),
-    (39.3, 35.3), (39.8, 34.4), (39.8, 29.6), (38.0, 28.5), (37.0, 27.6), (37.0, 14.0),
-    (36.0, 13.4), (35.0, 12.2), (34.0, 11.5), (34.0, 8.3), (33.2, 7.9), (33.1, 4.9), (30.0, 4.9),
-    (24.0, 8.0), (15.0, 8.0),
+# The bed's outline and the rim: straight runs and chamfers fitted through the middles of the sprite's
+# steps (its machine mask: the pixels not reached from the edge through the dirt), every corner then
+# rounded (fillet), so the ink outline round the base is a smooth line, not the sprite's staircase (D149;
+# was traced row by row, each pixel step a jog).
+BED_POLY = [  # pixel edges, clockwise from the top left (the top is under the big dome)
+    (6.2, 8.6), (15.0, 8.0), (24.0, 8.0), (30.0, 4.9), (33.0, 4.9), (33.2, 7.6), (34.8, 8.4),
+    (34.4, 11.4), (37.0, 14.2), (37.0, 27.4), (40.4, 29.0), (40.8, 31.6), (40.8, 33.8), (39.0, 36.2),
+    (39.0, 38.7), (36.2, 39.6), (35.0, 40.6), (35.0, 44.0), (33.0, 45.4), (32.6, 47.0), (32.0, 49.4),
+    (28.0, 49.8), (26.4, 51.9), (17.0, 51.9), (14.0, 50.4), (10.4, 46.0), (7.0, 44.2), (7.0, 39.6),
+    (6.4, 39.0), (2.6, 39.0), (2.0, 38.4), (2.0, 34.4), (1.0, 33.4), (1.0, 29.4), (2.0, 28.4),
+    (2.0, 14.2), (4.2, 12.0), (5.0, 11.2), (5.0, 9.0),
 ]
-LOWER_RIM = [  # the raised frame round the lower octagon (inside the bed outline)
-    (7.6, 37.2), (7.6, 44.0), (10.0, 45.0), (11.6, 47.0), (14.2, 49.8), (25.2, 49.8), (26.6, 48.6),
-    (30.6, 47.6), (32.4, 45.0), (32.8, 40.0), (32.8, 37.2),
+RIM_POLY = [  # the raised frame round the lower octagon (inside the bed outline), open at its top ends
+    (7.6, 37.2), (7.6, 43.8), (10.6, 45.4), (14.4, 49.8), (25.2, 49.8), (26.8, 48.5), (30.6, 47.6),
+    (32.4, 45.0), (32.8, 40.0), (32.8, 37.2),
 ]
-
 # Domes: centre (c, r), plan radii (rx, ry) of the cap's foot, cap height and collar.
 BIG = dict(c=19.5, r=11.1, rx=13.15, ry=10.35, h=12.0, collar=2.6, lip=0.55)
 SIDES = [dict(c=8.5, r=31.0, rx=6.3, ry=4.45, h=6.4, collar=1.9, lip=0.4),
@@ -112,6 +115,54 @@ PAL = dict(brass=24, brass_dk=22, brass_dd=20, brass_lt=25, rod=26, grey=4, grey
 DIRT = [16, 17, 18, 19, 20, 21]
 METAL = 0.3  # satin, D53
 EXP = 2.0  # dome section exponent (2 = elliptical)
+
+
+def fillet(points, r, closed=True):
+    """Round each corner of a polyline (px) with an arc of radius r, tangent to both its edges (at
+    most 0.45 of either edge): a quadratic curve, about one segment per 15 degrees of turn."""
+    n = len(points)
+    out = []
+    for i in range(n):
+        p = Vector(points[i])
+        if not closed and i in (0, n - 1):
+            out.append(points[i])
+            continue
+        a, c = Vector(points[i - 1]), Vector(points[(i + 1) % n])
+        e0, e1 = p - a, c - p
+        if e0.length < 1e-6 or e1.length < 1e-6:
+            continue
+        turn = e0.angle(e1)
+        if turn < math.radians(4):
+            out.append(points[i])
+            continue
+        t = min(r * math.tan(turn / 2), 0.45 * e0.length, 0.45 * e1.length)
+        q0, q1 = p - e0.normalized() * t, p + e1.normalized() * t
+        k = max(2, math.ceil(math.degrees(turn) / 15))
+        for j in range(k + 1):
+            u = j / k
+            q = q0 * (1 - u) ** 2 + p * 2 * u * (1 - u) + q1 * u * u
+            out.append((q.x, q.y))
+    return out
+
+
+def offset_open(points, d, toward):
+    """An open polyline (px) moved d to the side facing `toward` (each vertex along its edges' mean
+    normal, held to d off both edges)."""
+    n = len(points)
+    P = [Vector(q) for q in points]
+    side = None
+    out = []
+    for i in range(n):
+        e0 = (P[i] - P[i - 1]) if i > 0 else (P[1] - P[0])
+        e1 = (P[i + 1] - P[i]) if i < n - 1 else (P[-1] - P[-2])
+        n0 = Vector((-e0.y, e0.x)).normalized()
+        n1 = Vector((-e1.y, e1.x)).normalized()
+        if side is None:
+            side = 1 if n0.dot(Vector(toward) - P[i]) > 0 else -1
+        bis = (n0 + n1).normalized() if (n0 + n1).length > 1e-6 else n0
+        q = P[i] + bis * side * d / max(0.3, bis.dot(n0))
+        out.append((q.x, q.y))
+    return out
 
 
 # ---------------------------------------------------------------------------------------------
@@ -341,14 +392,12 @@ def build_structure(b):
     GR, GL, GD, BED, DEEP, BLK = M("grey"), M("grey_lt"), M("grey_dk"), M("bed"), M("deep"), M("block")
 
     # ---- bed ----
-    b.prism(BED_OUTLINE, 0.0, BED_TOP, BED, ch=0.6)
-    # a dark recessed field + raised rim round the lower octagon
-    rim_in = [(c, r) for c, r in LOWER_RIM]
-    lib_in = lib.inset([tuple(V(c, r, 0)[:2]) for c, r in rim_in], 1.3 * PX)
-    pts = [tuple(V(c, r, 0)[:2]) for c, r in rim_in]
-    for i in range(len(pts) - 1):  # open frame along the octagon (top edge left open under the side domes)
-        lib.bevel_prism(b.bm, [pts[i], pts[i + 1], lib_in[i + 1], lib_in[i]], BED_TOP * PX - 0.01,
-                        2.6 * PX, 0.35 * PX, mat=GD)
+    b.prism(fillet(BED_POLY, 0.9), 0.0, BED_TOP, BED, ch=0.6)
+    # a dark recessed field + raised rim round the lower octagon: one open frame (its top ends under
+    # the side domes), 1.3 px wide, its corners rounded as the bed's
+    outer = fillet(RIM_POLY, 0.9, closed=False)
+    inner = offset_open(outer, 1.3, toward=(19.5, 44.0))
+    b.prism(outer + inner[::-1], BED_TOP - 0.01 / PX, 2.6, GD, ch=0.35)
     # bolts on the rim
     for c, r in ((9.2, 43.2), (13.0, 48.6), (19.5, 49.1), (26.0, 48.4), (31.6, 44.6), (32.2, 39.2), (8.3, 38.4)):
         b.bolt(c, r, 2.6, GR, 0.35)
