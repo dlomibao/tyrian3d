@@ -1905,6 +1905,20 @@
      "w": 192,
      "h": 224,
      "image": "0-covered.webp"
+    },
+    "584": {
+     "x": 16,
+     "y": 16,
+     "w": 192,
+     "h": 224,
+     "image": "0-covered-deliani.webp"
+    },
+    "585": {
+     "x": 240,
+     "y": 16,
+     "w": 192,
+     "h": 224,
+     "image": "0-covered-deliani.webp"
     }
    }
   },

@@ -20,8 +20,15 @@ Only ring-dome is built here (ring-dome-b, the second ring, is its own script). 
 
 The concept paves the pad and paints the sprite's highlight where the dome stands; the build
 neutralises the concept detail and relief under the dome (assets/blender/textures/shapesz-l1bld-ring-dome/
-detail.png, height.png) so the bake doesn't paint bricks and a fake highlight on it. Re-running
-concept_maps.py undoes that, so run this script once more after it (as above).
+detail.png, height.png) so the bake doesn't paint bricks and a fake highlight on it, once (maps.json
+then says "dome_neutralised"; a second pass would blur the edge further). Re-running concept_maps.py
+undoes that (and drops the flag), so run this script once more after it (as above).
+
+The six light-band cells (row 1, cols 2-7: red panels, triple tubes, gun turrets) are their own
+objects tagged `tyrian_cell` (DECISIONS.md D139), each with a plain paving lid over its stretch of the
+trough tagged `tyrian_when: "covered"`: while a ground enemy stands on a cell the game draws the lid,
+not the light, as the enemy's opaque sprite hid the tile (the models no longer draw the sprite's floor,
+D130, so the light showed round the enemy's edge), and the light once the enemy is gone.
 """
 
 import math
@@ -174,6 +181,8 @@ def neutralise_dome(b):
         return
     import json
     meta = json.loads(meta_path.read_text())
+    if meta.get("dome_neutralised"):
+        return
     k = meta["texels_per_px"]
     for name, value in (("detail.png", meta["neutral"]), ("height.png", None)):
         path = tex / name
@@ -191,6 +200,8 @@ def neutralise_dome(b):
             value = float(np.median(a))  # the relief's flat level
         a = a * f + value * (1 - f)
         write_png_grey(path, np.clip(np.round(a * 255), 0, 255).astype(np.uint8))
+    meta["dome_neutralised"] = True
+    meta_path.write_text(json.dumps(meta, indent=1) + "\n")
     print(f"neutralised the dome in {tex.relative_to(lb.ROOT)}/detail.png, height.png")
 
 
@@ -206,6 +217,50 @@ def plate_seams(b, pad):
     across = (((xx - px0) // 12 + (yy - py0) // 14) % 2) == 0
     weave = (lx == 0) | (ly == 0) | np.where(across, ly == 7, lx == 6)
     return np.where(pad, weave, bricks)
+
+
+BAND_ROW = 1  # the light band's pattern row (py 28-56)
+BAND_CELLS = range(2, 8)  # its six cells under ground enemies: 347 339 358 358 339 347
+TROUGH = (48, 31, 192, 57)  # the dark trough the lights stand in (px box)
+
+
+class CellParts:
+    """Routes the parts built inside `with cells.at(col):` into that band cell's own mesh (D139)."""
+
+    def __init__(self, b):
+        self.b = b
+        self.meshes = {}
+
+    def at(self, col, when="open"):
+        cells = self
+
+        class Ctx:
+            def __enter__(self):
+                self.prev = cells.b.parts
+                cells.b.parts = cells.meshes.setdefault((col, when), bmesh.new())
+
+            def __exit__(self, *exc):
+                cells.b.parts = self.prev
+        return Ctx()
+
+    def objects(self, coll, lid_mat):
+        """Per cell: the light ("open") and a plain paving lid over its stretch of the trough
+        ("covered"), flush with the deck."""
+        b = self.b
+        for col in BAND_CELLS:
+            x0, _, x1, _ = b.cell_box(BAND_ROW, col)
+            with self.at(col, "covered"):
+                b.wall_block(x0, TROUGH[1], x1, TROUGH[3], DECK - 0.03, DECK, lid_mat, bevel=0.0)
+        out = []
+        for col in BAND_CELLS:
+            for when in ("open", "covered"):
+                bm = self.meshes[(col, when)]
+                bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+                o = lb.mesh_object(f"{lb.SHAPES}-{b.prefix}-{b.name}-cell-{BAND_ROW}-{col}-{when}", bm, b.pal.materials, coll)
+                o["tyrian_cell"] = [BAND_ROW, col]
+                o["tyrian_when"] = when
+                out.append(o)
+        return out
 
 
 def main():
@@ -251,41 +306,48 @@ def main():
         for sx in (-1.75, 0, 1.75):
             b.wall_block(vx + sx - 0.5, vy - 4, vx + sx + 0.5, vy + 4, DECK - 0.04, DECK - 0.005, b.m(5), bevel=0.0)
 
+    # The band's lights, each in its cell's own object (D139).
+    cells = CellParts(b)
+    col_of = lambda px: int(px // lt.TILE_W)  # noqa: E731
+
     # Red panels (347): metal frame round a glowing red panel crossed by dark slats.
     red_glow = b.m("red", emission_strength=4.0)
     for (px0, py0, px1, py1) in RED_PANELS:
-        b.hatch(px0, py0, px1, py1, z=LIGHT_TOP, frame_px=2, depth_=0.05, mat_frame=metal, mat_inside=red_glow)
-        for sy in range(py0 + 5, py1 - 3, 4):
-            b.wall_block(px0 + 3, sy - 0.6, px1 - 3, sy + 0.6, DECK - 0.05, LIGHT_TOP - 0.02, b.m(2), bevel=0.0)
+        with cells.at(col_of(px0)):
+            b.hatch(px0, py0, px1, py1, z=LIGHT_TOP, frame_px=2, depth_=0.05, mat_frame=metal, mat_inside=red_glow)
+            for sy in range(py0 + 5, py1 - 3, 4):
+                b.wall_block(px0 + 3, sy - 0.6, px1 - 3, sy + 0.6, DECK - 0.05, LIGHT_TOP - 0.02, b.m(2), bevel=0.0)
 
     # Triple tubes (339): a framed trough, its floor dimly lit red (the tubes' glow), with three round
     # glowing capsules lying in it, half of each showing.
     tube_r = 2.3  # px
     trough = LIGHT_TOP - 2 * tube_r * lt.PX * 0.55
     for (fx0, fy0, fx1, fy1), xs in zip(TUBE_FRAME, TUBES_X):
-        b.hatch(fx0, fy0, fx1, fy1, z=LIGHT_TOP, frame_px=1.5, depth_=LIGHT_TOP - trough,
-                mat_frame=b.m("red_dark"), mat_inside=b.m(114, emission_strength=1.2, roughness=0.6))
-        for tx in xs:
-            b.capsule(tx, (fy0 + fy1) / 2, fy1 - fy0 - 5, tube_r, axis="y", z=LIGHT_TOP - 0.005,
-                      mat=b.m("red", emission_strength=5.0, roughness=0.15), housing=False, sides=12)
+        with cells.at(col_of(fx0)):
+            b.hatch(fx0, fy0, fx1, fy1, z=LIGHT_TOP, frame_px=1.5, depth_=LIGHT_TOP - trough,
+                    mat_frame=b.m("red_dark"), mat_inside=b.m(114, emission_strength=1.2, roughness=0.6))
+            for tx in xs:
+                b.capsule(tx, (fy0 + fy1) / 2, fy1 - fy0 - 5, tube_r, axis="y", z=LIGHT_TOP - 0.005,
+                          mat=b.m("red", emission_strength=5.0, roughness=0.15), housing=False, sides=12)
 
     # Gun turrets (358): a dark base ring, a brass turret body with a domed top and a short barrel
     # pointing down the screen (towards the player), all under the enemy drawn on top.
     brass = b.m(24, metallic=0.75, roughness=0.35)
     brass_dk = b.m(21, metallic=0.6, roughness=0.45)
     for mx, my in MOUNTS:
-        disc(b, mx, my, 10.5, DECK - 0.05, DECK + 0.02, b.m(3, metallic=0.4, roughness=0.5), sides=16)
-        disc(b, mx, my, 8.0, DECK - 0.05, DECK + 0.045, brass_dk, sides=16, bevel=0.3)
-        disc(b, mx, my - 1.0, 6.0, DECK - 0.05, DECK + 0.055, brass, sides=14, bevel=0.2)
-        b.dome(mx, my - 1.0, 5.5, 5.5, DECK + 0.05, lb.ENEMY_MAX - 0.005 - (DECK + 0.05), brass, sides=14, rings=4)
-        # Side brackets (the concept's yoke).
-        for sx in (-6.5, 6.5):
-            b.wall_block(mx + sx - 1.2, my - 5, mx + sx + 1.2, my + 3, DECK - 0.05, DECK + 0.07, brass_dk, bevel=0.3)
-        # Barrel: from the body's front down-screen, slightly sloped.
-        br = 0.9 * lt.PX
-        zb = lb.ENEMY_MAX - 0.005 - br
-        cylinder(b, (b.x(mx), b.y(my + 2.0), zb), (b.x(mx), b.y(my + 11.0), zb), br, metal, sides=10)
-        disc(b, mx, my + 10.0, 1.4, DECK - 0.02, zb + br * 0.9, metal, sides=10, bevel=0.0, ry_px=1.2)
+        with cells.at(col_of(mx)):
+            disc(b, mx, my, 10.5, DECK - 0.05, DECK + 0.02, b.m(3, metallic=0.4, roughness=0.5), sides=16)
+            disc(b, mx, my, 8.0, DECK - 0.05, DECK + 0.045, brass_dk, sides=16, bevel=0.3)
+            disc(b, mx, my - 1.0, 6.0, DECK - 0.05, DECK + 0.055, brass, sides=14, bevel=0.2)
+            b.dome(mx, my - 1.0, 5.5, 5.5, DECK + 0.05, lb.ENEMY_MAX - 0.005 - (DECK + 0.05), brass, sides=14, rings=4)
+            # Side brackets (the concept's yoke).
+            for sx in (-6.5, 6.5):
+                b.wall_block(mx + sx - 1.2, my - 5, mx + sx + 1.2, my + 3, DECK - 0.05, DECK + 0.07, brass_dk, bevel=0.3)
+            # Barrel: from the body's front down-screen, slightly sloped.
+            br = 0.9 * lt.PX
+            zb = lb.ENEMY_MAX - 0.005 - br
+            cylinder(b, (b.x(mx), b.y(my + 2.0), zb), (b.x(mx), b.y(my + 11.0), zb), br, metal, sides=10)
+            disc(b, mx, my + 10.0, 1.4, DECK - 0.02, zb + br * 0.9, metal, sides=10, bevel=0.0, ry_px=1.2)
 
     # Orb sockets (357): dark round bezel, metal ring, a glowing red lens.
     for ox, oy in ORBS:
@@ -331,7 +393,9 @@ def main():
     n_in = place_rocks(b, rng, d_fp, inner, (3.5, 4.8), (0.39, 0.45), 1.0, taken, rock_mats, 0.10)
     print(f"rocks: {n_out} outer, {n_in} inner")
 
+    lid_mat = b.m("pave", plain=True)  # untextured: the concept paints the lights here
     objects = b.objects(deck)
+    objects += cells.objects(objects[0].users_collection[0], lid_mat)
     b.check(objects)
     tris = sum(len(o.data.polygons) and sum(len(p.vertices) - 2 for p in o.data.polygons) for o in objects)
     print(f"triangles: {tris}")

@@ -399,8 +399,12 @@ export class DrawListRenderer {
   private readonly viewDir = new THREE.Vector3();
   /** Which star pixels background 1 hides (D127). */
   private readonly starCover = new StarCover();
-  /** This frame's ground cells of wreck tiles, drawn once the frame knows whether enemies cover them (D86). */
-  private readonly groundCells: { d: TileDraw; x: number; y: number; remaster: boolean }[] = [];
+  /**
+   * This frame's ground cells of wreck tiles (D86), and of HD tiles with a covered painting (a machine
+   * painted on the ground that its enemy's sprite hid, D139; `wreck` false), drawn once the frame
+   * knows whether enemies cover them.
+   */
+  private readonly groundCells: { d: TileDraw; x: number; y: number; remaster: boolean; wreck: boolean }[] = [];
   /** Wreck tiles with their wreck painted out to dirt (D86), by tile id. */
   private readonly coveredTiles = new Map<string, Uint8Array>();
   /** The plain ground tiles that stand in for covered wreck tiles (COVERED_STAND_IN), as last drawn. */
@@ -821,7 +825,7 @@ export class DrawListRenderer {
             break;
           }
           if (this.background !== "remaster" && d.layer === 0 && WRECK_TILES.has(d.tileId)) {
-            this.groundCells.push({ d, x, y, remaster: false }); // D86, as in drawRemasterTile
+            this.groundCells.push({ d, x, y, remaster: false, wreck: true }); // D86, as in drawRemasterTile
             instances++;
           } else if (this.drawOriginalTile(d, x, y, cam, frame)) instances++;
           break;
@@ -841,8 +845,11 @@ export class DrawListRenderer {
 
     // A ground structure under opaque ground-enemy sprites (a wreck under its live bunker), as far as
     // the playfield shows it, is left out, as the sprites hid its tiles (D86).
+    // Its cells' cover parts (a light under a ground enemy) show by whether an enemy covers each cell (D139).
     for (const s of this.groundStructures) {
-      if (!this.cover.covered(s.left, s.top, s.w, s.h)) this.structures.place(s.model, s.x, s.y, s.z, s.scale, s.neighbours);
+      if (this.cover.covered(s.left, s.top, s.w, s.h)) continue;
+      const cellCovered = (row: number, col: number) => this.cover.covered(s.left + col * TILE_WIDTH, s.top + row * TILE_HEIGHT, TILE_WIDTH, TILE_HEIGHT);
+      this.structures.place(s.model, s.x, s.y, s.z, s.scale, s.neighbours, cellCovered);
     }
     // A wreck's ground cell under opaque enemy sprites draws without the wreck: its covered HD
     // painting, else (the pixel looks) its plain-ground stand-in or the tile with its wreck pixels
@@ -851,6 +858,13 @@ export class DrawListRenderer {
     // it anyway.
     for (const c of this.groundCells) {
       const covered = this.cover.covered(c.x, c.y, TILE_WIDTH, TILE_HEIGHT);
+      // A plain HD tile with a covered painting (D139): that painting while covered, else as any tile.
+      if (!c.wreck) {
+        if (!(covered && this.drawRemasterGround(c.d, c.x, c.y, cam, frame, true, false, true)) && !this.drawRemasterGround(c.d, c.x, c.y, cam, frame, false, false)) {
+          this.drawOriginalTile(c.d, c.x, c.y, cam, frame);
+        }
+        continue;
+      }
       if (c.remaster && this.drawRemasterGround(c.d, c.x, c.y, cam, frame, covered, true, covered)) continue;
       if (c.remaster && covered && this.drawRemasterGround(c.d, c.x, c.y, cam, frame, false, true, true)) continue;
       if (covered) {
@@ -1056,10 +1070,15 @@ export class DrawListRenderer {
         modelled = true;
         // A wreck's ground cell draws once the frame knows whether an enemy covers it (D86).
         if (d.layer === 0 && WRECK_TILES.has(d.tileId)) {
-          this.groundCells.push({ d, x, y, remaster: true });
+          this.groundCells.push({ d, x, y, remaster: true, wreck: true });
           return true;
         }
       }
+    }
+    // A ground tile with a covered painting draws once the frame knows whether an enemy covers it (D139).
+    if (d.layer === 0 && !modelled && this.hasCoveredArt(d)) {
+      this.groundCells.push({ d, x, y, remaster: true, wreck: false });
+      return true;
     }
     return this.drawRemasterGround(d, x, y, cam, frame, false, modelled);
   }
@@ -1108,6 +1127,14 @@ export class DrawListRenderer {
       this.addSprite(geometry, d.pass, d.effect, 0, 0, x, y, cam, frame);
     }
     return true;
+  }
+
+  /** Whether the HD look is on and a tile's tileset (loaded) has a covered painting of it (D86, D139). */
+  private hasCoveredArt(d: TileDraw): boolean {
+    if (this.terrain !== "hd") return false;
+    let id = this.tileIds.get(d.tileId);
+    if (id === undefined) this.tileIds.set(d.tileId, (id = parseTileId(d.tileId)));
+    return !!id && !!this.terrainArt.get(id[0])?.hasCovered(d.layer, id[1]);
   }
 
   /**

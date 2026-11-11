@@ -5993,3 +5993,58 @@ D137's two field atlases (`0-fields.webp` 3968x4096 and `0-fields-2.webp` 3760x3
 - **Plumbing.** HD terrain pools carry `instTile4` (rect origin, tint origin; x < 0: none) in place of `instTile`; the colour and shadow materials read it. Other tile pools are unchanged.
 - **Result** (`shapesy`): one image `0-fields.webp`, 1472x2656, 0.91 MB (was 1.96 MB in two images): ~20.9 MB on the GPU, down from ~159 MB (-138 MB). Fields shown vs the solved tiles: mean error 0.28 levels (worst tile 0.37). Seams over the six maps (`fieldcut`'s own check, on what the game shows): texel ratio 0.517 (continuous 0.516), bands 0.517; D137's baked 0.496 / 0.515, D95's 0.563. 1.8 t3300 at 1920x1080 and 3840x2160 against before: p99 pixel difference 4 and 6 levels (only the debug text line differs by more than 20); looks the same. Not checked: 1.12, 3.10, 4.3 before/after pairs (1.17 t4800 looked right after), a device with a small GPU. `check` still doesn't know `fields` (it reads one tile per number; not changed).
 - **Options considered:** *A flat offset per tile (no image):* the brightness gradients inside each tile would be lost (D137's objection to aliasing). *Tint at 8 texels:* 6x the atlas for no visible gain (error 0.29 vs 0.28 levels). *Tint at 1 texel:* seams 0.905 lossy, edge strips too coarse. *Fewer tile families by aliasing to 16/24:* tile-sized steps. `fieldcut --no-alias` keeps the D137 baked layout.
+## D139 — What D130's floor plates hid: ASTEROID?'s band lights hide per cell under their enemies, DELIANI's machine tiles get covered paintings (extends D86, D130)
+
+2026-11-11
+
+**Problem** (D130's known follow-up): with the floor plates gone, about a sprite pixel of what the plate hid showed round
+some ground enemies. Found by stepping the harness and reading the draw list, then capturing with the structure models
+hidden and in `&terrain=original`:
+- **1.3 ASTEROID? (t3310):** not the `l1bld-red-bar` structure but `l1bld-ring-dome` (map rows 154-160; `structures-1` is not
+  rebuilding it). Its light band (pattern row 1, cols 2-7: 347 red panels, 339 triple tubes, 358 gun turrets) is modelled
+  as the building's own lights, under ENEMY_MAX, so they show once the six enemies on it (newshs-229/191 frames, newshd-275)
+  die. The 339 hatch's red frame and lit trough run to the cell's bottom edge (py 56), 3-4 px past the capsule rack's model,
+  and the 358 turret's dark base ring (10.5 px) and barrel reach past the caged turret's: the red strip and the dark ring.
+  The HD terrain under the structure is not involved (the deck hides it). D86's cover rule leaves a whole ground structure
+  out only when enemies cover all of it, so it never applied here. At t3515 (`l1bld-light-bridge`) nothing shows: its strip
+  frame is grey metal and stays under the racks.
+- **1.5 DELIANI (t2560, t3300):** no structure. The pillar ends (newshc-55) stand on tile 585 and the twin pillar's base
+  (newshc-283/267) on 584, plain floor tiles with a grey machine and red hatches painted on them; the HD painting (and the
+  pixels) of that machine showed beside the models. A level scan (every tick, layer-0 tiles under ground-enemy sprites)
+  also finds 580 (newshc-1), 581 (vent block) and 590 (newshu-79) with machine art, but their models cover it.
+
+**Decision:**
+- **Cover parts, per cell, for structures** (`structureInstances.ts`, `drawListRenderer.ts`): a structure model's node may
+  carry glTF extras `tyrian_cell: [row, col]` and `tyrian_when: "open" | "covered"`. Each copy draws an "open" part only
+  while no ground enemy covers that cell of its pattern, and a "covered" part only while one does (D86's `OpaqueCover`
+  test on the cell's 24x28 rect). Parts now keep their own instance counts. Untagged models draw as before.
+- **ring-dome** (`l1bld_ring_dome.py`): the six band cells' lights are built into their own objects (`open`), each with a
+  plain paving lid over its stretch of the trough, flush with the deck (`covered`; material `pave` with `plain=True`, so
+  the concept bake doesn't paint the lights onto it). While the enemies stand there the band reads as plain paving round
+  them, as the sprites' floor did; a cell's light comes back the frame its enemy dies (checked by taking the racks out of
+  the cover test). The script's dome neutralising now runs once (`"dome_neutralised"` in maps.json; concept_maps.py
+  drops it): each rebuild re-blurred the dome's edge in detail.png/height.png (up to 19 levels). Rebuilt and re-baked;
+  away from the band the deck differs only by bake noise.
+- **Covered paintings for any tile** (`drawListRenderer.ts`, `terrainArt.ts` `hasCovered`): in the HD look, a ground tile
+  whose tileset lists a covered painting is drawn after the frame's draws, like D86's wreck cells, and from that painting
+  while an enemy covers it. Without one, or in the pixel looks, it draws as before (no `paintOutWreck` for these).
+- **584, 585** (`tools/terrain_covered.py`, set `deliani`): one Gemini request (a 16:9 sheet, each tile with a ring of
+  neighbours chosen without other machines; registered NCC 0.962/0.971), the machine and its shadow painted out to the
+  floor over its non-floor pixels (palette 48, 96-109 are floor) grown 3 px, in its own atlas `0-covered-deliani.webp`
+  (2 tiles, 7 KB); `cut --set deliani` recomposes only that atlas. The tool also reads a tile from its own atlas image
+  (`0-2.webp`) now; it used `0.webp` for every tile.
+
+**Options considered:** for 1.3, shrinking the band lights to fit inside the live enemies' models (the lights would no
+longer match the tiles once the enemies die) or giving the enemies a foot to the cell's edge (a plate again, and on 1.1/1.2
+they stand on plain ground); hiding the lights without a lid (the dark trough showed instead). For 1.5, a cover rule
+dropping the tile (a hole in the floor) or a procedural fill (no plain tile matches the floor round the machine).
+
+**Not changed:** the pixel looks (`&terrain=original`, `&bg=original`) still show DELIANI's machines' pixels and, with
+`bg=original`, ASTEROID?'s tile pixels round the enemies, as after D130. Orb sockets (357) stay in the shared parts: the
+lamp pods cover them.
+
+Tests: `rockMaterial.test.ts` (cover parts per copy), `terrainArt.test.ts` (`hasCovered`), `opaqueCover.test.ts` (584/585
+painted). Captures (3840x2160, before = main, after = this): `tyrian-scratch/cover-slivers/` `before/`, `after/`,
+`pairs/` (1.3 t3310, t3515; 1.5 t2560, t3300), `crops/` (`1.3_t3310_band.png`, `1.5_t2560_pillar_ends.png`,
+`1.5_t2560_crane_base.png`: top before, bottom after), `work/13_deadcmp.png` (bottom: the racks left out of the cover
+test, their lights back).

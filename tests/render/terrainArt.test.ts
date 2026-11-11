@@ -201,6 +201,8 @@ describe("fallback per tile", () => {
     expect(t.coveredTile(0, 1)).toEqual({ texture: "c", x: 16, y: 16 });
     expect(t.coveredTile(0, 2)).toBeUndefined();
     expect(t.tile(0, 1, 0)).toEqual({ texture: "a", x: 16, y: 16 });
+    // Listed whether or not its atlas has loaded (the renderer defers such cells, D139).
+    expect([t.hasCovered(0, 1), t.hasCovered(0, 2), t.hasCovered(1, 1)]).toEqual([true, false, false]);
   });
 
   test("neighbours: outside the map or another row's edge is -1", () => {
