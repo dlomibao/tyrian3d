@@ -6409,3 +6409,54 @@ covered at t3310).
 **Cost:** 44 agents (32 Opus, 12 Sonnet), 5.97M subagent tokens, about 1.4 h. Sheets:
 `tyrian-scratch/structures-2/<name>/final/`; the lead's seam captures `tyrian-scratch/structures-2/lead/`;
 integration builds, lib check and captures `tyrian-scratch/structures-2/integrate/` (not in git, D3).
+
+## D145 — ASTEROID?'s ring dome is a lit, weave-plated metal dome again: one smooth glossy shell, not raised strips (fixes a D143 regression; extends D65, D139)
+
+2026-11-11
+
+**Problem:** after D143 the ring dome's central dome (`l1bld_ring_dome.py`, tiles 415 417 / 409 383) read as a
+dark woven hatch from the game camera (ASTEROID? t3310; D143's follow-up), where the art and the D139 model show a
+bright, lit dome. D143 built it as an ellipsoid shell in index 3 (the seam colour) with the deck's basket weave laid
+over it as raised flat strips (index 5, metallic 0.5), inside a bolted collar with a boss on the crown. Three things
+darkened it: a metallic surface in a dark index reflects little (its reflectance is the palette colour); each strip
+was a flat face with its own normal, so no highlight could run across the dome; and the AO bake darkened every gap
+between strips down to the dark shell. The collar ring round a grid of strips then read as a manhole.
+
+**What the dome is** (the tiles, pattern px, centre (120, 140)): a low glossy metal dome plated in the deck's own
+basket weave. The weave runs on across it on the deck's grid (lib_l1kit.WEAVE), with no outline, collar or boss.
+Split by the weave, the dome's bricks have median index 6 and its joints 4, the same as the deck round it (6 / 3-4).
+Its lit top-left (bricks 10, specks up to 15) and dark bottom-right (bricks 2) are lighting. So it is shape and
+sheen (art rule 2): not a hatch, and not a lens (no glass colour, no rim).
+
+**Decision** (only `big_dome` and its constants change; the band, the D139 cover parts, the orbs, deck, rocks and kerb
+are as D143 built them):
+- One continuous smooth-shaded shell from the paving's brick top (`PLATE_TOP` 0.345) at its rim (`DOME_RB` = 24 px,
+  where D143's paving already stops) to a crown at 0.785. The profile is (1 - (r/RB)²)^0.65: rounder shoulders than
+  a paraboloid, so the tilted camera sees a bright side and a darker one. A short skirt closes the rim down to the
+  deck.
+- The shell is cut on the weave's own grid lines (every brick edge and joint middle), so the weave is a palette
+  region of the same surface. Faces touching a joint are index 4 (roughness 0.4); the rest are index 6 (roughness
+  0.35). Both are metallic 0.2: mostly dielectric, so the sun and environment leave a white sheen over the brick
+  colour instead of a dark metal tint. The joints are not grooves: a dropped joint (tried with sharp edges, which
+  split the bricks' normals per brick) broke the sheen into a patchwork of lit and dark bricks.
+- No collar, bolts or boss (the art has none). `measure()` also prints the dome's brick and joint medians (6 / 4).
+- Kept: `"bake": "model"` (the model's own AO bake, D141), the twelve `cell-1-{2..7}-{open,covered}` nodes with the
+  same `tyrian_cell` / `tyrian_when` tags (checked in the GLB), every `src/render/tileModels/*.json` unchanged.
+  Top-view IoU 0.9793 by `finish()`, the same as main's script measured the same way (D143's table gives 0.983 from
+  its review's measure). Heights check ok (max 0.785 < TALL_MAX 0.80; enemy cells max 0.374). 16.7k triangles (was
+  17.6k), GLB 1.20 MB (was 1.29). Built with `tools/build-models.sh -j 2 -p` (exit 0, a fresh `exported` line and
+  GLB timestamp).
+
+**In game** (`?debug=play&episode=1&main=21&seed=1`, original `&bg=original` | main | this branch): at t3280 (the dome
+whole on screen) and t3310 the dome reads as a raised, bright metal dome with the weave running over it. A soft sheen
+crosses the bricks and joints alike, the shoulders catch a bright rim, and the far side is a little darker. At t3515
+the ring dome is off screen (the light bridge is in view); nothing changed there.
+
+**Not matched:** the art lights the dome from the top-left. The game's sun shines from the left and from the camera's
+side (`src/render/view.ts`), so the brightest sheen falls on the dome's left and lower half, not its upper left. Matching the
+art's direction would need painted light, which art rule 2 rules out. D143's other ring-dome follow-up (band cells
+1-3 and 1-6 within 0.002 of the base) is untouched.
+
+Captures: `tyrian-scratch/ring-dome-dome/shots/` (`orig_`, `before_`, `after_` t3280, t3310, t3515) and `cmp/`
+(`t3280.png`, `t3310.png`, `t3515.png`, `crop_dome_t3280.png`, `crop_dome_t3310.png`: original | before | after; not in
+git, D3).
