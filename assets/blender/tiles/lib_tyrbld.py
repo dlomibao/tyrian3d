@@ -22,7 +22,15 @@ plan against every level), and adds TYRIAN's kits:
 - `lathe()`: a surface of revolution along X or Y (drums, domes, orbs, pipes); `light()`: an
   emissive dome or lens;
 - `export()`: also writes the plan's variant entries and removes the per-tile entries (and their
-  .glb) the structure replaces, then prints the concept, bake and render commands.
+  .glb) the structure replaces, then prints the concept, bake and render commands (not after
+  bake_model(): `export(objects, baked=True)`).
+
+Hard-surface rebuilds (D65's standard for structures, D141; CLAUDE.md art rule 4): lib_l1bld's kit,
+inherited here: `outlines()` / `slab()` / `slab_mask()` / `rim()` / `rounded_box()` / `ngon()` / `bolts()`
+build smooth, chamfered prisms instead of pixel terraces; `top_iou()` measures the top view against
+the art; `bake_model()` bakes AO/roughness itself (the island rock, plain, left alone) and
+`export(..., baked=True)` marks maps.json `"bake": "model"`. tyrbld_purple_cross.py is the worked
+example (its docstring has the commands).
 
 Units and frame as lib_tiles / lib_l1bld: 1 unit = 12 tile px, origin at the pattern's centre, X
 right, Y up (screen up), Z up. Pixel coordinates (px, py) are in the pattern at 1x, top-left
@@ -515,12 +523,13 @@ class Structure(lb.Building):
         return [lb.mesh_object(f"{SHAPES}-{self.prefix}-{self.name}-parts", self.parts, self.pal.materials, coll)]
 
 
-    def export(self, objects, name=None):
+    def export(self, objects, name=None, baked=False):
         """lib_l1bld's export (public/models/tiles/shapesz/tyrbld-<name>.glb, src/render/tileModels/
         shapesz-tyrbld-<name>.json with the plan's minRows / keepTiles), then the plan's variants,
-        and the replaced per-tile entries removed."""
+        and the replaced per-tile entries removed. `baked`: after bake_model() (the hard-surface
+        standard): maps as WebP, maps.json marked `"bake": "model"`, no concept commands printed."""
         name = name or self.name
-        out = super().export(objects, name)
+        out = super().export(objects, name, baked=baked)
         model = f"tiles/{SHAPES}/{self.prefix}-{name}"
         tm = ROOT / "src" / "render" / "tileModels"
         if getattr(self, "broken_sockets_built", False):
@@ -543,7 +552,8 @@ class Structure(lb.Building):
                 if path.exists():
                     path.unlink()
                     print(f"removed {path.relative_to(ROOT)} (replaced by {model})")
-        print("next:\n" + "\n".join(commands(name)))
+        if not baked:
+            print("next:\n" + "\n".join(commands(name)))
         return out
 
 

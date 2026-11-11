@@ -170,7 +170,9 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
   (`minRows`, `keepTiles`), one worked example, the real-map test in `tests/render/remaster.test.ts`
   extended. (2) One agent per structure, own `tiles/<prefix>_<unit>.py`. (3) Review from the game
   camera against the original crop. (4) Plain terrain (rock islands) uses `rock_tile`, never slabs
-  or boulders.
+  or boulders. (5) Hard-surface (D141): smooth chamfered prisms from `Building.outlines`/`slab`
+  (never `terrace()` pixel decks), `top_iou`, `bake_model` + `export(baked=True)` (`"bake": "model"`);
+  worked example `tyrbld_purple_cross.py`; `tools/tile_pattern.py <entry> out.png --grid` draws the art.
 - **Commands:** `tools/build-models.sh assets/blender/tiles/<script>.py`;
   `TYRIAN_DATA=... NODE_OPTIONS= npx vitest run tests/render/remaster.test.ts tests/render/islandRock.test.ts`;
   `?debug=play&seed=1&skip=T&freezeAt=T` (and `&bg=original` to compare);

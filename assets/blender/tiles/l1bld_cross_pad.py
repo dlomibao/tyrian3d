@@ -1,28 +1,27 @@
-"""The cross-shaped pad of red light capsules on map 1-3's ground (shapesz.dat; 5 x 5 tiles, once on
-the map at rows 233-237), after the concept assets/blender/features/concepts/l1-bld-cross-pad.jpg:
-a rocky, roughly round platform around a square body of grey metal machinery (panels in a frame
-grid, pipe runs) with a raised gunmetal cross in the middle; along each arm three glowing red
-capsules in silver frames (338 vertical arm: capsules lying across x; 339 horizontal arm: capsules
-standing along y), and in the centre (347) a square, hotter orange core in a chamfered frame.
+"""ASTEROID?'s cross pad (map 1-3 rows 233-237, shapesz 5x5 pattern, layer 0), hard-surface rebuild.
 
-All five cross cells carry ground enemies (the red lights newshs 157/195/235), drawn at 0.45 over
-the building: the cross's top stays between ENEMY_MIN and ENEMY_MAX so they sit on it, and the
-building's own lights show once they are destroyed.
+A square body of grey machinery set into a ring of rock, a raised gunmetal cross on it carrying
+three red light capsules per arm in silver bezels and a hot core in a framed square at the centre.
+Everything is read off the tile art (pattern px, origin top-left, y down):
 
-The outline is not the tiles' pixel mask: a low mound with a smooth (polar) outline carries chunky
-faceted boulders (convex hulls) that reach the ground, so the silhouette is the rocks'. The lenses
-and the core are marbled per half pixel from the tiles' own red pixels (dark red with bright
-streaks; the core shifted up to a hot orange).
+- the rock ring is not modelled: the tiles stay drawn under the model (keepTiles, layer 0), so the
+  HD ground's own painting of these tiles shows round it, the same rock as the islands beside it
+  (D86; boulders or slabs would break with them, D63/D66);
+- the body: a chamfered octagon with a spine under the vertical arm, stepping down at both ends to
+  the art's ribbed columns running out into the rock, quadrants of plates split by panel gaps,
+  bolts, vents, hatches and a pipe along each arm;
+- the cross: one chamfered slab (exactly the five enemy cells, top 0.30), the capsules (red blobs
+  of the art, bezel = their 1-2 px silver ring, index 8; lens 113 glowing) and the core (113).
 
-Run from the repo root:
+Geometry only from the tiles; no concept is projected (art rule 4). The only texture is the
+model's AO/roughness bake (Building.bake_model, ground=0: the HD ground under it).
+No D51 outline shell: tile models draw no ink outline (structureInstances.ts turns it off, tiles join
+edge to edge, D8), so a shell would only add an instanced draw and a shadow caster (D141).
 
-    blender --background --factory-startup --python assets/blender/tiles/l1bld_cross_pad.py
-    python tools/concept_maps.py tile:shapesz-l1bld-cross-pad --concept l1-bld-cross-pad
-    blender --background --factory-startup --python assets/blender/texture_bake.py -- tile:shapesz-l1bld-cross-pad
+    Blender --background --factory-startup --python assets/blender/tiles/l1bld_cross_pad.py -- [--no-bake] [--preview x.png]
 """
 
 import math
-import random
 import sys
 from pathlib import Path
 
@@ -30,425 +29,309 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import bmesh  # noqa: E402
 import numpy as np  # noqa: E402
+import common  # noqa: E402
 import lib_l1bld as lb  # noqa: E402
 import lib_tiles as lt  # noqa: E402
 
-BODY_DECK = 0.22  # the machinery body's floor
-MOUND_TOP = 0.15  # the rocky mound under the boulders
-CROSS_TOP = 0.31  # the gunmetal cross (exactly the five enemy cells)
-CROSS_STEP = 0.27  # its 2 px chamfer step
-STEP_PX = 2
-CENTRE = (60.0, 70.0)  # pattern px
-# The square machinery body (the cells 363/364/373/374 and the cross), corners chamfered.
-BODY = (23, 25, 97, 115)
-BODY_CHAMFER = 6
-# The cross: the vertical arm is pattern column 2 (rows 1-3), the horizontal arm is row 2 (cols 1-3).
-V_ARM = (48, 28, 72, 112)
-H_ARM = (24, 56, 96, 84)
-# The red lights (pattern px, from the tiles' red pixels): centres and size.
-CAP_X = 59.0  # vertical arm: capsules lie across (axis x), 18 x 7 px
-CAP_Y_TOP = (33.5, 42.2, 50.8)
-CAP_Y_BOTTOM = (89.5, 98.2, 106.8)
-CAP_Y = 70.0  # horizontal arm: capsules stand along y, 7 x 18 px
-CAP_X_LEFT = (28.0, 35.8, 43.6)
-CAP_X_RIGHT = (76.0, 83.8, 91.6)
-BEZEL = (22.0, 8.6)  # a light's silver bezel (long x short side, px), as in the concept
-LENS = (18.0, 5.6)  # its lens
-CORE = (50, 59, 69, 81)  # the centre's glowing square, frame included
-# The four machinery quadrants between the arms (inside the arms' chamfer steps).
-QUADS = ((25, 28, 46, 54), (74, 28, 95, 54), (25, 86, 46, 112), (74, 86, 95, 112))
+
+# --- Layout (pattern px) --------------------------------------------------------------------------
+BODY = (24, 30, 96, 110)  # the machinery's octagon (box), corners cut BODY_CUT
+BODY_CUT = 15
+SPINE = (45, 26, 75, 114)  # the spine under the vertical arm (a lip past the octagon)
+SPINE_ENDS = [(46, 16, 74, 31), (46, 109, 74, 122)]  # its lower steps, out into the rock
+V_ARM = (48, 28, 72, 112)  # cells (1,2), (2,2), (3,2)
+H_ARM = (24, 56, 96, 84)  # cells (2,1), (2,2), (2,3)
+# Red lights (bbox of the art's red pixels, px): vertical arm (lying across x), horizontal (standing)
+CAPS_V = [(50, 30, 68, 37), (50, 39, 68, 46), (50, 48, 68, 55), (50, 86, 68, 93), (50, 95, 68, 102), (50, 104, 68, 111)]
+CAPS_H = [(25, 61, 31, 79), (33, 61, 39, 79), (41, 61, 47, 79), (73, 61, 79, 79), (81, 61, 87, 79), (89, 61, 95, 79)]
+CORE = (52, 60, 67, 80)
+# The four machinery quadrants (between the arms, inside the octagon)
+QUADS = [(25.5, 31.5, 47, 55), (73, 31.5, 94.5, 55), (25.5, 85, 47, 108.5), (73, 85, 94.5, 108.5)]
+
+# --- Heights --------------------------------------------------------------------------------------
+BODY_Z = 0.20  # the body's deck
+PLATE_Z = 0.245  # quadrant plates
+ARM_Z = 0.30  # the cross's top (enemy cells: 0.30..0.38)
+BEZEL_Z = 0.342
+LENS_Z = 0.362
+CORE_Z = 0.370
+END_Z = 0.09  # the spine's end steps
+
+# --- Palette indices (the art's own, per region: medians without the darkest / brightest) -------
+I_ARM, I_ARM_EDGE = 6, 7
+I_BEZEL = 8
+I_BODY, I_BODY_DARK, I_PLATE_A, I_PLATE_B = 4, 2, 5, 4  # quadrants: the art's mode 5, median 4
+I_LENS, I_CORE = 113, 113
+I_LENS_HOT, I_CORE_HOT = 115, 116  # the art's brightest streaks: the glow's crest
+I_PIPE = 6
 
 
-def rrect(x0, y0, x1, y1, rad, segs):
-    """Outline (pixel coords, counter-clockwise seen from above) of a rounded rectangle; segs=1 makes
-    chamfered (octagon) corners."""
-    rad = min(rad, (x1 - x0) / 2, (y1 - y0) / 2)
-    pts = []
-    for cx, cy, a0 in ((x1 - rad, y0 + rad, 0.0), (x0 + rad, y0 + rad, 90.0),
-                       (x0 + rad, y1 - rad, 180.0), (x1 - rad, y1 - rad, 270.0)):
-        for i in range(segs + 1):
-            a = math.radians(a0 + 90.0 * i / segs)
-            pts.append((cx + rad * math.cos(a), cy - rad * math.sin(a)))
-    return pts
+def clip_convex(poly, clip):
+    """Sutherland-Hodgman: `poly` clipped to the convex polygon `clip` (both pattern px)."""
+    def area(p):
+        return sum(p[i][0] * p[(i + 1) % len(p)][1] - p[(i + 1) % len(p)][0] * p[i][1] for i in range(len(p))) / 2
+    if area(clip) < 0:
+        clip = list(reversed(clip))
+    out = list(poly)
+    for i in range(len(clip)):
+        a, b = clip[i], clip[(i + 1) % len(clip)]
+
+        def inside(p):
+            return (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]) >= 0
+
+        def cut(p, q):
+            dx1, dy1 = q[0] - p[0], q[1] - p[1]
+            dx2, dy2 = b[0] - a[0], b[1] - a[1]
+            den = dx1 * dy2 - dy1 * dx2
+            t = ((a[0] - p[0]) * dy2 - (a[1] - p[1]) * dx2) / den
+            return (p[0] + t * dx1, p[1] + t * dy1)
+
+        src, out = out, []
+        for j in range(len(src)):
+            p, q = src[j], src[(j + 1) % len(src)]
+            if inside(q):
+                if not inside(p):
+                    out.append(cut(p, q))
+                out.append(q)
+            elif inside(p):
+                out.append(cut(p, q))
+        if not out:
+            return []
+    return out
 
 
-def in_rrect(px, py, x0, y0, x1, y1, rad):
-    rad = min(rad, (x1 - x0) / 2, (y1 - y0) / 2)
-    if not (x0 <= px <= x1 and y0 <= py <= y1):
-        return False
-    cx = min(max(px, x0 + rad), x1 - rad)
-    cy = min(max(py, y0 + rad), y1 - rad)
-    return (px - cx) ** 2 + (py - cy) ** 2 <= rad * rad
+def octagon(x0, y0, x1, y1, c):
+    return [(x0 + c, y0), (x1 - c, y0), (x1, y0 + c), (x1, y1 - c), (x1 - c, y1), (x0 + c, y1), (x0, y1 - c), (x0, y0 + c)]
 
 
-def lozenge(b, x0, y0, x1, y1, rad, segs, z0, z1, mat, bevel_px=0.0, bevel_z=0.0):
-    """A closed prism over a rounded rectangle from z0 to z1; with bevel_px, its top edge chamfered
-    (the outline inset by bevel_px and bevel_z higher, so z1 + bevel_z is the very top)."""
+def stadium(x0, y0, x1, y1, grow=0.0, segs=4):
+    """A capsule's outline round a box (px): round ends on the short sides."""
+    x0, y0, x1, y1 = x0 - grow, y0 - grow, x1 + grow, y1 + grow
+    r = min(x1 - x0, y1 - y0) / 2
+    return lb.Building.rounded_box(None, x0, y0, x1, y1, corner_px=r * 0.999, segments=segs)
+
+
+def loft_cap(s, polys, mat, smooth=True, top_mat=None):
+    """A closed, lofted solid through rings `polys` [(poly px, z), ...] (same vertex count), bottom
+    and top capped: lens domes and the like."""
     bm = bmesh.new()
-    base = rrect(x0, y0, x1, y1, rad, segs)
-    rings = [[(px, py, z0) for px, py in base], [(px, py, z1) for px, py in base]]
-    if bevel_px > 0:
-        inner = rrect(x0 + bevel_px, y0 + bevel_px, x1 - bevel_px, y1 - bevel_px, max(0.3, rad - bevel_px), segs)
-        rings.append([(px, py, z1 + bevel_z) for px, py in inner])
-    vr = [[bm.verts.new((b.x(px), b.y(py), z)) for px, py, z in ring] for ring in rings]
-    n = len(base)
-    bm.faces.new(list(reversed(vr[0]))).material_index = mat
-    bm.faces.new(vr[-1]).material_index = mat
-    for a, c in zip(vr, vr[1:]):
+    rings = [[bm.verts.new((s.x(x), s.y(y), z)) for x, y in poly] for poly, z in polys]
+    n = len(rings[0])
+    top_mat = mat if top_mat is None else top_mat
+    for k, (a, b) in enumerate(zip(rings, rings[1:])):
         for i in range(n):
             j = (i + 1) % n
-            bm.faces.new((a[i], a[j], c[j], c[i])).material_index = mat
+            bm.faces.new((a[i], a[j], b[j], b[i])).material_index = mat
+    bm.faces.new(rings[-1]).material_index = top_mat
+    bm.faces.new(list(reversed(rings[0]))).material_index = mat
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    b._merge(bm)
+    s._merge(bm, smooth=smooth)
 
 
-class Marble:
-    """Open, upward-facing sheets of half-pixel quads, each coloured from the tile pixel under it
-    (kept out of b.parts so its winding is not recalculated)."""
-
-    def __init__(self, b):
-        self.b = b
-        self.bm = bmesh.new()
-
-    def sample(self, cx, cy):
-        """The tile's red ramp level at a point, bilinear between pixel centres (grey pixels count
-        as the darkest red), so the streaks come out rounded rather than in pixel blocks."""
-        g = np.clip(self.b.grid.astype(float), 112, 127)
-        fx, fy = cx - 0.5, cy - 0.5
-        ix, iy = int(math.floor(fx)), int(math.floor(fy))
-        tx, ty = fx - ix, fy - iy
-        H, W = g.shape
-
-        def at(x, y):
-            return g[min(H - 1, max(0, y)), min(W - 1, max(0, x))]
-
-        v = ((1 - tx) * (1 - ty) * at(ix, iy) + tx * (1 - ty) * at(ix + 1, iy)
-             + (1 - tx) * ty * at(ix, iy + 1) + tx * ty * at(ix + 1, iy + 1))
-        return int(round(v))
-
-    def sheet(self, x0, y0, x1, y1, rad, z, pick, step=0.5):
-        b = self.b
-        verts = {}
-
-        def v(i, j):
-            k = (i, j)
-            if k not in verts:
-                verts[k] = self.bm.verts.new((b.x(i * step), b.y(j * step), z))
-            return verts[k]
-
-        for j in range(int(math.floor(y0 / step)), int(math.ceil(y1 / step))):
-            for i in range(int(math.floor(x0 / step)), int(math.ceil(x1 / step))):
-                cx, cy = (i + 0.5) * step, (j + 0.5) * step
-                if not in_rrect(cx, cy, x0, y0, x1, y1, rad):
-                    continue
-                g = self.sample(cx, cy)
-                # World y is up, pixel y is down: this order faces +z.
-                f = self.bm.faces.new((v(i, j + 1), v(i + 1, j + 1), v(i + 1, j), v(i, j)))
-                f.material_index = pick(g)
+def shrink(poly, cx, cy, k):
+    return [(cx + (x - cx) * k, cy + (y - cy) * k) for x, y in poly]
 
 
-def cylinder(b, p0, p1, zc, r_px, mat, sides=10, caps=True):
-    """A straight pipe of constant diameter between two pixel points, its axis at height zc."""
-    bm = bmesh.new()
-    x0, y0 = b.x(p0[0]), b.y(p0[1])
-    x1, y1 = b.x(p1[0]), b.y(p1[1])
-    dx, dy = x1 - x0, y1 - y0
-    ln = math.hypot(dx, dy)
-    ux, uy = dx / ln, dy / ln
-    nx, ny = -uy, ux
-    r = r_px * lt.PX
-    rings = []
-    for (cx, cy) in ((x0, y0), (x1, y1)):
-        ring = []
+def pipe(s, p0, p1, z_floor, r_px, mat, flange_mat, sides=8):
+    """A pipe on a floor between two px points with collars at both ends (closed cylinders)."""
+    def cyl(a, b, zc, r):
+        bm = bmesh.new()
+        x0, y0, x1, y1 = s.x(a[0]), s.y(a[1]), s.x(b[0]), s.y(b[1])
+        ln = math.hypot(x1 - x0, y1 - y0)
+        nx, ny = -(y1 - y0) / ln, (x1 - x0) / ln
+        rings = []
+        for cx, cy in ((x0, y0), (x1, y1)):
+            rings.append([bm.verts.new((cx + nx * r * math.cos(2 * math.pi * (k + 0.5) / sides),
+                                        cy + ny * r * math.cos(2 * math.pi * (k + 0.5) / sides),
+                                        zc + r * math.sin(2 * math.pi * (k + 0.5) / sides))) for k in range(sides)])
         for k in range(sides):
-            a = 2 * math.pi * (k + 0.5) / sides
-            ring.append(bm.verts.new((cx + nx * r * math.cos(a), cy + ny * r * math.cos(a), zc + r * math.sin(a))))
-        rings.append(ring)
-    for k in range(sides):
-        m = (k + 1) % sides
-        bm.faces.new((rings[0][k], rings[0][m], rings[1][m], rings[1][k])).material_index = mat
-    if caps:
-        bm.faces.new(rings[0]).material_index = mat
-        bm.faces.new(list(reversed(rings[1]))).material_index = mat
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    b._merge(bm)
+            m = (k + 1) % sides
+            bm.faces.new((rings[0][k], rings[0][m], rings[1][m], rings[1][k])).material_index = mat_i[0]
+        bm.faces.new(rings[0]).material_index = mat_i[0]
+        bm.faces.new(list(reversed(rings[1]))).material_index = mat_i[0]
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        s._merge(bm, smooth=True)
 
-
-def pipe(b, p0, p1, z_floor, r_px, mat, flange_mat):
-    """A pipe lying on the floor between two px points with flanges (collars) at both ends."""
-    zc = z_floor + r_px * lt.PX
-    cylinder(b, p0, p1, zc, r_px, mat)
+    r = r_px * lt.PX
+    zc = z_floor + r * 0.35  # half sunk into the deck (in a cradle)
+    mat_i = [mat]
+    cyl(p0, p1, zc, r)
     ln = math.hypot(p1[0] - p0[0], p1[1] - p0[1])
     ux, uy = (p1[0] - p0[0]) / ln, (p1[1] - p0[1]) / ln
-    for (px, py), s in ((p0, 1), (p1, -1)):
-        a = (px + s * ux * 0.6, py + s * uy * 0.6)
-        c = (px + s * ux * 1.6, py + s * uy * 1.6)
-        cylinder(b, a, c, zc, r_px * 1.4, flange_mat, sides=10)
+    mat_i[0] = flange_mat
+    for (px, py), sg in ((p0, 1), (p1, -1)):
+        cyl((px + sg * ux * 0.4, py + sg * uy * 0.4), (px + sg * ux * 1.6, py + sg * uy * 1.6), zc, r * 1.3)
 
 
-def boulder(b, rng, px, py, r_px, z0, top, mat):
-    """A chunky, faceted rock: the convex hull of jittered points on a squashed, tapering blob."""
-    bm = bmesh.new()
-    rx = r_px * (0.85 + 0.3 * rng.random()) * lt.PX
-    ry = r_px * (0.85 + 0.3 * rng.random()) * lt.PX
-    rot = rng.random() * math.pi
-    ca, sa = math.cos(rot), math.sin(rot)
-    # Lean the top off centre (towards a random side) so the rocks are not domes.
-    lx, ly = (rng.random() - 0.5) * 0.5 * rx, (rng.random() - 0.5) * 0.5 * ry
-    h = top - z0
-    pts = []
-    for level, scale, n in ((0.0, 1.0, 6), (0.45, 1.0, 5), (0.8, 0.75, 4), (1.0, 0.4, 3)):
-        off = rng.random() * 2 * math.pi
-        for k in range(n):
-            a = off + 2 * math.pi * (k + 0.3 * rng.random()) / n
-            s = scale * (0.75 + 0.3 * rng.random())
-            ex, ey = rx * s * math.cos(a), ry * s * math.sin(a)
-            z = z0 + h * (level if level in (0.0, 1.0) else level + (rng.random() - 0.5) * 0.15)
-            if level == 1.0:
-                z = top - h * 0.12 * rng.random()
-            t = level
-            wx, wy = ex + lx * t, ey + ly * t
-            pts.append((b.x(px) + wx * ca - wy * sa, b.y(py) + wx * sa + wy * ca, z))
-    vs = [bm.verts.new(p) for p in pts]
-    bmesh.ops.convex_hull(bm, input=vs)
-    loose = [v for v in bm.verts if not v.link_faces]
-    if loose:
-        bmesh.ops.delete(bm, geom=loose, context="VERTS")
-    for f in bm.faces:
-        f.material_index = mat
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    b._merge(bm)
-    return max(abs(rx), abs(ry)) / lt.PX
+# --- Machinery ------------------------------------------------------------------------------------
+
+def body(s):
+    edge = s.m(I_BODY_DARK, metallic=0.3, roughness=0.6)
+    deck = s.m(I_BODY, metallic=0.5, roughness=0.5)
+    oct_ = octagon(*BODY, BODY_CUT)
+    s.slab(oct_, lb.SLAB_BOTTOM, BODY_Z, deck, chamfer_px=1.2, drop=0.025, side_mat=edge)
+    # the spine under the vertical arm: a lip past the octagon, then a lower step at each end with the
+    # art's ribbed columns ("|| ||" above and below the arm) running out into the rock
+    s.slab(s.rounded_box(*SPINE, corner_px=3, segments=2), lb.SLAB_BOTTOM, BODY_Z - 0.006, deck,
+           chamfer_px=1.0, drop=0.02, side_mat=edge)
+    pipe_m = s.m(I_PIPE, metallic=0.55, roughness=0.4)
+    flange = s.m(I_BEZEL, metallic=0.6, roughness=0.35)
+    for box, (ya, yb) in zip(SPINE_ENDS, ((17.5, 29.6), (110.4, 120.5))):
+        s.slab(s.rounded_box(*box, corner_px=3, segments=2), lb.SLAB_BOTTOM, END_Z, deck,
+               chamfer_px=2.2, drop=0.04, side_mat=edge)
+        for x in (49.0, 53.0, 67.0, 71.0):
+            pipe(s, (x, ya), (x, yb), END_Z, 1.1, pipe_m, flange)
+        s.slab(s.rounded_box(56.5, ya + 1, 63.5, yb - 1, 1.0), END_Z - 0.02, END_Z + 0.03,
+               s.m(I_PLATE_A, metallic=0.35, roughness=0.5), chamfer_px=0.7, drop=0.012)
+        s.bolts([(58, ya + 2.5), (62, ya + 2.5), (58, yb - 2.5), (62, yb - 2.5)], END_Z + 0.03, r_px=0.55,
+                height=0.01, mat=flange)
+    # quadrants: a sunk frame floor, 2 x 2 plates split by panel gaps (clipped by the octagon), bolts,
+    # a pipe along the arm
+    plate_a = s.m(I_PLATE_A, metallic=0.35, roughness=0.5)
+    plate_b = s.m(I_PLATE_B, metallic=0.35, roughness=0.55)
+    clip = octagon(BODY[0] + 1.5, BODY[1] + 1.5, BODY[2] - 1.5, BODY[3] - 1.5, BODY_CUT - 0.6)
+    for k, (x0, y0, x1, y1) in enumerate(QUADS):
+        left = k % 2 == 1  # right quadrants: the arm is on their left
+        top = k >= 2  # bottom quadrants: the arm is above
+        # pipe channel next to the vertical arm: 4 px
+        if left:
+            px_pipe, x0p = x0 + 2.2, x0 + 4.5
+            x1p = x1
+        else:
+            px_pipe, x1p = x1 - 2.2, x1 - 4.5
+            x0p = x0
+        gap = 0.9
+        mx = (x0p + x1p) / 2
+        ys_ = [y0 + (y1 - y0) * f for f in (0.0, 0.36, 0.68, 1.0)] if not top else [y0 + (y1 - y0) * f for f in (0.0, 0.32, 0.64, 1.0)]
+        inner_col = 0 if left else 1
+        inner_row = 2 if not top else 0
+        for row in range(3):
+            for col in range(2):
+                a, cc = (x0p, mx - gap / 2) if col == 0 else (mx + gap / 2, x1p)
+                b, d = ys_[row] + (gap / 2 if row else 0), ys_[row + 1] - (gap / 2 if row < 2 else 0)
+                poly = clip_convex(s.rounded_box(a, b, cc, d, 0.9, 1), clip)
+                if len(poly) < 3:
+                    continue
+                checker = (row + col) % 2 == 0
+                z = PLATE_Z + (0.010 if checker else 0.0)
+                pm = plate_a if checker else plate_b
+                vent = col == inner_col and row == inner_row
+                hatch = row == 1 and col != inner_col
+                if not (vent or hatch):
+                    s.slab(poly, BODY_Z - 0.02, z, pm, chamfer_px=0.7, drop=0.012)
+                    continue
+                # a recess: the plate as a frame (rim) round a lower floor
+                s.rim(poly, 1.3, BODY_Z - 0.02, z, pm)
+                s.slab(shrink(poly, (a + cc) / 2, (b + d) / 2, 0.97), BODY_Z - 0.02, z - 0.025,
+                       s.m(2 if vent else 3, metallic=0.3, roughness=0.65), chamfer_px=0)
+                if vent:
+                    vx0, vy0, vx1, vy1 = a + 1.3, b + 1.3, cc - 1.3, d - 1.3
+                    nsl = max(2, int((vy1 - vy0) // 1.4))
+                    for i in range(nsl):
+                        sy = vy0 + 0.7 + i * (vy1 - vy0 - 1.4) / (nsl - 1)
+                        s.slab([(vx0, sy - 0.28), (vx1, sy - 0.28), (vx1, sy + 0.28), (vx0, sy + 0.28)],
+                               z - 0.03, z - 0.006, plate_b, chamfer_px=0)
+                else:
+                    s.bolts([((a + cc) / 2, (b + d) / 2)], z - 0.025, r_px=0.8, height=0.012, mat=flange)
+        # bolts at the plates' inner corners (near the arms, always inside the octagon)
+        bx = x0p + 1.5 if left else x1p - 1.5
+        s.bolts([(bx, y0 + 1.5), (bx, y1 - 1.5)], PLATE_Z + 0.008, r_px=0.55, height=0.01, mat=flange)
+        pipe(s, (px_pipe, y0 + 1.5), (px_pipe, y1 - 1.5), BODY_Z, 1.15, pipe_m, flange)
+    # a cross pipe along the horizontal arm's edges inside the quadrants (between the arm and plates)
+    return oct_
 
 
-def polar_outline(b, bins=96):
-    """The footprint's outline as radii from CENTRE per angle bin (lightly smoothed)."""
-    ys, xs = np.nonzero(b.footprint)
-    dx, dy = xs + 0.5 - CENTRE[0], ys + 0.5 - CENTRE[1]
-    ang = (np.arctan2(dy, dx) % (2 * math.pi)) / (2 * math.pi) * bins
-    dist = np.hypot(dx, dy)
-    R = np.zeros(bins)
-    for i in range(bins):
-        sel = (ang >= i) & (ang < i + 1)
-        R[i] = dist[sel].max() if sel.any() else 0
-    mx = np.maximum(np.maximum(np.roll(R, 1), np.roll(R, -1)), R)
-    mean = (np.roll(R, 1) + np.roll(R, -1) + R) / 3
-    return 0.5 * mx + 0.5 * mean
+def cross(s):
+    arm = s.m(I_ARM, metallic=0.5, roughness=0.45)
+    edge = s.m(I_ARM_EDGE, metallic=0.5, roughness=0.4)
+    side = s.m(3, metallic=0.4, roughness=0.55)
+    vx0, vy0, vx1, vy1 = V_ARM
+    hx0, hy0, hx1, hy1 = H_ARM
+    c = 1.5  # outer corners cut
+    poly = [(vx0 + c, vy0), (vx1 - c, vy0), (vx1, vy0 + c), (vx1, hy0), (hx1 - c, hy0), (hx1, hy0 + c), (hx1, hy1 - c),
+            (hx1 - c, hy1), (vx1, hy1), (vx1, vy1 - c), (vx1 - c, vy1), (vx0 + c, vy1), (vx0, vy1 - c), (vx0, hy1),
+            (hx0 + c, hy1), (hx0, hy1 - c), (hx0, hy0 + c), (hx0 + c, hy0), (vx0, hy0), (vx0, vy0 + c)]
+    s.slab(poly, BODY_Z - 0.03, ARM_Z, arm, chamfer_px=1.0, drop=0.02, side_mat=side, bevel_mat=edge)
+    # a raised rail (step) round the arm's edges: the art's light line framing the capsules
+    bezel = s.m(I_BEZEL, metallic=0.65, roughness=0.32)
+    lens = s.m(I_LENS, emission_strength=1.2, roughness=0.18, metallic=0.0)
+    lens_hot = s.m(I_LENS_HOT, emission_strength=1.6, roughness=0.15, metallic=0.0)
+    lens_rim = s.m(112, metallic=0.2, roughness=0.3)
+    clamp = s.m(I_ARM_EDGE, metallic=0.55, roughness=0.38)
+    for (x0, y0, x1, y1) in CAPS_V + CAPS_H:
+        out = stadium(x0, y0, x1, y1, grow=1.3)
+        s.rim(out, 1.5, ARM_Z - 0.01, BEZEL_Z, bezel, chamfer_px=0.5, drop=0.008)
+        # dark well floor and the lens dome
+        s.slab(stadium(x0, y0, x1, y1, grow=0.0), ARM_Z - 0.01, ARM_Z + 0.012, lens_rim, chamfer_px=0)
+        cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+        base = stadium(x0, y0, x1, y1, grow=-0.1, segs=6)
+        rings = [(base, ARM_Z + 0.008)]
+        for sc, z in ((0.97, LENS_Z - 0.022), (0.86, LENS_Z - 0.008), (0.62, LENS_Z)):
+            # shrink the short side more than the long one: a pill-shaped glass top
+            w, h = x1 - x0, y1 - y0
+            kx = 1 - (1 - sc) * (min(w, h) / w) * 1.2
+            ky = 1 - (1 - sc) * (min(w, h) / h) * 1.2
+            rings.append(([(cx + (x - cx) * kx, cy + (y - cy) * ky) for x, y in base], z))
+        loft_cap(s, rings, lens, top_mat=lens_hot)
+    # clamps between neighbouring capsules (bridges on the bezels, as in the concept)
+    for (a, b) in zip(CAPS_V, CAPS_V[1:]):
+        if b[1] - a[3] < 6:
+            ym = (a[3] + b[1]) / 2
+            s.slab(s.rounded_box(56.5, ym - 1.0, 61.5, ym + 1.0, 0.4, 1), ARM_Z, BEZEL_Z + 0.006, clamp, chamfer_px=0.4, drop=0.006)
+    for (a, b) in zip(CAPS_H, CAPS_H[1:]):
+        if b[0] - a[2] < 6:
+            xm = (a[2] + b[0]) / 2
+            s.slab(s.rounded_box(xm - 1.0, 67.5, xm + 1.0, 72.5, 0.4, 1), ARM_Z, BEZEL_Z + 0.006, clamp, chamfer_px=0.4, drop=0.006)
+    # bolts on the arm's tips
+    flange = s.m(I_BEZEL, metallic=0.6, roughness=0.35)
+    s.bolts([(50.5, 57.5), (69.5, 57.5), (50.5, 82.5), (69.5, 82.5)], ARM_Z, r_px=0.6, height=0.012, mat=flange)
+    # The core: a chamfered square frame (rim), clamp plates on its sides, a dark well, the glowing lens
+    x0, y0, x1, y1 = CORE
+    frame = s.rounded_box(x0 - 2.2, y0 - 2.2, x1 + 2.2, y1 + 2.2, 2.6, 1)
+    s.rim(frame, 2.4, ARM_Z - 0.01, CORE_Z - 0.006, bezel, chamfer_px=0.7, drop=0.01)
+    s.slab(s.rounded_box(x0, y0, x1, y1, 1.6, 1), ARM_Z - 0.01, ARM_Z + 0.012, lens_rim, chamfer_px=0)
+    core = s.m(I_CORE, emission_strength=1.6, roughness=0.15)
+    base = s.rounded_box(x0 + 0.1, y0 + 0.1, x1 - 0.1, y1 - 0.1, 1.6, 2)
+    ccx, ccy = (x0 + x1) / 2, (y0 + y1) / 2
+    loft_cap(s, [(base, ARM_Z + 0.008), (shrink(base, ccx, ccy, 0.95), CORE_Z - 0.012), (shrink(base, ccx, ccy, 0.82), CORE_Z)], core,
+             top_mat=s.m(I_CORE_HOT, emission_strength=1.8, roughness=0.12))
+    for bx in ((ccx - 3, y0 - 3.2, ccx + 3, y0 - 0.8), (ccx - 3, y1 + 0.8, ccx + 3, y1 + 3.2),
+               (x0 - 3.2, ccy - 3, x0 - 0.8, ccy + 3), (x1 + 0.8, ccy - 3, x1 + 3.2, ccy + 3)):
+        s.slab(s.rounded_box(*bx, 0.5, 1), ARM_Z, CORE_Z + 0.002, clamp, chamfer_px=0.5, drop=0.008)
 
 
-def mound(b, R, mat, inset=7.0):
-    """A low sloped mound under the rocks: ground ring at the outline, a top ring `inset` px in at
-    MOUND_TOP, a flat top fanned from the centre."""
-    bm = bmesh.new()
-    n = len(R)
-    rings = []
-    for r_off, z in ((0.5, lb.SLAB_BOTTOM), (-inset, MOUND_TOP)):
-        ring = []
-        for i in range(n):
-            a = 2 * math.pi * (i + 0.5) / n
-            r = max(4.0, R[i] + r_off)
-            ring.append(bm.verts.new((b.x(CENTRE[0] + r * math.cos(a)), b.y(CENTRE[1] + r * math.sin(a)), z)))
-        rings.append(ring)
-    centre_top = bm.verts.new((b.x(CENTRE[0]), b.y(CENTRE[1]), MOUND_TOP))
-    centre_bot = bm.verts.new((b.x(CENTRE[0]), b.y(CENTRE[1]), lb.SLAB_BOTTOM))
-    for i in range(n):
-        j = (i + 1) % n
-        bm.faces.new((rings[0][i], rings[0][j], rings[1][j], rings[1][i])).material_index = mat
-        bm.faces.new((rings[1][i], rings[1][j], centre_top)).material_index = mat
-        bm.faces.new((rings[0][j], rings[0][i], centre_bot)).material_index = mat
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    b._merge(bm)
+def objects_of(s):
+    """Building.objects without a terraced deck (as lib_tyrbld.Structure.objects does)."""
+    coll = common.reset_collection(f"{lb.SHAPES}-{s.prefix}-{s.name}")
+    bmesh.ops.recalc_face_normals(s.parts, faces=s.parts.faces)
+    return [lb.mesh_object(f"{lb.SHAPES}-{s.prefix}-{s.name}-parts", s.parts, s.pal.materials, coll)]
 
 
-def capsule_light(b, px, py, axis, mats, marble, pick):
-    """A red light as the concept draws it: a rounded silver bezel, a dark well, a dark-red lens body
-    with a chamfered top and on it the marbled glow (from the tile's own red pixels)."""
-    metal, well, lens_body = mats
-    L, T = BEZEL
-    w, h = (L, T) if axis == "x" else (T, L)
-    lozenge(b, px - w / 2, py - h / 2, px + w / 2, py + h / 2, T / 2, 4, CROSS_TOP - 0.04, 0.350, metal,
-            bevel_px=0.8, bevel_z=0.006)
-    lozenge(b, px - w / 2 + 1.3, py - h / 2 + 1.3, px + w / 2 - 1.3, py + h / 2 - 1.3, T / 2 - 1.3, 4,
-            CROSS_TOP, 0.356, well)
-    L2, T2 = LENS
-    w, h = (L2, T2) if axis == "x" else (T2, L2)
-    lozenge(b, px - w / 2, py - h / 2, px + w / 2, py + h / 2, T2 / 2, 4, CROSS_TOP, 0.352, lens_body,
-            bevel_px=0.9, bevel_z=0.008)
-    marble.sheet(px - w / 2 + 1.0, py - h / 2 + 1.0, px + w / 2 - 1.0, py + h / 2 - 1.0, T2 / 2 - 1.0, 0.3615, pick)
-
-
-def machinery(b, x0, y0, x1, y1, mats, flip_x, flip_y):
-    """A quadrant of the body: a low frame grid of bars round 2 x 2 bevelled panels, and pipe runs
-    with flanged ends. flip_x / flip_y mirror the pipe layout so it runs towards the arms."""
-    frame, panel_a, panel_b, pipe_m, flange = mats
-    z = BODY_DECK
-    bar = 1.4
-    mx = (x0 + x1) / 2
-    my = y0 + (y1 - y0) * 0.45
-    # Frame: outer bars and a cross dividing the quadrant.
-    for bx in ((x0, y0, x1, y0 + bar), (x0, y1 - bar, x1, y1), (x0, y0 + bar, x0 + bar, y1 - bar),
-               (x1 - bar, y0 + bar, x1, y1 - bar), (mx - bar / 2, y0 + bar, mx + bar / 2, y1 - bar),
-               (x0 + bar, my - bar / 2, x1 - bar, my + bar / 2)):
-        b.wall_block(*bx, z - 0.02, z + 0.06, frame, bevel=0.4)
-    # Panels in the four cells (alternating light and dark plates, with a bolt-like seam).
-    cells = ((x0 + bar, y0 + bar, mx - bar / 2, my - bar / 2), (mx + bar / 2, y0 + bar, x1 - bar, my - bar / 2),
-             (x0 + bar, my + bar / 2, mx - bar / 2, y1 - bar), (mx + bar / 2, my + bar / 2, x1 - bar, y1 - bar))
-    for k, (cx0, cy0, cx1, cy1) in enumerate(cells):
-        m = panel_a if k in (0, 3) else panel_b
-        b.wall_block(cx0 + 0.6, cy0 + 0.6, cx1 - 0.6, cy1 - 0.6, z - 0.02, z + 0.035, m, bevel=0.25)
-    # Pipes: one along the long side, near the arm, and one across the far cells.
-    px_near = x1 - 3.2 if not flip_x else x0 + 3.2
-    pipe(b, (px_near, y0 + 2.5), (px_near, y1 - 2.5), z + 0.035, 1.1, pipe_m, flange)
-    py_run = (y0 + my) / 2 if not flip_y else (my + y1) / 2
-    xa, xb = (x0 + 2.5, x1 - 6.0) if not flip_x else (x0 + 6.0, x1 - 2.5)
-    pipe(b, (xa, py_run), (xb, py_run), z + 0.035, 0.9, pipe_m, flange)
-
-
-def main():
-    b = lb.Building("cross-pad")
-    b.surface(deck=BODY_DECK, channel=False, pits=False, red=False)
-    rng = random.Random("cross-pad-rocks")
-
-    # The deck is only the machinery body (an octagon), the rest is the mound with its boulders.
-    yy, xx = np.mgrid[0:b.H, 0:b.W] + 0.5
+def build(bake=True):
+    s = lb.Building("cross-pad")
+    body(s)
+    yy, xx = np.mgrid[0:s.H, 0:s.W] + 0.5
     x0, y0, x1, y1 = BODY
-    c = BODY_CHAMFER
-    body = ((xx >= x0) & (xx <= x1) & (yy >= y0) & (yy <= y1)
-            & (xx - x0 + yy - y0 >= c) & (x1 - xx + yy - y0 >= c) & (xx - x0 + y1 - yy >= c) & (x1 - xx + y1 - yy >= c))
-    b.height[~body] = np.nan
-    floor = b.m(5, metallic=0.1, roughness=0.65)
-    b.set_region(body, BODY_DECK, floor)
-    metal_deck = b.m(3, metallic=0.5, roughness=0.45)
-    step_mat = b.m(5, metallic=0.3, roughness=0.6)
-    for ax0, ay0, ax1, ay1 in (V_ARM, H_ARM):
-        b.raise_box(ax0 - STEP_PX, ay0 - STEP_PX, ax1 + STEP_PX, ay1 + STEP_PX, CROSS_STEP, step_mat)
-    for ax0, ay0, ax1, ay1 in (V_ARM, H_ARM):
-        b.raise_box(ax0, ay0, ax1, ay1, CROSS_TOP, metal_deck)
-    deck = b.terrace(wall_mat=b.m(4, metallic=0.4, roughness=0.6))
-
-    # The mound and its outline.
-    R = polar_outline(b)
-    rock_mats = [b.m(9, roughness=0.92), b.m(10, roughness=0.92), b.m(8, roughness=0.92)]
-    mound(b, R, b.m(5, roughness=0.95))
-
-    # Corner machinery.
-    mach = (b.m(8, metallic=0.15, roughness=0.55), b.m(10, metallic=0.15, roughness=0.55),
-            b.m(8, metallic=0.1, roughness=0.6), b.m(10, metallic=0.45, roughness=0.35), b.m(12, metallic=0.45, roughness=0.35))
-    for k, q in enumerate(QUADS):
-        machinery(b, *q, mach, flip_x=(k % 2 == 1), flip_y=(k >= 2))
-    # Pipe stubs off the vertical arm's ends, into the rocks (concept: conduits above and below).
-    for ys, ye in ((20.0, 27.0), (113.0, 120.0)):
-        for px in (52.0, 68.0):
-            pipe(b, (px, ys), (px, ye), BODY_DECK - 0.05, 1.1, mach[3], mach[4])
-        b.wall_block(49, min(ys, ye) + 1.5, 71, max(ys, ye) - 1.5, BODY_DECK - 0.06, BODY_DECK + 0.02, mach[0], bevel=0.3)
-
-    # Rails along the arms' sides (the concept's conduits between the lights and the paving).
-    for rx0, ry0, rx1, ry1 in ((V_ARM[0] + 1, V_ARM[1] + 2, V_ARM[0] + 3, H_ARM[1] - 2),
-                               (V_ARM[2] - 3, V_ARM[1] + 2, V_ARM[2] - 1, H_ARM[1] - 2),
-                               (V_ARM[0] + 1, H_ARM[3] + 2, V_ARM[0] + 3, V_ARM[3] - 2),
-                               (V_ARM[2] - 3, H_ARM[3] + 2, V_ARM[2] - 1, V_ARM[3] - 2),
-                               (H_ARM[0] + 2, H_ARM[1] + 1, V_ARM[0] - 2, H_ARM[1] + 3),
-                               (H_ARM[0] + 2, H_ARM[3] - 3, V_ARM[0] - 2, H_ARM[3] - 1),
-                               (V_ARM[2] + 2, H_ARM[1] + 1, H_ARM[2] - 2, H_ARM[1] + 3),
-                               (V_ARM[2] + 2, H_ARM[3] - 3, H_ARM[2] - 2, H_ARM[3] - 1)):
-        b.wall_block(rx0, ry0, rx1, ry1, CROSS_TOP - 0.02, CROSS_TOP + 0.02, b.m(7, metallic=0.5, roughness=0.4),
-                     bevel=0.5)
-
-    # The lights: three per arm, framed, the lenses marbled from the tiles' red pixels.
-    marble = Marble(b)
-    lens_q = {113: b.m(113, emission_strength=1.6, roughness=0.3), 115: b.m(115, emission_strength=2.2, roughness=0.25),
-              117: b.m(117, emission_strength=2.8, roughness=0.25), 119: b.m(119, emission_strength=3.2, roughness=0.2),
-              121: b.m(121, emission_strength=3.4, roughness=0.2)}
-
-    def lens_pick(g):
-        if g < 114:
-            return lens_q[113]
-        if g < 116:
-            return lens_q[115]
-        if g < 118:
-            return lens_q[117]
-        if g < 120:
-            return lens_q[119]
-        return lens_q[121]
-
-    core_q = {114: b.m(114, emission_strength=1.8, roughness=0.3), 118: b.m(118, emission_strength=3.0, roughness=0.25),
-              120: b.m(120, emission_strength=3.6, roughness=0.2), 122: b.m(122, emission_strength=4.0, roughness=0.2),
-              124: b.m(124, emission_strength=4.4, roughness=0.2)}
-
-    def core_pick(g):
-        if g < 113:
-            return core_q[114]
-        if g < 115:
-            return core_q[118]
-        if g < 117:
-            return core_q[120]
-        if g < 119:
-            return core_q[122]
-        return core_q[124]
-
-    mats = (b.m("metal"), b.m(lb.PAL["red_dark"], metallic=0.3, roughness=0.5),
-            b.m(112, emission_strength=1.2, roughness=0.3))
-    for py in CAP_Y_TOP + CAP_Y_BOTTOM:
-        capsule_light(b, CAP_X, py, "x", mats, marble, lens_pick)
-    for px in CAP_X_LEFT + CAP_X_RIGHT:
-        capsule_light(b, px, CAP_Y, "y", mats, marble, lens_pick)
-
-    # The core: an octagonal silver frame round a hot orange square with a darker swirl, with clamp
-    # plates on its sides as in the concept.
-    cx0, cy0, cx1, cy1 = CORE
-    lozenge(b, cx0, cy0, cx1, cy1, 3.5, 1, CROSS_TOP - 0.04, 0.360, b.m("metal"), bevel_px=1.0, bevel_z=0.008)
-    lozenge(b, cx0 + 2.6, cy0 + 2.6, cx1 - 2.6, cy1 - 2.6, 2.0, 1, CROSS_TOP, 0.364, mats[1])
-    lozenge(b, cx0 + 3.4, cy0 + 3.4, cx1 - 3.4, cy1 - 3.4, 1.5, 1, CROSS_TOP, 0.362, b.m(114, emission_strength=1.6),
-            bevel_px=1.0, bevel_z=0.006)
-    marble.sheet(cx0 + 4.2, cy0 + 4.2, cx1 - 4.2, cy1 - 4.2, 1.0, 0.3695, core_pick)
-    ccx, ccy = (cx0 + cx1) / 2, (cy0 + cy1) / 2
-    clamp = b.m(7, metallic=0.5, roughness=0.4)
-    for bx in ((ccx - 3, cy0 - 1.5, ccx + 3, cy0 + 1.5), (ccx - 3, cy1 - 1.5, ccx + 3, cy1 + 1.5),
-               (cx0 - 1.5, ccy - 3, cx0 + 1.5, ccy + 3), (cx1 - 1.5, ccy - 3, cx1 + 1.5, ccy + 3)):
-        b.wall_block(*bx, CROSS_TOP, 0.372, clamp, bevel=0.3)
-
-    # The boulders: Poisson-disc over the rock zone (the footprint outside the body), outer band
-    # first with big rocks standing on the ground, then smaller ones on the mound.
-    d = lb.depth(b.footprint)
-    zone = b.footprint & ~lb.erode(body, 3)
-    arms = np.zeros_like(zone)
-    for ax0, ay0, ax1, ay1 in (V_ARM, H_ARM):
-        arms |= b.box_mask(ax0 - 3, ay0 - 3, ax1 + 3, ay1 + 3)
-    taken = []
-
-    def place(cands, spacing, r_rng, z_of, top_rng):
-        order = list(range(len(cands)))
-        rng.shuffle(order)
-        for i in order:
-            py, px = cands[i]
-            px, py = px + 0.5, py + 0.5
-            if any((qx - px) ** 2 + (qy - py) ** 2 < (spacing * 0.5 + qs * 0.5) ** 2 for qx, qy, qs in taken):
-                continue
-            taken.append((px, py, spacing))
-            r = r_rng[0] + (r_rng[1] - r_rng[0]) * rng.random()
-            top = top_rng[0] + (top_rng[1] - top_rng[0]) * rng.random()
-            x0_, y0_ = int(max(0, px - r - 1)), int(max(0, py - r - 1))
-            x1_, y1_ = int(min(b.W, px + r + 2)), int(min(b.H, py + r + 2))
-            if b.enemy_mask[y0_:y1_, x0_:x1_].any():
-                top = min(top, lb.ENEMY_MAX - 0.01)
-            boulder(b, rng, px, py, r, z_of(px, py), top, rock_mats[rng.randrange(len(rock_mats))])
-
-    outer = np.argwhere(zone & (d >= 3) & (d <= 6) & ~arms)
-    place(outer, 10.0, (5.5, 7.0), lambda px, py: lb.SLAB_BOTTOM, (0.40, lb.RIM_MAX))
-    inner = np.argwhere(zone & (d > 6) & ~arms)
-    place(inner, 8.0, (4.0, 5.5), lambda px, py: MOUND_TOP - 0.10, (0.30, 0.42))
-    # Fill: small rocks wherever the mound still shows.
-    fill = np.argwhere(zone & (d >= 2) & ~arms)
-    place(fill, 6.0, (3.0, 4.2), lambda px, py: MOUND_TOP - 0.08, (0.24, 0.36))
-    print(f"boulders: {len(taken)}")
-
-    objects = b.objects(deck)
-    objects.append(lb.mesh_object(f"{lb.SHAPES}-l1bld-{b.name}-marble", marble.bm, b.pal.materials,
-                                  objects[0].users_collection[0]))
-    b.check(objects)
-    tris = sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in objects)
-    print(f"triangles: {tris}")
-    b.export(objects)
+    c = BODY_CUT
+    body_mask = ((xx >= x0) & (xx <= x1) & (yy >= y0) & (yy <= y1) & (xx - x0 + yy - y0 >= c) & (x1 - xx + yy - y0 >= c)
+                 & (xx - x0 + y1 - yy >= c) & (x1 - xx + y1 - yy >= c))
+    body_mask |= s.box_mask(*SPINE)
+    for box in SPINE_ENDS:
+        body_mask |= s.box_mask(*box)
+    cross(s)
+    objects = objects_of(s)
+    s.check(objects)
+    # The rock ring is the HD ground's own painting of these tiles (keepTiles: drawn under the model,
+    # as the islands round it, D86); the model is the machinery only, so its mask is the body's.
+    iou = s.top_iou(objects, body_mask)
+    tris = sum(len(p.vertices) - 2 for o in objects for p in o.data.polygons)
+    print(f"RESULT iou={iou:.4f} tris={tris}")
+    if bake:
+        objects = s.bake_model(objects, ground=0.0)
+    if lt.preview_arg():
+        lt.preview(s.ts, objects, s.pattern, Path(lt.preview_arg()) if str(lt.preview_arg()).endswith(".png") else Path(lt.preview_arg()) / "shapesz-l1bld-cross-pad.png", view_px=480)
+    s.export(objects, baked=bake)
 
 
-main()
+argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+build(bake="--no-bake" not in argv)

@@ -347,13 +347,14 @@ def mesh(name, bm, pal, coll, smooth=False):
 
 # --- Export --------------------------------------------------------------------------------------
 
-def export_tile_model(ts, objects, name, layer, pattern, keep_tiles=None):
+def export_tile_model(ts, objects, name, layer, pattern, keep_tiles=None, image_format="AUTO"):
     """Export to public/models/tiles/<shapes>/<name>.glb and register the pattern it stands for in
-    src/render/tileModels/<shapes>-<name>.json (src/render/remaster/tileModels.ts)."""
+    src/render/tileModels/<shapes>-<name>.json (src/render/remaster/tileModels.ts). A model with its
+    own bake (lib_l1bld.Building.bake_model) passes image_format="WEBP" for its maps."""
     model = f"tiles/{ts.name}/{name}"
     # The island rock's textures (rock_material; the only images in a tile model) are packed lossless
     # WebP, which "AUTO" keeps.
-    out = common.export_glb(objects, ts.root / "public" / "models" / f"{model}.glb")
+    out = common.export_glb(objects, ts.root / "public" / "models" / f"{model}.glb", image_format=image_format)
     entry = {"model": model, "shapes": ts.file, "layer": layer, "tiles": [list(map(int, r)) for r in pattern]}
     if keep_tiles is not None:
         entry["keepTiles"] = keep_tiles
