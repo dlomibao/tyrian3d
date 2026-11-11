@@ -185,7 +185,12 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
   (D66); a structure shares tiles with terrain → `minRows` and a real-map test (D44); 970 draw calls
   for a fortress → instanced structures (D34); a shot-off enemy reveals an intact boss where the original shows
   a broken one → the tile under an enemy is what the original shows after the kill: model that (the purple
-  machines' `broken_sockets()`, `lib_sockets.py`, D115), not a decal over the intact part.
+  machines' `broken_sockets()`, `lib_sockets.py`, D115), not a decal over the intact part. A modular kit (a girder
+  track, a rimmed hull: the same dozen pieces in every layout) → one model per tile, built in a 3x3 block of its
+  usual neighbours and cut to the centre so bevels and occlusion cross the seams (`lib_delbld.py`, D134). Dark
+  triangles over smooth tessellated tubes after a Cycles bake → bake the occlusion from the height field
+  (`field_bake`). Rails and clamps reading black → metalness ≤ 0.2 (metal darkens the diffuse). QA frames every 750
+  ticks miss tiles: sweep every tick of the level for the tiles drawn.
 - **Cost/time:** tyrian-buildings (12 TYRIAN structures, concept-based, D47): 41 agents, 48 min,
   3.4M tokens; lead 19 min; build median 8 min; grade 0.6; fix 5.5. The concept-bake look it used is
   superseded by the hard-surface rule; budget about one flagship item per structure.

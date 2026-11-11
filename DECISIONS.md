@@ -5740,3 +5740,100 @@ needs its own tuning).
 Test: `tests/render/damageShader.test.ts` (shadow shift). Captures: `tyrian-scratch/qa2-renderer/` (`shadow-before/`,
 `shadow-after/`, `shadow-after/cmp_*.jpg`, `cmp_ship_crops.png`: left before, right after; 1.1 t1050, t300, t1800, 1.2
 t1050, 1.9 t1050).
+
+## D134 — DELIANI's girder track and purple hull are tile models: two modular kits, one model per tile built in context (extends D34, D47, D83, D65)
+
+2026-11-10
+
+**Problem** (`tyrian-scratch/e1-qa-2/REPORT.md` issue 5): on 1-5 DELIANI the rails and the right-hand wall drew the
+original pixel tiles: shapesz 586, 587, 589 on layer 1 and 560, 575 on layer 2 in the sweep's frames (one every 750
+ticks). D83 had sorted them as *structure, to model*, and no model existed. A run of every tick of 1-5 (the test bot,
+seed 1) shows the whole of both kits drawn as original pixels: 12 layer-1 tiles until tick ~3730 and 41 layer-2 tiles
+until ~2374. The same map is 3-11 New Deli, and 4-1 HARVEST uses the layer-2 kit (with 580).
+
+**What they are.**
+- *Layer 1* (background 2, drawn over the ground enemies, `Background2Mid`): an elevated steel girder track, a lattice
+  deck with rows of windows through which the ground shows, between two box rails along its closed sides. The pieces
+  are straights (586 vertical, 587 horizontal), corners (588, 589, 578, 579), tees (596-599) and crossings (576, 577).
+- *Layer 2* (background 3, drawn over the player here, `Background3Over`): blocks of purple brick deck plating (575),
+  each edged by a thick bumper tube, purple with a grey clamp ring every tile. The tube runs as straight rims (551 top,
+  571 bottom, 560 left, 562 right) and turns in elbows (outer corners 550, 552, 570, 572; inner corners 553, 554, 563,
+  564, where a block's rim turns into an arm's).
+  - Set into the deck: a vent grille with open slots (574), blue panels (561, 573), a blue machine with red lights
+    beside the rim (582, 583) and, on HARVEST, a steel panel (580).
+  - A cross tube of deck plating bridges two blocks (595; its ends 593, 594 at the rims).
+  - Spring assemblies (555-559, 565-569, 290-304): two segmented beams linked by curved arms.
+
+**Decision:** one model per tile (a one-tile pattern each, D34): 54 models from two scripts,
+`assets/blender/tiles/delbld_girders.py` (12) and `delbld_hull.py` (42), on a shared kit `lib_delbld.py`.
+- *Built in context.* Each tile is built in a 3x3 block, with the neighbour the maps use most on each side it opens to.
+  The whole block is bevelled and baked; only the centre is kept. A bevel or an occlusion gradient never stops at a
+  tile edge, so copies meet edge to edge as the art does. Spring tiles meet several different tiles on one side (555
+  sits under both 565 and 567), so their block is their own edge pixels carried outward.
+- *Girders* (from the 1x pixels):
+  - the deck plate (z -0.12..0) is the tile's opaque pixels, the windows its transparent ones;
+  - rails 0.22 high with 0.05 bevels run along the closed sides (an edge row or column all ink): rows 1-4 / 23-26,
+    columns 1-3 / 20-22. Where two open sides meet, an L of rail joins the branches' rails;
+  - the ink ring round each window, and the girder's outer ink line, are a lip 0.09 down: the window's recess. In game
+    the step and its occlusion stayed as light as the deck, so the lip's top takes steel index 96, the ramp's
+    darkest, where the art's ring is the near-black 1. This is a judgement call against art rule 2 (D53: judged in
+    game, `cmp_girder.png`).
+- *Hull* (2x MMPX pixels; a height field over the tile's opaque pixels, smooth-shaded tubes, flat-shaded deck):
+  - tubes are analytic primitives per tile (straight lines, elliptic elbows) with a half-ellipse section 0.26 high:
+    the horizontal rims fill the tile's 28 rows, the vertical ones 19-20 of its 24 columns;
+  - each ring of a tube is a grey clamp (0.03 proud) or a purple segment, by the majority of the ring's pixels, so the
+    art's shading doesn't speckle it; the elbows' thin ink lines are grooves (their ribs);
+  - the deck's plates stand 0.025 proud, split along the art's seam lines (indices 80-86), and the cross tube carries
+    the same plates;
+  - grey brackets on the deck stand 0.05 proud, the grille's bars stand proud with its slots left open, the panels are
+    sunk, and the machine is a raised block whose red lights glow;
+  - springs have no primitives (their arms are drawn in perspective): they are the art's regions between its ink
+    lines, each standing by its smoothed brightness with rounded edges, so a thin arm is a round bar and a block a box.
+- *Colours:* one palette index per part, the median of its pixels with the darkest and brightest 15% dropped. A
+  spring's plates are each a part (one shade made its dark blocks and light arms one flat colour), snapped within
+  their ramp to one set of shades for every spring tile, so a plate split by a tile edge meets in one shade. The
+  materials are satin (metallic 0.12-0.2): metal darkens the diffuse, and at 0.3-0.65 the rails and clamps read
+  black.
+- *Texture (D65):* an occlusion and roughness/metalness bake only, no concept projection, marked
+  `"bake": "model"` in `assets/blender/textures/delbld_*/maps.json`.
+  - The girders use `usp_talon.bake_maps` (Cycles), with the block's other cells in the scene as occluders.
+  - The hull's occlusion comes from its height field (`lib_delbld.field_bake`: horizon occlusion at two radii over
+    the whole block, the same formulas, a top-view UV). Cycles' occlusion rays leaving a finely tessellated
+    smooth-shaded surface caught its own facets and painted dark triangles over the elbows and the cross tube, and
+    neither flat-shading the bake nor dropping the edge lift removed them.
+
+**Measured:**
+- Top-view IoU of each model's top faces against its tile's opaque pixels (4x sampling) is at least 0.9906 for all 54
+  (the worst are the outer elbows 552, 570, 572 and 550: the 2x art against the 1x mask); the median is 1.0.
+- Size: 54 models, 6.3 MB (girders 1.1 MB), 460-6,000 triangles each (15k for the girders, 175k for the hull).
+  DELIANI preloads them all.
+- Original tiles drawn (`drawOriginalTile` calls in the capture probe):
+  - 0 in 1-5 at t200, t300, t650, t1350, t1800, t2100 and t2550, in 3-11 at t300 and t650, and in 4-1 at t800;
+  - before this: 587, 560 and 575 at t300, 586 at t1800, 587 and 589 at t2550.
+  - In 3-11, layer 1 is drawn blended, so it stays a translucent upscaled sheet (D45), as before; models are opaque.
+- Tests: typecheck, vitest and build pass. `remaster.test.ts`'s minRows scan timed out once at 60 s on a machine at
+  load ~35; it took 22-57 s alone (32 s on main). It doesn't read these entries (none has minRows).
+
+**Options considered:**
+- *Whole-structure models per hull block (D47):* the blocks come in many sizes and arm layouts, built from the same
+  dozen pieces. One model per piece covers them all and joins seamlessly.
+- *HD paintings for the deck (D57) with modelled rims:* D83 keeps plating for models, and a painted deck beside
+  modelled tubes mixes two looks on one object.
+- *Luminance relief for everything (D34's carving):* reads as pixels. It is kept only for the springs, as plates.
+- *Edge-replicated context for every tile:* the analytic tubes need their real neighbours to meet across a seam.
+
+**Known gaps:**
+- The springs are the weakest: blocky plates, flat arms.
+- The elbows are plain beside the art's radial detail.
+- The cross tube shows faint lines at its tile edges.
+- On HARVEST, 553/554 under a block (with 143 and 575 above) are drawn as elbows, drapes where the art shows a
+  machine's lower edge. A 2x2 whole-structure model was tried and dropped, as it never matched that layout.
+- 3-5 BONUS draws 550-575 on layer 1 with HD paintings reused from layer 0 (D83) and is left as it is.
+- The inventory and MILESTONES tables are not regenerated.
+
+**Review:** `tyrian-scratch/deliani-rails/`:
+- `sheets/<level>_t<tick>.jpg`: original tiles (`&bg=original`) | before (main) | after | after with
+  `&terrain=original`;
+- `shots/` and `json/` (the probe's original-tile counts per capture);
+- `iou.json.txt`; `cmp_*.png` (the iterations).
+Rebuild: `tools/build-models.sh -j 2 assets/blender/tiles/delbld_girders.py assets/blender/tiles/delbld_hull.py`.
