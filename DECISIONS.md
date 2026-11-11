@@ -6317,7 +6317,7 @@ twelve `cell-1-2..7-{open,covered}` nodes with the same tags as main's.
 **In game** (after merging main with D142; `?debug=play&episode=1&seed=1`, frames from the original, main and this
 branch side by side): the seam at ASTEROID? t2350 is gone. On main the stem ended in a straight raised edge over the
 base complex's dark bed; now its rock bands, brick walls and channel run on to the kerb comb, and the channel meets
-the base complex's at one width. What is left is a lighter grey backing round the sluice steps' last metres; the
+the base complex's at one width. What is left is a lighter grey backing round the last sluice steps; the
 channel's bricks are a plainer brown than the art's rust pavers. The ring dome at t3310 shows D139's band with its
 enemies on it and nothing out of place; the dome reads as a dark woven hatch from the game camera (follow-up below).
 The wreck, which its review could not find, shows at the map's right edge at t1955 and t2065 (every enemy killed 75
