@@ -6723,3 +6723,89 @@ original (`&terrain=original&bg=original`) at 4K:
 
 Sheets (original | before | after): `tyrian-scratch/asteroidq-kit/sheets/1.3_t{300,1050,1750,2550,3310,3515}.jpg`,
 `sheets/stats.txt`; 4K crops `crops/1.3_t*_4k_*.jpg`; captures `shots/`, `shots4k/` (not in git, D3).
+
+## D150 — ASTEROID?'s station kit lighter and lighter-weight: GRIT eased, a step lighter rock ramp, bricks 7, the earth in 3/4/5; bricks bevelled on their long sides, one groove plate per area, a 2.5 px dirt grid (follows D148)
+
+2026-11-11
+
+**Problem** (coordinator review of D148's sheets): D148 read too dark and too heavy.
+- *Tone:* D148 measured the play field's median at 37-44 against the original's 58-64 (40-52 before D148). In the
+  captures the brick tops, the channels' earth (all index 3) and the groove floor were the dark mass; the rocks were
+  close.
+- *Weight:* the seven models went from 12.2 to 17.9 MB, the base complex from 5.25 to 9.15 MB (59k → 111k
+  triangles). Its GLB was the bricks (2511 frustums, 20 vertices each: 1.9 MB), the plain rocks, posts and pebbles
+  (112k vertices, each carrying an unused UV: 3.8 MB), the dirt (30k triangles) and a groove plate per cell (7k
+  triangles). Phones matter (D98, D100).
+
+**Decision** (`lib_l1kit.py`, `lib_l1bld.bake_model`, `l1bld_pipe_junction.py`; all seven rebuilt):
+- *Tone:*
+  - `GRIT`: floor 0.42 → 0.56, occlusion 0.64 → 0.5 (an open face still reaches 1), edge 0.2 → 0.22, grime
+    24% → 12%. The seams, crevices and the bed stay the darkest parts.
+  - `facet_index` one step lighter (limits 0.95/0.88/0.78/0.6/0.35, were 0.97/0.93/0.85/0.7/0.45): a flat stone top
+    is now 7, not 6. The game's light shades a facet on top of its index, so the art's spread in index read a step
+    too dark. The kerb posts follow (one step up, as before).
+  - Bricks index 7 (the art's median is 6; the art paints 7 on the lit edge and the bricks spread 4-10), roughness
+    0.42 and no metal (metal darkened the diffuse).
+  - The earth between the mud: 4, with patches of 3 and 5 from a 9 px value noise (several triangles each), where
+    D148 had 3 everywhere. The art's channel tiles use 3, 4 and 5.
+  - The rule 1 trade-off: the bricks' index is a step over the art's median. The light-to-dark spread stays
+    geometry (bevels, crevices, facets).
+- *Weight:*
+  - `Kit.brick`: each brick bevelled on its two long sides only (the lit edge and the dark trailing edge across the
+    brick), its short ends cut square and open. From the game's camera an end is a sliver 0.027 tall over the dark
+    groove floor. That is 12 vertices, not 20. D148's chipped corners are dropped (the random draws are kept, so the
+    jitter sequence stays).
+  - The groove floor is one plate per connected part of the zone, not one per cell: 7.0k → 3.0k triangles on the
+    base complex. The cells' touching walls were hidden under the bricks.
+  - `DIRT_STEP` 2.5 px (D148 2.0) and half the pebbles. Base complex dirt: 30.1k → 17.5k triangles.
+  - Stones under `CROWN_MIN` (6 px across: the gap stones and the pebbles) skip the crown ring, whose facets were
+    under a pixel. The chain stones keep it.
+  - `GRIT["plain_uv"] = False`: `bake_model` drops the UV map of the plain (unbaked) mesh, which has no texture in
+    the kit. That saves 8 bytes per vertex. Opt-in, so TYRIAN's island rock (data textures on that map) is not
+    affected.
+  - The pipe junction bakes at 1024, not 2048. Its 216 x 336 px had about four times the base complex's texels per
+    px: -0.75 MB.
+- Kept: the AO-only bake (`"bake": "model"`), D139's cover parts, D145's dome, every `src/render/tileModels/*.json`
+  (unchanged), each model's IoU.
+
+**Measured:**
+
+| Model | IoU (D148) | Triangles: D150 (D148) | GLB MB: D150 (D148) |
+|---|---|---|---|
+| l1bld_base_complex | 0.9888 (0.9888) | 78.0k (110.6k) | 5.91 (9.15) |
+| l1bld_pipe_junction | 0.992 (0.992) | 27.8k (30.9k) | 2.08 (3.07) |
+| l1bld_cross_pad | 0.981 (0.981) | 10.9k (11.3k) | 0.80 (0.92) |
+| l1bld_bunker | 0.983 (0.983) | 7.9k (8.9k) | 0.57 (0.76) |
+| l1bld_red_bar | 0.976 (0.976) | 6.2k (6.9k) | 0.44 (0.55) |
+| l1bld_ring_dome | 0.979 (0.979) | 18.9k (21.1k) | 1.26 (1.64) |
+| l1bld_light_bridge | 0.985 (0.985) | 21.9k (23.9k) | 1.45 (1.76) |
+
+- The kit totals 12.51 MB (D148 17.9, before D148 12.2). IoU is from `--no-bake` builds in a throwaway root.
+- Built with `tools/build-models.sh -j 2 -p`: exit 0, seven fresh GLBs (07:18-07:21).
+- Play-field luminance, 1920x1080, original | D148 | D150. "Space out" means pixels over 24: the remastered
+  background sits at 15-24, the original's at 0.
+  - Mean, space out: t300 81.9 | 73.5 | 82.5; t1050 83.7 | 75.6 | 85.8; t1750 78.1 | 69.1 | 79.5;
+    t2550 76.9 | 76.4 | 80.8; t3310 82.8 | 79.6 | 85.6. D150 is +1 to +5% of the original.
+  - p10-p90 spread, space out: original 111-112, D148 88-99, D150 97-111.
+  - sd, space out: original 41-48, D148 37-44, D150 41-46.
+  - D148's mask (over 14) counts the remastered background as content and the original's space as nothing, which
+    biases the remastered frames down. On it the mean is 70-77 | 53-61 | 56-70 and the median 63-64 | 37-44 |
+    41-54.
+- 4K crops show no loss from the dirt grid, the square brick ends or the pipe junction's 1024 bake. The bricks read
+  lighter with the same long-side bevel highlights.
+
+**Options considered:**
+- *Brick bodies at 6, only GRIT eased:* the space-out mean came to about 95% of the original, and the paving still
+  read mid grey beside the art's light plating.
+- *A 3 px dirt grid:* 0.15 MB less, but the mud read as large shards at 4K. 2.5 px matches D148's look.
+- *Quantised or Draco-compressed GLBs:* about half the vertex bytes, but the loader and every geometry reader would
+  change. A pipeline-wide call, not this kit's.
+- *Dropping the bed's underside:* about 1k triangles, and it would break the closed-shape rule (rule 3).
+
+**Not done / follow-ups:**
+- The other kits' structures (TYRIAN's) could take the plain-mesh UV drop too. It is opt-in here.
+- `remaster.test.ts`'s pattern scan and `demo.test.ts` time out when the full suite runs beside captures. Both pass
+  alone (17/17, 10/10).
+
+Sheets (original | D148 | after, each frame's mean, median, sd and spread): `tyrian-scratch/asteroidq-kit-2/sheets/
+1.3_t{300,1050,1750,2550,3310}.jpg`, `sheets/stats.txt`; 4K crops `crops/1.3_t*_4k_*.jpg` (not in git, D3).
