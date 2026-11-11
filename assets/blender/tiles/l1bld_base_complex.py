@@ -69,7 +69,13 @@ CAV_FLOOR = 0.12  # the blasted hatches' cavity floor
 KERB_TOP = 0.366
 ROCK_BAND, KERB_W = 13, 4
 KERB_STEP, KERB_IN = 4.0, 2.0  # post spacing along the edge, post centre in from it (px)
-OPEN = [(120, 0, 192, 14), (300, 31 * 28, 312, 39 * 28)]  # platform runs on past the pattern: no rim
+OPEN = [(120, 0, 192, 21), (300, 31 * 28, 312, 39 * 28)]  # platform runs on past the pattern (top: the junction's stem): no rim
+# The join with the pipe junction (l1bld_pipe_junction.py, whose stem ends in these cells): above
+# JOIN_Y in cells (0, 5)-(0, 7) the stem's rock, brick walls and channel are the junction's (it builds
+# through its pattern's row 10, py 280..280 + JOIN_Y); this model starts at JOIN_Y there, its deck and
+# the kerb comb (not across the channel) on that line, as the art's comb along the bottom of 363 / 364.
+JOIN_Y = 19  # the row-0 deck's top edge (the rim band ends there all along the row)
+JOIN_BOX = (120, 0, 192, JOIN_Y)
 
 # ---- the art's palette index per region (trimmed medians, blueprint.json "regions") ----
 PAL_BED, PAL_MORTAR, PAL_KERB, PAL_PAVE = 2, 3, 7, 6  # bricks: trimmed median of the weave's brick px 6, its seams 3
@@ -103,236 +109,15 @@ WEAVE = ([(x, 0, x + 3, 13) for x in (0, 4, 8)] + [(12, y0, 23, y1) for y0, y1 i
 ARMS = {389: "ud", 379: "lr", 365: "dr", 367: "dl", 385: "ur", 387: "ul", 366: "lrd", 386: "lru", 376: "udlr",
         375: "udr", 377: "udl", 388: "u", 378: "d", 369: "l", 368: "r"}
 STUB = {388: ("u", 17), 378: ("d", 6), 369: ("l", 14), 368: ("r", 6)}
-CH_X, CH_Y, CH_HALF = 11.0, 13.5, 4.5
+# Channel strips: centre (CH_X, CH_Y) in the cell, half widths as the art's 389 (x 3.5..18.5) and 379
+# (y 4.5..22.5), across a vertical run (CH_HX) / a horizontal one (CH_HY); the pipe junction's stem
+# channel is the same strip, so the two meet edge to edge (lib_l1kit holds the values).
+from lib_l1kit import CH_HX, CH_HY, CH_X, CH_Y  # noqa: E402
 
 
-# ======================================================================= pixel-mask helpers (numpy)
-
-def shift(m, dy, dx):
-    o = np.zeros_like(m)
-    h, w = m.shape
-    ys, yd = (slice(0, h - dy), slice(dy, h)) if dy >= 0 else (slice(-dy, h), slice(0, h + dy))
-    xs, xd = (slice(0, w - dx), slice(dx, w)) if dx >= 0 else (slice(-dx, w), slice(0, w + dx))
-    o[yd, xd] = m[ys, xs]
-    return o
-
-
-def disk_offsets(r):
-    return [(dy, dx) for dy in range(-r, r + 1) for dx in range(-r, r + 1) if dy * dy + dx * dx <= (r + 0.3) ** 2]
-
-
-def dil_disk(m, r):
-    out = np.zeros_like(m)
-    for dy, dx in disk_offsets(r):
-        out |= shift(m, dy, dx)
-    return out
-
-
-def ero_disk(m, r):
-    return ~dil_disk(~m, r)
-
-
-def dil4(m, n=1):
-    for _ in range(n):
-        m = m | shift(m, 1, 0) | shift(m, -1, 0) | shift(m, 0, 1) | shift(m, 0, -1)
-    return m
-
-
-def gauss(img, sigma):
-    r = int(3 * sigma)
-    k = np.exp(-0.5 * (np.arange(-r, r + 1) / sigma) ** 2)
-    k /= k.sum()
-    p = np.pad(img, r, mode="constant")
-    a = np.apply_along_axis(lambda v: np.convolve(v, k, "valid"), 1, p)
-    return np.apply_along_axis(lambda v: np.convolve(v, k, "valid"), 0, a)
-
-
-def maxf(img, size):
-    r = size // 2
-    out = np.full_like(img, -np.inf)
-    p = np.pad(img, r, mode="constant", constant_values=-np.inf)
-    h, w = img.shape
-    for dy in range(size):
-        for dx in range(size):
-            out = np.maximum(out, p[dy:dy + h, dx:dx + w])
-    return out
-
-
-def regions(mask, tol=0.8, min_px=8):
-    """[(outer, [holes])] per 4-connected part: pixel-corner outlines, simplified (Douglas-Peucker)."""
-    out = []
-    lab, n = ls.label(mask)
-    for i in range(1, n + 1):
-        ys, xs = np.nonzero(lab == i)
-        if len(ys) < min_px:
-            continue
-        y0, y1, x0, x1 = ys.min(), ys.max() + 1, xs.min(), xs.max() + 1
-        part = lab[y0:y1, x0:x1] == i
-        pad = np.pad(part, 1)
-        outer = [(x + x0 - 1, y + y0 - 1) for x, y in ls.simplify(ls.trace(pad), tol)]
-        hl, hn = ls.label(~pad)
-        holes = []
-        for j in range(1, hn + 1):
-            hm = hl == j
-            if hm[0, :].any() or hm[-1, :].any() or hm[:, 0].any() or hm[:, -1].any() or hm.sum() < min_px:
-                continue
-            holes.append([(x + x0 - 1, y + y0 - 1) for x, y in ls.simplify(ls.trace(hm), tol)])
-        out.append((outer, holes))
-    return out
-
-
-# ======================================================================= geometry (pattern px in, world out)
-
-class Geo:
-    """One bmesh for the whole model; every piece is oriented as built (outward normals)."""
-
-    def __init__(self, s):
-        self.s = s
-        self.bm = bmesh.new()
-
-    def v(self, x, y, z):
-        return self.bm.verts.new((self.s.x(x), self.s.y(y), z))
-
-    @staticmethod
-    def clean(poly):
-        out = []
-        for p in poly:
-            p = (float(p[0]), float(p[1]))
-            if not out or math.dist(p, out[-1]) > 1e-4:
-                out.append(p)
-        while len(out) > 1 and math.dist(out[0], out[-1]) <= 1e-4:
-            out.pop()
-        return out
-
-    @staticmethod
-    def outer(poly):  # world CCW == pattern-px area < 0 (y down)
-        poly = Geo.clean(poly)
-        return poly if ls.area(poly) < 0 else poly[::-1]
-
-    @staticmethod
-    def hole(poly):
-        poly = Geo.clean(poly)
-        return poly if ls.area(poly) > 0 else poly[::-1]
-
-    def face(self, vs, mat, smooth=False):
-        if len(set(vs)) < 3:
-            return None
-        try:
-            f = self.bm.faces.new(vs)
-        except ValueError:
-            return None
-        f.material_index = mat
-        f.smooth = smooth
-        return f
-
-    def walls(self, lo, hi, z0, z1, mat):
-        a = [self.v(x, y, z0) for x, y in lo]
-        b = [self.v(x, y, z1) for x, y in hi]
-        n = len(a)
-        for i in range(n):
-            j = (i + 1) % n
-            self.face((a[i], a[j], b[j], b[i]), mat)
-
-    def cap(self, loops, z, mat, up=True):
-        """A flat face over loops (first outer, then holes), all oriented (outer/hole)."""
-        if len(loops) == 1:
-            vs = [self.v(x, y, z) for x, y in loops[0]]
-            self.face(vs if up else vs[::-1], mat)
-            return
-        edges = []
-        for loop in loops:
-            vs = [self.v(x, y, z) for x, y in loop]
-            edges += [self.bm.edges.new((vs[i], vs[(i + 1) % len(vs)])) for i in range(len(vs))]
-        res = bmesh.ops.triangle_fill(self.bm, use_beauty=True, use_dissolve=False, edges=edges)
-        for f in [g for g in res["geom"] if isinstance(g, bmesh.types.BMFace)]:
-            f.material_index = mat
-            f.normal_update()
-            if (f.normal.z > 0) != up:
-                f.normal_flip()
-
-    def prism(self, outer, holes, z0, z1, mat, chamfer=0.0, drop=0.0, bottom=True, side_mat=None, top_mat=None):
-        side_mat = mat if side_mat is None else side_mat
-        top_mat = mat if top_mat is None else top_mat
-        o = self.outer(outer)
-        if len(o) < 3:
-            return
-        hs = [h for h in (self.hole(h) for h in holes) if len(h) >= 3]
-        if chamfer and drop:
-            oi = [tuple(p) for p in ls.inset(o, chamfer)]
-            if abs(ls.area(oi)) < 0.3 * abs(ls.area(o)) or (ls.area(oi) < 0) != (ls.area(o) < 0):
-                chamfer = 0
-        if chamfer and drop:
-            his = [[tuple(p) for p in ls.inset(h, -chamfer)] for h in hs]
-            self.walls(o, o, z0, z1 - drop, side_mat)
-            self.walls(o, oi, z1 - drop, z1, mat)
-            for h, h2 in zip(hs, his):
-                self.walls(h, h, z0, z1 - drop, side_mat)
-                self.walls(h, h2, z1 - drop, z1, mat)
-            self.cap([oi] + his, z1, top_mat)
-        else:
-            self.walls(o, o, z0, z1, side_mat)
-            for h in hs:
-                self.walls(h, h, z0, z1, side_mat)
-            self.cap([o] + hs, z1, top_mat)
-        if bottom:
-            self.cap([o] + hs, z0, side_mat, up=False)
-
-    def frustum(self, poly, z0, z1, top_inset, mat, bottom=False):
-        """A plate: walls sloping in `top_inset` px from z0 to z1 (a full-height chamfer)."""
-        o = self.outer(poly)
-        if len(o) < 3:
-            return
-        t = [tuple(p) for p in ls.inset(o, top_inset)]
-        if abs(ls.area(t)) < 0.3 * abs(ls.area(o)):
-            t = [tuple(p) for p in ls.inset(o, 0.3)]
-        self.walls(o, t, z0, z1, mat)
-        self.cap([t], z1, mat)
-        if bottom:
-            self.cap([o], z0, mat, up=False)
-
-    def dome(self, cx, cy, rx, ry, z0, h, mat, n=12, rings=3):
-        ringv = []
-        for k in range(rings):
-            t = k / rings * (math.pi / 2)
-            ringv.append([self.v(cx + rx * math.cos(t) * math.cos(a), cy + ry * math.cos(t) * math.sin(a), z0 + h * math.sin(t))
-                          for a in (2 * math.pi * i / n for i in range(n))])
-        # px y down: angles increasing are clockwise in world; reverse to CCW
-        ringv = [r[::-1] for r in ringv]
-        top = self.v(cx, cy, z0 + h)
-        for lo, hi in zip(ringv, ringv[1:]):
-            for i in range(n):
-                j = (i + 1) % n
-                self.face((lo[i], lo[j], hi[j], hi[i]), mat, smooth=True)
-        last = ringv[-1]
-        for i in range(n):
-            self.face((last[i], last[(i + 1) % n], top), mat, smooth=True)
-
-    def cyl_y(self, cx, y0, y1, r, zc, mat, n=12, stripe=None, stripes=()):
-        """A pipe along the screen's y (r in px); facets listed in `stripes` in `stripe` (lengthwise stripes)."""
-        rz = r * lt.PX
-        ring = lambda y: [self.v(cx + r * math.cos(2 * math.pi * i / n), y, zc + rz * math.sin(2 * math.pi * i / n)) for i in range(n)]
-        a, b = ring(y0), ring(y1)
-        for i in range(n):
-            j = (i + 1) % n
-            self.face((a[i], b[i], b[j], a[j]), stripe if i in stripes and stripe is not None else mat, smooth=True)
-        self.face(a, mat)
-        self.face(b[::-1], mat)
-
-
-def rbox(x0, y0, x1, y1, c=1.5, seg=2):
-    c = max(0.0, min(c, (x1 - x0) / 2 - 1e-3, (y1 - y0) / 2 - 1e-3))
-    if c <= 0:
-        return [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
-    pts = []
-    for qx, qy, a0 in ((x1 - c, y0 + c, -90), (x1 - c, y1 - c, 0), (x0 + c, y1 - c, 90), (x0 + c, y0 + c, 180)):
-        for k in range(seg + 1):
-            a = math.radians(a0 + 90 * k / seg)
-            pts.append((qx + c * math.cos(a), qy + c * math.sin(a)))
-    return pts
-
-
-def ell(cx, cy, rx, ry, n=24, a0=0.0):
-    return [(cx + rx * math.cos(a0 + 2 * math.pi * i / n), cy + ry * math.sin(a0 + 2 * math.pi * i / n)) for i in range(n)]
+# Pixel-mask helpers, Geo (one oriented bmesh), rbox, ell: lib_l1kit.py (the ASTEROID? station kit,
+# whose part builders are copies of this script's inline ones, for the other platforms).
+from lib_l1kit import Geo, dil4, dil_disk, ell, ero_disk, gauss, maxf, rbox, regions, shift  # noqa: E402,F401
 
 
 # ======================================================================= build
@@ -356,6 +141,8 @@ def build(bake=True):
     openm = np.zeros((H, W), bool)
     for b in OPEN:
         openm |= box(*b)
+    join = box(*JOIN_BOX)  # the pipe junction's (see JOIN_Y)
+    fpg = fp & ~join  # what this model builds on
 
     feat = np.zeros((H, W), bool)
     for (x0, y0, x1, y1), _ in CAPS:
@@ -399,13 +186,15 @@ def build(bake=True):
     cav = np.zeros((H, W), bool)
     for (x0, y0, x1, y1) in HATCH:
         cav |= box(x0 + 3, y0 + 4.5, x1 - 3, y1 - 3)
-    for outer, holes in regions(fp & ~cav, tol=1.9):
+    for outer, holes in regions(fpg & ~cav, tol=1.9):
         g.prism(outer, holes, BOTTOM, BED_TOP, m_bed, chamfer=1.5, drop=0.10)
 
     # 2. Deck (the joint colour) inside the rock band.
     deck_mask = fp & (dep > ROCK_BAND - 1)
     deck_mask = dil_disk(ero_disk(deck_mask, 4), 4)
     deck_mask = ero_disk(dil_disk(deck_mask, 4), 4) & fp & ~cav
+    # at the join the deck runs straight across from the junction's stem end (JOIN_Y) down
+    deck_mask = (deck_mask | (fp & box(JOIN_BOX[0], JOIN_Y, JOIN_BOX[2], JOIN_Y + 16))) & ~join
     deck_loops = regions(deck_mask, tol=1.6, min_px=30)
     for outer, holes in deck_loops:
         o = g.outer(outer)
@@ -419,7 +208,7 @@ def build(bake=True):
     #    art paints them, one chain of angular stones (about 9-10 px across) down the middle of the
     #    13 px band, small stones in the chain's gaps, each sized to leave a crevice of the dark bed
     #    (pal 2) round it, as the art's near-black gaps between its stones.
-    bandm = fp & (dep <= ROCK_BAND) & ~dil4(openm, 4)
+    bandm = fpg & (dep <= ROCK_BAND) & ~dil4(openm, 4)
     rng = np.random.default_rng(13)
     taken = []  # (x, y, rad, kind)
     block = np.zeros((H, W), bool)
@@ -495,7 +284,10 @@ def build(bake=True):
     #    outlines are deduplicated together (no two posts closer than KERB_MIN px, so none meet where
     #    outlines turn or touch), and a post a rim stone would reach is dropped.
     cav_near = dil4(cav, 3)
-    no_post = dil4(openm, 3) | cav_near | feat
+    # no kerb across the stem's channel where it comes down from the pipe junction
+    ccx0 = JOIN_BOX[0] + TW + CH_X
+    mouth = box(ccx0 - CH_HX - 1, 0, ccx0 + CH_HX + 1, JOIN_Y + 8)
+    no_post = dil4(openm & ~box(*OPEN[0]), 3) | cav_near | feat | mouth
     nposts = 0
     KERB_MIN = 3.6  # > the post's diagonal (1.7 x 3.2 px): posts this far apart never overlap
 
@@ -567,15 +359,15 @@ def build(bake=True):
             st = STUB.get(t)
             for a in arms:
                 if a == "u":
-                    b = (ccx - CH_HALF, y0, ccx + CH_HALF, (y0 + st[1]) if st else ccy + CH_HALF)
+                    b = (ccx - CH_HX, y0, ccx + CH_HX, (y0 + st[1]) if st else ccy + CH_HY)
                 elif a == "d":
-                    b = (ccx - CH_HALF, (y0 + st[1]) if st else ccy - CH_HALF, ccx + CH_HALF, y0 + TH)
+                    b = (ccx - CH_HX, (y0 + st[1]) if st else ccy - CH_HY, ccx + CH_HX, y0 + TH)
                 elif a == "l":
-                    b = (x0, ccy - CH_HALF, (x0 + st[1]) if st else ccx + CH_HALF, ccy + CH_HALF)
+                    b = (x0, ccy - CH_HY, (x0 + st[1]) if st else ccx + CH_HX, ccy + CH_HY)
                 else:
-                    b = ((x0 + st[1]) if st else ccx - CH_HALF, ccy - CH_HALF, x0 + TW, ccy + CH_HALF)
+                    b = ((x0 + st[1]) if st else ccx - CH_HX, ccy - CH_HY, x0 + TW, ccy + CH_HY)
                 chan[int(round(b[1])):int(round(b[3])), int(round(b[0])):int(round(b[2]))] = True
-    chan &= fp
+    chan &= fpg
     # the conduit as a recessed grating per box (the arms meeting at a centre square, edge to edge, each
     #    clipped to the footprint's rows / columns): a brown fill (pal 164), dark bars (pal 3) on a 4 px
     #    lattice centred on the channel's axis (cross bars, and one bar down the middle), and the art's
@@ -627,7 +419,7 @@ def build(bake=True):
             x0, y0 = c * TW, r * TH
             ccx, ccy = x0 + CH_X, y0 + CH_Y
             st = STUB.get(t)
-            bx0, bx1, by0, by1 = ccx - CH_HALF, ccx + CH_HALF, ccy - CH_HALF, ccy + CH_HALF
+            bx0, bx1, by0, by1 = ccx - CH_HX, ccx + CH_HX, ccy - CH_HY, ccy + CH_HY
             boxes = []
             if st:
                 a = arms[0]
@@ -640,7 +432,7 @@ def build(bake=True):
                                    "l": (x0, by0, bx0, by1), "r": (bx1, by0, x0 + TW, by1)}[a], "y" if a in "ud" else "x"))
             for (X0, Y0, X1, Y1), along in boxes:
                 X0, Y0, X1, Y1 = round(X0), round(Y0), round(X1), round(Y1)
-                m = fp[Y0:Y1, X0:X1]
+                m = fpg[Y0:Y1, X0:X1]
                 if X1 - X0 < 1 or Y1 - Y0 < 1 or not m.any():
                     continue
                 ys_, xs_ = np.nonzero(m)
@@ -701,8 +493,8 @@ def build(bake=True):
         uy = s.y(1) - s.y(0)
         for v in g.bm.verts:
             px, py = (v.co.x - s.x(0)) / ux, (v.co.y - s.y(0)) / uy
-            if 118 <= px <= 194 and py < 2.0:
-                v.co.y = s.y(0)
+            if JOIN_BOX[0] - 2 <= px <= JOIN_BOX[2] + 2 and abs(py - JOIN_Y) < 0.6:
+                v.co.y = s.y(JOIN_Y)  # the join's line, straight (the junction's stem ends on it)
             if px > W - 2.0 and OPEN[1][1] - 2 <= py <= H:
                 v.co.x = s.x(W)
 
@@ -930,7 +722,7 @@ def build(bake=True):
     bmesh.ops.delete(bm, geom=drop_f, context="FACES_ONLY")
     print(f"slivers removed: {len(drop_f)}")
 
-    return s, g, coll, nposts, nplates, len(taken), fp, openm
+    return s, g, coll, nposts, nplates, len(taken), fpg, openm
 
 
 def main(bake=True, preview=None):

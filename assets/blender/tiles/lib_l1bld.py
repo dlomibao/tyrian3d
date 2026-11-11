@@ -732,7 +732,10 @@ class Building:
     #
     # Smooth outlines instead of pixel terraces, chamfered prisms, bolts, a top-view coverage check
     # and the model's own AO/roughness bake (no concept projection, CLAUDE.md art rule 4). Nothing
-    # here runs unless a script calls it: the concept-baked buildings keep their look.
+    # here runs unless a script calls it: the concept-baked buildings keep their look. A script starts
+    # with clear_scene() and ends with finish() (check, top_iou, bake_model, preview, export); D139's
+    # cover parts survive the bake as their own objects. ASTEROID?'s platform parts (rim rocks, kerb,
+    # basket-weave paving, gratings, lights, hatches) are lib_l1kit.py's Kit.
 
     def outlines(self, mask, tol=0.6, min_px=6):
         """Smooth polygons round each 4-connected part of `mask` (bool, pattern px): its pixel
@@ -905,23 +908,39 @@ class Building:
         edge lift, as a grey multiplier on the palette colour (so palette fades and filters still
         apply; open flat tops stay at the palette colour), and roughness/metal (G/B) from the
         material's own values, rougher in crevices. `size` (px) defaults to about 5 texels per
-        pattern px, 1024..4096. Returns the objects to export (pass them to export(..., baked=True))."""
+        pattern px, 1024..4096. Returns the objects to export (pass them to export(..., baked=True)).
+
+        Cover parts (D139: objects with the custom properties `tyrian_cell` / `tyrian_when`, drawn
+        per cell only while a ground enemy covers it, or only while none does) are baked in the same
+        atlas but come back as their own objects, their tags kept (plain faces included, unbaked), so
+        the renderer can still switch them per cell: [hard, (rock), cover parts...]."""
         import tempfile
 
         coll = objects[0].users_collection[0]
         hard_bm, rock_bm = bmesh.new(), bmesh.new()
         rock_bm.loops.layers.uv.new("rock")  # before the first merge, or merging drops it (Structure.rock)
+        part_layer = hard_bm.faces.layers.int.new("tyrian_part")  # 0 the model, k the k-th cover part
         materials = list(self.pal.materials)
         plain = {i for i, m in enumerate(materials) if m.get("tyrian_plain")}
+        covers = []  # (name, {tag: value}) per cover part, index k - 1
         for o in objects:
             if o.type != "MESH":
                 continue
-            for target, keep_plain in ((hard_bm, False), (rock_bm, True)):
+            tags = {k: o[k] for k in ("tyrian_cell", "tyrian_when") if k in o}
+            if tags:
+                covers.append((o.name, {k: (list(v) if hasattr(v, "__len__") and not isinstance(v, str) else v) for k, v in tags.items()}))
+            passes = ((hard_bm, None),) if tags else ((hard_bm, False), (rock_bm, True))
+            for target, keep_plain in passes:
                 bm = bmesh.new()
                 bm.from_mesh(o.data)
                 bm.transform(o.matrix_world)
-                drop = [f for f in bm.faces if (f.material_index in plain) != keep_plain]
-                bmesh.ops.delete(bm, geom=drop, context="FACES")
+                if keep_plain is not None:
+                    drop = [f for f in bm.faces if (f.material_index in plain) != keep_plain]
+                    bmesh.ops.delete(bm, geom=drop, context="FACES")
+                if target is hard_bm:
+                    lay = bm.faces.layers.int.get("tyrian_part") or bm.faces.layers.int.new("tyrian_part")
+                    for f in bm.faces:
+                        f[lay] = len(covers) if tags else 0
                 tmp = bpy.data.meshes.new("tmp_split")
                 bm.to_mesh(tmp)
                 bm.free()
@@ -964,9 +983,33 @@ class Building:
                 o.hide_render = False
         if catcher is not None:
             bpy.data.objects.remove(catcher, do_unlink=True)
+        out += _split_covers(hard, covers, coll)
         tris = sum(len(p.vertices) - 2 for p in hard.data.polygons)
         print(f"baked {base}: {size} px, {len(hard.data.polygons)} faces, {tris} triangles (+ plain rock)")
         return out
+
+    def finish(self, objects, mask, bake=True, preview=None, ground="layer", size=None, ao=(0.025, 0.16), samples=48,
+               name=None, strict=True):
+        """The hard-surface standard's last steps in one call (D141): check() (heights; `strict`
+        raises), top_iou() against `mask` (bool, pattern px at 1x: what the art paints for the
+        model's own parts), bake_model() (`ground` "layer": an occluder at z = 0 on layer 0, the HD
+        ground the structure stands on, D86; none on layer 2, where the plain island rock occludes),
+        a preview (lib_tiles.preview: the tiles | top view | game view | three-quarter, into the
+        folder `preview`, as tools/build-models.sh -p passes it), and export(..., baked=bake).
+        Prints and returns {"iou", "triangles", "glb_bytes"}."""
+        self.check(objects, strict=strict)
+        iou = self.top_iou(objects, mask)
+        if ground == "layer":
+            ground = 0.0 if self.layer == 0 else None
+        if bake:
+            objects = self.bake_model(objects, size=size, samples=samples, ground=ground, ao=ao)
+        tris = sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in objects if o.type == "MESH")
+        if preview:
+            lt.preview(self.ts, objects, self.pattern, Path(preview) / f"{SHAPES}-{self.prefix}-{name or self.name}.png", view_px=480)
+        out = self.export(objects, name=name, baked=bake)
+        size_b = Path(out).stat().st_size if out else 0
+        print(f"finish {self.prefix}-{name or self.name}: IoU {iou:.4f}, {tris} triangles, {size_b / 1e6:.2f} MB")
+        return {"iou": iou, "triangles": tris, "glb_bytes": size_b}
 
     def export(self, objects, name=None, baked=False):
         """Export public/models/tiles/shapesz/<prefix>-<name>.glb and src/render/tileModels/
@@ -985,6 +1028,48 @@ class Building:
             entry["minRows"] = self.min_rows
         path.write_text(json.dumps(entry, indent=1) + "\n")
         return out
+
+
+def _split_covers(hard, covers, coll):
+    """bake_model's cover parts back out of the baked object, by its "tyrian_part" face attribute:
+    one object per part (its faces, the "bake" UV map and materials kept, its tags as custom
+    properties); the attribute is removed from every object."""
+    out = []
+    me = hard.data
+    if covers:
+        for k, (name, tags) in enumerate(covers, start=1):
+            bm = bmesh.new()
+            bm.from_mesh(me)
+            lay = bm.faces.layers.int.get("tyrian_part")
+            bmesh.ops.delete(bm, geom=[f for f in bm.faces if f[lay] != k], context="FACES")
+            if not len(bm.faces):
+                bm.free()
+                continue
+            o = mesh_object(name, bm, list(me.materials), coll)
+            for key, v in tags.items():
+                o[key] = v
+            out.append(o)
+        bm = bmesh.new()
+        bm.from_mesh(me)
+        lay = bm.faces.layers.int.get("tyrian_part")
+        bmesh.ops.delete(bm, geom=[f for f in bm.faces if f[lay] != 0], context="FACES")
+        bm.to_mesh(me)
+        bm.free()
+    for o in [hard] + out:
+        attr = o.data.attributes.get("tyrian_part")
+        if attr is not None:
+            o.data.attributes.remove(attr)
+    bpy.context.view_layer.update()
+    return out
+
+
+def clear_scene():
+    """Delete every object in the scene (--factory-startup's default 2x2x2 cube at the origin, or an
+    earlier model of the same run). bake_model already hides other objects from its bake (D141); call
+    this first anyway in a script that builds several models, so each export starts clean."""
+    for o in list(bpy.data.objects):
+        bpy.data.objects.remove(o, do_unlink=True)
+    bpy.context.view_layer.update()
 
 
 def own_bake(entry):

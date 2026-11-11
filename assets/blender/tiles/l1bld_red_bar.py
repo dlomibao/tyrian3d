@@ -1,106 +1,181 @@
-"""The small red-light platform of map 1-3's ground (shapesz.dat; 3 x 6 tiles at rows 225-227,
-cols 4-9: 360 361 361 361 361 362 / 370 347 339 339 347 372 / 380 381 381 381 381 382), after the
-concept assets/blender/features/concepts/l1-bld-red-bar.jpg: a riveted machine panel between a
-crenellated rock rim (heaps of rock at both ends), struts and vents above and below a light band,
-and in the band two glowing square panes in metal frames (347) flanking a carrier plate with six
-caged oval red lights (339 339). The game draws red-light enemies (newshs 235 / 195) exactly over
-the band's four cells at 0.45, so the band stays under ENEMY_MAX.
+r"""ASTEROID? (map 1-3) red bar: the small light platform of the ground layer (shapesz.dat,
+3 x 6 tiles at rows 225-227, cols 4-9: 360 361 361 361 361 362 / 370 347 339 339 347 372 / 380 381
+381 381 381 382). Ground enemies (newshs red lights) stand on the band's four cells (row 1, cols 1-4),
+drawn at 0.45, so everything there stays under ENEMY_MAX 0.38. NOT D139: no cover parts.
 
-Run from the repo root (lib_l1bld.py; DECISIONS.md D34):
+What the art paints (the art wins on outline, feature placement and per-region palette index):
+- a crenellated rim of rock round the whole platform, heaped at both ends (360/370/380, 362/372/382),
+  round crowns along the top (361), pointed shards hanging off the bottom (381);
+- inside it a paved deck with the kerb comb of light stubs along its edge;
+- the light band across the middle: two big square red panes (347) in a dark 1 px seat (ring index 3,
+  then 4), flanking a cast rack of six capsule lights (339 339: 6 x 18 px windows on an 8 px pitch,
+  a bright satin web between them, ring index 8).
 
-    blender --background --factory-startup --python assets/blender/tiles/l1bld_red_bar.py
-    python tools/concept_maps.py tile:shapesz-l1bld-red-bar --concept l1-bld-red-bar
-    blender --background --factory-startup --python assets/blender/texture_bake.py -- tile:shapesz-l1bld-red-bar
+Built with lib_l1kit (the base complex's parts: bed, deck, rim rocks, kerb, basket-weave paving), so it
+matches every other map 1-3 platform, plus its own lights:
+- the capsule rack: ONE machined frame plate (rounded box, chamfered top edge) with six stadium
+  windows cut through it where the art's six red capsules are (one window per red component), a dark
+  seat in each, a domed dark-red glass capsule bulging just above the web, a rivet at each corner;
+  one plate rather than six overlapping kit housings (the 2 px webs would z-fight);
+- the two big panes: a dark gunmetal frame (the art's ring index 4) with a chamfered top, a
+  near-black seat lip (index 3) and a domed fat lens (index 114), bolts on its flanks.
+Heights: bed 0.14, deck 0.30, bricks 0.345, kerb 0.366, rack web 0.356, capsule glass 0.364, pane frame
+0.352, pane glass 0.372; rocks <= RIM_MAX. AO/roughness from the model's own bake only (no concept
+projection, "bake": "model"), no outline shell (tile models draw none: D141). Underside: the bed's
+closed slab bottom at -0.04.
+
+Run from the repo root:
+
+    tools/build-models.sh -j 2 -p <dir> assets/blender/tiles/l1bld_red_bar.py
+    blender --background --factory-startup --python assets/blender/tiles/l1bld_red_bar.py -- [--no-bake] [--preview <dir>]
 """
 
+import math
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import lib_l1bld as lb  # noqa: E402
 import numpy as np  # noqa: E402
 
-OUTER_DECK = 0.24  # the rocky ground round the panel (under the rocks)
-PANEL = (22, 14, 122, 63)  # the machine panel's pixel box (concept, registered on the tiles)
-PANEL_TOP = 0.31
-BAND = (24, 30, 120, 55)  # the light band: a plate across the enemy cells
-BAND_TOP = 0.335
-CARRIER = (47, 31, 97, 54)  # the plate holding the six oval lights
-CARRIER_TOP = 0.36
-BAR_X = [52 + 8 * k for k in range(6)]  # oval light centres (the tiles' 8 px bars)
-BAR_Y = (32, 52)  # their length in the tiles
-SLOT_FLOOR = 0.315
-PANES = [(27, 31, 44, 53), (99, 31, 116, 53)]  # the square glowing panes (347)
-STRUT_TOP = 0.40  # struts above and below the band (outside the enemy cells)
-TOP_STRUTS = [27, 51, 75, 99, 117]
-BOTTOM_STRUTS = [40, 64, 88, 112]
-TOP_VENTS = [39, 63, 87, 109]
-BOTTOM_VENTS = [28, 52, 76, 100]
+import lib_l1bld as lb  # noqa: E402
+import lib_l1kit as kit  # noqa: E402
+import lib_tiles as lt  # noqa: E402
+
+# ---- heights (units; z = 0 the HD ground) ----
+RACK_TOP = 0.356  # the capsule rack's web
+CAP_SEAT = 0.326  # the dark seat inside each window
+CAP_GLASS = 0.034  # capsule dome height above the seat -> 0.360 (+ rim)
+PANE_FRAME_TOP = 0.352
+PANE_SEAT = 0.344
+PANE_GLASS = 0.028  # -> 0.372
+
+# ---- the art's palette indices for this building's own parts (trimmed medians, measured below) ----
+PAL_RACK = 8  # capsule ring (1 px round the six windows)
+PAL_PANE_FRAME = 4  # second ring round the 347 panes
+PAL_PANE_SEAT = 3  # first ring round the 347 panes
+PAL_CAP_LENS = 113
+PAL_PANE_LENS = 114
 
 
-def stadium(b, cx, ys, r):
-    """Pixel mask of an oval slot (a stadium): `r` px either side of column cx, round ends."""
-    yy, xx = np.mgrid[0:b.H, 0:b.W] + 0.5
-    cy = np.clip(yy, ys[0] + r, ys[1] - r)
-    return (xx - cx) ** 2 + (yy - cy) ** 2 <= r * r
+def trimmed_index(vals, lum, cut=1 / 6):
+    """The art's palette index of a region: the median of its pixels, the darkest and brightest
+    `cut` (shading, sheen) left out."""
+    vals = np.asarray(vals)
+    order = np.argsort(lum[vals], kind="stable")
+    k = int(len(vals) * cut)
+    keep = vals[order[k:len(vals) - k]] if len(vals) > 6 else vals
+    return int(np.median(keep))
 
 
-def main():
+def measure(b, red_lab, fat_ids, cap_ids):
+    """Per-region indices from the tiles (printed: model vs art)."""
+    lum = b.ts.lum
+    grid = b.grid
+    red = red_lab > 0
+    fat = np.isin(red_lab, fat_ids)
+    caps = np.isin(red_lab, cap_ids)
+    ring = lambda m, r: kit.dil4(m, r) & ~kit.dil4(m, r - 1) & ~red if r > 1 else kit.dil4(m, 1) & ~m & ~red  # noqa: E731
+    out = {
+        "pane lens": (trimmed_index(grid[fat], lum), PAL_PANE_LENS),
+        "capsule lens": (trimmed_index(grid[caps], lum), PAL_CAP_LENS),
+        "pane seat (ring 1)": (trimmed_index(grid[ring(fat, 1)], lum), PAL_PANE_SEAT),
+        "pane frame (ring 2)": (trimmed_index(grid[ring(fat, 2)], lum), PAL_PANE_FRAME),
+        "capsule rack (ring 1)": (trimmed_index(grid[ring(caps, 1)], lum), PAL_RACK),
+    }
+    return out
+
+
+def stadium(x0, y0, x1, y1, n=5):
+    """A capsule window over the art's red box (edges x0..x1, y0..y1): straight sides, round ends."""
+    return kit.rbox(x0, y0, x1, y1, c=(x1 - x0) / 2 - 0.05, seg=n)
+
+
+def build(bake=True, preview=None):
+    lb.clear_scene()
     b = lb.Building("red-bar")
-    b.surface(deck=OUTER_DECK, channel=False, pits=False, red=False)
-    x0, y0, x1, y1 = PANEL
-    # The panel: a chamfer step round its top, then the top.
-    b.raise_box(x0, y0, x1, y1, PANEL_TOP - 0.025, b.m("pave"))
-    b.raise_box(x0 + 2, y0 + 2, x1 - 2, y1 - 2, PANEL_TOP, b.m("pave"))
-    # Vents: dark slotted recesses between the struts.
-    for vx in TOP_VENTS:
-        b.raise_box(vx - 3, 18, vx + 3, 24, PANEL_TOP - 0.04, b.m(2))
-    for vx in BOTTOM_VENTS:
-        b.raise_box(vx - 3, 58, vx + 3, 61, PANEL_TOP - 0.04, b.m(2))
-    # The light band: a metal plate with a chamfer step.
-    bx0, by0, bx1, by1 = BAND
-    b.raise_box(bx0, by0, bx1, by1, BAND_TOP - 0.015, b.m(5))
-    b.raise_box(bx0 + 1, by0 + 1, bx1 - 1, by1 - 1, BAND_TOP, b.m(5))
-    # The carrier plate, its six oval slots cut in down to a dark red floor.
-    b.raise_box(*CARRIER, CARRIER_TOP, b.m(7))
-    for cx in BAR_X:
-        b.set_region(stadium(b, cx, BAR_Y, 3.0), SLOT_FLOOR,
-                     b.m(lb.PAL["red"], emission_strength=0.9, roughness=0.4))
-    deck = b.terrace()
+    k = kit.Kit(b)
+    g = k.g
+    fp = b.footprint
+    grid = b.grid
+    M = b.m
 
-    red = b.m("red", emission_strength=2.5, roughness=0.3)
-    # The oval lights: low capsules in their slots, each crossed by a cage of thin bars.
-    for cx in BAR_X:
-        b.capsule(cx, (BAR_Y[0] + BAR_Y[1]) / 2, BAR_Y[1] - BAR_Y[0] - 1, 2.6, axis="y", z=0.35,
-                  mat=red, housing=False, sides=10)
-        for gx in (cx - 1.3, cx + 1.3):
-            b.wall_block(gx - 0.35, BAR_Y[0] + 1, gx + 0.35, BAR_Y[1] - 1, SLOT_FLOOR - 0.01, 0.37,
-                         b.m("metal"), bevel=0.2)
-    # The square panes: a metal frame round glowing red glass.
-    for pane in PANES:
-        b.hatch(*pane, z=0.375, frame_px=2, depth_=0.03, mat_frame=b.m("metal"),
-                mat_inside=b.m("red", emission_strength=0.9, roughness=0.15))
-    # Struts: vertical girders on the panel above and below the band (clear of the enemy cells).
-    for sx in TOP_STRUTS:
-        b.wall_block(sx - 1.5, y0 + 2, sx + 1.5, 27.5, PANEL_TOP - 0.02, STRUT_TOP, b.m(7), bevel=0.4)
-    for sx in BOTTOM_STRUTS:
-        b.wall_block(sx - 1.5, 56.5, sx + 1.5, y1 - 2, PANEL_TOP - 0.02, STRUT_TOP, b.m(7), bevel=0.4)
-    # A girder along the top and bottom of the band (outside the enemy rows).
-    b.wall_block(x0 + 2, 26.5, x1 - 2, 27.8, PANEL_TOP - 0.02, 0.36, b.m(6), bevel=0.3)
-    b.wall_block(x0 + 2, 56.2, x1 - 2, 57.5, PANEL_TOP - 0.02, 0.36, b.m(6), bevel=0.3)
+    # The art's red lights, one component each (raw ramp 7: masks()["red"] closes the 2 px webs and
+    # merges the six capsules into one blob).
+    red = (grid >= 0) & ((grid >> 4) == 7)
+    lab = np.zeros(grid.shape, int)
+    boxes = []
+    for i, (ys, xs) in enumerate(lt.components(red), start=1):
+        if len(ys) < 20:
+            continue
+        lab[ys, xs] = len(boxes) + 1
+        boxes.append((int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1))
+    fat_ids = [i + 1 for i, (x0, y0, x1, y1) in enumerate(boxes) if x1 - x0 > 10]
+    cap_ids = [i + 1 for i in range(len(boxes)) if i + 1 not in fat_ids]
+    fats = [boxes[i - 1] for i in fat_ids]
+    caps = sorted(boxes[i - 1] for i in cap_ids)
+    print(f"red bar lights: {len(fats)} panes {fats}, {len(caps)} capsules {caps}")
+    meas = measure(b, lab, fat_ids, cap_ids)
+    for kname, (art, model) in meas.items():
+        print(f"REGION {kname}: art {art} model {model}")
 
-    # The rim: big rocks along the top and bottom edges, heaps at both ends; none on the panel.
-    def keep(px, py):
-        return not (x0 + 3 < px < x1 - 3 and y0 + 4 < py < y1 - 3)
+    rack = (min(c[0] for c in caps) - 1.6, min(c[1] for c in caps) - 1.6,
+            max(c[2] for c in caps) + 1.6, max(c[3] for c in caps) + 1.6)
+    frames = [(x0 - 1.6, y0 - 1.6, x1 + 1.6, y1 + 1.6) for (x0, y0, x1, y1) in fats]
 
-    b.rim_rocks(spacing=10.0, inset=4.0, size=(0.6, 0.85), height=(0.32, 0.48), sink=0.10, keep=keep)
-    b.rim_rocks(spacing=7.0, inset=11.0, size=(0.5, 0.7), height=(0.28, 0.40), sink=0.08, keep=keep)
-    # Small stones along the very edge, hiding the deck's pixel-stepped outer wall.
-    b.rim_rocks(spacing=6.0, inset=1.5, size=(0.5, 0.7), height=(0.20, 0.30), sink=0.20, keep=keep)
-    objects = b.objects(deck)
-    b.check(objects)
-    b.export(objects)
+    # ---- the platform (kit, as the base complex) ----
+    k.bed(fp)
+    dm = k.deck_mask(fp)
+    k.deck(dm)
+    parts = np.zeros_like(fp)
+    for (x0, y0, x1, y1) in [rack] + frames:
+        parts |= k.box(math.floor(x0), math.floor(y0), math.ceil(x1), math.ceil(y1))
+    k.rock_layout(fp, dm)
+    k.kerb(dm, no_post=kit.dil4(parts, 3))
+    chan = k.channels(fp)
+    zone = kit.ero_disk(dm, kit.KERB_W) & ~chan & ~parts
+    print(f"bricks {k.paving(zone)}")
+    k.rocks()
+
+    # ---- the capsule rack ----
+    m_rack = M(PAL_RACK, roughness=0.35, metallic=0.6)
+    m_seat = M(1, roughness=0.8)
+    m_cap = M(PAL_CAP_LENS, roughness=0.2, metallic=0.1, emission_strength=0.45)
+    windows = [stadium(*c) for c in caps]
+    g.prism(kit.rbox(*rack, c=2.4, seg=3), windows, kit.DECK_TOP - 0.005, RACK_TOP, m_rack,
+            chamfer=0.45, drop=0.010, bottom=False)
+    for c, win in zip(caps, windows):
+        g.prism(win, [], kit.DECK_TOP - 0.005, CAP_SEAT, m_seat, bottom=False)
+        x0, y0, x1, y1 = c
+        inset = 0.35
+        k.pillow(stadium(x0 + inset, y0 + inset, x1 - inset, y1 - inset), CAP_SEAT - 0.002, CAP_GLASS, m_cap,
+                 corner=(x1 - x0) / 2 - inset)
+    rx0, ry0, rx1, ry1 = rack
+    for bx, by in ((rx0 + 0.9, ry0 + 0.9), (rx1 - 0.9, ry0 + 0.9), (rx0 + 0.9, ry1 - 0.9), (rx1 - 0.9, ry1 - 0.9)):
+        g.prism(kit.ell(bx, by, 0.55, 0.55, 6), [], RACK_TOP - 0.006, RACK_TOP + 0.008, m_rack, bottom=False)
+    # a tie bar across the rack's middle web line at each window's waist (the art's dark mid notch)
+    # is not painted: left out (the art wins).
+
+    # ---- the two big panes ----
+    m_pf = M(PAL_PANE_FRAME, roughness=0.45, metallic=0.5)
+    m_ps = M(PAL_PANE_SEAT, roughness=0.7, metallic=0.2)
+    m_pl = M(PAL_PANE_LENS, roughness=0.22, metallic=0.1, emission_strength=0.45)
+    for (x0, y0, x1, y1), (fx0, fy0, fx1, fy1) in zip(fats, frames):
+        seat = kit.rbox(x0 - 0.7, y0 - 0.7, x1 + 0.7, y1 + 0.7, 3.0, 3)
+        g.prism(kit.rbox(fx0, fy0, fx1, fy1, 3.4, 3), [seat], kit.DECK_TOP - 0.005, PANE_FRAME_TOP, m_pf,
+                chamfer=0.5, drop=0.012, bottom=False)
+        g.prism(seat, [], kit.DECK_TOP - 0.005, PANE_SEAT, m_ps, bottom=False)
+        k.pillow(kit.rbox(x0, y0, x1, y1, 2.6, 3), PANE_SEAT - 0.002, PANE_GLASS, m_pl, corner=2.6)
+        cy = (y0 + y1) / 2
+        for bx in (fx0 + 0.75, fx1 - 0.75):
+            for by in (cy - 5.5, cy + 5.5):
+                g.prism(kit.ell(bx, by, 0.5, 0.5, 6), [], PANE_FRAME_TOP - 0.008, PANE_FRAME_TOP + 0.007, m_pf, bottom=False)
+
+    print("needles", k.no_needles())
+    objects = k.objects()
+
+    b.finish(objects, fp, bake=bake, preview=preview)
 
 
-main()
+argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+build(bake="--no-bake" not in argv, preview=lt.preview_arg())

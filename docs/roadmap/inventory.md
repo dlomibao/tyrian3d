@@ -51,7 +51,7 @@ so a tileset shared by many levels is the biggest single piece of terrain work.
 
 | Tileset | Levels | Episodes | Tiles used (layers 0/1/2) | HD art (0/1/2) | In structure models (0/1/2) | Uncovered (0/1/2) | Levels using it |
 |---|---|---|---|---|---|---|---|
-| shapesz | 32 | 1, 2, 3, 4 | 275 / 60 / 178 | 266 / 16 / 73 | 85 / 0 / 55 | 9 / 44 / 50 | 1.1 ASTEROID1, 1.2 ASTEROID2, 1.3 ASTEROID?, 1.4 BUBBLES, 1.5 DELIANI, 1.6 MINEMAZE, 1.7 MINES, 1.9 TYRIAN, 1.10 BONUS, 1.11 HOLES, 1.13 SOH JIN, 1.14 WINDY, 1.15 TYRIAN, 1.16 ASSASSIN, 1.18 ** ALE **, 2.3 BONUS, 2.4 ASTCITY, 2.5 SOH JIN, 2.7 GEM WAR, 2.8 MARKERS, 2.9 MISTAKES, 3.2 AST. CITY, 3.3 GAUNTLET, 3.5 BONUS, 3.7 STARGATE, 3.8 TYRIAN X, 3.11 New Deli, 3.12 MACES, 4.1 HARVEST, 4.2 WINDY, 4.14 DREAD-NOT, 4.16 NOSE DRIP |
+| shapesz | 32 | 1, 2, 3, 4 | 275 / 60 / 178 | 266 / 16 / 73 | 85 / 12 / 97 | 9 / 32 / 8 | 1.1 ASTEROID1, 1.2 ASTEROID2, 1.3 ASTEROID?, 1.4 BUBBLES, 1.5 DELIANI, 1.6 MINEMAZE, 1.7 MINES, 1.9 TYRIAN, 1.10 BONUS, 1.11 HOLES, 1.13 SOH JIN, 1.14 WINDY, 1.15 TYRIAN, 1.16 ASSASSIN, 1.18 ** ALE **, 2.3 BONUS, 2.4 ASTCITY, 2.5 SOH JIN, 2.7 GEM WAR, 2.8 MARKERS, 2.9 MISTAKES, 3.2 AST. CITY, 3.3 GAUNTLET, 3.5 BONUS, 3.7 STARGATE, 3.8 TYRIAN X, 3.11 New Deli, 3.12 MACES, 4.1 HARVEST, 4.2 WINDY, 4.14 DREAD-NOT, 4.16 NOSE DRIP |
 | shapes) | 10 | 4 | 113 / 57 / 26 | 112 / 14 / 0 | 0 / 0 / 0 | 1 / 43 / 26 | 4.4 SURFACE, 4.5 CORE, 4.6 SIDE EXIT, 4.7 UNDERDELI, 4.9 LAVA EXIT, 4.10 DESERTRUN, 4.12 LAVA RUN, 4.15 BRAINIAC, 4.17 TIME WAR, 4.18 SQUADRON |
 | shapesw | 7 | 3, 4 | 113 / 73 / 85 | 100 / 28 / 17 | 0 / 0 / 0 | 13 / 45 / 68 | 3.1 CAMANIS, 3.4 IXMUCANE, 3.6 FLEET, 3.9 SAWBLADES, 4.8 ICE EXIT, 4.11 ?TUNNEL?, 4.20 ICESECRET |
 | shapesx | 7 | 2, 4 | 199 / 138 / 39 | 191 / 7 / 11 | 0 / 0 / 0 | 8 / 131 / 28 | 2.1 TORM, 2.2 GYGES, 2.6 GRYPHON, 2.10 BOTANY A, 2.11 BOTANY B, 2.12 BONUS, 4.13 EYESPY |
@@ -144,7 +144,7 @@ ticks, and units seen.
 | 1.12 | SAVARA | 10 (hard+) | shapesy | 56/56 9/10 0/1 | 0 | 90 | 21 / 21 / 0 / 0 | assembly-newshf-195, assembly-newshf-270 | 33, 22 | difficulty change, music fade, text window, song change | done, 6154 ticks, 27 seen |
 | 1.7 | MINES | 13 | shapesz | 17/18 0/1 0/1 | 0 | 40 | 9 / 9 / 0 / 0 | - | 17 | - | done, 1747 ticks, 12 seen |
 | 1.4 | BUBBLES | 16 bonus | shapesz | 41/42 0/1 0/1 | 0 | 26 | 6 / 6 / 0 / 0 | - | 26 | colour filter | done, 3267 ticks, 15 seen |
-| 1.5 | DELIANI | 19 | shapesz | 24/24 0/13 0/42 | 0 | 85 | 21 / 21 / 0 / 0 | assembly-newshc-197, assembly-newshc-243, assembly-newshc-271, assembly-newsht-39 +3 | 14, 26 | difficulty change, background 2 opaque, music fade, song change, text window, clear enemies | done, 5781 ticks, 25 seen |
+| 1.5 | DELIANI | 19 | shapesz | 24/24 12/13 41/42 | 53 | 85 | 21 / 21 / 0 / 0 | assembly-newshc-197, assembly-newshc-243, assembly-newshc-271, assembly-newsht-39 +3 | 14, 26 | difficulty change, background 2 opaque, music fade, song change, text window, clear enemies | done, 5781 ticks, 25 seen |
 | 1.3 | ASTEROID? | 21 bonus | shapesz | 54/55 0/1 0/1 | 7 | 86 | 41 / 41 / 0 / 0 | - | 2 | - | done, 3444 ticks, 38 seen |
 | 1.6 | MINEMAZE | 23 bonus | shapesz | 19/20 0/9 0/1 | 0 | 51 | 12 / 12 / 0 / 0 | - | 23 | - | done, 3530 ticks, 14 seen |
 | 1.10 | BONUS | 25 bonus | shapesz | 13/14 0/1 0/1 | 0 | 36 | 14 / 14 / 0 / 0 | - | 18 | clear enemies | done, 2005 ticks, 17 seen |
@@ -191,7 +191,7 @@ Between levels (the episode 2 script): section 13: song 8, picture 7, text, pict
 | 3.8 | TYRIAN X | 17 | shapesz | 66/66 15/16 55/56 | 82 | 124 | 28 / 28 / 0 / 0 | assembly-newsh4-124 | 18, 15 | difficulty change, text window, music fade, song change, enemy continual damage | done, 6020 ticks, 33 seen |
 | 3.9 | SAWBLADES | 19 | shapesw | 15/15 24/29 17/28 | 0 | 82 | 19 / 1 / 18 / 0 | - | 14 | - | done, 5280 ticks, 20 seen |
 | 3.10 | SAVARA Y | 21 | shapesy | 67/67 49/50 45/46 | 2 | 89 | 22 / 22 / 0 / 0 | assembly-newshf-195, assembly-newshf-270 | 21, 22, 17 | music fade, song change, text window, clear enemies | done, 5267 ticks, 24 seen |
-| 3.11 | New Deli | 23 | shapesz | 24/24 0/13 0/42 | 0 | 85 | 22 / 21 / 1 / 0 | assembly-newshc-197, assembly-newshc-243, assembly-newsht-39, newshc-163 +1 | 14, 26 | difficulty change, music fade, song change, text window, clear enemies | done, 5814 ticks, 26 seen |
+| 3.11 | New Deli | 23 | shapesz | 24/24 12/13 41/42 | 53 | 85 | 22 / 21 / 1 / 0 | assembly-newshc-197, assembly-newshc-243, assembly-newsht-39, newshc-163 +1 | 14, 26 | difficulty change, music fade, song change, text window, clear enemies | done, 5814 ticks, 26 seen |
 | 3.12 | MACES | 25 bonus | shapesz | 13/14 0/1 0/1 | 0 | 37 | 8 / 2 / 6 / 0 | - | 7 | difficulty change | done, 3290 ticks, 11 seen |
 
 Between levels (the episode 3 script): section 13: song 9, anim, text, text, text, picture 5, episode end.
@@ -205,7 +205,7 @@ Between levels (the episode 3 script): section 13: song 9, anim, text, text, tex
 | 4.5 | CORE | 6 | shapes) | 16/16 13/14 0/1 | 0 | 61 | 15 / 3 / 12 / 0 | assembly-newsh3-117, assembly-newsh3-118, assembly-newsh3-96, assembly-newsh3-99 | 23 | water, background 2 opaque, text window, colour filter, level timer, random explosions | done, 7730 ticks, 18 seen |
 | 4.11 | ?TUNNEL? | 8 bonus | shapesw | 2/2 15/20 8/9 | 0 | 29 | 8 / 1 / 7 / 0 | assembly-newshj-191, assembly-newshj-267, newsh-hash-1, newsh-hash-3 +2 | 6 | background 2 opaque, text window, music fade, song change, level timer, random explosions | done, 2958 ticks, 7 seen |
 | 4.8 | ICE EXIT | 10 | shapesw | 3/3 0/21 0/1 | 0 | 47 | 13 / 3 / 10 / 0 | assembly-newsh-caret-54 | 4 | iced, text window | done, 4574 ticks, 14 seen |
-| 4.1 | HARVEST | 12 | shapesz | 16/16 0/1 18/53 | 1 | 47 | 13 / 8 / 5 / 0 | assembly-newsh5-39, assembly-newsh5-45, assembly-newsht-39 | 16 | text window | done, 8588 ticks, 13 seen |
+| 4.1 | HARVEST | 12 | shapesz | 16/16 0/1 52/53 | 35 | 47 | 13 / 8 / 5 / 0 | assembly-newsh5-39, assembly-newsh5-45, assembly-newsht-39 | 16 | text window | done, 8588 ticks, 13 seen |
 | 4.7 | UNDERDELI | 14 | shapes) | 22/22 0/1 0/1 | 0 | 79 | 24 / 4 / 13 / 7 | assembly-newsh9-10, assembly-newsh9-85, newsh-caret-68, newsh5-121 +3 | 36 | water, background 2 opaque, text window, difficulty change, level timer | done, 9921 ticks, 23 seen |
 | 4.3 | SAVARA IV | 16 | shapesy | 68/68 0/1 0/1 | 0 | 51 | 16 / 13 / 3 / 0 | assembly-newshf-195, assembly-newshf-270 | 33 | water, text window | done, 5846 ticks, 19 seen |
 | 4.14 | DREAD-NOT | 18 | shapesz | 0/1 0/1 0/3 | 0 | 69 | 24 / 1 / 21 / 2 | assembly-newsh9-10, assembly-newsh9-115, assembly-newsh9-119, assembly-newsh9-197 +10 | 35 | water, difficulty change, background 2 opaque | done, 25038 ticks, 21 seen |
