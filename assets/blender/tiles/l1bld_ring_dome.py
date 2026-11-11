@@ -9,18 +9,19 @@ a dark well ringed by bright lugs, a dark sensor dome with two red eyes. Inside 
 paved pad carries the big low dome (415 417 / 409 383): its plating is the deck's basket weave
 carried over the dome (the art paints the weave over it, lit top-left, shadowed bottom-right).
 
-Read from the tilted game camera: the dome is the only thing that stands up (top 0.72, everything
-else under the rim's 0.50), so it is a clear ellipsoid with a collar, its plates modelled as
-inlaid strips alternating along / across like the weave; the band reads as one bright red row with
-two brass knobs; the orbs as four eyes in bezels on the arms.
+Read from the tilted game camera: the dome is the only thing that stands up (crown 0.785, everything
+else under the rim's 0.50); the band reads as one bright red row with two brass knobs; the orbs as
+four eyes in bezels on the arms.
 
 Ground enemies stand at 0.45 on the six band cells and the four orb cells: every top there stays
 <= 0.376. D139: each band cell's light ("open": lights + the paving round them) and its lid
 ("covered": the plain basket-weave paving, flush with the deck round it) are their own objects,
 tagged tyrian_cell [1, col] / tyrian_when; bake_model keeps them separate and tagged.
 
-Dome plating: the art's basket weave (lib_l1kit.WEAVE bricks) draped over the ellipsoid, plain
-mortar showing between the plates.
+The dome (D145): a glossy metal dome, not a hatch or a lens. Its bricks are the deck's index 6 and its
+joints 4 (the art's medians over the dome); the art's lit top-left (bricks 10) and dark bottom-right
+(2) are lighting. So it is one continuous smooth shell cut on the weave's grid lines, the joints only
+a palette region, glossy enough for a sheen (no collar, no boss: the art has neither).
 
     tools/build-models.sh -j 2 -p <dir> assets/blender/tiles/l1bld_ring_dome.py
     blender --background --factory-startup --python assets/blender/tiles/l1bld_ring_dome.py -- [--no-bake] [--preview <dir>]
@@ -51,13 +52,16 @@ BAND_ROW, BAND_COLS = 1, [2, 3, 4, 5, 6, 7]
 TURRET_COLS = (4, 5)
 TURRET_R = (9.0, 10.0)  # brass cage radii (px) round the cell's brass centroid
 TOP_E = 0.376  # highest top on an enemy cell
-DOME_C, DOME_R = (120.0, 140.0), 21.0
-DOME_Z0, DOME_H = 0.34, 0.415  # ellipsoid from its collar to 0.755 (+ boss 0.775)
+DOME_C, DOME_R = (120.0, 140.0), 21.0  # the art's lit and shaded dome (measure()'s region)
+DOME_RB = DOME_R + 3.0  # the dome's rim: where the deck's paving stops
+DOME_H = 0.44  # crown 0.785 over the bricks' PLATE_TOP
+DOME_ROUGH, DOME_SEAM_ROUGH, DOME_METAL = 0.35, 0.4, 0.2  # glossy, mostly dielectric: a white sheen over the bricks' index
+DOME_EXP = 0.65  # profile (1 - (r / DOME_RB)^2)^DOME_EXP: rounder shoulders than a paraboloid, so it reads as a dome
 
 # The art's palette indices (trimmed medians of each region's pixels; measure() prints them).
 PAL_BRASS, PAL_WINDOW, PAL_LAMP = 164, 101, 115
 PAL_ORB_BEZEL, PAL_ORB_WELL, PAL_ORB_LUG, PAL_ORB_EYE = 5, 1, 9, 112
-PAL_DOME, PAL_DOME_SEAM, PAL_COLLAR = 5, 3, 5
+PAL_DOME, PAL_DOME_SEAM = 6, 4  # the dome's bricks and joints (the art's medians there)
 
 
 # ---------------------------------------------------------------- small local helpers (follow-ups)
@@ -247,88 +251,95 @@ def orb_socket(k, cx, cy, lugs, eyes, b):
         conform_patch(g, ell(ex, ey, 2.1, 2.0, 12), f, 0.004, eye)
 
 
+def _weave_lines(span, edges0, edges1):
+    """A weave axis's grid lines in one tile: every brick edge, and the middle of every 1 px joint
+    (a brick's far edge with a brick, or the next tile, one px on)."""
+    starts = set(edges0) | {span}
+    lines = set(edges0) | set(edges1)
+    lines |= {e + 0.5 for e in edges1 if e + 1 in starts}
+    return sorted(v for v in lines if v < span)
+
+
+WEAVE_XS = _weave_lines(TW, [b[0] for b in kit.WEAVE], [b[2] for b in kit.WEAVE])
+WEAVE_YS = _weave_lines(TH, [b[1] for b in kit.WEAVE], [b[3] for b in kit.WEAVE])
+
+
+def in_joint(x, y):
+    """True where (x, y) (pattern px) is in the weave's mortar, not on or in a brick."""
+    lx, ly = x % TW, y % TH
+    return not any(x0 - 1e-6 <= lx <= x1 + 1e-6 and y0 - 1e-6 <= ly <= y1 + 1e-6 for x0, y0, x1, y1 in kit.WEAVE)
+
+
 def big_dome(k, b):
-    """415 417 / 409 383: a collar ring, an ellipsoid shell in the seam colour, its plating as inlaid
-    strips (lifted, with sides) alternating along / across per panel, like the deck's weave; a boss."""
+    """415 417 / 409 383: a low glossy metal dome plated in the deck's basket weave (the art paints
+    the weave right over it, lit top-left, shadowed bottom-right: shape and sheen, not paint).
+
+    One continuous smooth-shaded shell, so the light runs over it as one sheen (D145; D143's raised
+    flat strips over a seam-coloured shell, metallic in index 5 and 3, broke it into a dark woven
+    hatch): from the paving's brick top at its rim (DOME_RB, where the paving stops) to its crown,
+    cut on the weave's own grid lines (every brick edge and joint middle), the faces touching a joint
+    in the joints' index and the rest in the bricks'. No collar and no boss: the art has neither. A
+    short skirt closes the rim down to the deck."""
     g, M = k.g, b.m
     bm = g.bm
     cx, cy = DOME_C
-    collar = M(PAL_COLLAR, roughness=0.4, metallic=0.55)
-    seam = M(PAL_DOME_SEAM, roughness=0.6, metallic=0.35)
-    plate = M(PAL_DOME, roughness=0.42, metallic=0.5)
-    R = DOME_R
-    g.prism(ell(cx, cy, R + 2.4, R + 2.4, 48), [ell(cx, cy, R - 0.4, R - 0.4, 48)], DECK_TOP - 0.005, 0.362, collar,
-            chamfer=1.0, drop=0.02, bottom=False)
-    for k_ in range(16):  # collar bolts
-        a = 2 * math.pi * (k_ + 0.5) / 16
-        g.prism(ell(cx + (R + 1.0) * math.cos(a), cy + (R + 1.0) * math.sin(a), 0.7, 0.7, 6), [], 0.35, 0.372, collar, bottom=False)
-    X0, Y0 = g.s.x(cx), g.s.y(cy)
-    Rw = R * PX
-
-    def P(phi, th, lift=0.0):
-        c, s = math.cos(phi), math.sin(phi)
-        p = Vector((Rw * c * math.cos(th), Rw * c * math.sin(th), DOME_H * s))
-        n = Vector((c * math.cos(th) / Rw, c * math.sin(th) / Rw, s / DOME_H)).normalized()
-        q = p + n * lift
-        return Vector((X0 + q.x, Y0 + q.y, DOME_Z0 + q.z)), n
-
-    # the shell
-    NPH, NTH = 14, 48
-    phis = [0.5 * math.pi * i / NPH for i in range(NPH)]
-    rings = [[bm.verts.new(P(ph, 2 * math.pi * j / NTH)[0]) for j in range(NTH)] for ph in phis]
-    top = bm.verts.new((X0, Y0, DOME_Z0 + DOME_H))
-    for lo, hi, ph in zip(rings, rings[1:], phis):
-        for j in range(NTH):
-            jj = (j + 1) % NTH
-            face_out(bm, (lo[j], lo[jj], hi[jj], hi[j]), seam, P(ph, 2 * math.pi * (j + 0.5) / NTH)[1], smooth=True)
-    for j in range(NTH):
-        face_out(bm, (rings[-1][j], rings[-1][(j + 1) % NTH], top), seam, (0, 0, 1), smooth=True)
-
-    # plating: the deck's basket weave (WEAVE bricks) draped over the ellipsoid, ~2 px strips
-    clip = ell(cx, cy, R - 1.0, R - 1.0, 40)
-    if ls.area(clip) < 0:
-        clip = clip[::-1]
+    RB = DOME_RB
+    plate = M(PAL_DOME, roughness=DOME_ROUGH, metallic=DOME_METAL)
+    seam = M(PAL_DOME_SEAM, roughness=DOME_SEAM_ROUGH, metallic=DOME_METAL)
 
     def zf(x, y):
-        t_ = 1 - ((x - cx) / R) ** 2 - ((y - cy) / R) ** 2
-        return DOME_Z0 + DOME_H * math.sqrt(max(0.0, t_))
+        t_ = ((x - cx) ** 2 + (y - cy) ** 2) / RB ** 2
+        return kit.PLATE_TOP + DOME_H * max(0.0, 1.0 - t_) ** DOME_EXP
 
-    nstrip = 0
-    for r_ in range(int((cy - R) // TH), int((cy + R) // TH) + 1):
-        for c_ in range(int((cx - R) // TW), int((cx + R) // TW) + 1):
-            for bx0, by0, bx1, by1 in kit.WEAVE:
-                X0, Y0, X1, Y1 = c_ * TW + bx0 + 0.3, r_ * TH + by0 + 0.3, c_ * TW + bx1 - 0.3, r_ * TH + by1 - 0.3
-                horiz = (X1 - X0) > (Y1 - Y0)
-                L = (X1 - X0) if horiz else (Y1 - Y0)
-                n = max(1, int(round(L / 2.0)))
-                cuts = [((X0 + (X1 - X0) * i / n) if horiz else (Y0 + (Y1 - Y0) * i / n)) for i in range(n + 1)]
-                for i in range(n):
-                    rect = ([(cuts[i], Y0), (cuts[i + 1], Y0), (cuts[i + 1], Y1), (cuts[i], Y1)] if horiz
-                            else [(X0, cuts[i]), (X1, cuts[i]), (X1, cuts[i + 1]), (X0, cuts[i + 1])])
-                    if ls.area(rect) < 0:
-                        rect = rect[::-1]
-                    pc = clip_convex(rect, clip)
-                    pc = kit.Geo.clean(pc)
-                    if len(pc) < 3 or abs(ls.area(pc)) < 0.15:
-                        continue
-                    pc = kit.Geo.outer(pc)
-                    tv = [g.v(px, py, zf(px, py) + 0.011) for px, py in pc]
-                    bv = [g.v(px, py, zf(px, py) - 0.004) for px, py in pc]
-                    g.face(tv, plate, smooth=False)
-                    npc = len(pc)
-                    for e in range(npc):
-                        f = (e + 1) % npc
-                        p, q = pc[e], pc[f]
-                        if any(abs(p[0 if horiz else 1] - c) < 1e-6 and abs(q[0 if horiz else 1] - c) < 1e-6 for c in cuts[1:-1]):
-                            continue
-                        g.face((bv[e], bv[f], tv[f], tv[e]), plate)
-                    nstrip += 1
-    # the boss on the crown
-    zc = DOME_Z0 + DOME_H
-    boss = M(8, roughness=0.4, metallic=0.55)
-    g.prism(ell(cx, cy, 4.2, 4.2, 18), [], zc - 0.04, zc + 0.006, boss, chamfer=0.8, drop=0.012, bottom=False)
-    g.dome(cx, cy, 2.4, 2.4, zc + 0.004, 0.014, boss, n=12, rings=2)
-    return nstrip
+    clip = ell(cx, cy, RB, RB, 96)
+    if ls.area(clip) < 0:
+        clip = clip[::-1]
+    xs = sorted(c * TW + v for c in range(int((cx - RB) // TW), int((cx + RB) // TW) + 1) for v in WEAVE_XS + [TW])
+    ys = sorted(r * TH + v for r in range(int((cy - RB) // TH), int((cy + RB) // TH) + 1) for v in WEAVE_YS + [TH])
+    xs = sorted({v for v in xs if cx - RB - 4 <= v <= cx + RB + 4})
+    ys = sorted({v for v in ys if cy - RB - 4 <= v <= cy + RB + 4})
+
+    cache = {}
+
+    def vert(x, y):
+        key = (round(x, 4), round(y, 4))
+        if key not in cache:
+            joint = in_joint(x, y)
+            cache[key] = (g.v(x, y, zf(x, y)), joint)
+        return cache[key]
+
+    faces = []
+    for x0, x1 in zip(xs, xs[1:]):
+        for y0, y1 in zip(ys, ys[1:]):
+            rect = [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
+            if ls.area(rect) < 0:
+                rect = rect[::-1]
+            far = max(math.hypot(px - cx, py - cy) for px, py in rect)
+            near_x, near_y = min(max(cx, x0), x1), min(max(cy, y0), y1)
+            if math.hypot(near_x - cx, near_y - cy) >= RB:
+                continue
+            pc = rect if far <= RB else kit.Geo.clean(clip_convex(rect, clip))
+            if len(pc) < 3 or abs(ls.area(pc)) < 0.02:
+                continue
+            vs = [vert(px, py) for px, py in pc]
+            if len({id(v) for v, _ in vs}) < 3:
+                continue
+            joint = any(j for _, j in vs)
+            f = face_out(bm, [v for v, _ in vs], seam if joint else plate, (0, 0, 1), smooth=True)
+            if f is not None:
+                faces.append(f)
+    fset = set(faces)
+    rim = [e for e in {e for f in faces for e in f.edges} if sum(f in fset for f in e.link_faces) == 1]
+    # the skirt: the rim straight down to the deck
+    drop = {}
+    for e in rim:
+        a, b_ = e.verts
+        for v in (a, b_):
+            if v not in drop:
+                drop[v] = bm.verts.new((v.co.x, v.co.y, kit.DECK_TOP - 0.004))
+        mx, my = (a.co.x + b_.co.x) / 2 - g.s.x(cx), (a.co.y + b_.co.y) / 2 - g.s.y(cy)
+        face_out(bm, (a, b_, drop[b_], drop[a]), seam, (mx, my, 0))
+    return len(faces)
 
 
 # ---------------------------------------------------------------- build
@@ -382,6 +393,9 @@ def measure(b, red):
     reg["orb eyes"] = tm(orbw & ((grid >> 4) == 7))
     dome = (xx - DOME_C[0]) ** 2 + (yy - DOME_C[1]) ** 2 <= DOME_R ** 2
     reg["dome"] = tm(dome)
+    joint = np.vectorize(in_joint)(xx, yy)
+    reg["dome bricks"] = tm(dome & ~joint)  # PAL_DOME
+    reg["dome joints"] = tm(dome & joint)  # PAL_DOME_SEAM
     l347 = np.zeros((H, W), bool)
     l339 = np.zeros((H, W), bool)
     for c, cl in feats["lights"].items():
@@ -412,7 +426,7 @@ def build(bake=True, preview=None):
     orbs = np.zeros((H, W), bool)
     for (ox, oy), _, _ in feats["orbs"]:
         orbs |= (xx - ox) ** 2 + (yy - oy) ** 2 <= 12 ** 2
-    dome = (xx - DOME_C[0]) ** 2 + (yy - DOME_C[1]) ** 2 <= (DOME_R + 3.0) ** 2
+    dome = (xx - DOME_C[0]) ** 2 + (yy - DOME_C[1]) ** 2 <= DOME_RB ** 2
     parts = orbs | dome
     k.rock_layout(fp, dm, exclude=kit.dil4(parts | band, 2))
     k.kerb(dm, no_post=kit.dil4(parts, 2) | band)
