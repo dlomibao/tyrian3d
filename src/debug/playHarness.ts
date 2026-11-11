@@ -9,6 +9,10 @@
 //                                  Phoenix, 5 MicroCorp Stalker, 10 U-Ship, 11 Silver Ship, 12 Nort Ship)
 //   &cycle=S                       change the front weapon every S seconds (through a few favourites)
 //   &seed=N                        the random seed, so two runs play the same (default 1)
+//   &difficulty=N                  the game's difficulty (g.difficultyLevel: 1 easy, 2 normal, the
+//                                  default, 3 hard, 4 impossible, ...); &hard=1 is &difficulty=3. The
+//                                  episode scripts branch on it: episode 1's ]h[ and ]H[ (sections 3
+//                                  and 10) give TYRIAN (1.15) and SAVARA (1.12) only on hard and up
 //   &skip=T                        fast-forward T ticks before showing anything
 //   &freezeAt=T                    stop the game (and the effects' clock) at tick T, for screenshots
 //   &vfx=original|remastered       the shot and explosion look (D35)
@@ -43,7 +47,7 @@ import { clearSimInput, simInput } from "../sim/input";
 import { mt_srand } from "../sim/mtrand";
 import { newOnePlayerGame } from "../sim/newgame";
 import { buildResources, requireFile } from "../sim/resources";
-import { g } from "../sim/state";
+import { DIFFICULTY_HARD, DIFFICULTY_NORMAL, g } from "../sim/state";
 import { loadLevel } from "../sim/tyrian2";
 import { JE_drawOptions } from "../sim/varz";
 import type { View } from "../render/view";
@@ -69,7 +73,7 @@ export async function runPlayHarness(view: View): Promise<void> {
   g.res = buildResources(files, episode);
   loadHelpText(requireFile(files, "tyrian.hdt"));
   view.setPalettes(g.res.palettes);
-  newOnePlayerGame(episode);
+  newOnePlayerGame(episode, num("difficulty", params.get("hard") === "1" ? DIFFICULTY_HARD : DIFFICULTY_NORMAL));
   loadLevel(files, episode, num("main", g.mainLevel));
 
   const p = g.player[0];

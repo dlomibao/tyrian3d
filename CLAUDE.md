@@ -36,8 +36,8 @@ tools/build-models.sh [-j N] [-p previewdir] [-n] script.py ...   # Blender head
 
 ## Harness URLs (dev server)
 - `?debug=play` real level, bot flying: `&episode=E&main=N &seed=1 &skip=T &freezeAt=T &front=ID&power=P&rear=ID
-  &left=ID&right=ID &armor=N` (<6 brings the armour ship) `&solid=1 &steer=left|right &stress=N &preload=0
-  &camera=overhead|tilted|steep &interface=frame|minimal`. Global `tyrianHarness` exposes the draw list.
+  &left=ID&right=ID &armor=N` (<6 brings the armour ship) `&difficulty=N` (`&hard=1` = 3, for 1.12 and 1.15) `&solid=1 &steer=left|right &stress=N
+  &preload=0 &camera=overhead|tilted|steep &interface=frame|minimal`. Global `tyrianHarness` exposes the draw list.
   Header of `src/debug/playHarness.ts` lists all.
 - `?debug=level&episode=E&main=N&front=ID:P&sidekick=L,R&skip=N&god=1` (`src/debug/levelHarness.ts`).
 - `?viewer=<model>` sprite vs model; `?debug=models&model=a,b&flash=1`; `?debug=sprites`.
