@@ -482,7 +482,7 @@ def build(bake=True, preview=None):
     k.g = base_g
     objects += cover
 
-    b.finish(objects, fp, bake=bake, preview=preview)
+    b.finish(objects, fp, bake=bake, preview=preview, grit=kit.GRIT)
 
 
 argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []

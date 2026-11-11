@@ -897,7 +897,7 @@ class Building:
               f"art only {(ref & ~cov).sum() / scale ** 2:.0f} px)")
         return iou
 
-    def bake_model(self, objects, size=None, samples=48, ground=None, out_dir=None, ao=(0.025, 0.16)):
+    def bake_model(self, objects, size=None, samples=48, ground=None, out_dir=None, ao=(0.025, 0.16), grit=None):
         """The model's own AO/roughness bake (D65: no concept projection, `"bake": "model"`). The
         non-plain faces of `objects` are joined into one object and baked; faces in plain
         materials (the island rock, Structure.rock) go to a second object, unbaked, as they must
@@ -909,6 +909,15 @@ class Building:
         apply; open flat tops stay at the palette colour), and roughness/metal (G/B) from the
         material's own values, rougher in crevices. `size` (px) defaults to about 5 texels per
         pattern px, 1024..4096. Returns the objects to export (pass them to export(..., baked=True)).
+
+        `grit` (a dict, None for the plain bake above): a worn, gritty finish (ASTEROID?'s station
+        kit, lib_l1kit.GRIT): "floor" / "occl" / "edge" the colour multiplier's terms (floor + occl
+        x AO + edge x edge lift, capped at 1: a deeper occlusion than the plain bake's 0.62 + 0.45),
+        "grime" the most a grime mottle darkens by (object-space noise: stains at "scale" per unit
+        and a speckle 4.5 times finer, mixed with a random value per connected piece weighted
+        "island", so each brick or post wears differently: the atlas is too coarse to carry a
+        finer noise on small parts), and "rough" how much the same mottle spreads the roughness (+-). Darkening only, so no face
+        ever reads lighter than its palette index (highlights stay sheen).
 
         Cover parts (D139: objects with the custom properties `tyrian_cell` / `tyrian_when`, drawn
         per cell only while a ground enemy covers it, or only while none does) are baked in the same
@@ -977,7 +986,7 @@ class Building:
             o.hide_render = True
         try:
             _bake(hard, size, samples, ao, Path(out_dir or tempfile.mkdtemp(prefix=f"{base}_bake_")),
-                  skip={i for i, m in enumerate(materials) if i in plain or _emissive(m)})
+                  skip={i for i, m in enumerate(materials) if i in plain or _emissive(m)}, grit=grit)
         finally:
             for o in others:
                 o.hide_render = False
@@ -989,20 +998,20 @@ class Building:
         return out
 
     def finish(self, objects, mask, bake=True, preview=None, ground="layer", size=None, ao=(0.025, 0.16), samples=48,
-               name=None, strict=True):
+               name=None, strict=True, grit=None):
         """The hard-surface standard's last steps in one call (D141): check() (heights; `strict`
         raises), top_iou() against `mask` (bool, pattern px at 1x: what the art paints for the
         model's own parts), bake_model() (`ground` "layer": an occluder at z = 0 on layer 0, the HD
         ground the structure stands on, D86; none on layer 2, where the plain island rock occludes),
         a preview (lib_tiles.preview: the tiles | top view | game view | three-quarter, into the
         folder `preview`, as tools/build-models.sh -p passes it), and export(..., baked=bake).
-        Prints and returns {"iou", "triangles", "glb_bytes"}."""
+        `grit`: bake_model's worn finish (lib_l1kit.GRIT). Prints and returns {"iou", "triangles", "glb_bytes"}."""
         self.check(objects, strict=strict)
         iou = self.top_iou(objects, mask)
         if ground == "layer":
             ground = 0.0 if self.layer == 0 else None
         if bake:
-            objects = self.bake_model(objects, size=size, samples=samples, ground=ground, ao=ao)
+            objects = self.bake_model(objects, size=size, samples=samples, ground=ground, ao=ao, grit=grit)
         tris = sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in objects if o.type == "MESH")
         if preview:
             lt.preview(self.ts, objects, self.pattern, Path(preview) / f"{SHAPES}-{self.prefix}-{name or self.name}.png", view_px=480)
@@ -1092,9 +1101,9 @@ def _emissive(m):
     return bsdf is not None and bsdf.inputs["Emission Strength"].default_value > 0
 
 
-def _bake(obj, size, samples, ao, out_dir, skip):
+def _bake(obj, size, samples, ao, out_dir, skip, grit=None):
     """AO/roughness bake of one object onto a "bake" UV map (as the enemies' bake_maps, D65), wired
-    into its materials except the slots in `skip`."""
+    into its materials except the slots in `skip`; `grit` as Building.bake_model."""
     scene = bpy.context.scene
     try:
         scene.render.engine = "CYCLES"
@@ -1177,12 +1186,40 @@ def _bake(obj, size, samples, ao, out_dir, skip):
                    mth("ADD", 0.6, mth("MULTIPLY", ao_l.outputs["AO"], 0.4)))
         em = node("ShaderNodeEmission")
         comb = node("ShaderNodeCombineColor")
+        mottle = None
+        if grit:
+            # grime: two octaves of object-space noise, 0 (clean) .. 1 (grimiest patch)
+            tc = node("ShaderNodeTexCoord")
+            nz = node("ShaderNodeTexNoise")
+            nz.inputs["Scale"].default_value = grit.get("scale", 6.0)
+            nz.inputs["Detail"].default_value = 6.0
+            nz.inputs["Roughness"].default_value = 0.62
+            nt.links.new(tc.outputs["Object"], nz.inputs["Vector"])
+            nz2 = node("ShaderNodeTexNoise")
+            nz2.inputs["Scale"].default_value = grit.get("scale", 6.0) * 4.5
+            nz2.inputs["Detail"].default_value = 3.0
+            nt.links.new(tc.outputs["Object"], nz2.inputs["Vector"])
+            # stains (the coarse octave), speckle (the fine one), each 0..1 above its noise's middle,
+            # and a random value per connected piece (a brick, a post: each plate worn differently)
+            stain = mth("MINIMUM", mth("MAXIMUM", mth("MULTIPLY", mth("SUBTRACT", nz.outputs["Fac"], 0.48), 6.0), 0.0), 1.0)
+            speck = mth("MINIMUM", mth("MAXIMUM", mth("MULTIPLY", mth("SUBTRACT", nz2.outputs["Fac"], 0.48), 6.0), 0.0), 1.0)
+            isl = geo.outputs["Random Per Island"]
+            wi = grit.get("island", 0.0)
+            mottle = mth("MINIMUM", mth("ADD", mth("ADD", mth("MULTIPLY", stain, 0.6 * (1 - wi)), mth("MULTIPLY", speck, 0.4 * (1 - wi))),
+                                        mth("MULTIPLY", isl, wi)), 1.0)
         if mode == "colour":
-            val = mth("MINIMUM", mth("ADD", mth("ADD", 0.62, mth("MULTIPLY", occl, 0.45)), mth("MULTIPLY", edge, 0.12)), 1.0)
+            if grit:
+                val = mth("MINIMUM", mth("ADD", mth("ADD", grit["floor"], mth("MULTIPLY", occl, grit["occl"])),
+                                         mth("MULTIPLY", edge, grit["edge"])), 1.0)
+                val = mth("MULTIPLY", val, mth("SUBTRACT", 1.0, mth("MULTIPLY", mottle, grit["grime"])))
+            else:
+                val = mth("MINIMUM", mth("ADD", mth("ADD", 0.62, mth("MULTIPLY", occl, 0.45)), mth("MULTIPLY", edge, 0.12)), 1.0)
             for k in range(3):
                 nt.links.new(val, comb.inputs[k])
         else:
             r = mth("ADD", rough, mth("SUBTRACT", mth("MULTIPLY", mth("SUBTRACT", 1.0, occl), 0.3), mth("MULTIPLY", edge, 0.14)))
+            if grit:
+                r = mth("ADD", r, mth("MULTIPLY", mth("SUBTRACT", mottle, 0.5), 2.0 * grit["rough"]))
             r = mth("MAXIMUM", mth("MINIMUM", r, 1.0), 0.05)
             comb.inputs[0].default_value = 1.0
             nt.links.new(r, comb.inputs[1])

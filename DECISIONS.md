@@ -6541,3 +6541,100 @@ Test: `tests/render/sparkScreen.test.ts` (JE_drawSP's records, the C's formula, 
 background 2's see-through index, a blended tile and an earlier spark). Captures, 3840x2160:
 `tyrian-scratch/qa3-renderer/` (`before/`, `after-n3/`, `cmp/n3_*`: left before, right after; 1.14 t2680 and 1.6
 t1050, each remastered and `&vfx=original`).
+
+## D148 — ASTEROID?'s station kit made gritty: bevelled worn bricks on dark seams, the channels as dirt, lit rock facets, a worn bake; the cross pad's rock mound from the kit (fixes QA round 3 N2; extends D141, D143, D136)
+
+2026-11-11
+
+**Problem** (QA round 3, N2, `tyrian-scratch/e1-qa-3/`): on 1.3 ASTEROID? the station kit D141 and D143 built (base
+complex, cross pad, pipe junction, bunker, light bridge, red bar, ring dome) read flat and toy-like. Compared with the
+original (`&terrain=original&bg=original`) at 4K:
+- *Paving:* the weave's bricks were flat faces 0.008 over a mortar plate, all one grey. The art paints every brick as
+  a lit edge, a body and a dark trailing edge (tile 371: bricks median 6, spread 4-10; seams median 3, some 2), so the
+  original reads as raised, worn plating with near-black seams.
+- *Channels:* the art's channel tiles (389, 379 and the rest) are dark earth (3, 4, 5) with rust mud winding through it
+  (164, 21, 163, 165). The base complex built them as a brown grating with bright squares, the pipe junction as rust
+  pavers in running bond: the brick mosaic at t2550.
+- *Rocks:* crowns one grey (5) with a few 6/7 facets, sides 4. The art's rim band spreads 3:24% 4:19% 5:16% 6:13% 7:11%
+  8:9%, so its stones read lit and craggy.
+- *Bake:* the AO multiplier never went under 0.62 of the palette colour, so seams and crevices stayed mid grey, and
+  nothing varied from brick to brick.
+- *Kerb:* identical rectangles, like sleepers.
+- *Style clash at t2550:* the cross pad's rock was the HD ground's painting (keepTiles), lighter and painterly, beside
+  the kit's polygon rocks a few rows below. Its body was an octagon of invented machinery quadrants (D141's follow-up)
+  where the art paints rock round the cross.
+
+**Decision** (kit level, `lib_l1kit.py` / `lib_l1bld.py`; every ASTEROID? station model builds with it):
+- `Kit.paving`: a groove floor in the seams' index (3) at `SEAM_TOP` 0.318, and on it each `WEAVE` brick a bevelled
+  block 0.027 proud (a frustum, `BEVEL` 0.55 px all round, about 30 degrees), its top jittered +-0.003, a third of them
+  chipped at a corner. In the game's light the bevels give each brick the art's lit edge, body and dark trailing edge
+  as sheen and shade on the shape, as D136's rounded rails did (art rule 2). The bricks stay index 6 (the art's median),
+  satin (roughness 0.5) so worn patches catch the light.
+- `Kit.channels` → `Kit.dirt`: a jittered triangle grid (2 px cells), smooth shaded, with DIRT_AMP of value noise. The
+  mud is raised a little and the art's darkest px sunk. Each triangle is coloured by the mud's blurred density (sigma
+  1.4 px, so the mud reads as blobs, not a mosaic): the mud's local median (163-165, 21 where the art paints bright
+  clods), a darker rim (163), or the earth (3, or 2 where the art is darkest). A skirt closes the outline, and small
+  plain pebbles are scattered on the earth. The pipe junction's channel floor uses it too (its pavers are gone, the
+  sluice steps kept).
+- `facet_index` (the game's sun from `src/render/view.ts`, (-6, 20, 8.4)): a plain facet's index from how it faces the
+  sun, 3 in shadow to 8 lit, round the band's median 5. This is the rubric's rock rule (lit faces) and D141's
+  follow-up ("more 6/7, some 8 up-sun, sides to 3"). `Kit.stone` adds a crown ring, so a stone has more facets. The
+  kerb posts use the same ramp, one step up (their median 7), each a little different in size, lean and height. The
+  pipe junction's boulders use it round each stone's own art index.
+- `Building.bake_model(..., grit=)` / `finish(grit=)`: opt-in. Without `grit` the bake is unchanged, so TYRIAN's
+  structures and the enemies are not affected. `lib_l1kit.GRIT` sets:
+  - the colour multiplier to 0.42 + 0.64 x AO + 0.2 x edge, capped at 1 (the plain bake is 0.62 + 0.45 x AO);
+  - a grime mottle that only darkens, at most 24%: stains about 9 px, a 2 px speckle, and Cycles' Random Per Island,
+    so each brick, post or stone wears differently (the 2048 atlas is too coarse to carry a fine noise on the small
+    parts);
+  - the roughness spread +-0.2 by the same mottle.
+  No face reads lighter than its palette index, and there is no concept projection (`"bake": "model"`, art rule 4).
+- *Cross pad* (`l1bld_cross_pad.py`): the invented octagon body is gone. The mound is the kit's: the rubble bed over the
+  whole painted footprint, `Kit.rock_field` (new: rock_layout's stones over a whole area, not only the rim band) over
+  all of it but a 6 px strip round the arms, and the strip as deck with the kerb comb facing the rock. D141's cross
+  (slab, capsules, core) is unchanged. Its IoU mask is now the footprint, not the body.
+- *Base complex*: its inline copies of the kerb, grating, paving and rocks are replaced by the kit's
+  (`kt = kit.Kit(s); kt.g = g`), with the same layout, channel boxes and join.
+- Kept: D139's twelve cover parts (`cell-1-{2..7}-{open,covered}`; the lids are now the bevelled paving), D145's dome,
+  every `src/render/tileModels/*.json`, `"bake": "model"`.
+
+**Measured:**
+
+| Model | Top-view IoU | Triangles (was) | GLB MB (was) |
+|---|---|---|---|
+| l1bld_base_complex | 0.9888 | 110.6k (59.0k) | 9.15 (5.25) |
+| l1bld_pipe_junction | 0.992 | 30.9k (24.0k) | 3.07 (2.60) |
+| l1bld_cross_pad | 0.981 (footprint) | 11.3k (11.4k) | 0.92 (0.78) |
+| l1bld_bunker | 0.983 | 8.9k (7.0k) | 0.76 (0.55) |
+| l1bld_red_bar | 0.976 | 6.9k (5.7k) | 0.55 (0.42) |
+| l1bld_ring_dome | 0.979 | 21.1k (16.7k) | 1.64 (1.20) |
+| l1bld_light_bridge | 0.985 | 23.9k (20.3k) | 1.76 (1.41) |
+
+- IoU is `top_iou` at 2x, measured with `--no-bake` builds of the same scripts in a throwaway root. The seven GLBs go
+  from 12.2 to 17.9 MB, most of it the base complex's dirt (30k triangles) and bevelled bricks (2.5k bricks).
+- Built with `tools/build-models.sh -j 2 -p`: exit 0, seven fresh GLBs (06:00-06:05), each with its `exported` line.
+- Play field luminance (1920x1080, black space left out; original | before | after):
+  - p90: 120-140 | 106-110 | 109-119;
+  - p10-p90 spread: about 100-120 | 89-93 | 92-102;
+  - median: 58-64 | 40-52 | 37-44.
+  The range widened toward the original's, and the seams and crevices are darker as the art's. The median stays under
+  the original's, as before: the 3D kit is lit, the art is drawn at full palette value.
+
+**Options considered:**
+- *Per-brick palette indices 5/6/7:* every brick of tile 371 has median 6, so this would break art rule 1. The per-piece
+  wear in the bake varies the bricks without changing the index.
+- *Fine grime noise only:* invisible, because the bricks' atlas islands are about 10 texels.
+- *Dirt coloured per triangle from the art's pixels:* a confetti mosaic (tried at sigma 0.9 with flat shading).
+- *Bringing the top corners at t2550 into the kit:* they are terrain tiles (370-372, HD paintings), not a structure
+  pattern. They stay painted.
+- *A first GRIT* (floor 0.36, grime 0.36): darkened the median below main's. It was lightened to the values above.
+
+**Not done / follow-ups:**
+- The HD-painted terrain tiles round the kit (t2550's top corners) are still a painterly style beside polygon rocks.
+  Matching them needs terrain models or repainted tiles.
+- The pipe junction's masonry stays running-bond bricks (bevelled now). The art paints lighter stacked blocks.
+- The base complex is 9.15 MB. A coarser dirt grid (2.5 px) or merged brick tops would cut it if size matters.
+- `remaster.test.ts`'s pattern-scan test still hits its in-test 60 s timeout on a loaded machine (D141). It passes alone.
+
+Sheets (original | before | after): `tyrian-scratch/asteroidq-kit/sheets/1.3_t{300,1050,1750,2550,3310,3515}.jpg`,
+`sheets/stats.txt`; 4K crops `crops/1.3_t*_4k_*.jpg`; captures `shots/`, `shots4k/` (not in git, D3).

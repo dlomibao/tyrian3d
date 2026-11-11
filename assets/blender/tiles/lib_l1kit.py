@@ -6,22 +6,26 @@ pipe junction round it. One `Kit(b)` per lib_l1bld.Building; every part goes int
 
     section through a platform's rim, outside -> in (z in units, 1 unit = 12 px, z = 0 the HD ground):
 
-      stones 0.36..0.47 (<= 0.374 on enemy cells)     kerb posts 0.366   bricks 0.345   grating 0.314
-        __    __    __                                     ||  ||  ||    ______  ______    _ _
-   ____/  \__/  \__/  \_ bed top 0.14 (rubble, pal 2) _____||__||__||___|______||______|__| | |_ deck 0.30
-  /  talus chamfer                                                                       (joints, pal 3)
+      stones 0.36..0.47 (<= 0.374 on enemy cells)     kerb posts ~0.366   bricks 0.345   dirt ~0.306
+        __    __    __                                     ||  ||  ||    _/\_/\_/\_    ~~~~~~~~~
+   ____/  \__/  \__/  \_ bed top 0.14 (rubble, pal 2) _____||__||__||___|seams 0.318|__|        |_ deck 0.30
+  /  talus chamfer                                                                       (pal 3)
  /_____________________________________________________________ slab bottom -0.04 (closed)
 
-Order (as the base complex): masks -> bed() -> deck() -> rock_layout() -> kerb() -> channels() ->
-paving() -> rocks() -> the building's own parts (lens(), pod(), round_hatch(), blasted_hatch(), or
-the script's own with kit.g.prism / dome / cyl_y) -> objects(). Pixel coordinates are pattern px at
-1x (top-left (0, 0), y down), as lib_l1bld. The art's palette indices for the shared parts are the
-base complex's measured medians (PAL_* below); measure a building's own parts from its tiles
-(b.grid, lb.Building.m(index)). Rocks, kerb posts and grating are plain (unbaked: their tiny faces
-crowd and bleed in the AO atlas), everything else takes the model's own AO bake (bake_model).
+Order (as the base complex): masks -> bed() -> deck() -> rock_layout() (or rock_field()) -> kerb() ->
+channels() -> paving() -> rocks() -> the building's own parts (lens(), pod(), round_hatch(),
+blasted_hatch(), or the script's own with kit.g.prism / dome / cyl_y) -> objects(). Pixel
+coordinates are pattern px at 1x (top-left (0, 0), y down), as lib_l1bld. The art's palette indices
+for the shared parts are the base complex's measured medians (PAL_* below); measure a building's own
+parts from its tiles (b.grid, lb.Building.m(index)). Rocks, kerb posts and pebbles are plain
+(unbaked: their tiny faces crowd and bleed in the AO atlas) and take their index per facet from the
+game's sun (facet_index); everything else takes the model's own AO bake with the kit's worn finish
+(bake_model / finish with grit=GRIT).
 
-The base complex keeps its own copy of the higher-level parts (inline in its build()); the pixel
-helpers, Geo, rbox and ell are the same code.
+D148 (QA round 3, N2: the kit read flat and toy-like): bevelled, worn bricks on a dark groove floor
+(paving), the channel tiles as dirt, not a grating or bricks (dirt), the rocks' facet ramp, jittered
+kerb posts, the GRIT bake. The base complex, the cross pad and the pipe junction (its dirt and
+boulder ramp) build with these parts too.
 """
 
 import math
@@ -41,10 +45,14 @@ BOTTOM = -0.04
 BED_TOP = 0.14
 DECK_TOP = 0.300
 PLATE_TOP = 0.345  # brick tops
-MORTAR_TOP = 0.337  # the mortar plate under the bricks
-CH_TOP = 0.314  # grating bars
+MORTAR_TOP = 0.337  # the mortar plate's old top (D143; the bunker's glacis still starts here)
+SEAM_TOP = 0.318  # the weave's groove floor (D148: the bricks stand 0.027 proud, bevelled)
+BEVEL = 0.55  # px: a brick's bevel all round (30 degrees): the art's light edge | body | dark edge
+CH_TOP = 0.314  # grating bars (D143; unused since D148's dirt)
 CH_FILL = 0.303  # the brown fill under them
 CH_SQ = 0.307  # the bright squares
+DIRT_Z = 0.306  # the channels' dirt (D148): its mean height, +- DIRT_AMP of noise
+DIRT_AMP = 0.009
 CAV_FLOOR = 0.12  # a blasted hatch's cavity floor
 KERB_TOP = 0.366
 LENS_TOP = 0.350  # a light's housing top (its lens domes 0.026 above)
@@ -58,6 +66,21 @@ PAL_ROCK, PAL_ROCK_DARK, PAL_ROCK_SHEEN, PAL_ROCK_HI = 5, 4, 6, 7
 PAL_LENS, PAL_LENS_FAT, PAL_HOUSING, PAL_POD, PAL_EYE = 113, 114, 8, 8, 113
 PAL_RH_DISC, PAL_RH_SPOKE, PAL_RH_CLAMP, PAL_RH_SEAT, PAL_FRAME = 1, 4, 163, 3, 9
 PAL_LEAF, PAL_PIT, PAL_EMBER, PAL_SOCKET = 7, 1, 113, 1
+# the channel tiles' dirt (389, 379 measured between the kerb blocks): grey floor 3 (4, 5, a few 2),
+# rust mud 164 (163 dark, 165, 21 the bright clods)
+DIRT_GREY, DIRT_BROWN = (2, 3, 4, 5), (163, 164, 165, 21)
+
+# D148: the kit's worn finish (lib_l1bld.bake_model `grit`): occlusion down to 0.42 of the palette
+# colour (the plain bake stops at 0.62, so the seams and crevices stayed mid grey), a stronger edge
+# lift (the bevels' sheen), and a grime mottle (stains about 9 px, a speckle about 2 px, and a
+# random wear per brick, post or stone: "island") darkening up to 24%, spreading the roughness +-0.2
+# (worn patches catch the light as sheen). Every ASTEROID? station model passes it.
+GRIT = dict(floor=0.42, occl=0.64, edge=0.2, grime=0.24, rough=0.2, scale=1.4, island=0.65)
+
+# The game's sun (src/render/view.ts: (-6, 20, 8.4) in three's frame) in model space: from the
+# left and from the camera's side (screen-down), high. Rock facets take their index by how they
+# face it (lit faces, rubric), so the stones get the art's spread of greys.
+SUN = (-6.0 / 22.47, -8.4 / 22.47, 20.0 / 22.47)
 
 # ---- channels (the art's 389 / 379 strips; the base complex and the pipe junction use the same) ----
 CH_X, CH_Y = 11.0, 13.5
@@ -318,6 +341,17 @@ def in_poly(px_, py_, poly):
     return c_
 
 
+def facet_index(normal, bias=0.0):
+    """A rock facet's palette index from how it faces the game's sun (SUN): the art's rim band
+    spreads 3 (shadowed undersides) .. 8 (lit crowns) with the median 5; lit faces take the light
+    end, faces turned away the dark end (D141's follow-up: more 6/7, some 8 up-sun, sides to 3)."""
+    lam = normal.x * SUN[0] + normal.y * SUN[1] + normal.z * SUN[2] + bias
+    for lim, idx in ((0.97, 8), (0.93, 7), (0.85, 6), (0.7, 5), (0.45, 4)):
+        if lam >= lim:
+            return idx
+    return 3
+
+
 # ======================================================================= the kit
 
 class Kit:
@@ -335,7 +369,7 @@ class Kit:
             mortar=M(PAL_MORTAR, roughness=0.9),
             mortar_plate=M(PAL_MORTAR, roughness=0.85, metallic=0.05),
             kerb=M(PAL_KERB, roughness=0.6, metallic=0.25, plain=True),
-            pave=M(PAL_PAVE, roughness=0.7, metallic=0.1),
+            pave=M(PAL_PAVE, roughness=0.5, metallic=0.1),  # satin (D148): worn patches catch the light
             chan=M(PAL_CHANNEL, roughness=0.55, metallic=0.35),
             grate=M(PAL_GRATE, roughness=0.8, metallic=0.15, plain=True),
             square=M(PAL_SQUARE, roughness=0.8, metallic=0.1, plain=True),
@@ -359,6 +393,10 @@ class Kit:
             pit=M(PAL_PIT, roughness=0.95),
             ember=M(PAL_EMBER, roughness=0.4, emission_strength=1.5),
         )
+        # D148: the dirt's palette (each its own roughness), the rocks' facet ramp (plain, unbaked)
+        self.mat.update({f"dirt{i}": M(i, roughness=0.95) for i in DIRT_GREY + DIRT_BROWN})
+        self.mat.update({f"rock{i}": M(i, roughness=0.9 if i < 6 else 0.8, plain=True) for i in range(2, 11)})
+        self.mat["pebble"] = M(PAL_ROCK, roughness=0.9, plain=True)
         self.stones = []  # rock_layout(): [x, y, rad, kind, foot polygon (pattern px)]
 
     def box(self, x0, y0, x1, y1):
@@ -399,12 +437,22 @@ class Kit:
         chain of angular stones (about 9-10 px across) down the middle of the ROCK_BAND, small stones
         in its gaps, each leaving a crevice of the dark bed round it, as the art's near-black gaps.
         `exclude` (bool px) keeps stones away (an open edge, a part of the building's own)."""
-        H, W, rng = self.H, self.W, self.rng
-        yy, xx = np.mgrid[0:H, 0:W] + 0.5
         dep = lb.depth(fp)
         bandm = fp & (dep <= ROCK_BAND)
         if exclude is not None:
             bandm &= ~exclude
+        return self._layout(fp, deck_mask, bandm & (dep >= 5) & (dep <= 7), bandm & (dep >= 2) & (dep <= 11))
+
+    def rock_field(self, mask, fp, deck_mask, rmax=6.5):
+        """rock_layout() over a whole area of rock (`mask`, e.g. the cross pad's mound round its
+        cross; D148), not just the rim band: chain-sized stones on a jittered grid about 9-12 px
+        apart wherever the area is 3 px deep, small stones in their gaps; built by rocks()."""
+        dep = lb.depth(mask)
+        return self._layout(fp, deck_mask, mask & (dep >= 3), mask & (dep >= 1), rmax=rmax)
+
+    def _layout(self, fp, deck_mask, chain_at, small_at, rmax=5.8):
+        H, W, rng = self.H, self.W, self.rng
+        yy, xx = np.mgrid[0:H, 0:W] + 0.5
         taken = []
         block = np.zeros((H, W), bool)
         cover = np.zeros((H, W), bool)
@@ -414,7 +462,7 @@ class Kit:
             ya, yb, xa, xb = max(0, int(y) - ri), min(H, int(y) + ri + 1), max(0, int(x) - ri), min(W, int(x) + ri + 1)
             mask[ya:yb, xa:xb] |= (yy[ya:yb, xa:xb] - y) ** 2 + (xx[ya:yb, xa:xb] - x) ** 2 <= r * r
 
-        ys, xs = np.nonzero(bandm & (dep >= 5) & (dep <= 7))
+        ys, xs = np.nonzero(chain_at)
         for k in rng.permutation(len(ys)):
             if block[ys[k], xs[k]]:
                 continue
@@ -426,10 +474,10 @@ class Kit:
             for t in taken:
                 d = np.sort(np.hypot(ta[:, 0] - t[0], ta[:, 1] - t[1]))[1:3]
                 d = d if len(d) else np.array([10.0])
-                t[2] = float(np.clip(0.45 * d.mean() * (0.92 + 0.16 * rng.random()), 3.8, 5.8))
+                t[2] = float(np.clip(0.45 * d.mean() * (0.92 + 0.16 * rng.random()), 3.8, rmax))
                 stamp(cover, t[0], t[1], t[2] * 1.05)
         block = dil_disk(cover, 1)
-        ys, xs = np.nonzero(bandm & (dep >= 2) & (dep <= 11) & ~dil_disk(cover, 2))
+        ys, xs = np.nonzero(small_at & ~dil_disk(cover, 2))
         for k in rng.permutation(len(ys)):
             if block[ys[k], xs[k]]:
                 continue
@@ -515,22 +563,38 @@ class Kit:
             if any(in_poly(px_, py_, feet[k]) for k in near for px_, py_ in corners + [(cx_, cy_)]):
                 continue
             kept.append((cx_, cy_))
+            # D148: no two posts alike (the art's stubs are worn stones, not sleepers): size, lean and
+            # height jittered, the top a little tilted, each face in the kit's facet ramp (median 7)
+            sw, sl = 0.85 + 0.3 * self.rng.random(), 0.85 + 0.3 * self.rng.random()
+            rot = (self.rng.random() - 0.5) * 0.3
+            cr, sr = math.cos(rot), math.sin(rot)
+            corners = [(cx_ + (dx * cr - dy * sr), cy_ + (dx * sr + dy * cr))
+                       for dx, dy in ((px_ - cx_, py_ - cy_) for px_, py_ in
+                                      [(cx_ + tx * a_ * hw * sw + nx * b_ * hl * sl, cy_ + ty * a_ * hw * sw + ny * b_ * hl * sl)
+                                       for a_, b_ in ((-1, -1), (1, -1), (1, 1), (-1, 1))])]
             quad = Geo.outer(corners)
-            ztop = KERB_TOP + 0.004 * ((len(kept) % 3) - 1)
+            ztop = KERB_TOP - 0.006 + 0.012 * self.rng.random()
+            tl = [(self.rng.random() - 0.5) * 0.01 for _ in range(4)]
             lo_ = [g.v(px_, py_, DECK_TOP - 0.005) for px_, py_ in quad]
-            hi_ = [g.v(px_, py_, ztop) for px_, py_ in quad]
-            g.face(hi_, self.mat["kerb"])
+            hi_ = [g.v(px_, py_, ztop + d_) for (px_, py_), d_ in zip(quad, tl)]
+            faces = [g.face(hi_, self.mat["kerb"])]
             for i in range(4):
                 j = (i + 1) % 4
-                g.face((lo_[i], lo_[j], hi_[j], hi_[i]), self.mat["kerb"])
+                faces.append(g.face((lo_[i], lo_[j], hi_[j], hi_[i]), self.mat["kerb"]))
+            for f in faces:
+                if f is not None:
+                    f.normal_update()
+                    f.material_index = self.mat[f"rock{min(9, facet_index(f.normal, 0.02 * (self.rng.random() - 0.5)) + 1)}"]
         print(f"kit kerb: {len(cands)} candidates, {len(kept)} posts")
         return len(kept)
 
     def rocks(self):
         """The rim stones of rock_layout(): craggy, flat-shaded faceted lumps (an irregular foot sunk
-        just under the bed's top, a tilted shoulder ring, an off-centre peak), crowns pal 5, sides 4,
-        a facet or two pal 6/7 (sheen); under ENEMY_MAX on an enemy's cell, under RIM_MAX elsewhere."""
-        g, rng, m = self.g, self.rng, self.mat
+        just under the bed's top, a tilted shoulder ring, a crown ring, an off-centre peak); under
+        ENEMY_MAX on an enemy's cell, under RIM_MAX elsewhere. Every facet takes its index from the
+        way it faces the game's sun (facet_index: lit faces, the rubric's rock rule), so the band
+        has the art's spread from the dark undersides (3) to the lit crowns (8), not one grey."""
+        g, rng = self.g, self.rng
         enemy = self.b.enemy_mask
         for (x, y, rad, kind, pts) in self.stones:
             if kind == 0:
@@ -541,45 +605,55 @@ class Kit:
             rr = int(math.ceil(1.25 * rad))
             if enemy[max(0, int(y) - rr):int(y) + rr + 1, max(0, int(x) - rr):int(x) + rr + 1].any():
                 top = min(top, ENEMY_MAX - 0.006 - 0.02 * rng.random())
-            n = len(pts)
-            zs = BED_TOP - 0.03
-            hgt = top - zs
-            ta_ = rng.random() * math.tau
-            tilt = 0.18 + 0.14 * rng.random()
-            shs = 0.72 + 0.12 * rng.random()
-            foot, shoulder = [], []
-            for a, r in pts:
-                ca, sa = math.cos(a), math.sin(a)
-                foot.append(g.v(x + r * ca, y + r * sa, zs))
-                zsh = zs + hgt * (0.58 + 0.16 * rng.random() + tilt * math.cos(a - ta_))
-                g_ = shs * (0.85 + 0.3 * rng.random())
-                shoulder.append(g.v(x + r * g_ * ca, y + r * g_ * sa, min(zsh, top - 0.02)))
-            foot, shoulder = foot[::-1], shoulder[::-1]
-            rs_min = min(r for _, r in pts) * shs * 0.85
-            po = min(0.32 * rad * rng.random(), 0.45 * rs_min)
-            pa = ta_ + (rng.random() - 0.5) * 1.2
-            apex = g.v(x + po * math.cos(pa), y + po * math.sin(pa), top)
-            u = rng.random()
-            crown = m["rock_dark"] if u < 0.1 else m["rock"]
-            side = m["rock_deep"] if crown == m["rock_dark"] else m["rock_dark"]
-            k0 = int(rng.integers(n))
-            lit = ({k0} if u > 0.3 else set()) | ({(k0 + 1) % n} if u > 0.6 else set())
-            for i in range(n):
-                j = (i + 1) % n
-                g.face((foot[i], foot[j], shoulder[j]), side)
-                g.face((foot[i], shoulder[j], shoulder[i]), side)
-                mat = crown
-                if i in lit:
-                    mat = m["rock_hi"] if (u > 0.85 and i == k0) else m["rock_sheen"]
-                g.face((shoulder[i], shoulder[j], apex), mat)
+            self.stone(x, y, rad, pts, top, rng)
+
+    def stone(self, x, y, rad, pts, top, rng, bias=0.0, zs=None):
+        """One faceted stone over its foot (`pts`: (angle, r) round (x, y), pattern px) up to `top`:
+        a foot ring just under the bed (`zs`), a shoulder ring at uneven heights (the crown tilted),
+        a smaller crown ring and an off-centre peak, each facet in facet_index(); `bias` shifts the
+        stone's whole ramp (a darker or lighter stone)."""
+        g = self.g
+        n = len(pts)
+        zs = BED_TOP - 0.03 if zs is None else zs
+        hgt = top - zs
+        ta_ = rng.random() * math.tau  # the crown's tilt
+        tilt = 0.18 + 0.14 * rng.random()
+        shs = 0.74 + 0.12 * rng.random()
+        crs = 0.42 + 0.14 * rng.random()  # the crown ring's scale
+        foot, shoulder, crown = [], [], []
+        for a, r in pts:
+            ca, sa = math.cos(a), math.sin(a)
+            foot.append(g.v(x + r * ca, y + r * sa, zs))
+            zsh = zs + hgt * (0.5 + 0.16 * rng.random() + tilt * math.cos(a - ta_))
+            g_ = shs * (0.88 + 0.24 * rng.random())
+            shoulder.append(g.v(x + r * g_ * ca, y + r * g_ * sa, min(zsh, top - 0.03)))
+            a2 = a + (rng.random() - 0.5) * 0.5
+            zcr = zs + hgt * (0.8 + 0.08 * rng.random() + 0.5 * tilt * math.cos(a2 - ta_))
+            g2 = crs * (0.85 + 0.3 * rng.random())
+            crown.append(g.v(x + r * g2 * math.cos(a2), y + r * g2 * math.sin(a2), min(zcr, top - 0.008)))
+        foot, shoulder, crown = foot[::-1], shoulder[::-1], crown[::-1]  # px y down: world CCW
+        rs_min = min(r for _, r in pts) * crs * 0.8
+        po = min(0.3 * rad * rng.random(), 0.5 * rs_min)
+        pa = ta_ + (rng.random() - 0.5) * 1.2
+        apex = g.v(x + po * math.cos(pa), y + po * math.sin(pa), top)
+        jit = (rng.random() - 0.5) * 0.08 + bias
+        for i in range(n):
+            j = (i + 1) % n
+            for tri in ((foot[i], foot[j], shoulder[j]), (foot[i], shoulder[j], shoulder[i]),
+                        (shoulder[i], shoulder[j], crown[j]), (shoulder[i], crown[j], crown[i]),
+                        (crown[i], crown[j], apex)):
+                f = g.face(tri, self.mat["rock5"])
+                if f is not None:
+                    f.normal_update()
+                    f.material_index = self.mat[f"rock{facet_index(f.normal, jit + 0.04 * (rng.random() - 0.5))}"]
 
     # ---- channels and paving --------------------------------------------------------------------
 
     def channels(self, fp):
-        """The channel tiles' (ARMS) conduits as recessed gratings: a brown fill, dark bars on a 4 px
-        lattice centred on the channel's axis, bright squares in alternate cells. Returns the
+        """The channel tiles' (ARMS) strips (the art's 389 / 379 widths, arms meeting at the centre),
+        clipped to `fp`, floored with dirt() (D148; D143 built a grating there). Returns the
         channel mask (keep the paving off it)."""
-        b, g, H, W = self.b, self.g, self.H, self.W
+        b, H, W = self.b, self.H, self.W
         chan = np.zeros((H, W), bool)
         boxes = []
         for r, row in enumerate(b.pattern):
@@ -605,52 +679,149 @@ class Kit:
                     boxes.append((bb, along, ccx, ccy))
                     chan[int(round(bb[1])):int(round(bb[3])), int(round(bb[0])):int(round(bb[2]))] = True
         chan &= fp
-
-        def bar(x0_, y0_, x1_, y1_, z0_, z1_, mat):
-            if x1_ - x0_ < 0.2 or y1_ - y0_ < 0.2:
-                return
-            a_ = [g.v(x0_, y0_, z1_), g.v(x1_, y0_, z1_), g.v(x1_, y1_, z1_), g.v(x0_, y1_, z1_)]
-            g.face(a_[::-1], mat)
-            b_ = [g.v(x0_, y0_, z0_), g.v(x1_, y0_, z0_), g.v(x1_, y1_, z0_), g.v(x0_, y1_, z0_)]
-            sides = ((0, 1), (2, 3)) if (x1_ - x0_) > (y1_ - y0_) else ((1, 2), (3, 0))
-            for i, j in sides:
-                g.face((b_[j], b_[i], a_[i], a_[j]), mat)
-
-        def lattice(lo, hi, c):
-            k0, k1 = math.ceil((lo - c - 0.5) / 4), math.floor((hi - c + 0.5) / 4)
-            return [c + 4 * k for k in range(k0, k1 + 1) if lo - 0.5 <= c + 4 * k <= hi + 0.5]
-
-        for (X0, Y0, X1, Y1), along, ax, ay in boxes:
-            X0, Y0, X1, Y1 = round(X0), round(Y0), round(X1), round(Y1)
-            m = fp[Y0:Y1, X0:X1]
-            if X1 - X0 < 1 or Y1 - Y0 < 1 or not m.any():
-                continue
-            ys_, xs_ = np.nonzero(m)
-            X0, X1, Y0, Y1 = X0 + xs_.min(), X0 + xs_.max() + 1, Y0 + ys_.min(), Y0 + ys_.max() + 1
-            g.prism(rbox(X0, Y0, X1, Y1, 0), [], DECK_TOP - 0.01, CH_FILL, self.mat["chan"], bottom=False)
-            xs_l = lattice(X0, X1, ax) if along in ("x", "xy") else [ax] if X0 <= ax <= X1 else []
-            ys_l = lattice(Y0, Y1, ay) if along in ("y", "xy") else [ay] if Y0 <= ay <= Y1 else []
-            for xb in xs_l:
-                bar(max(X0, xb - 0.5), Y0, min(X1, xb + 0.5), Y1, CH_FILL - 0.002, CH_TOP, self.mat["grate"])
-            for yb in ys_l:
-                bar(X0, max(Y0, yb - 0.5), X1, min(Y1, yb + 0.5), CH_FILL - 0.002, CH_TOP - 0.001, self.mat["grate"])
-            for cxq in [ax + 2 + 4 * k for k in range(-8, 8)]:
-                for cyq in [ay + 2 + 4 * k for k in range(-8, 8)]:
-                    if not (X0 + 1.2 <= cxq <= X1 - 1.2 and Y0 + 1.2 <= cyq <= Y1 - 1.2):
-                        continue
-                    kx, ky = round((cxq - ax - 2) / 4), round((cyq - ay - 2) / 4)
-                    if (kx + ky) % 2:
-                        continue
-                    hx = 0.9
-                    g.face([g.v(cxq - hx, cyq + hx, CH_SQ), g.v(cxq + hx, cyq + hx, CH_SQ), g.v(cxq + hx, cyq - hx, CH_SQ),
-                            g.v(cxq - hx, cyq - hx, CH_SQ)], self.mat["square"])
+        self.dirt(chan)
         return chan
 
-    def paving(self, zone):
+    def dirt(self, mask, z_of=None, step=2.0, skirt=None, pebbles=1 / 45.0):
+        """The channel tiles' floor as rough ground, not bricks or a grating (D148): the art paints a
+        dark grey earth (3-5) with rust mud (164, 163, 21 clods) winding through it. A jittered
+        triangle grid (`step` px cells on a global lattice, a cell kept if half its px are in `mask`)
+        at z_of(py) (default DIRT_Z) plus DIRT_AMP of noise, the mud raised a little and the art's
+        darkest px sunk, smooth shaded (soft ground, no facets); each triangle by the mud's blurred
+        density there (sigma 1.4 px, so the mud reads as blobs, not a mosaic): the mud in its local
+        median (163-165, 21 where the art's bright clods are), a darker rim (163), else the earth
+        (3, 2 where the art is darkest); a skirt round the outline down to `skirt` (default
+        DECK_TOP - 0.01); and a scatter of small plain pebbles on the earth (grit). Returns the
+        triangle count."""
+        b, g, H, W, rng = self.b, self.g, self.H, self.W, self.rng
+        grid = np.maximum(b.grid, 0)
+        z_of = z_of or (lambda py: DIRT_Z)
+        skirt = DECK_TOP - 0.01 if skirt is None else skirt
+        brown = np.isin(grid, (160, 161, 162, 163, 164, 165, 166, 167, 168, 21, 22, 20)) & mask
+        dark = (grid <= 2) & mask
+        bden = gauss(brown.astype(float), 0.9)  # the mud's height
+        dden = gauss(dark.astype(float), 0.8)
+        cden = gauss(brown.astype(float), 1.4)  # its colour: coarser, so mud reads as blobs, not a mosaic
+        # local medians: the mud's and the earth's index round each px (radius 1.5)
+        offs = disk_offsets(1)
+        def local_median(sel, allowed):
+            stack = []
+            for dy, dx in offs + [(0, 2), (0, -2), (2, 0), (-2, 0)]:
+                v = shift(np.where(sel, grid, -1), dy, dx)
+                v[shift(sel, dy, dx) == 0] = -1
+                stack.append(v)
+            st = np.stack(stack)
+            out = np.full((H, W), allowed[len(allowed) // 2])
+            for yy_, xx_ in zip(*np.nonzero(mask)):
+                vv = st[:, yy_, xx_]
+                vv = vv[vv >= 0]
+                if len(vv):
+                    lumv = sorted(vv, key=lambda i: self.b.ts.lum[i])
+                    m_ = lumv[len(lumv) // 2]
+                    out[yy_, xx_] = min(allowed, key=lambda a_: abs(self.b.ts.lum[a_] - self.b.ts.lum[m_]))
+            return out
+        mud_i = local_median(brown, (163, 164, 165))
+        clod = gauss((grid == 21).astype(float) * mask, 0.8) > 0.42  # the art's bright clods
+        mud_i[clod] = 21
+        # noise: two octaves of smoothed value noise over the pattern
+        def vnoise(cell):
+            gh, gw = int(H / cell) + 3, int(W / cell) + 3
+            r_ = rng.random((gh, gw))
+            def at(px, py):
+                fx, fy = px / cell, py / cell
+                ix, iy = int(fx), int(fy)
+                tx, ty = fx - ix, fy - iy
+                tx, ty = tx * tx * (3 - 2 * tx), ty * ty * (3 - 2 * ty)
+                a0 = r_[iy, ix] * (1 - tx) + r_[iy, ix + 1] * tx
+                a1 = r_[iy + 1, ix] * (1 - tx) + r_[iy + 1, ix + 1] * tx
+                return a0 * (1 - ty) + a1 * ty
+            return at
+        n1, n2 = vnoise(4.5), vnoise(1.7)
+
+        def samp(img, px, py):
+            return img[min(H - 1, max(0, int(py))), min(W - 1, max(0, int(px)))]
+
+        def zat(px, py):
+            h_ = 0.65 * n1(px, py) + 0.35 * n2(px, py) - 0.5
+            return z_of(py) + DIRT_AMP * 2 * h_ + 0.011 * min(1.0, 1.6 * samp(cden, px, py)) - 0.010 * min(1.0, 1.5 * samp(dden, px, py))
+
+        nx_, ny_ = int(math.ceil(W / step)), int(math.ceil(H / step))
+        keep = np.zeros((ny_, nx_), bool)
+        need = 0.5 * step * step
+        for j in range(ny_):
+            for i in range(nx_):
+                y0_, x0_ = int(j * step), int(i * step)
+                keep[j, i] = mask[y0_:int((j + 1) * step), x0_:int((i + 1) * step)].sum() >= need
+        verts = {}
+
+        def vert(i, j):
+            if (i, j) not in verts:
+                px, py = i * step, j * step
+                inner = all(0 <= j + dj < ny_ and 0 <= i + di < nx_ and keep[j + dj, i + di] for dj in (-1, 0) for di in (-1, 0))
+                if inner:
+                    px += (rng.random() - 0.5) * 0.45 * step
+                    py += (rng.random() - 0.5) * 0.45 * step
+                verts[(i, j)] = (g.v(px, py, zat(px, py)), px, py)
+            return verts[(i, j)]
+
+        def tri_mat(ps):
+            cx_ = sum(p[1] for p in ps) / 3
+            cy_ = sum(p[2] for p in ps) / 3
+            bd = samp(cden, cx_, cy_)
+            if bd > 0.46:
+                return self.mat[f"dirt{samp(mud_i, cx_, cy_)}"]
+            if bd > 0.36:
+                return self.mat["dirt163"]  # the mud's darker rim
+            if samp(dden, cx_, cy_) > 0.5:
+                return self.mat["dirt2"]
+            return self.mat["dirt3"]  # the art's earth (3; its 4 / 5 specks are lighting)
+
+        ntri = 0
+        for j in range(ny_):
+            for i in range(nx_):
+                if not keep[j, i]:
+                    continue
+                a_, b_, c_, d_ = vert(i, j), vert(i + 1, j), vert(i + 1, j + 1), vert(i, j + 1)  # TL TR BR BL (px)
+                if rng.random() < 0.5:
+                    tris = ((a_, d_, c_), (a_, c_, b_))
+                else:
+                    tris = ((a_, d_, b_), (b_, d_, c_))
+                for t in tris:
+                    g.face(tuple(p[0] for p in t), tri_mat(t), smooth=True)  # soft ground, no facets
+                    ntri += 1
+                # skirts where the next cell is not dirt
+                for (di, dj), (p, q) in (((0, -1), (a_, b_)), ((1, 0), (b_, c_)), ((0, 1), (c_, d_)), ((-1, 0), (d_, a_))):
+                    ii, jj = i + di, j + dj
+                    if 0 <= ii < nx_ and 0 <= jj < ny_ and keep[jj, ii]:
+                        continue
+                    lo_p, lo_q = g.v(p[1], p[2], skirt), g.v(q[1], q[2], skirt)
+                    g.face((q[0], lo_q, lo_p, p[0]), self.mat["dirt3"])  # outward (the cell is CCW a-d-c-b)
+                    ntri += 2
+        # pebbles: small plain stones scattered over the earth (none on the mud)
+        ys, xs = np.nonzero(ero_disk(mask, 2) & (bden < 0.3))
+        npb = int(len(ys) * pebbles)
+        for k_ in rng.choice(len(ys), size=min(npb, len(ys)), replace=False) if len(ys) else []:
+            px, py = xs[k_] + rng.random(), ys[k_] + rng.random()
+            rad = 0.55 + 0.55 * rng.random()
+            nn = int(rng.integers(4, 6))
+            rot = rng.random() * math.tau
+            pts = [(rot + math.tau * (q + 0.3 * (rng.random() - 0.5)) / nn, rad * (0.8 + 0.4 * rng.random())) for q in range(nn)]
+            z0 = zat(px, py)
+            self.stone(px, py, rad, pts, z0 + 0.012 + 0.012 * rng.random(), rng, bias=-0.05, zs=z0 - 0.006)
+            ntri += 5 * nn
+        print(f"kit dirt: {ntri} triangles, {npb} pebbles")
+        return ntri
+
+    def paving(self, zone, seam=None, chip=0.3):
         """The art's basket weave over `zone` (bool px; e.g. ero_disk(deck_mask, KERB_W) & ~chan &
-        ~parts): a chamfered mortar plate per cell, low bricks (WEAVE) on it, trimmed where the zone
-        ends, slivers dropped. Returns the brick count."""
-        g, H, W = self.g, self.H, self.W
+        ~parts), D148: a groove floor per cell at SEAM_TOP in the seams' index (the art's 3), and on
+        it each WEAVE brick a bevelled block (a frustum, BEVEL px all round at 30 degrees, 0.027
+        proud, its top +-0.003 so the plating is not one plane) in the bricks' index: in the game's
+        light the bevels give each brick the art's lit edge, body and dark trailing edge, as sheen
+        and shade on the shape (D136's rails); a third of them chipped at a corner (worn). Bricks the zone cuts are trimmed along their length, slivers dropped.
+        `seam` (z) overrides the groove floor. Returns the brick count."""
+        g, H, W, rng = self.g, self.H, self.W, self.rng
+        z_seam = SEAM_TOP if seam is None else seam
         for r in range(H // TH):
             for c in range(W // TW):
                 x0, y0 = c * TW, r * TH
@@ -664,7 +835,7 @@ class Kit:
                     sub[y0:y0 + TH, x0:x0 + TW] = m
                     polys = [o for o, _ in regions(sub, tol=1.0, min_px=6)]
                 for poly in polys:
-                    g.frustum(poly, DECK_TOP - 0.002, MORTAR_TOP, 0.3, self.mat["mortar_plate"])
+                    g.frustum(poly, DECK_TOP - 0.002, z_seam, 0.3, self.mat["mortar_plate"])
         n = 0
         for r in range(H // TH):
             for c in range(W // TW):
@@ -685,11 +856,23 @@ class Kit:
                             start = None
                             if b_ - a_ < 2:
                                 continue
-                            e0 = 0.05 if a_ == 0 else 0.5
-                            e1 = 0.05 if b_ == len(full) - 1 else 0.5
-                            rect = (X0 + a_ + e0, Y0 + 0.05, X0 + b_ - e1, Y1 - 0.05) if horiz else (X0 + 0.05, Y0 + a_ + e0, X1 - 0.05, Y0 + b_ - e1)
+                            e0 = 0.08 if a_ == 0 else 0.5
+                            e1 = 0.08 if b_ == len(full) - 1 else 0.5
+                            rect = (X0 + a_ + e0, Y0 + 0.08, X0 + b_ - e1, Y1 - 0.08) if horiz else (X0 + 0.08, Y0 + a_ + e0, X1 - 0.08, Y0 + b_ - e1)
                             x_a, y_a, x_b, y_b = rect
-                            g.face([g.v(x_a, y_b, PLATE_TOP), g.v(x_b, y_b, PLATE_TOP), g.v(x_b, y_a, PLATE_TOP), g.v(x_a, y_a, PLATE_TOP)], self.mat["pave"])
+                            poly = [(x_a, y_a), (x_b, y_a), (x_b, y_b), (x_a, y_b)]
+                            if rng.random() < chip:  # a chipped corner
+                                k_ = int(rng.integers(4))
+                                cmax = 0.45 * min(x_b - x_a, y_b - y_a)
+                                cc = min(cmax, 0.6 + 0.9 * rng.random())
+                                px_, py_ = poly[k_]
+                                (qx, qy), (rx_, ry_) = poly[k_ - 1], poly[(k_ + 1) % 4]
+                                def toward(ax_, ay_, bx_, by_, d):
+                                    L = math.hypot(bx_ - ax_, by_ - ay_)
+                                    return (ax_ + (bx_ - ax_) * d / L, ay_ + (by_ - ay_) * d / L)
+                                poly = poly[:k_] + [toward(px_, py_, qx, qy, cc), toward(px_, py_, rx_, ry_, cc)] + poly[k_ + 1:]
+                            ztop = PLATE_TOP + 0.003 * (2 * rng.random() - 1)
+                            g.frustum(poly, z_seam - 0.002, ztop, BEVEL, self.mat["pave"])
                             n += 1
         return n
 
