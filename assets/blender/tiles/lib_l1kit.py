@@ -27,7 +27,7 @@ D148 (QA round 3, N2: the kit read flat and toy-like): bevelled, worn bricks on 
 kerb posts, the GRIT bake. The base complex, the cross pad and the pipe junction (its dirt and
 boulder ramp) build with these parts too.
 
-D149 (D148 read too dark and too heavy: the base complex 9.15 MB): GRIT lighter (floor 0.56, grime
+D150 (D148 read too dark and too heavy: the base complex 9.15 MB): GRIT lighter (floor 0.56, grime
 12%), the rock ramp a step lighter, bricks index 7 with no metal, the earth 3 / 4 / 5 in patches; the
 bricks bevelled on their long sides only (Kit.brick), one groove-floor plate per zone part, the dirt
 grid 2.5 px with half the pebbles, no crown ring under CROWN_MIN, no UV map on the plain mesh.
@@ -63,11 +63,11 @@ KERB_TOP = 0.366
 LENS_TOP = 0.350  # a light's housing top (its lens domes 0.026 above)
 ROCK_BAND, KERB_W = 13, 4  # px: the rim band (stones) from the outline; the kerb strip inside it
 KERB_STEP, KERB_IN, KERB_MIN = 4.0, 2.0, 3.6  # post spacing, post centre in from the deck edge, min gap
-CROWN_MIN = 6.0  # px across: smaller stones have no crown ring (D149)
-DIRT_STEP = 2.5  # px: the dirt's triangle grid (D148's 2.0 was 30k triangles on the base complex; D149)
+CROWN_MIN = 6.0  # px across: smaller stones have no crown ring (D150)
+DIRT_STEP = 2.5  # px: the dirt's triangle grid (D148's 2.0 was 30k triangles on the base complex; D150)
 
 # ---- the art's palette indices (the base complex's trimmed medians) ----
-PAL_BED, PAL_MORTAR, PAL_KERB, PAL_PAVE = 2, 3, 7, 7  # bricks: the art's median 6, a step lighter for the render's light (D149)
+PAL_BED, PAL_MORTAR, PAL_KERB, PAL_PAVE = 2, 3, 7, 7  # bricks: the art's median 6, a step lighter for the render's light (D150)
 PAL_CHANNEL, PAL_GRATE, PAL_SQUARE = 164, 3, 21
 PAL_ROCK, PAL_ROCK_DARK, PAL_ROCK_SHEEN, PAL_ROCK_HI = 5, 4, 6, 7
 PAL_LENS, PAL_LENS_FAT, PAL_HOUSING, PAL_POD, PAL_EYE = 113, 114, 8, 8, 113
@@ -81,7 +81,7 @@ DIRT_GREY, DIRT_BROWN = (2, 3, 4, 5), (163, 164, 165, 21)
 # (which stops at 0.62, so the seams and crevices stayed mid grey), a stronger edge lift (the bevels'
 # sheen), and a grime mottle (stains about 9 px, a speckle about 2 px, and a random wear per brick,
 # post or stone: "island"), spreading the roughness +-0.2 (worn patches catch the light as sheen).
-# D149 (the station read too dark: play-field median 37-44 against the original's 58-64): the floor
+# D150 (the station read too dark: play-field median 37-44 against the original's 58-64): the floor
 # 0.42 -> 0.56 and the grime 24% -> 12%, the edge sheen kept, so the seams and crevices stay the
 # darkest parts; "plain_uv" False drops the plain (unbaked) mesh's unused UV map from the export.
 # Every ASTEROID? station model passes it.
@@ -356,7 +356,7 @@ def facet_index(normal, bias=0.0):
     spreads 3 (shadowed undersides) .. 8 (lit crowns) with the median 5; lit faces take the light
     end, faces turned away the dark end (D141's follow-up: more 6/7, some 8 up-sun, sides to 3)."""
     lam = normal.x * SUN[0] + normal.y * SUN[1] + normal.z * SUN[2] + bias
-    # D149: one step lighter than D148's ramp (0.97/0.93/0.85/0.7/0.45): the game's light shades the
+    # D150: one step lighter than D148's ramp (0.97/0.93/0.85/0.7/0.45): the game's light shades the
     # facets on top of their index, so the art's spread in index read a step too dark in the render
     for lim, idx in ((0.95, 8), (0.88, 7), (0.78, 6), (0.6, 5), (0.35, 4)):
         if lam >= lim:
@@ -381,7 +381,7 @@ class Kit:
             mortar=M(PAL_MORTAR, roughness=0.9),
             mortar_plate=M(PAL_MORTAR, roughness=0.85, metallic=0.05),
             kerb=M(PAL_KERB, roughness=0.6, metallic=0.25, plain=True),
-            pave=M(PAL_PAVE, roughness=0.42),  # satin (D148), more sheen and no metal's dark diffuse (D149)
+            pave=M(PAL_PAVE, roughness=0.42),  # satin (D148), more sheen and no metal's dark diffuse (D150)
             chan=M(PAL_CHANNEL, roughness=0.55, metallic=0.35),
             grate=M(PAL_GRATE, roughness=0.8, metallic=0.15, plain=True),
             square=M(PAL_SQUARE, roughness=0.8, metallic=0.1, plain=True),
@@ -623,7 +623,7 @@ class Kit:
         """One faceted stone over its foot (`pts`: (angle, r) round (x, y), pattern px) up to `top`:
         a foot ring just under the bed (`zs`), a shoulder ring at uneven heights (the crown tilted),
         a smaller crown ring and an off-centre peak, each facet in facet_index(); `bias` shifts the
-        stone's whole ramp (a darker or lighter stone). D149: stones under CROWN_MIN px across
+        stone's whole ramp (a darker or lighter stone). D150: stones under CROWN_MIN px across
         (the small gap stones, pebbles) skip the crown ring, whose facets would be under a px."""
         g = self.g
         n = len(pts)
@@ -710,7 +710,7 @@ class Kit:
         median (163-165, 21 where the art's bright clods are), a darker rim (163), else the earth
         (3, 2 where the art is darkest); a skirt round the outline down to `skirt` (default
         DECK_TOP - 0.01); and a scatter of small plain pebbles on the earth (grit). Returns the
-        triangle count. D149: the grid 2.5 px (DIRT_STEP), half the pebbles, and the earth in the
+        triangle count. D150: the grid 2.5 px (DIRT_STEP), half the pebbles, and the earth in the
         art's own spread, 4 with patches of 3 and 5 (the coarse noise), so it reads as the art's
         grey ground, not a black trench."""
         b, g, H, W, rng = self.b, self.g, self.H, self.W, self.rng
@@ -757,7 +757,7 @@ class Kit:
                 return a0 * (1 - ty) + a1 * ty
             return at
         n1, n2 = vnoise(4.5), vnoise(1.7)
-        n3 = vnoise(9.0)  # the earth's patches of 3 / 4 / 5 (D149), several triangles each
+        n3 = vnoise(9.0)  # the earth's patches of 3 / 4 / 5 (D150), several triangles each
 
         def samp(img, px, py):
             return img[min(H - 1, max(0, int(py))), min(W - 1, max(0, int(px)))]
@@ -795,7 +795,7 @@ class Kit:
                 return self.mat["dirt163"]  # the mud's darker rim
             if samp(dden, cx_, cy_) > 0.5:
                 return self.mat["dirt2"]
-            e = n3(cx_, cy_)  # the art's earth: 3 / 4 / 5 in patches (D149)
+            e = n3(cx_, cy_)  # the art's earth: 3 / 4 / 5 in patches (D150)
             return self.mat["dirt3" if e < 0.38 else "dirt5" if e > 0.68 else "dirt4"]
 
         ntri = 0
@@ -842,7 +842,7 @@ class Kit:
         give each brick the art's lit edge, body and dark trailing edge, as sheen and shade on the
         shape (D136's rails). Bricks the zone cuts are trimmed along their length, slivers dropped.
         `seam` (z) overrides the groove floor. Returns the brick count.
-        D149: the groove floor is one plate per connected part of the zone (its outline walls and one
+        D150: the groove floor is one plate per connected part of the zone (its outline walls and one
         capped top), not one per cell: the cells' touching walls were hidden under the bricks. The
         bricks are bevelled on their long sides only (brick()); D148's chipped corners are gone
         (`chip` only keeps the random sequence, so the layout of everything after is unchanged)."""
@@ -887,7 +887,7 @@ class Kit:
         return n
 
     def brick(self, rect, horiz, z0, z1):
-        """One paving brick (D149): a top over `rect` (pattern px) at z1, its two long sides bevelled
+        """One paving brick (D150): a top over `rect` (pattern px) at z1, its two long sides bevelled
         BEVEL px down to z0 (the art's lit edge and dark trailing edge, as D148's frustum), its short
         ends cut square and left open: seen from the game's camera an end is a sliver 0.027 tall
         over the dark groove floor, where D148's end bevels cost 8 of the brick's 20 vertices."""

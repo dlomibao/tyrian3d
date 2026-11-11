@@ -24,7 +24,7 @@ placement and colours):
   little different in size, lean and height (lib_l1kit.Kit.kerb);
 - paving: the art's basket weave (2 x 2 alternating units of three bricks per cell, lib_l1kit.WEAVE)
   as bricks 0.027 proud of a groove floor in the seams' colour, their long sides bevelled
-  (lib_l1kit.Kit.paving / brick, D148, D149);
+  (lib_l1kit.Kit.paving / brick, D148, D150);
 - channels: the kit's dirt (D148): a soft, jittered ground of the art's dark earth (3) with its rust
   mud (164, 163, 21 clods) winding through it, pebbles on the earth (lib_l1kit.Kit.dirt);
 - the lights (338/339/347: domed dark-red lenses, faintly lit), the sensor pods (384), the round hatch (305-316), the two blasted

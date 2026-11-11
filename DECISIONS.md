@@ -6724,7 +6724,7 @@ original (`&terrain=original&bg=original`) at 4K:
 Sheets (original | before | after): `tyrian-scratch/asteroidq-kit/sheets/1.3_t{300,1050,1750,2550,3310,3515}.jpg`,
 `sheets/stats.txt`; 4K crops `crops/1.3_t*_4k_*.jpg`; captures `shots/`, `shots4k/` (not in git, D3).
 
-## D149 — ASTEROID?'s station kit lighter and lighter-weight: GRIT eased, a step lighter rock ramp, bricks 7, the earth in 3/4/5; bricks bevelled on their long sides, one groove plate per area, a 2.5 px dirt grid (follows D148)
+## D150 — ASTEROID?'s station kit lighter and lighter-weight: GRIT eased, a step lighter rock ramp, bricks 7, the earth in 3/4/5; bricks bevelled on their long sides, one groove plate per area, a 2.5 px dirt grid (follows D148)
 
 2026-11-11
 
@@ -6770,7 +6770,7 @@ Sheets (original | before | after): `tyrian-scratch/asteroidq-kit/sheets/1.3_t{3
 
 **Measured:**
 
-| Model | IoU (D148) | Triangles: D149 (D148) | GLB MB: D149 (D148) |
+| Model | IoU (D148) | Triangles: D150 (D148) | GLB MB: D150 (D148) |
 |---|---|---|---|
 | l1bld_base_complex | 0.9888 (0.9888) | 78.0k (110.6k) | 5.91 (9.15) |
 | l1bld_pipe_junction | 0.992 (0.992) | 27.8k (30.9k) | 2.08 (3.07) |
@@ -6782,12 +6782,12 @@ Sheets (original | before | after): `tyrian-scratch/asteroidq-kit/sheets/1.3_t{3
 
 - The kit totals 12.51 MB (D148 17.9, before D148 12.2). IoU is from `--no-bake` builds in a throwaway root.
 - Built with `tools/build-models.sh -j 2 -p`: exit 0, seven fresh GLBs (07:18-07:21).
-- Play-field luminance, 1920x1080, original | D148 | D149. "Space out" means pixels over 24: the remastered
+- Play-field luminance, 1920x1080, original | D148 | D150. "Space out" means pixels over 24: the remastered
   background sits at 15-24, the original's at 0.
   - Mean, space out: t300 81.9 | 73.5 | 82.5; t1050 83.7 | 75.6 | 85.8; t1750 78.1 | 69.1 | 79.5;
-    t2550 76.9 | 76.4 | 80.8; t3310 82.8 | 79.6 | 85.6. D149 is +1 to +5% of the original.
-  - p10-p90 spread, space out: original 111-112, D148 88-99, D149 97-111.
-  - sd, space out: original 41-48, D148 37-44, D149 41-46.
+    t2550 76.9 | 76.4 | 80.8; t3310 82.8 | 79.6 | 85.6. D150 is +1 to +5% of the original.
+  - p10-p90 spread, space out: original 111-112, D148 88-99, D150 97-111.
+  - sd, space out: original 41-48, D148 37-44, D150 41-46.
   - D148's mask (over 14) counts the remastered background as content and the original's space as nothing, which
     biases the remastered frames down. On it the mean is 70-77 | 53-61 | 56-70 and the median 63-64 | 37-44 |
     41-54.
