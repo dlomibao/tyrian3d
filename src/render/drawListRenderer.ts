@@ -67,6 +67,7 @@ import { OpaqueCover, paintOutWreck } from "./remaster/opaqueCover";
 import { modelHeightFromUrl } from "./modelHeight";
 import { placeFlatQuad, SPRITE2X2_PARTS, spriteArtModeFromSearch, type FlatQuad, type ReadyFrame, type SpriteArt, type SpriteArtMode, type SpriteArtSheet } from "./spriteArt";
 import { SpriteArtLayer } from "./spriteArtLayer";
+import { SparkScreen } from "./sparkScreen";
 import { StarCover } from "./starCover";
 import { sheetHeight, type PlacedExtent } from "./sheetLift";
 import { BG_KEY_LAYER } from "../sim/backgrnd";
@@ -400,6 +401,8 @@ export class DrawListRenderer {
   private readonly viewDir = new THREE.Vector3();
   /** Which star pixels background 1 hides (D127). */
   private readonly starCover = new StarCover();
+  /** The screen under the sparks, for their colour in the original look (D147). */
+  private readonly sparkScreen = new SparkScreen();
   /**
    * This frame's ground cells of wreck tiles (D86), and of HD tiles with a covered painting (a machine
    * painted on the ground that its enemy's sprite hid, D139; `wreck` false), drawn once the frame
@@ -834,6 +837,17 @@ export class DrawListRenderer {
         case "pixel":
           // A star shows only where background 1 left the screen black (D127).
           if (d.pass === Pass.Starfield && this.starCover.hides(items, d.x, d.y)) continue;
+          if (d.spark) {
+            // A spark (JE_drawSP): remastered, a glowing point flying on; else the C's plus, its
+            // brightness mixed with the screen under it (D147).
+            if (fx) {
+              if (d.spark.centre) fx.spark(d.x, d.y, d.pass, d.spark);
+              continue;
+            }
+            this.addSolid(this.sparkScreen.color(items, i), d.x, d.y, 1, 1, d.pass, cam, frame);
+            instances++;
+            break;
+          }
           this.addSolid(d.color, d.x, d.y, 1, 1, d.pass, cam, frame);
           instances++;
           break;

@@ -6503,3 +6503,41 @@ layers and before every blended one at any depth; it runs once, at the hook or a
 its order). Captures, 3840x2160, `?debug=play&episode=1&main=M&seed=1&skip=T&freezeAt=T` (`&hard=1` for 1.15):
 `tyrian-scratch/qa3-renderer/` (`before/`, `after/`, `cmp/n1_*`: left before, right after; 1.15 t300, 1.9 t300,
 1.14 t1050, t1800, t2680, 1.5 t3300, 1.6 t1050).
+
+## D147 — Sparks mix with the screen under them as in the C, and glow in the remastered look (fixes D127's note)
+
+2026-11-11
+
+**Problem** (`tyrian-scratch/e1-qa-3/REPORT.md` N3): explosion and hit sparks drew as dark navy five-pixel crosses on
+blocks, pipes and grass (1.14 t1800/t2680/t2930, 1.6 t1050), reading as dead pixels. D127 had noted them and left them.
+
+**Cause:** `JE_drawSP` (varz.c L1127-1156) draws each superpixel as a plus whose pixels are
+`(((screen & 0x0f) + add) >> 1) + color`, add being the spark's life z (15 down to 1) at the centre and z >> 1 on the
+arms: it reads the screen under it, so over the game's grounds a new spark is a bright plus in its hue that fades into
+the ground. The port (`src/sim/varz.ts` JE_drawSP) has no screen to read and took its value as 0, so it recorded
+`(z >> 1) + color` and `(z >> 2) + color`: the bottom half of the hue's ramp, a dark plus wherever it fell. The
+renderer drew those indices flat (`drawListRenderer.ts`, the "pixel" case, `addSolid`).
+
+**Decision:**
+- **Draw list.** A spark pixel carries its facts (`PixelDraw.spark`: colour byte, z, centre or arm, its motion this
+  tick); `color` stays the over-black index. `sparkColor` (`src/sim/draw.ts`) is the C's formula.
+- **Original effects look** (`?vfx=original`): the renderer reads the screen under each spark back from the earlier
+  draws of the same draw list (`src/render/sparkScreen.ts`): the topmost tile (index 0 see-through on backgrounds 2
+  and 3), sprite, rectangle or pixel covering it, with the C's blend, darken, filter and hue/value blits applied to its
+  value, and a later spark reads an earlier one's colour. The plus is then drawn with the C's index. Over WINDY's grass
+  and MINEMAZE's navy pipe the formula still gives a fairly dark blue plus (their value nibbles are low), brighter on
+  the blocks. Not compared against OpenTyrian's own frames.
+- **Remastered look** (the default, D35): each spark is one small additive glow (`RemasteredFx.spark`) at its centre,
+  drawn out back along its last tick's flight into a short streak, in its hue at the index the C's plus has over a
+  bright screen (`sparkColor(spark, 15)`), lifted toward white while new, fading and shrinking with z over its 15
+  ticks. The four arm pixels are not drawn; the glow's falloff stands for them. Sizes and gains are the `SPARK_*`
+  constants in `remasteredFx.ts`. At Effects height, so over everything, as in the C.
+
+**Options considered:** a constant mid-grey screen value for the original look (wrong on dark and bright grounds
+alike); the D35 hit-spark particles (orange streaks with their own random flight) for the remastered look, which would
+lose the sparks' hue and the C's paths.
+
+Test: `tests/render/sparkScreen.test.ts` (JE_drawSP's records, the C's formula, the screen read back through tiles,
+background 2's see-through index, a blended tile and an earlier spark). Captures, 3840x2160:
+`tyrian-scratch/qa3-renderer/` (`before/`, `after-n3/`, `cmp/n3_*`: left before, right after; 1.14 t2680 and 1.6
+t1050, each remastered and `&vfx=original`).
