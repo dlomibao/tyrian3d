@@ -70,7 +70,8 @@ build() {
   local script=$1 name log bake
   name=$(basename "$script" .py)
   log=$(mktemp)
-  local args=(--background --factory-startup --python "$script")
+  # --python-exit-code: a Python exception in the script fails the run (Blender exits 0 otherwise).
+  local args=(--background --factory-startup --python-exit-code 1 --python "$script")
   [ -n "$preview" ] && args+=(-- --preview "$preview/$name.png")
   if "$blender" "${args[@]}" >"$log" 2>&1 && ! grep -q "^Traceback\|^Error" "$log"; then
     grep "^exported" "$log" || echo "built $script"

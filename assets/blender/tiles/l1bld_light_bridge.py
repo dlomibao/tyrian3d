@@ -1,235 +1,319 @@
-"""The light bridge of map 1-3's ground (shapesz.dat; 5 x 13 tiles, map rows 132-136, cols 1-13),
-after the concept assets/blender/features/concepts/l1-bld-light-bridge.jpg: a long paved platform
-ringed by a rocky rim, its middle section (cols 4-9, between the rim's notches) a raised body with a
-bump at the top; across it a framed trough of 24 red light capsules (the 339 x 8 strip), at its ends
-two dark round pads with bronze clamps (305 306 / 315 316), and on the raised bump four round seats
-(358 357 357 358). The game draws ground enemies over the strip (newshs 195), the pads (newshs
-39/41/85/87) and the seats (newshd 275/127) at 0.45, so all of these stay under ENEMY_MAX.
+r"""ASTEROID?'s light bridge (map 1-3 ground, shapesz.dat layer 0, 5 x 13 tiles, map rows 132-136,
+cols 1-13), hard-surface on lib_l1kit (the base complex's station kit), so it matches the base complex.
 
-Built with lib_l1bld.py (the worked example is l1bld_bunker.py). Run from the repo root:
+What it is (from the tiles): a long paved station platform in a rocky rim that runs on past the right
+edge of the pattern (cols 11-12 rows 2-3 have no rim: the paving and the right hatch run off the edge).
+Across it, in pattern row 2, a framed light strip of 24 red capsules (339 x 8: a machined housing, a
+light bezel ring round each pill, domed dark-red lenses, faintly lit). At its two ends two big dark
+round hatches (305 306 / 315 316) with six spokes and a hub, a dark-bronze bracket either side of the
+disc and bronze clamps hugging its lower half, tied by a riveted dark-bronze strap. On the rim's bulge
+(row 1, cols 5-8) four seats: two brass gun turrets (358: an octagonal brass body with blue-steel
+inserts, red side lamps, a barrel pointing down the screen with a red muzzle) and two orb sockets
+(357: a dark bezel, a dark satin dome, two small red eyes). Ground enemies sit on the strip, the hatches
+and the seats (the spec's enemy cells), so every top there stays <= ENEMY_MAX 0.38.
 
-    blender --background --factory-startup --python assets/blender/tiles/l1bld_light_bridge.py
-    python tools/concept_maps.py tile:shapesz-l1bld-light-bridge --concept l1-bld-light-bridge
-    blender --background --factory-startup --python assets/blender/texture_bake.py -- tile:shapesz-l1bld-light-bridge
+Section (kit): bed -0.04..0.14 (talus chamfer), mortar deck 0.30, basket-weave bricks 0.345, kerb
+posts 0.366, rim stones 0.36..0.47 (<= 0.374 on enemy cells); strip housing 0.35, lenses 0.376;
+hatch clamps 0.372; turrets 0.376; orb domes 0.37.
+
+Palette (trimmed medians of the tiles, see notes): capsule lens 113, capsule bezel 8, strip housing 6,
+hatch disc 1, spokes 4, clamps 161, brackets/strap 17, turret brass 164, blue steel 99, turret lamps
+115, muzzle 114, orb dome 4, orb eyes 112, orb bezel 3. Kit parts use the kit's PAL_* (paving 6).
+
+Build:
+    tools/build-models.sh -j 2 -p <dir> assets/blender/tiles/l1bld_light_bridge.py
+    blender --background --factory-startup --python assets/blender/tiles/l1bld_light_bridge.py -- [--no-bake] [--preview <dir>] [--views <dir>]
 """
 
 import math
 import sys
 from pathlib import Path
 
-import bmesh
+import bpy
+import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import common  # noqa: E402
 import lib_l1bld as lb  # noqa: E402
+import lib_l1kit as kit  # noqa: E402
 import lib_tiles as lt  # noqa: E402
 
-WING_DECK = 0.30  # the paving of the two wings (cols 0-3 and 10-12)
-BODY = (96, 0, 240, 140)  # the raised middle body: cols 4-9, the rim's notches mark its sides
-BODY_TOP = 0.34
-CHAMFER_PX = 2
-STRIP = (71, 59, 265, 83)  # the red lights' frame (8 cells of 339, pattern row 2)
-STRIP_FLOOR = 0.30  # the trough the capsules lie in
-STRIP_FRAME = 0.36
-CAPSULES = 24  # three per tile, 8 px apart
-PADS = ((46.0, 84.0), (286.0, 84.0))  # centres of the two dark pads (2 x 2 cells each)
-PAD_R = 18.5
-SEATS = ((132, 42), (156, 42), (180, 42), (204, 42))  # the four orb seats on the bump
-PAVE = 4  # the woven paving: darker than PAL["pave"] (6), as in the sprite's dark weave
-PAVE_BODY = 5
-BRONZE = 165  # the sprite's brackets and outer seats are browns 160-165
+
+TW, TH = lt.TILE_W, lt.TILE_H
+DECK = kit.DECK_TOP
+ENEMY_MAX = lb.ENEMY_MAX
+
+# ---- features (pattern px, read off the tiles) ----
+STRIP = (70.5, 58.5, 265.5, 81.5)  # the capsules' housing (light frame rows 60 / 79)
+CAP_X0, CAP_PITCH, CAP_W, CAP_Y0, CAP_Y1 = 73, 8, 6, 61, 78  # 24 red components, 6 x 18 px, 8 px apart
+HATCHES = [(45.5, 83.5), (285.5, 83.5)]  # dark disc centres (cols 1-2 / 11-12, rows 2-3)
+H_RX, H_RY = 17.0, 23.0  # the dark disc's radii (art x 28..62, y 60..107)
+TURRETS = [(131.75, 39.0), (203.75, 39.0)]  # 358 (red side lamps x 121/142, muzzle y 52)
+ORBS = [(156.5, 42.5), (180.5, 42.5)]  # 357 dark discs
+OPEN_Y = (56, 112)  # rows 2-3: the paving runs on past the right edge
+
+# ---- palette (trimmed medians of each region's pixels) ----
+P_LENS, P_BEZEL, P_HOUSE = 113, 8, 6
+P_DISC, P_SPOKE, P_SEAT, P_CLAMP, P_BRACKET = 1, 4, 3, 161, 17
+P_BRASS, P_BLUE, P_LAMP, P_MUZZLE = 164, 99, 115, 114
+P_ORB, P_EYE, P_ORB_BEZEL = 4, 112, 3
 
 
-def disc(b, px, py, r_px, z0, z1, mat, sides=20, bevel_px=1.0):
-    """A closed round plate (pixel centre and radius) from z0 to z1 with a chamfered top edge."""
-    bm = bmesh.new()
-    cx, cy = b.x(px), b.y(py)
-
-    def ring(r, z):
-        return [bm.verts.new((cx + r * lt.PX * math.cos(2 * math.pi * i / sides),
-                              cy + r * lt.PX * math.sin(2 * math.pi * i / sides), z)) for i in range(sides)]
-
-    base = ring(r_px, z0)
-    edge = ring(r_px, z1 - bevel_px * lt.PX * 0.5)
-    top = ring(r_px - bevel_px, z1)
-    bm.faces.new(top).material_index = mat
-    bm.faces.new(list(reversed(base))).material_index = mat
-    for a, c in ((base, edge), (edge, top)):
-        for i in range(sides):
-            j = (i + 1) % sides
-            bm.faces.new((a[i], a[j], c[j], c[i])).material_index = mat
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    b._merge(bm)
+def depth_open(mask, limit=40, _orig=lb.depth):
+    """lb.depth with the pattern's right edge open (the platform runs on past it in rows 2-3): pad the
+    mask with its last column before measuring, so no rock band or deck edge forms along x = W."""
+    if mask.ndim != 2:
+        return _orig(mask, limit)
+    pad = np.concatenate([mask, np.repeat(mask[:, -1:], limit + 2, axis=1)], axis=1)
+    return _orig(pad, limit)[:, :mask.shape[1]]
 
 
-def capsule(b, px, py, length, radius, z_top, mat, sides=6, steps=2, flat=0.4):
-    """A low-poly red capsule lying along y (lib_l1bld.capsule is ~160 triangles; 24 of them are
-    the whole budget here): a cylinder with rounded ends, its top at z_top, squashed to `flat` of
-    its width so it bulges a little out of the trough instead of standing in it."""
-    r = radius * lt.PX
-    half = max(0.0, length / 2 * lt.PX - r)
-    zc = z_top - r * flat
-    cx, cy = b.x(px), b.y(py)
-    bm = bmesh.new()
-    prof = [(-half - r * math.sin(math.pi / 2 * (1 - i / steps)), r * math.cos(math.pi / 2 * (1 - i / steps)))
-            for i in range(steps)]
-    prof += [(half + r * math.sin(math.pi / 2 * i / steps), r * math.cos(math.pi / 2 * i / steps))
-             for i in range(1, steps + 1)]
-    rings = []
-    for t, rad in prof:
-        rad = max(rad, 0.15 * r)
-        rings.append([bm.verts.new((cx + rad * math.cos(2 * math.pi * j / sides + math.pi / sides), cy + t,
-                                    zc + flat * rad * math.sin(2 * math.pi * j / sides + math.pi / sides)))
-                      for j in range(sides)])
-    for r0, r1 in zip(rings, rings[1:]):
-        for j in range(sides):
-            k = (j + 1) % sides
-            bm.faces.new((r0[j], r0[k], r1[k], r1[j])).material_index = mat
-    bm.faces.new(rings[0]).material_index = mat
-    bm.faces.new(list(reversed(rings[-1]))).material_index = mat
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    b._merge(bm, smooth=True)
-
-
-def bar(b, px, py, angle, length, width, z0, z1, mat):
-    """A straight bevelled bar through (px, py) at `angle` (radians, pixel frame, y down)."""
-    ca, sa = math.cos(angle), math.sin(angle)
-    hl, hw = length / 2, width / 2
-    bev = min(0.8, hw * 0.6)
-    bm = bmesh.new()
-
-    def ring(inset, z):
-        out = []
-        for u, w in ((-hl + inset, -hw + inset), (hl - inset, -hw + inset), (hl - inset, hw - inset), (-hl + inset, hw - inset)):
-            out.append(bm.verts.new((b.x(px + u * ca - w * sa), b.y(py + u * sa + w * ca), z)))
-        return out
-
-    base, edge, top = ring(0, z0), ring(0, z1 - bev * lt.PX * 0.5), ring(bev, z1)
-    bm.faces.new(top).material_index = mat
-    bm.faces.new(list(reversed(base))).material_index = mat
-    for a, c in ((base, edge), (edge, top)):
-        for i in range(4):
-            j = (i + 1) % 4
-            bm.faces.new((a[i], a[j], c[j], c[i])).material_index = mat
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    b._merge(bm)
-
-
-def arc_block(b, px, py, r0, r1, a0, a1, z0, z1, mat, steps=8, bevel_px=0.8):
-    """A closed annular sector (radii r0..r1 px, angles a0..a1 degrees in the pixel frame, y down)
-    from z0 to z1 with a chamfered top: the pads' bronze brackets."""
-    bm = bmesh.new()
-    angs = [math.radians(a0 + (a1 - a0) * i / steps) for i in range(steps + 1)]
-
-    def pt(r, a, z):
-        return bm.verts.new((b.x(px + r * math.cos(a)), b.y(py + r * math.sin(a)), z))
-
-    # Cross-section loop (inner-bottom, outer-bottom, outer-edge, outer-top, inner-top, inner-edge).
-    zc = z1 - bevel_px * lt.PX * 0.5
-    sec = [(r0, z0), (r1, z0), (r1, zc), (r1 - bevel_px, z1), (r0 + bevel_px, z1), (r0, zc)]
-    loops = [[pt(r, a, z) for r, z in sec] for a in angs]
-    n = len(sec)
-    for l0, l1 in zip(loops, loops[1:]):
+def lens(g, poly, z0, h, mat, max_in=1.5):
+    """A domed red pill lens over a rounded rectangle: rings stepping in and up (smooth), the top a
+    flat pill rather than a ridge (kit.Kit.pillow pinches a 6 px pill to a crease)."""
+    o = g.outer(poly)
+    prof = [(0.0, 0.0), (0.3, 0.42), (0.75, 0.75), (1.2, 0.93), (max_in, 1.0)]
+    rings = [[g.v(x, y, z0 + h * t) for x, y in ([tuple(q) for q in kit.ls.inset(o, d)] if d else o)] for d, t in prof]
+    n = len(o)
+    for lo, hi in zip(rings, rings[1:]):
         for i in range(n):
             j = (i + 1) % n
-            bm.faces.new((l0[i], l0[j], l1[j], l1[i])).material_index = mat
-    bm.faces.new(loops[0]).material_index = mat
-    bm.faces.new(list(reversed(loops[-1]))).material_index = mat
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    b._merge(bm)
+            g.face((lo[i], lo[j], hi[j], hi[i]), mat, smooth=True)
+    g.face(rings[-1], mat, smooth=False)
 
 
-def smooth_outline(b, radius=4, thresh=0.4):
-    """The painted footprint's outline follows the rim tiles' rocks pixel by pixel, which the terrace
-    shows as stair steps. Blur it (box blur, 3 passes) and threshold: a rounder outline that still
-    contains the whole painted footprint (and stays inside the covered cells)."""
-    f = b.footprint.astype(lb.np.float32)
-    k = 2 * radius + 1
-    for _ in range(3):
-        p = lb.np.pad(f, radius, mode="constant")
-        c = lb.np.cumsum(lb.np.cumsum(p, 0), 1)
-        c = lb.np.pad(c, ((1, 0), (1, 0)))
-        f = (c[k:, k:] - c[:-k, k:] - c[k:, :-k] + c[:-k, :-k]) / (k * k)
-    return ((f > thresh) & b.cover) | b.footprint
-
-
-def main():
+def build(bake=True, views=None, preview=None):
+    lb.clear_scene()
     b = lb.Building("light-bridge")
-    b.footprint = smooth_outline(b, radius=6)  # local only: the deck, rim rocks and check all use it
-    b.surface(deck=WING_DECK, channel=False, pits=False, red=False)
-    b.set_region(b.footprint, WING_DECK, b.m(PAVE))
-    x0, y0, x1, y1 = BODY
-    # The raised middle body with a chamfer step on its sides.
-    b.raise_box(x0, y0, x1, y1, BODY_TOP - 0.02, b.m(PAVE))
-    b.raise_box(x0 + CHAMFER_PX, y0, x1 - CHAMFER_PX, y1, BODY_TOP, b.m(PAVE_BODY))
-    # The red lights' trough: a light frame round a recessed dark floor.
-    sx0, sy0, sx1, sy1 = STRIP
-    b.raise_box(sx0, sy0, sx1, sy1, STRIP_FRAME, b.m("metal"))
-    b.raise_box(sx0 + 2, sy0 + 2, sx1 - 2, sy1 - 2, STRIP_FLOOR, b.m("red_dark"))
-    # The pads: shallow round wells in the wings (the pad itself is a part, below).
-    for px, py in PADS:
-        yy, xx = lb.np.mgrid[0:b.H, 0:b.W]
-        well = (xx + 0.5 - px) ** 2 + (yy + 0.5 - py) ** 2 <= (PAD_R + 1.5) ** 2
-        b.set_region(well, WING_DECK, b.m("dark"))
-    deck = b.terrace()
+    H, W = b.H, b.W
+    fp = b.footprint
+    k = kit.Kit(b)
+    g = k.g
+    M = b.m
+    yy, xx = np.mgrid[0:H, 0:W] + 0.5
 
-    # 24 capsules standing across the strip (along y), as in the tiles and the concept.
-    pitch = (sx1 - sx0 - 2) / CAPSULES
-    for i in range(CAPSULES):
-        cx = sx0 + 1 + pitch * (i + 0.5)
-        capsule(b, cx, (sy0 + sy1) / 2, 17, 3.2, 0.37, b.m("red"), sides=6)
+    m = dict(
+        house=M(P_HOUSE, roughness=0.45, metallic=0.5),
+        bezel=M(P_BEZEL, roughness=0.35, metallic=0.6),
+        lens=M(P_LENS, roughness=0.22, metallic=0.1, emission_strength=0.45),
+        sock=M(1, roughness=0.8),
+        disc=M(P_DISC, roughness=0.6, metallic=0.3),
+        spoke=M(P_SPOKE, roughness=0.45, metallic=0.5),
+        seat=M(P_SEAT, roughness=0.45, metallic=0.5),
+        clamp=M(P_CLAMP, roughness=0.45, metallic=0.55),
+        bracket=M(P_BRACKET, roughness=0.5, metallic=0.5),
+        brass=M(P_BRASS, roughness=0.38, metallic=0.6),
+        blue=M(P_BLUE, roughness=0.3, metallic=0.55),
+        lamp=M(P_LAMP, roughness=0.25, emission_strength=1.2),
+        muzzle=M(P_MUZZLE, roughness=0.3, emission_strength=1.0),
+        orb=M(P_ORB, roughness=0.2, metallic=0.8),
+        eye=M(P_EYE, roughness=0.25, emission_strength=1.0),
+        orb_bezel=M(P_ORB_BEZEL, roughness=0.55, metallic=0.4),
+        bolt=M(7, roughness=0.4, metallic=0.6),
+    )
 
-    # The pads: a dark wheel with a raised dark rim, a raised spoke cross (the sprite's X marks) and
-    # big bronze brackets wrapping its left and right sides, as in the sprite and the concept.
-    bronze = b.m(BRONZE, roughness=0.35, metallic=0.75)
-    for px, py in PADS:
-        disc(b, px, py, PAD_R, WING_DECK - 0.03, 0.33, b.m("dark", roughness=0.35, metallic=0.4), sides=24)
-        disc(b, px, py, PAD_R * 0.78, 0.32, 0.335, b.m(1, roughness=0.5, metallic=0.3), sides=20)
-        for a in (math.pi / 4, 3 * math.pi / 4):  # the X
-            bar(b, px, py, a, PAD_R * 1.45, 2.6, 0.32, 0.355, b.m(3, roughness=0.4, metallic=0.6))
-        for k in range(4):  # short spokes between the X's arms
-            a = k * math.pi / 2
-            bar(b, px + math.cos(a) * PAD_R * 0.45, py + math.sin(a) * PAD_R * 0.45, a, PAD_R * 0.45, 1.6,
-                0.32, 0.345, b.m(2, roughness=0.5, metallic=0.5))
-        disc(b, px, py, 4.0, 0.33, 0.362, b.m(4, roughness=0.35, metallic=0.6), sides=12)
-        arc_block(b, px, py, PAD_R - 4.0, PAD_R + 2.5, 100, 205, WING_DECK - 0.03, 0.372, bronze)
-        arc_block(b, px, py, PAD_R - 4.0, PAD_R + 2.5, -25, 80, WING_DECK - 0.03, 0.372, bronze)
-        # the bronze strap across the pad's lower half (the sprite's brown dotted line)
-        b.wall_block(px - PAD_R + 2, py + 8, px + PAD_R - 2, py + 10.5, 0.32, 0.35, bronze, bevel=0.3)
+    def ellm(cx, cy, rx, ry):
+        return ((xx - cx) / rx) ** 2 + ((yy - cy) / ry) ** 2 <= 1
 
-    # The orb seats on the bump: bronze housings on the outer two, silver orbs on the inner two (the
-    # sprite's bronze-silver-silver-bronze rhythm), each with a red light. Enemies (newshd 275/127)
-    # are drawn over them, so they show once those are destroyed.
-    for i, (px, py) in enumerate(SEATS):
-        if i in (0, 3):
-            disc(b, px, py, 10.5, BODY_TOP - 0.03, 0.355, bronze, sides=16)
-            disc(b, px, py, 6.5, 0.35, 0.364, b.m(1, roughness=0.25, metallic=0.5), sides=12)
-            for side in (-1, 1):  # the red side lamps
-                b.dome(px + side * 10.5, py, 2.0, 2.6, 0.33, 0.035, b.m("red"), sides=8, rings=2)
-            b.dome(px, py + 7, 2.2, 2.2, 0.35, 0.02, b.m("red"), sides=8, rings=2)
+    # ---- masks ----
+    openm = kit.box_mask((H, W), W - 3, OPEN_Y[0], W, OPEN_Y[1])
+    parts = kit.box_mask((H, W), STRIP[0] - 3, STRIP[1] - 3, STRIP[2] + 3, STRIP[3] + 3)
+    for cx, cy in HATCHES:
+        parts |= ellm(cx, cy, H_RX + 6, H_RY + 3.5)
+    for cx, cy in TURRETS:
+        parts |= ellm(cx, cy + 1, 12.5, 13.5)
+    for cx, cy in ORBS:
+        parts |= ellm(cx, cy, 12, 12.2)
+
+    lb.depth = depth_open  # deck_mask / rock_layout measure the rim band with the right edge open
+    try:
+        k.bed(fp)
+        dm = k.deck_mask(fp)
+        k.deck(dm)
+        k.rock_layout(fp, dm, exclude=kit.dil4(openm, 10))
+    finally:
+        lb.depth = depth_open.__defaults__[1]
+    k.kerb(dm, no_post=parts | kit.dil4(openm, 8))
+    k.paving(kit.ero_disk(dm, kit.KERB_W) & ~parts)
+    k.rocks()
+
+    # ---- the light strip (339 x 8): housing, bezels, 24 lenses ----
+    x0, y0, x1, y1 = STRIP
+    LT = kit.LENS_TOP  # 0.350
+    g.prism(kit.rbox(x0, y0, x1, y1, 2.0, 2), [], DECK - 0.005, LT - 0.006, m["house"], chamfer=0.9, drop=0.014, bottom=False)
+    # end caps: a machined block at each end with two bolts
+    for ex0, ex1 in ((x0 - 0.5, x0 + 2.0), (x1 - 2.0, x1 + 0.5)):
+        g.prism(kit.rbox(ex0, y0 + 1.5, ex1, y1 - 1.5, 0.6, 1), [], LT - 0.01, LT + 0.004, m["bezel"], chamfer=0.4, drop=0.006, bottom=False)
+        for by in (y0 + 5, y1 - 5):
+            g.prism(kit.ell((ex0 + ex1) / 2, by, 0.7, 0.7, 6), [], LT, LT + 0.012, m["bolt"], bottom=False)
+    for i in range(24):
+        cx0 = CAP_X0 + CAP_PITCH * i
+        cx1 = cx0 + CAP_W - 1
+        corner = CAP_W / 2 - 0.1
+        # the light bezel ring round each pill (the art's 1 px pal 8 ring), then a dark seat and the lens
+        ring_o = kit.rbox(cx0 - 0.9, CAP_Y0 - 0.9, cx1 + 1.9, CAP_Y1 + 1.9, corner + 0.9, 3)
+        ring_i = kit.rbox(cx0 + 0.1, CAP_Y0 + 0.1, cx1 + 0.9, CAP_Y1 + 0.9, corner - 0.1, 3)
+        g.prism(ring_o, [ring_i], LT - 0.012, LT + 0.006, m["bezel"], chamfer=0.35, drop=0.006, bottom=False)
+        g.prism(ring_i, [], LT - 0.02, LT - 0.002, m["sock"], bottom=False)
+        lens(g, kit.rbox(cx0 + 0.1, CAP_Y0 + 0.1, cx1 + 0.9, CAP_Y1 + 0.9, corner - 0.1, 3), LT - 0.004, 0.026, m["lens"])
+
+    # ---- the round hatches (305 306 / 315 316) ----
+    def sector(cx, cy, r0x, r0y, r1x, r1y, a0, a1, n=10):
+        out = [(cx + r1x * math.cos(math.radians(a0 + (a1 - a0) * t / n)), cy + r1y * math.sin(math.radians(a0 + (a1 - a0) * t / n))) for t in range(n + 1)]
+        out += [(cx + r0x * math.cos(math.radians(a1 - (a1 - a0) * t / n)), cy + r0y * math.sin(math.radians(a1 - (a1 - a0) * t / n))) for t in range(n + 1)]
+        return out
+
+    for cx, cy in HATCHES:
+        rx, ry = H_RX, H_RY
+        # seat ring, the dark disc recessed in it, six spokes, hub
+        g.prism(kit.ell(cx, cy, rx + 1.5, ry + 1.5, 40), [kit.ell(cx, cy, rx - 2.0, ry - 2.0, 40)], DECK - 0.01, 0.345, m["seat"],
+                chamfer=0.7, drop=0.012, bottom=False)
+        g.prism(kit.ell(cx, cy, rx - 1.9, ry - 1.9, 40), [], DECK - 0.01, 0.322, m["disc"], bottom=False)
+        for j in range(6):
+            a = math.pi / 6 + j * math.pi / 3
+            dx, dy = math.cos(a), math.sin(a)
+            nx, ny = -dy * rx / ry, dx
+            p0 = (cx + 5.5 * dx, cy + 6.5 * dy)
+            p1 = (cx + (rx - 3.5) * dx, cy + (ry - 3.5) * dy)
+            w = 1.0
+            poly = [(p0[0] + nx * w, p0[1] + ny * w), (p1[0] + nx * w, p1[1] + ny * w), (p1[0] - nx * w, p1[1] - ny * w), (p0[0] - nx * w, p0[1] - ny * w)]
+            g.prism(poly, [], 0.318, 0.336, m["spoke"], chamfer=0.3, drop=0.006, bottom=False)
+            # a bolt at the spoke's outer end
+            g.prism(kit.ell(p1[0] + 1.2 * dx, p1[1] + 1.2 * dy, 0.7, 0.7, 6), [], 0.318, 0.334, m["bolt"], bottom=False)
+        g.prism(kit.ell(cx, cy, 5.0, 6.0, 18), [], 0.318, 0.350, m["spoke"], chamfer=0.8, drop=0.01, bottom=False)
+        g.prism(kit.ell(cx, cy, 2.2, 2.6, 10), [], 0.348, 0.358, m["disc"], bottom=False)
+        # the dark-bronze side brackets (art x 25-29 / 61-66, y 79-95)
+        for a0, a1 in ((150, 205), (-25, 30)):
+            g.prism(sector(cx, cy, rx - 0.5, ry - 0.5, rx + 3.6, ry + 2.5, a0, a1, 8), [], DECK - 0.01, 0.362, m["bracket"],
+                    chamfer=0.6, drop=0.012, bottom=False)
+        # the bronze clamps hugging the disc's lower half (art x 28-37 / 53-63, y 85-99)
+        for a0, a1 in ((95, 172), (8, 85)):
+            g.prism(sector(cx, cy, rx - 5.0, ry - 5.0, rx + 0.8, ry + 0.8, a0, a1, 12), [], 0.31, 0.372, m["clamp"],
+                    chamfer=0.7, drop=0.014, bottom=False)
+            # clamp bolt
+            am = math.radians((a0 + a1) / 2)
+            g.prism(kit.ell(cx + (rx - 2.2) * math.cos(am), cy + (ry - 2.2) * math.sin(am), 0.9, 0.9, 8), [], 0.37, 0.379, m["bolt"], bottom=False)
+        # the strap across the disc's lower half (the art's dotted dark-bronze line, y 92-95), riveted
+        sy = cy + 10.0
+        hx = rx * math.sqrt(max(0.0, 1 - (10.0 / ry) ** 2)) - 3.5
+        g.prism(kit.rbox(cx - hx, sy - 1.2, cx + hx, sy + 1.2, 0.5, 1), [], 0.318, 0.342, m["bracket"], chamfer=0.3, drop=0.006, bottom=False)
+        for t in np.linspace(-hx + 1.5, hx - 1.5, 7):
+            g.prism(kit.ell(cx + t, sy, 0.55, 0.55, 6), [], 0.342, 0.35, m["clamp"], bottom=False)
+
+    # ---- the gun turrets (358) ----
+    def octagon(cx, cy, rx, ry, rot=math.pi / 8):
+        return [(cx + rx * math.cos(rot + i * math.pi / 4) / math.cos(math.pi / 8), cy + ry * math.sin(rot + i * math.pi / 4) / math.cos(math.pi / 8))
+                for i in range(8)]
+
+    for cx, cy in TURRETS:
+        g.prism(kit.ell(cx, cy + 1.0, 11.0, 11.5, 28), [], DECK - 0.005, 0.312, m["sock"], chamfer=0.5, drop=0.005, bottom=False)
+        # brass body
+        g.prism(octagon(cx, cy, 9.2, 9.0), [], 0.305, 0.345, m["brass"], chamfer=0.9, drop=0.014, bottom=False)
+        # the cage ring on top, its four blue-steel inserts (left, right, top vents) set into it
+        g.prism(octagon(cx, cy, 8.0, 7.8), [octagon(cx, cy, 5.2, 5.0)], 0.34, 0.362, m["brass"], chamfer=0.5, drop=0.008, bottom=False)
+        g.prism(kit.ell(cx, cy, 5.3, 5.1, 20), [], 0.34, 0.350, m["blue"], bottom=False)
+        g.dome(cx, cy, 4.6, 4.4, 0.348, 0.024, m["blue"], n=16, rings=3)
+        # the brass cross-bar over the cupola (art y 37-39)
+        g.prism(kit.rbox(cx - 5.4, cy - 1.1, cx + 5.4, cy + 1.1, 0.5, 1), [], 0.355, 0.376, m["brass"], chamfer=0.4, drop=0.006, bottom=False)
+        for sx in (-1, 1):
+            # side inserts (art x 124-126 / 136-138, y 37-41)
+            ix = cx + sx * 6.7
+            g.prism(kit.rbox(ix - 1.3, cy - 2.2, ix + 1.3, cy + 2.2, 0.4, 1), [], 0.355, 0.366, m["blue"], bottom=False)
+            # red side lamps (art x 121-122 / 141-142, y 35-41)
+            lx = cx + sx * 9.9
+            g.prism(kit.rbox(lx - 1.4, cy - 4.0, lx + 1.4, cy + 3.0, 0.8, 2), [], DECK - 0.005, 0.322, m["brass"], bottom=False)
+            g.dome(lx, cy - 0.5, 1.2, 3.2, 0.32, 0.03, m["lamp"], n=10, rings=2)
+            # top vents (art rows 28-29, x 126-129 / 133-136)
+            vx = cx + sx * 3.4
+            g.prism(kit.rbox(vx - 1.6, cy - 10.3, vx + 1.6, cy - 8.2, 0.4, 1), [], 0.33, 0.35, m["blue"], bottom=False)
+        # the barrel down the screen (art x 128-134, y 47-54) with a red muzzle lens on its end
+        g.prism(kit.rbox(cx - 2.6, cy + 5.0, cx + 2.6, cy + 12.0, 1.6, 3), [], 0.33, 0.354, m["brass"], chamfer=1.1, drop=0.012, bottom=False)
+        g.prism(kit.rbox(cx - 3.4, cy + 11.0, cx + 3.4, cy + 15.5, 1.2, 2), [], DECK - 0.005, 0.358, m["brass"], chamfer=0.6, drop=0.01, bottom=False)
+        g.dome(cx - 0.3, cy + 13.4, 1.7, 1.4, 0.356, 0.02, m["muzzle"], n=10, rings=2)
+        # a lower window in front of the cupola (art y 40-47 blue)
+        g.prism(kit.rbox(cx - 2.2, cy + 5.6, cx + 2.2, cy + 8.0, 0.5, 1), [], 0.34, 0.352, m["blue"], bottom=False)
+
+    # ---- the orb sockets (357) ----
+    for cx, cy in ORBS:
+        g.prism(kit.ell(cx, cy, 10.8, 11.0, 32), [], DECK - 0.005, 0.322, m["orb_bezel"], chamfer=0.8, drop=0.012, bottom=False)
+        g.prism(kit.ell(cx, cy, 9.0, 9.2, 32), [kit.ell(cx, cy, 7.6, 7.8, 32)], 0.32, 0.33, m["bezel"], bottom=False)
+        g.dome(cx, cy, 7.8, 8.0, 0.318, 0.05, m["orb"], n=24, rings=5)
+        for ey, ry_ in ((38.5, 1.9), (44.5, 1.9)):
+            g.dome(cx - 0.6, ey, 1.6, ry_, 0.352, 0.018, m["eye"], n=10, rings=2)
+
+    k.no_needles()
+    objects = k.objects()
+
+    res = b.finish(objects, fp, bake=bake, preview=preview)
+    if views:
+        render_views(objects, Path(views), b)
+    return objects
+
+
+def render_views(objects, out, b):
+    """Top / front / rear / side / 3-4 high / game / underside renders (Eevee, the baked materials)."""
+    from mathutils import Vector
+    out.mkdir(parents=True, exist_ok=True)
+    scene = bpy.context.scene
+    for eng in ("BLENDER_EEVEE_NEXT", "BLENDER_EEVEE"):
+        try:
+            scene.render.engine = eng
+            break
+        except TypeError:
+            continue
+    scene.render.film_transparent = False
+    if scene.world is None:
+        scene.world = bpy.data.worlds.new("w")
+    scene.world.use_nodes = True
+    bg = next(n for n in scene.world.node_tree.nodes if n.type == "BACKGROUND")
+    bg.inputs[0].default_value = (0.05, 0.05, 0.06, 1)
+    bg.inputs[1].default_value = 2.0
+    # HD-ground stand-in: a dark sandy plane at z=0
+    bpy.ops.mesh.primitive_plane_add(size=60, location=(0, 0, -0.001))
+    ground = bpy.context.active_object
+    gm = bpy.data.materials.new("ground")
+    gm.use_nodes = True
+    next(n for n in gm.node_tree.nodes if n.type == "BSDF_PRINCIPLED").inputs["Base Color"].default_value = (0.09, 0.075, 0.06, 1)
+    ground.data.materials.append(gm)
+    sun_d = bpy.data.lights.new("sun", "SUN")
+    sun_d.energy = 5.0
+    sun = bpy.data.objects.new("sun", sun_d)
+    scene.collection.objects.link(sun)
+    sun.rotation_euler = (math.radians(40), math.radians(-20), math.radians(30))
+    w, h = b.W * lt.PX, b.H * lt.PX
+
+    def shot(name, loc, look, ortho=None, lens=50, res=(1600, 800), hide_ground=False):
+        cd = bpy.data.cameras.new(name)
+        if ortho:
+            cd.type = "ORTHO"
+            cd.ortho_scale = ortho
         else:
-            disc(b, px, py, 10.5, BODY_TOP - 0.03, 0.35, b.m(4, roughness=0.35, metallic=0.6), sides=16)
-            b.dome(px, py, 9.0, 9.0, 0.345, 0.03, b.m(9, roughness=0.25, metallic=0.8), sides=16, rings=3)
-            b.dome(px, py, 2.4, 2.4, 0.372, 0.006, b.m("red_dark", emission_strength=1.2), sides=8, rings=1)
+            cd.lens = lens
+        cam = bpy.data.objects.new(name, cd)
+        scene.collection.objects.link(cam)
+        cam.location = loc
+        cam.rotation_euler = (Vector(look) - Vector(loc)).to_track_quat("-Z", "Y").to_euler()
+        scene.camera = cam
+        scene.render.resolution_x, scene.render.resolution_y = res
+        ground.hide_render = hide_ground
+        scene.render.filepath = str(out / f"{name}.png")
+        bpy.ops.render.render(write_still=True)
 
-    # The rim: big and small rocks in two rows.
-    def keep(px, py):  # no rocks on the pads
-        return all((px - qx) ** 2 + (py - qy) ** 2 > (PAD_R + 4) ** 2 for qx, qy in PADS)
-
-    n1 = b.rim_rocks(spacing=10.0, inset=4.0, size=(0.55, 0.85), height=(0.38, 0.48), sink=0.10, sides=(5, 6), keep=keep)
-    n2 = b.rim_rocks(spacing=16.0, inset=10.0, size=(0.40, 0.55), height=(0.35, 0.41), sink=0.06, sides=(4, 5), keep=keep)
-    # The notches' sides under the wings (the rim tiles 382 / 380 at cols 3-4 and 9-10): a close row
-    # of small rocks so the deck's side wall there doesn't show as stair steps.
-    def notch(px, py):
-        return py > 90 and (88 < px < 112 or 228 < px < 256) and keep(px, py)
-
-    n3 = b.rim_rocks(spacing=6.0, inset=3.0, size=(0.6, 0.85), height=(0.38, 0.46), sink=0.10, sides=(5, 5), keep=notch)
-    print("rocks", n1, n2, n3)
-    objects = b.objects(deck)
-    b.check(objects)
-    tris = sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in objects)
-    print(f"light-bridge: {tris} triangles", [(o.name, sum(len(p.vertices) - 2 for p in o.data.polygons)) for o in objects])
-    b.export(objects)
+    shot("top", (0, 0, 10), (0, 0, 0), ortho=w * 1.02, res=(1560, 700))
+    bpy.data.objects["top"].rotation_euler = (0, 0, 0)
+    scene.camera = bpy.data.objects["top"]
+    scene.render.filepath = str(out / "top.png")
+    bpy.ops.render.render(write_still=True)
+    shot("game", (0, -h * 1.15, h * 1.75), (0, -0.2, 0), lens=40, res=(1600, 900))
+    shot("front", (0, -w * 1.05, 3.2), (0, 0, 0.0), lens=50, res=(1600, 600))
+    shot("rear", (0, w * 1.05, 3.2), (0, 0, 0.0), lens=50, res=(1600, 600))
+    shot("side", (w * 0.75, 0, 1.6), (0, 0, 0.1), lens=50, res=(1000, 600))
+    shot("q34", (w * 0.55, -w * 0.5, w * 0.42), (0, 0, 0.1), lens=50, res=(1600, 900))
+    shot("close_turret", (b.x(168), b.y(40) - 6.0, 5.0), (b.x(168), b.y(46), 0.3), lens=50, res=(1200, 700))
+    shot("close_hatch", (b.x(62), b.y(84) - 6.5, 5.5), (b.x(62), b.y(80), 0.3), lens=50, res=(1200, 700))
+    shot("under", (w * 0.6, -w * 0.6, -w * 0.4), (0, 0, 0), lens=50, res=(1000, 600), hide_ground=True)
 
 
-main()
+argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+build(bake="--no-bake" not in argv, views=argv[argv.index("--views") + 1] if "--views" in argv else None, preview=lt.preview_arg())

@@ -25,5 +25,6 @@
  ],
  "neutral": 0.85,
  "fit_iou": 0.799,
- "dome_neutralised": true
+ "dome_neutralised": true,
+ "bake": "model"
 }
