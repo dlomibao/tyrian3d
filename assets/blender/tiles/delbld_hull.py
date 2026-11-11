@@ -19,23 +19,32 @@ is the sprite's): a height field over the tile's pixels, from what each part is 
 pixels' brightness (art rule 2: the art's shading and sheen are lighting):
 - tubes: analytic primitives per tile (straight lines and elliptic elbows, in tile px) give each pixel its
   distance from the tube's centre line; the tube's section is a half ellipse 0.26 high, so straights,
-  elbows and the tees where a cross tube meets a rim are one smooth surface; the grey clamps stand 0.03
-  proud of the purple segments (each ring of the tube grey or purple by the majority of its pixels, so a
-  clamp is one part, not the art's speckle of shading); on the elbows the art's thin ink lines are
-  grooves (their radial ribs);
-- deck: plates 0.025 proud, split along the art's darker seam lines (the brick pattern), with deeper
-  grooves on its ink lines; grey brackets on the deck stand 0.05 proud;
+  elbows and the tees where a cross tube meets a rim are one smooth surface; each ring of the tube is a
+  grey clamp or a purple segment by the majority of its pixels (a clamp is one part, not the art's
+  speckle of shading);
+- clamps (D136): chunky brackets round the tube, a squarer section standing 0.05 proud with eased ends;
+  their big ink-dark areas are housings sunk 0.07 in their own shade (the art's index there), with the
+  slats across them standing between grooves; a clamp's foot on the deck is a block 0.11 high with
+  rounded edges;
+- the tubes' long thin ink lines (the clamps' slats and outlines, the segments' greek keys, the elbows'
+  ribs) are grooves 0.06 deep and the purple segments' big dark areas shallow recesses, both floored in
+  the art's ink shade of their ramp; the segments' darker seam lines are shallower grooves;
+- deck: plates 0.03 proud between seams 0.02 deep (the art's darker purple lines, found against the
+  plating round them), the seams floored in the art's seam shade, with deeper grooves on its ink lines;
 - grille: its bars proud of a sunk frame, slots open; panels sunk, the machine a raised block with its red
   lights glowing;
 - springs: no primitives (their arms are drawn in perspective): the art's blocks and arms as plates (the
   regions between its ink lines), each standing by its brightness with rounded edges, so a thin arm is a
   round bar and a block a box; the ink between them is a groove; each plate takes its own median palette
   index (the art's dark blocks stay dark), snapped within its ramp to one set of shades for all spring tiles.
-Colours: one palette index per part (grey clamps, purple tube, deck, brackets, blue, red; a spring's
-plates each their own), the median of its pixels with the darkest and brightest 15% dropped.
+Colours: one palette index per part (grey clamps, from the face of the clamp; purple tube, deck, seams,
+housings, the tubes' ink, brackets, blue, red; a spring's plates each their own), the median of its
+pixels with the darkest and brightest 15% dropped. In game the sun shines from the camera's side into
+every groove, so a groove's occlusion alone never darkens it as the art's ink: grooves take the art's
+ink shade, as the girders' window lips do (D134).
 
 Heights (layer 2 models stay within about +-0.35 of the pass height): deck top 0, tube crown +0.26,
-clamps +0.29, underside -0.22.
+clamps about +0.31, underside -0.22.
 
 Run: tools/build-models.sh -j 2 assets/blender/tiles/delbld_hull.py
      Blender -b --factory-startup -P delbld_hull.py -- [--no-bake] [tile ...]
@@ -60,10 +69,13 @@ LAYER = 2
 
 BOTTOM = -0.22
 TUBE_H = 0.26
-CLAMP_UP = 0.03
-GROOVE = -0.03
-PLATE_UP = 0.025
-BRACKET_UP = 0.05
+CLAMP_UP = 0.05
+GROOVE = -0.06
+SEAM = -0.02
+PLATE_UP = 0.03
+BRACKET_UP = 0.11
+HOUSING = -0.07
+SEAM_DARK = 0.05
 CROSS_H = 0.22
 SPRING_H = 0.24
 #: The shades a spring's plates snap to, within their own ramp (grey, purple), every other step.
@@ -126,14 +138,18 @@ INK = {1, 2, 3, 80, 81}
 
 def tube_field(spec_tubes, h, w, scale):
     """The tube primitives over a tile's h x w grid (`scale` px per tile px): height (0 where no tube),
-    which primitive is highest at each pixel, and the pixel's ring along it (a 1-px step along the
-    centre line), so a clamp or a segment is a whole ring of the tube."""
+    which primitive is highest at each pixel, the pixel's ring along it (a 1-px step along the
+    centre line), so a clamp or a segment is a whole ring of the tube, and the pixel's distance from
+    the centre line as a fraction of the half width with that primitive's crown height (for the
+    clamps' squarer section)."""
     ys, xs = np.mgrid[0:h, 0:w]
     px = (xs + 0.5) / scale
     py = (ys + 0.5) / scale
     out = np.zeros((h, w))
     prim = np.full((h, w), -1)
     ring = np.zeros((h, w), dtype=int)
+    qn = np.full((h, w), 1.0)
+    top = np.zeros((h, w))
     for i, t in enumerate(spec_tubes):
         if t[0] == "line":
             (x0, y0), (x1, y1), hw, height = t[1], t[2], t[3], t[4]
@@ -158,7 +174,9 @@ def tube_field(spec_tubes, h, w, scale):
         out = np.where(better, hgt, out)
         prim = np.where(better, i, prim)
         ring = np.where(better, np.floor(along).astype(int), ring)
-    return out, prim, ring
+        qn = np.where(better, np.clip(d / wid, 0, 1), qn)
+        top = np.where(better, height, top)
+    return out, prim, ring, qn, top
 
 
 def ramp_of(v):
@@ -176,7 +194,8 @@ def ramp_of(v):
 
 
 def majority_fill(cls, ink, size=2):
-    """Ink pixels take the most common class round them (ink is lighting or a seam, not a part)."""
+    """Ink pixels take the most common class round them (ink is lighting or a seam, not a part); inside
+    a big dark area (no other pixel near) a pixel keeps its own ramp."""
     out = cls.copy()
     h, w = cls.shape
     ys, xs = np.nonzero(ink)
@@ -186,7 +205,7 @@ def majority_fill(cls, ink, size=2):
         vals = [c for c, k in zip(win.ravel(), winink.ravel()) if not k and c != ""]
         if vals:
             out[y, x] = max(set(vals), key=vals.count)
-        else:
+        elif cls[y, x] == "":
             out[y, x] = "purple"
     return out
 
@@ -198,8 +217,29 @@ def thin_lines(mask):
     return mask & (count <= 6)
 
 
-def labels(cls):
-    """4-connected regions of equal non-empty class: an int label per pixel (0 = none)."""
+def seam_lines(ts, grid, lum, solid):
+    """The plating's seams: its darker purple pixels (80-86) that are darker than the plating round them
+    (a 5x5 window of the 2x art), so a seam line and its crossings are found, but a whole plate drawn in
+    a darker shade stays a plate."""
+    k = np.ones(5)
+    def box(a):
+        a = np.apply_along_axis(lambda v: np.convolve(v, k, mode="same"), 0, a)
+        return np.apply_along_axis(lambda v: np.convolve(v, k, mode="same"), 1, a)
+    mean = box(np.where(solid, lum, 0.0)) / np.maximum(box(solid.astype(float)), 1)
+    step = ts.lum[88] - ts.lum[86]
+    return solid & np.isin(grid, list(range(80, 87))) & (lum < mean - 0.3 * step)
+
+
+def long_lines(mask, min_px):
+    """The pixels of `mask` in 8-connected pieces of at least `min_px` pixels (a line, not a speck)."""
+    lab = labels(np.where(mask, "m", ""), diagonal=True)
+    ids, counts = np.unique(lab[lab > 0], return_counts=True)
+    keep = set(int(i) for i, c in zip(ids, counts) if c >= min_px)
+    return mask & np.isin(lab, list(keep))
+
+
+def labels(cls, diagonal=False):
+    """4-connected (or 8-) regions of equal non-empty class: an int label per pixel (0 = none)."""
     h, w = cls.shape
     lab = np.zeros((h, w), dtype=int)
     n = 0
@@ -213,7 +253,10 @@ def labels(cls):
             lab[y0, x0] = n
             while stack:
                 y, x = stack.pop()
-                for yy, xx in ((y - 1, x), (y + 1, x), (y, x - 1), (y, x + 1)):
+                nbs = ((y - 1, x), (y + 1, x), (y, x - 1), (y, x + 1))
+                if diagonal:
+                    nbs += ((y - 1, x - 1), (y - 1, x + 1), (y + 1, x - 1), (y + 1, x + 1))
+                for yy, xx in nbs:
                     if 0 <= yy < h and 0 <= xx < w and not lab[yy, xx] and cls[yy, xx] == c:
                         lab[yy, xx] = n
                         stack.append((yy, xx))
@@ -284,8 +327,9 @@ def build(ts, pattern, name, coll, bake_on, block_kind=None):
     height = np.zeros((H, W))
     tube = np.zeros((H, W), dtype=bool)
     plated = np.zeros((H, W), dtype=bool)
-    elbow = np.zeros((H, W), dtype=bool)
     key = np.full((H, W), -1)
+    qn = np.ones((H, W))
+    crown = np.zeros((H, W))
     kind = np.full((H, W), "deck", dtype=object)
     for r in range(rows):
         for c in range(cols):
@@ -297,12 +341,12 @@ def build(ts, pattern, name, coll, bake_on, block_kind=None):
             k = block_kind or spec.get("kind", "hull")
             kind[sl] = k
             if spec.get("tubes") and not block_kind:
-                f, prim, ring = tube_field(spec["tubes"], TH, TW, S)
+                f, prim, ring, q, top = tube_field(spec["tubes"], TH, TW, S)
                 height[sl] = f
+                qn[sl] = q
+                crown[sl] = top
                 tube[sl] = f > 0.02
                 plated_prims = [i for i, tp in enumerate(spec["tubes"]) if tp[-1] == CROSS_H]
-                arc_prims = [i for i, tp in enumerate(spec["tubes"]) if tp[0] == "arc"]
-                elbow[sl] = (f > 0.02) & np.isin(prim, arc_prims)
                 plated[sl] = (f > 0.02) & np.isin(prim, plated_prims)
                 key[sl] = np.where(prim >= 0, (r * cols + c) * 100000 + prim * 1000 + ring, -1)
 
@@ -319,19 +363,48 @@ def build(ts, pattern, name, coll, bake_on, block_kind=None):
     lum = np.where(solid, ts.lum[np.maximum(grid, 0)], 0.0)
     line_ink = thin_lines(ink)
     deck = solid & ~tube & (kind == "hull")
-    # Deck plates: the brick pattern's seams (darker purple lines) are grooves.
-    seam = deck & np.isin(grid, list(range(80, 87)))
-    height[deck & ~seam] += PLATE_UP
-    pseam = plated & np.isin(grid, list(range(80, 87)))
-    height[plated & ~pseam] += PLATE_UP
+    # Deck plates: the brick pattern's seams (darker purple lines, found against the plating round them)
+    # are grooves between plates standing proud. The seams are floored in the art's seam shade (their own
+    # palette index, as a window's lip on the girders, D134): in game the sun shines into a groove and
+    # its occlusion alone left the plating a flat sheet.
+    seam_px = long_lines(seam_lines(ts, grid, lum, solid), 8)
+    seam = deck & seam_px
+    pseam = plated & seam_px
+    for sel, sm in ((deck, seam), (plated, pseam)):
+        height[sel & ~sm & ~line_ink] += PLATE_UP
+        height[sel & sm] += SEAM
     height[deck & line_ink] += GROOVE
-    # Grey brackets on the deck.
+    # Grey brackets on the deck (a clamp's foot): blocks with rounded edges, their ink lines grooves.
     bracket = deck & (cls == "grey") & ~ink
-    height[bracket] += BRACKET_UP
-    # Tube details: grey clamps proud, ink lines grooved.
-    height[tube & (cls == "grey")] += CLAMP_UP
-    # The elbows' radial ribs: the art's thin ink lines there are grooves.
-    height[elbow & line_ink] += GROOVE
+    lab_b = labels(np.where(bracket, "b", ""))
+    edge_b = np.clip(erosion_depth(lab_b, 2) / 2.0, 0, 1)
+    height[bracket] += (BRACKET_UP * (0.35 + 0.65 * np.sqrt(edge_b)))[bracket]
+    # Tube clamps: a squarer section than the round purple segments, standing proud, with their ends
+    # rounded (the raise is eased over a pixel), so each reads as a chunky bracket round the tube.
+    clamp = tube & ~plated & (cls == "grey")
+    box = crown * np.clip(1 - qn ** 3, 0, 1) ** (1 / 3)
+    up = np.where(clamp, np.maximum(box - height, 0) + CLAMP_UP, 0.0)
+    up = lt.blur(up, 0.8) * (tube & ~plated)
+    height += up
+    # Tube details: the art's thin ink lines (the clamps' slats and recesses, the segments' plate seams,
+    # the elbows' radial ribs) are grooves, and so are the purple segments' darker seam lines (thin lines
+    # darker than the plating round them).
+    groove_t = tube & long_lines(line_ink & tube, 10)
+    height[groove_t] += GROOVE
+    purple_seg = tube & ~plated & (cls == "purple") & ~groove_t
+    local = lt.blur(np.where(solid, lum, 0.0), 2.0) / np.maximum(lt.blur(solid.astype(float), 2.0), 1e-3)
+    pseam_t = purple_seg & long_lines(thin_lines(purple_seg & (lum < local - SEAM_DARK)), 8)
+    height[pseam_t] += GROOVE * 0.6
+    # A clamp's (or a bracket's) big dark areas are housings: sunk below its face, in their own shade
+    # (the art's palette index for that region), with the slats across them standing between grooves.
+    housing = (clamp | bracket | (deck & (cls == "grey"))) & ink & ~line_ink
+    height[housing] += HOUSING
+    # A purple segment's big dark areas are shallow recesses. The tubes' ink (grooves and recesses) is
+    # floored in the art's ink shade of its ramp, as the plating's seams: lit by the sun from the
+    # camera's side, a groove's occlusion alone left the tube a plain drum.
+    recess = tube & ~plated & (cls == "purple") & ink & ~line_ink
+    height[recess] += HOUSING * 0.4
+    tube_ink = (groove_t | recess) & ~housing
     # Grille: bars proud, the rest of the frame sunk; slots are open (transparent).
     grille = solid & (kind == "grille")
     height[grille] = np.where(lum[grille] > ts.lum[86], 0.04, -0.04)
@@ -391,13 +464,14 @@ def build(ts, pattern, name, coll, bake_on, block_kind=None):
             return min(shades, key=lambda k: abs(k - v)) if shades else v
         plate_index = np.where(plate_index >= 0, np.vectorize(snap)(np.maximum(plate_index, 0)), -1)
 
+    _debug_dump(name, grid=grid, height=height, plate_idx=np.where(seam, 85, -1), solid=solid, tube=tube)
     # Materials: one palette index per part, from the centre tile's pixels (or the block's).
     centre = centre_of(PR, PC, TH, TW)
     mats = kit.Mats(ts, name.replace("delbld-hull-", "h"), **HULL)
 
-    def part_index(sel, prefer):
+    def part_index(sel, prefer, use_ink=False):  # noqa: E301
         for region in (centre, (slice(None), slice(None))):
-            v = grid[region][sel[region] & ~ink[region]]
+            v = grid[region][sel[region] & (use_ink | ~ink[region])]
             idx = kit.region_index(ts, v, prefer=prefer)
             if idx is not None:
                 return idx
@@ -406,14 +480,19 @@ def build(ts, pattern, name, coll, bake_on, block_kind=None):
     slot = {}
     for part, sel, prefer, kw in (
         ("tube_purple", tube & (cls == "purple"), PURPLE, {}),
-        ("tube_grey", tube & (cls == "grey"), GREY, dict(metallic=0.2, roughness=0.35)),
+        # A clamp's colour is its face's (the inner half of the tube's width), not its fins' and flanks'.
+        ("tube_grey", tube & (cls == "grey") & (qn < 0.6), GREY, dict(metallic=0.2, roughness=0.28)),
         ("deck", (deck | panel | machine | grille | spring) & (cls == "purple"), PURPLE, {}),
         ("bracket", (deck | spring | machine | grille | panel) & (cls == "grey"), GREY, dict(metallic=0.2, roughness=0.35)),
+        ("housing", housing, GREY, dict(metallic=0.2, roughness=0.45)),
+        ("seam", seam, PURPLE, dict(roughness=0.7)),
+        ("ink_purple", tube_ink & (cls == "purple"), PURPLE, dict(roughness=0.6)),
+        ("ink_grey", tube_ink & (cls == "grey"), GREY, dict(metallic=0.2, roughness=0.45)),
         ("blue", solid & (cls == "blue"), BLUE, dict(metallic=0.2, roughness=0.3)),
         ("red", solid & (cls == "red"), RED, dict(emission_strength=1.2)),
         ("steel", solid & (cls == "steel"), STEEL, dict(metallic=0.2, roughness=0.4)),
     ):
-        idx = part_index(sel, prefer)
+        idx = part_index(sel, prefer, use_ink=part in ("housing", "seam", "ink_purple", "ink_grey"))
         if idx is not None:
             slot[part] = mats(idx, **kw)
     fallback = slot.get("deck") or slot.get("tube_purple") or next(iter(slot.values()))
@@ -428,6 +507,14 @@ def build(ts, pattern, name, coll, bake_on, block_kind=None):
             return slot.get("blue", fallback)
         if c == "steel":
             return slot.get("steel", fallback)
+        if housing[y, x] and "housing" in slot:
+            return slot["housing"]
+        if seam[y, x] and "seam" in slot:
+            return slot["seam"]
+        if tube_ink[y, x]:
+            part = "ink_grey" if c == "grey" else "ink_purple"
+            if part in slot:
+                return slot[part]
         if tube[y, x]:
             return slot.get("tube_grey" if c == "grey" else "tube_purple", fallback)
         if c == "grey":
@@ -459,6 +546,15 @@ def build(ts, pattern, name, coll, bake_on, block_kind=None):
     rough[cls == "blue"], metal[cls == "blue"] = 0.3, 0.2
     field = dict(height=height, solid=solid, rough=rough, metal=metal, scale=S)
     return kit.finish(ts, coll, name, bm, mats, LAYER, bake_on=bake_on, skip_slots=glow, field=field, cols=PC, rows=PR)
+
+
+def _debug_dump(name, **arrays):
+    """DELBLD_DEBUG=<dir>: the block's arrays (height field, parts) as <dir>/<name>.npz, to look at what
+    the art became."""
+    import os
+    out = os.environ.get("DELBLD_DEBUG")
+    if out:
+        np.savez(f"{out}/{name}.npz", **{k: np.asarray(v, dtype=float if v.dtype == object else v.dtype) if v.dtype != object else np.zeros(v.shape) for k, v in arrays.items()})
 
 
 def main():
