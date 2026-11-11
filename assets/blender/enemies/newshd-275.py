@@ -37,7 +37,7 @@ Hard surface (D50-D53, D65): chamfered bar frame (convex-hull blocks), inset cor
 modelled panel line, a bolted housing with a hatch, pchip-profiled lofts for the hood (rounded-rect
 sections with a panel groove round its crown), revolved breech with machined bands, barrel with
 collar, panel groove, chamfered lip and recessed glowing bore; lamps as domed lenses in bezel rings.
-Floor: stone plate painted per pixel, a separate object marked tyrian_ground, built for the review renders only; not exported (D129: the game draws the tile's ground in HD, and the
+Floor: stone plate painted per pixel, a separate object marked tyrian_ground, built for the review renders only; not exported (D130: the game draws the tile's ground in HD, and the
 plate painted per pixel from the sprite showed as grey pixel cells on it).
 Outline shell (D51) from a closed proxy. Underside: closed, plain.
 
@@ -436,7 +436,7 @@ def build():
 if __name__ == "__main__":
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     sprite, objs = build()
-    objs = [o for o in objs if not o.get("tyrian_ground")]  # the floor plate stays out (D129)
+    objs = [o for o in objs if not o.get("tyrian_ground")]  # the floor plate stays out (D130)
     if "--out" in argv:  # a scratch export for measuring, not the game's files
         common.export_glb(objs, Path(argv[argv.index("--out") + 1]))
     else:

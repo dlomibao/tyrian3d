@@ -2,7 +2,7 @@
 a full tile with its stone floor). A FIXED GROUND STRUCTURE: spawned only by ground-layer events
 with no movement, carried with the asteroid's terrain, a 20-step glow cycle. It stands on the
 ground: the floor plate (painted per pixel from the sprite's stone) is built for the review only and
-not exported (D129), since the game draws the tile's ground in HD and the plate showed as grey pixel
+not exported (D130), since the game draws the tile's ground in HD and the plate showed as grey pixel
 cells on it. Underside: the housing and its flange are closed solids.
 
 Reading of the sprite (tools/calibration/rubric.md, "Reading a sprite"):
@@ -528,6 +528,6 @@ def build():
 
 if __name__ == "__main__":
     obj, cores, fl, shell = build()
-    objs = [obj] + cores + [shell]  # not the floor plate (D129)
+    objs = [obj] + cores + [shell]  # not the floor plate (D130)
     sp = common.load_sprite(WT, NAME)
     common.export_sprite_model(WT, objs, f"enemies/{NAME}", sp["sprites"])

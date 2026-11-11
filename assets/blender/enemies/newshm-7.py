@@ -31,7 +31,7 @@ exactly as newshm-7-f2 does. What changes in the bay:
   The apron (105) and the bezel are satin in this piece (FIN_X): at the assembly's finish they showed
   chrome streaks / a cyan environment glint in the game render.
 
-Undersides: the assembly's closed hull base; no detail. No floor plate (D129).
+Undersides: the assembly's closed hull base; no detail. No floor plate (D130).
 Texture: none by default (no textures/newshm-7 folder). -- --bake runs the AO/roughness model bake of the
 static piece (usp_talon.bake_maps); tried, it streaked the apron and hull in the game renderer, so off. Outline shell: from the whole dome with the
 leaves closed (exactly newshm-7-f2's shell), cut to the piece without caps, as the assembly does.
@@ -340,7 +340,7 @@ def dup(o):
 
 def crop(body, floor, loose):
     """The piece: the body (all closed solids) intersected with the tile box (EXACT, self-union), so its
-    cut faces are capped in the dark cut colour (101); the floor plate is not exported (D129, as the
+    cut faces are capped in the dark cut colour (101); the floor plate is not exported (D130, as the
     assembly: the game draws the tile's ground in HD), so it is dropped. `loose` (the rails
     and rail lips, closed solids built inside the tile) is only joined: cropped in the self-union it
     left open slivers at the tile edge."""

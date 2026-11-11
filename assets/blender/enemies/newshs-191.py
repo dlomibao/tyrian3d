@@ -23,7 +23,7 @@ Hard surface (D50-D53, D65): the rack is a block with a front plinth and three v
 front face (the face the tilted game camera sees); each slot a lofted bezel lip with chamfered
 outer and inner edges dropping into a pocket; each capsule a pchip loft, round in section, sunk
 into its pocket. Floor: the stone plate painted per pixel, a separate object marked tyrian_ground, for
-the review renders only; not exported (D129: the game draws the tile's ground in HD, and the
+the review renders only; not exported (D130: the game draws the tile's ground in HD, and the
 plate painted per pixel from the sprite showed as grey pixel cells on it). Outline shell (D51) from a closed proxy of rack + capsules.
 Underside: closed, plain.
 
@@ -492,7 +492,7 @@ def renders(objs, sprite, out):
 if __name__ == "__main__":
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     sprite, objs = build()
-    # the floor plate (tyrian_ground) stays out of the game's model (D129)
+    # the floor plate (tyrian_ground) stays out of the game's model (D130)
     common.export_sprite_model(WT, [o for o in objs if not o.get("tyrian_ground")], f"enemies/{NAME}",
                                sprite["sprites"])
     tris = 0

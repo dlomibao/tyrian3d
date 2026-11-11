@@ -13,7 +13,7 @@ lobes (rows 8-10 and 17-18) are sheen on the lips of two panel lines that cross 
 Hard surface (D50-D53, D65): a fitted base flange with bolts; the dome as separate armour panels
 over a dark core, so the panel lines are real grooves with chamfered lips; the spine a lofted plate
 with chamfered edges and end caps; each lamp a domed lens in a bezel ring, a railed conduit
-between them. No floor plate (D129): the sprite's stone-brick floor round the pod is the tile's
+between them. No floor plate (D130): the sprite's stone-brick floor round the pod is the tile's
 ground, which the game draws in HD; the model is the pod alone (it was a plate painted per pixel
 from the sprite, which showed as grey pixel cells on the HD ground).
 

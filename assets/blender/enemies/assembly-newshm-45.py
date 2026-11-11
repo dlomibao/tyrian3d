@@ -27,7 +27,7 @@ edge east, y = row edge south, z up; Blender = px / 12):
 - Bolts: 14 domed heads at the blueprint's positions, dropped onto the surface by ray cast.
 - Floor: the stone plate, painted in the sprite's grey tones (as lib_b073.floor), not under the dome:
   built only as an occluder for the AO bake (the dome's foot darkens where it meets the ground) and
-  deleted before export (D129, as D86's dirt): the game draws the tile's ground in HD, and the plate
+  deleted before export (D130, as D86's dirt): the game draws the tile's ground in HD, and the plate
   showed as grey pixel cells round the dome.
 
 Orange 118-126 streaks and the bright rims are sheen: no geometry. Underside: closed flat base only.
@@ -1185,7 +1185,7 @@ def main():
     shell = common.outline_shell(dome_only, COLL, voxel=0.016, faces=OUTLINE_FACES)
     shell.hide_render = True
     bpy.data.objects.remove(dome_only, do_unlink=True)
-    # the floor plate was the bake's occluder only: it is not exported (D129)
+    # the floor plate was the bake's occluder only: it is not exported (D130)
     bm = bmesh.new()
     bm.from_mesh(whole.data)
     bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.material_index in stone_slots], context="FACES")

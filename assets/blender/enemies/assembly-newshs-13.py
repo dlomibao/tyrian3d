@@ -24,7 +24,7 @@ Read off the sprite (sprite px: c = column east, r = row south (front, the playe
   under a lintel) and a grooved box; a kerb (6) whose lit south bevel is the sprite's row 69.
 - THE GRILLE RAMP: a bed (2) sloping from the kerb down to the floor, eight ribs (4) on the
   sprite's 4-px pitch (lit columns 8, 12, ... 36), cheeks (5), a sill (4) at row 79.
-- NO FLOOR (D129): the sprite's stone floor round the block is the tile's ground, which the game
+- NO FLOOR (D130): the sprite's stone floor round the block is the tile's ground, which the game
   draws in HD (the plate painted per pixel from the sprite, lib_b073.floor, showed as grey pixel
   cells on it). The machine stands on the ground.
 Underside: closed, plain.

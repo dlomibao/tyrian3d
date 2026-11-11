@@ -38,7 +38,7 @@ modelled grooves (cut into the section rings), a separate strap with thickness, 
 housing with proud lenses and a visor, a machined collar ring on the drum, bolted cheeks with pivot
 hubs. No bake (no textures folder for this model), outline shell (D51). Underside: every part sits on
 the ground, closed, no detail. The floor plate (painted per pixel from the sprite's stone, as
-lib_b073) is still built but not exported (D129): the game draws the tile's ground in HD, and the
+lib_b073) is still built but not exported (D130): the game draws the tile's ground in HD, and the
 plate showed as grey pixel cells on it.
 
 Built whole in the pair's coordinates (Blender Y = (28 - y) / 12, so the pair's centre is the origin) and
@@ -551,7 +551,7 @@ L.cut_parts = cut_parts
 def build_asm(sprite_, g):
     sprite, objs = build()
     obj, fl, shell = objs[0], objs[1], objs[2]
-    bpy.data.objects.remove(fl, do_unlink=True)  # the floor plate stays out of the pieces (D129)
+    bpy.data.objects.remove(fl, do_unlink=True)  # the floor plate stays out of the pieces (D130)
     return obj, [], [shell] + objs[3:]
 
 

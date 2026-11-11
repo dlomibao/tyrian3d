@@ -21,7 +21,7 @@ What the sprite says (and this model keeps):
   stripe on top, a dark back block) and a folded blue fin on a raked post standing on the floor.
 - The floor: base slab with raised tiles (101/102) and grout (99/100) traced pixel by pixel, dark
   seams where the sprite draws floor seams. Built only as an occluder for the AO bake (the parts'
-  feet darken where they meet the ground) and deleted before export (D129, as D86's dirt): it is the
+  feet darken where they meet the ground) and deleted before export (D130, as D86's dirt): it is the
   tile's ground, which the game draws in HD, and it showed as a box of pixel tiles with an ink ring.
 
 Built in sprite px of the half assembly (c east, r south, h up; pixel (c, r) covers [c,c+1]x[r,r+1];
@@ -825,7 +825,7 @@ def build(coll):
         fn(m)
         groups[gname] = to_object(m, mats, coll)
     # the floor gets its own copies of the palette materials, flagged, so its faces can be found and
-    # deleted after the bake (D129)
+    # deleted after the bake (D130)
     floor_mats = {}
     for p, mt in mats.items():
         cp = mt.copy()
@@ -1000,7 +1000,7 @@ def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     coll = common.reset_collection(NAME)
     sprite, mats, groups, g, inner = build(coll)
-    # the machine is culled and outlined on its own; the floor joins it only for the bake (D129)
+    # the machine is culled and outlined on its own; the floor joins it only for the bake (D130)
     machine = join([groups["pillar"], groups["crane"]], NAME + "_machine", coll)
     T.cull_hidden(machine)
     half = join([machine, groups["floor55"], groups["floor283"]], NAME + "_half", coll)
@@ -1024,7 +1024,7 @@ def main():
     if "--no-bake" not in argv:  # AO / roughness / metallic bake from the model itself (no projection)
         bake_pieces(pieces, lay, coll, size=512)
         fmt = "WEBP"
-    for name, _, _ in lay:  # the floor was the bake's occluder only: not exported (D129)
+    for name, _, _ in lay:  # the floor was the bake's occluder only: not exported (D130)
         p = pieces[name]
         bm = bmesh.new()
         bm.from_mesh(p.data)

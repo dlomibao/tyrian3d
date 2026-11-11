@@ -8,7 +8,7 @@ Reading of the sprite (24x28, a full tile; pixel (c, r) covers [c, c+1] x [r, r+
 - Floor round it: 101/102 tiles and 99/100 grout over a dark 96-98 slab, traced pixel by pixel
   the way the machine's floor is (same heights and finishes). Dark floor in the tile's edge ring
   counts as ink (sprite_mask.py) and the slab stops inside it. Built only as an occluder for the
-  AO bake and deleted before export, and left out of the outline shell (D129, as D86's dirt): it
+  AO bake and deleted before export, and left out of the outline shell (D130, as D86's dirt): it
   is the tile's ground, which the game draws in HD, and it showed as a box of pixel tiles.
 - The block: a battered armoured housing, its ink at col 1 / col 20 / row 1 / row 24, chamfered
   back corners (rows 2-4). The flanks slope in (left cols 2-5 shade 4-5-6 toward the top, right
@@ -335,7 +335,7 @@ def floor_slab(m, slab):
 
 def shell_source(g, inner):
     """What the outline shell is made from (D51): the block's plain frustum and the plate (not the
-    floor slab, D129), without the ribs, grooves, slots and gun. Built from the detailed model, the shell's
+    floor slab, D130), without the ribs, grooves, slots and gun. Built from the detailed model, the shell's
     back faces showed in the narrow grooves between the ribs as black specks; this has no groove for
     them to show in, and the shell only has to trace the silhouette."""
     m = PxMesh("shellsrc")
@@ -485,7 +485,7 @@ def build(sprite, coll):
     fl = PxMesh("floor")
     floor(fl, g, inner)
     fl_o = to_object(fl, sprite, coll)
-    for i, mt in enumerate(fl_o.data.materials):  # own flagged copies: deleted after the bake (D129)
+    for i, mt in enumerate(fl_o.data.materials):  # own flagged copies: deleted after the bake (D130)
         cp = mt.copy()
         cp["tyrian_floor"] = True
         fl_o.data.materials[i] = cp
@@ -638,7 +638,7 @@ def main():
     views = Path(argv[argv.index("--views") + 1]) if "--views" in argv else None
     obj, glows, fl_o = build(sprite, coll)
     T.cull_hidden(obj)
-    obj = join([obj, fl_o], TAG)  # the floor joins only for the bake's occlusion (D129)
+    obj = join([obj, fl_o], TAG)  # the floor joins only for the bake's occlusion (D130)
     tris = sum(len(p.vertices) - 2 for p in obj.data.polygons) + sum(
         len(p.vertices) - 2 for g in glows for p in g.data.polygons)
     print(f"{TAG}: {tris} triangles")
@@ -655,7 +655,7 @@ def main():
         bd.mkdir(parents=True, exist_ok=True)
         bake(obj, bd)
         fmt = "WEBP"
-    bm = bmesh.new()  # the floor was the bake's occluder only: not exported (D129)
+    bm = bmesh.new()  # the floor was the bake's occluder only: not exported (D130)
     bm.from_mesh(obj.data)
     fl = {i for i, mt in enumerate(obj.data.materials) if mt and mt.get("tyrian_floor")}
     bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.material_index in fl], context="FACES")

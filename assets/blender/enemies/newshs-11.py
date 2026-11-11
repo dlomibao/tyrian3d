@@ -20,7 +20,7 @@ Reading of the sprite (24 x 28, opaque: it fills its tile; tools/calibration/rub
 Hard surface: lofted dome shells (chord sections, clustered at the seam lips and the rim), the
 seam a chamfered groove, the window recess cut by a boolean (sloped top/left walls), a fitted
 base flange with hex bolts, conduits with collars and a manifold block, a chamfered glacis with
-ribs and bolted feet. No floor plate (D129): the sprite's stone floor round the dome is the tile's
+ribs and bolted feet. No floor plate (D130): the sprite's stone floor round the dome is the tile's
 ground, which the game draws in HD (it was a plate painted per pixel from the sprite, which showed
 as grey pixel cells on the HD ground). Outline shell from a smooth proxy (D51). Underside: plain,
 the flange's foot closed by a flat ring.
@@ -185,7 +185,7 @@ def flange(P, mat, mat_bolt):
             rad = (math.cos(c) / RXF, math.sin(c) / RYF, 0.0)
             out = [rad, (rad[0], rad[1], 0.2), (0, 0, 1), (-rad[0], -rad[1], 0.0)][i]
             P.f([rings[i][k], rings[i][(k + 1) % nt], rings[i + 1][(k + 1) % nt], rings[i + 1][k]], mat, out=out)
-    for k in range(nt):  # the foot: a flat ring under the flange (no floor plate under it any more, D129)
+    for k in range(nt):  # the foot: a flat ring under the flange (no floor plate under it any more, D130)
         P.f([rings[-1][k], rings[-1][(k + 1) % nt], rings[0][(k + 1) % nt], rings[0][k]], mat, out=(0, 0, -1))
     bx, by = (RXT + RX) / 2, (RYT + RY) / 2
     for k in range(18):
