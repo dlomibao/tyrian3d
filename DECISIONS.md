@@ -5878,3 +5878,75 @@ its hues (`screenHue.ts`) or the HD colour paths (D95, D111, D114).
 (separate frozen runs) the wave stays put on the screen and the ground moves through it without steps. Sheets and probes:
 `tyrian-scratch/hd-filters/` (`sheets/`, `probe/`, `exp/`). ASSASSIN's dark wedge is `showHeadlight`, unchanged.
 Not checked: performance on a slow GPU (the water adds up to 4 taps per non-water pixel), episode-4 LAVA RUN, CORE.
+
+## D136 — DELIANI's girders and hull, polished: bright rounded rails, a crisp lattice, chunky clamps and carved plating (extends D134, D53, D65)
+
+2026-11-10
+
+**Problem** (coordinator review of D134, `tyrian-scratch/deliani-rails/sheets/1.19_t300.jpg`):
+- The girder track read darker, flatter and lower in contrast than the original tiles in game: its two box
+  rails barely showed and the window lattice was a muddy grid.
+- The purple hull's rim read as a striped pipe: a smooth tube with flat grey bands, where the art has
+  chunky grey clamp brackets every tile and plated, greek-key carved segments.
+
+**Measured first** (tilted camera, 1-5 at tick 300 and 4-1 at tick 800; each region's pixels found by
+projecting the tile grid onto the capture, `tyrian-scratch/deliani-polish/tools/measure3.py`): the bodies'
+values were right (rim purple 69 against 70, deck 93 against 95, girder bars 71 against 78), the contrast
+was not. The art's ink and seams were as light as the parts round them: the clamps' ink 95 against 46, the
+rim's ink 70 against 26, HARVEST's purple ink 93 against 38, the deck's seams 91 against 74, and the
+rail band had no bright line (90th percentile 80 against 102). The game's sun shines from the camera's
+side, into every groove and onto every wall facing the camera, so a recess's occlusion alone never
+darkens it as the art's ink. The "~25% brighter rim" was this missing dark, not a lighter body.
+
+**Decision:**
+- *Girders* (`delbld_girders.py`):
+  - the rails are box beams built from rectangles (merged through the block), their top edges rounded
+    (0.11, smooth shaded) so the art's bright rail line is sheen on the rounding, notched at the art's
+    rail joints (columns 11|12 of a horizontal rail, rows 13-15 of a vertical one);
+  - the rails take the deck's steel index (102): their own median (100, the art drawing a rail as one bright
+    line over darker rows) left them dark bars in game;
+  - the window lip is shallow (0.035 below the deck, was 0.09), so at the tilted camera the near bar hides
+    none of the ring, and the recess's walls take the lip's dark matte steel (96), the deck's window edges
+    a rounded bevel in steel. D134's dark-lip exception is kept and extended to the walls: without it the
+    lit walls were the muddiness.
+- *Hull* (`delbld_hull.py`):
+  - clamps are chunky brackets: a squarer section 0.05 proud of the tube with eased ends, coloured from the
+    clamp's face (the inner half of the tube); their big ink-dark areas are housings sunk 0.07 in their
+    own shade (the art's index there), the slats across them standing between grooves; a clamp's foot on
+    the deck is a rounded block 0.11 high;
+  - on every tube the long thin ink lines (slats, outlines, greek keys, the elbows' ribs: pieces of at
+    least 10 2x pixels, so specks stay smooth) are grooves 0.06 deep, and the purple segments' big dark
+    areas shallow recesses, both floored in the art's ink shade of their ramp;
+  - the deck's plates stand 0.03 proud between seams 0.02 deep, the seams found as the darker purple
+    pixels darker than the plating round them (so a crossing is a seam and a whole darker plate stays a
+    plate), floored in the art's seam shade.
+  - These are the same judgement as D134's window lip: a groove or recess the art draws in ink takes that
+    ink's palette index (art rule 1, the region's colour), because in this lighting its occlusion cannot.
+    Highlights stay sheen: no part takes a lighter index than its median.
+- `DELBLD_DEBUG=<dir>` saves a hull block's height field and parts as `.npz`, for looking at what the art
+  became.
+
+**Measured:**
+- 1-5 t300, rail bands (two crops): mean 66 / 62 (original tiles 64 / 66, before 64 / 60), median 70 / 55
+  (61 / 52; 68 / 55), 90th percentile 98 / 95 (102 / 103; 80 / 81). Wall: clamp 89, clamp ink 68 (46; 95),
+  rim 63, rim ink 50 (26; 70), deck 83 (95; 93).
+- 4-1 t800, hull: grey 85 (99; 82), grey ink 57 (48; 87), purple 74 (85; 81), purple ink 58 (38; 93).
+- Top-view IoU at least 0.9906 for all 54 tiles (unchanged; the outer elbows), median 1.0.
+- Size: 54 models, 7.1 MB (was 6.6 MB): girders 1.06 MB (1.09), hull 6.05 MB (5.50; the carving's
+  vertices and material splits). No original tile drawn at any checked tick.
+
+**Options considered:**
+- *Grooves by occlusion only* (art rule 2 strictly): measured above; the sun lights them.
+- *Dark rail walls toward the trench between tracks*: the rail band went darker than the original's
+  (median 46 against 61).
+- *Each deck plate its own median index*: the seams didn't close, so the plates merged into one region
+  and the deck went a shade darker; the seam floors give the brick look instead.
+- *Dark seams on the purple segments*: read as scattered dashes; they stay grooves only.
+- *Bevelled deck plates*: +40% hull size for no visible gain; dropped.
+
+**Not done:** the springs (still blocky plates) and HARVEST's 553/554 drape are as D134 left them; the
+elbows gain only the ink-floored rib grooves.
+
+**Review:** `tyrian-scratch/deliani-polish/`: `sheets/<level>_t<tick>.jpg` (original tiles | before |
+after | after with `&terrain=original`), `crops/4k_*.jpg` (rails and wall at 1-5 t300, the hull at 4-1 t800,
+3840x2160), `iou.json.txt`, `tools/measure3.py`.

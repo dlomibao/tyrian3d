@@ -103,11 +103,12 @@ def sharp_edges(bm, angle=40):
     return out
 
 
-def bevel(bm, offset, segments=2, angle=40, profile=0.5):
+def bevel(bm, offset, segments=2, angle=40, profile=0.5, material=-1):
+    """Bevel the sharp edges; the new faces take `material` (a slot; -1: Blender's choice, slot 0)."""
     edges = sharp_edges(bm, angle)
     if edges:
         bmesh.ops.bevel(bm, geom=edges, offset=offset, offset_type="OFFSET", segments=segments, profile=profile,
-                        affect="EDGES", clamp_overlap=True, harden_normals=False)
+                        affect="EDGES", clamp_overlap=True, harden_normals=False, material=material)
 
 
 def tidy(bm):
