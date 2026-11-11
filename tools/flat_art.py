@@ -160,17 +160,40 @@ def soft_alpha(mask: np.ndarray, sigma: float, lo: float, hi: float, scale: int 
     return t * t * (3 - 2 * t)
 
 
-def shadow_alpha(pic: np.ndarray, silhouette, spec: dict) -> tuple[np.ndarray, np.ndarray]:
+def shadow_alpha(pic: np.ndarray, silhouette, spec: dict, cover: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray]:
     """Alpha of a picture whose drop shadow is the palette indices spec["indices"]: the rest of the
-    picture as the silhouette, plus the shadow's pixels as a blurred translucent layer behind it.
-    Also the shadow's own texels (a mask), whose colour is drawn black instead of bled from the body."""
+    picture as the silhouette (times cover, art_coverage, when given), plus the shadow's pixels as a
+    blurred translucent layer behind it. Also the shadow's own texels (a mask), whose colour is drawn
+    black instead of bled from the body."""
     from scipy import ndimage
 
     is_shadow = np.isin(pic, spec["indices"])
     body = silhouette((pic >= 0) & ~is_shadow)
+    if cover is not None:
+        body = body * cover
     big = np.kron(is_shadow.astype(np.float32), np.ones((SCALE, SCALE), np.float32))
     soft = np.clip(ndimage.gaussian_filter(big, spec.get("sigma", 5.0)) * 1.3, 0.0, 1.0)
     return np.maximum(body, spec.get("strength", 0.4) * soft), np.kron(is_shadow, np.ones((SCALE, SCALE), bool))
+
+
+def art_coverage(art: np.ndarray, fit: dict, shape: tuple[int, int], spec: dict) -> np.ndarray:
+    """Where the registered art itself paints the object (inventory "art_alpha": {"lo", "hi", "sigma"}),
+    at SCALE texels per picture pixel over the whole picture (shape: its rows, columns): the art's
+    brightest channel smoothstepped from lo to hi (Gemini answers on black), its enclosed holes filled
+    (a recess painted dark stays opaque, as the original's pixels there are), then blurred by sigma
+    texels. Multiplied into the silhouette, it takes out a dark ink ring the original draws round the
+    object and the painting leaves as background (D132's key: black under that ring)."""
+    from scipy import ndimage
+
+    h, w = shape
+    v, u = np.mgrid[0:h * SCALE, 0:w * SCALE].astype(np.float32)
+    px, py = (u + 0.5) / SCALE, (v + 0.5) / SCALE
+    rgb = sample(art, fit["x0"] + fit["kx"] * px, fit["y0"] + fit["ky"] * py, fit["kx"] / SCALE)
+    lo, hi = spec.get("lo", 0.06), spec.get("hi", 0.14)
+    t = np.clip((rgb.max(-1) - lo) / (hi - lo), 0.0, 1.0)
+    cov = t * t * (3 - 2 * t)
+    cov = np.maximum(cov, ndimage.binary_fill_holes(cov > 0.5).astype(np.float32))
+    return np.clip(ndimage.gaussian_filter(cov, spec.get("sigma", 1.5)), 0.0, 1.0)
 
 
 def bleed(rgb: np.ndarray, alpha: np.ndarray) -> np.ndarray:
@@ -472,9 +495,19 @@ def cut_sheet(gd: GameData, sheet: dict, art: np.ndarray, palette: int) -> list[
         # shadow is pixels of those palette indices. They leave the silhouette; a soft shadow of the
         # given strength (0..1, blurred by sigma texels) stays where they were (D132: the SOH JIN key).
         shadow = cell.get("shadow")
+        # Inventory "art_alpha": {"lo": 0.06, "hi": 0.14, "sigma": 1.5}: the silhouette is cut to where the
+        # painting covers it (art_coverage), so the original's dark outline ring, which the registration
+        # leaves out (visible_mask) and Gemini leaves as black background, isn't drawn as a black band
+        # (D132's key). Never grows the silhouette. Outside the painting the colour is black, as the shadow's.
+        art_spec = cell.get("art_alpha")
+        cover = art_coverage(art, fit, pic.shape, art_spec) if art_spec else None
         shadow_pic = None
         if shadow:
-            alpha_pic, shadow_pic = shadow_alpha(pic, silhouette, shadow)
+            alpha_pic, shadow_pic = shadow_alpha(pic, silhouette, shadow, cover)
+        elif cover is not None:
+            alpha_pic = alpha_pic * cover
+        if cover is not None:
+            shadow_pic = (cover < 0.05) if shadow_pic is None else (shadow_pic | (cover < 0.05))
         # A brightness floor from the original's own colours (inventory "floor": 0..1): where the art
         # is darker than the original pixel there, it's lifted to floor x the original colour. For
         # fire, whose painting may put dark smoke where the original has a thin bright ring.
