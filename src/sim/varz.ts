@@ -6,7 +6,7 @@
 
 import { s8, s16, u8, u16, u32 } from "./cint";
 import { roundf } from "./cfloat";
-import { blit_sprite2, drawPixel, type Sprite2Sheet } from "./draw";
+import { blit_sprite2, drawPixel, type SparkPixel, type Sprite2Sheet } from "./draw";
 import { mt_rand, mt_rand_1, mt_rand_lt1 } from "./mtrand";
 import { player_shot_create } from "./shots";
 import { JE_barBright } from "./smoothies";
@@ -759,7 +759,8 @@ export function JE_doSP(x: number, y: number, num: number, explowidth: number, c
 /**
  * JE_drawSP (varz.c L1127-1156): moves the superpixels and draws each as a plus of five pixels.
  * The C mixes the pixel already on screen into the color (`(*s & 0x0f) + z`); the draw list has
- * no screen to read, so this assumes the background's value nibble is 0.
+ * no screen to read, so each pixel's color is the one over a black screen and its `spark` tells
+ * the renderer how to mix it (sparkColor, D147).
  */
 export function JE_drawSP(): void {
   const W = 320;
@@ -771,12 +772,13 @@ export function JE_drawSP(): void {
       sp.y = u32(sp.y + sp.delta_y);
 
       if (sp.x < W && sp.y < H) {
-        drawPixel(sp.x, sp.y, u8((sp.z >> 1) + sp.color));
+        const spark = (centre: boolean): SparkPixel => ({ base: sp.color, z: sp.z, centre, dx: sp.delta_x, dy: sp.delta_y });
+        drawPixel(sp.x, sp.y, u8((sp.z >> 1) + sp.color), spark(true));
         const side = u8(((sp.z >> 1) >> 1) + sp.color);
-        if (sp.x > 0) drawPixel(sp.x - 1, sp.y, side);
-        if (sp.x < W - 1) drawPixel(sp.x + 1, sp.y, side);
-        if (sp.y > 0) drawPixel(sp.x, sp.y - 1, side);
-        if (sp.y < H - 1) drawPixel(sp.x, sp.y + 1, side);
+        if (sp.x > 0) drawPixel(sp.x - 1, sp.y, side, spark(false));
+        if (sp.x < W - 1) drawPixel(sp.x + 1, sp.y, side, spark(false));
+        if (sp.y > 0) drawPixel(sp.x, sp.y - 1, side, spark(false));
+        if (sp.y < H - 1) drawPixel(sp.x, sp.y + 1, side, spark(false));
       }
 
       sp.z--;

@@ -118,9 +118,34 @@ export interface PixelDraw {
   kind: "pixel";
   x: number;
   y: number;
-  /** Palette index. */
+  /** Palette index. For a spark, the index over a black screen. */
   color: number;
   pass: Pass;
+  /** Set on JE_drawSP's superpixels (sparks): the C mixed the screen under them in. */
+  spark?: SparkPixel;
+}
+
+/**
+ * A pixel of a JE_drawSP superpixel, a plus of five pixels. The C reads the screen under each:
+ * `(((screen & 0x0f) + add) >> 1) + base`, add being z at the centre and z >> 1 on the arms
+ * (varz.c L1127-1156). The draw list has no screen, so the renderer does the mixing (D147).
+ */
+export interface SparkPixel {
+  /** The superpixel's colour byte (its hue in the high nibble). */
+  base: number;
+  /** Its life left, 15 down to 1 (the C's z). */
+  z: number;
+  /** The plus's centre (else one of its arms). */
+  centre: boolean;
+  /** Its motion this tick, px. */
+  dx: number;
+  dy: number;
+}
+
+/** The palette index JE_drawSP writes for spark pixel `s` over screen pixel `screen` (varz.c L1139-1149). */
+export function sparkColor(s: SparkPixel, screen: number): number {
+  const add = s.centre ? s.z : s.z >> 1;
+  return ((((screen & 0x0f) + add) >> 1) + s.base) & 0xff;
 }
 
 export interface RectDraw {
@@ -231,8 +256,8 @@ export function drawTile(layer: 0 | 1 | 2, tile: Uint8Array, tileId: string, x: 
   drawList.items.push({ kind: "tile", layer, tile, tileId, x, y, pass: drawState.pass, key, effect: blend ? "blend" : "none" });
 }
 
-export function drawPixel(x: number, y: number, color: number): void {
-  drawList.items.push({ kind: "pixel", x, y, color, pass: drawState.pass });
+export function drawPixel(x: number, y: number, color: number, spark?: SparkPixel): void {
+  drawList.items.push(spark ? { kind: "pixel", x, y, color, pass: drawState.pass, spark } : { kind: "pixel", x, y, color, pass: drawState.pass });
 }
 
 /** fill_rectangle_xy, inclusive corners. */
