@@ -22,7 +22,7 @@ import * as THREE from "three";
 import { VFX_LAYER } from "./vfxMode";
 import { CLASSIC_TICK_HZ } from "../../core/timing";
 import { PX_PER_UNIT, screenWorldX, screenWorldZ } from "../../game/playfield";
-import { Pass, type Draw, type SpriteDraw, type TableSpriteDraw } from "../../sim/draw";
+import { Pass, sparkColor, type Draw, type SparkPixel, type SpriteDraw, type TableSpriteDraw } from "../../sim/draw";
 import type { PaletteTexture } from "../paletteTexture";
 import { passHeight } from "../passHeights";
 import type { SpriteMeshCache } from "../spriteMesh";
@@ -59,6 +59,10 @@ const SHIELD_RY = 11;
 /** Its intensity and size over the hit's three frames: it grows as the arcs do. */
 const SHIELD_FADE = [1, 0.8, 0.5];
 const SHIELD_GROW = [0.84, 0.94, 1.04];
+/** A spark's glow radius (screen px, its plus is three across), streak (of its last tick's flight) and gain. */
+const SPARK_RADIUS = 1.6;
+const SPARK_STREAK = 0.6;
+const SPARK_GAIN = 1.1;
 /** Bubbles one frame can draw (a hit a tick for three ticks, for two players, with room to spare). */
 const MAX_SHIELDS = 16;
 /** Births queued between ticks and frames (a big boss death starts dozens at once). */
@@ -283,6 +287,25 @@ export class RemasteredFx {
       default:
         return SpriteLook.Default;
     }
+  }
+
+  /**
+   * A spark (JE_drawSP's superpixel, D147), its centre pixel at screen (x, y): a small additive
+   * glow drawn out back along its flight into a short streak, in its hue at the brightness the C's
+   * plus has over a bright screen, white-hot when new, fading with its life (z, 15 ticks). Stands
+   * for the whole five-pixel plus.
+   */
+  spark(x: number, y: number, pass: Pass, sp: SparkPixel): void {
+    const h = passHeight(pass);
+    const s = (1 - h / this.cam.y) / PX_PER_UNIT;
+    const life = sp.z / 15;
+    const c = this.palette.color(sparkColor(sp, 0x0f), this.colour);
+    const hot = 0.3 * life;
+    const cx = x + 0.5, cy = y + 0.5;
+    const tail = SPARK_STREAK * Math.min(1, 6 / Math.max(1, Math.hypot(sp.dx, sp.dy)));
+    this.glow(this.glows, cx, cy, cx - sp.dx * tail, cy - sp.dy * tail, h, SPARK_RADIUS * (0.7 + 0.3 * life) * s,
+      mix(c.r, 1, hot) * SPARK_GAIN, mix(c.g, 1, hot) * SPARK_GAIN, mix(c.b, 1, hot) * SPARK_GAIN,
+      0.3 + 0.7 * life, 0, GlowShape.Glow, 0);
   }
 
   /**

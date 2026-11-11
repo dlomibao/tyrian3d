@@ -6546,3 +6546,180 @@ grooves and slots are smooth.
 **Review:** `tyrian-scratch/qa3-stairs/`: `before/`, `after/` (4K and 1080p at 1.5 t300, t1800, t2550, 1.9 t300,
 1.15 t300 hard), `crops/` (main | this), `iou_hull_after.txt`, `iou115*`, `seams_before.txt`, `seams_after.txt`,
 `REPORT.md`. Not in git (D3).
+## D146 — The ink outline is drawn inside the main pass, before the blended layers, so a sheet or explosion over a model covers its outline too (extends D51, D129, D132)
+
+2026-11-11
+
+**Problem** (`tyrian-scratch/e1-qa-3/REPORT.md` N1): the black outlines of models drew on top of the translucent
+layers over them. At 1.15 t300 (TYRIAN, hard) the dome under the lit ice was washed out but its broken outline floated
+crisp over the ice; in 1.9 and 1.14 the covered blocks' and dome's outlines sat on top of the ice and clouds; in 1.5
+the machine's ink lines showed through the fireballs.
+
+**Cause:** `src/render/view.ts` drew each frame with `OutlineEffect.render` (`src/render/outlineEffect.js`, `render`
+and `renderOutline`): the whole scene, then the outline pass over the finished picture, depth-tested only. The blend
+sheets (D129), the flat sprite art and its explosions (D80), the particles, glows and shields (D35) and a translucent
+ship (D51) write no depth, so the outline pass painted every outline under them over them. D129 made it show: before
+it, the models' tops poked through the sheet and so did their outlines; now the sheet covers the whole model, and only
+the ink was left on top.
+
+**Decision:** the outline pass runs inside the main pass, between the draws that write depth and the blended ones
+(`src/render/outlineHook.ts`). three.js draws its translucent list in renderOrder order; an empty hook mesh in that
+list at `OUTLINE_ORDER` (-1.5) runs `OutlineEffect.renderOutline` when it is reached (`OutlineHook.draw`, a nested
+render, which three.js supports), and after the render if it never was. Before it: the opaque scene, the cutout
+terrain (-2, D132) and an enemy's fading island rock (`FADE_ROCK_ORDER`, -1.75: translucent but depth-writing, D84;
+it was at 0, after the sheets, so it also drew over a sheet covering it). After it: the blend sheets (-1, 1), the
+flat sprite art (-1 + pass/100), the blended sprites (0), the scorch marks (0), particles and glows (1, 2) and the
+translucent ship (3). So what blends over a model now blends over its outline in the same way: under a cloud or the
+ice the outline fades with the model, under a fireball it is hidden with it, and everywhere else it draws as before.
+The screen filters' path (`ScreenFilterPass.render`) and the warm-up draw the same way; their other renders of the
+scene (the mask, the effects-only redraw) pass the hook without running it. The menus' backdrop and the Destruct
+renderer keep three's own OutlineEffect, unchanged.
+
+**Options considered:**
+- *Draw the blended layers in a second render after the outlines:* splits three.js's one sorted translucent list in
+  two, and the blended layers' order among themselves (a sheet under the ship, D129) would need re-sorting by hand.
+- *Let the sheets and explosions write depth for the outline pass:* hides the outline entirely under a 50% cloud,
+  where the model itself shows through; the C averages the sheet over the sprite's dark edge as over the rest.
+- *Fade the outline by the sheet's coverage:* needs the coverage per pixel in the outline shader, and does nothing for
+  explosions and particles.
+
+Test: `tests/render/outlineHook.test.ts` (three.js's own translucent sort puts the hook after the depth-writing
+layers and before every blended one at any depth; it runs once, at the hook or after the render; a fading rock keeps
+its order). Captures, 3840x2160, `?debug=play&episode=1&main=M&seed=1&skip=T&freezeAt=T` (`&hard=1` for 1.15):
+`tyrian-scratch/qa3-renderer/` (`before/`, `after/`, `cmp/n1_*`: left before, right after; 1.15 t300, 1.9 t300,
+1.14 t1050, t1800, t2680, 1.5 t3300, 1.6 t1050).
+
+## D147 — Sparks mix with the screen under them as in the C, and glow in the remastered look (fixes D127's note)
+
+2026-11-11
+
+**Problem** (`tyrian-scratch/e1-qa-3/REPORT.md` N3): explosion and hit sparks drew as dark navy five-pixel crosses on
+blocks, pipes and grass (1.14 t1800/t2680/t2930, 1.6 t1050), reading as dead pixels. D127 had noted them and left them.
+
+**Cause:** `JE_drawSP` (varz.c L1127-1156) draws each superpixel as a plus whose pixels are
+`(((screen & 0x0f) + add) >> 1) + color`, add being the spark's life z (15 down to 1) at the centre and z >> 1 on the
+arms: it reads the screen under it, so over the game's grounds a new spark is a bright plus in its hue that fades into
+the ground. The port (`src/sim/varz.ts` JE_drawSP) has no screen to read and took its value as 0, so it recorded
+`(z >> 1) + color` and `(z >> 2) + color`: the bottom half of the hue's ramp, a dark plus wherever it fell. The
+renderer drew those indices flat (`drawListRenderer.ts`, the "pixel" case, `addSolid`).
+
+**Decision:**
+- **Draw list.** A spark pixel carries its facts (`PixelDraw.spark`: colour byte, z, centre or arm, its motion this
+  tick); `color` stays the over-black index. `sparkColor` (`src/sim/draw.ts`) is the C's formula.
+- **Original effects look** (`?vfx=original`): the renderer reads the screen under each spark back from the earlier
+  draws of the same draw list (`src/render/sparkScreen.ts`): the topmost tile (index 0 see-through on backgrounds 2
+  and 3), sprite, rectangle or pixel covering it, with the C's blend, darken, filter and hue/value blits applied to its
+  value, and a later spark reads an earlier one's colour. The plus is then drawn with the C's index. Over WINDY's grass
+  and MINEMAZE's navy pipe the formula still gives a fairly dark blue plus (their value nibbles are low), brighter on
+  the blocks. Not compared against OpenTyrian's own frames.
+- **Remastered look** (the default, D35): each spark is one small additive glow (`RemasteredFx.spark`) at its centre,
+  drawn out back along its last tick's flight into a short streak, in its hue at the index the C's plus has over a
+  bright screen (`sparkColor(spark, 15)`), lifted toward white while new, fading and shrinking with z over its 15
+  ticks. The four arm pixels are not drawn; the glow's falloff stands for them. Sizes and gains are the `SPARK_*`
+  constants in `remasteredFx.ts`. At Effects height, so over everything, as in the C.
+
+**Options considered:** a constant mid-grey screen value for the original look (wrong on dark and bright grounds
+alike); the D35 hit-spark particles (orange streaks with their own random flight) for the remastered look, which would
+lose the sparks' hue and the C's paths.
+
+Test: `tests/render/sparkScreen.test.ts` (JE_drawSP's records, the C's formula, the screen read back through tiles,
+background 2's see-through index, a blended tile and an earlier spark). Captures, 3840x2160:
+`tyrian-scratch/qa3-renderer/` (`before/`, `after-n3/`, `cmp/n3_*`: left before, right after; 1.14 t2680 and 1.6
+t1050, each remastered and `&vfx=original`).
+
+## D148 — ASTEROID?'s station kit made gritty: bevelled worn bricks on dark seams, the channels as dirt, lit rock facets, a worn bake; the cross pad's rock mound from the kit (fixes QA round 3 N2; extends D141, D143, D136)
+
+2026-11-11
+
+**Problem** (QA round 3, N2, `tyrian-scratch/e1-qa-3/`): on 1.3 ASTEROID? the station kit D141 and D143 built (base
+complex, cross pad, pipe junction, bunker, light bridge, red bar, ring dome) read flat and toy-like. Compared with the
+original (`&terrain=original&bg=original`) at 4K:
+- *Paving:* the weave's bricks were flat faces 0.008 over a mortar plate, all one grey. The art paints every brick as
+  a lit edge, a body and a dark trailing edge (tile 371: bricks median 6, spread 4-10; seams median 3, some 2), so the
+  original reads as raised, worn plating with near-black seams.
+- *Channels:* the art's channel tiles (389, 379 and the rest) are dark earth (3, 4, 5) with rust mud winding through it
+  (164, 21, 163, 165). The base complex built them as a brown grating with bright squares, the pipe junction as rust
+  pavers in running bond: the brick mosaic at t2550.
+- *Rocks:* crowns one grey (5) with a few 6/7 facets, sides 4. The art's rim band spreads 3:24% 4:19% 5:16% 6:13% 7:11%
+  8:9%, so its stones read lit and craggy.
+- *Bake:* the AO multiplier never went under 0.62 of the palette colour, so seams and crevices stayed mid grey, and
+  nothing varied from brick to brick.
+- *Kerb:* identical rectangles, like sleepers.
+- *Style clash at t2550:* the cross pad's rock was the HD ground's painting (keepTiles), lighter and painterly, beside
+  the kit's polygon rocks a few rows below. Its body was an octagon of invented machinery quadrants (D141's follow-up)
+  where the art paints rock round the cross.
+
+**Decision** (kit level, `lib_l1kit.py` / `lib_l1bld.py`; every ASTEROID? station model builds with it):
+- `Kit.paving`: a groove floor in the seams' index (3) at `SEAM_TOP` 0.318, and on it each `WEAVE` brick a bevelled
+  block 0.027 proud (a frustum, `BEVEL` 0.55 px all round, about 30 degrees), its top jittered +-0.003, a third of them
+  chipped at a corner. In the game's light the bevels give each brick the art's lit edge, body and dark trailing edge
+  as sheen and shade on the shape, as D136's rounded rails did (art rule 2). The bricks stay index 6 (the art's median),
+  satin (roughness 0.5) so worn patches catch the light.
+- `Kit.channels` → `Kit.dirt`: a jittered triangle grid (2 px cells), smooth shaded, with DIRT_AMP of value noise. The
+  mud is raised a little and the art's darkest px sunk. Each triangle is coloured by the mud's blurred density (sigma
+  1.4 px, so the mud reads as blobs, not a mosaic): the mud's local median (163-165, 21 where the art paints bright
+  clods), a darker rim (163), or the earth (3, or 2 where the art is darkest). A skirt closes the outline, and small
+  plain pebbles are scattered on the earth. The pipe junction's channel floor uses it too (its pavers are gone, the
+  sluice steps kept).
+- `facet_index` (the game's sun from `src/render/view.ts`, (-6, 20, 8.4)): a plain facet's index from how it faces the
+  sun, 3 in shadow to 8 lit, round the band's median 5. This is the rubric's rock rule (lit faces) and D141's
+  follow-up ("more 6/7, some 8 up-sun, sides to 3"). `Kit.stone` adds a crown ring, so a stone has more facets. The
+  kerb posts use the same ramp, one step up (their median 7), each a little different in size, lean and height. The
+  pipe junction's boulders use it round each stone's own art index.
+- `Building.bake_model(..., grit=)` / `finish(grit=)`: opt-in. Without `grit` the bake is unchanged, so TYRIAN's
+  structures and the enemies are not affected. `lib_l1kit.GRIT` sets:
+  - the colour multiplier to 0.42 + 0.64 x AO + 0.2 x edge, capped at 1 (the plain bake is 0.62 + 0.45 x AO);
+  - a grime mottle that only darkens, at most 24%: stains about 9 px, a 2 px speckle, and Cycles' Random Per Island,
+    so each brick, post or stone wears differently (the 2048 atlas is too coarse to carry a fine noise on the small
+    parts);
+  - the roughness spread +-0.2 by the same mottle.
+  No face reads lighter than its palette index, and there is no concept projection (`"bake": "model"`, art rule 4).
+- *Cross pad* (`l1bld_cross_pad.py`): the invented octagon body is gone. The mound is the kit's: the rubble bed over the
+  whole painted footprint, `Kit.rock_field` (new: rock_layout's stones over a whole area, not only the rim band) over
+  all of it but a 6 px strip round the arms, and the strip as deck with the kerb comb facing the rock. D141's cross
+  (slab, capsules, core) is unchanged. Its IoU mask is now the footprint, not the body.
+- *Base complex*: its inline copies of the kerb, grating, paving and rocks are replaced by the kit's
+  (`kt = kit.Kit(s); kt.g = g`), with the same layout, channel boxes and join.
+- Kept: D139's twelve cover parts (`cell-1-{2..7}-{open,covered}`; the lids are now the bevelled paving), D145's dome,
+  every `src/render/tileModels/*.json`, `"bake": "model"`.
+
+**Measured:**
+
+| Model | Top-view IoU | Triangles (was) | GLB MB (was) |
+|---|---|---|---|
+| l1bld_base_complex | 0.9888 | 110.6k (59.0k) | 9.15 (5.25) |
+| l1bld_pipe_junction | 0.992 | 30.9k (24.0k) | 3.07 (2.60) |
+| l1bld_cross_pad | 0.981 (footprint) | 11.3k (11.4k) | 0.92 (0.78) |
+| l1bld_bunker | 0.983 | 8.9k (7.0k) | 0.76 (0.55) |
+| l1bld_red_bar | 0.976 | 6.9k (5.7k) | 0.55 (0.42) |
+| l1bld_ring_dome | 0.979 | 21.1k (16.7k) | 1.64 (1.20) |
+| l1bld_light_bridge | 0.985 | 23.9k (20.3k) | 1.76 (1.41) |
+
+- IoU is `top_iou` at 2x, measured with `--no-bake` builds of the same scripts in a throwaway root. The seven GLBs go
+  from 12.2 to 17.9 MB, most of it the base complex's dirt (30k triangles) and bevelled bricks (2.5k bricks).
+- Built with `tools/build-models.sh -j 2 -p`: exit 0, seven fresh GLBs (06:00-06:05), each with its `exported` line.
+- Play field luminance (1920x1080, black space left out; original | before | after):
+  - p90: 120-140 | 106-110 | 109-119;
+  - p10-p90 spread: about 100-120 | 89-93 | 92-102;
+  - median: 58-64 | 40-52 | 37-44.
+  The range widened toward the original's, and the seams and crevices are darker as the art's. The median stays under
+  the original's, as before: the 3D kit is lit, the art is drawn at full palette value.
+
+**Options considered:**
+- *Per-brick palette indices 5/6/7:* every brick of tile 371 has median 6, so this would break art rule 1. The per-piece
+  wear in the bake varies the bricks without changing the index.
+- *Fine grime noise only:* invisible, because the bricks' atlas islands are about 10 texels.
+- *Dirt coloured per triangle from the art's pixels:* a confetti mosaic (tried at sigma 0.9 with flat shading).
+- *Bringing the top corners at t2550 into the kit:* they are terrain tiles (370-372, HD paintings), not a structure
+  pattern. They stay painted.
+- *A first GRIT* (floor 0.36, grime 0.36): darkened the median below main's. It was lightened to the values above.
+
+**Not done / follow-ups:**
+- The HD-painted terrain tiles round the kit (t2550's top corners) are still a painterly style beside polygon rocks.
+  Matching them needs terrain models or repainted tiles.
+- The pipe junction's masonry stays running-bond bricks (bevelled now). The art paints lighter stacked blocks.
+- The base complex is 9.15 MB. A coarser dirt grid (2.5 px) or merged brick tops would cut it if size matters.
+- `remaster.test.ts`'s pattern-scan test still hits its in-test 60 s timeout on a loaded machine (D141). It passes alone.
+
+Sheets (original | before | after): `tyrian-scratch/asteroidq-kit/sheets/1.3_t{300,1050,1750,2550,3310,3515}.jpg`,
+`sheets/stats.txt`; 4K crops `crops/1.3_t*_4k_*.jpg`; captures `shots/`, `shots4k/` (not in git, D3).

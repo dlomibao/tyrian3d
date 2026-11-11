@@ -8,11 +8,12 @@ What the tiles paint, and how it is built (pattern px, y down; 1 unit = 12 px; z
   ellipse, its own palette index);
 - a parapet of masonry posts just inside the rocks (the art's row of light bars), split every 4 px;
 - brick masonry (running bond, the art's own brick size, each brick in the palette index the art
-  paints under it, within one step of the masonry's median) on a mortar deck, round the channels and on
-  the L-shaped islands the loops wind round;
+  paints under it, within one step of the masonry's median, its top edge bevelled) on a mortar deck,
+  round the channels and on the L-shaped islands the loops wind round;
 - the brown channels (tiles 365/367/379/385/387/389/366/376, a strip 16-18 px wide through each cell's
-  centre, rounded at the turns): recessed 1 px under the deck, a dark floor with the art's rust-brown
-  pavers (its brown blobs, outlines simplified, each in its own index);
+  centre, rounded at the turns): recessed 1 px under the deck, floored with the ASTEROID? station
+  kit's dirt (lib_l1kit.Kit.dirt, D148: the art's dark earth with its rust mud, not pavers);
+- the boulders' facets in the kit's ramp by their face to the sun (lib_l1kit.facet_index, D148);
 - the stem's open end: it runs on through the pattern's row 10 (the base complex's row 0, tiles
   363 389 364) down to the base's kerb comb at JOIN_PY (py 299), where the base model starts (its
   JOIN_Y); the channel is the base's own strip (STEM_X), its floor climbs three sluice steps to the
@@ -53,7 +54,6 @@ STEM_X = (96 + kit.CH_X - kit.CH_HX, 96 + kit.CH_X + kit.CH_HX)  # the stem chan
 # channel 0.312, kerb 0.366: the stem's end meets those.
 Z_BOTTOM = -0.04
 FLOOR = 0.215  # channel floor (1 px under the deck)
-PAVER = 0.012  # the rust pavers stand this much on the floor
 BED = 0.28  # rubble under the boulders
 ROCK_TOP = 0.56  # highest boulder (no enemies on this building; TALL_MAX 0.8)
 DECK = 0.300  # mortar deck
@@ -71,7 +71,6 @@ ROCK_BAND = 11  # px from the outline: the boulders (the art's rock tiles end th
 POST_BAND = 6  # the parapet's width inside the rocks
 POST_PITCH = 4.8  # px between the parapet posts
 BRICK_W, BRICK_H, GAP = 5.0, 4.0, 0.7  # brick module (px) and the joint
-PAVER_W, PAVER_H, PAVER_GAP = 5.0, 4.0, 0.6  # the channel's pavers
 
 
 # --- pixel helpers ------------------------------------------------------------------------------
@@ -232,7 +231,8 @@ def box(b, x0, y0, x1, y1, z0, z1, mat, chamfer=0.0, drop=0.0):
 
 def boulder(b, cx, cy, rx, ry, angle, z0, z1, mat, rng, sides=7):
     """A faceted boulder: base ring, a wide shoulder, a narrower upper ring and a small, off-centre
-    top facet (lit from the upper left, as the art), all slightly irregular: rock, flat-shaded."""
+    top facet (lit from the upper left, as the art), all slightly irregular: rock, flat-shaded.
+    `mat` is a function of a face's normal (the station kit's facet ramp, D148) or a slot."""
     ca, sa = math.cos(angle), math.sin(angle)
     h = z1 - z0
     prof = [(0.0, 1.0), (0.42, 0.99), (0.78, 0.76), (1.0, 0.3)]
@@ -252,13 +252,17 @@ def boulder(b, cx, cy, rx, ry, angle, z0, z1, mat, rng, sides=7):
             z = z0 + h * fz + (0 if k in (0, len(prof) - 1) else (rng.random() - 0.5) * 0.12 * h)
             ring.append(bm.verts.new((b.x(px), b.y(py), z)))
         rings.append(ring)
-    bm.faces.new(rings[-1]).material_index = mat
+    mat_of = mat if callable(mat) else (lambda n_: mat)
+    bm.faces.new(rings[-1])
     for a, c in zip(rings, rings[1:]):
         for i in range(sides):
             j = (i + 1) % sides
-            bm.faces.new((a[i], a[j], c[j], c[i])).material_index = mat
-    bm.faces.new(list(reversed(rings[0]))).material_index = mat
+            bm.faces.new((a[i], a[j], c[j], c[i]))
+    bm.faces.new(list(reversed(rings[0])))
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.normal_update()
+    for f in bm.faces:
+        f.material_index = mat_of(f.normal)
     b._merge(bm)
 
 
@@ -407,6 +411,8 @@ def build(bake=True, views=None):
     isl_i = region_index(grid, lum, mason & ~edge & (grid >= 4), is_grey)
     print(f"region island   index {isl_i} rgb {ts.rgb(isl_i)} (outer masonry {mid_i})")
 
+    brng = __import__("random").Random(410)
+
     def brick(x0, y0, x1, y1, vals):
         cy_, cx_ = min(H - 1, int((y0 + y1) / 2)), min(W - 1, int((x0 + x1) / 2))
         outer = edge[cy_, cx_]
@@ -414,15 +420,17 @@ def build(bake=True, views=None):
         vi = region_index(vals, lum, np.ones(vals.shape, bool), is_grey) or base_i
         vi = int(min(base_i + 1, max(base_i - 1, vi)))
         top = BRICK if outer else ISLAND
-        prism(b, [(x0, y0), (x1, y0), (x1, y1), (x0, y1)], [], DECK - 0.02, top - (0.006 if vi < mid_i else 0),
-              m(vi, roughness=0.75), bottom=False)
+        # bevelled (D148): the light catches the top edge, the far edge falls into shade
+        prism(b, [(x0, y0), (x1, y0), (x1, y1), (x0, y1)], [], DECK - 0.02, top - (0.006 if vi < mid_i else 0) + 0.003 * (2 * brng.random() - 1),
+              m(vi, roughness=0.75), chamfer=0.35, drop=0.014, bottom=False)
         return True
 
     nb = brick_field(field, BRICK_W, BRICK_H, GAP, brick, grid)
     print(f"bricks {nb}")
 
-    # 6. The channel's paving: rust-brown pavers in running bond on the dark floor, each in the brown
-    # the art paints under it; where the art is mostly dark, the paver is missing (its dark mottle).
+    # 6. The channel's floor: the station kit's dirt (D148; D141 laid rust pavers in running bond,
+    # which read as a brick mosaic): the art's dark earth with its rust mud winding through it, a
+    # little over the trench floor, climbing the sluice steps at the stem's end.
     def floor_at(py):
         z = FLOOR
         for y0, zz in SLUICE:
@@ -430,22 +438,10 @@ def build(bake=True, views=None):
                 z = zz
         return z
 
-    rust_i = idx["rust"]
-
-    def paver(x0, y0, x1, y1, vals):
-        bv = [int(v) for v in vals.ravel() if v > 0 and is_brown(int(v))]
-        frac = len(bv) / max(1, vals.size)
-        if frac < 0.18:
-            return False
-        vi = region_index(np.array(bv), lum, np.ones(len(bv), bool), is_brown) if frac >= 0.45 else 163
-        vi = vi or rust_i
-        z0 = floor_at((y0 + y1) / 2)
-        prism(b, [(x0, y0), (x1, y0), (x1, y1), (x0, y1)], [], z0 - 0.01, z0 + PAVER, m(vi, roughness=0.8), bottom=False)
-        return True
-
-    pave_field = disc_erode(chan, 1) & live
-    npv = brick_field(pave_field, PAVER_W, PAVER_H, PAVER_GAP, paver, grid, phase=1)
-    print(f"rust pavers {npv}")
+    kt = kit.Kit(b, seed=238)
+    kt.dirt(disc_erode(chan, 1) & live, z_of=lambda py: floor_at(py) + 0.012, skirt=FLOOR - 0.01)
+    b._merge(kt.g.bm)
+    kt.g.bm = bmesh.new()
 
     # 7. The sluice steps at the stem's end, up to the base's channel height (0.312) at py 280.
     stem = chan & (rows >= SLUICE[0][0]) & live
@@ -478,7 +474,10 @@ def build(bake=True, views=None):
         vi = int(min(idx["rock"] + 2, max(idx["rock"] - 1, vi)))
         r = (rx + ry) / 2
         top = min(ROCK_TOP, BED + 0.08 + 0.034 * r + 0.03 * rng.random())
-        boulder(b, cx, cy, rx, ry, ang, BED - 0.06, top, m(vi, roughness=0.85), rng, sides=rng.choice((6, 7)))
+        # each facet by its face to the sun (the kit's ramp, 3..8 round the median 5), shifted by
+        # this stone's own index from the art
+        shade = (lambda vi_: (lambda n_: m(int(min(10, max(2, kit.facet_index(n_) + vi_ - 5))), roughness=0.85)))(vi)
+        boulder(b, cx, cy, rx, ry, ang, BED - 0.06, top, shade, rng, sides=rng.choice((6, 7)))
         nr += 1
     print(f"boulders {nr}")
 
@@ -491,7 +490,7 @@ def build(bake=True, views=None):
     tris = sum(len(p.vertices) - 2 for p in obj.data.polygons)
     print(f"triangles {tris}")
     if bake:
-        objects = b.bake_model(objects, size=2048, ground=0.0, out_dir=OUT / "bake")
+        objects = b.bake_model(objects, size=2048, ground=0.0, out_dir=OUT / "bake", grit=kit.GRIT)
     b.export(objects, baked=bake)
     print(f"exported pipe-junction IoU {iou:.3f}")
     if views:

@@ -44,6 +44,7 @@ import { passHeight } from "./passHeights";
 import { SpriteMeshCache } from "./spriteMesh";
 import { colourFrame, rigModel, showFrame, type FrameRig } from "./modelFrames";
 import { castsShadow, isModelHelper, setModelBlended } from "./modelPrep";
+import { FADE_ROCK_ORDER } from "./outlineHook";
 import { adoptRockMaterials, cloneRockMaterial, isRockMaterial, rockFades, setRockLook } from "./rockMaterial";
 import type { SpriteModels } from "./spriteModels";
 import { DamageFrames, type DamageState } from "./damage/damageFrames";
@@ -66,6 +67,7 @@ import { OpaqueCover, paintOutWreck } from "./remaster/opaqueCover";
 import { modelHeightFromUrl } from "./modelHeight";
 import { placeFlatQuad, SPRITE2X2_PARTS, spriteArtModeFromSearch, type FlatQuad, type ReadyFrame, type SpriteArt, type SpriteArtMode, type SpriteArtSheet } from "./spriteArt";
 import { SpriteArtLayer } from "./spriteArtLayer";
+import { SparkScreen } from "./sparkScreen";
 import { StarCover } from "./starCover";
 import { sheetHeight, type PlacedExtent } from "./sheetLift";
 import { BG_KEY_LAYER } from "../sim/backgrnd";
@@ -399,6 +401,8 @@ export class DrawListRenderer {
   private readonly viewDir = new THREE.Vector3();
   /** Which star pixels background 1 hides (D127). */
   private readonly starCover = new StarCover();
+  /** The screen under the sparks, for their colour in the original look (D147). */
+  private readonly sparkScreen = new SparkScreen();
   /**
    * This frame's ground cells of wreck tiles (D86), and of HD tiles with a covered painting (a machine
    * painted on the ground that its enemy's sprite hid, D139; `wreck` false), drawn once the frame
@@ -833,6 +837,17 @@ export class DrawListRenderer {
         case "pixel":
           // A star shows only where background 1 left the screen black (D127).
           if (d.pass === Pass.Starfield && this.starCover.hides(items, d.x, d.y)) continue;
+          if (d.spark) {
+            // A spark (JE_drawSP): remastered, a glowing point flying on; else the C's plus, its
+            // brightness mixed with the screen under it (D147).
+            if (fx) {
+              if (d.spark.centre) fx.spark(d.x, d.y, d.pass, d.spark);
+              continue;
+            }
+            this.addSolid(this.sparkScreen.color(items, i), d.x, d.y, 1, 1, d.pass, cam, frame);
+            instances++;
+            break;
+          }
           this.addSolid(d.color, d.x, d.y, 1, 1, d.pass, cam, frame);
           instances++;
           break;
@@ -1560,7 +1575,11 @@ export class DrawListRenderer {
       // Own materials, so one clone can turn translucent (invulnerability) without the others.
       const clone = (m: THREE.Material) => (isRockMaterial(m) ? cloneRockMaterial(m) : m.clone());
       mesh.material = Array.isArray(mesh.material) ? mesh.material.map(clone) : clone(mesh.material);
-      materials.push(...(Array.isArray(mesh.material) ? mesh.material : [mesh.material]));
+      const own = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      materials.push(...own);
+      // A fading rock is translucent but writes depth: drawn before the outlines and the blend
+      // sheets, as an opaque mesh would be (outlineHook.ts, D146).
+      if (own.some(rockFades)) mesh.renderOrder = mesh.userData.renderOrder = FADE_ROCK_ORDER;
     });
     // Patched for damage now rather than at its first damaged frame (D91): one shader program per
     // material kind for every clone, compiled by the level's warm-up.
@@ -1662,7 +1681,7 @@ function localBox(source: THREE.Object3D): THREE.Box3 {
  * explosions, a flashing ship are all above it) unless it's background2over 2, drawn over everything.
  * Instanced pools all sit at the origin, so three.js's depth sort can't order them.
  */
-function blendSheetOrder(pass: Pass): number {
+export function blendSheetOrder(pass: Pass): number {
   return pass === Pass.Background2Top ? 1 : -1;
 }
 
@@ -1670,7 +1689,7 @@ function blendSheetOrder(pass: Pass): number {
  * A "cutout" terrain tile is drawn with its soft alpha edge (D132), so it is translucent to three.js: before
  * every other translucent draw (blend sheets, the flat sprite art, explosions are all above it).
  */
-const CUTOUT_ORDER = -2;
+export const CUTOUT_ORDER = -2;
 
 function groundQuad(): THREE.BufferGeometry {
   const g = new THREE.BufferGeometry();

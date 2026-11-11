@@ -4,7 +4,7 @@
 // One instanced draw per atlas and pass, rebuilt every display frame into reused buffers (like the
 // glows, vfx/glowLayer.ts). Within a batch the instances keep the draw list's order; batches sort by
 // pass (renderOrder), so later passes draw over earlier ones as in the C, and before the other
-// transparent draws (see RENDER_ORDER).
+// transparent draws (see SPRITE_ART_ORDER).
 //
 // The atlases are uploaded premultiplied, so their soft edges filter and blend without fringes, and
 // blended with depth testing but no depth writes. Palette effects are done on the art's brightness:
@@ -27,7 +27,7 @@ export const SPRITE_ART_DIR = "art/sprites/";
  * 2): those are all in passes at or above what they overlap here (explosions over pickups, a shot's
  * halo over the shot), and as the art writes no depth, whatever draws later lands on top.
  */
-const RENDER_ORDER = -1;
+export const SPRITE_ART_ORDER = -1;
 /** Explosion layers per screen pixel; each needs EXPLOSION_LAYER_EVERY more explosions overlapping (a power of two). */
 const EXPLOSION_LAYERS = 3;
 const EXPLOSION_LAYER_EVERY = 2;
@@ -258,7 +258,7 @@ export class SpriteArtLayer {
     if (!list) this.batches.set(sheet, (list = []));
     let b = list[pass];
     if (!b) {
-      b = list[pass] = new Batch(pass === Pass.Explosions ? this.stencilled(sheet) : this.material(sheet), RENDER_ORDER + pass / 100);
+      b = list[pass] = new Batch(pass === Pass.Explosions ? this.stencilled(sheet) : this.material(sheet), SPRITE_ART_ORDER + pass / 100);
       this.all.push(b);
       this.root.add(b.mesh);
       if (pass === Pass.Explosions && !this.setter) this.root.add((this.setter = this.stencilSetter()));
@@ -307,7 +307,7 @@ export class SpriteArtLayer {
       }),
     );
     m.frustumCulled = false;
-    m.renderOrder = RENDER_ORDER + Pass.Explosions / 100 - 0.001;
+    m.renderOrder = SPRITE_ART_ORDER + Pass.Explosions / 100 - 0.001;
     m.userData.outlineParameters = { visible: false };
     return m;
   }
