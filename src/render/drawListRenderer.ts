@@ -394,6 +394,9 @@ export class DrawListRenderer {
   private readonly placedExtents: PlacedExtent[] = [];
   /** This frame's blended background-2 sheet tiles, raised over the models they overlap after the loop (D129). */
   private readonly blendSheets: { pool: Pool; slot: number; x: number; y: number; pass: Pass }[] = [];
+  /** Where the camera's view meets the ground: models' shadows fall as they would there (D133). */
+  private readonly shadowRef = new THREE.Vector3();
+  private readonly viewDir = new THREE.Vector3();
   /** Which star pixels background 1 hides (D127). */
   private readonly starCover = new StarCover();
   /** This frame's ground cells of wreck tiles, drawn once the frame knows whether enemies cover them (D86). */
@@ -732,6 +735,9 @@ export class DrawListRenderer {
     const items = this.items;
     const { prevX, prevY } = this.interp;
     const cam = camera.position;
+    camera.getWorldDirection(this.viewDir);
+    if (this.viewDir.y < -1e-6) this.shadowRef.copy(cam).addScaledVector(this.viewDir, -cam.y / this.viewDir.y);
+    else this.shadowRef.set(cam.x, 0, cam.z);
     let instances = 0;
     for (const mp of this.modelPools.values()) mp.used = 0;
     const fx = this.fx;
@@ -1445,6 +1451,10 @@ export class DrawListRenderer {
     const gz = screenWorldZ(cy);
     object.position.set(gx + (cam.x - gx) * k, h, gz + (cam.z - gz) * k);
     object.scale.set(1 - k, (1 - k) * this.modelHeight, 1 - k);
+    // Lifted along its camera ray (D6), a model off the middle of the screen sits nearer the middle
+    // than it looks, and its shadow drifted toward the middle with it, away from it on screen. Its
+    // shadow is drawn where the lift would put it from the camera's aim point instead (D133).
+    this.damage?.shadowShift(object, clone.materials, (gx - this.shadowRef.x) * k, (gz - this.shadowRef.z) * k);
     // Its box on screen (the D6 scale keeps the model's footprint at its sprite's screen size) and
     // its heights, for the blended sheets (D129).
     const box = (pool.box ??= localBox(pool.source!));

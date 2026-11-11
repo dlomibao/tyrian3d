@@ -5714,3 +5714,29 @@ stay opaque inside; only the edge changes. *Fix:*
 t300); SOH JIN section 31 (t4446). The explosion ring over a pickup on a cloud (1.12 t300) draws over the cloud.
 Not checked: other tilesets' cutout tiles in game (only their atlas alpha decides what changes); `&dpr` lower.
 Tests: `tests/tools`, `tests/render/terrainArt`, `spriteArt` pass. Fallback: `git checkout` the two atlases and revert the shader.
+
+## D133 — A model's shadow falls as it would at the camera's aim point, so it stays by its caster at the screen's edges (extends D6)
+
+2026-11-10
+
+**Problem** (`tyrian-scratch/e1-qa-2/REPORT.md` issue 15): the ship's shadow detached at the screen's edges (1.1 and 1.2
+t1050: the ship at the bottom left, its shadow well off to its right). D6 lifts a draw along its camera ray, so a
+model at height h over screen point G sits at G + (C - G)·h/C.y (C the camera): off the middle of the screen it is nearer
+the middle than it looks, and its shadow, cast from there, drifts toward the middle with it. The one sun (`view.ts`)
+cancels that drift only near the middle, and it grows with the height (the player flies at 3.3).
+
+**Decision:** every model clone's shadow is drawn shifted by (G - A)·h/C.y in x and z, A being where the camera's view
+meets the ground, so it falls as it would for the model at the aim point: the same offset from its caster anywhere on
+screen. The shift is a per-clone uniform (`uShadowShift`, with the clone's damage uniforms, which every clone has since
+D91): the clone's shadow depth material (D87's `damageDepthMaterial`) draws it shifted, and the clone's own lit
+materials look shadows up at the shifted position too, so its shadow on itself (wings on hull) stays where it was.
+Ground enemies (0.45) move by about a seventh of the ship's shift; structures, sprites and terrain are unchanged. `?damage=off`
+(no per-clone materials) keeps the old shadows.
+
+**Options considered:** a shadow-only proxy clone per model in its own layer (twice the clones, and its shadow on the
+real model would land off it); a spot light at the camera for shadows (changes every shadow and the lighting, and
+needs its own tuning).
+
+Test: `tests/render/damageShader.test.ts` (shadow shift). Captures: `tyrian-scratch/qa2-renderer/` (`shadow-before/`,
+`shadow-after/`, `shadow-after/cmp_*.jpg`, `cmp_ship_crops.png`: left before, right after; 1.1 t1050, t300, t1800, 1.2
+t1050, 1.9 t1050).

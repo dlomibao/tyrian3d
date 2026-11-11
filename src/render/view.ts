@@ -147,7 +147,8 @@ export class View {
     // Shadows should land a little below and right of their casters on screen, like the original's
     // ship shadow (JE_playerMovement). Draws are lifted along camera rays (DECISIONS.md D6), which by
     // itself pushes a shadow toward the bottom of the screen, so the sun shines from the left and
-    // from the camera's side to cancel most of that.
+    // from the camera's side to cancel most of that. Models' shadows are drawn as they'd fall at the
+    // camera's aim point wherever the model is, so they don't drift apart toward the screen's edges (D133).
     sun.position.set(-6, 20, 8.4);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);

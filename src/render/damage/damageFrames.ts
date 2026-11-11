@@ -271,6 +271,11 @@ export class DamageFrames {
     return t;
   }
 
+  /** Draw a placed clone's shadow `x`, `z` world units off where it would fall (D133). */
+  shadowShift(object: THREE.Object3D, materials: readonly THREE.Material[], x: number, z: number): void {
+    this.clone(object, materials).uniforms.uShadowShift.value.set(x, 0, z);
+  }
+
   /**
    * Patch a new model clone's materials up front (D91), intact (uDmgOn = 0 draws as unpatched), so
    * its first damaged frame swaps no shader and the level's warm-up compiles the patched programs.
