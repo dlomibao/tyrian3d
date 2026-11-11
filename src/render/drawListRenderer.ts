@@ -55,6 +55,7 @@ import type { LevelDamage, LevelSprite, LevelTile } from "../sim/levelSprites";
 import { TileAtlas } from "./tileAtlas";
 import { RemasteredFx, SpriteLook } from "./vfx/remasteredFx";
 import { vfxModeFromSearch, type VfxMode } from "./vfx/vfxMode";
+import { EXPLOSION_SHEET_ID, flatExplosionFade } from "./vfx/explosionFrames";
 import { RemasterGroundAtlas } from "./remaster/groundAtlas";
 import { remasterGroundMaterial } from "./remaster/groundMaterial";
 import { paletteLuma } from "./remaster/mmpx";
@@ -978,7 +979,9 @@ export class DrawListRenderer {
     if (d.size === 1) {
       const f = art.frame(d.index);
       if (!f) return false;
-      this.addFlat(art, f, 0, 0, d.pass, d.effect, d.filter, d.value, x, y, cam);
+      // A fireball's last rings fade out (D131).
+      const fade = d.sheet.id === EXPLOSION_SHEET_ID ? flatExplosionFade(d.index) : 1;
+      this.addFlat(art, f, 0, 0, d.pass, d.effect, d.filter, d.value, x, y, cam, fade);
       return true;
     }
     for (const [di] of SPRITE2X2_PARTS) {
@@ -991,13 +994,13 @@ export class DrawListRenderer {
     return true;
   }
 
-  /** One flat art quad at the draw's place (screen (x + dx, y + dy), its pass's height). */
+  /** One flat art quad at the draw's place (screen (x + dx, y + dy), its pass's height), its opacity times `fade`. */
   private addFlat(
     art: SpriteArtSheet<THREE.Texture>, f: ReadyFrame, dx: number, dy: number, pass: Pass,
-    effect: SpriteEffect, filter: number, value: number, x: number, y: number, cam: THREE.Vector3,
+    effect: SpriteEffect, filter: number, value: number, x: number, y: number, cam: THREE.Vector3, fade = 1,
   ): void {
     const q = placeFlatQuad(x + dx, y + dy, f.w, f.h, passHeight(pass), cam, this.quad);
-    const alpha = effect === "blend" ? (pass === Pass.Explosions ? EXPLOSION_ALPHA : BLEND_ALPHA) : 1;
+    const alpha = (effect === "blend" ? (pass === Pass.Explosions ? EXPLOSION_ALPHA : BLEND_ALPHA) : 1) * fade;
     if (effect === "filter") this.artLayer.add(art, pass, q, f, FxMode.Filter, (filter >> 4) & 0x0f, 0, alpha);
     else if (effect === "hv") this.artLayer.add(art, pass, q, f, FxMode.HueValue, filter & 0x0f, value, alpha);
     else this.artLayer.add(art, pass, q, f, FxMode.None, 0, 0, alpha);

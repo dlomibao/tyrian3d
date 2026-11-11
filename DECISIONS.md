@@ -5653,3 +5653,26 @@ Built with `tools/build-models.sh -j 2`; tests, typecheck, build pass. Captures,
 - `newshs-229`'s jaw slots now show the ground down them (the sprite draws them near-black, "the floor far below"); a
   modelled dark slot floor inside each jaw would match the sprite's depth if it reads too light.
 - The stone-set models cover their sprite's dark ring (see IoU): a D74 refit would put their edges on the inner mask.
+## D131 — A fireball's last rings fade out, so its last frame no longer leaves a red hollow square (extends D80, D106)
+
+2026-11-10
+
+**Problem** (`tyrian-scratch/e1-qa-2/REPORT.md` issue 10): a red hollow square was left where some explosions had been
+(1.5 t4050, 1.2 t3300 and t8111, 1.9 t300, 1.11 t4205). Found from the draw list: each is `newsh6.shp` 133, the last
+of the fireball's 12 frames (type 1, sprites 122-133, `explosionFrames.ts`), drawn as D80's flat art in
+`Pass.Explosions`. The original sprite is a sparse ring of dim red pixels whose sides run straight; the painting keeps
+that outline (its fit was the lowest of the sheet, 0.49, "mostly the floor") and D106's art shader drops texels under
+0.5 alpha, so it draws as a thin, crisp, dark-red octagon at the full explosion opacity: a hollow square, once the fire
+round it has gone. Not the stencil (D105/D106): a lone frame shows it.
+
+**Decision:** a fireball's flat art fades over its last three frames: opacity x0.8, x0.45, x0.15 (`flatExplosionFade`,
+`FIREBALL_TAIL`), so the ring dies out as the fire does and the last frame is a faint trace. Every other explosion frame
+(big explosions, smoke, sparks, hits, coin values) and the original look (`?sprites=original`) draw as before. The art
+is unchanged.
+
+**Options considered:** repainting frame 133 rounder and softer (a new cut of the D80 sheet, and still a crisp line
+under D106's alpha cut); dropping the frame (one tick of the original's ring gone, and the fire would end on a
+thicker ring).
+
+Test: `tests/render/explosionFade.test.ts`. Captures: `tyrian-scratch/qa2-renderer/` (`redbox-before/`,
+`redbox-after/`, `redbox-after/cmp_all.png`: left before, right after, one row per tick above).
