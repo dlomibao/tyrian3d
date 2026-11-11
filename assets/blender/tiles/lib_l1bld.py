@@ -39,6 +39,7 @@ import bpy
 import numpy as np
 
 import common
+import lib_sockets as ls
 import lib_tiles as lt
 
 ROOT = common.repo_root(__file__)
@@ -727,17 +728,430 @@ class Building:
             objs.append(parts)
         return objs
 
-    def export(self, objects, name=None):
+    # Hard-surface kit (D65's standard for structures, D141) ---------------------------------------
+    #
+    # Smooth outlines instead of pixel terraces, chamfered prisms, bolts, a top-view coverage check
+    # and the model's own AO/roughness bake (no concept projection, CLAUDE.md art rule 4). Nothing
+    # here runs unless a script calls it: the concept-baked buildings keep their look.
+
+    def outlines(self, mask, tol=0.6, min_px=6):
+        """Smooth polygons round each 4-connected part of `mask` (bool, pattern px): its pixel
+        outline traced at the pixels' corners (lib_sockets.trace, outer outline only: holes are not
+        cut, build round them) and simplified (Douglas-Peucker, `tol` px), so the art's pixel
+        staircases become straight diagonals. Parts under `min_px` pixels are dropped. Returns
+        [[(px, py), ...], ...] in pattern px (y down), ready for slab()."""
+        polys = []
+        for ys, xs in lt.components(mask):
+            if len(ys) < min_px:
+                continue
+            part = np.zeros(mask.shape, bool)
+            part[ys, xs] = True
+            loop = ls.trace(part)
+            poly = ls.simplify(loop, tol) if tol else loop
+            if len(poly) >= 3 and abs(ls.area(poly)) > 1.0:
+                polys.append(poly)
+        return polys
+
+    def slab(self, poly, z0, z1, mat=None, chamfer_px=1.0, drop=0.03, side_mat=None, bevel_mat=None, smooth=False):
+        """A hard-surface prism over the polygon `poly` (pattern px, either winding) from z0 up to a
+        flat top at z1, its top edge chamfered `chamfer_px` in and `drop` down (0: a square edge).
+        `side_mat` for the walls, `bevel_mat` for the chamfer (default `mat`). Flat shaded unless
+        `smooth`. Closed (a bottom at z0). Adds to self.parts."""
+        mat = self.m("wall") if mat is None else mat
+        side_mat = mat if side_mat is None else side_mat
+        bevel_mat = mat if bevel_mat is None else bevel_mat
+        pts = [(float(x), float(y)) for x, y in poly]
+        if ls.area(pts) < 0:  # screen y down: counter-clockwise in Blender's Y-up
+            pts.reverse()
+        n = len(pts)
+        inner = ls.inset(pts, chamfer_px) if chamfer_px and drop else pts
+        if inner is not pts and ls.area(inner) < 0.3 * ls.area(pts):
+            inner = pts  # a sliver: the chamfer would turn it inside out
+        bm = bmesh.new()
+        base = [bm.verts.new((self.x(x), self.y(y), z0)) for x, y in pts]
+        rings = [base]
+        mats = []
+        if inner is not pts:
+            rings.append([bm.verts.new((self.x(x), self.y(y), z1 - drop)) for x, y in pts])
+            mats.append(side_mat)
+            rings.append([bm.verts.new((self.x(x), self.y(y), z1)) for x, y in inner])
+            mats.append(bevel_mat)
+        else:
+            rings.append([bm.verts.new((self.x(x), self.y(y), z1)) for x, y in pts])
+            mats.append(side_mat)
+        for (a, b), mi in zip(zip(rings, rings[1:]), mats):
+            for i in range(n):
+                j = (i + 1) % n
+                bm.faces.new((a[i], a[j], b[j], b[i])).material_index = mi
+        bm.faces.new(rings[-1]).material_index = mat
+        bm.faces.new(list(reversed(base))).material_index = side_mat
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        self._merge(bm, smooth=smooth)
+
+    def rim(self, poly, width_px, z0, z1, mat=None, keep=None, **kw):
+        """A raised band `width_px` wide along the inside of the polygon `poly` (pattern px), from z0
+        to z1: a rail round a walkway, a frame round a hatch or recess (build the recess's floor
+        lower, the rim round it), a ring on a disc. One closed prism per edge, mitred at the
+        corners. `keep(i, a, b)` (edge i from point a to b, pattern px) can leave edges out: a rail
+        open where the walkway runs off the map. Other keywords go to slab() (chamfer_px defaults
+        to 0 here: give the band's top a chamfer only if it's wide)."""
+        pts = [(float(x), float(y)) for x, y in poly]
+        if ls.area(pts) < 0:
+            pts.reverse()
+        inner = ls.inset(pts, width_px)
+        kw.setdefault("chamfer_px", 0)
+        n = len(pts)
+        for i in range(n):
+            j = (i + 1) % n
+            if keep is not None and not keep(i, pts[i], pts[j]):
+                continue
+            self.slab([pts[i], pts[j], inner[j], inner[i]], z0, z1, mat, **kw)
+
+    def slab_mask(self, mask, z0, z1, mat=None, tol=0.6, min_px=6, **kw):
+        """slab() over each part of a pixel mask (outlines()); returns the polygons."""
+        polys = self.outlines(mask, tol=tol, min_px=min_px)
+        for poly in polys:
+            self.slab(poly, z0, z1, mat, **kw)
+        return polys
+
+    def rounded_box(self, x0, y0, x1, y1, corner_px=1.5, segments=2):
+        """A box's outline (pattern px) with its corners cut round (`segments` per corner; 1 = a
+        45-degree chamfer), for slab()."""
+        c = max(0.0, min(corner_px, (x1 - x0) / 2 - 1e-3, (y1 - y0) / 2 - 1e-3))
+        if c <= 0:
+            return [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
+        pts = []
+        for cx, cy, a0 in ((x1 - c, y0 + c, -90), (x1 - c, y1 - c, 0), (x0 + c, y1 - c, 90), (x0 + c, y0 + c, 180)):
+            for k in range(segments + 1):
+                a = math.radians(a0 + 90 * k / segments)
+                pts.append((cx + c * math.cos(a), cy + c * math.sin(a)))
+        return pts
+
+    def ngon(self, px, py, r_px, sides=8, angle=None, ry_px=None):
+        """A regular polygon's outline (pattern px), e.g. the art's octagonal discs, for slab()."""
+        a0 = math.pi / sides if angle is None else angle
+        ry = r_px if ry_px is None else ry_px
+        return [(px + r_px * math.cos(a0 + 2 * math.pi * i / sides), py + ry * math.sin(a0 + 2 * math.pi * i / sides))
+                for i in range(sides)]
+
+    def bolts(self, points, z0, r_px=0.7, height=0.015, mat=None, sides=6):
+        """Small hex bolt heads (or rivets) at `points` [(px, py), ...], standing on the plane z0."""
+        mat = self.m("metal") if mat is None else mat
+        for px, py in points:
+            bm = bmesh.new()
+            lt.block(bm, self.x(px), self.y(py), r_px * lt.PX, r_px * lt.PX, 0.0, z0 - 0.005, height + 0.005, mat, sides=sides, bevel=0.3)
+            self._merge(bm)
+
+    def coverage(self, objects, scale=2, include_plain=False, z_min=None):
+        """What the objects cover seen from straight above: bool (H*scale, W*scale) over the
+        pattern, a sample on where any face (projected to the ground) contains the sample's
+        centre. Faces in plain materials (the island rock, `tyrian_plain`) are left out unless
+        `include_plain`; with `z_min`, faces wholly below it are too."""
+        out = np.zeros((self.H * scale, self.W * scale), bool)
+        for o in objects:
+            if o.type != "MESH":
+                continue
+            me, mw = o.data, o.matrix_world
+            me.calc_loop_triangles()
+            co = np.array([tuple(mw @ v.co) for v in me.vertices]).reshape(-1, 3)
+            if not len(co):
+                continue
+            # pattern px (scaled), y down
+            sx = (co[:, 0] / lt.PX + self.W / 2) * scale
+            sy = (self.H / 2 - co[:, 1] / lt.PX) * scale
+            plain = [bool(m and m.get("tyrian_plain")) for m in me.materials]
+            for tri in me.loop_triangles:
+                if not include_plain and plain and plain[tri.material_index]:
+                    continue
+                vi = list(tri.vertices)
+                if z_min is not None and co[vi, 2].max() < z_min:
+                    continue
+                xs, ys = sx[vi], sy[vi]
+                x0, x1 = max(0, int(np.floor(xs.min()))), min(out.shape[1], int(np.ceil(xs.max())) + 1)
+                y0, y1 = max(0, int(np.floor(ys.min()))), min(out.shape[0], int(np.ceil(ys.max())) + 1)
+                if x1 <= x0 or y1 <= y0:
+                    continue
+                gy, gx = np.mgrid[y0:y1, x0:x1] + 0.5
+                (ax, bx, cx), (ay, by, cy) = xs, ys
+                d = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy)
+                if abs(d) < 1e-12:
+                    continue
+                l1 = ((by - cy) * (gx - cx) + (cx - bx) * (gy - cy)) / d
+                l2 = ((cy - ay) * (gx - cx) + (ax - cx) * (gy - cy)) / d
+                inside = (l1 >= -1e-6) & (l2 >= -1e-6) & (l1 + l2 <= 1 + 1e-6)
+                out[y0:y1, x0:x1] |= inside
+        return out
+
+    def top_iou(self, objects, mask, scale=2, **kw):
+        """IoU of the model's top view (coverage(), plain rock left out) with `mask` (bool,
+        pattern px at 1x: what the art paints for the model's own parts, e.g. purple_mask()).
+        Prints it with the over/under areas; returns the IoU."""
+        cov = self.coverage(objects, scale=scale, **kw)
+        ref = np.kron(mask, np.ones((scale, scale), bool))
+        inter, union = (cov & ref).sum(), (cov | ref).sum()
+        iou = float(inter) / max(1, union)
+        print(f"top view {self.name}: IoU {iou:.3f} vs the art's mask (model only {(cov & ~ref).sum() / scale ** 2:.0f} px, "
+              f"art only {(ref & ~cov).sum() / scale ** 2:.0f} px)")
+        return iou
+
+    def bake_model(self, objects, size=None, samples=48, ground=None, out_dir=None, ao=(0.025, 0.16)):
+        """The model's own AO/roughness bake (D65: no concept projection, `"bake": "model"`). The
+        non-plain faces of `objects` are joined into one object and baked; faces in plain
+        materials (the island rock, Structure.rock) go to a second object, unbaked, as they must
+        look like the per-tile rock round them, but still occlude the bake. `ground` (z) adds a
+        temporary plane under the footprint as an occluder only (layer 0: the HD ground the
+        building stands on, D86), deleted after. Two textures, wired into every non-plain,
+        non-emissive material on the "bake" UV map: colour = AO at two scales (`ao`, units) plus an
+        edge lift, as a grey multiplier on the palette colour (so palette fades and filters still
+        apply; open flat tops stay at the palette colour), and roughness/metal (G/B) from the
+        material's own values, rougher in crevices. `size` (px) defaults to about 5 texels per
+        pattern px, 1024..4096. Returns the objects to export (pass them to export(..., baked=True))."""
+        import tempfile
+
+        coll = objects[0].users_collection[0]
+        hard_bm, rock_bm = bmesh.new(), bmesh.new()
+        rock_bm.loops.layers.uv.new("rock")  # before the first merge, or merging drops it (Structure.rock)
+        materials = list(self.pal.materials)
+        plain = {i for i, m in enumerate(materials) if m.get("tyrian_plain")}
+        for o in objects:
+            if o.type != "MESH":
+                continue
+            for target, keep_plain in ((hard_bm, False), (rock_bm, True)):
+                bm = bmesh.new()
+                bm.from_mesh(o.data)
+                bm.transform(o.matrix_world)
+                drop = [f for f in bm.faces if (f.material_index in plain) != keep_plain]
+                bmesh.ops.delete(bm, geom=drop, context="FACES")
+                tmp = bpy.data.meshes.new("tmp_split")
+                bm.to_mesh(tmp)
+                bm.free()
+                target.from_mesh(tmp)
+                bpy.data.meshes.remove(tmp)
+        for o in objects:
+            bpy.data.objects.remove(o, do_unlink=True)
+        base = f"{SHAPES}-{self.prefix}-{self.name}"
+        hard = mesh_object(f"{base}-model", hard_bm, materials, coll)
+        for uv in [uv.name for uv in hard.data.uv_layers]:
+            hard.data.uv_layers.remove(hard.data.uv_layers[uv])  # the rock's "rock" map, unused here
+        out = [hard]
+        if len(rock_bm.faces):
+            rock = mesh_object(f"{base}-rock", rock_bm, materials, coll)
+            out.append(rock)
+        else:
+            rock_bm.free()
+        catcher = None
+        if ground is not None:
+            m = 2.0
+            bm = bmesh.new()
+            w, h = self.W * lt.PX / 2 + m, self.H * lt.PX / 2 + m
+            vs = [bm.verts.new((x, y, ground)) for x, y in ((-w, -h), (w, -h), (w, h), (-w, h))]
+            bm.faces.new(vs)
+            catcher = common.mesh_object(f"{base}-ao-ground", bm, [], coll)
+        if size is None:
+            size = int(min(4096, max(1024, 2 ** round(math.log2(math.sqrt(self.W * self.H) * 5)))))
+        # Only the model (and the ground catcher) occludes: anything else in the scene, such as
+        # --factory-startup's default 2x2x2 cube at the origin or an earlier export of the same run,
+        # would bake its shadow in (a dark 24x24 px square round the pattern's centre).
+        own = set(out) | ({catcher} if catcher is not None else set())
+        others = [o for o in bpy.context.scene.objects if o not in own and not o.hide_render]
+        for o in others:
+            o.hide_render = True
+        try:
+            _bake(hard, size, samples, ao, Path(out_dir or tempfile.mkdtemp(prefix=f"{base}_bake_")),
+                  skip={i for i, m in enumerate(materials) if i in plain or _emissive(m)})
+        finally:
+            for o in others:
+                o.hide_render = False
+        if catcher is not None:
+            bpy.data.objects.remove(catcher, do_unlink=True)
+        tris = sum(len(p.vertices) - 2 for p in hard.data.polygons)
+        print(f"baked {base}: {size} px, {len(hard.data.polygons)} faces, {tris} triangles (+ plain rock)")
+        return out
+
+    def export(self, objects, name=None, baked=False):
         """Export public/models/tiles/shapesz/<prefix>-<name>.glb and src/render/tileModels/
-        shapesz-<prefix>-<name>.json (with minRows unless it's None, and keepTiles if set)."""
+        shapesz-<prefix>-<name>.json (with minRows unless it's None, and keepTiles if set). `baked`
+        (after bake_model): the baked maps go in as WebP (the rock's lossless data textures stay
+        as they are) and the model's maps.json is marked `"bake": "model"`, so
+        tools/build-models.sh doesn't project a concept over it."""
         name = name or self.name
-        out = lt.export_tile_model(self.ts, objects, f"{self.prefix}-{name}", self.layer, self.pattern, keep_tiles=self.keep_tiles)
+        out = lt.export_tile_model(self.ts, objects, f"{self.prefix}-{name}", self.layer, self.pattern, keep_tiles=self.keep_tiles,
+                                   image_format="WEBP" if baked else "AUTO")
+        if baked:
+            own_bake(f"{SHAPES}-{self.prefix}-{name}")
         path = ROOT / "src" / "render" / "tileModels" / f"{SHAPES}-{self.prefix}-{name}.json"
         entry = json.loads(path.read_text())
         if self.min_rows is not None:
             entry["minRows"] = self.min_rows
         path.write_text(json.dumps(entry, indent=1) + "\n")
         return out
+
+
+def own_bake(entry):
+    """Mark assets/blender/textures/<entry>/maps.json `"bake": "model"` (written if missing): the
+    model's script bakes its own maps, so tools/build-models.sh and texture_bake.py leave it alone
+    (D50, D65). An existing file's other keys (and concept maps lib_sockets.py --maps edits) stay."""
+    path = ROOT / "assets" / "blender" / "textures" / entry / "maps.json"
+    meta = json.loads(path.read_text()) if path.exists() else {"name": entry, "tile": True}
+    if meta.get("bake") != "model":
+        meta["bake"] = "model"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(meta, indent=1) + "\n")
+        print(f"{path.relative_to(ROOT)}: \"bake\": \"model\"")
+
+
+def _emissive(m):
+    if m is None or not m.use_nodes:
+        return False
+    bsdf = next((n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED"), None)
+    return bsdf is not None and bsdf.inputs["Emission Strength"].default_value > 0
+
+
+def _bake(obj, size, samples, ao, out_dir, skip):
+    """AO/roughness bake of one object onto a "bake" UV map (as the enemies' bake_maps, D65), wired
+    into its materials except the slots in `skip`."""
+    scene = bpy.context.scene
+    try:
+        scene.render.engine = "CYCLES"
+    except TypeError:
+        pass
+    scene.cycles.samples = samples
+    scene.cycles.device = "CPU"
+    try:
+        prefs = bpy.context.preferences.addons["cycles"].preferences
+        prefs.compute_device_type = "METAL"
+        prefs.get_devices()
+        for dev in prefs.devices:
+            dev.use = True
+        if any(d.type == "METAL" for d in prefs.devices):
+            scene.cycles.device = "GPU"
+    except Exception as err:  # noqa: BLE001
+        print("no GPU bake", err)
+    me = obj.data
+    uv = me.uv_layers.new(name="bake")
+    me.uv_layers.active = uv
+    for o in bpy.context.view_layer.objects:
+        o.select_set(False)
+    obj.select_set(True)
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.mesh.select_all(action="SELECT")
+    bpy.ops.uv.smart_project(angle_limit=math.radians(55), island_margin=0.002, scale_to_bounds=False)
+    bpy.ops.uv.pack_islands(margin=0.002)
+    bpy.ops.object.mode_set(mode="OBJECT")
+    tag = obj.name
+    col_img = bpy.data.images.new(f"{tag}_colour", size, size, alpha=False)
+    rm_img = bpy.data.images.new(f"{tag}_rm", size // 2, size // 2, alpha=False)
+    rm_img.colorspace_settings.name = "Non-Color"
+    mats = list(me.materials)
+    saved = {}
+    for m in mats:
+        o_ = next(n for n in m.node_tree.nodes if n.type == "OUTPUT_MATERIAL")
+        saved[m.name] = o_.inputs["Surface"].links[0].from_socket if o_.inputs["Surface"].links else None
+
+    def bake_shader(m, mode):
+        nt = m.node_tree
+        bsdf = next(n for n in nt.nodes if n.type == "BSDF_PRINCIPLED")
+        rough = bsdf.inputs["Roughness"].default_value
+        metal = bsdf.inputs["Metallic"].default_value
+        tmp = []
+
+        def node(kind):
+            n = nt.nodes.new(kind)
+            tmp.append(n)
+            return n
+
+        def mth(op, a, b_=None):
+            n = node("ShaderNodeMath")
+            n.operation = op
+            for k, val in enumerate((a, b_)):
+                if val is None:
+                    continue
+                if isinstance(val, (int, float)):
+                    n.inputs[k].default_value = val
+                else:
+                    nt.links.new(val, n.inputs[k])
+            return n.outputs[0]
+
+        ao_s = node("ShaderNodeAmbientOcclusion")
+        ao_s.samples = 24
+        ao_s.inputs["Distance"].default_value = ao[0]
+        ao_l = node("ShaderNodeAmbientOcclusion")
+        ao_l.samples = 24
+        ao_l.inputs["Distance"].default_value = ao[1]
+        bev = node("ShaderNodeBevel")
+        bev.samples = 8
+        bev.inputs["Radius"].default_value = 0.006
+        geo = node("ShaderNodeNewGeometry")
+        dot = node("ShaderNodeVectorMath")
+        dot.operation = "DOT_PRODUCT"
+        nt.links.new(bev.outputs["Normal"], dot.inputs[0])
+        nt.links.new(geo.outputs["True Normal"], dot.inputs[1])
+        edge = mth("MINIMUM", mth("MULTIPLY", mth("SUBTRACT", 1.0, dot.outputs["Value"]), 8.0), 1.0)
+        occl = mth("MULTIPLY", mth("POWER", ao_s.outputs["AO"], 0.8),
+                   mth("ADD", 0.6, mth("MULTIPLY", ao_l.outputs["AO"], 0.4)))
+        em = node("ShaderNodeEmission")
+        comb = node("ShaderNodeCombineColor")
+        if mode == "colour":
+            val = mth("MINIMUM", mth("ADD", mth("ADD", 0.62, mth("MULTIPLY", occl, 0.45)), mth("MULTIPLY", edge, 0.12)), 1.0)
+            for k in range(3):
+                nt.links.new(val, comb.inputs[k])
+        else:
+            r = mth("ADD", rough, mth("SUBTRACT", mth("MULTIPLY", mth("SUBTRACT", 1.0, occl), 0.3), mth("MULTIPLY", edge, 0.14)))
+            r = mth("MAXIMUM", mth("MINIMUM", r, 1.0), 0.05)
+            comb.inputs[0].default_value = 1.0
+            nt.links.new(r, comb.inputs[1])
+            comb.inputs[2].default_value = metal
+        nt.links.new(comb.outputs[0], em.inputs["Color"])
+        o_ = next(n for n in nt.nodes if n.type == "OUTPUT_MATERIAL")
+        nt.links.new(em.outputs[0], o_.inputs["Surface"])
+        tgt = node("ShaderNodeTexImage")
+        tgt.image = col_img if mode == "colour" else rm_img
+        uvn = node("ShaderNodeUVMap")
+        uvn.uv_map = "bake"
+        nt.links.new(uvn.outputs["UV"], tgt.inputs["Vector"])
+        nt.nodes.active = tgt
+        return tmp
+
+    for mode, img in (("colour", col_img), ("rm", rm_img)):
+        tmps = {m.name: bake_shader(m, mode) for m in mats}
+        bpy.ops.object.bake(type="EMIT", margin=8, use_clear=True)
+        for m in mats:
+            nt = m.node_tree
+            for n in tmps[m.name]:
+                nt.nodes.remove(n)
+            o_ = next(n for n in nt.nodes if n.type == "OUTPUT_MATERIAL")
+            if saved[m.name] is not None:
+                nt.links.new(saved[m.name], o_.inputs["Surface"])
+        out_dir.mkdir(parents=True, exist_ok=True)
+        img.filepath_raw = str(out_dir / f"{img.name}.png")
+        img.file_format = "PNG"
+        img.save()
+
+    for i, m in enumerate(mats):
+        if i in skip:
+            continue
+        nt = m.node_tree
+        bsdf = next(n for n in nt.nodes if n.type == "BSDF_PRINCIPLED")
+        uvn = nt.nodes.new("ShaderNodeUVMap")
+        uvn.uv_map = "bake"
+        ct = nt.nodes.new("ShaderNodeTexImage")
+        ct.image = col_img
+        nt.links.new(uvn.outputs["UV"], ct.inputs["Vector"])
+        mul = nt.nodes.new("ShaderNodeMix")
+        mul.data_type = "RGBA"
+        mul.blend_type = "MULTIPLY"
+        mul.inputs[0].default_value = 1.0
+        nt.links.new(ct.outputs["Color"], mul.inputs[6])
+        mul.inputs[7].default_value = tuple(bsdf.inputs["Base Color"].default_value)
+        nt.links.new(mul.outputs[2], bsdf.inputs["Base Color"])
+        rt = nt.nodes.new("ShaderNodeTexImage")
+        rt.image = rm_img
+        nt.links.new(uvn.outputs["UV"], rt.inputs["Vector"])
+        sep = nt.nodes.new("ShaderNodeSeparateColor")
+        nt.links.new(rt.outputs["Color"], sep.inputs[0])
+        nt.links.new(sep.outputs[1], bsdf.inputs["Roughness"])
+        nt.links.new(sep.outputs[2], bsdf.inputs["Metallic"])
 
 
 def mesh_object(name, bm, materials, collection):

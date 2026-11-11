@@ -5501,6 +5501,7 @@ and `newshe-277` (ALE), which did not show in 8,000 ticks of `main=33`/`41`.
   reads pink, `newshd-229`'s 233 gem (3.5-6.0) periwinkle. Lower those strengths toward 1 / brightest channel.
 - Workarounds that can go: `newshj-19`'s metallic 1.0 / roughness 0.6 (D122) and `newshd-121`'s `dim_visor()` (D121).
 - `palette_material`'s docstring (`assets/blender/common.py`) now says what a strength means in game.
+
 ## D127 — Stars show only where background 1 is black, as the C tests its screen
 
 2026-11-10
@@ -6074,3 +6075,112 @@ strict review shipped it at 7/10. Sheet: `tyrian-scratch/newshu-79/assembly-news
 - the muzzle pod is less pointed than the sprite.
 
 **Cost:** 6 agents, 0.92M tokens.
+
+## D141 — Structure rebuild, wave 1: seven structures to the D65 hard-surface standard, their own AO bake, no outline shell (extends D34, D65, D115; fixes QA round 2 issue 4)
+
+2026-11-11
+
+**Context:** the episode-1 QA sweep (round 2, issue 4) found the structure models still on D44's concept-projection
+bake: in game they read blurry, pixel-stepped and washed out (TYRIAN's purple cross, orb, blocks and fortress road;
+ASTEROID?'s base complex, cross pad and pipe junction). Two causes: the bake projects a Gemini concept over the model
+(the "foil" art rule 4 forbids), and the decks were `Building.terrace()`, one height per tile pixel, so every outline
+and step followed the art's pixel staircase.
+
+**Decision:** structures follow D65's standard. lib_l1bld's `Building` (and so lib_tyrbld's `Structure`) gains a
+hard-surface kit, additive, used only by scripts that call it:
+- `outlines(mask, tol)`: a pixel mask's outline traced (lib_sockets.trace) and simplified (Douglas-Peucker), so the
+  art's staircases become straight edges; `slab(poly, z0, z1, ...)` a closed prism with a chamfered top edge;
+  `slab_mask`, `rim` (a band along a polygon: rails, frames round recesses, rings), `rounded_box`, `ngon`, `bolts`.
+- `top_iou(objects, mask)`: the model's top view (its triangles rasterised at 2x, plain rock left out) against the
+  art's mask.
+- `bake_model(objects)`: the model's own AO (two scales) + edge lift colour multiplier and roughness/metal maps, as
+  the enemies' `bake_maps`, wired as texture × palette colour; faces in plain materials (the island rock, D63/D84) go
+  to a separate, unbaked object but still occlude. `ground=z` adds a temporary occluder plane for layer 0 (D86). Only
+  the model and that plane occlude: every other scene object is hidden from the bake (see the cube below).
+- `export(objects, baked=True)`: WebP maps (the rock's lossless data textures stay as they are,
+  `lib_tiles.export_tile_model(image_format=)`), and `own_bake()` marks the entry's maps.json `"bake": "model"` so
+  tools/build-models.sh no longer projects the concept. Old concept keys stay in maps.json, unused.
+- Unchanged: lib_sockets.py and `broken_sockets()` (D115), `rock()` (D84), the plan, minRows/keepTiles, D96 marks,
+  every `src/render/tileModels/*.json`. `tools/tile_pattern.py <entry> out.png --grid` draws a pattern's original
+  tiles for comparison (output never committed, art rule 6). Worked example: `tyrbld_purple_cross.py`.
+
+Built with `tools/workflows/model-flagship.js` (run `wf_9057e6b0-55c`: 4 heroes with blueprints and competing designs,
+3 standard; strict review) and one `fix-round.js` pass on the base complex (`wf_7e3e9f07-df0`).
+
+| Structure | Tier | Top-view IoU | Score | GLB (MB, was) | Triangles (hard model) |
+|---|---|---|---|---|---|
+| tyrbld_purple_orb | hero | 0.968 | 8 | 1.08 (0.89) | 7.2k + 7.5k plain rock |
+| tyrbld_purple_cross | hero | 0.974 (review 0.979) | 7.5 | 1.32 (1.34) | 8.0k + rock |
+| tyrbld_purple_blocks (2x2 / 2x3 / 2x5) | standard | 0.964 / 0.971 / 0.974 | 8 | 0.69 / 0.97 / 1.46 (0.46 / 0.65 / 1.01) | 5.3k / 8.4k / 14.6k incl. rock |
+| tyrbld_fortress | hero | 0.959 (machine; walkway 1.000) | 8 | 2.83 (1.81) | 23.0k + 1.5k maze strips + 3.3k rock |
+| l1bld_cross_pad | standard | 0.993 | 7 | 0.78 (0.97) | 11.4k |
+| l1bld_pipe_junction | standard | 0.992 (review 0.993) | 7 | 2.53 (1.75) | 23.2k |
+| l1bld_base_complex | hero | 0.9904 | 8 (fix round; 6 before) | 5.25 (1.68) | 37k baked + 22k plain (rocks, kerb posts, grating) |
+
+The IoU is the worst/only frame (tile models have one); every item ships at ≥ 0.95. The nine GLBs go from 10.6 MB
+to 16.9 MB.
+
+**No outline shell on tile models.** `src/render/remaster/structureInstances.ts` sets
+`outlineParameters.visible = false` on every tile-model material (D8: tiles join edge to edge), and `prepareModel`
+already gives a shell node a `colorWrite: false, depthWrite: false` material, so on a structure a D51 shell draws
+nothing but still becomes an instanced part: one more draw and a shadow caster (which, held inside the model, adds
+nothing to its shadow). Checked in game: TYRIAN t4050 with the purple cross's 6,000-face shell drawn and with its draw
+range set to 0 differ in no scene pixel (only the fps text). The shells are removed from `tyrbld_purple_cross`,
+`tyrbld_fortress` (16k faces), `l1bld_cross_pad` and `l1bld_base_complex` (8k), consistent with `tyrbld_purple_orb`,
+`tyrbld_purple_blocks` and `l1bld_pipe_junction`. No tile model on main had one.
+
+**The default cube in the bake.** tools/build-models.sh runs Blender with `--factory-startup`, whose 2x2x2 cube sits at
+the origin; AO saw it (and, in `tyrbld_purple_blocks`, the blocks exported earlier in the same run) and baked a faint
+24x24 px square of dark lines round the pattern's centre. The cross and blocks scripts empty the scene first
+(`clear_scene()`); `bake_model` now hides every other object from the bake, so the orb, cross pad, pipe junction and
+base complex lost the square too (top-down texture renders before/after: `tyrian-scratch/structures-1/integrate/
+bake-cube-fix.png`). The integrator rebuilt those six scripts after both changes; their geometry is unchanged apart
+from the removed shells.
+
+**Shared lib check:** the kit changes `lib_l1bld.py`, `lib_tyrbld.py` and `lib_tiles.py` (the last only an
+`image_format` argument defaulting to the old `"AUTO"`). Their other users (`tyrbld_bridge`, `bunker_hull`,
+`bunker_ring`, `crater`, `drum`, `lava_pit`, `white_gate`, `wreck`; `l1bld_bunker`, `light_bridge`, `red_bar`,
+`ring_dome` as D139 left it; `delbld_girders` through lib_tiles) were built in a throwaway worktree of origin/main with
+`build-models.sh -n`, once with main's libs and once with this branch's: every GLB has the same nodes, materials and
+triangles (sorted, 1e-4 units). `delbld_girders` differs by a few triangles between two runs with the same libs, so its
+build is not deterministic on its own.
+
+**Follow-ups (known):**
+- `tyrbld_purple_orb`: the right capsule (index 52) is about twice the art's (≈18 px against ≈9 px; the sprite's
+  pills are asymmetric, the model mirrors them); the rivet plates' hex bolts read as black holes from the tilted
+  camera (smaller, or in index 84/86). The dark 80-82 blob above the orb was left as shading. Its new helpers
+  (`clip_convex`, `minus_disk`, `collar_with_gap`) could move into lib_l1bld.
+- `l1bld_base_complex`: the rim stones are tonally flat (bright pal 6-9 covers 0.08 of the band against the art's
+  0.24; dark ≤ 2 0.23 against 0.37): more pal 6/7 (some 8) on up-sun crown facets, some sides to pal 3. The two X
+  hatch pads by the bottom fork are a jumble of triangles up close; the central U's crosshair hatch reads grey in the
+  palette top view. The channel is 9 px wide against the art's 16-18 (widening it moves the join with the pipe
+  junction: decide together). 59k triangles and 5.25 MB against a ~20k budget.
+- `tyrbld_fortress`: the red armour plates' inset panels (`red_hi`/`red`, roughness 0.36) mirror the light as a sharp
+  grey slash: raise to 0.45-0.5. Budget: 23k triangles and 2.83 MB (was 1.8): a 1024 bake or merged maze ribs.
+  `tri_count`, `ribs`, `tube`, `smooth_poly` are local copies that could join the kit. The machine was not seen in
+  game (the purple boss covers it).
+- `tyrbld_purple_cross`: about 10 px filled in the side-lobe notches the art leaves empty; the N/S plates' "recessed
+  slot" is not recessed (a 0.005 rim shows); the relief is shallow at low angles.
+- `tyrbld_purple_blocks`: the plate/disc recesses are slabs 0.004 above the deck (a flicker risk at distance; none
+  seen); the bosses run about 1 px full at the diagonal corners.
+- `l1bld_cross_pad`: the quadrants' panels, vents and triangle hatches are invented (the art has a block grid with rib
+  columns beside each arm); its octagon covers corner rock the art shows (its IoU mask is the finisher's own); the
+  quadrants are flatter than the original (bottom-right median 66 against 45); the capsule lenses are flat red slabs
+  once the cross enemies die (an emissive gradient).
+- `l1bld_pipe_junction`: 23k triangles (merge interior pavers/bricks); the parapet posts on the stem's curved inner
+  edges overlap like shingles. Its join with the base complex (ASTEROID? t2350,
+  `tyrian-scratch/structures-1/integrate/join_crop_t2350.png`, `bg=original` left): the stem ends in a straight raised
+  edge, below it the base complex's top rows show its dark bed where the art continues the stem's rock and brick
+  walls down to the kerb comb, the brown brick channel meets the 9 px grating at a different width, and a thin bright
+  sliver stands at the join's right. Fix with the channel width (above).
+- maps.json of the cross and the cross pad keep the dead `concept`/`concept_box`/`fit_iou` keys.
+- The other 16 structures (QA2's count of 23) are still concept-baked.
+- `?viewer=` lists no tile models (they fall back to atom-bombs): reviews judged from Blender renders and game captures.
+- `StructureInstances.add` also turns `prepareModel`'s hidden depth-prepass mesh into an instanced part that draws
+  (depth only) and casts a shadow, for every structure model: skip model helpers there (`isModelHelper`).
+- `remaster.test.ts`'s pattern-scan tests ("minRows rows always tell the structure apart", "the planned patterns are
+  told apart") hit their in-test 60 s timeout on a loaded machine; `--testTimeout` does not override it.
+
+**Cost:** 50 agents in the main run plus 2 in the fix round; 7.39M + 0.27M subagent tokens; about 5.4 h. Sheets:
+`tyrian-scratch/structures-1/<name>/final/` and `.../fixround/l1bld_base_complex/final/`; integration captures in
+`tyrian-scratch/structures-1/integrate/` (not in git, D3).
