@@ -6809,3 +6809,48 @@ Sheets (original | before | after): `tyrian-scratch/asteroidq-kit/sheets/1.3_t{3
 
 Sheets (original | D148 | after, each frame's mean, median, sd and spread): `tyrian-scratch/asteroidq-kit-2/sheets/
 1.3_t{300,1050,1750,2550,3310}.jpg`, `sheets/stats.txt`; 4K crops `crops/1.3_t*_4k_*.jpg` (not in git, D3).
+
+## D151 — The SOH JIN key loses the original's ink ring: its alpha is cut to where the painting covers it (follows D132; extends D43)
+
+2026-11-11
+
+**Problem** (`tyrian-scratch/e1-qa-3/REPORT.md`, round 2 issue 11's remainder): after D132 the key (`tyrian.shp#10`
+243, 244, 262, 263) still drew a hard black band round itself, widest down and to the right, read as an offset black
+silhouette.
+
+**Cause:** not Gemini's painting (it paints the key on black with no dark outline, `e1-pickups-10-2`) and not D132's
+soft shadow. The original key is ringed by a one-pixel ink outline in palette index 1 (12, 12, 12), which also draws
+the bit's notch edges. The registration leaves those dark pixels out (`visible_mask`, as for every sprite), so the
+painted key is fitted to the body inside the ring; but the alpha was the whole picture minus D132's shadow indices,
+ring included. Every texel of the ring (8 per pixel at the 8x scale) sampled the answer's black background at full
+alpha. Down and to the right the ring runs into D132's shadow, so the band looked like an offset silhouette.
+
+**Decision:** a new inventory cell field `"art_alpha": {"lo": 0.1, "hi": 0.2, "sigma": 1.5}` (`flat_art.art_coverage`):
+the registered answer is sampled over the whole picture, its brightest channel smoothstepped from `lo` to `hi`,
+enclosed holes filled (the bow's dark recess stays opaque, as the original draws it in browns), blurred `sigma`
+texels, and multiplied into the body's silhouette. It never grows the silhouette. D132's shadow layer is unchanged
+(`shadow_alpha` takes the coverage for the body only), and the texels the painting doesn't cover take black, as the
+shadow's do, so no bronze bleeds into the soft shadow. Art rule 2: the ink ring is the original's outline, lighting
+rather than paint, and the painting already draws the key's edge. Re-cut from the saved answer (no Gemini request)
+with `cut --merge`: the manifest is unchanged, the atlas `tyrian-shp-10.webp` is re-encoded (other frames differ by
+at most 16/255 per channel from WebP, median max 8, as in D132's merge).
+
+**Measured** (alpha over 0.5 against the original's 1x pixels at 8x): IoU with the body (shadow indices left out)
+0.979 before, 0.691 after; with the body less its outer ring 0.643 before, 0.786 after; 92% of the inner body is
+kept (the painting's shaft is a little narrower on its right and its bottom a little shorter); 29% of the ring stays
+opaque, where the painting's bit and bow fill it. Opaque near-black texels outside the inner body: 3216 before, 31
+after. The key draws about one original pixel smaller on each side; its hitbox is the sim's and does not change.
+
+**Options considered:**
+- *Recolour the ring from the key's interior* (`terrain_hd --rim-inset`'s idea): keeps the silhouette, but smears
+  bronze one pixel round a key Gemini painted thinner, a fat blurred edge.
+- *Take only index-1 pixels touching the outside out of the silhouette:* the ink between the bit and the shaft
+  touches the notch, so it would go too and cut the bit off the shaft (judged from the pixels, not tried).
+- *A soft dark halo where the ring was* (not tried): still a dark outline the painting does not have.
+
+**Checked** in game (`?debug=play&episode=1&main=31&seed=1&skip=4446&freezeAt=4446`, 1920x1080 and 3840x2160),
+before/after and crops of both keys in `tyrian-scratch/e1-polish-final/key/` (inputs with the new field in
+`key/work/inputs.json`; not in git, D3): no black band, the keys sit on the ground with their own painted edge.
+Tests: `tests/render/spriteArt` and `tests/tools` pass, but for `terrainHd` (terrain_hd.py, untouched here), which hit
+its 600 s limit on a machine at load ~250; `inventory` timed out there too and passes alone. Typecheck and `npm run build` pass. Other pickups with an index-1
+ring may show the same band; they were not checked.
