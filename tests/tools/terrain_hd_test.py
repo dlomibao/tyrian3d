@@ -259,6 +259,21 @@ class FieldTest(unittest.TestCase):
         self.assertLess(np.abs(out.std((0, 1)) - ref.std((0, 1))).max(), 1.0)
 
 
+    def test_tint_round_trip(self):
+        """D138: an offset image survives the atlas's bytes and the shader's bilinear read (smooth offsets, to a level or two)."""
+        yy, xx = np.mgrid[0:56, 0:48]
+        d = np.stack([20 * np.sin(xx / 9) + 5, -30 * np.cos(yy / 11), 0 * xx + 40], -1).astype(np.float32)  # sRGB levels, smooth
+        ratio = 4  # 8 texels per pixel down to 2: the offsets come back at the atlas's resolution
+        t = th.tint_down(np.kron(d, np.ones((ratio, ratio, 1), np.float32)), ratio)
+        np.testing.assert_allclose(t, d, atol=1e-4)
+        back = th.tint_decode(th.tint_encode(t))
+        self.assertLess(np.abs(back - t).max(), 2.0)  # one byte step of the sRGB-coded linear value, at worst
+        up = th.tint_up(back, 2)
+        self.assertEqual(up.shape, (112, 96, 3))
+        self.assertLess(np.abs(up[8:-8, 8:-8] - np.kron(d, np.ones((2, 2, 1)))[8:-8, 8:-8]).mean(), 1.5)
+        self.assertAlmostEqual(float(th.tint_decode(th.tint_encode(np.zeros(1, np.float32)))[0]), 0.0, delta=1.0)
+
+
 class RimFix(unittest.TestCase):
     """fix_rim (D113): the teal ring the seam strips left on blue-grey plating."""
 
