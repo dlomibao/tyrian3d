@@ -5625,3 +5625,30 @@ Built with `tools/build-models.sh -j 2`; tests, typecheck, build pass. Captures,
 - `newshs-229`'s jaw slots now show the ground down them (the sprite draws them near-black, "the floor far below"); a
   modelled dark slot floor inside each jaw would match the sprite's depth if it reads too light.
 - The stone-set models cover their sprite's dark ring (see IoU): a D74 refit would put their edges on the inner mask.
+## D129 — A blended sheet rises over the models it covers, so clouds and ice no longer cut them with a straight line (extends D5, D6, D45)
+
+2026-11-10
+
+**Problem** (`tyrian-scratch/e1-qa-2/REPORT.md` issue 9): WINDY's clouds (1.14 t1050, t2680) and TYRIAN's ice (1.9 t300)
+cut through the gem blocks and the dome with a straight line: the part above the sheet was clear, the part below
+clouded. Both are `draw_background_2_blend` sheets in `Pass.Background2Mid`, drawn flat at that pass's height (0.9, D5,
+D45), but the ground-enemy models under them stand at 0.45 and reach 1.13-1.26, so depth put their tops above the
+sheet. In the C the sheet is averaged over everything drawn before it, the whole block.
+
+**Decision:** each blended sheet tile is placed after the frame's draws, at `sheetHeight` (`src/render/sheetLift.ts`):
+its pass's height, raised to 0.04 over the highest top of the earlier passes' models it overlaps on screen, and kept
+0.04 under the lowest bottom of the later passes' models it overlaps; if both can't hold, half way between. A model's
+screen box and heights come from its source's box (cached per model pool) at its placement (D6 keeps its footprint at
+the sprite's size). D6 makes this free of layout changes: a sheet at any height covers the same screen area, so tiles
+at different heights still meet. Only the blended sheets move: the opaque layers (SAVARA's painted clouds, D107; the
+cloud rims, D78) and every other draw keep D5's heights.
+
+**Options considered:**
+- *No depth test for the sheets:* they'd be painted over the later passes' opaque models too (sky enemies, the ship),
+  as three.js draws translucent objects after all opaque ones and there is no per-pass order to put them in.
+- *One fixed, higher height for blended sheets:* the ground blocks reach 1.26, past `Background3Under` (1.25) and into
+  the sky enemies' (1.65) undersides, which hang about half a unit below their height (the Talon spans 2.82-3.79 round
+  its 3.3), so no single height clears both.
+
+Test: `tests/render/sheetLift.test.ts`. Captures: `tyrian-scratch/qa2-renderer/` (`before/`, `sheet-after/`,
+`sheet-after/cmp_*.png`: left before, right after).

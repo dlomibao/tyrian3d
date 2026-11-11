@@ -66,6 +66,7 @@ import { modelHeightFromUrl } from "./modelHeight";
 import { placeFlatQuad, SPRITE2X2_PARTS, spriteArtModeFromSearch, type FlatQuad, type ReadyFrame, type SpriteArt, type SpriteArtMode, type SpriteArtSheet } from "./spriteArt";
 import { SpriteArtLayer } from "./spriteArtLayer";
 import { StarCover } from "./starCover";
+import { sheetHeight, type PlacedExtent } from "./sheetLift";
 import { BG_KEY_LAYER } from "../sim/backgrnd";
 import { MAP_SIZES, TILE_HEIGHT, TILE_WIDTH } from "../data/levels";
 import { terrainStyle as currentTerrainStyle, type TerrainStyle } from "../core/terrainStyle";
@@ -231,6 +232,8 @@ interface ModelPool {
   settled: Promise<void>;
   clones: ModelClone[];
   used: number;
+  /** The source's box at its root's origin and scale 1 (for the sheets' lift, D129), once loaded. */
+  box?: THREE.Box3;
 }
 
 /** What a level can show (preloadLevel): the sprites it can draw and its background tiles. */
@@ -386,6 +389,10 @@ export class DrawListRenderer {
     left: number; top: number; w: number; h: number;
   }[] = [];
   private readonly cover = new OpaqueCover();
+  /** This frame's placed models, by pass, screen box and height, for the blended sheets (D129). */
+  private readonly placedExtents: PlacedExtent[] = [];
+  /** This frame's blended background-2 sheet tiles, raised over the models they overlap after the loop (D129). */
+  private readonly blendSheets: { pool: Pool; slot: number; x: number; y: number; pass: Pass }[] = [];
   /** Which star pixels background 1 hides (D127). */
   private readonly starCover = new StarCover();
   /** This frame's ground cells of wreck tiles, drawn once the frame knows whether enemies cover them (D86). */
@@ -738,6 +745,8 @@ export class DrawListRenderer {
     this.terrainLevel.levelFilter.value = this.palette.screenFilter;
     this.terrainLevel.levelBrightness.value = this.palette.screenBrightness;
     this.hdTiles = 0;
+    this.placedExtents.length = 0;
+    this.blendSheets.length = 0;
 
     for (let i = 0; i < items.length; i++) {
       const d = items[i];
@@ -850,6 +859,11 @@ export class DrawListRenderer {
       } else if (!c.remaster || !this.drawRemasterGround(c.d, c.x, c.y, cam, frame, false)) this.drawOriginalTile(c.d, c.x, c.y, cam, frame);
     }
 
+    // Blended sheets go over the models of earlier passes they cover and under later ones (D129).
+    for (const b of this.blendSheets) {
+      const h = sheetHeight(passHeight(b.pass), b.pass, b.x, b.y, TILE_WIDTH, TILE_HEIGHT, this.placedExtents);
+      if (h !== passHeight(b.pass)) writeMatrix(b.pool.mesh.instanceMatrix.array as Float32Array, b.slot, b.x, b.y, h, 1, 1, cam);
+    }
     for (let p = 0; p < this.allPools.length; p++) this.allPools[p].commit();
     if (this.background === "remaster") this.scorch.update(items, prevX, prevY, alpha, cam);
     else this.scorch.clear();
@@ -1063,6 +1077,7 @@ export class DrawListRenderer {
       return false;
     }
     writeMatrix(pool.mesh.instanceMatrix.array as Float32Array, s, x, y, passHeight(d.pass), 1, 1, cam);
+    if (blend) this.blendSheets.push({ pool, slot: s, x, y, pass: d.pass });
     return true;
   }
 
@@ -1077,6 +1092,7 @@ export class DrawListRenderer {
       const s = pool.next(frame);
       this.atlas.place(d.tileId, d.tile, pool.extra.array as Float32Array, s * 2);
       writeMatrix(pool.mesh.instanceMatrix.array as Float32Array, s, x, y, passHeight(d.pass), 1, 1, cam);
+      if (blend) this.blendSheets.push({ pool, slot: s, x, y, pass: d.pass });
     } else {
       const geometry = this.cache.tileGeometry(d.tileId, d.tile);
       if (!geometry) return false;
@@ -1110,6 +1126,7 @@ export class DrawListRenderer {
     e[s * 2] = t.x;
     e[s * 2 + 1] = t.y;
     writeMatrix(pool.mesh.instanceMatrix.array as Float32Array, s, x, y, passHeight(d.pass), 1, 1, cam);
+    if (blend) this.blendSheets.push({ pool, slot: s, x, y, pass: d.pass });
     this.hdTiles++;
     return true;
   }
@@ -1424,6 +1441,18 @@ export class DrawListRenderer {
     const gz = screenWorldZ(cy);
     object.position.set(gx + (cam.x - gx) * k, h, gz + (cam.z - gz) * k);
     object.scale.set(1 - k, (1 - k) * this.modelHeight, 1 - k);
+    // Its box on screen (the D6 scale keeps the model's footprint at its sprite's screen size) and
+    // its heights, for the blended sheets (D129).
+    const box = (pool.box ??= localBox(pool.source!));
+    this.placedExtents.push({
+      pass: d.pass,
+      left: cx + box.min.x * PX_PER_UNIT,
+      right: cx + box.max.x * PX_PER_UNIT,
+      top: cy + box.min.z * PX_PER_UNIT,
+      bottom: cy + box.max.z * PX_PER_UNIT,
+      low: h + box.min.y * object.scale.y,
+      high: h + box.max.y * object.scale.y,
+    });
 
     this.setCloneBlended(clone, d.effect === "blend");
 
@@ -1563,6 +1592,25 @@ function writeMatrix(m: Float32Array, slot: number, x: number, y: number, height
   m[o + 13] = height;
   m[o + 14] = gz + (cam.z - gz) * k;
   m[o + 15] = 1;
+}
+
+/** A model's box in its root's frame, ignoring the root's own position and scale (placeModel sets those). */
+function localBox(source: THREE.Object3D): THREE.Box3 {
+  const position = source.position.clone();
+  const scale = source.scale.clone();
+  source.position.set(0, 0, 0);
+  source.scale.set(1, 1, 1);
+  source.updateMatrixWorld(true);
+  const box = new THREE.Box3();
+  source.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (mesh.isMesh && !isModelHelper(mesh)) box.expandByObject(mesh);
+  });
+  source.position.copy(position);
+  source.scale.copy(scale);
+  source.updateMatrixWorld(true);
+  if (box.isEmpty()) box.set(new THREE.Vector3(), new THREE.Vector3());
+  return box;
 }
 
 /** A 24x28 px ground tile quad (top-left at the origin), with tile-space UVs. */
