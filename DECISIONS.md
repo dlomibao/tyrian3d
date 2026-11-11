@@ -6460,3 +6460,46 @@ art's direction would need painted light, which art rule 2 rules out. D143's oth
 Captures: `tyrian-scratch/ring-dome-dome/shots/` (`orig_`, `before_`, `after_` t3280, t3310, t3515) and `cmp/`
 (`t3280.png`, `t3310.png`, `t3515.png`, `crop_dome_t3280.png`, `crop_dome_t3310.png`: original | before | after; not in
 git, D3).
+
+## D146 — The ink outline is drawn inside the main pass, before the blended layers, so a sheet or explosion over a model covers its outline too (extends D51, D129, D132)
+
+2026-11-11
+
+**Problem** (`tyrian-scratch/e1-qa-3/REPORT.md` N1): the black outlines of models drew on top of the translucent
+layers over them. At 1.15 t300 (TYRIAN, hard) the dome under the lit ice was washed out but its broken outline floated
+crisp over the ice; in 1.9 and 1.14 the covered blocks' and dome's outlines sat on top of the ice and clouds; in 1.5
+the machine's ink lines showed through the fireballs.
+
+**Cause:** `src/render/view.ts` drew each frame with `OutlineEffect.render` (`src/render/outlineEffect.js`, `render`
+and `renderOutline`): the whole scene, then the outline pass over the finished picture, depth-tested only. The blend
+sheets (D129), the flat sprite art and its explosions (D80), the particles, glows and shields (D35) and a translucent
+ship (D51) write no depth, so the outline pass painted every outline under them over them. D129 made it show: before
+it, the models' tops poked through the sheet and so did their outlines; now the sheet covers the whole model, and only
+the ink was left on top.
+
+**Decision:** the outline pass runs inside the main pass, between the draws that write depth and the blended ones
+(`src/render/outlineHook.ts`). three.js draws its translucent list in renderOrder order; an empty hook mesh in that
+list at `OUTLINE_ORDER` (-1.5) runs `OutlineEffect.renderOutline` when it is reached (`OutlineHook.draw`, a nested
+render, which three.js supports), and after the render if it never was. Before it: the opaque scene, the cutout
+terrain (-2, D132) and an enemy's fading island rock (`FADE_ROCK_ORDER`, -1.75: translucent but depth-writing, D84;
+it was at 0, after the sheets, so it also drew over a sheet covering it). After it: the blend sheets (-1, 1), the
+flat sprite art (-1 + pass/100), the blended sprites (0), the scorch marks (0), particles and glows (1, 2) and the
+translucent ship (3). So what blends over a model now blends over its outline in the same way: under a cloud or the
+ice the outline fades with the model, under a fireball it is hidden with it, and everywhere else it draws as before.
+The screen filters' path (`ScreenFilterPass.render`) and the warm-up draw the same way; their other renders of the
+scene (the mask, the effects-only redraw) pass the hook without running it. The menus' backdrop and the Destruct
+renderer keep three's own OutlineEffect, unchanged.
+
+**Options considered:**
+- *Draw the blended layers in a second render after the outlines:* splits three.js's one sorted translucent list in
+  two, and the blended layers' order among themselves (a sheet under the ship, D129) would need re-sorting by hand.
+- *Let the sheets and explosions write depth for the outline pass:* hides the outline entirely under a 50% cloud,
+  where the model itself shows through; the C averages the sheet over the sprite's dark edge as over the rest.
+- *Fade the outline by the sheet's coverage:* needs the coverage per pixel in the outline shader, and does nothing for
+  explosions and particles.
+
+Test: `tests/render/outlineHook.test.ts` (three.js's own translucent sort puts the hook after the depth-writing
+layers and before every blended one at any depth; it runs once, at the hook or after the render; a fading rock keeps
+its order). Captures, 3840x2160, `?debug=play&episode=1&main=M&seed=1&skip=T&freezeAt=T` (`&hard=1` for 1.15):
+`tyrian-scratch/qa3-renderer/` (`before/`, `after/`, `cmp/n1_*`: left before, right after; 1.15 t300, 1.9 t300,
+1.14 t1050, t1800, t2680, 1.5 t3300, 1.6 t1050).

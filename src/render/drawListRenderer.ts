@@ -44,6 +44,7 @@ import { passHeight } from "./passHeights";
 import { SpriteMeshCache } from "./spriteMesh";
 import { colourFrame, rigModel, showFrame, type FrameRig } from "./modelFrames";
 import { castsShadow, isModelHelper, setModelBlended } from "./modelPrep";
+import { FADE_ROCK_ORDER } from "./outlineHook";
 import { adoptRockMaterials, cloneRockMaterial, isRockMaterial, rockFades, setRockLook } from "./rockMaterial";
 import type { SpriteModels } from "./spriteModels";
 import { DamageFrames, type DamageState } from "./damage/damageFrames";
@@ -1560,7 +1561,11 @@ export class DrawListRenderer {
       // Own materials, so one clone can turn translucent (invulnerability) without the others.
       const clone = (m: THREE.Material) => (isRockMaterial(m) ? cloneRockMaterial(m) : m.clone());
       mesh.material = Array.isArray(mesh.material) ? mesh.material.map(clone) : clone(mesh.material);
-      materials.push(...(Array.isArray(mesh.material) ? mesh.material : [mesh.material]));
+      const own = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      materials.push(...own);
+      // A fading rock is translucent but writes depth: drawn before the outlines and the blend
+      // sheets, as an opaque mesh would be (outlineHook.ts, D146).
+      if (own.some(rockFades)) mesh.renderOrder = mesh.userData.renderOrder = FADE_ROCK_ORDER;
     });
     // Patched for damage now rather than at its first damaged frame (D91): one shader program per
     // material kind for every clone, compiled by the level's warm-up.
@@ -1662,7 +1667,7 @@ function localBox(source: THREE.Object3D): THREE.Box3 {
  * explosions, a flashing ship are all above it) unless it's background2over 2, drawn over everything.
  * Instanced pools all sit at the origin, so three.js's depth sort can't order them.
  */
-function blendSheetOrder(pass: Pass): number {
+export function blendSheetOrder(pass: Pass): number {
   return pass === Pass.Background2Top ? 1 : -1;
 }
 
@@ -1670,7 +1675,7 @@ function blendSheetOrder(pass: Pass): number {
  * A "cutout" terrain tile is drawn with its soft alpha edge (D132), so it is translucent to three.js: before
  * every other translucent draw (blend sheets, the flat sprite art, explosions are all above it).
  */
-const CUTOUT_ORDER = -2;
+export const CUTOUT_ORDER = -2;
 
 function groundQuad(): THREE.BufferGeometry {
   const g = new THREE.BufferGeometry();

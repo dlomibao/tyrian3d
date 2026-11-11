@@ -124,7 +124,8 @@ export function setModelBlended(root: THREE.Object3D, blended: boolean): void {
       mesh.visible = blended;
       mesh.renderOrder = BLENDED_MODEL_ORDER - 0.001;
     } else if (!isModelHelper(mesh)) {
-      mesh.renderOrder = blended ? BLENDED_MODEL_ORDER : 0;
+      // Opaque, a mesh goes back to its own order (an enemy's fading rock keeps FADE_ROCK_ORDER, D146).
+      mesh.renderOrder = blended ? BLENDED_MODEL_ORDER : ((mesh.userData.renderOrder as number | undefined) ?? 0);
     }
   });
 }

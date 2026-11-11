@@ -9,6 +9,7 @@ import type { World } from "../game/world";
 import type { DrawList } from "../sim/draw";
 import { DrawListRenderer } from "./drawListRenderer";
 import { isModelHelper } from "./modelPrep";
+import { OutlineHook } from "./outlineHook";
 import { ResolutionScaler } from "./resolutionScaler";
 import { ScreenFilterPass } from "./screenFilters";
 import { VFX_LAYER } from "./vfx/vfxMode";
@@ -74,6 +75,8 @@ export class View {
   /** The draw-list renderer: sprites, background tiles, effects. */
   readonly draws = new DrawListRenderer();
   private readonly outline: OutlineEffect;
+  /** Runs the outline pass inside the main pass, before the blended layers (D146). */
+  private readonly outlineHook = new OutlineHook();
   /** The smoothies, headlight and flip (D31), when a draw list asks for them. */
   private readonly screenFilters: ScreenFilterPass;
   private readonly scene = new THREE.Scene();
@@ -162,6 +165,7 @@ export class View {
     this.scene.add(sun);
 
     this.scene.add(this.draws.root);
+    this.scene.add(this.outlineHook);
     this.scene.add(this.fallback);
 
     this.groundTexture = makeGridTexture();
@@ -265,7 +269,7 @@ export class View {
     r.setScissorTest(true);
     r.setScissor(0, 0, 1, 1);
     try {
-      this.outline.render(this.scene, this.camera);
+      this.drawScene();
     } finally {
       r.setScissorTest(false);
     }
@@ -308,9 +312,9 @@ export class View {
     if (drawLists) this.draws.update(alpha, this.camera);
     else if (world) this.updateFallback(world, alpha);
     if (drawLists && this.screenFilters.active) {
-      this.screenFilters.render(this.scene, this.camera, this.draws.root, () => this.outline.render(this.scene, this.camera), alpha);
+      this.screenFilters.render(this.scene, this.camera, this.draws.root, this.drawScene, alpha);
     } else {
-      this.outline.render(this.scene, this.camera);
+      this.drawScene();
     }
     if (drawLists && this.settings.clip) {
       const autoClear = this.renderer.autoClear;
@@ -319,6 +323,18 @@ export class View {
       this.renderer.autoClear = autoClear;
     }
   }
+
+  /**
+   * Render the scene with its ink outlines into the current target. The outline pass runs inside the
+   * main pass, after what writes depth and before the blended layers (outlineHook.ts, D146), so a
+   * sheet, explosion or particle over a model blends over its outline too.
+   */
+  private readonly drawScene = (): void => {
+    this.outlineHook.draw(
+      () => this.renderer.render(this.scene, this.camera),
+      () => this.outline.renderOutline(this.scene, this.camera),
+    );
+  };
 
   private updateFallback(world: World, alpha: number): void {
     const now = performance.now();
