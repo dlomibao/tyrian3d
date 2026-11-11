@@ -5837,3 +5837,44 @@ until ~2374. The same map is 3-11 New Deli, and 4-1 HARVEST uses the layer-2 kit
 - `shots/` and `json/` (the probe's original-tile counts per capture);
 - `iou.json.txt`; `cmp_*.png` (the iterations).
 Rebuild: `tools/build-models.sh -j 2 assets/blender/tiles/delbld_girders.py assets/blender/tiles/delbld_hull.py`.
+
+## D135 — Screen filters at HD: continuous waves, flat art in the mask, no exempt specks in the water (extends D31)
+
+2026-11-10
+
+From `tyrian-scratch/e1-qa-2/REPORT.md` issue 2: the lava filter on ASSASSIN (1.16) and the water filter on SAVARA V
+(1.17) cut the HD scene into pixel staircases, and SAVARA V's water had black specks. Read against `backgrnd.c`
+(`lava_filter`, `water_filter`) and `tyrian2.c` L1190-1292 first; nothing changes in which passes each filter covers,
+its hues (`screenHue.ts`) or the HD colour paths (D95, D111, D114).
+- **Cause 1, the waves.** The post pass (D31) used the C's wave tables as they are: `abs(((diw >> 9) & 15) - 8) - 1`
+  (lava, -1..7 px) and `abs(((diw >> 10) & 7) - 4) - 1` (water, -1..3 px), with diw from the integer row and 8-pixel
+  chunk. At 320x200 that's a wobble; at output resolution each step is 5-11 screen pixels, so every edge of the
+  painted terrain became a staircase. Now each wave is a sine through the same extremes and period (8192 diw: 25.6
+  rows), evaluated at the pixel's continuous game_screen position (`waveAt`, `LAVA_WAVE`, `WATER_WAVE`; the shift
+  stays in the 320-wide units, so it scales with the output). The water's ripple keeps the C's whole-row taps: taps
+  half a row apart (tried) turned the HD jungle and the original art into diagonal streaks the C doesn't draw.
+- **Cause 2, the flat art wasn't in the mask.** The mask pass drew every object with one override material that reads
+  `position` and `instanceMatrix`; the flat sprite art (D42) places its quads from its own instance attributes, so it
+  wasn't in the mask at all and every filter treated it as ground. That's the zig-zag (staircase) beam and wobbling
+  flames on ASSASSIN, which the C draws after its filters. The mask now draws the flat-art batches again with their
+  quad, texel cut-out and pass height (`ART_MASK_*`, on a camera layer for the moment). With `&sprites=original`
+  the beam was already straight.
+- **Lava's history, per frame.** The temporal lava read the previous frame shifted by the whole wave every display
+  frame, so its smear grew with the frame rate (about 3x the wave at 60 fps, 5.5x at 120; the C averages 2x). It now moves
+  `t` of the wave and `sqrt(t)` of a row per frame, `t` the frame's share of a tick (from the blend weight): about 2.2-2.4x
+  at any rate.
+- **The black specks were not the `below()` fallback.** A debug probe (non-water pixels magenta, fallback taps green,
+  water pixels whose next row isn't water yellow) at 1.17 t8311: no fallback hits on the terrain (they only happen
+  next to sprites drawn above the filter, and return the pixel's own value, never black). The specks are water_filter's
+  exemption: the painting's darkest texels are near-grey, so D114's test gives them the grey bank, which the water
+  leaves alone, and the ripple darkens the row above each. In the jungle window: 4.0% exempt (original art 2.0%, at
+  the same shore edges), 3.0% darkened (1.4%). The C decides per original pixel; the HD texels are smaller. So a
+  non-water pixel with water at 3 of 4 points a third of an original pixel round it counts as water, with their
+  colour as its hue (and so does such a tap in the ripple). Exempt areas an original pixel or more across (grey
+  bricks, the shore's dark rim, which the original has too) stay exempt; D114's bank test is unchanged.
+
+**Checked** (`?debug=play&episode=1&main=N&seed=1&skip=T&freezeAt=T`, before / after, and `&terrain=original&sprites=original`):
+1.16 t2550, t4918 (also 4K), t4918-4921; 1.17 t8311 (also 4K), t8311-8314; 1.8 t3300; 1.12 t4800. Over consecutive ticks
+(separate frozen runs) the wave stays put on the screen and the ground moves through it without steps. Sheets and probes:
+`tyrian-scratch/hd-filters/` (`sheets/`, `probe/`, `exp/`). ASSASSIN's dark wedge is `showHeadlight`, unchanged.
+Not checked: performance on a slow GPU (the water adds up to 4 taps per non-water pixel), episode-4 LAVA RUN, CORE.
