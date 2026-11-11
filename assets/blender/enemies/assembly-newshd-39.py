@@ -36,7 +36,13 @@ Construction:
      concept projection (--no-bake to skip).
   5. Outline shell (D51) of the whole heap cut open at the piece boxes (about the rock's triangle
      count x1.5), then common.split_assembly cuts newshd-1 / -3 / -39 / -41, one frame each.
-Underside: each boulder's flat z 0 base, closed. Nothing more.
+  6. It drifts in space (ASTEROID1, spawned on the sky/ground/top layers; D120/D122): no base and no
+     skirt. A round closed lens (belly_object) hangs under the heap, its waist the inner outline at
+     z 0, with D125's few underside fracture planes; each face takes the colour of the cell above.
+     The boulders take D125's rock material (matte, metallic 0, roughness 0.9) and each hull is
+     broken by FINE small fracture faces (lib_newshd_rock.cut_planes) so no big plane reads as
+     plastic.
+Underside: the belly, a plausible closed shape only. Nothing more.
 
 Run: blender -b --factory-startup --python assets/blender/enemies/assembly-newshd-39.py -- [--no-bake]
      [--no-export] [--design-out whole.glb] [--render DIR]
@@ -60,6 +66,10 @@ WT = ROOT
 sys.path.insert(0, str(ROOT / "tools"))
 import sprite_mask as SM  # noqa: E402
 import usp_talon as T  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import lib_newshd_rock as RL  # noqa: E402  (D125's fracture cuts, read only)
+from mathutils import noise  # noqa: E402
+
 PARTS = [
     {"name": "peak", "pal": 7, "h": 11.5, "kind": "ridge", "peak": [-1.74, 16.9], "footprint": [[5, 17.5], [5, 19.5], [3.17, 21], [1.33, 22.5], [-0.5, 24], [-3, 24], [-5.5, 24], [-7.75, 22.75], [-10, 21.5], [-10, 19.5], [-10, 17.5], [-9, 16.5], [-9, 14.5], [-7.75, 13.25], [-6.5, 12], [-4.5, 12], [-3.5, 11], [-1.5, 11], [0.5, 11], [2.25, 12.75], [4, 14.5], [4, 16.5]], "crest": [[1.5, 21.5], [-1.5, 12.5]]},
     {"name": "shelf", "pal": 4, "h": 6.3, "kind": "flat", "peak": [7.78, 14.26], "footprint": [[16, 11.5], [14.5, 13], [13, 14.5], [13, 16.5], [11.75, 17.75], [10.5, 19], [8, 19], [5.5, 19], [4.67, 17.17], [3.83, 15.33], [3, 13.5], [3, 12.5], [4.25, 11.25], [5.5, 10], [8.5, 10], [11.5, 10], [14.5, 10]]},
@@ -100,6 +110,18 @@ OVERRIDE = {
 }
 BLUNT = {"peak": 0.75}      # ridge crown: share of the height the top stations keep (flat, rounded)
 TAPER_PX = 1.5              # px they lean in at the first station
+# D125's rock (lib_newshd_rock): matte stone, its lit faces read by their angle, no glint.
+ROUGHNESS = 0.9
+# Fine fracture faces per boulder (D125 `fine`): small planar spalls sliced off each hull so the big
+# planes break up like the asteroid family's, never smooth plastic slabs.
+FINE = (9, 0.03, 0.075)     # count, depth fractions lo / hi
+# The floating rock's belly (D120/D122/D125: an asteroid drifting in space, no base): a closed,
+# round lens under the heap whose waist is the sprite's inner outline at z 0.
+BELLY_DEPTH = 10.5          # px below the waist
+BELLY_SECTORS = 96
+BELLY_CUTS = [(30, -55, 0.06), (150, -50, 0.06), (260, -58, 0.05), (100, -66, 0.05),
+              (200, -30, 0.035), (320, -28, 0.035), (80, -32, 0.035), (235, -40, 0.04),
+              (350, -45, 0.045), (120, -20, 0.025), (290, -22, 0.025), (10, -18, 0.02)]
 
 
 
@@ -314,13 +336,23 @@ def boulder_points(foot, part, rng):
     return pts
 
 
-def hull_object(name, pts, mat_index, mats, coll):
+def hull_object(name, pts, mat_index, mats, coll, fine=False):
     bm = bmesh.new()
     verts = [bm.verts.new(Vector(p) * PX) for p in pts]
     res = bmesh.ops.convex_hull(bm, input=verts, use_existing_faces=False)
     drop = [v for v in res["geom_interior"] + res["geom_unused"] if isinstance(v, bmesh.types.BMVert)]
     bmesh.ops.delete(bm, geom=list(set(drop)), context="VERTS")
     bmesh.ops.dissolve_limit(bm, angle_limit=math.radians(6.0), verts=bm.verts[:], edges=bm.edges[:])
+    if fine:
+        rng = random.Random(sum(map(ord, name)) * 7 + SEED)
+        n, lo, hi = FINE
+        cuts = []
+        for k in range(n):
+            az = (k * 137.508 + rng.uniform(-15, 15)) % 360
+            el = rng.uniform(28, 74)
+            cuts.append((az, el, rng.uniform(lo, hi)))
+        RL.cut_planes(bm, cuts)
+        bmesh.ops.dissolve_limit(bm, angle_limit=math.radians(3.0), verts=bm.verts[:], edges=bm.edges[:])
     for f in bm.faces:
         f.material_index = mat_index
     me = bpy.data.meshes.new(name)
@@ -367,6 +399,79 @@ def prism_object(name, poly, coll, profile=CLIP_PROFILE):
     bm.to_mesh(me)
     bm.free()
     o = bpy.data.objects.new(name, me)
+    coll.objects.link(o)
+    return o
+
+
+def resample(poly, n):
+    """A closed polygon resampled to n points evenly spaced along its length."""
+    pts = [Vector(p) for p in poly]
+    segs = [(pts[i], pts[(i + 1) % len(pts)]) for i in range(len(pts))]
+    total = sum((b - a).length for a, b in segs)
+    out, k, acc = [], 0, 0.0
+    for j in range(n):
+        t = total * j / n
+        while acc + (segs[k][1] - segs[k][0]).length < t:
+            acc += (segs[k][1] - segs[k][0]).length
+            k += 1
+        a, b = segs[k]
+        L = (b - a).length or 1e-9
+        out.append(a + (b - a) * ((t - acc) / L))
+    return out
+
+
+def belly_object(outline, label, pal, used, mats, coll):
+    """The floating rock's underside: a closed round lens under the heap (plausible shape only, no
+    detail). Its waist is the inner outline at z 0 (inside the boulders' feet), its rings close in
+    on the centroid as they fall, with D125's few underside fracture planes; a low hidden cap on top.
+    Each face takes the palette index of the nearest sprite cell above it."""
+    area = sum(outline[i - 1][0] * outline[i][1] - outline[i][0] * outline[i - 1][1] for i in range(len(outline)))
+    poly = outline if area > 0 else outline[::-1]
+    ring0 = [v for v in resample(offset_poly(poly, 0.15), BELLY_SECTORS)]
+    c = sum(ring0, Vector((0, 0))) / len(ring0)
+    off = Vector((SEED * 1.37, SEED * 0.61, 3.3))
+    bm = bmesh.new()
+    rings = []
+    # bottom rings (phi from -90 towards 0), the waist, then a low cap hidden under the boulders
+    # (scale towards the centroid, z px), bottom up: the flank rolls in from the waist at once (no
+    # vertical skirt), a rounded lens under the heap
+    stations = [(0.16, -10.2), (0.36, -9.3), (0.54, -8.0), (0.69, -6.4), (0.81, -4.7), (0.9, -3.0),
+                (0.96, -1.4), (1.0, 0.2), (0.82, 1.0), (0.45, 1.8)]
+    for s, z in stations:
+        ring = []
+        for p in ring0:
+            q = c + (p - c) * s
+            zz = z
+            if z < 0:  # a lumpy stone underside, not a turned bowl
+                zz += 1.4 * noise.noise(Vector((q.x * 0.09, q.y * 0.09, 0)) + off) * (1 - s) ** 0.5
+            ring.append(bm.verts.new((q.x * PX, q.y * PX, zz * PX)))
+        rings.append(ring)
+    n = len(ring0)
+    for r0, r1 in zip(rings, rings[1:]):
+        for j in range(n):
+            k = (j + 1) % n
+            bm.faces.new((r0[j], r0[k], r1[k], r1[j]))
+    vb = bm.verts.new((c.x * PX, c.y * PX, -BELLY_DEPTH * PX))
+    vt = bm.verts.new((c.x * PX, c.y * PX, 2.1 * PX))
+    for j in range(n):
+        k = (j + 1) % n
+        bm.faces.new((vb, rings[0][k], rings[0][j]))
+        bm.faces.new((rings[-1][j], rings[-1][k], vt))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    RL.cut_planes(bm, BELLY_CUTS)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=1e-5)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    cells_px = [(x + 0.5 - W / 2, H / 2 - y - 0.5, label[y][x]) for y in range(H) for x in range(W) if label[y][x] >= 0]
+    for f in bm.faces:
+        fc = f.calc_center_median() / PX
+        lab = min(cells_px, key=lambda t: (t[0] - fc.x) ** 2 + (t[1] - fc.y) ** 2)[2]
+        f.material_index = used.index(pal[lab])
+    me = bpy.data.meshes.new("belly")
+    bm.to_mesh(me)
+    bm.free()
+    for m in mats:
+        me.materials.append(m)
+    o = bpy.data.objects.new("belly", me)
     coll.objects.link(o)
     return o
 
@@ -458,7 +563,7 @@ def build(coll, idx, colors, m):
     sprite = {"name": NAME, "colors": {str(k): list(v) for k, v in colors.items()}}
     pal = [cell_colour(idx, colors, label, i) for i in range(len(parts))]
     used = sorted(set(pal) | {4})
-    mats = [common.palette_material(sprite, i, TAG, metallic=0.0, roughness=0.85) for i in used]
+    mats = [common.palette_material(sprite, i, TAG, metallic=0.0, roughness=ROUGHNESS) for i in used]
     rng = random.Random(SEED)
     outline = simplify(midpoints(trace(m["inner"])), CLIP_TOL)
     prism = prism_object("clip", outline, coll)
@@ -469,7 +574,7 @@ def build(coll, idx, colors, m):
         grown = dilate(cell, m["inner"], GROW)
         foot = simplify(midpoints(trace(grown)), FOOT_TOL)
         pts = boulder_points(foot, part, rng)
-        o = hull_object(f"rock_{part['name']}", pts, used.index(pal[i]), mats, coll)
+        o = hull_object(f"rock_{part['name']}", pts, used.index(pal[i]), mats, coll, fine=True)
         chamfer(o, 0.9 if part["name"] in BLUNT else CHAMFER)
         if part["kind"] == "crater":
             pit = pit_object("pit", part, coll, rng)
@@ -503,6 +608,7 @@ def build(coll, idx, colors, m):
             f.material_index = used.index(pi)
         rocks.append(o)
     bpy.data.objects.remove(prism, do_unlink=True)
+    rocks.append(belly_object(outline, label, pal, used, mats, coll))
     # one mesh
     bm = bmesh.new()
     for o in rocks:
@@ -830,7 +936,7 @@ def render_views(objs, hide, out, k=8, panel=520):
     setup_workbench(False)
     render(camera((0, 0, 20), (0, 0, 0), ortho=H * PX, top=True), out / "top.png", W * k, H * k)
     span = ext * 1.3
-    zc = span * 0.18
+    zc = 0.08  # the belly hangs below z 0
     render(camera((-30, 0, zc), (0, 0, zc), ortho=span), out / "left.png", 2 * panel, panel)
     render(camera((0, 30, zc), (0, 0, zc), ortho=span), out / "front.png", 2 * panel, panel)
     render(camera((0, -30, zc), (0, 0, zc), ortho=span), out / "rear.png", 2 * panel, panel)
