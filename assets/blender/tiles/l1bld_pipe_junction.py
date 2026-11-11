@@ -490,7 +490,8 @@ def build(bake=True, views=None):
     tris = sum(len(p.vertices) - 2 for p in obj.data.polygons)
     print(f"triangles {tris}")
     if bake:
-        objects = b.bake_model(objects, size=2048, ground=0.0, out_dir=OUT / "bake", grit=kit.GRIT)
+        # 1024 (D149; 2048 before): about the base complex's texels per px, 0.75 MB less
+        objects = b.bake_model(objects, size=1024, ground=0.0, out_dir=OUT / "bake", grit=kit.GRIT)
     b.export(objects, baked=bake)
     print(f"exported pipe-junction IoU {iou:.3f}")
     if views:

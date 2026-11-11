@@ -964,6 +964,11 @@ class Building:
         out = [hard]
         if len(rock_bm.faces):
             rock = mesh_object(f"{base}-rock", rock_bm, materials, coll)
+            if grit and not grit.get("plain_uv", True):
+                # D149: the plain faces' "rock" map carries no texture here (the kit's rocks and posts
+                # are flat palette colour): 8 bytes a vertex less in the GLB
+                for uv in [uv.name for uv in rock.data.uv_layers]:
+                    rock.data.uv_layers.remove(rock.data.uv_layers[uv])
             out.append(rock)
         else:
             rock_bm.free()
