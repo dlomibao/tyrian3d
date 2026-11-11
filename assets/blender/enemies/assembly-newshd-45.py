@@ -1,4 +1,5 @@
-"""Big asteroid (newshd 7 / 9 / 45 / 47, one 48 x 56 cell), design B: a cluster of fractured stones.
+"""Big asteroid (newshd 7 / 9 / 45 / 47, one 48 x 56 cell): a boulder of fractured stones, on the
+D125 rock builder (lib_newshd_rock) so it reads as the same stone as the episode's other asteroids.
 
 Reading the sprite: a grey boulder of eight fractured stones split by dark cracks (blueprint
 ../blueprint/blueprint.png): a big pale flat-topped stone on the upper left ("facet"), a knob on
@@ -7,20 +8,20 @@ flank on the right, a rounded stone on the lower left with a lit ridge, one on t
 a dark keel along the bottom. Bright pixels are lit faces (rock, rubric), the black ring is the
 game's ink (D74), so nothing of either is painted or modelled.
 
-Design B leads with the silhouette and the read from the small tilted camera: each stone is a
-CONVEX HULL of jittered rings (its own footprint from the sprite at the waist, then shoulder,
-crown and cap rings shrunk towards a peak set near its lit upper-left edge, and two underside
-rings), planar-dissolved into a few big fracture facets and chamfered, flat shaded. Stones overlap
-by about a pixel into their neighbours, so the cracks are V grooves where two hulls meet (the
-rock's "panel lines"). The union of the waist footprints is the sprite's inner mask (the inner
-edge of the ink border, D74), smoothed; only crack ends make the hulls a hair wider than a concave
-footprint. Hard, fractured rock, no lumps for highlights. Underside: two shrinking rings per stone,
-a closed blunt shape, no detail.
+Build (D125, QA2 issue 13: the earlier cluster of convex hulls read as grey plastic beside the D125
+asteroids): ONE rock body lofted from the cell's inner mask (lib_newshd_rock.rock_body: round all
+over, a closed domed underside, no base), its top raised into the stones the sprite draws (a bump
+per stone, the big pale facet the summit) and sunk along the cracks between them (valleys, with V
+crack grooves cut along the deep ones), then broken by the builder's planar fracture faces, fine
+cuts, rim spalls and a few impact pits on the sprite's dark spots; chamfered fracture edges, smooth
+weathered body. Matte stone (metallic 0, roughness 0.9) and the builder's AO/roughness bake
+(usp_talon.bake_maps, no concept projection, D50/D65), D90 outline shell from a sealed copy kept
+out of the bake (D118). Colour per stone: the trimmed median of the sprite's ramp in that stone
+(its ink ring, dark limb and glints are lighting).
 
 Pieces: built whole, cut with common.split_assembly into newshd-7 (top left), -9 (top right), -45
 (bottom left), -47 (bottom right), one frame each, each with its slice of the outline shell (cut
-open, as assembly-newshe-39 does, so no ink line runs along the seams). The design .glb holds the
-four pieces placed in the cell (node translations) plus their shells.
+open, as assembly-newshe-39 does, so no ink line runs along the seams).
 
 Run: blender -b --factory-startup -P assets/blender/enemies/assembly-newshd-45.py [-- --no-bake] [--review DIR]
 (exports the four pieces to public/models/enemies and src/render/spriteModels; --review DIR also writes
@@ -29,17 +30,21 @@ the cell .glb with the pieces placed, for the review renders).
 
 import json
 import math
-import random
 import sys
+import tempfile
 from pathlib import Path
 
 import bmesh
 import bpy
 from mathutils import Vector
+from mathutils.bvhtree import BVHTree
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
+sys.path.insert(0, str(HERE))
 import common  # noqa: E402
+import lib_newshd_rock as lib  # noqa: E402
+import usp_talon as T  # noqa: E402
 
 WT = common.repo_root(__file__)
 sys.path.insert(0, str(WT / "tools"))
@@ -76,42 +81,87 @@ SEEDS = {
     "keelR":     [(24, 43.5), (27, 42.8), (36, 41), (48, 39), (48, 60), (26, 60), (25.5, 48)],
 }
 
-# Per stone: height above the waist (sprite px), underside depth, seed, and the top's shape:
-#   ridge: a fracture ridge (two sprite-px points) at the stone's height, set on the lit streak the
-#          sprite draws (crown's diagonal ridge, slab's white edge, lower-left's bright ridge...): the
-#          stone falls away from it in a few big planar faces, so the face turned to the light is a
-#          narrow bright facet beside the ridge and the rest slopes into shade, as the sprite shades it.
-#   tops:  the top's fracture points (x, y, z as a share of h) where one ridge can't place the facets:
-#          the big pale facet stone. Its ridge runs from the upper left to the apex of the lit wedge the
-#          sprite draws (x 21-28, y 15-28), then down the crack with the crown; the wedge is one gentle
-#          face turned to the light below it, a crease down its left edge drops the pale rest to the
-#          west (half lit), breaking steeper again at x 16.6 (the sprite's darker left edge), and the
-#          strip above the ridge falls into shade to the north (the sprite's dark rows 12-14).
-#   zw, wall: the waist's height and the rounded wall's top above it (share of h); the facet's are
-#          low, so its west face drops steeply, half turned from the light.
-#   bevel: chamfer width (sprite px); the facet's is narrower, so its edges read as fractures.
+
+# Each stone is a small D125 rock (lib_newshd_rock: a body lofted from its own region of the inner
+# mask, round all over, its top raised to a summit and crests, broken by planar fracture faces,
+# fine cuts and rim spalls, a few pits). Per stone (sprite px unless said):
+#   h, depth   height of its summit above the waist / depth of its underside below it; the stones
+#              fall away towards the rock's rim (the boulder's dome) and the facet and slab stand
+#              highest, as the sprite lights them
+#   summit     where its top peaks: the lit point the sprite draws on it, near the region's middle
+#   crests     lit streaks: ((col, row), (col, row), gain, width)
+#   bumps      ((col, row), gain, radius): the facet's broad pale face, the shadowed sides
+#   zw         its waist's height (px), so the waists don't line up into one belt in the side views
+#   pits       the sprite's dark spots on it ((col, row), radius in units)
 STONES = {
-    "knob":       dict(h=11.0, depth=8.0, seed=3, ridge=((32.5, 6.5), (36.5, 10.0))),
-    "crown":      dict(h=12.0, depth=11.0, seed=5, ridge=((37.0, 12.5), (34.5, 20.0))),
-    "facet":      dict(h=12.0, depth=11.0, seed=7, bevel=0.18, zw=-0.8, wall=0.1,
-                       tops=((16.5, 13.5, 0.32), (22.5, 15.5, 1.0), (27.2, 21.0, 0.95), (20.8, 27.2, 0.78),
-                             (26.0, 28.0, 0.66), (23.5, 29.5, 0.45), (16.6, 18.5, 0.5), (16.9, 25.0, 0.46))),
-    "slab":       dict(h=12.0, depth=10.0, seed=11, ridge=((31.0, 24.0), (30.5, 29.5))),
-    "flank":      dict(h=9.0, depth=10.0, seed=13, ridge=((40.5, 24.5), (39.5, 30.5))),
-    "lowerleft":  dict(h=11.0, depth=11.0, seed=17, ridge=((20.0, 32.0), (17.5, 39.5))),
-    "lowerright": dict(h=10.0, depth=10.0, seed=19, ridge=((35.0, 33.5), (33.0, 38.5))),
-    "keelL":      dict(h=8.0, depth=9.0, seed=23, ridge=((12.5, 42.5), (20.0, 45.0))),
-    "keelR":      dict(h=6.5, depth=9.0, seed=29, ridge=((29.0, 45.5), (36.0, 43.5))),
+    "knob":       dict(h=9.0, depth=7.0, seed=3, zw=0.6, summit=(33.5, 7.5),
+                       crests=[((32.5, 6.0), (36.5, 10.0), 0.10, 1.2)]),
+    "crown":      dict(h=10.5, depth=9.5, seed=5, zw=-0.4, summit=(38.0, 15.0),
+                       crests=[((37.0, 12.5), (34.5, 20.0), 0.12, 1.2)], pits=[((42.5, 16.0), 0.05)]),
+    "facet":      dict(h=12.0, depth=10.5, seed=7, zw=-0.6, summit=(21.5, 19.0), top_pow=0.45,
+                       crests=[((22.5, 15.5), (27.0, 21.0), 0.08, 1.4)],
+                       bumps=[((22.0, 24.0), 0.08, 4.0), ((13.0, 21.0), -0.12, 3.0), ((19.0, 13.0), -0.10, 2.6)]),
+    "slab":       dict(h=12.5, depth=9.5, seed=11, zw=0.4, summit=(31.0, 26.0),
+                       crests=[((29.5, 23.5), (29.5, 29.5), 0.10, 1.0)], pits=[((34.0, 28.5), 0.05)]),
+    "flank":      dict(h=8.5, depth=9.0, seed=13, zw=-0.2, summit=(40.0, 27.0),
+                       crests=[((40.5, 24.5), (39.5, 30.5), 0.08, 1.2)], pits=[((37.5, 28.5), 0.06)]),
+    "lowerleft":  dict(h=11.0, depth=10.5, seed=17, zw=0.8, summit=(19.0, 36.0),
+                       crests=[((20.0, 32.5), (17.5, 39.5), 0.12, 1.2)]),
+    "lowerright": dict(h=10.0, depth=9.5, seed=19, zw=-0.8, summit=(35.0, 36.0),
+                       crests=[((35.0, 33.5), (33.0, 38.5), 0.10, 1.2)], pits=[((40.0, 35.5), 0.06)]),
+    "keelL":      dict(h=6.5, depth=8.5, seed=23, zw=-0.3, summit=(16.0, 45.0),
+                       crests=[((12.5, 42.5), (20.0, 45.0), 0.08, 1.4)], pits=[((20.5, 47.5), 0.06)]),
+    "keelR":      dict(h=5.5, depth=8.5, seed=29, zw=0.2, summit=(33.0, 45.0),
+                       crests=[((29.0, 45.5), (36.0, 43.5), 0.08, 1.4)]),
 }
 
+# Shared by every stone (lib_newshd_rock SPEC keys; D125's matte stone).
+BASE = {
+    "metallic": 0.0,
+    "roughness": 0.9,
+    "rise": 0.7,
+    "fall": 0.8,
+    "sectors": 40,
+    "rings_top": 10,
+    "rings_bot": 5,
+    "summit_gain": 0.06,
+    "summit_r": 2.4,
+    "ridges": [],
+    "valleys": [],
+    "tilt": 0.02,
+    "lumps": 0.03,
+    "grow": 0.1,
+    "smooth": 1,
+    "steps": 64,
+    "waist": 0.08,
+    "fine": 14,
+    "fine_depth": (0.025, 0.045),
+    "rim_spalls": 10,
+    "rim_depth": (0.02, 0.035),
+    "cuts": [
+        # a couple of near-level faces so the crown never closes to a point
+        (160, 78, 0.035), (20, 80, 0.03), (270, 82, 0.03),
+        # lit faces turned to the light (left / upper-left / lower-left)
+        (150, 46, 0.07), (205, 44, 0.06), (125, 56, 0.05), (232, 52, 0.05),
+        # the shadowed right, upper-right and lower-right
+        (10, 46, 0.07), (60, 54, 0.05), (330, 46, 0.06), (290, 58, 0.05),
+        # underside: a few planes so it reads as stone, nothing more
+        (30, -55, 0.05), (150, -50, 0.05), (260, -58, 0.05), (100, -30, 0.03), (320, -26, 0.03),
+    ],
+    "pit_lift": 0.55,
+}
+CRACK_GROW = 1  # px each stone's region is grown into its neighbours: the stones overlap, so each
+                # crack is a V groove where two stones meet, never a hole
+
+# D90's outline shell, a little denser and held further inside for this big rock (3000 faces over
+# the cell; inside 0.012 so it never stands over the shallow V cracks)
+SHELL = dict(lib.D90_SHELL, faces=3000, inside=0.012)
 
 # The facet's median falls exactly on the 9/10 step (117th of 234 body pixels) and 10 is its most
 # common colour (65 px): the big pale face is 10, as the blueprint measured it.
 PAL_OVERRIDE = {"facet": 10}
 
-
 LABELS = {}  # the stone labels and palette indices, written next to the review glb
-
 
 # --- sprite --------------------------------------------------------------------------------------
 
@@ -161,230 +211,115 @@ def region_pal(idx, colors, lab, i, inner):
     return keep[len(keep) // 2]
 
 
-def trace(mask):
-    """Outer boundary of a binary region along pixel corners (longest loop), screen coords."""
-    edges = {}
-    for y in range(H):
-        for x in range(W):
-            if not mask[y][x]:
+# --- the stones ----------------------------------------------------------------------------------
+
+class StoneGrid(lib.Grid):
+    """lib_newshd_rock's sprite grid over the 48 x 56 cell, its mask one stone's region."""
+
+    def __init__(self, mask):
+        self.w, self.h = W, H
+        self.inner = mask
+
+
+def stone_mask(lab, i, inner, grow):
+    """The stone's region of the inner mask, grown `grow` px (8-neighbour) into its neighbours but
+    never past the rock's edge."""
+    m = [[lab[y][x] == i and inner[y][x] for x in range(W)] for y in range(H)]
+    for _ in range(grow):
+        m = [[inner[y][x] and any(0 <= y + dy < H and 0 <= x + dx < W and m[y + dy][x + dx]
+                                  for dy in (-1, 0, 1) for dx in (-1, 0, 1)) for x in range(W)] for y in range(H)]
+    return m
+
+
+def stone(name, mask, spr, pal, coll):
+    """One stone: lib_newshd_rock's loft, fracture cuts and pits on its own region."""
+    p = STONES[name]
+    spec = dict(BASE, seed=p["seed"], summit=p["summit"], h_top=p["h"] / 12, h_bot=p["depth"] / 12,
+                crests=p.get("crests", []), bumps=p.get("bumps", []))
+    if "top_pow" in p:
+        spec["top_pow"] = p["top_pow"]
+    g = StoneGrid(mask)
+    bm, _ = lib.rock_body(g, spec, sectors=spec["sectors"], rings_top=spec["rings_top"], rings_bot=spec["rings_bot"])
+    lib.cut_planes(bm, spec["cuts"] + lib.fine_cuts(spec))
+    bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=1e-5)
+    bmesh.ops.dissolve_degenerate(bm, edges=bm.edges[:], dist=1e-5)
+    bmesh.ops.translate(bm, vec=(0, 0, p["zw"] / 12), verts=bm.verts)
+    bmesh.ops.triangulate(bm, faces=bm.faces[:])
+    mat = common.palette_material(spr, pal, NAME, metallic=BASE["metallic"], roughness=BASE["roughness"])
+    obj = common.mesh_object(f"{NAME}_{name}", bm, [mat], coll, smooth=True)
+    pits = p.get("pits", [])
+    if pits:
+        bvh = BVHTree.FromObject(obj, bpy.context.evaluated_depsgraph_get())
+        for k, ((u, v), r) in enumerate(pits):
+            hit = bvh.ray_cast(Vector((g.x(u), g.y(v), 5.0)), Vector((0, 0, -1)))
+            if hit[0] is None:
                 continue
-            g = lambda yy, xx: 0 <= yy < H and 0 <= xx < W and mask[yy][xx]  # noqa: E731
-            if not g(y - 1, x):
-                edges[(x + 1, y)] = (x, y)
-            if not g(y, x - 1):
-                edges[(x, y)] = (x, y + 1)
-            if not g(y + 1, x):
-                edges[(x, y + 1)] = (x + 1, y + 1)
-            if not g(y, x + 1):
-                edges[(x + 1, y + 1)] = (x + 1, y)
-    best, seen = [], set()
-    for s in list(edges):
-        if s in seen:
-            continue
-        loop, p = [], s
-        while p not in seen and p in edges:
-            seen.add(p)
-            loop.append(p)
-            p = edges[p]
-        if len(loop) > len(best):
-            best = loop
-    return best
-
-
-def smooth_loop(loop, it=2):
-    """Pixel staircase -> smooth closed curve: edge midpoints, then Chaikin corner cutting."""
-    n = len(loop)
-    pts = [((loop[i][0] + loop[(i + 1) % n][0]) / 2, (loop[i][1] + loop[(i + 1) % n][1]) / 2) for i in range(n)]
-    for _ in range(it):
-        q = []
-        for i in range(len(pts)):
-            a, b = pts[i], pts[(i + 1) % len(pts)]
-            q += [(0.75 * a[0] + 0.25 * b[0], 0.75 * a[1] + 0.25 * b[1]), (0.25 * a[0] + 0.75 * b[0], 0.25 * a[1] + 0.75 * b[1])]
-        pts = q
-    return pts
-
-
-def resample(pts, step):
-    """Even spacing of about `step` px along a closed polyline."""
-    L = [0.0]
-    for i in range(len(pts)):
-        a, b = pts[i], pts[(i + 1) % len(pts)]
-        L.append(L[-1] + math.hypot(b[0] - a[0], b[1] - a[1]))
-    total = L[-1]
-    n = max(8, int(round(total / step)))
-    out, j = [], 0
-    for k in range(n):
-        t = total * k / n
-        while L[j + 1] < t:
-            j += 1
-        a, b = pts[j], pts[(j + 1) % len(pts)]
-        f = (t - L[j]) / max(1e-9, L[j + 1] - L[j])
-        out.append((a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f))
-    return out
-
-
-# --- stones --------------------------------------------------------------------------------------
-
-def footprint(region, inner, grow=1.3, pull=-0.08):
-    """The stone's waist outline (sprite px): its region's smoothed boundary, resampled; points
-    on internal cracks pushed out `grow` px into the neighbours (the stones overlap there, so the
-    crack is a V groove, never a hole), points on the rock's outer edge pulled `pull` px in."""
-    pts = resample(smooth_loop(trace(region)), 1.6)
-    n = len(pts)
-    out, outer = [], []
-    for i, (x, y) in enumerate(pts):
-        a, b = pts[i - 1], pts[(i + 1) % n]
-        tx, ty = b[0] - a[0], b[1] - a[1]
-        L = math.hypot(tx, ty) or 1
-        # outward normal of a loop that runs clockwise on screen (trace goes that way: top edge right->left...)
-        nx, ny = ty / L, -tx / L
-        cx = sum(p[0] for p in pts) / n
-        cy = sum(p[1] for p in pts) / n
-        if nx * (x - cx) + ny * (y - cy) < 0:
-            nx, ny = -nx, -ny
-        # outer: a pixel just outside along the normal is outside the rock
-        o = False
-        for d in (0.7, 1.4):
-            px, py = int(math.floor(x + nx * d)), int(math.floor(y + ny * d))
-            if not (0 <= px < W and 0 <= py < H) or not inner[py][px]:
-                o = True
-        if o:
-            out.append((x - nx * pull, y - ny * pull))
-        else:
-            # push into the neighbour, but never out past the rock's edge (crack ends at the rim)
-            for g in (grow, grow * 0.5, grow * 0.2, 0.0):
-                qx, qy = x + nx * g, y + ny * g
-                if all(0 <= int(qx + ex) < W and 0 <= int(qy + ey) < H and inner[int(qy + ey)][int(qx + ex)]
-                       for ex, ey in ((0, 0), (0.6, 0), (-0.6, 0), (0, 0.6), (0, -0.6))):
-                    break
-            out.append((qx, qy))
-        outer.append(o)
-    return out, outer
-
-
-def stone_points(name, fp, outer, p, G):
-    """Hull points of one stone in sprite px (x right, y down, z up)."""
-    rng = random.Random(p["seed"])
-    n = len(fp)
-    cx = sum(q[0] for q in fp) / n
-    cy = sum(q[1] for q in fp) / n
-    h, D = p["h"], p["depth"]
-
-    def dome(x, y):
-        """the whole rock is domed: stones fall away towards its rim, so it reads as one boulder"""
-        r2 = ((x - G[0]) / 19.0) ** 2 + ((y - G[1]) / 25.0) ** 2
-        return max(0.45, 1.12 - 0.5 * r2)
-
-    # each stone's waist sits a little higher or lower (only x, y make the silhouette), so the
-    # stones' waists don't line up into one seam round the rock in the side views
-    zw = rng.uniform(-1.6, 1.6)
-    zw = p.get("zw", zw)
-    wall = p.get("wall", 0.22)  # the rounded wall's top above the waist (share of h)
-    pts = []
-    for (x, y), o in zip(fp, outer):
-        if o:
-            pts.append((x, y, zw + rng.uniform(-0.3, 0.3)))
-            # rounded wall either side of the waist (a hair inside it), so the waist is no hard rim
-            ix, iy = x + (cx - x) * 0.06, y + (cy - y) * 0.06
-            pts.append((ix, iy, zw + wall * h * dome(x, y)))
-            pts.append((ix, iy, zw - 0.18 * D))
-        else:
-            pts.append((x, y, 0.15 * h * dome(x, y)))
-    if p.get("tops"):
-        T = p["tops"]
-        for x, y, zf in T:  # no dome here: the points place the facets' planes exactly
-            pts.append((x, y, zf * h))
-        # a chamfer band: the waist points pulled a little in and up towards the nearest top point,
-        # so the walls round over into the top facets rather than ending in a rim
-        off = rng.random()
-        for k in range(8):
-            x, y = fp[int((k + off) * n / 8) % n]
-            qx, qy, qz = min(T, key=lambda t: (t[0] - x) ** 2 + (t[1] - y) ** 2)
-            X, Y = qx + (x - qx) * 0.86, qy + (y - qy) * 0.86
-            pts.append((X, Y, (wall + 0.03) * h * dome(X, Y)))
-    else:
-        (ax, ay), (bx, by) = p["ridge"]
-
-        def near(x, y):
-            dx, dy = bx - ax, by - ay
-            t = max(0.0, min(1.0, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy)))
-            return ax + dx * t, ay + dy * t
-
-        # a few big fracture faces: a band of 8 points, an upper ring of 5, the ridge
-        for count, s_, zf in ((8, 0.86, 0.48), (5, 0.52, 0.8)):
-            off = rng.random()
-            for k in range(count):
-                x, y = fp[int((k + off) * n / count) % n]
-                qx, qy = near(x, y)
-                sj = s_ * (1 + rng.uniform(-0.07, 0.05))
-                X, Y = qx + (x - qx) * sj, qy + (y - qy) * sj
-                pts.append((X, Y, zf * h * (1 + rng.uniform(-0.06, 0.04)) * dome(X, Y)))
-        pts.append((ax, ay, h * dome(ax, ay)))
-        pts.append((bx, by, 0.93 * h * dome(bx, by)))
-    # underside: blunt rings drawn towards the whole rock's centre G, so the stones' bellies merge
-    # into one rounded keel (a plausible closed shape, no detail)
-    for s, zf, pull in ((0.93, -0.38, 0.08), (0.78, -0.7, 0.22), (0.52, -0.92, 0.38), (0.3, -1.0, 0.5)):
-        for j in range(0, n, 2):
-            x, y = fp[j]
-            sj = s * (1 + rng.uniform(-0.04, 0.04))
-            X, Y = cx + (x - cx) * sj, cy + (y - cy) * sj
-            X, Y = X + (G[0] - X) * pull, Y + (G[1] - Y) * pull
-            pts.append((X, Y, zf * D * (1 + rng.uniform(-0.06, 0.03))))
-    return pts
-
-
-def hull_stone(bm, pts, mat, bevel=0.32):
-    """Convex hull of `pts` (sprite px) into `bm` (Blender units), dissolved into facets, chamfered."""
-    sb = bmesh.new()
-    vs = [sb.verts.new(((x - 24) * U, (28 - y) * U, z * U)) for x, y, z in pts]
-    res = bmesh.ops.convex_hull(sb, input=vs, use_existing_faces=False)
-    drop = list({g for g in res["geom_interior"] + res["geom_unused"] if isinstance(g, bmesh.types.BMVert)})
-    if drop:
-        bmesh.ops.delete(sb, geom=drop, context="VERTS")
-    bmesh.ops.dissolve_limit(sb, angle_limit=math.radians(12), verts=sb.verts[:], edges=sb.edges[:])
-    bmesh.ops.recalc_face_normals(sb, faces=sb.faces[:])
-    sharp = [e for e in sb.edges if e.is_manifold and e.calc_face_angle(0) > math.radians(18)]
-    if bevel and sharp:
-        bmesh.ops.bevel(sb, geom=sharp, offset=bevel * U, offset_type="OFFSET", segments=1, profile=0.5,
-                        affect="EDGES", clamp_overlap=True)
-    for f in sb.faces:
-        f.material_index = mat
-    me = bpy.data.meshes.new("tmp")
-    sb.to_mesh(me)
-    sb.free()
-    bm.from_mesh(me)
-    bpy.data.meshes.remove(me)
+            cb = bmesh.new()
+            bmesh.ops.create_uvsphere(cb, u_segments=12, v_segments=7, radius=r)
+            c = hit[0] + hit[1] * r * BASE["pit_lift"]
+            bmesh.ops.scale(cb, vec=(1, 1, 0.75), verts=cb.verts)
+            bmesh.ops.translate(cb, vec=c, verts=cb.verts)
+            lib.boolean(obj, cb, f"pit_{name}{k}")
+        bpy.context.view_layer.update()
+        while len(obj.data.materials) > 1:  # a cutter can leave an empty slot behind
+            obj.data.materials.pop()
+        obj.data.materials[0] = mat
+        for f in obj.data.polygons:
+            f.material_index = 0
+    return obj
 
 
 def build(coll):
+    """The boulder: one D125 rock per stone, overlapping at the cracks, joined into one object
+    with one palette material per stone; chamfered fracture edges, smooth weathered body."""
     idx, colors, inner = sprite()
     names, lab = labels(idx)
     spr = {"name": NAME, "colors": colors}
-    mats, slot = [], {}
-
-    def mat(i):
-        if i not in slot:
-            slot[i] = len(mats)
-            mats.append(common.palette_material(spr, i, NAME, metallic=0.05, roughness=0.88))
-        return slot[i]
-
-    bm = bmesh.new()
-    pal = {}
-    cells = [(x + .5, y + .5) for y in range(H) for x in range(W) if inner[y][x]]
-    G = (sum(c[0] for c in cells) / len(cells), sum(c[1] for c in cells) / len(cells))
+    pal, objs = {}, []
     for i, n in enumerate(names):
-        region = [[lab[y][x] == i and inner[y][x] for x in range(W)] for y in range(H)]
-        if not any(map(any, region)):
+        if not any(lab[y][x] == i and inner[y][x] for y in range(H) for x in range(W)):
             continue
         pal[n] = PAL_OVERRIDE.get(n) or region_pal(idx, colors, lab, i, inner)
-        fp, outer = footprint(region, inner)
-        pts = stone_points(n, fp, outer, STONES[n], G)
-        hull_stone(bm, pts, mat(pal[n]), bevel=STONES[n].get("bevel", 0.32))
+        objs.append(stone(n, stone_mask(lab, i, inner, CRACK_GROW), spr, pal[n], coll))
+    for o in bpy.context.view_layer.objects:
+        o.select_set(False)
+    for o in objs:
+        o.select_set(True)
+    bpy.context.view_layer.objects.active = objs[0]
+    bpy.ops.object.join()
+    obj = objs[0]
+    obj.name = obj.data.name = NAME
+    # one slot per palette index (stones sharing a colour share the material)
+    order = sorted(set(pal.values()))
+    by_pal = {}
+    for m in obj.data.materials:
+        by_pal.setdefault(int(m.name.split("_")[1]), m)
+    remap = [order.index(int(m.name.split("_")[1])) for m in obj.data.materials]
+    face_mat = [remap[f.material_index] for f in obj.data.polygons]
+    obj.data.materials.clear()  # (this resets the faces' indices, so they're set after)
+    for p in order:
+        obj.data.materials.append(by_pal[p])
+    for f, k in zip(obj.data.polygons, face_mat):
+        f.material_index = k
+    bev = obj.modifiers.new("chamfer", "BEVEL")
+    bev.width = 0.006
+    bev.segments = 1
+    bev.limit_method = "ANGLE"
+    bev.angle_limit = math.radians(28)
+    bpy.context.view_layer.update()
+    common._apply_modifiers(obj)
+    obj.data.shade_smooth()
+    obj.data.set_sharp_from_angle(angle=math.radians(14))
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    bmesh.ops.triangulate(bm, faces=bm.faces[:])
+    open_edges = sum(1 for e in bm.edges if not e.is_manifold)
+    bm.to_mesh(obj.data)
+    bm.free()
     print("stone palette", pal)
+    print(f"rock triangles {len(obj.data.polygons)}, non-manifold edges {open_edges}")
     LABELS.update(names=names, label=lab, pal=pal)
-    obj = common.mesh_object(NAME, bm, mats, coll, smooth=False)
     return obj, pal
-
 
 def split_open(obj, layout, coll):
     """common.split_assembly without filling the cuts, for the outline shells (assembly-newshe-39)."""
@@ -412,26 +347,40 @@ def split_open(obj, layout, coll):
     return out
 
 
+
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     bpy.ops.wm.read_factory_settings(use_empty=True)
     coll = common.reset_collection(NAME)
     obj, pal = build(coll)
-    tris = sum(len(p.vertices) - 2 for p in obj.data.polygons)
-    print(f"rock triangles {tris}")
+    # the shell's source: a sealed copy kept out of the scene while the bake runs (D118)
+    closed = obj.copy()
+    closed.data = obj.data.copy()
     fmt = "AUTO"
-    if "--no-bake" not in argv:  # AO bake only (maps.json "bake": "model" if a textures folder is made)
-        import tempfile
-        bake_maps(obj, Path(tempfile.mkdtemp(prefix="nshd45_bake_")))
+    if "--no-bake" not in argv:  # the D125 rocks' AO/roughness bake (no concept projection)
+        tint, textured = T.TINT, T.TEXTURED
+        T.TINT, T.TEXTURED = (1.0, 1.0, 1.0), tuple(range(len(obj.data.materials)))
+        try:
+            T.bake_maps(obj, tempfile.mkdtemp(prefix="nshd45_bake_"), size=1024, samples=64)
+        finally:
+            T.TINT, T.TEXTURED = tint, textured
+        for img in bpy.data.images:
+            if img.name.startswith("talon_"):
+                img.name = img.name.replace("talon_", f"{NAME}_")
         fmt = "WEBP"
-    shell = common.outline_shell(obj, coll, voxel=0.02, faces=3000, smooth=6, inside=0.015)
+    coll.objects.link(closed)
+    shell = common.outline_shell(closed, coll, **SHELL)
+    bpy.data.objects.remove(closed)
+    bpy.context.view_layer.update()
     first = common.load_sprite(WT, PIECES[0])
     layout = [(e["model"], e["cx"] - CENTRE[0], e["cy"] - CENTRE[1]) for e in first["assemblyLayout"]]
     pieces = common.split_assembly(obj, layout)
+    for q in pieces.values():  # the filled cuts meet the surface at a hard edge: keep it out of the
+        q.data.set_sharp_from_angle(angle=math.radians(14))  # smooth normals, so no seam line shows
     shells = split_open(shell, layout, coll)
     for name, cx, cy in layout:
         print(f"{name}: {sum(len(q.vertices) - 2 for q in pieces[name].data.polygons)} triangles")
-    if "--review" in argv:  # the cell with the pieces placed, for render.py / measure.py
+    if "--review" in argv:  # the cell with the pieces placed, for the review renders
         d = Path(argv[argv.index("--review") + 1])
         d.mkdir(parents=True, exist_ok=True)
         objs = []
@@ -448,89 +397,6 @@ def main():
     for name in PIECES:
         data = common.load_sprite(WT, name)
         common.export_sprite_model(WT, [pieces[name], shells[name]], f"enemies/{name}", data["sprites"], image_format=fmt)
-
-
-# --- texture: baked occlusion only (no concept projection) ---------------------------------------
-
-def bake_maps(obj, out_dir, size=1024, samples=48):
-    """AO multiplier over the palette colours (assembly-newshe-39 / usp_talon.bake_maps, trimmed):
-    UV the rock, bake occlusion at two scales (the cracks darken) into a grey map, wire it in as
-    Base Color = map x palette colour."""
-    out_dir.mkdir(parents=True, exist_ok=True)
-    scene = bpy.context.scene
-    scene.render.engine = "CYCLES"
-    scene.cycles.samples = samples
-    scene.cycles.device = "CPU"
-    me = obj.data
-    uv = me.uv_layers.new(name="bake")
-    me.uv_layers.active = uv
-    for o in bpy.context.view_layer.objects:
-        o.select_set(False)
-    obj.select_set(True)
-    bpy.context.view_layer.objects.active = obj
-    bpy.ops.object.mode_set(mode="EDIT")
-    bpy.ops.mesh.select_all(action="SELECT")
-    bpy.ops.uv.smart_project(angle_limit=math.radians(50), island_margin=0.004, scale_to_bounds=False)
-    bpy.ops.uv.pack_islands(margin=0.003)
-    bpy.ops.object.mode_set(mode="OBJECT")
-    img = bpy.data.images.new("nshd45B_ao", size, size, alpha=False)
-    saved = {}
-    for m in me.materials:
-        nt = m.node_tree
-        out = next(n for n in nt.nodes if n.type == "OUTPUT_MATERIAL")
-        saved[m.name] = out.inputs["Surface"].links[0].from_socket
-        ao_s = nt.nodes.new("ShaderNodeAmbientOcclusion")
-        ao_s.samples = 16
-        ao_s.inputs["Distance"].default_value = 0.14
-        ao_l = nt.nodes.new("ShaderNodeAmbientOcclusion")
-        ao_l.samples = 16
-        ao_l.inputs["Distance"].default_value = 0.6
-        sq = nt.nodes.new("ShaderNodeMath")
-        sq.operation = "POWER"
-        nt.links.new(ao_s.outputs["AO"], sq.inputs[0])
-        sq.inputs[1].default_value = 3.0
-        mul = nt.nodes.new("ShaderNodeMath")
-        mul.operation = "MULTIPLY"
-        nt.links.new(sq.outputs[0], mul.inputs[0])
-        mix = nt.nodes.new("ShaderNodeMath")
-        mix.operation = "MULTIPLY_ADD"
-        nt.links.new(ao_l.outputs["AO"], mix.inputs[0])
-        mix.inputs[1].default_value = 0.5
-        mix.inputs[2].default_value = 0.5
-        nt.links.new(mix.outputs[0], mul.inputs[1])
-        lift = nt.nodes.new("ShaderNodeMath")
-        lift.operation = "MULTIPLY_ADD"
-        nt.links.new(mul.outputs[0], lift.inputs[0])
-        lift.inputs[1].default_value = 0.75
-        lift.inputs[2].default_value = 0.25
-        em = nt.nodes.new("ShaderNodeEmission")
-        nt.links.new(lift.outputs[0], em.inputs["Color"])
-        nt.links.new(em.outputs[0], out.inputs["Surface"])
-        tex = nt.nodes.new("ShaderNodeTexImage")
-        tex.image = img
-        tex.name = "bake_target"
-        nt.nodes.active = tex
-    bpy.ops.object.bake(type="EMIT", margin=4, use_clear=True)
-    img.filepath_raw = str(out_dir / "ao.png")
-    img.file_format = "PNG"
-    img.save()
-    for m in me.materials:
-        nt = m.node_tree
-        out = next(n for n in nt.nodes if n.type == "OUTPUT_MATERIAL")
-        for n in list(nt.nodes):
-            if n.type in ("AMBIENT_OCCLUSION", "EMISSION") or (n.type == "MATH"):
-                nt.nodes.remove(n)
-        nt.links.new(saved[m.name], out.inputs["Surface"])
-        bsdf = next(n for n in nt.nodes if n.type == "BSDF_PRINCIPLED")
-        tex = nt.nodes["bake_target"]
-        rgb = bsdf.inputs["Base Color"].default_value[:]
-        mixc = nt.nodes.new("ShaderNodeMix")
-        mixc.data_type = "RGBA"
-        mixc.blend_type = "MULTIPLY"
-        mixc.inputs["Factor"].default_value = 1.0
-        nt.links.new(tex.outputs["Color"], mixc.inputs["A"])
-        mixc.inputs["B"].default_value = rgb
-        nt.links.new(mixc.outputs["Result"], bsdf.inputs["Base Color"])
 
 
 if __name__ == "__main__":

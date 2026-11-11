@@ -5204,7 +5204,8 @@ unlit path for glow materials (the D121 follow-up).
   wider; `newsh-caret-171` nose dome has AO specks and its docstring still says "lying flat" (it is launched).
 - Audit minor items: `assembly-newshd-39` and `-89` drift in space but have flat bases; `newshd-121` is a flying drone on
   a ground stalk; `assembly-newshu-129` has a foot; `assembly-newshi-154`: reconcile D120's "tail" label with the audit and
-  round its underside.
+  round its underside. Done for `-39`, `-45`, `-89`, `newshd-121`, `-154` in D144; `assembly-newshu-129`'s foot is removed in
+  the script but not shipped (open item in D144).
 - **Could not determine from behaviour** (need the user or a closer look): `assembly-newshp-267` and
   `assembly-newshc-283` (towers or tanks?); `newshf-1` and `newshf-47` (which end is the head?); `assembly-newshu-79`
   (wreck or working machine?).
@@ -6239,6 +6240,49 @@ Captures and measurements: `tyrian-scratch/structure-prepass/{before,after,befor
 **Not changed:** an enemy's prepass also draws in the outline pass while the enemy is translucent (no normals, so
 OutlineEffect doesn't swap it); harmless (depth only, after the model's main draw) and left as it is.
 
+## D144 — Object-identity fixes, minor batch: five drifting rocks, a drone and the blimp's end rebuilt; the orb's foot is an open item (follows D122, D125; extends D52, D65, D53)
+
+**Problem.** D122's audit left minor items: drifting rocks with flat bases, a flying drone on a ground stalk, the blimp's end
+with a flat underside, a glass orb with a foot. A fix round (16 agents, one fixer and one strict reviewer per model)
+rebuilt them; five passed the strict review with "ship" and are in this PR.
+
+| Model | Change | IoU | Score |
+|---|---|---|---|
+| assembly-newshd-39 | drifting asteroid: round underside, D125 rock look | 0.9889 | 7 |
+| assembly-newshd-45 | stones rebuilt with lib_newshd_rock | 0.9955 | 7.5 |
+| assembly-newshd-89 | floating rock heap, round underside | 0.9885 | 8 |
+| newshd-121 | flying drone: stalk dropped, prongs levelled | 0.9943 | 8 |
+| assembly-newshi-154 | the blimp's end: underside rounded to continue the envelope | 0.9892 | 7 |
+
+IoU is the worst frame's top-view IoU vs the sprite mask, measured by the reviewer. Rocks keep the AO/roughness bake
+(no concept projection, art rule 4); undersides are plain closed shapes (art rule 3). Companion GLBs of each assembly's
+pieces were rebuilt with it.
+
+**Not shipped: `assembly-newshu-129`** (the glass orb; verdict "fix"). The script change (round underside in place of the
+socket foot, the dent attempt reverted to HEAD's order-4 plan) is correct, and per-piece IoU on the top view equals
+main's; but the per-piece rule gate (>= 0.95) still fails on the green lit pieces: `newshu-93-f2` 0.9226-0.9289 (the fixer's
+number; reviewer measured 0.933-0.939) and `newshu-131-f2` frame 193 0.9348 (reviewer 0.9446). The lit frames draw a 1 px slit
+and a pinhole that a whole ball has to cover; the per-piece mask also counts the internal seam as border ink. Whole-assembly
+IoU passes (0.957-0.976). All 13 files are restored to origin/main. **Open:** model the lit state's notch/slit without the
+earlier dent defect (a narrow recessed groove carried by the -f2 pieces only), or record an explicit gate exception for those
+frames, then ship the foot removal.
+
+**Follow-ups (from the reviews):**
+- `assembly-newshd-39`: a hard horizontal waist seam where the boulders meet the belly (side/front views); a faint vertical
+  light line through the lower boulder in game at the piece cut (x=134, between newshd-1/39 and newshd-3/41), probably a
+  bake or shading break; the heap is lighter and smoother than the sprite's dark mottled cells.
+- `assembly-newshd-45`: paler and flatter than the D125 asteroid in game, cracks between stones faint (deepen V grooves or
+  AO); the sprite's bright crests barely show; vertical fluting on some flanks in side views (not visible in game).
+- `assembly-newshd-89`: underside is a shallow bowl (saucer-like from the side); a soft band at the waist; the script
+  imports `lib_newshd_rock.cut_planes`, so a signature change there breaks it.
+- `assembly-newshi-154`: the inner latitude groove (SEAMS[0]=0.42) has S-kinks and reads as a lumpy ring (smooth, soften
+  or drop it); the joint with `assembly-newshi-115` steps in brightness (115's tail is too bright, about 1.85x the sprite's
+  luma against 1.35x at the nose) with a thin black ink line, and 115's seams do not line up with 154's battens; the nose is a
+  low duck-bill cap because 115 tapers into it; shell:S2 paint is 3 vs the sprite's 1. **Docs:** 154 now documents itself as
+  the BOW (the formation's eyc moves drift it south, so the hub end leads and 115's ducted propeller is a pusher at the
+  stern); 115's header and D120 still call 154 the "tail cap" and need reconciling.
+
+**Cost:** 16 agents, 2.0M subagent tokens. Sheets: `tyrian-scratch/object-minor/<name>/final/` (not in git, D3).
 ## D143 — Structure rebuild, wave 2: the other twelve structures to the D65 hard-surface standard; ASTEROID?'s station kit; the pipe-junction seam; `finish()` (extends D141, D139, D86; fixes D141's join follow-up)
 
 2026-11-11

@@ -1,4 +1,8 @@
-"""Grey claw walker (newshd.shp frame 121, 24x28, one frame), design A: a hard-surface claw drone.
+"""Grey pincer drone (newshd.shp frame 121, 24x28, one frame), design A: a hard-surface claw drone.
+
+Identity (D122 audit, QA2 issue 13): a FLYING drone (spawned on all four layers, moving 2 px/tick down and 4
+sideways), so it floats: the prongs reach forward level from the shoulder knuckles (no tips planted on the
+ground), there is no stalk or pedestal, and the pod's belly is its round closed underside.
 
 Reading of the sprite (inner mask: the ink ring is the game's own outline, D74):
 - Head (rows 1-6, columns 6-15): a domed sensor pod, highest at the back (the bright row 2 is the
@@ -15,9 +19,9 @@ Reading of the sprite (inner mask: the ink ring is the game's own outline, D74):
 - Prongs (rows 9-24): chamfered octagonal beams (pal 8) that leave the knuckles, flare out into a
   forearm (rows 12-16, armour plate on top) with an inner jaw: an upper jaw block and a lowered
   serrated grip notch (rows 14-15, pal 4), then narrow to a finger that bows out and hooks back
-  in, ending in a hardened claw tip (rows 21-24, pal 6) that plants on the ground. The bright
+  in, ending in a hardened claw tip (rows 21-24, pal 6) that curls only slightly down. The bright
   pixels down column 5 / 15 are sheen on the beam's chamfer, not geometry.
-- Underside: the pod's closed belly on a plain pedestal. No detail.
+- Underside: the pod's round closed belly and the prongs' own undersides; nothing below. No detail.
 
 Mirror symmetric about pixel edge 11.
 
@@ -40,7 +44,7 @@ sys.path.insert(0, str(WT / "assets" / "blender"))
 import common  # noqa: E402
 import usp_talon as T  # noqa: E402
 
-HERE = Path("/Users/dlomibao/projects/tyrian-scratch/e1-enemies-2/newshd-121/final")
+HERE = Path("/Users/dlomibao/projects/tyrian-scratch/object-minor/newshd-121/final")
 NAME = "newshd-121"
 FRAME = 121
 PX = 1 / 12
@@ -153,7 +157,7 @@ POD_W = pchip(PY, [1.3, 2.3, 3.55, 4.2, 4.85, 5.0, 4.85, 4.3, 3.4, 2.6])
 POD_ZT = pchip(PY, [5.6, 6.9, 8.3, 8.85, 8.8, 8.3, 7.4, 6.5, 5.6, 5.1])
 POD_ZB = pchip(PY, [3.7, 2.6, 1.7, 1.4, 1.3, 1.3, 1.45, 2.0, 2.9, 3.4])
 POD_ZC = 4.6
-NT, NB = 2.4, 3.0  # superellipse exponents, top and bottom halves
+NT, NB = 2.4, 2.1  # superellipse exponents, top and bottom halves (a round belly: it flies)
 SEAM_PHI = math.degrees(math.acos(0.8 ** (NT / 2)))  # top-half angle where |x| = 0.8 w
 SEAM_D = 0.45
 SEAM_Y = (1.45, 6.85)   # side seams run along the pod between these rows
@@ -360,9 +364,10 @@ def yoke(M):
 PRY = [9.6, 10.5, 11.5, 12.4, 13.5, 15.0, 16.5, 17.8, 19.0, 20.0, 21.0, 22.0, 23.0, 24.0, 24.8]
 XO = pchip(PRY, [6.2, 6.0, 5.15, 4.15, 3.97, 3.95, 3.95, 3.95, 3.98, 4.15, 4.6, 5.15, 5.6, 6.0, 6.3])
 XI = pchip(PRY, [8.9, 8.8, 8.4, 7.7, 7.35, 7.2, 7.1, 7.05, 7.0, 7.0, 7.0, 7.0, 7.0, 6.95, 6.9])
-ZC = pchip(PRY, [4.6, 4.6, 4.55, 4.4, 4.2, 3.85, 3.4, 2.9, 2.4, 2.0, 1.6, 1.2, 0.85, 0.55, 0.35])
+# Level prongs (a flying drone): the beam stays at shoulder height, the claw tip curls down a little.
+ZC = pchip(PRY, [4.6, 4.6, 4.58, 4.55, 4.52, 4.5, 4.48, 4.45, 4.4, 4.33, 4.25, 4.15, 4.03, 3.9, 3.8])
 HZ = pchip(PRY, [1.3, 1.3, 1.35, 1.4, 1.45, 1.4, 1.3, 1.15, 1.0, 0.9, 0.78, 0.65, 0.52, 0.4, 0.3])
-TIP_PT = (6.65, 25.25, 0.1)
+TIP_PT = (6.65, 25.25, 3.7)
 NECK_Y = 17.45   # groove between forearm and finger
 TIP_Y = 20.85    # seam where the hardened claw tip starts
 PLATE_Y = (11.75, 17.05)
@@ -432,9 +437,8 @@ def prong(M):
     cyl(M, (5.7, 9.9, 4.6), (6.0, 9.9, 4.6), 0.32, 8, KNUCK, bevel=0.06)
 
 
-def pedestal(M):
-    """Underside: a plain closed support under the pod (no detail)."""
-    cyl(M, (AX, 4.3, 0.0), (AX, 4.3, 1.9), 3.0, 12, SIDE)
+def rear(M):
+    """Back of the pod (seen only from behind); nothing below it: the drone flies."""
     # Two exhaust ports low on the pod's back (seen only from behind).
     for x in (9.6, 12.4):
         cyl(M, (x, 2.2, 3.6), (x, 1.05, 3.6), 0.55, 10, AXLE, bevel=0.1, cap_mat=SEAM)
@@ -474,7 +478,7 @@ def build(sprite, coll):
     head(M)
     neck(M)
     yoke(M)
-    pedestal(M)
+    rear(M)
     M.bm.verts.ensure_lookup_table()
     start = len(M.bm.verts)
     prong(M)
