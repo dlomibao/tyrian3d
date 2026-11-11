@@ -121,6 +121,39 @@ describe("structure instances", () => {
     expect([...grown.array.slice(8 * 4, 9 * 4)]).toEqual([1, 2, 0, 3]);
   });
 
+  test("a cell's cover parts (D139): the light while no enemy covers its cell, the lid while one does", () => {
+    const root = new THREE.Group();
+    const add = (name: string, extras?: Record<string, unknown>) => {
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(), new THREE.MeshStandardMaterial());
+      mesh.name = name;
+      if (extras) mesh.userData = extras;
+      root.add(mesh);
+    };
+    add("deck");
+    add("light", { tyrian_cell: [1, 3], tyrian_when: "open" });
+    // A multi-primitive node: its extras sit on the group above the meshes.
+    const lid = new THREE.Group();
+    lid.userData = { tyrian_cell: [1, 3], tyrian_when: "covered" };
+    lid.add(new THREE.Mesh(new THREE.PlaneGeometry(), new THREE.MeshStandardMaterial()));
+    root.add(lid);
+    const s = new StructureInstances();
+    s.add("ring", root);
+    const [deck, light, lidMesh] = s.group.children as THREE.InstancedMesh[];
+    s.begin();
+    s.place("ring", 0, 0, 0, 1, undefined, (r, c) => r === 1 && c === 3); // copy 1: its enemy stands on (1, 3)
+    s.place("ring", 1, 0, 0, 1, undefined, () => false); // copy 2: its enemy is gone
+    s.place("ring", 2, 0, 0, 1); // no cover test: the light
+    s.end(0, (_i, t) => t);
+    expect([deck.count, light.count, lidMesh.count]).toEqual([3, 2, 1]);
+    const at = (m: THREE.InstancedMesh, i: number) => new THREE.Vector3().setFromMatrixPosition(new THREE.Matrix4().fromArray(m.instanceMatrix.array, i * 16)).x;
+    expect([at(light, 0), at(light, 1), at(lidMesh, 0)]).toEqual([1, 2, 0]);
+    // Every cell covered: the light draws nowhere and its mesh is hidden.
+    s.begin();
+    s.place("ring", 0, 0, 0, 1, undefined, () => true);
+    s.end(0, (_i, t) => t);
+    expect([deck.count, light.visible, lidMesh.count]).toEqual([1, false, 1]);
+  });
+
   test("a structure's rock cells each draw the bands of their own neighbours", () => {
     const root = new THREE.Group();
     const palette = new PaletteTexture();

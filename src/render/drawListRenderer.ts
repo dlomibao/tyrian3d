@@ -55,6 +55,7 @@ import type { LevelDamage, LevelSprite, LevelTile } from "../sim/levelSprites";
 import { TileAtlas } from "./tileAtlas";
 import { RemasteredFx, SpriteLook } from "./vfx/remasteredFx";
 import { vfxModeFromSearch, type VfxMode } from "./vfx/vfxMode";
+import { EXPLOSION_SHEET_ID, flatExplosionFade } from "./vfx/explosionFrames";
 import { RemasterGroundAtlas } from "./remaster/groundAtlas";
 import { remasterGroundMaterial } from "./remaster/groundMaterial";
 import { paletteLuma } from "./remaster/mmpx";
@@ -65,6 +66,8 @@ import { OpaqueCover, paintOutWreck } from "./remaster/opaqueCover";
 import { modelHeightFromUrl } from "./modelHeight";
 import { placeFlatQuad, SPRITE2X2_PARTS, spriteArtModeFromSearch, type FlatQuad, type ReadyFrame, type SpriteArt, type SpriteArtMode, type SpriteArtSheet } from "./spriteArt";
 import { SpriteArtLayer } from "./spriteArtLayer";
+import { StarCover } from "./starCover";
+import { sheetHeight, type PlacedExtent } from "./sheetLift";
 import { BG_KEY_LAYER } from "../sim/backgrnd";
 import { MAP_SIZES, TILE_HEIGHT, TILE_WIDTH } from "../data/levels";
 import { terrainStyle as currentTerrainStyle, type TerrainStyle } from "../core/terrainStyle";
@@ -130,7 +133,7 @@ const TILE_VARIANTS = new Set<Variant>([Variant.Ground, Variant.RemasterGround, 
 /** One InstancedMesh and its per-instance data, reused every frame. */
 class Pool {
   mesh!: THREE.InstancedMesh;
-  /** Per-instance extra data: instFx (4 floats) or instTile (2 floats). */
+  /** Per-instance extra data: instFx (4 floats), instTile (2 floats) or instTile4 (4: HD terrain's rect and tint origins). */
   extra!: THREE.InstancedBufferAttribute;
   count = 0;
   lastUsed = 0;
@@ -138,7 +141,7 @@ class Pool {
   constructor(
     private readonly base: THREE.BufferGeometry,
     private readonly material: THREE.Material,
-    private readonly extraName: "instFx" | "instTile",
+    private readonly extraName: "instFx" | "instTile" | "instTile4",
     private readonly parent: THREE.Object3D,
     private readonly shadows: { cast: boolean; receive: boolean },
     capacity = 16,
@@ -153,7 +156,7 @@ class Pool {
     const g = new THREE.BufferGeometry();
     for (const name of Object.keys(this.base.attributes)) g.setAttribute(name, this.base.attributes[name]);
     g.setIndex(this.base.index);
-    const itemSize = this.extraName === "instFx" ? 4 : 2;
+    const itemSize = this.extraName === "instTile" ? 2 : 4;
     const extra = new THREE.InstancedBufferAttribute(new Float32Array(capacity * itemSize), itemSize);
     extra.setUsage(THREE.DynamicDrawUsage);
     g.setAttribute(this.extraName, extra);
@@ -230,6 +233,8 @@ interface ModelPool {
   settled: Promise<void>;
   clones: ModelClone[];
   used: number;
+  /** The source's box at its root's origin and scale 1 (for the sheets' lift, D129), once loaded. */
+  box?: THREE.Box3;
 }
 
 /** What a level can show (preloadLevel): the sprites it can draw and its background tiles. */
@@ -385,8 +390,21 @@ export class DrawListRenderer {
     left: number; top: number; w: number; h: number;
   }[] = [];
   private readonly cover = new OpaqueCover();
-  /** This frame's ground cells of wreck tiles, drawn once the frame knows whether enemies cover them (D86). */
-  private readonly groundCells: { d: TileDraw; x: number; y: number; remaster: boolean }[] = [];
+  /** This frame's placed models, by pass, screen box and height, for the blended sheets (D129). */
+  private readonly placedExtents: PlacedExtent[] = [];
+  /** This frame's blended background-2 sheet tiles, raised over the models they overlap after the loop (D129). */
+  private readonly blendSheets: { pool: Pool; slot: number; x: number; y: number; pass: Pass }[] = [];
+  /** Where the camera's view meets the ground: models' shadows fall as they would there (D133). */
+  private readonly shadowRef = new THREE.Vector3();
+  private readonly viewDir = new THREE.Vector3();
+  /** Which star pixels background 1 hides (D127). */
+  private readonly starCover = new StarCover();
+  /**
+   * This frame's ground cells of wreck tiles (D86), and of HD tiles with a covered painting (a machine
+   * painted on the ground that its enemy's sprite hid, D139; `wreck` false), drawn once the frame
+   * knows whether enemies cover them.
+   */
+  private readonly groundCells: { d: TileDraw; x: number; y: number; remaster: boolean; wreck: boolean }[] = [];
   /** Wreck tiles with their wreck painted out to dirt (D86), by tile id. */
   private readonly coveredTiles = new Map<string, Uint8Array>();
   /** The plain ground tiles that stand in for covered wreck tiles (COVERED_STAND_IN), as last drawn. */
@@ -721,6 +739,9 @@ export class DrawListRenderer {
     const items = this.items;
     const { prevX, prevY } = this.interp;
     const cam = camera.position;
+    camera.getWorldDirection(this.viewDir);
+    if (this.viewDir.y < -1e-6) this.shadowRef.copy(cam).addScaledVector(this.viewDir, -cam.y / this.viewDir.y);
+    else this.shadowRef.set(cam.x, 0, cam.z);
     let instances = 0;
     for (const mp of this.modelPools.values()) mp.used = 0;
     const fx = this.fx;
@@ -735,6 +756,8 @@ export class DrawListRenderer {
     this.terrainLevel.levelFilter.value = this.palette.screenFilter;
     this.terrainLevel.levelBrightness.value = this.palette.screenBrightness;
     this.hdTiles = 0;
+    this.placedExtents.length = 0;
+    this.blendSheets.length = 0;
 
     for (let i = 0; i < items.length; i++) {
       const d = items[i];
@@ -802,12 +825,14 @@ export class DrawListRenderer {
             break;
           }
           if (this.background !== "remaster" && d.layer === 0 && WRECK_TILES.has(d.tileId)) {
-            this.groundCells.push({ d, x, y, remaster: false }); // D86, as in drawRemasterTile
+            this.groundCells.push({ d, x, y, remaster: false, wreck: true }); // D86, as in drawRemasterTile
             instances++;
           } else if (this.drawOriginalTile(d, x, y, cam, frame)) instances++;
           break;
         }
         case "pixel":
+          // A star shows only where background 1 left the screen black (D127).
+          if (d.pass === Pass.Starfield && this.starCover.hides(items, d.x, d.y)) continue;
           this.addSolid(d.color, d.x, d.y, 1, 1, d.pass, cam, frame);
           instances++;
           break;
@@ -820,8 +845,11 @@ export class DrawListRenderer {
 
     // A ground structure under opaque ground-enemy sprites (a wreck under its live bunker), as far as
     // the playfield shows it, is left out, as the sprites hid its tiles (D86).
+    // Its cells' cover parts (a light under a ground enemy) show by whether an enemy covers each cell (D139).
     for (const s of this.groundStructures) {
-      if (!this.cover.covered(s.left, s.top, s.w, s.h)) this.structures.place(s.model, s.x, s.y, s.z, s.scale, s.neighbours);
+      if (this.cover.covered(s.left, s.top, s.w, s.h)) continue;
+      const cellCovered = (row: number, col: number) => this.cover.covered(s.left + col * TILE_WIDTH, s.top + row * TILE_HEIGHT, TILE_WIDTH, TILE_HEIGHT);
+      this.structures.place(s.model, s.x, s.y, s.z, s.scale, s.neighbours, cellCovered);
     }
     // A wreck's ground cell under opaque enemy sprites draws without the wreck: its covered HD
     // painting, else (the pixel looks) its plain-ground stand-in or the tile with its wreck pixels
@@ -830,6 +858,13 @@ export class DrawListRenderer {
     // it anyway.
     for (const c of this.groundCells) {
       const covered = this.cover.covered(c.x, c.y, TILE_WIDTH, TILE_HEIGHT);
+      // A plain HD tile with a covered painting (D139): that painting while covered, else as any tile.
+      if (!c.wreck) {
+        if (!(covered && this.drawRemasterGround(c.d, c.x, c.y, cam, frame, true, false, true)) && !this.drawRemasterGround(c.d, c.x, c.y, cam, frame, false, false)) {
+          this.drawOriginalTile(c.d, c.x, c.y, cam, frame);
+        }
+        continue;
+      }
       if (c.remaster && this.drawRemasterGround(c.d, c.x, c.y, cam, frame, covered, true, covered)) continue;
       if (c.remaster && covered && this.drawRemasterGround(c.d, c.x, c.y, cam, frame, false, true, true)) continue;
       if (covered) {
@@ -845,6 +880,11 @@ export class DrawListRenderer {
       } else if (!c.remaster || !this.drawRemasterGround(c.d, c.x, c.y, cam, frame, false)) this.drawOriginalTile(c.d, c.x, c.y, cam, frame);
     }
 
+    // Blended sheets go over the models of earlier passes they cover and under later ones (D129).
+    for (const b of this.blendSheets) {
+      const h = sheetHeight(passHeight(b.pass), b.pass, b.x, b.y, TILE_WIDTH, TILE_HEIGHT, this.placedExtents);
+      if (h !== passHeight(b.pass)) writeMatrix(b.pool.mesh.instanceMatrix.array as Float32Array, b.slot, b.x, b.y, h, 1, 1, cam);
+    }
     for (let p = 0; p < this.allPools.length; p++) this.allPools[p].commit();
     if (this.background === "remaster") this.scorch.update(items, prevX, prevY, alpha, cam);
     else this.scorch.clear();
@@ -959,7 +999,9 @@ export class DrawListRenderer {
     if (d.size === 1) {
       const f = art.frame(d.index);
       if (!f) return false;
-      this.addFlat(art, f, 0, 0, d.pass, d.effect, d.filter, d.value, x, y, cam);
+      // A fireball's last rings fade out (D131).
+      const fade = d.sheet.id === EXPLOSION_SHEET_ID ? flatExplosionFade(d.index) : 1;
+      this.addFlat(art, f, 0, 0, d.pass, d.effect, d.filter, d.value, x, y, cam, fade);
       return true;
     }
     for (const [di] of SPRITE2X2_PARTS) {
@@ -972,13 +1014,13 @@ export class DrawListRenderer {
     return true;
   }
 
-  /** One flat art quad at the draw's place (screen (x + dx, y + dy), its pass's height). */
+  /** One flat art quad at the draw's place (screen (x + dx, y + dy), its pass's height), its opacity times `fade`. */
   private addFlat(
     art: SpriteArtSheet<THREE.Texture>, f: ReadyFrame, dx: number, dy: number, pass: Pass,
-    effect: SpriteEffect, filter: number, value: number, x: number, y: number, cam: THREE.Vector3,
+    effect: SpriteEffect, filter: number, value: number, x: number, y: number, cam: THREE.Vector3, fade = 1,
   ): void {
     const q = placeFlatQuad(x + dx, y + dy, f.w, f.h, passHeight(pass), cam, this.quad);
-    const alpha = effect === "blend" ? (pass === Pass.Explosions ? EXPLOSION_ALPHA : BLEND_ALPHA) : 1;
+    const alpha = (effect === "blend" ? (pass === Pass.Explosions ? EXPLOSION_ALPHA : BLEND_ALPHA) : 1) * fade;
     if (effect === "filter") this.artLayer.add(art, pass, q, f, FxMode.Filter, (filter >> 4) & 0x0f, 0, alpha);
     else if (effect === "hv") this.artLayer.add(art, pass, q, f, FxMode.HueValue, filter & 0x0f, value, alpha);
     else this.artLayer.add(art, pass, q, f, FxMode.None, 0, 0, alpha);
@@ -1028,10 +1070,15 @@ export class DrawListRenderer {
         modelled = true;
         // A wreck's ground cell draws once the frame knows whether an enemy covers it (D86).
         if (d.layer === 0 && WRECK_TILES.has(d.tileId)) {
-          this.groundCells.push({ d, x, y, remaster: true });
+          this.groundCells.push({ d, x, y, remaster: true, wreck: true });
           return true;
         }
       }
+    }
+    // A ground tile with a covered painting draws once the frame knows whether an enemy covers it (D139).
+    if (d.layer === 0 && !modelled && this.hasCoveredArt(d)) {
+      this.groundCells.push({ d, x, y, remaster: true, wreck: false });
+      return true;
     }
     return this.drawRemasterGround(d, x, y, cam, frame, false, modelled);
   }
@@ -1058,6 +1105,7 @@ export class DrawListRenderer {
       return false;
     }
     writeMatrix(pool.mesh.instanceMatrix.array as Float32Array, s, x, y, passHeight(d.pass), 1, 1, cam);
+    if (blend) this.blendSheets.push({ pool, slot: s, x, y, pass: d.pass });
     return true;
   }
 
@@ -1072,12 +1120,21 @@ export class DrawListRenderer {
       const s = pool.next(frame);
       this.atlas.place(d.tileId, d.tile, pool.extra.array as Float32Array, s * 2);
       writeMatrix(pool.mesh.instanceMatrix.array as Float32Array, s, x, y, passHeight(d.pass), 1, 1, cam);
+      if (blend) this.blendSheets.push({ pool, slot: s, x, y, pass: d.pass });
     } else {
       const geometry = this.cache.tileGeometry(d.tileId, d.tile);
       if (!geometry) return false;
       this.addSprite(geometry, d.pass, d.effect, 0, 0, x, y, cam, frame);
     }
     return true;
+  }
+
+  /** Whether the HD look is on and a tile's tileset (loaded) has a covered painting of it (D86, D139). */
+  private hasCoveredArt(d: TileDraw): boolean {
+    if (this.terrain !== "hd") return false;
+    let id = this.tileIds.get(d.tileId);
+    if (id === undefined) this.tileIds.set(d.tileId, (id = parseTileId(d.tileId)));
+    return !!id && !!this.terrainArt.get(id[0])?.hasCovered(d.layer, id[1]);
   }
 
   /**
@@ -1100,11 +1157,15 @@ export class DrawListRenderer {
     const kind: TerrainKind = d.layer === 0 ? "ground" : blend ? "blend" : "cutout";
     const pool = this.hdPool(t.texture, kind, tileset!.scale, frame);
     if (blend) pool.mesh.renderOrder = blendSheetOrder(d.pass);
+    else if (kind === "cutout") pool.mesh.renderOrder = CUTOUT_ORDER;
     const s = pool.next(frame);
     const e = pool.extra.array as Float32Array;
-    e[s * 2] = t.x;
-    e[s * 2 + 1] = t.y;
+    e[s * 4] = t.x;
+    e[s * 4 + 1] = t.y;
+    e[s * 4 + 2] = t.tint ? t.tint.x : -1; // D138: no colour offset
+    e[s * 4 + 3] = t.tint ? t.tint.y : -1;
     writeMatrix(pool.mesh.instanceMatrix.array as Float32Array, s, x, y, passHeight(d.pass), 1, 1, cam);
+    if (blend) this.blendSheets.push({ pool, slot: s, x, y, pass: d.pass });
     this.hdTiles++;
     return true;
   }
@@ -1252,7 +1313,7 @@ export class DrawListRenderer {
     }
     let pool = this.hdPools.get(m.material);
     if (!pool) {
-      pool = new Pool(this.groundGeometry, m.material, "instTile", this.root, { cast: kind === "cutout", receive: true }, 16, m.depth);
+      pool = new Pool(this.groundGeometry, m.material, "instTile4", this.root, { cast: kind === "cutout", receive: true }, 16, m.depth);
       pool.lastUsed = frame;
       this.hdPools.set(m.material, pool);
       this.allPools.push(pool);
@@ -1419,6 +1480,22 @@ export class DrawListRenderer {
     const gz = screenWorldZ(cy);
     object.position.set(gx + (cam.x - gx) * k, h, gz + (cam.z - gz) * k);
     object.scale.set(1 - k, (1 - k) * this.modelHeight, 1 - k);
+    // Lifted along its camera ray (D6), a model off the middle of the screen sits nearer the middle
+    // than it looks, and its shadow drifted toward the middle with it, away from it on screen. Its
+    // shadow is drawn where the lift would put it from the camera's aim point instead (D133).
+    this.damage?.shadowShift(object, clone.materials, (gx - this.shadowRef.x) * k, (gz - this.shadowRef.z) * k);
+    // Its box on screen (the D6 scale keeps the model's footprint at its sprite's screen size) and
+    // its heights, for the blended sheets (D129).
+    const box = (pool.box ??= localBox(pool.source!));
+    this.placedExtents.push({
+      pass: d.pass,
+      left: cx + box.min.x * PX_PER_UNIT,
+      right: cx + box.max.x * PX_PER_UNIT,
+      top: cy + box.min.z * PX_PER_UNIT,
+      bottom: cy + box.max.z * PX_PER_UNIT,
+      low: h + box.min.y * object.scale.y,
+      high: h + box.max.y * object.scale.y,
+    });
 
     this.setCloneBlended(clone, d.effect === "blend");
 
@@ -1560,6 +1637,25 @@ function writeMatrix(m: Float32Array, slot: number, x: number, y: number, height
   m[o + 15] = 1;
 }
 
+/** A model's box in its root's frame, ignoring the root's own position and scale (placeModel sets those). */
+function localBox(source: THREE.Object3D): THREE.Box3 {
+  const position = source.position.clone();
+  const scale = source.scale.clone();
+  source.position.set(0, 0, 0);
+  source.scale.set(1, 1, 1);
+  source.updateMatrixWorld(true);
+  const box = new THREE.Box3();
+  source.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (mesh.isMesh && !isModelHelper(mesh)) box.expandByObject(mesh);
+  });
+  source.position.copy(position);
+  source.scale.copy(scale);
+  source.updateMatrixWorld(true);
+  if (box.isEmpty()) box.set(new THREE.Vector3(), new THREE.Vector3());
+  return box;
+}
+
 /** A 24x28 px ground tile quad (top-left at the origin), with tile-space UVs. */
 /**
  * Draw order among translucent objects for a blended background-2 sheet: before the others (shots,
@@ -1569,6 +1665,12 @@ function writeMatrix(m: Float32Array, slot: number, x: number, y: number, height
 function blendSheetOrder(pass: Pass): number {
   return pass === Pass.Background2Top ? 1 : -1;
 }
+
+/**
+ * A "cutout" terrain tile is drawn with its soft alpha edge (D132), so it is translucent to three.js: before
+ * every other translucent draw (blend sheets, the flat sprite art, explosions are all above it).
+ */
+const CUTOUT_ORDER = -2;
 
 function groundQuad(): THREE.BufferGeometry {
   const g = new THREE.BufferGeometry();

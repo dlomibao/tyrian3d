@@ -12,7 +12,9 @@ The machine (read off the sprite):
   - the LAUNCH BAY: a pit sunk into the deck with a coaming lip and, on frames 39-79, a raised black
     glass ball in a ringed collar with two bolt lugs (the sprite's small black ball with a white
     glint); on 81/83 the ball is pink (69) and half risen, on 85/87 up on its piston, bright (75);
-  - the stone FLOOR plate under it all, painted per pixel from the sprite.
+  - the stone FLOOR plate under it all, painted per pixel from the sprite: built for the review
+    renders only and not exported (D130), since the game draws the tile's ground in HD and the plate
+    showed as grey pixel cells on it. The machine and the bay's pit and coaming stand on the ground.
 
 Built whole and cut into the pieces with split_assembly; exports newshs-39, -41, -77, -77-f2 (frames
 81, 85), -79, -79-f2 (83, 87), each with its piece at the origin.
@@ -1030,7 +1032,7 @@ def main():
     ball_shells = {k: common.outline_shell(o, coll, voxel=0.014, faces=1200, smooth=6, inside=0.01)
                    for k, o in o_balls.items()}
 
-    whole = join_copy([o_floor, o_pit, o_base], "whole", coll)
+    whole = join_copy([o_pit, o_base], "whole", coll)  # not the floor plate (D130)
     cut = split_assembly_flatcap(whole, LAYOUT, coll)
     hatch_cut = split_assembly_flatcap(o_hatch, LAYOUT, coll)
     iris_cut = split_assembly_flatcap(o_iris, LAYOUT, coll)

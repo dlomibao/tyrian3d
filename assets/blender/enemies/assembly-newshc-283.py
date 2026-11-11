@@ -20,8 +20,9 @@ What the sprite says (and this model keeps):
   hammer-shaped grey head (upper and lower prongs pointing west, blue glass on its body, a blue
   stripe on top, a dark back block) and a folded blue fin on a raked post standing on the floor.
 - The floor: base slab with raised tiles (101/102) and grout (99/100) traced pixel by pixel, dark
-  seams where the sprite draws floor seams. Where the floor's edge pixels are dark enough to count
-  as ink (sprite_mask.py), the slab stops at the inner edge (D74).
+  seams where the sprite draws floor seams. Built only as an occluder for the AO bake (the parts'
+  feet darken where they meet the ground) and deleted before export (D130, as D86's dirt): it is the
+  tile's ground, which the game draws in HD, and it showed as a box of pixel tiles with an ink ring.
 
 Built in sprite px of the half assembly (c east, r south, h up; pixel (c, r) covers [c,c+1]x[r,r+1];
 r 0 = assembly row 28, under the newshc-77 head), moved to Blender at the end:
@@ -823,11 +824,18 @@ def build(coll):
         m = PxMesh(gname)
         fn(m)
         groups[gname] = to_object(m, mats, coll)
+    # the floor gets its own copies of the palette materials, flagged, so its faces can be found and
+    # deleted after the bake (D130)
+    floor_mats = {}
+    for p, mt in mats.items():
+        cp = mt.copy()
+        cp["tyrian_floor"] = True
+        floor_mats[p] = cp
     for gname, c0, r0 in (("floor55", 0, 56), ("floor283", 24, 28)):
         m = PxMesh(gname)
         floor(m, g, inner, c0, r0)
         seams(m, gname)
-        groups[gname] = to_object(m, mats, coll)
+        groups[gname] = to_object(m, floor_mats, coll)
     return sprite, mats, groups, g, inner
 
 
@@ -992,10 +1000,12 @@ def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     coll = common.reset_collection(NAME)
     sprite, mats, groups, g, inner = build(coll)
-    half = join(list(groups.values()), NAME + "_half", coll)
-    T.cull_hidden(half)
+    # the machine is culled and outlined on its own; the floor joins it only for the bake (D130)
+    machine = join([groups["pillar"], groups["crane"]], NAME + "_machine", coll)
+    T.cull_hidden(machine)
+    half = join([machine, groups["floor55"], groups["floor283"]], NAME + "_half", coll)
     half.data.set_sharp_from_angle(angle=math.radians(34))
-    shell = outline_shell_all(half, coll, voxel=0.015, faces=8000, smooth=6)
+    shell = outline_shell_all(machine, coll, voxel=0.015, faces=8000, smooth=6)
     fmt = "AUTO"
     layout = [(e["model"], e["cx"] - SX0, e["cy"] - SY0) for e in sprite["assemblyLayout"]
               if e["model"] in PIECES]
@@ -1014,6 +1024,14 @@ def main():
     if "--no-bake" not in argv:  # AO / roughness / metallic bake from the model itself (no projection)
         bake_pieces(pieces, lay, coll, size=512)
         fmt = "WEBP"
+    for name, _, _ in lay:  # the floor was the bake's occluder only: not exported (D130)
+        p = pieces[name]
+        bm = bmesh.new()
+        bm.from_mesh(p.data)
+        fl = {i for i, mt in enumerate(p.data.materials) if mt and mt.get("tyrian_floor")}
+        bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.material_index in fl], context="FACES")
+        bm.to_mesh(p.data)
+        bm.free()
     total = 0
     sprites = {n: common.load_sprite(ROOT, n) for n in PIECES}
     for name, cx, cy in lay:

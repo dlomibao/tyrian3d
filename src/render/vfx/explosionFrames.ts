@@ -97,3 +97,17 @@ for (let type = 0; type <= 34; type++) {
 export function explosionFrame(index: number): ExplosionFrame | undefined {
   return FRAMES[index];
 }
+
+/**
+ * How much of a fireball's flat art (D80) is drawn on its last frames (DECISIONS.md D131), by frames
+ * left: the last three rings are faint traces of the original's sprite ring, painted as thin crisp
+ * lines (D106 drops their soft edge), and the very last read as a red hollow square left behind.
+ */
+const FIREBALL_TAIL = [0.15, 0.45, 0.8];
+
+/** The opacity factor for an explosion sheet draw of `index` drawn as flat art: 1 but at a fireball's end. */
+export function flatExplosionFade(index: number): number {
+  const f = FRAMES[index];
+  if (!f || f.kind !== ExplosionKind.Fireball) return 1;
+  return FIREBALL_TAIL[f.ttl - 1 - f.frame] ?? 1;
+}

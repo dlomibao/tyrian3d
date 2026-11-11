@@ -5502,6 +5502,580 @@ and `newshe-277` (ALE), which did not show in 8,000 ticks of `main=33`/`41`.
 - Workarounds that can go: `newshj-19`'s metallic 1.0 / roughness 0.6 (D122) and `newshd-121`'s `dim_visor()` (D121).
 - `palette_material`'s docstring (`assets/blender/common.py`) now says what a strength means in game.
 
+## D127 — Stars show only where background 1 is black, as the C tests its screen
+
+2026-11-10
+
+**Problem** (`tyrian-scratch/e1-qa-2/REPORT.md` issue 1): stars were drawn over floors and models in 1.1, 1.2, 1.3, 1.6, 1.7
+and 1.14. `update_and_draw_starfield` (backgrnd.c L1067-1101) paints a star pixel only where the screen is still 0 after
+background 1, but the draw list has no screen, so the sim recorded every star pixel and the renderer drew them all at
+`Pass.Starfield`'s height (0.02, D5), over the ground.
+
+**Decision:** the renderer tests each star pixel as the C did (`src/render/starCover.ts`): against the background-1
+tiles of the same draw list, at their tick positions, a pixel over a non-zero tile pixel is skipped. The cover is a
+320x200 byte mask, rebuilt once per draw list. Stars over black space draw as before. Everything the C drew after the
+stars (backgrounds 2 and 3, enemies, shots) already covers them by depth, as it sits higher (D5). The test is on the
+original tile's pixels, not the HD painting (D57): the painted space tiles (0, 58, 59) are black in both.
+
+**Not stars:** the dark crosses left on 1.6's pipe at t1050 and on 1.14's blocks at t2680 are `JE_drawSP`'s
+superpixels (`Pass.Effects`, drawn over everything in the C too); unchanged.
+
+Captures: `tyrian-scratch/qa2-renderer/` (`before/`, `stars-after/`, `cmp_*.jpg`: 1.1 t4050 and t1050 (space), 1.2
+t4050, 1.6 t1050, 1.7 t1597, 1.14 t2680).
+
+## D128 — A damaged frame's textures are upsampled smoothly, so the damage has no pixel blocks (extends D87, like D114)
+
+2026-11-10
+
+**Problem** (`tyrian-scratch/e1-qa-2/REPORT.md` issue 8): SOH JIN's damaged red blocks (1.13 t1800,
+`enemies/newshm-1`) showed a blocky pixel camouflage at 4K. The report guessed nearest-neighbour sampling; the textures
+were already bilinear (`damageFrames.ts`). The cause: D87's three textures are the sprite's 24x28 (or 12x14) pixels, one
+texel each, and a repainted frame changes pixel by pixel, so bilinear filtering showed every texel as a square with
+straight creases between them (one sprite pixel is about 15 px on a 4K screen).
+
+**Decision:** the textures are built at 4x (`DAMAGE_UPSAMPLE`, 96x112 for a 2x2 sprite) from the same per-pixel values,
+each channel upsampled separably:
+- the cut (`mask` r) by a Catmull-Rom cubic, which passes through every pixel's value, so a one-pixel hole stays a hole
+  and straight cut edges stay where they were, without the bilinear corners;
+- scorch, embers, the changed-colour amount, the tint and the paint by a Gaussian of 0.75 sprite px (D114 used 0.9 for
+  the glass orb's parts), so a repainted frame's pixel noise reads as soft blotches.
+The shader is unchanged (it reads in sprite-pixel UVs, so the texture size doesn't matter to it). The player ship's wear
+(D90) keeps its own pattern texture. Build cost: about 0.1M multiply-adds per channel per frame and palette, on a frame's
+first draw and on palette changes.
+
+Checked with `?debug=play&hurt=1`: the SOH JIN blocks (1.13 t1050, t1800 at 4K), DELIANI's green pod
+(`newshc-197`/`-199`, 1.5 t3300) and SAVARA's cut `newshi-278` (1.12 t3300, its charred, glowing cut rims unchanged).
+Test: `tests/render/damageUpsample.test.ts`.
+
+Captures: `tyrian-scratch/qa2-renderer/` (`dmg-before/`, `dmg-after/`, `dmg-after/cmp_*`: left before, right after).
+
+## D129 — A blended sheet rises over the models it covers, so clouds and ice no longer cut them with a straight line (extends D5, D6, D45)
+
+2026-11-10
+
+**Problem** (`tyrian-scratch/e1-qa-2/REPORT.md` issue 9): WINDY's clouds (1.14 t1050, t2680) and TYRIAN's ice (1.9 t300)
+cut through the gem blocks and the dome with a straight line: the part above the sheet was clear, the part below
+clouded. Both are `draw_background_2_blend` sheets in `Pass.Background2Mid`, drawn flat at that pass's height (0.9, D5,
+D45), but the ground-enemy models under them stand at 0.45 and reach 1.13-1.26, so depth put their tops above the
+sheet. In the C the sheet is averaged over everything drawn before it, the whole block.
+
+**Decision:** each blended sheet tile is placed after the frame's draws, at `sheetHeight` (`src/render/sheetLift.ts`):
+its pass's height, raised to 0.04 over the highest top of the earlier passes' models it overlaps on screen, and kept
+0.04 under the lowest bottom of the later passes' models it overlaps; if both can't hold, half way between. A model's
+screen box and heights come from its source's box (cached per model pool) at its placement (D6 keeps its footprint at
+the sprite's size). D6 makes this free of layout changes: a sheet at any height covers the same screen area, so tiles
+at different heights still meet. Only the blended sheets move: the opaque layers (SAVARA's painted clouds, D107; the
+cloud rims, D78) and every other draw keep D5's heights.
+
+**Options considered:**
+- *No depth test for the sheets:* they'd be painted over the later passes' opaque models too (sky enemies, the ship),
+  as three.js draws translucent objects after all opaque ones and there is no per-pass order to put them in.
+- *One fixed, higher height for blended sheets:* the ground blocks reach 1.26, past `Background3Under` (1.25) and into
+  the sky enemies' (1.65) undersides, which hang about half a unit below their height (the Talon spans 2.82-3.79 round
+  its 3.3), so no single height clears both.
+
+Test: `tests/render/sheetLift.test.ts`. Captures: `tyrian-scratch/qa2-renderer/` (`before/`, `sheet-after/`,
+`sheet-after/cmp_*.png`: left before, right after).
+
+## D130 — Episode-1 fortress and machine enemies stand on the HD ground: no floor plate painted from the sprite (extends D86, D103)
+
+2026-11-10
+
+**Problem** (`tyrian-scratch/e1-qa-2/REPORT.md` issue 3): fourteen enemy scripts exported the sprite's ground round the
+machine as a floor plate painted pixel by pixel from the sprite (four grey tones from the stone set's greys, as
+`lib_b073.floor`, or DELIANI's blue tiles traced per pixel). In game it showed as a rectangle of raw grey (or blue)
+pixel cells under each machine, on top of the HD terrain: ASTEROID1's boss and pods, ASTEROID2's turrets and carts,
+ASTEROID?'s fortress row, DELIANI's pillar ends and vent block. Checked per candidate in the game's render
+(4K captures at ticks where each is on screen, found by stepping the harness and reading the draw list):
+
+| Script | Plate | Seen in | Done |
+|---|---|---|---|
+| `assembly-newshm-45` (ASTEROID1 boss) + `newshm-7` (its bay frames 7/9/11) | per-pixel stone | 1.1 t5966 | plate kept as the AO bake's occluder, deleted before export |
+| `assembly-newshd-245` (beetle pod pair) | per-pixel stone | 1.1 t2160/2950, 1.2 t1500 | not exported |
+| `assembly-newshs-13` ("26" block) | `lib_b073.floor` | 1.2 t9200 | not built |
+| `assembly-newshs-39` (black orb) | per-pixel stone | 1.1 t5300, 1.2 t2100, 1.3 t850 | not exported (the launch bay's pit and coaming stay) |
+| `newshd-267` (pink power housing) | per-pixel stone | 1.1 t2160/2950/4680, 1.2 t1305 | not exported |
+| `newshd-275` (caged turret) | per-pixel stone | 1.1 t2950, 1.2 t4500/5550, 1.3 t3310 | not exported |
+| `newshs-11` (green-window dome) | per-pixel stone | 1.1 t1900/4800/5300, 1.2 t1305 | not built; the flange's foot closed with a flat ring |
+| `newshs-229` (red crystal clamp) | per-pixel stone | 1.1 t4680, 1.2 t1305, 1.3 t3310 | not exported |
+| `newshd-127` (lamp pod) | per-pixel stone | 1.2 t2100, 1.3 t3310 | not built |
+| `newshs-191` (capsule rack) | per-pixel stone | 1.1 t2950, 1.3 t3310/3515 | not exported |
+| `assembly-newshc-283` (DELIANI twin pillar) | per-pixel blue tiles, ink-outlined | 1.5 t2560/3300 | AO occluder only, deleted before export; the outline shell made from the machine alone |
+| `newshc-39` (DELIANI vent block) | per-pixel blue tiles, in the shell | 1.5 t2560 | AO occluder only, deleted; left out of the shell |
+| `assembly-newsh2-115` (TYRIAN dome works) | none: D86 already drops its dirt | 1.9 t300/500 | unchanged. The QA's "dome plate" at 1.9 t300 is the machine's own modelled steel bed seen through the ice sheet (issue 9, D129); at t500, clear of it, it stands on the HD dirt |
+| `assembly-newshp-9` (derrick), `assembly-newshp-165` ("218" container) | modelled (kerbs, paving, grates; plain materials), not pixels | 1.1 t1900/4680, 1.2 t9200 | unchanged: a D65 base, no pixel cells |
+
+**Decision:** the machines stand on the HD ground, as D86's bunkers and D103's turrets. Where the script bakes AO
+(`newshm-45`, `newshc-283`, `newshc-39`) the plate is still built for the bake, as D86's dirt, so the feet darken where
+they meet the ground, and its faces are deleted before the cut and export (`newshc-*`: the floor's palette materials
+are flagged copies, `tyrian_floor`; the machine is culled and outlined on its own). Elsewhere the plate is left out of
+the export (kept for the scripts' review renders where they use it) or not built. Every machine part, palette
+material, frame, piece and pivot is as it was: no `spriteModels` entry changed. `lib_b073.floor` has no caller left;
+its docstring says it is for bake occluders only. `newshd-275.py` imported `common` from, and exported into, a
+hard-coded other worktree (`tyrian-worktrees/e1-enemies`); it now uses its own checkout.
+
+**IoU** against the object without its ground: ground = the sprite pixels whose top surface in the old model was the
+plate (top z ≤ 0.7 px on more than half the pixel); the sprite with those pixels made transparent is measured with
+`tools/sprite_mask.py` (`masks`, `measure`) against the new model's top view (any geometry, shell left out).
+`outer` keeps the machine's dark ring, `inner` is D74's rule (the ring left to the game's ink). Worst piece per unit:
+
+| Unit | ground px removed | outer grid IoU | inner grid IoU (rule) |
+|---|---|---|---|
+| assembly-newshm-45 (+ newshm-7) | 1740 | 1.0 | 0.888 (newshm-83) |
+| assembly-newshd-245 | 676 | 1.0 | 0.945 (newshd-281) |
+| assembly-newshs-13 | 772 | 0.902 (newshs-13) | 0.879 (newshs-91) |
+| assembly-newshs-39 | 2044 | 0.835 (newshs-79) | 0.651 (newshs-79) |
+| newshd-267 | 202 | 1.0 | 0.992 |
+| newshd-275 | 301 | 1.0 | 0.905 |
+| newshs-11 | 351 | 0.988 | 0.960 |
+| newshs-229 | 234 | 1.0 | 0.886 |
+| newshd-127 | 334 | 0.983 | 0.959 |
+| newshs-191 | 144 | 1.0 | 0.998 |
+| assembly-newshc-283 | 824 | 0.762 (newshc-245) | 0.892 (newshc-283) |
+| newshc-39 | 245 | 0.899 | 0.966 |
+
+The stone-set models were fitted with the whole tile opaque, so most cover the machine's dark ring (outer 1.0, inner
+lower); the DELIANI models were fitted to D74's inner mask (inner high, outer lower; `newshc-245` has no ground at
+all). The low values of `newshs-39` and `newshs-13` are machine parts below 0.7 px that the height rule counts as
+ground: the launch bay's pit floor and coaming (22-57 px per piece) and the gutters and ramp foot (23-61 px). No
+machine part moved; no plate face is left (`newshm-*`, `newshc-*` checked by palette in the exported glbs).
+
+Built with `tools/build-models.sh -j 2`; tests, typecheck, build pass. Captures, before and after, 3840x2160
+(`?debug=play&episode=1&main=M&seed=1&skip=T&freezeAt=T`): 1.1 t1900, 2160, 2950, 4680, 4800, 5300, 5966; 1.2 t1305,
+1500, 2100, 4500, 5550, 9200; 1.3 t700, 850, 3310, 3515; 1.5 t2560, 3300; 1.9 t300, 500, in
+`tyrian-scratch/no-floor-plates/` (`before/`, `after/`, `pairs/`, `crops/`; IoU in `iou/`).
+
+**Follow-ups (known):**
+- What the plate hid now shows where the terrain draws the machine or its wreck under the enemy (D86's problem, which
+  D86's cover rule solves only for TYRIAN's ground enemies on small wreck structures): ASTEROID? (1.3 t3310) shows a strip
+  of the `l1bld` red-bar structure under the capsule racks' front edge and a dark ring under the caged turrets; DELIANI
+  (1.5 t2560/3300) shows a sliver of the pillar end's red hatch, painted in the HD terrain, beside each pillar end
+  model. Small (about one sprite pixel), but a D86-style covered painting or cover rule for those tiles would remove it.
+- `newshs-229`'s jaw slots now show the ground down them (the sprite draws them near-black, "the floor far below"); a
+  modelled dark slot floor inside each jaw would match the sprite's depth if it reads too light.
+- The stone-set models cover their sprite's dark ring (see IoU): a D74 refit would put their edges on the inner mask.
+## D131 — A fireball's last rings fade out, so its last frame no longer leaves a red hollow square (extends D80, D106)
+
+2026-11-10
+
+**Problem** (`tyrian-scratch/e1-qa-2/REPORT.md` issue 10): a red hollow square was left where some explosions had been
+(1.5 t4050, 1.2 t3300 and t8111, 1.9 t300, 1.11 t4205). Found from the draw list: each is `newsh6.shp` 133, the last
+of the fireball's 12 frames (type 1, sprites 122-133, `explosionFrames.ts`), drawn as D80's flat art in
+`Pass.Explosions`. The original sprite is a sparse ring of dim red pixels whose sides run straight; the painting keeps
+that outline (its fit was the lowest of the sheet, 0.49, "mostly the floor") and D106's art shader drops texels under
+0.5 alpha, so it draws as a thin, crisp, dark-red octagon at the full explosion opacity: a hollow square, once the fire
+round it has gone. Not the stencil (D105/D106): a lone frame shows it.
+
+**Decision:** a fireball's flat art fades over its last three frames: opacity x0.8, x0.45, x0.15 (`flatExplosionFade`,
+`FIREBALL_TAIL`), so the ring dies out as the fire does and the last frame is a faint trace. Every other explosion frame
+(big explosions, smoke, sparks, hits, coin values) and the original look (`?sprites=original`) draw as before. The art
+is unchanged.
+
+**Options considered:** repainting frame 133 rounder and softer (a new cut of the D80 sheet, and still a crisp line
+under D106's alpha cut); dropping the frame (one tick of the original's ring gone, and the fire would end on a
+thicker ring).
+
+Test: `tests/render/explosionFade.test.ts`. Captures: `tyrian-scratch/qa2-renderer/` (`redbox-before/`,
+`redbox-after/`, `redbox-after/cmp_all.png`: left before, right after, one row per tick above).
+## D132 — Two flat-art fixes from the episode-1 QA sweep: the SOH JIN key's shadow, and SAVARA's cloud edge (extends D94, D107, D78)
+
+2026-11-10
+
+**Issue 11: the key sat on a black slab.** `tyrian.shp#10` 243 (a 2x2 object: 243, 244, 262, 263) is the SOH JIN key. The
+original sprite draws its own hard drop shadow in palette indices 160 and 161 (D94's notes, D114's note), and the cutter
+(`flat_art.py cut_sheet`) took the alpha from every non-transparent pixel, shadow included, so Gemini's painting of the
+key got a black offset silhouette. *Fix:* a new inventory cell field `"shadow": {"indices": [160, 161], "strength": 0.4,
+"sigma": 5}`: those pixels leave the silhouette (the key's own alpha, `smooth_alpha`), and where they were a soft shadow
+(the shadow mask blurred 5 texels, at 40% alpha, colour black, `shadow_alpha`) stays behind the key. Only the key's four
+frames changed: re-cut from the saved Gemini answer (`e1-pickups-10-2`, no new request) with `cut --merge`, so the
+manifest is unchanged and the one atlas `tyrian-shp-10.webp` is re-encoded (every kept frame goes through WebP again,
+as in any merge).
+
+**Issue 12: SAVARA's layer-2 clouds drew like stickers.** Not the alpha (the cut had already given layers 1-2 D78's
+smoothed contour): `terrainMaterial` drew the "cutout" kind (background 3, and an opaque background 2) with
+`if (cover < 0.5) discard`, so whatever soft edge the atlas had was cut off into a hard, anti-alias-free line. The C
+draws background 3 opaque (`draw_background_3` blits, no blend: only `draw_background_2_blend` blends), so the clouds
+stay opaque inside; only the edge changes. *Fix:*
+- **Shader.** "Cutout" tiles are drawn translucent with alpha = the art's coverage (discard under 0.004) but still write
+  depth, so models and sprites over them order as before; their shadow pass still cuts at one half. They draw before
+  every other translucent draw (`CUTOUT_ORDER` -2; blend sheets and the flat sprite art are at -1: with the clouds at
+  the default 0 the ring of an explosion over a pickup was painted over). This applies to every tileset's cutout tiles:
+  those whose alpha is D58's or D78's short ramp (+-2 texels at 8x) gain only an anti-aliased edge.
+- **Atlas.** `terrain_hd.py realpha` takes `--layers`, `--alpha-smooth`, `--alpha-ramp` and `--rim-inset`;
+  `shapesy` layer 2 was redone with `--layers 2 --alpha-ramp 14 --rim-inset 12` (smoothing stays D78's 8 texels,
+  the contour does not move; alpha goes 0 to 1 over +-14 texels, under two original pixels). `--rim-inset` bleeds the
+  colour of the cloud's interior (12 texels in from the old edge, tile borders counting as inside) outwards over the
+  edge band, so the original's dark outline colour that D78 kept doesn't ring a wide soft edge. Tried first: smoothing 20
+  with ramp 20, which rounded away the small peaks (the original's shape wins), and ramp 8 alone, which the discard
+  made no softer.
+- Layer 1 (`1.webp`) and the other tilesets' atlases are untouched.
+
+**Checked** in game (`?debug=play&episode=1&main=<section>&seed=1&skip=T&freezeAt=T`, 1920x1080), before/after in
+`tyrian-scratch/qa2-flat/cap/`: SAVARA sections 10 (1.12; t300, t1050, t1800), 29 (1.8; t300, t1050, t1800) and 38 (1.17;
+t300); SOH JIN section 31 (t4446). The explosion ring over a pickup on a cloud (1.12 t300) draws over the cloud.
+Not checked: other tilesets' cutout tiles in game (only their atlas alpha decides what changes); `&dpr` lower.
+Tests: `tests/tools`, `tests/render/terrainArt`, `spriteArt` pass. Fallback: `git checkout` the two atlases and revert the shader.
+
+## D133 — A model's shadow falls as it would at the camera's aim point, so it stays by its caster at the screen's edges (extends D6)
+
+2026-11-10
+
+**Problem** (`tyrian-scratch/e1-qa-2/REPORT.md` issue 15): the ship's shadow detached at the screen's edges (1.1 and 1.2
+t1050: the ship at the bottom left, its shadow well off to its right). D6 lifts a draw along its camera ray, so a
+model at height h over screen point G sits at G + (C - G)·h/C.y (C the camera): off the middle of the screen it is nearer
+the middle than it looks, and its shadow, cast from there, drifts toward the middle with it. The one sun (`view.ts`)
+cancels that drift only near the middle, and it grows with the height (the player flies at 3.3).
+
+**Decision:** every model clone's shadow is drawn shifted by (G - A)·h/C.y in x and z, A being where the camera's view
+meets the ground, so it falls as it would for the model at the aim point: the same offset from its caster anywhere on
+screen. The shift is a per-clone uniform (`uShadowShift`, with the clone's damage uniforms, which every clone has since
+D91): the clone's shadow depth material (D87's `damageDepthMaterial`) draws it shifted, and the clone's own lit
+materials look shadows up at the shifted position too, so its shadow on itself (wings on hull) stays where it was.
+Ground enemies (0.45) move by about a seventh of the ship's shift; structures, sprites and terrain are unchanged. `?damage=off`
+(no per-clone materials) keeps the old shadows.
+
+**Options considered:** a shadow-only proxy clone per model in its own layer (twice the clones, and its shadow on the
+real model would land off it); a spot light at the camera for shadows (changes every shadow and the lighting, and
+needs its own tuning).
+
+Test: `tests/render/damageShader.test.ts` (shadow shift). Captures: `tyrian-scratch/qa2-renderer/` (`shadow-before/`,
+`shadow-after/`, `shadow-after/cmp_*.jpg`, `cmp_ship_crops.png`: left before, right after; 1.1 t1050, t300, t1800, 1.2
+t1050, 1.9 t1050).
+
+## D134 — DELIANI's girder track and purple hull are tile models: two modular kits, one model per tile built in context (extends D34, D47, D83, D65)
+
+2026-11-10
+
+**Problem** (`tyrian-scratch/e1-qa-2/REPORT.md` issue 5): on 1-5 DELIANI the rails and the right-hand wall drew the
+original pixel tiles: shapesz 586, 587, 589 on layer 1 and 560, 575 on layer 2 in the sweep's frames (one every 750
+ticks). D83 had sorted them as *structure, to model*, and no model existed. A run of every tick of 1-5 (the test bot,
+seed 1) shows the whole of both kits drawn as original pixels: 12 layer-1 tiles until tick ~3730 and 41 layer-2 tiles
+until ~2374. The same map is 3-11 New Deli, and 4-1 HARVEST uses the layer-2 kit (with 580).
+
+**What they are.**
+- *Layer 1* (background 2, drawn over the ground enemies, `Background2Mid`): an elevated steel girder track, a lattice
+  deck with rows of windows through which the ground shows, between two box rails along its closed sides. The pieces
+  are straights (586 vertical, 587 horizontal), corners (588, 589, 578, 579), tees (596-599) and crossings (576, 577).
+- *Layer 2* (background 3, drawn over the player here, `Background3Over`): blocks of purple brick deck plating (575),
+  each edged by a thick bumper tube, purple with a grey clamp ring every tile. The tube runs as straight rims (551 top,
+  571 bottom, 560 left, 562 right) and turns in elbows (outer corners 550, 552, 570, 572; inner corners 553, 554, 563,
+  564, where a block's rim turns into an arm's).
+  - Set into the deck: a vent grille with open slots (574), blue panels (561, 573), a blue machine with red lights
+    beside the rim (582, 583) and, on HARVEST, a steel panel (580).
+  - A cross tube of deck plating bridges two blocks (595; its ends 593, 594 at the rims).
+  - Spring assemblies (555-559, 565-569, 290-304): two segmented beams linked by curved arms.
+
+**Decision:** one model per tile (a one-tile pattern each, D34): 54 models from two scripts,
+`assets/blender/tiles/delbld_girders.py` (12) and `delbld_hull.py` (42), on a shared kit `lib_delbld.py`.
+- *Built in context.* Each tile is built in a 3x3 block, with the neighbour the maps use most on each side it opens to.
+  The whole block is bevelled and baked; only the centre is kept. A bevel or an occlusion gradient never stops at a
+  tile edge, so copies meet edge to edge as the art does. Spring tiles meet several different tiles on one side (555
+  sits under both 565 and 567), so their block is their own edge pixels carried outward.
+- *Girders* (from the 1x pixels):
+  - the deck plate (z -0.12..0) is the tile's opaque pixels, the windows its transparent ones;
+  - rails 0.22 high with 0.05 bevels run along the closed sides (an edge row or column all ink): rows 1-4 / 23-26,
+    columns 1-3 / 20-22. Where two open sides meet, an L of rail joins the branches' rails;
+  - the ink ring round each window, and the girder's outer ink line, are a lip 0.09 down: the window's recess. In game
+    the step and its occlusion stayed as light as the deck, so the lip's top takes steel index 96, the ramp's
+    darkest, where the art's ring is the near-black 1. This is a judgement call against art rule 2 (D53: judged in
+    game, `cmp_girder.png`).
+- *Hull* (2x MMPX pixels; a height field over the tile's opaque pixels, smooth-shaded tubes, flat-shaded deck):
+  - tubes are analytic primitives per tile (straight lines, elliptic elbows) with a half-ellipse section 0.26 high:
+    the horizontal rims fill the tile's 28 rows, the vertical ones 19-20 of its 24 columns;
+  - each ring of a tube is a grey clamp (0.03 proud) or a purple segment, by the majority of the ring's pixels, so the
+    art's shading doesn't speckle it; the elbows' thin ink lines are grooves (their ribs);
+  - the deck's plates stand 0.025 proud, split along the art's seam lines (indices 80-86), and the cross tube carries
+    the same plates;
+  - grey brackets on the deck stand 0.05 proud, the grille's bars stand proud with its slots left open, the panels are
+    sunk, and the machine is a raised block whose red lights glow;
+  - springs have no primitives (their arms are drawn in perspective): they are the art's regions between its ink
+    lines, each standing by its smoothed brightness with rounded edges, so a thin arm is a round bar and a block a box.
+- *Colours:* one palette index per part, the median of its pixels with the darkest and brightest 15% dropped. A
+  spring's plates are each a part (one shade made its dark blocks and light arms one flat colour), snapped within
+  their ramp to one set of shades for every spring tile, so a plate split by a tile edge meets in one shade. The
+  materials are satin (metallic 0.12-0.2): metal darkens the diffuse, and at 0.3-0.65 the rails and clamps read
+  black.
+- *Texture (D65):* an occlusion and roughness/metalness bake only, no concept projection, marked
+  `"bake": "model"` in `assets/blender/textures/delbld_*/maps.json`.
+  - The girders use `usp_talon.bake_maps` (Cycles), with the block's other cells in the scene as occluders.
+  - The hull's occlusion comes from its height field (`lib_delbld.field_bake`: horizon occlusion at two radii over
+    the whole block, the same formulas, a top-view UV). Cycles' occlusion rays leaving a finely tessellated
+    smooth-shaded surface caught its own facets and painted dark triangles over the elbows and the cross tube, and
+    neither flat-shading the bake nor dropping the edge lift removed them.
+
+**Measured:**
+- Top-view IoU of each model's top faces against its tile's opaque pixels (4x sampling) is at least 0.9906 for all 54
+  (the worst are the outer elbows 552, 570, 572 and 550: the 2x art against the 1x mask); the median is 1.0.
+- Size: 54 models, 6.3 MB (girders 1.1 MB), 460-6,000 triangles each (15k for the girders, 175k for the hull).
+  DELIANI preloads them all.
+- Original tiles drawn (`drawOriginalTile` calls in the capture probe):
+  - 0 in 1-5 at t200, t300, t650, t1350, t1800, t2100 and t2550, in 3-11 at t300 and t650, and in 4-1 at t800;
+  - before this: 587, 560 and 575 at t300, 586 at t1800, 587 and 589 at t2550.
+  - In 3-11, layer 1 is drawn blended, so it stays a translucent upscaled sheet (D45), as before; models are opaque.
+- Tests: typecheck, vitest and build pass. `remaster.test.ts`'s minRows scan timed out once at 60 s on a machine at
+  load ~35; it took 22-57 s alone (32 s on main). It doesn't read these entries (none has minRows).
+
+**Options considered:**
+- *Whole-structure models per hull block (D47):* the blocks come in many sizes and arm layouts, built from the same
+  dozen pieces. One model per piece covers them all and joins seamlessly.
+- *HD paintings for the deck (D57) with modelled rims:* D83 keeps plating for models, and a painted deck beside
+  modelled tubes mixes two looks on one object.
+- *Luminance relief for everything (D34's carving):* reads as pixels. It is kept only for the springs, as plates.
+- *Edge-replicated context for every tile:* the analytic tubes need their real neighbours to meet across a seam.
+
+**Known gaps:**
+- The springs are the weakest: blocky plates, flat arms.
+- The elbows are plain beside the art's radial detail.
+- The cross tube shows faint lines at its tile edges.
+- On HARVEST, 553/554 under a block (with 143 and 575 above) are drawn as elbows, drapes where the art shows a
+  machine's lower edge. A 2x2 whole-structure model was tried and dropped, as it never matched that layout.
+- 3-5 BONUS draws 550-575 on layer 1 with HD paintings reused from layer 0 (D83) and is left as it is.
+- The inventory and MILESTONES tables are not regenerated.
+
+**Review:** `tyrian-scratch/deliani-rails/`:
+- `sheets/<level>_t<tick>.jpg`: original tiles (`&bg=original`) | before (main) | after | after with
+  `&terrain=original`;
+- `shots/` and `json/` (the probe's original-tile counts per capture);
+- `iou.json.txt`; `cmp_*.png` (the iterations).
+Rebuild: `tools/build-models.sh -j 2 assets/blender/tiles/delbld_girders.py assets/blender/tiles/delbld_hull.py`.
+
+## D135 — Screen filters at HD: continuous waves, flat art in the mask, no exempt specks in the water (extends D31)
+
+2026-11-10
+
+From `tyrian-scratch/e1-qa-2/REPORT.md` issue 2: the lava filter on ASSASSIN (1.16) and the water filter on SAVARA V
+(1.17) cut the HD scene into pixel staircases, and SAVARA V's water had black specks. Read against `backgrnd.c`
+(`lava_filter`, `water_filter`) and `tyrian2.c` L1190-1292 first; nothing changes in which passes each filter covers,
+its hues (`screenHue.ts`) or the HD colour paths (D95, D111, D114).
+- **Cause 1, the waves.** The post pass (D31) used the C's wave tables as they are: `abs(((diw >> 9) & 15) - 8) - 1`
+  (lava, -1..7 px) and `abs(((diw >> 10) & 7) - 4) - 1` (water, -1..3 px), with diw from the integer row and 8-pixel
+  chunk. At 320x200 that's a wobble; at output resolution each step is 5-11 screen pixels, so every edge of the
+  painted terrain became a staircase. Now each wave is a sine through the same extremes and period (8192 diw: 25.6
+  rows), evaluated at the pixel's continuous game_screen position (`waveAt`, `LAVA_WAVE`, `WATER_WAVE`; the shift
+  stays in the 320-wide units, so it scales with the output). The water's ripple keeps the C's whole-row taps: taps
+  half a row apart (tried) turned the HD jungle and the original art into diagonal streaks the C doesn't draw.
+- **Cause 2, the flat art wasn't in the mask.** The mask pass drew every object with one override material that reads
+  `position` and `instanceMatrix`; the flat sprite art (D42) places its quads from its own instance attributes, so it
+  wasn't in the mask at all and every filter treated it as ground. That's the zig-zag (staircase) beam and wobbling
+  flames on ASSASSIN, which the C draws after its filters. The mask now draws the flat-art batches again with their
+  quad, texel cut-out and pass height (`ART_MASK_*`, on a camera layer for the moment). With `&sprites=original`
+  the beam was already straight.
+- **Lava's history, per frame.** The temporal lava read the previous frame shifted by the whole wave every display
+  frame, so its smear grew with the frame rate (about 3x the wave at 60 fps, 5.5x at 120; the C averages 2x). It now moves
+  `t` of the wave and `sqrt(t)` of a row per frame, `t` the frame's share of a tick (from the blend weight): about 2.2-2.4x
+  at any rate.
+- **The black specks were not the `below()` fallback.** A debug probe (non-water pixels magenta, fallback taps green,
+  water pixels whose next row isn't water yellow) at 1.17 t8311: no fallback hits on the terrain (they only happen
+  next to sprites drawn above the filter, and return the pixel's own value, never black). The specks are water_filter's
+  exemption: the painting's darkest texels are near-grey, so D114's test gives them the grey bank, which the water
+  leaves alone, and the ripple darkens the row above each. In the jungle window: 4.0% exempt (original art 2.0%, at
+  the same shore edges), 3.0% darkened (1.4%). The C decides per original pixel; the HD texels are smaller. So a
+  non-water pixel with water at 3 of 4 points a third of an original pixel round it counts as water, with their
+  colour as its hue (and so does such a tap in the ripple). Exempt areas an original pixel or more across (grey
+  bricks, the shore's dark rim, which the original has too) stay exempt; D114's bank test is unchanged.
+
+**Checked** (`?debug=play&episode=1&main=N&seed=1&skip=T&freezeAt=T`, before / after, and `&terrain=original&sprites=original`):
+1.16 t2550, t4918 (also 4K), t4918-4921; 1.17 t8311 (also 4K), t8311-8314; 1.8 t3300; 1.12 t4800. Over consecutive ticks
+(separate frozen runs) the wave stays put on the screen and the ground moves through it without steps. Sheets and probes:
+`tyrian-scratch/hd-filters/` (`sheets/`, `probe/`, `exp/`). ASSASSIN's dark wedge is `showHeadlight`, unchanged.
+Not checked: performance on a slow GPU (the water adds up to 4 taps per non-water pixel), episode-4 LAVA RUN, CORE.
+
+## D136 — DELIANI's girders and hull, polished: bright rounded rails, a crisp lattice, chunky clamps and carved plating (extends D134, D53, D65)
+
+2026-11-10
+
+**Problem** (coordinator review of D134, `tyrian-scratch/deliani-rails/sheets/1.19_t300.jpg`):
+- The girder track read darker, flatter and lower in contrast than the original tiles in game: its two box
+  rails barely showed and the window lattice was a muddy grid.
+- The purple hull's rim read as a striped pipe: a smooth tube with flat grey bands, where the art has
+  chunky grey clamp brackets every tile and plated, greek-key carved segments.
+
+**Measured first** (tilted camera, 1-5 at tick 300 and 4-1 at tick 800; each region's pixels found by
+projecting the tile grid onto the capture, `tyrian-scratch/deliani-polish/tools/measure3.py`): the bodies'
+values were right (rim purple 69 against 70, deck 93 against 95, girder bars 71 against 78), the contrast
+was not. The art's ink and seams were as light as the parts round them: the clamps' ink 95 against 46, the
+rim's ink 70 against 26, HARVEST's purple ink 93 against 38, the deck's seams 91 against 74, and the
+rail band had no bright line (90th percentile 80 against 102). The game's sun shines from the camera's
+side, into every groove and onto every wall facing the camera, so a recess's occlusion alone never
+darkens it as the art's ink. The "~25% brighter rim" was this missing dark, not a lighter body.
+
+**Decision:**
+- *Girders* (`delbld_girders.py`):
+  - the rails are box beams built from rectangles (merged through the block), their top edges rounded
+    (0.11, smooth shaded) so the art's bright rail line is sheen on the rounding, notched at the art's
+    rail joints (columns 11|12 of a horizontal rail, rows 13-15 of a vertical one);
+  - the rails take the deck's steel index (102): their own median (100, the art drawing a rail as one bright
+    line over darker rows) left them dark bars in game;
+  - the window lip is shallow (0.035 below the deck, was 0.09), so at the tilted camera the near bar hides
+    none of the ring, and the recess's walls take the lip's dark matte steel (96), the deck's window edges
+    a rounded bevel in steel. D134's dark-lip exception is kept and extended to the walls: without it the
+    lit walls were the muddiness.
+- *Hull* (`delbld_hull.py`):
+  - clamps are chunky brackets: a squarer section 0.05 proud of the tube with eased ends, coloured from the
+    clamp's face (the inner half of the tube); their big ink-dark areas are housings sunk 0.07 in their
+    own shade (the art's index there), the slats across them standing between grooves; a clamp's foot on
+    the deck is a rounded block 0.11 high;
+  - on every tube the long thin ink lines (slats, outlines, greek keys, the elbows' ribs: pieces of at
+    least 10 2x pixels, so specks stay smooth) are grooves 0.06 deep, and the purple segments' big dark
+    areas shallow recesses, both floored in the art's ink shade of their ramp;
+  - the deck's plates stand 0.03 proud between seams 0.02 deep, the seams found as the darker purple
+    pixels darker than the plating round them (so a crossing is a seam and a whole darker plate stays a
+    plate), floored in the art's seam shade.
+  - These are the same judgement as D134's window lip: a groove or recess the art draws in ink takes that
+    ink's palette index (art rule 1, the region's colour), because in this lighting its occlusion cannot.
+    Highlights stay sheen: no part takes a lighter index than its median.
+- `DELBLD_DEBUG=<dir>` saves a hull block's height field and parts as `.npz`, for looking at what the art
+  became.
+
+**Measured:**
+- 1-5 t300, rail bands (two crops): mean 66 / 62 (original tiles 64 / 66, before 64 / 60), median 70 / 55
+  (61 / 52; 68 / 55), 90th percentile 98 / 95 (102 / 103; 80 / 81). Wall: clamp 89, clamp ink 68 (46; 95),
+  rim 63, rim ink 50 (26; 70), deck 83 (95; 93).
+- 4-1 t800, hull: grey 85 (99; 82), grey ink 57 (48; 87), purple 74 (85; 81), purple ink 58 (38; 93).
+- Top-view IoU at least 0.9906 for all 54 tiles (unchanged; the outer elbows), median 1.0.
+- Size: 54 models, 7.1 MB (was 6.6 MB): girders 1.06 MB (1.09), hull 6.05 MB (5.50; the carving's
+  vertices and material splits). No original tile drawn at any checked tick.
+
+**Options considered:**
+- *Grooves by occlusion only* (art rule 2 strictly): measured above; the sun lights them.
+- *Dark rail walls toward the trench between tracks*: the rail band went darker than the original's
+  (median 46 against 61).
+- *Each deck plate its own median index*: the seams didn't close, so the plates merged into one region
+  and the deck went a shade darker; the seam floors give the brick look instead.
+- *Dark seams on the purple segments*: read as scattered dashes; they stay grooves only.
+- *Bevelled deck plates*: +40% hull size for no visible gain; dropped.
+
+**Not done:** the springs (still blocky plates) and HARVEST's 553/554 drape are as D134 left them; the
+elbows gain only the ink-floored rib grooves.
+
+**Review:** `tyrian-scratch/deliani-polish/`: `sheets/<level>_t<tick>.jpg` (original tiles | before |
+after | after with `&terrain=original`), `crops/4k_*.jpg` (rails and wall at 1-5 t300, the hull at 4-1 t800,
+3840x2160), `iou.json.txt`, `tools/measure3.py`.
+
+## D137 — SAVARA's sea is painted as one large patch, not one tile repeated: `fields` in the terrain manifest (extends D57, D83, D95, D135)
+
+2026-11-10
+
+From `tyrian-scratch/e1-qa-2/REPORT.md` issue 6: SAVARA's water (`shapesy` layer 0; 1.8, 1.12, 1.17, 3.10, 4.3) read pixel-stepped and visibly tiled over
+50-90% of the screen.
+- **Cause: the repeat, not the seams.** The map fills a sea with one tile: tile 16 or 24 are 9,275 of the 12,679 water cells over the six maps
+  (1.8's open water is one 16 for 30 rows), the other 20 water tiles are the same waves at other brightnesses (12 of them pure water: high-pass
+  correlation 0.94-0.99 with 16) or shores. D95's one painting per tile therefore repeated every 24x28 px, 13 times across the field, and its
+  edges carried the original's pixel steps. D95's seams (0.563) were fine; nothing in the cut could make a painting that isn't there.
+- **Decision.** One Gemini request paints a 7x6-tile patch of tile 16 (168x168 original px, 1:1; a softened, brightened sheet, prompt "open sea
+  seen straight down, soft wave pattern, no pixel blocks, irregular swells, no motif repeated"); `terrain_hd.py fieldsheet` / `fieldcut` cut it into 42
+  sub-tiles per tile. The cell at map column c, row r draws sub-tile `(r % 6) * 7 + c % 7` (`fields` in the manifest, `TerrainTileset.resolve`; the map
+  decides, so a harness without a map still draws the plain tile). Coprime sides: the repeat is 7 tiles across, 6 down, not 1.
+- **Cut.** The answer is made seamless by a cross-fade with itself rolled by half, one axis at a time (rolling both at once leaves a visible line at the
+  centre), colour-matched to the original tile by histogram (the original's palette, not Gemini's), deblocked if needed (1.01: not). The 13 other
+  pure-water tiles (24, 6, 26, 5, 8, 9, 15, 17, 18, 19, 25, 27, 7) are the same patch plus the original difference between the two tiles, blurred 1.5 px
+  (no pixel steps), so each keeps its own shade, gradient and place in the map. Mixed tiles (shore, structure bits; 321, 322, 361...) keep their D95
+  paintings. The seam solve (D83) runs with the sub-tiles as virtual tiles chosen by the same column and row over every level's map, all other atlas tiles
+  held, `--edge-aware`: 588 sub-tiles, `0-fields.webp` and `0-fields-2.webp` (323 + 265 tiles, 1.07 + 0.89 MB).
+- **Seams** (`fieldcut`'s own check, six maps; step across edges over step inside tiles, water as virtual tiles with every other tile): texel ratio 0.496
+  (continuous 0.496), bands 0.515, against 0.563 for D95's whole ground. `check` itself doesn't know fields yet (it reads one tile per number).
+- **Gemini:** 1 request, no retries, no usage warning. The answer came back 2048x2048, soft, irregular, no blocks (blockiness 1.01, pixel period 1.00).
+- **Checked** in game with the water filter on (D135) against origin/main, `?debug=play&episode=1&main=<section>&seed=1&skip=T&freezeAt=T`: 1.8 t3300
+  (section 29), 1.12 t3300 (10), 1.17 t4800 (38), and a 4K crop of 1.8. The open sea is continuous with no visible repeat or stepped edges; the coast band
+  that was stepped is now smooth too. The 4K crop shows the filter's colour banding (the water filter maps colours onto its hue ramp), not tiles.
+  Not checked: 3.10, 4.3 (same tiles), the seams at `&dpr=0.3`, memory on a small GPU (the two atlases add ~150 MB of mipped texture on SAVARA levels).
+- **Options considered:** *Neighbour variants (D57):* the sea's neighbours are all the same tile, so they can't tell cells apart. *Re-sending the region
+  sheets (D95's 07 and 13):* the same one tile per cell, so the repeat stays. *Fewer families (alias 8, 9, 18, 19 to 16 and so on):* one atlas fewer, but
+  tile-sized steps in the brightness gradients; do it if the memory matters. `cut` with a full re-cut of layer 0 drops the `fields` entry: run `fieldcut` again.
+
+## D138 — SAVARA's sea fields share one set of sub-tiles; the other water tiles are a colour offset the shader adds (extends D137, D57, D7)
+
+2026-11-11
+
+D137's two field atlases (`0-fields.webp` 3968x4096 and `0-fields-2.webp` 3760x3616; 588 sub-tiles) added about 159 MB of mipmapped RGBA on the GPU on SAVARA levels (4 bytes x 1.333 for mips), on top of ~60 MB for the rest of `shapesy`; a risk on phones (D98, D100, D102).
+- **Not a density problem.** The fields were cut at the same 8 texels per original pixel as `0.webp` and every other HD atlas (`SCALE = 8`, rects 192x224; measured from the committed manifests: every rect in `shapesy`, `shapesz`, `shapesx` and the fields is 192x224 for a 24x28 tile). They cost so much because there are 588 of them: 14 tile numbers x 42 sub-tiles, against 108 tiles in `0.webp`. So the lever is the count, not a scale: no lower scale was used (it would soften the sea at 4K against the rest of the tileset).
+- **Decision.** The 13 other pure-water tiles are D137's own definition ("the same patch plus the original difference between the two tiles, blurred") with the sum done on the GPU. `fieldcut` still bakes every family and solves the seams over the six maps (D83) as before; then it keeps only family 0's 42 sub-tiles and, per other sub-tile, the *difference* from the family-0 sub-tile at the same position (its own colours, its blurred gradient and its solved edge strips), averaged to 2 texels per original pixel (`--tint-scale`, must divide 8) and stored as bytes in the same atlas image, in a block below the sub-tiles (the sub-tiles' 16-texel gutter separates them; tints are read at mip 0 only). The manifest lists per aliased field `"tintScale": 2` and `"tints": [{x, y}...]`, one per rect (`terrainArt.ts`, `TERRAIN_TINT_SCALE`); a field whose tints are malformed is skipped (the plain tile draws).
+- **Encoding.** The atlas is sampled as sRGB, so the byte stored is the one whose decoded *linear* value is `(offset + 128) / 255`; bilinear filtering then averages offsets linearly, and the shader adds the offset in sRGB (`terrainLinear(terrainSrgb(painted) + offset)`), before the palette and water filter, as the bake did. The atlas is lossless (the sRGB-coded offset turns a one-byte error into 1.4 levels; lossy coding left 2 levels of error and seams of 0.84).
+- **Plumbing.** HD terrain pools carry `instTile4` (rect origin, tint origin; x < 0: none) in place of `instTile`; the colour and shadow materials read it. Other tile pools are unchanged.
+- **Result** (`shapesy`): one image `0-fields.webp`, 1472x2656, 0.91 MB (was 1.96 MB in two images): ~20.9 MB on the GPU, down from ~159 MB (-138 MB). Fields shown vs the solved tiles: mean error 0.28 levels (worst tile 0.37). Seams over the six maps (`fieldcut`'s own check, on what the game shows): texel ratio 0.517 (continuous 0.516), bands 0.517; D137's baked 0.496 / 0.515, D95's 0.563. 1.8 t3300 at 1920x1080 and 3840x2160 against before: p99 pixel difference 4 and 6 levels (only the debug text line differs by more than 20); looks the same. Not checked: 1.12, 3.10, 4.3 before/after pairs (1.17 t4800 looked right after), a device with a small GPU. `check` still doesn't know `fields` (it reads one tile per number; not changed).
+- **Options considered:** *A flat offset per tile (no image):* the brightness gradients inside each tile would be lost (D137's objection to aliasing). *Tint at 8 texels:* 6x the atlas for no visible gain (error 0.29 vs 0.28 levels). *Tint at 1 texel:* seams 0.905 lossy, edge strips too coarse. *Fewer tile families by aliasing to 16/24:* tile-sized steps. `fieldcut --no-alias` keeps the D137 baked layout.
+## D139 — What D130's floor plates hid: ASTEROID?'s band lights hide per cell under their enemies, DELIANI's machine tiles get covered paintings (extends D86, D130)
+
+2026-11-11
+
+**Problem** (D130's known follow-up): with the floor plates gone, about a sprite pixel of what the plate hid showed round
+some ground enemies. Found by stepping the harness and reading the draw list, then capturing with the structure models
+hidden and in `&terrain=original`:
+- **1.3 ASTEROID? (t3310):** not the `l1bld-red-bar` structure but `l1bld-ring-dome` (map rows 154-160; `structures-1` is not
+  rebuilding it). Its light band (pattern row 1, cols 2-7: 347 red panels, 339 triple tubes, 358 gun turrets) is modelled
+  as the building's own lights, under ENEMY_MAX, so they show once the six enemies on it (newshs-229/191 frames, newshd-275)
+  die. The 339 hatch's red frame and lit trough run to the cell's bottom edge (py 56), 3-4 px past the capsule rack's model,
+  and the 358 turret's dark base ring (10.5 px) and barrel reach past the caged turret's: the red strip and the dark ring.
+  The HD terrain under the structure is not involved (the deck hides it). D86's cover rule leaves a whole ground structure
+  out only when enemies cover all of it, so it never applied here. At t3515 (`l1bld-light-bridge`) nothing shows: its strip
+  frame is grey metal and stays under the racks.
+- **1.5 DELIANI (t2560, t3300):** no structure. The pillar ends (newshc-55) stand on tile 585 and the twin pillar's base
+  (newshc-283/267) on 584, plain floor tiles with a grey machine and red hatches painted on them; the HD painting (and the
+  pixels) of that machine showed beside the models. A level scan (every tick, layer-0 tiles under ground-enemy sprites)
+  also finds 580 (newshc-1), 581 (vent block) and 590 (newshu-79) with machine art, but their models cover it.
+
+**Decision:**
+- **Cover parts, per cell, for structures** (`structureInstances.ts`, `drawListRenderer.ts`): a structure model's node may
+  carry glTF extras `tyrian_cell: [row, col]` and `tyrian_when: "open" | "covered"`. Each copy draws an "open" part only
+  while no ground enemy covers that cell of its pattern, and a "covered" part only while one does (D86's `OpaqueCover`
+  test on the cell's 24x28 rect). Parts now keep their own instance counts. Untagged models draw as before.
+- **ring-dome** (`l1bld_ring_dome.py`): the six band cells' lights are built into their own objects (`open`), each with a
+  plain paving lid over its stretch of the trough, flush with the deck (`covered`; material `pave` with `plain=True`, so
+  the concept bake doesn't paint the lights onto it). While the enemies stand there the band reads as plain paving round
+  them, as the sprites' floor did; a cell's light comes back the frame its enemy dies (checked by taking the racks out of
+  the cover test). The script's dome neutralising now runs once (`"dome_neutralised"` in maps.json; concept_maps.py
+  drops it): each rebuild re-blurred the dome's edge in detail.png/height.png (up to 19 levels). Rebuilt and re-baked;
+  away from the band the deck differs only by bake noise.
+- **Covered paintings for any tile** (`drawListRenderer.ts`, `terrainArt.ts` `hasCovered`): in the HD look, a ground tile
+  whose tileset lists a covered painting is drawn after the frame's draws, like D86's wreck cells, and from that painting
+  while an enemy covers it. Without one, or in the pixel looks, it draws as before (no `paintOutWreck` for these).
+- **584, 585** (`tools/terrain_covered.py`, set `deliani`): one Gemini request (a 16:9 sheet, each tile with a ring of
+  neighbours chosen without other machines; registered NCC 0.962/0.971), the machine and its shadow painted out to the
+  floor over its non-floor pixels (palette 48, 96-109 are floor) grown 3 px, in its own atlas `0-covered-deliani.webp`
+  (2 tiles, 7 KB); `cut --set deliani` recomposes only that atlas. The tool also reads a tile from its own atlas image
+  (`0-2.webp`) now; it used `0.webp` for every tile.
+
+**Options considered:** for 1.3, shrinking the band lights to fit inside the live enemies' models (the lights would no
+longer match the tiles once the enemies die) or giving the enemies a foot to the cell's edge (a plate again, and on 1.1/1.2
+they stand on plain ground); hiding the lights without a lid (the dark trough showed instead). For 1.5, a cover rule
+dropping the tile (a hole in the floor) or a procedural fill (no plain tile matches the floor round the machine).
+
+**Not changed:** the pixel looks (`&terrain=original`, `&bg=original`) still show DELIANI's machines' pixels and, with
+`bg=original`, ASTEROID?'s tile pixels round the enemies, as after D130. Orb sockets (357) stay in the shared parts: the
+lamp pods cover them.
+
+Tests: `rockMaterial.test.ts` (cover parts per copy), `terrainArt.test.ts` (`hasCovered`), `opaqueCover.test.ts` (584/585
+painted). Captures (3840x2160, before = main, after = this): `tyrian-scratch/cover-slivers/` `before/`, `after/`,
+`pairs/` (1.3 t3310, t3515; 1.5 t2560, t3300), `crops/` (`1.3_t3310_band.png`, `1.5_t2560_pillar_ends.png`,
+`1.5_t2560_crane_base.png`: top before, bottom after), `work/13_deadcmp.png` (bottom: the racks left out of the cover
+test, their lights back).
+
+## D140 — DELIANI's gun emplacement (assembly-newshu-79) rebuilt as a working emplacement, not a pile of boxes (extends D52, D65, D53)
+
+2026-11-11
+
+**Problem** (QA2 issue 7, `tyrian-scratch/e1-qa-2/REPORT.md`): `assembly-newshu-79` (pieces newshu-1, 3, 5, 39, 41, 43,
+79) read as a pile of boxes in the game's render.
+
+**Identity:** a fixed working gun emplacement: a gun house with sloped armour on a collar; a barrel through a banded
+mantlet into the purple muzzle shell; an armoured feed trunk to the power turret; casemate fittings sunk into the roof.
+
+**Changed:** `assets/blender/enemies/assembly-newshu-79.py` and the seven GLBs `public/models/enemies/newshu-{1,3,5,39,41,43,79}.glb`.
+The sprite's outline, feature placement and palette indices still win (rule 1); the game contract (`pal_<index>`
+materials, pieces and pivots, export paths) is unchanged.
+
+**Measured:** rule-grid top-view IoU 0.9743 whole; worst piece newshu-41 at 0.9616; every piece at least 0.95. The final
+strict review shipped it at 7/10. Sheet: `tyrian-scratch/newshu-79/assembly-newshu-79/final/cmp.png`; in-game before/after:
+`final/ingame_pair_prev_new.png`.
+
+**Follow-ups (from the review):**
+- the left wing is still a busy patch of small caps on a flat slab;
+- the IoU margin is thinner than before: do not close more slits;
+- 1 px edge-line colour mismatches against the sprite;
+- the muzzle pod is less pointed than the sprite.
+
+**Cost:** 6 agents, 0.92M tokens.
+
 ## D141 — Structure rebuild, wave 1: seven structures to the D65 hard-surface standard, their own AO bake, no outline shell (extends D34, D65, D115; fixes QA round 2 issue 4)
 
 2026-11-11

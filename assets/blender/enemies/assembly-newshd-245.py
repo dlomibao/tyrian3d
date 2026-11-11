@@ -37,11 +37,13 @@ Hard surface (D50-D53, D65): lofts with chamfered superellipse sections statione
 modelled grooves (cut into the section rings), a separate strap with thickness, a chamfered lamp
 housing with proud lenses and a visor, a machined collar ring on the drum, bolted cheeks with pivot
 hubs. No bake (no textures folder for this model), outline shell (D51). Underside: every part sits on
-the floor plate, closed, no detail.
+the ground, closed, no detail. The floor plate (painted per pixel from the sprite's stone, as
+lib_b073) is still built but not exported (D130): the game draws the tile's ground in HD, and the
+plate showed as grey pixel cells on it.
 
 Built whole in the pair's coordinates (Blender Y = (28 - y) / 12, so the pair's centre is the origin) and
 exported through lib_b073.run_assembly, which cuts it into the pieces newshd-245 and newshd-281: the
-machine, the floor, the outline shell (D51; re-flagged after the cut) and the two frame parts
+machine, the outline shell (D51; re-flagged after the cut) and the two frame parts
 (lenses-281, lenses-283).
 
 Run: blender --background --python assets/blender/enemies/assembly-newshd-245.py [-- --preview out.png]
@@ -549,8 +551,8 @@ L.cut_parts = cut_parts
 def build_asm(sprite_, g):
     sprite, objs = build()
     obj, fl, shell = objs[0], objs[1], objs[2]
-    fl.pop("tyrian_ground", None)
-    return obj, [], [fl, shell] + objs[3:]
+    bpy.data.objects.remove(fl, do_unlink=True)  # the floor plate stays out of the pieces (D130)
+    return obj, [], [shell] + objs[3:]
 
 
 if __name__ == "__main__":

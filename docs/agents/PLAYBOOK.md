@@ -187,7 +187,12 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
   (D66); a structure shares tiles with terrain → `minRows` and a real-map test (D44); 970 draw calls
   for a fortress → instanced structures (D34); a shot-off enemy reveals an intact boss where the original shows
   a broken one → the tile under an enemy is what the original shows after the kill: model that (the purple
-  machines' `broken_sockets()`, `lib_sockets.py`, D115), not a decal over the intact part.
+  machines' `broken_sockets()`, `lib_sockets.py`, D115), not a decal over the intact part. A modular kit (a girder
+  track, a rimmed hull: the same dozen pieces in every layout) → one model per tile, built in a 3x3 block of its
+  usual neighbours and cut to the centre so bevels and occlusion cross the seams (`lib_delbld.py`, D134). Dark
+  triangles over smooth tessellated tubes after a Cycles bake → bake the occlusion from the height field
+  (`field_bake`). Rails and clamps reading black → metalness ≤ 0.2 (metal darkens the diffuse). QA frames every 750
+  ticks miss tiles: sweep every tick of the level for the tiles drawn.
 - **Cost/time:** tyrian-buildings (12 TYRIAN structures, concept-based, D47): 41 agents, 48 min,
   3.4M tokens; lead 19 min; build median 8 min; grade 0.6; fix 5.5. The concept-bake look it used is
   superseded by the hard-surface rule; budget about one flagship item per structure.
@@ -228,6 +233,8 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
   HD first frame slow, worm drawn as sprites → atlases uploaded during preload (D60). Gemini "running
   low on usage" after ~25 Pro requests → stop, cut with what exists; next session restore the atlas
   folder (`git checkout -- public/art/terrain/<tileset>`) and cut again with all answers (doc §3).
+  A sea or field made of ONE tile repeated over the map (SAVARA's tiles 16 and 24) can't be varied by sheets or neighbour variants: paint it as one
+  large patch with `fieldsheet` / `fieldcut` (D137), the manifest's `fields`.
   Kept tiles meeting in pairs their level never had (TYRIAN's clouds on HOLES: 1.11) → `--recut` that
   layer over all levels, or variants (D83). Metal plating/pipes on layers 1-2 → structure models, not
   paintings (D83). Grey boxes or smears in black space, an edge taking a colour from another level's

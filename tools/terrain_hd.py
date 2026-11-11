@@ -30,6 +30,13 @@ shared by many levels (shapesz by 32), so every command takes a list of levels o
         --soft 0.5 also writes sheets softened another way (MMPX + a half-pixel blur, D79's repaint
         of TYRIAN's ground) to DIR/sheets/soft/, with softFile and softPrompt in the manifest.
 
+    python tools/terrain_hd.py --tileset shapesy --work DIR fieldsheet --field 16
+    python tools/terrain_hd.py --tileset shapesy --work DIR fieldcut --result ANSWER --tiles 16,24,6,... --edge-aware
+        One tile the maps repeat over a whole sea (SAVARA's 16 and 24, D137) painted as one 7x6-tile patch: the sheet
+        (DIR/fields/field-16.png, 1:1, with its prompt) and the cut into sub-tiles per tile, which the game picks by map
+        column and row ("fields" in the manifest). The patch is made seamless, matched to the first tile's colours, and
+        the other tiles take it plus their own colour difference; seams are solved with the sub-tiles as virtual tiles.
+
     python tools/terrain_hd.py --tileset shapesz --work DIR fake
         Stand-in "Gemini" answers for testing: each sheet upscaled with MMPX, blurred, shifted,
         rescaled slightly and colour-shifted, in DIR/results-fake/.
@@ -1329,7 +1336,8 @@ def alpha_from_level(lev: np.ndarray, ramp: float = ALPHA_RAMP) -> np.ndarray:
 
 
 def solve_alpha(T, layer: int, inv_tiles: dict, tiles, models: list[dict], min_pairs: int = ALPHA_MIN_PAIRS,
-                lam: float = LAMBDA, band_lo: float = BAND_LO, band_hi: float = BAND_HI, held=()) -> dict[int, np.ndarray]:
+                lam: float = LAMBDA, band_lo: float = BAND_LO, band_hi: float = BAND_HI, held=(),
+                smooth: float = ALPHA_SMOOTH, ramp: float = ALPHA_RAMP) -> dict[int, np.ndarray]:
     """Alpha (0..1) for each tile in `tiles` on layer 1-2, seamless across the levels' pairs: each tile's
     level field (alpha_level) has its edge strips solved jointly like the colour (solve_strips) over
     the pairs the levels' maps have at least `min_pairs` times, and moved onto them (apply_strips). A
@@ -1339,15 +1347,15 @@ def solve_alpha(T, layer: int, inv_tiles: dict, tiles, models: list[dict], min_p
     left out so a lone pairing of an empty edge with a full one doesn't drag cloud into the gap.
     `held`: tiles that keep their alpha (a merge's kept tiles, D83): their own level fields are held
     fixed, so the new tiles' edges are pulled onto them."""
-    off = 128.0  # apply_strips clips to 0..255; the level is within +-3 ALPHA_SMOOTH
-    lev = {n: (alpha_level(T, layer, n, inv_tiles[str(n)]["usual"]) + off)[..., None] for n in tiles}
-    fixed = {n: (alpha_level(T, layer, n, inv_tiles[str(n)]["usual"]) + off)[..., None]
+    off = 128.0  # apply_strips clips to 0..255; the level is within +-3 smooth (so smooth <= 40)
+    lev = {n: (alpha_level(T, layer, n, inv_tiles[str(n)]["usual"], smooth) + off)[..., None] for n in tiles}
+    fixed = {n: (alpha_level(T, layer, n, inv_tiles[str(n)]["usual"], smooth) + off)[..., None]
              for n in held if n not in lev and str(n) in inv_tiles}
     if band_lo > 0 or band_hi > 0:
         pairs = Counter({k: c for k, c in all_pairs(T.levels, layer, models, set(lev) | set(fixed)).items() if c >= min_pairs})
         strips = solve_strips(lev, pairs, lam, fixed=fixed or None)
         lev = {n: apply_strips(v, {side: strips[(n, side)] for side in OPPOSITE}, band_lo, band_hi) for n, v in lev.items()}
-    return {n: alpha_from_level(v[..., 0] - off) for n, v in lev.items()}
+    return {n: alpha_from_level(v[..., 0] - off, ramp) for n, v in lev.items()}
 
 
 def smoothstep(e0: float, e1: float, x: np.ndarray) -> np.ndarray:
@@ -1784,10 +1792,24 @@ def set_alpha(T, layer: int, inv_tiles: dict, done: dict[int, np.ndarray], model
               held=()) -> None:
     """Layers 1-2: each tile's alpha from solve_alpha (over all the levels' pairs; the `held` tiles,
     a merge's kept ones, pull the new tiles' edges and stay as they are), colour bled under it afresh."""
-    alphas = solve_alpha(T, layer, inv_tiles, done, models, args.alpha_min_pairs, args.lam, args.band_lo, args.band_hi, held)
+    alphas = solve_alpha(T, layer, inv_tiles, done, models, args.alpha_min_pairs, args.lam, args.band_lo, args.band_hi, held,
+                         getattr(args, "alpha_smooth", ALPHA_SMOOTH), getattr(args, "alpha_ramp", ALPHA_RAMP))
+    inset = getattr(args, "rim_inset", 0)
     for n, img in done.items():
+        if inset:
+            img[..., :3] = bleed(img[..., :3], inside_alpha(img[..., 3] / 255, inset))
         img[..., :3] = bleed(img[..., :3], alphas[n])
         img[..., 3] = alphas[n] * 255
+
+
+def inside_alpha(alpha: np.ndarray, inset: int) -> np.ndarray:
+    """`alpha` eroded by `inset` texels (a tile's edges count as inside: the cloud goes on in the next tile):
+    the part of the painting whose colour is kept when a wider soft edge is bled out of it (rim_inset), so
+    the original's dark outline colour under the old edge doesn't show through the new one."""
+    from scipy import ndimage
+
+    core = ndimage.binary_erosion(alpha > 0.98, iterations=inset, border_value=1)
+    return core.astype(np.float32)
 
 
 def cmd_realpha(args) -> None:
@@ -1805,8 +1827,9 @@ def cmd_realpha(args) -> None:
     if man is None:
         raise SystemExit(f"no atlas in {out_dir}")
     models = load_models(T.shapes_file)
+    only = {int(x) for x in args.layers.split(",")} if args.layers else None
     for layer, tiles in sorted(atlas.items()):
-        if layer == 0:
+        if layer == 0 or (only and layer not in only):
             continue
         inv_tiles = inv["layers"][str(layer)]["tiles"]
         done = {n: np.concatenate([bleed(t[..., :3], t[..., 3] / 255), t[..., 3:]], -1) for n, t in tiles.items() if str(n) in inv_tiles}
@@ -2130,6 +2153,7 @@ def cmd_cut(args) -> None:
         refs.update(r["image"] for r in lay["tiles"].values() if "image" in r)
         refs.update(r["image"] for vs in lay.get("variants", {}).values() for r in vs if "image" in r)
         refs.update(r["image"] for r in lay.get("covered", {}).values() if "image" in r)  # D86
+        refs.update(r["image"] for f in lay.get("fields", {}).values() for r in f["rects"] if "image" in r)  # D137
     for f in out_dir.glob("*.webp"):
         if f.name not in refs and f.name.split(".")[0].split("-")[0].isdigit():
             f.unlink()
@@ -2359,6 +2383,273 @@ def cmd_check(args) -> None:
     print(f"-> {out / 'seams.json'}")
 
 
+# --- Fields: one repeated tile painted as one large patch (D137) -----------------------------------
+
+FIELD_COLS, FIELD_ROWS = 7, 6  # tiles of a field's patch: 168 x 168 original pixels, square (Gemini's 1:1), coprime sides
+FIELD_BASE = 10000  # virtual tile numbers of a field's sub-tiles: FIELD_BASE + 1000 * family + row * cols + col
+FIELD_PROMPT = ("This is a top-down view of a patch of open sea from the 1995 shooter Tyrian, softened from pixel art. "
+                "Repaint it as a high-resolution, painterly patch of open sea seen straight down from above, like StarCraft Remastered: "
+                "deep blue water with a soft wave pattern, long smooth rolling swells with gently lighter crests and darker troughs, "
+                "soft glints, lit from above. Keep the blue colour (brightened here so the waves show) and the diagonal direction of the waves, "
+                "but paint natural, irregular sea: the swells vary in size, spacing and brightness across the picture, with no motif repeated. "
+                "No pixel blocks, no square pixels, no pixel-shaped details, no foam, no shore, no objects, no text, no frame. "
+                "The patch fills the whole image edge to edge with the same kind of detail everywhere.")
+
+
+def field_ids(n: int, family: int, cols: int = FIELD_COLS, rows: int = FIELD_ROWS) -> list[int]:
+    return [FIELD_BASE + 1000 * family + i for i in range(cols * rows)]
+
+
+def field_grid(g: np.ndarray, fields: dict[int, int], cols: int = FIELD_COLS, rows: int = FIELD_ROWS) -> np.ndarray:
+    """The map with each field tile (`fields`: tile number -> family) replaced by its sub-tile's virtual number,
+    chosen by the cell's map column and row (the game does the same, terrainArt.ts)."""
+    out = g.copy()
+    r, c = np.indices(g.shape)
+    sub = (r % rows) * cols + (c % cols)
+    for n, fam in fields.items():
+        m = g == n
+        out[m] = (FIELD_BASE + 1000 * fam + sub)[m]
+    return out
+
+
+def field_real(v: int, fields: dict[int, int]) -> int:
+    """The original tile a virtual number stands for."""
+    if v < FIELD_BASE:
+        return v
+    fam = (v - FIELD_BASE) // 1000
+    return next(n for n, f in fields.items() if f == fam)
+
+
+def make_periodic(a: np.ndarray, fade: float = 0.3) -> np.ndarray:
+    """A picture that tiles without a seam: a cross-fade with itself rolled by half its size, weighted 1 in the
+    middle and 0 at the edges (where the rolled copy is continuous across the wrap), over `fade` of each side."""
+    H, W = a.shape[:2]
+
+    def ramp(n: int) -> np.ndarray:
+        d = np.minimum(np.arange(n) + 0.5, n - np.arange(n) - 0.5) / (fade * n)
+        return smoothstep(0.0, 1.0, np.clip(d, 0, 1))
+    wx, wy = ramp(W)[None, :, None], ramp(H)[:, None, None]
+    # One axis at a time: the rolled copy's own seam (half way) then lies where its weight is 0.
+    a = a * wx + np.roll(a, W // 2, 1) * (1 - wx)
+    return a * wy + np.roll(a, H // 2, 0) * (1 - wy)
+
+
+def match_histogram(a: np.ndarray, ref: np.ndarray) -> np.ndarray:
+    """Per channel, the values of `a` moved to the distribution of `ref` (colours of the original tile)."""
+    out = np.empty_like(a)
+    for c in range(3):
+        src = a[..., c].ravel()
+        order = np.argsort(src, kind="stable")
+        refs = np.sort(ref[..., c].ravel())
+        q = np.linspace(0, 1, len(refs))
+        vals = np.interp(np.linspace(0, 1, len(src)), q, refs)
+        o = np.empty_like(src)
+        o[order] = vals
+        out[..., c] = o.reshape(a.shape[:2])
+    return out
+
+
+def tint_down(d: np.ndarray, ratio: int) -> np.ndarray:
+    """A colour offset image averaged over ratio x ratio blocks (the tint's resolution is the atlas's divided by ratio)."""
+    h, w = d.shape[0] // ratio, d.shape[1] // ratio
+    return d[:h * ratio, :w * ratio].reshape(h, ratio, w, ratio, -1).mean((1, 3))
+
+
+def tint_up(t: np.ndarray, ratio: int) -> np.ndarray:
+    """What the shader reads back: the tint sampled bilinearly (texel centres, edges clamped) at ratio x its resolution."""
+    h, w = t.shape[:2]
+    out = t.astype(np.float32)
+    for ax, n in ((0, h), (1, w)):
+        pos = (np.arange(n * ratio) + 0.5) / ratio - 0.5
+        i0 = np.clip(np.floor(pos).astype(int), 0, n - 1)
+        i1 = np.clip(i0 + 1, 0, n - 1)
+        f = (np.clip(pos, 0, n - 1) - i0).astype(np.float32)
+        a, b = np.take(out, i0, ax), np.take(out, i1, ax)
+        f = f.reshape((-1, 1, 1) if ax == 0 else (1, -1, 1))
+        out = a * (1 - f) + b * f
+    return out
+
+
+def tint_encode(d: np.ndarray) -> np.ndarray:
+    """A colour offset (sRGB levels, -128..127) as the atlas's bytes: the texture is read as sRGB, so the byte is chosen
+    whose *decoded linear value* is (d + 128) / 255, which the shader reads straight back and filters linearly."""
+    lin = (d.clip(-128, 127) + 128) / 255
+    s = np.where(lin <= 0.0031308, lin * 12.92, 1.055 * np.power(lin, 1 / 2.4) - 0.055)
+    return np.round(s * 255).clip(0, 255)
+
+
+def tint_decode(b: np.ndarray) -> np.ndarray:
+    s = b.astype(np.float32) / 255
+    lin = np.where(s <= 0.04045, s / 12.92, np.power((s + 0.055) / 1.055, 2.4))
+    return lin * 255 - 128
+
+
+def cmd_fieldsheet(args) -> None:
+    """The Gemini sheet of one field: FIELD_COLS x FIELD_ROWS copies of the tile, softened (MMPX + a blur), 1:1."""
+    from scipy import ndimage  # noqa: F401
+
+    T = TilesetData(Path(args.data), level_list(args))
+    n = args.field
+    scale = args.sheet_scale
+    px = np.tile(T.tile(n), (FIELD_ROWS, FIELD_COLS))
+    sh = {"layer": 0, "scale": scale, "width": px.shape[1] * scale, "height": px.shape[0] * scale}
+    out = Path(args.work) / "fields"
+    out.mkdir(parents=True, exist_ok=True)
+    img = soft_sheet(T, sh, px, args.soft)
+    a = np.asarray(img).astype(np.float32)  # brightened (a stretch of the 1st..99th percentile): Gemini sees the waves; the cut matches the colours back
+    lo, hi = np.percentile(a, 1), np.percentile(a, 99.5)
+    img = Image.fromarray(((a - lo) / max(hi - lo, 1) * 255 * 0.85).clip(0, 255).astype(np.uint8))
+    img.save(out / f"field-{n}.png")
+    (out / f"field-{n}.prompt.txt").write_text(FIELD_PROMPT + "\n")
+    Image.fromarray(T.rgb[px]).resize((sh["width"], sh["height"]), Image.NEAREST).save(out / f"field-{n}-blocks.png")
+    print(f"{out / f'field-{n}.png'} ({img.width}x{img.height}), prompt in field-{n}.prompt.txt")
+
+
+def cmd_fieldcut(args) -> None:
+    """Cut a field's answer into FIELD_COLS x FIELD_ROWS sub-tiles per family (tile numbers painted from the same
+    patch, each colour-matched to its own original), solve their edge strips against the atlas's other tiles over every
+    level's map, pack them into one image and list them under the layer's "fields" in the manifest."""
+    T = TilesetData(Path(args.data), level_list(args))
+    work = Path(args.work)
+    out_dir = Path(args.out) / T.shapes_name
+    models = load_models(T.shapes_file)
+    manifest, old = load_tileset_art(out_dir)
+    if manifest is None or 0 not in old:
+        raise SystemExit(f"no layer-0 atlas in {out_dir}")
+    fam_tiles = [int(s) for s in args.tiles.split(",")]  # family f paints tile fam_tiles[f]; the first is the answer's own tile
+    ans = np.asarray(Image.open(args.result).convert("RGB")).astype(np.float32)
+    h, w = ans.shape[:2]
+    ins = args.inset
+    ans = ans[int(h * ins):int(h * (1 - ins)), int(w * ins):int(w * (1 - ins))]
+    W, H = FIELD_COLS * TILE_W * SCALE, FIELD_ROWS * TILE_H * SCALE
+    S = np.asarray(Image.fromarray(ans.round().astype(np.uint8)).resize((W, H), Image.LANCZOS)).astype(np.float32)
+    b0 = blockiness(S)
+    if args.deblock_from > 0:
+        S = deblock(S, args.deblock_from, args.deblock_full)
+    print(f"answer {w}x{h} -> {W}x{H}; blockiness {b0:.2f} -> {blockiness(S):.2f}, pixel period {pixel_period(S):.2f}")
+    P = make_periodic(S, args.fade)
+    if args.save_field:
+        Image.fromarray(np.tile(P, (2, 2, 1)).clip(0, 255).astype(np.uint8)).save(args.save_field)
+    tiles: dict[int, np.ndarray] = {}
+    families = {}
+    for fam, n in enumerate(fam_tiles):
+        families[n] = fam
+        orig = np.kron(T.rgb[T.tile(n)].astype(np.float32), np.ones((SCALE, SCALE, 1), np.float32))
+        if fam == 0:
+            F0 = match_histogram(P, orig).clip(0, 255)
+            F = F0
+        else:
+            # The same waves in this tile's own colours: the first tile's painting plus the (smoothed, so no pixel
+            # steps) difference between the two original tiles. The pure-water tiles are one wave pattern at
+            # different brightness (high-pass correlation 0.94-0.99 with tile 16).
+            from scipy import ndimage
+
+            d = T.rgb[T.tile(n)].astype(np.float32) - T.rgb[T.tile(fam_tiles[0])].astype(np.float32)
+            d = ndimage.gaussian_filter(d, (args.diff_sigma, args.diff_sigma, 0), mode="nearest")
+            d = np.stack([np.asarray(Image.fromarray(d[..., c]).resize((TILE_W * SCALE, TILE_H * SCALE), Image.BICUBIC)) for c in range(3)], -1)
+            F = (F0 + np.tile(d, (FIELD_ROWS, FIELD_COLS, 1))).clip(0, 255)
+        tw, th = TILE_W * SCALE, TILE_H * SCALE
+        for i, v in enumerate(field_ids(n, fam)):
+            r, c = divmod(i, FIELD_COLS)
+            tiles[v] = F[r * th:(r + 1) * th, c * tw:(c + 1) * tw].copy()
+    layer0 = {n: img[..., :3] for n, img in old[0].items()}
+    fixed = {n: img for n, img in layer0.items() if n not in families}
+    inv = json.loads((work / "inventory.json").read_text())
+    for t in inv["layers"]["0"]["tiles"].values():
+        n = t["tile"]
+        if t.get("kind") == "empty" and n not in fixed and n not in families:
+            fixed[n] = np.kron(T.rgb[T.tile(n)].astype(np.float32), np.ones((SCALE, SCALE, 1), np.float32))
+    pairs, have = Counter(), set(tiles) | set(fixed)
+    for L in T.levels:
+        g, drawn, _ = layer_masks(L, 0, models)
+        pairs.update(map_pairs(field_grid(g, families), drawn, have))
+    cont_ = memo_continuity(T, 0, args.edge_free, args.edge_full)
+    cont = (lambda o, a, b: cont_(o, field_real(a, families), field_real(b, families))) if args.edge_aware else None
+    strips = solve_strips(tiles, pairs, args.lam, fixed=fixed, continuity=cont)
+    for v, img in tiles.items():
+        tiles[v] = apply_strips(img, {side: strips[(v, side)] for side in OPPOSITE}, args.band_lo, args.band_hi)
+    fields = {}
+    if args.alias:
+        # D138: the other families are the first one's sub-tiles plus a colour offset, read by the shader from a small tint
+        # image in the same atlas (the offset is the tile's own colours and its solved edge strips, measured here), so one
+        # atlas of FIELD_COLS x FIELD_ROWS sub-tiles stands for every water tile.
+        ratio = SCALE // args.tint_scale
+        assert SCALE % args.tint_scale == 0, "--tint-scale must divide the atlas scale"
+        base_ids = field_ids(fam_tiles[0], 0)
+        atlas, base_rects = pack_atlas({v: tiles[v] for v in base_ids}, 3)
+        tw_t, th_t, pad = TILE_W * args.tint_scale, TILE_H * args.tint_scale, 2
+        extra = [(n, i) for fam, n in enumerate(fam_tiles) if fam > 0 for i in range(FIELD_COLS * FIELD_ROWS)]
+        cell_w, cell_h = tw_t + 2 * pad, th_t + 2 * pad
+        cols_t = max(1, atlas.shape[1] // cell_w)
+        y0 = atlas.shape[0]  # the base block's own bottom gutter (16 texels) separates the blocks
+        rows_t = math.ceil(len(extra) / cols_t)
+        H2 = math.ceil((y0 + rows_t * cell_h) / 16) * 16
+        full = np.zeros((H2, atlas.shape[1], 3), np.float32)
+        full[:y0] = atlas
+        full[y0:] = 0.0
+        tint_rects = {}
+        enc = {}
+        for k, (n, i) in enumerate(extra):
+            fam = families[n]
+            v = field_ids(n, fam)[i]
+            d = tint_down(tiles[v] - tiles[base_ids[i]], ratio)
+            enc[(n, i)] = tint_encode(d)
+            x, y = (k % cols_t) * cell_w, y0 + (k // cols_t) * cell_h
+            full[y:y + cell_h, x:x + cell_w] = np.pad(enc[(n, i)], ((pad, pad), (pad, pad), (0, 0)), mode="edge")
+            tint_rects[(n, i)] = {"x": x + pad, "y": y + pad}
+        im = Image.fromarray(full.round().clip(0, 255).astype(np.uint8), "RGB")
+        name = "0-fields.webp"
+        save_atlas(im, out_dir / name, args.lossless)
+        written = [name]
+        print(f"{len(base_ids)} sub-tiles + {len(extra)} tints ({args.tint_scale} texels per pixel) -> {out_dir / name} "
+              f"({im.width}x{im.height}, {(out_dir / name).stat().st_size / 1e6:.2f} MB)")
+        # What the game will draw: the saved atlas read back (lossy coding included).
+        back = np.asarray(Image.open(out_dir / name).convert("RGB")).astype(np.float32)
+        shown, err = {}, []
+        for fam, n in enumerate(fam_tiles):
+            for i, v in enumerate(field_ids(n, fam)):
+                r = base_rects[str(base_ids[i])]
+                b = back[r["y"]:r["y"] + r["h"], r["x"]:r["x"] + r["w"]]
+                if fam > 0:
+                    tr = tint_rects[(n, i)]
+                    t = back[tr["y"]:tr["y"] + th_t, tr["x"]:tr["x"] + tw_t]
+                    b = (b + tint_up(tint_decode(t), ratio)).clip(0, 255)
+                shown[v] = b
+                err.append(np.abs(b - tiles[v]).mean())
+        print(f"shown vs solved tile: mean abs error {np.mean(err):.2f} levels, worst tile {np.max(err):.2f}")
+        tiles = shown
+        for n, fam in families.items():
+            f = {"cols": FIELD_COLS, "rows": FIELD_ROWS,
+                 "rects": [{**{k: base_rects[str(b)][k] for k in ("x", "y", "w", "h")}, "image": name} for b in base_ids]}
+            if fam > 0:
+                f["tintScale"] = args.tint_scale
+                f["tints"] = [tint_rects[(n, i)] for i in range(FIELD_COLS * FIELD_ROWS)]
+            fields[str(n)] = f
+    else:
+        order = sorted(tiles)
+        where, written = {}, []
+        for i, c0 in enumerate(range(0, len(order), TILES_PER_ATLAS)):  # D57: atlases at most 4096 square
+            name = "0-fields.webp" if i == 0 else f"0-fields-{i + 1}.webp"
+            atlas, rects = pack_atlas({v: tiles[v] for v in order[c0:c0 + TILES_PER_ATLAS]}, 3)
+            im = Image.fromarray(atlas.round().clip(0, 255).astype(np.uint8), "RGB")
+            save_atlas(im, out_dir / name, args.lossless)
+            written.append(name)
+            for k_, r in rects.items():
+                where[int(k_)] = {**{k: r[k] for k in ("x", "y", "w", "h")}, "image": name}
+            print(f"{len(rects)} sub-tiles -> {out_dir / name} ({im.width}x{im.height}, {(out_dir / name).stat().st_size / 1e6:.2f} MB)")
+        for n, fam in families.items():
+            fields[str(n)] = {"cols": FIELD_COLS, "rows": FIELD_ROWS, "rects": [where[v] for v in field_ids(n, fam)]}
+    for f in out_dir.glob("0-fields*.webp"):
+        if f.name not in written:
+            f.unlink()
+    manifest["layers"]["0"]["fields"] = fields
+    (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=1) + "\n")
+    st = seam_stats({**{n: i for n, i in old[0].items() if n not in families}, **{v: i for v, i in tiles.items()}},
+                    [(field_grid(layer_masks(L, 0, models)[0], families), layer_masks(L, 0, models)[1]) for L in T.levels],
+                    continuity=(lambda o, a, b: cont_(o, field_real(a, families), field_real(b, families))))
+    print(f"seams over the six maps: texel ratio {st['texelRatio']} (continuous {st['continuousRatio']}), bands {st['bandRatio']}")
+
+
 # --- CLI -----------------------------------------------------------------------------------------
 
 
@@ -2408,6 +2699,11 @@ def main(argv: list[str] | None = None) -> None:
         p_.add_argument("--alpha-min-pairs", type=int, default=ALPHA_MIN_PAIRS, help=f"map pairs needed before two tiles' alpha edges are pulled together (default {ALPHA_MIN_PAIRS})")
     ra.add_argument("--out", default=str(ROOT / "public/art/terrain"), help="atlas root (default public/art/terrain)")
     ra.add_argument("--lossless", action="store_true", help="lossless WebP (default quality 92)")
+    ra.add_argument("--layers", help="only these layers, e.g. 2 (default: 1 and 2)")
+    ra.add_argument("--alpha-smooth", type=float, default=ALPHA_SMOOTH, help=f"texels the contour is smoothed at (default {ALPHA_SMOOTH}; at most 40)")
+    ra.add_argument("--alpha-ramp", type=float, default=ALPHA_RAMP, help=f"texels each side of the contour alpha goes 0 -> 1 over (default {ALPHA_RAMP})")
+    ra.add_argument("--rim-inset", type=int, default=0, help="texels in from the old edge whose colour is bled outwards, so the original's dark outline "
+                    "doesn't ring a wider soft edge (default 0: colour as it is)")
     ra.add_argument("--band-lo", type=float, default=BAND_LO, help=f"texels an alpha seam correction fades over (default {BAND_LO})")
     ra.add_argument("--band-hi", type=float, default=BAND_HI, help=f"texels at the edge set to the shared strip (default {BAND_HI})")
     ra.add_argument("--lam", type=float, default=LAMBDA, help=f"how much a strip keeps its own (default {LAMBDA})")
@@ -2427,13 +2723,38 @@ def main(argv: list[str] | None = None) -> None:
     rf.add_argument("--out", default=str(ROOT / "public/art/terrain"), help="atlas root (default public/art/terrain)")
     rf.add_argument("--lossless", action="store_true", help="lossless WebP (default quality 92)")
     rf.add_argument("--dry-run", action="store_true", help="only list the tiles it would change")
+    fs = sub.add_parser("fieldsheet", help="the Gemini sheet of one repeated tile as a large patch (D137)")
+    fs.add_argument("--field", type=int, required=True, help="the tile number (SAVARA's water: 16)")
+    fs.add_argument("--sheet-scale", type=int, default=6, help="sheet pixels per original pixel (default 6: 1008 px square)")
+    fs.add_argument("--soft", type=float, default=0.8, help="blur of the softened sheet in original pixels (default 0.8)")
+    fc = sub.add_parser("fieldcut", help="cut a field's answer into sub-tiles that vary across the map (D137)")
+    fc.add_argument("--result", required=True, help="Gemini's answer for the field sheet")
+    fc.add_argument("--tiles", default="16", help="tiles painted from this patch, each in its own colours, e.g. 16,24")
+    fc.add_argument("--out", default=str(ROOT / "public/art/terrain"), help="atlas root (default public/art/terrain)")
+    fc.add_argument("--inset", type=float, default=0.0, help="fraction of each side of the answer to drop (a frame or vignette)")
+    fc.add_argument("--fade", type=float, default=0.3, help="share of each side over which the patch is cross-faded into a seamless repeat (default 0.3)")
+    fc.add_argument("--diff-sigma", type=float, default=1.5, help="blur (original pixels) of the colour difference that turns the first tile's painting into the others' (default 1.5)")
+    fc.add_argument("--deblock-from", type=float, default=DEBLOCK_FROM)
+    fc.add_argument("--deblock-full", type=float, default=DEBLOCK_FULL)
+    fc.add_argument("--edge-aware", action="store_true")
+    fc.add_argument("--edge-free", type=float, default=EDGE_FREE)
+    fc.add_argument("--edge-full", type=float, default=EDGE_FULL)
+    fc.add_argument("--lam", type=float, default=LAMBDA)
+    fc.add_argument("--band-lo", type=float, default=BAND_LO)
+    fc.add_argument("--band-hi", type=float, default=BAND_HI)
+    fc.add_argument("--lossless", action="store_true")
+    fc.add_argument("--no-alias", dest="alias", action="store_false", help="bake every family into its own sub-tiles (D137) instead of "
+                    "one set of sub-tiles plus a colour offset the shader adds (D138)")
+    fc.add_argument("--tint-scale", type=int, default=2, help="texels per original pixel of the colour offsets (default 2; must divide 8)")
+    fc.add_argument("--save-field", help="also write the seamless patch (2x2 repeats) to this PNG, to look at")
     k = sub.add_parser("check", help="reassemble the map from the atlas, measure seams")
     k.add_argument("--out", default=str(ROOT / "public/art/terrain"), help="atlas root (default public/art/terrain)")
     k.add_argument("--rows", type=int, default=12, help="map rows per contact sheet")
     k.add_argument("--contact", default="new", help="contact sheets: new (default: row blocks with a tile the last cut made; "
                    "every row block when nothing is new and at most 3 levels), all, none, or level ids (1-9,1-11)")
     args = ap.parse_args(argv)
-    {"inventory": cmd_inventory, "sheets": cmd_sheets, "fake": cmd_fake, "cut": cmd_cut, "realpha": cmd_realpha, "rimfix": cmd_rimfix, "check": cmd_check}[args.cmd](args)
+    {"inventory": cmd_inventory, "sheets": cmd_sheets, "fake": cmd_fake, "cut": cmd_cut, "realpha": cmd_realpha, "rimfix": cmd_rimfix, "check": cmd_check,
+     "fieldsheet": cmd_fieldsheet, "fieldcut": cmd_fieldcut}[args.cmd](args)
 
 
 if __name__ == "__main__":

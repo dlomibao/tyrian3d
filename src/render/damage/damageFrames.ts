@@ -63,8 +63,12 @@ export class DamageFrames {
     const w = size === 2 ? 24 : 12;
     const h = size === 2 ? 28 : 14;
     const stats = damageStats(normal, damaged);
+    // DAMAGE_UPSAMPLE texels per sprite pixel, filled smoothly (upsample), so bilinear filtering
+    // has no pixel-sized creases to show (D128).
+    const tw = w * DAMAGE_UPSAMPLE;
+    const th = h * DAMAGE_UPSAMPLE;
     const texture = () => {
-      const t = new THREE.DataTexture(new Uint8Array(w * h * 4), w, h, THREE.RGBAFormat, THREE.UnsignedByteType);
+      const t = new THREE.DataTexture(new Uint8Array(tw * th * 4), tw, th, THREE.RGBAFormat, THREE.UnsignedByteType);
       t.magFilter = THREE.LinearFilter;
       t.minFilter = THREE.LinearFilter;
       t.generateMipmaps = false;
@@ -92,10 +96,11 @@ export class DamageFrames {
    */
   private colour(s: DamageState): void {
     const { w, h, normal, damaged } = s;
-    const mask = s.mask.image.data as Uint8Array;
-    const tint = s.tint.image.data as Uint8Array;
-    const paint = s.paint.image.data as Uint8Array;
-    mask.fill(0);
+    // One value per sprite pixel and channel (0..1), as the textures held before D128; then each
+    // channel is upsampled into its texture.
+    const mask = new Float32Array(w * h * 4);
+    const tint = new Float32Array(w * h * 4);
+    const paint = new Float32Array(w * h * 4);
     const has = new Uint8Array(w * h);
     const t = new Float32Array(w * h * 4);
     const p = new Float32Array(w * h * 3);
@@ -105,7 +110,7 @@ export class DamageFrames {
       const d = damaged[i];
       if (n < 0) continue;
       if (d < 0) {
-        mask[i * 4] = 255;
+        mask[i * 4] = 1;
         continue;
       }
       has[i] = 1;
@@ -120,9 +125,9 @@ export class DamageFrames {
       const lb = LUMA(b);
       const darker = Math.max(0, Math.min(1, (la - lb) / Math.max(la, 0.05)));
       const hot = b.r > 0.45 && b.r > b.g * 1.6 && b.r > b.b * 1.6 && b.r > a.r + 0.1 ? Math.min(1, (b.r - 0.35) * 2) : 0;
-      mask[i * 4 + 1] = Math.round(darker * 0.35 * 255);
-      mask[i * 4 + 2] = Math.round(hot * 255);
-      mask[i * 4 + 3] = 255;
+      mask[i * 4 + 1] = darker * 0.35;
+      mask[i * 4 + 2] = hot;
+      mask[i * 4 + 3] = 1;
       // The multiplier, and where it would have to go past 2x (a new hue from a dark channel), how
       // much to replace with the damaged colour instead.
       let over = 0;
@@ -143,12 +148,12 @@ export class DamageFrames {
         for (let x = 0; x < w; x++) {
           const i = y * w + x;
           if (mask[i * 4] || normal[i] >= 0 || damaged[i] >= 0) continue;
-          if (neighbours(x, y, w, h).some((j) => mask[j * 4] === 255)) grow.push(i);
+          if (neighbours(x, y, w, h).some((j) => mask[j * 4] === 1)) grow.push(i);
         }
       }
-      for (const i of grow) mask[i * 4] = 255;
+      for (const i of grow) mask[i * 4] = 1;
     }
-    // Tint and paint bleed into empty pixels, so bilinear filtering at the edges doesn't pull in 1 or black.
+    // Tint and paint bleed into empty pixels, so filtering at the edges doesn't pull in 1 or black.
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
         let j = y * w + x;
@@ -158,13 +163,18 @@ export class DamageFrames {
         }
         const o = (y * w + x) * 4;
         for (let k = 0; k < 3; k++) {
-          tint[o + k] = Math.round(t[j * 4 + k] * 0.5 * 255);
-          paint[o + k] = Math.round(Math.min(1, p[j * 3 + k]) * 255);
+          tint[o + k] = t[j * 4 + k] * 0.5;
+          paint[o + k] = Math.min(1, p[j * 3 + k]);
         }
-        tint[o + 3] = Math.round(t[j * 4 + 3] * 255);
-        paint[o + 3] = 255;
+        tint[o + 3] = t[j * 4 + 3];
+        paint[o + 3] = 1;
       }
     }
+    // The cut (mask r) is interpolated, so a one-pixel hole stays a hole; the paint, scorch, embers and
+    // tint are blurred a little too, so a repainted sprite's pixel noise reads as soft blotches.
+    upsample(mask, w, h, s.mask.image.data as Uint8Array, [Upsample.Cubic, Upsample.Blur, Upsample.Blur, Upsample.Blur]);
+    upsample(tint, w, h, s.tint.image.data as Uint8Array, [Upsample.Blur, Upsample.Blur, Upsample.Blur, Upsample.Blur]);
+    upsample(paint, w, h, s.paint.image.data as Uint8Array, [Upsample.Blur, Upsample.Blur, Upsample.Blur, Upsample.Blur]);
     s.mask.needsUpdate = s.tint.needsUpdate = s.paint.needsUpdate = true;
     s.paletteVersion = this.palette.version;
   }
@@ -261,6 +271,11 @@ export class DamageFrames {
     return t;
   }
 
+  /** Draw a placed clone's shadow `x`, `z` world units off where it would fall (D133). */
+  shadowShift(object: THREE.Object3D, materials: readonly THREE.Material[], x: number, z: number): void {
+    this.clone(object, materials).uniforms.uShadowShift.value.set(x, 0, z);
+  }
+
   /**
    * Patch a new model clone's materials up front (D91), intact (uDmgOn = 0 draws as unpatched), so
    * its first damaged frame swaps no shader and the level's warm-up compiles the patched programs.
@@ -295,6 +310,98 @@ export class DamageFrames {
     c.twoSided = on;
     // Culling is GL state set per draw, so no recompile (back faces are flat char, unlit by intent).
     for (const m of c.patched) m.side = on ? THREE.DoubleSide : THREE.FrontSide;
+  }
+}
+
+/** Texels per sprite pixel (each way) in a damaged frame's textures. */
+export const DAMAGE_UPSAMPLE = 4;
+/** The paint channels' blur, in sprite pixels (D114 smoothed the glass orb's parts with 0.9). */
+const DAMAGE_BLUR_SIGMA = 0.75;
+
+export const enum Upsample {
+  /** Catmull-Rom: passes through every pixel's value, smooth between (the cut). */
+  Cubic = 0,
+  /** A Gaussian of DAMAGE_BLUR_SIGMA (the paint). */
+  Blur = 1,
+}
+
+/** Per output texel along one axis: the first source pixel it reads and its weights. */
+interface AxisWeights {
+  first: Int32Array;
+  weights: Float32Array;
+  taps: number;
+}
+
+const axisCache = new Map<string, AxisWeights>();
+
+/**
+ * The weights for upsampling `n` pixels to n * DAMAGE_UPSAMPLE texels with `kind`; a texel's centre
+ * sits at pixel coordinate (X + 0.5) / DAMAGE_UPSAMPLE - 0.5, pixel centres at integers, and reads
+ * past the edges are clamped (as ClampToEdge).
+ */
+function axisWeights(n: number, kind: Upsample): AxisWeights {
+  const key = `${n}|${kind}`;
+  let a = axisCache.get(key);
+  if (a) return a;
+  const out = n * DAMAGE_UPSAMPLE;
+  const radius = kind === Upsample.Cubic ? 2 : Math.ceil(DAMAGE_BLUR_SIGMA * 3);
+  const taps = radius * 2;
+  const first = new Int32Array(out);
+  const weights = new Float32Array(out * taps);
+  for (let X = 0; X < out; X++) {
+    const u = (X + 0.5) / DAMAGE_UPSAMPLE - 0.5;
+    const f = Math.floor(u) - radius + 1;
+    first[X] = f;
+    let sum = 0;
+    for (let k = 0; k < taps; k++) {
+      const d = Math.abs(u - (f + k));
+      const wk = kind === Upsample.Cubic ? catmullRom(d) : Math.exp((-d * d) / (2 * DAMAGE_BLUR_SIGMA * DAMAGE_BLUR_SIGMA));
+      weights[X * taps + k] = wk;
+      sum += wk;
+    }
+    for (let k = 0; k < taps; k++) weights[X * taps + k] /= sum;
+  }
+  axisCache.set(key, (a = { first, weights, taps }));
+  return a;
+}
+
+function catmullRom(d: number): number {
+  if (d < 1) return 1.5 * d * d * d - 2.5 * d * d + 1;
+  if (d < 2) return -0.5 * d * d * d + 2.5 * d * d - 4 * d + 2;
+  return 0;
+}
+
+/**
+ * Upsample a w x h RGBA field (0..1) into `out` (w x h times DAMAGE_UPSAMPLE each way, RGBA bytes),
+ * each channel by its own kind, separably (rows, then columns).
+ */
+export function upsample(src: Float32Array, w: number, h: number, out: Uint8Array, kinds: readonly Upsample[]): void {
+  const W = w * DAMAGE_UPSAMPLE;
+  const H = h * DAMAGE_UPSAMPLE;
+  const rows = new Float32Array(W * h);
+  for (let c = 0; c < 4; c++) {
+    const ax = axisWeights(w, kinds[c]);
+    const ay = axisWeights(h, kinds[c]);
+    for (let y = 0; y < h; y++) {
+      for (let X = 0; X < W; X++) {
+        let v = 0;
+        for (let k = 0; k < ax.taps; k++) {
+          const x = Math.min(w - 1, Math.max(0, ax.first[X] + k));
+          v += ax.weights[X * ax.taps + k] * src[(y * w + x) * 4 + c];
+        }
+        rows[y * W + X] = v;
+      }
+    }
+    for (let Y = 0; Y < H; Y++) {
+      for (let X = 0; X < W; X++) {
+        let v = 0;
+        for (let k = 0; k < ay.taps; k++) {
+          const y = Math.min(h - 1, Math.max(0, ay.first[Y] + k));
+          v += ay.weights[Y * ay.taps + k] * rows[y * W + X];
+        }
+        out[(Y * W + X) * 4 + c] = Math.round(Math.min(1, Math.max(0, v)) * 255);
+      }
+    }
   }
 }
 

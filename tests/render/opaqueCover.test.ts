@@ -86,4 +86,13 @@ describe("covered paintings (D86)", () => {
     const missing = wrecks.flatMap((e) => (e.tiles as number[][]).flat().filter((n) => n >= 0 && !covered.has(n)));
     expect(missing).toEqual([]);
   });
+
+  test("DELIANI's pillar end and twin pillar base tiles (585, 584) have covered paintings in their own atlas (D139)", async () => {
+    const { readFileSync, existsSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const dir = join(__dirname, "../../public/art/terrain/shapesz");
+    const covered = JSON.parse(readFileSync(join(dir, "manifest.json"), "utf8")).layers["0"].covered;
+    for (const n of ["584", "585"]) expect(covered[n]?.image).toBe("0-covered-deliani.webp");
+    expect(existsSync(join(dir, "0-covered-deliani.webp"))).toBe(true);
+  });
 });

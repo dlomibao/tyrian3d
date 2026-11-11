@@ -7,6 +7,12 @@
 // Each model's meshes are flattened into parts (geometry with the node transforms baked in, and a
 // material), and each part gets an InstancedMesh that grows as needed.
 //
+// A part tagged with a cell of the model's pattern (`tyrian_cell: [row, col]` and `tyrian_when`, glTF
+// extras on its node, D139) is drawn per copy by whether a ground enemy covers that cell: "open" parts
+// (the building's own light or turret, which the enemy's opaque sprite hid) only while it doesn't,
+// "covered" parts (a plain lid over the spot) only while it does, as the original's sprite hid the
+// tile under it (D86's rule, per cell).
+//
 // A tall structure (DECISIONS.md D82, docs/agents/TALL-BUILDINGS.md) is a true building, with
 // vertical walls and its real height, drawn the way its tiles draw it:
 // - `tyrian_oblique: k` (extra): each vertex goes on the camera ray through the point of its base
@@ -25,6 +31,11 @@ import { hasRockBands, ROCK_SIDES, rockBandSlot, rockCell } from "../rockMateria
 interface Part {
   mesh: THREE.InstancedMesh;
   capacity: number;
+  /** Copies placed this frame. */
+  count: number;
+  /** The pattern cell (row, col) a cover part belongs to, and when it's drawn (D139). */
+  cell?: readonly [number, number];
+  when?: CellWhen;
   /** An island rock tile's edge bands per copy (rockMaterial.ts, D84): which band each side draws. */
   bands?: THREE.InstancedBufferAttribute;
 }
@@ -38,6 +49,20 @@ interface Model {
   /** [filters] The smoothie hue its colours were set for (-1: none), and the height it was placed at. */
   hue: number;
   height: number;
+}
+
+/** When a cell's cover part is drawn: while no ground enemy covers the cell, or while one does (D139). */
+export type CellWhen = "open" | "covered";
+
+/** A mesh's cover cell from its node's (or a parent's, up to `root`) glTF extras, if it's tagged (D139). */
+export function cellTag(o: THREE.Object3D, root: THREE.Object3D): { cell: [number, number]; when: CellWhen } | null {
+  for (let n: THREE.Object3D | null = o; n; n = n === root ? null : n.parent) {
+    const cell = n.userData?.tyrian_cell;
+    if (Array.isArray(cell) && cell.length === 2 && cell.every((v) => Number.isInteger(v))) {
+      return { cell: [cell[0], cell[1]], when: n.userData.tyrian_when === "covered" ? "covered" : "open" };
+    }
+  }
+  return null;
 }
 
 export class StructureInstances {
@@ -66,6 +91,7 @@ export class StructureInstances {
     source.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
+      const tag = cellTag(mesh, source);
       const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
       const geometry = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);
       // A multi-material mesh becomes one part per group.
@@ -88,7 +114,7 @@ export class StructureInstances {
         im.receiveShadow = true;
         im.count = 0;
         this.group.add(im);
-        parts.push({ mesh: im, capacity: 4, bands });
+        parts.push({ mesh: im, capacity: 4, count: 0, bands, cell: tag?.cell, when: tag?.when });
       }
     });
     this.models.set(name, { parts, rig: rigModel(source), count: 0, paletteVersion: -1, hue: -1, height: 0 });
@@ -101,23 +127,32 @@ export class StructureInstances {
 
   /** Start a frame: no instances. */
   begin(): void {
-    for (const m of this.models.values()) m.count = 0;
+    for (const m of this.models.values()) {
+      m.count = 0;
+      for (const p of m.parts) p.count = 0;
+    }
   }
 
   /**
    * One copy of a model with its origin at (x, y, z) and uniform scale. `neighbours(row, col)`: the
    * tiles on the map left of, right of, above and below that cell of the model's pattern (-1: none),
-   * so the island rock of each cell draws the edge band made for each (D84).
+   * so the island rock of each cell draws the edge band made for each (D84). `covered(row, col)`:
+   * whether a ground enemy covers that cell, for the model's cover parts (D139; none: no cell is).
    */
-  place(name: string, x: number, y: number, z: number, scale: number, neighbours?: (row: number, col: number) => readonly number[]): void {
+  place(
+    name: string, x: number, y: number, z: number, scale: number,
+    neighbours?: (row: number, col: number) => readonly number[], covered?: (row: number, col: number) => boolean,
+  ): void {
     const model = this.models.get(name);
     if (!model) return;
-    const slot = model.count++;
+    model.count++;
     model.height = y;
     this.position.set(x, y, z);
     this.scale.setScalar(scale);
     this.matrix.compose(this.position, this.rotation, this.scale);
     for (const part of model.parts) {
+      if (part.cell && (covered?.(part.cell[0], part.cell[1]) ?? false) !== (part.when === "covered")) continue;
+      const slot = part.count++;
       if (slot >= part.capacity) grow(part, Math.max(slot + 1, part.capacity * 2));
       part.mesh.setMatrixAt(slot, this.matrix);
       if (part.bands) {
@@ -145,9 +180,9 @@ export class StructureInstances {
         colourFrame(model.rig, -1, hue, color);
       }
       for (const part of model.parts) {
-        part.mesh.count = model.count;
-        part.mesh.visible = model.count > 0;
-        if (model.count > 0) {
+        part.mesh.count = part.count;
+        part.mesh.visible = part.count > 0;
+        if (part.count > 0) {
           part.mesh.instanceMatrix.needsUpdate = true;
           if (part.bands) part.bands.needsUpdate = true;
         }

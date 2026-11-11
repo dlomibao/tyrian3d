@@ -114,6 +114,78 @@ describe("fallback per tile", () => {
     expect(t.tile(0, 2, 0)?.x).toBe(224);
   });
 
+  test("a field (D137) picks its sub-tile by the cell's map column and row, in an atlas of its own", () => {
+    const warnings: string[] = [];
+    const m = parseTerrainManifest(
+      {
+        scale: 8,
+        layers: {
+          "0": {
+            image: "0.webp",
+            tiles: { "7": rect(16, 16) },
+            fields: {
+              "7": { cols: 3, rows: 2, image: "f.webp", rects: [0, 1, 2, 3, 4, 5].map((i) => rect(16 + 208 * i, 16)) },
+              "8": { cols: 2, rows: 2, rects: [rect(0, 0)] }, // wrong count: skipped
+            },
+          },
+        },
+      },
+      (w) => warnings.push(w),
+    )!;
+    expect(warnings.length).toBe(1);
+    const t = new TerrainTileset<string>("shapesy", m);
+    expect([...t.images.keys()].sort()).toEqual(["0.webp", "f.webp"]);
+    t.setImage("0.webp", { texture: "a", width: 1024, height: 512 });
+    t.setImage("f.webp", { texture: "f", width: 2048, height: 512 });
+    // 4 wide, 3 rows of tile 7: column 3 wraps to sub-tile column 0, row 2 to sub-tile row 0.
+    t.setMap(0, { width: 4, tiles: new Array(12).fill(7) });
+    expect(t.listed(0, 7)).toBe(true);
+    expect(t.tile(0, 7, 0)).toEqual({ texture: "f", x: 16, y: 16 });
+    expect(t.tile(0, 7, 1)?.x).toBe(16 + 208);
+    expect(t.tile(0, 7, 3)?.x).toBe(16); // column 3 -> 0
+    expect(t.tile(0, 7, 4)?.x).toBe(16 + 208 * 3); // row 1, column 0
+    expect(t.tile(0, 7, 9)?.x).toBe(16 + 208 * 1); // row 2 -> 0, column 1
+    // A sub-tile whose atlas hasn't loaded falls back to the plain tile.
+    const t2 = new TerrainTileset<string>("shapesy", m);
+    t2.setImage("0.webp", { texture: "a", width: 1024, height: 512 });
+    t2.setMap(0, { width: 4, tiles: new Array(12).fill(7) });
+    expect(t2.tile(0, 7, 1)).toEqual({ texture: "a", x: 16, y: 16 });
+  });
+
+  test("a field that is a tint of another (D138) shares its sub-tiles and carries one colour offset origin per sub-tile", () => {
+    const warnings: string[] = [];
+    const rects = [0, 1, 2, 3].map((i) => ({ ...rect(16 + 208 * i, 16), image: "f.webp" }));
+    const tints = [0, 1, 2, 3].map((i) => ({ x: 2 + 52 * i, y: 1458 }));
+    const m = parseTerrainManifest(
+      {
+        scale: 8,
+        layers: {
+          "0": {
+            image: "0.webp",
+            tiles: { "7": rect(16, 16) },
+            fields: {
+              "7": { cols: 2, rows: 2, rects },
+              "8": { cols: 2, rows: 2, rects, tintScale: 2, tints },
+              "9": { cols: 2, rows: 2, rects, tintScale: 4, tints }, // not the shader's scale: skipped
+              "10": { cols: 2, rows: 2, rects, tintScale: 2, tints: tints.slice(1) }, // one short: skipped
+            },
+          },
+        },
+      },
+      (w) => warnings.push(w),
+    )!;
+    expect(warnings.length).toBe(2);
+    expect(m.layers.get(0)!.fields.has(9)).toBe(false);
+    expect(m.layers.get(0)!.fields.has(10)).toBe(false);
+    const t = new TerrainTileset<string>("shapesy", m);
+    t.setImage("0.webp", { texture: "a", width: 1024, height: 512 });
+    t.setImage("f.webp", { texture: "f", width: 2048, height: 2048 });
+    t.setMap(0, { width: 4, tiles: [7, 8, 8, 8, 8, 8, 8, 8] });
+    expect(t.tile(0, 7, 0)?.tint).toBeUndefined();
+    expect(t.tile(0, 8, 1)).toEqual({ texture: "f", x: 16 + 208, y: 16, tint: { x: 2 + 52, y: 1458 } });
+    expect(t.tile(0, 8, 6)).toEqual({ texture: "f", x: 16 + 208 * 2, y: 16, tint: { x: 2 + 52 * 2, y: 1458 } }); // row 1, column 2 -> sub-tile 2
+  });
+
   test("a covered tile (D86) has its own painting, possibly in an atlas of its own; others have none", () => {
     const warnings: string[] = [];
     const m = parseTerrainManifest(
@@ -129,6 +201,8 @@ describe("fallback per tile", () => {
     expect(t.coveredTile(0, 1)).toEqual({ texture: "c", x: 16, y: 16 });
     expect(t.coveredTile(0, 2)).toBeUndefined();
     expect(t.tile(0, 1, 0)).toEqual({ texture: "a", x: 16, y: 16 });
+    // Listed whether or not its atlas has loaded (the renderer defers such cells, D139).
+    expect([t.hasCovered(0, 1), t.hasCovered(0, 2), t.hasCovered(1, 1)]).toEqual([true, false, false]);
   });
 
   test("neighbours: outside the map or another row's edge is -1", () => {

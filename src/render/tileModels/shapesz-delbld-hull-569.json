@@ -1,0 +1,10 @@
+{
+ "model": "tiles/shapesz/delbld-hull-569",
+ "shapes": "shapesz.dat",
+ "layer": 2,
+ "tiles": [
+  [
+   569
+  ]
+ ]
+}

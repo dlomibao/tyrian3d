@@ -20,8 +20,10 @@ Reading of the sprite (24 x 28, opaque: it fills its tile; tools/calibration/rub
 Hard surface: lofted dome shells (chord sections, clustered at the seam lips and the rim), the
 seam a chamfered groove, the window recess cut by a boolean (sloped top/left walls), a fitted
 base flange with hex bolts, conduits with collars and a manifold block, a chamfered glacis with
-ribs and bolted feet. Floor: the stone plate painted from the sprite (tyrian_ground). Outline
-shell from a smooth proxy (D51). Underside: closed by the floor plate only.
+ribs and bolted feet. No floor plate (D130): the sprite's stone floor round the dome is the tile's
+ground, which the game draws in HD (it was a plate painted per pixel from the sprite, which showed
+as grey pixel cells on the HD ground). Outline shell from a smooth proxy (D51). Underside: plain,
+the flange's foot closed by a flat ring.
 
 Run: blender --background --python assets/blender/enemies/newshs-11.py
 """
@@ -49,7 +51,7 @@ NSE = 3.5               # plan superellipse exponent: the sprite's dome is a rou
 RXF, RYF = 7.65, 7.5    # flange foot outer outline (columns 3.85-19.15, rows 0-15)
 RXT, RYT = 7.4, 7.25   # flange top outer edge
 RX, RY = 7.05, 6.9      # dome base outline (on the flange)
-FLOOR = 0.36            # floor top (0.03 units, the fortress tiles' FLOOR)
+FLOOR = 0.36            # foot height: the old floor plate's top (0.03 units, the fortress tiles' FLOOR)
 Z0 = 0.95               # flange top = dome base
 H = 5.4                 # dome height above the flange
 P_EXP, Q_EXP = 3.0, 0.5
@@ -183,6 +185,8 @@ def flange(P, mat, mat_bolt):
             rad = (math.cos(c) / RXF, math.sin(c) / RYF, 0.0)
             out = [rad, (rad[0], rad[1], 0.2), (0, 0, 1), (-rad[0], -rad[1], 0.0)][i]
             P.f([rings[i][k], rings[i][(k + 1) % nt], rings[i + 1][(k + 1) % nt], rings[i + 1][k]], mat, out=out)
+    for k in range(nt):  # the foot: a flat ring under the flange (no floor plate under it any more, D130)
+        P.f([rings[-1][k], rings[-1][(k + 1) % nt], rings[0][(k + 1) % nt], rings[0][k]], mat, out=(0, 0, -1))
     bx, by = (RXT + RX) / 2, (RYT + RY) / 2
     for k in range(18):
         t = 2 * math.pi * (k + 0.5) / 18
@@ -424,59 +428,6 @@ def colour_recess(obj, M, zp):
             poly.material_index = wall_dark
 
 
-# --- floor --------------------------------------------------------------------------------------
-def covered(x0, x1, y0, y1):
-    def in_ell(x, y):
-        return srho((x - CX) / (RXF - 0.15), (y - CY) / (RYF - 0.15)) < 1
-
-    def in_ap(x, y):
-        return AP_X0 + 0.1 < x < AP_X1 - 0.1 and AP_Y0 + 0.1 < y < AP_Y1 - 0.1
-    return all(in_ell(x, y) or in_ap(x, y) for x in (x0, x1) for y in (y0, y1))
-
-
-def floor(sprite, M, coll):
-    """Stone plate painted per pixel in the grey tones (as lib_b073.grey_tones). The dome's cast
-    shadow (right of it and under the glacis' front) is lighting: those pixels lifted by 3 steps."""
-    pix = sprite["frames"][0]["pixels"]
-    colors = sprite["colors"]
-    tones = ((1, 3), (4, 6), (7, 9), (10, 15))
-    slots = []
-    for lo, hi in tones:
-        have = [i for i in range(lo, hi + 1) if str(i) in colors]
-        mid = (lo + hi) / 2
-        slots.append(M(min(have, key=lambda i: abs(i - mid)), f"stone{lo}", metallic=0.05, roughness=0.85))
-
-    def tone(c, r):
-        i = pix[r][c]
-        shadow = (c >= 19 and 1 <= r <= 23) or (r == 23 and 4 <= c <= 19) or (r in (13, 14) and c >= 17)
-        if shadow and i <= 5:
-            i += 3
-        for (lo, hi), s in zip(tones, slots):
-            if lo <= i <= hi:
-                return s
-        return slots[1]
-
-    P = T.Part(f"{NAME}_floor", smooth_angle=5)
-    T.hull(P, [(x, y, z) for x in (-12.0, 12.0) for y in (0.0, 28.0) for z in (0.0, FLOOR - 0.01)], slots[1])
-    for r in range(28):
-        c = 0
-        while c < 24:
-            if covered(c - 12, c - 11, r, r + 1):
-                c += 1
-                continue
-            s = tone(c, r)
-            e = c + 1
-            while e < 24 and not covered(e - 12, e - 11, r, r + 1) and tone(e, r) == s:
-                e += 1
-            vs = [P.v((xx, yy, FLOOR)) for xx, yy in ((c - 12, r), (e - 12, r), (e - 12, r + 1), (c - 12, r + 1))]
-            P.f(vs, s, out=(0, 0, 1))
-            c = e
-    obj = T.finish(P, M.list, coll)
-    obj.data.shade_flat()
-    obj["tyrian_ground"] = True
-    return obj
-
-
 # --- outline proxy ------------------------------------------------------------------------------
 def shell_proxy(coll):
     e = SHELL_GROW
@@ -551,7 +502,6 @@ def build():
     glacis(P, AP, APS, RIB, BOLT)
     hw = T.finish(P, M.list, coll)
     wins = window_parts(coll, M, zp)
-    fl = floor(sprite, M, coll)
 
     # join dome + hardware into one body
     body = dome
@@ -559,7 +509,7 @@ def build():
                                    selected_objects=[dome, hw], selected_editable_objects=[dome, hw]):
         bpy.ops.object.join()
     body.name = NAME
-    objs = [body] + wins + [fl]
+    objs = [body] + wins
     for o in objs:
         for m in M.list[len(o.data.materials):]:
             o.data.materials.append(m)
@@ -578,4 +528,4 @@ if __name__ == "__main__":
     for o in objs[:-1]:
         o.data.calc_loop_triangles()
         tris += len(o.data.loop_triangles)
-    print(f"built {NAME}: {tris} triangles (body + windows + floor)")
+    print(f"built {NAME}: {tris} triangles (body + windows)")

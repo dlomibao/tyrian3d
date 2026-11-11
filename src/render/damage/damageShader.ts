@@ -4,8 +4,9 @@
 // shared by all enemies). Its uniforms say where the damage is, in the sprite's own pixels: each
 // fragment is projected straight down onto the sprite (model-root x, z times PX_PER_UNIT, from the
 // sprite's centre), so the damage lands where the damaged sprite shows it, whatever the model's shape.
-// Off (uDmgOn = 0) the patch changes nothing. Three textures (damageFrames.ts), 24x28 or 12x14,
-// bilinear so nothing is blocky:
+// Off (uDmgOn = 0) the patch changes nothing. Three textures (damageFrames.ts) of the sprite's
+// 24x28 or 12x14 pixels, upsampled 4x (the cut by a cubic, the rest by a slight blur, D128) and
+// read bilinear, so nothing is blocky:
 //
 // - `mask`: r = the pixel is gone (the fragment is cut away, with a charred, glowing rim);
 //   g = extra scorch where it got darker; b = it turned hot (embers glow); a = it changed colour.
@@ -38,6 +39,12 @@ export interface DamageUniforms {
    */
   uDmgCover: { value: number };
   uDmgHot: { value: number };
+  /**
+   * World offset of the clone's shadow (D133): its shadow-map depth is drawn this far off, and its own
+   * shadow lookups move with it, so it shades itself as before. Not part of the damage: these are the
+   * clone's per-clone uniforms, which every model clone has.
+   */
+  uShadowShift: { value: THREE.Vector3 };
 }
 
 export function damageUniforms(): DamageUniforms {
@@ -50,6 +57,7 @@ export function damageUniforms(): DamageUniforms {
     uDmgPaint: { value: null },
     uDmgCover: { value: -1 },
     uDmgHot: { value: 0 },
+    uShadowShift: { value: new THREE.Vector3() },
   };
 }
 
@@ -77,7 +85,18 @@ if (uDmgOn > 0.5 && texture2D(uDmgMask, dmgUv()).r > 0.5) discard;
 `;
 
 const VERTEX_PARS = /* glsl */ `${DAMAGE_CUT_VERTEX_PARS}
+uniform vec3 uShadowShift;
 varying float vDmgUp;
+`;
+/** The shadow lookup at the shifted position, so the clone's own shadow on itself lines up (D133). */
+const SHADOW_VERTEX = /* glsl */ `
+#ifdef USE_SHADOWMAP
+worldPosition.xyz += uShadowShift;
+#endif
+#include <shadowmap_vertex>
+#ifdef USE_SHADOWMAP
+worldPosition.xyz -= uShadowShift;
+#endif
 `;
 const VERTEX = /* glsl */ `${DAMAGE_CUT_VERTEX}
 vDmgUp = normalize(mat3(uDmgInv) * (mat3(modelMatrix) * objectNormal)).y;
@@ -170,7 +189,8 @@ function damageSource(shader: THREE.WebGLProgramParametersWithUniforms, uniforms
   Object.assign(shader.uniforms, uniforms);
   shader.vertexShader = shader.vertexShader
     .replace("#include <common>", `#include <common>\n${VERTEX_PARS}`)
-    .replace("#include <project_vertex>", `#include <project_vertex>\n${VERTEX}`);
+    .replace("#include <project_vertex>", `#include <project_vertex>\n${VERTEX}`)
+    .replace("#include <shadowmap_vertex>", SHADOW_VERTEX);
   shader.fragmentShader = shader.fragmentShader
     .replace("#include <common>", `#include <common>\n${FRAGMENT_PARS}`)
     .replace("#include <map_fragment>", `#include <map_fragment>\n${FRAGMENT_COLOUR}`)
@@ -186,12 +206,16 @@ export function damageDepthMaterial(uniforms: DamageUniforms): THREE.MeshDepthMa
   m.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
     shader.vertexShader = shader.vertexShader
-      .replace("#include <common>", `#include <common>\n${DAMAGE_CUT_VERTEX_PARS}`)
-      .replace("#include <project_vertex>", `#include <project_vertex>\n${DAMAGE_CUT_VERTEX}`);
+      .replace("#include <common>", `#include <common>\n${DAMAGE_CUT_VERTEX_PARS}\nuniform vec3 uShadowShift;`)
+      // The shadow is drawn shifted (D133).
+      .replace(
+        "#include <project_vertex>",
+        `#include <project_vertex>\n${DAMAGE_CUT_VERTEX}\ngl_Position = projectionMatrix * viewMatrix * (modelMatrix * vec4(transformed, 1.0) + vec4(uShadowShift, 0.0));`,
+      );
     shader.fragmentShader = shader.fragmentShader
       .replace("#include <common>", `#include <common>\n${DAMAGE_CUT_FRAGMENT_PARS}`)
       .replace("void main() {", `void main() {\n${DAMAGE_CUT_FRAGMENT}`);
   };
-  m.customProgramCacheKey = () => "tyrian-damage-depth-1";
+  m.customProgramCacheKey = () => "tyrian-damage-depth-2";
   return m;
 }
