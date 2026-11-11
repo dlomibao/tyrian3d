@@ -9,7 +9,12 @@
 //     "layers": { "0": { "image": "0.webp",
 //                        "tiles": { "123": { "x": 16, "y": 16, "w": 192, "h": 224 } },
 //                        "variants": { "123": [ { "n": { "right": 124 }, "x": 240, "y": 16, "w": 192, "h": 224 } ] },
+//                        "fields": { "16": { "cols": 7, "rows": 6, "image": "0-fields.webp", "rects": [ { "x": 16, "y": 16, "w": 192, "h": 224 } ] } },
 //                        "covered": { "330": { "x": 464, "y": 16, "w": 192, "h": 224 } } } } }
+//
+// "fields" (optional, D137): a tile the map repeats over a whole sea (SAVARA's water) painted as one patch of
+// cols x rows sub-tiles; the cell at map column c and row r draws rects[(r % rows) * cols + c % cols], so the
+// repeat is the patch's size, not one tile's. The map decides, so without a map the plain tile draws.
 //
 // "covered" (optional, D86): the tile as it looks under an opaque enemy sprite that hides it, e.g. a
 // bunker's wreck painted out to plain dirt while the live bunker stands on it.
@@ -49,10 +54,18 @@ export interface TerrainVariant extends TerrainRect {
   n: Partial<Record<Side, number>>;
 }
 
+/** A repeated tile painted as a patch of `cols` x `rows` sub-tiles (row-major), picked by the cell's map column and row. */
+export interface TerrainField {
+  cols: number;
+  rows: number;
+  rects: TerrainRect[];
+}
+
 export interface TerrainLayerArt {
   image: string;
   tiles: Map<number, TerrainRect>;
   variants: Map<number, TerrainVariant[]>;
+  fields: Map<number, TerrainField>;
   /** The tile painted as it looks while an enemy covers it (D86). */
   covered: Map<number, TerrainRect>;
 }
@@ -97,12 +110,12 @@ export function parseTerrainManifest(json: unknown, warn: (msg: string) => void 
       warn(`terrain art: layer ${key} isn't 0, 1 or 2; skipped`);
       continue;
     }
-    const { image, tiles, variants, covered } = (layer ?? {}) as { image?: unknown; tiles?: unknown; variants?: unknown; covered?: unknown };
+    const { image, tiles, variants, covered, fields } = (layer ?? {}) as { image?: unknown; tiles?: unknown; variants?: unknown; covered?: unknown; fields?: unknown };
     if (typeof image !== "string" || image === "" || typeof tiles !== "object" || tiles === null) {
       warn(`terrain art: layer ${key} has no image or tiles; skipped`);
       continue;
     }
-    const art: TerrainLayerArt = { image, tiles: new Map(), variants: new Map(), covered: new Map() };
+    const art: TerrainLayerArt = { image, tiles: new Map(), variants: new Map(), fields: new Map(), covered: new Map() };
     for (const [t, rect] of Object.entries(tiles as Record<string, unknown>)) {
       const n = Number(t);
       if (!Number.isInteger(n) || n < 0) {
@@ -135,6 +148,24 @@ export function parseTerrainManifest(json: unknown, warn: (msg: string) => void 
         if (kept.length > 0) art.variants.set(n, kept);
       }
     }
+    if (typeof fields === "object" && fields !== null) {
+      for (const [t, f] of Object.entries(fields as Record<string, unknown>)) {
+        const n = Number(t);
+        const { cols, rows, image: fieldImage, rects } = (f ?? {}) as { cols?: unknown; rows?: unknown; image?: unknown; rects?: unknown };
+        if (!Number.isInteger(n) || n < 0 || !isCount(cols) || !isCount(rows) || cols < 1 || rows < 1 || !Array.isArray(rects) || rects.length !== cols * rows) {
+          warn(`terrain art: layer ${key} field "${t}" is malformed; skipped`);
+          continue;
+        }
+        const list: TerrainRect[] = [];
+        for (const [i, v] of rects.entries()) {
+          const r = parseRect(typeof fieldImage === "string" && fieldImage !== "" ? { image: fieldImage, ...(v as object) } : v, scale, `layer ${key} field ${t} rect ${i}`, warn);
+          if (r) list.push(r);
+        }
+        // All or nothing: a hole in the patch would draw one tile differently in a repeating pattern.
+        if (list.length === rects.length) art.fields.set(n, { cols, rows, rects: list });
+        else warn(`terrain art: layer ${key} field "${t}" has bad rects; skipped`);
+      }
+    }
     if (typeof covered === "object" && covered !== null) {
       for (const [t, rect] of Object.entries(covered as Record<string, unknown>)) {
         const n = Number(t);
@@ -146,7 +177,7 @@ export function parseTerrainManifest(json: unknown, warn: (msg: string) => void 
         if (r) art.covered.set(n, r);
       }
     }
-    if (art.tiles.size > 0 || art.variants.size > 0) out.layers.set(Number(key) as TerrainLayer, art);
+    if (art.tiles.size > 0 || art.variants.size > 0 || art.fields.size > 0) out.layers.set(Number(key) as TerrainLayer, art);
   }
   return out;
 }
@@ -220,6 +251,7 @@ export class TerrainTileset<T = unknown> {
       this.images.set(art.image, null);
       for (const r of art.tiles.values()) if (r.image) this.images.set(r.image, null);
       for (const list of art.variants.values()) for (const r of list) if (r.image) this.images.set(r.image, null);
+      for (const f of art.fields.values()) for (const r of f.rects) if (r.image) this.images.set(r.image, null);
       for (const r of art.covered.values()) if (r.image) this.images.set(r.image, null);
     }
   }
@@ -243,7 +275,7 @@ export class TerrainTileset<T = unknown> {
   /** Whether the manifest lists `tile` on `layer` (loaded or not). */
   listed(layer: TerrainLayer, tile: number): boolean {
     const art = this.manifest.layers.get(layer);
-    return !!art && (art.tiles.has(tile) || art.variants.has(tile));
+    return !!art && (art.tiles.has(tile) || art.variants.has(tile) || art.fields.has(tile));
   }
 
   /**
@@ -280,6 +312,12 @@ export class TerrainTileset<T = unknown> {
           if (ready) return ready;
         }
       }
+    }
+    const field = art.fields.get(tile);
+    if (field && map) {
+      const r = field.rects[(Math.floor(index / map.width) % field.rows) * field.cols + ((index % map.width) % field.cols)];
+      const ready = this.ready(art, r);
+      if (ready) return ready;
     }
     const plain = art.tiles.get(tile);
     return plain ? this.ready(art, plain) : undefined;

@@ -5950,3 +5950,34 @@ elbows gain only the ink-floored rib grooves.
 **Review:** `tyrian-scratch/deliani-polish/`: `sheets/<level>_t<tick>.jpg` (original tiles | before |
 after | after with `&terrain=original`), `crops/4k_*.jpg` (rails and wall at 1-5 t300, the hull at 4-1 t800,
 3840x2160), `iou.json.txt`, `tools/measure3.py`.
+
+## D137 — SAVARA's sea is painted as one large patch, not one tile repeated: `fields` in the terrain manifest (extends D57, D83, D95, D135)
+
+2026-11-10
+
+From `tyrian-scratch/e1-qa-2/REPORT.md` issue 6: SAVARA's water (`shapesy` layer 0; 1.8, 1.12, 1.17, 3.10, 4.3) read pixel-stepped and visibly tiled over
+50-90% of the screen.
+- **Cause: the repeat, not the seams.** The map fills a sea with one tile: tile 16 or 24 are 9,275 of the 12,679 water cells over the six maps
+  (1.8's open water is one 16 for 30 rows), the other 20 water tiles are the same waves at other brightnesses (12 of them pure water: high-pass
+  correlation 0.94-0.99 with 16) or shores. D95's one painting per tile therefore repeated every 24x28 px, 13 times across the field, and its
+  edges carried the original's pixel steps. D95's seams (0.563) were fine; nothing in the cut could make a painting that isn't there.
+- **Decision.** One Gemini request paints a 7x6-tile patch of tile 16 (168x168 original px, 1:1; a softened, brightened sheet, prompt "open sea
+  seen straight down, soft wave pattern, no pixel blocks, irregular swells, no motif repeated"); `terrain_hd.py fieldsheet` / `fieldcut` cut it into 42
+  sub-tiles per tile. The cell at map column c, row r draws sub-tile `(r % 6) * 7 + c % 7` (`fields` in the manifest, `TerrainTileset.resolve`; the map
+  decides, so a harness without a map still draws the plain tile). Coprime sides: the repeat is 7 tiles across, 6 down, not 1.
+- **Cut.** The answer is made seamless by a cross-fade with itself rolled by half, one axis at a time (rolling both at once leaves a visible line at the
+  centre), colour-matched to the original tile by histogram (the original's palette, not Gemini's), deblocked if needed (1.01: not). The 13 other
+  pure-water tiles (24, 6, 26, 5, 8, 9, 15, 17, 18, 19, 25, 27, 7) are the same patch plus the original difference between the two tiles, blurred 1.5 px
+  (no pixel steps), so each keeps its own shade, gradient and place in the map. Mixed tiles (shore, structure bits; 321, 322, 361...) keep their D95
+  paintings. The seam solve (D83) runs with the sub-tiles as virtual tiles chosen by the same column and row over every level's map, all other atlas tiles
+  held, `--edge-aware`: 588 sub-tiles, `0-fields.webp` and `0-fields-2.webp` (323 + 265 tiles, 1.07 + 0.89 MB).
+- **Seams** (`fieldcut`'s own check, six maps; step across edges over step inside tiles, water as virtual tiles with every other tile): texel ratio 0.496
+  (continuous 0.496), bands 0.515, against 0.563 for D95's whole ground. `check` itself doesn't know fields yet (it reads one tile per number).
+- **Gemini:** 1 request, no retries, no usage warning. The answer came back 2048x2048, soft, irregular, no blocks (blockiness 1.01, pixel period 1.00).
+- **Checked** in game with the water filter on (D135) against origin/main, `?debug=play&episode=1&main=<section>&seed=1&skip=T&freezeAt=T`: 1.8 t3300
+  (section 29), 1.12 t3300 (10), 1.17 t4800 (38), and a 4K crop of 1.8. The open sea is continuous with no visible repeat or stepped edges; the coast band
+  that was stepped is now smooth too. The 4K crop shows the filter's colour banding (the water filter maps colours onto its hue ramp), not tiles.
+  Not checked: 3.10, 4.3 (same tiles), the seams at `&dpr=0.3`, memory on a small GPU (the two atlases add ~150 MB of mipped texture on SAVARA levels).
+- **Options considered:** *Neighbour variants (D57):* the sea's neighbours are all the same tile, so they can't tell cells apart. *Re-sending the region
+  sheets (D95's 07 and 13):* the same one tile per cell, so the repeat stays. *Fewer families (alias 8, 9, 18, 19 to 16 and so on):* one atlas fewer, but
+  tile-sized steps in the brightness gradients; do it if the memory matters. `cut` with a full re-cut of layer 0 drops the `fields` entry: run `fieldcut` again.
