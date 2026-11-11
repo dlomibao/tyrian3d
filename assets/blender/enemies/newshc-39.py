@@ -7,7 +7,9 @@ every 30 ticks, armour 15, launchedBy []. It stands on the floor; nothing about 
 Reading of the sprite (24x28, a full tile; pixel (c, r) covers [c, c+1] x [r, r+1], r down):
 - Floor round it: 101/102 tiles and 99/100 grout over a dark 96-98 slab, traced pixel by pixel
   the way the machine's floor is (same heights and finishes). Dark floor in the tile's edge ring
-  counts as ink (sprite_mask.py) and the slab stops inside it.
+  counts as ink (sprite_mask.py) and the slab stops inside it. Built only as an occluder for the
+  AO bake and deleted before export, and left out of the outline shell (D129, as D86's dirt): it
+  is the tile's ground, which the game draws in HD, and it showed as a box of pixel tiles.
 - The block: a battered armoured housing, its ink at col 1 / col 20 / row 1 / row 24, chamfered
   back corners (rows 2-4). The flanks slope in (left cols 2-5 shade 4-5-6 toward the top, right
   cols 17-19 darker 4-3: lighting from the upper left on sloped walls, not paint). Panel seams cross
@@ -332,15 +334,14 @@ def floor_slab(m, slab):
 
 
 def shell_source(g, inner):
-    """What the outline shell is made from (D51): the block's plain frustum, the plate and the
-    floor slab, without the ribs, grooves, slots and gun. Built from the detailed model, the shell's
+    """What the outline shell is made from (D51): the block's plain frustum and the plate (not the
+    floor slab, D129), without the ribs, grooves, slots and gun. Built from the detailed model, the shell's
     back faces showed in the narrow grooves between the ribs as black specks; this has no groove for
     them to show in, and the shell only has to trace the silhouette."""
     m = PxMesh("shellsrc")
     m.hull(frustum_pts(), 5)
     poly = [(6.9, 2.4), (15.8, 2.4), (16.6, 3.2), (16.6, SLOPE0 - 0.1), (6.0, SLOPE0 - 0.1), (6.0, 3.3)]
     m.hull(prism_pts(poly, TOP - 0.2, PLATE_TOP, 0.4), 7)
-    floor_slab(m, floor_cells(g, inner))
     return m
 
 
@@ -484,7 +485,11 @@ def build(sprite, coll):
     fl = PxMesh("floor")
     floor(fl, g, inner)
     fl_o = to_object(fl, sprite, coll)
-    obj = join([body_o, plate_o, det_o, fl_o], TAG)
+    for i, mt in enumerate(fl_o.data.materials):  # own flagged copies: deleted after the bake (D129)
+        cp = mt.copy()
+        cp["tyrian_floor"] = True
+        fl_o.data.materials[i] = cp
+    obj = join([body_o, plate_o, det_o], TAG)
     me = obj.data
     for p in me.polygons:
         p.use_smooth = True
@@ -496,7 +501,7 @@ def build(sprite, coll):
         go = to_object(gm, sprite, coll)
         common.frame_part(go, [fr["index"]])
         glows.append(go)
-    return obj, glows
+    return obj, glows, fl_o
 
 
 def bake(obj, out_dir):
@@ -631,8 +636,9 @@ def main():
     sprite = common.load_sprite(WT, NAME)
     coll = common.reset_collection(TAG)
     views = Path(argv[argv.index("--views") + 1]) if "--views" in argv else None
-    obj, glows = build(sprite, coll)
+    obj, glows, fl_o = build(sprite, coll)
     T.cull_hidden(obj)
+    obj = join([obj, fl_o], TAG)  # the floor joins only for the bake's occlusion (D129)
     tris = sum(len(p.vertices) - 2 for p in obj.data.polygons) + sum(
         len(p.vertices) - 2 for g in glows for p in g.data.polygons)
     print(f"{TAG}: {tris} triangles")
@@ -649,6 +655,12 @@ def main():
         bd.mkdir(parents=True, exist_ok=True)
         bake(obj, bd)
         fmt = "WEBP"
+    bm = bmesh.new()  # the floor was the bake's occluder only: not exported (D129)
+    bm.from_mesh(obj.data)
+    fl = {i for i, mt in enumerate(obj.data.materials) if mt and mt.get("tyrian_floor")}
+    bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.material_index in fl], context="FACES")
+    bm.to_mesh(obj.data)
+    bm.free()
     # after the bake, so the shell's source doesn't shade the AO
     shell_src = to_object(shell_source(*load_grid(sprite)), sprite, coll)
     sh = common.outline_shell(shell_src, coll, voxel=0.01, faces=4000, smooth=6, inside=0.006)

@@ -37,8 +37,9 @@ Hard surface (D50-D53, D65): chamfered bar frame (convex-hull blocks), inset cor
 modelled panel line, a bolted housing with a hatch, pchip-profiled lofts for the hood (rounded-rect
 sections with a panel groove round its crown), revolved breech with machined bands, barrel with
 collar, panel groove, chamfered lip and recessed glowing bore; lamps as domed lenses in bezel rings.
-Floor: stone plate painted per pixel, a separate object marked tyrian_ground (no shadow, outside the
-outline). Outline shell (D51) from a closed proxy. Underside: closed, plain.
+Floor: stone plate painted per pixel, a separate object marked tyrian_ground, built for the review renders only; not exported (D129: the game draws the tile's ground in HD, and the
+plate painted per pixel from the sprite showed as grey pixel cells on it).
+Outline shell (D51) from a closed proxy. Underside: closed, plain.
 
 Units while building: sprite px (x = column edge - 12, y = row edge, down the screen, z up), moved
 to Blender by usp_talon.finish (1/12, y flipped).
@@ -53,7 +54,7 @@ from pathlib import Path
 import bpy
 from mathutils import Vector
 
-WT = Path("/Users/dlomibao/projects/tyrian-worktrees/e1-enemies")
+WT = Path(__file__).resolve().parents[3]  # this checkout (was a hardcoded worktree path)
 sys.path.insert(0, str(WT / "assets" / "blender"))
 import common  # noqa: E402
 import usp_talon as T  # noqa: E402
@@ -435,6 +436,7 @@ def build():
 if __name__ == "__main__":
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     sprite, objs = build()
+    objs = [o for o in objs if not o.get("tyrian_ground")]  # the floor plate stays out (D129)
     if "--out" in argv:  # a scratch export for measuring, not the game's files
         common.export_glb(objs, Path(argv[argv.index("--out") + 1]))
     else:
@@ -443,4 +445,4 @@ if __name__ == "__main__":
     for o in objs:
         o.data.calc_loop_triangles()
         tris.append(len(o.data.loop_triangles))
-    print(f"built {NAME}: {tris[0]} triangles machine, {tris[1]} floor, shell {tris[2]}")
+    print(f"built {NAME}: {tris[0]} triangles machine, shell {tris[1]}")

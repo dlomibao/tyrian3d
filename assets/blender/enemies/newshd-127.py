@@ -13,13 +13,13 @@ lobes (rows 8-10 and 17-18) are sheen on the lips of two panel lines that cross 
 Hard surface (D50-D53, D65): a fitted base flange with bolts; the dome as separate armour panels
 over a dark core, so the panel lines are real grooves with chamfered lips; the spine a lofted plate
 with chamfered edges and end caps; each lamp a domed lens in a bezel ring, a railed conduit
-between them. Floor: the stone plate painted from the sprite's pixels (as the fortress's other
-tiles, lib_b073), a separate object marked tyrian_ground (no shadow, outside the outline: when
-the pod flies as an air unit its floor must not shade the terrain or draw an ink box).
+between them. No floor plate (D129): the sprite's stone-brick floor round the pod is the tile's
+ground, which the game draws in HD; the model is the pod alone (it was a plate painted per pixel
+from the sprite, which showed as grey pixel cells on the HD ground).
 
 Colours (median of each region's pixels, darkest/brightest sixth left out, all three frames):
 dome 7, spine 10 (9.5-10; sides 9), lamp rim 112 -> 115 -> 118, lamp core 116 -> 121 -> 123,
-lamp bezel 7, panel lines 4, floor tones as lib_b073.
+lamp bezel 7, panel lines 4.
 
 Seen in episodes 1-3 in a row of six along the top of the fortress set; flies as an air unit.
 
@@ -48,7 +48,7 @@ CY = 13.5             # pod centre row (edge coordinates): rows 4.5-22.5
 RX, RY = 10.0, 8.0    # the dome's base ellipse, inside the flange
 FX, FY = 11.0, 9.0    # flange top outer edge
 BX, BY = 11.4, 9.4    # flange foot on the floor
-FLOOR = 0.36          # floor top (0.03 units, as lib_b073's FLOOR, so the fortress tiles meet)
+FLOOR = 0.36          # foot height: the old floor plate's top (0.03 units, lib_b073's FLOOR), so the fortress tiles' heights still meet
 Z0 = 1.0              # flange top = dome base
 H = 6.4               # dome height above the flange
 P_EXP, Q_EXP = 2.4, 0.5  # dome profile z = H (1 - rho^P)^Q: full shoulders, round top
@@ -375,67 +375,6 @@ def shell_proxy(coll, z_top):
     return T.finish(P, [], coll)
 
 
-# --- floor --------------------------------------------------------------------------------------
-def floor(sprite, mats, coll):
-    """The stone floor plate: a block from 0 to FLOOR, its top painted per pixel in four grey
-    tones (as lib_b073.grey_tones), pixels fully under the flange left out. The pod's shadow ring
-    painted on the floor (dark pixels hugging the pod) is lighting: lifted to the stone's tone."""
-    pix = sprite["frames"][0]["pixels"]
-    colors = sprite["colors"]
-    tones = ((1, 3), (4, 6), (7, 9), (10, 15))
-    slots = []
-    for lo, hi in tones:
-        have = [i for i in range(lo, hi + 1) if str(i) in colors]
-        mid = (lo + hi) / 2
-        slots.append(mats(min(have, key=lambda i: abs(i - mid)), part="stone", metallic=0.05, roughness=0.85)
-                     if have else None)
-
-    def slot_of(i):
-        for (lo, hi), s in zip(tones, slots):
-            if lo <= i <= hi:
-                return s
-        return slots[1]
-
-    def inside(x, y, ax, ay):
-        return (x / ax) ** 2 + ((y - CY) / ay) ** 2 < 1
-
-    P = T.Part(f"{NAME}_floor", smooth_angle=5)
-    # slab sides and bottom
-    W, Hh = 12.0, 28.0
-    T.hull(P, [(x, y, z) for x in (-W, W) for y in (0.0, Hh) for z in (0.0, FLOOR - 0.01)], slot_of(4))
-    for r in range(28):
-        c = 0
-        while c < 24:
-            idx = pix[r][c]
-            x0, x1, y0, y1 = c - 12, c - 11, r, r + 1
-            if all(inside(x, y, BX - 0.15, BY - 0.15) for x in (x0, x1) for y in (y0, y1)):
-                c += 1
-                continue
-            cx, cy = c - 11.5, r + 0.5
-            d = math.hypot(cx / BX, (cy - CY) / BY)
-            if idx <= 3 and d < 1.2:  # the pod's painted shadow
-                idx = 4
-            s = slot_of(idx)
-            e = c + 1
-            while e < 24:
-                j = pix[r][e]
-                if all(inside(x, y, BX - 0.15, BY - 0.15) for x in (e - 12, e - 11) for y in (y0, y1)):
-                    break
-                dj = math.hypot((e - 11.5) / BX, (cy - CY) / BY)
-                if j <= 3 and dj < 1.2:
-                    j = 4
-                if slot_of(j) != s:
-                    break
-                e += 1
-            vs = [P.v((xx, yy, FLOOR)) for xx, yy in ((x0, y0), (e - 12, y0), (e - 12, y1), (x0, y1))]
-            P.f(vs, s, out=(0, 0, 1))
-            c = e
-    obj = T.finish(P, mats.list, coll)
-    obj.data.shade_flat()
-    obj["tyrian_ground"] = True
-    return obj
-
-
 def build():
     sprite = common.load_sprite(WT, NAME)
     coll = common.reset_collection(NAME)
@@ -469,10 +408,8 @@ def build():
     conduit(P, z_top, SP_TOP, CHAN)
     end_caps(P, z_top, SP_SIDE, BOLT)
     pod = T.finish(P, M.list, coll)
-    fl = floor(sprite, M, coll)
-    for o in (pod, fl):  # finish() sets materials from the list at the time; refresh both
-        for m in M.list[len(o.data.materials):]:
-            o.data.materials.append(m)
+    for m in M.list[len(pod.data.materials):]:  # finish() sets materials from the list at the time
+        pod.data.materials.append(m)
     # The outline shell (D51) from a simple closed proxy a hair outside the model: the smooth dome
     # and flange, the strap, its clamps and the lamp bezels. A shell remeshed from the detailed pod
     # dipped into the grooves and the flange junction and drew ink scribbles there in game.
@@ -480,14 +417,14 @@ def build():
     shell = common.outline_shell(proxy, coll, faces=3000)
     shell.name = f"{NAME}_outline"
     bpy.data.objects.remove(proxy, do_unlink=True)
-    return [pod, fl, shell]
+    return [pod, shell]
 
 
 if __name__ == "__main__":
     objs = build()
     common.export_sprite_model(WT, objs, f"enemies/{NAME}", common.load_sprite(WT, NAME)["sprites"])
     tris = 0
-    for o in objs[:2]:
+    for o in objs[:1]:
         o.data.calc_loop_triangles()
         tris += len(o.data.loop_triangles)
-    print(f"built {NAME}: {tris} triangles (pod + floor), shell {len(objs[2].data.polygons)} faces")
+    print(f"built {NAME}: {tris} triangles (pod), shell {len(objs[1].data.polygons)} faces")

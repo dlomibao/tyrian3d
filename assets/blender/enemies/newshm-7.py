@@ -5,7 +5,7 @@ Frame 85 (the closed piece) is NOT built here: assembly-newshm-45.py exports it 
 
 How: the piece IS the assembly's piece. This script loads assembly-newshm-45.py as a module (read
 only, nothing in it is changed) and builds the whole dome with the assembly's own hull, cutters and
-parts, so the hull, yoke tip, apron, seam, floor paint and outline shell meet newshm-83 / -87 / -47
+parts, so the hull, yoke tip, apron, seam and outline shell meet newshm-83 / -87 / -47
 exactly as newshm-7-f2 does. What changes in the bay:
 
 - The two glacis leaves (the assembly's leaves, same plan, top = z_glacis, 0.22 px chamfer) become
@@ -31,7 +31,7 @@ exactly as newshm-7-f2 does. What changes in the bay:
   The apron (105) and the bezel are satin in this piece (FIN_X): at the assembly's finish they showed
   chrome streaks / a cyan environment glint in the game render.
 
-Undersides: the assembly's closed hull base and the floor block; no detail.
+Undersides: the assembly's closed hull base; no detail. No floor plate (D129).
 Texture: none by default (no textures/newshm-7 folder). -- --bake runs the AO/roughness model bake of the
 static piece (usp_talon.bake_maps); tried, it streaked the apron and hull in the game renderer, so off. Outline shell: from the whole dome with the
 leaves closed (exactly newshm-7-f2's shell), cut to the piece without caps, as the assembly does.
@@ -340,7 +340,8 @@ def dup(o):
 
 def crop(body, floor, loose):
     """The piece: the body (all closed solids) intersected with the tile box (EXACT, self-union), so its
-    cut faces are capped in the dark cut colour (101); the floor plate cut by planes. `loose` (the rails
+    cut faces are capped in the dark cut colour (101); the floor plate is not exported (D129, as the
+    assembly: the game draws the tile's ground in HD), so it is dropped. `loose` (the rails
     and rail lips, closed solids built inside the tile) is only joined: cropped in the self-union it
     left open slivers at the tile edge."""
     box = A.slab([(OX, OY - 0.001), (OX + 24, OY - 0.001), (OX + 24, OY + 28), (OX, OY + 28)], 20.0, -1.0,
@@ -355,15 +356,15 @@ def crop(body, floor, loose):
     bpy.data.objects.remove(box, do_unlink=True)
     body = A.join([body, loose], "body")
     close_slivers(body)  # also closes the chamfered rail slabs' open corner (A.slab leaves one there)
-    fl = common.split_assembly(floor, PIECE, A.COLL)[NAME]
     bpy.data.objects.remove(floor, do_unlink=True)
     bm = bmesh.new()
     bm.from_mesh(body.data)
     bmesh.ops.translate(bm, vec=(0, 14 / 12, 0), verts=bm.verts)
     bm.to_mesh(body.data)
     bm.free()
-    piece = A.join([body, fl], NAME)
-    return piece
+    body.name = NAME
+    body.data.name = NAME
+    return body
 
 
 def close_slivers(obj):

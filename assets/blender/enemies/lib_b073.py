@@ -1,12 +1,14 @@
 """Helpers shared by batch b073's model scripts (build-models.sh skips lib_ modules).
 
 Batch b073 is the grey stone fortress set of newshd/newshs/newshm/newshp.shp (episodes 1-3): tiles
-of machinery laid on a stone-brick floor. Every piece fills (most of) its tile, so each model is a
-low floor plate with the machinery built on top of it, base at z = 0.
+of machinery laid on a stone-brick floor. Every piece fills (most of) its tile; the models were a
+low floor plate with the machinery built on top of it. Since D129 the plate is not exported: the
+sprite's stone floor is the tile's ground, which the game draws in HD.
 
 - Grid: sprite (or assembly) pixel coordinates to Blender X/Y.
 - Mats: palette materials created on demand, one slot per (index, finish).
-- floor: the flat stone floor plate, its top painted in a few grey tones from the sprite.
+- floor: the flat stone floor plate, its top painted in a few grey tones from the sprite. Not for a
+  game model (D129): at most an occluder for a bake, deleted before export.
 - painted: a surface over a pixel rectangle whose faces take the sprite's colours (numerals, decals).
 - box, prism, pillow (bevelled block), dome, ellipsoid, tube, loft_x/loft_y, capsule.
 - finish: bmesh to object keeping each face's smooth flag.
@@ -375,7 +377,8 @@ def grey_tones(mats, colors, tones=((1, 3), (4, 6), (7, 9), (10, 15)), finish=No
 
 def floor(bm, grid, mats, colors, rect=None, top=FLOOR, skirt_mat=None):
     """The stone floor plate: a block from z = 0 to `top` over pixel rect (c0, r0, c1, r1)
-    (default the whole tile), its top painted in grey tones from the sprite."""
+    (default the whole tile), its top painted in grey tones from the sprite. Never export it (D129:
+    it showed as grey pixel cells on the game's HD ground); use it only as a bake occluder."""
     c0, r0, c1, r1 = rect or (0, 0, grid.w, grid.h)
     slot_of = grey_tones(mats, colors)
     if skirt_mat is None:

@@ -24,11 +24,13 @@ Read off the sprite (sprite px: c = column east, r = row south (front, the playe
   under a lintel) and a grooved box; a kerb (6) whose lit south bevel is the sprite's row 69.
 - THE GRILLE RAMP: a bed (2) sloping from the kerb down to the floor, eight ribs (4) on the
   sprite's 4-px pitch (lit columns 8, 12, ... 36), cheeks (5), a sill (4) at row 79.
-- THE FLOOR: the stone floor plate under it all, painted per pixel from the sprite (lib_b073.floor).
+- NO FLOOR (D129): the sprite's stone floor round the block is the tile's ground, which the game
+  draws in HD (the plate painted per pixel from the sprite, lib_b073.floor, showed as grey pixel
+  cells on it). The machine stands on the ground.
 Underside: closed, plain.
 
 Seen in episodes 1-3 (levels 1.2, 2.4, 3.2); damaged frames 17/55 show this intact model (D87).
-Built whole and cut into the six pieces (body, stone floor, outline shell) with common.split_assembly.
+Built whole and cut into the six pieces (body, outline shell) with common.split_assembly.
 Texture: AO/roughness bake only, no concept projection (D50, D65).
 
 Run: blender -b --factory-startup -P assets/blender/enemies/assembly-newshs-13.py [-- --no-bake]
@@ -46,7 +48,7 @@ import bpy
 sys.path[:0] = [str(Path(__file__).resolve().parents[1]), str(Path(__file__).resolve().parent)]
 import common  # noqa: E402
 WT = common.repo_root(__file__)
-import lib_b073 as L  # noqa: E402  (read only: Grid, Mats, floor)
+import lib_b073 as L  # noqa: E402  (read only: Grid, Mats)
 import usp_talon as T  # noqa: E402
 
 import os  # noqa: E402
@@ -548,12 +550,6 @@ def main():
     machine = to_object(M, f"{NAME}_machine", m.list, coll)
     weighted(machine)
 
-    fb = bmesh.new()
-    g = L.Grid(48, 84, grid)
-    L.floor(fb, g, m, sprite["colors"], rect=(0, 28, 48, 84))
-    floor = L.finish(f"{NAME}_floor", fb, m, coll)
-    floor.data.shade_flat()
-
     fmt = "AUTO"
     if "--no-bake" not in argv:
         T.TINT = (1.0, 1.0, 1.0)
@@ -562,7 +558,6 @@ def main():
         fmt = "WEBP"
     shell = common.outline_shell(machine, coll, voxel=0.012, faces=4000, smooth=6, inside=0.01)
     pieces = common.split_assembly(machine, LAYOUT, coll)
-    floors = common.split_assembly(floor, LAYOUT, coll)
     shells = split_open(shell, coll)
     export, total = [], 0
     for name, cx, cy in LAYOUT:
@@ -570,14 +565,6 @@ def main():
         p.name = name
         weighted(p)
         group = [p, shells[name]]
-        f = floors[name]
-        if len(f.data.polygons):
-            f.name = f"{name}_floor"
-            f.data.shade_flat()
-            f["tyrian_ground"] = True
-            group.append(f)
-        else:
-            bpy.data.objects.remove(f, do_unlink=True)
         t = sum(tris(o) for o in group if "outline" not in o.name)
         total += t
         print(f"built piece {name}: {t} tris (+ outline {tris(shells[name])})")
@@ -589,7 +576,7 @@ def main():
             for o in export:
                 if o.name.startswith(name):
                     o.location = (cx / 12, -cy / 12, 0)
-        machine.hide_render = floor.hide_render = shell.hide_render = True
+        machine.hide_render = shell.hide_render = True
         common.export_glb(export, OUT, image_format=fmt)
     print(f"built {NAME}: {total} triangles, body {tris(machine)}")
 

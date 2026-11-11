@@ -5547,3 +5547,81 @@ Checked with `?debug=play&hurt=1`: the SOH JIN blocks (1.13 t1050, t1800 at 4K),
 Test: `tests/render/damageUpsample.test.ts`.
 
 Captures: `tyrian-scratch/qa2-renderer/` (`dmg-before/`, `dmg-after/`, `dmg-after/cmp_*`: left before, right after).
+
+## D129 — Episode-1 fortress and machine enemies stand on the HD ground: no floor plate painted from the sprite (extends D86, D103)
+
+2026-11-10
+
+**Problem** (`tyrian-scratch/e1-qa-2/REPORT.md` issue 3): fourteen enemy scripts exported the sprite's ground round the
+machine as a floor plate painted pixel by pixel from the sprite (four grey tones from the stone set's greys, as
+`lib_b073.floor`, or DELIANI's blue tiles traced per pixel). In game it showed as a rectangle of raw grey (or blue)
+pixel cells under each machine, on top of the HD terrain: ASTEROID1's boss and pods, ASTEROID2's turrets and carts,
+ASTEROID?'s fortress row, DELIANI's pillar ends and vent block. Checked per candidate in the game's render
+(4K captures at ticks where each is on screen, found by stepping the harness and reading the draw list):
+
+| Script | Plate | Seen in | Done |
+|---|---|---|---|
+| `assembly-newshm-45` (ASTEROID1 boss) + `newshm-7` (its bay frames 7/9/11) | per-pixel stone | 1.1 t5966 | plate kept as the AO bake's occluder, deleted before export |
+| `assembly-newshd-245` (beetle pod pair) | per-pixel stone | 1.1 t2160/2950, 1.2 t1500 | not exported |
+| `assembly-newshs-13` ("26" block) | `lib_b073.floor` | 1.2 t9200 | not built |
+| `assembly-newshs-39` (black orb) | per-pixel stone | 1.1 t5300, 1.2 t2100, 1.3 t850 | not exported (the launch bay's pit and coaming stay) |
+| `newshd-267` (pink power housing) | per-pixel stone | 1.1 t2160/2950/4680, 1.2 t1305 | not exported |
+| `newshd-275` (caged turret) | per-pixel stone | 1.1 t2950, 1.2 t4500/5550, 1.3 t3310 | not exported |
+| `newshs-11` (green-window dome) | per-pixel stone | 1.1 t1900/4800/5300, 1.2 t1305 | not built; the flange's foot closed with a flat ring |
+| `newshs-229` (red crystal clamp) | per-pixel stone | 1.1 t4680, 1.2 t1305, 1.3 t3310 | not exported |
+| `newshd-127` (lamp pod) | per-pixel stone | 1.2 t2100, 1.3 t3310 | not built |
+| `newshs-191` (capsule rack) | per-pixel stone | 1.1 t2950, 1.3 t3310/3515 | not exported |
+| `assembly-newshc-283` (DELIANI twin pillar) | per-pixel blue tiles, ink-outlined | 1.5 t2560/3300 | AO occluder only, deleted before export; the outline shell made from the machine alone |
+| `newshc-39` (DELIANI vent block) | per-pixel blue tiles, in the shell | 1.5 t2560 | AO occluder only, deleted; left out of the shell |
+| `assembly-newsh2-115` (TYRIAN dome works) | none: D86 already drops its dirt | 1.9 t300/500 | unchanged. The QA's "dome plate" at 1.9 t300 is the machine's own modelled steel bed seen through the ice sheet (issue 9); at t500, clear of it, it stands on the HD dirt |
+| `assembly-newshp-9` (derrick), `assembly-newshp-165` ("218" container) | modelled (kerbs, paving, grates; plain materials), not pixels | 1.1 t1900/4680, 1.2 t9200 | unchanged: a D65 base, no pixel cells |
+
+**Decision:** the machines stand on the HD ground, as D86's bunkers and D103's turrets. Where the script bakes AO
+(`newshm-45`, `newshc-283`, `newshc-39`) the plate is still built for the bake, as D86's dirt, so the feet darken where
+they meet the ground, and its faces are deleted before the cut and export (`newshc-*`: the floor's palette materials
+are flagged copies, `tyrian_floor`; the machine is culled and outlined on its own). Elsewhere the plate is left out of
+the export (kept for the scripts' review renders where they use it) or not built. Every machine part, palette
+material, frame, piece and pivot is as it was: no `spriteModels` entry changed. `lib_b073.floor` has no caller left;
+its docstring says it is for bake occluders only. `newshd-275.py` imported `common` from, and exported into, a
+hard-coded other worktree (`tyrian-worktrees/e1-enemies`); it now uses its own checkout.
+
+**IoU** against the object without its ground: ground = the sprite pixels whose top surface in the old model was the
+plate (top z ≤ 0.7 px on more than half the pixel); the sprite with those pixels made transparent is measured with
+`tools/sprite_mask.py` (`masks`, `measure`) against the new model's top view (any geometry, shell left out).
+`outer` keeps the machine's dark ring, `inner` is D74's rule (the ring left to the game's ink). Worst piece per unit:
+
+| Unit | ground px removed | outer grid IoU | inner grid IoU (rule) |
+|---|---|---|---|
+| assembly-newshm-45 (+ newshm-7) | 1740 | 1.0 | 0.888 (newshm-83) |
+| assembly-newshd-245 | 676 | 1.0 | 0.945 (newshd-281) |
+| assembly-newshs-13 | 772 | 0.902 (newshs-13) | 0.879 (newshs-91) |
+| assembly-newshs-39 | 2044 | 0.835 (newshs-79) | 0.651 (newshs-79) |
+| newshd-267 | 202 | 1.0 | 0.992 |
+| newshd-275 | 301 | 1.0 | 0.905 |
+| newshs-11 | 351 | 0.988 | 0.960 |
+| newshs-229 | 234 | 1.0 | 0.886 |
+| newshd-127 | 334 | 0.983 | 0.959 |
+| newshs-191 | 144 | 1.0 | 0.998 |
+| assembly-newshc-283 | 824 | 0.762 (newshc-245) | 0.892 (newshc-283) |
+| newshc-39 | 245 | 0.899 | 0.966 |
+
+The stone-set models were fitted with the whole tile opaque, so most cover the machine's dark ring (outer 1.0, inner
+lower); the DELIANI models were fitted to D74's inner mask (inner high, outer lower; `newshc-245` has no ground at
+all). The low values of `newshs-39` and `newshs-13` are machine parts below 0.7 px that the height rule counts as
+ground: the launch bay's pit floor and coaming (22-57 px per piece) and the gutters and ramp foot (23-61 px). No
+machine part moved; no plate face is left (`newshm-*`, `newshc-*` checked by palette in the exported glbs).
+
+Built with `tools/build-models.sh -j 2`; tests, typecheck, build pass. Captures, before and after, 3840x2160
+(`?debug=play&episode=1&main=M&seed=1&skip=T&freezeAt=T`): 1.1 t1900, 2160, 2950, 4680, 4800, 5300, 5966; 1.2 t1305,
+1500, 2100, 4500, 5550, 9200; 1.3 t700, 850, 3310, 3515; 1.5 t2560, 3300; 1.9 t300, 500, in
+`tyrian-scratch/no-floor-plates/` (`before/`, `after/`, `pairs/`, `crops/`; IoU in `iou/`).
+
+**Follow-ups (known):**
+- What the plate hid now shows where the terrain draws the machine or its wreck under the enemy (D86's problem, which
+  D86's cover rule solves only for TYRIAN's ground enemies on small wreck structures): ASTEROID? (1.3 t3310) shows a strip
+  of the `l1bld` red-bar structure under the capsule racks' front edge and a dark ring under the caged turrets; DELIANI
+  (1.5 t2560/3300) shows a sliver of the pillar end's red hatch, painted in the HD terrain, beside each pillar end
+  model. Small (about one sprite pixel), but a D86-style covered painting or cover rule for those tiles would remove it.
+- `newshs-229`'s jaw slots now show the ground down them (the sprite draws them near-black, "the floor far below"); a
+  modelled dark slot floor inside each jaw would match the sprite's depth if it reads too light.
+- The stone-set models cover their sprite's dark ring (see IoU): a D74 refit would put their edges on the inner mask.
