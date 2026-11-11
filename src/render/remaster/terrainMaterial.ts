@@ -27,7 +27,8 @@ import * as THREE from "three";
 import { WATER_ALPHA } from "../paletteMaterial";
 import { PALETTE_LUT_SIZE, type PaletteTexture } from "../paletteTexture";
 import { SCREEN_HUE_PARS } from "../screenHue";
-import { TERRAIN_MAX_LOD } from "./terrainArt";
+import { TILE_HEIGHT, TILE_WIDTH } from "../../data/levels";
+import { TERRAIN_MAX_LOD, TERRAIN_TINT_SCALE } from "./terrainArt";
 
 export type TerrainKind = "ground" | "blend" | "cutout";
 
@@ -58,6 +59,11 @@ float terrainClampValue(float v) {
 vec3 terrainSrgb(vec3 rgb) {
   rgb = clamp(rgb, 0.0, 1.0);
   return mix(1.055 * pow(rgb, vec3(1.0 / 2.4)) - 0.055, rgb * 12.92, step(rgb, vec3(0.0031308)));
+}
+// An sRGB colour (0..1) in linear RGB.
+vec3 terrainLinear(vec3 s) {
+  s = clamp(s, 0.0, 1.0);
+  return mix(pow((s + 0.055) / 1.055, vec3(2.4)), s / 12.92, step(s, vec3(0.04045)));
 }
 // The bank (index & 0xf0) of the raw palette's nearest colour to an sRGB colour.
 float terrainBank(vec3 s) {
@@ -99,6 +105,7 @@ uniform sampler2D terrainMap;
 uniform vec2 rectSize;
 varying vec2 vTileTexel;
 varying vec2 vRectOrigin;
+varying vec2 vTintOrigin;
 // The mip level for this pixel's footprint, at most ${TERRAIN_MAX_LOD}.0 (16-aligned rects).
 float terrainLod() {
   vec2 dx = dFdx(vTileTexel), dy = dFdy(vTileTexel);
@@ -110,19 +117,29 @@ vec4 terrainSample(vec2 t, float lod) {
   t = clamp(t, vRectOrigin + margin, vRectOrigin + rectSize - margin);
   return textureLod(terrainMap, t / vec2(textureSize(terrainMap, 0)), lod);
 }
+// A tile painted as another's plus a colour offset (D138): the tint image's offset (sRGB levels / 255) here, read
+// at mip 0 inside its own rect (${TERRAIN_TINT_SCALE} texels per original pixel); zero for a tile with no tint.
+vec3 terrainTint() {
+  if (vTintOrigin.x < 0.0) return vec3(0.0);
+  vec2 size = vec2(${TILE_WIDTH * TERRAIN_TINT_SCALE}.0, ${TILE_HEIGHT * TERRAIN_TINT_SCALE}.0);
+  vec2 t = clamp(vTintOrigin + (vTileTexel - vRectOrigin) * (${TERRAIN_TINT_SCALE}.0 * ${TILE_WIDTH}.0 / rectSize.x), vTintOrigin + 0.5, vTintOrigin + size - 0.5);
+  return textureLod(terrainMap, t / vec2(textureSize(terrainMap, 0)), 0.0).rgb - vec3(128.0 / 255.0);
+}
 `;
 
 const VERTEX_PARS = /* glsl */ `
 attribute vec2 tileUvIn;
-attribute vec2 instTile;
+attribute vec4 instTile4; // the rect's origin, then its tint's origin (x < 0: none; D138)
 uniform vec2 rectSize;
 varying vec2 vTileTexel;
 varying vec2 vRectOrigin;
+varying vec2 vTintOrigin;
 `;
 
 const VERTEX_MAIN = /* glsl */ `
-vTileTexel = instTile + tileUvIn * rectSize;
-vRectOrigin = instTile;
+vTileTexel = instTile4.xy + tileUvIn * rectSize;
+vRectOrigin = instTile4.xy;
+vTintOrigin = instTile4.zw;
 `;
 
 /** The uniforms one material reads; `terrainMap` is set per atlas. */
@@ -195,6 +212,7 @@ float lod = terrainLod();
 vec4 tex = terrainSample(vTileTexel, lod);
 float cover = tex.a;
 vec3 painted = ${premultiplied ? "tex.rgb / max(cover, 1e-4)" : "tex.rgb"};
+if (vTintOrigin.x >= 0.0) painted = terrainLinear(terrainSrgb(painted) + terrainTint()); // D138: another tile's painting, in this tile's colours
 ${kind === "cutout" ? `if (cover < 0.004) discard;\ndiffuseColor.a = cover;` : ""}
 ${blended ? `if (cover < 0.004) discard;\ndiffuseColor.a = ${(opts.blend ?? 0.55).toFixed(3)} * cover;` : ""}
 diffuseColor.rgb *= terrainPalette(painted, vPassY, vScreenWater);

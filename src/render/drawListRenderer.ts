@@ -133,7 +133,7 @@ const TILE_VARIANTS = new Set<Variant>([Variant.Ground, Variant.RemasterGround, 
 /** One InstancedMesh and its per-instance data, reused every frame. */
 class Pool {
   mesh!: THREE.InstancedMesh;
-  /** Per-instance extra data: instFx (4 floats) or instTile (2 floats). */
+  /** Per-instance extra data: instFx (4 floats), instTile (2 floats) or instTile4 (4: HD terrain's rect and tint origins). */
   extra!: THREE.InstancedBufferAttribute;
   count = 0;
   lastUsed = 0;
@@ -141,7 +141,7 @@ class Pool {
   constructor(
     private readonly base: THREE.BufferGeometry,
     private readonly material: THREE.Material,
-    private readonly extraName: "instFx" | "instTile",
+    private readonly extraName: "instFx" | "instTile" | "instTile4",
     private readonly parent: THREE.Object3D,
     private readonly shadows: { cast: boolean; receive: boolean },
     capacity = 16,
@@ -156,7 +156,7 @@ class Pool {
     const g = new THREE.BufferGeometry();
     for (const name of Object.keys(this.base.attributes)) g.setAttribute(name, this.base.attributes[name]);
     g.setIndex(this.base.index);
-    const itemSize = this.extraName === "instFx" ? 4 : 2;
+    const itemSize = this.extraName === "instTile" ? 2 : 4;
     const extra = new THREE.InstancedBufferAttribute(new Float32Array(capacity * itemSize), itemSize);
     extra.setUsage(THREE.DynamicDrawUsage);
     g.setAttribute(this.extraName, extra);
@@ -1133,8 +1133,10 @@ export class DrawListRenderer {
     else if (kind === "cutout") pool.mesh.renderOrder = CUTOUT_ORDER;
     const s = pool.next(frame);
     const e = pool.extra.array as Float32Array;
-    e[s * 2] = t.x;
-    e[s * 2 + 1] = t.y;
+    e[s * 4] = t.x;
+    e[s * 4 + 1] = t.y;
+    e[s * 4 + 2] = t.tint ? t.tint.x : -1; // D138: no colour offset
+    e[s * 4 + 3] = t.tint ? t.tint.y : -1;
     writeMatrix(pool.mesh.instanceMatrix.array as Float32Array, s, x, y, passHeight(d.pass), 1, 1, cam);
     if (blend) this.blendSheets.push({ pool, slot: s, x, y, pass: d.pass });
     this.hdTiles++;
@@ -1284,7 +1286,7 @@ export class DrawListRenderer {
     }
     let pool = this.hdPools.get(m.material);
     if (!pool) {
-      pool = new Pool(this.groundGeometry, m.material, "instTile", this.root, { cast: kind === "cutout", receive: true }, 16, m.depth);
+      pool = new Pool(this.groundGeometry, m.material, "instTile4", this.root, { cast: kind === "cutout", receive: true }, 16, m.depth);
       pool.lastUsed = frame;
       this.hdPools.set(m.material, pool);
       this.allPools.push(pool);

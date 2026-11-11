@@ -2449,6 +2449,41 @@ def match_histogram(a: np.ndarray, ref: np.ndarray) -> np.ndarray:
     return out
 
 
+def tint_down(d: np.ndarray, ratio: int) -> np.ndarray:
+    """A colour offset image averaged over ratio x ratio blocks (the tint's resolution is the atlas's divided by ratio)."""
+    h, w = d.shape[0] // ratio, d.shape[1] // ratio
+    return d[:h * ratio, :w * ratio].reshape(h, ratio, w, ratio, -1).mean((1, 3))
+
+
+def tint_up(t: np.ndarray, ratio: int) -> np.ndarray:
+    """What the shader reads back: the tint sampled bilinearly (texel centres, edges clamped) at ratio x its resolution."""
+    h, w = t.shape[:2]
+    out = t.astype(np.float32)
+    for ax, n in ((0, h), (1, w)):
+        pos = (np.arange(n * ratio) + 0.5) / ratio - 0.5
+        i0 = np.clip(np.floor(pos).astype(int), 0, n - 1)
+        i1 = np.clip(i0 + 1, 0, n - 1)
+        f = (np.clip(pos, 0, n - 1) - i0).astype(np.float32)
+        a, b = np.take(out, i0, ax), np.take(out, i1, ax)
+        f = f.reshape((-1, 1, 1) if ax == 0 else (1, -1, 1))
+        out = a * (1 - f) + b * f
+    return out
+
+
+def tint_encode(d: np.ndarray) -> np.ndarray:
+    """A colour offset (sRGB levels, -128..127) as the atlas's bytes: the texture is read as sRGB, so the byte is chosen
+    whose *decoded linear value* is (d + 128) / 255, which the shader reads straight back and filters linearly."""
+    lin = (d.clip(-128, 127) + 128) / 255
+    s = np.where(lin <= 0.0031308, lin * 12.92, 1.055 * np.power(lin, 1 / 2.4) - 0.055)
+    return np.round(s * 255).clip(0, 255)
+
+
+def tint_decode(b: np.ndarray) -> np.ndarray:
+    s = b.astype(np.float32) / 255
+    lin = np.where(s <= 0.04045, s / 12.92, np.power((s + 0.055) / 1.055, 2.4))
+    return lin * 255 - 128
+
+
 def cmd_fieldsheet(args) -> None:
     """The Gemini sheet of one field: FIELD_COLS x FIELD_ROWS copies of the tile, softened (MMPX + a blur), 1:1."""
     from scipy import ndimage  # noqa: F401
@@ -2533,23 +2568,80 @@ def cmd_fieldcut(args) -> None:
     strips = solve_strips(tiles, pairs, args.lam, fixed=fixed, continuity=cont)
     for v, img in tiles.items():
         tiles[v] = apply_strips(img, {side: strips[(v, side)] for side in OPPOSITE}, args.band_lo, args.band_hi)
-    order = sorted(tiles)
-    where, written = {}, []
-    for i, c0 in enumerate(range(0, len(order), TILES_PER_ATLAS)):  # D57: atlases at most 4096 square
-        name = "0-fields.webp" if i == 0 else f"0-fields-{i + 1}.webp"
-        atlas, rects = pack_atlas({v: tiles[v] for v in order[c0:c0 + TILES_PER_ATLAS]}, 3)
-        im = Image.fromarray(atlas.round().clip(0, 255).astype(np.uint8), "RGB")
+    fields = {}
+    if args.alias:
+        # D138: the other families are the first one's sub-tiles plus a colour offset, read by the shader from a small tint
+        # image in the same atlas (the offset is the tile's own colours and its solved edge strips, measured here), so one
+        # atlas of FIELD_COLS x FIELD_ROWS sub-tiles stands for every water tile.
+        ratio = SCALE // args.tint_scale
+        assert SCALE % args.tint_scale == 0, "--tint-scale must divide the atlas scale"
+        base_ids = field_ids(fam_tiles[0], 0)
+        atlas, base_rects = pack_atlas({v: tiles[v] for v in base_ids}, 3)
+        tw_t, th_t, pad = TILE_W * args.tint_scale, TILE_H * args.tint_scale, 2
+        extra = [(n, i) for fam, n in enumerate(fam_tiles) if fam > 0 for i in range(FIELD_COLS * FIELD_ROWS)]
+        cell_w, cell_h = tw_t + 2 * pad, th_t + 2 * pad
+        cols_t = max(1, atlas.shape[1] // cell_w)
+        y0 = atlas.shape[0]  # the base block's own bottom gutter (16 texels) separates the blocks
+        rows_t = math.ceil(len(extra) / cols_t)
+        H2 = math.ceil((y0 + rows_t * cell_h) / 16) * 16
+        full = np.zeros((H2, atlas.shape[1], 3), np.float32)
+        full[:y0] = atlas
+        full[y0:] = 0.0
+        tint_rects = {}
+        enc = {}
+        for k, (n, i) in enumerate(extra):
+            fam = families[n]
+            v = field_ids(n, fam)[i]
+            d = tint_down(tiles[v] - tiles[base_ids[i]], ratio)
+            enc[(n, i)] = tint_encode(d)
+            x, y = (k % cols_t) * cell_w, y0 + (k // cols_t) * cell_h
+            full[y:y + cell_h, x:x + cell_w] = np.pad(enc[(n, i)], ((pad, pad), (pad, pad), (0, 0)), mode="edge")
+            tint_rects[(n, i)] = {"x": x + pad, "y": y + pad}
+        im = Image.fromarray(full.round().clip(0, 255).astype(np.uint8), "RGB")
+        name = "0-fields.webp"
         save_atlas(im, out_dir / name, args.lossless)
-        written.append(name)
-        for k_, r in rects.items():
-            where[int(k_)] = {**{k: r[k] for k in ("x", "y", "w", "h")}, "image": name}
-        print(f"{len(rects)} sub-tiles -> {out_dir / name} ({im.width}x{im.height}, {(out_dir / name).stat().st_size / 1e6:.2f} MB)")
+        written = [name]
+        print(f"{len(base_ids)} sub-tiles + {len(extra)} tints ({args.tint_scale} texels per pixel) -> {out_dir / name} "
+              f"({im.width}x{im.height}, {(out_dir / name).stat().st_size / 1e6:.2f} MB)")
+        # What the game will draw: the saved atlas read back (lossy coding included).
+        back = np.asarray(Image.open(out_dir / name).convert("RGB")).astype(np.float32)
+        shown, err = {}, []
+        for fam, n in enumerate(fam_tiles):
+            for i, v in enumerate(field_ids(n, fam)):
+                r = base_rects[str(base_ids[i])]
+                b = back[r["y"]:r["y"] + r["h"], r["x"]:r["x"] + r["w"]]
+                if fam > 0:
+                    tr = tint_rects[(n, i)]
+                    t = back[tr["y"]:tr["y"] + th_t, tr["x"]:tr["x"] + tw_t]
+                    b = (b + tint_up(tint_decode(t), ratio)).clip(0, 255)
+                shown[v] = b
+                err.append(np.abs(b - tiles[v]).mean())
+        print(f"shown vs solved tile: mean abs error {np.mean(err):.2f} levels, worst tile {np.max(err):.2f}")
+        tiles = shown
+        for n, fam in families.items():
+            f = {"cols": FIELD_COLS, "rows": FIELD_ROWS,
+                 "rects": [{**{k: base_rects[str(b)][k] for k in ("x", "y", "w", "h")}, "image": name} for b in base_ids]}
+            if fam > 0:
+                f["tintScale"] = args.tint_scale
+                f["tints"] = [tint_rects[(n, i)] for i in range(FIELD_COLS * FIELD_ROWS)]
+            fields[str(n)] = f
+    else:
+        order = sorted(tiles)
+        where, written = {}, []
+        for i, c0 in enumerate(range(0, len(order), TILES_PER_ATLAS)):  # D57: atlases at most 4096 square
+            name = "0-fields.webp" if i == 0 else f"0-fields-{i + 1}.webp"
+            atlas, rects = pack_atlas({v: tiles[v] for v in order[c0:c0 + TILES_PER_ATLAS]}, 3)
+            im = Image.fromarray(atlas.round().clip(0, 255).astype(np.uint8), "RGB")
+            save_atlas(im, out_dir / name, args.lossless)
+            written.append(name)
+            for k_, r in rects.items():
+                where[int(k_)] = {**{k: r[k] for k in ("x", "y", "w", "h")}, "image": name}
+            print(f"{len(rects)} sub-tiles -> {out_dir / name} ({im.width}x{im.height}, {(out_dir / name).stat().st_size / 1e6:.2f} MB)")
+        for n, fam in families.items():
+            fields[str(n)] = {"cols": FIELD_COLS, "rows": FIELD_ROWS, "rects": [where[v] for v in field_ids(n, fam)]}
     for f in out_dir.glob("0-fields*.webp"):
         if f.name not in written:
             f.unlink()
-    fields = {}
-    for n, fam in families.items():
-        fields[str(n)] = {"cols": FIELD_COLS, "rows": FIELD_ROWS, "rects": [where[v] for v in field_ids(n, fam)]}
     manifest["layers"]["0"]["fields"] = fields
     (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=1) + "\n")
     st = seam_stats({**{n: i for n, i in old[0].items() if n not in families}, **{v: i for v, i in tiles.items()}},
@@ -2651,6 +2743,9 @@ def main(argv: list[str] | None = None) -> None:
     fc.add_argument("--band-lo", type=float, default=BAND_LO)
     fc.add_argument("--band-hi", type=float, default=BAND_HI)
     fc.add_argument("--lossless", action="store_true")
+    fc.add_argument("--no-alias", dest="alias", action="store_false", help="bake every family into its own sub-tiles (D137) instead of "
+                    "one set of sub-tiles plus a colour offset the shader adds (D138)")
+    fc.add_argument("--tint-scale", type=int, default=2, help="texels per original pixel of the colour offsets (default 2; must divide 8)")
     fc.add_argument("--save-field", help="also write the seamless patch (2x2 repeats) to this PNG, to look at")
     k = sub.add_parser("check", help="reassemble the map from the atlas, measure seams")
     k.add_argument("--out", default=str(ROOT / "public/art/terrain"), help="atlas root (default public/art/terrain)")

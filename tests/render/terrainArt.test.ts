@@ -152,6 +152,40 @@ describe("fallback per tile", () => {
     expect(t2.tile(0, 7, 1)).toEqual({ texture: "a", x: 16, y: 16 });
   });
 
+  test("a field that is a tint of another (D138) shares its sub-tiles and carries one colour offset origin per sub-tile", () => {
+    const warnings: string[] = [];
+    const rects = [0, 1, 2, 3].map((i) => ({ ...rect(16 + 208 * i, 16), image: "f.webp" }));
+    const tints = [0, 1, 2, 3].map((i) => ({ x: 2 + 52 * i, y: 1458 }));
+    const m = parseTerrainManifest(
+      {
+        scale: 8,
+        layers: {
+          "0": {
+            image: "0.webp",
+            tiles: { "7": rect(16, 16) },
+            fields: {
+              "7": { cols: 2, rows: 2, rects },
+              "8": { cols: 2, rows: 2, rects, tintScale: 2, tints },
+              "9": { cols: 2, rows: 2, rects, tintScale: 4, tints }, // not the shader's scale: skipped
+              "10": { cols: 2, rows: 2, rects, tintScale: 2, tints: tints.slice(1) }, // one short: skipped
+            },
+          },
+        },
+      },
+      (w) => warnings.push(w),
+    )!;
+    expect(warnings.length).toBe(2);
+    expect(m.layers.get(0)!.fields.has(9)).toBe(false);
+    expect(m.layers.get(0)!.fields.has(10)).toBe(false);
+    const t = new TerrainTileset<string>("shapesy", m);
+    t.setImage("0.webp", { texture: "a", width: 1024, height: 512 });
+    t.setImage("f.webp", { texture: "f", width: 2048, height: 2048 });
+    t.setMap(0, { width: 4, tiles: [7, 8, 8, 8, 8, 8, 8, 8] });
+    expect(t.tile(0, 7, 0)?.tint).toBeUndefined();
+    expect(t.tile(0, 8, 1)).toEqual({ texture: "f", x: 16 + 208, y: 16, tint: { x: 2 + 52, y: 1458 } });
+    expect(t.tile(0, 8, 6)).toEqual({ texture: "f", x: 16 + 208 * 2, y: 16, tint: { x: 2 + 52 * 2, y: 1458 } }); // row 1, column 2 -> sub-tile 2
+  });
+
   test("a covered tile (D86) has its own painting, possibly in an atlas of its own; others have none", () => {
     const warnings: string[] = [];
     const m = parseTerrainManifest(

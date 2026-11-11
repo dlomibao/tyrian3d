@@ -16,6 +16,11 @@
 // cols x rows sub-tiles; the cell at map column c and row r draws rects[(r % rows) * cols + c % cols], so the
 // repeat is the patch's size, not one tile's. The map decides, so without a map the plain tile draws.
 //
+// A field may be a tint of another's (D138): `"tints"` (one {x, y} per rect, in the same atlas image) and
+// `"tintScale"` (texels per original pixel, TERRAIN_TINT_SCALE) say a colour offset image to add to the sub-tile
+// in the shader, so every water tile shares one set of sub-tiles. Tint texels hold offset sRGB levels as
+// the linear value (offset + 128) / 255 (read at mip 0, bilinear); a tint rect is 24 x 28 times tintScale.
+//
 // "covered" (optional, D86): the tile as it looks under an opaque enemy sprite that hides it, e.g. a
 // bunker's wreck painted out to plain dirt while the live bunker stands on it.
 //
@@ -59,7 +64,12 @@ export interface TerrainField {
   cols: number;
   rows: number;
   rects: TerrainRect[];
+  /** Per rect, the origin of its colour offset in the rect's atlas (D138), if the field is a tint of the patch. */
+  tints?: { x: number; y: number }[];
 }
+
+/** Texels per original pixel of a tint's colour offsets (D138): the shader's constant. */
+export const TERRAIN_TINT_SCALE = 2;
 
 export interface TerrainLayerArt {
   image: string;
@@ -151,7 +161,7 @@ export function parseTerrainManifest(json: unknown, warn: (msg: string) => void 
     if (typeof fields === "object" && fields !== null) {
       for (const [t, f] of Object.entries(fields as Record<string, unknown>)) {
         const n = Number(t);
-        const { cols, rows, image: fieldImage, rects } = (f ?? {}) as { cols?: unknown; rows?: unknown; image?: unknown; rects?: unknown };
+        const { cols, rows, image: fieldImage, rects, tints, tintScale } = (f ?? {}) as { cols?: unknown; rows?: unknown; image?: unknown; rects?: unknown; tints?: unknown; tintScale?: unknown };
         if (!Number.isInteger(n) || n < 0 || !isCount(cols) || !isCount(rows) || cols < 1 || rows < 1 || !Array.isArray(rects) || rects.length !== cols * rows) {
           warn(`terrain art: layer ${key} field "${t}" is malformed; skipped`);
           continue;
@@ -162,8 +172,22 @@ export function parseTerrainManifest(json: unknown, warn: (msg: string) => void 
           if (r) list.push(r);
         }
         // All or nothing: a hole in the patch would draw one tile differently in a repeating pattern.
-        if (list.length === rects.length) art.fields.set(n, { cols, rows, rects: list });
-        else warn(`terrain art: layer ${key} field "${t}" has bad rects; skipped`);
+        if (list.length !== rects.length) {
+          warn(`terrain art: layer ${key} field "${t}" has bad rects; skipped`);
+          continue;
+        }
+        let tintList: { x: number; y: number }[] | undefined;
+        if (tints !== undefined) {
+          const ok = Array.isArray(tints) && tints.length === rects.length && tintScale === TERRAIN_TINT_SCALE
+            && (tints as { x?: unknown; y?: unknown }[]).every((p) => isCount(p?.x) && isCount(p?.y));
+          // Without its offsets the field would draw the patch in the wrong colours: skip it (the plain tile draws).
+          if (!ok) {
+            warn(`terrain art: layer ${key} field "${t}" has bad tints (tintScale ${TERRAIN_TINT_SCALE}, one {x, y} per rect); skipped`);
+            continue;
+          }
+          tintList = (tints as { x: number; y: number }[]).map((p) => ({ x: p.x, y: p.y }));
+        }
+        art.fields.set(n, { cols, rows, rects: list, ...(tintList ? { tints: tintList } : {}) });
       }
     }
     if (typeof covered === "object" && covered !== null) {
@@ -197,6 +221,8 @@ export interface ReadyTerrainTile<T = unknown> {
   /** Top-left of the tile's art in atlas texels (top-left origin). */
   x: number;
   y: number;
+  /** Top-left of its colour offset in the same atlas (D138), when it is a tint of another tile's painting. */
+  tint?: { x: number; y: number };
 }
 
 /**
@@ -315,9 +341,9 @@ export class TerrainTileset<T = unknown> {
     }
     const field = art.fields.get(tile);
     if (field && map) {
-      const r = field.rects[(Math.floor(index / map.width) % field.rows) * field.cols + ((index % map.width) % field.cols)];
-      const ready = this.ready(art, r);
-      if (ready) return ready;
+      const i = (Math.floor(index / map.width) % field.rows) * field.cols + ((index % map.width) % field.cols);
+      const ready = this.ready(art, field.rects[i]);
+      if (ready) return field.tints ? { ...ready, tint: field.tints[i] } : ready;
     }
     const plain = art.tiles.get(tile);
     return plain ? this.ready(art, plain) : undefined;
