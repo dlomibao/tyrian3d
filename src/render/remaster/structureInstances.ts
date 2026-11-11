@@ -5,7 +5,10 @@
 // copies of a model share its materials and palette colours.
 //
 // Each model's meshes are flattened into parts (geometry with the node transforms baked in, and a
-// material), and each part gets an InstancedMesh that grows as needed.
+// material), and each part gets an InstancedMesh that grows as needed. prepareModel's helpers (the
+// depth prepass, an outline shell: isModelHelper) are left out and dropped: a tile is never drawn
+// translucent, so the prepass has no use here, and tiles carry no outline (D8). As parts they drew
+// and cast shadows (D142).
 //
 // A part tagged with a cell of the model's pattern (`tyrian_cell: [row, col]` and `tyrian_when`, glTF
 // extras on its node, D139) is drawn per copy by whether a ground enemy covers that cell: "open" parts
@@ -26,6 +29,7 @@
 
 import * as THREE from "three";
 import { colourFrame, rigModel, type FrameRig } from "../modelFrames";
+import { isModelHelper } from "../modelPrep";
 import { hasRockBands, ROCK_SIDES, rockBandSlot, rockCell } from "../rockMaterial";
 
 interface Part {
@@ -88,9 +92,14 @@ export class StructureInstances {
     source.updateMatrixWorld(true);
     const band = depthBandOf(source);
     const parts: Part[] = [];
+    const helpers: THREE.Mesh[] = [];
     source.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
+      if (isModelHelper(mesh)) {
+        helpers.push(mesh);
+        return;
+      }
       const tag = cellTag(mesh, source);
       const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
       const geometry = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);
@@ -117,6 +126,12 @@ export class StructureInstances {
         parts.push({ mesh: im, capacity: 4, count: 0, bands, cell: tag?.cell, when: tag?.when });
       }
     });
+    // The source is this model's own load (loaders parse afresh), kept only for its frame rig.
+    for (const h of helpers) {
+      h.removeFromParent();
+      h.geometry.dispose();
+      for (const m of Array.isArray(h.material) ? h.material : [h.material]) m.dispose();
+    }
     this.models.set(name, { parts, rig: rigModel(source), count: 0, paletteVersion: -1, hue: -1, height: 0 });
   }
 

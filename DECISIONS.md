@@ -6297,3 +6297,56 @@ twelve `cell-1-2..7-{open,covered}` nodes with the same tags as main's.
 **Cost:** 44 agents (32 Opus, 12 Sonnet), 5.97M subagent tokens, about 1.4 h. Sheets:
 `tyrian-scratch/structures-2/<name>/final/`; the lead's seam captures `tyrian-scratch/structures-2/lead/`;
 integration builds, lib check and captures `tyrian-scratch/structures-2/integrate/` (not in git, D3).
+## D142 — Instanced structures leave out prepareModel's helpers: the depth prepass no longer draws or casts a shadow (fixes a D141 follow-up; extends D34, D51, D91)
+
+2026-11-11
+
+**Problem (D141's follow-up, confirmed):** `loadModel` runs `prepareModel` on every model, structures included,
+and it adds a `depth_prepass` mesh: the whole model merged, positions only, a `colorWrite: false` material, hidden,
+casting no shadow, shown only while `setModelBlended` draws an enemy translucent (D51). `StructureInstances.add`
+traversed every mesh, so the prepass became an instanced part with `castShadow = true` that `end()` made visible
+with the model's copies. Each structure model on screen paid three extra draws of its whole geometry: the main
+pass (depth only, in the transparent list), the outline pass (OutlineEffect's `isCompatible` needs normals, so it
+drew the prepass again with its own material instead of skipping it), and the shadow pass. Probed at TYRIAN t4050:
+25 prepass parts, each drawn twice outside the shadow pass. Shadows were not darkened twice: a shadow map keeps the
+nearest depth, and the prepass is the model's own surface, so it only cost time. Background tiles are never drawn
+translucent, so the prepass has no use there.
+
+**Decision:** `StructureInstances.add` skips `isModelHelper` meshes (the depth prepass and any D51 outline shell,
+which on a tile drew nothing anyway, D141), then removes them from the loaded scene and frees their geometry and
+material. The scene is that model's own parse, kept only for its frame rig. `prepareModel` and enemy models are
+unchanged. Test: `tests/render/structureInstances.test.ts` (parts are the palette meshes only, every one a shadow
+caster with the outline off; helpers gone from the source; placed copies draw one mesh per colour part).
+
+**Measured** (`?debug=play&episode=1&seed=1&skip=T&freezeAt=T`, headless Chrome on the real GPU, 1512x900; the
+game paused, one `view.render` with and without the shadow map's update, `renderer.info` reset each time):
+
+| Frame | Calls before → after | Shadow-pass calls | Triangles drawn | Shadow-pass triangles | Prepass parts |
+|---|---|---|---|---|---|
+| TYRIAN t300 | 236 → 230 | 102 → 100 | 182k → 152k | 50k → 41k | 2 → 0 |
+| TYRIAN t4050 | 371 → 296 | 159 → 134 | 520k → 277k | 182k → 100k | 25 → 0 |
+| ASTEROID? t1750 | 173 → 170 | 72 → 71 | 430k → 254k | 142k → 83k | 1 → 0 |
+| DELIANI t300 | 442 → 433 | 206 → 203 | 601k → 352k | 202k → 119k | 3 → 0 |
+
+Frame time (150 renders each, synced with a 1-pixel `readPixels`, 3024x1800 at DPR 2; median / 25th percentile, ms;
+two rounds, load average 2-14 from other agents' work):
+
+| Frame | Before (round 1; round 2) | After (round 1; round 2) |
+|---|---|---|
+| TYRIAN t300 | 5.3/4.8; 9.3/8.8 | 9.3/8.3; 7.9/7.0 |
+| TYRIAN t4050 | 8.3/7.2; 12.5/11.6 | 6.7/6.3; 16.3/10.1 |
+| ASTEROID? t1750 | 7.8/6.9; 7.0/6.3 | 6.2/4.8; 7.5/6.5 |
+| DELIANI t300 | 9.1/7.1; 8.3/7.6 | 5.7/5.2; 8.2/6.4 |
+
+The swings between rounds of the same code (up to 4 ms) are larger than any change, so wall time does not resolve
+this saving on a shared machine; the call and triangle counts above are exact and repeatable. The shadow pass's
+share (with minus without its update) is 0-1.1 ms in every run, likewise within the noise. GPU timer queries
+(`EXT_disjoint_timer_query_webgl2`) gave inconsistent results under ANGLE/Metal (negative shadow-pass deltas) and
+are not used.
+
+**Visual check:** before/after captures of the four frames (DPR 1 and 2) are identical in every pixel except one hit
+sparkle per t300 frame, which differs between two runs of the same code too (VFX timing). Shadows unchanged.
+Captures and measurements: `tyrian-scratch/structure-prepass/{before,after,before-dpr2,after-dpr2}/` (not in git).
+
+**Not changed:** an enemy's prepass also draws in the outline pass while the enemy is translucent (no normals, so
+OutlineEffect doesn't swap it); harmless (depth only, after the model's main draw) and left as it is.
