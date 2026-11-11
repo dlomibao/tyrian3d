@@ -1,7 +1,7 @@
 // The screen filters' renderer-side rules (src/render/screenFilters.ts, screenHue.ts): which draws
 // a filter covers, how the previous frame is weighted per display frame, and the hue stages.
 import { describe, expect, test } from "vitest";
-import { hueStages, passCeiling, previousFrameWeight, stageUniforms } from "../../src/render/screenFilters";
+import { LAVA_WAVE, WATER_WAVE, hueStages, passCeiling, previousFrameWeight, stageUniforms, waveAt, type Wave } from "../../src/render/screenFilters";
 import { ScreenHue } from "../../src/render/screenHue";
 import { PASS_HEIGHT } from "../../src/render/passHeights";
 import { CLASSIC_TICK_MS } from "../../src/core/timing";
@@ -69,5 +69,30 @@ describe("screen filters", () => {
     hue.set([]);
     expect(hue.uniforms.screenHueCount.value).toBe(0);
     expect(hue.modelHue(0)).toBe(-1);
+  });
+
+  test("the waves have the C's extremes and period, without its whole-pixel steps (D135)", () => {
+    // backgrnd.c: lava_filter abs(((diw >> 9) & 0xF) - 8) - 1, water_filter abs(((diw >> 10) & 0x7) - 4) - 1.
+    const lava = (diw: number) => Math.abs(((diw >> 9) & 0xf) - 8) - 1;
+    const water = (diw: number) => Math.abs(((diw >> 10) & 0x7) - 4) - 1;
+    const check = (w: Wave, c: (diw: number) => number) => {
+      let lo = Infinity;
+      let hi = -Infinity;
+      for (let diw = 0; diw < 320 * 185; diw += 8) {
+        lo = Math.min(lo, c(diw));
+        hi = Math.max(hi, c(diw));
+        // Close to the C's table everywhere (a triangle; the sine bows out a little).
+        expect(Math.abs(waveAt(w, diw) - c(diw))).toBeLessThan(w.amplitude / 2 + 1);
+        // Periodic like the table.
+        expect(c(diw + w.period)).toBe(c(diw));
+      }
+      expect(w.mean - w.amplitude).toBe(lo);
+      expect(w.mean + w.amplitude).toBe(hi);
+      expect(waveAt(w, 0)).toBeCloseTo(c(0), 6);
+      // Continuous: a sixteenth of a row (20 diw) moves it far less than a pixel.
+      for (let diw = 0; diw < w.period; diw += 7) expect(Math.abs(waveAt(w, diw + 20) - waveAt(w, diw))).toBeLessThan(0.1);
+    };
+    check(LAVA_WAVE, lava);
+    check(WATER_WAVE, water);
   });
 });

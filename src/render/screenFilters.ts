@@ -9,10 +9,13 @@
 // object's pass height (D5) as its colour, so a filter changes a pixel only when the object on top
 // there is from one of its passes. Positions are worked out in game_screen pixels: every draw sits
 // on the camera ray through its original screen position (D6), so a pixel's game position is where
-// its ray meets the ground, and the C's per-row and per-pixel offsets apply exactly. A colour's
-// value is its brightness; a new value scales the lit colour, keeping its hue and lighting. Filters
-// that mix with the previous frame do so per display frame with the weight that gives the C's
-// per-tick blend. Nothing here runs while drawList.screen is null.
+// its ray meets the ground, and the C's offsets apply in its units. They are continuous, though: the
+// C's waves step by whole pixels per row and 8-pixel chunk, which at output resolution cut the HD
+// scene into staircases, so the waves here are sines through the same extremes, read at sub-pixel
+// positions (D135). A colour's value is its brightness; a new
+// value scales the lit colour, keeping its hue and lighting. Filters that mix with the previous
+// frame do so per display frame with the weight, and the offset, that give the C's per-tick blend.
+// Nothing here runs while drawList.screen is null.
 
 import * as THREE from "three";
 import { CLASSIC_TICK_MS } from "../core/timing";
@@ -72,6 +75,25 @@ export function hueStages(stages: readonly ScreenFilterStage[]): ScreenHueStage[
   }
   return out;
 }
+
+/** A filter's sideways wave: mean + amplitude * cos(2 pi diw / period), in game_screen pixels. */
+export interface Wave {
+  mean: number;
+  amplitude: number;
+  period: number;
+}
+
+/** lava_filter's wave, -1..7 px: abs(((diw >> 9) & 15) - 8) - 1, period 16 * 512 (as a sine, D135). */
+export const LAVA_WAVE: Wave = { mean: 3, amplitude: 4, period: 16 * 512 };
+/** water_filter's wave, -1..3 px: abs(((diw >> 10) & 7) - 4) - 1, period 8 * 1024. */
+export const WATER_WAVE: Wave = { mean: 1, amplitude: 2, period: 8 * 1024 };
+
+/** The wave's shift at a (continuous) diw: what the shader computes. */
+export function waveAt(w: Wave, diw: number): number {
+  return w.mean + w.amplitude * Math.cos((2 * Math.PI * diw) / w.period);
+}
+
+const glslWave = (w: Wave) => [w.mean, w.amplitude, w.period].map((v) => v.toFixed(1)).join(", ");
 
 const QUAD_VERTEX = /* glsl */ `
 varying vec2 vUv;
@@ -145,12 +167,35 @@ vec3 previous(vec2 game) { return texture2D(prevMap, uvAt(game)).rgb; }
 
 bool isWater(vec4 c) { return c.a < 0.75; }
 
-// The 8-pixel chunk's diw (the C counts it down from the bottom-right).
-int diwAt(vec2 g) { return 320 * int(floor(g.y)) + (int(floor(g.x)) & ~7) + 8; }
-// lava_filter's wave, -1..7 px.
-float lavaWave(vec2 g) { return float(abs(((diwAt(g) >> 9) & 15) - 8) - 1); }
-// water_filter's wave, -1..3 px.
-float waterWave(vec2 g) { return float(abs(((diwAt(g) >> 10) & 7) - 4) - 1); }
+// The waves are the C's (diw, the 8-pixel chunk's offset in the 320-wide screen, which it counts
+// down from the bottom-right, through a triangle table), but read continuously: the C's steps are
+// whole pixels per row and chunk, which at output resolution cut the HD scene into staircases. A
+// sine through the same extremes and period keeps the wobble's size and shape (D135).
+const float TAU = 6.2831853;
+float diwAt(vec2 g) { return 320.0 * g.y + g.x + 4.0; }
+float wave(vec2 g, vec3 w) { return w.x + w.y * cos(TAU * diwAt(g) / w.z); }
+float lavaWave(vec2 g) { return wave(g, vec3(${glslWave(LAVA_WAVE)})); }
+float waterWave(vec2 g) { return wave(g, vec3(${glslWave(WATER_WAVE)})); }
+
+// water_filter leaves grey and cloud-blue pixels alone, a choice the C makes per original pixel. An
+// HD painting's exempt texels (its darkest, near-grey ones, D114) can be much smaller than that, and
+// showed as black specks in the water. So a non-water pixel counts as water when there is water
+// round it a third of an original pixel away (3 of 4 points), with those points' colour as its hue.
+// Exempt areas an original pixel wide (grey bricks, the dark edges of the shores) stay exempt.
+bool exemptSpeck(vec2 p, float ceiling, out vec3 water) {
+  water = vec3(0.0);
+  float n = 0.0;
+  for (int i = 0; i < 4; i++) {
+    vec2 o = i < 2 ? vec2(i == 0 ? 0.35 : -0.35, 0.0) : vec2(0.0, i == 2 ? 0.35 : -0.35);
+    vec4 s = below(p + o, ceiling, vec4(0.0, 0.0, 0.0, 1.0));
+    if (isWater(s)) {
+      water += s.rgb;
+      n += 1.0;
+    }
+  }
+  water /= max(n, 1.0);
+  return n > 2.5;
+}
 
 void main() {
   vec4 c = texture2D(sceneMap, vUv);
@@ -165,36 +210,46 @@ void main() {
     if (kind == 1) {
       // lava_filter: value = (2 * src[x + wave] + dst below + dst above) / 4 (hue 0x70 is the
       // materials' job).
-      vec2 p = g + vec2(lavaWave(g), 0.0);
+      float wave = lavaWave(g);
+      vec2 p = g + vec2(wave, 0.0);
       vec4 s = below(p, ceiling, c);
-      float vs = valueOf(s.rgb);
       float v;
       if (a >= 0.0) {
-        v = mix(vs, 0.5 * (valueOf(previous(p + vec2(0.0, 1.0))) + valueOf(previous(p - vec2(0.0, 1.0)))), a);
+        // The previous frame, as the C reads its last tick's screen: shifted by the wave and
+        // spread a row up and down per tick. This frame is a fraction t of a tick, so the history
+        // moves t of the wave and sqrt(t) of a row (the spread adds up as a variance): the smear's
+        // length doesn't depend on the frame rate (the C's averages twice the wave).
+        float t = a > 0.0 ? min(1.0, -log2(a)) : 1.0;
+        vec2 q = g + vec2(t * wave, 0.0);
+        vec2 d = vec2(0.0, sqrt(t));
+        v = mix(valueOf(s.rgb), 0.5 * (valueOf(previous(q + d)) + valueOf(previous(q - d))), a);
       } else {
-        v = 0.5 * vs + 0.25 * (valueOf(below(p + vec2(0.0, 1.0), ceiling, s).rgb) + valueOf(below(p - vec2(0.0, 1.0), ceiling, s).rgb));
+        v = 0.5 * valueOf(s.rgb) + 0.25 * (valueOf(below(p + vec2(0.0, 1.0), ceiling, s).rgb) + valueOf(below(p - vec2(0.0, 1.0), ceiling, s).rgb));
       }
       c.rgb = withValue(s.rgb, v);
     } else if (kind == 2) {
       // water_filter, bottom row up: dst = hue | (src value + dst[below, x + wave] value) / 2 for the
       // pixels it recoloured. The rows below are this frame's results, so the value is a running
-      // half-and-half down the column, as far as the water goes.
-      if (isWater(c)) {
+      // half-and-half down the column, as far as the water goes (six rows here). The taps stay
+      // whole rows apart: half-row taps turned the HD jungle into streaks the C doesn't draw.
+      vec3 tint = c.rgb;
+      if (isWater(c) || exemptSpeck(g, ceiling, tint)) {
         float acc = 0.5 * valueOf(c.rgb);
         float w = 0.5;
         vec2 p = g;
+        vec3 unused;
         for (int k = 0; k < 6; k++) {
           p += vec2(waterWave(p), 1.0);
           vec4 s = below(p, ceiling, vec4(c.rgb, 1.0));
           float vk = valueOf(s.rgb);
-          if (!isWater(s) || k == 5) {
+          if (k == 5 || !(isWater(s) || exemptSpeck(p, ceiling, unused))) {
             acc += w * vk;
             break;
           }
           acc += w * 0.5 * vk;
           w *= 0.5;
         }
-        c.rgb = withValue(c.rgb, acc);
+        c.rgb = withValue(tint, acc);
       }
     } else if (kind == 3 || kind == 4) {
       // iced_blur_filter and blur_filter: value = (src + dst) / 2, this pixel's hue (ice blue for
@@ -279,6 +334,54 @@ void main() {
 }
 `;
 
+/**
+ * The flat sprite art (spriteArtLayer.ts, D42) places its quads from instance attributes the mask
+ * material doesn't read, so drawn with it the shots and enemies in flat art were missing from the
+ * mask, and the filters wobbled and smeared them as if they were ground (ASSASSIN's beam). The mask
+ * draws them again with this: the art's quad, its texels' cut-out, its pass height.
+ */
+const ART_MASK_VERTEX = /* glsl */ `
+attribute vec3 aOrigin;
+attribute vec2 aSize;
+attribute vec4 aUv;
+attribute vec4 aFx;
+varying vec2 vUv;
+varying vec4 vUvRect;
+varying float vAlpha;
+varying float vHeight;
+void main() {
+  vec3 p = aOrigin + vec3(position.x * aSize.x, 0.0, position.z * aSize.y);
+  vUv = mix(aUv.xy, aUv.zw, position.xz);
+  vUvRect = aUv;
+  vAlpha = aFx.w;
+  vHeight = aOrigin.y;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+}
+`;
+
+const ART_MASK_FRAGMENT = /* glsl */ `
+uniform sampler2D map;
+varying vec2 vUv;
+varying vec4 vUvRect;
+varying float vAlpha;
+varying float vHeight;
+void main() {
+  vec2 halfTexel = 0.5 / vec2(textureSize(map, 0));
+  float a = texture2D(map, clamp(vUv, vUvRect.xy + halfTexel, vUvRect.zw - halfTexel)).a;
+  if (a * vAlpha < 0.004 || a < 0.5) discard;
+  gl_FragColor = vec4(vHeight, 0.0, 0.0, 1.0);
+}
+`;
+
+/** The camera layer the mask's flat-art draw uses for a moment; nothing else is on it. */
+const ART_MASK_LAYER = 30;
+
+/** Whether an object is a batch of the flat sprite art (spriteArtLayer.ts). */
+function isFlatArt(o: THREE.Object3D): o is THREE.Mesh {
+  const m = o as THREE.Mesh;
+  return m.isMesh === true && m.name === "sprite-art" && m.geometry.getAttribute("aOrigin") !== undefined && m.geometry.getAttribute("aUv") !== undefined;
+}
+
 const renderTarget = (samples: number) =>
   new THREE.WebGLRenderTarget(1, 1, {
     type: THREE.HalfFloatType,
@@ -310,6 +413,7 @@ export class ScreenFilterPass {
   private readonly filterMaterial: THREE.ShaderMaterial;
   private readonly presentMaterial: THREE.ShaderMaterial;
   private readonly maskMaterial: THREE.ShaderMaterial;
+  private readonly artMaskMaterials = new WeakMap<THREE.Texture, THREE.ShaderMaterial>();
   private readonly size = new THREE.Vector2();
   private readonly viewProj = new THREE.Matrix4();
   private readonly invViewProj = new THREE.Matrix4();
@@ -474,6 +578,22 @@ export class ScreenFilterPass {
     scene.background = background;
   }
 
+  /** The mask material for a flat-art batch drawn with `material` (one per atlas). */
+  private artMaskMaterial(material: THREE.ShaderMaterial): THREE.ShaderMaterial {
+    const map = material.uniforms.map.value as THREE.Texture;
+    let m = this.artMaskMaterials.get(map);
+    if (!m) {
+      m = new THREE.ShaderMaterial({
+        vertexShader: ART_MASK_VERTEX,
+        fragmentShader: ART_MASK_FRAGMENT,
+        uniforms: { map: { value: map } },
+        side: THREE.DoubleSide,
+      });
+      this.artMaskMaterials.set(map, m);
+    }
+    return m;
+  }
+
   /** Draw every object's pass height (D5) into the mask target. */
   private renderMask(scene: THREE.Scene, camera: THREE.Camera, root: THREE.Object3D): void {
     const r = this.renderer;
@@ -496,12 +616,38 @@ export class ScreenFilterPass {
         material.uniformsNeedUpdate = true;
       }
     };
+    // The flat art is left out of this draw and drawn after it with its own material.
+    const art: THREE.Mesh[] = [];
+    scene.traverseVisible((o) => {
+      if (isFlatArt(o) && o.layers.test(camera.layers)) art.push(o);
+    });
+    for (const m of art) m.visible = false;
     scene.background = null;
     scene.overrideMaterial = material;
     r.shadowMap.autoUpdate = false;
     r.setClearColor(0x000000, 0);
     r.setRenderTarget(this.maskTarget);
     r.render(scene, camera);
+    for (const m of art) m.visible = true;
+    if (art.length > 0) {
+      const saved = art.map((m) => ({ material: m.material, layers: m.layers.mask }));
+      for (const m of art) {
+        m.material = this.artMaskMaterial(m.material as THREE.ShaderMaterial);
+        m.layers.set(ART_MASK_LAYER);
+      }
+      const layers = camera.layers.mask;
+      const autoClear = r.autoClear;
+      scene.overrideMaterial = null;
+      camera.layers.set(ART_MASK_LAYER);
+      r.autoClear = false;
+      r.render(scene, camera);
+      r.autoClear = autoClear;
+      camera.layers.mask = layers;
+      art.forEach((m, i) => {
+        m.material = saved[i].material;
+        m.layers.mask = saved[i].layers;
+      });
+    }
     r.setClearColor(clearColor, clearAlpha);
     r.shadowMap.autoUpdate = shadows;
     scene.overrideMaterial = override;
