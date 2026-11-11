@@ -1,41 +1,49 @@
-"""assembly-newshi-154, the grey ribbed end cap of the SAVARA boss hull, cross-sections first.
+"""assembly-newshi-154, the BOW of the SAVARA blimp (D120): the gas envelope's nose cone, cross-sections first.
 
-newshi.shp frames 154 | 156 | 158 (three 2x2 ground enemies side by side, 72 x 28 px, one frame
-each; episode 1 sections 10, 29, 38 and 3.21). The sprite is the tapered south end of a ribbed
-egg-shaped hull, cut flat along its top edge where it joins the structure above. Nine raised
-meridian ribs meet at a blue-grey hub (col 37, row 16); a blue-grey rivet sits on the north-east
-rib at (49, 1).
+newshi.shp frames 154 | 156 | 158 (three 2x2 enemies side by side, 72 x 28 px, one frame each; types
+363-365, episode 1 SAVARA levels 1.8 / 1.12 / 1.17 and 3.10). It is drawn right under the last row of
+assembly-newshi-115 (the envelope; its col 12, row 112 is this assembly's (0, 0)) and moves with it.
 
-Engineering reading (blueprint.json, same scratch folder):
+Object (D122 audit fix): every move event for the formation (types 349-365) sets eyc 0, +1 or +2, i.e.
+the blimp drifts south, toward the player: this end LEADS. Its nine meridian ribs meeting at a hub are
+a blimp's nose battens round the mooring cone, so this is the bow and the ducted propeller at
+assembly-newshi-115's north end is the stern (a pusher). The envelope's script still calls its
+propeller end the "nose" and this the "tail cap" (its geometry is unaffected). It floats: no base.
+
+Engineering reading:
 
   plan        the sprite's INNER mask (D74: its dark ring is the game's ink outline), row by row,
-              lightly smoothed; a rounded point at the bottom; the hull continues north beyond the
-              cut (a virtual arc to y = -14.5 so the north rays have a rim to aim at)
-  shell       a cap built on rays from the pole P = (37.5, 16.5): z = (HP + G*north*s)*sqrt(1-s^2),
-              s = distance / rim distance along the ray; HP 14 px at the pole, the crest rising
-              4 px more towards the north cut (the pole is tipped south: the north half runs almost
-              level into the joint, the south half falls steeply to the ground, the sprite's dark
-              band); the base of the cap is a vertical skirt (sqrt profile) so the top view is the plan
-  seams       three latitude panel grooves round the pole (s 0.42, 0.72, 0.93): real chamfered
-              grooves 0.8 px wide, 0.2 px deep, cut along the surface normal (AO reads them)
-  skirt       the band below the last seam carries a ring of hex bolt heads (pitch 4 px)
-  ribs        chamfered straps (1.2 px wide, 0.7 px high, 0.18 chamfer) along the traced
-              meridians, standing on the shell normal, bolts every 5.5 px; they start at the hub
-              collar and end against the joint flange or run on down onto the skirt lip, where a
-              bigger bolt pins each foot
-  hub         chamfered collar ring (r 1.7, h 0.75) with six bolts, blue-grey domed cap (r 0.95)
+              lightly smoothed; a rounded point at the bottom; the envelope continues north beyond
+              the cut (a virtual arc to y = -14.5 so the north rays have a rim to aim at)
+  upper half  on rays from the pole P = (37.5, 16.5): z = ZE + (HP + G*north*s - ZE)*sqrt(1-s^2),
+              s = distance / rim distance along the ray; HP 14 px at the pole, the crest rising 4 px
+              more toward the cut; at the cut the section is the envelope's own (top 14.2 on the axis)
+  equator     on the plan's edge, at ZE = 3.4 px all round: the envelope's equator at its cut
+  belly       a round lower half: z = ZE - D(y)*sqrt(1-s^2), D 4 px at the cut (the keel at z 0, where
+              the envelope's keel ends) and shallower toward the tip, so the keel rises steadily to
+              the nose; closed under the pole, plain (a plausible closed shape only)
+  seams       three latitude panel grooves round the pole (s 0.42, 0.72, 0.93): chamfered grooves
+              0.9 px wide, 0.28 px deep, cut along the surface normal, painted one step darker than their panel
+  battens     the ribs: chamfered straps (1.2 px wide, 0.7 px high) along the traced meridians,
+              standing on the shell normal, bolts every 5.5 px, a bigger bolt at each foot
+  hub         chamfered collar ring (r 1.7) with six bolts and the mooring cone (r 0.95, 1.5 px tall, 102)
   rivet       blue-grey domed head (r 0.6) on the north-east rib at (49, 1.5)
-  joint       the north cut: a flat vertical mating wall (strips welded to the shell, no slivers to
-              bake black) and a chamfered bolted flange lip along the top of the cut
-  underside   flat plate at z = 0 (a plausible closed shape only)
+  joint       the north cut: a flat mating wall (upper half to belly), no flange of its own: the
+              envelope's flange 1.6 px north is the joint, so the fabric runs on across it as in the sprite
 
-Colours (sprite medians, darkest shading and brightest highlight left out; the blueprint regions):
-shell 4, ribs 6, hub cap and rivet 102, flange and skirt bolts 5. The north-south brightness
-gradient in the sprite is lighting, not paint. Satin metal (metallic 0.2, roughness 0.36-0.45).
+Colours (rule 1, per region): the sprite's nose is darker than the envelope and darkens toward the
+tip (row medians 6 at rows 0-1, 5 to row 7, 4 to the hub, 3 below it, 1-2 at the tip), and in the
+game the light barely darkens the high crest, so that axial ramp is paint, panel by panel (zones
+C/F/W/S by the battens, bands by the latitude grooves; ZONE_PAINT): the joint collar 7, the north cap
+6, the north flanks 5, the waist 4-3, the tip 3 (in the game the north half reads 0.71 of the
+envelope, the south half 0.49; the sprite 0.74 / 0.43). Battens one step lighter than the brighter
+panel beside them (8-7 in the north fading to 5-4 at the tip, the sprite's ribs), grooves one darker,
+hub collar 6, mooring cone and rivet 102. The ramp is the same east and west: the sprite's
+west-bright / east-dark is its light, left to the game's (rule 2).
 
 Units: sprite px; Blender X = (x - 36) / 12, Y = (14 - y) / 12, Z = z / 12 (assembly origin = the
 centre of newshi-156, screen (150, -17)). Built whole, the outline shell (D51) built whole from the
-smooth dome (build_outline_shell: no grooves to crack), both cut into the three pieces (split_pieces:
+smooth envelope surface, belly included (build_outline_shell: no grooves to crack), both cut into the three pieces (split_pieces:
 clean inset caps, no holes_fill, the hull's normals on the cut). AO/roughness bake only ("bake": "model"), no concept
 projection.
 
@@ -77,6 +85,13 @@ SEAMS = (0.42, 0.72, 0.93)
 SEAM_HW = 0.45   # groove half width, px
 SEAM_D = 0.28    # groove depth, px
 RW, RH, RCH = 0.6, 0.7, 0.18   # rib half width, height, chamfer (px)
+# Object fix (D122 audit): a floating envelope's nose, not a flat-based dome. The equator runs round
+# the plan's edge at ZE (the envelope's own equator at its cut, assembly-newshi-115 row 112: z 3.4),
+# the lower half a round belly under it, DL0 deep at the cut (the keel meets the envelope's z 0 there)
+# and shallower toward the tip.
+ZE = 3.4
+DL0 = 4.0
+DL_K = 0.35
 
 
 def W(x, y, z):
@@ -123,7 +138,6 @@ def footprint():
             w = v[max(i - 1, 0):i + 2]
             out.append(0.25 * w[0] + 0.5 * v[i] + 0.25 * w[-1] if len(w) == 3 else v[i])
         return out
-    R[0] = max(R[0], R[1])  # the top row's last 3 px are ink only where the rim meets the cut
     L, R = sm(sm(L)), sm(sm(R))
     last = rows[-1]
     pts = [(max(R[0], R[1]) + 1.0, -4.0), (62.0, -10.0), (50.0, -13.5), (36.5, -14.5), (23.0, -13.5), (11.0, -10.0),
@@ -164,7 +178,7 @@ _RIM = np.convolve(np.concatenate([_RAW[-24:], _RAW, _RAW[:24]]), _K, mode="vali
 
 def rim_dist(dx, dy):
     """The rim distance along a ray from the pole, smoothed over the ray angle (sigma 2 degrees) so
-    the skirt is one fair surface instead of following the plan's pixel steps."""
+    the flank is one fair surface instead of following the plan's pixel steps."""
     a = (math.atan2(dy, dx) / (2 * math.pi)) % 1.0 * _NA
     i = int(a)
     f = a - i
@@ -172,6 +186,7 @@ def rim_dist(dx, dy):
 
 
 def z_at(x, y):
+    """The envelope's upper half: from the equator (ZE, on the plan's edge) up to the pole."""
     vx, vy = x - POLE[0], y - POLE[1]
     t = math.hypot(vx, vy)
     if t < 1e-6:
@@ -179,7 +194,28 @@ def z_at(x, y):
     dx, dy = vx / t, vy / t
     s = min(t / rim_dist(dx, dy), 1.0)
     north = (0.5 * (1 - dy)) ** 2
-    return (HP + G * north * s) * math.sqrt(max(0.0, 1 - s * s))
+    return ZE + (HP + G * north * s - ZE) * math.sqrt(max(0.0, 1 - s * s))
+
+
+def belly_d(y):
+    """Depth scale of the lower half: DL0 at the cut (so the keel meets the envelope's z 0 there),
+    easing off toward the nose so the keel rises steadily from the cut to the tip."""
+    return DL0 * (1.0 - DL_K * min(max(y, 0.0), 30.0) / POLE[1])
+
+
+def zl_at(x, y):
+    """The envelope's lower half: a round belly from the equator (ZE on the plan's edge) down."""
+    vx, vy = x - POLE[0], y - POLE[1]
+    t = math.hypot(vx, vy)
+    s = 0.0 if t < 1e-6 else min(t / rim_dist(vx / t, vy / t), 1.0)
+    return ZE - belly_d(y) * math.sqrt(max(0.0, 1 - s * s))
+
+
+def nl_at(x, y, e=0.05):
+    """Outward (downward) normal of the lower half."""
+    zx = (zl_at(x + e, y) - zl_at(x - e, y)) / (2 * e)
+    zy = (zl_at(x, y + e) - zl_at(x, y - e)) / (2 * e)
+    return Vector((zx, zy, -1.0)).normalized()
 
 
 def n_at(x, y, e=0.05):
@@ -222,22 +258,133 @@ class Mesh:
         return face
 
 
-SHELL, RIB, BOLT, CAP = range(4)
+SHELL, RIB, BOLT, CAP, GROOVE = range(5)
 
 
-def materials(sprite):
-    tag = "nshi154A"
-    return [
-        common.palette_material(sprite, 4, tag, metallic=0.2, roughness=0.45),
-        common.palette_material(sprite, 6, tag, metallic=0.22, roughness=0.36),
-        common.palette_material(sprite, 5, tag, metallic=0.22, roughness=0.4),
-        common.palette_material(sprite, 102, tag, metallic=0.25, roughness=0.32),
-    ]
+# Paint (rule 1: the sprite's index per region). The sprite's nose is no envelope-pale cap: its rows 0-2
+# carry on from the envelope's last rows (6-8 at the centre), then it darkens toward the tip (row
+# medians 5 to row 7, 4 to the hub, 3 below it, 1-2 at the tip). In the game the light barely darkens
+# the high crest, so that axial ramp is paint, laid panel by panel: every change of paint sits under a
+# batten or in a latitude groove, never on open fabric. The ramp runs only along the axis and is the
+# same east and west; the sprite's west-bright / east-dark is its light (rule 2), left to the game's.
+# Sectors are named by the battens that bound them; bands are the latitude grooves (0 inside SEAMS[0]).
+SECTOR_ZONE = {("rib_nw2", "rib_nw1"): "C", ("rib_nw1", "rib_n"): "C", ("rib_n", "rib_ne1"): "C",
+               ("rib_w", "rib_nw2"): "F", ("rib_ne1", "rib_ne2"): "F",
+               ("rib_ne2", "rib_se"): "W", ("rib_sw", "rib_w"): "W",
+               ("rib_se", "rib_s"): "S", ("rib_s", "rib_sw"): "S"}
+# per band 0..3: C the north centre (the joint collar is its bands 1+, rows 0-3), F the north flanks,
+# W the waist either side of the hub, S the tip
+ZONE_PAINT = {"C": (6, 7, 7, 7), "F": (5, 5, 5, 5), "W": (4, 3, 3, 3), "S": (3, 3, 3, 3)}
+HUB_PAINT = 6        # the hub collar and its bolts
+CAP_PAINT = 102      # the mooring cone and the rivet
+
+
+def rib_tracks():
+    """Each batten's centre line as built (build_ribs), carried on to the rim: name -> (distance from
+    the pole, polar angle about the pole) arrays, sorted by distance, for the sector test."""
+    out = {}
+    for name, pl in RIBS:
+        pts = [p for p in resample(chaikin(pl), 0.5) if math.hypot(p[0] - POLE[0], p[1] - POLE[1]) >= 1.0]
+        (ax, ay), (bx, by) = pts[-2], pts[-1]
+        L = math.hypot(bx - ax, by - ay)
+        while s_at(*pts[-1]) < 1.05 and pts[-1][1] > -2.0:
+            pts.append((pts[-1][0] + 0.5 * (bx - ax) / L, pts[-1][1] + 0.5 * (by - ay) / L))
+        d = np.array([math.hypot(x - POLE[0], y - POLE[1]) for x, y in pts])
+        a = np.unwrap(np.array([math.atan2(y - POLE[1], x - POLE[0]) for x, y in pts]))
+        o = np.argsort(d)
+        out[name] = (d[o], a[o])
+    return out
+
+
+TRACKS = None
+
+
+def sector_of(x, y):
+    """The pair of battens (west/clockwise first, in the y-down screen sense of SECTOR_ZONE) the point
+    lies between, by the battens' polar angles at the point's own distance from the hub."""
+    global TRACKS
+    if TRACKS is None:
+        TRACKS = rib_tracks()
+    t = math.hypot(x - POLE[0], y - POLE[1])
+    th = math.atan2(y - POLE[1], x - POLE[0]) % (2 * math.pi)
+    angs = sorted((float(np.interp(t, d, a)) % (2 * math.pi), n) for n, (d, a) in TRACKS.items())
+    for i, (a0, n0) in enumerate(angs):
+        a1, n1 = angs[(i + 1) % len(angs)]
+        span = (a1 - a0) % (2 * math.pi)
+        if (th - a0) % (2 * math.pi) < span:
+            return n0, n1
+    return angs[-1][1], angs[0][1]
+
+
+def band_of(x, y):
+    s = s_at(x, y)
+    return sum(s >= b for b in SEAMS)
+
+
+def shell_paint(x, y):
+    return ZONE_PAINT[SECTOR_ZONE[sector_of(x, y)]][band_of(x, y)]
+
+
+def nearest_rib(x, y):
+    global TRACKS
+    if TRACKS is None:
+        TRACKS = rib_tracks()
+    t = math.hypot(x - POLE[0], y - POLE[1])
+    th = math.atan2(y - POLE[1], x - POLE[0])
+    best = None
+    for n, (d, a) in TRACKS.items():
+        da = abs((float(np.interp(t, d, a)) - th + math.pi) % (2 * math.pi) - math.pi)
+        if best is None or da < best[0]:
+            best = (da, n)
+    return best[1]
+
+
+def rib_paint(x, y):
+    """A batten one step lighter than the brighter of the two panels it divides (the sprite's ribs:
+    6-7 in the north, fading to 4-5 on the dark tip), at most 8."""
+    r = nearest_rib(x, y)
+    b = band_of(x, y)
+    sides = [ZONE_PAINT[z][b] for pair, z in SECTOR_ZONE.items() if r in pair]
+    return min(8, max(sides) + 1)
+
+
+def paint_faces(bm):
+    """Tag (SHELL, RIB, BOLT, CAP, GROOVE) to palette index, by where the face's centre lies."""
+    out = []
+    for f in bm.faces:
+        c = f.calc_center_median()
+        x, y = c.x * 12 + 36, 14 - c.y * 12
+        tag = f.material_index
+        if tag == CAP:
+            out.append(CAP_PAINT)
+        elif tag in (RIB, BOLT):
+            out.append(HUB_PAINT if math.hypot(x - POLE[0], y - POLE[1]) < 2.3 else rib_paint(x, y))
+        elif tag == GROOVE:
+            out.append(max(3, shell_paint(x, y) - 1))
+        else:
+            out.append(shell_paint(x, y))
+    return out
+
+
+def materials(sprite, used):
+    """One palette material per index used (pal_<index>): fabric and battens satin, the mooring cone
+    and rivet blue-grey metal."""
+    tag = "nshi154C"
+    mats = []
+    for k in used:
+        if k == CAP_PAINT:
+            mats.append(common.palette_material(sprite, k, tag, metallic=0.25, roughness=0.32))
+        else:
+            # doped fabric and its battens: a broad satin sheen (the 0.34 gloss of the pale envelope read
+            # as black chrome on the darker panels)
+            mats.append(common.palette_material(sprite, k, tag, metallic=0.12, roughness=0.46))
+    return mats
 
 
 def build_shell(M, NT=112):
-    """The cap: rays from the pole, latitude grooves cut along the normal, closed by a flat floor."""
-    grid = []
+    """The nose: rays from the pole, latitude grooves cut along the normal (painted one step darker
+    than their panel), the equator on the plan's edge and a round belly under it (no detail)."""
+    grid, lows, gflags = [], [], []
     for i in range(NT):
         a = 2 * math.pi * i / NT
         dx, dy = math.cos(a), math.sin(a)
@@ -253,55 +400,53 @@ def build_shell(M, NT=112):
             ds = hi - s0
             st += [(s0 - 0.45 * ds, SEAM_D, True), (s0 + 0.45 * ds, SEAM_D, True)]
         st.sort()
-        ring = []
+        ring, low, flags = [], [], []
         for s, d, _ in st:
             if s == 0.0:
                 continue
             x, y = POLE[0] + dx * s * Rr, POLE[1] + dy * s * Rr
-            z = 0.0 if s >= 1.0 else z_at(x, y)
+            z = ZE if s >= 1.0 else z_at(x, y)
             p = Vector((x, y, z))
             if d:
                 p -= n_at(x, y) * d
             ring.append(p)
+            flags.append(bool(d))
+            if s < 1.0:  # the belly: the same stations (so the cut pairs them), no grooves (D: plain)
+                low.append(Vector((x, y, zl_at(x, y))))
         grid.append(ring)
+        lows.append(low)
+        gflags = flags
     nst = len(grid[0])
     assert all(len(r) == nst for r in grid)
     pole = M.v(Vector((POLE[0], POLE[1], HP)))
     vg = [[M.v(p) for p in ring] for ring in grid]
-    floor = M.v(Vector((POLE[0], POLE[1], 0.0)))
+    # the lower half shares the equator (the rim, last upper station) and closes under the pole
+    vl = [[M.v(p) for p in low] + [vg[i][-1]] for i, low in enumerate(lows)]
+    keel = M.v(Vector((POLE[0], POLE[1], zl_at(*POLE))))
     for i in range(NT):
         j = (i + 1) % NT
         M.f((pole, vg[i][0], vg[j][0]), SHELL)
         for k in range(nst - 1):
-            M.f((vg[i][k], vg[i][k + 1], vg[j][k + 1], vg[j][k]), SHELL)
-        M.f((vg[i][-1], floor, vg[j][-1]), SHELL)
+            mat = GROOVE if gflags[k] and gflags[k + 1] else SHELL
+            M.f((vg[i][k], vg[i][k + 1], vg[j][k + 1], vg[j][k]), mat)
+        M.f((keel, vl[j][0], vl[i][0]), SHELL)
+        for k in range(len(vl[i]) - 1):
+            M.f((vl[i][k], vl[j][k], vl[j][k + 1], vl[i][k + 1]), SHELL)
 
 
 def cut_north(bm):
-    """Cut the hull flat at the sprite's top edge (y = 0) and close it with a flat joint wall: one
-    vertical strip under each shell vertex of the cut (welded to the shell, standing on the floor's
-    cut line), so the wall has no long slivers to bake black."""
+    """Cut the hull flat at the sprite's top edge (y = 0), where the envelope (assembly-newshi-115)
+    joins, and close it with a flat joint wall from the upper half's cut line to the belly's (welded
+    to the shell)."""
     geom = bm.verts[:] + bm.edges[:] + bm.faces[:]
     yc = 14 / 12
     bmesh.ops.bisect_plane(bm, geom=geom, plane_co=(0, yc, 0), plane_no=(0, 1, 0), clear_outer=True)
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
-    top = sorted({v for e in bm.edges if e.is_boundary for v in e.verts
-                  if abs(v.co.y - yc) < 1e-4 and v.co.z > 1e-4}, key=lambda v: v.co.x)
-    ends = sorted({v for e in bm.edges if e.is_boundary for v in e.verts
-                   if abs(v.co.y - yc) < 1e-4 and v.co.z <= 1e-4}, key=lambda v: v.co.x)
-    left, right = ends[0], ends[-1]
-    bot = [bm.verts.new((v.co.x, yc, 0.0)) for v in top]
-    chain_t = [left] + top + [right]
-    chain_b = [left] + bot + [right]
-    faces = []
-    for i in range(len(chain_t) - 1):
-        q = [chain_b[i], chain_b[i + 1], chain_t[i + 1], chain_t[i]]
-        q = [v for k, v in enumerate(q) if v not in q[:k]]
-        if len(q) >= 3:
-            try:
-                faces.append(bm.faces.new(q))
-            except ValueError:
-                pass
+    # the cut's boundary loop (the upper half's grooves fold it back on itself in x near the flanks,
+    # so it is filled as a polygon, not zipped by x): one planar fill, beauty triangulated
+    edges = [e for e in bm.edges if e.is_boundary and all(abs(v.co.y - yc) < 1e-4 for v in e.verts)]
+    res = bmesh.ops.triangle_fill(bm, use_beauty=True, use_dissolve=False, edges=edges, normal=(0, 1, 0))
+    faces = [f for f in res["geom"] if isinstance(f, bmesh.types.BMFace)]
     for f in faces:
         f.material_index = SHELL
         for e in f.edges:
@@ -382,7 +527,7 @@ def s_at(x, y):
     return 0.0 if t < 1e-6 else t / rim_dist(vx / t, vy / t)
 
 
-RIB_END_S = 0.952   # the ribs run down onto the skirt lip (s 0.944 .. 0.985)
+RIB_END_S = 0.952   # the battens run down to just above the equator
 
 
 def build_ribs(M):
@@ -390,7 +535,7 @@ def build_ribs(M):
     prof = [(-RW, -0.12), (RW, -0.12), (RW, RH - RCH), (RW - RCH, RH), (-RW + RCH, RH), (-RW, RH - RCH)]
     for name, pl in ribs:
         pts = [p for p in resample(pl, 0.5) if math.hypot(p[0] - POLE[0], p[1] - POLE[1]) >= 1.5]
-        # a rib traced short of the rim carries on in its last direction down to the skirt lip
+        # a rib traced short of the rim carries on in its last direction down toward the equator
         (ax, ay), (bx, by) = pts[-2], pts[-1]
         L = math.hypot(bx - ax, by - ay)
         while pts[-1][1] > 0.95 and s_at(*pts[-1]) < RIB_END_S:
@@ -420,7 +565,7 @@ def build_ribs(M):
             if acc >= 5.5:
                 acc = 0.0
                 bolt(M, pts[i][0], pts[i][1], 0.2, 0.15, RH, RIB)
-        if pts[-1][1] > 1.5:  # the foot on the skirt lip: a bigger bolt through the rib's end
+        if pts[-1][1] > 1.5:  # the foot: a bigger bolt through the rib's end
             q = pts[-2]
             bolt(M, q[0], q[1], 0.32, 0.18, RH, BOLT)
 
@@ -432,78 +577,36 @@ def build_hub(M):
         a = 2 * math.pi * (k + 0.5) / 6
         c = o + t * (1.27 * math.cos(a)) + b * (1.27 * math.sin(a))
         bolt(M, c.x, c.y, 0.17, 0.13, 0.0, RIB, frame=(o + (c - o) + n * 0.75 - n * 0.0, t, b, n))
-    lathe(M, o, t, b, n, [(0, 0.55), (0.95, 0.55), (0.95, 0.8), (0.88, 1.12), (0.68, 1.4), (0.38, 1.58), (0, 1.66)],
+    # the mooring cone on the nose tip (the battens' hub): a short blunt cone
+    lathe(M, o, t, b, n, [(0, 0.55), (0.95, 0.55), (0.95, 0.8), (0.78, 1.2), (0.55, 1.6), (0.3, 1.9), (0.12, 2.02), (0, 2.05)],
           CAP, sides=20)
     # the rivet on the north-east rib
     dome(M, 49.0, 1.5, 0.6, 0.35, RH + 0.02, CAP, sides=14, nr=4)
 
 
-def build_flange(M):
-    """A chamfered lip along the top of the north cut (y 0 .. 0.9) with bolts every 4 px."""
-    xs = [x / 4 for x in range(0, 72 * 4) if z_at(x / 4, 0.01) > 0.6 and z_at(x / 4, 0.95) > 0.6]
-    prof = [(0.0, -0.15), (0.0, 0.28), (0.72, 0.28), (0.95, 0.06), (0.95, -0.15)]
-    rings = [[M.v(Vector((x, y, z_at(x, max(y, 0.001)) + h))) for y, h in prof] for x in xs]
-    for r0, r1 in zip(rings, rings[1:]):
-        for k in range(len(prof)):
-            j = (k + 1) % len(prof)
-            M.f((r0[k], r1[k], r1[j], r0[j]), SHELL)
-    M.f(rings[0], SHELL)
-    M.f(list(reversed(rings[-1])), SHELL)
-    for k in range(-12, 13):  # a row at an even 4 px pitch about the centre (x = 36), heads 0.3 px
-        x = 36 + 4 * k
-        if not xs[0] + 1.5 < x < xs[-1] - 1.5:
-            continue
-        o = Vector((x, 0.38, z_at(x, 0.38) + 0.28))
-        bolt(M, x, 0.38, 0.3, 0.22, 0.0, BOLT, frame=(o, Vector((1, 0, 0)), Vector((0, 1, 0)), Vector((0, 0, 1))))
+def rim_x(y):
+    """The plan's west and east edges at row y (where the equator is)."""
+    def edge(sign):
+        lo, hi = POLE[0], POLE[0] + sign * 40.0
+        for _ in range(40):
+            mid = 0.5 * (lo + hi)
+            if s_at(mid, y) < 1.0:
+                lo = mid
+            else:
+                hi = mid
+        return lo
+    return edge(-1), edge(1)
 
 
-def build_skirt_lip(M):
-    """The machined lip round the base: a raised, chamfered band on the skirt (s 0.945 .. 0.984,
-    0.2 px proud of the shell, so it stays inside the plan), with the gores below it."""
-    NT = 160
-    prof = [(0.944, -0.08), (0.953, 0.22), (0.976, 0.22), (0.985, -0.08)]  # closed: its foot is buried
-    rings = []
-    for i in range(NT):
-        a = 2 * math.pi * i / NT
-        dx, dy = math.cos(a), math.sin(a)
-        Rr = rim_dist(dx, dy)
-        ring = []
-        for s, d in prof:
-            x, y = POLE[0] + dx * s * Rr, POLE[1] + dy * s * Rr
-            ring.append(M.v(Vector((x, y, z_at(x, y))) + n_at(x, y) * (d - 0.04)))
-        rings.append(ring)
-    ok = [max(v.co.y for v in r) <= (14 - 1.0) / 12 for r in rings]  # stops 1 px short of the north cut
-    start = next(i for i in range(NT) if ok[i] and not ok[i - 1])
-    run = []
-    i = start
-    while ok[i % NT] and len(run) < NT:
-        run.append(rings[i % NT])
-        i += 1
-    for r0, r1 in zip(run, run[1:]):
-        for k in range(len(prof)):
-            j = (k + 1) % len(prof)
-            M.f((r0[k], r0[j], r1[j], r1[k]), SHELL)
-    M.f(list(reversed(run[0])), SHELL)
-    M.f(run[-1], SHELL)
-
-
-def build_skirt_bolts(M, pitch=4.0):
-    """Hex bolt heads round the skirt band (between the last seam and the ground)."""
-    s0 = 0.963
-    n = 720
-    pts = []
-    for i in range(n):
-        a = 2 * math.pi * i / n
-        dx, dy = math.cos(a), math.sin(a)
-        Rr = rim_dist(dx, dy)
-        pts.append((POLE[0] + dx * s0 * Rr, POLE[1] + dy * s0 * Rr))
-    acc = pitch / 2
-    for i in range(1, n):
-        acc += math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1])
-        x, y = pts[i]
-        if acc >= pitch and y >= 1.6:
-            acc = 0.0
-            bolt(M, x, y, 0.24, 0.16, 0.22, BOLT)
+def section(y, n=72):
+    """The envelope's closed cross-section at row y as (x, z) points: the upper half west to east,
+    then the belly back (cosine spaced, dense at the equator)."""
+    xl, xr = rim_x(y)
+    xl, xr = xl + 0.01, xr - 0.01
+    xs = [0.5 * (xl + xr) - 0.5 * (xr - xl) * math.cos(math.pi * k / n) for k in range(n + 1)]
+    up = [(x, z_at(x, y)) for x in xs]
+    lo = [(x, zl_at(x, y)) for x in reversed(xs[1:-1])]
+    return up + lo
 
 
 def build(sprite, coll):
@@ -512,19 +615,21 @@ def build(sprite, coll):
     cut_north(M.bm)
     build_ribs(M)
     build_hub(M)
-    build_flange(M)
-    build_skirt_lip(M)
-    build_skirt_bolts(M)
     bm = M.bm
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-6)
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     for f in bm.faces:  # the joint wall faces north
         if abs(f.calc_center_median().y - 14 / 12) < 1e-4 and abs(f.normal.y) > 0.9 and f.normal.y < 0:
             f.normal_flip()
+    paints = paint_faces(bm)
+    used = sorted(set(paints), key=lambda k: (k == CAP_PAINT, k))
+    slot = {k: i for i, k in enumerate(used)}
+    for f, k in zip(bm.faces, paints):
+        f.material_index = slot[k]
     me = bpy.data.meshes.new(NAME)
     bm.to_mesh(me)
     bm.free()
-    for m in materials(sprite):
+    for m in materials(sprite, used):
         me.materials.append(m)
     obj = bpy.data.objects.new(NAME, me)
     coll.objects.link(obj)
@@ -621,12 +726,11 @@ def measure(objs, out_dir, ss=8):
             m.diffuse_color = tuple(bsdf.inputs["Base Color"].default_value)
     flat = render_array(scene, cam, out_dir / "top_flat.png")[..., :3]
     centre = flat[ss // 2::ss, ss // 2::ss]
-    keys = [4, 5, 6, 102]
+    keys = [3, 4, 5, 6, 7, 8, 9, 102]
     arr = np.array([[c / 255 for c in COLOURS[k]] for k in keys])
     d = ((centre[..., None, :] - arr[None, None]) ** 2).sum(-1)
     seen = np.array(keys)[d.argmin(-1)]
     seen[~model] = -1
-    regions = {"shell": {"index": 4}, "ribs": {"index": 6}, "hub_rivet": {"index": 102}}
     ribs = RIBS
     lab = np.full((28, 72), "shell", dtype=object)
 
@@ -646,12 +750,32 @@ def measure(objs, out_dir, ss=8):
             for _n, pl in ribs:
                 if min(dseg(p, a, b) for a, b in zip(pl, pl[1:])) < 0.75 and math.hypot(p[0] - 37.5, p[1] - 16.5) > 1.2:
                     lab[r, c] = "ribs"
+    # per region: the sprite's mean and median index there against the paint the model shows there,
+    # regions = the panel zones (C north centre, F north flanks, W waist, S tip) x the latitude bands
     col = {}
-    for L in ("shell", "ribs", "hub_rivet"):
-        sel = (lab == L) & model
-        vals, cnt = np.unique(seen[sel], return_counts=True)
-        col[L] = {"sprite_median": regions[L]["index"], "model_seen": {int(v): int(c) for v, c in zip(vals, cnt)}}
-    res["colours"] = col
+    for r in range(28):
+        for c in range(72):
+            if not (INNER[r, c] and model[r, c]) or IDX[r, c] > 9:
+                continue
+            x, y = c + 0.5, r + 0.5
+            z = SECTOR_ZONE[sector_of(x, y)]
+            b = band_of(x, y)
+            key = f"{lab[r, c]}:{z}{0 if b == 0 else 1 if b == 1 else 2}"
+            col.setdefault(key, {"sprite": [], "model": []})
+            col[key]["sprite"].append(int(IDX[r, c]))
+            col[key]["model"].append(int(seen[r, c]))
+    res["colours"] = {k: {"n": len(v["sprite"]), "sprite_mean": round(float(np.mean(v["sprite"])), 2),
+                          "sprite_median": float(np.median(v["sprite"])),
+                          "model_median": float(np.median(v["model"])),
+                          "model_seen": {int(a): int(b) for a, b in zip(*np.unique(v["model"], return_counts=True))}}
+                      for k, v in sorted(col.items())}
+    rows = []
+    for r in range(28):
+        sv = [int(IDX[r, c]) for c in range(72) if INNER[r, c] and IDX[r, c] <= 9]
+        mv = [int(seen[r, c]) for c in range(72) if INNER[r, c] and model[r, c] and 0 <= seen[r, c] <= 9]
+        if sv and mv:
+            rows.append((r, float(np.median(sv)), float(np.median(mv))))
+    res["row_medians_sprite_model"] = rows
     # feature check: what the model shows at the sprite's 102 pixels
     res["features102"] = {f"{c},{r}": int(seen[r, c]) for r, c in zip(*np.nonzero(IDX == 102))}
     (out_dir / "metrics.json").write_text(json.dumps(res, indent=1))
@@ -872,30 +996,35 @@ def bake_maps(obj, out_dir, size=1024, samples=48):
 
 def build_outline_shell(coll, NT=96):
     """The outline shell (D51) built from the dome's own smooth surface: the cap without its grooves,
-    ribs, lip and bolts, closed by the floor and the flat north wall, smooth shaded. A voxel shell
+    ribs, flange and bolts, closed by the round belly and the flat north wall, smooth shaded. A voxel shell
     held inside the hull with a shrinkwrap folded over the 0.8 px grooves and the rib edges, and its
     flipped faces drew as black scribbles in the outline pass; this one has no folds and lies on or
-    under the hull everywhere above the skirt, so only its silhouette draws."""
+    under the hull everywhere, so only its silhouette draws."""
     M = Mesh()
     stations = [k / 10 for k in range(1, 9)] + [0.86, 0.91, 0.95, 0.975, 0.99, 1.0]
-    grid = []
+    grid, lows = [], []
     for i in range(NT):
         a = 2 * math.pi * i / NT
         dx, dy = math.cos(a), math.sin(a)
         Rr = rim_dist(dx, dy)
-        ring = []
+        ring, low = [], []
         for st in stations:
             x, y = POLE[0] + dx * st * Rr, POLE[1] + dy * st * Rr
-            ring.append(M.v(Vector((x, y, 0.0 if st >= 1.0 else z_at(x, y)))))
+            ring.append(M.v(Vector((x, y, ZE if st >= 1.0 else z_at(x, y)))))
+            if st < 1.0:
+                low.append(M.v(Vector((x, y, zl_at(x, y)))))
         grid.append(ring)
+        lows.append(low + [ring[-1]])
     pole = M.v(Vector((POLE[0], POLE[1], HP)))
-    floor = M.v(Vector((POLE[0], POLE[1], 0.0)))
+    keel = M.v(Vector((POLE[0], POLE[1], zl_at(*POLE))))
     for i in range(NT):
         j = (i + 1) % NT
         M.f((pole, grid[i][0], grid[j][0]), 0)
         for k in range(len(stations) - 1):
             M.f((grid[i][k], grid[i][k + 1], grid[j][k + 1], grid[j][k]), 0)
-        M.f((grid[i][-1], floor, grid[j][-1]), 0)
+        M.f((keel, lows[j][0], lows[i][0]), 0)
+        for k in range(len(stations) - 1):
+            M.f((lows[i][k], lows[j][k], lows[j][k + 1], lows[i][k + 1]), 0)
     bm = M.bm
     cut_north(bm)
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-6)
@@ -916,23 +1045,24 @@ def build_outline_shell(coll, NT=96):
 
 
 def cut_cap(bm, xs, side, eps=0.04, depth=0.4):
-    """A clean flat cap for a piece's cut at sprite x = xs: the dome's cross-section there, pulled
-    `depth` px in along the surface normal (under the grooves, lip and ribs) and `eps` px back into
+    """A clean flat cap for a piece's cut at sprite x = xs: the nose's cross-section there (upper half
+    and belly), pulled `depth` px in (under the grooves, flange and ribs) and `eps` px back into
     the piece (`side` -1: the piece lies west of the cut), so it never shows from outside or meets
     the neighbour's cap. One face, its own vertices: flat, split normals."""
     x = xs + side * eps
-    top = []
-    for k in range(1, 400):
+    top, low = [], []
+    for k in range(0, 400):
         y = 0.12 + k * 0.1
-        if z_at(x, y) <= 0.0:
+        if s_at(x, y) >= 1.0:
             break
-        p = Vector((x, y, z_at(x, y))) - n_at(x, y) * depth
-        if p.z <= 0.06:
+        zu, zl = z_at(x, y) - depth, zl_at(x, y) + depth
+        if zu - zl < 0.12:
             break
-        top.append((p.y, p.z))
+        top.append((y, zu))
+        low.append((y, zl))
     if len(top) < 3:
         return []
-    loop = [(0.12, 0.06)] + [(y, z) for y, z in top] + [(top[-1][0], 0.06)]
+    loop = top + list(reversed(low))
     vs = [bm.verts.new(W(x, y, z)) for y, z in loop]
     f = bm.faces.new(vs)
     f.material_index = SHELL

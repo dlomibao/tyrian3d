@@ -31,7 +31,13 @@ Construction:
      concept projection (--no-bake to skip).
   5. Outline shell (D51) of the whole heap cut open at the piece boxes, then common.split_assembly
      cuts newshd-13 / -49 / -51 / -53 / -89 / -91, one frame each.
-Underside: each boulder's flat z 0 base, closed. Nothing more.
+  6. Underside (D122 audit: the heap floats in space, no flat base): one closed body under the
+     boulders, D125's asteroid underside (lib_newshd_rock rock_body): the outline clip's foot is the
+     waist, rings below it close in on the mask's centroid along a superellipse (UNDER_POW, full
+     shoulders) to a pole UNDER_H px down, a few planar fracture cuts (lib_newshd_rock.cut_planes),
+     each face the colour of the boulder above it. The whole heap is then sheared vertically by a
+     low noise (WARP_PX; x and y untouched, so the top view is exact) so the waist never reads as a
+     flat belt. Plain shape only, no detail.
 
 Run: blender -b --factory-startup --python assets/blender/enemies/assembly-newshd-89.py -- [--no-bake]
      [--no-export] [--design-out whole.glb] [--render DIR]
@@ -45,7 +51,7 @@ from pathlib import Path
 
 import bmesh
 import bpy
-from mathutils import Vector
+from mathutils import Vector, noise
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import common  # noqa: E402
@@ -55,6 +61,8 @@ WT = ROOT
 sys.path.insert(0, str(ROOT / "tools"))
 import sprite_mask as SM  # noqa: E402
 import usp_talon as T  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import lib_newshd_rock as ROCK  # noqa: E402
 PARTS = [
     {"name": "peak", "pal": 8, "h": 11.5, "kind": "ridge", "peak": [-1.11, 30.2], "footprint": [[7, 31.5], [6.75, 34.25], [6.5, 37], [4.5, 37], [3.5, 38], [1.17, 38], [-1.17, 38], [-3.5, 38], [-5, 36.5], [-6.5, 35], [-8, 33.5], [-8.5, 32], [-9, 30.5], [-7.75, 29.25], [-6.5, 28], [-5.5, 28], [-4.5, 26], [-1.5, 26], [-0.5, 27], [2.5, 27], [4, 28.5], [5.5, 30]], "crest": [[-2.5, 33.5], [0, 25.5]]},  # pal 8 (blueprint 8)
     {"name": "topright", "pal": 8, "h": 7.6, "kind": "flat", "peak": [8.39, 25.43], "footprint": [[12, 18.5], [12, 21.17], [12, 23.83], [12, 26.5], [12, 29.17], [12, 31.83], [12, 34.5], [10.5, 36], [7.5, 36], [7.25, 33.75], [7, 31.5], [5, 29.5], [3, 27.5], [4, 26.5], [4, 23.5], [5, 22.5], [4, 21.5], [4, 19.5], [6.5, 19], [7.5, 20], [8.5, 19], [10.5, 19], [11.5, 18]]},  # pal 7 (blueprint 8)
@@ -130,6 +138,19 @@ SEAM_BAND = 0.02  # units either side of a piece-box cut where the baked edge te
 REFLEX_LEAN = 1.0  # share of the clip lean kept at concave outline vertices (0 left a V slot at the
 # heap's concave corners; with the corners cut and a mitred offset the fold leans with the walls)
 TAPER_PX = 1.5              # px they lean in at the first station
+# The round underside (D125's asteroid: no base). Depth below the waist (px), the superellipse power
+# of its plan (< 1: full shoulders), the height profile exponent, number of rings.
+UNDER_H = 18.0
+UNDER_POW = 0.85
+UNDER_FALL = 0.8
+UNDER_RINGS = 7
+UNDER_CAP = 0.35   # px: the body's top cap, hidden under the boulders' feet (floor of the V cracks)
+# Underside fracture faces (azimuth deg, elevation deg < 0, depth fraction), as lib_newshd_rock cuts.
+UNDER_CUTS = [(20, -55, 0.06), (110, -40, 0.05), (200, -60, 0.07), (290, -45, 0.05),
+              (65, -75, 0.05), (245, -30, 0.04), (155, -70, 0.05), (330, -65, 0.06)]
+WARP_PX = 1.6      # amplitude of the vertical shear noise (px); its wavelength WARP_WAVE px
+WARP_WAVE = 26.0
+ROUGHNESS = 0.9    # D125: matte rock, metallic 0
 
 
 
@@ -634,7 +655,7 @@ def build(coll, idx, colors, m):
     sprite = {"name": NAME, "colors": {str(k): list(v) for k, v in colors.items()}}
     pal = [cell_colour(idx, colors, label, i) for i in range(len(parts))]
     used = sorted(set(pal) | {4})
-    mats = [common.palette_material(sprite, i, TAG, metallic=0.0, roughness=0.85) for i in used]
+    mats = [common.palette_material(sprite, i, TAG, metallic=0.0, roughness=ROUGHNESS) for i in used]
     rng = random.Random(SEED)
     outline = simplify(midpoints(trace(m["inner"])), CLIP_TOL)
     prism = prism_object("clip", outline, coll)
@@ -679,6 +700,7 @@ def build(coll, idx, colors, m):
             f.material_index = used.index(pi)
         rocks.append(o)
     bpy.data.objects.remove(prism, do_unlink=True)
+    rocks.append(underside_object("underside", outline, m["inner"], label, pal, used, mats, coll))
     # one mesh
     bm = bmesh.new()
     for o in rocks:
@@ -701,9 +723,90 @@ def build(coll, idx, colors, m):
         me.materials.append(mt)
     for poly in me.polygons:
         poly.use_smooth = False
+    warp(me)
     obj = bpy.data.objects.new(NAME, me)
     coll.objects.link(obj)
     return obj, mats, info, label, parts
+
+
+def warp(me):
+    """Vertical shear by a low noise of (x, y): the waist and the crowns rise and sink a little, the
+    top view stays exact."""
+    off = Vector((SEED * 0.37, SEED * 0.11, 5.3))
+    for v in me.vertices:
+        x, y = v.co.x / PX, v.co.y / PX
+        v.co.z += WARP_PX * PX * noise.noise(Vector((x / WARP_WAVE, y / WARP_WAVE, 0)) + off)
+
+
+def underside_object(name, outline, inner, label, pal, used, mats, coll):
+    """The heap's round underside: a closed body whose waist is the outline clip's foot, closing in
+    below on the mask's centroid (D125's rock_body underside), cut by a few fracture planes."""
+    poly = list(outline)
+    area = sum(poly[i - 1][0] * poly[i][1] - poly[i][0] * poly[i - 1][1] for i in range(len(poly)))
+    if area < 0:
+        poly = poly[::-1]
+    poly = chamfer_reflex(poly)
+    waist = offset_poly(poly, 0.03)
+    px = [(x + 0.5 - W / 2, H / 2 - y - 0.5) for y in range(H) for x in range(W) if inner[y][x]]
+    c = Vector((sum(p[0] for p in px) / len(px), sum(p[1] for p in px) / len(px)))
+
+    def pull_in(q, p):
+        """q on the ray from c to p, moved towards c until it lies inside the waist polygon."""
+        t = 1.0
+        while not inside(waist, q.x, q.y) and t > 0.05:
+            t *= 0.92
+            q = c + (q - c) * 0.92
+        return q
+    bm = bmesh.new()
+    rings = [[bm.verts.new((x * PX, y * PX, UNDER_CAP * PX)) for x, y in offset_poly(poly, 0.12)],
+             [bm.verts.new((x * PX, y * PX, 0.0)) for x, y in waist]]
+    for k in range(1, UNDER_RINGS):
+        phi = (math.pi / 2) * k / UNDER_RINGS          # 0 at the waist, pi/2 at the pole
+        s = math.cos(phi) ** UNDER_POW
+        z = -UNDER_H * math.sin(phi) ** UNDER_FALL
+        ring = []
+        for x, y in waist:
+            p = Vector((x, y))
+            q = pull_in(c + (p - c) * s, p)
+            ring.append(bm.verts.new((q.x * PX, q.y * PX, z * PX)))
+        rings.append(ring)
+    pole = bm.verts.new((c.x * PX, c.y * PX, -UNDER_H * PX))
+    n = len(waist)
+    for r0, r1 in zip(rings, rings[1:]):
+        for i in range(n):
+            j = (i + 1) % n
+            bm.faces.new((r0[i], r0[j], r1[j], r1[i]))
+    for i in range(n):
+        bm.faces.new((rings[-1][i], rings[-1][(i + 1) % n], pole))
+    cap = bm.faces.new(rings[0])
+    bmesh.ops.triangulate(bm, faces=[cap])
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    ROCK.cut_planes(bm, UNDER_CUTS)
+    # each face takes the colour of the boulder above it (the band seen at the tilted camera)
+    for f in bm.faces:
+        q = f.calc_center_median() / PX
+        col, row = int(q.x + W / 2), int(H / 2 - q.y)
+        best = None
+        for rr in range(0, 6):
+            for yy in range(row - rr, row + rr + 1):
+                for xx in range(col - rr, col + rr + 1):
+                    if 0 <= yy < H and 0 <= xx < W and label[yy][xx] >= 0:
+                        best = label[yy][xx]
+                        break
+                if best is not None:
+                    break
+            if best is not None:
+                break
+        f.material_index = used.index(pal[best if best is not None else 0])
+    me = bpy.data.meshes.new(name)
+    bm.to_mesh(me)
+    bm.free()
+    for mt in mats:
+        me.materials.append(mt)
+    o = bpy.data.objects.new(name, me)
+    coll.objects.link(o)
+    print(f"B: underside {len(o.data.polygons)} faces, {UNDER_H} px deep")
+    return o
 
 
 # --- copied helpers (assembly-newsh4-124.py; candidates for common.py) -----------------------------
@@ -1060,7 +1163,7 @@ def render_views(objs, hide, out, k=8, panel=520):
     setup_workbench(False)
     render(camera((0, 0, 20), (0, 0, 0), ortho=H * PX, top=True), out / "top.png", W * k, H * k)
     span = ext * 1.3
-    zc = span * 0.18
+    zc = span * 0.02  # the underside in frame too
     render(camera((-30, 0, zc), (0, 0, zc), ortho=span), out / "left.png", 2 * panel, panel)
     render(camera((0, 30, zc), (0, 0, zc), ortho=span), out / "front.png", 2 * panel, panel)
     render(camera((0, -30, zc), (0, 0, zc), ortho=span), out / "rear.png", 2 * panel, panel)
