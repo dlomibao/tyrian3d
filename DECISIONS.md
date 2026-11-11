@@ -6168,7 +6168,11 @@ build is not deterministic on its own.
   quadrants are flatter than the original (bottom-right median 66 against 45); the capsule lenses are flat red slabs
   once the cross enemies die (an emissive gradient).
 - `l1bld_pipe_junction`: 23k triangles (merge interior pavers/bricks); the parapet posts on the stem's curved inner
-  edges overlap like shingles.
+  edges overlap like shingles. Its join with the base complex (ASTEROID? t2350,
+  `tyrian-scratch/structures-1/integrate/join_crop_t2350.png`, `bg=original` left): the stem ends in a straight raised
+  edge, below it the base complex's top rows show its dark bed where the art continues the stem's rock and brick
+  walls down to the kerb comb, the brown brick channel meets the 9 px grating at a different width, and a thin bright
+  sliver stands at the join's right. Fix with the channel width (above).
 - maps.json of the cross and the cross pad keep the dead `concept`/`concept_box`/`fit_iou` keys.
 - The other 16 structures (QA2's count of 23) are still concept-baked.
 - `?viewer=` lists no tile models (they fall back to atom-bombs): reviews judged from Blender renders and game captures.
