@@ -6184,3 +6184,116 @@ build is not deterministic on its own.
 **Cost:** 50 agents in the main run plus 2 in the fix round; 7.39M + 0.27M subagent tokens; about 5.4 h. Sheets:
 `tyrian-scratch/structures-1/<name>/final/` and `.../fixround/l1bld_base_complex/final/`; integration captures in
 `tyrian-scratch/structures-1/integrate/` (not in git, D3).
+
+## D143 — Structure rebuild, wave 2: the other twelve structures to the D65 hard-surface standard; ASTEROID?'s station kit; the pipe-junction seam; `finish()` (extends D141, D139, D86; fixes D141's join follow-up)
+
+2026-11-11
+
+**Context:** D141 rebuilt seven structures and left the other sixteen of QA round 2's count concept-baked. This wave
+takes the twelve scripts behind the remaining TYRIAN and ASTEROID? structures (fourteen entries: the drums and the
+white gates are an east/west pair each), with the same rules: the art wins on top-down outline, feature placement and
+per-region palette index; chamfered slabs, not pixel terraces; the model's own AO bake (`"bake": "model"`), no concept
+projection, no outline shell (D141).
+
+**Decision:**
+- `lib_l1bld.Building.finish(objects, mask, bake, preview, ground="layer", ...)`: check() (strict), top_iou(),
+  bake_model() (`ground` "layer": a z = 0 occluder on layer 0, the HD ground, D86; none on layer 2, where the plain
+  island rock occludes), the lib_tiles preview and export(), in one call; `lb.clear_scene()` empties the scene first
+  (the `--factory-startup` cube, a model exported earlier in the same run). Eleven of the twelve scripts end in it;
+  `tyrbld_bridge` keeps its own tail (colour measurement, a 2048 px bake, a review sheet). `bake_model` now keeps
+  D139 cover parts: objects tagged `tyrian_cell` / `tyrian_when` share the atlas but come back as their own objects
+  with their tags (the ring dome's six open/covered pairs survive the bake; the renderer finds them by tag).
+- `lib_l1kit.py` (new): ASTEROID?'s station kit, the base complex's parts (rubble bed, deck, rock layout, kerb
+  comb, channels, basket-weave paving, rim rocks, capsule lenses, pods, round and blasted hatches) and its measured
+  palette and heights, so the bunker, red bar, ring dome and light bridge match the base complex. The base complex
+  imports its pixel helpers and `Geo` from it (a `--no-bake` build is byte-identical before and after the move).
+- **The pipe junction / base complex seam** (D141 follow-up, ASTEROID? t2350): the junction now builds its stem's
+  rock bands, brick walls, parapet posts, stones (shrunk to end on the line) and channel on through its pattern's row
+  10 (tiles 363 389 364) down to `JOIN_PY` 299, the base complex's kerb comb; the base complex builds nothing above
+  its `JOIN_Y` 19 in cells (0,5)-(0,7) (no dark bed, no talus, no posts across the channel mouth). Its channels are
+  now the art's width everywhere (389: x 3.5..18.5, 379: y 4.5..22.5; `CH_HX` 7.5 / `CH_HY` 9, was 4.5), and the
+  junction's stem channel is that same strip, so the two meet at one width. Base complex IoU 0.989 (was 0.990), 59.0k
+  triangles; pipe junction 0.992, 24.0k.
+
+Built with `tools/workflows/model-flagship.js` (run `wf_388f72c4-23b`: a setup lead for the shared groundwork above,
+1 hero with a blueprint and two competing designs, 11 standard; strict review, two fix rounds: crater, white gate).
+
+| Structure | Score | Top-view IoU | GLB MB (was) | Triangles (incl. plain rock) |
+|---|---|---|---|---|
+| tyrbld_bunker_hull | 8 | 0.9527 | 0.47 (0.25) | 7.1k |
+| tyrbld_bunker_ring | 8 | 0.985 | 0.57 (0.39) | 10.2k |
+| tyrbld_bridge | 8 | 1.0 (walkway; 0.999 whole pattern) | 2.77 (2.52) | 15.0k + 38.3k rock |
+| tyrbld_drum (e / w) | 7.5 | 0.966 / 0.971 | 0.29 / 0.30 (0.10 / 0.10) | 3.9k / 4.0k |
+| tyrbld_crater | 8 | 0.959 (visible top, 1x) | 0.97 (0.80) | 13.9k |
+| tyrbld_white_gate (w / e) | 7.5 | 0.961 / 0.975 | 0.45 / 0.47 (0.27 / 0.27) | 5.9k / 6.4k |
+| tyrbld_lava_pit | 7 | 0.959 | 0.42 (0.38) | 4.3k |
+| tyrbld_wreck | 7 | 0.968 (0.9985 at 1x) | 1.39 (0.68) | 17.0k |
+| l1bld_bunker | 8 | 0.983 | 0.55 (0.73) | 7.0k |
+| l1bld_light_bridge | 8 | 0.985 | 1.41 (0.79) | 20.3k |
+| l1bld_red_bar | 7 | 0.976 | 0.42 (0.76) | 5.7k |
+| l1bld_ring_dome (hero, design B) | 7.5 | 0.983 (open and covered) | 1.29 (1.19) | 17.6k |
+
+The IoU is the worst/only frame (tile models have one), at 2x unless noted. The fourteen GLBs go from 9.2 MB to
+11.8 MB; with the base complex and pipe junction (seam) the sixteen rebuilt GLBs go from 17.0 to 19.6 MB. Every
+`src/render/tileModels/*.json` is unchanged; each maps.json only gains `"bake": "model"`.
+
+**`finish()` failed on export with a preview (the integrator's fix).** Two finishers reported `finish()` dying in
+`common.export_glb` with `'NoneType' object has no attribute 'select_set'`, one worked round it by repeating finish's
+steps by hand (bunker hull), another kept a local `export_glb` copy (bridge). Reproduced: `tyrbld_drum.py -- --no-bake
+--preview <dir>` fails every time. Root cause: `common.render_preview` deletes its three cameras with
+`bpy.data.objects.remove` after rendering has synced them into the view layer, and nothing updates the layer, so
+`view_layer.objects` still lists them as `None` and export_glb's deselect loop hits one. (The baked path usually
+survived because something in it resynced the layer; it was luck, not design.) It was not a missing update after
+`bake_model` (its `_split_covers` already updates). Fix: render_preview updates the view layer after removing its
+cameras, and export_glb updates it and skips dead entries. `tools/build-models.sh` now runs Blender with
+`--python-exit-code 1`, so a Python exception fails the build by its exit status, not only by the log grep (Blender
+exits 0 after an exception in `--python`). The bunker hull now ends in `s.finish()`, the bridge's unused copy is gone
+and its preview goes to the `-p` folder. Every script above was then rebuilt with `tools/build-models.sh -j 2 -p`:
+sixteen fresh GLBs (02:43-02:47), each with its `exported` line, none stale.
+
+**Shared lib check** (D141's method: a throwaway worktree of origin/main, each script built once with main's
+`lib_l1bld.py` / `common.py` and once with this branch's, `lib_l1kit.py` added; the Cycles bake stubbed out in both
+so bake_model's joining and splitting still ran; GLBs compared by sorted triangles at 1e-4, node names, extras and
+materials): `tyrbld_purple_orb`, `purple_cross`, `purple_blocks` (2x2/2x3/2x5), `tyrbld_fortress`, `l1bld_cross_pad`,
+and two enemies through common.py (`newsh2-153`, `newsha-93` and its f2) are the same content. `delbld_girders` and
+`delbld_hull` (lib_tiles/common.py only) differ in 3 of 54 GLBs between plain runs on main's and this branch's files,
+as many as between two runs of main alone (D141: their build is not deterministic). The ring dome's GLB keeps D139's
+twelve `cell-1-2..7-{open,covered}` nodes with the same tags as main's.
+
+**Follow-ups (from the reviews):**
+- `tyrbld_bunker_hull`: the machine bed is palette 2 where the art fills it with 32 (near black): use 1, or keep 2
+  and say why. Its right bed edge follows the art's staircase (acceptable).
+- `tyrbld_bunker_ring`: the domes (metallic 0.75, roughness 0.36) show a near-mirror spot in Blender; satin in game;
+  roughness about 0.45 to match the ring.
+- `tyrbld_bridge`: the north curb plate reads mid grey and thin in game against the art's bright 9-11 band (index
+  right, material too dark). Structure.rock's hanging underside has 44 open edges (lib, seen only from below).
+  `share_rock_images()` could move into lib_tyrbld. On main=3 seed=1 the bridge is on screen at about ticks
+  6202-6237, 6262-6297 and 6374-6409.
+- `tyrbld_drum`: the housing stops one column short on the nose side (column 13, west 7, rows 5-8: 4 px each); the
+  nose index is pooled (19) where the west drum's own is 22; top 0.371 is close to L2_OVER_MAX 0.38.
+- `tyrbld_crater`: collars a little saturated and the big collar's steel arc streaks (roughness 0.35 → 0.45); the
+  three drop pipes read as bundled noodles at 3/4. `coverage()`/`top_iou()` count faces buried under the plain rock
+  (how the socket first passed): the crater's `visible_top()` z-buffer could replace them in lib_l1bld; finish()
+  could also report 1x, the art rule's resolution.
+- `tyrbld_white_gate`: plain flat marble (rounded boxes, one panel line); a 15 px² sliver on the west gate's middle
+  block; maps.json keep the dead concept keys. A floor run under the rock costs IoU under the lib measure (0.961 /
+  0.975 against 0.978 / 0.990 visible): same `coverage()` fix.
+- `tyrbld_lava_pit`: the pit mouth is about 1 px small all round and up to 3 px at the upper left and bottom
+  (hollow IoU 0.82): trace it from the whole dark region. The right and bottom stones lack the art's warm lit tops.
+- `tyrbld_wreck`: the floor reads one even dark grey (charred/soot/scorched classes are right); the north debris band
+  is flatter and busier than the south's plates.
+- `l1bld_bunker`: the kit's blasted-hatch frame is palette 9 all round where the art's median is 6-7 (lit top edge
+  only); the glacis is 6 against the art's 5.
+- `l1bld_light_bridge`: the kit's rim rocks are crude low-poly lumps; the platform's east end is a plain vertical cut
+  (off screen in game); turret 358 is a flatter octagon than the art's (an enemy covers it).
+- `l1bld_red_bar`: the kit's paving reads as confetti where the art has a rib every ~8 px; rim stones are one size,
+  the bottom row not pointed.
+- `l1bld_ring_dome`: the dome reads flat from the game camera (plate normals or roughness for a sheen); on band
+  cells 1-3 and 1-6 about 11 px of the open state sit within 0.002 of the base (lift the rack ~0.005); the open band
+  cells were never captured in game with the enemies gone.
+- Several final sheets are design-stage renders of the same geometry, not of the shipped GLB (reviewers re-measured
+  the GLBs). `?viewer=` still lists no tile models.
+
+**Cost:** 44 agents (32 Opus, 12 Sonnet), 5.97M subagent tokens, about 1.4 h. Sheets:
+`tyrian-scratch/structures-2/<name>/final/`; the lead's seam captures `tyrian-scratch/structures-2/lead/`;
+integration builds, lib check and captures `tyrian-scratch/structures-2/integrate/` (not in git, D3).

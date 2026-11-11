@@ -13,9 +13,11 @@ What the tiles paint, and how it is built (pattern px, y down; 1 unit = 12 px; z
 - the brown channels (tiles 365/367/379/385/387/389/366/376, a strip 16-18 px wide through each cell's
   centre, rounded at the turns): recessed 1 px under the deck, a dark floor with the art's rust-brown
   pavers (its brown blobs, outlines simplified, each in its own index);
-- the stem's open end (the base complex's top rows 10-11 are the base model's): the channel floor
-  climbs three sluice steps to the base's channel height (0.312) and the deck, bricks and rubble meet
-  the base's heights (deck 0.300, plates 0.345, bed 0.28) at py 280.
+- the stem's open end: it runs on through the pattern's row 10 (the base complex's row 0, tiles
+  363 389 364) down to the base's kerb comb at JOIN_PY (py 299), where the base model starts (its
+  JOIN_Y); the channel is the base's own strip (STEM_X), its floor climbs three sluice steps to the
+  base's channel height (0.312), and the deck, bricks and rubble meet the base's heights (deck 0.300,
+  plates 0.345).
 
 No ground enemies sit on it. Underside: the slabs' flat bottoms only.
 
@@ -35,11 +37,17 @@ from mathutils import Vector, geometry  # noqa: E402
 
 import common  # noqa: E402
 import lib_l1bld as lb  # noqa: E402
+import lib_l1kit as kit  # noqa: E402
 import lib_sockets as ls  # noqa: E402
 import lib_tiles as lt  # noqa: E402
 
 OUT = Path("/Users/dlomibao/projects/tyrian-scratch/structures-1/l1bld_pipe_junction/final")
-END_PY = 280  # the model's last row (rows 10-11 are the base complex's)
+END_PY = 280  # the pattern's row 10 (rows 10-11 are the base complex's rows 0-1)
+# The join with the base complex (l1bld_base_complex.JOIN_Y): the stem's rock, brick walls and
+# channel run on through row 10's cells 3-5 (tiles 363 389 364) down to the base's kerb comb at
+# py 280 + 19, where the base model's deck starts; the base builds nothing above that line there.
+JOIN_PY = END_PY + 19
+STEM_X = (96 + kit.CH_X - kit.CH_HX, 96 + kit.CH_X + kit.CH_HX)  # the stem channel: the base's 389 strip, cell 4
 
 # Heights (units). The base complex (its blueprint) uses bed 0.28, deck 0.300, plates 0.345,
 # channel 0.312, kerb 0.366: the stem's end meets those.
@@ -52,7 +60,7 @@ DECK = 0.300  # mortar deck
 BRICK = 0.345  # brick tops
 POST = 0.368  # parapet posts
 ISLAND = 0.365  # the islands' bricks stand a little proud of the deck round them
-SLUICE = [(254, 0.245), (263, 0.275), (271, 0.312)]  # (from py, floor z) up the stem's end
+SLUICE = [(273, 0.245), (282, 0.275), (290, 0.312)]  # (from py, floor z) up the stem's end (to JOIN_PY)
 
 # Channel strips: through each channel tile's centre (11, 13.5), +-8 px across a vertical run, +-9
 # across a horizontal one (measured on tiles 389 and 379), rounded r 4 at the turns.
@@ -109,7 +117,9 @@ def channel_mask(b):
     # The stem: straight, symmetric about the axis, as wide as the art's channel there on average.
     rows = m[STEM_Y0:END_PY]
     w = float(np.mean(rows.sum(axis=1)))
-    x0, x1 = AXIS - w / 2, AXIS + w / 2
+    # The base complex's channel continues it: the same strip (the art's 389, x 3.5..18.5 in the cell).
+    x0, x1 = STEM_X
+    print(f"stem channel: the art's evidence {w:.1f} px wide; built as the base's strip")
     m[STEM_Y0:] = False
     yy, xx = np.mgrid[0:m.shape[0], 0:m.shape[1]] + 0.5
     m |= (yy >= STEM_Y0) & (xx >= x0) & (xx < x1)
@@ -299,13 +309,20 @@ def build(bake=True, views=None):
     lum = ts.lum
     H, W = grid.shape
     rows = np.arange(H)[:, None] * np.ones((1, W), bool)
-    live = rows < END_PY
+    live = rows < JOIN_PY
 
     # Masks. The full pattern's footprint (rows 0-11), so the stem's cut at py 280 is not an edge.
     painted = grid > 0
     fpf = fill_holes(lb.close(painted, 2) & (grid >= 0))
-    fp = b.footprint  # rows 0-9 (what the model covers)
+    fp = b.footprint.copy()  # rows 0-9 (what the model covers) ...
+    ext = np.zeros_like(fp)  # ... and the stem's end through row 10 down to the base's kerb (JOIN_PY)
+    ext[END_PY:JOIN_PY, 3 * lt.TILE_W:6 * lt.TILE_W] = True
+    ext &= fpf
+    fp |= ext
+    b.footprint = fp
     rock = fp & ~disc_erode(fpf, ROCK_BAND)
+    # the stem's rock bands run straight on into row 10 (where the rim row widens fpf, the band would end)
+    rock[END_PY:JOIN_PY] |= rock[END_PY - 1][None, :] & ext[END_PY:JOIN_PY]
     chan = channel_mask(b) & fp & ~rock
     mason = fp & ~rock & ~chan
     post = mason & disc_dilate(rock, POST_BAND)
@@ -360,7 +377,7 @@ def build(bake=True, views=None):
             j = (i + 1) % n
             a, c = np.array(loop[i]), np.array(loop[j])
             ai, ci = np.array(inn[i]), np.array(inn[j])
-            if a[1] >= END_PY - 1.5 and c[1] >= END_PY - 1.5:
+            if a[1] >= JOIN_PY - 1.5 and c[1] >= JOIN_PY - 1.5:
                 continue  # the open end
             L = float(np.hypot(*(c - a)))
             k = max(1, int(round(L / POST_PITCH)))
@@ -369,7 +386,7 @@ def build(bake=True, views=None):
                 g0, g1 = t0 + (0.35 / L if s else 0), t1 - (0.35 / L if s < k - 1 else 0)
                 p0, p1 = a + (c - a) * g0, a + (c - a) * g1
                 q0, q1 = ai + (ci - ai) * g0, ai + (ci - ai) * g1
-                if max(p0[1], p1[1], q0[1], q1[1]) > END_PY:
+                if max(p0[1], p1[1], q0[1], q1[1]) > JOIN_PY:
                     continue
                 mid = (p0 + p1 + q0 + q1) / 4
                 v = grid[min(H - 1, int(mid[1])), min(W - 1, int(mid[0]))]
@@ -436,7 +453,7 @@ def build(bake=True, views=None):
     x0s, x1s = float(sx.min()), float(sx.max() + 1)
     mat_step = m(idx["mortar"] + 2, roughness=0.7)
     for k, (y0, z) in enumerate(SLUICE):
-        prism(b, s_rbox(x0s, y0, x1s, END_PY), [], FLOOR - 0.02, z, mat_step if k < len(SLUICE) - 1 else m(idx["rust"], roughness=0.8),
+        prism(b, s_rbox(x0s, y0, x1s, JOIN_PY), [], FLOOR - 0.02, z, mat_step if k < len(SLUICE) - 1 else m(idx["rust"], roughness=0.8),
               chamfer=0.4, drop=0.01)
 
     # 8. Boulders: one per stone the art paints in the rim (its brightness hills), its ellipse and index.
@@ -449,8 +466,12 @@ def build(bake=True, views=None):
             continue
         cx, cy, rx, ry, ang = lt.ellipse(ys, xs)
         rx, ry = min(7.5, max(2.6, rx * 1.15)), min(7.5, max(2.6, ry * 1.15))
-        if cy + max(rx, ry) * 0.8 > END_PY:
-            continue
+        over = cy + max(rx, ry) * 0.8 - JOIN_PY
+        if over > 0:  # at the join: shrink the stone to end on the line (the base's kerb is below it)
+            k_ = (JOIN_PY - cy) / (0.8 * max(rx, ry))
+            if k_ * min(rx, ry) < 2.2:
+                continue
+            rx, ry = rx * k_, ry * k_
         part = np.zeros_like(rock)
         part[ys, xs] = True
         vi = region_index(grid, lum, part, is_grey) or idx["rock"]

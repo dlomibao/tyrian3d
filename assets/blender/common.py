@@ -201,8 +201,12 @@ def export_glb(objects, path, image_format="AUTO"):
     pass image_format="WEBP" so their baked maps stay small (EXT_texture_webp; three.js reads it)."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
+    # An object deleted after the view layer last synced (render_preview's cameras, bake_model's
+    # ground catcher) leaves a dead entry (None) in view_layer.objects until the layer is updated.
+    bpy.context.view_layer.update()
     for obj in bpy.context.view_layer.objects:
-        obj.select_set(False)
+        if obj is not None:
+            obj.select_set(False)
     for obj in objects:
         obj.select_set(True)
     bpy.context.view_layer.objects.active = objects[0]
@@ -500,6 +504,7 @@ frames (frame_part, palette_material frames=) show as on that frame. Works headl
         data = cam.data
         bpy.data.objects.remove(cam, do_unlink=True)
         bpy.data.cameras.remove(data)
+    bpy.context.view_layer.update()  # drop the cameras' dead view-layer entries (export_glb iterates them)
     for o in hidden:
         o.hide_render = False
     for m, colour in recoloured:

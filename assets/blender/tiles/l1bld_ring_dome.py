@@ -1,406 +1,475 @@
-"""The ring platform of map 1-3's ground (shapesz.dat; 7 x 10 tiles, map rows 154-160, cols 2-11),
-after the concept assets/blender/features/concepts/l1-bld-ring-dome.jpg: a paved U of asteroid rock,
-its top bar a band of lights (two framed red panels 347, two triple red tubes 339, two brass gun
-turrets 358 between them), each arm carrying two round orb sockets (357), and inside the U a separate
-paved pad with a metal dome (415 417 / 409 383). The game draws ground enemies (newshs 195/235 on the
-lights, newshd 275 on the gun mounts, newshd 127 on the orbs) at 0.45 exactly over these cells, so
-the building's own lights, turrets and sockets stay under ENEMY_MAX and show once they're destroyed.
+r"""l1bld-ring-dome: ASTEROID?'s ring dome (map 1-3 rows 154-160, 7 x 10 tiles), hard
+surface on lib_l1kit (the base complex's station kit, D141), silhouette first.
 
-The rim is a band of rounded, faceted boulders (this script's own boulder(): a jittered, flat-shaded
-icosphere), not the library's rim_rocks() prisms: an outer row that forms the platform's edge (the
-deck is cut from a smoothed, slightly shrunk footprint, so the rocks overhang its pixel-stepped wall)
-and a sparse inner row near the edge only. The paving's plates are inlaid (bricks; a basket weave on the pad).
+What it is (the tiles and the game): a paved U of station deck in a rocky rim. Its top bar carries a
+light band: two framed big red panes (347), two racks of three red capsule lights (339) and two
+brass gun turrets (358) in the middle, each a round brass cage with steel windows, red side lamps
+and a short barrel pointing down the screen at the player. Each arm carries two orb sockets (357):
+a dark well ringed by bright lugs, a dark sensor dome with two red eyes. Inside the U a separate
+paved pad carries the big low dome (415 417 / 409 383): its plating is the deck's basket weave
+carried over the dome (the art paints the weave over it, lit top-left, shadowed bottom-right).
 
-Only ring-dome is built here (ring-dome-b, the second ring, is its own script). Run from the repo root:
+Read from the tilted game camera: the dome is the only thing that stands up (top 0.72, everything
+else under the rim's 0.50), so it is a clear ellipsoid with a collar, its plates modelled as
+inlaid strips alternating along / across like the weave; the band reads as one bright red row with
+two brass knobs; the orbs as four eyes in bezels on the arms.
 
-    blender --background --factory-startup --python assets/blender/tiles/l1bld_ring_dome.py
-    python tools/concept_maps.py tile:shapesz-l1bld-ring-dome --concept l1-bld-ring-dome
-    blender --background --factory-startup --python assets/blender/tiles/l1bld_ring_dome.py   # again, see below
-    blender --background --factory-startup --python assets/blender/texture_bake.py -- tile:shapesz-l1bld-ring-dome
+Ground enemies stand at 0.45 on the six band cells and the four orb cells: every top there stays
+<= 0.376. D139: each band cell's light ("open": lights + the paving round them) and its lid
+("covered": the plain basket-weave paving, flush with the deck round it) are their own objects,
+tagged tyrian_cell [1, col] / tyrian_when; bake_model keeps them separate and tagged.
 
-The concept paves the pad and paints the sprite's highlight where the dome stands; the build
-neutralises the concept detail and relief under the dome (assets/blender/textures/shapesz-l1bld-ring-dome/
-detail.png, height.png) so the bake doesn't paint bricks and a fake highlight on it, once (maps.json
-then says "dome_neutralised"; a second pass would blur the edge further). Re-running concept_maps.py
-undoes that (and drops the flag), so run this script once more after it (as above).
+Dome plating: the art's basket weave (lib_l1kit.WEAVE bricks) draped over the ellipsoid, plain
+mortar showing between the plates.
 
-The six light-band cells (row 1, cols 2-7: red panels, triple tubes, gun turrets) are their own
-objects tagged `tyrian_cell` (DECISIONS.md D139), each with a plain paving lid over its stretch of the
-trough tagged `tyrian_when: "covered"`: while a ground enemy stands on a cell the game draws the lid,
-not the light, as the enemy's opaque sprite hid the tile (the models no longer draw the sprite's floor,
-D130, so the light showed round the enemy's edge), and the light once the enemy is gone.
+    tools/build-models.sh -j 2 -p <dir> assets/blender/tiles/l1bld_ring_dome.py
+    blender --background --factory-startup --python assets/blender/tiles/l1bld_ring_dome.py -- [--no-bake] [--preview <dir>]
 """
 
 import math
-import random
-import struct
 import sys
-import zlib
 from pathlib import Path
-
-import bmesh
-import bpy
-import numpy as np
-from mathutils import Matrix, Vector
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+import bmesh  # noqa: E402
+import numpy as np  # noqa: E402
+from mathutils import Vector  # noqa: E402
+
+import common  # noqa: E402
 import lib_l1bld as lb  # noqa: E402
+import lib_l1kit as kit  # noqa: E402
+import lib_sockets as ls  # noqa: E402
 import lib_tiles as lt  # noqa: E402
+from lib_l1kit import DECK_TOP, ell, rbox  # noqa: E402
 
-DECK = 0.30  # the U's paving
-PAD_DECK = 0.27  # the inner pad, a step lower (it reads as a separate island in the concept)
-PAD_TOP = (72, 84, 168, 196)  # the inner pad's cells (rows 3-6, cols 3-6) in px
-GROOVE = 0.025  # the paving's inlaid plate seams
+PX = lt.PX
+TW, TH = lt.TILE_W, lt.TILE_H
 
-# The light band (row 1, py 28-56); pixel boxes from the tiles (mirror-symmetric about px 120).
-RED_PANELS = [(51, 32, 68, 54), (172, 32, 189, 54)]  # 347: framed red panels
-TUBES_X = [(78.0, 84.0, 90.0), (150.0, 156.0, 162.0)]  # 339: three vertical red tubes per cell
-TUBE_FRAME = [(73, 34, 95, 56), (145, 34, 167, 56)]
-MOUNTS = [(108.0, 44.0), (132.0, 44.0)]  # 358: gun turrets (cell centres)
-ORBS = [(36.0, 70.0), (36.0, 98.0), (204.0, 98.0), (204.0, 126.0)]  # 357: orb sockets (cell centres)
-DOME = (120.0, 140.0)  # centre of the 415 417 / 409 383 square
-DOME_R = 16.5  # px
-DOME_PLATE = (99, 115, 141, 165)
-# Vents: small grilles cut into the paving just inside the rim (the concept's slots above the lights
-# and at the arms' top).
-VENTS = [(60, 22), (83, 22), (107, 22), (133, 22), (157, 22), (180, 22), (36, 49), (204, 49)]
-LIGHT_TOP = lb.ENEMY_MAX - 0.01
-ROCK_TOP = lb.RIM_MAX
+BAND_ROW, BAND_COLS = 1, [2, 3, 4, 5, 6, 7]
+TURRET_COLS = (4, 5)
+TURRET_R = (9.0, 10.0)  # brass cage radii (px) round the cell's brass centroid
+TOP_E = 0.376  # highest top on an enemy cell
+DOME_C, DOME_R = (120.0, 140.0), 21.0
+DOME_Z0, DOME_H = 0.34, 0.415  # ellipsoid from its collar to 0.755 (+ boss 0.775)
+
+# The art's palette indices (trimmed medians of each region's pixels; measure() prints them).
+PAL_BRASS, PAL_WINDOW, PAL_LAMP = 164, 101, 115
+PAL_ORB_BEZEL, PAL_ORB_WELL, PAL_ORB_LUG, PAL_ORB_EYE = 5, 1, 9, 112
+PAL_DOME, PAL_DOME_SEAM, PAL_COLLAR = 5, 3, 5
 
 
-def disc(b, px, py, r_px, z0, z1, mat, sides=20, bevel=0.25, ry_px=None):
-    """A round bevelled plate (lib_tiles.block with many sides) from z0 to z1."""
-    bm = bmesh.new()
-    lt.block(bm, b.x(px), b.y(py), r_px * lt.PX, (ry_px or r_px) * lt.PX, 0.0, z0, z1 - z0, mat, sides=sides, bevel=bevel)
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    b._merge(bm)
+# ---------------------------------------------------------------- small local helpers (follow-ups)
+
+def face_out(bm, vs, mat, out_vec, smooth=False):
+    """A face whose normal points along out_vec (world)."""
+    if len(set(vs)) < 3:
+        return None
+    try:
+        f = bm.faces.new(vs)
+    except ValueError:
+        return None
+    f.normal_update()
+    if f.normal.dot(Vector(out_vec)) < 0:
+        f.normal_flip()
+    f.material_index = mat
+    f.smooth = smooth
+    return f
 
 
-def cylinder(b, p0, p1, r, mat, sides=10):
-    """A closed cylinder between two points (units)."""
-    p0, p1 = Vector(p0), Vector(p1)
-    axis = p1 - p0
-    rot = axis.normalized().to_track_quat("Z", "Y").to_matrix().to_4x4()
-    bm = bmesh.new()
-    bmesh.ops.create_cone(bm, cap_ends=True, segments=sides, radius1=r, radius2=r, depth=axis.length,
-                          matrix=Matrix.Translation((p0 + p1) / 2) @ rot)
-    for f in bm.faces:
-        f.material_index = mat
-    b._merge(bm)
+def lens_unit(k, x0, y0, x1, y1, corner, fat=False, ztop=kit.LENS_TOP, mat=None, house_pad=(1.2, 2.2)):
+    """lib_l1kit.Kit.lens with the lens corner as a parameter (a stadium for the 339 capsules:
+    corner = half the width), housing, dark seat and domed lens."""
+    g, m = k.g, k.mat
+    a, b_ = house_pad
+    g.prism(rbox(x0 - a, y0 - a, x1 + b_, y1 + b_, corner + 1.2, 3), [], DECK_TOP - 0.005, ztop, m["house"],
+            chamfer=0.7, drop=0.012, bottom=False)
+    g.prism(rbox(x0 - 0.4, y0 - 0.4, x1 + 1.4, y1 + 1.4, corner + 0.4, 3), [], ztop - 0.02, ztop + 0.002, m["sock"], bottom=False)
+    k.pillow(rbox(x0, y0, x1 + 1, y1 + 1, corner, 3), ztop - 0.004, 0.024 if fat else 0.022,
+             mat if mat is not None else (m["lens_fat"] if fat else m["lens"]), corner)
 
 
-def blur(a, r):
-    """Box blur (twice, about a Gaussian) of a float array, radius r px."""
-    out = a.astype(np.float32)
-    for _ in range(2):
-        for axis in (0, 1):
-            pad = [(0, 0), (0, 0)]
-            pad[axis] = (r + 1, r)
-            c = np.cumsum(np.pad(out, pad), axis=axis)
-            hi = np.take(c, range(2 * r + 1, c.shape[axis]), axis=axis)
-            lo = np.take(c, range(0, c.shape[axis] - 2 * r - 1), axis=axis)
-            out = (hi - lo) / (2 * r + 1)
+def flat_cyl_y(g, cx, y0, y1, rx, rz, zc, mat, n=12, cap0=None, cap1=None):
+    """A squashed pipe along the screen's y (rx in px, rz in units), its ends capped (cap1: the far
+    end's own material, e.g. a red bore)."""
+    bm = g.bm
+    ring = lambda y: [g.v(cx + rx * math.cos(2 * math.pi * i / n), y, zc + rz * math.sin(2 * math.pi * i / n)) for i in range(n)]
+    a, b_ = ring(y0), ring(y1)
+    for i in range(n):
+        j = (i + 1) % n
+        ca = math.cos(2 * math.pi * (i + 0.5) / n)
+        sa = math.sin(2 * math.pi * (i + 0.5) / n)
+        face_out(bm, (a[i], a[j], b_[j], b_[i]), mat, (ca, 0, sa), smooth=True)
+    face_out(bm, a, mat if cap0 is None else cap0, (0, 1 if y0 < y1 else -1, 0))
+    face_out(bm, b_, mat if cap1 is None else cap1, (0, -1 if y0 < y1 else 1, 0))
+
+
+def dome_z(cx, cy, rx, ry, z0, h, x, y):
+    t = 1 - ((x - cx) / rx) ** 2 - ((y - cy) / ry) ** 2
+    return z0 + h * math.sqrt(max(0.0, t))
+
+
+def conform_patch(g, poly, f, lift, mat):
+    """A flat-shaded ngon over `poly` (pattern px), each corner lifted `lift` over the surface f(x, y)."""
+    vs = [g.v(x, y, f(x, y) + lift) for x, y in g.outer(poly)]
+    face_out(g.bm, vs, mat, (0, 0, 1))
+
+
+def comps(mask, min_px=1):
+    lab, n = ls.label(mask)
+    out = []
+    for i in range(1, n + 1):
+        ys, xs = np.nonzero(lab == i)
+        if len(ys) >= min_px:
+            out.append((xs.min(), ys.min(), xs.max(), ys.max(), xs.mean() + 0.5, ys.mean() + 0.5, len(ys)))
     return out
 
 
-def boulder(b, rng, px, py, r_px, top, z_base, mat):
-    """A rounded, faceted boulder: an icosphere squashed to the rock's height, jittered, turned at
-    random and cut flat at z_base (it stands on / in the deck). r_px: its radius across (px)."""
-    rx = r_px * lt.PX * (0.85 + 0.3 * rng.random())
-    ry = r_px * lt.PX * (0.85 + 0.3 * rng.random())
-    zc = top - (top - z_base) * 0.55  # the widest girth sits a little below mid height
-    rz = top - zc
-    bm = bmesh.new()
-    bmesh.ops.create_icosphere(bm, subdivisions=1, radius=1.0)
-    ang = rng.random() * math.tau
-    ca, sa = math.cos(ang), math.sin(ang)
-    for v in bm.verts:
-        x, y, z = v.co
-        j = 0.82 + 0.3 * rng.random()  # chunky facets
-        x, y, z = x * j, y * j, z * (0.9 + 0.2 * rng.random())
-        z = max(z, -0.15)  # a broad base
-        lx, ly = x * rx, y * ry
-        v.co = Vector((b.x(px) + lx * ca - ly * sa, b.y(py) + lx * sa + ly * ca, zc + z * rz))
-    # Flatten the bottom onto z_base (below the deck) and the top to its cap.
-    for v in bm.verts:
-        if v.co.z < z_base:
-            v.co.z = z_base
-        v.co.z = min(v.co.z, top)
-    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
-    for f in bm.faces:
-        f.material_index = mat
-        f.smooth = False
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    b._merge(bm)
+def trimmed_median(grid, mask, ts):
+    """The region's palette index: median by luminance with the darkest / brightest eighth left
+    out (lighting), as the rubric's 'reading a sprite'."""
+    v = grid[mask & (grid >= 0)]
+    if not len(v):
+        return None
+    lum = np.array([sum(c * w for c, w in zip(ts.rgb(int(i)), (0.299, 0.587, 0.114))) for i in v])
+    o = np.argsort(lum)
+    n = len(o)
+    keep = v[o[n // 8: n - n // 8]] if n >= 8 else v[o]
+    return int(keep[len(keep) // 2])
 
 
-def place_rocks(b, rng, d, mask, r_rng, top_rng, gap, taken, mats, dz_base):
-    """Boulders on candidate pixels `mask` (shuffled), each kept apart from the others by `gap` x the
-    sum of radii. Returns the number placed; appends (px, py, r) to `taken`."""
-    ys, xs = np.nonzero(mask)
-    order = list(range(len(ys)))
-    rng.shuffle(order)
-    n = 0
-    for i in order:
-        px, py = xs[i] + 0.5, ys[i] + 0.5
-        r = r_rng[0] + (r_rng[1] - r_rng[0]) * rng.random()
-        if any((qx - px) ** 2 + (qy - py) ** 2 < ((qr + r) * gap) ** 2 for qx, qy, qr in taken):
-            continue
-        taken.append((px, py, r))
-        top = top_rng[0] + (top_rng[1] - top_rng[0]) * rng.random()
-        y0, y1 = int(max(0, py - r - 1)), int(min(b.H, py + r + 2))
-        x0, x1 = int(max(0, px - r - 1)), int(min(b.W, px + r + 2))
-        if b.enemy_mask[y0:y1, x0:x1].any():
-            top = min(top, lb.ENEMY_MAX)
-        here = b.height[min(b.H - 1, int(py)), min(b.W - 1, int(px))]
-        base = lb.SLAB_BOTTOM if (np.isnan(here) or d[int(py), int(px)] <= 4) else float(here) - dz_base
-        boulder(b, rng, px, py, r, top, base, mats[rng.randrange(len(mats))])
-        n += 1
-    return n
+def clip_convex(poly, clip):
+    """Sutherland-Hodgman: `poly` clipped by the convex CCW (in px, y down: any consistent) `clip`."""
+    def inside(p, a, b):
+        return (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]) >= 0
+
+    def inter(p, q, a, b):
+        x1, y1, x2, y2 = p[0], p[1], q[0], q[1]
+        x3, y3, x4, y4 = a[0], a[1], b[0], b[1]
+        d = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
+        t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / d
+        return (x1 + t * (x2 - x1), y1 + t * (y2 - y1))
+
+    out = list(poly)
+    for i in range(len(clip)):
+        a, b = clip[i], clip[(i + 1) % len(clip)]
+        inp, out = out, []
+        if not inp:
+            break
+        for j in range(len(inp)):
+            p, q = inp[j - 1], inp[j]
+            if inside(q, a, b):
+                if not inside(p, a, b):
+                    out.append(inter(p, q, a, b))
+                out.append(q)
+            elif inside(p, a, b):
+                out.append(inter(p, q, a, b))
+    return out
 
 
-def write_png_grey(path, a):
-    """An 8-bit greyscale PNG from a uint8 array (no PIL in Blender)."""
-    h, w = a.shape
-    raw = b"".join(b"\x00" + a[y].tobytes() for y in range(h))
+# ---------------------------------------------------------------- the parts
 
-    def chunk(tag, data):
-        return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
-
-    path.write_bytes(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 0, 0, 0, 0))
-                     + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b""))
-
-
-def neutralise_dome(b):
-    """Concept detail -> neutral and relief -> flat under the dome (and its drum), if the concept maps
-    exist: the concept paves this spot and paints the sprite's highlight on it."""
-    tex = lb.ROOT / "assets/blender/textures" / f"{lb.SHAPES}-l1bld-{b.name}"
-    meta_path = tex / "maps.json"
-    if not meta_path.exists():
-        return
-    import json
-    meta = json.loads(meta_path.read_text())
-    if meta.get("dome_neutralised"):
-        return
-    k = meta["texels_per_px"]
-    for name, value in (("detail.png", meta["neutral"]), ("height.png", None)):
-        path = tex / name
-        img = bpy.data.images.load(str(path))
-        w, h = img.size
-        px = np.empty(w * h * 4, np.float32)
-        img.pixels.foreach_get(px)
-        a = px.reshape(h, w, 4)[::-1, :, 0].copy()  # top row first
-        bpy.data.images.remove(img)
-        yy, xx = np.mgrid[0:h, 0:w]
-        rr = np.hypot((xx + 0.5) / k - DOME[0], (yy + 0.5) / k - DOME[1])
-        r0 = DOME_R + 2.0
-        f = np.clip((rr - r0) / 1.5, 0.0, 1.0)  # 0 inside, 1 outside
-        if value is None:
-            value = float(np.median(a))  # the relief's flat level
-        a = a * f + value * (1 - f)
-        write_png_grey(path, np.clip(np.round(a * 255), 0, 255).astype(np.uint8))
-    meta["dome_neutralised"] = True
-    meta_path.write_text(json.dumps(meta, indent=1) + "\n")
-    print(f"neutralised the dome in {tex.relative_to(lb.ROOT)}/detail.png, height.png")
-
-
-def plate_seams(b, pad):
-    """The paving's plate seams (1 px): running-bond bricks (12 x 7 px) on the U, as on its tiles and
-    in the concept, and a basket weave of planks (12 x 14 px blocks, two planks each, alternating
-    across and along) on the inner pad."""
-    yy, xx = np.mgrid[0:b.H, 0:b.W]
-    row = yy // 7
-    bricks = (yy % 7 == 0) | ((xx + np.where(row % 2 == 1, 6, 0)) % 12 == 0)
-    px0, py0 = PAD_TOP[0], PAD_TOP[1]
-    lx, ly = (xx - px0) % 12, (yy - py0) % 14
-    across = (((xx - px0) // 12 + (yy - py0) // 14) % 2) == 0
-    weave = (lx == 0) | (ly == 0) | np.where(across, ly == 7, lx == 6)
-    return np.where(pad, weave, bricks)
+def turret(k, cx, cy, grid, b):
+    """358: dark seat, brass cage dome with steel windows (the art's blue-steel pixels), red side
+    lamps, a short barrel down the screen with a red bore. Top 0.376."""
+    g, M = k.g, b.m
+    brass = M(PAL_BRASS, roughness=0.38, metallic=0.75)
+    brass_dk = M(PAL_BRASS - 2, roughness=0.45, metallic=0.65)
+    steel = M(PAL_WINDOW, roughness=0.25, metallic=0.6)
+    lamp = M(PAL_LAMP, roughness=0.25, emission_strength=1.2)
+    seat = M(1, roughness=0.6, metallic=0.3)
+    rx, ry = TURRET_R
+    g.prism(ell(cx, cy, rx + 1.6, ry + 1.2, 28), [], DECK_TOP - 0.005, 0.318, seat, chamfer=0.6, drop=0.008, bottom=False)
+    z0, h = 0.312, TOP_E - 0.004 - 0.312
+    g.dome(cx, cy, rx, ry, z0, h, brass, n=24, rings=6)
+    # windows: the art's blue-steel pixels inside the cage, as inset panes on the dome
+    yy0, xx0 = int(cy - ry), int(cx - rx)
+    wm = np.zeros(grid.shape, bool)
+    sub = grid[yy0:int(cy + ry) + 1, xx0:int(cx + rx) + 1]
+    wm[yy0:int(cy + ry) + 1, xx0:int(cx + rx) + 1] = (sub >= 96) & (sub <= 111)
+    yy, xx = np.mgrid[0:grid.shape[0], 0:grid.shape[1]] + 0.5
+    wm &= ((xx - cx) / (rx - 0.8)) ** 2 + ((yy - cy) / (ry - 0.8)) ** 2 <= 1
+    f = lambda x, y: dome_z(cx, cy, rx, ry, z0, h, x, y)
+    nwin = 0
+    for x0, y0, x1, y1, mx, my, n in comps(wm, 2):
+        conform_patch(g, rbox(x0 + 0.15, y0 + 0.15, x1 + 0.85, y1 + 0.85, 0.6, 1), f, 0.003, steel)
+        nwin += 1
+    # cage ribs: a brass ring round the crown and four meridian ribs (the cage the windows sit in)
+    for a0 in (0.25, 0.75, 1.25, 1.75):
+        a = a0 * math.pi
+        pts = []
+        for t in np.linspace(0.18, 0.92, 5):
+            pts.append((cx + rx * t * math.cos(a), cy + ry * t * math.sin(a)))
+        for (xa, ya), (xb, yb) in zip(pts, pts[1:]):
+            nx, ny = -(yb - ya), xb - xa
+            L = math.hypot(nx, ny)
+            nx, ny = 0.55 * nx / L, 0.55 * ny / L
+            conform_patch(g, [(xa + nx, ya + ny), (xb + nx, yb + ny), (xb - nx, yb - ny), (xa - nx, ya - ny)], f, 0.0035, brass_dk)
+    # side lamps (the art's red at the cage's flanks)
+    for sx in (-1, 1):
+        lx = cx + sx * (rx + 0.6)
+        g.prism(rbox(lx - 1.3, cy - 3.6, lx + 1.3, cy + 3.6, 1.2, 2), [], DECK_TOP, 0.34, brass_dk, chamfer=0.4, drop=0.008, bottom=False)
+        g.dome(lx, cy, 1.1, 3.0, 0.338, 0.026, lamp, n=10, rings=2)
+    # barrel: from the cage's front down the screen, a red bore at its muzzle
+    bore = M(113, roughness=0.3, emission_strength=1.5)
+    my = cy + ry + 3.0  # the muzzle seen from above: a brass ring round a red bore (art y 48-54)
+    flat_cyl_y(g, cx, cy + ry - 3.5, my, 2.6, 0.028, 0.336, brass, n=14)
+    g.prism(ell(cx, my, 3.6, 3.2, 18), [ell(cx, my, 1.7, 1.4, 12)], DECK_TOP - 0.005, 0.372, brass, chamfer=0.6, drop=0.012, bottom=False)
+    g.prism(ell(cx, my, 1.75, 1.45, 12), [], DECK_TOP - 0.005, 0.345, bore, bottom=False)
+    return nwin
 
 
-BAND_ROW = 1  # the light band's pattern row (py 28-56)
-BAND_CELLS = range(2, 8)  # its six cells under ground enemies: 347 339 358 358 339 347
-TROUGH = (48, 31, 192, 57)  # the dark trough the lights stand in (px box)
+def orb_socket(k, cx, cy, lugs, eyes, b):
+    """357: a dark bezel ring with bright lugs (the art's bright knobs), a dark well, a dark sensor
+    dome with two red eyes. Top <= 0.376 (an enemy cell)."""
+    g, M = k.g, b.m
+    bezel = M(PAL_ORB_BEZEL, roughness=0.5, metallic=0.45)
+    well = M(PAL_ORB_WELL, roughness=0.8)
+    lug = M(PAL_ORB_LUG, roughness=0.35, metallic=0.6)
+    sens = M(3, roughness=0.3, metallic=0.55)
+    eye = M(PAL_ORB_EYE, roughness=0.25, emission_strength=2.2)
+    g.prism(ell(cx, cy, 11.0, 11.0, 32), [ell(cx, cy, 7.0, 7.0, 32)], DECK_TOP - 0.005, 0.338, bezel, chamfer=0.9, drop=0.014, bottom=False)
+    g.prism(ell(cx, cy, 7.05, 7.05, 32), [], DECK_TOP - 0.005, 0.306, well, bottom=False)
+    for lx, ly in lugs:
+        a = math.atan2(ly - cy, lx - cx)
+        r = min(9.0, max(8.0, math.hypot(lx - cx, ly - cy)))
+        px_, py_ = cx + r * math.cos(a), cy + r * math.sin(a)
+        ca, sa = math.cos(a), math.sin(a)
+        hw, hl = 1.5, 2.0
+        poly = [(px_ + ca * u * hl - sa * v * hw, py_ + sa * u * hl + ca * v * hw) for u, v in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
+        g.prism(poly, [], 0.33, 0.362, lug, chamfer=0.4, drop=0.01, bottom=False)
+    ry = 6.2
+    z0, h = 0.305, 0.058
+    g.dome(cx, cy, 5.2, ry, z0, h, sens, n=18, rings=4)
+    f = lambda x, y: dome_z(cx, cy, 5.2, ry, z0, h, x, y)
+    for ex, ey in eyes:
+        conform_patch(g, ell(ex, ey, 2.1, 2.0, 12), f, 0.004, eye)
 
 
-class CellParts:
-    """Routes the parts built inside `with cells.at(col):` into that band cell's own mesh (D139)."""
+def big_dome(k, b):
+    """415 417 / 409 383: a collar ring, an ellipsoid shell in the seam colour, its plating as inlaid
+    strips (lifted, with sides) alternating along / across per panel, like the deck's weave; a boss."""
+    g, M = k.g, b.m
+    bm = g.bm
+    cx, cy = DOME_C
+    collar = M(PAL_COLLAR, roughness=0.4, metallic=0.55)
+    seam = M(PAL_DOME_SEAM, roughness=0.6, metallic=0.35)
+    plate = M(PAL_DOME, roughness=0.42, metallic=0.5)
+    R = DOME_R
+    g.prism(ell(cx, cy, R + 2.4, R + 2.4, 48), [ell(cx, cy, R - 0.4, R - 0.4, 48)], DECK_TOP - 0.005, 0.362, collar,
+            chamfer=1.0, drop=0.02, bottom=False)
+    for k_ in range(16):  # collar bolts
+        a = 2 * math.pi * (k_ + 0.5) / 16
+        g.prism(ell(cx + (R + 1.0) * math.cos(a), cy + (R + 1.0) * math.sin(a), 0.7, 0.7, 6), [], 0.35, 0.372, collar, bottom=False)
+    X0, Y0 = g.s.x(cx), g.s.y(cy)
+    Rw = R * PX
 
-    def __init__(self, b):
-        self.b = b
-        self.meshes = {}
+    def P(phi, th, lift=0.0):
+        c, s = math.cos(phi), math.sin(phi)
+        p = Vector((Rw * c * math.cos(th), Rw * c * math.sin(th), DOME_H * s))
+        n = Vector((c * math.cos(th) / Rw, c * math.sin(th) / Rw, s / DOME_H)).normalized()
+        q = p + n * lift
+        return Vector((X0 + q.x, Y0 + q.y, DOME_Z0 + q.z)), n
 
-    def at(self, col, when="open"):
-        cells = self
+    # the shell
+    NPH, NTH = 14, 48
+    phis = [0.5 * math.pi * i / NPH for i in range(NPH)]
+    rings = [[bm.verts.new(P(ph, 2 * math.pi * j / NTH)[0]) for j in range(NTH)] for ph in phis]
+    top = bm.verts.new((X0, Y0, DOME_Z0 + DOME_H))
+    for lo, hi, ph in zip(rings, rings[1:], phis):
+        for j in range(NTH):
+            jj = (j + 1) % NTH
+            face_out(bm, (lo[j], lo[jj], hi[jj], hi[j]), seam, P(ph, 2 * math.pi * (j + 0.5) / NTH)[1], smooth=True)
+    for j in range(NTH):
+        face_out(bm, (rings[-1][j], rings[-1][(j + 1) % NTH], top), seam, (0, 0, 1), smooth=True)
 
-        class Ctx:
-            def __enter__(self):
-                self.prev = cells.b.parts
-                cells.b.parts = cells.meshes.setdefault((col, when), bmesh.new())
+    # plating: the deck's basket weave (WEAVE bricks) draped over the ellipsoid, ~2 px strips
+    clip = ell(cx, cy, R - 1.0, R - 1.0, 40)
+    if ls.area(clip) < 0:
+        clip = clip[::-1]
 
-            def __exit__(self, *exc):
-                cells.b.parts = self.prev
-        return Ctx()
+    def zf(x, y):
+        t_ = 1 - ((x - cx) / R) ** 2 - ((y - cy) / R) ** 2
+        return DOME_Z0 + DOME_H * math.sqrt(max(0.0, t_))
 
-    def objects(self, coll, lid_mat):
-        """Per cell: the light ("open") and a plain paving lid over its stretch of the trough
-        ("covered"), flush with the deck."""
-        b = self.b
-        for col in BAND_CELLS:
-            x0, _, x1, _ = b.cell_box(BAND_ROW, col)
-            with self.at(col, "covered"):
-                b.wall_block(x0, TROUGH[1], x1, TROUGH[3], DECK - 0.03, DECK, lid_mat, bevel=0.0)
-        out = []
-        for col in BAND_CELLS:
-            for when in ("open", "covered"):
-                bm = self.meshes[(col, when)]
-                bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-                o = lb.mesh_object(f"{lb.SHAPES}-{b.prefix}-{b.name}-cell-{BAND_ROW}-{col}-{when}", bm, b.pal.materials, coll)
-                o["tyrian_cell"] = [BAND_ROW, col]
-                o["tyrian_when"] = when
-                out.append(o)
-        return out
+    nstrip = 0
+    for r_ in range(int((cy - R) // TH), int((cy + R) // TH) + 1):
+        for c_ in range(int((cx - R) // TW), int((cx + R) // TW) + 1):
+            for bx0, by0, bx1, by1 in kit.WEAVE:
+                X0, Y0, X1, Y1 = c_ * TW + bx0 + 0.3, r_ * TH + by0 + 0.3, c_ * TW + bx1 - 0.3, r_ * TH + by1 - 0.3
+                horiz = (X1 - X0) > (Y1 - Y0)
+                L = (X1 - X0) if horiz else (Y1 - Y0)
+                n = max(1, int(round(L / 2.0)))
+                cuts = [((X0 + (X1 - X0) * i / n) if horiz else (Y0 + (Y1 - Y0) * i / n)) for i in range(n + 1)]
+                for i in range(n):
+                    rect = ([(cuts[i], Y0), (cuts[i + 1], Y0), (cuts[i + 1], Y1), (cuts[i], Y1)] if horiz
+                            else [(X0, cuts[i]), (X1, cuts[i]), (X1, cuts[i + 1]), (X0, cuts[i + 1])])
+                    if ls.area(rect) < 0:
+                        rect = rect[::-1]
+                    pc = clip_convex(rect, clip)
+                    pc = kit.Geo.clean(pc)
+                    if len(pc) < 3 or abs(ls.area(pc)) < 0.15:
+                        continue
+                    pc = kit.Geo.outer(pc)
+                    tv = [g.v(px, py, zf(px, py) + 0.011) for px, py in pc]
+                    bv = [g.v(px, py, zf(px, py) - 0.004) for px, py in pc]
+                    g.face(tv, plate, smooth=False)
+                    npc = len(pc)
+                    for e in range(npc):
+                        f = (e + 1) % npc
+                        p, q = pc[e], pc[f]
+                        if any(abs(p[0 if horiz else 1] - c) < 1e-6 and abs(q[0 if horiz else 1] - c) < 1e-6 for c in cuts[1:-1]):
+                            continue
+                        g.face((bv[e], bv[f], tv[f], tv[e]), plate)
+                    nstrip += 1
+    # the boss on the crown
+    zc = DOME_Z0 + DOME_H
+    boss = M(8, roughness=0.4, metallic=0.55)
+    g.prism(ell(cx, cy, 4.2, 4.2, 18), [], zc - 0.04, zc + 0.006, boss, chamfer=0.8, drop=0.012, bottom=False)
+    g.dome(cx, cy, 2.4, 2.4, zc + 0.004, 0.014, boss, n=12, rings=2)
+    return nstrip
 
 
-def main():
-    rng = random.Random("ring-dome-v2")
+# ---------------------------------------------------------------- build
+
+def measure(b, red):
+    """Feature positions read off the tiles (pattern px) and the regions' palette indices."""
+    grid = b.grid
+    H, W = grid.shape
+    yy, xx = np.mgrid[0:H, 0:W] + 0.5
+    ts = b.ts
+    feats = {"lights": {}, "turrets": {}, "orbs": []}
+    for c in BAND_COLS:
+        x0, y0, x1, y1 = b.cell_box(BAND_ROW, c)
+        cell = np.zeros((H, W), bool)
+        cell[y0:y1, x0:x1] = True
+        if c in TURRET_COLS:
+            brass = cell & (grid >= 160) & (grid <= 175)
+            ys, xs = np.nonzero(brass & (yy < y0 + 21))
+            feats["turrets"][c] = (float(xs.mean() + 0.5), float(y0 + 10.0))
+        else:
+            rr = cell & ((grid >> 4) == 7)
+            feats["lights"][c] = [cc for cc in comps(rr, 20)]
+    for r, cc in b.tiles_at(357):
+        x0, y0, x1, y1 = b.cell_box(r, cc)
+        cell = np.zeros((H, W), bool)
+        cell[y0:y1, x0:x1] = True
+        e = comps(cell & ((grid >> 4) == 7), 3)
+        ex = float(np.mean([t[4] for t in e]))
+        eys = sorted(t[5] for t in e)
+        cy = (eys[0] + eys[-1]) / 2
+        bright = cell & (grid >= 9) & (grid < 16) & ((xx - ex) ** 2 + (yy - cy) ** 2 <= 11.5 ** 2) & ((xx - ex) ** 2 + (yy - cy) ** 2 >= 5 ** 2)
+        lugs = [(t[4], t[5]) for t in comps(bright, 2)]
+        feats["orbs"].append(((ex, cy), lugs, [(t[4], t[5]) for t in e]))
+    # palette per region
+    tm = lambda m: trimmed_median(grid, m, ts)
+    reg = {}
+    tur = np.zeros((H, W), bool)
+    for c, (tx, ty) in feats["turrets"].items():
+        tur |= ((xx - tx) / TURRET_R[0]) ** 2 + ((yy - ty) / TURRET_R[1]) ** 2 <= 1
+    reg["turret brass"] = tm(tur & (grid >= 160) & (grid <= 175))
+    reg["turret windows"] = tm(tur & (grid >= 96) & (grid <= 111))
+    reg["turret lamps"] = tm(kit.dil4(tur, 3) & ~tur & ((grid >> 4) == 7))
+    orbw = np.zeros((H, W), bool)
+    orbr = np.zeros((H, W), bool)
+    for (ox, oy), _, _ in feats["orbs"]:
+        d2 = (xx - ox) ** 2 + (yy - oy) ** 2
+        orbw |= d2 <= 6.5 ** 2
+        orbr |= (d2 > 6.5 ** 2) & (d2 <= 11 ** 2)
+    reg["orb well"] = tm(orbw & ((grid >> 4) == 0))
+    reg["orb bezel ring"] = tm(orbr)
+    reg["orb eyes"] = tm(orbw & ((grid >> 4) == 7))
+    dome = (xx - DOME_C[0]) ** 2 + (yy - DOME_C[1]) ** 2 <= DOME_R ** 2
+    reg["dome"] = tm(dome)
+    l347 = np.zeros((H, W), bool)
+    l339 = np.zeros((H, W), bool)
+    for c, cl in feats["lights"].items():
+        for x0, y0, x1, y1, *_ in cl:
+            (l347 if len(cl) == 1 else l339)[y0:y1 + 1, x0:x1 + 1] = True
+    reg["347 panes"] = tm(l347 & ((grid >> 4) == 7))
+    reg["339 capsules"] = tm(l339 & ((grid >> 4) == 7))
+    print("regions (art trimmed median):", reg)
+    return feats, reg
+
+
+def build(bake=True, preview=None):
+    lb.clear_scene()
     b = lb.Building("ring-dome")
-    b.surface(deck=DECK, channel=False, pits=False, red=False)
-    pave, metal, dark = b.m("pave"), b.m("metal"), b.m("dark")
+    k = kit.Kit(b)
     fp = b.footprint
-    d_fp = lb.depth(fp)
+    H, W = b.H, b.W
+    red = b.masks()["red"]
+    feats, reg = measure(b, red)
+    yy, xx = np.mgrid[0:H, 0:W] + 0.5
 
-    # The deck: a smoothed outline, pulled 2 px inside the painted one (the boulders form the edge).
-    smooth = (blur(fp.astype(np.float32), 3) > 0.5) & b.cover
-    deck_mask = lb.erode(smooth, 2) & fp
-    b.height[~deck_mask] = np.nan
-    b.mat[~deck_mask] = -1
+    k.bed(fp)
+    dm = k.deck_mask(fp)
+    k.deck(dm)
 
-    # The inner pad, a step lower than the U, with its own chamfered square plate under the dome.
-    pad = b.box_mask(*PAD_TOP) & ~b.box_mask(0, 0, 240, 92)
-    b.set_region(pad & deck_mask, PAD_DECK)
-    # Inlaid seams of the plates (U arms and pad; not in the band, the rim or under the dome plate).
-    g = plate_seams(b, pad) & deck_mask & (d_fp > 8)
-    g &= ~b.box_mask(44, 26, 196, 60)
-    for ox, oy in ORBS:
-        g &= ~b.box_mask(ox - 11, oy - 11, ox + 11, oy + 11)
-    for vx, vy in VENTS:
-        g &= ~b.box_mask(vx - 5, vy - 6, vx + 5, vy + 6)
-    base_h = np.where(pad, PAD_DECK, DECK)
-    b.height[g] = base_h[g] - GROOVE
-    b.mat[g] = b.m(4)
-    x0, y0, x1, y1 = DOME_PLATE
-    b.set_region(b.box_mask(x0, y0, x1, y1) & deck_mask, PAD_DECK + 0.03, pave)
-    b.set_region(b.box_mask(x0 + 2, y0 + 2, x1 - 2, y1 - 2) & deck_mask, PAD_DECK + 0.06, b.m(7))
+    # parts (px) the rocks / kerb / paving keep off
+    band = kit.box_mask((H, W), BAND_COLS[0] * TW, BAND_ROW * TH, (BAND_COLS[-1] + 1) * TW, (BAND_ROW + 1) * TH)
+    orbs = np.zeros((H, W), bool)
+    for (ox, oy), _, _ in feats["orbs"]:
+        orbs |= (xx - ox) ** 2 + (yy - oy) ** 2 <= 12 ** 2
+    dome = (xx - DOME_C[0]) ** 2 + (yy - DOME_C[1]) ** 2 <= (DOME_R + 3.0) ** 2
+    parts = orbs | dome
+    k.rock_layout(fp, dm, exclude=kit.dil4(parts | band, 2))
+    k.kerb(dm, no_post=kit.dil4(parts, 2) | band)
+    k.channels(fp)
+    zone = kit.ero_disk(dm, kit.KERB_W)
+    k.paving(zone & ~parts & ~band)
+    k.rocks()
 
-    # The light band: a sunk dark trough the lights stand in.
-    b.raise_box(48, 31, 192, 57, DECK - 0.02, b.m(3))
-    # Vents: shallow dark slots.
-    for vx, vy in VENTS:
-        b.raise_box(vx - 3.5, vy - 5, vx + 3.5, vy + 5, DECK - 0.03, b.m(2))
-    deck = b.terrace()
+    # orb sockets (base model)
+    for (ox, oy), lugs, eyes in feats["orbs"]:
+        orb_socket(k, ox, oy, lugs, eyes, b)
+    nstrip = big_dome(k, b)
 
-    # Vent slats (thin bars across each slot).
-    for vx, vy in VENTS:
-        for sx in (-1.75, 0, 1.75):
-            b.wall_block(vx + sx - 0.5, vy - 4, vx + sx + 0.5, vy + 4, DECK - 0.04, DECK - 0.005, b.m(5), bevel=0.0)
+    k.no_needles()
+    objects = k.objects()
+    coll = objects[0].users_collection[0]
 
-    # The band's lights, each in its cell's own object (D139).
-    cells = CellParts(b)
-    col_of = lambda px: int(px // lt.TILE_W)  # noqa: E731
+    # D139: per band cell, the light ("open": its lights and the weave round them) and the lid
+    # ("covered": the weave over the whole cell), each its own Geo / object.
+    base_g = k.g
+    cover = []
+    nwin = 0
+    for c in BAND_COLS:
+        x0, y0, x1, y1 = b.cell_box(BAND_ROW, c)
+        cell = kit.box_mask((H, W), x0, y0, x1, y1)
+        czone = zone & cell
+        light_px = np.zeros((H, W), bool)
+        geo_open = kit.Geo(b)
+        k.g = geo_open
+        if c in TURRET_COLS:
+            tx, ty = feats["turrets"][c]
+            nwin += turret(k, tx, ty, b.grid, b)
+            light_px |= ((xx - tx) / (TURRET_R[0] + 3.5)) ** 2 + ((yy - ty) / (TURRET_R[1] + 2.5)) ** 2 <= 1
+            light_px |= kit.box_mask((H, W), tx - 4.5, ty, tx + 4.5, ty + TURRET_R[1] + 8)
+        else:
+            cl = feats["lights"][c]
+            fat = len(cl) == 1
+            for lx0, ly0, lx1, ly1, *_ in cl:
+                if fat:
+                    lens_unit(k, lx0, ly0, lx1, ly1, 3.0, fat=True)
+                else:
+                    lens_unit(k, lx0, ly0, lx1, ly1, (lx1 - lx0 + 1) / 2 - 0.15, house_pad=(0.9, 1.9))
+                light_px |= kit.box_mask((H, W), lx0 - 2.5, ly0 - 2.5, lx1 + 4, ly1 + 4)
+        k.paving(czone & ~light_px)
+        geo_cov = kit.Geo(b)
+        k.g = geo_cov
+        k.paving(czone)
+        for when, geo in (("open", geo_open), ("covered", geo_cov)):
+            o = lb.mesh_object(f"{lb.SHAPES}-{b.prefix}-{b.name}-cell-{BAND_ROW}-{c}-{when}", geo.bm, b.pal.materials, coll)
+            o["tyrian_cell"] = [BAND_ROW, c]
+            o["tyrian_when"] = when
+            cover.append(o)
+    k.g = base_g
+    objects += cover
 
-    # Red panels (347): metal frame round a glowing red panel crossed by dark slats.
-    red_glow = b.m("red", emission_strength=4.0)
-    for (px0, py0, px1, py1) in RED_PANELS:
-        with cells.at(col_of(px0)):
-            b.hatch(px0, py0, px1, py1, z=LIGHT_TOP, frame_px=2, depth_=0.05, mat_frame=metal, mat_inside=red_glow)
-            for sy in range(py0 + 5, py1 - 3, 4):
-                b.wall_block(px0 + 3, sy - 0.6, px1 - 3, sy + 0.6, DECK - 0.05, LIGHT_TOP - 0.02, b.m(2), bevel=0.0)
-
-    # Triple tubes (339): a framed trough, its floor dimly lit red (the tubes' glow), with three round
-    # glowing capsules lying in it, half of each showing.
-    tube_r = 2.3  # px
-    trough = LIGHT_TOP - 2 * tube_r * lt.PX * 0.55
-    for (fx0, fy0, fx1, fy1), xs in zip(TUBE_FRAME, TUBES_X):
-        with cells.at(col_of(fx0)):
-            b.hatch(fx0, fy0, fx1, fy1, z=LIGHT_TOP, frame_px=1.5, depth_=LIGHT_TOP - trough,
-                    mat_frame=b.m("red_dark"), mat_inside=b.m(114, emission_strength=1.2, roughness=0.6))
-            for tx in xs:
-                b.capsule(tx, (fy0 + fy1) / 2, fy1 - fy0 - 5, tube_r, axis="y", z=LIGHT_TOP - 0.005,
-                          mat=b.m("red", emission_strength=5.0, roughness=0.15), housing=False, sides=12)
-
-    # Gun turrets (358): a dark base ring, a brass turret body with a domed top and a short barrel
-    # pointing down the screen (towards the player), all under the enemy drawn on top.
-    brass = b.m(24, metallic=0.75, roughness=0.35)
-    brass_dk = b.m(21, metallic=0.6, roughness=0.45)
-    for mx, my in MOUNTS:
-        with cells.at(col_of(mx)):
-            disc(b, mx, my, 10.5, DECK - 0.05, DECK + 0.02, b.m(3, metallic=0.4, roughness=0.5), sides=16)
-            disc(b, mx, my, 8.0, DECK - 0.05, DECK + 0.045, brass_dk, sides=16, bevel=0.3)
-            disc(b, mx, my - 1.0, 6.0, DECK - 0.05, DECK + 0.055, brass, sides=14, bevel=0.2)
-            b.dome(mx, my - 1.0, 5.5, 5.5, DECK + 0.05, lb.ENEMY_MAX - 0.005 - (DECK + 0.05), brass, sides=14, rings=4)
-            # Side brackets (the concept's yoke).
-            for sx in (-6.5, 6.5):
-                b.wall_block(mx + sx - 1.2, my - 5, mx + sx + 1.2, my + 3, DECK - 0.05, DECK + 0.07, brass_dk, bevel=0.3)
-            # Barrel: from the body's front down-screen, slightly sloped.
-            br = 0.9 * lt.PX
-            zb = lb.ENEMY_MAX - 0.005 - br
-            cylinder(b, (b.x(mx), b.y(my + 2.0), zb), (b.x(mx), b.y(my + 11.0), zb), br, metal, sides=10)
-            disc(b, mx, my + 10.0, 1.4, DECK - 0.02, zb + br * 0.9, metal, sides=10, bevel=0.0, ry_px=1.2)
-
-    # Orb sockets (357): dark round bezel, metal ring, a glowing red lens.
-    for ox, oy in ORBS:
-        disc(b, ox, oy, 10.0, DECK - 0.05, DECK + 0.035, b.m(2, metallic=0.4, roughness=0.5), sides=16)
-        disc(b, ox, oy, 7.0, DECK - 0.05, DECK + 0.045, metal, sides=14)
-        b.dome(ox, oy, 4.5, 4.5, DECK + 0.04, 0.04, b.m("red", emission_strength=3.0), sides=12, rings=2)
-
-    # The dome on the inner pad: a short drum, then a bright, smooth metal cupola as tall as the
-    # height limit allows (a finial ring on top).
-    dz0 = PAD_DECK + 0.06
-    dome_mat = b.m(12, metallic=0.85, roughness=0.18)
-    disc(b, *DOME, DOME_R + 1.5, dz0 - 0.03, dz0 + 0.06, b.m(7, metallic=0.5, roughness=0.4), sides=32, bevel=0.3)
-    disc(b, *DOME, DOME_R, dz0, dz0 + 0.12, dome_mat, sides=32, bevel=0.0)
-    b.dome(*DOME, DOME_R, DOME_R, dz0 + 0.12, lb.TALL_MAX - 0.03 - (dz0 + 0.12), dome_mat, sides=32, rings=10)
-    b.dome(*DOME, 2.2, 2.2, lb.TALL_MAX - 0.06, 0.055, b.m(11, metallic=0.85, roughness=0.25), sides=12, rings=3)
-    # Bolts on the plate's corners.
-    for px, py in ((x0 + 3.5, y0 + 3.5), (x1 - 3.5, y0 + 3.5), (x0 + 3.5, y1 - 3.5), (x1 - 3.5, y1 - 3.5)):
-        b.dome(px, py, 1.8, 1.8, PAD_DECK + 0.055, 0.04, metal, sides=10, rings=3)
-
-    # The rocky rim: boulders, an outer row forming the edge and a sparse inner row close behind it.
-    def clear(px, py, pad=0.0):
-        if 44 - pad <= px <= 196 + pad and 26 - pad <= py <= 60 + pad:  # the light band
-            return False
-        if any((px - ox) ** 2 + (py - oy) ** 2 < (12 + pad) ** 2 for ox, oy in ORBS):
-            return False
-        if any(abs(px - vx) < 5 + pad and abs(py - vy) < 6 + pad for vx, vy in VENTS):
-            return False
-        x0_, y0_, x1_, y1_ = DOME_PLATE
-        return not (x0_ - 3 - pad <= px <= x1_ + 3 + pad and y0_ - 3 - pad <= py <= y1_ + 3 + pad)
-
-    keep = np.zeros_like(fp)
-    for yy, xx in zip(*np.nonzero(fp)):
-        keep[yy, xx] = clear(xx + 0.5, yy + 0.5, 0.0)
-    rock_mats = [b.m(6, roughness=0.9), b.m(5, roughness=0.9)]
-    taken = []
-    # Outer row: rocks centred 3-4 px inside the painted outline; the bigger ones first.
-    outer = keep & (d_fp >= 3) & (d_fp <= 4)
-    n_out = place_rocks(b, rng, d_fp, outer, (6.0, 7.5), (0.45, ROCK_TOP), 0.74, taken, rock_mats, 0.12)
-    # Fill gaps the first pass left (smaller rocks), so the edge stays closed.
-    n_out += place_rocks(b, rng, d_fp, outer | (keep & (d_fp == 2)), (4.0, 5.0), (0.41, 0.47), 0.78, taken, rock_mats, 0.12)
-    # Inner row: sparser and lower, staggered just behind the outer one.
-    inner = keep & (d_fp >= 8) & (d_fp <= 9)
-    n_in = place_rocks(b, rng, d_fp, inner, (3.5, 4.8), (0.39, 0.45), 1.0, taken, rock_mats, 0.10)
-    print(f"rocks: {n_out} outer, {n_in} inner")
-
-    lid_mat = b.m("pave", plain=True)  # untextured: the concept paints the lights here
-    objects = b.objects(deck)
-    objects += cells.objects(objects[0].users_collection[0], lid_mat)
-    b.check(objects)
-    tris = sum(len(o.data.polygons) and sum(len(p.vertices) - 2 for p in o.data.polygons) for o in objects)
-    print(f"triangles: {tris}")
-    b.export(objects)
-    neutralise_dome(b)
+    b.finish(objects, fp, bake=bake, preview=preview)
 
 
-main()
+argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+build(bake="--no-bake" not in argv, preview=lt.preview_arg())
