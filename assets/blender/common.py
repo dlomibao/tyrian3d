@@ -241,6 +241,11 @@ def palette_material(sprite, index, tag, metallic=0.3, roughness=0.5, emission_s
     hit flash all apply), so pick the index of the sprite pixels the part stands for. `tag` keeps
     names unique when several models share a Blender session; use the model name, plus the part's
     name for a material with `frames`. Emission makes the part glow in the same palette colour.
+    In game (DECISIONS.md D126) the glow is the palette colour × emission_strength, below 1 too, and
+    it replaces the lit colour: 0.4 is a part 60% lit and 40% glowing (an ember), 1 or more is the
+    palette colour unlit. Past about 1 / (the colour's brightest linear channel) the colour runs
+    toward white under the Neutral tone mapping (a red at 4-5 reads pink): use that only for a
+    white-hot core.
 
     `frames` animates the colour (DECISIONS.md D17): {sprite frame: palette index} for the frames
     where the part shows another colour than `index`, e.g. {91: 122, 93: 124} for a glow that
