@@ -6,8 +6,11 @@ tiles of their own wrecks (the tyrbld-bunker-ring and -hull patterns, shapesz 32
 322/323/332/333), and the rock outcrop (assembly-newshe-39) on the tyrbld-wreck crater (340-342,
 350-352). The original's opaque sprites hid those tiles until the enemy died; the models no longer
 draw the sprite's dirt, so the renderer draws a ground cell under a covered wreck from its "covered"
-painting: the HD tile (D57-D60) with the wreck painted out to dirt. This makes them, one Gemini
-request per set (SETS: "bunkers", "wreck").
+painting: the HD tile (D57-D60) with the wreck painted out to dirt. DELIANI's pillar ends
+(newshc-55) and twin pillar base (assembly-newshc-283) stand on plain floor tiles with a machine
+painted on them (585, 584), which their sprites' floor hid until D130 dropped it (D139): the same,
+the machine painted out to the floor. This makes them, one Gemini request per set (SETS: "bunkers",
+"wreck", "deliani").
 
     python tools/terrain_covered.py [--work DIR] sheet SET
         Writes DIR/<set's work>/input.png: each of the set's patterns with one ring of its real map
@@ -18,8 +21,9 @@ request per set (SETS: "bunkers", "wreck").
         For every set: registers the answer to the input (scale and shift, NCC away from the
         wrecks), takes the painting over each wreck (its non-dirt pixels from the original tiles, or
         for a "whole" set the pattern's whole area, grown 12 texels, feathered), corrects its low
-        frequencies to the HD tiles round it, keeps the HD tile everywhere else; then writes
-        public/art/terrain/shapesz/0-covered.webp and the manifest's layer 0 "covered" rects.
+        frequencies to the HD tiles round it, keeps the HD tile everywhere else; then writes each set's
+        atlas (0-covered.webp: bunkers and wreck; 0-covered-deliani.webp) and the manifest's layer 0
+        "covered" rects. `cut --set SET` recomposes only that set (and only its atlas changes).
 
 Run `cut` again after `terrain_hd.py cut` (which keeps the "covered" entry but not the art behind
 it): the covered tiles are recomposed from the cached answer and the new atlas.
@@ -52,41 +56,66 @@ WRECK_PROMPT = ("Edit this image. It shows painted top-down video game terrain: 
                 "seamlessly, with the same painterly style, the same pebble size and pattern, colours and lighting. No "
                 "machinery, no debris, no craters, no dark patches, no shadows, no new objects. Keep everything else exactly as "
                 "it is: same framing, same layout, same size.")
+DELIANI_PROMPT = ("Edit this image. It shows two separate pictures side by side (left and right halves, split by a black bar) of "
+                  "painted top-down video game terrain seen straight down: a dark blue-grey sci-fi metal floor of riveted panels "
+                  "and grooves. In the middle of each picture there is a grey machine part with red hatches and its dark shadow "
+                  "(left: a grey pod foot with a red hatch; right: a round grey socket with red lights). Remove both machines and "
+                  "their shadows completely and replace them with plain blue-grey metal floor panels that continue the surrounding "
+                  "floor pattern seamlessly, with the same painterly style, panel size, colours and lighting. No machinery, no red, "
+                  "no holes, no shadows, no new objects. Keep everything outside the machines exactly as it is: same framing, same "
+                  "layout, same black bar, same size.")
+#: DELIANI's floor colours (shapesz on 1-5: the blue-grey ramp 96-109 and 48); the rest of 584/585 is the machine.
+DELIANI_FLOOR = [48, *range(96, 110)]
 # Each set is one Gemini request: its patterns (name, the pattern's tiles as the tileModels entry lists
 # them), each shown with one ring of its real map neighbours, on a sheet of this size. "whole": the
 # painting replaces the pattern's whole area (a wreck that fills it, scorched dirt and all), not only its
 # non-dirt pixels.
+# "level": the map the neighbours come from; "ground": the palette indices that are ground (default
+# TYRIAN's dirt ramp 16-21; the rest of a cell is what's painted out); "grow": texels the painted area
+# grows round those pixels; "image": the set's atlas.
 SETS = {
     "bunkers": {"work": "covered", "sheet": (1600, 900), "prompt": BUNKERS_PROMPT, "whole": False,
                 "patterns": [("ring", [[320, 321], [330, 331]]), ("hull", [[322, 323], [332, 333]])]},
     # tyrbld-wreck (and its -cut variant): under the rock outcrop (assembly-newshe-39), ticks ~1320-2100.
     "wreck": {"work": "covered-wreck", "sheet": (1024, 1024), "prompt": WRECK_PROMPT, "whole": True,
               "patterns": [("wreck", [[340, 341, 342], [350, 351, 352]])]},
+    # DELIANI (1-5): the pillar end's tile (585, under newshc-55) and the twin pillar base's (584, under
+    # newshc-283/267), D139. Grown 3 px: the machines' painted shadows go too.
+    "deliani": {"work": "covered-deliani", "sheet": (1600, 900), "prompt": DELIANI_PROMPT, "whole": False,
+                "level": "1-5", "ground": DELIANI_FLOOR, "grow": 24, "image": "0-covered-deliani.webp",
+                "patterns": [("pillar-end", [[585]]), ("pillar-base", [[584]])]},
 }
 
 
 def atlas_tiles(out_root: Path):
     m = json.loads((out_root / "shapesz" / "manifest.json").read_text())
     layer = m["layers"]["0"]
-    img = Image.open(out_root / "shapesz" / layer["image"]).convert("RGB")
+    images = {}
 
     def tile(n: int) -> Image.Image:
         r = layer["tiles"][str(n)]
-        return img.crop((r["x"], r["y"], r["x"] + r["w"], r["y"] + r["h"]))
+        name = r.get("image", layer["image"])  # a rect may name its own atlas (0-2.webp)
+        if name not in images:
+            images[name] = Image.open(out_root / "shapesz" / name).convert("RGB")
+        return images[name].crop((r["x"], r["y"], r["x"] + r["w"], r["y"] + r["h"]))
     return m, tile
 
 
-def context(L, pattern, listed) -> np.ndarray:
-    """The pattern's map neighbourhood, one ring round it (first copy whose every neighbour has HD art)."""
+def context(L, pattern, listed, avoid=()) -> np.ndarray:
+    """The pattern's map neighbourhood, one ring round it: the first copy whose every neighbour has HD
+    art, preferring one with the fewest neighbours in `avoid` (other machines to paint out)."""
     g = L.grids[0]
     pr, pc = len(pattern), len(pattern[0])
     ys, xs = np.nonzero(g == pattern[0][0])
+    found = []
     for y, x in zip(ys, xs):
         if y >= 1 and x >= 1 and y + pr + 1 <= g.shape[0] and x + pc + 1 <= g.shape[1]:
             nb = g[y - 1:y + pr + 1, x - 1:x + pc + 1]
             if (nb[1:1 + pr, 1:1 + pc] == np.array(pattern)).all() and all(int(n) in listed for n in nb.ravel()):
-                return nb
-    raise SystemExit(f"no copy of {pattern} with HD neighbours on the map")
+                found.append(nb)
+    if not found:
+        raise SystemExit(f"no copy of {pattern} with HD neighbours on the map")
+    return min(found, key=lambda nb: int(np.isin(nb, list(avoid)).sum()) - int(np.isin(np.array(pattern), list(avoid)).sum()))
 
 
 def layout(spec) -> list[tuple[int, int]]:
@@ -103,13 +132,14 @@ def cmd_sheet(args) -> None:
     spec = SETS[args.set]
     work = Path(args.work) / spec["work"]
     work.mkdir(parents=True, exist_ok=True)
-    L = T.LevelData(Path(args.data), "1-9")
+    L = T.LevelData(Path(args.data), spec.get("level", "1-9"))
     m, tile = atlas_tiles(Path(args.out))
     listed = {int(k) for k in m["layers"]["0"]["tiles"]}
     sheet = Image.new("RGB", spec["sheet"])
     ctx = {}
+    own = {int(n) for _, p in spec["patterns"] for row in p for n in row}
     for (name, pattern), (x0, y0) in zip(spec["patterns"], layout(spec)):
-        nb = context(L, pattern, listed)
+        nb = context(L, pattern, listed, own)
         ctx[name] = nb.tolist()
         for j in range(nb.shape[0]):
             for i in range(nb.shape[1]):
@@ -172,9 +202,9 @@ def cut_set(spec, work: Path, L, tile) -> dict:
         for j in range(pr):
             for i in range(pc):
                 px = L.tile(pattern[j][i])
-                cell = np.ones(px.shape, bool) if spec["whole"] else ~((px >= 16) & (px <= 21))  # not dirt
+                cell = np.ones(px.shape, bool) if spec["whole"] else ~np.isin(px, spec.get("ground", range(16, 22)))  # not ground
                 wreck[28 + j * 28:56 + j * 28, 24 + i * 24:48 + i * 24] = cell
-        wreck = binary_dilation(np.kron(wreck, np.ones((8, 8), bool)), iterations=12)
+        wreck = binary_dilation(np.kron(wreck, np.ones((8, 8), bool)), iterations=spec.get("grow", 12))
         ref = inp[y0:y0 + rows * TH, x0:x0 + cols * TW]
         mask = ~binary_dilation(wreck, iterations=28)
         painted = np.asarray(register(ans, ref, spec["sheet"], x0, y0, mask), np.float32)
@@ -195,26 +225,31 @@ def cut_set(spec, work: Path, L, tile) -> dict:
 
 def cmd_cut(args) -> None:
     out_root = Path(args.out)
-    L = T.LevelData(Path(args.data), "1-9")
     m, tile = atlas_tiles(out_root)
-    covered = {}
-    for spec in SETS.values():
-        covered.update(cut_set(spec, Path(args.work) / spec["work"], L, tile))
-    # Pack: 16-texel gutters, edge-extended, as terrain_hd.pack_atlas.
-    cols = 4
-    rows = (len(covered) + cols - 1) // cols
-    cw, ch = TW + 32, TH + 32
-    atlas = np.zeros((rows * ch, cols * cw, 3), np.float32)
-    rects = {}
-    for idx, (n, img) in enumerate(sorted(covered.items())):
-        x, y = (idx % cols) * cw, (idx // cols) * ch
-        atlas[y:y + ch, x:x + cw] = np.pad(img, ((16, 16), (16, 16), (0, 0)), mode="edge")
-        rects[str(n)] = {"x": x + 16, "y": y + 16, "w": TW, "h": TH, "image": "0-covered.webp"}
+    by_image: dict[str, dict] = {}
+    for name, spec in SETS.items():
+        if args.set and name != args.set:
+            continue
+        L = T.LevelData(Path(args.data), spec.get("level", "1-9"))
+        by_image.setdefault(spec.get("image", "0-covered.webp"), {}).update(cut_set(spec, Path(args.work) / spec["work"], L, tile))
     d = out_root / "shapesz"
-    Image.fromarray(atlas.round().clip(0, 255).astype(np.uint8)).save(d / "0-covered.webp", quality=92, method=6)
-    m["layers"]["0"]["covered"] = rects
+    # The other atlases' entries stay as they are.
+    rects = {k: r for k, r in m["layers"]["0"].get("covered", {}).items() if r.get("image") not in by_image}
+    for image, covered in by_image.items():
+        # Pack: 16-texel gutters, edge-extended, as terrain_hd.pack_atlas.
+        cols = min(4, len(covered))
+        rows = (len(covered) + cols - 1) // cols
+        cw, ch = TW + 32, TH + 32
+        atlas = np.zeros((rows * ch, cols * cw, 3), np.float32)
+        for idx, (n, img) in enumerate(sorted(covered.items())):
+            x, y = (idx % cols) * cw, (idx // cols) * ch
+            atlas[y:y + ch, x:x + cw] = np.pad(img, ((16, 16), (16, 16), (0, 0)), mode="edge")
+            rects[str(n)] = {"x": x + 16, "y": y + 16, "w": TW, "h": TH, "image": image}
+        Image.fromarray(atlas.round().clip(0, 255).astype(np.uint8)).save(d / image, quality=92, method=6)
+        print(f"-> {d / image}, {len(covered)} covered tiles")
+    m["layers"]["0"]["covered"] = dict(sorted(rects.items(), key=lambda kv: int(kv[0])))
     (d / "manifest.json").write_text(json.dumps(m, indent=1) + "\n")
-    print(f"-> {d / '0-covered.webp'}, {len(rects)} covered tiles in {d / 'manifest.json'}")
+    print(f"-> {len(rects)} covered tiles in {d / 'manifest.json'}")
 
 
 def main() -> None:
@@ -226,7 +261,9 @@ def main() -> None:
     sh = sub.add_parser("sheet")
     sh.add_argument("set", choices=list(SETS))
     sh.set_defaults(fn=cmd_sheet)
-    sub.add_parser("cut").set_defaults(fn=cmd_cut)
+    cu = sub.add_parser("cut")
+    cu.add_argument("--set", choices=list(SETS), help="recompose only this set's atlas")
+    cu.set_defaults(fn=cmd_cut)
     args = ap.parse_args()
     args.fn(args)
 

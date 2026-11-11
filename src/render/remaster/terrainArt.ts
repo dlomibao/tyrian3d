@@ -319,6 +319,11 @@ export class TerrainTileset<T = unknown> {
     return ready;
   }
 
+  /** Whether the manifest has a covered painting of `tile` on `layer` (D86, D139), loaded or not. */
+  hasCovered(layer: TerrainLayer, tile: number): boolean {
+    return !!this.manifest.layers.get(layer)?.covered.has(tile);
+  }
+
   /** The art for `tile` on `layer` while an enemy sprite covers it (D86), if it has any and it's ready. */
   coveredTile(layer: TerrainLayer, tile: number): ReadyTerrainTile<T> | undefined {
     const art = this.manifest.layers.get(layer);
