@@ -1,31 +1,36 @@
-"""Wrecked ground station (D65 standard; built from design B plus the judge's grafts from design A) (newshu.shp, assembly of 7 pieces: newshu-1/3/5 over 39/41/43, 79 under
-the middle; 72 x 84 px), design B: silhouette and readability from the small tilted game camera
-first, then hard-surface detail.
+"""DELIANI gun emplacement (newshu.shp, assembly of 7 pieces: newshu-1/3/5 over 39/41/43, 79 under the
+middle; 72 x 84 px). A fixed, working gun emplacement (QA2 issue 7; D120/D122: built as what it is,
+not as a wreck): piece 43 launches the shot from the muzzle every 50 ticks.
 
 The sprite is authoritative for the plan, the parts' places and their colours. The plan edge sits on
-the INNER edge of the sprite's ink border (D74, docs/agents/OUTLINE-BORDER.md): the whole plan is
-one allowed region F = the assembly's inner mask plus its thin-part (free) pixels, smoothed at 1/3 px
-so the sprite's diagonals and round housings come out round, not stepped. Everything is built in
-sprite px and then clipped to F by one boolean, so the see-through gaps of the wreck (the sprite's
-transparent pixels inside the body and the turret) stay open to the ground and nothing overhangs the
-outline. The deck under it all is a heightfield of F: vertical walls with a 45 degree chamfered top
-edge, burnt dark plate (pal 2); the blue landing pad (pal 98) is a second, thin one.
+the INNER edge of the sprite's ink border (D74, docs/agents/OUTLINE-BORDER.md). The blue tiles round
+the turret are DELIANI's ground (D130): they are not part of the plan and nothing is built on them,
+the machine stands on the HD ground. Everything but the turret casting is built in sprite px and
+clipped to the plan by one boolean, so the sprite's see-through gaps stay open.
 
-Reading from the game camera, in three height bands:
-- skyline (8-12 px): the periscope mast with its lit cap and red access strip, the purple crystal
-  emitter lying north on its post, the generator drum with a domed lid;
-- plant (4-6.5 px): red coolant stacks with sheared (broken) tops, grey equipment blocks, the grey
-  frame with its red panel and corner bolts, the lens projector (D housing, bolted rim, purple lens
-  bulging east with a light centre), the red wedge and the purple armour bar;
-- debris (1.5-3 px): brown struts, purple plates, pipe runs with flanges, crates.
-A stalk with a purple conduit runs south to the turret on the pad: base ring with ten bolts, a heavy
-chamfered head, purple hatch with two red stripes, louvres, a red tank on two straps, a red box.
+Reading from the tilted game camera, from the ground up:
+- base: one gunmetal plinth under the whole plan (1.4 px, chamfered, pal 4), not an ink-black plate;
+- gun house: ONE continuous armoured casemate under the whole dense body, west plant and middle
+  together (marching-squares body from the plan, skirt + 1.1 px 45 degree glacis, roof at 4.8 px,
+  pal 5), with the sprite's see-through gaps kept open. Every roof fitting is sunk into it (sq_roof
+  keeps half the height above the roof; sq_west maps the west plant's 0-6 px onto 0-1 px proud), so
+  the fittings read as panels and capped stacks cut into one mass: base, casemate, then the gun;
+- the gun (axis 6.8 px): a long round grey barrel on the sprite's light barrel band (row 33.6) on two
+  trunnion cradles from the breech (col 38) east through a low dark mantlet into the purple muzzle shell (a fat round shell with two seams and a sheen disc,
+  lying in a grey cradle: the sprite's grey bands round the purple), ending in a blunt grey muzzle
+  cone with a dark bore; a recuperator cylinder above the barrel;
+- sensors north: the rangefinder mast (cap, red strip), the purple aerial rod on its root post and a
+  stanchion under its tip, and the
+  ammunition drum with its domed lid;
+- west: a machinery housing with intact, capped red coolant canisters, tanks and the purple armour bar;
+- south: an armoured feed duct with a purple conduit to the power turret (newshu-79): one round
+  casting (ring, head, purple hatch with two red stripes, louvres, red tank on two straps).
 
-Hard-surface: chamfered sections everywhere (plan corners cut, top edges chamfered), modelled panel
-grooves and bolts on the larger tops, flanged pipes, faceted crystal, smooth-shaded round parts.
-Underside: closed and flat (it stands on the ground). Palette materials pal_<index> (blueprint's
-measured index per region). Outline shell per piece (common.outline_shell, D51); optional AO /
-roughness bake per piece (--bake; usp_talon-style bake, no concept projection, D50).
+Hard-surface (D65): chamfered sections, rounded machined canisters with lid seams, flanged pipes,
+modelled bands and bolts. Underside: closed and flat (it stands on the ground). Palette materials
+pal_<index> (the sprite's index per region). Outline shell per piece from a sealed copy taken before
+the hidden-face cull (0.03 voxels, held 0.004 inside: D90/D118), so ink only draws on silhouettes.
+AO / roughness bake per piece (no concept projection, D50).
 
 Run: blender --background --python assets/blender/enemies/assembly-newshu-79.py -- [--no-bake] [--review DIR]
 Exports public/models/enemies/newshu-<n>.glb for the 7 pieces (each with its outline shell
@@ -72,6 +77,9 @@ def Y(r):
 
 def sprite_grid():
     idx, colors = SM.load(NAME)
+    # The blue tiles round the turret are DELIANI's ground, which the game draws in HD (D130): the
+    # plan is the sprite without them.
+    idx = [[-1 if v in BLUE else v for v in row] for row in idx]
     m = SM.masks(idx, colors)
     F = np.array(m["inner"], bool) | np.array(m["free"], bool)
     # Stray single pixels (the sprite's lone dots at col 0) are not part of the machine.
@@ -81,7 +89,35 @@ def sprite_grid():
         for c in range(W):
             if F[r, c] and not F[max(0, r - 1):r + 2, max(0, c - 1):c + 2].sum() > 1:
                 keep[r, c] = False
+    # The turret ring's south fringe (rows 74+: 1-2 px stubs of dark ring poking into the removed
+    # ground tiles) is opened away, so the ring ends in one smooth edge instead of teeth.
+    er = keep.copy()
+    er[1:-1, 1:-1] = (keep[1:-1, 1:-1] & keep[:-2, 1:-1] & keep[2:, 1:-1] & keep[1:-1, :-2] & keep[1:-1, 2:])
+    op = er.copy()
+    op[1:] |= er[:-1]
+    op[:-1] |= er[1:]
+    op[:, 1:] |= er[:, :-1]
+    op[:, :-1] |= er[:, 1:]
+    keep[74:] &= op[74:]
+    # ... and its SW notches (transparent px 26-27/29 on row 72, 26-27 on row 73) are filled.
+    keep[72, 26:30] = True
+    keep[73, 26:28] = True
     return P, {int(k): v for k, v in colors.items()}, keep
+
+
+# Sprite px (row, col) of 1 px slits the casemate closes over: the slits that cut the west plant into
+# separate clusters, as many per piece as the IoU budget allows (>= 0.955 per piece kept). Every
+# other slit is only narrowed to a seam (grown_field).
+FILL = [(38, 46), (38, 47), (39, 46), (39, 47), (40, 46), (40, 47), (19, 45), (19, 44), (27, 29), (35, 23), (35, 21), (34, 23), (33, 19), (33, 15), (40, 11), (33, 25),
+        (31, 24), (42, 44), (38, 30), (38, 29), (31, 26), (30, 28), (43, 44), (42, 24), (41, 46), (36, 25),
+        (32, 27), (44, 52), (42, 50), (38, 54), (35, 55), (45, 54)]
+
+
+def closed_plan(F):
+    Fc = F.copy()
+    for r, c in FILL:
+        Fc[r, c] = True
+    return Fc
 
 
 class Mats:
@@ -180,8 +216,12 @@ class B:
         self.m = mats
         self.bm = bmesh.new()
         self.parts = []  # (element, pal, c0, c1, r0, r1) for the colour table
+        self.sq = None  # height remap (px -> px) while building fittings sunk into the casemate
+        self.wall = None  # side palette override: fittings sunk into a body take its wall colour
 
     def v(self, c, r, h):
+        if self.sq is not None:
+            h = self.sq(h)
         return self.bm.verts.new((X(c), Y(r), h / 12))
 
     def face(self, vs, pal, smooth=False):
@@ -208,6 +248,9 @@ class B:
         wmin = min(max(p[0] for p in pts) - min(p[0] for p in pts), max(p[1] for p in pts) - min(p[1] for p in pts))
         bev = min(bev, (h1 - h0) * 0.45, wmin * 0.3)
         tp = pal if top is None else top
+        if self.wall is not None:
+            pal = self.wall  # only the top keeps the sprite's colour: the walls are the body's
+            bev = min(bev, 0.15)  # flush with the body's walls: no grooves between neighbours
         lo = [self.v(c, r, h0) for c, r in pts]
         self.face(list(reversed(lo)), pal)
         if bev > 0.02:
@@ -279,7 +322,20 @@ class B:
     def belt(self, c0, c1, r0, r1, h, pal, t=0.45):
         """A machined clamp band round a box over inclusive px c0..c1 / r0..r1 at height h px: stands
         0.15 px proud of the walls, chamfered (the panel seam of a coolant stack)."""
-        self.box(c0 - 0.15, c1 + 0.15, r0 - 0.15, r1 + 0.15, h, h + t, pal, 0.1, ch=0.25, panel=False)
+        a, bq, c, d = c0 - 0.1, c1 + 1.1, r0 - 0.1, r1 + 1.1
+        self.prism(rrect(a, c, bq, d, 0.42 * min(c1 - c0 + 1, r1 - r0 + 1) + 0.1), h, h + t, pal, 0.1, smooth=True)
+
+    def rbox(self, c0, c1, r0, r1, h0, h1, pal, bev=0.3, top=None, el=None, lid=True):
+        """A machined canister over inclusive px c0..c1 / r0..r1: rounded plan (radius 0.42 of the
+        short side), smooth walls, chamfered top and, when lid, a recessed lid ring (the cap seam)."""
+        a, bq, c, d = c0 + 0.05, c1 + 0.95, r0 + 0.05, r1 + 0.95
+        rad = 0.42 * min(bq - a, d - c)
+        f = self.prism(rrect(a, c, bq, d, rad), h0, h1, pal, bev, top, el=el, smooth=True)
+        if lid and min(bq - a, d - c) >= 1.6:
+            i = 0.35 + bev
+            self.prism(rrect(a + i, c + i, bq - i, d - i, max(0.1, rad - i)), h1 - 0.1, h1 + 0.22,
+                       pal if top is None else top, 0.08, smooth=True)
+        return f
 
     def bolt(self, c, r, h, pal=9, rad=0.24):
         self.cyl(c, r, rad, h - 0.1, h + 0.22, pal, n=6, bev=0.06)
@@ -460,12 +516,77 @@ def plate_field(mask, sigma_px=0.75, grow=0):
     return np.minimum(smooth_field(mask, sigma_px), smooth_field(lim, 0.4))
 
 
-def heightfield(b, field, hz, ch, pal, top=None, z0=0.0):
+def exterior(ins):
+    """Lattice points outside `ins` that connect to the lattice's border (not enclosed holes)."""
+    out = ~ins
+    ext = np.zeros_like(ins)
+    ext[0, :], ext[-1, :], ext[:, 0], ext[:, -1] = out[0, :], out[-1, :], out[:, 0], out[:, -1]
+    while True:
+        g = ext.copy()
+        g[1:] |= ext[:-1]
+        g[:-1] |= ext[1:]
+        g[:, 1:] |= ext[:, :-1]
+        g[:, :-1] |= ext[:, 1:]
+        g &= out
+        if (g == ext).all():
+            return ext
+        ext = g
+
+
+def grown_field(F, sigma=0.5, lift=0.1, limit=0.42, need=0.7):
+    """Lattice field for the plan's bodies: the plan blurred (sigma px) and lifted, so its outline runs
+    in straight diagonals and rounded corners instead of the sprite's pixel stairs and the see-through
+    slits narrow to seams. Then held to the sprite grid pixel by pixel: no non-plan pixel more than
+    `limit` covered, every plan pixel at least `need` (a pixel counts when half of it is covered), so
+    the top view keeps every gap open and every plan pixel."""
+    Fp = np.pad(F, PAD)
+    f = np.clip(smooth_field(F, sigma) + lift, 0, 1)
+    hgt, wid = f.shape
+    sub = (np.arange(6) + 0.5) / 6
+
+    def cover(R, C):
+        cov = 0
+        for v in sub:
+            for u in sub:
+                x = (C + u) * SUB - 0.5
+                y = (R + v) * SUB - 0.5
+                j, i = int(np.floor(x)), int(np.floor(y))
+                fx, fy = x - j, y - i
+                i, j = max(0, min(hgt - 2, i)), max(0, min(wid - 2, j))
+                val = ((1 - fx) * (1 - fy) * f[i, j] + fx * (1 - fy) * f[i, j + 1]
+                       + (1 - fx) * fy * f[i + 1, j] + fx * fy * f[i + 1, j + 1])
+                cov += val >= 0.5
+        return cov / 36
+
+    for R in range(Fp.shape[0]):
+        for C in range(Fp.shape[1]):
+            sl = (slice(R * SUB, (R + 1) * SUB), slice(C * SUB, (C + 1) * SUB))
+            if Fp[R, C]:
+                k = 0.0
+                orig = f[sl].copy()
+                while cover(R, C) < need and k < 1:
+                    k = round(k + 0.1, 2)  # a thin plan line the blur thinned: fill it back in
+                    f[sl] = orig + (1.0 - orig) * k
+                continue
+            if f[sl].max() < 0.5:
+                continue
+            orig = f[sl].copy()
+            k = 1.0
+            # a slit grown into from both sides: pull this pixel's own lattice back step by step
+            while cover(R, C) > limit and k > 0:
+                k = round(k - 0.1, 2)
+                f[sl] = orig * k
+    return f
+
+
+def heightfield(b, field, hz, ch, pal, top=None, z0=0.0, holes_sheer=False):
     """A closed slab over field >= 0.5: flat bottom at z0, walls, a ch px 45 degree chamfer and a flat
     top at hz (px). Marching squares at the lattice; coplanar faces dissolved afterwards."""
     bm = b.bm
     ins = field >= 0.5
-    dist = inside_distance(ins) / SUB if ch > 0 else np.full(ins.shape, 99.0)  # px
+    # holes_sheer: the chamfer runs round the outer edge only; enclosed slits get sheer walls (seams)
+    dist_src = ~exterior(ins) if holes_sheer else ins
+    dist = inside_distance(dist_src) / SUB if ch > 0 else np.full(ins.shape, 99.0)  # px
     hgt, wid = field.shape
     tv, bv, ev = {}, {}, {}
     tp = pal if top is None else top
@@ -520,6 +641,7 @@ def heightfield(b, field, hz, ch, pal, top=None, z0=0.0):
             try:
                 f = bm.faces.new(tpoly)
                 f.material_index = mi_top if k == 4 and all(dist[p] - 0.5 / SUB >= ch - 1e-6 for p in cn) else mi_side
+                f.smooth = bool(k < 4)  # the wall: shaded as one surface, not lattice facets
             except ValueError:
                 pass
             if k == 4:
@@ -721,191 +843,288 @@ def fill_loops(b, loops, z, pal):
 # The machine (blueprint layout, hard-surface parts)
 # --------------------------------------------------------------------------------------------------
 
-def build_parts(b):
-    K = U / 13
-    # ---- skyline: sensor masts (rows 0-19) ----
-    # Periscope mast: grey post, lit cap, red access strip, snapped antenna stub, machined bands.
-    b.ub(30, 32, 5, 17, 0.0, 0.46, 8, 0.5, el="mast_periscope")
-    for hb in (2.6, 5.6):
+# Heights (px). The emplacement reads in four bands from the tilted game camera:
+DK = 1.4    # base deck: one armoured plinth under the whole plan (pal 3)
+RH = 4.8    # gun house roof (the casemate over the whole body; 45 degree glacis)
+AX = 6.8    # gun axis: breech, barrel, mantlet, the purple muzzle shell and the grey muzzle cone
+ROW = 35.2  # gun axis row (the sprite's grey barrel band rows 33-36 and the purple shell rows 32-38)
+
+
+RB = 33.6  # barrel row: the sprite's light grey barrel band (rows 32-34), north of the shell's axis
+
+
+HR = 8.6    # gun house roof: the turret body on its ring, 3.8 px over the casemate
+GA = 8.9    # barrel axis: the barrel lies half sunk in the gun house roof (its top 1.8 px proud)
+
+
+def sq_roof(h):
+    """Roof fittings sink into the casemate: what stood above the roof keeps 0.3 of its height."""
+    if abs(h - (RH - 0.2)) < 1e-6:
+        return DK - 0.3  # feet reach down into the body (no gap where the glacis falls away)
+    return h if h <= RH - 0.2 else RH - 0.2 + 0.3 * (h - (RH - 0.2))
+
+
+def sq_west(h):
+    """The west plant was built on the ground: its 0-6 px heights map onto the casemate's roof as
+    panels 0.1-0.45 px proud (one roof plane with hatches and capped stack heads, not free boxes);
+    the feet stay on the ground (rooted at the glacis, walls in the casemate's colour)."""
+    return h if h < 1e-6 else RH + 0.08 + 0.06 * h
+
+
+def casemate_zone(F):
+    """The gun house's plan: the sprite's whole dense body (west plant, middle, the drum's footing),
+    not the north fingers, the muzzle (east of col 56) or the feed duct south of row 47."""
+    z = np.zeros_like(F)
+    z[19:48, 7:56] = True
+    z[13:19, 40:56] = True
+    z[44:48, 44:57] = False  # the ragged south-east fringe stays on the low plinth: a straight casemate edge
+    return z & F
+
+
+def build_casemate(b, F):
+    # ================= GUN HOUSE: one continuous armoured casemate =================
+    # One body under the whole dense plan (west plant and middle together), a vertical skirt and a
+    # 45 degree glacis up to the roof at RH; the sprite's see-through gaps stay open. Every roof fitting is sunk into it (sq_roof / sq_west).
+    # Its plan field already keeps the sprite's see-through gaps (min with the plan's own sharp field),
+    # so it needs no boolean clip.
+    Fc = closed_plan(F)
+    field = np.minimum(plate_field(casemate_zone(Fc), 0.7), grown_field(Fc))
+    heightfield(b, field, RH, 0.0, 5, top=5)  # sheer walls: a lattice glacis terraced into stairs  # slits narrowed to seams, kept open
+    b.parts.append(("casemate", 5, 7, 56, 19, 47))
+
+
+def build_parts(b, bt):
+    # ---- roof fittings in the sprite's colours, sunk into the casemate's roof (walls: its colour) ----
+    b.sq = sq_roof
+    b.wall = 5
+    b.box(32, 37, 20, 27, RH - 0.2, RH + 1.3, 5, 0.3, 5, panel=False, el="block_grey_A")  # hatch block
+    b.box(34.0, 36.6, 20.6, 22.0, RH + 1.2, RH + 1.6, 6, 0.12, ch=0.2, panel=False)     # its access lid
+    b.box(32, 33, 23, 28, RH - 0.2, RH + 1.8, 11, 0.3, 11, el="block_grey_B")
+    b.box(33, 37, 23, 23, RH - 0.2, RH + 1.5, 11, 0.2)
+    b.box(35, 36, 24, 26, RH - 0.2, RH + 1.9, 7, 0.3, 10)
+    b.box(38, 41, 24, 25, RH - 0.2, RH + 0.9, 8, 0.25, 8, el="block_grey_C")
+    b.box(37, 41, 26, 26, RH - 0.2, RH + 1.0, 73, 0.2, 73, el="bar_red")
+    # Red conduit along the roof from the rangefinder mast (rows 17-26, cols 31-32).
+    b.box(31, 32, 17, 26, 0.0, RH + 1.0, 71, 0.35, 72, el="conduit_red")
+    # Red coolant tank against the gun house's north-west wall, capped (cols 42-43, rows 25-30), and
+    # a grey valve block.
+    b.rbox(42, 43, 25, 30, RH - 0.2, RH + 2.2, 72, 0.4, 72, el="stack_red_mid")
+    b.box(40, 41, 28, 30, RH - 0.2, RH + 1.2, 6, 0.3, 6, el="block_grey_D")
+    # Grey frame (fire-control box) with a red panel, north of the gun house.
+    b.box(47, 54, 20, 27, RH - 0.2, RH + 1.6, 3, 0.4, 4, panel=False, el="frame_right")
+    b.box(50, 52, 22, 27, RH + 1.4, RH + 1.9, 72, 0.15, 70, panel=False, el="frame_panel")
+    b.box(54, 54, 20, 27, RH - 0.2, RH + 1.2, 8, 0.3, el="frame_rail")
+    b.box(44, 46, 20, 27, RH - 0.2, RH + 0.7, 3, 0.3, el="frame_skirt")
+    # South roof: red ammo tank against the gun house's south wall, pump, sill.
+    b.rbox(44, 45.7, 38, 44, RH - 0.2, RH + 1.4, 69, 0.4, 70, el="tank_red_low")
+    b.box(47, 48, 39, 42, RH - 0.2, RH + 0.6, 3, 0.2)
+    b.rbox(50, 53, 39, 41, RH - 0.2, RH + 1.2, 72, 0.4, 73, el="pump_red")  # red pump (sprite 50-53 x 39-41)
+    b.box(50.4, 52.6, 39.2, 39.8, RH + 1.0, RH + 1.6, 73, 0.15, 73, el="pump_lid")
+    b.box(52, 53, 41.6, 43, RH - 0.2, RH + 0.6, 19, 0.2, 19)  # brown valve chest under it
+    b.box(49, 49, 39, 42, RH - 0.2, RH + 0.5, 6, 0.15, 6)    # grey flange west of the pump
+    b.box(43.0, 43.0, 39.6, 44.6, RH - 0.2, RH + 0.8, 6, 0.2, 6, el="riser")  # grey riser rail
+    # Red armour wedge on the gun house's south-west, the breech's skirt.
+    b.prism([(35, 35.8), (39, 35.8), (39, 44), (38, 44), (35, 41)], RH - 0.2, RH + 1.2, 69, 0.4, 69, el="wedge_red")
+    b.pipe("x", 36.6, 30.0, 34.4, 1.6, RH + 0.4, 5, 4, el="drum_mid")
+    b.sq = None
+    b.wall = None
+
+    # ================= THE GUN HOUSE (turret) on its ring =================
+    # One faceted armoured body over the sprite's dark block round the barrel (cols 40-55, rows 28-38),
+    # standing on a darker ring collar on the casemate roof; the barrel lies half sunk in its roof
+    # (the sprite's light band, rows 32-34), held by a trunnion yoke at the breech; the breech housing
+    # (the sprite's purple block) rises behind it and the barrel leaves the house through a round
+    # mantlet into the purple muzzle shell.
+    house = [(40.0, 31.0), (44.0, 28.0), (52.6, 28.0), (55.4, 30.0), (55.4, 37.0), (53.6, 39.0), (40.0, 39.0)]
+    ring_ = [(39.6, 30.8), (43.8, 27.6), (52.8, 27.6), (55.8, 29.8), (55.8, 37.2), (53.8, 39.4), (39.6, 39.4)]
+    b.prism(ring_, RH - 0.3, RH + 0.75, 3, 0.25, 3, el="turret_collar")
+    b.prism(house, RH + 0.5, HR, 4, 1.25, 4, el="gun_house")  # sloped armour faces all round
+    b.prism(inset_convex(house, 1.6), HR - 0.05, HR + 0.12, 4, 0.06)  # roof plate (seam ring)
+    # roof hatches and panels in the sprite's colours (flush plates)
+    b.box(47.2, 52.6, 35.2, 36.6, HR, HR + 0.22, 3, 0.1, 3, panel=False, el="house_hatch")
+    for c, r in ((47.8, 35.8), (53.0, 35.8), (47.8, 37.0), (53.0, 37.0)):
+        b.bolt(c, r, HR + 0.22, 6, 0.2)
+    b.box(44.2, 46.6, 35.4, 36.6, HR, HR + 0.25, 5, 0.1, 5, panel=False, el="house_panel")
+    b.box(43.0, 43.8, 35.4, 36.6, HR, HR + 0.2, 7, 0.08, 7, panel=False, el="house_stripe")
+    b.box(44.4, 52.4, 29.3, 29.7, HR, HR + 0.18, 3, 0.06, 3, panel=False)  # north vision slit
+    # Breech housing: the purple armour block behind the gun, taller than the house.
+    b.box(36, 39, 29, 33, RH - 0.2, GA + 1.6, 4, 0.6, 91, bolts=88, el="armour_box")
+    b.box(36.5, 39.5, 29.6, 31.9, GA + 1.5, GA + 1.8, 91, 0.1, 91, panel=False)
+    b.box(36.2, 39.6, 33.1, 33.9, GA + 1.0, GA + 1.6, 82, 0.15, 82, panel=False)  # its dark back plate
+    # Trunnion yoke: two cheek plates either side of the barrel at the breech, pins through them.
+    for r0, r1 in ((31.1, 31.9), (35.3, 36.1)):
+        b.box(40.4, 42.6, r0, r1 - 1, HR - 0.1, GA + 1.0, 5, 0.2, 6, ch=0.25, panel=False, el="trunnion")
+
+    # ================= THE GUN: barrel, recuperator, mantlet, muzzle shell, cone =================
+    # Barrel: a long round grey tube from the breech (col 38.5) through the mantlet into the shell.
+    b.loft("x", RB, [(38.4, 1.25, 1.25, GA), (38.8, 1.5, 1.5, GA), (49.0, 1.45, 1.45, GA),
+                     (56.0, 1.3, 1.3, GA - 0.2), (57.0, 1.3, 1.3, GA - 0.2)], 7, 16, el="barrel")
+    for p in (43.4, 47.6):  # barrel bands
+        b.loft("x", RB, [(p - 0.3, 1.62, 1.62, GA), (p - 0.2, 1.74, 1.74, GA), (p + 0.2, 1.74, 1.74, GA),
+                          (p + 0.3, 1.62, 1.62, GA)], 6, 16, chamfer=False)
+    # Recuperator: the thinner grey cylinder on the roof beside the barrel's north side (rows 29-31).
+    b.pipe("x", 30.4, 45.6, 53.2, 0.95, HR + 0.6, 8, 6, el="recuperator")
+    # Mantlet: a round armoured collar at the house's front that the barrel leaves through.
+    b.loft("x", RB, [(52.2, 2.0, 2.0, GA), (52.8, 2.45, 2.45, GA), (55.2, 2.45, 2.45, GA),
+                     (55.8, 2.0, 2.0, GA)], 4, 20, chamfer=False, el="mantlet")
+    for p in (53.2, 54.8):
+        b.loft("x", RB, [(p - 0.12, 2.55, 2.55, GA), (p + 0.12, 2.55, 2.55, GA)], 5, 20, chamfer=False)
+    # Muzzle shell: a fat round purple shell (the sprite's purple, rows 32-38) lying in a grey cradle
+    # (the grey bands above and below it, rows 29-31 / 39-41), ending in a blunt grey muzzle cone
+    # (cols 67-70) with a dark bore facing east.
+    rim = [(55.0, 29.4), (66.0, 29.4), (68.5, 30.8), (70.0, 33.0), (70.3, 35.5), (70.0, 38.3), (68.5, 40.0),
+           (66.0, 41.0), (55.0, 41.0)]
+    b.prism(rim, 0.0, AX - 1.2, 4, 0.9, 5, el="muzzle_cradle")
+    for c in (56.4, 60.4, 64.4):
+        b.bolt(c, 30.2, AX - 1.2)
+        b.bolt(c, 40.2, AX - 1.2)
+    b.loft("x", ROW, [(55.4, 3.0, 3.0, AX + 0.6), (56.4, 3.75, 3.75, AX + 0.6), (65.6, 3.8, 3.8, AX + 0.6),
+                      (66.9, 3.5, 3.5, AX + 0.6), (67.6, 2.8, 2.8, AX + 0.6)], 87, 24, el="muzzle_shell")
+    for p in (58.2, 63.0):  # armour seams round the shell
+        b.loft("x", ROW, [(p - 0.18, 3.86, 3.86, AX + 0.6), (p + 0.18, 3.86, 3.86, AX + 0.6)], 86, 24, chamfer=False)
+    b.cyl(61.6, ROW, 1.1, AX + 4.25, AX + 4.55, 89, 12, bev=0.1, top=93)  # sight disc (sheen spot)
+    b.loft("x", ROW, [(66.6, 3.7, 3.4, AX + 0.6), (67.4, 4.1, 3.7, AX + 0.6), (69.4, 3.5, 3.1, AX + 0.6),
+                      (70.2, 2.6, 2.3, AX + 0.6)], 7, 20, el="muzzle_cone")
+    b.loft("x", ROW, [(69.95, 1.4, 1.3, AX + 0.6), (70.25, 1.4, 1.3, AX + 0.6)], 82, 12, chamfer=False)  # bore
+    b.box(50, 57, 45, 47, 0.0, DK + 1.0, 3, 0.3, el="lens_block")
+
+    # ================= SENSORS north of the house =================
+    # Rangefinder mast: grey post, lit cap, red access strip, bands.
+    b.box(30, 32, 5, 17, 0.0, 9.7, 8, 0.5, el="mast_periscope")
+    for hb in (3.0, 6.6):
         b.box(29.85, 32.15, 5.4, 16.6, hb, hb + 0.45, 7, 0.12, ch=0.35, panel=False)
-    b.uloft("y", 31.5, [(4.6, 1.5, 0.05, 0.43), (5.2, 1.6, 0.06, 0.44), (8.5, 1.6, 0.06, 0.44),
-                        (9.2, 1.3, 0.04, 0.44)], 10, 12, el="periscope_cap")
-    b.ub(31, 32, 11, 16, 0.38, 0.475, 72, 0.3, 70, el="periscope_strip")
-    b.cyl(31.5, 6.6, 0.45, 5.9 * K, 8.4 * K, 9, 8, bev=0.12)
-    b.cyl(31.5, 6.6, 0.62, 5.9 * K - 0.3, 5.9 * K + 0.4, 7, 8, bev=0.1)
-    # Red conduit column below it with two clamps.
-    b.ub(31, 32, 17, 26, 0.0, 0.3, 71, 0.4, 72, el="conduit_red")
-    for r in (19.5, 23.5):
-        b.box(30.8, 32.2, r, r + 0.4, 0, 4.2 * K, 70, 0.1, ch=0.1)
-    b.ub(36, 37, 15, 19, 0.0, 0.34, 73, 0.4, 73, el="post_red_small")
-    b.ub(34, 34, 17, 19, 0.0, 0.22, 8, 0.3, el="stub_grey")
-    # Crystal emitter: grey post + rail, faceted purple crystal lying north to a point, two cradle bands.
-    b.ub(40, 43, 10, 12, 0.0, 0.42, 5, 0.4, 6, el="mast_crystal_post")
-    b.ub(43, 43, 5, 12, 0.0, 0.38, 6, 0.3, el="mast_crystal_rail")
-    b.uloft("y", 41.5, [(10.0, 1.5, 0.07, 0.43), (7.0, 1.6, 0.08, 0.44), (4.0, 1.5, 0.07, 0.45),
-                        (2.0, 1.0, 0.05, 0.45), (0.4, 0, 0, 0.45)], 91, 6, el="crystal")
+    b.loft("y", 31.5, [(4.6, 1.5, 0.95, 9.2), (5.2, 1.6, 1.1, 9.35), (8.5, 1.6, 1.1, 9.35), (9.2, 1.3, 0.8, 9.35)],
+           8, 12, el="periscope_cap")
+    b.box(31, 32, 11, 16, 8.2, 10.0, 72, 0.3, 70, el="periscope_strip")
+    # Aerial: purple emitter rod lying north on its post, cradle bands.
+    b.rbox(40, 43, 10, 12, 0.0, 9.0, 6, 0.4, 5, el="mast_crystal_post")
+    b.box(43, 43, 5, 12, 0.0, 8.2, 6, 0.3, el="mast_crystal_rail")
+    # The rod lies on two posts: its root in the post block (rows 10-12) and a grey stanchion under
+    # its north end (rows 3-5), so it does not hang in the air in elevation.
+    b.loft("y", 41.5, [(10.0, 1.5, 1.3, 8.9), (7.0, 1.6, 1.5, 9.0), (4.0, 1.5, 1.3, 8.9), (2.0, 1.0, 0.95, 8.6),
+                       (0.4, 0, 0, 8.4)], 91, 6, el="crystal")
     for r in (8.2, 5.2):
-        b.box(39.8, 43.2, r, r + 0.4, 4.6 * K, 5.3 * K, 89, 0.1, ch=0.1, panel=False)
-    b.ub(44, 45, 6, 12, 0.0, 0.4, 73, 0.5, 73, slope=(0, 0.04), el="pillar_red")
-    b.ub(41, 45, 13, 16, 0.0, 0.40, 70, 0.5, 72, bolts=7, el="block_red")
-    b.belt(41, 45, 13, 16, 3.6, 69)
-    b.ub(41, 43, 17, 18, 0.0, 0.26, 10, 0.3, el="block_red_grey")
-    b.ub(44, 45, 17, 18, 0.0, 0.3, 69, 0.3)
-    # Generator drum: rounded-square housing, lid, domed cap, a ring of bolts.
-    rr = rrect(47.2, 12.6, 53.9, 20.4, 1.6)
-    b.prism(rr, 0, 4.0 * K, 4, 0.4, 5, el="drum_housing", smooth=True)
-    b.prism(rrect(47.9, 13.4, 53.2, 19.6, 1.2), 4.0 * K, 4.4 * K, 6, 0.25, 6, el="drum_lid", smooth=True)
-    b.prism(rrect(47.0, 12.4, 54.1, 20.6, 1.7), 1.6 * K, 2.2 * K, 5, 0.15, smooth=True)  # strap band
-    b.dome(50.6, 16.5, 4.4 * K, 1.2, 1.2, 0.6 * K, 9, 12, 4)
+        b.box(39.8, 43.2, r, r + 0.4, 7.2, 8.3, 89, 0.1, ch=0.1, panel=False)
+    b.box(40.8, 42.2, 3.0, 5.0, 0.0, 8.0, 6, 0.2, 6, ch=0.3, panel=False)       # stanchion
+    b.box(40.2, 42.8, 3.2, 4.8, 0.0, 0.9, 5, 0.2, 5, ch=0.3, panel=False)       # its foot
+    b.rbox(44, 45, 6, 12, 0.0, 8.6, 73, 0.5, 73, el="pillar_red")
+    b.rbox(41, 45, 13, 16, 0.0, 7.6, 70, 0.5, 72, el="block_red")
+    b.belt(41, 45, 13, 16, 5.4, 69)
+    b.rbox(36, 37, 15, 19, 0.0, 6.8, 73, 0.4, 73, el="post_red_small")
+    b.box(34, 34, 17, 19, 0.0, 5.6, 8, 0.3, el="stub_grey")
+    # Ammunition drum: rounded housing, lid, domed cap, bolt ring.
+    b.prism(rrect(47.2, 12.6, 53.9, 20.4, 1.6), 0, 6.8, 4, 0.4, 5, el="drum_housing", smooth=True)
+    b.prism(rrect(47.9, 13.4, 53.2, 19.6, 1.2), 6.8, 7.4, 6, 0.25, 6, el="drum_lid", smooth=True)
+    b.prism(rrect(47.0, 12.4, 54.1, 20.6, 1.7), 5.3, 6.0, 5, 0.15, smooth=True)
+    b.dome(50.6, 16.5, 7.4, 1.2, 1.2, 0.9, 9, 12, 4)
     for k in range(8):
         a = 2 * math.pi * (k + 0.5) / 8
-        b.bolt(50.55 + 2.05 * math.cos(a), 16.5 + 2.55 * math.sin(a), 4.4 * K, 7, 0.2)
-    b.uloft("y", 42.5, [(19.0, 1.6, 0.13, 0.13), (25.0, 1.6, 0.13, 0.13)], 5, 12, el="column_grey")
+        b.bolt(50.55 + 2.05 * math.cos(a), 16.5 + 2.55 * math.sin(a), 7.4, 7, 0.2)
 
-    # ---- upper-left wreckage: coolant stacks with sheared tops, struts ----
-    b.ub(20, 22, 19, 22, 0.0, 0.34, 9, 0.4, 8, slope=(0.0, 0.25), el="stack_left_A")
-    b.ub(21, 22, 22, 26, 0.0, 0.3, 72, 0.4, 72, slope=(-0.3, 0.0), el="stack_left_B")
-    b.belt(21, 22, 22, 26, 2.2, 70)
-    b.ub(20, 20, 23, 26, 0.0, 0.26, 71, 0.3)
-    b.ub(17, 20, 25, 30, 0.0, 0.28, 72, 0.5, 72, slope=(0.0, -0.2), el="stack_left_C")
-    b.belt(17, 20, 25, 30, 1.6, 70)
-    b.belt(17, 20, 25, 30, 3.2, 70, 0.3)
-    b.ub(18, 19, 28, 29, 0.27, 0.29, 76, slope=(0.0, -0.2))
-    b.ub(16, 16, 29, 30, 0.0, 0.2, 8, 0.3)
-    b.ub(27, 27, 20, 26, 0.0, 0.18, 162, 0.3, el="strut_brown")
-    b.ub(28, 30, 24, 26, 0.0, 0.22, 70, 0.3, 69, slope=(0.35, 0), el="stub_red_mid")
-    b.ub(8, 9, 26, 32, 0.0, 0.34, 72, 0.5, 72, slope=(0, 0.18), el="stack_far_left")
-    b.belt(8, 9, 26, 32, 2.0, 70)
-    b.ub(22, 23, 28, 30, 0.0, 0.14, 162, 0.3, 19, el="debris")
-    b.ub(24, 27, 30, 30, 0.0, 0.18, 72, 0.3, 72)
-    b.ub(25, 27, 31, 32, 0.0, 0.12, 162, 0.3, 19)
-    b.ub(20, 20, 31, 33, 0.0, 0.2, 70, 0.3, 70)
-    b.ub(21, 22, 33, 36, 0.0, 0.1, 162, 0.3)
-    b.ub(27, 29, 35, 36, 0.0, 0.2, 71, 0.3, 72)
-    b.ub(28, 28, 31, 33, 0.0, 0.14, 162, 0.3)
-    b.ub(10, 10, 29, 32, 0.0, 0.14, 19, 0.2)
+    # ================= WEST: power plant on the deck (coolant stacks, intact capped tops) =================
+    # One armoured machinery housing under the west wing: the stacks and tanks rise out of it.
+    # (the casemate is their housing: build_casemate; heights remapped onto its roof)
+    # Every west fitting is a panel or capped stack head in the casemate's roof plane (sq_west), its
+    # walls in the casemate's colour: one perforated body (the sprite's see-through gaps are vents).
+    b.sq = sq_west
+    b.wall = 5
 
-    # ---- grey blocks under the periscope ----
-    b.ub(32, 37, 20, 27, 0.0, 0.2, 5, 0.4, 5, panel=False, el="block_grey_A")
-    b.box(34.0, 36.6, 20.6, 22.0, 0.2 * U - 0.2, 0.2 * U + 0.3, 6, 0.12, ch=0.2, panel=False)  # access hatch
-    b.ub(32, 33, 23, 28, 0.0, 0.3, 11, 0.4, 11, el="block_grey_B")
-    b.ub(33, 37, 23, 23, 0.0, 0.25, 11, 0.3)
-    b.ub(35, 36, 24, 26, 0.0, 0.27, 7, 0.3, 10)
-    b.ub(38, 41, 24, 25, 0.0, 0.22, 8, 0.3, 8, el="block_grey_C")
-    b.ub(37, 41, 26, 26, 0.0, 0.24, 73, 0.3, 73, el="bar_red")
-    b.ub(42, 43, 25, 30, 0.0, 0.32, 72, 0.4, 72, slope=(0, 0.12), el="stack_red_mid")
-    b.belt(42, 43, 25, 30, 2.4, 70)
-    b.ub(40, 41, 28, 31, 0.0, 0.26, 6, 0.3, 6, el="block_grey_D")
-
-    # ---- right block: grey frame with red panel, pipe run ----
-    b.ub(47, 54, 20, 28, 0.0, 0.3, 3, 0.5, 4, panel=False, el="frame_right")
-    b.ub(50, 52, 22, 27, 0.0, 0.33, 72, 0.4, 70, el="frame_panel")
-    for c, r in ((48, 21), (48, 27.6), (53.8, 21), (53.8, 27.6)):
-        b.bolt(c, r, 0.3 * U)
-    b.ub(54, 54, 20, 30, 0.0, 0.32, 8, 0.3, el="frame_rail")
-    b.ub(44, 46, 20, 27, 0.0, 0.16, 3, 0.3, el="frame_skirt")
-    for r in (21.0, 22.6, 24.2, 25.8):  # louvre slats across the skirt
-        b.box(44.3, 45.7, r, r + 0.15, 0.16 * U, 0.16 * U + 0.35, 5, 0.08, ch=0.1, panel=False)
-    b.pipe("x", 30.4, 44.6, 54.4, 1.4, 0.14 * U, 8, 6, el="pipe_A")
-    b.pipe("x", 33.6, 40.4, 55.5, 1.5, 0.15 * U, 8, 6, el="pipe_B")
-    b.pipe("x", 33.6, 49.8, 52.6, 1.7, 0.15 * U, 8, 6, bands=(51.2,), el="pipe_sleeve")
-    b.pipe("y", 42.5, 34.6, 45.0, 1.4, 0.13 * U, 5, 8, el="riser")
-    b.ub(43, 46, 35, 37, 0.0, 0.24, 5, 0.4, 7, el="junction_box")
-    b.ub(44, 46, 38, 44, 0.0, 0.2, 69, 0.3, 70, bolts=7, el="tank_red_low")
-    b.belt(44, 46, 38, 44, 1.5, 68, 0.35)
-    b.ub(47, 48, 39, 42, 0.0, 0.16, 3, 0.3)
-    b.ub(49, 53, 39, 43, 0.0, 0.18, 70, 0.3, 73, el="pump_red")
-    b.ub(50, 53, 39, 40, 0.0, 0.24, 73, 0.4, 73, el="pump_lid")
-    b.ub(52, 54, 36, 37, 0.0, 0.16, 7, 0.3)
-
-    # ---- middle: armour box, red wedge, purple bar, drum ----
-    b.ub(36, 39, 29, 32, 0.0, 0.34, 90, 0.5, 91, bolts=88, el="armour_box")
-    b.ub(36, 39, 33, 33, 0.0, 0.2, 82, 0.3)
-    b.prism([(35, 35), (39, 35), (39, 44), (38, 44), (35, 41)], 0.0, 0.3 * U, 69, 0.5, 69, el="wedge_red")
-    b.ub(36.3, 38.6, 35, 35, 0.28, 0.315, 73)
-    b.ub(25, 33, 39, 42, 0.0, 0.26, 90, 0.6, 90, el="bar_purple")
-    b.uloft("x", 42.4, [(25.3, 0.7, 0.04, 0.24), (33.7, 0.7, 0.04, 0.24)], 93, 6)
-    b.ub(25, 33, 43, 43, 0.0, 0.16, 86, 0.3, el="bar_purple_foot")
+    def stack(c0, c1, r0, r1, h, pal, top, el=None, bands=(), cap=76):
+        b.rbox(c0, c1, r0, r1, 0.0, h, pal, 0.4, top, el=el)
+    b.rbox(20, 22, 19, 22, 0.0, 6.0, 9, 0.4, 8, el="stack_left_A")
+    stack(21, 22, 22, 26, 5.4, 72, 72, "stack_left_B", (2.6,))
+    b.box(20, 20, 23, 26, 0.0, 4.6, 71, 0.3)
+    stack(17, 20, 25, 30, 5.0, 72, 72, "stack_left_C", (1.8, 3.4))
+    b.box(16, 16, 29, 30, 0.0, 3.6, 8, 0.3)
+    b.box(27, 27, 20, 26, 0.0, 3.2, 162, 0.3, el="strut_brown")
+    b.rbox(28, 30, 24, 26, 0.0, 4.0, 70, 0.3, 69, el="stub_red_mid")
+    stack(8, 9, 26, 32, 5.6, 72, 72, "stack_far_left", (2.0, 4.0))
+    b.box(22, 23, 28, 30, 0.0, 2.6, 162, 0.3, 162, el="debris")
+    b.box(24, 27, 30, 30, 0.0, 3.2, 72, 0.3, 72)
+    b.box(25, 27, 31, 32, 0.0, 2.2, 162, 0.3, 19)
+    b.box(20, 20, 31, 33, 0.0, 3.6, 70, 0.3, 70)
+    b.box(21, 22, 33, 36, 0.0, 2.0, 162, 0.3)
+    b.box(27, 29, 35, 36, 0.0, 3.6, 71, 0.3, 72)
+    b.box(28, 28, 31, 33, 0.0, 2.6, 162, 0.3)
+    b.box(10, 10, 29, 32, 0.0, 2.6, 19, 0.2)
+    b.box(29, 31, 31, 33, 0.0, 3.0, 162, 0.3, el="debris_mid")
+    b.box(29, 30, 32, 33, 0.0, 3.6, 73, 0.3, 73)
+    b.pipe("x", 37.5, 22.2, 29.6, 0.9, 1.6, 164, 162, el="pipe_salmon")
+    b.box(22, 28, 38, 38, 0.0, 1.6, 164, 0.2)
+    b.box(27, 28, 29, 30, 0.0, 3.4, 72, 0.3, 72)
+    # Purple armour bar leaning on the house's west skirt, bolted.
+    b.box(25, 33, 39, 42, 0.0, 4.6, 90, 0.6, 90, el="bar_purple")
+    b.loft("x", 42.4, [(25.3, 0.7, 0.75, 4.5), (33.7, 0.7, 0.75, 4.5)], 93, 6)
+    b.box(25, 33, 43, 43, 0.0, 3.0, 86, 0.3, el="bar_purple_foot")
     for c in (26.2, 32.8):
-        b.bolt(c, 40, 0.26 * U, 88)
-    b.pipe("x", 36.6, 29.6, 34.2, 2.0, 0.14 * U, 6, 5, el="drum_mid")
-    b.ub(29, 31, 31, 33, 0.0, 0.16, 68, 0.3, el="debris_mid")
-    b.ub(29, 30, 32, 33, 0.0, 0.2, 73, 0.3, 73)
-    b.pipe("x", 37.5, 22.2, 28.8, 0.9, 0.07 * U, 164, 162, el="pipe_salmon")
-    b.ub(22, 28, 38, 38, 0.0, 0.08, 164, 0.2)
-    b.ub(27, 28, 29, 30, 0.0, 0.18, 72, 0.3, 72)
+        b.bolt(c, 40, 4.6, 88)
+    b.rbox(20, 23, 40, 43, 0.0, 5.6, 72, 0.4, 72, el="tank_red_left")
+    b.loft("x", 43.5, [(20.6, 0.6, 0.95, 3.8), (23.6, 0.6, 0.95, 3.8)], 76, 8)
+    b.box(18, 19, 40, 41, 0.0, 3.0, 71, 0.3)
+    b.box(19, 23, 44, 46, 0.0, 2.3, 19, 0.3, el="crate_brown")
+    b.box(26, 27, 45, 46, 0.0, 2.3, 19, 0.3, 19)
+    b.rbox(16, 20, 34, 37, 0.0, 4.6, 6, 0.4, 8, el="block_grey_left")
+    b.rbox(12, 15, 31, 32, 0.0, 5.0, 72, 0.4, 72, el="stub_red_left")
+    b.box(12, 15, 33, 34, 0.0, 1.9, 19, 0.3)
+    b.rbox(8, 10, 33, 39, 0.0, 4.4, 84, 0.5, 86, el="plate_purple_A")
+    b.box(11, 15, 39, 42, 0.0, 3.6, 88, 0.5, el="plate_purple_B")
+    b.box(12, 14, 36, 38, 0.0, 2.2, 82, 0.3, 82)
+    b.sq = None
+    b.wall = None
 
-    # ---- left: red stubs, grey block, purple plates ----
-    b.ub(20, 23, 40, 43, 0.0, 0.30, 72, 0.4, 72, bolts=7, el="tank_red_left")
-    b.belt(20, 23, 40, 43, 2.4, 70)
-    b.uloft("x", 43.5, [(20.6, 0.6, 0.05, 0.2), (23.6, 0.6, 0.05, 0.2)], 76, 8)
-    b.ub(18, 19, 40, 41, 0.0, 0.16, 71, 0.3)
-    b.ub(19, 23, 44, 46, 0.0, 0.12, 19, 0.3, el="crate_brown")
-    b.ub(26, 27, 45, 46, 0.0, 0.12, 19, 0.3, 19)
-    b.ub(16, 20, 34, 37, 0.0, 0.26, 6, 0.4, 8, el="block_grey_left")
-    b.ub(12, 15, 31, 32, 0.0, 0.28, 72, 0.4, 72, el="stub_red_left")
-    b.ub(12, 15, 33, 34, 0.0, 0.1, 19, 0.3)
-    b.ub(8, 10, 33, 39, 0.0, 0.26, 84, 0.5, 88, el="plate_purple_A")
-    b.ub(11, 15, 39, 42, 0.0, 0.2, 88, 0.5, el="plate_purple_B")
-    b.ub(12, 14, 36, 38, 0.0, 0.12, 82, 0.3, 82)
+    # ================= FEED DUCT south to the power turret =================
+    # One armoured trunk, as tall as the turret's ring, from the casemate's south skirt straight into
+    # the power turret's casting (its neck reaches the ring at row 62): the turret is part of the
+    # same emplacement, not a box on a strut.
+    duct = [(29.6, 45.0), (41.4, 45.0), (42.0, 47.0), (41.4, 55.6), (29.6, 55.6), (29.0, 47.0)]
+    b.prism(duct, 0.0, 4.2, 3, 0.8, 3, el="feed_duct")
+    b.prism([(30.0, 54.6), (38.0, 54.6), (38.0, 63.0), (30.0, 63.0)], 0.0, 4.2, 3, 0.6, 3, el="duct_neck")
+    b.sq = lambda h: h + 1.4 if h > 1e-6 else h  # its fittings ride on the raised duct
+    b.wall = 4
+    b.box(29, 35, 45, 47, 2.4, 3.8, 5, 0.4, 3, el="stalk_collar")
+    b.box(33, 33, 48, 54, 2.4, 3.6, 5, 0.2, el="stalk_spine")
+    b.box(29, 34, 55, 56, 0.0, 3.6, 3, 0.4, 6, el="stalk_foot")
+    b.box(30, 31, 49, 53, 2.4, 3.2, 85, 0.3, 85, el="stalk_plate")
+    b.wall = None
+    b.sq = None
+    b.loft("y", 36.5, [(46.6, 0.7, 0.7, 4.4), (61.0, 0.7, 0.7, 4.4)], 86, 8, el="stalk_conduit")
+    for r in (49.5, 53.5, 57.5):  # conduit clamps
+        b.box(35.6, 37.4, r, r + 0.5, 3.8, 5.2, 3, 0.1, ch=0.1)
+    b.sq = lambda h: h + 1.4 if h > 1e-6 else h
+    b.wall = 4
+    b.box(38, 40, 49, 50, 2.4, 3.6, 19, 0.3, 19, el="stalk_box_brown")
+    b.rbox(38, 41, 51, 52, 2.4, 4.2, 72, 0.4, 72, el="stalk_box_red")
+    b.box(37, 37, 55, 57, 2.4, 3.2, 162, 0.2, 164)
+    b.sq = None
+    b.wall = None
 
-    # ---- lens projector (east end) ----
-    rim = [(55.0, 29.0), (66.0, 29.0), (68.5, 30.5), (70.3, 33.0), (71.0, 35.5), (70.3, 38.5), (68.5, 40.3),
-           (66.0, 41.4), (55.0, 41.4)]
-    b.prism(rim, 0.0, 0.24 * U, 4, 0.6, 5, el="lens_housing")
-    b.uloft("x", 35.6, [(56.0, 3.7, 0.09, 0.22), (58.0, 3.85, 0.1, 0.22), (60.0, 3.85, 0.1, 0.22),
-                        (63.5, 3.6, 0.1, 0.22), (66.0, 2.8, 0.08, 0.22), (67.6, 1.4, 0.05, 0.22),
-                        (68.2, 0, 0, 0.22)], 87, 16, el="lens_face")
-    # Sheen ring round the lens rim (pal 90/91 only here).
-    b.uloft("x", 35.6, [(55.6, 3.95, 0.07, 0.235), (56.4, 3.95, 0.07, 0.235)], 91, 16, chamfer=False)
-    b.dome(62.0, 35.6, 0.31 * U - 0.3, 1.1, 1.0, 0.5 * K, 93, 10, 4)
-    for c, r in ((56, 29.8), (60, 29.8), (64, 29.8), (56, 40.6), (60, 40.6), (64, 40.6)):
-        b.bolt(c, r, 0.24 * U)
-    b.uloft("x", 40.6, [(55.5, 1.3, 0.1, 0.14), (67.5, 1.3, 0.1, 0.14)], 4, 10, el="lens_bar")
-    b.ub(50, 57, 45, 47, 0.0, 0.14, 3, 0.3, el="lens_block")
-
-    # ---- stalk to the turret ----
-    b.ub(29, 35, 45, 47, 0.0, 0.24, 5, 0.4, 3, el="stalk_collar")
-    b.ub(33, 33, 48, 54, 0.0, 0.2, 5, 0.2, el="stalk_spine")
-    b.ub(29, 34, 55, 56, 0.0, 0.24, 3, 0.4, 6, el="stalk_foot")
-    b.ub(30, 31, 49, 53, 0.0, 0.16, 85, 0.3, 85, el="stalk_plate")
-    b.uloft("y", 36.5, [(46.6, 0.7, 0.06, 0.16), (60.5, 0.7, 0.06, 0.16)], 86, 8, el="stalk_conduit")
-    for r in (49.5, 53.5, 57.5):
-        b.box(35.6, 37.4, r, r + 0.5, 0, 2.4 * K, 3, 0.1, ch=0.1)
-    b.ub(38, 40, 49, 50, 0.0, 0.18, 19, 0.3, 19, el="stalk_box_brown")
-    b.ub(38, 41, 51, 52, 0.0, 0.22, 72, 0.4, 72, el="stalk_box_red")
-
-    # ---- turret on the pad (newshu-79) ----
-    # Deck plates on the pad: 1.1 px slabs standing on the 1 px pad (0.09 u steel), chamfered edges,
-    # a bolt at each corner; kept inside the plan so no clip notches them.
-    for c0, c1, r0, r1 in ((24.3, 27.6, 56.3, 59.6), (43.3, 46.6, 56.3, 59.6), (24.3, 32.6, 79.4, 82.6),
-                           (35.3, 40.6, 81.4, 82.6), (43.3, 46.6, 79.4, 82.6)):
-        b.box(c0, c1, r0, r1, 0, 2.1, 101, 0.35, 101, ch=0.45, panel=False, el="pad_plate",
-              bolts=99 if r1 - r0 > 2 else None)
-    ring = [(25, 62), (27, 61), (42, 60.5), (46, 62), (47, 64), (47, 74), (46, 76.5), (44, 78.6), (34, 78.6),
-            (30, 77.5), (27.5, 75.5), (25, 74)]
-    b.prism(chamfer_outline(ring, 0.4), 0, 0.18 * U, 2, 0.5, 4, el="turret_ring")
+    # ================= POWER TURRET (newshu-79) on its ring =================
+    # Ring and head are one casting with a smooth plan drawn just inside the sprite's dark ring (its
+    # pixel knobs are not followed); built unclipped (bt) and standing on the HD ground (D130).
+    ring = [(26.0, 62.0), (42.8, 62.0), (43.9, 63.0), (45.0, 64.0), (46.0, 65.0), (46.0, 67.9), (46.9, 68.1),
+            (46.9, 70.9), (46.0, 71.1), (46.0, 74.9), (45.0, 75.1), (45.0, 77.9), (34.0, 78.0), (33.4, 77.0),
+            (30.9, 76.9), (29.0, 75.9), (29.0, 74.0), (30.0, 72.9), (30.8, 72.0), (25.1, 71.95), (25.1, 63.0)]
+    bt.prism(chamfer_outline(ring, 0.3), 0, 3.4, 4, 0.35, 4, el="turret_ring", smooth=False)
     head = [(29, 63), (31, 61.6), (43, 61.6), (45.4, 63), (46, 66), (46, 71), (44.5, 73.5), (42, 74.4),
             (32, 74.4), (30, 73.4), (29, 71)]
-    b.prism(chamfer_outline(head, 0.3), 0, 0.26 * U, 3, 0.9, 4, el="turret_head")
-    b.ub(35, 41, 65, 68, 0.0, 0.34, 90, 0.4, 90, panel=False, el="turret_hatch")
-    # Red bars standing clear of the hatch (graft from design A): the sprite's two red stripes.
-    b.ub(36, 36, 65, 68, 0.33, 0.375, 72, 0.12, 72, panel=False, el="hatch_stripe")
-    b.ub(39, 39, 64, 68, 0.33, 0.375, 72, 0.12, 72, panel=False, el="hatch_stripe")
-    b.ub(35, 41, 69, 70, 0.0, 0.3, 84, 0.3, el="hatch_sill")
+    bt.prism(chamfer_outline(head, 0.3), 0, 4.9, 3, 0.9, 4, el="turret_head")
+    b.box(35, 41, 65, 68, 0.0, 6.4, 90, 0.4, 90, panel=False, el="turret_hatch")
+    b.box(36, 36, 65, 68, 6.3, 7.1, 72, 0.12, 72, panel=False, el="hatch_stripe")
+    b.box(39, 39, 64, 68, 6.3, 7.1, 72, 0.12, 72, panel=False, el="hatch_stripe")
+    b.box(35, 41, 69, 70, 0.0, 5.7, 84, 0.3, el="hatch_sill")
     for c in (35, 37, 39):
-        b.ub(c, c, 72, 73, 0.1, 0.3, 70, 0.2, 70, el="louvre")
-    b.box(33.6, 41.2, 71.6, 74.2, 1.0 * K, 2.6 * K, 3, 0.2, 3, panel=False)
-    b.uloft("y", 26.5, [(61.6, 1.2, 0.1, 0.14), (62.2, 1.6, 0.14, 0.14), (71.4, 1.6, 0.14, 0.14),
-                        (72.0, 1.2, 0.1, 0.14)], 69, 12, chamfer=False, el="tank_red")
-    b.ub(25, 25, 62.4, 70.4, 0.18, 0.27, 72)
+        b.box(c, c, 72, 73, 1.9, 5.7, 70, 0.2, 70, el="louvre")
+    b.box(33.6, 41.2, 71.6, 74.2, 1.5, 3.8, 3, 0.2, 3, panel=False)
+    b.loft("y", 26.5, [(61.6, 1.2, 1.9, 2.7), (62.2, 1.6, 2.66, 2.7), (71.4, 1.6, 2.66, 2.7),
+                       (72.0, 1.2, 1.9, 2.7)], 69, 12, chamfer=False, el="tank_red")
+    b.box(25, 25, 62.4, 70.4, 3.4, 5.1, 72)
     for r in (63.6, 69.6):
-        b.box(24.7, 28.3, r, r + 0.4, 0, 3.8 * K, 71, 0.1, ch=0.1, panel=False)
-    b.ub(31, 34, 58, 62, 0.0, 0.3, 70, 0.5, 70, el="turret_box_red")
-    b.ub(29, 29, 62, 66, 0.0, 0.27, 10, 0.3, 8, el="turret_sensor")
+        b.box(24.7, 28.3, r, r + 0.4, 0, 5.6, 71, 0.1, ch=0.1, panel=False)
+    b.rbox(31, 34, 58, 62, 0.0, 5.7, 70, 0.5, 70, el="turret_box_red")
+    b.box(29, 29, 62, 66, 0.0, 5.1, 10, 0.3, 8, el="turret_sensor")
     for k in range(10):
         a = math.pi * (0.15 + 0.7 * k / 9)
-        b.bolt(37.5 - 9.2 * math.cos(a), 69.6 + 8.0 * math.sin(a), 0.18 * U, 4)
+        b.bolt(37.5 - 9.2 * math.cos(a), 69.6 + 8.0 * math.sin(a), 3.4, 4)
 
 
 def rrect(c0, r0, c1, r1, rad, seg=4):
@@ -982,19 +1201,62 @@ def cull_hidden(obj, grid=3, ndirs=40):
 def build(coll):
     P, colors, F = sprite_grid()
     mats = Mats(colors)
-    rows = np.arange(H)[:, None]
-    cols = np.arange(W)[None, :]
-    blue = np.isin(P, list(BLUE))
-    padzone = (rows >= 56) & (cols >= 24) & (cols <= 47) & (blue | (rows >= 61))
-    pad = F & padzone
-    deck = F & ~padzone
-
     # Parts, clipped to F: only the islands whose plan box leaves F get a boolean.
     bp = B(mats)
-    build_parts(bp)
+    bt = B(mats)
+    bh_ = B(mats)
+    build_casemate(bh_, F)
+    house = bh_.finish("house", coll, weld=True)
+    print("house faces", len(house.data.polygons), "zmax px", max((v.co.z for v in house.data.vertices), default=0) * 12)
+    build_parts(bp, bt)
     parts = bp.finish("parts", coll, weld=False)
+    turret = bt.finish("turret", coll, weld=False)
+    # The turret casting keeps the sprite's see-through gaps (hatch slit, the hole by the box): it is
+    # cut by a plate with those holes (enclosed non-plan px of the turret block), nothing else.
+    zone = np.zeros_like(F)
+    zone[59:81, 22:50] = True
+    outside = np.zeros_like(F)
+    stack = [(59, 22)]
+    while stack:
+        r, c = stack.pop()
+        if not (59 <= r < 81 and 22 <= c < 50) or outside[r, c] or F[r, c]:
+            continue
+        outside[r, c] = True
+        stack += [(r + 1, c), (r - 1, c), (r, c + 1), (r, c - 1)]
+    for r in range(59, 81):  # flood from every zone edge
+        for c in (22, 49):
+            stack.append((r, c))
+    for c in range(22, 50):
+        for r in (59, 80):
+            stack.append((r, c))
+    while stack:
+        r, c = stack.pop()
+        if not (59 <= r < 81 and 22 <= c < 50) or outside[r, c] or F[r, c]:
+            continue
+        outside[r, c] = True
+        stack += [(r + 1, c), (r - 1, c), (r, c + 1), (r, c - 1)]
+    holes = zone & ~F & ~outside
+    print("turret holes px", int(holes.sum()), [tuple(map(int, x)) for x in np.argwhere(holes)])
+    bh = B(mats)
+    slab(bh, smooth_field(zone & ~holes), 60.0, 0.0, 2, z0=-3.0, tol=0.05, min_area=0.0)
+    hcut = bh.finish("hcut", coll)
+    mod = turret.modifiers.new("holes", "BOOLEAN")
+    mod.operation = "INTERSECT"
+    mod.object = hcut
+    mod.solver = "MANIFOLD"
+    try:
+        mod.material_mode = "TRANSFER"
+    except Exception:  # noqa: BLE001
+        pass
+    apply_mods(turret)
+    bpy.data.objects.remove(hcut, do_unlink=True)
     print("parts tris before clip", sum(len(f.vertices) - 2 for f in parts.data.polygons))
-    fieldF = smooth_field(F)
+    fieldF = grown_field(closed_plan(F))  # fittings clipped to the same narrowed slits as the casemate
+    # The power turret's ring (rows 58+) is one round casting: its plan is the sprite blurred wider,
+    # so the ring and its plinth end in a smooth curve, not the dark border's pixel knobs.
+    i0 = int((58 + PAD) * SUB)
+    soft = smooth_field(F, 1.0)
+    fieldF[i0:] = np.minimum(fieldF[i0:], soft[i0:] + 0.12)  # trims knobs, keeps the sprite's gaps
     bc = B(mats)
     slab(bc, fieldF, 60.0, 0.0, 2, z0=-3.0, tol=0.05, min_area=0.0)
     cutter = bc.finish("cutter", coll)
@@ -1038,6 +1300,8 @@ def build(coll):
         nb = len(o.data.polygons)
         apply_mods(o)
         clipped += 1
+        print(f"clip: c {c0:.1f}-{c1:.1f} r {r0:.1f}-{r1:.1f} z {max(v.co.z for v in o.data.vertices) * 12 if o.data.vertices else 0:.1f}"
+              f" faces {nb} -> {len(o.data.polygons)}")
         if len(o.data.polygons) < 4:
             print(f"EMPTY clip: c {c0:.1f}-{c1:.1f} r {r0:.1f}-{r1:.1f} faces {nb} -> {len(o.data.polygons)}")
     print(f"clipped {clipped} of {len(islands)} islands")
@@ -1049,6 +1313,14 @@ def build(coll):
     bpy.context.view_layer.objects.active = islands[0]
     bpy.ops.object.join()
     parts = islands[0]
+    for o in bpy.context.view_layer.objects:
+        if o is not None:
+            o.select_set(False)
+    parts.select_set(True)
+    turret.select_set(True)
+    house.select_set(True)
+    bpy.context.view_layer.objects.active = parts
+    bpy.ops.object.join()
     bpy.data.objects.remove(cutter, do_unlink=True)
     # Parts stand on the deck / pad: their ground faces (z = 0, facing down) are dropped so the
     # underside is the deck's own closed bottom (no z-fighting there).
@@ -1059,11 +1331,13 @@ def build(coll):
     bm.to_mesh(parts.data)
     bm.free()
 
-    # Deck and pad.
+    # Base deck: one armoured plinth under the whole plan (gunmetal, not ink black). No pad: the
+    # turret stands on the HD ground (D130).
     bd = B(mats)
-    slab(bd, plate_field(deck), 1.9, 0.4, 2, tol=0.16, min_area=1.2)
-    # The landing pad is a steel deck (about 1 px = 0.08 u thick, chamfered), not a sheet.
-    slab(bd, plate_field(pad), 1.0, 0.3, 98, tol=0.16, min_area=1.2)
+    deckF = fieldF.copy()  # the plan's smooth outline (grown_field): no pixel stairs round the plinth
+    deckF[int((61.7 + PAD) * SUB):] = 0.0  # the turret's ring is its own base
+    deckF[i0:] = np.minimum(deckF[i0:], soft[i0:] + 0.12)
+    slab(bd, deckF, DK, 0.45, 4, tol=0.16, min_area=1.2)
     deck_o = bd.finish("deck", coll)
     print("deck tris", sum(len(f.vertices) - 2 for f in deck_o.data.polygons))
     print("parts tris after clip", sum(len(f.vertices) - 2 for f in parts.data.polygons))
@@ -1076,7 +1350,7 @@ def build(coll):
     bpy.ops.object.join()
     obj = parts
     obj.name = obj.data.name = NAME
-    return obj, bp.parts, P, colors, F
+    return obj, bh_.parts + bp.parts + bt.parts, P, colors, F
 
 
 def main():
@@ -1094,9 +1368,13 @@ def main():
         assert (e["cx"] - 56, e["cy"] - 10) == mine[1:], (e, mine)
     pieces = common.split_assembly(obj, layout)
     total = 0
+    sealed = {}
     for name, cx, cy in layout:
         p = pieces[name]
         p.location = (cx / 12, -cy / 12, 0)
+        # The outline shell's source: a copy taken BEFORE the cull, kept out of the scene (D90/D118:
+        # a shell wrapped round the culled, open parts followed the seams in and drew ink slabs).
+        sealed[name] = bpy.data.objects.new(f"{name}_sealed", p.data.copy())
         n = cull_hidden(p)
         me = p.data
         me.set_sharp_from_angle(angle=math.radians(32))
@@ -1125,7 +1403,12 @@ def main():
         loc = p.location.copy()
         p.location = (0, 0, 0)
         bpy.context.view_layer.update()
-        sh = common.outline_shell(p, coll, faces=1200)
+        src = sealed[name]
+        coll.objects.link(src)
+        src.matrix_world = p.matrix_world.copy()
+        bpy.context.view_layer.update()
+        sh = common.outline_shell(src, coll, voxel=0.03, faces=2500, inside=0.004)
+        bpy.data.objects.remove(src, do_unlink=True)
         sh.name = sh.data.name = f"{name}_outline"
         data = common.load_sprite(WT, name)
         common.export_sprite_model(WT, [p, sh], f"enemies/{name}", data["sprites"],
@@ -1353,7 +1636,7 @@ def review(pieces, shells, out):
     for nm, (loc, look) in views.items():
         cam(nm, loc, look, ortho=ext, rx=900, ry=260)
         shot(out / f"{nm}.png")
-    d = 16
+    d = 11
     el = math.radians(32)
     az = math.radians(35)
     cam("q_high", (d * math.cos(el) * math.sin(az), -d * math.cos(el) * math.cos(az), d * math.sin(el)), (0, 0, 0.2),

@@ -6048,3 +6048,29 @@ painted). Captures (3840x2160, before = main, after = this): `tyrian-scratch/cov
 `pairs/` (1.3 t3310, t3515; 1.5 t2560, t3300), `crops/` (`1.3_t3310_band.png`, `1.5_t2560_pillar_ends.png`,
 `1.5_t2560_crane_base.png`: top before, bottom after), `work/13_deadcmp.png` (bottom: the racks left out of the cover
 test, their lights back).
+
+## D140 — DELIANI's gun emplacement (assembly-newshu-79) rebuilt as a working emplacement, not a pile of boxes (extends D52, D65, D53)
+
+2026-11-11
+
+**Problem** (QA2 issue 7, `tyrian-scratch/e1-qa-2/REPORT.md`): `assembly-newshu-79` (pieces newshu-1, 3, 5, 39, 41, 43,
+79) read as a pile of boxes in the game's render.
+
+**Identity:** a fixed working gun emplacement: a gun house with sloped armour on a collar; a barrel through a banded
+mantlet into the purple muzzle shell; an armoured feed trunk to the power turret; casemate fittings sunk into the roof.
+
+**Changed:** `assets/blender/enemies/assembly-newshu-79.py` and the seven GLBs `public/models/enemies/newshu-{1,3,5,39,41,43,79}.glb`.
+The sprite's outline, feature placement and palette indices still win (rule 1); the game contract (`pal_<index>`
+materials, pieces and pivots, export paths) is unchanged.
+
+**Measured:** rule-grid top-view IoU 0.9743 whole; worst piece newshu-41 at 0.9616; every piece at least 0.95. The final
+strict review shipped it at 7/10. Sheet: `tyrian-scratch/newshu-79/assembly-newshu-79/final/cmp.png`; in-game before/after:
+`final/ingame_pair_prev_new.png`.
+
+**Follow-ups (from the review):**
+- the left wing is still a busy patch of small caps on a flat slab;
+- the IoU margin is thinner than before: do not close more slits;
+- 1 px edge-line colour mismatches against the sprite;
+- the muzzle pod is less pointed than the sprite.
+
+**Cost:** 6 agents, 0.92M tokens.
