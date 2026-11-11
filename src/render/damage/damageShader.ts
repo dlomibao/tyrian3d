@@ -4,8 +4,9 @@
 // shared by all enemies). Its uniforms say where the damage is, in the sprite's own pixels: each
 // fragment is projected straight down onto the sprite (model-root x, z times PX_PER_UNIT, from the
 // sprite's centre), so the damage lands where the damaged sprite shows it, whatever the model's shape.
-// Off (uDmgOn = 0) the patch changes nothing. Three textures (damageFrames.ts), 24x28 or 12x14,
-// bilinear so nothing is blocky:
+// Off (uDmgOn = 0) the patch changes nothing. Three textures (damageFrames.ts) of the sprite's
+// 24x28 or 12x14 pixels, upsampled 4x (the cut by a cubic, the rest by a slight blur, D128) and
+// read bilinear, so nothing is blocky:
 //
 // - `mask`: r = the pixel is gone (the fragment is cut away, with a charred, glowing rim);
 //   g = extra scorch where it got darker; b = it turned hot (embers glow); a = it changed colour.

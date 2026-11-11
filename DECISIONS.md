@@ -5521,3 +5521,29 @@ superpixels (`Pass.Effects`, drawn over everything in the C too); unchanged.
 
 Captures: `tyrian-scratch/qa2-renderer/` (`before/`, `stars-after/`, `cmp_*.jpg`: 1.1 t4050 and t1050 (space), 1.2
 t4050, 1.6 t1050, 1.7 t1597, 1.14 t2680).
+
+## D128 — A damaged frame's textures are upsampled smoothly, so the damage has no pixel blocks (extends D87, like D114)
+
+2026-11-10
+
+**Problem** (`tyrian-scratch/e1-qa-2/REPORT.md` issue 8): SOH JIN's damaged red blocks (1.13 t1800,
+`enemies/newshm-1`) showed a blocky pixel camouflage at 4K. The report guessed nearest-neighbour sampling; the textures
+were already bilinear (`damageFrames.ts`). The cause: D87's three textures are the sprite's 24x28 (or 12x14) pixels, one
+texel each, and a repainted frame changes pixel by pixel, so bilinear filtering showed every texel as a square with
+straight creases between them (one sprite pixel is about 15 px on a 4K screen).
+
+**Decision:** the textures are built at 4x (`DAMAGE_UPSAMPLE`, 96x112 for a 2x2 sprite) from the same per-pixel values,
+each channel upsampled separably:
+- the cut (`mask` r) by a Catmull-Rom cubic, which passes through every pixel's value, so a one-pixel hole stays a hole
+  and straight cut edges stay where they were, without the bilinear corners;
+- scorch, embers, the changed-colour amount, the tint and the paint by a Gaussian of 0.75 sprite px (D114 used 0.9 for
+  the glass orb's parts), so a repainted frame's pixel noise reads as soft blotches.
+The shader is unchanged (it reads in sprite-pixel UVs, so the texture size doesn't matter to it). The player ship's wear
+(D90) keeps its own pattern texture. Build cost: about 0.1M multiply-adds per channel per frame and palette, on a frame's
+first draw and on palette changes.
+
+Checked with `?debug=play&hurt=1`: the SOH JIN blocks (1.13 t1050, t1800 at 4K), DELIANI's green pod
+(`newshc-197`/`-199`, 1.5 t3300) and SAVARA's cut `newshi-278` (1.12 t3300, its charred, glowing cut rims unchanged).
+Test: `tests/render/damageUpsample.test.ts`.
+
+Captures: `tyrian-scratch/qa2-renderer/` (`dmg-before/`, `dmg-after/`, `dmg-after/cmp_*`: left before, right after).
