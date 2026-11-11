@@ -5501,3 +5501,23 @@ and `newshe-277` (ALE), which did not show in 8,000 ticks of `main=33`/`41`.
   reads pink, `newshd-229`'s 233 gem (3.5-6.0) periwinkle. Lower those strengths toward 1 / brightest channel.
 - Workarounds that can go: `newshj-19`'s metallic 1.0 / roughness 0.6 (D122) and `newshd-121`'s `dim_visor()` (D121).
 - `palette_material`'s docstring (`assets/blender/common.py`) now says what a strength means in game.
+## D127 — Stars show only where background 1 is black, as the C tests its screen
+
+2026-11-10
+
+**Problem** (`tyrian-scratch/e1-qa-2/REPORT.md` issue 1): stars were drawn over floors and models in 1.1, 1.2, 1.3, 1.6, 1.7
+and 1.14. `update_and_draw_starfield` (backgrnd.c L1067-1101) paints a star pixel only where the screen is still 0 after
+background 1, but the draw list has no screen, so the sim recorded every star pixel and the renderer drew them all at
+`Pass.Starfield`'s height (0.02, D5), over the ground.
+
+**Decision:** the renderer tests each star pixel as the C did (`src/render/starCover.ts`): against the background-1
+tiles of the same draw list, at their tick positions, a pixel over a non-zero tile pixel is skipped. The cover is a
+320x200 byte mask, rebuilt once per draw list. Stars over black space draw as before. Everything the C drew after the
+stars (backgrounds 2 and 3, enemies, shots) already covers them by depth, as it sits higher (D5). The test is on the
+original tile's pixels, not the HD painting (D57): the painted space tiles (0, 58, 59) are black in both.
+
+**Not stars:** the dark crosses left on 1.6's pipe at t1050 and on 1.14's blocks at t2680 are `JE_drawSP`'s
+superpixels (`Pass.Effects`, drawn over everything in the C too); unchanged.
+
+Captures: `tyrian-scratch/qa2-renderer/` (`before/`, `stars-after/`, `cmp_*.jpg`: 1.1 t4050 and t1050 (space), 1.2
+t4050, 1.6 t1050, 1.7 t1597, 1.14 t2680).
