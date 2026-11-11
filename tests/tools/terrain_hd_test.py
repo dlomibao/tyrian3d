@@ -230,6 +230,35 @@ class StripTest(unittest.TestCase):
             np.testing.assert_array_equal(s1[k], s2[k])
 
 
+class FieldTest(unittest.TestCase):
+    """A repeated tile painted as one patch (D137)."""
+
+    def test_patch_is_seamless_when_repeated(self):
+        rng = np.random.default_rng(3)
+        a = np.cumsum(np.cumsum(rng.normal(size=(60, 70, 3)), 0), 1).astype(np.float32)  # a drifting texture: its edges differ
+        p = th.make_periodic(a, 0.3)
+        wrap = np.abs(p[:, 0] - p[:, -1]).mean(), np.abs(p[0] - p[-1]).mean()
+        inside = np.abs(np.diff(p, axis=1)).mean()
+        self.assertLess(max(wrap), 1.5 * inside)  # the wrap is a step like any other, not a seam
+        self.assertGreater(np.abs(a[:, 0] - a[:, -1]).mean(), 3 * inside)  # (and the raw patch was)
+
+    def test_virtual_tiles_follow_the_map_column_and_row(self):
+        g = np.full((13, 15), 16)
+        g[0, 0] = 5
+        v = th.field_grid(g, {16: 0})
+        self.assertEqual(v[0, 0], 5)
+        self.assertEqual(v[1, 2], th.FIELD_BASE + 1 * th.FIELD_COLS + 2)
+        self.assertEqual(v[1 + th.FIELD_ROWS, 2 + th.FIELD_COLS], v[1, 2])  # the patch repeats
+        self.assertEqual(th.field_real(int(v[1, 2]), {16: 0}), 16)
+
+    def test_histogram_match_takes_the_reference_colours(self):
+        a = np.random.default_rng(1).uniform(0, 255, (40, 40, 3)).astype(np.float32)
+        ref = np.random.default_rng(2).normal([10, 30, 50], [3, 8, 12], (50, 50, 3)).astype(np.float32)
+        out = th.match_histogram(a, ref)
+        self.assertLess(np.abs(out.mean((0, 1)) - ref.mean((0, 1))).max(), 1.0)
+        self.assertLess(np.abs(out.std((0, 1)) - ref.std((0, 1))).max(), 1.0)
+
+
 class RimFix(unittest.TestCase):
     """fix_rim (D113): the teal ring the seam strips left on blue-grey plating."""
 

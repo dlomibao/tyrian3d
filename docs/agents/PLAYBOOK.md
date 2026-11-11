@@ -231,6 +231,8 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
   HD first frame slow, worm drawn as sprites → atlases uploaded during preload (D60). Gemini "running
   low on usage" after ~25 Pro requests → stop, cut with what exists; next session restore the atlas
   folder (`git checkout -- public/art/terrain/<tileset>`) and cut again with all answers (doc §3).
+  A sea or field made of ONE tile repeated over the map (SAVARA's tiles 16 and 24) can't be varied by sheets or neighbour variants: paint it as one
+  large patch with `fieldsheet` / `fieldcut` (D137), the manifest's `fields`.
   Kept tiles meeting in pairs their level never had (TYRIAN's clouds on HOLES: 1.11) → `--recut` that
   layer over all levels, or variants (D83). Metal plating/pipes on layers 1-2 → structure models, not
   paintings (D83). Grey boxes or smears in black space, an edge taking a colour from another level's

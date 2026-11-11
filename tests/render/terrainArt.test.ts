@@ -114,6 +114,44 @@ describe("fallback per tile", () => {
     expect(t.tile(0, 2, 0)?.x).toBe(224);
   });
 
+  test("a field (D137) picks its sub-tile by the cell's map column and row, in an atlas of its own", () => {
+    const warnings: string[] = [];
+    const m = parseTerrainManifest(
+      {
+        scale: 8,
+        layers: {
+          "0": {
+            image: "0.webp",
+            tiles: { "7": rect(16, 16) },
+            fields: {
+              "7": { cols: 3, rows: 2, image: "f.webp", rects: [0, 1, 2, 3, 4, 5].map((i) => rect(16 + 208 * i, 16)) },
+              "8": { cols: 2, rows: 2, rects: [rect(0, 0)] }, // wrong count: skipped
+            },
+          },
+        },
+      },
+      (w) => warnings.push(w),
+    )!;
+    expect(warnings.length).toBe(1);
+    const t = new TerrainTileset<string>("shapesy", m);
+    expect([...t.images.keys()].sort()).toEqual(["0.webp", "f.webp"]);
+    t.setImage("0.webp", { texture: "a", width: 1024, height: 512 });
+    t.setImage("f.webp", { texture: "f", width: 2048, height: 512 });
+    // 4 wide, 3 rows of tile 7: column 3 wraps to sub-tile column 0, row 2 to sub-tile row 0.
+    t.setMap(0, { width: 4, tiles: new Array(12).fill(7) });
+    expect(t.listed(0, 7)).toBe(true);
+    expect(t.tile(0, 7, 0)).toEqual({ texture: "f", x: 16, y: 16 });
+    expect(t.tile(0, 7, 1)?.x).toBe(16 + 208);
+    expect(t.tile(0, 7, 3)?.x).toBe(16); // column 3 -> 0
+    expect(t.tile(0, 7, 4)?.x).toBe(16 + 208 * 3); // row 1, column 0
+    expect(t.tile(0, 7, 9)?.x).toBe(16 + 208 * 1); // row 2 -> 0, column 1
+    // A sub-tile whose atlas hasn't loaded falls back to the plain tile.
+    const t2 = new TerrainTileset<string>("shapesy", m);
+    t2.setImage("0.webp", { texture: "a", width: 1024, height: 512 });
+    t2.setMap(0, { width: 4, tiles: new Array(12).fill(7) });
+    expect(t2.tile(0, 7, 1)).toEqual({ texture: "a", x: 16, y: 16 });
+  });
+
   test("a covered tile (D86) has its own painting, possibly in an atlas of its own; others have none", () => {
     const warnings: string[] = [];
     const m = parseTerrainManifest(
