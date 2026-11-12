@@ -8073,3 +8073,70 @@ lighter there.
   Test: `tests/render/hueBlend.test.ts`.
 
 **Cost:** one Opus agent, no workflow: about 60 headless captures (two at a time), no Gemini, no Blender.
+
+## D175 — Rock contrast: the asteroids' facets take the sprite's own shade ramp (the facet ramp), not one mid-tone; global lighting is not the cause (fixes a user report; extends D125, D144; art rule 2)
+
+2026-11-12
+
+**User report:** "a number of rocks that were modeled read as very flat vs the original sprites that have much more
+dynamic range and highlights".
+
+**Measured** (luminance of each rock inside its ink ring, in the game's renderer: the `?debug=models` bench under the
+game's lights, overhead camera, and in ASTEROID1/2 with `&compare=1`; p5-p95 spread, share >= 190 "hi", share <= 64
+"sh"). The flat ones are the D125 asteroids: spread 28-63 against their sprites' 130-185, no highlight pixels (sprites
+3-10 %), 1-10 % shadow (sprites 33-62 %), 3-5 shade levels (8-11). The D123 rocks with a palette per region
+(`newshd-123`, `-85`, `-229`) spread 109-140 under the same lights; `assembly-newshd-45` spread 99-121 with no darks;
+the ground outcrops `assembly-newshd-39` / `-89` are already within ±10 % of their sprites. Cause, by experiment:
+- **(c) palette, the main one:** every D125 rock was one material at the sprite's trimmed median (pal_104 / pal_7), and
+  the sprite draws its range with palette entries: near-white 109-111 / 13-15 highlights, the grey 1-3 dark limb.
+  Lighting alone cannot get a mid-tone there.
+- **(a) geometry:** a low dome; projected-area median facet tilt 34-41° (D123 rocks 53-57°), game sun N·L p5 0.24-0.36
+  (D123: 0.00), so few faces turn away from the light.
+- **(b) material:** roughness 0.9 and an AO bake whose colour map is 255 over half the texels; roughness 0.55 at
+  runtime adds only +5..+22 spread (and is sheen, not rock).
+- **(d) global lighting, not a cause:** hemisphere 1.2→0.5 and environment 0.7→0.3 with the sun 2.5 or 3.5 (set at
+  runtime in the bench, view.ts untouched) changed the D125 rocks' spread by -11..+9 (it only darkens them;
+  `newshd-18` +46..+51, its glowing vent staying bright as the rock darkens); the sun moved to the art's upper left
+  (-8, 14, -6) by -28..+2 (`newshd-18` +28). With the fixed models: fill lowered -32..+7, sun upper left +2..+15. **Recommendation: leave view.ts's fill and sun
+  as they are** (D171's values); nothing in the rock contrast asks for a change.
+
+**Decision (model-side, `lib_newshd_rock.py`):**
+- `facet_ramp` (default on; `SPEC["ramp"] = None` turns it off): the rock is split into facets (faces grown within 12°
+  and 1.5 sprite px of the first face; large fracture faces are first grid-cut into 2 px chips, `chip_planes`, so they
+  never fan into slivers); each facet is shaded flat (custom normals: crisp breaks, a chipped stone) and gets one
+  palette shade of the rock's own colours (the mid's ramp and the low-saturation greys of the dark limb). The facets are
+  ranked by how squarely they face the art's light (upper left) blended 0.4 / 0.6 with the sprite's brightness under
+  them from above, and the ranks are matched to the sprite's own shade distribution over the top view, so the near-white
+  highlights land on the facets the sprite lights and the dark limb on those turned away. Art rule 2 holds: the
+  highlights are lit facets; the sprite's mottle becomes colour chips on the planes (wear, rubric), no bumps.
+- `assembly-newshd-45` runs the ramp per stone (a `stone` face attribute through the join; the facet normals ride as a
+  `facet_n` attribute and are set on each piece after the split) with `bias` 0.06 (its broad lit stones put about 8x the
+  sprite's near-white share on screen at 0).
+- Materials stay matte (metallic 0, roughness 0.9 as specified); the bake and the D90 shell are unchanged.
+
+**Result** (bench, game lights; sprite / before / after):
+
+| Model | spread | hi | sh | top-view median shade (sprite/model) | grid IoU |
+|---|---|---|---|---|---|
+| newshd-152 | 185 / 63 / 196 | .10/.00/.12 | .50/.05/.37 | 102/102 | 0.9921 |
+| newshd-114 | 178 / 51 / 186 | .06/.00/.07 | .54/.03/.47 | 102/102 | 0.9906 |
+| newshd-133 | 185 / 29 / 167 | .07/.00/.05 | .62/.01/.46 | 102/102 | 1.0 |
+| newshd-95 | 130 / 53 / 156 | .03/.00/.03 | .54/.10/.50 | 102/102 | 0.9823 |
+| newshd-5 | 174 / 50 / 191 | .04/.00/.11 | .35/.01/.19 | 6/6 | 0.9705 |
+| newshd-43 | 153 / 28 / 185 | .02/.00/.08 | .33/.02/.31 | 6/6 | 0.9694 (D125: 0.9727) |
+| newshd-18 | 178 / 63 / 195 | .05/.00/.10 | .37/.01/.21 | 6/6 | 0.9705 |
+| assembly-newshd-45 (pieces 9 / 45 / 47) | 125-171 / 100-121 / 151-178 | ≤.02 / ≤.04 / .01-.10 | .20-.26 / .02-.09 / .33-.36 | 8/8 | 0.9955 |
+
+Top-view shade correlation with the sprite 0.65-0.79 (before: one colour). In ASTEROID1/2 (overhead, aggregated over the
+captured frames): newshd-133 spread 89→170 (sprite 174), -114 110→183 (163), -95 97→136 (136), -152 113→146 (191).
+Triangles +25-30 % (the chips), glb sizes +25-45 %, 9-14 palette materials per rock (draw calls per rock type).
+Summary (bench crops, histograms, in-level crops): `tyrian-scratch/rock-contrast/summary.png` (not in git, D3).
+
+**Follow-ups:** the bench shows faint lighter flecks on `newshd-7`'s cut face (the piece seam, hidden when the
+assembly is whole); `newshd-7` (the facet stone, PAL_OVERRIDE 10) keeps more near-white than its sprite. Other rocks
+measured flat but on their own builders, left for their own rounds: `newsh8-102` (spread 84 vs 179), `newshr-190`
+(63 vs 110), `newsh3-262` (63 vs 89); `newshk-1` reads too bright (78 % near-white vs 29 %). `assembly-newshd-39` / `-89`
+have the range but read smoother than their mottled sprites.
+
+**Cost:** one Opus agent, no workflow, no Gemini: about 40 headless captures (two at a time) and about 12 Blender
+build rounds of the 8 scripts (`-j 2`).
