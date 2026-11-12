@@ -34,7 +34,7 @@ the game data and the repo by `tools/inventory.mjs`; the machine-readable versio
 | 3 | 12 | 1202 | 121 / 70 / 191 | 0 | 3 / 2 / 3 | 6 (21) | 15 (15) | 1 (1) |
 | 4 | 20 | 762 | 38 / 124 / 199 | 0 | 5 / 2 / 5 | 15 (56) | 18 (18) | 3 (3) |
 
-Whole game: 62 levels; 481 enemy units (202 flagship, 234 older-style models, 45 with frames still unmodelled), decor (indestructible boss and scenery pieces) included; 69 pickup and empty units; 5 tilesets (5 with HD art, 2 with structure models); 231 shot frames (231 with flat art); 33 songs used (33 remastered).
+Whole game: 62 levels; 481 enemy units (202 flagship, 234 older-style models, 45 with frames still unmodelled), decor (indestructible boss and scenery pieces) included; 69 pickup and empty units; 5 tilesets (5 with HD art, 2 with structure models); 317 shot frames (238 with flat art); 33 songs used (33 remastered).
 
 Unique sprites counts each enemy and pickup frame (normal and damaged) once per episode; boss units are
 the units created with a boss bar's link number (event 79), pieces included.
@@ -118,8 +118,33 @@ every weapon and sidekick the episode's shops sell.
 
 | # | Shot (sheet\|size\|frame) | Fired by | Levels (enemy) | Episodes | Ticks |
 |---|---|---|---|---|---|
+| 1 | tyrian.shp#7\|1\|142 | player shot | 0 | 4 | 0 |
+| 2 | tyrian.shp#7\|1\|18 | player shot | 0 | 4 | 0 |
+| 3 | tyrian.shp#7\|1\|271 | player shot | 0 | 4 | 0 |
+| 4 | tyrian.shp#7\|1\|272 | player shot | 0 | 4 | 0 |
+| 5 | tyrian.shp#7\|1\|273 | player shot | 0 | 4 | 0 |
+| 6 | tyrian.shp#7\|1\|274 | player shot | 0 | 4 | 0 |
+| 7 | tyrian.shp#7\|1\|34 | player shot | 0 | 4 | 0 |
+| 8 | tyrian.shp#7\|1\|52 | player shot | 0 | 4 | 0 |
+| 9 | tyrian.shp#7\|1\|56 | player shot | 0 | 4 | 0 |
+| 10 | tyrian.shp#11\|1\|154 | player shot | 0 | 3 | 0 |
+| 11 | tyrian.shp#11\|1\|172 | player shot | 0 | 3 | 0 |
+| 12 | tyrian.shp#11\|1\|173 | player shot | 0 | 3 | 0 |
+| 13 | tyrian.shp#11\|1\|174 | player shot | 0 | 3 | 0 |
+| 14 | tyrian.shp#11\|1\|175 | player shot | 0 | 3 | 0 |
+| 15 | tyrian.shp#11\|1\|176 | player shot | 0 | 3 | 0 |
+| 16 | tyrian.shp#11\|1\|177 | player shot | 0 | 3 | 0 |
+| 17 | tyrian.shp#11\|1\|178 | player shot | 0 | 3 | 0 |
+| 18 | tyrian.shp#11\|1\|179 | player shot | 0 | 3 | 0 |
+| 19 | tyrian.shp#11\|1\|180 | player shot | 0 | 3 | 0 |
+| 20 | tyrian.shp#11\|1\|181 | player shot | 0 | 3 | 0 |
+| 21 | tyrian.shp#11\|1\|182 | player shot | 0 | 3 | 0 |
+| 22 | tyrian.shp#11\|1\|183 | player shot | 0 | 3 | 0 |
+| 23 | tyrian.shp#11\|1\|191 | player shot | 0 | 3 | 0 |
+| 24 | tyrian.shp#11\|1\|192 | player shot | 0 | 3 | 0 |
+| 25 | tyrian.shp#11\|1\|193 | player shot | 0 | 3 | 0 |
 
-0 shot frames have no flat art (`ranking.shots`); 231 do.
+76 shot frames have no flat art (`ranking.shots`); 238 do.
 
 ### Music and pictures
 

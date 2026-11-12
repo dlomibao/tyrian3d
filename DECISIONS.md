@@ -7897,3 +7897,64 @@ s030. Captures and the summary: `tyrian-scratch/shadow-fix/` (`before/`, `after/
 Test: `tests/render/flyerShadows.test.ts`.
 
 **Cost:** one Opus agent, no workflow: about 30 headless captures (two at a time), no Gemini, no Blender.
+
+## D172 — Shot and pickup art held to the sprite's colours (a palette-ramp recolour in flat_art.py), the sidekick shots the inventory missed painted, and the inventory's sidekick scan fixed (follows D97, D108; art rule 1)
+
+2026-11-12
+
+**Findings** (title-demo comparison, overhead, `tyrian-scratch/demo-compare/overhead/REPORT.md` #6, #7, #12, #18):
+shot frames still drawn as extruded sprites (#7 48, 50, 51), and painted frames whose colours drifted from the sprite's:
+the side fireballs (#7 121/122) pale yellow-white, DELIANI's round shots pale gold, the twin streaks orange with white
+heads, the Zica Laser pale cyan with a dark seam under its head and a V-shaped tail, the tan datacube's first frame
+grey, the green gem's twinkle near-black to pale mint.
+
+**Identified from the draw list** (the demos replayed headless, `tyrian-scratch/shot-art-fix/demodraws.mjs`): #7 50/51
+are the Warfly sidekick's diamond (option 19) and #7 48 the Gerund sidekick's missiles (option 21), both sold in
+episode 1 and flown in the demos; DELIANI's round shots are the enemy shot #7 112/113; its "streaks" are not enemy
+shots but the player's twin streaks #7 277/278/296/297; the Zica Laser is head #7 97/101, body 116/120 and tail
+135/139 (weapons 199-209); the datacube animates #10 159, 161, 163 (2x2) and 159 is the grey one, as the report
+inferred; the green gem is #10 32-36 and the blue one 51-55.
+
+**Why D108 missed them:** `tools/inventory.mjs` took a sidekick's shots from `weapons[option.wPort]`, but the C fires
+`player_shot_create(wPort, ..., wpNum + charge)`: wPort is the port number, the weapon is wpNum (plus each charge level
+0..pwr for the Charge Cannon). So every sidekick's own shots were missing (the frames it did list were other weapons').
+Fixed, and the scan now also counts what a level's pickups give the player (a weapon port, a sidekick or a special:
+evalue > 30000, JE_playerCollide) and the title demos' loadouts. The inventory goes from 231 shot frames (all flat) to
+317, of which 82 had no art; this entry paints 6, so **76 remain** (`docs/roadmap/inventory.md`, "Shots without flat
+art"): the Zica Flamethrower sidekick's 48 frames (#11 172-240), the Wobbley (#7 233-237), MicroBomb and minefields
+(#7 271-274), Atom Bombs (142), Phoenix Device (18, 56), MegaMissile (34), Mini-Missile (52), Buster Rocket (71),
+BattleShip Firebomb (102, 104), Side Ship (107, 108), Vulcan Shot Option (148), Post-It (238), Protron Cannon Indigo
+(247), Pearl Wind (255), FrontBlaster II (262), Beno sidekicks (#7 28-30) and Ice Beam (#11 154). Too many for this
+fix; a D108-style run (about 8 sheets) covers them.
+
+**Decision:**
+- **Recolour toward the sprite's palette ramp** (`tools/flat_art.py`, `tools/flat_art_recolour.json`): a frame keeps
+  its painting's shapes and detail, and takes the sprite's colours: each texel's brightness rank is matched to the
+  sprite's brightness at the same rank (histogram matching against the sprite smoothed 0.35 px, so it isn't
+  posterised into the palette's few steps), and its colour is the sprite's mean colour at that brightness. The rank
+  mixes the painting's brightness with the sprite's own at that texel (`layout`, default 0.6; 0.7 for the round shots
+  and streaks, whose painted hot spot sat off the sprite's core; 0.35 for the gems and the cube, to keep their facets).
+  A 2x2 object is fitted whole, so its tiles still meet. `cut` applies the file to what it cuts; `flat_art.py recolour`
+  applied it once to the committed atlases. Per-frame colour means now match the sprite's within 3 levels (fireball
+  orig (220,124,40), was (231,168,81), now (222,127,41); round shot #7 113 (158,70,25) / was (239,145,39) / now
+  (161,72,27); streak #7 296 (184,46,7) / (203,123,67) / (186,48,8); Zica body #7 120 (68,101,192) / (99,150,204) /
+  (68,102,193); cube #10 159 (138,122,106) / (129,131,133) / (137,121,105); gem #10 32 (18,54,18) / (10,25,14) /
+  (18,55,18), #10 35 (49,94,41) / (122,159,122) / (50,95,41)).
+- **Beam joins** (the same file's `joins`): the Zica Laser's pieces are stacked edge to edge, so at a join the
+  silhouette's alpha is computed with the neighbour's pixels beyond the edge (no fade, no dark line between pieces),
+  and the head's and tail's last 2 px fade into the body's colours there (no seam under the head). The tail keeps the
+  sprite's silhouette; recoloured, its dark-blue edges taper round as the original's do, instead of a pale V.
+- **New paintings:** one Gemini sheet (`fix-shots`, 6 cells: #7 48, 50, 51 and the Charge Cannon's 252-254), one
+  request, no retry, cut with `cut --merge` (fit 0.52-0.92; weakest the dark diamond #7 51) and recoloured
+  (layout 0.5). `tyrian.shp#7`: 184 -> 190 frames.
+
+**Not changed here:** the D35 halo over shots (REPORT #2), which D169 (merged while this was made) moved under the
+art and took off ordnance; this entry's default-look captures predate it, so they still show the old halo washing the
+fixed shots lighter than the halo-free `?vfx=original&sprites=remastered` ones.
+
+**Checked:** the four demos the findings came from, `?demo=N&compare=1&camera=overhead`, before (origin/main) and
+after, with the default look and with `?vfx=original&sprites=remastered`; `?debug=sprites` sheet grids of `#7` and
+`#10`; colour means per region. Summary `tyrian-scratch/art-fix/shot-art-fix-summary.png`; captures and the Gemini
+sheet, answer and prompt in `tyrian-scratch/shot-art-fix/` (not in git, D3). vitest, tsc, build.
+
+**Cost:** one Opus agent, no workflow: one Gemini request, 23 headless captures (two at a time), two inventory runs (~2 min each).
