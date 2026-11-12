@@ -1795,9 +1795,16 @@ def set_alpha(T, layer: int, inv_tiles: dict, done: dict[int, np.ndarray], model
     alphas = solve_alpha(T, layer, inv_tiles, done, models, args.alpha_min_pairs, args.lam, args.band_lo, args.band_hi, held,
                          getattr(args, "alpha_smooth", ALPHA_SMOOTH), getattr(args, "alpha_ramp", ALPHA_RAMP))
     inset = getattr(args, "rim_inset", 0)
+    if inset:
+        # The rim's colour from the core's (D154), then the colour seams solved again over the levels' pairs
+        # (the fill is per tile, so where a soft edge crosses a tile edge the two sides would differ).
+        for img in done.values():
+            img[..., :3] = smooth_fill(img[..., :3], inside_alpha(img[..., 3] / 255, inset))
+        pairs = all_pairs(T.levels, layer, models, set(done))
+        strips = solve_strips({n: img[..., :3] for n, img in done.items()}, pairs, args.lam)
+        for n, img in done.items():
+            img[..., :3] = apply_strips(img[..., :3], {side: strips[(n, side)] for side in OPPOSITE}, args.band_lo, args.band_hi)
     for n, img in done.items():
-        if inset:
-            img[..., :3] = bleed(img[..., :3], inside_alpha(img[..., 3] / 255, inset))
         img[..., :3] = bleed(img[..., :3], alphas[n])
         img[..., 3] = alphas[n] * 255
 
@@ -1810,6 +1817,31 @@ def inside_alpha(alpha: np.ndarray, inset: int) -> np.ndarray:
 
     core = ndimage.binary_erosion(alpha > 0.98, iterations=inset, border_value=1)
     return core.astype(np.float32)
+
+
+FILL_SIGMAS = (3, 6, 12, 24, 48)  # texels: the scales smooth_fill averages the kept colour over, fine to coarse
+FILL_FULL = 0.25  # a scale's share of kept texels at which it takes over from the coarser ones in full
+
+
+def smooth_fill(rgb: np.ndarray, keep: np.ndarray, sigmas=FILL_SIGMAS, full: float = FILL_FULL) -> np.ndarray:
+    """`rgb` where `keep` (> 0.5), elsewhere a smooth average of the kept colour round it (D154): normalised
+    Gaussian averages at `sigmas`, each finer one taking over where enough kept texels are near. `bleed`'s nearest
+    texel copies each kept texel on the core's edge straight outwards, so every dark brush stroke there became a
+    streak across a soft edge (the dark dashes along SAVARA's cloud edges, D132's `--rim-inset`). Nearest fill
+    stays the fallback for texels no scale reaches."""
+    from scipy import ndimage
+
+    k = (keep > 0.5).astype(np.float32)
+    if k.all() or not k.any():
+        return rgb
+    out = bleed(rgb, k).astype(np.float32)
+    src = rgb.astype(np.float32) * k[..., None]
+    for s in sorted(sigmas, reverse=True):
+        den = ndimage.gaussian_filter(k, s, mode="nearest")
+        num = np.stack([ndimage.gaussian_filter(src[..., c], s, mode="nearest") for c in range(3)], -1)
+        w = np.clip(den / full, 0, 1)[..., None]
+        out = out * (1 - w) + num / np.maximum(den, 1e-6)[..., None] * w
+    return np.where(k[..., None] > 0, rgb, out)
 
 
 def cmd_realpha(args) -> None:
