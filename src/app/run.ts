@@ -30,6 +30,7 @@ import { PauseButton, showPause, type PauseChoice } from "./pause"; // ui-framew
 import { askForData, showMessage, showStatus, showTitle, type TitleChoice } from "./screens";
 import { runItemScreen } from "./shop";
 import { preloadLevelModels } from "./levelPreload";
+import { LevelMusic } from "./levelMusic";
 import { playAttractDemo } from "./attractDemo"; // [demos]
 import { TITLE_IDLE_MS } from "./idle"; // [demos]
 import { hasDemos, setNextDemo } from "../sim/demo"; // [demos]
@@ -338,7 +339,9 @@ function playLevel(view: View, controls: Controls, sfx: SoundEffects, music: Mus
     b.leave = null;
     b.ticks = 0;
     b.openInLevel = () => (consoleRequested = true);
+    const levelMusic = new LevelMusic(music, () => musicLevel()); // D157: the songs the sim asks for
     const end = (outcome: Outcome) => {
+      levelMusic.end();
       b.place = "menu";
       b.openInLevel = null;
       view.draws.vfxTimeScale = 1;
@@ -407,6 +410,7 @@ function playLevel(view: View, controls: Controls, sfx: SoundEffects, music: Mus
         const result = tick();
         b.ticks++;
         sfx.playQueue(g.soundQueue);
+        levelMusic.tick();
         view.setDrawList(drawList);
 
         // GAME OVER: the C waits for any input, then ends the level (tyrian2.c L1990-2011).

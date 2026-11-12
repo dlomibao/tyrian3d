@@ -7082,3 +7082,45 @@ at full, `&armor=7` and `&armor=3`, before and after: the orange patches at the 
 scorch stays. Sheet: `tyrian-scratch/user-batch-1/wear-sheet.png` (not in git).
 
 Tests: `tests/render/shipDamage.test.ts` (the condition eases its coverage only).
+
+## D157 — The host plays the songs a level asks for: Zanac on the secret-level warp, event 35's songs, event 34's fade (resolves D155's "not done")
+
+2026-11-12
+
+**Problem:** picking up a secret-level warp plays the Zanac jingle in the original (`play_song(30)`, mainint.c
+L4701). In the port that line was a comment, and more than that was missing: no song the sim asked for during a
+level was ever played. `play_song` records the song in `g.song` ("audio watches it"), but `run.ts`'s level loop
+only played the level's song at the start. So event 35's "Play new song" (the boss songs: 22 levels of episodes
+1-4, e.g. episode 1 levels 5, 8, 9, 12, 15-18) and event 34's fade before it were silent too. JE_main's music
+block (tyrian2.c L997-1018) was not ported either.
+
+**Decision:** `src/app/levelMusic.ts` `LevelMusic`, ticked after each `tick()` in `run.ts`'s level loop, through
+the game's `MusicSwitch`, so a song plays in the selected style (FM original or a remaster, D38, D40):
+- **A new `g.song` is played.** mainint.ts now calls `play_song(30)` on the warp, as the C. Event 35's songs play
+  the same way. A song equal to the one last played isn't sent again.
+- **JE_main L1015-1018:** `!playing && firstGameOver` starts the level's song again (`play_song(levelSong - 1)`).
+  ZANAC3 doesn't loop (5.3 s in both remaster styles), so after the jingle the level's song restarts from its top,
+  as in the C (play_song of a different song reloads it).
+- **Event 34's fade (L997-1008):** while `g.musicFade` holds, the volume steps down one of OpenTyrian's 255 steps
+  per tick from the music volume setting, to no lower than 10. Event 35 clears it and the volume goes back to the
+  setting. A fade still under way when the level ends gives the volume back.
+- **Level change:** unchanged. The level-end screen plays song 9 (L1010-1014, the host's) and the next level's start
+  plays its own song (start_level's `play_song(levelSong - 1)`).
+- The pause screen still lowers the music to 30%. During a fade, the next tick sets the faded volume again.
+
+**Debug:** the play harness has no audio. It runs the same `LevelMusic` on a logging player,
+`tyrianHarness.music` (`plays`: [song, tick]; set `playing = false` to end a song).
+
+**Checked:** `?debug=play&episode=1&main=4&seed=1` (ASTEROID2). The script steps to the warp (type 593, value
+10022), moves it onto the ship and steps on:
+- `plays` gains [30, …] at the pickup;
+- ending the jingle (`playing = false`) plays the level's song 1 again;
+- the level ends into MINEMAZE (section 22), whose song 22 plays.
+
+Log: `tyrian-scratch/user-batch-1/zanac-harness.json`. Not checked by ear in the real game.
+
+Tests:
+- `tests/sim/player.test.ts`: the warp sets `g.song` = 30 once (`bonusLevel`), with `nextLevel` and `displayTime`.
+- `tests/app/levelMusic.test.ts`: the level's song isn't played again; Zanac, then the level's song when it ends;
+  only while `firstGameOver`; the fade's steps, floor and reset by event 35; the volume given back at the level's
+  end.
