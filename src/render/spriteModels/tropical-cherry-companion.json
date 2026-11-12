@@ -1,0 +1,15 @@
+{
+ "model": "sidekicks/tropical-cherry-companion",
+ "sprites": [
+  {
+   "sheet": "tyrian.shp#8",
+   "size": 1,
+   "frames": [
+    113,
+    132,
+    151
+   ],
+   "ungrouped": true
+  }
+ ]
+}
