@@ -9,8 +9,9 @@ A hard-surface walker that is the sprite in 3D. Silhouette and readability first
 game camera it reads as four clear masses - a grey armoured hull with a dark faceted visor and a
 glowing exhaust louvre at the back, red thruster pods either side, two bright blue T-shaped gun
 arms (the highest, brightest parts, as in the sprite) with forward-facing bored muzzles, and a
-hanging ball eye with a red lens - carried on two arched box-section legs (an inner shin strut to
-a foot, an outer claw with an armour plate and a knee). Detail second: chamfered sections, modelled
+hanging ball eye with a red lens - carried on two level box-section legs standing on the ground
+(an inner shin strut to a foot, an outer claw with an armour plate and a knee; level so the prongs
+stay straight under the off-axis game camera, D163). Detail second: chamfered sections, modelled
 panel-line grooves on the big top panels, rivets, louvre ribs, deep bores and nozzles, hydraulic
 rams on the legs, cables beside the eye stem. The underside is just closed hull, with no detail.
 
@@ -246,8 +247,9 @@ def pchip(xs, ys):
     return f
 
 
-def sweep(B, st, ch=0.3, steps=12, taper_end=0.0):
-    """Box-section beam with chamfered corners along stations (u, v, zc, w, h), rings at constant v."""
+def sweep(B, st, ch=0.3, steps=12, taper_end=0.0, keel=1.0):
+    """Box-section beam with chamfered corners along stations (u, v, zc, w, h), rings at constant v.
+    keel < 1 narrows the bottom to that fraction of the width (the sides lean in under the top)."""
     vs = [s[1] for s in st]
     fu, fz, fw, fh = (pchip(vs, [s[k] for s in st]) for k in (0, 2, 3, 4))
     rings = []
@@ -257,7 +259,8 @@ def sweep(B, st, ch=0.3, steps=12, taper_end=0.0):
     for v in samples:
         u, zc, w, hh = fu(v), fz(v), fw(v) / 2, fh(v) / 2
         c = min(ch, w * 0.45, hh * 0.45)
-        sec = [(-w + c, hh), (w - c, hh), (w, hh - c), (w, -hh + c), (w - c, -hh), (-w + c, -hh), (-w, -hh + c),
+        wb = w * keel
+        sec = [(-w + c, hh), (w - c, hh), (w, hh - c), (wb, -hh + c), (wb - c, -hh), (-wb + c, -hh), (-wb, -hh + c),
                (-w, hh - c)]
         rings.append(B.vs([(u + a, v, zc + b) for a, b in sec]))
     B.f(list(reversed(rings[0])))
@@ -509,6 +512,14 @@ def build_centre(B):
         cyl(B, tuple(q - m * 0.1), tuple(q + m * 0.25), 0.28, 0.22, sides=6, smooth=False)
 
 
+# The legs' heights (sprite px): the strut's top and the outer claw's top, both level (D163).
+LEG_TS = 6.0
+LEG_TC = 5.5
+# Their sides lean in to this fraction of the top's width at the ground, so near the screen's sides
+# the camera sees less of the side walls (a box leg read as a wide slab there).
+LEG_KEEL = 0.55
+
+
 def build_side(B, right):
     """Left-side parts (u < 23); with right=True the same mirrored, except where the sprite differs."""
     B.mirror = right
@@ -590,45 +601,54 @@ def build_side(B, right):
     cyl(B, (16.5, 11.0, 8.6), (16.5, 11.0, 9.15), 0.5, 0.42, sides=10, smooth=False)
     B.part("ram_plate_L", "ram", "L")
     prism(B, rect(18.0, 9.9, 19.1, 13.0), 5.5, 8.5, chamfer(0.15))
-    # leg: hip, inner strut down to the foot, outer claw + armour plate, knee, lower claw
+    # leg: hip, inner strut down to the foot, outer claw + armour plate, knee, lower claw.
+    # Each member is level along its length and stands on the ground (a closed box down to z = 0):
+    # under the tilted, off-axis game camera a part's height shifts it sideways on screen, so a leg
+    # whose top fell from a high knee to the toe leaned out at the knee by up to ~5 px near the
+    # screen's sides and read as a splayed fork where the sprite's prongs are straight (D163). A
+    # level top shifts as one piece and stays straight; the plan (u, v and widths) is the sprite's.
     B.part("hip_L", "frame", "L")
-    cyl(B, (8.0, 6.4, 10.3), (10.9, 6.4, 10.3), 1.25, sides=8, bev=0.2)
+    cyl(B, (8.0, 6.4, LEG_TS - 1.5), (10.9, 6.4, LEG_TS - 1.5), 1.25, sides=8, bev=0.2)
     B.part("strut_L", "strut", "L")
-    # arched like a spider's leg: up from the shoulder to a high knee, then a steep shin to the foot
-    # (narrowed to end at u = 10 where it rises past the arm bar, which the sprite shows on top)
-    sweep(B, [(9.6, 4.0, 10.8, 3.0, 2.1), (9.5, 5.3, 11.8, 3.0, 2.2), (9.0, 6.8, 12.4, 2.0, 2.4),
-              (8.6, 9.6, 12.6, 2.8, 2.4), (8.6, 10.6, 12.3, 2.8, 2.4), (8.4, 13.5, 10.2, 3.0, 2.4), (8.3, 17.3, 5.9, 3.0, 2.3),
-              (7.9, 20.4, 2.4, 2.8, 2.0)], ch=0.45, steps=9)
-    B.part("strut_spine_L", "leg", "L")  # raised spine plate along the strut top
-    sweep(B, [(9.5, 5.5, 13.1, 1.6, 0.5), (9.0, 6.8, 13.7, 1.2, 0.5), (8.9, 9.6, 13.9, 1.9, 0.5),
-              (8.9, 10.6, 13.6, 1.9, 0.5), (8.85, 13.5, 11.5, 2.0, 0.5),
-              (8.75, 17.3, 7.1, 2.0, 0.5), (8.4, 19.2, 4.6, 1.6, 0.5)], ch=0.12, steps=7)
+    # the inner shin strut (narrowed to end at u = 10 where it passes under the arm bar, which the
+    # sprite shows on top)
+    sweep(B, [(u, v, LEG_TS / 2, w, LEG_TS) for u, v, w in
+              ((9.6, 4.0, 3.0), (9.5, 5.3, 3.0), (9.0, 6.8, 2.0), (8.6, 9.6, 2.8), (8.6, 10.6, 2.8),
+               (8.4, 13.5, 3.0), (8.3, 17.3, 3.0), (7.9, 20.4, 2.8))], ch=0.45, steps=9, keel=LEG_KEEL)
+    B.part("strut_spine_L", "leg", "L")  # raised spine plate over the strut top (the sprite's blue)
+    sweep(B, [(u, v, LEG_TS + 0.2, w, 0.5) for u, v, w in
+              ((9.55, 4.4, 2.4), (9.45, 5.5, 2.5), (9.0, 6.8, 1.6), (8.6, 9.6, 2.3), (8.6, 10.6, 2.3),
+               (8.4, 13.5, 2.5), (8.3, 17.3, 2.5), (7.95, 20.0, 2.2))], ch=0.15, steps=8)
     B.part("strut_ram_L", "steel", "L")
-    cyl(B, (8.6, 6.0, 8.6), (8.3, 15.5, 8.6), 0.42, sides=8)  # hydraulic ram body -> shin
-    cyl(B, (8.6, 5.6, 8.6), (8.6, 10.0, 8.6), 0.6, sides=8, bev=0.08)
+    cyl(B, (8.6, 6.0, LEG_TS - 1.0), (8.3, 15.5, LEG_TS - 1.0), 0.42, sides=8)  # hydraulic ram body -> shin
+    cyl(B, (8.6, 5.6, LEG_TS - 1.0), (8.6, 10.0, LEG_TS - 1.0), 0.6, sides=8, bev=0.08)
+    claw = lambda st: [(u, v, LEG_TC / 2, w, LEG_TC) for u, v, w in st]  # noqa: E731
+    toe = lambda st: [(u, v, z / 2, w, z) for u, v, w, z in st]  # noqa: E731
     if not right:
         B.part("claw_upper_L", "claw", "L")
-        sweep(B, [(6.4, 9.0, 11.8, 1.8, 1.8), (6.3, 10.0, 12.6, 1.6, 2.0), (6.3, 13.5, 10.8, 1.6, 2.0),
-                  (6.2, 17.6, 5.2, 1.6, 1.8)], ch=0.3, steps=6)
+        sweep(B, claw(((6.4, 9.0, 1.8), (6.3, 10.0, 1.6), (6.3, 13.5, 1.6), (6.2, 17.6, 1.6))), ch=0.3, steps=6,
+              keel=LEG_KEEL)
         B.part("claw_plate_L", "plate", "L")
-        sweep(B, [(6.0, 9.0, 10.7, 1.0, 2.1), (5.6, 9.6, 11.1, 1.2, 2.2), (5.6, 10.4, 12.0, 1.2, 2.4), (5.6, 13.5, 10.4, 1.2, 2.4),
-                  (5.8, 17.95, 4.6, 1.2, 2.0)], ch=0.3, steps=6)
-        B.part("knee_L", "steel", "L")
-        cyl(B, (5.6, 17.5, 5.2), (7.6, 17.5, 5.2), 0.85, sides=8, bev=0.15)
+        sweep(B, [(u, v, (LEG_TC - 0.5) / 2, w, LEG_TC - 0.5) for u, v, w in
+                  ((6.0, 9.0, 1.0), (5.6, 9.6, 1.2), (5.6, 10.4, 1.2), (5.6, 13.5, 1.2), (5.8, 17.95, 1.2))],
+              ch=0.3, steps=6, keel=LEG_KEEL)
+        B.part("knee_L", "steel", "L")  # a hinge across the claw's top
+        cyl(B, (5.6, 17.5, LEG_TC), (7.6, 17.5, LEG_TC), 0.85, sides=8, bev=0.15)
         B.part("claw_lower_L", "claw_lo", "L")
-        sweep(B, [(6.5, 17.5, 5.2, 1.4, 1.7), (6.6, 21.0, 2.6, 1.2, 1.6), (6.6, 23.0, 1.4, 1.2, 1.3),
-                  (7.3, 24.2, 1.0, 1.0, 1.2), (7.8, 24.85, 0.6, 0.9, 1.0)], ch=0.3, steps=5)
+        sweep(B, toe(((6.5, 17.5, 1.4, LEG_TC), (6.6, 21.0, 1.2, LEG_TC), (6.6, 23.0, 1.2, LEG_TC),
+                      (7.3, 24.2, 1.0, LEG_TC - 0.4), (7.8, 24.85, 0.9, LEG_TC - 1.2))), ch=0.3, steps=5,
+              keel=LEG_KEEL)
     else:
         B.mirror = False  # right outer claw: one narrower member, as the sprite's column 39
         B.part("claw_upper_R", "claw", "R")
-        sweep(B, [(39.5, 9.0, 11.8, 1.0, 1.8), (39.5, 10.0, 12.6, 1.05, 2.0), (39.5, 13.5, 10.8, 1.05, 2.0),
-                  (39.5, 17.6, 5.2, 1.0, 1.8)], ch=0.22, steps=6)
+        sweep(B, claw(((39.5, 9.0, 1.0), (39.5, 10.0, 1.05), (39.5, 13.5, 1.05), (39.5, 17.6, 1.0))), ch=0.22, steps=6,
+              keel=LEG_KEEL)
         B.part("knee_R", "steel", "R")
-        cyl(B, (38.0, 17.5, 5.2), (39.3, 17.5, 5.2), 0.85, sides=8, bev=0.15)
+        cyl(B, (38.0, 17.5, LEG_TC), (39.3, 17.5, LEG_TC), 0.85, sides=8, bev=0.15)
         B.part("claw_lower_R", "claw_lo", "R")
-        sweep(B, [(38.9, 17.5, 5.2, 1.0, 1.7), (39.4, 19.0, 4.0, 1.0, 1.6), (39.4, 21.5, 2.4, 1.0, 1.4),
-                  (38.9, 23.5, 1.2, 1.0, 1.1), (38.5, 24.8, 0.6, 1.0, 1.0)], ch=0.2,
-              steps=5)
+        sweep(B, toe(((38.9, 17.5, 1.0, LEG_TC), (39.4, 19.0, 1.0, LEG_TC), (39.4, 21.5, 1.0, LEG_TC),
+                      (38.9, 23.5, 1.0, LEG_TC - 0.4), (38.5, 24.8, 1.0, LEG_TC - 1.2))), ch=0.2, steps=5,
+              keel=LEG_KEEL)
         B.mirror = True
     B.part("ankle_L", "ankle", "L")  # pin where the strut meets the foot
     cyl(B, (7.0, 20.5, 2.3), (9.6, 20.5, 2.3), 0.55, sides=8, bev=0.12)
