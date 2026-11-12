@@ -218,7 +218,6 @@ export class DamageFrames {
     const h = size * 14;
     u.uDmgOn.value = 1;
     u.uDmgCover.value = ship.cover;
-    u.uDmgHot.value = ship.hot;
     object.updateMatrixWorld(true);
     u.uDmgInv.value.copy(object.matrixWorld).invert();
     u.uDmgSize.value.set(w, h);
@@ -231,7 +230,7 @@ export class DamageFrames {
 
   /**
    * The ship's scorch pattern: blotches of value noise, g = the coverage each texel scorches at
-   * (ranked, so coverage c scorches a share c of the texels), b = where embers glow. Fixed.
+   * (ranked, so coverage c scorches a share c of the texels). Fixed.
    */
   private wearPattern(w: number, h: number): THREE.DataTexture {
     const key = `${w}x${h}`;
@@ -260,7 +259,6 @@ export class DamageFrames {
     const order = [...g.keys()].sort((a, b) => g[a] - g[b]);
     const data = new Uint8Array(n * 4);
     order.forEach((i, rank) => (data[i * 4 + 1] = Math.round((rank / (n - 1)) * 255)));
-    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) data[(y * w + x) * 4 + 2] = Math.round(noise(x, y, 3, 1.5) * 255);
     t = new THREE.DataTexture(data, w, h, THREE.RGBAFormat, THREE.UnsignedByteType);
     t.magFilter = THREE.LinearFilter;
     t.minFilter = THREE.LinearFilter;

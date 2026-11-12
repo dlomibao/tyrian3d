@@ -34,7 +34,7 @@ Numbers are `JE_loadPic` ids (1-based); the palette is `pcxpal[id - 1]` (`src/si
 | 5 | The usual backdrop for story text, warnings and secret hints (`]P 005`, all episodes) | A dark violet gas giant in the middle of black space, lit only on its left edge | `story_planet.webp` |
 | 6 | The in-game frame, two players | As 3, with two shield/armour panels stacked on the right | `hud_two_player.webp` |
 | 7 | End of episode 2 (`]P 007`, levels2 section 13) | A golden dragon's head lying dead on a stone-tiled floor, green crystal growing from a wound behind its eye | `story_dragon.webp` |
-| 8 | End of episode 1, panned up to (`]U 008`, levels1 section 42: "If not, things could become unpleasant.") | A flayed, grinning skull impaled on a horn, against a violet sky with a huge planet and a small moon over a spiky black horizon | `story_skull.webp` |
+| 8 | End of episode 1, panned up to (`]U 008`, levels1 section 42: "If not, things could become unpleasant.") | A flayed, grinning skull impaled on a horn, against a violet sky with a huge planet and a small moon over a spiky black horizon | `story_skull.webp` | (Gemini repaint of the original, D160; `story_skull.py` is the old Blender version)
 | 9 | End of episode 1 and the news reports that follow (`]P 009`, levels1 section 42) | A dim brown tangle of horns, tendrils and claws in the dark | `story_tangle.webp` |
 | 10 | The first intro logo (`intro_logos`, mainint.c) | The publisher's logo: a chrome emblem against a sunlit sky of clouds | `intro_publisher.webp` |
 | 11 | Destruct, the hidden artillery game (destruct.c) | Black, with a red status bar for each player across the top | `destruct.webp` |

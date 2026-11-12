@@ -486,6 +486,54 @@ export class ScreenFilterPass {
   }
 
   /**
+   * Start compiling, in the background, the programs a filtered frame draws the scene with (D159):
+   * `compile` runs with the scene target bound. three keys a program by its target (a render target
+   * gets linear output and no tone mapping), so every material has a second program for these
+   * frames. Unwarmed, the first filtered frame of a level (the Soul of Zinglon's beam, a smoothie)
+   * compiled them all at once: a frame of 0.5-2.4 s.
+   */
+  compileFiltered(compile: () => Promise<unknown>[]): Promise<unknown>[] {
+    return this.withTarget(this.sceneTarget, compile);
+  }
+
+  /**
+   * After compileFiltered: draw the scene into one pixel of the scene target (`drawPixel`), which
+   * sizes and allocates it and builds what compiling doesn't, and compile the filter and present
+   * quads (D159).
+   */
+  warmFiltered(drawPixel: () => void): Promise<unknown> {
+    this.fitTargets();
+    this.withTarget(this.sceneTarget, () => drawPixel());
+    const r = this.renderer;
+    const quad = (material: THREE.ShaderMaterial, target: THREE.WebGLRenderTarget | null) =>
+      this.withTarget(target, () => {
+        this.quad.material = material;
+        return r.compileAsync(this.quadScene, this.quadCamera);
+      });
+    return Promise.all([quad(this.filterMaterial, this.history[0]), quad(this.presentMaterial, null)]);
+  }
+
+  private withTarget<T>(target: THREE.WebGLRenderTarget | null, f: () => T): T {
+    const r = this.renderer;
+    const previous = r.getRenderTarget();
+    r.setRenderTarget(target);
+    try {
+      return f();
+    } finally {
+      r.setRenderTarget(previous);
+    }
+  }
+
+  /** The targets at the drawing buffer's size; true if they were resized. */
+  private fitTargets(): boolean {
+    this.renderer.getDrawingBufferSize(this.size);
+    const { x: w, y: h } = this.size;
+    if (this.sceneTarget.width === w && this.sceneTarget.height === h) return false;
+    for (const t of [this.sceneTarget, this.maskTarget, ...this.history]) t.setSize(w, h);
+    return true;
+  }
+
+  /**
    * Draw a frame through the filters: `drawScene` renders the scene (with its outlines) into the
    * current render target. `root` holds the draw list's objects, for the mask.
    */
@@ -500,12 +548,7 @@ export class ScreenFilterPass {
     const dt = Math.min(0.25, (now - this.lastTime) / 1000);
     this.lastTime = now;
 
-    r.getDrawingBufferSize(this.size);
-    const { x: w, y: h } = this.size;
-    if (this.sceneTarget.width !== w || this.sceneTarget.height !== h) {
-      for (const t of [this.sceneTarget, this.maskTarget, ...this.history]) t.setSize(w, h);
-      this.historyValid = false;
-    }
+    if (this.fitTargets()) this.historyValid = false;
     camera.updateMatrixWorld();
     this.viewProj.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     this.invViewProj.copy(this.viewProj).invert();

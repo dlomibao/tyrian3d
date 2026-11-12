@@ -51,7 +51,14 @@ export class Hud {
   private shown = false;
   private framed = false;
 
-  constructor(private readonly view: HudView | null = null) {
+  /**
+   * `compare`: the side-by-side comparison (`?compare=1`, D158) has the window's left half, so the
+   * HUD and the 3D view lay themselves out in the right half.
+   */
+  constructor(
+    private readonly view: HudView | null = null,
+    private readonly compare = false,
+  ) {
     this.root.className = "hud";
     this.root.innerHTML = `
       <div class="top"><span class="score" data-k="score"></span><span class="level" data-k="level"></span><span class="lives" data-k="lives"></span></div>
@@ -73,7 +80,7 @@ export class Hud {
     this.frame.root.hidden = true;
     this.insetProbe.className = "hud-inset-probe";
     document.body.append(this.insetProbe, this.frame.root, this.root);
-    window.addEventListener("resize", () => this.framed && this.layout());
+    window.addEventListener("resize", () => (this.framed ? this.layout() : this.compareMinimal()));
     interfaceStyle.listen(() => this.sync());
     cameraStyle.listen(() => this.framed && this.layout());
   }
@@ -82,6 +89,7 @@ export class Hud {
     this.shown = v;
     this.root.hidden = !v;
     this.sync();
+    this.compareMinimal();
     this.syncTouch();
   }
 
@@ -212,6 +220,7 @@ export class Hud {
     else {
       this.view?.setViewport(null);
       for (const k of ["left", "top", "width", "height"]) this.root.style.removeProperty(k);
+      this.compareMinimal();
       const s = document.documentElement.style;
       s.removeProperty("--hud-pause-top");
       s.removeProperty("--hud-pause-right");
@@ -229,7 +238,9 @@ export class Hud {
     if (aspect === undefined) this.aspects.set(style, (aspect = playfieldScreenAspect(tilt)));
     const W = window.innerWidth;
     const H = window.innerHeight;
-    const layout = hudLayout(W, H, aspect, this.insets());
+    const insets = this.insets();
+    if (this.compare) insets.left += W / 2; // the original's half (D158)
+    const layout = hudLayout(W, H, aspect, insets);
     view.setTilt(tilt);
     view.setViewport(layout.playfield);
     this.frame.build(
@@ -244,6 +255,15 @@ export class Hud {
     const s = document.documentElement.style;
     s.setProperty("--hud-pause-top", `${Math.round(o.y + 8)}px`);
     s.setProperty("--hud-pause-right", `${Math.round(W - (o.x + o.w) + 8)}px`);
+  }
+
+  /** The minimal HUD in the comparison: the 3D view and the HUD in the window's right half (D158). */
+  private compareMinimal(): void {
+    if (!this.compare || this.framed || !this.shown) return;
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    this.view?.setViewport({ x: W / 2, y: 0, w: W / 2, h: H });
+    Object.assign(this.root.style, { left: `${W / 2}px`, top: "0px", width: `${W / 2}px`, height: `${H}px` });
   }
 
   /** The safe area's insets (notches), read from a probe padded with env(safe-area-inset-*). */
