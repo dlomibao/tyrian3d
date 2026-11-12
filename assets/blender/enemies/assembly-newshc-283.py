@@ -41,8 +41,9 @@ origin screen (164, 24)); the right half repeats the pillar at +72 px and the cr
 
   blender --background --python assets/blender/enemies/assembly-newshc-283.py -- [--no-bake]
       [--measure dir] [--views dir]
-(exports public/models/enemies/newshc-{115,17,55,245,283}.glb and their spriteModels entries;
-newshc-77.py exports the head frames with this file's tower helpers)
+(exports public/models/enemies/newshc-{115,17,55,245,283}.glb and their spriteModels entries, and
+newshc-129.glb: frame 129, the top piece burnt once its head is destroyed (burnt_parts); newshc-77.py
+exports the head frames, the wreck (frame 91) among them, with this file's tower helpers)
 """
 
 import bisect
@@ -80,6 +81,14 @@ ORIGIN = {"newshc-115": (0, 0), "newshc-17": (0, 28), "newshc-55": (0, 56), "new
           "newshc-283": (24, 28)}
 SX0, SY0 = 164, 24
 FLOOR_IDX = set(range(96, 103))
+
+
+def export_model(*a, **k):
+    """common.export_sprite_model, skipped with T283_NOEXPORT=1 (measuring without touching the
+    shipped exports)."""
+    if os.environ.get("T283_NOEXPORT") == "1":
+        return None
+    return common.export_sprite_model(*a, **k)
 
 # Palette index -> (metallic, roughness, emission strength). The index is the sprite's median for
 # the region (darkest shading and brightest highlights left out); satin metal, painted red.
@@ -831,13 +840,13 @@ M_CUR = Matrix(((PX, 0, 0, -48 * PX), (0, -PX, 0, 28 * PX), (0, 0, PX, 0), (0, 0
 
 
 class Mats:
-    def __init__(self, sprite, tag):
-        self.sprite, self.tag, self.cache = sprite, tag, {}
+    def __init__(self, sprite, tag, props=None):
+        self.sprite, self.tag, self.cache, self.props = sprite, tag, {}, props or {}
 
     def get(self, pal, glow=0.0, floor=False):
         key = (pal, round(glow, 2), floor)
         if key not in self.cache:
-            met, rough = TPROPS.get(pal, (0.3, 0.5))
+            met, rough = self.props.get(pal, TPROPS.get(pal, (0.3, 0.5)))
             t = self.tag + (f"g{int(glow * 100)}" if glow else "") + ("fl" if floor else "")
             mt = common.palette_material(self.sprite, pal, t, metallic=met, roughness=rough, emission_strength=glow)
             if glow:
@@ -1072,8 +1081,83 @@ def build_tower(sprite, coll):
     return mats, body, pieces, shells
 
 
+REF129 = Path("/Users/dlomibao/projects/tyrian-scratch/demo-models/assembly-newshc-283/ref129")
+SHEET129 = [{"sheet": "newshc.shp", "size": 2, "frames": [129]}]
+
+
+def burnt_parts():
+    """newshc.shp frame 129: the tower's top piece (newshc-115) once its head is destroyed (the
+    piece's enemy record: dgr 129). Without a model of its own D87 drew it with the intact 115
+    model, whose lit steel rim read light grey where the sprite draws a black burnt hull. The same
+    tower, burnt where the sprite changes (rows 0-4 and 17-22 of the piece; screen row s = row +
+    28): the cup's lip soot black (pal 2), the cup's top band down to the vents' middle scorched
+    (pal 3; the vents' upper louvres buried under it, west 4 / east 2, the sprite's rows 2-3), and a
+    blast scar on drum 0's west shoulder (pal 1 hole in a pal 3 halo; rows 19-22, cols 5-8). Thin
+    skins over the lathe, inside its plan, so the outline is the intact piece's."""
+    parts = TG.build(None, True)
+    for p in parts:
+        if p["name"] == "cup_rim":
+            p["pal"] = 2
+    G = TG.Geo()
+    zt = TG.Z_TOP
+    R = TG.Rcol
+
+    def zrow(s, th, r=8.0):
+        """The height whose point on the skin at azimuth th the art draws on screen row s."""
+        return TG.zOf(s) + A * r * math.cos(th) / KT
+    sb = float(os.environ.get("T129_SOOT", "31.8"))    # the soot's lower edge (screen row, front)
+    G.patch("soot_band", 3, R, -1.38, 1.38, zrow(sb, 0.0), zt - 0.02, 0.12)
+    G.patch("soot_vent_w", 4, R, -0.88, -0.26, zrow(sb, 0.57), zt - 0.3, 0.62)
+    G.patch("soot_vent_e", 2, R, 0.18, 0.88, zrow(sb, 0.53), zt - 0.3, 0.62)
+    G.patch("scar_halo", 3, R, -1.16, -0.30, zrow(51.0, 0.73), zrow(45.9, 0.73), 0.06)
+    G.patch("scar_hole", 1, R, -1.02, -0.44, zrow(50.4, 0.73), zrow(46.8, 0.73), 0.12)
+    return parts + G.parts
+
+
+def burnt_lip_trim(obj):
+    """Frame 129 draws the cup's burnt lip in ink (its row 0 and the corners of row 1 are pal 1 at
+    the edge), where 115 draws it lit: the game's own ink goes there, so the model's picture ends a
+    row lower. The art's rows above row 3 of the piece are pressed into [T129_TOP, 3] (art frame:
+    the upright model keeps it as a slight squash of the lip, under a pixel)."""
+    top = float(os.environ.get("T129_TOP", "0.9"))
+    rows = [28 - v.co.y / PX for v in obj.data.vertices]
+    r0 = min(rows)
+    if r0 >= top:
+        return
+    for v, r in zip(obj.data.vertices, rows):
+        if r < 3.0:
+            r2 = 3.0 - (3.0 - r) * (3.0 - top) / (3.0 - r0)
+            v.co.y = (28 - r2) * PX
+    obj.data.update()
+
+
+def build_burnt(sprite, coll):
+    """Frame 129's piece: the burnt tower in the art frame cut to the top band, with its own outline
+    shell (the same plan as newshc-115's)."""
+    mats = Mats(sprite, "t129")
+    body = parts_object("tower_body129", burnt_parts(), mats, coll, lock, M_CUR)
+    tower_plan_trim(body)
+    burnt_lip_trim(body)
+    T.cull_hidden(body)
+    piece = cut_bands(body, {"newshc-129": (None, 28)}, coll, cap=True)["newshc-129"]
+    shell = outline_shell_all(body, coll, voxel=0.015, faces=9000, smooth=6)
+    pshell = cut_bands(shell, {"newshc-129": (None, 28)}, coll, cap=False, suffix="_outline")["newshc-129"]
+    pshell["tyrian_outline"] = True
+    pshell.data.shade_smooth()
+    return piece, pshell
+
+
 WRECK_ROD_R = float(os.environ.get("T283_ROD", "0.56"))   # the wreck's feed rod: 1 px in the sprite (col 13)
 BALL_P = float(os.environ.get("T283_BALLP", "2.0"))      # the ball's plan: superellipse exponent (2 = round)
+
+
+# Frame 91's burnt hull (report #11): the sprite draws the collar black (pal 1 inside, rows 21-27)
+# with grey edges only where the light catches it (the torn top, pal 8). The liner, the ram's stub,
+# the torn hood scraps and the collar's outer wall were steel greys (pal 3-5) and read as a grey drum:
+# the inside is now pal 1, the scraps pal 2, the burnt outer wall and its band pal 3, and the feed
+# rod's lower leg inside the hull pal 3 (sprite cols 14-15, rows 20-24: 1-3); its upper leg stays 7.
+WRECK_PAL = {"rod_lo": 3, "stump": 3, "collar_band-1": 3, "collar_band1": 3, "stump_rim": 8, "torn_liner": 1,
+             "ram_stub": 1, "torn_plate0": 2, "torn_plate1": 2, "torn_plate2": 2}
 
 
 def wreck_extra():
@@ -1128,6 +1212,26 @@ def wreck_extra():
     return G.parts
 
 
+def soot_normals(obj):
+    """The wreck's soot (pal 1-3 faces of the upright export; frame 91 and frame 129's piece): shading normals bent up toward the
+    sky by T91_UP (custom split normals; positions untouched). Inside the torn collar the faces
+    stand upright facing south, which the game's overhead camera sees edge-on, where the lit
+    material's Fresnel reflection turned the black hull mid grey; bent up, the soot stays black as
+    the sprite draws it. The lit grey edges (pal 5-8) keep the tower's normals."""
+    k = float(os.environ.get("T91_UP", "2.0"))
+    if k <= 0:
+        return
+    me = obj.data
+    dark = {i for i, mt in enumerate(me.materials) if mt and int(mt.name.split("_")[1]) in (1, 2, 3)}
+    cn = [Vector(c.vector) for c in me.corner_normals]
+    for poly in me.polygons:
+        if poly.material_index in dark:
+            for li in poly.loop_indices:
+                cn[li] = (cn[li] + Vector((0, 0, k))).normalized()
+    me.normals_split_custom_set(cn)
+    me.update()
+
+
 def ball_plan(obj, fr):
     """The ball's plan (the art's picture) a touch squarer than a circle, as the sprite draws it
     (superellipse exponent BALL_P): every vertex of the head within the ball's reach is pushed out
@@ -1153,6 +1257,9 @@ def ball_plan(obj, fr):
 
 def build_heads(sprite, coll):
     mats = Mats(sprite, "t77")
+    # the wreck's soot is matte: no metal, full roughness on its dark greys (in the game's overhead
+    # view the hull's south faces are seen edge-on, and satin steel there reflected the sky as grey)
+    mats91 = Mats(sprite, "t77w", {p: (0.0, 1.0) for p in (1, 2, 3)})
     heads, shells = {}, {}
     for fr in HEAD_FRAMES:
         parts = TG.build(fr, False)
@@ -1160,7 +1267,9 @@ def build_heads(sprite, coll):
             # the lib's lugs under the collar poke out below its torn lip (the sprite's ink row 27)
             drop = ("rod_kink", "rod_hi") + tuple(os.environ.get("T283_DROP", "lug0,lug1").split(","))
             parts = [p for p in parts if p["name"] not in drop] + wreck_extra()
-        h = parts_object(head_name(fr), parts, mats, coll, lock, M_CUR)
+            for p in parts:   # the burnt hull: the sprite's black (rows 21-27 are pal 1 inside grey edges)
+                p["pal"] = WRECK_PAL.get(p["name"], p["pal"])
+        h = parts_object(head_name(fr), parts, mats91 if fr == 91 else mats, coll, lock, M_CUR)
         ball_plan(h, fr)
         T.cull_hidden(h)
         heads[fr] = h
@@ -1297,6 +1406,7 @@ def main():
 
     # tower: art frame, cut, outlined
     tmats, body, tpieces, tshells = build_tower(sprite, coll)
+    p129, s129 = build_burnt(sprite, coll)
 
     # crane (unchanged): with its floor as the bake occluder (D130)
     cmats = materials(sprite)
@@ -1327,6 +1437,7 @@ def main():
     fmt = "AUTO"
     if do_bake:
         bake_tower(list(tpieces.values()), list(tpieces.values()))
+        bake_tower([p129], [tpieces["newshc-17"], tpieces["newshc-55"]])
         bake_pieces(cpieces, clay, coll, size=512)
         fmt = "WEBP"
     for p in list(tpieces.values()) + list(cpieces.values()):
@@ -1341,7 +1452,14 @@ def main():
         s["tyrian_outline"] = True
         upright[n] = (o, s)
         tris[n] = sum(len(p.vertices) - 2 for p in o.data.polygons)
-        common.export_sprite_model(ROOT, [o, s], f"enemies/{n}", sprites[n]["sprites"], image_format=fmt)
+        export_model(ROOT, [o, s], f"enemies/{n}", sprites[n]["sprites"], image_format=fmt)
+    o = stand(p129, 0)
+    soot_normals(o)   # the soot band, scar and burnt lip read black overhead, as the sprite's rows 0-3
+    s = stand(s129, 0, normals=False)
+    s["tyrian_outline"] = True
+    upright["newshc-129"] = (o, s)
+    tris["newshc-129"] = sum(len(p.vertices) - 2 for p in o.data.polygons)
+    export_model(ROOT, [o, s], "enemies/newshc-129", SHEET129, image_format=fmt)
     for n in CRANE:
         p = cpieces[n]
         p.data.set_sharp_from_angle(angle=math.radians(34))
@@ -1349,7 +1467,7 @@ def main():
         wn.keep_sharp = True
         wn.weight = 50
         tris[n] = sum(len(q.vertices) - 2 for q in p.data.polygons)
-        common.export_sprite_model(ROOT, [p, cshells[n]], f"enemies/{n}", sprites[n]["sprites"], image_format=fmt)
+        export_model(ROOT, [p, cshells[n]], f"enemies/{n}", sprites[n]["sprites"], image_format=fmt)
     print("TRIS", json.dumps(tris))
     zr = {n: [round(min(v.co.z for v in o.data.vertices) * 12, 1), round(max(v.co.z for v in o.data.vertices) * 12, 1)]
           for n, (o, _) in upright.items()}
@@ -1362,6 +1480,7 @@ def main():
         items = []
         for n, r0 in TOWER.items():
             items.append((n, n, None, ref if n == "newshc-55" else None, game_form(upright[n][0], n + "_m")))
+        items.append(("newshc-129", "newshc-129", 129, REF129, game_form(upright["newshc-129"][0], "newshc-129_m")))
         for n in CRANE:
             items.append((n, n, None, ref if n == "newshc-283" else None, cpieces[n]))
         report(measure_items(items, md), md)
@@ -1386,18 +1505,21 @@ def views(outdir, upright, cpieces, coll, sprite=None):
     scene = bpy.context.scene
     outdir.mkdir(parents=True, exist_ok=True)
     true_objs, game_objs = [], []
+    # the east tower (half 1) destroyed: frame 129's piece and the head's wreck (frame 91)
+    wrecked = os.environ.get("T283_VIEW_WRECK") == "1" and "newshc-129" in upright
     for half, (dt, dc) in enumerate(((0, 0), (72, 24))):
         for n, r0 in TOWER.items():
             ctr = centre_of(r0, dt)
-            o = upright[n][0].copy()
-            o.data = upright[n][0].data
+            src = upright["newshc-129" if wrecked and half == 1 and n == "newshc-115" else n][0]
+            o = src.copy()
+            o.data = src.data
             coll.objects.link(o)
             o.location = (ctr[0], ctr[1], 0)
             true_objs.append(o)
-            gf = game_form(upright[n][0], f"{n}_g{half}")
+            gf = game_form(src, f"{n}_g{half}")
             gf.location = (ctr[0], ctr[1], 0)
             game_objs.append(gf)
-        head = ROOT / "public" / "models" / "enemies" / "newshc-77-f4.glb"
+        head = ROOT / "public" / "models" / "enemies" / ("newshc-77-f8.glb" if wrecked and half == 1 else "newshc-77-f4.glb")
         if head.exists():
             hc = centre_of(-28, dt)
             for o in import_glb(head):
@@ -1466,6 +1588,8 @@ def heads_main(argv):
     exp, tris = {}, {}
     for fr in HEAD_FRAMES:
         o = stand(heads[fr], -28)
+        if fr == 91:
+            soot_normals(o)
         s = stand(hshells[fr], -28, normals=False)
         s["tyrian_outline"] = True
         common.frame_part(o, [fr])
@@ -1473,7 +1597,7 @@ def heads_main(argv):
         exp[fr] = o
         tris[fr] = sum(len(p.vertices) - 2 for p in o.data.polygons)
         name = o.name
-        common.export_sprite_model(ROOT, [o, s], f"enemies/{name}", [{**sheet, "frames": [fr]}], image_format=fmt)
+        export_model(ROOT, [o, s], f"enemies/{name}", [{**sheet, "frames": [fr]}], image_format=fmt)
     print("TRIS", json.dumps(tris))
     if "--measure" in argv:
         md = Path(argv[argv.index("--measure") + 1])

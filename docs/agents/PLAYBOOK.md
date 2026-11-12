@@ -110,6 +110,8 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
   | Bright sprite pixels became lumps | Sheen: material (metalness/roughness), not geometry (rubric "Reading a sprite"). |
   | Model dark in game, shading painted on | The sprite's ring and shading are lighting; use mid-tone indices (D39 lighting pass). |
   | Wrinkled "tinfoil" surface | Concept projection bake: remove it, `"bake": "model"` (D50, D65). |
+  | Lava/glow pool reads as a grey-pink lid | A glow (D126) on a glossy dielectric shows only its reflection: give glow surfaces metallic 1, roughness about 0.9 (D173). |
+  | Damaged/destroyed piece looks intact | The damaged frame (tyrian.hdt dGr) may have no spriteModels entry, so D87 draws the intact model: model that frame (D173). |
   | Outline boxy / tiered where the sprite is round | pchip plan curve fitted to the sprite mask (D52). |
   | Model reads fatter than its sprite in game | Edge at the inner edge of the ink border; the game's ink is the border (D74). |
   | Colours read saturated brass in game | Judge on headless-Chrome captures, not Blender; lower metalness, cool tint on the bake (D53). |
