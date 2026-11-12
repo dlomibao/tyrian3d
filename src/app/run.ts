@@ -141,7 +141,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
     if (demoNow !== null) {
       if (demoNow > 0) setNextDemo(demoNow);
       demoNow = null;
-      await playAttractDemo({ files, view, music, sfx, hud });
+      await playAttractDemo({ files, view, music, sfx, hud, compare });
     }
     music.play(SONG_TITLE);
     levelFade().set(0); // the title's backdrop draws under the level fade (port-story)
@@ -196,7 +196,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
     if (choice.demo) {
       // [demos] titleScreen returned with playDemo set; JE_main plays it, then back to the title.
       choice = { episode: choice.episode, difficulty: choice.difficulty };
-      await playAttractDemo({ files, view, music, sfx, hud });
+      await playAttractDemo({ files, view, music, sfx, hud, compare });
       continue;
     }
 

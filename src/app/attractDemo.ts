@@ -16,6 +16,7 @@ import type { TyrianFiles } from "../sim/resources";
 import { g } from "../sim/state";
 import { BLACK, levelFade } from "./fade";
 import type { Hud } from "./hud";
+import type { CompareView } from "./compareView";
 import { preloadLevelModels } from "./levelPreload";
 
 /** Catch-up cap after a stall, as in a level (run.ts). */
@@ -27,6 +28,8 @@ export interface AttractDemoContext {
   music: MusicPlayer;
   sfx: SoundEffects;
   hud: Hud;
+  /** D158: `?compare=1`'s original half, drawn alongside the demo too. */
+  compare?: CompareView | null;
 }
 
 /**
@@ -53,8 +56,10 @@ export async function playAttractDemo(c: AttractDemoContext): Promise<boolean> {
   hint.className = "attract-demo__hint";
   hint.textContent = "Demo · press any key";
   banner.append(coin, hint);
+  if (c.compare) banner.style.left = "50%"; // D158: over the remaster's half, clear of the original's
   document.body.appendChild(banner);
   c.hud.visible = true;
+  if (c.compare) c.compare.visible = true;
 
   // JE_main's fade_palette(colors, 50) into the level, as run.ts does.
   levelFade().set(1, BLACK);
@@ -67,6 +72,7 @@ export async function playAttractDemo(c: AttractDemoContext): Promise<boolean> {
   c.music.stop();
   await levelFade().fade(1, 10, BLACK);
   c.hud.visible = false;
+  if (c.compare) c.compare.visible = false;
   finishDemo();
   return stopped;
 }
@@ -107,6 +113,7 @@ function runDemo(c: AttractDemoContext): Promise<boolean> {
         tick();
         c.sfx.playQueue(g.soundQueue);
         c.view.setDrawList(drawList);
+        c.compare?.draw(drawList);
         if (pressed) {
           g.reallyEndLevel = true;
           demoState.stoppedDemo = true;
