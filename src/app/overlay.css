@@ -246,6 +246,43 @@
   background: #ffb060;
 }
 
+/*
+ * JE_inGameDisplays' special weapon and superbombs (D168). Minimal: the special's icon under the
+ * score, at the C's top left, and the bombs as a row of the bars, at its bottom left.
+ */
+.hud .special {
+  position: absolute;
+  top: calc(max(10px, env(safe-area-inset-top)) + 2.2em);
+  left: 12px;
+  line-height: 0;
+}
+
+.hud .special img {
+  width: 48px;
+  height: 56px;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 1px 2px #000);
+}
+
+.hud .bombs,
+.hud .bomb-row[hidden],
+.hud .bars > [hidden] {
+  display: none;
+}
+
+.hud .bomb-row {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+}
+
+.hud .bomb-row img,
+.hud .bombs img {
+  width: calc(var(--w) * 1.5px);
+  height: calc(var(--h) * 1.5px);
+  image-rendering: pixelated;
+}
+
 /* The game owns touches on the canvas: no scrolling, zooming or text selection while steering. */
 canvas {
   touch-action: none;
@@ -406,6 +443,40 @@ canvas {
 
 .hud.is-framed .boss {
   top: 10px;
+}
+
+/*
+ * Framed, the special and the superbombs are at the C's places on the playfield, in game pixels:
+ * the special's 24x28 icon at (25, 1), the lives under it (y 15 → 35, as the C moves them), a bomb
+ * every 12 from (30, 160), ending 10 rows above the playfield's bottom edge.
+ */
+.hud.is-framed .special {
+  top: var(--hud-unit, 5px);
+  left: var(--hud-unit, 5px);
+}
+
+.hud.is-framed .special img {
+  width: calc(var(--hud-unit, 5px) * 24);
+  height: calc(var(--hud-unit, 5px) * 28);
+}
+
+.hud.is-framed.has-special .top {
+  top: calc(var(--hud-unit, 5px) * 30);
+}
+
+.hud.is-framed .bombs:not([hidden]) {
+  position: absolute;
+  left: calc(var(--hud-unit, 5px) * 6);
+  bottom: calc(var(--hud-unit, 5px) * 10);
+  display: flex;
+  align-items: flex-end;
+  line-height: 0;
+  filter: drop-shadow(0 1px 2px #000);
+}
+
+.hud.is-framed .bombs img {
+  width: calc(var(--w) * var(--hud-unit, 5px));
+  height: calc(var(--h) * var(--hud-unit, 5px));
 }
 
 /* "Cheaters always prosper." over the playfield's bottom edge, as the C has it (y 170). */

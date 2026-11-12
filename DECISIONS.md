@@ -7590,3 +7590,37 @@ t4500, t4600 and t5000, DELIANI t4900; review sheets) and the summaries `summary
 
 **Cost:** one Opus agent, no workflow: one Blender build (newsh2-267, ~10 s), nine review sheets, about a dozen
 headless captures.
+
+## D168 — The HUD shows the held special weapon and the superbombs, at the C's places on the playfield (fixes a port gap; extends D61)
+
+2026-11-12
+
+**Finding** (title-demo comparison, overhead, #8): the original draws the special weapon's icon at the playfield's
+top left (Pearl Wind in demo 2); the remaster showed nothing there, and no HUD file read `items.special` or
+`superbombs`, although `src/sim/mainint.ts`' JE_inGameDisplays stub said the HTML HUD did.
+
+**What the C does** (`JE_inGameDisplays`, mainint.c L2848-2917, called by JE_main, tyrian2.c L2220, every frame after
+the boss bar, onto the game screen, so on the playfield): if `player[0].items.special > 0`, the special's
+`itemgraphic` as a 2x2 spriteSheet10 sprite (24x28) at (25, 1), player 1's only; the lives at (30, 15), moved to
+(30, 35) while that icon is shown; one spriteSheet9 #304 (12x14) per superbomb at (30 + 12j, 160), player 2's leftwards
+from 270.
+
+**Decision** (`src/app/hud.ts`, `src/app/overlay.css`):
+- **Frame:** both are HTML over the opening, beside the lives and boss bars, in game pixels (`--hud-unit`): the
+  special at (1, 1) of the opening, the C's (25, 1) on the playfield; the arcade lives drop to 30 units down while it
+  shows, as the C moves them; the bombs from x 6, their bottoms 10 units above the playfield's bottom edge (y 160 + 14).
+  Pixel-sharp, like the sidekick boxes' icons.
+- **Minimal:** the special's icon (2x) under CREDITS at the top left; the bombs as a fourth row of the bars,
+  "Bombs", 1.5x icons.
+- The icons are the game data's own sprites painted in the in-level palette (as the sidekick icons, D61), each cached
+  once by sprite (the sidekick cache, generalised). Hidden when there is no special and no bombs.
+- The stale stub comment in `src/sim/mainint.ts` now says what JE_inGameDisplays draws and where the HUD shows each.
+
+**Not done:** player 2's superbombs in two-player (twoPlayerHud.ts has no bomb row; the minimal bars, which hold
+player 1's, are hidden in two-player by twoPlayer.css).
+
+**Checked** (`tyrian-scratch/hud-special/`): the attract demo 2 in `?demo=2&compare=1&camera=overhead` (Pearl Wind
+at the same place as the original's); `?debug=play` with Pearl Wind and four superbombs set from the console, frame and
+minimal, at 1920x1080 and 390x844; summary `summary.png`. vitest, tsc, build.
+
+**Cost:** one Opus agent, no workflow: about ten headless captures.

@@ -255,9 +255,18 @@ export function JE_SFCodes(playerNum_: number, PX_: number, PY_: number, mouseX_
 }
 
 /**
- * mainint.c L2848-2917. Everything it does is HUD drawing (cash, special icon, lives, superbombs,
- * "Cheaters always prosper."), which the HTML HUD reads straight from g.player[*] (cash,
- * items.special, lives.value, superbombs) and g.youAreCheating. It maintains no state.
+ * mainint.c L2848-2917, called by JE_main (tyrian2.c L2220) each frame after the boss bar, onto the
+ * game screen: so on the playfield, not the sidebar. Everything it does is drawing, and it maintains
+ * no state. The HTML HUD (src/app/hud.ts) reads the same values from g.player[0]:
+ * - the cash at (30, 175) (one per player in two-player): the frame's CREDITS box (D61);
+ * - the special weapon, `items.special > 0`: special[].itemgraphic as a 2x2 spriteSheet10 sprite at
+ *   (25, 1), player 1's only (D168);
+ * - the lives (onePlayerAction or two-player): at (30, 15), or (30, 35) while a special is shown,
+ *   their label 7 above (arcade.ts hudLives);
+ * - the superbombs: spriteSheet9 #304 at (30 + 12j, 160), player 2's leftwards from 270 (D168;
+ *   player 2's aren't shown);
+ * - "Cheaters always prosper." at (90, 170) while g.youAreCheating.
+ * The left-half original in `?compare=1` draws them all (src/render/classic/classicHud.ts).
  */
 export function JE_inGameDisplays(): void {}
 
