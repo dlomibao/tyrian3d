@@ -7750,3 +7750,149 @@ s030. Captures and the summary: `tyrian-scratch/shadow-fix/` (`before/`, `after/
 Test: `tests/render/flyerShadows.test.ts`.
 
 **Cost:** one Opus agent, no workflow: about 30 headless captures (two at a time), no Gemini, no Blender.
+## D170 — Episode-2 enemy rebuild, batch 1: 28 items (38 inventory units) to the D65 hard-surface standard; the scout re-reads eight as flyers or launched objects
+
+2026-11-12
+
+**Decision:** the 40 most-seen episode-2 inventory units still in the older look (D116's ranking: not `flagship`, not
+pickups, most-seen first by the bot run's ticks on screen) are rebuilt with `tools/workflows/model-flagship.js`, as
+D116 and D121 did (full mode, blueprints for heroes; D65's recipe: hard-surface geometry, AO/roughness bake `"bake":
+"model"`, outline shell, art rules 1-5). The scout folded the 40 units into 29 items (11 merges, below). 28 ship; the
+blue spiral shells `newshn-125` + `newshn-15` do not (see Deferred) and keep their origin/main models.
+
+**Merges and retired scripts.** One agent per merged family, so no two agents edited one file:
+- `assembly-newshj-191` + `assembly-newshj-267`: one boss (`assembly-newshj-267.py` deleted; the 267 row is built
+  inside 191's design).
+- `assembly-newsha-1` + `assembly-newsha-229`: the mirror pod pair (`assembly-newsha-229.py`, `lib_b087.py` and the
+  unreferenced `lib_b084.py` deleted: the old script still exported the same four glbs and would have overwritten
+  the pair on a full rebuild).
+- `assembly-newshh-197` + `assembly-newshh-159`: one craft in two rows (`assembly-newshh-159.py` deleted for the same
+  reason; `lib_b056` keeps its other users).
+- `assembly-newshj-127` + `assembly-newshj-245` + `assembly-newshj-207` (245's mirror): `lib_b118.py`,
+  `assembly-newshj-245.py` and `assembly-newshj-207.py` deleted.
+- `assembly-newshg-231` + `assembly-newshg-267`: the cannon builder moved to a new `lib_cannon.py`;
+  `lib_b077.cannon_main` now calls it (its other helpers, used by `newshj-83`, are unchanged); both
+  wrappers stay.
+- `newshv-38` + `newshv-57` + `newshv-19` (one gem in three colours), `newshv-123` + `newshv-153` (one disc in two
+  colours), `newshv-50` + `newshv-12` and `newsha-161` + `newsha-163` (mirror pairs), and `newshn-125` + `newshn-15`
+  (one shell in two sizes; deferred).
+- `assembly-newshe-229.py` now stands alone: `lib_b070.py` had no other user and is deleted.
+
+No shared lib (`common.py`, `usp_talon.py`, `texture_bake.py`) was edited. `newshg-1` gains
+`assets/blender/textures/newshg-1/maps.json` (`"bake": "model"`).
+
+| Model (units) | Tier | What it is | Top-view IoU (finisher, worst frame) | Review IoU | Score |
+|---|---|---|---|---|---|
+| assembly-newshv-91 (newshv-89/91/93, -91-f2) | hero | GEM WAR's flying gem-launcher gunship | 0.9727 | 0.9722 | 8 |
+| assembly-newshj-191 (+ assembly-newshj-267; 21 models) | hero | the TORM/BOTANY end boss: a hovering biomechanical plant pod; the 267 row is its ribbed tips, not crystal clusters | 0.9735 | 0.9735 | 8 (fix round) |
+| newshv-8 | standard | MARKERS' red-lamp marker beacon, not a turret | 0.9752 | 0.9752 | 7.5 |
+| assembly-newsha-1 (+ assembly-newsha-229) | hero | a mirror pair of half-dome pods riding the screen edges | 0.9803 | 0.9803 | 8 |
+| assembly-newshn-195 (17 pieces) | hero | the GYGES boss: a biomechanical creature head with an animated throat | 0.963 | 0.963 | 7 |
+| assembly-newshh-129 | hero | a waterfall from a cliff into a pool, standing scenery (D82) | 1.0 | 1.0 | 8 |
+| assembly-newshg-191 | hero | a launch hatch in the foot of a rock cliff | 0.969 | 0.968 | 7.5 |
+| assembly-newsh0-79 (13 pieces) | hero | the GRYPHON end boss: a bat-winged flying beast | 0.9421 (newsh0-85; see below) | 0.9421 | 8 (fix round) |
+| assembly-newshj-51 | hero | a green dome generator, built standing (D82) | 0.96 | 0.96 | 7.5 |
+| newshv-38 (+ newshv-57, newshv-19) | standard | the colour gem riding the GEM WAR gunship, three colours | 1.0 | 1.0 | 7 |
+| newshv-191 | standard | a launched green crystal pod (D122) | 0.9526 | 0.9655 | 7.5 |
+| assembly-newshg-231 (+ assembly-newshg-267) | hero | a jungle gun emplacement and its mirror | 0.9838 | 0.9838 | 8 |
+| newshm-123 | standard | a flying hover drone (re-identified in the fix round; built first as a walker) | 0.9899 | 0.9899 | 7.5 (fix round) |
+| newshm-89 | standard | a twin-blade fighter | 0.9647 | 0.9647 | 8 |
+| newshg-201 | standard | a small domed gunboat | 0.967 | 0.9728 | 8 |
+| assembly-newshg-203 | hero | a jungle rocket-launcher emplacement | 0.9668 | 0.9668 | 8 |
+| assembly-newshj-127 (+ assembly-newshj-245, -207) | hero | a jungle rocket launcher and the hover tank with its mirror (207 is not a dome cannon) | 0.9609 | 0.9607 | 8 |
+| newshj-131 | standard | a green beetle pod on a red mount | 0.9593 | 0.9636 | 8 |
+| assembly-newshe-229 | hero | a fast red orb pod, not a ground structure | 0.9837 | 0.9837 | 8 |
+| newshv-123 (+ newshv-153) | standard | a launched gem disc in red and blue (D122) | 0.9553 | 0.9549 | 7.5 |
+| assembly-newshv-39 | hero | a drilling machine, a ground vehicle with a turning drill | 0.9533 | 0.9533 | 8 |
+| newshg-1 | standard | a tumbling molten rock (a falling lava meteor), 14 frames | 0.9612 | 0.9612 | 7 (fix round) |
+| assembly-newshh-197 (+ assembly-newshh-159) | hero | one grey insectoid flying craft in two rows | 0.9524 | 0.9524 | 8 |
+| assembly-newshj-43 | hero | a jungle bunker tower, built standing (D82) | 0.9654 | 0.9654 | 8 |
+| newshv-50 (+ newshv-12) | standard | a mirror pair of flying crystal shards | 1.0 | 1.0 | 7.5 |
+| newsha-161 (+ newsha-163) | standard | a twin-nosed patrol pod in two halves | 0.9557 | 0.9557 | 8 |
+| newshh-93 | standard | a horned bowl-shaped flyer | 0.943 (sub-pixel; grid 0.9864) | 0.9864 | 7.5 |
+| newshg-163 | standard | a blue manta craft flying up the screen | 0.9881 | 0.9881 | 8 |
+
+24 shipped by strict review in the run; `assembly-newshj-191`, `assembly-newsh0-79` and `newshg-1` after one
+`fix-round.js` pass; `newshm-123`, shipped at 7 in the run as a walker, went back into the fix round for its identity.
+
+**Identity lessons (D120, D122, D166, D167).** The scout read every unit's behaviour before any design
+(`tyrian-scratch/e2-enemies-1/enemy_behaviour_e123.mjs`, custom-picture and link dumps) and changed the identity the
+old docstrings gave many of them: `newshv-191`, `newshv-123`/`153`, `newshv-38`/`57`/`19`, `newshv-8`,
+`assembly-newshe-229`, the `newsha-1`/`229` pair, `newshv-50`/`12` and `newshg-1` are launched, flying or moving, not
+grounded; `assembly-newshj-267` is the bottom row of the TORM boss, not crystal clusters; `assembly-newshj-207` is
+the hover tank mirrored, not a dome cannon; `assembly-newshh-159` and `-197` are one craft; the waterfall, the
+bunker tower and the generator stand (D82). It still left `newshm-123` as "a steel walker", and the finisher built
+four legs. The fix round re-read it from `tools/enemy_behaviour.mjs` (moves 2-5 px/tick down the screen and still
+swoops on 2.9's static map, flies in rigid rows of three at dx ±20) and from the frames (123/125/127 change only
+sideways: the shoulders and flank pods trim; nothing moves fore and aft, no foot shape), so it is a hover drone:
+legs and feet removed, round belly keel, lowest point z 1.5 px. The lesson stands as D167's: "ground" is only the
+layer the C draws on, and a three-frame cycle is not a walk cycle unless something moves fore and aft.
+
+**IoU gate** (D116, OUTLINE-BORDER.md: `iou_rule_grid` ≥ 0.95). Every item passes on the grid measure except one
+piece. **`newsh0-85` (GRYPHON) is accepted below the gate by the coordinator:** its own-sprite grid IoU is 0.9421
+(sub-pixel 0.9303); the next lowest pieces are `newsh0-83` 0.9589, `newsh0-39` 0.9623 and `newsh0-47` 0.966. In the
+cell map every mismatch is a model-covered border-ring cell on col 0, row 0 or col 23, the cuts it shares with
+`newsh0-83`, `-47` and `-87`; there are no sprite-only interior cells and no model cells outside the outline. Those
+cells are interior pixels of the whole sprite that the piece's own mask classes as ring, so shrinking the geometry
+there would open gaps in the assembly. With the shared-cut cells left out the piece scores 1.0, inside the assembly
+0.9981, and the whole assembly 0.9944 (worst seam-excluded piece `newsh0-47`, 0.9851). This is the seam case D117
+accepted for `newshf-159` and D166 for `newsh2-87`, with one difference: those two were under 0.95 only on the
+sub-pixel rule and passed on the grid, while `newsh0-85` is under 0.95 on the grid as well, so this is an explicit
+gate exception for border cells on shared interior cuts, not the usual grid-over-sub-pixel call. `newshh-93`
+(0.943) and `newshm-123` (0.9359-0.9449) are under 0.95 only on the sub-pixel rule, with grid 0.9864 and ≥ 0.9899.
+
+**Inventory** (regenerated, bot run): 37 of the 38 shipped units are `flagship`, plus `newshg-167` (the hatch's
+frames 167/243/283, rebuilt with `assembly-newshg-191`) and two units the regeneration now lists on their own,
+`newsha-231` and `newsha-269` (the pod pair's animated pieces); episode 2 is now 90 flagship / 56 older / 154 enemy
+units (was 49 / 95 / 152). `assembly-newshj-127` stays `basic`: its frames 17 and 91 draw `newshj-17`/`-17-f2`, the
+launcher's flame tip alone, which has no outline shell (flames carry no ink), and `tools/inventory.mjs` counts a glb
+without a shell as the older look. The model is done; teach the inventory that an emissive-only piece needs no
+shell (or give the flame a shell) to count it. `newshn-125` and `newshn-15` stay `basic` (deferred).
+
+**Rebuild check:** `assembly-newshj-191` and `assembly-newsh0-79` (whose reviewers flagged glbs older than the last
+script edit), and `assembly-newshv-91`, `assembly-newshn-195`, `assembly-newshj-127` and `newshv-50` (script saved
+seconds to minutes after their builds), were rebuilt by the coordinator with `tools/build-models.sh -j 3` before
+committing (all exited clean). Every rebuilt glb has the same meshes, vertex counts, bounds and materials as before
+(`tyrian-scratch/e2-enemies-1/integrate/glbstat.py`; the byte differences are the baked maps' compression and the
+outline shells' vertex order), the spriteModels JSONs are byte-identical, and the IoU re-measured on the rebuilt
+models is unchanged: `assembly-newshj-191` worst 0.9735 (the -f3 eye frame 0.9868; top renders of the game glbs),
+`newsh0-85` 0.9421, `newsh0-83` 0.9589, `newsh0-39` 0.9623, `newsh0-47` 0.966.
+
+**In game** (`?compare=1`, seed 1; `tyrian-scratch/e2-enemies-1/integrate/`): TORM at t6700
+(`torm_t6700_compare.png`, the plant-pod boss) and GYGES at t5340 (`gyges_t5340_compare.png`, the creature head)
+load every model, with no console errors. vitest, tsc and the build pass.
+
+**Deferred:** `newshn-125` + `newshn-15` (GYGES's blue spiral shells; one build, `newshn-15.py` wraps
+`newshn-125.py`'s SPEC) end at fix 5/10 after the fix round and keep their origin/main models, scripts and
+spriteModels entries. The fix round's work is kept in `tyrian-scratch/e2-enemies-1/newshn-125/` (its final scripts
+and glbs in `unshipped-worktree-state/`). It fixed the in-game black ink spiral (an `outline_source()` height-field
+stand-in for the outline shell: 39 black px of 21662, was 2411; keep it), but its open issues are: the spire is a
+smooth cone in a bowl where the review asked for 2-2.5 stepped whorls (each 0.6-1 px higher, the suture tucked under
+each step, apex at sprite (10.5, 11.8)); the body whorl is a flat-topped slab (4.8/5.4 px of near-vertical wall)
+with no convex coil shoulder peaking over the crescent (indices 59-61, rows 12-18, cols 13-16; inferred peak ~5.6 px
+against 3.8 built); the flank suture is a painted knife-cut slit with no 0.3-0.5 px overlap step; and a dark speck or
+pinhole on `newshn-125`'s lower flank (back-left 3/4 view).
+
+**Follow-ups (known):**
+- `newshg-1`'s glb grew to 5.3 MB (104k triangles with the outline shells; about 4.7x the next-largest enemy glb in
+  the batch): a download and preload cost (D54), not a frame-rate one (~13k triangles per instance). Its crust is
+  darkened by a flat `CRUST_DARK = 0.62` on the crust texels of the baked colour map (the index stays 115; no
+  concept projection); set it to 1.0 for pure AO. The glow bands on its top still have per-face stepped edges.
+- `newshv-123.py` writes both gem discs and `newshv-153.py` runs it again, so a parallel full build writes the same
+  files twice (harmless, but racy). `newsha-161.py` had the same race; its `main` now builds only its own half.
+- `lib_b044.build_pod` is dead code (only `to_object` is used, by `assembly-newsha-49`); `lib_b071.shell` stays for
+  the deferred shells.
+- `src/viewer/assemblies.json` and the inventory still list the merged assemblies (`assembly-newsha-229`,
+  `-newshh-159`, `-newshj-207`, `-245`, `-267`) on their own until `npm run catalogue` regenerates it.
+- Optional polish from the reviews: `assembly-newshj-191`'s right-pod foot bead shows a thin double lip and its belly
+  vents are open; `assembly-newshn-195`'s skull is smoother than the sprite's ribbed bone; `assembly-newsh0-79`'s
+  snout reads as a dark uniform grille; `newshm-123`'s visor still reads mid-grey in the viewer and its hood stern
+  drops as a flat face; `newshv-191`'s docstring says emission 1 where the table glows at 0.5; `newshv-38`'s floating
+  gem is cut off at the top of `?viewer=` (viewer framing).
+- Not captured in a level: `newshm-123` (the fix round did not find a level showing it) and whether `newshj-51`'s and
+  `newshj-131`'s pods ride terrain layer 2 or float.
+
+**Cost:** 175 agents (1 scout, 15 blueprints, 44 designs, 15 judges, 29 finishes on Sonnet, 21 fixes, 50 reviews), 13.4M
+subagent tokens, about 2.7 h of run time (9,651 s; interrupted once by the weekly usage limit and resumed); the fix
+round (`fix-round.js`, 5 items) 12 agents (6 fixes, 6 reviews), 1.52M tokens, 56 min. Sheets:
+`tyrian-scratch/e2-enemies-1/<name>/final/` (not in git, D3).
