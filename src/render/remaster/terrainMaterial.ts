@@ -3,8 +3,9 @@
 // texels (`instTile`). Three kinds:
 // - "ground" (background 1): opaque, lit, with a little relief from the painting's brightness like
 //   the 4x ground (D34), receiving shadows;
-// - "blend" (draw_background_2_blend: TYRIAN's ice clouds, D45): translucent sheets at
-//   BLEND_ALPHA times the art's coverage, no depth write;
+// - "blend" (draw_background_2_blend: TYRIAN's ice clouds, D45): sheets drawn with the C's
+//   hue-keeping blend (hueBlend.ts, D168) at the art's coverage, the tile's main palette bank per
+//   instance (`instBank`), no depth write;
 // - "cutout" (background 3's islands and an opaque background 2 without models): drawn with the art's
 //   alpha (so the painted soft edge shows, D132) but writing depth like an opaque tile, and casting
 //   island-shaped shadows (a depth material that cuts the alpha at one half).
@@ -29,6 +30,7 @@ import { PALETTE_LUT_SIZE, type PaletteTexture } from "../paletteTexture";
 import { SCREEN_HUE_PARS } from "../screenHue";
 import { TILE_HEIGHT, TILE_WIDTH } from "../../data/levels";
 import { TERRAIN_MAX_LOD, TERRAIN_TINT_SCALE } from "./terrainArt";
+import { HUE_BLEND_PARS, type UnderGrab } from "../hueBlend";
 
 export type TerrainKind = "ground" | "blend" | "cutout";
 
@@ -36,8 +38,8 @@ export interface TerrainMaterialOptions {
   kind: TerrainKind;
   /** Atlas texels per original pixel (the manifest's scale). */
   scale: number;
-  /** Opacity of "blend" sheets (the renderer's BLEND_ALPHA). */
-  blend?: number;
+  /** "blend" sheets: the frame under them (hueBlend.ts, D168). */
+  under?: UnderGrab;
   /** How strongly brightness changes tilt the ground's normal (0 = flat). */
   relief?: number;
 }
@@ -169,8 +171,11 @@ export function terrainMaterial(
     envMapIntensity: 0.25,
     transparent: blended || kind === "cutout",
     depthWrite: !blended,
+    // A blend sheet's colour is a palette colour (the C's blend, D168), shown as it is.
+    toneMapped: !blended,
     userData: { outlineParameters: { visible: false } },
   });
+  if (blended && !opts.under) throw new Error("terrainMaterial: a blend sheet needs the frame under it (opts.under)");
   const uniforms = {
     ...uniformsFor(texture, scale),
     paletteMap: { value: palette.texture },
@@ -179,15 +184,16 @@ export function terrainMaterial(
     // Relief is measured over a quarter of an original pixel either side, as the 4x ground's is.
     reliefStep: { value: Math.max(1, scale / 4) },
     ...levelUniforms,
+    ...(blended ? opts.under!.uniforms : {}),
   };
   material.userData.terrainUniforms = uniforms;
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms, palette.screenHue.uniforms);
     shader.vertexShader = shader.vertexShader
-      .replace("#include <common>", `#include <common>\n${VERTEX_PARS}\nvarying float vPassY;`)
+      .replace("#include <common>", `#include <common>\n${VERTEX_PARS}\nvarying float vPassY;${blended ? "\nattribute float instBank;\nvarying float vBank;" : ""}`)
       .replace(
         "#include <begin_vertex>",
-        `#include <begin_vertex>\n${VERTEX_MAIN}\nvPassY = 0.0;\n#ifdef USE_INSTANCING\nvPassY = instanceMatrix[3][1];\n#endif`,
+        `#include <begin_vertex>\n${VERTEX_MAIN}\nvPassY = 0.0;\n#ifdef USE_INSTANCING\nvPassY = instanceMatrix[3][1];\n#endif${blended ? "\nvBank = instBank;" : ""}`,
       );
     shader.fragmentShader = shader.fragmentShader
       .replace(
@@ -200,6 +206,7 @@ varying float vPassY;
 float vScreenWater = 0.0;
 ${SAMPLE_PARS}
 ${LEVEL_PARS}
+${blended ? `${HUE_BLEND_PARS}\nvarying float vBank;` : ""}
 float terrainLuma(vec2 t, float lod) {
   vec4 c = terrainSample(t, lod);
   return dot(c.rgb, vec3(0.299, 0.587, 0.114));
@@ -214,8 +221,9 @@ float cover = tex.a;
 vec3 painted = ${premultiplied ? "tex.rgb / max(cover, 1e-4)" : "tex.rgb"};
 if (vTintOrigin.x >= 0.0) painted = terrainLinear(terrainSrgb(painted) + terrainTint()); // D138: another tile's painting, in this tile's colours
 ${kind === "cutout" ? `if (cover < 0.004) discard;\ndiffuseColor.a = cover;` : ""}
-${blended ? `if (cover < 0.004) discard;\ndiffuseColor.a = ${(opts.blend ?? 0.55).toFixed(3)} * cover;` : ""}
+${blended ? `if (cover < 0.004) discard;\ndiffuseColor.a = cover;` : ""}
 diffuseColor.rgb *= terrainPalette(painted, vPassY, vScreenWater);
+${blended ? "vec3 hueBlended = hbColor(vBank, hbShade(vBank, hbLum(painted)), hbUnderShade(), vPassY, vScreenWater);" : ""}
 vec2 reliefSlope = vec2(0.0);
 if (relief > 0.0) {
   float d = max(reliefStep, exp2(lod));
@@ -230,8 +238,10 @@ if (relief > 0.0) {
 normal = normalize((viewMatrix * vec4(normalize(vec3(-reliefSlope.x, 1.0, -reliefSlope.y)), 0.0)).xyz);`,
       );
     if (kind === "ground") shader.fragmentShader = shader.fragmentShader.replace("#include <opaque_fragment>", WATER_ALPHA);
+    // The C's blend replaces the lit colour: the bank's ramp at the mean shade (hueBlend.ts, D168).
+    if (blended) shader.fragmentShader = shader.fragmentShader.replace("#include <opaque_fragment>", "#include <opaque_fragment>\ngl_FragColor.rgb = hueBlended;");
   };
-  material.customProgramCacheKey = () => `terrain-hd-${kind}-${opts.blend ?? 0}`;
+  material.customProgramCacheKey = () => `terrain-hd-${kind}`;
   return material;
 }
 

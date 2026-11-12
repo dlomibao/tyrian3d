@@ -12,6 +12,7 @@ import * as THREE from "three";
 import type { PaletteTexture } from "./paletteTexture";
 import type { TileAtlas } from "./tileAtlas";
 import { SCREEN_HUE_PARS } from "./screenHue";
+import { HUE_BLEND_PARS, type UnderGrab } from "./hueBlend";
 
 export const enum FxMode {
   None = 0,
@@ -110,21 +111,25 @@ export function paletteMaterial(palette: PaletteTexture, opts: PaletteMaterialOp
 }
 
 /**
- * The ground (background 1) material: tiles from the atlas, coloured per fragment. With `blend`
- * (an opacity), it draws the C's blended background-2 tiles (draw_background_2_blend) as flat
- * translucent sheets instead: index 0 is see-through and the rest is drawn at that opacity.
+ * The ground (background 1) material: tiles from the atlas, coloured per fragment. With `under`
+ * (the frame under the sheet, hueBlend.ts), it draws the C's blended background-2 tiles
+ * (draw_background_2_blend) as flat sheets instead: index 0 is see-through and the rest takes the
+ * C's hue-keeping blend with what's under it (D168), unlit.
  */
-export function groundTileMaterial(palette: PaletteTexture, atlas: TileAtlas, blend?: number): THREE.Material {
+export function groundTileMaterial(palette: PaletteTexture, atlas: TileAtlas, under?: UnderGrab): THREE.Material {
+  const blend = under !== undefined;
   const material = new THREE.MeshStandardMaterial({
     roughness: 0.95,
     metalness: 0,
     envMapIntensity: 0.2,
-    transparent: blend !== undefined,
-    depthWrite: blend === undefined,
+    transparent: blend,
+    depthWrite: !blend,
+    toneMapped: !blend,
     userData: { outlineParameters: { visible: false } },
   });
   material.onBeforeCompile = (shader) => {
     shader.uniforms.paletteMap = { value: palette.texture };
+    if (under) Object.assign(shader.uniforms, under.uniforms);
     Object.assign(shader.uniforms, palette.screenHue.uniforms);
     shader.uniforms.atlasMap = { value: atlas.texture };
     shader.uniforms.tileUv = { value: atlas.tileUv };
@@ -140,7 +145,7 @@ export function groundTileMaterial(palette: PaletteTexture, atlas: TileAtlas, bl
     shader.fragmentShader = shader.fragmentShader
       .replace(
         "#include <common>",
-        `#include <common>\nuniform sampler2D atlasMap;\nuniform vec2 tileUv;\nvarying vec2 vAtlasUv;\nvarying vec2 vTileOrigin;\nvarying float vPassY;\n${PALETTE_LOOKUP}\n${SCREEN_HUE_PARS}\nfloat vScreenWater = 0.0;`,
+        `#include <common>\nuniform sampler2D atlasMap;\nuniform vec2 tileUv;\nvarying vec2 vAtlasUv;\nvarying vec2 vTileOrigin;\nvarying float vPassY;\n${PALETTE_LOOKUP}\n${SCREEN_HUE_PARS}\n${blend ? HUE_BLEND_PARS : ""}\nfloat vScreenWater = 0.0;`,
       )
       .replace(
         "#include <color_fragment>",
@@ -149,14 +154,19 @@ export function groundTileMaterial(palette: PaletteTexture, atlas: TileAtlas, bl
           "vec2 halfTexel = vec2(0.5 / float(textureSize(atlasMap, 0).x));",
           "vec2 atlasUv = clamp(vAtlasUv, vTileOrigin + halfTexel, vTileOrigin + tileUv - halfTexel);",
           "float groundIndex = floor(texture2D(atlasMap, atlasUv).r * 255.0 + 0.5);",
-          blend !== undefined ? `if (groundIndex < 0.5) discard;\ndiffuseColor.a = ${blend.toFixed(3)};` : "",
+          blend ? "if (groundIndex < 0.5) discard;" : "",
           // The smoothies' hue (screenHue.ts) for the instance's pass height: 0 for the ground, which
           // is under every filter; a blended background-2 sheet's own pass otherwise.
           "diffuseColor.rgb *= paletteColor(screenHueIndex(groundIndex, vPassY, vScreenWater));",
+          // blit_sprite2_blend's rule: the tile's bank at the mean of its shade and the one underneath (D168).
+          blend ? "float groundBank = floor(groundIndex / 16.0) * 16.0;\nvec3 hueBlended = hbColor(groundBank, groundIndex - groundBank, hbUnderShade(), vPassY, vScreenWater);" : "",
         ].join("\n"),
       );
-    if (blend === undefined) shader.fragmentShader = shader.fragmentShader.replace("#include <opaque_fragment>", WATER_ALPHA);
+    shader.fragmentShader = shader.fragmentShader.replace(
+      "#include <opaque_fragment>",
+      blend ? "#include <opaque_fragment>\ngl_FragColor.rgb = hueBlended;" : WATER_ALPHA,
+    );
   };
-  material.customProgramCacheKey = () => (blend === undefined ? "palette-ground-tiles" : `palette-ground-tiles-blend-${blend}`);
+  material.customProgramCacheKey = () => (blend ? "palette-ground-tiles-blend" : "palette-ground-tiles");
   return material;
 }
