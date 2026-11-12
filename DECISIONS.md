@@ -7200,3 +7200,25 @@ Tests:
 - `tests/render/screenFilters.test.ts`: `compileFiltered` compiles with the scene target bound and puts the
   previous target back.
 - `tests/render/spriteArt.test.ts`: the warm-up makes the explosion batch and the stencil setter.
+
+## D160 — Picture 8 (the skull on a horn) is a Gemini repaint of the original, reversing D19 for this picture
+
+2026-11-12
+
+**Decision:** `public/art/story_skull.webp` is now a Google Gemini (Nano Banana Pro) repaint of
+Tyrian's original picture 8, from a 4x softened copy of it, cropped from 16:9 to 16:10 and scaled to
+1920x1200 (198 KB). D19 had it redrawn in Blender from the game's models; that gave a brown
+ship-like shape on a spike, not the original's flayed alien skull with a glowing red eye, so the
+user asked for a Gemini repaint of the original instead. The file name, `pictures.json` entry and
+`]U 008` pan are unchanged. `assets/art/story_skull.py` stays as the old version, no longer the source.
+
+**Options considered:**
+- *Repaint the original with Gemini (chosen):* the composition, skull, horn, spine, planet and moon
+  match the original; same route D43 and D58 use for sprites and terrain.
+- *Keep the Blender redraw (D19):* ours to rebuild from scripts, but it doesn't show what the
+  original shows.
+
+**Review:** Derived from the original's artwork, credited in CREDITS.md like the other Gemini
+repaints; the input copy is not committed (art rule 6). The story panel sits where it did before and
+covers the skull's upper face while text is up.
+

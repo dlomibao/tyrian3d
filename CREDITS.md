@@ -36,6 +36,7 @@ anything imported from outside, such as Poly Haven textures or HDRIs.
 | Remastered shot, pickup and explosion sprites (`public/art/sprites/`) | Generated with Google Gemini (Nano Banana) from input sheets of Tyrian's original sprites, cut and fitted with `tools/flat_art.py` (DECISIONS.md D43, D80, D94, D97, D108) | Based on Tyrian's sprite art (Daniel Cook) | As the art they're based on | Drawn flat in game in place of the original shot, pickup and explosion sprites (D42, D80) |
 | Title logo (`public/art/title/tyrian-logo.svg`, `tyrian-logo-mask.svg`) | Logo traced from the original Tyrian title sprite (PLANET_SHAPES #146 in tyrian.shp, palette 8) to vector paths for this project (DECISIONS.md D64) | Original artwork from Tyrian (1995) | As the art it is traced from | The title and data screens' logo (`src/ui/components.ts` logo()) |
 | Concept images of models (`assets/blender/features/concepts/`) | Generated with Google Gemini (Nano Banana) from the sprites above; two supplied by the project's author | Based on Daniel Cook's Tyrian art | As the art they're based on | Design references for the Blender models; not shipped in the game |
+| Story picture 8, the flayed skull on a horn (`public/art/story_skull.webp`) | Generated with Google Gemini (Nano Banana Pro) from a 4x softened copy of Tyrian's original picture 8 (`]U 008`), cropped to 16:10 (DECISIONS.md D160) | Original artwork from Tyrian (1995), Eclipse Productions (art: Daniel Cook and the Tyrian artists) | As the art it is based on | The end-of-episode-1 story screen |
 
 ## Audio
 
