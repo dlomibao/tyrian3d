@@ -5209,7 +5209,21 @@ unlit path for glow materials (the D121 follow-up).
 - **Could not determine from behaviour** (need the user or a closer look): `assembly-newshp-267` and
   `assembly-newshc-283` (towers or tanks?); `newshf-1` and `newshf-47` (which end is the head?); `assembly-newshu-79`
   (wreck or working machine?).
-- `tools/enemy_behaviour.mjs` covers episodes 1 and 3 only and reads `docs/roadmap/inventory.json`.
+- `tools/enemy_behaviour.mjs` covers episodes 1 and 3 only and reads `docs/roadmap/inventory.json`. Done 2026-11-12, below.
+
+**2026-11-12, the tool fixed for all episodes** (flaws found by the walker audit, `tyrian-scratch/walker-audit/REPORT.md`,
+each checked against `src/sim/tyrian2.ts` and OpenTyrian's `tyrian2.c`): it now loads each episode's own resources
+(`buildResources(files, ep)`) and `tyrian<ep>.lvl`, so E2 and E4 units show their spawns; event 12 with eventdat6 0 is
+the ground layer (25), not sky; the custom-picture spawns 49-52 (type 0, graphic eventdat, bank eventdat3) are matched
+to `custom` units by sheet and frame; event 20/27/55/74 with link 0 apply to every enemy, event 19's eventdat3 selects
+1/2/3/99 = every ground/sky/top/all enemy and 80-89 the link event 75 picked at random. The audit also listed event 28
+as a custom spawn: it is not (both sources: `topEnemyOver = false`). Motion now comes from a kinematic walk of the level
+(event clock and scroll, each event-spawned enemy moved as `JE_drawEnemy` moves it, the steering events applied when
+they fire), giving a `motion` summary per type and level and `stackedWith` per spawn (same tick, |dx| <= 24, dx/dy
+between the enemies' centres, `rigid` when the offset holds within 1 px while both live). Not modelled: event jumps,
+difficulty/2-player skips (flagged per spawn), slot limits, kills, launched enemies (`typeMotion` from their data);
+homing assumes the player stays at its start. Check: `assembly-newsh2-87` is stacked with `assembly-newsh2-123`
+(types 8/9) at dy +16, rigid, in 1.9/1.15/1.16/3.8.
 
 ## D123 — Episode-1 enemy rebuild, batch 3: the last 16 items (36 units) to the D65 hard-surface standard
 
