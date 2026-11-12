@@ -34,11 +34,10 @@ export interface DamageUniforms {
   uDmgPaint: { value: THREE.Texture | null };
   /**
    * The player ship's wear (shipDamage.ts, D90): scorch coverage (0..1; < 0 = an enemy's damaged
-   * frame, the textures above) and ember glow. In ship mode `mask` holds a scorch pattern (g: the
-   * coverage each texel scorches at, b: where embers can glow), never a cut.
+   * frame, the textures above). In ship mode `mask` holds a scorch pattern (g: the coverage each
+   * texel scorches at), never a cut, and no embers (D156: they read as an orange tint).
    */
   uDmgCover: { value: number };
-  uDmgHot: { value: number };
   /**
    * World offset of the clone's shadow (D133): its shadow-map depth is drawn this far off, and its own
    * shadow lookups move with it, so it shades itself as before. Not part of the damage: these are the
@@ -56,7 +55,6 @@ export function damageUniforms(): DamageUniforms {
     uDmgTint: { value: null },
     uDmgPaint: { value: null },
     uDmgCover: { value: -1 },
-    uDmgHot: { value: 0 },
     uShadowShift: { value: new THREE.Vector3() },
   };
 }
@@ -106,7 +104,6 @@ const FRAGMENT_PARS = /* glsl */ `${DAMAGE_CUT_FRAGMENT_PARS}
 uniform sampler2D uDmgTint;
 uniform sampler2D uDmgPaint;
 uniform float uDmgCover;
-uniform float uDmgHot;
 varying float vDmgUp;
 vec3 dmgEmber = vec3(0.0);
 // How much of the material's own glow is left, and the tint and replacement it takes.
@@ -121,9 +118,9 @@ if (uDmgOn > 0.5) {
   vec2 uv = dmgUv();
   vec4 m = texture2D(uDmgMask, uv);
   if (uDmgCover >= 0.0) {
-    // The player ship's wear: scorch where the pattern is under the coverage, embers in the heavy.
+    // The player ship's wear: scorch where the pattern is under the coverage. No embers (D156).
     float s = 1.0 - smoothstep(uDmgCover - 0.08, uDmgCover, m.g);
-    m = vec4(0.0, 0.85 * s, s * smoothstep(0.6, 0.9, m.b) * uDmgHot * 1.5, 0.0);
+    m = vec4(0.0, 0.85 * s, 0.0, 0.0);
   }
   if (m.r > 0.5) discard;
   if (gl_FrontFacing) {
