@@ -18,6 +18,7 @@ import { hudLives } from "./arcade"; // [arcade]
 import { paint, tableSprite } from "./dataCubes";
 import type { TouchAction } from "./controls";
 import { HudFrame, type FrameValues, type HudTargetId, type SidekickView } from "./hudFrame";
+import { secretLevelBanner } from "./secretLevel";
 import { touchHudParam, touchHudWanted } from "./touchHud";
 import { gaugeRows, hudLayout, type Insets, pipCount, powerPercent, powerRows, toFrameUnits } from "./hudLayout";
 
@@ -30,6 +31,10 @@ export interface HudView {
   setViewport(rect: ScreenRect | null): void;
   playfieldCorners(): readonly { x: number; y: number }[];
 }
+
+/** The playfield in game pixels (screen x 24..288, y 0..184). */
+const PLAYFIELD_W = 264;
+const PLAYFIELD_H = 184;
 
 /** sprite.h's OPTION_SHAPES table, and the in-level palette (JE_loadPic 3 → pcxpal[2]). */
 const OPTION_SHAPES = 5;
@@ -54,6 +59,7 @@ export class Hud {
         <span class="bar"><i data-k="boss0"></i></span><span class="bar" data-k="bossSlot1"><i data-k="boss1"></i></span>
       </div>
       <div class="warning" data-k="warning" hidden>WARNING</div>
+      <div class="secret" data-k="secret" hidden></div>
       <div class="message" data-k="message"></div>
       <div class="bars">
         <span>Armor</span><span class="bar armor"><i data-k="armor"></i></span>
@@ -107,6 +113,7 @@ export class Hud {
     this.text("lives", hudLives()); // [arcade]
     this.hidden("warning", !(p.is_alive && p.armor < 6));
     this.hidden("cheating", !g.youAreCheating); // [cheats] JE_inGameDisplays (mainint.c L2913-2916)
+    this.secret();
 
     // Boss bars (draw_boss_bar): the most damaged linked enemy's armor, out of 254; `color` > 0
     // flashes the bar after a hit.
@@ -155,6 +162,41 @@ export class Hud {
     this.width("power", g.power / 900);
     this.text("front", fitted(front) ? `${front} · ${p.items.weapon[0].power}` : "");
     this.text("rear", fitted(rear) ? `${rear} · ${p.items.weapon[1].power}` : "");
+  }
+
+  /**
+   * "Secret Level!" (tyrian2.c L1993-2000) while the secret-level timer runs: at the C's place on the
+   * playfield (screen 90, 10), the big font's height, pulsing in the level palette's bank 15 (D155).
+   */
+  private secret(): void {
+    const b = secretLevelBanner();
+    this.hidden("secret", b === null);
+    if (!b) return;
+    this.text("secret", b.text);
+    const el = this.el.secret;
+    // On the playfield as the camera shows it: the far (top) edge's corners, so the banner sits at the
+    // C's (90, 10) whatever the tilt, sized to the big font's glyphs at that edge's scale.
+    const root = this.root.getBoundingClientRect();
+    const corners = [...(this.view?.playfieldCorners() ?? [])].sort((p, q) => p.y - q.y);
+    let x: number, y: number, px: number;
+    if (corners.length === 4 && root.width > 0) {
+      const [a, c] = corners[0].x <= corners[1].x ? [corners[0], corners[1]] : [corners[1], corners[0]];
+      const bottom = corners[3].y;
+      x = a.x + b.centerX * (c.x - a.x) - root.left;
+      y = a.y + b.top * (bottom - a.y) - root.top;
+      px = (b.height * PLAYFIELD_H * (c.x - a.x)) / PLAYFIELD_W;
+    } else {
+      const h = this.root.clientHeight || window.innerHeight;
+      x = b.centerX * (this.root.clientWidth || window.innerWidth);
+      y = b.top * h;
+      px = b.height * h;
+    }
+    el.style.left = `${Math.round(x)}px`;
+    el.style.top = `${Math.round(y)}px`;
+    el.style.fontSize = `${Math.max(12, Math.round(px / 0.72))}px`; // cap height ≈ 0.72 em
+    el.style.color = b.color;
+    el.style.setProperty("--secret-glow", b.color);
+    el.style.setProperty("--secret-shadow", b.shadow);
   }
 
   /** Frame or minimal: the frame while shown, chosen, and not a two-player game. */
