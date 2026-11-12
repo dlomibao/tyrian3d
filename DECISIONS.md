@@ -7301,7 +7301,7 @@ stair-stepped masks, and all are grid 1.0 on every frame (sprite_mask.py `--meas
 size with different bytes (bake output).
 
 **Follow-ups (known):**
-- `tropical-cherry-companion` (option 29, "fix 7", not shipped): the lens sits 0.5 px too high and is too short
+- `tropical-cherry-companion` (option 29, "fix 7", not shipped; resolved, it ships in D164): the lens sits 0.5 px too high and is too short
   (sprite cells (7,5), (6,6), (7,6), (6,7), (7,7) change over frames 113/132/151; the model's lens only covers rows 5-6,
   so row 7 cols 6-7 never flashes: move `LENS_C` to about (7.0, 6.45), core dome to about (6.7, 6.0)); the two 127 GLOW
   running lights are invented and read as stray white chips (dim ramp colour, or only the sprite's single glint at
@@ -7348,3 +7348,30 @@ the same way the claw's lean is now 0 px relative to the ground at both sides. R
 **Rule (PLAYBOOK failure modes):** under the tilted camera, a long, thin part whose height changes along its length
 leans sideways near the screen's sides. Keep prongs, forks, rails and blades level along their length. Put height
 changes across them, not along them.
+
+## D164 — tropical-cherry-companion ships: the one sidekick D162 left out (extends D162, D65)
+
+D162 shipped 21 of 22 sidekicks; `tropical-cherry-companion` (option 29, sheet `tyrian.shp#8`, frames 113/132/151) was
+left on the original sprite after a "fix 7" review. A fix round (shared with the DELIANI towers, 8 agents, about 1.1M
+tokens in total) rebuilt it and it passed the strict review at 8/10, top-view IoU 1.0 on all three frames (sub-pixel
+rule 0.9207). It now ships: `assets/blender/sidekicks/tropical-cherry-companion.py`,
+`public/models/sidekicks/tropical-cherry-companion.glb`, `src/render/spriteModels/tropical-cherry-companion.json`.
+
+What the fix did: the lens now covers rows 5-7, cols 6-7 (all five cells that change over the frames), with the
+tyrian_frame_pal ramp 124/125/126; the swirl is a broad "9"-shaped well (dark floor pal 116, raised rim 118/115) 0.13 px
+above the shell, so no z-fight; two orange (pal 122) tail ribs; no pal-127 lamps (dim pal-120 seam lamps instead);
+4468 triangles (3268 body, 1200 outline shell), down from 5118. The sprite's (9,9) glint is sheen and stays unmodelled.
+
+**Minor notes from the review (none blocking):**
+- The material `pal_118_tropical-cherry-companion-vane` is now the well-rim top; the name and a docstring line are
+  left over from the removed vane. Rename at the next touch.
+- The rim stands about 0.3-0.5 px above the crown, so side and front views show a slight raised lid rather than a
+  recessed pocket. Invisible from the game camera.
+- Invented detail with no basis in the sprite: the nose-cap panel groove, the dim pal-120 flank lamps and the large rear
+  exhaust oval. All small.
+- The lens covers cell (6,5), a static 127 in the sprite, so that cell pulses in the model and not in the sprite.
+- The script's bake maps go to a hardcoded scratch path (`HERE`), as `mint-o-ship.py` does; the other D162 scripts use
+  the script's own directory.
+
+**Cost:** the fix round ran 8 agents for about 1.1M tokens, shared with the DELIANI towers, which did not pass and are
+not part of this change (their work is parked in `tyrian-scratch/followups-1116/towers-wip/`; D161 still defers them).
