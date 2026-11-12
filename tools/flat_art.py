@@ -26,6 +26,11 @@ from input sheets of the original sprites. This tool does both ends of that loop
         are frames another tool put in a rebuilt sheet (those with their own "scale": value_art.py's
         coin values share newsh6.shp, D76).
 
+    python tools/flat_art.py recolour [--only SHEET:INDEX,...]
+        Recolours the frames tools/flat_art_recolour.json lists toward their sprite's own palette ramp
+        (and joins beam pieces), in the committed atlases, once; `cut` applies the same file to what it
+        cuts (D172).
+
 A few frames are painted here instead of cut from Gemini's art (PAINTED: the Vulcan Cannon's
 tracers, D56); `cut` draws them with their painter and packs them with the rest.
 
@@ -288,6 +293,7 @@ SHEET_GROUPS = [
     ("rest-shots-11", ["rest-shots-11"]),
     ("rest-pickups", ["rest-pickups"]),
     ("rest-hotdog", ["rest-hotdog"]),  # D108 follow-up: the 2x2 hot-dog alone, with a lettering prompt
+    ("fix-shots", ["fix-shots"]),  # D172: sidekick shots the inventory's sidekick scan missed
     ("explosions-fireball", ["fireball"]),
     ("explosions-air", ["explosion-air"]),
     ("explosions-ground", ["explosion-ground"]),
@@ -682,7 +688,199 @@ def painted_frame(gd: GameData, sheet: str, index: int, palette: int) -> dict:
             "cell": None, "mirrored": False, "shared": False}
 
 
-def cut(gd: GameData, inputs: dict, results: Path, out: Path, palette: int, check: Path | None, merge: bool = False) -> dict:
+# --- Recolouring toward the sprite's own palette ramp (D172) ---------------------------------------
+#
+# A painting can come back paler, more orange or darker than its sprite (Gemini lightens fire to
+# white, greys a tan glass cube, darkens one frame of a gem's twinkle). Art rule 1 says the sprite's
+# colours win, so these frames are recoloured with the sprite's own palette ramp: each texel keeps its
+# place in the painting's brightness order (the painting's shapes and detail stay), and takes the
+# brightness the sprite has at the same place in its order (histogram matching) and the sprite's
+# colour at that brightness (its ramp). tools/flat_art_recolour.json lists the frames; `cut` applies
+# it to what it cuts, and `recolour` to the committed atlas.
+
+LUMA = np.array([0.299, 0.587, 0.114], np.float32)
+RECOLOUR = ROOT / "tools" / "flat_art_recolour.json"
+
+
+def ramp_recolour(art: np.ndarray, art_w: np.ndarray, orig: np.ndarray, orig_w: np.ndarray, strength: float = 1.0,
+                  layout: float = 0.6, bins: int = 48) -> np.ndarray:
+    """art (..., 3) in 0..1 recoloured by orig's ramp (see above); art_w and orig_w weight the texels
+    (alpha). orig is the sprite's colours smoothed (original_colour), so its brightness spread is
+    continuous and the result isn't posterised into the palette's few steps. The brightness order is
+    the painting's mixed with the sprite's own at each texel by `layout` (0: the painting's alone; 1:
+    the sprite's, a smoothed sprite): where a painting puts its brightest texture off the sprite's
+    hot core, the core and rim still land where the sprite has them."""
+    o_l = (orig @ LUMA).ravel()
+    a_l = (art @ LUMA).ravel()
+    if layout > 0:
+        a_l = (1 - layout) * a_l + layout * o_l
+    aw, ow = art_w.ravel().astype(np.float64), orig_w.ravel().astype(np.float64)
+    keep_a, keep_o = aw > 0.02, ow > 0.5
+    # art luma -> its quantile (weighted CDF) -> the sprite's luma at that quantile
+    ia = np.argsort(a_l[keep_a], kind="stable")
+    sa, ca = a_l[keep_a][ia], np.cumsum(aw[keep_a][ia])
+    io = np.argsort(o_l[keep_o], kind="stable")
+    so, co = o_l[keep_o][io], np.cumsum(ow[keep_o][io])
+    q = np.interp(a_l, sa, (ca - 0.5 * aw[keep_a][ia]) / ca[-1])
+    lum = np.interp(q, (co - 0.5 * ow[keep_o][io]) / co[-1], so)
+    # the sprite's colour at a luma: the mean colour of its texels in each luma bin, interpolated
+    lo, hi = float(so[0]), float(so[-1])
+    edges = np.linspace(lo, hi + 1e-6, bins + 1)
+    b = np.clip(np.digitize(o_l[keep_o], edges) - 1, 0, bins - 1)
+    oc = orig.reshape(-1, 3)[keep_o]
+    wsum = np.bincount(b, ow[keep_o], bins)
+    centres = 0.5 * (edges[:-1] + edges[1:])
+    filled = wsum > 1e-6
+    ramp = np.stack([np.interp(centres, centres[filled], (np.bincount(b, ow[keep_o] * oc[:, c], bins)[filled] / wsum[filled]))
+                     for c in range(3)], -1)
+    col = np.stack([np.interp(lum, centres, ramp[:, c]) for c in range(3)], -1)
+    # the ramp's colour has about the target luma already; scale it there exactly (keeps the hue)
+    cl = col @ LUMA
+    col = col * (lum / np.maximum(cl, 1e-4))[:, None]
+    col = np.clip(col, 0.0, 1.0).reshape(art.shape)
+    return art * (1 - strength) + col * strength
+
+
+def recolour_tiles(gd: GameData, sheet: str, first: int, size: int, tiles: dict[int, np.ndarray], palette: int,
+                   strength: float = 1.0, layout: float = 0.6, sigma: float = 0.35) -> dict[int, np.ndarray]:
+    """Recolour one object's atlas tiles ({index: rgba uint8 (h*8, 96, 4)}), fitted over the whole
+    object (a 2x2 pickup's four tiles get one mapping, so they still meet without seams)."""
+    obj = object_tiles(gd, sheet, first, size)
+    pic = picture(gd, sheet, first, size)
+    H, W = pic.shape[0] * SCALE, pic.shape[1] * SCALE
+    art = np.zeros((H, W, 3), np.float32)
+    aw = np.zeros((H, W), np.float32)
+    for t in obj:
+        if t["index"] not in tiles:
+            continue
+        im = tiles[t["index"]].astype(np.float32) / 255
+        h = min(im.shape[0], H - t["oy"] * SCALE)
+        y0, x0 = t["oy"] * SCALE, t["ox"] * SCALE
+        art[y0:y0 + h, x0:x0 + im.shape[1]] = im[:h, :, :3]
+        aw[y0:y0 + h, x0:x0 + im.shape[1]] = im[:h, :, 3]
+    orig = original_colour(gd, pic, palette, sigma)
+    ow = smooth_alpha(pic >= 0)
+    rec = ramp_recolour(art, aw, orig, ow, strength, layout)
+    out = {}
+    for t in obj:
+        if t["index"] not in tiles:
+            continue
+        im = tiles[t["index"]].copy()
+        h = min(im.shape[0], H - t["oy"] * SCALE)
+        y0, x0 = t["oy"] * SCALE, t["ox"] * SCALE
+        im[:h, :, :3] = np.round(rec[y0:y0 + h, x0:x0 + im.shape[1]] * 255).astype(np.uint8)
+        out[t["index"]] = im
+    return out
+
+
+def recolour_entries(config: dict) -> list[dict]:
+    """The config's objects, one per (sheet, first tile, size)."""
+    out = []
+    for e in config.get("objects", []):
+        for f in e["frames"]:
+            out.append({"sheet": e["sheet"], "first": f, "size": e.get("size", 1), "strength": e.get("strength", 1.0), "layout": e.get("layout", 0.6)})
+    return out
+
+
+JOIN_ROWS = 2  # sprite px over which a beam's head or tail fades into its body's colours
+
+
+def join_edges(gd: GameData, frames: dict[tuple[str, int], np.ndarray], join: dict) -> list[tuple[str, int]]:
+    """A beam drawn as pieces stacked edge to edge (the Zica Laser: head, body x n, tail): frame
+    join["frame"]'s top and/or bottom continue into frame join["top"] / join["bottom"]. There the
+    silhouette's alpha is computed with the neighbour's pixels beyond the edge, so it doesn't fade out
+    at the cut (a dark line between pieces), and a head or tail's last JOIN_ROWS rows fade into the
+    body's colours at that edge, so the two meet without a seam."""
+    sid, f = join["sheet"], join["frame"]
+    if (sid, f) not in frames:
+        return []
+    rgba = frames[(sid, f)].astype(np.float32)
+    own = gd.sprite(sid, f) >= 0
+    h = own.shape[0]
+    ext, top_pad = own, 0
+    if join.get("top") is not None:
+        above = gd.sprite(sid, join["top"]) >= 0
+        top_pad = min(4, above.shape[0])
+        ext = np.concatenate([above[-top_pad:], ext], 0)
+    if join.get("bottom") is not None:
+        below = gd.sprite(sid, join["bottom"]) >= 0
+        ext = np.concatenate([ext, below[:min(4, below.shape[0])]], 0)
+    alpha = smooth_alpha(ext)[top_pad * SCALE:(top_pad + h) * SCALE]
+    rgba[..., 3] = alpha * 255
+    n = JOIN_ROWS * SCALE
+    for edge in ("top", "bottom"):
+        g = join.get(edge)
+        if g is None or g == f or (sid, g) not in frames:
+            continue
+        nb = frames[(sid, g)].astype(np.float32)
+        # the body's colours a few texels inside its edge (its own edge texels are bled, not painted)
+        row = nb[min(4, nb.shape[0] - 1), :, :3] if edge == "top" else nb[max(0, nb.shape[0] - 5), :, :3]
+        t = _smoothstep(0.0, 1.0, (np.arange(n, dtype=np.float32) + 0.5) / n)  # 0 inside .. 1 at the edge
+        if edge == "top":
+            t = t[::-1]
+            sl = slice(0, n)
+        else:
+            sl = slice(h * SCALE - n, h * SCALE)
+        rgba[sl, :, :3] = rgba[sl, :, :3] * (1 - t[:, None, None]) + row[None] * t[:, None, None]
+    frames[(sid, f)] = np.clip(np.round(rgba), 0, 255).astype(np.uint8)
+    return [(sid, f)]
+
+
+def apply_recolour(gd: GameData, frames: dict[tuple[str, int], np.ndarray], palette: int, config: dict) -> set[tuple[str, int]]:
+    """Recolour the config's objects among frames ({(sheet, index): rgba}) and then join its beams, in place."""
+    done: set[tuple[str, int]] = set()
+    for e in recolour_entries(config):
+        idx = [t["index"] for t in object_tiles(gd, e["sheet"], e["first"], e["size"])]
+        tiles = {i: frames[(e["sheet"], i)] for i in idx if (e["sheet"], i) in frames}
+        if not tiles:
+            continue
+        for i, rgba in recolour_tiles(gd, e["sheet"], e["first"], e["size"], tiles, palette, e["strength"], e["layout"]).items():
+            frames[(e["sheet"], i)] = rgba
+            done.add((e["sheet"], i))
+    for j in config.get("joins", []):
+        done.update(join_edges(gd, frames, j))
+    return done
+
+
+def config_keys(gd: GameData, config: dict) -> set[tuple[str, int]]:
+    """Every frame the config reads or writes."""
+    keys = set()
+    for e in recolour_entries(config):
+        keys.update((e["sheet"], t["index"]) for t in object_tiles(gd, e["sheet"], e["first"], e["size"]))
+    for j in config.get("joins", []):
+        keys.update((j["sheet"], k) for k in (j["frame"], j.get("top"), j.get("bottom")) if k is not None)
+    return keys
+
+
+def recolour_atlas(gd: GameData, out: Path, palette: int, config: dict) -> set[tuple[str, int]]:
+    """Recolour (and join) the committed atlases' listed frames in place, rects unchanged. Run it
+    once: it is close to idempotent, but each run re-encodes the atlas."""
+    manifest = json.loads((out / "manifest.json").read_text())
+    keys = config_keys(gd, config)
+    atlases = {}
+    frames = {}
+    for sid, i in keys:
+        sh = manifest["sheets"].get(sid)
+        r = sh and sh["frames"].get(str(i))
+        if not r:
+            continue
+        if sid not in atlases:
+            atlases[sid] = np.asarray(Image.open(out / sh["image"]).convert("RGBA")).copy()
+        frames[(sid, i)] = atlases[sid][r["y"]:r["y"] + r["h"], r["x"]:r["x"] + r["w"]].copy()
+    done = apply_recolour(gd, frames, palette, config)
+    for sid, atlas in atlases.items():
+        sh = manifest["sheets"][sid]
+        mine = sorted(i for s, i in done if s == sid)
+        for i in mine:
+            r = sh["frames"][str(i)]
+            atlas[r["y"] - PAD:r["y"] + r["h"] + PAD, r["x"] - PAD:r["x"] + r["w"] + PAD] = np.pad(frames[(sid, i)], ((PAD, PAD), (PAD, PAD), (0, 0)), mode="edge")
+        Image.fromarray(atlas, "RGBA").save(out / sh["image"], "WEBP", quality=92, alpha_quality=100, method=6, exact=True)
+        print(f"  {out / sh['image']}: recoloured {len(mine)} frames ({', '.join(map(str, mine))})")
+    return done
+
+
+def cut(gd: GameData, inputs: dict, results: Path, out: Path, palette: int, check: Path | None, merge: bool = False,
+        recolour: dict | None = None) -> dict:
     frames: dict[tuple[str, int], dict] = {}
     report = []
     for sheet in inputs["sheets"]:
@@ -701,6 +899,13 @@ def cut(gd: GameData, inputs: dict, results: Path, out: Path, palette: int, chec
     for (sid, index) in painted:
         frames[(sid, index)] = painted_frame(gd, sid, index, palette)
     print(f"  painted: {len(painted)} frames ({', '.join(f'{s[7:]}:{i}' for s, i in painted)})")
+    if recolour is not None:  # the sprite's palette ramp on frames painted too pale, orange or dark (D172)
+        rgba = {k: f["rgba"] for k, f in frames.items()}
+        changed = apply_recolour(gd, rgba, palette, recolour)
+        for k in changed:
+            frames[k]["rgba"] = rgba[k]
+        if changed:
+            print(f"  recoloured: {len(changed)} frames")
     out.mkdir(parents=True, exist_ok=True)
     manifest = {"scale": SCALE, "sheets": {}}
     old = json.loads((out / "manifest.json").read_text()) if (out / "manifest.json").exists() else {"sheets": {}}
@@ -768,14 +973,27 @@ def main(argv: list[str] | None = None) -> None:
     c.add_argument("--out", type=Path, default=ROOT / "public" / "art" / "sprites")
     c.add_argument("--check", type=Path, help="also write a contact sheet here: original | remastered per frame")
     c.add_argument("--merge", action="store_true", help="rebuild only the atlases these inputs feed (and only their painted frames); other sheets are kept either way")
+    r = sub.add_parser("recolour", help="apply tools/flat_art_recolour.json to the committed atlases once (cut applies it to what it cuts)")
+    r.add_argument("--config", type=Path, default=RECOLOUR)
+    r.add_argument("--out", type=Path, default=ROOT / "public" / "art" / "sprites")
+    r.add_argument("--only", help="comma-separated sheet:index (first tiles / join frames) to apply, e.g. tyrian.shp#7:121")
     args = ap.parse_args(argv)
     gd = GameData(args.data)
+    if args.cmd == "recolour":
+        config = json.loads(args.config.read_text())
+        if args.only:
+            want = {(o.rsplit(":", 1)[0], int(o.rsplit(":", 1)[1])) for o in args.only.split(",")}
+            config = {"objects": [{**e, "frames": [f for f in e["frames"] if (e["sheet"], f) in want]} for e in config.get("objects", [])],
+                      "joins": [j for j in config.get("joins", []) if (j["sheet"], j["frame"]) in want]}
+        recolour_atlas(gd, args.out, args.palette, config)
+        return
     if args.cmd == "sheets":
         m = build_sheets(gd, json.loads(args.inventory.read_text()), args.out)
         for sh in m["sheets"]:
             print(f"  {args.out / sh['image']}: {len(sh['cells'])} cells, {sh['grid']['rows']}x{sh['grid']['cols']}, {sh['scale']}x")
     else:
-        cut(gd, json.loads(args.inputs.read_text()), args.results, args.out, args.palette, args.check, args.merge)
+        cut(gd, json.loads(args.inputs.read_text()), args.results, args.out, args.palette, args.check, args.merge,
+            json.loads(RECOLOUR.read_text()) if RECOLOUR.exists() else None)
 
 
 if __name__ == "__main__":
