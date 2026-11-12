@@ -12,6 +12,7 @@ import { isModelHelper } from "./modelPrep";
 import { OutlineHook } from "./outlineHook";
 import { ResolutionScaler } from "./resolutionScaler";
 import { ScreenFilterPass } from "./screenFilters";
+import { SUN_POSITION } from "./sun";
 import { VFX_LAYER } from "./vfx/vfxMode";
 
 /**
@@ -150,9 +151,11 @@ export class View {
     // Shadows should land a little below and right of their casters on screen, like the original's
     // ship shadow (JE_playerMovement). Draws are lifted along camera rays (DECISIONS.md D6), which by
     // itself pushes a shadow toward the bottom of the screen, so the sun shines from the left and
-    // from the camera's side to cancel most of that. Models' shadows are drawn as they'd fall at the
-    // camera's aim point wherever the model is, so they don't drift apart toward the screen's edges (D133).
-    sun.position.set(-6, 20, 8.4);
+    // from the camera's side to cancel most of that under the steep camera. Models' shadows are drawn
+    // as they'd fall at the camera's aim point wherever the model is, so they don't drift apart toward
+    // the screen's edges (D133), and airborne models' shadows fall the same distance below them under
+    // every camera (sun.ts, D170).
+    sun.position.set(SUN_POSITION.x, SUN_POSITION.y, SUN_POSITION.z);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
     sun.shadow.bias = -0.0004;

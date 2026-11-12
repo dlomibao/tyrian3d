@@ -53,6 +53,8 @@ import { damageModeFromSearch } from "./damage/damageMode";
 import { ShipCondition } from "./damage/shipDamage";
 import { Route, Sprite2Router } from "./sprite2Route";
 import { bankShift } from "./bankShift";
+import { airShadowShift, isAirborne, rayRoll } from "./sun";
+import { ShadowDecals } from "./shadowDecals";
 import type { LevelDamage, LevelSprite, LevelTile } from "../sim/levelSprites";
 import { TileAtlas } from "./tileAtlas";
 import { RemasteredFx, SpriteLook } from "./vfx/remasteredFx";
@@ -393,12 +395,16 @@ export class DrawListRenderer {
     left: number; top: number; w: number; h: number;
   }[] = [];
   private readonly cover = new OpaqueCover();
+  /** The ship's shadow, from the C's darken draws (D170). */
+  private readonly shadowDecals = new ShadowDecals();
   /** This frame's placed models, by pass, screen box and height, for the blended sheets (D129). */
   private readonly placedExtents: PlacedExtent[] = [];
   /** This frame's blended background-2 sheet tiles, raised over the models they overlap after the loop (D129). */
   private readonly blendSheets: { pool: Pool; slot: number; x: number; y: number; pass: Pass }[] = [];
   /** Where the camera's view meets the ground: models' shadows fall as they would there (D133). */
   private readonly shadowRef = new THREE.Vector3();
+  /** Airborne models' extra shadow shift per unit of height, for this frame's camera (D170). */
+  private readonly airShadow = new THREE.Vector2();
   private readonly viewDir = new THREE.Vector3();
   /** Which star pixels background 1 hides (D127). */
   private readonly starCover = new StarCover();
@@ -475,6 +481,7 @@ export class DrawListRenderer {
     for (let v = 0; v <= Variant.RemasterGroundBlend; v++) this.pools.push(new Map());
     this.artLayer = new SpriteArtLayer(p);
     this.root.add(this.artLayer.root);
+    this.root.add(this.shadowDecals.root);
     this.setVfxMode(vfxModeFromSearch());
   }
 
@@ -747,6 +754,7 @@ export class DrawListRenderer {
     camera.getWorldDirection(this.viewDir);
     if (this.viewDir.y < -1e-6) this.shadowRef.copy(cam).addScaledVector(this.viewDir, -cam.y / this.viewDir.y);
     else this.shadowRef.set(cam.x, 0, cam.z);
+    airShadowShift(cam, this.shadowRef, this.airShadow);
     let instances = 0;
     for (const mp of this.modelPools.values()) mp.used = 0;
     const fx = this.fx;
@@ -756,6 +764,7 @@ export class DrawListRenderer {
     this.groundStructures.length = 0;
     this.groundCells.length = 0;
     this.cover.begin();
+    this.shadowDecals.begin();
     const art = this.spriteArt !== null && this.spriteArtMode === "remastered";
     this.artLayer.begin();
     this.terrainLevel.levelFilter.value = this.palette.screenFilter;
@@ -768,9 +777,13 @@ export class DrawListRenderer {
       const d = items[i];
       switch (d.kind) {
         case "sprite2": {
-          if (d.effect === "darken") continue; // Real shadows replace the C's shadow sprites (D9).
           const x = prevX[i] + (d.x - prevX[i]) * alpha;
           const y = prevY[i] + (d.y - prevY[i]) * alpha;
+          if (d.effect === "darken") {
+            // The ship's shadow is drawn as the C's (D170); the shots' are left out (D9, D42).
+            if (d.pass === Pass.Player) this.shadowDecals.add(d.sheet, d.index, d.size, d.key, x, y, cam);
+            continue;
+          }
           // With flat art for the sprite (for a grouped one, the object's first tile), it's drawn flat
           // instead of as a model (D42).
           const sheetArt = art ? this.artSheet(d.sheet) : null;
@@ -1241,9 +1254,11 @@ export class DrawListRenderer {
       }
     }
     if (this.spriteArt) for (const sheet of this.spriteArt.sheets.values()) if (sheet.texture) this.artLayer.warm(sheet as SpriteArtSheet<THREE.Texture>);
+    this.shadowDecals.warm(cam);
     return {
       states: [() => clones.forEach((c) => this.setCloneBlended(c, false)), () => clones.forEach((c) => this.setCloneBlended(c, true))],
       end: () => {
+        this.shadowDecals.begin();
         for (const c of clones) {
           this.setCloneBlended(c, false);
           hideClone(c);
@@ -1449,11 +1464,15 @@ export class DrawListRenderer {
         return;
       }
     }
-    // Banking eases per display frame, so the 5 sprite frames become a smooth roll.
+    // Banking eases per display frame, so the 5 sprite frames become a smooth roll. The camera ray's
+    // own roll is taken out, so the ship looks rolled by its bank anywhere on screen, as the sprites
+    // and D93's top-view fit are: at the playfield's edge the ray leans ~26° (D170).
     clone.roll += (-roll - clone.roll) * Math.min(1, dt * ROLL_RATE);
-    clone.object.rotation.z = clone.roll;
+    clone.object.rotation.z = clone.roll + rayRoll(clone.object.position, cam);
     // A player ship's wear by its armour (D90), after the roll so the scorch rolls with the ship.
     const player = playerOfKey(d.key);
+    // With its shadow drawn as the C's decal, the ship's model casts none (D170).
+    if (player >= 0) setCloneCasts(clone, !this.shadowDecals.hasPlayer(player));
     if (player >= 0) this.damage?.applyShip(clone.object, clone.materials, this.ships[player] ?? null, route === Route.Group ? d.groupSize : d.size);
   }
 
@@ -1499,7 +1518,9 @@ export class DrawListRenderer {
     // Lifted along its camera ray (D6), a model off the middle of the screen sits nearer the middle
     // than it looks, and its shadow drifted toward the middle with it, away from it on screen. Its
     // shadow is drawn where the lift would put it from the camera's aim point instead (D133).
-    this.damage?.shadowShift(object, clone.materials, (gx - this.shadowRef.x) * k, (gz - this.shadowRef.z) * k);
+    // An airborne model's shadow also falls the same way below it under every camera (D170).
+    const air = isAirborne(h) ? h : 0;
+    this.damage?.shadowShift(object, clone.materials, (gx - this.shadowRef.x) * k + this.airShadow.x * air, (gz - this.shadowRef.z) * k + this.airShadow.y * air);
     // Its box on screen (the D6 scale keeps the model's footprint at its sprite's screen size) and
     // its heights, for the blended sheets (D129).
     const box = (pool.box ??= localBox(pool.source!));
@@ -1734,6 +1755,15 @@ function unitQuad(): THREE.BufferGeometry {
  * The player index of a player ship's draw (sim/mainint.ts playerKey: PLAYER_KEY_BASE + 100 * p, part
  * 0 the ship or its left half, 1 its right half), or -1.
  */
+/** Whether a model clone casts shadow-map shadows (a ship with its shadow drawn as a decal doesn't, D170). */
+function setCloneCasts(clone: ModelClone, casts: boolean): void {
+  if (clone.object.userData.casts === casts) return;
+  clone.object.userData.casts = casts;
+  clone.object.traverse((o) => {
+    if ((o as THREE.Mesh).isMesh) o.castShadow = casts && castsShadow(o);
+  });
+}
+
 export function playerOfKey(key: number): number {
   const k = key - 10000;
   if (k < 0 || k >= 200) return -1;
