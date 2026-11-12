@@ -8094,9 +8094,10 @@ the ground outcrops `assembly-newshd-39` / `-89` are already within ±10 % of th
   (D123: 0.00), so few faces turn away from the light.
 - **(b) material:** roughness 0.9 and an AO bake whose colour map is 255 over half the texels; roughness 0.55 at
   runtime adds only +5..+22 spread (and is sheen, not rock).
-- **(d) global lighting, not a cause:** hemisphere 1.2→0.5 and environment 0.7→0.3 with the sun 2.5 or 3.5 changed the
-  D125 rocks' spread by -12..+9 (it only darkens them); the sun moved to the art's upper left (-8, 14, -6) by -28..+3.
-  With the fixed models the same changes give -32..+3 and +5..+15. **Recommendation: leave view.ts's fill and sun
+- **(d) global lighting, not a cause:** hemisphere 1.2→0.5 and environment 0.7→0.3 with the sun 2.5 or 3.5 (set at
+  runtime in the bench, view.ts untouched) changed the D125 rocks' spread by -11..+9 (it only darkens them;
+  `newshd-18` +46..+51, its glowing vent staying bright as the rock darkens); the sun moved to the art's upper left
+  (-8, 14, -6) by -28..+2 (`newshd-18` +28). With the fixed models: fill lowered -32..+7, sun upper left +2..+15. **Recommendation: leave view.ts's fill and sun
   as they are** (D171's values); nothing in the rock contrast asks for a change.
 
 **Decision (model-side, `lib_newshd_rock.py`):**
