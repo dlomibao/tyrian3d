@@ -7624,3 +7624,65 @@ at the same place as the original's); `?debug=play` with Pearl Wind and four sup
 minimal, at 1920x1080 and 390x844; summary `summary.png`. vitest, tsc, build.
 
 **Cost:** one Opus agent, no workflow: about ten headless captures.
+
+## D169 — Effects take their sprite's own colour: explosions burn red-orange, shot halos sit under the painting, missiles and bombs lose their halo (follows D35; extends D147)
+
+2026-11-12
+
+**Findings** (title-demo comparison, overhead, `tyrian-scratch/demo-compare/overhead/REPORT.md` #1, #2 and the glow part
+of #3): explosions opened as a white flash with white spark rays where the original is red-orange fire with yellow hot
+spots; the shot halo bleached painted shots toward white or cream (Heavy Guided Bombs a white blob, the Zica laser white
+with a cyan edge, red fire darts cream, the purple enemy dart pale pink); the explosion glow and light took the sprite's
+brightest colour or a fixed warm white.
+
+**Causes** (`src/render/vfx/remasteredFx.ts`): the glow colour was the sprite's colours weighted by luminance squared,
+so its near-white core; every flash was mixed 40-50% toward white and boosted x1.3 (and the particle shader triples the
+centre), and a big explosion's four quarters each flashed; sparks were a fixed (2.2, 1.7, 0.9); lights were mixed 35%
+toward (1, 0.75, 0.35); the shot halo was additive over the shot's flat art, and a beam's stacked segments each added
+one.
+
+**Decision** (`remasteredFx.ts`, `glowLayer.ts`):
+- **Colour.** A sprite's glow colour is the mean of its pixels' colours, brightest channel 1 (`spriteGlowColour`): a
+  fire's red-orange, a laser's blue. Flashes, the fireball glow and embers use it unmixed; sparks run from a hot tint of
+  it (0.2 + 1.1r, 0.1 + 0.75g, 0.05 + 0.35b) to red; lights are it, warmed 15%.
+- **Calmer births.** Flash alpha 0.55/0.5 -> 0.32, Large size 22 -> 16 and life 0.26 -> 0.22, Fireball 14 -> 11;
+  sparks 6 -> 4 a quarter (Large) and 4 -> 3 (Fireball), top speed 240 -> 190; light peaks 7 -> 5 and 2.5 -> 2. Hit
+  puffs: flash (1, 0.85, 0.55) at 1 -> (1, 0.55, 0.22) at 0.5, glow 0.9 -> 0.6 in orange. Muzzle flashes 15% toward
+  white (was 50%) at 0.45/0.35 (was 0.8/0.6).
+- **One flash per spot.** A flash within 14 screen px of one started under 0.12 s before is not drawn (a 64-entry
+  ring): a big explosion's quarters flash once, and hits and beam segments under sustained fire don't stack to white.
+- **Halos under the shot.** Shot halos are their own glow layer, ordered just under the player shots' flat art
+  (`SPRITE_ART_ORDER + Pass.PlayerShots / 100 - 0.002`), so the painting covers the halo's core and the halo rims it;
+  intensity 0.8/0.9 -> 0.6/0.7, in the mean colour. Halos are held to the frame's end and each is dimmed by
+  1 / (1 + 0.75 x the halos it overlaps heavily, centres under 0.8 of the radii's sum apart): a beam's segments read
+  about as one halo.
+- **Ordnance.** Missiles and bombs (`ORDNANCE_FRAMES`: the tyrian.shp#7 frames of every weapon with a smoke trail, 6
+  or 98; a test derives the set from the item data of episodes 1-3 and 4) get no halo and no muzzle flash, and an
+  unpainted one draws lit with its outline (`SpriteLook.Default`), not hot. Smoke puffs are ordered under the shots, so
+  a bomb's own trail no longer greys it over.
+- Kept from D35: the birth flash, sparks, embers, debris, the smoke puff; D147's sparks are unchanged.
+
+**Measured** (`tyrian-scratch/fx-fix/metrics.json`; same demo ticks, `?demo=N&compare=1&camera=overhead`, original =
+the compare view's left half; white = every channel >= 225, fire = r >= 150, g <= 0.62r, b <= 0.35r):
+
+| Region | original white / fire | before | after |
+|---|---|---|---|
+| demo 2 curLoc 2780, explosion cluster | 135 / 17139 | 3310 / 1966 | 127 / 7970 |
+| demo 2 curLoc 4867, boss ring chains | 381 / 21663 | 4817 / 8371 | 1284 / 13230 |
+| demo 1 curLoc 3027, explosion on the structure | 0 / 1080 | 1344 / 136 | 82 / 579 |
+| demo 1 curLoc 2853, explosion by the ship | 225 / 2682 | 2819 / 169 | 1046 / 630 |
+
+Zica beam mean RGB at demo 2 curLoc 692: original (116, 164, 228), before (218, 238, 244), after (140, 197, 231);
+white pixels on it 294 / 4278 / 972. The rest of the gap is the art (a lighter core, REPORT #7) and, for the explosions'
+red, the blend of blend-effect explosions (REPORT #3, a separate change).
+
+**Not done:** the screen filters' path (D31) still draws the effects layer after the scene, so on filtered levels the
+shot halos land over the art as before (dimmer and in the mean colour). `HOT_BLEND_GLOW` (the explosion blend material,
+only used with `?sprites=original`) is untouched.
+
+**Checked:** captures held at the same demo tick (`tyrian-scratch/fx-fix/tools/demofreeze.mjs`, holds
+requestAnimationFrame at a curLoc) for demos 1, 2, 3 and 5, before and after; `?debug=play&episode=1&main=3&seed=1`
+at ticks 249, 700, 1000, 1500 with the tilted camera; `&stress=800` CPU time unchanged (2.7 ms). Summary:
+`tyrian-scratch/fx-fix/summary.png` (original | before | after). Test: `tests/render/vfx.test.ts`.
+
+**Cost:** one Opus agent, no workflow: about 40 headless captures (two at a time), no Gemini.
