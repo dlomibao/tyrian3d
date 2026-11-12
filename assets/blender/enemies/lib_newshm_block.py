@@ -6,10 +6,13 @@ block is left as it was for newshm-55, -123 and -153.
   filling the sprite's inner mask (22 x 26 px inside the 1 px ink ring the game draws).
 - Section: one enamelled cast shell. Short walls; a chamfered, filleted shoulder on the north, west
   and east (the sprite's lit north-west rim and dark east rim are light on that shoulder); a flat top;
-  the long south roll over the sprite's darker lower third (light falling off the slope, not paint).
+  the long south roll over the sprite's darker lower third. That roll takes the sprite's own darker
+  indices by plan row (shell -1 / -2 / -3, e.g. 70 / 69 / 68), cut along straight plan lines and a
+  little rougher: under the camera-side sun no slope that deep can fall into shade, and lit in the
+  shell colour it read as a bright cushion round a recessed top (demo-compare #13).
 - Machined detail, kept fine because the sprite shows none: a parting groove round the base, a dark
-  steel foot plate (the shadow gap), recessed lifting sockets in the walls, a fine seam round the
-  foot of the raised top, two flush bolts on the north shoulder.
+  steel foot plate (the shadow gap), recessed lifting sockets in the walls, a barely-there seam
+  round the foot of the raised top, two low bolt domes set square to the north shoulder.
 - Emblems sit on the flat top: -15 a raised satin-gold S and bar, -17 a raised octagonal bezel
   with a faceted glowing gem, -53 two glowing red strokes and a core.
 
@@ -52,8 +55,14 @@ PROF = {
 }
 SEG = (5, 2, 6)   # samples on the bottom fillet, along the facet (interior), on the top fillet
 GROOVE = (1.45, 1.8, 0.38)    # parting groove: z0, z1, depth
-SEAM = (0.2, 0.2, 0.12)   # seam at the foot of the top plateau: gap from the top edge, width, depth (px)
+SEAM = (0.2, 0.5, 0.012)  # a soft, barely-there seam at the foot of the top plateau: gap from the top edge, width, depth (px)
 BOLTS = ((-6.4, 1.9), (6.4, 1.9))   # flush bolts on the north shoulder: x, inset from the north edge (px)
+BOLT_R, BOLT_UP = 0.34, 0.04        # bolt head radius and height over the shoulder (px): a flush, soft dot
+# The south roll takes the sprite's darker indices, shell -1 / -2 / -3 (71 -> 70 -> 69 -> 68 on
+# newshm-1), by plan position: rows 17-18 / 18-19 / 20 on. Under the camera-side sun no section
+# with a top-down footprint this deep can fall into shade (the slope would need ~70 deg), so the
+# bottom third is darker by its colour, as in the sprite (demo-compare #13).
+SOUTH_BANDS = ((-4.0, 1), (-5.0, 2), (-6.0, 3))   # (below plan y px, palette steps darker than the shell)
 NPTS = 96                    # points per ring
 
 VARIANTS = {
@@ -335,15 +344,26 @@ def gem(m, cx, cy, r, z, h, mat, sides=8):
     m.cap(g0, mat, up=False)
 
 
-def bolts(m, mat):
-    """Two small flush bolts on the north shoulder, outside where the emblems sit."""
+def bolts(m, mat, hit=None):
+    """Two small flush bolts on the north shoulder, outside where the emblems sit: low domes set
+    square to the sloping shoulder, so no side of the head stands proud of it as a dark lip."""
     for bx, d in BOLTS:
         by = HY * (1 - (abs(bx) / HX) ** NEXP) ** (1 / NEXP) - d
         zs = surface_z(bx, by)
-        def circ(r, z):
-            return m.ringv([(bx + r * math.cos(math.pi / 8 + math.pi * i / 4), by + r * math.sin(math.pi / 8 + math.pi * i / 4))
-                            for i in range(8)], z)
-        a, b, c = circ(0.5, zs - 0.45), circ(0.5, zs + 0.03), circ(0.38, zs + 0.08)
+        e = 0.05
+        nrm = Vector((-(surface_z(bx + e, by) - surface_z(bx - e, by)) / (2 * e),
+                      -(surface_z(bx, by + e) - surface_z(bx, by - e)) / (2 * e), 1.0)).normalized()
+        if hit is not None:  # the built shell's own surface point and smooth normal, when given
+            zs, nrm = hit(bx, by)
+        t1 = nrm.cross(Vector((0.0, 0.0, 1.0)) if abs(nrm.z) < 0.99 else Vector((1.0, 0.0, 0.0))).normalized()
+        if t1.length < 0.5:
+            t1 = Vector((1.0, 0.0, 0.0))
+        t2 = nrm.cross(t1).normalized()
+        o = Vector((bx, by, zs))
+        def circ(r, h):
+            return [m.bm.verts.new(o + t1 * (r * math.cos(math.pi / 8 + math.pi * i / 4)) + t2 * (r * math.sin(math.pi / 8 + math.pi * i / 4)) + nrm * h)
+                    for i in range(8)]
+        a, b, c = circ(BOLT_R, -0.35), circ(BOLT_R, 0.0), circ(BOLT_R * 0.6, BOLT_UP)
         m.bridge(a, b, mat)
         m.bridge(b, c, mat)
         m.cap(c, mat, up=True)
@@ -447,11 +467,17 @@ def build(variant, sprite, coll):
     elif variant == "newshm-53":
         mats.append(pal(119, "glow", metallic=0.0, roughness=0.35, emission_strength=2.2)); idx["emblem"] = 2
         mats.append(pal(120, "core", metallic=0.0, roughness=0.3, emission_strength=3.5)); idx["core"] = 3
+    for k in sorted({st for _, st in SOUTH_BANDS}):
+        idx[f"south{k}"] = len(mats)
+        mats.append(pal(shell_pal - k, f"enamel{k}", metallic=0.12, roughness=0.3 + 0.12 * k))
 
     m = Mesh()
     build_shell(m, idx["shell"])
     build_foot(m, idx["dark"])
     shell_bm = m.bm
+    for y_below, _ in SOUTH_BANDS:  # cut the shell along the bands' plan lines: straight, clean colour edges
+        bmesh.ops.bisect_plane(shell_bm, geom=list(shell_bm.verts) + list(shell_bm.edges) + list(shell_bm.faces),
+                               plane_co=(0.0, y_below, 0.0), plane_no=(0.0, 1.0, 0.0))
     bmesh.ops.recalc_face_normals(shell_bm, faces=shell_bm.faces)
     S = Matrix.Scale(PX, 4)
     bmesh.ops.transform(shell_bm, matrix=S, verts=shell_bm.verts)
@@ -469,11 +495,27 @@ def build(variant, sprite, coll):
     HX, HY = hx * PX, hy * PX
     cut_sockets(obj, coll, idx["dark"])
     HX, HY = hx, hy
+    for poly in obj.data.polygons:  # the south roll's darker bands (by plan y, like the sprite's rows)
+        if poly.material_index != idx["shell"]:
+            continue
+        y = poly.center.y / PX
+        for y_below, k in SOUTH_BANDS:
+            if y < y_below:
+                poly.material_index = idx[f"south{k}"]
 
     parts = [obj]
     if True:
         e = Mesh()
-        bolts(e, idx["shell"])
+        from mathutils.bvhtree import BVHTree
+        sv = [v.co / PX for v in obj.data.vertices]
+        bvh = BVHTree.FromPolygons(sv, [tuple(p.vertices) for p in obj.data.polygons])
+
+        def hit(x, y):
+            loc, _, fi, _ = bvh.ray_cast(Vector((x, y, 30.0)), Vector((0.0, 0.0, -1.0)))
+            pol = obj.data.polygons[fi]  # smooth normal: the face's vertex normals, averaged
+            nrm = sum((obj.data.vertices[i].normal for i in pol.vertices), Vector()).normalized()
+            return loc.z, nrm
+        bolts(e, idx["shell"], hit)
         if variant != "newshm-1":
             emblem(e, variant, idx)
         bmesh.ops.recalc_face_normals(e.bm, faces=e.bm.faces)

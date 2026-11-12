@@ -5,6 +5,9 @@ upper left: a bright highlight at columns 9-11 / rows 9-11 and a pale rim of ref
 the lower right edge (rows 15-21, columns 15-20). Both are sheen on the smooth steel, so the model
 is only the ball.
 
+Material: satin gunmetal (metallic 0.35, roughness 0.6) with one polished, clear-coated sheen patch
+at the upper left, graded in six face rings (newshm-115's D92 recipe; SHEEN_* constants).
+
 Colour pal_5. The median over all opaque pixels and over the inner mask is 4, but that count is
 dominated by the lower-right shadow crescent (indices <= 3), which is lighting. With the shadow
 indices dropped the median is 5, and the lit upper half (rows <= 15) also has median 5, so pal_5 is
@@ -48,7 +51,18 @@ PX = 1 / 12
 
 BODY = 5          # sprite body colour (median of the shaded steel)
 SEAM = 4          # groove floor, one step darker
-METALLIC, ROUGH = 0.75, 0.32   # satin gunmetal, not a mirror
+# Satin gunmetal with one polished sheen patch (newshm-115's D92 recipe). A uniform 0.75 / 0.32
+# mirrored the dark game sky, so the ball read as black chrome with four scattered glints (demo 4,
+# MINES, median luma 42-44 vs the sprite's 69). Satin (metallic 0.35, roughness 0.6) lets the
+# palette grey carry the body; the polished, clear-coated patch at the upper left, where the sprite
+# draws its white highlight, turns the room's upper-left panels into one sheen.
+METALLIC, ROUGH = 0.35, 0.60
+SHEEN_DIR = Vector((-0.42, 0.10, 0.90)).normalized()   # x right, y screen-up, z up (as newshm-115)
+# Graded rings round SHEEN_DIR (angle outer edge in degrees, roughness, coat weight): per-face
+# materials stand in for newshm-115's baked roughness / coat maps (the ball has no texture bake).
+SHEEN_ZONES = [(7, 0.20, 1.0), (11, 0.24, 0.85), (15, 0.30, 0.65), (19, 0.38, 0.45),
+               (23, 0.46, 0.25), (27, 0.54, 0.10)]   # small steps: no visible ring edges
+COAT_ROUGH = 0.22
 
 HALF_H_PX = 7.5   # half height in sprite px (a ball ~19 x 17 px across: squashed to ~0.85)
 SEGMENTS = 64     # around
@@ -166,7 +180,7 @@ def meridian():
         g(dz, ins)
     # Upper half: a plain smooth dome to the crown (no seam up there: from above any ring on the
     # crown reads as a lid or a dish, and the sprite shows only a glint).
-    for lat in np.linspace(14, 88, 14):
+    for lat in np.linspace(14, 88, 26):  # dense enough for the graded sheen rings
         z = zc + H * math.sin(math.radians(lat))
         st.append((z, math.cos(math.radians(lat))))
     st.sort()
@@ -180,7 +194,13 @@ def build(coll):
     rplan = fourier_eval(coef, th) * PX
     stations, ztop, zc = meridian()
     mats = [common.palette_material(SPRITE, BODY, NAME, metallic=METALLIC, roughness=ROUGH),
-            common.palette_material(SPRITE, SEAM, NAME + "_seam", metallic=METALLIC, roughness=0.45)]
+            common.palette_material(SPRITE, SEAM, NAME + "_seam", metallic=METALLIC, roughness=0.5)]
+    for k, (_, rough, coat) in enumerate(SHEEN_ZONES):
+        m = common.palette_material(SPRITE, BODY, f"{NAME}_sheen{k}", metallic=METALLIC, roughness=rough)
+        bsdf = next(n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+        bsdf.inputs["Coat Weight"].default_value = coat
+        bsdf.inputs["Coat Roughness"].default_value = COAT_ROUGH
+        mats.append(m)
     bm = bmesh.new()
     rings = []
     for z, s in stations:
@@ -205,6 +225,14 @@ def build(coll):
         f.smooth = True
     bottom.smooth = False
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    for f in faces:  # the sheen patch: faces whose normal is near SHEEN_DIR
+        if f.material_index != 0:
+            continue
+        ang = math.degrees(f.normal.angle(SHEEN_DIR))
+        for k, (edge, _, _) in enumerate(SHEEN_ZONES):
+            if ang < edge:
+                f.material_index = 2 + k
+                break
     mesh = bpy.data.meshes.new(NAME)
     bm.to_mesh(mesh)
     bm.free()

@@ -283,18 +283,41 @@ def band_bolts(M):
         lathe(M, p, n, [(-0.1, 0.55), (0.25, 0.55), (0.36, 0.4)], 6, [NUT, NUT], phase=0.5)
 
 
+BALL_M, COAT_M, COAT_SHELL, COAT_HORN = 0.12, 0.3, 1.0, 1.0  # metallic: ball, horns; coat: ball, horns
+# The ball's specular response (demo review, MINES, second round: with the coat alone the shell still
+# read about 8% darker than the sprite, its glints all on the horns). The game's lights (view.ts sun,
+# RoomEnvironment panels) all reflect off the crown under the overhead and tilted cameras; a plain
+# dielectric's 4% F0 leaves them dim, so the shell's F0 goes up to about 0.17 (that of IOR 2.4) with
+# Specular IOR Level (the exporter writes it as KHR_materials_specular specularColorFactor 2 x level;
+# a bare IOR is dropped unless specular, transmission or volume is exported) and its coat is a
+# little rougher, so the sun's lobe on the crown reads as one broad white sheen. Measured frozen at demo 4 curLoc 1325 / 3137 (sprite 114.5 / 114.8 mean,
+# 5.3 / 5.2% above 200): F0 of IOR 2.2 gave 112.1 / 116.9, 4.3 / 4.5%; of IOR 2.5 114.2 / 119.6,
+# 5.5 / 6.0%. Metallic stays low (raising it darkened the mines).
+BALL_SPEC, BALL_COAT_R = 0.5 * ((1.4 / 3.4) ** 2 / 0.04), 0.25  # Specular IOR Level: F0 of IOR 2.4
+
+
 def materials(sprite, tag):
-    def pal(slot, sub, metallic, roughness):
-        return common.palette_material(sprite, PAL_OF[slot], f"{tag}_{sub}", metallic=metallic, roughness=roughness)
+    # Polished steel with a clear coat (demo review, MINES: the satin version read matte mid-grey
+    # beside the sprite's bright silver with white glints on the ball and the horn tips). Metallic
+    # stays low so the diffuse keeps the palette grey's brightness; the white glints come from the
+    # low roughness and the coat (KHR_materials_clearcoat), strongest on the horns and their caps.
+    def pal(slot, sub, metallic, roughness, coat=0.0, coat_rough=0.1, spec=None):
+        m = common.palette_material(sprite, PAL_OF[slot], f"{tag}_{sub}", metallic=metallic, roughness=roughness)
+        bsdf = next(n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+        bsdf.inputs["Coat Weight"].default_value = coat
+        bsdf.inputs["Coat Roughness"].default_value = coat_rough
+        if spec is not None:
+            bsdf.inputs["Specular IOR Level"].default_value = spec
+        return m
     return [
-        pal(SHELL_UP, "shell", 0.35, 0.42),
-        pal(SHELL_LO, "shell_lo", 0.3, 0.5),
-        pal(BAND, "band", 0.35, 0.4),
+        pal(SHELL_UP, "shell", BALL_M, 0.24, COAT_SHELL, BALL_COAT_R, BALL_SPEC),
+        pal(SHELL_LO, "shell_lo", BALL_M, 0.3, COAT_SHELL, BALL_COAT_R, BALL_SPEC),
+        pal(BAND, "band", BALL_M, 0.24, COAT_SHELL, BALL_COAT_R, BALL_SPEC),
         pal(SEAM, "seam", 0.1, 0.8),
-        pal(SPIKE, "spike", 0.4, 0.34),
-        pal(NUT, "nut", 0.35, 0.45),
-        pal(HORN, "horn", 0.4, 0.36),
-        pal(CAP, "cap", 0.45, 0.26),
+        pal(SPIKE, "spike", COAT_M, 0.2, COAT_HORN, 0.1),
+        pal(NUT, "nut", COAT_M, 0.3, COAT_SHELL, 0.2),
+        pal(HORN, "horn", COAT_M, 0.18, COAT_HORN, 0.08),
+        pal(CAP, "cap", COAT_M, 0.15, COAT_HORN, 0.06),
     ]
 
 

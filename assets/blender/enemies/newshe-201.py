@@ -355,18 +355,34 @@ def slot(M):
     M.f(list(reversed(vs[0])), NUT)
 
 
+BALL_M, COAT_M, COAT_SHELL, COAT_HORN = 0.12, 0.3, 1.0, 1.0  # metallic: ball, horns; coat: ball, horns
+# The ball's specular response, as newsha-169 (same mine family; D176): F0 of IOR 2.4 through Specular IOR
+# Level (exported as KHR_materials_specular), coat roughness 0.25, so the crown reads bright silver.
+BALL_SPEC, BALL_COAT_R = 0.5 * ((1.4 / 3.4) ** 2 / 0.04), 0.25
+
+
 def materials(sprite, tag):
-    def pal(slot, sub, metallic, roughness):
-        return common.palette_material(sprite, PAL_OF[slot], f"{tag}_{sub}", metallic=metallic, roughness=roughness)
+    # Polished steel with a clear coat (demo review, MINES: the satin version read matte mid-grey
+    # beside the sprite's bright silver with white glints on the ball and the horn tips). Metallic
+    # stays low so the diffuse keeps the palette grey's brightness; the white glints come from the
+    # low roughness and the coat (KHR_materials_clearcoat), strongest on the horns and their caps.
+    def pal(slot, sub, metallic, roughness, coat=0.0, coat_rough=0.1, spec=None):
+        m = common.palette_material(sprite, PAL_OF[slot], f"{tag}_{sub}", metallic=metallic, roughness=roughness)
+        bsdf = next(n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+        bsdf.inputs["Coat Weight"].default_value = coat
+        bsdf.inputs["Coat Roughness"].default_value = coat_rough
+        if spec is not None:
+            bsdf.inputs["Specular IOR Level"].default_value = spec
+        return m
     return [
-        pal(SHELL_UP, "shell", 0.35, 0.42),
-        pal(SHELL_LO, "shell_lo", 0.3, 0.5),
-        pal(BAND, "band", 0.35, 0.4),
+        pal(SHELL_UP, "shell", BALL_M, 0.24, COAT_SHELL, BALL_COAT_R, BALL_SPEC),
+        pal(SHELL_LO, "shell_lo", BALL_M, 0.3, COAT_SHELL, BALL_COAT_R, BALL_SPEC),
+        pal(BAND, "band", BALL_M, 0.24, COAT_SHELL, BALL_COAT_R, BALL_SPEC),
         pal(SEAM, "seam", 0.1, 0.8),
-        pal(SPIKE, "spike", 0.4, 0.34),
-        pal(NUT, "nut", 0.35, 0.45),
-        pal(HORN, "horn", 0.4, 0.36),
-        pal(CAP, "cap", 0.45, 0.26),
+        pal(SPIKE, "spike", COAT_M, 0.2, COAT_HORN, 0.1),
+        pal(NUT, "nut", COAT_M, 0.3, COAT_SHELL, 0.2),
+        pal(HORN, "horn", COAT_M, 0.18, COAT_HORN, 0.08),
+        pal(CAP, "cap", COAT_M, 0.15, COAT_HORN, 0.06),
         pal(SLOT, "slot", 0.1, 0.75),
     ]
 

@@ -8140,3 +8140,25 @@ have the range but read smoother than their mottled sprites.
 
 **Cost:** one Opus agent, no workflow, no Gemini: about 40 headless captures (two at a time) and about 12 Blender
 build rounds of the 8 scripts (`-j 2`).
+
+## D176 — Title-demo comparison fixes, models round 2: SOH JIN wall blocks, mines, steel ball, pod flames (follows D173)
+
+The second fix round from the 2026-11-12 demo review (`tyrian-scratch/demo-compare/overhead/REPORT.md`, items #13-#16), run with `tools/workflows/fix-round.js`. Fixes are material and colour changes only; no geometry changed except the bolts and plateau seam on the wall blocks.
+
+| Item | What was wrong | Fix | Review | IoU |
+|---|---|---|---|---|
+| `lib_newshm_block` (newshm-1, -15, -17, -53), SOH JIN wall blocks | The lit south roll framed a darker top, so the blocks read as seat cushions | A 9 px deep, 8.4 px high section can't slope past about 43°, which isn't steep enough to shade itself under the sun at (-6, 20, 8.4). So the roll takes the sprite's own darker indices by plan row (shell -1/-2/-3, bisected at y = -4/-5/-6 px), roughness 0.42-0.66. The plateau seam is nearly flat and the bolts are smaller and seated on the surface. In game, bottom/top value is 0.70-0.73 against the original's 0.69 (was 1.17-1.22) | ship 8 | 0.9924 |
+| `newsha-169` (grey mines) and `newshe-201` (same family) | Matte mid-grey (mean 96-98, 0.1% of pixels above 200) where the original is bright silver (114.5, 5.3%) | Roughness, coat and metallic each moved the mean by only 1-3. The game's sun and environment panels reflect off the crown, and a 4% F0 leaves that reflection dim. So the ball's F0 goes to about 0.17 (that of IOR 2.4) through Specular IOR Level. Blender's glTF exporter drops a bare IOR, so this is written as KHR_materials_specular. The coat is roughness 0.25, the metallic stays low, and the horns and caps get a clear coat. In game: 113.6-119.0 mean, 4.8-5.5% above 200 | fix 7: the mine itself was resolved, but the change hadn't reached newshe-201. The coordinator ported it (same constants) and rebuilt; that port was checked in the GLBs only, not in game | 0.959 |
+| `newsha-283` (steel ball) | A black mirror ball (median 42-44) where the original is dark gunmetal with one highlight (69) | Metallic 0.75/roughness 0.32 changed to 0.35/0.60, plus a clear-coated sheen patch at the upper left, toward D92's SHEEN_DIR | ship 7 | 0.9718 |
+| `newshu-45` (purple pod flames) | The flame crowns rendered salmon-pink (245,61,57) where the original's are deep red (162,20,0) | Glow strengths cut from 3.5/4.5/3.0 to 1.0/1.25/1.0 (D126: at most 1 / brightest channel) | ship 8 | 0.9645 |
+
+**Lessons (PLAYBOOK):**
+- When a surface can't slope steeply enough to shade itself under the game's sun, put the sprite's darker indices on it by plan row.
+- When roughness and coat don't brighten a dielectric, its F0 is the lever. Raise it through Specular IOR Level, since the exporter drops IOR on its own.
+
+**Open, minor:**
+- The wall blocks' south bands are hard colour steps, and their lit shoulder still frames the plateau slightly.
+- The mines have fewer pure-white glints on the horn tips than the original, and the crown highlight sits centre-left rather than at the sprite's (7,9).
+- newshe-201 hasn't been captured in game since the port.
+
+**Cost:** fix-round workflow, 10 agents, about 0.97M subagent tokens, 39 min, plus the coordinator's port and rebuild of newshe-201.
