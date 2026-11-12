@@ -1,42 +1,61 @@
-"""Grey two-legged ground pylon with a blue tube (newsh2.shp frames 123 and 125, enemy types 8 and 9):
-an assembly of two 2x2 pieces side by side (48x28 px), seen just below the gun walker
-(assembly-newsh2-87) in levels 1.25, 1.3, 1.36 and 3.17. Hard-surface, as the player ships (D50-D53).
+"""The blue gunship's front half (newsh2.shp frames 123 and 125, enemy types 8 and 9): an assembly of
+two 2x2 pieces side by side (48x28 px). Hard-surface, as the player ships (D50-D53).
+
+**What it is (D166, correcting D65's "grey two-legged ground pylon"):** the bow of a hovering
+gunship that the C draws as two stacked assemblies. The rear half is assembly-newsh2-87 (types 6/7
+and 13/14, ground(25) layer, y = -16); this half spawns with it at the same x on the ground2(75)
+layer at y = 0, so it overlaps the rear half's last 12 rows, and the C draws it over them (ground2
+after ground). Both fly down the screen together at 4 px/tick toward the player, then brake and hover
+(level 1.9, also 1.10, 1.15, 1.16, 3.8). Nose = the bottom of the screen (+y).
 
 The sprite is authoritative (D52): the plan outline covers the composite sprite's INNER mask row by
 row (D74, docs/agents/OUTLINE-BORDER.md: inside the dark ink ring, which the game's outline draws;
-out to the edge only where the sprite has no ink, the feet's outer rim at rows 20-23), the square beacon and the glass tube sit on the sprite's own
-pixels, and every part takes the palette index the sprite uses there (median of the part's pixels
-without the outline, the darkest shading and the brightest sheen; see `PAL`). The concept
+out to the edge only where the sprite has no ink, the mandibles' outer rim at rows 20-23), the square
+reactor window and the glass conduit sit on the sprite's own pixels, and every part takes the
+palette index the sprite uses there (median of the part's pixels without the outline, the darkest
+shading and the brightest sheen; see `PAL`). The concept
 (assets/blender/features/concepts/assembly-newsh2-123.jpg) only guides the side, front and rear.
 
-The machine (coordinates in sprite px: x = column - 23, the mirror plane between columns 22 and 23;
-y = sprite row, the screen bottom is +y; z up):
+The bow (coordinates in sprite px: x = column - 23, the mirror plane between columns 22 and 23;
+y = sprite row, forward is +y; z up from the model's base plane):
 
-- A beacon tower (rows 0-5, x +-5): two armoured cheek plates with chamfered tops, louvres on the
-  front and flanks, and on the back (north) a vent grille on the beacon column, service hatches and
-  ribs, either side of a dark column whose top is the bezel of a square glass beacon (the sprite's
-  4x4 blue light, columns 21-24, rows 1-4).
+- The neck (rows 0-5, x +-4), where it joins the rear half over its chin turret: two armoured cheek
+  plates with chamfered tops, louvres on the front and flanks, and on the back (aft, facing the rear
+  half) vent grilles, service hatches and ribs, either side of the reactor housing, whose top is the
+  bezel of a square glowing blue reactor window (the sprite's 4x4 blue light, columns 21-24, rows 1-4).
 - A shoulder housing (rows 5-7) whose top slopes forward and out (the sprite's shaded rows 5-6), with
   cooling fins on its back faces.
-- A glass reactor tube in a dark cradle down the middle (columns 21-24, rows 6-14), between two
-  channel walls (columns 20 and 25), end collars and a strap at mid length.
-- Two legs, each one hydraulic barrel running forward and down from a raised hip: a ribbed dark heat
-  sink end cap (rows 7-8, the sprite's dark band), a polished ring band and collar (rows 9-10), the
-  hip housing, then a narrower leg barrel (rows 13-21) sinking into the foot, a light strip along its
-  inner top edge (column 17 / 28, rows 14-23), a hydraulic ram on a bolted saddle plate along its
-  outer top, and a coolant pipe that leaves a manifold on the hip, runs straight out over the hip's
-  crown (row 11, pal 131), drops down its outer end and runs forward along the leg's outer edge
-  (column 13 / 32, rows 12-16, the sprite's darker pal 58) into the leg.
-- Two axe-blade feet (rows 19-27): a dark sole, a glowing light-bar layer (the sprite's blue rim down
-  the outer edge and across the toe, rows 24-26) and a chamfered armour shoe over it.
-- Between the legs a low gearbox (rows 13-20, rounded front at rows 19-20, the sprite's pal 2 floor)
-  carrying two upright meshing gears facing the camera, their bosses, and the drive shaft from the
-  tube's lower end.
+- The blue conduit: a glowing glass reactor tube along the spine (columns 21-24, rows 6-14) in a dark
+  channel between two walls (columns 20 and 25), end collars and a strap at mid length. With the
+  reactor window it is the craft's "blue engine": the sprite's bright blue spine.
+- Two forward sponsons (the hull pods either side, rows 7-21), each a round hull barrel with a ribbed
+  dark heat-sink cap at the back (rows 7-8, the sprite's dark band), a polished ring band and collar
+  (rows 9-10) and a light strip along its inner top edge (column 17 / 28), a hydraulic ram on a
+  bolted saddle plate along its outer top, and a coolant pipe that leaves a manifold on the sponson's
+  shoulder, runs out over its crown (row 11, pal 131), down its outer end and forward along its outer
+  edge (column 13 / 32, rows 12-16, the sprite's darker pal 58).
+- Two mandibles (rows 19-27), the forks at the nose: blade plates with a dark keel, a glowing blue
+  light-bar rim (the sprite's blue rim down the outer edge and across the tip, rows 24-26) and a
+  chamfered armour plate over it.
+- Between the sponsons a recessed bay (rows 13-20, rounded front at rows 19-20, the sprite's pal 2
+  floor) with two upright geared feed wheels facing forward, their bosses, and the drive shaft from
+  the conduit's forward end.
 
-The underside is only closed (every part stands on z = 0 or is a closed solid), no detail.
-Texture: no concept projection (maps.json "bake": "model"); an ambient-occlusion / edge colour
-multiplier and a roughness / metalness map baked with Cycles, as the player ships (D50-D53). Outline
-shell as common.outline_shell (D51), cut into the pieces without filling the seam.
+Nothing stands on the ground (D166): the hull floats on a closed belly at BELLY; the mandibles' keels
+are at MANDIBLE_KEEL. Long parts are level along their length (D163): the sponsons keep one top height
+(their axis rises where they taper), the mandibles and the coolant pipe's run are level.
+
+How the halves join (D166): this half is drawn after the rear half at the same pass height, lifted
+along the same camera rays (D5, D6), so the two meet in 3D exactly as in the sprites' layout. Over
+the rear half's chin turret (its rows 17-26 = this half's rows 1-10, columns 19-27) the neck, the
+shoulders, the channel walls, the channel floor and the conduit stand higher than the turret, its stem
+and collar (ball 7.5 px, collar 7.8, the lens 8.4), so in game this half covers the turret as the C
+draws it; the neck's top (9.2-9.9) follows on from the rear half's glacis and chin.
+
+The underside is only closed, no detail. Texture: no concept projection (maps.json "bake": "model");
+an ambient-occlusion / edge colour multiplier and a roughness / metalness map baked with Cycles, as the
+player ships (D50-D53). Outline shell as common.outline_shell (D51), cut into the pieces without
+filling the seam.
 
 Built whole in assembly coordinates (Blender X = (x - 1) / 12, Y = (14 - y) / 12, Z = z / 12; the origin
 is screen pixel (173, 51) between the pieces' centres), cut into the pieces newsh2-123 and newsh2-125
@@ -70,17 +89,17 @@ CX0, CY0 = 173, 51
 PX = 1 / 12
 
 # Material slots and their palette index (sprite region medians, see the docstring). PIPE is the
-# coolant pipe's run over the hip (row 11: 131/132), CONDUIT its run down the leg's outer edge
-# (column 13: 58).
+# coolant pipe's run over the sponson's shoulder (row 11: 131/132), CONDUIT its run down the sponson's
+# outer edge (column 13: 58). LEG is the sponsons' barrels, FOOT the mandibles (names kept short).
 (HEAD, SHOULDER, FRAME, FLOOR, LEG, HIPRING, LIGHT, TUBE, STRIP, PIPE, RIM, FOOT, HUB, CONDUIT) = range(14)
 PAL = {HEAD: 6, SHOULDER: 4, FRAME: 3, FLOOR: 2, LEG: 6, HIPRING: 9, LIGHT: 156, TUBE: 155, STRIP: 132,
        PIPE: 131, RIM: 57, FOOT: 4, HUB: 7, CONDUIT: 58}
-TAGS = ["head", "shoulder", "frame", "floor", "leg", "hipring", "light", "tube", "strip", "pipe", "rim", "foot",
-        "hub", "conduit"]
+TAGS = ["head", "shoulder", "frame", "bay", "sponson", "ringband", "reactor", "conduit", "strip", "pipe", "rim",
+        "mandible", "hub", "pipe_run"]
 GLOWS = {LIGHT: 1.6, TUBE: 1.2, STRIP: 0.9, PIPE: 0.35, RIM: 0.45, CONDUIT: 0.35}
 SATIN = {HEAD: (0.55, 0.38), SHOULDER: (0.5, 0.42), FRAME: (0.45, 0.48), FLOOR: (0.3, 0.6), LEG: (0.35, 0.42),
          HIPRING: (0.7, 0.3), FOOT: (0.5, 0.44), HUB: (0.6, 0.35)}
-# Baked occlusion multiplier per slot: (floor, occlusion weight). The legs are lifted so their round
+# Baked occlusion multiplier per slot: (floor, occlusion weight). The sponsons are lifted so their round
 # barrels read as the sprite's mid grey (pal 6) from the game camera, not near black.
 AO = {LEG: (0.72, 0.36)}
 AO_DEFAULT = (0.48, 0.62)
@@ -310,18 +329,34 @@ def ring(cx, y, cz, r, n=20, p=2.2, rz=None):
 
 # --- the machine --------------------------------------------------------------------------------
 
-# Leg axis (centre x of the left leg, height of its axis) along y; the right leg is mirrored.
-# Fitted to the sprite's inner mask (D74): the hip sits at x -5.5 (rows 7-10 stair out to the
-# shoulder), the leg barrel at -6 with radius 2 (row 18: columns 15-18 inside the ink).
-# Past row 18 the barrel tapers and leans out into the ankle fairing (rows 19-23 inside x -5).
+# Heights (sprite px) of the floating hull (D166). BELLY: the closed underside of the neck, shoulders
+# and channel. SPONSON_TOP: the sponsons' level top (D163: the axis rises where the barrel tapers so
+# the top never changes along its length). The neck and the channel stand over the rear half's chin
+# turret (its top 7.5, lens 8.4, collar 7.8) by NECK_LIFT more than the D65 pylon's heights.
+BELLY = 3.4
+SPONSON_TOP = 7.8
+NECK_LIFT = 0.6
+MANDIBLE_KEEL = 3.6  # the mandibles' keel, their light bar and armour above it, all level
+MANDIBLE_TOP = 7.0
+FAIRING_TOP = 7.9  # the block where a sponson ends in its mandible
+
+# Sponson axis (centre x of the left sponson, height of its axis) along y; the right one is mirrored.
+# Fitted to the sprite's inner mask (D74): the shoulder cap sits at x -5.5 (rows 7-10 stair out to
+# the shoulder housing), the barrel at -6 with radius 2 (row 18: columns 15-18 inside the ink).
+# Past row 18 the barrel tapers and leans out into the fairing over the mandible (rows 19-23 inside
+# x -5).
 LEG_X = pchip([6.0, 10.5, 13.0, 18.6, 19.6, 23.0], [-5.5, -5.5, -6.0, -6.0, -6.5, -6.5])
-LEG_Z = pchip([6.0, 11.5, 16.0, 21.0, 23.0], [4.0, 4.0, 3.4, 1.9, 1.5])
 LEG_R = 2.0
 HIP_R = 3.4
 
 
 def leg_r(y):
     return max(1.45, LEG_R - 0.7 * max(0.0, y - 18.6))
+
+
+def LEG_Z(y):
+    """The sponson's axis: level, rising as the barrel tapers so that its top stays at SPONSON_TOP."""
+    return SPONSON_TOP - leg_r(y) if y > 13.3 else SPONSON_TOP - LEG_R
 
 
 def foot_plan(s):
@@ -339,14 +374,14 @@ def heel_plan(s):
 
 
 def foot_top(y):
-    return 3.7 - 0.45 * max(0.0, min(1.0, (y - 20.0) / 4.0))
+    return MANDIBLE_TOP
 
 
 def build_side(B, s):
-    """One leg, hip, pipe and foot. s = -1 left, +1 right (x mirrored)."""
+    """One sponson, its shoulder cap, pipe and mandible. s = -1 left, +1 right (x mirrored)."""
     X = lambda x: -x if s > 0 else x  # noqa: E731  (left-side numbers, mirrored for the right)
 
-    # Hip: ribbed heat-sink end cap, polished ring band, collar, housing; one loft along y.
+    # Shoulder cap: ribbed heat-sink end cap, polished ring band, collar, housing; one loft along y.
     # The cap is a stepped dome (the sprite's rows 7-10 stair out by a pixel a row): its ribs grow from
     # radius 1.3 at row 7 to 2.4 at rows 8-9, the ring band and the housing reach 3.2 from row 10.
     st = [(6.95, 0.9, FRAME), (7.1, 1.25, FRAME), (7.4, 1.45, FRAME), (7.7, 1.45, FRAME), (7.8, 1.3, FRAME),
@@ -357,27 +392,29 @@ def build_side(B, s):
           (12.0, 3.4, LEG), (12.7, 3.1, LEG), (13.25, 2.2, LEG), (13.4, 2.05, LEG)]
     rings = [ring(X(LEG_X(y)), y, LEG_Z(y), r) for y, r, _ in st]
     B.loft(rings, [m for _, _, m in st[:-1]])
-    # Leg barrel, sinking into the foot; a dark collar at the ankle.
+    # Sponson barrel, running forward into the fairing over the mandible; a dark collar near its end.
     ys = frange(13.3, 21.6, 0.6)
     B.loft([ring(X(LEG_X(y)), y, LEG_Z(y), leg_r(y)) for y in ys], LEG)
     B.loft([ring(X(LEG_X(y)), y, LEG_Z(y), r) for y, r in ((17.4, 2.0), (17.5, 2.15), (18.1, 2.15), (18.2, 2.0))],
            FRAME)
     B.loft([ring(X(LEG_X(y)), y, LEG_Z(y), r) for y, r in ((13.6, 2.0), (13.7, 2.14), (14.1, 2.14), (14.2, 2.0))],
            HIPRING)
-    # Hip mount under the raised hip (closes the side view).
-    B.box(X(-7.4) if s < 0 else X(-4.0), X(-4.0) if s < 0 else X(-7.4), 8.3, 12.8, 0.0, 3.4, 0.3, FRAME)
-    # A low sill along under the leg (the sprite's dark pixels either side of it, rows 12-17).
-    B.box(X(-9.0) if s < 0 else X(-3.9), X(-3.9) if s < 0 else X(-9.0), 12.5, 17.95, 0.0, 1.6, 0.2, FRAME)
+    # A belly fairing under the shoulder cap (closes the side view; floats with the hull).
+    B.box(X(-7.4) if s < 0 else X(-4.0), X(-4.0) if s < 0 else X(-7.4), 8.3, 12.8, BELLY - 0.4, LEG_Z(10.0), 0.3,
+          FRAME)
+    # A strake along under the sponson (the sprite's dark pixels either side of it, rows 12-17).
+    B.box(X(-9.0) if s < 0 else X(-3.9), X(-3.9) if s < 0 else X(-9.0), 12.5, 17.95, BELLY + 0.2, BELLY + 1.4,
+          0.2, FRAME)
 
-    # Light strip along the leg's inner top edge (column 17 / 28) onto the foot's armour.
+    # Light strip along the sponson's inner top edge (column 17 / 28) onto the mandible's armour.
     path, ups = [], []
     for y in frange(13.9, 24.1, 0.5):
         cx, cz = LEG_X(y), LEG_Z(y)
         dx = -5.5 - cx
         zb = cz + math.sqrt(max(0.0, leg_r(y) ** 2 - dx * dx)) if y < 22.0 else -9
         zf = foot_top(y) if y > 19.0 else -9
-        if 18.95 <= y <= 22.6:  # over the ankle fairing (its chamfered top edge sits 0.45 below)
-            zf = max(zf, 5.0 - 0.38 * (y - 19.0))
+        if 18.95 <= y <= 22.6:  # over the fairing (its chamfered top edge sits 0.45 below)
+            zf = max(zf, FAIRING_TOP)
         if zb >= zf:
             n = Vector((X(dx), 0, zb - cz)).normalized()
             path.append((X(-5.5), y, zb + 0.02))
@@ -388,30 +425,31 @@ def build_side(B, s):
     B.rect_strip(path, ups, 0.9, 0.18, STRIP)
 
     # Coolant pipe (one diameter, a bent pipe as in the sprite's L-shaped cyan run): out of a manifold
-    # on the hip's inner top, straight out over the hip's crown (row 11, pal 131), down its outer end
-    # into a coupling, then (pal 58) forward along the leg's outer edge (column 13 / 32) and into the leg.
+    # on the shoulder cap's inner top, straight out over its crown (row 11, pal 131), down its outer end
+    # into a coupling, then (pal 58) forward, level, along the sponson's outer edge (column 13 / 32)
+    # and into the sponson.
     pr = 0.7
     # Its outer face is the plan's edge at rows 11-16 (x -10, inside the ink at column 12 / 33).
     px, py, pe = -9.3, 11.6, 16.2
     zc = LEG_Z(py) + HIP_R + pr + 0.05
-    run = fillet_path([(-3.4, py, zc), (px, py, zc), (px, py, 5.0)], 1.0, k=6)
+    zr = LEG_Z(py)  # the flank run's level height: the sponson's axis
+    run = fillet_path([(-3.4, py, zc), (px, py, zc), (px, py, zr + 1.0)], 1.0, k=6)
     B.tube([(X(x), y, z) for x, y, z in run], pr, PIPE, n=12)
-    flank = fillet_path([(px, py, 5.2), (px, py, 4.0), (px, pe, 3.4), (-7.4, pe, 3.4)], 1.0, k=6)
+    flank = fillet_path([(px, py, zr + 1.2), (px, py, zr), (px, pe, zr), (-7.4, pe, zr)], 1.0, k=6)
     B.tube([(X(x), y, z) for x, y, z in flank], pr, CONDUIT, n=12)
-    # Coupling at the joint (a collar round the pipe) and a bracket from it to the hip mount.
-    B.cylinder(X(px), py, 4.55, 5.45, 0.72, FRAME, n=12, ct=0.12)
-    B.box(min(X(-9.0), X(-7.4)), max(X(-9.0), X(-7.4)), py - 0.5, py + 0.5, 2.6, 4.9, 0.2, FRAME)
-    # Two pipe clamps along the leg's flank, and the coupling where the pipe turns into the leg.
+    # Coupling at the joint (a collar round the pipe) and a bracket from it to the belly fairing.
+    B.cylinder(X(px), py, zr + 0.55, zr + 1.45, 0.72, FRAME, n=12, ct=0.12)
+    B.box(min(X(-9.0), X(-7.4)), max(X(-9.0), X(-7.4)), py - 0.5, py + 0.5, zr - 1.4, zr + 0.9, 0.2, FRAME)
+    # Two pipe clamps along the sponson's flank, and the coupling where the pipe turns into it.
     for yc in (13.2, 15.0):
-        zp = 4.0 + (3.4 - 4.0) * (yc - py) / (pe - py)
-        B.box(min(X(-10.0), X(-8.6)), max(X(-10.0), X(-8.6)), yc - 0.28, yc + 0.28, zp - 0.9, zp + 0.9, 0.15, FRAME)
-    B.box(X(-9.9) if s < 0 else X(-8.0), X(-8.0) if s < 0 else X(-9.9), 15.7, 16.95, 1.9, 4.5, 0.25, FRAME)
-    # Manifold on the hip's inner top where the pipe starts.
+        B.box(min(X(-10.0), X(-8.6)), max(X(-10.0), X(-8.6)), yc - 0.28, yc + 0.28, zr - 0.9, zr + 0.9, 0.15, FRAME)
+    B.box(X(-9.9) if s < 0 else X(-8.0), X(-8.0) if s < 0 else X(-9.9), 15.7, 16.95, zr - 1.5, zr + 1.1, 0.25, FRAME)
+    # Manifold on the shoulder cap's inner top where the pipe starts.
     B.box(min(X(-3.85), X(-2.75)), max(X(-3.85), X(-2.75)), py - 0.8, py + 0.8, LEG_Z(py) + 1.5, zc + 0.8, 0.25,
           FRAME)
 
-    # Hydraulic ram along the leg's outer top (45 degrees out from the top) on a bolted saddle plate.
-    def leg_pt(y, ang, r):  # a point at radius r round the leg axis, ang degrees out from the top
+    # Hydraulic ram along the sponson's outer top (45 degrees out from the top) on a bolted saddle plate.
+    def leg_pt(y, ang, r):  # a point at radius r round the sponson's axis, ang degrees out from the top
         a = math.radians(ang)
         return (X(LEG_X(y) - r * math.sin(a)), y, LEG_Z(y) + r * math.cos(a))
     for y0, y1 in ((12.9, 15.4), (16.0, 18.3)):
@@ -431,110 +469,118 @@ def build_side(B, s):
     for y in (12.5, 19.8):  # clevis lugs
         B.tube([leg_pt(y, 45.0, LEG_R + 0.2), leg_pt(y, 45.0, LEG_R + 1.1)], 0.36, FRAME, n=8)
 
-    # Foot: dark sole, glowing light-bar layer, chamfered armour shoe.
+    # Mandible: dark keel, glowing light-bar layer, chamfered armour plate; all level (D163, D166).
+    k0 = MANDIBLE_KEEL
     plan = foot_plan(s)
-    B.prism(plan, 0.0, 1.25, 0.25, FOOT, cb=0.15)
-    B.prism(heel_plan(s), 0.0, 1.25, 0.25, FOOT, cb=0.15)
+    B.prism(plan, k0, k0 + 1.25, 0.25, FOOT, cb=0.3)
+    B.prism(heel_plan(s), k0, k0 + 1.25, 0.25, FOOT, cb=0.3)
     glow = inset(plan, 0.3)
-    B.prism(glow, 1.2, 1.8, 0.12, RIM)
-    B.prism(inset(heel_plan(s), [0.3, 0.3, 0.0, 0.3]), 1.2, 1.8, 0.12, RIM)
+    B.prism(glow, k0 + 1.2, k0 + 1.8, 0.12, RIM)
+    B.prism(inset(heel_plan(s), [0.3, 0.3, 0.0, 0.3]), k0 + 1.2, k0 + 1.8, 0.12, RIM)
     # Armour: inner edge flush, rear flush, outer edge in by 1 (column 13 / 32), front at row 24.
     shoe = [(-5.0, 19.0), (-8.6, 19.0), (-8.85, 20.0), (-5.0, 20.0)]
-    B.prism([(X(x), y) for x, y in shoe], 1.75, lambda x, y: foot_top(y), 0.45, FOOT)
+    B.prism([(X(x), y) for x, y in shoe], k0 + 1.75, lambda x, y: foot_top(y), 0.45, FOOT)
     shoe = [(-5.0, 19.9), (-9.9, 19.9), (-10.2, 20.3), (-10.2, 23.2), (-9.4, 24.0), (-5.0, 24.0)]
     shoe = [(X(x), y) for x, y in shoe]
-    B.prism(shoe, 1.75, lambda x, y: foot_top(y), 0.45, FOOT)
-    # Ankle fairing: a sloped block from the shoe up round the barrel's end.
+    B.prism(shoe, k0 + 1.75, lambda x, y: foot_top(y), 0.45, FOOT)
+    # Fairing: a level block from the armour up round the barrel's end.
     ank = [(-8.4, 18.95), (-5.05, 18.95), (-5.05, 22.6), (-8.4, 22.6)]
-    B.prism([(X(x), y) for x, y in ank], 1.75, lambda x, y: 5.0 - 0.38 * (y - 19.0), 0.45, FOOT)
-    # Two dark cleats on the sole's outer flank.
+    B.prism([(X(x), y) for x, y in ank], k0 + 1.75, FAIRING_TOP, 0.45, FOOT)
+    # Two dark cleats on the keel's outer flank.
     for y0 in (20.2, 22.2):
-        B.box(X(-10.95) if s < 0 else X(-10.6), X(-10.6) if s < 0 else X(-10.95), y0, y0 + 1.0, 0.2, 1.1, 0.1, FRAME)
+        B.box(X(-10.95) if s < 0 else X(-10.6), X(-10.6) if s < 0 else X(-10.95), y0, y0 + 1.0, k0 + 0.2, k0 + 1.1,
+              0.1, FRAME)
 
 
 def build_centre(B):
-    # Beacon tower: cheek plates either side of the beacon column.
+    L = NECK_LIFT  # the neck, shoulders and channel stand this much higher than the D65 pylon (D166)
+    # Neck: cheek plates either side of the reactor housing.
     for s in (-1, 1):
         X = lambda x: -x if s > 0 else x  # noqa: E731
         cheek = [(-3.95, 1.35), (-3.65, 1.05), (-2.2, 1.05), (-2.2, 5.3), (-3.95, 5.3)]
-        B.prism([(X(x), y) for x, y in cheek], 0.0, 9.1, 0.55, HEAD)
-        # Louvres on the tower front (seen by the game camera) and its outer flank.
+        B.prism([(X(x), y) for x, y in cheek], BELLY, 9.1 + L, 0.55, HEAD, cb=0.3)
+        # Louvres on the neck's front (seen by the game camera) and its outer flank.
         for z in (7.1, 7.75, 8.4):
-            B.box(min(X(-3.65), X(-2.45)), max(X(-3.65), X(-2.45)), 5.25, 5.45, z, z + 0.35, 0.06, FRAME)
-        for z in (4.2, 5.0, 5.8):
+            B.box(min(X(-3.65), X(-2.45)), max(X(-3.65), X(-2.45)), 5.25, 5.45, z + L, z + L + 0.35, 0.06, FRAME)
+        for z in (4.8, 5.6, 6.4):
             x0, x1 = (-4.08, -3.9) if s < 0 else (3.9, 4.08)
             B.box(x0, x1, 2.0, 4.6, z, z + 0.4, 0.06, FRAME)
-        # Rear (north): a service hatch on each cheek's back face with a vent grille, two ribs above it
-        # and a bolted strap below.
-        # (The tower's back face is at row 1, y 1.05, inside the sprite's ink row 0; these stand
+        # Aft face (towards the rear half): a service hatch on each cheek with a vent grille, two ribs
+        # above it and a bolted strap below.
+        # (The neck's aft face is at row 1, y 1.05, inside the sprite's ink row 0; these stand
         # proud of it by at most 0.25.)
         x0, x1 = sorted((X(-3.6), X(-2.4)))
-        B.box(x0, x1, 0.93, 1.15, 1.6, 6.6, 0.08, FRAME)
-        for z in (2.2, 2.9, 3.6, 4.3, 5.0, 5.7):
+        B.box(x0, x1, 0.93, 1.15, BELLY + 0.4, 7.2, 0.08, FRAME)
+        for z in (4.4, 5.0, 5.6, 6.2):
             B.box(x0 + 0.2, x1 - 0.2, 0.81, 0.99, z, z + 0.32, 0.04, HUB)
         for z in (7.15, 7.85):
-            B.box(x0 - 0.1, x1 + 0.1, 0.89, 1.15, z, z + 0.35, 0.08, FRAME)
-        B.box(x0 - 0.1, x1 + 0.1, 0.91, 1.15, 0.5, 1.1, 0.08, FRAME)
+            B.box(x0 - 0.1, x1 + 0.1, 0.89, 1.15, z + L, z + L + 0.35, 0.08, FRAME)
+        B.box(x0 - 0.1, x1 + 0.1, 0.91, 1.15, BELLY + 0.1, BELLY + 0.6, 0.08, FRAME)
         for xb in (x0 + 0.3, x1 - 0.3):
-            B.tube([(xb, 1.05, 0.8), (xb, 0.9, 0.8)], 0.14, HUB, n=6)
-    B.box(-2.15, 2.15, 1.1, 5.15, 0.0, 8.4, 0.2, FRAME)  # beacon column
-    # Its back (north) face: a vent grille of upright slats in a frame, a rib across the top.
-    B.box(-1.95, 1.95, 0.98, 1.15, 1.0, 1.4, 0.06, HEAD)
-    B.box(-1.95, 1.95, 0.98, 1.15, 6.8, 7.2, 0.06, HEAD)
+            B.tube([(xb, 1.05, BELLY + 0.35), (xb, 0.9, BELLY + 0.35)], 0.14, HUB, n=6)
+    B.box(-2.15, 2.15, 1.1, 5.15, BELLY, 8.4 + L, 0.2, FRAME, cb=0.2)  # reactor housing
+    # Its aft face: a vent grille of upright slats in a frame, a rib across the top.
+    B.box(-1.95, 1.95, 0.98, 1.15, BELLY + 0.3, BELLY + 0.7, 0.06, HEAD)
+    B.box(-1.95, 1.95, 0.98, 1.15, 6.8 + L, 7.2 + L, 0.06, HEAD)
     for xs in (-1.45, -0.725, 0.0, 0.725, 1.45):
-        B.box(xs - 0.2, xs + 0.2, 0.83, 1.15, 1.4, 6.8, 0.07, HEAD)
-    B.box(-2.25, 2.25, 0.85, 1.15, 7.45, 7.85, 0.1, HUB)
-    # Bezel: four chamfered bars round the glass (the sprite's 4x4 light, columns 21-24, rows 1-4).
-    B.box(-2.15, 2.15, 1.1, 1.45, 8.0, 9.35, 0.12, FRAME)
-    B.box(-2.15, 2.15, 4.85, 5.15, 8.0, 9.35, 0.12, FRAME)
-    B.box(-2.15, -1.8, 1.1, 5.15, 8.0, 9.35, 0.12, FRAME)
-    B.box(1.8, 2.15, 1.1, 5.15, 8.0, 9.35, 0.12, FRAME)
-    B.box(-1.85, 1.85, 1.35, 4.9, 7.0, 9.15, 0.35, LIGHT)  # the glass beacon, bevelled
-    # Shoulder housing: top slopes forward and out (the sprite's shaded rows 5-6).
+        B.box(xs - 0.2, xs + 0.2, 0.83, 1.15, BELLY + 0.7, 6.8 + L, 0.07, HEAD)
+    B.box(-2.25, 2.25, 0.85, 1.15, 7.45 + L, 7.85 + L, 0.1, HUB)
+    # Bezel: four chamfered bars round the reactor window (the sprite's 4x4 light, columns 21-24, rows 1-4).
+    B.box(-2.15, 2.15, 1.1, 1.45, 8.0 + L, 9.35 + L, 0.12, FRAME)
+    B.box(-2.15, 2.15, 4.85, 5.15, 8.0 + L, 9.35 + L, 0.12, FRAME)
+    B.box(-2.15, -1.8, 1.1, 5.15, 8.0 + L, 9.35 + L, 0.12, FRAME)
+    B.box(1.8, 2.15, 1.1, 5.15, 8.0 + L, 9.35 + L, 0.12, FRAME)
+    B.box(-1.85, 1.85, 1.35, 4.9, 7.0 + L, 9.15 + L, 0.35, LIGHT)  # the glowing reactor window, bevelled
+    # Shoulder housing: top slopes forward and out (the sprite's shaded rows 5-6); closed belly.
     pts = []
-    for y, hw, zt in ((4.95, 4.45, 7.4), (6.0, 5.5, 6.95)):
+    for y, hw, zt in ((4.95, 4.45, 7.4 + L), (6.0, 5.5, 6.95 + L)):
         for sx in (-1, 1):
-            pts += [(sx * hw, y, 0.0), (sx * hw, y, zt - 1.1), (sx * (hw - 1.1), y, zt)]
+            pts += [(sx * (hw - 0.3), y, BELLY), (sx * hw, y, BELLY + 0.3), (sx * hw, y, zt - 1.1),
+                    (sx * (hw - 1.1), y, zt)]
     B.hull(pts, SHOULDER)
-    for sx in (-1, 1):  # the shoulders run on beside the tube, under the hip caps
+    for sx in (-1, 1):  # the shoulders run on beside the channel, under the sponsons' caps
         pts = []
-        for y, hw, zt in ((5.5, 5.0, 7.1), (7.5, 7.0, 6.75), (8.4, 7.0, 6.5)):
-            pts += [(sx * hw, y, 0.0), (sx * hw, y, zt - 1.1), (sx * (hw - 1.1), y, zt),
-                    (sx * 2.6, y, 0.0), (sx * 2.6, y, zt - 0.3)]
+        for y, hw, zt in ((5.5, 5.0, 7.1 + L), (7.5, 7.0, 6.75 + L), (8.4, 7.0, 6.5 + L)):
+            pts += [(sx * (hw - 0.3), y, BELLY), (sx * hw, y, BELLY + 0.3), (sx * hw, y, zt - 1.1),
+                    (sx * (hw - 1.1), y, zt), (sx * 2.6, y, BELLY), (sx * 2.6, y, zt - 0.3)]
         B.hull(pts, SHOULDER)
-        # Cooling fins on the shoulder's back face, beside the tower.
-        for z in (1.6, 2.8, 4.0, 5.2):
+        # Cooling fins on the shoulder's aft face, beside the neck.
+        for z in (4.0, 5.0, 6.0, 7.0):
             B.box(min(sx * 4.0, sx * 4.85), max(sx * 4.0, sx * 4.85), 5.0, 5.45, z, z + 0.55, 0.12, FRAME)
-    # Tube cradle: channel walls, floor, end block.
+    # The conduit's channel: walls, floor, end block. High enough to cover the rear half's chin
+    # turret where it lies under them (rows 6-10, D166); the floor shows only as slits beside the tube.
     for s in (-1, 1):
         x0, x1 = (-3.1, -2.05) if s < 0 else (2.05, 3.1)
-        B.box(x0, x1, 6.0, 14.5, 0.0, 6.0, 0.35, FRAME)
-    B.box(-2.1, 2.1, 6.0, 14.5, 0.0, 1.8, 0.0, FLOOR)
-    B.box(-3.1, 3.1, 14.0, 14.7, 0.0, 5.0, 0.35, FRAME)
-    # The glass tube: round, rounded ends, an end collar each side and a strap at mid length.
-    tz = 3.9
+        B.box(x0, x1, 6.0, 14.5, BELLY, 9.3, 0.35, FRAME, cb=0.2)
+    B.box(-2.1, 2.1, 6.0, 14.5, BELLY, 7.7, 0.0, FLOOR)
+    B.box(-3.1, 3.1, 14.0, 14.7, BELLY, 8.4, 0.35, FRAME, cb=0.2)
+    # The glass conduit: round, rounded ends, an end collar each side and a strap at mid length.
+    tz = 7.4
     B.loft([ring(0.0, y, tz, r, n=20, p=2.0) for y, r in ((6.1, 1.3), (6.3, 1.75), (6.6, 1.95), (13.75, 1.95),
                                                          (14.0, 1.75), (14.2, 1.3))], TUBE)
-    B.loft([ring(0.0, y, tz, r, n=20, p=2.0) for y, r in ((5.4, 2.1), (6.25, 2.1), (6.35, 2.05))], FRAME)
+    # (the aft collar starts at the neck's front face, row 5.2, so the turret never shows between them)
+    B.loft([ring(0.0, y, tz, r, n=20, p=2.0) for y, r in ((5.2, 2.1), (6.25, 2.1), (6.35, 2.05))], FRAME)
     B.loft([ring(0.0, y, tz, r, n=20, p=2.0) for y, r in ((13.95, 2.05), (14.05, 2.12), (14.6, 2.12))], FRAME)
     B.loft([ring(0.0, y, tz, r, n=20, p=2.0) for y, r in ((9.85, 2.02), (10.15, 2.02))], HIPRING)
-    # Gearbox between the legs: rounded front (rows 19-20).
+    # The bay between the sponsons: a recessed floor with a rounded front (rows 19-20), lifted off the
+    # ground with the hull (D166).
+    bz = BELLY
     half = [(3.0, 13.4), (3.0, 18.4), (2.7, 18.9), (2.2, 19.5), (1.6, 19.9), (1.1, 20.05)]
     case = half + [(-x, y) for x, y in reversed(half)]
-    B.prism(case, 0.0, 1.6, 0.25, FLOOR)
-    # Its base plate, out to the legs (the sprite's dark column 19 / 26 at rows 13-17).
-    B.box(-4.1, 4.1, 13.4, 17.95, 0.0, 1.2, 0.15, FLOOR)
-    # Two upright gears facing the camera (south), each on a boss, either side of the drive shaft.
-    B.gear_y(-2.1, 3.1, 15.5, 16.3, 1.9, 10, FRAME)
-    B.tube([(-2.1, 15.0, 3.1), (-2.1, 16.85, 3.1)], 0.62, SHOULDER, n=12)
-    B.tube([(-2.1, 16.8, 3.1), (-2.1, 17.05, 3.1)], 0.3, HUB, n=8)
-    B.gear_y(2.7, 2.7, 16.1, 16.8, 1.5, 8, FRAME)
-    B.tube([(2.7, 15.6, 2.7), (2.7, 17.3, 2.7)], 0.5, SHOULDER, n=12)
-    B.tube([(2.7, 17.25, 2.7), (2.7, 17.5, 2.7)], 0.25, HUB, n=8)
-    B.box(-3.6, -0.6, 14.75, 15.15, 1.5, 3.3, 0.1, SHOULDER)  # bearing blocks behind the gears
-    B.box(1.4, 3.9, 15.35, 15.75, 1.5, 3.0, 0.1, SHOULDER)
-    B.tube([(0.5, 14.3, 2.6), (0.5, 18.9, 2.2)], 0.45, HUB, n=8)  # drive shaft from the tube's end
-    B.cylinder(0.5, 19.0, 1.5, 2.6, 0.75, SHOULDER, n=12, ct=0.15)
+    B.prism(case, bz, bz + 1.6, 0.25, FLOOR, cb=0.2)
+    # Its base plate, out to the sponsons (the sprite's dark column 19 / 26 at rows 13-17).
+    B.box(-4.1, 4.1, 13.4, 17.95, bz, bz + 1.2, 0.15, FLOOR, cb=0.15)
+    # Two upright geared feed wheels facing forward, each on a boss, either side of the drive shaft.
+    B.gear_y(-2.1, bz + 2.2, 15.5, 16.3, 1.9, 10, FRAME)
+    B.tube([(-2.1, 15.0, bz + 2.2), (-2.1, 16.85, bz + 2.2)], 0.62, SHOULDER, n=12)
+    B.tube([(-2.1, 16.8, bz + 2.2), (-2.1, 17.05, bz + 2.2)], 0.3, HUB, n=8)
+    B.gear_y(2.7, bz + 1.9, 16.1, 16.8, 1.5, 8, FRAME)
+    B.tube([(2.7, 15.6, bz + 1.9), (2.7, 17.3, bz + 1.9)], 0.5, SHOULDER, n=12)
+    B.tube([(2.7, 17.25, bz + 1.9), (2.7, 17.5, bz + 1.9)], 0.25, HUB, n=8)
+    B.box(-3.6, -0.6, 14.75, 15.15, bz + 1.5, bz + 3.3, 0.1, SHOULDER)  # bearing blocks behind the wheels
+    B.box(1.4, 3.9, 15.35, 15.75, bz + 1.5, bz + 3.0, 0.1, SHOULDER)
+    B.tube([(0.5, 14.3, bz + 2.4), (0.5, 18.9, bz + 2.4)], 0.45, HUB, n=8)  # level drive shaft
+    B.cylinder(0.5, 19.0, bz + 1.5, bz + 2.6, 0.75, SHOULDER, n=12, ct=0.15)
 
 
 def materials(sprite):

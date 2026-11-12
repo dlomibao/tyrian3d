@@ -7349,6 +7349,9 @@ the same way the claw's lean is now 0 px relative to the ground at both sides. R
 leans sideways near the screen's sides. Keep prongs, forks, rails and blades level along their length. Put height
 changes across them, not along them.
 
+**Superseded identity (D166):** the "walker" is the rear half of a hovering gunship and the "pylon" below it its front
+half; the legs are floating outrigger booms now, no longer standing on the ground. The rule above stands.
+
 ## D164 — tropical-cherry-companion ships: the one sidekick D162 left out (extends D162, D65)
 
 D162 shipped 21 of 22 sidekicks; `tropical-cherry-companion` (option 29, sheet `tyrian.shp#8`, frames 113/132/151) was
@@ -7463,3 +7466,75 @@ its own.
 - `ident/`, the byte-identity set.
 
 **Cost:** one Opus agent; the renderer, the tests and two Blender builds, no workflow.
+
+## D166 — The blue "walker" and "pylon" are one hovering gunship in two halves: `assembly-newsh2-87` and `assembly-newsh2-123` re-identified and rebuilt (supersedes the identities in D65 and D163)
+
+**User report:** in `?compare=1` (D158) on level 1 (TYRIAN), "the blue things aren't walkers they are flying ships".
+
+**What the data says (checked before modelling, D120's lesson):**
+- **One craft, two assemblies.** Level 1.9 spawns, at the same tick and the same x, `assembly-newsh2-87` (pieces
+  newsh2-85 | newsh2-87; enemy types 6/7 and the firing 13/14, turret shots 116/115) with event 6 on the ground(25)
+  layer at y = -16, and `assembly-newsh2-123` (newsh2-123 | newsh2-125; types 8/9) with event 10 on the ground2(75)
+  layer at y = 0: t870 x=40/64, t920 x=120/144, t970 x=180/204, t1000 two more pairs. 1.15 pairs them the same way
+  (`tyrian-scratch/blue-gunship/tools/spawns.mjs`). The top assembly overlaps the bottom one by 12 rows: a 48x44 px
+  craft.
+- **It flies.** Both halves move down the screen at 4 px/tick (40 px per 10 ticks, far faster than the ground scrolls),
+  then brake on event 19 (t1050-1095) and hover near the player while the rear half fires; 1.15 and 3.8 also weave
+  them with event 20's global accelerations. "ground" in `tools/enemy_behaviour.mjs`'s `kind` is only the layer the C
+  draws them on (D122): Tyrian draws low-flying craft on the ground layers.
+- **Draw order.** `JE_drawEnemy(50)` (slots 25-49, ground) runs before `JE_drawEnemy(100)` (slots 75-99, ground2), both
+  in the ground-enemy pass, so in the original the front half is drawn over the rear half's last 12 rows: its blue
+  neck hides the rear half's red-eyed ball. The ball shows only when the front half is shot away (seen at t1060:
+  two rear halves flying on alone). In 1.15 some pairs spawn both halves on ground2, where the order is by slot; the
+  models follow 1.9, the normal-difficulty path.
+
+**Identification (in both scripts' docstrings).** Nose = the bottom of the screen (the direction of flight, toward the
+player).
+- *Rear half (85/87):* the stern's glowing exhaust bay (the sprite's orange-yellow row 0) between two engine housings,
+  red thruster pods at the stern corners, a raised bridge canopy of light blue glass, two bright blue gun wings each
+  ending in a forward-firing gun, two outrigger booms per side (an inner boom to a blunt tip, an outer armour fin),
+  and a ball turret with a red lens slung under the bow on a clamped stem.
+- *Front half (123/125):* a neck over the turret with a square glowing blue reactor window, a glowing blue glass
+  conduit along the spine (the "blue engine": the sprite's bright blue spine), two forward hull sponsons with
+  coolant pipes and rams, two blue-rimmed mandibles forming the fork at the nose, and a recessed bay between the
+  sponsons with two geared feed wheels.
+
+**Rebuild (`assets/blender/enemies/assembly-newsh2-87.py`, `assembly-newsh2-123.py`):** a re-identification and
+re-shaping, not a new art pass. Plans, palette indices, pieces, frames, export paths and `spriteModels` entries are
+unchanged (`git diff src/render/spriteModels/` is empty); the panel lines, muzzles, canopy, eye, pipes and wheels are
+the D65/D88 detail.
+- **Nothing stands on the ground.** The walker's legs (closed boxes down to z = 0, D163) are the outrigger booms:
+  level boxes from a 2.8 px keel to 6.0 (boom) and 5.5 (fin), the boom tips a level block to 5.0. The pylon's cheek
+  plates, housing, shoulders, channel and bay stood on z = 0; they now close on a belly at 3.4. Its legs, which fell
+  from 4 to 1.5 px toward the toe, are sponsons with a level 7.8 px top (the axis rises where the barrel tapers); its
+  feet, ankle fairings and the coolant pipe's flank run are level (D163: height changes across a long part, never
+  along it). The lowest point of the craft is the slung ball's belly at 1.3 px above the pass plane.
+- **The seam.** Both halves are drawn at the ground-enemy pass height (0.45, D5) and lifted along the same camera rays
+  with the same scale (D6), so in 3D they meet exactly as the sprites' layout puts them. Where both cover a pixel
+  of the overlap, the front half must be the higher, as the C draws it last. Before, the rear half's eye ball and
+  collar stood up to 11.6 px through the front half's 1.8-5.5 px spine: in game the red eye showed where the original
+  shows the blue neck. Now the turret is slung under the bow (ball top 7.5, collar 7.8, lens 8.4; stem level at 5.2)
+  and the front half's neck, shoulders, channel walls and floor and conduit are raised over it (neck 9.2-9.9,
+  channel 8.3-9.4; `NECK_LIFT`). Measured by raycasting both halves' exported glbs on a 4x grid of the stacked layout
+  (`tyrian-scratch/blue-gunship/tools/measure.py`, `seam.py`): the rear half is above the front half in 0 of 720
+  overlap samples (before: 632, 87.8%).
+- **D165's oblique tagging does not apply:** a flat-ish ship seen from above, not a tower.
+
+**IoU** (top view of each exported piece against its inner mask, `tools/sprite_mask.py --measure`, rule (grid)):
+newsh2-85 0.966 (0.9933), newsh2-87 0.924 (0.9536), newsh2-123 0.9621 (0.9849), newsh2-125 0.9449 (0.9688). The same as
+origin/main's (the plans did not change); every piece passes the `iou_rule_grid` ≥ 0.95 gate. newsh2-87 and newsh2-125
+are under 0.95 on the sub-pixel rule, as they were on main (D88 recorded newsh2-87 at grid 0.9536).
+
+**Judged in the game's render** (`?debug=play&episode=1&main=3&seed=1&skip=T-1&freezeAt=T`, 1920x1200, and
+`&compare=1`): t900 (a ship at the screen's left), t960 and t1000 (left of middle and middle), t1020 (right of middle),
+t1060 (one stacked ship in the middle and two rear halves flying alone, right). The stacked ship now shows the
+original's blue neck and spine where the red eye poked through, the booms and fork stay straight at the sides, and a
+lone rear half reads as a gunship with a chin turret. Blender views of the stacked craft over the pass plane
+(side, both 3/4s, game angle) show it floating. Sheets: `tyrian-scratch/blue-gunship/summary_game.png` (original |
+before | after per tick), `summary_views.png` (before | after), `viewer_sheet.png` (`?viewer` game and free views).
+
+**Not done:** in 1.15's pairs that spawn both halves on ground2 with the front half in the lower slot, the original
+draws the rear half over the front, so there the original shows the red eye and the models show the neck.
+
+**Cost:** one Opus agent, no workflow: three Blender builds of the two scripts, two measuring renders, about
+25 game and viewer captures.
