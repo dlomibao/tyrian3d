@@ -7312,3 +7312,39 @@ size with different bytes (bake output).
   `dual-shot-option` 12-16-sided rings show in close views; `single-shot-option` breech screws read as specks at game
   scale; `satellite-marlo` 96 hidden open edges; the open-boundary edges on `charge-cannon`/`dual-shot-option` bodies
   are hidden (no holes in culled renders).
+
+## D163 — Walker prongs: a part's height leans it sideways under the off-axis camera, so long parts stay level (fixes D65's assembly-newsh2-87)
+
+**User report:** in `?compare=1` (D158) on level 1 (TYRIAN), "some of the blue enemies has a weird angled front fork that
+the original had straight".
+
+**The unit:** the blue gun walker `assembly-newsh2-87` (pieces newsh2-85 and newsh2-87, ticks 871-1128 of
+`?debug=play&episode=1&main=3&seed=1`; also levels 1.25, 1.28, 1.36 and 3.17). Its two outer prongs (each an inner shin
+strut and an outer claw) are the fork. Only walkers away from the screen's middle showed it, which is the "some".
+
+**Cause (measured before changing anything):**
+- Not the top view: the review sheet's ortho top is straight and the rule IoU was 0.96 (grid 0.9925).
+- Not a roll: the walker's spriteModels entries have no `bank`, and only player ships roll (D93).
+- Not D6 by itself: D6 only places each draw's origin on its camera ray. The parts' own heights still project in
+  perspective, and a point raised by h moves away from the screen's middle by about 0.4-0.46 game px per px of height at
+  the playfield's sides.
+- It was the geometry's height profile: the prongs were "arched like a spider's leg", the top falling from a 12.6 px
+  knee to 0.6 px at the toe over 15 rows. The knee was pushed outward and the toe was not, so the prong leaned.
+  Projecting the claw's knee and toe through the game camera (`tyrianHarness.view.camera`, 4K): leaning 32 4K px
+  (about 5.4 game px, ~20°) more than a ground line at the far left (tick 900), 28 px the other way at the far right
+  (tick 1060), and 0 at the middle (tick 1060). That is the signature of height under perspective, not of a splayed plan.
+
+**Fix:** the legs are level and stand on the ground. The strut's top is at 6.0 px and the claw's at 5.5 px, constant from
+the hip to the toe; only the last 1.5 rows bevel down by 1.2 px. Each member is a closed box down to z = 0, its sides
+leaning in to 55% of the top's width at the ground (`sweep(..., keel=)`) so the side walls show less near the screen's
+sides. The spine plate now covers the strut's top, so the prong reads in the sprite's blue (pal 57) rather than the
+strut's grey. The hip and the hydraulic ram stay inside the strut, as they effectively were. Plan, palette indices,
+parts, frames and pieces are unchanged; the rest of the model is untouched. A level top shifts as one piece, so measured
+the same way the claw's lean is now 0 px relative to the ground at both sides. Rule IoU 0.9603 (grid 0.9925, unchanged).
+
+**Not changed:** the pylon below it (`assembly-newsh2-123`) has legs that fall only 2.5 px, which leans them by about
+1.2 game px at the far left. Its legs read straight in the captures.
+
+**Rule (PLAYBOOK failure modes):** under the tilted camera, a long, thin part whose height changes along its length
+leans sideways near the screen's sides. Keep prongs, forks, rails and blades level along their length. Put height
+changes across them, not along them.

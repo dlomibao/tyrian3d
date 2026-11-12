@@ -124,6 +124,7 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
   | Ink cracks across plates though the shell is D90's | Make the shell from a closed copy taken before `cull_hidden`, kept out of the bake's scene: a culled, open hull's plates are wrapped on both sides (Nort Ship, D118). |
   | Plates jagged and crumpled, their edges following the sprite's pixel steps | One smooth curve (pchip) through the middles of the inner mask's steps, never a width per row; refitting an existing design, pull its parts in by the border's width instead of re-tracing each row (Silver Ship, D118). |
   | A refit lost detail (bays, round pods) to pass the banking frames | Never shape a ship for its banks (D93): fit the pose, `bank_roll.py --fit`, its `shift` too (Silver Ship, D118). |
+  | Prongs or a fork lean or splay in game near the screen's sides, though straight in the top view | A long part whose height changes along its length leans under the off-axis camera (about 0.45 px sideways per px of height at the sides). Keep it level along its length, standing on the ground (walker prongs, D163). |
 - **Cost/time (enemies-flagship, 28 models: 15 hero, 13 standard):** 173 agents, 147 min wall clock,
   21.8M tokens; 28 blueprints, 43 designs, 15 judges, 43 finish/fix, 43 reviews. Per-agent median:
   blueprint 8 min, design 11 (max 53), judge 1.3, finish/fix 21 (max 49), review 1.3 (max 6.5)
