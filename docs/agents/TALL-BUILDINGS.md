@@ -65,6 +65,28 @@ Results so far:
    (D63), and the rock must not take the oblique view. Use a separate object or model, and check the
    renderer reads the extras per object.
 
+## Tall sprite and enemy models (D165)
+
+The same approach serves enemy and sprite models: DELIANI's flamethrower towers (`assets/blender/enemies/
+assembly-newshc-283.py`, `newshc-77.py`, `lib_deliani_tower.py`) are the worked example. The renderer's code is
+`src/render/obliqueView.ts`, shared with the structures; `drawListRenderer.ts` patches a tagged model's clones.
+
+- **Build the real object upright**, then export it as it is: never bake the art's view into the glb.
+- **The art camera.** Many sprites are drawn as an orthographic view from the south, e degrees up: round rims
+  are ellipses about sin e as tall as they are wide (DELIANI: 15°, rims a quarter as tall). Give
+  `tyrian_oblique: [cos e, sin e, axisZ]` (axisZ: the model-z row the plan is squeezed toward, normally the object's
+  foot axis in the piece's frame). D82's `k` alone is the cabinet view (plan unchanged), right for tiles that paint a
+  full roof.
+- **Pieces of one object** (an assembly cut into 24x28 sprites) each keep their geometry at true height relative to
+  their own sprite centre, so the viewer's assembly shows one standing object, and share one
+  `tyrian_depth_band: [lo, hi, y0, y1]`, so their depths agree at the cuts.
+- **The band** must stay under whatever the original draws over the enemy. A ground enemy (0.45) is under background 2
+  mid (0.9): use [0, 0.4]. With [0, 0.8] DELIANI's tower poked through the grille that covers it in the original.
+- **Measure** the art's picture from above (the export's `game_form`: each vertex at its art point), with the usual
+  rule (`iou_rule_grid` ≥ 0.95). Judge it in game at the three cameras and in `?viewer` from the side.
+- The outline shell, damage frames, the hit flash and the depth prepass work on tagged models. Shadows are cast by the
+  real object.
+
 ## Accept
 
 ```

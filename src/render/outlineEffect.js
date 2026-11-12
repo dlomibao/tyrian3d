@@ -5,7 +5,9 @@
 // userData.damageUniforms (render/damage/damageShader.ts, an enemy drawing a damaged frame on its intact
 // model) cuts away the same pixels as the model, so the ink follows the cut silhouette; and
 // compileAsync (D91) compiles the outline materials of a scene or subtree ahead of its first draw;
-// renderOutline swaps materials on visible objects only and keeps its bookkeeping in Maps (D91).
+// renderOutline swaps materials on visible objects only and keeps its bookkeeping in Maps (D91); and
+// one made for a material that carries userData.obliqueUniforms (obliqueView.ts, a tall model drawn
+// in the art's view, D165) is drawn in that view too.
 // The rest is three.js's code unchanged. Types: outlineEffect.d.ts (three's own).
 
 import {
@@ -14,6 +16,7 @@ import {
 	DAMAGE_CUT_VERTEX,
 	DAMAGE_CUT_VERTEX_PARS
 } from './damage/damageShader';
+import { obliqueVertexSource } from './obliqueView';
 import {
 	BackSide,
 	Color,
@@ -160,6 +163,10 @@ class OutlineEffect {
 		function createMaterial( originalMaterial ) {
 
 			const damage = originalMaterial && originalMaterial.userData.damageUniforms;
+			const oblique = originalMaterial && originalMaterial.userData.obliqueUniforms;
+			const damaged = damage ? vertexShader
+				.replace( '#include <common>', '#include <common>\n' + DAMAGE_CUT_VERTEX_PARS )
+				.replace( '\t#include <project_vertex>', '\t#include <project_vertex>\n' + DAMAGE_CUT_VERTEX ) : vertexShader;
 			const material = new ShaderMaterial( {
 				type: 'OutlineEffect',
 				uniforms: UniformsUtils.merge( [
@@ -167,9 +174,7 @@ class OutlineEffect {
 					UniformsLib[ 'displacementmap' ],
 					uniformsOutline
 				] ),
-				vertexShader: damage ? vertexShader
-					.replace( '#include <common>', '#include <common>\n' + DAMAGE_CUT_VERTEX_PARS )
-					.replace( '\t#include <project_vertex>', '\t#include <project_vertex>\n' + DAMAGE_CUT_VERTEX ) : vertexShader,
+				vertexShader: oblique ? obliqueVertexSource( damaged, oblique, true ) : damaged,
 				fragmentShader: damage ? fragmentShader
 					.replace( '#include <common>', '#include <common>\n' + DAMAGE_CUT_FRAGMENT_PARS )
 					.replace( 'void main() {', 'void main() {\n' + DAMAGE_CUT_FRAGMENT ) : fragmentShader,
@@ -177,6 +182,8 @@ class OutlineEffect {
 			} );
 			// The model's own uniform objects, so the outline follows each frame's cut.
 			if ( damage ) Object.assign( material.uniforms, damage );
+			// A model drawn in the art's view (obliqueView.ts, D165): its ink is drawn where the model is.
+			if ( oblique ) Object.assign( material.uniforms, oblique );
 			return material;
 
 		}
