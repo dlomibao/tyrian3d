@@ -7375,3 +7375,91 @@ above the shell, so no z-fight; two orange (pal 122) tail ribs; no pal-127 lamps
 
 **Cost:** the fix round ran 8 agents for about 1.1M tokens, shared with the DELIANI towers, which did not pass and are
 not part of this change (their work is parked in `tyrian-scratch/followups-1116/towers-wip/`; D161 still defers them).
+
+## D165 — Tall sprite and enemy models are real objects drawn in the art's view by the renderer: DELIANI's flamethrower towers stand (extends D82; closes D161's deferred towers)
+
+**Problem.** DELIANI's flamethrower towers (`assembly-newshc-283`: the column pieces `newshc-55`, `newshc-17`,
+`newshc-115` and the head `newshc-77`, episode 1 section 19, t2530-2680) did not read as towers. D161's model lay flat
+as a north-south strip. The next fix round baked D82's art view into the glbs, so in game they looked right but every
+other view (`?viewer`, Blender) showed a sheared flat slab: D82's rejected "sloped slab" (approach B/C0), review 6/10.
+D82's approach C (keep the real building in the asset, lock it to the art's view per vertex in the renderer) existed
+only for structures (tile models).
+
+**Decision.** Approach C now serves sprite and enemy models too, through the same code.
+- **One shared module**, `src/render/obliqueView.ts`. It holds D82's depth band, the oblique ray lock, its GLSL and
+  the sums used by the tests. `structureInstances.ts` now calls it instead of keeping its own copy.
+  `drawListRenderer.ts` patches a model clone's own materials once, in `cloneModel`, when its glb carries the extras.
+  That covers every mesh, the outline shell and the depth prepass, each with its own mesh-to-root matrix (parts never
+  move, D91). The blended sheets' lift (D129) uses the box the model is drawn in (`drawnBox`).
+- **The extras, extended:**
+  - `tyrian_oblique` is either `k` (D82, plan unchanged) or `[k, squeeze, axisZ]`. The second form is an orthographic
+    art camera from the south at elevation e: `k = cos e`, `squeeze = sin e`. The plan is squeezed toward row
+    `axisZ`, so a round rim draws as the art's flat ellipse, and a vertex goes on the camera ray through
+    `(x, axisZ + sin e (z - axisZ) - cos e y)`.
+  - `tyrian_depth_band` is either `[lo, hi]` or `[lo, hi, y0, y1]`. The pieces of one tall object give the same
+    `[y0, y1]`, so their depths agree where they meet.
+  - Normals, light and shadows stay the real object's, as in D82.
+- **Kept working on tagged models:**
+  - **Damage (D87, D128)** is projected onto the sprite from where the art draws a vertex, not from straight above it.
+  - **The outline (D90, D146).** The outline pass draws in the same view: its normal push is measured where the
+    normal's tip is drawn, and the push keeps the vertex's depth. Its ink also sits 5% of the band under the shell
+    (`OUTLINE_SINK`). The band squeezes true distances ten-fold or more, so where the shell's back faces line a hollow
+    (grooves, under rims) they lay a few depth steps from the surface, and the ink showed through as black blotches.
+  - **The hit flash** recolours materials only, so it is unaffected.
+  - **Shadows (D66, D142)** are cast by the real tower from its foot, as D82's buildings cast theirs. In captures
+    nothing looks out of place.
+- **Untagged models are never patched.** Their programs, uniforms and boxes are unchanged. Instanced structures keep
+  D82's GLSL expression exactly: the squeeze is a separate `#define`. Measured byte for byte against origin/main in
+  headless Chrome (`&vfx=original`, the stats line left out; two runs of origin/main are identical): TYRIAN t600 and
+  t1400 (enemies, the player ship), SAVARA t2300 tilted and t2500 steep (D82's tall towers), DELIANI t1500, and
+  episode 2 level 1 t800. 0 differing pixels in all six. An earlier draft that only refactored D82's GLSL changed 537
+  pixels of SAVARA's tower. Kept: the D82 expression is now inlined verbatim.
+- **The towers** (`assets/blender/enemies/assembly-newshc-283.py`, `newshc-77.py`, new `lib_deliani_tower.py`) are
+  exported upright, true height, with no baked squeeze: `tyrian_oblique [cos 15°, sin 15°, axis]` and
+  `tyrian_depth_band [0, 0.4, 0, 100 px]`.
+  - **Band [0, 0.4].** It keeps the whole tower under background 2 mid (0.45 above the ground-enemy pass, D5), as the
+    original draws it. In the original, DELIANI's grille and its two rails cross the towers: the vent cup shows red
+    through the grille's windows, and the head stands above the upper rail. With the fix round's band [0, 0.8] the cup
+    poked through the grille. So D161's review note that "the rail draws across the middle of both towers" was the
+    original's look, not a fault (compare capture below).
+  - **Merged from the fix round:** the flood-fill floor reference, the crane's row-by-row dome outline and pods,
+    newshc-245's fin trim, the tower's plan trims, the ball radius 8.05 and the wreck frame 91 (burnt bore, torn
+    liner, straight feed rod).
+  - **The crane** (`newshc-245`, `newshc-283`) gets those trims but stays a relief on the floor, untagged.
+- **IoU** (top view of the art's picture against the inner mask; `iou_rule`, with `iou_rule_grid` in brackets):
+
+  | Piece | IoU (grid) |
+  |---|---|
+  | newshc-115 | 0.9566 (0.9767) |
+  | newshc-17 | 0.9531 (0.9716) |
+  | newshc-55 | 0.9518 (0.9519) |
+  | newshc-245 | 0.9509 (0.9892) |
+  | newshc-283 | 0.9605 (0.9817) |
+  | newshc-77@77 | 0.9541 (0.9753) |
+  | @79 | 0.9504 (0.9754) |
+  | @81 | **0.9452** (0.9706) |
+  | @83 | 0.9686 (0.9933) |
+  | @85 | 0.9610 (0.9817) |
+  | @87 | 0.9589 (0.9831) |
+  | @89 | 0.9545 (0.9844) |
+  | @91 (wreck) | **0.930** (1.0) |
+
+  **Exception, as D121 (newshd-228) and D116:** the gate is `iou_rule_grid` ≥ 0.95 (OUTLINE-BORDER.md), and all 13
+  pass it. Two frames miss on the sub-pixel rule. On @81 the ram under the raised hood covers the sprite's ink row 27.
+  On @91 the torn lip's ends fall about 1 px short in row 27. The fix round tried a squarer ball, ram lifts of 0.8-1.6
+  and pulling the lip's vertices up; each made it worse. They ship on the grid value.
+- **Judged:** the cameras and views are listed under Captures.
+  - **In game (tilted, steep, overhead):** standing flamethrower towers that match the original's layering.
+  - **In `?viewer`:** 3/4, side and front views of two real standing towers with their heads.
+
+**Open (follow-up):** the crane between the towers (`newshc-245` over `newshc-283`) is still a relief lying on the
+floor, so in `?viewer` its boom lies flat (D161's review issue 5). In the art it is probably a post with a hammer head,
+drawn standing the way the towers are. Rebuilding it as a true upright object with these extras is a modelling job of
+its own.
+
+**Captures:** `tyrian-scratch/deliani-towers/` holds `before/` (origin/main) and `after/`:
+- DELIANI t2530, t2600 and t2680 tilted, t2600 steep and overhead, and t2600 `&compare=1`;
+- `viewer/` (asm_q34, asm_side, asm_front, head_q34, head_side, cup_q34);
+- `ident/`, the byte-identity set.
+
+**Cost:** one Opus agent; the renderer, the tests and two Blender builds, no workflow.

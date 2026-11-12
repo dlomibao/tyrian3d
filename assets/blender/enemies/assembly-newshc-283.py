@@ -1,39 +1,48 @@
-"""Twin-pillar machine (newshc.shp, assembly-newshc-283): silhouette and game-camera
-readability first, then detail.
+"""DELIANI's flamethrower towers (newshc.shp, assembly-newshc-283): two STANDING towers with a crane
+between them, built as what they are and drawn the way the art draws them (D82's approach C, for
+sprite models; D161's follow-up).
 
-Five 24x28 pieces of the machine's left half are modelled (newshc-115, -17, -55: the pillar;
-newshc-245 over newshc-283: the crane on its tiled floor); the right half repeats the pillar at
-+72 px and the crane at +24 px (same sprites, not mirrored). newshc-77, the pop-up ball turret on
-each pillar's head, has its own model (imported read-only here for the context views).
+The pillar is a tower, not a column lying on the ground. Tyrian draws it from the south at a low
+angle: its foot is the bottom of the sprite column (newshc-55, on the floor tiles) and it rises up
+the screen through newshc-17 and newshc-115 to the ball head (newshc-77, its own enemy). Every round
+rim in the sprite is an ellipse about a quarter as tall as it is wide: the art camera is an
+orthographic one from the south, 15 deg up (lib_deliani_tower.py: screen row
+s = VB + sin15 (v - VB) - cos15 z).
 
-What the sprite says (and this model keeps):
-- The pillar is a segmented column lying north-south: a sleeve (the "cup") round the turret's stem
-  with two red-lit vent bays either side of a grey guide rail, a dark neck, a red trumpet flange,
-  drum 1 with a red lamp on its south shoulder, a dark gap, a long narrower shaft with bolt heads
-  on its east flank, drum 2 behind a collar with its lamp, a gap, a collar and the long drum 3 with
-  a red hatch on its west flank, its end skewed where it meets the floor. Widths follow the inner
-  mask (D74) row by row; sections are flattened superellipses on one axis height, sitting in
-  saddles on foot plates (side views).
-- The crane: a squat dome on the floor (grey cap, a blue glass ring, grey band with a blue front
-  window, dark skirt with blue trim and a dark hatch housing standing out to the south), a blue
-  boom raking north from a pivot boss on the dome's top up to a grey U clevis, arms to the
-  hammer-shaped grey head (upper and lower prongs pointing west, blue glass on its body, a blue
-  stripe on top, a dark back block) and a folded blue fin on a raked post standing on the floor.
-- The floor: base slab with raised tiles (101/102) and grout (99/100) traced pixel by pixel, dark
-  seams where the sprite draws floor seams. Built only as an occluder for the AO bake (the parts'
-  feet darken where they meet the ground) and deleted before export (D130, as D86's dirt): it is the
-  tile's ground, which the game draws in HD, and it showed as a box of pixel tiles with an ink ring.
+So the model is the true upright tower (lib_deliani_tower.py: a surface of revolution 93 px tall
+on a 16 px disc; base drum with a west access hatch, drum 1 and drum 0 with red shoulder lamps, the
+bolted shaft, the red flared vent bell, the vent cup the head retracts into), exported upright. Its
+art view is never baked into the asset (D82's approach C, extended to sprite models by D165): each
+piece carries the glTF extras `tyrian_oblique: [cos e, sin e, axis_z]` and `tyrian_depth_band: [lo,
+hi, 0, Y_TOP]`, and the game's renderer (src/render/obliqueView.ts) puts each vertex, per frame, on
+the camera ray through the point the art draws it at, (x, axis_z + sin e (z - axis_z) - cos e y),
+with the depth of its height squeezed from [0, Y_TOP] into the pass budget [lo, hi]. Normals, light
+and shadow are the real tower's. The viewer, Blender and anything else that loads the glb see the
+real tower standing on its foot.
 
-Built in sprite px of the half assembly (c east, r south, h up; pixel (c, r) covers [c,c+1]x[r,r+1];
-r 0 = assembly row 28, under the newshc-77 head), moved to Blender at the end:
-X = (c - 48) / 12, Y = (28 - r) / 12, Z = h / 12 (the current script's frame: whole machine 96x112,
-origin screen (164, 24)). Cut into the five pieces with common.split_assembly; each piece gets the
-part of one outline shell (D51) made from the whole half (every outer island: pillar and crane),
-cut open at the seams, and its own small AO/roughness bake (bake_pieces).
+How it is built: the tower is made in the art's frame first (`lock`: the rigid turn that puts the
+art camera overhead, which is the game's plan exactly), so the cut into the sprite's 24x28 pieces
+is a cut along screen rows, and the outline shell and the AO bake (D50, D65: the model's own
+occlusion over a ground disc, no projection) are made there; then each piece is turned back
+upright (`stand`) and exported about its own centre. Measured on the game form: the exported
+upright pieces put through the renderer's art view (`game_form`), top view against the sprite masks.
+
+The crane (newshc-245 over newshc-283) is unchanged: a squat dome on the floor (grey cap, a blue
+glass ring, grey band with a blue front window, dark skirt with blue trim and a dark hatch housing
+standing out to the south), a blue boom raking north from a pivot boss on the dome's top up to a
+grey U clevis, arms to the hammer-shaped grey head (upper and lower prongs pointing west, blue
+glass on its body, a blue stripe on top, a dark back block) and a folded blue fin on a raked post
+standing on the floor. Its floor (raised tiles 101/102, grout 99/100) is built only as the bake's
+occluder and deleted before export (D130).
+
+Crane coordinates: sprite px of the half assembly (c east, r south, h up; r 0 = assembly row 28,
+under the newshc-77 head), X = (c - 48) / 12, Y = (28 - r) / 12, Z = h / 12 (whole machine 96x112,
+origin screen (164, 24)); the right half repeats the pillar at +72 px and the crane at +24 px.
 
   blender --background --python assets/blender/enemies/assembly-newshc-283.py -- [--no-bake]
       [--measure dir] [--views dir]
-(exports public/models/enemies/newshc-{115,17,55,245,283}.glb and their spriteModels entries)
+(exports public/models/enemies/newshc-{115,17,55,245,283}.glb and their spriteModels entries;
+newshc-77.py exports the head frames with this file's tower helpers)
 """
 
 import bisect
@@ -52,6 +61,15 @@ WT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(WT / "assets" / "blender"))
 import common  # noqa: E402
 import usp_talon as T  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import lib_deliani_tower as TG  # noqa: E402
+import os  # noqa: E402
+
+# The ball's plan radius (px) in this file's builds: the sprite's ball is a touch fuller than the
+# lib's 7.85 at its upper rim (top-view IoU, frames 77-81).
+TG.RB = float(os.environ.get("T283_RB", "8.05"))
+# Frame 81's ram lift (px): the sprite's row 27 under the hood is the ram's ink shadow there.
+TG.HEAD[81]["lift"] = float(os.environ.get("T283_LIFT81", "1.0"))
 
 NAME = "assembly-newshc-283"
 ROOT = WT
@@ -279,137 +297,6 @@ def tube(m, path, pal, n=12, caps=True, smooth=True):
         m.f(rings[-1], pal, False)
 
 
-# --- the pillar --------------------------------------------------------------------------------
-
-CX, HA, K = 12.0, 5.0, 0.62
-
-
-def S(r, a, pal, c=CX, h=HA, k=K):
-    return (r, c, h, a, a * k, pal)
-
-
-def groove(stations, r, a, w=0.36, d=0.32, pal=3, after=None):
-    """A modelled panel line round a loft at r: the shell steps in by d for w px."""
-    after = stations[-1][5] if after is None else after
-    stations += [S(r - w / 2, a, pal), S(r - w / 2 + 0.06, a - d, pal), S(r + w / 2 - 0.06, a - d, pal),
-                 S(r + w / 2, a, after)]
-
-
-def segment(st, keys, pal, grooves=(), step=0.45, c=None):
-    """Stations along a smooth (pchip) half-width profile `keys` [(r, a)], with modelled panel
-    lines at `grooves` (r). `c` [(r, c)] optionally moves the axis (pchip too)."""
-    f = pchip([k[0] for k in keys], [k[1] for k in keys])
-    fc = pchip([k[0] for k in c], [k[1] for k in c]) if c else (lambda r: CX)
-    r0, r1 = keys[0][0], keys[-1][0]
-    rs = [k[0] for k in keys]
-    for (ra, aa), (rb, ab) in zip(keys, keys[1:]):  # in-between stations only where the width changes
-        if abs(ab - aa) > 0.02:
-            n = max(1, int(round((rb - ra) / step)))
-            rs += [ra + (rb - ra) * i / n for i in range(1, n)]
-    if c:
-        rs += [k[0] for k in c if r0 < k[0] < r1]
-    rs = sorted(set(rs))
-    w, d = 0.32, 0.26
-    for g in grooves:
-        rs = [r for r in rs if abs(r - g) > w / 2 + 0.05]
-    out = [(r, None) for r in rs] + [(g, "g") for g in grooves]
-    for r, kind in sorted(out):
-        if kind == "g":
-            a = f(r)
-            st += [S(r - w / 2, a, pal, c=fc(r)), S(r - w / 2 + 0.06, a - d, 3, c=fc(r)),
-                   S(r + w / 2 - 0.06, a - d, 3, c=fc(r)), S(r + w / 2, a, pal, c=fc(r))]
-        else:
-            st.append(S(r, f(r), pal, c=fc(r)))
-    # the band leading into a groove is grooved: fix the pal of the station before each inset
-    for i in range(1, len(st) - 1):
-        if st[i][5] == 3 and st[i - 1][5] == pal and st[i - 1][3] > st[i][3] and abs(st[i][0] - st[i - 1][0]) < 0.1:
-            st[i - 1] = st[i - 1][:5] + (3,)
-
-
-def pillar(m):
-    G, R, D, N = 5, 72, 3, 2  # grey drum, red flange, dark neck/groove, dark gap
-    st = []
-    # Sleeve (rows 0-11): the north rim leans west like the sprite's (row 0 is cols 6-15).
-    segment(st, [(0.0, 4.3), (0.5, 5.3), (1.0, 6.3), (1.5, 7.0), (2.0, 7.6), (2.6, 7.95), (7.4, 7.95),
-                 (8.0, 7.6), (8.5, 7.05), (9.0, 6.55), (9.5, 6.0), (10.0, 5.1), (10.5, 4.05), (10.85, 3.35)],
-            G, c=[(0.0, 10.9), (0.5, 11.2), (1.0, 11.6), (1.6, 12.0), (11.0, 12.0)])
-    st += [S(10.9, 3.0, D), S(12.0, 3.0, D)]
-    # trumpet flange (rows 12-16, red), grooved where it meets drum 1
-    segment(st, [(12.05, 3.4), (12.5, 4.0), (13.0, 4.5), (13.5, 5.1), (14.0, 6.0), (14.5, 6.9), (15.0, 7.6),
-                 (15.5, 7.9), (16.0, 7.95), (16.75, 7.95)], R)
-    st += [S(16.8, 7.95, D), S(16.86, 7.65, D), S(17.14, 7.65, D), S(17.2, 7.95, G)]
-    # drum 1 (rows 17-22) rounding into its south shoulder (rows 23-26, the lamp sits on it)
-    segment(st, [(17.25, 7.95), (22.3, 7.95), (22.8, 7.75), (23.5, 7.05), (24.2, 6.45), (24.8, 6.1),
-                 (25.85, 5.95)], G, grooves=(21.8,))
-    st += [S(25.9, 5.45, N, c=12.25), S(28.6, 5.45, N, c=12.25)]
-    # shaft (rows 29-36) with panel lines, rounding into drum 2 (rows 37-48)
-    st += [S(28.65, 5.95, 5)]
-    segment(st, [(28.7, 5.95), (36.3, 5.95)], 5, grooves=(30.2, 35.0))
-    st += [S(36.35, 5.95, D), S(36.4, 5.7, D), S(36.6, 5.7, D), S(36.65, 5.95, G)]
-    segment(st, [(36.7, 6.0), (37.0, 6.4), (37.5, 6.85), (38.0, 7.15), (38.5, 7.4), (39.0, 7.65), (39.5, 7.85),
-                 (40.0, 7.95), (45.4, 7.95), (45.9, 7.75), (46.5, 7.05), (47.1, 6.45), (47.6, 6.1),
-                 (48.85, 5.95)], G, grooves=(44.9,))
-    st += [S(48.9, 5.3, N), S(50.0, 5.3, N), S(50.05, 5.95, 5), S(50.85, 5.95, 5),
-           S(50.9, 5.7, D), S(51.0, 5.7, D), S(51.05, 6.0, G)]
-    # drum 3 (rows 51-69), its end skewed east where it meets the floor
-    segment(st, [(51.1, 6.1), (51.5, 6.85), (52.0, 7.15), (52.5, 7.4), (53.0, 7.7), (53.5, 7.9), (54.0, 7.95),
-                 (64.6, 7.95)], G, grooves=(54.6, 64.0))
-    st += [(65.4, 12.3, HA, 7.85, 7.85 * K, G), (66.4, 12.6, HA - 0.15, 7.5, 7.5 * K * 0.97, G),
-           (67.4, 13.0, HA - 0.35, 7.0, 7.0 * K * 0.92, G), (68.4, 13.4, HA - 0.6, 6.4, 6.4 * K * 0.86, G),
-           (69.2, 13.6, HA - 0.9, 5.6, 5.6 * K * 0.8, G), (69.8, 13.7, HA - 1.1, 4.4, 4.4 * K * 0.72, G)]
-    loft_r(m, st, n=28, p=2.3, cap_pal=4)
-    surf = surf_of(st)
-
-    # Cup: two red-lit vent bays either side of the grey guide rail, in raised frames (rows 2-7).
-    for c0, c1, r0, r1 in ((5.9, 9.0, 2.0, 6.1), (13.9, 17.7, 2.0, 6.9)):
-        drape(m, r0, r1, lambda r, a=c0: a, lambda r, b=c1: b, surf, 0.07, 68, side_pal=3, nr=4, nc=4)
-        for fr0, fr1 in ((r0 - 0.45, r0), (r1, r1 + 0.45)):
-            drape(m, fr0, fr1, lambda r, a=c0 - 0.4: a, lambda r, b=c1 + 0.4: b, surf, 0.28, 4, nr=1, nc=6)
-    drape(m, 0.6, 9.4, lambda r: 9.3, lambda r: 13.6, surf, 0.3, 6, side_pal=4, nr=8, nc=3)  # guide rail
-    drape(m, 12.4, 17.0, lambda r: 9.3, lambda r: 13.4, surf, 0.3, 5, side_pal=4, nr=6, nc=3)  # rail on flange
-
-    # Lamps on the drums' south shoulders (rows 23-25, 46-48, cols 10-13): lens in a dark bezel.
-    for r0 in (23.0, 46.0):
-        drape(m, r0, r0 + 3.0, lambda r: 9.8, lambda r: 14.1, surf, 0.18, 16, nr=4, nc=4)
-        drape(m, r0 + 0.3, r0 + 2.7, lambda r: 10.2, lambda r: 13.7, surf, 0.36, 71, side_pal=16, nr=4, nc=4)
-
-    # Bolt heads down the shaft's east flank (rows 29-34, col 17).
-    for r in (29.0, 31.0, 32.2, 34.0):
-        s = surf(17.4, r + 0.5)
-        prism(m, rect(16.95, r + 0.1, 17.85, r + 0.9), s - 0.6, s + 0.3, 0.15, 4)
-
-    # The hatch on drum 3's west flank (rows 58-63), with two hinge knuckles on its north edge.
-    hl = pchip([57.9, 61.6, 62.4, 63.2, 64.0], [3.9, 4.0, 4.6, 5.6, 6.2])
-    hr = pchip([57.9, 59.0, 60.0, 61.0, 62.2, 63.2, 64.0], [6.0, 7.0, 8.0, 10.0, 10.2, 9.6, 8.6])
-    drape(m, 57.9, 64.0, hl, hr, surf, 0.16, 67, side_pal=16, nr=12, nc=6)
-    for c in (4.4, 5.8):
-        s = surf(c + 0.4, 57.8)
-        prism(m, rect(c, 57.4, c + 0.9, 58.2), s - 0.5, s + 0.35, 0.15, 5)
-
-    # Saddles and foot plates under the drums (side views; hidden under the drums from above).
-    for r, w in ((19.0, 2.4), (41.2, 2.4), (55.4, 2.4), (61.8, 2.4)):
-        prof = []
-        for k in range(9):
-            x = -5.6 + 11.2 * k / 8
-            hz = HA - 7.95 * K * max(0.0, 1 - abs(x / 7.95) ** 2.3) ** (1 / 2.3) + 0.15
-            prof.append((CX + x, hz))
-        ring = [(CX - 5.6, 0.5), (CX + 5.6, 0.5)] + prof[::-1]
-        a = [m.v(c, r, h) for c, h in ring]
-        b = [m.v(c, r + w, h) for c, h in ring]
-        nn = len(ring)
-        for i in range(nn):
-            j = (i + 1) % nn
-            m.f((a[i], a[j], b[j], b[i]), 4, False)
-        m.f(a, 4, False)
-        m.f(list(reversed(b)), 4, False)
-        prism(m, rect(CX - 6.6, r - 0.6, CX + 6.6, r + w + 0.6), 0.05, 0.75, 0.2, 3)
-    # Feet: chamfered blocks under each drum's ends, tucked inside its outline from above, so the
-    # column stands on them instead of resting on the plate.
-    for r, hw in ((17.6, 5.4), (21.2, 5.4), (30.6, 4.4), (34.0, 4.4), (37.8, 5.4), (43.2, 5.4),
-                  (52.0, 5.4), (57.6, 5.4), (63.0, 5.2)):
-        prism(m, rect(CX - hw, r, CX + hw, r + 1.1), 0.05, 1.7, 0.3, 4)
-
-
 # --- the crane ---------------------------------------------------------------------------------
 
 DC, DR, DA, DB = 36.0, 37.2, 8.0, 8.2
@@ -449,25 +336,30 @@ def crane(m):
     # Dome: lofted along r so its colour bands (sprite rows) have clean straight edges: grey cap,
     # a recessed blue glass band, grey band, a ring groove, dark skirt. Plan a rounded superellipse
     # (wider at the front than an ellipse, as the sprite's rows 43-45), flat on the floor.
+    # The plan's half-width and centre per row are the sprite's (newshc-283's inner mask, rows 29-47):
+    # round at the back, full across the middle, the dark skirt flaring a little at rows 42-43 and
+    # running on to row 47 at the front, where the hatch housing stands out of it.
+    hw = pchip([29.0, 29.5, 30.5, 31.5, 32.5, 34.0, 41.0, 42.5, 43.5, 44.5, 45.5, 46.5, 47.3, 47.9, 48.1],
+               [0.0, 4.3, 6.75, 7.65, 8.0, 8.05, 8.05, 8.45, 7.55, 6.55, 5.55, 4.6, 2.4, 1.4, 0.0])
+    cen = pchip([29.0, 41.0, 42.5, 45.5, 46.5, 47.3, 47.9, 48.1], [36.0, 36.0, 36.5, 36.5, 35.8, 34.3, 33.6, 33.5])
+
     def dome_st(r, pal, shrink=0.0):
-        t = min(1.0, abs(r - DR) / DB)
-        k = max(0.0, 1 - t ** 2.6) ** (1 / 2.6)
-        kh = max(0.0, 1 - t ** 2.2) ** (1 / 2.2)
-        return (r, DC, 0.0, DA * k - shrink, 6.7 * kh - shrink, pal)
+        t = (DR - r) / DB if r < DR else (r - DR) / 10.9
+        kh = max(0.0, 1 - min(1.0, t) ** 2.2) ** (1 / 2.2)
+        return (r, cen(r), 0.0, max(0.0, hw(r) - shrink), 6.7 * kh - shrink, pal)
     rs = [29.0, 29.15, 29.4, 29.8, 30.3, 31.0, 31.8]
     st = [dome_st(r, 5) for r in rs]
     st += [dome_st(31.85, 131, 0.18), dome_st(33.3, 131, 0.18), dome_st(34.85, 131, 0.18), dome_st(34.9, 5)]
     st += [dome_st(r, 5) for r in (36.0, 37.2, 38.5, 39.7)]
     st += [dome_st(39.75, 2, 0.25), dome_st(40.25, 2, 0.25), dome_st(40.3, 3)]
-    st += [dome_st(r, 3) for r in (41.5, 42.8, 43.8, 44.6, 45.1, 45.3, 45.4)]
-    st[-1] = (45.4, DC, 0.0, 0.0, 0.0, 3)
+    st += [dome_st(r, 3) for r in (41.5, 42.5, 43.5, 44.5, 45.5, 46.3, 46.9, 47.3, 47.6, 47.9, 48.05)]
+    st[-1] = (48.1, cen(48.1), 0.0, 0.0, 0.0, 3)
     st[0] = (29.0, DC, 0.0, 0.0, 0.0, 5)
     loft_r(m, st, n=40, p=2.6, zmin=0.3)
     dsurf = surf_of(st, 2.6)
 
     def edge(r, side, inset_px):
-        t = min(1.0, abs(r - DR) / DB)
-        return DC + side * (DA * max(0.0, 1 - t ** 2.6) ** (1 / 2.6) - inset_px)
+        return cen(r) + side * (hw(r) - inset_px)
     # blue trim panels on the skirt either side of the hatch (rows 41-46)
     drape(m, 40.7, 45.4, lambda r: edge(r, -1, 0.35), lambda r: 33.6, dsurf, 0.14, 56, side_pal=3, nr=6, nc=4)
     drape(m, 40.7, 45.4, lambda r: 38.4, lambda r: edge(r, 1, 0.35), dsurf, 0.14, 56, side_pal=3, nr=6, nc=4)
@@ -480,8 +372,8 @@ def crane(m):
     prism(m, [(34.0, 39.4), (39.0, 39.4), (39.0, 45.9), (38.3, 46.8), (34.7, 46.8), (34.0, 45.9)], 0.3, 4.1, 0.5, 3)
     prism(m, rect(35.0, 40.6, 38.0, 45.8), 3.0, 4.35, 0.25, 4)
     # equipment pods on the dome's back (rows 29-31, the grey blocks either side of the boom)
-    prism(m, [(28.6, 29.0), (33.4, 29.0), (33.8, 29.6), (33.8, 32.0), (28.6, 32.0)], 1.0, 4.9, 0.45, 5)
-    prism(m, [(38.0, 29.0), (41.6, 29.0), (42.4, 30.0), (42.4, 32.4), (38.0, 32.4)], 1.0, 4.7, 0.45, 5)
+    prism(m, [(31.0, 29.0), (33.4, 29.0), (33.8, 29.6), (33.8, 32.0), (28.5, 32.0), (28.7, 31.0), (29.6, 30.0)], 1.0, 4.9, 0.45, 5)
+    prism(m, [(38.0, 29.0), (39.6, 29.0), (41.3, 30.0), (42.7, 31.0), (42.7, 32.4), (38.0, 32.4)], 1.0, 4.7, 0.45, 5)
     # pivot boss on the dome's top and the boom raking north from it to the clevis
     tube(m, [(33.3, 34.4, 6.3, 1.25), (37.9, 34.4, 6.3, 1.25)], 54, n=14)
     tube(m, [(35.3, 35.0, 6.2, 1.35), (35.3, 29.0, 8.2, 1.35), (35.3, 22.6, 10.0, 1.35)], 56, n=14)  # sprite: 55-58 blue
@@ -513,11 +405,11 @@ def crane(m):
     st = [(r, c, post_top(r) - 1.0, a, 0.8, 57) for r, c, a in ((8.6, 44.6, 1.4), (14.0, 44.6, 1.4), (21.0, 44.6, 1.4),
                                                                  (22.6, 45.0, 1.0), (28.4, 45.0, 1.0))]
     loft_r(m, st, n=16, p=4)
-    prism(m, rect(43.9, 26.4, 46.0, 29.4), 0.3, 1.1, 0.25, 56)
-    west = pchip([7.6, 8.5, 9.5, 10.5, 11.5, 12.3, 14.2, 15.2, 16.2, 18.5, 19.6, 20.4, 21.2, 23.0],
+    prism(m, rect(43.9, 26.4, 46.0, 28.3), 0.3, 1.1, 0.25, 56)
+    west = pchip([8.0, 8.5, 9.5, 10.5, 11.5, 12.3, 14.2, 15.2, 16.2, 18.5, 19.6, 20.4, 21.2, 23.0],
                  [42.2, 41.6, 40.9, 40.2, 38.9, 37.5, 37.5, 38.0, 38.9, 39.3, 40.6, 42.2, 42.7, 42.9])
-    east_f = pchip([7.6, 8.7, 9.2, 23.0], [45.2, 45.3, 46.0, 46.0])
-    rows = [7.6, 8.2, 8.7, 9.2, 9.6, 10.3, 11.0, 11.7, 12.4, 13.2, 14.2, 15.2, 16.2, 17.2, 18.2, 19.2, 20.0,
+    east_f = pchip([8.0, 8.9, 9.4, 23.0], [44.9, 45.0, 46.0, 46.0])
+    rows = [8.03, 8.4, 8.9, 9.2, 9.6, 10.3, 11.0, 11.7, 12.4, 13.2, 14.2, 15.2, 16.2, 17.2, 18.2, 19.2, 20.0,
             20.8, 21.6, 23.0]
 
     def plate(r0, r1, split, pal_a, pal_b):
@@ -540,7 +432,7 @@ def crane(m):
                 q = (row_t[j], row_t[j + 1], row_b[j + 1], row_b[j])
                 m.f(q[::-1] if flip else q, pal, False)
 
-    plate(7.6, 23.0, 14.2, 134, 57)
+    plate(8.03, 23.0, 14.2, 134, 57)
     # the bright crease: a ridge strip along the fold (rows 10-13.6) and its return along row 13
     drape(m, 9.9, 13.6, lambda r: 43.1, lambda r: 44.1, lambda c, r: post_top(r) + 0.5 + 0.35 - abs(c - 43.6) * 0.3,
           0.06, 158, nr=3, nc=1)
@@ -815,29 +707,6 @@ def split_open(obj, layout, coll):
     return out
 
 
-def build(coll):
-    sprite = merged_sprite()
-    mats = materials(sprite)
-    g, inner = load_grid()
-    groups = {}
-    for gname, fn in (("pillar", pillar), ("crane", crane)):
-        m = PxMesh(gname)
-        fn(m)
-        groups[gname] = to_object(m, mats, coll)
-    # the floor gets its own copies of the palette materials, flagged, so its faces can be found and
-    # deleted after the bake (D130)
-    floor_mats = {}
-    for p, mt in mats.items():
-        cp = mt.copy()
-        cp["tyrian_floor"] = True
-        floor_mats[p] = cp
-    for gname, c0, r0 in (("floor55", 0, 56), ("floor283", 24, 28)):
-        m = PxMesh(gname)
-        floor(m, g, inner, c0, r0)
-        seams(m, gname)
-        groups[gname] = to_object(m, floor_mats, coll)
-    return sprite, mats, groups, g, inner
-
 
 # --- measuring and views -----------------------------------------------------------------------
 
@@ -926,38 +795,453 @@ def render(scene, cam, objs, path, res, transparent=False):
     return path
 
 
-def measure(pieces, sprite, outdir):
-    """Top-view IoU per piece (sprite_mask.py --measure) and a palette-index map of the top view."""
+# --- the tower: built in the art's frame, exported upright ------------------------------------------
+
+A, KT, VB = TG.A, TG.K, TG.VB      # sin and cos of the art camera's 15 deg; the axis's plan row
+ART_ELEV = 15.0
+HOFF = 8 * KT                      # rigid frame: the base's north foot at h = 0
+Y_TOP = 100.0                      # px of true height mapped to the top of the depth band (the head reaches 98)
+BAND = (0.0, 0.4)                  # units: the depth band (D165), under background 2 mid (0.45 above ground enemies, D5)
+TOWER = {"newshc-115": 0, "newshc-17": 28, "newshc-55": 56}   # piece -> r0 (rows of this file's frame)
+CRANE = {"newshc-245": (24, 0), "newshc-283": (24, 28)}
+HEAD_FRAMES = [77, 79, 81, 83, 85, 87, 89, 91]
+REF91 = Path("/Users/dlomibao/projects/tyrian-scratch/e1-enemies-2/newshc-77/blueprint/ref91")
+
+# palette index -> (metallic, roughness) for the tower and head; satin steel, painted reds
+TPROPS = {1: (0.0, 0.9), 2: (0.1, 0.8), 3: (0.3, 0.6), 4: (0.4, 0.5), 5: (0.45, 0.42), 6: (0.45, 0.42),
+          7: (0.45, 0.4), 8: (0.45, 0.4), 9: (0.45, 0.4), 16: (0.2, 0.6), 66: (0.1, 0.55), 67: (0.1, 0.5),
+          69: (0.1, 0.5), 70: (0.1, 0.45), 71: (0.12, 0.45), 72: (0.15, 0.45), 73: (0.15, 0.45),
+          75: (0.1, 0.4), 97: (0.25, 0.75), 112: (0.0, 0.5), 114: (0.0, 0.5), 118: (0.0, 0.5)}
+
+
+def head_name(fr):
+    i = HEAD_FRAMES.index(fr)
+    return "newshc-77" if i == 0 else f"newshc-77-f{i + 1}"
+
+
+def lock(p):
+    """True tower point (u, v, z) -> the art's frame in this file's sprite px (c, r, h): the rigid turn
+    that puts the art camera overhead (its plan is the art's picture, its height the art's depth)."""
+    u, v, z = p
+    s = VB + A * (v - VB) - KT * z
+    return (u, s - 28, KT * (v - VB) + A * z + HOFF)
+
+
+M_CUR = Matrix(((PX, 0, 0, -48 * PX), (0, -PX, 0, 28 * PX), (0, 0, PX, 0), (0, 0, 0, 1)))
+
+
+class Mats:
+    def __init__(self, sprite, tag):
+        self.sprite, self.tag, self.cache = sprite, tag, {}
+
+    def get(self, pal, glow=0.0, floor=False):
+        key = (pal, round(glow, 2), floor)
+        if key not in self.cache:
+            met, rough = TPROPS.get(pal, (0.3, 0.5))
+            t = self.tag + (f"g{int(glow * 100)}" if glow else "") + ("fl" if floor else "")
+            mt = common.palette_material(self.sprite, pal, t, metallic=met, roughness=rough, emission_strength=glow)
+            if glow:
+                mt["flat"] = True
+            if floor:
+                mt["tyrian_floor"] = True
+            self.cache[key] = mt
+        return self.cache[key]
+
+
+def parts_object(name, parts, mats, coll, xform, matrix, floor=False):
+    """Triangle parts -> one mesh object (vertices welded per part, so lathes shade smooth)."""
+    bm = bmesh.new()
+    slots, mlist = {}, []
+    for part in parts:
+        mt = mats.get(part["pal"], part["glow"], floor)
+        if mt.name not in slots:
+            slots[mt.name] = len(mlist)
+            mlist.append(mt)
+        idx = slots[mt.name]
+        vmap = {}
+
+        def vert(p):
+            q = xform(p)
+            key = (round(q[0], 4), round(q[1], 4), round(q[2], 4))
+            if key not in vmap:
+                vmap[key] = bm.verts.new(q)
+            return vmap[key]
+        for tri in part["tris"]:
+            vs = [vert(p) for p in tri]
+            if len({id(v) for v in vs}) < 3:
+                continue
+            try:
+                f = bm.faces.new(vs)
+            except ValueError:
+                continue
+            f.material_index = idx
+            f.smooth = part["smooth"]
+    bmesh.ops.transform(bm, matrix=matrix, verts=bm.verts)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    me = bpy.data.meshes.new(name)
+    for mt in mlist:
+        me.materials.append(mt)
+    bm.to_mesh(me)
+    bm.free()
+    obj = bpy.data.objects.new(name, me)
+    coll.objects.link(obj)
+    me.set_sharp_from_angle(angle=math.radians(34))
+    return obj
+
+
+def ground_parts():
+    """The tower's true ground (a disc round the foot): AO occluder only, deleted before export."""
+    G = TG.Geo()
+    n = 48
+    ring = [TG.P(2 * math.pi * k / n, 15.0, -0.02) for k in range(n)]
+    tris = []
+    TG.Geo.cap_fan(tris, ring, (TG.CU, VB, -0.02))
+    G.add("ground", 97, tris)
+    return G.parts
+
+
+def cut_bands(obj, bands, coll, cap=True, suffix=""):
+    """Cut obj (art frame, Blender coords) into bands of rows [r0, r1) (None = open end), in place:
+    the sprite's 24x28 pieces are bands of screen rows."""
+    out = {}
+    for name, (r0, r1) in bands.items():
+        bm = bmesh.new()
+        bm.from_mesh(obj.data)
+        for r, keep_south in ((r0, True), (r1, False)):
+            if r is None:
+                continue
+            y = (28 - r) * PX
+            no = (0, 1, 0) if keep_south else (0, -1, 0)
+            geom = bm.verts[:] + bm.edges[:] + bm.faces[:]
+            res = bmesh.ops.bisect_plane(bm, geom=geom, plane_co=(0, y, 0), plane_no=no, clear_outer=True)
+            if cap:
+                edges = [e for e in res["geom_cut"] if isinstance(e, bmesh.types.BMEdge)]
+                if edges:
+                    bmesh.ops.holes_fill(bm, edges=edges, sides=0)
+        bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context="VERTS")
+        me = bpy.data.meshes.new(name + suffix)
+        bm.to_mesh(me)
+        bm.free()
+        for mt in obj.data.materials:
+            me.materials.append(mt)
+        o = bpy.data.objects.new(name + suffix, me)
+        coll.objects.link(o)
+        out[name] = o
+    return out
+
+
+def delete_floor(obj):
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    fl = {i for i, mt in enumerate(obj.data.materials) if mt and mt.get("tyrian_floor")}
+    bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.material_index in fl], context="FACES")
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context="VERTS")
+    bm.to_mesh(obj.data)
+    bm.free()
+
+
+def bake_tower(targets, occluders, size=512, samples=64):
+    """AO / roughness bake from the model itself (D50, D65; no projection): each target into its own
+    small atlas, the occluders visible. Each target gets its own copies of its materials."""
+    scene = bpy.context.scene
+    keep_tex, keep_tint = T.TEXTURED, T.TINT
+    hidden = {o: o.hide_render for o in scene.objects}
+    try:
+        for tgt in targets:
+            vis = [tgt] + [o for o in occluders if o is not tgt]
+            for o in scene.objects:
+                if o.type == "MESH":
+                    o.hide_render = o not in vis
+            tag = tgt.name.replace("newshc-", "")
+            for i, mt in enumerate(list(tgt.data.materials)):
+                cp = mt.copy()
+                cp.name = f"{mt.name}_{tag}"
+                tgt.data.materials[i] = cp
+            T.TEXTURED = tuple(i for i, mt in enumerate(tgt.data.materials) if not mt.get("flat"))
+            T.TINT = (1.0, 1.0, 1.0)
+            T.bake_maps(tgt, Path(tempfile.mkdtemp(prefix=f"t283_{tag}_")), size=size, samples=samples)
+            for img in bpy.data.images:
+                if img.name.startswith(("talon_colour", "talon_rm")):
+                    img.name = f"t283{tag}_" + img.name.split(".")[0].split("_")[1]
+    finally:
+        T.TEXTURED, T.TINT = keep_tex, keep_tint
+        for o, h in hidden.items():
+            o.hide_render = h
+
+
+def art_view(r0):
+    """The extras of a piece whose 24x28 block starts at row r0 (glTF/three coordinates: z south, y
+    up, the piece's centre the origin): `tyrian_oblique` [k, squeeze, axis_z] and `tyrian_depth_band`
+    [lo, hi, y0, y1] (src/render/obliqueView.ts). Every piece and head frame shares [y0, y1], so
+    their depths agree where they meet."""
+    e = math.radians(ART_ELEV)
+    return {"tyrian_oblique": [math.cos(e), math.sin(e), (VB - 42 - r0) * PX],
+            "tyrian_depth_band": [BAND[0], BAND[1], 0.0, Y_TOP * PX]}
+
+
+def stand(obj, r0, c0=0, normals=True):
+    """A copy of an art-frame piece turned back upright, about its own centre (the export): every
+    vertex back to the true tower (u, v, z), and the art frame's corner normals turned with it."""
+    me = obj.data.copy()
+    name = obj.name
+    obj.name = name + "_art"
+    o = bpy.data.objects.new(name, me)
+    for k in obj.keys():
+        o[k] = obj[k]
+    bpy.context.scene.collection.objects.link(o)
+    cn = None
+    if normals:
+        me.set_sharp_from_angle(angle=math.radians(34))
+        cn = []
+        for c in me.corner_normals:
+            nx, ny, nz = c.vector
+            ns, nh = -ny, nz                       # art frame: south, up
+            ndv, nzt = A * ns + KT * nh, -KT * ns + A * nh
+            cn.append(Vector((nx, -ndv, nzt)))
+    for v in me.vertices:
+        x, y, zz = v.co
+        c, s, h = 12 * x + 48, 28 - 12 * y + 28, 12 * zz
+        ds, dh = s - VB, h - HOFF
+        dv, z = A * ds + KT * dh, -KT * ds + A * dh
+        v.co = ((c - (c0 + 12)) * PX, -(VB + dv - 42 - r0) * PX, z * PX)
+    if cn is not None:
+        me.normals_split_custom_set(cn)
+    me.update()
+    for k, v in art_view(r0).items():
+        o[k] = v
+    return o
+
+
+def game_form(obj, name=None):
+    """What the game draws for an upright piece, seen from straight above (src/render/obliqueView.ts,
+    in Blender coordinates): a copy with each vertex at the art's point (x, axis_z + sin e (z -
+    axis_z) - cos e y), at its height squeezed into the depth band, for measuring and the game-camera
+    views. Normals stay the real tower's, as in the game."""
+    k, sq, az = obj["tyrian_oblique"]
+    lo, hi, y0, y1 = obj["tyrian_depth_band"]
+    me = obj.data.copy()
+    for v in me.vertices:
+        X, Y, Z = v.co
+        z3, y3 = -Y, Z
+        t = min(1.0, max(0.0, (y3 - y0) / (y1 - y0)))
+        v.co = (X, -(az + sq * (z3 - az) - k * y3), lo + t * (hi - lo))
+    me.update()
+    o = bpy.data.objects.new(name or obj.name + "_game", me)
+    bpy.context.scene.collection.objects.link(o)
+    o.location = obj.location
+    return o
+
+
+def centre_of(r0, c0=0):
+    return ((c0 + 12 - 48) * PX, (28 - (r0 + 14)) * PX)
+
+
+def tower_plan_trim(obj):
+    """Two sub-pixel trims of the art's picture of the tower (art frame, so the upright model keeps
+    them as slight in-plane squashes): the west access hatch's frame stands 0.3 px proud of the
+    foot's silhouette, where the sprite draws the column's ink (col 3, rows 57-64), so its vertices
+    stop at the column's edge; and the foot's front lip ends on its ink row (row 69, the sprite's
+    s 97), not half a pixel into it."""
+    west = float(os.environ.get("T283_WEST", "4.03"))
+    foot = float(os.environ.get("T283_FOOT", "97.05"))
+    for v in obj.data.vertices:
+        c, srow = v.co.x / PX + 48, 56 - v.co.y / PX
+        if 84.0 < srow < 93.5 and c < west:
+            v.co.x = (west - 48) * PX
+        if srow > foot:
+            v.co.y = (56 - foot) * PX
+    obj.data.update()
+
+
+def build_tower(sprite, coll):
+    """The tower body in the art frame (culled inside only), its ground disc (bake occluder), and
+    the outline shell; cut into the three pieces."""
+    mats = Mats(sprite, "t283")
+    body = parts_object("tower_body", TG.build(None, True), mats, coll, lock, M_CUR)
+    tower_plan_trim(body)
+    T.cull_hidden(body)
+    ground = parts_object("tower_ground", ground_parts(), mats, coll, lock, M_CUR, floor=True)
+    body_g = join([body, ground], "tower_body_g", coll)
+    bands = {"newshc-115": (None, 28), "newshc-17": (28, 56), "newshc-55": (56, None)}
+    pieces = cut_bands(body_g, bands, coll, cap=True)
+    shell = outline_shell_all(body, coll, voxel=0.015, faces=9000, smooth=6)
+    shells = cut_bands(shell, bands, coll, cap=False, suffix="_outline")
+    for s in shells.values():
+        s["tyrian_outline"] = True
+        s.data.shade_smooth()
+    return mats, body, pieces, shells
+
+
+WRECK_ROD_R = float(os.environ.get("T283_ROD", "0.56"))   # the wreck's feed rod: 1 px in the sprite (col 13)
+BALL_P = float(os.environ.get("T283_BALLP", "2.0"))      # the ball's plan: superellipse exponent (2 = round)
+
+
+def wreck_extra():
+    """Frame 91 additions to the lib's wreck: the collar's burnt bore floor (pal 1: the sprite's dark
+    interior, rows 24-26), which the torn-away front lets the art see; without it the plan has a
+    hole there. And the bent feed rod's upper leg a little thicker (the sprite draws it 1 px wide)."""
+    G = TG.Geo()
+    cu, n, zb = 12.5, 36, 70.1
+    dz = float(os.environ.get("T283_BORE_Z", "0.9"))   # its height over the collar's foot (px)
+    rs = float(os.environ.get("T283_BORE_S", "0.6"))   # its south reach (px): it stops at the torn lip's ink row
+    ring = []
+    for k in range(n):
+        t = 2 * math.pi * k / n
+        ring.append((cu + 4.3 * math.sin(t), VB + (rs if math.cos(t) > 0 else 4.3) * math.cos(t), zb + dz))
+    tris = []
+    TG.Geo.cap_fan(tris, ring, (cu, VB, zb + dz))
+    G.add("bore_floor", 1, tris)
+    ru = float(os.environ.get("T283_ROD_U", "13.5"))
+    kink = (ru, VB, float(os.environ.get("T283_KINK", "76.6")))
+    rt = float(os.environ.get("T283_ROD_TOP", "81.0"))
+    # the rod's kink and upper leg (replacing the lib's rod_kink / rod_hi): straight up sprite col 13
+    d0 = (-0.5, 1.0, 4.8)
+    ln = math.dist((0, 0, 0), d0)
+    mid = tuple(a + b * 4.6 / ln for a, b in zip((15.0, VB - 1.0, 73.0), d0))
+    G.tube("rod_kink", 7, mid, TG.sub(kink, mid), math.dist(kink, mid), 0.5, WRECK_ROD_R, n=10)
+    G.tube("rod_hi", 7, kink, (0.0, 0.0, 1.0), rt - kink[2], WRECK_ROD_R, WRECK_ROD_R - 0.05, n=10)
+    # the collar's lower band a hair fuller (the sprite's collar is 9 px across at rows 24-26)
+    sr = float(os.environ.get("T283_SLEEVE", "4.5"))
+    # a torn liner plate inside the collar's back: its jagged top is where the sprite's dark interior
+    # starts (row 21 behind the rod, 22 to the west and east)
+    if os.environ.get("T283_LINER", "1") == "1":
+        tgt = TG.pchip([10.0, 11.0, 11.6, 12.2, 13.0, 14.0, 15.0, 15.6, 16.0, 16.3],
+                       [22.3, 22.1, 21.8, 21.05, 20.8, 20.3, 20.5, 20.95, 21.5, 22.2])
+        us = [10.3 + 5.6 * k / 16 for k in range(17)]
+        tris = []
+        for vv, flip in ((VB - 3.0, False), (VB - 3.3, True)):
+            bot = [(u, vv, zb + 0.3) for u in us]
+            top = [(u, vv, (VB + A * (vv - VB) - tgt(u)) / KT + (0.25 if k % 2 else -0.1)) for k, u in enumerate(us)]
+            t = []
+            TG.Geo.strip(t, bot, top, closed=False)
+            tris += [[q[0], q[2], q[1]] for q in t] if flip else t
+        G.add("torn_liner", 3, tris, smooth=False)
+    b0 = float(os.environ.get("T283_BAND0", "0.6"))
+    for side in (-1, 1):   # on its flanks only: its front is the torn lip (the ink row 27)
+        a0 = float(os.environ.get("T283_BANDA", "1.0"))
+        ts = [side * (a0 + (2.4 - a0) * k / 12) for k in range(13)]
+        lo = [TG.P(t, sr, zb + b0, cu) for t in ts]
+        hi = [TG.P(t, sr, zb + b0 + 1.8, cu) for t in ts]
+        tris = []
+        TG.Geo.strip(tris, lo, hi, closed=False)
+        G.add(f"collar_band{side}", 5, tris if side > 0 else [[q[0], q[2], q[1]] for q in tris])
+    return G.parts
+
+
+def ball_plan(obj, fr):
+    """The ball's plan (the art's picture) a touch squarer than a circle, as the sprite draws it
+    (superellipse exponent BALL_P): every vertex of the head within the ball's reach is pushed out
+    radially in the plan about the ball's centre, the most on the diagonals."""
+    if BALL_P <= 2.0 or fr == 91:
+        return
+    zc = TG.ZC0 + TG.HEAD[fr]["lift"] / KT
+    c, r, _ = lock((TG.CU, TG.VB, zc))
+    cx, cy = (c - 48) * PX, (28 - r) * PX
+    R = TG.RB * PX
+    for v in obj.data.vertices:
+        dx, dy = v.co.x - cx, v.co.y - cy
+        d = math.hypot(dx, dy)
+        if d < 1e-6:
+            continue
+        ca, sa = abs(dx) / d, abs(dy) / d
+        f = (ca ** BALL_P + sa ** BALL_P) ** (-1 / BALL_P)
+        w = min(1.0, max(0.0, (d / R - 0.4) / 0.5)) * min(1.0, max(0.0, (R * 1.35 - d) / (R * 0.3)))
+        k = 1 + (f - 1) * w
+        v.co.x, v.co.y = cx + dx * k, cy + dy * k
+    obj.data.update()
+
+
+def build_heads(sprite, coll):
+    mats = Mats(sprite, "t77")
+    heads, shells = {}, {}
+    for fr in HEAD_FRAMES:
+        parts = TG.build(fr, False)
+        if fr == 91:
+            # the lib's lugs under the collar poke out below its torn lip (the sprite's ink row 27)
+            drop = ("rod_kink", "rod_hi") + tuple(os.environ.get("T283_DROP", "lug0,lug1").split(","))
+            parts = [p for p in parts if p["name"] not in drop] + wreck_extra()
+        h = parts_object(head_name(fr), parts, mats, coll, lock, M_CUR)
+        ball_plan(h, fr)
+        T.cull_hidden(h)
+        heads[fr] = h
+        sh = outline_shell_all(h, coll, voxel=0.012 if fr != 91 else 0.01, faces=1800, smooth=6 if fr != 91 else 3)
+        sh.name = sh.data.name = f"{h.name}_outline"
+        sh["tyrian_outline"] = True
+        shells[fr] = sh
+    return heads, shells
+
+
+def make_ref(outdir, name, rows_below=99, skip_top=()):
+    """A piece's sprite without its floor (D130: the floor is the HD ground's, not the model's): the
+    floor pixels (indices 96-102) reached from the piece's edge through floor pixels, and every row
+    from `rows_below` (newshc-55: the tile's ground rows). A flood, not an index test: the crane
+    shades its own steel with the same greys (99-101 inside its ink), which are the machine's.
+    `skip_top`: top-edge columns where the machine runs on into the piece above (no seed there)."""
+    d = json.loads((ROOT / f"reference/models/{name}/sprite.json").read_text())
+    for f in d["frames"]:
+        P = [[int(x) for x in row.split()] if isinstance(row, str) else list(row) for row in f["pixels"]]
+        H, W = len(P), len(P[0])
+        fl = [[False] * W for _ in range(H)]
+        todo = [(r, c) for r in range(H) for c in range(W)
+                if P[r][c] in FLOOR_IDX and (c in (0, W - 1) or r == H - 1 or (r == 0 and c not in skip_top))]
+        while todo:
+            r, c = todo.pop()
+            if fl[r][c] or P[r][c] not in FLOOR_IDX:
+                continue
+            fl[r][c] = True
+            todo += [(r + dr, c + dc) for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)) if 0 <= r + dr < H and 0 <= c + dc < W]
+        rows = []
+        for r, row in enumerate(f["pixels"]):
+            vals = [-1 if (fl[r][c] or r >= rows_below) else P[r][c] for c in range(W)]
+            rows.append(" ".join(str(v) for v in vals) if isinstance(row, str) else vals)
+        f["pixels"] = rows
+    p = Path(outdir) / "ref" / name
+    p.mkdir(parents=True, exist_ok=True)
+    (p / "sprite.json").write_text(json.dumps(d))
+    return p.parent
+
+
+def measure_items(items, outdir):
+    """items: [(label, sprite name, frame or None, ref dir or None, obj at its own origin)]: top-view
+    IoU (sprite_mask.py --measure) and the palette index per region seen from above."""
     import numpy as np
     scene = bpy.context.scene
+    outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
     k = 8
-    results = {}
-    mats = sorted({mt for p in pieces.values() for mt in p.data.materials}, key=lambda m: m.name)
+    mats = sorted({mt for it in items for mt in it[4].data.materials if mt}, key=lambda m: m.name)
     saved = {mt: tuple(mt.diffuse_color) for mt in mats}
     pal_of = {}
-    for i, mt in enumerate(mats):  # unique flat colours to read the index map back
+    for i, mt in enumerate(mats):
         idx = int(mt.name.split("_")[1])
-        col = ((i * 37 % 256) / 255, (i * 91 % 256) / 255, (i * 53 % 256 + 40) % 256 / 255)
+        col = ((i * 37 % 256) / 255, (i * 91 % 256) / 255, ((i * 53 + 40) % 256) / 255)
         mt.diffuse_color = (*col, 1)
         enc = [12.92 * v if v <= 0.0031308 else 1.055 * v ** (1 / 2.4) - 0.055 for v in col]
         pal_of[tuple(round(v * 255) for v in enc)] = idx
     setup_workbench(scene, flat=True)
-    for name, obj in pieces.items():
+    keys = list(pal_of.keys())
+    arr = np.array(keys, dtype=np.float32)
+    results = {}
+    for label, name, frame, ref, obj in items:
         loc = obj.location.copy()
         obj.location = (0, 0, 0)
         cam = camera(scene, "m_top", (0, 0, 20), (0, 0, 0), ortho=28 / 12)
         cam.rotation_euler = (0, 0, 0)
-        path = render(scene, cam, [obj], outdir / f"top_{name}.png", (24 * k, 28 * k), transparent=True)
+        path = render(scene, cam, [obj], outdir / f"top_{label}.png", (24 * k, 28 * k), transparent=True)
         obj.location = loc
         bpy.data.objects.remove(cam, do_unlink=True)
-        out = subprocess.check_output(["python3", str(ROOT / "tools" / "sprite_mask.py"), name, "--measure", str(path)])
+        cmd = ["python3", str(ROOT / "tools" / "sprite_mask.py"), name, "--measure", str(path), "--json"]
+        if frame is not None:
+            cmd += ["--frame", str(frame)]
+        if ref:
+            cmd += ["--ref", str(ref)]
+        out = subprocess.check_output(cmd)
         res = json.loads(out) if out.strip().startswith(b"{") else out.decode()
+        if isinstance(res, dict) and "measure" in res:
+            res = res["measure"]
         img = bpy.data.images.load(str(path))
         px = np.array(img.pixels[:], dtype=np.float32).reshape(img.size[1], img.size[0], 4)[::-1]
         bpy.data.images.remove(img)
-        keys = list(pal_of.keys())
-        arr = np.array(keys, dtype=np.float32)
         idxmap = -np.ones((28, 24), dtype=int)
         for r in range(28):
             for c in range(24):
@@ -969,159 +1253,254 @@ def measure(pieces, sprite, outdir):
                 d = ((rgb[:, None, :] - arr[None, :, :]) ** 2).sum(-1).argmin(1)
                 vals, cnt = np.unique(d, return_counts=True)
                 idxmap[r, c] = pal_of[keys[vals[cnt.argmax()]]]
-        results[name] = {"measure": res, "idx": idxmap.tolist()}
+        if ref:
+            sp = json.loads((Path(ref) / name / "sprite.json").read_text())
+            fr = next(f for f in sp["frames"] if frame is None or f["index"] == frame)
+            spr = np.array([[int(x) for x in row.split()] if isinstance(row, str) else row for row in fr["pixels"]])
+        else:
+            sp = common.load_sprite(ROOT, name)
+            fr = next(f for f in sp["frames"] if frame is None or f["index"] == frame)
+            spr = np.array(fr["pixels"])
+        regions = []
+        for p in sorted(set(idxmap.ravel()) - {-1}):
+            vals = spr[(idxmap == p) & (spr >= 0)]
+            if len(vals) < 3:
+                continue
+            same = vals[(vals // 16) == (p // 16)] if p not in FLOOR_IDX else vals[np.isin(vals, list(FLOOR_IDX))]
+            core = np.sort(same)
+            if len(core) > 10:
+                core = core[len(core) // 10: len(core) - len(core) // 10]
+            med = int(np.median(core)) if len(core) else -1
+            regions.append((int(p), int(len(vals)), round(len(same) / len(vals), 2), med))
+        results[label] = {"measure": res, "regions": regions, "idx": idxmap.tolist()}
     for mt, col in saved.items():
         mt.diffuse_color = col
     return results
 
 
-def region_table(results):
-    """Per model palette index: the sprite's median over the pixels it covers from above."""
-    import numpy as np
-    rows = []
-    for name, res in results.items():
-        spr = np.array(common.load_sprite(ROOT, name)["frames"][0]["pixels"])
-        idx = np.array(res["idx"])
-        for p in sorted(set(idx.ravel()) - {-1}):
-            vals = spr[(idx == p) & (spr >= 0)]
-            ramp = (p // 16)
-            same = vals[(vals // 16) == ramp] if p not in FLOOR_IDX else vals[np.isin(vals, list(FLOOR_IDX))]
-            if len(vals) < 3:
-                continue
-            core = np.sort(same)
-            if len(core) > 10:
-                core = core[len(core) // 10: len(core) - len(core) // 10]
-            med = int(np.median(core)) if len(core) else -1
-            rows.append((name, int(p), int(len(vals)), round(len(same) / len(vals), 2), med))
-    return rows
+def report(res, outdir):
+    (Path(outdir) / "measure.json").write_text(json.dumps(res, indent=1))
+    for lab, r in res.items():
+        mm = r["measure"]
+        print("IOU", lab, mm if isinstance(mm, str) else {k: mm.get(k) for k in ("iou_rule_grid", "iou_rule", "iou_inner")})
+        for row in r["regions"]:
+            print("   REGION", lab, row)
 
+
+# --- main ----------------------------------------------------------------------------------------
 
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+    do_bake = "--no-bake" not in argv
     coll = common.reset_collection(NAME)
-    sprite, mats, groups, g, inner = build(coll)
-    # the machine is culled and outlined on its own; the floor joins it only for the bake (D130)
-    machine = join([groups["pillar"], groups["crane"]], NAME + "_machine", coll)
-    T.cull_hidden(machine)
-    half = join([machine, groups["floor55"], groups["floor283"]], NAME + "_half", coll)
-    half.data.set_sharp_from_angle(angle=math.radians(34))
-    shell = outline_shell_all(machine, coll, voxel=0.015, faces=8000, smooth=6)
-    fmt = "AUTO"
-    layout = [(e["model"], e["cx"] - SX0, e["cy"] - SY0) for e in sprite["assemblyLayout"]
-              if e["model"] in PIECES]
-    seen, lay = set(), []
-    for name, cx, cy in sorted(layout, key=lambda t: t[1]):
-        if name not in seen:
-            seen.add(name)
-            lay.append((name, cx, cy))
-    pieces = common.split_assembly(half, lay, coll)
-    shells = split_open(shell, lay, coll)
-    for name, _, _ in lay:
-        nf = len(shells[name].data.polygons)
-        print(f"outline {name}: {nf} faces")
-        if nf == 0:
+    sprite = merged_sprite()
+
+    # tower: art frame, cut, outlined
+    tmats, body, tpieces, tshells = build_tower(sprite, coll)
+
+    # crane (unchanged): with its floor as the bake occluder (D130)
+    cmats = materials(sprite)
+    g, inner = load_grid()
+    m = PxMesh("crane")
+    crane(m)
+    crane_obj = to_object(m, cmats, coll)
+    T.cull_hidden(crane_obj)
+    fmats = {}
+    for p, mt in cmats.items():
+        cp = mt.copy()
+        cp["tyrian_floor"] = True
+        fmats[p] = cp
+    m = PxMesh("floor283")
+    floor(m, g, inner, 24, 28)
+    seams(m, "floor283")
+    floor283 = to_object(m, fmats, coll)
+    crane_g = join([crane_obj, floor283], "crane_g", coll)
+    crane_g.data.set_sharp_from_angle(angle=math.radians(34))
+    clay = [(n, c0 + 12 - 48, r0 + 14 - 28) for n, (c0, r0) in CRANE.items()]
+    cpieces = common.split_assembly(crane_g, clay, coll)
+    cshell = outline_shell_all(crane_obj, coll, voxel=0.015, faces=8000, smooth=6)
+    cshells = split_open(cshell, clay, coll)
+    for name in CRANE:
+        if len(cshells[name].data.polygons) == 0:
             raise SystemExit(f"empty outline shell on {name}")
-    if "--no-bake" not in argv:  # AO / roughness / metallic bake from the model itself (no projection)
-        bake_pieces(pieces, lay, coll, size=512)
+
+    fmt = "AUTO"
+    if do_bake:
+        bake_tower(list(tpieces.values()), list(tpieces.values()))
+        bake_pieces(cpieces, clay, coll, size=512)
         fmt = "WEBP"
-    for name, _, _ in lay:  # the floor was the bake's occluder only: not exported (D130)
-        p = pieces[name]
-        bm = bmesh.new()
-        bm.from_mesh(p.data)
-        fl = {i for i, mt in enumerate(p.data.materials) if mt and mt.get("tyrian_floor")}
-        bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.material_index in fl], context="FACES")
-        bm.to_mesh(p.data)
-        bm.free()
-    total = 0
+    for p in list(tpieces.values()) + list(cpieces.values()):
+        delete_floor(p)
+
+    # export: tower pieces upright about their own centres, the crane as before
     sprites = {n: common.load_sprite(ROOT, n) for n in PIECES}
-    for name, cx, cy in lay:
-        p = pieces[name]
+    upright, tris = {}, {}
+    for n, r0 in TOWER.items():
+        o = stand(tpieces[n], r0)
+        s = stand(tshells[n], r0, normals=False)
+        s["tyrian_outline"] = True
+        upright[n] = (o, s)
+        tris[n] = sum(len(p.vertices) - 2 for p in o.data.polygons)
+        common.export_sprite_model(ROOT, [o, s], f"enemies/{n}", sprites[n]["sprites"], image_format=fmt)
+    for n in CRANE:
+        p = cpieces[n]
         p.data.set_sharp_from_angle(angle=math.radians(34))
         wn = p.modifiers.new("weighted", "WEIGHTED_NORMAL")
         wn.keep_sharp = True
         wn.weight = 50
-        t = sum(len(q.vertices) - 2 for q in p.data.polygons)
-        total += t
-        print(f"piece {name}: {t} triangles")
-    print(f"total {total} triangles (half); whole machine {2 * total}")
-    for name, cx, cy in lay:  # one model per sprite, centred on its own origin (the game contract)
-        common.export_sprite_model(ROOT, [pieces[name], shells[name]], f"enemies/{name}",
-                                   sprites[name]["sprites"], image_format=fmt)
-    for name, cx, cy in lay:  # placed in the machine for the measure and view renders
-        for o in (pieces[name], shells[name]):
-            o.location = (cx / 12, -cy / 12, 0)
+        tris[n] = sum(len(q.vertices) - 2 for q in p.data.polygons)
+        common.export_sprite_model(ROOT, [p, cshells[n]], f"enemies/{n}", sprites[n]["sprites"], image_format=fmt)
+    print("TRIS", json.dumps(tris))
+    zr = {n: [round(min(v.co.z for v in o.data.vertices) * 12, 1), round(max(v.co.z for v in o.data.vertices) * 12, 1)]
+          for n, (o, _) in upright.items()}
+    print("TRUE HEIGHTS px", json.dumps(zr))
+
     if "--measure" in argv:
-        outdir = Path(argv[argv.index("--measure") + 1])
-        res = measure({n: pieces[n] for n, _, _ in lay}, sprite, outdir)
-        table = region_table(res)
-        summary = {n: r["measure"] for n, r in res.items()}
-        (outdir / "measure.json").write_text(json.dumps({"iou": summary, "regions": table,
-                                                         "idx": {n: r["idx"] for n, r in res.items()},
-                                                         "tris_half": total}, indent=1))
-        for n, r in summary.items():
-            print("IOU", n, r if isinstance(r, str) else {k: r[k] for k in ("iou_rule_grid", "iou_rule", "edge_vs_inner_px")})
-        for row in table:
-            print("REGION", row)
+        md = Path(argv[argv.index("--measure") + 1])
+        ref = make_ref(md, "newshc-55", 14)
+        make_ref(md, "newshc-283", skip_top=range(8, 18))
+        items = []
+        for n, r0 in TOWER.items():
+            items.append((n, n, None, ref if n == "newshc-55" else None, game_form(upright[n][0], n + "_m")))
+        for n in CRANE:
+            items.append((n, n, None, ref if n == "newshc-283" else None, cpieces[n]))
+        report(measure_items(items, md), md)
+
     if "--views" in argv:
-        views(argv[argv.index("--views") + 1], groups, pieces, shells, lay, coll)
+        views(Path(argv[argv.index("--views") + 1]), upright, cpieces, coll, sprite)
 
 
-def views(outdir, groups, pieces, shells, lay, coll):
-    """Whole machine (both halves) from the six directions, the game camera, a crane close-up and
-    one underside view; newshc-77 (its own model) imported read-only for context."""
+def import_glb(path):
+    before = set(bpy.data.objects)
+    bpy.ops.import_scene.gltf(filepath=str(path))
+    new = [o for o in set(bpy.data.objects) - before if o.type == "MESH"]
+    for o in new:
+        if o.get("tyrian_outline") or "outline" in o.name:
+            o.hide_render = True
+    return [o for o in new if not (o.get("tyrian_outline") or "outline" in o.name)]
+
+
+def views(outdir, upright, cpieces, coll, sprite=None):
+    """The true machine (both halves; the f83 head from its exported model) from the front, sides,
+    rear, 3/4 and below, and the game's form under the 15 and 32 deg game cameras."""
     scene = bpy.context.scene
-    outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
-    objs = []
-    for name, cx, cy in lay:
-        objs.append(pieces[name])
-    # the right half: pillar pieces at +72 px, crane pieces at +24 px (same sprites)
-    for name, cx, cy in lay:
-        dc = 72 if name in ("newshc-115", "newshc-17", "newshc-55") else 24
-        o = pieces[name].copy()
-        o.data = pieces[name].data
-        coll.objects.link(o)
-        o.location = ((cx + dc) / 12, -cy / 12, 0)
-        objs.append(o)
-    glb = WT / "public" / "models" / "enemies" / "newshc-77.glb"
-    if glb.exists():
-        for cx in (128, 200):
-            before = set(bpy.data.objects)
-            bpy.ops.import_scene.gltf(filepath=str(glb))
-            for o in set(bpy.data.objects) - before:
-                if o.type == "MESH" and "outline" not in o.name:
-                    o.location = ((cx - SX0) / 12, (SY0 + 18) / 12, 0)
-                    objs.append(o)
-                elif o.type == "MESH":
-                    o.hide_render = True
+    true_objs, game_objs = [], []
+    for half, (dt, dc) in enumerate(((0, 0), (72, 24))):
+        for n, r0 in TOWER.items():
+            ctr = centre_of(r0, dt)
+            o = upright[n][0].copy()
+            o.data = upright[n][0].data
+            coll.objects.link(o)
+            o.location = (ctr[0], ctr[1], 0)
+            true_objs.append(o)
+            gf = game_form(upright[n][0], f"{n}_g{half}")
+            gf.location = (ctr[0], ctr[1], 0)
+            game_objs.append(gf)
+        head = ROOT / "public" / "models" / "enemies" / "newshc-77-f4.glb"
+        if head.exists():
+            hc = centre_of(-28, dt)
+            for o in import_glb(head):
+                o.location = (hc[0], hc[1], 0)
+                true_objs.append(o)
+                gf = game_form(o, f"head_g{half}")
+                gf.location = (hc[0], hc[1], 0)
+                gf.data.materials.clear()
+                for mt in o.data.materials:
+                    gf.data.materials.append(mt)
+                game_objs.append(gf)
+        for n, (c0, r0) in CRANE.items():
+            ctr = centre_of(r0, c0 + dc)
+            o = cpieces[n].copy()
+            o.data = cpieces[n].data
+            coll.objects.link(o)
+            o.location = (ctr[0], ctr[1], 0)
+            true_objs.append(o)
+            game_objs.append(o)
     setup_eevee(scene)
-    D = 14
+    D = 18
+    gx, gy = 0.0, -0.2
+    zc = 3.6
+    t15, t32 = math.radians(15), math.radians(32)
     cams = {
-        "top": ((0, 0, 30), (0, 0, 0), 10.2),
-        "front": ((0, -D, 0.6), (0, 0, 0.6), 8.6),
-        "rear": ((0, D, 0.6), (0, 0, 0.6), 8.6),
-        "sideW": ((-D, 0, 0.6), (0, 0, 0.6), 10.2),
-        "sideE": ((D, 0, 0.6), (0, 0, 0.6), 10.2),
-        "q34": ((9, -10, 8), (0, 0.2, 0), None),
-        "q34rear": ((-9, 10, 7), (0, 0.2, 0), None),
-        "game": ((0, -16 * math.sin(math.radians(32)), 16 * math.cos(math.radians(32))), (0, 0, 0), None),
-        "under": ((3, -9, -8), (0, 0.3, 0), None),
-        "crane": ((-0.6, -3.2, 2.6), (-0.95, 1.1, 0.5), None),
-        "tophalf": ((-2.0, -14 / 12, 30), (-2.0, -14 / 12, 0), 7.0),
+        "front": ((gx, -D, zc), (gx, gy, zc), 11.0, (900, 900), true_objs),
+        "sideW": ((-D, gy, zc), (gx, gy, zc), 11.0, (700, 900), true_objs),
+        "rear": ((gx, D, zc), (gx, gy, zc), 11.0, (900, 900), true_objs),
+        "q34": ((gx + 10, gy - 12, 9), (gx, gy, 2.6), None, (900, 900), true_objs),
+        "q34rear": ((gx - 10, gy + 12, 8), (gx, gy, 2.6), None, (900, 900), true_objs),
+        "under": ((gx + 4, gy - 9, -7), (gx, gy, 2.0), None, (800, 800), true_objs),
+        "top": ((gx, gy, 40), (gx, gy, 0), 10.4, (800, 980), true_objs),
+        "game15": ((gx, gy - 22 * math.sin(t15), 22 * math.cos(t15)), (gx, gy, 0), None, (800, 900), game_objs),
+        "game32": ((gx, gy - 22 * math.sin(t32), 22 * math.cos(t32)), (gx, gy, 0), None, (800, 900), game_objs),
+        "gametop": ((gx, gy, 40), (gx, gy, 0), 10.4, (800, 980), game_objs),
     }
-    res = {"top": (800, 920), "game": (800, 900), "crane": (700, 700), "tophalf": (480, 840)}
-    for key, (loc, look, ortho) in cams.items():
-        cam = camera(scene, f"v_{key}", loc, look, ortho=ortho, lens=60 if key == "game" else 50)
-        if key in ("top", "tophalf"):
+    for key, (loc, look, ortho, res, objs) in cams.items():
+        cam = camera(scene, f"v_{key}", loc, look, ortho=ortho, lens=60 if key.startswith("game") else 50)
+        if key in ("top", "gametop"):
             cam.rotation_euler = (0, 0, 0)
-        r = res.get(key, (900, 560))
-        sel = objs
-        if key == "crane":
-            sel = [o for o in objs if o.name.startswith(("newshc-245", "newshc-283"))][:2]
-        elif key == "tophalf":
-            sel = objs[:5]
-        render(scene, cam, sel, outdir / f"{key}.png", r)
+        render(scene, cam, objs, outdir / f"{key}.png", res)
         bpy.data.objects.remove(cam, do_unlink=True)
+
+
+# --- the head frames (newshc-77.py runs this) ------------------------------------------------------
+
+def heads_main(argv):
+    """newshc-77's eight frame models (77..89 and the wreck 91), each upright at the top of the true
+    tower, baked with the tower as occluder, each with its outline shell and its frame tag."""
+    do_bake = "--no-bake" not in argv
+    coll = common.reset_collection("newshc-77")
+    sprite = merged_sprite()
+    try:
+        sp91 = json.loads((REF91 / "newshc-77" / "sprite.json").read_text())
+        sprite["colors"].update({k: v for k, v in sp91.get("colors", {}).items() if k not in sprite["colors"]})
+    except OSError:
+        pass
+    _, body, tpieces, _ = build_tower(sprite, coll)
+    heads, hshells = build_heads(sprite, coll)
+    fmt = "AUTO"
+    if do_bake:
+        for fr, h in heads.items():
+            bake_tower([h], list(tpieces.values()))
+        fmt = "WEBP"
+    sheet = common.load_sprite(ROOT, "newshc-77")["sprites"][0]
+    exp, tris = {}, {}
+    for fr in HEAD_FRAMES:
+        o = stand(heads[fr], -28)
+        s = stand(hshells[fr], -28, normals=False)
+        s["tyrian_outline"] = True
+        common.frame_part(o, [fr])
+        common.frame_part(s, [fr])
+        exp[fr] = o
+        tris[fr] = sum(len(p.vertices) - 2 for p in o.data.polygons)
+        name = o.name
+        common.export_sprite_model(ROOT, [o, s], f"enemies/{name}", [{**sheet, "frames": [fr]}], image_format=fmt)
+    print("TRIS", json.dumps(tris))
+    if "--measure" in argv:
+        md = Path(argv[argv.index("--measure") + 1])
+        items = [(f"newshc-77@{fr}", "newshc-77", fr, REF91 if fr == 91 else None, game_form(exp[fr], f"h{fr}_m"))
+                 for fr in HEAD_FRAMES]
+        report(measure_items(items, md), md)
+    if "--views" in argv:
+        vd = Path(argv[argv.index("--views") + 1])
+        vd.mkdir(parents=True, exist_ok=True)
+        scene = bpy.context.scene
+        setup_eevee(scene)
+        cup = stand(tpieces["newshc-115"], 0)
+        c115 = centre_of(0)
+        ch = centre_of(-28)
+        cup.location = (c115[0] - ch[0], c115[1] - ch[1], 0)
+        cupg = game_form(cup, "cup_g")
+        cupg.location = cup.location
+        t15 = math.radians(15)
+        for fr in HEAD_FRAMES:
+            o = exp[fr]
+            gf = game_form(o, f"h{fr}_g")
+            cam = camera(scene, f"hg_{fr}", (0, -0.4 - 4.6 * math.sin(t15), 4.6 * math.cos(t15)), (0, -0.4, 0), lens=60)
+            render(scene, cam, [gf, cupg], vd / f"game_{fr}.png", (300, 380))
+            bpy.data.objects.remove(cam, do_unlink=True)
+            cam = camera(scene, f"hq_{fr}", (-3.2, -4.4 - 1.0, 9.0), (0, -1.6, 6.6), lens=50)
+            render(scene, cam, [o, cup], vd / f"q34_{fr}.png", (360, 360))
+            bpy.data.objects.remove(cam, do_unlink=True)
 
 
 if __name__ == "__main__":
