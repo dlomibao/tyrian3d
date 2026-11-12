@@ -99,7 +99,12 @@ export class GlowLayer {
   private capacity = 0;
   count = 0;
 
-  constructor(blending: THREE.Blending, capacity = 256) {
+  /**
+   * `renderOrder` places the layer among the transparent draws; by default additive glows draw
+   * after everything (2) and puffs after the blended sprites (1). Shot halos draw under the shots'
+   * flat art instead (D169).
+   */
+  constructor(blending: THREE.Blending, capacity = 256, renderOrder?: number) {
     // A quad: x from the tail end (0) to the head end (1), y across (-1..1).
     this.geometry.setAttribute("position", new THREE.Float32BufferAttribute([0, -1, 0, 1, -1, 0, 1, 1, 0, 0, 1, 0], 3));
     this.geometry.setIndex([0, 1, 2, 0, 2, 3]);
@@ -114,7 +119,7 @@ export class GlowLayer {
     });
     this.mesh = new THREE.Mesh(this.geometry, material);
     this.mesh.frustumCulled = false;
-    this.mesh.renderOrder = blending === THREE.AdditiveBlending ? 2 : 1;
+    this.mesh.renderOrder = renderOrder ?? (blending === THREE.AdditiveBlending ? 2 : 1);
     this.mesh.name = blending === THREE.AdditiveBlending ? "vfx-glows" : "vfx-puffs";
   }
 

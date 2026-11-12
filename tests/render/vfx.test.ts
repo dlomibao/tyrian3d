@@ -4,7 +4,9 @@ import { EXPLOSION_DATA, ExplosionKind, explosionFrame, shieldArcCentre } from "
 import { landingTime, ParticleSystem } from "../../src/render/vfx/particles";
 import { GlowLayer } from "../../src/render/vfx/glowLayer";
 import { ShieldLayer } from "../../src/render/vfx/shieldLayer";
-import { measureSprite } from "../../src/render/vfx/remasteredFx";
+import { measureSprite, ORDNANCE_FRAMES, spriteGlowColour } from "../../src/render/vfx/remasteredFx";
+import { loadItemDat } from "../../src/data/items";
+import { hasData, readData } from "../data/dataDir";
 import { vfxModeFromSearch } from "../../src/render/vfx/vfxMode";
 import { extrudeSprite, SPRITE_EXTRUDE, toGeometry } from "../../src/render/spriteMesh";
 import { JE_playerDamage, JE_setupExplosion } from "../../src/sim/varz";
@@ -157,5 +159,35 @@ describe("sprite measurements", () => {
     expect(info.cy).toBeCloseTo(5, 0);
     expect(info.radius).toBeCloseTo(2, 0);
     expect([...info.indices]).toEqual([7]);
+  });
+});
+
+describe("glow colour (D169)", () => {
+  test("the mean of the sprite's pixels, brightest channel 1, not its brightest pixel", () => {
+    // 20 red pixels and 2 near-white ones: the glow is red, not cream.
+    const pal: Record<number, { r: number; g: number; b: number }> = { 1: { r: 0.8, g: 0.08, b: 0.01 }, 2: { r: 1, g: 0.95, b: 0.8 } };
+    const [r, g, b] = spriteGlowColour([1, 2], [20, 2], (i) => pal[i]);
+    expect(r).toBe(1);
+    expect(g).toBeLessThan(0.25);
+    expect(b).toBeLessThan(0.15);
+    expect(spriteGlowColour([], [], () => pal[1])).toEqual([1, 1, 1]);
+  });
+});
+
+describe.skipIf(!hasData("tyrian.hdt", "tyrian4.lvl"))("ordnance frames (D169)", () => {
+  test("are the shot frames of every weapon that leaves a smoke trail (trail 6 or 98)", () => {
+    const frames = new Set<number>();
+    for (const episode of [1, 4]) {
+      const items = loadItemDat(episode, readData("tyrian.hdt"), episode === 4 ? readData("tyrian4.lvl") : undefined);
+      for (const w of items.weapons) {
+        if (w.trail !== 6 && w.trail !== 98) continue;
+        // Player and enemy shots use sg[0 .. max-1]; frames above 500 are on another sheet.
+        for (const sg of w.sg.slice(0, Math.max(1, w.max))) {
+          if (sg <= 0 || sg >= 500) continue;
+          for (let a = 0; a <= w.weapAni; a++) frames.add(sg + a);
+        }
+      }
+    }
+    expect([...frames].sort((a, b) => a - b)).toEqual([...ORDNANCE_FRAMES].sort((a, b) => a - b));
   });
 });

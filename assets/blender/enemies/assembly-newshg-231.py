@@ -9,8 +9,9 @@ slot glowing beside it (newshg-231). A dark deck with a grille runs along its fr
 glowing port at the seam. The three frames of each piece only flicker the glows and slide the
 small hatch, so one model covers each piece.
 
-The machine is built whole in assembly coordinates (lib_b077.build_cannon, shared with its mirror
-image assembly-newshg-267) and cut into the two pieces with common.split_assembly.
+The machine is built whole in assembly coordinates (lib_cannon.build_cannon, called through
+lib_b077.cannon_main, shared with its mirror image assembly-newshg-267) and cut into the two
+pieces with common.split_assembly.
 
 Run: blender --background --python assets/blender/enemies/assembly-newshg-231.py [-- --preview out.png]
 (the preview is the whole gun; each piece also gets <piece>.png next to it).

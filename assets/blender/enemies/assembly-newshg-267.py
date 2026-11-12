@@ -9,7 +9,8 @@ lens and sliding hatch bending down into a capped elbow on the right (newshg-269
 with a grille along its front and a glowing port at the seam. The three frames of each piece
 only flicker the glows and slide the small hatch, so one model covers each piece.
 
-The machine is lib_b077.build_cannon mirrored, cut into the two pieces with common.split_assembly.
+The machine is lib_cannon.build_cannon (called through lib_b077.cannon_main) mirrored, cut into the
+two pieces with common.split_assembly.
 
 Run: blender --background --python assets/blender/enemies/assembly-newshg-267.py [-- --preview out.png]
 (the preview is the whole gun; each piece also gets <piece>.png next to it).

@@ -7590,3 +7590,310 @@ t4500, t4600 and t5000, DELIANI t4900; review sheets) and the summaries `summary
 
 **Cost:** one Opus agent, no workflow: one Blender build (newsh2-267, ~10 s), nine review sheets, about a dozen
 headless captures.
+
+## D168 — The HUD shows the held special weapon and the superbombs, at the C's places on the playfield (fixes a port gap; extends D61)
+
+2026-11-12
+
+**Finding** (title-demo comparison, overhead, #8): the original draws the special weapon's icon at the playfield's
+top left (Pearl Wind in demo 2); the remaster showed nothing there, and no HUD file read `items.special` or
+`superbombs`, although `src/sim/mainint.ts`' JE_inGameDisplays stub said the HTML HUD did.
+
+**What the C does** (`JE_inGameDisplays`, mainint.c L2848-2917, called by JE_main, tyrian2.c L2220, every frame after
+the boss bar, onto the game screen, so on the playfield): if `player[0].items.special > 0`, the special's
+`itemgraphic` as a 2x2 spriteSheet10 sprite (24x28) at (25, 1), player 1's only; the lives at (30, 15), moved to
+(30, 35) while that icon is shown; one spriteSheet9 #304 (12x14) per superbomb at (30 + 12j, 160), player 2's leftwards
+from 270.
+
+**Decision** (`src/app/hud.ts`, `src/app/overlay.css`):
+- **Frame:** both are HTML over the opening, beside the lives and boss bars, in game pixels (`--hud-unit`): the
+  special at (1, 1) of the opening, the C's (25, 1) on the playfield; the arcade lives drop to 30 units down while it
+  shows, as the C moves them; the bombs from x 6, their bottoms 10 units above the playfield's bottom edge (y 160 + 14).
+  Pixel-sharp, like the sidekick boxes' icons.
+- **Minimal:** the special's icon (2x) under CREDITS at the top left; the bombs as a fourth row of the bars,
+  "Bombs", 1.5x icons.
+- The icons are the game data's own sprites painted in the in-level palette (as the sidekick icons, D61), each cached
+  once by sprite (the sidekick cache, generalised). Hidden when there is no special and no bombs.
+- The stale stub comment in `src/sim/mainint.ts` now says what JE_inGameDisplays draws and where the HUD shows each.
+
+**Not done:** player 2's superbombs in two-player (twoPlayerHud.ts has no bomb row; the minimal bars, which hold
+player 1's, are hidden in two-player by twoPlayer.css).
+
+**Checked** (`tyrian-scratch/hud-special/`): the attract demo 2 in `?demo=2&compare=1&camera=overhead` (Pearl Wind
+at the same place as the original's); `?debug=play` with Pearl Wind and four superbombs set from the console, frame and
+minimal, at 1920x1080 and 390x844; summary `summary.png`. vitest, tsc, build.
+
+**Cost:** one Opus agent, no workflow: about ten headless captures.
+
+## D169 — Effects take their sprite's own colour: explosions burn red-orange, shot halos sit under the painting, missiles and bombs lose their halo (follows D35; extends D147)
+
+2026-11-12
+
+**Findings** (title-demo comparison, overhead, `tyrian-scratch/demo-compare/overhead/REPORT.md` #1, #2 and the glow part
+of #3): explosions opened as a white flash with white spark rays where the original is red-orange fire with yellow hot
+spots; the shot halo bleached painted shots toward white or cream (Heavy Guided Bombs a white blob, the Zica laser white
+with a cyan edge, red fire darts cream, the purple enemy dart pale pink); the explosion glow and light took the sprite's
+brightest colour or a fixed warm white.
+
+**Causes** (`src/render/vfx/remasteredFx.ts`): the glow colour was the sprite's colours weighted by luminance squared,
+so its near-white core; every flash was mixed 40-50% toward white and boosted x1.3 (and the particle shader triples the
+centre), and a big explosion's four quarters each flashed; sparks were a fixed (2.2, 1.7, 0.9); lights were mixed 35%
+toward (1, 0.75, 0.35); the shot halo was additive over the shot's flat art, and a beam's stacked segments each added
+one.
+
+**Decision** (`remasteredFx.ts`, `glowLayer.ts`):
+- **Colour.** A sprite's glow colour is the mean of its pixels' colours, brightest channel 1 (`spriteGlowColour`): a
+  fire's red-orange, a laser's blue. Flashes, the fireball glow and embers use it unmixed; sparks run from a hot tint of
+  it (0.2 + 1.1r, 0.1 + 0.75g, 0.05 + 0.35b) to red; lights are it, warmed 15%.
+- **Calmer births.** Flash alpha 0.55/0.5 -> 0.32, Large size 22 -> 16 and life 0.26 -> 0.22, Fireball 14 -> 11;
+  sparks 6 -> 4 a quarter (Large) and 4 -> 3 (Fireball), top speed 240 -> 190; light peaks 7 -> 5 and 2.5 -> 2. Hit
+  puffs: flash (1, 0.85, 0.55) at 1 -> (1, 0.55, 0.22) at 0.5, glow 0.9 -> 0.6 in orange. Muzzle flashes 15% toward
+  white (was 50%) at 0.45/0.35 (was 0.8/0.6).
+- **One flash per spot.** A flash within 14 screen px of one started under 0.12 s before is not drawn (a 64-entry
+  ring): a big explosion's quarters flash once, and hits and beam segments under sustained fire don't stack to white.
+- **Halos under the shot.** Shot halos are their own glow layer, ordered just under the player shots' flat art
+  (`SPRITE_ART_ORDER + Pass.PlayerShots / 100 - 0.002`), so the painting covers the halo's core and the halo rims it;
+  intensity 0.8/0.9 -> 0.6/0.7, in the mean colour. Halos are held to the frame's end and each is dimmed by
+  1 / (1 + 0.75 x the halos it overlaps heavily, centres under 0.8 of the radii's sum apart): a beam's segments read
+  about as one halo.
+- **Ordnance.** Missiles and bombs (`ORDNANCE_FRAMES`: the tyrian.shp#7 frames of every weapon with a smoke trail, 6
+  or 98; a test derives the set from the item data of episodes 1-3 and 4) get no halo and no muzzle flash, and an
+  unpainted one draws lit with its outline (`SpriteLook.Default`), not hot. Smoke puffs are ordered under the shots, so
+  a bomb's own trail no longer greys it over.
+- Kept from D35: the birth flash, sparks, embers, debris, the smoke puff; D147's sparks are unchanged.
+
+**Measured** (`tyrian-scratch/fx-fix/metrics.json`; same demo ticks, `?demo=N&compare=1&camera=overhead`, original =
+the compare view's left half; white = every channel >= 225, fire = r >= 150, g <= 0.62r, b <= 0.35r):
+
+| Region | original white / fire | before | after |
+|---|---|---|---|
+| demo 2 curLoc 2780, explosion cluster | 135 / 17139 | 3310 / 1966 | 127 / 7970 |
+| demo 2 curLoc 4867, boss ring chains | 381 / 21663 | 4817 / 8371 | 1284 / 13230 |
+| demo 1 curLoc 3027, explosion on the structure | 0 / 1080 | 1344 / 136 | 82 / 579 |
+| demo 1 curLoc 2853, explosion by the ship | 225 / 2682 | 2819 / 169 | 1046 / 630 |
+
+Zica beam mean RGB at demo 2 curLoc 692: original (116, 164, 228), before (218, 238, 244), after (140, 197, 231);
+white pixels on it 294 / 4278 / 972. The rest of the gap is the art (a lighter core, REPORT #7) and, for the explosions'
+red, the blend of blend-effect explosions (REPORT #3, a separate change).
+
+**Not done:** the screen filters' path (D31) still draws the effects layer after the scene, so on filtered levels the
+shot halos land over the art as before (dimmer and in the mean colour). `HOT_BLEND_GLOW` (the explosion blend material,
+only used with `?sprites=original`) is untouched.
+
+**Checked:** captures held at the same demo tick (`tyrian-scratch/fx-fix/tools/demofreeze.mjs`, holds
+requestAnimationFrame at a curLoc) for demos 1, 2, 3 and 5, before and after; `?debug=play&episode=1&main=3&seed=1`
+at ticks 249, 700, 1000, 1500 with the tilted camera; `&stress=800` CPU time unchanged (2.7 ms). Summary:
+`tyrian-scratch/fx-fix/summary.png` (original | before | after). Test: `tests/render/vfx.test.ts`.
+
+**Cost:** one Opus agent, no workflow: about 40 headless captures (two at a time), no Gemini.
+
+## D170 — Episode-2 enemy rebuild, batch 1: 28 items (38 inventory units) to the D65 hard-surface standard; the scout re-reads eight as flyers or launched objects
+
+2026-11-12
+
+**Decision:** the 40 most-seen episode-2 inventory units still in the older look (D116's ranking: not `flagship`, not
+pickups, most-seen first by the bot run's ticks on screen) are rebuilt with `tools/workflows/model-flagship.js`, as
+D116 and D121 did (full mode, blueprints for heroes; D65's recipe: hard-surface geometry, AO/roughness bake `"bake":
+"model"`, outline shell, art rules 1-5). The scout folded the 40 units into 29 items (11 merges, below). 28 ship; the
+blue spiral shells `newshn-125` + `newshn-15` do not (see Deferred) and keep their origin/main models.
+
+**Merges and retired scripts.** One agent per merged family, so no two agents edited one file:
+- `assembly-newshj-191` + `assembly-newshj-267`: one boss (`assembly-newshj-267.py` deleted; the 267 row is built
+  inside 191's design).
+- `assembly-newsha-1` + `assembly-newsha-229`: the mirror pod pair (`assembly-newsha-229.py`, `lib_b087.py` and the
+  unreferenced `lib_b084.py` deleted: the old script still exported the same four glbs and would have overwritten
+  the pair on a full rebuild).
+- `assembly-newshh-197` + `assembly-newshh-159`: one craft in two rows (`assembly-newshh-159.py` deleted for the same
+  reason; `lib_b056` keeps its other users).
+- `assembly-newshj-127` + `assembly-newshj-245` + `assembly-newshj-207` (245's mirror): `lib_b118.py`,
+  `assembly-newshj-245.py` and `assembly-newshj-207.py` deleted.
+- `assembly-newshg-231` + `assembly-newshg-267`: the cannon builder moved to a new `lib_cannon.py`;
+  `lib_b077.cannon_main` now calls it (its other helpers, used by `newshj-83`, are unchanged); both
+  wrappers stay.
+- `newshv-38` + `newshv-57` + `newshv-19` (one gem in three colours), `newshv-123` + `newshv-153` (one disc in two
+  colours), `newshv-50` + `newshv-12` and `newsha-161` + `newsha-163` (mirror pairs), and `newshn-125` + `newshn-15`
+  (one shell in two sizes; deferred).
+- `assembly-newshe-229.py` now stands alone: `lib_b070.py` had no other user and is deleted.
+
+No shared lib (`common.py`, `usp_talon.py`, `texture_bake.py`) was edited. `newshg-1` gains
+`assets/blender/textures/newshg-1/maps.json` (`"bake": "model"`).
+
+| Model (units) | Tier | What it is | Top-view IoU (finisher, worst frame) | Review IoU | Score |
+|---|---|---|---|---|---|
+| assembly-newshv-91 (newshv-89/91/93, -91-f2) | hero | GEM WAR's flying gem-launcher gunship | 0.9727 | 0.9722 | 8 |
+| assembly-newshj-191 (+ assembly-newshj-267; 21 models) | hero | the TORM/BOTANY end boss: a hovering biomechanical plant pod; the 267 row is its ribbed tips, not crystal clusters | 0.9735 | 0.9735 | 8 (fix round) |
+| newshv-8 | standard | MARKERS' red-lamp marker beacon, not a turret | 0.9752 | 0.9752 | 7.5 |
+| assembly-newsha-1 (+ assembly-newsha-229) | hero | a mirror pair of half-dome pods riding the screen edges | 0.9803 | 0.9803 | 8 |
+| assembly-newshn-195 (17 pieces) | hero | the GYGES boss: a biomechanical creature head with an animated throat | 0.963 | 0.963 | 7 |
+| assembly-newshh-129 | hero | a waterfall from a cliff into a pool, standing scenery (D82) | 1.0 | 1.0 | 8 |
+| assembly-newshg-191 | hero | a launch hatch in the foot of a rock cliff | 0.969 | 0.968 | 7.5 |
+| assembly-newsh0-79 (13 pieces) | hero | the GRYPHON end boss: a bat-winged flying beast | 0.9421 (newsh0-85; see below) | 0.9421 | 8 (fix round) |
+| assembly-newshj-51 | hero | a green dome generator, built standing (D82) | 0.96 | 0.96 | 7.5 |
+| newshv-38 (+ newshv-57, newshv-19) | standard | the colour gem riding the GEM WAR gunship, three colours | 1.0 | 1.0 | 7 |
+| newshv-191 | standard | a launched green crystal pod (D122) | 0.9526 | 0.9655 | 7.5 |
+| assembly-newshg-231 (+ assembly-newshg-267) | hero | a jungle gun emplacement and its mirror | 0.9838 | 0.9838 | 8 |
+| newshm-123 | standard | a flying hover drone (re-identified in the fix round; built first as a walker) | 0.9899 | 0.9899 | 7.5 (fix round) |
+| newshm-89 | standard | a twin-blade fighter | 0.9647 | 0.9647 | 8 |
+| newshg-201 | standard | a small domed gunboat | 0.967 | 0.9728 | 8 |
+| assembly-newshg-203 | hero | a jungle rocket-launcher emplacement | 0.9668 | 0.9668 | 8 |
+| assembly-newshj-127 (+ assembly-newshj-245, -207) | hero | a jungle rocket launcher and the hover tank with its mirror (207 is not a dome cannon) | 0.9609 | 0.9607 | 8 |
+| newshj-131 | standard | a green beetle pod on a red mount | 0.9593 | 0.9636 | 8 |
+| assembly-newshe-229 | hero | a fast red orb pod, not a ground structure | 0.9837 | 0.9837 | 8 |
+| newshv-123 (+ newshv-153) | standard | a launched gem disc in red and blue (D122) | 0.9553 | 0.9549 | 7.5 |
+| assembly-newshv-39 | hero | a drilling machine, a ground vehicle with a turning drill | 0.9533 | 0.9533 | 8 |
+| newshg-1 | standard | a tumbling molten rock (a falling lava meteor), 14 frames | 0.9612 | 0.9612 | 7 (fix round) |
+| assembly-newshh-197 (+ assembly-newshh-159) | hero | one grey insectoid flying craft in two rows | 0.9524 | 0.9524 | 8 |
+| assembly-newshj-43 | hero | a jungle bunker tower, built standing (D82) | 0.9654 | 0.9654 | 8 |
+| newshv-50 (+ newshv-12) | standard | a mirror pair of flying crystal shards | 1.0 | 1.0 | 7.5 |
+| newsha-161 (+ newsha-163) | standard | a twin-nosed patrol pod in two halves | 0.9557 | 0.9557 | 8 |
+| newshh-93 | standard | a horned bowl-shaped flyer | 0.943 (sub-pixel; grid 0.9864) | 0.9864 | 7.5 |
+| newshg-163 | standard | a blue manta craft flying up the screen | 0.9881 | 0.9881 | 8 |
+
+24 shipped by strict review in the run; `assembly-newshj-191`, `assembly-newsh0-79` and `newshg-1` after one
+`fix-round.js` pass; `newshm-123`, shipped at 7 in the run as a walker, went back into the fix round for its identity.
+
+**Identity lessons (D120, D122, D166, D167).** The scout read every unit's behaviour before any design
+(`tyrian-scratch/e2-enemies-1/enemy_behaviour_e123.mjs`, custom-picture and link dumps) and changed the identity the
+old docstrings gave many of them: `newshv-191`, `newshv-123`/`153`, `newshv-38`/`57`/`19`, `newshv-8`,
+`assembly-newshe-229`, the `newsha-1`/`229` pair, `newshv-50`/`12` and `newshg-1` are launched, flying or moving, not
+grounded; `assembly-newshj-267` is the bottom row of the TORM boss, not crystal clusters; `assembly-newshj-207` is
+the hover tank mirrored, not a dome cannon; `assembly-newshh-159` and `-197` are one craft; the waterfall, the
+bunker tower and the generator stand (D82). It still left `newshm-123` as "a steel walker", and the finisher built
+four legs. The fix round re-read it from `tools/enemy_behaviour.mjs` (moves 2-5 px/tick down the screen and still
+swoops on 2.9's static map, flies in rigid rows of three at dx ±20) and from the frames (123/125/127 change only
+sideways: the shoulders and flank pods trim; nothing moves fore and aft, no foot shape), so it is a hover drone:
+legs and feet removed, round belly keel, lowest point z 1.5 px. The lesson stands as D167's: "ground" is only the
+layer the C draws on, and a three-frame cycle is not a walk cycle unless something moves fore and aft.
+
+**IoU gate** (D116, OUTLINE-BORDER.md: `iou_rule_grid` ≥ 0.95). Every item passes on the grid measure except one
+piece. **`newsh0-85` (GRYPHON) is accepted below the gate by the coordinator:** its own-sprite grid IoU is 0.9421
+(sub-pixel 0.9303); the next lowest pieces are `newsh0-83` 0.9589, `newsh0-39` 0.9623 and `newsh0-47` 0.966. In the
+cell map every mismatch is a model-covered border-ring cell on col 0, row 0 or col 23, the cuts it shares with
+`newsh0-83`, `-47` and `-87`; there are no sprite-only interior cells and no model cells outside the outline. Those
+cells are interior pixels of the whole sprite that the piece's own mask classes as ring, so shrinking the geometry
+there would open gaps in the assembly. With the shared-cut cells left out the piece scores 1.0, inside the assembly
+0.9981, and the whole assembly 0.9944 (worst seam-excluded piece `newsh0-47`, 0.9851). This is the seam case D117
+accepted for `newshf-159` and D166 for `newsh2-87`, with one difference: those two were under 0.95 only on the
+sub-pixel rule and passed on the grid, while `newsh0-85` is under 0.95 on the grid as well, so this is an explicit
+gate exception for border cells on shared interior cuts, not the usual grid-over-sub-pixel call. `newshh-93`
+(0.943) and `newshm-123` (0.9359-0.9449) are under 0.95 only on the sub-pixel rule, with grid 0.9864 and ≥ 0.9899.
+
+**Inventory** (regenerated, bot run): 37 of the 38 shipped units are `flagship`, plus `newshg-167` (the hatch's
+frames 167/243/283, rebuilt with `assembly-newshg-191`) and two units the regeneration now lists on their own,
+`newsha-231` and `newsha-269` (the pod pair's animated pieces); episode 2 is now 90 flagship / 56 older / 154 enemy
+units (was 49 / 95 / 152). `assembly-newshj-127` stays `basic`: its frames 17 and 91 draw `newshj-17`/`-17-f2`, the
+launcher's flame tip alone, which has no outline shell (flames carry no ink), and `tools/inventory.mjs` counts a glb
+without a shell as the older look. The model is done; teach the inventory that an emissive-only piece needs no
+shell (or give the flame a shell) to count it. `newshn-125` and `newshn-15` stay `basic` (deferred).
+
+**Rebuild check:** `assembly-newshj-191` and `assembly-newsh0-79` (whose reviewers flagged glbs older than the last
+script edit), and `assembly-newshv-91`, `assembly-newshn-195`, `assembly-newshj-127` and `newshv-50` (script saved
+seconds to minutes after their builds), were rebuilt by the coordinator with `tools/build-models.sh -j 3` before
+committing (all exited clean). Every rebuilt glb has the same meshes, vertex counts, bounds and materials as before
+(`tyrian-scratch/e2-enemies-1/integrate/glbstat.py`; the byte differences are the baked maps' compression and the
+outline shells' vertex order), the spriteModels JSONs are byte-identical, and the IoU re-measured on the rebuilt
+models is unchanged: `assembly-newshj-191` worst 0.9735 (the -f3 eye frame 0.9868; top renders of the game glbs),
+`newsh0-85` 0.9421, `newsh0-83` 0.9589, `newsh0-39` 0.9623, `newsh0-47` 0.966.
+
+**In game** (`?compare=1`, seed 1; `tyrian-scratch/e2-enemies-1/integrate/`): TORM at t6700
+(`torm_t6700_compare.png`, the plant-pod boss) and GYGES at t5340 (`gyges_t5340_compare.png`, the creature head)
+load every model, with no console errors. vitest, tsc and the build pass.
+
+**Deferred:** `newshn-125` + `newshn-15` (GYGES's blue spiral shells; one build, `newshn-15.py` wraps
+`newshn-125.py`'s SPEC) end at fix 5/10 after the fix round and keep their origin/main models, scripts and
+spriteModels entries. The fix round's work is kept in `tyrian-scratch/e2-enemies-1/newshn-125/` (its final scripts
+and glbs in `unshipped-worktree-state/`). It fixed the in-game black ink spiral (an `outline_source()` height-field
+stand-in for the outline shell: 39 black px of 21662, was 2411; keep it), but its open issues are: the spire is a
+smooth cone in a bowl where the review asked for 2-2.5 stepped whorls (each 0.6-1 px higher, the suture tucked under
+each step, apex at sprite (10.5, 11.8)); the body whorl is a flat-topped slab (4.8/5.4 px of near-vertical wall)
+with no convex coil shoulder peaking over the crescent (indices 59-61, rows 12-18, cols 13-16; inferred peak ~5.6 px
+against 3.8 built); the flank suture is a painted knife-cut slit with no 0.3-0.5 px overlap step; and a dark speck or
+pinhole on `newshn-125`'s lower flank (back-left 3/4 view).
+
+**Follow-ups (known):**
+- `newshg-1`'s glb grew to 5.3 MB (104k triangles with the outline shells; about 4.7x the next-largest enemy glb in
+  the batch): a download and preload cost (D54), not a frame-rate one (~13k triangles per instance). Its crust is
+  darkened by a flat `CRUST_DARK = 0.62` on the crust texels of the baked colour map (the index stays 115; no
+  concept projection); set it to 1.0 for pure AO. The glow bands on its top still have per-face stepped edges.
+- `newshv-123.py` writes both gem discs and `newshv-153.py` runs it again, so a parallel full build writes the same
+  files twice (harmless, but racy). `newsha-161.py` had the same race; its `main` now builds only its own half.
+- `lib_b044.build_pod` is dead code (only `to_object` is used, by `assembly-newsha-49`); `lib_b071.shell` stays for
+  the deferred shells.
+- `src/viewer/assemblies.json` and the inventory still list the merged assemblies (`assembly-newsha-229`,
+  `-newshh-159`, `-newshj-207`, `-245`, `-267`) on their own until `npm run catalogue` regenerates it.
+- Optional polish from the reviews: `assembly-newshj-191`'s right-pod foot bead shows a thin double lip and its belly
+  vents are open; `assembly-newshn-195`'s skull is smoother than the sprite's ribbed bone; `assembly-newsh0-79`'s
+  snout reads as a dark uniform grille; `newshm-123`'s visor still reads mid-grey in the viewer and its hood stern
+  drops as a flat face; `newshv-191`'s docstring says emission 1 where the table glows at 0.5; `newshv-38`'s floating
+  gem is cut off at the top of `?viewer=` (viewer framing).
+- Not captured in a level: `newshm-123` (the fix round did not find a level showing it) and whether `newshj-51`'s and
+  `newshj-131`'s pods ride terrain layer 2 or float.
+
+**Cost:** 175 agents (1 scout, 15 blueprints, 44 designs, 15 judges, 29 finishes on Sonnet, 21 fixes, 50 reviews), 13.4M
+subagent tokens, about 2.7 h of run time (9,651 s; interrupted once by the weekly usage limit and resumed); the fix
+round (`fix-round.js`, 5 items) 12 agents (6 fixes, 6 reviews), 1.52M tokens, 56 min. Sheets:
+`tyrian-scratch/e2-enemies-1/<name>/final/` (not in git, D3).
+
+## D171 — The ship's shadow is the C's darken draw as a decal; airborne models' shadows fall below them under every camera; a banking ship loses the camera ray's roll (D9's fallback; extends D133, D93)
+
+2026-11-12
+
+**Problem** (`tyrian-scratch/demo-compare/overhead/REPORT.md` items 5 and 19): under the overhead camera the player
+ship had no readable shadow, where the original draws a dark one about 10 px below it (demo 1, TYRIAN); and the
+Gencore Phoenix at full bank by the screen's edge read as a thin capsule (demo 5, DELIANI).
+
+**What was checked.**
+- *The "blue fighters" with shadows in demo 1 are player shots*, Heavy Guided Bombs (`tyrian.shp#7` frame 48, the
+  rear gun), each with its own darken draw 10 px below (shots.c): the draw list at curLoc 1100 and 2505. In the C only
+  the ship (mainint.c, `blit_sprite2x2_darken` at x + 30 - mapX2Ofs, y + shadowYDist) and the player's shots draw
+  shadows, and only while background 2 is on. No enemy has one. Shot shadows stay out (D9, D42).
+- *The sun's +z was tuned for the 32° camera.* An airborne model's shadow lands (0.3, tan(tilt) - 0.42) × its height
+  from its screen point (the sun's -xz/y plus D6's lift at the aim point, which D133 applies everywhere): 0.20 down
+  at 32°, 0.15 *up* at 15° (the default since D61), 0.42 up overhead. The ship at 3.3: 12 px right and 17 px up
+  overhead, measured 11 and 17 with the fill lights off. It fell under the ship's own shots and halos.
+- *Contrast.* Under the ship the shadow-map shadow took the HD ground from luma 71.7 to 49.1 (×0.68): the hemisphere
+  (1.2) and environment (0.7) fill stay in the shadow. The C's darken halves the shade (`(i & 0xf0) | ((i & 0x0f) / 2)`):
+  ×0.45 measured in the original's half of demo 1 s075. Lowering the fill would relight every model and terrain.
+- *The bank* (D93's "Found on the way"): at the edge the camera ray leans ~23-26° and that roll adds to a bank toward
+  the edge. The Talon at full bank at x = 256: roll -35°, ray +23.5°.
+
+**Decision:**
+1. **The ship's shadow is its darken draws** (`src/render/shadowDecals.ts`): each Player-pass darken draw is a decal of
+   the sprite's silhouette (bilinear between pixel centres then a smoothstep: rounded steps, a ~1 px soft edge), drawn
+   black at 0.5 opacity, so what is under it keeps half its brightness, as in the C. It lies flat at height 2.3
+   (between background 3 and the top enemies, under a banked wing tip) on the camera ray through its screen
+   rectangle (D6), so it is exactly where the C put it under every camera, including the parallax x
+   (30 - mapX2Ofs: -24 px at the left edge, +23 at the right). It darkens what is under that height: ground,
+   structures, ground and sky enemies. Its renderOrder is in the C's draw order: after the blend sheets and the flat
+   art of the passes before the player, before the enemy shots' and explosions' art. **No double:** while a
+   player's shadow is a decal, that ship's model casts no shadow-map shadow. When the C draws none (background 2
+   off), the model's shadow-map shadow is drawn as before. The decal material is warmed with the level (D91).
+2. **Airborne models' shadows fall below them under every camera** (`src/render/sun.ts`): models above the ground
+   enemies' pass get an extra shadow shift (D133's per-clone uniform) of h × (−lift.x, 10 / 12 / 3.3 − sun.z − lift.z),
+   computed from the camera each frame: the ship's shadow-map shadow (when no decal) falls 10 px below it and 12 px
+   right, and a sky or top enemy's proportionally to its height. The sun, so every model's lighting, and the shadows of
+   ground enemies, structures and terrain are unchanged.
+3. **A banking ship loses the camera ray's roll** (`drawModel`): rotation.z = eased bank roll + atan2(x − cam.x,
+   cam.y − y), so the ship looks rolled by its bank from the camera anywhere on screen, which D93's top-view fit
+   assumes. `bank.roll` in the ship JSON is unchanged.
+
+**Options considered:**
+- *A per-camera sun* (the report's first idea): moves every shadow, terrain and ground enemies included, and
+  relights every model per camera; the contrast stays ×0.68.
+- *Shadow-mapping only, with the shift and deeper shadows*: the shift alone fixes the place, not the contrast,
+  which needs less fill everywhere or patching the ground materials.
+- *Decals for everything airborne*: enemies have no darken draws to use.
+- *Shot shadows from their darken draws too*: faithful, but out of this fix's scope (D42); the path is one condition.
+
+**Costs:** while the decal is on, the ship doesn't shadow itself (wings on hull). Overhead, the sun still lights from
+the screen's bottom-left while airborne shadows fall bottom-right. The decal's darkening is in display space when
+drawn to the canvas; in the screen filters' linear target (D159) it is ×0.5 linear, a lighter shadow while a filter runs.
+
+**Checked:** `?demo=1&compare=1`, overhead and tilted (`demoshots.mjs`), s060-s090: the ship's shadow below-right of
+the ship as in the original, ×0.50 luma against the same pixels before (the C ×0.45); the shield drones' shadows
+now below-right. `?debug=play&episode=1&main=3&seed=1&freezeAt=900` overhead, tilted and steep, and with
+`&steer=right&ship=3`: the Phoenix at full bank by the right edge shows both wings. `?demo=5&compare=1&camera=overhead`
+s030. Captures and the summary: `tyrian-scratch/shadow-fix/` (`before/`, `after/`, `summary.png`).
+Test: `tests/render/flyerShadows.test.ts`.
+
+**Cost:** one Opus agent, no workflow: about 30 headless captures (two at a time), no Gemini, no Blender.

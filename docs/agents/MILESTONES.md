@@ -53,7 +53,7 @@ Tyrian 2.1 has four episodes (`tyrian1.lvl`..`tyrian4.lvl` in the data); there i
 
   | Asset group | Count | Used in episodes | Already at standard | Workflow | Est. agents | Status |
   |---|---|---|---|---|---|---|
-  | Shared enemy/boss models | 124 enemy units not flagship-done, used by ≥ 2 levels (23 of them span ≥ 2 episodes). Top: newsh3-229 (5 levels), newsh3-246 (5 levels), assembly-newshg-191 (4 levels), assembly-newshg-231 (4 levels), assembly-newshg-267 (4 levels) | 101 units in 1 episode, 23 in 2, 0 in 3, 0 in 4 | 138 of 262 shared units | model-flagship (full) | ~744 (124 x ~6) | |
+  | Shared enemy/boss models | 97 enemy units not flagship-done, used by ≥ 2 levels (16 of them span ≥ 2 episodes). Top: newsh3-229 (5 levels), newsh3-246 (5 levels), newsh3-271 (4 levels), newsh5-121 (4 levels), newsh5-89 (4 levels) | 81 units in 1 episode, 16 in 2, 0 in 3, 0 in 4 | 167 of 264 shared units | model-flagship (full) | ~582 (97 x ~6) | |
   | Tileset `shapes)` | 1 / 43 / 26 = 70 tiles left / structures n/a (see inventory.md) | E4: 10 levels (4-4, 4-5, 4-6, 4-7, 4-9, 4-10, 4-12, 4-15, 4-17, 4-18) | 0 | terrain-hd + model-flagship (structure) | 5-9 (HD) + ~6 per structure (count n/a) | |
   | Tileset `shapesw` | 13 / 45 / 68 = 126 tiles left / structures n/a (see inventory.md) | E3, E4: 7 levels (3-1, 3-4, 3-6, 3-9, 4-8, 4-11, 4-20) | 0 | same | 5-9 (HD) + ~6 per structure (count n/a) | |
   | Tileset `shapesx` | 8 / 131 / 28 = 167 tiles left / structures n/a (see inventory.md) | E2, E4: 7 levels (2-1, 2-2, 2-6, 2-10, 2-11, 2-12, 4-13) | 0 | same | 5-9 (HD) + ~6 per structure (count n/a) | |
@@ -105,18 +105,18 @@ Tyrian 2.1 has four episodes (`tyrian1.lvl`..`tyrian4.lvl` in the data); there i
 
   | Level (map id, as `terrain_hd.py --level`) | Name | Tileset | Models: total / shared / unique / at standard | Structures | HD tiles | New flat-art frames | Est. agents | Status |
   |---|---|---|---|---|---|---|---|---|
-  | 2-1 | TORM (sec 2) | shapesx | 33 / 26 / 7 / 10 | todo | 68/72 | done | ~45 | todo |
-  | 2-2 | GYGES (sec 4) | shapesx | 31 / 6 / 25 / 1 | todo | 31/122 | done | ~153 | todo |
-  | 2-3 | BONUS (sec 6) | shapesz | 12 / 12 / 0 / 10 | todo | 13/16 | done | ~3 | todo |
+  | 2-1 | TORM (sec 2) | shapesx | 33 / 26 / 7 / 25 | todo | 68/72 | done | ~33 | todo |
+  | 2-2 | GYGES (sec 4) | shapesx | 31 / 6 / 25 / 4 | todo | 31/122 | done | ~141 | todo |
+  | 2-3 | BONUS (sec 6) | shapesz | 12 / 12 / 0 / 12 | todo | 13/16 | done | ~3 | todo |
   | 2-4 | ASTCITY (sec 8) | shapesz | 31 / 31 / 0 / 30 | todo | 54/56 | done | ~3 | todo |
-  | 2-5 | SOH JIN (sec 10) | shapesz | 10 / 9 / 1 / 2 | todo | 0/5 | done | ~9 | todo |
-  | 2-6 | GRYPHON (sec 12) | shapesx | 22 / 11 / 11 / 1 | todo | 64/121 | done | ~69 | todo |
-  | 2-7 | GEM WAR (sec 15) | shapesz | 9 / 4 / 5 / 1 | todo | 0/5 | done | ~33 | todo |
-  | 2-8 | MARKERS (sec 17) | shapesz | 13 / 3 / 10 / 1 | todo | 0/5 | done | ~63 | todo |
-  | 2-9 | MISTAKES (sec 19) | shapesz | 23 / 23 / 0 / 4 | todo | 0/5 | done | ~3 | todo |
-  | 2-10 | BOTANY A (sec 21) | shapesx | 14 / 14 / 0 / 2 | todo | 69/74 | done | ~3 | todo |
-  | 2-11 | BOTANY B (sec 22) | shapesx | 11 / 9 / 2 / 2 | todo | 66/71 | done | ~15 | todo |
-  | 2-12 | BONUS (sec 24) | shapesx | 12 / 12 / 0 / 2 | todo | 68/72 | done | ~3 | todo |
+  | 2-5 | SOH JIN (sec 10) | shapesz | 12 / 11 / 1 / 10 | todo | 0/5 | done | ~9 | todo |
+  | 2-6 | GRYPHON (sec 12) | shapesx | 22 / 11 / 11 / 8 | todo | 64/121 | done | ~57 | todo |
+  | 2-7 | GEM WAR (sec 15) | shapesz | 9 / 4 / 5 / 9 | todo | 0/5 | done | ~3 | todo |
+  | 2-8 | MARKERS (sec 17) | shapesz | 13 / 3 / 10 / 3 | todo | 0/5 | done | ~57 | todo |
+  | 2-9 | MISTAKES (sec 19) | shapesz | 25 / 25 / 0 / 15 | todo | 0/5 | done | ~3 | todo |
+  | 2-10 | BOTANY A (sec 21) | shapesx | 14 / 14 / 0 / 12 | todo | 69/74 | done | ~3 | todo |
+  | 2-11 | BOTANY B (sec 22) | shapesx | 11 / 9 / 2 / 7 | todo | 66/71 | done | ~15 | todo |
+  | 2-12 | BONUS (sec 24) | shapesx | 12 / 12 / 0 / 9 | todo | 68/72 | done | ~3 | todo |
 
 ## M3: Episode 3
 
@@ -129,12 +129,12 @@ Tyrian 2.1 has four episodes (`tyrian1.lvl`..`tyrian4.lvl` in the data); there i
 
   | Level (map id, as `terrain_hd.py --level`) | Name | Tileset | Models: total / shared / unique / at standard | Structures | HD tiles | New flat-art frames | Est. agents | Status |
   |---|---|---|---|---|---|---|---|---|
-  | 3-3 | GAUNTLET (sec 2) | shapesz | 18 / 18 / 0 / 10 | todo | 29/41 | done | ~3 | todo |
+  | 3-3 | GAUNTLET (sec 2) | shapesz | 18 / 18 / 0 / 12 | todo | 29/41 | done | ~3 | todo |
   | 3-4 | IXMUCANE (sec 4) | shapesw | 24 / 18 / 6 / 1 | todo | 58/75 | done | ~27 | todo |
   | 3-5 | BONUS (sec 6) | shapesz | 13 / 12 / 1 / 11 | todo | 23/47 | done | ~7 | todo |
-  | 3-7 | STARGATE (sec 8) | shapesz | 9 / 6 / 3 / 5 | todo | 42/46 | done | ~15 | todo |
+  | 3-7 | STARGATE (sec 8) | shapesz | 9 / 6 / 3 / 6 | todo | 42/46 | done | ~15 | todo |
   | 3-1 | CAMANIS (sec 10) | shapesw | 17 / 10 / 7 / 3 | todo | 57/84 | done | ~31 | todo |
-  | 3-6 | FLEET (sec 12) | shapesw | 26 / 10 / 16 / 5 | todo | 23/90 | done | ~67 | todo |
+  | 3-6 | FLEET (sec 12) | shapesw | 26 / 10 / 16 / 6 | todo | 23/90 | done | ~67 | todo |
   | 3-2 | AST. CITY (sec 15) | shapesz | 36 / 35 / 1 / 35 | todo | 66/69 | done | ~7 | todo |
   | 3-8 | TYRIAN X (sec 17) | shapesz | 28 / 28 / 0 / 28 | done (map Z, as 1-9) | 81/138 | done | ~3 | todo (same map and models as 1-9) |
   | 3-9 | SAWBLADES (sec 19) | shapesw | 19 / 18 / 1 / 1 | todo | 56/72 | done | ~7 | todo |
@@ -152,7 +152,7 @@ Tyrian 2.1 has four episodes (`tyrian1.lvl`..`tyrian4.lvl` in the data); there i
   | 4-4 | SURFACE (sec 2) | shapes) | 28 / 11 / 17 / 1 | todo | 32/38 | done | ~71 | todo |
   | 4-12 | LAVA RUN (sec 4) | shapes) | 22 / 22 / 0 / 5 | todo | 14/36 | done | ~3 | todo |
   | 4-5 | CORE (sec 6) | shapes) | 15 / 9 / 6 / 3 | todo | 29/31 | done | ~27 | todo |
-  | 4-11 | ?TUNNEL? (sec 8) | shapesw | 8 / 7 / 1 / 1 | todo | 25/31 | done | ~7 | todo |
+  | 4-11 | ?TUNNEL? (sec 8) | shapesw | 8 / 7 / 1 / 3 | todo | 25/31 | done | ~7 | todo |
   | 4-8 | ICE EXIT (sec 10) | shapesw | 13 / 13 / 0 / 3 | todo | 3/25 | done | ~3 | todo |
   | 4-1 | HARVEST (sec 12) | shapesz | 13 / 9 / 4 / 8 | 1 matched | 33/70 | done | ~19 | todo |
   | 4-7 | UNDERDELI (sec 14) | shapes) | 24 / 14 / 10 / 4 | todo | 22/24 | done | ~43 | todo |
@@ -167,7 +167,7 @@ Tyrian 2.1 has four episodes (`tyrian1.lvl`..`tyrian4.lvl` in the data); there i
   | 4-6 | SIDE EXIT (sec 36) | shapes) | 7 / 7 / 0 / 3 | todo | 20/22 | done | ~3 | todo |
   | 4-17 | TIME WAR (sec 40) | shapes) | 29 / 7 / 22 / 1 | todo | 22/29 | done | ~91 | todo |
   | 4-18 | SQUADRON (sec 45) | shapes) | 8 / 6 / 2 / 1 | todo | 1/3 | done | ~11 | todo (bot run never ends: see Known issues) |
-  | 4-19 | APPROACH (sec 47) | shapesy | 11 / 10 / 1 / 3 | todo | 15/16 | done | ~7 | todo |
+  | 4-19 | APPROACH (sec 47) | shapesy | 13 / 12 / 1 / 7 | todo | 15/16 | done | ~7 | todo |
   | 4-20 | ICESECRET (sec 50) | shapesw | 14 / 14 / 0 / 3 | todo | 22/38 | done | ~3 | todo |
 
 ## Estimating agents
@@ -179,13 +179,13 @@ Totals from the tables above (agents by that formula; M0 is the shared enemy mod
 
 | Milestone | Levels | Unique unfinished enemy units | Est. agents |
 |---|---|---|---|
-| M0 | all 62 (shared work) | 124 shared | ~744 for models + 5-9 per tileset HD run (structures n/a, see inventory.md) + ~48 Gemini requests for flat art |
+| M0 | all 62 (shared work) | 97 shared | ~582 for models + 5-9 per tileset HD run (structures n/a, see inventory.md) + ~48 Gemini requests for flat art |
 | M1 | 18 | 0 | 54 |
-| M2 | 12 | 61 | 402 |
+| M2 | 12 | 49 | 330 |
 | M3 | 12 | 35 | 176 |
 | M4 | 20 | 98 | 452 |
 
-M1-M4 together: 1084 agents; 194 unique + 124 shared = 318 unfinished enemy units (479 enemy units − 161 flagship, per `inventory.json`).
+M1-M4 together: 1012 agents; 182 unique + 97 shared = 279 unfinished enemy units (481 enemy units − 202 flagship, per `inventory.json`).
 
 ## Known issues (from the inventory run)
 
