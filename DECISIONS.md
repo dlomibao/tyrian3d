@@ -7716,6 +7716,14 @@ sub-pixel rule and passed on the grid, while `newsh0-85` is under 0.95 on the gr
 gate exception for border cells on shared interior cuts, not the usual grid-over-sub-pixel call. `newshh-93`
 (0.943) and `newshm-123` (0.9359-0.9449) are under 0.95 only on the sub-pixel rule, with grid 0.9864 and ≥ 0.9899.
 
+**Inventory** (regenerated, bot run): 37 of the 38 shipped units are `flagship`, plus `newshg-167` (the hatch's
+frames 167/243/283, rebuilt with `assembly-newshg-191`) and two units the regeneration now lists on their own,
+`newsha-231` and `newsha-269` (the pod pair's animated pieces); episode 2 is now 90 flagship / 56 older / 154 enemy
+units (was 49 / 95 / 152). `assembly-newshj-127` stays `basic`: its frames 17 and 91 draw `newshj-17`/`-17-f2`, the
+launcher's flame tip alone, which has no outline shell (flames carry no ink), and `tools/inventory.mjs` counts a glb
+without a shell as the older look. The model is done; teach the inventory that an emissive-only piece needs no
+shell (or give the flame a shell) to count it. `newshn-125` and `newshn-15` stay `basic` (deferred).
+
 **Rebuild check:** `assembly-newshj-191` and `assembly-newsh0-79` (whose reviewers flagged glbs older than the last
 script edit), and `assembly-newshv-91`, `assembly-newshn-195`, `assembly-newshj-127` and `newshv-50` (script saved
 seconds to minutes after their builds), were rebuilt by the coordinator with `tools/build-models.sh -j 3` before
@@ -7724,6 +7732,10 @@ committing (all exited clean). Every rebuilt glb has the same meshes, vertex cou
 outline shells' vertex order), the spriteModels JSONs are byte-identical, and the IoU re-measured on the rebuilt
 models is unchanged: `assembly-newshj-191` worst 0.9735 (the -f3 eye frame 0.9868; top renders of the game glbs),
 `newsh0-85` 0.9421, `newsh0-83` 0.9589, `newsh0-39` 0.9623, `newsh0-47` 0.966.
+
+**In game** (`?compare=1`, seed 1; `tyrian-scratch/e2-enemies-1/integrate/`): TORM at t6700
+(`torm_t6700_compare.png`, the plant-pod boss) and GYGES at t5340 (`gyges_t5340_compare.png`, the creature head)
+load every model, with no console errors. vitest, tsc and the build pass.
 
 **Deferred:** `newshn-125` + `newshn-15` (GYGES's blue spiral shells; one build, `newshn-15.py` wraps
 `newshn-125.py`'s SPEC) end at fix 5/10 after the fix round and keep their origin/main models, scripts and
