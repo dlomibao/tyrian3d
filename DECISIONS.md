@@ -8052,3 +8052,24 @@ lighter there.
   Test: `tests/render/hueBlend.test.ts`.
 
 **Cost:** one Opus agent, no workflow: about 60 headless captures (two at a time), no Gemini, no Blender.
+
+## D173 — Title-demo comparison fixes, models round 1: shield-drone core, star-core pit, DELIANI tower wreck, lava pit (follows the 2026-11-12 demo review)
+
+**Source:** a workflow captured all five title demos in `?compare=1&camera=overhead` every 15 s, then reviewed and adversarially verified the differences (report: `tyrian-scratch/demo-compare/overhead/REPORT.md`, items #9, #10, #11, #17). This round fixed the four medium/low model items with the fix-round workflow (`tools/workflows/fix-round.js`). Every item passed strict review in game against the original.
+
+| Item | What was wrong | Fix | Review | Top-view IoU (worst frame) |
+|---|---|---|---|---|
+| `newsh2-229` shield drone | The core was charcoal (core/ring brightness 0.62-0.69); the original's is silver (1.03-1.09) | Materials only: core pal 9/10, belly and housing pal 6, metalness 0.15-0.20, roughness 0.26-0.30, a new `core_lobe_hi` on the upper lobes. In game core/ring is now 0.95-1.14 (overhead and tilted) | ship 8 | 0.959 (frame 243) |
+| `newsh2-153` star core | A rectangular ink-framed housing that read as a box on the rock | The sprite's pal 1/2 pit mask is cut out of `lib_tiles.sprite_rock` and given a black floor 1.2 px down. The full-height side beams are replaced by low rails on the machine's own pixels, and the outline shell covers only the cone, core, arms and legs | ship 7.5 | 1.0 |
+| `assembly-newshc-283` tower wreck | A light grey drum where the original has a burnt black hull | Draw list and tyrian.hdt: a destroyed tower draws frame 91 (wreck) plus frame 129, the top piece's damaged graphic. 129 had no model, so D87 drew the intact `newshc-115` with difference textures. Added `newshc-129` (upright, D165 extras kept, burnt cup and soot band) and recoloured the frame-91 wreck to the sprite's dark indices | ship 7 | 0.952 |
+| `tyrbld_lava_pit` | A rust/maroon lid with no black hollow | A glow (D126) on a glossy dielectric showed only its reflection, about +77 grey. The pool and swells are now metallic 1, roughness 0.9. The walls are pal 0 and deeper, the pool sits 1.9 px inside the mouth, and the crust plates are smaller | ship 8 | 0.959 |
+
+**Open, minor:**
+- newsh2-229: the sheen peak is softer than the original's white spots; the red lamps are smaller and pinker (both predate this fix).
+- newsh2-153: the core reads darker red than frame 153's 115-123.
+- The newshc-129 cup still shows a lit side wall from overhead.
+- The lava pit's embers are domes rather than single bright pixels, and its flanking stones lack the original's salmon highlights.
+
+**Lesson (PLAYBOOK, D126):** a glow material on a glossy dielectric surface reads as its environment reflection, not its colour. Give pool and glow surfaces metallic 1 and high roughness.
+
+**Cost:** fix-round workflow, 8 agents (4 fixes, 4 strict reviews), about 1.04M subagent tokens, 48 min. The demo review that found these: 57 agents, 4.4M tokens, 63 min.

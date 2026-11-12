@@ -19,9 +19,14 @@ Bright pixels (the prow's col-11 streak, the arms' 12 knuckles) are sheen, not p
 row-18 70-78 strip is a light the sprite shows on every frame, modelled as a polished glowing lip.
 
 The rock round and between the parts is island rock: the sprite's own pixels as the islands'
-relief (lib_tiles.sprite_rock, DECISIONS.md D66), a separate object with no outline and no shadow,
-so the machine stands in the island instead of on a plate in a rimmed box; the dark floor between
-the parts is the sprite's dark pixels there, low in that relief.
+relief (lib_tiles.sprite_rock, DECISIONS.md D66), a separate object with no outline and no shadow.
+The machine stands in a pit cut into that rock (the title-demo review, demo 1: it read as a
+rectangular ink-framed box bolted on the rock): the rock is cut away over the sprite's palette 1-2
+pit mask (pit_mask) so its soft rounded edge is the pit's ragged rim, and a black floor PIT px below
+the rock follows that mask; the swept-wing and under-wing plates are gone (they are the pit), the
+rear housings, wing studs, cable boxes and bay machinery stand low on the pit floor, and the side
+beams are pulled in to short rails on the machine's own flank pixels (the sprite's grey strips at
+the rectangle's edge are the island's stones in game).
 
 Units while building: sprite px (X = column edge - 12, Y = 14 - row edge, Z up, the rock's dark
 gaps at Z = 0); scaled by 1/12 at the end like every enemy model (24 px = 2 units).
@@ -33,7 +38,8 @@ change palette index per frame (common.palette_material frames=, D17).
 Texture: no concept projection (its maps.json says "bake": "model", as the player ships, D50): an
 ambient occlusion / roughness bake only, Base Color = map x palette colour, so pal_<index>, fades
 and the hit flash still apply (the rock is there as an occluder, not baked). An outline shell
-(common.outline_shell, D51) of the machine rides along as a child.
+(common.outline_shell, D51) of the star only (cone, core and chin, arms, legs) rides along as a
+child: no ink round the rails, housings or pit floor, so no rectangular frame.
 No engine glows: the pods' nozzles belong to a fixed panel, not a craft in flight.
 
 Run: blender --background --factory-startup --python assets/blender/enemies/newsh2-153.py
@@ -48,6 +54,7 @@ from pathlib import Path
 
 import bmesh
 import bpy
+import numpy as np
 from mathutils import Vector
 
 sys.path[:0] = [str(Path(__file__).resolve().parents[1]), str(Path(__file__).resolve().parents[1] / "tiles")]
@@ -59,6 +66,11 @@ NAME = "newsh2-153"
 MODEL = f"enemies/{NAME}"
 ROOT = common.repo_root(__file__)
 PX = 1 / 12
+#: Depth (px) of the pit floor below the island rock's top (the rock sheet is at Z = 0, its
+#: underside 0.36 px below): the machine stands in a black pit cut into the rock.
+PIT = 1.2
+#: Palette indices of the sprite's pit (the black hollow the machine stands in).
+PIT_INDICES = (1, 2)
 
 
 # ---- palette slots: name -> (palette index, metallic, roughness, emission, frames) ----------------
@@ -181,6 +193,8 @@ def prism(b, mat, cr, z0, z1, bev=0.25, top_mat=None, side_mat=None, bottom=True
     slope=(dzdx, dzdy) tilts the top (and chamfer ring) linearly about the outline's centre.
     edge_mats={k: mat} gives the side wall and chamfer of outline edge k (cr[k] -> cr[k+1]) its own
     material (a lit leading edge)."""
+    if z0 == 0:
+        z0 = -PIT  # every part standing on the old floor now reaches down to the pit floor
     raw = [(X(c), Y(r)) for c, r in cr]
     pts = ccw(raw)
     flipped = pts is not raw
@@ -344,20 +358,13 @@ def rivet(b, mat, c, r, z, rad=0.22):
 
 # ---- the model ---------------------------------------------------------------------------------------
 def build_beams(b):
-    # Grey beams down both side edges: an upper sloped run (pal 6), the lit middle run (9) with bolt
-    # heads, a lower run (6) and the feet (5), each a separate plate so the joins are real seams.
-    for flip in (False, True):
-        m = (lambda cr: mirror_cr(cr)) if flip else (lambda cr: cr)
-        prism(b, S["grey5" if flip else "grey7"], m([(0, 10.3), (1.6, 9.7), (3.0, 10.7), (3.0, 15.5), (0, 15.5)]), 0, 1.4, 0.3)
-        prism(b, S["grey9"], m([(0, 15.65), (3.0, 15.65), (3.0, 22.9), (0, 22.9)]), 0, 1.75, 0.35)
-        prism(b, S["grey6"], m([(0, 23.05), (3.0, 23.05), (3.0, 25.3), (0, 25.3)]), 0, 1.35, 0.3)
-        prism(b, S["grey6"], m([(0, 25.45), (2.1, 25.45), (2.1, 28), (0, 28)]), 0, 0.9, 0.2)
-        # a groove down the middle run (two flutes)
-        c0 = 21.9 if flip else 1.9
-        box(b, S["dark3"], c0, 16.4, c0 + 0.22, 22.2, 1.6, 1.8, bev=0)
-        for r, zt in ((12.6, 1.4), (16.6, 1.75), (19.4, 1.75), (21.9, 1.75), (24.2, 1.35)):
-            c = 22.6 if flip else 1.4
-            dome(b, S["grey11"], X(c), Y(r), zt, 0.34, 0.34, 0.2, seg=8, rings_=2, base=False)
+    # Side rails, pulled in to the machine's own pixels: the sprite's grey strips at the rectangle's
+    # edge (cols 0-2 / 22-23, 9-11) are the island's stones in game, so they are rock now; the
+    # machine keeps only a low rail along its flank (left col 3 rows 17-21: 7; right col 21: 5-6).
+    prism(b, S["grey7"], [(2.9, 16.6), (4.0, 16.9), (4.0, 22.2), (2.9, 22.6)], 0, 0.95, 0.25)
+    prism(b, S["grey5"], [(20.5, 16.9), (21.7, 16.6), (21.7, 23.4), (20.5, 23.0)], 0, 0.95, 0.25)
+    for c, r in ((3.45, 17.6), (3.45, 21.4), (21.1, 17.7), (21.1, 22.2)):
+        dome(b, S["grey11"], X(c), Y(r), 0.95, 0.26, 0.26, 0.15, seg=8, rings_=2, base=False)
 
 
 def build_rear(b):
@@ -390,29 +397,25 @@ def build_rear(b):
 
 
 def build_wings(b):
-    # Dark swept wings behind the prow (sprite 1-5 rows 4-10), each two plates split by a diagonal
-    # seam, with a raised rib, the ball stud at the tip (sprite 12 / 8 at row 6) and a strut with a
-    # piston running in to the prow's flank.
-    fore = [(0, 4.3), (5.4, 4.3), (7.0, 5.5), (2.6, 7.6), (0, 7.6)]
-    aft = [(0, 7.85), (2.75, 7.85), (7.2, 5.75), (8.7, 6.9), (8.7, 10.7), (3.4, 10.7), (0, 9.4)]
+    # The swept wings behind the prow are the sprite's pit (palette 1-2, rows 4-10): no plates there
+    # any more, only the ball stud at each wing tip (sprite 12 / 8 at row 6) on its base and the
+    # strut with a piston running in to the prow's flank, standing on the pit floor.
     for flip in (False, True):
-        m = mirror_cr if flip else (lambda cr: cr)
-        wm = S["dark1"] if flip else S["dark2"]  # sprite: left wing 2, right wing 1
-        prism(b, wm, m(fore), 0, 1.0, 0.25)
-        prism(b, wm, m(aft), 0, 1.1, 0.25)
-        # rib along the fore plate
-        rib = [(0.6, 5.0), (4.9, 5.0), (5.6, 5.5), (0.6, 5.5)]
-        prism(b, S["dark3"], m(rib), 1.0, 1.25, 0.06, bottom=False)
         sc = 21.5 if flip else 2.5
         sphere(b, S["grey9"], (X(sc), Y(6.5), 1.45), 0.85, 10, 6)
-        box(b, S["gun4"], sc - 0.9, 5.7, sc + 0.9, 7.3, 0.8, 1.15, bev=0.12)  # stud base
+        box(b, S["gun4"], sc - 0.9, 5.7, sc + 0.9, 7.3, 0, 1.15, bev=0.12)  # stud base
         # strut + piston from the stud to the prow flank
         ex = 15.6 if flip else 8.4
         cyl(b, S["dark3"], (X(sc + (0.8 if not flip else -0.8)), Y(6.9), 1.35), (X(ex), Y(8.2), 1.55), 0.32, 6)
         mid = sc + (3.4 if not flip else -3.4)
         cyl(b, S["grey5"], (X(mid), Y(7.6), 1.47), (X(ex), Y(8.2), 1.55), 0.42, 6)
-        for c, r in ((4.6, 9.6), (7.6, 9.6), (1.0, 8.6)):
-            rivet(b, S["grey5"], 24 - c if flip else c, r, 1.1, 0.18)
+
+
+def sunk(b, build_fn):
+    """Build a part of the pit's machinery and lower it by PIT onto the pit floor."""
+    before = set(b.bm.verts)
+    build_fn(b)
+    bmesh.ops.translate(b.bm, vec=(0, 0, -PIT), verts=[v for v in b.bm.verts if v not in before])
 
 
 def pchip(xs, ys):
@@ -458,21 +461,7 @@ BAND_MAT = ["prowdark5", "prowdark5", "prowdark5", "prow", "ridge", "ridge", "pr
 
 
 def build_prow(b):
-    # The star's top point: one clean chamfered blade, lofted through pchip stations (smooth along
-    # its length), each facet band its own strip so the chamfers and the ridge stay crisp edges.
-    rr = [12.3 * i / 28 for i in range(29)]
-    V = [[b.v((PROW_X + u * HW(r), Y(r), v * HT(r))) for u, v in ACROSS] for r in rr]
-    n = len(ACROSS)
-    for k in range(len(V) - 1):
-        for i in range(n - 1):
-            b.face((V[k][i], V[k][i + 1], V[k + 1][i + 1], V[k + 1][i]), S[BAND_MAT[i]], True)
-        b.face((V[k][n - 1], V[k][0], V[k + 1][0], V[k + 1][n - 1]), S["prow"])  # base (hidden)
-    b.face(V[0][::-1], S["prow"])   # back end on the block's top edge
-    b.face(V[-1], S["prow"])        # front end, hidden in the hood vent
-    # Every band boundary along the length is a hard edge (split after the normals are fixed).
-    for i in range(n):
-        for k in range(len(V) - 1):
-            b.sharp.append((V[k][i], V[k + 1][i]))
+    build_prow_blade(b)
     # Stepped flank armour (concept) under the prow's sides.
     fl = [(7.0, 8.6), (8.2, 6.5), (9.1, 6.5), (9.1, 11.7), (7.0, 11.7)]
     prism(b, S["gun4"], fl, 0, 1.95, 0.3)
@@ -485,18 +474,33 @@ def build_prow(b):
         box(b, S["gun4"], 10.35, 12.1, 12.85, 12.42, z, z + 0.14, bev=0)
 
 
+def build_prow_blade(b):
+    # The star's top point: one clean chamfered blade, lofted through pchip stations (smooth along
+    # its length), each facet band its own strip so the chamfers and the ridge stay crisp edges.
+    rr = [12.3 * i / 28 for i in range(29)]
+    V = [[b.v((PROW_X + u * HW(r), Y(r), v * HT(r) if v > 0 else -PIT)) for u, v in ACROSS] for r in rr]
+    n = len(ACROSS)
+    for k in range(len(V) - 1):
+        for i in range(n - 1):
+            b.face((V[k][i], V[k][i + 1], V[k + 1][i + 1], V[k + 1][i]), S[BAND_MAT[i]], True)
+        b.face((V[k][n - 1], V[k][0], V[k + 1][0], V[k + 1][n - 1]), S["prow"])  # base (hidden)
+    b.face(V[0][::-1], S["prow"])   # back end on the block's top edge
+    b.face(V[-1], S["prow"])        # front end, hidden in the hood vent
+    # Every band boundary along the length is a hard edge (split after the normals are fixed).
+    for i in range(n):
+        for k in range(len(V) - 1):
+            b.sharp.append((V[k][i], V[k + 1][i]))
+
+
 def build_points(b):
-    # Left/right points: dark under-wings, red stepped shoulder armour (sprite 66/67, lit inner edge
-    # 71-73 = its chamfer facing the light), cable boxes in the outer step, grey ledges below.
-    under = [(2.9, 11.0), (6.0, 10.3), (9.5, 10.9), (9.5, 17.0), (2.9, 17.0)]
-    prism(b, S["dark2"], under, 0, 1.2, 0.25)
-    prism(b, S["dark2"], mirror_cr(under), 0, 1.2, 0.25)
+    # Left/right points: red stepped shoulder armour (sprite 66/67, lit inner edge 71-73 = its
+    # chamfer facing the light) standing in the pit; the old dark under-wings are the pit floor now.
     # left shoulder: rows 12-16 cols 5-9 (row 12 starts at col 6)
     shL = [(5.0, 13.0), (6.0, 11.9), (9.4, 11.9), (9.4, 16.0), (5.0, 16.0)]
     shR = [(14.6, 12.85), (18.6, 12.85), (19.8, 14.6), (19.8, 16.0), (14.6, 16.0)]
     # Kept low (under the arms' ridges) so the grey star arms, not the red blocks, carry the shape.
     for sh in (shL, shR):
-        prism(b, S["red67"], sh, 0.8, 2.2, 0.35)
+        prism(b, S["red67"], sh, 0, 2.2, 0.35)
         # raised top plate, inset, with a seam groove left round it by the inset
         cxs = sum(c for c, _ in sh) / len(sh)
         cys = sum(r for _, r in sh) / len(sh)
@@ -504,11 +508,14 @@ def build_points(b):
         prism(b, S["red67"], top, 2.05, 2.5, 0.2)
     for c, r in ((6.2, 15.4), (8.6, 12.6), (15.4, 15.4), (18.8, 15.4)):
         rivet(b, S["gun4"], c, r, 2.2, 0.17)
-    # cable boxes and conduit in the outer step (concept)
-    box(b, S["gun4"], 3.3, 12.3, 5.0, 14.3, 0.8, 1.95, bev=0.15)
-    box(b, S["gun4"], 19.8, 12.7, 21.1, 14.5, 0.8, 1.95, bev=0.15)
-    for (c0, c1, r) in ((3.5, 4.8, 12.9), (3.5, 4.8, 13.6), (20.0, 20.9, 13.3), (20.0, 20.9, 13.9)):
-        box(b, S["throat"], c0, r, c1, r + 0.22, 1.9, 2.0, bev=0)
+    # cable boxes and conduit in the outer step (concept), low on the pit floor
+    sunk(b, lambda b: (box(b, S["gun4"], 3.3, 12.3, 5.0, 14.3, 0, 1.35, bev=0.15),
+                       box(b, S["gun4"], 19.8, 12.7, 21.1, 14.5, 0, 1.35, bev=0.15),
+                       [box(b, S["throat"], c0, r, c1, r + 0.22, 1.3, 1.4, bev=0)
+                        for (c0, c1, r) in ((3.5, 4.8, 12.9), (3.5, 4.8, 13.6), (20.0, 20.9, 13.3), (20.0, 20.9, 13.9))]))
+
+
+def build_arms(b):
     # The star's side arms (sprite row 16: 6 9 11 12 / 6 12 9 7, row 17 below them 4-8): long
     # pointed blades from under the core housing out to the side beams, the ridge falling from the
     # housing to the tip, the lit upper facet to the screen-up side, the shaded facet below.
@@ -557,7 +564,7 @@ def build_core(b):
     R = EYE_RAD
     DZ = 0.6  # the core housing stands proud of the star: the arms and legs rise to it
     # gunmetal housing with eight machined segment blocks round its foot
-    loft(b, [ring(cx, cy, 0, R + 0.15, R + 0.15, 24), ring(cx, cy, 2.0 + DZ, R + 0.1, R + 0.1, 24),
+    loft(b, [ring(cx, cy, -PIT, R + 0.15, R + 0.15, 24), ring(cx, cy, 2.0 + DZ, R + 0.1, R + 0.1, 24),
              ring(cx, cy, 2.25 + DZ, R - 0.05, R - 0.05, 24)], S["gun4"], cap0=False, cap1=False, smooth=True)
     for k in range(8):
         a = 2 * math.pi * (k + 0.5) / 8
@@ -601,7 +608,12 @@ def build_chin(b):
 
 
 def build_arms_bay(b):
-    # Lower arms from the ledges to the chin (sprite 4-8), pistons over the bay, the bay pipes.
+    build_lower_arms(b)
+    sunk(b, build_bay)
+
+
+def build_lower_arms(b):
+    # Lower arms from the ledges to the chin (sprite 4-8), pistons over the bay.
     al = [(4.2, 17.5), (5.2, 18.2), (8.8, 18.2), (8.8, 21.0), (8.2, 21.0), (7.6, 19.7), (4.2, 19.5)]
     prism(b, S["gun4"], al, 0, 1.9, 0.25)
     prism(b, S["gun4"], mirror_cr(al), 0, 1.9, 0.25)
@@ -609,7 +621,10 @@ def build_arms_bay(b):
         f = (lambda c: 24 - c) if flip else (lambda c: c)
         cyl(b, S["dark3"], (X(f(4.6)), Y(18.6), 2.15), (X(f(7.0)), Y(19.9), 1.8), 0.32, 6)
         cyl(b, S["grey9"], (X(f(6.6)), Y(19.7), 1.85), (X(f(8.0)), Y(20.5), 1.55), 0.2, 6)
-    # bay machinery (sprite rows 21-25 cols 8-15): two cross pipes and three uprights on the floor
+
+
+def build_bay(b):
+    # bay machinery (sprite rows 21-25 cols 8-15): two cross pipes and three uprights on the pit floor
     cyl(b, S["dark3"], (X(8.4), Y(24.5), 0.42), (X(15.6), Y(24.5), 0.42), 0.42, 8)
     cyl(b, S["dark3"], (X(8.4), Y(25.5), 0.32), (X(15.6), Y(25.5), 0.32), 0.32, 8)
     for c in (10.0, 12.0, 14.0):
@@ -643,6 +658,74 @@ def build_pods(b):
     rivet(b, S["gun4"], 20.3, 26.0, 1.6, 0.17)
 
 
+def pit_mask(sprite):
+    """The sprite's pit: its palette 1-2 pixels (frame 0; the frames differ only in the core), plus
+    dark pixels (index <= 5) closed in on three sides by it, in 4-connected areas of 4 px or more
+    (lone dark pixels in the stones stay rock). bool (28, 24)."""
+    pix = np.array(sprite["frames"][0]["pixels"], dtype=np.int32)
+    m = np.isin(pix, PIT_INDICES)
+    p = np.pad(m, 1)
+    nb = p[:-2, 1:-1].astype(int) + p[2:, 1:-1] + p[1:-1, :-2] + p[1:-1, 2:]
+    m |= (nb >= 3) & (pix >= 0) & (pix <= 5)
+    h, w = m.shape
+    seen = np.zeros_like(m)
+    for y0 in range(h):
+        for x0 in range(w):
+            if not m[y0, x0] or seen[y0, x0]:
+                continue
+            stack, comp = [(y0, x0)], []
+            seen[y0, x0] = True
+            while stack:
+                y, x = stack.pop()
+                comp.append((y, x))
+                for dy, dx in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                    yy, xx = y + dy, x + dx
+                    if 0 <= yy < h and 0 <= xx < w and m[yy, xx] and not seen[yy, xx]:
+                        seen[yy, xx] = True
+                        stack.append((yy, xx))
+            if len(comp) < 4:
+                for y, x in comp:
+                    m[y, x] = False
+    return m
+
+
+PIT_MASK = None  # set in main (pit_mask), read by build_pit_floor
+
+
+def build_pit_floor(b):
+    # The pit floor: the sprite's pit mask (grown by a pixel so it runs on under the rock's soft
+    # edge) as a dark slab PIT below the rock; the rock is cut away over the pit (main), so the
+    # machine stands in a ragged black hollow in the island instead of on it.
+    m = PIT_MASK
+    h, w = m.shape
+    p = np.pad(m, 1)
+    grown = m.copy()
+    for dy in (-1, 0, 1):
+        for dx in (-1, 0, 1):
+            grown |= p[1 + dy:1 + dy + h, 1 + dx:1 + dx + w]
+    top, bot = {}, {}
+
+    def vt(d, c, r, z):
+        if (c, r) not in d:
+            d[(c, r)] = b.v((X(c), Y(r), z))
+        return d[(c, r)]
+    z0, z1 = -PIT - 0.4, -PIT
+    for r in range(h):
+        for c in range(w):
+            if not grown[r, c]:
+                continue
+            corners = ((c, r + 1), (c + 1, r + 1), (c + 1, r), (c, r))  # CCW seen from above
+            b.face([vt(top, cc, rr, z1) for cc, rr in corners], S["throat"])
+            b.face([vt(bot, cc, rr, z0) for cc, rr in corners][::-1], S["throat"])
+            # walls on the grown mask's edges
+            for (c0, r0), (c1, r1), (dc, dr) in (((c, r + 1), (c + 1, r + 1), (0, 1)), ((c + 1, r + 1), (c + 1, r), (1, 0)),
+                                                  ((c + 1, r), (c, r), (0, -1)), ((c, r), (c, r + 1), (-1, 0))):
+                rr_, cc_ = r + dr, c + dc
+                if 0 <= rr_ < h and 0 <= cc_ < w and grown[rr_, cc_]:
+                    continue
+                b.face((vt(bot, c0, r0, z0), vt(bot, c1, r1, z0), vt(top, c1, r1, z1), vt(top, c0, r0, z1)), S["throat"])
+
+
 STAR_BODY = [(10.0, 2.6), (13.4, 2.6), (15.4, 10.6), (20.4, 15.5), (20.4, 18.4), (16.4, 19.2), (19.6, 24.6), (15.8, 21.7),
              (12.0, 21.3), (8.2, 21.7), (4.2, 24.0), (7.6, 19.2), (3.6, 18.4), (3.6, 15.5), (8.6, 10.6)]
 
@@ -661,12 +744,14 @@ def build_star_body(b):
 def build(b):
     # No deck plate and no corner blocks: the sprite's stones in the corners and along the bottom
     # edge, and the dark floor between the parts, are the island rock (lib_tiles.sprite_rock).
+    build_pit_floor(b)
     build_star_body(b)
     build_beams(b)
-    build_rear(b)
-    build_wings(b)
+    sunk(b, build_rear)
+    sunk(b, build_wings)
     build_prow(b)
     build_points(b)
+    build_arms(b)
     build_core(b)
     build_chin(b)
     build_arms_bay(b)
@@ -846,13 +931,37 @@ def main():
     sprite = common.load_sprite(ROOT, NAME)
     coll = common.reset_collection(NAME)
     mats = make_materials(sprite)
+    global PIT_MASK
+    PIT_MASK = pit_mask(sprite)
     b = B()
     build(b)
     obj = to_object(b, NAME, mats, coll)
-    # The island rock round the machine (D66); there for the bake as an occluder.
-    rock = lt.build_sprite_rock(ROOT, [obj], [(NAME, 0, 0)], 24, 28, coll, f"{NAME}-rock")[NAME]
-    # The outline shell (D51) is made from the closed parts, before hidden faces are culled.
-    shell = common.outline_shell(obj, coll, voxel=0.012, faces=2000)
+    # The island rock round the machine (D66), cut away over the pit: the sprite's pixels with the
+    # pit's set transparent, so the rock's own soft, rounded edge (MMPX 2x, the fade) is the pit's
+    # ragged rim. Under the parts standing outside the pit it is level and dark as before. There
+    # for the bake as an occluder.
+    pix, colors = lt.sprite_grid(ROOT, [(NAME, 0, 0)], 24, 28)
+    pix = np.where(PIT_MASK, -1, pix)
+    pit2 = np.repeat(np.repeat(PIT_MASK, 2, axis=0), 2, axis=1)
+    machine = lt.machine_footprint([obj], 24, 28) & ~pit2
+    rock = lt.sprite_rock(lt.island_palette(ROOT, colors), pix, machine, [(NAME, 0, 0)], coll, f"{NAME}-rock")[NAME]
+    # The outline shell (D51), from the cone, the core (with its chin), the arms and the legs only:
+    # round the whole machine it drew a rectangular ink frame (the rails, rear housings and pit
+    # floor run to the sprite's edge). Made from closed parts, before hidden faces are culled.
+    sb = B()
+    build_prow_blade(sb)
+    build_core(sb)
+    build_chin(sb)
+    build_arms(sb)
+    build_lower_arms(sb)
+    build_pods(sb)
+    star = to_object(sb, f"{NAME}-star", mats, coll)
+    shell = common.outline_shell(star, coll, voxel=0.012, faces=2000)
+    shell.name = f"{NAME}_outline"
+    shell.data.name = f"{NAME}_outline"
+    star_me = star.data
+    bpy.data.objects.remove(star, do_unlink=True)
+    bpy.data.meshes.remove(star_me)
     usp_talon.cull_hidden(obj, grid=4, ndirs=32)
     tris = sum(len(p.vertices) - 2 for p in obj.data.polygons)
     print(f"{NAME}: {len(obj.data.polygons)} faces, {tris} triangles; outline shell {len(shell.data.polygons)} faces")

@@ -133,7 +133,7 @@ RING_FIT = {
 # Materials (one list shared by every mesh, so indices line up through joins and booleans)
 # ------------------------------------------------------------------------------------------------
 (BAND_OUT, STRIP, BAND_IN, WALL, SPINE, RAIL, RIB, CLAMP, SHELL, SHELL_LOW, SEAM, LOBE_M, GROOVE, TOP,
- HOUSING, LENS_TOP, LENS_MID, LENS_SIDE, NOZ_GLOW, DARK) = range(20)
+ HOUSING, LENS_TOP, LENS_MID, LENS_SIDE, NOZ_GLOW, DARK, LOBE_HI) = range(21)
 EMISSIVE = {LENS_TOP, LENS_MID, LENS_SIDE, NOZ_GLOW}
 
 
@@ -150,18 +150,23 @@ def make_materials(sprite):
         pal(3, "ring_rail", 0.38, 0.50),
         pal(4, "ring_rib", 0.42, 0.42),
         pal(3, "ring_clamp", 0.40, 0.45),
-        pal(5, "core_shell", 0.40, 0.42),
-        pal(4, "core_belly", 0.32, 0.55),
+        # The core is the sprite's bright silver (pal 9 with 11-15 sheen, features/newsh2-229.json),
+        # as bright as the ring or brighter: polished, so the sheen shows; only the seam stays dark.
+        pal(9, "core_shell", 0.20, 0.28),
+        pal(6, "core_belly", 0.32, 0.45),
         pal(4, "core_seam", 0.30, 0.55),
-        pal(7, "core_lobe", 0.45, 0.32),
+        pal(9, "core_lobe", 0.15, 0.30),
         pal(3, "core_groove", 0.30, 0.60),
-        pal(6, "core_top", 0.42, 0.38),
-        pal(4, "core_housing", 0.40, 0.42),
+        pal(10, "core_top", 0.20, 0.26),
+        pal(6, "core_housing", 0.40, 0.30),
         pal(121, "lens_cap", 0.0, 0.25, 3.0),
         pal(119, "lens_upper", 0.0, 0.25, 3.0),
         pal(118, "lens_side", 0.0, 0.25, 3.0),
         pal(120, "nozzle_glow", 0.0, 0.5, 1.6),
         pal(2, "recess", 0.20, 0.75),
+        # The lobes' upper plates (above the panel groove, under the lights): the sprite's brightest
+        # region there (pal 10-15 sheen), a step up from the lower plates' pal 9.
+        pal(10, "core_lobe_hi", 0.15, 0.26),
     ]
 
 
@@ -470,6 +475,14 @@ def build_core(mats, coll):
             c = Vector((s * 1.45, -0.86 - off * 0.66 - 0.08))
             cut.box((c.x, c.y, 5.05), (0.75, 0.14, 2.2), ang, GROOVE)
         boolean(lobe, cut, mats, coll)
+        # Upper plate (above the groove line a-b): the brighter lobe material.
+        for poly in lobe.data.polygons:
+            if poly.material_index != LOBE_M:
+                continue
+            c = poly.center
+            t = (c.x - a.x) / (b.x - a.x)
+            if c.y > a.y + t * (b.y - a.y):
+                poly.material_index = LOBE_HI
         parts.append(lobe)
     # Merge to one mesh, in a fixed order.
     bm = bmesh.new()
