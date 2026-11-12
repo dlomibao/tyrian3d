@@ -2,14 +2,19 @@
 // draw list like everything else the renderer draws, so the simulation and its draws are untouched.
 //
 // - Shots (both passes) keep their extruded sprite, so their silhouette and palette colour are the
-//   original's, but drawn fully emissive with no dark outline, inside an additive halo of their own
+//   original's, but drawn fully emissive with no dark outline, over an additive halo of their own
 //   colour that stretches back along their motion into a short trail. A new shot gets a muzzle flash.
+//   The halo is drawn under the shot's flat art, so it rims the painting instead of bleaching it;
+//   halos of touching shots (a beam's segments) are capped so they don't add up to white; missiles
+//   and bombs (ORDNANCE_FRAMES) get no halo and no flash and keep their lit, outlined look (D169).
 // - Explosions are told apart by their sprite index (explosionFrames.ts), which also says how far
 //   through its life each one is. A fireball's sprite stays, glowing, under a light that fades with
 //   it (with remastered sprite art it's the flat painting from public/art/sprites, D80: the router
 //   draws it flat and this look is ignored); when one starts, it throws sparks, embers and tumbling debris, leaves smoke drifting with
 //   the scroll, and lights its surroundings for a moment with one of a few pooled point lights.
 //   A shot's hit puff becomes a spark burst and a flash; smoke sprites become soft smoke puffs.
+//   Flashes, sparks, embers and lights take the explosion's own colour (the mean of its sprite's
+//   colours), and flashes close together in place and time are thinned to one (D169).
 // - The shield's hit arcs become one energy bubble round the ship (shieldLayer.ts, D77), in the
 //   arcs' colour and for their three ticks, with a faint flash of light.
 //   Coin values (flat art of their own in the remastered look, D76), shot trails and anything else
@@ -26,6 +31,7 @@ import { Pass, sparkColor, type Draw, type SparkPixel, type SpriteDraw, type Tab
 import type { PaletteTexture } from "../paletteTexture";
 import { passHeight } from "../passHeights";
 import type { SpriteMeshCache } from "../spriteMesh";
+import { SPRITE_ART_ORDER } from "../spriteArtLayer";
 import { EXPLOSION_SHEET_ID, ExplosionKind, explosionFrame, shieldArcCentre } from "./explosionFrames";
 import { GlowLayer, GlowShape } from "./glowLayer";
 import { ParticleShape, ParticleSystem } from "./particles";
@@ -45,8 +51,31 @@ export const enum SpriteLook {
 const TRAIL_TICKS = 1.6;
 /** Halo radius as a multiple of the sprite's own radius. */
 const SHOT_HALO = 1.7;
-const SHOT_HALO_INTENSITY = 0.8;
-const ENEMY_SHOT_HALO_INTENSITY = 0.9;
+/** D169: 0.8 and 0.9 (D35), drawn over the shot; now under it, in the shot's mean colour. */
+const SHOT_HALO_INTENSITY = 0.6;
+const ENEMY_SHOT_HALO_INTENSITY = 0.7;
+/**
+ * Shot halos whose centres are closer than this share of their radii's sum overlap heavily (a
+ * beam's segments, a tight volley): each is dimmed by 1 / (1 + HALO_CROWD x its neighbours), so a
+ * run of them reads about as bright as one instead of adding up to white (D169).
+ */
+const HALO_TOUCH = 0.8;
+const HALO_CROWD = 0.75;
+/** Shot halos one frame can hold (stress tests draw 800 shots; more are drawn uncapped). */
+const MAX_HALOS = 2048;
+const HALO_STRIDE = 12;
+/**
+ * The halos' place in the transparent order: under the player shots' flat art (spriteArtLayer.ts,
+ * SPRITE_ART_ORDER + pass / 100), so the painting covers the halo's core and its colours stay.
+ */
+const SHOT_HALO_ORDER = SPRITE_ART_ORDER + Pass.PlayerShots / 100 - 0.002;
+/**
+ * Flashes closer than FLASH_REACH screen px to one started less than FLASH_GAP s before are not
+ * drawn: a big explosion's four quarters, or hits stacking under sustained fire, flash once (D169).
+ */
+const FLASH_REACH = 14;
+const FLASH_GAP = 0.12;
+const FLASH_MEMORY = 64;
 /** Lights for explosion flashes: a fixed pool, so the scene's light count (and shaders) never change. */
 const LIGHTS = 4;
 /** Lights sit this high, between the ground and the enemies, at the explosion's screen position. */
@@ -67,6 +96,22 @@ const SPARK_GAIN = 1.1;
 const MAX_SHIELDS = 16;
 /** Births queued between ticks and frames (a big boss death starts dozens at once). */
 const MAX_BIRTHS = 256;
+
+/**
+ * Physical ordnance among the shot frames: the missiles and bombs, i.e. the frames on tyrian.shp#7
+ * (spriteSheet8) of every weapon whose trail is smoke (trail 6 or 98, JE_setupExplosion's smoke;
+ * tests/render/vfx.test.ts derives the set from the item data). They are steel, not energy: no
+ * halo, no muzzle flash, and drawn lit with their outline (D169).
+ */
+export const ORDNANCE_SHEET_ID = "tyrian.shp#7";
+export const ORDNANCE_FRAMES: ReadonlySet<number> = new Set([
+  13, 14, 15, 19, 31, 32, 33, 34, 52, 53, 57, 68, 71, 72, 76, 90, 95, 96, 115, 142, 171,
+]);
+
+/** Whether a shot draw is a missile or bomb (ORDNANCE_FRAMES). */
+export function isOrdnance(d: SpriteDraw | TableSpriteDraw): boolean {
+  return d.kind === "sprite2" && d.sheet.id === ORDNANCE_SHEET_ID && ORDNANCE_FRAMES.has(d.index);
+}
 
 const enum Birth {
   Hit = 0,
@@ -110,7 +155,22 @@ export class RemasteredFx {
   private readonly additive = new ParticleSystem(4096, THREE.AdditiveBlending);
   private readonly blended = new ParticleSystem(2048, THREE.NormalBlending);
   private readonly glows = new GlowLayer(THREE.AdditiveBlending, 512);
-  private readonly puffs = new GlowLayer(THREE.NormalBlending, 128);
+  /** Shot halos, under the shots' flat art (D169). */
+  private readonly shotGlows = new GlowLayer(THREE.AdditiveBlending, 256, SHOT_HALO_ORDER);
+  /** This frame's shot halos, held until end() to cap overlapping ones (screen px; see haloAt). */
+  private readonly halos = new Float32Array(MAX_HALOS * HALO_STRIDE);
+  private haloCount = 0;
+  private readonly haloOrder = new Int32Array(MAX_HALOS);
+  /** Recent flashes (screen x, y, start time), a ring, to thin flashes on one spot (D169). */
+  private readonly flashes = new Float32Array(FLASH_MEMORY * 3).fill(-1e9);
+  private flashHead = 0;
+  /** Seconds of display time, for the flash memory. */
+  private clock = 0;
+  /**
+   * Smoke puffs, under the shots' halos and flat art (D169): a missile's or bomb's trail puffs
+   * start where it was a tick ago and grow over it, and in the C the shot is drawn clear of them.
+   */
+  private readonly puffs = new GlowLayer(THREE.NormalBlending, 128, SHOT_HALO_ORDER - 0.001);
   private readonly shields = new ShieldLayer();
   /** This frame's shield bubbles so far (screen x, y and the hit's frame), so a hit's nine arcs make one. */
   private readonly shieldSeen = new Float32Array(MAX_SHIELDS * 3);
@@ -135,9 +195,10 @@ export class RemasteredFx {
     private readonly palette: PaletteTexture,
   ) {
     this.root.name = "vfx";
-    this.root.add(this.blended.mesh, this.puffs.mesh, this.glows.mesh, this.shields.mesh, this.additive.mesh);
+    const meshes = [this.blended.mesh, this.puffs.mesh, this.shotGlows.mesh, this.glows.mesh, this.shields.mesh, this.additive.mesh];
+    this.root.add(...meshes);
     // [filters] On their own layer, so the screen filters can draw them after the smoothies (D35).
-    for (const mesh of [this.blended.mesh, this.puffs.mesh, this.glows.mesh, this.shields.mesh, this.additive.mesh]) mesh.layers.set(VFX_LAYER);
+    for (const mesh of meshes) mesh.layers.set(VFX_LAYER);
     for (let i = 0; i < LIGHTS; i++) {
       const light = new THREE.PointLight(0xffa040, 0, LIGHT_RANGE, 1.6);
       light.castShadow = false;
@@ -158,7 +219,7 @@ export class RemasteredFx {
       if (d.pass === Pass.PlayerShots || d.pass === Pass.EnemyShots) {
         if (d.key < 0 || d.effect === "darken") continue;
         next.add(d.key);
-        if (!this.shotKeys.has(d.key)) {
+        if (!this.shotKeys.has(d.key) && !isOrdnance(d)) {
           const geometry = d.kind === "sprite2" ? this.cache.sprite2Geometry(d.sheet, d.index, d.size) : this.cache.tableGeometry(d.table, d.index);
           const info = geometry && this.spriteInfo(geometry);
           if (info) this.queueBirth(d.pass === Pass.PlayerShots ? Birth.PlayerShot : Birth.EnemyShot, d.x + info.cx, d.y + info.cy, info.radius, d.pass, geometry);
@@ -214,7 +275,9 @@ export class RemasteredFx {
   /** Start a display frame: age the particles and lights, and spawn what the last tick started. */
   begin(dt: number, camera: THREE.Camera): void {
     this.cam = camera.position;
+    this.clock += dt;
     this.shieldCount = 0;
+    this.haloCount = 0;
     this.additive.advance(dt);
     this.blended.advance(dt);
     for (let b = 0; b < this.birthCount; b++) {
@@ -243,15 +306,13 @@ export class RemasteredFx {
     const cx = x + info.cx;
     const cy = y + info.cy;
     if (d.pass === Pass.PlayerShots || d.pass === Pass.EnemyShots) {
-      const h = passHeight(d.pass);
-      const k = h / this.cam.y;
-      const s = (1 - k) / PX_PER_UNIT;
+      // Missiles and bombs are steel: no halo, and lit with their outline (D169).
+      if (isOrdnance(d)) return SpriteLook.Default;
       const intensity = d.pass === Pass.EnemyShots ? ENEMY_SHOT_HALO_INTENSITY : SHOT_HALO_INTENSITY;
       // Teleports and new shots have no motion to trail.
       const tx = Math.abs(vx) > 30 ? 0 : vx * TRAIL_TICKS;
       const ty = Math.abs(vy) > 30 ? 0 : vy * TRAIL_TICKS;
-      this.glow(this.glows, cx, cy, cx - tx, cy - ty, h, Math.max(2.5, info.radius * SHOT_HALO) * s,
-        info.r, info.g, info.b, intensity, 0, GlowShape.Glow, 0);
+      this.halo(cx, cy, cx - tx, cy - ty, passHeight(d.pass), Math.max(2.5, info.radius * SHOT_HALO), info.r, info.g, info.b, intensity);
       return SpriteLook.Hot;
     }
     if (d.kind !== "sprite2" || d.pass !== Pass.Explosions || d.sheet.id !== EXPLOSION_SHEET_ID) return SpriteLook.Default;
@@ -263,8 +324,9 @@ export class RemasteredFx {
     const t = (f.frame + 0.5) / f.ttl;
     switch (f.kind) {
       case ExplosionKind.Hit: {
+        // D169: (1, 0.75 + 0.2g, 0.45) at 0.9, a near-white puff; now a warm orange one.
         const fade = (1 - t) * (1 - t);
-        this.glow(this.glows, cx, cy, cx, cy, h, (3 + 5 * t) * s, 1, 0.75 + 0.2 * info.g, 0.45, 0.9 * fade, 0, GlowShape.Glow, 0);
+        this.glow(this.glows, cx, cy, cx, cy, h, (3 + 4 * t) * s, 1, 0.5 + 0.2 * info.g, 0.18, 0.6 * fade, 0, GlowShape.Glow, 0);
         return SpriteLook.Hidden;
       }
       case ExplosionKind.Fireball:
@@ -337,7 +399,9 @@ export class RemasteredFx {
 
   /** Upload this frame's glows and new particles. */
   end(): void {
+    this.flushHalos();
     this.shields.commit();
+    this.shotGlows.commit();
     this.glows.commit();
     this.puffs.commit();
     this.additive.flush();
@@ -349,6 +413,8 @@ export class RemasteredFx {
     this.additive.clear();
     this.blended.clear();
     this.birthCount = 0;
+    this.haloCount = 0;
+    this.flashes.fill(-1e9);
     this.shotKeys.clear();
     for (const f of this.lights) {
       f.age = f.life;
@@ -364,6 +430,7 @@ export class RemasteredFx {
     this.additive.dispose();
     this.blended.dispose();
     this.glows.dispose();
+    this.shotGlows.dispose();
     this.puffs.dispose();
     this.shields.dispose();
     for (const f of this.lights) f.light.dispose();
@@ -374,33 +441,36 @@ export class RemasteredFx {
 
   private spawnBirth(kind: Birth, sx: number, sy: number, radius: number, pass: Pass, r: number, g: number, b: number): void {
     const h = passHeight(pass);
+    // D169: every flash and spark is the explosion's own colour (the mean of its sprite's colours,
+    // infoColour), no longer mixed 40-50% toward white and boosted x1.3; flashes are smaller,
+    // dimmer and thinned on one spot (flash()), so the fire reads red-orange, not white.
     switch (kind) {
       case Birth.PlayerShot:
       case Birth.EnemyShot:
-        this.flash(sx, sy, h, Math.max(2, radius * 0.8), Math.max(4, radius * 1.8), 0.08, mix(r, 1, 0.5), mix(g, 1, 0.5), mix(b, 1, 0.5), kind === Birth.PlayerShot ? 0.8 : 0.6);
+        this.flash(sx, sy, h, Math.max(2, radius * 0.7), Math.max(4, radius * 1.5), 0.08, mix(r, 1, 0.15), mix(g, 1, 0.15), mix(b, 1, 0.15), kind === Birth.PlayerShot ? 0.45 : 0.35);
         break;
       case Birth.Hit:
-        this.flash(sx, sy, h, 3, 8, 0.12, 1, 0.85, 0.55, 1);
-        this.sparks(sx, sy, h, 6, 70, 150, 0.12, 0.26);
+        this.flash(sx, sy, h, 3, 7, 0.1, 1, 0.55, 0.22, 0.5);
+        this.sparks(sx, sy, h, 5, 70, 150, 0.12, 0.24, 1, 0.55, 0.2);
         break;
       case Birth.Fireball:
         // Small fireballs also mark every hit on a big enemy, many a second under a laser, so
         // they're kept light: debris and smoke only now and then.
-        this.flash(sx, sy, h, 6, 14, 0.16, mix(r, 1, 0.4), mix(g, 1, 0.4), mix(b, 1, 0.4), 0.5);
-        this.sparks(sx, sy, h, 4, 80, 190, 0.15, 0.32);
+        this.flash(sx, sy, h, 5, 11, 0.14, r, g, b, 0.32);
+        this.sparks(sx, sy, h, 3, 80, 170, 0.14, 0.28, r, g, b);
         this.embers(sx, sy, h, 1, r, g, b);
         if (Math.random() < 0.3) this.debris(sx, sy, h, 1, 1.0);
         if (Math.random() < 0.3) this.smoke(sx, sy, h, 1, 3, 8);
-        this.light(sx, sy, 2.5, 0.2, r, g, b);
+        this.light(sx, sy, 2, 0.2, r, g, b);
         break;
       case Birth.Large:
-        // One of four quarters: each throws a share, and they share one light.
-        this.flash(sx, sy, h, 8, 22, 0.26, mix(r, 1, 0.4), mix(g, 1, 0.4), mix(b, 1, 0.4), 0.55);
-        this.sparks(sx, sy, h, 6, 90, 240, 0.22, 0.5);
+        // One of four quarters: each throws a share, and they share one light and one flash.
+        this.flash(sx, sy, h, 7, 16, 0.22, r, g, b, 0.32);
+        this.sparks(sx, sy, h, 4, 90, 190, 0.2, 0.42, r, g, b);
         this.embers(sx, sy, h, 2, r, g, b);
         this.debris(sx, sy, h, 2, 1.3);
         this.smoke(sx, sy, h, 1, 6, 14);
-        this.light(sx, sy, 7, 0.36, r, g, b);
+        this.light(sx, sy, 5, 0.32, r, g, b);
         break;
       case Birth.Shield:
         this.light(sx, sy, 1.2, 0.12, r, g, b);
@@ -425,7 +495,17 @@ export class RemasteredFx {
     return this.scrollPx * CLASSIC_TICK_HZ * s;
   }
 
+  /** A flash, unless one started close by a moment ago (FLASH_REACH, FLASH_GAP). */
   private flash(sx: number, sy: number, h: number, size0: number, size1: number, life: number, r: number, g: number, b: number, a: number): void {
+    const f = this.flashes;
+    for (let i = 0; i < FLASH_MEMORY * 3; i += 3) {
+      if (this.clock - f[i + 2] < FLASH_GAP && Math.abs(f[i] - sx) < FLASH_REACH && Math.abs(f[i + 1] - sy) < FLASH_REACH) return;
+    }
+    const o = this.flashHead * 3;
+    this.flashHead = (this.flashHead + 1) % FLASH_MEMORY;
+    f[o] = sx;
+    f[o + 1] = sy;
+    f[o + 2] = this.clock;
     const p = this.additive.spec;
     const s = this.place(p, sx, sy, h);
     p.vx = 0;
@@ -438,9 +518,9 @@ export class RemasteredFx {
     p.size1 = size1 * s;
     p.stretch = 0;
     p.shape = ParticleShape.Glow;
-    p.r0 = r * 1.3;
-    p.g0 = g * 1.3;
-    p.b0 = b * 1.3;
+    p.r0 = r;
+    p.g0 = g;
+    p.b0 = b;
     p.a0 = a;
     p.r1 = r;
     p.g1 = g * 0.6;
@@ -449,8 +529,12 @@ export class RemasteredFx {
     this.additive.spawn();
   }
 
-  private sparks(sx: number, sy: number, h: number, n: number, speed0: number, speed1: number, life0: number, life1: number): void {
+  /** Spark streaks, hot in the explosion's colour (r, g, b, brightest channel 1) and cooling to red. */
+  private sparks(sx: number, sy: number, h: number, n: number, speed0: number, speed1: number, life0: number, life1: number,
+    r: number, g: number, b: number): void {
     const p = this.additive.spec;
+    // D169: a fixed (2.2, 1.7, 0.9) before, white-yellow whatever burned.
+    const r0 = 0.2 + 1.1 * r, g0 = 0.1 + 0.75 * g, b0 = 0.05 + 0.35 * b;
     for (let i = 0; i < n; i++) {
       const s = this.place(p, sx, sy, h);
       const a = Math.random() * Math.PI * 2;
@@ -465,13 +549,13 @@ export class RemasteredFx {
       p.size1 = 0.6 * s;
       p.stretch = 0.022;
       p.shape = ParticleShape.Spark;
-      p.r0 = 2.2;
-      p.g0 = 1.7;
-      p.b0 = 0.9;
+      p.r0 = r0;
+      p.g0 = g0;
+      p.b0 = b0;
       p.a0 = 1;
-      p.r1 = 1.0;
-      p.g1 = 0.25;
-      p.b1 = 0.04;
+      p.r1 = r;
+      p.g1 = 0.25 * g;
+      p.b1 = 0.04 * b;
       p.a1 = 0;
       this.additive.spawn();
     }
@@ -493,9 +577,9 @@ export class RemasteredFx {
       p.size1 = 0.6 * s;
       p.stretch = 0;
       p.shape = ParticleShape.Glow;
-      p.r0 = mix(r, 1, 0.5) * 1.5;
-      p.g0 = mix(g, 1, 0.3) * 1.2;
-      p.b0 = b * 0.8;
+      p.r0 = mix(r, 1, 0.2) * 1.3;
+      p.g0 = mix(g, 1, 0.1) * 1.1;
+      p.b0 = b * 0.6;
       p.a0 = 1;
       p.r1 = r * 0.8;
       p.g1 = g * 0.3;
@@ -576,7 +660,8 @@ export class RemasteredFx {
     if (!best || best.light.intensity > peak) return;
     const pos = best.light.position;
     this.place(pos, sx, sy, LIGHT_HEIGHT);
-    best.light.color.setRGB(mix(r, 1, 0.35), mix(g, 0.75, 0.35), mix(b, 0.35, 0.35));
+    // D169: its own colour, a touch warmed (was mixed 35% toward a fixed warm white).
+    best.light.color.setRGB(mix(r, 1, 0.15), mix(g, 0.5, 0.15), mix(b, 0.2, 0.15));
     best.age = 0;
     best.life = life;
     best.peak = peak;
@@ -584,6 +669,70 @@ export class RemasteredFx {
     best.sx = sx;
     best.sy = sy;
     best.tick = this.tickCount;
+  }
+
+  /** Hold a shot halo (screen px, radius in screen px) for flushHalos. */
+  private halo(hx: number, hy: number, tx: number, ty: number, h: number, radius: number, r: number, g: number, b: number, a: number): void {
+    if (this.haloCount >= MAX_HALOS) {
+      this.glow(this.shotGlows, hx, hy, tx, ty, h, radius * (1 - h / this.cam.y) / PX_PER_UNIT, r, g, b, a, 0, GlowShape.Glow, 0);
+      return;
+    }
+    const o = this.haloCount++ * HALO_STRIDE;
+    const v = this.halos;
+    v[o] = hx;
+    v[o + 1] = hy;
+    v[o + 2] = tx;
+    v[o + 3] = ty;
+    v[o + 4] = h;
+    v[o + 5] = radius;
+    v[o + 6] = r;
+    v[o + 7] = g;
+    v[o + 8] = b;
+    v[o + 9] = a;
+    v[o + 10] = 0; // neighbours
+  }
+
+  /**
+   * Draw this frame's shot halos, each dimmed by how many others it overlaps heavily at its own
+   * height (centres closer than HALO_TOUCH of their radii's sum): a beam's stacked segments or a
+   * tight volley then read about as bright as one halo, not white (D169). Sorted along x, so the
+   * search only looks at halos within reach.
+   */
+  private flushHalos(): void {
+    const n = this.haloCount;
+    if (n === 0) return;
+    const v = this.halos;
+    const order = this.haloOrder;
+    let maxR = 0;
+    for (let i = 0; i < n; i++) {
+      order[i] = i;
+      maxR = Math.max(maxR, v[i * HALO_STRIDE + 5]);
+    }
+    const sorted = order.subarray(0, n).sort((a, b) => v[a * HALO_STRIDE] - v[b * HALO_STRIDE]);
+    const reach = 2 * maxR * HALO_TOUCH;
+    for (let i = 0; i < n; i++) {
+      const a = sorted[i] * HALO_STRIDE;
+      for (let j = i + 1; j < n; j++) {
+        const c = sorted[j] * HALO_STRIDE;
+        const dx = v[c] - v[a];
+        if (dx > reach) break;
+        if (v[c + 4] !== v[a + 4]) continue;
+        const touch = (v[a + 5] + v[c + 5]) * HALO_TOUCH;
+        const dy = v[c + 1] - v[a + 1];
+        if (dx * dx + dy * dy < touch * touch) {
+          v[a + 10]++;
+          v[c + 10]++;
+        }
+      }
+    }
+    for (let i = 0; i < n; i++) {
+      const o = i * HALO_STRIDE;
+      const h = v[o + 4];
+      const s = (1 - h / this.cam.y) / PX_PER_UNIT;
+      this.glow(this.shotGlows, v[o], v[o + 1], v[o + 2], v[o + 3], h, v[o + 5] * s, v[o + 6], v[o + 7], v[o + 8],
+        v[o + 9] / (1 + HALO_CROWD * v[o + 10]), 0, GlowShape.Glow, 0);
+    }
+    this.haloCount = 0;
   }
 
   private glow(layer: GlowLayer, hx: number, hy: number, tx: number, ty: number, h: number, radius: number,
@@ -613,24 +762,10 @@ export class RemasteredFx {
   private infoColour(info: SpriteInfo): void {
     if (info.version === this.palette.version) return;
     info.version = this.palette.version;
-    let r = 0, g = 0, b = 0, w = 0;
-    for (let i = 0; i < info.indices.length; i++) {
-      const c = this.palette.color(info.indices[i], this.colour);
-      const lum = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
-      // Weighted toward the brightest colours: a shot's glow is the colour of its core.
-      const weight = info.counts[i] * (lum * lum + 0.002);
-      r += c.r * weight;
-      g += c.g * weight;
-      b += c.b * weight;
-      w += weight;
-    }
-    if (w > 0) {
-      // Normalise so the brightest channel is 1: the glow carries the hue, the shader the intensity.
-      const m = Math.max(r, g, b) / w || 1;
-      info.r = r / w / m;
-      info.g = g / w / m;
-      info.b = b / w / m;
-    }
+    const c = spriteGlowColour(info.indices, info.counts, (i) => this.palette.color(i, this.colour));
+    info.r = c[0];
+    info.g = c[1];
+    info.b = c[2];
   }
 }
 
@@ -670,6 +805,25 @@ export function measureSprite(geometry: THREE.BufferGeometry): SpriteInfo | null
     b: 1,
     version: -1,
   };
+}
+
+/**
+ * A sprite's glow colour (linear RGB, brightest channel 1): the mean of its pixels' colours, each
+ * pixel counted once, so the glow is the colour the sprite mostly is (a fire's red-orange, a laser's
+ * blue). D35 weighted by luminance squared, the colour of its brightest pixels, which for most
+ * shots and fires is a near-white core (D169). The glow carries the hue, the shader the intensity.
+ */
+export function spriteGlowColour(indices: ArrayLike<number>, counts: ArrayLike<number>,
+  color: (index: number) => { r: number; g: number; b: number }): [number, number, number] {
+  let r = 0, g = 0, b = 0;
+  for (let i = 0; i < indices.length; i++) {
+    const c = color(indices[i]);
+    r += c.r * counts[i];
+    g += c.g * counts[i];
+    b += c.b * counts[i];
+  }
+  const m = Math.max(r, g, b);
+  return m > 0 ? [r / m, g / m, b / m] : [1, 1, 1];
 }
 
 const mix = (a: number, b: number, t: number) => a + (b - a) * t;
