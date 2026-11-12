@@ -13,7 +13,7 @@ import { ScreenFilterPass } from "./screenFilters";
 import { VFX_LAYER } from "./vfx/vfxMode";
 
 /** Camera tilt from straight down, in radians. */
-const CAMERA_TILT = THREE.MathUtils.degToRad(32);
+const CAMERA_TILT = THREE.MathUtils.degToRad(Number(new URLSearchParams(location.search).get("tilt") ?? 32));
 const CAMERA_FOV = 40;
 /** Extra room around the playfield when fitting the camera. */
 const FRAME_MARGIN = 1.08;
