@@ -1,0 +1,8 @@
+{
+ "name": "newshg-1",
+ "sprite_size": [
+  24,
+  28
+ ],
+ "bake": "model"
+}
