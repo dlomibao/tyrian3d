@@ -447,6 +447,8 @@ def nearest_index(sprite, v):
 
 
 def build_flames(sprite, frame_idx, pix, coll):
+    # Glow strengths at about 1 (D126): the flame is its palette colour unlit. Past 1 / the colour's
+    # brightest linear channel a deep red runs pink under the Neutral tone mapping (demo 5 review #16).
     part = T.Part(f"{NAME}-flame-{frame_idx}", smooth_angle=80.0)
     mats, mat_of = [], {}
 
@@ -501,7 +503,7 @@ def build_flames(sprite, frame_idx, pix, coll):
             yy = tip_row + 0.5 - (tip_row + 0.5 - tip_y) * t
             k = (1 - t) ** 0.8
             stations.append((yy, x_top, max(hw_top * k, 0.03), zc(yy), max((0.62 * hw_top + 0.18) * k, 0.03)))
-        ell_loft(part, stations, mat(sm, 3.5), sides=9)
+        ell_loft(part, stations, mat(sm, 1.0), sides=9)
         # core ridge: narrower, riding higher so it shows down the tongue's middle
         cst = []
         for y, xc, hw, z, hz in stations:
@@ -512,7 +514,7 @@ def build_flames(sprite, frame_idx, pix, coll):
             cst.append((y, xc + (side * NOZ_X - xc) * 0.15, 0.48 * min(hw, 1.6) * k, z + 0.5 * hz,
                         0.62 * hz * k))
         if len(cst) >= 2:
-            ell_loft(part, cst, mat(cm, 4.5), sides=7)
+            ell_loft(part, cst, mat(cm, 1.25), sides=7)
         # licks: thin branches from the tongue's base region out along their pixels
         for s in strands:
             lm = nearest_index(sprite, statistics.median_low(sorted(pix[r][c] for r, c in s)))
@@ -535,7 +537,7 @@ def build_flames(sprite, frame_idx, pix, coll):
                 f = i / (n - 1)
                 hw = 0.36 * (1 - f) ** 0.7 + 0.02
                 lst.append((y, x, hw, zc(min(max(y, tip_y), base_y)) + 0.2 * f, hw * 0.9))
-            ell_loft(part, lst, mat(max(lm, 113), 3.0), sides=6)
+            ell_loft(part, lst, mat(max(lm, 113), 1.0), sides=6)
     obj = T.finish(part, mats, coll)
     common.frame_part(obj, [frame_idx])
     return obj, report
