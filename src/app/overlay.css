@@ -203,6 +203,19 @@
   color: #ff5a3a;
 }
 
+/* "Secret Level!" (tyrian2.c L1993-2000): hud.ts sets its place, size and pulsing colour each frame. */
+.hud .secret {
+  position: absolute;
+  transform: translateX(-50%);
+  font-weight: bold;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  white-space: nowrap;
+  text-shadow:
+    0.06em 0.06em 0 var(--secret-shadow, #140414),
+    0 0 0.25em var(--secret-glow, #d0a050);
+}
+
 .hud .boss {
   position: absolute;
   top: max(36px, calc(env(safe-area-inset-top) + 26px));

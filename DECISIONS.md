@@ -7023,3 +7023,35 @@ the alpha or the shader:
 - `before/`, `after/`, `crops/`;
 - `realpha/root24s` (this atlas), `realpha/rootpre` (D107's), `realpha/repro` (the reproduction from it);
 - `realpha/chk_*` (`check` for this branch and for main).
+
+## D155 — "Secret Level!" is drawn again: the banner tyrian2.c shows while the secret-level timer runs (fixes a port gap; extends D61)
+
+**Problem:** picking up a secret-level warp (an armour-0 enemy worth 10001-19999, mainint.c L4697-4706) sets
+`bonusLevel`, `nextLevel` and `displayTime = 150`. While `displayTime` runs, JE_main (tyrian2.c L1993-2000) draws
+`miscText[59]`, "Secret Level!", with `JE_outTextAndDarken(VGAScreen, 90, 10, miscText[59], 15, flash - 8, FONT_SHAPES)`:
+the big font at screen (90, 10), colour bank 15, each glyph's shade darkened by 8 - flash as `flash` bounces 0..5,
+over a dark drop shadow. The port kept the timer and the flash (game.ts) but never drew the text, so nothing showed.
+
+**Decision:** the HUD shows it, in the HTML style of the other in-play messages (WARNING):
+- `src/app/secretLevel.ts` `secretLevelBanner()` (pure): null while `displayTime` is 0; otherwise the text, its
+  centre (x 90 plus half the FONT_SHAPES width, JE_textWidth) and top (y 10) as fractions of the 264 x 184 playfield,
+  the glyph height, and the colour this frame: the level palette's index 240 + (14 + flash - 8), dark red to gold.
+- `Hud.secret()` places it on the playfield as the camera shows it: along the projected far edge
+  (`playfieldCorners()`), so it sits at the C's place under any tilt, sized to the big font's glyphs at that edge's
+  scale. Bold, a drop shadow in the bank's darkest step and a soft glow in the pulse colour (`.hud .secret`).
+- Placement and timing are the C's: 150 ticks from the pickup, the pulse on the sim's `flash`.
+
+**Checked:** ASTEROID2 (episode 1, `main=4` in the harness) has the warp, enemy type 593 (value 10022: to section 22,
+MINEMAZE), spawned at curLoc 6824 at x 198. The capture steps the harness until it appears, moves it onto the ship
+and steps on: before, `displayTime` 129 and no text; after, the banner at the top of the playfield. The other
+episode-1 warps: types 577 (ASTEROID1), 823 and 843 (TYRIAN), 688 (ASTEROID?), 591 (MINEMAZE).
+Weapon power-ups (type 533/534, values -1/-2) show "Front Weapon Power-Up" / "Rear Weapon Power-Up" in the frame's
+bottom bar, already wired (JE_drawTextWindow → `g.messageText` → HudFrame). Captured on TYRIAN with an on-screen
+enemy set to drop one (`enemydie`); the pickup itself is the game's.
+
+**Not done:** `play_song(30)` (Zanac) on the warp pickup is still a comment in the sim (music isn't sim-driven);
+not checked whether the host plays it.
+
+Tests: `tests/app/secretLevel.test.ts` (null at 0, the text and place above 0, the pulse colours, and miscText[59]
+from the data). Captures: `tyrian-scratch/secret-level-text/` (`before_secret.png` the warp pickup before,
+`after_secret_e{20,23}.png` two pulse phases, `after_powerup*.png`), not in git (D3).
