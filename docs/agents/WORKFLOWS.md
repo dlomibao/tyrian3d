@@ -93,9 +93,9 @@ From the logged runs (PLAYBOOK.md explains the token figure). Wall clock assumes
 
 | Script | Agents | Logged run it is based on |
 |---|---|---|
-| model-flagship, full | hero 7-10 (blueprint, 2 designs, judge, finish, ≤3 reviews, ≤2 fixes); standard 4-6; +1 setup, +1 scout | 28 models: 173 agents, 147 min, 21.8M tokens (~6.2 agents, ~0.8M per model); e1-enemies (D116), 32 items: 198 agents, ~5.5 h at `maxAgents: 8`, 27.4M; e1-enemies-2 (D121), 32 items (11 hero): 172 agents, ~5.8 h at `maxAgents: 7`, 21.8M; e1-enemies-3 (D123), 16 items = 36 units (4 hero): 73 agents, ~2.2 h at 6 concurrent, 8.78M |
+| model-flagship, full | hero 7-10 (blueprint, 2 designs, judge, finish, ≤3 reviews, ≤2 fixes); standard 4-6; +1 setup, +1 scout | 28 models: 173 agents, 147 min, 21.8M tokens (~6.2 agents, ~0.8M per model); e1-enemies (D116), 32 items: 198 agents, ~5.5 h at `maxAgents: 8`, 27.4M; e1-enemies-2 (D121), 32 items (11 hero): 172 agents, ~5.8 h at `maxAgents: 7`, 21.8M; e1-enemies-3 (D123), 16 items = 36 units (4 hero): 73 agents, ~2.2 h at 6 concurrent, 8.78M; e2-enemies-1 (D170), 29 items = 40 units (15 hero): 175 agents, ~2.7 h, 13.4M |
 | model-flagship, `mode: 'lean'` | 3-5 per item (design, finish, ≤2 reviews, ≤1 fix) | forward-push ships: 16 agents incl. 2 other fixes, 42 min |
-| fix-round | 2-4 per item | 4 items: 12 agents, 44 min, 1.5M; e1-enemies-2 (D121), 6 items: 12 agents, ~27 min, 1.18M |
+| fix-round | 2-4 per item | 4 items: 12 agents, 44 min, 1.5M; e1-enemies-2 (D121), 6 items: 12 agents, ~27 min, 1.18M; e2-enemies-1 (D170), 5 items: 12 agents, 56 min, 1.52M |
 | terrain-hd | 5-9 (prep, game side?, tool?, Gemini, assemble, capture, verify) | TYRIAN: 5 agents, 108 min, 1.2M; the Gemini operator alone 44 min for 27 requests |
 | pixel-sweep | 2-3 + 2-4 per issue | level 1: audit 27 min, 8 fixers ~31-34 min each (the run was still going when this was written) |
 | music-arrange | 1 per song | 41 songs: 41 agents, 62 min, 7.4M |
