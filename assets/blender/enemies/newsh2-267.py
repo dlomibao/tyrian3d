@@ -1,4 +1,13 @@
-"""Grey drilling machine (newsh2.shp frame 267, enemy type 17): a hard-surface 3D version of its sprite.
+"""Drill-nosed attack drone (newsh2.shp frame 267, enemy type 17): a hard-surface 3D version of its sprite.
+
+What it is (D120/D122: identify the object first; this unit's DECISIONS entry): a FLYING ram drone, not
+a ground drilling machine. Its waves fly on the sky layer in 1.9/1.15 TYRIAN, 1.10 and 2.3 BONUS, 1.18
+** ALE ** and 3.8 (the ground/ground2 spawns are the low-flying pass; the layer only says where it is
+drawn): event 19 zig-zags it (+-3, -1) and event 20 sends it into dives (10, 20), at 1-4 px/tick
+relative to the ground, and it fires (turret weapon 59). So the drill is its nose, pointing the way it
+flies (down the screen), the head capsule at the top of the sprite is its tail, and the two grey bars
+at the sides are level side cannons hung from the brass yoke arms, muzzles forward. It hovers: no
+legs, no feet, a closed plain underside.
 
 The sprite is authoritative for the top-down outline (row by row), the lights and the colours; the
 concept (assets/blender/features/concepts/newsh2-267.jpg) and a side/front blueprint guide the side, front and
@@ -10,8 +19,9 @@ Reading of the sprite (24 x 28, symmetric about the centre of column 11, x = 11.
   row 5       a cross beam through the head (pal 4) out to the yoke, hubs where it enters the head
   rows 2-9    brass yoke arms (pal 23) either side, levers on the beam: their rear ends rise to tips
               at rows 2-3, their front ends come down and out to pivot blocks (pal 22) at row 9
-  rows 9-18   twin hydraulic legs (pal 6, rods pal 9) lying from the pivot blocks to feet (pal 4)
-              on the ground at cols 0-2 / 20-22
+  rows 9-18   twin side cannons at cols 0-2 / 20-22, level along their length (D163) under the pivot
+              blocks: a dark breech collar (pal 4), the light ring (11), the barrel (8, 7) and the
+              muzzle (5) with a dark bore at row 17
   rows 7-18   the drum (pal 6): a tall superelliptic body, its shoulders under brass armour (inner
               pads pal 27, outer pads pal 165 wrapping down the flanks), a dark spine plate (pal 3)
               with two glowing red slot lights (119 / 118, hot centres 121) at rows 9 and 11, a
@@ -346,7 +356,7 @@ def materials(sprite):
                                        roughness=roughness, emission_strength=glow)
     return [
         pal(10, "head", 0.7, 0.32),       # 0  head capsule (polished steel)
-        pal(4, "band", 0.55, 0.45),       # 1  clamp band, beam, feet
+        pal(4, "band", 0.55, 0.45),       # 1  clamp band, beam, cannon breeches
         pal(6, "drum", 0.6, 0.42),        # 2  drum
         pal(5, "cone", 0.6, 0.4),         # 3  drill cone, hubs, glands
         pal(7, "plate", 0.6, 0.4),        # 4  drum side plates
@@ -559,7 +569,7 @@ def drill(M):
 
 # The arm is a curved brass claw: a smooth sweep along the sprite's inner mask from its pointed tip at
 # row 3 (col 4) down the shoulder (cols 3-4, rows 4-6) and out to the strut at col 1 (rows 7-9), where it
-# meets the pivot block on top of the leg. CLAW: (y, centre x, half width, z bottom, z top) samples,
+# meets the pivot block over the side cannon. CLAW: (y, centre x, half width, z bottom, z top) samples,
 # interpolated monotonically so the claw's sides curve rather than step.
 CLAW = [(2.85, 4.55, 0.25, 7.6, 8.3), (3.4, 4.5, 0.6, 7.05, 8.75), (4.4, 4.3, 1.12, 6.4, 8.8),
         (5.5, 4.05, 1.02, 6.0, 8.5), (6.4, 3.75, 0.98, 5.5, 8.0), (7.3, 2.62, 1.42, 4.85, 7.35),
@@ -572,8 +582,7 @@ def claw_at(y):
     return tuple(f(y) for f in _claw)
 
 
-def leg_z(y):
-    return 4.3 - (y - 9.5) * 0.375
+GUN_Z = 4.3   # the side cannons' axis: level along their whole length (D163), at the pivot block's middle
 
 
 def claw(M):
@@ -595,17 +604,17 @@ def claw(M):
 
 
 def yoke(M):
-    """Left claw, pivot block, leg and foot (mirrored for the right)."""
+    """Left claw, pivot block and side cannon (mirrored for the right)."""
     claw(M)
     # dark clamp where the beam meets the claw's inner face (the sprite's ink pixel at row 4, col 5)
     blockY(M, [(3.95, 4.6, 6.15, 6.0, 7.7, 0.3), (5.95, 4.6, 6.15, 6.0, 7.7, 0.3)], BAND, endch=0.15)
-    # pivot block under the claw's foot, where the leg starts
+    # pivot block under the claw's end, where the side cannon hangs
     blockY(M, [(9.0, 0.9, 2.1, 3.2, 5.6, 0.35), (10.1, 0.9, 2.1, 3.2, 5.6, 0.35)], PIVOT, endch=0.2)
-    # the leg: a strut sloping down to the foot, with a dark collar, the light ring and the rod
-    for (ya, yb), m in (((10.1, 11.0), BAND), ((11.0, 12.0), STRAP), ((12.0, 13.0), RIVET), ((13.0, 17.1), PLATE)):
-        cyl(M, (LEG_X, ya, leg_z(ya)), (LEG_X, yb, leg_z(yb)), 0.7, m, n=8, ch=0.1)
-    # foot block on the ground
-    blockY(M, [(16.9, 0.8, 2.2, 0.0, 1.7, 0.35), (18.0, 0.8, 2.2, 0.0, 1.5, 0.35)], CONE, endch=0.25)
+    # the side cannon: a level barrel hung from the pivot block, pointing forward (down the screen),
+    # a dark breech collar, the light ring, the barrel, and a muzzle (pal 5) with a dark bore
+    for (ya, yb), m in (((10.1, 11.0), BAND), ((11.0, 12.0), STRAP), ((12.0, 13.0), RIVET), ((13.0, 17.0), PLATE)):
+        cyl(M, (LEG_X, ya, GUN_Z), (LEG_X, yb, GUN_Z), 0.7, m, n=10, ch=0.1)
+    tube(M, (LEG_X, 18.0, GUN_Z), (LEG_X, 16.9, GUN_Z), 0.7, 0.32, 0.7, CONE, BORE, n=10, ch=0.12)
 
 
 def mirror_into(src, dst):

@@ -44,6 +44,7 @@ import { passHeight } from "./passHeights";
 import { SpriteMeshCache } from "./spriteMesh";
 import { colourFrame, rigModel, showFrame, type FrameRig } from "./modelFrames";
 import { castsShadow, isModelHelper, setModelBlended } from "./modelPrep";
+import { depthBandOf, drawnBox, prepareObliqueClone, type DepthBand } from "./obliqueView";
 import { FADE_ROCK_ORDER } from "./outlineHook";
 import { adoptRockMaterials, cloneRockMaterial, isRockMaterial, rockFades, setRockLook } from "./rockMaterial";
 import type { SpriteModels } from "./spriteModels";
@@ -1581,6 +1582,9 @@ export class DrawListRenderer {
       // sheets, as an opaque mesh would be (outlineHook.ts, D146).
       if (own.some(rockFades)) mesh.renderOrder = mesh.userData.renderOrder = FADE_ROCK_ORDER;
     });
+    // A tall model drawn in the art's view (obliqueView.ts, D82, D165): its own materials, patched once.
+    const band = sourceBand(source);
+    if (band) prepareObliqueClone(object, band);
     // Patched for damage now rather than at its first damaged frame (D91): one shader program per
     // material kind for every clone, compiled by the level's warm-up.
     this.damage?.prepare(object, materials);
@@ -1656,18 +1660,34 @@ function writeMatrix(m: Float32Array, slot: number, x: number, y: number, height
   m[o + 15] = 1;
 }
 
-/** A model's box in its root's frame, ignoring the root's own position and scale (placeModel sets those). */
+/** Each loaded model's depth band and oblique view (obliqueView.ts), or null: most models have none. */
+const sourceBands = new WeakMap<THREE.Object3D, DepthBand | null>();
+
+function sourceBand(source: THREE.Object3D): DepthBand | null {
+  let band = sourceBands.get(source);
+  if (band === undefined) sourceBands.set(source, (band = depthBandOf(source)));
+  return band;
+}
+
+/**
+ * A model's box in its root's frame, ignoring the root's own position and scale (placeModel sets
+ * those). A model drawn in the art's view: the box it is drawn in (drawnBox).
+ */
 function localBox(source: THREE.Object3D): THREE.Box3 {
+  const band = sourceBand(source);
   const position = source.position.clone();
   const scale = source.scale.clone();
   source.position.set(0, 0, 0);
   source.scale.set(1, 1, 1);
   source.updateMatrixWorld(true);
   const box = new THREE.Box3();
-  source.traverse((o) => {
-    const mesh = o as THREE.Mesh;
-    if (mesh.isMesh && !isModelHelper(mesh)) box.expandByObject(mesh);
-  });
+  if (band) box.copy(drawnBox(source, band));
+  else {
+    source.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (mesh.isMesh && !isModelHelper(mesh)) box.expandByObject(mesh);
+    });
+  }
   source.position.copy(position);
   source.scale.copy(scale);
   source.updateMatrixWorld(true);

@@ -118,12 +118,15 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
   | Animation frame flashes plain | All frames textured/exported together (D46). |
   | Enemy pops from sprite to model | Level preload list (D54); add conditional spawns (D56). |
   | Two agents edited one script | Merge such models into one item at scout time. |
-| Model built as a grounded object but it is launched or floats (campfire fireball, lamp-on-ring orb, missile reversed) | Run `NODE_OPTIONS= node tools/enemy_behaviour.mjs <unit>` at scout time: launcher, px/tick, spawn layers. The ground/air layer does not mean grounded or flying; a launched thing at 3-5 px/tick is a projectile (D122). |
+| Model built as a grounded object but it is launched or floats (campfire fireball, lamp-on-ring orb, missile reversed); a piece built as a whole craft | Run `OUT=x.json NODE_OPTIONS= node tools/enemy_behaviour.mjs <unit>...` at scout time (all episodes): launcher, spawn layers, `motion` per level (terrain-fixed, hovering, steady drift, weaving, swooping, px/tick), `stackedWith` (units spawned the same tick within 24 px, dx/dy, `rigid` when the offset holds: a composite craft), `spawnDetail` per spawn. The ground/air layer does not mean grounded or flying; a launched thing at 3-5 px/tick is a projectile (D122). |
   | Black slab, ink loop or slivers where an assembly piece ends; open cut sections | Never cut the joined, culled model: clip each closed part before the join, capped, and make the shell from that (lib_b065 `clip_part`, D117). |
   | Ink wedges or slits across a hull in `?viewer=` (outline on only) | D90's shell: `common.outline_shell(..., voxel=0.03, inside=0.004)`; a hand-built shell gets the same Shrinkwrap hold and comes down where the model is low (newshs-269, D117). |
   | Ink cracks across plates though the shell is D90's | Make the shell from a closed copy taken before `cull_hidden`, kept out of the bake's scene: a culled, open hull's plates are wrapped on both sides (Nort Ship, D118). |
   | Plates jagged and crumpled, their edges following the sprite's pixel steps | One smooth curve (pchip) through the middles of the inner mask's steps, never a width per row; refitting an existing design, pull its parts in by the border's width instead of re-tracing each row (Silver Ship, D118). |
   | A refit lost detail (bays, round pods) to pass the banking frames | Never shape a ship for its banks (D93): fit the pose, `bank_roll.py --fit`, its `shift` too (Silver Ship, D118). |
+  | A tall enemy (a tower, a post, a crane) lies flat in `?viewer`, or is a sheared slab outside the game | Tyrian draws tall things from a low angle, rising up the screen. Tag them, don't bake: build the real upright object and export it with `tyrian_oblique` and `tyrian_depth_band`; the renderer draws it in the art's view per vertex (TALL-BUILDINGS.md "Tall sprite and enemy models", D165). Never bake the art's view into the glb (D161's fix round). |
+  | Prongs or a fork lean or splay in game near the screen's sides, though straight in the top view | A long part whose height changes along its length leans under the off-axis camera (about 0.45 px sideways per px of height at the sides). Keep it level along its length (walker prongs, D163; the walker was in fact a flying gunship, D166). |
+  | A flying craft built as a ground machine (legs, feet, keels on z = 0), or one craft built as two unrelated objects | `tools/enemy_behaviour.mjs`'s "ground" `kind` is the draw layer, not proof the object is on the ground. Check its motion (px/tick against the scroll; event 19/20 moves) and look for stacked spawns: assemblies spawned at the same tick and x on two layers are one object, drawn in the C's layer order (ground before ground2), so where they overlap the later one's surface must be the higher. The blue gunship was a "walker" over a "pylon" (D166). |
 - **Cost/time (enemies-flagship, 28 models: 15 hero, 13 standard):** 173 agents, 147 min wall clock,
   21.8M tokens; 28 blueprints, 43 designs, 15 judges, 43 finish/fix, 43 reviews. Per-agent median:
   blueprint 8 min, design 11 (max 53), judge 1.3, finish/fix 21 (max 49), review 1.3 (max 6.5)
@@ -387,3 +390,8 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
 19. **Establish what the object is, then judge "does it read as that?" first.** The SAVARA boss was built as a ground
     dome fortress and was a blimp (D116, corrected in D120), with the outline IoU passing. The scout/design brief must
     name the object type (airship, bunker, rock, ship), and reviewers judge object reading before IoU, colour or detail.
+
+20. **Tall enemies: tag them, don't bake.** DELIANI's flamethrower towers failed twice: as a strip lying north-south,
+    then with the art's view baked into the glb (right in game, a sheared slab everywhere else). A tall sprite object
+    is the real upright object in the asset, with the oblique extras, and the renderer draws it as the art does (D82,
+    D165).

@@ -1,9 +1,19 @@
 """SAVARA red fortress centre (newshf.shp, four 2x2 pieces: newshf-157 / -159 top, newshf-195 / -197
 bottom, 48x56 px), built cross-section first, as a real armoured machine.
 
-Seen in 6 levels across all four episodes. It is the middle of a wide red ground fortress (the left
+Seen in 6 levels across all four episodes. It is the middle of a wide red flying fortress (the left
 part is assembly-newshf-191, the right part assembly-newshf-199). Built whole and cut into the four
 pieces (common.split_assembly), each piece one frame and one model.
+
+What it is (D120/D122 identify the object first; DECISIONS D167): the red FLYING gun fortress at the end of
+SAVARA, in three sections that separate, not a ground building. In 1.8 and 1.12 SAVARA it holds at
+the top of the screen over open sea; event 20 then pushes the two wing
+sections (assembly-newshf-191 with newshf-230 on the left, assembly-newshf-199 with newshf-238 on the
+right) out sideways at +-6 px/tick and back, while the centre gun module (assembly-newshf-195) roams
+on its own; in 1.17 SAVARA V the same pieces spawn on the sky layer. The model already reads as that
+from the game camera: armoured hull plating, barrels and turrets over a closed flat underside, with no
+foundations, legs or walls down to a ground. So it was not rebuilt, and its pieces and pivots are
+unchanged so the split still works.
 
 The sprite is authoritative (D52, D74): the plan follows the inner edge of the sprite's ink border
 row by row, every part takes the palette index the sprite uses there (median of its pixels without
@@ -37,7 +47,7 @@ The machine:
   the apron, twin barrels (cols 20-23 and 25-28) with collars and muzzle brakes (rows 52-55,
   a recessed bore), dark grey breech housings (cols 14-18 / 30-34) with breech caps, red side
   struts (cols 19 / 35) and a red cheek plate (cols 12-13).
-The underside is only closed (every part stands on z = 0), no detail.
+The underside is only closed (every part has its base at z = 0: a flat closed belly), no detail.
 
 Texture: no concept projection; usp_talon.bake_maps (AO and edge colour multiplier, roughness /
 metalness map), tint neutral. Outline shell as common.outline_shell (D51; D90's 0.03 voxels held

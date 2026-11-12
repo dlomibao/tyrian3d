@@ -1,31 +1,55 @@
-"""Blue-armed ground gun walker (newsh2.shp frames 85 and 87, an assembly of 2 pieces): a 3D version
-of its sprites.
+"""The blue gunship's rear half (newsh2.shp frames 85 and 87, an assembly of 2 pieces): a 3D version of
+its sprites.
 
-Seen in episodes 1 and 3 (levels 1.25, 1.28, 1.3, 1.36, 3.17). Two 2x2 enemies side by side
-(newsh2-85 on the left, newsh2-87 on the right, sprite.json `assemblyLayout`) make one 48x28 px
-machine.
+**What it is (D166, correcting D65 and D163's "ground gun walker"):** a hovering gunship, drawn by
+the C as TWO stacked assemblies. This one (newsh2-85 left, newsh2-87 right, enemy types 6/7 and the
+firing 13/14, spawned on the ground(25) layer at y = -16) is the stern and gun deck; its front half is
+assembly-newsh2-123 (types 8/9, ground2(75) layer at y = 0, the same x), which overlaps this one's
+last 12 rows. In level 1.9 both halves fly down the screen at 4 px/tick toward the player, brake
+(event 19) and hover; "ground" is only the layer the C draws them on (D122). Nose = the bottom of the
+screen (+v), the stern = the top (v = 0).
 
-A hard-surface walker that is the sprite in 3D. Silhouette and readability first: from the tilted
-game camera it reads as four clear masses - a grey armoured hull with a dark faceted visor and a
-glowing exhaust louvre at the back, red thruster pods either side, two bright blue T-shaped gun
-arms (the highest, brightest parts, as in the sprite) with forward-facing bored muzzles, and a
-hanging ball eye with a red lens - carried on two arched box-section legs (an inner shin strut to
-a foot, an outer claw with an armour plate and a knee). Detail second: chamfered sections, modelled
-panel-line grooves on the big top panels, rivets, louvre ribs, deep bores and nozzles, hydraulic
-rams on the legs, cables beside the eye stem. The underside is just closed hull, with no detail.
+The rear half, from the stern forward:
+- the engine exhaust: a glowing louvred bay across the stern (the sprite's orange-yellow row 0),
+  between two light grey engine housings with hatches;
+- two red thruster pods at the stern corners, hot intake grilles and nozzles facing aft;
+- the bridge: a raised framed canopy of light blue glass (two facets) and a sensor strip, the
+  sloped glacis in front of it;
+- the gun wings: two bright blue T-shaped wing arms, the brightest, highest parts as in the sprite,
+  each ending in a gun block with a bored barrel firing forward;
+- under each wing a lamp socket, a grille box and a red-lit chin vent beside the keel;
+- two outrigger booms per side (the sprite's long dark blue members, columns 4-9 / 35-39): an inner
+  boom from the wing root to a blunt tip, an outer armour fin hinged to it, level along their length
+  and floating (they were a walker's legs standing on the ground until D166);
+- the chin turret: a ball slung under the bow on a clamped stem, its red lens on top. In game the
+  front half is drawn over it (the C draws ground2 after ground), so while both halves fly it is
+  hidden under the front hull's neck, as in the original; it shows once the front half is shot away.
 
-The sprite is authoritative for the top-down outline (row by row), the screen, lamps, lens and vents
+How the halves join (D166): the front half's neck (its rows 1-6, this half's rows 17-22) sits over the
+turret. Both halves are drawn at the ground-enemy pass height and lifted along the same camera rays
+(D5, D6), so their geometry meets exactly as in the sprites' layout: wherever both pieces cover a
+pixel of the overlap, the front half's surface is the higher (the turret's ball tops out at 7.5 px,
+its collar 7.8, the lens 8.4; the front neck there is 9.2-9.9 and the channel over the ball's front
+8.3-9.4), and the heights at the waist between them follow on. Nothing stands on the ground: the
+lowest points are the ball's belly (1.3 px) and the booms' keels (2.8).
+Long thin parts stay level along their length (D163).
+
+Detail: chamfered sections, modelled panel-line grooves on the big top panels, rivets, louvre ribs,
+deep bores and nozzles, a hydraulic ram along each boom, the turret's band and bolts. The underside
+is just closed hull, with no detail.
+
+The sprite is authoritative for the top-down outline (row by row), the canopy, lamps, lens and vents
 and the colours: every part takes the palette index of the sprite pixels under it (their median,
 the darkest shading and brightest sheen left out). Satin metal; no concept projection bake (no
 "crinkled foil", as the player ships in #84): only an occlusion / edge colour multiplier and a
 roughness map baked from the model itself (maps.json "bake": "model").
 
-Coordinates: u = sprite column edge (0..48), v = sprite row edge (0 = rear/top of the sprite,
-28 = front), z = height above the ground, all in sprite px (1 px = 1/12 unit). Mirror plane u = 23
-(pixel c <-> 45 - c). The sprite is not quite symmetric (the right claw is one column narrower,
-the right arm tab one column further in); the model follows it.
+Coordinates: u = sprite column edge (0..48), v = sprite row edge (0 = stern, top of the sprite,
+28 = forward), z = height above the model's base plane, all in sprite px (1 px = 1/12 unit). Mirror
+plane u = 23 (pixel c <-> 45 - c). The sprite is not quite symmetric (the right fin is one column
+narrower, the right arm tab one column further in); the model follows it.
 
-The whole machine is built in assembly coordinates and cut into newsh2-85 / newsh2-87 with
+The whole half is built in assembly coordinates and cut into newsh2-85 / newsh2-87 with
 common.split_assembly (CX0, CY0 = 206, 43 at the Blender origin) and exported as
 public/models/enemies/newsh2-85.glb and newsh2-87.glb, each with its own spriteModels entry (one frame
 each) and its part of the outline shell (D51), cut at the seam and capped so each piece's shell is
@@ -75,23 +99,23 @@ MATS = {
     "house": (7, 0.35, 0.4, 0),        # light grey housings
     "bright": (9, 0.35, 0.4, 0),       # collar
     "knob": (6, 0.35, 0.42, 0),
-    "collar": (10, 0.35, 0.4, 0),      # light ring where the eye stem meets the ball
+    "collar": (10, 0.35, 0.4, 0),      # light ring where the turret stem meets the ball
     "dark": (2, 0.35, 0.6, 0),         # grilles, chin, sockets
-    "glass": (58, 0.0, 0.3, 0.6),      # visor upper pane: a lit screen, light blue as the sprite's
-    "glass_lo": (129, 0.15, 0.1, 0),   # visor front facet
+    "glass": (58, 0.0, 0.3, 0.6),      # canopy upper pane: lit glass, light blue as the sprite's
+    "glass_lo": (129, 0.15, 0.1, 0),   # canopy front facet
     "rim": (59, 0.3, 0.3, 0),          # sensor strip
     "pod": (117, 0.3, 0.42, 0),        # red thruster pods
     "pod_dk": (116, 0.35, 0.45, 0),    # dark red ribs, chin vents
-    "arm": (155, 0.4, 0.38, 0),        # bright blue arms
+    "arm": (155, 0.4, 0.38, 0),        # bright blue gun wings
     "muzzle": (56, 0.45, 0.4, 0),      # gun muzzle block
     "bore": (52, 0.3, 0.6, 0),
-    "leg": (57, 0.35, 0.45, 0),        # blue-steel spines, feet
-    "strut": (6, 0.35, 0.42, 0),       # strut beams (grey steel, as the sprite's pixels there)
-    "ram": (55, 0.35, 0.45, 0),        # hydraulic plate under the arm
-    "claw": (57, 0.35, 0.42, 0),       # left upper claw
-    "ankle": (58, 0.35, 0.42, 0),
-    "plate": (101, 0.4, 0.45, 0),      # outer claw armour
-    "claw_lo": (100, 0.4, 0.45, 0),    # lower claws, right outer claw
+    "boom_top": (57, 0.35, 0.45, 0),   # blue-steel boom spines, boom tips
+    "boom": (6, 0.35, 0.42, 0),        # boom beams (grey steel, as the sprite's pixels there)
+    "ram": (55, 0.35, 0.45, 0),        # hydraulic plate under the wing
+    "fin": (57, 0.35, 0.42, 0),        # left outer fin
+    "tip_pin": (58, 0.35, 0.42, 0),
+    "plate": (101, 0.4, 0.45, 0),      # outer fin armour
+    "fin_lo": (100, 0.4, 0.45, 0),     # fin tips, right outer fin
     "glow_vent": (117, 0, 0.5, 3.0),   # side vent glows
     "glow_rear": (118, 0, 0.5, 3.0),   # exhaust louvre
     "glow_hot": (121, 0, 0.5, 5.0),    # pod nozzles
@@ -246,8 +270,9 @@ def pchip(xs, ys):
     return f
 
 
-def sweep(B, st, ch=0.3, steps=12, taper_end=0.0):
-    """Box-section beam with chamfered corners along stations (u, v, zc, w, h), rings at constant v."""
+def sweep(B, st, ch=0.3, steps=12, taper_end=0.0, keel=1.0):
+    """Box-section beam with chamfered corners along stations (u, v, zc, w, h), rings at constant v.
+    keel < 1 narrows the bottom to that fraction of the width (the sides lean in under the top)."""
     vs = [s[1] for s in st]
     fu, fz, fw, fh = (pchip(vs, [s[k] for s in st]) for k in (0, 2, 3, 4))
     rings = []
@@ -257,7 +282,8 @@ def sweep(B, st, ch=0.3, steps=12, taper_end=0.0):
     for v in samples:
         u, zc, w, hh = fu(v), fz(v), fw(v) / 2, fh(v) / 2
         c = min(ch, w * 0.45, hh * 0.45)
-        sec = [(-w + c, hh), (w - c, hh), (w, hh - c), (w, -hh + c), (w - c, -hh), (-w + c, -hh), (-w, -hh + c),
+        wb = w * keel
+        sec = [(-w + c, hh), (w - c, hh), (w, hh - c), (wb, -hh + c), (wb - c, -hh), (-wb + c, -hh), (-wb, -hh + c),
                (-w, hh - c)]
         rings.append(B.vs([(u + a, v, zc + b) for a, b in sec]))
     B.f(list(reversed(rings[0])))
@@ -338,10 +364,14 @@ def bolt(B, u, v, z, r=0.24, h=0.22):
     cyl(B, (u, v, z - 0.1), (u, v, z + h), r, r * 0.8, sides=6, smooth=False)
 
 
-# ---------------------------------------------------------------- the ball eye ---------------
+# ---------------------------------------------------------------- the chin turret ------------
 # rv / p: the front half (a plain ellipse into the sprite's narrow bottom rows); rvb / pb: the back
 # half, squarer and longer, full width by row 19 where it meets the collar.
-BALL = dict(cu=23.0, cv=22.5, cz=7.0, ru=3.0, rv=3.5, rvb=3.6, rz=3.8, p=2.5, pb=3.5)
+# Slung low under the bow (D166): its top (7.5 px, the lens 8.4) stays under the front half's neck
+# and channel (8.3-9.9 px there), which the game draws over it while both halves fly.
+BALL = dict(cu=23.0, cv=22.5, cz=4.4, ru=3.0, rv=3.5, rvb=3.6, rz=3.1, p=2.5, pb=3.5)
+# The turret stem's axis height: level from the chin to the collar.
+STEM_Z = 5.2
 
 
 def bexp(d):
@@ -441,7 +471,7 @@ def build_centre(B):
     for k in range(6):
         u = 19.4 + k * 1.4
         prism(B, rect(u, 1.2, u + 0.32, 2.25), 9.5, 10.02)
-    # screen: a frame block, a raised lip round a two-facet visor (flat upper pane, lower pane
+    # bridge canopy: a frame block, a raised lip round two-facet glass (flat upper pane, lower pane
     # angled down to the front, the sprite's darker band), a light sensor strip on the front lip
     B.part("screen_frame", "frame")
     prism(B, rect(18.0, 2.0, 28.0, 8.2, 0.5), 6.1, 10.25, chamfer(0.3))
@@ -467,21 +497,22 @@ def build_centre(B):
     B.part("chin", "dark")
     prism(B, [(19.6, 9.6), (26.4, 9.6), (26.9, 10.1), (26.9, 13.6), (26.5, 14.0), (25.0, 14.0), (24.85, 14.9),
               (21.15, 14.9), (21.0, 14.0), (19.5, 14.0), (19.1, 13.6), (19.1, 10.1)], 4.5, 7.9, chamfer(0.25), [(0.3, 0), (0, 0.3)])
-    # eye stem: neck, armoured sleeve with two clamps, cables either side
+    # turret stem: neck out of the chin, armoured sleeve with two clamps, collar into the ball; level
+    # and low, under the front half's neck where the two halves overlap (D166)
     B.part("pipe_neck", "frame")
-    cyl(B, (23, 9.8, 8.1), (23, 14.2, 8.0), 0.85, sides=12)
+    cyl(B, (23, 9.8, STEM_Z), (23, 14.2, STEM_Z), 0.85, sides=12)
     B.part("pipe_sleeve", "clamp")
-    cyl(B, (23, 13.9, 7.8), (23, 18.6, 7.8), 1.1, 1.15, sides=14, bev=0.15)
+    cyl(B, (23, 13.9, STEM_Z), (23, 18.6, STEM_Z), 1.1, 1.15, sides=14, bev=0.15)
     B.part("pipe_clamp", "clamp")
     for v, r in ((14.15, 1.8), (17.25, 1.3)):
-        cyl(B, (23, v, 7.8), (23, v + 0.6, 7.8), r, sides=10, bev=0.12)
+        cyl(B, (23, v, STEM_Z), (23, v + 0.6, STEM_Z), r, sides=10, bev=0.12)
     B.part("ball_collar", "collar")
-    cyl(B, (23, 18.0, 7.8), (23, 19.4, 7.9), 1.95, 2.6, sides=16, bev=0.15)
-    # the eye housing
+    cyl(B, (23, 18.0, STEM_Z), (23, 19.4, STEM_Z), 1.95, 2.6, sides=16, bev=0.15)
+    # the turret ball
     B.part("ball", "frame")
     superball(B)
     B.part("ball_band", "steel")
-    ball_band(B, 5.9, 6.6, 1.025)
+    ball_band(B, BALL["cz"] - 1.1, BALL["cz"] - 0.4, 1.025)
     p, n = ball_point(23.0, 21.0)
     B.part("lens_bezel", "steel")
     # bezel: a ring standing proud of the ball round the lens
@@ -507,6 +538,19 @@ def build_centre(B):
         t = math.radians(ang)
         q, m = ball_point(23 + 2.7 * math.cos(t), 22.5 + 3.0 * math.sin(t))
         cyl(B, tuple(q - m * 0.1), tuple(q + m * 0.25), 0.28, 0.22, sides=6, smooth=False)
+
+
+# The outrigger booms' heights (sprite px): the inner boom's top, the outer fin's top and the keel
+# under both. Every member is level along its length (D163) and floats: nothing reaches the ground
+# (D166; they were a walker's legs standing on z = 0).
+BOOM_TOP = 6.0
+FIN_TOP = 5.5
+BOOM_KEEL = 2.8
+# The boom tips' level top (the sprite's rows 20-25, columns 6-9).
+TIP_TOP = 5.0
+# Their sides lean in to this fraction of the top's width at the keel, so near the screen's sides
+# the camera sees less of the side walls (a box member read as a wide slab there).
+BOOM_TAPER = 0.55
 
 
 def build_side(B, right):
@@ -590,52 +634,63 @@ def build_side(B, right):
     cyl(B, (16.5, 11.0, 8.6), (16.5, 11.0, 9.15), 0.5, 0.42, sides=10, smooth=False)
     B.part("ram_plate_L", "ram", "L")
     prism(B, rect(18.0, 9.9, 19.1, 13.0), 5.5, 8.5, chamfer(0.15))
-    # leg: hip, inner strut down to the foot, outer claw + armour plate, knee, lower claw
-    B.part("hip_L", "frame", "L")
-    cyl(B, (8.0, 6.4, 10.3), (10.9, 6.4, 10.3), 1.25, sides=8, bev=0.2)
-    B.part("strut_L", "strut", "L")
-    # arched like a spider's leg: up from the shoulder to a high knee, then a steep shin to the foot
-    # (narrowed to end at u = 10 where it rises past the arm bar, which the sprite shows on top)
-    sweep(B, [(9.6, 4.0, 10.8, 3.0, 2.1), (9.5, 5.3, 11.8, 3.0, 2.2), (9.0, 6.8, 12.4, 2.0, 2.4),
-              (8.6, 9.6, 12.6, 2.8, 2.4), (8.6, 10.6, 12.3, 2.8, 2.4), (8.4, 13.5, 10.2, 3.0, 2.4), (8.3, 17.3, 5.9, 3.0, 2.3),
-              (7.9, 20.4, 2.4, 2.8, 2.0)], ch=0.45, steps=9)
-    B.part("strut_spine_L", "leg", "L")  # raised spine plate along the strut top
-    sweep(B, [(9.5, 5.5, 13.1, 1.6, 0.5), (9.0, 6.8, 13.7, 1.2, 0.5), (8.9, 9.6, 13.9, 1.9, 0.5),
-              (8.9, 10.6, 13.6, 1.9, 0.5), (8.85, 13.5, 11.5, 2.0, 0.5),
-              (8.75, 17.3, 7.1, 2.0, 0.5), (8.4, 19.2, 4.6, 1.6, 0.5)], ch=0.12, steps=7)
-    B.part("strut_ram_L", "steel", "L")
-    cyl(B, (8.6, 6.0, 8.6), (8.3, 15.5, 8.6), 0.42, sides=8)  # hydraulic ram body -> shin
-    cyl(B, (8.6, 5.6, 8.6), (8.6, 10.0, 8.6), 0.6, sides=8, bev=0.08)
+    # outrigger: a pivot from the hull, the inner boom to its blunt tip, the outer armour fin with its
+    # plate, the hinge across the fin, the fin's tapered tip. Each member is level along its length
+    # and a closed box from its keel up: under the tilted, off-axis game camera a part's height shifts
+    # it sideways on screen, so a member whose top changed along its length leaned near the screen's
+    # sides (D163). A level top shifts as one piece and stays straight; the plan (u, v and widths) is
+    # the sprite's.
+    def box(st, top, bot=BOOM_KEEL):  # stations (u, v, w) -> sweep stations (u, v, zc, w, h)
+        return [(u, v, (top + bot) / 2, w, top - bot) for u, v, w in st]
+
+    def tip(st, bot=BOOM_KEEL):  # stations (u, v, w, top): the last rows bevel down
+        return [(u, v, (z + bot) / 2, w, z - bot) for u, v, w, z in st]
+    B.part("boom_pivot_L", "frame", "L")
+    cyl(B, (8.0, 6.4, BOOM_TOP - 1.5), (10.9, 6.4, BOOM_TOP - 1.5), 1.25, sides=8, bev=0.2)
+    B.part("boom_L", "boom", "L")
+    # the inner boom (narrowed to end at u = 10 where it passes under the wing bar, which the sprite
+    # shows on top)
+    sweep(B, box(((9.6, 4.0, 3.0), (9.5, 5.3, 3.0), (9.0, 6.8, 2.0), (8.6, 9.6, 2.8), (8.6, 10.6, 2.8),
+                  (8.4, 13.5, 3.0), (8.3, 17.3, 3.0), (7.9, 20.4, 2.8)), BOOM_TOP), ch=0.45, steps=9,
+          keel=BOOM_TAPER)
+    B.part("boom_spine_L", "boom_top", "L")  # raised spine plate over the boom (the sprite's blue)
+    sweep(B, [(u, v, BOOM_TOP + 0.2, w, 0.5) for u, v, w in
+              ((9.55, 4.4, 2.4), (9.45, 5.5, 2.5), (9.0, 6.8, 1.6), (8.6, 9.6, 2.3), (8.6, 10.6, 2.3),
+               (8.4, 13.5, 2.5), (8.3, 17.3, 2.5), (7.95, 20.0, 2.2))], ch=0.15, steps=8)
+    B.part("boom_ram_L", "steel", "L")
+    cyl(B, (8.6, 6.0, BOOM_TOP - 1.0), (8.3, 15.5, BOOM_TOP - 1.0), 0.42, sides=8)  # hydraulic ram body -> rod
+    cyl(B, (8.6, 5.6, BOOM_TOP - 1.0), (8.6, 10.0, BOOM_TOP - 1.0), 0.6, sides=8, bev=0.08)
     if not right:
-        B.part("claw_upper_L", "claw", "L")
-        sweep(B, [(6.4, 9.0, 11.8, 1.8, 1.8), (6.3, 10.0, 12.6, 1.6, 2.0), (6.3, 13.5, 10.8, 1.6, 2.0),
-                  (6.2, 17.6, 5.2, 1.6, 1.8)], ch=0.3, steps=6)
-        B.part("claw_plate_L", "plate", "L")
-        sweep(B, [(6.0, 9.0, 10.7, 1.0, 2.1), (5.6, 9.6, 11.1, 1.2, 2.2), (5.6, 10.4, 12.0, 1.2, 2.4), (5.6, 13.5, 10.4, 1.2, 2.4),
-                  (5.8, 17.95, 4.6, 1.2, 2.0)], ch=0.3, steps=6)
-        B.part("knee_L", "steel", "L")
-        cyl(B, (5.6, 17.5, 5.2), (7.6, 17.5, 5.2), 0.85, sides=8, bev=0.15)
-        B.part("claw_lower_L", "claw_lo", "L")
-        sweep(B, [(6.5, 17.5, 5.2, 1.4, 1.7), (6.6, 21.0, 2.6, 1.2, 1.6), (6.6, 23.0, 1.4, 1.2, 1.3),
-                  (7.3, 24.2, 1.0, 1.0, 1.2), (7.8, 24.85, 0.6, 0.9, 1.0)], ch=0.3, steps=5)
+        B.part("fin_L", "fin", "L")
+        sweep(B, box(((6.4, 9.0, 1.8), (6.3, 10.0, 1.6), (6.3, 13.5, 1.6), (6.2, 17.6, 1.6)), FIN_TOP), ch=0.3,
+              steps=6, keel=BOOM_TAPER)
+        B.part("fin_plate_L", "plate", "L")
+        sweep(B, box(((6.0, 9.0, 1.0), (5.6, 9.6, 1.2), (5.6, 10.4, 1.2), (5.6, 13.5, 1.2), (5.8, 17.95, 1.2)),
+                     FIN_TOP - 0.5), ch=0.3, steps=6, keel=BOOM_TAPER)
+        B.part("fin_hinge_L", "steel", "L")  # a hinge across the fin's top
+        cyl(B, (5.6, 17.5, FIN_TOP), (7.6, 17.5, FIN_TOP), 0.85, sides=8, bev=0.15)
+        B.part("fin_tip_L", "fin_lo", "L")
+        sweep(B, tip(((6.5, 17.5, 1.4, FIN_TOP), (6.6, 21.0, 1.2, FIN_TOP), (6.6, 23.0, 1.2, FIN_TOP),
+                      (7.3, 24.2, 1.0, FIN_TOP - 0.4), (7.8, 24.85, 0.9, FIN_TOP - 1.2))), ch=0.3, steps=5,
+              keel=BOOM_TAPER)
     else:
-        B.mirror = False  # right outer claw: one narrower member, as the sprite's column 39
-        B.part("claw_upper_R", "claw", "R")
-        sweep(B, [(39.5, 9.0, 11.8, 1.0, 1.8), (39.5, 10.0, 12.6, 1.05, 2.0), (39.5, 13.5, 10.8, 1.05, 2.0),
-                  (39.5, 17.6, 5.2, 1.0, 1.8)], ch=0.22, steps=6)
-        B.part("knee_R", "steel", "R")
-        cyl(B, (38.0, 17.5, 5.2), (39.3, 17.5, 5.2), 0.85, sides=8, bev=0.15)
-        B.part("claw_lower_R", "claw_lo", "R")
-        sweep(B, [(38.9, 17.5, 5.2, 1.0, 1.7), (39.4, 19.0, 4.0, 1.0, 1.6), (39.4, 21.5, 2.4, 1.0, 1.4),
-                  (38.9, 23.5, 1.2, 1.0, 1.1), (38.5, 24.8, 0.6, 1.0, 1.0)], ch=0.2,
-              steps=5)
+        B.mirror = False  # right outer fin: one narrower member, as the sprite's column 39
+        B.part("fin_R", "fin", "R")
+        sweep(B, box(((39.5, 9.0, 1.0), (39.5, 10.0, 1.05), (39.5, 13.5, 1.05), (39.5, 17.6, 1.0)), FIN_TOP),
+              ch=0.22, steps=6, keel=BOOM_TAPER)
+        B.part("fin_hinge_R", "steel", "R")
+        cyl(B, (38.0, 17.5, FIN_TOP), (39.3, 17.5, FIN_TOP), 0.85, sides=8, bev=0.15)
+        B.part("fin_tip_R", "fin_lo", "R")
+        sweep(B, tip(((38.9, 17.5, 1.0, FIN_TOP), (39.4, 19.0, 1.0, FIN_TOP), (39.4, 21.5, 1.0, FIN_TOP),
+                      (38.9, 23.5, 1.0, FIN_TOP - 0.4), (38.5, 24.8, 1.0, FIN_TOP - 1.2))), ch=0.2, steps=5,
+              keel=BOOM_TAPER)
         B.mirror = True
-    B.part("ankle_L", "ankle", "L")  # pin where the strut meets the foot
-    cyl(B, (7.0, 20.5, 2.3), (9.6, 20.5, 2.3), 0.55, sides=8, bev=0.12)
-    B.part("foot_L", "leg", "L")
+    B.part("tip_pin_L", "tip_pin", "L")  # pin where the boom meets its tip block
+    cyl(B, (7.0, 20.5, TIP_TOP - 0.3), (9.6, 20.5, TIP_TOP - 0.3), 0.55, sides=8, bev=0.12)
+    B.part("boom_tip_L", "boom_top", "L")  # the boom's blunt tip: level top, closed keel
     prism(B, [(6.2, 20.0), (9.8, 20.0), (9.8, 20.8), (9.0, 21.3), (9.0, 24.6), (8.7, 25.0), (7.3, 25.0), (7.0, 24.7),
-              (7.0, 24.1), (6.2, 23.9)], 0.0,
-          lambda u, v: 2.2 - 0.25 * (v - 20.0), chamfer(0.35), [(0.15, 0), (0, 0.15)], groove=(0.3, 0.12, 0.08))
+              (7.0, 24.1), (6.2, 23.9)], BOOM_KEEL, TIP_TOP, chamfer(0.35), [(0.3, 0), (0, 0.3)],
+          groove=(0.3, 0.12, 0.08))
     B.mirror = False
 
 

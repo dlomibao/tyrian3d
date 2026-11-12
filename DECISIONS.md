@@ -5209,7 +5209,21 @@ unlit path for glow materials (the D121 follow-up).
 - **Could not determine from behaviour** (need the user or a closer look): `assembly-newshp-267` and
   `assembly-newshc-283` (towers or tanks?); `newshf-1` and `newshf-47` (which end is the head?); `assembly-newshu-79`
   (wreck or working machine?).
-- `tools/enemy_behaviour.mjs` covers episodes 1 and 3 only and reads `docs/roadmap/inventory.json`.
+- `tools/enemy_behaviour.mjs` covers episodes 1 and 3 only and reads `docs/roadmap/inventory.json`. Done 2026-11-12, below.
+
+**2026-11-12, the tool fixed for all episodes** (flaws found by the walker audit, `tyrian-scratch/walker-audit/REPORT.md`,
+each checked against `src/sim/tyrian2.ts` and OpenTyrian's `tyrian2.c`): it now loads each episode's own resources
+(`buildResources(files, ep)`) and `tyrian<ep>.lvl`, so E2 and E4 units show their spawns; event 12 with eventdat6 0 is
+the ground layer (25), not sky; the custom-picture spawns 49-52 (type 0, graphic eventdat, bank eventdat3) are matched
+to `custom` units by sheet and frame; event 20/27/55/74 with link 0 apply to every enemy, event 19's eventdat3 selects
+1/2/3/99 = every ground/sky/top/all enemy and 80-89 the link event 75 picked at random. The audit also listed event 28
+as a custom spawn: it is not (both sources: `topEnemyOver = false`). Motion now comes from a kinematic walk of the level
+(event clock and scroll, each event-spawned enemy moved as `JE_drawEnemy` moves it, the steering events applied when
+they fire), giving a `motion` summary per type and level and `stackedWith` per spawn (same tick, |dx| <= 24, dx/dy
+between the enemies' centres, `rigid` when the offset holds within 1 px while both live). Not modelled: event jumps,
+difficulty/2-player skips (flagged per spawn), slot limits, kills, launched enemies (`typeMotion` from their data);
+homing assumes the player stays at its start. Check: `assembly-newsh2-87` is stacked with `assembly-newsh2-123`
+(types 8/9) at dy +16, rigid, in 1.9/1.15/1.16/3.8.
 
 ## D123 — Episode-1 enemy rebuild, batch 3: the last 16 items (36 units) to the D65 hard-surface standard
 
@@ -7301,7 +7315,7 @@ stair-stepped masks, and all are grid 1.0 on every frame (sprite_mask.py `--meas
 size with different bytes (bake output).
 
 **Follow-ups (known):**
-- `tropical-cherry-companion` (option 29, "fix 7", not shipped): the lens sits 0.5 px too high and is too short
+- `tropical-cherry-companion` (option 29, "fix 7", not shipped; resolved, it ships in D164): the lens sits 0.5 px too high and is too short
   (sprite cells (7,5), (6,6), (7,6), (6,7), (7,7) change over frames 113/132/151; the model's lens only covers rows 5-6,
   so row 7 cols 6-7 never flashes: move `LENS_C` to about (7.0, 6.45), core dome to about (6.7, 6.0)); the two 127 GLOW
   running lights are invented and read as stray white chips (dim ramp colour, or only the sprite's single glint at
@@ -7312,3 +7326,301 @@ size with different bytes (bake output).
   `dual-shot-option` 12-16-sided rings show in close views; `single-shot-option` breech screws read as specks at game
   scale; `satellite-marlo` 96 hidden open edges; the open-boundary edges on `charge-cannon`/`dual-shot-option` bodies
   are hidden (no holes in culled renders).
+
+## D163 — Walker prongs: a part's height leans it sideways under the off-axis camera, so long parts stay level (fixes D65's assembly-newsh2-87)
+
+**User report:** in `?compare=1` (D158) on level 1 (TYRIAN), "some of the blue enemies has a weird angled front fork that
+the original had straight".
+
+**The unit:** the blue gun walker `assembly-newsh2-87` (pieces newsh2-85 and newsh2-87, ticks 871-1128 of
+`?debug=play&episode=1&main=3&seed=1`; also levels 1.25, 1.28, 1.36 and 3.17). Its two outer prongs (each an inner shin
+strut and an outer claw) are the fork. Only walkers away from the screen's middle showed it, which is the "some".
+
+**Cause (measured before changing anything):**
+- Not the top view: the review sheet's ortho top is straight and the rule IoU was 0.96 (grid 0.9925).
+- Not a roll: the walker's spriteModels entries have no `bank`, and only player ships roll (D93).
+- Not D6 by itself: D6 only places each draw's origin on its camera ray. The parts' own heights still project in
+  perspective, and a point raised by h moves away from the screen's middle by about 0.4-0.46 game px per px of height at
+  the playfield's sides.
+- It was the geometry's height profile: the prongs were "arched like a spider's leg", the top falling from a 12.6 px
+  knee to 0.6 px at the toe over 15 rows. The knee was pushed outward and the toe was not, so the prong leaned.
+  Projecting the claw's knee and toe through the game camera (`tyrianHarness.view.camera`, 4K): leaning 32 4K px
+  (about 5.4 game px, ~20°) more than a ground line at the far left (tick 900), 28 px the other way at the far right
+  (tick 1060), and 0 at the middle (tick 1060). That is the signature of height under perspective, not of a splayed plan.
+
+**Fix:** the legs are level and stand on the ground. The strut's top is at 6.0 px and the claw's at 5.5 px, constant from
+the hip to the toe; only the last 1.5 rows bevel down by 1.2 px. Each member is a closed box down to z = 0, its sides
+leaning in to 55% of the top's width at the ground (`sweep(..., keel=)`) so the side walls show less near the screen's
+sides. The spine plate now covers the strut's top, so the prong reads in the sprite's blue (pal 57) rather than the
+strut's grey. The hip and the hydraulic ram stay inside the strut, as they effectively were. Plan, palette indices,
+parts, frames and pieces are unchanged; the rest of the model is untouched. A level top shifts as one piece, so measured
+the same way the claw's lean is now 0 px relative to the ground at both sides. Rule IoU 0.9603 (grid 0.9925, unchanged).
+
+**Not changed:** the pylon below it (`assembly-newsh2-123`) has legs that fall only 2.5 px, which leans them by about
+1.2 game px at the far left. Its legs read straight in the captures.
+
+**Rule (PLAYBOOK failure modes):** under the tilted camera, a long, thin part whose height changes along its length
+leans sideways near the screen's sides. Keep prongs, forks, rails and blades level along their length. Put height
+changes across them, not along them.
+
+**Superseded identity (D166):** the "walker" is the rear half of a hovering gunship and the "pylon" below it its front
+half; the legs are floating outrigger booms now, no longer standing on the ground. The rule above stands.
+
+## D164 — tropical-cherry-companion ships: the one sidekick D162 left out (extends D162, D65)
+
+D162 shipped 21 of 22 sidekicks; `tropical-cherry-companion` (option 29, sheet `tyrian.shp#8`, frames 113/132/151) was
+left on the original sprite after a "fix 7" review. A fix round (shared with the DELIANI towers, 8 agents, about 1.1M
+tokens in total) rebuilt it and it passed the strict review at 8/10, top-view IoU 1.0 on all three frames (sub-pixel
+rule 0.9207). It now ships: `assets/blender/sidekicks/tropical-cherry-companion.py`,
+`public/models/sidekicks/tropical-cherry-companion.glb`, `src/render/spriteModels/tropical-cherry-companion.json`.
+
+What the fix did: the lens now covers rows 5-7, cols 6-7 (all five cells that change over the frames), with the
+tyrian_frame_pal ramp 124/125/126; the swirl is a broad "9"-shaped well (dark floor pal 116, raised rim 118/115) 0.13 px
+above the shell, so no z-fight; two orange (pal 122) tail ribs; no pal-127 lamps (dim pal-120 seam lamps instead);
+4468 triangles (3268 body, 1200 outline shell), down from 5118. The sprite's (9,9) glint is sheen and stays unmodelled.
+
+**Minor notes from the review (none blocking):**
+- The material `pal_118_tropical-cherry-companion-vane` is now the well-rim top; the name and a docstring line are
+  left over from the removed vane. Rename at the next touch.
+- The rim stands about 0.3-0.5 px above the crown, so side and front views show a slight raised lid rather than a
+  recessed pocket. Invisible from the game camera.
+- Invented detail with no basis in the sprite: the nose-cap panel groove, the dim pal-120 flank lamps and the large rear
+  exhaust oval. All small.
+- The lens covers cell (6,5), a static 127 in the sprite, so that cell pulses in the model and not in the sprite.
+- The script's bake maps go to a hardcoded scratch path (`HERE`), as `mint-o-ship.py` does; the other D162 scripts use
+  the script's own directory.
+
+**Cost:** the fix round ran 8 agents for about 1.1M tokens, shared with the DELIANI towers, which did not pass and are
+not part of this change (their work is parked in `tyrian-scratch/followups-1116/towers-wip/`; D161 still defers them).
+
+## D165 — Tall sprite and enemy models are real objects drawn in the art's view by the renderer: DELIANI's flamethrower towers stand (extends D82; closes D161's deferred towers)
+
+**Problem.** DELIANI's flamethrower towers (`assembly-newshc-283`: the column pieces `newshc-55`, `newshc-17`,
+`newshc-115` and the head `newshc-77`, episode 1 section 19, t2530-2680) did not read as towers. D161's model lay flat
+as a north-south strip. The next fix round baked D82's art view into the glbs, so in game they looked right but every
+other view (`?viewer`, Blender) showed a sheared flat slab: D82's rejected "sloped slab" (approach B/C0), review 6/10.
+D82's approach C (keep the real building in the asset, lock it to the art's view per vertex in the renderer) existed
+only for structures (tile models).
+
+**Decision.** Approach C now serves sprite and enemy models too, through the same code.
+- **One shared module**, `src/render/obliqueView.ts`. It holds D82's depth band, the oblique ray lock, its GLSL and
+  the sums used by the tests. `structureInstances.ts` now calls it instead of keeping its own copy.
+  `drawListRenderer.ts` patches a model clone's own materials once, in `cloneModel`, when its glb carries the extras.
+  That covers every mesh, the outline shell and the depth prepass, each with its own mesh-to-root matrix (parts never
+  move, D91). The blended sheets' lift (D129) uses the box the model is drawn in (`drawnBox`).
+- **The extras, extended:**
+  - `tyrian_oblique` is either `k` (D82, plan unchanged) or `[k, squeeze, axisZ]`. The second form is an orthographic
+    art camera from the south at elevation e: `k = cos e`, `squeeze = sin e`. The plan is squeezed toward row
+    `axisZ`, so a round rim draws as the art's flat ellipse, and a vertex goes on the camera ray through
+    `(x, axisZ + sin e (z - axisZ) - cos e y)`.
+  - `tyrian_depth_band` is either `[lo, hi]` or `[lo, hi, y0, y1]`. The pieces of one tall object give the same
+    `[y0, y1]`, so their depths agree where they meet.
+  - Normals, light and shadows stay the real object's, as in D82.
+- **Kept working on tagged models:**
+  - **Damage (D87, D128)** is projected onto the sprite from where the art draws a vertex, not from straight above it.
+  - **The outline (D90, D146).** The outline pass draws in the same view: its normal push is measured where the
+    normal's tip is drawn, and the push keeps the vertex's depth. Its ink also sits 5% of the band under the shell
+    (`OUTLINE_SINK`). The band squeezes true distances ten-fold or more, so where the shell's back faces line a hollow
+    (grooves, under rims) they lay a few depth steps from the surface, and the ink showed through as black blotches.
+  - **The hit flash** recolours materials only, so it is unaffected.
+  - **Shadows (D66, D142)** are cast by the real tower from its foot, as D82's buildings cast theirs. In captures
+    nothing looks out of place.
+- **Untagged models are never patched.** Their programs, uniforms and boxes are unchanged. Instanced structures keep
+  D82's GLSL expression exactly: the squeeze is a separate `#define`. Measured byte for byte against origin/main in
+  headless Chrome (`&vfx=original`, the stats line left out; two runs of origin/main are identical): TYRIAN t600 and
+  t1400 (enemies, the player ship), SAVARA t2300 tilted and t2500 steep (D82's tall towers), DELIANI t1500, and
+  episode 2 level 1 t800. 0 differing pixels in all six. An earlier draft that only refactored D82's GLSL changed 537
+  pixels of SAVARA's tower. Kept: the D82 expression is now inlined verbatim.
+- **The towers** (`assets/blender/enemies/assembly-newshc-283.py`, `newshc-77.py`, new `lib_deliani_tower.py`) are
+  exported upright, true height, with no baked squeeze: `tyrian_oblique [cos 15°, sin 15°, axis]` and
+  `tyrian_depth_band [0, 0.4, 0, 100 px]`.
+  - **Band [0, 0.4].** It keeps the whole tower under background 2 mid (0.45 above the ground-enemy pass, D5), as the
+    original draws it. In the original, DELIANI's grille and its two rails cross the towers: the vent cup shows red
+    through the grille's windows, and the head stands above the upper rail. With the fix round's band [0, 0.8] the cup
+    poked through the grille. So D161's review note that "the rail draws across the middle of both towers" was the
+    original's look, not a fault (compare capture below).
+  - **Merged from the fix round:** the flood-fill floor reference, the crane's row-by-row dome outline and pods,
+    newshc-245's fin trim, the tower's plan trims, the ball radius 8.05 and the wreck frame 91 (burnt bore, torn
+    liner, straight feed rod).
+  - **The crane** (`newshc-245`, `newshc-283`) gets those trims but stays a relief on the floor, untagged.
+- **IoU** (top view of the art's picture against the inner mask; `iou_rule`, with `iou_rule_grid` in brackets):
+
+  | Piece | IoU (grid) |
+  |---|---|
+  | newshc-115 | 0.9566 (0.9767) |
+  | newshc-17 | 0.9531 (0.9716) |
+  | newshc-55 | 0.9518 (0.9519) |
+  | newshc-245 | 0.9509 (0.9892) |
+  | newshc-283 | 0.9605 (0.9817) |
+  | newshc-77@77 | 0.9541 (0.9753) |
+  | @79 | 0.9504 (0.9754) |
+  | @81 | **0.9452** (0.9706) |
+  | @83 | 0.9686 (0.9933) |
+  | @85 | 0.9610 (0.9817) |
+  | @87 | 0.9589 (0.9831) |
+  | @89 | 0.9545 (0.9844) |
+  | @91 (wreck) | **0.930** (1.0) |
+
+  **Exception, as D121 (newshd-228) and D116:** the gate is `iou_rule_grid` ≥ 0.95 (OUTLINE-BORDER.md), and all 13
+  pass it. Two frames miss on the sub-pixel rule. On @81 the ram under the raised hood covers the sprite's ink row 27.
+  On @91 the torn lip's ends fall about 1 px short in row 27. The fix round tried a squarer ball, ram lifts of 0.8-1.6
+  and pulling the lip's vertices up; each made it worse. They ship on the grid value.
+- **Judged:** the cameras and views are listed under Captures.
+  - **In game (tilted, steep, overhead):** standing flamethrower towers that match the original's layering.
+  - **In `?viewer`:** 3/4, side and front views of two real standing towers with their heads.
+
+**Open (follow-up):** the crane between the towers (`newshc-245` over `newshc-283`) is still a relief lying on the
+floor, so in `?viewer` its boom lies flat (D161's review issue 5). In the art it is probably a post with a hammer head,
+drawn standing the way the towers are. Rebuilding it as a true upright object with these extras is a modelling job of
+its own.
+
+**Captures:** `tyrian-scratch/deliani-towers/` holds `before/` (origin/main) and `after/`:
+- DELIANI t2530, t2600 and t2680 tilted, t2600 steep and overhead, and t2600 `&compare=1`;
+- `viewer/` (asm_q34, asm_side, asm_front, head_q34, head_side, cup_q34);
+- `ident/`, the byte-identity set.
+
+**Cost:** one Opus agent; the renderer, the tests and two Blender builds, no workflow.
+
+## D166 — The blue "walker" and "pylon" are one hovering gunship in two halves: `assembly-newsh2-87` and `assembly-newsh2-123` re-identified and rebuilt (supersedes the identities in D65 and D163)
+
+**User report:** in `?compare=1` (D158) on level 1 (TYRIAN), "the blue things aren't walkers they are flying ships".
+
+**What the data says (checked before modelling, D120's lesson):**
+- **One craft, two assemblies.** Level 1.9 spawns, at the same tick and the same x, `assembly-newsh2-87` (pieces
+  newsh2-85 | newsh2-87; enemy types 6/7 and the firing 13/14, turret shots 116/115) with event 6 on the ground(25)
+  layer at y = -16, and `assembly-newsh2-123` (newsh2-123 | newsh2-125; types 8/9) with event 10 on the ground2(75)
+  layer at y = 0: t870 x=40/64, t920 x=120/144, t970 x=180/204, t1000 two more pairs. 1.15 pairs them the same way
+  (`tyrian-scratch/blue-gunship/tools/spawns.mjs`). The top assembly overlaps the bottom one by 12 rows: a 48x44 px
+  craft.
+- **It flies.** Both halves move down the screen at 4 px/tick (40 px per 10 ticks, far faster than the ground scrolls),
+  then brake on event 19 (t1050-1095) and hover near the player while the rear half fires; 1.15 and 3.8 also weave
+  them with event 20's global accelerations. "ground" in `tools/enemy_behaviour.mjs`'s `kind` is only the layer the C
+  draws them on (D122): Tyrian draws low-flying craft on the ground layers.
+- **Draw order.** `JE_drawEnemy(50)` (slots 25-49, ground) runs before `JE_drawEnemy(100)` (slots 75-99, ground2), both
+  in the ground-enemy pass, so in the original the front half is drawn over the rear half's last 12 rows: its blue
+  neck hides the rear half's red-eyed ball. The ball shows only when the front half is shot away (seen at t1060:
+  two rear halves flying on alone). In 1.15 some pairs spawn both halves on ground2, where the order is by slot; the
+  models follow 1.9, the normal-difficulty path.
+
+**Identification (in both scripts' docstrings).** Nose = the bottom of the screen (the direction of flight, toward the
+player).
+- *Rear half (85/87):* the stern's glowing exhaust bay (the sprite's orange-yellow row 0) between two engine housings,
+  red thruster pods at the stern corners, a raised bridge canopy of light blue glass, two bright blue gun wings each
+  ending in a forward-firing gun, two outrigger booms per side (an inner boom to a blunt tip, an outer armour fin),
+  and a ball turret with a red lens slung under the bow on a clamped stem.
+- *Front half (123/125):* a neck over the turret with a square glowing blue reactor window, a glowing blue glass
+  conduit along the spine (the "blue engine": the sprite's bright blue spine), two forward hull sponsons with
+  coolant pipes and rams, two blue-rimmed mandibles forming the fork at the nose, and a recessed bay between the
+  sponsons with two geared feed wheels.
+
+**Rebuild (`assets/blender/enemies/assembly-newsh2-87.py`, `assembly-newsh2-123.py`):** a re-identification and
+re-shaping, not a new art pass. Plans, palette indices, pieces, frames, export paths and `spriteModels` entries are
+unchanged (`git diff src/render/spriteModels/` is empty); the panel lines, muzzles, canopy, eye, pipes and wheels are
+the D65/D88 detail.
+- **Nothing stands on the ground.** The walker's legs (closed boxes down to z = 0, D163) are the outrigger booms:
+  level boxes from a 2.8 px keel to 6.0 (boom) and 5.5 (fin), the boom tips a level block to 5.0. The pylon's cheek
+  plates, housing, shoulders, channel and bay stood on z = 0; they now close on a belly at 3.4. Its legs, which fell
+  from 4 to 1.5 px toward the toe, are sponsons with a level 7.8 px top (the axis rises where the barrel tapers); its
+  feet, ankle fairings and the coolant pipe's flank run are level (D163: height changes across a long part, never
+  along it). The lowest point of the craft is the slung ball's belly at 1.3 px above the pass plane.
+- **The seam.** Both halves are drawn at the ground-enemy pass height (0.45, D5) and lifted along the same camera rays
+  with the same scale (D6), so in 3D they meet exactly as the sprites' layout puts them. Where both cover a pixel
+  of the overlap, the front half must be the higher, as the C draws it last. Before, the rear half's eye ball and
+  collar stood up to 11.6 px through the front half's 1.8-5.5 px spine: in game the red eye showed where the original
+  shows the blue neck. Now the turret is slung under the bow (ball top 7.5, collar 7.8, lens 8.4; stem level at 5.2)
+  and the front half's neck, shoulders, channel walls and floor and conduit are raised over it (neck 9.2-9.9,
+  channel 8.3-9.4; `NECK_LIFT`). Measured by raycasting both halves' exported glbs on a 4x grid of the stacked layout
+  (`tyrian-scratch/blue-gunship/tools/measure.py`, `seam.py`): the rear half is above the front half in 0 of 720
+  overlap samples (before: 632, 87.8%).
+- **D165's oblique tagging does not apply:** a flat-ish ship seen from above, not a tower.
+
+**IoU** (top view of each exported piece against its inner mask, `tools/sprite_mask.py --measure`, rule (grid)):
+newsh2-85 0.966 (0.9933), newsh2-87 0.924 (0.9536), newsh2-123 0.9621 (0.9849), newsh2-125 0.9449 (0.9688). The same as
+origin/main's (the plans did not change); every piece passes the `iou_rule_grid` ≥ 0.95 gate. newsh2-87 and newsh2-125
+are under 0.95 on the sub-pixel rule, as they were on main (D88 recorded newsh2-87 at grid 0.9536).
+
+**Judged in the game's render** (`?debug=play&episode=1&main=3&seed=1&skip=T-1&freezeAt=T`, 1920x1200, and
+`&compare=1`): t900 (a ship at the screen's left), t960 and t1000 (left of middle and middle), t1020 (right of middle),
+t1060 (one stacked ship in the middle and two rear halves flying alone, right). The stacked ship now shows the
+original's blue neck and spine where the red eye poked through, the booms and fork stay straight at the sides, and a
+lone rear half reads as a gunship with a chin turret. Blender views of the stacked craft over the pass plane
+(side, both 3/4s, game angle) show it floating. Sheets: `tyrian-scratch/blue-gunship/summary_game.png` (original |
+before | after per tick), `summary_views.png` (before | after), `viewer_sheet.png` (`?viewer` game and free views).
+
+**Not done:** in 1.15's pairs that spawn both halves on ground2 with the front half in the lower slot, the original
+draws the rear half over the front, so there the original shows the red eye and the models show the neck.
+
+**Cost:** one Opus agent, no workflow: three Blender builds of the two scripts, two measuring renders, about
+25 game and viewer captures.
+
+## D167 — Episode 1 flyers built as ground objects: newsh2-267 is a drill-nosed attack drone with level side cannons; the red crab boss and the newshf fortress already read as craft (follows D120, D122; extends D65, D163)
+
+2026-11-12
+
+**Problem:** the walker audit (`tyrian-scratch/walker-audit/REPORT.md`) found models built as grounded walkers or
+buildings whose behaviour says they fly. The motion model is ey += fixedmovey + eyc + the layer's scroll per tick; a
+"ground" layer only says where a unit is drawn, and Tyrian draws low-flying craft there too. This entry covers three
+of its episode-1 units. The blue gunship (assembly-newsh2-87, -123) is D166.
+
+**Method:** behaviour from the audit's `behaviour2.mjs` data (types, event 19/20 moves, spawn layers); the units'
+ticks from a headless run of the play harness's bot loop (`tyrian-scratch/e1-flyers/tools/scan.mjs`, seed 1); the
+current models' review sheets (`tools/review_sheet.py --which current`); `?compare=1` captures.
+
+| Unit | What it is | Evidence | Verdict |
+|---|---|---|---|
+| newsh2-267 | a **drill-nosed attack drone**: the drill is its nose (the way it flies, down the screen), the head capsule its tail, the grey side bars twin cannons on the brass yoke arms | type 17, turret weapon 59; sky-layer waves in 1.9/1.15 TYRIAN (main=3, t6302-6360), 1.10/2.3 BONUS, 1.18 ** ALE ** and 3.8; event 19 zig-zags (±3, -1), event 20 dives (10, 20); 1-4 px/tick relative to the ground | **rebuilt**: it stood on two legs that sloped from the pivot blocks (z 4.3) down to foot blocks on the ground. Now the side cannons are level along their length (z 4.3, D163), with a breech collar (4), the light ring (11), the barrel (8, 7) and a muzzle (5) with a dark bore at row 17; no feet. The hull, drill, yoke, colours and the one frame are unchanged; the underside is the closed round hull |
+| assembly-newsht-39 | the red crab boss is a **hovering gunship** | sky layer in 1.5 DELIANI (main=19, t4783-6303) and 3.11, top layer in 4.1; holds near the top and weaves across the screen (event 20) | **already a flyer, not rebuilt**: body, arms and claws held level off a closed flat underside, nothing reaches down to a ground, exhausts on its back. The script's "leg"/"foot" parts are the level strut under each shoulder and its end cap. Docstring only |
+| newshf "fortress" (assembly-newshf-191, -195, -199, newshf-230, -238) | a **flying gun fortress in three sections that separate** | in 1.8 SAVARA (main=29, t4456-7468) it holds at the top of the screen over open sea; event 20 pushes the wing sections (191 + 230 left, 199 + 238 right) out sideways at ±6 px/tick and back while the centre gun module (195) roams on its own; in 1.17 SAVARA V the pieces spawn on the sky layer | **not clearly the wrong object, not rebuilt**: from the game camera and in the elevations the models are armoured hull plating, barrels and ball turrets over a closed flat belly, with no foundations, legs or walls down to a ground. Docstrings corrected ("ground fortress", "slopes to the ground"); pieces and pivots unchanged, so the split still works |
+
+**Game contract:** `newsh2-267.glb` is rebuilt; its `spriteModels` entry, `pal_<index>` materials, frame and export
+path are unchanged (`git diff src/render/spriteModels/` is empty). No other glb changed.
+
+**IoU** (`tools/sprite_mask.py --measure` on the review sheet's top render; `iou_rule` (`iou_rule_grid`)):
+newsh2-267 0.9471 (0.9891), the same as before the change (0.947 (0.9891)): the side cannons cover the same plan as
+the legs and feet. Unchanged models: assembly-newsht-39 0.9825 (0.9958); assembly-newshf-191 0.9825 (0.9895), -195
+0.9945 (0.9986), -199 0.9761 (0.9843); newshf-230 0.9413 (0.9675), newshf-238 0.9464 (0.9886). All pass the gate
+(`iou_rule_grid` ≥ 0.95); the sub-pixel rule values under 0.95 predate this entry.
+
+**Seen, not fixed:** in DELIANI at t4900 the remaster draws the left green orb over the crab's left arm; the original
+draws the crab over it (both are sky-layer enemies, so it's an in-pass height/order question, not object identity).
+
+**Captures:** `tyrian-scratch/e1-flyers/` holds `before/` and `after/` (`?compare=1` at TYRIAN t1340 and t6330, SAVARA
+t4500, t4600 and t5000, DELIANI t4900; review sheets) and the summaries `summary-newsh2-267.png`,
+`summary-assembly-newsht-39.png`, `summary-newshf-fortress.png`.
+
+**Cost:** one Opus agent, no workflow: one Blender build (newsh2-267, ~10 s), nine review sheets, about a dozen
+headless captures.
+
+## D168 — The HUD shows the held special weapon and the superbombs, at the C's places on the playfield (fixes a port gap; extends D61)
+
+2026-11-12
+
+**Finding** (title-demo comparison, overhead, #8): the original draws the special weapon's icon at the playfield's
+top left (Pearl Wind in demo 2); the remaster showed nothing there, and no HUD file read `items.special` or
+`superbombs`, although `src/sim/mainint.ts`' JE_inGameDisplays stub said the HTML HUD did.
+
+**What the C does** (`JE_inGameDisplays`, mainint.c L2848-2917, called by JE_main, tyrian2.c L2220, every frame after
+the boss bar, onto the game screen, so on the playfield): if `player[0].items.special > 0`, the special's
+`itemgraphic` as a 2x2 spriteSheet10 sprite (24x28) at (25, 1), player 1's only; the lives at (30, 15), moved to
+(30, 35) while that icon is shown; one spriteSheet9 #304 (12x14) per superbomb at (30 + 12j, 160), player 2's leftwards
+from 270.
+
+**Decision** (`src/app/hud.ts`, `src/app/overlay.css`):
+- **Frame:** both are HTML over the opening, beside the lives and boss bars, in game pixels (`--hud-unit`): the
+  special at (1, 1) of the opening, the C's (25, 1) on the playfield; the arcade lives drop to 30 units down while it
+  shows, as the C moves them; the bombs from x 6, their bottoms 10 units above the playfield's bottom edge (y 160 + 14).
+  Pixel-sharp, like the sidekick boxes' icons.
+- **Minimal:** the special's icon (2x) under CREDITS at the top left; the bombs as a fourth row of the bars,
+  "Bombs", 1.5x icons.
+- The icons are the game data's own sprites painted in the in-level palette (as the sidekick icons, D61), each cached
+  once by sprite (the sidekick cache, generalised). Hidden when there is no special and no bombs.
+- The stale stub comment in `src/sim/mainint.ts` now says what JE_inGameDisplays draws and where the HUD shows each.
+
+**Not done:** player 2's superbombs in two-player (twoPlayerHud.ts has no bomb row; the minimal bars, which hold
+player 1's, are hidden in two-player by twoPlayer.css).
+
+**Checked** (`tyrian-scratch/hud-special/`): the attract demo 2 in `?demo=2&compare=1&camera=overhead` (Pearl Wind
+at the same place as the original's); `?debug=play` with Pearl Wind and four superbombs set from the console, frame and
+minimal, at 1920x1080 and 390x844; summary `summary.png`. vitest, tsc, build.
+
+**Cost:** one Opus agent, no workflow: about ten headless captures.

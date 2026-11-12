@@ -11,8 +11,18 @@ Read from the sprite (24 x 28 px, rows 0-21 drawn):
   - field: the plate under the rim, sloping off to the rounded outer edge (pal 67);
   - plate B between the panel lines at cols 12 and 16 (pal 68), plate C cols 17-20 (pal 65), and a
     low ledge at the top right, cols 21-23 (pal 68);
-  - outer edge: the diagonal and bottom rows, rounded down toward the ground (the darkening rows).
-Top-view edge at the INNER edge of the ink border (D74). Ground object: base at z = 0.
+  - outer edge: the diagonal and bottom rows, rounded down toward the belly (the darkening rows).
+Top-view edge at the INNER edge of the ink border (D74). Flat closed belly at z = 0.
+
+What it is (D120/D122 identify the object first; DECISIONS D167): the red FLYING gun fortress at the end of
+SAVARA, in three sections that separate, not a ground building. In 1.8 and 1.12 SAVARA it holds at
+the top of the screen over open sea; event 20 then pushes the two wing
+sections (assembly-newshf-191 with newshf-230 on the left, assembly-newshf-199 with newshf-238 on the
+right) out sideways at +-6 px/tick and back, while the centre gun module (assembly-newshf-195) roams
+on its own; in 1.17 SAVARA V the same pieces spawn on the sky layer. The model already reads as that
+from the game camera: armoured hull plating, barrels and turrets over a closed flat underside, with no
+foundations, legs or walls down to a ground. So it was not rebuilt, and its pieces and pivots are
+unchanged so the split still works.
 
 Seen in episodes 1-4 (levels 1.10, 1.29, 1.38, 2.2, 3.21, 4.16). One frame (238); hit flash and
 damage are runtime effects (D86). Outline shell per D51.

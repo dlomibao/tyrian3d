@@ -3,7 +3,7 @@
 // (src/render/remaster/structureInstances.ts).
 import * as THREE from "three";
 import { describe, expect, test } from "vitest";
-import { bandHeight, depthBandOf, placeVertex, rayPoint } from "../../src/render/remaster/structureInstances";
+import { bandHeight, depthBandOf, placeVertex, rayPoint } from "../../src/render/obliqueView";
 
 function building(height: number, extras: Record<string, unknown>) {
   const root = new THREE.Group();
