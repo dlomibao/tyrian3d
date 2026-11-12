@@ -7,6 +7,13 @@ drop as thick round upper arms through an elbow drum into a claw pod with a glow
 (newsht-39 / -49: frames 39 -> 77 -> 79 and 49 -> 87 -> 85 only brighten the eye, so the eye's
 materials carry per-frame palette indices, D17).
 
+What it is (D120/D122 identify the object first; DECISIONS D167): a HOVERING gunship, the boss of 1.5
+DELIANI (also 3.11 and 4.1). It spawns on the sky layer (the top layer in 4.1), holds near the top
+of the screen and weaves from side to side across it (event 20), so it flies. The model already is one: the body,
+arms and claws are held level off a closed flat underside, nothing stands on legs or reaches down to
+a ground, and the exhausts are on its back. The "leg" and "foot" parts below are the strut under each
+shoulder and its end cap, lying level in the plan, not legs. Not rebuilt.
+
 Design B leads with silhouette and readability from the small tilted game camera: big simple
 volumes first (the round arms and claws, the orbs, the U frames, the raised spine and shoulders),
 then machined detail on what the camera sees (panel gaps cut through the plates, collars and
