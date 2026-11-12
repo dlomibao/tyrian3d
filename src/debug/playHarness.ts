@@ -34,6 +34,8 @@
 //                                  cut to just above its damage level), to look at damaged frames (D87)
 //   &damage=off                    damaged frames as before D87 (extruded sprites where no model)
 //
+// tyrianHarness.music logs the songs the level asks the host for (D157): `plays` [song, tick].
+//
 // Keys: V switches the effects look, A the sprite art, N the next front weapon, P (or Space) pauses.
 // The bot is the one the episode tests use: invulnerable, always firing, sweeping left and right.
 
@@ -54,6 +56,7 @@ import type { View } from "../render/view";
 import { levelModelInfo, preloadLevelModels } from "../app/levelPreload";
 import { levelDamageFrames } from "../sim/levelSprites";
 import { Hud } from "../app/hud";
+import { LevelMusic } from "../app/levelMusic";
 import { armorAt, parseArmorPlan } from "./armorPlan";
 
 /** Front weapons the cycle goes through: Pulse, Multi, Laser, Zica, Vulcan, Lightning, Starburst, Sonic, Protron, Missiles, Mega Pulse, Hyper Pulse. */
@@ -107,6 +110,10 @@ export async function runPlayHarness(view: View): Promise<void> {
   const steer = params.get("steer");
   const hurt = num("hurt", 0) > 0;
   const cycleTicks = num("cycle", 0) * (1000 / CLASSIC_TICK_MS);
+  // The harness has no audio: the songs the level asks for (D157) go to a log, `tyrianHarness.music`
+  // (`plays`: [song, tick] pairs; set `playing = false` to end a song that doesn't loop).
+  const music = { playing: true, volume: 1, plays: [[g.song, 0]] as [number, number][], play: (n: number) => (music.plays.push([n, t]), (music.playing = true)) };
+  const levelMusic = new LevelMusic(music, () => 1);
   const step = (show: boolean) => {
     // tests/sim/bot.ts: invulnerable, always firing, sweeping.
     p.invulnerable_ticks = solid ? 0 : 2;
@@ -123,6 +130,7 @@ export async function runPlayHarness(view: View): Promise<void> {
       }
     }
     const r = tick();
+    levelMusic.tick();
     t++;
     if (r.levelOver || r.gameOver) {
       loadLevel(files, episode, g.nextLevel > 0 && r.completed ? g.nextLevel : g.mainLevel);
@@ -189,7 +197,7 @@ export async function runPlayHarness(view: View): Promise<void> {
       }
     },
   });
-  Object.assign(window, { tyrianHarness: { view, g, step, nextWeapon, pause: (v = true) => (paused = v) } });
+  Object.assign(window, { tyrianHarness: { view, g, step, nextWeapon, music, pause: (v = true) => (paused = v) } });
 }
 
 function makeOverlay(): HTMLDivElement {

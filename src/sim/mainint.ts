@@ -27,6 +27,7 @@ import {
   type Sprite2Sheet,
 } from "./draw";
 import { playDemoKeys } from "./demo"; // [demos]
+import { play_song } from "./tyrian2";
 import { playerInput } from "./input";
 import { mt_rand } from "./mtrand";
 import { itemName, optionSelectAt, SAWeaponAt, specialArcadeWeaponAt } from "./overrun";
@@ -1354,7 +1355,7 @@ export function JE_playerCollide(this_player: Player, playerNum_: number): void 
           g.soundQueue[7] = S_POWERUP;
         } else if (evalue > 10000 && enemyAvail[z] === 2) {
           if (!g.bonusLevel) {
-            // play_song(30); /*Zanac*/ (music isn't driven by the sim)
+            play_song(30); /*Zanac*/ // the host plays g.song (app/levelMusic.ts, D157)
             g.bonusLevel = true;
             g.nextLevel = evalue - 10000;
             enemyAvail[z] = 1;

@@ -297,6 +297,24 @@ describe.skipIf(!havePlayerData())("pick-ups and collisions", () => {
     expect(g.player[0].armor).toBe(28);
   });
 
+  test("a secret-level warp (evalue 10001-19999, enemyAvail 2) plays Zanac, play_song(30), once (D157)", () => {
+    g.song = 0;
+    placeEnemy(10022, false);
+    g.enemyAvail[0] = 2;
+    JE_playerCollide(g.player[0], 1);
+    expect(g.song).toBe(30);
+    expect(g.bonusLevel).toBe(true);
+    expect(g.nextLevel).toBe(22);
+    expect(g.displayTime).toBe(150);
+    // A second warp in the same level does nothing (`if (!bonusLevel)`).
+    g.song = 5;
+    placeEnemy(10023, false);
+    g.enemyAvail[0] = 2;
+    JE_playerCollide(g.player[0], 1);
+    expect(g.song).toBe(5);
+    expect(g.nextLevel).toBe(22);
+  });
+
   test("ramming an enemy costs damageRate shield once invulnerability is over", () => {
     const e = placeEnemy(0, false);
     e.armorleft = 10;
