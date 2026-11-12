@@ -7055,3 +7055,30 @@ not checked whether the host plays it.
 Tests: `tests/app/secretLevel.test.ts` (null at 0, the text and place above 0, the pulse colours, and miscText[59]
 from the data). Captures: `tyrian-scratch/secret-level-text/` (`before_secret.png` the warp pickup before,
 `after_secret_e{20,23}.png` two pulse phases, `after_powerup*.png`), not in git (D3).
+
+## D156 — The player ship's wear loses its orange embers: scorch only, at every level (amends D90)
+
+2026-11-12
+
+**Problem:** at very low armour the player ship turned orange. The user wants the damage kept and the orange
+dropped.
+- **The cause:** D90's heavy level (armour under 25%) set `HOT` = 1 (`src/render/damage/shipDamage.ts`), and the
+  ship mode of the damage shader (`damageShader.ts`, `FRAGMENT_COLOUR`) turned that into ember glow on the wear
+  pattern's `b` channel: `m.b = s * smoothstep(0.6, 0.9, b) * uDmgHot * 1.5`, which the shared ember term draws as
+  emissive `vec3(1.0, 0.3, 0.05) * m.b * 1.2`. Over half the scorched hull that reads as orange patches.
+- The light level (under 50%) never had embers, so it looked the same before and after.
+
+**Decision:** the player ship's wear is scorch only, at every level:
+- `HOT`, `ShipCondition.hot` and the `uDmgHot` uniform are gone; ship mode writes `m.b = 0`, so no ember is drawn.
+  The wear pattern no longer makes its ember channel.
+- The scorch is unchanged: the same blotch pattern, `COVER` 0.28 / 0.55, the thresholds, hysteresis and fade of D90.
+- **Enemies are unchanged.** Their damaged frames (D87, D128) keep their embers: those come from the damaged
+  sprite's own pixels that turned red-orange (`mask.b`, damageFrames.ts) and from the charred rim of a cut, so
+  they are the original art's. The ship mode is a separate branch of the shader (`uDmgCover >= 0`).
+
+**Checked:** `?debug=play&episode=1&main=3&seed=1&skip=150&freezeAt=150&solid=1&camera=overhead&steer=right`, the
+Talon (`&ship=1`, maximum 10) at full, `&armor=4` and `&armor=2`, and the Gencore Phoenix (`&ship=3`, maximum 17)
+at full, `&armor=7` and `&armor=3`, before and after: the orange patches at the heavy level are gone, the dark
+scorch stays. Sheet: `tyrian-scratch/user-batch-1/wear-sheet.png` (not in git).
+
+Tests: `tests/render/shipDamage.test.ts` (the condition eases its coverage only).

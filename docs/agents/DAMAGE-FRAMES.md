@@ -119,8 +119,8 @@ The player ship has no damaged frames. Its look follows its current armour inste
 (`src/render/damage/shipDamage.ts`):
 - **Ratio:** `ratio = armor / initial_armor`, clamped to [0, 1]. Armour above the ship's maximum
   counts as full; a missing reference counts as healthy.
-- **Levels:** clean at 50% and above, a light scorch below 50%, and heavier scorch with embers
-  below 25%.
+- **Levels:** clean at 50% and above, a light scorch below 50%, and heavier scorch (no embers,
+  D156) below 25%.
 - **Recovering:** each threshold needs 3% more to go back up.
 - **Fade:** the look eases in and out.
 
