@@ -1,4 +1,4 @@
-// D173: the C's blends (blit_sprite2_blend, draw_background_2_blend) keep the sprite's palette bank and
+// D174: the C's blends (blit_sprite2_blend, draw_background_2_blend) keep the sprite's palette bank and
 // average the shades. The shader half needs WebGL; here: the bank choice, and which draws take the blend.
 import * as THREE from "three";
 import { describe, expect, test, vi } from "vitest";
@@ -45,7 +45,7 @@ function frame(items: SpriteDraw[]) {
   return { layer: inner.artLayer, sheet: art.sheet("fire.shp"), explosionsArmed: inner.grabExplosions.armed, sheetsArmed: inner.grabSheets.armed };
 }
 
-describe("hue-keeping blend (D173)", () => {
+describe("hue-keeping blend (D174)", () => {
   test("a sprite's or tile's bank is the one most of its pixels are in", () => {
     expect(dominantBank([0x75, 0x76, 0x42, -1, -1], false)).toBe(0x70);
     // Tiles: index 0 is see-through, so it doesn't count.

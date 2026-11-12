@@ -104,7 +104,7 @@ const STAND_IN_IDS = new Set(COVERED_STAND_IN.values());
 /** How fast a ship's model eases toward its banking frame's roll (per second; the roll: spriteModels.ts bankRoll, D93). */
 const ROLL_RATE = 12;
 /**
- * Opacity standing in for the C's value-averaging blend where it isn't ported (D173 ports it for the
+ * Opacity standing in for the C's value-averaging blend where it isn't ported (D174 ports it for the
  * background-2 sheets and the explosions' flat art): extruded blend sprites, the flashing ship, and
  * blended flat art outside the explosions.
  */
@@ -158,7 +158,7 @@ class Pool {
     capacity = 16,
     /** The shadow pass's material (HD terrain cutouts: only their opaque part casts). */
     private readonly depthMaterial?: THREE.Material,
-    /** Also a per-instance palette bank (`instBank`: HD blend sheets, D173). */
+    /** Also a per-instance palette bank (`instBank`: HD blend sheets, D174). */
     private readonly withBank = false,
   ) {
     this.allocate(capacity);
@@ -423,7 +423,7 @@ export class DrawListRenderer {
   private readonly shadowDecals = new ShadowDecals();
   /** This frame's placed models, by pass, screen box and height, for the blended sheets (D129). */
   private readonly placedExtents: PlacedExtent[] = [];
-  /** The frame under the C's blended layers, and the hooks that copy it (hueBlend.ts, D173). */
+  /** The frame under the C's blended layers, and the hooks that copy it (hueBlend.ts, D174). */
   private readonly under: UnderGrab;
   private readonly grabSheets: UnderGrabHook;
   private readonly grabExplosions: UnderGrabHook;
@@ -960,7 +960,7 @@ export class DrawListRenderer {
       if (h !== passHeight(b.pass)) writeMatrix(b.pool.mesh.instanceMatrix.array as Float32Array, b.slot, b.x, b.y, h, 1, 1, cam);
       this.addGrabArea(b.pass === Pass.Background2Top ? this.grabTop : this.grabSheets, b.x, b.y, TILE_WIDTH, TILE_HEIGHT);
     }
-    // The C's blended layers read the frame under them: copy it where they start, where they are (D173).
+    // The C's blended layers read the frame under them: copy it where they start, where they are (D174).
     // Each copy costs a break in the GPU's pass, so explosions away from the sheets read the sheets'
     // copy (made a little earlier: without the sheets, which aren't under them, and the shots' art).
     if (!this.grabSheets.area.empty && !this.grabExplosions.area.near(this.grabSheets.area, 0.05)) {
@@ -1115,7 +1115,7 @@ export class DrawListRenderer {
   }
 
   /**
-   * The palette bank a blended explosion's flat art keeps under the C's blend (D173): its original
+   * The palette bank a blended explosion's flat art keeps under the C's blend (D174): its original
    * sprite's main bank (the fire ramp, 0x70, for newsh6.shp's). -1 for other draws, which keep the
    * plain opacity.
    */
@@ -1130,7 +1130,7 @@ export class DrawListRenderer {
 
   /**
    * One flat art quad at the draw's place (screen (x + dx, y + dy), its pass's height), its opacity
-   * times `fade`. A blended draw with a `bank` takes the C's blend in that bank (ART_HUE_BLEND, D173);
+   * times `fade`. A blended draw with a `bank` takes the C's blend in that bank (ART_HUE_BLEND, D174);
    * other blended ones are drawn at EXPLOSION_ALPHA or BLEND_ALPHA as before.
    */
   private addFlat(
@@ -1289,7 +1289,7 @@ export class DrawListRenderer {
     e[s * 4 + 3] = t.tint ? t.tint.y : -1;
     writeMatrix(pool.mesh.instanceMatrix.array as Float32Array, s, x, y, passHeight(d.pass), 1, 1, cam);
     if (blend) {
-      // The C's blend keeps the tile's palette bank (D173): the painting's colours have none, so the
+      // The C's blend keeps the tile's palette bank (D174): the painting's colours have none, so the
       // original tile's main one.
       let bank = this.tileBanks.get(d.tileId);
       if (bank === undefined) this.tileBanks.set(d.tileId, (bank = dominantBank(d.tile, true)));

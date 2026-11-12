@@ -1,4 +1,4 @@
-// The C's translucency, ported to the GPU (DECISIONS.md D173). OpenTyrian blends background 2
+// The C's translucency, ported to the GPU (DECISIONS.md D174). OpenTyrian blends background 2
 // (draw_background_2_blend, TYRIAN's ice clouds) and explosions (blit_sprite2_blend) per palette
 // index, not by opacity:
 //

@@ -114,7 +114,7 @@ export function paletteMaterial(palette: PaletteTexture, opts: PaletteMaterialOp
  * The ground (background 1) material: tiles from the atlas, coloured per fragment. With `under`
  * (the frame under the sheet, hueBlend.ts), it draws the C's blended background-2 tiles
  * (draw_background_2_blend) as flat sheets instead: index 0 is see-through and the rest takes the
- * C's hue-keeping blend with what's under it (D173), unlit.
+ * C's hue-keeping blend with what's under it (D174), unlit.
  */
 export function groundTileMaterial(palette: PaletteTexture, atlas: TileAtlas, under?: UnderGrab): THREE.Material {
   const blend = under !== undefined;
@@ -158,7 +158,7 @@ export function groundTileMaterial(palette: PaletteTexture, atlas: TileAtlas, un
           // The smoothies' hue (screenHue.ts) for the instance's pass height: 0 for the ground, which
           // is under every filter; a blended background-2 sheet's own pass otherwise.
           "diffuseColor.rgb *= paletteColor(screenHueIndex(groundIndex, vPassY, vScreenWater));",
-          // blit_sprite2_blend's rule: the tile's bank at the mean of its shade and the one underneath (D173).
+          // blit_sprite2_blend's rule: the tile's bank at the mean of its shade and the one underneath (D174).
           blend ? "float groundBank = floor(groundIndex / 16.0) * 16.0;\nvec3 hueBlended = hbColor(groundBank, groundIndex - groundBank, hbUnderShade(), vPassY, vScreenWater);" : "",
         ].join("\n"),
       );
