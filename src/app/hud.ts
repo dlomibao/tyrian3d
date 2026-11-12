@@ -6,8 +6,10 @@
 // Two looks (Options → Interface, `?interface=`, DECISIONS.md D61):
 //   frame    the remastered bronze frame (hudFrame.ts): the original's sidebar and message bar
 //            around the playfield, which the 3D view is fitted into (View.setViewport). The boss
-//            bars, WARNING, arcade lives and the cheating line stay HTML, over the opening.
-//   minimal  the light HUD over the full-window view (score, level, lives, bars, weapons, message).
+//            bars, WARNING, arcade lives, the special weapon, the superbombs and the cheating line
+//            stay HTML, over the opening, where the C draws them on the playfield.
+//   minimal  the light HUD over the full-window view (score, level, lives, bars, weapons, message,
+//            the special weapon under the score, the superbombs as a row of the bars).
 // [two-player] Two-player games keep the minimal look, beside their own HUD (twoPlayerHud.ts).
 
 import "./overlay.css";
@@ -15,6 +17,7 @@ import { cameraStyle, interfaceStyle, type CameraStyle } from "../core/displaySt
 import { CAMERA_TILT, CAMERA_TILT_GENTLE, CAMERA_TILT_OVERHEAD, playfieldScreenAspect, type ScreenRect } from "../render/view";
 import { g } from "../sim/state";
 import { hudLives } from "./arcade"; // [arcade]
+import { decodeSprite2, type DecodedSprite } from "../data";
 import { paint, tableSprite } from "./dataCubes";
 import type { TouchAction } from "./controls";
 import { HudFrame, type FrameValues, type HudTargetId, type SidekickView } from "./hudFrame";
@@ -39,6 +42,15 @@ const PLAYFIELD_H = 184;
 /** sprite.h's OPTION_SHAPES table, and the in-level palette (JE_loadPic 3 → pcxpal[2]). */
 const OPTION_SHAPES = 5;
 const LEVEL_PALETTE = 5;
+/** JE_inGameDisplays' superbomb icon: spriteSheet9 #304 (mainint.c L2908). */
+const SUPERBOMB_SPRITE = 304;
+
+/** A palette-indexed sprite painted once, as a data URL and its size in game pixels. */
+interface Art {
+  url: string;
+  w: number;
+  h: number;
+}
 
 export class Hud {
   private readonly root = document.createElement("div");
@@ -46,7 +58,7 @@ export class Hud {
   private readonly el: Record<string, HTMLElement> = {};
   private readonly last = new Map<string, string>();
   private readonly aspects = new Map<CameraStyle, number>();
-  private readonly icons = new Map<number, SidekickView | null>();
+  private readonly art = new Map<string, Art | null>();
   private readonly insetProbe = document.createElement("div");
   private shown = false;
   private framed = false;
@@ -62,6 +74,8 @@ export class Hud {
     this.root.className = "hud";
     this.root.innerHTML = `
       <div class="top"><span class="score" data-k="score"></span><span class="level" data-k="level"></span><span class="lives" data-k="lives"></span></div>
+      <div class="special" data-k="special" hidden><img alt="" data-k="specialIcon"></div>
+      <div class="bombs" data-k="bombs" hidden></div>
       <div class="boss" data-k="boss" hidden>
         <span class="bar"><i data-k="boss0"></i></span><span class="bar" data-k="bossSlot1"><i data-k="boss1"></i></span>
       </div>
@@ -72,10 +86,12 @@ export class Hud {
         <span>Armor</span><span class="bar armor"><i data-k="armor"></i></span>
         <span>Shield</span><span class="bar shield"><i data-k="shield"></i></span>
         <span>Power</span><span class="bar power"><i data-k="power"></i></span>
+        <span data-k="bombsLabel" hidden>Bombs</span><span class="bomb-row" data-k="bombRow" hidden></span>
       </div>
       <div class="weapon"><div data-k="front"></div><div data-k="rear"></div></div>
       <div class="cheating" data-k="cheating" hidden>Cheaters always prosper.</div>`;
     for (const node of this.root.querySelectorAll<HTMLElement>("[data-k]")) this.el[node.dataset.k!] = node;
+    this.el.root = this.root;
     this.root.hidden = true;
     this.frame.root.hidden = true;
     this.insetProbe.className = "hud-inset-probe";
@@ -122,6 +138,7 @@ export class Hud {
     this.hidden("warning", !(p.is_alive && p.armor < 6));
     this.hidden("cheating", !g.youAreCheating); // [cheats] JE_inGameDisplays (mainint.c L2913-2916)
     this.secret();
+    this.special();
 
     // Boss bars (draw_boss_bar): the most damaged linked enemy's armor, out of 254; `color` > 0
     // flashes the bar after a hit.
@@ -282,15 +299,74 @@ export class Hud {
     const id = p.items.sidekick[i];
     const option = id > 0 ? g.res?.items.options[id] : undefined;
     if (!option) return null;
-    let art = this.icons.get(option.iconGr);
-    if (art === undefined) {
+    const art = this.paint(`option:${option.iconGr}`, () => {
       const sprite = option.iconGr > 0 ? tableSprite(OPTION_SHAPES, option.iconGr - 1) : null;
-      const palette = g.res.palettes[LEVEL_PALETTE];
-      art = sprite && palette ? { icon: paint(sprite.width, sprite.height, [{ sprite, x: 0, y: 0 }], palette).toDataURL(), iconW: sprite.width, iconH: sprite.height, ammo: 0, ammoMax: 0 } : null;
-      this.icons.set(option.iconGr, art);
-    }
+      return sprite ? [{ sprite, x: 0, y: 0 }] : null;
+    });
     const sk = p.sidekick[i];
-    return { icon: art?.icon ?? null, iconW: art?.iconW ?? 0, iconH: art?.iconH ?? 0, ammo: sk.ammo, ammoMax: sk.ammo_max };
+    return { icon: art?.url ?? null, iconW: art?.w ?? 0, iconH: art?.h ?? 0, ammo: sk.ammo, ammoMax: sk.ammo_max };
+  }
+
+  /**
+   * JE_inGameDisplays' special weapon and superbombs (mainint.c L2859-2861, L2900-2911). The C draws
+   * them on the playfield every frame: the held special's 2x2 item graphic (spriteSheet10) at
+   * screen (25, 1), and one spriteSheet9 #304 per superbomb at (30 + 12j, 160). Framed, they sit at
+   * those places in the opening, in game pixels, and the lives move down under the special as the
+   * C's do (y 15 → 35); minimal, the special sits under the score and the bombs are a row of the bars.
+   */
+  private special(): void {
+    const p = g.player[0];
+    const special = p.items.special > 0 ? g.res?.items.specials[p.items.special] : undefined;
+    const index = special?.itemGraphic ?? 0;
+    const icon = index > 0 ? this.paint(`special:${index}`, () => {
+      const data = g.res.spriteSheet10.data;
+      return [
+        { sprite: decodeSprite2(data, index), x: 0, y: 0 },
+        { sprite: decodeSprite2(data, index + 1), x: 12, y: 0 },
+        { sprite: decodeSprite2(data, index + 19), x: 0, y: 14 },
+        { sprite: decodeSprite2(data, index + 20), x: 12, y: 14 },
+      ];
+    }, 24, 28) : null;
+    this.hidden("special", icon === null);
+    this.flag("root", "has-special", icon !== null);
+    if (icon && this.last.get("specialIcon") !== icon.url) {
+      this.last.set("specialIcon", icon.url);
+      (this.el.specialIcon as HTMLImageElement).src = icon.url;
+    }
+
+    // [two-player] Player 2's bombs aren't drawn here (twoPlayer.css hides the bars row).
+    const count = Math.max(0, p.superbombs);
+    const bomb = count > 0 ? this.paint(`sheet9:${SUPERBOMB_SPRITE}`, () => [{ sprite: decodeSprite2(g.res.spriteSheet9.data, SUPERBOMB_SPRITE), x: 0, y: 0 }]) : null;
+    const n = bomb ? count : 0;
+    this.hidden("bombs", n === 0);
+    this.hidden("bombsLabel", n === 0);
+    this.hidden("bombRow", n === 0);
+    const key = `${n}:${bomb?.url.length ?? 0}`;
+    if (this.last.get("bombIcons") === key) return;
+    this.last.set("bombIcons", key);
+    const imgs = bomb ? `<img alt="" src="${bomb.url}" style="--w:${bomb.w};--h:${bomb.h}">`.repeat(n) : "";
+    this.el.bombs.innerHTML = imgs;
+    this.el.bombRow.innerHTML = imgs;
+  }
+
+  /**
+   * Paint palette-indexed sprites once in the in-level palette, cached by `key`. The canvas is
+   * `w` x `h`, or the first sprite's size.
+   */
+  private paint(key: string, parts: () => { sprite: DecodedSprite; x: number; y: number }[] | null, w?: number, h?: number): Art | null {
+    let art = this.art.get(key);
+    if (art !== undefined) return art;
+    const palette = g.res?.palettes[LEVEL_PALETTE];
+    const list = palette ? parts() : null;
+    art = null;
+    if (palette && list && list.length > 0) {
+      const W = w ?? list[0].sprite.width;
+      const H = h ?? list[0].sprite.height;
+      if (W > 0 && H > 0) art = { url: paint(W, H, list, palette).toDataURL(), w: W, h: H };
+    }
+    // Only cache once the data is loaded, so an early call doesn't stick as "no art".
+    if (palette) this.art.set(key, art);
+    return art;
   }
 
   private text(k: string, v: string): void {
