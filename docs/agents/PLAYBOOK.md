@@ -118,6 +118,8 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
   | Animation frame flashes plain | All frames textured/exported together (D46). |
   | Enemy pops from sprite to model | Level preload list (D54); add conditional spawns (D56). |
   | Two agents edited one script | Merge such models into one item at scout time. |
+  | A merged item's old script still exports the same glbs (a full rebuild would bring the old model back) | The coordinator deletes the absorbed scripts and their private libs when committing (`assembly-newsha-229.py`, `assembly-newshh-159.py`, D169); agents are told not to touch them. |
+  | A walker that flies (newshm-123, D169) | Before legs: does any part move fore and aft between frames, and is there a foot shape? Frames that only trim sideways are vanes, not a gait; check `motion` over a static map. |
 | Model built as a grounded object but it is launched or floats (campfire fireball, lamp-on-ring orb, missile reversed); a piece built as a whole craft | Run `OUT=x.json NODE_OPTIONS= node tools/enemy_behaviour.mjs <unit>...` at scout time (all episodes): launcher, spawn layers, `motion` per level (terrain-fixed, hovering, steady drift, weaving, swooping, px/tick), `stackedWith` (units spawned the same tick within 24 px, dx/dy, `rigid` when the offset holds: a composite craft), `spawnDetail` per spawn. The ground/air layer does not mean grounded or flying; a launched thing at 3-5 px/tick is a projectile (D122). |
   | Black slab, ink loop or slivers where an assembly piece ends; open cut sections | Never cut the joined, culled model: clip each closed part before the join, capped, and make the shell from that (lib_b065 `clip_part`, D117). |
   | Ink wedges or slits across a hull in `?viewer=` (outline on only) | D90's shell: `common.outline_shell(..., voxel=0.03, inside=0.004)`; a hand-built shell gets the same Shrinkwrap hold and comes down where the model is low (newshs-269, D117). |
@@ -153,6 +155,12 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
   passed strict review; the 16th (a missing foot) was fixed by the coordinator. Merging lib families into one item
   made items bigger: ~4.6 agents and ~0.55M tokens per item (~2 agents, ~0.24M per unit); at 6 concurrent, plan
   ~8 min of wall clock per item.
+- **Cost/time (e2-enemies-1, D169, 29 items = 40 inventory units, 28 items / 38 units done: 15 hero, 14
+  standard):** 175 agents (1 scout, 15 blueprints, 44 designs, 15 judges, 29 finishes on Sonnet, 21 fixes, 50
+  reviews), 13.4M subagent tokens, about 2.7 h of run time (interrupted once by the weekly usage limit and resumed).
+  Then `fix-round.js` on 5 items: 12 agents (6 fixes, 6 reviews), 1.52M tokens, 56 min. 25 of 29 passed strict
+  review in the run; 3 more and one re-identification (newshm-123) after the fix round; newshn-125 deferred at 5/10.
+  Rule of thumb: ~6 agents and ~0.5M tokens per item (~4.4 agents, ~0.37M per unit).
   Lean mode (no blueprint, one design, Opus build + review) is what forward-push did for the 7
   player ships: 16 agents for ships + two unrelated fixes, 42 min (its reviews were Sonnet; see tiers).
 
