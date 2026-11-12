@@ -4,13 +4,18 @@ An asteroid floats in space, so it is round all over: a body lofted from the spr
 (inside its ink ring, D74), its top raised into the summit, ridges and lumps the sprite draws and
 its underside a plain closed dome, then broken by planar fracture faces (crisp, chamfered edges:
 on rock a highlight is a lit face, not sheen), crack grooves and impact pits. Matte palette
-materials (the sprite's mid-tone per region; its ink ring, dark limb and white glints are its
-lighting), an AO/roughness bake (no concept projection, D50/D65) and an outline shell (D51) made
-from a closed copy kept out of the bake (D118).
+materials; the facet ramp (D173, facet_ramp) breaks the surface into small flat-shaded facets and
+gives each a shade of the sprite's own ramp, its lit facets the sprite's highlights and those turned
+away its dark limb, so the rock has the sprite's range in game (one mid-tone read flat: about a third
+of the sprite's light-to-dark spread). An AO/roughness bake (no concept projection, D50/D65) and an
+outline shell (D51) made from a closed copy kept out of the bake (D118).
 
 A model script gives a SPEC (keys below) and calls `main(NAME, SPEC)`:
 
-    mid          rock palette index (material 0); `metallic`, `roughness` (default 0.05, 0.72)
+    mid          rock palette index (material 0; the facet ramp's median); `metallic`, `roughness`
+                 (default 0.05, 0.72)
+    ramp         facet ramp overrides (RAMP's keys: angle, size, chip, strength, bias, sprite); None
+                 turns it off (one mid-tone, the D125 look)
     h_top/h_bot  height of the summit above the waist / depth of the underside below it (units;
                  12 sprite px = 1 unit)
     summit       (column, row) in sprite px: where the top peaks
@@ -37,8 +42,7 @@ A model script gives a SPEC (keys below) and calls `main(NAME, SPEC)`:
                  above the surface, in radii; default 0.45)
     shell        outline_shell keywords (default D90's: 0.03 voxels, held 0.004 inside)
     bake_with_copy  True only for newshd-95: its shell's source copy stays in the scene during the
-                 bake, as D121 built it (the coincident copy darkens its AO about 12%), so its glb
-                 is unchanged
+                 bake, as D121 built it (the coincident copy darkens its AO about 12%)
 
 build-models.sh skips lib_ files; the model scripts import this next to them.
 
@@ -47,6 +51,7 @@ build-models.sh skips lib_ files; the model scripts import this next to them.
 
 import math
 import random
+import re
 import sys
 import tempfile
 from pathlib import Path
@@ -258,6 +263,34 @@ def cut_planes(bm, cuts):
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
 
 
+def chip_planes(bm, size_px=2.0):
+    """Split every large fracture face (a planar n-gon from cut_planes) along a grid `size_px` sprite
+    px apart in its own plane, so it triangulates into compact chips rather than long slivers fanned
+    from one corner, and the facet ramp (D173) can shade it chip by chip, as the sprite's mottle."""
+    step = size_px / 12
+    planes = []
+    for f in bm.faces:
+        if len(f.verts) > 4 and f.calc_area() > (1.5 * step) ** 2:
+            n = f.normal.copy()
+            planes.append((n, f.calc_center_median().dot(n)))
+    for n, d in planes:
+        a = n.cross(Vector((0, 0, 1)) if abs(n.z) < 0.9 else Vector((1, 0, 0))).normalized()
+        b = n.cross(a).normalized()
+        on_plane = lambda f: f.is_valid and f.normal.dot(n) > 0.9999 and abs(f.calc_center_median().dot(n) - d) < 1e-4
+        faces = [f for f in bm.faces if on_plane(f)]
+        if not faces:
+            continue
+        for axis in (a, b):
+            proj = [v.co.dot(axis) for f in faces for v in f.verts]
+            lo, hi = min(proj), max(proj)
+            k = math.floor(lo / step) + 1
+            while k * step < hi - step * 0.25:
+                faces = [f for f in bm.faces if on_plane(f)]
+                geom = list({x for f in faces for x in (*f.verts, *f.edges)}) + faces
+                bmesh.ops.bisect_plane(bm, geom=geom, plane_co=axis * (k * step), plane_no=axis)
+                k += 1
+
+
 def cutter_crack(g, bvh, pts_px, width, depth):
     """A V-section groove cutter following the polyline (sprite px) over the rock's top."""
     bm = bmesh.new()
@@ -315,6 +348,8 @@ def rock(sprite, name, spec, coll):
     bm, centre = rock_body(g, spec, sectors=spec.get("sectors", 64), rings_top=spec.get("rings_top", 16),
                            rings_bot=spec.get("rings_bot", 8))
     cut_planes(bm, spec["cuts"] + fine_cuts(spec))
+    if spec.get("ramp", {}) is not None:
+        chip_planes(bm, (dict(RAMP, **(spec.get("ramp") or {})))["chip"])
     bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=1e-5)
     bmesh.ops.dissolve_degenerate(bm, edges=bm.edges[:], dist=1e-5)
     bmesh.ops.triangulate(bm, faces=bm.faces[:])
@@ -355,6 +390,193 @@ def rock(sprite, name, spec, coll):
     return obj, mat, g
 
 
+#: The sprites' light: from the upper left and high (the art's convention; rubric "Reading a sprite").
+ART_LIGHT = Vector((-1.0, 1.0, 1.4)).normalized()
+#: The facet ramp's defaults (D173): facets grown to `angle` degrees and `size` sprite px round their
+#: first face (a chip the size of the sprite's mottle, not a whole flank; fracture faces are first cut
+#: into `chip` px chips, chip_planes); each facet ranked by how squarely it faces the art's light
+#: and, by `sprite` (0..1), by how bright the sprite is under it seen from above; the ranks matched
+#: to the sprite's own shade distribution over the top view. `strength` < 1 pulls the shades toward
+#: the median one; `bias` shifts the match darker, for broad stones the game's sun lights well
+#: (assembly-newshd-45: 0.06).
+RAMP = {"angle": 12.0, "size": 1.5, "chip": 2.0, "strength": 1.0, "bias": 0.0, "sprite": 0.6}
+
+
+def _lum(rgb):
+    r, g, b = rgb
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def _rock_colour(i, mid, colors):
+    rgb = colors.get(i)
+    return rgb is not None and ((i >> 4) == (mid >> 4) or max(rgb) - min(rgb) < 40)
+
+
+def rock_shades(sprite, mid, inner):
+    """The rock's shades as the sprite draws them: [(index, luminance, pixel count)] over the inner
+    mask (inside the ink ring, D74), darkest first. Only the rock's own colours count: the mid's ramp
+    and the low-saturation greys the sprites draw a rock's dark limb in (a vent, a glow or a scorch
+    is the paint hook's)."""
+    colors = {int(k): v for k, v in sprite["colors"].items()}
+    count = {}
+    for row, mrow in zip(sprite["frames"][0]["pixels"], inner):
+        for i, m in zip(row, mrow):
+            if m and i >= 0 and _rock_colour(i, mid, colors):
+                count[i] = count.get(i, 0) + 1
+    return sorted(((i, _lum(colors[i]), n) for i, n in count.items()), key=lambda t: t[1])
+
+
+def _ranks(vals):
+    """Each value's rank as a fraction 0..1 (ties share the mean rank)."""
+    order = sorted(range(len(vals)), key=lambda k: vals[k])
+    out = [0.0] * len(vals)
+    n = max(len(vals) - 1, 1)
+    k = 0
+    while k < len(order):
+        j = k
+        while j + 1 < len(order) and vals[order[j + 1]] == vals[order[k]]:
+            j += 1
+        for t in range(k, j + 1):
+            out[order[t]] = (k + j) / 2 / n
+        k = j + 1
+    return out
+
+
+def facet_ramp(sprite, g, obj, spec, faces=None, mid=None, slot=0, flat=None):
+    """Rock highlights are lit faces (art rule 2, D173): break the rock into facets (faces grown while
+    their normals stay within `angle` of the facet's first face), shade each facet flat (one custom
+    normal: crisp breaks between facets, as a chipped stone), and give each facet one palette shade
+    of the rock's ramp: the facets ranked by how squarely they face the art's light (upper left) and by
+    the sprite's brightness under them (so its highlights land on the facets it lights), the ranks
+    matched to the sprite's own distribution of shades over the top view (its near-white highlights on
+    the brightest facets, its dark limb on those turned away). Only faces still on material `slot`
+    (the mid, `spec["mid"]` unless `mid` is given; or the polygon indices in `faces`) are shaded, so a
+    paint hook's materials keep theirs. The facets' normals go into `flat` ({polygon: normal}) when
+    given, for set_facet_normals once every part is shaded; else they are set here."""
+    cfg = dict(RAMP, **(spec.get("ramp") or {}))
+    mid = spec["mid"] if mid is None else mid
+    shades = rock_shades(sprite, mid, g.inner)
+    if len(shades) < 2:
+        return
+    colors = {int(k): v for k, v in sprite["colors"].items()}
+    pix = sprite["frames"][0]["pixels"]
+    me = obj.data
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    bm.faces.ensure_lookup_table()
+    ok = set(faces) if faces is not None else {f.index for f in bm.faces if f.material_index == slot}
+    cos_lim = math.cos(math.radians(cfg["angle"]))
+    reach = cfg["size"] / 12
+    region = [-1] * len(bm.faces)
+    regions = []
+    for f in bm.faces:
+        if region[f.index] >= 0 or f.index not in ok:
+            continue
+        seed = f.normal.copy()
+        origin = f.calc_center_median()
+        rid = len(regions)
+        stack, members = [f], []
+        region[f.index] = rid
+        while stack:
+            cur = stack.pop()
+            members.append(cur)
+            for e in cur.edges:
+                for nb in e.link_faces:
+                    if region[nb.index] >= 0 or nb.index not in ok or nb.normal.dot(seed) < cos_lim:
+                        continue
+                    if (nb.calc_center_median() - origin).length <= reach:
+                        region[nb.index] = rid
+                        stack.append(nb)
+        regions.append(members)
+    light, seen, bright, normal = [], [], [], []
+    for members in regions:
+        n = Vector()
+        top = lum = 0.0
+        for f in members:
+            a = f.calc_area()
+            n += f.normal * a
+            if f.normal.z > 0.15:
+                c = f.calc_center_median()
+                u, v = g.uv(c.x, c.y)
+                col, row = int(u), int(v)
+                if 0 <= row < g.h and 0 <= col < g.w and g.inner[row][col] and _rock_colour(pix[row][col], mid, colors):
+                    w = a * f.normal.z
+                    top += w
+                    lum += w * _lum(colors[pix[row][col]])
+        n = n.normalized() if n.length > 1e-9 else Vector((0, 0, 1))
+        normal.append(n)
+        light.append(n.dot(ART_LIGHT))
+        seen.append(sum(f.calc_area() * max(f.normal.z, 0.0) for f in members))
+        bright.append(lum / top if top > 0 else None)
+    lr = _ranks(light)
+    have = [k for k, b in enumerate(bright) if b is not None]
+    br = dict(zip(have, _ranks([bright[k] for k in have])))
+    a = cfg["sprite"]
+    key = [(1 - a) * lr[k] + a * br[k] if k in br else lr[k] for k in range(len(regions))]
+    # the sprite's shade CDF (pixels) and the facets' (top-view area, ranked by key)
+    total_px = sum(c for _, _, c in shades)
+    cdf, acc = [], 0
+    for idx, _, c in shades:
+        acc += c
+        cdf.append((acc / total_px, idx))
+    order = sorted(range(len(regions)), key=lambda r: key[r])
+    total_a = sum(seen) or 1.0
+    s = cfg["strength"]
+    pick = {}
+    acc = 0.0
+    for r in order:
+        q = (acc + seen[r] / 2) / total_a
+        acc += seen[r]
+        q = min(max(0.5 + s * (q - 0.5) - cfg["bias"], 0.0), 1.0)
+        pick[r] = next(idx for c, idx in cdf if c >= q - 1e-9)
+    # materials: the mid keeps its slot; one more per shade used (an existing pal_<idx> one is shared)
+    slots = {mid: slot}
+    for k, m in enumerate(me.materials):
+        mm = re.match(r"pal_(\d+)_", m.name if m else "")
+        if mm and not m.get("tyrian_frame_pal"):
+            slots.setdefault(int(mm.group(1)), k)
+    for idx in sorted(set(pick.values())):
+        if idx not in slots:
+            slots[idx] = len(me.materials)
+            me.materials.append(common.palette_material(sprite, idx, f"{obj.name}-r{idx}",
+                                                        metallic=spec.get("metallic", 0.05),
+                                                        roughness=spec.get("roughness", 0.72)))
+    for r, members in enumerate(regions):
+        for f in members:
+            f.material_index = slots[pick[r]]
+    bm.to_mesh(me)
+    bm.free()
+    # the facet normals ride along as a face attribute (an assembly is cut into pieces before they
+    # are set, set_facet_normals) and, with `flat`, in a dict
+    attr = me.attributes.get("facet_n") or me.attributes.new("facet_n", "FLOAT_VECTOR", "FACE")
+    for k, rid in enumerate(region):
+        if rid >= 0:
+            attr.data[k].vector = normal[rid]
+            if flat is not None:
+                flat[k] = tuple(normal[rid])
+    if flat is None:
+        set_facet_normals(obj)
+    print(f"{obj.name}: {len(regions)} facets, shades {sorted(set(pick.values()))}")
+
+
+def set_facet_normals(obj, flat=None):
+    """Flat facets (D173): every corner of a shaded face takes its facet's normal ({polygon: normal},
+    or the `facet_n` face attribute facet_ramp writes); the other faces keep the normals they had
+    (smooth body, sharp breaks). Call it after the last change to the mesh's sharp edges."""
+    me = obj.data
+    if flat is None:
+        attr = me.attributes.get("facet_n")
+        if attr is None:
+            return
+        flat = {k: tuple(d.vector) for k, d in enumerate(attr.data) if d.vector.length > 0.5}
+    old = [tuple(c.vector) for c in me.corner_normals]
+    normals = []
+    for p in me.polygons:
+        n = flat.get(p.index)
+        normals.extend([n] * p.loop_total if n else old[p.loop_start:p.loop_start + p.loop_total])
+    me.normals_split_custom_set(normals)
+
+
 def main(name, spec, paint=None, parts=None, shell_extra=None):
     """Build, bake and export one asteroid.
 
@@ -374,6 +596,8 @@ def main(name, spec, paint=None, parts=None, shell_extra=None):
     bmesh.ops.triangulate(bm, faces=bm.faces[:])
     bm.to_mesh(obj.data)
     bm.free()
+    if spec.get("ramp", {}) is not None:
+        facet_ramp(sprite, g, obj, spec)
     tris = len(obj.data.polygons)
     bm = bmesh.new()
     bm.from_mesh(obj.data)

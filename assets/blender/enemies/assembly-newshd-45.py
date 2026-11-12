@@ -161,6 +161,11 @@ SHELL = dict(lib.D90_SHELL, faces=3000, inside=0.012)
 # common colour (65 px): the big pale face is 10, as the blueprint measured it.
 PAL_OVERRIDE = {"facet": 10}
 
+# The facet ramp (D173) a little darker than the lone asteroids': the stones stand up broad and lit, so
+# the full ramp put about 8x the sprite's share of near-white pixels on them in game; 0.06 halves that
+# and keeps the top view's median shade on the sprite's (8).
+RAMP = {"bias": 0.06}
+
 LABELS = {}  # the stone labels and palette indices, written next to the review glb
 
 # --- sprite --------------------------------------------------------------------------------------
@@ -231,7 +236,7 @@ def stone_mask(lab, i, inner, grow):
     return m
 
 
-def stone(name, mask, spr, pal, coll):
+def stone(name, mask, spr, pal, coll, label):
     """One stone: lib_newshd_rock's loft, fracture cuts and pits on its own region."""
     p = STONES[name]
     spec = dict(BASE, seed=p["seed"], summit=p["summit"], h_top=p["h"] / 12, h_bot=p["depth"] / 12,
@@ -241,6 +246,7 @@ def stone(name, mask, spr, pal, coll):
     g = StoneGrid(mask)
     bm, _ = lib.rock_body(g, spec, sectors=spec["sectors"], rings_top=spec["rings_top"], rings_bot=spec["rings_bot"])
     lib.cut_planes(bm, spec["cuts"] + lib.fine_cuts(spec))
+    lib.chip_planes(bm, lib.RAMP["chip"])  # fracture faces in compact chips for the facet ramp (D173)
     bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=1e-5)
     bmesh.ops.dissolve_degenerate(bm, edges=bm.edges[:], dist=1e-5)
     bmesh.ops.translate(bm, vec=(0, 0, p["zw"] / 12), verts=bm.verts)
@@ -266,6 +272,9 @@ def stone(name, mask, spr, pal, coll):
         obj.data.materials[0] = mat
         for f in obj.data.polygons:
             f.material_index = 0
+    st = obj.data.attributes.new("stone", "INT", "FACE")  # which stone, through the join (facet ramp)
+    for d in st.data:
+        d.value = label
     return obj
 
 
@@ -274,13 +283,13 @@ def build(coll):
     with one palette material per stone; chamfered fracture edges, smooth weathered body."""
     idx, colors, inner = sprite()
     names, lab = labels(idx)
-    spr = {"name": NAME, "colors": colors}
+    spr = {"name": NAME, "colors": colors, "frames": [{"pixels": idx}]}
     pal, objs = {}, []
     for i, n in enumerate(names):
         if not any(lab[y][x] == i and inner[y][x] for y in range(H) for x in range(W)):
             continue
         pal[n] = PAL_OVERRIDE.get(n) or region_pal(idx, colors, lab, i, inner)
-        objs.append(stone(n, stone_mask(lab, i, inner, CRACK_GROW), spr, pal[n], coll))
+        objs.append(stone(n, stone_mask(lab, i, inner, CRACK_GROW), spr, pal[n], coll, i))
     for o in bpy.context.view_layer.objects:
         o.select_set(False)
     for o in objs:
@@ -316,6 +325,15 @@ def build(coll):
     open_edges = sum(1 for e in bm.edges if not e.is_manifold)
     bm.to_mesh(obj.data)
     bm.free()
+    # D173: each stone's facets shaded across the sprite's ramp under it (lib_newshd_rock.facet_ramp);
+    # the flat facet normals are set on the pieces, after the split's last sharp-edge change
+    st = [d.value for d in obj.data.attributes["stone"].data]
+    for i, n in enumerate(names):
+        if n not in pal:
+            continue
+        slot = next(k for k, m in enumerate(obj.data.materials) if int(m.name.split("_")[1]) == pal[n])
+        lib.facet_ramp(spr, StoneGrid(stone_mask(lab, i, inner, 0)), obj, dict(BASE, mid=pal[n], ramp=RAMP),
+                       faces=[k for k, v in enumerate(st) if v == i], mid=pal[n], slot=slot, flat={})
     print("stone palette", pal)
     print(f"rock triangles {len(obj.data.polygons)}, non-manifold edges {open_edges}")
     LABELS.update(names=names, label=lab, pal=pal)
@@ -377,6 +395,7 @@ def main():
     pieces = common.split_assembly(obj, layout)
     for q in pieces.values():  # the filled cuts meet the surface at a hard edge: keep it out of the
         q.data.set_sharp_from_angle(angle=math.radians(14))  # smooth normals, so no seam line shows
+        lib.set_facet_normals(q)  # D173's flat facets
     shells = split_open(shell, layout, coll)
     for name, cx, cy in layout:
         print(f"{name}: {sum(len(q.vertices) - 2 for q in pieces[name].data.polygons)} triangles")
