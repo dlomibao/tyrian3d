@@ -7225,3 +7225,26 @@ user asked for a Gemini repaint of the original instead. The file name, `picture
 repaints; the input copy is not committed (art rule 6). The story panel sits where it did before and
 covers the skull's upper face while text is up.
 
+
+## D161 — Two user-reported models remade: the ASTEROID stone faces and the hinged-lid bunker; the DELIANI towers deferred (extends D82, D148, D65)
+
+**User complaints:** the ASTEROID1/2 stone faces did not look like the rock platforms around them, and a bunker whose
+end cap flips up did not show the cap moving. The DELIANI flamethrower towers lie flat on the ground in the 3/4 view.
+
+**Shipped** (model-flagship run wf_277f1b3f-b54; 24 agents, 3.38M tokens, 1149 tool calls):
+- **`assembly-newshd-165`**, the ASTEROID stone faces: a giant carved stone head lying face up, a static ground carving,
+  four 24x28 pieces (newshd-155, newshp-123, newshd-165, newshp-127). Rebuilt as carved, weathered rock that matches the
+  rock platforms. Top-view IoU 0.963, review 8/10. Open nit: the pale cheek planes have slightly ragged, decimated edges.
+- **`newshp-237`** (also builds newshp-53 and newshp-171), a fixed ground bunker with a launcher. Its cap is now a hinged
+  lid that swings up through the frames (f2..f5). IoU 1.0, review 7.5/10. Open nits: the housing walls are smooth cast
+  stone while the glacis and trench carry the D148 lit facets; some region medians come out one step bright.
+- **Unconfirmed identity:** the scout chose newshp-237 as its best match for "the turret whose end cap flips up". The
+  user has not confirmed it is the model they meant. If the complaint persists, it is the first thing to recheck.
+
+**Not shipped, follow-up after the usage reset: `assembly-newshc-283` / `newshc-77` (DELIANI flamethrower towers).**
+Review failed at 6/10 (IoU 0.9614): the model still lies flat in ?viewer and the 3/4 view. Their files were restored to
+origin/main; the run's `lib_deliani_tower.py` is kept in `tyrian-scratch/user-models/towers-followup/`, uncommitted.
+Diagnosis (coordinator): a tall tower in Tyrian's top-down art is drawn extending up the screen. That is D82's
+tall-buildings problem. The attempt built a thin north-south strip (D82's approach-B oblique ramp), which reads as a lying
+column from any angle but the game's. The fix should follow D82's approach: a real standing tower in the art's oblique
+view, not a column lying north-south.

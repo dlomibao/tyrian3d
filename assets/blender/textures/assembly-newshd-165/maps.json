@@ -1,0 +1,8 @@
+{
+ "name": "assembly-newshd-165",
+ "sprite_size": [
+  48,
+  56
+ ],
+ "bake": "model"
+}
