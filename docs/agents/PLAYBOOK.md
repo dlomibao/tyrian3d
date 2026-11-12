@@ -110,6 +110,8 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
   | Bright sprite pixels became lumps | Sheen: material (metalness/roughness), not geometry (rubric "Reading a sprite"). |
   | Model dark in game, shading painted on | The sprite's ring and shading are lighting; use mid-tone indices (D39 lighting pass). |
   | Wrinkled "tinfoil" surface | Concept projection bake: remove it, `"bake": "model"` (D50, D65). |
+  | A slope that should be in shade reads lit | Sections too shallow to self-shade under the sun: put the sprite's darker indices on it by plan row (D176). |
+  | Polished grey reads matte and dark | Roughness/coat barely move it: raise F0 with Specular IOR Level (exported as KHR_materials_specular; a bare IOR is dropped) (D176). |
   | Lava/glow pool reads as a grey-pink lid | A glow (D126) on a glossy dielectric shows only its reflection: give glow surfaces metallic 1, roughness about 0.9 (D173). |
   | Damaged/destroyed piece looks intact | The damaged frame (tyrian.hdt dGr) may have no spriteModels entry, so D87 draws the intact model: model that frame (D173). |
   | Outline boxy / tiered where the sprite is round | pchip plan curve fitted to the sprite mask (D52). |
