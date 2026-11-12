@@ -23,6 +23,16 @@ Seen in episode 1 (Savara, Savara V), 2 (Torm), 3 (Savara Y) and 4 (Savara IV). 
   plan edge fitted to the inner mask, seams, a bolted hatch and a vent grille.
 - A dark PLINTH (65) under everything: the slot and channel floors.
 
+What it is (D120/D122 identify the object first; DECISIONS D166): the red FLYING gun fortress at the end of
+SAVARA, in three sections that separate, not a ground building. In 1.8 and 1.12 SAVARA it holds at
+the top of the screen over open sea; event 20 then pushes the two wing
+sections (assembly-newshf-191 with newshf-230 on the left, assembly-newshf-199 with newshf-238 on the
+right) out sideways at +-6 px/tick and back, while the centre gun module (assembly-newshf-195) roams
+on its own; in 1.17 SAVARA V the same pieces spawn on the sky layer. The model already reads as that
+from the game camera: armoured hull plating, barrels and turrets over a closed flat underside, with no
+foundations, legs or walls down to a ground. So it was not rebuilt, and its pieces and pivots are
+unchanged so the split still works.
+
 The top view follows the sprite's inner mask (D74, docs/agents/OUTLINE-BORDER.md) row by row. Palette
 materials pal_<index> carry the sprite's own index per part (medians, ink and shading tails out).
 Texture: an AO / edge colour multiplier and roughness-metal bake only (the ships' bake), no concept

@@ -1,12 +1,22 @@
 """Left corner tower of the red newshf fortress (assembly of newshf-153, 155, 191, 193): a
 hard-surface 3D version of its sprites, built from the blueprint's cross-sections.
 
-Seen in episode 1 (levels 1.10, 1.29, 1.38), 2 (2.2), 3 (3.21) and 4 (4.16). Four 2x2 ground
-enemies make one 48 x 56 px block (the fortress's upper left corner): a rounded bastion drum on the
+Seen in episode 1 (levels 1.10, 1.29, 1.38), 2 (2.2), 3 (3.21) and 4 (4.16). Four 2x2 enemies
+(drawn on the ground layer, which only says where they are drawn) make one 48 x 56 px block (the fortress's upper left corner): a rounded bastion drum on the
 outside, three glowing red barrels lying in slots and reaching up the screen past the deck, ribs
 between the slots, breech rings at the barrels' roots, and a body of plates with the barrels'
 recoil channels running to the front; barrel 3's breech is a big chamber drum. Each piece has one
 frame (enemies/<piece>.glb, its sprite.json "sprites").
+
+What it is (D120/D122 identify the object first; DECISIONS D166): the red FLYING gun fortress at the end of
+SAVARA, in three sections that separate, not a ground building. In 1.8 and 1.12 SAVARA it holds at
+the top of the screen over open sea; event 20 then pushes the two wing
+sections (assembly-newshf-191 with newshf-230 on the left, assembly-newshf-199 with newshf-238 on the
+right) out sideways at +-6 px/tick and back, while the centre gun module (assembly-newshf-195) roams
+on its own; in 1.17 SAVARA V the same pieces spawn on the sky layer. The model already reads as that
+from the game camera: armoured hull plating, barrels and turrets over a closed flat underside, with no
+foundations, legs or walls down to a ground. So it was not rebuilt, and its pieces and pivots are
+unchanged so the split still works.
 
 The ORIGINAL SPRITE decides the plan (D52, D74): the deck outline is the blueprint's trace of the
 D74 inner mask (the drum curve on the left, the staircase back edge under the barrels, the flat

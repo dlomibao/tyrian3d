@@ -8,7 +8,7 @@ The bottom-left corner of the red side tower of the Savara fortress (levels 1.8,
   row and the right column are tile seams with the pieces round it: row 0 is deck and ledge
   (65/66) continuing the tower piece above, so deck, ledge and ribs all run to the top seam.
 - a lower outboard ledge (cols 1-3, index 66), a modelled groove (col 4, index 1) and the deck,
-- a flat dark deck (index 65) with a skirt that slopes to the ground all round the curved edge,
+- a flat dark deck (index 65) with a skirt that slopes down to the flat belly all round the curved edge,
   built as separate armour plates over a dark core, so the panel lines between them are real gaps,
 - two raised ribs: rib A (cols 9-11, 68) ending in a ramp parallel to the edge; rib B (cols 13-16,
   69) bending round into a band (rows 14-18, 68) that runs to the right edge,
@@ -16,9 +16,19 @@ The bottom-left corner of the red side tower of the Savara fortress (levels 1.8,
   (index 5) in a grey collar (4/2): the ball is a closed dome that ends at the tile's right edge
   (the exposed inner edge of the tower shows it from the side), the collar ends in a flat wall there.
 
+What it is (D120/D122 identify the object first; DECISIONS D166): the red FLYING gun fortress at the end of
+SAVARA, in three sections that separate, not a ground building. In 1.8 and 1.12 SAVARA it holds at
+the top of the screen over open sea; event 20 then pushes the two wing
+sections (assembly-newshf-191 with newshf-230 on the left, assembly-newshf-199 with newshf-238 on the
+right) out sideways at +-6 px/tick and back, while the centre gun module (assembly-newshf-195) roams
+on its own; in 1.17 SAVARA V the same pieces spawn on the sky layer. The model already reads as that
+from the game camera: armoured hull plating, barrels and turrets over a closed flat underside, with no
+foundations, legs or walls down to a ground. So it was not rebuilt, and its pieces and pivots are
+unchanged so the split still works.
+
 Satin metal (metallic 0.3, roughness 0.45-0.5): the sprite's bright pixels are sheen on the chamfers
-and the ball, not geometry. Outline shell (D51; D90's 0.03 voxels held 0.004 inside). Ground
-object: base at z = 0.
+and the ball, not geometry. Outline shell (D51; D90's 0.03 voxels held 0.004 inside). The
+flat belly is at z = 0.
 
 Run: blender --background --python assets/blender/enemies/newshf-230.py [-- --preview out.png]
 """
