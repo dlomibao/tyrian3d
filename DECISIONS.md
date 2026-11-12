@@ -6854,3 +6854,73 @@ before/after and crops of both keys in `tyrian-scratch/e1-polish-final/key/` (in
 Tests: `tests/render/spriteArt` and `tests/tools` pass, but for `terrainHd` (terrain_hd.py, untouched here), which hit
 its 600 s limit on a machine at load ~250; `inventory` timed out there too and passes alone. Typecheck and `npm run build` pass. Other pickups with an index-1
 ring may show the same band; they were not checked.
+
+## D152 — DELIANI's clamps machined: the housing a crisp pocket, the slats bevelled bars (follows D149; extends D136)
+
+2026-11-11
+
+**Problem** (D149's own note, and the coordinator's review of it, `tyrian-scratch/qa3-stairs/crops/1.5_t300_4k_clamp_zoom.png`):
+after D149's smoothing, the outer half of each grey clamp on the side rims read soft and melted rather than hard-surface.
+That half holds the art's dark housing and the three slats under it. The hull is one height-field sheet whose corners take
+the mean of their cells' heights. So a slat 1 art px wide (2 cells) became a ridge with no flat top, and a housing's wall
+became a one-cell ramp. D149's Gaussian edge moves then rounded those small parts into blobs, and the art's see-through
+pixels between the slats into round holes.
+
+**Decision** (`delbld_hull.py` `CLAMP_DETAIL`, `add_machined`; `lib_delbld.machined_bar`, `boundary_moves(keep=)`):
+- *The detail is regular in the 1x art*, so it is given as rectangles in tile px, fitted to the art, per tile. On 560:
+  - a 4x6 px housing of index 3, framed by lighter grey (x 2-5, y 1-6);
+  - an ink slot beside the clamp's face (x 10);
+  - three 1-px slats at rows 8, 10 and 12 (x 1-9), with ink and transparent rows between them.
+  562 is 560 mirrored pixel for pixel. 593 and 594 carry the same clamp's top five rows, cut by the cross tube.
+- *Pockets* (the housing, the slats' well, the slot) are cut out of the height field:
+  - The sheet round them is built with its own corner heights (`support` without them), so its walls drop straight
+    into the pocket. Their corners are kept out of D149's edge moves.
+  - Each pocket is floored in its own slab, 0.07 (housing) or 0.08 (well) below the clamp's face, in the art's ink
+    there. This follows D136: the region's palette index, as the sun lights a recess's occlusion away.
+  - The floor follows the face's curve across the tube and is flat-shaded, so its cells merge.
+  - The art's transparent pixels in a pocket stay open, as square holes.
+- *Bars:* each slat is a box over its art pixels, in the slats' own palette index:
+  - every edge chamfered 0.25 px;
+  - its top 0.015 below the face, bending with it along its length (one segment per art px);
+  - smooth along its length, creased at the chamfers.
+- *The face's height over a pocket* is the clamp's own squarer section plus its raise (`box + CLAMP_UP`). A blur of the
+  cells round it dipped the top slat where the housing and the holes are.
+- *Kept:*
+  - D149's smooth outlines and part edges everywhere else, and the tube;
+  - the brackets, and every other tile's carving and colours;
+  - the in-context build, and the field bake (the pockets and bars are in its height field).
+
+**Measured:**
+- *Top-view IoU* against the tile's 1x pixels (D134's measure): 560 and 562 went from 0.9996 to 1.0, and 593 and 594
+  stay at 1.0. All 42 hull tiles are at least 0.9909 (unchanged, the outer elbows), median 1.0.
+- *Seams* (`seams.py`, the 147 tile pairs the maps put side by side): no pair is worse than main. One-sided samples are
+  3361, as before.
+- *Size:* the hull's 42 models are 6.309 MB, now 6.304 MB (-0.09%):
+  - 560: 198.8 → 196.8 KB;
+  - 562: 202.4 → 200.6 KB;
+  - 593 and 594: about 1 KB smaller each.
+- *Rebuild:* `tools/build-models.sh -j 2` (exit 0, 42 exports). Only the four clamp tiles and the five whose bake
+  context holds one changed (550, 563, 570, 582 and 583, by under 1 KB each).
+- *In game* (`?debug=play&episode=1&main=19&seed=1&skip=T&freezeAt=T`, 4K and 1080p):
+  - At t300 the housing is a crisp dark box and the slats three distinct bevelled bars over a dark well.
+  - The slot is a straight dark line beside the face.
+  - t1050 is unchanged (the hull is off screen).
+
+**Options considered:**
+- *Less smoothing on the clamp's parts:* the stairs come back, and the ridge-shaped slats stay. The melt is the
+  shared-corner sheet as much as the edge moves.
+- *Vertical walls between every part of the height field:* every groove and seam on the hull would become a step,
+  against D149's accepted look, for detail the QA named only on the clamps.
+- *Fitting the rectangles automatically from the art:* only four tiles carry this clamp, two of them mirrors.
+  Hand-fitted rectangles are shorter and checkable against the art.
+
+**Not done:**
+- The clamps on the top and bottom rims (551, 571) and on the elbows keep D149's carving. Their detail is a lit frame and
+  dark shadowed ribs, not a housing and slats.
+- The small groove across the clamp's face (art row 6) is as D149 left it.
+
+**Review:** `tyrian-scratch/e1-polish-final/clamps/` (not in git, D3):
+- `before/`, `after/` (1.5 t300 and t1050, 4K and 1080p);
+- `crops/`;
+- `iou_after.txt`, `seams_after.txt`;
+- `tools/` (`closeup.py`, `cap.sh`, `crops.py`).

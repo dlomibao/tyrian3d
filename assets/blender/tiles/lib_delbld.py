@@ -157,7 +157,7 @@ def outside_centre(bm, cols=1, rows=1):
 
 
 def boundary_moves(labels, sigma=2.0, max_move=0.6, corner_run=3, min_loop=8, pin_x=(), pin_y=(), pin_solid=None,
-                   outline_sigma=None, outline_grow=0.0):
+                   outline_sigma=None, outline_grow=0.0, keep=None):
     """Where each grid corner of `labels` (an int per cell, -1 outside) moves, in cells (dx right, dy
     down), arrays of shape (h + 1, w + 1). A corner on one edge between two parts (two of its four
     edges are part edges) moves along that edge's chain; junctions of three parts, the array's border,
@@ -169,7 +169,8 @@ def boundary_moves(labels, sigma=2.0, max_move=0.6, corner_run=3, min_loop=8, pi
     its size while the steps go. `outline_sigma` (default `sigma`): the outline's own, smaller where the
     model's top view must stay close to the art's 1x mask. `outline_grow` (cells): the outline's
     smoothed stretches are pushed out by this much, as the 2x art and the curve through its steps both
-    sit inside the 1x art's steps."""
+    sit inside the 1x art's steps. `keep` (bool, (h + 1, w + 1)): corners that stay put, e.g. round a
+    machined part whose straight edges are already where they belong (D152)."""
     lab = np.asarray(labels)
     h, w = lab.shape
     lp = np.pad(lab, 1, constant_values=-1)
@@ -216,7 +217,7 @@ def boundary_moves(labels, sigma=2.0, max_move=0.6, corner_run=3, min_loop=8, pi
     for cy, cx in zip(ys.tolist(), xs.tolist()):
         n = nbrs(cx, cy)
         nb[(cx, cy)] = n
-        if len(n) != 2 or cx in (0, w) or cy in (0, h) or pinned(cx, cy):
+        if len(n) != 2 or cx in (0, w) or cy in (0, h) or pinned(cx, cy) or (keep is not None and keep[cy, cx]):
             fixed.add((cx, cy))
             continue
         (ax, ay), (bx, by) = n
@@ -349,6 +350,53 @@ def move_grid_verts(bm, frame, dx, dy):
         if 0 <= cx <= w and 0 <= cy <= h:
             v.co.x += dx[cy, cx] * frame.unit
             v.co.y -= dy[cy, cx] * frame.unit
+
+
+def machined_bar(bm, frame, rect, top, bottom, chamfer, mat, sharp=30, seg=2.0):
+    """A bevelled bar (D152) added to `bm`: a box over `rect` (x0, y0, x1, y1 in `frame`'s cells), one
+    segment per `seg` cells along its long side, every edge chamfered by `chamfer` (model units), its top at
+    `top(s)` and its bottom at `bottom(s)` (heights at a position s along the long side, in cells, e.g.
+    a curved clamp's face), so it bends with the surface it stands in. Smooth along its length, creased
+    at its chamfers, so it reads as a machined part."""
+    x0, y0, x1, y1 = rect
+    along_x = (x1 - x0) >= (y1 - y0)
+    s0, s1, a0, a1 = (x0, x1, y0, y1) if along_x else (y0, y1, x0, x1)
+    n = max(1, int(round((s1 - s0) / seg)))
+    tb = bmesh.new()
+
+    def pt(s, a, up):
+        cx, cy = (s, a) if along_x else (a, s)
+        return tb.verts.new((frame.x(cx), frame.y(cy), 0.0 if up else -1.0))
+
+    rings = []
+    for i in range(n + 1):
+        s = s0 + (s1 - s0) * i / n
+        rings.append((pt(s, a0, False), pt(s, a0, True), pt(s, a1, True), pt(s, a1, False)))
+    for r0, r1 in zip(rings, rings[1:]):
+        for k in range(4):
+            tb.faces.new((r0[k], r0[(k + 1) % 4], r1[(k + 1) % 4], r1[k]))
+    tb.faces.new(rings[0][::-1])
+    tb.faces.new(rings[-1])
+    bmesh.ops.recalc_face_normals(tb, faces=tb.faces)
+    # Final heights before the bevel, so the chamfer is `chamfer` wide in model units.
+    for v in tb.verts:
+        s = ((v.co.x / frame.unit + frame.w / 2) if along_x else (frame.h / 2 - v.co.y / frame.unit))
+        v.co.z = top(s) if v.co.z > -0.5 else bottom(s)
+    edges = [e for e in tb.edges if len(e.link_faces) == 2 and e.calc_face_angle(0) > math.radians(40)]
+    bmesh.ops.bevel(tb, geom=edges, offset=chamfer, offset_type="OFFSET", segments=1, profile=0.5,
+                    affect="EDGES", clamp_overlap=True, harden_normals=False)
+    for f in tb.faces:
+        f.material_index = mat
+        f.smooth = True
+    lim = math.radians(sharp)
+    for e in tb.edges:
+        if len(e.link_faces) == 2 and e.calc_face_angle(0) > lim:
+            e.smooth = False
+    me = bpy.data.meshes.new("_bar")
+    tb.to_mesh(me)
+    tb.free()
+    bm.from_mesh(me)
+    bpy.data.meshes.remove(me)
 
 
 def corner_heights(height, support):
