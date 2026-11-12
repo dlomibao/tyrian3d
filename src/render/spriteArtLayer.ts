@@ -233,9 +233,14 @@ export class SpriteArtLayer {
     this.instances = n;
   }
 
-  /** Make an atlas's material and batch now, so the level's warm-up compiles it (D91). */
+  /**
+   * Make an atlas's materials and batches now, so the level's warm-up compiles them (D91): the plain
+   * one and the explosions' stencilled one with its stencil setter, which otherwise came at the
+   * first explosion and, for the screen filters' target, at the first filtered frame (D159).
+   */
   warm(sheet: SpriteArtSheet<THREE.Texture>): void {
     this.batch(sheet, 0);
+    this.batch(sheet, Pass.Explosions);
   }
 
   /** The batch for an atlas and pass, for tests. */
