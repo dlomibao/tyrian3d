@@ -38,7 +38,7 @@ export class CompareView {
     });
     Object.assign(this.canvas.style, { width: "100%", maxHeight: "100%", aspectRatio: "320 / 200", objectFit: "contain", imageRendering: "pixelated" });
     this.box.append(this.canvas);
-    this.box.hidden = true;
+    this.box.style.display = "none"; // not `hidden`: the inline flex display would override it
     document.body.append(this.box);
     let pic: Uint8Array | null = null;
     try {
@@ -50,12 +50,12 @@ export class CompareView {
   }
 
   set visible(v: boolean) {
-    this.box.hidden = !v;
+    this.box.style.display = v ? "flex" : "none";
   }
 
   /** Draw one tick's draw list the original way. Call right after the tick, before the next. */
   draw(list: DrawList): void {
-    if (this.box.hidden) return;
+    if (this.box.style.display === "none") return;
     drawSidebar(this.screen, this.frame);
     this.renderer.render(list, this.screen, drawBeforeFilter, drawAfterFilter);
     if (this.rgba?.palette !== list.palette) {
