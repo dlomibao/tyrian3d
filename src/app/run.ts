@@ -364,8 +364,10 @@ function playLevel(view: View, controls: Controls, sfx: SoundEffects, music: Mus
       controls.active = false;
       music.volume = musicLevel(0.3); // [port-options] relative to the music volume setting
       pauseButton.visible = false; // restyle-polish: not over the pause screen
+      if (compareView) compareView.visible = false; // D158: menus use the whole window
       void screen().then((choice) => {
         paused = false;
+        if (compareView) compareView.visible = choice !== "quit";
         b.openInLevel = () => (consoleRequested = true);
         pauseButton.visible = choice !== "quit"; // restyle-polish
         quit = choice === "quit";

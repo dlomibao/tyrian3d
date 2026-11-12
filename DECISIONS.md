@@ -7149,6 +7149,9 @@ sim and one input, so the two halves are in step by construction (no second game
 
 Checked in the harness on TYRIAN and SAVARA, framed and minimal HUD (`tyrian-scratch/compare-view/*.png`, not in git).
 Test: `tests/render/classicRenderer.test.ts` (a smoke test, by request).
+
+**Later (user request, 2026-11-12):** while a menu is open over the level (the pause screen, its Options, the debug console), the original's half is hidden so the menu uses the whole window; it comes back when play resumes (`hold()` in `src/app/run.ts`).
+
 ## D159 — The screen filters' programs are warmed with the level: the Soul of Zinglon's first beam no longer stalls (extends D91)
 
 2026-11-12
