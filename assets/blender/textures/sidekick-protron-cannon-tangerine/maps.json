@@ -1,0 +1,8 @@
+{
+ "name": "sidekick-protron-cannon-tangerine",
+ "sprite_size": [
+  24,
+  28
+ ],
+ "bake": "model"
+}

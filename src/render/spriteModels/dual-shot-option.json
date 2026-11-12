@@ -1,0 +1,15 @@
+{
+ "model": "sidekicks/dual-shot-option",
+ "sprites": [
+  {
+   "sheet": "tyrian.shp#8",
+   "size": 1,
+   "frames": [
+    169,
+    188,
+    207
+   ],
+   "ungrouped": true
+  }
+ ]
+}

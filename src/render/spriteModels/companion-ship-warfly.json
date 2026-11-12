@@ -1,0 +1,14 @@
+{
+ "model": "sidekicks/companion-ship-warfly",
+ "sprites": [
+  {
+   "sheet": "tyrian.shp#9",
+   "size": 2,
+   "frames": [
+    87,
+    89
+   ],
+   "ungrouped": true
+  }
+ ]
+}

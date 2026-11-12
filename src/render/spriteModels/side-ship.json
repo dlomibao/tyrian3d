@@ -1,0 +1,16 @@
+{
+ "model": "sidekicks/side-ship",
+ "sprites": [
+  {
+   "sheet": "tyrian.shp#8",
+   "size": 1,
+   "frames": [
+    245,
+    264,
+    283,
+    302
+   ],
+   "ungrouped": true
+  }
+ ]
+}
