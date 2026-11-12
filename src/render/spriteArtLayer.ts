@@ -9,14 +9,16 @@
 // The atlases are uploaded premultiplied, so their soft edges filter and blend without fringes, and
 // blended with depth testing but no depth writes. Palette effects are done on the art's brightness:
 // the enemy hit flash (blit_sprite2_filter) and blit_sprite_hv recolour each texel with the palette
-// entry of its hue at the shade its brightness gives; the "blend" effect is the renderer's opacity;
-// JE_filterScreen's level hue and brightness and the smoothies' hues (D31) recolour or scale it the
+// entry of its hue at the shade its brightness gives; the "blend" effect is the renderer's opacity,
+// except for explosions, which take the C's hue-keeping blend with the frame under them
+// (ART_HUE_BLEND, hueBlend.ts, D174); JE_filterScreen's level hue and brightness and the smoothies' hues (D31) recolour or scale it the
 // same way, from the live palette texture.
 
 import { Pass } from "../sim/draw";
 import * as THREE from "three";
 import type { PaletteTexture } from "./paletteTexture";
 import { SCREEN_HUE_PARS } from "./screenHue";
+import { HUE_BLEND_PARS, type UnderGrab } from "./hueBlend";
 import { SpriteArt, parseSpriteArtManifest, spriteArtImageUrl, type FlatQuad, type ReadyFrame, type SpriteArtSheet } from "./spriteArt";
 
 /** Where the manifest lives, under the site root. */
@@ -31,12 +33,17 @@ export const SPRITE_ART_ORDER = -1;
 /** Explosion layers per screen pixel; each needs EXPLOSION_LAYER_EVERY more explosions overlapping (a power of two). */
 const EXPLOSION_LAYERS = 3;
 const EXPLOSION_LAYER_EVERY = 2;
+/**
+ * The instance mode (aFx.x) of blit_sprite2_blend (D174): the art's palette bank (aFx.y, the hue)
+ * at the mean of its shade and the shade under it, at opacity aFx.w (a fade, not a blend).
+ */
+export const ART_HUE_BLEND = 3;
 
 const VERTEX = /* glsl */ `
 attribute vec3 aOrigin;   // world position of the quad's top-left corner
 attribute vec2 aSize;     // world size along X and Z
 attribute vec4 aUv;       // frame UV rectangle: u0 v0 u1 v1
-attribute vec4 aFx;       // mode (0 none, 1 filter, 2 hue/value), hue, value, alpha
+attribute vec4 aFx;       // mode (0 none, 1 filter, 2 hue/value, 3 hue blend), hue, value, alpha
 varying vec2 vUv;
 varying vec4 vUvRect;
 varying vec4 vFx;
@@ -62,6 +69,7 @@ varying vec4 vUvRect;
 varying vec4 vFx;
 varying float vHeight;
 ${SCREEN_HUE_PARS}
+${HUE_BLEND_PARS}
 
 vec3 paletteColor(float index) {
   return texture2D(paletteMap, vec2((index + 0.5) / 256.0, 0.5)).rgb;
@@ -85,6 +93,15 @@ void main() {
   float shade = clamp(floor(lum * 15.0 + 0.5), 0.0, 15.0);
   float index = 16.0 + shade;
   bool recolour = false;
+  if (vFx.x > 2.5) {
+    // blit_sprite2_blend: the art's bank at the mean of its shade and the frame's under it (D174).
+    float water = 0.0;
+    float bank = vFx.y * 16.0;
+    rgb = hbColor(bank, hbShade(bank, lum), hbUnderShade(), vHeight, water);
+    gl_FragColor = vec4(rgb * a, a);
+    #include <colorspace_fragment>
+    return;
+  }
   if (vFx.x > 1.5) {
     index = vFx.y * 16.0 + clampValue(shade + vFx.z);
     recolour = true;
@@ -205,7 +222,11 @@ export class SpriteArtLayer {
   /** Instances drawn last frame. */
   instances = 0;
 
-  constructor(private readonly palette: PaletteTexture) {
+  constructor(
+    private readonly palette: PaletteTexture,
+    /** The frame under the explosions, for ART_HUE_BLEND instances. */
+    private readonly under: UnderGrab,
+  ) {
     this.root.name = "sprite-art";
   }
 
@@ -217,7 +238,8 @@ export class SpriteArtLayer {
 
   /**
    * Add a quad of `sheet`'s frame `f` at `q` in pass `pass`, with the instance's palette effect
-   * (mode 0 none, 1 the hit-flash filter with hue a, 2 hue a and value b) and opacity.
+   * (mode 0 none, 1 the hit-flash filter with hue a, 2 hue a and value b, 3 ART_HUE_BLEND in bank
+   * a << 4) and opacity.
    */
   add(sheet: SpriteArtSheet<THREE.Texture>, pass: number, q: FlatQuad, f: ReadyFrame, mode: number, a: number, b: number, alpha: number): void {
     this.batch(sheet, pass).add(q, f, mode, a, b, alpha);
@@ -328,6 +350,7 @@ export class SpriteArtLayer {
           paletteMap: { value: this.palette.texture },
           ...this.levelUniforms,
           ...this.palette.screenHue.uniforms,
+          ...this.under.uniforms,
         },
         transparent: true,
         premultipliedAlpha: true,

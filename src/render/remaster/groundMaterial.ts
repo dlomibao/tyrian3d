@@ -8,15 +8,18 @@
 //   painted rocks, ridges and foliage catch the light. Instances have no rotation, so the tile's u
 //   and v run along world X and Z.
 //
-// With `blend` (an opacity) it draws the C's blended background-2 tiles (draw_background_2_blend,
-// TYRIAN's ice clouds) from the same atlas as flat translucent sheets: index 0 is see-through, and
-// the four texels are blended weighted by coverage, so the upscaled outline comes out smooth.
+// With `under` (the frame under the sheet, hueBlend.ts) it draws the C's blended background-2 tiles
+// (draw_background_2_blend, TYRIAN's ice clouds) from the same atlas as flat sheets with the C's
+// hue-keeping blend (D174): each texel's bank at the mean of its shade and the shade underneath.
+// Index 0 is see-through, and the four texels are blended weighted by coverage, so the upscaled
+// outline comes out smooth.
 
 import * as THREE from "three";
 import { WATER_ALPHA } from "../paletteMaterial";
 import type { PaletteTexture } from "../paletteTexture";
 import { SCREEN_HUE_PARS } from "../screenHue";
 import type { RemasterGroundAtlas } from "./groundAtlas";
+import { HUE_BLEND_PARS, type UnderGrab } from "../hueBlend";
 
 export interface RemasterGroundOptions {
   /** How strongly brightness changes tilt the normal (0 = flat). */
@@ -31,15 +34,17 @@ export function remasterGroundMaterial(
   palette: PaletteTexture,
   atlas: RemasterGroundAtlas,
   options: RemasterGroundOptions = REMASTER_GROUND_DEFAULTS,
-  blend?: number,
+  under?: UnderGrab,
 ): THREE.MeshStandardMaterial {
-  const blended = blend !== undefined;
+  const blended = under !== undefined;
   const material = new THREE.MeshStandardMaterial({
     roughness: 0.9,
     metalness: 0,
     envMapIntensity: 0.25,
     transparent: blended,
     depthWrite: !blended,
+    // A blend sheet's colour is a palette colour (the C's blend, D174), shown as it is.
+    toneMapped: !blended,
     userData: { outlineParameters: { visible: false } },
   });
   const uniforms = {
@@ -48,6 +53,7 @@ export function remasterGroundMaterial(
     tileUv: { value: atlas.tileUv },
     relief: { value: options.relief },
     sharpness: { value: options.sharpness },
+    ...(under ? under.uniforms : {}),
   };
   material.userData.remasterUniforms = uniforms;
   material.onBeforeCompile = (shader) => {
@@ -74,18 +80,25 @@ varying float vPassY;
 ${SCREEN_HUE_PARS}
 float vScreenWater = 0.0;
 float texelCover = 1.0;
+${blended ? `${HUE_BLEND_PARS}\nfloat hbUnder = 0.0; // the shade under this fragment, set first in main` : ""}
 // The palette colour of an atlas texel at the instance's pass height (0 for the ground, under every
-// smoothie). For blended sheets, texelCover is set to 0 for index 0 (see-through).
+// smoothie). For blended sheets, texelCover is set to 0 for index 0 (see-through), and the colour is
+// the C's blend of the texel with what's under it (D174).
 vec3 groundTexel(ivec2 p) {
   float index = floor(texelFetch(atlasMap, p, 0).r * 255.0 + 0.5);
-  ${blended ? "texelCover = index < 0.5 ? 0.0 : 1.0;" : ""}
-  index = screenHueIndex(index, vPassY, vScreenWater);
-  return texture2D(paletteMap, vec2((index + 0.5) / 256.0, 0.5)).rgb;
+  ${
+    blended
+      ? `texelCover = index < 0.5 ? 0.0 : 1.0;
+  float bank = floor(index / 16.0) * 16.0;
+  return hbColor(bank, index - bank, hbUnder, vPassY, vScreenWater);`
+      : `index = screenHueIndex(index, vPassY, vScreenWater);
+  return texture2D(paletteMap, vec2((index + 0.5) / 256.0, 0.5)).rgb;`
+  }
 }`,
       )
       .replace(
         "#include <color_fragment>",
-        /* glsl */ `
+        /* glsl */ `${blended ? "hbUnder = hbUnderShade();" : ""}
 // Texel centres sit at +0.5; each slot has a one-texel border, so the four texels around any point
 // of the tile are inside the slot.
 vec2 tp = vAtlasUv * vec2(textureSize(atlasMap, 0)) - 0.5;
@@ -103,7 +116,7 @@ float a11 = texelCover;
 float w00 = (1.0 - f.x) * (1.0 - f.y) * a00, w10 = f.x * (1.0 - f.y) * a10;
 float w01 = (1.0 - f.x) * f.y * a01, w11 = f.x * f.y * a11;
 float cover = w00 + w10 + w01 + w11;
-${blended ? `if (cover < 0.02) discard;\ndiffuseColor.a = ${blend.toFixed(3)} * smoothstep(0.02, 0.6, cover);` : ""}
+${blended ? `if (cover < 0.02) discard;\ndiffuseColor.a = smoothstep(0.02, 0.6, cover);` : ""}
 vec3 mixed = (c00 * w00 + c10 * w10 + c01 * w01 + c11 * w11) / max(cover, 1e-4);
 diffuseColor.rgb *= mixed;
 const vec3 LUMA = vec3(0.299, 0.587, 0.114);
@@ -118,8 +131,12 @@ vec2 reliefSlope = relief * vec2(mix(l10 - l00, l11 - l01, f.y), mix(l01 - l00, 
         /* glsl */ `#include <normal_fragment_maps>
 normal = normalize((viewMatrix * vec4(normalize(vec3(-reliefSlope.x, 1.0, -reliefSlope.y)), 0.0)).xyz);`,
       );
-    if (!blended) shader.fragmentShader = shader.fragmentShader.replace("#include <opaque_fragment>", WATER_ALPHA);
+    // A blend sheet shows the blended palette colours unlit (D174); the ground marks the water.
+    shader.fragmentShader = shader.fragmentShader.replace(
+      "#include <opaque_fragment>",
+      blended ? "#include <opaque_fragment>\ngl_FragColor.rgb = mixed;" : WATER_ALPHA,
+    );
   };
-  material.customProgramCacheKey = () => (blended ? `palette-ground-remaster-blend-${blend}` : "palette-ground-remaster");
+  material.customProgramCacheKey = () => (blended ? "palette-ground-remaster-blend" : "palette-ground-remaster");
   return material;
 }

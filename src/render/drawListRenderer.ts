@@ -60,6 +60,8 @@ import { TileAtlas } from "./tileAtlas";
 import { RemasteredFx, SpriteLook } from "./vfx/remasteredFx";
 import { vfxModeFromSearch, type VfxMode } from "./vfx/vfxMode";
 import { EXPLOSION_SHEET_ID, flatExplosionFade } from "./vfx/explosionFrames";
+import { dominantBank, UNDER_GRAB_ORDER, UnderGrab, UnderGrabHook } from "./hueBlend";
+import { decodeSprite2 } from "../data/sprites";
 import { RemasterGroundAtlas } from "./remaster/groundAtlas";
 import { remasterGroundMaterial } from "./remaster/groundMaterial";
 import { paletteLuma } from "./remaster/mmpx";
@@ -69,7 +71,7 @@ import { StructureInstances } from "./remaster/structureInstances";
 import { OpaqueCover, paintOutWreck } from "./remaster/opaqueCover";
 import { modelHeightFromUrl } from "./modelHeight";
 import { placeFlatQuad, SPRITE2X2_PARTS, spriteArtModeFromSearch, type FlatQuad, type ReadyFrame, type SpriteArt, type SpriteArtMode, type SpriteArtSheet } from "./spriteArt";
-import { SpriteArtLayer } from "./spriteArtLayer";
+import { ART_HUE_BLEND, SpriteArtLayer } from "./spriteArtLayer";
 import { SparkScreen } from "./sparkScreen";
 import { StarCover } from "./starCover";
 import { sheetHeight, type PlacedExtent } from "./sheetLift";
@@ -101,9 +103,13 @@ const STAND_IN_IDS = new Set(COVERED_STAND_IN.values());
 
 /** How fast a ship's model eases toward its banking frame's roll (per second; the roll: spriteModels.ts bankRoll, D93). */
 const ROLL_RATE = 12;
-/** Opacity standing in for the C's value-averaging blend. */
+/**
+ * Opacity standing in for the C's value-averaging blend where it isn't ported (D174 ports it for the
+ * background-2 sheets and the explosions' flat art): extruded blend sprites, the flashing ship, and
+ * blended flat art outside the explosions.
+ */
 const BLEND_ALPHA = 0.55;
-/** Explosions blend thinner than the rest, so the ground pattern shows through the fire (D104, D105). */
+/** Explosions without the ported blend (extruded sprites) blend thinner than the rest (D104, D105). */
 const EXPLOSION_ALPHA = 0.33;
 /** Passes drawn with a partly emissive material: energy shots, explosions, sparks. */
 const GLOW_PASSES = new Set<Pass>([Pass.PlayerShots, Pass.EnemyShots, Pass.Explosions, Pass.Effects]);
@@ -152,9 +158,14 @@ class Pool {
     capacity = 16,
     /** The shadow pass's material (HD terrain cutouts: only their opaque part casts). */
     private readonly depthMaterial?: THREE.Material,
+    /** Also a per-instance palette bank (`instBank`: HD blend sheets, D174). */
+    private readonly withBank = false,
   ) {
     this.allocate(capacity);
   }
+
+  /** Per-instance palette bank (hue << 4), if made `withBank`. */
+  bank: THREE.InstancedBufferAttribute | null = null;
 
   private allocate(capacity: number): void {
     const old = this.mesh;
@@ -165,6 +176,12 @@ class Pool {
     const extra = new THREE.InstancedBufferAttribute(new Float32Array(capacity * itemSize), itemSize);
     extra.setUsage(THREE.DynamicDrawUsage);
     g.setAttribute(this.extraName, extra);
+    let bank: THREE.InstancedBufferAttribute | null = null;
+    if (this.withBank) {
+      bank = new THREE.InstancedBufferAttribute(new Float32Array(capacity), 1);
+      bank.setUsage(THREE.DynamicDrawUsage);
+      g.setAttribute("instBank", bank);
+    }
     const mesh = new THREE.InstancedMesh(g, this.material, capacity);
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     mesh.frustumCulled = false;
@@ -175,12 +192,14 @@ class Pool {
     if (old) {
       mesh.instanceMatrix.array.set(old.instanceMatrix.array);
       extra.array.set(this.extra.array);
+      if (bank && this.bank) bank.array.set(this.bank.array);
       this.parent.remove(old);
       old.dispose();
       old.geometry.dispose();
     }
     this.mesh = mesh;
     this.extra = extra;
+    this.bank = bank;
     this.parent.add(mesh);
   }
 
@@ -203,6 +222,11 @@ class Pool {
     this.extra.clearUpdateRanges();
     this.extra.addUpdateRange(0, n * this.extra.itemSize);
     this.extra.needsUpdate = true;
+    if (this.bank) {
+      this.bank.clearUpdateRanges();
+      this.bank.addUpdateRange(0, n);
+      this.bank.needsUpdate = true;
+    }
     this.count = 0;
   }
 
@@ -399,6 +423,17 @@ export class DrawListRenderer {
   private readonly shadowDecals = new ShadowDecals();
   /** This frame's placed models, by pass, screen box and height, for the blended sheets (D129). */
   private readonly placedExtents: PlacedExtent[] = [];
+  /** The frame under the C's blended layers, and the hooks that copy it (hueBlend.ts, D174). */
+  private readonly under: UnderGrab;
+  private readonly grabSheets: UnderGrabHook;
+  private readonly grabExplosions: UnderGrabHook;
+  private readonly grabTop: UnderGrabHook;
+  /** This frame's camera, and a scratch point, for the grabs' screen areas. */
+  private grabCamera: THREE.Camera | null = null;
+  private readonly grabPoint = new THREE.Vector3();
+  /** The main palette bank of a sprite (by sheet, then index) and of a tile (by id), for the C's blend. */
+  private readonly spriteBanks = new WeakMap<object, Map<number, number>>();
+  private readonly tileBanks = new Map<string, number>();
   /** This frame's blended background-2 sheet tiles, raised over the models they overlap after the loop (D129). */
   private readonly blendSheets: { pool: Pool; slot: number; x: number; y: number; pass: Pass }[] = [];
   /** Where the camera's view meets the ground: models' shadows fall as they would there (D133). */
@@ -464,6 +499,11 @@ export class DrawListRenderer {
     this.root.add(this.structures.group);
     this.root.add(this.scorch.mesh);
     const p = this.palette;
+    this.under = new UnderGrab(p.indexLut);
+    this.grabSheets = new UnderGrabHook(this.under, UNDER_GRAB_ORDER.sheets);
+    this.grabExplosions = new UnderGrabHook(this.under, UNDER_GRAB_ORDER.explosions);
+    this.grabTop = new UnderGrabHook(this.under, UNDER_GRAB_ORDER.top);
+    this.root.add(this.grabSheets, this.grabExplosions, this.grabTop);
     this.materials = [];
     this.materials[Variant.Lit] = paletteMaterial(p, { lit: true, transparent: false, outline: true });
     // No outline on translucent draws: OutlineEffect draws the shell opaque (per-instance alpha is in
@@ -476,10 +516,10 @@ export class DrawListRenderer {
     this.materials[Variant.Hot] = paletteMaterial(p, { lit: true, transparent: false, outline: false, glow: HOT_GLOW });
     this.materials[Variant.HotBlend] = paletteMaterial(p, { lit: true, transparent: true, outline: false, glow: HOT_BLEND_GLOW });
     this.materials[Variant.RemasterGround] = remasterGroundMaterial(p, this.remasterAtlas); // [bg-remaster]
-    this.materials[Variant.GroundBlend] = groundTileMaterial(p, this.atlas, BLEND_ALPHA);
-    this.materials[Variant.RemasterGroundBlend] = remasterGroundMaterial(p, this.remasterAtlas, undefined, BLEND_ALPHA);
+    this.materials[Variant.GroundBlend] = groundTileMaterial(p, this.atlas, this.under);
+    this.materials[Variant.RemasterGroundBlend] = remasterGroundMaterial(p, this.remasterAtlas, undefined, this.under);
     for (let v = 0; v <= Variant.RemasterGroundBlend; v++) this.pools.push(new Map());
-    this.artLayer = new SpriteArtLayer(p);
+    this.artLayer = new SpriteArtLayer(p, this.under);
     this.root.add(this.artLayer.root);
     this.root.add(this.shadowDecals.root);
     this.setVfxMode(vfxModeFromSearch());
@@ -772,6 +812,11 @@ export class DrawListRenderer {
     this.hdTiles = 0;
     this.placedExtents.length = 0;
     this.blendSheets.length = 0;
+    this.grabSheets.area.clear();
+    this.grabExplosions.area.clear();
+    this.grabTop.area.clear();
+    this.grabCamera = camera;
+    this.under.shades.update(this.palette.texture.image.data as Uint8Array, this.palette.version);
 
     for (let i = 0; i < items.length; i++) {
       const d = items[i];
@@ -913,7 +958,18 @@ export class DrawListRenderer {
     for (const b of this.blendSheets) {
       const h = sheetHeight(passHeight(b.pass), b.pass, b.x, b.y, TILE_WIDTH, TILE_HEIGHT, this.placedExtents);
       if (h !== passHeight(b.pass)) writeMatrix(b.pool.mesh.instanceMatrix.array as Float32Array, b.slot, b.x, b.y, h, 1, 1, cam);
+      this.addGrabArea(b.pass === Pass.Background2Top ? this.grabTop : this.grabSheets, b.x, b.y, TILE_WIDTH, TILE_HEIGHT);
     }
+    // The C's blended layers read the frame under them: copy it where they start, where they are (D174).
+    // Each copy costs a break in the GPU's pass, so explosions away from the sheets read the sheets'
+    // copy (made a little earlier: without the sheets, which aren't under them, and the shots' art).
+    if (!this.grabSheets.area.empty && !this.grabExplosions.area.near(this.grabSheets.area, 0.05)) {
+      this.grabSheets.area.union(this.grabExplosions.area);
+      this.grabExplosions.area.clear();
+    }
+    this.grabSheets.arm();
+    this.grabExplosions.arm();
+    this.grabTop.arm();
     for (let p = 0; p < this.allPools.length; p++) this.allPools[p].commit();
     if (this.background === "remaster") this.scorch.update(items, prevX, prevY, alpha, cam);
     else this.scorch.clear();
@@ -1030,7 +1086,7 @@ export class DrawListRenderer {
       if (!f) return false;
       // A fireball's last rings fade out (D131).
       const fade = d.sheet.id === EXPLOSION_SHEET_ID ? flatExplosionFade(d.index) : 1;
-      this.addFlat(art, f, 0, 0, d.pass, d.effect, d.filter, d.value, x, y, cam, fade);
+      this.addFlat(art, f, 0, 0, d.pass, d.effect, d.filter, d.value, x, y, cam, fade, this.hueBlendBank(d, d.index));
       return true;
     }
     for (const [di] of SPRITE2X2_PARTS) {
@@ -1038,17 +1094,55 @@ export class DrawListRenderer {
     }
     for (const [di, dx, dy] of SPRITE2X2_PARTS) {
       const f = art.frame(d.index + di);
-      if (f) this.addFlat(art, f, dx, dy, d.pass, d.effect, d.filter, d.value, x, y, cam);
+      if (f) this.addFlat(art, f, dx, dy, d.pass, d.effect, d.filter, d.value, x, y, cam, 1, this.hueBlendBank(d, d.index + di));
     }
     return true;
   }
 
-  /** One flat art quad at the draw's place (screen (x + dx, y + dy), its pass's height), its opacity times `fade`. */
+  /**
+   * Add the screen area of a draw at game screen (x, y), w x h game pixels, to a grab's area. Every
+   * draw lands on its original screen position whatever its height (D6), so the ground rectangle under
+   * it projects to where it is drawn.
+   */
+  private addGrabArea(hook: UnderGrabHook, x: number, y: number, w: number, h: number): void {
+    const cam = this.grabCamera;
+    if (!cam) return;
+    const p = this.grabPoint;
+    for (let c = 0; c < 4; c++) {
+      p.set(screenWorldX(c & 1 ? x + w : x), 0, screenWorldZ(c & 2 ? y + h : y)).project(cam);
+      hook.area.add(p.x, p.y);
+    }
+  }
+
+  /**
+   * The palette bank a blended explosion's flat art keeps under the C's blend (D174): its original
+   * sprite's main bank (the fire ramp, 0x70, for newsh6.shp's). -1 for other draws, which keep the
+   * plain opacity.
+   */
+  private hueBlendBank(d: SpriteDraw, index: number): number {
+    if (d.effect !== "blend" || d.pass !== Pass.Explosions) return -1;
+    let banks = this.spriteBanks.get(d.sheet);
+    if (!banks) this.spriteBanks.set(d.sheet, (banks = new Map()));
+    let bank = banks.get(index);
+    if (bank === undefined) banks.set(index, (bank = dominantBank(decodeSprite2(d.sheet.data, index).pixels, false)));
+    return bank;
+  }
+
+  /**
+   * One flat art quad at the draw's place (screen (x + dx, y + dy), its pass's height), its opacity
+   * times `fade`. A blended draw with a `bank` takes the C's blend in that bank (ART_HUE_BLEND, D174);
+   * other blended ones are drawn at EXPLOSION_ALPHA or BLEND_ALPHA as before.
+   */
   private addFlat(
     art: SpriteArtSheet<THREE.Texture>, f: ReadyFrame, dx: number, dy: number, pass: Pass,
-    effect: SpriteEffect, filter: number, value: number, x: number, y: number, cam: THREE.Vector3, fade = 1,
+    effect: SpriteEffect, filter: number, value: number, x: number, y: number, cam: THREE.Vector3, fade = 1, bank = -1,
   ): void {
     const q = placeFlatQuad(x + dx, y + dy, f.w, f.h, passHeight(pass), cam, this.quad);
+    if (effect === "blend" && bank >= 0) {
+      this.artLayer.add(art, pass, q, f, ART_HUE_BLEND, bank >> 4, 0, fade);
+      this.addGrabArea(this.grabExplosions, x + dx, y + dy, f.w, f.h);
+      return;
+    }
     const alpha = (effect === "blend" ? (pass === Pass.Explosions ? EXPLOSION_ALPHA : BLEND_ALPHA) : 1) * fade;
     if (effect === "filter") this.artLayer.add(art, pass, q, f, FxMode.Filter, (filter >> 4) & 0x0f, 0, alpha);
     else if (effect === "hv") this.artLayer.add(art, pass, q, f, FxMode.HueValue, filter & 0x0f, value, alpha);
@@ -1194,7 +1288,14 @@ export class DrawListRenderer {
     e[s * 4 + 2] = t.tint ? t.tint.x : -1; // D138: no colour offset
     e[s * 4 + 3] = t.tint ? t.tint.y : -1;
     writeMatrix(pool.mesh.instanceMatrix.array as Float32Array, s, x, y, passHeight(d.pass), 1, 1, cam);
-    if (blend) this.blendSheets.push({ pool, slot: s, x, y, pass: d.pass });
+    if (blend) {
+      // The C's blend keeps the tile's palette bank (D174): the painting's colours have none, so the
+      // original tile's main one.
+      let bank = this.tileBanks.get(d.tileId);
+      if (bank === undefined) this.tileBanks.set(d.tileId, (bank = dominantBank(d.tile, true)));
+      (pool.bank!.array as Float32Array)[s] = bank;
+      this.blendSheets.push({ pool, slot: s, x, y, pass: d.pass });
+    }
     this.hdTiles++;
     return true;
   }
@@ -1337,14 +1438,14 @@ export class DrawListRenderer {
     let m = byKind.get(kind);
     if (!m) {
       m = {
-        material: terrainMaterial(this.palette, texture, this.terrainLevel, { kind, scale, blend: BLEND_ALPHA }),
+        material: terrainMaterial(this.palette, texture, this.terrainLevel, { kind, scale, under: kind === "blend" ? this.under : undefined }),
         depth: kind === "cutout" ? terrainDepthMaterial(texture, scale) : undefined,
       };
       byKind.set(kind, m);
     }
     let pool = this.hdPools.get(m.material);
     if (!pool) {
-      pool = new Pool(this.groundGeometry, m.material, "instTile4", this.root, { cast: kind === "cutout", receive: true }, 16, m.depth);
+      pool = new Pool(this.groundGeometry, m.material, "instTile4", this.root, { cast: kind === "cutout", receive: true }, 16, m.depth, kind === "blend");
       pool.lastUsed = frame;
       this.hdPools.set(m.material, pool);
       this.allPools.push(pool);
