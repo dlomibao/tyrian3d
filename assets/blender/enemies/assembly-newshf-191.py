@@ -8,7 +8,7 @@ between the slots, breech rings at the barrels' roots, and a body of plates with
 recoil channels running to the front; barrel 3's breech is a big chamber drum. Each piece has one
 frame (enemies/<piece>.glb, its sprite.json "sprites").
 
-What it is (D120/D122 identify the object first; DECISIONS D166): the red FLYING gun fortress at the end of
+What it is (D120/D122 identify the object first; DECISIONS D167): the red FLYING gun fortress at the end of
 SAVARA, in three sections that separate, not a ground building. In 1.8 and 1.12 SAVARA it holds at
 the top of the screen over open sea; event 20 then pushes the two wing
 sections (assembly-newshf-191 with newshf-230 on the left, assembly-newshf-199 with newshf-238 on the

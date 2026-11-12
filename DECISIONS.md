@@ -7467,43 +7467,6 @@ its own.
 
 **Cost:** one Opus agent; the renderer, the tests and two Blender builds, no workflow.
 
-## D166 — Episode 1 flyers built as ground objects: newsh2-267 is a drill-nosed attack drone with level side cannons; the red crab boss and the newshf fortress already read as craft (follows D120, D122; extends D65, D163)
-
-2026-11-12
-
-**Problem:** the walker audit (`tyrian-scratch/walker-audit/REPORT.md`) found models built as grounded walkers or
-buildings whose behaviour says they fly. The motion model is ey += fixedmovey + eyc + the layer's scroll per tick; a
-"ground" layer only says where a unit is drawn, and Tyrian draws low-flying craft there too. This entry covers three
-of its episode-1 units. The blue gunship (assembly-newsh2-87, -123) is on its own branch and not touched here.
-
-**Method:** behaviour from the audit's `behaviour2.mjs` data (types, event 19/20 moves, spawn layers); the units'
-ticks from a headless run of the play harness's bot loop (`tyrian-scratch/e1-flyers/tools/scan.mjs`, seed 1); the
-current models' review sheets (`tools/review_sheet.py --which current`); `?compare=1` captures.
-
-| Unit | What it is | Evidence | Verdict |
-|---|---|---|---|
-| newsh2-267 | a **drill-nosed attack drone**: the drill is its nose (the way it flies, down the screen), the head capsule its tail, the grey side bars twin cannons on the brass yoke arms | type 17, turret weapon 59; sky-layer waves in 1.9/1.15 TYRIAN (main=3, t6302-6360), 1.10/2.3 BONUS, 1.18 ** ALE ** and 3.8; event 19 zig-zags (±3, -1), event 20 dives (10, 20); 1-4 px/tick relative to the ground | **rebuilt**: it stood on two legs that sloped from the pivot blocks (z 4.3) down to foot blocks on the ground. Now the side cannons are level along their length (z 4.3, D163), with a breech collar (4), the light ring (11), the barrel (8, 7) and a muzzle (5) with a dark bore at row 17; no feet. The hull, drill, yoke, colours and the one frame are unchanged; the underside is the closed round hull |
-| assembly-newsht-39 | the red crab boss is a **hovering gunship** | sky layer in 1.5 DELIANI (main=19, t4783-6303) and 3.11, top layer in 4.1; holds near the top and weaves across the screen (event 20) | **already a flyer, not rebuilt**: body, arms and claws held level off a closed flat underside, nothing reaches down to a ground, exhausts on its back. The script's "leg"/"foot" parts are the level strut under each shoulder and its end cap. Docstring only |
-| newshf "fortress" (assembly-newshf-191, -195, -199, newshf-230, -238) | a **flying gun fortress in three sections that separate** | in 1.8 SAVARA (main=29, t4456-7468) it holds at the top of the screen over open sea; event 20 pushes the wing sections (191 + 230 left, 199 + 238 right) out sideways at ±6 px/tick and back while the centre gun module (195) roams on its own; in 1.17 SAVARA V the pieces spawn on the sky layer | **not clearly the wrong object, not rebuilt**: from the game camera and in the elevations the models are armoured hull plating, barrels and ball turrets over a closed flat belly, with no foundations, legs or walls down to a ground. Docstrings corrected ("ground fortress", "slopes to the ground"); pieces and pivots unchanged, so the split still works |
-
-**Game contract:** `newsh2-267.glb` is rebuilt; its `spriteModels` entry, `pal_<index>` materials, frame and export
-path are unchanged (`git diff src/render/spriteModels/` is empty). No other glb changed.
-
-**IoU** (`tools/sprite_mask.py --measure` on the review sheet's top render; `iou_rule` (`iou_rule_grid`)):
-newsh2-267 0.9471 (0.9891), the same as before the change (0.947 (0.9891)): the side cannons cover the same plan as
-the legs and feet. Unchanged models: assembly-newsht-39 0.9825 (0.9958); assembly-newshf-191 0.9825 (0.9895), -195
-0.9945 (0.9986), -199 0.9761 (0.9843); newshf-230 0.9413 (0.9675), newshf-238 0.9464 (0.9886). All pass the gate
-(`iou_rule_grid` ≥ 0.95); the sub-pixel rule values under 0.95 predate this entry.
-
-**Seen, not fixed:** in DELIANI at t4900 the remaster draws the left green orb over the crab's left arm; the original
-draws the crab over it (both are sky-layer enemies, so it's an in-pass height/order question, not object identity).
-
-**Captures:** `tyrian-scratch/e1-flyers/` holds `before/` and `after/` (`?compare=1` at TYRIAN t1340 and t6330, SAVARA
-t4500, t4600 and t5000, DELIANI t4900; review sheets) and the summaries `summary-newsh2-267.png`,
-`summary-assembly-newsht-39.png`, `summary-newshf-fortress.png`.
-
-**Cost:** one Opus agent, no workflow: one Blender build (newsh2-267, ~10 s), nine review sheets, about a dozen
-headless captures.
 ## D166 — The blue "walker" and "pylon" are one hovering gunship in two halves: `assembly-newsh2-87` and `assembly-newsh2-123` re-identified and rebuilt (supersedes the identities in D65 and D163)
 
 **User report:** in `?compare=1` (D158) on level 1 (TYRIAN), "the blue things aren't walkers they are flying ships".
@@ -7575,3 +7538,41 @@ draws the rear half over the front, so there the original shows the red eye and 
 
 **Cost:** one Opus agent, no workflow: three Blender builds of the two scripts, two measuring renders, about
 25 game and viewer captures.
+
+## D167 — Episode 1 flyers built as ground objects: newsh2-267 is a drill-nosed attack drone with level side cannons; the red crab boss and the newshf fortress already read as craft (follows D120, D122; extends D65, D163)
+
+2026-11-12
+
+**Problem:** the walker audit (`tyrian-scratch/walker-audit/REPORT.md`) found models built as grounded walkers or
+buildings whose behaviour says they fly. The motion model is ey += fixedmovey + eyc + the layer's scroll per tick; a
+"ground" layer only says where a unit is drawn, and Tyrian draws low-flying craft there too. This entry covers three
+of its episode-1 units. The blue gunship (assembly-newsh2-87, -123) is D166.
+
+**Method:** behaviour from the audit's `behaviour2.mjs` data (types, event 19/20 moves, spawn layers); the units'
+ticks from a headless run of the play harness's bot loop (`tyrian-scratch/e1-flyers/tools/scan.mjs`, seed 1); the
+current models' review sheets (`tools/review_sheet.py --which current`); `?compare=1` captures.
+
+| Unit | What it is | Evidence | Verdict |
+|---|---|---|---|
+| newsh2-267 | a **drill-nosed attack drone**: the drill is its nose (the way it flies, down the screen), the head capsule its tail, the grey side bars twin cannons on the brass yoke arms | type 17, turret weapon 59; sky-layer waves in 1.9/1.15 TYRIAN (main=3, t6302-6360), 1.10/2.3 BONUS, 1.18 ** ALE ** and 3.8; event 19 zig-zags (±3, -1), event 20 dives (10, 20); 1-4 px/tick relative to the ground | **rebuilt**: it stood on two legs that sloped from the pivot blocks (z 4.3) down to foot blocks on the ground. Now the side cannons are level along their length (z 4.3, D163), with a breech collar (4), the light ring (11), the barrel (8, 7) and a muzzle (5) with a dark bore at row 17; no feet. The hull, drill, yoke, colours and the one frame are unchanged; the underside is the closed round hull |
+| assembly-newsht-39 | the red crab boss is a **hovering gunship** | sky layer in 1.5 DELIANI (main=19, t4783-6303) and 3.11, top layer in 4.1; holds near the top and weaves across the screen (event 20) | **already a flyer, not rebuilt**: body, arms and claws held level off a closed flat underside, nothing reaches down to a ground, exhausts on its back. The script's "leg"/"foot" parts are the level strut under each shoulder and its end cap. Docstring only |
+| newshf "fortress" (assembly-newshf-191, -195, -199, newshf-230, -238) | a **flying gun fortress in three sections that separate** | in 1.8 SAVARA (main=29, t4456-7468) it holds at the top of the screen over open sea; event 20 pushes the wing sections (191 + 230 left, 199 + 238 right) out sideways at ±6 px/tick and back while the centre gun module (195) roams on its own; in 1.17 SAVARA V the pieces spawn on the sky layer | **not clearly the wrong object, not rebuilt**: from the game camera and in the elevations the models are armoured hull plating, barrels and ball turrets over a closed flat belly, with no foundations, legs or walls down to a ground. Docstrings corrected ("ground fortress", "slopes to the ground"); pieces and pivots unchanged, so the split still works |
+
+**Game contract:** `newsh2-267.glb` is rebuilt; its `spriteModels` entry, `pal_<index>` materials, frame and export
+path are unchanged (`git diff src/render/spriteModels/` is empty). No other glb changed.
+
+**IoU** (`tools/sprite_mask.py --measure` on the review sheet's top render; `iou_rule` (`iou_rule_grid`)):
+newsh2-267 0.9471 (0.9891), the same as before the change (0.947 (0.9891)): the side cannons cover the same plan as
+the legs and feet. Unchanged models: assembly-newsht-39 0.9825 (0.9958); assembly-newshf-191 0.9825 (0.9895), -195
+0.9945 (0.9986), -199 0.9761 (0.9843); newshf-230 0.9413 (0.9675), newshf-238 0.9464 (0.9886). All pass the gate
+(`iou_rule_grid` ≥ 0.95); the sub-pixel rule values under 0.95 predate this entry.
+
+**Seen, not fixed:** in DELIANI at t4900 the remaster draws the left green orb over the crab's left arm; the original
+draws the crab over it (both are sky-layer enemies, so it's an in-pass height/order question, not object identity).
+
+**Captures:** `tyrian-scratch/e1-flyers/` holds `before/` and `after/` (`?compare=1` at TYRIAN t1340 and t6330, SAVARA
+t4500, t4600 and t5000, DELIANI t4900; review sheets) and the summaries `summary-newsh2-267.png`,
+`summary-assembly-newsht-39.png`, `summary-newshf-fortress.png`.
+
+**Cost:** one Opus agent, no workflow: one Blender build (newsh2-267, ~10 s), nine review sheets, about a dozen
+headless captures.

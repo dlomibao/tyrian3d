@@ -23,7 +23,7 @@ Seen in episode 1 (Savara, Savara V), 2 (Torm), 3 (Savara Y) and 4 (Savara IV). 
   plan edge fitted to the inner mask, seams, a bolted hatch and a vent grille.
 - A dark PLINTH (65) under everything: the slot and channel floors.
 
-What it is (D120/D122 identify the object first; DECISIONS D166): the red FLYING gun fortress at the end of
+What it is (D120/D122 identify the object first; DECISIONS D167): the red FLYING gun fortress at the end of
 SAVARA, in three sections that separate, not a ground building. In 1.8 and 1.12 SAVARA it holds at
 the top of the screen over open sea; event 20 then pushes the two wing
 sections (assembly-newshf-191 with newshf-230 on the left, assembly-newshf-199 with newshf-238 on the

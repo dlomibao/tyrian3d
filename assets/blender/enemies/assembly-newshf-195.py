@@ -5,7 +5,7 @@ Seen in 6 levels across all four episodes. It is the middle of a wide red flying
 part is assembly-newshf-191, the right part assembly-newshf-199). Built whole and cut into the four
 pieces (common.split_assembly), each piece one frame and one model.
 
-What it is (D120/D122 identify the object first; DECISIONS D166): the red FLYING gun fortress at the end of
+What it is (D120/D122 identify the object first; DECISIONS D167): the red FLYING gun fortress at the end of
 SAVARA, in three sections that separate, not a ground building. In 1.8 and 1.12 SAVARA it holds at
 the top of the screen over open sea; event 20 then pushes the two wing
 sections (assembly-newshf-191 with newshf-230 on the left, assembly-newshf-199 with newshf-238 on the

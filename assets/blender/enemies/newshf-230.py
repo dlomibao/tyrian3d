@@ -16,7 +16,7 @@ The bottom-left corner of the red side tower of the Savara fortress (levels 1.8,
   (index 5) in a grey collar (4/2): the ball is a closed dome that ends at the tile's right edge
   (the exposed inner edge of the tower shows it from the side), the collar ends in a flat wall there.
 
-What it is (D120/D122 identify the object first; DECISIONS D166): the red FLYING gun fortress at the end of
+What it is (D120/D122 identify the object first; DECISIONS D167): the red FLYING gun fortress at the end of
 SAVARA, in three sections that separate, not a ground building. In 1.8 and 1.12 SAVARA it holds at
 the top of the screen over open sea; event 20 then pushes the two wing
 sections (assembly-newshf-191 with newshf-230 on the left, assembly-newshf-199 with newshf-238 on the

@@ -14,7 +14,7 @@ Read from the sprite (24 x 28 px, rows 0-21 drawn):
   - outer edge: the diagonal and bottom rows, rounded down toward the belly (the darkening rows).
 Top-view edge at the INNER edge of the ink border (D74). Flat closed belly at z = 0.
 
-What it is (D120/D122 identify the object first; DECISIONS D166): the red FLYING gun fortress at the end of
+What it is (D120/D122 identify the object first; DECISIONS D167): the red FLYING gun fortress at the end of
 SAVARA, in three sections that separate, not a ground building. In 1.8 and 1.12 SAVARA it holds at
 the top of the screen over open sea; event 20 then pushes the two wing
 sections (assembly-newshf-191 with newshf-230 on the left, assembly-newshf-199 with newshf-238 on the
