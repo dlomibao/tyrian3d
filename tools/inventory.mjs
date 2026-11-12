@@ -21,7 +21,9 @@
 //   over-covers: it takes eventdat+0..3 of every event). Boss bars are event 79's link numbers;
 //   a boss is an enemy created with that link number (event 39 renames links).
 // - enemy shots: each enemy type's turret weapons (sg frames and their animation); player shots:
-//   every front/rear weapon (all powers and modes) and sidekick the episode's shops offer.
+//   every front/rear weapon (all powers and modes) and sidekick (its wpNum weapon and charge levels)
+//   the episode's shops offer, what the level's pickups give (weapons, sidekicks, specials) and the
+//   title demos' loadouts.
 // - the bot run (tests/sim/bot.ts, as tests/render/modelSwap.test.ts and the D65 scout used it):
 //   plays every section with a `]L[` (and hard difficulty where the script branches on it) and
 //   counts the ticks each object, shot and boss bar is on screen. That says how often an asset is
@@ -60,6 +62,7 @@ export const MODULES = {
   shots: "src/sim/shots.ts",
   mainint: "src/sim/mainint.ts",
   bot: "tests/sim/bot.ts",
+  demo: "src/sim/demo.ts",
 };
 
 // --- Event types (JE_eventSystem, src/sim/tyrian2.ts) ---
@@ -75,6 +78,8 @@ const ARCADE_DROP_EVENT = 45;
 /** Event 33's 533 becomes a random special weapon, 829 + rand % 6 (tyrian2.c). */
 const RANDOM_SPECIAL = 533;
 const RANDOM_SPECIALS = [829, 830, 831, 832, 833, 834];
+/** Specials in items.dat (src/data/items.ts SPECIAL_NUM); the header doesn't count them. */
+const SPECIAL_NUM = 46;
 /** Event 79: boss bars follow link numbers eventdat and eventdat2. Event 39 renames a link. */
 const BOSS_EVENT = 79;
 const RELINK_EVENT = 39;
@@ -350,6 +355,38 @@ function weaponFrames(w, player) {
   return out;
 }
 
+/**
+ * Shot frames a sidekick fires: player_shot_create(o.wPort, ..., o.wpNum + charge) (mainint.c), so the
+ * weapon is wpNum (wPort is only its port number) plus each charge level 0..pwr (the Charge Cannon).
+ */
+function sidekickFrames(items, id) {
+  const o = id > 0 && id <= items.counts[4] ? items.options[id] : undefined;
+  if (!o || o.wPort <= 0) return [];
+  const out = [];
+  for (let c = 0; c <= o.pwr; c++) out.push(...weaponFrames(items.weapons[o.wpNum + c], true));
+  return out;
+}
+
+/**
+ * Shot frames of what an in-level pickup gives the player (the evalue ranges of JE_playerCollide,
+ * mainint.c): > 32100 a special (its weapon, sp.wpn), > 32000 a sidekick, > 31000 a rear and > 30000 a
+ * front weapon port (outside super arcade). The special weapon's shots are fired by JE_specialComplete.
+ */
+function pickupFrames(items, value) {
+  if (value > 32100) {
+    const id = value - 32100;
+    const sp = id <= SPECIAL_NUM ? items.specials[id] : undefined;
+    return sp && sp.wpn > 0 ? weaponFrames(items.weapons[sp.wpn], true) : [];
+  }
+  if (value > 32000) return sidekickFrames(items, value - 32000);
+  if (value <= 30000) return [];
+  const id = value > 31000 ? value - 31000 : value - 30000;
+  const port = id <= items.counts[1] ? items.weaponPorts[id] : undefined;
+  const out = [];
+  if (port) for (let mode = 0; mode < Math.max(1, port.opNum); mode++) for (const w of port.op[mode] ?? []) if (w > 0) out.push(...weaponFrames(items.weapons[w], true));
+  return out;
+}
+
 /** Count how many times each structure pattern of the tileset occurs whole in the level's map. */
 function matchTileModels(level, shapesFile, tileModels) {
   const out = {};
@@ -497,6 +534,8 @@ function analyseLevel(m, res, level, sheetData) {
       // The lowest initialDifficulty that spawns it, when above normal (2): 3 hard, 4 impossible...
       minDifficulty: e.minDifficulty > 2 ? e.minDifficulty : undefined,
       shots,
+      // A pickup's weapon, sidekick or special: the shots the player fires once it is picked up.
+      playerShots: enemyKind(dat) === "pickup" ? uniq(pickupFrames(res.items, dat.value)) : [],
       sheetMissing: sheet && !sheetData(sheet) ? true : undefined,
     });
   }
@@ -712,9 +751,21 @@ export async function buildInventory(m, files, { play = true, episodes, root = R
       if (!port) continue;
       for (let mode = 0; mode < Math.max(1, port.opNum); mode++) for (const w of port.op[mode]) if (w > 0) for (const f of weaponFrames(res.items.weapons[w], true)) playerWeapons.set(f, port.name);
     }
-    for (const id of [...shop[5], ...shop[6]]) {
-      const o = res.items.options[id];
-      if (o && o.wPort > 0) for (const f of weaponFrames(res.items.weapons[o.wPort], true)) playerWeapons.set(f, o.name);
+    for (const id of [...shop[5], ...shop[6]]) for (const f of sidekickFrames(res.items, id)) playerWeapons.set(f, res.items.options[id].name);
+    // The title demos' loadouts (demo.1-5 headers, beginPlayDemo): their sidekicks and special too.
+    for (let d = 1; d <= 5; d++) {
+      const bytes = files.get(`demo.${d}`);
+      if (!bytes || bytes.length < m.demo.DEMO_HEADER_SIZE) continue;
+      const h = m.demo.parseDemoHeader(bytes);
+      if (h.episode !== ep) continue;
+      const frames = [
+        ...pickupFrames(res.items, 30000 + h.frontWeapon),
+        ...pickupFrames(res.items, 31000 + h.rearWeapon),
+        ...sidekickFrames(res.items, h.leftSidekick),
+        ...sidekickFrames(res.items, h.rightSidekick),
+        ...pickupFrames(res.items, 32100 + h.special),
+      ];
+      for (const f of frames) playerWeapons.set(f, `demo ${d}`);
     }
     for (const f of playerWeapons.keys()) {
       const s = shotFor(f);
@@ -769,6 +820,12 @@ export async function buildInventory(m, files, { play = true, episodes, root = R
       const enemies = [];
       const shots = new Set();
       for (const e of st.enemies) {
+        for (const s of e.playerShots ?? []) {
+          playerWeapons.set(s, `pickup ${e.type}`);
+          const sa = shotFor(s);
+          sa.playerEpisodes.add(ep);
+          sa.episodes.add(ep);
+        }
         const sheet = e.sheet;
         const entry = { type: e.type, kind: e.kind, unit: null, via: e.via.join("+"), events: e.events || undefined, ticks: play ? play.types.get(e.type) ?? 0 : undefined, boss: e.boss, arcadeOnly: e.arcadeOnly, twoPlayerOnly: e.twoPlayerOnly, minDifficulty: e.minDifficulty };
         if (!sheet) {

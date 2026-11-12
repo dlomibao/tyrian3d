@@ -13,11 +13,15 @@ Built from the tile's own pixels:
   (Fourier, <= 6 harmonics), so it is round where the art is round and follows its bulges;
 - the lip: 13 dressed stone blocks, chamfered on every edge (V joints), mitred round the mouth; the
   inner edge is the hollow's traced outline, the outer edge the hollow grown 2 px (disc), traced;
-- the walls: three chamfered ledges stepping down from the mouth to the pool, black above, lava-lit
-  dark brown below (the art's black and 64/65 rings);
+- the walls: chamfered ledges stepping down from the mouth to the pool, all black (index 0, the art's
+  1/80 edge) but a thin lava-lit foot (64, 112); the pool sits 0.27 down and POOL_INSET px inside the
+  mouth, so the black ring reads from overhead and the tilted camera sees a deep black far wall;
 - the pool: emissive lava (114) under Voronoi crust plates; each plate's kind comes from the art's
-  pixels under it (64-66 and black: dark crust 65; 112/113: cooling crust 113 with a faint glow; 114: open
-  lava), and a low hot swell (117) on each of the art's 116/117 pixels, so the pattern is the sprite's;
+  pixels under it (64-66 and black: dark crust 64; 112/113: cooling crust 112, glowing; 114: open lava),
+  each plate small (shrunk inside its cell, so lava shows round it), and a low swell on each of the
+  art's 115-117 pixels in that pixel's own index (115 small, 116/117 bigger), so the embers are the
+  sprite's. Every pool glow is strength ~1 (D126: the palette colour unlit), metallic and rough so it
+  reflects nothing (review #17: a glossy pool read as a pink lid);
 - the three stones: rough-cut stones over the convex hull of the art's tan components, leaning on
   the lip (highest toward the pit, faceted top: lit faces, not paint);
 - the island's rock round it: Structure.rock (plain, unbaked), cut under the lip.
@@ -52,8 +56,9 @@ LIP_W = 1.9  # px: the lip blocks' width outside the mouth
 CUT_W = 0.7  # px: the rock's hole outside the mouth (hidden under the lip)
 LIP_BLOCKS = 13
 LIP_TOP = (0.075, 0.105)
-LAVA_Z = -0.19
-CRUST_Z = 0.016
+LAVA_Z = -0.27  # deep enough that the black walls read from overhead and the tilted camera
+CRUST_Z = 0.012
+POOL_INSET = 1.9  # px: the black wall ring seen from overhead (the art's black edge, 1-4 px)
 STONE_TOP = {"left": 0.16, "right": 0.14, "bottom": 0.13}
 
 # Palette classes of the tile's pixels.
@@ -305,7 +310,7 @@ def build(bake=True, preview=None):
     CX, CY = xs.mean() + 0.5, ys.mean() + 0.5
     r_pit = radial_profile(pit, CX, CY)
     r_pool = radial_profile(pool, CX, CY)
-    r_pool = np.minimum(r_pool, r_pit - 1.2)
+    r_pool = np.minimum(r_pool, r_pit - POOL_INSET)
     mouth = ring_pts(CX, CY, r_pit)
     # The lip's outer edge: the art's hollow grown 2 px (its own staircase, traced and low-passed).
     lip_art = kit.dil_disk(pit, 2)
@@ -317,19 +322,24 @@ def build(bake=True, preview=None):
     lip_ring = lb.dilate(pit, 2) & ~pit & ~M["tan"]
     P_LIP = tone(s, lip_ring)
     wall_px = pit & ~pool
-    P_WALL = 1  # the art's black edge (median of the hollow's outer ring)
-    P_WARM = 65  # the lava-lit brown ring just over the pool (64/65 in the art)
+    P_WALL = 0  # the art's black edge (1/80 in the art: black)
+    P_WARM = 64  # the lava-lit foot of the wall, just over the pool (64 in the art: near black)
     mats = dict(
         lip=[s.m(P_LIP, roughness=0.75), s.m(max(P_LIP - 1, 4), roughness=0.78), s.m(P_LIP + 1, roughness=0.72)],
         wall=s.m(P_WALL, roughness=0.85),
-        warm=s.pal(P_WARM, emission_strength=0.6, roughness=0.8),
-        hotwall=s.pal(112, emission_strength=1.0, roughness=0.7),
-        lava=s.pal(114, emission_strength=2.2, roughness=0.45),
-        hot=s.pal(117, emission_strength=2.8, roughness=0.4),
-        crust_dark=s.pal(65, roughness=0.9),
-        crust_red=s.pal(113, emission_strength=0.6, roughness=0.75),
-        crust_mid=s.pal(114, emission_strength=1.2, roughness=0.7),
-        plug=s.m(2, roughness=0.9),
+        # D126: strength 1 = the palette colour unlit (the sprite's pixel); a little over 1 on the
+        # brightest swells only, so the reds stay red under tone mapping. Metallic 1 and rough: in game
+        # the lit colour of a strength >= 1 glow is black, so a metal one reflects nothing (a glossy
+        # dielectric pool caught the sun as a grey-pink film over the red, the "lid" of review #17).
+        warm=s.pal(P_WARM, emission_strength=1.0, roughness=0.9, metallic=1.0),
+        hotwall=s.pal(112, emission_strength=1.0, roughness=0.9, metallic=1.0),
+        lava=s.pal(114, emission_strength=1.0, roughness=0.9, metallic=1.0),
+        swell={115: s.pal(115, emission_strength=1.0, roughness=0.85, metallic=1.0),
+               116: s.pal(116, emission_strength=1.1, roughness=0.85, metallic=1.0),
+               117: s.pal(117, emission_strength=1.25, roughness=0.85, metallic=1.0)},
+        crust_dark=s.pal(64, roughness=0.95),
+        crust_red=s.pal(112, emission_strength=1.0, roughness=0.9, metallic=1.0),  # cooling crust: the art's 112/113
+        plug=s.m(0, roughness=0.95),
     )
     regions = [("lip", lip_ring, P_LIP), ("wall(black)", wall_px & M["black"] | (wall_px & ~lb.dilate(pool, 1)), P_WALL),
                ("pool", pool, 114)]
@@ -338,8 +348,9 @@ def build(bake=True, preview=None):
     steps = [(0.0, -0.005, None),
              (0.0, -0.045, "wall"), (0.08, -0.055, "wall"),          # the mouth's wall and chamfer
              (0.30, -0.06, "wall"), (0.30, -0.10, "wall"), (0.37, -0.11, "wall"),   # ledge 1
-             (0.58, -0.115, "warm"), (0.58, -0.15, "warm"), (0.65, -0.158, "warm"),  # ledge 2 (lit)
-             (0.84, -0.162, "hotwall"), (0.86, LAVA_Z + 0.004, "hotwall"), (1.0, LAVA_Z, "hotwall")]
+             (0.58, -0.125, "wall"), (0.58, -0.17, "wall"), (0.65, -0.18, "wall"),  # ledge 2
+             (0.84, -0.19, "wall"), (0.86, LAVA_Z + 0.03, "warm"), (0.93, LAVA_Z + 0.006, "hotwall"),
+             (1.0, LAVA_Z, "hotwall")]
     bm = bmesh.new()
     rings = []
     for f, z, _ in steps:
@@ -367,9 +378,9 @@ def build(bake=True, preview=None):
     pc = bmesh.new()
     hot_spots = []
     stats = dict(dark=0, cool=0, open=0)
-    # The art's brightest lava pixels (116/117): one hot swell each, at its own place.
-    hot_px = [(x + 0.5, y + 0.5) for y, x in zip(*np.nonzero(np.isin(g, [116, 117]) & pool))]
-    for (sx, sy), poly in crust_cells(rng, pool_poly, step=1.9, crack=0.17):
+    # The art's bright lava pixels (115-117): one swell each, at its own place.
+    swell_px = [(x + 0.5, y + 0.5, int(g[y, x])) for y, x in zip(*np.nonzero(np.isin(g, [115, 116, 117]) & pool))]
+    for (sx, sy), poly in crust_cells(rng, pool_poly, step=1.9, crack=0.22):
         pm = poly_mask(poly, W, H, ss=4)
         v = g[pm & (g >= 0)]
         if not len(v):
@@ -377,11 +388,11 @@ def build(bake=True, preview=None):
         dark = np.isin(v, list(CRUST) + [1, 2, 3, 80]).mean()
         reds = v[np.isin(v, list(RED))]
         red_med = int(np.median(reds)) if len(reds) else 113
-        if any(abs(hx - sx) < 1.3 and abs(hy - sy) < 1.3 for hx, hy in hot_px):
+        if any(abs(hx - sx) < 1.3 and abs(hy - sy) < 1.3 for hx, hy, _ in swell_px):
             kind = "open"  # round a hot spot the lava is open
-        elif dark >= 0.45:
+        elif dark >= 0.35:
             kind = "dark"
-        elif red_med <= 113 or dark >= 0.25:
+        elif red_med <= 113 or dark >= 0.3:
             kind = "cool"
         else:
             kind = "open"
@@ -390,8 +401,12 @@ def build(bake=True, preview=None):
             continue  # the lava itself shows
         mat = mats["crust_dark"] if kind == "dark" else mats["crust_red"]
         z1 = LAVA_Z + (CRUST_Z if kind == "dark" else CRUST_Z * 0.55) + rng.uniform(-0.003, 0.003)
-        inner = ls.inset(poly if ls.area(poly) > 0 else poly[::-1], 0.25)
-        if abs(ls.area(inner)) < 0.15:
+        # small plates: each cell shrunk a further 0.15 px, so the lava shows round every one
+        poly = ls.inset(poly if ls.area(poly) > 0 else poly[::-1], 0.15)
+        if len(poly) < 3 or abs(ls.area(poly)) < 0.25:
+            continue
+        inner = ls.inset(poly, 0.2)
+        if len(inner) < 3 or abs(ls.area(inner)) < 0.12:
             inner = poly
         bot = [pc.verts.new((s.x(x), s.y(y), LAVA_Z - 0.004)) for x, y in poly]
         side = [pc.verts.new((s.x(x), s.y(y), z1 - 0.006)) for x, y in poly]
@@ -404,9 +419,11 @@ def build(bake=True, preview=None):
     bmesh.ops.recalc_face_normals(pc, faces=pc.faces)
     s._merge(pc)
     # Hot lava welling up where the art is brightest: low smooth swells.
-    for hx, hy in hot_px:
-        s.dome(hx, hy, 1.0, 0.9, LAVA_Z - 0.006, 0.012, mats["hot"], sides=14, rings=3)
-    print("hot spots", hot_px)
+    # 115 a small low swell, 116/117 a bigger, brighter one: the art's embers, each at its own pixel.
+    for hx, hy, idx in swell_px:
+        r = 0.8 if idx == 115 else 1.1
+        s.dome(hx, hy, r, r * 0.9, LAVA_Z - 0.004, 0.007 if idx == 115 else 0.011, mats["swell"][idx], sides=14, rings=3)
+    print("swells", swell_px)
 
     # --- 3. The lip: dressed stone blocks round the mouth (V joints from their chamfers) ----------
     a_off = rng.uniform(0, 2 * math.pi / LIP_BLOCKS)

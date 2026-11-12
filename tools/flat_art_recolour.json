@@ -1,0 +1,21 @@
+{
+ "note": "flat_art.py recolour / cut (DECISIONS.md D172): painted frames whose colours drifted from the sprite's, recoloured with the sprite's own palette ramp (histogram-matched brightness, the sprite's colour at each brightness). layout: how much of the brightness order is the sprite's own (0 the painting's, 1 a smoothed sprite); size 2 objects are fitted whole and frames lists their first tiles. joins: Zica Laser pieces stacked edge to edge (head, body, tail), whose edges continue into the next piece.",
+ "objects": [
+  {"sheet": "tyrian.shp#7", "why": "side fireballs, painted pale yellow-white (title demo 1)", "frames": [121, 122, 140, 141]},
+  {"sheet": "tyrian.shp#7", "why": "round enemy shots, painted pale gold without the wide red rim (demo 5)", "layout": 0.7, "frames": [112, 113]},
+  {"sheet": "tyrian.shp#7", "why": "twin streaks, painted orange with white heads (demo 5)", "layout": 0.7, "frames": [277, 278, 296, 297]},
+  {"sheet": "tyrian.shp#7", "why": "Zica Laser head, body and tail, painted pale cyan with a V tail (demo 2)", "frames": [97, 116, 135, 101, 120, 139]},
+  {"sheet": "tyrian.shp#7", "why": "D172's new paintings (Gerund missiles, Warfly diamond, Charge Cannon), held to the sprite's colours", "layout": 0.5, "frames": [48, 50, 51, 252, 253, 254]},
+  {"sheet": "tyrian.shp#10", "why": "green gem's twinkle, painted near-black to pale mint (demo 2)", "layout": 0.35, "frames": [32, 33, 34, 35, 36]},
+  {"sheet": "tyrian.shp#10", "why": "blue gem's twinkle, painted paler than the sprite", "layout": 0.35, "frames": [51, 52, 53, 54, 55]},
+  {"sheet": "tyrian.shp#10", "why": "tan datacube's first frame, painted grey (demo 2)", "size": 2, "layout": 0.35, "frames": [159]}
+ ],
+ "joins": [
+  {"sheet": "tyrian.shp#7", "frame": 97, "bottom": 116},
+  {"sheet": "tyrian.shp#7", "frame": 116, "top": 116, "bottom": 116},
+  {"sheet": "tyrian.shp#7", "frame": 135, "top": 116},
+  {"sheet": "tyrian.shp#7", "frame": 101, "bottom": 120},
+  {"sheet": "tyrian.shp#7", "frame": 120, "top": 120, "bottom": 120},
+  {"sheet": "tyrian.shp#7", "frame": 139, "top": 120}
+ ]
+}
