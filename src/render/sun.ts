@@ -1,4 +1,4 @@
-// The game view's sun, and where airborne models' shadows fall under it (DECISIONS.md D170).
+// The game view's sun, and where airborne models' shadows fall under it (DECISIONS.md D171).
 //
 // The sun shines from the left and from the camera's side, mostly from above. Draws are lifted along
 // camera rays (D6), which by itself pushes a model's shadow down the screen by its height times the

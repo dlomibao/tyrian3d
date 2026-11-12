@@ -154,7 +154,7 @@ export class View {
     // from the camera's side to cancel most of that under the steep camera. Models' shadows are drawn
     // as they'd fall at the camera's aim point wherever the model is, so they don't drift apart toward
     // the screen's edges (D133), and airborne models' shadows fall the same distance below them under
-    // every camera (sun.ts, D170).
+    // every camera (sun.ts, D171).
     sun.position.set(SUN_POSITION.x, SUN_POSITION.y, SUN_POSITION.z);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);

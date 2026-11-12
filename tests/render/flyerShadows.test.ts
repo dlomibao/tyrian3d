@@ -1,4 +1,4 @@
-// D170: airborne models' shadows fall the same way under every camera (sun.ts), the camera ray's
+// D171: airborne models' shadows fall the same way under every camera (sun.ts), the camera ray's
 // roll is taken out of a banking ship's (sun.ts rayRoll), and the ship's shadow is the C's darken
 // draw as a decal (shadowDecals.ts).
 import * as THREE from "three";

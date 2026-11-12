@@ -1,4 +1,4 @@
-// The player ship's shadow as the C draws it (DECISIONS.md D170, D9's fallback): its `darken` draws
+// The player ship's shadow as the C draws it (DECISIONS.md D171, D9's fallback): its `darken` draws
 // (blit_sprite2x2_darken in JE_playerMovement, shadowYDist below the ship and shifted with background
 // 2's parallax, drawn only while background 2 is on) become soft dark decals.
 //

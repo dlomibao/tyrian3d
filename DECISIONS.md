@@ -7687,69 +7687,6 @@ at ticks 249, 700, 1000, 1500 with the tilted camera; `&stress=800` CPU time unc
 
 **Cost:** one Opus agent, no workflow: about 40 headless captures (two at a time), no Gemini.
 
-## D170 — The ship's shadow is the C's darken draw as a decal; airborne models' shadows fall below them under every camera; a banking ship loses the camera ray's roll (D9's fallback; extends D133, D93)
-
-2026-11-12
-
-**Problem** (`tyrian-scratch/demo-compare/overhead/REPORT.md` items 5 and 19): under the overhead camera the player
-ship had no readable shadow, where the original draws a dark one about 10 px below it (demo 1, TYRIAN); and the
-Gencore Phoenix at full bank by the screen's edge read as a thin capsule (demo 5, DELIANI).
-
-**What was checked.**
-- *The "blue fighters" with shadows in demo 1 are player shots*, Heavy Guided Bombs (`tyrian.shp#7` frame 48, the
-  rear gun), each with its own darken draw 10 px below (shots.c): the draw list at curLoc 1100 and 2505. In the C only
-  the ship (mainint.c, `blit_sprite2x2_darken` at x + 30 - mapX2Ofs, y + shadowYDist) and the player's shots draw
-  shadows, and only while background 2 is on. No enemy has one. Shot shadows stay out (D9, D42).
-- *The sun's +z was tuned for the 32° camera.* An airborne model's shadow lands (0.3, tan(tilt) - 0.42) × its height
-  from its screen point (the sun's -xz/y plus D6's lift at the aim point, which D133 applies everywhere): 0.20 down
-  at 32°, 0.15 *up* at 15° (the default since D61), 0.42 up overhead. The ship at 3.3: 12 px right and 17 px up
-  overhead, measured 11 and 17 with the fill lights off. It fell under the ship's own shots and halos.
-- *Contrast.* Under the ship the shadow-map shadow took the HD ground from luma 71.7 to 49.1 (×0.68): the hemisphere
-  (1.2) and environment (0.7) fill stay in the shadow. The C's darken halves the shade (`(i & 0xf0) | ((i & 0x0f) / 2)`):
-  ×0.45 measured in the original's half of demo 1 s075. Lowering the fill would relight every model and terrain.
-- *The bank* (D93's "Found on the way"): at the edge the camera ray leans ~23-26° and that roll adds to a bank toward
-  the edge. The Talon at full bank at x = 256: roll -35°, ray +23.5°.
-
-**Decision:**
-1. **The ship's shadow is its darken draws** (`src/render/shadowDecals.ts`): each Player-pass darken draw is a decal of
-   the sprite's silhouette (bilinear between pixel centres then a smoothstep: rounded steps, a ~1 px soft edge), drawn
-   black at 0.5 opacity, so what is under it keeps half its brightness, as in the C. It lies flat at height 2.3
-   (between background 3 and the top enemies, under a banked wing tip) on the camera ray through its screen
-   rectangle (D6), so it is exactly where the C put it under every camera, including the parallax x
-   (30 - mapX2Ofs: -24 px at the left edge, +23 at the right). It darkens what is under that height: ground,
-   structures, ground and sky enemies. Its renderOrder is in the C's draw order: after the blend sheets and the flat
-   art of the passes before the player, before the enemy shots' and explosions' art. **No double:** while a
-   player's shadow is a decal, that ship's model casts no shadow-map shadow. When the C draws none (background 2
-   off), the model's shadow-map shadow is drawn as before. The decal material is warmed with the level (D91).
-2. **Airborne models' shadows fall below them under every camera** (`src/render/sun.ts`): models above the ground
-   enemies' pass get an extra shadow shift (D133's per-clone uniform) of h × (−lift.x, 10 / 12 / 3.3 − sun.z − lift.z),
-   computed from the camera each frame: the ship's shadow-map shadow (when no decal) falls 10 px below it and 12 px
-   right, and a sky or top enemy's proportionally to its height. The sun, so every model's lighting, and the shadows of
-   ground enemies, structures and terrain are unchanged.
-3. **A banking ship loses the camera ray's roll** (`drawModel`): rotation.z = eased bank roll + atan2(x − cam.x,
-   cam.y − y), so the ship looks rolled by its bank from the camera anywhere on screen, which D93's top-view fit
-   assumes. `bank.roll` in the ship JSON is unchanged.
-
-**Options considered:**
-- *A per-camera sun* (the report's first idea): moves every shadow, terrain and ground enemies included, and
-  relights every model per camera; the contrast stays ×0.68.
-- *Shadow-mapping only, with the shift and deeper shadows*: the shift alone fixes the place, not the contrast,
-  which needs less fill everywhere or patching the ground materials.
-- *Decals for everything airborne*: enemies have no darken draws to use.
-- *Shot shadows from their darken draws too*: faithful, but out of this fix's scope (D42); the path is one condition.
-
-**Costs:** while the decal is on, the ship doesn't shadow itself (wings on hull). Overhead, the sun still lights from
-the screen's bottom-left while airborne shadows fall bottom-right. The decal's darkening is in display space when
-drawn to the canvas; in the screen filters' linear target (D159) it is ×0.5 linear, a lighter shadow while a filter runs.
-
-**Checked:** `?demo=1&compare=1`, overhead and tilted (`demoshots.mjs`), s060-s090: the ship's shadow below-right of
-the ship as in the original, ×0.50 luma against the same pixels before (the C ×0.45); the shield drones' shadows
-now below-right. `?debug=play&episode=1&main=3&seed=1&freezeAt=900` overhead, tilted and steep, and with
-`&steer=right&ship=3`: the Phoenix at full bank by the right edge shows both wings. `?demo=5&compare=1&camera=overhead`
-s030. Captures and the summary: `tyrian-scratch/shadow-fix/` (`before/`, `after/`, `summary.png`).
-Test: `tests/render/flyerShadows.test.ts`.
-
-**Cost:** one Opus agent, no workflow: about 30 headless captures (two at a time), no Gemini, no Blender.
 ## D170 — Episode-2 enemy rebuild, batch 1: 28 items (38 inventory units) to the D65 hard-surface standard; the scout re-reads eight as flyers or launched objects
 
 2026-11-12
@@ -7896,3 +7833,67 @@ pinhole on `newshn-125`'s lower flank (back-left 3/4 view).
 subagent tokens, about 2.7 h of run time (9,651 s; interrupted once by the weekly usage limit and resumed); the fix
 round (`fix-round.js`, 5 items) 12 agents (6 fixes, 6 reviews), 1.52M tokens, 56 min. Sheets:
 `tyrian-scratch/e2-enemies-1/<name>/final/` (not in git, D3).
+
+## D171 — The ship's shadow is the C's darken draw as a decal; airborne models' shadows fall below them under every camera; a banking ship loses the camera ray's roll (D9's fallback; extends D133, D93)
+
+2026-11-12
+
+**Problem** (`tyrian-scratch/demo-compare/overhead/REPORT.md` items 5 and 19): under the overhead camera the player
+ship had no readable shadow, where the original draws a dark one about 10 px below it (demo 1, TYRIAN); and the
+Gencore Phoenix at full bank by the screen's edge read as a thin capsule (demo 5, DELIANI).
+
+**What was checked.**
+- *The "blue fighters" with shadows in demo 1 are player shots*, Heavy Guided Bombs (`tyrian.shp#7` frame 48, the
+  rear gun), each with its own darken draw 10 px below (shots.c): the draw list at curLoc 1100 and 2505. In the C only
+  the ship (mainint.c, `blit_sprite2x2_darken` at x + 30 - mapX2Ofs, y + shadowYDist) and the player's shots draw
+  shadows, and only while background 2 is on. No enemy has one. Shot shadows stay out (D9, D42).
+- *The sun's +z was tuned for the 32° camera.* An airborne model's shadow lands (0.3, tan(tilt) - 0.42) × its height
+  from its screen point (the sun's -xz/y plus D6's lift at the aim point, which D133 applies everywhere): 0.20 down
+  at 32°, 0.15 *up* at 15° (the default since D61), 0.42 up overhead. The ship at 3.3: 12 px right and 17 px up
+  overhead, measured 11 and 17 with the fill lights off. It fell under the ship's own shots and halos.
+- *Contrast.* Under the ship the shadow-map shadow took the HD ground from luma 71.7 to 49.1 (×0.68): the hemisphere
+  (1.2) and environment (0.7) fill stay in the shadow. The C's darken halves the shade (`(i & 0xf0) | ((i & 0x0f) / 2)`):
+  ×0.45 measured in the original's half of demo 1 s075. Lowering the fill would relight every model and terrain.
+- *The bank* (D93's "Found on the way"): at the edge the camera ray leans ~23-26° and that roll adds to a bank toward
+  the edge. The Talon at full bank at x = 256: roll -35°, ray +23.5°.
+
+**Decision:**
+1. **The ship's shadow is its darken draws** (`src/render/shadowDecals.ts`): each Player-pass darken draw is a decal of
+   the sprite's silhouette (bilinear between pixel centres then a smoothstep: rounded steps, a ~1 px soft edge), drawn
+   black at 0.5 opacity, so what is under it keeps half its brightness, as in the C. It lies flat at height 2.3
+   (between background 3 and the top enemies, under a banked wing tip) on the camera ray through its screen
+   rectangle (D6), so it is exactly where the C put it under every camera, including the parallax x
+   (30 - mapX2Ofs: -24 px at the left edge, +23 at the right). It darkens what is under that height: ground,
+   structures, ground and sky enemies. Its renderOrder is in the C's draw order: after the blend sheets and the flat
+   art of the passes before the player, before the enemy shots' and explosions' art. **No double:** while a
+   player's shadow is a decal, that ship's model casts no shadow-map shadow. When the C draws none (background 2
+   off), the model's shadow-map shadow is drawn as before. The decal material is warmed with the level (D91).
+2. **Airborne models' shadows fall below them under every camera** (`src/render/sun.ts`): models above the ground
+   enemies' pass get an extra shadow shift (D133's per-clone uniform) of h × (−lift.x, 10 / 12 / 3.3 − sun.z − lift.z),
+   computed from the camera each frame: the ship's shadow-map shadow (when no decal) falls 10 px below it and 12 px
+   right, and a sky or top enemy's proportionally to its height. The sun, so every model's lighting, and the shadows of
+   ground enemies, structures and terrain are unchanged.
+3. **A banking ship loses the camera ray's roll** (`drawModel`): rotation.z = eased bank roll + atan2(x − cam.x,
+   cam.y − y), so the ship looks rolled by its bank from the camera anywhere on screen, which D93's top-view fit
+   assumes. `bank.roll` in the ship JSON is unchanged.
+
+**Options considered:**
+- *A per-camera sun* (the report's first idea): moves every shadow, terrain and ground enemies included, and
+  relights every model per camera; the contrast stays ×0.68.
+- *Shadow-mapping only, with the shift and deeper shadows*: the shift alone fixes the place, not the contrast,
+  which needs less fill everywhere or patching the ground materials.
+- *Decals for everything airborne*: enemies have no darken draws to use.
+- *Shot shadows from their darken draws too*: faithful, but out of this fix's scope (D42); the path is one condition.
+
+**Costs:** while the decal is on, the ship doesn't shadow itself (wings on hull). Overhead, the sun still lights from
+the screen's bottom-left while airborne shadows fall bottom-right. The decal's darkening is in display space when
+drawn to the canvas; in the screen filters' linear target (D159) it is ×0.5 linear, a lighter shadow while a filter runs.
+
+**Checked:** `?demo=1&compare=1`, overhead and tilted (`demoshots.mjs`), s060-s090: the ship's shadow below-right of
+the ship as in the original, ×0.50 luma against the same pixels before (the C ×0.45); the shield drones' shadows
+now below-right. `?debug=play&episode=1&main=3&seed=1&freezeAt=900` overhead, tilted and steep, and with
+`&steer=right&ship=3`: the Phoenix at full bank by the right edge shows both wings. `?demo=5&compare=1&camera=overhead`
+s030. Captures and the summary: `tyrian-scratch/shadow-fix/` (`before/`, `after/`, `summary.png`).
+Test: `tests/render/flyerShadows.test.ts`.
+
+**Cost:** one Opus agent, no workflow: about 30 headless captures (two at a time), no Gemini, no Blender.

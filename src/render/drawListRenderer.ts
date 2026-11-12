@@ -395,7 +395,7 @@ export class DrawListRenderer {
     left: number; top: number; w: number; h: number;
   }[] = [];
   private readonly cover = new OpaqueCover();
-  /** The ship's shadow, from the C's darken draws (D170). */
+  /** The ship's shadow, from the C's darken draws (D171). */
   private readonly shadowDecals = new ShadowDecals();
   /** This frame's placed models, by pass, screen box and height, for the blended sheets (D129). */
   private readonly placedExtents: PlacedExtent[] = [];
@@ -403,7 +403,7 @@ export class DrawListRenderer {
   private readonly blendSheets: { pool: Pool; slot: number; x: number; y: number; pass: Pass }[] = [];
   /** Where the camera's view meets the ground: models' shadows fall as they would there (D133). */
   private readonly shadowRef = new THREE.Vector3();
-  /** Airborne models' extra shadow shift per unit of height, for this frame's camera (D170). */
+  /** Airborne models' extra shadow shift per unit of height, for this frame's camera (D171). */
   private readonly airShadow = new THREE.Vector2();
   private readonly viewDir = new THREE.Vector3();
   /** Which star pixels background 1 hides (D127). */
@@ -780,7 +780,7 @@ export class DrawListRenderer {
           const x = prevX[i] + (d.x - prevX[i]) * alpha;
           const y = prevY[i] + (d.y - prevY[i]) * alpha;
           if (d.effect === "darken") {
-            // The ship's shadow is drawn as the C's (D170); the shots' are left out (D9, D42).
+            // The ship's shadow is drawn as the C's (D171); the shots' are left out (D9, D42).
             if (d.pass === Pass.Player) this.shadowDecals.add(d.sheet, d.index, d.size, d.key, x, y, cam);
             continue;
           }
@@ -1466,12 +1466,12 @@ export class DrawListRenderer {
     }
     // Banking eases per display frame, so the 5 sprite frames become a smooth roll. The camera ray's
     // own roll is taken out, so the ship looks rolled by its bank anywhere on screen, as the sprites
-    // and D93's top-view fit are: at the playfield's edge the ray leans ~26° (D170).
+    // and D93's top-view fit are: at the playfield's edge the ray leans ~26° (D171).
     clone.roll += (-roll - clone.roll) * Math.min(1, dt * ROLL_RATE);
     clone.object.rotation.z = clone.roll + rayRoll(clone.object.position, cam);
     // A player ship's wear by its armour (D90), after the roll so the scorch rolls with the ship.
     const player = playerOfKey(d.key);
-    // With its shadow drawn as the C's decal, the ship's model casts none (D170).
+    // With its shadow drawn as the C's decal, the ship's model casts none (D171).
     if (player >= 0) setCloneCasts(clone, !this.shadowDecals.hasPlayer(player));
     if (player >= 0) this.damage?.applyShip(clone.object, clone.materials, this.ships[player] ?? null, route === Route.Group ? d.groupSize : d.size);
   }
@@ -1518,7 +1518,7 @@ export class DrawListRenderer {
     // Lifted along its camera ray (D6), a model off the middle of the screen sits nearer the middle
     // than it looks, and its shadow drifted toward the middle with it, away from it on screen. Its
     // shadow is drawn where the lift would put it from the camera's aim point instead (D133).
-    // An airborne model's shadow also falls the same way below it under every camera (D170).
+    // An airborne model's shadow also falls the same way below it under every camera (D171).
     const air = isAirborne(h) ? h : 0;
     this.damage?.shadowShift(object, clone.materials, (gx - this.shadowRef.x) * k + this.airShadow.x * air, (gz - this.shadowRef.z) * k + this.airShadow.y * air);
     // Its box on screen (the D6 scale keeps the model's footprint at its sprite's screen size) and
@@ -1755,7 +1755,7 @@ function unitQuad(): THREE.BufferGeometry {
  * The player index of a player ship's draw (sim/mainint.ts playerKey: PLAYER_KEY_BASE + 100 * p, part
  * 0 the ship or its left half, 1 its right half), or -1.
  */
-/** Whether a model clone casts shadow-map shadows (a ship with its shadow drawn as a decal doesn't, D170). */
+/** Whether a model clone casts shadow-map shadows (a ship with its shadow drawn as a decal doesn't, D171). */
 function setCloneCasts(clone: ModelClone, casts: boolean): void {
   if (clone.object.userData.casts === casts) return;
   clone.object.userData.casts = casts;
