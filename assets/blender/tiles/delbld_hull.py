@@ -26,6 +26,9 @@ pixels' brightness (art rule 2: the art's shading and sheen are lighting):
   their big ink-dark areas are housings sunk 0.07 in their own shade (the art's index there), with the
   slats across them standing between grooves; a clamp's foot on the deck is a block 0.11 high with
   rounded edges;
+- the clamps' outer half on the side rims (560, 562 and the cut clamps of 593, 594; D152): machined parts,
+  not the height field: the housing a pocket with vertical walls and a flat floor in the art's ink, the
+  slats bevelled bars standing in a dark well (CLAMP_DETAIL, rectangles fitted to the 1x art);
 - the tubes' long thin ink lines (the clamps' slats and outlines, the segments' greek keys, the elbows'
   ribs) are grooves 0.06 deep and the purple segments' big dark areas shallow recesses, both floored in
   the art's ink shade of their ramp; the segments' darker seam lines are shallower grooves;
@@ -100,6 +103,30 @@ FLAT_MERGE = 5.0
 #: The shades a spring's plates snap to, within their own ramp (grey, purple), every other step.
 SPRING_SHADES = (2, 4, 6, 8, 10, 12, 81, 83, 85, 87, 89, 91)
 HULL = dict(metallic=0.12, roughness=0.5)
+#: The clamps' outer half, machined (D152): the art's dark housing, its grille of slats and the slot beside
+#: the clamp's face, as hard-surface parts instead of the height field (where D149's smoothing melted them).
+#: Rectangles in the tile's 1x px (x0, y0, x1, y1; x right, y down), fitted to the art. A pocket is cut out of
+#: the height field (vertical walls, its edges not moved) and floored POCKET_DEPTH below the clamp's face in
+#: the art's ink there (D136); a bar is a bevelled bar standing in a pocket, BAR_INSET below the face. The
+#: art's transparent pixels in a pocket stay open, as square holes.
+CLAMP_DETAIL = {
+    560: dict(pockets=(("housing", (2, 1, 6, 7)), ("grille", (0, 7, 11, 14)), ("grille", (10, 2, 11, 7))),
+              bars=((1, 8, 10, 9), (1, 10, 10, 11), (1, 12, 10, 13))),
+    # The same clamp's top five rows, cut by the cross tube.
+    593: dict(pockets=(("housing", (2, 1, 6, 5)), ("grille", (10, 2, 11, 5))), bars=()),
+}
+
+
+def _mirror(d):
+    flip = lambda r: (lt.TILE_W - r[2], r[1], lt.TILE_W - r[0], r[3])  # noqa: E731
+    return dict(pockets=tuple((k, flip(r)) for k, r in d["pockets"]), bars=tuple(flip(r) for r in d["bars"]))
+
+
+CLAMP_DETAIL[562] = _mirror(CLAMP_DETAIL[560])   # the right rim is the left one mirrored, pixel for pixel
+CLAMP_DETAIL[594] = _mirror(CLAMP_DETAIL[593])
+POCKET_DEPTH = {"housing": 0.07, "grille": 0.08}
+BAR_INSET = 0.015
+BAR_CHAMFER = 0.25 * lt.PX
 
 # Tube primitives, in tile px (x right 0..24, y down 0..28):
 #   ("line", (x0, y0), (x1, y1), half_width, height)
@@ -319,6 +346,38 @@ def absorb_specks(part_id, height, solid, max_px, tile=None):
         height[ys, xs] = float(np.mean(nb[best]))
 
 
+def add_machined(ts, bm, frame, mats, centre, art1, floor, solid, pocket_kind, bars, bar_cells, face, depth):
+    """The machined clamp parts (D152): each pocket's floor, a slab over its cells (the art's holes open,
+    no wall against the field round it, whose own walls close the pocket), in the art's ink there; and
+    the bevelled bars standing in them, following the clamp's face along their length."""
+    def index(sel):
+        for region in (centre, (slice(None), slice(None))):
+            idx = kit.region_index(ts, art1[region][sel[region]], prefer=GREY)
+            if idx is not None:
+                return idx
+        return None
+
+    floor_mat = {}
+    for k in sorted(set(pocket_kind[floor])):
+        floor_mat[k] = mats(index(floor & (pocket_kind == k) & ~bar_cells), metallic=0.2, roughness=0.45)
+    before = set(bm.faces)
+    lt.mask_slab(bm, floor, frame, BOTTOM, 0.0, lambda x, y: floor_mat[pocket_kind[y, x]], top_height=face - depth,
+                 smooth_top=True, support=floor, walls=solid)
+    # Flat-shaded, so tidy_flat merges the floor's cells (it turns only a few degrees across a pocket).
+    for f in set(bm.faces) - before:
+        f.smooth = False
+    if not bars:
+        return
+    bar_mat = mats(index(bar_cells), metallic=0.2, roughness=0.3)
+    for x0, y0, x1, y1 in bars:
+        along_x = (x1 - x0) >= (y1 - y0)
+        prof = face[y0:y1, x0:x1].mean(0 if along_x else 1)
+        dep = depth[y0:y1, x0:x1].max()
+        pos = np.arange(x0, x1) + 0.5 if along_x else np.arange(y0, y1) + 0.5
+        kit.machined_bar(bm, frame, (x0, y0, x1, y1), lambda s: float(np.interp(s, pos, prof)) - BAR_INSET,
+                         lambda s: float(np.interp(s, pos, prof)) - dep - 0.01, BAR_CHAMFER, bar_mat)
+
+
 def centre_of(PR, PC, TH, TW):
     """The pattern's cells in its block (one ring of context round it)."""
     return (slice(TH, (PR + 1) * TH), slice(TW, (PC + 1) * TW))
@@ -514,6 +573,36 @@ def build(ts, pattern, name, coll, bake_on, block_kind=None):
             return min(shades, key=lambda k: abs(k - v)) if shades else v
         plate_index = np.where(plate_index >= 0, np.vectorize(snap)(np.maximum(plate_index, 0)), -1)
 
+    # The clamps' outer half, machined (D152): pockets cut out of the field, floored in the art's ink, and
+    # bevelled bars standing in them. Their cells take the 1x art's coverage (square holes, as the art's).
+    pocket = np.zeros((H, W), dtype=bool)
+    pocket_kind = np.full((H, W), "", dtype=object)
+    bars = []
+    if not block_kind:
+        for r in range(rows):
+            for c in range(cols):
+                det = CLAMP_DETAIL.get(cells[r][c])
+                if not det:
+                    continue
+                for pk, (x0, y0, x1, y1) in det["pockets"]:
+                    sl = (slice(r * TH + y0 * S, r * TH + y1 * S), slice(c * TW + x0 * S, c * TW + x1 * S))
+                    pocket[sl] = True
+                    pocket_kind[sl] = pk
+                for x0, y0, x1, y1 in det["bars"]:
+                    bars.append((c * TW + x0 * S, r * TH + y0 * S, c * TW + x1 * S, r * TH + y1 * S))
+    art1 = np.repeat(np.repeat(kit.context_grid(ts, cells), S, 0), S, 1)
+    floor = pocket & (art1 > 0)
+    bar_cells = np.zeros((H, W), dtype=bool)
+    for x0, y0, x1, y1 in bars:
+        bar_cells[y0:y1, x0:x1] = True
+    if pocket.any():
+        # The clamp's face over a pocket: its squarer section with the raise (a pocket's own cells may be
+        # holes or ink that never took the raise), a function of the distance from the tube's centre only.
+        face = box + CLAMP_UP
+        depth = np.vectorize(lambda k: POCKET_DEPTH.get(k, 0.0))(pocket_kind)
+        height[floor] = (face - depth)[floor]
+        height[bar_cells & floor] = (face - BAR_INSET)[bar_cells & floor]
+    solid = (solid & ~pocket) | floor
     _debug_dump(name, grid=grid, height=height, plate_idx=np.where(seam, 85, -1), solid=solid, tube=tube)
     # Materials: one palette index per part, from the centre tile's pixels (or the block's).
     centre = centre_of(PR, PC, TH, TW)
@@ -588,13 +677,19 @@ def build(ts, pattern, name, coll, bake_on, block_kind=None):
     # at its height, so they neither stay square nor pin the edges round them to the art's steps.
     absorb_specks(part_id, height, solid, SPECK, tile=(TH, TW))
     part_mat = {i: mat_for(p) for p, i in parts.items()}
+    # A pocket is its own part to boundary_moves, its corners fixed (its edges are straight already).
+    main = solid & ~pocket
+    part_id[pocket] = -1
+    part_id[floor] = len(parts)
+    pp = np.pad(pocket, 1)
+    pocket_corners = pp[:-1, :-1] | pp[:-1, 1:] | pp[1:, :-1] | pp[1:, 1:]
 
     def mat_at(x, y):
         return part_mat[part_id[y, x]]
 
     frame = lt.Frame(cells, S)
     bm = bmesh.new()
-    lt.mask_slab(bm, solid, frame, BOTTOM, 0.0, mat_at, top_height=height, smooth_top=True, support=solid)
+    lt.mask_slab(bm, main, frame, BOTTOM, 0.0, mat_at, top_height=height, smooth_top=True, support=main)
     # The tubes and springs smooth-shaded, the rest flat; then only the flat parts merged (the underside,
     # the deck's plates): merging a tube's coplanar strips into long faces spoils its shading.
     # The deck's brackets too: rounded blocks, flat-shaded they read as pixel facets (D149).
@@ -620,8 +715,11 @@ def build(ts, pattern, name, coll, bake_on, block_kind=None):
     # curves through the steps (D149), the tile edges pinned so neighbours still meet.
     o_sigma, o_grow = OUTLINE.get(n, OUTLINE_DEFAULT) if not block_kind else OUTLINE_DEFAULT
     dx, dy = kit.boundary_moves(part_id, sigma=EDGE_SIGMA, outline_sigma=o_sigma, outline_grow=o_grow,
-                                pin_x=range(0, W + 1, TW), pin_y=range(0, H + 1, TH), pin_solid=solid)
+                                pin_x=range(0, W + 1, TW), pin_y=range(0, H + 1, TH), pin_solid=solid,
+                                keep=pocket_corners)
     kit.move_grid_verts(bm, frame, dx, dy)
+    if floor.any():
+        add_machined(ts, bm, frame, mats, centre, art1, floor, solid, pocket_kind, bars, bar_cells, face, depth)
     _debug_dump(name + "-parts", part_id=part_id, dx=dx, dy=dy, height=height, solid=solid)
     kit.tidy_flat(bm, angle=FLAT_MERGE)
     glow = {slot["red"]} if "red" in slot else set()
