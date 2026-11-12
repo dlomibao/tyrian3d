@@ -11,6 +11,13 @@ const chrome = spawn("/Applications/Google Chrome.app/Contents/MacOS/Google Chro
   "--headless=new", `--remote-debugging-port=${port}`, `--user-data-dir=${mkdtempSync(join(tmpdir(), "cdp-"))}`,
   `--window-size=${width},${height}`, "--use-angle=metal", "--enable-gpu", "--ignore-gpu-blocklist", "--no-first-run", "about:blank",
 ], { stdio: "ignore" });
+// Never leave Chrome behind: on a crash, a kill from the caller, or a page that never answers.
+const stopChrome = () => { try { chrome.kill("SIGKILL"); } catch {} };
+process.on("exit", stopChrome);
+for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) process.on(sig, () => process.exit(1));
+process.on("uncaughtException", (e) => { console.error(e); process.exit(1); });
+process.on("unhandledRejection", (e) => { console.error(e); process.exit(1); });
+setTimeout(() => { console.error("cdpshot: timed out"); process.exit(1); }, +waitMs + 120000).unref();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let target;
 for (let i = 0; i < 50 && !target; i++) {
@@ -38,5 +45,4 @@ if (evalExpr) {
 const shot = await send("Page.captureScreenshot", { format: "png" });
 writeFileSync(out, Buffer.from(shot.result.data, "base64"));
 ws.close();
-chrome.kill();
 process.exit(0);
