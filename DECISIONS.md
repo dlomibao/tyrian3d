@@ -7248,3 +7248,67 @@ Diagnosis (coordinator): a tall tower in Tyrian's top-down art is drawn extendin
 tall-buildings problem. The attempt built a thin north-south strip (D82's approach-B oblique ramp), which reads as a lying
 column from any angle but the game's. The fix should follow D82's approach: a real standing tower in the art's oblique
 view, not a column lying north-south.
+
+## D162 — Sidekick rebuild: 21 sidekick models to the D65 hard-surface standard (extends D49, D116, D121)
+
+2026-11-12
+
+**Decision:** the 22 sidekicks that were still the original sprite (12) or a D49-era model with no outline shell
+and no bake (10) went through `tools/workflows/model-flagship.js`, as D116 and D121 did for enemies (D65's recipe:
+hard-surface geometry, AO/roughness bake `"bake": "model"`, outline shell, art rules 1-5; strict review). The D49
+contract holds: each sidekick is a `public/models/sidekicks/<name>.glb` plus a `src/render/spriteModels/<name>.json`
+(`ungrouped` entries, one model per sprite frame or frame set, `pal_<index>` materials). Shared ones keep their
+frames: `atom-bombs` serves five options, `microsol-frontblaster` three, `beno-wallop-beam` two, `single-shot-option`
+keeps its `-f2`/`-f3` flash models. Newly modelled (11 shipped): dual-shot-option, vulcan-shot-option, charge-cannon,
+phoenix-device, companion-ship-warfly, protron-cannon-indigo, side-ship, wobbley, zica-supercharger,
+protron-cannon-tangerine, companion-ship-quicksilver (not in any shop); the other 10 are rebuilds of the D49 models.
+21 of 22 passed the strict review (7-8/10) and ship; `tropical-cherry-companion` reviewed "fix 7" and is not shipped
+(its new files were deleted, it keeps the original sprite; see follow-ups).
+
+| Sidekick (option id) | Identity | Top-view IoU (worst frame, sub-pixel rule) | Score |
+|---|---|---|---|
+| dual-shot-option (2) | side pod, two drum gun pods; flash frames 188/207 | 0.9661 | 8 |
+| vulcan-shot-option (4) | side pod, small vulcan gun | 0.9571 | 7.5 |
+| charge-cannon (3) | side pod, blue-steel cannon | 1.0 | 8 |
+| phoenix-device (8) | side pod, red orb launcher | 0.9647 (review 0.975) | 8 |
+| companion-ship-warfly (19) | trailing companion ship | 1.0 | 8 |
+| protron-cannon-indigo (23) | front cannon with wing vanes | 0.9929 | 7 |
+| single-shot-option (1) | side pod, one barrel; `-f2`/`-f3` flashes (rebuilt) | 1.0 | 7 |
+| mini-missile (10) | side pod, missile launcher (rebuilt) | 1.0 | 8 |
+| atom-bombs (7, 11, ...) | side pod launcher, one model for 5 options (rebuilt) | 0.9783 | 8 |
+| plasma-storm (9) | side pod (rebuilt) | 1.0 | 8 |
+| satellite-marlo (30) | orbiting satellite, cradle (rebuilt) | 0.9697 | 7 |
+| mint-o-ship (16) | trailing companion ship (rebuilt) | 1.0 | 8 |
+| microsol-frontblaster (20, 22, ...) | front blaster, prongs (rebuilt) | 0.9731 | 8 |
+| companion-ship-gerund (21) | trailing companion ship (rebuilt) | 1.0 | 8 |
+| side-ship (18) | side pod, tail flame | 0.9379 (grid 1.0) | 8 |
+| wobbley (5) | side pod, plasma blob | 1.0 | 8 |
+| zica-supercharger (12) | side pod, crackle threads | 0.9774 | 8 |
+| protron-cannon-tangerine (25) | front cannon | 1.0 | 8 |
+| companion-ship-quicksilver (24) | companion ship, in no shop | 0.9456 (grid 1.0) | 8 |
+| zica-flamethrower (17) | side pod (rebuilt) | 0.9423 (grid 1.0) | 8 |
+| beno-wallop-beam (27, ...) | front beam pod (rebuilt) | 0.9838 | 8 |
+
+**IoU gate** (`iou_rule_grid` >= 0.95, as D121): three ship below 0.95 on the sub-pixel `iou_rule`, all tiny
+stair-stepped masks, and all are grid 1.0 on every frame (sprite_mask.py `--measure`): `side-ship` 0.9379 (frames
+245/264/283/302), `zica-flamethrower` 0.9423 (87/106/125/144), `companion-ship-quicksilver` 0.9456 (frame 47, edge
++0.01 px). The rest are >= 0.95 on the rule.
+
+**Cost:** 111 agents, 11.9M tokens (one workflow run, `model-flagship.js`).
+
+**Rebuild check:** `mini-missile.py` and `wobbley.py` rebuilt clean in a throwaway worktree
+(`build-models.sh -j 2 -n`): `wobbley` is byte-identical, `mini-missile`'s json is identical and its glb has the same
+size with different bytes (bake output).
+
+**Follow-ups (known):**
+- `tropical-cherry-companion` (option 29, "fix 7", not shipped): the lens sits 0.5 px too high and is too short
+  (sprite cells (7,5), (6,6), (7,6), (6,7), (7,7) change over frames 113/132/151; the model's lens only covers rows 5-6,
+  so row 7 cols 6-7 never flashes: move `LENS_C` to about (7.0, 6.45), core dome to about (6.7, 6.0)); the two 127 GLOW
+  running lights are invented and read as stray white chips (dim ramp colour, or only the sprite's single glint at
+  (9,9)); 5118 triangles; the swirl-well floor is 0.05 px over the hull shell (possible z-fight, raise to 0.1+).
+- Optional polish from the reviews, none blocking: `zica-flamethrower` rails pal_59 vs the sprite's 56;
+  `companion-ship-gerund` wings about one palette step dark; `mini-missile` drum pal_9 vs 7.5-8; `side-ship` tail flame
+  cap reads as a ball; `companion-ship-quicksilver` and `protron-cannon-tangerine` are over the 1-4k triangle guide;
+  `dual-shot-option` 12-16-sided rings show in close views; `single-shot-option` breech screws read as specks at game
+  scale; `satellite-marlo` 96 hidden open edges; the open-boundary edges on `charge-cannon`/`dual-shot-option` bodies
+  are hidden (no holes in culled renders).
