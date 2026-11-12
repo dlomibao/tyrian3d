@@ -4,7 +4,7 @@ An asteroid floats in space, so it is round all over: a body lofted from the spr
 (inside its ink ring, D74), its top raised into the summit, ridges and lumps the sprite draws and
 its underside a plain closed dome, then broken by planar fracture faces (crisp, chamfered edges:
 on rock a highlight is a lit face, not sheen), crack grooves and impact pits. Matte palette
-materials; the facet ramp (D173, facet_ramp) breaks the surface into small flat-shaded facets and
+materials; the facet ramp (D175, facet_ramp) breaks the surface into small flat-shaded facets and
 gives each a shade of the sprite's own ramp, its lit facets the sprite's highlights and those turned
 away its dark limb, so the rock has the sprite's range in game (one mid-tone read flat: about a third
 of the sprite's light-to-dark spread). An AO/roughness bake (no concept projection, D50/D65) and an
@@ -266,7 +266,7 @@ def cut_planes(bm, cuts):
 def chip_planes(bm, size_px=2.0):
     """Split every large fracture face (a planar n-gon from cut_planes) along a grid `size_px` sprite
     px apart in its own plane, so it triangulates into compact chips rather than long slivers fanned
-    from one corner, and the facet ramp (D173) can shade it chip by chip, as the sprite's mottle."""
+    from one corner, and the facet ramp (D175) can shade it chip by chip, as the sprite's mottle."""
     step = size_px / 12
     planes = []
     for f in bm.faces:
@@ -392,7 +392,7 @@ def rock(sprite, name, spec, coll):
 
 #: The sprites' light: from the upper left and high (the art's convention; rubric "Reading a sprite").
 ART_LIGHT = Vector((-1.0, 1.0, 1.4)).normalized()
-#: The facet ramp's defaults (D173): facets grown to `angle` degrees and `size` sprite px round their
+#: The facet ramp's defaults (D175): facets grown to `angle` degrees and `size` sprite px round their
 #: first face (a chip the size of the sprite's mottle, not a whole flank; fracture faces are first cut
 #: into `chip` px chips, chip_planes); each facet ranked by how squarely it faces the art's light
 #: and, by `sprite` (0..1), by how bright the sprite is under it seen from above; the ranks matched
@@ -443,7 +443,7 @@ def _ranks(vals):
 
 
 def facet_ramp(sprite, g, obj, spec, faces=None, mid=None, slot=0, flat=None):
-    """Rock highlights are lit faces (art rule 2, D173): break the rock into facets (faces grown while
+    """Rock highlights are lit faces (art rule 2, D175): break the rock into facets (faces grown while
     their normals stay within `angle` of the facet's first face), shade each facet flat (one custom
     normal: crisp breaks between facets, as a chipped stone), and give each facet one palette shade
     of the rock's ramp: the facets ranked by how squarely they face the art's light (upper left) and by
@@ -560,7 +560,7 @@ def facet_ramp(sprite, g, obj, spec, faces=None, mid=None, slot=0, flat=None):
 
 
 def set_facet_normals(obj, flat=None):
-    """Flat facets (D173): every corner of a shaded face takes its facet's normal ({polygon: normal},
+    """Flat facets (D175): every corner of a shaded face takes its facet's normal ({polygon: normal},
     or the `facet_n` face attribute facet_ramp writes); the other faces keep the normals they had
     (smooth body, sharp breaks). Call it after the last change to the mesh's sharp edges."""
     me = obj.data

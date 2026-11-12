@@ -161,7 +161,7 @@ SHELL = dict(lib.D90_SHELL, faces=3000, inside=0.012)
 # common colour (65 px): the big pale face is 10, as the blueprint measured it.
 PAL_OVERRIDE = {"facet": 10}
 
-# The facet ramp (D173) a little darker than the lone asteroids': the stones stand up broad and lit, so
+# The facet ramp (D175) a little darker than the lone asteroids': the stones stand up broad and lit, so
 # the full ramp put about 8x the sprite's share of near-white pixels on them in game; 0.06 halves that
 # and keeps the top view's median shade on the sprite's (8).
 RAMP = {"bias": 0.06}
@@ -246,7 +246,7 @@ def stone(name, mask, spr, pal, coll, label):
     g = StoneGrid(mask)
     bm, _ = lib.rock_body(g, spec, sectors=spec["sectors"], rings_top=spec["rings_top"], rings_bot=spec["rings_bot"])
     lib.cut_planes(bm, spec["cuts"] + lib.fine_cuts(spec))
-    lib.chip_planes(bm, lib.RAMP["chip"])  # fracture faces in compact chips for the facet ramp (D173)
+    lib.chip_planes(bm, lib.RAMP["chip"])  # fracture faces in compact chips for the facet ramp (D175)
     bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=1e-5)
     bmesh.ops.dissolve_degenerate(bm, edges=bm.edges[:], dist=1e-5)
     bmesh.ops.translate(bm, vec=(0, 0, p["zw"] / 12), verts=bm.verts)
@@ -325,7 +325,7 @@ def build(coll):
     open_edges = sum(1 for e in bm.edges if not e.is_manifold)
     bm.to_mesh(obj.data)
     bm.free()
-    # D173: each stone's facets shaded across the sprite's ramp under it (lib_newshd_rock.facet_ramp);
+    # D175: each stone's facets shaded across the sprite's ramp under it (lib_newshd_rock.facet_ramp);
     # the flat facet normals are set on the pieces, after the split's last sharp-edge change
     st = [d.value for d in obj.data.attributes["stone"].data]
     for i, n in enumerate(names):
@@ -395,7 +395,7 @@ def main():
     pieces = common.split_assembly(obj, layout)
     for q in pieces.values():  # the filled cuts meet the surface at a hard edge: keep it out of the
         q.data.set_sharp_from_angle(angle=math.radians(14))  # smooth normals, so no seam line shows
-        lib.set_facet_normals(q)  # D173's flat facets
+        lib.set_facet_normals(q)  # D175's flat facets
     shells = split_open(shell, layout, coll)
     for name, cx, cy in layout:
         print(f"{name}: {sum(len(q.vertices) - 2 for q in pieces[name].data.polygons)} triangles")
