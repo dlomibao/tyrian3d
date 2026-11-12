@@ -7958,3 +7958,97 @@ after, with the default look and with `?vfx=original&sprites=remastered`; `?debu
 sheet, answer and prompt in `tyrian-scratch/shot-art-fix/` (not in git, D3). vitest, tsc, build.
 
 **Cost:** one Opus agent, no workflow: one Gemini request, 23 headless captures (two at a time), two inventory runs (~2 min each).
+## D173 — Background-2 sheets and blended explosion art take the C's hue-keeping blend, read from a copy of the frame under them (supersedes D45's plain alpha; extends D104-D106)
+
+2026-11-12
+
+**Problem** (`tyrian-scratch/demo-compare/overhead/REPORT.md` items 3 and 4): TYRIAN's ice clouds read teal-green
+(hue 154-162 against the original's 189) and fireball rings orange (around (182-215, 89-110, 40-52) against
+(159-176, 28-58, 9-13)). Both were plain alpha: clouds at `BLEND_ALPHA` 0.55 mixed in the green grass, explosions at
+`EXPLOSION_ALPHA` 0.33 kept the art's orange. The C blends neither way. Its rule, the same in `blit_sprite2_blend`
+(explosions, `src/sprite.c`) and `blitBackgroundRowBlend` (`draw_background_2_blend`, `src/backgrnd.c`):
+
+```c
+*pixels = (((*data & 0x0f) + (*pixels & 0x0f)) / 2) | (*data & 0xf0);          // blit_sprite2_blend
+
+Swar8 hues = srcPixels & huesMask;                                              // blitBackgroundRowBlend
+Swar8 values = srcPixels & valuesMask;
+values += dstPixels & valuesMask;
+values = (values >> 1) & valuesMask;
+srcPixels = hues | values;
+```
+
+The result keeps the sprite's palette bank (high nibble: its colour ramp) and averages the two values (low nibbles).
+The cloud tiles are bank 0x80, a pale cyan ramp from (36,85,109) to (239,255,255), so over any ground they stay
+cloud-blue. The fireball is bank 0x70, which runs dark red, red, orange, yellow, white: averaging with dark ground moves
+it down the ramp to crimson. No alpha reproduces either.
+
+**Decision** (`src/render/hueBlend.ts`):
+- **A copy of the frame so far.** An `UnderGrabHook` (an empty mesh in three.js's translucent list, like D146's
+  outline hook) copies the target with `blitFramebuffer` into a single-sample target when the render reaches it: at
+  -1.25, before the sheets (after the outline pass and the depth-writing translucent draws); just before the
+  explosions' art and stencil setter; and at 0.999 for background2over 2's sheets. A hook copies only the screen area
+  of this frame's blended draws (their ground rectangles projected, D6), plus 8 px, and is armed only when there are
+  any. Explosions that don't come near a sheet read the sheets' copy, so most frames copy once. The canvas path uses
+  `blitFramebuffer` from the default framebuffer: `copyTexSubImage2D` from it mid-frame turned Chrome's composited
+  page black. The screen filters' multisampled half-float target (D159) blits into a half-float copy.
+- **Shades.** A colour's shade in a bank is where its brightness (the art's existing measure,
+  `pow(luma, 1/2.2)`) falls along the live palette's ramp for that bank, interpolated between entries.
+  `ShadeLut` precomputes that per palette version (256 brightnesses x 16 banks). The shade underneath is read
+  the same way, in the bank of its nearest raw palette colour (`PaletteTexture.indexLut`, D111).
+- **The output** is the bank's colour at the mean of the two shades, fractional (interpolated between the two
+  entries, so painted art stays smooth where the C floors), through the smoothies' hue (`screenHueIndex`). It is shown
+  unlit and not tone-mapped, as a palette colour. The coverage is the art's alpha (a fireball's D131 tail fade still
+  applies). It isn't an opacity.
+- **Which bank:**
+  - The original look (`GroundBlend`) and the 4x ground (`RemasterGroundBlend`) have each texel's index, so per texel.
+  - HD terrain sheets (`terrainMaterial` "blend") take the original tile's main bank, per instance (`instBank`). A
+    painting's near-white texels would otherwise snap to any of five banks whose top entry is near white.
+  - Explosion flat art takes its original sprite's main bank (`ART_HUE_BLEND`, the fire ramp 0x70 for every
+    newsh6.shp explosion).
+- **Unchanged:** extruded blended sprites (`?sprites=original`), the flashing ship and other blended flat art keep
+  `BLEND_ALPHA` / `EXPLOSION_ALPHA`. D105/D106's stencil stays: with an opaque blend a later layer replaces an earlier
+  one instead of piling up.
+- **No art change.** The report also asked for a hue clamp on fireball frames 122-133 (`tools/flat_art.py`) if the
+  blend alone didn't fix them. The blend alone fixes them: the art's colour now only sets its shade.
+
+**Options considered:**
+- *Two passes, a multiply and an add (D45's suggestion):* fixed-function blending works per channel, so it can't
+  take the brightness of what's underneath. A tinted multiply puts the grass's green into the cloud.
+- *A full-screen copy before each layer:* 1.55 ms a frame at 3840x2160 for two copies. Each copy ends the GPU's render
+  pass, and on a tiler that costs about 0.4 ms whatever the area. Hence the copied area and the shared copy.
+- *Rendering what's under the sheets into its own target:* a second render of the opaque scene.
+- *The art's own hue scaled to the mean brightness:* keeps orange orange. The fire ramp's red comes from the bank.
+
+**Approximations:** the copy for explosions far from sheets is taken before the sheets and the shots' flat art, so it
+lacks what those draw under them. Overlapping explosions don't compound: each reads the frame before the explosions,
+where the C's second layer averages with the first. Under the screen filters, the shade underneath is read before tone
+mapping. Before this change, that path also drew the clouds much paler than the canvas did. The rings read slightly
+lighter there.
+
+**Checked** (`?demo=N&compare=1&camera=overhead`, `demoshots.mjs`, before = main at #205, after = this; measured by
+`tyrian-scratch/blend-fix/tools/measure.py` over the original's cloud mask, or its fire pixels' neighbourhood):
+- Clouds, demo 1 s120 / s150 / s180: hue 162.1 / 161.9 / 157.8 -> 187.8 / 187.8 / 186.7 (original 188.9-189.0). Mean
+  RGB at s180 went from (118,164,148) to (140,189,196); the original is (122,176,185).
+- Rings:
+  - Demo 2 s135 (the SAVARA boss's ring chains): (182,89,52) hue 14.7 -> (158,41,27) hue 6.4; the original is
+    (160,28,9) hue 6.7.
+  - Demo 5 s060, the ring area: (208,109,49) hue 20.3 -> (173,38,23) hue 5.8; the original is (160,13,0) hue 4.1.
+  - What stays orange in demo 5 is the enemy shots' art and the D35 flash (report items 1 and 7).
+- Tilted camera, `?debug=play&episode=1&main=3&seed=1&skip=220&freezeAt=220&compare=1`: pale blue clouds and a
+  crimson ring, as in the original.
+- Other blended layers (`episode=E&main=M`, compare): SAVARA (1-8 t300, t900) the blue cloud is now blue, not grey-blue
+  over sand; GYGES (2-3 t600, t1500) the dark blue growth darkens over the purple like the original, not paler.
+  DELIANI (1-19) draws no blended tiles at t600/t1500. Its explosions are covered by demo 5.
+- The other looks at TYRIAN t220: `&bg=original` (`GroundBlend`) and `&terrain=original` (`RemasterGroundBlend`) give
+  the same pale blue clouds. `&sprites=original` keeps the extruded explosions' alpha, as before. The screen filters'
+  path (the scene target forced on in the page) blits from the multisampled target, with no GL errors.
+- Frame time, `?debug=play&seed=1&skip=220&freezeAt=220` (clouds and a ring on screen, so two copies), 150 synchronous frames, the
+  same page with the copies switched off: 1920x1080 about +0.1 ms (1.13 against 1.04 ms); 3840x2160 +0.9 ms (3.22
+  against 2.35 ms). Frames with no blended draw copy nothing, and frames with explosions away from the sheets copy
+  once. Before/after across the two servers was within the noise of a loaded machine (1920x1080 medians before
+  1.48-2.19 ms, after 1.43-1.85 ms).
+- Captures and the summary: `tyrian-scratch/blend-fix/` (`before/`, `after/`, `levels/`, `summary.png`).
+  Test: `tests/render/hueBlend.test.ts`.
+
+**Cost:** one Opus agent, no workflow: about 60 headless captures (two at a time), no Gemini, no Blender.

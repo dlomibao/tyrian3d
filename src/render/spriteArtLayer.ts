@@ -11,7 +11,7 @@
 // the enemy hit flash (blit_sprite2_filter) and blit_sprite_hv recolour each texel with the palette
 // entry of its hue at the shade its brightness gives; the "blend" effect is the renderer's opacity,
 // except for explosions, which take the C's hue-keeping blend with the frame under them
-// (ART_HUE_BLEND, hueBlend.ts, D168); JE_filterScreen's level hue and brightness and the smoothies' hues (D31) recolour or scale it the
+// (ART_HUE_BLEND, hueBlend.ts, D173); JE_filterScreen's level hue and brightness and the smoothies' hues (D31) recolour or scale it the
 // same way, from the live palette texture.
 
 import { Pass } from "../sim/draw";
@@ -34,7 +34,7 @@ export const SPRITE_ART_ORDER = -1;
 const EXPLOSION_LAYERS = 3;
 const EXPLOSION_LAYER_EVERY = 2;
 /**
- * The instance mode (aFx.x) of blit_sprite2_blend (D168): the art's palette bank (aFx.y, the hue)
+ * The instance mode (aFx.x) of blit_sprite2_blend (D173): the art's palette bank (aFx.y, the hue)
  * at the mean of its shade and the shade under it, at opacity aFx.w (a fade, not a blend).
  */
 export const ART_HUE_BLEND = 3;
@@ -94,7 +94,7 @@ void main() {
   float index = 16.0 + shade;
   bool recolour = false;
   if (vFx.x > 2.5) {
-    // blit_sprite2_blend: the art's bank at the mean of its shade and the frame's under it (D168).
+    // blit_sprite2_blend: the art's bank at the mean of its shade and the frame's under it (D173).
     float water = 0.0;
     float bank = vFx.y * 16.0;
     rgb = hbColor(bank, hbShade(bank, lum), hbUnderShade(), vHeight, water);

@@ -10,7 +10,7 @@
 //
 // With `under` (the frame under the sheet, hueBlend.ts) it draws the C's blended background-2 tiles
 // (draw_background_2_blend, TYRIAN's ice clouds) from the same atlas as flat sheets with the C's
-// hue-keeping blend (D168): each texel's bank at the mean of its shade and the shade underneath.
+// hue-keeping blend (D173): each texel's bank at the mean of its shade and the shade underneath.
 // Index 0 is see-through, and the four texels are blended weighted by coverage, so the upscaled
 // outline comes out smooth.
 
@@ -43,7 +43,7 @@ export function remasterGroundMaterial(
     envMapIntensity: 0.25,
     transparent: blended,
     depthWrite: !blended,
-    // A blend sheet's colour is a palette colour (the C's blend, D168), shown as it is.
+    // A blend sheet's colour is a palette colour (the C's blend, D173), shown as it is.
     toneMapped: !blended,
     userData: { outlineParameters: { visible: false } },
   });
@@ -83,7 +83,7 @@ float texelCover = 1.0;
 ${blended ? `${HUE_BLEND_PARS}\nfloat hbUnder = 0.0; // the shade under this fragment, set first in main` : ""}
 // The palette colour of an atlas texel at the instance's pass height (0 for the ground, under every
 // smoothie). For blended sheets, texelCover is set to 0 for index 0 (see-through), and the colour is
-// the C's blend of the texel with what's under it (D168).
+// the C's blend of the texel with what's under it (D173).
 vec3 groundTexel(ivec2 p) {
   float index = floor(texelFetch(atlasMap, p, 0).r * 255.0 + 0.5);
   ${
@@ -131,7 +131,7 @@ vec2 reliefSlope = relief * vec2(mix(l10 - l00, l11 - l01, f.y), mix(l01 - l00, 
         /* glsl */ `#include <normal_fragment_maps>
 normal = normalize((viewMatrix * vec4(normalize(vec3(-reliefSlope.x, 1.0, -reliefSlope.y)), 0.0)).xyz);`,
       );
-    // A blend sheet shows the blended palette colours unlit (D168); the ground marks the water.
+    // A blend sheet shows the blended palette colours unlit (D173); the ground marks the water.
     shader.fragmentShader = shader.fragmentShader.replace(
       "#include <opaque_fragment>",
       blended ? "#include <opaque_fragment>\ngl_FragColor.rgb = mixed;" : WATER_ALPHA,

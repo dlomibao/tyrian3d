@@ -1,9 +1,9 @@
-// D168: the C's blends (blit_sprite2_blend, draw_background_2_blend) keep the sprite's palette bank and
+// D173: the C's blends (blit_sprite2_blend, draw_background_2_blend) keep the sprite's palette bank and
 // average the shades. The shader half needs WebGL; here: the bank choice, and which draws take the blend.
 import * as THREE from "three";
 import { describe, expect, test, vi } from "vitest";
 import { DrawListRenderer } from "../../src/render/drawListRenderer";
-import { dominantBank, paletteLums, rampShade, UNDER_GRAB_ORDER } from "../../src/render/hueBlend";
+import { dominantBank, NdcRect, paletteLums, rampShade, UNDER_GRAB_ORDER } from "../../src/render/hueBlend";
 import { ART_HUE_BLEND } from "../../src/render/spriteArtLayer";
 import { parseSpriteArtManifest, SpriteArt } from "../../src/render/spriteArt";
 import { OUTLINE_ORDER } from "../../src/render/outlineHook";
@@ -45,7 +45,7 @@ function frame(items: SpriteDraw[]) {
   return { layer: inner.artLayer, sheet: art.sheet("fire.shp"), explosionsArmed: inner.grabExplosions.armed, sheetsArmed: inner.grabSheets.armed };
 }
 
-describe("hue-keeping blend (D168)", () => {
+describe("hue-keeping blend (D173)", () => {
   test("a sprite's or tile's bank is the one most of its pixels are in", () => {
     expect(dominantBank([0x75, 0x76, 0x42, -1, -1], false)).toBe(0x70);
     // Tiles: index 0 is see-through, so it doesn't count.
@@ -80,6 +80,21 @@ describe("hue-keeping blend (D168)", () => {
     expect(f.layer.peek(f.sheet, Pass.PlayerShots)!.instance(0).fx).toEqual([0, 0, 0, Math.fround(0.55)]);
     expect(f.layer.peek(f.sheet, Pass.Explosions)!.instance(0).fx).toEqual([0, 0, 0, 1]);
     expect(f.explosionsArmed).toBe(false);
+  });
+
+  test("a grab's screen area grows to cover its draws; areas far apart are not near", () => {
+    const a = new NdcRect();
+    expect(a.empty).toBe(true);
+    a.add(-0.5, -0.5);
+    a.add(-0.2, 0.1);
+    expect([a.x0, a.y0, a.x1, a.y1]).toEqual([-0.5, -0.5, -0.2, 0.1]);
+    const b = new NdcRect();
+    b.add(0.5, 0.5);
+    expect(a.near(b, 0.05)).toBe(false);
+    expect(a.near(b, 0.8)).toBe(true); // 0.7 apart in x, 0.4 in y
+    a.union(b);
+    expect([a.x0, a.y0, a.x1, a.y1]).toEqual([-0.5, -0.5, 0.5, 0.5]);
+    expect(new NdcRect().near(a, 1)).toBe(false);
   });
 
   test("the grabs come after the outlines and just before the layers that read them", () => {

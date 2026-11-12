@@ -4,7 +4,7 @@
 // - "ground" (background 1): opaque, lit, with a little relief from the painting's brightness like
 //   the 4x ground (D34), receiving shadows;
 // - "blend" (draw_background_2_blend: TYRIAN's ice clouds, D45): sheets drawn with the C's
-//   hue-keeping blend (hueBlend.ts, D168) at the art's coverage, the tile's main palette bank per
+//   hue-keeping blend (hueBlend.ts, D173) at the art's coverage, the tile's main palette bank per
 //   instance (`instBank`), no depth write;
 // - "cutout" (background 3's islands and an opaque background 2 without models): drawn with the art's
 //   alpha (so the painted soft edge shows, D132) but writing depth like an opaque tile, and casting
@@ -38,7 +38,7 @@ export interface TerrainMaterialOptions {
   kind: TerrainKind;
   /** Atlas texels per original pixel (the manifest's scale). */
   scale: number;
-  /** "blend" sheets: the frame under them (hueBlend.ts, D168). */
+  /** "blend" sheets: the frame under them (hueBlend.ts, D173). */
   under?: UnderGrab;
   /** How strongly brightness changes tilt the ground's normal (0 = flat). */
   relief?: number;
@@ -171,7 +171,7 @@ export function terrainMaterial(
     envMapIntensity: 0.25,
     transparent: blended || kind === "cutout",
     depthWrite: !blended,
-    // A blend sheet's colour is a palette colour (the C's blend, D168), shown as it is.
+    // A blend sheet's colour is a palette colour (the C's blend, D173), shown as it is.
     toneMapped: !blended,
     userData: { outlineParameters: { visible: false } },
   });
@@ -238,7 +238,7 @@ if (relief > 0.0) {
 normal = normalize((viewMatrix * vec4(normalize(vec3(-reliefSlope.x, 1.0, -reliefSlope.y)), 0.0)).xyz);`,
       );
     if (kind === "ground") shader.fragmentShader = shader.fragmentShader.replace("#include <opaque_fragment>", WATER_ALPHA);
-    // The C's blend replaces the lit colour: the bank's ramp at the mean shade (hueBlend.ts, D168).
+    // The C's blend replaces the lit colour: the bank's ramp at the mean shade (hueBlend.ts, D173).
     if (blended) shader.fragmentShader = shader.fragmentShader.replace("#include <opaque_fragment>", "#include <opaque_fragment>\ngl_FragColor.rgb = hueBlended;");
   };
   material.customProgramCacheKey = () => `terrain-hd-${kind}`;

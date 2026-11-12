@@ -1,4 +1,4 @@
-// The C's translucency, ported to the GPU (DECISIONS.md D168). OpenTyrian blends background 2
+// The C's translucency, ported to the GPU (DECISIONS.md D173). OpenTyrian blends background 2
 // (draw_background_2_blend, TYRIAN's ice clouds) and explosions (blit_sprite2_blend) per palette
 // index, not by opacity:
 //
@@ -134,9 +134,53 @@ export const UNDER_GRAB_ORDER = {
 };
 
 /**
+ * A screen area in normalized device coordinates (-1..1), grown by `add`. Empty while x0 > x1.
+ */
+export class NdcRect {
+  x0 = Infinity;
+  y0 = Infinity;
+  x1 = -Infinity;
+  y1 = -Infinity;
+
+  clear(): void {
+    this.x0 = this.y0 = Infinity;
+    this.x1 = this.y1 = -Infinity;
+  }
+
+  get empty(): boolean {
+    return this.x0 > this.x1;
+  }
+
+  /** Whether the two overlap, or come within `slack` of each other. */
+  near(o: NdcRect, slack: number): boolean {
+    return !this.empty && !o.empty && this.x0 <= o.x1 + slack && o.x0 <= this.x1 + slack && this.y0 <= o.y1 + slack && o.y0 <= this.y1 + slack;
+  }
+
+  /** Grow to cover `o` too. */
+  union(o: NdcRect): void {
+    if (o.empty) return;
+    this.add(o.x0, o.y0);
+    this.add(o.x1, o.y1);
+  }
+
+  add(x: number, y: number): void {
+    if (x < this.x0) this.x0 = x;
+    if (x > this.x1) this.x1 = x;
+    if (y < this.y0) this.y0 = y;
+    if (y > this.y1) this.y1 = y;
+  }
+}
+
+/** Pixels added round the copied area (camera motion within a frame, soft edges). */
+const GRAB_MARGIN = 8;
+
+/**
  * A copy of the frame drawn so far, shared by every hue-blended material through `uniforms`.
  * capture() copies the current target (the canvas, or the screen filters' multisampled render
- * target) with blitFramebuffer into a single-sample target of the same texel type.
+ * target) with blitFramebuffer into a single-sample target of the same texel type, only the area
+ * the blended draws cover. Each copy ends the GPU's render pass for a moment (a tiler stores and
+ * reloads the frame), so a frame copies at most where it needs to: before the sheets and before the
+ * explosions, when there are any.
  */
 export class UnderGrab {
   readonly uniforms: {
@@ -165,30 +209,31 @@ export class UnderGrab {
     };
   }
 
-  capture(renderer: THREE.WebGLRenderer): void {
+  /** Copy `area` (all of it if omitted) of the current target. */
+  capture(renderer: THREE.WebGLRenderer, area?: NdcRect): void {
     const target = renderer.getRenderTarget();
-    if (target) this.captureTarget(renderer, target);
-    else this.captureCanvas(renderer);
+    if (target) this.captureTarget(renderer, target, area);
+    else this.captureCanvas(renderer, area);
     this.captures++;
   }
 
-  private captureCanvas(renderer: THREE.WebGLRenderer): void {
+  private captureCanvas(renderer: THREE.WebGLRenderer, area?: NdcRect): void {
     renderer.getDrawingBufferSize(this.size);
     const w = Math.max(1, Math.floor(this.size.x));
     const h = Math.max(1, Math.floor(this.size.y));
     const copy = this.copyTarget(renderer, w, h, THREE.UnsignedByteType);
-    this.blit(renderer, null, copy, w, h);
+    this.blit(renderer, null, copy, w, h, area);
     this.uniforms.blendUnderLinear.value = 0;
   }
 
-  private captureTarget(renderer: THREE.WebGLRenderer, target: THREE.WebGLRenderTarget): void {
+  private captureTarget(renderer: THREE.WebGLRenderer, target: THREE.WebGLRenderTarget, area?: NdcRect): void {
     const w = target.width;
     const h = target.height;
     const copy = this.copyTarget(renderer, w, h, target.texture.type);
     const src = renderer.properties.get(target) as { __webglMultisampledFramebuffer?: WebGLFramebuffer; __webglFramebuffer?: WebGLFramebuffer };
     const from = src.__webglMultisampledFramebuffer ?? src.__webglFramebuffer;
     if (!from) return;
-    this.blit(renderer, from, copy, w, h);
+    this.blit(renderer, from, copy, w, h, area);
     this.uniforms.blendUnderLinear.value = 1;
   }
 
@@ -211,14 +256,22 @@ export class UnderGrab {
   }
 
   /** Copy the current colour buffer of `from` (null: the canvas) into `copy` (resolving multisampling). */
-  private blit(renderer: THREE.WebGLRenderer, from: WebGLFramebuffer | null, copy: THREE.WebGLRenderTarget, w: number, h: number): void {
+  private blit(renderer: THREE.WebGLRenderer, from: WebGLFramebuffer | null, copy: THREE.WebGLRenderTarget, w: number, h: number, area?: NdcRect): void {
     const gl = renderer.getContext() as WebGL2RenderingContext;
     const dst = (renderer.properties.get(copy) as { __webglFramebuffer?: WebGLFramebuffer }).__webglFramebuffer;
     if (!dst) return;
+    let x0 = 0, y0 = 0, x1 = w, y1 = h;
+    if (area && !area.empty) {
+      x0 = Math.max(0, Math.floor(((area.x0 + 1) / 2) * w) - GRAB_MARGIN);
+      y0 = Math.max(0, Math.floor(((area.y0 + 1) / 2) * h) - GRAB_MARGIN);
+      x1 = Math.min(w, Math.ceil(((area.x1 + 1) / 2) * w) + GRAB_MARGIN);
+      y1 = Math.min(h, Math.ceil(((area.y1 + 1) / 2) * h) + GRAB_MARGIN);
+      if (x1 <= x0 || y1 <= y0) return;
+    }
     const state = renderer.state;
     state.bindFramebuffer(gl.READ_FRAMEBUFFER, from);
     state.bindFramebuffer(gl.DRAW_FRAMEBUFFER, dst);
-    gl.blitFramebuffer(0, 0, w, h, 0, 0, w, h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+    gl.blitFramebuffer(x0, y0, x1, y1, x0, y0, x1, y1, gl.COLOR_BUFFER_BIT, gl.NEAREST);
     state.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
     state.bindFramebuffer(gl.DRAW_FRAMEBUFFER, from);
     this.uniforms.blendUnder.value = copy.texture;
@@ -237,6 +290,8 @@ export class UnderGrab {
  */
 export class UnderGrabHook extends THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial> {
   private armed = false;
+  /** Where this frame's readers are on screen; DrawListRenderer grows it while it lays the frame out. */
+  readonly area = new NdcRect();
 
   constructor(private readonly grab: UnderGrab, order: number) {
     super(
@@ -258,13 +313,13 @@ export class UnderGrabHook extends THREE.Mesh<THREE.BufferGeometry, THREE.MeshBa
     this.onBeforeRender = (renderer) => {
       if (!this.armed) return;
       this.armed = false;
-      this.grab.capture(renderer);
+      this.grab.capture(renderer, this.area);
     };
   }
 
-  /** Capture at the next render that reaches the hook (if `on`), or not at all. */
-  arm(on: boolean): void {
-    this.armed = on;
+  /** Capture `area` at the next render that reaches the hook, if anything was added to it. */
+  arm(): void {
+    this.armed = !this.area.empty;
   }
 }
 
