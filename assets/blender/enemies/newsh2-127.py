@@ -83,12 +83,12 @@ def materials(sprite):
 
 
 # --- plan, deck and belly (sprite px) ----------------------------------------------------------
-# Plan half width by row edge: the blueprint's fit to the sprite mask (its black outline ring
-# included): a rounded 45-degree shoulder at the back, straight sides r5-12.6, a straight taper of
+# Plan half width by row edge: the fit to the sprite's INNER mask (D74: the ink border's inner
+# edge, the game draws the ink itself): a rounded 45-degree shoulder at the back, straight sides r5-12.6, a straight taper of
 # 1 px every 2 rows r14-26 (the sprite's staircase through its step midpoints), a rounded nose.
-PLAN = pchip([0.75, 1.5, 2.5, 3.5, 4.4, 5.0, 12.6, 13.4, 14.0, 20.0, 26.0, 27.0, 27.6, 28.0],
-             [7.6, 8.6, 9.6, 10.6, 11.32, 11.5, 11.5, 11.38, 11.0, 8.0, 5.0, 4.15, 3.45, 2.6])
-Y0, Y1 = 0.75, 28.0
+PLAN = pchip([1.0, 1.5, 2.5, 3.5, 4.5, 13.0, 14.0, 15.0, 17.0, 19.0, 21.0, 23.0, 25.0, 26.0, 27.0],
+             [3.4, 4.7, 8.5, 9.6, 10.5, 10.5, 10.0, 9.5, 8.75, 7.5, 6.5, 5.5, 4.5, 3.8, 2.4])
+Y0, Y1 = 1.0, 27.0
 DECK = pchip([0.75, 4.0, 14.0, 22.0, 28.0], [2.6, 3.0, 3.0, 2.6, 1.5])
 BELLY = pchip([0.75, 2.5, 6.0, 14.0, 22.0, 28.0], [-1.9, -2.4, -2.8, -3.0, -2.4, -0.9])
 # The strake stands proud of the core along the widest line from r 3.5 to 23; the core is that
@@ -386,8 +386,8 @@ def shoulder_creases():
 
 
 def build_hull(P):
-    ys = sorted(set([0.75, 1.0, 1.3, 1.7, 2.1, 2.6, 3.1, 3.6, 4.1, 4.6] + frange(5.2, 24.4, 1.45)
-                    + [25.0, 25.6, 26.2, 26.7, 27.1, 27.45, 27.75, 28.0]))
+    ys = sorted(set([1.0, 1.3, 1.7, 2.1, 2.6, 3.1, 3.6, 4.1, 4.6] + frange(5.2, 24.4, 1.45)
+                    + [25.0, 25.6, 26.2, 26.6, 26.85, 27.0]))
     T.loft(P, core_loop, ys, FLANK)
 
 
@@ -418,8 +418,8 @@ def build_shoulders(P, D):
     for s in (-1, 1):
         # Outline: inner edge at the housing, round the back corner along the plan, the front
         # edge curving down the flank.
-        back = [(-SH_IN, 0.82), (-7.45, 0.82)]
-        rim = [(-(PLAN(y) - 0.04), y) for y in frange(0.85, shoulder_front(11.46) - 0.05, 0.4)]
+        back = [(-SH_IN, 1.6)]
+        rim = [(-(PLAN(y) - 0.04), y) for y in frange(1.6, shoulder_front(11.46) - 0.05, 0.4)]
         front = [(-ax, shoulder_front(ax)) for ax in frange(SH_IN, PLAN(8.7) - 0.05, 0.5)][::-1]
         out = back + rim + front
         if s > 0:
@@ -452,23 +452,23 @@ def build_shoulders(P, D):
 def build_rear(P, D):
     # Housing block (frame 84) overhanging the hull's back edge, closed underneath.
     h = HOUSING
-    slab(P, [(-h, 0.1), (h, 0.1), (h, 4.7), (-h, 4.7)], lambda x, y: 5.0, 0.35, RFRAME, RFRAME, RFRAME,
+    slab(P, [(-h, 1.0), (h, 1.0), (h, 4.7), (-h, 4.7)], lambda x, y: 5.0, 0.35, RFRAME, RFRAME, RFRAME,
          zbase=lambda x, y: 0.95, bottom=True, spacing=1.0)
     # Raised frame rails round the glass (rows 0 and 4, cols 8 and 16).
     zr = 5.6
-    for x0, x1, y0, y1 in ((-h + 0.1, h - 0.1, 0.18, 0.85), (-h + 0.1, h - 0.1, 3.85, 4.6),
-                           (-h + 0.1, -3.45, 0.85, 3.85), (3.45, h - 0.1, 0.85, 3.85)):
+    for x0, x1, y0, y1 in ((-h + 0.1, h - 0.1, 1.05, 1.5), (-h + 0.1, h - 0.1, 3.85, 4.6),
+                           (-h + 0.1, -3.45, 1.5, 3.85), (3.45, h - 0.1, 1.5, 3.85)):
         box(D, x0, x1, y0, y1, 4.7, zr, 0.12, RFRAME)
     # The cyan glass panel, just under the rails, and its two mullions (cols 10 and 14).
-    box(D, -3.5, 3.5, 0.85, 3.85, 4.6, 5.38, 0.1, RGLASS)
+    box(D, -3.5, 3.5, 1.5, 3.85, 4.6, 5.38, 0.1, RGLASS)
     for c in (-2.0, 2.0):
-        box(D, c - 0.33, c + 0.33, 0.85, 3.85, 4.8, 5.48, 0.08, MULL)
+        box(D, c - 0.33, c + 0.33, 1.5, 3.85, 4.8, 5.48, 0.08, MULL)
     # The glass wraps down the back face as a lamp strip (concept), seen from behind.
-    box(D, -3.2, 3.2, 0.02, 0.2, 2.7, 4.5, 0.06, RGLASS)
-    box(D, -3.7, 3.7, 0.0, 0.16, 2.35, 2.62, 0.05, RFRAME)
+    box(D, -3.2, 3.2, 1.0, 1.2, 2.7, 4.5, 0.06, RGLASS)
+    box(D, -3.7, 3.7, 1.0, 1.16, 2.35, 2.62, 0.05, RFRAME)
     # Engines: two deep nozzles in the hull's back wall under the housing overhang.
     for s in (-1, 1):
-        o, t1, t2, n = frame_at(s * 3.55, 0.95, -0.55, (0, -1, 0))
+        o, t1, t2, n = frame_at(s * 3.2, 2.25, -0.55, (0, -1, 0))
         lathe(D, o, t1, t2, n,
               [(1.3, -0.6), (1.3, 0.4), (1.18, 0.55), (0.98, 0.55), (0.94, 0.35), (0.88, -1.2), (0.6, -1.25),
                (0.0, -1.25)],
@@ -477,7 +477,7 @@ def build_rear(P, D):
     # A vent grille in the back wall between the nozzles.
     for k in range(3):
         z = -1.15 + k * 0.62
-        box(D, -1.7, 1.7, 0.55, 0.85, z, z + 0.3, 0.05, WELL)
+        box(D, -1.7, 1.7, 1.0, 1.3, z, z + 0.3, 0.05, WELL)
 
 
 def build_channel(P, D):
@@ -600,8 +600,8 @@ def build_nose(P, D):
     slab(P, [(-3.55, 21.95), (3.55, 21.95), (3.45, 22.95), (-3.45, 22.95)], lambda x, y: 3.1, 0.25, LIP,
          LIP, WALL, spacing=1.0)
     # Teal nose gun block (cols 9-14, rows 23-27), narrowing to the front, its top sloping down.
-    nb = [(-3.45, 22.95), (3.45, 22.95), (3.4, 25.6), (2.75, 27.05), (1.95, 27.62), (-1.95, 27.62),
-          (-2.75, 27.05), (-3.4, 25.6)]
+    nb = [(-3.45, 22.95), (3.45, 22.95), (3.4, 25.6), (3.0, 26.5), (2.3, 27.0), (-2.3, 27.0),
+          (-3.0, 26.5), (-3.4, 25.6)]
     ntop = lambda x, y: 3.3 - (y - 22.95) * 0.25  # noqa: E731
     slab(P, nb, ntop, 0.42, NOSE, NSIDE, NSIDE, zbase=lambda x, y: -0.2, bottom=True, spacing=0.8)
     # The lit visor band across its back (row 23, 131).
@@ -611,7 +611,7 @@ def build_nose(P, D):
     box(D, -0.48, 0.48, 24.8, 26.0, 2.2, ntop(0, 25.4) + 0.1, 0.08, VENT)
     # Twin barrels in the block's front face, dark bores.
     for c in (-1.4, 1.4):
-        o, t1, t2, n = frame_at(c, 27.15, 1.05, (0, 1, 0))
+        o, t1, t2, n = frame_at(c, 26.1, 1.05, (0, 1, 0))
         lathe(D, o, t1, t2, n, [(0.74, -0.4), (0.74, 0.35), (0.6, 0.5), (0.56, 0.75), (0.47, 0.88),
                                 (0.3, 0.88), (0.3, 0.4), (0.0, 0.4)],
               [BARREL, BARREL, BARREL, BARREL, BARREL, WELL, WELL], seg=12)
@@ -684,8 +684,8 @@ def main():
     print(f"{NAME}: {len(obj.data.polygons)} faces, {tris} triangles")
     # Engine glows: just behind the two nozzles (sprite x -+3.55, exit row 0.95, axis z -0.55), in
     # glTF axes: x = (x + 0.5) / 12, y = z / 12 (up), z = (row - 14) / 12.
-    obj["tyrian_engines"] = {"color": "#7db2ba", "at": [[round((s * 3.55 + 0.5) * PX, 4), round(-0.55 * PX, 4),
-                                                          round((0.35 - 14) * PX, 4)] for s in (-1, 1)]}
+    obj["tyrian_engines"] = {"color": "#7db2ba", "at": [[round((s * 3.2 + 0.5) * PX, 4), round(-0.55 * PX, 4),
+                                                          round((1.0 - 14) * PX, 4)] for s in (-1, 1)]}
     fmt = "AUTO"
     if "--no-bake" not in argv:
         bake_maps(obj, tempfile.mkdtemp(prefix=f"{NAME}_bake_"))

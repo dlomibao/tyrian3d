@@ -1,6 +1,8 @@
 """USP Talon, the player's starting ship and the game's flagship model (ship sprite 233 in
 tyrian.shp#8, banking frames 229-237), shown large and turning in the menus and from the tilted game
-camera in play (DECISIONS.md D50, D51, D52, D53).
+camera in play (DECISIONS.md D50, D51, D52, D53, D74: top-view edge on the inner edge of the sprite's
+ink border, rule IoU >= 0.95 on the level frame and, rolled and shifted as the game banks it, on
+every banking frame).
 
 A hard-surface build. The sprite is authoritative for the plan outline, the windshield and the
 colours (D52): the top view follows frame 233's teardrop row by row (a pointed nose widening
@@ -10,7 +12,9 @@ palette index the sprite uses where it covers it. The multi-view blueprint and t
 (assets/blender/features/concepts/ship-usp-talon-light-fighter.jpg) guide the side and front design
 and the detail: a faceted chisel nose with a split raised spine, a framed windshield, a raised
 dorsal spine running unbroken to the tail (the sprite's bright centre pixels are sheen on it), two
-engine pods with a machined (chamfered, filleted octagon) section, armour petals over their front
+engine pods with a machined section (flat top, belly and inboard flank,
+filleted; the outboard side a hard chine at mid height, D74: the pods' edge from above, and the
+widest point when the ship rolls for its banking frames), armour petals over their front
 domes and tails, long top panels with lengthwise seams (the sprite's seams run lengthwise: no dark
 bands across the pods or the body, D53), flank louvres, two deep glowing nozzles under shrouds in
 the pods' tails, a recessed vented tail face; underneath a keel, chin cannons, pod intakes, ventral
@@ -164,18 +168,30 @@ def frange(a, b, step):
     return [a + (b - a) * i / n for i in range(n + 1)]
 
 
-# The plan outline (half width by row, sprite px) is the sprite's (DECISIONS D52): a smooth
-# teardrop fitted to frame 233's mask including its dark outline ring (the hitbox read), a pointed
-# nose widening steadily to the pods' round bulge at rows 19-21, a rounded rear and a short narrow
-# tail. Sampled at the sprite's grid it gives the sprite's mask exactly. The fuselage follows it to
-# row 12, the pods' outboard sides from there to the tail, the tail its last row; each part's core
-# is inset by the plates that stand proud of it.
+# The plan outline (half width by row, sprite px) is the sprite's (DECISIONS D52, D74): a smooth
+# teardrop on the INNER edge of frame 233's dark ink border (docs/agents/OUTLINE-BORDER.md; the
+# game's own ink outline stands in for the border), a pointed nose widening steadily to the pods'
+# round bulge at rows 19-21, a rounded rear and a short narrow tail. The ship is built on the rows
+# below and then shortened to the inner edge's length (LEN_S about row LEN_C, the windshield kept
+# over the sprite's cockpit pixels): the nose tip at row 2.6, the tail's end at row 26.2. The half
+# widths are the old outer-edge teardrop one pixel in (1.15 px, so the banked ship fits the
+# narrower banking frames too), sampled at the shortened rows; averaged over each sprite row they
+# land inside the inner mask's half pixel. The fuselage follows it to row 12, the pods' outboard
+# sides from there to the tail, the tail its last row; each part's core is inset by the plates that
+# stand proud of it.
+LEN_S, LEN_C = 0.944, 12.71
 PLAN_Y = [2.0, 2.6, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 11.5, 12.5, 13.5, 14.5, 15.5, 16.5, 17.5,
           18.5, 19.5, 20.5, 21.5, 22.5, 23.5, 24.5, 25.5, 26.2, 26.7, 27.0]
-PLAN_W = [0.786, 1.264, 1.839, 2.182, 2.798, 3.078, 3.458, 3.982, 3.991, 3.975, 4.183, 4.926, 5.774,
-          6.225, 6.793, 7.187, 7.823, 8.385, 8.975, 9.025, 8.839, 8.006, 7.05, 6.021, 4.833, 3.761,
-          3.054, 2.585]
+PLAN_W = [0.45, 0.62, 0.866, 1.318, 1.772, 2.047, 2.479, 2.836, 2.84, 2.829, 3.179, 3.98, 4.58,
+          4.58, 5.12, 5.45, 6.42, 6.53, 7.37, 7.8, 7.7, 7.46, 5.94, 4.8, 4.14, 3.06, 2.5, 2.1]
 PLAN = pchip(PLAN_Y, PLAN_W)
+
+
+def shorten(y):
+    """Where build-row y lands on the sprite (the ship shortened to the inner edge's length)."""
+    return LEN_C + (y - LEN_C) * LEN_S
+
+
 FUSE_PLATE = 0.3  # how far the nose's flank plates stand out of the core
 POD_PLATE = 0.32  # and the pods' outboard shell plates
 
@@ -183,7 +199,7 @@ POD_PLATE = 0.32  # and the pods' outboard shell plates
 _FWY = [2.0, 2.6, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 11.5, 12.3, 13.2, 14.3, 15.5, 16.8, 19.3,
         22.6, 24.5, 25.6, 26.3, 26.75, 27.0]
 FW = pchip(_FWY, [max(0.3, PLAN(y) - FUSE_PLATE) for y in _FWY[:11]]
-           + [4.3, 4.15, 3.6, 3.05, 2.75, 2.7, 2.7, 2.75, 2.8, 2.8, 2.6, 2.25])
+           + [3.4, 3.45, 3.25, 2.9, 2.7, 2.65, 2.65, 2.75, 2.8, 2.8, 2.6, 2.25])
 FY = [2.0, 3.0, 4.0, 6.0, 9.0, 12.0, 14.0, 16.0, 17.5, 19.3, 22.6, 24.5, 25.6, 26.4, 27.0]
 FT = pchip(FY, [0.32, 0.72, 1.10, 1.58, 1.96, 2.12, 2.10, 2.02, 1.96, 1.88, 1.80, 1.62, 1.48, 1.32, 1.08])
 FB = pchip(FY, [0.22, -0.30, -0.80, -1.50, -2.05, -2.35, -2.43, -2.45, -2.45, -2.45, -2.45, -2.22, -1.92,
@@ -199,7 +215,10 @@ def fuselage_loop(y):
     the left side. s = 0 top centre, 1 deck edge, 2 shoulder, 3 flank foot, 4 chine, 5 keel."""
     w, t, b = FW(y), FT(y), FB(y)
     h = t - b
-    right = [(0.0, t), (DECK * w, t), (w, t - SHOULDER * h), (w, b + FLANK * h), (DECK * w, b + CHINE * h), (0.0, b)]
+    # The nose's flanks run lower (flank foot 0.3 of the height ahead of row 11, blending to FLANK
+    # by row 12.5), so rolled for the banking frames it keeps the sprite's banked nose width.
+    flank = FLANK - 0.15 * min(1.0, max(0.0, (12.5 - y) / 1.5))
+    right = [(0.0, t), (DECK * w, t), (w, t - SHOULDER * h), (w, b + flank * h), (DECK * w, b + CHINE * h), (0.0, b)]
     pts = right + [(-x, z) for x, z in reversed(right[1:-1])]
     return pts, (0.0, (t + b) / 2)
 
@@ -218,12 +237,12 @@ def hull_top(x, y):
 # the shell plates), its inboard side tucked into the body at |x| 2.1 (the sprite's dark seam, column
 # 9). The section is the machined octagon below, flattened (up to 6.6 x 4.3 px).
 _PY = [11.1, 11.6, 12.5, 13.5, 14.5, 15.5, 16.5, 17.5, 18.5, 19.5, 20.5, 21.5, 22.5, 23.5, 24.5, 25.3]
-_PXI = [3.35, 2.8, 2.45, 2.25, 2.15, 2.1, 2.1, 2.1, 2.1, 2.1, 2.1, 2.1, 2.15, 2.3, 2.55, 2.75]
-_PXO = [3.75, 4.0] + [PLAN(y) - POD_PLATE for y in _PY[2:-1]] + [PLAN(25.3) - POD_PLATE - 0.05]
+_PXI = [2.7, 2.5, 2.4, 2.25, 2.15, 2.1, 2.1, 2.1, 2.1, 2.1, 2.1, 2.1, 2.15, 2.3, 2.55, 2.75]
+_PXO = [3.0, 3.3] + [PLAN(y) - POD_PLATE for y in _PY[2:-1]] + [PLAN(25.3) - POD_PLATE - 0.05]
 POD_CX = pchip(_PY, [(a + b) / 2 for a, b in zip(_PXI, _PXO)])
 POD_RX = pchip(_PY, [(b - a) / 2 for a, b in zip(_PXI, _PXO)])
-POD_CZ = pchip(_PY, [-0.3] * 12 + [-0.35, -0.42, -0.5, -0.55])
-POD_RZ = pchip(_PY, [0.45, 0.8, 1.2, 1.55, 1.8, 1.95, 2.05, 2.12, 2.15, 2.15, 2.15, 2.15, 2.05, 1.85, 1.5, 1.12])
+POD_CZ = pchip(_PY, [-0.3] * 12 + [-0.3, -0.33, -0.42, -0.55])
+POD_RZ = pchip(_PY, [0.45, 0.7, 0.95, 1.2, 1.4, 1.6, 1.85, 2.05, 2.15, 2.15, 2.15, 2.15, 2.0, 1.7, 1.3, 0.95])
 POD_START = _PY[0]
 POD_END = _PY[-1]  # the pod's aft bulkhead, round the nozzle
 NOZ_X, NOZ_Z = 3.7, -0.55  # nozzle axis, centred in the pod's tail
@@ -267,8 +286,25 @@ def _pod_unit():
     return [(u / a, v / b) for u, v in pts]
 
 
-POD_UNIT = _pod_unit()
-POD_N = len(POD_UNIT)
+POD_UNIT = _pod_unit()  # (another ship's script builds its pods on this octagon)
+
+
+def _chined_pod_unit():
+    """The Talon's nacelle section (D74 refit), normalised as _pod_unit: the same flat top, belly
+    and inboard flank, but the outboard side is a chine, a hard horizontal edge at mid height where
+    the upper and lower flanks meet, each sloping in at about 45 degrees. From above the chine is
+    the pod's edge, so it sits on the sprite's inner edge; rolled for the banking frames (35 degrees
+    at full bank, src/render/drawListRenderer.ts) the chine stays the widest point, so the banked
+    ship is no wider than its plan allows and fits the narrower banking frames."""
+    a, b = 2.6, 2.3
+    ca, cb = 0.42 * a, 0.40 * b
+    corners = [(-a + ca, b), (0.12 * a, b), (a, 0.14 * b), (0.18 * a, -b), (-a + ca, -b), (-a, -b + cb), (-a, b - cb)]
+    pts = fillet(corners, (1.15, 1.0, 0.1, 0.9, 1.05, 0.9, 1.1), (2, 3, 1, 3, 2, 2, 2))
+    return [(u / a, v / b) for u, v in pts]
+
+
+TALON_POD = _chined_pod_unit()
+POD_N = len(TALON_POD)
 
 
 def pod_s(deg):
@@ -278,7 +314,7 @@ def pod_s(deg):
     dx, dz = math.sin(t), math.cos(t)
     best = None
     for i in range(POD_N):
-        (ax, az), (bx, bz) = POD_UNIT[i], POD_UNIT[(i + 1) % POD_N]
+        (ax, az), (bx, bz) = TALON_POD[i], TALON_POD[(i + 1) % POD_N]
         ex, ez = bx - ax, bz - az
         den = dx * ez - dz * ex
         if abs(den) < 1e-12:
@@ -295,7 +331,7 @@ def pod_s(deg):
 def pod_loop(y, side=1, grow=0.0):
     cx, cz = side * POD_CX(y), POD_CZ(y)
     rx, rz = POD_RX(y) + grow, POD_RZ(y) + grow
-    return [(cx + side * rx * u, cz + rz * v) for u, v in POD_UNIT], (cx, cz)
+    return [(cx + side * rx * u, cz + rz * v) for u, v in TALON_POD], (cx, cz)
 
 
 # --- mesh building ----------------------------------------------------------------------------
@@ -823,20 +859,20 @@ def build_pods(P, D):
         # Top armour panel, thick, along the pod from the cowl over the seam to the tail (the
         # sprite's pod seams run lengthwise; a groove across the top read as a dark belt).
         # In two strips with a seam along the pod, and a raised access hatch on the outer strip.
-        plate(P, L, 14.1, 22.3, POD_TOP, **A(-34, 9), d=0.5, c=0.16, ystep=0.7)
-        plate(P, L, 14.1, 22.3, POD_TOP, **A(12, 52), d=0.5, c=0.16, ystep=0.7)
-        plate(P, L, 19.2, 21.7, BRASS_LT, **A(19, 45), d=0.64, c=0.1, ystep=0.7)
+        plate(P, L, 14.6, 22.3, POD_TOP, **A(-38, 9), d=0.42, c=0.16, ystep=0.7)
+        plate(P, L, 14.6, 22.3, POD_TOP, **A(12, 34), d=0.42, c=0.16, ystep=0.7)
+        plate(P, L, 19.2, 21.7, BRASS_LT, **A(16, 30), d=0.56, c=0.1, ystep=0.7)
         # Heat louvres low on the outboard flank behind the navigation light: a dark grille with
         # three slats along it.
-        plate(P, L, 20.55, 22.55, DEEP, **A(101, 131), d=0.36, c=0.03, ystep=0.7)
-        for a in (106, 116, 126):
+        plate(P, L, 20.55, 22.55, DEEP, **A(110, 140), d=0.36, c=0.03, ystep=0.7)
+        for a in (115, 125, 135):
             plate(P, L, 20.65, 22.45, BRASS_DK, **A(a - 2.6, a + 2.6), d=0.46, c=0.03, ystep=0.7)
         # Gear door under the pod: a proud panel on the shell's belly.
         plate(P, L, 18.9, 22.4, BELLY, **A(152, 206), d=0.44, c=0.1, ystep=0.9)
-        # Navigation light flush in the outboard shell at the pod's widest point.
+        # Navigation light flush in the outboard chine at the pod's widest point.
         ring, (cx, cz) = pod_loop(19.9, side)
         xo = side * (POD_CX(19.9) + POD_RX(19.9) + POD_PLATE)
-        hull(D, [(xo - side * x, y, z) for x, y, z in cbox(0.0, 0.42, 19.55, 20.25, cz + 0.4, cz + 0.85, 0.06)],
+        hull(D, [(xo - side * x, y, z) for x, y, z in cbox(0.0, 0.42, 19.55, 20.25, cz - 0.2, cz + 0.2, 0.06)],
              NAV_G if side > 0 else NAV_R)
         # Nozzle out of the bulkhead: collar, bell, deep glowing throat.
         nx, nz = side * NOZ_X, NOZ_Z
@@ -876,8 +912,8 @@ def build_pods(P, D):
             hull(D, pts, BRASS_DK)
         # Intake scoop under the pod's front: gunmetal lip, dark mouth.
         cx = side * POD_CX(15.5)
-        hull(D, [(cx + side * x, y, z) for x, y, z in cbox(-0.85, 0.85, 14.6, 17.4, -2.55, -1.3, 0.22)], GUN)
-        hull(D, [(cx + side * x, y, z) for x, y, z in cbox(-0.62, 0.62, 14.5, 14.75, -2.33, -1.55, 0.05)], DEEP)
+        hull(D, [(cx + side * x, y, z) for x, y, z in cbox(-1.1, 0.4, 14.6, 17.4, -2.3, -1.2, 0.22)], GUN)
+        hull(D, [(cx + side * x, y, z) for x, y, z in cbox(-0.87, 0.17, 14.5, 14.75, -2.08, -1.45, 0.05)], DEEP)
         # Ventral pylon under the pod-body joint: a gunmetal beam, deepest in the middle, its ends
         # and lower edges chamfered.
         pts = []
@@ -927,6 +963,10 @@ def build(coll):
     det = Part("talon_details", smooth_angle=35)
     build_pods(pods2, det)
     build_aft(det)
+    # Shorten the ship to the inner edge's length (LEN_S, D74): every part, about row LEN_C.
+    for p in (P, pods2, det, S, G, F):
+        for v in p.bm.verts:
+            v.co.y = shorten(v.co.y)
     objs = [finish(p, mats, coll) for p in (P, pods2, det, S, G, F)]
     for o in objs:
         print("talon part", o.name, sum(len(q.vertices) - 2 for q in o.data.polygons))
@@ -1178,7 +1218,7 @@ def main():
     print(f"talon: {len(obj.data.polygons)} faces, {tris} triangles")
     # Where the menu backdrop puts its engine glows (src/ui/backdrop.ts): just behind the two
     # nozzles, in glTF axes (x, y up, z aft), with the glow colour (orange, palette 121).
-    obj["tyrian_engines"] = {"color": "#ff8a2a", "at": [[round(sx * NOZ_X * PX, 4), round(NOZ_Z * PX, 4), round((POD_END + 0.8 - 14) * PX, 4)]
+    obj["tyrian_engines"] = {"color": "#ff8a2a", "at": [[round(sx * NOZ_X * PX, 4), round(NOZ_Z * PX, 4), round((shorten(POD_END + 0.8) - 14) * PX, 4)]
                                                          for sx in (-1, 1)]}
     fmt = "AUTO"
     if "--no-bake" not in argv:

@@ -93,24 +93,28 @@ def smooth01(t):
     return t * t * (3 - 2 * t)
 
 
-# Plan half width of the body (the sprite's row widths: row centre y + 0.5 -> half width), the
-# head a blunt superelliptic dome from y = 2.0.
-DOME_END, DOME_C, HEAD_R = 2.0, 4.4, 3.62
-HW_ST = [(4.4, 3.62), (5.5, 3.64), (6.4, 3.72), (7.0, 4.08), (7.5, 4.55), (8.5, 5.45), (9.5, 6.3),
-         (10.3, 6.95), (10.9, 7.05), (12.6, 7.1), (13.1, 7.32), (16.6, 7.32), (17.4, 7.1),
-         (18.2, 7.0), (18.6, 6.95), (19.0, 6.85), (19.5, 6.65), (20.0, 5.95), (20.5, 5.6),
-         (21.5, 5.35), (22.5, 4.45), (23.5, 4.3), (24.5, 3.4), (25.5, 2.45), (26.5, 1.45),
-         (27.5, 0.5), (28.0, 0.0)]
+# Plan half width of the body: the INNER mask's row half widths (D74; tools/sprite_mask.py), row centre
+# y + 0.5 -> half width. The head is a dome from y = 3.0, a collar at row 6, a neck at row 7, the drum's
+# shoulders at rows 8-10 and flanks 6.5 wide to row 17. The drum's armour stands 0.3 proud of the hull
+# (BUMP) and the drill flights ride 0.3 * sc above it, so the hull is that much inside the target.
+DOME_END, DOME_C, HEAD_R = 3.0, 4.5, 3.5
+HW_ST = [(4.5, 3.5), (5.5, 3.5), (6.5, 3.45), (7.5, 3.5),
+         (8.5, 4.6), (9.5, 5.6), (10.5, 6.62), (17.5, 6.62), (18.5, 6.12), (19.5, 5.6), (20.5, 4.6),
+         (21.5, 4.6), (22.5, 4.1), (23.5, 3.6), (24.5, 2.6), (25.5, 1.55), (26.5, 0.5), (27.0, 0.0)]
 _hw = pchip([a for a, _ in HW_ST], [b for _, b in HW_ST])
+BUMP = 0.3
 
 
 def hw_of(y):
-    if y <= DOME_END:
+    if y <= DOME_END or y >= 27.0:
         return 0.0
     if y < DOME_C:
         d = (DOME_C - y) / (DOME_C - DOME_END)
-        return HEAD_R * max(0.0, 1 - d ** 2.5) ** 0.4
-    return _hw(y)
+        return HEAD_R * math.sqrt(max(0.0, 1 - d * d))
+    h = _hw(y)
+    h -= BUMP * smooth01((y - 8.3) / 0.6) * (1 - smooth01((y - 18.85) / 0.4))
+    h -= BUMP * min(1.0, h / 3.0) * smooth01((y - 19.1) / 0.5)
+    return max(h, 0.0)
 
 
 def hh_of(y):
@@ -312,7 +316,10 @@ def patch(M, y0, y1, tfun, mat, off=0.4, off_in=-0.12, ch=0.16, res=1.2, chy=Non
 
 
 def patch_x(M, y0, y1, xa, xb, mat, **kw):
-    return patch(M, y0, y1, lambda y: (t_of_x(xb, y), t_of_x(xa, y)), mat, **kw)
+    def tf(y):
+        lo, hi = AX - 0.8 * hw_of(y), AX + 0.8 * hw_of(y)
+        return t_of_x(min(max(xb, lo), hi), y), t_of_x(min(max(xa, lo), hi), y)
+    return patch(M, y0, y1, tf, mat, **kw)
 
 
 def patch_t(M, y0, y1, ta, tb, mat, **kw):
@@ -358,7 +365,7 @@ def materials(sprite):
     ]
 
 
-HEAD, BAND, DRUM, CONE, PLATE, RIVET, SPINE, BORE, ARM, PIVOT, PAD_IN, PAD_OUT, RIB, LA, LB, HOT, STRAP = range(17)
+HEAD, BAND, DRUM, CONE, PLATE, RIVET, SPINE, BORE, ARM_M, PIVOT, PAD_IN, PAD_OUT, RIB, LA, LB, HOT, STRAP = range(17)
 GLOWING = (LA, LB, HOT)
 
 
@@ -372,16 +379,15 @@ def hull(M):
     for k in range(K + 1):
         u = math.cos(0.5 * math.pi * k / K)
         st.append((DOME_C - (DOME_C - DOME_END) * u, 0.0))
-    st += [(4.75, 0.0), (5.0, 0.0), (5.15, 0.32), (5.85, 0.32), (6.0, 0.0), (6.5, 0.0), (7.0, 0.0), (7.5, 0.0),
-           (7.6, -0.28), (7.8, 0.0), (8.2, 0.0), (8.6, 0.0), (9.0, 0.0), (9.5, 0.0), (10.0, 0.0), (10.5, 0.0),
-           (11.0, 0.0), (12.2, 0.0), (12.45, -0.28), (12.7, 0.0), (14.5, 0.0), (16.5, 0.0), (17.6, 0.0),
-           (18.25, 0.0), (18.4, 0.28), (18.85, 0.28), (19.0, -0.3), (19.85, -0.3), (20.0, 0.0)]
+    st += [(4.75, 0.0), (5.0, 0.0), (5.5, 0.0), (6.0, 0.0), (6.3, 0.0), (6.7, 0.0), (7.0, 0.0), (7.3, 0.0),
+           (7.6, -0.12), (7.9, 0.0), (8.2, 0.0), (8.6, 0.0), (9.0, 0.0), (9.5, 0.0), (10.0, 0.0), (10.5, 0.0),
+           (11.0, 0.0), (12.2, 0.0), (12.45, -0.2), (12.7, 0.0), (14.5, 0.0), (16.5, 0.0), (17.6, 0.0),
+           (18.25, 0.0), (18.4, 0.28), (18.85, 0.28), (19.0, -0.15), (19.85, -0.15), (20.0, 0.0)]
     y = 20.6
-    while y < 27.6:
+    while y < 26.8:
         st.append((y, 0.0))
         y += 0.7
-    st.append((27.8, 0.0))
-    st.append((28.0, 0.0))
+    st.append((27.0, 0.0))
 
     def mat(y):
         if y < 5.0 or 6.0 < y < 7.6:
@@ -397,8 +403,8 @@ def hull(M):
     for i, (y, off) in enumerate(st):
         if hw_of(y) < 1e-3:
             rings.append([(AX, y, ZC)])
-        elif y >= 27.95:
-            rings.append([(AX, 28.0, ZC)])
+        elif y >= 26.99:
+            rings.append([(AX, 27.0, ZC)])
         else:
             rings.append([surf(y, 2 * math.pi * k / N, off) for k in range(N)])
         if i < len(st) - 1:
@@ -408,27 +414,31 @@ def hull(M):
 
 
 def head_detail(M):
-    # Hub boss at the rear end of the head, with a dark centre bore.
-    cyl(M, (AX, 2.85, ZC), (AX, 2.02, ZC), 1.25, CONE, n=14, ch=0.18)
-    tube(M, (AX, 1.98, ZC), (AX, 2.6, ZC), 0.62, 0.42, 0.5, RIVET, BORE, n=10)
+    # Hub boss at the rear end of the head.
+    cyl(M, (AX, 3.7, ZC), (AX, 3.05, ZC), 0.5, CONE, n=10, ch=0.1)
     # Dome ribs: three pressed seams from the hub to the clamp band.
     for deg in (38, 90, 142):
         t = math.radians(deg)
-        patch(M, 2.75, 4.95, lambda y, t=t: (t - 0.09, t + 0.09), PLATE, off=0.14, off_in=-0.1, ch=0.05, res=0.6)
-    # Bolts round the clamp band.
-    for deg in (20, 55, 125, 160):
-        bolt(M, 5.5, math.radians(deg), RIVET, r=0.22, h=0.28, base=0.3)
+        patch(M, 3.5, 4.9, lambda y, t=t: (t - 0.09, t + 0.09), PLATE, off=0.12, off_in=-0.1, ch=0.05, res=0.6)
+    # A low dark collar flange behind the head at rows 6-7 (the sprite's ink between head and claws):
+    # flat and wide, so the head stays a small dome over it.
+    rings = []
+    for y, a, b in ((6.0, 4.1, 1.2), (6.15, 4.5, 1.5), (6.9, 4.5, 1.5), (7.05, 4.1, 1.2)):
+        rings.append([(AX + a * se(math.cos(2 * math.pi * k / N), 2.6), y,
+                       ZC - 0.2 + b * se(math.sin(2 * math.pi * k / N), 2.6)) for k in range(N)])
+    loft_rings(M, rings, [SPINE] * 4)
+    # Bolts round the collar.
+    for deg in (30, 60, 120, 150):
+        bolt(M, 6.5, math.radians(deg), RIVET, r=0.2, h=0.22, base=0.05)
 
 
 def beam(M):
-    """The cross beam through the head at row 5.5, out to both yoke arms, with hubs and nuts."""
-    blockX(M, 2.2, 20.8, 4.0, 7.0, 5.5, 7.8, 0.5, BAND)
+    """The cross beam through the head at row 5 (one sprite px thick), out to both yoke arms, with hubs."""
+    blockX(M, 3.05, 19.95, 5.05, 5.95, 6.0, 7.3, 0.25, BAND, endch=0.12)
     for s in (-1, 1):
         def X(x):
             return x if s < 0 else 2 * AX - x
-        cyl(M, (X(6.5), 5.5, 6.65), (X(8.3), 5.5, 6.65), 1.45, CONE, n=12, ch=0.18)
-        cyl(M, (X(6.25), 5.5, 6.65), (X(6.55), 5.5, 6.65), 1.2, RIVET, n=6, ch=0.06)
-        cyl(M, (X(2.5), 5.5, 6.65), (X(1.95), 5.5, 6.65), 0.95, RIVET, n=6, ch=0.1)
+        cyl(M, (X(6.0), 5.5, 6.65), (X(8.0), 5.5, 6.65), 0.47, CONE, n=10, ch=0.1)
 
 
 def spine(M):
@@ -475,20 +485,20 @@ def armour(M):
             else:
                 patch(M, y0, y1, lambda y: (math.radians(180 - tb_deg), t_of_x(X(ta_fn), y)), mat, **kw)
         # inner (cream brass) pad over the shoulder's top corner, with a cream knob
-        px(7.95, 10.8, 6.6, 9.0, PAD_IN, off=0.62, ch=0.24)
+        px(8.3, 10.8, 6.6, 9.0, PAD_IN, off=0.62, ch=0.24)
         # outer brown armour wrapping the shoulder down the flank
-        pt(8.8, 12.9, 6.6, 152, PAD_OUT, off=0.5, ch=0.24)
+        pt(8.8, 12.9, 6.6, 152, PAD_OUT, off=BUMP, ch=0.24)
         lo2 = (154, 205) if s < 0 else (-25, 26)
-        patch_t(M, 8.8, 12.9, *lo2, PAD_OUT, off=0.5, ch=0.24)
+        patch_t(M, 8.8, 12.9, *lo2, PAD_OUT, off=BUMP, ch=0.24)
         # lower lip of brown armour below the inner pad
         px(10.8, 11.95, 6.6, 9.0, PAD_OUT, off=0.45, ch=0.18)
         # bolts on the armour
         for yy, xx in ((9.35, 7.2), (10.3, 8.5), (12.3, 5.3)):
             bolt(M, yy, t_of_x(X(xx), yy), RIVET, r=0.2, h=0.25, base=0.6)
         # drum side plates: upper over the shoulder, lower on the flank, rivets, vents
-        pt(12.75, 18.3, 7.3, 166, PLATE, off=0.28, ch=0.16)
+        pt(12.75, 18.3, 7.3, 166, PLATE, off=BUMP, ch=0.16)
         lo = (192, 238) if s < 0 else (-58, -12)
-        patch_t(M, 12.75, 18.3, *lo, PLATE, off=0.28, ch=0.16)
+        patch_t(M, 12.75, 18.3, *lo, PLATE, off=BUMP, ch=0.16)
         for yy in (13.3, 15.6, 17.75):
             for deg in ((124, 158) if s < 0 else (56, 22)):
                 bolt(M, yy, math.radians(deg), RIVET, r=0.17, h=0.18, base=0.28)
@@ -496,12 +506,12 @@ def armour(M):
         for yy in (13.4, 14.7, 16.0, 17.3):
             patch_t(M, yy, yy + 0.55, *vd, BORE, off=0.06, off_in=-0.01, ch=0.04, res=2.0)
         # exhaust stubs low on the rear shoulder, facing back
-        tube(M, (X(7.3), 7.55, 2.85), (X(7.3), 9.6, 2.85), 0.78, 0.5, 0.9, PLATE, BORE, n=10)
+        tube(M, (X(8.0), 8.7, 2.85), (X(8.0), 10.0, 2.85), 0.55, 0.35, 0.6, PLATE, BORE, n=10)
 
 
 def drill(M):
     """Two helical flights round the cone with saw teeth on their crests."""
-    y0, y1, pitch = 20.15, 27.35, 4.4
+    y0, y1, pitch = 20.15, 26.4, 4.4
     for start in (PHASE, PHASE + math.pi):
         n = int((y1 - y0) / 0.32)
         rings = []
@@ -509,7 +519,7 @@ def drill(M):
             y = y0 + (y1 - y0) * k / n
             t = start + 2 * math.pi * (y - y0) / pitch
             sc = min(1.0, hw_of(y) / 3.0)
-            hgt = 0.5 * sc
+            hgt = 0.42 * sc
             wb, wt = 0.28 * sc + 0.06, 0.1 * sc + 0.04
             rings.append([surf(y - wb, t, -0.15), surf(y + wb, t, -0.15), surf(y + wt, t, hgt), surf(y - wt, t, hgt)])
         loft_rings(M, rings, [DRUM] * len(rings))
@@ -519,9 +529,9 @@ def drill(M):
         while y < y1 - 0.8:
             t = start + 2 * math.pi * (y - y0) / pitch
             sc = min(1.0, hw_of(y) / 3.0)
-            hgt = 0.5 * sc
+            hgt = 0.42 * sc
             a = Vector(surf(y, t, hgt - 0.05))
-            b = Vector(surf(y, t, hgt + 0.4 * sc))
+            b = Vector(surf(y, t, hgt + 0.25 * sc))
             tdir = Vector(surf(y, t + 0.12, hgt)) - Vector(surf(y, t - 0.12, hgt))
             tdir.normalize()
             nrm = (b - a).normalized()
@@ -537,7 +547,7 @@ def drill(M):
             y += 0.95
             k += 1
     # hardened tip
-    cyl(M, (AX, 27.2, ZC), (AX, 28.05, ZC), 0.7, RIVET, n=10, ch=0.05, r1=0.12)
+    cyl(M, (AX, 25.8, ZC), (AX, 27.0, ZC), 0.42, RIVET, n=10, ch=0.03, r1=0.05)
     # bolt ring on the drum's front flange face
     for k in range(6):
         t = 2 * math.pi * (k + 0.5) / 6
@@ -547,29 +557,55 @@ def drill(M):
         cyl(M, tuple(p + Vector((0, -0.1, 0))), tuple(p + Vector((0, 0.32, 0))), 0.22, RIVET, n=6, ch=0.05)
 
 
+# The arm is a curved brass claw: a smooth sweep along the sprite's inner mask from its pointed tip at
+# row 3 (col 4) down the shoulder (cols 3-4, rows 4-6) and out to the strut at col 1 (rows 7-9), where it
+# meets the pivot block on top of the leg. CLAW: (y, centre x, half width, z bottom, z top) samples,
+# interpolated monotonically so the claw's sides curve rather than step.
+CLAW = [(2.85, 4.55, 0.25, 7.6, 8.3), (3.4, 4.5, 0.6, 7.05, 8.75), (4.4, 4.3, 1.12, 6.4, 8.8),
+        (5.5, 4.05, 1.02, 6.0, 8.5), (6.4, 3.75, 0.98, 5.5, 8.0), (7.3, 2.62, 1.42, 4.85, 7.35),
+        (8.0, 2.2, 1.0, 4.25, 6.8), (8.8, 1.7, 0.78, 3.7, 6.25), (9.4, 1.5, 0.62, 3.3, 5.8)]
+_claw = [pchip([c[0] for c in CLAW], [c[k] for c in CLAW]) for k in range(1, 5)]
+LEG_X = 1.5
+
+
+def claw_at(y):
+    return tuple(f(y) for f in _claw)
+
+
+def leg_z(y):
+    return 4.3 - (y - 9.5) * 0.375
+
+
+def claw(M):
+    """The claw: rounded octagonal sections lofted along y through the curved centre line, with a
+    narrow lit ridge (pal 25, the sprite's bright edge) running up its outer crest to the tip."""
+    ys = [CLAW[0][0] + (CLAW[-1][0] - CLAW[0][0]) * k / 26 for k in range(27)]
+    secs = []
+    for i, y in enumerate(ys):
+        cx, w, z0, z1 = claw_at(y)
+        c = min(0.42 * min(2 * w, z1 - z0), 0.55)
+        secs.append((y, cx - w, cx + w, z0, z1, c))
+    blockY(M, secs, ARM_M, endch=0.12)
+    rsecs = []
+    for y in ys[2:-3]:
+        cx, w, z0, z1 = claw_at(y)
+        rw = 0.28 * w
+        rsecs.append((y, cx - 0.25 * w - rw, cx - 0.25 * w + rw, z1 - 0.1, z1 + 0.32, 0.08))
+    blockY(M, rsecs, RIB, endch=0.1)
+
+
 def yoke(M):
-    """Left yoke arm, pivot block, hydraulic legs and foot (mirrored for the right)."""
-    # armoured link: from the tip above the beam (row 2) out and down to the pivot block (row 9)
-    blockY(M, [(2.0, 4.0, 6.0, 7.0, 8.6, 0.4), (2.7, 3.55, 6.05, 6.7, 8.9, 0.45), (3.6, 2.85, 5.85, 6.3, 8.7, 0.45),
-               (4.6, 2.3, 5.2, 5.9, 8.3, 0.45), (5.6, 2.1, 5.0, 5.4, 7.9, 0.45), (6.6, 1.6, 4.9, 4.8, 7.3, 0.45),
-               (7.55, 0.9, 4.9, 4.1, 6.7, 0.45), (8.75, 0.05, 4.0, 3.4, 6.1, 0.45)], ARM, endch=0.3)
-    # raised ridge plate along the arm's top (the sprite's lit edge)
-    blockY(M, [(2.4, 4.35, 5.25, 8.4, 9.15, 0.2), (3.6, 3.65, 4.85, 8.2, 8.95, 0.2), (4.6, 3.0, 4.2, 7.8, 8.55, 0.2),
-               (5.6, 2.6, 3.8, 7.4, 8.15, 0.2), (6.6, 2.15, 3.4, 6.8, 7.55, 0.2), (7.55, 1.4, 2.9, 6.2, 6.95, 0.2),
-               (8.4, 0.75, 2.2, 5.7, 6.35, 0.2)], RIB, endch=0.2)
-    # knuckle at the tip and a clevis pin through it
-    cyl(M, (3.75, 2.75, 7.8), (6.2, 2.75, 7.8), 0.62, PIVOT, n=8, ch=0.12)
-    # pivot block on the leg, with its pin
-    blockY(M, [(7.9, 0.08, 2.95, 2.4, 6.0, 0.45), (10.35, 0.08, 2.95, 2.4, 6.0, 0.45)], PIVOT, endch=0.3)
-    cyl(M, (-0.12, 9.1, 4.6), (3.15, 9.1, 4.6), 0.55, RIVET, n=8, ch=0.1)
-    # hydraulic cylinder (outer) and its rod, guide rod (inner), gland
-    cyl(M, (1.0, 9.9, 3.9), (1.0, 14.4, 2.5), 1.0, DRUM, n=12, ch=0.15)
-    cyl(M, (1.0, 13.95, 2.64), (1.0, 14.65, 2.42), 1.08, CONE, n=12, ch=0.12)
-    cyl(M, (0.9, 14.2, 2.55), (0.9, 17.7, 1.45), 0.74, RIVET, n=8, ch=0.06)
-    cyl(M, (2.15, 10.0, 3.6), (2.15, 17.3, 1.35), 0.82, DRUM, n=8, ch=0.12)
-    # foot block on the ground with its pin
-    blockY(M, [(16.85, 0.06, 2.95, 0.0, 1.9, 0.4), (18.95, 0.06, 2.95, 0.0, 1.6, 0.4)], BAND, endch=0.3)
-    cyl(M, (-0.1, 17.6, 1.2), (3.1, 17.6, 1.2), 0.42, RIVET, n=6, ch=0.08)
+    """Left claw, pivot block, leg and foot (mirrored for the right)."""
+    claw(M)
+    # dark clamp where the beam meets the claw's inner face (the sprite's ink pixel at row 4, col 5)
+    blockY(M, [(3.95, 4.6, 6.15, 6.0, 7.7, 0.3), (5.95, 4.6, 6.15, 6.0, 7.7, 0.3)], BAND, endch=0.15)
+    # pivot block under the claw's foot, where the leg starts
+    blockY(M, [(9.0, 0.9, 2.1, 3.2, 5.6, 0.35), (10.1, 0.9, 2.1, 3.2, 5.6, 0.35)], PIVOT, endch=0.2)
+    # the leg: a strut sloping down to the foot, with a dark collar, the light ring and the rod
+    for (ya, yb), m in (((10.1, 11.0), BAND), ((11.0, 12.0), STRAP), ((12.0, 13.0), RIVET), ((13.0, 17.1), PLATE)):
+        cyl(M, (LEG_X, ya, leg_z(ya)), (LEG_X, yb, leg_z(yb)), 0.7, m, n=8, ch=0.1)
+    # foot block on the ground
+    blockY(M, [(16.9, 0.8, 2.2, 0.0, 1.7, 0.35), (18.0, 0.8, 2.2, 0.0, 1.5, 0.35)], CONE, endch=0.25)
 
 
 def mirror_into(src, dst):

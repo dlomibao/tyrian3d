@@ -137,7 +137,9 @@ def load():
 
 
 def col_edges(grid, c):
-    rows = [r for r in range(H) if grid[r][c] != -1]
+    """Top and bottom (exclusive) rows of column c: of the sprite (palette rows, -1 transparent)
+    or of a mask (rows of bools)."""
+    rows = [r for r in range(H) if grid[r][c] is True or (grid[r][c] is not False and grid[r][c] != -1)]
     return min(rows), max(rows) + 1
 
 
@@ -242,14 +244,35 @@ def smooth_edges(raw, cs, half):
     return out
 
 
+def inner_mask():
+    """The sprite's inner mask (D74, docs/agents/OUTLINE-BORDER.md): the opaque pixels less the ink
+    of the boundary ring, from tools/sprite_mask.py on the composed assembly. The top-view edge goes
+    to the inner edge of the ink; the game's own outline stands in for the ring."""
+    sys.path.insert(0, str(REPO / "tools"))
+    import sprite_mask as sm
+    idx, colors = sm.load(NAME)
+    return sm.masks(idx, colors)["inner"]
+
+
+def fit_edge(raw, cs, half, band=0.3):
+    """A smooth edge through a column staircase that stays within `band` px of each column's step
+    (so every sprite pixel on the edge is covered by more than half, the one beyond by less):
+    smoothed, clamped to the band, smoothed again lightly and clamped once more."""
+    ys = smooth_edges(raw, cs, half)
+    for _ in range(2):
+        ys = [min(max(y, raw[int(c)] - band), raw[int(c)] + band) for c, y in zip(cs, ys)]
+        ys = smooth_edges(dict(zip((int(c) for c in cs), ys)), cs, lambda c: 1.2)
+    return [min(max(y, raw[int(c)] - band), raw[int(c)] + band) for c, y in zip(cs, ys)]
+
+
 class Horn:
-    def __init__(self, grid):
-        raw = {c: col_edges(grid, c) for c in range(2, 113)}
+    def __init__(self, grid, inner):
+        raw = {c: col_edges(inner, c) for c in range(2, 113)}
         tops = {c: v[0] for c, v in raw.items()}
         bots = {c: v[1] for c, v in raw.items()}
         cs = [c + 0.5 for c in range(2, 113)]
         half = lambda c: 1.6 if c < 8 else (3.0 if c < 20 else 4.5)  # noqa: E731
-        st, sb = smooth_edges(tops, cs, half), smooth_edges(bots, cs, half)
+        st, sb = fit_edge(tops, cs, half), fit_edge(bots, cs, half)
         # Past the knuckle seam the horn keeps its rows 1-13 inside the knuckle.
         cs += [113.5, 115.0, 117.0]
         st += [1.0, 1.0, 1.0]
@@ -615,8 +638,10 @@ def build_neck(P):
 
 
 DRUM_C0 = 141.6  # plates from here to the end ring
-DRUM_C1 = 161.6
+DRUM_C1 = 158.4  # the sprite draws the end ring (rows 2-20, inside its ink) from col 159
 CORE_R = 9.95   # under the plates
+END_R = 9.5     # the end ring (rows 2-21 inside the ink: centre 11.5)
+END_C = 167.4   # the end face: the sprite's last column is ink
 
 
 def build_drum(P, D):
@@ -631,19 +656,20 @@ def build_drum(P, D):
     add(139.3, 10.5, RING)       # flange ring (the bright cols 140-141)
     add(141.0, 10.5, RING)
     add(141.3, CORE_R, CORE)
-    add(DRUM_C1 + 0.2, CORE_R, RING)
-    add(DRUM_C1 + 0.5, 10.5, RING)  # end ring: three cooling fins between dark grooves
+    add(DRUM_C1, CORE_R, RING)
+    add(DRUM_C1, END_R, RING)  # end ring, a step inside the plates: three cooling fins between dark grooves
     for g in (163.0, 164.6, 166.2):
-        add(g - 0.3, 10.5, RING)
-        add(g - 0.1, 10.22, RING)
-        add(g + 0.1, 10.22, RING)
-        add(g + 0.3, 10.5, RING)
-    add(167.4, 10.5, RING)
-    add(167.95, 9.9, RING)
+        add(g - 0.3, END_R, RING)
+        add(g - 0.1, END_R - 0.28, RING)
+        add(g + 0.1, END_R - 0.28, RING)
+        add(g + 0.3, END_R, RING)
+    add(166.95, END_R, RING)
+    add(END_C, END_R - 0.6, RING)
     ring_loft(P, rings, DRUM_UNIT, cap0=False, cap1=False)
     # End cap: a recessed face with a hub (the arm leaves the screen here).
     m = 11.5
-    cap = [(167.95, 9.9), (167.95, 8.6), (167.45, 8.3), (167.45, 4.0), (167.95, 3.6), (167.95, 0.0)]
+    e = END_C
+    cap = [(e, END_R - 0.6), (e, 8.1), (e - 0.5, 7.8), (e - 0.5, 4.0), (e, 3.6), (e, 0.0)]
     rr = [(c, m, 0.0, r, r, RING) for c, r in cap]
     ring_loft(P, rr, DRUM_UNIT, cap0=False, cap1=False)
     # Armour plates along the drum, lengthwise, seams at the sprite's dark rows 13 and 18.5.
@@ -654,7 +680,7 @@ def build_drum(P, D):
         drum_plate(D, DRUM_C0, DRUM_C1, a0, a1, mat)
     # Bolt heads along the plates' seams (rows 13 and 18.5) and the flange ring.
     for a in (6.0, 16.0, 45.5 - 4.5, 51.0, -100.0):
-        for c in (143.2, 147.0, 153.4, 157.2, 160.4):
+        for c in (143.2, 147.0, 150.6, 154.2, 157.4):
             bolt(D, c, a, 0.55)
 
 
@@ -745,7 +771,7 @@ def finish(part, mats, coll, smooth_angle=None):
 
 def build(coll, grid, sprite):
     mats = materials(sprite)
-    hz = Horn(grid)
+    hz = Horn(grid, inner_mask())
     horn = Part("arm_horn", smooth_angle=34)
     det = Part("arm_detail", smooth_angle=30)
     build_horn(horn, det, hz)

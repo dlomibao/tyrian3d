@@ -71,10 +71,10 @@ FRAMES = [
 # Coordinates in sprite px, frame 161: x = column edge - 12 (right +), y = row (down the screen = the
 # front, +), z up. Blender: X = x / 12, Y = (14 - y) / 12, Z = z / 12.
 
-PLAN_Y = [8.15, 8.3, 8.6, 9.0, 9.5, 10.0, 11.0, 12.0, 12.6, 13.2, 18.8, 19.5, 20.0, 21.0, 22.0, 23.0,
-          23.5, 23.85, 24.02, 24.12]
-PLAN_W = [0.0, 2.5, 3.5, 4.35, 4.95, 5.55, 6.65, 7.5, 7.9, 8.0, 8.0, 7.95, 7.62, 6.55, 5.3, 3.85,
-          3.2, 2.7, 1.5, 0.0]
+# D74: the plan goes to the INNER edge of the sprite's ink border (inner half widths by row, frame 161).
+PLAN_Y = [8.02, 8.12, 8.5, 9.5, 10.5, 11.5, 12.5, 13.2, 19.0, 19.8, 20.5, 21.5, 22.5, 22.85, 23.03]
+PLAN_W = [0.0, 1.5, 2.6, 3.6, 5.0, 6.0, 6.85, 7.0, 7.0, 6.7, 6.05, 4.7, 3.1, 2.1, 0.0]
+BAND_W = 7.0         # the steel band's half width = the ball's widest
 W = talon.pchip(PLAN_Y, PLAN_W)
 Y0, Y1 = PLAN_Y[0], PLAN_Y[-1]
 NEXP = 2.3           # cross-section superellipse exponent (a touch squarer than round)
@@ -402,8 +402,8 @@ def region(x, y, z):
 
 def build_shell():
     """The ball: superellipse sections along y, poles at both ends, pinched under the band."""
-    ys = sorted(set([round(v, 4) for v in frange(8.3, 11.95, 0.6) + frange(16.05, 24.1, 0.65)
-                     + [8.22, 8.45, 24.08, 23.95, 23.8]]))
+    ys = sorted(set([round(v, 4) for v in frange(8.3, 11.95, 0.6) + frange(16.05, Y1, 0.65)
+                     + [8.1, 8.22, 8.45, Y1 - 0.02, Y1 - 0.12, Y1 - 0.3, Y1 - 0.6] if Y0 < v < Y1]))
     ys += [BAND_Y0, BAND_Y1] + frange(BAND_Y0, BAND_Y1, 0.7)[1:-1]
     rings = [[(DX(Y0), Y0, 0.0)]]
     for y in sorted(set(ys)):
@@ -477,12 +477,12 @@ BAND_C = 0.32
 
 
 def band_loop(y_unused, grow):
-    w = 8.0 + grow
-    return section(w, KT * 8 + 0.45 + grow, KB * 8 + 0.15 + grow, n=40)
+    w = BAND_W + grow
+    return section(w, KT * BAND_W + 0.45 + grow, KB * BAND_W + 0.15 + grow, n=40)
 
 
 def band_top(x):
-    w, h = 8.0, KT * 8 + 0.45
+    w, h = BAND_W, KT * BAND_W + 0.45
     if abs(x) >= w:
         return 0.0
     return h * (1 - abs(x / w) ** NEXP) ** (1 / NEXP)
@@ -491,11 +491,11 @@ def band_top(x):
 def build_band():
     """The steel band round the ball in its groove: a flat strap with chamfered edges."""
     c = BAND_C
-    inner_w = 8.0 - PINCH - 0.25
+    inner_w = BAND_W - PINCH - 0.25
     def ring(y, grow, inner=False):
         if inner:
             w = inner_w
-            return [(x, y, z) for x, z in section(w, KT * 8 - PINCH - 0.25, KB * 8 - PINCH - 0.25, n=40)]
+            return [(x, y, z) for x, z in section(w, KT * BAND_W - PINCH - 0.25, KB * BAND_W - PINCH - 0.25, n=40)]
         return [(x, y, z) for x, z in band_loop(y, grow)]
     y0, y1 = 12.0, 16.0
     rings = [ring(y0, 0, True), ring(y0, -c), ring(y0 + c, 0), ring(y1 - c, 0), ring(y1, -c), ring(y1, 0, True)]
@@ -565,21 +565,21 @@ def build_post(bm):
     """The post on the crown (sprite cols 10-13, rows 7-11): an armoured housing standing in its
     dark channel, a bevelled lid on top and a deep exhaust in its rear face."""
     px = POST_X
-    hull(bm, talon.cbox(px - 2.55, px + 2.55, 7.05, 11.25, 2.0, 7.0, 0.45), POST)
-    hull(bm, talon.cbox(px - 1.95, px + 1.95, 7.7, 10.6, 6.6, 7.45, 0.28), LID)
+    hull(bm, talon.cbox(px - 2.55, px + 2.55, 8.35, 11.25, 2.0, 7.0, 0.45), POST)
+    hull(bm, talon.cbox(px - 1.95, px + 1.95, 8.9, 10.6, 6.6, 7.45, 0.28), LID)
     # Rear exhaust: a short collar, a lip and a bore into the dark.
     zc, r = 4.2, 1.2
 
     def circ(y, rr, n=16):
         return [(px + rr * math.cos(2 * math.pi * (i + 0.5) / n), y, zc + rr * math.sin(2 * math.pi * (i + 0.5) / n))
                 for i in range(n)]
-    loft(bm, [circ(7.5, r), circ(7.0, r), circ(7.0, r - 0.32), circ(8.4, r - 0.45), [(px, 8.4, zc)]],
+    loft(bm, [circ(8.4, r), circ(8.05, r), circ(8.05, r - 0.32), circ(9.2, r - 0.45), [(px, 9.2, zc)]],
          [ARM, ARM, DEEP, DEEP])
     # Two vent slots each side of the housing (dark, set in).
     for sd in (-1, 1):
         for zz in (3.6, 5.0):
             xx = px + sd * 2.57
-            hull(bm, talon.cbox(xx - 0.12, xx + 0.12, 8.1, 10.4, zz, zz + 0.5, 0.05), DEEP)
+            hull(bm, talon.cbox(xx - 0.12, xx + 0.12, 8.6, 10.4, zz, zz + 0.5, 0.05), DEEP)
 
 
 def cap_axis(y):
@@ -626,7 +626,7 @@ def build_arms(bm, tip, o):
     on two rod stages (frames 161-167); its outer end flares (jaws open) with the vanes."""
     yc, zc = 14.0, 0.2
     for sd in (-1, 1):
-        hx1 = tip - 0.02
+        hx1 = tip - 1.02  # the inner edge of the sprite's ink
         hx0 = hx1 - 2.3
         # rods: stage 1 out of the socket, stage 2 out of stage 1
         ext = hx0 - 6.4
@@ -640,7 +640,7 @@ def build_arms(bm, tip, o):
         # its rear side flares further than its front as the jaws open; the tip tapers (sprite 167: the
         # head is rows 12-15 wide behind a 2-row tip)
         fl = min(1.0, o / 0.35)
-        rear, front = 1.25 + 0.55 * fl, 1.25 + 0.3 * fl
+        rear, front = 1.0 + 0.3 * fl, 1.0 + 0.2 * fl
         pts = []
         for x, yr, yf, c in ((hx0, rear, front, 0.0), (hx0 + 0.3, rear, front, 0.3), (hx1 - 1.15, rear, front, 0.3),
                              (hx1 - 0.2, 1.0, 1.0, 0.25), (hx1, 0.85, 0.85, 0.0)):
@@ -655,11 +655,11 @@ def build_arms(bm, tip, o):
         hull(bm, talon.cbox(xr[0], xr[1], 13.5, 14.5, zc + 1.35, zc + 1.68, 0.1), HEAD)
 
 
-# The vanes, open (sprite px, right side; frame 167's red lobes, outline included): a front lobe
+# The vanes, open (sprite px, right side; frame 167's red lobes, to the inner edge of the ink): a front lobe
 # below each arm (rows 15-18.5) and a smaller rear lobe above it (rows 10-12.5), each a stack of thin
 # blades sliding out of slots in the ball's side. Opening o scales them out from the root line x = 7.
-VANE_FRONT = [(6.2, 14.9), (10.9, 14.9), (10.9, 16.5), (9.9, 17.55), (9.0, 18.6), (7.5, 19.0), (6.2, 19.0)]
-VANE_REAR = [(6.2, 11.25), (7.0, 11.0), (7.15, 10.1), (8.9, 10.05), (9.9, 11.2), (10.4, 12.95), (6.2, 12.95)]
+VANE_FRONT = [(6.2, 15.0), (10.0, 15.0), (10.0, 16.6), (9.0, 17.5), (8.0, 19.0), (6.2, 19.0)]
+VANE_REAR = [(6.2, 11.0), (9.0, 11.0), (9.0, 12.0), (10.0, 12.0), (10.0, 13.0), (6.2, 13.0)]
 VANE_Z = ((VANE_FRONT, (1.25, 0.3, -0.65)), (VANE_REAR, (1.0, -0.05)))
 VANE_T = 0.22
 VANE_ROOT = 7.0
@@ -844,13 +844,20 @@ def main():
         if want and frame not in want:
             continue
         obj, mats = build_frame_model(sprite, coll, spec)
+        # The outline shell is made from the whole closed model; cull_hidden opens the mesh and the
+        # voxel remesh of the open mesh kept only a middle band.
+        full_me = obj.data.copy()
         talon.cull_hidden(obj, grid=3, ndirs=40)
         tris = sum(len(p.vertices) - 2 for p in obj.data.polygons)
         print(f"{NAME}: {model} {len(obj.data.polygons)} faces, {tris} triangles")
         if baked:
             bake(obj, mats, model)
         # The outline shell (D51), made after the bake so its occlusion rays never hit it.
-        shell = common.outline_shell(obj, coll, faces=1200)
+        full = obj.copy()
+        full.data = full_me
+        coll.objects.link(full)
+        shell = common.outline_shell(full, coll, faces=1200)
+        bpy.data.objects.remove(full, do_unlink=True)
         shell.name = shell.data.name = f"{model}_outline"
         print(f"{NAME}: {model} outline shell {len(shell.data.polygons)} faces")
         if out:

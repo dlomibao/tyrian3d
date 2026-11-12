@@ -47,7 +47,9 @@ grey colour multiplier and a roughness/metal map, no concept projection (maps.js
 D51). The underside is a closed, plain belly. Each piece has a single frame.
 
 Options (after --): --no-bake, --no-export (build and measure only), --measure DIR (top ortho
-silhouette and palette vs the sprite), --views DIR (lit angles), --preview PNG (tools/build-models.sh -p).
+silhouette and palette vs the sprite: D74 rule IoU against the inner mask, diff.txt), --measure-pieces
+PNG (this assembly's cut pieces from above, 72 x 28 px at 8x, for tools/sprite_mask.py --measure),
+--views DIR (lit angles), --preview PNG (tools/build-models.sh -p).
 """
 
 import bisect
@@ -65,6 +67,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import common  # noqa: E402
 
 ROOT = common.repo_root(__file__)
+sys.path.insert(0, str(ROOT / "tools"))
+import sprite_mask  # noqa: E402
 
 NAME = "newsh4-flagship"
 UPPER = ["newsh4-81", "newsh4-83", "newsh4-85"]
@@ -72,8 +76,8 @@ LOWER = ["newsh4-119", "newsh4-121", "newsh4-123"]
 PX = 1 / 12
 AXIS_X, MID_Y = 30.0, 26.0  # lib_b065's frame: column edge 30 is X = 0, row edge 26 is Y = 0
 CX = 30.5  # the craft's design axis (column edge)
-HORN_GROW, HORN_EXT = 1.06, 0.6  # horns: width margin over the fitted pixels, tip extension (px)
-CLAW_GROW, CLAW_EXT = 1.05, 0.6
+HORN_GROW, HORN_EXT = 0.95, 0.5  # horns: width margin over the fitted pixels, tip extension (px)
+CLAW_GROW, CLAW_EXT = 0.82, 0.5
 
 # One letter per sprite pixel (the outline ring included): the part it belongs to.
 # H horn, P shoulder pod, C claw, S shoulder plate, A arm, B armour block, M helm, N neck,
@@ -183,8 +187,49 @@ M = {name: i for i, (name, *_rest) in enumerate(MATS)}
 # Plan outlines from the label map
 # ---------------------------------------------------------------------------------------------
 
+# D74 (docs/agents/OUTLINE-BORDER.md): the plan goes to the INNER edge of the sprite's ink border.
+# INNER is the composite sprite's inner mask plus the thin parts' free border pixels (set_inner, from
+# tools/sprite_mask.py); every part's pixels are taken inside it, so the outlines, lofts and fitted
+# sweeps all follow the inner edge.
+INNER = np.ones((52, 72), dtype=bool)
+
+
+def set_inner(sprite_of):
+    global INNER
+    idx, colours = sprite_image(sprite_of)
+    m = sprite_mask.masks(idx.tolist(), {int(k): tuple(v) for k, v in colours.items()})
+    INNER = np.array(m["inner"]) | np.array(m["free"])
+    return INNER
+
+
+def inner_bottom(x0, x1, row):
+    """The row edge where the inner mask ends going down from `row`, under every column whose
+    centre lies in [x0, x1] (for parts drawn by hand, such as nozzles, to end inside the ink)."""
+    cols = [c for c in range(72) if x0 <= c + 0.5 <= x1] or [int(math.floor((x0 + x1) / 2))]
+    ends = []
+    for c in cols:
+        r = row
+        while r < 52 and INNER[r, c]:
+            r += 1
+        ends.append(r)
+    return float(min(ends))
+
+
+def inner_run(row, x):
+    """(left, right) column edges of the run of inner pixels in `row` nearest to x."""
+    runs, c = [], 0
+    while c < 72:
+        if INNER[row, c]:
+            c0 = c
+            while c < 72 and INNER[row, c]:
+                c += 1
+            runs.append((c0, c))
+        c += 1
+    return min(runs, key=lambda e: max(e[0] - x, x - e[1], 0.0))
+
+
 def part_mask(letters, cols=None, rows=None):
-    m = np.isin(LAB, list(letters))
+    m = np.isin(LAB, list(letters)) & INNER
     if cols is not None:
         cc = np.arange(72)[None, :]
         m &= (cc >= cols[0]) & (cc < cols[1])
@@ -196,7 +241,7 @@ def part_mask(letters, cols=None, rows=None):
 
 def grow(mask, into, n=1):
     """mask grown n px (4-neighbour) into the pixels of the parts `into` (letters)."""
-    allow = np.isin(LAB, list(into))
+    allow = np.isin(LAB, list(into)) & INNER
     m = mask.copy()
     for _ in range(n):
         g = m.copy()
@@ -679,11 +724,11 @@ def build_upper(P):
         # housing, tapered blade
         y0, y1 = 12.75, 27.95
         ys = [y0, 12.95, 13.3, 13.9, 14.0, 14.5, 15.2, 15.3, 16.0, 16.4, 16.5, 16.6, 18.6, 18.7, 18.8,
-              21.4, 21.5, 21.6, 24.4, 24.5, 24.6, 25.2, 25.9, 26.6, 27.2, 27.6, y1]
+              19.85, 20.0, 20.9, 21.05, 21.4, 21.5, 21.6, 24.4, 24.5, 24.6, 25.2, 25.9, 26.6, 27.2, 27.6, y1]
         dr = {y0: -0.9, 12.95: -0.35, 13.3: -0.2, 13.9: -0.2, 14.0: -0.45, 14.5: -0.45, 15.2: -0.2,
               15.3: -0.2, 16.0: -0.2, 16.4: -0.2, 16.5: -0.5, 16.6: 0.15, 18.6: 0.15, 18.7: -0.5,
-              18.8: -0.05, 21.4: -0.05, 21.5: -0.5, 21.6: 0.18, 24.4: 0.18, 24.5: -0.5, 24.6: -0.1,
-              25.2: -0.1, 25.9: -0.15, 26.6: -0.15, 27.2: -0.25, 27.6: -0.4, y1: -0.85}
+              18.8: -0.05, 19.85: -0.05, 20.0: -0.6, 20.9: -0.6, 21.05: -0.05, 21.4: -0.05, 21.5: -0.5, 21.6: 0.18, 24.4: 0.18, 24.5: -0.5, 24.6: -0.1,
+              25.2: -0.1, 25.9: -0.15, 26.6: -0.15, 27.2: -0.2, 27.6: -0.25, y1: -0.6}
         rings = []
         for y in ys:
             ex = x_extent(loop, min(max(y, 13.0), 27.3))
@@ -711,7 +756,7 @@ def build_upper(P):
     hpath_L = [(11.0, 14.6), (11.1, 13.2), (11.2, 12.0), (11.3, 10.8), (11.5, 9.6), (11.9, 8.4), (12.5, 7.2),
                (13.3, 6.0), (14.3, 4.9), (15.4, 3.9), (16.7, 3.05), (18.2, 2.55), (19.6, 2.35)]
     hpath_R = [(50.6, 14.6), (50.4, 13.2), (50.2, 12.0), (50.0, 10.8), (49.7, 9.6), (49.3, 8.4), (48.8, 7.4),
-               (48.2, 6.4), (47.4, 5.4), (46.4, 4.4), (45.3, 3.5), (44.0, 2.75), (42.6, 2.4)]
+               (48.2, 6.4), (47.4, 5.4), (46.4, 4.4), (45.6, 3.45), (44.0, 2.75), (42.6, 2.4)]
     for side, path in (("L", hpath_L), ("R", hpath_R)):
         mask = part_mask("H", cols=(0, 31) if side == "L" else (31, 72))
         fit = fit_path(mask | part_mask("P", rows=(13, 16)), path, smooth_n=2)
@@ -726,9 +771,9 @@ def build_upper(P):
 
     # ---- claws: diamond blades curling in towards the helm ----
     claw_sec = [(1.0, 0.0), (0.45, 0.72), (0.0, 1.0), (-0.45, 0.72), (-1.0, 0.0), (-0.5, -0.65), (0.0, -0.85), (0.5, -0.65)]
-    cpath_L = [(15.6, 19.0), (15.5, 17.6), (15.6, 16.4), (16.1, 15.0), (16.9, 13.8), (18.0, 12.6), (19.4, 11.6),
+    cpath_L = [(15.6, 19.0), (15.5, 17.6), (15.6, 16.4), (15.9, 15.0), (16.7, 13.8), (18.0, 12.6), (19.4, 11.6),
                (21.0, 11.0), (22.6, 10.7), (23.9, 10.6)]
-    cpath_R = [(47.3, 18.9), (46.8, 17.6), (46.2, 16.3), (45.4, 15.0), (44.4, 13.8), (43.2, 12.7), (41.8, 11.7),
+    cpath_R = [(47.3, 18.9), (46.8, 17.6), (46.3, 16.3), (45.7, 15.0), (44.6, 13.8), (43.2, 12.7), (41.8, 11.7),
                (40.2, 11.0), (38.6, 10.65), (36.5, 10.6)]
     for side, path in (("L", cpath_L), ("R", cpath_R)):
         mask = part_mask("C", cols=(0, 31) if side == "L" else (31, 72))
@@ -774,14 +819,15 @@ def build_upper(P):
         cx, w = (xl + xr) / 2, (xr - xl) / 2
         h = ztop(y) - zbelly
         return [(cx + u * w, zbelly + v * h) for u, v in helm_sec]
-    ys = [9.06, 9.3, 9.7] + frange(10.2, 17.85, 0.55)
+    hy0, hy1 = min(p[1] for p in loop), max(p[1] for p in loop)
+    ys = [hy0 + 0.06, hy0 + 0.3, hy0 + 0.7] + frange(hy0 + 1.2, hy1 - 0.15, 0.55)
     rings = []
     for y in ys:
         ex = x_extent(loop, y)
         rings.append([(x, y, z) for x, z in helm_at(y, *ex)])
     loft(P, rings, lambda k: M["helm"])
     # Bronze nose cap: a plate standing proud over the helm's front, following its facets.
-    cap_ys = frange(9.25, 14.5, 0.45)
+    cap_ys = frange(hy0 + 0.25, 14.5, 0.45)
     cap = []
     for y in cap_ys:
         ex = x_extent(loop, y)
@@ -808,9 +854,11 @@ def build_upper(P):
     for lp in loops_of("K", grow_into="BT", n=1, rows=(0, 30)):
         slab(P, lp, 0.0, 4.4, M["core"], ch=0.45)
     # Grey cross plate at rows 23.6-26.4 (the hood's top) and the red pipes over the core.
+    # (the core's inner edge is centred on column edge 30, not the craft's axis: mirrored about 30)
+    core_x = lambda x, s: x if s > 0 else 60.0 - x  # noqa: E731
     for s in (1, -1):
-        x0 = side_x(25.6, s)
-        x1 = side_x(28.1, s)
+        x0 = core_x(25.6, s)
+        x1 = core_x(28.1, s)
         rad = abs(x1 - x0) / 2
         cxp = (x0 + x1) / 2
         path = [(x0, 24.4, 4.3)]
@@ -821,8 +869,8 @@ def build_upper(P):
         st = [(x, y, z, 0.48, 0.48) for x, y, z in path]
         sweep(P, st, superellipse(8, 2.0), lambda k: M["pipe"])
         # short outer pipe
-        st = [(side_x(24.9, s), 20.8, 4.2, 0.4, 0.4), (side_x(24.9, s), 22.2, 4.7, 0.4, 0.4),
-              (side_x(25.3, s), 23.0, 4.7, 0.4, 0.4), (side_x(26.0, s), 23.3, 4.5, 0.4, 0.4)]
+        st = [(core_x(26.5, s), 20.7, 4.2, 0.4, 0.4), (core_x(26.4, s), 22.0, 4.7, 0.4, 0.4),
+              (core_x(26.6, s), 22.9, 4.7, 0.4, 0.4), (core_x(27.2, s), 23.3, 4.5, 0.4, 0.4)]
         sweep(P, st, superellipse(8, 2.0), lambda k: M["pipe"])
     # Spine between the pipes.
     slab(P, rect(29.5, 19.8, 31.5, 24.2, 0.3), 3.8, 5.3, M["hood"], ch=0.35)
@@ -886,12 +934,20 @@ def build_lower(P):
         # Its root under the cap: a chamfered wedge filling the arc's wide top rows (38-40).
         for lp in loops_of("L", side, rows=(38, 41)):
             slab(P, lp, 0.25, 2.35, M["arc"], ch=0.5, chb=0.3)
-        apath = [(4.6, 37.6), (4.5, 39.2), (4.6, 40.8), (4.9, 42.2), (5.6, 43.6), (6.6, 44.8), (7.9, 45.8),
-                 (9.4, 46.4), (10.9, 46.6), (12.2, 46.5)]
+        apath = [(4.6, 37.6), (4.5, 38.5), (4.5, 39.2), (4.5, 40.6), (4.5, 41.05), (4.5, 41.5), (4.5, 41.95), (4.6, 42.4), (5.5, 43.5), (6.5, 44.6),
+                 (7.7, 45.7), (9.4, 46.4), (10.9, 46.6), (12.2, 46.5)]
+        # The arc narrows to its ink at row 41 (left: one colour pixel at column 4; right: ink only,
+        # columns 56-57): (centre, half width) there, so it keeps a pixel's width but no more.
+        pinch = (4.5, 0.55)
         if s < 0:
-            apath = [(56.4, 37.6), (56.5, 39.2), (56.4, 40.6), (56.1, 42.0), (55.5, 43.4), (54.6, 44.6),
-                     (53.4, 45.8), (52.2, 46.6), (50.8, 47.0), (49.4, 46.9)]
+            apath = [(56.4, 37.6), (56.2, 38.5), (56.5, 39.2), (56.8, 40.6), (57.0, 41.05), (57.0, 41.5), (57.0, 41.95),
+                     (56.7, 42.4), (56.2, 43.4),
+                     (55.4, 44.5), (54.4, 45.6), (53.2, 46.5), (51.9, 46.9), (50.6, 47.0), (49.4, 46.9)]
+            pinch = (57.0, 0.47)
         fit = fit_path(mask, apath, smooth_n=1)
+        for f in fit:
+            if 40.9 <= f[1] <= 42.1:
+                f[0], f[2] = pinch[0], min(f[2], pinch[1])
         st = [(x, y, 1.3, min(w, 1.6), 1.05) for x, y, w in fit]
         sweep(P, st, [(1, 0.55), (0.65, 1), (-0.65, 1), (-1, 0.55), (-1, -0.55), (-0.65, -1), (0.65, -1), (1, -0.55)],
               lambda k: M["arc"])
@@ -919,13 +975,17 @@ def build_lower(P):
             slab(P, rect(x - 0.22, 41.3, x + 0.22, 44.5), 3.4, 4.25, M["rib"], ch=0.12, chb=0.0)
         # Tall bracket at the outer end.
         bx0, bx1 = sorted((side_x(11.3, s), side_x(14.4, s)))
-        br = [(12.6, 41.0), (14.4, 41.0), (14.4, 48.0), (13.7, 48.7), (12.1, 48.7), (11.3, 47.9), (11.3, 42.3)]
+        br = [(13.2, 41.0), (14.4, 41.0), (14.4, 48.0), (13.7, 48.6), (12.6, 48.6), (12.1, 48.0), (12.1, 42.3)]
         slab(P, br if s > 0 else mirror_pts(br), -0.6, 5.0, M["rail"], ch=0.5)
         slab(P, rect(bx0 + 0.6, 42.6, bx1 - 0.6, 46.4, 0.3), 4.6, 5.4, M["gun"], ch=0.3, chb=0.0)
         # Two deep nozzles in the slanted aft face, each lip just proud of it.
-        for xn, ye in ((14.7, 49.3), (17.9, 48.1)):
+        for kn, xn in enumerate((14.7, 17.9)):
             xn = side_x(xn, s)
             zc, r = 1.5, 1.05
+            if kn == 0:  # the outer one sits on the pod's last inner row (48), no wider than it
+                e0, e1 = inner_run(48, xn)
+                xn, r = (e0 + e1) / 2, min(r, (e1 - e0) / 2)
+            ye = inner_bottom(xn - 0.7 * r, xn + 0.7 * r, 44) - 0.1
             ring_o = [(xn + r * math.cos(2 * math.pi * k / 16), zc + r * math.sin(2 * math.pi * k / 16)) for k in range(16)]
             sc = lambda q, f: (xn + (q[0] - xn) * f, zc + (q[1] - zc) * f)  # noqa: E731
             rings = [[(x, ye - 2.2, z) for x, z in ring_o],
@@ -999,9 +1059,10 @@ def build_lower(P):
     loft(P, rings, lambda k: M["dome"])
     # nozzle on the dome's aft face
     nz = [(30.3 + 1.4 * math.cos(2 * math.pi * k / 14), 1.3 + 1.1 * math.sin(2 * math.pi * k / 14)) for k in range(14)]
-    rings = [[(x, 47.6, z) for x, z in nz], [(x, 49.05, z) for x, z in nz],
-             [(30.3 + (x - 30.3) * 0.7, 49.05, 1.3 + (z - 1.3) * 0.7) for x, z in nz],
-             [(30.3 + (x - 30.3) * 0.7, 47.9, 1.3 + (z - 1.3) * 0.7) for x, z in nz]]
+    ye = inner_bottom(29.3, 31.3, 44) - 0.05
+    rings = [[(x, ye - 1.45, z) for x, z in nz], [(x, ye, z) for x, z in nz],
+             [(30.3 + (x - 30.3) * 0.7, ye, 1.3 + (z - 1.3) * 0.7) for x, z in nz],
+             [(30.3 + (x - 30.3) * 0.7, ye - 1.15, 1.3 + (z - 1.3) * 0.7) for x, z in nz]]
     loft(P, rings, lambda k: M["deep"] if k >= 2 else M["gun"], mat_cap1=M["glow"])
 
 
@@ -1063,6 +1124,130 @@ def layout(sprite_of, pieces):
     data = sprite_of(pieces[0])
     return [(e["model"], e["cx"] - 135 - AXIS_X, e["cy"] - 159 - MID_Y) for e in data["assemblyLayout"]
             if e["model"] in pieces]
+
+
+def overlap_limits():
+    """Where each assembly's pieces end in the 4 rows they share (frame rows 24-27), per frame
+    column: (b, t), the upper pieces keep rows < b and the lower pieces rows >= t (t <= b wherever
+    either sprite draws inside its ink, so the two together still cover the craft). Each keeps the rows its own sprite draws inside its
+    ink (D74 inner mask plus free pixels) and gives up the rows only the other sprite draws, so
+    each assembly's top view matches its own sprite there and a piece left alone (its partner
+    destroyed) does not show its partner's edge."""
+    ref = ROOT / "reference" / "models"
+    own = []
+    for asm in ("assembly-newsh4-81", "assembly-newsh4-123"):
+        m = sprite_mask.masks(*sprite_mask.load(asm, ref=ref))
+        own.append(np.array(m["inner"]) | np.array(m["free"]))
+    up, lo = own[0][24:28], own[1][0:4]
+    out = []
+    for x in range(72):
+        # Each keeps the run of rows that best fits its own sprite: +1 for a row it draws, -1 for a
+        # row only the other draws (rows neither draws are free).
+        def score(rows, mine, other):
+            return sum(1 if mine[r, x] else -1 if other[r, x] else 0 for r in rows)
+        b = max(range(24, 29), key=lambda v: (score(range(0, v - 24), up, lo), -v))
+        t = min(range(24, 29), key=lambda v: (-score(range(v - 24, 4), lo, up), -v))
+        gap = range(b - 24, t - 24)
+        if t > b and any(up[r, x] or lo[r, x] for r in gap):  # rows a sprite draws would be dropped
+            if score(gap, up, lo) >= score(gap, lo, up):
+                b = t
+            else:
+                t = b
+        out.append((b, t))
+    return out
+
+
+def trim_overlap(piece, ox, oy, limits, coll):
+    """Cut the piece (common.split_assembly's 24 x 28 px box at frame column ox, row oy, centred on
+    the origin) back to overlap_limits in the shared rows: the box is split into runs of columns
+    with the same limit, each cut at its own row with bisect and capped like split_assembly's cuts,
+    and the runs joined again."""
+    upper = oy == 0
+    lim = [limits[c][0] if upper else limits[c][1] for c in range(ox, ox + 24)]
+    full = 28 if upper else 24
+    if all(v == full for v in lim):
+        return piece
+    runs = []
+    for i, v in enumerate(lim):
+        if runs and runs[-1][2] == v:
+            runs[-1][1] = i + 1
+        else:
+            runs.append([i, i + 1, v])
+    chunks = []
+    for c0, c1, v in runs:
+        bm = bmesh.new()
+        bm.from_mesh(piece.data)
+        planes = []
+        if c0 > 0:
+            planes.append((((c0 - 12) * PX, 0, 0), (-1, 0, 0)))
+        if c1 < 24:
+            planes.append((((c1 - 12) * PX, 0, 0), (1, 0, 0)))
+        if v != full:
+            y = (oy + 14 - v) * PX
+            planes.append(((0, y, 0), (0, -1, 0) if upper else (0, 1, 0)))
+        for co, no in planes:
+            geom = bm.verts[:] + bm.edges[:] + bm.faces[:]
+            cut = bmesh.ops.bisect_plane(bm, geom=geom, plane_co=co, plane_no=no, clear_outer=True)
+            edges = [e for e in cut["geom_cut"] if isinstance(e, bmesh.types.BMEdge)]
+            if edges:
+                bmesh.ops.holes_fill(bm, edges=edges, sides=0)
+        me = bpy.data.meshes.new(f"{piece.name}_run{c0}")
+        bm.to_mesh(me)
+        bm.free()
+        for m in piece.data.materials:
+            me.materials.append(m)
+        o = bpy.data.objects.new(me.name, me)
+        coll.objects.link(o)
+        chunks.append(o)
+    name = piece.name
+    bpy.data.objects.remove(piece, do_unlink=True)
+    obj = join(chunks, name)
+    obj.data.shade_smooth()
+    print(f"trim {name}: {len(runs)} column runs, limits {lim}")
+    return obj
+
+
+def measure_pieces(parts, offsets, oy, out_png, ss=8):
+    """Top silhouette (alpha) of one assembly's pieces in place, 72 x 28 sprite px at ss px each:
+    the view tools/sprite_mask.py --measure takes for the assembly (no outline shell)."""
+    scene = bpy.context.scene
+    keep = {o: o.hide_render for o in scene.objects}
+    for o in scene.objects:
+        o.hide_render = o not in parts.values()
+    saved = {o: o.location.copy() for o in parts.values()}
+    for name, o in parts.items():
+        ox = offsets[name]
+        o.location = ((ox + 12 - AXIS_X) * PX, (MID_Y - oy - 14) * PX, 0)
+    set_engine(scene, "BLENDER_WORKBENCH")
+    sh = scene.display.shading
+    sh.light = "FLAT"
+    sh.color_type = "SINGLE"
+    sh.single_color = (1, 1, 1)
+    sh.show_cavity = False
+    sh.show_object_outline = False
+    scene.display.render_aa = "OFF"
+    scene.render.film_transparent = True
+    cam_d = bpy.data.cameras.new("measure_pieces")
+    cam_d.type = "ORTHO"
+    cam_d.ortho_scale = 72 * PX
+    cam = bpy.data.objects.new("measure_pieces", cam_d)
+    scene.collection.objects.link(cam)
+    cam.location = ((36 - AXIS_X) * PX, (MID_Y - oy - 14) * PX, 5)
+    scene.render.resolution_x = 72 * ss
+    scene.render.resolution_y = 28 * ss
+    scene.render.resolution_percentage = 100
+    scene.render.image_settings.color_mode = "RGBA"
+    scene.camera = cam
+    scene.render.filepath = str(out_png)
+    bpy.ops.render.render(write_still=True)
+    bpy.data.objects.remove(cam, do_unlink=True)
+    scene.render.film_transparent = False
+    for o, loc in saved.items():
+        o.location = loc
+    for o, h in keep.items():
+        if o.name in bpy.data.objects:
+            o.hide_render = h
+    print(f"piece top view: {out_png}")
 
 
 # ---------------------------------------------------------------------------------------------
@@ -1150,7 +1335,18 @@ def measure(objs, sprite_of, out_dir):
     mask = idx >= 0
     inter = (model & mask).sum()
     union = (model | mask).sum()
-    iou = inter / union
+    iou_outer = inter / union
+    # D74's rule: against the inner mask, the thin parts' free border pixels counted neither way.
+    sm = sprite_mask.masks(idx.tolist(), {int(k): tuple(v) for k, v in colours.items()})
+    inner, free = np.array(sm["inner"]), np.array(sm["free"])
+    keep = ~free
+    iou = ((model & inner) & keep).sum() / max(1, ((model | inner) & keep).sum())
+    diff = np.full((52, 72), ".")
+    diff[inner] = "-"
+    diff[model & inner] = "#"
+    diff[model & ~inner] = "+"
+    diff[free] = np.where(model[free], "F", "f")
+    (out_dir / "diff.txt").write_text("\n".join("".join(r) for r in diff) + "\n")
     rows = []
     for r in range(52):
         sc = np.nonzero(mask[r])[0]
@@ -1183,7 +1379,8 @@ def measure(objs, sprite_of, out_dir):
         vals, cnt = np.unique(seen[mod], return_counts=True)
         report[L] = {"sprite_indices": sorted(int(v) for v in idx[sel]),
                      "model_seen": {int(v): int(c) for v, c in zip(vals, cnt)}}
-    (out_dir / "metrics.json").write_text(json.dumps({"iou": round(float(iou), 4), "rows": rows,
+    (out_dir / "metrics.json").write_text(json.dumps({"iou_rule_grid": round(float(iou), 4),
+                                                       "iou_outer": round(float(iou_outer), 4), "rows": rows,
                                                        "colours": report}, indent=1))
     np.save(out_dir / "model_mask.npy", model)
     np.save(out_dir / "seen.npy", seen)
@@ -1191,7 +1388,8 @@ def measure(objs, sprite_of, out_dir):
     for o in hidden:
         o.hide_render = False
     bpy.data.objects.remove(cam, do_unlink=True)
-    print(f"IOU {iou:.4f}  (sprite {mask.sum()} px, model {model.sum()} px, miss {(mask & ~model).sum()}, extra {(model & ~mask).sum()})")
+    print(f"IOU rule {iou:.4f} vs the inner mask (inner {inner.sum()} px, model {model.sum()} px, miss "
+          f"{(inner & ~model & keep).sum()}, extra {(model & ~inner & keep).sum()}); vs outer {iou_outer:.4f}")
     return iou
 
 
@@ -1550,6 +1748,7 @@ def run(pieces, argv):
     sprite = json.loads(json.dumps(sprite_of(UPPER[0])))
     for n in UPPER[1:] + LOWER:
         sprite["colors"].update(sprite_of(n)["colors"])
+    set_inner(sprite_of)
     coll = common.reset_collection(NAME)
     obj = build(sprite, coll)
     print(f"model: {len(obj.data.polygons)} faces, {tris(obj)} triangles")
@@ -1567,14 +1766,29 @@ def run(pieces, argv):
         fmt = "WEBP"
     if arg("--views"):
         render_views([obj], arg("--views"))
-    if "--no-export" in argv:
+    export = "--no-export" not in argv
+    if not export and not arg("--measure-pieces"):
         return obj
     # The outline shell of the whole craft, cut like the model, so the contour runs on across the
     # piece seams.
-    shell = outline_shell(obj, coll, voxel=0.016, faces=6000, smooth=8)
+    shell = outline_shell(obj, coll, voxel=0.016, faces=6000, smooth=8) if export else None
     lay = layout(sprite_of, pieces)
     parts = common.split_assembly(obj, lay, coll)
-    shells = common.split_assembly(shell, lay, coll)
+    shells = common.split_assembly(shell, lay, coll) if export else {}
+    # The two assemblies share frame rows 24-27: cut each piece back to the rows its own sprite
+    # draws there (overlap_limits). The outline shells keep split_assembly's box, so no new caps
+    # come into the shell (the partner's model covers the difference while both fly).
+    limits = overlap_limits()
+    offsets = {}
+    for e in sprite_of(pieces[0])["assemblyLayout"]:
+        offsets[e["model"]] = e["cx"] - 12 - 135
+    oy = sprite_of(pieces[0])["assemblyLayout"][0]["cy"] - 14 - 159
+    for name in pieces:
+        parts[name] = trim_overlap(parts[name], offsets[name], oy, limits, coll)
+    if arg("--measure-pieces"):
+        measure_pieces({n: parts[n] for n in pieces}, offsets, oy, arg("--measure-pieces"))
+    if not export:
+        return obj
     for name in pieces:
         p, sh = parts[name], shells[name]
         sh.name = f"{name}_outline"

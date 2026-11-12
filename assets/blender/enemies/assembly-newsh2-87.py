@@ -341,7 +341,7 @@ def bolt(B, u, v, z, r=0.24, h=0.22):
 # ---------------------------------------------------------------- the ball eye ---------------
 # rv / p: the front half (a plain ellipse into the sprite's narrow bottom rows); rvb / pb: the back
 # half, squarer and longer, full width by row 19 where it meets the collar.
-BALL = dict(cu=23.0, cv=23.0, cz=7.0, ru=3.95, rv=4.0, rvb=4.4, rz=3.8, p=2.0, pb=3.5)
+BALL = dict(cu=23.0, cv=22.5, cz=7.0, ru=3.0, rv=3.5, rvb=3.6, rz=3.8, p=2.5, pb=3.5)
 
 
 def bexp(d):
@@ -421,21 +421,21 @@ def ball_point(u, v):
 def build_centre(B):
     # hull core: the armoured tub under everything (closed belly)
     B.part("hull_core", "steel")
-    prism(B, rect(14.6, 0.3, 31.4, 10.0, 0.6), 5.1, 8.7, chamfer(0.3), [(0.5, 0), (0, 0.5)])
+    prism(B, rect(14.6, 1.0, 31.4, 10.0, 0.6), 5.1, 8.7, chamfer(0.3), [(0.5, 0), (0, 0.5)])
     # exhaust: vent box across the back, a louvred glow bay recessed between ribs, a dark grille deck
     B.part("vent_box", "steel")
-    prism(B, rect(18.0, 0.25, 28.0, 2.4), 6.5, 9.8, chamfer(0.15))
+    prism(B, rect(18.0, 1.0, 28.0, 2.4), 6.5, 9.8, chamfer(0.15))
     B.part("vent_glow", "glow_rear")
-    prism(B, rect(18.9, 0.0, 27.1, 1.15), 6.9, 9.9)
+    prism(B, rect(20.0, 0.0, 27.0, 1.15), 6.9, 9.9)
     B.part("vent_core", "glow_core")
-    prism(B, rect(21.0, -0.05, 25.0, 0.9), 7.3, 9.95)
+    prism(B, rect(21.5, -0.05, 25.5, 0.9), 7.3, 9.95)
     B.part("vent_rib", "steel")
     for k in range(5):
-        u = 19.0 + k * 1.95
+        u = 20.1 + k * 1.6
         prism(B, rect(u, -0.15, u + 0.35, 1.2), 6.6, 10.05, chamfer(0.08))
-    prism(B, rect(18.6, -0.15, 27.4, 0.3), 6.4, 7.0)  # sill under the louvres
+    prism(B, rect(20.0, -0.15, 27.0, 0.3), 6.4, 7.0)  # sill under the louvres
     for z in (7.75, 8.6, 9.4):  # horizontal guard bars across the glowing bay
-        prism(B, rect(18.9, -0.2, 27.1, 0.05), z, z + 0.32, chamfer(0.06))
+        prism(B, rect(20.0, -0.2, 27.0, 0.05), z, z + 0.32, chamfer(0.06))
     B.part("vent_grille", "dark")
     prism(B, rect(18.9, 1.1, 27.1, 2.35), 9.0, 9.9)
     for k in range(6):
@@ -465,17 +465,18 @@ def build_centre(B):
             bolt(B, u, v, gtop(u, v) - 0.05, r=0.2)
     # chin: dark block under the glacis with red-lit louvred vent blocks either side of the stem
     B.part("chin", "dark")
-    prism(B, rect(19.0, 9.6, 27.0, 15.0, 0.4), 4.5, 7.9, chamfer(0.25), [(0.3, 0), (0, 0.3)])
+    prism(B, [(19.6, 9.6), (26.4, 9.6), (26.9, 10.1), (26.9, 13.6), (26.5, 14.0), (25.0, 14.0), (24.85, 14.9),
+              (21.15, 14.9), (21.0, 14.0), (19.5, 14.0), (19.1, 13.6), (19.1, 10.1)], 4.5, 7.9, chamfer(0.25), [(0.3, 0), (0, 0.3)])
     # eye stem: neck, armoured sleeve with two clamps, cables either side
     B.part("pipe_neck", "frame")
-    cyl(B, (23, 9.8, 8.1), (23, 14.0, 8.0), 1.0, sides=12)
+    cyl(B, (23, 9.8, 8.1), (23, 14.2, 8.0), 0.85, sides=12)
     B.part("pipe_sleeve", "clamp")
-    cyl(B, (23, 13.6, 7.8), (23, 18.9, 7.8), 1.75, 1.85, sides=14, bev=0.2)
+    cyl(B, (23, 13.9, 7.8), (23, 18.6, 7.8), 1.1, 1.15, sides=14, bev=0.15)
     B.part("pipe_clamp", "clamp")
-    for v in (14.5, 17.4):
-        cyl(B, (23, v, 7.8), (23, v + 0.6, 7.8), 2.0, sides=10, bev=0.12)
+    for v, r in ((14.15, 1.8), (17.25, 1.3)):
+        cyl(B, (23, v, 7.8), (23, v + 0.6, 7.8), r, sides=10, bev=0.12)
     B.part("ball_collar", "collar")
-    cyl(B, (23, 17.95, 7.8), (23, 19.3, 7.9), 2.5, 2.95, sides=16, bev=0.15)
+    cyl(B, (23, 18.0, 7.8), (23, 19.4, 7.9), 1.95, 2.6, sides=16, bev=0.15)
     # the eye housing
     B.part("ball", "frame")
     superball(B)
@@ -491,20 +492,20 @@ def build_centre(B):
         return B.vs([tuple(c + a * (r * math.cos(2 * math.pi * i / sides)) + b * (r * math.sin(2 * math.pi * i / sides)))
                      for i in range(sides)])
     c0, c1 = p - nn * 0.6, p + nn * 0.45
-    o0, o1, i1, i0 = ring(c0, 2.35), ring(c1, 2.2), ring(c1, 1.8), ring(c0 + nn * 0.2, 1.8)
+    o0, o1, i1, i0 = ring(c0, 2.3), ring(c1, 2.2), ring(c1, 1.9), ring(c0 + nn * 0.2, 1.9)
     B.bridge(o0, o1, smooth=True)
     B.bridge(o1, i1, smooth=False)
     B.bridge(i1, i0, smooth=True)
     B.bridge(i0, o0, smooth=False)
     B.part("lens", "lens")
-    dome(B, p + nn * 0.0, n, 1.85, 0.5, seg=18, rings=4)
+    dome(B, p + nn * 0.0, n, 1.95, 0.5, seg=18, rings=4)
     B.part("lens_core", "lens_core")
     dome(B, p + nn * 0.25, n, 1.05, 0.38, seg=14, rings=3)
     # bolts round the ball's flanks (seen from the sides and the game camera)
     B.part("ball_bolts", "steel")
     for ang in (35, 145, 215, 325):
         t = math.radians(ang)
-        q, m = ball_point(23 + 3.6 * math.cos(t), 23.0 + 3.7 * math.sin(t))
+        q, m = ball_point(23 + 2.7 * math.cos(t), 22.5 + 3.0 * math.sin(t))
         cyl(B, tuple(q - m * 0.1), tuple(q + m * 0.25), 0.28, 0.22, sides=6, smooth=False)
 
 
@@ -513,23 +514,25 @@ def build_side(B, right):
     B.mirror = right
     # armoured housing beside the screen: a rounded-top block (the sprite shades it as a cylinder)
     B.part("housing_L", "house", "L")
-    prism(B, rect(14.0, 0.0, 18.2, 7.5, 0.45), 5.9, 11.1, fillet(1.0, 3), [(0.3, 0), (0, 0.3)],
+    prism(B, [(15.0, 0.0), (17.85, 0.0), (18.2, 0.35), (18.2, 7.05), (17.75, 7.5), (14.45, 7.5), (14.0, 7.05),
+              (14.0, 1.3)], 5.9, 11.1, fillet(1.0, 3), [(0.3, 0), (0, 0.3)],
           groove=(0.3, 0.14, 0.1))
     B.part("housing_hatch_L", "bright", "L")
     prism(B, rect(14.9, 0.7, 17.3, 3.2, 0.3), 10.6, 11.35, chamfer(0.15))
     B.part("housing_port_L", "dark", "L")
-    prism(B, [(14.7, -0.06), (17.5, -0.06), (17.5, 0.1), (14.7, 0.1)], 6.6, 9.4)  # rear exhaust slot face
+    prism(B, [(15.2, -0.06), (17.5, -0.06), (17.5, 0.1), (15.2, 0.1)], 6.6, 9.4)  # rear exhaust slot face
     B.part("housing_port_glow_L", "glow_vent", "L")
-    prism(B, [(15.0, -0.1), (17.2, -0.1), (17.2, 0.0), (15.0, 0.0)], 7.0, 7.6)
+    prism(B, [(15.4, -0.1), (17.2, -0.1), (17.2, 0.0), (15.4, 0.0)], 7.0, 7.6)
     # red thruster pod; a hot intake grille across its top rear, a glowing slit strip down its outer
     # top edge, a dark cap at the back with a deep glowing nozzle
     B.part("pod_L", "pod", "L")
-    prism(B, rect(10.0, 2.0, 14.0, 8.4, 0.55), 6.1, 10.5, fillet(0.55, 2), [(0.3, 0), (0, 0.3)])
+    prism(B, [(11.3, 2.0), (13.6, 2.0), (14.0, 2.4), (14.0, 8.0), (13.6, 8.4), (10.4, 8.4), (10.0, 8.0), (10.0, 3.3)],
+          6.1, 10.5, fillet(0.55, 2), [(0.3, 0), (0, 0.3)])
     B.part("pod_intake_L", "glow_lamp", "L")
-    prism(B, rect(10.7, 2.0, 13.6, 4.0, 0.2), 9.8, 10.55)
+    prism(B, rect(11.25, 2.05, 13.6, 4.0, 0.2), 9.8, 10.55)
     B.part("pod_intake_slat_L", "pod_dk", "L")
     for v in (2.6, 3.3):
-        prism(B, rect(10.6, v, 13.7, v + 0.22), 10.2, 10.7, chamfer(0.05))
+        prism(B, rect(11.15, v, 13.7, v + 0.22), 10.2, 10.7, chamfer(0.05))
     B.part("pod_slit_L", "glow_lamp", "L")
     prism(B, rect(10.3, 4.0, 11.5, 7.2), 9.9, 10.5)
     B.part("pod_rib_L", "pod_dk", "L")
@@ -537,99 +540,101 @@ def build_side(B, right):
         v = 4.5 + k * 0.95
         prism(B, rect(10.2, v, 11.6, v + 0.26), 9.9, 10.62, chamfer(0.05))
     B.part("pod_cap_L", "dark", "L")
-    prism(B, rect(11.0, 1.05, 13.9, 2.4, 0.3), 7.3, 10.6, chamfer(0.25))
+    prism(B, rect(11.4, 1.85, 13.85, 2.3, 0.2), 7.3, 9.7, chamfer(0.15))
     B.part("pod_nozzle_L", "steel", "L")
-    floor = tube(B, (12.45, 2.0, 8.9), (12.45, 1.0, 8.9), 1.1, 0.78, 0.45, sides=12)
+    floor = tube(B, (12.6, 2.4, 8.5), (12.6, 1.8, 8.5), 0.9, 0.64, 0.4, sides=12)
     B.part("pod_nozzle_glow_L", "glow_hot", "L")
-    cyl(B, tuple(floor + Vector((0, 0.05, 0))), tuple(floor + Vector((0, -0.08, 0))), 0.8, sides=12)
+    cyl(B, tuple(floor + Vector((0, 0.05, 0))), tuple(floor + Vector((0, -0.08, 0))), 0.66, sides=12)
     # the bright blue T arm: tab into the housing, bar over the pod, blade down to the gun
     du = 1.0 if right else 0.0  # the sprite's right tab sits one column further in (mirrored: out)
-    T = [(13.0 + du, 4.9), (17.0 + du, 4.9), (17.0 + du, 7.0), (16.0, 7.0), (16.0, 10.1), (15.6, 14.3),
-         (12.4, 14.3), (12.0, 10.1), (10.4, 10.1), (10.0, 9.7), (10.0, 7.3), (10.4, 6.9), (13.0 + du, 6.9)]
+    T = [(13.0 + du, 4.9), (17.0 + du, 4.9), (17.0 + du, 7.0), (16.0, 7.0), (16.0, 10.1), (16.0, 12.6), (15.05, 13.1), (15.05, 14.3),
+         (12.95, 14.3), (12.95, 13.1), (12.0, 12.6), (12.0, 10.1), (10.4, 10.1), (10.0, 9.7), (10.0, 7.3), (10.4, 6.9), (13.0 + du, 6.9)]
     atop = lambda u, v: 12.1 if v < 10.1 else 12.1 - 0.11 * (v - 10.1)  # noqa: E731
     B.part("arm_L", "arm", "L")
     prism(B, T, 10.4, atop, [(0, 0.38), (0.22, 0.1), (0.36, 0)], [(0.2, 0), (0, 0.2)], groove=(0.38, 0.13, 0.1))
     B.part("arm_bolts_L", "arm", "L")
-    for u, v in ((10.9, 7.6), (10.9, 9.4), (14.0 + du, 5.6), (16.0 + du, 5.6), (13.9, 12.6)):
+    for u, v in ((10.9, 7.6), (10.9, 9.4), (14.0 + du, 5.6), (16.0 + du, 5.6), (14.0, 12.2)):
         bolt(B, u, v, atop(u, v) - 0.05, r=0.21)
     # gun: a muzzle block under the blade's front with a barrel and a deep bore facing the front
     B.part("muzzle_L", "muzzle", "L")
-    prism(B, [(12.05, 13.0), (15.95, 13.0), (15.95, 17.5), (15.6, 17.95), (13.4, 17.95), (13.05, 17.5),
-              (13.05, 16.05), (12.35, 16.05), (12.05, 15.75)], 9.4,
+    prism(B, [(12.95, 12.4), (15.05, 12.4), (15.05, 16.6), (14.85, 16.95), (13.85, 16.95), (13.65, 16.6),
+              (13.65, 16.05), (13.15, 16.05), (12.95, 15.85)], 9.4,
           lambda u, v: 11.6 - 0.12 * (v - 13.9), chamfer(0.3), [(0.2, 0), (0, 0.2)])
     B.part("barrel_L", "muzzle", "L")
-    tube(B, (14.4, 16.5, 10.2), (14.4, 17.95, 10.2), 0.78, 0.46, 0.8, sides=10)
+    tube(B, (14.35, 15.6, 10.2), (14.35, 16.95, 10.2), 0.62, 0.38, 0.7, sides=10)
     B.part("bore_L", "bore", "L")
-    cyl(B, (14.4, 17.0, 10.2), (14.4, 17.2, 10.2), 0.47, sides=10)
+    cyl(B, (14.35, 16.1, 10.2), (14.35, 16.3, 10.2), 0.39, sides=10)
     # red-lit chin vent beside the stem: louvred top, glowing grille in its front face
     B.part("chin_vent_L", "pod_dk", "L")
-    prism(B, rect(19.6, 10.6, 21.3, 14.6, 0.2), 5.1, 8.25, chamfer(0.15))
+    prism(B, rect(19.7, 10.6, 21.2, 13.9, 0.2), 5.1, 8.25, chamfer(0.15))
     for k in range(4):
-        v = 11.1 + k * 0.85
-        prism(B, rect(19.75, v, 21.15, v + 0.3), 8.0, 8.42, chamfer(0.06))
+        v = 11.0 + k * 0.75
+        prism(B, rect(19.8, v, 21.1, v + 0.3), 8.0, 8.42, chamfer(0.06))
     B.part("chin_vent_glow_L", "glow_vent", "L")
-    prism(B, rect(19.85, 14.55, 21.05, 14.72), 5.5, 7.7)
+    prism(B, rect(19.9, 13.85, 21.0, 14.02), 5.5, 7.7)
     B.part("chin_vent_bar_L", "pod_dk", "L")
     for z in (6.1, 6.9):
-        prism(B, rect(19.7, 14.5, 21.2, 14.82), z, z + 0.25)
+        prism(B, rect(19.8, 13.8, 21.1, 14.1), z, z + 0.25)
     # under the arm: a lamp in a dark socket, a grille box with a knob, a hydraulic plate
     B.part("lamp_box_L", "dark", "L")
-    prism(B, rect(10.0, 9.9, 13.0, 13.0, 0.35), 6.9, 9.1, chamfer(0.25))
+    prism(B, [(10.3, 9.9), (12.7, 9.9), (13.0, 10.2), (13.0, 11.7), (12.7, 12.0), (11.0, 12.0), (11.0, 12.95),
+              (10.0, 12.95), (10.0, 10.2)], 6.9, 9.1, chamfer(0.25))
     B.part("lamp_L", "glow_lamp", "L")
-    dome(B, (11.5, 11.5, 9.0), (0, -0.35, 1), 0.78, 0.42, seg=12, rings=2)
+    dome(B, (11.5, 11.2, 9.0), (0, -0.35, 1), 0.7, 0.4, seg=12, rings=2)
     B.part("grille_box_L", "steel", "L")
-    prism(B, rect(15.0, 9.9, 18.0, 13.0, 0.3), 6.7, 8.7, chamfer(0.2))
+    prism(B, rect(15.0, 9.9, 18.0, 12.0, 0.3), 6.7, 8.7, chamfer(0.2))
     for k in range(3):
-        v = 10.6 + k * 0.75
+        v = 10.3 + k * 0.55
         prism(B, rect(15.3, v, 17.7, v + 0.22), 8.4, 8.85)
     B.part("knob_L", "knob", "L")
-    cyl(B, (16.5, 11.5, 8.6), (16.5, 11.5, 9.15), 0.55, 0.45, sides=10, smooth=False)
+    cyl(B, (16.5, 11.0, 8.6), (16.5, 11.0, 9.15), 0.5, 0.42, sides=10, smooth=False)
     B.part("ram_plate_L", "ram", "L")
-    prism(B, rect(17.9, 9.9, 19.1, 14.0), 5.5, 8.5, chamfer(0.15))
+    prism(B, rect(18.0, 9.9, 19.1, 13.0), 5.5, 8.5, chamfer(0.15))
     # leg: hip, inner strut down to the foot, outer claw + armour plate, knee, lower claw
     B.part("hip_L", "frame", "L")
     cyl(B, (8.0, 6.4, 10.3), (10.9, 6.4, 10.3), 1.25, sides=8, bev=0.2)
     B.part("strut_L", "strut", "L")
     # arched like a spider's leg: up from the shoulder to a high knee, then a steep shin to the foot
     # (narrowed to end at u = 10 where it rises past the arm bar, which the sprite shows on top)
-    sweep(B, [(9.5, 3.05, 10.0, 3.0, 2.0), (9.45, 3.6, 10.5, 3.1, 2.05), (9.0, 4.1, 11.0, 4.0, 2.1), (9.0, 5.3, 11.8, 4.0, 2.2), (8.5, 6.8, 12.4, 3.0, 2.4),
-              (8.5, 9.6, 12.6, 3.0, 2.4), (8.5, 10.6, 12.3, 3.0, 2.4), (9.0, 13.5, 10.2, 4.0, 2.4), (9.0, 17.3, 5.9, 4.0, 2.3), (9.0, 20.4, 2.4, 4.0, 2.0)], ch=0.45,
-          steps=9)
+    sweep(B, [(9.6, 4.0, 10.8, 3.0, 2.1), (9.5, 5.3, 11.8, 3.0, 2.2), (9.0, 6.8, 12.4, 2.0, 2.4),
+              (8.6, 9.6, 12.6, 2.8, 2.4), (8.6, 10.6, 12.3, 2.8, 2.4), (8.4, 13.5, 10.2, 3.0, 2.4), (8.3, 17.3, 5.9, 3.0, 2.3),
+              (7.9, 20.4, 2.4, 2.8, 2.0)], ch=0.45, steps=9)
     B.part("strut_spine_L", "leg", "L")  # raised spine plate along the strut top
-    sweep(B, [(9.0, 5.5, 13.1, 1.6, 0.5), (8.5, 6.8, 13.7, 1.4, 0.5), (8.5, 9.6, 13.9, 1.4, 0.5),
-              (8.5, 10.6, 13.6, 1.4, 0.5), (9.0, 13.5, 11.5, 1.6, 0.5),
-              (9.0, 17.3, 7.1, 1.6, 0.5), (9.0, 19.2, 4.6, 1.4, 0.5)], ch=0.12, steps=7)
+    sweep(B, [(9.5, 5.5, 13.1, 1.6, 0.5), (9.0, 6.8, 13.7, 1.2, 0.5), (8.9, 9.6, 13.9, 1.9, 0.5),
+              (8.9, 10.6, 13.6, 1.9, 0.5), (8.85, 13.5, 11.5, 2.0, 0.5),
+              (8.75, 17.3, 7.1, 2.0, 0.5), (8.4, 19.2, 4.6, 1.6, 0.5)], ch=0.12, steps=7)
     B.part("strut_ram_L", "steel", "L")
-    cyl(B, (7.7, 6.0, 8.6), (7.7, 15.5, 8.6), 0.42, sides=8)  # hydraulic ram body -> shin
-    cyl(B, (7.7, 5.6, 8.6), (7.7, 10.0, 8.6), 0.62, sides=8, bev=0.08)
+    cyl(B, (8.6, 6.0, 8.6), (8.3, 15.5, 8.6), 0.42, sides=8)  # hydraulic ram body -> shin
+    cyl(B, (8.6, 5.6, 8.6), (8.6, 10.0, 8.6), 0.6, sides=8, bev=0.08)
     if not right:
         B.part("claw_upper_L", "claw", "L")
-        sweep(B, [(6.2, 8.0, 11.2, 2.4, 1.8), (6.3, 10.0, 12.6, 1.6, 2.0), (6.3, 13.5, 10.8, 1.6, 2.0),
+        sweep(B, [(6.4, 9.0, 11.8, 1.8, 1.8), (6.3, 10.0, 12.6, 1.6, 2.0), (6.3, 13.5, 10.8, 1.6, 2.0),
                   (6.2, 17.6, 5.2, 1.6, 1.8)], ch=0.3, steps=6)
         B.part("claw_plate_L", "plate", "L")
-        sweep(B, [(5.6, 8.1, 10.4, 1.0, 2.0), (5.55, 8.75, 10.6, 1.1, 2.1), (4.8, 9.05, 10.9, 1.6, 2.2), (4.8, 10.4, 12.0, 1.6, 2.4), (4.8, 13.5, 10.4, 1.6, 2.4),
-                  (4.8, 17.95, 4.6, 1.6, 2.0)], ch=0.35, steps=6)
+        sweep(B, [(6.0, 9.0, 10.7, 1.0, 2.1), (5.6, 9.6, 11.1, 1.2, 2.2), (5.6, 10.4, 12.0, 1.2, 2.4), (5.6, 13.5, 10.4, 1.2, 2.4),
+                  (5.8, 17.95, 4.6, 1.2, 2.0)], ch=0.3, steps=6)
         B.part("knee_L", "steel", "L")
-        cyl(B, (4.9, 17.5, 5.2), (7.4, 17.5, 5.2), 0.9, sides=8, bev=0.15)
+        cyl(B, (5.6, 17.5, 5.2), (7.6, 17.5, 5.2), 0.85, sides=8, bev=0.15)
         B.part("claw_lower_L", "claw_lo", "L")
-        sweep(B, [(6.0, 17.5, 5.2, 2.0, 1.7), (6.0, 21.0, 2.6, 2.0, 1.6), (6.0, 23.0, 1.4, 2.0, 1.3),
-                  (6.1, 23.9, 1.0, 2.2, 1.2), (7.2, 24.9, 0.6, 1.4, 1.0)], ch=0.3, steps=5)
+        sweep(B, [(6.5, 17.5, 5.2, 1.4, 1.7), (6.6, 21.0, 2.6, 1.2, 1.6), (6.6, 23.0, 1.4, 1.2, 1.3),
+                  (7.3, 24.2, 1.0, 1.0, 1.2), (7.8, 24.85, 0.6, 0.9, 1.0)], ch=0.3, steps=5)
     else:
         B.mirror = False  # right outer claw: one narrower member, as the sprite's column 39
         B.part("claw_upper_R", "claw", "R")
-        sweep(B, [(39.5, 8.0, 11.2, 1.0, 1.8), (39.5, 10.0, 12.6, 1.05, 2.0), (39.5, 13.5, 10.8, 1.05, 2.0),
+        sweep(B, [(39.5, 9.0, 11.8, 1.0, 1.8), (39.5, 10.0, 12.6, 1.05, 2.0), (39.5, 13.5, 10.8, 1.05, 2.0),
                   (39.5, 17.6, 5.2, 1.0, 1.8)], ch=0.22, steps=6)
         B.part("knee_R", "steel", "R")
-        cyl(B, (38.6, 17.5, 5.2), (40.0, 17.5, 5.2), 0.9, sides=8, bev=0.15)
+        cyl(B, (38.0, 17.5, 5.2), (39.3, 17.5, 5.2), 0.85, sides=8, bev=0.15)
         B.part("claw_lower_R", "claw_lo", "R")
-        sweep(B, [(39.5, 17.5, 5.2, 1.0, 1.7), (39.5, 21.0, 2.6, 1.0, 1.6), (39.4, 24.9, 0.6, 1.2, 1.1)], ch=0.2,
+        sweep(B, [(38.9, 17.5, 5.2, 1.0, 1.7), (39.4, 19.0, 4.0, 1.0, 1.6), (39.4, 21.5, 2.4, 1.0, 1.4),
+                  (38.9, 23.5, 1.2, 1.0, 1.1), (38.5, 24.8, 0.6, 1.0, 1.0)], ch=0.2,
               steps=5)
         B.mirror = True
     B.part("ankle_L", "ankle", "L")  # pin where the strut meets the foot
-    cyl(B, (7.4, 20.5, 2.3), (10.85, 20.5, 2.3), 0.6, sides=8, bev=0.12)
+    cyl(B, (7.0, 20.5, 2.3), (9.6, 20.5, 2.3), 0.55, sides=8, bev=0.12)
     B.part("foot_L", "leg", "L")
-    prism(B, [(6.6, 20.0), (10.0, 20.0), (10.0, 25.4), (9.6, 26.0), (7.4, 26.0), (7.05, 25.6), (7.05, 25.0),
-              (6.05, 24.9), (6.05, 24.1), (6.6, 23.7)], 0.0,
+    prism(B, [(6.2, 20.0), (9.8, 20.0), (9.8, 20.8), (9.0, 21.3), (9.0, 24.6), (8.7, 25.0), (7.3, 25.0), (7.0, 24.7),
+              (7.0, 24.1), (6.2, 23.9)], 0.0,
           lambda u, v: 2.2 - 0.25 * (v - 20.0), chamfer(0.35), [(0.15, 0), (0, 0.15)], groove=(0.3, 0.12, 0.08))
     B.mirror = False
 
