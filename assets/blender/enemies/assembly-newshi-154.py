@@ -15,13 +15,15 @@ Engineering reading:
   plan        the sprite's INNER mask (D74: its dark ring is the game's ink outline), row by row,
               lightly smoothed; a rounded point at the bottom; the envelope continues north beyond
               the cut (a virtual arc to y = -14.5 so the north rays have a rim to aim at)
-  upper half  on rays from the pole P = (37.5, 16.5): z = ZE + (HP + G*north*s - ZE)*sqrt(1-s^2),
-              s = distance / rim distance along the ray; HP 14 px at the pole, the crest rising 4 px
-              more toward the cut; at the cut the section is the envelope's own (top 14.2 on the axis)
-  equator     on the plan's edge, at ZE = 3.4 px all round: the envelope's equator at its cut
-  belly       a round lower half: z = ZE - D(y)*sqrt(1-s^2), D 4 px at the cut (the keel at z 0, where
-              the envelope's keel ends) and shallower toward the tip, so the keel rises steadily to
-              the nose; closed under the pole, plain (a plausible closed shape only)
+  upper half  D153: the envelope's own egg carried on past the cut (assembly-newshi-115's sections and
+              long profile): each row's section a soft superellipse over the plan's width at that row,
+              z = ZE + U0*egg(y)*sqrt(1-q^1.6), q the offset from the row's middle over its half width,
+              egg(y) the quarter ellipse from the envelope's crown (115 row 70, here y -42) to the bow
+              tip (y 27.45); at the cut the section is the envelope's (crown 26.3 on the axis)
+  equator     on the plan's edge, at ZE = 6 px all round: the envelope's level equator
+  belly       a round lower half on the same sections, z = ZE - L0*egg(y)*sqrt(1-q^2) (the envelope's
+              belly carried on to the tip); plain (a plausible closed shape only)
+  stations    the mesh still runs on rays from the pole P = (37.5, 16.5), the hub, where the battens meet
   seams       three latitude panel grooves round the pole (s 0.42, 0.72, 0.93): chamfered grooves
               0.9 px wide, 0.28 px deep, cut along the surface normal, painted one step darker than their panel
   battens     the ribs: chamfered straps (1.2 px wide, 0.7 px high) along the traced meridians,
@@ -79,19 +81,19 @@ CX0, CY0 = 150, -17
 RIBS = [["rib_n", [[37.5, 16.5], [37.5, -1.0]]], ["rib_nw1", [[37.5, 16.5], [36.5, 14.0], [34.5, 11.0], [33.5, 8.5], [32.5, 6.0], [31.5, 4.0], [30.5, 1.0], [30.2, -1.0]]], ["rib_nw2", [[37.5, 16.5], [34.0, 14.5], [31.5, 12.5], [24.5, 5.5], [22.5, 2.5], [21.5, 0.5], [21.0, -1.0]]], ["rib_w", [[37.5, 16.5], [31.0, 15.5], [27.0, 14.3], [24.5, 13.3], [22.0, 12.0], [19.5, 9.5], [16.5, 6.5], [14.5, 4.0], [12.5, 1.0], [11.8, -1.0]]], ["rib_ne1", [[37.5, 16.5], [41.5, 12.5], [43.5, 10.5], [44.5, 8.5], [45.5, 7.0], [46.5, 5.5], [47.5, 3.5], [48.5, 1.0], [49.0, -1.0]]], ["rib_ne2", [[37.5, 16.5], [44.0, 14.0], [48.5, 12.5], [51.5, 10.5], [54.5, 7.5], [56.5, 4.5], [58.5, 1.5], [59.3, -1.0]]], ["rib_s", [[37.5, 16.5], [37.5, 27.2]]], ["rib_sw", [[37.5, 16.5], [34.5, 17.5], [32.5, 18.5], [31.5, 19.5], [28.5, 20.5], [24.5, 21.2], [21.6, 21.7]]], ["rib_se", [[37.5, 16.5], [39.5, 19.5], [41.5, 20.5], [43.5, 21.5], [45.5, 22.5], [48.5, 24.0]]]]
 
 POLE = (37.5, 16.5)
-HP = 14.0       # pole (hub) height, px
-G = 4.0         # extra crest height towards the north cut
 SEAMS = (0.42, 0.72, 0.93)
 SEAM_HW = 0.45   # groove half width, px
 SEAM_D = 0.28    # groove depth, px
 RW, RH, RCH = 0.6, 0.7, 0.18   # rib half width, height, chamfer (px)
-# Object fix (D122 audit): a floating envelope's nose, not a flat-based dome. The equator runs round
-# the plan's edge at ZE (the envelope's own equator at its cut, assembly-newshi-115 row 112: z 3.4),
-# the lower half a round belly under it, DL0 deep at the cut (the keel meets the envelope's z 0 there)
-# and shallower toward the tip.
-ZE = 3.4
-DL0 = 4.0
-DL_K = 0.35
+# Object fix (D122 audit): a floating envelope's nose, not a flat-based dome. D153: the envelope's egg
+# (assembly-newshi-115) carried on to the tip: its level equator ZE, its upper half U0 and belly L0 at the
+# crown (115 row 70 = this y -42), scaled by the same quarter-ellipse long profile to the bow tip.
+ZE = 6.0
+U0 = 25.5
+L0 = 11.0
+NU = 1.6       # the upper half's section exponent (the envelope's NXS_U)
+Y_CROWN = -42.0
+Y_TIP = 27.45
 
 
 def W(x, y, z):
@@ -185,30 +187,65 @@ def rim_dist(dx, dy):
     return float(_RIM[i % _NA] * (1 - f) + _RIM[(i + 1) % _NA] * f)
 
 
-def z_at(x, y):
-    """The envelope's upper half: from the equator (ZE, on the plan's edge) up to the pole."""
+def s_at(x, y):
+    """Fraction of the rim distance along the ray from the pole (0 at the hub, 1 at the rim)."""
     vx, vy = x - POLE[0], y - POLE[1]
     t = math.hypot(vx, vy)
-    if t < 1e-6:
-        return HP
-    dx, dy = vx / t, vy / t
-    s = min(t / rim_dist(dx, dy), 1.0)
-    north = (0.5 * (1 - dy)) ** 2
-    return ZE + (HP + G * north * s - ZE) * math.sqrt(max(0.0, 1 - s * s))
+    return 0.0 if t < 1e-6 else t / rim_dist(vx / t, vy / t)
 
 
-def belly_d(y):
-    """Depth scale of the lower half: DL0 at the cut (so the keel meets the envelope's z 0 there),
-    easing off toward the nose so the keel rises steadily from the cut to the tip."""
-    return DL0 * (1.0 - DL_K * min(max(y, 0.0), 30.0) / POLE[1])
+def egg(y):
+    """The envelope's long profile (assembly-newshi-115's egg_k): a quarter ellipse from its crown to the
+    bow tip."""
+    t = min(1.0, max(0.0, (y - Y_CROWN) / (Y_TIP - Y_CROWN)))
+    return math.sqrt(max(0.0, 1 - t * t))
+
+
+def _rim_edges(y):
+    """The plan's west and east edges at row y (where s = 1 along the row), by bisection."""
+    def edge(sign):
+        lo, hi = POLE[0], POLE[0] + sign * 40.0
+        if s_at(lo, y) >= 1.0:
+            return lo
+        for _ in range(36):
+            mid = 0.5 * (lo + hi)
+            if s_at(mid, y) < 1.0:
+                lo = mid
+            else:
+                hi = mid
+        return lo
+    return edge(-1), edge(1)
+
+
+_RY0, _RDY = -0.5, 0.025
+_RTAB = [_rim_edges(max(0.0, _RY0 + k * _RDY)) for k in range(int((Y_TIP + 1.0 - _RY0) / _RDY) + 2)]
+
+
+def row_span(y):
+    """(middle, half width) of the plan at row y (rows north of the cut take the cut's)."""
+    f = (min(max(y, _RY0), Y_TIP + 1.0) - _RY0) / _RDY
+    i = min(int(f), len(_RTAB) - 2)
+    f -= i
+    (a0, b0), (a1, b1) = _RTAB[i], _RTAB[i + 1]
+    xl, xr = a0 + (a1 - a0) * f, b0 + (b1 - b0) * f
+    return 0.5 * (xl + xr), 0.5 * (xr - xl)
+
+
+def _q(x, y):
+    c, hw = row_span(y)
+    return 1.0 if hw < 1e-3 else min(1.0, abs(x - c) / hw)
+
+
+def z_at(x, y):
+    """The envelope's upper half: a true ellipse across the row from the equator (ZE, on the plan's edge)."""
+    q = _q(x, y)
+    return ZE + U0 * egg(y) * math.sqrt(max(0.0, 1 - q ** NU))
 
 
 def zl_at(x, y):
     """The envelope's lower half: a round belly from the equator (ZE on the plan's edge) down."""
-    vx, vy = x - POLE[0], y - POLE[1]
-    t = math.hypot(vx, vy)
-    s = 0.0 if t < 1e-6 else min(t / rim_dist(vx / t, vy / t), 1.0)
-    return ZE - belly_d(y) * math.sqrt(max(0.0, 1 - s * s))
+    q = _q(x, y)
+    return ZE - L0 * egg(y) * math.sqrt(max(0.0, 1 - q * q))
 
 
 def nl_at(x, y, e=0.05):
@@ -418,7 +455,7 @@ def build_shell(M, NT=112):
         gflags = flags
     nst = len(grid[0])
     assert all(len(r) == nst for r in grid)
-    pole = M.v(Vector((POLE[0], POLE[1], HP)))
+    pole = M.v(Vector((POLE[0], POLE[1], z_at(*POLE))))
     vg = [[M.v(p) for p in ring] for ring in grid]
     # the lower half shares the equator (the rim, last upper station) and closes under the pole
     vl = [[M.v(p) for p in low] + [vg[i][-1]] for i, low in enumerate(lows)]
@@ -518,13 +555,6 @@ def chaikin(pl, n=3):
         out.append(pts[-1])
         pts = out
     return pts
-
-
-def s_at(x, y):
-    """Fraction of the rim distance along the ray from the pole (0 at the hub, 1 at the rim)."""
-    vx, vy = x - POLE[0], y - POLE[1]
-    t = math.hypot(vx, vy)
-    return 0.0 if t < 1e-6 else t / rim_dist(vx / t, vy / t)
 
 
 RIB_END_S = 0.952   # the battens run down to just above the equator
@@ -1015,7 +1045,7 @@ def build_outline_shell(coll, NT=96):
                 low.append(M.v(Vector((x, y, zl_at(x, y)))))
         grid.append(ring)
         lows.append(low + [ring[-1]])
-    pole = M.v(Vector((POLE[0], POLE[1], HP)))
+    pole = M.v(Vector((POLE[0], POLE[1], z_at(*POLE))))
     keel = M.v(Vector((POLE[0], POLE[1], zl_at(*POLE))))
     for i in range(NT):
         j = (i + 1) % NT

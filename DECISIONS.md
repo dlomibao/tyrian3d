@@ -6924,3 +6924,55 @@ pixels between the slats into round holes.
 - `crops/`;
 - `iou_after.txt`, `seams_after.txt`;
 - `tools/` (`closeup.py`, `cap.sh`, `crops.py`).
+
+## D153 — The SAVARA blimp keeps its height and gets a rounder envelope: a lower equator, soft superellipse sections, an egg's long profile carried on into the bow (resolves D120's height question; follows D144)
+
+**Problem:** from the game camera (SAVARA, 1.8 t2470, tilted) the envelope (`assembly-newshi-115`) read as a flat-topped
+grey barrel with near-vertical walls and even shading, not a gas bag. D120 left the height open: 36.5 px on a 66.9 px
+width (0.55), the crown at 31.5 under the player ship's pass (34.2), the fittings at 33.6, the belly at -5 over the water.
+The bow (`assembly-newshi-154`, D144) was a low cap (crown 14.2) that 115 tapered down into: a duck-bill from the side.
+
+**Decision:** the height stays (belly -5, crown 31.5); the shape inside it changes.
+- **Equator down from 13.25 to 6 px.** The half the game camera sees is 25.5 px tall on the 33.45 px half width (0.76,
+  was 0.55); the belly is the shallower half (11 px, a true ellipse; a plausible closed shape, rule 3).
+- **Sections:** the upper half a soft superellipse, |u|^1.6 + |v|^2 = 1 (was 1.8 on a lower half-height), so the
+  flanks fall away steeply from a crown line on the axis. Never above 2: no flat top with rolled shoulders.
+- **Long profile:** the crown peaks at row 70 and falls as a quarter ellipse to the bow tip (115 row 139.45, 154's
+  row 27.45); ahead of the crown the nose stays an ellipsoid (heights in proportion to the plan's width). The axis is
+  level all the way (it used to drop from 13.25 to 3.4 toward the cut).
+- **The bow continues the envelope.** `assembly-newshi-154`'s surface is now 115's: per-row sections (the same
+  exponents) over the plan's width at each row, the same profile, equator at 6. At the cut (115 row 112) both have the
+  same section, crown 26.3 (was 14.2). The mesh still runs on rays from the hub, so the battens, grooves, hub and
+  rivet follow the new surface unchanged; the paint ramp (the sprite's darker bow) is unchanged.
+- **Fittings follow:** the hub, ring guard, mast, mounts and collar plate hang off the equator height. The arms ride
+  2 px lower (nacelles' bottom -3.8, over the water). The lower guard ring's drop scales so it still rides 0.9 px under
+  the shallower belly (its bottom -3.9; unscaled it would reach -10.4). Seams, gantry, cowl and hatch ring were already draped on
+  the surface.
+- **Finish:** the envelope's slot (`pal_8`, the sprite's median) is a fabric skin, metallic 0.18 → 0, roughness
+  0.34 → 0.26, for a soft sheen on the crown. No painted highlight (rule 2).
+- Kept: the 14 pieces and the four `-f2` frames, `src/render/spriteModels/*.json` unchanged, the AO-only bake, the
+  outline shells (115's and 154's own builders, settings unchanged). Built with `tools/build-models.sh -j 2`: exit 0,
+  21 fresh GLBs.
+
+**Measured:**
+- Top-view rule IoU (grid) per piece and frame, from the exported game GLBs: worst `newshi-43` f2 0.9541, every piece
+  >= 0.954 on both frames, the same as before (the plan did not change). Whole assembly (frame 2) 0.9799.
+  `assembly-newshi-154` (its own `--measure`): grid 0.9974; pieces 1.0 / 1.0 / 0.9892.
+- Heights: crown 31.5 at row 70, fittings below 33.6 (the hatch ring is the highest, about 32.7), belly -5,
+  154's crown at the cut 26.3, hub about 20.
+
+**In game:** a crown line along the axis and darker flanks at t2470; at t2380 the envelope runs on round into the bow
+instead of stepping down to a cap. The width-wise shading changed less than the shape: the game's sun is nearly overhead
+and the hemisphere and room lights fill the flanks, so within 36.5 px no section reaches the sprite's left-light /
+right-dark contrast (centre / right-flank luma 1.25 after, 1.23 before, on a band at row ~800 of the 1600x1200 capture).
+The side and 3/4 views change most: one egg from the duct to the bow tip.
+
+**Follow-ups:**
+- Thin ink slivers along the left outer meridian and at the centre rib near the cut show in the hit-flash frame
+  (t2380). They look like outline-shell faces on the steeper flank; not checked whether the shell or the rib sweeps.
+- The bow's battens stand slightly off its steeper forward slope near the rim (3/4 low view); the bow's belly edge is lumpy
+  from low angles (an underside, rule 3).
+- The 115 / 154 brightness step at the cut is the sprite's own darker bow paint (D144's ramp), kept by rule 1.
+
+Captures (before | after): `tyrian-scratch/blimp-round/{before,after}/g{2380,2470}_tilted.png`, crops
+`cmp_{2380,2470}_crop.png`, Blender 3/4 and side `{before,after}/combo/` (not in git, D3).

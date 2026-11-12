@@ -1,8 +1,10 @@
 """SAVARA airship, front half (newshi.shp, assembly-newshi-115, 14 pieces): blueprint-led.
 
-User correction: this is a BLIMP. The tail cap is assembly-newshi-154 (the egg's south end: enemies
+User correction: this is a BLIMP. Its south end is assembly-newshi-154 (the egg's south end: enemies
 87-89 of the same formation, drawn on the same ground pass right under this assembly's last row), a
-separate enemy object; this envelope tapers into its cut section.
+separate enemy object; D144 found that end is the BOW (the formation drifts south), so the ducted
+propeller here is a pusher at the stern. This script still says "nose" for the propeller end and
+"tail" for the cut at row 112 (names only). The envelope's profile runs on into 154's (D153).
 
 A hard-surface rebuild in the player ships' style (D50-D53, D65), its top-view edge on the INNER
 edge of the sprite's ink (D74). Engineering read, cross-sections first:
@@ -10,12 +12,14 @@ edge of the sprite's ink (D74). Engineering read, cross-sections first:
   envelope  a closed gas envelope floating above the water: elliptical sections (round above and
            below the equator), the plan the sprite's egg (pchip widths from the sprite's inner
            mask: blunt nose at row 28.6, 33.45 px half width from row 65), heights proportional to
-           the half width ahead of the crown (an ellipsoidal nose), crown highest at row 70. Fix
-           round 5: 36.5 px high on the crown (z -5 .. 31.5: the belly just over the water, the crown
-           just over the player's shots and under the player's ship, 0.55 of the width), the tail
-           tapering top and bottom into newshi-154's own cut section at row 112 (z 0 .. 14.2, its
-           equator 3.4 up). Meridian seams (the sprite's light lines) above and below the equator,
-           converging toward the tail; two latitude panel joints round the whole section; a riveted
+           the half width ahead of the crown (an ellipsoidal nose), crown highest at row 70. D153:
+           36.5 px high on the crown (z -5 .. 31.5: the belly just over the water, the crown
+           just over the player's shots and under the player's ship), the equator level at z 6 so
+           the upper half is 0.76 of the half width (soft superellipses, exponent 1.6: a crown line,
+           steep flanks), the
+           long profile a quarter ellipse from row 70 to the bow tip in newshi-154 (row 139.45),
+           which continues the same sections past the cut at row 112. Meridian seams (the
+           sprite's light lines) above and below the equator, converging toward the tail; two latitude panel joints round the whole section; a riveted
            joint flange before the tail cut, where newshi-154 carries the envelope on.
   propeller a tilted nose fan (a vectoring propeller): hub housing and spinner on the nose tip,
            thrust axis forward and down (the disc rises TILT px per row toward the screen top, so
@@ -85,7 +89,7 @@ def mx(x):
 # ---------------------------------------------------------------------------------------------
 SLOTS = [
     # name, palette index, metallic, roughness, emission
-    ("dome", 8, 0.18, 0.34, 0),
+    ("dome", 8, 0.0, 0.26, 0),   # D153: a glossier fabric skin (dielectric), a soft sheen on the crown
     ("rib", 9, 0.18, 0.36, 0),   # fix round 6: the seams sit on the sprite's light lines (9)
     ("collar", 5, 0.15, 0.46, 0),
     ("seam", 6, 0.16, 0.40, 0),
@@ -346,30 +350,38 @@ WS_ST = [(y, w) for y, w in W_ST if y <= 58.0] + [(62.0, 32.75), (70.0, 33.45), 
                                                   (109.0, 31.4), (112.0, 30.6)]
 _wsf = pchip([a for a, _ in WS_ST], [b for _, b in WS_ST])
 # Blimp redesign (user correction: it is an airship). The envelope is a closed, floating body: its
-# plan exactly the sprite's egg (widest at the equator), its sections ellipses about an equator that
-# runs level under the crown and drops toward the tail. Heights, fix round 5 (the review: too flat):
-# the belly goes down to just above the water (5.4 px under the model's origin: the ground-enemy pass
-# is 0.45 units up) and the crown up to 31.5 px, just over the player's shots (2.9 units, 29.4 px
-# over the origin) and under the player's ship (3.3 units, 34.2 px); the dorsal fittings stay under
-# 33.5. That is 36.5 px of height on the crown's 66.9 px width (0.55; 0.6 would need 40 px, into the
-# ship's pass or the water). The tail tapers top and bottom into the tail cap, assembly-newshi-154
-# (enemies 87-89, the same formation, drawn on the same ground pass right under this assembly's last
-# row): at the cut (row 112, 154's top edge) the section is 154's own cut section, a dome from z 0 (its flat
-# underside) to 14.2 on the axis, its equator 3.4 up (measured from public/models/enemies/newshi-15x).
-ZC = 13.25         # envelope axis height under the crown (sprite px above the model origin)
-HMAX = 18.25       # envelope half height at the crown (row 70); half width there 33.45
-NXS = 2.0          # section superellipse exponent
-NXS_U = 1.8        # fix round 6: the upper half a little rounder over the crown (less flat top, so the
-                   # game light falls off across the width as the sprite's shading does)
+# plan exactly the sprite's egg (widest at the equator), its sections ellipses about a level equator.
+# Height budget (fix round 5, kept by D153): the belly goes down to just above the water (5.4 px under
+# the model's origin: the ground-enemy pass is 0.45 units up) and the crown up to 31.5 px, just over
+# the player's shots (2.9 units, 29.4 px over the origin) and under the player's ship (3.3 units,
+# 34.2 px); the dorsal fittings stay under 33.6. That is 36.5 px of height on the crown's 66.9 px width.
+# D153: the height stays (belly -5, crown 31.5), the equator goes down to ZC = 6, so the half the
+# game camera sees is 25.5 px tall on the 33.45 px half width (0.76, was 0.55), and its sections are
+# soft superellipses (|u|^1.6 + |v|^2 = 1, a little fuller than an ellipse toward the crown line, never
+# a flat top): the flanks fall away steeply from a crown on the centre line and the game's light grades
+# across the width (lit crown, dark flanks) as the sprite's shading does. The belly is the shallower
+# half (11 px deep, a true ellipse: a plausible closed shape, art rule 3).
+ZC = 6.0           # envelope axis (equator) height (sprite px above the model origin)
+HMAX = 25.5        # envelope upper half height at the crown (row 70); half width there 33.45
+HLOW = 11.0        # envelope lower half depth at the crown (the belly at -5)
+NXS = 2.0          # section exponent, lower half (a true ellipse)
+NXS_U = 1.6        # section exponent, upper half (D153)
 SEC_M = 0.5        # section exponent: 0.5 = a true ellipse, round above and below the equator
 Y_CROWN = 70.0     # the egg's crown (the sprite's highlight ellipses centre near row 70)
 TR_HALF, TR_DEPTH, TR_END = 4.0, 2.4, 45.0
 Y_END = 112.0      # the cut where the tail cap (assembly-newshi-154) continues the envelope
-# along the body (rows): equator height, upper half height, lower half depth
-_PR_Y = [20.0, 76.0, 88.0, 98.0, 106.0, 112.0, 114.0]
-_zcf = pchip(_PR_Y, [ZC, ZC, 12.2, 9.4, 6.2, 3.4, 3.4])
-_huf = pchip(_PR_Y, [HMAX, HMAX, 17.6, 15.6, 13.0, 10.8, 10.8])
-_hlf = pchip(_PR_Y, [HMAX, HMAX, 17.2, 13.2, 7.6, 3.4, 3.4])
+# D153 (rounder envelope, same height): the long profile is an egg's, the crown highest at row 70 and
+# falling as a quarter ellipse to the bow tip inside assembly-newshi-154 (Y_TIP), which carries the same
+# profile on (its cut section is this envelope's at row 112). The axis is level at ZC all the way.
+Y_TIP = 139.45     # the bow tip (assembly-newshi-154's plan point, its row 27.45 = this assembly's 139.45)
+
+
+def egg_k(y):
+    """The long profile behind the crown: 1 at row 70, a quarter ellipse to 0 at the bow tip."""
+    if y <= Y_CROWN:
+        return 1.0
+    t = min(1.0, (y - Y_CROWN) / (Y_TIP - Y_CROWN))
+    return math.sqrt(max(0.0, 1 - t * t))
 
 
 def dome_w(y):
@@ -388,17 +400,17 @@ def nose_k(y):
 
 
 def env_c(y):
-    return float(_zcf(min(max(y, 20.0), 114.0)))
+    return ZC
 
 
 def env_u(y):
     """Envelope upper half height at row y."""
-    return float(_huf(min(max(y, 20.0), 114.0))) * nose_k(y)
+    return HMAX * nose_k(y) * egg_k(y)
 
 
 def env_l(y):
     """Envelope lower half depth at row y."""
-    return float(_hlf(min(max(y, 20.0), 114.0))) * nose_k(y)
+    return HLOW * nose_k(y) * egg_k(y)
 
 
 def dome_h(y):
@@ -1359,15 +1371,18 @@ def build_lower_guard(P):
     band) and curves in under the nose, below the envelope, to meet under the bow, where it rides on
     the belly (its strut). The blades' lower half lies inside the envelope's bow; the tips that show
     beside the nose turn inside this ring."""
-    path = [(25.8, 28.4, ZC + 0.6), (25.8, 30.0, ZC - 3.2), (25.8, 32.5, ZC - 6.8), (25.9, 35.5, ZC - 9.8),
-            (26.8, 38.8, ZC - 12.6), (30.0, 41.8, ZC - 14.4), (34.5, 44.0, ZC - 15.4), (41.0, 45.4, ZC - 15.8),
-            (AX, 45.8, ZC - 15.9)]
+    # D153: the drop scaled so the ring meets the (shallower) belly 0.9 px under it, as before
+    zb = lower_z(AX, 45.8)
+    kg = (ZC - zb + 0.9) / 15.9
+    path = [(25.8, 28.4, 0.6), (25.8, 30.0, -3.2), (25.8, 32.5, -6.8), (25.9, 35.5, -9.8),
+            (26.8, 38.8, -12.6), (30.0, 41.8, -14.4), (34.5, 44.0, -15.4), (41.0, 45.4, -15.8),
+            (AX, 45.8, -15.9)]
+    path = [(x, y, ZC + (dz if dz > 0 else dz * kg)) for x, y, dz in path]
     full = path + [(mx(x), y, z) for x, y, z in reversed(path[:-1])]
     st = [(x, y, z, 0.95, 0.95) for x, y, z in full]
     sweep(P, st, S["hoop"], prof=round_prof(12))
     # saddle where it rides on the belly
-    zb = lower_z(AX, 45.8)
-    block(P, AX - 2.2, AX + 2.2, 45.0, 46.6, ZC - 16.4, zb + 0.6, S["mount"], ch=0.3)
+    block(P, AX - 2.2, AX + 2.2, 45.0, 46.6, ZC - 16.4 * kg, zb + 0.6, S["mount"], ch=0.3)
 
 
 # ---------------------------------------------------------------------------------------------
