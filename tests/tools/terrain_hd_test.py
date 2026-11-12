@@ -309,5 +309,27 @@ class RimFix(unittest.TestCase):
         self.assertLess(change, 0.5)
 
 
+class SmoothFill(unittest.TestCase):
+    """smooth_fill (D154): a soft rim's colour from the core round it, without nearest-fill streaks."""
+
+    def test_a_dark_speck_on_the_core_edge_makes_no_streak(self):
+        h = w = 96
+        rgb = np.full((h, w, 3), 200, np.float32)
+        keep = np.zeros((h, w), np.float32)
+        keep[:, :48] = 1
+        rgb[46:50, 44:48] = 20  # a dark brush stroke right on the core's edge
+        out = th.smooth_fill(rgb, keep)
+        np.testing.assert_array_equal(out[:, :48], rgb[:, :48])  # the core is kept as it is
+        nearest = th.bleed(rgb, keep)
+        rim = slice(60, 48 + 28)  # the texels a 14-texel ramp outside a 12-texel inset shows
+        self.assertLess(nearest[48, rim].mean(), 30)  # the nearest fill drags the stroke out as a streak
+        self.assertGreater(out[48, rim].min(), 170)  # the smooth fill only dims it near the core
+        self.assertLess(np.abs(out[:, rim] - 200).max(), 30)
+
+    def test_an_empty_core_falls_back(self):
+        rgb = np.random.default_rng(1).uniform(0, 255, (16, 16, 3)).astype(np.float32)
+        np.testing.assert_array_equal(th.smooth_fill(rgb, np.zeros((16, 16))), rgb)
+
+
 if __name__ == "__main__":
     unittest.main()

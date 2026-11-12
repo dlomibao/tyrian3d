@@ -6976,3 +6976,50 @@ The side and 3/4 views change most: one egg from the duct to the bow tip.
 
 Captures (before | after): `tyrian-scratch/blimp-round/{before,after}/g{2380,2470}_tilted.png`, crops
 `cmp_{2380,2470}_crop.png`, Blender 3/4 and side `{before,after}/combo/` (not in git, D3).
+
+## D154 — SAVARA's cloud edges without dark dashes: the soft rim takes a smooth average of the cloud's colour, not its nearest texel (follows D132)
+
+2026-11-11
+
+**Problem** (QA round 3, issue 12's remainder, `tyrian-scratch/e1-qa-3/crops/1.8_t1050_cloud_r2r3.png`): dark specks and
+dashes ran along the feathered edge of SAVARA's layer-2 clouds (1.8, 1.12, 1.17). They are in the atlas's colour, not in
+the alpha or the shader:
+- D132's `--rim-inset` keeps the colour of the cloud's core (12 texels in from the old edge) and fills the soft rim
+  outside it with `bleed`, a nearest-texel fill.
+- Nearest fill copies each texel on the core's edge straight outwards. So every dark brush stroke Gemini painted on
+  that edge, and the original's dark outline where the inset didn't clear it, became a dark streak across the soft
+  edge, at right angles to it.
+- At 4K they read as dashes, at 1080p as specks.
+
+**Decision** (`tools/terrain_hd.py`):
+- `smooth_fill` fills the rim with normalised Gaussian averages of the core's colour at 3 to 48 texels. Each finer scale
+  takes over where at least a quarter of its window is core, so near the core the rim takes the local colour, and
+  further out a broader one. Nearest fill stays the fallback for texels no scale reaches. The core is kept byte for byte.
+- The fill is per tile, so where a soft edge crosses a tile edge the two sides could differ. After it, the colour
+  seams are solved again over the levels' tile pairs (`solve_strips`, `apply_strips`, as the cut does).
+- *The atlas:* `shapesy` layer 2 (`2.webp`) is redone from D107's atlas (the commit before D132) with D132's command
+  and a deeper inset: `realpha --layers 2 --alpha-ramp 14 --rim-inset 24`. With the smooth fill, 24 texels clears the
+  original's dark outline band that 12 left in places. The contour, alpha and ramp are D132's.
+- Layer 1, the other tilesets and the shader are unchanged.
+
+**Measured:**
+- `check`, layer 2 (1482 tile edges), main → this:
+  - texel step across tile edges against inside: ratio 2.566 → 0.953 (where the original is continuous 2.3 → 0.943);
+  - 8-texel band: ratio 0.95 → 0.84 (PLAYBOOK: about 0.85 for clouds).
+- Atlas: 177 → 160 KB.
+- *In game* (`?debug=play&episode=1&main=29|10&seed=1&skip=T&freezeAt=T`, 1.12 with `&hard=1`, level file 12 confirmed;
+  4K and 1080p, t300 and t1050):
+  - 1.8: the dashes along the cloud edges are gone, and the edge is a soft, even fade into the sea. One small dark
+    speck remains at a cloud's lower left at t1050 (the painting's own).
+  - 1.12: at these ticks only a small cloud shows, and it is unchanged.
+
+**Options considered:**
+- *A shader change* (a higher discard threshold, or premultiplied alpha): the dark colour is inside the rim's visible
+  alpha, not in the transparent texels, so filtering is not the cause.
+- *The nearest fill with a deeper inset only:* the streaks move outwards but stay, as the core's edge still has
+  dark strokes.
+
+**Review:** `tyrian-scratch/e1-polish-final/clouds/` (not in git, D3):
+- `before/`, `after/`, `crops/`;
+- `realpha/root24s` (this atlas), `realpha/rootpre` (D107's), `realpha/repro` (the reproduction from it);
+- `realpha/chk_*` (`check` for this branch and for main).
