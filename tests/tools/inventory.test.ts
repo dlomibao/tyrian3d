@@ -55,6 +55,12 @@ describe.skipIf(!hasData("levels1.dat", "tyrian1.lvl", "tyrian.hdt", "tyrian.shp
       expect(units.get(id)?.knownDamageSwap, id).toBeUndefined();
     }
 
+    // Sidekick shots are the sidekick's wpNum weapon (D172): the Warfly's diamond (#7 50, 51) and the
+    // Gerund's missiles (#7 48), both sold in episode 1 and flown in the title demos; the Charge
+    // Cannon's three charge levels (#7 252-254).
+    const shotIds = new Set(inv.shots.map((s: { id: string }) => s.id));
+    for (const f of [48, 50, 51, 252, 253, 254]) expect(shotIds.has(`tyrian.shp#7|1|${f}`), String(f)).toBe(true);
+
     expect(renderMarkdown(inv)).toContain("| 1.9 | TYRIAN |");
   }, 120000);
 });

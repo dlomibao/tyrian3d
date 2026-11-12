@@ -271,7 +271,8 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
 - **Inputs:** an inventory of the sprites a level actually draws: play it headless with the bot over
   every weapon/power/sidekick the shops of that episode sell, plus arcade mode for orbs and capsules,
   and record each draw's sheet id and index (D43 "Inventory"; the recorder used then is not in
-  `tools/`, so the first agent writes one, or uses `tools/inventory.mjs` if it covers draws). Check it
+  `tools/`, so the first agent writes one, or uses `tools/inventory.mjs` if it covers draws; its
+  "Shots without flat art" table lists what is left, D172). Check it
   against the enemies' turret weapons.
 - **Steps:** add the level's families to `SHEET_GROUPS` in `flat_art.py` → `sheets` (at most 12 cells
   of 256 px, mirrored pairs share a cell) → Gemini one at a time (lock) → `cut --check` → contact
@@ -289,6 +290,9 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
   per frame; paint it (D56). Gemini adds glow → the cutter keeps only the brightest pixels the sprite
   covers. Wide strips refused → keep sheets near a supported aspect. Palette fades don't reach the
   art (by design, D42).
+  A painting paler, more orange or darker than its sprite (fire painted white, a tan cube grey) → list it in
+  `tools/flat_art_recolour.json` and run `flat_art.py recolour --only SHEET:INDEX` once (the sprite's palette
+  ramp, D172; `cut` reapplies the file). Beam pieces stacked edge to edge (Zica Laser) → its `joins`.
 - **Cost/time:** level 1's 179 frames came from 11 sheets (D43); no workflow run log exists for it
   (done in the main loop). Budget ~12 Gemini requests per episode's new families, plus retries.
 
