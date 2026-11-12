@@ -77,6 +77,10 @@ CX0, CY0 = 185, 24
 EYE = "newsh4-1"
 EYE_MODELS = [("newsh4-1", [1, 3]), ("newsh4-1-f2", [5, 7, 39]), ("newsh4-1-f3", [41, 43, 45])]
 TAG = "nsh4"
+# Damaged frames that show the same picture as the normal one (280 = 128; 242 = 90 but for five
+# pixels of one edge): drawn with the normal model. The other damaged frames have models of their
+# own (assembly-newsh4-124-damaged.py).
+EXTRA_FRAMES = {"newsh4-128": [280], "newsh4-90": [242]}
 EX, EY, EZ = 60.5, 51.0, 7.4  # the eye's centre in its socket (px)
 AX = 60.5  # mirror axis (centre of pixel column 60), in pixel-edge x
 W, H = 120, 112
@@ -1335,12 +1339,13 @@ def _cycles(samples):
         print(f"{NAME}: no GPU bake", err)
 
 
-def bake_piece(obj, out_dir, size=512, samples=48):
+def bake_piece(obj, out_dir, size=512, samples=48, colour_mul=None):
     """usp_talon.bake_maps for one piece: Smart UV, Cycles bake of an occlusion/edge colour
     multiplier and a roughness/metallic map (the other pieces stay in the scene, so the occlusion
     runs on across the cuts), wired into the piece's own copies of its palette materials (Base
     Color = map x palette colour; the game swaps the palette colour in). Emissive slots stay plain.
-    No concept projection."""
+    No concept projection. `colour_mul(node_tree, new_node)`, if given, returns a socket the colour
+    map is multiplied by (assembly-newsh4-124-damaged.py's scorch)."""
     me = obj.data
     uv = me.uv_layers.new(name="bake")
     me.uv_layers.active = uv
@@ -1413,6 +1418,8 @@ def bake_piece(obj, out_dir, size=512, samples=48):
         if mode == "colour":
             v = math_("MINIMUM", math_("ADD", math_("ADD", 0.48, math_("MULTIPLY", occl, 0.62)),
                                        math_("MULTIPLY", edge, 0.2)), 1.0)
+            if colour_mul is not None:
+                v = math_("MULTIPLY", v, colour_mul(nt, node))
             nt.links.new(v, em.inputs["Color"])
         else:
             r = math_("ADD", rough, math_("SUBTRACT", math_("MULTIPLY", math_("SUBTRACT", 1.0, occl), 0.3),
@@ -1610,7 +1617,8 @@ def main():
             data = common.load_sprite(ROOT, name)
             extra = [shells[name]] if name in shells and len(shells[name].data.polygons) else []
             if name != EYE:
-                common.export_sprite_model(ROOT, [pieces[name]] + extra, f"enemies/{name}", data["sprites"],
+                sprites = [dict(s, frames=s["frames"] + EXTRA_FRAMES.get(name, [])) for s in data["sprites"]]
+                common.export_sprite_model(ROOT, [pieces[name]] + extra, f"enemies/{name}", sprites,
                                            image_format=fmt)
                 continue
             for model, frames in EYE_MODELS:

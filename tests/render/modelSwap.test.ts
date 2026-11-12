@@ -31,7 +31,8 @@ const REPORT = process.env.MODEL_SWAP_REPORT === "1";
 /**
  * Level 1's enemies whose damaged frames have no model while their normal frames do, so they turn
  * from model to sprite when damaged (`sheet|size|enemy type: damaged frames (normal frames)`). Too
- * many to model here (19 damaged pieces); each needs its own damaged model (D54 lists them).
+ * many to model here; each needs its own damaged model (D54 lists them). The level-1 boss's
+ * (newsh4.shp) have theirs (assembly-newsh4-124-damaged.py).
  */
 const KNOWN_DAMAGE_SWAPS = [
   // The rocks of newshe.shp: shot away, each shows the blue beneath.
@@ -41,20 +42,6 @@ const KNOWN_DAMAGE_SWAPS = [
   "newshe.shp|2|525: damaged frames 45 (normal 39)",
   "newshe.shp|2|526: damaged frames 47 (normal 41)",
   "newshe.shp|2|527: damaged frames 49 (normal 43)",
-  // The pieces of a large multi-part enemy (newsh4.shp): their battle-damaged frames.
-  "newsh4.shp|2|46: damaged frames 162 (normal 10)",
-  "newsh4.shp|2|47: damaged frames 164 (normal 12)",
-  "newsh4.shp|2|49: damaged frames 168 (normal 16)",
-  "newsh4.shp|2|50: damaged frames 170 (normal 18)",
-  "newsh4.shp|2|51: damaged frames 200 (normal 48)",
-  "newsh4.shp|2|52: damaged frames 202 (normal 50)",
-  "newsh4.shp|2|54: damaged frames 206 (normal 54)",
-  "newsh4.shp|2|55: damaged frames 208 (normal 56)",
-  "newsh4.shp|2|57: damaged frames 240 (normal 88)",
-  "newsh4.shp|2|58: damaged frames 242 (normal 90)",
-  "newsh4.shp|2|59: damaged frames 244 (normal 92)",
-  "newsh4.shp|2|60: damaged frames 246 (normal 94)",
-  "newsh4.shp|2|63: damaged frames 280 (normal 128)",
 ];
 
 type Look = "model" | "flat" | "sprite" | "mixed" | "none";
