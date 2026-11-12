@@ -1,0 +1,16 @@
+{
+ "model": "sidekicks/wobbley",
+ "sprites": [
+  {
+   "sheet": "tyrian.shp#8",
+   "size": 1,
+   "frames": [
+    246,
+    265,
+    284,
+    303
+   ],
+   "ungrouped": true
+  }
+ ]
+}

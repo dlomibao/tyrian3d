@@ -1,0 +1,15 @@
+{
+ "model": "sidekicks/vulcan-shot-option",
+ "sprites": [
+  {
+   "sheet": "tyrian.shp#8",
+   "size": 1,
+   "frames": [
+    167,
+    186,
+    205
+   ],
+   "ungrouped": true
+  }
+ ]
+}

@@ -1,0 +1,16 @@
+{
+ "model": "sidekicks/phoenix-device",
+ "sprites": [
+  {
+   "sheet": "tyrian.shp#8",
+   "size": 1,
+   "frames": [
+    171,
+    190,
+    209,
+    228
+   ],
+   "ungrouped": true
+  }
+ ]
+}

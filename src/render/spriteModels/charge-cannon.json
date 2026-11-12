@@ -1,0 +1,21 @@
+{
+ "model": "sidekicks/charge-cannon",
+ "sprites": [
+  {
+   "sheet": "tyrian.shp#8",
+   "size": 1,
+   "frames": [
+    258,
+    259,
+    260,
+    277,
+    278,
+    279,
+    296,
+    297,
+    298
+   ],
+   "ungrouped": true
+  }
+ ]
+}

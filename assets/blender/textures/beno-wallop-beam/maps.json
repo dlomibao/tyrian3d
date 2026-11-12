@@ -1,0 +1,8 @@
+{
+ "name": "beno-wallop-beam",
+ "sprite_size": [
+  24,
+  28
+ ],
+ "bake": "model"
+}

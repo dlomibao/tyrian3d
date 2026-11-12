@@ -1,0 +1,13 @@
+{
+ "model": "sidekicks/companion-ship-quicksilver",
+ "sprites": [
+  {
+   "sheet": "tyrian.shp#9",
+   "size": 2,
+   "frames": [
+    47
+   ],
+   "ungrouped": true
+  }
+ ]
+}

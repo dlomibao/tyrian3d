@@ -1,0 +1,13 @@
+{
+ "model": "sidekicks/protron-cannon-indigo",
+ "sprites": [
+  {
+   "sheet": "tyrian.shp#9",
+   "size": 2,
+   "frames": [
+    45
+   ],
+   "ungrouped": true
+  }
+ ]
+}
