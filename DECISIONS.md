@@ -7055,3 +7055,173 @@ not checked whether the host plays it.
 Tests: `tests/app/secretLevel.test.ts` (null at 0, the text and place above 0, the pulse colours, and miscText[59]
 from the data). Captures: `tyrian-scratch/secret-level-text/` (`before_secret.png` the warp pickup before,
 `after_secret_e{20,23}.png` two pulse phases, `after_powerup*.png`), not in git (D3).
+
+## D156 — The player ship's wear loses its orange embers: scorch only, at every level (amends D90)
+
+2026-11-12
+
+**Problem:** at very low armour the player ship turned orange. The user wants the damage kept and the orange
+dropped.
+- **The cause:** D90's heavy level (armour under 25%) set `HOT` = 1 (`src/render/damage/shipDamage.ts`), and the
+  ship mode of the damage shader (`damageShader.ts`, `FRAGMENT_COLOUR`) turned that into ember glow on the wear
+  pattern's `b` channel: `m.b = s * smoothstep(0.6, 0.9, b) * uDmgHot * 1.5`, which the shared ember term draws as
+  emissive `vec3(1.0, 0.3, 0.05) * m.b * 1.2`. Over half the scorched hull that reads as orange patches.
+- The light level (under 50%) never had embers, so it looked the same before and after.
+
+**Decision:** the player ship's wear is scorch only, at every level:
+- `HOT`, `ShipCondition.hot` and the `uDmgHot` uniform are gone; ship mode writes `m.b = 0`, so no ember is drawn.
+  The wear pattern no longer makes its ember channel.
+- The scorch is unchanged: the same blotch pattern, `COVER` 0.28 / 0.55, the thresholds, hysteresis and fade of D90.
+- **Enemies are unchanged.** Their damaged frames (D87, D128) keep their embers: those come from the damaged
+  sprite's own pixels that turned red-orange (`mask.b`, damageFrames.ts) and from the charred rim of a cut, so
+  they are the original art's. The ship mode is a separate branch of the shader (`uDmgCover >= 0`).
+
+**Checked:** `?debug=play&episode=1&main=3&seed=1&skip=150&freezeAt=150&solid=1&camera=overhead&steer=right`, the
+Talon (`&ship=1`, maximum 10) at full, `&armor=4` and `&armor=2`, and the Gencore Phoenix (`&ship=3`, maximum 17)
+at full, `&armor=7` and `&armor=3`, before and after: the orange patches at the heavy level are gone, the dark
+scorch stays. Sheet: `tyrian-scratch/user-batch-1/wear-sheet.png` (not in git).
+
+Tests: `tests/render/shipDamage.test.ts` (the condition eases its coverage only).
+
+## D157 — The host plays the songs a level asks for: Zanac on the secret-level warp, event 35's songs, event 34's fade (resolves D155's "not done")
+
+2026-11-12
+
+**Problem:** picking up a secret-level warp plays the Zanac jingle in the original (`play_song(30)`, mainint.c
+L4701). In the port that line was a comment, and more than that was missing: no song the sim asked for during a
+level was ever played. `play_song` records the song in `g.song` ("audio watches it"), but `run.ts`'s level loop
+only played the level's song at the start. So event 35's "Play new song" (the boss songs: 22 levels of episodes
+1-4, e.g. episode 1 levels 5, 8, 9, 12, 15-18) and event 34's fade before it were silent too. JE_main's music
+block (tyrian2.c L997-1018) was not ported either.
+
+**Decision:** `src/app/levelMusic.ts` `LevelMusic`, ticked after each `tick()` in `run.ts`'s level loop, through
+the game's `MusicSwitch`, so a song plays in the selected style (FM original or a remaster, D38, D40):
+- **A new `g.song` is played.** mainint.ts now calls `play_song(30)` on the warp, as the C. Event 35's songs play
+  the same way. A song equal to the one last played isn't sent again.
+- **JE_main L1015-1018:** `!playing && firstGameOver` starts the level's song again (`play_song(levelSong - 1)`).
+  ZANAC3 doesn't loop (5.3 s in both remaster styles), so after the jingle the level's song restarts from its top,
+  as in the C (play_song of a different song reloads it).
+- **Event 34's fade (L997-1008):** while `g.musicFade` holds, the volume steps down one of OpenTyrian's 255 steps
+  per tick from the music volume setting, to no lower than 10. Event 35 clears it and the volume goes back to the
+  setting. A fade still under way when the level ends gives the volume back.
+- **Level change:** unchanged. The level-end screen plays song 9 (L1010-1014, the host's) and the next level's start
+  plays its own song (start_level's `play_song(levelSong - 1)`).
+- The pause screen still lowers the music to 30%. During a fade, the next tick sets the faded volume again.
+
+**Debug:** the play harness has no audio. It runs the same `LevelMusic` on a logging player,
+`tyrianHarness.music` (`plays`: [song, tick]; set `playing = false` to end a song).
+
+**Checked:** `?debug=play&episode=1&main=4&seed=1` (ASTEROID2). The script steps to the warp (type 593, value
+10022), moves it onto the ship and steps on:
+- `plays` gains [30, …] at the pickup;
+- ending the jingle (`playing = false`) plays the level's song 1 again;
+- the level ends into MINEMAZE (section 22), whose song 22 plays.
+
+Log: `tyrian-scratch/user-batch-1/zanac-harness.json`. Not checked by ear in the real game.
+
+Tests:
+- `tests/sim/player.test.ts`: the warp sets `g.song` = 30 once (`bonusLevel`), with `nextLevel` and `displayTime`.
+- `tests/app/levelMusic.test.ts`: the level's song isn't played again; Zanac, then the level's song when it ends;
+  only while `firstGameOver`; the fade's steps, floor and reset by event 35; the volume given back at the level's
+  end.
+
+## D158 — `?compare=1`: the original and the remaster side by side, one game driving both (debug comparison)
+
+**Decision:** with `?compare=1` (the game, and `?debug=play&...&compare=1`), in-level play shows the original's
+look on the window's left half and the remaster on the right, both drawn from the same tick's draw list. There is one
+sim and one input, so the two halves are in step by construction (no second game kept in lockstep).
+
+- **Left, the original:** `src/render/classic/classicRenderer.ts` replays each draw list onto a 320x200 indexed
+  screen with the C's pixel rules (sprite.c's blit_sprite2 / _blend / _darken / _filter, blit_sprite / _blend /
+  _dark / _hv, background tiles, superpixels, rectangles), the smoothie filters (lava, water, iced, blur), JE_barBright,
+  JE_filterScreen's hue and value, and JE_starShowVGA's copy of the playfield (normal, flipped, headlight).
+  `classicHud.ts` draws the HUD from the game's state each tick: picture 3, the shield/armour bars (JE_dBar3), the
+  weapon pips, the power bar, the rear-mode lamps, the sidekick boxes, the message bar, and on the playfield the
+  score, boss bars, special weapon, superbombs and the secret-level banner. `src/app/compareView.ts` shows it in a
+  pixelated canvas over the left half.
+- **Right, the remaster:** the Hud's frame and the 3D view laid out in the right half (the frame: a left inset of half
+  the window in `hudLayout`; the minimal HUD: the view's viewport and the HUD root in the right half). It keeps the
+  player's options (camera, interface, looks).
+- **A debug aid, not a second port:** close enough to compare the looks, not pixel-exact (unclipped blits clip
+  instead of wrapping; the three blit_sprite_hv variants are drawn alike; one-player HUD only; the C's palette fades
+  are not applied). It uses the game data's own art, already loaded to play; it is meant for the debug build on
+  lomibao.net.
+
+Checked in the harness on TYRIAN and SAVARA, framed and minimal HUD (`tyrian-scratch/compare-view/*.png`, not in git).
+Test: `tests/render/classicRenderer.test.ts` (a smoke test, by request).
+
+**Later (user request, 2026-11-12):** while a menu is open over the level (the pause screen, its Options, the debug console), the original's half is hidden so the menu uses the whole window; it comes back when play resumes (`hold()` in `src/app/run.ts`).
+
+## D159 — The screen filters' programs are warmed with the level: the Soul of Zinglon's first beam no longer stalls (extends D91)
+
+2026-11-12
+
+**Problem:** on DELIANI the game froze for a moment when the player picked up the Soul of Zinglon.
+- **What happens at the pickup:** the pickup (enemy 831, value 32103) sets `items.special` = 3 and
+  `shotRepeat[SHOT_SPECIAL]` = 10. With fire held, the special fires 10 ticks later: the Zinglon blast. The blast's
+  JE_barBright columns put `drawList.screen` into the draw list (smoothies.ts).
+- **Why that froze:** with `drawList.screen` set, `View.renderFrame` draws the scene through `ScreenFilterPass`,
+  into its half-float `sceneTarget` instead of the canvas. three keys every program by its target: a render target
+  gets linear output and no tone mapping (`WebGLPrograms.getParameters`, `outputColorSpace`/`toneMapping`). So every
+  material on screen needed a second program, and D91's warm-up had compiled only the canvas's.
+- **Not the cause:** the pickup's own sprite and art. The frame the pickup appears in, and the pickup frame itself,
+  compile and upload nothing.
+- **Where else:** the first filtered frame of any level (a smoothie level's first filter, a flare special's filter
+  with `stages`) paid the same.
+- **Measured** with D91's method (`tyrian-scratch/user-batch-1/tools/perfpick.mjs`, the dev server, headless Chrome on
+  the real GPU, 3024x1800):
+  - `?debug=play&episode=1&main=19&seed=1&skip=600&solid=1`, the pickup spawned by the ship (`tools/pickup.js`);
+  - the beam's first frame linked 15 programs: the models' and the flat art's linear variants, the outline
+    shell and hook, and the present quad;
+  - that frame took 2420, 2391 and 307 ms of main thread in three runs (load average 41-55 from other agents).
+- **And one more:** the explosions' stencil setter (D106) is made at the first explosion, so the warm-up never saw it.
+  That cost one program at the first explosion (canvas), and again at the first filtered frame (target).
+
+**Decision:**
+- **The warm-up compiles both targets.** For each warm-up state, `View.warmUp` compiles the main and outline
+  passes for the canvas and, in parallel, with the screen filters' scene target bound
+  (`ScreenFilterPass.compileFiltered`). It then draws one pixel into the target (`warmFiltered`: sizes and
+  allocates it) and compiles the filter and present quads.
+- **Late models** (`warmLate`) compile for both targets as well.
+- **The stencil setter is warmed too.** `SpriteArtLayer.warm` also makes each atlas's explosion batch, which makes
+  the stencilled material and the setter at the warm-up.
+- Not covered: the mask pass's override programs (smoothie levels only, not the Zinglon beam).
+
+**Measured after**, same runs: the beam's first frame links no program; the worst frame's main thread in the
+window from spawn to 2.5 s after the blast is 13 and 11 ms (was 2420 / 2391 / 307). Frames there that are longer with
+little JS are other agents' GPU load, as in before. Harness start (preload + warm-up) was 12.8-16.4 s before and
+13.2 s after, within that load's noise. Data: `tyrian-scratch/user-batch-1/zinglon-{before,after}-*.json`, summary
+`zinglon-summary.txt`. The beam still draws (`zinglon-beam-after.png`). A frame at DELIANI t700 is pixel-identical
+to main's (`zinglon-frame-{main,branch}.png`).
+
+**Where the Soul of Zinglon comes from on DELIANI:** not from the level's own drops in story mode. Its only event 45
+(t710) gives weapon 827 to enemies of link 10, in arcade and two-player only, and no event or enemy drop makes enemy
+831. The user may have had it from elsewhere (the shop, another level's random special, the console). The cause
+and the fix are the same whatever the source.
+
+Tests:
+- `tests/render/screenFilters.test.ts`: `compileFiltered` compiles with the scene target bound and puts the
+  previous target back.
+- `tests/render/spriteArt.test.ts`: the warm-up makes the explosion batch and the stencil setter.
+
+## D160 — Picture 8 (the skull on a horn) is a Gemini repaint of the original, reversing D19 for this picture
+
+2026-11-12
+
+**Decision:** `public/art/story_skull.webp` is now a Google Gemini (Nano Banana Pro) repaint of
+Tyrian's original picture 8, from a 4x softened copy of it, cropped from 16:9 to 16:10 and scaled to
+1920x1200 (198 KB). D19 had it redrawn in Blender from the game's models; that gave a brown
+ship-like shape on a spike, not the original's flayed alien skull with a glowing red eye, so the
+user asked for a Gemini repaint of the original instead. The file name, `pictures.json` entry and
+`]U 008` pan are unchanged. `assets/art/story_skull.py` stays as the old version, no longer the source.
+
+**Options considered:**
+- *Repaint the original with Gemini (chosen):* the composition, skull, horn, spine, planet and moon
+  match the original; same route D43 and D58 use for sprites and terrain.
+- *Keep the Blender redraw (D19):* ours to rebuild from scripts, but it doesn't show what the
+  original shows.
+
+**Review:** Derived from the original's artwork, credited in CREDITS.md like the other Gemini
+repaints; the input copy is not committed (art rule 6). The story panel sits where it did before and
+covers the skull's upper face while text is up.
+

@@ -30,6 +30,7 @@ import { PauseButton, showPause, type PauseChoice } from "./pause"; // ui-framew
 import { askForData, showMessage, showStatus, showTitle, type TitleChoice } from "./screens";
 import { runItemScreen } from "./shop";
 import { preloadLevelModels } from "./levelPreload";
+import { LevelMusic } from "./levelMusic";
 import { playAttractDemo } from "./attractDemo"; // [demos]
 import { TITLE_IDLE_MS } from "./idle"; // [demos]
 import { hasDemos, setNextDemo } from "../sim/demo"; // [demos]
@@ -50,6 +51,10 @@ import { gameOverLines, levelCompleteLines } from "./twoPlayer";
 // The debug console (D109): its hold on the game flow; the console itself loads on demand.
 import { consoleBridge, inPlace, installDebugConsole, showDebugConsole, takeConsoleJump } from "./consoleBridge";
 import { JE_initEpisode } from "../sim/episodes";
+import { CompareView, compareFromUrl } from "./compareView";
+
+/** D158: the side-by-side comparison's original half, with `?compare=1`. */
+let compareView: CompareView | null = null;
 
 /** OpenTyrian song numbers (0-based, as passed to play_song). */
 const SONG_TITLE = 29;
@@ -101,7 +106,9 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
   Object.assign(consoleBridge, { files, view, host: optionsHost }); // D109
   installDebugConsole();
   const controls = new Controls(() => view.gamePixelsPerScreenPixel);
-  const hud = new Hud(view);
+  // D158: `?compare=1`, the original side by side with the remaster, one game driving both.
+  const compare = (compareView = compareFromUrl() ? new CompareView(files) : null);
+  const hud = new Hud(view, compare !== null);
   hud.attachTouch((action, down) => controls.touchAction(action, down)); // the HUD's rear-mode and sidekick boxes on touch screens (D100)
   const hud2 = new TwoPlayerHud(); // [two-player]
   const pauseButton = new PauseButton(() => (controls.pauseRequested = true)); // ui-framework
@@ -134,7 +141,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
     if (demoNow !== null) {
       if (demoNow > 0) setNextDemo(demoNow);
       demoNow = null;
-      await playAttractDemo({ files, view, music, sfx, hud });
+      await playAttractDemo({ files, view, music, sfx, hud, compare });
     }
     music.play(SONG_TITLE);
     levelFade().set(0); // the title's backdrop draws under the level fade (port-story)
@@ -189,7 +196,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
     if (choice.demo) {
       // [demos] titleScreen returned with playDemo set; JE_main plays it, then back to the title.
       choice = { episode: choice.episode, difficulty: choice.difficulty };
-      await playAttractDemo({ files, view, music, sfx, hud });
+      await playAttractDemo({ files, view, music, sfx, hud, compare });
       continue;
     }
 
@@ -256,6 +263,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
       controls.clear();
       hud.visible = true;
       hud2.visible = true; // [two-player]
+      if (compare) compare.visible = true;
 
       // port-story: JE_main's fade_palette(colors, 50) (tyrian2.c L716). The C fades in before the
       // first frame; here the level starts under the fade.
@@ -271,6 +279,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
       controls.release();
       hud.visible = false;
       hud2.visible = false; // [two-player]
+      if (compare) compare.visible = false;
       pauseButton.visible = false; // ui-framework
 
       if (g.galagaMode) g.twoPlayerMode = false; // [two-player] start_level (tyrian2.c L597-598)
@@ -338,7 +347,9 @@ function playLevel(view: View, controls: Controls, sfx: SoundEffects, music: Mus
     b.leave = null;
     b.ticks = 0;
     b.openInLevel = () => (consoleRequested = true);
+    const levelMusic = new LevelMusic(music, () => musicLevel()); // D157: the songs the sim asks for
     const end = (outcome: Outcome) => {
+      levelMusic.end();
       b.place = "menu";
       b.openInLevel = null;
       view.draws.vfxTimeScale = 1;
@@ -353,8 +364,10 @@ function playLevel(view: View, controls: Controls, sfx: SoundEffects, music: Mus
       controls.active = false;
       music.volume = musicLevel(0.3); // [port-options] relative to the music volume setting
       pauseButton.visible = false; // restyle-polish: not over the pause screen
+      if (compareView) compareView.visible = false; // D158: menus use the whole window
       void screen().then((choice) => {
         paused = false;
+        if (compareView) compareView.visible = choice !== "quit";
         b.openInLevel = () => (consoleRequested = true);
         pauseButton.visible = choice !== "quit"; // restyle-polish
         quit = choice === "quit";
@@ -407,7 +420,9 @@ function playLevel(view: View, controls: Controls, sfx: SoundEffects, music: Mus
         const result = tick();
         b.ticks++;
         sfx.playQueue(g.soundQueue);
+        levelMusic.tick();
         view.setDrawList(drawList);
+        compareView?.draw(drawList);
 
         // GAME OVER: the C waits for any input, then ends the level (tyrian2.c L1990-2011).
         if (result.gameOver && controls.anyInput()) g.reallyEndLevel = true;

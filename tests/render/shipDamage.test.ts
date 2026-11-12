@@ -82,25 +82,23 @@ describe("ShipCondition", () => {
     for (let i = 0; i < 200; i++) c.update(10, 100, 0.05);
     expect(c.level).toBe(2);
     expect(c.cover).toBeCloseTo(COVER[2]);
-    expect(c.hot).toBeCloseTo(1);
     // A pickup to 60%: back to clean, eased.
     c.update(60, 100, 0.05);
     expect(c.level).toBe(0);
     expect(c.cover).toBeGreaterThan(0);
     for (let i = 0; i < 200; i++) c.update(60, 100, 0.05);
     expect(c.cover).toBe(0);
-    expect(c.hot).toBe(0);
     expect(c.damaged).toBe(false);
   });
 
   test("huge, zero and negative steps stay in range", () => {
     const c = new ShipCondition();
     c.update(0, 20, Infinity);
-    expect([c.cover, c.hot]).toEqual([COVER[2], 1]);
+    expect(c.cover).toBe(COVER[2]);
     c.update(0, 20, -5);
-    expect([c.cover, c.hot]).toEqual([COVER[2], 1]);
+    expect(c.cover).toBe(COVER[2]);
     c.update(30, 20, Infinity); // over the reference
-    expect([c.level, c.cover, c.hot]).toEqual([0, 0, 0]);
+    expect([c.level, c.cover]).toEqual([0, 0]);
     c.update(5, 0, Infinity); // no reference
     expect(c.damaged).toBe(false);
   });

@@ -8,7 +8,10 @@
 //
 //   level 0 (clean)  ratio >= LIGHT
 //   level 1 (light)  ratio <  LIGHT: a light scorch
-//   level 2 (heavy)  ratio <  HEAVY: heavier scorch and embers
+//   level 2 (heavy)  ratio <  HEAVY: heavier scorch
+//
+// Scorch only: no ember glow at any level. The heavy level's orange embers read as the whole ship
+// tinting orange at low armour, and the user wanted only the damage (D156).
 //
 // Going down a level happens as soon as the ratio is under the threshold; going back up needs the
 // ratio HYSTERESIS above it, so armour hovering at a threshold doesn't flicker. A pickup that jumps
@@ -25,9 +28,7 @@ export const HEAVY = 0.25;
 export const HYSTERESIS = 0.03;
 /** Scorch coverage (share of the ship's top, damageShader.ts ship mode) per level. */
 export const COVER = [0, 0.28, 0.55] as const;
-/** Ember glow per level. */
-export const HOT = [0, 0, 1] as const;
-/** How fast the look follows the level: coverage and glow per second. */
+/** How fast the look follows the level: coverage per second. */
 export const FADE_PER_S = 0.8;
 
 export type ShipLevel = 0 | 1 | 2;
@@ -47,29 +48,26 @@ export function shipLevel(ratio: number, prev: ShipLevel): ShipLevel {
   return Math.min(prev, Math.max(down, up)) as ShipLevel;
 }
 
-/** One ship's look: its level and the eased coverage and glow the shader draws. */
+/** One ship's look: its level and the eased coverage the shader draws. */
 export class ShipCondition {
   level: ShipLevel = 0;
   cover = 0;
-  hot = 0;
 
   /** Follow `armor` of `reference` over `dt` seconds (0: no easing, e.g. paused). */
   update(armor: number, reference: number, dt: number): void {
     this.level = shipLevel(armourRatio(armor, reference), this.level);
     const step = Math.max(0, dt) * FADE_PER_S;
     this.cover = approach(this.cover, COVER[this.level], step);
-    this.hot = approach(this.hot, HOT[this.level], step);
   }
 
   /** Clean at once (a new level, or no ship armour to follow). */
   reset(): void {
     this.level = 0;
     this.cover = 0;
-    this.hot = 0;
   }
 
   get damaged(): boolean {
-    return this.cover > 1e-3 || this.hot > 1e-3;
+    return this.cover > 1e-3;
   }
 }
 
