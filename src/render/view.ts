@@ -220,18 +220,22 @@ export class View {
    * and the sprite art's. Drawn the first time mid-level instead, each new variant stalled a frame
    * 20-35 ms (130-730 ms over a level's first two frames) and each new model's textures 20-45 ms.
    * The main and outline passes compile in parallel (compileAsync); one draw of a single pixel per
-   * state then makes the shadow pass's programs and uploads the textures. Models that load later are
-   * warmed a little each frame (warmLate).
+   * state then makes the shadow pass's programs and uploads the textures. The same programs for the
+   * screen filters' render target compile alongside (D159). Models that load later are warmed a
+   * little each frame (warmLate).
    */
   async warmUp(): Promise<void> {
     const warm = this.draws.beginWarmUp(this.camera.position);
     try {
+      const compile = () => [this.renderer.compileAsync(this.scene, this.camera), this.outline.compileAsync(this.scene, this.camera, this.scene)];
       for (const state of warm.states) {
         state();
         this.scene.updateMatrixWorld();
-        await Promise.all([this.renderer.compileAsync(this.scene, this.camera), this.outline.compileAsync(this.scene, this.camera, this.scene)]);
+        // The canvas's programs, and the screen filters' scene target's (D159), in parallel.
+        await Promise.all([...compile(), ...this.screenFilters.compileFiltered(compile)]);
         for (const t of texturesOf(this.scene)) this.renderer.initTexture(t);
         this.renderPixel();
+        await this.screenFilters.warmFiltered(() => this.renderPixel());
       }
       await this.renderer.compileAsync(this.maskScene, this.maskCamera);
     } finally {
@@ -251,8 +255,8 @@ export class View {
     if (late.length > 0) {
       // One compile for all of them (each call walks the scene for its lights).
       const root = new ObjectList(late);
-      void this.renderer.compileAsync(root, this.camera, this.scene);
-      void this.outline.compileAsync(root, this.camera, this.scene);
+      const compile = () => [this.renderer.compileAsync(root, this.camera, this.scene), this.outline.compileAsync(root, this.camera, this.scene)];
+      void Promise.all([...compile(), ...this.screenFilters.compileFiltered(compile)]); // and the screen filters' (D159)
       for (const t of texturesOf(root)) if (!this.uploaded(t)) this.lateTextures.push(t);
     }
     const t = this.lateTextures.shift();

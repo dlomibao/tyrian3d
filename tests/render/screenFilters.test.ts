@@ -1,7 +1,9 @@
 // The screen filters' renderer-side rules (src/render/screenFilters.ts, screenHue.ts): which draws
 // a filter covers, how the previous frame is weighted per display frame, and the hue stages.
 import { describe, expect, test } from "vitest";
-import { LAVA_WAVE, WATER_WAVE, hueStages, passCeiling, previousFrameWeight, stageUniforms, waveAt, type Wave } from "../../src/render/screenFilters";
+import * as THREE from "three";
+import { LAVA_WAVE, ScreenFilterPass, WATER_WAVE, hueStages, passCeiling, previousFrameWeight, stageUniforms, waveAt, type Wave } from "../../src/render/screenFilters";
+import type { PaletteTexture } from "../../src/render/paletteTexture";
 import { ScreenHue } from "../../src/render/screenHue";
 import { PASS_HEIGHT } from "../../src/render/passHeights";
 import { CLASSIC_TICK_MS } from "../../src/core/timing";
@@ -94,5 +96,23 @@ describe("screen filters", () => {
     };
     check(LAVA_WAVE, lava);
     check(WATER_WAVE, water);
+  });
+});
+
+describe("the filtered frame's programs, warmed (D159)", () => {
+  test("compileFiltered compiles with the scene target bound, then puts the previous target back", () => {
+    let target: unknown = null;
+    const renderer = {
+      capabilities: { maxSamples: 4 },
+      getRenderTarget: () => target,
+      setRenderTarget: (t: unknown) => (target = t),
+    } as unknown as THREE.WebGLRenderer;
+    const pass = new ScreenFilterPass(renderer, { screenHue: new ScreenHue() } as unknown as PaletteTexture);
+    const seen: unknown[] = [];
+    const done = Promise.resolve();
+    const out = pass.compileFiltered(() => (seen.push(target), [done, done]));
+    expect(out).toEqual([done, done]);
+    expect(seen[0]).toBeInstanceOf(THREE.WebGLRenderTarget);
+    expect(target).toBeNull();
   });
 });

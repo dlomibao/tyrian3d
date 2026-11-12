@@ -7149,3 +7149,54 @@ sim and one input, so the two halves are in step by construction (no second game
 
 Checked in the harness on TYRIAN and SAVARA, framed and minimal HUD (`tyrian-scratch/compare-view/*.png`, not in git).
 Test: `tests/render/classicRenderer.test.ts` (a smoke test, by request).
+## D159 — The screen filters' programs are warmed with the level: the Soul of Zinglon's first beam no longer stalls (extends D91)
+
+2026-11-12
+
+**Problem:** on DELIANI the game froze for a moment when the player picked up the Soul of Zinglon.
+- **What happens at the pickup:** the pickup (enemy 831, value 32103) sets `items.special` = 3 and
+  `shotRepeat[SHOT_SPECIAL]` = 10. With fire held, the special fires 10 ticks later: the Zinglon blast. The blast's
+  JE_barBright columns put `drawList.screen` into the draw list (smoothies.ts).
+- **Why that froze:** with `drawList.screen` set, `View.renderFrame` draws the scene through `ScreenFilterPass`,
+  into its half-float `sceneTarget` instead of the canvas. three keys every program by its target: a render target
+  gets linear output and no tone mapping (`WebGLPrograms.getParameters`, `outputColorSpace`/`toneMapping`). So every
+  material on screen needed a second program, and D91's warm-up had compiled only the canvas's.
+- **Not the cause:** the pickup's own sprite and art. The frame the pickup appears in, and the pickup frame itself,
+  compile and upload nothing.
+- **Where else:** the first filtered frame of any level (a smoothie level's first filter, a flare special's filter
+  with `stages`) paid the same.
+- **Measured** with D91's method (`tyrian-scratch/user-batch-1/tools/perfpick.mjs`, the dev server, headless Chrome on
+  the real GPU, 3024x1800):
+  - `?debug=play&episode=1&main=19&seed=1&skip=600&solid=1`, the pickup spawned by the ship (`tools/pickup.js`);
+  - the beam's first frame linked 15 programs: the models' and the flat art's linear variants, the outline
+    shell and hook, and the present quad;
+  - that frame took 2420, 2391 and 307 ms of main thread in three runs (load average 41-55 from other agents).
+- **And one more:** the explosions' stencil setter (D106) is made at the first explosion, so the warm-up never saw it.
+  That cost one program at the first explosion (canvas), and again at the first filtered frame (target).
+
+**Decision:**
+- **The warm-up compiles both targets.** For each warm-up state, `View.warmUp` compiles the main and outline
+  passes for the canvas and, in parallel, with the screen filters' scene target bound
+  (`ScreenFilterPass.compileFiltered`). It then draws one pixel into the target (`warmFiltered`: sizes and
+  allocates it) and compiles the filter and present quads.
+- **Late models** (`warmLate`) compile for both targets as well.
+- **The stencil setter is warmed too.** `SpriteArtLayer.warm` also makes each atlas's explosion batch, which makes
+  the stencilled material and the setter at the warm-up.
+- Not covered: the mask pass's override programs (smoothie levels only, not the Zinglon beam).
+
+**Measured after**, same runs: the beam's first frame links no program; the worst frame's main thread in the
+window from spawn to 2.5 s after the blast is 13 and 11 ms (was 2420 / 2391 / 307). Frames there that are longer with
+little JS are other agents' GPU load, as in before. Harness start (preload + warm-up) was 12.8-16.4 s before and
+13.2 s after, within that load's noise. Data: `tyrian-scratch/user-batch-1/zinglon-{before,after}-*.json`, summary
+`zinglon-summary.txt`. The beam still draws (`zinglon-beam-after.png`). A frame at DELIANI t700 is pixel-identical
+to main's (`zinglon-frame-{main,branch}.png`).
+
+**Where the Soul of Zinglon comes from on DELIANI:** not from the level's own drops in story mode. Its only event 45
+(t710) gives weapon 827 to enemies of link 10, in arcade and two-player only, and no event or enemy drop makes enemy
+831. The user may have had it from elsewhere (the shop, another level's random special, the console). The cause
+and the fix are the same whatever the source.
+
+Tests:
+- `tests/render/screenFilters.test.ts`: `compileFiltered` compiles with the scene target bound and puts the
+  previous target back.
+- `tests/render/spriteArt.test.ts`: the warm-up makes the explosion batch and the stencil setter.
