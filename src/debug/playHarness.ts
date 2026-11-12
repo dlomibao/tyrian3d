@@ -58,6 +58,10 @@ import { levelDamageFrames } from "../sim/levelSprites";
 import { Hud } from "../app/hud";
 import { LevelMusic } from "../app/levelMusic";
 import { armorAt, parseArmorPlan } from "./armorPlan";
+import { CompareView, compareFromUrl } from "../app/compareView";
+
+/** The comparison view, once made (step() runs before it exists, during &skip). */
+const compareRef: { view: CompareView | null } = { view: null };
 
 /** Front weapons the cycle goes through: Pulse, Multi, Laser, Zica, Vulcan, Lightning, Starburst, Sonic, Protron, Missiles, Mega Pulse, Hyper Pulse. */
 const FAVOURITES = [1, 2, 4, 5, 7, 8, 9, 11, 12, 17, 19, 27];
@@ -139,7 +143,10 @@ export async function runPlayHarness(view: View): Promise<void> {
       view.draws.resetInterpolation();
     }
     if (stress > 0) addStressShots(drawList.items, stress, t);
-    if (show) view.setDrawList(drawList);
+    if (show) {
+      view.setDrawList(drawList);
+      compareRef.view?.draw(drawList);
+    }
   };
   const nextWeapon = () => {
     favourite = (favourite + 1) % FAVOURITES.length;
@@ -157,8 +164,14 @@ export async function runPlayHarness(view: View): Promise<void> {
   });
 
   // The game's HUD (`&interface=minimal` for the light one), so it can be checked on a real level.
-  const hud = new Hud(view);
+  const compare = compareFromUrl() ? new CompareView(files) : null; // D158: `&compare=1`
+  const hud = new Hud(view, compare !== null);
   hud.visible = true;
+  compareRef.view = compare;
+  if (compare) {
+    compare.visible = true;
+    compare.draw(drawList);
+  }
 
   const frameTimes: number[] = [];
   let frames = 0;

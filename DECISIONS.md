@@ -7124,3 +7124,28 @@ Tests:
 - `tests/app/levelMusic.test.ts`: the level's song isn't played again; Zanac, then the level's song when it ends;
   only while `firstGameOver`; the fade's steps, floor and reset by event 35; the volume given back at the level's
   end.
+
+## D158 — `?compare=1`: the original and the remaster side by side, one game driving both (debug comparison)
+
+**Decision:** with `?compare=1` (the game, and `?debug=play&...&compare=1`), in-level play shows the original's
+look on the window's left half and the remaster on the right, both drawn from the same tick's draw list. There is one
+sim and one input, so the two halves are in step by construction (no second game kept in lockstep).
+
+- **Left, the original:** `src/render/classic/classicRenderer.ts` replays each draw list onto a 320x200 indexed
+  screen with the C's pixel rules (sprite.c's blit_sprite2 / _blend / _darken / _filter, blit_sprite / _blend /
+  _dark / _hv, background tiles, superpixels, rectangles), the smoothie filters (lava, water, iced, blur), JE_barBright,
+  JE_filterScreen's hue and value, and JE_starShowVGA's copy of the playfield (normal, flipped, headlight).
+  `classicHud.ts` draws the HUD from the game's state each tick: picture 3, the shield/armour bars (JE_dBar3), the
+  weapon pips, the power bar, the rear-mode lamps, the sidekick boxes, the message bar, and on the playfield the
+  score, boss bars, special weapon, superbombs and the secret-level banner. `src/app/compareView.ts` shows it in a
+  pixelated canvas over the left half.
+- **Right, the remaster:** the Hud's frame and the 3D view laid out in the right half (the frame: a left inset of half
+  the window in `hudLayout`; the minimal HUD: the view's viewport and the HUD root in the right half). It keeps the
+  player's options (camera, interface, looks).
+- **A debug aid, not a second port:** close enough to compare the looks, not pixel-exact (unclipped blits clip
+  instead of wrapping; the three blit_sprite_hv variants are drawn alike; one-player HUD only; the C's palette fades
+  are not applied). It uses the game data's own art, already loaded to play; it is meant for the debug build on
+  lomibao.net.
+
+Checked in the harness on TYRIAN and SAVARA, framed and minimal HUD (`tyrian-scratch/compare-view/*.png`, not in git).
+Test: `tests/render/classicRenderer.test.ts` (a smoke test, by request).
