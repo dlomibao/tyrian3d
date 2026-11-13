@@ -7,7 +7,8 @@
 // compileAsync (D91) compiles the outline materials of a scene or subtree ahead of its first draw;
 // renderOutline swaps materials on visible objects only and keeps its bookkeeping in Maps (D91); and
 // one made for a material that carries userData.obliqueUniforms (obliqueView.ts, a tall model drawn
-// in the art's view, D165) is drawn in that view too.
+// in the art's view, D165) is drawn in that view too; and renderOutline hides the objects marked
+// userData.outlineSkip while it renders (D193: the frame copies and the explosions they serve).
 // The rest is three.js's code unchanged. Types: outlineEffect.d.ts (three's own).
 
 import {
@@ -220,6 +221,15 @@ class OutlineEffect {
 			updateOutlineMaterial( outlineMaterial, originalMaterial );
 
 			return outlineMaterial;
+
+		}
+
+		// Tyrian 3D (D193): the objects renderOutline hides while it renders.
+		const skipped = [];
+
+		function hideSkipped( object ) {
+
+			if ( object.userData.outlineSkip === true ) skipped.push( object );
 
 		}
 
@@ -459,7 +469,16 @@ class OutlineEffect {
 
 			scene.traverseVisible( setOutlineMaterial ); // Tyrian 3D (D91): hidden objects aren't drawn
 
+			// Tyrian 3D (D193): an object it has no outline material for is drawn with its own, so this
+			// render draws it a second time; the ones marked outlineSkip are hidden for it.
+			skipped.length = 0;
+			scene.traverseVisible( hideSkipped );
+			for ( const object of skipped ) object.visible = false;
+
 			renderer.render( scene, camera );
+
+			for ( const object of skipped ) object.visible = true;
+			skipped.length = 0;
 
 			scene.traverseVisible( restoreOriginalMaterial );
 

@@ -7,6 +7,7 @@ import {
   ScreenFilterPass,
   WATER_WAVE,
   bankAtLuma,
+  hueKeepingChroma,
   hueStages,
   levelBank,
   neutralInverse,
@@ -199,6 +200,49 @@ describe("a hue filter's colour for the lit scene (D191)", () => {
     expect(pass.active).toBe(true);
     pass.setDrawList(list(-99));
     expect(pass.active).toBe(false);
+  });
+});
+
+describe("JE_filterScreen's hue on a lit pixel (D193)", () => {
+  // CAMANIS's palette under its level filter 8: the ice run, luminance 0.3 to 1 (gamma-encoded).
+  const ICE_SRGB = [
+    [36, 85, 109], [44, 93, 117], [56, 105, 125], [65, 117, 138], [77, 130, 146], [85, 142, 158], [97, 154, 166], [109, 166, 178],
+    [125, 178, 186], [138, 190, 199], [154, 203, 207], [166, 211, 215], [186, 223, 227], [203, 235, 235], [219, 247, 247], [239, 255, 255],
+  ];
+  const toLinear = (v: number) => ((v /= 255) <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+  const bank = ICE_SRGB.map((c) => c.map(toLinear) as [number, number, number]);
+  const luma = (c: readonly number[]) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  const sat = (c: readonly number[]) => (Math.max(...c) - Math.min(...c)) / Math.max(...c);
+
+  test("a lit shade of the hue keeps its colour; bankAtLuma alone paled it up the run", () => {
+    // The floor's shade 7, lit 1.8x in linear light (about the 3D's lift): bankAtLuma lands on a
+    // paler shade (about 12) and takes its saturation; hueKeepingChroma keeps the floor's.
+    const lit = bank[7].map((v) => v * 1.8) as [number, number, number];
+    // (Only the run's hue angle at the new luminance differs a little: the part across it goes.)
+    const kept = hueKeepingChroma(lit, bank);
+    expect(luma(kept)).toBeCloseTo(luma(lit), 6);
+    const srgb = (v: number) => 255 * (v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055);
+    kept.forEach((v, i) => expect(Math.abs(srgb(v) - srgb(lit[i]))).toBeLessThan(8)); // (143, 216, 231) -> (138, 218, 224)
+    expect(sat(kept)).toBeGreaterThan(sat(lit) - 0.03);
+    expect(sat(bankAtLuma(luma(lit), bank))).toBeLessThan(sat(lit) - 0.1);
+    for (const e of bank) hueKeepingChroma(e, bank).forEach((v, i) => expect(v).toBeCloseTo(e[i], 3));
+  });
+
+  test("a white sheen takes the hue's shade, an off-hue colour loses the part across the hue", () => {
+    for (const grey of [0.05, 0.2, 0.5, 0.9]) {
+      const c = hueKeepingChroma([grey, grey, grey], bank);
+      bankAtLuma(grey, bank).forEach((v, i) => expect(c[i]).toBeCloseTo(v, 6));
+    }
+    // An orange explosion under the ice hue: same luminance, the hue's direction (blue-green over red).
+    const fire: [number, number, number] = [0.8, 0.25, 0.02];
+    const c = hueKeepingChroma(fire, bank);
+    expect(luma(c)).toBeCloseTo(luma(fire), 6);
+    expect(c[2]).toBeGreaterThan(c[0]);
+    expect(c[1]).toBeGreaterThan(c[0]);
+    for (const v of c) {
+      expect(v).toBeGreaterThanOrEqual(-1e-9);
+      expect(v).toBeLessThanOrEqual(1 + 1e-9);
+    }
   });
 });
 

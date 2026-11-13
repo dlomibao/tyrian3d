@@ -83,6 +83,11 @@ export interface SpriteDraw {
   groupDx: number;
   groupDy: number;
   groupFirst: boolean;
+  /**
+   * An indicator the C draws on the playfield that the HTML HUD shows instead (D193): the 3D view
+   * leaves it out, the original's view (classic renderer) still draws it where the C does.
+   */
+  hud?: true;
 }
 
 export interface TableSpriteDraw {
@@ -229,6 +234,13 @@ function sprite2(x: number, y: number, sheet: Sprite2Sheet, index: number, size:
 
 export const blit_sprite2 = (x: number, y: number, sheet: Sprite2Sheet, index: number) => sprite2(x, y, sheet, index, 1, "none");
 export const blit_sprite2_clip = blit_sprite2;
+/** blit_sprite2 for a HUD indicator (SpriteDraw.hud): JE_doSpecialShot's special-weapon lamp. */
+export function blit_sprite2_hud(x: number, y: number, sheet: Sprite2Sheet, index: number): void {
+  sprite2(x, y, sheet, index, 1, "none");
+  (drawList.items[drawList.items.length - 1] as SpriteDraw).hud = true;
+}
+/** Whether a draw is a HUD indicator, which the 3D view leaves to the HTML HUD (D193). */
+export const isHudDraw = (d: Draw): boolean => d.kind === "sprite2" && d.hud === true;
 export const blit_sprite2_blend = (x: number, y: number, sheet: Sprite2Sheet, index: number) => sprite2(x, y, sheet, index, 1, "blend");
 export const blit_sprite2_darken = (x: number, y: number, sheet: Sprite2Sheet, index: number) => sprite2(x, y, sheet, index, 1, "darken");
 export const blit_sprite2_filter = (x: number, y: number, sheet: Sprite2Sheet, index: number, filter: number) => sprite2(x, y, sheet, index, 1, "filter", filter);

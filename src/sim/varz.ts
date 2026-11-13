@@ -6,7 +6,7 @@
 
 import { s8, s16, u8, u16, u32 } from "./cint";
 import { roundf } from "./cfloat";
-import { blit_sprite2, drawPixel, type SparkPixel, type Sprite2Sheet } from "./draw";
+import { blit_sprite2_hud, drawPixel, type SparkPixel, type Sprite2Sheet } from "./draw";
 import { mt_rand, mt_rand_1, mt_rand_lt1 } from "./mtrand";
 import { player_shot_create } from "./shots";
 import { JE_barBright } from "./smoothies";
@@ -414,10 +414,11 @@ export function JE_specialComplete(playerNum: number, specialType: number): void
 export function JE_doSpecialShot(playerNum: number, this_player: Player): void {
   const special = g.res.items.specials;
 
+  // The ready lamp beside the special's icon: the HTML HUD shows it with the icon (D168, D193).
   if (g.player[0].items.special > 0) {
     if (g.shotRepeat[SHOT_SPECIAL] === 0 && g.specialWait === 0 && g.flareDuration < 2 && g.zinglonDuration < 2)
-      blit_sprite2(47, 4, g.res.spriteSheet9, 94);
-    else blit_sprite2(47, 4, g.res.spriteSheet9, 93);
+      blit_sprite2_hud(47, 4, g.res.spriteSheet9, 94);
+    else blit_sprite2_hud(47, 4, g.res.spriteSheet9, 93);
   }
 
   if (g.shotRepeat[SHOT_SPECIAL] > 0) {
