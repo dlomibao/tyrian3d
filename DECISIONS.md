@@ -8597,3 +8597,73 @@ subagent tokens, about 2.1 h of run time; then `fix-round.js` on 7 items (the 2 
 members): 14 agents (7 fixes, 7 reviews), 1.54M tokens, 25 min, all shipped. Per-agent median: blueprint 8.3 min,
 design 15.8, judge 1.7, finish 2.2, fix 10.5 (fix round 17.6), review 5.2. Sheets:
 `tyrian-scratch/e2-enemies-3/<item>/final/` and `.../fix/<item>/final/` (not in git, D3).
+
+## D180 — GYGES's layer-2 wall and GRYPHON's layer-1 pipes take HD paintings: `shapesx` structure tiles cut from the answers we have and from their own ground paintings (follows D83, D113; E2 QA H1, H2)
+
+2026-11-12
+
+**Problem** (`tyrian-scratch/e2-qa/REPORT.md` H1, H2): at 4K, GYGES (2.2, t300-4050) drew its layer-2 tissue wall as extruded
+pixel tiles (`shapesx` 60-64, 70-74, 80-82, 93, 102-103, 280-297, 313-314), and GRYPHON (2.6, t300-2550) drew its layer-1
+pipe columns that way too (6-8, 16-18, 37, 116-117, 124-131, 140-164, 170, 180), each beside HD-painted ground.
+**Cause:** not the renderer. The QA suspected `drawRemasterGround`'s `!modelled || d.layer === 0`, but that only keeps
+*modelled* layer-1/2 tiles off the HD art. `shapesx` has no tile models, so every layer-1/2 tile already asks `drawHdTile`
+first. These tiles had no painting on their own layer. D113's inventory sorted them as `structure` (hard surface,
+left to models, D83), and `cut` skips structure tiles. So they fell through to the original extruder (D8), which
+stays the fallback for unpainted opaque layer-1/2 tiles. But 13 of the GYGES wall tiles are EYESPY's (4.13) *ground*
+tiles, and 15 of the GRYPHON pipe tiles are GRYPHON's own ground tiles, all already painted on layer 0. The same tile
+record is the same picture on every layer. Eight more GYGES tiles (60, 61, 280, 281, 286, 287, 290, 297: the horn bases)
+were painted in D113's `region-l2` answers but never cut.
+
+**Decision:** no code change. The atlas is re-cut with the tool as it is: `terrain_hd.py --tileset shapesx inventory`
+(against the current atlas), then `cut --cache --edge-aware --structures --exclude <D113's 14 tiles + the blended layer-1
+tiles below>`. Merge mode keeps every existing image (`0.webp`, `0-2.webp`, `1.webp`, `2.webp`) and rect byte for byte.
+New: `1-2.webp` (15 layer-1 tiles, each reusing its layer-0 painting: 9, 19, 112, 113, 116, 117, 122, 123, 126, 130, 131,
+140, 141, 150, 151) and `2-2.webp` (21 layer-2 tiles: 63, 64, 70-74, 80-82, 93, 102, 103 reused from layer 0; 60, 61, 280,
+281, 286, 287, 290, 297 from `region-l2-01/02`, tile NCC 0.75-0.996, 60/61 deblocked 3.7/3.2 -> 1.9/1.8). Reused tiles get
+the original's silhouette as alpha (`prepare_tile`) and are seam-solved against the kept tiles. Seams (`check`): layer 1
+0.381 (original continuous 0.381), layer 2 0.337 (0.337).
+- **The blended layer 1 is left out.** GYGES and EYESPY draw background 2 blended (D45). Its tiles (60-109 there) could
+  reuse the same ground paintings, and a first cut did so. But an HD blend sheet takes the original tile's *main* palette
+  bank per instance (D174). So the organism's tan claws (bank of the horns) came out dark blue. The 4x MMPX sheet keeps
+  each texel's bank and the claws stay tan. Those tiles stay MMPX: they are a translucent smooth sheet, not extruded
+  pixels, and the QA's ORIG list (extruded tiles) had none of them. GRYPHON's layer 1 is opaque (no `blend` on its draws),
+  so it reuses. The two sets of tiles don't overlap.
+
+**Options considered:**
+- *Fall back to another layer's painting at run time in `drawHdTile`:* no alpha for the layer-2 silhouette (the ground
+  paintings are opaque), and it hides in the renderer what the atlas tool already does with the right alpha and seams.
+- *Flat MMPX cutouts for every unpainted opaque layer-1/2 tile instead of the extruder:* would change every tileset's
+  fallback (E1 islands keep relief through D8). Not needed for these tiles.
+- *Tile models for the GYGES wall and GRYPHON pipes (D34/D47):* the long-term route for hard-surface structures. The
+  wall is organic tissue that the paintings already render well, and the reuse is no worse than the ground the pipes
+  continue from.
+- *Gemini for the rest:* not run (one-request lock, usage budget). The leftovers are listed below.
+
+**Left (no painting anywhere; still extruded or MMPX):** layer 2: 313, 314 (D113's weak candidates, < 0.4; 2 cells each
+at GYGES t300). Layer 1 opaque, GRYPHON: 6, 7, 8, 16, 17, 18, 27, 28, 29, 37, 38, 39, 124, 127, 132, 133, 136, 137, 142, 143,
+146, 147, 153, 154, 155, 157, 158, 163, 164, 167, 168, 170, 171, 172, 180, 181, 182 (the horizontal pipe band and elbows at
+t300, t2550). Next round: a `ctx-l1-cyan` or region sheet over 2.6's layer 1, then `cut --structures`. Layer 1 blended (GYGES,
+EYESPY 60-109, 450-499): MMPX by choice (above). E2 QA L6: ground 86, 111, 127, 566, 567 are D113's excluded weak tiles
+(a Gemini round). 76 (GYGES, EYESPY) and 36 (GRYPHON) are one-colour "empty" tiles, so the 4x ground draws them in the
+same colour. Not a miss.
+
+**E2 QA L4 (GYGES ~40% brighter), measured, not changed:** overhead captures at GYGES t300 give the floor
+(the purple tissue) the same mean in HD (40.1, 31.5, 55.9) as in Terrain: Original's MMPX ground (40.1, 31.6, 55.3), so it is
+not the painting. The original is (27.9, 21.1, 37.4). The lift is shared by every level and grows as the scene gets darker.
+Playfield brightness 3D/original: TYRIAN t300 1.19, DELIANI t1500 1.36, TORM t1200 1.42, GYGES t300 1.55. The darkest
+tenth goes from 0-17 to 17-35. That is the 3D lighting and tone curve over the palette (global, out of scope here; not
+`view.ts`, D175), not GYGES's terrain.
+
+**Checked** (`?debug=play&episode=E&main=M&seed=1&skip=T&freezeAt=T&compare=1`, 3840x2160, before = origin/main, after =
+this; instrumented with the QA's `shot.mjs`, which counts the tiles that reach `drawOriginalTile`):
+- GYGES t300: extruded tiles 50 -> 4 (313/314); HD tiles 158 -> 204.
+- GYGES t2550: 148 -> 0; HD 160 -> 308.
+- GRYPHON t300: 110 -> 66 (the band above); HD 114 -> 158.
+- GRYPHON t1050: 56 -> 0 (both pipe columns HD); HD 114 -> 170.
+- EYESPY (4.13, `main=20`) t1500: pixel-identical.
+- DELIANI (1.5, `main=19`) t1500: identical but for one animated sparkle.
+- No console errors.
+Captures and `summary.png` (original | before | after): `tyrian-scratch/e2-qa-terrain/`.
+Work folder (inventory, cut report, seams): `tyrian-scratch/e2-qa-terrain/work/`.
+
+**Cost:** one Opus agent, no workflow, no Gemini, no Blender; about 20 headless captures.
