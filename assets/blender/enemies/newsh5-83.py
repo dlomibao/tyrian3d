@@ -1,12 +1,13 @@
-"""Grey diagonal pod (newsh5.shp frame 83): a 3D version of its sprite.
+"""Grey diagonal craft (newsh5.shp frame 83): a 3D version of its sprite.
 
-Seen in episode 4 (level 4.22) lying on the ground. A faceted metal capsule lying from the lower
-left to the upper right: a big body whose end tapers square to the tile's axes, a darker middle
-band between two grooves and a lighter rounded cap at the lower left, with a small dark foot under
-it. Its lit facets face up-left, its shaded ones down-right. newsh5-81 is its mirror image (built
-by the same code in lib_b068.build_diagonal_pod).
+Seen in episode 4 (4.15 BRAINIAC): groundBottom spawns at the screen's left corner that fly up the diagonal along
+their long axis, to the upper right, so it is a craft or missile with no foot and no ground contact, closed
+all round. A faceted metal capsule: a big body at the upper right tapering to a flat nose, a darker band
+between two grooves and a lighter rounded cap at the tail, a slot and a recess on top.
+newsh5-81 is its mirror image.
+Silhouette half widths come from the sprite's inner mask; the outline shell is made from a sealed copy.
 
-Run: blender --background --python assets/blender/enemies/newsh5-83.py [-- --preview out.png]
+Run: blender --background --python assets/blender/enemies/newsh5-83.py -- [--review DIR] [--no-export]
 """
 
 import sys

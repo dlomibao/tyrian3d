@@ -228,19 +228,107 @@ def preview_arg():
     return None
 
 
-def export_frames(root, name, sprite, models, extra_preview=True):
+def arg_after(flag):
+    """The word after `flag` in the script's own arguments (after `--`), or None."""
+    argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+    return argv[argv.index(flag) + 1] if flag in argv and argv.index(flag) + 1 < len(argv) else None
+
+
+def make_shell(obj, coll):
+    """The model's outline shell (D51) from a sealed copy, islands="outer" (D189): ink on the
+    silhouette only. Named <obj>_outline."""
+    sealed = obj.copy()
+    sealed.data = obj.data.copy()
+    coll.objects.link(sealed)
+    shell = common.outline_shell(sealed, coll, voxel=0.012, faces=3000, smooth=4, inside=0.004,
+                                 islands="outer")
+    bpy.data.objects.remove(sealed, do_unlink=True)
+    assert len(shell.data.polygons) > 0, f"{obj.name}_outline has no mesh"
+    return shell
+
+
+def export_frames(root, name, sprite, models, outline=True):
     """Export one model per frame group. `models` is a list of (object, [frame indices]); the
-    first is `name`, the rest `name-f2`, `name-f3`, ... With --preview, the first model's preview
-    goes to the given path and the others' beside it as <name>-fN.png."""
+    first is `name`, the rest `name-f2`, `name-f3`, ... Each goes out with its _outline shell
+    (outline=False for a model that fills its tile and draws no ink). `--review DIR` writes review
+    renders and the top-view IoU per model into DIR; `--no-export` skips the export; `--preview
+    out.png` is the usual common.render_preview."""
     out = preview_arg()
+    review_dir = arg_after("--review")
     for i, (obj, frames) in enumerate(models):
         model_name = name if i == 0 else f"{name}-f{i + 1}"
-        common.export_sprite_model(root, [obj], f"enemies/{model_name}", frame_subset(sprite, frames))
+        coll = obj.users_collection[0]
+        obj.data.set_sharp_from_angle(angle=math.radians(35))
+        shell = None
+        if outline:
+            shell = make_shell(obj, coll)
+            shell.name = f"{obj.name}_outline"
+        if review_dir:
+            review(root, name, model_name, obj, shell, frames[0], Path(review_dir))
+        if "--no-export" not in sys.argv:
+            common.export_sprite_model(root, [obj] + ([shell] if shell else []), f"enemies/{model_name}",
+                                       frame_subset(sprite, frames))
         if out:
             frame = next(f for f in sprite["frames"] if f["index"] == frames[0])
             ref = Path(root) / "reference" / "models" / name / frame["image"]
             path = out if i == 0 else out.parent / f"{model_name}.png"
             common.render_preview([obj], str(path), ref, size=frame["size"])
+
+
+def review(root, name, model_name, obj, shell, frame_index, outdir):
+    """Review renders of one model into outdir: <model>_top_flat.png (silhouette, measured against
+    the sprite's inner mask: the rule's IoU), <model>_top.png (palette colours, lit), <model>_game.png
+    (the tilted game camera), <model>_q.png (3/4). The measure goes to <model>_measure.json."""
+    import json
+    sys.path.insert(0, str(Path(root) / "tools"))
+    import sprite_mask as SM
+    outdir.mkdir(parents=True, exist_ok=True)
+    scene = bpy.context.scene
+    for o in bpy.data.objects:
+        o.hide_render = o is not obj
+    W, H = 24, 28
+    k = 8
+
+    def shoot(loc, look, path, rx, ry, ortho=None, fov=35):
+        d = bpy.data.cameras.new("cam")
+        if ortho:
+            d.type = "ORTHO"
+            d.ortho_scale = ortho
+        else:
+            d.sensor_fit = "VERTICAL"
+            d.angle_y = math.radians(fov)
+        c = bpy.data.objects.new("cam", d)
+        scene.collection.objects.link(c)
+        c.location = loc
+        c.rotation_euler = (Vector(look) - Vector(loc)).to_track_quat("-Z", "Y").to_euler()
+        scene.camera = c
+        scene.render.resolution_x, scene.render.resolution_y = rx, ry
+        scene.render.filepath = str(path)
+        bpy.ops.render.render(write_still=True)
+        bpy.data.objects.remove(c, do_unlink=True)
+
+    scene.render.engine = "BLENDER_WORKBENCH"
+    sh = scene.display.shading
+    sh.color_type = "MATERIAL"
+    sh.show_shadows = False
+    scene.view_settings.view_transform = "Standard"
+    scene.render.film_transparent = True
+    scene.render.image_settings.file_format = "PNG"
+    scene.render.image_settings.color_mode = "RGBA"
+    sh.light, sh.show_cavity = "FLAT", False
+    shoot((0, 0, 20), (0, 0, 0), outdir / f"{model_name}_top_flat.png", W * k, H * k, ortho=H / 12)
+    m = SM.masks(*SM.load(name, frame_index))
+    res = SM.measure(m, SM.read_png_mask(outdir / f"{model_name}_top_flat.png"))
+    (outdir / f"{model_name}_measure.json").write_text(json.dumps(res, indent=1))
+    print("MEASURE", model_name, json.dumps(res))
+    sh.light, sh.show_cavity = "STUDIO", True
+    shoot((0, 0, 20), (0, 0, 0), outdir / f"{model_name}_top.png", W * k, H * k, ortho=H / 12)
+    tilt = math.radians(32)
+    shoot((0, -6 * math.sin(tilt), 6 * math.cos(tilt)), (0, 0, 0), outdir / f"{model_name}_game.png", 480, 480,
+          fov=30)
+    shoot((3.5, -4.2, 3.6), (0, 0, 0.2), outdir / f"{model_name}_q.png", 480, 480, fov=30)
+    for o in bpy.data.objects:
+        o.hide_render = False
 
 
 def resample(poly, step):
@@ -277,66 +365,174 @@ def at_z(points, z):
     return [(x, y, z) for x, y in points]
 
 
+def chamfer_ring(w, h, k=0.55):
+    """An 8-point chamfered-rectangle section (across, up): flat sides of half width w, a flat top
+    and bottom of half height h, 45-ish chamfers where they meet (k = the flats' share)."""
+    return [(w, -h * k), (w, h * k), (w * k, h), (-w * k, h), (-w, h * k), (-w, -h * k), (-w * k, -h), (w * k, -h)]
+
+
+def chamfer_loft(bm, secs, mat, k=0.55, cap0=True, cap1=True):
+    """Loft along +Y of chamfered-rectangle sections (y, half width, half height, z centre)."""
+    rings = [[bm.verts.new((x, y, zc + z)) for x, z in chamfer_ring(w, h, k)] for y, w, h, zc in secs]
+    f0 = len(bm.faces)
+    for a, b in zip(rings, rings[1:]):
+        for i in range(8):
+            j = (i + 1) % 8
+            bm.faces.new((a[i], a[j], b[j], b[i]))
+    if cap0:
+        bm.faces.new(list(reversed(rings[0])))
+    if cap1:
+        bm.faces.new(rings[-1])
+    set_faces(bm, f0, mat)
+
+
+def revolve_axis(bm, origin, axis, profile, sides=16):
+    """Rings about an arbitrary axis: profile is [(t, r, mat), ...] (t along the axis, units; r the
+    radius; r 0 closes to a point). Each band takes the material of its first ring."""
+    o, d = Vector(origin), Vector(axis).normalized()
+    a = d.cross(Vector((0, 0, 1)) if abs(d.z) < 0.9 else Vector((1, 0, 0))).normalized()
+    b = d.cross(a).normalized()
+    rings = []
+    for t, r, _ in profile:
+        c = o + d * t
+        if r <= 1e-6:
+            rings.append([bm.verts.new(c)])
+        else:
+            rings.append([bm.verts.new(c + (a * math.cos(2 * math.pi * i / sides) + b * math.sin(2 * math.pi * i / sides)) * r)
+                          for i in range(sides)])
+    for (ra, rb), (_, _, mat) in zip(zip(rings, rings[1:]), profile):
+        n = max(len(ra), len(rb))
+        for i in range(n):
+            j = (i + 1) % n
+            if len(ra) == 1:
+                vs = (ra[0], rb[j], rb[i])
+            elif len(rb) == 1:
+                vs = (ra[i], ra[j], rb[0])
+            else:
+                vs = (ra[i], ra[j], rb[j], rb[i])
+            try:
+                f = bm.faces.new(vs)
+                f.material_index = mat
+            except ValueError:
+                pass
+
+
+def offset_poly(poly, d):
+    """A convex CCW polygon moved inward by d (mitred corners)."""
+    n = len(poly)
+    out = []
+    for i in range(n):
+        p0, p1, p2 = Vector(poly[i - 1]), Vector(poly[i]), Vector(poly[(i + 1) % n])
+        e0, e1 = (p1 - p0).normalized(), (p2 - p1).normalized()
+        n0, n1 = Vector((-e0.y, e0.x)), Vector((-e1.y, e1.x))  # inward normals for CCW
+        m = (n0 + n1).normalized()
+        out.append(tuple(p1 + m * (d / max(m.dot(n0), 0.2))))
+    return out
+
+
+def chamfer_prism(bm, poly, z0, z1, ch, mat, top_mat=None, chz=None):
+    """A convex CCW outline extruded z0..z1 with chamfered top and bottom edges."""
+    chz = ch if chz is None else chz
+    inner = offset_poly(poly, ch)
+    loops = [at_z(inner, z0), at_z(poly, z0 + chz), at_z(poly, z1 - chz), at_z(inner, z1)]
+    terraces(bm, loops, [mat, mat, mat], cap_bottom=mat, cap_top=mat if top_mat is None else top_mat)
+
+
+def chamfer_box(bm, x0, x1, y0, y1, z0, z1, ch, mat, top_mat=None, chz=None):
+    chamfer_prism(bm, [(x0, y0), (x1, y0), (x1, y1), (x0, y1)], z0, z1, ch, mat, top_mat, chz)
+
+
 def build_diagonal_pod(sprite, name, mirror=False):
-    """The grey diagonal pod of newsh5-83 (and, mirrored, newsh5-81): a faceted metal capsule lying
-    from the lower left to the upper right of its tile. A big body at the upper right whose ends
-    taper square to the tile's axes, a darker ribbed middle band, a dark groove and a lighter
-    rounded cap at the lower left, with a small dark foot block under its middle and a slot and a
-    recess on top. Built for newsh5-83; `mirror` flips it left to right (newsh5-81's sprite is
-    newsh5-83's mirror image)."""
+    """The grey diagonal craft of newsh5-83 (and, mirrored, newsh5-81): a faceted metal missile
+    flying up the screen's diagonal along its long axis (83 to the upper right, 81 to the upper
+    left; BRAINIAC, groundBottom spawns at the corners), the exhaust coming out of its lower-left end.
+
+    - The body: a chunky chamfered-box loft (flat top and sides, chamfers between) about a level
+      axis, its half width following the sprite's inner mask along the diagonal, tapering to the
+      nose at the upper right; a darker middle band behind a groove, a slot and a vent on top.
+    - The engine housing at the lower left: a lighter boxy block whose sides run with the tile's
+      axes, as the sprite draws it (cols 2-9.5, rows 14.3-22), chamfered all round, with a nozzle
+      recessed in its rear (chamfered corner) face and a dark seam where it meets the body.
+    No foot: the underside is the closed other half. Highlights are sheen, not geometry (rule 2).
+    `mirror` flips it left to right (newsh5-81's sprite is newsh5-83's mirror image)."""
     coll = common.reset_collection(name)
     pal = lambda i, **kw: common.palette_material(sprite, i, name, **kw)  # noqa: E731
     mats = [
-        pal(9, metallic=0.55, roughness=0.35),  # 0 lit metal
-        pal(5, metallic=0.55, roughness=0.4),  # 1 shaded metal
-        pal(2, metallic=0.3, roughness=0.6),  # 2 grooves, slot
-        pal(11, metallic=0.6, roughness=0.3),  # 3 bright cap
-        pal(6, metallic=0.5, roughness=0.45),  # 4 darker middle band, recess
-        pal(13, metallic=0.7, roughness=0.2),  # 5 highlight ridge
+        pal(8, metallic=0.6, roughness=0.32),  # 0 body (region median 7, satin sheen)
+        pal(5, metallic=0.55, roughness=0.38),  # 1 darker middle band (median 4-5)
+        pal(2, metallic=0.4, roughness=0.6),  # 2 grooves, slot, nozzle bore
+        pal(9, metallic=0.6, roughness=0.3),  # 3 engine housing (lighter, median 9 on top)
+        pal(4, metallic=0.6, roughness=0.4),  # 4 nozzle bezel, vents
+        pal(1, metallic=0.3, roughness=0.7),  # 5 seam
     ]
-    LIT, SHADE, GROOVE, CAP, BAND, HIGH = range(6)
+    BODY, BAND, GROOVE, HOUSE, BEZEL, SEAM = range(6)
     bm = bmesh.new()
-    # Built along +Y (u, px along the diagonal from the centre), then turned 45 degrees clockwise
-    # so +Y points to the upper right, and moved onto the sprite's centre.
-    cx, cy = EX(12.2), EY(11.9)
-    flat = 1 / math.cos(math.pi / 8)  # an 8-sided loft's flat sides stand at cos(22.5) of its width
+    cx, cy = EX(11.66), EY(12.34)  # the inner mask's centre
+    ZC = 0.45  # axis height: the underside is the body's other half
+    HK = 0.68  # half height / half width of the body sections
+    # Silhouette half width (px) along the axis, measured off the sprite's inner mask.
+    PROFILE = [(-12.7, 1.3), (-12.0, 2.0), (-11.0, 2.8), (-10.0, 3.6), (-9.0, 4.4), (-8.0, 5.0), (-7.0, 5.6),
+               (-6.0, 6.2), (-5.0, 6.7), (-4.0, 6.9), (-1.0, 7.0), (1.0, 7.4), (3.0, 7.2), (4.0, 6.6),
+               (5.0, 6.5), (6.0, 5.7), (7.0, 5.0), (8.0, 4.8), (9.0, 4.0), (10.0, 3.3), (11.0, 2.3),
+               (12.0, 1.3), (12.7, 0.9)]
+    import usp_talon as T
+    wf = T.pchip([p[0] for p in PROFILE], [p[1] for p in PROFILE])
 
-    def loft(sections, mat):
-        common.loft(bm, [(sec[0] * PX, sec[1] * PX * flat, sec[2], sec[3] if len(sec) > 3 else sec[2])
-                         for sec in sections], sides=8, mat_index=mat)
+    def width(u):
+        return max(0.3, float(wf(min(max(u, PROFILE[0][0]), PROFILE[-1][0]))))
 
-    # Lower-left cap: a flat end face, then sides tapering at 45 degrees (square to the tile).
-    loft([(-13.8, 2.1, 0.1), (-12.8, 3.2, 0.14), (-11.2, 4.7, 0.18), (-9.7, 5.8, 0.2), (-8.0, 5.9, 0.2)], CAP)
-    loft([(-8.1, 5.2, 0.18), (-7.1, 5.2, 0.18)], GROOVE)
-    # Darker middle band.
-    loft([(-7.3, 5.8, 0.21), (-6.6, 6.1, 0.22), (-1.0, 6.1, 0.22), (-0.6, 5.9, 0.21)], BAND)
-    loft([(-0.9, 5.5, 0.2), (0.0, 5.5, 0.2)], GROOVE)
-    # Main body, its end tapering at 45 degrees to a point at the tile's upper-right corner.
-    loft([(-0.3, 6.0, 0.24), (0.8, 6.2, 0.26), (7.6, 6.1, 0.26), (10.5, 3.4, 0.2), (13.0, 0.9, 0.1),
-          (13.8, 0.0, 0.0, 0.08)], LIT)
-    # Highlight ridge along the body's top, on its lit side.
-    start = len(bm.verts)
-    common.loft(bm, [(1.5 * PX, 0.5 * PX, 0.012, 0.52), (7.0 * PX, 0.5 * PX, 0.012, 0.52)], sides=4,
-                mat_index=HIGH)
-    common.shift_x(bm, start, -2.2 * PX)
-    # Slot and recess on top of the body (sprite rows 4 and 6).
-    box(bm, -3.3 * PX, 7.8 * PX, -1.1 * PX, 8.8 * PX, 0.44, 0.49, mat=GROOVE)
-    box(bm, -3.2 * PX, 4.8 * PX, -1.2 * PX, 6.0 * PX, 0.48, 0.525, mat=BAND)
+    def secs(us, inset=0.0):
+        return [(u * PX, (width(u) - inset) * PX, HK * (width(u) - inset) * PX, ZC) for u in us]
+
+    def frange(a, b, s):
+        n = max(1, round((b - a) / s))
+        return [a + (b - a) * i / n for i in range(n + 1)]
+
+    # Body: band (inside the housing from u -9), groove, main body to the nose.
+    chamfer_loft(bm, secs(frange(-9.0, -1.0, 0.5)), BAND)
+    chamfer_loft(bm, secs([-1.0, -0.2], inset=0.5), GROOVE)
+    chamfer_loft(bm, secs(frange(-0.2, 5.3, 0.5)), BODY)
+    chamfer_loft(bm, secs([5.3, 5.7], inset=0.3), BEZEL)  # fine panel break before the nose section
+    chamfer_loft(bm, secs(frange(5.8, 11.8, 0.5) + [12.3, 12.7]), BODY)
+
+    def top_z(u, v):
+        """Height of the body's top surface at axis position u, offset v across (px)."""
+        w = width(u)
+        h = HK * w
+        a = abs(v)
+        if a <= 0.55 * w:
+            return ZC / PX + h
+        return ZC / PX + h - (a - 0.55 * w) / (0.45 * w) * h * 0.45
+
+    def sunk_box(u0, u1, v0, v1, mat, proud=0.15):
+        """A small axis-aligned block standing `proud` px above the body's top over its footprint."""
+        zt = max(top_z(u, v) for u in (u0, u1) for v in (v0, v1)) + proud
+        zb = min(top_z(u, v) for u in (u0, u1) for v in (v0, v1)) - 1.2
+        chamfer_box(bm, v0 * PX, v1 * PX, u0 * PX, u1 * PX, zb * PX, zt * PX, 0.2 * PX, mat)
+
+    # Slot (sprite row 4, cols 15-17) and vent (row 6, cols 13-15) on the body's top, in (u, v).
+    sunk_box(7.7, 9.3, -3.1, -2.0, GROOVE)
+    sunk_box(4.7, 6.3, -3.0, -1.6, BEZEL)
 
     bm.verts.ensure_lookup_table()
     rotate_z(bm, 0, -math.pi / 4)
     move(bm, 0, cx, cy)
-    # Small dark foot block under the middle (sprite rows 18-21, columns 10-13).
-    box(bm, EX(10), EY(21), EX(14), EY(18), 0.0, 0.12, mat=GROOVE)
 
-    # Shade the faces of the body and band that look down-right (the sprite's dark side).
-    bm.normal_update()
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    shade = Vector((1, -1, 0)).normalized()
-    bm.faces.ensure_lookup_table()
-    for f in bm.faces:
-        if f.material_index in (LIT, CAP) and f.normal.dot(shade) > 0.3:
-            f.material_index = SHADE
+    # Engine housing, in tile axes (pixel edges), CCW in Blender XY.
+    hz0, hz1 = ZC - 3.8 * PX, ZC + 4.3 * PX
+    poly = [(EX(2.0), EY(14.3)), (EX(2.0), EY(19.7)), (EX(4.3), EY(22.0)), (EX(9.5), EY(22.0)), (EX(9.5), EY(14.3))]
+    chamfer_prism(bm, poly, hz0, hz1, 0.7 * PX, HOUSE)
+    # Panel lines across its top, and the dark seam where it meets the body (its top and right edges).
+    t = hz1
+    for r in (17.0, 19.4):
+        box(bm, EX(2.9), EY(r + 0.35), EX(8.8 - (0.0 if r < 19 else 0.0)), EY(r), t - 0.01, t + 0.004, mat=GROOVE)
+    box(bm, EX(2.6), EY(15.25), EX(9.0), EY(14.85), t - 0.01, t + 0.005, mat=SEAM)
+    box(bm, EX(8.55), EY(21.4), EX(8.95), EY(15.25), t - 0.01, t + 0.005, mat=SEAM)
+    # Nozzle recessed in the rear face (the chamfered corner), pointing down-left (back along the axis).
+    nc = ((EX(2.0) + EX(4.3)) / 2, (EY(19.7) + EY(22.0)) / 2, (hz0 + hz1) / 2)
+    revolve_axis(bm, nc, (-1, -1, 0), [(-0.8 * PX, 1.2 * PX, BEZEL), (0.06 * PX, 1.2 * PX, BEZEL),
+                                       (0.06 * PX, 0.85 * PX, GROOVE), (-0.5 * PX, 0.85 * PX, SEAM),
+                                       (-0.5 * PX, 0.0, SEAM)], sides=16)
     for f in bm.faces:
         f.smooth = False
 

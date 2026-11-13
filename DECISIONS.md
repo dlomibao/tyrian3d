@@ -10278,3 +10278,186 @@ judges), about 12.1M subagent tokens, about 2.5 h of run time; then `fix-round.j
 `assembly-newshl-39`: 6 agents (3 fixes, 3 reviews), about 0.71M tokens, 53 min; both shipped. Per-agent median:
 design 18.7 min, finish 2.8, review 5.7, fix 9.4 (fix round 13.8). Sheets: `tyrian-scratch/e4-enemies-2/<item>/final/`
 and `.../fix/<item>/final/` (not in git, D3).
+
+## D197 — Episode-4 enemy rebuild, batch 3 (the last): 17 items (46 inventory units, 27 after 24 of them fold into their objects) to the D65 hard-surface standard; SURFACE's claw guardian, UNDERDELI's torpedoes and wall emplacement, TIME WAR's edge cannons and their bolts, the SURFACE crawler/forklift/CORE spire/DESERTRUN hatch family, the ?TUNNEL? drill torpedo, BRAINIAC's eye hatch and diagonal craft, NOSE DRIP's flame bowl and ten single craft; the shield-ship top built twice, D196's kept; episode 4 is all flagship but the shell-less eye hatch (follows D177, D179, D190, D192, D195, D196)
+
+2026-11-13
+
+**Decision:** the last 48 episode-4 units that were not `flagship` (D116 ranking, pickups left out) are rebuilt with
+`tools/workflows/model-flagship.js` in lean mode, as D190/D192/D195/D196 (no blueprints, one design per item, a Sonnet
+finisher, Opus fixes and strict Opus reviews; D65's recipe: hard-surface geometry, outline shell, art rules 1-5). The
+run started from main before D196 merged, in parallel with batch 2. The scout folded the 48 units into 18 items (8 hero,
+10 standard) and pulled in `newsh9-54`/`-56`. **All 18 passed review (6.6-7.5)**: 10 at once, 8 after one fix in the run
+(the claws, the torpedoes, the cannons, the shield-ship top, `assembly-newsh5-93`, `newshm-153`, `assembly-newsh5-156`,
+`newsh5-267`). **17 ship; the 18th was a duplicate** (below), so this batch delivers 46 units.
+
+| Model (units) | Tier | What it is | Top-view IoU (finisher, worst frame) | Review IoU | Score |
+|---|---|---|---|---|---|
+| assembly-newsh-caret-11 (+ new assembly-newsh-caret-92; fix) | hero | SURFACE's mid-level guardian: a mirrored pair of steel spiked gauntlets (two 60x56 px objects, five pieces each), a faceted armour block with a blue lens in a dark bezel and four spikes on stepped knuckle cuffs | 0.9576 (left claw, whole-assembly grid; right 0.974) | 0.9576 | 7 |
+| assembly-newsh-caret-198 (+ new assembly-newsh-caret-203; fix) | hero | UNDERDELI's horizontal torpedo (58x28 / 60x28, three pieces, A nose left, B its mirror): segmented warhead cluster, round body, framed strakes and tail fins, a probe rod past the tail cone | 0.9807 (B; A 0.9847) | 0.9807 | 7.5 |
+| assembly-newshl-153 (+ new assembly-newshl-197; fix) | hero | TIME WAR's edge cannons (48x28 each, left and right mirror): a C bracket gripping the wall column, a squared gun housing, a mantlet and barrel; the muzzle frames 157/159 and 193/191 a thin glowing flash | 0.9887 (159/191) | 0.9887 | 7 |
+| assembly-newsh3-86 (+ assembly-newsh3-122, newsh3-14, assembly-newsh3-275, newsh3-18) | hero | the tan bunker-crawlers (mirror pair) that crawl sideways carrying the forklift tank on their roof (`newsh3-14`, now all eight headings: new `-f6`..`-f8` for frames 12, 50, 88), CORE's stone spire in its lava-rock mound, DESERTRUN's floor hatch raising a red-eyed turret | 0.952 (`newsh3-275`; crawlers 0.978/0.975) | 0.952 | 7 |
+| assembly-newsh5-93 (+ newsh5-160, -81, -83; fix) | hero | the ?TUNNEL? drill torpedo (55 over 93, armour 255) diving down the tunnel bulb first; BRAINIAC's purple eye hatch whose shutters close over a red lens; the grey diagonal craft flying up from the bottom corners | 0.9526 (whole; `newsh5-55` alone 0.9197) | 0.9526 | 6.8 |
+| assembly-newsh-caret-191 | hero | UNDERDELI's red-domed wall emplacement (48x56): a red ball under a grey hood arch, oval frames with louvred pans, red pylons | 0.9545 (`newsh-caret-193`) | 0.9551 | 7.5 |
+| assembly-newsh5-156 (fix) | hero | NOSE DRIP's flame bowl (48x28, 20-24 ticks on screen): a white-hot heap with eight flame tongues, thin glowing geometry (D130), glow 0.5-1 | 0.989 (`newsh5-158`; whole 0.9958) | 0.9958 | 6.6 |
+| newshl-229 | standard | SQUADRON's airborne formation leader: a ribbed hood with a glowing chute engine and landing prongs | 0.9764 | 0.9764 | 7 |
+| newsh3-126 | standard | a horseshoe ring craft weaving in from the screen edges (SURFACE, CORE) | 0.9914 | 0.9914 | 7.2 |
+| newsh3-8 | standard | a pincer craft crossing right to left, blades and flame jet first (frames 8, 46) | 0.9832 | 0.979 | 7 |
+| newsh-caret-68 | standard | UNDERDELI's small purple weaving drone (12x14) with its green light arc | 1.0 | 1.0 | 7.5 |
+| newsh3-1 | standard | SURFACE's grey horned diver | 0.9672 | 0.9643 | 7 |
+| newsh5-133 | standard | DREAD-NOT's indestructible rocket probe rising up the screen (12x14) | 1.0 | 1.0 | 7.5 |
+| newsh5-170 | standard | BRAINIAC's terrain-fixed bell gun pod in a yoke | 0.9926 | 0.9878 | 7.1 |
+| newsh9-43 (new) | standard | EYESPY's blue escort gunship with a ball turret in its nose | 0.9897 | 0.9897 | 7 |
+| newshm-153 (fix) | standard | WINDY's red wall block with three raised chevrons, now on `lib_newshm_block`'s cast shell like its neighbours | 0.976 | 0.976 | 7 |
+| newsh5-267 (+ new newsh5-286; fix) | standard | the cannon bolts (12x14, left and right): a steel dart with a glowing red band, fired by D195's DREAD-NOT cannon pair and the TIME WAR cannons | 1.0 | 1.0 | 7.5 |
+| ~~assembly-newsh9-16~~ (newsh9-16, -18, + pulled-in -54, -56; fix) | hero | TIME WAR's shield-ship top: **dropped, duplicate of D196's `assembly-newsh9-54`** | 0.9553 | 0.991 | 7 |
+
+The IoU gate for the assemblies is D177/D182's whole-assembly grid; the claw pieces `newsh-caret-133` (0.667) and `-94`
+(0.883) and the torpedo pieces `-198`/`-206` (0.946/0.939) are low alone only by the ink their sprites draw at the cuts.
+`newsh5-160` (three frames, a full tile) scores a trivial 1.0.
+
+**The duplicate.** Batch 3's `assembly-newsh9-16` (review 7) built the same four models as D196's `assembly-newsh9-54`
+(7.5, already on main). The coordinator kept D196's and moved batch 3's script, glbs and JSONs out of the tree
+(`tyrian-scratch/e4-enemies-3/dropped-newsh9-16/`) before the branch's first commit; nothing in the branch names
+`assembly-newsh9-16.py` (only D196's Open item, closed here). Batch 3 also hand-wrote `reference/models/newsh9-16`/`-18`/
+`-54`/`-56` into the shared untracked reference; `assembly-newsh9-54.py` doesn't read them (it decodes the frames with
+`tools/sprite_data.py`), and the branch doesn't touch its glbs. About 5 of the run's agents went to the dropped item.
+
+**Units:** the 48 listed minus `newsh9-16`/`-18`, which D196 had already folded into `assembly-newsh9-54`: 46. The
+regenerated inventory folds 24 of them into 5 objects (as D190-D196): the claw pieces into `assembly-newsh-caret-11` and
+`-92` (10 into 2), the six torpedo pieces into `assembly-newsh-caret-198` (its builder names both torpedoes), and the
+cannons' eight sprite units (`newshl-153`/`-155`/`-157`/`-159` and `-197`/`-195`/`-193`/`-191`) into `assembly-newshl-153`
+and `-197` (the flash frames are frames of the muzzle models): 46 units become 27.
+
+**Identity re-reads** (the scout's `tools/enemy_behaviour.mjs` run and the level data; D120, D122, D166, D167):
+- **SURFACE's guardian** is two objects, not one: every piece is armour 150 on the sky layer, the right claw on link 99
+  (event time 5900, x 214-274), the left on link 198 (5930, x -26..34), each rigid and bobbing (ev19+20+27, y -3..+3),
+  holding the scroll until destroyed (~920 ticks; in the bot run from t5189). Pieces overlap 2-12 px, so each claw is
+  built whole and cut (D177/D182), one shared builder.
+- **UNDERDELI's torpedoes** rise up the screen on skyBottom at (0,-3); each piece has launchspecial 1 and animates
+  [frame, 999]: when level with the player every piece hides (frame 999, `enemy_gone`, src/sim/tyrian2.ts L230, never
+  drawn) and launches a copy of itself (types 58-60 for A, 52-54 for B) that accelerates sideways toward the bulb, so
+  the bulb is the nose. In the bot run B fires from t3086 and A from t3146.
+- **TIME WAR's edge cannons** are bot-only units (`enemy_behaviour.mjs` finds no types): tyrian4.lvl level 17 drops a
+  mount (types 673/676, static) and a muzzle (674/675, animate 2: the flash shows while firing) down each screen edge at
+  event time 7950 (bot run t15412 on); they launch types 452/453, the `newsh5-286`/`-267` bolts D195's DREAD-NOT cannon
+  pair fires too. The cannons are hard surface on the D195 cannon pair's lines (`lib_cannon_pair14` read, not imported).
+- **Read as craft, not ground pieces** (D120): the ?TUNNEL? drill torpedo (`assembly-newsh5-93`, armour 255, 28 rigid
+  pairs diving down at up to +8 px/tick; the old docstring's ground object and "level 4.8" were wrong), the diagonal
+  craft `newsh5-81`/`-83` (up the diagonals from BRAINIAC's bottom corners), the SQUADRON leader `newshl-229` (weaving
+  flight with the formation below it), the ring craft `newsh3-126`, the diver `newsh3-1`, the drone `newsh-caret-68`
+  and the gunship `newsh9-43` (the last four carry the inventory's boss flag but are swarm or escort units), the rising
+  probe `newsh5-133`. The crawlers `assembly-newsh3-86`/`-122` drift sideways relative to the terrain with the forklift
+  `newsh3-14` rigid on their roofs (its frame is a heading the level events set).
+- Ground pieces: the eye hatch `newsh5-160` (terrain-fixed, it fills its tile), the gun pod `newsh5-170`, the spire
+  `assembly-newsh3-275`, the hatch `newsh3-18`, UNDERDELI's emplacement `assembly-newsh-caret-191` (wall-mounted, D195,
+  despite its `air` flag), WINDY's block `newshm-153` (in rows beside D116's wall blocks). The flame bowl
+  `assembly-newsh5-156` is an effect (four rigid pairs, gone in 20-24 ticks).
+
+**Merges and libs:**
+- New builders: `lib_surface_claw.py` (`assembly-newsh-caret-11` and `-92` are wrappers, each exporting its own five
+  pieces), `lib_newshl_cannon.py` (`assembly-newshl-153` and `-197`; each builds both cannons, the right the left's
+  mirror, and exports only its own two models). `assembly-newsh-caret-198.py` holds the torpedo builder and
+  `assembly-newsh-caret-203.py` loads it for B; `newsh5-286.py` loads `newsh5-267.py`'s builder.
+- `lib_b115.py` is rewritten as the builder of its five scripts (all wrappers, `run(<group>)`); `lib_b068.py` keeps
+  `newsh5-160`/`-81`/`-83` (chamfer helpers added); `assembly-newsh5-93` no longer imports it.
+- **Deleted by the run:** `lib_b078.py` (`newshm-153` moved onto `lib_newshm_block`, as D116's Open item asked; `newshm-55` and `-123` had already left it),
+  `lib_b098.py` (merged into `newshl-229.py`; D195 had left it for that script), `lib_b139.py` (`assembly-newsh-caret-191`
+  is self-contained). **Deleted here:** `lib_b052.py` and `lib_b072.py`, orphaned: their last importers (`newsh3-1`,
+  `-8`; `newsh-caret-68`, `assembly-newsh-caret-191`) dropped them, as D196's `newsh3-229` and `newsh-caret-152`/`-190`
+  had; no mention left in assets, tools, src, tests or docs.
+- Scripts that dropped a shared lib leave it untouched: `lib_b011` (`newsh3-126`; stays for `newsh3-246`, `newsh9-41`),
+  `lib_b042` (`newsh5-133`; stays for the gun pods), `lib_b051` (`newsh5-170`, `assembly-newsh5-156`; stays for
+  `assembly-newsh5-85`). The run edited no shared lib (`common.py`, `usp_talon.py`, `lib_newshd_rock.py`,
+  `lib_cannon_pair14.py`, `lib_b019.py` untouched).
+- New scripts: the two claw wrappers, the two torpedo scripts, the two cannon wrappers, `newsh9-43`, `newsh5-267`/`-286`;
+  26 new `src/render/spriteModels` JSONs (the renderer globs them): the ten claw pieces, the six torpedo pieces,
+  `newshl-153`/`-155` (frames 155, 157, 159)/`-195` (195, 193, 191)/`-197`, `newsh3-14-f6`..`-f8`, `newsh9-43`,
+  `newsh5-267`/`-286`.
+
+**Integration checks.**
+- Rebuild: all 28 entry scripts the branch changes, rebuilt here on the D196 base with `tools/build-models.sh -j 4`
+  (93 s). They export exactly the 62 glbs the branch changes, each written by one script once (no double builds, no glb
+  without a builder). 27 came out byte-identical to the run's and 35 with the same vertex set (only the export's vertex
+  order and n-gon triangulation differ; `lib_b115`'s baked AO/roughness WebPs differ in bytes), so none was left on an old build:
+  the review's worry that `newsh5-160`'s glbs predated `lib_b068`'s last edit is moot (its geometry rebuilds the same).
+  No D195/D196 glb changed (`lib_cannon_pair14` and every other shared lib unedited), and no existing spriteModels JSON
+  changed.
+- **Sprite-only frames come from `tools/sprite_data.py`.** The claws, torpedoes and bolts decoded Sprite2 with their own
+  copies of the decoder; `newsh9-43` and `lib_newshl_cannon` read copies the run hand-wrote into the shared untracked
+  `reference/models/` (`newshl-153`/`-155`/`-195`/`-197` "rebuilt by tyrian-scratch/.../make_ref.py", `newsh9-43`): a fresh
+  checkout couldn't build them. All five now read `tools/sprite_data.py`, which gains `palette_rgb()` (the whole palette,
+  for materials on indices a frame doesn't use); its frames equal those copies pixel for pixel and colour for colour.
+  Rebuilt, the claws, bolts, `newsh9-43` and the cannons have the same geometry and materials; the torpedoes' decoder had
+  used palette 0, now palette 5 (the catalogue's for UNDERDELI): only the Blender colours of `pal_210`/`pal_215` change
+  (the game takes colour from the live palette, D7). `lib_b115`'s review-only decoder for frames 12/50/88 uses it too.
+- **Inventory units:** the claw and cannon wrappers name their pieces (`PIECES`, asserted against the builder), so the
+  inventory folds each object into one unit.
+- **The cannon flash glowed pink and white in game** (emission 2.2/3.2/4.5 on pal 119/122/126, past D126's
+  1 / brightest-channel limit); set to 1.0 like the other flames (`lib_b050`, `assembly-newsh5-91`). TIME WAR t15530
+  recaptured: red-orange-yellow like the sprite.
+- Docstrings: "design A" (four scripts), `newsh3-126`'s "scratch designs live outside it", `newsh9-43`'s "Scratch design"
+  comment, `lib_newshl_cannon`'s repo finder (said cwd, it walks up from the script), the cannon wrappers' "the halves
+  never build twice", `assembly-newsh5-93`'s "): final.", `newsh3-1`'s "4.4 / 4.2", the torpedo's palette-0 note and
+  `lib_newshm_block`'s note on `lib_b078` are fixed.
+- No hard-coded `/Users`, `tyrian-scratch` or `tyrian-worktrees` path in the changed scripts. Review output (`--review`,
+  `--views`, `--game`, `--measure`, `--out`, `--preview`, `--design`, `--top`) is written only when asked, into the given
+  path; a normal build writes only the glbs and their JSON (no untracked file after the builds).
+- Contract: 59 of the 62 glbs have an `_outline` node with a non-empty mesh and the `tyrian_outline` extra; `newsh5-160`
+  and its `-f2`/`-f3` have none by design (the hatch fills its tile and its sprite draws no ink ring, D8/D86; main's had
+  none either). Only `pal_<index>` and outline materials, no node transforms.
+- No `.npz`, sprite PNG, Gemini sheet, review sheet or log is in the diff: `.py`, `.glb`, `.json`, `DECISIONS.md` and the
+  inventory only (art rule 6).
+- `npx tsc --noEmit` clean; vitest 856 passed, 10 skipped (108 files).
+
+**Inventory** (regenerated, bot run): **Episode 4 is now 167 flagship / 1 older / 168 enemy units (was 141 / 18 / 187),
+0 with frames unmodelled (was 28), 0 unmodelled damaged frames**; boss units unchanged (55). Whole game: **435 flagship of
+438 enemy units** (was 409 of 457), 3 older (one each in episodes 2, 3 and 4), none unmodelled. The one episode-4 unit
+left is `newsh5-160`, BRAINIAC's eye hatch (16 events, 1633 ticks, rebuilt here to D65): the inventory calls a model
+`flagship` only when it has an outline shell, and this one has none by design. Episode 4's enemies are otherwise done.
+
+**In game** (`?debug=play&difficulty=2&seed=1&compare=1`, 1920x1080; ticks found by replaying the harness headless and
+listing which of the 62 models each tick draws, 60 seen, `integrate/probe/`; `tyrian-scratch/e4-enemies-3/integrate/`,
+`summary.png`): SURFACE t1581/t3740/t3861/t5320/t5900/t6000 (pincers; crawlers with the forklift on the roof, ring craft;
+both claws entering, the right one under D195's arch clamp, divers); CORE t123/t595 (spires, ring craft, pincers); ICE
+EXIT t363 (pincers); ?TUNNEL? t370/t390/t3991 (the drill torpedo; at t370 it runs under D195's boss in both views);
+UNDERDELI t257/t3100/t3126/t3170/t3220/t3316 (drones; torpedoes rising, B's and A's launched copies crossing the bottom
+row with nothing left where the pieces hid; the wall emplacements); BRAINIAC t2069/t2408 with `&power=11` (gun pod, eye
+hatch, diagonal craft); NOSE DRIP t406 (flame bowl); EYESPY t16603/t16650 (the escort gunships); DREAD-NOT t456 (rocket
+probe); WINDY t2630 (chevron block in the wall row); DESERTRUN t335 (floor hatches); SQUADRON t7921/t8146 (the leader);
+TIME WAR t7950/t15420/t15530/t17310 (the cannons dropping in on the wall columns, firing, the bolts). Every model loads;
+no console errors on any of the 33 captures; no black skirts, no empty outlines, no square-cut seams between the claw,
+torpedo, emplacement or cannon pieces. `newsh3-14-f7`/`-f8` (frames 50, 88) are not drawn in the bot run, so not seen in
+game. No regressions found. Notes: the torpedoes read a step lighter and more cyan than the sprite's navy (the review's
+note); TIME WAR's shield ship still reads darker than its sprite (D196's note).
+
+**Open:**
+- `newsh5-160` has no outline shell, so the inventory lists it as an older model: either give the full-tile hatch a shell
+  (its sprite has no ink ring) or let the inventory accept a shell-less D65 model; the one item between episode 4 and done.
+- Batch 3's hand-made copies in the shared `reference/models/` (`newshl-153`/`-155`/`-195`/`-197`, `newsh9-43`,
+  `newsh9-16`/`-18`/`-54`/`-56`) are read by nothing now; they live outside git and are left for the owner of the shared
+  reference.
+- `npm run catalogue` still doesn't list sprite-only pieces (D196); `tools/sprite_data.py` stays their route (now also the
+  claws, torpedoes, cannons, bolts and `newsh9-43`).
+- `newsh3-14-f7`/`-f8` unchecked in game (the bot never steers the forklift to those headings).
+- Budgets: the cannons ~21.6k triangles each (brief 2-6k), the torpedo outline shells ~23.7k per torpedo against ~7.6k of
+  model (`faces=9000`), the flame bowl's shells 5000 faces per piece.
+- Optional polish from the reviews (none blocking):
+  - `assembly-newsh5-93` (6.8): a soft lathe-turned stack with few machined breaks, and no IoU margin (0.9526);
+    `newsh5-81`/`-83`: lumpy nose, the sprite's vertical slot drawn as a diagonal groove; `newsh5-160` dark in game.
+  - `assembly-newsh5-156` (6.6): tongues read as thorns off-axis, seam lines at their feet, pixel-stepped colour bands.
+  - `assembly-newsh3-275`: the spire a sheared slab with a flat back from the side; `newsh3-14` colour agreement 0.61-0.77.
+  - the claws: identical knuckle cuffs, plain side skirts; the torpedoes: body and nose a step light; the cannons: mount
+    plain, no AO bake; `newsh3-8`: flame sheath thick, core hidden; `newshl-229`: chute glow hidden at the tilt;
+    `newsh3-126`/`newsh3-1`: pods a step off; `newsh9-43`: small thruster bell, no socket lip, stub barrels;
+    `newshm-153`: chevron arm ends lug-like, `lib_newshm_block`'s 16 open socket edges; `newsh-caret-68`: unsealed cone
+    ring; `newsh5-133`: thin throat; `newsh5-170`: low pod, solid bezel ring; `newsh5-267`: 8 sliver edges at the fin tips.
+- Candidates for `common.py` the agents copied again: `common.split_assembly` without fill and a fixed
+  `lib_newshd_rock.chip_planes` (`lib_b115`), the `Mesh` helper (`assembly-newsh-caret-191`, from `-45`),
+  `outline_shell_from` (a shell source apart from the shrinkwrap target, `assembly-newsh5-156`), `seal_and_orient`
+  (`newsh5-267`), pchip copies.
+- `docs/agents/MILESTONES.md`'s counts are not updated here (as in D190-D196).
+
+**Cost:** 71 agents (1 scout, 18 designs, 18 finishes on Sonnet, 8 fixes, 26 reviews; lean mode, no blueprints or
+judges), about 8.4M subagent tokens, about 1.8 h of run time. Per-agent median: design 20.4 min, finish 3.2, fix 9.9,
+review 5.8. Sheets: `tyrian-scratch/e4-enemies-3/<item>/final/` (not in git, D3).

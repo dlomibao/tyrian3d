@@ -64,6 +64,12 @@ def compose(sheet, size, index):
     return out
 
 
+def palette_rgb(root, palette=PALETTE):
+    """All 256 colours of a palette as 8-bit [r, g, b] lists (for materials on indices a frame doesn't use)."""
+    pal = data_file(root, "palette.dat").read_bytes()[palette * 768:(palette + 1) * 768]
+    return [[(v << 2) | (v >> 4) for v in pal[i * 3:i * 3 + 3]] for i in range(256)]
+
+
 def load(root, name, sheet_name, frames, size=2, palette=PALETTE):
     """sprite.json's content for model `name`: the given frames of `sheet_name` (pixels already parsed
     to lists of ints, as the model scripts' loaders leave them)."""
