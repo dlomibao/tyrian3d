@@ -10044,3 +10044,237 @@ judges), about 11.2M subagent tokens, about 2.4 h of run time; then `fix-round.j
 `assembly-newsh3-198`: 4 agents (2 fixes, 2 reviews), about 0.49M tokens, 39 min; both shipped. Per-agent median:
 design 17.7 min, finish 2.5, review 5.1, fix 13.0 (fix round 22.7). Sheets: `tyrian-scratch/e4-enemies-1/<item>/final/`
 and `.../fix/<item>/final/` (not in git, D3).
+
+## D196 — Episode-4 enemy rebuild, batch 2: 32 items (43 inventory units, 50 before seven fold into their objects) to the D65 hard-surface standard; CORE's wall of fire, NOSE DRIP's tongue and eyes, EYESPY's robot arms and lips, the BRAINIAC walker gate and canister pole, the SAVARA IV bomber and gunship, the HARVEST gun pods, the TIME WAR tower top and shield-ship top, UNDERDELI's chin block and SURFACE's arch-edge rocks; nothing held, one per-item IoU exception (follows D177, D179, D190, D192, D195)
+
+2026-11-13
+
+**Decision:** 48 more episode-4 units from the D116 ranking (after D195's 40; not `flagship`, not pickups) are
+rebuilt with `tools/workflows/model-flagship.js` in lean mode, as D190/D192/D195 (no blueprints, one
+design per item, a Sonnet finisher, Opus fixes and strict Opus reviews; D65's recipe: hard-surface geometry, outline
+shell, art rules 1-5). The scout folded the 48 units into 32 items (13 hero, 19 standard), listed every member script
+(D179's `members`) and pulled in `newsh9-16`/`-18`, the shield ship's top row, sprite-only and outside the list. **All 32
+items ship:** 27 passed strict review at once, 2 after one fix in the run (`newsh5-47`, `newsh3-262`), 2 that ended at
+fix passed after `fix-round.js` (`assembly-newsh-caret-269` after two fixes, `assembly-newshl-39` after one), and
+`newsh9-123` (review 7, verdict fix on the IoU gate alone) ships under the palette-pulse exception below.
+
+| Model (units) | Tier | What it is | Top-view IoU (finisher, worst frame) | Review IoU | Score |
+|---|---|---|---|---|---|
+| assembly-newsh3-96 (+ assembly-newsh3-99, -117, -118) | hero | CORE's wall of fire (84x84 px, four assemblies, 14 pieces): one faired glowing flame surface over a lava bed, a shared `tyrian_anchor` (6 px) | 0.9561 (newsh3-23 own mask; per assembly 0.9818-0.9947, whole 0.9985) | 0.9561 | 7 |
+| assembly-newsh-caret-269 (+ newsh5-270, assembly-newsh-caret-196; fix round) | hero | NOSE DRIP's tongue (267 over 269) tucked under D195's nose, its two glossy blue eyeballs, and EYESPY's giant red lips (196 + 208) | 0.9574 (the eye; tongue 0.992/0.9972, lips 0.9907/0.9913) | 0.9574 | 7 |
+| assembly-newsh5-85 (+ newsh5-168) | hero | the grey twin-walker gate (red eyes, claw arms, a U cradle round D195's bomb) and the red canister link whose pole runs on through the stacked links | 0.9565 | 0.9565 | 7 |
+| assembly-newsh5-117 | hero | the grey bomber (72x28 px): round fuselage, red tailplane, long straight wing with tip pods (SAVARA IV, APPROACH) | 0.9907 (whole 0.9925) | 0.9907 | 7.5 |
+| newsh5-76 | standard | a glossy red spiked mine, also its own sideways shot (BRAINIAC) | 0.9846 | 0.9846 | 7.3 |
+| assembly-newshl-39 (new; newshl-1, -3, -39, -41; fix round) | hero | the top 48x56 of TIME WAR's grey thruster tower: the vented cap and the body with its glowing red slots and dark disc, over D195's `assembly-newshl-77` base | 0.9705 (newshl-41 own mask; whole-assembly grid 0.9954) | 0.9705 | 7 |
+| newsh3-195 | standard | a thick steel ring with a glossy red dome and red lights (SIDE EXIT, LAVA RUN, LAVA EXIT) | 0.9848 | 0.9848 | 7 |
+| assembly-newsh9-39 (+ assembly-newsh9-45) | hero | EYESPY's left and right grey robot arms (two 48x56 L's, pixel mirrors) holding D195's eye sphere | 0.9508 (newsh9-39/-45; whole 0.9899) | 0.9865 (whole; own masks 0.947/0.954, the seam ink row) | 7 |
+| newsh3-6 | hero | a four-pod spinner: polished steel pods round a red hub (boss flag; a common weaving enemy) | grid 1.0 (rule 0.867) | 1.0 | 7.5 |
+| assembly-newsh5-203 | hero | a falling fireball (24x54 px, head 241/243 over tail 203/205, two frames): white-hot head, flame narrowing to a red tip | 0.9824 | 0.9884 | 7 |
+| assembly-newsh5-39 (+ assembly-newsh5-45) | hero | HARVEST's gun pods (48x28 px, left and right mirrors): a blue capsule on a grey ring frame with a dark orb and bullet head | 0.9513 (newsh5-41; whole 0.9835) | 0.9517 | 7.5 |
+| newsh5-166 | standard | a clamped red core in a grey frame, tiling BRAINIAC's band | 0.9598 | 0.9598 | 6.8 |
+| assembly-newsh5-91 | hero | NOSE DRIP's twisted fire column (24x56 px): two grooved glowing strands wound like a rope | 0.9745 (whole 0.9797) | 0.9745 | 7 |
+| newsh3-262 (+ newsh3-180, -282; fix) | standard | the rock shoulder, tip and spur at the edges of D195's sandy arch, D175 facet-ramp rock (SURFACE, DESERTRUN) | 0.9636 (fix round: 262 0.980, 282 0.964, 180 1.0) | 0.9636 | 7 |
+| assembly-newsh5-229 (+ newsh5-268) | hero | one grey and red gunship (48x56 px), nose down: the wing section and the torpedo body under it (SAVARA IV, APPROACH) | 0.9669 (newsh5-231 own; whole 0.9921) | 0.9756 (whole) | 7.5 |
+| newsh3-229 | standard | a crusted molten fireball shrinking over four frames: CORE's blob dies into it and fires it homing | 0.9725 (f3) | 0.9725 | 7.5 |
+| newsh5-1 | standard | a faceted purple crystal arrowhead in a dark red collar (HARVEST) | 0.9639 (grid 0.9915) | 0.9639 | 7.2 |
+| newsh5-47 (fix) | standard | a purple belted pod with a gold strap and a dark port (HARVEST, LAVA RUN) | 0.9822 | 0.9554 | 7.5 |
+| newsh3-271 | standard | a sliding ringed turret: open grey ring, glossy blue dome, ribbed barrel | grid 0.99 (rule 0.9147) | 0.983 | 7.3 |
+| newsh-caret-152 (+ newsh-caret-190) | standard | the grey darts lying sideways, nose left and right (mirror pair): projectiles | grid 1.0 | 1.0 | 7.5 |
+| newsh3-246 | standard | a silver spiked mine with a ringed pit of red rods | grid 1.0 | 1.0 | 7 |
+| newsh5-79 | standard | the green mother eye with a dark lens, escorted by D195's grey eyeballs (EYESPY) | 1.0 | 0.9614 | 7 |
+| newsh5-3 | standard | a purple bat-winged pod whose eight frames run its green lights (`frame_part`) | 0.9864 | 0.9865 | 7.5 |
+| newsh9-123 (new; exception) | hero | UNDERDELI's chin block: a purple-grey armoured hatch on the bottom centre of D195's fortress, its light walking over three frames | 0.9197 (241; 123 0.9459, 279 0.9765; pulse-invariant core 0.994) | 0.9197 | 7 |
+| newsh5-284 (+ newsh5-245) | standard | the flying ears, now true mirrors (EYESPY) | 0.9965 | 0.9965 | 7 |
+| assembly-newsh9-54 (new; newsh9-54, -56, + pulled-in newsh9-16, -18) | hero | the top 48x56 of TIME WAR's grey shield ship: a glossy blue canopy split by a grey spine, its sheen walking over three frames, over D195's `assembly-newsh9-92` | 0.9854 (grid 0.9924) | 0.9854 | 7.5 |
+| newsh9-41 | standard | a grey dart-launching ground emplacement with a glowing red core (UNDERDELI, LAVA RUN) | 0.9682 (grid 0.9948) | 0.9686 | 6.9 |
+| newsh5-207 | standard | the brain's spawn drill: a dark red shell pod with a long spike, diving down | 1.0 | 1.0 | 7.5 |
+| newsh3-3 | standard | the small sandstone pyramid in front of each of D195's stepped pyramids (frames only brighten) | 0.9679 | 0.9679 | 7.5 |
+| newsh3-10 | standard | a twin-claw jet crossing the screen sideways, its flame per frame | 0.9723 | 0.9723 | 7.5 |
+| newsh3-128 | standard | CORE's glossy red blob on the ground, its dome pulsing over three frames | 0.9734 | 0.9734 | 7.2 |
+| newsh5-49 | standard | the tan fighter weaving down APPROACH | 0.9908 | 0.9908 | 7 |
+
+Units: the 48 listed units plus the 2 pulled in (`newsh9-16`, `-18`), 50 in all. The regenerated inventory folds seven
+of them into the unit of the script that now names their models (as D190/D192/D195): `newsh5-268` into
+`assembly-newsh5-229`; `newsh9-16`/`-18`/`-54`/`-56` into the new unit `assembly-newsh9-54`; `newshl-1`/`-3`/`-39`/`-41`
+into the new unit `assembly-newshl-39` (the nine went, two came): 43 units. `newsh5-168` was already part of the
+`assembly-newsh5-85` unit. The IoU gate for assemblies is D177/D182's whole-assembly grid; the per-piece figures above
+that sit near 0.95 lose only the ink row the sprite draws at the shared cut. `newsh3-6`, `newsh3-246`, `newsh3-271`,
+`newsh-caret-152`/`-190` pass on `iou_rule_grid`; their plain rule IoU is 0.87-0.92.
+
+**The newsh9-123 exception (palette pulse).** Its three frames (123, 241, 279) share one 384 px opaque mask; the pulse
+lights different ring pixels above `INK_LUMA`, so `tools/sprite_mask.py`'s inner masks differ (351, 361 and 340 px).
+They share a 334 px core and differ only in ring pixels that belong to one frame each (17 on 123, 27 on 241, 6 on 279).
+An exhaustive count shows no single shape reaches `iou_rule_grid` 0.95 on every frame: the best (the core plus 5 of
+241's pixels and 10 of 279's) peaks at a worst frame of 0.939. The model scores 0.9459 / 0.9197 / 0.9765 (rule IoU
+0.935 / 0.9135 / 0.9672) and 0.994 against the pulse-invariant core. It ships with this per-item exception; the gate
+stays as it is for every other model. A general fix would extend `sprite_mask.py`'s palette-pulse rule (D74's
+`pulse_partners` needs one constant index shift per frame, which this pulse doesn't have); not done here.
+
+**Identity re-reads** (the scout's `tools/enemy_behaviour.mjs` run, `tyrian-scratch/e4-enemies-2/behaviour.json`; D120,
+D122, D166, D167):
+- **CORE's boss** is a wall of fire: all 14 types (e4:366-379) spawn at event time 5350 on the top layer as one rigid
+  stack on link 199 (x 140-200, ey -84..-14) and share their steering ((0,-1), then ev20 weaving x -3..+3); types 368
+  and 379 fire. Fire, so the glowing palette materials (metallic 1/rough, D126/D173). It enters at the top edge, so
+  the 14 pieces carry one `tyrian_anchor` (D181/D185).
+- **NOSE DRIP's face:** the tongue (`assembly-newsh-caret-269`, e4:792/793 at x 171; 793 launches the D195 spores) and
+  the eyeballs (`newsh5-270`, e4:780 twice) spawn at t100 beside D195's nose and bob with it (ev19), but on their own
+  links: other objects. The tongue's top is clamped under the nose, bridge and pod by ray-casting those models' glbs
+  (`lib_b046` `cover_field`). The lips (`assembly-newsh-caret-196`) are a separate EYESPY enemy (sky layer, weaving,
+  boss flag), pulled into the item only because `lib_b046` built both.
+- **The BRAINIAC/APPROACH gate:** `newsh5-85`/`-87` sit 24 px apart, rigid, terrain-fixed in BRAINIAC and swooping in
+  APPROACH; in 26 of the stacks D195's bomb `newsh5-77` sits between them (dx +12), so the gate is a cradle. The
+  canister link `newsh5-168` (e4:520) spawns nine times at x 120 every 28 ticks: the links stack into one pole, so the
+  pole and its outline shell are cut exactly at the block's edges.
+- **The SAVARA IV craft:** the bomber is three rigid pieces 24 px apart flying down the sky layer; the gunship's wing
+  section (`assembly-newsh5-229`) and torpedo body (`newsh5-268`, dx +12, dy +28) are one rigid craft flying down, so
+  it is built nose down (the two old headers disagreed).
+- **The TIME WAR craft (D195's seams):** `newshl-1`/`-3` (cap) and `-39`/`-41` (body) are the top 48x56 of the 48x84
+  tower whose base is D195's `assembly-newshl-77` (dy -56/-28/0, one link), hovering in the sky, not grounded;
+  `newsh9-16`/`-18` and `-54`/`-56` are the top 48x56 of the 48x112 shield ship over D195's `assembly-newsh9-92`
+  (dy -28/0/+28/+56). Both top edges were seams; now both craft are whole models. While they hover, their top rows sit
+  above the screen; `newsh9-16`/`-18` show only late (TIME WAR t11658 on).
+- **UNDERDELI's chin block** (`newsh9-123`, e4:319, armour 255) spawns at t4601, one tick after the fortress, at its
+  bottom centre over `newsh9-87`, and shares its steering: the fortress's chin hatch (the reading is the scout's; in game
+  it sits where the original's block does, below).
+- **EYESPY's arms:** e4:351-353 (x 64, link 1) and 354-356 (x 240, link 2) spawn once at t4500 and move as mirror
+  images (ev19 (+2,0)/(0,0)/(-3,0) against (-2,0)/(0,0)/(+3,0)); they flank D195's eye sphere. The piece between them
+  was not identified (not in this batch).
+- **Projectiles and props:** `newsh-caret-152`/`-190` have no spawn events; they are the sideways darts launched by
+  `newsh-caret-171` and by D195's cannon pair (`assembly-newshv-14`/`-169`), and `newsh-caret-171` is in turn launched
+  by `newsh9-41`. `newsh5-76` launches its own picture sideways. `newsh3-229` is CORE's blob's hot core (e4:254, from
+  `newsh3-128`'s death) and its homing shot (e4:257). `newsh5-79` is the mother eye that launches and is escorted by
+  D195's `newsh5-202`.
+- Ground pieces despite their `air` flag (D120): `newsh3-3` (stacked rigid with D195's stepped pyramids), `newsh3-128`
+  (terrain-fixed rows), the arch-edge rocks (`newsh3-262`/`-180`/`-282`, terrain-fixed with D195's arch types).
+  `newsh5-166` is terrain-fixed and stacks ±24 px with itself into BRAINIAC's band. `newsh3-6` and the gun pods carry
+  the inventory's boss flag but behave as common weaving enemies.
+
+**Merges and libs:**
+- `assembly-newsh3-96` + `-99` + `-117` + `-118`: `lib_b050.py` builds the whole fire once and `build_assembly(name)`
+  exports only that assembly's pieces; the four scripts are wrappers. `lib_b049.py` had become a shim onto `lib_b050`
+  with no importer left: **deleted**.
+- `assembly-newsh-caret-269` + `newsh5-270` + `assembly-newsh-caret-196`: `lib_b046.py` builds the tongue, the eyeball
+  and the lips, `run(key)` per wrapper; `newsh5-270` no longer imports `lib_b030` (which stays for `newsh5-166`, `-19`).
+- `assembly-newsh5-85` + `newsh5-168`: the assembly script holds the builder; `newsh5-168.py` loads it and exports the
+  pole only. `lib_b051` is untouched (the gate builder, `newsh5-170` and `assembly-newsh5-156` use it);
+  `assembly-newsh5-91` and `newsh5-168` no longer import it.
+- `assembly-newsh9-39` + `-45`: `lib_b028.py` holds the arm builder (it no longer imports `lib_b003`, which stays).
+- `assembly-newsh5-39` + `-45`: `lib_b042.build_gunpod` is replaced and `split_shell`/`export_gunpod` added; the generic
+  helpers are unchanged, and the out-of-batch `newsh5-133` (which uses them) rebuilt byte-identical.
+  `assembly-newsh5-203` no longer imports `lib_b042`.
+- `newsh3-262` + `-180` + `-282`, `assembly-newsh5-229` + `newsh5-268`, `newsh-caret-152` + `-190`, `newsh5-284` + `-245`:
+  the first script holds the builder, the others load it with `importlib` and export only their own model.
+- New scripts: `assembly-newshl-39.py`, `assembly-newsh9-54.py`, `newsh9-123.py`, with new `src/render/spriteModels`
+  JSONs for `newshl-1`/`-3`/`-39`/`-41`, `newsh9-16`/`-18`/`-54`/`-56` and `newsh9-123` (the renderer globs them).
+- **Deleted: `lib_b037.py`** (its last importers, `assembly-newsh5-117`, `newsh5-1`, `-3`, `-79`, dropped it; D195's
+  `newsh5-51` already had) and **`lib_b049.py`**; no importer left in assets, tools, src, tests or docs. The single
+  scripts that dropped a shared lib leave it untouched: `lib_b011` (`newsh3-195`, `-6`, `-10`, `-180`, `-262`),
+  `lib_b004` (`newsh5-76`, `-47`, `-284`, `-245`, `-268`), `lib_b030` (`newsh5-207`, `-49`), `lib_b076` (`newsh3-128`,
+  `-282`, `-3`), `lib_b013` (`assembly-newsh5-229`), `lib_b052` (`newsh3-229`), `lib_b072` (`newsh-caret-152`/`-190`).
+  No shared lib (`common.py`, `usp_talon.py`, `lib_newshd_rock.py`) was edited.
+
+**Integration checks.**
+- Rebuild: the run built on the pre-D195 base, so all 45 entry scripts it changed plus `newsh5-133` were rebuilt here on
+  top of D195 with `tools/build-models.sh -j 4` (about 70 s). They export exactly the 78 glbs the branch changes plus
+  `newsh5-133` (byte-identical to main), each written by one script once (no double builds, no glb left on an old
+  build, no changed glb without a builder); 38 came out byte-identical to the run's, 38 with the same meshes, vertex
+  counts, bounds, materials and nodes, and `newsh3-118`/`newsh3-77` differ by 2-3 vertices from the run's glbs (a
+  rebuild of the two scripts again gives the same geometry, so the run's copies predate their last edit). No
+  `src/render/spriteModels` JSON changed except the 9 new ones.
+- **The tongue reads the repo's own face models.** `lib_b046`'s `cover_dir` took `$B046_COVER_DIR` (the run pointed it at
+  the main checkout's D195 nose, bridge and pod, since the worktree still had the old ones); the override is removed and
+  it reads `public/models/enemies`, now D195's. Rebuilt on that base, `newsh-caret-267`/`-269` come out byte-identical
+  to the run's, the glbs the fix round's reviewer checked tucked under D195's face at NOSE DRIP t180 (in this
+  integration's t182 capture the cloud covers the tongue in both views).
+- **Reference data for the sprite-only units.** `reference/models/` (`npm run catalogue`) has no folder for
+  `newshl-1`/`-3`/`-39`/`-41`, `newsh9-16`/`-18`/`-54`/`-56` or `newsh9-123`: a fresh catalogue run into a scratch folder
+  (`integrate/catalogue/`, 1025 folders) doesn't list them either, since its world never draws them. The three new
+  scripts fell back to hand-made copies in `tyrian-scratch` (and `newsh9-16` etc. had meanwhile appeared in the shared
+  `reference/` from batch 3, with another frame order). So the documented route can't make them, and the scripts now
+  read those frames straight from the game data with the new stdlib-only `tools/sprite_data.py` (Sprite2 decode as
+  `src/data/sprites.ts`, the catalogue's 2x2 compose, palette 5, the catalogue's `sprite.json` fields), as
+  `assembly-newshe-39.py` reads its damaged frames. Its output equals the scratch copies pixel for pixel and colour for
+  colour (`newsh9-54`'s merged colours lack only index 14, which no material uses). `assembly-newshl-39` takes its
+  piece layout from a constant instead of the copy's `assemblyLayout`.
+- Hard-coded paths: `assembly-newsh5-203`, `assembly-newsh5-85`, `lib_b050`, `assembly-newshl-39`, `assembly-newsh9-54`,
+  `newsh5-207`, `newsh3-229`, `newsh5-49` and `newsh5-79` fell back to the `tyrian-worktrees/e4-enemies-2` path when
+  the repo was not found; now they raise (`TYRIAN_REPO` still works where it did). `newsh5-49` no longer exports a
+  `newsh5-49_A.glb` beside itself outside the repo.
+- Review hooks: `assembly-newsh5-229` (`--views`, a hard-coded scratch `views_A.py`), `assembly-newsh5-85` (`--review`,
+  a `review_A.py` beside the script that isn't in the repo), `assembly-newsh5-91` (`--views --tools DIR`) and `newsh5-3`
+  (`--views` via `$NEWSH53_VIEWS_LIB`) are removed (as D190/D192/D195). The remaining review output (`--out`, `--game`,
+  `--measure`, `--review`, `--views` into a given folder, `TYRIAN_REVIEW_GLB`) is written only when asked; a normal build
+  writes only the glbs and their JSON. No stray `build_info.json`, `_A` glb or report file in the repo.
+- Docstrings: the `_A.py` run lines (`newsh9-123`, `assembly-newsh5-229`, `-91`, `newsh5-47`, `-49`), `assembly-newsh5-229`'s
+  literal `\n`, `assembly-newsh5-85`'s "exports ONLY the review glb", `assembly-newsh9-54`'s "lamps 148" (pal 149 shoulder
+  glass), the gun pods' dead `--preview` and `lib_b050`'s note on the shim are fixed.
+- Every one of the 78 glbs has an `_outline` node with a non-empty mesh and the `tyrian_outline` extra, and only
+  `pal_<index>` and outline materials; none has a node translation.
+- No `.npz`, sprite PNG, Gemini sheet, review sheet or log is in the diff; the scripts read the sprites from
+  `reference/` or the game data at build time (art rule 6).
+
+**The SURFACE arch foot (D195 Open):** the reshaped `newsh3-262`/`-282` join D195's arch pieces `newsh3-241`/`-279`/`-281`
+without the flat-topped ledge and its dark edge or the vertical seam: at SURFACE t1800 and DESERTRUN t1032 (`compare=1`,
+side by side with D195's integration captures, `integrate/arch/`) the right leg runs on smoothly. That Open item is
+closed. Still there, as D195 noted: the straight tonal seam where the 3D crown meets the HD terrain legs, and a faint
+grey halo outside the crown's outer edge.
+
+**Inventory** (regenerated, bot run): **Episode 4 is now 141 flagship / 18 older / 187 enemy units (was 98 / 59 /
+194), 0 unmodelled damaged frames**; boss units unchanged (55). Whole game: **409 flagship of 457 enemy units** (was
+366 of 464; the seven folded units). The tileset, shot and song rows are unchanged; `src/viewer/assemblies.json` is
+unchanged.
+
+**In game** (`?debug=play&difficulty=2&seed=1&compare=1`, 1920x1080; ticks found by replaying the harness headless and
+listing which of the 78 models each tick draws, all 78 seen, `integrate/probe/`; `tyrian-scratch/e4-enemies-2/integrate/`,
+`summary.png`): CORE t5400/t5470/t6000 (the wall of fire entering at the top edge, then whole; blobs, fireballs); SURFACE
+t1640/t1800 and DESERTRUN t782/t1032 (the arch-edge rocks, the small pyramids); HARVEST t307/t1603 (gun pods, arrowheads,
+belted and bat-winged pods); UNDERDELI t3756/t4700/t6719 (darts; the fortress entering; the chin block on its bottom
+centre where the original's block is, the emplacement); SAVARA IV t720/t4822/t5515 (bombers, gunships); APPROACH
+t1309/t1867 (walker gates round the bomb, gunships nose down, bomber, tan fighters); BRAINIAC t1061/t4247/t5680/t11551
+with `&power=11` (gate, canister pole running on through its links, mines, falling fireballs, the core band, drills);
+EYESPY t493/t4500/t4700/t6950/t8983 (lips, the green eye pod and escorts, ears, the arms entering with D195's sphere and
+holding it); NOSE DRIP t182/t1546/t4400 (eyes, fire columns); TIME WAR t4198/t9200/t11700 (the tower tops and the shield
+ship's top half, closed onto D195's lower halves); LAVA RUN t911/t1543, LAVA EXIT t699/t4047, SIDE EXIT t844/t2225, ICE
+EXIT t2774/t5572, ICESECRET t647, DREAD-NOT t3000 (rings, spinners, emplacements, turret, mines). Every model loads; no
+console errors on any of the 42 captures; no black skirts, no empty outlines; the wall of fire (with its shared
+anchor) and the arms enter at the top edge with the original (their exits were not captured). No regressions found.
+Notes: TIME WAR's tower and shield-ship hulls read darker than the sprites' mid grey (the review's note on
+`assembly-newshl-39`; D195's lower halves read the same), and while the craft hover their top rows sit above the
+screen, so `newsh9-16`/`-18` show only late in the level; under NOSE DRIP's clouds (t182) the 3D cloud lets a fire
+column's ink outline through where the original's cloud hides the column (the renderer's outline pass over the cloud
+layer, not these models; no `src/` change here).
+
+**Open:**
+- **TIME WAR's shield-ship top is built twice:** batch 3 (episode-4 batch 3, another worktree, running in parallel)
+  also built it, as `assembly-newsh9-16.py` (with its own reference copies in the shared `reference/models/newsh9-*`).
+  The coordinator keeps one of the two at batch 3's integration and deletes the other script.
+- `tools/sprite_mask.py`'s palette-pulse rule could cover pulses like `newsh9-123`'s (ring pixels lit per frame, no
+  single index shift), which would retire the exception.
+- `npm run catalogue` doesn't list the sprite-only pieces (TIME WAR's upper pieces, the chin block); `tools/sprite_data.py`
+  is the stopgap. A catalogue entry for them (a `CONDITIONAL_SPAWNS`-like list) would let `sprite_mask.py` and the
+  viewer see them too.
+- Under NOSE DRIP's clouds a model's ink outline shows through where its body is hidden (t182, a fire column): a
+  renderer layering question for the outline pass, outside this batch.
+- `newsh3-229`'s frame 224 (the homing shot's last frame before it dies) has no model, as before.
+- Optional polish from the reviews (none blocking):
+  - the wall of fire: low relief from the side (14 px on 84), 17/10/8 non-manifold sliver edges on `newsh3-23`/`-96`/`-77`;
+    the eyeball: a faint 8-lobe wobble at its foot (needed for the IoU), the tongue root's wedge corners;
+    `assembly-newshl-39`: pods and neck a little dark, slots read partly as rods in 3/4.
+  - `assembly-newsh5-85`: hinge a torus ring (sprite a pin), boxy legs; `assembly-newsh5-117`: nose glazing as raised
+    bars, flat black intake faces; `assembly-newsh5-203`: 15k triangles, cross-ribbed relief, per-face colour steps;
+    `assembly-newsh5-91`: per-face colour mosaic, tip one row short; `assembly-newsh5-229`: breeches 1 px over the ink.
+  - `newsh5-166`: a smooth lobe for the sprite's lumps, vent pal 116 (sprite 120); `newsh9-41`: core tip one row short,
+    a donut for the hot core; `newsh3-195`: flat hub, thin ring; `newsh5-76`: spikes read as nubs from the game camera;
+    `newsh3-10`: jet thicker than the claws; `newsh3-128`: squat, lighter dome; `newsh3-180`: brighter than its sprite;
+    `newsh5-49`: centre drum steps into the forward fuselage, brass-gold satin; `newsh5-79`: lens centred by parallax;
+    `newsh3-246`: open hairpin tube ends; `newsh5-47`: port coaming hooks the silhouette; `newsh9-54`: an invented
+    louvre grille; `newsh3-3`: dead `sink_shell`; `newsh3-10`: unused `arg()`; `lib_b042`: `PX` defined twice.
+- Candidates for `common.py` the agents copied again: a cut-edge outline trim (`newsh3-262`'s `trim_caps`), `sink_shell`,
+  `bake_maps`, the height-field helpers of `lib_b050`.
+- `docs/agents/MILESTONES.md`'s counts are not updated here (as in D190, D192, D195).
+
+**Cost:** 107 agents (1 scout, 32 designs, 32 finishes on Sonnet, 5 fixes, 37 reviews; lean mode, no blueprints or
+judges), about 12.1M subagent tokens, about 2.5 h of run time; then `fix-round.js` on `assembly-newsh-caret-269` and
+`assembly-newshl-39`: 6 agents (3 fixes, 3 reviews), about 0.71M tokens, 53 min; both shipped. Per-agent median:
+design 18.7 min, finish 2.8, review 5.7, fix 9.4 (fix round 13.8). Sheets: `tyrian-scratch/e4-enemies-2/<item>/final/`
+and `.../fix/<item>/final/` (not in git, D3).

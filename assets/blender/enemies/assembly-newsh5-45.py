@@ -7,8 +7,7 @@ light barrel sleeve, a grey band and a bullet-shaped blue head with the gun barr
 (newsh5-45). Built whole by lib_b042.build_gunpod (newsh5-39 + 41 is its mirror image) and cut
 into the two pieces with common.split_assembly. One frame each.
 
-Run: blender --background --python assets/blender/enemies/assembly-newsh5-45.py [-- --preview out.png]
-(the preview is the whole pod; each piece also gets <piece>.png next to it).
+Run: blender --background --python assets/blender/enemies/assembly-newsh5-45.py
 """
 
 import sys
@@ -31,7 +30,7 @@ def main():
     cx0 = (centre["newsh5-43"][0] + centre["newsh5-45"][0]) / 2
     cy0 = centre["newsh5-43"][1]
     layout = [(n, centre[n][0] - cx0, centre[n][1] - cy0) for n in PIECES]
-    lib.export_assembly(ROOT, obj, layout, size=4)
+    lib.export_gunpod(ROOT, obj, layout, flip=False)
 
 
 if __name__ == "__main__":
