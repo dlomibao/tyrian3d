@@ -24,8 +24,9 @@ on the front skirt (toward the game camera), bolted access panels on the flanks 
 
 Colours (median palette index per region, darkest 112 and brightest >= 120 left out as lighting):
 petals 114 (the body's median; 115 and up only in the lower-right sheen), core 114, skirt band
-113, frame 113, recesses 112, glass 1, big lens housing 114 ring 123 core
-127 (emissive), small lens housing 113 ring 117 core 121 (emissive). Satin metal.
+116 (the outer ring's median away from the sheen; E2 QA M4), frame 113, recesses 112, glass 1, big lens housing 114 ring 123 core
+127 (emissive), small lens housing 113 ring 117 core 121 (emissive). Polished, clear-coated red
+lacquer with a raised F0 (D176), so the rim's crescent is the game's own sheen.
 
 Run: blender --background --python assets/blender/enemies/newshe-195.py [-- --preview out.png] [--no-bake] [--out x.glb]
 
@@ -134,31 +135,56 @@ def SO(t, rho, off):
 
 # --- materials ------------------------------------------------------------------------------------
 CORE, PLATE, FRAME, DEEP, GLASS, HOUS1, RING1, CORE1, HOUS2, RING2, CORE2, BOLT, SKIRT = range(13)
+# E2 QA M4 (BONUS 2.3): the satin version (metallic 0.15-0.24, roughness 0.36-0.46, skirt 113) read
+# as a dull, flat maroon dome; the original is a dark glossy shell whose rim catches a bright
+# red-orange crescent. The sprite's outer 1-3 px ring is 114-116 away from the sheen (median 116 with
+# the lit 120-125 crescent and the dark 112-113 limb left out as lighting), the body inside it
+# 113-114. So the skirt and its rounded rim bead take 116 and every red part is a polished lacquer
+# (art rule 2: the crescent is sheen, not paint). The sheen's colour: a red metal's reflection is pure
+# red, and pure red pushed bright goes pink under the game's Neutral tone mapping (D126), never
+# orange; the sprite's sheen runs 117 -> 120 -> 123 -> 125 -> 127, red through orange to white. So
+# the lacquer is mostly dielectric with a raised F0 (Specular IOR Level, D176) tinted by the
+# sprite's own mid-sheen colour (palette 122, as Specular Tint, exported as KHR_materials_specular's
+# specularColorFactor): its highlights come out orange and run to yellow-white at the peak, as the
+# sprite's do. The colour under the sheen stays the palette index.
 PAL_OF = {CORE: 114, PLATE: 114, FRAME: 113, DEEP: 112, GLASS: 1, HOUS1: 114, RING1: 123, CORE1: 127,
-          HOUS2: 113, RING2: 117, CORE2: 121, BOLT: 116, SKIRT: 113}
+          HOUS2: 113, RING2: 117, CORE2: 121, BOLT: 116, SKIRT: 116}
 TEXTURED = (CORE, PLATE, FRAME, DEEP, HOUS1, HOUS2, BOLT, SKIRT)
 TINT = (1.0, 0.97, 0.94)
-METAL = 0.3
+BODY_METAL = 0.85  # the body: a dark red metal, its reflections red
+SPEC_RIM = 0.8  # F0 0.064 (x the tint) on the rim band, bead and skirt, where the crescent is
+METAL = 0.3  # a little red metal under the lacquer
+SHEEN_PAL = 122  # the sprite's mid-sheen orange, the lacquer's specular tint
 
 
 def materials(sprite):
-    def pal(slot, tag, metallic, roughness, glow=0.0):
-        return common.palette_material(sprite, PAL_OF[slot], f"pod195_{tag}", metallic=metallic * METAL,
-                                       roughness=roughness, emission_strength=glow)
+    sheen = common.srgb(*sprite["colors"][str(SHEEN_PAL)])
+
+    def pal(slot, tag, metallic, roughness, glow=0.0, coat=0.0, coat_rough=0.08, spec=None, tint=None):
+        mat = common.palette_material(sprite, PAL_OF[slot], f"pod195_{tag}", metallic=metallic,
+                                      roughness=roughness, emission_strength=glow)
+        bsdf = next(n for n in mat.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+        bsdf.inputs["Coat Weight"].default_value = coat
+        bsdf.inputs["Coat Roughness"].default_value = coat_rough
+        if spec is not None:
+            bsdf.inputs["Specular IOR Level"].default_value = spec
+        if tint is not None:
+            bsdf.inputs["Specular Tint"].default_value = (*tint, 1.0)
+        return mat
     return [
-        pal(CORE, "core", 0.5, 0.46),
-        pal(PLATE, "armour", 0.55, 0.38),
-        pal(FRAME, "frame", 0.55, 0.36),
-        pal(DEEP, "recess", 0.2, 0.75),
-        pal(GLASS, "glass", 0.0, 0.06),
-        pal(HOUS1, "lens_housing", 0.7, 0.3),
+        pal(CORE, "core", BODY_METAL, 0.24),
+        pal(PLATE, "armour", BODY_METAL, 0.22),
+        pal(FRAME, "frame", BODY_METAL, 0.24),
+        pal(DEEP, "recess", 0.06, 0.75),
+        pal(GLASS, "glass", 0.0, 0.06, coat=1.0, coat_rough=0.04),
+        pal(HOUS1, "lens_housing", BODY_METAL, 0.22),
         pal(RING1, "lens_ring", 0.0, 0.3, glow=1.3),
         pal(CORE1, "lens_core", 0.0, 0.2, glow=3.0),
-        pal(HOUS2, "lens2_housing", 0.7, 0.3),
+        pal(HOUS2, "lens2_housing", BODY_METAL, 0.22),
         pal(RING2, "lens2_ring", 0.0, 0.3, glow=1.2),
         pal(CORE2, "lens2_core", 0.0, 0.2, glow=1.8),
-        pal(BOLT, "bolt", 0.8, 0.28),
-        pal(SKIRT, "skirt", 0.5, 0.44),
+        pal(BOLT, "bolt", METAL, 0.2, spec=SPEC_RIM, tint=sheen),
+        pal(SKIRT, "skirt", METAL, 0.12, spec=SPEC_RIM, tint=sheen),
     ]
 
 
@@ -172,14 +198,29 @@ FULL = [2 * math.pi * i / NT for i in range(NT)]
 
 
 # --- core: lathe ----------------------------------------------------------------------------------
+# The rim (E2 QA M4): a rounded bead from the skirt wall (RHO_SK, z 1.7) over a quarter round to the
+# dome foot (RHO_D, z 2.3), radius (RHO_SK - RHO_D) R ~ 0.6 px, in place of the old 45 deg chamfer
+# and flat ledge. Its normals sweep from level to straight up, so somewhere along the front of it
+# the game's sun and environment always find the mirror angle: the sprite's lit crescent (117-125
+# on the lower right) comes out as sheen on the polished rim, not as paint. The plan is unchanged.
+Z_RIM0, Z_RIM1 = 1.7, 2.3
+# The rim band goes on up the dome's steep flank to RHO_RIM, below the petals' lower edge (see
+# rho_out): from above it is a ~2 px red ring round the front, where the sprite's crescent is, with
+# normals from level to ~50 deg up, so the sun's highlight always lands on it somewhere.
+RHO_RIM = 0.8
+RIM = [((RHO_SK - RHO_D) * math.cos(math.radians(a)) + RHO_D, Z_RIM0 + (Z_RIM1 - Z_RIM0) * math.sin(math.radians(a)))
+       for a in range(0, 91, 10)]
+
+
 def build_core(P):
     prof = [(0.0, 0.0), (0.9, 0.0), (0.965, 0.3), (RHO_SK, 0.65), (RHO_SK, 1.2), (0.975, 1.2),
-            (0.975, 1.5), (RHO_SK, 1.5), (RHO_SK, 2.0), (0.965, 2.3), (RHO_D, 2.3)]
-    mats = [CORE, CORE, SKIRT, SKIRT, DEEP, SKIRT, SKIRT, SKIRT, SKIRT, CORE]
-    dome = [RHO_D * (1 - (i / 10) ** 1.6) for i in range(1, 11)]  # finer near the foot
-    for rho in dome[:-1]:
+            (0.975, 1.5), (RHO_SK, 1.5)] + RIM
+    mats = [CORE, CORE, SKIRT, SKIRT, DEEP, SKIRT, SKIRT] + [SKIRT] * (len(RIM))
+    dome = [RHO_D * (1 - (i / 10) ** 1.6) for i in range(1, 10)]  # finer near the foot
+    dome = sorted(set(dome) | {0.885, 0.83, RHO_RIM}, reverse=True)
+    for rho in dome:
         prof.append((rho, z_dome(rho)))
-        mats.append(CORE)
+        mats.append(SKIRT if rho >= RHO_RIM - 1e-9 else CORE)  # the lacquered rim band below the petals
     prof.append((0.0, Z_TOP))
     mats.append(CORE)
     rings = []
@@ -219,10 +260,9 @@ RHO_E_MAX = RHO_SK  # to the chamfer's outer edge
 def wrap_path(t, rho0, rho_e):
     """Glass points 0.06 out from the core's profile at angle t, from just past rho0 out to rho_e,
     plus a drop point back into the body and the outward direction there. The core's own polyline
-    beyond the dome: its last dome ring (0.912), the foot (RHO_D, 2.3), the ledge (0.965, 2.3), the
-    chamfer to (RHO_SK, 2.0)."""
-    knots = [(r, z_dome(r)) for r in (0.888, 0.9, 0.906)] + [(0.912, z_dome(0.912)), (RHO_D, 2.3),
-                                                               (0.965, 2.3), (RHO_SK, 2.0)]
+    beyond the dome: its last dome ring (0.912), the foot (RHO_D, 2.3), the
+    rounded rim (RIM) out to (RHO_SK, Z_RIM0)."""
+    knots = [(r, z_dome(r)) for r in (0.888, 0.9, 0.906)] + [(0.912, z_dome(0.912))] + RIM[::-1]
     knots = [k for k in knots if k[0] > rho0 + 0.004]
     r = R(t)
     full = [(rho0, z_dome(rho0))]
@@ -350,7 +390,13 @@ def sweep(P, prof, ts, base, mat, closed=False):
 # --- armour petals ----------------------------------------------------------------------------------
 GAP = 0.32  # px between petals and between petals and the visor frame
 PET_D, PET_C = 0.26, 0.1
-RHO_OUT = 0.905
+RHO_OUT = 0.905  # the petals' outer edge where they meet the visor wrap at the back sides
+
+
+def rho_out(t, rho_in):
+    """The petals stop at RHO_RIM round the front and sides (the rim band shows below them) and
+    reach RHO_OUT only where the visor leaves them too narrow (the back of the end petals)."""
+    return max(RHO_RIM, min(RHO_OUT, rho_in + 0.16))
 PETALS = [(-24.0, 16.0), (16.0, 62.0), (62.0, 118.0), (118.0, 164.0), (164.0, 204.0)]
 
 
@@ -369,7 +415,8 @@ def petal(P, D, a0, a1):
     grid = []
     for ci, t in enumerate(ts):
         r = R(t)
-        a, b = rho_in(t), RHO_OUT
+        a = rho_in(t)
+        b = rho_out(t, a)
         cr = PET_C / r
         rhos = [a, a + cr] + [a + cr + (b - a - 2 * cr) * k / nr for k in range(1, nr)] + [b - cr, b]
         row = []
@@ -377,8 +424,9 @@ def petal(P, D, a0, a1):
             border = ci in (0, len(ts) - 1) or ri in (0, len(rhos) - 1)
             row.append((P.v(tuple(SO(t, rho, PET_D - PET_C if border else PET_D))), t, rho))
         grid.append(row)
-    pc = SO((t0 + t1) / 2, (rho_in((t0 + t1) / 2) + RHO_OUT) / 2, 0.0)
-    _, pn, _, _ = frame_at((t0 + t1) / 2, (rho_in((t0 + t1) / 2) + RHO_OUT) / 2)
+    tm = (t0 + t1) / 2
+    pc = SO(tm, (rho_in(tm) + rho_out(tm, rho_in(tm))) / 2, 0.0)
+    _, pn, _, _ = frame_at(tm, (rho_in(tm) + rho_out(tm, rho_in(tm))) / 2)
     away = tuple(pc - pn * 4.0)
     nc, nrr = len(grid), len(grid[0])
     for ci in range(nc - 1):
@@ -395,8 +443,8 @@ def petal(P, D, a0, a1):
     skirt(grid[-1])
     # Bolts: a hex stud near each outer corner, one by each inner corner where the petal is deep.
     for t in (t0 + 2.2 * ct + 0.05, t1 - 2.2 * ct - 0.05):
-        bolt(D, t, RHO_OUT - 0.07, PET_D)
-        if RHO_OUT - rho_in(t) > 0.3:
+        bolt(D, t, rho_out(t, rho_in(t)) - 0.07, PET_D)
+        if rho_out(t, rho_in(t)) - rho_in(t) > 0.3:
             bolt(D, t, rho_in(t) + 0.07, PET_D)
 
 

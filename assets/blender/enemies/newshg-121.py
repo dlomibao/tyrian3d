@@ -568,6 +568,87 @@ def build_pod(coll, out):
 
 
 # --- newshg-49: golden stag beetle -----------------------------------------------------------------
+# E2 QA M5 (SOH JIN): it read as a smooth helmet with two horns. The sprite is a spiky insect: its
+# hind legs (rows 1-7) and mid legs (rows 9-11) are jointed, spined legs splayed out from a narrow
+# body, with a dark wing membrane in the notch between the hind leg and the elytra, and a bright
+# white line down the middle (col 12). Now: a narrower, crested body (no helmet rim), legs as femur +
+# tibia with a knee, spines and a claw, spiked mid legs, the membrane, and a raised spine ridge on the
+# suture whose white line is sheen off a polished crest (art rule 2), not paint.
+
+# The spine's polish (D176 recipe, as newsha-169's ball): a low-metallic polished dielectric with F0
+# of IOR 2.6 through Specular IOR Level and a clear coat, so the sun and the environment panels leave
+# a white line along its crest while its own colour stays the region's palette index.
+SPINE_SPEC = 0.5 * ((1.6 / 3.6) ** 2 / 0.04)
+
+
+def _spec(mat, level, coat=0.0, coat_rough=0.15):
+    """F0 through Specular IOR Level (D176; exported as KHR_materials_specular), optional clear coat."""
+    bsdf = next(n for n in mat.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+    if "Specular IOR Level" in bsdf.inputs:
+        bsdf.inputs["Specular IOR Level"].default_value = level
+    if coat and "Coat Weight" in bsdf.inputs:
+        bsdf.inputs["Coat Weight"].default_value = coat
+        bsdf.inputs["Coat Roughness"].default_value = coat_rough
+    return mat
+
+
+def spike(bm, base, tip, r, mat, sides=6):
+    """A sharp cone from 3D `base` (radius r) to `tip`, its base sunk into the part it grows from."""
+    base, tip = Vector(base), Vector(tip)
+    t = (tip - base).normalized()
+    ref = Vector((0, 0, 1)) if abs(t.z) < 0.9 else Vector((1, 0, 0))
+    a = t.cross(ref).normalized()
+    b = t.cross(a).normalized()
+    back = base - t * r * 1.2
+    rings = []
+    for c, rr in ((back, r * 0.9), (base, r), (base + (tip - base) * 0.45, r * 0.5)):
+        rings.append([tuple(c + rr * (math.cos(q) * a + math.sin(q) * b))
+                      for q in (2 * math.pi * k / sides for k in range(sides))])
+    rings.append([tuple(tip)])
+    ring_loft(bm, rings, mat)
+
+
+# A leg blade's section (fit_tube `sec`, same winding as section()): flat, knife edges, two keels and
+# a groove on top so the light runs down it in stripes; a shallow rounded underside.
+FLUTE = ([(1.0, 0.06), (0.74, 0.55), (0.42, 1.0), (0.0, 0.35), (-0.42, 1.0), (-0.74, 0.55), (-1.0, 0.06)]
+         + [(-0.94, -0.12), (-0.5, -0.45), (0.0, -0.55), (0.5, -0.45), (0.94, -0.12)])
+
+
+def tooth(bm, base, tip, back, thick, mat):
+    """A flat saw tooth: a closed triangular plate (base, tip, back), `thick` deep, sunk into its leg."""
+    pts = [Vector(base), Vector(tip), Vector(back)]
+    up = Vector((0, 0, thick / 2))
+    top = [bm.verts.new(p + up) for p in pts]
+    bot = [bm.verts.new(p - up) for p in pts]
+    bm.faces.new(top).material_index = mat
+    bm.faces.new(list(reversed(bot))).material_index = mat
+    for i in range(3):
+        j = (i + 1) % 3
+        bm.faces.new((top[j], top[i], bot[i], bot[j])).material_index = mat
+
+
+def spine_ridge(bm, bvh, ax, v0, v1, mat, rise=0.045, half_w=0.85, step=0.4):
+    """A raised knife ridge along the body's crest (x = X(ax)) from row v0 to v1: it sits on the
+    surface found by casting down onto `bvh`, rounded at the crest so the sun leaves one clean line."""
+    n = max(2, int((v1 - v0) / step) + 1)
+    rings = []
+    for i in range(n):
+        v = v0 + (v1 - v0) * i / (n - 1)
+        hit = bvh.ray_cast(Vector((X(ax), Y(v), 2.0)), Vector((0, 0, -1)))
+        if hit[0] is None:
+            continue
+        zt = hit[0].z
+        t = i / (n - 1)
+        f = min(1.0, t / 0.06, (1 - t) / 0.08) ** 0.5  # pointed ends
+        on_pro = v > 8.6
+        r = rise * (0.6 if on_pro else 1.0) * max(f, 0.0)
+        w = half_w * (0.75 if on_pro else 1.0) / 12 * max(f, 0.15)
+        x, y = X(ax), Y(v)
+        arc = [(-w * math.cos(q), zt - 0.02 + (r + 0.02) * math.sin(q)) for q in (math.pi * k / 6 for k in range(7))]
+        sec = arc[::-1] + [(0.0, zt - 0.035)]
+        rings.append([(x + dx, y, z) for dx, z in sec])
+    ring_loft(bm, rings, mat)
+
 
 def build_beetle(coll, out):
     name = "newshg-49"
@@ -578,48 +659,100 @@ def build_beetle(coll, out):
         shell_i = region_index(fr, fr.region(7, 17, 1, 8))
         pron_i = region_index(fr, fr.region(5, 19, 9, 11))
         mand_i = region_index(fr, fr.region(4, 10, 15, 26) + fr.region(14, 20, 15, 26))
+        spine_i = region_index(fr, fr.region(12, 12, 1, 13))
+        leg_i = region_index(fr, fr.region(2, 8, 2, 11) + fr.region(16, 22, 2, 11))
         mats = [
             common.palette_material(sp, shell_i, model, metallic=0.6, roughness=0.38),   # 0 elytra
             common.palette_material(sp, pron_i, model, metallic=0.6, roughness=0.4),     # 1 pronotum, head
             common.palette_material(sp, mand_i, model, metallic=0.55, roughness=0.36),   # 2 mandibles, legs
             common.palette_material(sp, 18, model, metallic=0.4, roughness=0.6),         # 3 dark joints, seams
+            _spec(common.palette_material(sp, spine_i, f"{model}_spine", metallic=0.12, roughness=0.22), SPINE_SPEC, coat=1.0),  # 4 spine
+            common.palette_material(sp, 16, model, metallic=0.3, roughness=0.7),         # 5 wing membrane
+            # 6 leg blades: the legs' own region index (cols 2-8 / 16-22, rows 2-11), polished so the
+            # fluted keels throw the sprite's bright stripes as sheen.
+            common.palette_material(sp, leg_i, f"{model}_leg", metallic=0.65, roughness=0.26),
         ]
-        ELY, PRO, MAND, DARK = range(4)
+        ELY, PRO, MAND, DARK, SPINE, WING, LEG = range(7)
         bm = bmesh.new()
-        # Elytra (rows 1-8): a ridged dome (low superellipse exponent: a crest down the suture).
-        # It rises from the rear tip to its highest just behind the pronotum.
-        fit_tube(bm, fr, [(AX, 0.85), (AX, 8.95)], ELY, z=0.04, hr=0.7, hmax=0.36, wmax=6.6,
-                 keep=lambda u, v: 0.85 <= v <= 8.95 and (v >= 6.6 or abs(u - AX) <= 5.7), exp=1.8, zbot=0.45,
-                 cap=(0.7, 0.4), sides=28, step=0.5, smooth=4, wscale=1.05, hfun=lambda t: 0.45 + 0.55 * math.sin(math.pi * min(1.0, 0.1 + t * 0.75)) ** 0.6)
-        # Pronotum shield (rows 9-11), lower, with the mid legs at its sides.
-        fit_tube(bm, fr, [(AX, 8.3), (AX, 12.3)], PRO, z=0.03, hr=0.5, hmax=0.22, wmax=5.9,
-                 keep=lambda u, v: 8.3 <= v <= 12.2, exp=2.4, zbot=0.5, cap=(0.6, 0.7), sides=20, step=0.3, smooth=3)
+        # Elytra (rows 1-8): a long narrow crested abdomen, not a dome: full width (cols 8-16) only at
+        # its rear, then a waist (cols 9.5-15.5 by row 8) so the femur blades fan out from under it.
+        # Low and tent-sectioned (exp < 2), its crest carrying the spine ridge.
+        def ely_hw(v):
+            return 4.6 if v <= 4.0 else 4.6 - (v - 4.0) / 4.9 * 1.6
+
+        fit_tube(bm, fr, [(AX, 1.0), (AX, 8.95)], ELY, z=0.03, hr=0.6, hmax=0.17, wmax=4.75,
+                 keep=lambda u, v: 1.0 <= v <= 8.95 and abs(u - AX) <= ely_hw(v), exp=1.3, zbot=0.45,
+                 cap=(0.2, 0.4), sides=28, step=0.5, smooth=4, wscale=1.0, hfun=lambda t: 0.55 + 0.45 * math.sin(math.pi * min(1.0, 0.1 + t * 0.75)) ** 0.6)
+        # Pronotum (rows 9-11): a narrow plate on the body line; the mid-leg blades carry its sides.
+        fit_tube(bm, fr, [(AX, 8.3), (AX, 12.3)], PRO, z=0.03, hr=0.5, hmax=0.11, wmax=4.4,
+                 keep=lambda u, v: 8.3 <= v <= 12.2 and abs(u - AX) <= 2.7, exp=1.6, zbot=0.5, cap=(0.6, 0.7), sides=20, step=0.3, smooth=3)
         # Head (rows 12-13, to 15 when the mandibles close).
         hend = (14.1, 14.4, 16.0)[s]
-        fit_tube(bm, fr, [(AX, 11.8), (AX, hend)], PRO, z=0.0, hr=0.55, hmax=0.17, wmax=4.0,
-                 keep=lambda u, v: 11.8 <= v <= hend and abs(u - AX) <= 3.6, exp=2.4, zbot=0.6, cap=(0.4, 0.9), sides=14, step=0.45)
+        fit_tube(bm, fr, [(AX, 11.8), (AX, hend)], PRO, z=0.0, hr=0.55, hmax=0.13, wmax=4.0,
+                 keep=lambda u, v: 11.8 <= v <= hend and abs(u - AX) <= 3.6, exp=2.2, zbot=0.6, cap=(0.4, 0.9), sides=14, step=0.45)
+        # The spine: a raised ridge down the suture, elytra to head (col 12's white line is its sheen).
+        bvh = BVHTree.FromBMesh(bm)
+        spine_ridge(bm, bvh, AX, 0.95, 13.4, SPINE)
         for side in (0, 1):
             def M(pts, side=side):
                 return pts if side == 0 else mirror_pts(pts, AX)
 
             def K(fn, side=side):
                 return (lambda u, v: fn(u, v)) if side == 0 else (lambda u, v: fn(2 * AX - u, v))
+
+            def W3(u, v, z):  # a sprite point (left-side coords) on this side, in 3D
+                return P3(u if side == 0 else 2 * AX - u, v, z)
             # Mandible: from the head, out and down, curving back in to the tip at the bottom.
             m = [(9.9, 13.4), (8.7 + s * 0.8, 15.4), (7.5 + s, 17.2), (6.6 + s, 19.0), (6.1 + s, 21.0),
                  (6.1 + s, 23.0), (6.5 + s, 24.8), (7.2 + s, 26.1), (8.0 + s, 26.95)]
             fit_tube(bm, fr, M(m), MAND, hr=0.6, hmax=0.12, wmax=2.6, wmin=0.3,
                      keep=K(lambda u, v: v >= 13.2 and u <= AX - 0.6), exp=2.2, cap=(0.5, 0.2), zbot=0.7,
                      zfun=lambda t: -0.02 - 0.05 * t, smooth=4, taper=True, sides=10, step=0.45)
-            # Hind leg swept back from under the elytra to the top corner.
-            tip = ((3.5, 2.1), (4.4, 2.1), (5.5, 2.1))[s]
-            mid = ((5.1, 4.4), (5.7, 4.5), (6.0, 4.6))[s]
-            fit_tube(bm, fr, M([(8.4, 7.4), mid, tip]), MAND, hr=0.6, hmax=0.11, wmax=1.8, wmin=0.3,
-                     keep=K(lambda u, v: v <= 8.6 and u <= 8.6), exp=2.2, cap=(0.4, 0.3), zbot=0.7,
-                     zfun=lambda t: 0.0 + 0.03 * t, smooth=4, taper=True, sides=10, step=0.45)
-            # Mid leg: a flat lobe out of the pronotum's side (rows 9-11, columns 4-7).
-            fit_tube(bm, fr, M([(8.6, 9.9), (6.4, 10.2), (4.4, 11.3)]), MAND, hr=0.55, hmax=0.09, wmax=1.9, wmin=0.3,
-                     keep=K(lambda u, v: 8.7 <= v <= 12.2 and u <= 7.4), exp=2.2, cap=(0.0, 0.6), zbot=0.7,
-                     z=0.0, smooth=4, taper=True, sides=10, step=0.3)
+            # Hind leg (rows 1-8), the long diagonal blade of the sprite: a broad flat femur blade from
+            # under the elytra waist out to the knee on the mask's outer edge (rows 4-8), then a flat
+            # tibia blade up to the top corner. Fluted sections (two keels and a groove) give the
+            # sprite's light/dark stripes as lighting, not paint. The leg arches (knee highest, foot
+            # low), so from the game camera it reads as a limb, not a horn.
+            tip = ((3.45, 1.55), (4.45, 1.55), (5.45, 1.55))[s]
+            knee = ((4.35, 5.2), (5.0, 5.25), (5.6, 5.35))[s]
+            root = (10.2, 8.7)
+            fit_tube(bm, fr, M([root, (7.8, 7.6), (5.9, 6.4), knee]), LEG, hr=0.3, hmax=0.034, hmin=0.016, wmax=1.6,
+                     wmin=0.45, keep=K(lambda u, v: v <= 8.9 and abs(u - AX) >= ely_hw(v) - 1.6), cap=(0.0, 0.5),
+                     zfun=lambda t: 0.06 + 0.06 * t, smooth=3, sides=12, step=0.3, sec=FLUTE)
+            fit_tube(bm, fr, M([knee, ((knee[0] + tip[0]) / 2 - 0.15, (knee[1] + tip[1]) / 2), tip]), LEG, hr=0.45,
+                     hmax=0.03, hmin=0.014, wmax=0.95, wmin=0.3, keep=K(lambda u, v: v <= 6.2 and u <= 6.2),
+                     cap=(0.3, 1.6), zfun=lambda t: 0.12 - 0.075 * t, smooth=3, taper=True, sides=12, step=0.3, sec=FLUTE)
+            # Tibia teeth: flat saw teeth on the outer edge, in the blade's plane, raked toward the foot
+            # (they cut the silhouette, so the game camera sees them).
+            tv = Vector((tip[0] - knee[0], tip[1] - knee[1]))
+            tl = tv.length
+            tv.normalize()
+            nout = Vector((-tv.y, tv.x)) if -tv.y < 0 else Vector((tv.y, -tv.x))
+            for k, a in enumerate((0.22, 0.45, 0.68)):
+                bu, bv = knee[0] + tv.x * tl * a + nout.x * 0.35, knee[1] + tv.y * tl * a + nout.y * 0.35
+                ln = 0.75 - 0.1 * k
+                z = 0.12 - 0.075 * a
+                tooth(bm, W3(bu, bv, z), W3(bu + (nout.x * 0.55 + tv.x * 0.7) * ln, bv + (nout.y * 0.55 + tv.y * 0.7) * ln, z - 0.01),
+                      W3(bu + tv.x * 0.7, bv + tv.y * 0.7, z - 0.008), 0.016, LEG)
+            # Knee: a slim dark joint band across the leg, flush with it (no knob).
+            ellipsoid(bm, tuple(W3(knee[0] + 0.15, knee[1] - 0.05, 0.115)), (0.75 / 12, 0.45 / 12, 0.03),
+                      segments=12, rings=6, mat=DARK)
+            # Wing membrane: dark and low in the notch between the femur and the elytra waist.
+            fit_tube(bm, fr, M([(9.6, 8.2), (7.8, 6.3), (7.2, 4.4), (6.9, 2.2)]), WING, z=-0.02, hr=0.2, hmax=0.02, hmin=0.008,
+                     wmax=1.5, wmin=0.05, keep=K(lambda u, v: 1.8 <= v <= 8.6 and 5.6 <= u <= 10.4), exp=2.0, zbot=0.8,
+                     cap=(0.2, 0.3), smooth=2, sides=8, step=0.4)
+            # Mid leg (rows 9-11): a broad flat blade raked out and back from the pronotum, fluted like
+            # the femur, its tip split into a claw. No knobs.
+            fit_tube(bm, fr, M([(10.3, 9.6), (8.2, 9.95), (6.4, 10.3), (4.8, 10.6)]), LEG, hr=0.3, hmax=0.032,
+                     hmin=0.016, wmax=1.6, wmin=0.3, keep=K(lambda u, v: 8.75 <= v <= 11.95 and u <= 10.4), cap=(0.0, 1.8),
+                     zfun=lambda t: 0.07 + 0.02 * math.sin(math.pi * t) - 0.03 * t, smooth=3, taper=True, sides=12,
+                     step=0.3, sec=FLUTE)
+            tooth(bm, W3(6.2, 9.7, 0.075), W3(4.75, 9.05, 0.06), W3(5.6, 10.1, 0.07), 0.014, LEG)
+            tooth(bm, W3(6.3, 10.8, 0.07), W3(4.9, 11.75, 0.055), W3(5.6, 10.6, 0.065), 0.014, LEG)
+            # Fore leg (rows 11-12): a small spined leg from the head's side, out and back.
+            fit_tube(bm, fr, M([(10.4, 12.9), (9.0, 12.4), (7.0, 11.5)]), MAND, hr=0.6, hmax=0.055, wmax=0.9, wmin=0.3,
+                     keep=K(lambda u, v: 11.0 <= v <= 13.6 and u <= 10.6), exp=2.0, cap=(0.0, 0.9), zbot=0.7,
+                     z=0.0, smooth=3, taper=True, sides=8, step=0.4)
             # Joint knuckles where the mandibles meet the head.
             u = 9.8 + s * 0.4
             if side:

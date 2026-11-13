@@ -32,8 +32,11 @@ Stages (six models, the same split as the game's current newshd-169 script):
   newshd-169-f2  193            iris shut, shutter down
   newshd-169-f3  195            iris a little open
   newshd-169-f4  197            iris mostly open
-  newshd-169-f5  199            open, dark, shutter one row up
-  newshd-169-f6  201, 203       open, dark, shutter two / three rows up (per-frame shutter parts)
+  newshd-169-f5  199            pit shut by the caged lid (X bars), shutter one row up
+  newshd-169-f6  201, 203       pit shut by the caged lid, shutter two / three rows up (per-frame shutter parts)
+
+No stone pad (D130): the vat stands on the HD ground; IoU is measured against the sprite without its
+cobbles (the vat's wood and what it encloses, slot and sill rows 22-23 included).
 
 Run: blender -b --factory-startup -P newshd-169.py   (writes public/models/enemies/newshd-169{,-f2..-f6}.glb and the spriteModels JSON)
 """
@@ -104,7 +107,7 @@ CX, CY = XE(11.5), YE(8.5)         # pit axis
 R_PIT = 6.5 * P                    # pit mouth (coping inner edge), rows 2-15
 R_COP = 7.4 * P                    # coping ring outer edge (stays inside row 1)
 SX = 7.5 / 6.5                     # the pit is an oval: cols 4-19 (15 px) by rows 2-15 (13 px)
-Z_BASE = 0.05                      # top of the stone pad
+Z_BASE = 0.01                      # foot of the staves: on the HD ground, no stone pad (D130)
 Z_TOP = 0.95                       # deck
 Z_CHIME = Z_TOP + 0.03             # stave ends, proud of the deck
 Z_RIM = Z_TOP + 0.06               # top of the coping ring round the pit
@@ -116,7 +119,7 @@ SIDES = 40
 # Footprint: half width (px) about col edge 11.5 per row edge (from the sprite's wood spans).
 _HW = pchip([1.0, 1.5, 2.5, 3.5, 4.5, 5.5, 18.5, 19.5, 20.5, 21.5, 22.5, 23.5, 24.0],
             [4.4, 6.0, 7.5, 8.55, 9.3, 9.5, 9.5, 9.35, 8.5, 7.5, 6.5, 5.5, 4.9])
-R_TOP, R_BOT = 1.05, 24.0          # its north and south edges
+R_TOP, R_BOT = 1.05, 23.1          # its north and south edges (south: the inner edge of row 23's ink, D74)
 
 # Sloped south end: from the crest at row 16 to the foot at row 24.
 R_HI, R_LO = 16.0, R_BOT
@@ -392,42 +395,66 @@ def prism_var(bm, poly, z0, zfn, mat, smooth=False):
 
 # --- Parts --------------------------------------------------------------------------------------
 
-def stone_pad(bm, M):
-    """The cobbled pad filling the tile: a mortar bed and rounded setts in staggered courses."""
-    bevel_block(bm, XE(0), YE(28), XE(24), YE(0), 0.0, Z_BASE - 0.015, 0.01, M["MORTAR"])
-    hidden = offset(OUTER, -1.6 * P)
-    course_h = 3.5  # px per course
-    rows = int(28 / course_h)
-    shade = [M["SETT_A"], M["SETT_B"], M["SETT_C"]]
-    k = 0
-    for i in range(rows):
-        r0 = i * course_h
-        r1 = r0 + course_h
-        off = 0.0 if i % 2 == 0 else 1.75
-        c = -off
-        while c < 24:
-            w = (3.9, 2.8, 3.4, 4.2, 3.0)[(k * 3 + i) % 5]
-            c0, c1 = max(c, 0.0), min(c + w, 24.0)
-            c += w
-            k += 1
-            if c1 - c0 < 0.9:
-                continue
-            corners = [(XE(a), YE(b)) for a in (c0, c1) for b in (r0, r1)]
-            if all(inside(hidden, p) for p in corners):
-                continue  # under the vat
-            g = 0.22 * P
-            x0, x1 = XE(c0) + (g if c0 > 0 else 0), XE(c1) - (g if c1 < 24 else 0)
-            y1, y0 = YE(r0) - (g if r0 > 0 else 0), YE(r1) + (g if r1 < 28 else 0)
-            h = Z_BASE + 0.006 * ((k * 7) % 5) - 0.008
-            g2 = 0.12 * P * ((k * 11) % 3)
-            y1 -= g2 if r0 > 0 else 0
-            bevel_block(bm, x0, y0, x1, y1, Z_BASE - 0.02, h, 0.022, shade[(k * 5 + i) % 3])
+# The closed lid (frames 199-203, stages -f5 and -f6; E2 QA M7). The sprite's pit there is a dark X
+# (index 1) running pocket to pocket over four dark-grey quarters, the west one lightest (4), north 3,
+# east and south 2: in game the open pit with its emitter collar read as a hollow speaker cone. Built
+# as a low hipped steel lid with its hips on the diagonals, under four iron cage bars crossing on a
+# boss. Shading is lighting (art rule 2): one steel colour (3); the west quarter is the lit one
+# because it faces the game's sun from the left.
+Z_LID_C = Z_TOP + 0.10             # crown, where the bars cross
+Z_LID_E = Z_TOP - 0.035            # foot of the quarters at the pit mouth, on the axes
+LID_SLOPE = (Z_LID_C - Z_LID_E) / R_PIT
 
 
-def vat(bm, M):
-    """The oval stave vat: staves (V-grooved boards standing on the pad, their ends proud of the
+def lid_z(dx, dy):
+    """Hipped lid height in pit space: a four-sided pyramid with its hips on the diagonals."""
+    return Z_LID_C - LID_SLOPE * max(abs(dx), abs(dy))
+
+
+def lid_cage(bm, M):
+    """The lid closing the pit (pit space, squashed with the rest) and the X cage over it: four
+    square iron bars riding the hips from the crown out under the steel pockets, crossing on a boss."""
+    na, nr = 64, 6                 # na a multiple of 8: a ring vertex on every hip and every axis
+    before = set(bm.faces)
+    apex = bm.verts.new((CX, CY, Z_LID_C))
+    grid = []
+    for i in range(1, nr + 1):
+        r = R_PIT * i / nr
+        row = []
+        for j in range(na):
+            a = 2 * math.pi * j / na
+            dx, dy = r * math.cos(a), r * math.sin(a)
+            row.append(bm.verts.new((CX + dx, CY + dy, lid_z(dx, dy))))
+        grid.append(row)
+    for j in range(na):
+        bm.faces.new((apex, grid[0][j], grid[0][(j + 1) % na]))
+    for i in range(nr - 1):
+        for j in range(na):
+            k = (j + 1) % na
+            bm.faces.new((grid[i][j], grid[i + 1][j], grid[i + 1][k], grid[i][k]))
+    low = [bm.verts.new((v.co.x, v.co.y, Z_TOP - 0.12)) for v in grid[-1]]
+    for j in range(na):
+        k = (j + 1) % na
+        bm.faces.new((grid[-1][j], low[j], low[k], grid[-1][k]))
+    bm.faces.new(list(reversed(low)))
+    _tag(bm, before, M["LID"], False)
+    hw, th = 0.5 * P, 0.035
+    for k in range(4):
+        a = math.pi / 4 + k * math.pi / 2
+        ca, sa = math.cos(a), math.sin(a)
+        lo = []
+        for rr, ww in ((0.0, -hw), (R_PIT + 0.4 * P, -hw), (R_PIT + 0.4 * P, hw), (0.0, hw)):
+            lo.append((CX + rr * ca - ww * sa, CY + rr * sa + ww * ca, lid_z(rr * ca, rr * sa) - 0.01))
+        hexa(bm, lo + [(x, y, z + th + 0.01) for x, y, z in lo], M["BAR"])
+    bevel_block(bm, CX - 0.85 * P, CY - 0.85 * P, CX + 0.85 * P, CY + 0.85 * P,
+                Z_LID_C - 0.01, Z_LID_C + th + 0.012, 0.012, M["BAR"])
+
+
+def vat(bm, M, closed=False):
+    """The oval stave vat: staves (V-grooved boards standing on the ground, their ends proud of the
     deck as a chime), two iron hoops, the flat north deck round the pit with its coping ring, the
-    pit liner and floor, and the sloped south end planked down to the front."""
+    pit liner and floor, and the sloped south end planked down to the front. closed: the pit is
+    shut by the caged lid (lid_cage) instead of showing its floor, leaf tracks and emitter collar."""
     n = len(OUTER)
     nrm = normals(OUTER)
     per = 3                       # outline segments per stave: 40 staves
@@ -504,19 +531,22 @@ def vat(bm, M):
                  (R_PIT - 0.5 * P, Z_TOP - 0.03)], M["LINER"], smooth=True)
     revolve(bm, [(R_PIT - 0.5 * P, Z_TOP - 0.10), (R_PIT, Z_TOP - 0.10), (R_PIT, Z_TOP - 0.03), (R_PIT - 0.5 * P, Z_TOP - 0.03)],
             M["LINER"], smooth=False)
-    revolve(bm, disc_profile(R_PIT, Z_PIT - 0.04, Z_PIT), M["FLOOR"], smooth=False)
-    # Leaf tracks along the diagonals on the floor, and the emitter's collar in the middle.
-    for k in range(4):
-        a = math.pi / 4 + k * math.pi / 2
-        ca, sa = math.cos(a), math.sin(a)
-        r0, r1, w = 2.6 * P, R_PIT - 0.2 * P, 0.45 * P
-        pts = []
-        for rr, ww in ((r0, -w), (r1, -w), (r1, w), (r0, w)):
-            pts.append((CX + rr * ca - ww * sa, CY + rr * sa + ww * ca))
-        before = set(bm.faces)
-        common.slab(bm, pts, 0.03, z=Z_PIT + 0.015, mat_index=M["TRACK"])
-        _tag(bm, before, M["TRACK"], False)
-    revolve(bm, ring_profile(1.6 * P, 3.0 * P, Z_PIT - 0.01, Z_PIT + 0.07, ch=0.02), M["COLLAR"], sides=24)
+    if closed:
+        lid_cage(bm, M)
+    else:
+        revolve(bm, disc_profile(R_PIT, Z_PIT - 0.04, Z_PIT), M["FLOOR"], smooth=False)
+        # Leaf tracks along the diagonals on the floor, and the emitter's collar in the middle.
+        for k in range(4):
+            a = math.pi / 4 + k * math.pi / 2
+            ca, sa = math.cos(a), math.sin(a)
+            r0, r1, w = 2.6 * P, R_PIT - 0.2 * P, 0.45 * P
+            pts = []
+            for rr, ww in ((r0, -w), (r1, -w), (r1, w), (r0, w)):
+                pts.append((CX + rr * ca - ww * sa, CY + rr * sa + ww * ca))
+            before = set(bm.faces)
+            common.slab(bm, pts, 0.03, z=Z_PIT + 0.015, mat_index=M["TRACK"])
+            _tag(bm, before, M["TRACK"], False)
+        revolve(bm, ring_profile(1.6 * P, 3.0 * P, Z_PIT - 0.01, Z_PIT + 0.07, ch=0.02), M["COLLAR"], sides=24)
     # Pockets: steel housings over the slots the leaves slide into, on the rim's inner edge.
     for k in range(4):
         a = math.pi / 4 + k * math.pi / 2
@@ -554,7 +584,7 @@ def vat(bm, M):
 
 # The slot hatch on the slope (rows and cols in sprite pixel edges).
 H_C0, H_C1 = 8.0, 14.0           # slot between the jambs
-H_R0, H_R1 = 20.0, 23.55         # slot rows (sill below)
+H_R0, H_R1 = 20.0, 22.75         # slot rows (sill below, to the foot at R_BOT)
 PL = 0.011                       # plank face, out along the slope normal
 
 
@@ -649,14 +679,14 @@ def emitter(bm, M, r_core, r_hot, core_mat, hot_mat, glow_mat=None, r_glow=0.0):
 
 # --- Stages -------------------------------------------------------------------------------------
 
-# (suffix, frames, leaf offset px (None = gone), shutter lower-edge row per frame (None = up), lit)
+# (suffix, frames, leaf offset px (None = gone, "lid" = pit shut by the caged lid), shutter lower-edge row per frame (None = up), lit)
 STAGES = [
     ("", [169, 205, 207], None, None, True),
     ("-f2", [193], 0.2, {193: H_R1}, False),
     ("-f3", [195], 1.4, {195: H_R1}, False),
     ("-f4", [197], 2.4, {197: H_R1}, False),
-    ("-f5", [199], None, {199: 23.0}, False),
-    ("-f6", [201, 203], None, {201: 22.0, 203: 21.0}, False),
+    ("-f5", [199], "lid", {199: 23.0}, False),
+    ("-f6", [201, 203], "lid", {201: 22.0, 203: 21.0}, False),
 ]
 # Lit emitter per frame on the main model: (glow ring, core, hot centre palette; radii in px).
 CORES = {169: (112, 118, 124, 4.6, 3.3, 1.5), 207: (113, 116, 122, 3.8, 2.7, 1.2), 205: (112, 114, 118, 3.2, 2.1, 0.9)}
@@ -676,10 +706,6 @@ def build(sprite, name, frames, leaf_off, doors, lit):
         M[key] = len(mats)
         mats.append(m)
 
-    add("MORTAR", pal(2, metallic=0.0, roughness=0.95))
-    add("SETT_A", pal(5, metallic=0.0, roughness=0.85))
-    add("SETT_B", pal(6, metallic=0.0, roughness=0.85))
-    add("SETT_C", pal(4, metallic=0.0, roughness=0.9))
     add("STAVE", pal(20, metallic=0.0, roughness=0.75))
     add("CORE", pal(16, metallic=0.0, roughness=0.9))
     add("HOOP", pal(18, metallic=0.5, roughness=0.5))
@@ -701,6 +727,8 @@ def build(sprite, name, frames, leaf_off, doors, lit):
     add("LEAF", pal(7, metallic=0.5, roughness=0.5))
     add("DARKCORE", pal(3, metallic=0.2, roughness=0.3))
     add("DARKHOT", pal(4, metallic=0.2, roughness=0.3))
+    add("LID", pal(3, metallic=0.55, roughness=0.5))
+    add("BAR", pal(1, metallic=0.6, roughness=0.45))
     if lit:
         add("GLASS", pal(116, tag=NAME + "-window", emission_strength=1.2, frames={f: WINDOW[f] for f in frames}))
     elif 203 in frames:
@@ -709,15 +737,15 @@ def build(sprite, name, frames, leaf_off, doors, lit):
         add("GLASS", pal(2, metallic=0.0, roughness=0.4))
 
     bm = bmesh.new()
-    stone_pad(bm, M)
-    vat(bm, M)
+    closed = leaf_off == "lid"
+    vat(bm, M, closed)
     hatch(bm, M)
     window_glass(bm, M["GLASS"], M["BATTEN"])
     v_pit = set(bm.verts)
-    if leaf_off is not None:
+    if leaf_off is not None and not closed:
         for sx, sy in ((1, 1), (-1, 1), (-1, -1), (1, -1)):
             leaf(bm, sx, sy, leaf_off * P, M["LEAF"])
-    if not lit:
+    if not lit and not closed:
         emitter(bm, M, 2.6 * P, 1.0 * P, M["DARKCORE"], M["DARKHOT"])
     squash(bm, v_pit)
     parts = []

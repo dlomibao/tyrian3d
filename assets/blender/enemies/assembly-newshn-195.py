@@ -37,6 +37,7 @@ Run: blender --background --python assets/blender/enemies/assembly-newshn-195.py
 
 import json
 import math
+import os
 import sys
 from pathlib import Path
 
@@ -85,10 +86,12 @@ PX = 1 / 12
 # --- outlines (assembly pixel centres, left half from the top down; mirrored about AXIS) -------
 
 # The head without its tentacles, claws and chin spike; it runs on above the top of the sprite.
-OUT_LEFT = [(63, -8), (13, -8), (13, 12), (15.5, 14), (14.3, 17), (14.3, 20.5), (16, 22.5), (15.5, 24.5),
+# (Round 2: rows 62-72 beside the claw on the ink pixels' centres, so the inset edge covers the
+# sprite's inner pixels there.)
+OUT_LEFT = [(63, -8), (13, -8), (13, 12), (15.5, 14), (14.0, 17), (14.0, 20.3), (16, 22.5), (15.5, 24.5),
             (13.8, 27), (12, 30), (10, 32), (9, 34), (9, 40), (9.5, 43.5), (13, 45), (17, 46.5),
-            (20, 48.3), (24, 50), (25.2, 52), (25.5, 54.5), (27.2, 57.2), (29.5, 59.5), (30.2, 62),
-            (29.5, 65), (28.5, 68), (27.6, 71), (28.2, 72.6), (31.0, 75.0), (31.5, 76.6), (31.6, 78.6),
+            (20, 48.3), (24, 50), (25.2, 52), (25.5, 54.5), (27.2, 57.2), (29.5, 59.5), (30.0, 62),
+            (30.0, 64), (29.0, 65.5), (28.0, 67), (27.0, 68.5), (27.0, 70), (26.8, 71.5), (27.6, 72.8), (30.8, 75.0), (30.9, 76.6), (31.0, 78.6),
             (32.6, 80.2), (34.4, 81.3), (34.4, 85.3), (35.5, 86.4), (36.4, 87.6), (37.4, 89.2), (38.6, 90.3),
             (40.5, 91.4), (42.6, 92.5), (52.5, 92.5), (53.3, 90.6), (60.5, 90.6)]
 # Outer and inner edge of the gums.
@@ -185,6 +188,17 @@ def sample_field(F, c, r):
 
 
 RELIEF_AMP = 0.075  # the sprite's light plates stand ~1 px, its dark grooves sink ~1 px
+# QA fix H3: the carapace's own relief, scale knobs at the sprite's light knobs (px) and its ink gaps
+# sunk between them, on a fine map (CAR_S samples per px) over the head's pixels.
+KNOB_H = 1.5  # (round 1's knobs; kept for the crown threshold's scale)
+# Round 2: the lattice (Painter._carapace_map): ridge height px (+-), the sprite's ink as a shade
+# under its darkest blue, the fine and broad smoothing radii px, the tanh squash (shade steps).
+RIDGE_H, RIDGE_INK, RIDGE_FINE, RIDGE_BROAD, RIDGE_SQUASH = 1.25, -2.0, 0.42, 1.3, 0.8
+SNOUT_SHADE = 103  # round 2: the pale grey nose bridge (the sprite's pads, 102-108; was 102)
+CREST, CREST_SHADE, GAP, GAP_SHADE = 0.55, None, 0.35, 96  # the crowns' and gaps' paint (build_shell)
+RIDGE_EDGE = 0.4  # px: the skin's longest edge where the lattice runs (split finer to carry it)
+BROAD = 0.55  # how much of the old broad relief (Painter.field) stays under the knobs
+CAR_C0, CAR_R0, CAR_W, CAR_H, CAR_S = -2, -12, 130, 112, 4
 
 
 def rep_of(idx, context, fine=False):
@@ -209,14 +223,32 @@ def rep_of(idx, context, fine=False):
     return None
 
 
+CARAPACE_ROUGH, CARAPACE_SPEC = 0.5, 0.2
+CREST_ROUGH, CREST_SPEC = 0.3, 1.0  # the ridge crowns (Palette.crest)
+KNOB_ROUGH, KNOB_SPEC = 0.38, 0.4  # the lattice's ridge crowns (Palette.sheen; round 2: 0.28 sparkled)
+
+
+def set_spec(mat, level):
+    """Specular IOR Level (D176: the exporter writes it as KHR_materials_specular)."""
+    if level is None:
+        return
+    bsdf = next(n for n in mat.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+    if "Specular IOR Level" in bsdf.inputs:
+        bsdf.inputs["Specular IOR Level"].default_value = level
+
+
 class Palette:
     """Material slots by palette index, made on first use."""
 
     # (metallic, roughness) per family. The head is a creature: its blue-grey skull a hard, slightly
     # glossy carapace (not metal), the gums and throat wet flesh, the brain and claws matte-ish
     # organic, the fangs smooth bone. The lighting shades them; their colours are mid-tones.
-    STYLE = {"blue": (0.1, 0.45), "gum": (0.0, 0.66), "red": (0.0, 0.78), "purple": (0.0, 0.6),
+    STYLE = {"blue": (0.05, CARAPACE_ROUGH), "gum": (0.0, 0.66), "red": (0.0, 0.78), "purple": (0.0, 0.52),
              "tooth": (0.0, 0.3)}
+    # QA fix H3: the near-black carapace is polished chitin: a darker base, glossier, with the F0 of a
+    # polished surface (Specular IOR Level, D176), so its knobs and plate rims catch the sprite's pale
+    # rim highlights as sheen while the body stays dark (art rule 2).
+    SPEC = {"blue": CARAPACE_SPEC, "purple": 0.45}
 
     def __init__(self, sprite):
         self.sprite = sprite
@@ -236,6 +268,7 @@ class Palette:
             self.index.append(idx)
             self.mats.append(common.palette_material(self.sprite, idx, TAG, metallic=metallic, roughness=rough,
                                                      emission_strength=emission))
+            set_spec(self.mats[-1], self.SPEC.get(fam))
         return self.slots[idx]
 
     def animated(self, reps):
@@ -273,7 +306,32 @@ class Palette:
         if key not in self.slots:
             self.slots[key] = len(self.mats)
             self.index.append(idx)
-            self.mats.append(common.palette_material(self.sprite, idx, f"{TAG}bone", metallic=0.05, roughness=0.36))
+            self.mats.append(common.palette_material(self.sprite, idx, f"{TAG}bone", metallic=0.05, roughness=0.32))
+            set_spec(self.mats[-1], CARAPACE_SPEC)
+        return self.slots[key]
+
+    def sheen(self, idx):
+        """A slot for the carapace's knob crowns (QA fix H3): the skull's own colour, polished, so
+        the knobs catch the sprite's pale specks as sheen while the plates between stay dark."""
+        key = ("sheen", idx)
+        if key not in self.slots:
+            self.slots[key] = len(self.mats)
+            self.index.append(idx)
+            self.mats.append(common.palette_material(self.sprite, idx, f"{TAG}sheen", metallic=0.05,
+                                                     roughness=KNOB_ROUGH))
+            set_spec(self.mats[-1], KNOB_SPEC)
+        return self.slots[key]
+
+    def crest(self, idx):
+        """A slot for the lattice's ridge crowns (round 2): the skull's colour, more polished than
+        the flanks (Palette.sheen), so the ridge tops carry the sprite's pale rim highlights."""
+        key = ("crest", idx)
+        if key not in self.slots:
+            self.slots[key] = len(self.mats)
+            self.index.append(idx)
+            self.mats.append(common.palette_material(self.sprite, idx, f"{TAG}crest", metallic=0.05,
+                                                     roughness=CREST_ROUGH))
+            set_spec(self.mats[-1], CREST_SPEC)
         return self.slots[key]
 
     def glow(self, idx, emission):
@@ -362,6 +420,70 @@ class Painter:
             out = np.where(Wt > 0.2, G / np.maximum(Wt, 1e-6), 0.0) / 1.6
             self._field = np.clip(out, -1.0, 1.0)
         return self._field
+
+    def carapace(self, c, r):
+        """The carapace's scale knobs and the gaps between them (QA fix H3), in px: a smooth knob
+        at each of the sprite's own light knobs on the skull (local maxima of the blue family's
+        shade), dark ink gaps sunk between them. Faired bumps at the sprite's positions, not noise."""
+        M = self._carapace_map()
+        u, v = (c - CAR_C0) * CAR_S, (r - CAR_R0) * CAR_S
+        h, w = M.shape
+        x0, y0 = int(math.floor(u)), int(math.floor(v))
+        if not (0 <= x0 < w - 1 and 0 <= y0 < h - 1):
+            return 0.0
+        fx, fy = u - x0, v - y0
+        return float((M[y0, x0] * (1 - fx) + M[y0, x0 + 1] * fx) * (1 - fy)
+                     + (M[y0 + 1, x0] * (1 - fx) + M[y0 + 1, x0 + 1] * fx) * fy)
+
+    def _carapace_map(self):
+        """QA fix H3, round 2: the carapace's bony lattice. The sprite draws the face and brow as
+        ribbed ridges and plates (its light lines: the rings round the eye clusters, the brow arcs,
+        the vertical flank ribs) with dark ink gaps between them. The map follows that pattern: the
+        blue family's shade (ink deepest) smoothed over half a pixel, less its 1.6 px average (the
+        plates' broad shading is lighting and stays out), squashed (tanh) so every ridge stands about
+        the same height with a rounded crown, and every gap sinks. Faired ridges along the sprite's
+        own ridge lines, not noise and not round knobs."""
+        if getattr(self, "_car", None) is not None:
+            return self._car
+        order = FAMILIES["blue"]
+        W, H, S = CAR_W, CAR_H, CAR_S
+        L = np.zeros((H, W))
+        known = np.zeros((H, W))
+        for (c, r), v in self.grid.items():
+            x, y = c - CAR_C0, r - CAR_R0
+            if not (0 <= x < W and 0 <= y < H):
+                continue
+            if v <= 4 or v == 48:
+                L[y, x], known[y, x] = RIDGE_INK, 1.0
+                continue
+            rep = rep_of(v, "blue")
+            if rep is not None and FAMILY_OF.get(rep) == "blue":
+                L[y, x], known[y, x] = order.index(rep), 1.0
+        Lu, Ku = np.kron(L * known, np.ones((S, S))), np.kron(known, np.ones((S, S)))
+        fine = blur(Lu, RIDGE_FINE * S) / np.maximum(blur(Ku, RIDGE_FINE * S), 1e-6)
+        broad = blur(Lu, RIDGE_BROAD * S) / np.maximum(blur(Ku, RIDGE_BROAD * S), 1e-6)
+        M = np.tanh((fine - broad) / RIDGE_SQUASH)
+        # Where the lattice gives way (soft, so it fades rather than steps): off the blue skull
+        # (eyes, gums, purple), in the eye sockets (cups and orbits modelled), on the vertebra column
+        # and its neck, the snout plate, and the gill ribs' trough (ribs modelled).
+        ys, xs = np.mgrid[0:H * S, 0:W * S]
+        cc = CAR_C0 + (xs + 0.5) / S - 0.5
+        rr = CAR_R0 + (ys + 0.5) / S - 0.5
+        cm = AXIS - np.abs(cc - AXIS)
+        keep = np.clip((blur(Ku, 0.7 * S) - 0.35) / 0.4, 0, 1)
+        def soft_out(d):  # 0 inside (d < 0), 1 a pixel outside
+            return np.clip(d, 0, 1)
+        for ec, er in EYES:
+            keep *= soft_out(np.hypot(cm - ec, rr - er) - (ORBIT_R + ORBIT_TUBE))
+        for vc, vr in VERTEBRAE:
+            keep *= soft_out(np.hypot(cm - vc, rr - vr) - 1.6)
+        keep *= np.maximum(soft_out(rr - 9.0), soft_out(np.abs(cc - AXIS) - 16.0))
+        keep *= np.maximum(soft_out(np.abs(cc - AXIS) - 8.5), np.maximum(soft_out(18.0 - rr), soft_out(rr - 28.0)))
+        keep *= soft_out(4.0 * (np.sqrt(((cm - 22.5) / 6.0) ** 2 + ((rr - 29.5) / 9.0) ** 2) - 1.0))
+        M = RIDGE_H * M * keep
+        self._car = M
+        print(f"{NAME}: carapace lattice {M.shape}, ridge share {float((M > 0.3 * RIDGE_H).mean()):.3f}")
+        return M
 
     def gum_relief(self, c, r):
         """The gums' lumps: their light pink highlights stand up to 1.2 px, the dark gaps between
@@ -540,6 +662,24 @@ NODULES = [(31.0, 2.0, 1.4), (44.0, 14.0, 1.1), (29.0, 16.0, 1.3), (31.0, 18.5, 
 # A vertebra-like chain of bone knobs across the cheek above the gums (the sprite's row of light
 # knobs at rows 27-31), left side; mirrored, meeting at the centre.
 VERTEBRAE = [(41.0, 30.5), (44.3, 27.6), (47.5, 27.3), (50.5, 27.2), (53.6, 28.6), (56.8, 29.9), (60.0, 30.4)]
+# Tentacles hanging off each flank (left-side coordinates; the right side's mirrored), round and
+# swelling to a ball at their tips: (col, row, radius px with the sprite's ink ring). The sprite's
+# two sides differ by a pixel or so, so each side has its own (round 2: fitted to each side's
+# top-view mask, work2/fit_tent.py).
+TENTACLES = {
+    "L": [
+        [(11, 38.75, 1.8), (9.5, 41.5, 1.8), (8.5, 43.5, 1.85), (9.25, 44.25, 1.05), (9.5, 44.55, 0)],
+        [(15, 43.5, 2.1), (12.5, 46.5, 2.05), (11.5, 48.55, 2.3), (10.8, 49.5, 2.2), (10.5, 51.55, 1.9), (10.5, 52.55, 0)],
+        [(19.75, 46.5, 3.1), (18.5, 48.25, 1.9), (16.3, 51.25, 1.6), (15.5, 54, 1.6), (16, 55.95, 2.5), (15.95, 57, 1), (16.7, 57.65, 0)],
+        [(26.25, 53, 2.6), (22.25, 56.5, 1.65), (21, 57.75, 1.3), (20.35, 62.25, 2), (21.65, 65.05, 2.8), (20.9, 66.05, 2.4), (22.2, 66.95, 1.2), (22.2, 67.8, 0)],
+    ],
+    "R": [
+        [(11, 38.75, 1.8), (9.5, 41.5, 1.8), (8.5, 43.5, 1.85), (9.25, 44.25, 1.05), (9.5, 44.55, 0)],
+        [(15, 43.5, 2.1), (12.5, 46.5, 2.05), (11.5, 48.55, 2.3), (10.8, 49.5, 2.2), (10.5, 51.55, 1.9), (10.5, 52.55, 0)],
+        [(19.75, 46.5, 3.1), (18.5, 48.25, 1.9), (16.3, 51.25, 1.6), (15.5, 54, 1.6), (16, 55.95, 2.5), (15.95, 57, 1), (16.7, 57.65, 0)],
+        [(27.25, 53, 2.6), (22, 56, 1.5), (21, 58.25, 1.45), (20.35, 62, 1.85), (21.65, 65.05, 2.8), (20.9, 66.05, 2.4), (22.2, 66.95, 1.2), (22.2, 67.8, 0)],
+    ],
+}
 # The fangs' roots in the gums (left side; mirrored); with the upper lip's lobe at the top centre
 # they split the gum ring into lobes (gum_lobe).
 FANG_BASES = [(56.4, 41.0), (44.0, 47.6), (40.6, 54.6), (44.6, 63.6), (46.6, 71.4), (52.8, 79.6), (60.0, 82.4)]
@@ -554,6 +694,7 @@ BELLY = 1.45  # the underside's depth (it has to stay under the throat)
 # The skull is a domed mass: about 12-13 px high over the brow and the eye ridges, falling to
 # about 4 px at the shoulder plates and the lower jaw.
 H_LOW, H_HIGH = 0.33, 1.05
+SKULL_MID = 97  # the skull's mid-tone: the sprite's median 98 (round 1 tried 97: too saturated a blue; round 2's lattice gaps add the dark)
 OLD_TOP = 0.3  # the skull height the gums' and lip's heights below were set against
 RIM_DEPTH = 11.0  # how far in (px) the skull rolls over from its outline
 
@@ -693,6 +834,10 @@ def build_shell(bm, painter):
     gum_out = lib.mirror_poly(GUM_OUT_LEFT, AXIS)
     gum_in = lib.mirror_poly(GUM_IN_LEFT, AXIS)
     N, M, K = 192, 96, 48  # ring resolution: skin, gums, throat
+    dz_layer = bm.verts.layers.float.get("knob_dz") or bm.verts.layers.float.new("knob_dz")  # before any vert
+    base_layer = bm.verts.layers.float.new("skin_base")  # the skin's height under the lattice
+    fade_layer = bm.verts.layers.float.new("skin_fade")  # units per px of lattice height there
+    skin_layer = bm.faces.layers.int.new("skin")
     edge_z = -0.03
 
     def verts(pts, zs):
@@ -705,19 +850,34 @@ def build_shell(bm, painter):
 
     # Top: from the outline in to the gums, with the sprite's light ribs raised and its dark
     # grooves, pits and the eye sockets cut in, and the knobs and cheek pads raised.
+    # QA fix H3: twice the rays and about 2.3 times the rings of before (about 0.5-1 px), so the
+    # carapace's scale knobs (Painter.carapace) are geometry; the outline shell's source leaves
+    # them out (the `knob_dz` layer).
+    N2 = 2 * N
+    edge2 = ring_points(out, out, 0.0, N2)
     skin = []
     prev = edge_v
-    us = [0.02, 0.05, 0.09] + [0.14 + 0.86 * i / 14 for i in range(15)]
+    us = [0.01, 0.025, 0.045, 0.07, 0.10] + [0.13 + 0.87 * i / 36 for i in range(37)]
     for u in us:
-        pts = ring_points(out, gum_out, u, N)
-        zs = []
-        for (c, r), (ec, er) in zip(pts, edge):
+        n = N2 if u < 1.0 else N
+        pts = ring_points(out, gum_out, u, n)
+        zs, dzs, bases, fades = [], [], [], []
+        for (c, r), (ec, er) in zip(pts, edge2 if n == N2 else edge):
             # The top edge (beyond the screen) is cut off by the pieces, so the dome runs on there.
             k = 1.0 if er < -7.5 else rim(math.hypot(c - ec, r - er), RIM_DEPTH)
-            zs.append(edge_z + (dome(c, r) + features(c, r) - edge_z) * k
-                      + painter.relief(c, r) * k * (1 - u ** 4))
+            fade = k * (1 - u ** 4)
+            # (round 2: the lattice runs on closer to the gums than the broad relief, as the sprite's does)
+            fk = PX * k * (1 - u ** 12) * rim(math.hypot(c - ec, r - er), 3.0)
+            dz = painter.carapace(c, r) * fk
+            base = edge_z + (dome(c, r) + features(c, r) - edge_z) * k + BROAD * painter.relief(c, r) * fade
+            zs.append(base + dz)
+            dzs.append(dz)
+            bases.append(base)
+            fades.append(fk)
         ring = verts(pts, zs)
-        skin += connect(bm, prev, ring)
+        for vv, dz, base, fk in zip(ring, dzs, bases, fades):
+            vv[dz_layer], vv[base_layer], vv[fade_layer] = dz, base, fk
+        skin += connect(bm, ring, prev) if len(ring) == 2 * len(prev) else connect(bm, prev, ring)
         prev = ring
 
     # The gums: a rounded ridge of fleshy lumps standing well above the armour, rolling over
@@ -768,6 +928,33 @@ def build_shell(bm, painter):
 
     for f in skin + gums + throat + belly:
         f.smooth = True
+    for v in edge_v:
+        v[base_layer] = v.co.z
+    for f in skin:
+        f[skin_layer] = 1
+
+    # Round 2: the lattice's ridges are a pixel or two apart, finer than the rings and rays, so the
+    # skin's long edges where it runs are split (twice at most) and every skin vertex re-takes
+    # its lattice height (the base height and the fade interpolate along with the split).
+    lim = RIDGE_EDGE * PX
+    for _ in range(2):
+        edges = [e for e in bm.edges if e.calc_length() > lim and e.link_faces
+                 and all(f[skin_layer] == 1 for f in e.link_faces)
+                 and max(v[fade_layer] for v in e.verts) > 0.02 * PX]
+        if not edges:
+            break
+        bmesh.ops.subdivide_edges(bm, edges=edges, cuts=1, use_grid_fill=True)
+    skin = [f for f in bm.faces if f[skin_layer] == 1]
+    for v in {v for f in skin for v in f.verts}:
+        if v[fade_layer] <= 0.0:
+            continue
+        c, r = to_px(v.co.x, v.co.y)
+        dz = painter.carapace(c, r) * v[fade_layer]
+        v.co.z = v[base_layer] + dz
+        v[dz_layer] = dz
+    for f in skin:
+        f.smooth = True
+    print(f"{NAME}: skin {len(skin)} faces after the lattice split")
 
     def adjust(f, context, rep):
         # The gum lobes take the sprite's light pink lumps (68 at least), the fangs' roots its darker
@@ -784,13 +971,27 @@ def build_shell(bm, painter):
         return 67  # the lobe's flanks
         return rep
     painter.adjust = adjust
-    painter.paint(skin, "blue", default=99)
+    painter.paint(skin, "blue", default=SKULL_MID)
     # The eye sockets: dark cups (the bone rim and the eye are modelled on top in build_parts).
     for f in skin:
         c, r = to_px(*f.calc_center_median().xy)
         cm = AXIS - abs(c - AXIS)
         if any(math.hypot(cm - ec, r - er) < SOCKET_R * 0.85 for ec, er in EYES):
             f.material_index = painter.pal(96)
+    # Round 2: the lattice's ridge crowns are pale polished bone (the sprite's pale grey rims;
+    # Palette.sheen), the gaps between them dark (the sprite's ink); the flanks keep the paint.
+    for f in skin:
+        dz = sum(v[dz_layer] for v in f.verts) / len(f.verts)
+        if f.material_index == painter.pal(96) and dz > -CREST * RIDGE_H * PX:
+            continue  # an eye socket
+        if dz < -GAP * RIDGE_H * PX:
+            f.material_index = painter.pal(GAP_SHADE)
+        elif dz > CREST * RIDGE_H * PX:
+            # The ridge crowns: the same colour, more polished, so the light picks the ridges'
+            # tops out as the sprite's pale rims (sheen, art rule 2), not paint.
+            f.material_index = painter.pal.crest(CREST_SHADE or painter.pal.index[f.material_index])
+        else:
+            f.material_index = painter.pal.sheen(painter.pal.index[f.material_index])
     painter.paint(gums, "gum", default=68)
     painter.paint(throat, "red", default=113)
     for f in belly:
@@ -844,9 +1045,12 @@ def build_parts(bm, painter, surf, phase=None):
     if body:
         # A round dome about 8 px above the armour (its lower half, inside the skull, left out).
         # Its base sits a little into the skull's dome, so it stands about 8 px above it.
-        faces = half_blob(bm, P(AXIS, 4.0, skull_top(AXIS, 4.0) - 0.12), (13.6 * PX, 17.0 * PX, 0.8), segments=36,
-                          rings=10, mat=pal(83), bump=bump)
-
+        # QA fix H3: no dome; the vertebra column's segments C and D (column_z), each a cap on the
+        # skull: its top the segment's height wherever that stands above the skull, sunk just under
+        # the skull round its edge, closed underneath.
+        faces = []
+        for seg in SEGMENTS[2:]:
+            faces += column_cap(bm, surf, seg, pal(83))
         painter.paint(faces, "purple", default=83, min_nz=0.0)
         # Bony snout plate between the brain and the upper lip (rows 19-27): a light grey plate of
         # two rounded lobes with a groove down the middle (the sprite's two bright pads), on a
@@ -857,7 +1061,7 @@ def build_parts(bm, painter, surf, phase=None):
             faces += lib.blob(bm, P(c, 25.0, skull_top(c, 25.0) - 0.04), (3.5 * PX, 3.1 * PX, 0.22),
                               segments=14, rings=6, mat=pal(102))
         for f in faces:
-            f.material_index = pal.bone(102)
+            f.material_index = pal.bone(SNOUT_SHADE)
 
         # The central lobe of the upper lip, hanging from the gums' ridge over the throat and ending
         # in a short dark tooth (column 63, rows 37-49).
@@ -893,7 +1097,9 @@ def build_parts(bm, painter, surf, phase=None):
                 lib.blob(bm, P(m(c), r - 0.2, z + 0.12), (0.95 * PX, 0.95 * PX, 0.085), segments=6, rings=3,
                          mat=pal.eye(121, emission=4.0))
             # Bone nodules over the brow and cheeks, and the vertebra chain above the gums.
-            for c, r, rad in NODULES:
+            # Round 2: the nodules are the lattice's now (its ridges run through them); the
+            # separate low-poly blobs drew white specular flecks.
+            for c, r, rad in (NODULES if os.environ.get("GYGES_NODULES") else ()):
                 z = surf.z(m(c), r)
                 lib.blob(bm, P(m(c), r, z - 0.04), (1.3 * rad * PX, 1.2 * rad * PX, 0.05 + 0.03 * rad), segments=8, rings=3,
                          mat=pal.bone(101 if rad < 1.2 else 102))
@@ -933,13 +1139,7 @@ def build_parts(bm, painter, surf, phase=None):
 
         # Tentacles hanging off the flanks, round and swelling to a ball at their tips: (col, row,
         # radius px), measured on the sprite with its dark outline.
-        for path in ([(11.5, 39.5, 1.8), (9.5, 41.5, 1.8), (8.5, 43.5, 2.0), (8.5, 45.0, 1.5), (8.5, 45.8, 0.0)],
-                     [(15.5, 44.0, 1.8), (13.0, 46.5, 2.2), (11.5, 48.8, 2.3), (10.8, 51.0, 2.2), (10.5, 52.8, 1.6),
-                      (10.5, 53.8, 0.0)],
-                     [(21.5, 46.5, 1.9), (18.5, 49.0, 1.9), (16.8, 51.5, 1.9), (16.0, 54.0, 2.2), (16.0, 56.2, 2.5),
-                      (16.2, 58.0, 1.6), (16.2, 58.9, 0.0)],
-                     [(26.5, 53.0, 2.0), (23.0, 56.5, 1.8), (21.0, 59.5, 1.9), (20.6, 62.0, 2.0), (21.4, 64.8, 2.8),
-                      (21.4, 66.8, 2.4), (21.2, 68.2, 1.2), (21.2, 68.8, 0.0)]):
+        for path in (() if os.environ.get("GYGES_NOTENT") else TENTACLES["L" if m(0) == 0 else "R"]):
             n = len(path)
             # Rooted in the skull's flank, arching out and drooping past its rim (design B: they hang).
             z0 = surf.z(m(path[0][0]), path[0][1], 0.1) - 0.1
@@ -962,9 +1162,10 @@ def build_parts(bm, painter, surf, phase=None):
 
     if body:
         # Chin spike (column 63, rows 89-94).
-        faces = lib.tube(bm, [P(AXIS, 88.0, 0.2), P(AXIS, 91.0, 0.12), P(AXIS, 93.0, 0.06), P(AXIS, 94.2, 0.02),
-                              P(AXIS, 95.0, 0.0)],
-                         [2.2 * PX, 2.5 * PX, 2.3 * PX, 1.4 * PX, 0.0], sides=8, mat=pal(103))
+        # (round 2: as wide as the sprite's three inner pixels, not over its ink: IoU of newshn-195)
+        faces = lib.tube(bm, [P(AXIS, 88.0, 0.2), P(AXIS, 91.0, 0.12), P(AXIS, 92.8, 0.06), P(AXIS, 93.7, 0.02),
+                              P(AXIS, 94.2, 0.0)],
+                         [1.9 * PX, 1.65 * PX, 1.5 * PX, 0.9 * PX, 0.0], sides=8, mat=pal(103))
         painter.paint(faces, "blue", default=103, min_nz=-0.2)
 
     if phase is None or phase == "teeth":
@@ -973,6 +1174,45 @@ def build_parts(bm, painter, surf, phase=None):
     elif anim:
         # The fire rising from the core on this phase, from its red outside in to its hottest heart.
         fire(bm, FIRE[phase], pal.glow)
+
+
+def column_cap(bm, surf, seg, mat, rings=34, segments=128):
+    """One segment of the vertebra column on the head as a closed cap (see build_parts)."""
+    _, cy, ry, rx, _top, _ = seg
+    rings_v = []
+    zmin = 9.0
+    for i in range(1, rings + 1):
+        s = 1.04 * (i / rings) ** 0.8
+        ring = []
+        for j in range(segments):
+            a = 2 * math.pi * j / segments
+            ca, sa = math.cos(a), math.sin(a)
+            # the superellipse's radius on this ray
+            k = (abs(ca) ** SEG_P + abs(sa) ** SEG_P) ** (-1 / SEG_P)
+            c, r = AXIS + rx * s * k * ca, cy + ry * s * k * sa
+            zs = surf.z(c, r, 0.9)
+            z = segment_z(AXIS - abs(c - AXIS), r, seg) * PX
+            z = max(z, zs - 0.03)
+            zmin = min(zmin, zs)
+            ring.append(bm.verts.new(P(c, r, z)))
+        rings_v.append(ring)
+    zc = segment_z(AXIS, cy, seg) * PX
+    tip = bm.verts.new(P(AXIS, cy, max(zc, surf.z(AXIS, cy, 0.9) - 0.03)))
+    faces = [bm.faces.new((tip, rings_v[0][j], rings_v[0][(j + 1) % segments])) for j in range(segments)]
+    for a_, b_ in zip(rings_v, rings_v[1:]):
+        for j in range(segments):
+            k = (j + 1) % segments
+            faces.append(bm.faces.new((a_[j], b_[j], b_[k], a_[k])))
+    base = [bm.verts.new((v.co.x, v.co.y, zmin - 0.12)) for v in rings_v[-1]]
+    for j in range(segments):
+        k = (j + 1) % segments
+        faces.append(bm.faces.new((rings_v[-1][j], base[j], base[k], rings_v[-1][k])))
+    faces.append(bm.faces.new(base))
+    bmesh.ops.recalc_face_normals(bm, faces=faces)  # a closed cap: outward
+    for f in faces:
+        f.material_index = mat
+        f.smooth = True
+    return faces
 
 
 def fire(bm, blobs, mat):
@@ -1468,6 +1708,7 @@ GROOVES = [
     (((47.0, -47.4), (55.0, -47.2), (61.0, -47.4)), 0.7, 1.6),                  # under the condyle cap
     (((62.6, -54.0), (62.6, -48.0)), 0.6, 3.2),                                # between the condyles
 ]
+DARK_PLATES = {"hood", "knob", "plate_up", "plate_low", "strip"}  # build_back: darker, polished
 PURPLE_PARTS = {"brain_up", "brain_low", "cord", "rim", "membrane"}
 
 
@@ -1514,6 +1755,66 @@ def brain_z(cm, r):
     return best, part
 
 
+# The vertebra column (QA fix H3, replacing the two brain domes and the head's brain dome): the
+# sprite's purple column down the back is a stack of distinct segments, each a wide oval body with a
+# rounded bead along its north edge (the sprite's pale band at the top of each) and rows of round
+# nodules over its crown (the sprite's granular lumps), with deep creases between the segments.
+# Measured on the sprite's purple run per row: A rows -29..-14 (pear shaped, narrowing into the
+# cord), B rows -13..-2, C rows 0..12 (on the head), D the narrow neck rows 14..20 (on the head).
+# (part, centre row, half-length, half-width, top px, north taper)
+SEGMENTS = [("brain_up", -21.6, 7.9, 19.0, 13.6, 0.5), ("brain_low", -7.6, 6.2, 14.0, 14.2, 0.3),
+            ("seg_c", 6.4, 6.3, 12.8, 17.8, 0.18), ("seg_d", 17.2, 3.6, 6.8, 14.6, 0.0)]
+SEG_P = 3.0  # superellipse plan: an oval with fuller shoulders
+NOD_H, NOD_R, NOD_DC, NOD_DR = 1.05, 1.55, 3.4, 3.0  # nodules: height, radius, spacing across and down (px)
+RIM_BEAD = 1.3  # px: the bead along each segment's north edge
+
+
+def nodules(cm, r, r0):
+    """Round nodules on a staggered lattice (rows from `r0`, every other row offset half a step),
+    symmetric about the axis: the largest bump of the lattice points round (cm, r), in px."""
+    best = 0.0
+    j0 = math.floor((r - r0) / NOD_DR)
+    for j in (j0 - 1, j0, j0 + 1):
+        rj = r0 + (j + 0.5) * NOD_DR
+        off = 0.5 * NOD_DC if j % 2 else 0.0
+        i0 = round((cm - AXIS - off) / NOD_DC)
+        for i in (i0 - 1, i0, i0 + 1):
+            cj = AXIS + off + i * NOD_DC
+            d2 = ((cm - cj) ** 2 + (r - rj) ** 2) / (NOD_R * NOD_R)
+            if d2 < 1:
+                best = max(best, NOD_H * (1 - d2) ** 1.0)  # a round knob, creased at its foot
+    return best
+
+
+def segment_z(cm, r, seg, nodes=True):
+    """Height (px) of one segment of the vertebra column at (cm, r), or -99 outside it."""
+    _, cy, ry, rx, top, taper = seg
+    t = (r - (cy - ry)) / (2 * ry)  # 0 at its north end, 1 at its south end
+    rxx = rx * (1 - taper * max(0.0, 1 - 2 * t) ** 1.5)
+    qc, qr = (cm - AXIS) / rxx, (r - cy) / ry
+    q = (abs(qc) ** SEG_P + abs(qr) ** SEG_P) ** (1 / SEG_P)
+    if q >= 1:
+        return -99.0
+    body = (1 - q ** 2.6) ** 0.38
+    z = top * body * (1 + 0.07 * (1 - 2 * t))
+    across = max(0.0, 1 - abs(qc) ** 3)
+    bead = math.exp(-(((r - (cy - ry)) - 1.6) / 1.0) ** 2) * across
+    z += RIM_BEAD * bead
+    if nodes:
+        z += nodules(cm, r, cy - ry + 2.6) * smoothstep((1 - q) / 0.3) * (1 - min(1.0, 1.6 * bead))
+    return z
+
+
+def column_z(cm, r, names, nodes=True):
+    best, part = -99.0, None
+    for seg in SEGMENTS:
+        if seg[0] in names:
+            z = segment_z(cm, r, seg, nodes)
+            if z > best:
+                best, part = z, seg[0]
+    return best, part
+
+
 def foramen(cm, r):
     """(ring z, inside fraction): the purple rim's torus profile and how far inside its pit."""
     cx, cy, R, t, top = FORAMEN
@@ -1531,7 +1832,7 @@ def forms(c, r):
     for name, cx, cy, rx, ry, top, p in DOMES:
         out[name] = dome(cm, r, cx, cy, rx, ry, top, p)
     out["cord"] = cord_z(cm, r)
-    bz, bpart = brain_z(cm, r)
+    bz, bpart = column_z(cm, r, ("brain_up", "brain_low"))
     if bpart:
         out[bpart] = bz
     ring, _ = foramen(cm, r)
@@ -1602,9 +1903,9 @@ def top_z(c, r, ship):
     # holes roll over (phi_ext carries both), the cuts stay square.
     k_hole = rim(-phi_ext(c, r), RIM_HOLE)
     z = EDGE_Z + 0.01 + (h * PX - EDGE_Z) * k * k_hole
-    # The brain gives way to the head's own brain over a longer run (no pinch where they meet).
-    bw = 1.0 - smoothstep((abs(c - AXIS) - 12.0) / 4.0)
-    frm = BLEND_FROM + (-10.0 - BLEND_FROM) * bw
+    # QA fix H3: the column's segment B ends in a crease at the seam (segment C starts on the head),
+    # so the column blends onto the head over the same short run as the rest.
+    frm = BLEND_FROM
     w = smoothstep((r - frm) / (SEAM - frm))
     if w > 0:
         zs = ship.top(c, r)
@@ -1701,6 +2002,14 @@ def build_back(painter, ship, coll):
         if part == "condyle":
             for f in faces:
                 f.material_index = pal.bone(pal.index[f.material_index])
+        elif part in DARK_PLATES:
+            # Round 2: the hood lobes and side plates are near-black rounded plates with sharp
+            # bright speculars in the sprite: a step darker, polished (Palette.sheen).
+            order = FAMILIES["blue"]
+            for f in faces:
+                i = pal.index[f.material_index]
+                if i in order:
+                    f.material_index = pal.sheen(order[max(0, order.index(i) - 1)])
     for f in bots:
         f.material_index = pal(97)
     for f in walls:
@@ -1804,7 +2113,7 @@ def layout_of(names):
     return [(n, lay[n][1] - (SX0 + AXIS + 0.5), lay[n][2] - (SY0 + ROW0 + 0.5)) for n in names]
 
 
-DECIMATE = 0.3  # of the 0.5 px grid's triangles: flat belly and plate flanks go, creases and gyri stay
+DECIMATE = 0.5  # of the 0.5 px grid's triangles (QA fix H3: 0.3 smeared the vertebra nodules into spikes)
 
 
 def decimate(obj, ratio):
@@ -1874,6 +2183,12 @@ def main():
     coll.objects.link(src)
     sbm = bmesh.new()
     sbm.from_mesh(src.data)
+    # ... and the carapace's scale knobs (QA fix H3): the shell is made from the skull under them,
+    # so it can't bridge the gaps between knobs.
+    lay = sbm.verts.layers.float.get("knob_dz")
+    if lay is not None:
+        for v in sbm.verts:
+            v.co.z -= v[lay]
     mats = src.data.materials
     bmesh.ops.delete(sbm, geom=[f for f in sbm.faces if f.material_index < len(mats)
                                 and any(k in mats[f.material_index].name for k in ("bone", "eye"))],
@@ -1882,6 +2197,9 @@ def main():
     sbm.free()
     shell = common.outline_shell(src, coll, voxel=0.03, faces=3500, inside=0.006)
     bpy.data.objects.remove(src)
+    for o in (head, obj):
+        if "knob_dz" in o.data.attributes:
+            o.data.attributes.remove(o.data.attributes["knob_dz"])
     open_brain_shell(shell)
     layout = [(e["model"], e["cx"] - (SX0 + AXIS + 0.5), e["cy"] - (SY0 + ROW0 + 0.5))
               for e in sprite["assemblyLayout"] if e["model"] in PIECES]

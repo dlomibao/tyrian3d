@@ -1,29 +1,30 @@
 """Sinking stone block (newshp.shp, assembly of 4 pieces: newshp-153/155 over newshp-191/193),
 built from engineering cross-sections.
 
-The sprite (48 x 56 px, three steps) is a raised platform of dressed grey ashlar on rubbly ground,
-with a lit capping ledge and a louvred steel apron in front of it falling to a dark trench, and
-three stones (A big upper middle, B narrow east, C low middle) that sink into the deck step by step.
+The sprite (48 x 56 px, three steps) is a raised platform of smooth light-grey ashlar on rubbly
+ground, with three stones (A big upper middle, B narrow east, C low middle) that sink into the deck
+step by step. The dark ribbed band south of it (rows 42-51) and the dark band along its east face
+are the platform's drop shadow over the ground masonry: lighting, not geometry or paint (art rule 2,
+E2 QA M2), so they are plain ground here and the game's sun shadow makes the shade.
 
 Cross-sections (sprite px; x = col - 24, y = 28 - row, z up; 12 px = 1 Blender unit):
 - Plinth: two masonry courses on the rounded-rect plan of columns 4-42, rows 0-41 (corner radius 2
   north, 3 south). Lower course 0 .. 1.0 at the full plan with a 0.18 chamfered water table; upper
-  course (the bedding / mortar slab) 1.0 .. 2.84 set back 0.15 (a shadow line between courses).
-- Deck: one course of dressed ashlar, 2.84 .. 3.84 (= 0.32 units, the current script's TOP). Each
-  stone fills its sprite pixel rectangle exactly (the 1 px joints between them are mortar at 2.84),
-  with a 0.42 arris chamfer, a flat drafted margin 0.5 wide 0.07 below the face and a flat field.
-  The sprite's lit north / west and dark south / east stone edges are that chamfer catching light.
-- Sockets: the three sinking stones ride in pits through the bedding course (0.15 clearance), lined
-  with steel guide plates on the neighbouring stones' faces above the mortar; B, on the east edge,
-  is held by a steel cheek plate. Stone tops per step 3.84 / 3.10 / 2.15 px (flush, part way, deep).
+  course (the bedding / mortar slab) 1.0 .. 3.56 set back 0.15, with facing blocks on its runs.
+- Deck: one course of smooth slabs to 3.84 (= 0.32 units). Each stone fills its sprite pixel
+  rectangle exactly; the 1 px joints between them are mortar at 3.56, a shallow seam (0.28 px), and
+  each slab has a small rounded arris (0.26) that catches the light (the sprite's lit north / west,
+  dark south / east stone edges). No ink in the seams.
+- Sockets: the three sinking stones ride in pits through the bedding course (0.15 clearance); B, on
+  the east edge, is held by a steel cheek plate. Stone tops per step 3.84 / 3.10 / 2.15 px.
 - Ground (newshp-237's baked-in ground): dark ground plate, rubble down the west strip and along the
-  bottom, the dark trench and dark rubble on the east, a lit capping ledge (row 42) and a sloped
-  louvred apron (rows 43-51) of steel blades in a dark duct.
+  bottom, low ground stones south of the platform, dark gravel and rubble on the east.
 
 Colour: each part takes its sprite region's trimmed-median palette index (blueprint.json
-spriteMedians): stone 9, joints 7, ledge 8, apron 2 with blades 4, west rubble 6, east rubble 3,
-trench 1, bottom rubble and ground 5; the sinking stones 9 / 8 / 6 (A), 9 / 7 / 3 (B), 9 / 7 / 5 (C)
-per step. Stone is matte; steel is satin. No concept projection. Outline shell (D51) per step.
+spriteMedians): stone 9, joints 7, west rubble 6, east rubble 3, south ground and bottom rubble 5;
+the sinking stones 9 / 8 / 6 (A), 9 / 7 / 3 (B), 9 / 7 / 5 (C) per step. Stone is matte. No concept
+projection. Outline shell (D51) per step from a sealed copy of the platform (one closed solid, D90 /
+D118), so the ink is on the platform's silhouette only, not in the seams or round the ground stones.
 Underside: the closed ground plate only.
 
 Texture: AO/roughness bake only (usp_talon.bake_maps, "bake": "model", D50/D65). The whole block is
@@ -56,11 +57,11 @@ U = 1 / 12
 PLAN = (4, 0, 43, 42)            # platform pixel edges: columns 4-42, rows 0-41
 R_N, R_S = 2.0, 3.0              # plan corner radii north / south
 TOP = 3.84                       # deck top (0.32 units)
-BED = 2.84                       # mortar joints / bedding course top
+BED = 3.56                       # mortar joints: shallow seams 0.28 px below the deck (E2 QA M2)
 FLOOR = 2.0                      # pit floor level reference (bottom of the sinkers' travel)
 LOWER = 1.0                      # lower plinth course top
 SETBACK = 0.15                   # upper course set back from the plan
-CH, DRAFT, DRAFT_DZ = 0.42, 0.5, 0.07   # stone arris chamfer, drafted margin width and drop
+CH = 0.26                        # stone arris: a small rounded chamfer (the sprite's lit / dark edge)
 CLEAR = 0.15                     # sinker clearance in its pit
 SINK_TOP = [3.84, 3.10, 2.15]    # sinking stones' tops per step
 SINK_PAL = {"A": [9, 8, 6], "B": [9, 7, 3], "C": [9, 7, 5]}
@@ -193,14 +194,10 @@ class Mesh:
         return rs
 
     def dressed(self, o, z0, top, mat):
-        """Dressed ashlar: walls, a bottom bed-joint chamfer, the arris chamfer, a drafted margin
-        sunk DRAFT_DZ below the face, a small step up to the flat field."""
+        """A smooth dressed slab: straight walls, a small rounded arris (two-step chamfer) and a
+        flat face. The seam to its neighbour is only TOP - BED deep, so it reads as a faint line."""
         o = dedupe(o)
-        a = inset(o, CH)
-        b = inset(o, CH + DRAFT)
-        c = inset(o, CH + DRAFT + 0.06)
-        rings = [(inset(o, 0.1), z0), (o, z0 + 0.1), (o, top - CH), (a, top - DRAFT_DZ), (b, top - DRAFT_DZ),
-                 (c, top)]
+        rings = [(o, z0), (o, top - CH), (inset(o, CH * 0.45), top - CH * 0.22), (inset(o, CH), top)]
         self.loft(rings, mat)
 
     def wedge(self, x0, x1, ya, yb, za, zb, z0, mat):
@@ -351,39 +348,23 @@ def build(sprite, step, coll):
     for k in range(0, 48, 4):
         rubble_stone(M, m(5, "rubble"), k, 52, k + 4, 56, 0.6 + 0.2 * rand(k), 200 + k)
 
-    # ---- east: the dark trench and the dark rubble beyond it ---------------------------------
-    M.block(box2(X(43.5), Y(42), X(45.6), Y(0)), G - 0.01, G + 0.02, m(1, "rubble"), bottom=False)
-    M.block(box2(X(41), Y(52), X(45.6), Y(42)), G - 0.01, G + 0.02, m(1, "rubble"), bottom=False)
-    # the dark gravel bed the east rubble lies in
-    M.block(box2(X(45.6), Y(52), X(48), Y(0)), G - 0.01, G + 0.03, m(3, "rubble"), bottom=False)
+    # ---- east: the dark rubble beside the platform ---------------------------------------------
+    # The sprite's dark band along the east face (cols 43-45) is the platform's drop shadow (art
+    # rule 2): plain dark gravel here, the sun's shadow of the platform darkens it in game.
+    M.block(box2(X(43), Y(52), X(48), Y(0)), G - 0.01, G + 0.03, m(3, "rubble"), bottom=False)
     RR = [(45.5, 0, 48, 3, 0.72), (46, 5, 48, 8, 0.6), (46, 14, 48, 18, 0.6), (46, 19, 48, 23, 0.6), (46, 24, 48, 27, 0.84)]
     for i, (c0, r0, c1, r1, h) in enumerate(RR):
         for dr in (0, 28):
             rubble_stone(M, m(3, "rubble"), c0, r0 + dr, c1, min(r1 + dr, 52), h, 50 + i * 3 + dr)
 
-    # ---- capping ledge (row 42) and the louvred apron (rows 43-51) ------------------------------
-    # Ledge: a cast coping beam, front arris chamfered, set against the plinth.
-    M.block(box2(X(4), Y(43), X(41), Y(42)), G, 1.32, m(8, "stone"), ch=0.22)
-    # Apron duct: a dark steel pan sloping from under the ledge (1.2) to the ground (0.24 + 0.05).
-    za, zb = 1.2, G + 0.05
-    M.wedge(X(4), X(41), Y(43), Y(51), za, zb, G, m(2, "steel"))
-    zr = lambda r: za + (zb - za) * (r - 43) / 8  # noqa: E731
-
-    def blade(c, w, pal):
-        """A louvre blade: a chamfered steel fin standing on the sloped pan, full apron length."""
-        x0, x1 = X(c) + 0.1, X(c + w) - 0.1
-        ya, yb, h, e = Y(43), Y(50.6), 0.45, 0.16
-        lo = [(x0, yb, zr(50.6) - 0.08), (x1, yb, zr(50.6) - 0.08), (x1, ya, zr(43) - 0.08), (x0, ya, zr(43) - 0.08)]
-        hi = [(x0, yb, zr(50.6) + h - e), (x1, yb, zr(50.6) + h - e), (x1, ya, zr(43) + h - e), (x0, ya, zr(43) + h - e)]
-        tp = [(x0 + e, yb + 0.0, zr(50.6) + h), (x1 - e, yb, zr(50.6) + h), (x1 - e, ya, zr(43) + h), (x0 + e, ya, zr(43) + h)]
-        M.loft([lo, hi, tp], m(pal, "steel"))
-
-    for c in range(16, 41, 4):
-        blade(c, 1, 4)
-    blade(5, 4, 4)
-    blade(10, 3, 4)
-    # Bottom sill of the duct (row 51): a steel angle along the ground, the blades' feet on it.
-    M.block(box2(X(4), Y(52), X(41), Y(51)), G, G + 0.36, m(3, "steel"), ch=0.12)
+    # ---- south of the platform (rows 42-51): plain ground ----------------------------------------
+    # The sprite's dark ribbed band here is the platform's drop shadow over the ground masonry (art
+    # rule 2: shading is lighting, not geometry or paint). Only low ground stones on a gravel bed;
+    # the sun's shadow of the platform makes the shade in game.
+    M.block(box2(X(4), Y(52), X(43), Y(42)), G - 0.01, G + 0.03, m(5, "rubble"), bottom=False)
+    for r0, off in ((42, 0), (45, 2), (48, 0)):
+        for k in range(4 + off, 43 - 2, 4):
+            rubble_stone(M, m(5, "rubble"), k, r0, min(k + 4, 43), r0 + 3, 0.42 + 0.2 * rand(k + r0), 300 + k + r0)
 
     # ---- the platform: two plinth courses -------------------------------------------------------
     plan = plan_outline()
@@ -412,20 +393,13 @@ def build(sprite, step, coll):
     for s in STONES:
         if len(s) == 5:
             continue
-        M.dressed(stone_outline(*s[:4]), BED - 0.25, TOP, m(9, "stone"))
+        M.dressed(stone_outline(*s[:4]), BED - 0.12, TOP, m(9, "stone"))
 
     # ---- the sinking stones, guide plates and B's cheek plate ----------------------------------
     for k, (x0, yb, x1, yt), s in sinkers:
         pal = SINK_PAL[k][step]
         o = box2(x0, yb, x1, yt)
         M.dressed(o, max(FLOOR - 0.6, zt - (TOP - FLOOR)), zt, m(pal, "stone"))
-        # guide plates on the neighbouring stones' faces above the mortar (1 px joint away)
-        g, t, z0g, z1g = 1.0, 0.16, BED - 0.5, TOP - CH - 0.05
-        if k != "B":
-            M.block(box2(x1 + g - t, yb - g, x1 + g, yt + g), z0g, z1g, m(4, "steel"), bottom=False)
-        M.block(box2(x0 - g, yb - g, x0 - g + t, yt + g), z0g, z1g, m(4, "steel"), bottom=False)
-        M.block(box2(x0 - g, yt + g - t, x1 + (g if k != "B" else 0.45), yt + g), z0g, z1g, m(4, "steel"), bottom=False)
-        M.block(box2(x0 - g, yb - g, x1 + (g if k != "B" else 0.45), yb - g + t), z0g, z1g, m(4, "steel"), bottom=False)
         if k == "B":
             # cheek plate: steel, flush with the platform's east face, bolted (two bolt heads)
             xa, xb = x1 + CLEAR + 0.02, X(PLAN[2]) - SETBACK * 0.0
@@ -436,6 +410,19 @@ def build(sprite, step, coll):
                 pts = [(xb, yy + v, 1.9 + u) for u, v in ring]
                 tip = [(xb + 0.12, yy + v * 0.8, 1.9 + u * 0.8) for u, v in ring]
                 M.loft([list(reversed(pts)), list(reversed(tip))], m(4, "steel"))
+
+    # Sealed copy for the outline shell (D90/D118): the platform as one closed solid on the ground,
+    # no joints, pits or ground stones, so the ink stays on the platform's silhouette only.
+    S = Mesh()
+    S.block(plan, G, TOP, 0, ch=CH)
+    sbm = S.bm
+    bmesh.ops.recalc_face_normals(sbm, faces=sbm.faces)
+    bmesh.ops.scale(sbm, vec=(U, U, U), verts=sbm.verts)
+    sme = bpy.data.meshes.new(f"{NAME}_sealed_s{step}")
+    sbm.to_mesh(sme)
+    sbm.free()
+    sealed = bpy.data.objects.new(f"{NAME}_sealed_s{step}", sme)
+    coll.objects.link(sealed)
 
     bm = M.bm
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
@@ -449,7 +436,7 @@ def build(sprite, step, coll):
     coll.objects.link(obj)
     me.shade_smooth()
     me.set_sharp_from_angle(angle=math.radians(32))
-    return obj
+    return obj, sealed
 
 
 def split_open(obj, layout, coll):
@@ -482,11 +469,12 @@ def main():
     outline_mat = common.material("outline_shell", (0.0, 0.0, 0.0), roughness=1.0)
     shown = []
     for step in range(3):
-        obj = build(sprite, step, coll)
+        obj, sealed = build(sprite, step, coll)
         obj.name = obj.data.name = f"{NAME}_{step}"
         print(f"step {step}: {sum(len(p.vertices) - 2 for p in obj.data.polygons)} triangles")
-        shell = common.outline_shell(obj, coll, voxel=0.014, faces=4000, smooth=6, inside=0.01)
+        shell = common.outline_shell(sealed, coll, voxel=0.014, faces=4000, smooth=6, inside=0.01)
         shell.hide_render = True
+        bpy.data.objects.remove(sealed, do_unlink=True)
         if bake:  # AO/roughness only (D50/D65), on the merged object before it is cut
             T.TINT = (1.0, 1.0, 1.0)
             T.TEXTURED = tuple(range(len(obj.data.materials)))
