@@ -182,6 +182,12 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
   ~0.32M per unit).
   Lean mode (no blueprint, one design, Opus build + review) is what forward-push did for the 7
   player ships: 16 agents for ships + two unrelated fixes, 42 min (its reviews were Sonnet; see tiers).
+- **Cost/time (e3-enemies-1, D190, 22 items = 34 inventory units, 20 items / 32 units done: 18 hero, 4 standard; lean
+  mode):** 85 agents (1 scout, 22 designs, 22 finishes on Sonnet, 9 fixes, 31 reviews), 10.76M subagent tokens, about
+  2.0 h of run time. Per-agent median: design 20.4 min, finish 3.3, fix 15.4, review 3.7. 19 of 22 passed strict review
+  in the run; `fix-round.js` on the other 3: 10 agents (5 fixes, 5 reviews), 1.15M tokens, 44 min, one shipped, two held
+  (a glass dome the renderer can't show clear; an organic creature's glow). Rule of thumb in lean mode with big merged
+  hero items: ~3.9 agents and ~0.49M tokens per item (~2.5 agents, ~0.32M per unit).
 
 ### 2. Structure and tile models
 
