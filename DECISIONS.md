@@ -9064,3 +9064,77 @@ bottom edge (FLEET's hood corner) from the seam solve.
 
 **Cost:** one Opus agent, no workflow, no Blender. 15 Gemini requests (Pro, Create images, 10-15 s each, no usage warning).
 About 30 headless captures.
+## D187 — Episode-4 HD terrain: ICESECRET's ice rock, EYESPY's tissue and BRAINIAC's domes re-cut from their ground paintings; LAVA RUN/LAVA EXIT's fire, BRAINIAC's gate barriers and pool and TIME WAR's pylons painted, so no E4 tile draws as original pixels or MMPX (M4; follows D111, D180, D186)
+
+2026-11-13
+
+**Problem** (M4, "HD terrain for every tileset"): `inventory` over the five E4 tilesets (`shapes)`, `shapesw`, `shapesz`, `shapesy`,
+`shapesx`) against the current atlases, then a headless bot run of all 20 E4 sections (`tyrian-scratch/e4-terrain/scan.test.ts.txt`,
+D186's scan with episode 4; SQUADRON capped at 12,000 ticks, its waves never end, D75) gave each tile's screen time in tile-draw
+ticks. Fourteen levels were already complete: SURFACE, CORE, ?TUNNEL?, ICE EXIT, HARVEST, UNDERDELI, SAVARA IV, DREAD-NOT (black
+space only), NOSE DRIP, WINDY, DESERTRUN, SIDE EXIT, SQUADRON, APPROACH. Missing:
+- **Extruded original pixels** (opaque layer 1-2, no art, D8): ICESECRET (4.20) layer 1, the blue ice rock `shapesw` 230-275
+  (14 tiles, 218,088, 33% of its tile draws; D186's known leftover); BRAINIAC (4.15) layer 2, the grey gate barriers `shapes)`
+  100-124 (18 tiles), and layer 1, its purple domes 130-152 and the blue pool 30 with its green creatures 40 (15 tiles; 73,704
+  together); TIME WAR (4.17) layer 2, two blue pylons 190-211 (6 tiles, 18,436). The inventory marks these layer-1 tiles
+  "blend" from the map header, but the game draws them opaque on these levels.
+- **4x MMPX** (blended layer 1): EYESPY (4.13), its purple tissue `shapesx` 65-88 (13 tiles, 549,993, 33%; left MMPX with
+  GYGES's by D180); LAVA RUN (4.12) and LAVA EXIT (4.9), the fire masses `shapes)` 160-188 (20 tiles, 68,404 and 87,860, 14% each).
+All of them are `structure` by the inventory's heuristic (D83), so no earlier cut took them.
+
+**Decision:** no code change. One round through the pipeline, as D186 did:
+1. **Re-cut first** (`cut --edge-aware --structures` with no answers, so every new tile takes its ground painting, D180):
+   `shapesw` 230-275 (ICESECRET), `shapesx` 65-88 (EYESPY only; GYGES's blended 60-64, 70-74, 80-82, 90-109 and 450-499 stay
+   excluded, D180) and `shapes)` 130-152 (BRAINIAC's domes). EYESPY's tissue is one bank (purple), so D180's tan-claw problem
+   doesn't arise: under D174's hue-keeping blend it keeps its colour (mean playfield colour at t225 48.5/43.8/57.8 before,
+   48.0/43.1/57.4 after) and loses the MMPX pixel noise.
+2. **Gemini, 9 requests (8 answers used)**, hand-picked windows (`tyrian-scratch/e4-terrain/bin/mksheets.py`) with hand prompts
+   (`bin/mkprompts.py`): the fire, three windows of LAVA RUN's map (13x10, 12x10, 8x9; LAVA EXIT has the same layer); BRAINIAC's
+   barriers, two 13x11 windows and one sheet of four 13x3 strips (for the single-use 100, 106, 114); BRAINIAC's pool (7x6); TIME
+   WAR's two pylons (two 3x8 cells). Every answer registered at scale 1.00: tile NCC median 0.90-0.996.
+   - **Name the object, not the look.** The first barrier sheet asked for "thin grey steel pipes" and came back as round
+     plumbing with an invented foot mid-beam and the angular notched beam lost (fit 0.82). Re-asked as "gate barriers: a flat
+     grey steel beam with notches and raised panels ... curving into a heavy dark armoured pylon block ... not round pipes; no
+     extra feet": fit 0.996, NCC 0.996, shape kept. The rejected answer is not used.
+   - The fire's first sheet came back crisp and faceted (NCC 0.99, blockiness 1.29), its second more painterly; the cut picked
+     per tile (12 from the first, 6 from the third, 2 from the second); in game they read as one mass.
+3. **Cut:** `cut --cache --edge-aware --structures` into `shapes)` in merge mode. Every existing image and rect stays byte for
+   byte (manifests only gain entries). New: `shapesw/1-3.webp` (14 layer-1 tiles, reused), `shapesx/1-4.webp` (13, reused),
+   `shapes)/1-3.webp` (13 domes, reused), `shapes)/1-4.webp` (22 layer-1 tiles painted: 30, 40, the 20 fire tiles) and
+   `shapes)/2.webp` (the tileset's first layer-2 atlas: 24 tiles). Painted tile NCC 0.90-0.997 (161 0.90, 40 0.90, 176 0.92,
+   114, 177 and the TIME WAR pylons 0.93-0.95, 188 0.94, the rest ≥ 0.958); 9 tiles deblocked (blockiness 1.69-2.36 -> 1.62-1.83).
+4. **Seams** (`check`): `shapes)` layer 2 new edges 0.49 (continuous 0.48); layer 1 kept edges 1.10 (as before), new 4.17
+   (continuous 1.30): the fire's spikes and the barrier ends against transparent black, which the contact sheets and the game
+   show as the original's outline. `shapesw` layer 1 new 0.40 (continuous 0.39), `shapesx` layer 1 new 0.67 (continuous 0.67).
+
+**Options considered:**
+- *Leave the barriers and pylons to tile models (D34/D47):* the long-term route for hard surface; nothing is queued for them.
+- *`sheets`' own set:* it skips structure tiles, and for these it would cover the barriers with 7x6 windows of mostly black
+  (seven by `choose_regions`), where small pieces on black get enlarged (D186).
+- *Keep EYESPY's tissue MMPX, as D180 did for GYGES:* its one bank keeps its colour under the blend, so it is re-cut.
+
+**Checked** (`?debug=play&episode=4&main=M&difficulty=2&seed=1&skip=T&freezeAt=T&compare=1`, BRAINIAC with `&power=11` as the
+scan, 3840x2160, before = origin/main a1f6df0d, after = this; counts from the instrumented frames, as D180/D184/D186: original
+tiles, then HD tiles):
+- ICESECRET t300: 168 -> 0; HD 168 -> 336. t1800: 192 -> 0; HD 168 -> 360.
+- EYESPY t225: MMPX 138 -> 0; HD 126 -> 264. t6750: MMPX 150 -> 0; HD 12 -> 162.
+- BRAINIAC t7125: 46 -> 0; HD 120 -> 166. t13575: 42 -> 0; HD 2 -> 44.
+- LAVA RUN t1500: MMPX 84 -> 0; HD 192 -> 276. t3975: 104 -> 0; HD 168 -> 272. LAVA EXIT t5850: 92 -> 0; HD 168 -> 260.
+- TIME WAR t6000 (and t5400 steered left and right): unchanged. The sim draws the pylons' tiles (at x 3 and 267), but the
+  renderer never reaches `drawHdTile` or `drawOriginalTile` for them in these frames and the original panel doesn't show
+  them either; why was not traced. Painted anyway (6 tiles).
+- IXMUCANE (3.4, `shapesw`) t525: identical but for one animated sparkle (no E3 level draws a changed tile; this checks the
+  merge kept `shapesw`'s images).
+- Mean playfield colour after = before within 4 levels on every level above (the paintings sit in the HD field's palette and
+  lighting). Not changed here: ICESECRET's 3D view is 2.2-3.2x brighter per channel than the original panel in both looks (the extruded
+  original pixels too), a renderer or palette matter, not the art.
+- What still misses the atlas: one-colour black tiles only (`shapes)` 20, `shapesx` 76).
+- Whole levels (the bot scan, after): no E4 tile draw is original pixels or MMPX in any of the 20 sections.
+- No console errors. tsc and vitest pass.
+Captures, `summary.png` (original | before | after), crops, scan reports and the work folders (sheets, answers, cut reports,
+seams): `tyrian-scratch/e4-terrain/`.
+
+**Left:** GYGES's (2.2) blended layer 1 stays MMPX by choice (D180). Nothing in E4.
+
+**Cost:** one Opus agent, no workflow, no Blender. 9 Gemini requests (Pro, Create images, 10-30 s each, no usage warning).
+About 30 headless captures.
