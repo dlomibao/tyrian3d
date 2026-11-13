@@ -5,9 +5,10 @@ style of batch 1's assembly-newshr-273 / -267 (D65).
 What it is: three machined grey blocks standing on the ground, separated by two gaps (rows 37-38 and
 46-47 are empty in the sprite):
 - the furnace housing (rows 10-37): a chamfered grey plinth; on it a raised grey bezel ring (a rounded
-  square, superellipse) holding a bronze-rimmed socket with a big glowing fireball in it (orange skin,
-  ragged yellow mid zone, a flame-lobed bright core upper left with a tongue down the right, all
-  faces of the ball's own mesh, no painted highlight: the game lights it); below the ball a first oval
+  square, superellipse) holding a bronze-rimmed socket with a big glowing fireball in it: the sprite's
+  swirled fire (white-hot core upper left, the bright arm curling down the right, the cooler groove
+  between) as heat bands on a fine polar grid of the ball's own mesh, each band a frame-animated glow,
+  over a sunk relief along the same heat (QA M4, fire_ball); below the ball a first oval
   lens in a ring bezel, a raised panel on the left and a vertical vent slot on the right that opens
   out of the block's bottom edge;
 - the second block (rows 39-46): a louvre of two horizontal slats on the left, a smaller lens in a
@@ -392,6 +393,128 @@ F_L3 = {207: 119, 245: 120, 283: 123}
 F_L3C = {207: 121, 245: 122, 283: 125}
 
 
+# --- the swirled fire (QA M4) ------------------------------------------------------------------
+
+def fire_heat():
+    """Heat per pixel of piece 167 (rows 0-27 of the column): frame 281's index + 6 on the fire's
+    pixels (frame 167 = min(127, heat), each later frame two less), smoothed (normalised Gaussian,
+    sigma 0.62 px) over the fire mask; outside the fire the nearest fire value carries on so the
+    rim samples cleanly."""
+    import numpy as np
+    fr = [np.array([[int(v) for v in line.split()] if isinstance(line, str) else line
+                    for line in f["pixels"]]) for f in SPRITES["newshr-167"]["frames"]]
+    f0, f3 = fr[0], fr[3]
+    fire = (f0 >= 119) & (f0 <= 127) & (f3 >= 112) & (f3 <= 127)
+    heat = np.where(fire, f3 + 6, 0).astype(float)
+    k = np.arange(-3, 4)
+    g = np.exp(-(k ** 2) / (2 * 0.62 ** 2))
+    g /= g.sum()
+
+    def blur(a):
+        a = np.apply_along_axis(lambda r: np.convolve(r, g, mode="same"), 1, a)
+        return np.apply_along_axis(lambda c: np.convolve(c, g, mode="same"), 0, a)
+
+    w = blur(fire.astype(float))
+    hs = blur(heat) / np.maximum(w, 1e-6)
+    hs = np.where(w > 0.05, hs, 0.0)
+    # carry the nearest fire value outward (a few dilation steps)
+    for _ in range(4):
+        m = hs > 0
+        pad = np.pad(hs, 1)
+        pm = np.pad(m, 1)
+        acc = np.zeros_like(hs)
+        cnt = np.zeros_like(hs)
+        for dr in (-1, 0, 1):
+            for dc in (-1, 0, 1):
+                acc += pad[1 + dr:1 + dr + hs.shape[0], 1 + dc:1 + dc + hs.shape[1]]
+                cnt += pm[1 + dr:1 + dr + hs.shape[0], 1 + dc:1 + dc + hs.shape[1]]
+        hs = np.where(m, hs, np.where(cnt > 0, acc / np.maximum(cnt, 1), 0.0))
+    return hs
+
+
+FIRE_BANDS = [(0, 121.5, 121), (121.5, 122.5, 122), (122.5, 123.5, 123), (123.5, 124.5, 124),
+              (124.5, 125.5, 125), (125.5, 126.6, 126), (126.6, 128.0, 127), (128.0, 129.6, 128),
+              (129.6, 131.2, 130), (131.2, 999, 132)]
+
+
+def fire_mat(level):
+    """The glow for heat `level`: frame 167 min(127, level), then two palette steps less a frame."""
+    f0 = min(127, level)
+    frames = {}
+    for fr, d in ((205, 2), (243, 4), (281, 6)):
+        i = min(127, level - d)
+        if i != f0:
+            frames[fr] = i
+    strength = 1.0 if f0 >= 125 else 0.9  # a little lit below the white: the relief reads
+    key = f"fire{level}"
+    GLOW[key] = strength
+    return mat(f0, "glow", frames or None, key)
+
+
+def fire_ball(P, ball, segs=112, rings=30, amp=0.07):
+    import numpy as np
+    hs = fire_heat()
+    hgt, wid = hs.shape
+
+    def heat(u, v):  # bilinear at pixel point (u, v), pixel centres at +0.5
+        x, y = u - 0.5, v - 0.5
+        x0, y0 = int(math.floor(x)), int(math.floor(y))
+        fx, fy = x - x0, y - y0
+        acc = wsum = 0.0
+        for dy, wy in ((0, 1 - fy), (1, fy)):
+            for dx, wx in ((0, 1 - fx), (1, fx)):
+                r, c = y0 + dy, x0 + dx
+                if 0 <= r < hgt and 0 <= c < wid and hs[r, c] > 0:
+                    acc += wy * wx * hs[r, c]
+                    wsum += wy * wx
+        return acc / wsum if wsum > 0 else 121.0
+
+    vals = hs[hs > 0]
+    lo, hi = float(np.percentile(vals, 5)), float(np.percentile(vals, 95))
+    bm = P.bm
+    pc, pr = ball.c, ball.r
+
+    def z(u, v):
+        q = ((u - ball.c) / ball.rx) ** 2 + ((v - ball.r) / ball.ry) ** 2
+        t = max(0.0, 1 - q)
+        # sunk, never raised: the ball's top stays where it was (0.70), under the IXMUCANE heap's
+        # piece top, so the renderer's D181 cover lift still puts the furnace over the heap's orb
+        rel = (min(max(heat(u, v), lo), hi) - hi) / (hi - lo)
+        return ball.z0 + ball.h * t ** (0.5 * ball.p) + amp * rel * t ** 0.5
+
+    top = bm.verts.new((X(pc), Y(pr), z(pc, pr)))
+    rows = []
+    for k in range(1, rings + 1):
+        s = math.sin(0.5 * math.pi * k / rings) ** 0.9  # denser toward the rim
+        row = []
+        for i in range(segs):
+            t = 2 * math.pi * i / segs
+            u, v = pc + ball.rx * s * math.cos(t), pr + ball.ry * s * math.sin(t)
+            row.append(bm.verts.new((X(u), Y(v), z(u, v) if k < rings else ball.z0)))
+        rows.append(row)
+    new = []
+    for i in range(segs):
+        new.append(bm.faces.new((top, rows[0][i], rows[0][(i + 1) % segs])))
+    for a, b in zip(rows, rows[1:]):
+        for i in range(segs):
+            j = (i + 1) % segs
+            new.append(bm.faces.new((a[i], b[i], b[j], a[j])))
+    base = bm.faces.new(list(reversed(rows[-1])))
+    lay = bm.faces.layers.int.get("done") or bm.faces.layers.int.new("done")
+    mats = {}
+    for f in new + [base]:
+        c = f.calc_center_median()
+        u, v = c.x / PX + W / 2, H / 2 - c.y / PX
+        h = heat(u, v) if f is not base else 121.0
+        level = next(lv for a, b, lv in FIRE_BANDS if a <= h < b)
+        if level not in mats:
+            mats[level] = fire_mat(level)
+        f.material_index = P.slot(mats[level])
+        f.smooth = True
+        f[lay] = 1
+    print(f"{NAME}: fire bands {sorted(mats)} (heat {lo:.1f}..{hi:.1f})")
+
+
 def housing(coll):
     """Block 1: the furnace housing with the fireball and the first lens (rows 10-37)."""
     P = Part(f"{NAME}_housing")
@@ -421,27 +544,14 @@ def housing(coll):
     # socket floor under the ball (closes the ring's well)
     chbox(P, 2.6, 11.6, 21.0, 26.8, 0.0, 0.30, 0.5, RECESS)
     ball = Dome(C - 0.1, R + 0.1, 9.4, 7.95, 0.27, 0.43, p=0.8)
-    # Fire zones as faces of the ball (D65 fix 1: no lifted decals, no white spot): an orange
-    # body (121), a ragged yellow mid zone (123) that thins to the lower left as the sprite's does,
-    # and a flame-lobed bright core (125) over the sprite's hot upper left, with one low-contrast
-    # tongue curling down the right where the sprite's bright arm runs.
-    FC = (10.2, 17.0)
-    core = ell(5.4, 3.6, -15)
-    ll = math.radians(135)
-
-    def core_r(t):
-        tongue = 3.6 * math.exp(-(((t - 0.55 + math.pi) % (2 * math.pi) - math.pi) / 0.32) ** 2)
-        return core(t) * (1 + 0.14 * math.sin(3 * t + 0.6) + 0.07 * math.sin(7 * t + 2.1)) + tongue
-
-    def mid_r(t):
-        e = ball.edge(*FC, t)
-        cut = max(0.0, math.cos(t - ll)) ** 2
-        return e * (0.88 - 0.18 * cut + 0.05 * math.sin(5 * t + 0.4) + 0.03 * math.sin(9 * t + 1.3))
-
-    ball.build_zoned(P, mat(121, "glow", F_FIRE, "fire"),
-                     [(mat(125, "glow", F_FIRE_CORE, "fire_core"), core_r),
-                      (mat(123, "glow", F_FIRE_MID, "fire_mid"), mid_r)],
-                     FC, segs=96, rings=(6, 5, 8))
+    # The fire (QA M4): a swirled glowing surface on the ball, built from the sprite's own fire. Every
+    # fire pixel steps two palette entries a frame (capped at 127), so one "heat" level per pixel
+    # (frame 281's index + 6) gives all four frames; the heat is smoothed into contours and each face
+    # of a fine polar grid takes the band its centre falls in (glow materials, frame-animated), so the
+    # white-hot core, the bright arm curling down the right and the darker groove between them
+    # follow the sprite's swirl. The surface carries a low relief along the same heat (the hot arm
+    # stands proud, the cooler groove sinks; nothing rises above the old ball), fading out at the rim.
+    fire_ball(P, ball)
 
     # The first lens: a glowing oval dome in a ring bezel.
     LC, LR = 12.0, 32.4

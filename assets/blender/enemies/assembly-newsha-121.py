@@ -13,9 +13,9 @@ spawns, terrain-fixed, no motion of its own). 48 x 56 px, four 24 x 28 pieces. R
   toe (the sprite's 3 px notch at the bottom);
 - deck panel joints at rows 20 and 34 (the sprite's dark/light line pairs) run across the deck and down
   the side walls (formwork joints);
-- the turret: a dark steel ball (pal 5, polished: the white spot is the sun's glint) sitting in a round
-  steel-lined well (liner pal 6, its lit far wall is the grey crescent at the lower right); a short gun
-  port faces the player.
+- the turret: a solid dark gunmetal ball (pal 5, satin; the white spot is the room light's sheen on a
+  polished patch) standing proud of a round steel-lined well (liner pal 6, its lit far wall is the grey
+  crescent at the lower right); a short gun port faces the player.
 The underside is a flat closed base.
 
 Units while building: sprite px of the assembly grid (x = column, y = row, z up, pixel edges);
@@ -59,7 +59,27 @@ G_DEPTH = 1.0
 G_Y0 = 34.2  # trench start (inside the well's rim)
 WELL_C, WELL_R = (24.5, 26.8), 7.9  # turret well (outer edge of the steel liner)
 LINER_IN = 7.05
-BALL_C, BALL_R, BALL_Z = (24.1, 26.2), 6.35, HD - 1.1
+# The ball (E3 QA M1): the sprite's solid gunmetal ball spans cols 17-28 / rows 19-31 (centre ~(23.2, 25.4),
+# r ~6.4 plus its dark terminator ring: 7.0 fills the same share of the box) and stands proud of the
+# deck, its upper-left edge over the deck past the well, the well's lit liner a crescent at its lower
+# right only. Its equator sits above the rim collar so the tilted game
+# camera sees the whole ball (it was sunk 1.1 px below the deck: the rim hid its lower part, ~0.73 of
+# the sprite's area in game).
+BALL_C, BALL_R, BALL_Z = (23.2, 25.4), 7.0, HD + 0.55
+# Satin gunmetal with one polished sheen patch (newshm-115's D92/D176 recipe): uniform metallic 0.3 /
+# roughness 0.24 / Specular IOR Level 1 mirrored the room environment as several glints and read as a
+# glass lens (mean luma 76 vs the sprite's 63). Satin (default F0) lets the palette's dark grey carry the
+# ball. The sprite's white spot (rows 22-23, cols 21-22: up and left of the centre) is the room's
+# upper-left panel (view.ts RoomEnvironment light2) reflected where the normal halves it and the view:
+# about (-0.40, 0.08, 0.91) under the 32 / 15 degree cameras (newshm-115's measurement). Only that patch
+# is polished, clear-coated and given the F0 of IOR 2.4 (Specular IOR Level, D176), graded out to 23 deg
+# (a wider patch mirrored more of the room: two glints and a streak, glassy again).
+BALL_METAL, BALL_ROUGH = 0.5, 0.6
+SHEEN_DIR = Vector((-0.40, 0.08, 0.91)).normalized()  # x right, y screen-up, z up
+SPEC_HI = 0.5 * ((1.4 / 3.4) ** 2 / 0.04)  # Specular IOR Level of F0(IOR 2.4)
+# (outer angle deg, roughness, weight: coat and F0 lift)
+SHEEN_ZONES = [(7, 0.04, 1.0), (11, 0.08, 0.95), (15, 0.18, 0.65), (19, 0.32, 0.35), (23, 0.47, 0.15)]
+COAT_ROUGH = 0.08
 PORT_EL = math.radians(12)  # gun port: elevation of its axis
 JOINTS = [20.3, 33.9]
 DOOR_X0, DOOR_X1, DOOR_H = 20.9, 24.1, 3.4  # rear doorway recess  # deck / wall panel joints (rows)
@@ -276,16 +296,21 @@ def build(sprite):
     for k in order:
         p = PALS[k]
         if k in ("ball",):
-            m = common.palette_material(sprite, p, TAG + "_ball", metallic=0.3, roughness=0.24)
-            bsdf = next(n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
-            if "Specular IOR Level" in bsdf.inputs:
-                bsdf.inputs["Specular IOR Level"].default_value = 1.0
+            m = common.palette_material(sprite, p, TAG + "_ball", metallic=BALL_METAL, roughness=BALL_ROUGH)
         elif k in ("liner", "rim", "port"):
             m = common.palette_material(sprite, p, TAG + "_" + k, metallic=0.45, roughness=0.42)
         elif k in ("bore", "well"):
             m = common.palette_material(sprite, p, TAG + "_" + k, metallic=0.3, roughness=0.7)
         else:  # one material per slot: duplicate slots get merged (and faces renumbered wrongly) on join
             m = common.palette_material(sprite, p, TAG + "_" + k, metallic=0.0, roughness=0.85)
+        mats.append(m)
+    for i, (_, rough, coat) in enumerate(SHEEN_ZONES):  # the ball's graded sheen patch
+        m = common.palette_material(sprite, PALS["ball"], f"{TAG}_sheen{i}", metallic=BALL_METAL, roughness=rough)
+        bsdf = next(n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+        bsdf.inputs["Coat Weight"].default_value = coat
+        bsdf.inputs["Coat Roughness"].default_value = COAT_ROUGH
+        bsdf.inputs["Specular IOR Level"].default_value = 0.5 + (SPEC_HI - 0.5) * coat
+        S[f"sheen{i}"] = len(mats)
         mats.append(m)
 
     body, upper, lower = build_block(coll, mats, S)
@@ -343,8 +368,14 @@ def build(sprite):
                   WELL_C, coll, mats, lambda k: S["rim"] if k in (2, 3, 4) else S["liner"], segs=64)
     # bearing ring: the ball's seat, low in the well
     seat = lathe("seat", [(BALL_R - 1.4, HD - 3.25), (LINER_IN + 0.01, HD - 3.25), (LINER_IN + 0.01, HD - 2.0),
-                          (BALL_R - 0.5, HD - 1.6)], WELL_C, coll, mats, lambda k: S["liner"], segs=48)
-    ball = sphere("ball", BALL_C, BALL_Z, BALL_R, coll, mats, S["ball"])
+                          (BALL_R - 0.9, HD - 1.4)], WELL_C, coll, mats, lambda k: S["liner"], segs=48)
+    ball = sphere("ball", BALL_C, BALL_Z, BALL_R, coll, mats, S["ball"], segs=64, rings=40)
+    for p in ball.data.polygons:  # the sheen patch: faces whose normal is near SHEEN_DIR
+        ang = math.degrees(p.normal.angle(SHEEN_DIR))
+        for i, (edge, _, _) in enumerate(SHEEN_ZONES):
+            if ang < edge:
+                p.material_index = S[f"sheen{i}"]
+                break
     clip = hull_obj("cut_ball", [(x, y, z) for x in (0, 48) for y in (0, 56) for z in (-5, HD - 3.0)], S["ball"], coll, mats)
     boolean(ball, clip)
     # gun port: a short barrel stub facing the player (south = +row), elevated
@@ -356,7 +387,7 @@ def build(sprite):
                 S["bore"], S["bore"], S["bore"], segs=16)
     door = hull_obj("door", [(x, y, z) for x in (DOOR_X0 + 0.05, DOOR_X1 - 0.05) for y in (14.9, 15.6)
                              for z in (0.0, DOOR_H - 0.05)], S["port"], coll, mats)
-    parts = [body, liner, seat, ball, port, bore, door]
+    parts = [body, liner, seat, door, ball, port, bore]
     return coll, mats, S, parts
 
 
@@ -371,6 +402,50 @@ def join(objs, name):
     obj.name = name
     obj.data.name = name
     return obj
+
+
+def sealed_copy(parts, coll):
+    """The sealed pre-cull solid the outline shell is made from (D90/D118): the casemate (body + door)
+    with its well plugged flush with the deck. The ball, its liner and port stand inside the silhouette:
+    a shell round the ball inked the deck at its edge, and one down the well inked the well floor."""
+    body, door = parts[0], parts[3]
+    copies = []
+    for o in (body, door):
+        c = o.copy()
+        c.data = o.data.copy()
+        coll.objects.link(c)
+        copies.append(c)
+    plug = lathe("plug", [(0.0, HD - 3.3), (WELL_R + 0.05, HD - 3.3), (WELL_R + 0.05, HD), (0.0, HD)], WELL_C, coll,
+                 list(body.data.materials), lambda k: 0, segs=48, smooth=False)
+    return join(copies + [plug], NAME + "_sealed")
+
+
+def split_open(obj, layout):
+    """common.split_assembly without filling the cut: for the outline shell. A filled cap is a wall
+    across the piece seam (row 28), and the south piece's cap faces north, a back face the game inks:
+    with the well plugged in the shell, it drew a line across the open well and its liner."""
+    result = {}
+    coll = obj.users_collection[0]
+    for name, cx, cy in layout:
+        x0, y0 = cx / 12, -cy / 12
+        bm = bmesh.new()
+        bm.from_mesh(obj.data)
+        bmesh.ops.transform(bm, matrix=obj.matrix_world, verts=bm.verts)
+        hw, hh = 12 / 12, 14 / 12
+        for co, no in (((x0 - hw, 0, 0), (-1, 0, 0)), ((x0 + hw, 0, 0), (1, 0, 0)),
+                       ((0, y0 - hh, 0), (0, -1, 0)), ((0, y0 + hh, 0), (0, 1, 0))):
+            geom = bm.verts[:] + bm.edges[:] + bm.faces[:]
+            bmesh.ops.bisect_plane(bm, geom=geom, plane_co=co, plane_no=no, clear_outer=True)
+        bmesh.ops.translate(bm, vec=(-x0, -y0, 0), verts=bm.verts)
+        mesh = bpy.data.meshes.new(name)
+        bm.to_mesh(mesh)
+        bm.free()
+        for mat in obj.data.materials:
+            mesh.materials.append(mat)
+        piece = bpy.data.objects.new(name, mesh)
+        coll.objects.link(piece)
+        result[name] = piece
+    return result
 
 
 def sink_shell(shell, model, margin, reach):
@@ -405,11 +480,10 @@ def main():
         bpy.data.objects.remove(o, do_unlink=True)
     sprite = merged_sprite()
     coll, mats, S, parts = build(sprite)
+    # outline shell from a sealed pre-cull copy (D90/D118) of the casemate without the ball and its port:
+    # the ball stands inside the silhouette, and a shell round it inked the deck round its edge
+    sealed = sealed_copy(parts, coll)
     obj = join(parts, NAME)
-    # outline shell from a sealed pre-cull copy (D90/D118): the joined solids, before hidden faces go
-    sealed = obj.copy()
-    sealed.data = obj.data.copy()
-    coll.objects.link(sealed)
     shell = common.outline_shell(sealed, coll, voxel=0.012, faces=3000, smooth=4, inside=0.004)
     sink_shell(shell, sealed, margin=0.02, reach=0.12)
     bpy.data.objects.remove(sealed, do_unlink=True)
@@ -425,7 +499,7 @@ def main():
     print(f"{NAME}_A: {tris} tris, z max {zmax:.2f} px, shell {len(shell.data.polygons)} faces")
     lay = [(n, cx - CX0, cy - CY0) for n, cx, cy in LAYOUT]
     bodies = common.split_assembly(obj, lay)
-    shells = common.split_assembly(shell, lay)
+    shells = split_open(shell, lay)
     for n, _, _ in LAYOUT:
         sh = shells[n]
         sh.name = f"{n}_outline"

@@ -1,8 +1,8 @@
 """Red crab boss (newsht.shp, 12 pieces, 144 x 56 px): design B, a hard-surface 3D version of its sprite.
 
 Seen in levels 1.5 DELIANI (1.19 in the catalogue), 3.11 New Deli and 4.1 HARVEST. Twelve 2x2 enemies
-side by side make one machine: a red body with two dark glass orbs in U-shaped frames, a grey visor
-and cannon between them, two glowing exhausts on its back, and two arms that reach out on a beam,
+side by side make one machine: a red body with two big dark glass eyes cradled in its U-shaped hull,
+a dark block and a cannon between them, two exhausts with flames on its back, and two arms that reach out on a beam,
 drop as thick round upper arms through an elbow drum into a claw pod with a glowing red eye
 (newsht-39 / -49: frames 39 -> 77 -> 79 and 49 -> 87 -> 85 only brighten the eye, so the eye's
 materials carry per-frame palette indices, D17).
@@ -14,10 +14,20 @@ arms and claws are held level off a closed flat underside, nothing stands on leg
 a ground, and the exhausts are on its back. The "leg" and "foot" parts below are the strut under each
 shoulder and its end cap, lying level in the plan, not legs. Not rebuilt.
 
+E3 QA fix (M5, New Deli t5550): the eyes read as goggles in thick red U cradles, and the dark centre
+block and the flames were mostly missing. The eyes are now what the sprite draws: big dark glass balls
+(radius 7.2) filling the dark mass inside each U, their sides sinking under the hull's lip, glossy with
+F0 raised (D176) so the game light makes the sprite's sheen spot and lit lower rim; no bezel rings. The
+U is low flat plating (4.4 px, rounded lip) on its own pixels, not a raised round tube. Between the eyes
+sits a dark block (cols 66-76, rows 15-24): a glossy rounded top edge (the sprite's white bar on row 17
+is its sheen) over a matte black front slope. The flames are a glow heat field on the sprite's own
+fire pixels (metallic 1 / rough, strength 1, D126/D173), the yellow streaks standing up as tongues
+above the housing.
+
 Design B leads with silhouette and readability from the small tilted game camera: big simple
 volumes first (the round arms and claws, the orbs, the U frames, the raised spine and shoulders),
 then machined detail on what the camera sees (panel gaps cut through the plates, collars and
-cuffs on the tubes, a raised brace, bolts, an exhaust grille with hot vanes, a recessed muzzle).
+cuffs on the tubes, a raised brace, bolts, exhaust flames, a recessed muzzle).
 
 The ORIGINAL SPRITE decides the plan (D52, D74): every sprite pixel of the INNER mask (the sprite
 less its ink ring, which the game's ink outline stands in for) is given to a named part by the
@@ -26,14 +36,14 @@ class). Plates are prisms on the traced outline of their own pixels (pixel-edge 
 midpoints, Douglas-Peucker), tubes take each row's (or column's) run of their pixels as their
 width through pchip stations, hoses follow their region's distance field. Each side is built on
 its own half of the sprite (the right as the left on the mirrored pixels, then flipped).
-Heights follow the blueprint (px, 12 px = 1 unit): orbs 12.9, arms 11.6, canister 11.4, elbow
-drum 10, hoses 10, spine 9, claws 9, shoulders 7.4 (+1 brace), U frames 8, housings 8.2,
-cheeks 6.4, cannon 7.4, recess floor 1.6.
+Heights follow the blueprint (px, 12 px = 1 unit): arms 11.6, canister 11.4, elbow drum 10, hoses
+10, spine 9, claws 9, shoulders 7.4 (+1 brace), housings 8.2, flames 7.6-11.8, eyes 7, cheeks 6.4,
+central block 5.9, U hull 4.4, cannon 7.4, recess floor 2.
 
 Colours: palette materials (pal_<index>), each the blueprint's median sprite index of the part
 (darkest shading and brightest sheen trimmed); satin painted metal for the red, satin steel for
-the grey, glossy dark glass for the orbs. Exhaust beds glow (117) with the sprite's own hot
-streak pixels as flush lit vanes. No concept projection: an AO/edge + roughness bake only
+the grey, glossy dark glass for the eyes. The flames glow in the sprite's own fire indices
+(114-126). No concept projection: an AO/edge + roughness bake only
 ("bake": "model"), and the outline shell (D51) of the whole closed machine cut open per piece.
 
 Underside: closed and plain (flat plate bottoms, tubes closed below).
@@ -795,15 +805,36 @@ SLOTS = [
     ("HOT", 125, 0.0, 0.4, 5.0),     # eye core (animated on the claw pieces)
     ("SOCKET", 113, 0.2, 0.5, 0.6),  # eye socket wall (animated on the claw pieces)
     ("RIM", 7, 0.65, 0.3, 0),        # bright steel collars, bolt heads, muzzle ring
+    # the flames out of the two exhausts: glow surfaces (D126 strength 1 = the palette colour unlit;
+    # metallic 1 / rough, D173, so they show their colour, not a reflection), one per heat band
+    ("FL114", 114, 1.0, 0.9, 1.0),
+    ("FL117", 117, 1.0, 0.9, 1.0),
+    ("FL119", 119, 1.0, 0.9, 1.0),
+    ("FL122", 122, 1.0, 0.9, 1.0),
+    ("FL124", 124, 1.0, 0.9, 1.0),
+    ("FL126", 126, 1.0, 0.9, 1.0),
+    ("BLOCK", 3, 0.35, 0.22, 0),     # the dark central block between the eyes (glossy: its lit edges are sheen)
+    ("SOCKETWALL", 2, 0.0, 0.8, 0),  # the central block's dark front slope
 ]
 SLOT_NAMES = [s[0] for s in SLOTS]
 (RED71, RED70, RED69, RED67, FLOOR, INK, GREY5, GREY4, GREY3, STEM, ORB, BED, VANE, VANEHOT, GLOW, HOT,
- SOCKET, RIM) = range(len(SLOTS))
+ SOCKET, RIM, FL114, FL117, FL119, FL122, FL124, FL126, BLOCK, SOCKETWALL) = range(len(SLOTS))
+FLAMES = [(114, FL114), (117, FL117), (119, FL119), (122, FL122), (124, FL124), (126, FL126)]
+# F0 raised through Specular IOR Level (D176: the exporter keeps it as KHR_materials_specular) on the
+# glossy dark surfaces whose white spots in the sprite are sheen: the eye domes and the central block.
+SPEC = {"ORB": 1.0, "BLOCK": 0.8}
 
 
 def materials(sprite):
-    return [common.palette_material(sprite, i, f"{TAG}-{name.lower()}", metallic=met, roughness=rough,
-                                    emission_strength=emit) for name, i, met, rough, emit in SLOTS]
+    out = []
+    for name, i, met, rough, emit in SLOTS:
+        m = common.palette_material(sprite, i, f"{TAG}-{name.lower()}", metallic=met, roughness=rough,
+                                    emission_strength=emit)
+        if name in SPEC:
+            bsdf = next(n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+            bsdf.inputs["Specular IOR Level"].default_value = SPEC[name]
+        out.append(m)
+    return out
 
 
 def eye_materials(piece, sprite):
@@ -986,104 +1017,90 @@ def build_side(P):
         if inner_left(int(bx), int(by)):
             cyl(P, bx, by, 6.2, 0.4, 0.4, RIM, n=6)
 
-    # --- the U frame round the orb: rounded armour segments ---
+    # --- the hull round the eye socket (the sprite's red U): flat armour plating on the frame's own
+    # pixels, not a raised tube; its rounded top edges are the lit lip the sprite draws round the
+    # socket (col 50, rows 20-27), panel lines at the sprite's dark seams (cols 57 and 62, row 30) ---
     uf = pix("u-frame")
-    plates(P, uf, 0.5, 2.6, RED69, r=0.5, chb=0.3)  # base flange on the frame's own outline
-    fld = Field(uf)
-    path = centre_on(fld, [(48.9, 20.6), (48.9, 25.0), (49.0, 30.0), (50.4, 34.4), (53.4, 36.4), (57.5, 37.0),
-                           (61.5, 36.6), (64.0, 34.4), (64.9, 30.0), (64.9, 26.5), (64.8, 25.0)], 1.6)
-    path = catmull(path, 2)
-    wid = [max(1.8, fld(x, y) + 0.55) for x, y in path]
-    wid = [sum(wid[max(0, i - 2):i + 3]) / len(wid[max(0, i - 2):i + 3]) for i in range(len(wid))]
-    prof = []
-    for k in range(16):
-        t = 2 * math.pi * (k + 0.5) / 16
-        c, s_ = math.cos(t), math.sin(t)
-        prof.append((math.copysign(abs(c) ** (2 / 3.2), c), math.copysign(abs(s_) ** (2 / 3.2), s_)))
-    L = [0.0]
-    for a, b in zip(path, path[1:]):
-        L.append(L[-1] + math.hypot(b[0] - a[0], b[1] - a[1]))
-    grooves = [0.27 * L[-1], 0.5 * L[-1], 0.73 * L[-1]]
-    rings3, mats3 = [], []
-    for i, ((x, y), w) in enumerate(zip(path, wid)):
-        a, b = path[max(i - 1, 0)], path[min(i + 1, len(path) - 1)]
-        t = Vector((b[0] - a[0], b[1] - a[1], 0)).normalized()
-        side = t.cross(Vector((0, 0, 1))).normalized()
-        g = 1.0 - 0.09 * max([max(0.0, 1 - abs(L[i] - gl) / 0.5) for gl in grooves])
-        k = g * (0.8 if i in (0, len(path) - 1) else 1.0)
-        zc_, hz_ = 4.6, 3.4 * k
-        ring3 = [Vector((x, y, zc_)) + side * (w * k * pu) + Vector((0, 0, hz_ * pv)) for pu, pv in prof]
-        # the sprite's frame ends at row 40 (row 41 is its ink ring, which the outline shell stands in for)
-        rings3.append([(v.x, min(v.y, 40.95), v.z) for v in ring3])
-    loft(P, rings3, RED69, cap0=True, cap1=True)
-    # the dark glass orb, on a steel bezel ring
-    ox, oy, oz, orad = 59.5, 22.8, 6.2, 6.7
-    ellipsoid(P, ox, oy, oz, orad, orad, orad, ORB, seg=24, rings=12, zfloor=0.4)
-    torus(P, ox, oy, 2.9, 5.85, 0.75, RIM, n=32, m=6)
-    # grey bezel ring where the sphere meets its mount (inside the sprite's orb outline)
-    torus(P, ox, oy, 3.5, 5.7, 0.95, GREY5, n=40, m=8)
-    # grey cradle (lip) under the orb
-    cd = pix("cradle")
-    if cd:
-        plates(P, cd, 0.5, 2.8, GREY4, r=0.4, chb=0.2, min_px=3)
-        bar = {(c, r) for c, r in cd if r >= 30}
-        if bar:
-            tube(P, bar, "x", 3.4, 1.7, GREY4, n=10, step=2.5, p=2.0, zfloor=0.5, end_k=(0.85, 0.85), cap_ch=0.4,
-                 bands=[(55.6, 56.4, 0.25), (59.6, 60.4, 0.25)], band_mat=RIM)
+    plates(P, uf, 0.5, 4.4, RED69, r=1.6, chb=0.3, steps=3,
+           cuts=[((57.5, 30.0), (57.5, 45.0)), ((62.5, 33.0), (62.5, 45.0))],
+           gap=0.45, depth=0.8)
+    # the socket's floor: the recess floor carried under the eye's own pixels (the sprite's black ring)
+    plates(P, pix("orb") | pix("cradle"), 0.3, 2.0, FLOOR, r=0.0, chb=0.0, min_px=1, tol=0.6)
+    # the eye: a big dark glass ball cradled in the hull, a passive sensor eye (its pieces never fire:
+    # e1-3:402/403 in tools/enemy_behaviour.mjs). The sprite's dark mass round it is the ball itself:
+    # the sheen spot high on it (57, 21) and the lit crescent low on its rim (rows 30-33), its sides
+    # sinking under the U's lip. Glossy with its F0 raised (D176), so the game light makes the spot and
+    # the rim; nothing painted, no bezel.
+    ox, oy, orad = 57.4, 24.4, 7.2
+    ellipsoid(P, ox, oy, -0.2, orad, orad, orad, ORB, seg=40, rings=20, zfloor=0.4)
 
-    # --- exhaust on the back: a red housing round a sloping glowing bed with hot vanes ---
+    # --- exhaust on the back: a red housing round the outlet, and the flames streaming out of it ---
     hs = pix("exhaust-housing")
     plates(P, hs, 0.5, 8.2, RED71, r=0.9, chb=0.3, cuts=[((62.6, 5.0), (62.6, 13.0))], gap=0.45, depth=0.8)
-    gl = pix("exhaust-glow")
-    bed = lambda x, y: 2.4 + 0.38 * y  # noqa: E731
-    for comp in components(gl):
-        if len(comp) < 3:
-            continue
-        out = trace(comp)
-        if poly_area(out) < 0:
-            out = list(reversed(out))
-        out = offset_poly(out, -0.15)
-        loft(P, [[(x, y, 1.0) for x, y in out], [(x, y, bed(x, y)) for x, y in out]], BED)
-        # the outlet's rear face: a dark louvred lip under the bed's back edge
-        ys = min(y for _, y in out)
-        xs = [x for x, y in out if y < ys + 1.2]
-        if xs:
-            hull(P, cbox(min(xs) + 0.4, max(xs) - 0.4, ys - 0.05, ys + 0.9, 1.1, bed(0, ys) - 0.3, 0.15), INK)
-    # the sprite's hot streaks as lit vanes across the bed: one bar along each streak (8-connected
-    # groups of its brightest pixels), the hottest ones in the brighter colour
+    flames(P, pix("exhaust-glow"))
+
+
+def flames(P, gl, k=3, z0=1.0):
+    """The exhaust flames as a glowing heat field on the sprite's own glow pixels: each pixel's heat
+    (its palette step in the 112-126 fire run) lifts the surface, so the sprite's yellow streaks stand
+    up as tongues above the housing and the deep-red pixels lie low between them; every sub-cell takes
+    the glow material of its heat band (FLAMES), the walls their edge's. Closed (walls to z0, a floor)."""
     def val(c, r):
         return GRID[r][c if CUR_SIDE[0] == "L" else 2 * AXIS - c]
-    hotpx = {(c, r) for c, r in gl if val(c, r) >= 120}
-    while hotpx:
-        st = [hotpx.pop()]
-        grp = set(st)
-        while st:
-            c, r = st.pop()
-            for dc in (-1, 0, 1):
-                for dr in (-1, 0, 1):
-                    q = (c + dc, r + dr)
-                    if q in hotpx:
-                        hotpx.discard(q)
-                        grp.add(q)
-                        st.append(q)
-        pts = [(c + 0.5, r + 0.5) for c, r in grp]
-        mx = sum(p[0] for p in pts) / len(pts)
-        my = sum(p[1] for p in pts) / len(pts)
-        if len(pts) == 1:
-            ux, uy, half = 0.0, 1.0, 0.45
-        else:
-            sxx = sum((p[0] - mx) ** 2 for p in pts)
-            syy = sum((p[1] - my) ** 2 for p in pts)
-            sxy = sum((p[0] - mx) * (p[1] - my) for p in pts)
-            ang = 0.5 * math.atan2(2 * sxy, sxx - syy)
-            ux, uy = math.cos(ang), math.sin(ang)
-            proj = [(p[0] - mx) * ux + (p[1] - my) * uy for p in pts]
-            half = max(0.45, (max(proj) - min(proj)) / 2 + 0.4)
-        m = VANEHOT if max(val(c, r) for c, r in grp) >= 124 else VANE
-        a, b = (mx - ux * half, my - uy * half), (mx + ux * half, my + uy * half)
-        za, zb = bed(*a), bed(*b)
-        zt = max(za, zb) + 0.25
-        strap(P, a, b, 0.85, min(za, zb) - 0.6, zt, m, ch=0.2)
+    heat = {(c, r): val(c, r) for c, r in gl}
+
+    def at(x, y):
+        """Bilinear heat at (x, y) over the region's pixel centres (outside pixels left out)."""
+        fx, fy = x - 0.5, y - 0.5
+        c0, r0 = math.floor(fx), math.floor(fy)
+        tx, ty = fx - c0, fy - r0
+        sw = sv = 0.0
+        for dc, wx in ((0, 1 - tx), (1, tx)):
+            for dr, wy in ((0, 1 - ty), (1, ty)):
+                w = wx * wy
+                v = heat.get((c0 + dc, r0 + dr))
+                if v is not None and w > 1e-6:
+                    sw += w
+                    sv += w * v
+        if sw < 1e-6:
+            c, r = int(math.floor(x)), int(math.floor(y))
+            return heat.get((c, r), min(heat.values()))
+        return sv / sw
+
+    def zt(v):
+        return 7.6 + 0.3 * max(0.0, v - 112)
+
+    def band(v):
+        best = FLAMES[0][1]
+        for idx, m in FLAMES:
+            if v >= idx - 1.0:
+                best = m
+        return best
+    verts_top, verts_bot = {}, {}
+
+    def vt(i, j):
+        if (i, j) not in verts_top:
+            x, y = i / k, j / k
+            verts_top[(i, j)] = P.v((x, y, zt(at(x, y))))
+        return verts_top[(i, j)]
+
+    def vb(i, j):
+        if (i, j) not in verts_bot:
+            verts_bot[(i, j)] = P.v((i / k, j / k, z0))
+        return verts_bot[(i, j)]
+    cells = set()
+    for c, r in gl:
+        for a in range(k):
+            for b in range(k):
+                cells.add((c * k + a, r * k + b))
+    for i, j in cells:
+        m = band(at((i + 0.5) / k, (j + 0.5) / k))
+        P.f((vt(i, j), vt(i, j + 1), vt(i + 1, j + 1), vt(i + 1, j))[::-1], m)
+        P.f((vb(i, j), vb(i, j + 1), vb(i + 1, j + 1), vb(i + 1, j)), m)
+        for (di, dj), (a, b) in (((0, -1), ((i, j), (i + 1, j))), ((1, 0), ((i + 1, j), (i + 1, j + 1))),
+                                 ((0, 1), ((i + 1, j + 1), (i, j + 1))), ((-1, 0), ((i, j + 1), (i, j)))):
+            if (i + di, j + dj) not in cells:
+                P.f((vb(*a), vb(*b), vt(*b), vt(*a)), m)
 
     # --- the recess floor: the sprite's dark gaps between the parts ---
 
@@ -1104,12 +1121,37 @@ def build_centre(P):
     # dark slot under the spine's front edge
     sl = cpix("slot")
     plates(P, sl, 0.5, 3.0, INK, r=0.3, chb=0.15, min_px=1)
-    # the grey visor bar between the orbs, on its stem
-    vs = cpix("visor")
-    tube(P, vs, "x", 7.6, 2.0, GREY4, n=14, p=2.4, zfloor=3.0, end_k=(0.85, 0.85), cap_ch=0.5,
-         bands=[(AXIS - 1.5, AXIS + 2.5, 0.25)], band_mat=RIM)
-    st = cpix("stem")
-    plates(P, st, 0.5, 4.6, STEM, r=0.5, chb=0.2, min_px=1)
+    # the dark central block between the eyes (the sprite's visor and stem pixels, cols 66-76, rows
+    # 16-24): a dark glossy housing sunk in the recess, below the hull round it. Its top runs flat from
+    # the slot, rolls over a rounded front edge (the sprite's white bar on row 17 is that edge's sheen)
+    # and slopes down to the jaw slot; its rounded side edges are the lit columns 66 and 76.
+    x0, x1, ch = 65.8, 77.2, 0.55
+    prof = [(15.4, 0.5), (15.4, 5.4), (15.8, 5.9)]
+    ry, rz, rr = 17.4, 5.0, 0.9          # the rounded front edge: centre and radius
+    for a in range(0, 91, 15):            # from the flat top round to the front slope's normal
+        t = math.radians(90 - a * 0.62)
+        prof.append((ry + rr * math.cos(t), rz + rr * math.sin(t)))
+    prof += [(24.2, 3.0), (24.6, 2.4), (24.6, 0.5)]
+    pts = []
+    for y, z in prof:
+        for x in (x0 + ch, x1 - ch):
+            pts.append((x, y, z))
+        for x in (x0, x1):
+            pts.append((x, y, z - ch if z > 2.0 else z))
+    before = set(P.bm.faces)
+    hull(P, pts, BLOCK)
+    # its long front slope (the sprite's black face, rows 19-24) is rough dark metal: only the top and
+    # the rounded edges stay glossy, so the sheen lands on the edges as in the sprite
+    cy = sum(p[1] for p in pts) / len(pts)
+    cz = sum(p[2] for p in pts) / len(pts)
+    for f in set(P.bm.faces) - before:
+        f.normal_update()
+        c = f.calc_center_median()
+        nz, ny = f.normal.z, f.normal.y
+        if (c.y - cy) * ny + (c.z - cz) * nz < 0:   # inward-facing: judge the outward normal
+            nz, ny = -nz, -ny
+        if c.y > 18.6 and nz > 0.5 and ny > 0.15:
+            f.material_index = SOCKETWALL
     # the cannon pointing down the screen, a steel muzzle ring and a dark bore
     cn = cpix("cannon")
     tube(P, cn, "y", 4.0, 3.4, GREY5, n=16, p=2.0, zfloor=0.5, end_k=(0.9, 0.95), cap_ch=0.3,

@@ -10,10 +10,13 @@ a stack of cooling fins and a foot block, lying along the rock's top and running
 Seams (the reason for the build order): in game the pieces are separate enemies, spawned in several
 combinations (L P M M M P R in the full fortress; L P M P R elsewhere), so any vertical seam may
 meet any column. Each column type (L 0-24, P 24-48, M 72-96, R 144-168 in grid px) is built from its
-own sprite strip only, and the vertical seams all share one canonical cross-section: the core body's
-section there is a function of the row only (the same plan extent, profile and rim at every seam),
-and every stone or spike is clipped to its column and sunk under a steep wedge ceiling that reaches
-just below the core at the seam line. So a column meets any other column without a step.
+own sprite strip only; the core's section at a seam is a function of the row only (the same plan
+extent, profile and rim at every seam). The stones round every seam are shared: a wandering band
+(band_half, 1.5-4 px each side) of the sprite's own boulders round SEAM_REF (72) is built and
+facet-ramped once, cut at the seam, and each column takes the right half at its left seam and the
+left half at its right seam; the columns' own stones keep out of the band. So whole stones run
+across every seam, in the same shades, whichever columns meet, and nothing straight runs down it
+(QA M3: the earlier seam wedge left a V crack and cut stone faces along every seam).
 
 Geometry (D65 hard surface for the pillars, D175 rock for the stones):
 - core: per column, sections every pixel across x, each section the rock's profile in y-z (a back
@@ -33,14 +36,16 @@ Colour: the stones and core take D175's facet ramp (lib_newshd_rock.facet_ramp, 
 shade distribution, ranked by the art's light and the sprite's brightness under each facet; only
 faces visible from above or the game camera are ranked). Pillars: palette indices per region (the
 sprite's medians: housing 115, its shaded left chamfer 113 and lit right 117, clamp band 118, lower
-column 112, pipe 116, fins 114, foot 112 with a 113 top, vent 64). The lamp keeps the current model's frames:
-rim 126 / core 127 on 165, (117, 120) on 277, (118, 124) on 279, (122, 126) on 281, and the
-white-hot line down the core on 279 and 281 (frame parts); glows metallic 1, rough (D126/D173).
+column 112, pipe 116, fins 114, foot 112 with a 113 top, vent 64); everything below the clamp band is
+a dull red enamel (low specular) so the sky's reflection can't turn the near-black reds grey-pink at
+the game camera (QA M3). The lamp is a domed lens in the sprite's glow zones (LAMP_ZONES: the medians
+of frames 165/277/279/281 per zone: rim, inner band, white-hot centre column, lower lip); glows
+metallic 1, rough (D126/D173).
 AO/roughness bake only (no concept projection), D90 outline shell from a sealed copy, split open
 per piece so no ink line runs along the seams.
 
-Output: the 12 distinct pieces to public/models/enemies/<piece>.glb (piece, shell slice and, for
-newsh8-165, the lamp-line frame parts) with their spriteModels entries. `--out FILE` also writes a
+Output: the 12 distinct pieces to public/models/enemies/<piece>.glb (piece and shell slice) with
+their spriteModels entries. `--out FILE` also writes a
 review glb with all 21 pieces placed as in the layout, and build_info.json beside it.
 
     blender -b --factory-startup -P assembly-newsh8-243.py -- [--no-bake] [--out file.glb]
@@ -49,6 +54,7 @@ review glb with all 21 pieces placed as in the layout, and build_info.json besid
 import json
 import math
 import random
+import re
 import sys
 import tempfile
 from pathlib import Path
@@ -82,14 +88,55 @@ PIECES = {"L": ["newsh8-169", "newsh8-207", "newsh8-245"], "P": ["newsh8-165", "
 PIL = (29.0, 41.0, 4.5, 61.5)   # pillar bay in its column's own grid: cols [29, 41), rows [4.5, 61.5)
 MID = 22                        # the rock's median palette index
 RAMP = {"bias": 0.0}
-GLOW = 126
-LAMP_RIM = {277: 117, 279: 118, 281: 122}
-LAMP_CORE = {277: 120, 279: 124, 281: 126}
-LAMP_LINE = {279: (16.6, 20.4), 281: (15.8, 22.2)}
-K_SEAM = 2.2   # the seam wedge's slope (rise per run)
-D_S = 0.12     # the core's low ridge along every seam (units above the profile), so the seam crack stays shallow
-W_S = 1.6      # its half width (px)
+# the lamp window (cols 33-37, rows 14-23 of the P column): glow zones, each {frame: palette index}, the
+# base index being frame 165's; the sprite's medians per zone and frame (newsh8-165, frames 165/277/279/281):
+# an orange-red rim, a yellow inner band, a white-hot centre column, a red-orange lower lip.
+LAMP_ZONES = {
+    "top": (124, {277: 120, 279: 120, 281: 122}),
+    "side_l": (127, {277: 120, 279: 121, 281: 122}),
+    "side_r": (127, {277: 117, 279: 118, 281: 122}),
+    "inner_l": (127, {277: 120, 279: 124, 281: 126}),
+    "inner_r": (127, {277: 120, 279: 122, 281: 126}),
+    "centre_end": (127, {277: 120, 279: 123, 281: 126}),
+    "centre": (127, {277: 122, 279: 127, 281: 127}),
+    "low": (125, {277: 117, 279: 119, 281: 123}),
+    "lip": (120, {277: 117, 279: 118, 281: 120}),
+}
+LAMP_GLOW = 1.12  # a touch over 1: the game's Neutral tone mapping takes the white core 255 -> 240 at 1.0
+SEAM_REF = 72  # the seam whose sprite strip the shared seam stones are built from (M | M)
+D_S = 0.0      # (the old seam ridge; the seam stones now cover every seam)
+W_S = 1.6
 U = 1 / 12
+
+
+def band_half(r):
+    """Half width (px) of the seam band at row r: the strip round every seam whose stones are shared by
+    all seams, so a stone runs across the seam whatever column meets it. It wanders with the row so the
+    band's edge (a crack between stones) is never a straight line."""
+    return min(4.0, max(1.5, 2.9 + 1.3 * math.sin(0.83 * r + 0.4) + 0.7 * math.sin(0.31 * r + 2.1)))
+
+
+def in_band(c, r, s):
+    return abs(c + 0.5 - s) < band_half(r)
+
+
+def lamp_zone(c, r):
+    """The lamp zone of window pixel (c, r) (P column grid)."""
+    if r == 14:
+        return "top"
+    if r == 22:
+        return "low"
+    if r >= 23:
+        return "lip"
+    if c == 33:
+        return "side_l"
+    if c == 37:
+        return "side_r"
+    if c == 34:
+        return "inner_l"
+    if c == 36:
+        return "inner_r"
+    return "centre" if 17 <= r <= 20 else "centre_end"
 
 
 def X(c):
@@ -162,19 +209,25 @@ class Mats:
     def slot(self, index, kind="rock", frames=None, part=None, glow=0.0):
         key = (index, kind, part)
         if key not in self.slots:
+            dark = kind == "metal_lo" or (kind == "metal" and index <= 114)
             if kind == "rock":
                 kw = dict(metallic=0.0, roughness=0.85)
             elif kind == "glow":
                 kw = dict(metallic=1.0, roughness=0.9, emission_strength=glow)
+            elif dark:
+                # the sprite's near-black reds (112-114: the lower column, fins, foot): a dull red
+                # enamel with almost no white specular, so the sky's reflection can't wash the dark
+                # red to grey-pink at the game camera (the hue stays the palette's red)
+                kw = dict(metallic=0.15, roughness=0.6)
             else:  # satin red machine metal
                 kw = dict(metallic=0.45, roughness=0.42)
             tag = NAME + "-A" + ("" if kind == "rock" else f"_{kind}") + (f"_{part}" if part else "")
             mat = common.palette_material(self.sprite, index, tag, frames=frames, **kw)
-            if kind == "metal":
+            if kind in ("metal", "metal_lo"):
                 bsdf = next(n for n in mat.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
                 for nm in ("Specular IOR Level", "Specular"):
                     if nm in bsdf.inputs:
-                        bsdf.inputs[nm].default_value = 0.55
+                        bsdf.inputs[nm].default_value = 0.08 if dark else 0.55
                         break
             self.slots[key] = len(self.mats)
             self.mats.append(mat)
@@ -183,17 +236,32 @@ class Mats:
 
 # --- bmesh helpers ---------------------------------------------------------------------------------
 
-def append(dst, src, mat):
+def append(dst, src, mat, dx=0.0):
+    """Copy src's faces into dst (shifted dx along x); mat None keeps each face's material, and the
+    seam stones' face layers (facet_n, band) ride along when both meshes have them."""
     vmap = {}
     for v in src.verts:
-        vmap[v] = dst.verts.new(v.co)
+        vmap[v] = dst.verts.new(v.co + Vector((dx, 0, 0)))
+    lay = []
+    for kind in ("float_vector", "int"):
+        for nm in ("facet_n", "band"):
+            a, b = getattr(src.faces.layers, kind).get(nm), getattr(dst.faces.layers, kind).get(nm)
+            if a is not None and b is not None:
+                lay.append((a, b))
     for f in src.faces:
         try:
             nf = dst.faces.new([vmap[v] for v in f.verts])
             nf.material_index = mat if mat is not None else f.material_index
             nf.smooth = False
+            for a, b in lay:
+                nf[b] = f[a]
         except ValueError:
             pass
+
+
+def face_layers(bm):
+    bm.faces.layers.float_vector.get("facet_n") or bm.faces.layers.float_vector.new("facet_n")
+    bm.faces.layers.int.get("band") or bm.faces.layers.int.new("band")
 
 
 def hull(points):
@@ -216,20 +284,12 @@ def clip(bm, co, no):
 
 
 def seam_clip(bm, c0, left, right, yc):
-    """A column's stones and spikes: inside its x range and under the seam wedge."""
-    r = R_of(yc)
-    a = zprof(r)
-    b = -12 * dzdr(r)           # dz/dy
+    """A column's own stones and spikes: inside its x range (they keep clear of the seam band, whose
+    shared stones run across the seam)."""
     for on, xs, sgn in ((left, c0, 1), (right, c0 + 24, -1)):
         if not on:
             continue
-        x0 = X(xs)
-        if not clip(bm, (x0, 0, 0), (-sgn, 0, 0)):
-            return False
-        # wedge ceiling z = a + b (y - yc) - 0.035 + K |x - x0|; normal points up-and-away from it
-        co = Vector((x0, yc, a + D_S - 0.03))
-        no = Vector((-sgn * K_SEAM, -b, 1.0)).normalized()
-        if not clip(bm, co, no):
+        if not clip(bm, (X(xs), 0, 0), (-sgn, 0, 0)):
             return False
     return True
 
@@ -384,14 +444,21 @@ def zsurf(c, r, c0):
     return zprof(r) - bay
 
 
-def segment(idx, inner, c0, pil):
+def segment(idx, inner, c0, pil, w=24, keep=None):
+    """The sprite's boulders over grid columns [c0, c0 + w): a watershed over the rock pixels' shading.
+    keep(c, r) further limits the pixels (the seam band, in or out)."""
+    left, right = (c0 in SEAMS, c0 + 24 in SEAMS) if keep is None else (False, False)
     mask, vals = [], []
     for r in range(GH):
         mrow, vrow = [], []
-        for c in range(c0, c0 + 24):
-            v = idx[r][c]
-            ok = inner[r][c] and 16 <= v <= 31
+        for c in range(c0, c0 + w):
+            v = idx[r][c] if 0 <= c < GW else -1
+            ok = 0 <= c < GW and inner[r][c] and 16 <= v <= 31
             if pil and PIL[0] - 0.5 <= c - c0 + 24 < PIL[1] + 0.5 and PIL[2] - 1 <= r < PIL[3]:
+                ok = False
+            if (left and in_band(c, r, c0)) or (right and in_band(c, r, c0 + 24)):
+                ok = False
+            if keep is not None and not keep(c, r):
                 ok = False
             mrow.append(ok)
             vrow.append(v - 16 if 16 <= v <= 31 else 0)
@@ -450,9 +517,12 @@ def stone(px, idx, c0, rnd, spike=False):
     poly, (cx, cy) = footprint(px, 0.45)
     area = len(px)
     # the stone's lit side: brightness-weighted centroid
-    wsum = sum(max(0, idx[r][c] - 18) ** 2 for r, c in px) or 1
-    bx = sum((c + 0.5) * max(0, idx[r][c] - 18) ** 2 for r, c in px) / wsum
-    by = sum((r + 0.5) * max(0, idx[r][c] - 18) ** 2 for r, c in px) / wsum
+    wsum = sum(max(0, idx[r][c] - 18) ** 2 for r, c in px)
+    if wsum:
+        bx = sum((c + 0.5) * max(0, idx[r][c] - 18) ** 2 for r, c in px) / wsum
+        by = sum((r + 0.5) * max(0, idx[r][c] - 18) ** 2 for r, c in px) / wsum
+    else:  # an all-dark stone: no lit side (was pulled toward the grid origin)
+        bx, by = cx, cy
     ax, ay = cx + 0.45 * (bx - cx), cy + 0.45 * (by - cy)
     h = min(0.26, max(0.07, 0.30 * math.sqrt(area) / 12))
     pts = []
@@ -520,17 +590,15 @@ def hanging(c, r_root, r_tip, w, rnd):
     return hull(pts)
 
 
-def build_rock(bm, idx, inner, c0, mats, rnd):
-    left, right = COLUMNS_SEAM(c0)
-    pil = c0 in (24, 120)
-    regs = segment(idx, inner, c0, pil)
-    slot = mats.slot(MID)
-    # the mask's bottom per column (tips) for the spikes
+def rock_pieces(regs, idx, inner, c0, rnd):
+    """Stones and stalactite spikes (bmeshes) for watershed regions; c0 picks the core's top they seat on."""
     bottom = {}
-    for c in range(c0, c0 + 24):
-        rs = [r for r in range(GH) if inner[r][c]]
-        bottom[c] = (max(rs) + 1) if rs else None
-    n_st = n_sp = 0
+    for reg in regs:
+        for _, c in reg["px"]:
+            if c not in bottom:
+                rs = [r for r in range(GH) if inner[r][c]]
+                bottom[c] = (max(rs) + 1) if rs else None
+    out = []
     for reg in regs:
         px = reg["px"]
         rows = [r for r, _ in px]
@@ -542,10 +610,79 @@ def build_rock(bm, idx, inner, c0, mats, rnd):
             tips = [bottom[c] for c in cs if bottom.get(c)]
             tip_row = max(tips) if tips else r1 + 1
             sb, yc_r = spike_from(px, idx, c0, rnd, tip_row)
-            n_sp += 1
+            out.append((sb, yc_r, True))
         else:
             sb, yc_r = stone(px, idx, c0, rnd)
-            n_st += 1
+            out.append((sb, yc_r, False))
+    return out
+
+
+def build_band(idx, inner, mats, rsprite, g, coll, rnd):
+    """The seam stones, shared by every seam: the boulders of the sprite's strip round SEAM_REF (the
+    wandering band, band_half), built and facet-ramped once there, then cut at the seam into a left
+    and a right half. Each column takes the right half at its left seam and the left half at its
+    right seam, so every seam closes over whole stones whichever columns meet (L P M M M P R or
+    L P M P R) and nothing straight runs down the seam. Returns (left half, right half) bmeshes
+    in place at SEAM_REF, with face layers facet_n and band = 1."""
+    s = SEAM_REF
+    # the sprite's own boulders round the seam (a watershed over two columns), cut to the band
+    regs = []
+    for reg in segment(idx, inner, s - 24, False, w=48, keep=lambda c, r: True):
+        px = [(r, c) for r, c in reg["px"] if in_band(c, r, s)]
+        if len(px) >= 3:
+            rows = {}
+            for r, c in px:
+                lo, hi = rows.get(r, (c, c))
+                rows[r] = (min(lo, c), max(hi, c))
+            regs.append(dict(px=px, rows=rows))
+    bm = bmesh.new()
+    face_layers(bm)
+    for sb, _, _ in rock_pieces(regs, idx, inner, s, rnd):
+        append(bm, sb, mats.slot(MID))
+        sb.free()
+    bmesh.ops.triangulate(bm, faces=bm.faces[:])
+    obj = common.mesh_object("seam_band", bm, mats.mats, coll, smooth=False)
+    vis = set(visible_faces(obj))
+    faces = [p.index for p in obj.data.polygons if p.index in vis and p.normal.z > -0.3 and abs(p.normal.x) < 0.75]
+    RK.facet_ramp(rsprite, g, obj, {"mid": MID, "ramp": RAMP, "metallic": 0.0, "roughness": 0.85}, faces=faces)
+    # back to a bmesh on the shared slots (Mats), every face marked band
+    pal = {}
+    for k, m in enumerate(obj.data.materials):
+        mm = re.match(r"pal_(\d+)_", m.name if m else "")
+        pal[k] = mats.slot(int(mm.group(1))) if mm else mats.slot(MID)
+    src = bmesh.new()
+    src.from_mesh(obj.data)
+    face_layers(src)
+    bl = src.faces.layers.int.get("band")
+    for f in src.faces:
+        f.material_index = pal[f.material_index]
+        f[bl] = 1
+    bpy.data.objects.remove(obj)
+    halves = []
+    for no in ((1, 0, 0), (-1, 0, 0)):   # left half keeps x < seam, right half x > seam
+        h = src.copy()
+        n0 = len(h.faces)
+        clip(h, (X(s), 0, 0), no)
+        bl_h = h.faces.layers.int.get("band")
+        for f in h.faces:
+            f[bl_h] = 1
+        print(f"seam band half {no[0]:+d}: {len(h.faces)} faces (from {n0})")
+        halves.append(h)
+    src.free()
+    print(f"seam band: {len(regs)} stones")
+    return halves
+
+
+def build_rock(bm, idx, inner, c0, mats, rnd):
+    left, right = COLUMNS_SEAM(c0)
+    pil = c0 in (24, 120)
+    regs = segment(idx, inner, c0, pil)
+    slot = mats.slot(MID)
+    # the mask's bottom per column (tips) for the spikes
+    n_st = n_sp = 0
+    for sb, yc_r, spike in rock_pieces(regs, idx, inner, c0, rnd):
+        n_sp += spike
+        n_st += not spike
         if seam_clip(sb, c0, left, right, Y(yc_r)):
             append(bm, sb, slot)
         sb.free()
@@ -646,6 +783,7 @@ def build_pillar(bm, c0, mats):
     """c0: the grid column of the P column's left edge; u below is the column's own grid (24-48)."""
     o = c0 - 24
     met = lambda i: mats.slot(i, "metal")  # noqa: E731
+    lo = lambda i: mats.slot(i, "metal_lo")  # noqa: E731  (below the clamp band: dull red enamel)
     H, H_L, H_D = met(115), met(113), met(117)
     sides_house = {0: H_L, 6: H_L, 7: H_L, 2: H_D, 3: H_D, 1: H, 4: H, 5: H}
     # cap (rows 4.6-9): a domed lid with a rolled rim at row 7 (the sprite's lit line is that rim)
@@ -660,41 +798,81 @@ def build_pillar(bm, c0, mats):
                   (31.3, 29.6, 41.0, -2.0, 2.75, 1.0), (31.8, 29.7, 40.9, -2.0, 2.45, 0.9)], met(118))
     # lamp window (rows 14-25, cols 33-39): bezel, glowing lens, hot core (frames)
     ploft(bm, o, [(13.6, 32.6, 39.4, 1.6, 2.65, 0.6), (25.4, 32.6, 39.4, 1.6, 2.65, 0.6)], met(114))
-    rim = mats.slot(GLOW, "glow", frames=LAMP_RIM, part="lamp", glow=1.2)
-    ploft(bm, o, [(14.2, 33.2, 38.8, 1.6, 2.72, 0.5), (24.8, 33.2, 38.8, 1.6, 2.72, 0.5)], rim)
-    core = mats.slot(127, "glow", frames=LAMP_CORE, part="core", glow=2.0)
-    ploft(bm, o, [(15.0, 34.0, 37.0, 2.0, 2.80, 0.4), (22.6, 34.0, 37.0, 2.0, 2.80, 0.4)], core)
+    lamp_lens(bm, o, mats)
     # vent slot under the lamp (row 25-26, cols 35-38)
     ploft(bm, o, [(25.3, 35.0, 38.0, 1.6, 2.36, 0.2), (26.2, 35.0, 38.0, 1.6, 2.36, 0.2)], met(64))
     # lower column (rows 32.6-44.3): narrower and lower, the pipe down its left, a slot between
-    ploft(bm, o, [(32.4, 35.8, 39.8, -2.5, 1.3, 0.7), (44.4, 35.8, 39.8, -2.5, 1.3, 0.7)], met(112),
-          top_mats={4: met(113), 3: met(114)})
-    ploft(bm, o, [(32.4, 31.6, 33.4, -2.5, 0.7, 0.5), (44.4, 31.6, 33.4, -2.5, 0.7, 0.5)], met(112))
-    cyl(bm, o, 34.4, 32.0, 44.6, 0.85, 0.7, met(116))
+    ploft(bm, o, [(32.4, 35.8, 39.8, -2.5, 1.3, 0.7), (44.4, 35.8, 39.8, -2.5, 1.3, 0.7)], lo(112),
+          top_mats={4: lo(113), 3: lo(114)})
+    ploft(bm, o, [(32.4, 31.6, 33.4, -2.5, 0.7, 0.5), (44.4, 31.6, 33.4, -2.5, 0.7, 0.5)], lo(112))
+    cyl(bm, o, 34.4, 32.0, 44.6, 0.85, 0.7, lo(116))
     # spine under the fins and foot
-    ploft(bm, o, [(44.0, 32.6, 38.6, -2.5, 0.6, 0.5), (56.0, 32.6, 38.6, -2.5, 0.6, 0.5)], met(112))
+    ploft(bm, o, [(44.0, 32.6, 38.6, -2.5, 0.6, 0.5), (56.0, 32.6, 38.6, -2.5, 0.6, 0.5)], lo(112))
     # cooling fins (rows 45, 47, 49, 51; dark gaps between)
     for r, ul, ur in ((45.0, 30.6, 39.8), (47.0, 30.8, 39.8), (49.0, 31.0, 39.8), (51.0, 31.4, 39.6)):
         ploft(bm, o, [(r + 0.05, ul + 0.4, ur - 0.4, -2.0, 1.8, 0.5), (r + 0.3, ul, ur, -2.0, 2.2, 0.6),
                       (r + 0.75, ul, ur, -2.0, 2.2, 0.6), (r + 1.0, ul + 0.4, ur - 0.4, -2.0, 1.8, 0.5)],
-              met(114), top_mats={4: met(115)})
+              lo(114), top_mats={4: lo(115)})
     # foot block (rows 53-61): stepped out at row 57
     ploft(bm, o, [(52.8, 32.4, 39.4, -2.5, 1.0, 0.6), (53.2, 32.0, 39.8, -2.5, 1.6, 0.7),
                   (56.6, 32.0, 39.8, -2.5, 1.6, 0.7), (57.0, 30.4, 40.6, -2.5, 1.9, 0.8),
-                  (60.2, 30.4, 40.6, -2.5, 1.9, 0.8), (61.0, 31.0, 40.0, -2.5, 1.0, 0.6)], met(112),
-          top_mats={4: met(113), 5: met(113), 3: met(114)})
+                  (60.2, 30.4, 40.6, -2.5, 1.9, 0.8), (61.0, 31.0, 40.0, -2.5, 1.0, 0.6)], lo(112),
+          top_mats={4: lo(113), 5: lo(113), 3: lo(114)})
 
 
-def lamp_lines(mats, coll, piece_off):
-    hot = mats.slot(127, "glow", part="line", glow=3.0)
-    parts = []
-    for frame, (r0, r1) in LAMP_LINE.items():
-        bm = bmesh.new()
-        ploft(bm, 0, [(r0, 34.9, 36.1, 2.0, 2.86, 0.25), (r1, 34.9, 36.1, 2.0, 2.86, 0.25)], hot)
-        bmesh.ops.translate(bm, vec=(-piece_off[0], -piece_off[1], 0), verts=bm.verts)
-        obj = common.mesh_object(f"newsh8-165-lamp-{frame}", bm, mats.mats, coll, smooth=False)
-        parts.append(common.frame_part(obj, [frame]))
-    return parts
+def lamp_lens(bm, o, mats):
+    """The lamp: a domed glass lens over the window (cols 33-38, rows 14-24), standing proud of its
+    bezel, glowing in the sprite's lamp zones (LAMP_ZONES: rim, inner band, white-hot centre column,
+    lower lip; per frame) - glow surfaces, metallic 1 / rough (D126, D173), strength LAMP_GLOW: the
+    palette colour itself. The lens is a closed solid: a domed top over a 2x2 grid per window pixel, sides
+    down into the bezel."""
+    c0, c1, r0, r1 = 33.0, 38.0, 14.0, 24.0
+    v_edge, v_top, v_base = 2.68, 2.98, 2.3
+    N = 2
+    nu, nr = int((c1 - c0) * N), int((r1 - r0) * N)
+    cu, cr = (c0 + c1) / 2, (r0 + r1) / 2
+    hu, hr = (c1 - c0) / 2, (r1 - r0) / 2
+
+    def pos(u, r, v):
+        oo, xa, n = path_frame(r)
+        return Vector((X(o + u), oo.y, oo.z)) + n * (v * U)
+
+    def vdome(u, r):
+        a = ((u - cu) / hu) ** 2
+        b = ((r - cr) / hr) ** 2
+        return v_edge + (v_top - v_edge) * max(0.0, 1 - a) * max(0.0, 1 - b ** 2)
+
+    grid = [[bm.verts.new(pos(c0 + i / N, r0 + j / N, vdome(c0 + i / N, r0 + j / N))) for i in range(nu + 1)]
+            for j in range(nr + 1)]
+    slots = {z: mats.slot(base, "glow", frames=fr, part=f"lamp_{z}", glow=LAMP_GLOW) for z, (base, fr) in LAMP_ZONES.items()}
+    for j in range(nr):
+        for i in range(nu):
+            f = bm.faces.new((grid[j][i], grid[j + 1][i], grid[j + 1][i + 1], grid[j][i + 1]))
+            u, r = c0 + (i + 0.5) / N, r0 + (j + 0.5) / N
+            f.material_index = slots[lamp_zone(int(u), int(r))]
+    # the skirt down into the bezel, in the rim's zone colours
+    ring = ([grid[0][i] for i in range(nu + 1)] + [grid[j][nu] for j in range(1, nr + 1)]
+            + [grid[nr][i] for i in range(nu - 1, -1, -1)] + [grid[j][0] for j in range(nr - 1, 0, -1)])
+    low = []
+    for k, v in enumerate(ring):
+        # the ring vertex's (u, r); the skirt drops along the station normal to v_base
+        if k <= nu:
+            u, r = c0 + k / N, r0
+        elif k <= nu + nr:
+            u, r = c1, r0 + (k - nu) / N
+        elif k <= 2 * nu + nr:
+            u, r = c1 - (k - nu - nr) / N, r1
+        else:
+            u, r = c0, r1 - (k - 2 * nu - nr) / N
+        low.append(bm.verts.new(pos(u, r, v_base)))
+    n = len(ring)
+    for k in range(n):
+        a, b = ring[k], ring[(k + 1) % n]
+        f = bm.faces.new((a, low[k], low[(k + 1) % n], b))
+        f.material_index = slots["top"] if k < nu else slots["lip"] if nu + nr <= k < 2 * nu + nr else (
+            slots["side_r"] if k < nu + nr else slots["side_l"])
+    f = bm.faces.new(low[::-1])
+    f.material_index = slots["lip"]
 
 
 # --- visibility for the ramp ------------------------------------------------------------------------
@@ -797,19 +975,27 @@ def main():
             for c in range(o + 29, o + 41):
                 rpx[r][c] = -1
     rsprite = dict(sprite, frames=[{"pixels": rpx, "width": GW, "height": GH}])
+    band_l, band_r = build_band(idx, inner, mats, rsprite, g, coll, rnd)
     cols = {}
-    for key, (c0, _, _) in COLUMNS.items():
+    for key, (c0, left, right) in COLUMNS.items():
         bm = bmesh.new()
+        face_layers(bm)
         build_core(bm, g, c0, mats)
         build_rock(bm, idx, inner, c0, mats, rnd)
+        # the shared seam stones: the right half at a left seam, the left half at a right seam
+        if left:
+            append(bm, band_r, None, X(c0) - X(SEAM_REF))
+        if right:
+            append(bm, band_l, None, X(c0 + 24) - X(SEAM_REF))
         if key == "P":
             build_pillar(bm, c0, mats)
         bmesh.ops.triangulate(bm, faces=bm.faces[:])
         obj = common.mesh_object(f"col_{key}", bm, mats.mats, coll, smooth=False)
-        # D175 facet ramp on the visible rock faces
+        # D175 facet ramp on the visible rock faces (the seam stones keep their shared ramp)
+        band = obj.data.attributes["band"].data
         vis = set(visible_faces(obj))
         rock_faces = [p.index for p in obj.data.polygons if p.material_index == 0 and p.index in vis
-                      and p.normal.z > -0.3 and abs(p.normal.x) < 0.75]
+                      and not band[p.index].value and p.normal.z > -0.3 and abs(p.normal.x) < 0.75]
         RK.facet_ramp(rsprite, g, obj, {"mid": MID, "ramp": RAMP, "metallic": 0.0, "roughness": 0.85},
                       faces=rock_faces)
         cols[key] = obj
@@ -865,7 +1051,7 @@ def main():
                 img.name = img.name.replace("talon_", f"{NAME}_")
         fmt = "WEBP"
     coll.objects.link(closed)
-    shell = common.outline_shell(closed, coll, voxel=0.025, faces=22000, smooth=8, inside=0.004)
+    shell = common.outline_shell(closed, coll, voxel=0.025, faces=22000, smooth=8, inside=0.004, islands="outer")
     shell.name = shell.data.name = f"{NAME}_outline"
     sink_shell(shell, closed, 0.5 * U, 1.3 * U)
     bpy.data.objects.remove(closed)
@@ -883,8 +1069,7 @@ def main():
     for q in pieces.values():
         q.data.set_sharp_from_angle(angle=math.radians(14))
         RK.set_facet_normals(q)
-    cx, cy = export_at["newsh8-165"]
-    lamp = lamp_lines(mats, coll, (cx / 12, -cy / 12))
+    lamp = []  # (the lamp zones carry every frame now; no frame parts)
     tris = {n: len(q.data.polygons) for n, q in pieces.items()}
     print("piece triangles", tris, "distinct total", sum(tris.values()))
     # the game's per-piece models: the piece, its shell slice (and newsh8-165's lamp-line frame parts)

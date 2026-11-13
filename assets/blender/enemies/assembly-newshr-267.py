@@ -224,12 +224,12 @@ def spec_level(m, v):
 STONE_BASE = {
     "metallic": 0.0, "roughness": 0.9, "rise": 0.7, "fall": 0.8, "summit_gain": 0.06, "summit_r": 2.4,
     "ridges": [], "valleys": [], "tilt": 0.0, "lumps": 0.02, "grow": 0.4, "smooth": 1, "steps": 48,
-    "waist": 0.0, "fine": 4, "fine_depth": (0.03, 0.05), "rim_spalls": 6, "rim_depth": (0.02, 0.035),
+    "waist": 0.0, "fine": 1, "fine_depth": (0.03, 0.05), "rim_spalls": 3, "rim_depth": (0.02, 0.035),
     "top_pow": 0.55, "bot_pow": 0.85,
 }
 CUTS = [(160, 78, 0.10), (20, 74, 0.08), (150, 46, 0.16), (205, 40, 0.13), (110, 52, 0.12),
         (245, 50, 0.12), (10, 44, 0.15), (60, 50, 0.12), (330, 42, 0.14), (290, 56, 0.12)]
-RAMP = {"bias": 0.0}
+RAMP = {"bias": 0.0, "angle": 28.0, "size": 8.0, "sprite": 0.35}  # QA M4: broad, clean faces along the stone's own ramp
 
 
 class StoneGrid(R.Grid):
@@ -325,7 +325,7 @@ def build_stone(s, own, coll):
     sectors = max(12, min(22, int(1.8 * math.sqrt(area))))
     bm, _ = R.rock_body(g, spec, sectors=sectors, rings_top=5, rings_bot=2)
     R.cut_planes(bm, spec["cuts"] + R.fine_cuts(spec))
-    R.chip_planes(bm, 3.0)
+    R.chip_planes(bm, 6.0)
     bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=1e-5)
     bmesh.ops.dissolve_degenerate(bm, edges=bm.edges[:], dist=1e-5)
     bmesh.ops.translate(bm, vec=(0, 0, waist), verts=bm.verts)
