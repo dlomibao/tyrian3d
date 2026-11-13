@@ -8667,3 +8667,90 @@ Captures and `summary.png` (original | before | after): `tyrian-scratch/e2-qa-te
 Work folder (inventory, cut report, seams): `tyrian-scratch/e2-qa-terrain/work/`.
 
 **Cost:** one Opus agent, no workflow, no Gemini, no Blender; about 20 headless captures.
+## D181 — Episode-2 QA renderer fixes: a later draw rises over the earlier models that bury it; a `tyrian_anchor` extra for tall assemblies; no shadows on black space; blended score numbers keep their digits' bank (extends D5, D6, D129, D171, D174)
+
+2026-11-13
+
+**Problem** (`tyrian-scratch/e2-qa/REPORT.md` M9, M6, L2, L3, L5 and M1's orb): bosses near the top edge lose their top
+rows (TORM's domes, GEM WAR's gem); stalks and legs draw as ghosts (TORM's posts, BONUS 2.12's walker, which also loses
+its blue badge); airborne shadows on starfield floors; BOTANY A's boss shows 2 of the original's 5 new shots; MISTAKES'
+"50" is deep blue, not pale blue; at GYGES a green orb shows over the drill column's cap where the original's cap hides it.
+
+**What was checked.**
+- *D5's order breaks under tall models.* Models stand up to 2.6 units over their pass's plane (the TORM/BOTANY A boss
+  pieces `newshj-153`..`-271`; D5's passes are 0.4 apart), so a later draw at its pass height can sit inside an earlier
+  model: BOTANY A's enemy shots (3.75) inside the boss hull (top 4.78); GEM WAR's gem disc `newshv-153` (0.36 tall)
+  inside the gunship's `newshv-91` (0.62), drawn after it in the same pass; BONUS 2.12's badge (`tyrian.shp#10` 54/55,
+  flat art, ground pass) inside the walker. GYGES's orb `newshh-91` is drawn *before* the column pieces
+  (`newshh-125`/`-123`/`-87`/`-85`) and the cap `newshh-79`, so the C covers it; the orb's sphere is taller, so it
+  poked through. All from the draw list's order (`tyrianHarness.view.draws.items`).
+- *M9 TORM is perspective, not a cull.* D6 puts a model's base plane on the camera ray; a point h above it drifts away
+  from the screen's vanishing point by (gz - cam.z) h / (cam.y - H): the domes' tops 23 px up past the far edge at t7863
+  (camera y 19.47, the second row's dome tops at 4.78). No far-edge cull exists; the mask is the window outline (D6).
+  Putting each model's own top on the ray shows the domes but opens seams between the boss's pieces (their tops differ,
+  so do their perspective scales); one anchor for all pieces (2.0 units) shows the domes and no seams
+  (`tyrian-scratch/e2-qa-render/crops/m9_torm_anchor_experiment.png`). The renderer can't tell which pieces form one
+  assembly (no link in the draw list or spriteModels JSON), so the value has to come with the model.
+- *M6 is terrain art.* The stalks under all four TORM posts and the walker's legs are background-1 tiles,
+  `shapesx.dat:538`/`539` (posts) and `539` (walker), not sprite pixels: `&terrain=original` draws them solid. The HD
+  painting of 539 (`public/art/terrain/shapesx/0-2.webp`, 224,2176) paints the stalk as a faint dark ghost; 538's is
+  solid. No renderer or enemy-model cause; the walker's missing badge was the order problem above.
+- *L2.* In GRYPHON, BONUS 2.3, MARKERS and SOH JIN background 1 is all index 0 (`shapesx.dat:36`, `shapesz.dat:0`,
+  `:28`). In the C no enemy has a shadow (D171), and the ship's darken draw halves index 0 to index 0: nothing shows.
+  Here the shadow-map shadows of every model and the ship's decal darkened the RGB-25 floor.
+- *L5.* The "50" is `newsh6.shp` 204, blended in the explosions pass, so D174's hue-keeping blend draws its painting
+  in one bank, the sprite's dominant one by pixel count: 0x90 (46 pixels of index 144, the dark box) over 0x80 (26
+  pixels, the digits, shades 9-13). Bank 0x90 is the deep-blue ramp.
+
+**Decision:**
+1. **A later draw rises over the earlier models that bury it** (`coverHeight` in `src/render/sheetLift.ts`, D129's
+   module). Models (`placeModel`), extruded sprites, flat art and the shots' halos are raised along their camera ray
+   (D6: depth and shadows change, never the screen place) until their lowest point clears the top of every model placed
+   before them this frame that they overlap on screen and whose top is above theirs. Boxes are inset 2 px, so assembly
+   pieces meeting edge to edge don't stack; between two models the overlap must be at least a quarter of the smaller
+   box, so two halves meeting along a seam (D166's gunship) don't either; a model whose top is already the higher one
+   is left alone. Models drawn in the art's view (D165) are never raised: their depth band is the layering (DELIANI's
+   towers under the grille). Whether a model is airborne (D171) and the smoothies' hue (D31) follow its pass, not
+   the raise.
+2. **`tyrian_anchor`** (glb extra, model units above the base, read by `sourceAnchor`): the plane put on the camera
+   ray. Default 0, as before; banded models keep 0. Not set by any model yet: the TORM/BOTANY A boss
+   (`assembly-newshj-191.py`) should write one value (about 2.0) on all its pieces.
+3. **Black space is no floor.** A background-1 tile all in index 0 is drawn from separate pools that receive no shadow;
+   the ship's darken draw makes no decal when only such tiles and no model are under it (its model still casts none).
+4. **A blended explosion-pass painting takes the bank of its bright pixels** (`dominantBank(..., byShade)`: each pixel
+   counted by shade + 1), and texels darker than that bank's whole ramp take the most numerous bank instead (the
+   dark backing; ART_HUE_BLEND's second bank in `aFx.z`). The "50" now draws (105,162,174) on a near-black box; the C
+   gives (97,154,166).
+
+**Options considered:**
+- *M9: anchor every model at its own top:* seams in every multi-piece assembly. *A global anchor offset:* shifts every
+  model in the game and still too low for TORM. *Grouping pieces per frame by grid adjacency:* guesswork, and the anchor
+  would jump when a piece dies. Chosen: the assembly says it.
+- *L3: draw new shots over their owner only:* the same burial hides player shots, the ship and pickups over tall models;
+  one rule covers them all.
+- *M6: fall back to the original pixels for tile 539:* puts a pixel tile in the HD field (what H1/H2 removed).
+- *L5: count banks by shade only:* the box then took bank 0x80's darkest entry, a visible teal box.
+
+**Results** (`?debug=play&episode=2&seed=1&skip=T&freezeAt=T&compare=1`, 3840x2160, `tyrian-scratch/e2-qa-render/`
+`before/`, `after/`, `crops/`, `summary.png`):
+- BOTANY A t6458: all 5 shots and both green crescents over the hull, as the original.
+- GEM WAR t7050: the top gunship's gem disc shows.
+- BONUS 2.12 t300: the blue badge shows.
+- GYGES t2550: orb `newshh-91` hidden behind the column as in the original. The column's dark back plate and a sliver
+  of orb at its left edge are the model's (being reworked separately).
+- BONUS 2.3 t675: the red pods (drawn after) now sit over the crescents and fighters. The original's pods are rings,
+  see-through in the middle; the models are solid discs, so they hide more (model side, QA M4).
+- GRYPHON t7800, MARKERS t1800, BONUS 2.3, SOH JIN: no shadows on the space floor.
+- MISTAKES t8636: pale-blue "50".
+- TORM t7863: unchanged until the boss carries `tyrian_anchor` (checked by setting it in the page: domes visible, no
+  seams).
+- Episode 1 regressions (`&episode=1&main=N`, before against after, pixels differing by more than 24 in a channel):
+  main 1 t2900, main 3 t900, main 5 t2000, main 12 t2300 and DELIANI (main 19) t2600 unchanged; main 1 t1400 and
+  main 8 t1500 differ only in a shot's spark glare (the shot raised over a model).
+
+**Not done:**
+- TORM/BOTANY A boss `tyrian_anchor`: a one-line change to `assembly-newshj-191.py` (not edited here).
+- `shapesx.dat:539`'s HD painting: re-cut from a sheet that names the dark stalk and legs (terrain pipeline, Gemini).
+- GEM WAR's gem and BONUS 2.3's pods as models: QA H4, M4.
+
+**Cost:** one Opus agent; about 60 headless captures, no Gemini, no Blender.

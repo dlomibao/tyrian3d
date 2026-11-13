@@ -74,7 +74,7 @@ import { placeFlatQuad, SPRITE2X2_PARTS, spriteArtModeFromSearch, type FlatQuad,
 import { ART_HUE_BLEND, SpriteArtLayer } from "./spriteArtLayer";
 import { SparkScreen } from "./sparkScreen";
 import { StarCover } from "./starCover";
-import { sheetHeight, type PlacedExtent } from "./sheetLift";
+import { coverHeight, MODEL_COVER_OVERLAP, sheetHeight, type PlacedExtent } from "./sheetLift";
 import { BG_KEY_LAYER } from "../sim/backgrnd";
 import { MAP_SIZES, TILE_HEIGHT, TILE_WIDTH } from "../data/levels";
 import { terrainStyle as currentTerrainStyle, type TerrainStyle } from "../core/terrainStyle";
@@ -423,6 +423,12 @@ export class DrawListRenderer {
   private readonly shadowDecals = new ShadowDecals();
   /** This frame's placed models, by pass, screen box and height, for the blended sheets (D129). */
   private readonly placedExtents: PlacedExtent[] = [];
+  /** Screen (x, y) of this frame's tiles that aren't black space, in pairs (overSpace, D181). */
+  private readonly solidTiles: number[] = [];
+  /** Background-1 tiles all index 0 (black space, D181), by tile id. */
+  private readonly spaceTiles = new Map<string, boolean>();
+  /** The ground quad for black-space tiles: its pools receive no shadows (D181). */
+  private readonly spaceGeometry = groundQuad();
   /** The frame under the C's blended layers, and the hooks that copy it (hueBlend.ts, D174). */
   private readonly under: UnderGrab;
   private readonly grabSheets: UnderGrabHook;
@@ -480,6 +486,8 @@ export class DrawListRenderer {
   private terrain: TerrainStyle = currentTerrainStyle();
   readonly terrainArt = new TerrainArtSet();
   private readonly hdPools = new Map<THREE.Material, Pool>();
+  /** The same for black-space ground tiles, which receive no shadows (D181). */
+  private readonly hdSpacePools = new Map<THREE.Material, Pool>();
   private readonly hdMaterials = new Map<THREE.Texture, Map<TerrainKind, { material: THREE.Material; depth?: THREE.Material }>>();
   private readonly terrainLevel = { levelFilter: { value: -99 }, levelBrightness: { value: 0 } };
   /** tileId → [tileset, tile number] (null: not a tileset tile). */
@@ -811,6 +819,7 @@ export class DrawListRenderer {
     this.terrainLevel.levelBrightness.value = this.palette.screenBrightness;
     this.hdTiles = 0;
     this.placedExtents.length = 0;
+    this.solidTiles.length = 0;
     this.blendSheets.length = 0;
     this.grabSheets.area.clear();
     this.grabExplosions.area.clear();
@@ -826,7 +835,11 @@ export class DrawListRenderer {
           const y = prevY[i] + (d.y - prevY[i]) * alpha;
           if (d.effect === "darken") {
             // The ship's shadow is drawn as the C's (D171); the shots' are left out (D9, D42).
-            if (d.pass === Pass.Player) this.shadowDecals.add(d.sheet, d.index, d.size, d.key, x, y, cam);
+            // Over black space alone it would darken nothing in the C: no decal (D181).
+            if (d.pass === Pass.Player) {
+              if (this.overSpace(x, y, d.size * 12, d.size * 14)) this.shadowDecals.skip(d.key);
+              else this.shadowDecals.add(d.sheet, d.index, d.size, d.key, x, y, cam);
+            }
             continue;
           }
           // With flat art for the sprite (for a grouped one, the object's first tile), it's drawn flat
@@ -854,13 +867,15 @@ export class DrawListRenderer {
           }
           const geometry = this.cache.sprite2Geometry(d.sheet, d.index, d.size);
           if (!geometry) continue;
-          const look = fx && VFX_PASSES.has(d.pass) ? fx.sprite(d, geometry, x, y, d.x - prevX[i], d.y - prevY[i]) : SpriteLook.Default;
+          // Over the earlier models it covers on screen (D181).
+          const h = this.coverHeight(d.pass, x, y, d.size * 12, d.size * 14);
+          const look = fx && VFX_PASSES.has(d.pass) ? fx.sprite(d, geometry, x, y, d.x - prevX[i], d.y - prevY[i], h) : SpriteLook.Default;
           if (look === SpriteLook.Hidden) continue;
-          if (flat && this.addFlatSprite2(sheetArt!, d, x, y, cam)) {
+          if (flat && this.addFlatSprite2(sheetArt!, d, x, y, cam, h)) {
             instances++;
             break;
           }
-          this.addSprite(geometry, d.pass, d.effect, d.filter, d.value, x, y, cam, frame, look === SpriteLook.Hot);
+          this.addSprite(geometry, d.pass, d.effect, d.filter, d.value, x, y, cam, frame, look === SpriteLook.Hot, h);
           instances++;
           break;
         }
@@ -870,18 +885,21 @@ export class DrawListRenderer {
           if (!geometry) continue;
           const x = prevX[i] + (d.x - prevX[i]) * alpha;
           const y = prevY[i] + (d.y - prevY[i]) * alpha;
-          const look = fx && VFX_PASSES.has(d.pass) ? fx.sprite(d, geometry, x, y, d.x - prevX[i], d.y - prevY[i]) : SpriteLook.Default;
+          const bb = (geometry.boundingBox ?? (geometry.computeBoundingBox(), geometry.boundingBox))!;
+          const h = this.coverHeight(d.pass, x + bb.min.x, y + bb.min.z, bb.max.x - bb.min.x, bb.max.z - bb.min.z);
+          const look = fx && VFX_PASSES.has(d.pass) ? fx.sprite(d, geometry, x, y, d.x - prevX[i], d.y - prevY[i], h) : SpriteLook.Default;
           if (look === SpriteLook.Hidden) continue;
           const tableArt = art ? this.artSheet(d.table) : null;
           const f = tableArt?.frame(d.index);
-          if (tableArt && f) this.addFlat(tableArt, f, 0, 0, d.pass, d.effect, d.filter, d.value, x, y, cam);
-          else this.addSprite(geometry, d.pass, d.effect, d.filter, d.value, x, y, cam, frame, look === SpriteLook.Hot);
+          if (tableArt && f) this.addFlat(tableArt, f, 0, 0, d.pass, d.effect, d.filter, d.value, x, y, cam, 1, -1, h);
+          else this.addSprite(geometry, d.pass, d.effect, d.filter, d.value, x, y, cam, frame, look === SpriteLook.Hot, h);
           instances++;
           break;
         }
         case "tile": {
           const x = prevX[i] + (d.x - prevX[i]) * alpha;
           const y = prevY[i] + (d.y - prevY[i]) * alpha;
+          if (!this.isSpaceTile(d)) this.solidTiles.push(x, y);
           if (d.layer === 0 && STAND_IN_IDS.has(d.tileId)) this.standInTiles.set(d.tileId, d.tile);
           if (this.background === "remaster" && this.drawRemasterTile(d, x, y, cam, frame)) {
             instances++;
@@ -1019,7 +1037,8 @@ export class DrawListRenderer {
         this.materials[variant],
         TILE_VARIANTS.has(variant) ? "instTile" : "instFx",
         this.root,
-        { cast: opaque, receive: variant !== Variant.Unlit },
+        // Black space is no floor: nothing casts a shadow on it (D181).
+        { cast: opaque, receive: variant !== Variant.Unlit && geometry !== this.spaceGeometry },
       );
       pool.lastUsed = frame;
       map.set(geometry, pool);
@@ -1039,6 +1058,7 @@ export class DrawListRenderer {
     cam: THREE.Vector3,
     frame: number,
     hot = false,
+    height = passHeight(pass),
   ): void {
     const blend = effect === "blend";
     const glow = GLOW_PASSES.has(pass);
@@ -1047,7 +1067,7 @@ export class DrawListRenderer {
       : glow ? (blend ? Variant.GlowBlend : Variant.Glow) : blend ? Variant.LitBlend : Variant.Lit;
     const pool = this.pool(geometry, variant, frame);
     const s = pool.next(frame);
-    writeMatrix(pool.mesh.instanceMatrix.array as Float32Array, s, x, y, passHeight(pass), 1, 1, cam);
+    writeMatrix(pool.mesh.instanceMatrix.array as Float32Array, s, x, y, height, 1, 1, cam);
     const fx = pool.extra.array as Float32Array;
     const o = s * 4;
     if (effect === "filter") {
@@ -1080,13 +1100,13 @@ export class DrawListRenderer {
    * Draw a Sprite2 draw as flat art: one quad, or a blit_sprite2x2's four. Returns false (draw it
    * as before) if a non-empty tile has no frame.
    */
-  private addFlatSprite2(art: SpriteArtSheet<THREE.Texture>, d: SpriteDraw, x: number, y: number, cam: THREE.Vector3): boolean {
+  private addFlatSprite2(art: SpriteArtSheet<THREE.Texture>, d: SpriteDraw, x: number, y: number, cam: THREE.Vector3, height = passHeight(d.pass)): boolean {
     if (d.size === 1) {
       const f = art.frame(d.index);
       if (!f) return false;
       // A fireball's last rings fade out (D131).
       const fade = d.sheet.id === EXPLOSION_SHEET_ID ? flatExplosionFade(d.index) : 1;
-      this.addFlat(art, f, 0, 0, d.pass, d.effect, d.filter, d.value, x, y, cam, fade, this.hueBlendBank(d, d.index));
+      this.addFlat(art, f, 0, 0, d.pass, d.effect, d.filter, d.value, x, y, cam, fade, this.hueBlendBank(d, d.index), height);
       return true;
     }
     for (const [di] of SPRITE2X2_PARTS) {
@@ -1094,9 +1114,39 @@ export class DrawListRenderer {
     }
     for (const [di, dx, dy] of SPRITE2X2_PARTS) {
       const f = art.frame(d.index + di);
-      if (f) this.addFlat(art, f, dx, dy, d.pass, d.effect, d.filter, d.value, x, y, cam, 1, this.hueBlendBank(d, d.index + di));
+      if (f) this.addFlat(art, f, dx, dy, d.pass, d.effect, d.filter, d.value, x, y, cam, 1, this.hueBlendBank(d, d.index + di), height);
     }
     return true;
+  }
+
+  /** Whether a tile is background 1 all in index 0: black space, no floor (D181). */
+  private isSpaceTile(d: TileDraw): boolean {
+    if (d.layer !== 0) return false;
+    let space = this.spaceTiles.get(d.tileId);
+    if (space === undefined) this.spaceTiles.set(d.tileId, (space = d.tile.every((p) => p === 0)));
+    return space;
+  }
+
+  /**
+   * Whether screen box (x, y), w x h game px, has only black space under it so far this frame: no tile
+   * but black-space ground and no model overlap it (D181).
+   */
+  private overSpace(x: number, y: number, w: number, h: number): boolean {
+    const t = this.solidTiles;
+    for (let i = 0; i < t.length; i += 2) {
+      if (t[i] < x + w && t[i] + TILE_WIDTH > x && t[i + 1] < y + h && t[i + 1] + TILE_HEIGHT > y) return false;
+    }
+    for (const m of this.placedExtents) if (m.left < x + w && m.right > x && m.top < y + h && m.bottom > y) return false;
+    return true;
+  }
+
+  /**
+   * The height a sprite or flat-art draw of `pass` covering screen box (x, y), w x h game px, is drawn
+   * at: its pass's, or above the tops of the models placed before it that it overlaps (D181).
+   */
+  private coverHeight(pass: Pass, x: number, y: number, w: number, h: number): number {
+    const base = passHeight(pass);
+    return this.placedExtents.length === 0 ? base : coverHeight(base, base, base, x, y, x + w, y + h, this.placedExtents);
   }
 
   /**
@@ -1124,7 +1174,15 @@ export class DrawListRenderer {
     let banks = this.spriteBanks.get(d.sheet);
     if (!banks) this.spriteBanks.set(d.sheet, (banks = new Map()));
     let bank = banks.get(index);
-    if (bank === undefined) banks.set(index, (bank = dominantBank(decodeSprite2(d.sheet.data, index).pixels, false)));
+    if (bank === undefined) {
+      // The bank of its bright pixels (counted by shade) for the painting's colours, and, if another
+      // bank has more pixels (a dark backing: the score numbers' digits are bank 0x80, their dark box
+      // 0x90), that one for the texels darker than the first bank's ramp (D181). Packed: bank | (backing / 16 + 1) << 8.
+      const pixels = decodeSprite2(d.sheet.data, index).pixels;
+      const bright = dominantBank(pixels, false, true);
+      const most = dominantBank(pixels, false);
+      banks.set(index, (bank = bright | (most !== bright ? ((most >> 4) + 1) << 8 : 0)));
+    }
     return bank;
   }
 
@@ -1136,10 +1194,11 @@ export class DrawListRenderer {
   private addFlat(
     art: SpriteArtSheet<THREE.Texture>, f: ReadyFrame, dx: number, dy: number, pass: Pass,
     effect: SpriteEffect, filter: number, value: number, x: number, y: number, cam: THREE.Vector3, fade = 1, bank = -1,
+    height = passHeight(pass),
   ): void {
-    const q = placeFlatQuad(x + dx, y + dy, f.w, f.h, passHeight(pass), cam, this.quad);
+    const q = placeFlatQuad(x + dx, y + dy, f.w, f.h, height, cam, this.quad);
     if (effect === "blend" && bank >= 0) {
-      this.artLayer.add(art, pass, q, f, ART_HUE_BLEND, bank >> 4, 0, fade);
+      this.artLayer.add(art, pass, q, f, ART_HUE_BLEND, (bank & 0xff) >> 4, bank >> 8, fade);
       this.addGrabArea(this.grabExplosions, x + dx, y + dy, f.w, f.h);
       return;
     }
@@ -1220,7 +1279,7 @@ export class DrawListRenderer {
     if (d.layer !== 0 && !blend) return modelled;
     // The ground, and blended background-2 tiles (TYRIAN's ice clouds) as translucent sheets, both
     // upscaled in context.
-    const pool = this.pool(this.groundGeometry, blend ? Variant.RemasterGroundBlend : Variant.RemasterGround, frame);
+    const pool = this.pool(!blend && this.isSpaceTile(d) ? this.spaceGeometry : this.groundGeometry, blend ? Variant.RemasterGroundBlend : Variant.RemasterGround, frame);
     if (blend) pool.mesh.renderOrder = blendSheetOrder(d.pass);
     const s = pool.next(frame);
     if (!this.remasterAtlas.place(d.key, pool.extra.array as Float32Array, s * 2)) {
@@ -1238,7 +1297,7 @@ export class DrawListRenderer {
       // The ground, and blended background-2 tiles as flat translucent sheets (an extruded
       // tile seen through shows its sides and doubles up at the seams).
       const blend = d.effect === "blend";
-      const pool = this.pool(this.groundGeometry, blend ? Variant.GroundBlend : Variant.Ground, frame);
+      const pool = this.pool(!blend && this.isSpaceTile(d) ? this.spaceGeometry : this.groundGeometry, blend ? Variant.GroundBlend : Variant.Ground, frame);
       if (blend) pool.mesh.renderOrder = blendSheetOrder(d.pass);
       const s = pool.next(frame);
       this.atlas.place(d.tileId, d.tile, pool.extra.array as Float32Array, s * 2);
@@ -1278,7 +1337,7 @@ export class DrawListRenderer {
     const t = covered ? tileset?.coveredTile(d.layer, id[1]) : tileset?.tile(d.layer, id[1], d.key - d.layer * BG_KEY_LAYER);
     if (!t) return false;
     const kind: TerrainKind = d.layer === 0 ? "ground" : blend ? "blend" : "cutout";
-    const pool = this.hdPool(t.texture, kind, tileset!.scale, frame);
+    const pool = this.hdPool(t.texture, kind, tileset!.scale, frame, kind !== "ground" || !this.isSpaceTile(d));
     if (blend) pool.mesh.renderOrder = blendSheetOrder(d.pass);
     else if (kind === "cutout") pool.mesh.renderOrder = CUTOUT_ORDER;
     const s = pool.next(frame);
@@ -1432,7 +1491,7 @@ export class DrawListRenderer {
   }
 
   /** The pool of HD terrain quads for one atlas and kind. */
-  private hdPool(texture: THREE.Texture, kind: TerrainKind, scale: number, frame: number): Pool {
+  private hdPool(texture: THREE.Texture, kind: TerrainKind, scale: number, frame: number, receive = true): Pool {
     let byKind = this.hdMaterials.get(texture);
     if (!byKind) this.hdMaterials.set(texture, (byKind = new Map()));
     let m = byKind.get(kind);
@@ -1443,11 +1502,12 @@ export class DrawListRenderer {
       };
       byKind.set(kind, m);
     }
-    let pool = this.hdPools.get(m.material);
+    const pools = receive ? this.hdPools : this.hdSpacePools;
+    let pool = pools.get(m.material);
     if (!pool) {
-      pool = new Pool(this.groundGeometry, m.material, "instTile4", this.root, { cast: kind === "cutout", receive: true }, 16, m.depth, kind === "blend");
+      pool = new Pool(this.groundGeometry, m.material, "instTile4", this.root, { cast: kind === "cutout", receive }, 16, m.depth, kind === "blend");
       pool.lastUsed = frame;
-      this.hdPools.set(m.material, pool);
+      pools.set(m.material, pool);
       this.allPools.push(pool);
     }
     return pool;
@@ -1610,36 +1670,46 @@ export class DrawListRenderer {
     const { object } = clone;
     object.visible = true;
     object.matrixWorldAutoUpdate = true;
-    const h = passHeight(d.pass);
-    const k = h / cam.y;
+    const base = passHeight(d.pass);
+    // Its box on screen (the D6 scale keeps the model's footprint at its sprite's screen size) and
+    // its heights, for the blended sheets (D129) and the draws after it (D181).
+    const box = (pool.box ??= localBox(pool.source!));
+    const left = cx + box.min.x * PX_PER_UNIT, right = cx + box.max.x * PX_PER_UNIT;
+    const top = cy + box.min.z * PX_PER_UNIT, bottom = cy + box.max.z * PX_PER_UNIT;
+    // Over the earlier models it covers on screen, as the C drew it over them (D181). Not a model
+    // drawn in the art's view: its depth band is D165's layering (DELIANI's towers under the grille).
+    const sy0 = (1 - base / cam.y) * this.modelHeight;
+    const h = sourceBand(pool.source!) ? base : coverHeight(base, base + box.min.y * sy0, base + box.max.y * sy0, left, top, right, bottom, this.placedExtents, MODEL_COVER_OVERLAP);
+    // The plane put on the camera ray (D6): the model's base, or its `tyrian_anchor` height (D181).
+    const a = sourceAnchor(pool.source!);
+    const ha = h + a * sy0;
+    const k = ha / cam.y;
     const gx = screenWorldX(cx);
     const gz = screenWorldZ(cy);
-    object.position.set(gx + (cam.x - gx) * k, h, gz + (cam.z - gz) * k);
+    object.position.set(gx + (cam.x - gx) * k, ha - a * (1 - k) * this.modelHeight, gz + (cam.z - gz) * k);
     object.scale.set(1 - k, (1 - k) * this.modelHeight, 1 - k);
     // Lifted along its camera ray (D6), a model off the middle of the screen sits nearer the middle
     // than it looks, and its shadow drifted toward the middle with it, away from it on screen. Its
     // shadow is drawn where the lift would put it from the camera's aim point instead (D133).
-    // An airborne model's shadow also falls the same way below it under every camera (D171).
-    const air = isAirborne(h) ? h : 0;
+    // An airborne model's shadow also falls the same way below it under every camera (D171); whether
+    // it is airborne is its pass's, not raised over another model (D181).
+    const air = isAirborne(base) ? h : 0;
     this.damage?.shadowShift(object, clone.materials, (gx - this.shadowRef.x) * k + this.airShadow.x * air, (gz - this.shadowRef.z) * k + this.airShadow.y * air);
-    // Its box on screen (the D6 scale keeps the model's footprint at its sprite's screen size) and
-    // its heights, for the blended sheets (D129).
-    const box = (pool.box ??= localBox(pool.source!));
     this.placedExtents.push({
       pass: d.pass,
-      left: cx + box.min.x * PX_PER_UNIT,
-      right: cx + box.max.x * PX_PER_UNIT,
-      top: cy + box.min.z * PX_PER_UNIT,
-      bottom: cy + box.max.z * PX_PER_UNIT,
-      low: h + box.min.y * object.scale.y,
-      high: h + box.max.y * object.scale.y,
+      left,
+      right,
+      top,
+      bottom,
+      low: object.position.y + box.min.y * object.scale.y,
+      high: object.position.y + box.max.y * object.scale.y,
     });
 
     this.setCloneBlended(clone, d.effect === "blend");
 
     // blit_sprite2_filter draws (filter & 0xf0) | (index & 0x0f): the same shade in another hue.
     // [filters] A smoothie's hue covers that, as its filter runs after the draw (screenHue.ts).
-    const screenHue = this.palette.screenHue.modelHue(h);
+    const screenHue = this.palette.screenHue.modelHue(base);
     const hue = screenHue >= 0 ? screenHue : d.effect === "filter" ? d.filter & 0xf0 : -1;
     const { rig } = clone;
     const frameChanged = rig.animated && clone.frame !== frame;
@@ -1723,11 +1793,13 @@ export class DrawListRenderer {
   private readonly paletteColor = (index: number, target: THREE.Color) => this.palette.color(index, target);
 
   private evictPools(frame: number): void {
-    for (const [material, pool] of this.hdPools) {
-      if (frame - pool.lastUsed > POOL_TTL_FRAMES) {
-        pool.dispose();
-        this.hdPools.delete(material);
-        this.allPools.splice(this.allPools.indexOf(pool), 1);
+    for (const pools of [this.hdPools, this.hdSpacePools]) {
+      for (const [material, pool] of pools) {
+        if (frame - pool.lastUsed > POOL_TTL_FRAMES) {
+          pool.dispose();
+          pools.delete(material);
+          this.allPools.splice(this.allPools.indexOf(pool), 1);
+        }
       }
     }
     for (let v = 0; v < this.pools.length; v++) {
@@ -1789,6 +1861,31 @@ function sourceBand(source: THREE.Object3D): DepthBand | null {
   let band = sourceBands.get(source);
   if (band === undefined) sourceBands.set(source, (band = depthBandOf(source)));
   return band;
+}
+
+/** Each loaded model's `tyrian_anchor` (sourceAnchor), cached. */
+const sourceAnchors = new WeakMap<THREE.Object3D, number>();
+
+/**
+ * The height (model units above its base) of the plane of a model that placeModel puts on the camera
+ * ray through its sprite's screen point (D6): 0, its base, unless the glb has a `tyrian_anchor` extra
+ * (D181). Parts above that plane drift away from the screen's vanishing point as the perspective
+ * lifts them; a tall assembly (the TORM boss's domes stand 2.6 units over their base) gives all its
+ * pieces one anchor near its top, so its top features land where the sprite has them and the pieces
+ * still meet. Models drawn in the art's view (D165) keep 0: their own lock places each vertex.
+ */
+export function sourceAnchor(source: THREE.Object3D): number {
+  let a = sourceAnchors.get(source);
+  if (a === undefined) {
+    let asked: unknown;
+    source.traverse((o) => {
+      if (asked === undefined && o.userData?.tyrian_anchor !== undefined) asked = o.userData.tyrian_anchor;
+    });
+    a = Number(asked);
+    if (!Number.isFinite(a) || sourceBand(source)) a = 0;
+    sourceAnchors.set(source, a);
+  }
+  return a;
 }
 
 /**

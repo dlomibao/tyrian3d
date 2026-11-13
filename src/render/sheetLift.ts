@@ -43,3 +43,40 @@ export function sheetHeight(base: number, pass: number, x: number, y: number, w:
   if (lifted <= above - SHEET_CLEARANCE) return lifted;
   return Math.max(base, (below + above) / 2);
 }
+
+/** Clearance a later draw keeps over the top of an earlier model it covers, world units. */
+export const COVER_CLEARANCE = 0.04;
+/**
+ * Px taken off each side of both boxes before testing overlap: the pieces of an assembly meet edge to
+ * edge, and their boxes may cross by a pixel, which must not stack them (D181).
+ */
+export const COVER_INSET = 2;
+/** The overlap (of the smaller box) at which a model covers an earlier model (coverHeight's `minOverlap`). */
+export const MODEL_COVER_OVERLAP = 0.25;
+
+/**
+ * The height a draw of base height `base` (its lowest and highest points `low` and `high`, world y)
+ * and screen box (left, top)-(right, bottom) in game px is raised to, so it is above the tops of the
+ * models placed before it in the frame (`models`, earlier in the C's draw order) that it overlaps on
+ * screen and that bury its top: the C drew it over them. A model whose top is already the higher one
+ * is left as it is (the two halves of D166's gunship are modelled to meet that way). Every draw is
+ * lifted along its camera ray (D6), so the height changes depth and shadows, never the place on
+ * screen. `base` if nothing earlier buries it. With `minOverlap`, only models whose box overlap is at
+ * least that fraction of the smaller box count (two models that merely meet along a seam don't stack).
+ */
+export function coverHeight(
+  base: number, low: number, high: number, left: number, top: number, right: number, bottom: number, models: readonly PlacedExtent[], minOverlap = 0,
+): number {
+  let need = -Infinity;
+  const l = left + COVER_INSET, t = top + COVER_INSET, r = right - COVER_INSET, b = bottom - COVER_INSET;
+  if (r <= l || b <= t) return base;
+  for (const m of models) {
+    if (m.high <= high || m.high + COVER_CLEARANCE <= low) continue;
+    const ml = m.left + COVER_INSET, mt = m.top + COVER_INSET, mr = m.right - COVER_INSET, mb = m.bottom - COVER_INSET;
+    const w = Math.min(r, mr) - Math.max(l, ml), h = Math.min(b, mb) - Math.max(t, mt);
+    if (w <= 0 || h <= 0) continue;
+    if (minOverlap > 0 && w * h < minOverlap * Math.min((r - l) * (b - t), Math.max(0, mr - ml) * Math.max(0, mb - mt))) continue;
+    need = Math.max(need, m.high + COVER_CLEARANCE);
+  }
+  return need > low ? base + (need - low) : base;
+}

@@ -53,6 +53,15 @@ describe("hue-keeping blend (D174)", () => {
     expect(dominantBank([0, 0, 0x8f], false)).toBe(0x00);
   });
 
+  test("by shade, bright pixels outweigh a dark backing (the score numbers, D181)", () => {
+    // newsh6.shp frame 204 ("50"): digits in bank 0x80 at shades 9-13, a box of 46 pixels of index 0x90.
+    const fifty = [...Array(12).fill(137), ...Array(8).fill(139), ...Array(3).fill(140), ...Array(3).fill(141), ...Array(46).fill(144)];
+    expect(dominantBank(fifty, false)).toBe(0x90);
+    expect(dominantBank(fifty, false, true)).toBe(0x80);
+    // A fireball stays in its fire ramp either way.
+    expect(dominantBank([0x75, 0x76, 0x42, -1, -1], false, true)).toBe(0x70);
+  });
+
   test("a brightness reads as a fractional shade along the bank's ramp", () => {
     // Bank 1 (entries 16-31): a grey ramp 0, 17, 34 .. 255; the rest black.
     const pal = new Uint8Array(256 * 4);
