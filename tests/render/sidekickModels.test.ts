@@ -90,7 +90,8 @@ describe("renderer: a sidekick's sprite as its model", () => {
 
   test("loaded: the model replaces the draw, centred on the sprite; other frames and grouped draws stay sprites", async () => {
     const sh = sheet(SHEET, 4);
-    const s = await render(make([ENTRY], true), [draw(sh, 3), draw(sh, 2), draw(sh, 3, { groupIndex: 3, groupFirst: true })]);
+    // Apart on screen: a draw under a later opaque one is left out (D183).
+    const s = await render(make([ENTRY], true), [draw(sh, 3), draw(sh, 2, { x: 140 }), draw(sh, 3, { x: 180, groupIndex: 3, groupFirst: true })]);
     expect(s.models).toHaveLength(1);
     expect(s.instances).toBe(2); // frame 2, and the grouped draw of 3 (no grouped model)
     // Centred on the 12x14 sprite at (100, 50): x 106 (raised toward the camera, so not exactly).

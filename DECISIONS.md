@@ -8811,3 +8811,89 @@ its blue badge); airborne shadows on starfield floors; BOTANY A's boss shows 2 o
 script to main.
 
 **Cost:** fix-round workflow, 26 agents, about 3.3M subagent tokens, about 2 h. No Gemini.
+
+## D183 — A sprite the later opaque sprites paint over completely is left out of the 3D frame (E2 QA M1; extends D86, D181)
+
+**Date:** 2026-11-13
+
+**Context:** at GYGES t2550 (`?debug=play&episode=2&main=4&difficulty=2&seed=1&skip=2550&freezeAt=2550&compare=1`)
+the original draws the green orb `newshh-91` at (168,50), then the drill column's tiles: `newshh-125`, `-123`, `-87`,
+`-85` (opaque 24x28 blocks, wall background included), the cap `-79` and the orb `-89`. Every opaque pixel of the orb
+is overwritten, so it isn't in the original's frame. In 3D the column's models hide the orb only where they have
+geometry: its sphere showed left of the column, under the cap. It also made D181 (a later draw rises over the
+earlier models that bury it) lift the column's model `newshh-85` over the orb's top: placed at 3.43 instead of 2.50,
+over the cap (2.50), whose top it then buried. That is the "dark back plate" D181's results put down to the model.
+A deeper depth band for the column
+(`tyrian-scratch/e2-qa-models/held/newshh-125-129.patch`) hid the orb only behind geometry and brought outline-shell
+fragments with it (D182, held back).
+
+Also traced (QA "MISTAKES hard ends at t3072"): no sim divergence; see the last section.
+
+**Decision:** `PaintedOver` (`src/render/paintedOver.ts`) reads each tick's draw list back to front once, in
+`setDrawList`, against a playfield-sized coverage mask. Each `sprite2`/table-sprite draw is tested against the opaque
+pixels (the C's non-skipped pixels) of the sprites drawn after it, then adds its own. A draw with at least one opaque
+pixel inside the seen playfield and none left uncovered there is skipped by `DrawListRenderer.update`, whatever it
+would have been drawn as: a model, flat art or an extruded sprite.
+- *Grouped objects* (one model over an enemy's tiles, D15) go only when none of their tiles shows and at least one is
+  covered. One model can't show a part of itself.
+- *Covering draws* are the ones drawn solid in 3D: effect `none`, `filter` (a hit flash still writes pixels) or `hv`,
+  outside the shot, explosion and effect passes. The remastered effects draw those as glows and halos (D35). Neither
+  `blend` (translucent) nor `darken` (shadows) covers, and a shadow is never left out.
+- The test uses the sim's integer positions, not the interpolated ones, so it is the C's answer for that tick and
+  can't flicker between display frames.
+- A sprite with nothing inside the playfield is never left out: nothing about it is known. A tall model whose sprite
+  is above the top edge can still lean into view (D181's TORM domes).
+- Cost: one pass over the tick's sprite pixels (about 300 sprites of at most 672 px) per tick, not per display frame.
+
+**Options considered:**
+- *Hide a draw whose rectangle lies inside the union of later fully opaque rectangles* (the QA's first idea): misses
+  sprites with transparent corners on either side, and the orb's last row lies under `-123`/`-125`, which have
+  transparent pixels elsewhere. The pixel mask is the exact rule and costs no more.
+- *Write the later opaque sprites' footprints into depth or stencil:* cuts earlier models with hard pixel edges, would
+  also have to keep later draws and the coverer's own lower parts, and changes the GPU pass. Left out: in the original
+  a partly covered sprite shows its uncovered pixels, and D181's lift already handles most partial cases.
+- *Raise the column's depth band (the held model patch):* hides the orb only behind geometry, and brought outline
+  fragments. Not applied: with the orb left out, main's model reads right (the stalk, the purple vein and the
+  cap show as in the original).
+- *Count tiles as coverers too* (background 2/3 drawn over sprites): a larger change with its own blend rules (D127,
+  D129). Not done.
+
+**Results** (`tyrian-scratch/e2-qa-render-2/`: `before/`, `after/` at 3840x2160 with `&difficulty=2&compare=1`;
+`spot/`, `crops/`, `summary.png`; pixels differing by more than 24 in a channel):
+- GYGES t2550: the orb `newshh-91` (draws 261-264) is the only draw left out. The column now shows its stalk, its purple
+  vein and the grey cap as in the original (7559 px changed, all in the column's area).
+- Unchanged: E1 main 1 t2900, main 3 t900, DELIANI (main 19) t2600; E2 GYGES t4050, ASTCITY t1050, BOTANY A t3300 and
+  t6458.
+- E1 main 1 t1400 (777 px) and main 8 t1500 (423 px): no draw is left out in these frames. Two runs of the new build
+  differ from each other by the same amount (731 and 404 px): this is the run-to-run spark glare D181 noted.
+- GEM WAR t7050: 12 px. `newshv-19`, a 2x2 at y -4 under the gunship, is left out.
+- Wider check: the bot played episodes 1-4 headless with the rule running every tick
+  (`tyrian-scratch/e2-qa-render-2/paintscan.txt`). It fires mostly in E3/E4: DREAD-NOT's hull pieces over its turrets,
+  SURFACE/DESERTRUN pickups under the top-layer enemies, IXMUCANE's rock pile, FLEET. On/off captures from the same
+  build: DREAD-NOT t1500 changes slightly round `newsh9-276`, under the hull (about 200 px at 1080p). SURFACE t1300
+shows no visible change. IXMUCANE t4200 loses a
+  boxed ground piece that showed through the rock pile, which the original doesn't show.
+
+**Review:** look at GYGES t2550 with `&compare=1`. To compare the rule off in a page:
+`tyrianHarness.view.draws.paintedOver.update([])` on a frozen frame. Fallback: drop the two `paintedOver.hides(i)`
+checks in `drawListRenderer.ts`.
+
+**MISTAKES on hard (QA: ends at t3072, normal at t9036): not a bug.** Headless trace of the harness run
+(`tyrian-scratch/e2-qa-render-2/mistakes/`: `trace_d2.txt`, `trace_d3.txt`, `trace.test.ts.txt`; it reproduces both
+lengths) against `opentyrian/src/tyrian2.c`:
+- MISTAKES (2.9) is a maze. Event 60 marks enemies whose death sets `globalFlags[n]` (`tyrian2.c` L1531, ported in
+  `game.ts` `destroyEnemy`). Event 61 skips the next event when a flag is still 0 (L4837). Event 54 jumps (L4795,
+  `JE_eventJump`).
+- At curLoc 679-683 (events 157-161): flag 1 set → jump to 1000; flag 2 set → jump to 2000; neither → jump to 3000.
+  Flags 1 and 2 belong to two link-201 enemies spawned at 181 and 481.
+- On hard, enemy armour is `armor * 1.2` (`JE_makeEnemy`, L4009): 12 instead of 10. The bot's Pulse-Cannon at power 5
+  kills the flag-1 enemy at t258 on normal, but not before it leaves on hard (gone t290). Neither flag is set, so the
+  route is 3000. There flag 8 is set (t1214), so the route goes on to 4000.
+- The 4000 branch is short. Event 944 (type 36, `readyToEndLevel`, L4651) at 4710 comes with its closing wave, and the
+  background stops at 4800 (events 958/959: type 53 99, type 2 0). The level ends when the screen is clear (L2247-2259):
+  t3072, completed.
+- On normal, the route is 1000 → 5000 → the 2000 loop, eight times until flags 3/4 are set → 6000 → event 1246
+  (type 11) at 6900: t9036.
+- The C behaves the same way. The length depends on which marked enemies the player kills; nothing was changed.
+
+**Cost:** one Opus agent, about 30 headless captures, two headless sim scans. No Gemini, no Blender.
