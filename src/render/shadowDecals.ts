@@ -110,6 +110,15 @@ export class ShadowDecals {
     this.place(decal, key, x, y, cam);
   }
 
+  /**
+   * A darken draw over nothing it could darken (black space, D181): no decal, as the C's halving of
+   * black is black, but its player still counts as shadowed, so its model casts no shadow either.
+   */
+  skip(key: number): void {
+    const player = shadowPlayerOfKey(key);
+    if (player >= 0) this.players |= 1 << player;
+  }
+
   /** Show one decal in the middle of the playfield, for the level's shader warm-up (D91); begin() hides it. */
   warm(cam: THREE.Vector3): void {
     let decal = this.decals.get("warm");

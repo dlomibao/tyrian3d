@@ -297,9 +297,10 @@ export class RemasteredFx {
 
   /**
    * A sprite in a shot or explosion pass, about to be drawn with its top-left at (x, y) (screen px,
-   * interpolated), having moved (vx, vy) px since the last tick. Adds its glows; says how to draw it.
+   * interpolated), having moved (vx, vy) px since the last tick, drawn at `height` (its pass's, or
+   * raised over a model it covers, D181). Adds its glows; says how to draw it.
    */
-  sprite(d: SpriteDraw | TableSpriteDraw, geometry: THREE.BufferGeometry, x: number, y: number, vx: number, vy: number): SpriteLook {
+  sprite(d: SpriteDraw | TableSpriteDraw, geometry: THREE.BufferGeometry, x: number, y: number, vx: number, vy: number, height = passHeight(d.pass)): SpriteLook {
     const info = this.spriteInfo(geometry);
     if (!info) return SpriteLook.Default;
     this.infoColour(info);
@@ -312,13 +313,13 @@ export class RemasteredFx {
       // Teleports and new shots have no motion to trail.
       const tx = Math.abs(vx) > 30 ? 0 : vx * TRAIL_TICKS;
       const ty = Math.abs(vy) > 30 ? 0 : vy * TRAIL_TICKS;
-      this.halo(cx, cy, cx - tx, cy - ty, passHeight(d.pass), Math.max(2.5, info.radius * SHOT_HALO), info.r, info.g, info.b, intensity);
+      this.halo(cx, cy, cx - tx, cy - ty, height, Math.max(2.5, info.radius * SHOT_HALO), info.r, info.g, info.b, intensity);
       return SpriteLook.Hot;
     }
     if (d.kind !== "sprite2" || d.pass !== Pass.Explosions || d.sheet.id !== EXPLOSION_SHEET_ID) return SpriteLook.Default;
     const f = explosionFrame(d.index);
     if (!f) return SpriteLook.Default;
-    const h = passHeight(d.pass);
+    const h = height;
     const k = h / this.cam.y;
     const s = (1 - k) / PX_PER_UNIT;
     const t = (f.frame + 0.5) / f.ttl;

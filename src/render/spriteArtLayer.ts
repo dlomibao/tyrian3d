@@ -43,7 +43,7 @@ const VERTEX = /* glsl */ `
 attribute vec3 aOrigin;   // world position of the quad's top-left corner
 attribute vec2 aSize;     // world size along X and Z
 attribute vec4 aUv;       // frame UV rectangle: u0 v0 u1 v1
-attribute vec4 aFx;       // mode (0 none, 1 filter, 2 hue/value, 3 hue blend), hue, value, alpha
+attribute vec4 aFx;       // mode (0 none, 1 filter, 2 hue/value, 3 hue blend), hue, value (hue blend: backing bank + 1), alpha
 varying vec2 vUv;
 varying vec4 vUvRect;
 varying vec4 vFx;
@@ -97,7 +97,13 @@ void main() {
     // blit_sprite2_blend: the art's bank at the mean of its shade and the frame's under it (D174).
     float water = 0.0;
     float bank = vFx.y * 16.0;
-    rgb = hbColor(bank, hbShade(bank, lum), hbUnderShade(), vHeight, water);
+    float artShade = hbShade(bank, lum);
+    // A texel darker than its bank's whole ramp is the sprite's dark backing, in bank vFx.z - 1 (D181).
+    if (vFx.z > 0.5 && artShade < 0.5) {
+      bank = (vFx.z - 1.0) * 16.0;
+      artShade = hbShade(bank, lum);
+    }
+    rgb = hbColor(bank, artShade, hbUnderShade(), vHeight, water);
     gl_FragColor = vec4(rgb * a, a);
     #include <colorspace_fragment>
     return;
@@ -239,7 +245,7 @@ export class SpriteArtLayer {
   /**
    * Add a quad of `sheet`'s frame `f` at `q` in pass `pass`, with the instance's palette effect
    * (mode 0 none, 1 the hit-flash filter with hue a, 2 hue a and value b, 3 ART_HUE_BLEND in bank
-   * a << 4) and opacity.
+   * a << 4, its texels darker than that bank's ramp in bank (b - 1) << 4 if b > 0) and opacity.
    */
   add(sheet: SpriteArtSheet<THREE.Texture>, pass: number, q: FlatQuad, f: ReadyFrame, mode: number, a: number, b: number, alpha: number): void {
     this.batch(sheet, pass).add(q, f, mode, a, b, alpha);

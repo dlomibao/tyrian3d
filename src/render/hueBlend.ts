@@ -323,13 +323,16 @@ export class UnderGrabHook extends THREE.Mesh<THREE.BufferGeometry, THREE.MeshBa
   }
 }
 
-/** The palette bank (hue << 4) most of a sprite's or tile's opaque pixels are in (index > 0 for tiles). */
-export function dominantBank(pixels: ArrayLike<number>, skipZero: boolean): number {
+/**
+ * The palette bank (hue << 4) most of a sprite's or tile's opaque pixels are in (index > 0 for tiles);
+ * with `byShade`, each pixel counted by its shade + 1, so bright pixels outweigh a dark backing (D181).
+ */
+export function dominantBank(pixels: ArrayLike<number>, skipZero: boolean, byShade = false): number {
   const counts = new Array<number>(16).fill(0);
   for (let i = 0; i < pixels.length; i++) {
     const p = pixels[i];
     if (p < 0 || (skipZero && p === 0)) continue;
-    counts[(p >> 4) & 15]++;
+    counts[(p >> 4) & 15] += byShade ? (p & 15) + 1 : 1;
   }
   let best = 0;
   for (let b = 1; b < 16; b++) if (counts[b] > counts[best]) best = b;
