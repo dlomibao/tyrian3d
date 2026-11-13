@@ -1,206 +1,456 @@
-"""Grey ground emplacement (newsh9.shp frame 41): a 3D version of its sprite.
+"""Grey ground emplacement (newsh9.shp frame 41), a 3D version of its sprite.
 
-Seen in level 4.4. A ground structure seen from above: a rounded grey hull whose raised,
-horseshoe-shaped rim cradles a ribbed central column with a dark grey drum on each side, a
-vaulted housing at the back (top of the sprite) capped by a dark knob, and a glowing red core
-bulging out of the front. One frame, one model; it sits on the ground with its base at z = 0.
+What it is: a fixed dart-launching ground turret (e4:325/326, ground layer, UNDERDELI and LAVA RUN;
+armour 30). It launches the newsh-caret-171 darts forward (down the screen). Built as a squat
+armoured emplacement:
+  - a horseshoe armour cowl: a low skirt wall, a sloped glacis and a rounded crest that runs down
+    the left flank, round the front and up the right flank (the sprite's bright 108-111 arc is light
+    on that crest, not paint);
+  - inside the horseshoe a recessed deck carrying the launcher: a ribbed central column (the launch
+    rail housing, its segment joint the dark 102 band at row 12) slung between two dark trunnion
+    drums (cols 4-7 and 16-19) with hubbed outer ends;
+  - a vaulted rear housing (rows 3-7) with a V cradle cut into its back, holding a dark domed cap
+    (the knob, rows 2-4);
+  - a glowing red core bulging out of the front glacis (rows 19-25): a crimson lens bulb (pal 244)
+    with a hot centre (pal 248, the 247-253 cluster).
+
+Reading the 24x28 sprite (one frame): a closed 1 px ink ring, so the top view goes to the INNER mask
+(D74). Colours (region medians, the darkest and brightest steps left out as lighting): hull,
+column and housing 105; drums 4-5 (pal 5); knob 6; core 243-244; hot centre 248.
+Underside: flat and closed (everything stands on z = 0).
 
 Run: blender --background --python assets/blender/enemies/newsh9-41.py [-- --preview out.png]
 """
 
+import json
 import math
+import os
 import sys
 from pathlib import Path
 
-import bmesh
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 import common  # noqa: E402
 
 NAME = "newsh9-41"
 MODEL = f"enemies/{NAME}"
-ROOT = common.repo_root(__file__)
+WT = common.repo_root(__file__)
+P = 1 / 12  # one sprite px in Blender units
+
+# material slots: (palette index, metallic, roughness, specular IOR level, emission)
+MATS = [
+    (105, 0.55, 0.40, 0.55, 0.0),   # 0 hull cowl
+    (105, 0.60, 0.32, 0.65, 0.0),   # 1 column / housing (machined, a bit more polished)
+    (102, 0.50, 0.50, 0.45, 0.0),   # 2 seams and grooves
+    (4, 0.6, 0.30, 0.55, 0.0),      # 3 trunnion drums
+    (6, 0.60, 0.28, 0.65, 0.0),     # 4 knob cap
+    (244, 1.0, 0.85, 0.5, 0.95),    # 5 core bulb (glow, D126/D173)
+    (248, 1.0, 0.85, 0.5, 1.25),    # 6 hot launch ring
+    (104, 0.55, 0.42, 0.5, 0.0),    # 7 deck
+    (243, 1.0, 0.9, 0.5, 0.5),      # 8 launch bore (dim)
+    (4, 0.6, 0.35, 0.55, 0.0),      # 9 (spare)
+    (102, 0.5, 0.42, 0.5, 0.0),     # 10 outer glacis and skirt (that region's own median, 101-102)
+    (105, 0.6, 0.24, 1.0, 0.0),     # 11 crest (polished: the sprite's 108-111 arc is sheen on it)
+]
+HULL, MACH, SEAM, DRUM, KNOB, CORE, HOT, DECK, BORE, COLLAR, GLACIS, CREST = range(len(MATS))
 
 
-def ex(c):
-    """Sprite column edge (0 = left edge of column 0) to Blender X."""
-    return (c - 12) / 12
+def arg(name, default=None):
+    if name in sys.argv:
+        return sys.argv[sys.argv.index(name) + 1]
+    return default
 
 
-def ey(r):
-    """Sprite row edge (0 = top edge of row 0) to Blender Y: sprite up is +Y."""
-    return (14 - r) / 12
+def sx(c):
+    """Sprite column edge -> px X (right +)."""
+    return c - 12.0
 
 
-def _se(t, p):
-    """Signed superellipse power: rounder than a circle for p > 2."""
-    return math.copysign(abs(t) ** (2 / p), t)
+def sy(r):
+    """Sprite row edge -> px Y (sprite up = +Y)."""
+    return 14.0 - r
 
 
-def half_loft(bm, sections, sides=10, power=2.5, mat_index=0):
-    """Loft half-rings (a flat bottom on z = 0) along Y: sections are (y, half_width, height, x_centre)."""
-    rings = []
-    for y, w, h, cx in sections:
-        ring = []
-        for i in range(sides + 1):
-            a = math.pi * i / sides
-            ring.append(bm.verts.new((cx + w * _se(math.cos(a), power), y, h * _se(math.sin(a), power))))
-        rings.append(ring)
-    for r0, r1 in zip(rings, rings[1:]):
-        for i in range(sides):
-            bm.faces.new((r0[i], r0[i + 1], r1[i + 1], r1[i])).material_index = mat_index
-        bm.faces.new((r0[-1], r0[0], r1[0], r1[-1])).material_index = mat_index
-    bm.faces.new(rings[0]).material_index = mat_index
-    bm.faces.new(list(reversed(rings[-1]))).material_index = mat_index
+def sse(t, p):
+    return math.copysign(abs(t) ** (2.0 / p), t)
 
 
-def outline_dome(bm, outline, centre, height, rings=5, power=2.6, mat_index=0):
-    """A dome over an XY outline: rings shrink toward `centre` while rising to `height`; flat base."""
-    cx, cy = centre
-    layers = []
-    for k in range(rings):
-        t = k / rings  # 0 at the base, rising
-        s = math.cos(t * math.pi / 2) ** (2 / power)
-        z = height * math.sin(t * math.pi / 2) ** (2 / power)
-        layers.append([bm.verts.new((cx + (x - cx) * s, cy + (y - cy) * s, z)) for x, y in outline])
-    top = bm.verts.new((cx, cy, height))
-    n = len(outline)
-    for l0, l1 in zip(layers, layers[1:]):
-        for i in range(n):
-            j = (i + 1) % n
-            bm.faces.new((l0[i], l0[j], l1[j], l1[i])).material_index = mat_index
+# ---------------------------------------------------------------------------------------------
+# plan curves (sprite edge coordinates)
+
+# The hull's outer edge, left half from the back corner round to the front centre (the inner mask's
+# steps smoothed: x = 2 for rows 10-21, rounded front corners, row 24 behind the core).
+HULL_HALF = [(2.15, 9.75), (2.0, 10.6), (2.0, 21.0), (2.2, 22.0), (2.75, 22.85), (3.6, 23.5),
+             (4.8, 24.0), (6.4, 24.35), (8.2, 24.6), (10.0, 24.75), (12.0, 24.8)]
+HC = (12.0, 9.8)          # centre of the radial loft
+CREST_RX, CREST_RY, CREST_P = 9.0, 7.55, 2.25
+ZC, ZD = 4.4, 3.2         # crest and deck heights (px)
+
+
+def hull_outline():
+    pts = HULL_HALF + [(24 - c, r) for c, r in reversed(HULL_HALF[:-1])]
+    return pts
+
+
+def ray_outline(poly, c, d):
+    """Distance from c along unit d to the polygon (closed list)."""
+    best = None
+    n = len(poly)
     for i in range(n):
-        j = (i + 1) % n
-        bm.faces.new((layers[-1][i], layers[-1][j], top)).material_index = mat_index
-    bm.faces.new(list(reversed(layers[0]))).material_index = mat_index
+        ax, ay = poly[i]
+        bx, by = poly[(i + 1) % n]
+        ex_, ey_ = bx - ax, by - ay
+        den = d[0] * ey_ - d[1] * ex_
+        if abs(den) < 1e-9:
+            continue
+        t = ((ax - c[0]) * ey_ - (ay - c[1]) * ex_) / den
+        u = ((ax - c[0]) * d[1] - (ay - c[1]) * d[0]) / den
+        if t > 1e-6 and -1e-6 <= u <= 1 + 1e-6:
+            best = t if best is None else min(best, t)
+    return best
 
 
-def ellipsoid(bm, centre, radii, sides=14, rings=8, mat_index=0):
-    """An ellipsoid with radii (rx, ry, rz) at `centre`."""
+def crest_r(phi):
+    """Radius of the crest's superellipse about HC in sprite direction phi (deg; 180 left, 90 front)."""
+    a = math.radians(phi)
+    c, s = abs(math.cos(a)), abs(math.sin(a))
+    return 1.0 / ((c / CREST_RX) ** CREST_P + (s / CREST_RY) ** CREST_P) ** (1.0 / CREST_P)
+
+
+# ---------------------------------------------------------------------------------------------
+# geometry helpers (px space; everything is scaled by P at the end)
+
+def loft(bm, rings, mats, cap0=True, cap1=True):
+    import lib_b011 as lib
+    n0 = len(bm.faces)
+    lib.ring_loft(bm, rings, mats, cap_start=cap0, cap_end=cap1)
+    bm.faces.ensure_lookup_table()
+    return list(bm.faces[n0:])
+
+
+def hull_section(phi, dip=0.0):
+    """Closed (s, z, band material) profile of the cowl along the ray at phi (sprite direction)."""
+    a = math.radians(phi)
+    d = (math.cos(a), math.sin(a))
+    ro = ray_outline(hull_outline(), HC, d)
+    rc = crest_r(phi)
+    L = ro - rc
+    g = GLACIS
+    pts = [(rc - 2.0, 0.0, HULL), (ro, 0.0, GLACIS), (ro, 0.75, GLACIS), (ro - 0.22, 1.2, GLACIS)]
+    b = (ro - 0.4, 1.38)
+    t = (rc + 0.5, ZC - 0.22)
+    pts.append((b[0], b[1], g))
+    bulge = 0.35 if L > 2.5 else 0.1
+    for u in (0.2, 0.42, 0.64, 0.84):
+        s = b[0] + (t[0] - b[0]) * u
+        z = b[1] + (t[1] - b[1]) * (u + bulge * u * (1 - u))
+        pts.append((s, z - dip, g))
+    pts += [(t[0], t[1], CREST), (rc, ZC, CREST), (rc - 0.45, ZC - 0.14, HULL), (rc - 0.82, ZD + 0.4, HULL),
+            (rc - 1.0, ZD, HULL), (rc - 2.0, ZD, HULL)]
+    return pts, d
+
+
+SEAMS = (148.0, 118.0, 62.0, 32.0)
+
+
+def build_hull(bm):
+    st = [(180 - 5.0 * k, 0.0) for k in range(37) if all(abs(180 - 5.0 * k - s) > 1.8 for s in SEAMS)]
+    for s in SEAMS:
+        st += [(s + 0.6, 0.0), (s, 0.2), (s - 0.6, 0.0)]
+    st.sort(key=lambda q: -q[0])
+    rings, mats = [], []
+    profs = [hull_section(p, dip) for p, dip in st]
+    for prof, d in profs:
+        rings.append([(sx(HC[0] + d[0] * s), sy(HC[1] + d[1] * s), z) for s, z, _m in prof])
+    n = len(rings[0])
+    for k in range(len(st) - 1):
+        mats.append([profs[k][0][i][2] for i in range(n)])
+    return loft(bm, rings, mats)
+
+
+def build_deck(bm):
+    import lib_b011 as lib
+    pts = []
+    for k in range(25):
+        phi = 180 - 180 * k / 24
+        a = math.radians(phi)
+        r = crest_r(phi) - 1.4
+        pts.append((HC[0] + math.cos(a) * r, HC[1] + math.sin(a) * r))
+    pts += [(19.5, 8.4), (4.5, 8.4)]
+    outline = [(sx(c), sy(r)) for c, r in pts]
+    n0 = len(bm.faces)
+    lib.bevel_prism(bm, outline, 0.0, ZD + 0.05, 0.3, mat_index=DECK)
+    bm.faces.ensure_lookup_table()
+    return list(bm.faces[n0:])
+
+
+def arch_ring(y, w, top, bot, n=20, power=3.2, xc=0.0):
+    """A closed section in the XZ plane at Y=y: a superellipse arch of half width w from bot to top."""
+    ring = []
+    zc = bot
+    h = top - bot
+    for i in range(n + 1):
+        a = math.pi * i / n
+        ring.append((xc + w * sse(math.cos(a), power), y, zc + h * sse(math.sin(a), power)))
+    # flat bottom closing back (two corner verts under the arch ends)
+    return ring
+
+
+def build_column(bm):
+    # (sprite row edge, half width, top z, material)
+    st = [(7.4, 2.5, 5.9, MACH), (7.9, 2.85, 6.25, MACH), (8.5, 3.0, 6.45, MACH), (9.9, 3.0, 6.45, MACH),
+          (10.05, 2.85, 6.3, SEAM), (10.25, 2.85, 6.3, MACH), (10.4, 3.0, 6.45, MACH),
+          (11.75, 3.0, 6.4, MACH), (11.95, 2.55, 5.95, SEAM), (12.85, 2.55, 5.95, SEAM),
+          (13.05, 3.0, 6.3, MACH), (14.6, 3.0, 5.95, MACH), (15.7, 2.9, 5.45, MACH), (16.7, 2.7, 4.85, MACH),
+          (17.6, 2.35, 4.25, MACH)]
+    rings, mats = [], []
+    for r, w, top, m in st:
+        rings.append(arch_ring(sy(r), w, top, 2.4, n=18, power=3.0))
+        mats.append(m)
+    return loft(bm, rings, mats[:-1])
+
+
+def build_housing(bm):
+    """Barrel vault, rows 2.9-8.3, cols 6-18, with a V cradle cut into its back for the knob."""
+    xs = [-6.0 + 12.0 * i / 22 for i in range(23)]
+
+    xs = [x * 5.72 / 6.0 for x in xs]
+
+    def vault(x):
+        u = abs(x) / 5.72
+        if u > 0.93:
+            return 4.6 + (1 - u) / 0.07 * 0.75
+        return 5.35 + 1.7 * (1 - (u / 0.93) ** 2.4) ** 0.6
+
+    rows = [2.85, 3.3, 3.9, 4.5, 5.1, 5.7, 5.95, 6.1, 6.25, 6.5, 7.3, 8.0, 8.35]
+    rings, mats = [], []
+    for r in rows:
+        n = max(0.0, 2.9 * (5.8 - r) / 2.95)      # notch half width at the top
+        seam = 6.0 <= r <= 6.2
+        ring = [(-6.0, sy(r), 0.0), (-6.0, sy(r), 2.3), (-5.72, sy(r), 2.55)]
+        for x in xs:
+            z = vault(x)
+            if n > 0:
+                z = min(z, 5.1 + max(0.0, abs(x) - 0.3 * n) * 1.5)
+            if seam and abs(x) < 5.9:
+                z -= 0.18
+            if r >= 8.0:   # the front edge rounds over
+                z -= (r - 7.95) * 1.1
+            ring.append((x, sy(r), z))
+        ring += [(5.72, sy(r), 2.55), (6.0, sy(r), 2.3), (6.0, sy(r), 0.0)]
+        rings.append(ring)
+    for k in range(len(rows) - 1):
+        seam = 6.0 <= rows[k] <= 6.2 and 6.0 <= rows[k + 1] <= 6.2
+        mats.append(SEAM if seam else MACH)
+    return loft(bm, rings, mats)
+
+
+def build_rear_hatch(bm):
+    """A bolted access hatch on the housing's back wall, and a louvre band either side."""
+    import lib_b011 as lib
+    import usp_talon as T
+    n0 = len(bm.faces)
+    yb = sy(2.85)
+    for x0, x1, z0, z1 in ((-3.6, 3.6, 0.9, 3.9),):
+        lib.bevel_prism(bm, [(x0, yb - 0.1), (x1, yb - 0.1), (x1, yb + 0.35), (x0, yb + 0.35)], z0, z1, 0.0,
+                        mat_index=MACH)
+    # louvre slats (thin raised bars) on the back wall either side of the hatch
+    for side in (-1, 1):
+        for k in range(4):
+            z = 1.2 + 0.7 * k
+            lib.tube(bm, (side * 4.2, yb + 0.05, z), (side * 5.4, yb + 0.05, z), 0.16, sides=4, mat_index=SEAM)
+    bm.faces.ensure_lookup_table()
+    return list(bm.faces[n0:])
+
+
+def build_knob(bm):
+    import lib_b011 as lib
+    n0 = len(bm.faces)
+    lib.ellipsoid(bm, (0.0, sy(3.65), 5.5), (2.75, 1.85, 2.1), segments=18, rings=5, mat_index=KNOB)
+    # a seat ring under it
+    lib.ellipsoid(bm, (0.0, sy(3.75), 5.1), (2.95, 2.0, 0.55), segments=18, rings=2, mat_index=SEAM)
+    bm.faces.ensure_lookup_table()
+    return list(bm.faces[n0:])
+
+
+def build_drum(bm, side):
+    """A trunnion drum (axis along X) beside the column; side -1 left, +1 right."""
+    import lib_b011 as lib
+    yc, zc = sy(10.85), 4.15
+    # (distance from x=0 outward, radius, material)
+    R = 2.55
+    prof = [(2.55, 2.2, DRUM), (2.85, 2.5, DRUM), (3.05, R, DRUM), (3.35, R, SEAM), (3.45, R - 0.18, SEAM),
+            (3.6, R - 0.18, DRUM), (3.7, R, DRUM), (5.0, R, DRUM)]
+    for k in range(1, 6):   # a domed outer end
+        t = math.radians(16 * k)
+        prof.append((5.0 + 1.9 * math.sin(t), 0.8 + (R - 0.8) * math.cos(t) ** 0.8, DRUM))
+    prof += [(6.85, 1.3, MACH), (7.3, 1.25, MACH), (7.45, 1.0, MACH), (7.47, 0.0, MACH)]
+    segs = 16
+    rings, mats = [], []
+    for d, r, m in prof:
+        x = side * d
+        if r <= 0:
+            rings.append([(x, yc, zc)])
+        else:
+            rings.append([(x, yc + r * math.cos(2 * math.pi * (i + 0.5) / segs),
+                           zc + r * math.sin(2 * math.pi * (i + 0.5) / segs)) for i in range(segs)])
+        mats.append(m)
+    if side > 0:
+        rings = [list(reversed(rg)) for rg in rings]
+    faces = loft(bm, rings, mats[:-1], cap0=True, cap1=False)
+    # bolt heads round the hub
+    n0 = len(bm.faces)
+    from mathutils import Matrix
+    rot = Matrix.Rotation(math.radians(90 * side), 3, "Y")
+    for k in range(0):
+        t = 2 * math.pi * (k + 0.5) / 6
+        lib.ellipsoid(bm, (side * 6.95, yc + 1.0 * math.cos(t), zc + 1.0 * math.sin(t)),
+                      (0.2, 0.2, 0.12), segments=6, rings=2, mat_index=MACH, rot=rot, top_only=True)
+    bm.faces.ensure_lookup_table()
+    return faces + list(bm.faces[n0:])
+
+
+def superellipsoid(bm, centre, radii, pp=3.0, pv=2.3, segs=28, rings=10, mat=0, zmin=0.0):
     cx, cy, cz = centre
     rx, ry, rz = radii
-    sections = [(-ry, 0.0, 0.0, 0.0)]
-    for i in range(1, rings):
-        a = math.pi * i / rings
-        sections.append((-ry * math.cos(a), rx * math.sin(a), rz * math.sin(a), 0.0))
-    sections.append((ry, 0.0, 0.0, 0.0))
-    start = len(bm.verts)
-    common.loft(bm, sections, sides=sides, mat_index=mat_index)
-    bm.verts.ensure_lookup_table()
-    for v in bm.verts[start:]:
-        v.co.x += cx
-        v.co.y += cy
-        v.co.z += cz
+    rl = []
+    for k in range(-rings, rings + 1):
+        t = (math.pi / 2) * k / rings
+        if abs(k) == rings:
+            rl.append([(cx, cy, max(zmin, cz + rz * (1 if k > 0 else -1)))])
+            continue
+        cr, zr = sse(math.cos(t), pv), sse(math.sin(t), pv)
+        ring = []
+        for i in range(segs):
+            a = 2 * math.pi * (i + 0.5) / segs
+            ring.append((cx + rx * cr * sse(math.cos(a), pp), cy + ry * cr * sse(math.sin(a), pp),
+                         max(zmin, cz + rz * zr)))
+        rl.append(ring)
+    return loft(bm, rl, mat, cap0=False, cap1=False)
 
 
-def path_tube(bm, points, half_w, half_h, sides=8, mat_index=0):
-    """A tube along a horizontal-ish path of (x, y, z) points, an ellipse (half_w across, half_h up)."""
-    rings = []
-    n = len(points)
-    for i, (x, y, z) in enumerate(points):
-        x0, y0, _ = points[max(i - 1, 0)]
-        x1, y1, _ = points[min(i + 1, n - 1)]
-        dx, dy = x1 - x0, y1 - y0
-        d = math.hypot(dx, dy) or 1.0
-        nx, ny = -dy / d, dx / d
+def torus(bm, centre, rx, ry, tube, tz=None, segs=24, sides=8, mat=0, pp=2.0):
+    cx, cy, cz = centre
+    tz = tube if tz is None else tz
+    vs = []
+    for i in range(segs):
+        a = 2 * math.pi * i / segs
         ring = []
         for k in range(sides):
-            a = 2 * math.pi * (k + 0.5) / sides
-            c, s = math.cos(a) * half_w, math.sin(a) * half_h
-            ring.append(bm.verts.new((x + nx * c, y + ny * c, z + s)))
-        rings.append(ring)
-    for r0, r1 in zip(rings, rings[1:]):
+            b = 2 * math.pi * k / sides
+            rr = 1 + tube * math.cos(b) / ((rx + ry) / 2)
+            ring.append(bm.verts.new((cx + rx * rr * sse(math.cos(a), pp), cy + ry * rr * sse(math.sin(a), pp), cz + tz * math.sin(b))))
+        vs.append(ring)
+    n0 = len(bm.faces)
+    for i in range(segs):
+        r0, r1 = vs[i], vs[(i + 1) % segs]
         for k in range(sides):
             j = (k + 1) % sides
-            bm.faces.new((r0[k], r0[j], r1[j], r1[k])).material_index = mat_index
-    bm.faces.new(list(reversed(rings[0]))).material_index = mat_index
-    bm.faces.new(rings[-1]).material_index = mat_index
+            bm.faces.new((r0[k], r1[k], r1[j], r0[j])).material_index = mat
+    bm.faces.ensure_lookup_table()
+    return list(bm.faces[n0:])
 
 
-def mirrored(half):
-    """A left-half outline (top to bottom, edge coords) closed by its mirror image about column 12."""
-    return half + [(24 - c, r) for c, r in reversed(half)]
+CORE_C, CORE_R = (0.0, sy(22.35), 2.3), (4.15, 3.72, 3.05)
 
 
-def build(sprite):
-    coll = common.reset_collection(NAME)
-    pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
-    mats = [
-        pal(105, metallic=0.45, roughness=0.45),  # 0 hull
-        pal(108, metallic=0.5, roughness=0.35),  # 1 rim crest
-        pal(106, metallic=0.45, roughness=0.4),  # 2 housing and column
-        pal(6, metallic=0.6, roughness=0.25),  # 3 dark drums and knob
-        pal(245, metallic=0.2, roughness=0.3, emission_strength=2.5),  # 4 red core
-        pal(251, emission_strength=4.0),  # 5 core hot spot
-        pal(102, metallic=0.4, roughness=0.5),  # 6 grooves
-    ]
-    HULL, RIM, HOUSE, DRUM, CORE, HOT, GROOVE = range(7)
-    bm = bmesh.new()
+def build_core(bm):
+    import lib_b011 as lib
+    f = superellipsoid(bm, CORE_C, CORE_R, pp=3.1, pv=2.2, segs=24, rings=8, mat=CORE)
+    # a retaining collar hugging the bulb above its equator (inside its plan)
+    # the socket lip the bulb sits in (hull steel), low round its waist
+    f += torus(bm, (0.0, CORE_C[1], 0.95), CORE_R[0] * 0.95, CORE_R[1] * 0.95, 0.42, tz=0.5, segs=32, sides=8,
+               mat=GLACIS, pp=3.1)
+    # the launch port on top: a glowing ring round a dim bore
+    top = CORE_C[2] + CORE_R[2]
+    f += torus(bm, (0.0, sy(22.0), top - 0.3), 1.55, 1.42, 0.6, tz=0.38, segs=20, sides=8, mat=HOT)
+    n0 = len(bm.faces)
+    lib.ellipsoid(bm, (0.0, sy(22.0), top - 0.42), (1.1, 1.0, 0.3), segments=16, rings=3, mat_index=BORE)
+    bm.faces.ensure_lookup_table()
+    return f + list(bm.faces[n0:])
 
-    # Hull: the rounded body from row 8 down to row 24, columns 2-21, low and broad.
-    half = [(12, 8.0), (5.2, 8.0), (3.6, 8.9), (2.2, 10.3), (2.0, 12.5), (2.0, 18.0), (2.1, 21.0),
-            (2.8, 22.6), (4.0, 23.7), (6.5, 24.4), (9.5, 24.6)]
-    half = half[1:]  # the mirror closes the polygon through the centreline
-    pts = mirrored(half)
-    outline = [(ex(c), ey(r)) for c, r in reversed(pts)]
-    common_centre = (0.0, ey(15.5))
-    outline_dome(bm, outline, common_centre, 0.19, rings=5, mat_index=HULL)
 
-    # Horseshoe rim: the bright crest that runs down the left flank, round above the core and up
-    # the right flank (the 108-111 highlight arc, rows 10-17).
-    left = [(2.9, 10.0, 0.08), (3.3, 12.3, 0.15), (4.3, 14.3, 0.19), (5.8, 15.8, 0.21),
-            (8.0, 16.9, 0.22), (10.2, 17.4, 0.22)]
-    path = left + [(24 - c, r, z) for c, r, z in reversed(left)]
-    path = [(ex(c), ey(r), z) for c, r, z in path]
-    path_tube(bm, path, 1.5 / 12, 0.07, sides=8, mat_index=RIM)
-    # A broad lip under the crest so the flank reads as one raised wall, columns 2-6.
-    lip = [(3.6, 10.6, 0.06), (4.2, 12.6, 0.11), (5.3, 14.3, 0.14), (6.8, 15.4, 0.15)]
-    for flip in (False, True):
-        p = [((24 - c) if flip else c, r, z) for c, r, z in lip]
-        path_tube(bm, [(ex(c), ey(r), z) for c, r, z in p], 1.7 / 12, 0.08, sides=8, mat_index=HULL)
-
-    # Vaulted housing at the back: columns 6-18, rows 3-8, lit on its left, ridge down the middle.
-    vault = [(2.9, 5.6, 0.22), (3.5, 6.3, 0.29), (5.5, 6.4, 0.34), (7.3, 6.1, 0.33), (8.6, 5.0, 0.24)]
-    half_loft(bm, [(ey(r), w / 12, h, 0.0) for r, w, h in vault], sides=10, power=3.0, mat_index=HOUSE)
-    # The dark groove along its front edge (row 7).
-    path_tube(bm, [(ex(7.2), ey(7.6), 0.25), (ex(12), ey(8.0), 0.29), (ex(16.8), ey(7.6), 0.25)],
-              0.5 / 12, 0.03, sides=6, mat_index=GROOVE)
-
-    # Dark knob in the notch at the back (rows 2-5, columns 9-14).
-    ellipsoid(bm, (0.0, ey(3.4), 0.27), (2.7 / 12, 1.7 / 12, 0.1), sides=14, rings=7, mat_index=DRUM)
-
-    # Central column (columns 9-14, rows 8-17): a rounded spine with a groove at row 12.
-    col = [(7.8, 2.6, 0.27), (8.4, 3.0, 0.33), (11.4, 3.0, 0.32), (12.0, 2.5, 0.29), (12.7, 2.5, 0.29),
-           (13.3, 3.0, 0.31), (16.0, 2.9, 0.27), (17.4, 2.2, 0.2)]
-    half_loft(bm, [(ey(r), w / 12, h, 0.0) for r, w, h in col], sides=10, power=2.6, mat_index=HOUSE)
-    path_tube(bm, [(ex(9.3), ey(12.4), 0.27), (ex(12), ey(12.4), 0.3), (ex(14.7), ey(12.4), 0.27)],
-              0.5 / 12, 0.03, sides=6, mat_index=GROOVE)
-
-    # Dark drums either side of the column (rows 8-13, columns 4-7 and 16-19).
+def build_geometry(bm, sealed=False):
+    smooth, flat = [], []
+    smooth += build_hull(bm)
+    flat += build_deck(bm)
+    smooth += build_column(bm)
+    smooth += build_housing(bm)
+    smooth += build_knob(bm)
+    flat += build_rear_hatch(bm)
     for side in (-1, 1):
-        ellipsoid(bm, (side * (12 - 6.0) / 12, ey(10.6), 0.2), (2.3 / 12, 2.7 / 12, 0.14),
-                  sides=14, rings=8, mat_index=DRUM)
-
-    # Glowing red core bulging out of the front (rows 18-26, columns 8-15).
-    ellipsoid(bm, (0.0, ey(22.1), 0.07), (4.1 / 12, 4.3 / 12, 0.2), sides=16, rings=9, mat_index=CORE)
-    # Its hot centre, up and left like the sprite's yellow highlight (rows 20-22, columns 10-13).
-    ellipsoid(bm, (ex(11.3), ey(21.0), 0.2), (1.6 / 12, 1.5 / 12, 0.075), sides=10, rings=5, mat_index=HOT)
-
-    # Nothing below the ground.
-    for v in bm.verts:
-        v.co.z = max(v.co.z, 0.0)
-    return common.mesh_object(NAME, bm, mats, coll, smooth=True)
+        smooth += build_drum(bm, side)
+    smooth += build_core(bm)
+    return smooth, flat
 
 
-def main():
-    sprite = common.load_sprite(ROOT, NAME)
-    obj = build(sprite)
-    common.export_sprite_model(ROOT, [obj], MODEL, sprite["sprites"])
+def build():
+    import bmesh
+    import bpy
+    for o in list(bpy.data.objects):
+        bpy.data.objects.remove(o, do_unlink=True)
+    sprite = common.load_sprite(WT, NAME)
+    coll = common.reset_collection(NAME)
+    mats = []
+    for k, (idx, met, rough, lvl, em) in enumerate(MATS):
+        m = common.palette_material(sprite, idx, f"{NAME}_{k}", metallic=met, roughness=rough, emission_strength=em)
+        bsdf = next(n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+        if "Specular IOR Level" in bsdf.inputs:
+            bsdf.inputs["Specular IOR Level"].default_value = lvl
+        mats.append(m)
+
+    def make(sealed):
+        bm = bmesh.new()
+        smooth, flat = build_geometry(bm, sealed)
+        for v in bm.verts:
+            v.co *= P
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        for f in smooth:
+            f.smooth = True
+        for f in flat:
+            f.smooth = False
+        return bm
+
+    bm = make(False)
+    mesh = bpy.data.meshes.new(NAME)
+    bm.to_mesh(mesh)
+    bm.free()
+    for m in mats:
+        mesh.materials.append(m)
+    # auto-smooth-like: split hard creases so chamfers stay crisp
+    obj = bpy.data.objects.new(NAME, mesh)
+    coll.objects.link(obj)
+    try:
+        mod = obj.modifiers.new("smooth_by_angle", "NODES")
+        obj.modifiers.remove(mod)
+    except Exception:
+        pass
+    try:
+        mesh.set_sharp_from_angle(angle=math.radians(40))
+    except Exception:
+        pass
+
+    bm = make(True)
+    seal_me = bpy.data.meshes.new(NAME + "_seal")
+    bm.to_mesh(seal_me)
+    bm.free()
+    seal = bpy.data.objects.new(NAME + "_seal", seal_me)
+    coll.objects.link(seal)
+    bpy.context.view_layer.update()
+    shell = common.outline_shell(seal, coll, voxel=0.006, faces=3000, smooth=4, inside=0.002, islands="outer")
+    bpy.data.objects.remove(seal, do_unlink=True)
+    shell.name = f"{NAME}_outline"
+    assert len(shell.data.polygons) > 0, "empty outline shell"
+    mesh.calc_loop_triangles()
+    manifest = {"tris": len(mesh.loop_triangles), "shell_faces": len(shell.data.polygons),
+                "bbox_z_px": max(v.co.z for v in mesh.vertices) / P}
+    objs = [obj, shell]
+    common.export_sprite_model(WT, objs, MODEL, sprite["sprites"])
     if "--preview" in sys.argv:
-        out = sys.argv[sys.argv.index("--preview") + 1]
-        ref = ROOT / "reference" / "models" / NAME / sprite["frames"][0]["image"]
-        common.render_preview([obj], out, ref, size=sprite["frames"][0]["size"])
+        ref = WT / "reference" / "models" / NAME / sprite["frames"][0]["image"]
+        common.render_preview([obj], arg("--preview"), ref, size=sprite["frames"][0]["size"])
+    print("MANIFEST", json.dumps({NAME: manifest}))
 
 
 if __name__ == "__main__":
-    main()
+    build()

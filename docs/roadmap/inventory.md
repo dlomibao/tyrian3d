@@ -32,9 +32,9 @@ the game data and the repo by `tools/inventory.mjs`; the machine-readable versio
 | 1 | 18 | 888 | 159 / 0 / 159 | 0 | 2 / 2 / 2 | 9 (15) | 15 (15) | 3 (3) |
 | 2 | 12 | 683 | 146 / 1 / 147 | 0 | 2 / 1 / 2 | 6 (15) | 11 (11) | 2 (2) |
 | 3 | 12 | 1202 | 185 / 1 / 186 | 0 | 3 / 2 / 3 | 6 (21) | 15 (15) | 1 (1) |
-| 4 | 20 | 766 | 98 / 59 / 194 | 0 | 5 / 2 / 5 | 15 (55) | 18 (18) | 3 (3) |
+| 4 | 20 | 766 | 141 / 18 / 187 | 0 | 5 / 2 / 5 | 15 (55) | 18 (18) | 3 (3) |
 
-Whole game: 62 levels; 464 enemy units (366 flagship, 61 older-style models, 37 with frames still unmodelled), decor (indestructible boss and scenery pieces) included; 69 pickup and empty units; 5 tilesets (5 with HD art, 2 with structure models); 317 shot frames (238 with flat art); 33 songs used (33 remastered).
+Whole game: 62 levels; 457 enemy units (409 flagship, 20 older-style models, 28 with frames still unmodelled), decor (indestructible boss and scenery pieces) included; 69 pickup and empty units; 5 tilesets (5 with HD art, 2 with structure models); 317 shot frames (238 with flat art); 33 songs used (33 remastered).
 
 Unique sprites counts each enemy and pickup frame (normal and damaged) once per episode; boss units are
 the units created with a boss bar's link number (event 79), pieces included.
@@ -61,48 +61,48 @@ so a tileset shared by many levels is the biggest single piece of terrain work.
 
 | # | Unit | Kind | Status | Levels | Episodes | Events | Ticks | Where |
 |---|---|---|---|---|---|---|---|---|
-| 1 | newsh3-229 | air+ground | basic | 5 | 1 | 26 | 6135 | 4.5, 4.6, 4.8, 4.15, 4.20 |
-| 2 | newsh3-246 | ground | basic | 5 | 1 | 72 | 4584 | 4.6, 4.8, 4.12, 4.15, 4.20 |
-| 3 | newsh3-271 | ground | basic | 4 | 1 | 4 | 4940 | 4.8, 4.14, 4.15, 4.20 |
-| 4 | newsh3-195 | ground | basic | 3 | 1 | 111 | 8695 | 4.6, 4.9, 4.12 |
-| 5 | assembly-newsh5-203 | ground | basic | 3 | 1 | 304 | 7935 | 4.9, 4.15, 4.20 |
-| 6 | assembly-newshj-127 | air+decor | basic | 3 | 1 | 56 | 6340 | 2.1, 2.10, 2.12 |
-| 7 | newsh3-10 | ground | basic | 3 | 1 | 32 | 3636 | 4.4, 4.5, 4.8 |
-| 8 | newsh3-8 | ground | basic | 3 | 1 | 32 | 2225 | 4.4, 4.5, 4.8 |
-| 9 | assembly-newsh5-85 | ground (boss) | basic | 2 | 1 | 79 | 10972 | 4.15, 4.19 |
-| 10 | assembly-newsh5-117 | ground | basic | 2 | 1 | 105 | 10525 | 4.3, 4.19 |
-| 11 | newsh3-6 | ground (boss) | basic | 2 | 1 | 227 | 8043 | 4.6, 4.12 |
-| 12 | newsh3-180 | decor | basic | 2 | 1 | 50 | 6497 | 4.4, 4.10 |
-| 13 | newsh3-262 | decor | basic | 2 | 1 | 48 | 6472 | 4.4, 4.10 |
-| 14 | newsh3-282 | ground | basic | 2 | 1 | 48 | 6433 | 4.4, 4.10 |
-| 15 | assembly-newsh-hash-195 | ground | basic | 2 | 1 | 80 | 6294 | 3.4, 3.9 |
-| 16 | newsh5-268 | ground | basic | 2 | 1 | 218 | 6073 | 4.3, 4.19 |
-| 17 | assembly-newsh5-229 | ground | basic | 2 | 1 | 436 | 5982 | 4.3, 4.19 |
-| 18 | newsh5-47 | ground | basic | 2 | 1 | 16 | 5421 | 4.1, 4.12 |
-| 19 | newsh-caret-152 | ground | basic | 2 | 1 | 0 | 4669 | 4.7, 4.12 |
-| 20 | newsh9-41 | ground | basic | 2 | 1 | 18 | 4149 | 4.7, 4.12 |
-| 21 | newsh-caret-190 | ground | basic | 2 | 1 | 0 | 3211 | 4.7, 4.12 |
-| 22 | newsh3-126 | ground | basic | 2 | 1 | 52 | 2504 | 4.4, 4.5 |
-| 23 | newsh5-267 | ground | sprite | 2 | 1 | 0 | 148 | 4.14, 4.17 |
-| 24 | newsh5-286 | ground | sprite | 2 | 1 | 0 | 64 | 4.14, 4.17 |
-| 25 | newsh5-270 | ground (boss) | basic | 1 | 1 | 2 | 10565 | 4.16 |
-| 26 | newsh5-76 | ground | basic | 1 | 1 | 60 | 9789 | 4.15 |
-| 27 | newshl-39 | ground | sprite | 1 | 1 | 2 | 9268 | 4.17 |
-| 28 | newshl-41 | ground | sprite | 1 | 1 | 2 | 9268 | 4.17 |
-| 29 | assembly-newsh3-96 | ground (boss) | basic | 1 | 1 | 4 | 8985 | 4.5 |
-| 30 | assembly-newsh3-99 | ground (boss) | basic | 1 | 1 | 4 | 8985 | 4.5 |
-| 31 | assembly-newsh9-45 | ground (boss) | basic | 1 | 1 | 3 | 8654 | 4.13 |
-| 32 | assembly-newsh9-39 | ground (boss) | basic | 1 | 1 | 3 | 8315 | 4.13 |
-| 33 | assembly-newsh5-45 | ground (boss) | basic | 1 | 1 | 110 | 7920 | 4.1 |
-| 34 | newsh5-166 | ground | basic | 1 | 1 | 64 | 7451 | 4.15 |
-| 35 | assembly-newsh5-91 | ground (boss) | basic | 1 | 1 | 56 | 7275 | 4.16 |
-| 36 | assembly-newsh5-39 | ground (boss) | basic | 1 | 1 | 111 | 7117 | 4.1 |
-| 37 | assembly-newsh3-117 | ground (boss) | basic | 1 | 1 | 3 | 7005 | 4.5 |
-| 38 | assembly-newsh3-118 | ground (boss) | basic | 1 | 1 | 3 | 7005 | 4.5 |
-| 39 | assembly-newsh-caret-269 | ground (boss) | basic | 1 | 1 | 2 | 6864 | 4.16 |
-| 40 | newshl-1 | ground | sprite | 1 | 1 | 2 | 6372 | 4.17 |
+| 1 | assembly-newshj-127 | air+decor | basic | 3 | 1 | 56 | 6340 | 2.1, 2.10, 2.12 |
+| 2 | newsh3-8 | ground | basic | 3 | 1 | 32 | 2225 | 4.4, 4.5, 4.8 |
+| 3 | assembly-newsh-hash-195 | ground | basic | 2 | 1 | 80 | 6294 | 3.4, 3.9 |
+| 4 | newsh3-126 | ground | basic | 2 | 1 | 52 | 2504 | 4.4, 4.5 |
+| 5 | newsh5-267 | ground | sprite | 2 | 1 | 0 | 148 | 4.14, 4.17 |
+| 6 | newsh5-286 | ground | sprite | 2 | 1 | 0 | 64 | 4.14, 4.17 |
+| 7 | newshl-229 | ground | basic | 1 | 1 | 1 | 2829 | 4.18 |
+| 8 | assembly-newsh5-93 | ground | basic | 1 | 1 | 112 | 2640 | 4.11 |
+| 9 | assembly-newsh3-275 | air+ground | basic | 1 | 1 | 12 | 2604 | 4.5 |
+| 10 | assembly-newsh-caret-191 | air | basic | 1 | 1 | 24 | 2478 | 4.7 |
+| 11 | assembly-newsh3-86 | air | basic | 1 | 1 | 20 | 2260 | 4.4 |
+| 12 | newsh3-18 | air | basic | 1 | 1 | 58 | 2233 | 4.10 |
+| 13 | newsh-caret-68 | ground (boss) | basic | 1 | 1 | 68 | 2136 | 4.7 |
+| 14 | newsh3-14 | air | partial | 1 | 1 | 21 | 1642 | 4.4 |
+| 15 | newsh5-160 | air | basic | 1 | 1 | 16 | 1633 | 4.15 |
+| 16 | newsh5-133 | ground | basic | 1 | 1 | 48 | 1584 | 4.14 |
+| 17 | newsh3-1 | ground (boss) | basic | 1 | 1 | 50 | 1484 | 4.4 |
+| 18 | assembly-newsh3-122 | air | basic | 1 | 1 | 22 | 1430 | 4.4 |
+| 19 | newsh5-170 | ground | basic | 1 | 1 | 10 | 1400 | 4.15 |
+| 20 | newsh9-43 | ground (boss) | sprite | 1 | 1 | 2 | 1016 | 4.13 |
+| 21 | newsh-caret-201 | ground | sprite | 1 | 1 | 15 | 846 | 4.7 |
+| 22 | newsh-caret-50 | ground | sprite | 1 | 1 | 1 | 801 | 4.4 |
+| 23 | newsh-caret-49 | ground | sprite | 1 | 1 | 1 | 781 | 4.4 |
+| 24 | newsh-caret-11 | ground | sprite | 1 | 1 | 1 | 773 | 4.4 |
+| 25 | newsh-caret-13 | ground | sprite | 1 | 1 | 1 | 773 | 4.4 |
+| 26 | newsh-caret-129 | ground | sprite | 1 | 1 | 1 | 719 | 4.4 |
+| 27 | newsh-caret-131 | ground | sprite | 1 | 1 | 1 | 719 | 4.4 |
+| 28 | newsh-caret-200 | ground | sprite | 1 | 1 | 15 | 700 | 4.7 |
+| 29 | newsh-caret-133 | ground | sprite | 1 | 1 | 1 | 699 | 4.4 |
+| 30 | newsh-caret-92 | ground | sprite | 1 | 1 | 1 | 691 | 4.4 |
+| 31 | newsh-caret-94 | ground | sprite | 1 | 1 | 1 | 691 | 4.4 |
+| 32 | newsh-caret-198 | ground | sprite | 1 | 1 | 15 | 681 | 4.7 |
+| 33 | newsh-caret-203 | ground | sprite | 1 | 1 | 18 | 626 | 4.7 |
+| 34 | newsh-caret-204 | ground | sprite | 1 | 1 | 18 | 614 | 4.7 |
+| 35 | newshm-153 | ground | basic | 1 | 1 | 94 | 607 | 4.2 |
+| 36 | newsh5-83 | ground | basic | 1 | 1 | 12 | 603 | 4.15 |
+| 37 | newsh-caret-52 | ground | sprite | 1 | 1 | 1 | 593 | 4.4 |
+| 38 | newsh-caret-206 | ground | sprite | 1 | 1 | 18 | 590 | 4.7 |
+| 39 | assembly-newsh5-156 | ground | basic | 1 | 1 | 8 | 434 | 4.16 |
+| 40 | newshl-153 | ground | sprite | 1 | 1 | 0 | 256 | 4.17 |
 
-98 enemy units are not done; the full list is `ranking.units` in inventory.json.
+48 enemy units are not done; the full list is `ranking.units` in inventory.json.
 
 ### Pickups without flat art (top 20)
 
@@ -225,26 +225,26 @@ Between levels (the episode 3 script): section 13: song 9, anim, text, text, tex
 
 | Level | Name | Sections | Tileset | Terrain covered (0/1/2) | Structures | Enemy types | Units | Bosses | Songs | Special | Bot |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| 4.4 | SURFACE | 2 | shapes) | 32/32 0/5 0/1 | 0 | 71 | 26 / 5 / 10 / 11 | assembly-newsh3-198, newsh3-1 | 38 | headlight, difficulty change, text window | done, 6901 ticks, 27 seen |
-| 4.12 | LAVA RUN | 4 | shapes) | 14/14 20/21 0/1 | 0 | 73 | 22 / 15 / 7 / 0 | assembly-newsh9-10, assembly-newsh9-85, assembly-newshk-121, newsh3-6 +2 | 17 | flip, lava, difficulty change, text window, colour filter | done, 4514 ticks, 21 seen |
-| 4.5 | CORE | 6 | shapes) | 16/16 13/14 0/1 | 0 | 61 | 15 / 5 / 10 / 0 | assembly-newsh3-117, assembly-newsh3-118, assembly-newsh3-96, assembly-newsh3-99 | 23 | water, background 2 opaque, text window, colour filter, level timer, random explosions | done, 7730 ticks, 18 seen |
+| 4.4 | SURFACE | 2 | shapes) | 32/32 0/5 0/1 | 0 | 71 | 26 / 10 / 5 / 11 | assembly-newsh3-198, newsh3-1 | 38 | headlight, difficulty change, text window | done, 6901 ticks, 27 seen |
+| 4.12 | LAVA RUN | 4 | shapes) | 14/14 20/21 0/1 | 0 | 73 | 22 / 22 / 0 / 0 | assembly-newsh9-10, assembly-newsh9-85, assembly-newshk-121, newsh3-6 +2 | 17 | flip, lava, difficulty change, text window, colour filter | done, 4514 ticks, 21 seen |
+| 4.5 | CORE | 6 | shapes) | 16/16 13/14 0/1 | 0 | 61 | 15 / 12 / 3 / 0 | assembly-newsh3-117, assembly-newsh3-118, assembly-newsh3-96, assembly-newsh3-99 | 23 | water, background 2 opaque, text window, colour filter, level timer, random explosions | done, 7730 ticks, 18 seen |
 | 4.11 | ?TUNNEL? | 8 bonus | shapesw | 2/2 19/20 8/9 | 0 | 29 | 8 / 7 / 1 / 0 | assembly-newshj-191, assembly-newshj-267, newsh-hash-1, newsh-hash-3 +2 | 6 | background 2 opaque, text window, music fade, song change, level timer, random explosions | done, 2958 ticks, 7 seen |
-| 4.8 | ICE EXIT | 10 | shapesw | 3/3 20/21 1/1 | 0 | 47 | 13 / 8 / 5 / 0 | assembly-newsh-caret-54 | 4 | iced, text window | done, 4574 ticks, 14 seen |
-| 4.1 | HARVEST | 12 | shapesz | 16/16 0/1 52/53 | 35 | 47 | 13 / 8 / 5 / 0 | assembly-newsh5-39, assembly-newsh5-45, assembly-newsht-39 | 16 | text window | done, 8588 ticks, 13 seen |
-| 4.7 | UNDERDELI | 14 | shapes) | 22/22 0/1 0/1 | 0 | 79 | 24 / 12 / 5 / 7 | assembly-newsh9-10, assembly-newsh9-85, newsh-caret-68, newsh5-121 +3 | 36 | water, background 2 opaque, text window, difficulty change, level timer | done, 9921 ticks, 23 seen |
-| 4.3 | SAVARA IV | 16 | shapesy | 68/68 0/1 0/1 | 0 | 51 | 16 / 13 / 3 / 0 | assembly-newshf-195, assembly-newshf-270 | 33 | water, text window | done, 5846 ticks, 19 seen |
-| 4.14 | DREAD-NOT | 18 | shapesz | 0/1 0/1 0/3 | 0 | 69 | 24 / 20 / 2 / 2 | assembly-newsh9-10, assembly-newsh9-115, assembly-newsh9-119, assembly-newsh9-197 +10 | 35 | water, difficulty change, background 2 opaque | done, 25038 ticks, 21 seen |
-| 4.13 | EYESPY | 20 | shapesx | 29/30 13/14 0/1 | 0 | 53 | 14 / 7 / 6 / 1 | assembly-newsh-caret-196, assembly-newsh9-191, assembly-newsh9-210, assembly-newsh9-39 +3 | 13 | flip, difficulty change, text window, colour filter | done, 12373 ticks, 14 seen |
-| 4.15 | BRAINIAC | 22 | shapes) | 14/15 16/17 18/19 | 0 | 75 | 24 / 12 / 12 / 0 | assembly-newsh-caret-123, assembly-newsh-caret-54, assembly-newsh5-198, assembly-newsh5-233 +4 | 38 | headlight, iced-starfield, lava, difficulty change, background 2 opaque, text window, colour filter, random explosions | done, 13870 ticks, 25 seen |
-| 4.16 | NOSE DRIP | 25 | shapesz | 14/14 13/14 13/14 | 13 | 34 | 12 / 8 / 4 / 0 | assembly-newsh-caret-269, assembly-newsh5-191, assembly-newsh5-91, newsh5-121 +3 | 18 | water, text window | done, 9734 ticks, 10 seen |
+| 4.8 | ICE EXIT | 10 | shapesw | 3/3 20/21 1/1 | 0 | 47 | 13 / 12 / 1 / 0 | assembly-newsh-caret-54 | 4 | iced, text window | done, 4574 ticks, 14 seen |
+| 4.1 | HARVEST | 12 | shapesz | 16/16 0/1 52/53 | 35 | 47 | 13 / 13 / 0 / 0 | assembly-newsh5-39, assembly-newsh5-45, assembly-newsht-39 | 16 | text window | done, 8588 ticks, 13 seen |
+| 4.7 | UNDERDELI | 14 | shapes) | 22/22 0/1 0/1 | 0 | 79 | 24 / 16 / 2 / 6 | assembly-newsh9-10, assembly-newsh9-85, newsh-caret-68, newsh5-121 +3 | 36 | water, background 2 opaque, text window, difficulty change, level timer | done, 9921 ticks, 23 seen |
+| 4.3 | SAVARA IV | 16 | shapesy | 68/68 0/1 0/1 | 0 | 51 | 15 / 15 / 0 / 0 | assembly-newshf-195, assembly-newshf-270 | 33 | water, text window | done, 5846 ticks, 18 seen |
+| 4.14 | DREAD-NOT | 18 | shapesz | 0/1 0/1 0/3 | 0 | 69 | 24 / 21 / 1 / 2 | assembly-newsh9-10, assembly-newsh9-115, assembly-newsh9-119, assembly-newsh9-197 +10 | 35 | water, difficulty change, background 2 opaque | done, 25038 ticks, 21 seen |
+| 4.13 | EYESPY | 20 | shapesx | 29/30 13/14 0/1 | 0 | 53 | 14 / 13 / 0 / 1 | assembly-newsh-caret-196, assembly-newsh9-191, assembly-newsh9-210, assembly-newsh9-39 +3 | 13 | flip, difficulty change, text window, colour filter | done, 12373 ticks, 14 seen |
+| 4.15 | BRAINIAC | 22 | shapes) | 14/15 16/17 18/19 | 0 | 75 | 24 / 20 / 4 / 0 | assembly-newsh-caret-123, assembly-newsh-caret-54, assembly-newsh5-198, assembly-newsh5-233 +4 | 38 | headlight, iced-starfield, lava, difficulty change, background 2 opaque, text window, colour filter, random explosions | done, 13870 ticks, 25 seen |
+| 4.16 | NOSE DRIP | 25 | shapesz | 14/14 13/14 13/14 | 13 | 34 | 12 / 11 / 1 / 0 | assembly-newsh-caret-269, assembly-newsh5-191, assembly-newsh5-91, newsh5-121 +3 | 18 | water, text window | done, 9734 ticks, 10 seen |
 | 4.2 | WINDY | 27 bonus | shapesz | 17/17 0/1 0/3 | 15 | 19 | 8 / 7 / 1 / 0 | - | 1, 31 | song change | done, 3430 ticks, 7 seen |
-| 4.10 | DESERTRUN | 29 bonus | shapes) | 35/35 0/5 0/1 | 0 | 32 | 6 / 2 / 4 / 0 | - | 2, 21, 22 | blur, text window, song change | done, 2197 ticks, 14 seen |
-| 4.9 | LAVA EXIT | 31 | shapes) | 20/20 20/21 0/1 | 0 | 42 | 9 / 7 / 2 / 0 | assembly-newsh-caret-123, newsh5-51, newsh5-89 | 29 | lava, water, text window | done, 5675 ticks, 9 seen |
-| 4.6 | SIDE EXIT | 36 | shapes) | 7/7 13/14 0/1 | 0 | 36 | 7 / 3 / 4 / 0 | - | 23 | lava, background 2 opaque | done, 3818 ticks, 12 seen |
-| 4.17 | TIME WAR | 40 | shapes) | 21/21 1/1 6/7 | 0 | 40 | 27 / 9 / 0 / 18 | - | 37 | difficulty change | done, 6060 ticks, 27 seen |
+| 4.10 | DESERTRUN | 29 bonus | shapes) | 35/35 0/5 0/1 | 0 | 32 | 6 / 5 / 1 / 0 | - | 2, 21, 22 | blur, text window, song change | done, 2197 ticks, 14 seen |
+| 4.9 | LAVA EXIT | 31 | shapes) | 20/20 20/21 0/1 | 0 | 42 | 9 / 9 / 0 / 0 | assembly-newsh-caret-123, newsh5-51, newsh5-89 | 29 | lava, water, text window | done, 5675 ticks, 9 seen |
+| 4.6 | SIDE EXIT | 36 | shapes) | 7/7 13/14 0/1 | 0 | 36 | 7 / 7 / 0 / 0 | - | 23 | lava, background 2 opaque | done, 3818 ticks, 12 seen |
+| 4.17 | TIME WAR | 40 | shapes) | 21/21 1/1 6/7 | 0 | 40 | 21 / 11 / 0 / 10 | - | 37 | difficulty change | done, 6060 ticks, 21 seen |
 | 4.18 | SQUADRON | 45 | shapes) | 0/1 1/1 0/1 | 0 | 14 | 8 / 7 / 1 / 0 | - | 37 | difficulty change, clear enemies, map jump | unfinished, 60000 ticks, 8 seen |
-| 4.19 | APPROACH | 47 | shapesy | 1/1 14/14 0/1 | 0 | 41 | 13 / 8 / 5 / 0 | newsha-199 | 36 | blur, map jump, text window | done, 5013 ticks, 13 seen |
-| 4.20 | ICESECRET | 50 | shapesw | 22/23 14/14 0/1 | 0 | 52 | 14 / 10 / 4 / 0 | assembly-newsh-caret-123, assembly-newsh-caret-54 | 35, 4 | blur, headlight, level timer, background wrap, music fade, special weapon given, song change | done, 5030 ticks, 11 seen |
+| 4.19 | APPROACH | 47 | shapesy | 1/1 14/14 0/1 | 0 | 41 | 12 / 12 / 0 / 0 | newsha-199 | 36 | blur, map jump, text window | done, 5013 ticks, 12 seen |
+| 4.20 | ICESECRET | 50 | shapesw | 22/23 14/14 0/1 | 0 | 52 | 14 / 14 / 0 / 0 | assembly-newsh-caret-123, assembly-newsh-caret-54 | 35, 4 | blur, headlight, level timer, background wrap, music fade, special weapon given, song change | done, 5030 ticks, 11 seen |
 
 Between levels (the episode 4 script): section 23: song 34, picture 5, text, song 30, picture 5, text, picture 5, text, song 22, picture 5, text, picture 5, text; section 32: picture 13, text; section 37: picture 5, song 9, text; section 38: picture 5, song 29, text; section 41: picture 5, song 37, text, picture 5, text, picture 0, text; section 42: picture 5, song 9, text; section 43: song 8, picture 5, episode end; section 48: picture 5, song 40, text, picture 5, text, picture 5, song 39, text, picture 5, text, picture 5, text, picture 5, text.
 

@@ -1,16 +1,29 @@
-"""Helpers for batch b028: the grey robot arms of level 4.20 (newsh9.shp).
+"""Shared builder for EYESPY's (4.13) grey robot arms: assembly-newsh9-39 (left arm, newsh9 1/3/39) and
+assembly-newsh9-45 (right arm, newsh9 5/7/45, its pixel mirror). Design A of the D65 rebuild.
 
-Two arms hang into the screen from the top, one on each side: assembly-newsh9-39 (pieces
-newsh9-1, newsh9-3 and newsh9-39, the left arm) and assembly-newsh9-45 (newsh9-5, newsh9-7 and
-newsh9-45, the right arm, the left one mirrored and shifted one pixel). Each is three 2x2 enemies
-in an L: a rounded shoulder housing at the top right with two knuckles on it, a jaw block under
-it, a big grey upper arm running down to the left with a socket ring round a dark opening, and a
-forearm ending in a looped claw that holds a glowing blue gem.
+WHAT IT IS: two grey manipulator arms hung either side of the EYESPY boss (e4:351-356 spawn them at t4500
+on the top layer, rigid). Read from the 48 x 56 px left drawing:
+- a SHOULDER HOUSING across the top (a rounded drum lying along the screen, pal 7) with two machined
+  KNUCKLE DOMES on its crown (pal 10; their hot spots are sheen);
+- a lower NECK DECK (pal 6) where the upper arm leaves the housing;
+- the UPPER ARM: a raised armoured COWL (pal 9) with a broad glacis on its outer side over a rounded
+  box BEAM (pal 5) slanting down to the lower left, ending in a dark WRIST GEARBOX (pal 3);
+- a BALL JOINT (pal 9) at the elbow;
+- a C-shaped YOKE beside the arm: a bright rolled LIP (pal 10) over a recessed dark SOCKET (pal 4, a hub
+  at its centre) into the JAW block (pal 9); under the jaw a hydraulic ACTUATOR pod (pal 4) with two
+  piston RODS (pal 7) meeting at a clevis;
+- the FOREARM drum (pal 7, two machined bands) hanging under the elbow;
+- the CLAW: an open hoop of round tubing (pal 6) over a tapered FINGER (pal 4), its right side one
+  bright run of pipe (pal 9) down into a glowing blue GEM (pal 153) held in the finger's tip.
+Air unit: everything z >= 0, the underside a plain closed shape.
 
-`build_arm` builds the left arm in its assembly's pixel grid (48 x 56 px, pixel-edge coordinates:
-pixel column c spans c..c+1, rows count down the screen) and mirrors it for the right one.
-Helpers copied and adapted from assembly-newsht-39.py and lib_b003.py.
+Units while building: left-drawing pixel EDGES (c = column edge, r = row edge, down the screen) and z
+in px; Blender X = (c - 24) / 12, Y = (28 - r) / 12, Z = z / 12. The right arm is the left mirrored.
+
+Used by assembly-newsh9-39.py (exports the left pieces) and assembly-newsh9-45.py (the right pieces):
+run(script_file, side) builds only that side. Review outputs (--views / --pieces DIR) only on a flag.
 """
+
 
 import math
 import sys
@@ -23,21 +36,26 @@ from mathutils import Vector
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import common  # noqa: E402
 
-PX = 1 / 12  # one sprite pixel in units
-W, H = 48, 56  # assembly grid in pixels
+WT = common.repo_root(__file__)
+import usp_talon as T  # noqa: E402
+
+HERE = Path(__file__).resolve().parent
+NAME = "assembly-newsh9-39"
+TAG = "nsh9arm"
+W, H = 48, 56
+WINDOWS = {
+    "left": {"newsh9-1": (0, 0), "newsh9-3": (24, 0), "newsh9-39": (0, 28)},
+    "right": {"newsh9-5": (0, 0), "newsh9-7": (24, 0), "newsh9-45": (24, 28)},
+}
+
+# material slots
+(HOUSE, KNUCK, NECK, COWL, BEAM, WRIST, BALL, LIP, SOCK, HUB, JAW, ACT, ROD, FORE, HOOP, FING, PIPE,
+ GEM) = range(18)
 
 
-def X(c):
-    """Assembly pixel-edge column to Blender X (the grid's centre is the origin)."""
-    return (c - W / 2) / 12
+def V(c, r, z):
+    return Vector(((c - W / 2) / 12, (H / 2 - r) / 12, z / 12))
 
-
-def Y(r):
-    """Assembly pixel-edge row to Blender Y: sprite up is +Y."""
-    return (H / 2 - r) / 12
-
-
-# --- geometry helpers --------------------------------------------------------------------------
 
 def _faces(bm, faces, mat, smooth):
     for f in faces:
@@ -45,286 +63,497 @@ def _faces(bm, faces, mat, smooth):
         f.smooth = smooth
 
 
-def sweep(bm, path, sides=10, mat=0, smooth=True, closed=False, cap_start=True, cap_end=True):
-    """A tube along a path of (col, row, z, half_width_px, half_height_units). Rings stand
-    perpendicular to the path in the XY plane; a ring of zero size collapses to a point.
-    `closed` joins the last ring back to the first (a loop)."""
-    pts = [Vector((X(c), Y(r), z)) for c, r, z, _, _ in path]
-    n = len(pts)
+# --- geometry helpers (px) ------------------------------------------------------------------------
+
+def ring_frame(t):
+    t = t.normalized()
     up = Vector((0, 0, 1))
+    side = t.cross(up)
+    if side.length < 1e-6:
+        side = Vector((1, 0, 0))
+    side.normalize()
+    return side, side.cross(t).normalized()
+
+
+def tube(bm, stations, sides=16, mat=ROD, cap0=True, cap1=True, smooth=True, zscale=1.0, matf=None,
+         closed=False):
+    """A round tube along stations [(c, r, z, radius)] (px). `closed` joins the last ring to the first
+    (a loop). matf(c, r) -> material per segment (optional)."""
+    pts = [Vector((c, r, z)) for c, r, z, _ in stations]
+    n = len(pts)
     rings = []
-    for i, (c, r, z, w, h) in enumerate(path):
+    for i, (c, r, z, rad) in enumerate(stations):
         if closed:
-            t = pts[(i + 1) % n] - pts[(i - 1) % n]
+            t = pts[(i + 1) % n] - pts[i - 1]
         else:
             t = pts[min(i + 1, n - 1)] - pts[max(i - 1, 0)]
-        t.z = 0
-        t.normalize()
-        side = t.cross(up)
-        if w == 0 and h == 0:
-            rings.append([bm.verts.new(pts[i])])
-            continue
+        side, upv = ring_frame(t)
         ring = []
         for k in range(sides):
-            a = 2 * math.pi * (k + 0.5) / sides
-            ring.append(bm.verts.new(pts[i] + side * (w * PX * math.cos(a)) + up * (h * math.sin(a))))
+            a = 2 * math.pi * k / sides
+            p = pts[i] + side * (rad * math.cos(a)) + upv * (rad * zscale * math.sin(a))
+            ring.append(bm.verts.new(V(p.x, p.y, p.z)))
         rings.append(ring)
-    pairs = list(zip(rings, rings[1:]))
-    if closed:
-        pairs.append((rings[-1], rings[0]))
-    faces = []
-    for r0, r1 in pairs:
-        if len(r0) == 1 and len(r1) == 1:
-            continue
-        for k in range(sides):
-            j = (k + 1) % sides
-            if len(r0) == 1:
-                f = (r0[0], r1[j], r1[k])
-            elif len(r1) == 1:
-                f = (r0[k], r0[j], r1[0])
-            else:
-                f = (r0[k], r0[j], r1[j], r1[k])
-            faces.append(bm.faces.new(f))
+    pairs = list(zip(rings, rings[1:])) + ([(rings[-1], rings[0])] if closed else [])
+    for si, (r0, r1) in enumerate(pairs):
+        fs = [bm.faces.new((r0[k], r0[(k + 1) % sides], r1[(k + 1) % sides], r1[k])) for k in range(sides)]
+        m = mat
+        if matf:
+            a, b = stations[si], stations[(si + 1) % n]
+            m = matf((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+        _faces(bm, fs, m, smooth)
     if not closed:
-        if cap_start and len(rings[0]) > 1:
-            faces.append(bm.faces.new(list(reversed(rings[0]))))
-        if cap_end and len(rings[-1]) > 1:
-            faces.append(bm.faces.new(rings[-1]))
-    _faces(bm, faces, mat, smooth)
+        for end, cap in ((0, cap0), (-1, cap1)):
+            if not cap:
+                continue
+            ring = rings[end]
+            ctr = bm.verts.new(sum((v.co for v in ring), Vector()) / len(ring))
+            fs = []
+            for k in range(sides):
+                a, b = ring[k], ring[(k + 1) % sides]
+                fs.append(bm.faces.new((b, a, ctr) if end == 0 else (a, b, ctr)))
+            _faces(bm, fs, mat if not matf else matf(*stations[end][:2]), smooth)
 
 
-def ellipsoid(bm, col, row, z, rx_px, ry_px, rz, mat=0, segments=14, rings=7, smooth=True):
-    """An ellipsoid centred on pixel-edge point (col, row) at height z."""
-    before = set(bm.faces)
-    res = bmesh.ops.create_uvsphere(bm, u_segments=segments, v_segments=rings, radius=1.0)
-    for v in res["verts"]:
-        v.co = Vector((X(col) + v.co.x * rx_px * PX, Y(row) + v.co.y * ry_px * PX, z + v.co.z * rz))
-    _faces(bm, set(bm.faces) - before, mat, smooth)
+def poly_area(pts):
+    return 0.5 * sum(pts[i][0] * pts[(i + 1) % len(pts)][1] - pts[(i + 1) % len(pts)][0] * pts[i][1]
+                     for i in range(len(pts)))
 
 
-def _inset(outline, d):
-    """Move each vertex of a closed XY outline inward by `d` (from lib_b003.inset_outline)."""
-    n = len(outline)
-    area = sum(outline[i][0] * outline[(i + 1) % n][1] - outline[(i + 1) % n][0] * outline[i][1]
-               for i in range(n))
-    sign = 1 if area > 0 else -1
+def offset_poly(pts, ds):
+    """Move each edge i (pts[i] -> pts[i+1]) inward by ds[i] (or one d) and intersect neighbours."""
+    n = len(pts)
+    if not isinstance(ds, (list, tuple)):
+        ds = [ds] * n
+    sgn = 1 if poly_area(pts) > 0 else -1
+    lines = []
+    for i in range(n):
+        a, b = Vector(pts[i]), Vector(pts[(i + 1) % n])
+        d = (b - a).normalized()
+        lines.append((a + Vector((-d.y, d.x)) * sgn * ds[i], d))
     out = []
     for i in range(n):
-        p0, p1, p2 = outline[i - 1], outline[i], outline[(i + 1) % n]
-        normals = []
-        for a, b in ((p0, p1), (p1, p2)):
-            ex_, ey_ = b[0] - a[0], b[1] - a[1]
-            length = math.hypot(ex_, ey_) or 1.0
-            normals.append((-ey_ / length * sign, ex_ / length * sign))
-        nx, ny = normals[0][0] + normals[1][0], normals[0][1] + normals[1][1]
-        length = math.hypot(nx, ny) or 1.0
-        nx, ny = nx / length, ny / length
-        cos_half = max(0.35, nx * normals[0][0] + ny * normals[0][1])
-        out.append((p1[0] + nx * d / cos_half, p1[1] + ny * d / cos_half))
+        p1, d1 = lines[i - 1]
+        p2, d2 = lines[i]
+        den = d1.x * d2.y - d1.y * d2.x
+        if abs(den) < 1e-9:
+            out.append(tuple(p2))
+            continue
+        tt = ((p2.x - p1.x) * d2.y - (p2.y - p1.y) * d2.x) / den
+        q = p1 + d1 * tt
+        out.append((q.x, q.y))
     return out
 
 
-def plate(bm, outline, z0, z1, mat=0, bevel=0.0, top_mat=None, tilt=None):
-    """A prism from z0 up to z1 over an outline of (col, row) pixel edges, its top edges chamfered
-    in by `bevel` px. `tilt` (dz_per_col, dz_per_row, col0, row0) slopes the top: each top vertex
-    is raised by dz_per_col * (c - col0) + dz_per_row * (r - row0)."""
-    pts = [(X(c), Y(r)) for c, r in outline]
-    area = sum(pts[i][0] * pts[(i + 1) % len(pts)][1] - pts[(i + 1) % len(pts)][0] * pts[i][1]
-               for i in range(len(pts)))
-    if area < 0:
-        outline = list(reversed(outline))
-        pts = list(reversed(pts))
-    top = _inset(pts, bevel * PX) if bevel else pts
+def chaikin(pts, it=2, keep=()):
+    """Corner-cutting (closed polygon): rounds the plan where the sprite is round."""
+    for _ in range(it):
+        out = []
+        n = len(pts)
+        for i in range(n):
+            a, b = Vector(pts[i]), Vector(pts[(i + 1) % n])
+            out.append(tuple(a * 0.75 + b * 0.25))
+            out.append(tuple(a * 0.25 + b * 0.75))
+        pts = out
+    return pts
 
-    def dz(x, y):
-        if not tilt:
-            return 0.0
-        c, r = x * 12 + W / 2, H / 2 - y * 12
-        return tilt[0] * (c - tilt[2]) + tilt[1] * (r - tilt[3])
 
-    bh = min(bevel * PX * 0.8, (z1 - z0) * 0.5) if bevel else 0.0
+def block(bm, outline, z0, z1, mat, top_mat=None, insets=0.8, chz=0.8, round_it=1, steps=2):
+    """A hard-surface block on a plan outline (pixel edges): vertical walls from z0, then a rounded
+    chamfer (`steps` facets, a quarter round) of plan inset `insets` (per edge allowed) and height
+    `chz` to the flat top at z1. The outline is corner-rounded by Chaikin first."""
+    n0 = len(outline)
+    if isinstance(insets, (list, tuple)):
+        ins = list(insets)
+    else:
+        ins = [insets] * n0
+    pts = outline
+    for _ in range(round_it):  # carry per-edge insets through the corner cutting
+        newp, newi = [], []
+        n = len(pts)
+        for i in range(n):
+            a, b = Vector(pts[i]), Vector(pts[(i + 1) % n])
+            newp += [tuple(a * 0.75 + b * 0.25), tuple(a * 0.25 + b * 0.75)]
+            newi += [ins[i], (ins[i] + ins[(i + 1) % n]) / 2]
+        pts, ins = newp, newi
     n = len(pts)
-    lo = [bm.verts.new((x, y, z0)) for x, y in pts]
-    mid = [bm.verts.new((x, y, z1 - bh + dz(x, y))) for x, y in pts]
-    hi = [bm.verts.new((x, y, z1 + dz(x, y))) for x, y in top]
-    faces = [bm.faces.new(list(reversed(lo)))]
-    tf = bm.faces.new(hi)
-    for i in range(n):
-        j = (i + 1) % n
-        faces.append(bm.faces.new((lo[i], lo[j], mid[j], mid[i])))
-        if bevel:
-            faces.append(bm.faces.new((mid[i], mid[j], hi[j], hi[i])))
-    _faces(bm, faces, mat, False)
-    _faces(bm, [tf], mat if top_mat is None else top_mat, False)
+    layers = [[bm.verts.new(V(c, r, z0)) for c, r in pts]]
+    for k in range(steps + 1):
+        a = 0.5 * math.pi * k / steps
+        f = 1 - math.cos(a)
+        ring = offset_poly(pts, [d * f for d in ins]) if f > 1e-6 else pts
+        z = z1 - chz + chz * math.sin(a)
+        layers.append([bm.verts.new(V(c, r, z)) for c, r in ring])
+    walls = []
+    for lo, hi in zip(layers, layers[1:]):
+        for k in range(n):
+            walls.append(bm.faces.new((lo[k], lo[(k + 1) % n], hi[(k + 1) % n], hi[k])))
+    _faces(bm, walls, mat, True)
+    _faces(bm, [bm.faces.new(list(reversed(layers[0])))], mat, False)
+    top = bm.faces.new(layers[-1])
+    _faces(bm, [top], top_mat if top_mat is not None else mat, False)
+    return top
 
 
-def to_object(name, bm, mats, coll):
-    """Like common.mesh_object, but keeps each face's own smooth/flat flag."""
-    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    mesh = bpy.data.meshes.new(name)
-    bm.to_mesh(mesh)
-    bm.free()
-    for m in mats:
-        mesh.materials.append(m)
-    obj = bpy.data.objects.new(name, mesh)
-    coll.objects.link(obj)
-    return obj
+def superellipse(theta, p):
+    cs, sn = math.cos(theta), math.sin(theta)
+    return math.copysign(abs(cs) ** (2 / p), cs), math.copysign(abs(sn) ** (2 / p), sn)
 
 
-def merged_sprite(root, pieces):
-    """The first piece's sprite.json with every piece's colours, so any piece's index is valid."""
-    data = common.load_sprite(root, pieces[0])
-    for name in pieces[1:]:
-        data["colors"].update(common.load_sprite(root, name)["colors"])
+def loft(bm, stations, mat, sides=24, p=2.6, dense=0.5, matf=None, cap0=True, cap1=True, grooves=(), normal=None):
+    """A faired loft along a plan polyline: stations [(c, r, hw, zb, zt)], the section a superellipse
+    of exponent p, half-width hw across the axis and z from zb to zt. Stations are interpolated with
+    pchip along the arc length (D52) every `dense` px. `grooves` [(s_px, depth_px, width_px)] cut
+    modelled panel lines round the crown (upper half only, so the plan is untouched).
+    matf(c, r, z, nz) -> material for a face (optional)."""
+    s = [0.0]
+    for a, b in zip(stations, stations[1:]):
+        s.append(s[-1] + math.hypot(b[0] - a[0], b[1] - a[1]))
+    fs = [T.pchip(s, [st[k] for st in stations]) for k in range(5)]
+    L = s[-1]
+    m = max(2, int(math.ceil(L / dense)))
+    ss = sorted(set([L * i / m for i in range(m + 1)] + s
+                    + [g[0] + d for g in grooves for d in (-g[2] / 2, -g[2] / 6, g[2] / 6, g[2] / 2)]))
+    ss = [x for x in ss if 0 <= x <= L]
+    rings = []
+    for x in ss:
+        c, r, hw, zb, zt = (f(x) for f in fs)
+        e = 0.05
+        c1, r1 = fs[0](min(L, x + e)), fs[1](min(L, x + e))
+        c0, r0 = fs[0](max(0, x - e)), fs[1](max(0, x - e))
+        tx, ty = c1 - c0, r1 - r0
+        ln = math.hypot(tx, ty) or 1
+        nx, ny = (-ty / ln, tx / ln) if normal is None else normal
+        gd = 0.0
+        for g in grooves:
+            if abs(x - g[0]) < g[2] / 3:
+                gd = max(gd, g[1])
+        zm, hz = (zb + zt) / 2, (zt - zb) / 2
+        ring = []
+        for k in range(sides):
+            th = 2 * math.pi * k / sides
+            u, w = superellipse(th, p)
+            sc = 1.0
+            if gd and w > 0.2:
+                sc = 1 - gd / max(hz, 0.5) * min(1, (w - 0.2) / 0.5)
+            ring.append(bm.verts.new(V(c + nx * hw * u * sc, r + ny * hw * u * sc, zm + hz * w * sc)))
+        rings.append(ring)
+    faces = []
+    for a, b in zip(rings, rings[1:]):
+        for k in range(sides):
+            faces.append(bm.faces.new((a[k], a[(k + 1) % sides], b[(k + 1) % sides], b[k])))
+    _faces(bm, faces, mat, True)
+    for end, cap in ((0, cap0), (-1, cap1)):
+        if not cap:
+            continue
+        ring = rings[end]
+        f = bm.faces.new(list(reversed(ring)) if end == 0 else ring)
+        _faces(bm, [f], mat, False)
+        faces.append(f)
+    if matf:
+        for f in faces:
+            f.normal_update()
+            q = f.calc_center_median()
+            f.material_index = matf(q.x * 12 + W / 2, H / 2 - q.y * 12, q.z * 12, f.normal.z)
+    return faces
+
+
+def ellipsoid(bm, c, r, z, a, b, h, mat, rot=0.0, segs=20, rings=10, lower=1.0, flat=1.0):
+    """An ellipsoid at (c, r, z): semi-axes a (along c, turned by rot degrees), b, h; `lower` scales the
+    lower half's height, `flat` < 1 broadens the crown."""
+    res = bmesh.ops.create_uvsphere(bm, u_segments=segs, v_segments=rings, radius=1.0)
+    ca, sa = math.cos(math.radians(rot)), math.sin(math.radians(rot))
+    for v in res["verts"]:
+        x, y, t = v.co
+        t = (abs(t) ** flat if t > 0 else t * lower)
+        u, w = x * a, -y * b
+        v.co = V(c + u * ca - w * sa, r + u * sa + w * ca, z + t * h)
+    fs = list({f for v in res["verts"] for f in v.link_faces})
+    _faces(bm, fs, mat, True)
+    return fs
+
+
+def cyl(bm, c, r, z0, z1, rc, rr, mat, sides=24, top_mat=None, ch=0.3):
+    """A vertical elliptic cylinder with a chamfered top edge."""
+    rings = []
+    for z, s in ((z0, 1.0), (z1 - ch, 1.0), (z1, 1 - ch / max(min(rc, rr), 0.5))):
+        rings.append([bm.verts.new(V(c + rc * s * math.cos(2 * math.pi * k / sides),
+                                     r + rr * s * math.sin(2 * math.pi * k / sides), z)) for k in range(sides)])
+    fs = []
+    for a, b in zip(rings, rings[1:]):
+        for k in range(sides):
+            fs.append(bm.faces.new((a[k], b[k], b[(k + 1) % sides], a[(k + 1) % sides])))
+    _faces(bm, fs, mat, True)
+    _faces(bm, [bm.faces.new(rings[0])], mat, False)
+    _faces(bm, [bm.faces.new(list(reversed(rings[-1])))], top_mat if top_mat is not None else mat, False)
+
+
+def bolt(bm, c, r, z, rad=0.38, h=0.32, mat=HUB):
+    tube(bm, [(c, r, z - 0.3, rad), (c, r, z + h, rad), (c, r, z + h + 0.12, rad * 0.6)], sides=6, mat=mat,
+         smooth=False)
+
+
+# --- the left arm ---------------------------------------------------------------------------------
+
+def build_left(bm):
+    # SHOULDER HOUSING: a rounded drum lying along the screen (rows 3-12, cols 24-46), crown about 8.7
+    # px, two seam grooves round it.
+    hs = [(24.3, 8.2, 12.4, 5.0), (25.2, 7.1, 12.5, 6.2), (26.3, 6.1, 12.6, 6.8), (27.2, 5.25, 12.6, 7.2),
+          (29.0, 5.1, 12.7, 7.6), (30.6, 4.95, 12.8, 7.9), (31.4, 4.2, 12.8, 8.1), (32.6, 3.8, 12.8, 8.3),
+          (33.5, 3.1, 12.8, 8.5), (36.0, 2.95, 12.8, 8.7), (38.6, 3.05, 12.7, 8.7), (39.4, 3.75, 12.6, 8.6),
+          (40.6, 3.95, 12.45, 8.5), (41.4, 4.0, 12.1, 8.3), (42.1, 4.05, 11.05, 8.1), (43.6, 4.15, 10.95, 7.6),
+          (44.4, 4.85, 10.9, 7.2), (45.1, 5.6, 10.75, 6.6), (45.7, 6.3, 10.4, 5.6), (46.1, 7.2, 9.7, 4.2)]
+    loft(bm, [(c, (rt + rb) / 2, (rb - rt) / 2, 0.6, zt) for c, rt, rb, zt in hs], HOUSE, sides=28, p=2.4,
+         grooves=[(5.5, 0.3, 0.6), (19.2, 0.3, 0.6)], normal=(0.0, 1.0))
+    # end hub on the outer end of the drum (machined boss)
+    tube(bm, [(45.75, 8.25, 3.0, 1.35), (46.15, 8.25, 3.0, 1.15)], sides=14, mat=HUB)
+    # knuckle domes on the crown
+    ellipsoid(bm, 37.4, 5.7, 7.7, 2.05, 2.2, 1.55, KNUCK, segs=18, rings=9, lower=0.6)
+    ellipsoid(bm, 41.5, 6.9, 7.5, 1.85, 2.0, 1.45, KNUCK, segs=18, rings=9, lower=0.6)
+    for cc, rr in ((37.4, 5.7), (41.5, 6.9)):
+        tube(bm, [(cc, rr, 7.1, 2.25 if cc < 40 else 2.05), (cc, rr, 7.9, 2.25 if cc < 40 else 2.05)],
+             sides=18, mat=HUB, cap0=False, cap1=True)
+
+    # NECK DECK where the upper arm leaves the housing (rows 8-12, cols 19-28), a lower deck.
+    block(bm, [(19.15, 10.1), (20.1, 9.05), (24.0, 9.0), (24.3, 8.4), (26.0, 7.9), (27.6, 9.8), (27.8, 12.4),
+               (17.15, 12.7), (17.9, 11.15)], 0.8, 6.6,
+          NECK, insets=[0.9, 0.9, 0.9, 0.6, 0.6, 0.6, 0.6, 0.9, 0.9], chz=0.9, round_it=0)
+
+    # COWL: the raised armour over the upper arm (rows 11-20, cols 16-28), a broad glacis down its
+    # outer side.
+    before = set(bm.faces)
+    block(bm, [(17.3, 11.6), (27.7, 11.2), (27.8, 14.0), (26.8, 18.2), (25.0, 20.0), (19.6, 19.4),
+               (16.05, 16.4), (16.1, 13.0)], 1.0, 9.0, COWL,
+          insets=[0.8, 0.6, 0.6, 0.6, 0.8, 3.0, 3.8, 2.6], chz=2.2, steps=1)
+    for f in set(bm.faces) - before:  # the outer glacis is a darker side panel (pal 5, the sprite's band)
+        f.normal_update()
+        q = f.calc_center_median()
+        if abs(f.normal.z) < 0.99 and q.x * 12 + W / 2 < 20.6 and q.z * 12 > 2.0:
+            f.material_index = BEAM
+    bolt(bm, 25.4, 13.0, 9.0, mat=COWL)
+    bolt(bm, 24.8, 17.6, 9.0, mat=COWL)
+
+    # BEAM: a rounded box slanting down to the lower left under the cowl.
+    u = Vector((-0.68, 0.733))
+    a0 = Vector((21.4, 17.6))
+    st = []
+    for s_, hw, zt in ((0.0, 4.6, 7.0), (3.0, 4.85, 6.8), (7.0, 4.95, 6.4), (10.5, 4.75, 6.0), (13.0, 4.5, 5.4)):
+        q = a0 + u * s_
+        st.append((q.x, q.y, hw, 0.5, zt))
+    loft(bm, st, BEAM, sides=24, p=3.2, grooves=[(8.6, 0.25, 0.5)])
+
+    # WRIST GEARBOX at the beam's lower end (rows 24-31, cols 8-18).
+    block(bm, [(9.1, 24.3), (12.6, 23.4), (17.6, 26.4), (17.8, 30.4), (12.8, 31.0), (8.6, 31.3), (7.6, 31.3),
+               (8.1, 30.2), (9.1, 29.9)], 0.3, 4.6,
+          WRIST, insets=0.9, chz=1.0)
+
+    # BALL JOINT at the elbow (rows 19-29.5, cols 17-25).
+    ellipsoid(bm, 21.05, 24.45, 4.3, 3.95, 5.0, 4.3, BALL, segs=24, rings=12, lower=0.85)
+
+    # SOCKET: a recessed dark cup inside the yoke (rows 13-23, cols 26-35), a hub at its centre.
+    block(bm, [(24.6, 15.0), (26.8, 12.9), (31.0, 12.8), (34.2, 14.3), (35.7, 18.6), (35.7, 24.2), (29.6, 24.2),
+               (28.9, 23.0), (26.0, 23.0), (25.95, 24.0), (24.45, 24.0), (24.4, 19.0)], 0.4, 3.0, SOCK, insets=0.5,
+          chz=0.5, round_it=0)
+    cyl(bm, 30.6, 18.6, 2.6, 3.5, 1.7, 1.8, HUB, sides=16)
+    # LIP: the bright rolled edge of the yoke, arching over the socket into the jaw.
+    lip = [(26.9, 12.6, 7.3, 1.0), (28.6, 12.75, 7.6, 1.1), (30.6, 13.05, 7.6, 1.15), (32.4, 13.9, 7.5, 1.15),
+           (33.7, 15.5, 7.3, 1.1), (34.9, 17.2, 7.1, 1.05), (36.4, 18.4, 6.9, 0.95), (37.6, 19.0, 6.6, 0.8)]
+    tube(bm, [(c, r, z, rad * 1.15) for c, r, z, rad in lip], sides=14, mat=LIP, zscale=1.1)
+    # the yoke's curved web under the lip, down to the socket floor (hidden from above by the lip)
+    loft(bm, [(c, r, rad * 0.75, 1.0, z) for c, r, z, rad in lip], SOCK, sides=16, p=4.0)
+
+    # JAW block under the housing (rows 13-22, cols 34-44).
+    block(bm, [(34.6, 13.0), (35.6, 12.7), (40.8, 12.6), (41.7, 13.0), (42.0, 13.95), (43.6, 13.95), (44.05, 14.4),
+               (44.05, 22.0), (43.6, 22.6), (43.0, 23.05), (37.4, 22.8), (34.9, 20.4), (34.0, 16.5)], 1.2, 7.2,
+          JAW, insets=0.9, chz=1.2, steps=3, round_it=0)
+    bolt(bm, 41.6, 15.6, 7.2, mat=JAW)
+    bolt(bm, 41.6, 19.4, 7.2, mat=JAW)
+    # ACTUATOR pod under the jaw (rows 21-27.5, cols 34-43), tapering down the screen.
+    loft(bm, [(39.0, 21.0, 4.0, 0.6, 4.8), (38.7, 23.0, 3.6, 0.6, 4.4), (38.0, 24.6, 3.0, 0.7, 3.9),
+              (37.3, 25.9, 2.2, 0.8, 3.4), (36.4, 26.6, 1.6, 1.0, 2.9), (35.7, 27.0, 0.9, 1.2, 2.5)],
+         ACT, sides=20, p=2.6, grooves=[(2.4, 0.2, 0.45), (4.2, 0.2, 0.45)])
+    # RODS: two piston rods meeting at a clevis under the socket.
+    loft(bm, [(28.6, 21.4, 1.5, 0.4, 2.0), (31.6, 24.0, 1.7, 0.4, 2.0), (34.6, 26.6, 1.3, 0.5, 2.0)], WRIST,
+         sides=16, p=3.0)
+    tube(bm, [(28.2, 20.9, 3.1, 0.7), (31.4, 23.8, 3.0, 0.72), (34.6, 26.4, 2.8, 0.7)], sides=10, mat=ROD)
+    tube(bm, [(35.55, 19.6, 4.6, 0.75), (35.55, 23.0, 3.8, 0.78), (35.55, 26.5, 2.9, 0.75)], sides=10, mat=ROD)
+    tube(bm, [(33.2, 27.1, 2.4, 1.05), (35.6, 27.1, 2.4, 1.05)], sides=10, mat=HUB)
+
+    # FOREARM drum hanging under the elbow (rows 29-39, cols 15-22): a round drum along the screen with
+    # two machined bands.
+    fr = [(28.0, 2.6), (28.8, 3.1), (29.5, 3.25), (30.2, 3.3), (32.0, 3.3), (32.15, 3.5), (32.85, 3.5), (33.0, 3.3),
+          (35.0, 3.3), (35.15, 3.5), (35.85, 3.5), (36.0, 3.3), (37.0, 3.0), (37.9, 2.5), (38.7, 1.6)]
+    tube(bm, [(18.55 - max(0, r - 35.5) * 0.35, r, 3.6, rad) for r, rad in fr], sides=20, mat=FORE)
+
+    # CLAW: an open hoop of round tubing over a tapered finger, the hoop's right side one bright run of
+    # pipe down into the gem.
+    hc, hr, ax, ay = 9.95, 35.3, 2.7, 3.0
+    hoop = []
+    for k in range(28):
+        t = 2 * math.pi * k / 28
+        hoop.append((hc + ax * math.cos(t), hr + ay * math.sin(t), 2.9, 1.45))
+    tube(bm, hoop, sides=14, closed=True, zscale=1.25,
+         matf=lambda c, r: PIPE if (c > hc + 1.4 and r > hr - 2.2) else HOOP)
+    # the palm under the hoop and the mount joining it to the forearm (dark, low)
+    block(bm, [(6.0, 33.4), (6.1, 32.4), (7.1, 31.4), (7.4, 31.0), (12.0, 31.6), (13.0, 31.0), (16.6, 31.0),
+               (16.9, 39.9), (13.0, 39.9), (8.4, 38.0)], 0.3, 1.9, WRIST, insets=0.4, chz=0.4, round_it=0)
+    loft(bm, [(10.9, 38.9, 4.9, 0.4, 3.6), (10.2, 41.2, 4.2, 0.4, 3.7), (9.85, 43.0, 3.7, 0.4, 3.6),
+              (9.0, 45.0, 3.8, 0.5, 3.4), (8.0, 46.7, 3.75, 0.6, 3.2), (7.4, 48.3, 3.5, 0.7, 2.9),
+              (7.45, 49.5, 3.1, 0.9, 2.5), (7.25, 50.6, 2.3, 1.2, 2.0)], FING, sides=22, p=2.6,
+         grooves=[(4.0, 0.2, 0.45)])
+    pipe = [(12.95, 37.0, 3.0, 0.9), (12.85, 38.6, 3.5, 0.9), (12.3, 40.6, 3.9, 0.9), (11.3, 42.8, 4.0, 0.88),
+            (10.1, 44.8, 3.85, 0.85), (8.9, 46.2, 3.6, 0.8)]
+    tube(bm, pipe, sides=12, mat=PIPE, zscale=1.1)
+    # GEM held in the finger's tip
+    ellipsoid(bm, 6.45, 48.6, 3.0, 2.45, 1.85, 1.9, GEM, rot=38, segs=20, rings=10, lower=0.8)
+
+
+def mirror(bm):
+    for v in bm.verts:
+        v.co.x = -v.co.x + 1 / 12
+    bmesh.ops.reverse_faces(bm, faces=bm.faces[:])
+
+
+def merged_sprite():
+    data = common.load_sprite(WT, "newsh9-1")
+    for side in WINDOWS.values():
+        for n in side:
+            data["colors"].update(common.load_sprite(WT, n)["colors"])
     return data
 
 
-# --- the arm -----------------------------------------------------------------------------------
+STEEL_SPEC = 0.5 * ((1.0 / 3.0) ** 2 / 0.04)  # F0 of IOR 2.0 via Specular IOR Level (D176)
 
-def build_arm(name, sprite, coll, mirror=False):
-    """The whole arm as one object in its assembly grid (left arm; `mirror` builds the right one:
-    its pixel column c is the left arm's column 46 - c)."""
-    tag = name
-    pal = lambda i, **kw: common.palette_material(sprite, i, tag, **kw)  # noqa: E731
-    mats = [
-        pal(9, metallic=0.3, roughness=0.4),  # 0 lit grey faces
-        pal(5, metallic=0.3, roughness=0.45),  # 1 shaded grey faces
-        pal(2, metallic=0.2, roughness=0.6),  # 2 dark undersides
-        pal(3, metallic=0.2, roughness=0.7),  # 3 dark hollows
-        pal(7, metallic=0.35, roughness=0.35),  # 4 mid grey housings
-        pal(10, metallic=0.4, roughness=0.3),  # 5 bright rims
-        pal(12, metallic=0.4, roughness=0.25),  # 6 highlights
-        pal(4, metallic=0.3, roughness=0.5),  # 7 dark grey
-        pal(6, metallic=0.3, roughness=0.4),  # 8 grey neck
-        pal(153, emission_strength=4.0),  # 9 blue gem
-        pal(158, emission_strength=5.0),  # 10 gem highlight
-        pal(8, metallic=0.35, roughness=0.3),  # 11 light-mid grey
+
+def materials(sprite):
+    def pal(i, metallic, roughness, spec=True, emission=0.0):
+        m = common.palette_material(sprite, i, TAG, metallic=metallic, roughness=roughness,
+                                    emission_strength=emission)
+        bsdf = next(n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+        if spec and "Specular IOR Level" in bsdf.inputs:
+            bsdf.inputs["Specular IOR Level"].default_value = STEEL_SPEC
+        return m
+    return [
+        pal(7, 0.45, 0.40),  # HOUSE
+        pal(10, 0.5, 0.34),  # KNUCK
+        pal(6, 0.45, 0.42),  # NECK
+        pal(9, 0.45, 0.38),  # COWL
+        pal(5, 0.45, 0.42),  # BEAM
+        pal(3, 0.35, 0.55),  # WRIST
+        pal(9, 0.5, 0.34),  # BALL
+        pal(10, 0.5, 0.32),  # LIP
+        pal(4, 0.3, 0.6, spec=False),  # SOCK
+        pal(3, 0.4, 0.5),  # HUB
+        pal(9, 0.45, 0.38),  # JAW
+        pal(4, 0.4, 0.48),  # ACT
+        pal(7, 0.55, 0.3),  # ROD
+        pal(7, 0.45, 0.4),  # FORE
+        pal(6, 0.45, 0.4),  # HOOP
+        pal(4, 0.4, 0.48),  # FING
+        pal(9, 0.5, 0.34),  # PIPE
+        pal(153, 1.0, 0.7, spec=False, emission=0.6),  # GEM (D126/D173: glow on metallic 1, rough)
     ]
-    LIT, SHADE, UNDER, HOLLOW, MID, RIM, HI, DARK, NECK, GEM, GEMHI, LMID = range(12)
+
+
+def build(side):
+    sprite = merged_sprite()
+    coll = common.reset_collection(f"{NAME}-{side}")
     bm = bmesh.new()
-
-    # Shoulder housing at the top right (rows 2-11, columns 24-47): a rounded drum lying across
-    # the screen, with two knuckles on top.
-    sweep(bm, [(23.6, 8.0, 0.0, 0.0, 0.0), (24.6, 7.6, 0.02, 2.4, 0.1), (27.0, 7.0, 0.04, 3.3, 0.15),
-               (30.0, 6.6, 0.05, 3.9, 0.18), (34.0, 6.6, 0.06, 4.4, 0.2), (39.0, 6.8, 0.06, 4.3, 0.2),
-               (43.0, 7.0, 0.06, 3.9, 0.19), (45.6, 7.3, 0.05, 3.0, 0.15), (46.8, 7.6, 0.04, 1.5, 0.08),
-               (47.1, 7.8, 0.04, 0.0, 0.0)], sides=12, mat=MID)
-    ellipsoid(bm, 37.6, 6.2, 0.2, 2.1, 2.6, 0.09, mat=RIM)
-    ellipsoid(bm, 42.2, 6.8, 0.19, 1.8, 2.4, 0.085, mat=RIM)
-    ellipsoid(bm, 37.9, 6.0, 0.265, 0.9, 1.2, 0.035, mat=HI, segments=10, rings=5)
-    ellipsoid(bm, 42.4, 6.6, 0.25, 0.7, 1.0, 0.03, mat=HI, segments=10, rings=5)
-
-    # Neck between the housing and the upper arm (rows 8-13).
-    plate(bm, [(17, 12.5), (21, 9), (26, 8), (34, 8.5), (37, 11), (36, 13.5), (26, 13.5)],
-          -0.16, 0.1, mat=NECK)
-    # Mouth: the dark gap between the housing and the jaw (rows 11-13, columns 36-45).
-    plate(bm, [(35, 11), (45.5, 10.5), (45.5, 14), (35, 14)], -0.14, 0.02, mat=HOLLOW)
-
-    # Jaw block under the housing (rows 13-21, columns 35-45) and its dark underside (rows 21-27).
-    plate(bm, [(35.5, 14), (45, 13.8), (45, 21), (43, 22), (37.5, 21.5), (35, 18.5)],
-          -0.14, 0.13, mat=LIT, bevel=0.8)
-    plate(bm, [(35.5, 21), (45, 20.5), (44.6, 23), (41.5, 26.5), (39.5, 27.6), (36, 27.6)],
-          -0.2, 0.0, mat=DARK, tilt=(0.0, -0.025, 0, 21))
-
-    # Upper arm: the lit face (columns 17-26, rows 11-30) on a shaded lower-left block (columns
-    # 9-18, rows 17-24) whose underside (rows 24-30) falls away in shadow.
-    plate(bm, [(17, 12.5), (20.5, 10.5), (26.5, 11), (27, 14), (26.5, 26), (22.5, 30.2), (17, 30.2), (17, 18)],
-          -0.2, 0.16, mat=LIT, bevel=1.0)
-    plate(bm, [(16.5, 13), (17.8, 13), (17.8, 25), (9, 24.5), (11, 21), (13, 19), (15.5, 16.5)],
-          -0.2, 0.09, mat=SHADE, bevel=0.6, tilt=(0.004, 0.0, 17, 0))
-    plate(bm, [(9, 24.3), (17.8, 24.5), (17.8, 30.5), (8.8, 30.5)],
-          -0.2, 0.05, mat=UNDER, tilt=(0.0, -0.022, 0, 24.3))
-    # Highlight ridge on the edge between the lit and the shaded face.
-    sweep(bm, [(20.8, 19.6, 0.15, 0.0, 0.0), (20.4, 20.4, 0.15, 0.9, 0.035), (19.2, 22.6, 0.14, 0.8, 0.03),
-               (18.3, 25.5, 0.13, 0.7, 0.03), (17.9, 27.2, 0.12, 0.0, 0.0)], sides=6, mat=RIM)
-    ellipsoid(bm, 20.6, 20.5, 0.18, 0.9, 0.8, 0.03, mat=HI, segments=8, rings=4)
-
-    # Socket: a bright ring round a dark opening (columns 26-38, rows 12-27).
-    plate(bm, [(26, 14), (30, 13.5), (34, 14.5), (37, 19), (35.5, 22.5), (33, 26), (29, 24), (26.5, 22)],
-          -0.18, -0.02, mat=HOLLOW)
-    plate(bm, [(28.5, 18), (31.5, 17), (34, 20), (33, 23), (30, 22)], -0.18, 0.0, mat=UNDER)
-    sweep(bm, [(25.6, 15.0, 0.1, 1.5, 0.08), (27.4, 13.4, 0.11, 1.7, 0.085), (30.5, 13.0, 0.12, 1.9, 0.09),
-               (33.6, 14.0, 0.12, 1.9, 0.09), (35.4, 16.0, 0.12, 1.8, 0.09), (37.0, 18.4, 0.11, 1.6, 0.08),
-               (38.6, 20.0, 0.1, 1.2, 0.06)], sides=10, mat=RIM)
-    sweep(bm, [(28.0, 21.0, 0.0, 0.0, 0.0), (28.8, 21.8, 0.04, 1.4, 0.07), (30.3, 24.0, 0.06, 1.7, 0.08),
-               (32.6, 25.4, 0.06, 1.7, 0.08), (34.6, 26.6, 0.04, 1.4, 0.07), (35.6, 27.3, 0.02, 0.0, 0.0)],
-          sides=8, mat=LMID)
-
-    # Forearm drum hanging under the upper arm (columns 15-22, rows 29-39).
-    sweep(bm, [(19.0, 29.2, 0.0, 0.0, 0.0), (19.0, 29.6, 0.0, 2.6, 0.11), (19.0, 30.6, 0.0, 3.6, 0.15),
-               (19.0, 36.8, 0.0, 3.6, 0.15), (18.8, 38.2, 0.0, 2.8, 0.12), (18.6, 39.2, 0.0, 0.0, 0.0)],
-          sides=12, mat=MID)
-
-    # Looped claw (columns 5-15, rows 31-47): a dark outer finger, an arch over the top and a
-    # bright inner finger, closing round a dark gap and meeting over the gem.
-    plate(bm, [(6, 38), (13.5, 38.5), (13.5, 40.5), (11.5, 44.5), (9.5, 47), (5, 47), (5, 44)],
-          -0.12, 0.06, mat=DARK)  # the claw's dark lower half, filled between the fingers
-    plate(bm, [(8.5, 34.5), (12.5, 34.5), (12.5, 39), (8.5, 39)], -0.12, -0.02, mat=UNDER)
-    sweep(bm, [(7.6, 45.0, 0.02, 2.4, 0.1), (7.4, 41.0, 0.03, 2.3, 0.11), (7.6, 37.0, 0.04, 2.0, 0.11)],
-          sides=10, mat=NECK)
-    sweep(bm, [(7.0, 38.0, 0.04, 0.0, 0.0), (7.0, 37.0, 0.04, 1.6, 0.1), (7.4, 35.0, 0.05, 2.2, 0.12),
-               (8.6, 33.3, 0.06, 2.4, 0.13), (10.6, 32.8, 0.06, 2.4, 0.13), (12.4, 33.6, 0.06, 1.8, 0.11),
-               (13.2, 34.8, 0.06, 0.0, 0.0)], sides=10, mat=MID)
-    sweep(bm, [(12.4, 32.4, 0.08, 0.0, 0.0), (12.8, 33.4, 0.08, 1.2, 0.1), (13.2, 37.0, 0.08, 1.3, 0.1),
-               (13.2, 39.6, 0.08, 1.3, 0.1), (12.2, 42.0, 0.07, 1.4, 0.09), (10.8, 44.4, 0.06, 1.4, 0.09),
-               (9.4, 46.6, 0.06, 0.0, 0.0)], sides=8, mat=RIM)
-    # Collar over the gem and the gem itself (rows 44-51).
-    ellipsoid(bm, 7.0, 45.6, 0.04, 2.6, 1.4, 0.1, mat=LMID, segments=12, rings=6)
-    ellipsoid(bm, 8.6, 46.4, 0.1, 1.0, 0.7, 0.04, mat=HI, segments=8, rings=4)
-    ellipsoid(bm, 6.6, 48.8, 0.0, 2.8, 2.4, 0.12, mat=GEM)
-    ellipsoid(bm, 7.2, 48.3, 0.08, 1.0, 0.8, 0.05, mat=GEMHI, segments=8, rings=4)
-
-    if mirror:
-        for v in bm.verts:
-            v.co.x = -v.co.x - PX
-        bmesh.ops.reverse_faces(bm, faces=bm.faces)
-    return to_object(name, bm, mats, coll)
+    build_left(bm)
+    if side == "right":
+        mirror(bm)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-6)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    mesh = bpy.data.meshes.new(f"{NAME}-{side}")
+    bm.to_mesh(mesh)
+    bm.free()
+    for m in materials(sprite):
+        mesh.materials.append(m)
+    obj = bpy.data.objects.new(f"{NAME}-{side}", mesh)
+    coll.objects.link(obj)
+    return obj, coll, sprite
 
 
-def composite_png(root, layout, out):
-    """The whole arm's sprite as one image, padded to the 24:28 shape that render_preview expects
-    for size 4 (48 x 56 px)."""
-    import numpy as np
-    img = np.zeros((H, W, 4), dtype=np.float32)
-    for name, c0, r0 in layout:
-        data = common.load_sprite(root, name)
-        frame = data["frames"][0]
-        for r, prow in enumerate(frame["pixels"]):
-            for c, v in enumerate(prow):
-                if v >= 0:
-                    img[r0 + r, c0 + c] = [*(ch / 255 for ch in data["colors"][str(v)]), 1.0]
-    im = bpy.data.images.new("assembly_sprite", W, H, alpha=True)
-    im.pixels[:] = img[::-1].ravel()
-    im.filepath_raw = str(out)
-    im.file_format = "PNG"
-    im.save()
-    bpy.data.images.remove(im)
-    return out
+def split_open(obj, layout):
+    """Each piece keeps the part of `obj` inside its 24 x 28 px window, open along the cut (the
+    neighbouring piece closes the surface; no cap wall to show where the renderer lifts a piece, D181)."""
+    result = {}
+    coll = obj.users_collection[0]
+    for name, cx, cy in layout:
+        x0, y0 = cx / 12, -cy / 12
+        bm = bmesh.new()
+        bm.from_mesh(obj.data)
+        bmesh.ops.transform(bm, matrix=obj.matrix_world, verts=bm.verts)
+        hw, hh = 12 / 12, 14 / 12
+        for co, no in (((x0 - hw, 0, 0), (-1, 0, 0)), ((x0 + hw, 0, 0), (1, 0, 0)),
+                       ((0, y0 - hh, 0), (0, -1, 0)), ((0, y0 + hh, 0), (0, 1, 0))):
+            geom = bm.verts[:] + bm.edges[:] + bm.faces[:]
+            bmesh.ops.bisect_plane(bm, geom=geom, plane_co=co, plane_no=no, clear_outer=True)
+        bmesh.ops.translate(bm, vec=(-x0, -y0, 0), verts=bm.verts)
+        mesh = bpy.data.meshes.new(name)
+        bm.to_mesh(mesh)
+        bm.free()
+        for mt in obj.data.materials:
+            mesh.materials.append(mt)
+        piece = bpy.data.objects.new(name, mesh)
+        coll.objects.link(piece)
+        result[name] = piece
+    return result
 
 
-def run_assembly(script_file, name, pieces, mirror):
-    """Build the arm, split it into its pieces, export each, and render previews if asked."""
+def layout(side):
+    return [(n, x0 + 12 - W / 2, y0 + 14 - H / 2) for n, (x0, y0) in WINDOWS[side].items()]
+
+
+def finish_normals(obj):
+    obj.data.shade_smooth()
+    obj.data.set_sharp_from_angle(angle=math.radians(40))
+
+
+def make_side(side):
+    obj, coll, sprite = build(side)
+    bpy.context.view_layer.update()
+    sealed = obj.copy()
+    sealed.data = obj.data.copy()
+    coll.objects.link(sealed)
+    shell = common.outline_shell(sealed, coll, voxel=0.012, faces=5000, smooth=4, inside=0.004, islands="outer")
+    bpy.data.objects.remove(sealed, do_unlink=True)
+    shell.name = f"{NAME}-{side}_outline"
+    T.cull_hidden(obj, grid=4, ndirs=40)
+    finish_normals(obj)
+    lay = layout(side)
+    bodies = split_open(obj, lay)
+    shells = split_open(shell, lay)
+    pieces = []
+    for n, _, _ in lay:
+        b, sh = bodies[n], shells[n]
+        b.name = n
+        sh.name = f"{n}_outline"
+        sh["tyrian_outline"] = True
+        finish_normals(b)
+        sh.data.shade_smooth()
+        if len(sh.data.polygons) == 0:
+            print(f"WARNING: {n} outline has no mesh")
+        pieces.append((n, b, sh))
+    tris = sum(len(p.vertices) - 2 for p in obj.data.polygons)
+    print(f"{NAME} ({side}): whole {tris} tris, z max {max(v.co.z for v in obj.data.vertices) * 12:.2f} px; "
+          + ", ".join(f"{n} {sum(len(p.vertices) - 2 for p in b.data.polygons)} tris / shell "
+                      f"{len(sh.data.polygons)} faces" for n, b, sh in pieces))
+    return obj, shell, pieces
+
+
+def run(script_file, side):
+    """Build one arm and export its three pieces (models and spriteModels entries)."""
+    argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+    for o in list(bpy.data.objects):
+        bpy.data.objects.remove(o, do_unlink=True)
+    bpy.context.view_layer.update()
+    obj, shell, pieces = make_side(side)
     root = common.repo_root(script_file)
-    sprite = merged_sprite(root, pieces)
-    coll = common.reset_collection(name)
-    obj = build_arm(name, sprite, coll, mirror=mirror)
-    lay = sprite["assemblyLayout"]
-    minx = min(e["cx"] for e in lay)
-    miny = min(e["cy"] for e in lay)
-    # Piece top-left corners in the grid, and centres relative to the grid's centre (split_assembly).
-    corners = [(e["model"], e["cx"] - minx, e["cy"] - miny) for e in lay]
-    layout = [(n, c0 + 12 - W / 2, r0 + 14 - H / 2) for n, c0, r0 in corners]
-    parts = common.split_assembly(obj, layout)
-    for piece in pieces:
-        data = common.load_sprite(root, piece)
-        common.export_sprite_model(root, [parts[piece]], f"enemies/{piece}", data["sprites"])
-    if "--preview" in sys.argv:
-        import tempfile
-        out = Path(sys.argv[sys.argv.index("--preview") + 1])
-        ref = composite_png(root, corners, Path(tempfile.mkdtemp()) / "assembly.png")
-        common.render_preview([obj], str(out), ref, size=4, view_px=480)
-        for piece in pieces:
-            data = common.load_sprite(root, piece)
-            img = root / "reference" / "models" / piece / data["frames"][0]["image"]
-            common.render_preview([parts[piece]], str(out.parent / f"{piece}.png"), img, size=2)
+    for n, b, sh in pieces:
+        data = common.load_sprite(root, n)
+        common.export_sprite_model(root, [b, sh], f"enemies/{n}", data["sprites"])
+    if "--pieces" in argv:  # review output only
+        pdir = Path(argv[argv.index("--pieces") + 1])
+        for n, b, sh in pieces:
+            common.export_glb([b, sh], str(pdir / f"{n}.glb"))

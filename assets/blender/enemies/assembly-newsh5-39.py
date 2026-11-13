@@ -7,8 +7,7 @@ assembly-newsh5-45: a 48x28 px pod whose bullet-shaped blue head and barrel poin
 right side (newsh5-41). Built whole by lib_b042.build_gunpod(flip=True) and cut into the two
 pieces with common.split_assembly. One frame each.
 
-Run: blender --background --python assets/blender/enemies/assembly-newsh5-39.py [-- --preview out.png]
-(the preview is the whole pod; each piece also gets <piece>.png next to it).
+Run: blender --background --python assets/blender/enemies/assembly-newsh5-39.py
 """
 
 import sys
@@ -31,7 +30,7 @@ def main():
     cx0 = (centre["newsh5-39"][0] + centre["newsh5-41"][0]) / 2
     cy0 = centre["newsh5-39"][1]
     layout = [(n, centre[n][0] - cx0, centre[n][1] - cy0) for n in PIECES]
-    lib.export_assembly(ROOT, obj, layout, size=4)
+    lib.export_gunpod(ROOT, obj, layout, flip=True)
 
 
 if __name__ == "__main__":

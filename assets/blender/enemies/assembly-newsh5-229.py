@@ -1,323 +1,704 @@
-"""Grey and red gunship (newsh5.shp frames 229 and 231, side by side): a 3D version of its sprites.
+"""assembly-newsh5-229, design A: the grey and red gunship of SAVARA IV and APPROACH (episode 4,
+4.3 main=16 and 4.19 main=47), one craft of three units: newsh5-229 + newsh5-231 (the 48x28 wing and
+shoulder section) and newsh5-268 (the 24x28 torpedo fuselage and nose) hanging under its centre at
++12/+28 px, all on one link. It flies NOSE DOWN the screen (the sky-layer motion is y +1..+9), so the
+bottom of the sprite is the front.
 
-Seen in episode 4 (levels 4.16 and 4.47). Two 2x2 enemies make one 48x28 px ship (sprite.json
-`assemblyLayout`) flying up the screen: a narrow nose with a red stripe down its spine, a red
-shield on its chest between rounded grey shoulders, two grey canards up front with red fins under
-them, and two big grey wings swept back and down to pointed tips that each carry a red barrel
-pointing down. The lower body runs off the bottom of the sprites between red side panels.
+What it is (read from the 48x56 composite):
+- a round grey fuselage (9 px across) from a short tail cone at row 2 to a pointed nose at row 51,
+  with a joint ring where the nose cone starts (row 40), a dark wrap-around sensor window on the nose
+  (rows 40-42; its 1 px white glint is sheen), four dark vents on the forward flanks (rows 34-38) and
+  a circumferential panel line at row 25 (the dark band); a dorsal channel between two rails on the
+  aft body (the dark centre line between two lit lines, rows 17-25);
+- a broad rounded shoulder housing over the aft fuselage (rows 9-16, 17 px), with a red armoured
+  dorsal hump on it (the red shield shape, rows 10-15), a thin red dorsal fin running from the hump
+  back over the tail (the light red stripe, rows 1-11);
+- two grey tailplanes at the very back (rows 2-4) carried on red root strakes that sweep forward
+  and down into the fuselage (rows 5-9);
+- two swept-back grey wings (rows 14-32) at mid fuselage height with a little anhedral, their root
+  leading edges running forward to strake points beside the nose (rows 29-32, drawn in 268), a
+  raised panel on each wing behind a panel line parallel to the leading edge (the light/dark
+  diagonal lines), a red blister on each trailing-edge root (rows 16-17);
+- red intake fairings in the wing roots beside the fuselage (rows 15-28);
+- a long gun on each wing tip: grey breech (rows 13-20) and red barrel pointing forward (rows 20-27).
+Grey satin steel, red painted panels. The sprite's dark right-hand halves are shade, its bright
+streaks sheen: lighting, not paint (rubric).
 
-The ship is built whole (left half mirrored about pixel column 24, the sprite's axis) in assembly
-coordinates and cut into newsh5-229 (left) and newsh5-231 (right) with common.split_assembly.
+Built once in assembly pixel coordinates (x = pixel column edge, y = row edge, down, z up; Blender
+X = (x - 24) / 12, Y = (14 - y) / 12, Z = z / 12, origin at the centre of 229+231), mirrored about the
+centre of pixel column 24 (x = 24.5), then cut into the three pieces with common.split_assembly.
+One frame each.
 
-Run: blender --background --python assets/blender/enemies/assembly-newsh5-229.py [-- --preview out.png]
-(the preview is the whole ship; each piece also gets <piece>.png next to it).
+Run: blender -b --python assembly-newsh5-229.py -- [--pieces]
+Exports public/models/enemies/newsh5-229.glb and newsh5-231.glb (each piece at its own origin with its
+outline shell) and their spriteModels entries; newsh5-268.py runs this builder and exports newsh5-268.
 """
 
 import math
+import os
 import sys
 from pathlib import Path
 
 import bmesh
+import bpy
+from mathutils import Matrix, Vector, geometry
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE.parent))
 import common  # noqa: E402
-import lib_b013 as lib  # noqa: E402
+
+WT = common.repo_root(__file__)
+import usp_talon as T  # noqa: E402
 
 NAME = "assembly-newsh5-229"
-ROOT = common.repo_root(__file__)
-PIECES = ["newsh5-229", "newsh5-231"]
-U = lib.U
-G = lib.Grid(48, 28)  # assembly pixels: newsh5-229 is columns 0-23, newsh5-231 columns 24-47
-AXIS = 24  # mirror axis: the centre of assembly column 24
-AX = G.x(AXIS)
+PIECES = ["newsh5-229", "newsh5-231", "newsh5-268"]
+LAYOUT = [("newsh5-229", -12, 0), ("newsh5-231", 12, 0), ("newsh5-268", 0, 28)]  # px from (24, 14)
+AX = 24.5  # mirror axis (pixel edge coordinates)
+
+PARTS = ["none", "fuselage", "nose", "shoulder", "hump", "fin", "tailplane", "strake", "wing", "panel",
+         "gun", "barrel", "nacelle", "blister", "window", "vent", "rail"]
+P = {n: i for i, n in enumerate(PARTS)}
 
 
-def E(c, r):
-    """A pixel corner (column edge, row edge) to Blender XY."""
-    return (G.x(c - 0.5), G.y(r - 0.5))
+# ------------------------------------------------------------------------------------------ 2D maths
+
+def area2(poly):
+    return sum(poly[i][0] * poly[(i + 1) % len(poly)][1] - poly[(i + 1) % len(poly)][0] * poly[i][1]
+               for i in range(len(poly)))
 
 
-def XE(c):
-    """A column edge to Blender X."""
-    return G.x(c - 0.5)
+def seg_dist(px, py, ax, ay, bx, by):
+    dx, dy = bx - ax, by - ay
+    L = dx * dx + dy * dy
+    t = 0.0 if L == 0 else max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / L))
+    return math.hypot(px - ax - t * dx, py - ay - t * dy)
 
 
-def YE(r):
-    """A row edge to Blender Y."""
-    return G.y(r - 0.5)
+def poly_dist(x, y, poly):
+    n = len(poly)
+    return min(seg_dist(x, y, *poly[i], *poly[(i + 1) % n]) for i in range(n))
 
 
-def tilt(bm, start, x_root, slope):
-    """Lower the vertices added since `start` by `slope` units per unit outward of x_root (droop)."""
-    bm.verts.ensure_lookup_table()
-    for v in bm.verts[start:]:
-        v.co.z -= slope * max(0.0, x_root - v.co.x)
-
-
-def body_loft(bm, sections, x, sides=16, mat_index=0):
-    """A loft along +Y with a round top and a shallower round bottom. Sections are
-    (row edge, half width px, z centre px, height above px, depth below px); a zero half width
-    is a point at (z centre + height above)."""
-    rings = []
-    for r, hw, zc, top, bot in sections:
-        y = YE(r)
-        if hw == 0:
-            rings.append([bm.verts.new((x, y, (zc + top) * U))])
-            continue
-        ring = []
-        for i in range(sides):
-            a = 2 * math.pi * (i + 0.5) / sides
-            s = math.sin(a)
-            ring.append(bm.verts.new((x + hw * U * math.cos(a), y, (zc + (top if s > 0 else bot) * s) * U)))
-        rings.append(ring)
-    for r0, r1 in zip(rings, rings[1:]):
-        for i in range(sides):
-            j = (i + 1) % sides
-            if len(r0) == 1:
-                face = (r0[0], r1[j], r1[i])
-            elif len(r1) == 1:
-                face = (r0[i], r0[j], r1[0])
-            else:
-                face = (r0[i], r0[j], r1[j], r1[i])
-            bm.faces.new(face).material_index = mat_index
-    for ring, rev in ((rings[0], True), (rings[-1], False)):
-        if len(ring) > 1:
-            bm.faces.new(list(reversed(ring)) if rev else ring).material_index = mat_index
-
-
-def bevel_prism(bm, outline, z0, z1, bevel, mat_index=0):
-    """A plate over a counter-clockwise XY outline from z0 to z1 with its top edge chamfered by `bevel`."""
-    area = sum(x0 * y1 - x1 * y0 for (x0, y0), (x1, y1) in zip(outline, outline[1:] + outline[:1]))
-    if area < 0:
-        outline = list(reversed(outline))
-    top = lib.inset_polygon(outline, bevel)
-    rings = [[bm.verts.new((x, y, z0)) for x, y in outline],
-             [bm.verts.new((x, y, z1 - bevel)) for x, y in outline],
-             [bm.verts.new((x, y, z1)) for x, y in top]]
-    n = len(outline)
-    for a, b in zip(rings, rings[1:]):
-        for i in range(n):
-            j = (i + 1) % n
-            bm.faces.new((a[i], a[j], b[j], b[i])).material_index = mat_index
-    bm.faces.new(list(reversed(rings[0]))).material_index = mat_index
-    bm.faces.new(rings[-1]).material_index = mat_index
-
-
-def densify(sections, step=1.0):
-    """body_loft sections with extra ones interpolated at every `step` rows (for painting)."""
-    out = [sections[0]]
-    for a, b in zip(sections, sections[1:]):
-        if a[1] > 0 and b[1] > 0:
-            r = math.floor(a[0] / step) * step + step
-            while r < b[0] - 0.2:
-                if r > a[0] + 0.2:
-                    t = (r - a[0]) / (b[0] - a[0])
-                    out.append(tuple(p + (q - p) * t for p, q in zip(a, b)))
-                r += step
-        out.append(b)
+def inset(poly, d):
+    """Offset a simple polygon inward by d (miter, clamped)."""
+    s = 1.0 if area2(poly) > 0 else -1.0
+    n = len(poly)
+    out = []
+    for i in range(n):
+        p0, p1, p2 = Vector(poly[i - 1]), Vector(poly[i]), Vector(poly[(i + 1) % n])
+        e0, e1 = (p1 - p0).normalized(), (p2 - p1).normalized()
+        n0, n1 = Vector((-e0.y, e0.x)) * s, Vector((-e1.y, e1.x)) * s
+        m = n0 + n1
+        if m.length < 1e-6:
+            m = n0
+        m.normalize()
+        c = max(0.4, m.dot(n1))
+        q = p1 + m * (d / c)
+        out.append((q.x, q.y))
     return out
 
 
-def crest(sections, r):
-    """The top (z centre + height above, px) of body_loft sections at row edge r."""
-    for a, b in zip(sections, sections[1:]):
-        if a[0] <= r <= b[0]:
-            t = (r - a[0]) / (b[0] - a[0])
-            return (a[2] + a[3]) + ((b[2] + b[3]) - (a[2] + a[3])) * t
-    return sections[-1][2] + sections[-1][3]
+def clip(poly, a, b, c):
+    """Sutherland-Hodgman: keep the part of poly where a*x + b*y + c >= 0."""
+    out = []
+    n = len(poly)
+    for i in range(n):
+        p, q = poly[i], poly[(i + 1) % n]
+        fp, fq = a * p[0] + b * p[1] + c, a * q[0] + b * q[1] + c
+        if fp >= 0:
+            out.append(p)
+        if (fp >= 0) != (fq >= 0):
+            t = fp / (fp - fq)
+            out.append((p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t))
+    return out
 
 
-def pixel_cut(bm, first_face, c0, c1, r0, r1, min_nz=0.3):
-    """Cut the upward faces added since `first_face` along every column edge c0..c1 and row edge
-    r0..r1, so each piece can take its own sprite pixel's colour."""
-    def tops():
-        bm.faces.ensure_lookup_table()
-        bm.normal_update()
-        fs = [f for f in bm.faces[first_face:] if f.normal.z > min_nz]
-        es = list({e for f in fs for e in f.edges})
+def mirror(poly):
+    return [(2 * AX - x, y) for x, y in reversed(poly)]
+
+
+def smooth01(t):
+    t = max(0.0, min(1.0, t))
+    return t * t * (3 - 2 * t)
+
+
+# ---------------------------------------------------------------------------------------- builders
+
+class Builder:
+    def __init__(self):
+        self.bm = bmesh.new()
+        self.part = self.bm.faces.layers.int.new("part")
+        self.tmp = self.bm.faces.layers.int.new("tmp")
+        self.sid = 0
+
+    def tag(self, part):
+        for f in self.bm.faces:
+            if f[self.part] == 0:
+                f[self.part] = P[part]
+
+    # A loft along +y. stations: (y, cx, zc, hw, ztop, zbot, ex); ex = superellipse exponent.
+    def loft_y(self, stations, sides, mat_fn, part, cap0=True, cap1=True):
+        bm = self.bm
+        rings = []
+        for y, cx, zc, hw, zt, zb, ex in stations:
+            if hw <= 1e-4:
+                rings.append(([bm.verts.new((cx, y, zc + zt * 0.0))], y))
+                continue
+            ring = []
+            for i in range(sides):
+                a = 2 * math.pi * (i + 0.5) / sides - math.pi / 2
+                ca, sa = math.cos(a), math.sin(a)
+                xx = cx + hw * math.copysign(abs(ca) ** (2 / ex), ca)
+                zz = zc + (zt if sa > 0 else zb) * math.copysign(abs(sa) ** (2 / ex), sa)
+                ring.append(bm.verts.new((xx, y, zz)))
+            rings.append((ring, y))
+        for (r0, y0), (r1, y1) in zip(rings, rings[1:]):
+            m = mat_fn((y0 + y1) / 2)
+            if len(r0) == 1 and len(r1) == 1:
+                continue
+            for i in range(sides):
+                j = (i + 1) % sides
+                if len(r0) == 1:
+                    bm.faces.new((r0[0], r1[j], r1[i])).material_index = m
+                elif len(r1) == 1:
+                    bm.faces.new((r0[i], r0[j], r1[0])).material_index = m
+                else:
+                    bm.faces.new((r0[i], r0[j], r1[j], r1[i])).material_index = m
+        for (ring, y), on in ((rings[0], cap0), (rings[-1], cap1)):
+            if on and len(ring) > 1:
+                c = bm.verts.new(sum((v.co for v in ring), Vector()) / len(ring))
+                for i in range(len(ring)):
+                    bm.faces.new((ring[i], ring[(i + 1) % len(ring)], c)).material_index = mat_fn(y)
+        self.tag(part)
+
+    # A plate over a plan outline: crisp chamfered top edge, crowned top and bottom from z functions
+    # of (x, y, d) where d is the distance to the outline. Its faces are cut on a grid of `step` px
+    # so the crown can follow the functions.
+    def slab(self, outline, ztop, zbot, mat, part, step=1.25, chamfer=0.45, mats=None):
+        bm = self.bm
+        if area2(outline) < 0:
+            outline = list(reversed(outline))
+        self.sid += 1
+        sid = self.sid
+        ring1 = inset(outline, chamfer)
+        t0 = [bm.verts.new((x, y, 100.0)) for x, y in outline]
+        t1 = [bm.verts.new((x, y, 100.0)) for x, y in ring1]
+        b0 = [bm.verts.new((x, y, -100.0)) for x, y in outline]
+        n = len(outline)
+        faces = [bm.faces.new(t1)]
+        for i in range(n):
+            j = (i + 1) % n
+            faces.append(bm.faces.new((t0[i], t0[j], t1[j], t1[i])))
+            faces.append(bm.faces.new((b0[i], b0[j], t0[j], t0[i])))
+        faces.append(bm.faces.new(list(reversed(b0))))
+        for f in faces:
+            f.material_index = mat
+            f[self.tmp] = sid
+        xs = [p[0] for p in outline]
+        ys = [p[1] for p in outline]
+
+        def geom():
+            fs = [f for f in bm.faces if f[self.tmp] == sid]
+            return fs + list({e for f in fs for e in f.edges}) + list({v for f in fs for v in f.verts})
+        k0 = math.floor(min(xs) / step) + 1
+        while k0 * step < max(xs):
+            bmesh.ops.bisect_plane(bm, geom=geom(), plane_co=(k0 * step, 0, 0), plane_no=(1, 0, 0))
+            k0 += 1
+        k0 = math.floor(min(ys) / step) + 1
+        while k0 * step < max(ys):
+            bmesh.ops.bisect_plane(bm, geom=geom(), plane_co=(0, k0 * step, 0), plane_no=(0, 1, 0))
+            k0 += 1
+        fs = [f for f in bm.faces if f[self.tmp] == sid]
         vs = list({v for f in fs for v in f.verts})
-        return fs + es + vs
-    for c in range(int(math.ceil(c0)), int(math.floor(c1)) + 1):
-        bmesh.ops.bisect_plane(bm, geom=tops(), plane_co=(XE(c), 0, 0), plane_no=(1, 0, 0))
-    for r in range(int(math.ceil(r0)), int(math.floor(r1)) + 1):
-        bmesh.ops.bisect_plane(bm, geom=tops(), plane_co=(0, YE(r), 0), plane_no=(0, 1, 0))
+        for v in vs:
+            x, y = v.co.x, v.co.y
+            d = poly_dist(x, y, outline)
+            if v.co.z > 0:
+                v.co.z = ztop(x, y, d)
+            else:
+                v.co.z = zbot(x, y, d)
+        bm.normal_update()
+        tri = [f for f in fs if len(f.verts) > 3 and abs(f.normal.z) > 0.15]
+        bmesh.ops.triangulate(bm, faces=tri, quad_method="BEAUTY", ngon_method="BEAUTY")
+        for f in bm.faces:
+            if f[self.tmp] == sid:
+                f[self.tmp] = -1
+        self.tag(part)
+
+    # A tube along a path of (x, y, z, rw, rh); rings face the path, with Z kept up.
+    def tube(self, pts, sides, mat, part, cap0=True, cap1=True, mats=None, ex=2.0):
+        bm = self.bm
+        rings = []
+        for i, (x, y, z, rw, rh) in enumerate(pts):
+            a = Vector(pts[max(0, i - 1)][:3])
+            b = Vector(pts[min(len(pts) - 1, i + 1)][:3])
+            t = (b - a).normalized()
+            side = t.cross(Vector((0, 0, 1)))
+            if side.length < 1e-4:
+                side = Vector((1, 0, 0))
+            side.normalize()
+            up = side.cross(t).normalized()
+            if up.z < 0:
+                up = -up
+            c = Vector((x, y, z))
+            if rw <= 1e-4:
+                rings.append([bm.verts.new(c)])
+                continue
+            def se(t):
+                return math.copysign(abs(t) ** (2 / ex), t)
+            rings.append([bm.verts.new(c + side * (rw * se(math.cos(2 * math.pi * (k + 0.5) / sides)))
+                                       + up * (rh * se(math.sin(2 * math.pi * (k + 0.5) / sides))))
+                          for k in range(sides)])
+        for si, (r0, r1) in enumerate(zip(rings, rings[1:])):
+            m = mats[si] if mats else mat
+            for k in range(sides):
+                j = (k + 1) % sides
+                if len(r0) == 1:
+                    bm.faces.new((r0[0], r1[j], r1[k])).material_index = m
+                elif len(r1) == 1:
+                    bm.faces.new((r0[k], r0[j], r1[0])).material_index = m
+                else:
+                    bm.faces.new((r0[k], r0[j], r1[j], r1[k])).material_index = m
+        for ring, on, m in ((rings[0], cap0, mats[0] if mats else mat), (rings[-1], cap1, mats[-1] if mats else mat)):
+            if on and len(ring) > 1:
+                c = bm.verts.new(sum((v.co for v in ring), Vector()) / len(ring))
+                for k in range(sides):
+                    bm.faces.new((ring[k], ring[(k + 1) % sides], c)).material_index = m
+        self.tag(part)
+
+    # A patch draped over a surface z = surf(x, y): rows along y, each row from xl(y) to xr(y), lifted
+    # `lift` above it, with a skirt down `sink` below the surface.
+    def patch(self, y0, y1, ny, half, cx, nx, surf, lift, sink, mat, part):
+        bm = self.bm
+        grid = []
+        for i in range(ny + 1):
+            y = y0 + (y1 - y0) * i / ny
+            h = half(y)
+            row = []
+            for k in range(nx + 1):
+                x = cx - h + 2 * h * k / nx
+                row.append(bm.verts.new((x, y, surf(x, y) + lift)))
+            grid.append(row)
+        for i in range(ny):
+            for k in range(nx):
+                bm.faces.new((grid[i][k], grid[i][k + 1], grid[i + 1][k + 1], grid[i + 1][k])).material_index = mat
+        border = grid[0][:] + [grid[i][-1] for i in range(1, ny + 1)] + grid[-1][-2::-1] + \
+            [grid[i][0] for i in range(ny - 1, 0, -1)]
+        low = [bm.verts.new((v.co.x, v.co.y, surf(v.co.x, v.co.y) - sink)) for v in border]
+        nb = len(border)
+        for i in range(nb):
+            j = (i + 1) % nb
+            try:
+                bm.faces.new((border[i], border[j], low[j], low[i])).material_index = mat
+            except ValueError:
+                pass
+        try:
+            bm.faces.new(list(reversed(low))).material_index = mat
+        except ValueError:
+            pass
+        self.tag(part)
+
+    def box_on(self, c, normal, along, w, l, depth, lift, mat, part):
+        """A small box sitting on a surface point c (normal, along): w across, l along, top `lift`
+        proud, bottom `depth` below the surface."""
+        bm = self.bm
+        nrm = Vector(normal).normalized()
+        al = Vector(along).normalized()
+        ac = al.cross(nrm).normalized()
+        c = Vector(c)
+        vs = []
+        for h in (-depth, lift):
+            for su, sv in ((-1, -1), (1, -1), (1, 1), (-1, 1)):
+                vs.append(bm.verts.new(c + ac * (su * w / 2) + al * (sv * l / 2) + nrm * h))
+        b, t = vs[:4], vs[4:]
+        fs = [bm.faces.new(list(reversed(b))), bm.faces.new(t)]
+        for i in range(4):
+            j = (i + 1) % 4
+            fs.append(bm.faces.new((b[i], b[j], t[j], t[i])))
+        for f in fs:
+            f.material_index = mat
+        self.tag(part)
 
 
-def build(sprite, pixels):
-    coll = common.reset_collection(NAME)
-    tag = "n5a229"
-    pal = lambda i, **kw: common.palette_material(sprite, i, tag, **kw)  # noqa: E731
-    # Each part takes its mid-tone colour: the sprite's light and dark pixels on the hull, wings
-    # and red parts are its drawn lighting (bright streaks = sheen on polished metal, dark right
-    # halves = shade), which the game's lights make. The grey hull is polished metal; the red
-    # parts are painted metal.
-    metal = dict(metallic=0.75, roughness=0.3)
+# ----------------------------------------------------------------------------------------- the ship
+
+# Fuselage half width (px) by row edge: tail cone rows 2-5, the round 9 px tube to the joint at row
+# 39.7, then the nose cone (a step in to 3.75) to the point at row 51.
+TAIL = T.pchip([1.95, 2.35, 2.8, 3.5, 4.5, 5.4, 6.4], [0.0, 0.9, 1.3, 1.8, 3.35, 4.3, 4.5])
+NOSE = T.pchip([39.7, 41.5, 43.5, 45.5, 47.5, 49.3, 50.5, 51.25], [3.75, 3.62, 3.2, 2.5, 1.65, 0.9, 0.4, 0.0])
+KT, KB, EX = 1.0, 0.85, 2.2  # top / bottom radius factors and superellipse exponent of the tube
+
+
+def body_hw(y):
+    if y < 6.4:
+        return max(0.0, TAIL(y)) if y > 1.95 else 0.0
+    if y <= 39.7:
+        return 4.5
+    return max(0.0, NOSE(y))
+
+
+def body_z(x, y):
+    """Top of the fuselage at (x, y) (no grooves)."""
+    hw = body_hw(y)
+    if hw <= 0:
+        return 0.0
+    u = min(1.0, abs(x - AX) / hw)
+    return KT * hw * (1 - u ** EX) ** (1 / EX)
+
+
+def wing_outline():
+    # Left wing, plan in pixel edges, clockwise from the tip of the trailing edge.
+    return [(4.1, 13.7), (8.6, 17.8), (10.1, 17.75), (10.9, 16.2), (15.0, 16.0), (15.4, 15.0), (20.0, 15.0),
+            (20.0, 28.6), (18.7, 28.75), (17.75, 29.3), (17.0, 30.1), (16.95, 31.5), (16.45, 32.35),
+            (15.85, 31.6), (15.15, 30.5), (14.3, 29.55), (13.95, 28.5), (13.2, 27.55), (11.5, 26.85),
+            (10.0, 26.05), (5.6, 21.25), (4.0, 21.1)]
+
+
+def wing_mid(x):
+    return -0.25 - 0.045 * max(0.0, 19.5 - x)  # a little anhedral
+
+
+def wing_top(x, y, d, outline):
+    # A flat, hard plate: a 45-degree chamfer round the edge, then a plane (thickening linearly
+    # toward the root), so the top stays one flat face.
+    return wing_mid(x) + 0.3 + min(d, 0.45) + 0.3 + 0.035 * (x - 4.0)
+
+
+def wing_bot(x, y, d):
+    return wing_mid(x) - 0.3 - min(d, 0.3) - 0.1 - 0.02 * (x - 4.0)
+
+
+def build(coll, sprite, detail=True, name=NAME):
+    tag = "n5a229A"
+    mats, slot = [], {}
+
+    def m(i, **kw):
+        key = (i, tuple(sorted(kw.items())))
+        if key not in slot:
+            slot[key] = len(mats)
+            mats.append(common.palette_material(sprite, i, f"{tag}{len(mats)}", **kw))
+        return slot[key]
+    steel = dict(metallic=0.4, roughness=0.42)  # satin steel
     paint = dict(metallic=0.3, roughness=0.45)
-    mats = [
-        pal(6, **metal),  # 0 grey hull
-        pal(7, **metal),  # 1 grey wings (the sprite draws them a shade lighter than the body)
-        pal(7, **metal),  # 2 wing-tip pods
-        pal(4, metallic=0.5, roughness=0.5),  # 3 dark groove under the chest (a recess)
-        pal(69, **paint),  # 4 red panels, fins and shield
-        pal(71, **paint),  # 5 red spine stripe
-        pal(70, **paint),  # 6 red cowls and wing-tip barrels
-        pal(8, **metal),  # 7 wing ribs (the light diagonal lines)
-    ]
-    HULL, WING, RIB, DARK, RED, LRED, DRED, LGREY = range(8)
-    bm = bmesh.new()
+    AFT, FWD, NOSEM, WING, TAILM = m(5, **steel), m(6, **steel), m(5, **steel), m(6, **steel), m(6, **steel)
+    RED, FINR, DARK = m(69, **paint), m(71, **paint), m(1, metallic=0.3, roughness=0.55)
+    NAC, SHOULD, RAIL, GUNM = m(68, **paint), m(5, **steel), m(6, **steel), m(7, **steel)
+    GLASS = m(2, metallic=0.0, roughness=0.1)
+    gl = next(n for n in mats[GLASS].node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+    if "Specular IOR Level" in gl.inputs:  # F0 via Specular IOR Level (D176): glossy glass, not a hole
+        gl.inputs["Specular IOR Level"].default_value = 1.0
+    FRAME = m(4, **steel)
+    B = Builder()
 
-    # ---- left half (mirrored below) ----
-    start = len(bm.verts)
+    # Fuselage: tail cone, tube with a panel-line groove at row 25.3, joint ring at 39.7, nose cone.
+    st = []
+    for y in [1.95, 2.1, 2.35, 2.6, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.4, 7.5, 9.0, 11.0, 13.0, 15.0, 17.0, 19.0, 21.0, 23.0,
+              24.9]:
+        hw = body_hw(y)
+        st.append((y, AX, 0.0, hw, KT * hw, KB * hw, EX))
+    g = 0.32
+    st += [(25.1, AX, 0.0, 4.5 - g, KT * 4.5 - g, KB * 4.5 - g, EX), (25.5, AX, 0.0, 4.5 - g, KT * 4.5 - g, KB * 4.5 - g, EX)]
+    for y in [25.7, 27.5, 29.5, 31.5, 33.5, 35.5, 37.5, 39.7]:
+        st.append((y, AX, 0.0, 4.5, KT * 4.5, KB * 4.5, EX))
+    for y in [39.7, 40.4, 41.5, 42.5, 43.5, 44.5, 45.5, 46.5, 47.5, 48.4, 49.3, 50.0, 50.5, 50.9, 51.25]:
+        hw = body_hw(y) if y > 39.7 or st[-1][3] > 4.0 else 3.75
+        if y == 39.7:
+            hw = 3.75
+        st.append((y, AX, 0.0, hw, KT * hw, KB * hw, EX))
+    B.loft_y(st, 22, lambda y: AFT if y < 25.3 else (FWD if y < 39.7 else NOSEM), "fuselage")
 
-    # Wing (rows 13-27): a 2 px plate with a bevelled top, swept from the body out and up to a
-    # pointed tip at columns 2-4; its root tucks under the red panel and the lower body. Its top
-    # is cut on the pixel grid (small flat facets that follow its droop).
-    wing = [E(2, 13), E(5, 13), E(8.2, 16.6), E(9.9, 16.9), E(10.2, 15.9), E(11, 15.0), E(19.5, 15.0),
-            E(19.5, 28), E(12.0, 28), E(12.0, 27.0), E(9.2, 27.0), E(9.2, 26.0), E(9.9, 26.0), E(5.9, 22.0),
-            E(4.7, 21.0), E(2, 21.0)]
-    v0 = len(bm.verts)
-    f0 = lib.nfaces(bm)
-    bevel_prism(bm, wing, -0.6 * U, 1.4 * U, 0.5 * U, mat_index=WING)
-    pixel_cut(bm, f0, 5, 17, 14, 27, min_nz=0.8)
-    tilt(bm, v0, G.x(16), 0.02)
-    # Raised ribs along the wing (the light diagonal lines).
-    for (c0, r0), (c1, r1) in (((5.5, 17.0), (11.5, 27.0)), ((8.5, 19.0), (14.0, 26.5))):
-        v0 = len(bm.verts)
-        n = 5
-        lib.tube(bm, [((*E(c0 + (c1 - c0) * k / n, r0 + (r1 - r0) * k / n), 1.4 * U), 0.5 * U) for k in range(n + 1)],
-                 sides=6, mat_index=LGREY, flat=0.8)
-        tilt(bm, v0, G.x(16), 0.02)
-    # Wing tip (columns 2-4, rows 13-20): a round pod; the red barrel under it (rows 20-27).
-    v0 = len(bm.verts)
-    f0 = lib.nfaces(bm)
-    pod = [(YE(12.9), 0.0, 0.0, 1.0 * U), (YE(13.5), 1.0 * U, 1.0 * U, 1.0 * U), (YE(14.6), 1.5 * U, 1.5 * U, 1.0 * U)]
-    pod += [(YE(r), 1.5 * U, 1.5 * U, 1.0 * U) for r in (15.5, 16.5, 17.5, 18.5)]
-    pod += [(YE(19.6), 1.5 * U, 1.5 * U, 1.0 * U), (YE(20.6), 0.0, 0.0, 1.0 * U)]
-    common.loft(bm, pod, sides=10, mat_index=RIB)
-    barrel = [(YE(19.8), 1.35 * U, 1.35 * U, 0.6 * U)]
-    barrel += [(YE(r), 1.35 * U, 1.35 * U, 0.6 * U) for r in (21.0, 22.0, 23.0, 24.0, 25.0, 26.0)]
-    barrel += [(YE(27.2), 1.35 * U, 1.35 * U, 0.6 * U), (YE(27.95), 0.6 * U, 0.6 * U, 0.6 * U)]
-    common.loft(bm, barrel, sides=8, mat_index=DRED)
-    common.shift_x(bm, v0, XE(3.5))
-    lib.set_smooth(bm, f0)
-    tilt(bm, v0, G.x(16), 0.02)
-    # Red cowl on the wing's root (columns 10-13, rows 16-18): a dome.
-    f0 = lib.ellipsoid(bm, (XE(12.1), YE(17.5), 1.0 * U), (2.2 * U, 1.6 * U, 2.3 * U),
-                       segments=10, rings=5, mat_index=DRED)
-    lib.set_smooth(bm, f0)
+    # Shoulder housing over the aft fuselage (rows 9-16.5), squarer section, front face sloping down.
+    sh = [(9.15, 4.5, 4.6), (9.6, 6.0, 5.0), (10.3, 7.3, 5.35), (11.1, 8.2, 5.55), (11.9, 8.5, 5.65),
+          (14.6, 8.5, 5.65), (15.4, 8.25, 5.5), (16.1, 7.6, 5.1), (16.6, 6.2, 4.75), (17.0, 4.8, 4.55)]
+    B.loft_y([(y, AX, 0.0, hw, zt, -3.4, 2.9) for y, hw, zt in sh], 22, lambda y: SHOULD, "shoulder")
 
-    # Canard (rows 1-4, columns 9-18): a horizontal cylinder 4 px across, and the red fin under
-    # it: one flat plate tapering down and out from the nose, which the canard sits on.
-    f0 = lib.nfaces(bm)
-    canard = [(XE(9.0), 0.8 * U, 0.8 * U, 0.0), (XE(9.8), 1.9 * U, 1.9 * U, 0.0)]
-    canard += [(XE(c), 2.2 * U, 2.1 * U, 0.0) for c in (10.6, 12.0, 13.4, 14.8, 16.2)]
-    canard += [(XE(17.0), 2.0 * U, 1.9 * U, 0.0), (XE(17.6), 1.3 * U, 1.3 * U, 0.0), (XE(18.4), 0.5 * U, 0.6 * U, 0.0)]
-    lib.loft_x(bm, canard, y=YE(3.0), z=2.0 * U, sides=10, mat_index=HULL)
-    # Its root (row 4, columns 16-21) running into the nose under the canard's slanted inner end.
-    lib.tube(bm, [((XE(15.5), YE(4.6), 1.9 * U), 1.1 * U), ((XE(21.5), YE(4.6), 2.4 * U), 1.1 * U)],
-             sides=8, mat_index=HULL)
-    lib.set_smooth(bm, f0)
-    v0 = len(bm.verts)
-    f0 = lib.nfaces(bm)
-    fin = [E(9.0, 4.5), E(20.5, 4.5), E(20.5, 6.0), E(19.6, 9.1), E(16.4, 9.1), E(14.8, 7.6), E(12.8, 6.7),
-           E(9.0, 6.0)]
-    bevel_prism(bm, fin, 0.0, 2.9 * U, 0.4 * U, mat_index=RED)
-    pixel_cut(bm, f0, 10, 20, 5, 9, min_nz=0.8)
-    # Taper it: the top falls and the underside rises toward the outer end, under the canard.
-    bm.verts.ensure_lookup_table()
-    root = G.x(20)
-    for v in bm.verts[v0:]:
-        out = max(0.0, root - v.co.x)
-        v.co.z += (-0.06 if v.co.z > 1.5 * U else 0.12) * out
+    # Red armoured dorsal hump on the shoulders (rows 10-16, the red shield shape).
+    hump = [(22.3, 9.95), (26.7, 9.95), (28.85, 11.9), (28.85, 13.6), (26.4, 15.95), (22.6, 15.95),
+            (20.15, 13.6), (20.15, 11.9)]
+    B.slab(hump, lambda x, y, d: 5.25 + 0.25 + min(d, 0.5) + 1.25 * smooth01((d - 0.5) / 2.6),
+           lambda x, y, d: 3.8, RED, "hump", step=1.0, chamfer=0.5)
 
-    lib.mirror_x(bm, start, AX)
+    # Dorsal fin (col 24, rows 0.7-12): a thin red blade, raked trailing edge, rounded top.
+    ftop = T.pchip([0.75, 1.5, 4.0, 8.0, 11.0, 12.3], [7.5, 8.0, 7.75, 7.25, 6.75, 6.0])
+    fs = []
+    for y in [0.8, 1.2, 1.7, 2.4, 3.2, 4.2, 5.5, 7.0, 8.5, 10.0, 11.3, 12.3]:
+        zt = ftop(y)
+        zb = max(body_z(AX, y) - 0.8 if y > 2.3 else -9, zt - 0.35 - (y - 0.8) * 3.0)
+        if y > 9.0:
+            zb = 4.0
+        hw = 0.5 if y > 1.5 else 0.35
+        fs.append((y, zb, zt, hw))
+    bm = B.bm
+    rings = []
+    for y, zb, zt, hw in fs:
+        sec = [(-hw, zb), (hw, zb), (hw, zt - 0.45), (0.22, zt), (-0.22, zt), (-hw, zt - 0.45)]
+        rings.append([bm.verts.new((AX + sx, y, sz)) for sx, sz in sec])
+    for r0, r1 in zip(rings, rings[1:]):
+        for k in range(6):
+            j = (k + 1) % 6
+            bm.faces.new((r0[k], r0[j], r1[j], r1[k])).material_index = FINR
+    bm.faces.new(list(reversed(rings[0]))).material_index = FINR
+    bm.faces.new(rings[-1]).material_index = FINR
+    B.tag("fin")
 
-    # Red side panels down the lower body (columns 15-19 at the top narrowing to 18-19, rows 16-27):
-    # round bars standing on the wing (the right one is drawn darker only because it is in shade).
-    for side, mat in ((-1, RED), (1, RED)):
-        pts = [((15.9, 15.6), 0.9), ((16.6, 17.4), 1.9), ((17.6, 20.3), 1.9), ((18.9, 22.6), 1.15),
-               ((19.0, 25.0), 1.1), ((19.0, 27.9), 1.1)]
-        f0 = lib.nfaces(bm)
-        tube = []
-        for (c, r), rad in pts:
-            x, y = E(c, r)
-            x = AX + (x - AX) * -side if side > 0 else x
-            tube.append(((x, y, max(rad, 1.3) * U), rad * U))
-        lib.tube(bm, tube, sides=8, mat_index=mat)
-        lib.set_smooth(bm, f0)
+    for side in (0, 1):
+        def mx(poly):
+            return mirror(poly) if side else poly
 
-    # ---- centre parts ----
+        def fx(x):
+            return 2 * AX - x if side else x
 
-    # Body: the narrow nose (rows 0-8), the shoulders (rows 9-15), a dark groove at row 16 and the
-    # round lower body (rows 17-27, about 9 px across and 6 px tall). Round-topped all along.
-    f0 = lib.nfaces(bm)
-    body = [(-0.2, 0.0, 0.0, 2.0, 0.0), (0.5, 1.3, 0.0, 2.6, 0.6), (2.9, 1.5, 0.0, 3.6, 0.8),
-            (3.5, 3.4, 0.0, 3.9, 1.0), (4.2, 4.5, 0.0, 4.2, 1.2), (8.6, 4.6, 0.0, 6.0, 1.5),
-            (9.4, 7.3, 0.0, 6.4, 1.8), (10.4, 8.7, 0.0, 6.8, 2.0), (11.4, 9.5, 0.0, 7.0, 2.2),
-            (14.8, 9.5, 0.0, 7.0, 2.4), (15.6, 9.0, 0.0, 6.7, 2.6), (16.0, 8.6, 0.0, 5.2, 2.8),
-            (16.8, 8.0, 0.0, 5.2, 3.2), (17.4, 7.0, 0.0, 6.0, 3.6), (18.4, 4.9, 0.0, 6.3, 4.0),
-            (27.3, 4.8, 0.0, 6.1, 4.0), (28.0, 3.6, 0.0, 5.0, 3.0)]
-    body_loft(bm, densify(body, 1.5), AX, sides=14, mat_index=HULL)
-    lib.set_smooth(bm, f0)
-    # Red stripe down the spine (rows 0-10): a straight round bar 2 px wide standing about 1.6 px
-    # proud of the nose's crest, running into the chest dome.
-    f0 = lib.nfaces(bm)
-    spine = [((AX, YE(0.4), (crest(body, 0.4) + 0.2) * U), 0.55 * U)]
-    spine += [((AX, YE(r), (crest(body, r) + 0.6) * U), 1.0 * U) for r in (1.2, 4.2, 8.6, 11.2)]
-    lib.tube(bm, spine, sides=8, mat_index=LRED)
-    lib.set_smooth(bm, f0)
-    # The red shield on the chest (columns 20-28, rows 10-15): a low smooth dome, 9 x 6 px,
-    # rising about 3 px above the hull.
-    f0 = lib.nfaces(bm)
-    n = 20
-    cy = YE(12.9)
-    shield = [(AX + 4.7 * U * math.cos(2 * math.pi * k / n), cy + 2.7 * U * math.sin(2 * math.pi * k / n))
-              for k in range(n)]
-    lib.pillow(bm, shield, (AX, cy), 6.1 * U, 3.5 * U, 2.0 * U, rings=5, mat_index=RED, power=0.8, bottom_rings=1)
-    lib.set_smooth(bm, f0)
-    # Dark floor of the groove under the chest (row 16).
-    lib.box(bm, AX - 3.5 * U, YE(16.9), AX + 3.5 * U, YE(15.9), 3.0 * U, 5.3 * U, mat_index=DARK)
-    # The two pieces are cut apart at X = 0 (half a pixel left of the axis), and each piece's
-    # normals at the cut come from its own side only: thin strips either side of the cut keep
-    # those normals true, so the dome and the body show no crease down the middle.
-    bm.normal_update()
-    for x in (-0.03 * U, 0.03 * U):
-        bm.faces.ensure_lookup_table()
-        fs = [f for f in bm.faces if f.smooth and f.normal.z > 0.2
-              and min(v.co.x for v in f.verts) < x < max(v.co.x for v in f.verts)]
-        geom = fs + list({e for f in fs for e in f.edges}) + list({v for f in fs for v in f.verts})
-        bmesh.ops.bisect_plane(bm, geom=geom, plane_co=(x, 0, 0), plane_no=(1, 0, 0))
+        # Tailplane (rows 2-5, cols 10-18): an aerofoil slab, rounded tip.
+        tp = [(9.85, 2.75), (10.25, 2.05), (11.0, 1.9), (17.0, 1.9), (19.2, 5.15), (11.0, 5.15), (10.25, 4.95), (9.85, 4.35)]
+        B.slab(mx(tp), lambda x, y, d: 2.25 + 0.25 + min(d, 0.35) + 0.45 * smooth01((d - 0.35) / 1.2),
+               lambda x, y, d: 2.25 - 0.25 - 0.35 * smooth01(d / 1.4), TAILM, "tailplane", step=1.0, chamfer=0.35)
+        # Red root strake under it, sweeping forward and down into the fuselage (rows 5-9.8).
+        sk = [(11.75, 4.6), (20.8, 4.6), (20.8, 9.85), (18.45, 9.85), (15.0, 6.25), (12.2, 5.95)]
 
-    # No per-pixel painting: every part keeps its own mid-tone material (see above), the game
-    # draws the outline, and its lights shade the curves.
-    return lib.to_object(NAME, bm, mats, coll)
+        def sk_mid(x):
+            u = abs(x - AX)
+            return 1.55 + 0.21 * max(0.0, 12.7 - (u - 0.0)) if u < 12.7 else 1.55
+        B.slab(mx(sk), lambda x, y, d: sk_mid(x) + 0.2 + min(d, 0.3) + 0.25 * smooth01((d - 0.3) / 1.2),
+               lambda x, y, d: sk_mid(x) - 0.3 - 0.2 * smooth01(d / 1.2), RED, "strake", step=1.0, chamfer=0.3)
+
+        # Wing.
+        wo = mx(wing_outline())
+
+        def wt(x, y, d, wo=wo):
+            return wing_top(fx(x), y, d, wo)
+
+        def wb(x, y, d):
+            return wing_bot(fx(x), y, d)
+        B.slab(wo, wt, wb, WING, "wing", step=99, chamfer=0.45)
+        if detail:
+            # Raised panel behind the panel line that runs parallel to the leading edge (x = y - 9.2),
+            # stopping short of the nacelle; and a leading-edge strip in front of it.
+            base = wing_outline()
+            pa = clip(clip(base, 1, -1, 9.65), -1, 0, 15.3)  # x - y + 9.65 >= 0 and x <= 15.3
+            pa = clip(pa, 0, 1, -17.9)  # y >= 17.9 (behind the trailing-edge blister)
+            pa = inset(pa, 0.55)
+            pb = clip(clip(base, -1, 1, -9.95), 1, -1, 14.3)  # between the panel line and the LE
+            pb = clip(pb, -1, 0, 17.0)
+            pb = inset(pb, 0.55)
+            for poly in (pa, pb):
+                if len(poly) < 3 or abs(area2(poly)) < 1.0:
+                    continue
+
+                def pt(x, y, d, wo=wo):
+                    xx = fx(x)
+                    return wing_top(xx, y, poly_dist(xx, y, wing_outline()), None) + 0.2 + min(d, 0.2)
+
+                def pbot(x, y, d, wo=wo):
+                    xx = fx(x)
+                    return wing_top(xx, y, poly_dist(xx, y, wing_outline()), None) - 0.3
+                B.slab(mx(poly), pt, pbot, WING, "panel", step=99, chamfer=0.2)
+
+        # Wing-tip gun: grey breech (rows 13.3-20), red barrel forward to row 27.2, dark bore.
+        gx, gz = fx(3.6), wing_mid(3.6) + 0.25
+        gst = [(13.3, 0.0), (13.45, 0.55), (13.8, 0.9), (14.4, 1.08), (19.6, 1.08), (20.05, 1.08)]
+        B.loft_y([(y, gx, gz, r, r, r, 2.0) for y, r in gst], 12, lambda y: GUNM, "gun", cap0=False, cap1=True)
+        bst = [(19.9, 0.86), (26.1, 0.86), (26.15, 0.98), (27.15, 0.98), (27.2, 0.55)]
+        B.loft_y([(y, gx, gz, r, r, r, 2.0) for y, r in bst], 12, lambda y: RED, "barrel", cap0=True, cap1=False)
+        B.loft_y([(27.2, gx, gz, 0.55, 0.55, 0.55, 2.0), (26.6, gx, gz, 0.55, 0.55, 0.55, 2.0)], 12,
+                 lambda y: DARK, "barrel", cap0=False, cap1=True)
+
+        # Red intake fairing in the wing root beside the fuselage (rows 15-29).
+        nac = [(15.6, 15.3, 2.75, 0.0, 0.0), (15.75, 15.6, 2.75, 0.55, 0.5), (16.3, 16.9, 2.65, 1.15, 0.95),
+               (17.15, 18.6, 2.5, 2.05, 1.35), (17.9, 20.2, 2.35, 1.85, 1.3), (18.6, 21.8, 2.2, 1.3, 1.15),
+               (18.95, 23.3, 2.05, 1.05, 1.05), (19.0, 26.5, 1.95, 1.0, 1.0), (18.95, 28.3, 1.8, 0.9, 0.9),
+               (19.1, 29.05, 1.6, 0.75, 0.75), (19.3, 29.6, 1.4, 0.45, 0.45), (19.4, 29.95, 1.3, 0.0, 0.0)]
+        B.tube([(fx(x), y, z, rw, rh) for x, y, z, rw, rh in nac], 12, NAC, "nacelle", ex=3.0)
+
+        # Red blister on the wing's trailing-edge root (cols 10-13, rows 16-18).
+        bx = fx(12.05)
+        bz = wing_top(12.05, 17.0, 1.2, None) - 0.2
+        blst = [(15.9, 0.0, 0.0), (16.1, 1.0, 0.45), (16.6, 1.75, 0.8), (17.4, 1.95, 0.9), (18.1, 1.6, 0.7),
+                (18.55, 0.8, 0.35), (18.7, 0.0, 0.0)]
+        B.loft_y([(y, bx, bz, w, h, 0.4, 2.4) for y, w, h in blst], 12, lambda y: RED, "blister")
+
+        if detail:
+            # Two vents on this flank (rows 34-36 and 37-39, cols 21-22 / 26-27).
+            vx = fx(22.0)
+            for vy in (35.0, 38.0):
+                z = body_z(vx, vy)
+                u = (vx - AX) / 4.5
+                nrm = Vector((u * 1.0, 0.0, max(0.2, math.sqrt(max(0.0, 1 - u * u))))).normalized()
+                B.box_on((vx, vy, z), nrm, (0, 1, 0), 1.75, 1.6, 0.5, 0.06, DARK, "vent")
+                B.box_on((vx, vy, z), nrm, (0, 1, 0), 1.85, 0.3, 0.2, 0.2, FWD, "vent")
+            # Rail beside the dorsal channel on the aft body (rows 17-25).
+            rx = fx(23.55)
+            B.tube([(rx, y, body_z(rx, y) - 0.05, 0.3, 0.32) for y in (17.2, 17.6, 21.0, 24.4, 24.8)], 6, RAIL, "rail")
+
+    if detail:
+        # Sensor window on the nose (rows 40-43): dark glossy glass in a frame, wrapped round the nose.
+        def wh(y, k=1.0):
+            t = (y - 41.35) / 1.6
+            return max(0.25, 2.75 * k * (1 - min(1.0, abs(t)) ** 3) ** 0.5)
+        B.patch(39.85, 42.85, 6, lambda y: wh(y, 1.0) + 0.3, AX, 10, body_z, 0.07, 0.4, FRAME, "window")
+        def dome(x, y):  # the glass bulges a little: a lens, not a flat decal
+            u = (x - AX) / 2.9
+            t = (y - 41.35) / 1.5
+            return body_z(x, y) + 0.32 * max(0.0, 1 - u * u - t * t)
+        B.patch(40.05, 42.65, 6, wh, AX, 10, dome, 0.15, 0.45, GLASS, "window")
+
+    bm = B.bm
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
+    # px -> Blender (a reflection in y), then make every closed island face out.
+    mtx = Matrix(((1 / 12, 0, 0, -24 / 12), (0, -1 / 12, 0, 14 / 12), (0, 0, 1 / 12, 0), (0, 0, 0, 1)))
+    bmesh.ops.transform(bm, matrix=mtx, verts=bm.verts)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    me = bpy.data.meshes.new(name)
+    bm.to_mesh(me)
+    bm.free()
+    for mat in mats:
+        me.materials.append(mat)
+    obj = bpy.data.objects.new(name, me)
+    coll.objects.link(obj)
+    for poly in me.polygons:
+        poly.use_smooth = True
+    me.set_sharp_from_angle(angle=math.radians(34))
+    return obj
 
 
-def main():
-    sprite = lib.merged_sprite(ROOT, PIECES)
-    pixels = lib.combined_pixels([(common.load_sprite(ROOT, n)["frames"][0]["pixels"], 24 * k, 0)
-                                  for k, n in enumerate(PIECES)], 48, 28)
-    obj = build(sprite, pixels)
-    # Piece centres relative to the assembly centre, in pixels (sprite.json cx 65 and 89, cy -18).
-    layout = [("newsh5-229", -12, 0), ("newsh5-231", 12, 0)]
-    pieces = common.split_assembly(obj, layout)
-    for name in PIECES:
-        data = common.load_sprite(ROOT, name)
-        common.export_sprite_model(ROOT, [pieces[name]], f"enemies/{name}", data["sprites"])
-    out = lib.preview_arg()
-    if out:
-        out = Path(out)
-        import tempfile
-        frames = [common.load_sprite(ROOT, n) for n in PIECES]
-        # The whole ship's sprite, padded to the 24:28 shape render_preview expects for size 4.
-        ref = Path(tempfile.mkdtemp()) / "assembly.png"
-        lib.composite_png([(frames[0]["frames"][0]["pixels"], frames[0]["colors"], 0, 14),
-                           (frames[1]["frames"][0]["pixels"], frames[1]["colors"], 24, 14)], 48, 56, ref)
-        common.render_preview([obj], str(out), ref, size=4, view_px=480)
-        for name, data in zip(PIECES, frames):
-            img = ROOT / "reference" / "models" / name / data["frames"][0]["image"]
-            common.render_preview([pieces[name]], str(out.parent / f"{name}.png"), img, size=2)
+# ------------------------------------------------------------ pieces, normals across seams, shell
+
+def seam_normals(piece, whole, x0, y0):
+    """Copied from assembly-newsh9-197 design A: the whole object's corner normals on every face the
+    piece shares with it, so shading runs on across the piece seams."""
+    from mathutils.bvhtree import BVHTree
+    wm = whole.data
+    tree = BVHTree.FromPolygons([v.co for v in wm.vertices], [p.vertices[:] for p in wm.polygons])
+    cn = wm.corner_normals
+    pm = piece.data
+    off = Vector((x0, y0, 0))
+    out = [None] * len(pm.loops)
+    for f in pm.polygons:
+        c = f.center + off
+        loc, nrm, idx, dist = tree.find_nearest(c)
+        ok = idx is not None and dist < 1e-4 and nrm.dot(f.normal) > 0.98
+        for li in f.loop_indices:
+            if not ok:
+                out[li] = f.normal.copy()
+                continue
+            pv = pm.vertices[pm.loops[li].vertex_index].co + off
+            wf = wm.polygons[idx]
+            wl = list(wf.loop_indices)
+            if len(wl) == 3:
+                a, b, c3 = (wm.vertices[wm.loops[k].vertex_index].co for k in wl)
+                w = geometry.barycentric_transform(pv, a, b, c3, Vector((1, 0, 0)), Vector((0, 1, 0)),
+                                                   Vector((0, 0, 1)))
+                out[li] = sum((cn[k].vector * max(0.0, w[j]) for j, k in enumerate(wl)), Vector()).normalized()
+            else:
+                best = min(wl, key=lambda k: (wm.vertices[wm.loops[k].vertex_index].co - pv).length)
+                out[li] = cn[best].vector.copy()
+    pm.normals_split_custom_set(out)
+
+
+def split_open(obj, layout, coll):
+    """Cut the outline shell into the pieces without filling the cuts (no ink along the seams), each
+    keeping the whole shell's vertex normals (copied from assembly-newsh9-197 design A)."""
+    from mathutils.kdtree import KDTree
+    mw = obj.matrix_world
+    kd = KDTree(len(obj.data.vertices))
+    for v in obj.data.vertices:
+        kd.insert(mw @ v.co, v.index)
+    kd.balance()
+    wn = [(mw.to_3x3() @ v.normal).normalized() for v in obj.data.vertices]
+    out = {}
+    for name, cx, cy in layout:
+        x0, y0 = cx / 12, -cy / 12
+        bm = bmesh.new()
+        bm.from_mesh(obj.data)
+        bmesh.ops.transform(bm, matrix=obj.matrix_world, verts=bm.verts)
+        hw, hh = 1.0, 14 / 12
+        for co, no in (((x0 - hw, 0, 0), (-1, 0, 0)), ((x0 + hw, 0, 0), (1, 0, 0)),
+                       ((0, y0 - hh, 0), (0, -1, 0)), ((0, y0 + hh, 0), (0, 1, 0))):
+            bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], plane_co=co, plane_no=no,
+                                   clear_outer=True)
+        bmesh.ops.translate(bm, vec=(-x0, -y0, 0), verts=bm.verts)
+        me = bpy.data.meshes.new(f"{name}_outline")
+        bm.to_mesh(me)
+        bm.free()
+        for mm in obj.data.materials:
+            me.materials.append(mm)
+        sh = bpy.data.objects.new(f"{name}_outline", me)
+        coll.objects.link(sh)
+        for k in obj.keys():
+            sh[k] = obj[k]
+        for poly in me.polygons:
+            poly.use_smooth = True
+        nrm = []
+        for v in me.vertices:
+            near = kd.find_n(Vector((v.co.x + x0, v.co.y + y0, v.co.z)), 2)
+            n = sum((wn[i] * (1 / (d + 1e-5)) for _, i, d in near), Vector())
+            nrm.append(n.normalized())
+        me.normals_split_custom_set_from_vertices(nrm)
+        out[name] = sh
+    return out
+
+
+def sink_shell(shell, model, margin, reach):
+    """Keep the outline shell under the model's top surface (D90/D118: ink on the silhouette only)."""
+    from mathutils.bvhtree import BVHTree
+    dg = bpy.context.evaluated_depsgraph_get()
+    tree = BVHTree.FromObject(model, dg)
+    mw = shell.matrix_world
+    inv = mw.inverted()
+    for v in shell.data.vertices:
+        w = mw @ v.co
+        hit = tree.ray_cast(Vector((w.x, w.y, 5.0)), Vector((0, 0, -1)))
+        if hit[0] is None:
+            continue
+        zt = hit[0].z
+        for k in range(12):
+            a = 2 * math.pi * k / 12
+            for rad in (0.35 * reach, 0.7 * reach, reach):
+                h = tree.ray_cast(Vector((w.x + rad * math.cos(a), w.y + rad * math.sin(a), 5.0)),
+                                  Vector((0, 0, -1)))
+                if h[0] is not None:
+                    zt = min(zt, h[0].z)
+        zt -= margin
+        if w.z > zt:
+            v.co = inv @ Vector((w.x, w.y, zt))
+    shell.data.update()
+
+
+def main(export=("newsh5-229", "newsh5-231")):
+    """Builds the whole craft; exports only the pieces in `export` (newsh5-268.py exports its own)."""
+    argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+    for o in list(bpy.data.objects):
+        bpy.data.objects.remove(o, do_unlink=True)
+    coll = common.reset_collection(NAME)
+    sprite = common.load_sprite(WT, PIECES[0])
+    for n in PIECES[1:]:
+        sprite["colors"].update(common.load_sprite(WT, n)["colors"])
+    obj = build(coll, sprite)
+    pieces = common.split_assembly(obj, LAYOUT)
+    for name, cx, cy in LAYOUT:
+        p = pieces[name]
+        for poly in p.data.polygons:
+            poly.use_smooth = True
+        p.data.set_sharp_from_angle(angle=math.radians(34))
+        seam_normals(p, obj, cx / 12, -cy / 12)
+    # Outline shell (D51) from a sealed copy without the small detail, made once for the whole craft
+    # and cut open into the pieces; every outer island kept (D189: the wing-tip guns stand free).
+    plain = build(coll, sprite, detail=False, name=NAME + "_plain")
+    bpy.context.view_layer.update()
+    shell = common.outline_shell(plain, coll, voxel=0.014, faces=7000, inside=0.01, islands="outer")
+    sink_shell(shell, plain, margin=0.03, reach=0.08)
+    shells = split_open(shell, LAYOUT, coll)
+    for name, sh in shells.items():
+        print("SHELL", name, len(sh.data.vertices), "verts")
+        assert len(sh.data.polygons) > 0, f"{name}_outline has no mesh"
+    bpy.data.objects.remove(plain, do_unlink=True)
+    bpy.data.objects.remove(shell, do_unlink=True)
+    for name, cx, cy in LAYOUT:
+        if name in export:
+            data = common.load_sprite(WT, name)
+            common.export_sprite_model(WT, [pieces[name], shells[name]], f"enemies/{name}", data["sprites"])
+    for n, _, _ in LAYOUT:
+        print("TRIS", n, sum(len(p.vertices) - 2 for p in pieces[n].data.polygons))
+    print("TRIS whole", sum(len(p.vertices) - 2 for p in obj.data.polygons))
 
 
 if __name__ == "__main__":
