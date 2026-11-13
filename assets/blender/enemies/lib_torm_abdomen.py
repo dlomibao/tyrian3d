@@ -1,6 +1,6 @@
 """Shared builder for the TORM abdomen segments assembly-newshh-230 (230+232) and -192 (192+194).
 
-Design B (see the two entry scripts). Script-local copy: lib_b056 stays as it is (newshh-155 uses it).
+Design B (see the two entry scripts). Its own code: the old lib_b056 (once shared with newshh-155) is deleted.
 Each segment is built at its own centre; the pieces are cut at the cell boundary, capped (D117), get
 a sealed-copy outline shell (D90) and go out through common.export_sprite_model.
 """

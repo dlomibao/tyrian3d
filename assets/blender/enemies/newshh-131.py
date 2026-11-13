@@ -45,7 +45,6 @@ sys.path.insert(0, str(WT / "assets" / "blender"))
 import common  # noqa: E402
 import usp_talon as T  # noqa: E402
 
-HERE = Path("/Users/dlomibao/projects/tyrian-scratch/e2-enemies-3/fix/newshh-131/final")
 NAME = "newshh-131"
 TAG = "nshh131A"
 PX = 1 / 12
@@ -547,8 +546,8 @@ def main():
         o.hide_render = False
     pre.hide_render = True
     if "--no-bake" not in argv:
-        bd = HERE / "bake"
-        bd.mkdir(parents=True, exist_ok=True)
+        import tempfile
+        bd = Path(tempfile.mkdtemp(prefix="nshh131_bake_"))
         bake(obj, bd)
         fmt = "WEBP"
     sh = common.outline_shell(pre, coll, voxel=0.02, faces=1500, smooth=6, inside=0.0)
@@ -573,8 +572,8 @@ def main():
         scene.camera = c
         scene.render.filepath = str(views / "top_lit.png")
         bpy.ops.render.render(write_still=True)
-    HERE.mkdir(parents=True, exist_ok=True)
-    (HERE / "stats.json").write_text(json.dumps({"triangles": tris, "shell_faces": len(sh.data.polygons)}))
+    if views:
+        (views / "stats.json").write_text(json.dumps({"triangles": tris, "shell_faces": len(sh.data.polygons)}))
 
 
 if __name__ == "__main__":

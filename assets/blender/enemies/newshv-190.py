@@ -15,7 +15,7 @@ is pixel edge (6, 7)), converted to Blender units as it goes. Colours are the sp
 per region (ring 67, vanes and prongs 66, stubs and axle 65, knob 71), each stepping to the frame's
 brighter index (palette_material frames=). Shading is the game's light. The ring and vanes glow
 faintly (the pulse); the knob glows (metallic 1 / rough, D126/D173). Outline shell from a sealed
-copy (D90/D118). Helpers adapted from lib_b054 (copied, not imported).
+copy (D90/D118). Helpers adapted from the old lib_b054 (copied; that lib is deleted).
 
 Run: blender --background --python assets/blender/enemies/newshv-190.py [-- --preview out.png]
 """

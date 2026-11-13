@@ -123,7 +123,6 @@ NOSE, TIP, S1, S2, S3, KNU, TRIM, GROOVE = range(8)
 KNU_PROPS = (0.36, 0.32)  # the ball is polished: its sheen is the sprite's hot spot
 PAL = {NOSE: 22, TIP: 23, S1: 22, S2: 22, S3: 22, KNU: 21, TRIM: 24, GROOVE: 19}
 PROPS = {19: (0.25, 0.6), 21: (0.32, 0.45), 22: (0.32, 0.4), 23: (0.34, 0.36), 24: (0.36, 0.34)}
-PART_NAMES = ["spike", "sleeve1", "sleeve2", "sleeve3", "knuckle"]
 
 # Nose spike half width (px) down the rows: a smooth ogive whose pixel steps are the sprite's
 # staircase (rows 15-16 0.5, 17-18 1.5, 19-21 2.5, 22-25 3.5, 26-34 4.5 on the inner mask).
@@ -334,12 +333,6 @@ def main():
     obj, coll = build(sprite)
     # the outline shell from the sealed whole model, before any cut (D51, D90, D118)
     shell = common.outline_shell(obj, coll, voxel=0.01, faces=3000, smooth=6, inside=0.006)
-    if "--views" in sys.argv:  # review renders (design-stage helper module given by --viewsmod)
-        import importlib.util
-        spec = importlib.util.spec_from_file_location("views_B", sys.argv[sys.argv.index("--viewsmod") + 1])
-        vb = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(vb)
-        vb.run(obj, shell, Path(sys.argv[sys.argv.index("--views") + 1]), PART_NAMES)
     if "--glb" in sys.argv:  # whole-object glb for design review
         common.export_glb([obj, shell], Path(sys.argv[sys.argv.index("--glb") + 1]))
     # assembly layout: the sprite's own, centred on the middle of the 24x56 object
