@@ -90,8 +90,8 @@
     "uniqueSprites": 683,
     "units": 193,
     "enemyUnits": 147,
-    "enemyUnitsModelled": 146,
-    "enemyUnitsFlagship": 110,
+    "enemyUnitsModelled": 147,
+    "enemyUnitsFlagship": 145,
     "damageFramesMissing": 0,
     "tilesets": 2,
     "tilesetsWithHd": 2,
@@ -135,7 +135,7 @@
     "units": 249,
     "enemyUnits": 191,
     "enemyUnitsModelled": 191,
-    "enemyUnitsFlagship": 121,
+    "enemyUnitsFlagship": 124,
     "damageFramesMissing": 0,
     "tilesets": 3,
     "tilesetsWithHd": 3,
@@ -198,7 +198,7 @@
     "units": 259,
     "enemyUnits": 199,
     "enemyUnitsModelled": 162,
-    "enemyUnitsFlagship": 38,
+    "enemyUnitsFlagship": 39,
     "damageFramesMissing": 0,
     "tilesets": 5,
     "tilesetsWithHd": 5,
@@ -14677,7 +14677,7 @@
     "newsha.shp|2": [49,51]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsha.shp|2": [49,51]
@@ -15696,7 +15696,7 @@
     "newshh.shp|2": [85,87,123,125]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshh.shp|2": [85,87,123,125]
@@ -15899,7 +15899,7 @@
     "newshh.shp|2": [17,55]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshh.shp|2": [17,55]
@@ -15927,7 +15927,7 @@
     "newshh.shp|2": [77,115]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshh.shp|2": [77,115]
@@ -18304,7 +18304,7 @@
     "newsh0.shp|2": [1]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh0.shp|2": [1]
@@ -18332,7 +18332,7 @@
     "newsh0.shp|2": [119,121,123,129]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh0.shp|2": [119,121,123,129]
@@ -18387,7 +18387,7 @@
     "newsh0.shp|2": [13]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh0.shp|2": [13]
@@ -18415,7 +18415,7 @@
     "newsh0.shp|2": [15]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh0.shp|2": [15]
@@ -18443,7 +18443,7 @@
     "newsh0.shp|2": [153,155,157]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh0.shp|2": [153,155,157]
@@ -18470,7 +18470,7 @@
     "newsh0.shp|2": [229,231,233]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh0.shp|2": [229,231,233]
@@ -18497,7 +18497,7 @@
     "newsh0.shp|2": [3]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh0.shp|2": [3]
@@ -18525,7 +18525,7 @@
     "newsh0.shp|2": [53]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh0.shp|2": [53]
@@ -18553,7 +18553,7 @@
     "newsh0.shp|2": [7]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh0.shp|2": [7]
@@ -18581,7 +18581,7 @@
     "newsh0.shp|2": [9]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh0.shp|2": [9]
@@ -19468,7 +19468,7 @@
     "newshd.shp|2": [117]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh3.shp|2": [52],
@@ -20653,7 +20653,7 @@
    "damageFrames": {
     "newsh8.shp|1": [140]
    },
-   "status": "basic",
+   "status": "flagship",
    "damage": "modelled",
    "framesSeen": {
     "newsh8.shp|1": [102,140]
@@ -23637,7 +23637,7 @@
     "newshg.shp|2": [55]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshg.shp|2": [55]
@@ -23696,7 +23696,7 @@
     "newshh.shp|2": [1,3,39]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshh.shp|2": [1,3,39]
@@ -23723,7 +23723,7 @@
     "newshh.shp|2": [127]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshh.shp|2": [127]
@@ -23750,7 +23750,7 @@
     "newshh.shp|2": [131]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshh.shp|2": [131]
@@ -23777,7 +23777,7 @@
     "newshh.shp|2": [155]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshh.shp|2": [155]
@@ -23834,7 +23834,7 @@
    "damageFrames": {
     "newshh.shp|2": [41]
    },
-   "status": "basic",
+   "status": "flagship",
    "damage": "modelled",
    "framesSeen": {
     "newshh.shp|2": [79]
@@ -23861,7 +23861,7 @@
     "newshh.shp|2": [89]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshh.shp|2": [89]
@@ -23888,7 +23888,7 @@
     "newshh.shp|2": [91]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshh.shp|2": [91]
@@ -24038,7 +24038,7 @@
     "newshj.shp|2": [117]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshj.shp|2": [117]
@@ -24132,7 +24132,7 @@
    "damageFrames": {
     "newshj.shp|2": [41]
    },
-   "status": "basic",
+   "status": "flagship",
    "damage": "modelled",
    "framesSeen": {
     "newshj.shp|2": [41,77,79,81]
@@ -24187,7 +24187,7 @@
     "newshk.shp|2": [1,3,5,7,9,11,39,43,45,49,77,79,81,83,85,87]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshk.shp|2": [1,3,5,7,9,11,39,43,45,49,77,79,81,83,85,87]
@@ -25882,7 +25882,7 @@
     "newshr.shp|1": [190]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshr.shp|1": [190]
@@ -26394,7 +26394,7 @@
     "newshv.shp|2": [10]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshv.shp|2": [10]
@@ -26505,7 +26505,7 @@
     "newshv.shp|2": [159]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshv.shp|2": [159]
@@ -26559,7 +26559,7 @@
     "newshv.shp|2": [163]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshv.shp|2": [163]
@@ -26586,7 +26586,7 @@
     "newshv.shp|2": [165]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshv.shp|2": [165]
@@ -26613,7 +26613,7 @@
     "newshv.shp|1": [171]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshv.shp|1": [171]
@@ -26668,7 +26668,7 @@
     "newshv.shp|1": [190,209,228]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshv.shp|1": [190,209,228]
@@ -26722,7 +26722,7 @@
     "newshv.shp|2": [197,199,201]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshv.shp|2": [197,199,201]
@@ -26749,7 +26749,7 @@
     "newshv.shp|2": [235]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshv.shp|2": [235]
@@ -26776,7 +26776,7 @@
     "newshv.shp|2": [237]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshv.shp|2": [237]
@@ -26830,7 +26830,7 @@
     "newshv.shp|2": [48]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshv.shp|2": [48]
@@ -36410,15 +36410,6 @@
     "ticks": 2115
    },
    {
-    "id": "newsh3-52",
-    "what": "ground",
-    "status": "basic",
-    "levels": 2,
-    "episodes": 2,
-    "events": 50,
-    "ticks": 1070
-   },
-   {
     "id": "newshl-116",
     "what": "ground",
     "status": "basic",
@@ -36489,15 +36480,6 @@
     "episodes": 1,
     "events": 66,
     "ticks": 44453
-   },
-   {
-    "id": "newsh8-102",
-    "what": "ground",
-    "status": "basic",
-    "levels": 2,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 40854
    },
    {
     "id": "assembly-newsh8-243",
@@ -36588,15 +36570,6 @@
     "episodes": 1,
     "events": 6,
     "ticks": 16410
-   },
-   {
-    "id": "newshr-190",
-    "what": "ground",
-    "status": "basic",
-    "levels": 2,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 14865
    },
    {
     "id": "assembly-newshr-39",
@@ -36833,15 +36806,6 @@
     "ticks": 3211
    },
    {
-    "id": "newshv-10",
-    "what": "ground",
-    "status": "basic",
-    "levels": 2,
-    "episodes": 1,
-    "events": 114,
-    "ticks": 3102
-   },
-   {
     "id": "newsh3-126",
     "what": "ground",
     "status": "basic",
@@ -36849,24 +36813,6 @@
     "episodes": 1,
     "events": 52,
     "ticks": 2504
-   },
-   {
-    "id": "newshj-77",
-    "what": "air",
-    "status": "basic",
-    "levels": 2,
-    "episodes": 1,
-    "events": 18,
-    "ticks": 1296
-   },
-   {
-    "id": "newshv-48",
-    "what": "ground",
-    "status": "basic",
-    "levels": 2,
-    "episodes": 1,
-    "events": 8,
-    "ticks": 1041
    },
    {
     "id": "assembly-newsh8-229",
@@ -36885,15 +36831,6 @@
     "episodes": 1,
     "events": 12,
     "ticks": 776
-   },
-   {
-    "id": "newshg-55",
-    "what": "custom",
-    "status": "basic",
-    "levels": 2,
-    "episodes": 1,
-    "events": 5,
-    "ticks": 216
    },
    {
     "id": "newsh5-267",
@@ -37400,15 +37337,6 @@
     "ticks": 5679
    },
    {
-    "id": "newshk-1",
-    "what": "ground (boss)",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 135,
-    "ticks": 5087
-   },
-   {
     "id": "assembly-newshe-237",
     "what": "ground",
     "status": "basic",
@@ -37580,15 +37508,6 @@
     "ticks": 2962
    },
    {
-    "id": "newsh0-153",
-    "what": "air",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 25,
-    "ticks": 2876
-   },
-   {
     "id": "newshl-229",
     "what": "ground",
     "status": "basic",
@@ -37596,15 +37515,6 @@
     "episodes": 1,
     "events": 1,
     "ticks": 2829
-   },
-   {
-    "id": "newsh0-229",
-    "what": "air",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 24,
-    "ticks": 2725
    },
    {
     "id": "assembly-newsh5-93",
@@ -37706,15 +37616,6 @@
     "ticks": 1968
    },
    {
-    "id": "newshv-159",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 12,
-    "ticks": 1902
-   },
-   {
     "id": "newsh7-203",
     "what": "air (boss)",
     "status": "basic",
@@ -37722,15 +37623,6 @@
     "episodes": 1,
     "events": 14,
     "ticks": 1819
-   },
-   {
-    "id": "newshv-171",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 1778
    },
    {
     "id": "assembly-newsh7-203",
@@ -37814,24 +37706,6 @@
     "ticks": 1389
    },
    {
-    "id": "newsh0-119",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 1,
-    "ticks": 1337
-   },
-   {
-    "id": "assembly-newshh-55",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 28,
-    "ticks": 1316
-   },
-   {
     "id": "newshs-271",
     "what": "ground",
     "status": "basic",
@@ -37839,15 +37713,6 @@
     "episodes": 1,
     "events": 6,
     "ticks": 1302
-   },
-   {
-    "id": "newsh0-53",
-    "what": "custom (boss)",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 1,
-    "ticks": 1156
    },
    {
     "id": "newshk-276",
@@ -37859,42 +37724,6 @@
     "ticks": 1135
    },
    {
-    "id": "newshh-155",
-    "what": "custom",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 14,
-    "ticks": 1085
-   },
-   {
-    "id": "newshv-165",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 18,
-    "ticks": 1074
-   },
-   {
-    "id": "newshh-131",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 14,
-    "ticks": 1058
-   },
-   {
-    "id": "newshh-1",
-    "what": "air",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 16,
-    "ticks": 1029
-   },
-   {
     "id": "newsh9-43",
     "what": "ground (boss)",
     "status": "sprite",
@@ -37904,15 +37733,6 @@
     "ticks": 1016
    },
    {
-    "id": "newshv-237",
-    "what": "custom",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 15,
-    "ticks": 954
-   },
-   {
     "id": "newshk-115",
     "what": "ground",
     "status": "basic",
@@ -37920,15 +37740,6 @@
     "episodes": 1,
     "events": 0,
     "ticks": 931
-   },
-   {
-    "id": "newshv-190",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 894
    },
    {
     "id": "newsh-caret-201",
@@ -37983,24 +37794,6 @@
     "episodes": 1,
     "events": 18,
     "ticks": 740
-   },
-   {
-    "id": "newshv-163",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 13,
-    "ticks": 724
-   },
-   {
-    "id": "assembly-newshh-125",
-    "what": "air",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 8,
-    "ticks": 724
    },
    {
     "id": "newsh-caret-129",
@@ -38064,15 +37857,6 @@
     "episodes": 1,
     "events": 15,
     "ticks": 681
-   },
-   {
-    "id": "newshv-197",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 7,
-    "ticks": 652
    },
    {
     "id": "newsh7-13",
@@ -38147,24 +37931,6 @@
     "ticks": 540
    },
    {
-    "id": "assembly-newsha-49",
-    "what": "decor",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 6,
-    "ticks": 530
-   },
-   {
-    "id": "newshv-235",
-    "what": "custom",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 9,
-    "ticks": 492
-   },
-   {
     "id": "newsh8-115",
     "what": "ground",
     "status": "basic",
@@ -38183,15 +37949,6 @@
     "ticks": 434
    },
    {
-    "id": "newshj-117",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 8,
-    "ticks": 420
-   },
-   {
     "id": "newshl-153",
     "what": "ground",
     "status": "sprite",
@@ -38199,15 +37956,6 @@
     "episodes": 1,
     "events": 0,
     "ticks": 256
-   },
-   {
-    "id": "assembly-newshh-77",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 4,
-    "ticks": 246
    },
    {
     "id": "newsh5-81",
@@ -38255,42 +38003,6 @@
     "ticks": 189
    },
    {
-    "id": "newshh-79",
-    "what": "air",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 2,
-    "ticks": 181
-   },
-   {
-    "id": "newshh-89",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 2,
-    "ticks": 175
-   },
-   {
-    "id": "newshh-127",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 2,
-    "ticks": 172
-   },
-   {
-    "id": "newshh-91",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 2,
-    "ticks": 172
-   },
-   {
     "id": "newshl-195",
     "what": "air",
     "status": "sprite",
@@ -38316,60 +38028,6 @@
     "episodes": 1,
     "events": 0,
     "ticks": 15
-   },
-   {
-    "id": "newsh0-1",
-    "what": "custom (boss)",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 1,
-    "ticks": 13
-   },
-   {
-    "id": "newsh0-13",
-    "what": "custom (boss)",
-    "status": "sprite",
-    "levels": 1,
-    "episodes": 1,
-    "events": 1,
-    "ticks": 13
-   },
-   {
-    "id": "newsh0-15",
-    "what": "custom (boss)",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 1,
-    "ticks": 13
-   },
-   {
-    "id": "newsh0-3",
-    "what": "custom (boss)",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 1,
-    "ticks": 13
-   },
-   {
-    "id": "newsh0-7",
-    "what": "custom (boss)",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 1,
-    "ticks": 13
-   },
-   {
-    "id": "newsh0-9",
-    "what": "custom (boss)",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 1,
-    "ticks": 13
    },
    {
     "id": "newshl-159",

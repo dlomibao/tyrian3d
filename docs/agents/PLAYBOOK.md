@@ -126,6 +126,7 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
   | Enemy pops from sprite to model | Level preload list (D54); add conditional spawns (D56). |
   | Two agents edited one script | Merge such models into one item at scout time. |
   | A merged item's old script still exports the same glbs (a full rebuild would bring the old model back) | The coordinator deletes the absorbed scripts and their private libs when committing (`assembly-newsha-229.py`, `assembly-newshh-159.py`, D170); agents are told not to touch them. |
+  | A merged item ships with only its first script rebuilt; the other members stay on their old build (the finisher rebuilt `it.script`, or read a `lib_*.py` there and rebuilt one entry script; the review passed on that one) | The scout lists every script of a merged item in `members`; model-flagship's finisher and reviewer briefs then name each member, and the reviewer fails the item if one was not rebuilt. The coordinator still checks every unit's glb in `git diff` (five members went through `fix-round.js` in D179). |
   | A walker that flies (newshm-123, D170) | Before legs: does any part move fore and aft between frames, and is there a foot shape? Frames that only trim sideways are vanes, not a gait; check `motion` over a static map. |
 | Model built as a grounded object but it is launched or floats (campfire fireball, lamp-on-ring orb, missile reversed); a piece built as a whole craft | Run `OUT=x.json NODE_OPTIONS= node tools/enemy_behaviour.mjs <unit>...` at scout time (all episodes): launcher, spawn layers, `motion` per level (terrain-fixed, hovering, steady drift, weaving, swooping, px/tick), `stackedWith` (units spawned the same tick within 24 px, dx/dy, `rigid` when the offset holds: a composite craft), `spawnDetail` per spawn. The ground/air layer does not mean grounded or flying; a launched thing at 3-5 px/tick is a projectile (D122). |
   | Black slab, ink loop or slivers where an assembly piece ends; open cut sections | Never cut the joined, culled model: clip each closed part before the join, capped, and make the shell from that (lib_b065 `clip_part`, D117). |
@@ -173,6 +174,12 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
   reviews), 11.5M subagent tokens, about 3.0 h of run time. All 12 shipped items passed strict review in the run;
   `fix-round.js` on the 13th (the GRYPHON neck): 4 agents, 0.50M tokens, 30 min, still 5/10, deferred. Rule of
   thumb: ~6.7 agents and ~0.9M tokens per item (~2.6 agents, ~0.35M per unit; big merged items).
+- **Cost/time (e2-enemies-3, D179, 15 items = 35 inventory units, all done: 6 hero, 9 standard):** 80 agents (1 scout,
+  6 blueprints, 21 designs, 6 judges, 15 finishes on Sonnet, 8 fixes, 23 reviews), 9.55M subagent tokens, about 2.1 h of
+  run time. Per-agent median: blueprint 8.3 min, design 15.8, judge 1.7, finish 2.2, fix 10.5, review 5.2. 13 of 15 passed
+  strict review in the run; `fix-round.js` on 7 (the 2 failing items plus 5 merged-item members the run never built):
+  14 agents, 1.54M tokens, 25 min, all shipped. Rule of thumb: ~6.3 agents and ~0.74M tokens per item (~2.7 agents,
+  ~0.32M per unit).
   Lean mode (no blueprint, one design, Opus build + review) is what forward-push did for the 7
   player ships: 16 agents for ships + two unrelated fixes, 42 min (its reviews were Sonnet; see tiers).
 

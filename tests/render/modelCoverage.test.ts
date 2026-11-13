@@ -10,10 +10,8 @@ const CATALOGUE = process.env.CATALOGUE_OUT ?? "reference/models";
 
 /** Catalogue frames deliberately left without a model (spriteModelKey -> why). They stay extruded. */
 const NOT_MODELLED: Record<string, string> = {
-  // A filler piece of the level 2.12 dragon, on screen for 13 ticks at the top edge as the dragon
-  // enters: the whole 24x28 block is one near-black outline pixel (palette 1) in its bottom-right
-  // corner, which lands on the neighbouring piece (newsh0-15). There is nothing to model.
-  [spriteModelKey("newsh0.shp", 2, 13)]: "one stray outline pixel",
+  // Empty: newsh0.shp 13, the one-pixel filler piece of the GRYPHON (2.6) wing beside newsh0-15, has
+  // been modelled since E2 batch 3 (a sunk wing-edge fragment, built by newsh0-119.py).
 };
 
 describe.skipIf(!existsSync(join(CATALOGUE, "catalogue.json")))("model coverage of the catalogue", () => {
