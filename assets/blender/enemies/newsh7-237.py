@@ -4,7 +4,7 @@ Seen in episode 3 (level section 10) and episode 4. The sprite is newsh7-51 flip
 bottom and moved one column right: the shield hull points up the screen and the engine block
 fires its thruster out of the bottom. The frames only grow the flame (small on 237, middle on
 275, big on 239), so one model covers them all, with a flame per frame (common.frame_part).
-Built by lib_b007.build_gunship.
+Built by lib_e3_gunship (design A, flipped).
 
 Run: blender --background --python assets/blender/enemies/newsh7-237.py [-- --preview out.png]
 """
@@ -14,12 +14,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import lib_b007 as lib  # noqa: E402
+import lib_e3_gunship as gun  # noqa: E402
 
 NAME = "newsh7-237"
 
 
 def build(sprite):
-    return [(NAME, lib.build_gunship(sprite, NAME, flip=True, dc=1, flames=(237, 275, 239)), sprite["sprites"])]
+    return [(NAME, gun.build_gunship(sprite, NAME, flip=True, dc=1, flames=(237, 275, 239)), sprite["sprites"])]
 
 
 if __name__ == "__main__":

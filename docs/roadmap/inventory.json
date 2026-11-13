@@ -132,10 +132,10 @@
    "summary": {
     "levels": 12,
     "uniqueSprites": 1202,
-    "units": 248,
-    "enemyUnits": 190,
-    "enemyUnitsModelled": 190,
-    "enemyUnitsFlagship": 155,
+    "units": 244,
+    "enemyUnits": 186,
+    "enemyUnitsModelled": 186,
+    "enemyUnitsFlagship": 185,
     "damageFramesMissing": 0,
     "tilesets": 3,
     "tilesetsWithHd": 3,
@@ -194,11 +194,11 @@
    },
    "summary": {
     "levels": 20,
-    "uniqueSprites": 763,
+    "uniqueSprites": 766,
     "units": 259,
     "enemyUnits": 199,
     "enemyUnitsModelled": 162,
-    "enemyUnitsFlagship": 49,
+    "enemyUnitsFlagship": 54,
     "damageFramesMissing": 0,
     "tilesets": 5,
     "tilesetsWithHd": 5,
@@ -2552,7 +2552,7 @@
    "tileset": "shapesz",
    "layers": [
     {"layer":0,"tiles":20,"hd":19,"modelled":0,"covered":19},
-    {"layer":1,"tiles":9,"hd":0,"modelled":0,"covered":0},
+    {"layer":1,"tiles":9,"hd":8,"modelled":0,"covered":8},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
    "tileModels": {},
@@ -5979,7 +5979,7 @@
    "tileset": "shapesz",
    "layers": [
     {"layer":0,"tiles":31,"hd":29,"modelled":0,"covered":29},
-    {"layer":1,"tiles":9,"hd":0,"modelled":0,"covered":0},
+    {"layer":1,"tiles":9,"hd":8,"modelled":0,"covered":8},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
    "tileModels": {},
@@ -6185,8 +6185,8 @@
    "tileset": "shapesw",
    "layers": [
     {"layer":0,"tiles":15,"hd":15,"modelled":0,"covered":15},
-    {"layer":1,"tiles":32,"hd":26,"modelled":0,"covered":26},
-    {"layer":2,"tiles":28,"hd":17,"modelled":0,"covered":17}
+    {"layer":1,"tiles":32,"hd":31,"modelled":0,"covered":31},
+    {"layer":2,"tiles":28,"hd":27,"modelled":0,"covered":27}
    ],
    "tileModels": {},
    "banks": [
@@ -6213,9 +6213,9 @@
     {"type":103,"kind":"ground","unit":"newsh8-267","via":"event","events":7,"ticks":429},
     {"type":104,"kind":"ground","unit":"newsh8-1","via":"event","events":6,"ticks":411},
     {"type":105,"kind":"ground","unit":"newsh8-19","via":"event","events":13,"ticks":488},
-    {"type":106,"kind":"ground","unit":"assembly-newsh8-9","via":"event","events":9,"ticks":480},
-    {"type":107,"kind":"ground","unit":"assembly-newsh8-9","via":"event","events":9,"ticks":575},
-    {"type":108,"kind":"ground","unit":"newsh8-115","via":"event","events":10,"ticks":487},
+    {"type":106,"kind":"ground","unit":"assembly-newsh8-229","via":"event","events":9,"ticks":480},
+    {"type":107,"kind":"ground","unit":"assembly-newsh8-229","via":"event","events":9,"ticks":575},
+    {"type":108,"kind":"ground","unit":"assembly-newsh8-229","via":"event","events":10,"ticks":487},
     {"type":109,"kind":"ground","unit":"assembly-newsh8-243","via":"event","events":10,"ticks":2004},
     {"type":110,"kind":"ground","unit":"assembly-newsh8-243","via":"event","events":10,"ticks":1846},
     {"type":111,"kind":"decor","unit":"assembly-newsh8-243","via":"event","events":10,"ticks":1676},
@@ -6330,7 +6330,6 @@
     "assembly-newsh8-229",
     "assembly-newsh8-243",
     "assembly-newsh8-41",
-    "assembly-newsh8-9",
     "assembly-newshr-169",
     "assembly-newshr-267",
     "assembly-newshr-273",
@@ -6342,7 +6341,6 @@
     "newsh-hash-41",
     "newsh8-1",
     "newsh8-102",
-    "newsh8-115",
     "newsh8-19",
     "newsh8-267",
     "newshr-171",
@@ -6441,7 +6439,7 @@
     "difficulty": "normal",
     "completed": true,
     "ticks": 5781,
-    "unitsSeen": 25,
+    "unitsSeen": 23,
     "unitsNotSeen": ["tyrian10-127","tyrian10-129","tyrian10-131","tyrian10-165","tyrian10-19","tyrian10-191","tyrian10-203","tyrian10-279","tyrian10-37","tyrian9-121","tyrian9-123","tyrian9-153","tyrian9-155","tyrian9-157","tyrian9-163","tyrian9-193","tyrian9-195","tyrian9-197","tyrian9-203","tyrian9-207","tyrian9-229","tyrian9-233","tyrian9-237","tyrian9-243","tyrian9-269","tyrian9-271","tyrian9-273","tyrian9-275","tyrian9-277","tyrian9-41"],
     "unitsFoundByBot": [],
     "typesNotListed": [],
@@ -6461,7 +6459,7 @@
    "tileset": "shapesz",
    "layers": [
     {"layer":0,"tiles":24,"hd":23,"modelled":0,"covered":23},
-    {"layer":1,"tiles":21,"hd":0,"modelled":0,"covered":0},
+    {"layer":1,"tiles":21,"hd":17,"modelled":0,"covered":17},
     {"layer":2,"tiles":2,"hd":0,"modelled":0,"covered":0}
    ],
    "tileModels": {},
@@ -6795,9 +6793,9 @@
    ],
    "tileset": "shapesw",
    "layers": [
-    {"layer":0,"tiles":59,"hd":57,"modelled":0,"covered":57},
-    {"layer":1,"tiles":23,"hd":0,"modelled":0,"covered":0},
-    {"layer":2,"tiles":2,"hd":0,"modelled":0,"covered":0}
+    {"layer":0,"tiles":59,"hd":59,"modelled":0,"covered":59},
+    {"layer":1,"tiles":23,"hd":22,"modelled":0,"covered":22},
+    {"layer":2,"tiles":2,"hd":1,"modelled":0,"covered":1}
    ],
    "tileModels": {},
    "banks": [
@@ -6821,7 +6819,7 @@
     {"type":81,"kind":"air","unit":"assembly-newsh7-39","via":"event","events":2,"ticks":179},
     {"type":82,"kind":"air","unit":"assembly-newsh7-39","via":"event","events":2,"ticks":179},
     {"type":83,"kind":"air","unit":"assembly-newsh7-39","via":"event","events":2,"ticks":179},
-    {"type":84,"kind":"air","unit":"newsh7-55","via":"event","events":28,"ticks":2218},
+    {"type":84,"kind":"air","unit":"assembly-newsh7-203","via":"event","events":28,"ticks":2218},
     {"type":85,"kind":"air","unit":"assembly-newsh7-203","via":"event","events":14,"ticks":1864,"boss":true},
     {"type":86,"kind":"air","unit":"newsh7-203","via":"event","events":14,"ticks":2032,"boss":true},
     {"type":87,"kind":"air","unit":"assembly-newsh7-199","via":"event","events":7,"ticks":641},
@@ -6903,7 +6901,6 @@
     "newsh7-237",
     "newsh7-51",
     "newsh7-53",
-    "newsh7-55",
     "newshd-191",
     "newshd-228",
     "newshk-1",
@@ -7009,7 +7006,7 @@
     "difficulty": "normal",
     "completed": true,
     "ticks": 7580,
-    "unitsSeen": 18,
+    "unitsSeen": 17,
     "unitsNotSeen": ["tyrian10-127","tyrian10-129","tyrian10-131","tyrian10-165","tyrian10-203","tyrian10-279","tyrian10-51","tyrian9-121","tyrian9-155","tyrian9-163","tyrian9-165","tyrian9-169","tyrian9-191","tyrian9-193","tyrian9-197","tyrian9-201","tyrian9-205","tyrian9-229","tyrian9-235","tyrian9-239","tyrian9-245","tyrian9-271","tyrian9-273","tyrian9-275","tyrian9-277"],
     "unitsFoundByBot": [],
     "typesNotListed": [],
@@ -7028,9 +7025,9 @@
    ],
    "tileset": "shapesw",
    "layers": [
-    {"layer":0,"tiles":34,"hd":23,"modelled":0,"covered":23},
+    {"layer":0,"tiles":34,"hd":31,"modelled":0,"covered":31},
     {"layer":1,"tiles":1,"hd":0,"modelled":0,"covered":0},
-    {"layer":2,"tiles":55,"hd":0,"modelled":0,"covered":0}
+    {"layer":2,"tiles":55,"hd":54,"modelled":0,"covered":54}
    ],
    "tileModels": {},
    "banks": [
@@ -7926,8 +7923,8 @@
    "tileset": "shapesw",
    "layers": [
     {"layer":0,"tiles":15,"hd":15,"modelled":0,"covered":15},
-    {"layer":1,"tiles":29,"hd":24,"modelled":0,"covered":24},
-    {"layer":2,"tiles":28,"hd":17,"modelled":0,"covered":17}
+    {"layer":1,"tiles":29,"hd":28,"modelled":0,"covered":28},
+    {"layer":2,"tiles":28,"hd":27,"modelled":0,"covered":27}
    ],
    "tileModels": {},
    "banks": [
@@ -8020,7 +8017,7 @@
     {"type":832,"kind":"pickup","unit":"tyrian9-277","via":"drop","ticks":0,"arcadeOnly":true},
     {"type":833,"kind":"pickup","unit":"tyrian9-121","via":"drop","ticks":0,"arcadeOnly":true},
     {"type":834,"kind":"pickup","unit":"tyrian9-123","via":"drop","ticks":0,"arcadeOnly":true},
-    {"type":0,"kind":"custom","unit":"newsh8-129","via":"event","events":7,"ticks":219}
+    {"type":0,"kind":"custom","unit":"assembly-newsh8-229","via":"event","events":7,"ticks":219}
    ],
    "units": [
     "assembly-newsh-hash-195",
@@ -8037,7 +8034,6 @@
     "newsh-hash-41",
     "newsh8-1",
     "newsh8-102",
-    "newsh8-129",
     "newsh8-19",
     "newshr-171",
     "newshr-190",
@@ -8117,7 +8113,7 @@
     "difficulty": "normal",
     "completed": true,
     "ticks": 5280,
-    "unitsSeen": 20,
+    "unitsSeen": 19,
     "unitsNotSeen": ["tyrian10-127","tyrian10-129","tyrian10-131","tyrian10-165","tyrian10-19","tyrian10-203","tyrian10-279","tyrian10-77","tyrian10-92","tyrian9-121","tyrian9-123","tyrian9-157","tyrian9-159","tyrian9-161","tyrian9-193","tyrian9-203","tyrian9-231","tyrian9-233","tyrian9-243","tyrian9-245","tyrian9-267","tyrian9-269","tyrian9-271","tyrian9-273","tyrian9-275","tyrian9-277","tyrian9-41"],
     "unitsFoundByBot": [],
     "typesNotListed": [],
@@ -9013,7 +9009,7 @@
    "tileset": "shapes)",
    "layers": [
     {"layer":0,"tiles":14,"hd":14,"modelled":0,"covered":14},
-    {"layer":1,"tiles":21,"hd":0,"modelled":0,"covered":0},
+    {"layer":1,"tiles":21,"hd":20,"modelled":0,"covered":20},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
    "tileModels": {},
@@ -9441,7 +9437,7 @@
    "tileset": "shapesw",
    "layers": [
     {"layer":0,"tiles":2,"hd":2,"modelled":0,"covered":2},
-    {"layer":1,"tiles":20,"hd":15,"modelled":0,"covered":15},
+    {"layer":1,"tiles":20,"hd":19,"modelled":0,"covered":19},
     {"layer":2,"tiles":9,"hd":8,"modelled":0,"covered":8}
    ],
    "tileModels": {},
@@ -9568,8 +9564,8 @@
    "tileset": "shapesw",
    "layers": [
     {"layer":0,"tiles":3,"hd":3,"modelled":0,"covered":3},
-    {"layer":1,"tiles":21,"hd":0,"modelled":0,"covered":0},
-    {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
+    {"layer":1,"tiles":21,"hd":20,"modelled":0,"covered":20},
+    {"layer":2,"tiles":1,"hd":1,"modelled":0,"covered":1}
    ],
    "tileModels": {},
    "banks": [
@@ -10580,7 +10576,7 @@
    "tileset": "shapesx",
    "layers": [
     {"layer":0,"tiles":30,"hd":29,"modelled":0,"covered":29},
-    {"layer":1,"tiles":14,"hd":0,"modelled":0,"covered":0},
+    {"layer":1,"tiles":14,"hd":13,"modelled":0,"covered":13},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
    "tileModels": {},
@@ -10774,8 +10770,8 @@
    "tileset": "shapes)",
    "layers": [
     {"layer":0,"tiles":15,"hd":14,"modelled":0,"covered":14},
-    {"layer":1,"tiles":17,"hd":1,"modelled":0,"covered":1},
-    {"layer":2,"tiles":19,"hd":0,"modelled":0,"covered":0}
+    {"layer":1,"tiles":17,"hd":16,"modelled":0,"covered":16},
+    {"layer":2,"tiles":19,"hd":18,"modelled":0,"covered":18}
    ],
    "tileModels": {},
    "banks": [
@@ -11435,7 +11431,7 @@
    "tileset": "shapes)",
    "layers": [
     {"layer":0,"tiles":20,"hd":20,"modelled":0,"covered":20},
-    {"layer":1,"tiles":21,"hd":0,"modelled":0,"covered":0},
+    {"layer":1,"tiles":21,"hd":20,"modelled":0,"covered":20},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
    "tileModels": {},
@@ -11759,7 +11755,7 @@
    "layers": [
     {"layer":0,"tiles":21,"hd":21,"modelled":0,"covered":21},
     {"layer":1,"tiles":1,"hd":1,"modelled":0,"covered":1},
-    {"layer":2,"tiles":7,"hd":0,"modelled":0,"covered":0}
+    {"layer":2,"tiles":7,"hd":6,"modelled":0,"covered":6}
    ],
    "tileModels": {},
    "banks": [
@@ -12137,7 +12133,7 @@
    "tileset": "shapesw",
    "layers": [
     {"layer":0,"tiles":23,"hd":22,"modelled":0,"covered":22},
-    {"layer":1,"tiles":14,"hd":0,"modelled":0,"covered":0},
+    {"layer":1,"tiles":14,"hd":14,"modelled":0,"covered":14},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
    "tileModels": {},
@@ -12162,7 +12158,7 @@
     {"type":81,"kind":"air","unit":"assembly-newsh7-39","via":"event","events":16,"ticks":1629},
     {"type":82,"kind":"air","unit":"assembly-newsh7-39","via":"event","events":16,"ticks":1629},
     {"type":83,"kind":"air","unit":"assembly-newsh7-39","via":"event","events":16,"ticks":1629},
-    {"type":84,"kind":"air","unit":"newsh7-55","via":"event","events":23,"ticks":1773},
+    {"type":84,"kind":"air","unit":"assembly-newsh7-203","via":"event","events":23,"ticks":1773},
     {"type":87,"kind":"air","unit":"assembly-newsh7-199","via":"event","events":20,"ticks":1470},
     {"type":88,"kind":"air","unit":"assembly-newsh7-199","via":"event","events":20,"ticks":1470},
     {"type":89,"kind":"air","unit":"assembly-newsh7-199","via":"event","events":20,"ticks":1470},
@@ -12209,6 +12205,7 @@
     "assembly-newsh-caret-54",
     "assembly-newsh5-203",
     "assembly-newsh7-199",
+    "assembly-newsh7-203",
     "assembly-newsh7-39",
     "newsh3-229",
     "newsh3-246",
@@ -12217,7 +12214,6 @@
     "newsh7-152",
     "newsh7-51",
     "newsh7-53",
-    "newsh7-55",
     "tyrian10-127",
     "tyrian10-129",
     "tyrian10-131",
@@ -13885,29 +13881,33 @@
    "sheet": "newsh7.shp",
    "size": 2,
    "frames": {
-    "newsh7.shp|2": [165,167,169]
+    "newsh7.shp|2": [55,93,131,165,167,169]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
-    "newsh7.shp|2": [169]
+    "newsh7.shp|2": [55,93,131,169]
    },
    "unmodelledUnseen": {
     "newsh7.shp|2": [165,167]
    },
    "boss": true,
    "types": [
-    "e1-3:85"
+    "e1-3:84",
+    "e1-3:85",
+    "e4:84"
    ],
    "levels": [
-    "3.1"
+    "3.1",
+    "4.20"
    ],
    "episodes": [
-    3
+    3,
+    4
    ],
-   "events": 14,
-   "ticks": 1651
+   "events": 65,
+   "ticks": 5542
   },
   {
    "id": "assembly-newsh7-39",
@@ -13918,7 +13918,7 @@
     "newsh7.shp|2": [1,3,5,7,9,11,39,41,43,45,47,49,77,79,81,83,85,87,115,117,119,121,123,125,153,155,191,193,229,231,233,235,267,269,271,273]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh7.shp|2": [1,3,39,41]
@@ -13956,7 +13956,7 @@
     "newsh8.shp|2": [125,127]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh8.shp|2": [125,127]
@@ -14007,20 +14007,24 @@
   },
   {
    "id": "assembly-newsh8-229",
-   "kind": "ground",
+   "kind": "custom+ground",
    "sheet": "newsh8.shp",
    "size": 2,
    "frames": {
-    "newsh8.shp|2": [229,231,233,235,273,275]
+    "newsh8.shp|2": [9,11,13,15,17,45,47,49,51,53,55,85,87,89,91,93,115,117,119,123,129,229,231,233,235,273,275]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
-    "newsh8.shp|2": [229,231,233,235,273,275]
+    "newsh8.shp|2": [9,11,13,15,17,47,49,51,53,55,85,87,89,91,93,115,117,119,123,129,229,231,233,235,273,275]
    },
    "unmodelledUnseen": {},
    "types": [
+    "e1-3:0",
+    "e1-3:106",
+    "e1-3:107",
+    "e1-3:108",
     "e1-3:192",
     "e1-3:193"
    ],
@@ -14031,8 +14035,8 @@
    "episodes": [
     3
    ],
-   "events": 12,
-   "ticks": 876
+   "events": 47,
+   "ticks": 2280
   },
   {
    "id": "assembly-newsh8-243",
@@ -14107,34 +14111,6 @@
    ],
    "events": 108,
    "ticks": 7498
-  },
-  {
-   "id": "assembly-newsh8-9",
-   "kind": "ground",
-   "sheet": "newsh8.shp",
-   "size": 2,
-   "frames": {
-    "newsh8.shp|2": [9,11,13,15,17,45,47,49,51,53,55,85,87,89,91,93,123]
-   },
-   "damageFrames": {},
-   "status": "basic",
-   "damage": "none",
-   "framesSeen": {
-    "newsh8.shp|2": [9,11,13,15,17,47,49,51,53,55,85,87,89,91,93,123]
-   },
-   "unmodelledUnseen": {},
-   "types": [
-    "e1-3:106",
-    "e1-3:107"
-   ],
-   "levels": [
-    "3.4"
-   ],
-   "episodes": [
-    3
-   ],
-   "events": 18,
-   "ticks": 740
   },
   {
    "id": "assembly-newsh9-10",
@@ -15152,7 +15128,7 @@
     "newshe.shp|2": [77,79,81,83,115,117,119,121]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshe.shp|2": [77,79,81,83,115,117,119,121]
@@ -15186,7 +15162,7 @@
     "newshe.shp|2": [85,87,89,91,123,125,127,129]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshe.shp|2": [85,87,89,91,123,125,127,129]
@@ -15253,7 +15229,7 @@
     "newshe.shp|2": [199,237]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshe.shp|2": [199,237]
@@ -16297,7 +16273,7 @@
     "newshk.shp|2": [121,123]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshk.shp|2": [121,123]
@@ -16399,7 +16375,7 @@
     "newshk.shp|2": [238,242]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshk.shp|2": [238,242]
@@ -16945,7 +16921,7 @@
    "damageFrames": {
     "newshr.shp|2": [115]
    },
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshr.shp|2": [167,169,205,207,243,245,281,283]
@@ -17086,7 +17062,7 @@
     "newshr.shp|2": [5,7,9,43,45,47,81,83,85]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshr.shp|2": [5,7,9,43,45,47,81,83,85]
@@ -20411,7 +20387,7 @@
     "newsh7.shp|2": [13,15,17]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh7.shp|2": [13,15,17]
@@ -20469,7 +20445,7 @@
     "newsh7.shp|2": [203,205,207]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh7.shp|2": [203,205,207]
@@ -20497,7 +20473,7 @@
     "newsh7.shp|2": [237,239,275]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh7.shp|2": [237,239,275]
@@ -20527,7 +20503,7 @@
     "newsh7.shp|2": [51,89,127]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh7.shp|2": [51,89,127]
@@ -20585,36 +20561,6 @@
    "ticks": 15300
   },
   {
-   "id": "newsh7-55",
-   "kind": "air",
-   "sheet": "newsh7.shp",
-   "size": 2,
-   "frames": {
-    "newsh7.shp|2": [55,93,131]
-   },
-   "damageFrames": {},
-   "status": "basic",
-   "damage": "none",
-   "framesSeen": {
-    "newsh7.shp|2": [55,93,131]
-   },
-   "unmodelledUnseen": {},
-   "types": [
-    "e1-3:84",
-    "e4:84"
-   ],
-   "levels": [
-    "3.1",
-    "4.20"
-   ],
-   "episodes": [
-    3,
-    4
-   ],
-   "events": 51,
-   "ticks": 3891
-  },
-  {
    "id": "newsh8-1",
    "kind": "ground",
    "sheet": "newsh8.shp",
@@ -20623,7 +20569,7 @@
     "newsh8.shp|2": [1,3,5,7]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh8.shp|2": [1,3,5,7]
@@ -20673,60 +20619,6 @@
    "ticks": 40854
   },
   {
-   "id": "newsh8-115",
-   "kind": "ground",
-   "sheet": "newsh8.shp",
-   "size": 2,
-   "frames": {
-    "newsh8.shp|2": [115,117,119]
-   },
-   "damageFrames": {},
-   "status": "basic",
-   "damage": "none",
-   "framesSeen": {
-    "newsh8.shp|2": [115,117,119]
-   },
-   "unmodelledUnseen": {},
-   "types": [
-    "e1-3:108"
-   ],
-   "levels": [
-    "3.4"
-   ],
-   "episodes": [
-    3
-   ],
-   "events": 10,
-   "ticks": 445
-  },
-  {
-   "id": "newsh8-129",
-   "kind": "custom",
-   "sheet": "newsh8.shp",
-   "size": 2,
-   "frames": {
-    "newsh8.shp|2": [129]
-   },
-   "damageFrames": {},
-   "status": "basic",
-   "damage": "none",
-   "framesSeen": {
-    "newsh8.shp|2": [129]
-   },
-   "unmodelledUnseen": {},
-   "types": [
-    "e1-3:0"
-   ],
-   "levels": [
-    "3.9"
-   ],
-   "episodes": [
-    3
-   ],
-   "events": 7,
-   "ticks": 219
-  },
-  {
    "id": "newsh8-19",
    "kind": "ground",
    "sheet": "newsh8.shp",
@@ -20735,7 +20627,7 @@
     "newsh8.shp|1": [19,38,57,76,95,114,132,133,151,152]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh8.shp|1": [19,38,57,76,95,114,132,133,151,152]
@@ -20770,7 +20662,7 @@
     "newsh8.shp|2": [267,269,271]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh8.shp|2": [267,269,271]
@@ -21163,7 +21055,7 @@
     "newsha.shp|2": [125]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsha.shp|2": [125]
@@ -21191,7 +21083,7 @@
     "newsha.shp|2": [127]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsha.shp|2": [127]
@@ -21525,7 +21417,7 @@
     "newsha.shp|2": [87]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsha.shp|2": [87]
@@ -21760,7 +21652,7 @@
     "newshc.shp|2": [191,193,195]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshc.shp|2": [191,193,195]
@@ -24215,7 +24107,7 @@
     "newshk.shp|2": [115,117,119]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshk.shp|2": [115,117,119]
@@ -24242,7 +24134,7 @@
     "newshk.shp|2": [165]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshk.shp|2": [165]
@@ -24269,7 +24161,7 @@
     "newshk.shp|1": [171]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshk.shp|1": [171]
@@ -24323,7 +24215,7 @@
     "newshk.shp|2": [207]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshk.shp|2": [207]
@@ -24377,7 +24269,7 @@
     "newshk.shp|2": [276]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshk.shp|2": [276]
@@ -24404,7 +24296,7 @@
     "newshk.shp|2": [278]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshk.shp|2": [278]
@@ -24431,7 +24323,7 @@
     "newshk.shp|2": [281]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshk.shp|2": [281]
@@ -26118,7 +26010,7 @@
    "damageFrames": {
     "newshs.shp|2": [237]
    },
-   "status": "basic",
+   "status": "flagship",
    "damage": "modelled",
    "framesSeen": {
     "newshs.shp|2": [237,271]
@@ -35299,7 +35191,7 @@
    ],
    "hd": [
     266,
-    16,
+    41,
     73
    ],
    "modelled": [
@@ -35309,7 +35201,7 @@
    ],
    "covered": [
     266,
-    28,
+    53,
     170
    ],
    "tileModels": 146,
@@ -35342,8 +35234,8 @@
    ],
    "hd": [
     112,
-    14,
-    0
+    49,
+    24
    ],
    "modelled": [
     0,
@@ -35352,8 +35244,8 @@
    ],
    "covered": [
     112,
-    14,
-    0
+    49,
+    24
    ],
    "tileModels": 0,
    "tileModelTiers": {}
@@ -35379,9 +35271,9 @@
     85
    ],
    "hd": [
-    100,
-    28,
-    17
+    110,
+    69,
+    82
    ],
    "modelled": [
     0,
@@ -35389,9 +35281,9 @@
     0
    ],
    "covered": [
-    100,
-    28,
-    17
+    110,
+    69,
+    82
    ],
    "tileModels": 0,
    "tileModelTiers": {}
@@ -35418,7 +35310,7 @@
    ],
    "hd": [
     196,
-    59,
+    72,
     34
    ],
    "modelled": [
@@ -35428,7 +35320,7 @@
    ],
    "covered": [
     196,
-    59,
+    72,
     34
    ],
    "tileModels": 0,
@@ -36140,15 +36032,6 @@
     "ticks": 4940
    },
    {
-    "id": "newsh7-51",
-    "what": "ground",
-    "status": "basic",
-    "levels": 3,
-    "episodes": 2,
-    "events": 47,
-    "ticks": 4000
-   },
-   {
     "id": "newshl-115",
     "what": "ground",
     "status": "basic",
@@ -36255,42 +36138,6 @@
     "episodes": 1,
     "events": 32,
     "ticks": 2225
-   },
-   {
-    "id": "assembly-newsh7-39",
-    "what": "air",
-    "status": "basic",
-    "levels": 2,
-    "episodes": 2,
-    "events": 72,
-    "ticks": 6072
-   },
-   {
-    "id": "newsh7-55",
-    "what": "air",
-    "status": "basic",
-    "levels": 2,
-    "episodes": 2,
-    "events": 51,
-    "ticks": 3891
-   },
-   {
-    "id": "assembly-newshk-121",
-    "what": "decor (boss)",
-    "status": "basic",
-    "levels": 2,
-    "episodes": 2,
-    "events": 70,
-    "ticks": 2722
-   },
-   {
-    "id": "newsh7-237",
-    "what": "ground",
-    "status": "basic",
-    "levels": 2,
-    "episodes": 2,
-    "events": 46,
-    "ticks": 2115
    },
    {
     "id": "newshl-116",
@@ -36401,15 +36248,6 @@
     "ticks": 24633
    },
    {
-    "id": "assembly-newshr-85",
-    "what": "air",
-    "status": "basic",
-    "levels": 2,
-    "episodes": 1,
-    "events": 99,
-    "ticks": 16673
-   },
-   {
     "id": "assembly-newsh9-210",
     "what": "decor+ground (boss)",
     "status": "basic",
@@ -36518,24 +36356,6 @@
     "ticks": 5982
    },
    {
-    "id": "newsha-87",
-    "what": "custom",
-    "status": "basic",
-    "levels": 2,
-    "episodes": 1,
-    "events": 31,
-    "ticks": 5977
-   },
-   {
-    "id": "newsha-125",
-    "what": "custom",
-    "status": "basic",
-    "levels": 2,
-    "episodes": 1,
-    "events": 31,
-    "ticks": 5874
-   },
-   {
     "id": "newsh5-47",
     "what": "ground",
     "status": "basic",
@@ -36545,15 +36365,6 @@
     "ticks": 5421
    },
    {
-    "id": "newsha-127",
-    "what": "custom",
-    "status": "basic",
-    "levels": 2,
-    "episodes": 1,
-    "events": 31,
-    "ticks": 5254
-   },
-   {
     "id": "newsh-caret-152",
     "what": "ground",
     "status": "basic",
@@ -36561,24 +36372,6 @@
     "episodes": 1,
     "events": 0,
     "ticks": 4669
-   },
-   {
-    "id": "assembly-newsh8-125",
-    "what": "ground",
-    "status": "basic",
-    "levels": 2,
-    "episodes": 1,
-    "events": 78,
-    "ticks": 4652
-   },
-   {
-    "id": "newshc-191",
-    "what": "ground",
-    "status": "basic",
-    "levels": 2,
-    "episodes": 1,
-    "events": 94,
-    "ticks": 4330
    },
    {
     "id": "newsh9-41",
@@ -36599,15 +36392,6 @@
     "ticks": 3822
    },
    {
-    "id": "newsh8-19",
-    "what": "ground",
-    "status": "basic",
-    "levels": 2,
-    "episodes": 1,
-    "events": 78,
-    "ticks": 3270
-   },
-   {
     "id": "newsh-caret-190",
     "what": "ground",
     "status": "basic",
@@ -36624,24 +36408,6 @@
     "episodes": 1,
     "events": 52,
     "ticks": 2504
-   },
-   {
-    "id": "assembly-newsh8-229",
-    "what": "ground",
-    "status": "basic",
-    "levels": 2,
-    "episodes": 1,
-    "events": 12,
-    "ticks": 876
-   },
-   {
-    "id": "newsh8-1",
-    "what": "ground",
-    "status": "basic",
-    "levels": 2,
-    "episodes": 1,
-    "events": 12,
-    "ticks": 776
    },
    {
     "id": "newsh5-267",
@@ -36968,15 +36734,6 @@
     "ticks": 6864
    },
    {
-    "id": "assembly-newshe-123",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 56,
-    "ticks": 6500
-   },
-   {
     "id": "assembly-newsh9-274",
     "what": "ground (boss)",
     "status": "basic",
@@ -37004,15 +36761,6 @@
     "ticks": 6372
    },
    {
-    "id": "assembly-newshe-121",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 56,
-    "ticks": 6128
-   },
-   {
     "id": "newsh5-1",
     "what": "ground",
     "status": "basic",
@@ -37020,15 +36768,6 @@
     "episodes": 1,
     "events": 95,
     "ticks": 5679
-   },
-   {
-    "id": "assembly-newshe-237",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 94,
-    "ticks": 5076
    },
    {
     "id": "assembly-newsh-caret-196",
@@ -37139,15 +36878,6 @@
     "ticks": 3842
    },
    {
-    "id": "newshk-281",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 28,
-    "ticks": 3497
-   },
-   {
     "id": "newsh3-128",
     "what": "air",
     "status": "basic",
@@ -37173,15 +36903,6 @@
     "episodes": 1,
     "events": 1,
     "ticks": 3209
-   },
-   {
-    "id": "assembly-newshk-238",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 4,
-    "ticks": 2963
    },
    {
     "id": "newsh5-49",
@@ -37265,15 +36986,6 @@
     "ticks": 2211
    },
    {
-    "id": "assembly-newshr-169",
-    "what": "ground (boss)",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 2,
-    "ticks": 2156
-   },
-   {
     "id": "newsh-caret-68",
     "what": "ground (boss)",
     "status": "basic",
@@ -37281,33 +36993,6 @@
     "episodes": 1,
     "events": 68,
     "ticks": 2136
-   },
-   {
-    "id": "newshk-207",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 57,
-    "ticks": 1968
-   },
-   {
-    "id": "newsh7-203",
-    "what": "air (boss)",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 14,
-    "ticks": 1819
-   },
-   {
-    "id": "assembly-newsh7-203",
-    "what": "air (boss)",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 14,
-    "ticks": 1651
    },
    {
     "id": "newsh3-14",
@@ -37346,15 +37031,6 @@
     "ticks": 1484
    },
    {
-    "id": "newsh8-267",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 24,
-    "ticks": 1470
-   },
-   {
     "id": "assembly-newsh3-122",
     "what": "air",
     "status": "basic",
@@ -37373,33 +37049,6 @@
     "ticks": 1400
    },
    {
-    "id": "newshk-165",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 2,
-    "ticks": 1389
-   },
-   {
-    "id": "newshs-271",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 6,
-    "ticks": 1302
-   },
-   {
-    "id": "newshk-276",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 22,
-    "ticks": 1135
-   },
-   {
     "id": "newsh9-43",
     "what": "ground (boss)",
     "status": "sprite",
@@ -37407,15 +37056,6 @@
     "episodes": 1,
     "events": 2,
     "ticks": 1016
-   },
-   {
-    "id": "newshk-115",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 931
    },
    {
     "id": "newsh-caret-201",
@@ -37461,15 +37101,6 @@
     "episodes": 1,
     "events": 1,
     "ticks": 773
-   },
-   {
-    "id": "assembly-newsh8-9",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 18,
-    "ticks": 740
    },
    {
     "id": "newsh-caret-129",
@@ -37535,15 +37166,6 @@
     "ticks": 681
    },
    {
-    "id": "newsh7-13",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 12,
-    "ticks": 647
-   },
-   {
     "id": "newsh-caret-203",
     "what": "ground",
     "status": "sprite",
@@ -37598,24 +37220,6 @@
     "ticks": 590
    },
    {
-    "id": "newshk-171",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 540
-   },
-   {
-    "id": "newsh8-115",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 10,
-    "ticks": 445
-   },
-   {
     "id": "assembly-newsh5-156",
     "what": "ground",
     "status": "basic",
@@ -37650,24 +37254,6 @@
     "episodes": 1,
     "events": 0,
     "ticks": 232
-   },
-   {
-    "id": "newshk-278",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 2,
-    "ticks": 223
-   },
-   {
-    "id": "newsh8-129",
-    "what": "custom",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 7,
-    "ticks": 219
    },
    {
     "id": "newshl-197",
@@ -37729,8 +37315,8 @@
    {
     "id": "shapesz",
     "what": "tiles 275/60/178 (layers 0/1/2)",
-    "status": "HD art 266/16/73, in structure models 85/12/97, 146 structure models",
-    "uncovered": [9,32,8],
+    "status": "HD art 266/41/73, in structure models 85/12/97, 146 structure models",
+    "uncovered": [9,7,8],
     "levels": 32,
     "episodes": 4,
     "events": 0
@@ -37738,8 +37324,8 @@
    {
     "id": "shapes)",
     "what": "tiles 113/57/26 (layers 0/1/2)",
-    "status": "HD art 112/14/0, in structure models 0/0/0, 0 structure models",
-    "uncovered": [1,43,26],
+    "status": "HD art 112/49/24, in structure models 0/0/0, 0 structure models",
+    "uncovered": [1,8,2],
     "levels": 10,
     "episodes": 1,
     "events": 0
@@ -37747,8 +37333,8 @@
    {
     "id": "shapesw",
     "what": "tiles 113/73/85 (layers 0/1/2)",
-    "status": "HD art 100/28/17, in structure models 0/0/0, 0 structure models",
-    "uncovered": [13,45,68],
+    "status": "HD art 110/69/82, in structure models 0/0/0, 0 structure models",
+    "uncovered": [3,4,3],
     "levels": 7,
     "episodes": 2,
     "events": 0
@@ -37756,8 +37342,8 @@
    {
     "id": "shapesx",
     "what": "tiles 199/138/39 (layers 0/1/2)",
-    "status": "HD art 196/59/34, in structure models 0/0/0, 0 structure models",
-    "uncovered": [3,79,5],
+    "status": "HD art 196/72/34, in structure models 0/0/0, 0 structure models",
+    "uncovered": [3,66,5],
     "levels": 7,
     "episodes": 2,
     "events": 0

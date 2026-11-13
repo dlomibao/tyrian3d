@@ -1,19 +1,25 @@
-"""Blue-glass fortress (newsh7.shp 1, 3, 39 and 41, a 2x2 block): a 3D version of its sprites.
+"""assembly-newsh7-39, design A: a grey armoured ground fortress with a glass tube bank, a big blue
+lens and a canister in a well (newsh7.shp 1 | 3 over 39 | 41; CAMANIS 3.1 and ICESECRET 4.20).
 
-Seen in episode 3 (level 3.10). Four 2x2 sprites make one 48 x 56 px ground structure standing in
-water: a wide grey platform with a lit rim, blue skylights in its top corners, rows of raised side
-panels, a bar across its back and two pillars round a dark well holding a lying blue canister with
-a collar. In front of the well a tall grey housing with chamfered shoulders rises from the platform
-and runs out over the water: four glowing blue glass tubes on its top, two blue lights, a ledge,
-two glass-topped blocks with glowing slots, and a sloped front with a big glowing blue lens in a
-dark socket, blue pipes down its sides and two small blue vents at its foot. The water round it
-(the right edge and the bottom of the sprites) is a flat apron in the sprite's water colours.
+What it is (read from the 48x56 sprite, light from the upper left):
+- A square deck (cols 1-42, rows 1-36) with a raised curb on its back and sides, glass skylights in
+  the two back corners, a raised bar across the back, armour panels with small blue ports down both
+  sides and a sloped front lip (the dark rows 35-36 left of the casemate).
+- Between two raised pillars (cols 10-13 and 30-33) a well holds a blue tank lying north-south,
+  sunk to its axis, with a wider collar in the middle (cols 19-26, rows 7-18).
+- In front of the well the casemate: two buttresses with a lit ridge (cols 11 and 32) and outer
+  bevels, chamfered shoulders (rows 20-24), running out past the deck onto the ice to a rounded
+  glacis (rows 41-50). On its deck a bank of four glowing glass tubes under a steel shroud (cols
+  17-27, rows 19-30) between two blue lamps; below a ledge (row 33) a lower front bay holds two
+  lamp boxes (glass tops, raked glowing faces, rows 36-41) on either side of a rib, and the glacis
+  centre is a dark socket with the big blue lens (rows 42-48). Blue pipes run down both sides in
+  wall channels (cols 5-6, 37-38) and two small vents glow at the foot (cols 12-13, 30-31).
+The icy-blue edge (ramp 48-62 round the right and bottom) is ground, not model (D130): nothing is
+built for it; IoU is measured with the ice made transparent (refmask.py). The black rows 49-50 and the
+dark patch right of the casemate are drop shading: lighting, not modelled.
 
-Built whole in assembly coordinates, then cut into the four pieces (newsh7-1 top left, newsh7-3
-top right, newsh7-39 bottom left, newsh7-41 bottom right). Each sprite has one frame.
-
-Run: blender --background --python assets/blender/enemies/assembly-newsh7-39.py [-- --preview out.png]
-(the preview is the whole structure; each piece also gets <piece>.png next to it).
+Exports public/models/enemies/newsh7-{1,3,39,41}.glb (each piece with its own outline shell) and
+src/render/spriteModels/newsh7-*.json, as the earlier script did. Self-contained.
 """
 
 import math
@@ -27,349 +33,483 @@ from mathutils import Vector
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import common  # noqa: E402
 
-NAME = "assembly-newsh7-39"
 ROOT = common.repo_root(__file__)
+
+NAME = "assembly-newsh7-39"
 PIECES = ["newsh7-1", "newsh7-3", "newsh7-39", "newsh7-41"]
-# Assembly pixel (0, 0) is the top-left corner of newsh7-1 (screen cx 248 - 12, cy -18 - 14); the
-# block is 48 x 56 px and its centre (screen 260, -4) is the Blender origin.
-CX0, CY0 = 260, -4
-U = 1 / 12  # one sprite pixel in units
+# Piece centres relative to the block centre (screen 260, -4): 1/3 at cy -18, 39/41 at cy 10, cx 248/272.
+LAYOUT = [("newsh7-1", -12, -14), ("newsh7-3", 12, -14), ("newsh7-39", -12, 14), ("newsh7-41", 12, 14)]
+PX = 1 / 12
 
-PLAT = 0.20  # platform top
-HZ = 0.42  # housing top
-FOOT = 0.16  # where the housing's sloped front meets its foot
-
-
-def XE(e):
-    """Assembly pixel column edge to Blender X."""
-    return (e - 24) * U
+DECK = 0.16       # deck top
+CURB = 0.035      # curb above the deck
+ZW, ZR, ZI = 0.27, 0.445, 0.42   # casemate: outer wall top, ridge, inner deck
+CORE = 0.41       # core deck between the buttresses (under the tube bank)
+BAY = 0.24        # lower front bay floor (under the lamp boxes)
 
 
-def YE(e):
-    """Assembly pixel row edge to Blender Y (sprite up is +Y)."""
-    return (28 - e) * U
+def X(u):
+    """Pixel-edge column u of the 48x56 block (0 = left edge) to Blender X."""
+    return (u - 24) * PX
 
 
-def tag(bm, before, mat, smooth):
-    """Set the material and shading of every face not in `before` (a set of the earlier faces)."""
-    for f in set(bm.faces) - before:
+def Y(v):
+    """Pixel-edge row v (0 = top edge) to Blender Y (sprite up = +Y)."""
+    return (28 - v) * PX
+
+
+def P(u, v, z):
+    return (X(u), Y(v), z)
+
+
+def pchip(xs, ys):
+    """Monotone cubic interpolation through (xs, ys) (Fritsch-Carlson)."""
+    n = len(xs)
+    h = [xs[i + 1] - xs[i] for i in range(n - 1)]
+    d = [(ys[i + 1] - ys[i]) / h[i] for i in range(n - 1)]
+    m = [0.0] * n
+    m[0], m[-1] = d[0], d[-1]
+    for i in range(1, n - 1):
+        if d[i - 1] * d[i] <= 0:
+            m[i] = 0.0
+        else:
+            w1, w2 = 2 * h[i] + h[i - 1], h[i] + 2 * h[i - 1]
+            m[i] = (w1 + w2) / (w1 / d[i - 1] + w2 / d[i])
+
+    def f(x):
+        if x <= xs[0]:
+            return ys[0]
+        if x >= xs[-1]:
+            return ys[-1]
+        i = max(k for k in range(n - 1) if xs[k] <= x)
+        t = (x - xs[i]) / h[i]
+        h00, h10 = 2 * t ** 3 - 3 * t ** 2 + 1, t ** 3 - 2 * t ** 2 + t
+        h01, h11 = -2 * t ** 3 + 3 * t ** 2, t ** 3 - t ** 2
+        return h00 * ys[i] + h10 * h[i] * m[i] + h01 * ys[i + 1] + h11 * h[i] * m[i + 1]
+    return f
+
+
+# Glacis: the casemate's top falls away over rows 40-51 (a rounded, convex fall).
+GLACIS = pchip([40.0, 42.0, 44.5, 47.0, 49.5, 51.0], [1.0, 0.95, 0.80, 0.56, 0.30, 0.16])
+
+
+# ---- small bmesh helpers ------------------------------------------------------------------------
+
+def hull(bm, pts, mat, smooth=False):
+    """Convex hull of `pts` added to `bm` (coplanar triangles merged), material `mat`."""
+    tmp = bmesh.new()
+    for p in pts:
+        tmp.verts.new(p)
+    res = bmesh.ops.convex_hull(tmp, input=tmp.verts[:])
+    junk = res["geom_interior"] + res["geom_unused"]
+    if junk:
+        bmesh.ops.delete(tmp, geom=list({g for g in junk if isinstance(g, bmesh.types.BMVert)}), context="VERTS")
+    bmesh.ops.dissolve_limit(tmp, angle_limit=math.radians(0.5), verts=tmp.verts[:], edges=tmp.edges[:])
+    for f in tmp.faces:
         f.material_index = mat
         f.smooth = smooth
+    me = bpy.data.meshes.new("tmp")
+    tmp.to_mesh(me)
+    tmp.free()
+    bm.from_mesh(me)
+    bpy.data.meshes.remove(me)
 
 
-def box(bm, c0, r0, c1, r1, z0, z1, mat):
-    """A flat-shaded box over pixel edges c0..c1, r0..r1, from z0 to z1."""
-    n = set(bm.faces)
-    pts = [(XE(c0), YE(r1)), (XE(c1), YE(r1)), (XE(c1), YE(r0)), (XE(c0), YE(r0))]
-    common.slab(bm, pts, z1 - z0, z=(z0 + z1) / 2)
-    tag(bm, n, mat, False)
+def cbox(bm, u0, u1, v0, v1, z0, z1, mat, ch=0.4, chz=None):
+    """A box over pixel edges u0..u1, v0..v1, z0..z1 with chamfered vertical corners and top edges
+    (`ch` px across, `chz` units down)."""
+    chz = ch * PX if chz is None else chz
+    c = ch * PX
+    x0, x1, y0, y1 = X(u0), X(u1), Y(v1), Y(v0)
+    pts = []
+    for z, inset in ((z0, 0.0), (z1 - chz, 0.0), (z1, c)):
+        a0, a1, b0, b1 = x0 + inset, x1 - inset, y0 + inset, y1 - inset
+        pts += [(a0 + c, b0, z), (a1 - c, b0, z), (a1, b0 + c, z), (a1, b1 - c, z),
+                (a1 - c, b1, z), (a0 + c, b1, z), (a0, b1 - c, z), (a0, b0 + c, z)]
+    hull(bm, pts, mat)
 
 
-def poly(bm, edges, z0, z1, mat):
-    """A flat-shaded prism with an outline of (column edge, row edge) points."""
-    n = set(bm.faces)
-    pts = [(XE(c), YE(r)) for c, r in edges]
-    area = sum(x0 * y1 - x1 * y0 for (x0, y0), (x1, y1) in zip(pts, pts[1:] + pts[:1]))
-    if area < 0:
-        pts.reverse()
-    common.slab(bm, pts, z1 - z0, z=(z0 + z1) / 2)
-    tag(bm, n, mat, False)
+def loft(bm, rings, mat, cap0=True, cap1=True, smooth=True, mats=None):
+    """Faces between consecutive rings (equal-length loops of 3D points); `mats` per ring segment."""
+    vs = [[bm.verts.new(p) for p in ring] for ring in rings]
+    n = len(rings[0])
+    for a, b in zip(vs, vs[1:]):
+        for i in range(n):
+            f = bm.faces.new((a[i], a[(i + 1) % n], b[(i + 1) % n], b[i]))
+            f.material_index = mats[i] if mats else mat
+            f.smooth = smooth
+    for ring, on in ((vs[0], cap0), (vs[-1], cap1)):
+        if on:
+            f = bm.faces.new(ring)
+            f.material_index = mat
+            f.smooth = False
 
 
-def tube_y(bm, col_edge, sections, mat, sides=10, smooth=True):
-    """A loft down the sprite centred on a column edge: sections are (row edge, half width px,
-    half height, z centre)."""
-    before, n = set(bm.verts), set(bm.faces)
-    common.loft(bm, [(YE(r), w * U, h, z) for r, w, h, z in sections], sides=sides)
-    for vert in set(bm.verts) - before:  # (common.shift_x goes by index, which create_uvsphere upsets)
-        vert.co.x += XE(col_edge)
-    tag(bm, n, mat, smooth)
+def extrude_u(bm, u0, u1, prof, mat, mats=None):
+    """A prism across columns u0..u1 with a closed (v, z) profile; `mats` per profile segment."""
+    loft(bm, [[P(u0, v, z) for v, z in prof], [P(u1, v, z) for v, z in prof]], mat, smooth=False, mats=mats)
 
 
-def prism_x(bm, c0, c1, profile, mat):
-    """A prism running across the sprite from column edge c0 to c1 with a (row edge, z) profile."""
-    n = set(bm.faces)
-    left = [bm.verts.new((XE(c0), YE(r), z)) for r, z in profile]
-    right = [bm.verts.new((XE(c1), YE(r), z)) for r, z in profile]
-    bm.faces.new(left)
-    bm.faces.new(list(reversed(right)))
-    k = len(profile)
-    for i in range(k):
-        j = (i + 1) % k
-        bm.faces.new((left[j], left[i], right[i], right[j]))
-    tag(bm, n, mat, False)
+def tube_path(bm, pts, r, mat, sides=12, caps=True):
+    """A round tube along a polyline of 3D points lying in a plane of constant X (pipes running
+    down the sprite)."""
+    pts = [Vector(p) for p in pts]
+    rings = []
+    for i, p in enumerate(pts):
+        a, b = pts[max(0, i - 1)], pts[min(len(pts) - 1, i + 1)]
+        t = (b - a).normalized()
+        n1 = Vector((1, 0, 0))
+        n2 = t.cross(n1).normalized()
+        rings.append([p + r * (math.cos(2 * math.pi * k / sides) * n1 + math.sin(2 * math.pi * k / sides) * n2)
+                      for k in range(sides)])
+    loft(bm, rings, mat, cap0=caps, cap1=caps)
 
 
-def ellipsoid(bm, ce, re, z, rx_px, ry_px, rz, mat, tilt=0.0, segments=16, rings=8):
-    """An ellipsoid centred on (column edge, row edge, z), tipped by `tilt` radians so its top
-    faces down the screen."""
-    n = set(bm.faces)
-    res = bmesh.ops.create_uvsphere(bm, u_segments=segments, v_segments=rings, radius=1.0)
-    ca, sa = math.cos(tilt), math.sin(tilt)
-    for vert in res["verts"]:
-        x, y, zz = vert.co.x * rx_px * U, vert.co.y * ry_px * U, vert.co.z * rz
-        vert.co = Vector((XE(ce) + x, YE(re) + y * ca - zz * sa, z + y * sa + zz * ca))
-    tag(bm, n, mat, True)
+def arc(c, r, a0, a1, n, x):
+    """Points (x, y, z) on a circle in the plane X = x round (y, z) centre c, angles a0..a1."""
+    return [(x, c[0] + r * math.cos(a0 + (a1 - a0) * k / n), c[1] + r * math.sin(a0 + (a1 - a0) * k / n))
+            for k in range(n + 1)]
 
 
-def slope_z(r):
-    """Height of the housing's sloped front at row edge r (flat top to row 41, foot at 49.5)."""
-    if r <= 41:
-        return HZ
-    return HZ - (HZ - FOOT) * min(1.0, (r - 41) / 8.5)
+def ellipsoid(bm, centre, ex, ey, ez, rx, ry, rz, mat, segs=24, rings=10, zmin=-1.0):
+    """An ellipsoid (radii along the unit axes ex, ey, ez), cut flat below local z = zmin*rz."""
+    c = Vector(centre)
+    pts = []
+    for i in range(rings + 1):
+        th = math.pi / 2 * i / rings
+        for j in range(segs):
+            ph = 2 * math.pi * j / segs
+            for s in (1, -1):
+                lz = s * rz * math.cos(th)
+                if lz < zmin * rz:
+                    lz = zmin * rz
+                pts.append(c + ex * (rx * math.sin(th) * math.cos(ph)) + ey * (ry * math.sin(th) * math.sin(ph))
+                           + ez * lz)
+    hull(bm, pts, mat, smooth=True)
 
 
-def to_object(name, bm, mats, coll):
-    """Like common.mesh_object, but keeps each face's own smooth/flat flag."""
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    mesh = bpy.data.meshes.new(name)
-    bm.to_mesh(mesh)
-    bm.free()
-    for m in mats:
-        mesh.materials.append(m)
-    obj = bpy.data.objects.new(name, mesh)
-    coll.objects.link(obj)
-    return obj
+# ---- parts ----------------------------------------------------------------------------------------
+
+def build_deck(bm, M, detail=True):
+    """The deck, with the well cut out between the pillars, a curb, a sloped front lip."""
+    # Deck pieces (abutting, so no two tops overlap): north strip, west and east blocks, under the casemate.
+    cbox(bm, 1, 43, 1, 6, 0.0, DECK, M["deck"], ch=0.01)
+    cbox(bm, 1, 14, 6, 35.5, 0.0, DECK, M["deck"], ch=0.01)
+    cbox(bm, 30, 43, 6, 35.5, 0.0, DECK, M["deck"], ch=0.01)
+    cbox(bm, 14, 30, 19.5, 37, 0.0, DECK, M["deck"], ch=0.01)
+    # Front lip (rows 35-36 dark): slopes from the deck down to the ice.
+    for u0, u1 in ((1, 14), (30, 43)):
+        extrude_u(bm, u0, u1, [(35.5, 0.0), (37.0, 0.0), (37.0, 0.05), (35.5, DECK)], M["deck"])
+    # Well floor.
+    cbox(bm, 14, 30, 6, 19.5, 0.0, DECK - 0.06, M["dark"], ch=0.01)
+    if not detail:
+        return
+    # Curb round the back and sides: chamfered on its inner top edge.
+    cprof = lambda: None  # noqa: E731
+    del cprof
+    hull(bm, [P(u, v, z) for u in (1, 43) for v, z in ((1, 0.1), (1, DECK + CURB), (1.55, DECK + CURB),
+                                                        (2.0, DECK + 0.01), (2.0, 0.1))], M["curb"])
+    for u0, u1, ui in ((1, 2, 2.0), (42, 43, 42.0)):
+        outer = u0 if u0 == 1 else u1
+        pts = []
+        for v in (2.0, 35.3):
+            for u, z in ((outer, 0.1), (outer, DECK + CURB), (outer + (0.55 if outer == 1 else -0.55), DECK + CURB),
+                         (ui, DECK + 0.01), (ui, 0.1)):
+                pts.append(P(u, v, z))
+        hull(bm, pts, M["curb"])
+    # Back bar (rows 3-5, between the skylights).
+    cbox(bm, 9, 35, 3, 6, DECK - 0.01, DECK + 0.045, M["bar"], ch=0.6)
+    # Skylights in the back corners: frame, then a low hipped glass top.
+    for u in (3, 36):
+        cbox(bm, u, u + 5, 3, 8, DECK - 0.01, DECK + 0.03, M["frame"], ch=0.35)
+        cbox(bm, u + 0.8, u + 4.2, 3.8, 7.2, DECK + 0.02, DECK + 0.062, M["skylight"], ch=0.9, chz=0.022)
+    # Armour panels with small blue ports down both sides.
+    for v0, v1, port in ((9, 14, True), (15, 20, True), (21, 27, False)):
+        cbox(bm, 3, 8, v0, v1, DECK - 0.01, DECK + 0.05, M["panel"], ch=0.5)
+        cbox(bm, 36, 41, v0, v1, DECK - 0.01, DECK + 0.05, M["panel"], ch=0.5)
+        if port:
+            cbox(bm, 5.9, 8.1, v0 - 0.1, v0 + 2.1, DECK + 0.02, DECK + 0.07, M["port"], ch=0.35)
+            cbox(bm, 35.9, 38.1, v0 - 0.1, v0 + 2.1, DECK + 0.02, DECK + 0.07, M["port"], ch=0.35)
+    # Low armour boxes beside the casemate's flanks (rows 27-34).
+    cbox(bm, 1.8, 5.2, 27, 35, DECK - 0.01, DECK + 0.06, M["panel"], ch=0.5)
+    cbox(bm, 38.8, 42.2, 27, 35, DECK - 0.01, DECK + 0.06, M["panel"], ch=0.5)
+    # Bolt heads at the deck corners.
+    for u, v in ((2.7, 2.7), (41.3, 2.7), (2.7, 34.3), (41.3, 34.3)):
+        ellipsoid(bm, P(u, v, DECK), Vector((1, 0, 0)), Vector((0, 1, 0)), Vector((0, 0, 1)),
+                  0.4 * PX, 0.4 * PX, 0.025, M["curb"], segs=10, rings=3, zmin=0.0)
 
 
-# --- the structure -----------------------------------------------------------------------------
+def build_well(bm, M, detail=True):
+    """Pillars either side of the well and the blue tank lying in it."""
+    for u0 in (10, 30):
+        cbox(bm, u0, u0 + 4, 7, 19.6, DECK - 0.01, 0.30, M["pillar"], ch=0.5)
+        if detail:
+            # A cap plate on each pillar with a seam either side.
+            cbox(bm, u0 + 0.6, u0 + 3.4, 7.6, 18.6, 0.29, 0.315, M["pillar"], ch=0.4)
+    if not detail:
+        return
+    # The tank: a cylinder (axis north-south at column edge 23) sunk to just under the well floor.
+    zc = 0.035
+    ZFLOOR = DECK - 0.075  # the tank's lower half is cut off inside the well floor
+    stations = [(6.6, 0.0), (6.75, 1.6), (7.0, 2.4), (7.5, 2.85), (11.4, 2.85), (11.6, 3.2), (11.9, 3.95),
+                (16.4, 3.95), (16.7, 3.2), (16.9, 2.55), (19.6, 2.55)]
+    sides = 28
+    rings = []
+    for v, r in stations:
+        rr = max(r, 0.02) * PX
+        rings.append([P(23 + rr / PX * math.cos(2 * math.pi * k / sides), v,
+                        max(ZFLOOR, zc + rr * math.sin(2 * math.pi * k / sides))) for k in range(sides)])
+    loft(bm, rings, M["tank"])
+    # Collar bands at both ends of the drum, a little proud.
+    for v0, v1 in ((11.9, 12.5), (15.8, 16.4)):
+        rings = []
+        for v in (v0, v1):
+            rr = 4.12 * PX
+            rings.append([P(23 + rr / PX * math.cos(2 * math.pi * k / sides), v,
+                            max(ZFLOOR, zc + rr * math.sin(2 * math.pi * k / sides))) for k in range(sides)])
+        loft(bm, rings, M["tank"])
+    # Saddles under it.
+    for v in (9.0, 17.6):
+        cbox(bm, 18.2, 27.8, v, v + 1.0, DECK - 0.07, DECK - 0.01, M["bar"], ch=0.3)
 
-def build(sprite, coll):
-    t = "nsh7_39"
-    pal = lambda i, **kw: common.palette_material(sprite, i, t, **kw)  # noqa: E731
-    mats = [
-        pal(4, metallic=0.4, roughness=0.55),  # 0 platform grey
-        pal(7, metallic=0.45, roughness=0.45),  # 1 light grey rims, housing
-        pal(6, metallic=0.4, roughness=0.5),  # 2 mid grey panels, pillars
-        pal(5, metallic=0.4, roughness=0.5),  # 3 dark grey band, steps
-        pal(8, metallic=0.45, roughness=0.4),  # 4 lit pillar faces
-        pal(10, metallic=0.5, roughness=0.35),  # 5 bright ridges
-        pal(11, metallic=0.5, roughness=0.3),  # 6 shoulder lip highlight
-        pal(3, metallic=0.3, roughness=0.7),  # 7 dark grooves
-        pal(2, metallic=0.3, roughness=0.8),  # 8 shadow, lens socket
-        pal(130, metallic=0.4, roughness=0.3),  # 9 blue window frames, right pipe
-        pal(129, metallic=0.6, roughness=0.15),  # 10 blue skylight glass, collar, left pipe
-        pal(56, metallic=0.5, roughness=0.3),  # 11 blue canister
-        pal(54, metallic=0.5, roughness=0.3),  # 12 dark blue backing, vents
-        pal(158, metallic=0.2, roughness=0.15, emission_strength=2.0),  # 13 glowing glass tubes
-        pal(157, metallic=0.2, roughness=0.15, emission_strength=2.0),  # 14 tube tips
-        pal(155, emission_strength=3.0),  # 15 left blue light
-        pal(153, emission_strength=3.0),  # 16 right blue light
-        pal(154, metallic=0.2, roughness=0.15, emission_strength=3.0),  # 17 lens, slots
-        pal(141, emission_strength=5.0),  # 18 lens highlight
-        pal(58, metallic=0.5, roughness=0.15),  # 19 glass tops of the front blocks
-        pal(147, metallic=0.3, roughness=0.4),  # 20 deep blue lens rim
+
+def butt_ring(v, sgn, groove=0.0):
+    """One cross-section of a buttress at row edge v; sgn 1 = left, -1 = right (mirrored about col 22).
+    `groove` > 0 sinks the top by that much (a panel seam across the buttress)."""
+    if v <= 24.0:
+        uo = 9.5 - (v - 19.5) / 4.5 * 3.5
+    else:
+        uo = 6.0
+    g = GLACIS(v)
+    prof = [(uo, 0.0), (uo, ZW * g), (uo + 0.5, (ZW + 0.04) * g), (11.0, ZR * g - 0.01), (11.5, ZR * g),
+            (12.0, ZR * g - 0.012), (12.5, ZI * g), (13.4, ZI * g), (14.0, ZI * g - 0.04), (14.0, 0.0)]
+    if groove:
+        prof = [(u, z - groove if 0 < k < len(prof) - 1 else z) for k, (u, z) in enumerate(prof)]
+    if sgn < 0:
+        prof = list(reversed(prof))
+    return [P(u if sgn > 0 else 44 - u, v, z) for u, z in prof]
+
+
+def build_casemate(bm, M, detail=True):
+    vs = [19.5, 20.5, 21.5, 22.5, 23.5, 24.0, 28.0, 32.0, 36.0, 40.0, 41.0, 42.0, 43.0, 44.0, 45.0, 46.0,
+          47.0, 48.0, 49.0, 50.0, 51.0]
+    seams = (27.0, 37.5) if detail else ()
+    rows = [(v, 0.0) for v in vs]
+    for s_ in seams:
+        rows += [(s_ - 0.3, 0.0), (s_, 0.016), (s_ + 0.3, 0.0)]
+    rows.sort()
+    for sgn in (1, -1):
+        loft(bm, [butt_ring(v, sgn, g) for v, g in rows], M["case"])
+    # Core between the buttresses: deck, ledge, drop into the front bay, bay floor, socket glacis.
+    prof = [(19.5, 0.0), (19.5, CORE), (32.6, CORE), (33.3, CORE - 0.012), (34.0, 0.37), (35.6, BAY),
+            (41.0, BAY), (41.8, 0.232), (44.0, 0.215), (47.0, 0.13), (49.2, 0.06), (50.0, 0.03), (50.0, 0.0)]
+    mats = [M["case"], M["core"], M["core"], M["core"], M["dark"], M["bayfloor"], M["socket"], M["socket"],
+            M["socket"], M["socket"], M["socket"], M["socket"], M["case"]]
+    extrude_u(bm, 14, 30, prof, M["case"], mats=mats)
+    if not detail:
+        return
+    # Tube bank: dark blue backing, four glowing glass tubes, a steel shroud over their middle.
+    cbox(bm, 16.5, 28.5, 19.5, 31.2, CORE - 0.01, CORE + 0.045, M["backing"], ch=0.4)
+    zt, rt = CORE + 0.07, 1.08 * PX
+    for u in (18.0, 21.0, 24.0, 27.0):
+        pts = [P(u, v, zt) for v in (19.6, 30.9)]
+        tube_path(bm, pts, rt, M["tube"], sides=14)
+        for v in (19.6, 30.9):
+            ellipsoid(bm, P(u, v, zt), Vector((1, 0, 0)), Vector((0, 1, 0)), Vector((0, 0, 1)),
+                      rt, rt * 0.7, rt, M["tube"], segs=14, rings=4)
+        tube_path(bm, [P(u, v, zt) for v in (24.0, 29.0)], rt + 0.012, M["shroud"], sides=14)
+        # Saddle under the shroud, so it sits on the backing.
+        cbox(bm, u - 1.2, u + 1.2, 24.2, 28.8, CORE + 0.03, zt, M["shroud"], ch=0.2)
+    # Clamp bands at the shroud's ends.
+    for v in (23.6, 28.9):
+        cbox(bm, 16.8, 28.2, v, v + 0.5, CORE + 0.03, zt + rt + 0.016, M["shroud"], ch=0.2)
+    # Blue lamps either side of the tubes, in bezels.
+    for u0, u1, mat in ((14.0, 16.0, M["lampL"]), (29.0, 31.0, M["lampR"])):
+        cbox(bm, u0 - 0.3, u1 + 0.3, 23.7, 26.3, CORE - 0.02, CORE + 0.03, M["bezel"], ch=0.3)
+        ellipsoid(bm, P((u0 + u1) / 2, 25.0, CORE + 0.03), Vector((1, 0, 0)), Vector((0, 1, 0)), Vector((0, 0, 1)),
+                  (u1 - u0) / 2 * PX, 1.0 * PX, 0.035, mat, segs=14, rings=5, zmin=0.0)
+    # Front bay: two lamp boxes (glass tops, raked glowing faces) and a rib between them.
+    for u0, u1 in ((15.0, 20.0), (24.0, 29.0)):
+        extrude_u(bm, u0, u1, [(35.9, BAY - 0.02), (35.9, 0.37), (37.8, 0.37), (38.2, 0.36), (41.3, 0.265),
+                               (41.6, BAY - 0.04)],
+                  M["frame"], mats=[M["frame"], M["glasstop"], M["frame"], M["lampbox"], M["lampbase"], M["frame"]])
+    extrude_u(bm, 20.0, 24.0, [(35.7, BAY - 0.02), (35.7, 0.36), (36.3, 0.375), (40.2, 0.375), (41.4, 0.30),
+                               (41.4, BAY - 0.02)],
+              M["rib"], mats=[M["rib"]] * 6)
+    # The lens: a deep blue bezel and a domed lens set into the socket glacis.
+    th = math.atan2(0.215 - 0.13, 3.0 * PX)
+    ey = Vector((0, math.cos(th), math.sin(th)))
+    en = Vector((0, -math.sin(th), math.cos(th)))
+    ex = Vector((1, 0, 0))
+    c = Vector(P(22.6, 45.6, 0.165))
+    ellipsoid(bm, c - en * 0.01, ex, ey, en, 6.5 * PX, 3.75 * PX, 0.035, M["rim"], segs=32, rings=4, zmin=-0.6)
+    ellipsoid(bm, c + en * 0.005, ex, ey, en, 5.6 * PX, 3.0 * PX, 0.085, M["lens"], segs=40, rings=10, zmin=-0.5)
+    # Pipes in channels down the casemate's flanks: a grey mount, then the pipe following the glacis
+    # and turning down into the ice.
+    for sgn in (1, -1):
+        u = 6.0 if sgn > 0 else 38.0
+        ua, ub = (4.95, 6.6) if sgn > 0 else (37.4, 39.05)
+        cbox(bm, ua, ub, 37.1, 40.3, 0.0, 0.25, M["case"], ch=0.3)
+        path = [P(u, v, z) for v, z in ((40.0, 0.215), (42.0, 0.205), (44.0, 0.185), (46.0, 0.155), (47.6, 0.125))]
+        # elbow down to the ground at row ~49.6
+        cy, cz, r = Y(47.6), 0.125 - 0.12, 0.12
+        for k in range(1, 7):
+            a = math.pi / 2 - (math.pi / 2) * k / 6
+            path.append((X(u), cy - r * math.cos(a), cz + r * math.sin(a)))
+        path.append((X(u), cy - r, -0.01))
+        tube_path(bm, path, 0.95 * PX, M["pipeL"] if sgn > 0 else M["pipeR"], sides=12)
+        # flange collars
+        for v in (40.4, 44.3):
+            z = 0.215 if v < 41 else 0.183
+            tube_path(bm, [P(u, v - 0.3, z), P(u, v + 0.3, z)], 1.15 * PX, M["bezel"], sides=12)
+    # Vents at the glacis foot.
+    for u0, u1, mat in ((12.0, 14.0, M["ventL"]), (30.0, 32.0, M["ventR"])):
+        g0, g1 = GLACIS(47.0), GLACIS(49.6)
+        extrude_u(bm, u0, u1, [(46.9, 0.0), (46.9, ZI * g0 + 0.008), (49.6, ZI * g1 + 0.008), (49.6, 0.0)], mat)
+
+
+def materials(sprite):
+    tag = "n7_39a"
+
+    def pal(i, metallic, roughness, spec=None, **kw):
+        m = common.palette_material(sprite, i, tag, metallic=metallic, roughness=roughness, **kw)
+        if spec is not None:
+            bsdf = next(n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+            if "Specular IOR Level" in bsdf.inputs:
+                bsdf.inputs["Specular IOR Level"].default_value = spec
+        return m
+
+    glow = dict(metallic=1.0, roughness=0.55)
+    spec = [
+        ("deck", 4, 0.5, 0.5, None, 0),
+        ("curb", 7, 0.5, 0.45, None, 0),
+        ("bar", 5, 0.5, 0.5, None, 0),
+        ("panel", 6, 0.5, 0.45, None, 0),
+        ("pillar", 6, 0.5, 0.45, None, 0),
+        ("dark", 3, 0.4, 0.6, None, 0),
+        ("case", 7, 0.55, 0.42, 0.6, 0),
+        ("core", 6, 0.55, 0.42, 0.6, 0),
+        ("bayfloor", 4, 0.5, 0.5, None, 0),
+        ("socket", 2, 0.45, 0.55, None, 0),
+        ("rib", 7, 0.55, 0.42, None, 0),
+        ("frame", 130, 0.55, 0.40, None, 0),
+        ("skylight", 129, 0.6, 0.2, 0.8, 0),
+        ("port", 130, 0.6, 0.2, 0.8, 0),
+        ("tank", 56, 0.6, 0.32, 0.7, 0),
+        ("backing", 54, 0.5, 0.45, None, 0),
+        ("tube", 158, *glow.values(), None, 0.6),
+        ("shroud", 130, 0.6, 0.35, 0.7, 0),
+        ("bezel", 3, 0.5, 0.45, None, 0),
+        ("lampL", 155, *glow.values(), None, 1.0),
+        ("lampR", 153, *glow.values(), None, 1.0),
+        ("glasstop", 57, 0.6, 0.2, 0.8, 0),
+        ("lampbox", 154, *glow.values(), None, 0.9),
+        ("lampbase", 151, *glow.values(), None, 0.6),
+        ("rim", 147, 0.6, 0.35, None, 0),
+        ("lens", 152, 1.0, 0.35, None, 0.55),
+        ("pipeL", 129, 0.6, 0.3, 0.7, 0),
+        ("pipeR", 130, 0.6, 0.3, 0.7, 0),
+        ("ventL", 54, *glow.values(), None, 0.5),
+        ("ventR", 56, *glow.values(), None, 0.5),
     ]
-    (GREY, LIGHT, MID, DARK, LIT, RIDGE, LIP, GROOVE, SHADOW, FRAME, GLASS, CAN, BACK, TUBE, TIP,
-     LAMP_L, LAMP_R, LENS, SHINE, TOPGLASS, RIM) = range(len(mats))
+    mats, M, seen = [], {}, {}
+    for key, idx, met, rough, sp, em in spec:
+        sig = (idx, met, rough, sp, em)
+        if sig not in seen:
+            seen[sig] = len(mats)
+            mats.append(pal(idx, met, rough, spec=sp, emission_strength=em))
+        M[key] = seen[sig]
+    return mats, M
+
+
+def build(coll, detail=True, name=NAME):
+    sprite = common.load_sprite(ROOT, PIECES[0])
+    for n in PIECES[1:]:
+        sprite["colors"].update(common.load_sprite(ROOT, n)["colors"])
+    mats, M = materials(sprite)
     bm = bmesh.new()
-
-    # Platform (columns 1-42, rows 1-36) with a lit rim on its top, left and right edges.
-    box(bm, 1, 1, 43, 37, 0.0, PLAT, GREY)
-    box(bm, 1, 1, 43, 2, PLAT, PLAT + 0.04, LIGHT)
-    box(bm, 1, 2, 2, 35, PLAT, PLAT + 0.04, LIGHT)
-    box(bm, 42, 2, 43, 35, PLAT, PLAT + 0.04, MID)
-    box(bm, 2, 28, 5, 34, PLAT, PLAT + 0.01, MID)  # lighter strip left of the housing
-    box(bm, 5, 25, 6, 37, PLAT, PLAT + 0.006, GROOVE)  # shadow lines either side of the housing
-    box(bm, 38, 27, 41, 36, PLAT, PLAT + 0.006, SHADOW)
-
-    # Bar across the back (columns 9-34, rows 3-5) with a lit upper edge.
-    box(bm, 9, 3, 35, 6, PLAT, 0.29, DARK)
-    box(bm, 9, 3, 35, 4, 0.29, 0.30, MID)
-
-    # Skylights in the top corners: a blue frame round darker glass.
-    for c in (3, 36):
-        box(bm, c, 3, c + 5, 8, PLAT, 0.27, FRAME)
-        box(bm, c + 1, 4, c + 4, 7, 0.27, 0.285, GLASS)
-
-    # Side panels: grey blocks with a light L-shaped frame (left on the left side, right on the
-    # right) and a small blue window in the corner next to the well.
-    for r0 in (9, 15):
-        box(bm, 3, r0, 8, r0 + 5, PLAT, 0.25, MID)
-        box(bm, 3, r0, 4, r0 + 5, 0.25, 0.27, LIGHT)
-        box(bm, 4, r0 + 4, 8, r0 + 5, 0.25, 0.27, LIGHT)
-        box(bm, 6, r0, 8, r0 + 2, 0.25, 0.28, FRAME)
-        box(bm, 36, r0, 41, r0 + 5, PLAT, 0.25, MID)
-        box(bm, 40, r0, 41, r0 + 5, 0.25, 0.27, LIGHT)
-        box(bm, 36, r0 + 4, 40, r0 + 5, 0.25, 0.27, LIGHT)
-        box(bm, 36, r0, 38, r0 + 2, 0.25, 0.28, FRAME)
-    box(bm, 3, 21, 6, 27, PLAT, 0.25, MID)
-    box(bm, 3, 21, 4, 27, 0.25, 0.27, LIGHT)
-    box(bm, 37, 21, 41, 27, PLAT, 0.25, MID)
-    box(bm, 40, 21, 41, 27, 0.25, 0.27, LIGHT)
-
-    # Pillars either side of the well, lit on their left faces, on low steps.
-    for c in (10, 30):
-        box(bm, c, 7, c + 1, 19, PLAT, 0.36, LIT)
-        box(bm, c + 1, 7, c + 4, 19, PLAT, 0.36, MID)
-        box(bm, c + 1, 7, c + 4, 8, 0.36, 0.37, LIGHT)
-    box(bm, 8, 7, 10, 19, PLAT, 0.25, DARK)
-    box(bm, 34, 7, 36, 19, PLAT, 0.25, DARK)
-
-    # The blue canister lying in the well (columns 19-26, rows 7-18) with a wider collar.
-    tube_y(bm, 23, [(6.6, 2.4, 0.08, 0.25), (7.2, 3.0, 0.11, 0.25), (17.0, 3.0, 0.11, 0.25),
-                    (18.6, 2.6, 0.09, 0.25), (19.0, 2.0, 0.06, 0.25)], CAN, sides=12)
-    tube_y(bm, 23, [(11.9, 3.6, 0.13, 0.25), (12.4, 4.0, 0.15, 0.25), (16.0, 4.0, 0.15, 0.25),
-                    (16.6, 3.6, 0.13, 0.25)], GLASS, sides=12)
-
-    # The housing: chamfered shoulders (rows 20-24), sides at columns 6 and 37.
-    poly(bm, [(10, 20), (34, 20), (38, 24), (38, 38.5), (6, 38.5), (6, 24)], 0.0, HZ, LIGHT)
-    box(bm, 33, 24, 38, 38.5, HZ, HZ + 0.006, DARK)  # its darker right side
-    box(bm, 10, 20, 17, 21, HZ, HZ + 0.012, LIP)  # lit front edge of the shoulders
-    box(bm, 30, 20, 34, 21, HZ, HZ + 0.012, RIDGE)
-    # Its front runs out over the water to row 49 and slopes down to the foot.
-    prism_x(bm, 7, 37, [(38, 0.0), (38, HZ), (41, HZ), (49.5, FOOT), (49.5, 0.0)], LIGHT)
-    # Bright ridges down both shoulders (columns 11-12 and 31-32).
-    for c in (12, 32):
-        tube_y(bm, c, [(20.5, 0.0, 0.0, HZ), (21.0, 1.0, 0.035, HZ), (40.5, 1.0, 0.035, HZ),
-                       (41.0, 0.0, 0.0, HZ)], RIDGE, sides=6)
-
-    # Four glass tubes on a dark blue backing (columns 17-27, rows 19-30): glowing at the top,
-    # dark down the middle, lit again at their lower tips.
-    box(bm, 16.5, 19, 28.5, 31, HZ - 0.02, HZ + 0.012, BACK)
-    for c in (18, 21, 24, 27):
-        z = HZ + 0.02
-        tube_y(bm, c, [(19.0, 0.0, 0.0, z), (19.3, 0.8, 0.035, z), (19.8, 1.0, 0.05, z),
-                       (24.0, 1.0, 0.05, z)], TUBE, sides=8)
-        tube_y(bm, c, [(24.0, 1.0, 0.05, z), (29.0, 1.0, 0.05, z)], FRAME, sides=8)
-        tube_y(bm, c, [(29.0, 1.0, 0.05, z), (30.6, 1.0, 0.05, z), (31.0, 0.0, 0.0, z)], TIP, sides=8)
-
-    # Blue lights either side of the tubes.
-    box(bm, 14, 24, 16, 26, HZ, HZ + 0.03, LAMP_L)
-    box(bm, 29, 24, 31, 26, HZ, HZ + 0.03, LAMP_R)
-
-    # Ledge under the tubes and the dark groove below it.
-    box(bm, 16, 31, 30, 34, HZ, HZ + 0.05, LIGHT)
-    box(bm, 14, 34, 30, 36, HZ, HZ + 0.006, GROOVE)
-
-    # Two glass-topped blocks with glowing slots, and a divider between them (rows 36-41).
-    for c in (15, 24):
-        box(bm, c, 36, c + 5, 41.5, HZ, HZ + 0.06, DARK)
-        box(bm, c, 36, c + 5, 38, HZ + 0.06, HZ + 0.07, TOPGLASS)
-        box(bm, c, 39, c + 5, 41.5, HZ + 0.06, HZ + 0.07, LENS)
-        box(bm, c, 41.4, c + 5, 41.7, HZ - 0.02, HZ + 0.06, LENS)
-    box(bm, 20, 36, 24, 41.5, HZ, HZ + 0.04, LIGHT)
-
-    # The big lens in a dark socket on the sloped front (columns 17-28, rows 42-48).
-    tilt = math.atan2(HZ - FOOT, 8.5 * U)
-    zc = slope_z(45.5)
-    ellipsoid(bm, 23, 45.8, zc, 8.6, 5.0, 0.025, SHADOW, tilt=tilt)
-    ellipsoid(bm, 23, 45.6, zc + 0.01, 6.6, 3.9, 0.04, RIM, tilt=tilt)
-    ellipsoid(bm, 23, 45.5, zc + 0.02, 5.8, 3.3, 0.07, LENS, tilt=tilt, segments=18, rings=9)
-    ellipsoid(bm, 20.5, 45.2, zc + 0.09, 1.7, 0.9, 0.02, SHINE, tilt=tilt, segments=10, rings=5)
-
-    # Blue pipes down the housing's sides (columns 5-6 and 37-38, rows 40-48).
-    tube_y(bm, 6, [(39.0, 0.0, 0.0, 0.12), (39.6, 1.0, 0.07, 0.12), (48.6, 1.0, 0.07, 0.12),
-                   (49.2, 0.0, 0.0, 0.12)], GLASS, sides=8)
-    tube_y(bm, 38, [(39.0, 0.0, 0.0, 0.12), (39.6, 1.0, 0.07, 0.12), (48.6, 1.0, 0.07, 0.12),
-                    (49.2, 0.0, 0.0, 0.12)], FRAME, sides=8)
-
-    # Small blue vents at the foot (columns 12-13 and 30-31, rows 47-49).
-    box(bm, 12, 47, 14, 49.5, 0.0, slope_z(47) - 0.01, BACK)
-    box(bm, 30, 47, 32, 49.5, 0.0, slope_z(47) - 0.01, CAN)
-
-    return to_object(NAME, bm, mats, coll)
-
-
-WATER_LEVELS = (51, 54, 57, 59)
-
-
-def water_index(v):
-    """Quantise a water pixel to one of four palette shades (anything else reads as dark water)."""
-    if v < 48 or v > 61:
-        return 51
-    return min(WATER_LEVELS, key=lambda w: abs(w - v))
-
-
-def build_water(sprite, grid, coll):
-    """A flat apron in the water's colours round the structure: the right edge (columns 44-47) and
-    everything below the platform (rows 38-55) outside the housing, run-length merged per row."""
-    t = "nsh7_39w"
-    mats = [common.palette_material(sprite, i, t, metallic=0.1, roughness=0.2) for i in WATER_LEVELS]
-    bm = bmesh.new()
-    for r in range(56):
-        runs = []
-        for c in range(48):
-            if not (c >= 44 or r >= 38):
-                continue
-            k = WATER_LEVELS.index(water_index(grid[r][c]))
-            if runs and runs[-1][1] == c and runs[-1][2] == k:
-                runs[-1][1] = c + 1
-            else:
-                runs.append([c, c + 1, k])
-        for c0, c1, k in runs:
-            vs = [bm.verts.new((XE(x), YE(y), 0.01)) for x, y in ((c0, r + 1), (c1, r + 1), (c1, r), (c0, r))]
-            bm.faces.new(vs).material_index = k
-    mesh = bpy.data.meshes.new(NAME + "_water")
-    bm.to_mesh(mesh)
+    build_deck(bm, M, detail)
+    build_well(bm, M, detail)
+    build_casemate(bm, M, detail)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=1e-6)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    me = bpy.data.meshes.new(name)
+    bm.to_mesh(me)
     bm.free()
     for m in mats:
-        mesh.materials.append(m)
-    obj = bpy.data.objects.new(NAME + "_water", mesh)
+        me.materials.append(m)
+    obj = bpy.data.objects.new(name, me)
     coll.objects.link(obj)
+    for p in me.polygons:
+        p.use_smooth = True
+    me.set_sharp_from_angle(angle=math.radians(34))
     return obj
 
 
-def merged_sprite():
-    """newsh7-39's sprite.json with the colours of every piece, so any piece's index is valid."""
-    data = common.load_sprite(ROOT, "newsh7-39")
-    for name in PIECES:
-        data["colors"].update(common.load_sprite(ROOT, name)["colors"])
-    return data
+def sink_shell(shell, model, margin, reach):
+    """Keep the outline shell under the model's top surface (D90/D118: ink on the silhouette only).
 
-
-def assembly_grid(layout):
-    """The 48 x 56 block's palette indices (first frames), rows top to bottom."""
-    grid = [[-1] * 48 for _ in range(56)]
-    for name, cx, cy in layout:
-        frame = common.load_sprite(ROOT, name)["frames"][0]
-        x0, y0 = cx + 24 - 12, cy + 28 - 14
-        for r, row in enumerate(frame["pixels"]):
-            for c, v in enumerate(row):
-                grid[y0 + r][x0 + c] = v
-    return grid
-
-
-def composite_png(sprite, grid, out):
-    """The whole structure's sprite as one 48 x 56 image (render_preview size 4)."""
-    import numpy as np
-    img = np.zeros((56, 48, 4), dtype=np.float32)
-    for r in range(56):
-        for c in range(48):
-            v = grid[r][c]
-            if v >= 0:
-                img[r, c] = [*(ch / 255 for ch in sprite["colors"][str(v)]), 1.0]
-    im = bpy.data.images.new("assembly_sprite", 48, 56, alpha=True)
-    im.pixels[:] = img[::-1].ravel()
-    im.filepath_raw = str(out)
-    im.file_format = "PNG"
-    im.save()
-    bpy.data.images.remove(im)
-    return out
+    The voxel shell is smoothed, so it bridges the model's creases (the hood's trim strips, the gem bezel, the
+    engine-bay channel, the hood/nose step) and stood above the surface there: its back faces drew as dark
+    scribbles across the hood and the plate. Every shell vertex is dropped to `margin` under the topmost
+    model surface within `reach` of it (seen from straight above). x and y are untouched, so the silhouette (and the ink round it) is
+    the same."""
+    from mathutils.bvhtree import BVHTree
+    dg = bpy.context.evaluated_depsgraph_get()
+    tree = BVHTree.FromObject(model, dg)
+    mw = shell.matrix_world
+    inv = mw.inverted()
+    moved = 0
+    for v in shell.data.vertices:
+        w = mw @ v.co
+        hit = tree.ray_cast(Vector((w.x, w.y, 5.0)), Vector((0, 0, -1)))
+        if hit[0] is None:
+            continue
+        zt = hit[0].z
+        for k in range(12):  # the lowest top within `reach`: a shell edge spans ~0.6 px, so a vertex
+            a = 2 * math.pi * k / 12  # beside a raised strip must not ride at the strip's height
+            for rad in (0.35 * reach, 0.7 * reach, reach):
+                h = tree.ray_cast(Vector((w.x + rad * math.cos(a), w.y + rad * math.sin(a), 5.0)), Vector((0, 0, -1)))
+                if h[0] is not None:
+                    zt = min(zt, h[0].z)
+        zt -= margin
+        if w.z > zt:
+            v.co = inv @ Vector((w.x, w.y, zt))
+            moved += 1
+    shell.data.update()
+    print(shell.name, "sunk", moved, "of", len(shell.data.vertices))
 
 
 def main():
-    sprite = merged_sprite()
-    layout = [(e["model"], e["cx"] - CX0, e["cy"] - CY0) for e in sprite["assemblyLayout"]
-              if e["model"] in PIECES]
-    grid = assembly_grid(layout)
+    argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+    for o in list(bpy.data.objects):
+        bpy.data.objects.remove(o, do_unlink=True)
     coll = common.reset_collection(NAME)
-    obj = build(sprite, coll)
-    water = build_water(sprite, grid, coll)
-    pieces = common.split_assembly(obj, layout)
-    wpieces = common.split_assembly(water, [(n + "_w", cx, cy) for n, cx, cy in layout])
-    for name in PIECES:
+    obj = build(coll)
+    pieces = common.split_assembly(obj, LAYOUT)
+    # The outline shell's source (D90/D118): a sealed copy without the small detail (tank, tubes, lamps,
+    # curb, panels), so the smoothed shell can't bridge the grooves and draw ink across the top.
+    plain = build(coll, detail=False, name=NAME + "_plain")
+    sealed = common.split_assembly(plain, LAYOUT)
+    bpy.data.objects.remove(plain, do_unlink=True)
+    bpy.context.view_layer.update()
+    shells = {}
+    for name, cx, cy in LAYOUT:
+        p = pieces[name]
+        for poly in p.data.polygons:
+            poly.use_smooth = True
+        p.data.set_sharp_from_angle(angle=math.radians(34))
+        src = sealed[name]
+        bpy.context.view_layer.update()
+        sh = common.outline_shell(src, coll, voxel=0.018, faces=6000, inside=0.012)
+        sh.name = sh.data.name = f"{name}_outline"
+        sink_shell(sh, src, margin=0.03, reach=0.09)
+        print("SHELL", name, len(sh.data.vertices), "verts")
+        bpy.data.objects.remove(src, do_unlink=True)
+        shells[name] = sh
+    for name, _, _ in LAYOUT:
         data = common.load_sprite(ROOT, name)
-        common.export_sprite_model(ROOT, [pieces[name], wpieces[name + "_w"]], f"enemies/{name}", data["sprites"])
-    if "--preview" in sys.argv:
-        out = Path(sys.argv[sys.argv.index("--preview") + 1])
-        import tempfile
-        ref = composite_png(sprite, grid, Path(tempfile.mkdtemp()) / "assembly.png")
-        common.render_preview([obj, water], str(out), ref, size=4, view_px=480)
-        for name in PIECES:
-            data = common.load_sprite(ROOT, name)
-            img = ROOT / "reference" / "models" / name / data["frames"][0]["image"]
-            common.render_preview([pieces[name], wpieces[name + "_w"]], str(out.parent / f"{name}.png"), img, size=2)
+        common.export_sprite_model(ROOT, [pieces[name], shells[name]], f"enemies/{name}", data["sprites"])
 
 
 if __name__ == "__main__":
