@@ -8754,3 +8754,60 @@ its blue badge); airborne shadows on starfield floors; BOTANY A's boss shows 2 o
 - GEM WAR's gem and BONUS 2.3's pods as models: QA H4, M4.
 
 **Cost:** one Opus agent; about 60 headless captures, no Gemini, no Blender.
+## D182 — Episode-2 QA model fixes: the GYGES boss gets a ridged carapace, GEM WAR's gems become faceted, and four smaller models are corrected (E2 QA H3, H4, M2, M4, M5, M7; follows D65, D170, D177, D179)
+
+**Date:** 2026-11-13
+
+**Context:** the E2 QA sweep (`tyrian-scratch/e2-qa/REPORT.md`) listed eight model issues. They went through
+`tools/workflows/fix-round.js` (two rounds of fix and strict review per item, Opus on the last fix;
+`tyrian-scratch/e2-qa-models/`). Six ship here and two are held back.
+
+**Decision (shipped):**
+- **H3, GYGES boss `assembly-newshn-195` (24 pieces).** The smooth slate-blue hull becomes a near-black ridge lattice
+  taken from the sprite's own shading pattern. Height comes from the blue-family shade, minus its 1.3 px mean (so broad
+  shading stays out), and is squashed with tanh to about ±1.25 px with faired tops. The ridges ring the eye clusters
+  and run as brow arcs and flank ribs. Ridge tops get a polished material on the same palette index, so the pale rims
+  are sheen (art rule 2). The vertebra column is now stacked segments instead of a dome. The tentacle paths are fitted
+  to the sprite mask. Brow band at t6300: original (30,35,44), 3D (31,39,51); before, (17,32,47).
+  - **IoU:** measured over the whole assembly, the measure D177 used for this boss, it is 0.983 (before 0.977). Four
+    small edge pieces miss 0.95 when measured on their own: 161 (0.790), 153 (0.857), 77 (0.907) and 155 (0.930).
+    The sprite cuts 1 px ink notches and holes into the outline there, and the skin is a mirrored ray-built surface
+    that can't carry them. This is accepted as a documented exception.
+  - **Size:** the 24 glbs went from 5.45 to 10.9 MB because the edges are split to 0.4 px to carry the ridges.
+  - **Not a model fault:** the "transparent tentacle shells" come from the C's own blended layer-1 tile pass (pass 4)
+    drawn over the arms (pass 3). The original shows the same purple overlay.
+- **H4, GEM WAR gems `newshv-123`/`-153`.** The flat engraved tokens become a round brilliant (girdle a true circle,
+  r 8.38 px). The bezel indexes are set per segment so the sprite's dark diamond reads as dark N/S points with lit
+  sides. Facets are tilted so they catch the sun's glint at the game camera (`sun.ts`, 32° tilt). IoU 0.964-0.977.
+- **M2, ASTCITY panels `assembly-newshp-191`.** Shallow 0.28 px seams with no ink in them. The outline shell is built
+  from one sealed copy of the platform (D90/D118). The black louvred apron, which was modelled from the sprite's drop
+  shading, is removed. IoU 0.997.
+- **M4, BONUS 2.3 red pods.** The model is `newshe-195`, not the candidates the QA named (draw list at t675). The rim
+  uses the sprite's median ring index (116) on a rounded quarter-round rim, so the bright crescent is sheen, over a
+  glossy dark-red metal body. IoU 0.973.
+- **M5, SOH JIN pincer craft.** The model is `newshg-49`, built by `build_beetle` in `newshg-121.py`. It gets a narrow
+  tent-section abdomen, long fluted hind-leg blades along the sprite's diagonals, and saw-tooth tibia spines in the
+  silhouette. IoU 0.987.
+- **M7, ASTCITY caged drum.** The model is `newshd-169-f5/-f6` (frames 199/201/203), not `newshd-275`. The open pit
+  (the "speaker cone") becomes a closed hipped steel lid under four iron cage bars. The stone plinth is removed from
+  all six stages (D130). IoU 0.977.
+
+**Held back (main's model stays; the patch is in `tyrian-scratch/e2-qa-models/held/`):**
+- **M1, GYGES drill column `assembly-newshh-125`.** Raising its depth band hides orb `newshh-91` only where the column
+  has geometry. In the original, tiles 85/87 are opaque (wall background included) and hide the orb completely. A
+  proper fix needs the renderer to hide a sprite that sits fully inside an opaque-tile assembly drawn after it.
+  Outline-shell fragments also showed.
+- **M3, TORM waterfall `assembly-newshh-129`.** The pool is flush now, but the cliffs still read as dark square
+  pillars and the lip as a straight outlined edge. Scored 5, with no clear gain over main.
+
+**Options considered:**
+- *Hold the GYGES boss until every piece passes alone:* that needs notch and hole cuts in the skin and its outline
+  shell, a rebuild of the surface method. The look fix (H3) is the QA's top model issue, and the whole-assembly measure
+  improved. Chosen: ship it with the exception recorded.
+- *Halve the boss's triangles (RIDGE_EDGE 0.5, or one split pass):* not tried, because it changes the ridge look. Left
+  as a follow-up if GYGES load time suffers.
+
+**Review:** look at GYGES t6300/t7050 and GEM WAR t7050 with `&compare=1`. Fallback: revert the boss's 24 glbs and
+script to main.
+
+**Cost:** fix-round workflow, 26 agents, about 3.3M subagent tokens, about 2 h. No Gemini.
