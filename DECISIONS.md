@@ -9533,3 +9533,186 @@ redder and without the grey, a little orange where the 3D is brighter than the o
 - Neutral tone mapping can't show a saturated colour near a peak of 1, so under a smoothie the top shades show paler (the
   column's yellow core reads cream-white; the original's settles at 14, (255, 251, 150)), as any bright colour does unfiltered.
 - The remaining differences are the 3D's brightness (luminance ratio 1.2-1.8, the pending lighting decision).
+## D192 — Episode-3 enemy rebuild, batch 2: 17 items (32 inventory units) to the D65 hard-surface standard, plus batch 1's domed city and lava beast; STARGATE's larva and crystal, FLEET's WARNING sign, flyers and the yoke's last pieces, the IXMUCANE boss's furnace column, CAMANIS's mortar turret and gunships, the IXMUCANE/SAWBLADES rocket, spider and worm pods; the saw rotor held (follows D170, D177, D179, D190)
+
+2026-11-13
+
+**Decision:** the next 33 episode-3 units the D116 ranking lists (most screen time first, not `flagship`, not pickups)
+are rebuilt with `tools/workflows/model-flagship.js` in lean mode, as D190 (no blueprints, one design per item, a
+Sonnet finisher, Opus fixes and strict Opus reviews; D65's recipe: hard-surface geometry, outline shell, art rules 1-5).
+The scout folded the 33 units into 18 items (10 hero, 8 standard) with every member script listed (D179's `members`).
+**17 items ship (32 units):** 11 passed strict review at once, 6 after one fix in the run (`assembly-newshk-238`,
+`assembly-newshe-237`, `newsh8-19`, `assembly-newshk-121`, `assembly-newshr-169`, `assembly-newsh7-203`). **D190's two
+held items ship too** after a `fix-round.js` pass (below). **The saw rotor is held** (below) and stays on origin/main's
+script and glbs.
+
+| Model (units) | Tier | What it is | Top-view IoU (finisher, worst frame) | Review IoU | Score |
+|---|---|---|---|---|---|
+| assembly-newshe-121 | hero | STARGATE's segmented lava larva (eight pieces, 96x56 px), head left with glowing eyes, pink knobs, a feeler and a tail stinger; it crawls left across the screen | whole grid 0.988 (per piece 0.87-0.946, D177/D182) | 0.988 | 6.8 |
+| assembly-newsh7-39 | hero | a grey ground bunker with blue glass tubes, a big lens and a canister in a well (CAMANIS, ICESECRET); the old flat water apron removed (D130) | 0.9894 (newsh7-41; whole 0.996) | 0.9894 | 7.6 |
+| newsha-87 (+ newsha-125, -127) | standard | three forged steel rings of three sizes that fly apart from the GAUNTLET/MACES bunkers, one closed torus each | 1.0 | 1.0 | 7.5 |
+| assembly-newshe-237 (fix) | hero | a long faceted red crystal shard, point down, white-hot ridge and tip, falling faster than the terrain (STARGATE; indestructible) | 0.97 | 0.97 | 6.8 |
+| assembly-newsh8-125 | hero | a red rocket lying sideways, skimming right over the ground: batch 1's `assembly-newsh8-191` rocket turned a quarter turn (IXMUCANE, SAWBLADES) | 0.9748 (125; whole 0.9938) | 0.9748 | 7.5 |
+| newshc-191 | standard | a grey gun-tower craft with two canopied pods, green lamp panels and a pink cannon, rising up the screen (BONUS beside `newshc-165`, New Deli) | 0.9834 | 0.9834 | 7.5 |
+| newsh7-51 (+ newsh7-237, -13) | standard | CAMANIS's caged gunships: an engine block and cage bending into blue blades on a shield hull (237 is 51 upside down, flying up), and the double-ended drone 13 | 0.9531 (13; 51 0.980, 237 0.9775) | 0.9531 | 7.2 |
+| assembly-newsh7-203 (+ newsh7-203, newsh7-55; fix) | hero | CAMANIS's red mortar turret on the ice edge (24x56 px: armoured housing and claws over a recoiling mortar cup, three slides), and the glowing core in an ice mound | 0.9578 (169; whole 0.972-0.975, core 0.96) | 0.9578 | 7 |
+| newshk-281 | standard | a grey gun pod with a big red glass eye that flies down FLEET and releases a pickup | 0.9708 | 0.9707 | 7.5 |
+| newsh8-19 (+ newsh8-267; fix) | standard | a small tan twin-pod craft spinning on its long axis (six models over ten frames) and the tan claw craft with a red T emitter (IXMUCANE, SAWBLADES) | 0.9583 (95/133; 267 0.99) | 0.958 | 7 |
+| assembly-newshk-238 (+ newshk-165, -207, -276, -278, -171; fix) | hero | the yoke mid-boss's lower claw tips and right beam stub (batch 1's `assembly-newshk-237` style), and FLEET's red-winged V ship, octagonal core pod, horned gunship and its fireball shot | 0.965 (276; 238+242 0.9888, 165 1.0, 207 0.9843, 278 0.9831, 171 1.0) | 0.965 | 7.1 |
+| assembly-newshk-121 (fix) | hero | the green neon WARNING sign that sweeps up the screen before the FLEET boss (also LAVA RUN 4.12): one glow material on every tube | 0.9822 | 0.9822 | 7 |
+| assembly-newshr-169 (fix) | hero | the IXMUCANE boss's furnace column: a big fireball in a bronze socket over three blocks with glowing lenses, riding the rock heap's link | 0.9549 | 0.9549 | 7 |
+| newshs-271 | standard | the gun turret of AST. CITY's flagship tank `assembly-newshs-165` (always spawned on it), not a separate walker | 0.9876 | 0.9714 | 7.2 |
+| newshk-115 | standard | a flame-crescent projectile that FLEET's invisible launcher 698 drops straight down | 0.9886 | 0.9886 | 7 |
+| assembly-newsh8-229 (+ assembly-newsh8-9, newsh8-115, -129) | hero | an antlered spider on the upper terrain, a falling rock pod a worm pushes out of (12 models), a dome craft weaving up the screen and SAWBLADES's carrot prop | 0.9583 (87; spider 0.960-0.965) | 0.9568 (129) | 7 |
+| newsh8-1 | standard | a red twin-boom piston machine (four slide frames) creeping down the ground (IXMUCANE, SAWBLADES) | 0.9752 | 0.9752 | 7.1 |
+| assembly-newshr-85 (D190 holdover, fix round) | hero | the purple glass-domed city (IXMUCANE, SAWBLADES), the glass open over the city | 0.9849 | 0.9849 | 6.6 |
+| assembly-newshe-123 (D190 holdover, fix round) | hero | STARGATE's rib-backed lava beast: dark maroon carapace, thin red crescent ribs with hot spots near the crest, bone knobs | 0.9522 | 0.9522 | 7 |
+
+Units: 32 of the 33 the scout took (the held rotor is the 33rd), plus the 2 holdovers. The IoU gate is D177/D182's
+whole-assembly grid for assemblies; `newshs-271`'s review measured 0.9714 against the finisher's 0.9876 (camera or grid
+alignment in the reviewer's render; both pass).
+
+**Identity re-reads** (the scout's `tools/enemy_behaviour.mjs` run, `tyrian-scratch/e3-enemies-2/behaviour.json`; D120,
+D122, D166, D167):
+- `newshs-271` is the turret on AST. CITY's tank: type 844 always spawns rigid with `assembly-newshs-165`'s four pieces
+  (dx ±12, dy +24/-4), so it matches that flagship's greys and red.
+- `assembly-newshk-238` (238 + 242) and `newshk-165` are pieces of batch 1's yoke: 726 and 730 spawn under the arm
+  columns, 727 at the top centre, each rigid on one half's link. They are its lower claw tips with ribbed red rods and
+  the right beam stub (batch 1 made `newshk-163` the left one). `newshk-171` is not an enemy of its own: type 710 is
+  launched by 706 (`newshk-278`), a fireball shot.
+- `assembly-newshr-169` rides the IXMUCANE boss's link (rigid with `assembly-newshr-273`'s heap), sliding with it.
+- `assembly-newsh7-203`'s two units are one emplacement: type 85 (frames 165/167/169) spawns 28 ticks after type 86 at
+  the same x while the terrain scrolls 1 px a tick, so it sits directly above it (one 24x56 turret). The ice in its
+  sprite and in `newsh7-55`'s is ground (D130): no floor plate, only a low mound under the core.
+- Flyers, not ground objects: the larva crawls left (ev20, x -5..-6 px/tick); the crystal shard falls at +3 px/tick on
+  ground2 (faster than the terrain); `newsh8-125` skims right at +4 px/tick; `newshc-191` rises; `newshk-281`,
+  `newsh8-19`/`-267`, `newsh8-115` and the newshk flyers weave or swoop on the sky layer; `assembly-newsh8-9` falls at
+  +2..+9 px/tick (a falling rock pod, not a burrow). `newshk-115` is a projectile from the blank launcher type 698.
+- Ground objects: `assembly-newsh7-39` (bunker), `newsh7-55` (core), `assembly-newsh8-229` (spider, top layer, scroll
+  3), `newsh8-129` (a carrot riding the terrain, despite its docstring's "flying"), `newsh8-1` (creeps +1 px/tick
+  against the terrain).
+- `newsha-87`/`-125`/`-127` are custom pictures (events 49-52) on type 0, spawned 6 px off batch 1's bunker
+  (`assembly-newsha-121`) and moving apart in proportion to their size (±2/±4/±6 px/tick): a flying set of rings, not a
+  ground fixture. Modelled as steel rings, as the sprite shows; what they stand for in the game is not settled.
+- `assembly-newshk-121` is decor (armour 0, boss-flagged) that sweeps up at -8..-10 px/tick.
+- Several old docstrings used the harness section as the level (`newshk-281`'s "level 3.12" is FLEET, section 12).
+
+**Merges and retired libs:**
+- `newsha-87` + `-125` + `-127`: `lib_b107.py` now holds the ring build; the three scripts call `lib.main(NAME)`.
+- `newsh7-51` + `-237` + `-13`: the new `lib_e3_gunship.py` holds the build (`build_gunship`, with `flip` for 237, and
+  `build_drone`); `lib_b007.py` is untouched (its `run()` is still used; `lib_b011/b021/b039/b076` import it).
+- `assembly-newsh7-203` + `newsh7-55`: one script builds the turret and the core. In the integration, run directly it
+  builds only the turret (`main(only="turret")`) and `newsh7-55.py` loads it and runs `main("core")`; before, 55
+  `runpy`-ran the whole script, so a full build had two Blender processes writing the same five glbs (as D190's
+  fire column). `lib_b108.py` deleted (no importers; batch 1's `assembly-newsh7-199` had dropped it).
+- `newsh8-19` + `-267`: `newsh8-19.py` holds both designs, `newsh8-267.py` runs `main("267")`; run directly, 19 now
+  builds only its own models (integration fix, same reason). `lib_b035.py` deleted.
+- `assembly-newsh8-229` + `assembly-newsh8-9` + `newsh8-115` + `-129`: `assembly-newsh8-229.py` holds all four builders,
+  the three others run `main("worm")`, `main("dome")`, `main("carrot")`; run directly it now builds only the spider
+  (integration fix; the review found the double build). `lib_b060.py` deleted.
+- `assembly-newshk-238` + `newshk-165/-207/-276/-278/-171`: six self-contained scripts, each with its own copy of
+  batch 1's yoke helpers (from `assembly-newshk-237.py`); `lib_b045.py` deleted.
+- Single scripts that dropped a private lib, deleted here: `assembly-newshe-237` (`lib_b114.py`), `newshc-191`
+  (`lib_b031.py`), `newshs-271` (`lib_b080.py`), `newshk-115` (`lib_b074.py`), `assembly-newshr-169` (`lib_b105.py`),
+  `assembly-newshe-123` (`lib_b130.py`, deleted in the fix round). `assembly-newsh8-125` and `newsh8-1` copy what
+  they need from `lib_b082.py`, which stays (flagship `newsh8-102` imports it); `newshk-281` and
+  `assembly-newshk-121` no longer use `lib_b032.py`, which stays (`newshk-1`, `newshk-195`). `lib_b094.py` stays with
+  the held rotor. No shared lib (`common.py`, `usp_talon.py`, `lib_newshd_rock.py`, `lib_b007.py`) was edited.
+- The regenerated inventory folds `newsh7-55` into `assembly-newsh7-203`'s unit and `assembly-newsh8-9`, `newsh8-115`,
+  `newsh8-129` into `assembly-newsh8-229`'s, because those scripts name the models (as `newshk-283` in D190).
+
+**The holdovers** (`fix-round.js`, in this worktree):
+- `assembly-newshr-85`, the domed city (6.6): the renderer still forces every non-blended model material opaque
+  (`drawListRenderer.ts`, D190), so the glass stays open over the city instead of clear: the panes are kept only
+  where the sprite draws purple (the north cap with the glare, the NE crescent and flank, the foot ring), cut along
+  the sprite's city edge as the game camera sees the glass. This round removed D190's glazing bars, took the tower
+  prisms out of the sealed copy so the shell is the glass foot band only, via `common.outline_shell(islands="outer")`
+  (D189; the middle piece, which has no band, gets a small hidden keeper box so `modelPrep.ts` does not ink every
+  tower), lifted the city to 99-104 with sparser windows, and moved the glare to the sprite's NW spot. Left: the
+  glare is a hard disc (a ring under the overhead camera), the west cut sits low, the city is lighter and flatter than
+  the sprite, the NE sheen arc is missing, and from the side the dome reads as a cracked shell.
+- `assembly-newshe-123`, the lava beast (7): the fix started from its round-1 build
+  (`tyrian-scratch/e3-enemies-1/held/pre_r12_script.py`), not from D190's overcorrected bee stripes. The ribs are thin
+  tubes on the lips' crests bowing as `)` crescents, cooling from 120 at the crest to the body's 116 at the belly, with
+  nested emissive hot beads (to 127 where the sprite peaks) in the upper third; the lips are dark shell (113-115).
+  `sink_shell` now flattens shell vertices with model under them in every direction, so the black ink fins along the
+  lip fronts and the belly are gone. `lib_b130.py` deleted. Left: the knobs pal 70 (sprite 72-79), the lower ribs step
+  through visible colour segments, the crescents bow less than the sprite's; IoU 0.9522 leaves little margin.
+
+**Held: `assembly-newsh-hash-195`**, the saw rotor (IXMUCANE, SAWBLADES; the most screen time of the batch): 5.5 in
+the run and 5.5 again after two fix passes. Each frame is two of batch 1's four-claw grabber stars stacked, so the
+sprite reads as eight slim curved blades split by ink. At game scale the model's eight blades read as four forked
+hands: the slots between the stacked stars (1 px dark web under a step) show only in the zoomed top view, the arms are
+too thick near the hub, and the second pass's flat satin left them one uniform grey. Its script, `lib_b094.py` and its
+twelve glbs are origin/main's; the patch is in `tyrian-scratch/e3-enemies-2/held/`. That script wrote
+`build_info.json` next to itself (into `assets/blender/enemies/`) on every build: the stray file the run committed is
+deleted here, and the patch must drop that write before it lands.
+
+**Integration checks.**
+- Rebuild: all 33 changed entry scripts were rebuilt with `tools/build-models.sh -j 4` (exit 0, about 30 s). They
+  export exactly the 88 glbs the branch changes, each written once (no glb a changed script exports is left on an old
+  build, no changed glb lacks a builder); 68 came out byte-identical to the run's, the other 20 have the same meshes,
+  vertex counts, bounds, materials and nodes (`glbstat`-style compare, `integrate/cmpall.py`). No
+  `src/render/spriteModels` JSON changed, in the run or in the rebuild.
+- Scratch paths: `assembly-newsh7-203.py` had its scratch folder hard-coded and wrote a review glb, `wholes.glb`,
+  `pieces/` and `build_info.json` there on every build, and its `--measure` imported a `masks.py` from that folder;
+  now the review copies are written only with `--review DIR` and the `--measure` hook is removed (as D190 removed
+  scratch-importing hooks). `assembly-newshe-121.py` and `assembly-newshk-121.py` wrote `report.json` into a
+  hard-coded scratch folder on every build; now only with `--measure [DIR]` (default a new temp folder);
+  `assembly-newshk-121.py`'s docstring no longer offers a `--pieces` it does not have. Every other script finds the
+  repo from its own location and writes review output only behind an option.
+- No `.npz`, sprite PNG, Gemini sheet, review sheet or dev log is in the diff; the scripts read the sprites from
+  `reference/` at build time (as `common.load_sprite`); `newshk-115.py` embeds its fitted plan curves (two outlines of
+  16 points), not pixels (art rule 6).
+- `newsha-87`/`-125`/`-127` were designed on the old base; batch 1's bunker (`assembly-newsha-121`) no longer imports
+  `lib_b107`, so the rings' lib change touches nothing of it, and the GAUNTLET/MACES captures show both together.
+
+**Inventory** (regenerated, bot run): **Episode 3 is now 185 flagship / 1 older / 186 enemy units (was 155 / 35 /
+190), 0 unmodelled damaged frames**; the one older unit is the held rotor. Episode 4 rises from 49 to 54 flagship of
+199 (`newsh7-51`, `-237`, `assembly-newsh7-39`, `assembly-newshk-121`, and `assembly-newsh7-203`, which now holds
+`newsh7-55`'s ICESECRET frames). Whole game: 322 flagship of 469 enemy units (was 292 of 473; the four folded units).
+The tileset rows' HD counts also change (shapesw 100/28/17 → 110/69/82 by layer, shapes) 112/14/0 → 112/49/24,
+shapesz layer 1 16 → 41, shapesx layer 1 59 → 72): the committed copy still had D179's terrain figures, from before
+D186/D187's paintings; nothing in `public/art/` or `tools/inventory.mjs` changes here. `src/viewer/assemblies.json` is unchanged.
+
+**In game** (`?debug=play&difficulty=2&seed=1&compare=1`, 1920x1080; ticks found by replaying the harness headless and
+listing which of the 88 models each tick draws, `integrate/probe/`; `tyrian-scratch/e3-enemies-2/integrate/`,
+`summary.png`): IXMUCANE t807/t997/t1352/t1866/t2749/t4162/t4450 (twin pods and claw craft, the piston machine, the
+worm pods, spiders and dome craft, the domed city and the rocket, the boss heap entering at t4162 and split open with the furnace column at t4450);
+SAWBLADES t82/t120/t1022/t3188 (the carrot beside main's rotor, the spider, the piston machine, rocket and city);
+STARGATE t302 (the shards) and t1776 (larva and lava beast together); CAMANIS t472/t3101/t4372 (gunships 51/13/237,
+the turrets and cores, the bunker); FLEET t724 (the claw tips and stub on batch 1's yoke: same light-grey claws and red
+rods, the halves meet), t1796 (horned gunship, its fireballs, the flame crescents), t2241 (gun pod), t2716 (the sign),
+t4423 (core pods); BONUS t2291 and New Deli t781 (gun towers); GAUNTLET t152 and MACES t284 (the rings beside batch 1's
+bunkers and maces); AST. CITY t3716 (the turret on its tank); LAVA RUN 4.12 t2001 (the sign), ICE EXIT 4.8 t2004
+(51/237), ICESECRET 4.20 t253/t4817 (51, the bunker, the cores). Every model loads; no console errors on any of the
+31 captures. No regressions found. Notes: the STARGATE shards read darker and less molten than the sprite's
+white-hot ridges (the review's weak cap read); the furnace's fireball is flat zoned fills (review note); at CAMANIS
+t3101 the level's hue filter draws the turrets pale on both sides (D191's filter change is not on this branch).
+
+**Follow-ups (known):**
+- The saw rotor (above): separate the eight blades at game scale (wider or darker gaps, thinner arms near the hub,
+  per-blade shade) and drop the `build_info.json` write from its patch.
+- The domed city's glass waits on transparent model materials in the renderer (D190); then the panes can close.
+- Optional polish from the reviews (none blocking):
+  - `newshe-121`: ribs straight from above (the sprite's lean `)))`), glow single stripes at 121 (veins 122-125 on the
+    seams), glossy crust (roughness ~0.5), a cartoon mouth.
+  - `newshe-237`: the inner arc of the cap faint at the game camera, a flat-sided slab from the side, ridge pal 126
+    (sprite 119-124).
+  - `newsh8-229`: the dome craft matte (satin metal ~0.6/0.3), shells of 6-8k triangles (the spider ~29k a frame;
+    lower `shell_multi`'s target), outline nodes named for the wrong frame (`newsh8-229_outline-231` carries 229).
+  - `newsh7-203`: an invented grille on 169's dome. `newsh7-51`: 13 at 0.9531 (widen the blades 0.1 px), flat flame
+    lenses. `newsh8-19`: tines clocked per frame, a busy tail; 267's arms mitt-like, its slot a decal.
+  - `newshk-238` family: 276's pillow hull and thin core, 165 on the yoke's 9/10 (sprite darker). `newshk-121`: the
+    arrowhead's tip not filled, a dark backing fin under it. `newshr-169`: a shallow fireball dome, plain housing sides.
+  - `newshs-271`: glacis pal 10 (sprite 5), a bucket head. `newshk-115`: the core orange where the sprite is
+    yellow-white. `newshc-191`: 7k triangles, hot white trunnion pins. `newsh8-1`: booms dark, soft tips.
+    `newsh8-125`: faint fins. `newshk-281`: a dark rear skirt. `newsha-87`: rings a little dark in game.
+    `assembly-newsh7-39`: lamp boxes one row north, dark tube separators.
+- `docs/agents/MILESTONES.md`'s counts are not updated here (as in D170, D177, D179, D190).
+
+**Cost:** 69 agents (1 scout, 18 designs, 18 finishes on Sonnet, 7 fixes, 25 reviews; lean mode, no blueprints or
+judges), about 8.3M subagent tokens, about 1.6 h of run time; then `fix-round.js` on the rotor and the two holdovers:
+10 agents (5 fixes, 5 reviews), about 1.2M tokens, 46 min; the two holdovers shipped, the rotor held. Per-agent
+median: design 20.3 min, finish 2.4, review 3.9, fix 16.8 (fix round 17.7). Sheets: `tyrian-scratch/e3-enemies-2/
+<item>/final/` and `.../fix/<item>/final/` (not in git, D3).
