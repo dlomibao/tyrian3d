@@ -8972,3 +8972,30 @@ are done.
 
 **Cost:** one Opus agent, no workflow, no Blender. 11 Gemini requests (Pro, Create images, about 1 min each, no usage
 warning). About 20 headless captures.
+## D185 — Episode-2 QA model fixes, round 2: the GRYPHON neck rebuilt as feather fans, BOTANY A's bunkers lose their black skirt, MARKERS' gunship loses its "face", the TORM boss carries `tyrian_anchor` (E2 QA M8, M9, M10, known item; follows D177, D181, D182)
+
+**Date:** 2026-11-13
+
+**Context:** the second `fix-round.js` run on the E2 QA findings (`tyrian-scratch/e2-qa-models-2/`). Five items went in; four ship and one is held.
+
+**Decision (shipped):**
+- **GRYPHON neck `assembly-newsh0-91` (`newsh0-91` + `newsh0-93`).** This was the QA's most visible object: at GRYPHON t7800-9100 the old D177 build drew two chrome bars beside the head.
+  - Each feather tier is now one pchip loft. It has a constant 0.6 px chamfer and four straight flutes running from a bunched root to pointed tips along a serrated edge. Each tier sweeps up toward its tip.
+  - The grooves are one shade darker (8/6/4 under 10/8/6).
+  - The grey blades are slim C-curved knives with blunt points.
+  - The collar is a low elliptic dome with rows of staggered flat scale plates.
+  - IoU: own sprite 0.9557, whole-assembly grid 0.9909. Region colours match: horn 55, blade 8, feathers 10/8/6, collar 54, spine 57 against the sprite's 56.
+  - The strict review still says "fix" (5/10). From the side the tiers stand as upright plates. At the game camera the fans read as stacked slabs with near-horizontal flutes. The blade tips are rounded. The collar scales are pillowy.
+  - It ships anyway, because in game it clearly beats the live build: grey swept fans in place of chrome bars (`final/game_8550_zoom.png` against `e2-qa/crops/2.6_t8550_4k_head_crest.png`). The review's points stay open.
+  - The script no longer imports `lib_b025.py`, so that file is deleted (D179 kept it until the neck was redone).
+- **BOTANY A bunkers `assembly-newshg-191` (M8).** The black skirt came from the depth band, not paint. `tyrian_depth_band [0, 0.04, ...]` squeezed the 22 px cliff so far that the outline shell sat only 0.002 behind the rock, and its back faces showed through at the tilted camera. The band and shell sink are corrected. Whole-assembly grid IoU 0.969 on all 5 frames, unchanged. Piece 191 on its own is 0.909, as before.
+- **MARKERS hooded gunship (M10).** The model is `newshv-159`, built by `newshv-10.py`, not `newshv-161`. The "face" was outline-shell ink bridging the model's creases (trim strips, gem bezel, the hood/nose step). A new `sink_shell()` drops the shell below the surface inside the silhouette. `newshv-10.glb` and `-171.glb` rebuild byte-identical. IoU 0.959.
+- **TORM boss `assembly-newshj-191` (M9).** Every exported node gets `tyrian_anchor` = 2.0 (D181), so the green domes stay on screen at t7863 as in the original, with no seams. The glb geometry is byte-identical; only the extra changed.
+
+**Held:** the TORM waterfall `assembly-newshh-129` (M3), a third time (score 5). The cliffs still read as upright pillars at the game camera. The right cliff lacks the original's diagonal spread, and its tone is off. The patch is in `tyrian-scratch/e2-qa-models-2/held/newshh-129-r3.patch`. Next try: a different approach. Possibly let the HD terrain carry the cliffs and model only the falls, or build the cliffs from D175's rock library at the scale the game camera resolves.
+
+**Options considered:** for the neck, *hold for a fourth round* or *ship the improvement*. Three rounds have converged on the same reviewer complaints, and the live build is worse on every one of them, so it ships.
+
+**Review:** GRYPHON t8550 and BOTANY A t3300, MARKERS t1800, TORM t7863, with `&compare=1`. Fallback for the neck: main's script before this commit and `lib_b025.py`.
+
+**Cost:** fix-round workflow, 16 agents, about 2.0M subagent tokens, about 50 min. No Gemini.

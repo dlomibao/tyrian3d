@@ -68,6 +68,10 @@ PX = 1 / 12
 AXIS = 48.5  # column edge of the symmetry axis
 EQ = 4.0  # equator height (px)
 BELLY = 9.0  # belly depth below the equator (px): bottom at -5
+# glb extra `tyrian_anchor` (D181), model units over the base: the height pinned on the camera ray at the
+# sprite's point. The same on all 21 models, so the pieces still meet and the tall domes (crown 2.6) stay
+# on screen as long as the sprite's do at the top edge (TORM t7863).
+ANCHOR = 2.0
 
 # piece -> (centre col, centre row) in the 96 x 112 grid
 BLOCK = [("newshj-153", 142, -16), ("newshj-155", 166, -16), ("newshj-157", 190, -16), ("newshj-159", 214, -16),
@@ -1482,6 +1486,8 @@ def main():
 
     for model, objects in models.items():
         piece, frames, kind = MODELS[model]
+        for o in objects:  # the one shared camera-ray anchor on every piece (D181): no seams
+            o["tyrian_anchor"] = ANCHOR
         sprites = SPR[piece]["sprites"] if frames is None else [{**SPR[piece]["sprites"][0], "frames": frames}]
         common.export_sprite_model(ROOT, objects, f"enemies/{model}", sprites)
     if out or views:
