@@ -9138,3 +9138,88 @@ seams): `tyrian-scratch/e4-terrain/`.
 
 **Cost:** one Opus agent, no workflow, no Blender. 9 Gemini requests (Pro, Create images, 10-30 s each, no usage warning).
 About 30 headless captures.
+
+## D188 — Black space renders black: index 0 of the ground takes no sheen; the compare panel draws the skip's last 40 ticks; a blended sheet rises over the ground structures (E2 QA L7, brightness audit; extends D129, D158, D181)
+
+2026-11-13
+
+**Problem** (`tyrian-scratch/brightness-audit/table.txt`, all 62 levels measured original against 3D): (1) black space, palette
+index 0, drew as flat grey 16-17 (sRGB) in every capture that has any, so the space levels measured 3-16x the original's
+brightness (BONUS 1.10, SOH JIN 2.5, MISTAKES 2.9); (2) with `&skip=T&freezeAt=T&compare=1` the original panel of a smoothie level
+came out about half as bright (ICESECRET 4.20: the audit worked round it with `skip=T-40`); (3) ALE (1.18) shows green blobs over
+blue where the original is all blue, `&terrain=original` too.
+
+**What was checked.**
+- *The grey is specular.* The ground materials are `MeshStandardMaterial` (roughness 0.9-0.95, metalness 0). A black albedo has no
+  diffuse light, but a dielectric still reflects ~4%: the audit's ablations (`abl_measure.txt`) took BONUS's floor from 16 to 2
+  with the environment off and to 6 with the sun off; the hemisphere light (diffuse only) changed nothing. D181's space pools
+  only stop shadows: they share the ground's material.
+- *Black tiles aren't painted.* `shapesz` 0/58/59, `shapesw` 2/19/44, `shapes)` 20, `shapesx` 76 have no HD painting (D187), so
+  they draw as the 4x MMPX ground (`remasterGroundMaterial`) or, with `&bg=original`, the pixel ground. The HD paintings carry
+  their own black space between rocks and hulls: in the space tilesets' ground atlases (`shapes)`, `shapesw`, `shapesx`, `shapesz`)
+  8-19% of the texels are exactly 0, a few more 1-4 (webp noise).
+- *The harness drew the original panel once.* `playHarness.ts` fast-forwarded `&skip` with `step(i <= 2)` and made the
+  `CompareView` only afterwards, so the classic renderer's `game_screen` was empty when it drew the one frame: `iced_blur_filter`
+  then averages every pixel with 0 (`(old + new) >> 1`), half the shade.
+- *ALE is a blend sheet over tile models.* At t3600 the draw list has 96 background-1 tiles (`shapesz` 210-234, palette bank 2,
+  green in palette 5) and 96 background-2 tiles, all `shapesz:518`, bank 9 (blue), every pixel non-zero, drawn with
+  `draw_background_2_blend`: the C keeps the sheet's bank, so the whole screen turns blue. The ground tiles' green blobs are
+  tile models (`tileModels/shapesz-t210.json` .. `-t234.json`, made for TYRIAN); D129 raises a blended sheet over the *enemy* models it covers, but ground
+  structures were never in its list, so the blob models stood through the sheet in their own green. `&bg=original` (no tile models)
+  was all blue already. Not a palette, hue filter, smoothie or material fault, and not the model's art.
+
+**Decision:**
+1. **Index 0 of the ground takes no sheen** (`GROUND_SHEEN` in `paletteMaterial.ts`): the lit ground materials scale the sun's
+   and the environment's specular by `groundSheen` after `aomap_fragment`. The pixel ground sets it 0 for index 0; the 4x ground
+   by the bilinear weight of its index-0 texels (a soft edge round the rocks); the HD terrain's ground kind by the painting's
+   brightest sRGB channel, 0 up to 1/255, all from 6/255 (`BLACK_LO_LEVEL`, `BLACK_HI_LEVEL`). A black texel so draws its palette
+   colour, black; anything brighter is lit as before. Not unlit: the same material keeps palette fades, the smoothies' hues,
+   the water mark and D181's no-shadow pools. Cutout and blend sheets, models, the stars and the lighting are unchanged; the
+   models' sheen comes from the environment, which stays.
+2. **The compare panel draws the last 40 ticks of `&skip`** (`COMPARE_HISTORY_TICKS`, `compareView.ts`): the `CompareView` is made
+   before the fast-forward and `step(show, history)` hands it each of those ticks, so `game_screen` holds the frames before. The
+   blurs halve the old frame each tick; 40 also covers the lava's and water's trails.
+3. **A blended sheet rises over the ground structures too** (D129): each placed ground structure adds its screen box and heights
+   (`StructureInstances.heights`, its colour parts' bounding box) to the frame's model extents after the main loop, which only
+   `sheetHeight` reads after that, so D181's lifts and the space test are unchanged.
+
+**Options considered:**
+- *An unlit material for the space pools (`MeshBasicMaterial`):* only whole black tiles, not the black inside painted or
+  MMPX tiles, and a third set of ground materials.
+- *Lower `environmentIntensity` or the sun:* relights every model and terrain; the global lighting is the user's call, pending.
+- *Key the HD threshold on the nearest palette index:* the paintings' blacks aren't indices; brightness is what they are.
+- *ALE: recolour the blob models with the sheet's bank:* the C's blend also takes the shade under it, which the sheet's grab
+  already gives once it is above them.
+
+**Checked** (`?debug=play&episode=E&main=N&difficulty=2&seed=1&skip=T&freezeAt=T&compare=1`, 1920x1080, the audit's
+`shot.mjs` and `bin/measure.py`; before = origin/main 7469d92a; 3D playfield luma mean and p10, sRGB 0-255):
+
+| Level | Original | 3D before | 3D after |
+|---|---|---|---|
+| 1.10 BONUS t1200 | 1, p10 0 | 19, p10 16 | 3, p10 0 |
+| 2.5 SOH JIN t1300 | 3, p10 0 | 21, p10 16 | 5, p10 0 |
+| 2.9 MISTAKES t750 | 2, p10 0 | 20, p10 16 | 4, p10 0 |
+| 2.7 GEM WAR t1975 | 8, p10 0 | 27, p10 16 | 12, p10 0 |
+| 3.7 STARGATE t1200 | 8, p10 0 | 26, p10 16 | 15, p10 0 |
+| 3.6 FLEET t2100 | 28, p10 0 | 46, p10 16 | 38, p10 0 |
+| 2.10 BOTANY A t1625 | 16, p10 0 | 34, p10 16 | 23, p10 0 |
+| 4.14 DREAD-NOT t6250 | 19, p10 0 | 39, p10 16 | 27, p10 0 |
+| 1.1 ASTEROID1 t1525 | 11, p10 0 | 29, p10 16 | 15, p10 0 (`&bg=original` p10 0) |
+| 1.18 ALE t1500 / t3600 `&terrain=original` | 11 / 9 | 32 / 33, green blobs | 14 / 12, all blue |
+
+- ICESECRET t1250, `skip=1250` against the audit's `skip=1210`: original panel luma 64.5 before (half), 107.2 after, the same as
+  `skip=1210` (the two panels pixel-identical); the 3D side unchanged before to after.
+- Episode 1 regressions (before against after, pixels differing by more than 8 in a channel in the 3D panel): TYRIAN 1.9 t2050
+  262, DELIANI 1.5 t1450 64, SAVARA 1.8 t1525 427 (of which ~120 are the run-to-run spark glare measured between two before
+  runs), all black texels in HD terrain going from ~18 to under 12; none over 24 but the spark. ASTEROID1 changes only in its
+  black space. Models over space keep their sheen; the only changes over 24 on them are spark glare over the darker floor.
+- Tests: `tests/render/classicRenderer.test.ts` (a temporal smoothie drawn once is half the shade; `COMPARE_HISTORY_TICKS` ticks
+  reach the steady frame), `tests/render/structureInstances.test.ts` (a structure's heights). tsc and vitest pass.
+
+Captures, measurements and `summary.png` (original | 3D before | 3D after): `tyrian-scratch/render-black-space/`.
+
+**Left:** the audit's other gaps (the lit levels' 1.3-1.5x) are the global lighting, not changed here. The bot's ship in ALE draws
+translucent (the harness keeps it invulnerable) and shows green-grey over the blue, where the original's blended sprite stays
+grey; why was not traced. With `&solid=1` it is grey, as the original.
+
+**Cost:** one Opus agent, no workflow; about 45 headless captures, no Gemini, no Blender.

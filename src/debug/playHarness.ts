@@ -13,7 +13,8 @@
 //                                  default, 3 hard, 4 impossible, ...); &hard=1 is &difficulty=3. The
 //                                  episode scripts branch on it: episode 1's ]h[ and ]H[ (sections 3
 //                                  and 10) give TYRIAN (1.15) and SAVARA (1.12) only on hard and up
-//   &skip=T                        fast-forward T ticks before showing anything
+//   &skip=T                        fast-forward T ticks before showing anything (with &compare=1 the
+//                                  original panel draws the last 40 of them, for the smoothies' history)
 //   &freezeAt=T                    stop the game (and the effects' clock) at tick T, for screenshots
 //   &vfx=original|remastered       the shot and explosion look (D35)
 //   &sprites=original|remastered   shots and pickups as the original sprites or the flat art (D42)
@@ -58,10 +59,7 @@ import { levelDamageFrames } from "../sim/levelSprites";
 import { Hud } from "../app/hud";
 import { LevelMusic } from "../app/levelMusic";
 import { armorAt, parseArmorPlan } from "./armorPlan";
-import { CompareView, compareFromUrl } from "../app/compareView";
-
-/** The comparison view, once made (step() runs before it exists, during &skip). */
-const compareRef: { view: CompareView | null } = { view: null };
+import { COMPARE_HISTORY_TICKS, CompareView, compareFromUrl } from "../app/compareView";
 
 /** Front weapons the cycle goes through: Pulse, Multi, Laser, Zica, Vulcan, Lightning, Starburst, Sonic, Protron, Missiles, Mega Pulse, Hyper Pulse. */
 const FAVOURITES = [1, 2, 4, 5, 7, 8, 9, 11, 12, 17, 19, 27];
@@ -118,7 +116,11 @@ export async function runPlayHarness(view: View): Promise<void> {
   // (`plays`: [song, tick] pairs; set `playing = false` to end a song that doesn't loop).
   const music = { playing: true, volume: 1, plays: [[g.song, 0]] as [number, number][], play: (n: number) => (music.plays.push([n, t]), (music.playing = true)) };
   const levelMusic = new LevelMusic(music, () => 1);
-  const step = (show: boolean) => {
+  // The original panel (D158), made before the fast-forward: its smoothies need the frames before (D188).
+  const compare = compareFromUrl() ? new CompareView(files) : null;
+  if (compare) compare.visible = true;
+  /** One tick; `show` hands its draw list to the 3D view, `history` to the original panel. */
+  const step = (show: boolean, history = show) => {
     // tests/sim/bot.ts: invulnerable, always firing, sweeping.
     p.invulnerable_ticks = solid ? 0 : 2;
     const armor = armorAt(armorPlan, t);
@@ -143,16 +145,14 @@ export async function runPlayHarness(view: View): Promise<void> {
       view.draws.resetInterpolation();
     }
     if (stress > 0) addStressShots(drawList.items, stress, t);
-    if (show) {
-      view.setDrawList(drawList);
-      compareRef.view?.draw(drawList);
-    }
+    if (show) view.setDrawList(drawList);
+    if (history) compare?.draw(drawList);
   };
   const nextWeapon = () => {
     favourite = (favourite + 1) % FAVOURITES.length;
     p.items.weapon[0].id = FAVOURITES[favourite];
   };
-  for (let i = num("skip", 0); i > 0; i--) step(i <= 2);
+  for (let i = num("skip", 0); i > 0; i--) step(i <= 2, i <= COMPARE_HISTORY_TICKS);
 
   window.addEventListener("keydown", (e) => {
     if (e.code === "KeyV") view.draws.setVfxMode(view.draws.vfxMode === "remastered" ? "original" : "remastered");
@@ -164,14 +164,10 @@ export async function runPlayHarness(view: View): Promise<void> {
   });
 
   // The game's HUD (`&interface=minimal` for the light one), so it can be checked on a real level.
-  const compare = compareFromUrl() ? new CompareView(files) : null; // D158: `&compare=1`
   const hud = new Hud(view, compare !== null);
   hud.visible = true;
-  compareRef.view = compare;
-  if (compare) {
-    compare.visible = true;
-    compare.draw(drawList);
-  }
+  // Without &skip, the level's first frame (with it, the last skipped tick drew it already).
+  if (compare && num("skip", 0) <= 0) compare.draw(drawList);
 
   const frameTimes: number[] = [];
   let frames = 0;

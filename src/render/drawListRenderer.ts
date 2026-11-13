@@ -415,7 +415,7 @@ export class DrawListRenderer {
   private readonly placedStructures = new Set<number>();
   /** This frame's ground structures, placed once the enemies are known (D86), and what the enemy models cover. */
   private readonly groundStructures: {
-    model: string; x: number; y: number; z: number; scale: number;
+    model: string; pass: Pass; x: number; y: number; z: number; scale: number;
     neighbours: ((row: number, col: number) => number[]) | undefined;
     left: number; top: number; w: number; h: number;
   }[] = [];
@@ -948,6 +948,15 @@ export class DrawListRenderer {
       if (this.cover.covered(s.left, s.top, s.w, s.h)) continue;
       const cellCovered = (row: number, col: number) => this.cover.covered(s.left + col * TILE_WIDTH, s.top + row * TILE_HEIGHT, TILE_WIDTH, TILE_HEIGHT);
       this.structures.place(s.model, s.x, s.y, s.z, s.scale, s.neighbours, cellCovered);
+      // A blended sheet over it rises over it too, as over the enemy models (D129): in ALE the C's
+      // blend recolours the whole ground, its green bushes too (D188).
+      const yr = this.structures.heights(s.model);
+      if (yr) {
+        this.placedExtents.push({
+          pass: s.pass, left: s.left, top: s.top, right: s.left + s.w, bottom: s.top + s.h,
+          low: s.y + yr.low * s.scale, high: s.y + yr.high * s.scale,
+        });
+      }
     }
     // A wreck's ground cell under opaque enemy sprites draws without the wreck: its covered HD
     // painting, else (the pixel looks) its plain-ground stand-in or the tile with its wreck pixels
@@ -1251,7 +1260,7 @@ export class DrawListRenderer {
           if (d.layer === 0) {
             const cols = match.entry.tiles[0].length, rows = match.entry.tiles.length;
             const cx = x + match.dx - (match.entry.offset?.[0] ?? 0), cy = y + match.dy - (match.entry.offset?.[1] ?? 0);
-            this.groundStructures.push({ model: match.entry.model, x: px, y: h, z: pz, scale: 1 - k, neighbours, left: cx - cols * 12, top: cy - rows * 14, w: cols * 24, h: rows * 28 });
+            this.groundStructures.push({ model: match.entry.model, pass: d.pass, x: px, y: h, z: pz, scale: 1 - k, neighbours, left: cx - cols * 12, top: cy - rows * 14, w: cols * 24, h: rows * 28 });
           } else this.structures.place(match.entry.model, px, h, pz, 1 - k, neighbours);
         }
         if (!(match.entry.keepTiles ?? d.layer === 0)) return true;

@@ -2,7 +2,7 @@
 // instanced draw per atlas and kind), each instance picking its tile by the rect's origin in atlas
 // texels (`instTile`). Three kinds:
 // - "ground" (background 1): opaque, lit, with a little relief from the painting's brightness like
-//   the 4x ground (D34), receiving shadows;
+//   the 4x ground (D34), receiving shadows; painted black (space) takes no sheen (D188);
 // - "blend" (draw_background_2_blend: TYRIAN's ice clouds, D45): sheets drawn with the C's
 //   hue-keeping blend (hueBlend.ts, D174) at the art's coverage, the tile's main palette bank per
 //   instance (`instBank`), no depth write;
@@ -25,7 +25,7 @@
 // the art: palette animation and swaps (its colours aren't palette indices).
 
 import * as THREE from "three";
-import { WATER_ALPHA } from "../paletteMaterial";
+import { GROUND_SHEEN, WATER_ALPHA } from "../paletteMaterial";
 import { PALETTE_LUT_SIZE, type PaletteTexture } from "../paletteTexture";
 import { SCREEN_HUE_PARS } from "../screenHue";
 import { TILE_HEIGHT, TILE_WIDTH } from "../../data/levels";
@@ -45,6 +45,12 @@ export interface TerrainMaterialOptions {
 }
 
 export const TERRAIN_RELIEF = 1.2;
+/**
+ * Painted black space (D188): a ground texel whose brightest sRGB channel is at most BLACK_LO_LEVEL (of
+ * 255) takes no sheen, from BLACK_HI_LEVEL up all of it. The paintings' black is 0, with webp noise to a few levels.
+ */
+export const BLACK_LO_LEVEL = 1;
+export const BLACK_HI_LEVEL = 6;
 /** The alpha threshold of the cutout kind's shadows. */
 const CUT = 0.5;
 
@@ -207,6 +213,13 @@ float vScreenWater = 0.0;
 ${SAMPLE_PARS}
 ${LEVEL_PARS}
 ${blended ? `${HUE_BLEND_PARS}\nvarying float vBank;` : ""}
+// The brightest sRGB channel of a painted colour: the paintings' black space is 0-${BLACK_HI_LEVEL} (webp noise).
+const float BLACK_LO = ${(BLACK_LO_LEVEL / 255).toFixed(5)};
+const float BLACK_HI = ${(BLACK_HI_LEVEL / 255).toFixed(5)};
+float terrainMax(vec3 rgb) {
+  vec3 s = terrainSrgb(rgb);
+  return max(s.r, max(s.g, s.b));
+}
 float terrainLuma(vec2 t, float lod) {
   vec4 c = terrainSample(t, lod);
   return dot(c.rgb, vec3(0.299, 0.587, 0.114));
@@ -223,6 +236,7 @@ if (vTintOrigin.x >= 0.0) painted = terrainLinear(terrainSrgb(painted) + terrain
 ${kind === "cutout" ? `if (cover < 0.004) discard;\ndiffuseColor.a = cover;` : ""}
 ${blended ? `if (cover < 0.004) discard;\ndiffuseColor.a = cover;` : ""}
 diffuseColor.rgb *= terrainPalette(painted, vPassY, vScreenWater);
+${kind === "ground" ? "float groundSheen = smoothstep(BLACK_LO, BLACK_HI, terrainMax(painted)); // painted black space: no sheen (D188)" : ""}
 ${blended ? "vec3 hueBlended = hbColor(vBank, hbShade(vBank, hbLum(painted)), hbUnderShade(), vPassY, vScreenWater);" : ""}
 vec2 reliefSlope = vec2(0.0);
 if (relief > 0.0) {
@@ -237,7 +251,11 @@ if (relief > 0.0) {
         /* glsl */ `#include <normal_fragment_maps>
 normal = normalize((viewMatrix * vec4(normalize(vec3(-reliefSlope.x, 1.0, -reliefSlope.y)), 0.0)).xyz);`,
       );
-    if (kind === "ground") shader.fragmentShader = shader.fragmentShader.replace("#include <opaque_fragment>", WATER_ALPHA);
+    if (kind === "ground") {
+      shader.fragmentShader = shader.fragmentShader
+        .replace("#include <opaque_fragment>", WATER_ALPHA)
+        .replace("#include <aomap_fragment>", GROUND_SHEEN);
+    }
     // The C's blend replaces the lit colour: the bank's ramp at the mean shade (hueBlend.ts, D174).
     if (blended) shader.fragmentShader = shader.fragmentShader.replace("#include <opaque_fragment>", "#include <opaque_fragment>\ngl_FragColor.rgb = hueBlended;");
   };

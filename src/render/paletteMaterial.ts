@@ -64,6 +64,18 @@ export const WATER_ALPHA = /* glsl */ `
 if (vScreenWater > 0.5) gl_FragColor.a = 0.5;
 `;
 
+/**
+ * Black space takes no sheen (D188): the lit ground materials set `groundSheen` (1 = lit as before, 0 =
+ * palette index 0, the C's black space) in their colour code, and this scales the sun's and the
+ * environment's specular by it. A black albedo has no diffuse light, so index 0 comes out as its palette
+ * colour (black) instead of the grey sheen of a dielectric under the room environment; models keep theirs.
+ */
+export const GROUND_SHEEN = /* glsl */ `
+#include <aomap_fragment>
+reflectedLight.directSpecular *= groundSheen;
+reflectedLight.indirectSpecular *= groundSheen;
+`;
+
 const PAL_FRAGMENT = /* glsl */ `
 diffuseColor *= vPal;
 `;
@@ -154,7 +166,7 @@ export function groundTileMaterial(palette: PaletteTexture, atlas: TileAtlas, un
           "vec2 halfTexel = vec2(0.5 / float(textureSize(atlasMap, 0).x));",
           "vec2 atlasUv = clamp(vAtlasUv, vTileOrigin + halfTexel, vTileOrigin + tileUv - halfTexel);",
           "float groundIndex = floor(texture2D(atlasMap, atlasUv).r * 255.0 + 0.5);",
-          blend ? "if (groundIndex < 0.5) discard;" : "",
+          blend ? "if (groundIndex < 0.5) discard;" : "float groundSheen = groundIndex < 0.5 ? 0.0 : 1.0; // black space: no sheen (D188)",
           // The smoothies' hue (screenHue.ts) for the instance's pass height: 0 for the ground, which
           // is under every filter; a blended background-2 sheet's own pass otherwise.
           "diffuseColor.rgb *= paletteColor(screenHueIndex(groundIndex, vPassY, vScreenWater));",
@@ -166,6 +178,7 @@ export function groundTileMaterial(palette: PaletteTexture, atlas: TileAtlas, un
       "#include <opaque_fragment>",
       blend ? "#include <opaque_fragment>\ngl_FragColor.rgb = hueBlended;" : WATER_ALPHA,
     );
+    if (!blend) shader.fragmentShader = shader.fragmentShader.replace("#include <aomap_fragment>", GROUND_SHEEN);
   };
   material.customProgramCacheKey = () => (blend ? "palette-ground-tiles-blend" : "palette-ground-tiles");
   return material;

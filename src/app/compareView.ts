@@ -11,6 +11,14 @@ import { g } from "../sim/state";
 import { ClassicRenderer, SCREEN_H, SCREEN_W, Surface } from "../render/classic/classicRenderer";
 import { drawAfterFilter, drawBeforeFilter, drawSidebar } from "../render/classic/classicHud";
 
+/**
+ * Ticks the original panel must draw before a frame it shows after a fast-forward (the play harness's
+ * `&skip`): the smoothies' blurs, lava and water mix each frame with game_screen's last one, so a panel
+ * drawn only once blends with an empty screen (half as bright under iced_blur_filter). The blurs halve
+ * the old frame each tick, so a few ticks would do; 40 also covers the lava's and water's trails (D188).
+ */
+export const COMPARE_HISTORY_TICKS = 40;
+
 /** Whether the URL asks for the comparison. */
 export function compareFromUrl(search: string = location.search): boolean {
   const v = new URLSearchParams(search).get("compare");
