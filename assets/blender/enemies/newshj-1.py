@@ -28,7 +28,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 SCRATCH = Path("/Users/dlomibao/projects/tyrian-scratch/e2-enemies-2/newshj-1/final")
-WT = Path("/Users/dlomibao/projects/tyrian-worktrees/e2-enemies-2")
+WT = next(p for p in HERE.parents if (p / "package.json").exists())  # repo root (common.repo_root)
 NAME = "newshj-1"
 
 E = 20.0

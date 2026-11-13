@@ -8162,3 +8162,186 @@ The second fix round from the 2026-11-12 demo review (`tyrian-scratch/demo-compa
 - newshe-201 hasn't been captured in game since the port.
 
 **Cost:** fix-round workflow, 10 agents, about 0.97M subagent tokens, 39 min, plus the coordinator's port and rebuild of newshe-201.
+
+## D177 — Episode-2 enemy rebuild, batch 2: 12 items (27 inventory units) to the D65 hard-surface standard; the GYGES arms, wall creatures and boss back, the TORM insect's abdomen; the GRYPHON neck deferred (follows D170)
+
+2026-11-12
+
+**Decision:** the next 33 episode-2 units by D116's ranking (not `flagship`, not pickups, most-seen first by the bot
+run) are rebuilt with `tools/workflows/model-flagship.js` in full mode (blueprints for heroes; D65's recipe:
+hard-surface geometry, AO/roughness bake, outline shell, art rules 1-5), as D170 did. The scout folded the 33 units
+into 13 items (7 hero, 6 standard). 12 items ship; `assembly-newsh0-91` (the GRYPHON neck) does not (see Deferred)
+and keeps its origin/main script and glbs. Two merged items ship only part of their units: `newsh0-153`/`-229` and
+`newshv-10`/`-159`/`-171` were not built in this batch and are in E2 batch 3 (running now); they keep their
+origin/main scripts, models and libs (`lib_b104`, `lib_b043`).
+
+**Merges and retired scripts** (one agent per merged family, so no two agents edited one file):
+- `newshn-125` + `newshn-15` + `newshn-13` + `assembly-newshn-201` + `assembly-newshn-39`: `newshn-125.py` builds
+  the three shell sizes from one SPEC; `newshn-15.py`, `newshn-13.py` and `lib_b071.py` are deleted (no importers
+  left); `assembly-newshn-39.py` is now a mirror wrapper over `assembly-newshn-201.py`. This closes D170's deferred
+  shells.
+- `assembly-newshv-85` + `assembly-newshv-44`: 44 is a thin wrapper (`NSHV_MIRROR=1`) over 85's builder; neither
+  imports `lib_b043` any more (its batch-3 users `newshv-10`/`-159`/`-171` are untouched).
+- `assembly-newshh-230` + `assembly-newshh-192`: thin wrappers over a new script-local `lib_torm_abdomen.py`;
+  `lib_b056` is unchanged (`newshh-155`, the tail spike, still uses it).
+- `newshg-121` + `newshg-127` + `newshg-49` + `newshg-77`: one script, `newshg-121.py`; the other three are wrappers
+  that build only their own group (`mod.main(["pod"])` etc.), so a full parallel build writes each glb once.
+- `newsh0-125` builds alone; `lib_b104` stays for `newsh0-153`/`-229`. `newshh-284` no longer imports `lib_b018`.
+- `assembly-newshn-195` (a D170 flagship) gains its seven missing top pieces and their spriteModels entries
+  (`newshn-3`, `-5`, `-7`, `-41`, `-43`, `-45`, `-85`, with damage frames 18/51/53/55 on 85/41/43/45, D173).
+
+No shared lib (`common.py`, `usp_talon.py`, `texture_bake.py`) was edited.
+
+| Model (units) | Tier | What it is | Top-view IoU (finisher, worst frame) | Review IoU | Score |
+|---|---|---|---|---|---|
+| newshn-125 (+ newshn-15, -13, assembly-newshn-201, -39) | hero | GYGES's two swinging tentacle arms: a chain of blue spiral shells in three sizes ending in a pincer claw each side | shells grid 1.0; claws 0.9585 (pose C) | 0.9585 | 7 |
+| newsh0-125 | standard | BOTANY's armoured hover pod with a pulsing red core | grid 1.0 (sub-pixel 0.9561) | 0.9561 | 7 |
+| assembly-newshv-85 (+ assembly-newshv-44) | hero | a grey gunship in two halves flying nose first, and its mirror (GRYPHON, MISTAKES) | grid 0.9963 (sub-pixel 0.9685) | 0.9679 | 8 |
+| newshh-284 | standard | a small blue-steel gun drone that swoops sideways | grid 0.9937 (sub-pixel 0.9685) | 0.9678 | 7.5 |
+| assembly-newshh-230 (+ assembly-newshh-192) | hero | the two abdomen segments of the TORM insect craft whose head is D170's assembly-newshh-197 | 0.9698 (newshh-230) | 0.9698 | 7.5 |
+| assembly-newshh-45 | hero | GYGES's cyclops creature grown into the layer-2 wall; all 12 frames (6 added) | 0.9581 (creature mask) | 0.9581 | 7.5 |
+| newshg-121 (+ newshg-127, -49, -77) | standard | a purple grabber-claw drone, a blue eye pod, a golden horned beetle and a morphing lava crystal (12 frames) | 0.957 (newshg-77 frame 117) | 0.9573 | 7 |
+| newshj-1 | standard | a ground sensor post, built standing with the oblique tags (D165) | 0.9635 | 0.9635 | 7.5 |
+| assembly-newshh-121 | hero | GYGES's curled creature in the wall, assembly-newshh-45's companion | 0.9825 (creature mask, hollow excluded; see below) | 0.9825 | 7.5 |
+| newshj-83 | standard | TORM's dome turret opening on a glowing core; the foliage plate dropped (D130) | 0.9648 (frame 123) | 0.9648 | 8 |
+| newshv-161 | standard | MARKERS's purple gunship climbing the screen, nose up | 0.9276 (0.980 with the glyph cells inner; see below) | 0.9276 | 7 |
+| assembly-newshn-195 (+ newshn-3, -5, -7, -41, -43, -45, -85) | hero | the GYGES boss's top rows: the back of the skull, the brain and its cap | 0.9536 (newshn-45; whole-assembly masks) | 0.9536 | 7 |
+
+All 12 shipped by strict review inside the run (several after the run's own fix rounds); none needed `fix-round.js`.
+Units: 27 of the 33 (20 that the inventory lists on their own, plus the 7 GYGES pieces it now counts inside
+`assembly-newshn-195`); 5 are in batch 3 and 1 is deferred.
+
+**Identity re-reads** (the scout's `tools/enemy_behaviour.mjs` run, `tyrian-scratch/e2-enemies-2/behaviour*.json`,
+composites in `sheets/`; D120, D122, D166, D167):
+- The blue spiral shells and the two claws are GYGES's tentacle arms: on each side 5 small, 6 medium and 2 large
+  shells spawn 4 ticks apart at the claw's x and weave with phase lag, so the chain swings like a tentacle. They are
+  held on screen during the boss fight, not lying on the ground; the old docstrings ("lying on the ground", "horned
+  eye creature on the ground, level 2.4") were wrong.
+- `assembly-newshh-230` and `-192` are the abdomen of the TORM insect craft: one column with `newshh-155` (tail),
+  192, 230 and D170's head (`-159`/`-197`), each row on its own link but running one event program.
+- `assembly-newshh-45` and `-121` drift at exactly GYGES's backMove2 (2 px/tick), so they are growths in the
+  layer-2 wall, not flyers. The finishers' `?compare=1` captures show the HD layer-2 wall behind them, so neither
+  keeps a panel backing (D130).
+- `newshn-85` is the missing fifth piece of the GYGES head's 77..83 row; 41/43/45 and 3/5/7 are the two rows above.
+- `newsh0-125` (and its batch-3 siblings) are low-flying hover pods on patrol paths, not ground emplacements.
+- `assembly-newshv-85`/`-44` fly nose first with the red engine at the stern; `newshv-161` climbs the screen, so
+  its red lamp is its stern.
+- `newshj-1` is drawn standing (D82/D165), so it is built upright with `tyrian_oblique`/`tyrian_depth_band`;
+  `newshj-83`'s jungle round the dome is a pixel floor plate.
+- `newshg-49`'s graphic is also type 836, the projectile the GRYPHON head (`newsh0-119`) spits.
+- `assembly-newsh0-91` is the GRYPHON neck and collar (2.6), rigid with the head `newsh0-119`, not a "winged crest
+  seen in 2.12" (deferred, but the identity stands for the next attempt).
+
+**IoU gate** (D116, OUTLINE-BORDER.md: `iou_rule_grid` ≥ 0.95). Every shipped item passes on the grid measure
+except one, accepted by the coordinator:
+- **`newshv-161` is an explicit exception, as D170's `newsh0-85` was.** `tools/sprite_mask.py --measure` gives
+  grid 0.9276 (inner grid 0.9111, outer grid 1.0: the model matches the sprite's opaque mask exactly). The reviewer
+  checked it cell by cell: every inner miss is a glyph pixel of palette 146/148 (pure blue, (0,0,81) and
+  (0,0,138), Rec.601 luma 9-16) next to the sprite's transparent swirl holes. The tool classes them as ink only
+  because their luma is under `INK_LUMA` 26; they are the glyph's own colour drawn to its edge (OUTLINE-BORDER.md
+  rule 2). Counted as inner, the grid IoU is 0.980. Reopening them would bring back the 53 px hole the first review
+  rejected. `tools/sprite_mask.py` is not changed in this decision (follow-up below).
+- `assembly-newshh-121` is stated on the creature mask with the lower-right hollow excluded: 0.9825 overall, worst
+  piece `newshh-83` 0.9721 (81 0.9843, 119 0.985, 121 1.0). It is not a whole-sprite IoU: the black ROOTS
+  (`ROOT_PAL` 48) in the hollow are invented geometry (103 px, 53 on the sprite's grey streaks); counted, it is
+  0.9352 against the creature mask and 0.9237 against creature plus streaks. In game they vanish against the HD wall.
+- `assembly-newshh-45` is measured on a creature-only mask (the wall panel is scenery, D130): phases 0.9645 /
+  0.9645 / 0.9581.
+- `assembly-newshn-195`'s new pieces are measured on whole-assembly masks: 3 0.992, 5 and 7 1.0, 41/43 1.0, 45
+  0.954, 85 0.975; damage frames 18 0.964, 51 0.991, 53 0.992, 55 0.957. Frame 55's damaged picture tears out the
+  brain's right flank, so the footprint gives up 30 px there; 45 passes with no margin and keeps a 3 px notch. The
+  17 D170 pieces were re-exported (new bake atlas; the head shell's ink arc across the brain's north end opened, 473
+  faces, so no black line crosses the join); the finisher measured their per-piece IoU identical to HEAD to four
+  decimals and the head mesh unchanged (not re-measured here).
+
+**Inventory** (regenerated, bot run): every shipped unit is `flagship`. Episode 2 is now 110 flagship / 36 older /
+147 enemy units (was 90 / 56 / 154): the 7 new GYGES pieces are counted inside `assembly-newshn-195` (so 7 fewer
+units, boss units 22 → 15), and its damage frames 18/51/53/55 now have models, so episode 2 has no unmodelled
+damaged frames (was 4). `assembly-newshh-45`'s six unmodelled frames (11, 15, 47, 49, 51, 53) are now modelled. Whole
+game: 222 flagship of 474 enemy units. `newsh0-153`, `-229`, `newshv-10`, `-159`, `-171` and `assembly-newsh0-91`
+stay `basic`.
+
+**Integration checks.**
+- Rebuild: `newshv-161.py` was saved two minutes after its glb (a docstring edit, the finisher says), and the
+  shell item's last script save postdates its claw glbs, so `newshn-125.py`, `assembly-newshn-201.py`,
+  `assembly-newshn-39.py` and `newshv-161.py` were rebuilt with `tools/build-models.sh -j 2` (exit 0). Every
+  rebuilt glb has the same meshes, vertex counts, bounds and materials as the workflow's (`glbstat.py`; nine
+  byte-identical, the other seven differ only in bake compression) and the spriteModels JSONs are unchanged, so the
+  workflow's glbs are kept. The other items' glbs are newer than their scripts.
+- `newshj-1.py` hard-coded its repo root as this worktree's path (`WT = Path(".../tyrian-worktrees/e2-enemies-2")`),
+  so after the merge it would have read and written a deleted worktree. It now finds the repo root from its own
+  path (as `common.repo_root`); its measure mode gives the same grid IoU (0.9635).
+- `assembly-newshh-45.labels.json` (new) is a hand-made part map of the 48x56 block (one letter per pixel: head,
+  torso, haunch, ...) plus palette RGB values, which the script reads. It holds no sprite pixels or palette indices,
+  and palette RGB values are already in shipped scripts (`common.py`, `usp_talon.py`, many enemy scripts), so it is
+  derived data and stays (art rule 6).
+- No dev logs, scratch copies, sprite PNGs or Gemini sheets are in the diff.
+
+**In game** (`?compare=1`, seed 1; `tyrian-scratch/e2-enemies-2/integrate/`, `summary.png`): TORM t920 (the
+abdomen column under the D170 head), TORM t2699 (`newshj-83` open on its core), GYGES t498 (`assembly-newshh-45`),
+t1460 (`assembly-newshh-121`, the `newshg-121` claw drones) and t5400 (boss, shell arms, claws), GRYPHON t1250 (the
+`newshv-85` gunship, which the run's reviewer could not find in a level), MARKERS t785 (`newshv-161`) and BOTANY A
+t260 (`newsh0-125`). Every model loads, with no console errors printed by the capture tool. vitest (824 passed, 10 skipped), tsc and the build pass.
+
+**Deferred:** `assembly-newsh0-91` (the GRYPHON neck/collar, `newsh0-91` + `newsh0-93`) ends at fix 5/10 after
+the run and one `fix-round.js` pass; its script and glbs are origin/main's. The run's script is kept as
+`tyrian-scratch/e2-enemies-2/fix/assembly-newsh0-91/unshipped-worktree-state/assembly-newsh0-91.batch2-run.py`, the
+fix round's final script and glbs beside it, its renders in `fix/assembly-newsh0-91/final/`. Silhouette and colours
+pass (assembly grid 0.9909, own-sprite 0.9557 with little margin; horn 55, blade 8, feathers 10/8/6, collar 54,
+spine 57). The reviewer's open issues: the feather fans' surfaces are crinkled and their edges wobble (build each
+tier as a pchip loft with a monotone section, a constant leading-edge chamfer and one clean outline); the tiers read
+as rectangular slabs, not pointed swept feather tips; from the side and low 3/4 the fans are grey lumps under an
+overhanging horn/spine roof with a dark slot between them; the collar (`newsh0-93`) is lumpy, wrinkled and
+straight-skirted instead of low faired scale rows over a dome; the grey blade tips (index 8) end in bulbs, not
+blunt points. Match it to D170's `assembly-newsh0-79`, and consider building the head `newsh0-119` with it.
+
+**Follow-ups (known):**
+- `tools/sprite_mask.py` classes a pure-blue ramp (144-149, luma 6-16) as ink by luma alone. Exempt colour drawn to
+  its own edge (rule 2), or add a per-model ink-ramp override; then re-measure `newshv-161`.
+- Scripts that read scratch: `assembly-newshn-195.py` reads `tyrian-scratch/gyges-back/` (`grid.json`,
+  `fields.npz`; `GYGES_DATA` overrides), and many shipped scripts already import scratch paths. Repo-wide, scripts
+  should regenerate their inputs from `reference/` or `data/` (here: have `npm run catalogue` write the 7 pieces into
+  `reference/models/assembly-newshn-195/`). `assembly-newshh-121.py` and `newshj-1.py` keep `SCRATCH` constants for
+  their measurement output only.
+- `src/viewer/assemblies.json` still lists 17 pieces for `assembly-newshn-195`, so `?viewer=assembly-newshn-195`
+  shows only the old ones until `npm run catalogue` knows the 7. The finisher said `build-models.sh` would fail on
+  this script; it has no `textures/` folder, so the script is built without a bake step and should build normally
+  (not run here).
+- Shared code to promote: `newshn-125`'s `outline_source` far-slope clamp (no stand-in face turned from the tilted
+  camera inside the rim band) for `common.outline_shell`; the dark-index recipe from `assembly-newshh-121`
+  (Specular IOR Level 0.15-0.2, roughness 0.6-0.75 on indices 48-51, extends D176) as a `palette_material` option;
+  the satin-steel `STEEL_SPEC` now in at least four scripts; `outline_shell_all` (copied from
+  `assembly-newshh-197` into `lib_torm_abdomen.py`); a `fill=False` option on `common.split_assembly`
+  (`assembly-newshh-45` carries `split_open`); `Pchip`/`rslab`/`cull_hidden` copies in `assembly-newshv-85.py`;
+  `newshg-121.py`'s mask-fitted convex hulls (`hull_cover`, `optimise_outline`) and sprite-crack glow seams.
+- Optional polish from the reviews (none blocking):
+  - shells: sub-pixel dark hairlines near the end of the J suture (extend the slope clamp over its last ~0.1 turn);
+    the suture reads as a hairline at the game camera; the crown is still flat-ish from the front. Claws: smooth,
+    soft hood and lower body where the sprite shows ridged chitin.
+  - `newsh0-125`: blocky hex patches in its AO bake (more samples or a denoise); the top lobes read as two flat
+    blocks at the game camera.
+  - `assembly-newshv-85`: the engine pod reads dull maroon at the game angle; raise its emission.
+  - `newshh-284`: the glass strips are a glossy dielectric where D126/D173 want metallic 1, rough; the crest flares
+    white (drop its specular boost or raise roughness); a centre keel on the nose; 482 boundary edges tucked inside.
+  - `assembly-newshh-230`: the chrome shells are about 3 px too wide each side at the lobe notch (rows 20-21); a
+    curled inner lip or 103/104 on the lower band; LOBE pal 36 and LIP 104 are one step above the sprite medians.
+  - `assembly-newshh-45`: the docstring still says the core goes 118 → 126 → 127 (code: 118 → 121 → 126) and
+    "Level 2.4" (it is GYGES, 2.2); the tissue tendrils are straight rods.
+  - `newshg-121` group: `newshg-77-f4` (frame 91) is a sliver-faceted hull with one open edge (rebuild as a
+    bevelled rounded cube); frame 81 is too flat (0.67 tall against 0.89-1.2); the sphere frames' lava crack is 4-5
+    px against the sprite's 12-14; the pearl's glow does not follow D126/D173 (accepted: it is mainly a lit pearl).
+  - `newshj-1`: the knob and spire highlight read mid-grey (roughness about 0.15); seam/hseam/lug are pal 2 not 1
+    on purpose (pal 1 is the ink). Whether the shaft under the TORM posts should be a tall structure (D82/D165).
+  - `assembly-newshh-121`: delete the invented ROOTS (the gate then holds for the whole model) or retrace them on
+    the streaks.
+  - `newshj-83`: the open core shows as a small white-yellow dot at the game camera; its red rim hardly shows.
+  - `newshv-161`: the stern lamp is a proud ball (a flatter lens set into the collar); the hood arms' stern ends are
+    boxy in the back-left 3/4; the glyph cleft reads as a recessed tub in 3/4.
+  - `assembly-newshn-195`: painted pale speckle on the brain tops (clamp `BackPainter._purple` to mid tone ±1);
+    a hard shading line at row 0 where the back blends onto the head; flat box-cut walls on the 3/41 and 7/45
+    columns and the north rim (a 1-2 px chamfer); a detached block at the belly's top right (check it is closed).
+- `docs/agents/MILESTONES.md`'s counts are not updated here (as in D170).
+
+**Cost:** 87 agents (1 scout, 7 blueprints, 20 designs, 7 judges, 13 finishes on Sonnet, 13 fixes, 26 reviews),
+11.5M subagent tokens, about 3.0 h of run time; then `fix-round.js` on `assembly-newsh0-91`: 4 agents (2 fixes, 2
+reviews), 0.50M tokens, 30 min, still failing. Sheets: `tyrian-scratch/e2-enemies-2/<item>/final/` (not in git, D3).

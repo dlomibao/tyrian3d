@@ -30,11 +30,11 @@ the game data and the repo by `tools/inventory.mjs`; the machine-readable versio
 | Episode | Levels | Unique sprites | Enemy units: flagship / older model / total | Damaged frames unmodelled | Tilesets: HD / structure models / total | Boss levels (boss units) | Songs (remastered) | Story pictures (redrawn) |
 |---|---|---|---|---|---|---|---|---|
 | 1 | 18 | 888 | 159 / 0 / 159 | 0 | 2 / 2 / 2 | 9 (15) | 15 (15) | 3 (3) |
-| 2 | 12 | 683 | 90 / 56 / 154 | 4 | 2 / 1 / 2 | 6 (22) | 11 (11) | 2 (2) |
+| 2 | 12 | 683 | 110 / 36 / 147 | 0 | 2 / 1 / 2 | 6 (15) | 11 (11) | 2 (2) |
 | 3 | 12 | 1202 | 121 / 70 / 191 | 0 | 3 / 2 / 3 | 6 (21) | 15 (15) | 1 (1) |
 | 4 | 20 | 762 | 38 / 124 / 199 | 0 | 5 / 2 / 5 | 15 (56) | 18 (18) | 3 (3) |
 
-Whole game: 62 levels; 481 enemy units (202 flagship, 234 older-style models, 45 with frames still unmodelled), decor (indestructible boss and scenery pieces) included; 69 pickup and empty units; 5 tilesets (5 with HD art, 2 with structure models); 317 shot frames (238 with flat art); 33 songs used (33 remastered).
+Whole game: 62 levels; 474 enemy units (222 flagship, 214 older-style models, 38 with frames still unmodelled), decor (indestructible boss and scenery pieces) included; 69 pickup and empty units; 5 tilesets (5 with HD art, 2 with structure models); 317 shot frames (238 with flat art); 33 songs used (33 remastered).
 
 Unique sprites counts each enemy and pickup frame (normal and damaged) once per episode; boss units are
 the units created with a boss bar's link number (event 79), pieces included.
@@ -85,24 +85,24 @@ so a tileset shared by many levels is the biggest single piece of terrain work.
 | 22 | assembly-newshj-127 | air+decor | basic | 3 | 1 | 56 | 6340 | 2.1, 2.10, 2.12 |
 | 23 | newsh3-10 | ground | basic | 3 | 1 | 32 | 3636 | 4.4, 4.5, 4.8 |
 | 24 | newsh3-8 | ground | basic | 3 | 1 | 32 | 2225 | 4.4, 4.5, 4.8 |
-| 25 | newshj-1 | air | basic | 3 | 1 | 45 | 2046 | 2.1, 2.11, 2.12 |
-| 26 | newshg-49 | ground | basic | 3 | 1 | 31 | 1951 | 2.5, 2.6, 2.9 |
-| 27 | assembly-newshk-51 | ground | basic | 2 | 2 | 432 | 32317 | 3.6, 4.12 |
-| 28 | assembly-newshk-17 | ground | basic | 2 | 2 | 108 | 8112 | 3.6, 4.12 |
-| 29 | assembly-newshk-89 | ground | basic | 2 | 2 | 108 | 8071 | 3.6, 4.12 |
-| 30 | assembly-newsh7-199 | air | basic | 2 | 2 | 108 | 7002 | 3.1, 4.20 |
-| 31 | assembly-newsh7-39 | air | basic | 2 | 2 | 72 | 6072 | 3.1, 4.20 |
-| 32 | newsh7-55 | air | basic | 2 | 2 | 51 | 3891 | 3.1, 4.20 |
-| 33 | assembly-newshk-121 | decor (boss) | basic | 2 | 2 | 70 | 2722 | 3.6, 4.12 |
-| 34 | newsh7-237 | ground | basic | 2 | 2 | 46 | 2115 | 3.1, 4.8 |
-| 35 | newsh3-52 | ground | basic | 2 | 2 | 50 | 1070 | 2.4, 4.5 |
-| 36 | newshl-116 | ground | basic | 2 | 1 | 40 | 260655 | 4.17, 4.18 |
-| 37 | newshl-117 | ground | basic | 2 | 1 | 38 | 202070 | 4.17, 4.18 |
-| 38 | newshl-118 | ground | basic | 2 | 1 | 43 | 100531 | 4.17, 4.18 |
-| 39 | newsh5-278 | ground | basic | 2 | 1 | 56 | 67628 | 4.15, 4.18 |
-| 40 | assembly-newshv-14 | air+ground | basic | 2 | 1 | 5 | 64867 | 4.7, 4.14 |
+| 25 | assembly-newshk-51 | ground | basic | 2 | 2 | 432 | 32317 | 3.6, 4.12 |
+| 26 | assembly-newshk-17 | ground | basic | 2 | 2 | 108 | 8112 | 3.6, 4.12 |
+| 27 | assembly-newshk-89 | ground | basic | 2 | 2 | 108 | 8071 | 3.6, 4.12 |
+| 28 | assembly-newsh7-199 | air | basic | 2 | 2 | 108 | 7002 | 3.1, 4.20 |
+| 29 | assembly-newsh7-39 | air | basic | 2 | 2 | 72 | 6072 | 3.1, 4.20 |
+| 30 | newsh7-55 | air | basic | 2 | 2 | 51 | 3891 | 3.1, 4.20 |
+| 31 | assembly-newshk-121 | decor (boss) | basic | 2 | 2 | 70 | 2722 | 3.6, 4.12 |
+| 32 | newsh7-237 | ground | basic | 2 | 2 | 46 | 2115 | 3.1, 4.8 |
+| 33 | newsh3-52 | ground | basic | 2 | 2 | 50 | 1070 | 2.4, 4.5 |
+| 34 | newshl-116 | ground | basic | 2 | 1 | 40 | 260655 | 4.17, 4.18 |
+| 35 | newshl-117 | ground | basic | 2 | 1 | 38 | 202070 | 4.17, 4.18 |
+| 36 | newshl-118 | ground | basic | 2 | 1 | 43 | 100531 | 4.17, 4.18 |
+| 37 | newsh5-278 | ground | basic | 2 | 1 | 56 | 67628 | 4.15, 4.18 |
+| 38 | assembly-newshv-14 | air+ground | basic | 2 | 1 | 5 | 64867 | 4.7, 4.14 |
+| 39 | assembly-newshv-169 | air+ground | basic | 2 | 1 | 5 | 59974 | 4.7, 4.14 |
+| 40 | assembly-newsh3-198 | decor+ground | basic | 2 | 1 | 394 | 53417 | 4.4, 4.10 |
 
-279 enemy units are not done; the full list is `ranking.units` in inventory.json.
+252 enemy units are not done; the full list is `ranking.units` in inventory.json.
 
 ### Pickups without flat art (top 20)
 
@@ -187,18 +187,18 @@ Between levels (the episode 1 script): section 11: song 16, picture 5, text; sec
 
 | Level | Name | Sections | Tileset | Terrain covered (0/1/2) | Structures | Enemy types | Units | Bosses | Songs | Special | Bot |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| 2.1 | TORM | 2 | shapesx | 68/70 0/1 0/1 | 0 | 118 | 33 / 25 / 8 / 0 | assembly-newshh-159, assembly-newshh-197, assembly-newshj-191, assembly-newshj-267 | 28, 22, 6 | difficulty change, music fade, song change, text window, clear enemies | done, 7661 ticks, 38 seen |
-| 2.2 | GYGES | 4 | shapesx | 13/15 7/70 11/37 | 0 | 92 | 31 / 4 / 20 / 7 | assembly-newshn-195, newshn-3, newshn-41, newshn-43 +4 | 14, 12 | text window, music fade, song change, difficulty change | done, 6341 ticks, 32 seen |
+| 2.1 | TORM | 2 | shapesx | 68/70 0/1 0/1 | 0 | 118 | 33 / 29 / 4 / 0 | assembly-newshh-159, assembly-newshh-197, assembly-newshj-191, assembly-newshj-267 | 28, 22, 6 | difficulty change, music fade, song change, text window, clear enemies | done, 7661 ticks, 38 seen |
+| 2.2 | GYGES | 4 | shapesx | 13/15 7/70 11/37 | 0 | 92 | 24 / 14 / 10 / 0 | assembly-newshn-195 | 14, 12 | text window, music fade, song change, difficulty change | done, 6341 ticks, 25 seen |
 | 2.3 | BONUS | 6 bonus | shapesz | 13/14 0/1 0/1 | 0 | 22 | 12 / 12 / 0 / 0 | - | 28 | - | done, 1568 ticks, 11 seen |
 | 2.4 | ASTCITY | 8 | shapesz | 54/54 0/1 0/1 | 0 | 77 | 31 / 30 / 1 / 0 | - | 1 | difficulty change | done, 6621 ticks, 32 seen |
-| 2.5 | SOH JIN | 10 | shapesz | 0/1 0/1 0/3 | 0 | 39 | 12 / 10 / 2 / 0 | - | 4 | - | done, 5180 ticks, 11 seen |
-| 2.6 | GRYPHON | 12 | shapesx | 64/67 0/53 0/1 | 0 | 66 | 22 / 8 / 13 / 1 | assembly-newsh0-79, newsh0-1, newsh0-13, newsh0-15 +4 | 24 | background 2 opaque, text window | done, 6602 ticks, 22 seen |
+| 2.5 | SOH JIN | 10 | shapesz | 0/1 0/1 0/3 | 0 | 39 | 12 / 11 / 1 / 0 | - | 4 | - | done, 5180 ticks, 11 seen |
+| 2.6 | GRYPHON | 12 | shapesx | 64/67 0/53 0/1 | 0 | 66 | 22 / 12 / 9 / 1 | assembly-newsh0-79, newsh0-1, newsh0-13, newsh0-15 +4 | 24 | background 2 opaque, text window | done, 6602 ticks, 22 seen |
 | 2.7 | GEM WAR | 15 | shapesz | 0/1 0/1 0/3 | 0 | 25 | 9 / 9 / 0 / 0 | assembly-newshv-91, newshv-19 | 24 | text window | done, 7920 ticks, 14 seen |
-| 2.8 | MARKERS | 17 | shapesz | 0/1 0/1 0/3 | 0 | 23 | 13 / 3 / 10 / 0 | - | 2 | - | done, 3480 ticks, 13 seen |
-| 2.9 | MISTAKES | 19 | shapesz | 0/1 0/1 0/3 | 0 | 57 | 25 / 15 / 10 / 0 | - | 17 | text window | done, 3030 ticks, 18 seen |
-| 2.10 | BOTANY A | 21 | shapesx | 69/72 0/1 0/1 | 0 | 49 | 14 / 12 / 2 / 0 | assembly-newshj-191, assembly-newshj-267 | 24, 6 | difficulty change, text window, music fade, song change | done, 6467 ticks, 13 seen |
-| 2.11 | BOTANY B | 22 | shapesx | 66/69 0/1 0/1 | 0 | 34 | 11 / 7 / 4 / 0 | assembly-newshj-191, assembly-newshj-267 | 13, 6 | difficulty change, text window, music fade, clear enemies, song change | done, 6627 ticks, 10 seen |
-| 2.12 | BONUS | 24 bonus | shapesx | 68/70 0/1 0/1 | 0 | 40 | 12 / 9 / 3 / 0 | - | 28 | difficulty change | done, 1430 ticks, 14 seen |
+| 2.8 | MARKERS | 17 | shapesz | 0/1 0/1 0/3 | 0 | 23 | 13 / 4 / 9 / 0 | - | 2 | - | done, 3480 ticks, 13 seen |
+| 2.9 | MISTAKES | 19 | shapesz | 0/1 0/1 0/3 | 0 | 57 | 25 / 22 / 3 / 0 | - | 17 | text window | done, 3030 ticks, 18 seen |
+| 2.10 | BOTANY A | 21 | shapesx | 69/72 0/1 0/1 | 0 | 49 | 14 / 13 / 1 / 0 | assembly-newshj-191, assembly-newshj-267 | 24, 6 | difficulty change, text window, music fade, song change | done, 6467 ticks, 13 seen |
+| 2.11 | BOTANY B | 22 | shapesx | 66/69 0/1 0/1 | 0 | 34 | 11 / 9 / 2 / 0 | assembly-newshj-191, assembly-newshj-267 | 13, 6 | difficulty change, text window, music fade, clear enemies, song change | done, 6627 ticks, 10 seen |
+| 2.12 | BONUS | 24 bonus | shapesx | 68/70 0/1 0/1 | 0 | 40 | 12 / 10 / 2 / 0 | - | 28 | difficulty change | done, 1430 ticks, 14 seen |
 
 Between levels (the episode 2 script): section 13: song 8, picture 7, text, picture 5, episode end; section 20: picture 5, song 16, text.
 
