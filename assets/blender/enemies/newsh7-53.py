@@ -1,271 +1,352 @@
-"""Blue crystal (newsh7.shp frames 53, 91, 129): a 3D version of its sprite.
+"""Blue crystal (newsh7.shp frames 53, 91, 129), an emerald-cut gem in a steel ferrule.
 
-Seen in episode 3 (level section 10) and episode 4. A rounded blue gem, egg-shaped from above,
-with a steel drum cap at the top: a smooth dome about 9.5 px tall with
-the sprite's pale seams riding on it as beads (the table line down the left and across the
-bottom, the front edge, the right rim, the cross bar at row 12), and a dark canopy cut into its
-upper centre. The gem is one glossy mid-tone blue (the sprite's patchwork is its drawn light), the
-canopy a deeper blue, the cap polished steel. The frames only shimmer
-the blues and the white seams: every blue is one palette step darker on frame 91 and two on 129,
-and the white lines fade (143, 142, 140), so one model covers them all with per-frame colours
-(common.palette_material frames=).
+What it is: a cut blue gem lying flat, its north end held in a polished steel cap. The sprite is a
+pixel octagon (45 degree corners on all four sides), and its pale lines are the facet edges of a
+step cut: the table's outline (the left line at column 5, the right one at column 17, the bottom
+line at row 20 and the two chamfered corners), corner joins running out to the girdle (column 15
+under the table, row 17 on the right), and a transverse ridge at row 12 that runs across the whole
+crown. North of the ridge the crown slopes down into the cap, which is why the sprite draws that
+band darker (rows 8-11). So the gem is built as a faceted solid: girdle octagon, two crown steps,
+a bevelled table edge (the pale lines, polished), a flat ridge band and a step-cut pavilion to a
+short keel underneath (closed, plain). Flat facets, no beads: the white is the polished bevel's
+colour, the sprite's rim glints at columns 3 and 20 are sheen and are not painted.
 
-Run: blender --background --python assets/blender/enemies/newsh7-53.py [-- --preview out.png]
+The cap (rows 3-6) is a ferrule lying along the gem's axis: an elliptical section lofted along Y
+(pchip stations matched to the sprite rows), a domed nose with a chamfered end face, a machined
+groove and a raised lip collar where it grips the gem. Satin steel, palette 56 (the cap's median;
+the light band and the dark right side are its drawn lighting).
+
+Frames: one model. The blues step one palette index darker on 91 and two on 129, the pale lines
+shimmer 142 -> 140 -> 159 (per-region medians of each frame), via palette_material frames=.
+
+Run: tools/build-models.sh -j 2 assets/blender/enemies/newsh7-53.py
 """
 
+import bisect
 import math
 import sys
 from pathlib import Path
 
 import bmesh
 import bpy
+from mathutils import Vector
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import lib_b007 as lib  # noqa: E402
-from lib_b007 import common, ex, ey  # noqa: E402
+WT = Path(__file__).resolve().parents[3]  # repo root (assets/blender/enemies/<name>.py)
+sys.path.insert(0, str(WT / "assets" / "blender"))
+import common  # noqa: E402
 
 NAME = "newsh7-53"
 PX = 1 / 12
-
-# The gem's outline in pixel-edge coordinates (column, row), including the sprite's dark outline
-# pixels, cut diagonally through the staircase corners so the egg follows the sprite.
-OUTLINE = [(4.5, 7), (19.5, 7), (20.5, 8), (21.5, 9), (22, 10), (22, 19), (21.5, 20), (20.5, 21),
-           (16, 25.5), (15.5, 26), (8.5, 26), (8, 25.5), (3.5, 21), (2.5, 20), (2, 19), (2, 10),
-           (2.5, 9), (3.5, 8)]
-CENTRE = (12.0, 15.0)  # the dome's crown, in pixel coordinates
-# The dome: a smooth curve to the crown at H px (PROFILE_P < 2 rounds the crown off, no plateau).
-# Round the rim (the sprite's dark outline pixels) runs the dark setting, a ledge ZR px up from
-# the outline (scale 1) in to S_LEDGE; from there the gem's steep blue flank rises to S_IN, where
-# the per-pixel dome begins.
-ZR, H, PROFILE_P = 1.0, 9.5, 1.7
-S_LEDGE, S_IN = 0.915, 0.9
+W, H = 24, 28
 
 
-def ray_scale(p):
-    """How far point p (pixel coordinates) is from the crown towards the outline (0 to 1)."""
-    cx, cy = CENTRE
-    dx, dy = p[0] - cx, p[1] - cy
-    if abs(dx) + abs(dy) < 1e-9:
-        return 0.0
-    best = None
-    for i, a in enumerate(OUTLINE):
-        b = OUTLINE[(i + 1) % len(OUTLINE)]
+def P(u, v, z):
+    """Sprite pixel-edge coordinates (column u, row v) and height z in px -> world."""
+    return ((u - W / 2) * PX, (H / 2 - v) * PX, z * PX)
+
+
+def pchip(xs, ys):
+    """Monotone cubic interpolation (copy of usp_talon.pchip)."""
+    n = len(xs)
+    h = [xs[i + 1] - xs[i] for i in range(n - 1)]
+    d = [(ys[i + 1] - ys[i]) / h[i] for i in range(n - 1)]
+    m = [0.0] * n
+    m[0], m[-1] = d[0], d[-1]
+    for i in range(1, n - 1):
+        if d[i - 1] * d[i] <= 0:
+            m[i] = 0.0
+        else:
+            w1, w2 = 2 * h[i] + h[i - 1], h[i] + 2 * h[i - 1]
+            m[i] = (w1 + w2) / (w1 / d[i - 1] + w2 / d[i])
+
+    def f(x):
+        if x <= xs[0]:
+            return ys[0] + m[0] * (x - xs[0])
+        if x >= xs[-1]:
+            return ys[-1] + m[-1] * (x - xs[-1])
+        i = bisect.bisect_right(xs, x) - 1
+        t = (x - xs[i]) / h[i]
+        t2, t3 = t * t, t * t * t
+        return ((2 * t3 - 3 * t2 + 1) * ys[i] + (t3 - 2 * t2 + t) * h[i] * m[i]
+                + (-2 * t3 + 3 * t2) * ys[i + 1] + (t3 - t2) * h[i] * m[i + 1])
+    return f
+
+
+def offset_poly(pts, d):
+    """Offset a closed polygon (clockwise on screen = counter-clockwise in y-up... any winding) by d
+    px outward (d > 0) or inward (d < 0), keeping the vertex count (edge lines moved, re-intersected)."""
+    n = len(pts)
+    cx = sum(p[0] for p in pts) / n
+    cy = sum(p[1] for p in pts) / n
+    lines = []
+    for i in range(n):
+        a, b = pts[i], pts[(i + 1) % n]
         ex_, ey_ = b[0] - a[0], b[1] - a[1]
-        den = dx * ey_ - dy * ex_
-        if abs(den) < 1e-12:
+        L = math.hypot(ex_, ey_)
+        nx, ny = ey_ / L, -ex_ / L
+        mx, my = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
+        if (mx - cx) * nx + (my - cy) * ny < 0:
+            nx, ny = -nx, -ny
+        lines.append(((a[0] + nx * d, a[1] + ny * d), (ex_ / L, ey_ / L), (nx, ny)))
+    out = []
+    for i in range(n):
+        (p1, d1, n1), (p2, d2, n2) = lines[i - 1], lines[i]
+        den = d1[0] * d2[1] - d1[1] * d2[0]
+        if abs(den) < 1e-6:  # collinear edges: move the vertex along the normal
+            out.append((pts[i][0] + n2[0] * d, pts[i][1] + n2[1] * d))
             continue
-        t = ((a[0] - cx) * ey_ - (a[1] - cy) * ex_) / den  # along the ray
-        u = ((a[0] - cx) * dy - (a[1] - cy) * dx) / den    # along the edge
-        if t > 0 and -1e-9 <= u <= 1 + 1e-9 and (best is None or t < best):
-            best = t
-    return 1.0 / best if best else 1.0
+        t = ((p2[0] - p1[0]) * d2[1] - (p2[1] - p1[1]) * d2[0]) / den
+        out.append((p1[0] + d1[0] * t, p1[1] + d1[1] * t))
+    return out
 
 
-def profile(s):
-    """Dome height (px) at ray scale s (0 at the crown, 1 at the outline)."""
-    s = min(max(s, 0.0), 1.0)
-    return ZR + (H - ZR) * math.sqrt(max(0.0, 1 - s ** PROFILE_P))
+def lerp2(a, b, t):
+    return (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
 
 
-def dome_z(p):
-    """Height (px) of the dome's surface at pixel point p."""
-    return profile(min(ray_scale(p), S_IN))
+# --- The gem's plan (pixel-edge coordinates) ------------------------------------------------------
+# The girdle is the sprite's inner mask (inside its ink ring): an octagon whose 45 degree sides cut
+# the pixel staircases through their mid-points (x+y=12.4, x-y=11.6, x+y=40.6, y-x=16.6). Every loop
+# has the same 12 vertices: the octagon's corners plus a pair at the ridge (rows 12.05 / 12.95) on
+# each side. The top edge (row 6.8) runs under the cap's lip.
+RN, RS = 12.05, 12.95
+GIRDLE = [(5.6, 6.8), (18.4, 6.8), (21.0, 9.4), (21.0, RN), (21.0, RS), (21.0, 19.6),
+          (15.6, 25.0), (8.4, 25.0), (3.0, 19.6), (3.0, RS), (3.0, RN), (3.0, 9.4)]
+# The table's outline: the centre of the sprite's pale lines (left line column 5, right column 17,
+# bottom row 20, chamfered corners down to (9.6, 20.4) and (15.4, 20.4)).
+TABLE = [(6.3, 6.8), (16.8, 6.8), (17.5, 8.6), (17.5, RN), (17.5, RS), (17.5, 17.4),
+         (15.4, 20.4), (9.6, 20.4), (5.5, 16.3), (5.5, RS), (5.5, RN), (5.5, 8.6)]
+LINE = 0.5                    # half width of the bevelled table edge (the pale line), px
+ZG_TOP, ZG_BOT = 2.9, 2.2      # girdle band
+Z_S1, Z_S2, Z_TAB = 5.0, 6.35, 7.45  # crown steps and the table at the ridge
+SLOPE_N, SLOPE_S = 0.30, 0.11  # the crown falls this much per px north / south of the ridge band
 
 
-def inside(p):
-    """Whether pixel point p is inside the outline polygon."""
-    x, y = p
-    hit = False
-    for i, a in enumerate(OUTLINE):
-        b = OUTLINE[(i + 1) % len(OUTLINE)]
-        if (a[1] > y) != (b[1] > y) and x < a[0] + (y - a[1]) * (b[0] - a[0]) / (b[1] - a[1]):
-            hit = not hit
-    return hit
-
-
-def world(p, z_px):
-    return (ex(p[0]), ey(p[1]), z_px * PX)
+def drop(y):
+    return SLOPE_N * max(0.0, RN - y) + SLOPE_S * max(0.0, y - RS)
 
 
 def build(sprite):
     coll = common.reset_collection(NAME)
-    pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
-    pixels = [[int(v) for v in (row.split() if isinstance(row, str) else row)] for row in sprite["frames"][0]["pixels"]]
 
-    def shimmer(i, tag="shimmer", **kw):
-        """A gem blue that steps one palette index darker on each later frame."""
-        return common.palette_material(sprite, i, f"{NAME}-{tag}", frames={91: i - 1, 129: i - 2}, **kw)
+    def gem(i, frames, rough=0.22, emit=0.35, spec=0.2, tag="gem"):
+        m = common.palette_material(sprite, i, f"{NAME}-{tag}", metallic=0.0, roughness=rough,
+                                    emission_strength=emit, frames=frames)
+        bsdf = next(n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+        if "Specular IOR Level" in bsdf.inputs:  # D176: a polished dielectric's F0
+            bsdf.inputs["Specular IOR Level"].default_value = spec
+        return m
 
-    def at(c, r):
-        c, r = int(math.floor(c)), int(math.floor(r))
-        return pixels[r][c] if 0 <= r < len(pixels) and 0 <= c < len(pixels[0]) else -1
-
-    # The gem's materials: the sprite's own colours, a few neighbouring blues merged. Each pixel of
-    # the dome takes the colour the sprite shows there, so the top view is the sprite's.
-    gem_mats = [
-        pal(1, metallic=0.4, roughness=0.4),                                          # 0 dark setting
-        common.palette_material(sprite, 140, f"{NAME}-gem", frames={91: 159, 129: 158}, metallic=0.0,
-                                roughness=0.1, emission_strength=0.5),                # 1 pale seam
-        common.palette_material(sprite, 143, f"{NAME}-gem", frames={91: 142, 129: 140}, metallic=0.0,
-                                roughness=0.1, emission_strength=0.5),                # 2 white seam
+    mats = [
+        gem(156, {91: 155, 129: 154}, tag="table"),        # 0 table, south of the ridge
+        gem(152, {91: 151, 129: 150}, emit=0.0, tag="tablen"),       # 1 table north of the ridge (the dark band)
+        gem(155, {91: 154, 129: 153}, tag="step"),         # 2 crown steps, sides and north
+        gem(153, {129: 152}, tag="stepb"),                 # 3 crown steps, south
+        gem(142, {91: 140, 129: 159}, rough=0.1, emit=1.0, tag="line"),  # 4 bevelled table edge
+        gem(159, {91: 158, 129: 157}, rough=0.1, emit=0.8, tag="ridge"),           # 5 ridge band on the table
+        gem(150, {91: 149, 129: 148}, rough=0.15, emit=0.1, tag="pav"),              # 6 girdle and pavilion
     ]
-    GROUPS = {148: (144, 145, 146, 147, 148, 149), 150: (150, 151), 152: (152,), 153: (153,),
-              155: (154, 155), 157: (156, 157), 159: (158, 159)}
-    mat_of = {1: 0, 48: 0, 49: 0, 140: 1, 142: 2, 143: 2}
-    for idx, members in GROUPS.items():
-        for m in members:
-            mat_of[m] = len(gem_mats)
-        gem_mats.append(shimmer(idx, tag="gem", metallic=0.05, roughness=0.12))
-    # The gem is glass-like: one mid-tone blue for the whole body (the sprite's lighter and darker
-    # blue patches and the white glints between its seams are its drawn shading and sheen; the
-    # game's light and the glossy material make those), the cut-in canopy a deeper blue. The pale
-    # seams are the beads below, not paint, and the sprite's black outline ring is not painted on
-    # either: the game draws the outline.
-    BODY, DEEP = mat_of[155], mat_of[150]
-    WALL = DEEP
-
-    # The dome: a heightfield with one quad per sprite pixel inside the dark outline (rows 7-25;
-    # the cap covers rows 2-6). Its border vertices are slid onto the outline polygon scaled to
-    # S_IN, so its edge is a clean egg, not a staircase; the flank, the setting's ledge, a 1 px
-    # vertical lip and a shallow pavilion run round it.
-    cells = [(c, r) for r in range(7, 26) for c in range(1, 23)
-             if inside((c + 0.5, r + 0.5)) and at(c, r) != 1]
-    cellset = set(cells)
-    # The canopy: the dark band in the upper centre (rows 8-11, columns 7-15), cut 1.75 px into the
-    # dome between the table line on the left and the cross bar below.
-    canopy = {(c, r) for c in range(7, 16) for r in range(8, 12)}
-    CUT = 1.75
-    edge_use = {}
-    for c, r in cells:
-        for e in (((c, r), (c + 1, r)), ((c + 1, r), (c + 1, r + 1)),
-                  ((c + 1, r + 1), (c, r + 1)), ((c, r + 1), (c, r))):
-            k = tuple(sorted(e))
-            edge_use[k] = edge_use.get(k, 0) + 1
-    border = {v for k, n in edge_use.items() if n == 1 for v in k}
-
-    def on_ring(v, k):
-        """Point v slid along its ray from the crown onto the outline scaled by k."""
-        s = ray_scale(v)
-        return (CENTRE[0] + (v[0] - CENTRE[0]) * k / s, CENTRE[1] + (v[1] - CENTRE[1]) * k / s)
-
-    def pos2d(v):
-        return on_ring(v, S_IN) if v in border else v
+    TAB, TABN, STEP, STEPB, LINEM, RIDGE, PAV = range(7)
 
     bm = bmesh.new()
-    verts = {}
+    t_out = offset_poly(TABLE, LINE)
+    t_in = offset_poly(TABLE, -LINE)
+    s1a = [lerp2(g, t, 0.24) for g, t in zip(GIRDLE, t_out)]
+    s1b = [lerp2(g, t, 0.37) for g, t in zip(GIRDLE, t_out)]
+    s2 = [lerp2(g, t, 0.68) for g, t in zip(GIRDLE, t_out)]
+    keel = [(12 + (u - 12) * 0.16, min(max(v, 11.5), 20.5)) for u, v in GIRDLE]
+    p1 = [lerp2(g, k, 0.5) for g, k in zip(GIRDLE, keel)]
 
-    def vert(v, low=False):
-        key = (v, low)
-        if key not in verts:
-            p2 = pos2d(v)
-            z = dome_z(p2)
-            verts[key] = bm.verts.new(world(p2, z - (CUT if low else 0.0)))
-        return verts[key]
+    # Corner joins drawn pale in the sprite (column 15 under the table, row 17 on the right): those
+    # loop vertices are doubled, JOIN px apart along the loop, and the narrow strip between the two
+    # copies is a polished bevel down the facet edge, girdle to table.
+    JOIN = 0.45
+    DOUBLE = {5, 6}
+    entries = []  # (base vertex, side): side -1 / +1 for the doubled copies, 0 otherwise
+    for i in range(len(GIRDLE)):
+        entries += [(i, -1), (i, 1)] if i in DOUBLE else [(i, 0)]
+    m_ = len(entries)
 
-    part = []  # each face's part, in creation order: crisp edges go between parts
+    def expand(pts):
+        out = []
+        n0 = len(pts)
+        for i, s in entries:
+            p = pts[i]
+            if s == 0:
+                out.append(p)
+                continue
+            q = pts[(i + s) % n0]
+            out.append(lerp2(p, q, JOIN / math.dist(p, q)))
+        return out
 
-    def add(vs, mat, kind):
-        bm.faces.new(vs).material_index = mat
-        part.append(kind)
+    def loop(pts, z, share):
+        return [bm.verts.new(P(u, v, z - share * drop(v))) for u, v in expand(pts)]
 
-    for c, r in cells:
-        low = (c, r) in canopy
-        corners = [(c, r), (c + 1, r), (c + 1, r + 1), (c, r + 1)]
-        add([vert(v, low) for v in corners], DEEP if low else BODY, "floor" if low else "dome")
-    # The canopy's walls, where a cut pixel meets an uncut one.
-    for c, r in canopy:
-        for (dc, dr), (a, b) in (((0, -1), ((c, r), (c + 1, r))), ((1, 0), ((c + 1, r), (c + 1, r + 1))),
-                                 ((0, 1), ((c + 1, r + 1), (c, r + 1))), ((-1, 0), ((c, r + 1), (c, r)))):
-            if (c + dc, r + dr) in cellset and (c + dc, r + dr) not in canopy:
-                add([vert(b), vert(a), vert(a, True), vert(b, True)], WALL, "wall")
-    # The flank, the ledge, the lip and the pavilion, in the border's order round the outline.
-    nxt = {}
-    for c, r in cells:
-        corners = [(c, r), (c + 1, r), (c + 1, r + 1), (c, r + 1)]
-        for i in range(4):
-            a, b = corners[i], corners[(i + 1) % 4]
-            if edge_use[tuple(sorted((a, b)))] == 1:
-                nxt[a] = b
-    start = next(iter(nxt))
-    loop = [start]
-    while nxt[loop[-1]] != start:
-        loop.append(nxt[loop[-1]])
-    top = [vert(v) for v in loop]
-    ledge = [bm.verts.new(world(on_ring(v, S_LEDGE), ZR + 0.2)) for v in loop]
-    rim = [bm.verts.new(world(on_ring(v, 1.0), ZR)) for v in loop]
-    foot = [bm.verts.new(world(on_ring(v, 1.0), 0.0)) for v in loop]
+    L_keel = [bm.verts.new(P(u, v, -2.2)) for u, v in expand(keel)]
+    L_p1 = [bm.verts.new(P(u, v, 0.4)) for u, v in expand(p1)]
+    L_gb = [bm.verts.new(P(u, v, ZG_BOT)) for u, v in expand(GIRDLE)]
+    L_gt = [bm.verts.new(P(u, v, ZG_TOP)) for u, v in expand(GIRDLE)]
+    L_s1a = loop(s1a, Z_S1 - 0.35, 0.3)
+    L_s1b = loop(s1b, Z_S1 + 0.3, 0.42)
+    L_s2 = loop(s2, Z_S2, 0.72)
+    L_to = loop(t_out, Z_TAB - 0.3, 1.0)
+    L_ti = loop(t_in, Z_TAB, 1.0)
 
-    keel = bm.verts.new(world((CENTRE[0], CENTRE[1] + 1.5), -2.5))
-    for i in range(len(loop)):
-        j = (i + 1) % len(loop)
-        add([top[j], top[i], ledge[i], ledge[j]], BODY, "flank")
-        add([ledge[j], ledge[i], rim[i], rim[j]], BODY, "ledge")
-        add([rim[j], rim[i], foot[i], foot[j]], BODY, "lip")
-        add([foot[j], foot[i], keel], BODY, "keel")
-    gem = common.mesh_object(NAME, bm, gem_mats, coll, smooth=True)
+    def band(a, b, matf, joins=True):
+        for k in range(m_):
+            j = (k + 1) % m_
+            f = bm.faces.new((a[k], a[j], b[j], b[k]))
+            i, i2 = entries[k][0], entries[j][0]
+            f.material_index = LINEM if (joins and i == i2) else matf(i)
+
+    south = {5, 6, 7}          # the SE, S and SW sides (edges 5-6, 6-7, 7-8)
+    ridge = {3, 9}             # the ridge band's edges on the right and left
+    # The first crown step's edge is drawn pale on the right (column 20), the SE diagonal and the
+    # left above the ridge (column 3, rows 10-12): a polished bevel there, a plain step elsewhere.
+    lit_step = {2, 3, 4, 5, 9, 10}
+
+    def step_mat(i):
+        if i in ridge:
+            return LINEM
+        return STEPB if i in south else STEP
+
+    band(L_keel, L_p1, lambda i: PAV, joins=False)
+    band(L_p1, L_gb, lambda i: PAV, joins=False)
+    band(L_gb, L_gt, lambda i: PAV, joins=False)
+    band(L_gt, L_s1a, step_mat)
+    band(L_s1a, L_s1b, lambda i: LINEM if i in lit_step else step_mat(i))
+    band(L_s1b, L_s2, step_mat)
+    band(L_s2, L_to, step_mat)
+    band(L_to, L_ti, lambda i: LINEM)
+    # The table: north of the ridge, the ridge band, south of it (each planar). Walk the loop from
+    # the face's first base vertex so the polygon stays in order across the wrap.
+    for base, m in (([10, 11, 0, 1, 2, 3], TABN), ([3, 4, 9, 10], RIDGE), ([4, 5, 6, 7, 8, 9], TAB)):
+        if m == RIDGE:
+            vs = [L_ti[k] for k, (i, s) in enumerate(entries) if i in base]
+        else:
+            start = next(k for k, (i, s) in enumerate(entries) if i == base[0])
+            vs = []
+            for d in range(m_):
+                k = (start + d) % m_
+                if entries[k][0] in base:
+                    vs.append(L_ti[k])
+        bm.faces.new(vs).material_index = m
+    # Keel: close the bottom.
+    c = bm.verts.new(P(12.0, 16.0, -2.2))
+    for k in range(m_):
+        j = (k + 1) % m_
+        bm.faces.new((L_keel[j], L_keel[k], c)).material_index = PAV
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    gem_obj = common.mesh_object(f"{NAME}_gem", bm, mats, coll, smooth=False)
+
+    # --- The steel cap: a ferrule along Y over the gem's north end. --------------------------------
+    cap_mats = [common.palette_material(sprite, 57, NAME, metallic=0.35, roughness=0.3),
+                common.palette_material(sprite, 52, NAME, metallic=0.7, roughness=0.45)]
+    STEEL, GROOVE = 0, 1
+    # Half width (px) per station, from the sprite's rows: row 3 x 8..16, rows 4-5 x 7..17, row 6
+    # x 6..18; the lip at rows 6.7-7.5 sits over the gem's top edge.
+    wf = pchip([3.0, 3.35, 3.9, 4.6, 5.4, 6.1, 6.7], [3.35, 4.05, 4.65, 4.95, 5.2, 5.75, 6.15])
+    ZC, KZ = 4.3, 0.9  # section centre height and height/width ratio
+    stations = []  # (row, half width, material of the band that starts here)
+    stations.append((2.86, 2.2, STEEL))  # chamfered end face
+    stations.append((2.95, 3.0, STEEL))
+    for v in (3.1, 3.3, 3.55, 3.8, 4.05, 4.3):
+        stations.append((v, wf(v), STEEL))
+    # machined groove
+    stations += [(4.5, wf(4.5), STEEL), (4.58, wf(4.58) - 0.3, GROOVE), (4.82, wf(4.82) - 0.3, STEEL),
+                 (4.9, wf(4.9), STEEL)]
+    for v in (5.2, 5.6, 6.0, 6.45):
+        stations.append((v, wf(v), STEEL))
+    # lip collar: a step out, flat band, chamfer back, tucked into the gem
+    stations += [(6.6, wf(6.6), STEEL), (6.68, wf(6.68) + 0.28, STEEL), (7.35, 6.45, STEEL),
+                 (7.5, 6.2, STEEL), (8.4, 5.6, STEEL)]
+    sides = 40
     bm = bmesh.new()
-    bm.from_mesh(gem.data)
-    bm.faces.ensure_lookup_table()
-    for f in bm.faces:
-        f.tag = False
-    smooth_as = {"flank": "dome"}  # the flank rolls smoothly into the dome
-    grp = [smooth_as.get(k, k) for k in part]
-    crisp = [e for e in bm.edges if len(e.link_faces) == 2
-             and grp[e.link_faces[0].index] != grp[e.link_faces[1].index]]
-    bmesh.ops.split_edges(bm, edges=crisp)
-    bm.to_mesh(gem.data)
-    bm.free()
-
-    # Pale seams as beads riding on the dome (pixel-centre coordinates of the sprite's white lines).
-    line_mats = [
-        common.palette_material(sprite, 143, f"{NAME}-shimmer", emission_strength=2.5, metallic=0.0,
-                                roughness=0.1, frames={91: 142, 129: 140}),  # white seams, fading
-        shimmer(159, metallic=0.0, roughness=0.1),  # the cross bar's pale-blue middle
-    ]
-    seams = [
-        ([(5.5, 7.4), (5.5, 15.5), (9.5, 19.6), (10.2, 20.5), (15.5, 20.5), (15.5, 25.2)], 0),  # table, front edge
-        ([(15.5, 20.5), (17.5, 17.5), (17.5, 12.5)], 0),                                       # right table line
-        ([(20.6, 8.9), (20.6, 18.6)], 0),                           # right rim
-        ([(20.6, 17.5), (17.5, 17.5)], 0),
-        ([(3.1, 12.5), (5.5, 12.5)], 0),                                                        # cross bar ends
-        ([(17.5, 12.5), (20.9, 12.5)], 0),
-        ([(5.5, 12.5), (17.5, 12.5)], 1),                                                       # its pale middle
-    ]
-    r = 0.55 * PX
-
-    def follow(points, step=3.2):
-        """The polyline split into short pieces, each point lifted onto the dome."""
-        pts = []
-        for a, b in zip(points, points[1:]):
-            k = max(1, math.ceil(math.dist(a, b) / step))
-            pts += [(a[0] + (b[0] - a[0]) * t / k, a[1] + (b[1] - a[1]) * t / k) for t in range(k)]
-        pts.append(points[-1])
-        return [world(p, dome_z(p) + 0.25) for p in pts]
-
-    bm = bmesh.new()
-    for points, m in seams:
-        lib.polyline_tube(bm, follow(points), r, sides=4, mat_index=m)
-    lines = common.mesh_object(f"{NAME}_lines", bm, line_mats, coll, smooth=True)
-
-    # The steel drum cap at the top (rows 2-7): a round drum along the gem's axis, as tall as the
-    # sprite's highlight band implies. It is polished blue steel: one mid-tone (the sprite's pale
-    # band on the upper left is the sheen, its near-black right side and front row the drawn
-    # shading and outline), metallic and smooth so the game's light makes the shine.
-    cap_mats = [pal(59, metallic=0.7, roughness=0.3)]
-    bm = bmesh.new()
-    zc = 2.8 * PX
-    # One section per sprite row; it ends at row 7, where the dome's rim begins, closed against it.
-    common.loft(bm, [(ey(7.0), 6.9 * PX, 3.1 * PX, zc), (ey(6.0), 6.7 * PX, 3.1 * PX, zc),
-                     (ey(5.0), 6.2 * PX, 3.0 * PX, zc), (ey(4.0), 5.6 * PX, 2.8 * PX, zc),
-                     (ey(3.0), 4.6 * PX, 2.4 * PX, zc), (ey(2.3), 3.6 * PX, 1.9 * PX, zc),
-                     (ey(2.05), 2.8 * PX, 1.5 * PX, zc)],
-                sides=16, mat_index=0, cap_start=True, cap_end=False)
-    common.loft(bm, [(ey(2.05), 2.8 * PX, 1.5 * PX, zc), (ey(1.95), 0.0, 0.0, zc)], sides=16, mat_index=0,
-                cap_start=False, cap_end=False)
+    rings = []
+    for v, w, m in stations:
+        ring = []
+        for k in range(sides):
+            a = 2 * math.pi * (k + 0.5) / sides
+            ring.append(bm.verts.new(P(12 + w * math.cos(a), v, ZC + KZ * w * math.sin(a))))
+        rings.append((ring, m))
+    for (r0, m0), (r1, _) in zip(rings, rings[1:]):
+        for k in range(sides):
+            j = (k + 1) % sides
+            bm.faces.new((r0[k], r0[j], r1[j], r1[k])).material_index = m0
+    # Nose: the end face, a shallow dome inset.
+    nose = bm.verts.new(P(12, 2.78, ZC))
+    for k in range(sides):
+        j = (k + 1) % sides
+        bm.faces.new((rings[0][0][j], rings[0][0][k], nose)).material_index = STEEL
+    tail = bm.verts.new(P(12, 8.6, ZC))
+    for k in range(sides):
+        j = (k + 1) % sides
+        bm.faces.new((rings[-1][0][k], rings[-1][0][j], tail)).material_index = STEEL
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     cap = common.mesh_object(f"{NAME}_cap", bm, cap_mats, coll, smooth=True)
+    # Hard edges at the groove and the collar's steps (auto-smooth by angle).
+    for o in (cap,):
+        mod = o.modifiers.new("ssa", "EDGE_SPLIT")
+        mod.split_angle = math.radians(40)
+    return coll, [gem_obj, cap]
 
-    return [(NAME, [gem, lines, cap], sprite["sprites"])]
+
+def sink_shell(shell, model, margin, reach):
+    """Copied from newshv-10.py (D185): drop every shell vertex to `margin` under the lowest model top
+    within `reach` (seen from above), so the outline's ink stays on the silhouette."""
+    from mathutils.bvhtree import BVHTree
+    dg = bpy.context.evaluated_depsgraph_get()
+    tree = BVHTree.FromObject(model, dg)
+    mw = shell.matrix_world
+    inv = mw.inverted()
+    for v in shell.data.vertices:
+        w = mw @ v.co
+        hit = tree.ray_cast(Vector((w.x, w.y, 5.0)), Vector((0, 0, -1)))
+        if hit[0] is None:
+            continue
+        zt = hit[0].z
+        for k in range(12):
+            a = 2 * math.pi * k / 12
+            for rad in (0.35 * reach, 0.7 * reach, reach):
+                h = tree.ray_cast(Vector((w.x + rad * math.cos(a), w.y + rad * math.sin(a), 5.0)), Vector((0, 0, -1)))
+                if h[0] is not None:
+                    zt = min(zt, h[0].z)
+        zt -= margin
+        if w.z > zt:
+            v.co = inv @ Vector((w.x, w.y, zt))
+    shell.data.update()
+
+
+def main():
+    for o in list(bpy.data.objects):
+        bpy.data.objects.remove(o, do_unlink=True)
+    sprite = common.load_sprite(WT, NAME)
+    coll, parts = build(sprite)
+    # D90/D118: the shell from a sealed copy of the whole model (nothing is culled here).
+    sealed = [p.copy() for p in parts]
+    for s, p in zip(sealed, parts):
+        s.data = p.data.copy()
+        coll.objects.link(s)
+        for m in list(s.modifiers):
+            s.modifiers.remove(m)
+    bpy.context.view_layer.update()
+    for o in bpy.context.view_layer.objects:
+        o.select_set(o in sealed)
+    bpy.context.view_layer.objects.active = sealed[0]
+    bpy.ops.object.join()
+    joined = sealed[0]
+    joined.name = f"{NAME}_sealed"
+    shell = common.outline_shell(joined, coll, voxel=0.02, faces=1600, inside=0.004)
+    sink_shell(shell, joined, 0.5 * PX, 1.2 * PX)
+    shell.name = f"{NAME}_outline"
+    bpy.data.objects.remove(joined, do_unlink=True)
+    objs = parts + [shell]
+    common.export_sprite_model(WT, objs, f"enemies/{NAME}", sprite["sprites"])
+    tris = 0
+    for o in parts:
+        tris += sum(len(p.vertices) - 2 for p in o.data.polygons)
+    print(f"exported: model triangles {tris}, shell faces {len(shell.data.polygons)}")
 
 
 if __name__ == "__main__":
-    lib.run(NAME, build, __file__)
+    main()
