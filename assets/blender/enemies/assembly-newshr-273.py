@@ -17,8 +17,11 @@ Build (one object in assembly coordinates, cut into the 16 pieces with common.sp
   sprite's highlights and those turned away its dark limb (matte, Specular IOR Level 0.15 as D178).
 - the machine: hard surface: a chamfered housing on the sprite's machine outline, chamfered fins
   and headers in the radiator, a chamfered block with pipes, the orb's bezel a lofted ring with
-  chamfered lips, the orb a glowing dome (metallic 1, rough, D126/D173), the lenses glowing domes in
-  ring bezels, the coil a lying drum with glowing windings and clamp rings, flanged pipes.
+  chamfered lips, the orb a glowing dome (metallic 1, rough, D126/D173), the eyes glowing domes in
+  ring bezels, the coil (the jaw) a lying drum with glowing windings on the sprite's red rows and clamp
+  rings on its grey rows, flanged pipes. The orb, eye and winding faces take the sprite's own red shade
+  under them (red_glow, QA M4), so the swirl, the eyes' hot cores and the lit windings read as drawn.
+- QA M4: the facet ramp runs with broad facets (28 deg, 8 px), one fine cut, big chips: clean faces.
 - D90/D118 outline shell from a sealed copy of the whole heap, cut per piece without filling.
 
 Run: tools/build-models.sh -j 2 assets/blender/enemies/assembly-newshr-273.py
@@ -200,6 +203,8 @@ def mat(index, kind="metal"):
         spec_level(m, 0.15)
     elif kind == "glow":
         m = common.palette_material(SPR, index, f"{TAG}_glow", metallic=1.0, roughness=0.9, emission_strength=GLOW[index])
+    elif kind == "rglow":  # the sprite's own red shades on the orb, eyes and coil (QA M4): unlit palette colour
+        m = common.palette_material(SPR, index, f"{TAG}_rg", metallic=1.0, roughness=0.9, emission_strength=1.0)
     elif kind == "polish":  # rails, bezel lips: smoother satin metal
         m = common.palette_material(SPR, index, f"{TAG}_pol", metallic=0.55, roughness=0.32)
         spec_level(m, 0.7)
@@ -425,6 +430,7 @@ def machine(coll):
     BODY, DARK, MID, LIGHT, RIB = mat(3), mat(2), mat(4), mat(5), mat(5, "polish")
     RAIL = mat(7, "polish")
     ORB, LENS = mat(116, "glow"), mat(114, "glow")
+    SAMPLE = ORB  # faces whose glow takes the sprite's red shade under them (red_glow)
 
     # Housing: the sprite's machine outline, a chamfered slab low in the heap (rocks bury its right side).
     plinth(P, MACHINE, 0.0, 0.26, 0.8, BODY)
@@ -458,26 +464,28 @@ def machine(coll):
     OC, OR = (22.0, 47.2)
     chbox(P, 11.0, 38.0, 33.0, 56.6, 0.0, 0.30, 0.8, DARK)  # the socket's floor
     ring_bezel(P, OC, OR, 9.7, 7.9, 1.8, 0.24, 0.43, LIGHT)
-    dome(P, OC, OR, 9.9, 8.1, 0.26, 0.40, ORB, segs=40, rings=10)
+    dome(P, OC, OR, 9.9, 8.1, 0.26, 0.40, SAMPLE, segs=56, rings=14)
 
     # Deck under the orb (rows 56-67) with the two red lenses in ring bezels.
     chbox(P, 5.0, 56.0, 35.6, 67.4, 0.0, 0.38, 1.0, BODY)
     chbox(P, 7.0, 57.6, 14.0, 66.0, 0.30, 0.42, 0.5, DARK)
-    for (c, r, rx, ry) in ((19.0, 63.2, 2.2, 2.7), (25.6, 63.0, 3.0, 3.2)):
-        ring_bezel(P, c, r, rx, ry, 0.9, 0.34, 0.45, LIGHT, segs=24)
-        dome(P, c, r, rx + 0.1, ry + 0.1, 0.36, 0.08, LENS, segs=24, rings=5)
+    # the eyes (QA M4): glowing domes on the sprite's own eye pixels (cols 16-19 / 22-27), their faces
+    # taking the sprite's red shades (red_glow), a bright core where the sprite's eye burns
+    for (c, r, rx, ry) in ((18.3, 63.7, 2.2, 2.4), (25.1, 63.3, 3.0, 3.3)):
+        ring_bezel(P, c, r, rx, ry, 0.8, 0.34, 0.45, LIGHT, segs=28)
+        dome(P, c, r, rx + 0.1, ry + 0.1, 0.36, 0.13, SAMPLE, segs=28, rings=6)
     tube(P, (X(14.0), Y(58.4), 0.44), (X(33.0), Y(58.4), 0.44), 0.55 * PX, RAIL, sides=8)
 
     # The coil (columns 17-26, rows 67-84): a lying drum with glowing windings and clamp rings.
     cxc = X(21.5)
     tube(P, (cxc, Y(67.0), 0.30), (cxc, Y(84.2), 0.30), 3.5 * PX, BODY, sides=16, rz=1.4 * PX,
          flange=(3.9 * PX, 0.5 * PX))
-    for r0, r1 in ((68.6, 73.8), (76.6, 78.8), (79.8, 82.0)):
-        tube(P, (cxc, Y(r0), 0.30), (cxc, Y(r1), 0.30), 3.85 * PX, LENS, sides=16, rz=1.75 * PX)
-    for r in (74.4, 75.8, 83.0):
-        tube(P, (cxc, Y(r - 0.35), 0.30), (cxc, Y(r + 0.35), 0.30), 4.1 * PX, LIGHT, sides=16, rz=1.95 * PX)
-    for r in (68.0, 70.2):
-        tube(P, (X(13.0), Y(r), 0.42), (X(27.0), Y(r), 0.42), 0.6 * PX, RAIL, sides=8)
+    # the jaw (QA M4): the windings on the sprite's red rows (69, 71-74, 77-78, 80-81), glowing in its
+    # own red shades (red_glow: the hot 122 in row 72), grey clamp rings on its grey rows (68, 70, 76, 79)
+    for r0, r1 in ((68.8, 70.1), (70.9, 75.0), (76.9, 79.0), (79.9, 82.1)):
+        tube(P, (cxc, Y(r0), 0.30), (cxc, Y(r1), 0.30), 3.9 * PX, SAMPLE, sides=20, rz=1.8 * PX)
+    for r in (68.4, 70.5, 76.3, 79.45, 83.0):
+        tube(P, (cxc, Y(r - 0.38), 0.30), (cxc, Y(r + 0.38), 0.30), 4.15 * PX, LIGHT, sides=20, rz=1.97 * PX)
 
     # Pipes off to the left (rows 67, 70, 73) and one down the right side (column 29).
     tube(P, (X(5.6), Y(67.2), 0.32), (X(11.0), Y(67.2), 0.32), 1.0 * PX, BODY, sides=10, flange=(1.4 * PX, 0.8 * PX))
@@ -492,7 +500,72 @@ def machine(coll):
         chbox(P, 1.0, r - 0.6, 5.4 if r > 80 else 9.6, r + 0.6, 0.28, 0.36, 0.3, MID, chz=0.02)
     for v in P.bm.verts:  # the machine stands taller than the flat sketch: about 9 px at the orb
         v.co.z *= MZ
+    red_glow(P, SAMPLE)
     return P.obj(coll, sharp=35)
+
+
+def red_field():
+    """The sprite's red ramp (112-127) over the machine, as a smooth field: red pixels keep their
+    index, the dark ink inside the red parts (1-3) counts as 112, and the rest takes the nearest red
+    (a few dilation steps), blurred (sigma 0.35 px) so the bands follow contours, not pixel squares."""
+    import numpy as np
+    a = np.array(IDX)
+    red = (a >= 112) & (a <= 127)
+    val = np.where(red, a, np.where((a >= 1) & (a <= 3), 112, 0)).astype(float)
+    known = val > 0
+    for _ in range(6):
+        pad, pm = np.pad(val, 1), np.pad(known, 1)
+        acc = np.zeros_like(val)
+        cnt = np.zeros_like(val)
+        for dr in (-1, 0, 1):
+            for dc in (-1, 0, 1):
+                acc += pad[1 + dr:1 + dr + H, 1 + dc:1 + dc + W] * pm[1 + dr:1 + dr + H, 1 + dc:1 + dc + W]
+                cnt += pm[1 + dr:1 + dr + H, 1 + dc:1 + dc + W]
+        val = np.where(known, val, np.where(cnt > 0, acc / np.maximum(cnt, 1), 0.0))
+        known = val > 0
+    val = np.where(known, val, 114.0)
+    k = np.arange(-2, 3)
+    g = np.exp(-(k ** 2) / (2 * 0.35 ** 2))
+    g /= g.sum()
+    val = np.apply_along_axis(lambda r: np.convolve(r, g, mode="same"), 1, np.pad(val, ((0, 0), (2, 2)), mode="edge"))[:, 2:-2]
+    val = np.apply_along_axis(lambda c: np.convolve(c, g, mode="same"), 0, np.pad(val, ((2, 2), (0, 0)), mode="edge"))[2:-2, :]
+    return val
+
+
+def red_glow(P, placeholder):
+    """Every face on `placeholder` takes the glow of the sprite's red shade under its centre
+    (bilinear in red_field), so the orb's swirl, the eyes' hot cores and the coil's lit windings are
+    the sprite's own reds, as faces of the parts' meshes (no decals)."""
+    field = red_field()
+    k = P.slot(placeholder)
+
+    def at(u, v):
+        x, y = u - 0.5, v - 0.5
+        x0, y0 = int(math.floor(x)), int(math.floor(y))
+        fx, fy = x - x0, y - y0
+        acc = 0.0
+        for dy, wy in ((0, 1 - fy), (1, fy)):
+            for dx, wx in ((0, 1 - fx), (1, fx)):
+                r, c = min(max(y0 + dy, 0), H - 1), min(max(x0 + dx, 0), W - 1)
+                acc += wy * wx * field[r, c]
+        return acc
+
+    used = {}
+    for f in P.bm.faces:
+        if f.material_index != k:
+            continue
+        c = f.calc_center_median()
+        i = int(round(min(max(at(c.x / PX + W / 2, H / 2 - c.y / PX), 112), 127)))
+        if i not in used:
+            used[i] = P.slot(mat(i, "rglow"))
+        f.material_index = used[i]
+    # drop the placeholder slot when no face is left on it
+    if not any(f.material_index == k for f in P.bm.faces):
+        P.mats.pop(k)
+        for f in P.bm.faces:
+            if f.material_index > k:
+                f.material_index -= 1
+    print(f"{NAME}: red glow shades {sorted(used)}")
 
 
 # --- the boulders ----------------------------------------------------------------------------------------
@@ -500,12 +573,12 @@ def machine(coll):
 STONE_BASE = {
     "metallic": 0.0, "roughness": 0.9, "rise": 0.7, "fall": 0.8, "summit_gain": 0.06, "summit_r": 2.4,
     "ridges": [], "valleys": [], "tilt": 0.0, "lumps": 0.02, "grow": 0.4, "smooth": 1, "steps": 48,
-    "waist": 0.0, "fine": 4, "fine_depth": (0.03, 0.05), "rim_spalls": 6, "rim_depth": (0.02, 0.035),
+    "waist": 0.0, "fine": 1, "fine_depth": (0.03, 0.05), "rim_spalls": 3, "rim_depth": (0.02, 0.035),
     "top_pow": 0.55, "bot_pow": 0.85,
 }
 CUTS = [(160, 78, 0.10), (20, 74, 0.08), (150, 46, 0.16), (205, 40, 0.13), (110, 52, 0.12),
         (245, 50, 0.12), (10, 44, 0.15), (60, 50, 0.12), (330, 42, 0.14), (290, 56, 0.12)]
-RAMP = {"bias": 0.0}
+RAMP = {"bias": 0.0, "angle": 28.0, "size": 8.0, "sprite": 0.35}  # QA M4: broad, clean faces along the stone's own ramp
 
 
 class StoneGrid(R.Grid):
@@ -580,7 +653,7 @@ def build_stone(s, own, coll):
     sectors = max(12, min(22, int(1.8 * math.sqrt(area))))
     bm, _ = R.rock_body(g, spec, sectors=sectors, rings_top=5, rings_bot=2)
     R.cut_planes(bm, spec["cuts"] + R.fine_cuts(spec))
-    R.chip_planes(bm, 3.0)
+    R.chip_planes(bm, 6.0)
     bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=1e-5)
     bmesh.ops.dissolve_degenerate(bm, edges=bm.edges[:], dist=1e-5)
     bmesh.ops.translate(bm, vec=(0, 0, waist), verts=bm.verts)

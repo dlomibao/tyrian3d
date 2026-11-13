@@ -9803,3 +9803,37 @@ and per-channel means, main `90723e11` against this branch, same captures):
   mark each but changes D169's tuned look; for the user.
 - The flat sprite art (shots, pickups) under `JE_filterScreen` still takes `16 + round(15 x luminance)`.
 - What remains of CAMANIS's gap is the 3D's brightness (floor 1.33), the pending lighting decision.
+## D194 — Episode-3 QA model fixes: GAUNTLET/MACES bunker ball, GAUNTLET steel balls, rock fortress lamps, IXMUCANE boss furnace and eyes, New Deli boss eyes and flames (E3 QA M1-M5; follows D176, D190, D192)
+
+**Date:** 2026-11-13
+
+**Context:** the Episode 3 QA sweep (`tyrian-scratch/e3-qa/REPORT.md`) listed five medium model issues. All five went through `tools/workflows/fix-round.js` (fix, strict review, Opus on the last fix; `tyrian-scratch/e3-qa-models/`). All five ship at the first review.
+
+**Decision:**
+- **M1, bunker `assembly-newsha-121`** (7/10, whole-assembly IoU 0.9991).
+  - The turret is now a solid satin gunmetal ball at the sprite's centre and size (R 7.0 px), standing proud of the well. It was a small glassy lens.
+  - One polished patch with a clear coat and Specular IOR Level makes the sheen spot.
+  - The outline shell comes from a sealed copy without the ball, so the deck carries no ink rings.
+  - Ball luma in game is 68-70 against the original's 66.5.
+- **M2, steel balls `newshm-115`** (7.2/10, grid IoU 1.0).
+  - Polished steel: in-game 99th-percentile luma went from 148 to 249 (original 253). Pixels above 200 make up 7.0% against the original's 6.7%.
+  - The highlight positions came from a mirror-sphere probe of the game's lights.
+- **M3, rock fortress `assembly-newsh8-243`** (7/10, IoU 0.9822).
+  - The pillar lamps are domed glass lenses with 9 glow zones per frame (D126/D173), taken from the sprite's lamp frames.
+  - The lower pillars keep the sprite's reds.
+  - The piece seams are closed.
+  - The grey-blue bar across IXMUCANE's fortress is another model, the rocket `newsh8-191`, not this one.
+- **M4, IXMUCANE boss** (`assembly-newshr-273`/`-267`, furnace `assembly-newshr-169`; 7/10, IoU 0.959).
+  - The furnace `newshr-167` is a polar-mesh fire ball built from the sprite's own heat. It has 10 glow bands animated across its four frames, and its relief only sinks so it stays under the heap's top (D181's cover lift).
+  - The machine's eyes glow.
+  - The boulders use the facet ramp's broad faces.
+- **M5, New Deli boss `assembly-newsht-39`** (7/10, IoU 0.9969).
+  - The eye pods are passive dark glass sensor balls (`enemy_behaviour`: no turret), each one big glossy ball with its sheen from the game light (D176).
+  - The dark central block and the exhaust flames (glow) are rebuilt.
+  - The model is shared with 1.5 DELIANI and 4.1 HARVEST. The coordinator checked DELIANI t5300 against the original after the change: it reads correctly.
+
+**Options considered:** a second round for polish, such as M1's highlight, which is smaller and dimmer than the sprite's 3x3 px spot. Not taken: every item cleared the lean bar on the first review, and the remaining notes are polish.
+
+**Review:** GAUNTLET t300/t1800, MACES t300, IXMUCANE t1800/t5727, New Deli t5550 and DELIANI t5300, each with `&compare=1`.
+
+**Cost:** fix-round workflow, 10 agents, about 1.4M subagent tokens, about 40 min.

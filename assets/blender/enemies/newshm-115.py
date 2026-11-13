@@ -18,21 +18,23 @@ levels across episodes 1 and 3):
 
 Design: one continuous polished ball (a single closed lon/lat surface). Eight faint hairline gore
 seams (0.15 px wide, 0.03 deep, the gores' own pal 57) run from a hairline groove over the belt up to
-a plain crown (no hatch: the top view reads as a smooth ball). The equatorial belt is the ball's own
+a plain crown (no hatch: the top view reads as a smooth ball; 4.6 px across in plan, so no seam
+crosses the sheen). The equatorial belt is the ball's own
 surface raised 0.10 px with rounded shoulders, so the plan outline stays a smooth circle; its eight
 joints are short grooves on its upper and lower halves that leave the equator whole, with a low hex
 bolt each side of every joint on the upper half. The underside is plain (no detail, by design).
 
 Colours (median palette index per region, the ring and >= 61 highlights left out as lighting):
-belt 55, gores/crown/seams 57, belt joints 54, bolts 57, lower 57. Satin steel (roughness 0.66,
-metallic 0.35 of the parts' own) with one polished, clear-coated patch (0.20, coat 0.22, 26 degrees
-round the sheen direction) where the sprite draws its sheen, so in game one clear white sheen sits at
-the upper left instead of the four lobes a uniform roughness gives. Tuned at game scale (MINES,
-tick 1640): coat 0.32 / patch 27 degrees read matte, coat 0.18 / 34 degrees split into wet glints
-(see the SHEEN constants).
+belt 55, gores/crown/seams 57, belt joints 54, bolts 57, lower 57. Polished steel (E3 QA M2, see the
+SHEEN constants): satin (roughness 0.64, F0 4%) except two polished patches with an F0 up to 1
+(Specular IOR Level x a Specular Tint map, D176) and a light clear coat: the sheen at the upper left
+(roughness 0.44), which gathers the game's overhead panel, sun and left panels into one soft white
+spot, and a crescent along the lower-right silhouette (0.24) that catches the lit room at grazing
+angles. Measured at GAUNTLET t1800 (tilted camera): per-ball 99th-percentile luma 242 (was 125;
+the original 253), 7.0% of ball pixels above 200 (original 6.7%).
 
 Texture: no concept projection; an ambient occlusion / roughness bake only (usp_talon.bake_maps,
-the sheen patch added to its roughness map, and a clear-coat weight map),
+the patches added to its roughness map, a clear-coat weight map and the F0 map),
 Base Color = map x palette colour, so pal_<index>, fades and the hit flash still apply. An outline
 shell (common.outline_shell, D51).
 
@@ -69,7 +71,7 @@ RZ = 7.6                # the ball's vertical half-height
 BZ = 1.6                # the belt's half-height
 LAT_B = math.asin(BZ / RZ)            # the belt's edge
 SHOULDER = 0.07         # how far (radians) the belt's crown rounds down into the ball
-CAP_R = 1.9             # the polar hatch's plan radius (about 23% of the diameter), flush
+CAP_R = 4.6             # the plain crown's plan radius: the gore seams stop short of the sheen patch
 LAT_C = math.acos(CAP_R / RXB)
 W_SEAM = 0.15           # hairline groove width, px
 D_SEAM = 0.03           # hairline groove depth (shallow: a faint line, the ball reads smooth)
@@ -111,34 +113,57 @@ PULSE = {165: -5, 203: -3, 241: -2}
 TEXTURED = (BELT, GORE, CAP, SEAM, JOINT, BOLT, LOWER)
 TINT = (1.0, 0.93, 0.84)  # game capture: blue/red 3.3 vs the sprite's 2.6 untinted; this pulls it back
 METAL = 0.35
-# The sheen (game lighting: view.ts sun from the left and the camera's side, RoomEnvironment panels).
-# A sphere's highlights sit where the lights put them, and a uniform roughness gives the game's four
-# light lobes (0.40: lower centre, left, top, right; 0.52: none, satin). So the steel is satin
-# (R_HI) except a polished patch where the sprite draws its sheen, upper left as the tilted game
-# camera sees it (SHEEN_DIR, object space x right / y screen-up / z up), and a clear coat on that
-# patch makes the room's upper-left panels read as one broad white sheen. Roughness is baked into
-# the metallic-roughness map (aim_sheen), the coat into its own weight map (add_coat).
+# The sheen (E3 QA M2: with a 4% F0 and a satin patch the balls read as flat matte discs in GAUNTLET,
+# 99th-percentile luma 135 against the original's 252; F0 0.17 everywhere only washed the whole ball
+# pale). The game's lights (view.ts: the sun at SUN_POSITION, the RoomEnvironment panels at
+# environmentIntensity 0.7) seen in a mirror ball under the tilted camera (probe, GAUNTLET t1800):
+# the overhead panel and the sun just above the centre, the ceiling at the top, two small left panels at
+# (-0.45, 0.0..0.2), a right panel at (+0.6, +0.2), a front panel at (0, -0.45), and the lit room walls
+# all round the rim. Nothing catches the sprite's sheen (cluster centred at (-0.25, +0.29) of the
+# radius) on a sphere of one finish. So the steel is satin with a plain 4% F0 (R_HI, F_LO) except two
+# polished patches: the sheen, where a high F0 at roughness 0.24 gathers the overhead panel, the sun and
+# the left panels into one broad white spot at the upper left, and a band on the lower-right rim, where
+# the grazing reflection of the lit walls draws the sprite's bright crescent (rows 16-20). The F0 is
+# the lever (D176), graded per texel by a Specular Tint map under a raised Specular IOR Level (the
+# exporter writes KHR_materials_specular: specularColorFactor x specularColorTexture, so three.js's
+# F0 = 0.04 x factor x map). Roughness is baked into the metallic-roughness map (aim_sheen), a clear
+# coat on the patches into its own weight map (add_coat). Directions in object space (x right,
+# y screen-up, z up); a screen point (sx, sy) of the tilted camera is the normal
+# sx * x + sy * (0, 0.966, 0.259) + sqrt(1 - sx^2 - sy^2) * (0, -0.259, 0.966).
 ROUGH = 0.40            # the materials' base roughness (the bake adds occlusion and edge terms)
-R_LO, R_HI = 0.20, 0.66  # patch / elsewhere
-COAT, COAT_ROUGH = 1.0, 0.22
-SHEEN_PATCHES = [  # (direction, outer angle, inner angle, weight)
-    (Vector((-0.42, 0.10, 0.90)).normalized(), 26, 9, 1.0),
+R_HI = 0.64             # satin, off the patches
+F_LO, F_HI = 0.04, 1.0  # F0 off / at the heart of the patches
+SPEC = F_HI / 0.04 / 2  # Specular IOR Level: the patches' F0; the tint map scales it down elsewhere
+COAT, COAT_ROUGH = 0.6, 0.12
+SHEEN_PATCHES = [  # (direction, outer angle, inner angle, weight, roughness at the heart)
+    (Vector((-0.32, 0.04, 0.946)).normalized(), 25, 4, 1.0, 0.44),    # the upper-left sheen
 ]
+# The rim crescent: a band along the tilted camera's silhouette (n . VIEW from RIM_NV[0] down to
+# RIM_NV[1]) over the screen angles RIM_PHI +- RIM_HALF (degrees, 0 = right, -90 = down).
+VIEW = Vector((0.0, -0.259, 0.966))
+SCREEN_UP = Vector((0.0, 0.966, 0.259))
+RIM_PHI, RIM_HALF, RIM_SOFT = -40.0, 32.0, 16.0
+RIM_NV = (0.55, 0.30)
+RIM_W, RIM_ROUGH = 1.0, 0.24
 
 
 def materials(sprite):
     def pal(slot, tag, metallic, roughness):
         i = PAL_OF[slot]
-        return common.palette_material(sprite, i, f"ball115_{tag}", metallic=metallic * METAL, roughness=roughness,
-                                       frames={f: i + d for f, d in PULSE.items()})
+        m = common.palette_material(sprite, i, f"ball115_{tag}", metallic=metallic * METAL, roughness=roughness,
+                                    frames={f: i + d for f, d in PULSE.items()})
+        bsdf = next(n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+        bsdf.inputs["Specular IOR Level"].default_value = SPEC
+        bsdf.inputs["Specular Tint"].default_value = (F_LO / F_HI,) * 3 + (1.0,)  # off the patches (add_spec maps it)
+        return m
     return [
-        pal(BELT, "belt", 0.6, ROUGH),
-        pal(GORE, "gore", 0.6, ROUGH),
-        pal(CAP, "cap", 0.6, ROUGH),
-        pal(SEAM, "seam", 0.5, 0.4),
-        pal(JOINT, "joint", 0.5, 0.4),
-        pal(BOLT, "bolt", 0.7, 0.48),
-        pal(LOWER, "lower", 0.5, ROUGH),
+        pal(BELT, "belt", 0.4, ROUGH),
+        pal(GORE, "gore", 0.4, ROUGH),
+        pal(CAP, "cap", 0.4, ROUGH),
+        pal(SEAM, "seam", 0.4, 0.4),
+        pal(JOINT, "joint", 0.4, 0.4),
+        pal(BOLT, "bolt", 0.5, 0.48),
+        pal(LOWER, "lower", 0.4, ROUGH),
     ]
 
 
@@ -282,18 +307,28 @@ def _smooth(e0, e1, x):
     return t * t * (3 - 2 * t)
 
 
+def _patch_w(n, d, a0, a1, k):
+    return k * _smooth(math.cos(math.radians(a0)), math.cos(math.radians(a1)), n.dot(d))
+
+
+def rim_weight(n):
+    """The crescent: near the silhouette (n . VIEW small, still facing the camera), lower right."""
+    nv = n.dot(VIEW)
+    if nv < -0.05:
+        return 0.0
+    phi = math.degrees(math.atan2(n.dot(SCREEN_UP), n.x))
+    dphi = abs((phi - RIM_PHI + 180) % 360 - 180)
+    return RIM_W * _smooth(RIM_NV[0], RIM_NV[1], nv) * _smooth(RIM_HALF + RIM_SOFT, RIM_HALF, dphi)
+
+
 def sheen_weight(n):
-    w = 0.0
-    for d, a0, a1, k in SHEEN_PATCHES:
-        w = max(w, k * _smooth(math.cos(math.radians(a0)), math.cos(math.radians(a1)), n.dot(d)))
-    return w
+    return max([rim_weight(n)] + [_patch_w(n, d, a0, a1, k) for d, a0, a1, k, _ in SHEEN_PATCHES])
 
 
 def sheen_rough(n):
-    """Roughness by surface direction (object space: x right, y screen-up, z up): polished (R_LO) where
-    the sprite draws its sheen (upper left) and its rim crescent (lower right), satin (R_HI) elsewhere,
-    so of the game's lights only the ones reflected there read as highlights."""
-    return R_HI - (R_HI - R_LO) * sheen_weight(n)
+    """Roughness by surface direction: each patch's own at its heart, satin (R_HI) elsewhere."""
+    return min([R_HI - (R_HI - RIM_ROUGH) * rim_weight(n)]
+               + [R_HI - (R_HI - r) * _patch_w(n, d, a0, a1, k) for d, a0, a1, k, r in SHEEN_PATCHES])
 
 
 def aim_sheen(obj, img, out_dir):
@@ -308,12 +343,15 @@ def aim_sheen(obj, img, out_dir):
     me = obj.data
     me.calc_loop_triangles()
     uv = me.uv_layers["bake"].data
-    rot = obj.matrix_world.to_3x3()
-    corner_n = getattr(me, "corner_normals", None)
+    mw = obj.matrix_world
+    # The ball's own normal at each point (the ellipsoid's gradient, in finish()'s units), not the mesh's:
+    # the seam and joint grooves' slivers and walls then take the patch of the ball round them, so the
+    # sheen reads as one clean spot across a seam.
+    c0 = Vector((CX / 12, (14 - CY) / 12, CZ / 12))
+    k = Vector((1 / (RXB / 12) ** 2, 1 / (RYB / 12) ** 2, 1 / (RZ / 12) ** 2))
     for tri in me.loop_triangles:
         P = [Vector(uv[li].uv) * Vector((W, H)) for li in tri.loops]
-        N = [(rot @ (corner_n[li].vector if corner_n is not None else me.loops[li].normal)).normalized()
-             for li in tri.loops]
+        N = [mw @ me.vertices[me.loops[li].vertex_index].co - c0 for li in tri.loops]
         x0, x1 = int(max(0, min(p.x for p in P) - 1)), int(min(W - 1, max(p.x for p in P) + 1))
         y0, y1 = int(max(0, min(p.y for p in P) - 1)), int(min(H - 1, max(p.y for p in P) + 1))
         den = (P[1].y - P[2].y) * (P[0].x - P[2].x) + (P[2].x - P[1].x) * (P[0].y - P[2].y)
@@ -327,7 +365,8 @@ def aim_sheen(obj, img, out_dir):
                 c = 1 - a - b
                 if min(a, b, c) < -0.02:
                     continue
-                n = (N[0] * a + N[1] * b + N[2] * c).normalized()
+                q = N[0] * a + N[1] * b + N[2] * c
+                n = Vector((q.x * k.x, q.y * k.y, q.z * k.z)).normalized()
                 delta[yy, xx] = sheen_rough(n) - ROUGH
                 coat_w[yy, xx] = sheen_weight(n)
                 have[yy, xx] = True
@@ -351,6 +390,7 @@ def aim_sheen(obj, img, out_dir):
     img.save()
     if COAT > 0:
         add_coat(obj, coat_w, out_dir)
+    add_spec(obj, coat_w, out_dir)
 
 
 def add_coat(obj, w, out_dir):
@@ -379,6 +419,34 @@ def add_coat(obj, w, out_dir):
         nt.links.new(t.outputs["Color"], sep.inputs[0])
         nt.links.new(sep.outputs[0], bsdf.inputs["Coat Weight"])
         bsdf.inputs["Coat Roughness"].default_value = COAT_ROUGH
+
+
+def add_spec(obj, w, out_dir):
+    """The F0 map (Specular Tint, sRGB as glTF's specularColorTexture is): F_LO / F_HI off the patches,
+    1 at their heart, so only the patches reflect the lights brightly (SPEC sets F_HI)."""
+    import numpy as np
+    H, W = w.shape
+    img = bpy.data.images.new("ball115_spec", W, H, alpha=False)
+    img.colorspace_settings.name = "sRGB"
+    f = F_LO / F_HI + (1 - F_LO / F_HI) * np.clip(w, 0, 1)
+    srgb = np.where(f <= 0.0031308, f * 12.92, 1.055 * np.power(f, 1 / 2.4) - 0.055)
+    px = np.zeros((H, W, 4), np.float32)
+    px[..., 0] = px[..., 1] = px[..., 2] = srgb
+    px[..., 3] = 1
+    img.pixels[:] = px.ravel()
+    img.update()
+    img.filepath_raw = str(Path(out_dir) / "ball115_spec.png")
+    img.file_format = "PNG"
+    img.save()
+    for m in obj.data.materials:
+        nt = m.node_tree
+        bsdf = next(n for n in nt.nodes if n.type == "BSDF_PRINCIPLED")
+        uvn = nt.nodes.new("ShaderNodeUVMap")
+        uvn.uv_map = "bake"
+        t = nt.nodes.new("ShaderNodeTexImage")
+        t.image = img
+        nt.links.new(uvn.outputs["UV"], t.inputs["Vector"])
+        nt.links.new(t.outputs["Color"], bsdf.inputs["Specular Tint"])
 
 
 def main():
