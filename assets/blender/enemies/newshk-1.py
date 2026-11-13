@@ -11,6 +11,14 @@ six shapes, one model each, and each model animates its details (DECISIONS.md D1
   newshk-1-f4  cannon down-left (77, 83)       newshk-1-f5  cannon down (79, 85)
   newshk-1-f6  cannon down-right (81, 87)
 
+The boulder is pale blue-grey speckled stone: the facet ramp (D175, D178: lib_newshd_rock.facet_ramp)
+breaks it into small flat facets, each one shade of the sprite's blue-grey ramp (99-111), ranked by
+how squarely they face the art's light and by the sprite's brightness under them and matched to the
+sprite's own shade distribution, so its near-white highlights land on the facets the sprite lights,
+its darker speckle and limb on the rest (one pale 109 all over read about 80 % near-white against
+the sprite's 29 %). The same boulder in every variant (the ramp only shades the rock's own faces),
+D90's outline shell round each variant's whole shape.
+
 Animation: the bare boulder's orange glint runs round its rim (upper left on 1, top on 3, upper
 right on 5, none on 7-11), each glint a frame part; the pods flash at the muzzle on their first
 frame (39, 43); the cannons' fireballs glow hot on their first frame and dim to dark red on the
@@ -30,6 +38,7 @@ from mathutils import Vector, noise
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import lib_b032 as lib  # noqa: E402
+import lib_newshd_rock as R  # noqa: E402
 
 common = lib.common
 NAME = "newshk-1"
@@ -38,6 +47,10 @@ X, Y, PX = lib.X, lib.Y, lib.PX
 
 BALL_C, BALL_R = 13.0, 12.0  # boulder centre (column, row) and radii below
 RX, RY, RZ = 9.6 * PX, 8.7 * PX, 0.3
+# The facet ramp (lib_newshd_rock.facet_ramp, D175) on the boulder: its faces are material 0 (109).
+# `bias` 0.06: the game's sun lights the broad crown well, so at 0 it put half again the sprite's
+# near-white share on screen (as on assembly-newshd-45, D175).
+SPEC = {"mid": 109, "metallic": 0.1, "roughness": 0.85, "ramp": {"bias": 0.12, "size": 1.2}}
 
 # The cannons' fireballs on their second frame: (frame, outer glow index, hot heart index).
 FIRE_DIM = {"downleft": (83, 115, 120), "down": (85, 113, 118), "downright": (87, 114, 119)}
@@ -57,8 +70,16 @@ VARIANTS = [  # (model name, frames, gun)
 
 
 def boulder(bm, mat):
-    """A slightly lumpy squashed ball."""
-    verts = lib.ellipsoid(bm, (X(BALL_C), Y(BALL_R), 0.0), (RX, RY, RZ), mat=mat, segments=18, rings=10)
+    """A slightly lumpy squashed ball: an icosphere (no pole fan, so the facet ramp's chips come out
+    irregular; faces about 1.2 px)."""
+    bm.faces.ensure_lookup_table()
+    before = len(bm.faces)
+    verts = bmesh.ops.create_icosphere(bm, subdivisions=3, radius=1.0)["verts"]
+    for v in verts:
+        v.co = Vector((X(BALL_C) + v.co.x * RX, Y(BALL_R) + v.co.y * RY, v.co.z * RZ))
+    bm.faces.ensure_lookup_table()
+    for f in bm.faces[before:]:
+        f.material_index = mat
     for v in verts:
         n = noise.noise(Vector((v.co.x * 3.1 + 7.3, v.co.y * 3.1 - 2.1, v.co.z * 3.1 + 0.7)))
         k = 1 + 0.08 * n
@@ -70,7 +91,7 @@ def boulder(bm, mat):
 def pod(bm, side, PIPE, DARK, RIM):
     """A short grey gun pod out of the boulder's side (columns 2-4 or 20-22, rows 8-15)."""
     s = -1 if side == "left" else 1
-    c_out = 1.6 if s < 0 else 23.1  # pixel centre of the muzzle face's column edge
+    c_out = 1.6 if s < 0 else 22.5  # muzzle face column (pixel centre); the right pod ends at column 22
     x_out, x_in = X(c_out), X(BALL_C + s * 4)
     y = Y(11.6)
     path = [(x_in, y, 0.0, 3.6 * PX, 0.17), (X(c_out - s * 1.0), y, 0.0, 4.0 * PX, 0.19),
@@ -126,16 +147,6 @@ def flash(bm, side, GLOW, HOT):
     lib.ellipsoid(bm, (X(c + s * 0.35), Y(12.0), 0.0), (0.9 * PX, 1.3 * PX, 0.08), mat=HOT, segments=10, rings=5)
 
 
-def flecks(bm, mat):
-    """Darker pits speckling the boulder's top."""
-    for c, r, rad in [(9.5, 8.5, 1.6), (15.5, 7.0, 1.4), (12.5, 13.5, 1.5), (17.5, 13.0, 1.7),
-                      (7.5, 13.5, 1.3), (11.0, 17.5, 1.4), (19.0, 9.5, 1.2)]:
-        x, y = X(c), Y(r)
-        u = ((x - X(BALL_C)) / RX) ** 2 + ((y - Y(BALL_R)) / RY) ** 2
-        z = RZ * math.sqrt(max(0.0, 1 - u))
-        lib.ellipsoid(bm, (x, y, z - 0.012), (rad * PX, rad * PX, 0.02), mat=mat, segments=8, rings=4)
-
-
 def build(sprite, name, gun):
     """The variant's objects: the boulder (with its gun) and its frame parts."""
     coll = common.reset_collection(name)
@@ -147,16 +158,14 @@ def build(sprite, name, gun):
         pal(13, metallic=0.6, roughness=0.3),  # 3 light grey band
         pal(122, emission_strength=4.0),  # 4 glowing fireball
         pal(126, emission_strength=6.0),  # 5 its white-hot heart
-        pal(107, metallic=0.1, roughness=0.9),  # 6 darker pits
     ]
     if gun in FIRE_DIM:  # the fireball dims on the second frame
         f, glow, hot = FIRE_DIM[gun]
         mats[4] = pal(122, f"{name}-fire", emission_strength=4.0, frames={f: glow})
         mats[5] = pal(126, f"{name}-fire", emission_strength=6.0, frames={f: hot})
-    ROCK, PIPE, DARK, RIM, GLOW, HOT, PIT = range(7)
+    ROCK, PIPE, DARK, RIM, GLOW, HOT = range(6)
     bm = bmesh.new()
     boulder(bm, ROCK)
-    flecks(bm, PIT)
     if gun in ("left", "right"):
         pod(bm, gun, PIPE, DARK, RIM)
     elif gun == "down":
@@ -165,7 +174,12 @@ def build(sprite, name, gun):
         cannon(bm, (5.6, 18.4), PIPE, DARK, GLOW, HOT)
     elif gun == "downright":
         cannon(bm, (20.6, 18.0), PIPE, DARK, GLOW, HOT)
-    objs = [lib.to_object(name, bm, mats, coll)]
+    bmesh.ops.triangulate(bm, faces=bm.faces[:])
+    rock = lib.to_object(name, bm, mats, coll)
+    # The boulder's speckle and range: the facet ramp on its faces (material 0), the sprite's bare
+    # frame (1) as the reference, so every variant's boulder comes out the same.
+    R.facet_ramp(sprite, R.Grid(sprite, NAME), rock, SPEC)
+    objs = [rock, R.d90_shell(rock, coll, name)]
     fx = [pal(119, emission_strength=4.0), pal(123, emission_strength=4.0), mats[5]]
     if gun is None:
         for frame, a0, a1 in GLINTS:

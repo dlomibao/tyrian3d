@@ -8345,3 +8345,64 @@ blunt points. Match it to D170's `assembly-newsh0-79`, and consider building the
 **Cost:** 87 agents (1 scout, 7 blueprints, 20 designs, 7 judges, 13 finishes on Sonnet, 13 fixes, 26 reviews),
 11.5M subagent tokens, about 3.0 h of run time; then `fix-round.js` on `assembly-newsh0-91`: 4 agents (2 fixes, 2
 reviews), 0.50M tokens, 30 min, still failing. Sheets: `tyrian-scratch/e2-enemies-2/<item>/final/` (not in git, D3).
+## D178 — Rock contrast, round 2: the facet ramp on four rocks from other builders (newsh8-102, newshr-190, newsh3-262, newshk-1); a smooth-normals option for a smooth sprite (follows D175; art rule 2)
+
+2026-11-12
+
+D175's follow-ups: four rocks on their own builders still read flat (or, newshk-1, too bright) next to their
+sprites. Measured as D175 did: luminance inside the ink ring in the game's renderer (the `?debug=models` bench under
+the game's lights, overhead camera; in level with `&compare=1&camera=overhead`, the model's pixels found by rendering
+the frame with and without it). p5-p95 spread, share >= 190 "hi", share <= 64 "sh", shade levels (16-wide bins
+>= 2 %).
+
+**What they are** (`tools/enemy_behaviour.mjs`): `newsh8-102` an egg-shaped red stone that the red rockets
+(`assembly-newsh8-125` lying, `-191` standing) drop every 10 / 30 ticks in IXMUCANE / SAWBLADES; it stays where it
+falls (still, armour 20, no guns). Its sprite is a smooth lit dome, no breaks. `newshr-190` a small tan rock falling
+through SAWBLADES / IXMUCANE (random spawns, 2-11 px/tick, armour 2). `newsh3-262` the upper-right shoulder of the
+DESERTRUN / SURFACE rock arch, a terrain-fixed piece stacked with `assembly-newsh3-198` and `newsh3-282`. `newshk-1`
+the CAMANIS rock gun: a speckled blue-grey boulder that opens to fire, flying (six models over 16 frames).
+
+**Cause:** the same as D125's: one material (pal_72, pal_23, pal_109) or a softened tone map with the darks lifted,
+so lighting alone had to make the range; newshk-1's one pal_109 (luminance 197) put 80 % of it near-white.
+
+**Decision:** each script keeps its own geometry and calls `lib_newshd_rock.facet_ramp` (imported, not copied), with
+`lib_newshd_rock.Grid` for the sprite grid (all four are centred on their sprite) and `d90_shell` (new: D90's shell
+from a closed copy) where the model had no shell.
+- `newsh8-102`: the egg's waist now follows the sprite's inner mask (`Grid.outline`, as D125's asteroids; its old
+  ellipse sat a row high and failed the IoU rule, grid 0.89). An icosphere, smooth. The sprite draws no breaks, so
+  flat 1.5-2 px facets read as a cut gem in game: the ramp's facets are single triangles (`angle` 4, `size` 0.6)
+  ranked mostly by the art's light (`sprite` 0.25; ranked by the sprite's pixels they made a mottle) on the mesh's own
+  smooth normals: new `RAMP["flat"]` (default True; False keeps the normals). Roughness 0.45, metallic 0. Shell.
+- `newshr-190`: the ramp at the defaults with `bias` 0.08 (at 0 the lit crown read past the sprite's top, p95 171 vs
+  148). The stone's matte Specular IOR Level 0.15 now applies to every ramp material. Shell.
+- `newsh3-262`: the ramp replaces the softened tone map, `bias` 0.1 (at 0 the game's sun over-lit the crest, p95
+  146 vs 116). **No shell:** the piece is cut square where the arch runs on into its neighbours, and a shell's ink
+  drew a seam across the arch's leg there; like the arch's pieces it keeps the game's own outline.
+- `newshk-1`: the boulder is an icosphere (the UV sphere's pole fan showed as a star of facets), the ramp on its
+  faces only (`bias` 0.12, `size` 1.2), the sprite's bare frame as the reference, so all six models share one boulder;
+  the seven embedded "pit" lumps are gone (the ramp carries the speckle). The right gun pod pulled in 0.6 px (it ran
+  into column 23 on frame 49: grid 0.947 before). Shell round each model's whole shape.
+- No other change: export paths, frames and spriteModels entries unchanged; view.ts untouched (D175).
+
+**Result** (bench, game lights; sprite / before / after):
+
+| Model | spread | hi | sh | levels | grid IoU (every frame) |
+|---|---|---|---|---|---|
+| newsh8-102 | 179 / 77 / 176 | .08 / .00 / .09 | .59 / .01 / .38 | 13 / 7 / 13 | 0.9909 (before 0.8898) |
+| newshr-190 | 110 / 47 / 111 | .00 / .00 / .00 | .49 / .01 / .36 | 8 / 4 / 9 | 1.0 |
+| newsh3-262 | 89 / 78 / 100 | .00 / .00 / .00 | .62 / .17 / .33 | 7 / 7 / 9 | 0.9533 (unchanged) |
+| newshk-1 (bare) | 179 / 105 / 182 | .29 / .80 / .34 | .12 / .02 / .16 | 11 / 7 / 13 | 0.9516-0.9774 (before 0.9474-0.9848) |
+
+In level (original / before / after): newsh8-102 in IXMUCANE spread 182 / 125 / 188, hi .08 / .00 / .12, sh .59 / .25
+/ .38; newsh3-262 in DESERTRUN 89 / 84 / 99, sh .62 / .21 / .35; newshk-1 in CAMANIS 179 / 142 / 182, hi .29 / .68
+/ .36 (mean luminance at t920 146 / 201 / 154). newshr-190 enters SAWBLADES at the top and the bot shoots it within a few ticks,
+so it has bench numbers only. Summary (bench crops, histograms, in-level crops): `tyrian-scratch/rock-contrast-2/summary.png`
+(not in git, D3).
+
+**Open:** the sprites' share <= 64 stays out of reach on all four (.33-.38 against .49-.62): their mid-tones sit just
+under 64 and the game's light lifts a lit mid past it; darkening further with `bias` cost newsh8-102 its highlight
+(hi .01 at 0.08). newsh3-262's darkest facets (p5 14-16) are darker than the sprite's (27). newshk-1's variants with a
+gun keep slightly more near-white than the bare frame (.36-.37).
+
+**Cost:** one Opus agent, no workflow, no Gemini: about 45 headless captures (two at a time) and about 20 Blender build
+rounds of the four scripts (`-j 2`).

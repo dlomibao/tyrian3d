@@ -44,6 +44,9 @@ A model script gives a SPEC (keys below) and calls `main(NAME, SPEC)`:
     bake_with_copy  True only for newshd-95: its shell's source copy stays in the scene during the
                  bake, as D121 built it (the coincident copy darkens its AO about 12%)
 
+Other rock builders reuse its facet ramp (facet_ramp, Grid, radius_at) and d90_shell: newsh8-102,
+newshr-190, newsh3-262 and newshk-1 (D178).
+
 build-models.sh skips lib_ files; the model scripts import this next to them.
 
     blender -b --factory-startup -P assets/blender/enemies/<name>.py -- [--no-bake] [--out file.glb]
@@ -398,8 +401,9 @@ ART_LIGHT = Vector((-1.0, 1.0, 1.4)).normalized()
 #: and, by `sprite` (0..1), by how bright the sprite is under it seen from above; the ranks matched
 #: to the sprite's own shade distribution over the top view. `strength` < 1 pulls the shades toward
 #: the median one; `bias` shifts the match darker, for broad stones the game's sun lights well
-#: (assembly-newshd-45: 0.06).
-RAMP = {"angle": 12.0, "size": 1.5, "chip": 2.0, "strength": 1.0, "bias": 0.0, "sprite": 0.6}
+#: (assembly-newshd-45: 0.06). `flat` False keeps the mesh's own normals (a smooth stone whose sprite
+#: draws no breaks, newsh8-102, D178: the shades alone carry the range).
+RAMP = {"angle": 12.0, "size": 1.5, "chip": 2.0, "strength": 1.0, "bias": 0.0, "sprite": 0.6, "flat": True}
 
 
 def _lum(rgb):
@@ -554,7 +558,7 @@ def facet_ramp(sprite, g, obj, spec, faces=None, mid=None, slot=0, flat=None):
             attr.data[k].vector = normal[rid]
             if flat is not None:
                 flat[k] = tuple(normal[rid])
-    if flat is None:
+    if flat is None and cfg["flat"]:
         set_facet_normals(obj)
     print(f"{obj.name}: {len(regions)} facets, shades {sorted(set(pick.values()))}")
 
@@ -575,6 +579,19 @@ def set_facet_normals(obj, flat=None):
         n = flat.get(p.index)
         normals.extend([n] * p.loop_total if n else old[p.loop_start:p.loop_start + p.loop_total])
     me.normals_split_custom_set(normals)
+
+
+def d90_shell(obj, coll, name, **kw):
+    """D90's outline shell (D51) for a facet-ramped rock built on another builder (D178): made from a
+    closed copy of `obj`, so the facets' split normals never break the game's ink into whiskers.
+    `kw` overrides D90_SHELL's keywords."""
+    closed = obj.copy()
+    closed.data = obj.data.copy()
+    coll.objects.link(closed)
+    shell = common.outline_shell(closed, coll, **dict(D90_SHELL, **kw))
+    shell.name = shell.data.name = f"{name}_outline"
+    bpy.data.objects.remove(closed)
+    return shell
 
 
 def main(name, spec, paint=None, parts=None, shell_extra=None):

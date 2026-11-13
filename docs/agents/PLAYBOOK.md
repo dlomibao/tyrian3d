@@ -112,6 +112,9 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
   | Wrinkled "tinfoil" surface | Concept projection bake: remove it, `"bake": "model"` (D50, D65). |
   | A slope that should be in shade reads lit | Sections too shallow to self-shade under the sun: put the sprite's darker indices on it by plan row (D176). |
   | Polished grey reads matte and dark | Roughness/coat barely move it: raise F0 with Specular IOR Level (exported as KHR_materials_specular; a bare IOR is dropped) (D176). |
+  | Rock reads flat next to its sprite (one mid-tone; no highlights, no dark limb) | `lib_newshd_rock.facet_ramp` on any builder: facets get the sprite's own shades, ranked by light and sprite brightness, matched to its distribution; `bias` when the game's sun over-lights the crown (D175, D178). |
+  | Facet ramp on a smooth sprite (an egg, an orb) reads as a cut gem | Single-triangle facets on smooth normals: `ramp` `flat: False`, small `angle`/`size`, `sprite` about 0.25 (D178). |
+  | Ink seam across a terrain-like piece where it runs on into its neighbours | No outline shell on a piece cut square at its tile edges; keep the game's own outline, as its neighbours do (newsh3-262, D178). |
   | Lava/glow pool reads as a grey-pink lid | A glow (D126) on a glossy dielectric shows only its reflection: give glow surfaces metallic 1, roughness about 0.9 (D173). |
   | Damaged/destroyed piece looks intact | The damaged frame (tyrian.hdt dGr) may have no spriteModels entry, so D87 draws the intact model: model that frame (D173). |
   | Outline boxy / tiered where the sprite is round | pchip plan curve fitted to the sprite mask (D52). |
