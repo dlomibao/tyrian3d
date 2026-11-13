@@ -71,4 +71,13 @@ describe("StructureInstances", () => {
     for (const m of drawn) expect(m.count).toBe(6);
     expect(structures.stats()).toEqual({ models: 1, instances: 6, parts: 2 });
   });
+
+  test("a model's heights are its colour parts' (not the outline shell's), for the blended sheets over it (D129, D188)", () => {
+    const structures = new StructureInstances();
+    expect(structures.heights("tile")).toBeNull();
+    structures.add("tile", structure(true));
+    const h = structures.heights("tile")!;
+    expect(h.low).toBeCloseTo(-0.25); // the deck, 0.5 tall round the origin
+    expect(h.high).toBeCloseTo(0.6); // the light's top on its node 0.5 up; the shell's 1.5 is left out
+  });
 });

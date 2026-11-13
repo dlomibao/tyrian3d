@@ -15,7 +15,7 @@
 // outline comes out smooth.
 
 import * as THREE from "three";
-import { WATER_ALPHA } from "../paletteMaterial";
+import { GROUND_SHEEN, WATER_ALPHA } from "../paletteMaterial";
 import type { PaletteTexture } from "../paletteTexture";
 import { SCREEN_HUE_PARS } from "../screenHue";
 import type { RemasterGroundAtlas } from "./groundAtlas";
@@ -80,6 +80,7 @@ varying float vPassY;
 ${SCREEN_HUE_PARS}
 float vScreenWater = 0.0;
 float texelCover = 1.0;
+float texelBlack = 0.0; // the ground's texel is index 0, black space (D188)
 ${blended ? `${HUE_BLEND_PARS}\nfloat hbUnder = 0.0; // the shade under this fragment, set first in main` : ""}
 // The palette colour of an atlas texel at the instance's pass height (0 for the ground, under every
 // smoothie). For blended sheets, texelCover is set to 0 for index 0 (see-through), and the colour is
@@ -91,7 +92,8 @@ vec3 groundTexel(ivec2 p) {
       ? `texelCover = index < 0.5 ? 0.0 : 1.0;
   float bank = floor(index / 16.0) * 16.0;
   return hbColor(bank, index - bank, hbUnder, vPassY, vScreenWater);`
-      : `index = screenHueIndex(index, vPassY, vScreenWater);
+      : `texelBlack = index < 0.5 ? 1.0 : 0.0;
+  index = screenHueIndex(index, vPassY, vScreenWater);
   return texture2D(paletteMap, vec2((index + 0.5) / 256.0, 0.5)).rgb;`
   }
 }`,
@@ -105,19 +107,21 @@ vec2 tp = vAtlasUv * vec2(textureSize(atlasMap, 0)) - 0.5;
 ivec2 t0 = ivec2(floor(tp));
 vec2 f = clamp((fract(tp) - 0.5) * sharpness + 0.5, 0.0, 1.0);
 vec3 c00 = groundTexel(t0);
-float a00 = texelCover;
+float a00 = texelCover, k00 = texelBlack;
 vec3 c10 = groundTexel(t0 + ivec2(1, 0));
-float a10 = texelCover;
+float a10 = texelCover, k10 = texelBlack;
 vec3 c01 = groundTexel(t0 + ivec2(0, 1));
-float a01 = texelCover;
+float a01 = texelCover, k01 = texelBlack;
 vec3 c11 = groundTexel(t0 + ivec2(1, 1));
-float a11 = texelCover;
+float a11 = texelCover, k11 = texelBlack;
 // Weights of the four texels; for blended sheets only covered texels lend their colour.
 float w00 = (1.0 - f.x) * (1.0 - f.y) * a00, w10 = f.x * (1.0 - f.y) * a10;
 float w01 = (1.0 - f.x) * f.y * a01, w11 = f.x * f.y * a11;
 float cover = w00 + w10 + w01 + w11;
 ${blended ? `if (cover < 0.02) discard;\ndiffuseColor.a = smoothstep(0.02, 0.6, cover);` : ""}
 vec3 mixed = (c00 * w00 + c10 * w10 + c01 * w01 + c11 * w11) / max(cover, 1e-4);
+// Black space (index 0) takes no sheen, in the same proportion as its colour (D188).
+float groundSheen = 1.0 - (k00 * w00 + k10 * w10 + k01 * w01 + k11 * w11) / max(cover, 1e-4);
 diffuseColor.rgb *= mixed;
 const vec3 LUMA = vec3(0.299, 0.587, 0.114);
 // A see-through texel takes the mixed brightness, so a sheet's outline adds no false relief.
@@ -136,6 +140,7 @@ normal = normalize((viewMatrix * vec4(normalize(vec3(-reliefSlope.x, 1.0, -relie
       "#include <opaque_fragment>",
       blended ? "#include <opaque_fragment>\ngl_FragColor.rgb = mixed;" : WATER_ALPHA,
     );
+    if (!blended) shader.fragmentShader = shader.fragmentShader.replace("#include <aomap_fragment>", GROUND_SHEEN);
   };
   material.customProgramCacheKey = () => (blended ? "palette-ground-remaster-blend" : "palette-ground-remaster");
   return material;

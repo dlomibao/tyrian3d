@@ -55,6 +55,9 @@ interface Model {
   /** [filters] The smoothie hue its colours were set for (-1: none), and the height it was placed at. */
   hue: number;
   height: number;
+  /** The model's lowest and highest y at scale 1 (above its origin), for the blended sheets (D129, D188). */
+  low: number;
+  high: number;
 }
 
 /** When a cell's cover part is drawn: while no ground enemy covers the cell, or while one does (D139). */
@@ -95,6 +98,7 @@ export class StructureInstances {
     const band = depthBandOf(source);
     const parts: Part[] = [];
     const helpers: THREE.Mesh[] = [];
+    const bounds = new THREE.Box3();
     source.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
@@ -105,6 +109,8 @@ export class StructureInstances {
       const tag = cellTag(mesh, source);
       const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
       const geometry = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);
+      geometry.computeBoundingBox();
+      bounds.union(geometry.boundingBox!);
       // A multi-material mesh becomes one part per group.
       const groups = Array.isArray(mesh.material) && geometry.groups.length > 0 ? geometry.groups : [{ start: 0, count: Infinity, materialIndex: 0 }];
       for (const g of groups) {
@@ -134,7 +140,14 @@ export class StructureInstances {
       h.geometry.dispose();
       for (const m of Array.isArray(h.material) ? h.material : [h.material]) m.dispose();
     }
-    this.models.set(name, { parts, rig: rigModel(source), count: 0, paletteVersion: -1, hue: -1, height: 0 });
+    const low = bounds.isEmpty() ? 0 : bounds.min.y, high = bounds.isEmpty() ? 0 : bounds.max.y;
+    this.models.set(name, { parts, rig: rigModel(source), count: 0, paletteVersion: -1, hue: -1, height: 0, low, high });
+  }
+
+  /** A loaded model's lowest and highest y at scale 1, or null if it isn't loaded. */
+  heights(name: string): { low: number; high: number } | null {
+    const m = this.models.get(name);
+    return m ? { low: m.low, high: m.high } : null;
   }
 
   /** A loaded model's instanced meshes (none if it isn't loaded), to compile ahead of its first draw (D91). */
