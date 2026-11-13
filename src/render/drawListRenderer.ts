@@ -69,6 +69,7 @@ import { TILE_MODELS, TileModelIndex } from "./remaster/tileModels";
 import { ScorchLayer, StructureMark } from "./remaster/scorchLayer";
 import { StructureInstances } from "./remaster/structureInstances";
 import { OpaqueCover, paintOutWreck } from "./remaster/opaqueCover";
+import { PaintedOver } from "./paintedOver";
 import { modelHeightFromUrl } from "./modelHeight";
 import { placeFlatQuad, SPRITE2X2_PARTS, spriteArtModeFromSearch, type FlatQuad, type ReadyFrame, type SpriteArt, type SpriteArtMode, type SpriteArtSheet } from "./spriteArt";
 import { ART_HUE_BLEND, SpriteArtLayer } from "./spriteArtLayer";
@@ -423,6 +424,8 @@ export class DrawListRenderer {
   private readonly shadowDecals = new ShadowDecals();
   /** This frame's placed models, by pass, screen box and height, for the blended sheets (D129). */
   private readonly placedExtents: PlacedExtent[] = [];
+  /** The draws of the tick that later opaque sprites paint over completely, left out (D183). */
+  private readonly paintedOver = new PaintedOver();
   /** Screen (x, y) of this frame's tiles that aren't black space, in pairs (overSpace, D181). */
   private readonly solidTiles: number[] = [];
   /** Background-1 tiles all index 0 (black space, D181), by tile id. */
@@ -595,6 +598,7 @@ export class DrawListRenderer {
   setDrawList(list: DrawList): void {
     this.list = list;
     this.items = list.items;
+    this.paintedOver.update(list.items);
     this.interp.push(list.items);
     this.fx?.tick(list.items, this.interp.prevX, this.interp.prevY);
     this.applyPalette(list);
@@ -831,6 +835,8 @@ export class DrawListRenderer {
       const d = items[i];
       switch (d.kind) {
         case "sprite2": {
+          // Painted over completely by later opaque sprites, it left nothing in the original (D183).
+          if (this.paintedOver.hides(i)) continue;
           const x = prevX[i] + (d.x - prevX[i]) * alpha;
           const y = prevY[i] + (d.y - prevY[i]) * alpha;
           if (d.effect === "darken") {
@@ -880,7 +886,7 @@ export class DrawListRenderer {
           break;
         }
         case "sprite": {
-          if (d.effect === "darken") continue;
+          if (d.effect === "darken" || this.paintedOver.hides(i)) continue;
           const geometry = this.cache.tableGeometry(d.table, d.index);
           if (!geometry) continue;
           const x = prevX[i] + (d.x - prevX[i]) * alpha;
