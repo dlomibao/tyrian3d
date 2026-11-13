@@ -8897,3 +8897,78 @@ lengths) against `opentyrian/src/tyrian2.c`:
 - The C behaves the same way. The length depends on which marked enemies the player kills; nothing was changed.
 
 **Cost:** one Opus agent, about 30 headless captures, two headless sim scans. No Gemini, no Blender.
+## D184 — `shapesx` HD terrain, E2 QA round 2: GRYPHON's layer-1 pipe band, GYGES's horn tips, five ground tiles and TORM's dark post painted from 11 Gemini sheets (follows D113, D180; E2 QA L6, M6)
+
+2026-11-13
+
+**Problem:** D180 left the tiles that had no painting anywhere. GRYPHON (2.6) drew 37 layer-1 tiles of its horizontal pipe
+band and elbows (6-8, 16-18, 27-29, 37-39, 124, 127, 132, 133, 136, 137, 142, 143, 146, 147, 153-155, 157, 158, 163, 164, 167,
+168, 170-172, 180-182) as extruded pixel tiles next to the HD hull (t300-2550). GYGES (2.2) did the same for the layer-2 horn
+tips 313 and 314. Five ground tiles fell back to the 4x MMPX ground: TORM 566/567 (the red wrecks), GRYPHON 111/127 and
+GYGES 86 (D113's weak tiles). QA M6: ground 539 (TORM's dark post, a ridged stalk with legs) had been painted as a faint
+ghost. So the posts read as ghosts at TORM t1800 and BONUS 2.12 t300.
+**Checked first** (the draw list, `tyrianHarness` instrumented as in D180): every one of these tiles is `shapesx.dat`, on the
+layers above. GYGES 76 (and GRYPHON 36) are one-colour black "empty" tiles. They miss the atlas by design and draw as the
+same black from the 4x ground. Not a miss, nothing painted.
+
+**Decision:** one Gemini round through the pipeline (`inventory`, `sheets --structures --recut 0:539`, Gemini, `cut`,
+`check`). The send set was picked by hand from what `sheets` made (`tyrian-scratch/e2-qa-terrain-2/bin/mkmanifest.py`):
+- **GRYPHON layer 1: five 7x6 map regions** (`region-l1-01..05`, 1:1) instead of `sheets`' six layer-1 context sheets.
+  `sheets` only makes regions for layers 0 and 2. A region keeps the band's pipes continuous, and the six contexts also carried
+  13 blended GYGES/EYESPY tiles that stay MMPX (D180). Chosen as a set cover over 2.6's layer-1 map (`choose_regions`). An
+  exact search found no cover with four windows. The fifth window (14 targets) also gives second candidates.
+- **Ground and layer 2:** `sheets`' own regions `region-l0-01` (TORM: 539, 566, 567), `-02` (GRYPHON: 111, 127), `-03` (GYGES:
+  86) and `region-l2-01` (313, 314).
+- **Prompts written by hand** (D113's lesson: `sheets` calls GRYPHON's pipes "dark blue-grey metal deck plating" and the GYGES
+  tissue "plating"). The pipes are "thick glossy dark blue-grey steel pipes, pipe elbows, flanged joints, clamps and pipe junction
+  boxes of a space station hull ... a flat game-map texture, not a ship or vehicle". `region-l0-01` names the three dark posts
+  and the wrecks.
+- **539 needed two retries.** In `region-l0-01`, Gemini kept the wrecks (tile NCC 0.74-0.81) but turned the posts into tall
+  pillars and laid the forest out again (cell fit 0.40; 539 NCC 0.08). A 4:3 sheet of six 3x3 contexts of 539
+  (`ctx-l0-posts-1`) came back as a copy of the pixel blocks (blockiness 3.4). The same sheet softened as D79 did (MMPX plus
+  a half-pixel blur, `soft_sheet`), with D79's "deliberately soft" sentence (`ctx-l0-posts-2`), came back painted: a solid dark
+  ridged stalk with its legs, blockiness 1.2-1.5, NCC 0.96-0.97. The prompt names the stalk and legs and says "never faded,
+  transparent or ghostly ... do not make the posts taller".
+- **Cut:** `cut --cache --edge-aware --structures --recut 0:539 --exclude <the 75 blended layer-1 tiles of GYGES/EYESPY, D180>`
+  in merge mode. Every existing image and rect stays byte for byte. New: `0-3.webp` (86, 111, 127, 539, 566, 567), `1-3.webp`
+  (the 37 GRYPHON tiles), `2-3.webp` (313, 314). 539's old painting stays unused in `0-2.webp`, which other rects still use.
+  Tile NCC: layer 1 0.76-1.00 (137 0.76, 147 0.83, the rest at least 0.94); ground 86 0.98, 111 0.96, 127 0.91, 539 0.97,
+  566 0.81, 567 0.74; 313 and 314 0.73 (thin horn tips; their alpha is the original silhouette). Eleven layer-1 tiles were
+  deblocked (blockiness 1.6-1.85 after). `rimfix` was not run: it would re-encode the whole layer-0 atlas, and 111 shows no
+  teal ring in game.
+- **Seams** (`check`): layer 0 across/inside 1.01 overall (kept edges 1.003, as before); the 557 edges that touch a new tile
+  1.58 (continuous 1.52). Layer 1: kept 0.379 (as in D180); new 1.97 (continuous 1.41). Layer 2: new 1.41. The high
+  layer-1 pairs are real edges in the original. 157|157 and 158|158 (two pipe columns side by side) step 74 and 89 levels in
+  the original against about 34-38 in HD. The new ground edges are mostly the wrecks and posts against forest, and pipes
+  against black. In game the band and elbows continue the HD hull without a visible joint.
+
+**Options considered:**
+- *`sheets`' six layer-1 context sheets:* one more request and no continuity along the band.
+- *Two regions per 9:16 sheet (three requests for layer 1):* about 8 painted pixels per original pixel, too close to the
+  atlas's 8x. Not used.
+- *Tile models for the pipes (D34/D47):* still the long-term route for hard surface. The painting matches the HD hull, which
+  is painted too.
+- *Recut 539 from `region-l0-01`:* the pillars change the original's shape (art rule 1). Rejected by the score as well.
+
+**Checked** (`?debug=play&episode=2&main=M&difficulty=2&seed=1&skip=T&freezeAt=T&compare=1`, 3840x2160, before = origin/main
+72862084, after = this). The counts are from the instrumented frames, as in D180: original tiles, then HD tiles.
+- GRYPHON t300: original tiles 66 -> 0; HD 158 -> 230.
+- GRYPHON t1050: 0 -> 0; HD 170 -> 172 (111).
+- GRYPHON t2550: 20 -> 0; HD 128 -> 148.
+- GYGES t300: 4 -> 0; HD 204 -> 220 (86, 313, 314).
+- GYGES t1500: 10 -> 0; HD 244 -> 254.
+- GYGES t2550: HD 308 -> 310.
+- GYGES t4050: unchanged.
+- TORM t1800: HD 188 -> 192 (567). The posts under the turrets are dark ridged stalks, no longer ghosts.
+- BONUS 2.12 t300: the posts under the walker are now solid.
+- No console errors.
+- What still misses the atlas at these ticks: the black empty tiles (36, 76) and GYGES's blended layer 1, MMPX by choice (D180).
+
+Captures, `summary.png` (original | before | after) and the work folder (sheets, answers, cut report, seams):
+`tyrian-scratch/e2-qa-terrain-2/`. tsc and vitest pass.
+
+**Left:** the layer-1 blended tiles of GYGES/EYESPY (60-109, 450-499) stay MMPX (D180). The `shapesx` tiles in the QA's list
+are done.
+
+**Cost:** one Opus agent, no workflow, no Blender. 11 Gemini requests (Pro, Create images, about 1 min each, no usage
+warning). About 20 headless captures.
