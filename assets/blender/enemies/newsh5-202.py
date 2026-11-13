@@ -1,17 +1,25 @@
-"""Small grey eyeball (newsh5.shp frames 202, 221): a 3D version of its sprite.
+"""Small grey eyeball (newsh5.shp frames 202, 221): a machined sensor eye.
 
-Seen in episode 4 (level 20). A small grey ball with a dark socket and pupil looking down the
-screen. The two frames turn the ball (round, then tall and narrow), so each gets a model:
-newsh5-202 and newsh5-202-f2.
+Seen in episode 4 (EYESPY, NOSE DRIP): a ring of small eyes escorting the big blue eye, and the
+homing eye it spits. The sprite is a grey ball with a dark socket low on its face, looking down the
+screen; frame 221 squeezes the ball narrow and tall (the eye wobbles), so each frame is its own
+model: newsh5-202 and newsh5-202-f2.
 
-The ball is a full sphere (as tall as it is wide, centred on the midplane). The sprite's light is
-not painted on: the ball is one wet, glossy grey (the sprite's mid grey) all over, so the game's
-lights make its upper-left highlight and darker edges, and the game draws its dark outline. The
-socket is cut about 2.1 px in along the sprite's dark pixels and is one glossy dark grey (the
-sprite's mid socket shade); the sprite's one light pixel inside it is the pupil's glint, which the
-glossy material catches, so it isn't modelled.
+What it is, in 3D: a satin grey steel ball (the sprite's mid grey, 10) with a deep socket bored
+into it along its gaze axis, tilted ~20 degrees down the screen. The socket is one revolved
+profile round that axis, so every ring is a clean machined section: a chamfered lip, a steep wall
+(4, the socket's median shade), a raised machined iris ring (4), a dark iris floor (3) and a convex
+glossy black lens (1) whose glint is the material's sheen, not paint (art rule 2). A fine
+V-groove bezel line circles the socket, and a seam groove circles the back of the ball where the
+eye shell meets its rear housing. The socket is elliptical in angle per frame so its top view
+lands on the sprite's dark pixels. The ball's shading, its upper-left highlight and the dark
+outline ring are the game's lights and ink, so the ball is one grey.
 
-Run: blender --background --python assets/blender/enemies/newsh5-202.py [-- --preview out.png]
+The outline shell (D51) comes from a plain ball with the socket filled (sealed, one island), so the
+ink lands on the silhouette only, never round the socket.
+
+Run: blender --background --python assets/blender/enemies/newsh5-202.py
+  exports both frames (model + outline shell each) to public/models/enemies/.
 """
 
 import math
@@ -19,196 +27,179 @@ import sys
 from pathlib import Path
 
 import bmesh
+import bpy
+from mathutils import Matrix, Vector
 
-sys.path[:0] = [str(Path(__file__).resolve().parents[1]), str(Path(__file__).resolve().parent)]
+HERE = Path(__file__).resolve().parent
+sys.path[:0] = [str(HERE.parent), str(HERE)]
 import common  # noqa: E402
-import lib_b004 as lib  # noqa: E402
 
 NAME = "newsh5-202"
 ROOT = common.repo_root(__file__)
+U = 1 / 12  # one sprite pixel in Blender units
 
-# Per frame, in sprite pixels (12x14 tile, pixel-centre columns and rows): the ball (centre col,
-# row, half width, half height) and its half depth; the socket's pixels (col, row) and the glint
-# pixel.
+# Per frame (sprite pixels, pixel-centre coordinates of the 12x14 tile): ball centre (col, row),
+# semi-axes a (x), b (y), c (z); the gaze tilt down the screen (degrees from straight up) and the
+# socket's angular half-size across (x) and along (y) the tilt, fitted to the sprite's dark pixels.
 FRAMES = {
-    202: {"body": (6.0, 6.0, 5.55, 5.55), "depth": 5.5,
-          "socket": [(5, 6), (6, 6), (7, 6),
-                     (4, 7), (5, 7), (6, 7), (7, 7), (8, 7),
-                     (4, 8), (5, 8), (6, 8), (7, 8), (8, 8),
-                     (4, 9), (5, 9), (6, 9), (7, 9)], "glint": (5, 7)},
-    221: {"body": (6.0, 6.0, 4.55, 6.55), "depth": 5.0,
-          "socket": [(6, 5),
-                     (5, 6), (6, 6), (7, 6),
-                     (5, 7), (6, 7), (7, 7),
-                     (5, 8), (6, 8), (7, 8),
-                     (5, 9), (6, 9), (7, 9),
-                     (5, 10), (6, 10), (7, 10)], "glint": (6, 6)},
+    202: dict(centre=(6.0, 6.0), axes=(4.85, 4.85, 4.85), tilt=24.0, socket=(33.0, 30.0)),
+    221: dict(centre=(6.0, 6.0), axes=(3.9, 5.6, 4.6), tilt=21.0, socket=(26.0, 34.0)),
 }
-# "glint" is kept for reference only: the pupil's highlight comes from the glossy material.
+SEG = 48  # vertices round each ring
 
-SOCKET_DEPTH = 2.1 / 12  # how far the socket floor sits below the ball's surface
-RAYS = 40  # vertices around the ball
-INNER_RINGS = 4  # body rings between the socket edge and the first latitude line
-# Latitude lines (degrees from the top) the body's rings run along out to the equator (90), dense
-# near the rim so the elevations' outline stays round.
-LATITUDES = (44, 51, 59, 66, 73, 80, 85, 90)
-BOTTOM_RINGS = 4  # latitude bands under the equator
-BODY = 9  # palette index of the ball: the sprite's mid grey (its body runs 8-12; the lights add the rest)
-SOCKET = 3  # palette index of the socket: the sprite's mid socket shade (it runs 1-7)
-# Materials: the eyeball is wet and glossy, so the shine is the material's, not geometry or paint.
-GLOSS = {BODY: dict(metallic=0.05, roughness=0.25), SOCKET: dict(metallic=0.05, roughness=0.1)}
+BODY, RIM, IRIS, LENS = 10, 4, 3, 1  # palette indices: ball, socket wall + iris ring (the socket median), iris floor, lens
+MATS = {  # satin steel ball (F0 raised, D176), satin dark socket, glossy black lens catching the glint
+    BODY: dict(metallic=0.35, roughness=0.36, spec=0.9),
+    RIM: dict(metallic=0.3, roughness=0.42, spec=0.6),
+    IRIS: dict(metallic=0.2, roughness=0.5, spec=0.5),
+    LENS: dict(metallic=0.0, roughness=0.08, spec=1.0),
+}
 
-
-class Ball:
-    """An ellipsoid centred at (x0, y0, 0) with semi-axes a, b, c."""
-
-    def __init__(self, x0, y0, a, b, c):
-        self.x0, self.y0, self.a, self.b, self.c = x0, y0, a, b, c
-
-    def top(self, x, y):
-        u = ((x - self.x0) / self.a) ** 2 + ((y - self.y0) / self.b) ** 2
-        return self.c * math.sqrt(max(0.0, 1 - u))
-
-
-def socket_radii(cells, sx, sy, dirs):
-    """Per ray from the socket centre (sx, sy), how far it runs inside the socket's pixels,
-    lightly smoothed over neighbouring rays so the pixel staircase becomes an irregular blob."""
-    raw = []
-    for dx, dy in dirs:
-        t, step = 0.0, 0.01
-        while True:
-            x, y = sx + dx * (t + step), sy + dy * (t + step)
-            c, r = int(round(lib.to_col(x, 1))), int(round(lib.to_row(y, 1)))
-            if (c, r) not in cells:
-                break
-            t += step
-        raw.append(t)
-    n = len(raw)
-    return [(raw[i - 1] + 2 * raw[i] + raw[(i + 1) % n]) / 4 for i in range(n)]
-
-
-def paint(faces, index):
-    for f in faces:
-        f.material_index = index
+# The revolved profile, from the lens apex out to the back pole. Each point: (where, depth, mat,
+# sharp). `where` is ("s", f): f times the socket's angular radius at that azimuth; ("o", d): the
+# socket radius plus d degrees; ("a", deg): an absolute polar angle from the gaze axis. depth is in
+# sprite pixels below the ball's surface (along the radius). `mat` paints the band from the
+# previous point to this one; `sharp` makes the ring a hard edge.
+PROFILE = [
+    (("s", 0.00), 0.95, LENS, False),   # lens apex
+    (("s", 0.12), 1.00, LENS, False),
+    (("s", 0.26), 1.08, LENS, False),
+    (("s", 0.38), 1.22, LENS, False),
+    (("s", 0.46), 1.36, LENS, True),    # lens edge
+    (("s", 0.46), 1.52, IRIS, True),    # step down to the iris floor
+    (("s", 0.58), 1.52, IRIS, False),
+    (("s", 0.70), 1.52, IRIS, True),
+    (("s", 0.72), 1.36, RIM, True),     # machined iris ring
+    (("s", 0.78), 1.36, RIM, True),
+    (("s", 0.80), 1.52, RIM, True),
+    (("s", 0.87), 1.52, RIM, True),     # wall foot
+    (("s", 0.95), 0.30, RIM, True),     # wall top, chamfer below
+    (("o", 2.5), 0.00, BODY, True),     # lip chamfer to the ball
+    (("o", 6.0), 0.00, BODY, False),
+    (("o", 8.5), 0.00, BODY, False),    # bezel panel line
+    (("o", 9.5), 0.16, BODY, False),
+    (("o", 10.5), 0.00, BODY, False),
+    (("o", 14.0), 0.00, BODY, False),
+]
+_ABS = [62, 70, 78, 86, 94, 102, 110, 116, 117.5, 119, 126, 134, 142, 150, 158, 166, 174]
+for _a in _ABS:
+    PROFILE.append((("a", _a), 0.16 if _a == 117.5 else 0.0, BODY, False))
+PROFILE.append((("a", 180), 0.0, BODY, False))  # back pole
+PLAIN = [(("a", a), 0.0, BODY, False) for a in [0, 8, 16, 24, 32, 40, 48, 56] + _ABS + [180]]
 
 
-def eyeball(bm, frame):
-    bc, br, ba, bb = frame["body"]
-    ball = Ball(lib.px(bc, 1), lib.row(br, 1), ba / 12, bb / 12, frame["depth"] / 12)
-    cells = set(frame["socket"])
-    sx = sum(lib.px(c, 1) for c, _ in cells) / len(cells)
-    sy = sum(lib.row(r, 1) for _, r in cells) / len(cells)
-
-    # Rim points evenly round the equator; each ray runs from the socket centre to one of them.
-    rim, dirs = [], []
-    for j in range(RAYS):
-        phi = 2 * math.pi * j / RAYS
-        px, py = ball.x0 + ball.a * math.cos(phi), ball.y0 + ball.b * math.sin(phi)
-        ln = math.hypot(px - sx, py - sy)
-        rim.append((px, py, phi))
-        dirs.append(((px - sx) / ln, (py - sy) / ln))
-    rho = socket_radii(cells, sx, sy, dirs)
-    edge = [(sx + dx * r, sy + dy * r) for (dx, dy), r in zip(dirs, rho)]
-
-    def ring(points, z_of):
-        return [bm.verts.new((x, y, z_of(x, y))) for x, y in points]
-
-    part = []  # the faces of the part being built
-
-    def band(inner, outer):
-        for j in range(RAYS):
-            k = (j + 1) % RAYS
-            part.append(bm.faces.new((inner[j], outer[j], outer[k], inner[k])))
-
-    def fan(centre, outer, reverse=False):
-        for j in range(RAYS):
-            k = (j + 1) % RAYS
-            part.append(bm.faces.new((centre, outer[j], outer[k]) if not reverse else (outer[j], centre, outer[k])))
-
-    def scaled(s):
-        return [(sx + (x - sx) * s, sy + (y - sy) * s) for x, y in edge]
-
-    # Socket: a floor following the ball's curve SOCKET_DEPTH down, steep walls up to the surface.
-    floor = lambda x, y: ball.top(x, y) - SOCKET_DEPTH  # noqa: E731
-    prev = bm.verts.new((sx, sy, floor(sx, sy)))
-    first = True
-    for s in (0.3, 0.6, 0.84):
-        cur = ring(scaled(s), floor)
-        if first:
-            fan(prev, cur)
-            first = False
-        else:
-            band(prev, cur)
-        prev = cur
-    band(prev, ring(edge, lambda x, y: ball.top(x, y) + 0.002))
-    # The socket is one dark grey; the recess and the light shade it.
-    paint(part, SOCKET)
-    part.clear()
-
-    # Body: its own ring on the socket edge (a sharp lip), then rings spaced along each ray, then
-    # latitude lines out to the equator, then under it to the bottom pole.
-    def at_latitude(j, theta):
-        """Where ray j crosses the ball's latitude `theta` (from the top), seen from above."""
-        (dx, dy), s2 = dirs[j], math.sin(theta) ** 2
-        ox, oy = (sx - ball.x0) / ball.a, (sy - ball.y0) / ball.b
-        ux, uy = dx / ball.a, dy / ball.b
-        qa, qb, qc = ux * ux + uy * uy, 2 * (ox * ux + oy * uy), ox * ox + oy * oy - s2
-        t = (-qb + math.sqrt(max(0.0, qb * qb - 4 * qa * qc))) / (2 * qa)
-        return sx + dx * t, sy + dy * t
-
-    prev = ring(edge, ball.top)
-    inner = [at_latitude(j, math.radians(LATITUDES[0])) for j in range(RAYS)]
-    for k in range(1, INNER_RINGS + 1):
-        f = k / (INNER_RINGS + 1)
-        cur = ring([(ex + (ix - ex) * f, ey + (iy - ey) * f) for (ex, ey), (ix, iy) in zip(edge, inner)],
-                   ball.top)
-        band(prev, cur)
-        prev = cur
-    for deg in LATITUDES:
-        if deg >= 90:
-            cur = [bm.verts.new((x, y, 0.0)) for x, y, _ in rim]
-        else:
-            cur = ring([at_latitude(j, math.radians(deg)) for j in range(RAYS)], ball.top)
-        band(prev, cur)
-        prev = cur
-    for i in range(1, BOTTOM_RINGS):
-        lat = math.pi / 2 * i / BOTTOM_RINGS
-        cur = [bm.verts.new((ball.x0 + ball.a * math.cos(lat) * math.cos(phi),
-                             ball.y0 + ball.b * math.cos(lat) * math.sin(phi),
-                             -ball.c * math.sin(lat))) for _, _, phi in rim]
-        band(prev, cur)
-        prev = cur
-    fan(bm.verts.new((ball.x0, ball.y0, -ball.c)), prev, reverse=True)
-    # The whole ball, top to bottom, is one grey: the sprite's outline ring and its shading are the
-    # game's outline and lights.
-    paint(part, BODY)
-    return ball
+def px(c):
+    return (c + 0.5 - 6) * U
 
 
-def build(sprite, name, index, frame):
-    coll = common.reset_collection(name)
-    bm = bmesh.new()
-    eyeball(bm, frame)
-    # Palette indices to material slots, in index order.
-    used = sorted({f.material_index for f in bm.faces})
+def row(r):
+    return (7 - (r + 0.5)) * U
+
+
+def ring_theta(where, sx, sy, phi):
+    """Polar angle (radians) from the gaze axis of a profile point at azimuth phi."""
+    kind, v = where
+    if kind == "a":
+        return math.radians(v)
+    ts = 1 / math.sqrt((math.cos(phi) / sx) ** 2 + (math.sin(phi) / sy) ** 2)  # elliptical socket
+    return ts * v if kind == "s" else ts + math.radians(v)
+
+
+def eyeball(bm, frame, profile, mat_slot):
+    a, b, c = frame["axes"]
+    R = (a + b + c) / 3  # depths in px are measured against the mean radius
+    t = math.radians(frame["tilt"])
+    sx, sy = (math.radians(v) for v in frame["socket"])
+    # Local frame: z' the gaze (tilted down the screen, toward -Y), x' = world x, y' completes it.
+    gaze = Vector((0.0, -math.sin(t), math.cos(t)))
+    ex = Vector((1.0, 0.0, 0.0))
+    ey = gaze.cross(ex)  # local "up the tilt" direction
+    scale = Matrix.Diagonal((a * U, b * U, c * U))
+    cx, cy = px(frame["centre"][0]), row(frame["centre"][1])
+
+    rings = []
+    for where, depth, mat, sharp in profile:
+        pole = (where[0] in "sa" and where[1] in (0, 0.0, 180))
+        verts = []
+        for j in range(1 if pole else SEG):
+            phi = 2 * math.pi * j / SEG
+            th = ring_theta(where, sx, sy, phi)
+            # azimuth phi: 0 = across (x'), pi/2 = up the tilt (+y'; sy applies along the tilt)
+            d = gaze * math.cos(th) + (ex * math.cos(phi) + ey * math.sin(phi)) * math.sin(th)
+            p = scale @ (d * (1 - depth / R))
+            verts.append(bm.verts.new((p.x + cx, p.y + cy, p.z)))
+        rings.append((verts, mat, sharp))
+
+    faces = []
+    for i in range(1, len(rings)):
+        prev, cur = rings[i - 1][0], rings[i][0]
+        mat = mat_slot[rings[i][1]]
+        for j in range(SEG):
+            k = (j + 1) % SEG
+            if len(prev) == 1:
+                f = bm.faces.new((prev[0], cur[k], cur[j]))
+            elif len(cur) == 1:
+                f = bm.faces.new((prev[j], prev[k], cur[0]))
+            else:
+                f = bm.faces.new((prev[j], prev[k], cur[k], cur[j]))
+            f.material_index = mat
+            f.smooth = True
+            faces.append(f)
+    # hard edges along sharp rings
+    bm.edges.ensure_lookup_table()
+    for verts, _, sharp in rings:
+        if sharp and len(verts) > 1:
+            for j in range(SEG):
+                e = bm.edges.get((verts[j], verts[(j + 1) % SEG]))
+                if e:
+                    e.smooth = False
+    bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=1e-6)
+    return faces
+
+
+def make_material(sprite, index, tag, metallic, roughness, spec):
+    mat = common.palette_material(sprite, index, tag, metallic=metallic, roughness=roughness)
+    bsdf = next(n for n in mat.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+    if "Specular IOR Level" in bsdf.inputs:
+        bsdf.inputs["Specular IOR Level"].default_value = spec
+    return mat
+
+
+def build(sprite, name, frame, coll):
+    used = [LENS, IRIS, RIM, BODY]
     slot = {i: s for s, i in enumerate(used)}
-    for f in bm.faces:
-        f.material_index = slot[f.material_index]
-    mats = [common.palette_material(sprite, i, name, **GLOSS[i]) for i in used]
-    return common.mesh_object(name, bm, mats, coll, smooth=True)
+    mats = [make_material(sprite, i, name, **MATS[i]) for i in used]
+    bm = bmesh.new()
+    eyeball(bm, frame, PROFILE, slot)
+    obj = common.mesh_object(name, bm, mats, coll, smooth=None)
+    # Outline shell from a sealed plain ball (socket filled): ink on the silhouette only.
+    bm = bmesh.new()
+    eyeball(bm, frame, PLAIN, {BODY: 0})
+    src = common.mesh_object(f"{name}_src", bm, [mats[slot[BODY]]], coll, smooth=True)
+    shell = common.outline_shell(src, coll, voxel=0.012, faces=1200, islands="outer")
+    shell.name = f"{name}_outline"
+    shell.data.name = f"{name}_outline"
+    bpy.data.objects.remove(src, do_unlink=True)
+    bpy.context.view_layer.update()
+    return obj, shell
 
 
 def main():
+    for o in list(bpy.data.objects):  # the startup scene's cube, light and camera
+        bpy.data.objects.remove(o, do_unlink=True)
+    bpy.context.view_layer.update()
     sprite = common.load_sprite(ROOT, NAME)
     base = sprite["sprites"][0]
+    objs = []
     for i, (index, frame) in enumerate(FRAMES.items()):
         name = NAME if i == 0 else f"{NAME}-f{i + 1}"
-        obj = build(sprite, name, index, frame)
-        common.export_sprite_model(ROOT, [obj], f"enemies/{name}", [{**base, "frames": [index]}])
-        if "--preview" in sys.argv:
-            out = Path(sys.argv[sys.argv.index("--preview") + 1])
-            ref = ROOT / "reference" / "models" / NAME / f"frame-newsh5-{index}.png"
-            common.render_preview([obj], out.with_name(f"{name}.png"), ref, size=1)
+        coll = common.reset_collection(name)
+        obj, shell = build(sprite, name, frame, coll)
+        objs.append((index, name, obj, shell))
+        tris = sum(len(p.vertices) - 2 for p in obj.data.polygons)
+        print(f"{name}: {tris} tris, shell {len(shell.data.polygons)} faces")
+        assert len(shell.data.polygons) > 0, "empty outline shell"
+        common.export_sprite_model(ROOT, [obj, shell], f"enemies/{name}", [{**base, "frames": [index]}])
 
 
 if __name__ == "__main__":

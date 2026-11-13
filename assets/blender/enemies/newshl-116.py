@@ -1,195 +1,355 @@
-"""Spiked molten mine (newshl.shp 116): a 3D version of its sprite.
+"""Spiked molten mine (newshl.shp 116, 1 frame).
 
-Seen in episode 4 (levels 40 and 45), alongside the molten rocks (newshl-115). A lava ball about
-10 px across with four dark spikes pointing up, down, left and right; the white-hot core glows just
-above its centre. The ball is a sphere as tall as it is wide (slightly fuller on the diagonals, as
-the sprite's body is) on a fine grid. Everything seen from above takes the sprite pixel under it,
-with soft blends between pixels and a soft white glow around the core (the hot colours glow in
-game, and the finish is matte); the underside takes a blurred copy. Its shading normals lean
-towards the light so it reads lit all over, as a glowing ball. The spikes are dark-red cones.
+What it is: a contact mine, red-hot. TIME WAR (4.17) drifts it as indestructible debris and SQUADRON
+(4.18) flies it in grids of single craft that fire, so it is a manufactured thing: a spherical
+casing of armour panels, heated until it glows, with four horns (the sprite's spikes) in the plane
+of the screen, a white-hot core port and a dark fuse socket.
 
-Run: blender --background --python assets/blender/enemies/newshl-116.py [-- --preview out.png]
+- Ball: a sphere R = BALL_R px round the sprite body's centre (column edge 5.5, row edge 7.5), fitted
+  to the inner outline mask (tools/sprite_mask.py) so the game's ink lands on the sprite's ring.
+- Casing: a cube-sphere of 54 large armour plates (3 x 3 per cube face, shallow seams so the ball
+  reads as one smooth hot sphere at 12 px), turned so the top face's centre plate sits on the core
+  port.
+- Core port (sprite 127 at column 5, row 6, the ball's centre with heat radiating from it): a
+  white-hot dome (127) in a 124 rim, flush or a touch proud of the casing (no recessed wall, so no
+  dark band round it), with the casing faces round it graded 124 -> 123 -> 122 so the glow spreads
+  into the shell. It sits PORT_DY px south of the top so that the tilted game camera (32 deg,
+  view.ts) projects it just north of the ball's visual centre, where the sprite draws it. Fuse
+  socket (sprite 1 at column 5, row 9, 3 px below the core): a ring with a dark (1) recess, further
+  south for the same reason.
+- Colour per casing face: a base heat by angle from an axis tipped north of up (hot north 119-121,
+  equator 116-117, dark maroon south crust 114-116) with seeded per-plate jitter, scattered hot
+  plates and per-face mottling, and the core glow above; crust plates have hotter seams (lava in the
+  cracks). Not the sprite's per-pixel values, which are its top-left lighting (art rule 2). All
+  glow surfaces are metallic 1, rough (D126/D173), emission rising with heat; the core is 127.
+- Horns: 4 machined horns along +-x, +-y at the equator: a flanged collar and a tapered ogive spike
+  (114, dark satin, not glowing). The collars and spike roots glow in the sprite's base colours
+  (122 N, 116 S, 118 W, 116 E) so the spikes read through the game's ink.
+- Underside: the same closed sphere; no extra detail.
+
+blender --background --python assets/blender/enemies/newshl-116.py [-- --out x.glb]
+Exports public/models/enemies/newshl-116.glb and the spriteModels entry; --out writes only that glb.
 """
 
 import math
+import random
 import sys
 from pathlib import Path
 
 import bmesh
-from mathutils import Vector
+import bpy
+from mathutils import Matrix, Vector
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-sys.path.insert(0, str(Path(__file__).resolve().parent))
 import common  # noqa: E402
-import lib_b006 as lib  # noqa: E402
 
 NAME = "newshl-116"
 MODEL = f"enemies/{NAME}"
 ROOT = common.repo_root(__file__)
+PX = 1 / 12
+W, H = 12, 14
+
+CX, CY = 5.5, 7.5          # ball centre, sprite pixel-edge coords
+BALL_R = 4.38              # px
+ZS = 0.82                  # height / width: a slightly oblate ball (top features sit nearer the
+                           # sprite's places under the tilted game camera)
+PORT_DY = -1.2             # core port's top-view offset from the centre, px (south: see above)
+SOCKET_DY = -3.2           # fuse socket's
+VENT_TILT = math.asin(-PORT_DY / BALL_R)
+PANELS = 3                 # plates per cube-face edge (odd: a plate, not a seam, on each face centre)
+CHAMFER = 0.07             # seam wall width, fraction of a plate
+DEPTH = 0.08               # seam depth, px
+INTERIOR = 3               # interior segments per plate edge
+
+# Horns: (direction in the top view (+x east, +y north), tip distance from centre px)
+# The N tip reaches into the sprite's free ink pixels (rows 0-1, col 5), counted neither way by the IoU.
+HORNS = [((0, 1), 7.1), ((0, -1), 6.5), ((1, 0), 5.9), ((-1, 0), 5.9)]
+# Hot horn bases: the sprite shows its N and S spikes through the colour at their bases (122 at
+# row 2 col 5, 116 at row 12 col 5), so those collars and the spike roots glow in that colour; the
+# tips stay dark (114). E/W collars take their base pixels' colour too (118 at row 7 col 1, 116 at
+# row 7 col 9), so all four spikes read through the game's ink.
+HORN_BASE = {(0, 1): 122, (0, -1): 116, (-1, 0): 118, (1, 0): 116}
+HOT_ROOT = 5.55            # px from centre: the spike root up to here takes the base colour
+# Horn lathe profile (axial distance from centre px, radius px); the spike part is a pchip ogive.
+COLLAR = [(3.7, 1.15), (4.25, 1.15), (4.38, 1.06), (4.48, 1.06), (4.55, 0.98), (4.55, 0.92)]
+
+GLOW = {113: 0.65, 114: 0.7, 115: 0.75, 116: 0.8, 117: 0.85, 118: 0.9, 119: 0.93, 120: 0.96,
+        121: 1.0, 122: 1.0, 123: 1.0, 124: 1.05}
+# Seam walls: crust plates (<= CRUST) get hotter seams (lava glowing through the cracks), hot
+# plates a step cooler seam (a shadowed panel line).
+CRUST = 118
+SEAM_GLOW = 0.9
+SPIKE_INDEX = 114
+COLLAR_INDEX = 115
+RING_INDEX = 124
+CORE_INDEX = 127
+SOCKET_INDEX = 1
+# Heat (art rule 2: the sprite's per-pixel values are its lighting): a base by
+# the angle (deg) from a heat axis tipped HEAT_TILT north of straight up (the sprite's hot N half,
+# dark maroon S crust), and a core glow by the angle from the core port's axis grading the casing
+# right round the plug 124 -> 123 -> 122. Each surface face takes the hotter of the two, plus its
+# plate's seeded jitter and a little per-face mottling.
+HEAT_TILT = 60
+HEAT = [(22, 121), (38, 120), (52, 119), (64, 118), (76, 117), (88, 116), (102, 115), (181, 114)]
+CORE_HEAT = [(7, 124), (13, 123), (20, 122)]
+JITTER = 0.34              # chance a plate runs one step cooler or hotter
+HOT_PLATES = 0.12          # chance a crust plate (<= 116) is a hot spot (+2..3)
+MOTTLE = 0.10              # chance a face runs one step off its plate
 
 
-# The sprite's heat ramp, darkest to white-hot: the near-black index 1 (the pit, and the outline's
-# corners) below the darkest red.
-RAMP = [1, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 127]
-# The palette colours the ball is painted in (one material each), with their glow in game.
-BANDS = [(1, 0.0), (112, 0.0), (113, 0.0), (114, 0.0), (115, 0.3), (116, 0.5), (117, 0.8),
-         (118, 1.0), (119, 1.3), (120, 1.6), (121, 2.0), (122, 2.5), (123, 3.0), (124, 3.5),
-         (127, 5.0)]
-# Faces with normal z above TOP_NZ (what the camera sees from above) take the sprite pixel under
-# them, blending into the next pixel over the SOFT px either side of the pixel edge (a smoothstep),
-# so each pixel's colour holds at its centre and the ball's heat changes in gradients a pixel long
-# rather than hard blocks. The sides and underside take a blurred copy (weights: the pixel, its edge
-# neighbours, its corners).
-SOFT = 0.4
-BLUR_SIDE = (4, 2, 1)
-TOP_NZ = -0.3
-# The white-hot core (column 5, row 6) glows past its pixel: heat at least GLOW[0] within GLOW[1] px
-# of its centre, fading to nothing at GLOW[2] px up and left (towards its yellow neighbours) and
-# GLOW[3] px elsewhere, short of its neighbours' centres, which keep the sprite's colours; so the
-# core is a soft white spot rather than a square.
-HOT = (5, 6)
-GLOW = (14, 0.45, 1.9, 1.05)
-N_CUBE = 18
-# The outline ring's palette indices (near-black and the darkest red), and how much cooler (in RAMP
-# steps) than its inner neighbours a ring pixel is painted.
-OUTLINE_INDICES = (1, 112)
-RING_COOL = 1.0
-# The spikes are hardened crust, drawn 1 px wide so all their 112 pixels are outline; their centre
-# pixels are 114-116, so they take 115, matte like rock.
-SPIKE_INDEX = 115
-# The lava glows, so it should read lit all over rather than dark on the side away from the light
-# with a grey sheen where it faces the viewer: the ball's shading normals lean LEAN times their own
-# length towards LEAN_DIR (up and to the left, towards the game's sun; Blender axes). They still
-# vary with the surface, so the ball keeps a soft rounded shading.
-LEAN_DIR = (-1.0, 0.1, 1.0)
-LEAN = 3.5
+def P(x, y, z):
+    """Sprite pixel-edge column x, row y, height z px -> world."""
+    return Vector(((x - W / 2) * PX, (H / 2 - y) * PX, z * PX))
 
 
-def heat_field(grid, blur):
-    """The sprite's heat (position on RAMP) per pixel, averaged over its neighbours with `blur`
-    weights (None: unblurred). None where transparent."""
-    h, w = grid.h, grid.w
-    raw = [[None if grid.pixels[r][c] == -1 else
-            (RAMP.index(grid.pixels[r][c]) if grid.pixels[r][c] in RAMP else 1)
-            for c in range(w)] for r in range(h)]
+CENTRE = P(CX, CY, 0)
+ROT = Matrix.Rotation(-VENT_TILT, 3, "X")   # turns +z towards +y (north)
 
-    def opaque(r, c):
-        return 0 <= r < h and 0 <= c < w and grid.pixels[r][c] != -1
 
-    # The sprite's dark outline ring (the darkest pixels, OUTLINE_INDICES, on the edge of the
-    # shape) is its drawn edge, not lava: the game draws its own outline, so those pixels take the
-    # mean heat of their inner neighbours and the ball's rim and sides keep the lava's colours.
-    ring = {(r, c) for r in range(h) for c in range(w)
-            if grid.pixels[r][c] in OUTLINE_INDICES and any(
-                not opaque(r + dr, c + dc) for dr in (-1, 0, 1) for dc in (-1, 0, 1))}
-    fixed = [row[:] for row in raw]
-    for r, c in ring:
-        inner = [raw[r + dr][c + dc] for dr in (-1, 0, 1) for dc in (-1, 0, 1)
-                 if opaque(r + dr, c + dc) and (r + dr, c + dc) not in ring]
-        if inner:
-            fixed[r][c] = max(raw[r][c], sum(inner) / len(inner) - RING_COOL)
-    raw = fixed
-    if blur is None:
-        return raw
-    out = [[None] * w for _ in range(h)]
-    for r in range(h):
-        for c in range(w):
-            if raw[r][c] is None:
+def cube_to_sphere(v):
+    x, y, z = v
+    sx = x * math.sqrt(max(0.0, 1 - y * y / 2 - z * z / 2 + y * y * z * z / 3))
+    sy = y * math.sqrt(max(0.0, 1 - z * z / 2 - x * x / 2 + z * z * x * x / 3))
+    sz = z * math.sqrt(max(0.0, 1 - x * x / 2 - y * y / 2 + x * x * y * y / 3))
+    return Vector((sx, sy, sz)).normalized()
+
+
+FACES = [  # normal, tangent a, tangent b (right-handed: a x b = n)
+    (Vector((0, 0, 1)), Vector((1, 0, 0)), Vector((0, 1, 0))),
+    (Vector((0, 0, -1)), Vector((0, 1, 0)), Vector((1, 0, 0))),
+    (Vector((1, 0, 0)), Vector((0, 1, 0)), Vector((0, 0, 1))),
+    (Vector((-1, 0, 0)), Vector((0, 0, 1)), Vector((0, 1, 0))),
+    (Vector((0, 1, 0)), Vector((0, 0, 1)), Vector((1, 0, 0))),
+    (Vector((0, -1, 0)), Vector((1, 0, 0)), Vector((0, 0, 1))),
+]
+
+
+def stations():
+    """Plate-local stations 0..1 and their radius offset (px): a V seam (the plate edge at the seam
+    floor, -DEPTH) whose chamfered walls rise to the plate top (0) CHAMFER in from the edge."""
+    c = CHAMFER
+    inner = [c + (1 - 2 * c) * k / INTERIOR for k in range(INTERIOR + 1)]
+    return [0.0] + inner + [1.0], [-DEPTH] + [0.0] * len(inner) + [-DEPTH]
+
+
+HEAT_AXIS = Vector((0, math.sin(math.radians(HEAT_TILT)), math.cos(math.radians(HEAT_TILT))))
+PORT_AXIS = Vector((0, PORT_DY, math.sqrt(BALL_R ** 2 - PORT_DY ** 2))).normalized()   # the plug's direction
+
+
+def band(table, ang):
+    return next((i for lim, i in table if ang < lim), None)
+
+
+def face_heat(d, shift, hot_spot, rng):
+    """Palette index of a casing face whose (world, unsquashed) direction from the centre is d."""
+    ang = math.degrees(math.acos(max(-1.0, min(1.0, d.dot(HEAT_AXIS)))))
+    idx = band(HEAT, ang) + shift
+    if hot_spot and idx <= 116:
+        idx += 3
+    r = rng.random()
+    if r < MOTTLE / 2:
+        idx -= 1
+    elif r > 1 - MOTTLE / 2:
+        idx += 1
+    idx = max(114, min(121, idx))
+    core = band(CORE_HEAT, math.degrees(math.acos(max(-1.0, min(1.0, d.dot(PORT_AXIS))))))
+    return max(idx, core or 0)
+
+
+def build_ball(bm, mat):
+    rng = random.Random(116)
+    us, off = stations()
+    n = len(us)
+    for normal, a, b in FACES:
+        for i in range(PANELS):
+            for j in range(PANELS):
+                s0, s1 = -1 + 2 * i / PANELS, -1 + 2 * (i + 1) / PANELS
+                t0, t1 = -1 + 2 * j / PANELS, -1 + 2 * (j + 1) / PANELS
+                grid = []
+                dirs = []
+                for ku, (u, ou) in enumerate(zip(us, off)):
+                    row = []
+                    for kv, (v, ov) in enumerate(zip(us, off)):
+                        d = ROT @ cube_to_sphere(normal + (s0 + (s1 - s0) * u) * a + (t0 + (t1 - t0) * v) * b)
+                        r = BALL_R + min(ou, ov)
+                        q = d * r * PX
+                        q.z *= ZS
+                        row.append(bm.verts.new(CENTRE + q))
+                        dirs.append(d)
+                    grid.append(row)
+                # The plate's seeded offset: a step cooler or hotter, or (crust) a hot spot.
+                r = rng.random()
+                shift = -1 if r < JITTER / 2 else (1 if r > 1 - JITTER / 2 else 0)
+                hot_spot = rng.random() < HOT_PLATES
+                for ku in range(n - 1):
+                    for kv in range(n - 1):
+                        k0 = ku * n + kv
+                        fd = (dirs[k0] + dirs[k0 + 1] + dirs[k0 + n] + dirs[k0 + n + 1]).normalized()
+                        idx = face_heat(fd, shift, hot_spot, rng)
+                        f = bm.faces.new((grid[ku][kv], grid[ku + 1][kv], grid[ku + 1][kv + 1], grid[ku][kv + 1]))
+                        in_seam = ku in (0, n - 2) or kv in (0, n - 2)
+                        if in_seam:
+                            si = min(124, idx + 1) if idx <= CRUST else idx - 1
+                            f.material_index = mat(si, GLOW[si] * SEAM_GLOW)
+                        else:
+                            f.material_index = mat(idx, GLOW[idx])
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-6)
+
+
+def lathe(bm, axis_origin, axis, profile, sides, mat_of, cap_end=True, start=None):
+    """Revolve [(axial px, radius px), ...] round `axis` from `axis_origin` (world). mat_of(k) gives
+    the material of band k (between profile points k and k+1). A radius 0 point is a tip."""
+    axis = axis.normalized()
+    ref = Vector((0, 0, 1)) if abs(axis.z) < 0.9 else Vector((1, 0, 0))
+    u = axis.cross(ref).normalized()
+    w = axis.cross(u).normalized()
+    rings = []
+    for h, r in profile:
+        c = axis_origin + axis * h * PX
+        if r <= 1e-6:
+            rings.append([bm.verts.new(c)])
+        else:
+            rings.append([bm.verts.new(c + r * PX * (math.cos(2 * math.pi * k / sides) * u +
+                                                   math.sin(2 * math.pi * k / sides) * w))
+                          for k in range(sides)])
+    for k, (r0, r1) in enumerate(zip(rings, rings[1:])):
+        for s in range(sides):
+            t = (s + 1) % sides
+            if len(r0) == 1 and len(r1) == 1:
                 continue
-            tot = wsum = 0.0
-            for dr in (-1, 0, 1):
-                for dc in (-1, 0, 1):
-                    rr, cc = r + dr, c + dc
-                    if 0 <= rr < h and 0 <= cc < w and raw[rr][cc] is not None:
-                        k = blur[abs(dr) + abs(dc)]
-                        tot += k * raw[rr][cc]
-                        wsum += k
-            out[r][c] = tot / wsum
+            if len(r0) == 1:
+                face = (r0[0], r1[s], r1[t])
+            elif len(r1) == 1:
+                face = (r0[s], r0[t], r1[0])
+            else:
+                face = (r0[s], r0[t], r1[t], r1[s])
+            bm.faces.new(face).material_index = mat_of(k)
+    if len(rings[0]) > 1:
+        bm.faces.new(list(reversed(rings[0]))).material_index = mat_of(0)
+    if cap_end and len(rings[-1]) > 1:
+        bm.faces.new(rings[-1]).material_index = mat_of(len(rings) - 2)
+
+
+def pchip_profile(p0, p1, n=8, power=1.6):
+    """Ogive spike from (h0, r0) to tip (h1, 0): radius falls as (1 - t)^(1/power)-ish, full at the
+    base, convex towards the tip, sharp tip."""
+    (h0, r0), (h1, _) = p0, p1
+    out = []
+    for k in range(n + 1):
+        t = k / n
+        r = r0 * (1 - t ** power) * (1 - 0.25 * t)
+        out.append((h0 + (h1 - h0) * t, max(0.0, r)))
+    out[-1] = (h1, 0.0)
     return out
 
 
-def soft_step(f):
-    """Weight of the next pixel at fraction f (0-1) of the way between two pixel centres: 0 until
-    SOFT px before the edge, then a smooth ramp to 1 at SOFT px past it."""
-    t = min(1.0, max(0.0, (f - 0.5 + SOFT) / (2 * SOFT)))
-    return t * t * (3 - 2 * t)
+def build_horns(bm, mat):
+    spike = mat(SPIKE_INDEX, 0.0, satin=True)
+    for (dx, dy), tip in HORNS:
+        axis = Vector((dx, dy, 0))
+        base = HORN_BASE.get((dx, dy))
+        collar = mat(base, GLOW[base]) if base else mat(COLLAR_INDEX, 0.0, satin=True)
+        prof = COLLAR + [(4.64, 0.92), (4.70, 0.80), (4.78, 0.80), (4.84, 0.88)] + \
+            pchip_profile((4.84, 0.88), (tip, 0.0), n=8)[1:]
+        # Bands drawn in the collar material: the collar, plus (hot bases) the spike root to HOT_ROOT.
+        ncol = len(COLLAR) - 1
+        if base:
+            ncol = max(ncol, sum(1 for h, _ in prof[:-1] if h < HOT_ROOT))
+        lathe(bm, CENTRE, axis, prof, 12, lambda k, c=collar, m=ncol: c if k < m else spike)
+
+
+def surface_point(dx_px, dy_px):
+    """World point and normal of the (oblate) ball's top surface under top-view offset (dx, dy) px."""
+    z = ZS * math.sqrt(max(0.0, BALL_R ** 2 - dx_px ** 2 - dy_px ** 2))
+    n = Vector((dx_px, dy_px, z / (ZS * ZS))).normalized()
+    return CENTRE + Vector((dx_px, dy_px, z)) * PX, n
+
+
+def build_ports(bm, mat):
+    ring = mat(RING_INDEX, 1.6)
+    core = mat(CORE_INDEX, 3.0)
+    dark = mat(SOCKET_INDEX, 0.0, satin=True)
+    # Core port: sprite (5,6), placed for the game camera (PORT_DY).
+    o, n = surface_point(0.0, PORT_DY)
+    # Flush, slightly proud: a white-hot dome in a 124 rim that rises from just under the casing
+    # (no recessed wall, no dark gap); the casing round it grades 124 -> 123 -> 122 (CORE_HEAT).
+    prof = [(-0.25, 0.86), (-0.02, 0.86), (0.04, 0.72), (0.08, 0.56), (0.12, 0.44),
+            (0.16, 0.30), (0.19, 0.15), (0.20, 0.0)]
+    lathe(bm, o, n, prof, 20, lambda k: ring if k < 3 else core)
+    # Fuse socket: sprite (5,9), 3 px below the core in the game camera (SOCKET_DY).
+    o, n = surface_point(0.0, SOCKET_DY)
+    prof = [(-0.25, 0.52), (0.07, 0.52), (0.12, 0.44), (0.10, 0.34), (0.03, 0.30), (0.02, 0.0)]
+    collar = mat(COLLAR_INDEX, 0.0, satin=True)
+    lathe(bm, o, n, prof, 16, lambda k: collar if k < 3 else dark)
+
+
+class Mats:
+    def __init__(self, sprite):
+        self.sprite = sprite
+        self.list = []
+        self.slots = {}
+
+    def __call__(self, idx, glow, satin=False):
+        key = (idx, round(glow, 3), satin)
+        if key not in self.slots:
+            tag = f"{NAME}-{len(self.list)}"
+            if glow > 0:
+                m = common.palette_material(self.sprite, idx, tag, metallic=1.0, roughness=0.85,
+                                            emission_strength=glow)
+            else:
+                m = common.palette_material(self.sprite, idx, tag, metallic=0.55, roughness=0.5)
+                bsdf = next(nd for nd in m.node_tree.nodes if nd.type == "BSDF_PRINCIPLED")
+                if "Specular IOR Level" in bsdf.inputs:
+                    bsdf.inputs["Specular IOR Level"].default_value = 0.25
+            self.slots[key] = len(self.list)
+            self.list.append(m)
+        return self.slots[key]
 
 
 def build(sprite):
     coll = common.reset_collection(NAME)
-    pixels = [[int(v) for v in row.split()] if isinstance(row, str) else row
-              for row in sprite["frames"][0]["pixels"]]
-    grid = lib.Grid(12, 14, pixels)
-    mats = lib.Mats(NAME, sprite["colors"])
-    # Matte: the lava glows rather than shines.
-    bands = [mats(i, metallic=0.0, roughness=0.9, emission_strength=e) for i, e in BANDS]
-    spike = mats(SPIKE_INDEX, metallic=0.0, roughness=0.8)
-    fields = heat_field(grid, None), heat_field(grid, BLUR_SIDE)
-
-    def heat_at(field, x, y, soft=False):
-        """Sample of a heat field at (x, y) units: bilinear, or with soft=True nearly the nearest
-        pixel (soft_step); transparent neighbours are skipped."""
-        c, r = grid.col(x), grid.row(y)
-        c0, r0 = int(math.floor(c)), int(math.floor(r))
-        fc, fr = c - c0, r - r0
-        if soft:
-            fc, fr = soft_step(fc), soft_step(fr)
-        tot = wsum = 0.0
-        for rr, wr in ((r0, 1 - fr), (r0 + 1, fr)):
-            for cc, wc in ((c0, 1 - fc), (c0 + 1, fc)):
-                if 0 <= rr < grid.h and 0 <= cc < grid.w and field[rr][cc] is not None:
-                    tot += wr * wc * field[rr][cc]
-                    wsum += wr * wc
-        return tot / wsum if wsum else 0.0
-
+    mats = Mats(sprite)
     bm = bmesh.new()
-    # The ball: a sphere about 10 px across and as tall, centred on column 5, row 7. Slightly
-    # squared off on the diagonals as the sprite's body is, so its corners are covered.
-    cx, cy = grid.x(5), grid.y(7)
-    rad = 5.15 * lib.U
-    # The near-black pixel at column 5, row 9 is painted, not cut: a pit there catches a ring of
-    # highlight that reads as an eye from the game camera.
-
-    def shape(x, y, z):
-        return 1 + 0.12 * (4 * x * x * y * y) ** 3  # corners only, about +12% on the diagonals
-
-    first = lib.cube_blob(bm, (cx, cy, 0.0), (rad, rad, rad), n=N_CUBE, mat_index=bands[0], bump=shape)
-    n_ball_verts = len(bm.verts)
-    bm.faces.ensure_lookup_table()
-    for f in bm.faces[first:]:
-        c = f.calc_center_median()
-        top = f.normal.z > TOP_NZ
-        h = heat_at(fields[0] if top else fields[1], c.x, c.y, soft=top)
-        if top:
-            dc, dr = grid.col(c.x) - HOT[0], grid.row(c.y) - HOT[1]
-            # Towards the dimmer neighbours (right and below, orange 120) the glow ends sooner.
-            end = GLOW[2] if dc <= 0 and dr <= 0 else GLOW[3]
-            d = math.hypot(dc, dr)
-            h = max(h, GLOW[0] * min(1.0, max(0.0, (end - d) / (end - GLOW[1]))))
-        # Band by heat: each band is the RAMP position nearest its palette index.
-        best = min(range(len(BANDS)), key=lambda i: abs(RAMP.index(BANDS[i][0]) - h))
-        f.material_index = bands[best]
-
-    # Spikes, a little wider at the base than the ball's rim: up past row 0, down past row 13 and
-    # out past columns 0 and 10 (the sprite's side spikes cover rows 6-8).
-    for (tc, tr), (bc, br), r in (((5, -0.9), (5, 3.0), 1.4), ((5, 13.9), (5, 11.0), 1.4),
-                                   ((-0.9, 7), (2.0, 7), 1.6), ((10.9, 7), (8.0, 7), 1.6)):
-        base, tip = (grid.x(bc), grid.y(br), 0.0), (grid.x(tc), grid.y(tr), 0.0)
-        lib.tube(bm, [(base, r * lib.U), (tip, 0)], sides=8, mat_index=spike)
+    build_ball(bm, mats)
+    build_horns(bm, mats)
+    build_ports(bm, mats)
     obj = common.mesh_object(NAME, bm, mats.list, coll, smooth=True)
-    # The ball's vertices come first (to_mesh keeps the bmesh order); the spikes keep their own.
-    lean = Vector(LEAN_DIR).normalized() * LEAN
-    normals = [(Vector(v.normal) + lean).normalized() if i < n_ball_verts else Vector(v.normal)
-               for i, v in enumerate(obj.data.vertices)]
-    obj.data.normals_split_custom_set_from_vertices(normals)
-    return obj
+    # Hard edges: chamfers and collars keep crisp creases.
+    bpy.context.view_layer.objects.active = obj
+    obj.select_set(True)
+    try:
+        bpy.ops.object.shade_smooth_by_angle(angle=math.radians(38))
+    except Exception as err:  # older API
+        print("smooth by angle failed:", err)
+    return coll, obj
 
 
 def main():
+    argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+    out = Path(argv[argv.index("--out") + 1]) if "--out" in argv else None
+    for o in list(bpy.data.objects):
+        bpy.data.objects.remove(o, do_unlink=True)
     sprite = common.load_sprite(ROOT, NAME)
-    obj = build(sprite)
-    common.export_sprite_model(ROOT, [obj], MODEL, sprite["sprites"])
-    lib.preview(ROOT, NAME, [obj], sprite)
+    coll, body = build(sprite)
+    sealed = body.copy()
+    sealed.data = body.data.copy()
+    coll.objects.link(sealed)
+    bpy.context.view_layer.update()
+    shell = common.outline_shell(sealed, coll, voxel=0.008, faces=2500, inside=0.006, islands="outer")
+    shell.name = f"{NAME}_outline"
+    bpy.data.objects.remove(sealed, do_unlink=True)
+    assert len(shell.data.polygons) > 0, "outline shell has no mesh"
+    for o in (body, shell):
+        bb = [o.matrix_world @ Vector(c) for c in o.bound_box]
+        print(o.name, "bbox px", [round(min(p[i] for p in bb) / PX, 2) for i in range(3)],
+              [round(max(p[i] for p in bb) / PX, 2) for i in range(3)])
+    if out:
+        common.export_glb([body, shell], out)
+    else:
+        common.export_sprite_model(ROOT, [body, shell], MODEL, sprite["sprites"])
+    me = body.data
+    print(f"triangles {sum(len(p.vertices) - 2 for p in me.polygons)}; shell faces {len(shell.data.polygons)}")
+    print("materials", [m.name for m in me.materials])
 
 
 if __name__ == "__main__":

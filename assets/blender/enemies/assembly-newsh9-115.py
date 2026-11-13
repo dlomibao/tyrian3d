@@ -6,11 +6,10 @@ big rounded hood with a light ridge down its inner edge and a step across its fr
 dark body studded with four red knuckle domes, a light grey bridge between them and a white
 lamp in the lower corner. Each piece has one frame.
 
-The whole structure (both fists) is built in lib_b090.build and cut into pieces with
-common.split_assembly; this script exports the left fist's four.
+The fist is built in lib_b090 (hard-surface hood, red knuckle domes, lamp, outline shell) and cut into
+pieces with common.split_assembly; this script exports the left fist's four.
 
-Run: blender --background --python assets/blender/enemies/assembly-newsh9-115.py [-- --preview out.png]
-(the preview is the whole structure; each piece also gets <piece>.png next to it).
+Run: blender --background --python assets/blender/enemies/assembly-newsh9-115.py
 """
 
 import sys
@@ -23,4 +22,4 @@ NAME = "assembly-newsh9-115"
 PIECES = ["newsh9-77", "newsh9-79", "newsh9-115", "newsh9-117"]
 
 if __name__ == "__main__":
-    lib.export(NAME, PIECES)
+    lib.export(NAME)

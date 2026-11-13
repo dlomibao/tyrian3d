@@ -1,10 +1,10 @@
 """Grey gun works, upper right window: the thin barrel pointing right, the sloped housing and the column (newsh9.shp frame 239): a 3D version of its sprite.
 
-Seen in episode 4 (level 4.18). The sprite is a window onto the right gun works drawing that
+Seen in episode 4 (DREAD-NOT, level 4.14). The sprite is a window onto the right gun works drawing that
 the assembly-newsh9-276 pieces also show, so the whole gun works is built
 (lib_b089) and this sprite's 24x28 window cut out of it, keeping overlapping windows identical.
 
-Run: blender --background --python assets/blender/enemies/newsh9-239.py [-- --preview out.png]
+Run: blender --background --python assets/blender/enemies/newsh9-239.py
 """
 
 import sys
