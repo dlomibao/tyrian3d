@@ -1,6 +1,6 @@
 """The glossy rounded wall block of newshm.shp (frames 1, 15, 17, 53): shared by newshm-1, -15,
--17 and -53 so the wall (assembly-newshm-1) reads as one cast product line. The older lib_b078
-block is left as it was for newshm-55, -123 and -153.
+-17 and -53 so the wall (assembly-newshm-1) reads as one cast product line; newshm-55 and the
+chevron block newshm-153 build on it too (the older lib_b078 is gone).
 
 - Plan: a superellipse (rounded rectangle whose corners follow the sprite's 5-3-2-1-1-0 staircase)
   filling the sprite's inner mask (22 x 26 px inside the 1 px ink ring the game draws).

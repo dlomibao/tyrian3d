@@ -195,10 +195,10 @@
    "summary": {
     "levels": 20,
     "uniqueSprites": 766,
-    "units": 247,
-    "enemyUnits": 187,
-    "enemyUnitsModelled": 159,
-    "enemyUnitsFlagship": 141,
+    "units": 228,
+    "enemyUnits": 168,
+    "enemyUnitsModelled": 168,
+    "enemyUnitsFlagship": 167,
     "damageFramesMissing": 0,
     "tilesets": 5,
     "tilesetsWithHd": 5,
@@ -8850,16 +8850,16 @@
     {"type":248,"kind":"decor","unit":"assembly-newsh3-198","via":"event","events":4,"ticks":2498,"boss":true},
     {"type":249,"kind":"air","unit":"assembly-newsh3-198","via":"event","events":4,"ticks":2498,"boss":true},
     {"type":250,"kind":"decor","unit":"assembly-newsh3-198","via":"event","events":4,"ticks":2498,"boss":true},
-    {"type":260,"kind":"ground","unit":"newsh-caret-11","via":"event","events":1,"ticks":803},
-    {"type":261,"kind":"ground","unit":"newsh-caret-13","via":"event","events":1,"ticks":803},
-    {"type":262,"kind":"ground","unit":"newsh-caret-49","via":"event","events":1,"ticks":803},
-    {"type":263,"kind":"ground","unit":"newsh-caret-50","via":"event","events":1,"ticks":803},
-    {"type":264,"kind":"ground","unit":"newsh-caret-52","via":"event","events":1,"ticks":803},
-    {"type":265,"kind":"ground","unit":"newsh-caret-92","via":"event","events":1,"ticks":721},
-    {"type":266,"kind":"ground","unit":"newsh-caret-94","via":"event","events":1,"ticks":721},
-    {"type":267,"kind":"ground","unit":"newsh-caret-129","via":"event","events":1,"ticks":721},
-    {"type":268,"kind":"ground","unit":"newsh-caret-131","via":"event","events":1,"ticks":721},
-    {"type":269,"kind":"ground","unit":"newsh-caret-133","via":"event","events":1,"ticks":721},
+    {"type":260,"kind":"ground","unit":"assembly-newsh-caret-11","via":"event","events":1,"ticks":803},
+    {"type":261,"kind":"ground","unit":"assembly-newsh-caret-11","via":"event","events":1,"ticks":803},
+    {"type":262,"kind":"ground","unit":"assembly-newsh-caret-11","via":"event","events":1,"ticks":803},
+    {"type":263,"kind":"ground","unit":"assembly-newsh-caret-11","via":"event","events":1,"ticks":803},
+    {"type":264,"kind":"ground","unit":"assembly-newsh-caret-11","via":"event","events":1,"ticks":803},
+    {"type":265,"kind":"ground","unit":"assembly-newsh-caret-92","via":"event","events":1,"ticks":721},
+    {"type":266,"kind":"ground","unit":"assembly-newsh-caret-92","via":"event","events":1,"ticks":721},
+    {"type":267,"kind":"ground","unit":"assembly-newsh-caret-92","via":"event","events":1,"ticks":721},
+    {"type":268,"kind":"ground","unit":"assembly-newsh-caret-92","via":"event","events":1,"ticks":721},
+    {"type":269,"kind":"ground","unit":"assembly-newsh-caret-92","via":"event","events":1,"ticks":721},
     {"type":288,"kind":"ground","unit":"newsh5-89","via":"event","events":6,"ticks":24457},
     {"type":296,"kind":"ground","unit":"newsh5-51","via":"event","events":1,"ticks":4082},
     {"type":395,"kind":"pickup","unit":"tyrian10-14","via":"event","events":26,"ticks":5090},
@@ -8883,20 +8883,12 @@
     {"type":690,"kind":"pickup","unit":"newshp-85","via":"drop","events":1,"ticks":0}
    ],
    "units": [
+    "assembly-newsh-caret-11",
+    "assembly-newsh-caret-92",
     "assembly-newsh3-122",
     "assembly-newsh3-191",
     "assembly-newsh3-198",
     "assembly-newsh3-86",
-    "newsh-caret-11",
-    "newsh-caret-129",
-    "newsh-caret-13",
-    "newsh-caret-131",
-    "newsh-caret-133",
-    "newsh-caret-49",
-    "newsh-caret-50",
-    "newsh-caret-52",
-    "newsh-caret-92",
-    "newsh-caret-94",
     "newsh3-1",
     "newsh3-10",
     "newsh3-126",
@@ -8987,7 +8979,7 @@
     "difficulty": "normal",
     "completed": true,
     "ticks": 6901,
-    "unitsSeen": 27,
+    "unitsSeen": 19,
     "unitsNotSeen": ["newshp-85","tyrian10-127","tyrian10-129","tyrian10-131","tyrian10-279","tyrian10-76","tyrian9-153","tyrian9-155","tyrian9-157","tyrian9-163","tyrian9-165","tyrian9-191","tyrian9-195","tyrian9-197","tyrian9-199","tyrian9-239","tyrian9-41"],
     "unitsFoundByBot": [],
     "typesNotListed": [],
@@ -9978,18 +9970,18 @@
     {"type":45,"kind":"air","unit":"assembly-newsh-caret-45","via":"event","events":16,"ticks":1913},
     {"type":47,"kind":"air","unit":"assembly-newsh-caret-45","via":"event","events":16,"ticks":1890},
     {"type":48,"kind":"air","unit":"assembly-newsh-caret-45","via":"event","events":49,"ticks":8106},
-    {"type":49,"kind":"ground","unit":"newsh-caret-203","via":"event","events":18,"ticks":108},
-    {"type":50,"kind":"ground","unit":"newsh-caret-204","via":"event","events":18,"ticks":108},
-    {"type":51,"kind":"ground","unit":"newsh-caret-206","via":"event","events":18,"ticks":108},
-    {"type":52,"kind":"ground","unit":"newsh-caret-203","via":"launch","ticks":588},
-    {"type":53,"kind":"ground","unit":"newsh-caret-204","via":"launch","ticks":576},
-    {"type":54,"kind":"ground","unit":"newsh-caret-206","via":"launch","ticks":552},
-    {"type":55,"kind":"ground","unit":"newsh-caret-198","via":"event","events":15,"ticks":117},
-    {"type":56,"kind":"ground","unit":"newsh-caret-200","via":"event","events":15,"ticks":117},
-    {"type":57,"kind":"ground","unit":"newsh-caret-201","via":"event","events":15,"ticks":143},
-    {"type":58,"kind":"ground","unit":"newsh-caret-198","via":"launch","ticks":579},
-    {"type":59,"kind":"ground","unit":"newsh-caret-200","via":"launch","ticks":590},
-    {"type":60,"kind":"ground","unit":"newsh-caret-201","via":"launch","ticks":798},
+    {"type":49,"kind":"ground","unit":"assembly-newsh-caret-198","via":"event","events":18,"ticks":108},
+    {"type":50,"kind":"ground","unit":"assembly-newsh-caret-198","via":"event","events":18,"ticks":108},
+    {"type":51,"kind":"ground","unit":"assembly-newsh-caret-198","via":"event","events":18,"ticks":108},
+    {"type":52,"kind":"ground","unit":"assembly-newsh-caret-198","via":"launch","ticks":588},
+    {"type":53,"kind":"ground","unit":"assembly-newsh-caret-198","via":"launch","ticks":576},
+    {"type":54,"kind":"ground","unit":"assembly-newsh-caret-198","via":"launch","ticks":552},
+    {"type":55,"kind":"ground","unit":"assembly-newsh-caret-198","via":"event","events":15,"ticks":117},
+    {"type":56,"kind":"ground","unit":"assembly-newsh-caret-198","via":"event","events":15,"ticks":117},
+    {"type":57,"kind":"ground","unit":"assembly-newsh-caret-198","via":"event","events":15,"ticks":143},
+    {"type":58,"kind":"ground","unit":"assembly-newsh-caret-198","via":"launch","ticks":579},
+    {"type":59,"kind":"ground","unit":"assembly-newsh-caret-198","via":"launch","ticks":590},
+    {"type":60,"kind":"ground","unit":"assembly-newsh-caret-198","via":"launch","ticks":798},
     {"type":174,"kind":"ground","unit":"assembly-newsh-caret-123","via":"event","events":2,"ticks":272},
     {"type":175,"kind":"ground","unit":"assembly-newsh-caret-123","via":"event","events":2,"ticks":272},
     {"type":176,"kind":"ground","unit":"assembly-newsh-caret-123","via":"event","events":2,"ticks":272},
@@ -10044,6 +10036,7 @@
    "units": [
     "assembly-newsh-caret-123",
     "assembly-newsh-caret-191",
+    "assembly-newsh-caret-198",
     "assembly-newsh-caret-45",
     "assembly-newsh9-10",
     "assembly-newsh9-85",
@@ -10053,12 +10046,6 @@
     "newsh-caret-163",
     "newsh-caret-171",
     "newsh-caret-190",
-    "newsh-caret-198",
-    "newsh-caret-200",
-    "newsh-caret-201",
-    "newsh-caret-203",
-    "newsh-caret-204",
-    "newsh-caret-206",
     "newsh-caret-68",
     "newsh5-121",
     "newsh9-123",
@@ -10160,7 +10147,7 @@
     "difficulty": "normal",
     "completed": true,
     "ticks": 9921,
-    "unitsSeen": 23,
+    "unitsSeen": 18,
     "unitsNotSeen": ["newsh-caret-163","tyrian10-127","tyrian10-129","tyrian10-131","tyrian10-159","tyrian10-279","tyrian9-153","tyrian9-157","tyrian9-159","tyrian9-167","tyrian9-169","tyrian9-191","tyrian9-193","tyrian9-195","tyrian9-197","tyrian9-207","tyrian9-237","tyrian9-239","tyrian9-245","tyrian9-269","tyrian9-41"],
     "unitsFoundByBot": [],
     "typesNotListed": [],
@@ -11805,6 +11792,8 @@
    "units": [
     "assembly-newsh9-54",
     "assembly-newsh9-92",
+    "assembly-newshl-153",
+    "assembly-newshl-197",
     "assembly-newshl-39",
     "assembly-newshl-45",
     "assembly-newshl-49",
@@ -11815,14 +11804,6 @@
     "newshl-116",
     "newshl-117",
     "newshl-118",
-    "newshl-153",
-    "newshl-155",
-    "newshl-157",
-    "newshl-159",
-    "newshl-191",
-    "newshl-193",
-    "newshl-195",
-    "newshl-197",
     "tyrian10-127",
     "tyrian10-129",
     "tyrian10-131",
@@ -11854,9 +11835,9 @@
     "difficulty": "normal",
     "completed": true,
     "ticks": 6060,
-    "unitsSeen": 21,
+    "unitsSeen": 15,
     "unitsNotSeen": ["tyrian10-127","tyrian10-129","tyrian10-131","tyrian10-279"],
-    "unitsFoundByBot": ["newshl-153","newshl-155","newshl-157","newshl-159","newshl-191","newshl-193","newshl-195","newshl-197"],
+    "unitsFoundByBot": ["assembly-newshl-153","assembly-newshl-197"],
     "typesNotListed": [],
     "bossBarsSeen": [],
     "enemyShotFrames": 2
@@ -12287,6 +12268,39 @@
  ],
  "units": [
   {
+   "id": "assembly-newsh-caret-11",
+   "kind": "ground",
+   "sheet": "newsh^.shp",
+   "size": 2,
+   "frames": {
+    "newsh^.shp|1": [49],
+    "newsh^.shp|2": [11,13,50,52]
+   },
+   "damageFrames": {},
+   "status": "flagship",
+   "damage": "none",
+   "framesSeen": {
+    "newsh^.shp|1": [49],
+    "newsh^.shp|2": [11,13,50,52]
+   },
+   "unmodelledUnseen": {},
+   "types": [
+    "e4:260",
+    "e4:261",
+    "e4:262",
+    "e4:263",
+    "e4:264"
+   ],
+   "levels": [
+    "4.4"
+   ],
+   "episodes": [
+    4
+   ],
+   "events": 5,
+   "ticks": 3721
+  },
+  {
    "id": "assembly-newsh-caret-123",
    "kind": "ground",
    "sheet": "newsh^.shp",
@@ -12337,7 +12351,7 @@
     "newsh^.shp|2": [153,155,191,193]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh^.shp|2": [153,155,191,193]
@@ -12386,6 +12400,44 @@
    ],
    "events": 50,
    "ticks": 4906
+  },
+  {
+   "id": "assembly-newsh-caret-198",
+   "kind": "ground",
+   "sheet": "newsh^.shp",
+   "size": 2,
+   "frames": {
+    "newsh^.shp|2": [198,200,201,203,204,206]
+   },
+   "damageFrames": {},
+   "status": "flagship",
+   "damage": "none",
+   "framesSeen": {
+    "newsh^.shp|2": [198,200,201,203,204,206]
+   },
+   "unmodelledUnseen": {},
+   "types": [
+    "e4:49",
+    "e4:50",
+    "e4:51",
+    "e4:52",
+    "e4:53",
+    "e4:54",
+    "e4:55",
+    "e4:56",
+    "e4:57",
+    "e4:58",
+    "e4:59",
+    "e4:60"
+   ],
+   "levels": [
+    "4.7"
+   ],
+   "episodes": [
+    4
+   ],
+   "events": 99,
+   "ticks": 4057
   },
   {
    "id": "assembly-newsh-caret-269",
@@ -12481,6 +12533,39 @@
    ],
    "events": 64,
    "ticks": 17084
+  },
+  {
+   "id": "assembly-newsh-caret-92",
+   "kind": "ground",
+   "sheet": "newsh^.shp",
+   "size": 2,
+   "frames": {
+    "newsh^.shp|1": [133],
+    "newsh^.shp|2": [92,94,129,131]
+   },
+   "damageFrames": {},
+   "status": "flagship",
+   "damage": "none",
+   "framesSeen": {
+    "newsh^.shp|1": [133],
+    "newsh^.shp|2": [92,94,129,131]
+   },
+   "unmodelledUnseen": {},
+   "types": [
+    "e4:265",
+    "e4:266",
+    "e4:267",
+    "e4:268",
+    "e4:269"
+   ],
+   "levels": [
+    "4.4"
+   ],
+   "episodes": [
+    4
+   ],
+   "events": 5,
+   "ticks": 3519
   },
   {
    "id": "assembly-newsh-hash-195",
@@ -12977,7 +13062,7 @@
     "newsh3.shp|2": [122,124]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh3.shp|2": [122,124]
@@ -13089,7 +13174,7 @@
    "damageFrames": {
     "newsh3.shp|2": [239,277]
    },
-   "status": "basic",
+   "status": "flagship",
    "damage": "modelled",
    "framesSeen": {
     "newsh3.shp|2": [237,239,275,277]
@@ -13117,7 +13202,7 @@
     "newsh3.shp|2": [84,86]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh3.shp|2": [84,86]
@@ -13429,7 +13514,7 @@
     "newsh5.shp|2": [156,158]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh5.shp|2": [156,158]
@@ -13756,7 +13841,7 @@
     "newsh5.shp|2": [55,93]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh5.shp|2": [55,93]
@@ -16430,6 +16515,62 @@
    "ticks": 8071
   },
   {
+   "id": "assembly-newshl-153",
+   "kind": "ground",
+   "sheet": "newshl.shp",
+   "size": 2,
+   "frames": {
+    "newshl.shp|2": [153,155,157,159]
+   },
+   "damageFrames": {},
+   "status": "flagship",
+   "damage": "none",
+   "framesSeen": {
+    "newshl.shp|2": [153,155,157,159]
+   },
+   "unmodelledUnseen": {},
+   "botOnlyLevels": [
+    "4.17"
+   ],
+   "types": [],
+   "levels": [
+    "4.17"
+   ],
+   "episodes": [
+    4
+   ],
+   "events": 0,
+   "ticks": 512
+  },
+  {
+   "id": "assembly-newshl-197",
+   "kind": "air",
+   "sheet": "newshl.shp",
+   "size": 2,
+   "frames": {
+    "newshl.shp|2": [191,193,195,197]
+   },
+   "damageFrames": {},
+   "status": "flagship",
+   "damage": "none",
+   "framesSeen": {
+    "newshl.shp|2": [191,193,195,197]
+   },
+   "unmodelledUnseen": {},
+   "botOnlyLevels": [
+    "4.17"
+   ],
+   "types": [],
+   "levels": [
+    "4.17"
+   ],
+   "episodes": [
+    4
+   ],
+   "events": 0,
+   "ticks": 378
+  },
+  {
    "id": "assembly-newshl-39",
    "kind": "ground",
    "sheet": "newshl.shp",
@@ -17546,141 +17687,6 @@
    "ticks": 97600
   },
   {
-   "id": "newsh-caret-11",
-   "kind": "ground",
-   "sheet": "newsh^.shp",
-   "size": 2,
-   "frames": {
-    "newsh^.shp|2": [11]
-   },
-   "damageFrames": {},
-   "status": "sprite",
-   "damage": "none",
-   "framesSeen": {
-    "newsh^.shp|2": [11]
-   },
-   "unmodelledUnseen": {},
-   "types": [
-    "e4:260"
-   ],
-   "levels": [
-    "4.4"
-   ],
-   "episodes": [
-    4
-   ],
-   "events": 1,
-   "ticks": 773
-  },
-  {
-   "id": "newsh-caret-129",
-   "kind": "ground",
-   "sheet": "newsh^.shp",
-   "size": 2,
-   "frames": {
-    "newsh^.shp|2": [129]
-   },
-   "damageFrames": {},
-   "status": "sprite",
-   "damage": "none",
-   "framesSeen": {
-    "newsh^.shp|2": [129]
-   },
-   "unmodelledUnseen": {},
-   "types": [
-    "e4:267"
-   ],
-   "levels": [
-    "4.4"
-   ],
-   "episodes": [
-    4
-   ],
-   "events": 1,
-   "ticks": 719
-  },
-  {
-   "id": "newsh-caret-13",
-   "kind": "ground",
-   "sheet": "newsh^.shp",
-   "size": 2,
-   "frames": {
-    "newsh^.shp|2": [13]
-   },
-   "damageFrames": {},
-   "status": "sprite",
-   "damage": "none",
-   "framesSeen": {
-    "newsh^.shp|2": [13]
-   },
-   "unmodelledUnseen": {},
-   "types": [
-    "e4:261"
-   ],
-   "levels": [
-    "4.4"
-   ],
-   "episodes": [
-    4
-   ],
-   "events": 1,
-   "ticks": 773
-  },
-  {
-   "id": "newsh-caret-131",
-   "kind": "ground",
-   "sheet": "newsh^.shp",
-   "size": 2,
-   "frames": {
-    "newsh^.shp|2": [131]
-   },
-   "damageFrames": {},
-   "status": "sprite",
-   "damage": "none",
-   "framesSeen": {
-    "newsh^.shp|2": [131]
-   },
-   "unmodelledUnseen": {},
-   "types": [
-    "e4:268"
-   ],
-   "levels": [
-    "4.4"
-   ],
-   "episodes": [
-    4
-   ],
-   "events": 1,
-   "ticks": 719
-  },
-  {
-   "id": "newsh-caret-133",
-   "kind": "ground",
-   "sheet": "newsh^.shp",
-   "size": 1,
-   "frames": {
-    "newsh^.shp|1": [133]
-   },
-   "damageFrames": {},
-   "status": "sprite",
-   "damage": "none",
-   "framesSeen": {
-    "newsh^.shp|1": [133]
-   },
-   "unmodelledUnseen": {},
-   "types": [
-    "e4:269"
-   ],
-   "levels": [
-    "4.4"
-   ],
-   "episodes": [
-    4
-   ],
-   "events": 1,
-   "ticks": 699
-  },
-  {
    "id": "newsh-caret-152",
    "kind": "ground",
    "sheet": "newsh^.shp",
@@ -17811,255 +17817,6 @@
    "ticks": 3211
   },
   {
-   "id": "newsh-caret-198",
-   "kind": "ground",
-   "sheet": "newsh^.shp",
-   "size": 2,
-   "frames": {
-    "newsh^.shp|2": [198]
-   },
-   "damageFrames": {},
-   "status": "sprite",
-   "damage": "none",
-   "framesSeen": {
-    "newsh^.shp|2": [198]
-   },
-   "unmodelledUnseen": {},
-   "types": [
-    "e4:55",
-    "e4:58"
-   ],
-   "levels": [
-    "4.7"
-   ],
-   "episodes": [
-    4
-   ],
-   "events": 15,
-   "ticks": 681
-  },
-  {
-   "id": "newsh-caret-200",
-   "kind": "ground",
-   "sheet": "newsh^.shp",
-   "size": 2,
-   "frames": {
-    "newsh^.shp|2": [200]
-   },
-   "damageFrames": {},
-   "status": "sprite",
-   "damage": "none",
-   "framesSeen": {
-    "newsh^.shp|2": [200]
-   },
-   "unmodelledUnseen": {},
-   "types": [
-    "e4:56",
-    "e4:59"
-   ],
-   "levels": [
-    "4.7"
-   ],
-   "episodes": [
-    4
-   ],
-   "events": 15,
-   "ticks": 700
-  },
-  {
-   "id": "newsh-caret-201",
-   "kind": "ground",
-   "sheet": "newsh^.shp",
-   "size": 2,
-   "frames": {
-    "newsh^.shp|2": [201]
-   },
-   "damageFrames": {},
-   "status": "sprite",
-   "damage": "none",
-   "framesSeen": {
-    "newsh^.shp|2": [201]
-   },
-   "unmodelledUnseen": {},
-   "types": [
-    "e4:57",
-    "e4:60"
-   ],
-   "levels": [
-    "4.7"
-   ],
-   "episodes": [
-    4
-   ],
-   "events": 15,
-   "ticks": 846
-  },
-  {
-   "id": "newsh-caret-203",
-   "kind": "ground",
-   "sheet": "newsh^.shp",
-   "size": 2,
-   "frames": {
-    "newsh^.shp|2": [203]
-   },
-   "damageFrames": {},
-   "status": "sprite",
-   "damage": "none",
-   "framesSeen": {
-    "newsh^.shp|2": [203]
-   },
-   "unmodelledUnseen": {},
-   "types": [
-    "e4:49",
-    "e4:52"
-   ],
-   "levels": [
-    "4.7"
-   ],
-   "episodes": [
-    4
-   ],
-   "events": 18,
-   "ticks": 626
-  },
-  {
-   "id": "newsh-caret-204",
-   "kind": "ground",
-   "sheet": "newsh^.shp",
-   "size": 2,
-   "frames": {
-    "newsh^.shp|2": [204]
-   },
-   "damageFrames": {},
-   "status": "sprite",
-   "damage": "none",
-   "framesSeen": {
-    "newsh^.shp|2": [204]
-   },
-   "unmodelledUnseen": {},
-   "types": [
-    "e4:50",
-    "e4:53"
-   ],
-   "levels": [
-    "4.7"
-   ],
-   "episodes": [
-    4
-   ],
-   "events": 18,
-   "ticks": 614
-  },
-  {
-   "id": "newsh-caret-206",
-   "kind": "ground",
-   "sheet": "newsh^.shp",
-   "size": 2,
-   "frames": {
-    "newsh^.shp|2": [206]
-   },
-   "damageFrames": {},
-   "status": "sprite",
-   "damage": "none",
-   "framesSeen": {
-    "newsh^.shp|2": [206]
-   },
-   "unmodelledUnseen": {},
-   "types": [
-    "e4:51",
-    "e4:54"
-   ],
-   "levels": [
-    "4.7"
-   ],
-   "episodes": [
-    4
-   ],
-   "events": 18,
-   "ticks": 590
-  },
-  {
-   "id": "newsh-caret-49",
-   "kind": "ground",
-   "sheet": "newsh^.shp",
-   "size": 1,
-   "frames": {
-    "newsh^.shp|1": [49]
-   },
-   "damageFrames": {},
-   "status": "sprite",
-   "damage": "none",
-   "framesSeen": {
-    "newsh^.shp|1": [49]
-   },
-   "unmodelledUnseen": {},
-   "types": [
-    "e4:262"
-   ],
-   "levels": [
-    "4.4"
-   ],
-   "episodes": [
-    4
-   ],
-   "events": 1,
-   "ticks": 781
-  },
-  {
-   "id": "newsh-caret-50",
-   "kind": "ground",
-   "sheet": "newsh^.shp",
-   "size": 2,
-   "frames": {
-    "newsh^.shp|2": [50]
-   },
-   "damageFrames": {},
-   "status": "sprite",
-   "damage": "none",
-   "framesSeen": {
-    "newsh^.shp|2": [50]
-   },
-   "unmodelledUnseen": {},
-   "types": [
-    "e4:263"
-   ],
-   "levels": [
-    "4.4"
-   ],
-   "episodes": [
-    4
-   ],
-   "events": 1,
-   "ticks": 801
-  },
-  {
-   "id": "newsh-caret-52",
-   "kind": "ground",
-   "sheet": "newsh^.shp",
-   "size": 2,
-   "frames": {
-    "newsh^.shp|2": [52]
-   },
-   "damageFrames": {},
-   "status": "sprite",
-   "damage": "none",
-   "framesSeen": {
-    "newsh^.shp|2": [52]
-   },
-   "unmodelledUnseen": {},
-   "types": [
-    "e4:264"
-   ],
-   "levels": [
-    "4.4"
-   ],
-   "episodes": [
-    4
-   ],
-   "events": 1,
-   "ticks": 593
-  },
-  {
    "id": "newsh-caret-68",
    "kind": "ground",
    "sheet": "newsh^.shp",
@@ -18068,7 +17825,7 @@
     "newsh^.shp|1": [68]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh^.shp|1": [68]
@@ -18086,60 +17843,6 @@
    ],
    "events": 68,
    "ticks": 2136
-  },
-  {
-   "id": "newsh-caret-92",
-   "kind": "ground",
-   "sheet": "newsh^.shp",
-   "size": 2,
-   "frames": {
-    "newsh^.shp|2": [92]
-   },
-   "damageFrames": {},
-   "status": "sprite",
-   "damage": "none",
-   "framesSeen": {
-    "newsh^.shp|2": [92]
-   },
-   "unmodelledUnseen": {},
-   "types": [
-    "e4:265"
-   ],
-   "levels": [
-    "4.4"
-   ],
-   "episodes": [
-    4
-   ],
-   "events": 1,
-   "ticks": 691
-  },
-  {
-   "id": "newsh-caret-94",
-   "kind": "ground",
-   "sheet": "newsh^.shp",
-   "size": 2,
-   "frames": {
-    "newsh^.shp|2": [94]
-   },
-   "damageFrames": {},
-   "status": "sprite",
-   "damage": "none",
-   "framesSeen": {
-    "newsh^.shp|2": [94]
-   },
-   "unmodelledUnseen": {},
-   "types": [
-    "e4:266"
-   ],
-   "levels": [
-    "4.4"
-   ],
-   "episodes": [
-    4
-   ],
-   "events": 1,
-   "ticks": 691
   },
   {
    "id": "newsh-hash-1",
@@ -18997,7 +18700,7 @@
     "newsh3.shp|2": [1]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh3.shp|2": [1]
@@ -19054,7 +18757,7 @@
     "newsh3.shp|2": [126]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh3.shp|2": [126]
@@ -19110,14 +18813,12 @@
     "newsh3.shp|2": [12,14,16,50,54,88,90,92]
    },
    "damageFrames": {},
-   "status": "partial",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh3.shp|2": [12,14,90]
    },
-   "unmodelledUnseen": {
-    "newsh3.shp|2": [50,88]
-   },
+   "unmodelledUnseen": {},
    "types": [
     "e4:205"
    ],
@@ -19139,7 +18840,7 @@
     "newsh3.shp|2": [18,56,94,284]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh3.shp|2": [18,56,94,284]
@@ -19502,7 +19203,7 @@
     "newsh3.shp|2": [8,46]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh3.shp|2": [8,46]
@@ -19651,7 +19352,7 @@
     "newsh5.shp|1": [133]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh5.shp|1": [133]
@@ -19732,7 +19433,7 @@
     "newsh5.shp|2": [170]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh5.shp|2": [170]
@@ -19872,7 +19573,7 @@
     "newsh5.shp|1": [267]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh5.shp|1": [267]
@@ -19986,7 +19687,7 @@
     "newsh5.shp|1": [286]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh5.shp|1": [286]
@@ -20215,7 +19916,7 @@
     "newsh5.shp|2": [81]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh5.shp|2": [81]
@@ -20242,7 +19943,7 @@
     "newsh5.shp|2": [83]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh5.shp|2": [83]
@@ -20861,7 +20562,7 @@
     "newsh9.shp|2": [43]
    },
    "damageFrames": {},
-   "status": "sprite",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh9.shp|2": [43]
@@ -24325,230 +24026,6 @@
    "ticks": 63497
   },
   {
-   "id": "newshl-153",
-   "kind": "ground",
-   "sheet": "newshl.shp",
-   "size": 2,
-   "frames": {
-    "newshl.shp|2": [153]
-   },
-   "damageFrames": {},
-   "status": "sprite",
-   "damage": "none",
-   "framesSeen": {
-    "newshl.shp|2": [153]
-   },
-   "unmodelledUnseen": {},
-   "botOnlyLevels": [
-    "4.17"
-   ],
-   "types": [],
-   "levels": [
-    "4.17"
-   ],
-   "episodes": [
-    4
-   ],
-   "events": 0,
-   "ticks": 256
-  },
-  {
-   "id": "newshl-155",
-   "kind": "air",
-   "sheet": "newshl.shp",
-   "size": 2,
-   "frames": {
-    "newshl.shp|2": [155]
-   },
-   "damageFrames": {},
-   "status": "sprite",
-   "damage": "none",
-   "framesSeen": {
-    "newshl.shp|2": [155]
-   },
-   "unmodelledUnseen": {},
-   "botOnlyLevels": [
-    "4.17"
-   ],
-   "types": [],
-   "levels": [
-    "4.17"
-   ],
-   "episodes": [
-    4
-   ],
-   "events": 0,
-   "ticks": 232
-  },
-  {
-   "id": "newshl-157",
-   "kind": "air",
-   "sheet": "newshl.shp",
-   "size": 2,
-   "frames": {
-    "newshl.shp|2": [157]
-   },
-   "damageFrames": {},
-   "status": "sprite",
-   "damage": "none",
-   "framesSeen": {
-    "newshl.shp|2": [157]
-   },
-   "unmodelledUnseen": {},
-   "botOnlyLevels": [
-    "4.17"
-   ],
-   "types": [],
-   "levels": [
-    "4.17"
-   ],
-   "episodes": [
-    4
-   ],
-   "events": 0,
-   "ticks": 15
-  },
-  {
-   "id": "newshl-159",
-   "kind": "air",
-   "sheet": "newshl.shp",
-   "size": 2,
-   "frames": {
-    "newshl.shp|2": [159]
-   },
-   "damageFrames": {},
-   "status": "sprite",
-   "damage": "none",
-   "framesSeen": {
-    "newshl.shp|2": [159]
-   },
-   "unmodelledUnseen": {},
-   "botOnlyLevels": [
-    "4.17"
-   ],
-   "types": [],
-   "levels": [
-    "4.17"
-   ],
-   "episodes": [
-    4
-   ],
-   "events": 0,
-   "ticks": 9
-  },
-  {
-   "id": "newshl-191",
-   "kind": "air",
-   "sheet": "newshl.shp",
-   "size": 2,
-   "frames": {
-    "newshl.shp|2": [191]
-   },
-   "damageFrames": {},
-   "status": "sprite",
-   "damage": "none",
-   "framesSeen": {
-    "newshl.shp|2": [191]
-   },
-   "unmodelledUnseen": {},
-   "botOnlyLevels": [
-    "4.17"
-   ],
-   "types": [],
-   "levels": [
-    "4.17"
-   ],
-   "episodes": [
-    4
-   ],
-   "events": 0,
-   "ticks": 9
-  },
-  {
-   "id": "newshl-193",
-   "kind": "air",
-   "sheet": "newshl.shp",
-   "size": 2,
-   "frames": {
-    "newshl.shp|2": [193]
-   },
-   "damageFrames": {},
-   "status": "sprite",
-   "damage": "none",
-   "framesSeen": {
-    "newshl.shp|2": [193]
-   },
-   "unmodelledUnseen": {},
-   "botOnlyLevels": [
-    "4.17"
-   ],
-   "types": [],
-   "levels": [
-    "4.17"
-   ],
-   "episodes": [
-    4
-   ],
-   "events": 0,
-   "ticks": 15
-  },
-  {
-   "id": "newshl-195",
-   "kind": "air",
-   "sheet": "newshl.shp",
-   "size": 2,
-   "frames": {
-    "newshl.shp|2": [195]
-   },
-   "damageFrames": {},
-   "status": "sprite",
-   "damage": "none",
-   "framesSeen": {
-    "newshl.shp|2": [195]
-   },
-   "unmodelledUnseen": {},
-   "botOnlyLevels": [
-    "4.17"
-   ],
-   "types": [],
-   "levels": [
-    "4.17"
-   ],
-   "episodes": [
-    4
-   ],
-   "events": 0,
-   "ticks": 165
-  },
-  {
-   "id": "newshl-197",
-   "kind": "ground",
-   "sheet": "newshl.shp",
-   "size": 2,
-   "frames": {
-    "newshl.shp|2": [197]
-   },
-   "damageFrames": {},
-   "status": "sprite",
-   "damage": "none",
-   "framesSeen": {
-    "newshl.shp|2": [197]
-   },
-   "unmodelledUnseen": {},
-   "botOnlyLevels": [
-    "4.17"
-   ],
-   "types": [],
-   "levels": [
-    "4.17"
-   ],
-   "episodes": [
-    4
-   ],
-   "events": 0,
-   "ticks": 189
-  },
-  {
    "id": "newshl-229",
    "kind": "ground",
    "sheet": "newshl.shp",
@@ -24557,7 +24034,7 @@
     "newshl.shp|2": [229]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newshl.shp|2": [229]
@@ -24722,7 +24199,7 @@
    "damageFrames": {
     "newshm.shp|2": [2]
    },
-   "status": "basic",
+   "status": "flagship",
    "damage": "modelled",
    "framesSeen": {
     "newshm.shp|2": [153]
@@ -35664,15 +35141,6 @@
     "ticks": 6340
    },
    {
-    "id": "newsh3-8",
-    "what": "ground",
-    "status": "basic",
-    "levels": 3,
-    "episodes": 1,
-    "events": 32,
-    "ticks": 2225
-   },
-   {
     "id": "assembly-newsh-hash-195",
     "what": "ground",
     "status": "basic",
@@ -35682,105 +35150,6 @@
     "ticks": 6294
    },
    {
-    "id": "newsh3-126",
-    "what": "ground",
-    "status": "basic",
-    "levels": 2,
-    "episodes": 1,
-    "events": 52,
-    "ticks": 2504
-   },
-   {
-    "id": "newsh5-267",
-    "what": "ground",
-    "status": "sprite",
-    "levels": 2,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 148
-   },
-   {
-    "id": "newsh5-286",
-    "what": "ground",
-    "status": "sprite",
-    "levels": 2,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 64
-   },
-   {
-    "id": "newshl-229",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 1,
-    "ticks": 2829
-   },
-   {
-    "id": "assembly-newsh5-93",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 112,
-    "ticks": 2640
-   },
-   {
-    "id": "assembly-newsh3-275",
-    "what": "air+ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 12,
-    "ticks": 2604
-   },
-   {
-    "id": "assembly-newsh-caret-191",
-    "what": "air",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 24,
-    "ticks": 2478
-   },
-   {
-    "id": "assembly-newsh3-86",
-    "what": "air",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 20,
-    "ticks": 2260
-   },
-   {
-    "id": "newsh3-18",
-    "what": "air",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 58,
-    "ticks": 2233
-   },
-   {
-    "id": "newsh-caret-68",
-    "what": "ground (boss)",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 68,
-    "ticks": 2136
-   },
-   {
-    "id": "newsh3-14",
-    "what": "air",
-    "status": "partial",
-    "levels": 1,
-    "episodes": 1,
-    "events": 21,
-    "ticks": 1642
-   },
-   {
     "id": "newsh5-160",
     "what": "air",
     "status": "basic",
@@ -35788,303 +35157,6 @@
     "episodes": 1,
     "events": 16,
     "ticks": 1633
-   },
-   {
-    "id": "newsh5-133",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 48,
-    "ticks": 1584
-   },
-   {
-    "id": "newsh3-1",
-    "what": "ground (boss)",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 50,
-    "ticks": 1484
-   },
-   {
-    "id": "assembly-newsh3-122",
-    "what": "air",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 22,
-    "ticks": 1430
-   },
-   {
-    "id": "newsh5-170",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 10,
-    "ticks": 1400
-   },
-   {
-    "id": "newsh9-43",
-    "what": "ground (boss)",
-    "status": "sprite",
-    "levels": 1,
-    "episodes": 1,
-    "events": 2,
-    "ticks": 1016
-   },
-   {
-    "id": "newsh-caret-201",
-    "what": "ground",
-    "status": "sprite",
-    "levels": 1,
-    "episodes": 1,
-    "events": 15,
-    "ticks": 846
-   },
-   {
-    "id": "newsh-caret-50",
-    "what": "ground",
-    "status": "sprite",
-    "levels": 1,
-    "episodes": 1,
-    "events": 1,
-    "ticks": 801
-   },
-   {
-    "id": "newsh-caret-49",
-    "what": "ground",
-    "status": "sprite",
-    "levels": 1,
-    "episodes": 1,
-    "events": 1,
-    "ticks": 781
-   },
-   {
-    "id": "newsh-caret-11",
-    "what": "ground",
-    "status": "sprite",
-    "levels": 1,
-    "episodes": 1,
-    "events": 1,
-    "ticks": 773
-   },
-   {
-    "id": "newsh-caret-13",
-    "what": "ground",
-    "status": "sprite",
-    "levels": 1,
-    "episodes": 1,
-    "events": 1,
-    "ticks": 773
-   },
-   {
-    "id": "newsh-caret-129",
-    "what": "ground",
-    "status": "sprite",
-    "levels": 1,
-    "episodes": 1,
-    "events": 1,
-    "ticks": 719
-   },
-   {
-    "id": "newsh-caret-131",
-    "what": "ground",
-    "status": "sprite",
-    "levels": 1,
-    "episodes": 1,
-    "events": 1,
-    "ticks": 719
-   },
-   {
-    "id": "newsh-caret-200",
-    "what": "ground",
-    "status": "sprite",
-    "levels": 1,
-    "episodes": 1,
-    "events": 15,
-    "ticks": 700
-   },
-   {
-    "id": "newsh-caret-133",
-    "what": "ground",
-    "status": "sprite",
-    "levels": 1,
-    "episodes": 1,
-    "events": 1,
-    "ticks": 699
-   },
-   {
-    "id": "newsh-caret-92",
-    "what": "ground",
-    "status": "sprite",
-    "levels": 1,
-    "episodes": 1,
-    "events": 1,
-    "ticks": 691
-   },
-   {
-    "id": "newsh-caret-94",
-    "what": "ground",
-    "status": "sprite",
-    "levels": 1,
-    "episodes": 1,
-    "events": 1,
-    "ticks": 691
-   },
-   {
-    "id": "newsh-caret-198",
-    "what": "ground",
-    "status": "sprite",
-    "levels": 1,
-    "episodes": 1,
-    "events": 15,
-    "ticks": 681
-   },
-   {
-    "id": "newsh-caret-203",
-    "what": "ground",
-    "status": "sprite",
-    "levels": 1,
-    "episodes": 1,
-    "events": 18,
-    "ticks": 626
-   },
-   {
-    "id": "newsh-caret-204",
-    "what": "ground",
-    "status": "sprite",
-    "levels": 1,
-    "episodes": 1,
-    "events": 18,
-    "ticks": 614
-   },
-   {
-    "id": "newshm-153",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 94,
-    "ticks": 607
-   },
-   {
-    "id": "newsh5-83",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 12,
-    "ticks": 603
-   },
-   {
-    "id": "newsh-caret-52",
-    "what": "ground",
-    "status": "sprite",
-    "levels": 1,
-    "episodes": 1,
-    "events": 1,
-    "ticks": 593
-   },
-   {
-    "id": "newsh-caret-206",
-    "what": "ground",
-    "status": "sprite",
-    "levels": 1,
-    "episodes": 1,
-    "events": 18,
-    "ticks": 590
-   },
-   {
-    "id": "assembly-newsh5-156",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 8,
-    "ticks": 434
-   },
-   {
-    "id": "newshl-153",
-    "what": "ground",
-    "status": "sprite",
-    "levels": 1,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 256
-   },
-   {
-    "id": "newsh5-81",
-    "what": "ground",
-    "status": "basic",
-    "levels": 1,
-    "episodes": 1,
-    "events": 7,
-    "ticks": 244
-   },
-   {
-    "id": "newshl-155",
-    "what": "air",
-    "status": "sprite",
-    "levels": 1,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 232
-   },
-   {
-    "id": "newshl-197",
-    "what": "ground",
-    "status": "sprite",
-    "levels": 1,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 189
-   },
-   {
-    "id": "newshl-195",
-    "what": "air",
-    "status": "sprite",
-    "levels": 1,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 165
-   },
-   {
-    "id": "newshl-157",
-    "what": "air",
-    "status": "sprite",
-    "levels": 1,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 15
-   },
-   {
-    "id": "newshl-193",
-    "what": "air",
-    "status": "sprite",
-    "levels": 1,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 15
-   },
-   {
-    "id": "newshl-159",
-    "what": "air",
-    "status": "sprite",
-    "levels": 1,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 9
-   },
-   {
-    "id": "newshl-191",
-    "what": "air",
-    "status": "sprite",
-    "levels": 1,
-    "episodes": 1,
-    "events": 0,
-    "ticks": 9
    }
   ],
   "pickups": [],
@@ -36901,14 +35973,8 @@
  },
  "notes": {
   "foundByBot": [
-   "4.17 newshl.shp|2|153 -> newshl-153 (256 ticks, type 673)",
-   "4.17 newshl.shp|2|155 -> newshl-155 (232 ticks, type 674)",
-   "4.17 newshl.shp|2|157 -> newshl-157 (15 ticks, type 674)",
-   "4.17 newshl.shp|2|159 -> newshl-159 (9 ticks, type 674)",
-   "4.17 newshl.shp|2|191 -> newshl-191 (9 ticks, type 675)",
-   "4.17 newshl.shp|2|193 -> newshl-193 (15 ticks, type 675)",
-   "4.17 newshl.shp|2|195 -> newshl-195 (165 ticks, type 675)",
-   "4.17 newshl.shp|2|197 -> newshl-197 (189 ticks, type 676)"
+   "4.17 newshl.shp|2|153 -> assembly-newshl-153 (256 ticks, type 673)",
+   "4.17 newshl.shp|2|191 -> assembly-newshl-197 (9 ticks, type 675)"
   ],
   "maps": "structure-model counts scan the whole map, including rows a level may never scroll to"
  }
