@@ -16,6 +16,7 @@ import "./overlay.css";
 import { cameraStyle, interfaceStyle, type CameraStyle } from "../core/displayStyle";
 import { CAMERA_TILT, CAMERA_TILT_GENTLE, CAMERA_TILT_OVERHEAD, playfieldScreenAspect, type ScreenRect } from "../render/view";
 import { g } from "../sim/state";
+import { drawList, isHudDraw, type SpriteDraw } from "../sim/draw";
 import { hudLives } from "./arcade"; // [arcade]
 import { decodeSprite2, type DecodedSprite } from "../data";
 import { paint, tableSprite } from "./dataCubes";
@@ -44,6 +45,9 @@ const OPTION_SHAPES = 5;
 const LEVEL_PALETTE = 5;
 /** JE_inGameDisplays' superbomb icon: spriteSheet9 #304 (mainint.c L2908). */
 const SUPERBOMB_SPRITE = 304;
+/** JE_inGameDisplays' special icon's top left on the screen (mainint.c L2859-2861). */
+const SPECIAL_ICON_X = 25;
+const SPECIAL_ICON_Y = 1;
 
 /** A palette-indexed sprite painted once, as a data URL and its size in game pixels. */
 interface Art {
@@ -74,7 +78,7 @@ export class Hud {
     this.root.className = "hud";
     this.root.innerHTML = `
       <div class="top"><span class="score" data-k="score"></span><span class="level" data-k="level"></span><span class="lives" data-k="lives"></span></div>
-      <div class="special" data-k="special" hidden><img alt="" data-k="specialIcon"></div>
+      <div class="special" data-k="special" hidden><img alt="" data-k="specialIcon"><img class="lamp" alt="" data-k="specialLamp" hidden></div>
       <div class="bombs" data-k="bombs" hidden></div>
       <div class="boss" data-k="boss" hidden>
         <span class="bar"><i data-k="boss0"></i></span><span class="bar" data-k="bossSlot1"><i data-k="boss1"></i></span>
@@ -332,6 +336,21 @@ export class Hud {
     if (icon && this.last.get("specialIcon") !== icon.url) {
       this.last.set("specialIcon", icon.url);
       (this.el.specialIcon as HTMLImageElement).src = icon.url;
+    }
+    // JE_doSpecialShot's ready lamp (varz.c L648-653): spriteSheet9 #94 when the special can fire,
+    // #93 while it recharges, at (47, 4), 22 and 3 game pixels from the icon's corner. The sim
+    // marks it as the HUD's (D193), so the 3D field leaves it out and it shows here, by the icon.
+    const lampDraw = icon ? (drawList.items.find(isHudDraw) as SpriteDraw | undefined) : undefined;
+    const lamp = lampDraw ? this.paint(`sheet9:${lampDraw.index}`, () => [{ sprite: decodeSprite2(lampDraw.sheet.data, lampDraw.index), x: 0, y: 0 }]) : null;
+    this.hidden("specialLamp", lamp === null);
+    if (lamp && this.last.get("specialLampSrc") !== lamp.url) {
+      this.last.set("specialLampSrc", lamp.url);
+      const img = this.el.specialLamp as HTMLImageElement;
+      img.src = lamp.url;
+      img.style.setProperty("--w", String(lamp.w));
+      img.style.setProperty("--h", String(lamp.h));
+      img.style.setProperty("--x", String(lampDraw!.x - SPECIAL_ICON_X));
+      img.style.setProperty("--y", String(lampDraw!.y - SPECIAL_ICON_Y));
     }
 
     // [two-player] Player 2's bombs aren't drawn here (twoPlayer.css hides the bars row).

@@ -293,7 +293,7 @@ export class UnderGrabHook extends THREE.Mesh<THREE.BufferGeometry, THREE.MeshBa
   /** Where this frame's readers are on screen; DrawListRenderer grows it while it lays the frame out. */
   readonly area = new NdcRect();
 
-  constructor(private readonly grab: UnderGrab, order: number) {
+  constructor(private readonly grab: UnderGrab, order: number, mainRenderOnly = false) {
     super(
       new THREE.BufferGeometry(),
       new THREE.MeshBasicMaterial({
@@ -306,6 +306,12 @@ export class UnderGrabHook extends THREE.Mesh<THREE.BufferGeometry, THREE.MeshBa
       }),
     );
     this.name = "under-grab";
+    // The outline pass's own render of the scene (outlineEffect.js) runs inside the main render at
+    // OUTLINE_ORDER and reaches the hooks too. A copy made there (it uses up the arming) has the
+    // frame as it was at OUTLINE_ORDER, the main render's state below the sheets' hook (so the
+    // sheets' copy may be made there), but not the blend sheets and flat art the explosions' and
+    // the top sheets' copies need: those hooks are left out of it (`mainRenderOnly`, D193).
+    if (mainRenderOnly) this.userData.outlineSkip = true;
     this.renderOrder = order;
     this.frustumCulled = false;
     this.castShadow = false;

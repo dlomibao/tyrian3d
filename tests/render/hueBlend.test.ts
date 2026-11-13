@@ -8,7 +8,7 @@ import { ART_HUE_BLEND } from "../../src/render/spriteArtLayer";
 import { parseSpriteArtManifest, SpriteArt } from "../../src/render/spriteArt";
 import { OUTLINE_ORDER } from "../../src/render/outlineHook";
 import { blendSheetOrder } from "../../src/render/drawListRenderer";
-import { Pass, type DrawList, type Sprite2Sheet, type SpriteDraw } from "../../src/sim/draw";
+import { beginDrawList, blit_sprite2, blit_sprite2_hud, drawList, isHudDraw, Pass, type DrawList, type Sprite2Sheet, type SpriteDraw } from "../../src/sim/draw";
 import type { Palette } from "../../src/data/palette";
 
 vi.stubGlobal("location", { search: "" });
@@ -25,7 +25,7 @@ function draw(sh: Sprite2Sheet, over: Partial<SpriteDraw> = {}): SpriteDraw {
   };
 }
 
-type Peek = { peek(s: unknown, p: number): { instance(i: number): { fx: number[] } } | undefined };
+type Peek = { peek(s: unknown, p: number): { geometry: THREE.InstancedBufferGeometry; mesh: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>; instance(i: number): { fx: number[] } } | undefined };
 
 function frame(items: SpriteDraw[]) {
   const art = new SpriteArt<THREE.Texture>(parseSpriteArtManifest({ scale: 8, sheets: { "fire.shp": { image: "f.webp", frames: { "1": { x: 0, y: 0, w: 96, h: 8 } } } } })!);
@@ -41,8 +41,14 @@ function frame(items: SpriteDraw[]) {
   const camera = new THREE.PerspectiveCamera();
   camera.position.set(0, 30, 10);
   r.update(1, camera);
-  const inner = r as unknown as { artLayer: Peek; grabExplosions: { armed: boolean }; grabSheets: { armed: boolean } };
-  return { layer: inner.artLayer, sheet: art.sheet("fire.shp"), explosionsArmed: inner.grabExplosions.armed, sheetsArmed: inner.grabSheets.armed };
+  const inner = r as unknown as {
+    artLayer: Peek; grabExplosions: THREE.Object3D & { armed: boolean }; grabSheets: THREE.Object3D & { armed: boolean };
+    grabTop: THREE.Object3D; under: { uniforms: Record<string, unknown> };
+  };
+  return {
+    layer: inner.artLayer, sheet: art.sheet("fire.shp"), explosionsArmed: inner.grabExplosions.armed, sheetsArmed: inner.grabSheets.armed,
+    hooks: [inner.grabSheets, inner.grabExplosions, inner.grabTop], under: inner.under,
+  };
 }
 
 describe("hue-keeping blend (D174)", () => {
@@ -89,6 +95,37 @@ describe("hue-keeping blend (D174)", () => {
     expect(f.layer.peek(f.sheet, Pass.PlayerShots)!.instance(0).fx).toEqual([0, 0, 0, Math.fround(0.55)]);
     expect(f.layer.peek(f.sheet, Pass.Explosions)!.instance(0).fx).toEqual([0, 0, 0, 1]);
     expect(f.explosionsArmed).toBe(false);
+  });
+
+  test("the explosions read the live frame copy, palette and filters, in the main render only (D193)", () => {
+    const f = frame([draw(fireSheet("fire.shp"))]);
+    const mesh = f.layer.peek(f.sheet, Pass.Explosions)!.mesh;
+    // The stencilled material is a clone: its uniforms must be the shared ones, not copies frozen
+    // at creation (a blank 1x1 frame copy made every explosion blend as if over black).
+    for (const k of ["blendUnder", "blendUnderSize", "blendUnderLinear", "blendUnderLut", "blendShadeLut"])
+      expect(mesh.material.uniforms[k]).toBe(f.under.uniforms[k]);
+    expect(mesh.material.stencilWrite).toBe(true);
+    // The outline pass's own render of the scene leaves them out (outlineEffect.js).
+    expect(mesh.userData.outlineSkip).toBe(true);
+    // So do the explosions' and the top sheets' frame copies; the sheets' copy may be made there.
+    expect(f.hooks.map((h) => h.userData.outlineSkip === true)).toEqual([false, true, true]);
+  });
+
+  test("a HUD indicator (the special's ready lamp) is left to the HTML HUD (D193)", () => {
+    const sh = fireSheet("fire.shp");
+    const f = frame([draw(sh, { pass: Pass.Player, effect: "none", hud: true }), draw(sh)]);
+    expect(f.layer.peek(f.sheet, Pass.Player)?.geometry.instanceCount ?? 0).toBe(0);
+    expect(f.layer.peek(f.sheet, Pass.Explosions)!.geometry.instanceCount).toBe(1);
+  });
+
+  test("JE_doSpecialShot's lamp is recorded as a HUD draw, other blits aren't", () => {
+    const sh = fireSheet("tyrian.shp#9");
+    beginDrawList();
+    blit_sprite2_hud(47, 4, sh, 94);
+    blit_sprite2(47, 4, sh, 94);
+    expect(drawList.items.map(isHudDraw)).toEqual([true, false]);
+    expect(drawList.items[0]).toMatchObject({ kind: "sprite2", x: 47, y: 4, index: 94, hud: true });
+    beginDrawList();
   });
 
   test("a grab's screen area grows to cover its draws; areas far apart are not near", () => {

@@ -36,7 +36,7 @@
 import * as THREE from "three";
 import type { Palette } from "../data/palette";
 import { PX_PER_UNIT, screenWorldX, screenWorldZ } from "../game/playfield";
-import { ENEMY_KEY_BASE, Pass, type Draw, type DrawList, type Sprite2Sheet, type SpriteDraw, type SpriteEffect, type TileDraw } from "../sim/draw";
+import { ENEMY_KEY_BASE, Pass, isHudDraw, type Draw, type DrawList, type Sprite2Sheet, type SpriteDraw, type SpriteEffect, type TileDraw } from "../sim/draw";
 import { DrawInterpolator } from "./interpolation";
 import { FxMode, groundTileMaterial, paletteMaterial } from "./paletteMaterial";
 import { PaletteTexture } from "./paletteTexture";
@@ -512,8 +512,8 @@ export class DrawListRenderer {
     const p = this.palette;
     this.under = new UnderGrab(p.indexLut);
     this.grabSheets = new UnderGrabHook(this.under, UNDER_GRAB_ORDER.sheets);
-    this.grabExplosions = new UnderGrabHook(this.under, UNDER_GRAB_ORDER.explosions);
-    this.grabTop = new UnderGrabHook(this.under, UNDER_GRAB_ORDER.top);
+    this.grabExplosions = new UnderGrabHook(this.under, UNDER_GRAB_ORDER.explosions, true);
+    this.grabTop = new UnderGrabHook(this.under, UNDER_GRAB_ORDER.top, true);
     this.root.add(this.grabSheets, this.grabExplosions, this.grabTop);
     this.materials = [];
     this.materials[Variant.Lit] = paletteMaterial(p, { lit: true, transparent: false, outline: true });
@@ -596,6 +596,8 @@ export class DrawListRenderer {
    * sim's beginDrawList starts a new array each tick, so this holds).
    */
   setDrawList(list: DrawList): void {
+    // The HUD's indicators (the special's ready lamp) are the HTML HUD's, not the field's (D193).
+    if (list.items.some(isHudDraw)) list = { ...list, items: list.items.filter((d) => !isHudDraw(d)) };
     this.list = list;
     this.items = list.items;
     this.paintedOver.update(list.items);

@@ -292,6 +292,10 @@ export class SpriteArtLayer {
     let b = list[pass];
     if (!b) {
       b = list[pass] = new Batch(pass === Pass.Explosions ? this.stencilled(sheet) : this.material(sheet), SPRITE_ART_ORDER + pass / 100);
+      // The explosions blend with the frame copied under them (D174), in the main render only: the
+      // outline pass's render of the scene (outlineEffect.js) would draw them a first time, before
+      // the blend sheets and without their stencil, over a stale copy (D193).
+      if (pass === Pass.Explosions) b.mesh.userData.outlineSkip = true;
       this.all.push(b);
       this.root.add(b.mesh);
       if (pass === Pass.Explosions && !this.setter) this.root.add((this.setter = this.stencilSetter()));
@@ -309,7 +313,13 @@ export class SpriteArtLayer {
    * once it saturates (255 & (N-1) != 0). N must be a power of two.
    */
   private stencilled(sheet: SpriteArtSheet<THREE.Texture>): THREE.ShaderMaterial {
-    const m = this.material(sheet).clone();
+    const base = this.material(sheet);
+    const m = base.clone();
+    // clone() copies the uniforms, textures and all, so the explosions kept the frame copy, palette,
+    // level filter and smoothie hue of the moment they were made (a blank 1x1 under: every explosion
+    // blended as if over black, crimson where the C's go orange over light ground, D193). They share
+    // the live ones instead.
+    m.uniforms = base.uniforms;
     m.stencilWrite = true;
     m.stencilRef = 0;
     m.stencilFuncMask = EXPLOSION_LAYER_EVERY - 1;

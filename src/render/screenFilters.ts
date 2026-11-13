@@ -156,6 +156,33 @@ export function bankAtLuma(l: number, bank: readonly Rgb[]): [number, number, nu
   return scaled(lo, l / Math.max(llo, 1e-6));
 }
 
+/**
+ * JE_filterScreen's hue on a lit pixel (D193): its luminance, the hue's direction, and its own
+ * saturation along that direction, never less than the hue's shade at that luminance. bankAtLuma
+ * alone takes the saturation of the shade the luminance lands on, and the 3D's lighting lifts a
+ * palette colour (already the hue's shade: the palette texture holds the filter) up the run to the
+ * paler shades, so CAMANIS's lit ice went near white. A pixel already in the hue so keeps its colour
+ * (its shade lit, as an unfiltered level shows its colours); a white sheen (no saturation of its
+ * own) takes the shade's, and an off-hue colour loses the part across the hue, as under bankAtLuma
+ * alone (D191). Colours are linear RGB as displayed; the result stays inside 0..1.
+ */
+export function hueKeepingChroma(c: Rgb, bank: readonly Rgb[]): [number, number, number] {
+  const l = lumaOf(c);
+  const r = bankAtLuma(l, bank);
+  const dr = [r[0] - l, r[1] - l, r[2] - l];
+  const n = Math.hypot(dr[0], dr[1], dr[2]);
+  if (n < 1e-6) return r;
+  const u = dr.map((v) => v / n);
+  const own = (c[0] - l) * u[0] + (c[1] - l) * u[1] + (c[2] - l) * u[2];
+  let limit = Infinity;
+  for (const v of u) {
+    if (v < -1e-6) limit = Math.min(limit, l / -v);
+    else if (v > 1e-6) limit = Math.min(limit, Math.max(1 - l, 0) / v);
+  }
+  const s = Math.max(n, Math.min(own, limit));
+  return [l + u[0] * s, l + u[1] * s, l + u[2] * s];
+}
+
 /** three's NeutralToneMapping (Khronos PBR Neutral), the canvas's tone mapping (view.ts). */
 export function neutralToneMap(c: Rgb, exposure = 1): [number, number, number] {
   let [r, g, b] = [c[0] * exposure, c[1] * exposure, c[2] * exposure];
@@ -256,6 +283,23 @@ vec3 bankAtLuma(float l, float bank) {
     llo = lhi;
   }
   return lo * (l / max(llo, 1e-6));
+}
+// JE_filterScreen's hue on a lit pixel (hueKeepingChroma in this file, D193): the hue's direction
+// at the pixel's luminance, with the pixel's own saturation along it, at least the shade's.
+vec3 hueKeepingChroma(vec3 c, float bank) {
+  float l = lumaOf(c);
+  vec3 r = bankAtLuma(l, bank);
+  vec3 dr = r - vec3(l);
+  float n = length(dr);
+  if (n < 1e-6) return r;
+  vec3 u = dr / n;
+  float own = dot(c - vec3(l), u);
+  float limit = 1e9;
+  for (int i = 0; i < 3; i++) {
+    if (u[i] < -1e-6) limit = min(limit, l / -u[i]);
+    else if (u[i] > 1e-6) limit = min(limit, max(1.0 - l, 0.0) / u[i]);
+  }
+  return vec3(l) + u * max(n, min(own, limit));
 }
 
 // The canvas's tone mapping (neutralToneMap in this file; off: identity) and its inverse
@@ -474,8 +518,9 @@ void main() {
   gl_FragColor = vec4(c, 1.0);
   #include <tonemapping_fragment>
   // JE_filterScreen's hue: every playfield pixel takes it, lighting and effects too (D191), after
-  // the tone mapping (the palette texture already holds it for whatever looks colours up).
-  if (levelBank >= 0.0 && inPlayfield(src)) gl_FragColor.rgb = bankAtLuma(lumaOf(gl_FragColor.rgb), levelBank);
+  // the tone mapping (the palette texture already holds it for whatever looks colours up). A pixel
+  // keeps its own saturation along the hue, so lit shades don't pale up the run (D193).
+  if (levelBank >= 0.0 && inPlayfield(src)) gl_FragColor.rgb = hueKeepingChroma(gl_FragColor.rgb, levelBank);
   #include <colorspace_fragment>
 }
 `;

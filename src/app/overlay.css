@@ -251,6 +251,7 @@
  * score, at the C's top left, and the bombs as a row of the bars, at its bottom left.
  */
 .hud .special {
+  --special-unit: 2px; /* game pixels: the icon is drawn 2x */
   position: absolute;
   top: calc(max(10px, env(safe-area-inset-top)) + 2.2em);
   left: 12px;
@@ -262,6 +263,19 @@
   height: 56px;
   image-rendering: pixelated;
   filter: drop-shadow(0 1px 2px #000);
+}
+
+/* JE_doSpecialShot's ready lamp (D193), where the C puts it beside the icon: (--x, --y) game pixels from the icon's corner. */
+.hud .special img.lamp {
+  position: absolute;
+  left: calc(var(--x, 22) * var(--special-unit));
+  top: calc(var(--y, 3) * var(--special-unit));
+  width: calc(var(--w, 12) * var(--special-unit));
+  height: calc(var(--h, 14) * var(--special-unit));
+}
+
+.hud .special img.lamp[hidden] {
+  display: none;
 }
 
 .hud .bombs,
@@ -451,11 +465,12 @@ canvas {
  * every 12 from (30, 160), ending 10 rows above the playfield's bottom edge.
  */
 .hud.is-framed .special {
+  --special-unit: var(--hud-unit, 5px);
   top: var(--hud-unit, 5px);
   left: var(--hud-unit, 5px);
 }
 
-.hud.is-framed .special img {
+.hud.is-framed .special img:not(.lamp) {
   width: calc(var(--hud-unit, 5px) * 24);
   height: calc(var(--hud-unit, 5px) * 28);
 }

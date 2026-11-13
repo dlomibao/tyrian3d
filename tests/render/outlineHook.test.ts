@@ -1,10 +1,12 @@
 // The ink outline is drawn inside the main pass, before the blended layers (src/render/outlineHook.ts,
-// DECISIONS.md D146): the hook's place in three.js's translucent draw order, and when it runs.
+// DECISIONS.md D146): the hook's place in three.js's translucent draw order, and when it runs; and what
+// the outline pass's own render of the scene leaves out (D193).
 import * as THREE from "three";
 import { WebGLRenderList } from "three/src/renderers/webgl/WebGLRenderLists.js";
 import { describe, expect, test } from "vitest";
 import { blendSheetOrder, CUTOUT_ORDER } from "../../src/render/drawListRenderer";
 import { BLENDED_MODEL_ORDER, setModelBlended } from "../../src/render/modelPrep";
+import { OutlineEffect } from "../../src/render/outlineEffect.js";
 import { FADE_ROCK_ORDER, OUTLINE_ORDER, OutlineHook } from "../../src/render/outlineHook";
 import { SPRITE_ART_ORDER } from "../../src/render/spriteArtLayer";
 import { Pass } from "../../src/sim/draw";
@@ -90,5 +92,25 @@ describe("outline hook (D146)", () => {
     setModelBlended(root, false);
     expect(rock.renderOrder).toBe(FADE_ROCK_ORDER);
     expect(hull.renderOrder).toBe(0);
+  });
+});
+
+describe("the outline pass's own render (outlineEffect.js, D193)", () => {
+  test("hides the objects marked outlineSkip while it renders, and only then", () => {
+    const scene = new THREE.Scene();
+    const skipped = translucent("frame copy", 0);
+    skipped.userData.outlineSkip = true;
+    const kept = translucent("glow", 0);
+    scene.add(skipped, kept);
+    const seen: Record<string, boolean>[] = [];
+    const renderer = {
+      autoClear: true,
+      shadowMap: { enabled: true },
+      render: (s: THREE.Scene) => seen.push(Object.fromEntries(s.children.map((o) => [o.name, o.visible]))),
+    };
+    const effect = new OutlineEffect(renderer as unknown as THREE.WebGLRenderer);
+    effect.renderOutline(scene, new THREE.PerspectiveCamera());
+    expect(seen).toEqual([{ "frame copy": false, glow: true }]);
+    expect(skipped.visible).toBe(true);
   });
 });

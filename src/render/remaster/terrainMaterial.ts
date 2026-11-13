@@ -73,16 +73,14 @@ vec3 terrainLinear(vec3 s) {
   s = clamp(s, 0.0, 1.0);
   return mix(pow((s + 0.055) / 1.055, vec3(2.4)), s / 12.92, step(s, vec3(0.04045)));
 }
-// The bank (index & 0xf0) of the raw palette's nearest colour to an sRGB colour.
-float terrainBank(vec3 s) {
+// The raw palette's nearest index to an sRGB colour.
+float terrainNearest(vec3 s) {
   ivec3 c = clamp(ivec3(s * ${L}.0), 0, ${L - 1});
-  float index = floor(texelFetch(paletteLut, ivec2(c.r + ${L} * (c.b & 7), c.g + ${L} * (c.b >> 3)), 0).r * 255.0 + 0.5);
-  return floor(index / 16.0) * 16.0;
+  return floor(texelFetch(paletteLut, ivec2(c.r + ${L} * (c.b & 7), c.g + ${L} * (c.b >> 3)), 0).r * 255.0 + 0.5);
 }
-// The palette effects on a painted colour (linear RGB), by the shade (0..15) its brightness gives.
+// The palette effects on a painted colour (linear RGB), as the index (bank and shade) it paints.
 vec3 terrainPalette(vec3 rgb, float height, inout float water) {
   float lum = pow(max(dot(rgb, vec3(0.2126, 0.7152, 0.0722)), 0.0), 1.0 / 2.2);
-  float shade = clamp(floor(lum * 15.0 + 0.5), 0.0, 15.0);
   // The index's bank is the nearest palette colour's, so water_filter leaves alone what the
   // original's exempt banks drew (LAVA EXIT's pink, 0x40, stays pink: D111); near-grey paintings
   // always take the grey bank (0), which water_filter leaves alone as it does the original's grey
@@ -90,9 +88,19 @@ vec3 terrainPalette(vec3 rgb, float height, inout float water) {
   // their painted colour. Chroma is measured in sRGB: in linear light every dark colour is near
   // grey, so SAVARA V's dark jungle greens and shore browns took the exempt grey bank and stayed
   // green and brown under its blue water (episode-1 QA).
+  // Under JE_filterScreen the shade is the nearest index's too (D193): the filter keeps the
+  // original's value (index & 0x0f), and a bank's shades are not its luminance in sixteenths
+  // (CAMANIS's ice bank runs from luminance 0.3 to 1, so a texel of its shade 7 read as shade 9 and
+  // the filtered floor went pale). The smoothies keep the brightness's shade: their hue's levels
+  // (D191) were measured on it, and the nearest index's lifts the lava (LAVA RUN 1.4 -> 2.0 of the
+  // original's luminance). A near-grey texel off bank 0 takes the grey shade of its brightness.
   vec3 srgb = terrainSrgb(rgb);
   float chroma = max(srgb.r, max(srgb.g, srgb.b)) - min(srgb.r, min(srgb.g, srgb.b));
-  float index = (chroma < 0.04 ? 0.0 : terrainBank(srgb)) + shade;
+  float nearest = terrainNearest(srgb);
+  float nearBank = floor(nearest / 16.0) * 16.0;
+  float bank = chroma < 0.04 ? 0.0 : nearBank;
+  float shade = levelFilter > -98.5 && bank == nearBank ? nearest - nearBank : clamp(floor(lum * 15.0 + 0.5), 0.0, 15.0);
+  float index = bank + shade;
   float hued = screenHueIndex(index, height, water);
   if (hued != index || levelFilter > -98.5) {
     // The palette texture already holds the level filter and brightness (paletteTexture.ts).

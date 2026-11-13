@@ -9716,3 +9716,90 @@ judges), about 8.3M subagent tokens, about 1.6 h of run time; then `fix-round.js
 10 agents (5 fixes, 5 reviews), about 1.2M tokens, 46 min; the two holdovers shipped, the rotor held. Per-agent
 median: design 20.3 min, finish 2.4, review 3.9, fix 16.8 (fix round 17.7). Sheets: `tyrian-scratch/e3-enemies-2/
 <item>/final/` and `.../fix/<item>/final/` (not in git, D3).
+
+## D193 — Episode-3 QA renderer fixes: JE_filterScreen keeps each pixel's saturation along the hue and the painted terrain's own shade (CAMANIS), the special's ready lamp moves to the HUD, the explosions read the live frame copy and palette (follows D57, D146, D168, D174, D191; E3 QA H1, L1, L3)
+
+2026-11-13
+
+**Report** (`tyrian-scratch/e3-qa/REPORT.md`): H1, CAMANIS under its level filter (`drawList.filter` 8, t3300, t6500-7350)
+washed to near-white, the floor (186, 223, 226) against the original's (106, 162, 174); L1, AST. CITY's special-weapon
+ready lamp (`tyrian.shp#8:94/93` at (47, 4)) extruded as a red block on the field; L3, TYRIAN X's explosions flat
+crimson puffs where the original's are red-orange with yellow cores.
+
+**H1, what was wrong.** Not D191 alone: a build before it (`78467107^1`) already drew the floor at 1.42 of the
+original's luminance (all the frame 1.32), against 1.24 unfiltered at t6300. Two causes:
+- *The painted terrain's shade.* Under a hue filter `terrainPalette` (D57, D95, D111) gave a texel the shade
+  `round(15 x luminance)`, its luminance in sixteenths. A bank's shades are not that: CAMANIS's ice bank runs from
+  luminance 0.3 to 1, so a texel of shade 7 read as 9 or 10. With `?terrain=original` the same frame was 1.30.
+- *D191's recolour by luminance.* The present quad gave every playfield pixel `bankAtLuma` of its displayed luminance:
+  the colour of the shade with that luminance, saturation included. The 3D's lighting lifts the (already hued) palette
+  colours up the run, and this run pales as it rises (shade 7 saturation 0.39, shade 12 0.18), so the lit floor took a
+  pale shade's colour: floor saturation 0.33 before D191, 0.18 after (original 0.39).
+- Not the cause: `JE_filterScreen`'s brightness (CAMANIS's `levelBrightness` is -99 throughout; the C's filter is
+  `hue | (index & 0x0f)` with brightness only from `int_ != -99`, as `remapScreenIndex` already has it).
+
+**H1, decision:**
+- `hueKeepingChroma` (`screenFilters.ts`, TS and GLSL) replaces `bankAtLuma` in the present quad: the pixel keeps its
+  luminance, takes the run's direction at that luminance, and keeps its own saturation along it, never less than the
+  run's. A lit shade of the hue keeps its colour (as an unfiltered level shows its colours); a white sheen has no
+  saturation of its own and takes the shade's, as under D191; an off-hue colour loses the part across the hue.
+  The smoothies (lava, iced, water) keep `hueAt`: their value is measured through their history (D191), and none of
+  their checks moved.
+- Under `JE_filterScreen` only, a painted texel's shade is its nearest raw palette index's (`index & 0x0f`, the
+  palette lookup `terrainBank` already used, now `terrainNearest`); a near-grey texel off bank 0 keeps the luminance
+  shade. The smoothies keep the luminance shade: with the nearest index's, LAVA RUN t1125 went 1.42 -> 1.99 of the
+  original's luminance and BRAINIAC 1.45 -> 1.98 (the lava bank's reds are dark for their index).
+- No change to the lighting, environment, sun or exposure (the user's pending call).
+
+**L1:** the C draws the lamp from JE_doSpecialShot (varz.c L648-653) on the playfield, beside JE_inGameDisplays'
+special icon at (25, 1), which D168 already moved to the HTML HUD. `blit_sprite2_hud` records it with `SpriteDraw.hud`
+(`isHudDraw`); the 3D renderer drops such draws in `setDrawList`, and the HUD shows the sprite (#94 ready, #93
+recharging) inside the special's box, 22 and 3 game pixels from the icon's corner, framed in `--hud-unit`, minimal at
+2x. The original's view (classic renderer, compare panel) still draws it where the C does.
+
+**L3, what was wrong:** not a tint and not a filter (TYRIAN X has none; palette 5's fire bank is the usual one; the
+painted frames' shades match the sprites', mean 8.8 against 8.6). The explosions are `blit_sprite2_blend` (D174),
+whose colour comes from the frame under them, and they never saw it:
+- *Frozen uniforms.* The explosions' stencilled material is `material(sheet).clone()`, and `clone()` copies the
+  uniforms, textures included: the frame copy stayed the blank 1x1 of creation (every explosion blended as if over
+  black: the under shade read 1.5-3.3 where the frame's is 3.8 over the ground and 10 over the ice water), and the
+  palette, level filter and smoothie hue stayed the creation-time ones. It now shares the live uniform objects.
+- *Copies made in the outline pass's render.* OutlineEffect's `renderOutline` (run at OUTLINE_ORDER inside the main
+  render, D146) renders the whole scene again and draws every object it has no outline material for (no normals:
+  the grab hooks, the flat art, the effects) with its own material. The hooks fired there first and used up their
+  arming, so the explosions' and the top sheets' copies held the frame at OUTLINE_ORDER, without the blend sheets and
+  flat art. `renderOutline` now hides the objects marked `userData.outlineSkip`; the explosions' hook, the top
+  sheets' hook and the explosions' art batch carry it. The sheets' hook keeps firing there: that frame is the main
+  render's below it, and moving it would let that render's own stray effects into the sheets' copy.
+
+**Options considered:** for H1, scaling the lookup by a guessed lighting lift (one number for every material); the
+nearest-index shade for the smoothies too (lifted the lava, above). For L1, dropping the lamp (the HUD showed nothing
+for the special's state). For L3, accepting it as D174's look (the C's explosions only go crimson over dark ground);
+hiding every object without an outline material from the outline render (halves the effects' additive glows and
+particles, which D169 tuned as drawn twice: a separate call, below).
+
+**Check** (`tyrian-scratch/e3-qa-render/`, `summary.png`; `brightness-audit/bin/measure.py`, 3D/original luminance
+and per-channel means, main `90723e11` against this branch, same captures):
+- CAMANIS t6850: frame 1.324 (1.58, 1.29, 1.22) -> 1.246 (1.20, 1.26, 1.22); floor (185, 222, 226) -> (136, 216, 223)
+  against the original's (105, 161, 173), luminance 1.43 -> 1.33, saturation 0.18 -> 0.39 (original 0.39). t7350 1.302 ->
+  1.229, t3300 1.222 -> 1.198, t6300 (no filter) unchanged to the last digit.
+- D191's cases: LAVA RUN t1125 1.418 and t2080 1.241 -> 1.242, LAVA EXIT t1425 1.611, BRAINIAC t3475 1.452: unchanged
+  (to 0.006 per channel). BUBBLES t1950 (level filter 9) (1.83, 1.68, 1.82) -> (1.50, 2.04, 1.72), luminance 1.77 ->
+  1.83: blue 133 -> 127 and red 4.8 -> 3.9 of 255 (original 73.5, 2.6), green 8.2 -> 9.9 (4.9).
+- TYRIAN X t300: explosion pixels' mean fire-bank shade 4.84 -> 6.89 (original 5.44), orange/yellow pixels 217 -> 1167
+  (original 463): the 3D's lift of the ground under them (the same pending lighting call) puts them a shade or two
+  above the original's.
+- Unchanged pixel for pixel: TYRIAN 1.9 t1500 and t2050, DELIANI t1450, SAVARA V t2175, LAVA EXIT t1425. ICE EXIT
+  t1150 differs in 144 pixels, as two captures of main do (128; TYRIAN t1000 321). LAVA RUN t1125 differs in the
+  lava's smear (7,523 pixels, at most 33 levels; main against main 113, at most 6) with its measures unchanged to the
+  third digit: not traced, likely the explosions' new colours carried through the lava filter's frame history.
+- AST. CITY t5550: the lamp beside the icon in the framed and minimal HUD, off the field.
+- Tests: `screenFilters.test.ts` (hueKeepingChroma), `hueBlend.test.ts` (shared uniforms, outlineSkip, HUD draws),
+  `outlineHook.test.ts` (renderOutline hides the skipped), `paletteLut.test.ts`; vitest and tsc.
+
+**Open:**
+- Every other object without normals (the flat art below the explosions, the effects' glows and particles) is still
+  drawn twice a frame, once in the outline render: additive glows at double strength. Leaving them out is a one-line
+  mark each but changes D169's tuned look; for the user.
+- The flat sprite art (shots, pickups) under `JE_filterScreen` still takes `16 + round(15 x luminance)`.
+- What remains of CAMANIS's gap is the 3D's brightness (floor 1.33), the pending lighting decision.
