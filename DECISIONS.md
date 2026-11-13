@@ -8999,3 +8999,68 @@ warning). About 20 headless captures.
 **Review:** GRYPHON t8550 and BOTANY A t3300, MARKERS t1800, TORM t7863, with `&compare=1`. Fallback for the neck: main's script before this commit and `lib_b025.py`.
 
 **Cost:** fix-round workflow, 16 agents, about 2.0M subagent tokens, about 50 min. No Gemini.
+## D186 — Episode-3 HD terrain: FLEET's battleship and hull, IXMUCANE/SAWBLADES's rock, CAMANIS's ice crystals and BONUS's plating painted or re-cut, so no E3 tile draws as original pixels (M3; follows D112, D180, D184)
+
+2026-11-13
+
+**Problem** (M3, "HD terrain for every tileset"): `inventory` over `shapesz`, `shapesw` and `shapesy` against the current atlases, then
+a headless bot run of every E3 section (`tyrian-scratch/e3-terrain/scan.test.ts.txt`: tile draws per tick, against the manifests)
+gave each tile's screen time. `shapesy` (SAVARA Y) and the `shapesz` maps of GAUNTLET, STARGATE, AST. CITY, TYRIAN X, New Deli and
+MACES were complete but for one-colour black tiles (no art needed, D83). Missing, in tile-draw ticks:
+- **Extruded original pixels** (opaque layer 1-2, no art, D8): FLEET (3.6) layer 2, the 8x8-tile bronze battleship (54 tiles,
+  26,924); IXMUCANE (3.4) and SAWBLADES (3.9) layer 2, the spiky rock edges `shapesw` 450-488 (10 tiles, 4,054 and 3,444,
+  D112's excluded weak tiles).
+- **4x MMPX** (ground, or blended layer 1): `shapesw` layer 1 500/501 (the right rock wall, 97,875; also 498, 506, 518) on
+  IXMUCANE and SAWBLADES; BONUS (3.5) layer 1, the purple plating `shapesz` 536-581 (95,993; 575, the plate fill, alone
+  24,465); FLEET's ground hull details `shapesw` 3, 6, 7, 21, 22, 31-33 (17,282); CAMANIS's (3.1) blended ice crystals
+  390-414 (10,940, sorted `structure` by the inventory) and its ground 267/268.
+
+**Decision:** no code change. One round through the pipeline, as D184 did:
+1. **Re-cut first.** `cut --structures` reuses a tile's painting from another layer (D180): 16 BONUS plating tiles (536-581 but
+   575), GAUNTLET/MINEMAZE's layer-1 rock 120-142 and CAMANIS's layer-2 tile 0 take their ground paintings. Tried
+   alone first (scratch atlas, BONUS t1725): the plating keeps its grey and purple banks in the hue-keeping blend (D174).
+2. **Gemini, 15 requests (12 answers used).** Hand-picked windows (`tyrian-scratch/e3-terrain/bin/mksheets.py`) with
+   hand prompts naming the object (D89, D113): the whole battleship (10x10 tiles, 3:4); `shapesw` layer 1 rock (two 7x6
+   regions); BONUS's plating fill with its machine block (7x6); the layer-2 rock (two 7x6); FLEET's ground hull (three 7x8,
+   "a flat game-map floor texture, not a ship in space", D112's lesson); CAMANIS's ice crystals (one 7x8 of ICE EXIT, which
+   shares them); CAMANIS's glacier (7x6). Every answer registered at scale 1.00: tile NCC median 0.93-0.997.
+   - **Small objects on black get enlarged.** CAMANIS's lone crystal clusters in a 7x8 window came back about 15% bigger and
+     re-shaped twice (cell fit 0.68, then 0.78 from the softened sheet; tile NCC 0.35-0.73); a 16:9 sheet of both clusters
+     did the same (0.80/0.87). Cropped to the clusters' own 5x4 tiles (9:16, two cells) the answer kept them (fit 0.99, NCC
+     0.98-0.998). Those three answers are not used.
+3. **Cut:** `cut --cache --edge-aware --structures` in merge mode over each whole tileset, with D112's and D89's answers and
+   caches beside the new ones (`--exclude` 4-20's 14 blended layer-1 tiles 230-275: not E3, not looked at). Every existing
+   image and rect stays byte for byte. New: `shapesz/1-2.webp` (25 layer-1 tiles: 575 and 7 more plating tiles painted, 17
+   reused); `shapesw/0-3.webp` (10 ground), `1-2.webp` (27 layer 1: the ice crystals, 498-518), `2-2.webp` (65 layer 2: the
+   battleship, the rock edges, tile 0 reused). Tile NCC 0.83-0.998 (FLEET's grille 22 0.83, 488 0.88, the rest ≥ 0.93);
+   37 tiles deblocked (blockiness 1.60-2.54 -> 1.36-1.93).
+4. **Seams** (`check`): `shapesz` layer 1 new edges 1.09 (continuous 0.63), kept 0.71; `shapesw` layer 1 new 1.46 (continuous
+   1.20), layer 2 new 1.23 (continuous 1.05), kept edges as before (0.84, 0.95). Ground new 4.96 (254 edges): the hull details
+   end against black and darker plating; the original's own step across the same edges is 23.7 levels, the HD one 9.4.
+
+**Options considered:**
+- *Leave the hull and battleship to tile models (D34/D47):* the long-term route for hard surface, but nothing is queued for
+  them and FLEET drew a whole battleship as extruded pixels. The painting keeps the sprite's outline and colours (NCC ≥ 0.95).
+- *`sheets`' own set (17 primary sheets, six 7x6 regions for the battleship):* the ship fits one sheet whole.
+- *Keep the multi-bank blended tiles MMPX, as D180 did for GYGES:* the BONUS plating's grey and purple read as in the
+  original under D174's blend, so they are painted.
+
+**Checked** (`?debug=play&episode=E&main=M&difficulty=2&seed=1&skip=T&freezeAt=T&compare=1`, 3840x2160, before = origin/main
+0897ed31, after = this; counts from the instrumented frames, as D180/D184: original tiles, then HD tiles):
+- FLEET t2550: 100 -> 0; HD 90 -> 206. FLEET t3525: 100 -> 0; HD 8 -> 108. The battleship is painted bronze and steel.
+- IXMUCANE t525: 32 -> 0; HD 318 -> 370. t3000: HD 240 -> 256.
+- SAWBLADES t525: 18 -> 0; HD 226 -> 276. t1125: 10 -> 0; HD 242 -> 284.
+- BONUS t1725: HD 0 -> 120; t2400: HD 112 -> 228. CAMANIS t1200: HD 168 -> 206; t4275: 168 -> 202.
+- GAUNTLET t1500, STARGATE t2000, MINEMAZE (1.6) t1500: unchanged. ?TUNNEL? (4.11) t1500: 32 -> 0 (500/501 drawn opaque
+  there); ICE EXIT (4.8) t1500: HD 192 -> 242.
+- What still misses the atlas: one-colour black tiles only (`shapesz` 0, 58, 59; `shapesw` 2, 19, 44).
+- Whole levels (the bot scan): every E3 tile draw that isn't black space or under a model is HD.
+- No console errors. tsc and vitest pass.
+Captures, `summary.png` (original | before | after), `summary-shared.png`, crops and the work folders (sheets, answers,
+cut reports, seams): `tyrian-scratch/e3-terrain/`.
+
+**Left:** `shapesw` layer 1 230-275 on 4-20 (could reuse their ground paintings; not E3). A faint grey haze along tile 3's
+bottom edge (FLEET's hood corner) from the seam solve.
+
+**Cost:** one Opus agent, no workflow, no Blender. 15 Gemini requests (Pro, Create images, 10-15 s each, no usage warning).
+About 30 headless captures.
