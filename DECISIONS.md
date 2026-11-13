@@ -7799,9 +7799,9 @@ models is unchanged: `assembly-newshj-191` worst 0.9735 (the -f3 eye frame 0.986
 (`torm_t6700_compare.png`, the plant-pod boss) and GYGES at t5340 (`gyges_t5340_compare.png`, the creature head)
 load every model, with no console errors. vitest, tsc and the build pass.
 
-**Deferred:** `newshn-125` + `newshn-15` (GYGES's blue spiral shells; one build, `newshn-15.py` wraps
-`newshn-125.py`'s SPEC) end at fix 5/10 after the fix round and keep their origin/main models, scripts and
-spriteModels entries. The fix round's work is kept in `tyrian-scratch/e2-enemies-1/newshn-125/` (its final scripts
+**Deferred:** `newshn-125` + `newshn-15` (GYGES's blue spiral shells) end at fix 5/10 after the fix round and keep
+their origin/main models, scripts and spriteModels entries. E2 batch 2 takes them up: `newshn-125.py` builds
+`newshn-125`, `-15` and `-13` from one SPEC, and `newshn-15.py`, `newshn-13.py` and `lib_b071.py` are removed. The fix round's work is kept in `tyrian-scratch/e2-enemies-1/newshn-125/` (its final scripts
 and glbs in `unshipped-worktree-state/`). It fixed the in-game black ink spiral (an `outline_source()` height-field
 stand-in for the outline shell: 39 black px of 21662, was 2411; keep it), but its open issues are: the spire is a
 smooth cone in a bowl where the review asked for 2-2.5 stepped whorls (each 0.6-1 px higher, the suture tucked under
@@ -7817,8 +7817,8 @@ pinhole on `newshn-125`'s lower flank (back-left 3/4 view).
   concept projection); set it to 1.0 for pure AO. The glow bands on its top still have per-face stepped edges.
 - `newshv-123.py` writes both gem discs and `newshv-153.py` runs it again, so a parallel full build writes the same
   files twice (harmless, but racy). `newsha-161.py` had the same race; its `main` now builds only its own half.
-- `lib_b044.build_pod` is dead code (only `to_object` is used, by `assembly-newsha-49`); `lib_b071.shell` stays for
-  the deferred shells.
+- `lib_b044.build_pod` is dead code (only `to_object` is used, by `assembly-newsha-49`); `lib_b071.py` (the
+  old shell builder) is removed in E2 batch 2, which left it no importers.
 - `src/viewer/assemblies.json` and the inventory still list the merged assemblies (`assembly-newsha-229`,
   `-newshh-159`, `-newshj-207`, `-245`, `-267`) on their own until `npm run catalogue` regenerates it.
 - Optional polish from the reviews: `assembly-newshj-191`'s right-pod foot bead shows a thin double lip and its belly

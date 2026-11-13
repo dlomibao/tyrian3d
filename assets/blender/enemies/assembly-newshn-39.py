@@ -1,26 +1,27 @@
-"""Horned eye creature, facing the other way (newshn.shp, assembly of newshn-1 over newshn-39):
-3D versions of its sprites.
+"""GYGES's right arm claw (newshn.shp, assembly of newshn-1 over newshn-39): 3D versions of its
+sprites.
 
-Seen in level 2.4, on the ground. The mirror image of assembly-newshn-201 (its sprites are that
-creature's flipped left to right, column c there being 22 - c here): a grey horn-shaped hood on
-top of a lower body that tapers down to a point, a dark blue shoulder socket on its left, and an
-arm holding a round grey eye with a glowing cyan lens, from which a hooked tentacle hangs down.
+WHAT IT IS: the claw at the tip of GYGES's (level 2.2) right swinging tentacle arm, the mirror image
+of assembly-newshn-201 (its sprites are that claw's flipped left to right, column c there being
+22 - c here, exactly, on all three poses). A grey-blue hooked pincer that hangs and swings in the air
+while the scroll is stopped for the boss ('ground' is only its draw layer): free-floating, with a
+round closed underside. See assembly-newshn-201.py for the parts; this script builds it with that
+builder, mirrored.
 
-Its three frames swing the eye out and up (11 + 49: eye against the body; 9 + 47: half raised;
-1 + 39: swung out), so each pose is built whole (lib_b071.creature, mirrored), cut into its two
-pieces with common.split_assembly and exported with its own frame: newshn-1 / -f2 / -f3 and
-newshn-39 / -f2 / -f3 cover frames 1 / 9 / 11 and 39 / 47 / 49.
+Its three frames open the claw: 11 + 49 closed, 9 + 47 half open, 1 + 39 open. Each pose is built
+whole, cut into its two pieces with common.split_assembly and exported with its own frame:
+newshn-1 / -f2 / -f3 and newshn-39 / -f2 / -f3 cover frames 1 / 9 / 11 and 39 / 47 / 49.
 
-Run: blender --background --python assets/blender/enemies/assembly-newshn-39.py [-- --preview out.png]
-(the preview is the whole creature in pose A, <out>-B.png and <out>-C.png the other poses; each
-piece model also gets <model>.png next to it).
+    blender --background --factory-startup --python assets/blender/enemies/assembly-newshn-39.py \
+        [-- --measure out_dir]
 """
 
-import sys
+import importlib.util
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import lib_b071 as lib  # noqa: E402
+_spec = importlib.util.spec_from_file_location("claw_left", Path(__file__).resolve().parent / "assembly-newshn-201.py")
+claw = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(claw)
 
 NAME = "assembly-newshn-39"
 # (piece, its top row in the assembly, {pose: (model, frame)}); newshn-39 sits 28 px below.
@@ -30,4 +31,4 @@ PIECES = [
 ]
 
 if __name__ == "__main__":
-    lib.creature_assembly(__file__, NAME, PIECES, mirror=True)
+    claw.build_assembly(__file__, NAME, PIECES, mirror=True)

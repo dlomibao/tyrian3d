@@ -5,7 +5,9 @@
    "sheet": "newshh.shp",
    "size": 2,
    "frames": [
-    7
+    7,
+    11,
+    15
    ]
   }
  ]
