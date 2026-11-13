@@ -165,6 +165,11 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
   Then `fix-round.js` on 5 items: 12 agents (6 fixes, 6 reviews), 1.52M tokens, 56 min. 25 of 29 passed strict
   review in the run; 3 more and one re-identification (newshm-123) after the fix round; newshn-125 deferred at 5/10.
   Rule of thumb: ~6 agents and ~0.5M tokens per item (~4.4 agents, ~0.37M per unit).
+- **Cost/time (e2-enemies-2, D177, 13 items = 33 inventory units, 12 items / 27 units done: 7 hero, 6
+  standard):** 87 agents (1 scout, 7 blueprints, 20 designs, 7 judges, 13 finishes on Sonnet, 13 fixes, 26
+  reviews), 11.5M subagent tokens, about 3.0 h of run time. All 12 shipped items passed strict review in the run;
+  `fix-round.js` on the 13th (the GRYPHON neck): 4 agents, 0.50M tokens, 30 min, still 5/10, deferred. Rule of
+  thumb: ~6.7 agents and ~0.9M tokens per item (~2.6 agents, ~0.35M per unit; big merged items).
   Lean mode (no blueprint, one design, Opus build + review) is what forward-push did for the 7
   player ships: 16 agents for ships + two unrelated fixes, 42 min (its reviews were Sonnet; see tiers).
 

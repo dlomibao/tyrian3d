@@ -21,16 +21,28 @@ to the gums, over the gums and down the throat to the core; its faces take the p
 of the sprite pixel under them, so the biomechanical texture, gums and throat ridges follow the
 sprite. Brain, eyes, fangs, tentacles, claws and chin spike are modelled on top.
 
+Back of the skull (the seven pieces newshn-3/5/7, -41/43/45 and -85, which the first version left as flat
+sprites): the boss goes on above the top row of the head, two more rows of pieces, and newshn-85
+is the missing fifth piece of the top row. The back of the skull (carapace, occipital condyles, the
+spinal cord, hood lobes with their foramina, the brain in two lobes, side plates) is one closed
+solid built on a 0.5 px grid from cross-section forms, its footprint the sprite's inner mask
+(`GYGES_DATA` below: footprint fields and the pixel grid, made by prep.py there from the game's
+data; the original pixels are never committed). Where it meets the head (row -0.5) it blends onto the
+head's own surface. newshn-85 is the head's own mesh (the mirror of newshn-77). All 24 pieces are
+baked together (AO and roughness, one tile each) and exported as before.
+
 Run: blender --background --python assets/blender/enemies/assembly-newshn-195.py [-- --preview out.png]
 (the preview is the whole head; each piece also gets <piece>.png next to it).
 """
 
+import json
 import math
 import sys
 from pathlib import Path
 
 import bmesh
 import bpy
+import numpy as np
 from mathutils import Vector
 from mathutils.bvhtree import BVHTree
 
@@ -1009,7 +1021,8 @@ def build(sprite):
     the fire are separate: as the static pieces show them, and per phase for the animated pieces.
     Returns (head, static teeth, [teeth per phase])."""
     coll = common.reset_collection(NAME)
-    pal = Palette(sprite)
+    global LAST_PAL
+    pal = LAST_PAL = Palette(sprite)
     boxes = [(e["cx"] - 12 - SX0 - 0.5, e["cy"] - 14 - SY0 - 0.5, e["cx"] + 12 - SX0 - 0.5, e["cy"] + 14 - SY0 - 0.5)
              for e in sprite["assemblyLayout"] if e["model"] in ANIM]
     painter = Painter(load_grid(), pal, phases=[load_grid(k) for k in range(PHASES)], boxes=boxes)
@@ -1087,7 +1100,7 @@ def flat_cuts(obj):
 # --- texture: AO / roughness bake (no concept projection; D65) -------------------------------------
 
 TILE = 512  # px of baked colour map per piece (the roughness map is half that)
-TILES_X, TILES_Y = 5, 4  # the bake atlas: one tile per piece
+TILES_X, TILES_Y = 6, 4  # the bake atlas: one tile per piece (24 pieces)
 TILE_PAD = 6  # px kept clear round each tile's islands
 
 
@@ -1356,13 +1369,497 @@ def split_open(obj, layout, coll, suffix):
     return out
 
 
+def densify(obj, min_len):
+    """Split the piece's edges longer than `min_len` (units) once: newshn-85 is the head's own mesh
+    cut out, only a fifth of the way as dense as the pieces beside it, so its rim showed facets."""
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    edges = [e for e in bm.edges if e.calc_length() > min_len]
+    bmesh.ops.subdivide_edges(bm, edges=edges, cuts=1, use_grid_fill=True)
+    bmesh.ops.triangulate(bm, faces=bm.faces[:])
+    bm.to_mesh(obj.data)
+    bm.free()
+    obj.data.update()
+
+
 def tris(o):
     return sum(len(p.vertices) - 2 for p in o.data.polygons)
 
 
+
+# --- the back of the skull (design A + judge's grafts) ---------------------------------------------
+
+import os  # noqa: E402
+from collections import Counter  # noqa: E402
+
+GYGES_DATA = Path(os.environ.get("GYGES_DATA", "/Users/dlomibao/projects/tyrian-scratch/gyges-back"))
+GRID = json.loads((GYGES_DATA / "grid.json").read_text())
+FIELDS = np.load(GYGES_DATA / "fields.npz")
+NEW = ["newshn-3", "newshn-5", "newshn-7", "newshn-41", "newshn-43", "newshn-45"]
+ALL_NEW = NEW + ["newshn-85"]
+DAMAGE = {"newshn-85": 18, "newshn-41": 51, "newshn-43": 53, "newshn-45": 55}
+ALL_PIECES = PIECES + ALL_NEW  # bake tile order
+LAST_PAL = None
+G = 0.5  # grid step, px
+EDGE_Z = -0.03
+SEAM = -0.5  # the boundary row (pixel-centre coords) between rows -1 and 0
+BLEND_FROM = -3.0  # the back's own forms give way to the shipped surface from here to the seam
+RIM_OUT, RIM_HOLE = 7.5, 1.4  # px: the carapace rolls over at its outline; slots cut steep
+SMAX_K = 0.75  # px: the crease width where two forms meet
+BACK_BELLY = 1.0  # units: depth of the underside
+
+
+# --- the fields from prep.py -------------------------------------------------------------------
+
+def _sample(a, c, r):
+    s = int(FIELDS["S"])
+    u = (c - int(FIELDS["col0"])) * s + (s - 1) / 2
+    v = (r - int(FIELDS["row0"])) * s + (s - 1) / 2
+    h, w = a.shape
+    x0, y0 = int(math.floor(u)), int(math.floor(v))
+    fx, fy = u - x0, v - y0
+
+    def at(y, x):
+        return float(a[min(max(y, 0), h - 1), min(max(x, 0), w - 1)])
+    return ((at(y0, x0) * (1 - fx) + at(y0, x0 + 1) * fx) * (1 - fy)
+            + (at(y0 + 1, x0) * (1 - fx) + at(y0 + 1, x0 + 1) * fx) * fy)
+
+
+PHI_CUT, PHI_EXT = FIELDS["phi_cut"], FIELDS["phi_ext"]
+
+
+def phi_cut(c, r):
+    return _sample(PHI_CUT, c, r)
+
+
+def phi_ext(c, r):
+    return _sample(PHI_EXT, c, r)
+
+
+# --- the forms (px; left half, mirrored about col 63) --------------------------------------------
+
+def dome(cm, r, cx, cy, rx, ry, top, p=2.0):
+    """An elliptic dome `top` px high: a superellipse cross-section (p > 2 flattens the crown)."""
+    q2 = ((cm - cx) / rx) ** 2 + ((r - cy) / ry) ** 2
+    if q2 >= 1.0:
+        return -99.0
+    return top * (1.0 - q2 ** (p / 2)) ** 0.5
+
+
+# Domes: (part, cx, cy, rx, ry, top px, superellipse p). Measured on the sprite (A/work/sprite_zoom.png).
+DOMES = [
+    ("crown", 63.0, -36.0, 33.0, 15.0, 7.4, 2.0),       # the carapace over the back of the skull
+    ("cap", 63.0, -50.8, 13.5, 4.6, 6.6, 2.4),          # the condyles' cap at the top edge
+    ("condyle", 58.0, -51.2, 5.2, 4.3, 9.2, 2.0),       # twin occipital condyles (neck joint)
+    ("hood", 51.4, -38.6, 6.6, 7.6, 11.6, 2.4),         # the hood lobe beside the cord
+    ("knob", 31.8, -33.6, 3.9, 3.4, 8.2, 2.0),          # the shoulder knob outside the foramen
+    ("plate_up", 31.6, -22.6, 11.2, 7.4, 10.6, 2.6),    # upper side plate
+    ("plate_low", 36.2, -6.6, 12.6, 7.4, 11.4, 2.6),    # lower side plate
+    ("strip", 45.6, -23.0, 3.2, 7.2, 9.0, 2.6),         # the narrow plate between the upper plate and the brain
+]
+BRAIN = [("brain_up", 63.0, -21.8, 16.6, 7.8, 15.5), ("brain_low", 63.0, -7.6, 13.2, 8.4, 16.5)]
+CORD = (63.0, -47.5, -27.0)  # col, top row, bottom row (it dives into the upper lobe)
+FORAMEN = (41.8, -35.4, 4.1, 1.5, 9.8)  # centre col, row, ring radius, tube radius, top px
+# Grooves: (path, width px, depth px), left side.
+GROOVES = [
+    (((24.0, -15.6), (31.0, -16.0), (38.0, -15.8), (44.5, -15.2)), 0.9, 2.2),  # between the side plates
+    (((29.0, -30.8), (36.0, -31.2), (41.0, -31.4), (47.0, -30.8)), 0.8, 2.0),  # under the foramen
+    (((57.6, -46.0), (58.2, -38.0), (58.6, -31.0)), 0.8, 1.8),                  # beside the cord
+    (((47.0, -47.4), (55.0, -47.2), (61.0, -47.4)), 0.7, 1.6),                  # under the condyle cap
+    (((62.6, -54.0), (62.6, -48.0)), 0.6, 3.2),                                # between the condyles
+]
+PURPLE_PARTS = {"brain_up", "brain_low", "cord", "rim", "membrane"}
+
+
+def cord_z(cm, r):
+    top, bot = CORD[1], CORD[2]
+    if not (top - 1.2 <= r <= bot + 3.0):
+        return -99.0
+    t = min(1.0, max(0.0, (r - top) / (bot - top)))
+    R = 3.4 + 1.2 * t ** 0.6
+    # Ringed: a vertebral band every 3 px, the bands' creases sunk into the tube.
+    R *= 1.0 + 0.075 * math.cos(2 * math.pi * (r - top) / 3.0)
+    zc = 6.4 + 1.8 * t
+    dx = cm - CORD[0]
+    if r < top:  # round end at the condyles
+        R *= math.sqrt(max(0.0, 1 - ((top - r) / 1.2) ** 2))
+    if abs(dx) >= R:
+        return -99.0
+    return zc + math.sqrt(R * R - dx * dx) * 0.95
+
+
+def brain_z(cm, r):
+    """The two lobes, round domes (the judge's graft: a smooth dome in side and rear views); the upper
+    one pear-shaped (narrower towards the cord). The gyri are low relief on the dome, not height."""
+    best, part = -99.0, None
+    for name, cx, cy, rx, ry, top in BRAIN:
+        if name == "brain_up":
+            rx *= 1.0 - 0.18 * min(1.0, max(0.0, (cy - r) / ry))
+        else:
+            # The lower lobe runs on into the head's own brain: it widens and its footprint goes on past the seam.
+            ry *= 1.0 + 0.9 * smoothstep((r - cy) / 7.0)
+            rx *= 1.0 + 0.12 * smoothstep((r - cy) / 7.0)
+        q = (abs((cm - cx) / rx) ** 2.4 + abs((r - cy) / ry) ** 2.4) ** (1 / 2.4)
+        if q >= 1:
+            continue
+        dz = (1 - q ** 2) ** 0.62
+        # Gyri: the sprite's lumps are round nodules about 3.5 px across in staggered rows, with
+        # dark creases between them; |cos| products give round knobs and creases.
+        u = 2 * math.pi * (cm - cx) / 3.6
+        v = 2 * math.pi * (r - cy) / 3.4
+        knob = abs(math.cos(0.5 * u + 0.5 * math.pi * (math.floor((r - cy) / 1.7) % 2))) * abs(math.cos(0.5 * v))
+        z = top * dz + 0.9 * (knob ** 0.7 - 0.55) * min(1.0, 0.2 + 1.6 * dz)
+        if z > best:
+            best, part = z, name
+    return best, part
+
+
+def foramen(cm, r):
+    """(ring z, inside fraction): the purple rim's torus profile and how far inside its pit."""
+    cx, cy, R, t, top = FORAMEN
+    d = math.hypot(cm - cx, (r - cy) * 1.08)
+    ring = -99.0
+    if abs(d - R) < t:
+        ring = top - t + math.sqrt(t * t - (d - R) ** 2)
+    return ring, d / (R - 0.6)
+
+
+def forms(c, r):
+    """{part: height px} of every form at assembly pixel (c, r)."""
+    cm = AXIS - abs(c - AXIS)
+    out = {"base": skull_top(c, r) * 12}
+    for name, cx, cy, rx, ry, top, p in DOMES:
+        out[name] = dome(cm, r, cx, cy, rx, ry, top, p)
+    out["cord"] = cord_z(cm, r)
+    bz, bpart = brain_z(cm, r)
+    if bpart:
+        out[bpart] = bz
+    ring, _ = foramen(cm, r)
+    out["rim"] = ring
+    return out
+
+
+def height(c, r):
+    """(top height in px before the rim and the seam, winning part)."""
+    f = forms(c, r)
+    zs = [z for z in f.values() if z > -50]
+    m = max(zs)
+    z = m + SMAX_K * math.log(sum(math.exp((v - m) / SMAX_K) for v in zs))
+    z -= SMAX_K * math.log(1.0 + 0.0)  # (kept for clarity: a lone form keeps its height)
+    part = max(f, key=f.get)
+    cm = AXIS - abs(c - AXIS)
+    # The foramen's pit: a dark membrane sunk inside the rim.
+    _, inside = foramen(cm, r)
+    if inside < 1.0:
+        pit = 2.8 + 2.4 * inside ** 2
+        k = 0.5
+        z = -k * math.log(math.exp(-z / k) + math.exp(-pit / k))  # smooth min
+        if inside < 0.85:
+            part = "membrane"
+    # Grooves.
+    for path, w, depth in GROOVES:
+        d = min(seg_dist(cm, r, a, b) for a, b in zip(path, path[1:]))
+        z -= depth * math.exp(-(d / w) ** 2)
+    # The waist crease where the lobes meet (row -14.5) and where the lower lobe meets the shipped
+    # brain (row -1.5).
+    if abs(cm - AXIS) < 14:
+        for rr, dep in ((-14.6, 1.6),):
+            z -= dep * math.exp(-((r - rr) / 0.8) ** 2) * (1 - (abs(cm - AXIS) / 14) ** 2)
+    return z, part
+
+
+def smoothstep(t):
+    t = min(1.0, max(0.0, t))
+    return t * t * (3 - 2 * t)
+
+
+# --- the solid -----------------------------------------------------------------------------------
+
+class Shipped:
+    """The shipped head's surface (top and bottom), by ray casts."""
+
+    def __init__(self, obj):
+        bm = bmesh.new()
+        bm.from_mesh(obj.data)
+        self.tree = BVHTree.FromBMesh(bm)
+        bm.free()
+
+    def top(self, c, r):
+        hit = self.tree.ray_cast(Vector((X(c), Y(r), 5.0)), Vector((0, 0, -1)))
+        return hit[0].z if hit[0] is not None else None
+
+    def bottom(self, c, r):
+        hit = self.tree.ray_cast(Vector((X(c), Y(r), -5.0)), Vector((0, 0, 1)))
+        return hit[0].z if hit[0] is not None else None
+
+
+def top_z(c, r, ship):
+    h, part = height(c, r)
+    d_out = -phi_ext(c, r)
+    k = rim(d_out, RIM_OUT)
+    k_hole = rim(-phi_cut(c, r) + 0.0, RIM_HOLE) if phi_ext(c, r) > -RIM_OUT * 2 or True else 1.0
+    # Near the box side cuts phi_cut is small but phi_ext is not: only the true outline and the
+    # holes roll over (phi_ext carries both), the cuts stay square.
+    k_hole = rim(-phi_ext(c, r), RIM_HOLE)
+    z = EDGE_Z + 0.01 + (h * PX - EDGE_Z) * k * k_hole
+    # The brain gives way to the head's own brain over a longer run (no pinch where they meet).
+    bw = 1.0 - smoothstep((abs(c - AXIS) - 12.0) / 4.0)
+    frm = BLEND_FROM + (-10.0 - BLEND_FROM) * bw
+    w = smoothstep((r - frm) / (SEAM - frm))
+    if w > 0:
+        zs = ship.top(c, r)
+        if zs is not None:
+            z = z + (zs - z) * w
+    return z, part
+
+
+def bottom_z(c, r, ship):
+    d_out = max(0.0, -phi_ext(c, r))
+    z = EDGE_Z - 0.01 - BACK_BELLY * rim(d_out, 22.0)
+    w = smoothstep((r - BLEND_FROM) / (SEAM - BLEND_FROM))
+    if w > 0:
+        zb = ship.bottom(c, r)
+        if zb is not None:
+            z = z + (zb - z) * w
+    return z
+
+
+def build_back(painter, ship, coll):
+    """The back of the skull as one closed solid (top height field, walls, belly)."""
+    c0, c1, r0, r1 = 23.0, 97.0, -57.0, 2.5
+    nc, nr = int(round((c1 - c0) / G)), int(round((r1 - r0) / G))
+    node = lambda i, j: (c0 + i * G, r0 + j * G)  # noqa: E731
+    keep = set()
+    for i in range(nc):
+        for j in range(nr):
+            cc, rr = c0 + (i + 0.5) * G, r0 + (j + 0.5) * G
+            if phi_cut(cc, rr) < 0 and rr < r1:
+                keep.add((i, j))
+    # Boundary edges (used by one kept cell) and their nodes.
+    from collections import Counter
+    edges = Counter()
+    for i, j in keep:
+        for e in (((i, j), (i + 1, j)), ((i + 1, j), (i + 1, j + 1)), ((i + 1, j + 1), (i, j + 1)), ((i, j + 1), (i, j))):
+            edges[tuple(sorted(e))] += 1
+    bnd_edges = [e for e, n in edges.items() if n == 1]
+    bnd_nodes = {n for e in bnd_edges for n in e}
+    pos = {}
+    for i, j in keep:
+        for n in ((i, j), (i + 1, j), (i + 1, j + 1), (i, j + 1)):
+            if n not in pos:
+                pos[n] = node(*n)
+    # Snap the boundary nodes onto the footprint's contour (two Newton steps along the gradient).
+    for n in bnd_nodes:
+        c, r = pos[n]
+        if r >= r1 - 1e-6:
+            continue  # the straight cut south of the seam
+        for _ in range(3):
+            f = phi_cut(c, r)
+            gx = (phi_cut(c + 0.2, r) - phi_cut(c - 0.2, r)) / 0.4
+            gy = (phi_cut(c, r + 0.2) - phi_cut(c, r - 0.2)) / 0.4
+            g2 = gx * gx + gy * gy
+            if g2 < 1e-6:
+                break
+            step = min(1.0, max(-1.0, f / g2))
+            c, r = c - gx * step, r - gy * step
+        pos[n] = (c, r)
+    bm = bmesh.new()
+    top_v, bot_v, parts = {}, {}, {}
+    for n, (c, r) in pos.items():
+        z, part = top_z(c, r, ship)
+        top_v[n] = bm.verts.new((X(c), Y(r), z))
+        parts[n] = part
+        if n in bnd_nodes:
+            bot_v[n] = bm.verts.new((X(c), Y(r), bottom_z(c, r, ship)))
+    # The belly: interior nodes get their own bottom verts too.
+    for n, (c, r) in pos.items():
+        if n not in bot_v:
+            bot_v[n] = bm.verts.new((X(c), Y(r), bottom_z(c, r, ship)))
+    tops, bots, walls = [], [], []
+    for i, j in keep:
+        q = [(i, j), (i + 1, j), (i + 1, j + 1), (i, j + 1)]
+        tops.append(bm.faces.new([top_v[n] for n in q]))
+        bots.append(bm.faces.new([bot_v[n] for n in reversed(q)]))
+    for a, b in bnd_edges:
+        walls.append(bm.faces.new((top_v[a], top_v[b], bot_v[b], bot_v[a])))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    for f in tops + bots:
+        f.smooth = True
+    # Paint: the top takes the sprite's colour under it, per part (its mid-tone the part's own
+    # trimmed median); walls and belly the shipped belly's 97; walls at the box cuts in shadow (96).
+    pal = painter.pal
+    mids = part_mids(painter)
+    by_part = {}
+    for f in tops:
+        c, r = to_px(*f.calc_center_median().xy)
+        _, part = height(c, r)
+        by_part.setdefault(part, []).append(f)
+    for part, faces in by_part.items():
+        ctx = "purple" if part in PURPLE_PARTS else "blue"
+        mid = mids.get(part, 85 if ctx == "purple" else 99)
+        painter.paint(faces, ctx, default=mid)
+        if part == "condyle":
+            for f in faces:
+                f.material_index = pal.bone(pal.index[f.material_index])
+    for f in bots:
+        f.material_index = pal(97)
+    for f in walls:
+        c, r = to_px(*f.calc_center_median().xy)
+        cut = phi_ext(c, r) < -2.0
+        f.material_index = pal(96 if cut else 97)
+        f.smooth = not cut
+    me = bpy.data.meshes.new(f"{NAME}-back")
+    bm.to_mesh(me)
+    bm.free()
+    for m in pal.mats:
+        me.materials.append(m)
+    ob = bpy.data.objects.new(f"{NAME}-back", me)
+    coll.objects.link(ob)
+    return ob
+
+
+class BackPainter(Painter):
+    """The shipped Painter, with the brain's purple kept to its own family too (no blue faces on
+    the brain where the sprite's lobes are a pixel narrower)."""
+
+    def shade(self, f, context, grid=None, fine=False, mid=None):
+        if context != "purple":
+            return super().shade(f, context, grid, fine, mid)
+        return self._purple(f, mid)
+
+    def _purple(self, f, mid):
+        cen = f.calc_center_median()
+        reps = [rep_of(self.pixel(p.x, p.y), "purple") for p in [cen] + [cen.lerp(v.co, 0.55) for v in f.verts]]
+        reps = [r for r in reps if r is not None and FAMILY_OF.get(r) == "purple"]
+        order = FAMILIES["purple"]
+        if not reps:
+            return mid
+        pos = sorted(order.index(r) for r in reps)
+        p = float(pos[len(pos) // 2])
+        keep, sigma, _ = SOFT["purple"]
+        c, r = to_px(cen.x, cen.y)
+        total = wsum = 0.0
+        for dc in (-2, -1, 0, 1, 2):
+            for dr in (-2, -1, 0, 1, 2):
+                raw = self.grid.get((math.floor(c + 0.5) + dc, math.floor(r + 0.5) + dr), -1)
+                if raw < 0 or raw <= 4:
+                    continue
+                q = rep_of(raw, "purple")
+                if q is None or FAMILY_OF.get(q) != "purple":
+                    continue
+                w = math.exp(-((math.floor(c + 0.5) + dc - c) ** 2 + (math.floor(r + 0.5) + dr - r) ** 2) / (2 * sigma * sigma))
+                total += w * order.index(q)
+                wsum += w
+        if wsum:
+            p = total / wsum
+        m = order.index(mid)
+        return order[max(0, min(len(order) - 1, math.floor(m + (p - m) * keep + 0.5)))]
+
+
+def part_mids(painter):
+    """Each part's mid-tone: the trimmed median palette index of the sprite pixels it covers
+    (ink and the brightest highlights left out: they are lighting)."""
+    acc = {}
+    for (c, r), v in painter.grid.items():
+        if r >= 0 or v <= 4:
+            continue
+        _, part = height(c, r)
+        acc.setdefault(part, []).append(v)
+    mids = {}
+    for part, vals in acc.items():
+        fam_lo, fam_hi = (80, 95) if part in PURPLE_PARTS else (96, 111)
+        vals = sorted(v for v in vals if fam_lo <= v <= fam_hi)
+        if len(vals) < 6:
+            continue
+        lo, hi = int(len(vals) * 0.15), int(len(vals) * 0.85)
+        v = int(np.median(vals[lo:max(hi, lo + 1)]))
+        rep = rep_of(v, "purple" if part in PURPLE_PARTS else "blue")
+        mids[part] = rep
+    # The sprite's brain sits on 83/84 (between the purple family's 83 and 85): 83, as the shipped
+    # brain, so the two meet in one colour at the seam.
+    for part in ("brain_up", "brain_low", "cord"):
+        mids[part] = 83
+    print("PART MIDS", mids)
+    return mids
+
+
+# --- assembly ------------------------------------------------------------------------------------
+
+def full_grid():
+    """{(col, row): palette index} of the whole head with the new pieces (prep.py's composite)."""
+    A = GRID["grid"]
+    R0 = GRID["R0"]
+    return {(c, y + R0): v for y, row in enumerate(A) for c, v in enumerate(row) if v >= 0}
+
+
+def sprite_with_colours():
+    sprite = merged_sprite()
+    for k, v in GRID["colors"].items():
+        sprite["colors"].setdefault(k, v)
+    return sprite
+
+
+def layout_of(names):
+    lay = GRID["layout"]
+    return [(n, lay[n][1] - (SX0 + AXIS + 0.5), lay[n][2] - (SY0 + ROW0 + 0.5)) for n in names]
+
+
+DECIMATE = 0.3  # of the 0.5 px grid's triangles: flat belly and plate flanks go, creases and gyri stay
+
+
+def decimate(obj, ratio):
+    mod = obj.modifiers.new("decimate", "DECIMATE")
+    mod.decimate_type = "COLLAPSE"
+    mod.ratio = ratio
+    mod.use_collapse_triangulate = True
+    bpy.context.view_layer.objects.active = obj
+    for o in bpy.context.view_layer.objects:
+        o.select_set(o == obj)
+    bpy.ops.object.modifier_apply(modifier=mod.name)
+
+
+def warp_85(obj, offset):
+    """newshn-85 is the shipped head's mesh (the mirror of newshn-77), but its own sprite differs a
+    little: its top row right of col 101 is the shoulder's ink edge (the model stops a pixel short
+    there) and its right edge sits about half a pixel further out. Move its vertices so (piece
+    local coords; `offset` is the piece centre in assembly px)."""
+    oc, orow = offset
+    for v in obj.data.vertices:
+        c = v.co.x * 12 + oc
+        r = orow - v.co.y * 12
+        wc = smoothstep((c - 100.5) / 1.5)
+        if r < 3.5 and wc > 0:
+            r2 = 0.5 + (r + 0.5) * 0.75
+            r = r + (r2 - r) * wc
+        c = c + 0.6 * smoothstep((c - 106.0) / 6.0)
+        v.co.x = (c - oc) / 12
+        v.co.y = (orow - r) / 12
+    obj.data.update()
+
+
+
+def open_brain_shell(shell):
+    """The head's brain no longer ends at row 0: the back's lower lobe runs on from it, so the hull
+    round the brain's north end (an ink arc across the brain) goes; the back carries its own shell."""
+    bm = bmesh.new()
+    bm.from_mesh(shell.data)
+    gone = []
+    for f in bm.faces:
+        c, r = to_px(*f.calc_center_median().xy)
+        if abs(c - AXIS) <= BRAIN_SHELL_HALF and r < BRAIN_SHELL_ROW:
+            gone.append(f)
+    bmesh.ops.delete(bm, geom=gone, context="FACES")
+    bm.to_mesh(shell.data)
+    bm.free()
+    print(f"{NAME}: head shell, {len(gone)} faces opened at the brain's north end")
+
+
+BRAIN_SHELL_HALF, BRAIN_SHELL_ROW = 15.0, 12.0
+
+
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
-    sprite = merged_sprite()
+    sprite = sprite_with_colours()
     head, teeth, phases = build(sprite)
     coll = bpy.data.collections[NAME]
     # The whole static head (for the outline shell, the region colours and the preview).
@@ -1385,20 +1882,33 @@ def main():
     sbm.free()
     shell = common.outline_shell(src, coll, voxel=0.03, faces=3500, inside=0.006)
     bpy.data.objects.remove(src)
+    open_brain_shell(shell)
     layout = [(e["model"], e["cx"] - (SX0 + AXIS + 0.5), e["cy"] - (SY0 + ROW0 + 0.5))
               for e in sprite["assemblyLayout"] if e["model"] in PIECES]
-    where = {name: (cx / 12, -cy / 12, 0.0) for name, cx, cy in layout}
-    pieces = common.split_assembly(head, layout)
-    tpieces = common.split_assembly(teeth, layout)
+    lay85 = layout_of(["newshn-85"])
+    lay_new = layout_of(NEW)
+    # --- the back of the skull: one closed solid blended onto the head at the seam.
+    painter = BackPainter(full_grid(), LAST_PAL)
+    ship = Shipped(head)
+    back = build_back(painter, ship, coll)
+    print(f"{NAME}: back {tris(back)} tris")
+    back_shell = common.outline_shell(back, coll, voxel=0.03, faces=3000, inside=0.006)
+    decimate(back, DECIMATE)
+    print(f"{NAME}: back decimated to {tris(back)} tris")
+    where = {name: (cx / 12, -cy / 12, 0.0) for name, cx, cy in layout + lay85 + lay_new}
+    pieces = common.split_assembly(head, layout + lay85)
+    pieces.update(common.split_assembly(back, lay_new))
+    tpieces = common.split_assembly(teeth, layout + lay85)
     models = {}
-    for name in PIECES:
+    for name in ALL_PIECES:
         models[name] = [pieces[name]]
-        t = tpieces[name]
-        if name not in ANIM and len(t.data.polygons):
-            t.name = f"{name}-teeth"
-            models[name].append(t)
-        else:
-            bpy.data.objects.remove(t)
+        if name in tpieces:
+            t = tpieces[name]
+            if name not in ANIM and len(t.data.polygons):
+                t.name = f"{name}-teeth"
+                models[name].append(t)
+            else:
+                bpy.data.objects.remove(t)
     anim_layout = [e for e in layout if e[0] in ANIM]
     for k, part in enumerate(phases):
         for name, piece in common.split_assembly(part, anim_layout).items():
@@ -1407,6 +1917,12 @@ def main():
                 models[name].append(common.frame_part(piece, [ANIM[name][k]]))
             else:
                 bpy.data.objects.remove(piece)
+    shells = split_open(shell, layout + lay85, coll, "_outline")
+    shells.update(split_open(back_shell, lay_new, coll, "_outline"))
+    c85 = (AXIS + lay85[0][1], ROW0 + lay85[0][2])  # assembly px of newshn-85's centre
+    densify(pieces["newshn-85"], 0.12)
+    warp_85(pieces["newshn-85"], c85)
+    warp_85(shells["newshn-85"], c85)
     for objs in models.values():
         for o in objs:
             flat_cuts(o)
@@ -1414,29 +1930,29 @@ def main():
     if "--no-bake" not in argv:
         import tempfile
         tmp = tempfile.mkdtemp(prefix=f"{TAG}_bake_")
-        unwrap_tiles([models[name] for name in PIECES])
+        unwrap_tiles([models[name] for name in ALL_PIECES])
         # Bake in place: the head's pieces side by side (so they shade each other as one head), each
         # phase's teeth and fire well off to one side on their own.
         bake_objs = []
-        for name in PIECES:
+        for name in ALL_PIECES:
             for o in models[name]:
                 fr = o.get("tyrian_frames")
-                k = next((k for k in range(PHASES) if fr is not None and ANIM[name][k] in fr), None)
+                k = next((k for k in range(PHASES) if fr is not None and name in ANIM and ANIM[name][k] in fr), None)
                 x, y, z = where[name]
                 o.location = (x + (0 if k is None else 40.0 * (k + 1)), y, z)
                 bake_objs.append(o)
         col_img, rm_img, nodes = bake_maps(bake_objs, tmp)
         for o in bake_objs:
             o.location = (0, 0, 0)
-        for i, name in enumerate(PIECES):
+        for i, name in enumerate(ALL_PIECES):
             tiles[name] = (crop_tile(col_img, i, 1, tmp, f"{TAG}_{name}_colour"),
                            crop_tile(rm_img, i, 2, tmp, f"{TAG}_{name}_rm"))
-    shells = split_open(shell, layout, coll, "_outline")
     outline_mat = common.material("outline_shell", (0.0, 0.0, 0.0), roughness=1.0)
     fmt = "AUTO" if "--no-bake" in argv else "WEBP"
     total = 0
-    for name, cx, cy in layout:
+    for name in ALL_PIECES:
         s = shells[name]
+        s.name = f"{name}_outline"
         s.data.shade_smooth()
         s["tyrian_outline"] = True
         s.data.materials.clear()
@@ -1444,15 +1960,21 @@ def main():
         n = sum(tris(o) for o in models[name])
         total += n
         print(f"{NAME}: piece {name}: {n} tris, shell {tris(s)}")
-        data = common.load_sprite(ROOT, name)
+        if name in ALL_NEW:
+            # No catalogue entry for these (they were plain sprites): the frame, and the damaged
+            # picture the game swaps in, drawn from this intact model (D173).
+            num = int(name.split("-")[1])
+            sprites = [{"sheet": "newshn.shp", "size": 2, "frames": [num] + ([DAMAGE[name]] if name in DAMAGE else [])}]
+            models[name][0]["tyrian_piece"] = name
+        else:
+            sprites = common.load_sprite(ROOT, name)["sprites"]
         if tiles:
             # Each piece carries only its own tile of the bake.
-            i = PIECES.index(name)
+            i = ALL_PIECES.index(name)
             tile_uvs(models[name], i, True)
             for ct, rt in nodes:
                 ct.image, rt.image = tiles[name]
-        common.export_sprite_model(ROOT, models[name] + [s], f"enemies/{name}", data["sprites"],
-                                   image_format=fmt)
+        common.export_sprite_model(ROOT, models[name] + [s], f"enemies/{name}", sprites, image_format=fmt)
         if tiles:
             tile_uvs(models[name], i, False)
     if tiles:
@@ -1460,22 +1982,23 @@ def main():
             ct.image, rt.image = col_img, rm_img
     print(f"{NAME}: total {total} tris (static head {tris(obj)})")
     if "--views" in argv:
-        sys.path.insert(0, "/Users/dlomibao/projects/tyrian-scratch/e2-enemies-1/assembly-newshn-195/final")
-        import views_b
-        for name, cx, cy in layout:
+        sys.path.insert(0, str(GYGES_DATA))
+        import gyges_views
+        for name in ALL_PIECES:
+            x, y, z = where[name]
             for o in models[name] + [shells[name]]:
-                o.location = (cx / 12, -cy / 12, 0)  # in place, for the review views
-        views_b.run(sys.modules[__name__], obj, None, phases, shell, [o for objs in models.values() for o in objs] + list(shells.values()))
+                o.location = (x, y, z)  # in place, for the review views
+        gyges_views.run(sys.modules[__name__], models, shells, argv)
     if "--preview" in argv:
         out = Path(argv[argv.index("--preview") + 1])
         import tempfile
         ref = composite_png(Path(tempfile.mkdtemp()) / "assembly.png")
         shown = []
-        for name, cx, cy in layout:
+        for name in PIECES:
             for o in models[name]:
                 fr = o.get("tyrian_frames")
                 if fr is None or ANIM[name][2] in fr:
-                    o.location = (cx / 12, -cy / 12, 0)
+                    o.location = where[name]
                     shown.append(o)
         common.render_preview(shown, str(out), ref, size=10, view_px=640)
 
