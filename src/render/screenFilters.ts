@@ -35,6 +35,9 @@ const MAX_BARS = 4;
 
 const KIND = { lava: 1, water: 2, iced: 3, blur: 4 } as const;
 
+/** A frame with JE_filterScreen's hue and none of drawList.screen's effects. */
+const NO_SCREEN_FILTERS: ScreenFilters = { stages: [], showCode: 0, playerX: 0, playerY: 0, bars: [] };
+
 /** Height between a pass and the next: a filter covers every object below it (D5). */
 export function passCeiling(pass: Pass): number {
   const h = PASS_HEIGHT[pass];
@@ -56,13 +59,31 @@ export function stageUniforms(stages: readonly ScreenFilterStage[], dt: number, 
   const kind = new Array<number>(MAX_STAGES).fill(0);
   const ceiling = new Array<number>(MAX_STAGES).fill(-1);
   const prev = new Array<number>(MAX_STAGES).fill(-1);
+  const bank = new Array<number>(MAX_STAGES).fill(-1);
   stages.slice(0, MAX_STAGES).forEach((s, i) => {
     kind[i] = KIND[s.kind];
     ceiling[i] = passCeiling(s.pass);
     // -1: works in place on this frame's pixels; otherwise the previous frame's weight.
     prev[i] = s.temporal ? (historyValid ? previousFrameWeight(dt) : 0) : -1;
+    bank[i] = stageBank(s);
   });
-  return { kind, ceiling, prev, count: Math.min(stages.length, MAX_STAGES) };
+  return { kind, ceiling, prev, bank, count: Math.min(stages.length, MAX_STAGES) };
+}
+
+/**
+ * The palette bank (hue << 4) a filter gives the pixels it covers, or -1 (blur_filter keeps each
+ * pixel's own): lava_filter 0x70, iced_blur_filter 0x80, water_filter its hue (backgrnd.c).
+ */
+export function stageBank(s: ScreenFilterStage): number {
+  if (s.kind === "lava") return 0x70;
+  if (s.kind === "iced") return 0x80;
+  if (s.kind === "water") return s.hue & 0xf0;
+  return -1;
+}
+
+/** JE_filterScreen's hue as a palette bank (hue << 4), or -1 when it's off (-99). */
+export function levelBank(filter: number): number {
+  return filter === -99 ? -1 : (filter & 0x0f) << 4;
 }
 
 /** The hue changes of a frame's filters, for the palette materials (screenHue.ts). */
@@ -94,6 +115,81 @@ export function waveAt(w: Wave, diw: number): number {
 }
 
 const glslWave = (w: Wave) => [w.mean, w.amplitude, w.period].map((v) => v.toFixed(1)).join(", ");
+
+/** Rec. 709 luminance weights (linear RGB). */
+const LUMA = [0.2126, 0.7152, 0.0722] as const;
+type Rgb = readonly [number, number, number];
+const lumaOf = (c: Rgb) => LUMA[0] * c[0] + LUMA[1] * c[1] + LUMA[2] * c[2];
+const NEUTRAL_START = 0.8 - 0.04;
+const NEUTRAL_DESATURATION = 0.15;
+/** neutralInverse holds a displayed peak under this: at 1 the scene colour would be infinite. */
+const NEUTRAL_MAX_PEAK = 0.995;
+
+/**
+ * A hue filter's colour for a luminance (D191), as the shader's bankAtLuma works it out. The C gives
+ * every pixel a filter covers the hue's shade of that pixel's value, so its flat pixels never leave
+ * the hue; a model's lighting does (a white sheen, a white light's reflection) unless the hue is
+ * given to the lit colour as well. So a covered pixel takes the colour on the hue's own run of 16
+ * shades (`bank`: linear RGB as displayed, the level filter's brightness already in) that has its
+ * displayed luminance: the levels stay as they are and only the hue changes. Between two shades the
+ * colours mix; a shade no brighter than the one before (a run that dips, or shades a level
+ * brightness clamped together) is passed over, so the run never folds back. Past either end the end
+ * shade is scaled.
+ */
+export function bankAtLuma(l: number, bank: readonly Rgb[]): [number, number, number] {
+  const scaled = (a: Rgb, k: number): [number, number, number] => [a[0] * k, a[1] * k, a[2] * k];
+  l = Math.max(l, 0);
+  let lo = bank[0];
+  let llo = lumaOf(lo);
+  if (l <= llo) return llo > 1e-6 ? scaled(lo, l / llo) : [...lo];
+  for (let k = 1; k < 16; k++) {
+    const hi = bank[k];
+    const lhi = lumaOf(hi);
+    if (lhi <= llo) continue; // a shade no brighter than the last (a dip, or a brightness's clamp)
+    if (l <= lhi) {
+      const t = (l - llo) / (lhi - llo);
+      return [lo[0] + (hi[0] - lo[0]) * t, lo[1] + (hi[1] - lo[1]) * t, lo[2] + (hi[2] - lo[2]) * t];
+    }
+    lo = hi;
+    llo = lhi;
+  }
+  return scaled(lo, l / Math.max(llo, 1e-6));
+}
+
+/** three's NeutralToneMapping (Khronos PBR Neutral), the canvas's tone mapping (view.ts). */
+export function neutralToneMap(c: Rgb, exposure = 1): [number, number, number] {
+  let [r, g, b] = [c[0] * exposure, c[1] * exposure, c[2] * exposure];
+  const x = Math.min(r, g, b);
+  const offset = x < 0.08 ? x - 6.25 * x * x : 0.04;
+  r -= offset;
+  g -= offset;
+  b -= offset;
+  const peak = Math.max(r, g, b);
+  if (peak < NEUTRAL_START) return [r, g, b];
+  const d = 1 - NEUTRAL_START;
+  const newPeak = 1 - (d * d) / (peak + d - NEUTRAL_START);
+  const k = newPeak / peak;
+  const w = 1 - 1 / (NEUTRAL_DESATURATION * (peak - newPeak) + 1);
+  return [r * k + (newPeak - r * k) * w, g * k + (newPeak - g * k) * w, b * k + (newPeak - b * k) * w];
+}
+
+/**
+ * The scene colour that neutralToneMap shows as `c` (its peak held under 1): how a colour chosen as
+ * displayed goes back into the scene's linear light, which the canvas tone maps.
+ */
+export function neutralInverse(c: Rgb, exposure = 1): [number, number, number] {
+  let out: [number, number, number] = [Math.max(c[0], 0), Math.max(c[1], 0), Math.max(c[2], 0)];
+  const peak = Math.min(Math.max(...out), NEUTRAL_MAX_PEAK);
+  if (peak >= NEUTRAL_START) {
+    const d = 1 - NEUTRAL_START;
+    const p = (d * d) / (1 - peak) - d + NEUTRAL_START;
+    const w = 1 - 1 / (NEUTRAL_DESATURATION * (p - peak) + 1);
+    out = out.map((v) => (Math.max(Math.min(v, peak) - w * peak, 0) / (1 - w)) * (p / peak)) as [number, number, number];
+  }
+  const y = Math.min(...out);
+  const offset = y >= 0.04 ? 0.04 : Math.sqrt(y) / 2.5 - y;
+  return out.map((v) => (v + offset) / exposure) as [number, number, number];
+}
 
 const QUAD_VERTEX = /* glsl */ `
 varying vec2 vUv;
@@ -139,6 +235,63 @@ vec3 withValue(vec3 c, float v) {
   if (v0 < 0.25) return vec3(pow(clamp(v, 0.0, 15.0) / 15.0, 2.2));
   return c * pow(clamp(v, 0.0, 15.0) / v0, 2.2);
 }
+
+// The palette texture (paletteTexture.ts, the level filter folded in), linear when sampled.
+uniform sampler2D paletteMap;
+vec3 paletteEntry(float index) { return texture2D(paletteMap, vec2((index + 0.5) / 256.0, 0.5)).rgb; }
+float lumaOf(vec3 c) { return dot(c, vec3(${LUMA.join(", ")})); }
+
+// A hue filter's colour for a displayed luminance (bankAtLuma in this file, D191).
+vec3 bankAtLuma(float l, float bank) {
+  l = max(l, 0.0);
+  vec3 lo = paletteEntry(bank);
+  float llo = lumaOf(lo);
+  if (l <= llo) return llo > 1e-6 ? lo * (l / llo) : lo;
+  for (int k = 1; k < 16; k++) {
+    vec3 hi = paletteEntry(bank + float(k));
+    float lhi = lumaOf(hi);
+    if (lhi <= llo) continue;
+    if (l <= lhi) return mix(lo, hi, (l - llo) / (lhi - llo));
+    lo = hi;
+    llo = lhi;
+  }
+  return lo * (l / max(llo, 1e-6));
+}
+
+// The canvas's tone mapping (neutralToneMap in this file; off: identity) and its inverse
+// (neutralInverse), so a filter can choose a colour as it will be displayed.
+uniform float toneExposure; // renderer.toneMappingExposure, or 0 when it isn't Neutral
+const float NEUTRAL_START = ${NEUTRAL_START.toFixed(2)};
+const float NEUTRAL_DESATURATION = ${NEUTRAL_DESATURATION.toFixed(2)};
+vec3 displayed(vec3 c) {
+  if (toneExposure <= 0.0) return c;
+  c *= toneExposure;
+  float x = min(c.r, min(c.g, c.b));
+  c -= x < 0.08 ? x - 6.25 * x * x : 0.04;
+  float peak = max(c.r, max(c.g, c.b));
+  if (peak < NEUTRAL_START) return c;
+  float d = 1.0 - NEUTRAL_START;
+  float newPeak = 1.0 - d * d / (peak + d - NEUTRAL_START);
+  c *= newPeak / peak;
+  return mix(c, vec3(newPeak), 1.0 - 1.0 / (NEUTRAL_DESATURATION * (peak - newPeak) + 1.0));
+}
+vec3 undisplayed(vec3 c) {
+  if (toneExposure <= 0.0) return c;
+  c = max(c, 0.0);
+  float peak = min(max(c.r, max(c.g, c.b)), ${NEUTRAL_MAX_PEAK});
+  if (peak >= NEUTRAL_START) {
+    float d = 1.0 - NEUTRAL_START;
+    float p = d * d / (1.0 - peak) - d + NEUTRAL_START;
+    float w = 1.0 - 1.0 / (NEUTRAL_DESATURATION * (p - peak) + 1.0);
+    c = max(min(c, vec3(peak)) - w * peak, 0.0) / (1.0 - w) * (p / peak);
+  }
+  float y = min(c.r, min(c.g, c.b));
+  return (c + (y >= 0.04 ? 0.04 : sqrt(y) / 2.5 - y)) / toneExposure;
+}
+// A scene colour's luminance as displayed, gamma-encoded (0..1): the filters' smear measure (D191).
+float shownLuma(vec3 c) { return pow(clamp(lumaOf(displayed(c)), 0.0, 1.0), 1.0 / 2.2); }
+// The scene colour a filter's hue shows at gamma-encoded displayed luminance v.
+vec3 hueAt(float v, float bank) { return undisplayed(bankAtLuma(pow(max(v, 0.0), 2.2), bank)); }
 `;
 
 const FILTER_FRAGMENT = /* glsl */ `
@@ -152,6 +305,7 @@ uniform int stageCount;
 uniform int stageKind[${MAX_STAGES}];
 uniform float stageCeiling[${MAX_STAGES}];
 uniform float stagePrev[${MAX_STAGES}];
+uniform float stageBank[${MAX_STAGES}];
 varying vec2 vUv;
 
 float heightAt(vec2 uv) { return texture2D(maskMap, uv).r; }
@@ -207,9 +361,11 @@ void main() {
     if (h >= ceiling) continue;
     float a = stagePrev[i];
     int kind = stageKind[i];
+    float bank = stageBank[i];
     if (kind == 1) {
-      // lava_filter: value = (2 * src[x + wave] + dst below + dst above) / 4 (hue 0x70 is the
-      // materials' job).
+      // lava_filter: value = (2 * src[x + wave] + dst below + dst above) / 4, hue 0x70. The
+      // materials already take the hue's indices; hueAt gives it to their lighting too, so the
+      // value is measured as the displayed luminance that hueAt keeps (D191).
       float wave = lavaWave(g);
       vec2 p = g + vec2(wave, 0.0);
       vec4 s = below(p, ceiling, c);
@@ -222,26 +378,25 @@ void main() {
         float t = a > 0.0 ? min(1.0, -log2(a)) : 1.0;
         vec2 q = g + vec2(t * wave, 0.0);
         vec2 d = vec2(0.0, sqrt(t));
-        v = mix(valueOf(s.rgb), 0.5 * (valueOf(previous(q + d)) + valueOf(previous(q - d))), a);
+        v = mix(shownLuma(s.rgb), 0.5 * (shownLuma(previous(q + d)) + shownLuma(previous(q - d))), a);
       } else {
-        v = 0.5 * valueOf(s.rgb) + 0.25 * (valueOf(below(p + vec2(0.0, 1.0), ceiling, s).rgb) + valueOf(below(p - vec2(0.0, 1.0), ceiling, s).rgb));
+        v = 0.5 * shownLuma(s.rgb) + 0.25 * (shownLuma(below(p + vec2(0.0, 1.0), ceiling, s).rgb) + shownLuma(below(p - vec2(0.0, 1.0), ceiling, s).rgb));
       }
-      c.rgb = withValue(s.rgb, v);
+      c.rgb = hueAt(v, bank);
     } else if (kind == 2) {
       // water_filter, bottom row up: dst = hue | (src value + dst[below, x + wave] value) / 2 for the
       // pixels it recoloured. The rows below are this frame's results, so the value is a running
       // half-and-half down the column, as far as the water goes (six rows here). The taps stay
       // whole rows apart: half-row taps turned the HD jungle into streaks the C doesn't draw.
-      vec3 tint = c.rgb;
-      if (isWater(c) || exemptSpeck(g, ceiling, tint)) {
-        float acc = 0.5 * valueOf(c.rgb);
+      vec3 unused;
+      if (isWater(c) || exemptSpeck(g, ceiling, unused)) {
+        float acc = 0.5 * shownLuma(c.rgb);
         float w = 0.5;
         vec2 p = g;
-        vec3 unused;
         for (int k = 0; k < 6; k++) {
           p += vec2(waterWave(p), 1.0);
           vec4 s = below(p, ceiling, vec4(c.rgb, 1.0));
-          float vk = valueOf(s.rgb);
+          float vk = shownLuma(s.rgb);
           if (k == 5 || !(isWater(s) || exemptSpeck(p, ceiling, unused))) {
             acc += w * vk;
             break;
@@ -249,12 +404,14 @@ void main() {
           acc += w * 0.5 * vk;
           w *= 0.5;
         }
-        c.rgb = withValue(tint, acc);
+        c.rgb = hueAt(acc, bank); // the water's hue, also on an exempt speck (D191)
       }
     } else if (kind == 3 || kind == 4) {
-      // iced_blur_filter and blur_filter: value = (src + dst) / 2, this pixel's hue (ice blue for
-      // the iced one, from the materials). In place they change nothing more.
-      if (a >= 0.0) c.rgb = withValue(c.rgb, mix(valueOf(c.rgb), valueOf(previous(g)), a));
+      // iced_blur_filter and blur_filter: value = (src + dst) / 2, this pixel's hue: ice blue for
+      // the iced one (its lighting too, through hueAt, D191), its own for the blur. In place they
+      // change nothing more.
+      if (bank >= 0.0) c.rgb = hueAt(a >= 0.0 ? mix(shownLuma(c.rgb), shownLuma(previous(g)), a) : shownLuma(c.rgb), bank);
+      else if (a >= 0.0) c.rgb = withValue(c.rgb, mix(valueOf(c.rgb), valueOf(previous(g)), a));
     }
   }
   gl_FragColor = vec4(c.rgb, 1.0);
@@ -269,7 +426,13 @@ uniform int showCode;
 uniform vec2 player;
 uniform int barCount;
 uniform vec4 bars[${MAX_BARS}];
+uniform float levelBank; // JE_filterScreen's hue << 4, or -1
 varying vec2 vUv;
+
+// The playfield in game_screen pixels: what JE_filterScreen covers.
+bool inPlayfield(vec2 g) {
+  return g.x >= ${PLAYFIELD_SCREEN_X.toFixed(1)} && g.x < ${(PLAYFIELD_SCREEN_X + PLAYFIELD_W).toFixed(1)} && g.y >= ${PLAYFIELD_SCREEN_Y.toFixed(1)} && g.y < ${(PLAYFIELD_SCREEN_Y + PLAYFIELD_H).toFixed(1)};
+}
 
 // showHeadlight (backgrnd.c L855-988): a cone of light up from the ship, the rest at a quarter.
 float headlight(vec2 g, float v) {
@@ -310,6 +473,9 @@ void main() {
 
   gl_FragColor = vec4(c, 1.0);
   #include <tonemapping_fragment>
+  // JE_filterScreen's hue: every playfield pixel takes it, lighting and effects too (D191), after
+  // the tone mapping (the palette texture already holds it for whatever looks colours up).
+  if (levelBank >= 0.0 && inPlayfield(src)) gl_FragColor.rgb = bankAtLuma(lumaOf(gl_FragColor.rgb), levelBank);
   #include <colorspace_fragment>
 }
 `;
@@ -398,6 +564,8 @@ const renderTarget = (samples: number) =>
  */
 export class ScreenFilterPass {
   private state: ScreenFilters | null = null;
+  /** JE_filterScreen's hue as a bank (levelBank), or -1. */
+  private levelBank = -1;
   private prevPlayer = { x: 0, y: 0 };
   private readonly screenHue: ScreenHue;
 
@@ -428,6 +596,8 @@ export class ScreenFilterPass {
     const common = {
       viewProj: { value: this.viewProj },
       invViewProj: { value: this.invViewProj },
+      paletteMap: { value: palette.texture ?? null },
+      toneExposure: { value: 0 },
     };
     this.filterMaterial = new THREE.ShaderMaterial({
       vertexShader: QUAD_VERTEX,
@@ -441,6 +611,7 @@ export class ScreenFilterPass {
         stageKind: { value: new Array(MAX_STAGES).fill(0) },
         stageCeiling: { value: new Array(MAX_STAGES).fill(0) },
         stagePrev: { value: new Array(MAX_STAGES).fill(0) },
+        stageBank: { value: new Array(MAX_STAGES).fill(-1) },
       },
       depthTest: false,
       depthWrite: false,
@@ -456,6 +627,7 @@ export class ScreenFilterPass {
         player: { value: new THREE.Vector2() },
         barCount: { value: 0 },
         bars: { value: Array.from({ length: MAX_BARS }, () => new THREE.Vector4()) },
+        levelBank: { value: -1 },
       },
       depthTest: false,
       depthWrite: false,
@@ -477,12 +649,16 @@ export class ScreenFilterPass {
     else if (list.screen) this.prevPlayer = { x: list.screen.playerX, y: list.screen.playerY };
     if (!list.screen || list.screen.stages.length === 0) this.historyValid = false;
     this.state = list.screen;
+    this.levelBank = levelBank(list.filter);
     this.screenHue.set(list.screen ? hueStages(list.screen.stages) : []);
   }
 
-  /** Whether the next frame needs the filters. */
+  /**
+   * Whether the next frame needs the filters: a smoothie, flip, headlight or bar, or JE_filterScreen's
+   * hue, which the lighting takes here (D191).
+   */
   get active(): boolean {
-    return this.state !== null;
+    return this.state !== null || this.levelBank >= 0;
   }
 
   /**
@@ -538,17 +714,19 @@ export class ScreenFilterPass {
    * current render target. `root` holds the draw list's objects, for the mask.
    */
   render(scene: THREE.Scene, camera: THREE.Camera, root: THREE.Object3D, drawScene: () => void, alpha: number): void {
-    const state = this.state;
-    if (!state) {
+    if (!this.active) {
       drawScene();
       return;
     }
+    const state = this.state ?? NO_SCREEN_FILTERS;
     const r = this.renderer;
     const now = performance.now();
     const dt = Math.min(0.25, (now - this.lastTime) / 1000);
     this.lastTime = now;
 
     if (this.fitTargets()) this.historyValid = false;
+    // The hues are chosen as displayed (D191): the filter quad tone maps as the canvas will.
+    this.filterMaterial.uniforms.toneExposure.value = r.toneMapping === THREE.NeutralToneMapping ? r.toneMappingExposure : 0;
     camera.updateMatrixWorld();
     this.viewProj.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     this.invViewProj.copy(this.viewProj).invert();
@@ -576,6 +754,7 @@ export class ScreenFilterPass {
       u.stageKind.value = stages.kind;
       u.stageCeiling.value = stages.ceiling;
       u.stagePrev.value = stages.prev;
+      u.stageBank.value = stages.bank;
       this.quad.material = this.filterMaterial;
       r.setRenderTarget(this.history[0]);
       r.render(this.quadScene, this.quadCamera);
@@ -597,6 +776,7 @@ export class ScreenFilterPass {
     const count = Math.min(MAX_BARS, state.bars.length / 4);
     for (let i = 0; i < count; i++) bars[i].fromArray(state.bars, i * 4);
     p.barCount.value = count;
+    p.levelBank.value = this.levelBank;
     this.quad.material = this.presentMaterial;
     r.setRenderTarget(previousTarget);
     r.render(this.quadScene, this.quadCamera);

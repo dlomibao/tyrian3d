@@ -9473,3 +9473,63 @@ judges), 10.76M subagent tokens, about 2.0 h of run time; then `fix-round.js` on
 fixes, 5 reviews), 1.15M tokens, 44 min; one shipped (the FLEET boss), two held. Per-agent median: design 20.4 min,
 finish 3.3, review 3.7, fix 15.4 (fix round 13.3). Sheets: `tyrian-scratch/e3-enemies-1/<item>/final/` and
 `.../fix/<item>/final/` (not in git, D3).
+
+## D191 — A hue filter recolours the lit scene, not only the palette: lighting, sheen and effects under a filter take the hue's shade of their displayed luminance (follows D31, D111, D126; brightness audit)
+
+2026-11-13
+
+**Report:** in LAVA RUN (4.12, `skip=2080&freezeAt=2080&compare=1`) the original drew the falling fire column
+(`assembly-newshk-51`, D190) in the level's dark reds and the 3D drew it white-yellow
+(`tyrian-scratch/e3-enemies-1/integrate/cap/lavarun_t2080.png`). The brightness audit had also found the lava's blue channel
+12-18x the original's in LAVA RUN and BRAINIAC, and BUBBLES (1.4, `JE_filterScreen` hue 9) 7x too red.
+
+**What was wrong:**
+- *The column's red was not the original's.* That capture predates D188's compare history: rendering the same draw list
+  once from an empty `game_screen` reproduces its original panel index for index (lava_filter's `(2 * src + 0 + 0) / 4` halves the
+  column's 12-15 to 6-7, 119 = (211, 20, 0) on 4,344 of 6,360 pixels). With the history the original column is yellow and
+  cream (mean (242, 201, 87)), as the 3D's is. LAVA RUN has no `JE_filterScreen` (`levelFilter` -99); its red is the lava
+  smoothie (hue 0x70 under `Pass.GroundEnemies`, `smoothie_data[0]` 1), and the column's indices (116-127) are bank 7 already.
+- *Glow and palette colours were already filtered.* `colourFrame` (`modelFrames.ts`) colours and glows every pal_ material
+  from `PaletteTexture.color`, which reads the texture with `remapScreenIndex` folded in (`paletteTexture.ts`); the smoothies'
+  hue reaches models through `ScreenHue.modelHue`. No material bypasses them.
+- *The lighting didn't take the hue.* The C rewrites every covered pixel to `hue | value`, so its sheens are the hue's
+  shades too. The 3D lights palette colours with a white sun and environment: a dielectric's specular and every reflection
+  stays white, and Neutral tone mapping pales bright saturated colours further. Under a one-hue filter that white is all
+  the off-hue light there is: LAVA RUN's crust took a grey-pink sheen (3D blue 25 against 2), BRAINIAC's enemies pink,
+  BUBBLES lavender. Effects' own colours (explosion lights 0xffa040, the remastered fx) weren't filtered either.
+
+**Decision:** the screen filters' pass (`screenFilters.ts`) gives a hue filter's colour to the lit scene, by luminance:
+1. `bankAtLuma(l, bank)`: the colour on the hue's run of 16 shades (read from the palette texture, so the level filter and
+   brightness are in) whose luminance is `l`, mixing the two shades either side, skipping a shade no brighter than the last,
+   scaling past either end. Each shade maps to itself; only the hue changes, the luminance (so the lighting's levels) stays.
+2. *Smoothies* (the filter quad): lava 0x70, iced 0x80 and water's hue (`stageBank`) give each covered pixel
+   `hueAt(v, bank)`, the bank's colour at the gamma-encoded luminance `v` as displayed (the quad tone maps as the canvas will,
+   `displayed`, and maps back, `undisplayed`, an exact inverse of three's Neutral). Their value measure is that luminance too
+   (it was the brightest channel): the lava and iced filters read their own last frame, and a measure the recolouring changes
+   drifted (tried: by the brightest channel the overbright lava went yellow; by luminance before tone mapping it fed back
+   into a bright orange). Blur keeps each pixel's own hue, as before. Shots and explosions drawn after the filters (D35) stay
+   as they are, as in the C.
+3. *JE_filterScreen's hue* (BUBBLES): it now turns the pass on by itself (`levelBank`, `active`), and the present
+   quad gives every playfield pixel `bankAtLuma` of its displayed luminance after the tone mapping, effects included, as the C
+   filters the finished screen. Its brightness stays in the palette texture.
+Nothing changes on a frame with no hue filter (no lighting, environment, sun or exposure change: the user's pending call).
+
+**Options considered:** tinting the lights or the environment by the hue (changes the shades' own luminance and the
+lighting levels, and the lava's top shades are yellow and white, not red); value (brightest channel) instead of luminance
+(keeps the C's value exactly, but the 3D lava is brighter than the original, so most of it moved up the run to orange and
+yellow, a pool pixel (228, 31, 23) became (255, 134, 37)); doing every hue in the present quad (it can't tell the effects drawn after a smoothie from the
+ground under them).
+
+**Check** (`tyrian-scratch/glow-filter/`, `summary.png`; `brightness-audit/bin/measure.py`, 3D/original mean per channel,
+same captures before and after): LAVA RUN t1125 (1.23, 2.20, 12.03) → (1.23, 1.92, 1.86), t2080 (1.11, 1.39, 2.99) →
+(1.12, 1.35, 1.89), t2081 likewise; BRAINIAC t3475 (power 11) (1.26, 3.36, 17.58) → (1.28, 2.33, 4.20) (blue 2.1 of 255 against
+0.2); LAVA EXIT t1425 (water hue 7) (1.45, 2.43, 2.64) → (1.50, 1.81, 1.63); BUBBLES t1950 (7.20, 4.00, 1.60) → (1.83, 1.68, 1.82).
+Unfiltered TYRIAN 1.9 t2050 and t4900 and DESERT RUN (blur only) are unchanged to the last digit; ICE EXIT (iced) (1.41, 1.30,
+1.29) → (1.54, 1.29, 1.22), SAVARA V and NOSEDRIP (water) within 0.05 per channel. The filtered levels' channel ratios now spread about as
+the unfiltered level's (1.34, 1.46, 1.78). LAVA RUN's pool reads (212, 48, 4) against the original's (209, 27, 4) (was (221, 36, 24)):
+redder and without the grey, a little orange where the 3D is brighter than the original.
+
+**Open:**
+- Neutral tone mapping can't show a saturated colour near a peak of 1, so under a smoothie the top shades show paler (the
+  column's yellow core reads cream-white; the original's settles at 14, (255, 251, 150)), as any bright colour does unfiltered.
+- The remaining differences are the 3D's brightness (luminance ratio 1.2-1.8, the pending lighting decision).
