@@ -15,11 +15,14 @@ is built from three surfaces the sprite's shading draws:
   fall towards the tile's right edge at the lower right,
 - a small pit, the dark notch at the bottom-left corner.
 
-The sprite's lighting is not paint: the game lights the model and draws its own outline, so the
-facets don't take the sprite's per-pixel shades. Its dark rim and cliff band (the outline and the
-shadowed faces, 16-19) take a dark brown, not near-black, and the rest is a softened tone map of the
-sprite (the plain's browns, a lighter tan on the crest's lit rock), so the shapes above make the
-light and dark. Matte rock: no metal, rough. One frame.
+The shapes above make the light and dark under the game's light; the colour is the facet ramp
+(D175, D178: lib_newshd_rock.facet_ramp): the surface is broken into small flat facets, each one
+shade of the sprite's brown ramp (16-27), the facets ranked by how squarely they face the art's
+light and by the sprite's brightness under them, matched to the sprite's own shade distribution, so
+the crest's lit rock takes the pale tans, the cliff band and the rim's falling face the near-black
+browns and the plain its mid-browns. (A softened tone map with the darks lifted to a dark brown read
+flat: spread 78 against the sprite's 89, a sixth of its shadow.) Matte rock: no metal, rough. No
+outline shell (see build). One frame.
 
 Run: blender --background --python assets/blender/enemies/newsh3-262.py [-- --preview out.png]
 """
@@ -34,6 +37,7 @@ from mathutils import Vector, geometry
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import lib_b011 as lib  # noqa: E402
+import lib_newshd_rock as R  # noqa: E402
 from lib_b011 import common  # noqa: E402
 
 NAME = "newsh3-262"
@@ -266,53 +270,26 @@ def build_rock(bm, pixels, slot_of, spacing=2.0, seed=262, paint=None):
     return made
 
 
-# The rock's colour by sprite shade, before softening: the sprite's near-black outline ring and
-# shadow (16-18) become a dark brown (the game shades and outlines the rim's falling face and the
-# cliff), the plain's lit browns step down one shade (the light brightens them again) and the lit
-# crest keeps a tan one or two steps down from its glare.
-TONE = {16: 19, 17: 20, 18: 20, 19: 20, 20: 20, 21: 21, 22: 21, 23: 22, 24: 23, 25: 24, 26: 25,
-        27: 25}
-
-
-def paint_map(pixels):
-    """The sprite's pixels through TONE, softened with their four neighbours (the pixel itself
-    weighted 4): even areas of rock colour instead of a per-pixel patchwork of its shading."""
-    h, w = len(pixels), len(pixels[0])
-    out = []
-    for r in range(h):
-        row = []
-        for c in range(w):
-            if pixels[r][c] < 0:
-                row.append(-1)
-                continue
-            tot, wt = 4 * TONE.get(pixels[r][c], 21), 4
-            for rr, cc in ((r - 1, c), (r + 1, c), (r, c - 1), (r, c + 1)):
-                if 0 <= rr < h and 0 <= cc < w and pixels[rr][cc] >= 0:
-                    tot, wt = tot + TONE.get(pixels[rr][cc], 21), wt + 1
-            row.append(int(math.floor(tot / wt + 0.5)))
-        out.append(row)
-    return out
+# The facet ramp (lib_newshd_rock.facet_ramp, D175): the brown ramp's shades on the rock's facets,
+# built in the plain's mid-brown (21).
+SPEC = {"mid": 21, "metallic": 0.0, "roughness": 0.9, "ramp": {"bias": 0.1}}
 
 
 def build(sprite):
     coll = common.reset_collection(NAME)
-    pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
-    # One material per rock shade: 21 the mid-brown (also the underside and the cut-off sides),
-    # 19-20 the darker brown of the rim and cliff, 22 the plain's lighter brown, 23-25 the tan of
-    # the crest's lit rock.
-    shades = [21, 19, 20, 22, 23, 24, 25]
-    mats = [pal(i, metallic=0.0, roughness=0.9) for i in shades]
+    mats = [common.palette_material(sprite, SPEC["mid"], NAME, metallic=SPEC["metallic"],
+                                    roughness=SPEC["roughness"])]
     pixels = sprite["frames"][0]["pixels"]
-
-    def slot(v):
-        if v < 0:
-            return None
-        return shades.index(v) if v in shades else 0
-
     bm = bmesh.new()
-    build_rock(bm, pixels, slot, paint=paint_map(pixels))
+    build_rock(bm, pixels, lambda v: None if v < 0 else 0)
+    bmesh.ops.triangulate(bm, faces=bm.faces[:])
     obj = common.mesh_object(NAME, bm, mats, coll, smooth=False)
+    R.facet_ramp(sprite, R.Grid(sprite, NAME), obj, SPEC)
+    # No outline shell: the piece is cut square where the arch runs on into its neighbours (newsh3-282
+    # below, the arch's pieces to the left), and a shell's ink drew a seam across the arch there.
+    # Like the arch's pieces (assembly-newsh3-198), it keeps the game's own outline.
     return [(NAME, [obj], sprite["sprites"])]
+
 
 if __name__ == "__main__":
     lib.run(NAME, build, __file__)

@@ -2,9 +2,11 @@
 
 Seen in episode 3 (levels 19 and 4). A small tumbling rock, 9 x 11 px: an elongated lump of sandy
 stone lying on the diagonal from upper right to lower left, lit from the upper left, with darker
-brown edges. One frame, one model: a lumpy rock whose outline follows the sprite and whose faces
-take one matte mid-tone (the game lights and outlines it), the lighter pixels standing a little
-prouder.
+brown edges. One frame, one model: a lumpy rock whose outline follows the sprite, the lighter pixels
+standing a little prouder, broken into small flat facets by the facet ramp (D175, D178:
+lib_newshd_rock.facet_ramp), each facet one shade of the sprite's tan ramp, its lit facets the
+sprite's highlights and those turned away its dark brown limb (one matte mid-tone read flat: spread
+47 against the sprite's 110). D90's outline shell.
 
 Run: blender --background --python assets/blender/enemies/newshr-190.py [-- --preview out.png]
 """
@@ -19,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import common  # noqa: E402
 import lib_b022 as lib  # noqa: E402
+import lib_newshd_rock as R  # noqa: E402
 
 NAME = "newshr-190"
 MODEL = f"enemies/{NAME}"
@@ -30,6 +33,9 @@ ROUGH = 0.9  # matte rock
 RZ_TOP, RZ_BOTTOM = 0.37, 0.33  # crown about 4.5 px up, base about 4 px down
 # (column, row, radius px, depth px) of the pits, in sprite pixel coordinates
 PITS = [(8.0, 7.6, 2.0, 0.8), (4.0, 7.4, 1.4, 0.6)]
+# The facet ramp (lib_newshd_rock.facet_ramp, D175): the tan ramp's shades on the stone's facets.
+# `bias` 0.08: the lit crown facets the game's sun lights well read past the sprite's top shade at 0.
+SPEC = {"mid": BODY, "metallic": 0.0, "roughness": ROUGH, "ramp": {"bias": 0.08}}
 
 
 def lumps(x, y, z):
@@ -41,10 +47,10 @@ def build(sprite):
     coll = common.reset_collection(NAME)
     grid = lib.Grid(12, 14, sprite["frames"][0]["pixels"])
     mats = lib.Mats(NAME, sprite["colors"])
-    # Matte sandy stone in one colour. The sprite's light-to-dark spread (27 at the upper-left
-    # crown down to 20 and 179 at the rim) is its drawn lighting, not paint: the game lights the
-    # stone and draws its outline, so the whole surface takes the stone's mid-tone (23) and
-    # the shape (the prouder lit faces, the pits) makes the shading.
+    # Matte sandy stone, built in its mid-tone (23); the shape (the prouder lit faces, the pits)
+    # makes the light, and the facet ramp (below) then gives each facet one shade of the sprite's
+    # ramp (27 at the upper-left crown down to 19-20 at the rim), matched to the sprite's own
+    # distribution, so the stone has the sprite's range under the game's light (D175).
     stone = mats(BODY, metallic=0.0, roughness=ROUGH)
 
     def slot(i):
@@ -61,7 +67,11 @@ def build(sprite):
     for v in bm.verts:  # a slightly taller crown than base, so the game camera sees a dome
         v.co.z *= (RZ_TOP if v.co.z > 0 else RZ_BOTTOM) / RZ
     pits(bm, grid)
-    for m in mats.list:  # matte sandy stone: a soft tan lift, not a grey gloss
+    bmesh.ops.triangulate(bm, faces=bm.faces[:])
+    obj = common.mesh_object(NAME, bm, mats.list, coll, smooth=False)
+    # The facet ramp: flat facets, each one shade of the sprite's tan ramp (D175).
+    R.facet_ramp(sprite, R.Grid(sprite, NAME), obj, SPEC)
+    for m in obj.data.materials:  # matte sandy stone: a soft tan lift, not a grey gloss
         bsdf = next(n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
         bsdf.inputs["Roughness"].default_value = ROUGH
         m.roughness, m.metallic, m.specular_intensity = ROUGH, 0.0, 0.1  # viewport/preview shading
@@ -69,8 +79,7 @@ def build(sprite):
             if key in bsdf.inputs:
                 bsdf.inputs[key].default_value = 0.15
                 break
-    # Flat shaded: the facets catch the light unevenly, so the one-colour stone reads as rock.
-    return common.mesh_object(NAME, bm, mats.list, coll, smooth=False)
+    return [obj, R.d90_shell(obj, coll, NAME)]
 
 
 def rock(bm, grid, rz, slot_for, brightness, n=10, relief=0.22, shrink=0.15, under_slot=None):
@@ -146,9 +155,9 @@ def pits(bm, grid):
 
 def main():
     sprite = common.load_sprite(ROOT, NAME)
-    obj = build(sprite)
-    common.export_sprite_model(ROOT, [obj], MODEL, sprite["sprites"])
-    lib.preview(ROOT, NAME, [obj], sprite)
+    objs = build(sprite)
+    common.export_sprite_model(ROOT, objs, MODEL, sprite["sprites"])
+    lib.preview(ROOT, NAME, objs[:1], sprite)
 
 
 if __name__ == "__main__":
