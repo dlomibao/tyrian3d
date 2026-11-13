@@ -1407,7 +1407,7 @@ def main():
         coll.objects.link(src)
         src.matrix_world = p.matrix_world.copy()
         bpy.context.view_layer.update()
-        sh = common.outline_shell(src, coll, voxel=0.03, faces=2500, inside=0.004)
+        sh = common.outline_shell(src, coll, voxel=0.03, faces=2500, inside=0.004, islands="outer")
         bpy.data.objects.remove(src, do_unlink=True)
         sh.name = sh.data.name = f"{name}_outline"
         data = common.load_sprite(WT, name)

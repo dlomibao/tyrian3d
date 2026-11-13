@@ -925,7 +925,7 @@ def main():
         fmt = "WEBP"
     # The ink outline (D51) from a smooth closed copy of the rock (not the ground patch); made after
     # the bake so it never occludes the bake's rays.
-    shell = common.outline_shell(obj, coll, voxel=0.02, faces=3000, smooth=6)
+    shell = common.outline_shell(obj, coll, voxel=0.02, faces=3000, smooth=6, islands="outer")
     rel = [(n, cx - CX0, cy - CY0) for n, cx, cy in layout]
     pieces = common.split_assembly(obj, rel)
     shells = split_open(shell, rel, coll)
@@ -1528,7 +1528,7 @@ def main_damaged(argv):
     bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.material_index == flat], context="FACES")
     bm.to_mesh(raised.data)
     bm.free()
-    shell = common.outline_shell(raised, coll, voxel=0.02, faces=2500, smooth=4)
+    shell = common.outline_shell(raised, coll, voxel=0.02, faces=2500, smooth=4, islands="outer")
     bpy.data.objects.remove(raised)
     rel = [(n, cx - CX0, cy - CY0) for n, cx, cy in layout]
     pieces = common.split_assembly(obj, rel)

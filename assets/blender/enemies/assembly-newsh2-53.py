@@ -671,7 +671,7 @@ def main():
         src = p.copy()
         src.data = p.data.copy()
         C.coll.objects.link(src)
-        shell = common.outline_shell(src, C.coll, faces=800)
+        shell = common.outline_shell(src, C.coll, faces=800, islands="outer")
         bpy.data.objects.remove(src)
         shell.name = shell.data.name = f"{name}_outline"
         shell.hide_render = True

@@ -586,65 +586,14 @@ def join(objs, name, coll):
 
 
 def outline_shell_all(obj, collection, voxel=0.015, faces=8000, smooth=6):
-    """common.outline_shell (D51) keeping EVERY outer island, not only the widest one: the half
+    """common.outline_shell (D51) keeping EVERY outer island, not only the widest one (D189): the half
     machine is two separate objects (pillar, crane on its floor), and the stock shell kept the
-    pillar only, so the crane pieces (newshc-245/-283) shipped an empty outline. An island is
-    dropped only when its 3D bounding box lies inside another island's (an inner shell).
-    (Candidate for common.py: an `islands="outer"` option.)"""
-    me = obj.data.copy()
-    me.materials.clear()
-    shell = bpy.data.objects.new(f"{obj.name}_outline", me)
-    collection.objects.link(shell)
-    shell.matrix_world = obj.matrix_world.copy()
-    for mod in list(shell.modifiers):
-        shell.modifiers.remove(mod)
-    rm = shell.modifiers.new("remesh", "REMESH")
-    rm.mode = "VOXEL"
-    rm.voxel_size = voxel
-    rm.adaptivity = 0.0
-    rm.use_smooth_shade = True
-    common._apply_modifiers(shell)
-    bm = bmesh.new()
-    bm.from_mesh(shell.data)
-    bm.verts.ensure_lookup_table()
-    seen, islands = set(), []
-    for v in bm.verts:
-        if v.index in seen:
-            continue
-        stack, isl = [v], []
-        while stack:
-            x = stack.pop()
-            if x.index in seen:
-                continue
-            seen.add(x.index)
-            isl.append(x)
-            stack.extend(e.other_vert(x) for e in x.link_edges)
-        lo = [min(q.co[k] for q in isl) for k in range(3)]
-        hi = [max(q.co[k] for q in isl) for k in range(3)]
-        islands.append((isl, lo, hi))
-
-    def inside(a, b):
-        return all(b[1][k] - 1e-4 <= a[1][k] and a[2][k] <= b[2][k] + 1e-4 for k in range(3)) and a is not b
-    drop = set()
-    for a in islands:
-        if any(inside(a, b) and (len(b[0]) > len(a[0])) for b in islands):
-            drop.update(v.index for v in a[0])
-    print(f"outline shell: {len(islands)} islands, keeping {len(islands) - sum(1 for a in islands if a[0][0].index in drop)}")
-    bmesh.ops.delete(bm, geom=[v for v in bm.verts if v.index in drop], context="VERTS")
-    bm.to_mesh(shell.data)
-    bm.free()
-    sm = shell.modifiers.new("smooth", "SMOOTH")
-    sm.factor = 0.6
-    sm.iterations = smooth
-    n = len(shell.data.polygons)
-    if n > faces:
-        dec = shell.modifiers.new("decimate", "DECIMATE")
-        dec.ratio = faces / n
-    common._apply_modifiers(shell)
-    shell.data.shade_smooth()
-    shell.data.materials.append(common.material("outline_shell", (0.0, 0.0, 0.0), roughness=1.0))
-    shell["tyrian_outline"] = True
-    return shell
+    pillar only, so the crane pieces (newshc-245/-283) shipped an empty outline. Its own copy here
+    dropped an island whose 3D bbox lay inside another's, which also took outer parts sitting in a
+    ring's box (newshc-17's disc); "outer" drops only inner (negative volume) shells, flat sheets and
+    lone voxels. min_new_px=0: the rings stacked on the tower keep their own ink, as they had."""
+    return common.outline_shell(obj, collection, voxel=voxel, faces=faces, smooth=smooth, islands="outer",
+                                min_new_px=0)
 
 
 def bake_pieces(pieces, lay, coll, size=512):

@@ -569,7 +569,7 @@ def main():
         bake_maps(obj, tempfile.mkdtemp(prefix="nsh4arm_bake_"), size=2048, samples=64)
         fmt = "WEBP"
     # The outline shell (D51), made after the bake so its occlusion rays never hit it.
-    shell = common.outline_shell(obj, coll, voxel=0.02, faces=4000, smooth=12)
+    shell = common.outline_shell(obj, coll, voxel=0.02, faces=4000, smooth=12, islands="outer")
     shell.hide_render = True
     layout = [(e["model"], e["cx"] - CX0, e["cy"] - CY0) for e in sprite["assemblyLayout"] if e["model"] in PIECES]
     obj.modifiers.clear()

@@ -543,7 +543,7 @@ def build():
     bpy.ops.object.join()
     body.name = NAME
     proxy = shell_proxy(coll)
-    shell = common.outline_shell(proxy, coll, faces=2500)
+    shell = common.outline_shell(proxy, coll, faces=2500, islands="outer")
     shell.name = f"{NAME}_outline"
     bpy.data.objects.remove(proxy, do_unlink=True)
     return sprite, [body, fl, shell]

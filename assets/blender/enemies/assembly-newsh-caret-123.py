@@ -607,7 +607,7 @@ def main():
             if img.name in ("talon_colour", "talon_rm"):
                 img.name = img.name.replace("talon", "nshc123")
         fmt = "WEBP"
-    shell = common.outline_shell(obj, coll, voxel=0.02, faces=5000, smooth=8)
+    shell = common.outline_shell(obj, coll, voxel=0.02, faces=5000, smooth=8, islands="outer")
     layout = [(e["model"], e["cx"] - SX0, e["cy"] - SY0) for e in sprite["assemblyLayout"] if e["model"] in PIECES]
     pieces = common.split_assembly(obj, layout, coll)
     shells = split_open(shell, layout, coll)

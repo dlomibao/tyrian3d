@@ -9223,3 +9223,66 @@ translucent (the harness keeps it invulnerable) and shows green-grey over the bl
 grey; why was not traced. With `&solid=1` it is grey, as the original.
 
 **Cost:** one Opus agent, no workflow; about 45 headless captures, no Gemini, no Blender.
+
+## D189 — Outline shells keep every outer island that widens the silhouette: `common.outline_shell(islands="outer")`, 12 scripts switched, 55 glbs re-shelled (outline audit; extends D51, D88)
+
+2026-11-13
+
+**Problem** (`tyrian-scratch/outline-islands/`: `scan.py`, `attrib.py`, `final.json`): `common.outline_shell` voxel-remeshes a copy
+of the model and keeps only the island with the widest top-view bbox, so a part that the remesh leaves apart from the hull (a pod,
+rail, strut, rotor tip) ships with no ink; the game turns the model's own outline off once a shell exists (D51). 34 shipped glbs
+lost 10 px² or more of top-view ink to dropped islands; the worst seen were newsh4-153, newsh2-269, newsh2-17, the newsh^ boss,
+newsh2-77 and newshu-39. Local copies had the same or a near bug: `assembly-newshi-115.shell_mesh` (largest only),
+`assembly-newshc-283.outline_shell_all` (drops an island whose 3D bbox lies in another's), `newsh2-229.outline_shell_all` (drops
+islands under 5% of the biggest's vertex count).
+
+**What was checked** (the islands each remesh makes, printed per script with `--no-bake` in a scratch copy):
+- *Voxel crumbs are single voxels* (8-16 vertices, top-view bbox ~0), not 1-2 px pieces. The 1-3 px islands are real parts:
+  the struts and rails of newsh2-229, newsh4-195's brackets, the caret boss's bolts. A bbox floor of 0.028 units² (2x2 px)
+  left newsh2-229 unchanged and the boss half fixed.
+- *Many detached parts lie over the hull* (bolts, plates, stacked rings): kept, each would draw its own ink ring on the plating.
+- *Flat sheets:* the remesh of a one-sided strap (the caret boss's skirt strip) is a zero-thickness island with volume ~1e-6;
+  kept, it drew an ink line across the piece.
+- *Signed volume alone is not safe for the widest island:* newsh2-115's open structure remeshes to an island of 100k vertices
+  whose volume reads ~0 (outer and inner skins meet); dropping it took half the machine's ink.
+- *Bakes are not deterministic:* two builds of unchanged code give Cycles bake maps that differ by sampling noise (mean
+  0.2-2.5 of 255, newshi's the most) and, for the per-piece scripts, the same triangles in another order (newshe-*-f2,
+  newsh4-153/155/193, newsh2-269; a few UVs of newsh4-153 by 0.002 in one run).
+
+**Decision:**
+1. **`common.outline_shell(..., islands="largest" | "outer", min_extent=0.001, min_new_px=2)`**, with the island rule in
+   `common.keep_shell_islands(bm, islands, min_extent, min_new_px, matrix, label)`. `"largest"` is the default and the old code
+   path, so nothing else changes on a rebuild. `"outer"` keeps the widest island always, then, widest first, every island that is
+   an outer surface (signed volume > 0, at least 0.002 units thick on average: cavities and flat sheets go), at least `min_extent`
+   units² wide from above (lone voxels go) and that adds at least `min_new_px` sprite px to the top view beyond 1 px round the
+   islands already kept (a part standing free of the hull keeps its ink; a bolt over the plating gets none).
+2. **Switched:** `assembly-newsh-caret-123`, `newshs-229`, `assembly-newshu-79`, `assembly-newshe-39` (both shells),
+   `assembly-newsh2-115`, `assembly-newsh4-195`, `newshc-1` (both), `newsh2-269`, `assembly-newsh2-53`; `newsh2-229`'s copy
+   removed for the shared call; `assembly-newshc-283.outline_shell_all` now calls it with `min_new_px=0` (its stacked rings keep
+   the ink they had); `assembly-newshi-115.shell_mesh` uses `keep_shell_islands(bm, "outer")` and keeps its symmetric decimation
+   and held-inside pull (D88). `lib_b065` and `companion-ship-gerund` (already outer-only) and newsh4-124/newsht-39 (no loss)
+   untouched.
+3. **Only the outline changes ship.** Of the 80 glbs the builds wrote, the 25 whose outline came out identical (all newshi-*,
+   newshu-3/5/41/43/79, newshc-1/-f2) are kept as on main; the 55 kept have identical body triangles (as a set) and materials,
+   and new `_outline` meshes; their bake maps carry the rebuild's noise. spriteModels JSONs unchanged.
+
+**Options considered:**
+- *The audit's rule, positive volume and a 0.028 units² bbox:* misses the 1-3 px parts (above).
+- *Every positive-volume island (lib_b065's rule):* rings round bolts and plates over the hull, and the flat-sheet lines.
+- *Splicing only the new outline meshes into main's glbs, to keep the old bake maps byte for byte:* a glb rewriter for
+  noise no one sees; any later rebuild re-bakes anyway.
+
+**Checked** (`fixscan.py`: top-view body px with no ink within 1 px, main → after; no new ink farther than 2 px from the body
+in any glb): newsh2-269 112 → 2, newsh2-17 83 → 0, newsh2-15/53/55 31/36/39 → 0, newshs-229 28 → 0, newshu-39 33 → 0,
+newshu-1 7 → 0, newshc-1-f4 33 → 0, newshe-41 11 → 0, newsh2-77 105 → 27, newsh4-153 388 → 160, newsh4-155 89 → 43,
+newsh^-121/123/125/127 56/69/60/58 → 50/35/34/40, newsh2-229 (8 frames) 12-16 → 6, newshc-245 26 → 13, newshe-*-f2 down
+15-75%. Game captures before/after (`?debug=play ... &compare=1`, 3840x2160) of newsh4-153, newsh2-269, newsh2-17, newsh^-123,
+newsh2-77, newshu-39 and the SAVARA blimp newshi-45: `tyrian-scratch/outline-islands/fix-summary.png`. tsc and vitest pass.
+
+**Left** (not island loss; the remesh makes no shell there or a later step thins it): newsh4-153's canister top and the newsh^
+boss's skirt are open plates the remesh turns into flat sheets; newshc-17/-55's disc inside the tower ring; newshi-45's mast
+(17 px) is thinned away by `shell_mesh`'s smoothing and inside pull (its voxel 0.035 already makes one island); newshu-79's
+22 px and the newshe-*-f2 scorch (ground, no ink by design) are the same kind. newshc-77 shares `outline_shell_all`; it had no
+loss and was not rebuilt.
+
+**Cost:** one Opus agent, no workflow; 5 build rounds of 12 scripts at -j 2, 14 headless captures, no Gemini.

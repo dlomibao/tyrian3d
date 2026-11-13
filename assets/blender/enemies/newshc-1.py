@@ -913,10 +913,10 @@ def export(stage, sprite, bake):
             if img.name.startswith("talon_"):
                 img.name = img.name.replace("talon_", f"{stage}_")
         fmt = "WEBP"
-    shell = common.outline_shell(closed, coll, voxel=0.012, faces=2500, smooth=6)
+    shell = common.outline_shell(closed, coll, voxel=0.012, faces=2500, smooth=6, islands="outer")
     bpy.data.objects.remove(closed)
     if rig is not None:
-        rshell = common.outline_shell(rig, coll, voxel=0.012, faces=2500, smooth=6)
+        rshell = common.outline_shell(rig, coll, voxel=0.012, faces=2500, smooth=6, islands="outer")
         bpy.data.objects.remove(rig)
         for o in bpy.context.view_layer.objects:
             o.select_set(False)
