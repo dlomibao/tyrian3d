@@ -20,7 +20,8 @@ Run: tools/build-models.sh -j 2 assets/blender/enemies/assembly-newshg-191.py
 Exports the 7 game models through common.export_sprite_model: public/models/enemies/newshg-153.glb,
 -f2, -f3, -f4 (the top piece) and newshg-191.glb, -f2, -f3 (the bottom piece), each with its
 src/render/spriteModels entry. Each root carries tyrian_oblique 1 (D82) and the cliff-wide
-tyrian_depth_band [0, 0.04, 0, top] (D165), so both pieces' depths agree at the seam.
+tyrian_depth_band [0, 0.4, 0, top] (D165), so both pieces' depths agree at the seam. The outline
+shell comes from a sealed copy (bay and crevice plugged), held inside the rock: ink on the silhouette only.
 With --out DIR it also measures the art-view IoU and per-region colour per frame
 (DIR/work/metrics.json, which needs DIR/work/sprite_data.json) and renders the review views into
 DIR/work/; without --out it only exports.
@@ -455,6 +456,46 @@ def build_fire(state, coll):
 PIECES = {"newshg-153": (+1, 14), "newshg-191": (-1, 42)}
 
 
+# The depth band (D165). It was [0, 0.04]: the 22 px cliff squeezed into 0.04 units put the outline
+# shell's back faces only a few depth steps behind the rock (OUTLINE_SINK is 5% of the band, 0.002),
+# and at the tilted game camera their ink showed through the crest and both flanks as a thick black
+# skirt (E2 QA M8, BOTANY A t3300). 0.4, as the sibling cliff assembly-newshh-129 and the D170/D179
+# ground structures: still under background 2 (0.45 above ground enemies, D5), and D181's coverHeight
+# lifts later draws over it.
+BAND = (0.0, 0.4)
+SHELL_INSIDE = 0.01  # the shell held this far inside the rock (units), D90/D118
+# Plugs that close the model's hollows in the shell's source only (c0, c1, v0, v1, h0, h1, px): the
+# launch bay with its portal, posts, clamps and the spurs' roots, the crevice through the crest, and
+# the valleys between the crest boulders. Inside the silhouette, so the contour is unchanged, but the
+# shell no longer lines them, and its back faces can't ink their walls.
+SEAL = [
+    (0.0, 24.0, BAY[2], FACE + 2.2, 0.0, 13.2),
+    # (split at the crevice: a plug bridging its open slot would show its underside's ink in it)
+    (1.0, NOTCH[0] - 0.2, TOPH + 1.0, FACE - 0.5, TOPH - 1.0, TOPH + 1.6),
+    (NOTCH[1] + 0.2, 23.0, TOPH + 1.0, FACE - 0.5, TOPH - 1.0, TOPH + 1.6),
+    (NOTCH[0] - 0.2, NOTCH[1] + 0.2, NOTCH[2], FACE + 0.5, NOTCH[4], TOPH + 1.0),
+]
+
+
+def sealed_copy(static, coll):
+    """The static rock with its hollows plugged (SEAL): the outline shell's source, never exported."""
+    b = Builder("sealed_plugs")
+    for c0, c1, v0, v1, h0, h1 in SEAL:
+        b.chbox(c0, c1, v0, v1, h0, h1, b.M(1))
+    plugs = b.obj(coll)
+    me = static.data.copy()
+    o = bpy.data.objects.new("sealed", me)
+    coll.objects.link(o)
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    bm.from_mesh(plugs.data)
+    bm.to_mesh(me)
+    bm.free()
+    bpy.data.objects.remove(plugs)
+    clip_object(o, ART_CLIP)
+    return o
+
+
 def cut_piece(src, piece, coll, name):
     side, centre = PIECES[piece]
     bm = bmesh.new()
@@ -501,14 +542,19 @@ def main():
     top = round(max((static.matrix_world @ v.co).z for v in static.data.vertices), 4)
     exported = []
     statics, shells = {}, {}
+    sealed = sealed_copy(static, coll)
     for piece in PIECES:
         statics[piece] = cut_piece(static, piece, export_coll, f"{piece}_static")
-        shells[piece] = common.outline_shell(statics[piece], export_coll, voxel=0.02, faces=4000)
+        # The shell from the sealed copy, held a hair inside (D90/D118): ink on the silhouette only.
+        src = cut_piece(sealed, piece, export_coll, f"{piece}_sealed")
+        shells[piece] = common.outline_shell(src, export_coll, voxel=0.02, faces=4000, inside=SHELL_INSIDE)
+        bpy.data.objects.remove(src)
+    bpy.data.objects.remove(sealed)
     for model, piece, shut, fire in MODELS:
         root = bpy.data.objects.new(model, None)
         export_coll.objects.link(root)
         root["tyrian_oblique"] = 1.0
-        root["tyrian_depth_band"] = [0.0, 0.04, 0.0, top]  # one cliff-wide [y0, y1] (D165)
+        root["tyrian_depth_band"] = [BAND[0], BAND[1], 0.0, top]  # one cliff-wide [y0, y1] (D165)
         kids = []
         st = bpy.data.objects.new(f"{model}.static", statics[piece].data)
         sh = bpy.data.objects.new(f"{model}.outline", shells[piece].data)

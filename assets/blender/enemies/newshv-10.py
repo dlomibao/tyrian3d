@@ -176,7 +176,14 @@ def hb_mesh(bm):
 def cut_into(bm, G, outline, z0, z1, mat, nmat):
     """Boolean-subtract a vertical prism (outline in sprite (c, r) on grid G, z0..z1) from the closed shell
     in bm, in place; the cut walls get material index `mat` (nmat = the material count, so indices map)."""
+    # material slots first: bm.to_mesh into a slotless mesh drops every face's material index to 0
+    # (round 3: the hood's belly and the whole cut nose body had come out as material 0)
     me = bpy.data.meshes.new("_shell")
+    cm = bpy.data.meshes.new("_cut")
+    slots = [bpy.data.materials.new("_slot") for _ in range(nmat)]
+    for m in (me, cm):
+        for sl in slots:
+            m.materials.append(sl)
     bm.to_mesh(me)
     shell = bpy.data.objects.new("_shell", me)
     cb = bmesh.new()
@@ -184,12 +191,8 @@ def cut_into(bm, G, outline, z0, z1, mat, nmat):
     hi = verts(cb, [G.P(c, r, z1) for c, r in outline])
     loft(cb, [lo, hi], mat, smooth=False)
     bmesh.ops.recalc_face_normals(cb, faces=cb.faces)
-    cm = bpy.data.meshes.new("_cut")
     cb.to_mesh(cm)
     cb.free()
-    for m in (me, cm):
-        for _ in range(nmat):
-            m.materials.append(None)
     cutter = bpy.data.objects.new("_cut", cm)
     sc = bpy.context.scene.collection
     sc.objects.link(shell)
@@ -208,6 +211,8 @@ def cut_into(bm, G, outline, z0, z1, mat, nmat):
         bpy.data.objects.remove(o, do_unlink=True)
     for m in (me, cm, out):
         bpy.data.meshes.remove(m)
+    for sl in slots:
+        bpy.data.materials.remove(sl)
 
 
 def finish(name, bm, mats, coll, sharp_deg=None, flat=False):
@@ -314,7 +319,6 @@ def build_159(coll):
     CLAW = M(59, **STEEL)
     CLAW_TOP = M(60, **STEEL)
     GROOVE = M(52, 0.3, 0.6)
-    DARK = M(50, 0.3, 0.65)
     BEZEL = M(55, **STEEL)
     BELLY = M(55, 0.3, 0.55)
     RED = M(115, emit=0.8, **GLOW)
@@ -419,7 +423,8 @@ def build_159(coll):
         strip(pth, 1.45, 0.35, 0.5, RED)  # red edged band
         strip(pth, 0.55, 0.55, 0.3, ORANGE)  # glowing orange core
 
-    strip([(AX, 13.4), (AX, 14.6), (AX, 15.8), (AX, 16.7)], 0.7, 0.45, 0.4, M(60, **STEEL))  # centre spine
+    # centre spine: runs on down the hood's front lip to meet the prow plate's keel (one centre line)
+    strip([(AX, 13.4), (AX, 14.6), (AX, 15.8), (AX, 16.7), (AX, 17.15)], 0.6, 0.45, 0.4, M(60, **STEEL))
 
     # ---- blue gem in a bezel under the chevron's apex: a ~3 x 3.5 px cabochon at (col 12, row 11), its
     # dark bezel ~4 px wide (cols 10-13; the sprite's gem is 2 px on rows 9, 10, 12 and 4 px on row 11) -
@@ -457,6 +462,7 @@ def build_159(coll):
     brows = [16.3, 17.0, 18.0, 19.5, 21.0, 22.5, 23.6, 24.3, 25.0, 25.8, 26.6, 27.3, 27.75, 28.0]
     rings = []
     BP = 2.8
+    nb = bmesh.new()  # the nose body, built alone so the engine-bay channel can be cut into it
     for r in brows:
         hw, ht = BW(r), BT(r)
         pts = []
@@ -466,9 +472,26 @@ def build_159(coll):
             x = spow(ca, 2 / BP) * hw
             z = (-0.6 + (ht + 0.6) * abs(sa) ** (2 / BP)) if sa >= 0 else (-0.6 - 1.8 * abs(sa))
             pts.append(G.P(AX + x, r, z * PX))
-        rings.append(verts(bm, pts))
-    rings.append(verts(bm, [G.P(AX, 28.15, -0.4 * PX)]))
-    loft(bm, rings, lambda k: BODY if k < NS // 2 else BELLY, smooth=True)
+        rings.append(verts(nb, pts))
+    rings.append(verts(nb, [G.P(AX, 28.15, -0.4 * PX)]))
+    loft(nb, rings, lambda k: BODY if k < NS // 2 else BELLY, smooth=True)
+
+    # E2 QA round 3: the sprite's lower hull is an ENGINE BAY: a bold dark (50/52) pentagonal channel
+    # ~1 px wide (apex row 18, side runs cols 7 / 16 rows 21-25, front run row 26 cols 8-15) round a lighter
+    # raised plate with a bright keel. Built as a real recessed channel cut into the nose body (floor ~1.5 px
+    # under the body beside it, walls and floor pal 52), the plate standing up out of it, so the dark ring is
+    # shadowed depth the game light keeps dark, not paint.
+    FLOOR = 0.45  # channel floor height, px
+    BAY_OUT = [(12.0, 17.55), (13.4, 19.0), (15.3, 21.0), (17.05, 21.6), (17.05, 24.9), (16.1, 26.85), (7.9, 26.85),
+               (6.95, 24.9), (6.95, 21.6), (8.7, 21.0), (10.6, 19.0)]
+    BAY_FLOOR = M(52, metallic=0.15, roughness=0.8)  # the ring's median index, matte (no sheen in the channel)
+    bmesh.ops.remove_doubles(nb, verts=nb.verts, dist=1e-6)
+    bmesh.ops.recalc_face_normals(nb, faces=nb.faces)  # outward, or the exact boolean leaves it uncut
+    cut_into(nb, G, BAY_OUT, FLOOR * PX, 8 * PX, GROOVE, len(M.list))
+    for f in nb.faces:  # the channel floor: the darkest, unlit-looking part of the ring
+        if f.material_index == GROOVE and abs(f.normal.z) > 0.9 and abs(f.calc_center_median().z - FLOOR * PX) < 0.05 * PX:
+            f.material_index = BAY_FLOOR
+    bm.from_mesh(hb_mesh(nb))
 
     def body_top(c, r):
         hw, ht = BW(r), BT(r)
@@ -477,40 +500,55 @@ def build_159(coll):
             return -0.6 * PX
         return (-0.6 + (ht + 0.6) * (1 - t ** BP) ** (1 / BP)) * PX
 
-    # gabled hatch: apex row 17.9, full width (cols 8.6-15.4) from row 20.9, front face at row 25.7
-    PW = Pchip([(17.9, 0.0), (18.6, 1.0), (20.9, 3.4), (25.7, 3.6)])
+    # the bay's plate (the sprite's light inner pentagon): apex row 18.6, cols 10-13 by row 20-21, cols 8-15
+    # from row 22, narrowing to cols 9-14 at row 25, its front at row 25.95 (row 26 is the channel's front run)
+    PW = Pchip([(18.55, 0.0), (19.1, 0.75), (20.2, 1.85), (21.3, 3.0), (22.1, 3.95), (24.6, 3.95), (25.4, 3.2),
+                (25.95, 2.9)])
 
-    def hatch(grow, lift, mat, r0, r1, ridge=True):
-        rows = [r0 + (r1 - r0) * t for t in (0, 0.04, 0.12, 0.25, 0.38, 0.5, 0.65, 0.8, 0.92, 1.0)]
-        rr = []
-        for r in rows:
-            hw = PW(r) + grow
-            prof = [(-1.0, -0.8), (-1.0, 0.55), (-0.5, 0.92), (0.0, 1.0 if ridge else 0.92), (0.5, 0.92), (1.0, 0.55), (1.0, -0.8)]
-            pts = []
-            for x, z in prof:
-                c = AX + x * max(hw, 0.05)
-                zz = body_top(c, r) + (z * lift if z > 0 else z) * PX
-                pts.append(G.P(c, r, zz))
-            rr.append(verts(bm, pts))
-        rr.insert(0, verts(bm, [G.P(AX, r0 - 0.15, body_top(AX, r0) - 0.6 * PX)]))
-        return loft(bm, rr, mat, smooth=False, cap0=False, cap1=True)
+    # E2 QA M10 (round 2): no bolts and no proud front slot (they read as a robot face); the sprite's 50/52
+    # dots at (9,21)/(14,21)/(8,24)/(15,24) are the channel's own corners and row 26 its front run.
+    # Round 3: the plate stands in the cut engine-bay channel: a low pitched (gabled) plate, base on the
+    # channel floor, eaves just under the body beside it, a keel crest a little over the body crown that
+    # carries the hood's centre spine on (the sprite's bright cols 10-12 line). The game light shades the
+    # two slopes apart (rule 2). Its front end eases down in a long soft chamfer (no hard lip casting a
+    # chin line) to a low face over the channel's front run.
+    EAVE, CREST = 1.7, 2.7  # px over the sprite plane
 
-    hatch(0.5, 0.45, GROOVE, 17.3, 26.0, ridge=False)  # dark cut groove round the hatch
-    hatch(0.0, 1.7, PLATE, 17.9, 25.7)
-    # launch slot at the front lip (row 26, cols 8-15): a dark recess
-    sz = body_top(AX, 26.2)
-    sl = [verts(bm, [G.P(AX + x, r, sz + dz * PX) for x, dz in ((-3.6, -0.5), (3.6, -0.5), (3.6, 0.55), (-3.6, 0.55))])
-          for r in (25.75, 26.75)]
-    loft(bm, sl, DARK, smooth=False)
-    # bolts / vents on the hatch (the sprite's 50 dots at (9,21), (14,21), (8,24), (15,24))
-    for c, r in ((9.6, 21.6), (14.4, 21.6), (9.3, 24.5), (14.7, 24.5)):
-        z = body_top(c, r) + 1.45 * PX
-        n = 8
-        b = verts(bm, [G.P(c + 0.3 * math.cos(2 * math.pi * k / n), r + 0.3 * math.sin(2 * math.pi * k / n), z - 0.2 * PX)
-                       for k in range(n)])
-        t = verts(bm, [G.P(c + 0.3 * math.cos(2 * math.pi * k / n), r + 0.3 * math.sin(2 * math.pi * k / n), z + 0.15 * PX)
-                       for k in range(n)])
-        loft(bm, [b, t], DARK, smooth=False)
+    def plate_z(x, r, r0, r1):
+        """Plate top at normalised half-width x (-1..1), row r."""
+        ax = abs(x)
+        if ax > 0.93:
+            z = EAVE - (ax - 0.93) / 0.07 * 0.3
+        else:
+            u = ax / 0.93
+            z = CREST - (CREST - EAVE) * u ** 1.35
+        s = min(1.0, max(0.0, (r1 - r) / 1.4))
+        s = s * s * (3 - 2 * s)
+        return FLOOR + (z - FLOOR) * (0.32 + 0.68 * s)
+
+    P0, P1 = 18.55, 25.95
+    XS = [-1.0, -0.97, -0.93, -0.75, -0.5, -0.25, -0.08, 0.0, 0.08, 0.25, 0.5, 0.75, 0.93, 0.97, 1.0]
+    prow = [P0 + 0.12 + (P1 - P0 - 0.12) * t for t in
+            (0, 0.04, 0.1, 0.18, 0.28, 0.4, 0.52, 0.64, 0.74, 0.82, 0.88, 0.93, 0.97, 1.0)]
+    rr = []
+    for r in prow:
+        hw = max(PW(r), 0.12)
+        pts = [G.P(AX - hw, r, (FLOOR - 0.25) * PX)]
+        pts += [G.P(AX + x * hw, r, plate_z(x, r, P0, P1) * PX) for x in XS]
+        pts += [G.P(AX + hw, r, (FLOOR - 0.25) * PX)]
+        rr.append(verts(bm, pts))
+    rr.insert(0, verts(bm, [G.P(AX, P0 - 0.05, (EAVE - 0.2) * PX)]))
+    loft(bm, rr, PLATE, smooth=True, cap0=False, cap1=True)
+    # keel crest: a narrow polished bead along the plate's crest
+    KEEL = M(62, metallic=0.4, roughness=0.3, spec=0.8)
+    kr = [18.9, 19.4, 20.2, 21.5, 23.0, 24.2, 24.9, 25.4, 25.75]
+    krings = []
+    for r in kr:
+        zc = plate_z(0.0, r, P0, P1) * PX
+        kw = 0.42 * min(1.0, (r - 18.7) / 0.8)
+        krings.append(verts(bm, [G.P(AX - kw, r, zc - 0.15 * PX), G.P(AX + kw, r, zc - 0.15 * PX),
+                                 G.P(AX + kw * 0.45, r, zc + 0.2 * PX), G.P(AX - kw * 0.45, r, zc + 0.2 * PX)]))
+    loft(bm, krings, KEEL, smooth=False)
 
     # ---- claw prongs (cols 0-4 / 19-23, rows 17-27), split from the body by a groove (col 4) ------
     OCT = [(1.0, 0.15), (0.5, 1.0), (-0.5, 1.0), (-1.0, 0.15), (-0.85, -0.6), (-0.3, -1.0), (0.3, -1.0), (0.85, -0.6)]
@@ -670,6 +708,40 @@ def review(obj, shell, w, h, out):
     shot(out / "under.png")
 
 
+def sink_shell(shell, model, margin, reach):
+    """Keep the outline shell under the model's top surface (D90/D118: ink on the silhouette only).
+
+    The voxel shell is smoothed, so it bridges the model's creases (the hood's trim strips, the gem bezel, the
+    engine-bay channel, the hood/nose step) and stood above the surface there: its back faces drew as dark
+    scribbles across the hood and the plate. Every shell vertex is dropped to `margin` under the topmost
+    model surface within `reach` of it (seen from straight above). x and y are untouched, so the silhouette (and the ink round it) is
+    the same."""
+    from mathutils.bvhtree import BVHTree
+    dg = bpy.context.evaluated_depsgraph_get()
+    tree = BVHTree.FromObject(model, dg)
+    mw = shell.matrix_world
+    inv = mw.inverted()
+    moved = 0
+    for v in shell.data.vertices:
+        w = mw @ v.co
+        hit = tree.ray_cast(Vector((w.x, w.y, 5.0)), Vector((0, 0, -1)))
+        if hit[0] is None:
+            continue
+        zt = hit[0].z
+        for k in range(12):  # the lowest top within `reach`: a shell edge spans ~0.6 px, so a vertex
+            a = 2 * math.pi * k / 12  # beside a raised strip must not ride at the strip's height
+            for rad in (0.35 * reach, 0.7 * reach, reach):
+                h = tree.ray_cast(Vector((w.x + rad * math.cos(a), w.y + rad * math.sin(a), 5.0)), Vector((0, 0, -1)))
+                if h[0] is not None:
+                    zt = min(zt, h[0].z)
+        zt -= margin
+        if w.z > zt:
+            v.co = inv @ Vector((w.x, w.y, zt))
+            moved += 1
+    shell.data.update()
+    print(shell.name, "sunk", moved, "of", len(shell.data.vertices))
+
+
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     only = argv[argv.index("--only") + 1].split(",") if "--only" in argv else ["10", "159", "171"]
@@ -687,8 +759,11 @@ def main():
         sealed.data = obj.data.copy()
         coll.objects.link(sealed)
         bpy.context.view_layer.update()
-        shell = common.outline_shell(sealed, coll, voxel=0.01 if key != "171" else 0.006, faces=2000, inside=0.004)
+        shell = common.outline_shell(sealed, coll, voxel=0.01 if key != "171" else 0.006,
+                                     faces=4000 if key == "159" else 2000, inside=0.004)
         shell.name = shell.data.name = f"{name}_outline"
+        if key == "159":
+            sink_shell(shell, sealed, 0.6 * PX, 1.4 * PX)
         bpy.data.objects.remove(sealed, do_unlink=True)
         tris = sum(len(p.vertices) - 2 for p in obj.data.polygons)
         stats[name] = {"tris": tris, "pal": sorted({k[0] for k in M.slots})}
