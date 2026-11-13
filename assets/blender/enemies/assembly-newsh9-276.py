@@ -1,15 +1,15 @@
 """Right grey gun works, upper piece and barrel below (newsh9.shp frames 238 and 276): a 3D version
 of their sprites.
 
-Seen in episode 4 (level 4.18). The two pieces stand one above the other (sprite.json
+Seen in episode 4 (DREAD-NOT, level 4.14). The two pieces stand one above the other (sprite.json
 `assemblyLayout`) and are windows onto one drawing, the mirror image of the left gun works
 (assembly-newsh9-274): a sloped dark housing with a thick barrel pointing left, the round column
 under it, and a barrel pointing straight down the screen from the junction below. The whole gun
 works is built in lib_b089 and each window cut out of it (newsh9-239 and newsh9-258 are other
 windows onto it).
 
-Run: blender --background --python assets/blender/enemies/assembly-newsh9-276.py [-- --preview out.png]
-(the preview is the whole gun works; each piece also gets <piece>.png next to it).
+Run: blender --background --python assets/blender/enemies/assembly-newsh9-276.py
+(exports enemies/newsh9-238 and enemies/newsh9-276, body plus outline shell).
 """
 
 import sys

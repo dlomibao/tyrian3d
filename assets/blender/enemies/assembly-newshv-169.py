@@ -1,14 +1,12 @@
-"""Right twin cannon (newshv.shp 169 + 167, assembly of 2 pieces): a 3D version of its sprites.
+"""Twin cannon pair, right half (newshv.shp 167 + 169): a 3D version of its sprites.
 
-Seen in episode 4 (level 4.18). Two cannons lie back to back, joined in the middle by their
-couplings: newshv-14 is the left barrel with its end cap, bright ring and blue band, on a wedge
-mount with two fins; newshv-16 is the back plate, a blue-grey half disc and the coupling (shaft,
-bright ball joint, ring, dark socket). The right cannon (newshv-167 + 169, assembly-newshv-169)
-is its mirror image; both scripts build the whole pair with lib_b081.build_cannon_pair and keep
-their own pieces, so the halves meet at the seam.
+Seen in episode 4: UNDERDELI (4.7) flies a pair on the sky layer at the screen edges; in DREAD-NOT
+(4.14) they are the dreadnought's side cannons. Each script builds the whole pair (the right cannon
+is the mirror of the left) with lib_cannon_pair14 and exports only its own two pieces, so the halves
+meet at the seam. See lib_cannon_pair14.py for the design (hard-surface barrel, wing mount,
+bulkhead, turntable and ball-joint coupling; outline shell from the closed pair).
 
-Run: blender --background --python assets/blender/enemies/assembly-newshv-169.py [-- --preview out.png]
-(the preview is the whole pair; each piece also gets out-<piece>.png).
+Run: blender --background --python assets/blender/enemies/assembly-newshv-169.py [-- --measure DIR]
 """
 
 import sys
@@ -16,12 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import common  # noqa: E402
-import lib_b081 as lib  # noqa: E402
-
-NAME = "assembly-newshv-169"
-ROOT = common.repo_root(__file__)
-
+import lib_cannon_pair14 as lib  # noqa: E402
 
 if __name__ == "__main__":
-    lib.export_cannon_pair(ROOT, NAME, ["newshv-169", "newshv-167"])
+    lib.main(["newshv-167", "newshv-169"], "assembly-newshv-169")

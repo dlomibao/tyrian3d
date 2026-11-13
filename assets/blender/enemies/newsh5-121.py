@@ -1,241 +1,357 @@
-"""Red curled pod (newsh5.shp frames 121, 123, 125): a 3D version of its sprites.
+"""newsh5-121, design A: the red curled pod of episode 4 (newsh5.shp frames 121, 123, 125; three
+models newsh5-121, -f2, -f3, one per frame), D65 standard, faired glossy shell.
 
-Seen in episode 4 (levels 4.22 and 4.25), lying on the ground. A glossy red pod, a full dome about half
-as tall as it is wide, with a dark crease cut into it near its top, and two low, broad folds
-curling round it like a shell. The three frames show it turning (the egg goes from a wide, tilted
-oval to a tall narrow one), so each frame gets its own model: newsh5-121, newsh5-121-f2, newsh5-121-f3.
-The shell's rim follows that frame's silhouette (its distance from a centre at 44 angles); the
-details are placed by hand from the frame's pixels. The sprite's drawn light is left to the game:
-its dark rim is the outline, its lit left side and the orange/yellow hot spot at the top left (the
-top of the red ramp) are the light on a glossy shell, so the shell is one mid red with a glossy
-(non-metal) material.
+What it is: a coiled shell pod, like a small ammonite lying on its side, that sits on the ground
+and turns (frames 121 -> 123 -> 125: the coil swings from a wide, tilted oval to a tall narrow
+one). Read from the sprite:
+  * the inner whorl: the big smooth dome on the left, its top-left the sprite's hot spot (the
+    120-124 run is the sheen of a glossy shell under an upper-left light: material, not paint);
+  * the aperture: the dark crease (113/112) that runs down from the top of the dome, bends at the
+    bottom and hooks left into a dark pocket, the pod's mouth (it launches spores, type 791);
+  * the whorls: two broad bands curling round the right side and the bottom (the lighter 116/117
+    bands), stepped onto each other at a dark seam (the 113 line at columns 15-17);
+  * the stalk: a short stub where the pod hangs at the top of the frame (rows 1-3).
+The outer ring of 112/1 is the sprite's ink (tools/sprite_mask.py: 100 % ink), so the shell's rim
+follows the INNER mask and the game's own outline lands on the ink.
 
-Run: blender --background --python assets/blender/enemies/newsh5-121.py [-- --preview out.png]
+Colours (trimmed median per region): shell 115, aperture 113, whorl seam floors 114.
+
+Build: per frame a closed shell over a star-shaped footprint (the inner mask, blurred and traced
+at 128 angles from the apex), a full dome profile with a vertical tangent at the ground, every
+feature an offset along the profile's normal so the seams wrap down the sides. Underside: a flat
+floor. Outline shell from the sealed mesh (D51, islands="outer", D189).
+
+Run: blender --background --python assets/blender/enemies/newsh5-121.py
+Exports newsh5-121, -f2, -f3 (public/models/enemies + spriteModels entries).
 """
 
+import json
 import math
 import sys
 from pathlib import Path
 
 import bmesh
 import bpy
+import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import lib_b068 as L  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # assets/blender
+import common  # noqa: E402
 
-common = L.common
+WT = common.repo_root(__file__)
+sys.path.insert(0, str(WT / "tools"))
+import sprite_mask as SM  # noqa: E402
+
 NAME = "newsh5-121"
-ROOT = common.repo_root(__file__)
+PX = 1 / 12
+W, H = 24, 28
 
-# Per frame (sprite pixel coordinates, column/row of pixel centres): the dark crease and the two
-# folds (the lighter bands of indices 116/117).
-DETAILS = {
-    121: dict(crease=[(11.0, 6.7), (12.3, 7.6), (12.9, 9.2), (12.4, 11.0), (11.0, 12.2), (8.4, 12.4), (7.2, 12.3)],
-              fold=[(14.2, 6.6), (14.9, 9.0), (14.7, 11.5), (13.6, 13.5), (11.6, 15.3), (9.0, 16.6)],
-              rim=[(19.3, 9.6), (19.1, 12.5), (18.1, 14.8), (16.6, 16.8), (14.6, 18.4)]),
-    123: dict(crease=[(11.0, 5.8), (12.0, 7.0), (12.3, 9.5), (12.0, 11.2), (10.9, 12.5), (8.4, 13.0), (7.3, 12.9)],
-              fold=[(13.6, 5.7), (14.3, 8.5), (14.3, 11.0), (13.5, 13.3), (12.0, 15.0), (10.0, 16.4)],
-              rim=[(18.2, 9.0), (18.3, 12.0), (17.8, 14.6), (16.5, 16.5), (14.8, 18.1)]),
-    125: dict(crease=[(11.0, 4.8), (11.4, 7.0), (11.5, 9.5), (11.2, 11.8), (9.8, 12.8), (8.0, 12.6)],
-              fold=[(13.1, 4.6), (13.3, 8.0), (13.6, 11.5), (13.1, 14.0), (12.0, 16.0), (10.0, 17.3)],
-              rim=[(17.3, 8.5), (17.3, 12.0), (17.0, 14.8), (16.0, 16.8), (14.5, 18.4)]),
+HEIGHT = 11.0  # px, the coil's crown
+SEG = 160  # around the rim
+RINGS = 44  # rim to apex
+
+# Per frame, sprite pixel-centre coordinates (column, row).
+FRAMES = {
+    121: dict(
+        apex=(9.6, 10.0),
+        crease=[(11.2, 6.2), (12.2, 7.4), (12.7, 9.0), (12.5, 10.6), (11.6, 11.8), (10.2, 12.4), (8.6, 12.4), (7.4, 12.0)],
+        mouth=(9.4, 12.5),
+        fold1=[(14.0, 5.6), (14.6, 7.5), (14.9, 9.5), (14.7, 11.8), (13.7, 13.6), (12.0, 15.2), (9.6, 16.5), (6.5, 17.2), (4.6, 16.6)],
+        seam=[(16.4, 5.6), (17.1, 7.6), (17.3, 10.0), (17.0, 13.3), (16.0, 15.3), (14.5, 17.0), (12.4, 18.4), (9.8, 19.3), (7.0, 19.6)],
+        fold2=[(18.5, 8.6), (18.9, 11.0), (18.4, 13.8), (17.2, 16.0), (15.4, 17.9), (13.0, 19.4)],
+        stem=(12.0, 3.4),
+    ),
+    123: dict(
+        apex=(9.6, 10.2),
+        crease=[(10.9, 5.4), (11.8, 6.8), (12.2, 8.8), (12.1, 10.9), (11.4, 12.3), (10.1, 13.2), (8.6, 13.3), (7.6, 12.9)],
+        mouth=(9.6, 13.3),
+        fold1=[(13.6, 4.8), (14.2, 7.2), (14.4, 9.8), (14.2, 12.6), (13.4, 14.6), (11.8, 16.4), (9.4, 17.6), (6.6, 17.6), (5.0, 16.8)],
+        seam=[(16.3, 5.8), (16.4, 7.8), (16.4, 10.6), (16.2, 14.0), (15.3, 16.0), (13.8, 17.8), (12.0, 19.3), (9.5, 20.3), (7.2, 20.4)],
+        fold2=[(17.6, 9.0), (17.8, 11.6), (17.5, 14.2), (16.6, 16.4), (15.0, 18.3), (12.8, 20.0)],
+        stem=(11.8, 2.4),
+    ),
+    125: dict(
+        apex=(9.4, 9.8),
+        crease=[(10.8, 4.4), (11.2, 6.4), (11.4, 8.6), (11.4, 10.4), (10.9, 11.6), (9.8, 12.2), (8.4, 12.0), (7.6, 11.4)],
+        mouth=(9.5, 12.4),
+        fold1=[(13.0, 3.8), (13.4, 6.4), (13.6, 9.4), (13.6, 12.6), (13.0, 15.2), (11.8, 17.2), (9.8, 18.6), (7.4, 18.8), (5.6, 18.0)],
+        seam=[(15.0, 4.6), (15.2, 7.0), (15.3, 10.5), (15.2, 14.0), (14.5, 16.3), (13.3, 18.2), (11.5, 19.9), (9.2, 21.0), (7.2, 21.0)],
+        fold2=[(16.4, 8.0), (16.6, 11.2), (16.4, 14.4), (15.6, 16.8), (14.2, 18.8), (12.2, 20.6)],
+        stem=(11.4, 1.6),
+    ),
 }
 
 
-HEIGHT = 9.5 * L.PX  # apex: a full dome, about half as tall as it is wide (~20 px)
-POWER = 0.6  # profile (1 - rho^2)^POWER: a round dome that still slopes all the way to the ground
-SEGMENTS = 44  # around the rim
-RINGS = 13  # from the rim to the apex, denser near the rim
-APEX_SHIFT = (-1.4, -2.0)  # px from the centroid
+def arg(flag, default=None):
+    return sys.argv[sys.argv.index(flag) + 1] if flag in sys.argv else default
 
 
-def outline(frame):
-    """The frame's silhouette as a centre (sprite px, pixel-edge coordinates) and the distance from
-    it to the edge at SEGMENTS even angles (px), measured by stepping out over the pixels and
-    lightly smoothed, so the rim follows the sprite's lumpy outline rather than an ellipse."""
-    px = frame["pixels"]
-    pts = [(c + 0.5, r + 0.5) for r, row in enumerate(px) for c, v in enumerate(row) if v >= 0]
-    # The apex (and the centre the rim is measured from) sits up and left of the silhouette's
-    # centroid, under the sprite's highlight and inside the crease's hook.
-    mx = sum(p[0] for p in pts) / len(pts) + APEX_SHIFT[0]
-    my = sum(p[1] for p in pts) / len(pts) + APEX_SHIFT[1]
+def bx(c):
+    """Sprite column (edge coordinate) to Blender X."""
+    return (c - W / 2) * PX
 
-    def inside(x, y):
-        c, r = math.floor(x), math.floor(y)
-        return 0 <= r < len(px) and 0 <= c < len(px[0]) and px[r][c] >= 0
 
-    raw = []
-    for k in range(SEGMENTS):
-        a = 2 * math.pi * k / SEGMENTS
-        dx, dy = math.cos(a), -math.sin(a)  # angle measured in Blender's frame (sprite up = +Y)
+def by(r):
+    return (H / 2 - r) * PX
+
+
+# --- footprint ------------------------------------------------------------------------------------
+
+def footprint(px, cols, apex, k=8, sigma=0.6, bias=0.1):
+    """Distances (px) from the apex (edge coords) to the rim of the blurred inner mask at SEG angles
+    (Blender angle convention: 0 = +X, CCW with sprite up = +Y)."""
+    m = np.array(SM.masks(px, cols)["inner"], float)
+    big = np.kron(m, np.ones((k, k)))
+    s = sigma * k
+    rad = int(3 * s) + 1
+    g = np.exp(-0.5 * (np.arange(-rad, rad + 1) / s) ** 2)
+    g /= g.sum()
+    pad = np.pad(big, rad)
+    blur = np.apply_along_axis(lambda v: np.convolve(v, g, "valid"), 1, pad)
+    blur = np.apply_along_axis(lambda v: np.convolve(v, g, "valid"), 0, blur)
+    hh, ww = blur.shape
+    ax, ay = apex
+    out = []
+    for i in range(SEG):
+        a = 2 * math.pi * i / SEG
+        dx, dy = math.cos(a), -math.sin(a)
         d, last = 0.0, 0.0
         while d < 20:
-            if inside(mx + dx * d, my + dy * d):
+            x, y = (ax + dx * d) * k, (ay + dy * d) * k
+            xi, yi = int(x), int(y)
+            if 0 <= xi < ww and 0 <= yi < hh and blur[yi, xi] >= 0.5:
                 last = d
-            d += 0.05
-        raw.append(last - 0.1)  # the staircase's corners stick out; aim between them
-    n = len(raw)
-    rad = [(raw[k - 1] + 2 * raw[k] + raw[(k + 1) % n]) / 4 for k in range(n)]
-    return (mx, my), rad
+            d += 1 / k / 2
+        out.append(last + bias)
+    out = np.array(out)
+    w = np.exp(-0.5 * (np.arange(-6, 7) / 2.2) ** 2)
+    w /= w.sum()
+    return sum(wi * np.roll(out, j - 6) for j, wi in enumerate(w))
 
 
-class Dome:
-    """The pod's shell: a dome whose rim follows the sprite's outline, height H*(1-rho^2)^POWER."""
+# --- feature fields -------------------------------------------------------------------------------
 
-    def __init__(self, frame):
-        (mx, my), self.rad = outline(frame)
-        self.cx, self.cy = L.EX(mx), L.EY(my)
-
-    def rim(self, a):
-        """Rim distance (units) at Blender angle a, interpolated between the measured angles."""
-        n = len(self.rad)
-        t = (a / (2 * math.pi) % 1.0) * n
-        k = int(t) % n
-        f = t - int(t)
-        return (self.rad[k] * (1 - f) + self.rad[(k + 1) % n] * f) * L.PX
-
-    def rho(self, x, y):
-        """0 at the centre, 1 on the rim."""
-        dx, dy = x - self.cx, y - self.cy
-        return math.hypot(dx, dy) / self.rim(math.atan2(dy, dx))
-
-    def z(self, x, y):
-        rho = self.rho(x, y)
-        return HEIGHT * max(0.0, 1 - rho * rho) ** POWER if rho < 1 else 0.0
-
-    def build(self, bm, mat):
-        f0 = len(bm.faces)
-        loops = []
-        for i in range(RINGS):
-            rho = math.cos(0.5 * math.pi * i / RINGS)  # 1 at the rim, dense there
-            h = HEIGHT * (1 - rho * rho) ** POWER
-            loop = []
-            for k in range(SEGMENTS):
-                a = 2 * math.pi * k / SEGMENTS
-                r = self.rad[k] * L.PX * rho
-                loop.append(bm.verts.new((self.cx + r * math.cos(a), self.cy + r * math.sin(a), h)))
-            loops.append(loop)
-        apex = bm.verts.new((self.cx, self.cy, HEIGHT))
-        for a, b in zip(loops, loops[1:]):
-            for k in range(SEGMENTS):
-                j = (k + 1) % SEGMENTS
-                bm.faces.new((a[k], a[j], b[j], b[k]))
-        top = loops[-1]
-        for k in range(SEGMENTS):
-            bm.faces.new((top[k], top[(k + 1) % SEGMENTS], apex))
-        bm.faces.new(list(reversed(loops[0])))  # the floor
-        L.set_faces(bm, f0, mat, True)
-        bm.faces.ensure_lookup_table()
-        bm.faces[-1].smooth = False
+def catmull(pts, step=0.2):
+    p = [pts[0]] + list(pts) + [pts[-1]]
+    out = []
+    for i in range(1, len(p) - 2):
+        p0, p1, p2, p3 = (np.array(q, float) for q in p[i - 1:i + 3])
+        n = max(2, int(np.linalg.norm(p2 - p1) / step))
+        for j in range(n):
+            t = j / n
+            out.append(0.5 * ((2 * p1) + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t
+                              + (-p0 + 3 * p1 - 3 * p2 + p3) * t ** 3))
+    out.append(np.array(p[-2], float))
+    return np.array(out)
 
 
-def seg_dist(x, y, path):
-    """Distance (units) from (x, y) to a polyline of (x, y) points."""
-    best = 1e9
-    for (x0, y0), (x1, y1) in zip(path, path[1:]):
-        ex, ey = x1 - x0, y1 - y0
-        t = max(0.0, min(1.0, ((x - x0) * ex + (y - y0) * ey) / (ex * ex + ey * ey)))
-        best = min(best, math.hypot(x - x0 - t * ex, y - y0 - t * ey))
-    return best
+def path_dist(P, curve):
+    """For points P (N,2) the distance to the curve (polyline, M,2) and the arc fraction there."""
+    seg = np.linalg.norm(np.diff(curve, axis=0), axis=1)
+    arc = np.concatenate([[0], np.cumsum(seg)])
+    best = np.full(len(P), 1e9)
+    frac = np.zeros(len(P))
+    for i in range(len(curve) - 1):
+        a, b = curve[i], curve[i + 1]
+        e = b - a
+        L2 = max(e @ e, 1e-9)
+        t = np.clip(((P - a) @ e) / L2, 0, 1)
+        q = a + t[:, None] * e
+        d = np.linalg.norm(P - q, axis=1)
+        upd = d < best
+        best[upd] = d[upd]
+        frac[upd] = (arc[i] + t[upd] * seg[i])
+    return best, frac, arc[-1]
 
 
-def relief(bm, path, depth, half_width, lift):
-    """Raise (depth > 0) or sink (< 0) the shell along a path of sprite (column, row) points: a
-    smooth band `half_width` px either side, at most `depth` px (cos^2 fall-off). `lift` collects
-    each vertex's total change (px)."""
-    pts = [(L.X(c), L.Y(r)) for c, r in path]
-    w = half_width * L.PX
-    for v in bm.verts:
-        if v.co.z <= 1e-6:
-            continue  # the floor and the rim stay put
-        d = seg_dist(v.co.x, v.co.y, pts)
-        if d < w:
-            dz = depth * math.cos(0.5 * math.pi * d / w) ** 2
-            v.co.z += dz * L.PX
-            lift[v.index] = lift.get(v.index, 0.0) + dz
+def taper(s, total, a=1.6, b=1.6):
+    """0 at the curve's ends, 1 inside (smooth), `a`/`b` px long ramps."""
+    u = np.clip(s / a, 0, 1)
+    v = np.clip((total - s) / b, 0, 1)
+    sm = lambda x: x * x * (3 - 2 * x)  # noqa: E731
+    return sm(u) * sm(v)
 
 
-# The shell's mid red, folds included: their lighter bands in the sprite are their lit crests,
-# which the relief and the game's light make (painting them gave blocky, jagged patches).
-SHELL_PAL = (116,)
-BODY = FOLD = 116
+def groove(d, hw):
+    x = np.clip(d / hw, 0, 1)
+    return (1 - x * x) ** 2
 
 
-def build(sprite, frame, tag):
-    coll = common.reset_collection(tag)
+def bump(d, hw):
+    x = np.clip(d / hw, 0, 1)
+    return np.cos(x * math.pi / 2) ** 2
+
+
+def offsets(P, F):
+    """Normal offset (px, + out) at points P (sprite px coords) and the material tags."""
+    off = np.zeros(len(P))
+    tag = np.zeros(len(P), int)  # 0 shell, 1 aperture, 2 seam floor
+    # Aperture: a U channel 1.15 px half-wide, 1.4 px deep, deepening into the mouth pocket.
+    d, s, T = path_dist(P, catmull(F["crease"]))
+    tp = taper(s, T, 1.4, 0.8)
+    g = groove(d, 1.45) * tp
+    mouth = np.linalg.norm(P - np.array(F["mouth"]), axis=1)
+    pocket = groove(mouth, 2.1)
+    cre = np.maximum(1.15 * g, 1.6 * pocket)
+    off -= cre
+    tag[(g > 0.42) | (pocket > 0.45)] = 1
+    # Whorl 1: a broad rolled band outside the aperture, its crest 0.7 px proud.
+    d, s, T = path_dist(P, catmull(F["fold1"]))
+    off += 0.7 * bump(d, 1.7) * taper(s, T, 1.5, 2.5)
+    # The seam where whorl 1 laps onto whorl 2: a narrow V, 0.8 px deep.
+    d, s, T = path_dist(P, catmull(F["seam"]))
+    g2 = groove(d, 0.95) * taper(s, T, 1.2, 2.5)
+    off -= 0.8 * g2
+    tag[(g2 > 0.55) & (tag == 0)] = 2
+    # Whorl 2: the outer rolled band, 0.55 px proud.
+    d, s, T = path_dist(P, catmull(F["fold2"]))
+    off += 0.55 * bump(d, 1.5) * taper(s, T, 1.5, 2.5)
+    return off, tag
+
+
+# --- shell ----------------------------------------------------------------------------------------
+
+def profile(rho):
+    """Height fraction of the dome at rho (0 apex, 1 rim): vertical at the ground, full crown."""
+    return np.clip(1 - rho ** 2.1, 0, 1) ** 0.6
+
+
+def build(sprite, frame, name, coll):
+    F = FRAMES[frame["index"]]
+    cols = {int(k): tuple(v) for k, v in sprite["colors"].items()}
+    ax, ay = F["apex"][0] + 0.5, F["apex"][1] + 0.5  # edge coords
+    rim = footprint(frame["pixels"], cols, (ax, ay))
+    # rings: t 0 (rim, on the ground) .. 1 (apex); dense near the rim
+    ts = np.linspace(0, 1, RINGS + 1)
+    rhos = 1 - ts ** 1.5
+    ang = 2 * math.pi * np.arange(SEG) / SEG
+    # rho, angle grid -> sprite px coords (pixel centres) and height
+    RH, AN = np.meshgrid(rhos[:-1], ang, indexing="ij")
+    R = RH * rim[None, :]
+    sx = ax + R * np.cos(AN)
+    sy = ay - R * np.sin(AN)
+    z = HEIGHT * profile(RH)
+    # stalk: a short rounded stub at the top of the frame
+    sd = np.hypot(sx - (F["stem"][0] + 0.5), sy - (F["stem"][1] + 0.5))
+    z = z + 2.2 * np.clip(1 - (sd / 2.0) ** 2, 0, 1) ** 1.5 * np.clip(RH * 1.25 - 0.2, 0, 1)
+    # profile normals in (r, z): numerical along rho
+    dz = np.gradient(z, axis=0)
+    dr = np.gradient(R, axis=0)
+    nlen = np.hypot(dz, dr) + 1e-9
+    nr, nz = dz / nlen, -dr / nlen  # rows go rim->apex (dr<0): outward normal
+    flip = nz < 0
+    nr[flip], nz[flip] = -nr[flip], -nz[flip]
+    P = np.stack([(sx - 0.5).ravel(), (sy - 0.5).ravel()], 1)  # pixel-centre coords for the paths
+    off, tag = offsets(P, F)
+    off = off.reshape(R.shape)
+    tag = tag.reshape(R.shape)
+    # face tags from each face's centre (smoother boundaries than vertex votes)
+    cx = (sx + np.roll(sx, -1, 1)) / 2
+    cy = (sy + np.roll(sy, -1, 1)) / 2
+    cx = (cx[:-1] + cx[1:]) / 2
+    cy = (cy[:-1] + cy[1:]) / 2
+    _, ftag = offsets(np.stack([(cx - 0.5).ravel(), (cy - 0.5).ravel()], 1), F)
+    ftag = majority(ftag.reshape(cx.shape), 3)
+    keep = np.clip(z / 1.6, 0, 1)
+    keep = keep * keep * (3 - 2 * keep)  # the ground ring stays on the footprint
+    off = off * keep
+    # radial push only on the steep sides (on the crown a radial push folds the grid over itself)
+    steep = np.clip((0.6 - nz) / 0.4, 0, 1)
+    R2 = R + off * nr * steep
+    z2 = z + off * nz
+    X = bx(ax + R2 * np.cos(AN))
+    Y = by(ay - R2 * np.sin(AN))
+    Z = z2 * PX
+
+    bm = bmesh.new()
+    vg = [[bm.verts.new((X[i, k], Y[i, k], Z[i, k])) for k in range(SEG)] for i in range(RINGS)]
+    apex = bm.verts.new((bx(ax), by(ay), HEIGHT * PX))
+    mats_of = []
+    for i in range(RINGS - 1):
+        for k in range(SEG):
+            j = (k + 1) % SEG
+            f = bm.faces.new((vg[i][k], vg[i][j], vg[i + 1][j], vg[i + 1][k]))
+            mats_of.append((f, ftag[i, k]))
+    for k in range(SEG):
+        f = bm.faces.new((vg[-1][k], vg[-1][(k + 1) % SEG], apex))
+        mats_of.append((f, 0))
+    floor = bm.faces.new(list(reversed(vg[0])))
+    mats_of.append((floor, 0))
+    for f, m in mats_of:
+        f.material_index = m
+        f.smooth = True
+    floor.smooth = False
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    # triangulate the floor n-gon (clean export; it is never seen)
+    bmesh.ops.triangulate(bm, faces=[floor])
+
     pal = lambda i, **kw: common.palette_material(sprite, i, NAME, **kw)  # noqa: E731
-    # A glossy shell (not metal): the sprite's orange/yellow spot near the top left is the top of
-    # the red ramp (120-124), the sheen of that gloss under an upper-left light, so it is the
-    # material's job, not a knob. The shell is one mid-tone; the game's lights shade it.
-    mats = [pal(i, metallic=0.0, roughness=0.3) for i in SHELL_PAL] + [
-        common.palette_material(sprite, 114, NAME + "-crease", metallic=0.0, roughness=0.8),
-    ]
-    CREASE = len(SHELL_PAL)
-    d = DETAILS[frame["index"]]
-    dome = Dome(frame)
-    bm = bmesh.new()
-    dome.build(bm, 0)
-    bm.verts.index_update()
-
-    # The two folds: broad, low bands (~3 px wide, ~0.45 px proud) curling round the crease.
-    lift = {}
-    relief(bm, d["fold"], 0.45, 1.6, lift)
-    relief(bm, d["rim"], 0.45, 1.6, lift)
-
-    # The shell is the sprite's mid red all over (its dark rim is the sprite's outline and its
-    # lit/dark sides are its drawn light: the game draws both).
-    bm.faces.ensure_lookup_table()
-    for f in bm.faces:
-        if len(f.verts) > 4:
-            continue  # the floor
-        dz = sum(lift.get(v.index, 0.0) for v in f.verts) / len(f.verts)
-        f.material_index = SHELL_PAL.index(BODY if dz <= 0.2 else FOLD)
-
-    shell = L.to_object(tag, bm, mats, coll)
-
-    # The dark crease: a groove ~1 px deep and ~2 px wide cut into the shell (a boolean with a
-    # tube draped on the surface), its walls and floor dark red.
-    bm = bmesh.new()
-    L.sweep(bm, [(L.X(c), L.Y(r), 0.0, 0.95 * L.PX, 1.0 * L.PX) for c, r in d["crease"]], sides=8)
-    bm.verts.ensure_lookup_table()
-    for v in bm.verts:
-        v.co.z += dome.z(v.co.x, v.co.y)
-    cutter = L.to_object(tag + "-cutter", bm, [mats[CREASE]], coll)
-    mod = shell.modifiers.new("crease", "BOOLEAN")
-    mod.operation = "DIFFERENCE"
-    mod.object = cutter
-    mod.solver = "EXACT"
-    mod.material_mode = "TRANSFER"
-    with bpy.context.temp_override(object=shell, active_object=shell):
-        bpy.ops.object.modifier_apply(modifier=mod.name)
-    bpy.data.objects.remove(cutter)
-    # The boolean may add the crease material as another slot: map faces back onto `mats`, and
-    # shade the groove flat with a hard edge where it meets the shell.
-    slot = [mats.index(m) for m in shell.data.materials]
-    bm = bmesh.new()
-    bm.from_mesh(shell.data)
-    for f in bm.faces:
-        f.material_index = slot[f.material_index]
-        if f.material_index == CREASE:
-            f.smooth = False
-    for e in bm.edges:
-        if len({f.material_index == CREASE for f in e.link_faces}) > 1:
-            e.smooth = False
-    shell.data.materials.clear()
-    for m in mats:
-        shell.data.materials.append(m)
-    bm.to_mesh(shell.data)
+    mats = [spec(pal(115, metallic=0.0, roughness=0.28), 0.55),
+            spec(pal(113, metallic=0.0, roughness=0.55), 0.3),
+            spec(pal(114, metallic=0.0, roughness=0.4), 0.45)]
+    me = bpy.data.meshes.new(name)
+    bm.to_mesh(me)
     bm.free()
-    return shell
+    for m in mats:
+        me.materials.append(m)
+    obj = bpy.data.objects.new(name, me)
+    coll.objects.link(obj)
+    bpy.context.view_layer.update()
+    sh = common.outline_shell(obj, coll, voxel=0.010, faces=2500, smooth=4, inside=0.003, islands="outer")
+    assert len(sh.data.polygons) > 0, f"{sh.name}: empty outline shell"
+    return obj, sh
+
+
+def majority(tag, iters):
+    """Mode filter over each face and its 8 grid neighbours (wrapping round the rim): clears the
+    saw teeth a threshold leaves where a material boundary crosses the polar grid obliquely."""
+    for _ in range(iters):
+        votes = []
+        for t in range(3):
+            m = (tag == t).astype(int)
+            acc = np.zeros_like(m)
+            for di in (-1, 0, 1):
+                sh = np.roll(m, di, 0)
+                if di == 1:
+                    sh[0] = m[0]
+                if di == -1:
+                    sh[-1] = m[-1]
+                for dk in (-1, 0, 1):
+                    acc += np.roll(sh, dk, 1)
+            votes.append(acc)
+        tag = np.argmax(np.stack(votes), axis=0)
+    return tag
+
+
+def spec(mat, level):
+    bsdf = next(n for n in mat.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+    if "Specular IOR Level" in bsdf.inputs:
+        bsdf.inputs["Specular IOR Level"].default_value = level
+    return mat
 
 
 def main():
-    sprite = common.load_sprite(ROOT, NAME)
-    models = []
-    for i, frame in enumerate(sprite["frames"]):
-        tag = NAME if i == 0 else f"{NAME}-f{i + 1}"
-        models.append((build(sprite, frame, tag), [frame["index"]]))
-    L.export_frames(ROOT, NAME, sprite, models)
+    for o in list(bpy.data.objects):
+        bpy.data.objects.remove(o, do_unlink=True)
+    sprite = common.load_sprite(WT, NAME)
+    manifest, models = {}, []
+    for n, frame in enumerate(sprite["frames"]):
+        name = NAME if n == 0 else f"{NAME}-f{n + 1}"
+        coll = common.reset_collection(name)
+        obj, sh = build(sprite, frame, name, coll)
+        for o in (obj, sh):
+            o["design_model"] = name
+        obj.data.calc_loop_triangles()
+        manifest[name] = {"frames": [frame["index"]], "tris": len(obj.data.loop_triangles),
+                          "shell_faces": len(sh.data.polygons)}
+        models.append((name, [obj, sh], frame))
+    for name, objs, frame in models:
+        subset = []
+        for s in sprite["sprites"]:
+            keep = [f for f in s["frames"] if f == frame["index"]]
+            if keep:
+                subset.append({**s, "frames": keep})
+        common.export_sprite_model(WT, objs, f"enemies/{name}", subset)
+    print("MANIFEST", json.dumps(manifest))
 
 
 if __name__ == "__main__":
