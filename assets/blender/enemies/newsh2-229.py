@@ -34,8 +34,8 @@ Cycles bakes a colour multiplier (ambient occlusion, edge lift) and a roughness/
 its UVs are copied to the other seven frames (identical topology), so all eight share one pair of
 maps and the same brightness. Base Color = map x palette colour, so pal_<index>, fades and the hit
 flash still apply; emissive parts keep their flat palette colour. Each frame has an outline shell
-(common.outline_shell's recipe, D51, keeping every island: the core and both arcs are separate
-pieces) riding as a child.
+(common.outline_shell, D51, with islands="outer", D189: the core and both arcs are separate
+pieces, and every one keeps its ink) riding as a child.
 
 Run: blender --background --factory-startup --python assets/blender/enemies/newsh2-229.py
      [-- --preview out.png] [--no-bake]
@@ -643,56 +643,6 @@ def assemble(name, core_me, arcs_me, centre, mats, coll):
     return obj
 
 
-def outline_shell_all(obj, collection, voxel=0.012, faces=2000, smooth=6):
-    """common.outline_shell, keeping every sizeable island (core + both arcs)."""
-    me = obj.data.copy()
-    me.materials.clear()
-    shell = bpy.data.objects.new(f"{obj.name}_outline", me)
-    collection.objects.link(shell)
-    shell.matrix_world = obj.matrix_world.copy()
-    rm = shell.modifiers.new("remesh", "REMESH")
-    rm.mode = "VOXEL"
-    rm.voxel_size = voxel
-    rm.adaptivity = 0.0
-    rm.use_smooth_shade = True
-    common._apply_modifiers(shell)
-    bm = bmesh.new()
-    bm.from_mesh(shell.data)
-    bm.verts.ensure_lookup_table()
-    seen, islands = set(), []
-    for v in bm.verts:
-        if v.index in seen:
-            continue
-        st, isl = [v], []
-        while st:
-            x = st.pop()
-            if x.index in seen:
-                continue
-            seen.add(x.index)
-            isl.append(x)
-            st.extend(e.other_vert(x) for e in x.link_edges)
-        islands.append(isl)
-    big = max(len(i) for i in islands)
-    dead = [v for isl in islands if len(isl) < 0.05 * big for v in isl]
-    # Also drop islands enclosed inside another (inner shells): keep only those whose bbox is not
-    # inside a bigger island's bbox by much (rare; the parts here are closed).
-    bmesh.ops.delete(bm, geom=dead, context="VERTS")
-    bm.to_mesh(shell.data)
-    bm.free()
-    sm = shell.modifiers.new("smooth", "SMOOTH")
-    sm.factor = 0.6
-    sm.iterations = smooth
-    n = len(shell.data.polygons)
-    if n > faces:
-        dec = shell.modifiers.new("decimate", "DECIMATE")
-        dec.ratio = faces / n
-    common._apply_modifiers(shell)
-    shell.data.shade_smooth()
-    shell.data.materials.append(common.material("outline_shell", (0.0, 0.0, 0.0), roughness=1.0))
-    shell["tyrian_outline"] = True
-    return shell, sum(1 for isl in islands if len(isl) >= 0.05 * big)
-
-
 # ------------------------------------------------------------------------------------------------
 # Bake (usp_talon.bake_maps, neutral tint; no concept projection, D50)
 # ------------------------------------------------------------------------------------------------
@@ -906,9 +856,9 @@ def main():
     objs, frame_ids = build_frames(sprite, mats, coll, bake_dir)
     fmt = "WEBP" if bake else "AUTO"
     for obj, fid in zip(objs, frame_ids):
-        shell, islands = outline_shell_all(obj, coll)
+        shell = common.outline_shell(obj, coll, voxel=0.012, faces=2000, smooth=6, islands="outer")
         shell.parent = obj
-        print(f"{shell.name}: {len(shell.data.polygons)} faces, {islands} islands")
+        print(f"{shell.name}: {len(shell.data.polygons)} faces")
         common.export_sprite_model(ROOT, [obj, shell], f"enemies/{obj.name}", frames_subset(sprite, [fid]),
                                    image_format=fmt)
     if "--preview" in argv:

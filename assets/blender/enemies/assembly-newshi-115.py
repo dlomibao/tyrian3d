@@ -1720,7 +1720,8 @@ def _inside(bvh, p):
 
 
 def shell_mesh(src, coll, voxel=0.035, faces=3200, smooth=24, inside=0.03, target_voxel=0.012):
-    """common.outline_shell (D51), rebuilt for fix round 2 (should be shared):
+    """common.outline_shell (D51), rebuilt for fix round 2 (should be shared), with its "outer"
+    island rule (common.keep_shell_islands, D189):
     - held inside a CLEAN target: Shrinkwrap's inside mode trusts the nearest face's normal, and on
       the raw model (overlapping plates, faces inside other parts) it read the outside of the left
       arm and the hoop crown as inside, so the shell stood out there; the target is now a fine voxel
@@ -1762,15 +1763,9 @@ def shell_mesh(src, coll, voxel=0.035, faces=3200, smooth=24, inside=0.03, targe
     shell = remeshed(f"{src.name}_outline", voxel)
     bm = bmesh.new()
     bm.from_mesh(shell.data)
-    islands = _islands(bm)
-
-    def extent(isl):
-        xs = [v.co.x for v in isl]
-        ys = [v.co.y for v in isl]
-        return (max(xs) - min(xs)) * (max(ys) - min(ys))
-
-    keep = {v.index for v in max(islands, key=extent)}
-    bmesh.ops.delete(bm, geom=[v for v in bm.verts if v.index not in keep], context="VERTS")
+    # every outer island keeps its ink, not only the widest (D189): the fins and rotor tips that
+    # remesh apart from the hull lost their outline
+    common.keep_shell_islands(bm, "outer", matrix=shell.matrix_world, label=shell.name)
     bmesh.ops.translate(bm, vec=(-ax, 0, 0), verts=bm.verts)  # mirror axis at the object origin
     bm.to_mesh(shell.data)
     bm.free()

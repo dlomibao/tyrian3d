@@ -885,7 +885,7 @@ def main(argv=None):
         bake_maps(struct, tempfile.mkdtemp(prefix="nsh2a115_bake_"), slots)
         fmt = "WEBP"
     # The outline shell (D51), made after the bake so its occlusion rays never hit it.
-    shell = common.outline_shell(struct, coll, voxel=0.014, faces=2400)
+    shell = common.outline_shell(struct, coll, voxel=0.014, faces=2400, islands="outer")
 
     # The dirt floor was only the bake's occluder (so the machine's feet darken where they meet the
     # ground): it is not exported. The game's HD ground shows round the machine instead of a floor

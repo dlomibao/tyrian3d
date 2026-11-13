@@ -629,7 +629,7 @@ def main():
         bake_maps(obj, bake_dir, size=1024, samples=64)
         fmt = "WEBP"
     # The outline shell (D51), made after the bake so its occlusion rays never hit it.
-    shell = common.outline_shell(obj, coll, voxel=0.016, faces=1500, smooth=16)
+    shell = common.outline_shell(obj, coll, voxel=0.016, faces=1500, smooth=16, islands="outer")
     shell.name = shell.data.name = f"{NAME}_outline"
     print(f"{NAME}: outline shell {len(shell.data.polygons)} faces")
     if out:

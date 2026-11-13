@@ -279,7 +279,8 @@ def frame_part(obj, frames):
     return obj
 
 
-def outline_shell(obj, collection, voxel=0.012, faces=3000, smooth=6, inside=0.0):
+def outline_shell(obj, collection, voxel=0.012, faces=3000, smooth=6, inside=0.0, islands="largest",
+                  min_extent=0.001, min_new_px=2):
     """A smooth, closed copy of `obj` for the game's ink outline only (DECISIONS.md D51): a voxel
     remesh (it closes the panel gaps), smoothed, decimated to about `faces` faces and smooth
     shaded. The outline (three's OutlineEffect, an inverted hull
@@ -291,7 +292,13 @@ def outline_shell(obj, collection, voxel=0.012, faces=3000, smooth=6, inside=0.0
     `inside` > 0: afterwards every shell vertex outside the model is pulled back onto it, that far
     inside (Shrinkwrap, inside mode). Smoothing fills a model's creases, so on a ship with hard
     chines and deep seams (the D88 Talon) the shell stood outside the hull along them and its back
-    faces drew as black cracks across the pods; held inside, the ink stays on the silhouette."""
+    faces drew as black cracks across the pods; held inside, the ink stays on the silhouette.
+
+    `islands`: which pieces of the voxel remesh stay (keep_shell_islands, DECISIONS.md D189).
+    "largest" (the default) keeps the one with the widest top-view bbox, and parts that stand free
+    of the hull lose their ink; "outer" keeps every outer island that widens the top view by
+    `min_new_px` sprite px or more (and is not a lone voxel, `min_extent`), so pods, rails and
+    struts keep their ink while a detached rivet over the hull gets no ink ring of its own."""
     me = obj.data.copy()
     me.materials.clear()
     shell = bpy.data.objects.new(f"{obj.name}_outline", me)
@@ -308,27 +315,7 @@ def outline_shell(obj, collection, voxel=0.012, faces=3000, smooth=6, inside=0.0
     # Keep the outer surface only (an open model can leave inner shells).
     bm = bmesh.new()
     bm.from_mesh(shell.data)
-    islands = []
-    seen = set()
-    for v in bm.verts:
-        if v.index in seen:
-            continue
-        stack, isl = [v], []
-        while stack:
-            x = stack.pop()
-            if x.index in seen:
-                continue
-            seen.add(x.index)
-            isl.append(x)
-            stack.extend(e.other_vert(x) for e in x.link_edges)
-        islands.append(isl)
-    def extent(isl):
-        xs = [v.co.x for v in isl]
-        ys = [v.co.y for v in isl]
-        return (max(xs) - min(xs)) * (max(ys) - min(ys))
-    keep = max(islands, key=extent)
-    keep_ids = {v.index for v in keep}
-    bmesh.ops.delete(bm, geom=[v for v in bm.verts if v.index not in keep_ids], context="VERTS")
+    keep_shell_islands(bm, islands, min_extent, min_new_px, shell.matrix_world, label=shell.name)
     bm.to_mesh(shell.data)
     bm.free()
     # Smooth (relaxing the voxel steps and pulling it a hair inside the model's convex edges, so
@@ -352,6 +339,77 @@ def outline_shell(obj, collection, voxel=0.012, faces=3000, smooth=6, inside=0.0
     shell.data.materials.append(material("outline_shell", (0.0, 0.0, 0.0), roughness=1.0))
     shell["tyrian_outline"] = True
     return shell
+
+
+def keep_shell_islands(bm, islands="largest", min_extent=0.001, min_new_px=2, matrix=None, label="shell"):
+    """Delete the pieces of a voxel-remeshed outline shell (bmesh `bm`) that should not draw ink
+    (outline_shell, DECISIONS.md D51, D189). Returns (islands kept, islands found).
+
+    "largest": keep only the island with the widest top-view bbox (in mesh coordinates).
+    "outer": keep that island and every other that is an outer surface (positive signed volume: a
+    closed cavity inside the model faces inward, negative; at least 0.002 units thick on average,
+    which also drops flat sheets the remesh folded onto one plane), at least `min_extent` units^2
+    wide from above (the bbox, in world units through `matrix`; 0.001 drops lone voxels) and, widest
+    first, adding at least `min_new_px` sprite px (1 unit = 12 px) to the top view beyond 1 px round
+    the islands already kept. So a pod, rail or strut that stands free of the hull keeps its ink,
+    while a detached rivet or plate lying over the hull gets no ink ring of its own."""
+    found = []
+    seen = set()
+    for v in bm.verts:
+        if v.index in seen:
+            continue
+        stack, isl = [v], []
+        while stack:
+            x = stack.pop()
+            if x.index in seen:
+                continue
+            seen.add(x.index)
+            isl.append(x)
+            stack.extend(e.other_vert(x) for e in x.link_edges)
+        found.append(isl)
+    if not found:
+        return 0, 0
+    if islands == "largest":
+        def extent(isl):
+            xs = [v.co.x for v in isl]
+            ys = [v.co.y for v in isl]
+            return (max(xs) - min(xs)) * (max(ys) - min(ys))
+        keep = [max(found, key=extent)]
+    elif islands == "outer":
+        island_of = {v.index: i for i, isl in enumerate(found) for v in isl}
+        vol = [0.0] * len(found)
+        area = [0.0] * len(found)
+        for f in bm.faces:
+            i = island_of[f.verts[0].index]
+            cs = [v.co for v in f.verts]
+            for k in range(1, len(cs) - 1):
+                vol[i] += cs[0].dot(cs[k].cross(cs[k + 1])) / 6
+            area[i] += f.calc_area()
+        info = []
+        for i, isl in enumerate(found):
+            ws = [matrix @ v.co for v in isl] if matrix is not None else [v.co for v in isl]
+            xs = [c.x for c in ws]
+            ys = [c.y for c in ws]
+            ext = (max(xs) - min(xs)) * (max(ys) - min(ys))
+            # top-view footprint in sprite px (the remesh's vertices are under 1 px apart)
+            fp = {(math.floor(c.x * 12), math.floor(c.y * 12)) for c in ws}
+            # mean thickness: a closed slab t thick has volume ~ area * t / 2; a flat sheet the remesh
+            # left with both sides on one plane encloses next to nothing
+            info.append((ext, 2 * vol[i] / area[i] if area[i] > 0 else 0.0, fp, isl))
+        keep, covered = [], set()
+        for ext, thick, fp, isl in sorted(info, key=lambda r: -r[0]):
+            # the widest island always stays, as with "largest" (its volume can read near 0: on
+            # newsh2-115's open structure the outer and inner skins meet), the rest on their merits
+            if keep and (thick < 0.002 or ext < min_extent or len(fp - covered) < min_new_px):
+                continue
+            keep.append(isl)
+            covered |= {(x + dx, y + dy) for x, y in fp for dx in (-1, 0, 1) for dy in (-1, 0, 1)}
+        print(f"{label}: kept {len(keep)} of {len(found)} voxel islands (outer)")
+    else:
+        raise ValueError(f"islands must be 'largest' or 'outer', not {islands!r}")
+    keep_ids = {v.index for isl in keep for v in isl}
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if v.index not in keep_ids], context="VERTS")
+    return len(keep), len(found)
 
 
 def _apply_modifiers(obj):
