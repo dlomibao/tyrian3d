@@ -10660,3 +10660,131 @@ inside 3.00/2.97 -> 3.05/2.97 (ratio 1.01 -> 1.026; where the original is contin
 Gemini:* the tissue is fine, only the void needs a flat fill.
 
 **Cost:** one Opus agent, no workflow, no Gemini, 4 headless captures.
+## D201 — Episode-4 QA model fixes: the DREAD-NOT/UNDERDELI/LAVA RUN fortress, the DREAD-NOT hull, the spiked mine, the NOSE DRIP nose, the APPROACH silver pods, the BRAINIAC spike mine; the SURFACE/DESERTRUN arch and the EYESPY eye boss held (E4 QA A-H2, A-M1, A-M2, A-M4, B-M2, B-M3, B-M4, B-M5, B-L1; follows D181, D194, D195, D196, D197, D199)
+
+**Date:** 2026-11-13
+
+**Context:** the Episode 4 QA sweep (`tyrian-scratch/e4-qa/a/REPORT.md`, `b/REPORT.md`) listed eight model items. All
+eight went through `tools/workflows/fix-round.js` (fix, strict review, Opus on the last fix; `tyrian-scratch/e4-qa-models/`).
+Six ship; two stay as they are on main.
+
+**Decision:**
+- **A-H2, fortress `assembly-newsh9-85`** (7/10, whole-assembly grid IoU 0.987; worst piece-in-whole 0.977).
+  - Everything is in `lib_b085.py`, which builds the whole fortress once. So `newsh9-28`, `-32` and
+    `assembly-newsh9-10` (pieces 10 and 12) are rebuilt with it. Their old glbs would have drawn the old high fenders
+    over the new ones.
+  - Upper row 47/49/51: the red fenders merged into one slab because they stood on the dome, up to z of about 1.5,
+    and the tilted camera lifted their inner ends over it. They are now a low plate (z 0.46-0.53) with a 0.18 crown at
+    the sprite's brightest red. The dome falls to 0.28 under each fender (smooth-min) and keeps a faired grey face
+    above it. In game there are two red lobes with grey dome and neck between them.
+  - Lower bowl 85/87/89: near-black because of its index and finish. The shell goes from pal 4 to pal 6 (metallic 0.45,
+    rough 0.42), the lip from pal 8 to pal 10, and the lip is widened from 1.6 to 2.3 px. Bowl luma at UNDERDELI went
+    from 24-45 to 55-87; the sprite's is 72-85.
+  - The fenders' outer ends (own columns 4-12, where the tail curls down the outside) rise to about 1.2 units
+    (`OUTER_RISE` 0.70). The plate alone left `newsh9-51` with a top of 0.89 units, under the DREAD-NOT pod block
+    beside it (world top 1.515, about 1.11 units; by its extent and base one of `newsh9-77..83`). So D181 raised 51
+    over that block, and each later piece overlapping it in turn: `newsh9-32` to 2.5, `newsh9-12` to 3.97, the pod
+    tops `newsh9-119`/`-121` to 5.37/3.86. Raised, `newsh9-12`'s cut faces drew a grey box over the right fender.
+  - With the outer rise:
+    - 51's top is 1.22 units (47's 1.25), so nothing of the fortress is raised at DREAD-NOT t1800;
+    - every model is at or below its origin/main height. The gun works 238/239/258, `newsh9-165` and `-121` sit
+      0.16-0.48 lower than on main, because 51's and 32's tops (1.62/1.94 world) are below main's 2.10;
+    - the inner ends stay low, so UNDERDELI and LAVA RUN keep two separate lobes, now with the sprite's thicker
+      outer end;
+    - whole-assembly grid IoU is 0.9875, unchanged. The rise changes heights, not the outline.
+  - The fender's outer tip now shows a small red corner between the pod block `newsh9-121` and the cannon
+    `newshv-169`, where the sprite's red also meets the cannon.
+- **A-M1, DREAD-NOT hull `assembly-newsh9-197`** (7/10, grid IoU 0.997).
+  - The black hole between the domes is open again. Every plate that touches the sprite's notch slopes into it (down to
+    12% of its height over 6 px), with a pal_2 rim ring and pal_1 shaft walls.
+  - The tall dark slab was mostly this assembly's own `newsh9-165`. D181 raises it (4.4 units in the fix round; 3.73
+    world with the fortress's outer rise, 4.16 on main) over the right gun works,
+    and the raise shows its filled cut face over the right dome. The cuts inside the assembly are now planes through
+    the game camera, so a cut face is seen edge on whether the piece is raised or not. The outline shell is cut on
+    the same planes.
+  - A thin dark sliver remains. It is the side face of `newsh9-238` and the insides of the raised windows 239/258
+    (`assembly-newsh9-276`, `lib_b089`); see Open.
+- **B-M2, spiked mine `newshl-116`** (7.2/10, grid IoU 0.985).
+  - It was a smooth dark red ball with four nubs. It is now a speckled orange-yellow starburst:
+    - 7x7 plates per cube face, 115-124, hot north-west and a darker south crust;
+    - emission rising with heat (D126);
+    - a white-hot 127 core with a wider halo;
+    - four shorter main horns plus four diagonal horns, their shafts glowing so they read through the ink.
+- **B-M3, NOSE DRIP nose `assembly-newsh5-191`** (+ `newsh5-154`; 7/10, whole-assembly grid IoU 0.988, worst piece
+  0.963).
+  - The tip is one broad dome blended into the dorsum, about 40% of the nose's width. The columella is short, so the
+    lit peg is gone.
+  - The nostrils are irregular kidney-shaped pal-1 shadows recessed 1.8 px into the lower slope beside the columella.
+    They were round holes in the top face.
+  - The rim rounds down to a 0.7 px upright side, so the outline shell is one continuous line rather than ragged
+    fragments.
+- **B-M5, APPROACH silver pods `assembly-newsha-1`** (7/10, grid IoU 0.981-0.983 on f1-f4).
+  - The ink source no longer has the clamps or the stepped core plug. Its cut end is one smooth loft from the face rim
+    to the flange lip and into the dome. The model's core rim is the same bevel, so the shell stays inside the model.
+  - The heavy bands along the flange, the black boxes round the clamps and the zigzag west rim are gone. Material
+    medians are unchanged: 3D (73,79,90) against the sprite's (76,83,95).
+  - The sheet is the episodes 1-3 enemy file, but no episode-3 level uses the pods. The check was 2.5 SOH JIN (they
+    also fly in 2.9 MISTAKES).
+- **B-L1, BRAINIAC spike mine `newsh3-246`** (7/10, grid IoU 1.0).
+  - The root bosses, necks and collars are gone. The four cardinal spikes flare out of the ball as broad diamonds, so it
+    reads as an eight-point star, not a ball with studs.
+  - The hub drops its clear coat (specular 0.86 to 0.4, coat 1.0 to 0.1). Its bolts take the ball material, so the
+    spikes are the bright part.
+  - The red centre is two rods with the pal_9 clamp bar between them.
+- **Held: A-M2/B-M4, rock arch `assembly-newsh3-198`** (4.5/10 after three fixes). Two problems are unchanged:
+  - The crown is still a posterised mottle of flat 3-4-shade blobs with short scattered crack dashes. The sprite has a
+    few large smoothly shaded slabs outlined by long cracks.
+  - The crown still ends in a hard straight seam against the HD terrain legs. LEG_TONE evens out the tone but not the
+    texture or contrast.
+  - Main keeps the D195/D196 arch. The fix's patch is in `tyrian-scratch/e4-qa-models/held/`.
+- **Held: A-M4, EYESPY eye boss `assembly-newsh9-191`/`-210`** (5/10).
+  - The iris is still one flat teal (pal 130) where the sprite is mostly azure 155-159. The cross is still faint
+    hairlines with a small star pupil where the sprite has bold 53/97 lines and a solid pupil.
+  - The eye is built only in `lib_b019.build_sphere`, which 54/92/210 share. The fix agent's edit to that shared lib was
+    refused by the permission system. A ready patch, `eye_patch.py`, is in the same `held/` folder.
+- Contract (checked at integration on origin/main 0b52673f):
+  - Every changed entry script was rebuilt. The 43 glbs that changed are exactly the ones those builds export.
+  - The held items' 28 glbs match origin/main byte for byte.
+  - No spriteModels JSON changed, and every glb has a non-empty `_outline` mesh and only `pal_` materials.
+  - The scripts have no scratch or worktree paths and no review hooks on a normal build.
+  - The hull rebuild differs from the fix round's glbs only in how a few faces are triangulated (at most 19 triangles
+    per primitive, same counts). The fortress's ten glbs carry the outer rise. The other 25 glbs are byte-identical.
+
+**Options considered:**
+- *A fourth arch round.* Not taken: three rounds moved the score from 4 to 4.5. The crown needs a different approach
+  (smooth shading inside large slabs), not more filter tuning.
+- *A monkeypatch of `lib_b019` from `assembly-newsh9-191.py`.* Rejected: it would change only the top six pieces, and
+  the lower half of the eye (exported by 210) would no longer match.
+
+**Review:** `?debug=play&episode=E&main=N&difficulty=2&seed=1&skip=T&freezeAt=T&compare=1`, 1920x1080, before = origin/main
+0b52673f, at these frames:
+- UNDERDELI t4050 and LAVA RUN t3500 (t3300 frames the fortress only at the edge): two red lobes and a mid-grey bowl
+  with a light rim, as in the sprite.
+- DREAD-NOT t1800: the hull hole is open, the slab is gone, and the fortress shows no grey box. The harness's placed
+  extents show no model raised above its origin/main height.
+- SQUADRON t300 and TIME WAR t7800: starbursts, not red diamonds.
+- NOSE DRIP t14550: one broad tip, nostril shadows at the bottom edge.
+- APPROACH t5550 and SOH JIN t3600: light silver pods, thin ink.
+- BRAINIAC t6300 (`&power=11`): silver eight-point stars.
+
+Evidence: `tyrian-scratch/e4-qa-models/integrate/summary.png`.
+
+**Open:**
+- The fortress's cut faces are still flat. If a later change lowers 47's or 51's tops below about 1.11 units again,
+  D181 will raise the pieces after them over the pod blocks. Then `lib_b085` needs the hull's camera-plane cuts.
+- The hull: two bolts float about 0.5 px over the notch slope. The remaining gun-works sliver needs the same
+  camera-plane cut in `lib_b089`'s `split_open`, or a renderer rule so one drawing's overlapping windows don't stack.
+- **Arch rework:** the crown's mottle and seam above. Also the pieces' full-cell undersides (`newsh3-202_1`: a full
+  24x28 slab where its top covers only half). They cast the tile-sized stepped shadow band under the crown (D199).
+  Shape the undersides to the crown's outline.
+- **Eye boss:** apply `eye_patch.py` to `lib_b019` (shared with 54/92/210, so it needs approval), then rebuild 191 and 210
+  together. The lower shell's grey yin-yang swirl is also still open.
+- Polish noted by the reviewers:
+  - the fortress fenders are pillows, not the sprite's boomerangs, and its lip stripe reads near-white at DREAD-NOT;
+  - the mine's seam grid shows up close;
+  - the nose's nostrils look like decals and its flesh is slightly olive;
+  - the pods keep 1 px ink arcs by the clamps, and their dome bolts aren't modelled;
+  - the spike mine's spikes read flat white, and its hub ring is lighter than the sprite's dark body.
+
+**Cost:** fix-round workflow, 26 agents, about 3.0M subagent tokens, about 1.8 h. Integration: one Opus agent, about 32
+headless captures (including the trace and check of the fortress's D181 cascade) and one rebuild of the fortress.

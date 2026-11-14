@@ -154,6 +154,68 @@ class Line:
 # ---------------------------------------------------------------------------------------- plates
 
 RING = 0.9  # edge vertex spacing (px)
+# The round opening between the domes (the sprite's transparent hole, rows 4-34 on the axis). Its rim
+# is a recess: the plates bevel down into it over LIP_W px (to 1 - LIP_K of their height at the
+# edge), the outer LIP_DARK px of that bevel are the sprite's dark rim (pal 2) and the walls down the
+# opening are its black shaft (pal 1), so the tilted camera sees a deep black hole, not lit wall tops.
+HOLE = {"loop": None, "mats": None}
+LIP_W, LIP_K, LIP_DARK = 6.0, 0.88, 1.4
+
+
+HOLE_BOX = (36.0, 61.0, 4.5, 35.5)  # cols, rows of the notch between the domes (open at the top)
+
+
+def hole_segments(sil):
+    """The silhouette edges that bound the opening: both ends inside HOLE_BOX."""
+    c0, c1, r0, r1 = HOLE_BOX
+    ok = lambda p: c0 <= p.x <= c1 and r0 <= p.y <= r1  # noqa: E731
+    segs = []
+    for lp in sil:
+        for i in range(len(lp)):
+            a, b = Vector(lp[i]), Vector(lp[(i + 1) % len(lp)])
+            if ok(a) and ok(b):
+                segs.append((a, b))
+    return segs
+
+
+def hole_creases(sil, o):
+    """Polylines `o` px inside the opening's edge (constrained edges where the dark lip ends)."""
+    c0, c1, r0, r1 = HOLE_BOX
+    solid = lambda q: sum(inside(q, lp) for lp in sil) % 2 == 1  # noqa: E731
+    lines = []
+    for lp in sil:
+        n = len(lp)
+        cur = []
+        for i in range(n + 1):
+            a, b, c = Vector(lp[(i - 1) % n]), Vector(lp[i % n]), Vector(lp[(i + 1) % n])
+            t = (c - a).normalized()
+            nrm = Vector((-t.y, t.x))
+            q = b + nrm * o
+            if not solid(q):
+                q = b - nrm * o
+            if c0 <= b.x <= c1 and r0 <= b.y <= r1 and solid(q):
+                cur.append(tuple(q))
+            elif cur:
+                lines.append(cur)
+                cur = []
+        if len(cur) > 1:
+            lines.append(cur)
+    return [ln for ln in lines if len(ln) > 3]
+
+
+def hole_dist(q):
+    if HOLE["loop"] is None:
+        return 1e9
+    q = Vector(q)
+    c0, c1, r0, r1 = HOLE_BOX
+    if not (c0 - LIP_W <= q.x <= c1 + LIP_W and r0 - LIP_W <= q.y <= r1 + LIP_W):
+        return 1e9
+    return min(seg_dist(q, a, b)[0] for a, b in HOLE["loop"])
+
+
+def lip_scale(q):
+    d = hole_dist(q)
+    return 1.0 - LIP_K * max(0.0, 1.0 - d / LIP_W) ** 1.25
 PARTS = ["none", "low", "mid", "collar", "shoulder", "drum", "dome", "shield", "bolt"]
 
 
@@ -198,7 +260,7 @@ def plate(bm, outline, height, mat, wall_mat, cw=0.6, drop=0.55, grid=1.5, creas
         a, b = idx[i], idx[(i + 1) % n]
         if a is not None and b is not None and (pts[a] - pts[b]).length < 2.5 * RING + 0.5:
             edges.append((a, b))
-    for line in creases:
+    for line in list(creases) + HOLE.get("creases", []):
         dl = densify(line, 0.8, closed=False)
         prev = None
         for q in dl:
@@ -230,6 +292,7 @@ def plate(bm, outline, height, mat, wall_mat, cw=0.6, drop=0.55, grid=1.5, creas
         q = vco[i]
         d = poly_dist(q, ring)
         z = height(q.x, q.y, d) - drop * max(0.0, 1.0 - d / cw)
+        z = max(z0 + 0.3, z * lip_scale(q)) if z > z0 + 0.3 else z
         vmap[i] = bm.verts.new((X(q.x), Y(q.y), z * PX))
     top = []
     for f in faces:
@@ -240,6 +303,8 @@ def plate(bm, outline, height, mat, wall_mat, cw=0.6, drop=0.55, grid=1.5, creas
         cx = sum(vco[i].x for i in f) / len(f)
         cy = sum(vco[i].y for i in f) / len(f)
         face.material_index = mat_fn(cx, cy) if mat_fn else mat
+        if HOLE["mats"] and hole_dist((cx, cy)) < LIP_DARK:
+            face.material_index = HOLE["mats"][0]
         if part is not None:  # which part a face belongs to (for the colour check only)
             face[bm.faces.layers.int["part"]] = PARTS.index(part)
         top.append(face)
@@ -252,6 +317,10 @@ def plate(bm, outline, height, mat, wall_mat, cw=0.6, drop=0.55, grid=1.5, creas
     for f in ret["geom"]:
         if isinstance(f, bmesh.types.BMFace):
             f.material_index = wall_mat
+            if HOLE["mats"]:
+                m = f.calc_center_median()
+                if hole_dist((m.x / PX + 48.0, 28 - m.y / PX)) < 0.35:
+                    f.material_index = HOLE["mats"][1]
     new_e = [e for e in ret["geom"] if isinstance(e, bmesh.types.BMEdge)
              and all(v in new_v for v in e.verts)]
     fill = bmesh.ops.triangle_fill(bm, use_beauty=True, use_dissolve=False, edges=new_e)
@@ -507,6 +576,8 @@ def materials(sprite):
         ("shield", 5, 0.5, 0.4, 0.6),
         ("wall", 4, 0.45, 0.5, None),
         ("bolt", 7, 0.6, 0.35, None),
+        ("lip", 2, 0.45, 0.6, 0.4),
+        ("pit", 1, 0.3, 0.7, 0.3),
     ]
     mats, M, seen = [], {}, {}
     for key, i, met, rough, sp in spec:
@@ -585,6 +656,10 @@ def build_side(bm, M, sil, s, detail):
 def build(coll, sprite, detail=True, name=NAME, sil=None):
     mats, M = materials(sprite)
     sil = sil or silhouette_loops()
+    HOLE["loop"] = hole_segments(sil)
+    assert len(HOLE["loop"]) > 20, "hole edge not found"
+    HOLE["mats"] = (M["lip"], M["pit"])
+    HOLE["creases"] = hole_creases(sil, LIP_DARK)
     bm = bmesh.new()
     bm.faces.layers.int.new("part")
     build_side(bm, M, sil, 1, detail)
@@ -660,7 +735,15 @@ def sink_shell(shell, model, margin, reach):
 def seam_normals(piece, whole, x0, y0):
     """Give a cut piece the whole object's corner normals (custom normals) on every face it shares
     with it, so the shading runs on across the piece seams instead of each piece's edge normals
-    leaning away from the cut; the filled cut faces keep their own flat normal."""
+    leaning away from the cut.
+
+    The filled cut faces (caps) take the material and normal of the top surface just inside the cut,
+    straight above each corner. A piece is normally drawn level with its neighbours and its caps are
+    buried, but the renderer raises a later draw over the earlier models it overlaps (D181), along its
+    camera ray: newsh9-165 is raised over the right gun works (newsh9-258) and newsh9-159 over the left
+    one, which brings their caps in front of the neighbour piece, where a plain wall-coloured cap read
+    as a tall dark slab over the dome (E4 QA M1). Shaded as the surface it stands in for, the cap
+    reads as that surface."""
     from mathutils.bvhtree import BVHTree
     wm = whole.data
     tree = BVHTree.FromPolygons([v.co for v in wm.vertices], [p.vertices[:] for p in wm.polygons])
@@ -668,26 +751,122 @@ def seam_normals(piece, whole, x0, y0):
     pm = piece.data
     off = Vector((x0, y0, 0))
     out = [None] * len(pm.loops)
+
+    def blend(idx, pv):
+        wf = wm.polygons[idx]
+        wl = list(wf.loop_indices)
+        if len(wl) == 3:  # blend the corner normals at the point (bisect makes new points on the cut)
+            a, b, c3 = (wm.vertices[wm.loops[k].vertex_index].co for k in wl)
+            w = geometry.barycentric_transform(pv, a, b, c3, Vector((1, 0, 0)), Vector((0, 1, 0)),
+                                               Vector((0, 0, 1)))
+            return sum((cn[k].vector * max(0.0, w[j]) for j, k in enumerate(wl)), Vector()).normalized()
+        best = min(wl, key=lambda k: (wm.vertices[wm.loops[k].vertex_index].co - pv).length)
+        return cn[best].vector.copy()
+
+    def top_hit(pv, n):
+        q = pv - Vector((n.x, n.y, 0)).normalized() * 0.02  # just inside the cut
+        hit = tree.ray_cast(Vector((q.x, q.y, 5.0)), Vector((0, 0, -1)))
+        return (hit[2], hit[0]) if hit[0] is not None else (None, None)
+
     for f in pm.polygons:
         c = f.center + off
         loc, nrm, idx, dist = tree.find_nearest(c)
         ok = idx is not None and dist < 1e-4 and nrm.dot(f.normal) > 0.98
+        cap = not ok and abs(f.normal.z) < 0.6
+        if cap:
+            hi, _ = top_hit(c, f.normal)
+            if hi is not None:
+                f.material_index = wm.polygons[hi].material_index
         for li in f.loop_indices:
-            if not ok:
-                out[li] = f.normal.copy()
-                continue
             pv = pm.vertices[pm.loops[li].vertex_index].co + off
-            wf = wm.polygons[idx]
-            wl = list(wf.loop_indices)
-            if len(wl) == 3:  # blend the corner normals at the point (bisect makes new points on the cut)
-                a, b, c3 = (wm.vertices[wm.loops[k].vertex_index].co for k in wl)
-                w = geometry.barycentric_transform(pv, a, b, c3, Vector((1, 0, 0)), Vector((0, 1, 0)),
-                                                   Vector((0, 0, 1)))
-                out[li] = sum((cn[k].vector * max(0.0, w[j]) for j, k in enumerate(wl)), Vector()).normalized()
+            if cap:
+                hi, hp = top_hit(pv, f.normal)
+                out[li] = blend(hi, hp) if hi is not None else f.normal.copy()
+            elif not ok:
+                out[li] = f.normal.copy()
             else:
-                best = min(wl, key=lambda k: (wm.vertices[wm.loops[k].vertex_index].co - pv).length)
-                out[li] = cn[best].vector.copy()
+                out[li] = blend(idx, pv)
     pm.normals_split_custom_set(out)
+
+
+# The game camera (D61 tilted, 16:9) in assembly coordinates (col, row, height in px). DREAD-NOT's
+# hull holds still on screen for the whole fight (assembly origin, col 48 row 28, at game_screen
+# (231, 127)); the camera is at world (0, 19.47, 5.96) (tyrianHarness.view.camera), i.e. over game
+# pixel (156, 163.5) and 233.6 px up. A piece model is placed as a scaled copy about the camera
+# (D6, D181), so in its own coordinates the camera is always here, raised or not.
+CAM = (-27.0, 64.5, 233.6)
+
+
+def cut_planes(x0, y0):
+    """A piece's four cut planes (co, outward normal) in Blender units. The cuts inside the assembly
+    are slanted to contain the game camera: from it the cap of a cut is seen edge on, so a piece the
+    renderer raises over its neighbours (D181: newsh9-165 over the right gun works, newsh9-159 over
+    the left) shows no cap wall where its neighbour's surface should be (E4 QA M1: the "tall dark
+    slab" over the right dome was newsh9-165's cap). The assembly's outer edges stay vertical."""
+    hw, hh = 12 / 12, 14 / 12
+    C = Vector((X(CAM[0]), Y(CAM[1]), CAM[2] * PX))
+    xa, xb, ya, yb = X(0), X(96), Y(56), Y(0)
+    out = []
+    for xe, sgn in ((x0 - hw, -1), (x0 + hw, 1)):
+        if xa + 1e-4 < xe < xb - 1e-4:
+            out.append(((xe, 0, 0), Vector((C.z, 0, -(C.x - xe))).normalized() * sgn))
+        else:
+            out.append(((xe, 0, 0), Vector((sgn, 0, 0))))
+    for ye, sgn in ((y0 - hh, -1), (y0 + hh, 1)):
+        if ya + 1e-4 < ye < yb - 1e-4:
+            out.append(((0, ye, 0), Vector((0, C.z, -(C.y - ye))).normalized() * sgn))
+        else:
+            out.append(((0, ye, 0), Vector((0, sgn, 0))))
+    return out, C
+
+
+def split_pieces(obj, layout):
+    """common.split_assembly with cut_planes, each cut closed by strips hung from the cut's top edges
+    down to the deck (z = 0) along the camera's rays instead of one filled n-gon per plate (no fan of
+    long thin triangles; seam_normals shades them as the surface above)."""
+    result = {}
+    coll = obj.users_collection[0]
+    for name, cx, cy in layout:
+        x0, y0 = cx / 12, -cy / 12
+        bm = bmesh.new()
+        bm.from_mesh(obj.data)
+        bmesh.ops.transform(bm, matrix=obj.matrix_world, verts=bm.verts)
+        planes, C = cut_planes(x0, y0)
+        for co, no in planes:
+            geom = bm.verts[:] + bm.edges[:] + bm.faces[:]
+            bmesh.ops.bisect_plane(bm, geom=geom, plane_co=co, plane_no=no, clear_outer=True)
+        eps = 1e-5
+
+        def ground(v):  # where the camera ray through v meets the deck
+            return v + (v - C) * (v.z / (C.z - v.z))
+        for e in [e for e in bm.edges if len(e.link_faces) == 1]:
+            a, b = e.verts
+            if a.co.z < eps or b.co.z < eps:
+                continue
+            nrm = None
+            for co, no in planes:
+                if abs(no.dot(a.co - Vector(co))) < 1e-4 and abs(no.dot(b.co - Vector(co))) < 1e-4:
+                    nrm = no
+            if nrm is None:
+                continue
+            a0 = bm.verts.new(ground(a.co))
+            b0 = bm.verts.new(ground(b.co))
+            f = bm.faces.new((a, b, b0, a0))
+            f.material_index = e.link_faces[0].material_index
+            f.normal_update()
+            if f.normal.dot(nrm) < 0:
+                f.normal_flip()
+        bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=1e-6)
+        bmesh.ops.translate(bm, vec=(-x0, -y0, 0), verts=bm.verts)
+        mesh = bpy.data.meshes.new(name)
+        bm.to_mesh(mesh)
+        bm.free()
+        for mat in obj.data.materials:
+            mesh.materials.append(mat)
+        piece = bpy.data.objects.new(name, mesh)
+        coll.objects.link(piece)
+        result[name] = piece
+    return result
 
 
 def split_open(obj, layout, coll):
@@ -708,9 +887,7 @@ def split_open(obj, layout, coll):
         bm = bmesh.new()
         bm.from_mesh(obj.data)
         bmesh.ops.transform(bm, matrix=obj.matrix_world, verts=bm.verts)
-        hw, hh = 1.0, 14 / 12
-        for co, no in (((x0 - hw, 0, 0), (-1, 0, 0)), ((x0 + hw, 0, 0), (1, 0, 0)),
-                       ((0, y0 - hh, 0), (0, -1, 0)), ((0, y0 + hh, 0), (0, 1, 0))):
+        for co, no in cut_planes(x0, y0)[0]:
             bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], plane_co=co, plane_no=no,
                                    clear_outer=True)
         bmesh.ops.translate(bm, vec=(-x0, -y0, 0), verts=bm.verts)
@@ -746,7 +923,7 @@ def main():
     layout = [(e["model"], e["cx"] - CX0, e["cy"] - CY0) for e in sprite["assemblyLayout"]
               if e["model"] in PIECES]
     obj = build(coll, sprite)
-    pieces = common.split_assembly(obj, layout)
+    pieces = split_pieces(obj, layout)
     for name, cx, cy in layout:
         p = pieces[name]
         for poly in p.data.polygons:

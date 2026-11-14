@@ -461,6 +461,11 @@ def shell_top(x, y, d=10.0):
     return max(z, 0.14)
 
 
+SHELL_I, RIM_I = 6, 11
+FENDER_FLOOR = 0.28   # the dome's surface under the fenders (they lie low over its front flanks)
+OUTER_RISE = 0.70     # the fenders' outer ends: a top of about 1.2 units in newsh9-47/-51 (D181, D201)
+
+
 def build():
     coll = common.reset_collection("fortress-A")
     sprite = sprite_dict()
@@ -472,15 +477,20 @@ def build():
         pal(2, 0.4, 0.6, "deck"),     # 3 dark bay deck / sockets
         pal(4, 0.55, 0.45, "mach"),   # 4 dark grey machinery
         pal(10, 0.7, 0.3, "bolt"),    # 5 bright bolts / knobs
-        pal(4, 0.55, 0.5, "shell"),    # 6 lower shell grey
+        pal(6, 0.45, 0.42, "shell"),   # 6 lower shell: mid grey like the sprite's bowl (5-7), not dark
         pal(6, 0.6, 0.4, "spine"),     # 7 spine / neck (same index as the dome, own slot for clarity)
         pal(69, 0.3, 0.3, "lens"),    # 8 red lens
         pal(70, 0.3, 0.3, "pod"),    # 9 red pods
         pal(5, 0.45, 0.42, "ball"),    # 10 sensor ball
-        pal(8, 0.65, 0.38, "rim"),   # 11 lip / light rims
+        pal(10, 0.55, 0.32, "rim"),  # 11 lip / light rims (the sprite's light band, 8-C)
         pal(3, 0.5, 0.5, "groove"),     # 12 collars, grooves
     ]
+    for i, sp in ((SHELL_I, 0.6), (RIM_I, 0.7)):
+        bsdf = next(n for n in mats[i].node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+        if "Specular IOR Level" in bsdf.inputs:
+            bsdf.inputs["Specular IOR Level"].default_value = sp  # F0 (D176)
     DOME, SEAM, FENDER, DECK, MACH, BOLT, SHELL, SPINE, LENS, POD, BALL, RIM, GROOVE = range(13)
+    fender_polys = []
     M = Mesh()
     dome_setup()
 
@@ -541,16 +551,24 @@ def build():
         fpoly = trace(fender_ins, cols=(lo, hi), rows=(-8, 14))
 
         def fender_top(x, y, d):
+            """Low armour over the dome's front flank (it used to ride the dome up to z 1.5, and
+            the tilted game camera lifted it over the grey dome above it): a rounded crown where
+            the sprite's red is tallest, an arm running in to the neck."""
             c, r = own(colf(x)), rowf(y)
-            base = dome_z(x, y)
-            brim = max(0.50, 0.66 - 0.03 * max(0.0, r - 4.0) - 0.02 * max(0.0, 8.0 - c))
-            z = max(base + 0.18, brim)
-            lobe = math.exp(-(((c - 16.0) / 7.0) ** 2 + ((r - 0.5) / 4.0) ** 2))
-            z += 0.14 * lobe
-            z -= 0.12 * (1.0 - min(1.0, d / (3.0 * PX))) ** 2
+            z = 0.53 - 0.010 * max(0.0, r - 4.0) - 0.010 * max(0.0, 8.0 - c) - 0.004 * max(0.0, c - 21.0)
+            z = max(z, 0.46)
+            lobe = math.exp(-(((c - 14.5) / 6.5) ** 2 + ((r + 0.5) / 4.0) ** 2))
+            z += 0.18 * lobe
+            # The thick outer end, where the tail curls down the outside (own columns 4-12): it
+            # stands proud of the low plate, so newsh9-47/-51 keep a top above the pod blocks beside
+            # them on DREAD-NOT (newsh9-77..83, 1.11 units) and D181 doesn't raise them over those,
+            # and every piece after them in turn. The inner end stays low.
+            z += OUTER_RISE * math.exp(-(((c - 8.0) / 4.5) ** 2 + ((r - 3.0) / 6.0) ** 2))
+            z -= 0.09 * (1.0 - min(1.0, d / (3.0 * PX))) ** 2
             return z
 
         plate(M, fpoly, fender_top, FENDER, ch=0.04, chw=0.9, grid=1.2)
+        fender_polys.append(resample(fpoly, 0.5 * PX, smooth=0))
 
         # Machinery bay (dark deck) under the fender, to the axis.
         def bay_ins(c, r):
@@ -581,8 +599,8 @@ def build():
         path = []
         for i, (c, r) in enumerate(lip):
             z = shell_top(X(C(c)), Y(r)) + 0.02
-            w = 1.6 if 0 < i < len(lip) - 1 else 0.0
-            path.append((C(c), r, z, w, 0.06 if w else 0.0))
+            w = 2.3 if 0 < i < len(lip) - 1 else 0.0
+            path.append((C(c), r, z, w, 0.07 if w else 0.0))
         sweep(M, path, RIM, sides=8)
 
         # Flank boss (bright knob at columns 3-6, rows 31-35).
@@ -601,8 +619,20 @@ def build():
     # ================= centre (symmetric) =================
 
     # The dome.
-    plate(M, DOME_POLY, lambda x, y, d: dome_z(x, y) if dome_frac(x, y) < 1 else 0.16, DOME,
-          ch=0.04, chw=0.8, grid=1.5)
+    def dome_top(x, y, d):
+        """The dome, falling steeply under the fenders' back edges to FENDER_FLOOR beneath them
+        (a smooth min, so the grey face above each fender stays faired)."""
+        z = dome_z(x, y) if dome_frac(x, y) < 1 else 0.16
+        q = np.array([[x, y]])
+        for F in fender_polys:
+            out = 0.0 if inside_poly(q, F)[0] else float(seg_dist(q, F)[0])
+            cap = FENDER_FLOOR + 0.30 * out / PX
+            k = 0.10
+            h = min(1.0, max(0.0, 0.5 + 0.5 * (cap - z) / k))
+            z = cap + (z - cap) * h - k * h * (1 - h) if cap < z + k else z
+        return z
+
+    plate(M, DOME_POLY, dome_top, DOME, ch=0.04, chw=0.8, grid=1.1)
     # top cap ring and the seam down the middle
     ring = []
     for k in range(41):

@@ -370,22 +370,38 @@ def surface_strip(P, pts, w, lift, mat, sink=0.4):
 
 # ---- materials -----------------------------------------------------------------------------------
 
+SPEC_F0 = 0.5 * ((1.0 / 3.0) ** 2 / 0.04)  # Specular IOR Level for F0 of IOR 2.0 (D176)
+
+
 def make_materials(sprite):
     tag = "nshaB"
     def pal(i, **kw):
         return common.palette_material(sprite, i, tag, **kw)
     M = {}
-    M["dome"] = pal(103, metallic=0.4, roughness=0.4)
-    M["keel"] = M["dome"]  # one satin shell; the underside needs no colour break
-    M["flange"] = pal(104, metallic=0.6, roughness=0.3)
-    M["rib"] = pal(107, metallic=0.6, roughness=0.3)
-    M["face"] = pal(100, metallic=0.5, roughness=0.45)
-    M["bay"] = pal(100, metallic=0.45, roughness=0.5)
-    M["bezel"] = pal(102, metallic=0.6, roughness=0.32)
+    # Light polished silver (E4 QA M5, APPROACH: the satin metallic 0.4-0.6 steel read dark navy
+    # beside the sprite's light silver dome, game median (58,70,87) against the sprite's (77,85,97)).
+    # Metallic stays low so the diffuse keeps the palette grey's brightness; the sheen comes from a
+    # raised F0 (that of IOR 2.4, through Specular IOR Level, D176) and a clear coat. Indices per
+    # region from the sprite: dome body 104 (its median), cut-face hoops 106 / 109-110 (the lit band
+    # at columns 25-31), seams one step darker than the dome around them, not near-black.
+    def steel(i, roughness=0.38, coat=0.25, metallic=0.15):
+        m = pal(i, metallic=metallic, roughness=roughness)
+        bsdf = next(n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+        bsdf.inputs["Coat Weight"].default_value = coat
+        bsdf.inputs["Coat Roughness"].default_value = 0.25
+        bsdf.inputs["Specular IOR Level"].default_value = SPEC_F0
+        return m
+    M["dome"] = steel(103, metallic=0.28, roughness=0.4)
+    M["keel"] = M["dome"]  # one shell; the underside needs no colour break
+    M["flange"] = steel(106, roughness=0.28)
+    M["rib"] = steel(109, roughness=0.26)
+    M["face"] = steel(103, roughness=0.36, coat=0.3)  # mid steel: from the tilted camera at the screen edge the face shows; dark navy read as a black apron
+    M["bay"] = pal(100, metallic=0.3, roughness=0.5)
+    M["bezel"] = steel(103, roughness=0.3)
     M["lens"] = pal(96, metallic=0.7, roughness=0.12)
-    M["seam"] = pal(99, metallic=0.45, roughness=0.5)
-    M["bolt"] = pal(108, metallic=0.65, roughness=0.28)
-    M["clamp"] = pal(8, metallic=0.6, roughness=0.35)
+    M["seam"] = steel(101, roughness=0.45, coat=0.1)
+    M["bolt"] = steel(110, roughness=0.24)
+    M["clamp"] = steel(8, roughness=0.3, metallic=0.25)
     M["clampdk"] = pal(6, metallic=0.6, roughness=0.4)
     M["core"] = pal(119, emission_strength=1.0)
     M["fireside"] = pal(118, emission_strength=1.0)
@@ -394,7 +410,7 @@ def make_materials(sprite):
     M["fire119"] = pal(119, emission_strength=1.0)
     M["fire123"] = pal(123, emission_strength=1.0)
     M["fire125"] = pal(125, emission_strength=1.05)
-    M["ribB"] = pal(108, metallic=0.6, roughness=0.3)
+    M["ribB"] = steel(109, roughness=0.26)
     M["firehot"] = pal(126, emission_strength=1.15)
     for i in range(114, 128):
         M[f"f{i}"] = pal(i, emission_strength={125: 1.05, 126: 1.15, 127: 1.25}.get(i, 1.0))
@@ -428,11 +444,27 @@ def cut_loop_point(y, grow=0.0):
     return Vector((X0, yy + ny * grow, z + nz * grow)), Vector((0, ny, nz)), Vector((0, ty / ln, tz / ln))
 
 
-def build(frame, M, mats, coll, name, data):
+def build(frame, M, mats, coll, name, data, ink=False):
+    """The pod of one frame. ink=True builds the outline shell's source (E4 QA M5): the same shell,
+    flange and slab, without the proud surface detail (rib A, rib B, bolts, boss, sensor bay,
+    seams, flame ribbons) or the clamps, and with the stepped core plug faired into one frustum,
+    so the voxel shell can't bridge their grooves and the inverted hull draws no ink round them
+    inside the silhouette; the ink follows the dome, the flange, the cut face's rim and the slab."""
     P = T.Part(name, smooth_angle=34.0)
     shell(P, M["dome"], M["keel"])
     # Flange hoop round the cut face (columns 25-26) and armour hoop rib A beside it (27-28).
-    hoop(P, 2.0, 2.1, 0.8, M["flange"], ch=0.35, sink=1.4, base_x=X0)
+    if not ink:  # the ink source's flange is part of its faired cut end (_core_and_slab)
+        hoop(P, 2.0, 2.1, 0.8, M["flange"], ch=0.35, sink=1.4, base_x=X0)
+        detail(P, M)
+    _core_and_slab(P, M, frame, ink)
+    obj = finish(P, mats, coll)
+    if FIRE_LEFT[frame] is not None and not ink:
+        recolour_fire(obj, M, FIRE_LEFT[frame] - 24.0, fire_grid(data, frame), FIRE_SHIFT[frame])
+    return obj
+
+
+def detail(P, M):
+    """The proud surface detail inside the silhouette."""
     hoop(P, 4.05, 1.6, 0.5, M["rib"], ch=0.3, sink=0.8)
     # Rib B: an armour strap from the north equator over the crest, ending at row 24 (Y 4) on bolts.
     ye7 = outline_y(7.0)
@@ -465,9 +497,34 @@ def build(frame, M, mats, coll, name, data):
     surface_strip(P, [(5.2, -15.0), (9.0, -13.6), (12.8, -11.4), (15.8, -8.6), (18.2, -5.6), (19.8, -2.6)],
                   0.6, 0.05, M["seam"])
 
+
+def _core_and_slab(P, M, frame, ink):
+    if ink:
+        # The ink source's cut end: one convex frustum from the flange's outer lip to the core face's
+        # rim instead of the stepped plug, so the inverted hull draws ink on its outer contour only
+        # (round the face's edge too, where a stroke of the flange behind it would otherwise peek out).
+        cut = lambda g: section(X0, grow=g)  # noqa: E731
+        # The flange joins it and fairs east into the dome, so the band's ridge leaves no fins.
+        st = [(-1.0, cut(-0.9)), (-0.5, cut(-0.35)), (0.95, cut(0.45)), (1.3, cut(0.8)), (2.7, cut(0.8)),
+              (3.05, cut(0.45)), (5.0, section(5.0, grow=-0.25))]
+        ring_loft(P, st, [M["face"]] * (len(st) - 1))
+    else:
+        _core_and_clamps(P, M, frame)
+    _slab(P, M, frame, ink)
+
+
+def _core_and_clamps(P, M, frame):
+    """The core plug, the dark cut face round its slit and the three clamps. Left out of the ink
+    source (E4 QA M5, second fix): standing proud of the flange, their edges drew back-face ink as
+    heavy bands along the hoop's inner edge, boxes round the clamps and fins off the top clamp,
+    all inside the silhouette from the tilted edge camera; the sprite shows a red strip and grey
+    brackets with no ink."""
     # Core disc in the cut face (columns 23-24): its glowing face stands 2 px west of the flange.
     cut = lambda g: section(X0, grow=g)  # noqa: E731
-    ring_loft(P, [(0.7, cut(-0.35)), (-0.5, cut(-0.35)), (-1.0, cut(-0.9))], [M["core"], M["core"]],
+    # Its glowing rim is a bevel from the flange's lip down to the face (the sprite's red strip,
+    # columns 23-24, from the top), the same frustum the ink source has (E4 QA M5, second fix: a
+    # plug stepped inside the flange drew ink bands along it and strokes past its rim at the clamps).
+    ring_loft(P, [(1.3, cut(0.45)), (0.95, cut(0.45)), (-0.5, cut(-0.35)), (-1.0, cut(-0.9))], [M["core"]] * 3,
               cap0=False, cap1=False)
     # The cut face itself is dark satin metal; only a horizontal slit in it glows (D126). The slit
     # fits the slab with a thin glowing lip in frames 1-3 and closes to a thin red line in frame 4.
@@ -501,11 +558,13 @@ def build(frame, M, mats, coll, name, data):
         dome_on(P, tuple(bo + P2), (-1, 0, 0), 0.75, 0.75, 0.45, M["clampdk"], seg=8, rings=2, sink=0.3,
                 up=(0, 0, 1))
 
+
+def _slab(P, M, frame, ink):
     # The plasma slab (frames 1-3): a chamfered lens-section block out of the core.
     left = FIRE_LEFT[frame]
     if left is not None:
         xl = left - 24.0
-        zt_s, zb_s = slab_z
+        zt_s, zb_s = SLAB_Z[frame]
         sh_ = FIRE_SHIFT[frame]
 
         def F(i):
@@ -516,7 +575,9 @@ def build(frame, M, mats, coll, name, data):
         # out of the slit (Y 15) it fans to its full width by X -1.6, then runs straight to its end
         stations = [(-0.6, sec(0, SLIT_YE - 0.2)), (-1.6, sec(0)), (xl + 0.6, sec(0)), (xl + 0.2, sec(-0.35)),
                     (xl, sec(-0.75))]
-        rings = ring_loft(P, stations, [M["fireside"]] * 4, cap0=True, cap1=False)
+        if ink:  # no core plug in the ink source: the slab runs on to the shell's cut face
+            stations.insert(0, (X0, sec(0, SLIT_YE - 0.2)))
+        rings = ring_loft(P, stations, [M["fireside"]] * (len(stations) - 1), cap0=True, cap1=False)
         end = rings[-1][0]
         P.f(list(reversed(end)), F(123), out=(-1, 0, 0))
         hot = section(X0, ye=12.5, zt=zt_s * 0.55, zb=zb_s * 0.55, exp=2.4, n=32)
@@ -555,6 +616,8 @@ def build(frame, M, mats, coll, name, data):
                 P.f((l0[-1], l0[0], l1[0], l1[-1]), mat, out=(0, 0, -1))
             P.f(loops[0], mat, out=(1, 0, 0))
             P.f(loops[-1], mat, out=(-1, 0, 0))
+        if ink:
+            return
         ribbon(14.3, 1.7, 0.45, F(125), 0.3 + frame)
         ribbon(9.0, 1.5, 0.7, F(126), 1.1 + frame)       # the white-hot streak (row 19)
         ribbon(3.0, 2.2, 0.4, F(121), 2.0 + frame)
@@ -566,11 +629,6 @@ def build(frame, M, mats, coll, name, data):
         for sx, sy, rx, ry in spots:
             dome_on(P, (sx, sy, on_fire(sy) + 0.15), (0, 0, 1), rx, ry, 0.5, F(127), seg=12, rings=3,
                     sink=0.6)
-
-    obj = finish(P, mats, coll)
-    if left is not None:
-        recolour_fire(obj, M, left - 24.0, fire_grid(data, frame), FIRE_SHIFT[frame])
-    return obj
 
 
 def fire_grid(data, frame):
@@ -716,8 +774,12 @@ def main():
     export, wholes, stats = [], [], {}
     for frame in range(4):
         whole = build(frame, M, mats, coll, f"pod-f{frame + 1}", data)
-        shell_src = whole  # sealed, pre-cull
-        sh = common.outline_shell(shell_src, coll, voxel=0.016, faces=4000, smooth=6, inside=0.008)
+        shell_src = build(frame, M, mats, coll, f"pod-ink-f{frame + 1}", data, ink=True)  # sealed, pre-cull
+        sh = common.outline_shell(shell_src, coll, voxel=0.014, faces=5000, smooth=4, inside=0.04)
+        shell_src.hide_render = shell_src.hide_viewport = True  # kept: removing it mid-loop breaks the selection
+        # (E4 QA M5) from the detail-free source (no surface detail, core plug or clamps: build(ink=True)),
+        # finer, held further in: at 0.016/6/0.008 from the full pod the ink read heavy, with fins off the
+        # clamp tops and strokes across the hoops.
         T.cull_hidden(whole)
         wholes.append(whole)
         stats[f"whole_f{frame + 1}"] = tris(whole)

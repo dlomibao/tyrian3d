@@ -2,21 +2,25 @@
 
 What it is: a contact sea-mine style space mine (e4:384, armour 6, top layer; swoops in and drifts
 sideways). A steel ball whose top is a machined collar round a detonator well; in the well a red
-hairpin firing element held down by a steel clamp bar. Four ridged bayonet spikes stand out on the
-equator (up, down, left, right in the sprite) from round root bosses, and four red Hertz horns
+firing element (two rods) either side of a steel clamp bar. Four broad ridged spikes grow straight
+out of the ball on the equator (up, down, left, right in the sprite), and four red Hertz horns
 (painted contact rods with domed caps) stand out on the diagonals, tilted a little upward.
 
 Reading the 24x28 sprite (one frame):
   - the 1 px ink ring is the game's outline, so the top view goes to the INNER mask (D74):
     ball 11 px across (cols 7-17, rows 10-18), centre at pixel (12, 14);
-    spikes 3 px wide with a 1 px point (rows 3 / 25 and cols 2 / 22), 5 px at their roots;
+    spikes 3 px wide with a 1 px point (rows 3 / 25 and cols 2 / 22), 5-7 px at their roots;
     horns about 2.1 px thick on the diagonals, their round ends at about 11.6 px out.
-  - the bright ring (row 10, col 8) is light on the collar's crest; the dark opening inside it
-    (cols 9-15, rows 11-17) is the well; the red upside-down U (cols 9-11 and 13-14, joined along
-    row 11) is the hairpin element; the grey column 12 is the clamp bar.
+  - the bright top row (row 10) is light on the collar's crest (the body around the red is dark,
+    so the ball is a satin dark steel and only the spikes are polished silver); the dark opening inside it
+    (cols 9-15, rows 11-17) is the well; the two red bars (cols 9-11 and
+    13-14, rows 11-16, split by index 10 at row 11) are two red rods; the grey column 12 between
+    them is the clamp bar.
   - colours (region median with the darkest and brightest steps left out as lighting):
-    ball 5, spikes 6 (their bright middle stripe is light on the ridge), red 71 (horns and the
-    hairpin; their pale ends are sheen), clamp bar 9, well walls 3 and floor 2 (a real cavity).
+    ball 5, red 71 (horns and the rods; their pale ends are sheen), clamp bar 9, well walls 3
+    and floor 2 (a real cavity). The spikes take 10: their median is 6-7, but in game the sprite
+    reads as a SILVER star (E4 QA L1, BRAINIAC), its spikes the bright part against the darker
+    ball, and the bright middle stripe (10-14) is light on a polished ridge.
 Underside: the plain lower half of the ball (closed, no detail).
 
 Run: blender --background --python assets/blender/enemies/newsh3-246.py
@@ -35,14 +39,19 @@ NAME = "newsh3-246"
 P = 1 / 12          # one sprite px
 CX, CY = 0.5 * P, -0.5 * P   # ball centre: pixel (12, 14)'s centre
 
-# material slots: (key, palette index, metallic, roughness, specular IOR level)
+# material slots: (key, palette index, metallic, roughness, specular IOR level, coat weight, coat roughness)
+# Polished silver (E4 QA L1: the satin gunmetal version read dark beside the sprite's silver star).
+# As on the grey mines (D176), metallic stays low and the brightness comes from F0: Specular IOR
+# Level at about F0 0.17 (IOR 2.4; exported as KHR_materials_specular) plus a clear coat, so the
+# game's sun and environment panels sheen off the ball's crown and the spikes' ridges.
+SILVER = 0.5 * ((1.4 / 3.4) ** 2 / 0.04)
 MATS = [
-    ("ball", 6, 0.45, 0.36, 0.55),
-    ("spike", 6, 0.4, 0.32, 0.6),
-    ("red", 71, 0.25, 0.4, 0.5),
-    ("clamp", 8, 0.7, 0.3, 0.55),
-    ("well", 2, 0.35, 0.6, 0.35),
-    ("floor", 2, 0.4, 0.6, 0.3),
+    ("ball", 5, 0.12, 0.5, 0.4, 0.1, 0.4),
+    ("spike", 10, 0.12, 0.2, SILVER, 1.0, 0.12),
+    ("red", 71, 0.2, 0.3, 0.5, 1.0, 0.1),
+    ("clamp", 9, 0.12, 0.25, SILVER, 1.0, 0.15),
+    ("well", 3, 0.3, 0.5, 0.4, 0.0, 0.1),
+    ("floor", 2, 0.4, 0.6, 0.3, 0.0, 0.1),
 ]
 BALL, SPIKE, RED, CLAMP, WELL, FLOOR = range(len(MATS))
 
@@ -53,11 +62,27 @@ COL_R = 4.95
 CREST_R, CREST_Z = 4.05, 4.85
 WELL_R, FLOOR_Z = 3.25, 2.4
 
-# spikes: (distance from the centre, half width) stations; ridge height = RIDGE * half width
-SPIKE_V = [(6.3, 1.75), (6.8, 1.62), (8.0, 1.45), (9.6, 1.28), (10.5, 0.98), (11.3, 0.5), (12.05, 0.0)]
-SPIKE_H = [(6.3, 1.75), (6.6, 1.62), (7.6, 1.45), (8.8, 1.28), (9.7, 0.98), (10.45, 0.5), (11.15, 0.0)]
-RIDGE = 0.72
-BOSS_R, BOSS_D0, BOSS_D1 = 2.5, 4.4, 6.45     # spike root bosses
+# spikes: (distance from the centre, half width) stations; ridge height from the half width (see
+# ridge_h). The sprite's spikes are broad diamonds that grow straight out of the body: 7 px wide
+# where they leave it (row 9 / col 7), 5 px a px further out, then a parallel 3 px shaft out to
+# rows 4 / 24 and cols 3 / 21 with a short point (E4 QA L1: the earlier long taper read as fewer,
+# shorter spikes in game; the re-review: root bosses and necks read as a ball with studs, not an
+# eight-point star). So the root starts buried in the ball and flares out of it, no boss.
+SPIKE_V = [(3.0, 3.7), (4.4, 3.6), (5.2, 3.1), (6.0, 2.35), (6.8, 1.7), (7.6, 1.55), (9.6, 1.47),
+           (10.35, 1.3), (10.95, 0.82), (11.5, 0.36), (12.05, 0.0)]
+SPIKE_H = [(3.0, 3.7), (4.4, 3.6), (5.2, 3.1), (6.0, 2.35), (6.7, 1.7), (7.4, 1.55), (8.8, 1.47),
+           (9.4, 1.3), (9.95, 0.82), (10.55, 0.36), (11.15, 0.0)]
+# the spikes tilt up a little from a root a hair above the equator, like the horns, so
+# under the tilted game camera the north spike clears the collar instead of hiding behind it; the
+# stations above are plan distances (the 3D length is d / cos(tilt)), so the top view is unchanged
+SPIKE_TILT, SPIKE_Z0 = math.radians(11), 0.4
+RIDGE = 0.92
+
+
+def ridge_h(w):
+    """Ridge height of a spike section of half width w: RIDGE * w on the shaft, rising more slowly
+    over the flared root so it stays a broad, low diamond (no fin)."""
+    return RIDGE * (w if w <= 1.6 else 1.6 + 0.4 * (w - 1.6))
 # horns: plan distance of the cap centre, radius, elevation
 HORN_END, HORN_R, HORN_CAP, HORN_TILT = 10.45, 1.05, 1.18, math.radians(13)
 
@@ -68,10 +93,11 @@ def arg(name, default=None):
     return default
 
 
-def spec_level(mat, level):
+def spec_level(mat, level, coat=0.0, coat_rough=0.1):
     bsdf = next(n for n in mat.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
-    if "Specular IOR Level" in bsdf.inputs:
-        bsdf.inputs["Specular IOR Level"].default_value = level
+    bsdf.inputs["Specular IOR Level"].default_value = level
+    bsdf.inputs["Coat Weight"].default_value = coat
+    bsdf.inputs["Coat Roughness"].default_value = coat_rough
     return mat
 
 
@@ -130,6 +156,16 @@ def build_ball(bm, sealed=False):
     return revolve(bm, [(r, z) for r, z, _ in prof], [m for _, _, m in prof[:-1]])
 
 
+def spike_frame(axis):
+    """(direction, side, up, origin) of a spike tilted up SPIKE_TILT along plan vector `axis`."""
+    from mathutils import Vector
+    a = Vector((axis[0], axis[1], 0.0)).normalized()
+    s = a.cross(Vector((0, 0, 1))).normalized()
+    d = (a * math.cos(SPIKE_TILT) + Vector((0, 0, math.sin(SPIKE_TILT)))).normalized() / math.cos(SPIKE_TILT)
+    up = s.cross(d).normalized()
+    return d, s, up, Vector((CX, CY, SPIKE_Z0 * P))
+
+
 def ridged_spike(bm, axis, stations, mat):
     """A bayonet spike along unit plan vector `axis` in the equator plane: a ridged section (a
     flat 0.3 w ridge on top, sloped flanks to a chamfered side edge, a matching keel below) whose
@@ -137,19 +173,16 @@ def ridged_spike(bm, axis, stations, mat):
     import usp_talon as T
     import lib_b011 as lib
     from mathutils import Vector
-    a = Vector((axis[0], axis[1], 0.0))
-    s = a.cross(Vector((0, 0, 1))).normalized()
-    up = Vector((0, 0, 1))
-    c0 = Vector((CX, CY, 0.0))
+    a, s, up, c0 = spike_frame(axis)
     ds = [d for d, _ in stations]
     wf = T.pchip(ds, [w for _, w in stations])
     d_tip = ds[-1]
     rings = []
-    n = 10
+    n = 22
     for k in range(n):
         d = ds[0] + (d_tip - ds[0]) * k / n
         w = max(wf(d), 0.02)
-        h = RIDGE * w
+        h = ridge_h(w)
         c = c0 + a * d * P
         sec = [(w, 0.08 * h), (0.86 * w, 0.42 * h), (0.3 * w, h), (-0.3 * w, h), (-0.86 * w, 0.42 * h),
                (-w, 0.08 * h), (-w, -0.08 * h), (-0.86 * w, -0.4 * h), (-0.22 * w, -0.85 * h),
@@ -169,30 +202,6 @@ def ridged_spike(bm, axis, stations, mat):
         bm.faces.new((cols[-1][0], cols[-1][1], tv)).material_index = mat
     base = [bm.verts.new(p) for p in rings[0]]
     bm.faces.new(list(reversed(base))).material_index = mat
-    bm.faces.ensure_lookup_table()
-    return list(bm.faces[n0:])
-
-
-def boss(bm, axis, mat):
-    """A round root boss for a spike: a short cylinder with a chamfered outer face and a narrower
-    neck ring (a nut seat), coming out of the ball."""
-    import lib_b011 as lib
-    from mathutils import Vector
-    a = Vector((axis[0], axis[1], 0.0))
-    s = a.cross(Vector((0, 0, 1))).normalized()
-    up = Vector((0, 0, 1))
-    c0 = Vector((CX, CY, 0.0))
-    prof = [(BOSS_D0, BOSS_R - 0.2), (BOSS_D1 - 0.75, BOSS_R), (BOSS_D1 - 0.55, BOSS_R),
-            (BOSS_D1 - 0.42, BOSS_R - 0.22), (BOSS_D1 - 0.3, BOSS_R - 0.22), (BOSS_D1 - 0.18, BOSS_R - 0.05),
-            (BOSS_D1 - 0.05, BOSS_R - 0.12), (BOSS_D1, BOSS_R - 0.45), (BOSS_D1, 1.0)]
-    rings = []
-    segs = 16
-    for d, r in prof:
-        c = c0 + a * d * P
-        rings.append([tuple(c + (s * math.cos(2 * math.pi * (i + 0.5) / segs) + up * math.sin(2 * math.pi * (i + 0.5) / segs)) * r * P)
-                      for i in range(segs)])
-    n0 = len(bm.faces)
-    lib.ring_loft(bm, rings, mat, cap_start=True, cap_end=True)
     bm.faces.ensure_lookup_table()
     return list(bm.faces[n0:])
 
@@ -231,33 +240,27 @@ def horn(bm, axis, mat):
     return list(bm.faces[n0:])
 
 
-def hairpin(bm, mat):
-    """The red hairpin element lying on the well floor: legs at x -1.9 and +1.6 px, joined by a
-    bend at the north (row 11), round ends at the south."""
+def red_bars(bm, mat):
+    """The red firing element lying on the well floor: two separate rods (the sprite's two red bars,
+    cols 9-11 and 13-14, rows 11-16) either side of the clamp bar, with domed ends; their north ends
+    run into the well wall under the rim."""
     import lib_b011 as lib
     r = 1.28
     z = FLOOR_Z + r - 0.08
-    xl, xr, yb, yt = -1.95, 1.55, -2.0, 1.55
-    xc, rb = (xl + xr) / 2, (xr - xl) / 2
-    pts = [(xl, yb)]
-    pts += [(xl, yb + (yt - yb) * t) for t in (0.33, 0.66, 1.0)]
-    for k in range(1, 8):
-        t = math.pi - math.pi * k / 8
-        pts.append((xc + rb * math.cos(t), yt + rb * math.sin(t)))
-    pts += [(xr, yt), (xr, yt - (yt - yb) * 0.5), (xr, yb)]
-    pts3 = [(CX + x * P, CY + y * P, z * P) for x, y in pts]
     n0 = len(bm.faces)
-    lib.polyline_tube(bm, pts3, r * P, sides=10, mat_index=mat, caps=False)
-    for x in (xl, xr):  # domed ends
-        lib.ellipsoid(bm, (CX + x * P, CY + yb * P, z * P), (r * P, r * P, r * P), segments=10, rings=3,
-                      mat_index=mat)
+    for x, yb, yt in ((-1.95, -2.0, 2.45), (1.55, -2.0, 2.55)):
+        pts3 = [(CX + x * P, CY + y * P, z * P) for y in (yb, (yb + yt) / 2, yt)]
+        lib.polyline_tube(bm, pts3, r * P, sides=10, mat_index=mat, caps=False)
+        for y in (yb, yt):  # domed ends
+            lib.ellipsoid(bm, (CX + x * P, CY + y * P, z * P), (r * P, r * P, r * P), segments=10, rings=3,
+                          mat_index=mat)
     bm.faces.ensure_lookup_table()
     return list(bm.faces[n0:])
 
 
 def clamp(bm, mat):
     """The steel clamp bar down the middle of the well (column 12): from a foot on the north rim,
-    over the hairpin's bend, down between its legs to a bolted post on the floor."""
+    between the two red rods, down to a bolted post on the floor."""
     import usp_talon as T
     import lib_b011 as lib
     n0 = len(bm.faces)
@@ -303,13 +306,12 @@ def build_geometry(bm, sealed=False):
     for ax in AXES:
         st = SPIKE_V if ax[0] == 0 else SPIKE_H
         smooth += ridged_spike(bm, ax, st, SPIKE)
-        smooth += boss(bm, ax, SPIKE)
     for ax in DIAG:
         smooth += horn(bm, ax, RED)
     if not sealed:
-        smooth += hairpin(bm, RED)
+        smooth += red_bars(bm, RED)
         smooth += clamp(bm, CLAMP)
-        smooth += bolts(bm, SPIKE)
+        smooth += bolts(bm, BALL)
     return smooth, flat
 
 
@@ -324,8 +326,9 @@ def build():
         bpy.data.objects.remove(o, do_unlink=True)
     sprite = common.load_sprite(WT, NAME)
     coll = common.reset_collection(NAME)
-    mats = [spec_level(common.palette_material(sprite, idx, NAME, metallic=met, roughness=rough), lvl)
-            for key, idx, met, rough, lvl in MATS]
+    mats = [spec_level(common.palette_material(sprite, idx, f"{NAME}_{key}", metallic=met, roughness=rough),
+                       lvl, coat, coat_r)
+            for key, idx, met, rough, lvl, coat, coat_r in MATS]
 
     bm = bmesh.new()
     smooth, flat = build_geometry(bm)
