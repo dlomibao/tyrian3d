@@ -2016,7 +2016,7 @@
    "tileset": "shapesz",
    "layers": [
     {"layer":0,"tiles":24,"hd":24,"modelled":0,"covered":24},
-    {"layer":1,"tiles":13,"hd":0,"modelled":12,"covered":12},
+    {"layer":1,"tiles":13,"hd":12,"modelled":12,"covered":12},
     {"layer":2,"tiles":42,"hd":0,"modelled":41,"covered":41}
    ],
    "tileModels": {
@@ -8379,7 +8379,7 @@
    "tileset": "shapesz",
    "layers": [
     {"layer":0,"tiles":24,"hd":24,"modelled":0,"covered":24},
-    {"layer":1,"tiles":13,"hd":0,"modelled":12,"covered":12},
+    {"layer":1,"tiles":13,"hd":12,"modelled":12,"covered":12},
     {"layer":2,"tiles":42,"hd":0,"modelled":41,"covered":41}
    ],
    "tileModels": {
@@ -34336,7 +34336,7 @@
    ],
    "hd": [
     266,
-    41,
+    53,
     73
    ],
    "modelled": [
@@ -35164,7 +35164,7 @@
    {
     "id": "shapesz",
     "what": "tiles 275/60/178 (layers 0/1/2)",
-    "status": "HD art 266/41/73, in structure models 85/12/97, 146 structure models",
+    "status": "HD art 266/53/73, in structure models 85/12/97, 146 structure models",
     "uncovered": [9,7,8],
     "levels": 32,
     "episodes": 4,
