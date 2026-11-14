@@ -10461,3 +10461,97 @@ note); TIME WAR's shield ship still reads darker than its sprite (D196's note).
 **Cost:** 71 agents (1 scout, 18 designs, 18 finishes on Sonnet, 8 fixes, 26 reviews; lean mode, no blueprints or
 judges), about 8.4M subagent tokens, about 1.8 h of run time. Per-agent median: design 20.4 min, finish 3.2, fix 9.9,
 review 5.8. Sheets: `tyrian-scratch/e4-enemies-3/<item>/final/` (not in git, D3).
+
+## D198 — Episode-4 QA terrain: NOSE DRIP's ledge cracks and SAVARA IV's tile-24 crests leave the water-exempt banks; SIDE EXIT/LAVA EXIT's lava is the renderer's, not the paintings' (E4 QA B-H1, B-M1, A-M3; follows D111, D138, D187)
+
+2026-11-13
+
+**Problem** (E4 QA sweep, `tyrian-scratch/e4-qa/{a,b}/REPORT.md`):
+- **B-M1, NOSE DRIP (4.16):** black ink scribbles in the water along the shallow ledges. The ledge tiles are TYRIAN's plateau
+  ground (`shapesz` layer 0, 95-99, 105-109, 117-119). Their paintings carry near-black cracks and drips darker than
+  anything in the original (whose darkest pixel there is bank 1's shade 0, 16/8/0). Under NOSE DRIP's water filter a
+  texel takes the bank of the raw palette's nearest entry, read through the 32-cell sRGB cube
+  (`paletteTexture.ts nearestIndexLut`), or bank 0 when its chroma is under 0.04 (`terrainMaterial.ts`). Those cracks fall in an
+  exempt bank ((index & 0x30) == 0), so water_filter leaves them their painted colour: 0.4-14% of each tile's texels
+  (119 14%, 109 8.6%, 106 6.5%). The original's pixels there are all bank 1, which the filter recolours.
+- **A-M3, SAVARA IV (4.3), from about t4050:** saturated blue flecks in the brown mud. The mud is tile 24 (1,963 of the map's
+  4,200 cells) under a brown water filter. Tile 24 is D138's sea field: family 0's patch plus tile 24's colour offset.
+  The painting alone is fine (family 16 0.09% exempt), but tile 24's offset lifts the crests into bank 8 (ice blue, exempt):
+  3.7% of its texels. The original tile is bank 3, which the filter recolours. The same crests show as bright cyan
+  streaks under the blue water filters of SAVARA IV t300 and SAVARA V (1.17) t1000, which the original doesn't have.
+- **B-H1, SIDE EXIT (4.6), LAVA EXIT (4.9), LAVA RUN (4.12):** the report blamed the plain-lava paintings `shapes)` 0:109/119/129.
+  They are a dark veined crust like the original: mean RGB 64/71/75 against 65/71/76, the same contrast, NCC 0.93-0.94.
+  The bright, smooth wave is lava_filter's output in the 3D view. It is the same with `&terrain=original`: plain-lava red
+  mean at SIDE EXIT t1800 is 54 in the C panel, 109 in the HD view and 102 in the original look.
+  The dark tile-sized blocks and staircases around SIDE EXIT's ridges (opaque layer 1, the "cutout" kind) come from
+  `ScreenFilters.renderMask`. It draws the instanced HD terrain quads with `maskMaterial`, which has no alpha test, so the
+  whole 24x28 quad writes its layer-1 height, and the lava under the tile's transparent texels is not filtered. The original
+  look shows no blocks there.
+  The tiles' alpha matches the original masks: coverage within 0.01-0.04 for 31-35, 41, 42, 45 and 51-53. So do the blended fire
+  tiles' (160-188): transparent where the original is, apart from D78's one-pixel contour smoothing. This is the root of
+  E4 QA A-H1 too (LAVA RUN's blend rectangles, the renderer agent's D198), widened to the cutout kind.
+
+**Decision:** two derived-art edits, no Gemini, no code; B-H1 goes to the renderer.
+1. **NOSE DRIP's ledge tiles** (`shapesz` layer 0: 95-100, 105-109, 117-119; 14 tiles):
+   - Each texel's brightness is floored at 0.85 of the original's local minimum. That minimum is taken over ±1 original pixel
+     and blurred at 4 texels; a 6-level soft knee eases it in.
+   - The added brightness is bank 1's brown at that level, so a near-black texel's own tint isn't amplified.
+   - The lift fades out in the outer 6-30 texels, so the seam-solved edges stay.
+   - Texels that would still take an exempt bank (the runtime rule above, modelled exactly) take bank 1's ramp colour at their
+     brightness, a step brighter per round until none is left.
+   - The 14 tiles go into a new image `0-3.webp` (lossless; a lossy round trip put about 0.3% back into exempt banks and
+     cost 0.08 in edge ratio), and their rects point at it. Every other file and rect is byte for byte as before; the old
+     texels stay unused in `0.webp`/`0-2.webp`.
+   - Exempt texels go from 0.4-14% per tile to 0. Mean brightness changes by +0.1 to +0.6 levels; 0.2-8% of texels change
+     by more than 4 levels.
+2. **SAVARA IV's tile 24** (`shapesy` `0-fields.webp`, only tile 24's 42 offset blocks):
+   - Each offset texel (2 per original pixel, read bilinearly as the shader does) moves the crests that would take bank 8
+     towards bank 3's colour at their own luminance (the original tile's bank). Its weight grows while any texel it reaches
+     stays exempt, up to 1.2 times the move.
+   - Then a small search per offset texel: a ±6-level grid, the fewest exempt texels first, then the smallest and least
+     hue-changing move.
+   - The outer ring of each block keeps its offset, so the solved border texels (D138's seams) don't change.
+   - Exempt texels go from 3.7% to 0.17% (left at the borders). Seams over the patch's sub-tile edges stay at 0.375 (inside
+     0.835 -> 0.862); the shown colour changes by p99.9 15.8 levels, luminance unchanged.
+   - The atlas stays lossless, as D138 requires. 14,597 pixels change, all inside tile 24's offset blocks.
+   - A first try that let the search shift harder (exempt 0.03%) tinted the crests lavender or green where no water filter
+     runs (SAVARA, 1.12), so it is not used.
+- **Not done for B-H1:** no repaint. Matching the lava paintings to a brighter filtered output, or painting the ridges'
+  backgrounds, would be wrong in both looks. Two fixes belong in `src/render/screenFilters.ts`: the mask pass should honour
+  the HD quads' alpha (cutout and blend kinds), and lava_filter's value mapping or smear should be brought down to the C's
+  level. Reported to the coordinator for the e4-qa-render agent.
+
+**Options considered:**
+- *Repaint the ledge tiles with Gemini:* the cracks are the only defect, and TYRIAN's approved paintings should keep their look.
+- *Soften only the exempt texels:* removes the black, but the near-black cracks stay as dark-blue lines in NOSE DRIP's water.
+  The floor gives the original's soft shadow.
+- *Change the shared sea patch (family 0) instead of tile 24's offset:* that would touch all 14 water families on six
+  levels for one tile's problem.
+- *A per-field tint at 8 texels:* `TERRAIN_TINT_SCALE` is a shader constant (D138), so it would need a code change.
+- *Exempt bank 8 for painted art in the renderer:* the art is the outlier here (the original tile is bank 3), so it is fixed
+  in the art.
+
+**Checked** (`?debug=play&episode=E&main=M&difficulty=2&seed=1&skip=T&freezeAt=T&compare=1`, 3840x2160, before = origin/main
+49217f4c, after = this):
+- NOSE DRIP t300, t3300, t4050: the ink is gone; the ledge edges read as the original's soft dark-blue shadow.
+- TYRIAN (1.9, section 3) t1000, t2000, t3000: no visible change but slightly softer plateau cracks. The pixel
+  differences (mean 0.06-0.8 levels) are mostly run-to-run noise: t3000's largest sits on rock with no changed tile.
+- `check` on 1-9, 1-10, 1-13, 1-16, 2-3, 3-3 and 4-16, layer 0:
+  - edges with a changed tile 0.783 -> 0.793 (continuous 0.781 -> 0.791);
+  - kept 0.526, unchanged;
+  - all 0.570 -> 0.572.
+- SAVARA IV t4800: the blue flecks are gone; saturated-blue pixels in the playfield go from 11,006 to 1,660, mostly the
+  models' own blue. SAVARA IV t300 and SAVARA V t1000 (blue water): crests recoloured with the water instead of cyan streaks.
+  SAVARA (1.12) t1500 (no filter): crests a touch less cyan. 1.12 t300: identical.
+- SIDE EXIT t1800 and LAVA EXIT t5550 in both looks: the evidence for B-H1 above.
+- `tests/render/terrainArt.test.ts`, `opaqueCover.test.ts` and `paletteLut.test.ts` pass.
+Captures, crops, scripts (`bin/soften.py`, `apply_fix.py`, `fix_tint.py`, `field24.py`) and the atlas backups:
+`tyrian-scratch/e4-qa-terrain/`.
+
+**Left:**
+- B-H1 (renderer, above).
+- Other `shapesz`/`shapesy` tiles may carry exempt texels on other water levels. Only the reported ones were measured
+  (NOSE DRIP's 14 ground tiles, the 14 sea families); families 5, 25 and 27 are 1.3-1.8% exempt but barely appear on
+  SAVARA IV.
+
+**Cost:** one Opus agent, no workflow, no Gemini, no Blender. About 35 headless captures.
