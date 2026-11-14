@@ -10818,3 +10818,108 @@ headless captures (including the trace and check of the fortress's D181 cascade)
 **Cost:** 16 agents, about 2.8M subagent tokens, 2.6 h (both items).
 
 **Review:** check the eye at EYESPY t7800 against the original. Fallback: revert to the D195 eye (`git revert`).
+
+## D203 — Episode-3 QA terrain: STARGATE/BUBBLES's lava bubbles get the original's hot cores and blue-black shadows back; New Deli's blended girder track is painted; SAVARA Y's swirl under the cloud is the renderer's hue blend, not the painting (E3 QA L4, L5, L6; follows D134, D174, D186, D198)
+
+2026-11-14
+
+**Problem** (E3 QA sweep, `tyrian-scratch/e3-qa/REPORT.md`):
+- **L4, STARGATE (3.7):** the HD lava bubbles have no hot cores and no shadows. They are 40 `shapesz` layer-0 tiles on the
+  fire ramp (215-285, all in `0-2.webp`), drawn only on STARGATE and 1-4 BUBBLES. Measured against the original tiles
+  (palette 5, weighted by STARGATE's cell counts), the paintings keep the mean brightness and roughly the cores' area
+  (yellow 0.0072 of texels against 0.0086, white 0.0036 against 0.0047). But they lose the blue-black shadow crescents
+  completely: index 49 (0,12,20) is 3.6% of the original's pixels and 0.03% of the paintings'. The cores are small white
+  glints on a lit red body, not the original's round yellow glow with an orange halo. In game at t1800 (3D panel) the HD
+  draws 0.27% blue-black pixels, the original look 5.8% and the C 5.9%.
+- **L5, SAVARA Y (3.10):** still there on origin/main after D199 (t1050). Under the blended cloud the sea shows a
+  marbled pattern of hard contour lines. **The painting is not the cause.** The sea is D138's field: tile 16, all of it
+  bank 3. The C's shade there (low nibble) is mean 3.08, sd 1.26. The HD field read along bank 3 is mean 3.08, sd 1.21:
+  the same contrast. **The cause is the hue blend's estimate of the shade underneath** (D174, `hueBlend.ts
+  hbUnderShade`). It reads the lit frame copy and takes each pixel's shade in the bank of its nearest raw palette colour
+  (the 32-cell `indexLut`). The lit sea's colours fall between ramps: on an open-water crop they map to banks 0, 1, 3,
+  8, 10, 13 and more. Neighbouring texels jump between ramps and their shades by several steps, so the averaged
+  cloud shade draws contour lines along the painting's smooth gradients. The same hopping on 8-texel blocks shows,
+  more mildly, with `&terrain=original`.
+  - A throwaway experiment (reverted, not committed) made `hbUnderShade` read every pixel in bank 3. The marbling
+    vanished, leaving the faint wave the C shows.
+- **L6, New Deli (3.11):** layer 1 is drawn blended there all level, and `drawRemasterTile` puts structure models only on
+  `effect: "none"` tiles. So D134's girder models (made for 1-5 DELIANI, where layer 1 is opaque) never apply, and the
+  whole track draws as the 4x MMPX blend sheet. That is the 12 tiles 576-579, 586-589 and 596-599, not only the
+  reported 586/587/589. `terrain_hd.py inventory` counted them as "only under models", because it doesn't know a level's
+  layer-1 blend.
+  - Ticks where they draw (D186's bot scan, seed 1, every 75 ticks): 586 375-825, 1200-1350, 1575-2025, 2250-2325,
+    2625, 3375-3675; 587 225-825, 1200-1425, 1575-1725, 1875-2100, 2250-2400, 2550-2700, 3375-3675; 589 375-600, 750,
+    1200-1275, 1575-1725, 1875, 2250, 2550-2625, 3450-3600.
+  - The other nine tiles fall within 434-3730.
+
+**Decision:** two derived-art edits; L5 goes to the renderer.
+1. **The bubbles** (`shapesz` layer 0, the 40 fire-ramp tiles; `tyrian-scratch/e3-qa-terrain/bin/bub_fix.py`):
+   - **Hot core:** where the original has fire shade ≥ 8 (index 120-127: orange to white), the painting takes the
+     original's colour. That colour is upscaled smoothly (bicubic from 1x, then a 1.5-texel Gaussian), so a core is a
+     round glow, not pixel blocks.
+     - Weight: a soft mask of those pixels (a 3.5-texel Gaussian, x1.6, clipped).
+     - The painted glint stays wherever it is brighter (max per channel).
+   - **Shadow:** where the original has index 49, the painting takes (0,12,20), brightened by the painting's own
+     brightness there (1-1.4x) so some texture stays. The weight is the same kind of mask, x0.95.
+   - The outer 2 texels of each tile are as painted, fading in over 6 more, so the seam-solved edges stay.
+   - Result, against the original's share: yellow 0.0081 (0.0086), white 0.0045 (0.0047), blue-black 3.3% (3.6%).
+     0.9-18% of each tile's texels move by more than 4 levels (median 9%).
+   - The 40 tiles go into a new lossless image `0-4.webp`, and their rects point at it. Every other file and rect is
+     byte for byte as before; the old texels stay unused in `0-2.webp`.
+2. **The girders** (`shapesz` layer 1, 12 tiles): one Gemini window, `nd-l1-girders` (1:1). It holds two 7x12 regions
+   of 3-11's layer 1 (map x 4/y 535 and x 2/y 549), which hold all 12 tiles. The sheet is softened (D79), with a hand
+   prompt naming the object: an elevated steel girder track seen straight down, lattice deck with square windows,
+   rounded box rails, windows and surroundings pure black.
+   - The answer kept the layout (2048 px, 5.8 px per original pixel; tile NCC 0.985-0.995).
+   - Cut with `cut --cache --edge-aware --structures --lossless`, merge mode. The tool ran through a scratch wrapper
+     (`bin/thd_nomodels.py`) that drops the layer-1 girder models, as the renderer does for a blended layer.
+   - The cut used `ALPHA_SMOOTH` 2.5 texels instead of D78's 8. The windows are 1-2 original pixels wide, and the
+     8-texel contour smoothing (made for clouds and rock) rounded them into pills. At 2.5 texels they stay
+     rectangular, as in the sprite.
+   - New image `1-3.webp`; the manifest only gains the 12 rects. Nine tiles were deblocked (1.67-2.2 -> 1.65-1.73;
+     the lattice is aligned with the pixel grid).
+   - On DELIANI, layer 1 is opaque and the models still win (the HD art is reached only when no model matches).
+
+**Options considered:**
+- *Repaint the bubbles with Gemini:* the paintings' shapes and gloss register well (D89); only two colour classes are
+  missing, and the original's own pixels say exactly where.
+- *Brighten the cores further, to the original look's in-game share:* at the atlas level they already match the
+  original. What is left in game is the ground's lighting, which lifts the red body (D199's "what is left"), not the
+  painting.
+- *L5: lower the sea painting's contrast:* it already matches the original on its own bank. Flattening it would only
+  hide a renderer error that shows on any ground whose lit colours fall between ramps.
+- *Paint only 586/587/589:* the other nine girder tiles sit at their junctions; they would stay MMPX right beside the
+  painted ones. The same single request covers all 12.
+
+**Checked** (`?debug=play&episode=E&main=M&difficulty=2&seed=1&skip=T&freezeAt=T&compare=1`, 3840x2160; before =
+origin/main f2c0fa90, served with `&terrainart=` from a copy of the committed atlas):
+- STARGATE t1000, t1800, t3000. At t1800 the 3D panel's blue-black pixels go from 0.27% to 5.1% (original look 5.8%,
+  C 5.9%) and the yellow-white cores from 2.30% to 2.52%. The cores read as glows, the shadow crescents are back.
+- BUBBLES (1.4, `&main=15`) t600, t1500: under its green filter the change is slight; nothing breaks.
+- New Deli t300, t600, t1650, t3600: the track is painted steel, with the rails and the lattice as in the original;
+  it stays as faint under the blend as the C's.
+- Regressions: DELIANI (1.5) t300 and t2550 are unchanged (the only pixels that differ are a shot's sparkle); SAVARA Y
+  t1050 is identical.
+- `terrain_hd.py check`:
+  - Layer 0 (1-4, 3-7, 3-11): edges with a changed tile 1.344 -> 1.333 (where the original is continuous 0.920 ->
+    0.913); kept edges 0.514, unchanged.
+  - Per level: 1-4 1.311 -> 1.298, 3-7 1.383 -> 1.375; 3-11 0.502, unchanged.
+  - Layer 1 (3-11, the new girders): 475 edges, ratio 0.146 (continuous 0.146), bands 0.726.
+- `tests/render/terrainArt.test.ts`, `tests/tools/terrainHd.test.ts` and `opaqueCover.test.ts` pass.
+- Captures, crops, contact sheets, the sheet, the answer and the scripts are in `tyrian-scratch/e3-qa-terrain/`.
+
+**Left:**
+- **L5, for the renderer** (`src/render/hueBlend.ts`, not changed here). The shade underneath should not be guessed
+  from the lit colour's nearest palette entry. Options:
+  - *Best, as the C does it:* the ground and terrain passes write their own palette shade with the frame the blends
+    copy (an extra channel or target). That is the original tile's low nibble, or for HD art the painting's unlit
+    brightness on the tile's main bank, as `instBank` already does for the blend sheets. `hbUnderShade` would then read
+    that shade instead.
+  - *Interim:* make the bank choice continuous: weight the shades in the two or three nearest banks by colour
+    distance, or take the bank from a small neighbourhood. Either stops single texels hopping between ramps.
+  - Either way, the frame copy is lit (about 1.3x), so the shade read is also biased high.
+- `terrain_hd.py` doesn't know which levels draw layer 1 blended (3-11, BONUS, CAMANIS, ...). Its inventory treats any
+  layer-1 model as replacing the tile.
+
+**Cost:** one Opus agent, no workflow, no Blender. 1 Gemini request (Pro, Create images, about 40 s, no usage warning).
+About 45 headless captures.
