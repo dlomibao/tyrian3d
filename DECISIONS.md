@@ -10923,3 +10923,88 @@ origin/main f2c0fa90, served with `&terrainart=` from a copy of the committed at
 
 **Cost:** one Opus agent, no workflow, no Blender. 1 Gemini request (Pro, Create images, about 40 s, no usage warning).
 About 45 headless captures.
+
+## D204 — The shade under the C's blends is the terrain's own palette shade, drawn into a target of its own before the frame, not a guess from the lit frame's nearest palette colour (E3 QA L5; follows D174, D193, D199, D203)
+
+2026-11-14
+
+**Problem** (E3 QA L5, traced in D203): on SAVARA Y (3.10, t1050) the sea's swirl shows through the blended cloud as
+marbled contour lines. D174's `hbUnderShade` took the shade under each blended fragment from the lit frame copy: the
+shade, in the bank of the copy's nearest raw palette colour. The lit sea's colours fall between ramps (banks 0, 1, 3,
+8, 10, 13 on an open-water crop), so neighbouring texels hopped between ramps, and their shades by several steps. The
+cloud's averaged shade drew the painting's smooth gradients as contour lines. D203's throwaway experiment forced bank 3,
+the sea's only bank in the original, and the marbling vanished. The frame copy is lit (about 1.3x), so the guessed
+shade was also biased high.
+
+**Decision** (`src/render/underShade.ts`; `hueBlend.ts` reads it): do what the C does, `(*pixels & 0x0f)`. Before the
+frame, the scene is drawn once more into a target of its own (RGBA8, the frame's size), scissored to this frame's blended
+area (the three grabs' areas, D174). Each draw writes its own palette shade there:
+- **Classic tiles:** the index's low nibble, exactly the C's.
+- **4x MMPX ground:** the four nearest texels' low nibbles, weighted as its colour is.
+- **HD paintings** (`ground` and `cutout`): the painting's unlit brightness along the original tile's ramp.
+  - The ramp is read off the **raw** palette, before JE_filterScreen. The C filters the indices' colours, not the
+    indices.
+  - Each instance carries the original tile's two main banks (`topBanks`: the dominant bank, and a second one if it
+    holds at least 5% of the tile's pixels; `instBank` is now a vec2 for all HD pools). Where they differ, each texel
+    reads the ramp whose colour at that brightness is nearer the painting's. Over a narrow band where the two are about
+    equally near, the two shades are mixed, so a shore's sand and sea never hop between them.
+  - This is how the blend sheets already read their own shade (`instBank`, D174).
+- **Models**, behind the same depth test: a `pal_<index>` material writes its index's low nibble (the sprite pixel's
+  shade in the C); an HD rock writes its palette data's shade (R channel, `rockMaterial.ts`).
+- **Anything else that writes depth** marks the texel "not known". What writes no depth is left out: shadows and
+  scorch marks (the C has neither), and models while they fade.
+- **The lower background-2 sheets** add a mark: a copy made after them (the explosions', background2over 2's) sees the
+  sheet's own blend there, not the terrain, so those copies don't take the shade under a mark. background2over 2's own
+  sheets (above `SHEET_MARK_MAX_HEIGHT`) don't mark, since no copy before them reads one.
+
+`hbUnderShade` reads this shade where it is known (and not under a mark, for the later copies). Elsewhere it falls
+back to D174's guess from the lit copy. Under a sheet's mark that guess is exact, because the sheet writes unlit palette
+colours. The capture tells the materials which copy they read (`blendShadeSheets`). `?undershade=0` turns it off, for
+comparisons.
+
+**Why this option:** it is the C's rule, so no palette or painting can make it hop. A smoother bank choice (weighting the
+2-3 nearest banks, or taking the bank from a neighbourhood) would only blur the hops. It would still guess the shade from
+a lit colour that sits on no ramp, keep the 1.3x lighting bias, and depend on how far apart a palette's ramps happen to
+be. The pass reuses the screen filters' mask pattern (D199): swap materials, move the objects to a spare camera layer,
+and leave them out by layer rather than by `visible`, so their children aren't hidden. The main pass's shaders are
+untouched.
+
+**Options considered:**
+- *Write the shade from the main pass (MRT, or the frame's alpha):* the canvas has no alpha and no second attachment.
+  Every material and translucent draw would have to keep the extra channel intact.
+- *Terrain only, with no occluders:* a model under a cloud would take the ground's shade (a grey ship on grey ice would
+  vanish into it). The models are in the pass, and their own palette shade is what the C uses.
+- *The live palette's ramps for the HD shade:* under CAMANIS's filter (all ramps bank 8's), the ice read along bank 8
+  came out several shades too dark, and an explosion's blend over it turned a dark teal ring. Against the raw palette
+  it is the pale ring the C draws.
+
+**Checked** (`?debug=play&episode=E&main=M&difficulty=2&seed=1&skip=T&freezeAt=T&compare=1`; before = origin/main
+e0d5b913 served from the main checkout, after = this; `tyrian-scratch/hb-undershade/{before,after,cmp}`):
+- **SAVARA Y t1050** (3840x2160): the marbling is gone. The cloud over the sea shows only the faint wave the C shows,
+  as in D203's experiment. Over a cloud-on-sea crop, the mean luminance step between neighbouring pixels went from 10.7
+  to 3.0, and pixels with a step over 10 levels from 23.2% to 3.5%. The cloud over the sand and jungle barely changes.
+  `&terrain=original` (MMPX): its 8-texel block hopping is gone too. **t3000:** the small cloud over the sea is smoother;
+  nothing else changes.
+- **Regressions** (share of the 3D panel's pixels changed by more than 8 levels):
+  - TYRIAN 1.3 t220: 18%, all under 32 levels. The ice cloud is a touch darker and more even.
+  - SAVARA 1.8 t300 and t900: 0.4% and 3%, the cloud only.
+  - GYGES 2.2 t600: 0.3%, at most 18 levels.
+  - New Deli t600: 10%, at most 29 levels. The blended girders (D203) are a little more even; the hole is where a
+    ship covers them (its own shade).
+  - EYESPY t300: 9%, at most 40 levels. The tissue blend (D187) is as before, slightly more even.
+  - LAVA RUN t300: 8%. Over the lava's dark troughs, the blended crystal tiles (D199) now darken as the C's do: the lit
+    lava had read as a bright shade and hidden them.
+  - NOSE DRIP t182: 16%. The top clouds (background2over 2) blend with what is under them, as the C's do: the cobbled
+    floor's own shade under its water filter, and the eye whites and twister model at their own palette shades,
+    which now show through faintly as the sprites do in the C. Read from a dump of the target.
+  - CAMANIS under its level filter (filter 8, t3360, an explosion over the ice): the ring stays pale, as the C's is, a
+    little smoother. t6850 has no blended draw (identical).
+- `tsc`; `vitest`: all pass, with the new `tests/render/underShade.test.ts`: which draws give their shade, what the pass
+  draws and restores, the raw palette, the copies' sheet marks, and the renderer's wiring.
+
+**Cost:** one more render of the scene per frame while a blended layer is in view, scissored to its area, into an RGBA8
+target the frame's size (plus depth). One Opus agent, no workflow, about 60 headless captures.
+
+**Left:** draws that write no depth keep the shade under them: shadows, the shots' and explosions' flat art under a later
+copy, `?sprites=original`'s flat enemy sprites. A model's frame-dependent palette (`tyrian_frame_pal`) and its hit
+flash aren't followed (it writes its material's base index). Not checked on a phone GPU.

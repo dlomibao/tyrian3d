@@ -337,6 +337,8 @@ export class View {
    * sheet, explosion or particle over a model blends over its outline too.
    */
   private readonly drawScene = (): void => {
+    // The terrain's own shades for the blended layers, into a target of the same size (D204).
+    if (this.draws.active) this.draws.renderUnderShade(this.renderer, this.scene, this.camera);
     this.outlineHook.draw(
       () => this.renderer.render(this.scene, this.camera),
       () => this.outline.renderOutline(this.scene, this.camera),
