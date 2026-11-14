@@ -56,30 +56,37 @@ ZS = 0.82                  # height / width: a slightly oblate ball (top feature
 PORT_DY = -1.2             # core port's top-view offset from the centre, px (south: see above)
 SOCKET_DY = -3.2           # fuse socket's
 VENT_TILT = math.asin(-PORT_DY / BALL_R)
-PANELS = 3                 # plates per cube-face edge (odd: a plate, not a seam, on each face centre)
-CHAMFER = 0.07             # seam wall width, fraction of a plate
-DEPTH = 0.08               # seam depth, px
-INTERIOR = 3               # interior segments per plate edge
+PANELS = 7                 # plates per cube-face edge (odd: a plate, not a seam, on each face centre);
+                           # about 1 sprite px each, so the heat speckles at the sprite's grain
+CHAMFER = 0.10             # seam wall width, fraction of a plate
+DEPTH = 0.05               # seam depth, px
+INTERIOR = 2               # interior segments per plate edge
 
 # Horns: (direction in the top view (+x east, +y north), tip distance from centre px)
 # The N tip reaches into the sprite's free ink pixels (rows 0-1, col 5), counted neither way by the IoU.
-HORNS = [((0, 1), 7.1), ((0, -1), 6.5), ((1, 0), 5.9), ((-1, 0), 5.9)]
+HORNS = [((0, 1), 6.9), ((0, -1), 6.3), ((1, 0), 6.1), ((-1, 0), 5.7)]
+# Short diagonal horns: the sprite's squared corners (inner pixels (2,4), (8,4), (2,10), (8,10) and
+# the stepped ring beyond them) are spikes too; with the four main ones the outline is a starburst.
+S2 = math.sqrt(0.5)
+DIAG_HORNS = [((S2, S2), 5.75), ((-S2, S2), 5.75), ((S2, -S2), 5.6), ((-S2, -S2), 5.6)]
+DIAG_SCALE = 0.72          # diagonal horn radii vs the main horn's
 # Hot horn bases: the sprite shows its N and S spikes through the colour at their bases (122 at
 # row 2 col 5, 116 at row 12 col 5), so those collars and the spike roots glow in that colour; the
 # tips stay dark (114). E/W collars take their base pixels' colour too (118 at row 7 col 1, 116 at
 # row 7 col 9), so all four spikes read through the game's ink.
-HORN_BASE = {(0, 1): 122, (0, -1): 116, (-1, 0): 118, (1, 0): 116}
+HORN_BASE = {(0, 1): 122, (0, -1): 118, (-1, 0): 120, (1, 0): 118}
 HOT_ROOT = 5.55            # px from centre: the spike root up to here takes the base colour
 # Horn lathe profile (axial distance from centre px, radius px); the spike part is a pchip ogive.
 COLLAR = [(3.7, 1.15), (4.25, 1.15), (4.38, 1.06), (4.48, 1.06), (4.55, 0.98), (4.55, 0.92)]
 
-GLOW = {113: 0.65, 114: 0.7, 115: 0.75, 116: 0.8, 117: 0.85, 118: 0.9, 119: 0.93, 120: 0.96,
-        121: 1.0, 122: 1.0, 123: 1.0, 124: 1.05}
-# Seam walls: crust plates (<= CRUST) get hotter seams (lava glowing through the cracks), hot
-# plates a step cooler seam (a shadowed panel line).
-CRUST = 118
+# Emission by heat (D126: below 1 the face is part lit, part glowing, so the ball keeps its form;
+# the hot spots, 120 and up, glow at full palette colour and speckle against it).
+GLOW = {113: 0.5, 114: 0.55, 115: 0.6, 116: 0.65, 117: 0.7, 118: 0.75, 119: 0.85, 120: 1.0,
+        121: 1.05, 122: 1.1, 123: 1.15, 124: 1.2}
+# Seam walls: a step cooler than their plate (a shadowed panel line) so the plates speckle apart.
 SEAM_GLOW = 0.9
-SPIKE_INDEX = 114
+SPIKE_INDEX = 119          # the spike shafts glow orange so they read through the game's ink
+SPIKE_TIP = 117
 COLLAR_INDEX = 115
 RING_INDEX = 124
 CORE_INDEX = 127
@@ -89,12 +96,17 @@ SOCKET_INDEX = 1
 # dark maroon S crust), and a core glow by the angle from the core port's axis grading the casing
 # right round the plug 124 -> 123 -> 122. Each surface face takes the hotter of the two, plus its
 # plate's seeded jitter and a little per-face mottling.
-HEAT_TILT = 60
-HEAT = [(22, 121), (38, 120), (52, 119), (64, 118), (76, 117), (88, 116), (102, 115), (181, 114)]
-CORE_HEAT = [(7, 124), (13, 123), (20, 122)]
-JITTER = 0.34              # chance a plate runs one step cooler or hotter
-HOT_PLATES = 0.12          # chance a crust plate (<= 116) is a hot spot (+2..3)
-MOTTLE = 0.10              # chance a face runs one step off its plate
+# The in-game look decides (QA, E4 sweep): the sprite reads as a bright starburst of hot orange and
+# yellow speckle round a white core, so the base runs 116-119 and the scattered hot plates 120-124.
+HEAT_TILT = 50
+HEAT_AZ = -25              # heat axis leans this many degrees west of north (the sprite's hot NW)
+HEAT = [(28, 120), (55, 119), (80, 118), (105, 117), (130, 116), (181, 115)]
+CORE_HEAT = [(9, 124), (16, 123), (24, 122)]
+JITTER = 0.30              # chance a plate runs one step cooler or hotter
+HOT_PLATES = (0.36, 0.10)  # chance a plate is a hot spot (+3..+5, to 124): hot side, crust side
+                           # (the sprite's south half is darker, with few hot spots)
+COOL_PLATES = 0.14         # chance a plate is a dark pocket (-2)
+MOTTLE = 0.06              # chance a face runs one step off its plate
 
 
 def P(x, y, z):
@@ -132,7 +144,9 @@ def stations():
     return [0.0] + inner + [1.0], [-DEPTH] + [0.0] * len(inner) + [-DEPTH]
 
 
-HEAT_AXIS = Vector((0, math.sin(math.radians(HEAT_TILT)), math.cos(math.radians(HEAT_TILT))))
+HEAT_AXIS = Vector((math.sin(math.radians(HEAT_AZ)) * math.sin(math.radians(HEAT_TILT)),
+                    math.cos(math.radians(HEAT_AZ)) * math.sin(math.radians(HEAT_TILT)),
+                    math.cos(math.radians(HEAT_TILT))))
 PORT_AXIS = Vector((0, PORT_DY, math.sqrt(BALL_R ** 2 - PORT_DY ** 2))).normalized()   # the plug's direction
 
 
@@ -141,17 +155,16 @@ def band(table, ang):
 
 
 def face_heat(d, shift, hot_spot, rng):
-    """Palette index of a casing face whose (world, unsquashed) direction from the centre is d."""
+    """Palette index of a casing face whose (world, unsquashed) direction from the centre is d.
+    shift is the plate's step; hot_spot its hot-spot boost (0 for none)."""
     ang = math.degrees(math.acos(max(-1.0, min(1.0, d.dot(HEAT_AXIS)))))
-    idx = band(HEAT, ang) + shift
-    if hot_spot and idx <= 116:
-        idx += 3
+    idx = band(HEAT, ang) + shift + hot_spot
     r = rng.random()
     if r < MOTTLE / 2:
         idx -= 1
     elif r > 1 - MOTTLE / 2:
         idx += 1
-    idx = max(114, min(121, idx))
+    idx = max(114, min(124, idx))
     core = band(CORE_HEAT, math.degrees(math.acos(max(-1.0, min(1.0, d.dot(PORT_AXIS))))))
     return max(idx, core or 0)
 
@@ -180,7 +193,11 @@ def build_ball(bm, mat):
                 # The plate's seeded offset: a step cooler or hotter, or (crust) a hot spot.
                 r = rng.random()
                 shift = -1 if r < JITTER / 2 else (1 if r > 1 - JITTER / 2 else 0)
-                hot_spot = rng.random() < HOT_PLATES
+                mid = (s0 + s1) / 2, (t0 + t1) / 2
+                t = max(0.0, min(1.0, ((ROT @ cube_to_sphere(normal + mid[0] * a + mid[1] * b)).dot(HEAT_AXIS) + 0.6) / 1.2))
+                r = rng.random()
+                hot_spot = rng.choice((3, 4, 4, 5)) if r < HOT_PLATES[1] + (HOT_PLATES[0] - HOT_PLATES[1]) * t else \
+                    (-2 if r > 1 - COOL_PLATES else 0)
                 for ku in range(n - 1):
                     for kv in range(n - 1):
                         k0 = ku * n + kv
@@ -189,7 +206,7 @@ def build_ball(bm, mat):
                         f = bm.faces.new((grid[ku][kv], grid[ku + 1][kv], grid[ku + 1][kv + 1], grid[ku][kv + 1]))
                         in_seam = ku in (0, n - 2) or kv in (0, n - 2)
                         if in_seam:
-                            si = min(124, idx + 1) if idx <= CRUST else idx - 1
+                            si = max(114, idx - 1)
                             f.material_index = mat(si, GLOW[si] * SEAM_GLOW)
                         else:
                             f.material_index = mat(idx, GLOW[idx])
@@ -244,18 +261,24 @@ def pchip_profile(p0, p1, n=8, power=1.6):
 
 
 def build_horns(bm, mat):
-    spike = mat(SPIKE_INDEX, 0.0, satin=True)
-    for (dx, dy), tip in HORNS:
+    """Main horns (collar, hot root, glowing ogive shaft, cooler tip) and the short diagonal ones."""
+    shaft = mat(SPIKE_INDEX, GLOW[SPIKE_INDEX])
+    tipm = mat(SPIKE_TIP, GLOW[SPIKE_TIP])
+    for (dx, dy), tip in HORNS + DIAG_HORNS:
+        diag = abs(dx) > 1e-6 and abs(dy) > 1e-6
+        k = DIAG_SCALE if diag else 1.0
         axis = Vector((dx, dy, 0))
-        base = HORN_BASE.get((dx, dy))
-        collar = mat(base, GLOW[base]) if base else mat(COLLAR_INDEX, 0.0, satin=True)
-        prof = COLLAR + [(4.64, 0.92), (4.70, 0.80), (4.78, 0.80), (4.84, 0.88)] + \
-            pchip_profile((4.84, 0.88), (tip, 0.0), n=8)[1:]
-        # Bands drawn in the collar material: the collar, plus (hot bases) the spike root to HOT_ROOT.
-        ncol = len(COLLAR) - 1
-        if base:
-            ncol = max(ncol, sum(1 for h, _ in prof[:-1] if h < HOT_ROOT))
-        lathe(bm, CENTRE, axis, prof, 12, lambda k, c=collar, m=ncol: c if k < m else spike)
+        base = HORN_BASE.get((dx, dy), 121 if dy > 0 else 119)
+        collar = mat(base, GLOW[base])
+        col = [(h, r * k) for h, r in COLLAR]
+        prof = col + [(4.64, 0.92 * k), (4.70, 0.80 * k), (4.78, 0.80 * k), (4.84, 0.88 * k)] + \
+            pchip_profile((4.84, 0.88 * k), (tip, 0.0), n=8)[1:]
+        # Bands: the collar and the spike root to HOT_ROOT in the base colour, the shaft glowing
+        # orange, the last third of the spike a step cooler.
+        ncol = max(len(COLLAR) - 1, sum(1 for h, _ in prof[:-1] if h < HOT_ROOT))
+        ntip = len(prof) - 1 - 3
+        lathe(bm, CENTRE, axis, prof, 12,
+              lambda b, c=collar, m=ncol, t=ntip: c if b < m else (shaft if b < t else tipm))
 
 
 def surface_point(dx_px, dy_px):
@@ -273,8 +296,8 @@ def build_ports(bm, mat):
     o, n = surface_point(0.0, PORT_DY)
     # Flush, slightly proud: a white-hot dome in a 124 rim that rises from just under the casing
     # (no recessed wall, no dark gap); the casing round it grades 124 -> 123 -> 122 (CORE_HEAT).
-    prof = [(-0.25, 0.86), (-0.02, 0.86), (0.04, 0.72), (0.08, 0.56), (0.12, 0.44),
-            (0.16, 0.30), (0.19, 0.15), (0.20, 0.0)]
+    prof = [(-0.25, 0.98), (-0.02, 0.98), (0.04, 0.84), (0.08, 0.68), (0.13, 0.52),
+            (0.18, 0.36), (0.22, 0.18), (0.23, 0.0)]
     lathe(bm, o, n, prof, 20, lambda k: ring if k < 3 else core)
     # Fuse socket: sprite (5,9), 3 px below the core in the game camera (SOCKET_DY).
     o, n = surface_point(0.0, SOCKET_DY)

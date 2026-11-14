@@ -8,24 +8,30 @@ fingertip", but it is the nose's BRIDGE: it spawns rigid with the nose at dx +-1
 (cols 13-35) edge to edge; the lit ridge (palette 26-30, its cols 8-10 = assembly cols 20-22) runs on
 unbroken into the nose's lit stripe at the same columns, and its dark right flank (17) runs on into
 the nose's shaded right side. Composed whole (48 x 52 px) it is unmistakably a nose seen from the
-front: a long bridge with a rounded root between the eyes, a ball tip, two round alae (wings), two
-dark nostrils under them and the columella running down to a point.
+front: a long bridge with a rounded root between the eyes, a broad round tip, two round alae (wings),
+two dark nostrils under them and a short columella.
 
 Sprite reading (rubric "Reading a sprite"): the light comes from the upper left; the bright stripe down
 the left of the bridge and the spots on the tip and left ala are sheen on skin, the dark right half
 and the outline ring are lighting. Only the nostrils (palette 1) are real dark paint. Region medians
 (ignoring <= 17 and >= 27): bridge 21, tip 22, left ala 21, columella 19 (it faces down, shaded) ->
-skin pal 21, tip lobule pal 22, nostrils pal 1.
+skin pal 21 throughout (the tip's 22 is its sheen; a separate tip paint read as a ball, QA E4), nostrils pal 1.
 
 Seams (fix round 1): the piece cuts (r = 28 across, c = 24 down the nose) are constraint edges of the
 triangulation, so the split adds no slivers on the top surface, and every piece carries the unsplit
 mesh's smooth corner normals (carry_normals) so no shading break shows along the cuts.
 
 Build: flesh, faired, a height field over the sprite's inner mask (the face is the screen plane, the
-nose stands out of it towards the camera): smooth union of a dorsum ridge, the tip ball, the alae
-domes and the columella over a low base, rounded over the last 2 px to the silhouette, nostril pits
-cut under the alae; flat closed underside. One sealed outline shell from the whole (D51, D90/D118),
-sunk under the top surface so the ink stays on the silhouette, cut open at the piece seams.
+nose stands out of it towards the camera): smooth union of a dorsum ridge that levels off over the
+supratip, the tip (QA re-review: the sprite's biggest form, a broad round dome ~40% of the nose's
+width standing well above the alae, blended into the dorsum with no trench and no separate paint),
+rounded alae domes with a soft alar groove, a short low columella tucked under the tip and a low
+base, rounded over the last 2.8 px down to a short upright side (0.7 px) at the silhouette. The
+nostrils are broad, low kidney-shaped shadows (pal 1) recessed into the lower slope, their wide inner
+ends down by the columella at the bottom edge (not almond slits, not holes on top); flat closed
+underside. One sealed outline shell from the whole (D51, D90/D118), sunk under the top surface so the
+ink stays on the silhouette, cut open at the piece seams; the upright side keeps the voxel shell's
+silhouette even (a knife edge left it ragged).
 
 Units: c, r = assembly px edges, (0, 0) = top left of the 48 x 56 box (bridge rows 0-27, nose rows
 28-55); X = (c - 24) / 12, Y = (26 - r) / 12, Z = h / 12. Piece centres (split_assembly):
@@ -64,8 +70,8 @@ XA = 24.5  # mirror axis (centre of column 24)
 PLACE = [("newsh5-154", 12, 0), ("newsh5-191", 0, 28), ("newsh5-193", 24, 28)]
 LAYOUT = [(n, c + 12 - C0, r + 14 - R0) for n, c, r in PLACE]
 
-SKIN, TIP, HOLE = 21, 22, 1
-ROUGH = {SKIN: 0.42, TIP: 0.36, HOLE: 1.0}  # skin with a satin sheen (the sprite's highlights)
+SKIN, HOLE = 21, 1
+ROUGH = {SKIN: 0.42, HOLE: 1.0}  # skin with a satin sheen (the sprite's highlights)
 
 STEP = 0.5  # lattice spacing, px
 RINGS = (0.12, 0.35, 0.7, 1.15, 1.7, 2.3, 2.9)  # px in from the silhouette
@@ -285,25 +291,46 @@ NEG = -50.0
 FALL = 40.0  # px per unit of the normalised radius: how fast a part's field drops outside it
 # dorsum (bridge) ridge: height and half-width down the face
 # (rises into the tip ball so the ridge runs on into it as one surface)
-DH = pchip([(1.5, 3.0), (4, 5.8), (8, 8.0), (14, 9.8), (20, 11.4), (26, 13.0), (30, 14.9), (33, 15.9), (35.5, 12.0), (38.5, 0.0)])  # fades to 0 under the ball: no step where it ends
+# levels off over the supratip (r 28-32) so the tip dome stands clearly above it, then fades to 0
+# under the tip (no step where it ends)
+DH = pchip([(1.5, 3.0), (4, 5.8), (8, 8.0), (14, 9.8), (20, 11.4), (26, 12.9), (30, 13.4), (33, 12.6), (36, 8.0), (39.0, 0.0)])
 # half-width: the bridge's own (faired) footprint down to row 25 (no flat shelf beside the ridge), then
 # narrowing into the tip
 DWL = pchip([(25, 9.6), (31, 8.0), (36, 7.0), (38.5, 6.0)])
 SPAN = {}  # row (0.25 px steps) -> (centre, half-width) of the faired footprint, set by set_span()
 # columella: height and half-width
-CH = pchip([(37, 0.0), (39, 10.0), (42, 7.0), (46, 4.6), (49, 3.0), (51.6, 1.3)])
-CW = pchip([(38, 3.6), (43, 3.0), (47, 2.4), (50, 1.5), (51.8, 0.7)])
-TIP_C, TIP_R, TIP_H = (24.5, 34.2), (7.6, 7.0), 17.0
-TIP_RUP = 10.5  # px: the ball's radius up the face (a long run-in from the bridge, no step)
-TIP_K = 8.0  # px blend of the ball into the ridge
-ALA_C, ALA_R, ALA_H = (12.6, 37.4), (7.4, 8.2), 9.5
+# short and tucked under the tip: low from the tip's lower slope on, no lit peg below the nostrils
+CH = pchip([(37, 0.0), (39, 7.5), (42, 5.6), (45, 3.6), (48, 2.1), (50.5, 1.1), (51.8, 0.5)])
+CW = pchip([(37, 4.2), (42, 3.6), (46, 2.9), (49, 2.1), (51.8, 1.0)])
+COL_P = 0.5  # a rounded section, no keel
+# the tip: one swelling of the dorsum (not a ball set on it): wide, long run-in, broad blend
+# re-review: the tip is the sprite's biggest form, a broad round lobe between the alae (cols 17-30,
+# rows 29-46, ~40% of the nose's width) standing well above them: a wide dome, its crown ~4 px over
+# the levelled dorsum, blended into it (no trench)
+TIP_C, TIP_R, TIP_H = (24.5, 36.4), (8.6, 8.0), 17.6
+TIP_RUP = 10.0  # px: the tip's radius up the face (a long run-in from the bridge, no step)
+TIP_K = 6.0  # px blend of the tip into the ridge
+TIP_P = 0.6  # rounder shoulders than the other parts: a domed mass, not a ridge
+# alae: low rounded wings flowing into the tip (broad blend, no supra-alar trench)
+ALA_C, ALA_R, ALA_H = (12.6, 37.4), (7.6, 8.0), 9.6
+ALA_K, COL_K = 3.6, 3.0  # a soft alar groove between ala and tip (the sprite's shade at cols 14-17)
 BASE = 2.2
-TIP_PAINT = ((24.5, 34.6), (7.1, 6.2))  # the lobule's paint (pal 22): an ellipse, edges in the mesh
 DOME_P = 0.7  # dome profile (1 - q)^p: softer than a sphere so the parts flow into each other
-NOSTRIL = [((16.0, 42.9), 0.24), ((33.0, 42.9), -0.24)]  # centre, tilt (rad, inner end down)
-NOS_R = (4.1, 2.35)
-NOS_PAINT = 0.74  # the dark opening: this fraction of the pit's radii
-NOS_FLOOR = 3.6  # px: the tongue (newsh-caret-269, 2.6 px tall) lies under the nose; a deeper pit showed it
+# nostrils: dark crescent slits on the nose's lower, down-facing slope (under the alae, beside the
+# columella), where the sprite has its pal 1; a smile-shaped band in a frame tilted inner end down:
+# centre (c, r), tilt (rad), half-length L, end lift B, half-thickness T (px)
+# re-review: broad, low, irregular shadows under the tip and inner ala, down at the bottom edge (the
+# sprite's right nostril: rows 40-47, cols 27-36, its inner end running down beside the columella),
+# not almonds: a kidney, wide and low at the inner end, rising thinner under the ala. Right one in
+# (c, r); the left is its mirror.
+NOS_POLY = [(26.4, 47.6), (25.9, 46.4), (26.5, 45.0), (28.0, 43.8), (29.6, 43.6), (30.8, 43.9),
+            (32.2, 42.9), (34.0, 42.3), (35.4, 42.8), (35.4, 44.0), (34.2, 45.3), (32.6, 46.3),
+            (30.6, 46.9), (28.4, 47.7)]
+NOS_DEPTH = 1.8  # px recess inside the shadow
+NOS_FLOOR = 2.8  # px: the tongue (newsh-caret-269, 2.6 px tall) lies under the nose; never cut below it
+
+
+WALL = 0.7  # px: a short upright side at the silhouette (the voxel shell of a knife edge came out ragged)
 
 
 def dome(c, r, cen, rad, h, p=DOME_P):
@@ -375,66 +402,64 @@ def bridge(c, r):
 def tip_ball(c, r):
     # the radius eases from the lower 7 px to TIP_RUP above the apex (no curvature step = no sheen line)
     ry = TIP_R[1] + (TIP_RUP - TIP_R[1]) * smoothstep(TIP_C[1] + 2.0, TIP_C[1] - 5.0, r)
-    return dome(c, r, TIP_C, (TIP_R[0], ry), TIP_H)
+    return dome(c, r, TIP_C, (TIP_R[0], ry), TIP_H, p=TIP_P)
 
 
 def parts(c, r):
     tip = tip_ball(c, r)
     ala = max(dome(c, r, ALA_C, ALA_R, ALA_H), dome(c, r, (2 * XA - ALA_C[0], ALA_C[1]), ALA_R, ALA_H))
     dor = bridge(c, r)
-    col = ridge(c, r, 37.0, 52.0, CH, CW)
+    col = ridge(c, r, 37.0, 52.0, CH, CW, p=COL_P)
     return tip, ala, dor, col
 
 
-def nostril_q(c, r):
-    best = 9.0
-    for (cx, cy), a in NOSTRIL:
-        dx, dy = c - cx, r - cy
-        u = dx * math.cos(a) + dy * math.sin(a)
-        v = -dx * math.sin(a) + dy * math.cos(a)
-        best = min(best, (u / NOS_R[0]) ** 2 + (v / NOS_R[1]) ** 2)
+def _nos_polys():
+    right = [(x, y) for x, y in gauss_smooth(resample(NOS_POLY, 0.2), 0.45)]
+    left = [(2 * XA - x, y) for x, y in reversed(right)]
+    return [left, right]
+
+
+NOS_POLYS = None
+
+
+def nostril_sd(c, r):
+    """Signed distance into the nearest nostril shadow (px, > 0 inside)."""
+    global NOS_POLYS
+    if NOS_POLYS is None:
+        NOS_POLYS = _nos_polys()
+    best = -9.0
+    for poly in NOS_POLYS:
+        if abs(c - poly[0][0]) > 12:
+            continue
+        d = seg_dist(poly, c, r)
+        best = max(best, d if inside(poly, c, r) else -d)
     return best
 
 
 def height(c, r, d):
     tip, ala, dor, col = parts(c, r)
     z = BASE
-    for v, k in ((dor, SMAX_K), (ala, SMAX_K), (col, SMAX_K), (tip, TIP_K)):
+    for v, k in ((dor, SMAX_K), (ala, ALA_K), (col, COL_K), (tip, TIP_K)):
         z = smax(z, v, k)
-    q = nostril_q(c, r)
-    if q < 1.0:
-        s = math.sqrt(q)
-        t = max(0.0, min(1.0, (s - 0.45) / 0.55))
-        t = t * t * (3 - 2 * t)
-        z = NOS_FLOOR + (z - NOS_FLOOR) * t
+    sd = nostril_sd(c, r)
+    if sd > -0.4:
+        w = smoothstep(-0.4, 1.2, sd)
+        z -= w * min(NOS_DEPTH, max(0.0, z - NOS_FLOOR))
     e = min(d / RIM, 1.0)
-    return z * math.sqrt(max(0.0, 1 - (1 - e) ** 2))
+    return WALL + (z - WALL) * math.sqrt(max(0.0, 1 - (1 - e) ** 2))
 
 
 def paint_of(c, r, z):
-    if nostril_q(c, r) < NOS_PAINT ** 2:
+    if nostril_sd(c, r) > 0:
         return HOLE
-    (tc, tr), (ta, tb) = TIP_PAINT
-    if ((c - tc) / ta) ** 2 + ((r - tr) / tb) ** 2 < 1:
-        return TIP
     return SKIN
 
 
 def paint_loops():
     """Closed (c, r) polylines the paint changes along: the mesh gets edges there (clean borders)."""
-    loops = []
-    (tc, tr), (ta, tb) = TIP_PAINT
-    n = 72
-    loops.append([(tc + ta * math.cos(2 * math.pi * k / n), tr + tb * math.sin(2 * math.pi * k / n)) for k in range(n)])
-    for (cx, cy), a in NOSTRIL:
-        u0, v0 = NOS_R[0] * NOS_PAINT, NOS_R[1] * NOS_PAINT
-        pts = []
-        for k in range(48):
-            t = 2 * math.pi * k / 48
-            u, v = u0 * math.cos(t), v0 * math.sin(t)
-            pts.append((cx + u * math.cos(a) - v * math.sin(a), cy + u * math.sin(a) + v * math.cos(a)))
-        loops.append(pts)
-    return loops
+    if NOS_POLYS is None:
+        nostril_sd(0, 0)
+    return [resample(p, 0.38) for p in NOS_POLYS]
 
 
 # ------------------------------------------------------------------------------------------------
@@ -555,7 +580,7 @@ def build(coll, poly, sprite):
         d = seg_dist(outline, c, rr)
         dist.append(d)
         vs.append(bm.verts.new((X(c), Y(rr), height(c, rr, d) * PX)))
-    mats_order = [SKIN, TIP, HOLE]
+    mats_order = [SKIN, HOLE]
     for f in faces:
         if len(f) < 3:
             continue
@@ -572,7 +597,17 @@ def build(coll, poly, sprite):
         face.smooth = True
     # underside: the outline filled flat at z = 0 (shares the rim verts)
     bm.verts.ensure_lookup_table()
-    rim = [vs[i] for i in range(nb)]
+    # the upright side: the rim (at z = WALL) dropped to z = 0, the underside closes that ring
+    top_rim = [vs[i] for i in range(nb)]
+    rim = [bm.verts.new((v.co.x, v.co.y, 0.0)) for v in top_rim]
+    for i in range(nb):
+        j = (i + 1) % nb
+        try:
+            f = bm.faces.new([top_rim[i], top_rim[j], rim[j], rim[i]])
+            f.material_index = 0
+            f.smooth = True
+        except ValueError:
+            pass
     res2 = geometry.delaunay_2d_cdt([Vector(p) for p in outline], edges, [list(range(nb))], 1, 1e-6)
     for f in res2[2]:
         cc = sum(res2[0][i].x for i in f) / len(f)
@@ -876,7 +911,7 @@ def review(pieces, shells, out, total):
     keep = {}
     for mt in mats:
         keep[mt.name] = tuple(mt.diffuse_color)
-        fc = {SKIN: (0.8, 0.35, 0.05), TIP: (0.95, 0.85, 0.1), HOLE: (0.05, 0.2, 0.9)}
+        fc = {SKIN: (0.8, 0.35, 0.05), HOLE: (0.05, 0.2, 0.9)}
         mt.diffuse_color = (*fc[int(mt.name.split("_")[1])], 1)
     render(cam((0, YC, 20), None, ortho=H / 12, top=True), out / "top_index.png", W * k, H * k)
     for mt in mats:
