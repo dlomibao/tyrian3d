@@ -10788,3 +10788,33 @@ Evidence: `tyrian-scratch/e4-qa-models/integrate/summary.png`.
 
 **Cost:** fix-round workflow, 26 agents, about 3.0M subagent tokens, about 1.8 h. Integration: one Opus agent, about 32
 headless captures (including the trace and check of the fortress's D181 cascade) and one rebuild of the fortress.
+
+## D202 — Episode-4 QA rework: the EYESPY/LAVA RUN eye sphere gets the sprite's azure iris, dark cross and pupil, and the lower shell's yin-yang swirl; the SURFACE/DESERTRUN rock arch stays held (follows D195, D201)
+
+2026-11-13
+
+**Problem:** D201 held two models that failed the E4 QA fix round twice.
+- The eye sphere `assembly-newsh9-191`/`-210` scored 5: a flat dark-teal lens with radial vanes and a ring pupil, where the sprite has a bright azure iris split by a crisp dark cross with a black pupil. Its lower shell was a pale pill where the sprite has a grey yin-yang swirl.
+- The rock arch `assembly-newsh3-198` scored 4.5: a posterised crown mottle, a hard seam where the crown meets the HD terrain legs, and the full-cell undersides behind D199's shadow band.
+
+**Decision:** one full-mode `model-flagship.js` run on both: hero blueprint, competing designs, judge, finisher, strict review, pass mark 7.
+- **The eye ships at 7** (whole-assembly grid IoU 0.9754).
+  - The winning design is the new `assets/blender/enemies/lib_eyesphere.py`. It has a smooth convex lens in pal 155-159 with lighter streak patches, and flush dark cross rods with a black pupil at the crossing.
+  - The lower shell has a light lobe, a dark curved seam and a teal crescent, as in the sprite. The armoured ball the reviewers accepted is kept.
+  - `assembly-newsh9-191.py` exports the six top pieces and `assembly-newsh9-210.py` exports 210/212/214, both through `lib_eyesphere`.
+  - `lib_b019.py` still builds the TIME WAR shield ship's lower half (`assembly-newsh9-92`). It gets a three-line guard that skips the eye pieces in its export loop, so an old call can't overwrite the eye. All 8 shield-ship glbs and JSONs match their shasums from before the edit.
+  - The spriteModels JSONs, `tyrian_anchor`/`tyrian_outline` extras and `_outline` meshes are unchanged.
+  - In game (EYESPY t7800, LAVA RUN t2940) the iris reads azure with the cross and pupil, and the swirl reads. Evidence: `tyrian-scratch/e4-arch-eye/assembly-newsh9-191/final/game/`.
+- **The arch is held again at 5.5.**
+  - The new build removed the mottle, the specks and the shadow band; the undersides now follow the outline. The cracks are long and follow the sprite.
+  - But the crown reads as smooth pale plastic panels with no slab volume, and the crown/leg seam is still a visible band.
+  - Compared in game with main's version, it is not clearly better as a whole, so main keeps the D195 build. The patch is in `tyrian-scratch/e4-arch-eye/held/arch-r3.patch`; the earlier attempt is in `tyrian-scratch/e4-qa-models/held/`.
+
+**Open:**
+- **The arch.** Three model attempts have failed. The next try probably needs a different approach to the crown's surface: lit slab volumes that carry the HD legs' painted value and fissures up across the join. The posterised blocks on its right leg are `newsh3-262`/`-282` (D196), which need the same treatment.
+- **Eye polish:** soften the iris patch edges into streaks, make the cross rods darker and flush, enlarge the pupil, and brighten the light lobe.
+- **Dead code:** `lib_b019`'s eye code is now unused.
+
+**Cost:** 16 agents, about 2.8M subagent tokens, 2.6 h (both items).
+
+**Review:** check the eye at EYESPY t7800 against the original. Fallback: revert to the D195 eye (`git revert`).

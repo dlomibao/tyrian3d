@@ -1026,6 +1026,9 @@ def main(only=None):
     info["pieces"] = {n: {"tris": tris(g[0]), "outline_tris": tris(g[1])} for n, g in groups.items()}
     bpy.context.view_layer.update()
     mine = list(only) if only else list(groups)
+    # The eye sphere's exports now come from lib_eyesphere.py (assembly-newsh9-191/-210 wrappers):
+    # this builder never writes them, so an old call cannot overwrite the reworked eye.
+    mine = [n for n in mine if n not in TOP + LOW]
     for name in mine:
         group = groups[name]
         saved = [tuple(o.location) for o in group]
