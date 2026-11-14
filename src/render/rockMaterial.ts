@@ -69,6 +69,11 @@ export function isRockMaterial(m: THREE.Material): boolean {
   return info.has(m);
 }
 
+/** A rock material's palette-data texture (R: the shade / 15), for its own shade under the blends (underShade.ts, D204). */
+export function rockShadeMap(m: THREE.Material): THREE.Texture | undefined {
+  return info.get(m)?.map;
+}
+
 /** The sides of a tile, in the order of the `rockBands` instance attribute. */
 export const ROCK_SIDES = ["left", "right", "up", "down"] as const;
 

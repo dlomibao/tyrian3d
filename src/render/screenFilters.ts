@@ -754,11 +754,17 @@ void main() {
 }`,
 };
 
-/** The mask material for a material with a `maskCut` (sharing its uniforms, so atlas swaps follow). */
-export function cutMaskMaterial(cut: MaskCut): THREE.ShaderMaterial {
+/** What the mask materials write for a covered texel (`vHeight`: the instance's pass height). */
+const CUT_MASK_OUTPUT = "gl_FragColor = vec4(vHeight, 0.0, 0.0, 1.0);";
+
+/**
+ * The mask material for a material with a `maskCut` (sharing its uniforms, so atlas swaps follow).
+ * `output`: GLSL to run for a covered texel instead of writing its height (underShade.ts' marks).
+ */
+export function cutMaskMaterial(cut: MaskCut, output?: string): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     vertexShader: CUT_MASK_VERTEX[cut.kind],
-    fragmentShader: CUT_MASK_FRAGMENT[cut.kind],
+    fragmentShader: output === undefined ? CUT_MASK_FRAGMENT[cut.kind] : CUT_MASK_FRAGMENT[cut.kind].replace(CUT_MASK_OUTPUT, output),
     uniforms: { ...cut.uniforms },
     side: THREE.DoubleSide,
   });

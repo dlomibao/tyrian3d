@@ -21,6 +21,7 @@ import { SCREEN_HUE_PARS } from "../screenHue";
 import type { RemasterGroundAtlas } from "./groundAtlas";
 import { HUE_BLEND_PARS, type UnderGrab } from "../hueBlend";
 import type { MaskCut } from "../screenFilters";
+import type { ShadeOut } from "../underShade";
 
 export interface RemasterGroundOptions {
   /** How strongly brightness changes tilt the normal (0 = flat). */
@@ -59,6 +60,8 @@ export function remasterGroundMaterial(
   material.userData.remasterUniforms = uniforms;
   // A blend sheet's index-0 texels are see-through: the screen filters' mask cuts them out (D199).
   if (blended) material.userData.maskCut = { kind: "remasterIndex", uniforms: { atlasMap: uniforms.atlasMap, tileUv: uniforms.tileUv, sharpness: uniforms.sharpness } } satisfies MaskCut;
+  // The ground's own shade under the blended layers: its texels' low nibbles (underShade.ts, D204).
+  else material.userData.shadeOut = { kind: "remasterIndex", uniforms: { atlasMap: uniforms.atlasMap, tileUv: uniforms.tileUv, sharpness: uniforms.sharpness } } satisfies ShadeOut;
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
     // [filters] The smoothies' hue (D31) applies to the remastered ground too: it's background 1,

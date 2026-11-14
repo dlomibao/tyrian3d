@@ -13,9 +13,15 @@
 // three.js's translucent list (like the outline pass, outlineHook.ts), and the blended materials
 // read it under each fragment. A colour's shade within a bank is found by its brightness along the
 // live palette's ramp for that bank (fractional, so painted art stays smooth; precomputed per palette
-// as a 256 x 16 lookup, ShadeLut); the shade of what's underneath is found the same way in the bank
-// of its nearest palette colour (PaletteTexture's indexLut). The output is the ramp's colour at the averaged shade, unlit, through the smoothies'
-// hue (screenHue.ts) like any palette index.
+// as a 256 x 16 lookup, ShadeLut).
+//
+// The shade of what's underneath is the terrain's own where it can be (underShade.ts, D204): before
+// the frame, the ground layers draw their palette shade (the tile's low nibble; for HD paintings their
+// unlit brightness along the original tile's banks) into a target of their own, with the models'
+// palette shades over them. That is the C's `*pixels & 0x0f`. Elsewhere (a material with no palette
+// index, the sheets' own output under an explosion) it is guessed from the lit frame copy: the shade in the bank of its
+// nearest palette colour (PaletteTexture's indexLut). The output is the ramp's colour at the averaged
+// shade, unlit, through the smoothies' hue (screenHue.ts) like any palette index.
 
 import * as THREE from "three";
 import { PALETTE_LUT_SIZE } from "./paletteTexture";
@@ -65,9 +71,9 @@ export class ShadeLut {
     this.texture.needsUpdate = true;
   }
 
-  /** Rebuild from the live palette (256 RGBA bytes) if `version` changed. */
-  update(palette: ArrayLike<number>, version: number): void {
-    if (version === this.version) return;
+  /** Rebuild from a palette (256 RGBA bytes) if `version` changed; returns whether it did. */
+  update(palette: ArrayLike<number>, version: number): boolean {
+    if (version === this.version) return false;
     this.version = version;
     const lums = paletteLums(palette);
     for (let b = 0; b < 16; b++) {
@@ -76,18 +82,15 @@ export class ShadeLut {
       }
     }
     this.texture.needsUpdate = true;
+    return true;
   }
 }
 
 /**
- * GLSL for the blended materials. Needs `paletteMap` (the live palette) and SCREEN_HUE_PARS
- * declared before it; declares the grab's and the nearest-index lookup's uniforms (UnderGrab.uniforms).
+ * GLSL for reading shades off the live palette's ramps: needs `paletteMap` (the live palette); declares
+ * the shade lookup's uniform (UnderGrab.uniforms.blendShadeLut).
  */
-export const HUE_BLEND_PARS = /* glsl */ `
-uniform sampler2D blendUnder;      // the frame so far (UnderGrab)
-uniform vec2 blendUnderSize;       // its size in pixels
-uniform float blendUnderLinear;    // 1: it holds linear colour (a render target); 0: sRGB (the canvas)
-uniform sampler2D blendUnderLut;   // PaletteTexture.indexLut: sRGB cube cell -> nearest raw index
+export const HB_SHADE_PARS = /* glsl */ `
 uniform sampler2D blendShadeLut;   // ShadeLut: (brightness, bank) -> shade / 15
 vec3 hbPalette(float index) {
   return texture2D(paletteMap, vec2((index + 0.5) / 256.0, 0.5)).rgb;
@@ -101,8 +104,36 @@ float hbShade(float bank, float lum) {
   vec2 uv = vec2((clamp(lum, 0.0, 1.0) * ${SHADE_BINS - 1}.0 + 0.5) / ${SHADE_BINS}.0, (floor(bank / 16.0 + 0.5) + 0.5) / 16.0);
   return texture2D(blendShadeLut, uv).r * 15.0;
 }
-// The shade of the frame under this fragment, in the bank of its nearest palette colour.
+// The live palette's colour (linear) at a fractional shade of a bank's ramp.
+vec3 hbRamp(float bank, float shade) {
+  float v = clamp(shade, 0.0, 15.0);
+  float lo = min(floor(v), 14.0);
+  return mix(hbPalette(bank + lo), hbPalette(bank + lo + 1.0), v - lo);
+}
+`;
+
+/**
+ * GLSL for the blended materials. Needs `paletteMap` (the live palette) and SCREEN_HUE_PARS
+ * declared before it; declares the grab's, the terrain shades' and the nearest-index lookup's
+ * uniforms (UnderGrab.uniforms).
+ */
+export const HUE_BLEND_PARS = /* glsl */ `
+uniform sampler2D blendUnder;      // the frame so far (UnderGrab)
+uniform vec2 blendUnderSize;       // its size in pixels
+uniform float blendUnderLinear;    // 1: it holds linear colour (a render target); 0: sRGB (the canvas)
+uniform sampler2D blendUnderLut;   // PaletteTexture.indexLut: sRGB cube cell -> nearest raw index
+uniform sampler2D blendShade;      // UnderShadePass: r = the terrain's own shade / 15, g = 1 where known, b = under a sheet
+uniform float blendShadeOn;        // 1: blendShade holds this frame's terrain shades
+uniform float blendShadeSheets;    // 1: this copy was made before the sheets (their marks don't count)
+${HB_SHADE_PARS}
+// The shade of the frame under this fragment. The terrain's own palette shade where nothing else
+// covers it (the C's *pixels & 0x0f, D204); otherwise guessed from the lit frame copy, in the bank of
+// its nearest palette colour.
 float hbUnderShade() {
+  if (blendShadeOn > 0.5) {
+    vec4 own = texelFetch(blendShade, ivec2(gl_FragCoord.xy), 0);
+    if (own.g > 0.5 && (own.b < 0.5 || blendShadeSheets > 0.5)) return own.r * 15.0;
+  }
   vec3 c = texture2D(blendUnder, gl_FragCoord.xy / blendUnderSize).rgb;
   vec3 s = clamp(c, 0.0, 1.0);
   vec3 lin = s;
@@ -175,6 +206,20 @@ export class NdcRect {
 const GRAB_MARGIN = 8;
 
 /**
+ * The pixel box [x0, y0, x1, y1) of a w x h target that `area` covers, GRAB_MARGIN pixels bigger
+ * each side; all of it if `area` is omitted or empty.
+ */
+export function areaPixels(area: NdcRect | undefined, w: number, h: number): [number, number, number, number] {
+  if (!area || area.empty) return [0, 0, w, h];
+  return [
+    Math.max(0, Math.floor(((area.x0 + 1) / 2) * w) - GRAB_MARGIN),
+    Math.max(0, Math.floor(((area.y0 + 1) / 2) * h) - GRAB_MARGIN),
+    Math.min(w, Math.ceil(((area.x1 + 1) / 2) * w) + GRAB_MARGIN),
+    Math.min(h, Math.ceil(((area.y1 + 1) / 2) * h) + GRAB_MARGIN),
+  ];
+}
+
+/**
  * A copy of the frame drawn so far, shared by every hue-blended material through `uniforms`.
  * capture() copies the current target (the canvas, or the screen filters' multisampled render
  * target) with blitFramebuffer into a single-sample target of the same texel type, only the area
@@ -189,6 +234,9 @@ export class UnderGrab {
     blendUnderLinear: { value: number };
     blendUnderLut: { value: THREE.Texture };
     blendShadeLut: { value: THREE.Texture };
+    blendShade: { value: THREE.Texture };
+    blendShadeOn: { value: number };
+    blendShadeSheets: { value: number };
   };
   /** The shade lookup the materials read; update it from the palette each frame (DrawListRenderer). */
   readonly shades = new ShadeLut();
@@ -206,14 +254,22 @@ export class UnderGrab {
       blendUnderLinear: { value: 0 },
       blendUnderLut: { value: lut },
       blendShadeLut: { value: this.shades.texture },
+      blendShade: { value: blank },
+      blendShadeOn: { value: 0 },
+      blendShadeSheets: { value: 1 },
     };
   }
 
-  /** Copy `area` (all of it if omitted) of the current target. */
-  capture(renderer: THREE.WebGLRenderer, area?: NdcRect): void {
+  /**
+   * Copy `area` (all of it if omitted) of the current target. `beforeSheets`: the copy the background-2
+   * sheets read, made before any of them is drawn; a later copy has them in it, so the terrain shades
+   * they cover don't count there (underShade.ts).
+   */
+  capture(renderer: THREE.WebGLRenderer, area?: NdcRect, beforeSheets = true): void {
     const target = renderer.getRenderTarget();
     if (target) this.captureTarget(renderer, target, area);
     else this.captureCanvas(renderer, area);
+    this.uniforms.blendShadeSheets.value = beforeSheets ? 1 : 0;
     this.captures++;
   }
 
@@ -260,14 +316,8 @@ export class UnderGrab {
     const gl = renderer.getContext() as WebGL2RenderingContext;
     const dst = (renderer.properties.get(copy) as { __webglFramebuffer?: WebGLFramebuffer }).__webglFramebuffer;
     if (!dst) return;
-    let x0 = 0, y0 = 0, x1 = w, y1 = h;
-    if (area && !area.empty) {
-      x0 = Math.max(0, Math.floor(((area.x0 + 1) / 2) * w) - GRAB_MARGIN);
-      y0 = Math.max(0, Math.floor(((area.y0 + 1) / 2) * h) - GRAB_MARGIN);
-      x1 = Math.min(w, Math.ceil(((area.x1 + 1) / 2) * w) + GRAB_MARGIN);
-      y1 = Math.min(h, Math.ceil(((area.y1 + 1) / 2) * h) + GRAB_MARGIN);
-      if (x1 <= x0 || y1 <= y0) return;
-    }
+    const [x0, y0, x1, y1] = areaPixels(area, w, h);
+    if (x1 <= x0 || y1 <= y0) return;
     const state = renderer.state;
     state.bindFramebuffer(gl.READ_FRAMEBUFFER, from);
     state.bindFramebuffer(gl.DRAW_FRAMEBUFFER, dst);
@@ -293,7 +343,7 @@ export class UnderGrabHook extends THREE.Mesh<THREE.BufferGeometry, THREE.MeshBa
   /** Where this frame's readers are on screen; DrawListRenderer grows it while it lays the frame out. */
   readonly area = new NdcRect();
 
-  constructor(private readonly grab: UnderGrab, order: number, mainRenderOnly = false) {
+  constructor(private readonly grab: UnderGrab, order: number, mainRenderOnly = false, private readonly beforeSheets = false) {
     super(
       new THREE.BufferGeometry(),
       new THREE.MeshBasicMaterial({
@@ -319,7 +369,7 @@ export class UnderGrabHook extends THREE.Mesh<THREE.BufferGeometry, THREE.MeshBa
     this.onBeforeRender = (renderer) => {
       if (!this.armed) return;
       this.armed = false;
-      this.grab.capture(renderer, this.area);
+      this.grab.capture(renderer, this.area, this.beforeSheets);
     };
   }
 
@@ -343,4 +393,29 @@ export function dominantBank(pixels: ArrayLike<number>, skipZero: boolean, bySha
   let best = 0;
   for (let b = 1; b < 16; b++) if (counts[b] > counts[best]) best = b;
   return best * 16;
+}
+
+/** The share of a tile's pixels a second bank needs to count in topBanks. */
+export const SECOND_BANK_SHARE = 0.05;
+
+/**
+ * A tile's two main palette banks (hue << 4), by pixel count (index > 0 with `skipZero`): the
+ * dominant one (as dominantBank), then the next if at least SECOND_BANK_SHARE of the counted pixels
+ * are in it, else the dominant one again. An HD painting's shade is read along them (underShade.ts).
+ */
+export function topBanks(pixels: ArrayLike<number>, skipZero: boolean): [number, number] {
+  const counts = new Array<number>(16).fill(0);
+  let total = 0;
+  for (let i = 0; i < pixels.length; i++) {
+    const p = pixels[i];
+    if (p < 0 || (skipZero && p === 0)) continue;
+    counts[(p >> 4) & 15]++;
+    total++;
+  }
+  let best = 0;
+  for (let b = 1; b < 16; b++) if (counts[b] > counts[best]) best = b;
+  let second = best === 0 ? 1 : 0;
+  for (let b = 0; b < 16; b++) if (b !== best && counts[b] > counts[second]) second = b;
+  if (counts[second] === 0 || counts[second] < SECOND_BANK_SHARE * total) second = best;
+  return [best * 16, second * 16];
 }

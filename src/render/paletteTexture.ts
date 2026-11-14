@@ -86,6 +86,11 @@ export class PaletteTexture {
   /** Goes up whenever the colours change, so things that copy colours out know to refresh. */
   version = 0;
   private readonly rgba = new Uint8Array(256 * 4);
+  /**
+   * The raw palette (sRGB RGBA bytes), before JE_filterScreen: the colours the indices were drawn
+   * with, which the HD paintings' shades are read against (underShade.ts, D204).
+   */
+  readonly raw = new Uint8Array(256 * 4);
   private palette: Palette | null = null;
   private filter = -99;
   private brightness = 0;
@@ -96,6 +101,7 @@ export class PaletteTexture {
     for (let i = 0; i < 256; i++) {
       const v = Math.round(((i & 15) / 15) * 255);
       this.rgba.set([v, v, v, 255], i * 4);
+      this.raw.set([v, v, v, 255], i * 4);
     }
     this.texture = new THREE.DataTexture(this.rgba, 256, 1, THREE.RGBAFormat, THREE.UnsignedByteType);
     this.texture.colorSpace = THREE.SRGBColorSpace;
@@ -117,6 +123,10 @@ export class PaletteTexture {
       this.rgba[i * 4 + 1] = vga6To8(palette[j + 1]);
       this.rgba[i * 4 + 2] = vga6To8(palette[j + 2]);
       this.rgba[i * 4 + 3] = 255;
+      this.raw[i * 4] = vga6To8(palette[i * 3]);
+      this.raw[i * 4 + 1] = vga6To8(palette[i * 3 + 1]);
+      this.raw[i * 4 + 2] = vga6To8(palette[i * 3 + 2]);
+      this.raw[i * 4 + 3] = 255;
     }
     this.texture.needsUpdate = true;
     this.version++;

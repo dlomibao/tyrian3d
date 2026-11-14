@@ -61,7 +61,8 @@ import { TileAtlas } from "./tileAtlas";
 import { RemasteredFx, SpriteLook } from "./vfx/remasteredFx";
 import { VFX_LAYER, vfxModeFromSearch, type VfxMode } from "./vfx/vfxMode";
 import { EXPLOSION_SHEET_ID, flatExplosionFade } from "./vfx/explosionFrames";
-import { dominantBank, UNDER_GRAB_ORDER, UnderGrab, UnderGrabHook } from "./hueBlend";
+import { dominantBank, NdcRect, topBanks, UNDER_GRAB_ORDER, UnderGrab, UnderGrabHook } from "./hueBlend";
+import { UnderShadePass } from "./underShade";
 import { decodeSprite2 } from "../data/sprites";
 import { RemasterGroundAtlas } from "./remaster/groundAtlas";
 import { remasterGroundMaterial } from "./remaster/groundMaterial";
@@ -160,13 +161,13 @@ class Pool {
     capacity = 16,
     /** The shadow pass's material (HD terrain cutouts: only their opaque part casts). */
     private readonly depthMaterial?: THREE.Material,
-    /** Also a per-instance palette bank (`instBank`: HD blend sheets, D174). */
+    /** Also per-instance palette banks (`instBank`, the original tile's two main ones: HD terrain, D174, D204). */
     private readonly withBank = false,
   ) {
     this.allocate(capacity);
   }
 
-  /** Per-instance palette bank (hue << 4), if made `withBank`. */
+  /** Per-instance palette banks (hue << 4; the main one, then the second: topBanks), if made `withBank`. */
   bank: THREE.InstancedBufferAttribute | null = null;
   /**
    * A blend sheet's depth-only twin (D199): background2over 2's sheets (NOSE DRIP's clouds) are
@@ -187,7 +188,7 @@ class Pool {
     g.setAttribute(this.extraName, extra);
     let bank: THREE.InstancedBufferAttribute | null = null;
     if (this.withBank) {
-      bank = new THREE.InstancedBufferAttribute(new Float32Array(capacity), 1);
+      bank = new THREE.InstancedBufferAttribute(new Float32Array(capacity * 2), 2);
       bank.setUsage(THREE.DynamicDrawUsage);
       g.setAttribute("instBank", bank);
     }
@@ -262,7 +263,7 @@ class Pool {
     this.extra.needsUpdate = true;
     if (this.bank) {
       this.bank.clearUpdateRanges();
-      this.bank.addUpdateRange(0, n);
+      this.bank.addUpdateRange(0, n * 2);
       this.bank.needsUpdate = true;
     }
     this.count = 0;
@@ -475,6 +476,9 @@ export class DrawListRenderer {
   private readonly spaceGeometry = groundQuad();
   /** The frame under the C's blended layers, and the hooks that copy it (hueBlend.ts, D174). */
   private readonly under: UnderGrab;
+  /** The terrain's own shades under the blended layers (underShade.ts, D204); null with `?undershade=0`. */
+  private readonly underShade: UnderShadePass | null;
+  private readonly underShadeArea = new NdcRect();
   private readonly grabSheets: UnderGrabHook;
   private readonly grabExplosions: UnderGrabHook;
   private readonly grabTop: UnderGrabHook;
@@ -483,7 +487,7 @@ export class DrawListRenderer {
   private readonly grabPoint = new THREE.Vector3();
   /** The main palette bank of a sprite (by sheet, then index) and of a tile (by id), for the C's blend. */
   private readonly spriteBanks = new WeakMap<object, Map<number, number>>();
-  private readonly tileBanks = new Map<string, number>();
+  private readonly tileBanks = new Map<string, [number, number]>();
   /** This frame's blended background-2 sheet tiles, raised over the models they overlap after the loop (D129). */
   private readonly blendSheets: { pool: Pool; slot: number; x: number; y: number; pass: Pass }[] = [];
   /** Where the camera's view meets the ground: models' shadows fall as they would there (D133). */
@@ -552,7 +556,8 @@ export class DrawListRenderer {
     this.root.add(this.scorch.mesh);
     const p = this.palette;
     this.under = new UnderGrab(p.indexLut);
-    this.grabSheets = new UnderGrabHook(this.under, UNDER_GRAB_ORDER.sheets);
+    this.grabSheets = new UnderGrabHook(this.under, UNDER_GRAB_ORDER.sheets, false, true);
+    this.underShade = underShadeFromSearch() ? new UnderShadePass(p) : null;
     this.grabExplosions = new UnderGrabHook(this.under, UNDER_GRAB_ORDER.explosions, true);
     this.grabTop = new UnderGrabHook(this.under, UNDER_GRAB_ORDER.top, true);
     this.root.add(this.grabSheets, this.grabExplosions, this.grabTop);
@@ -833,6 +838,24 @@ export class DrawListRenderer {
    */
   setLevelDamage(damage: readonly LevelDamage[] | undefined): void {
     if (this.damage !== null && damage) this.router.setDamage(damage);
+  }
+
+  /**
+   * Draw the terrain's own shades where this frame's blended layers are (underShade.ts, D204), for the
+   * scene as `camera` sees it, at the size of the renderer's current target. Call it after `update`,
+   * just before the scene is rendered into that target.
+   */
+  renderUnderShade(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera): void {
+    const u = this.under.uniforms;
+    const area = this.underShadeArea;
+    area.clear();
+    area.union(this.grabSheets.area);
+    area.union(this.grabExplosions.area);
+    area.union(this.grabTop.area);
+    const drawn = this.underShade !== null && this.underShade.render(renderer, scene, camera, area);
+    u.blendShadeOn.value = drawn ? 1 : 0;
+    u.blendShadeSheets.value = 1;
+    if (drawn) u.blendShade.value = this.underShade!.target.texture;
   }
 
   /** Build this frame's instances. alpha interpolates from the previous tick (0) to the current (1). */
@@ -1396,6 +1419,10 @@ export class DrawListRenderer {
     if (!t) return false;
     const kind: TerrainKind = d.layer === 0 ? "ground" : blend ? "blend" : "cutout";
     const pool = this.hdPool(t.texture, kind, tileset!.scale, frame, kind !== "ground" || !this.isSpaceTile(d));
+    // The C's blend keeps the tile's palette bank (D174), and the shade under a blend is the
+    // ground's own along its banks (D204): the painting's colours have none, so the original tile's.
+    let banks = this.tileBanks.get(d.tileId);
+    if (banks === undefined) this.tileBanks.set(d.tileId, (banks = topBanks(d.tile, true)));
     if (blend) pool.mesh.renderOrder = blendSheetOrder(d.pass);
     else if (kind === "cutout") pool.mesh.renderOrder = CUTOUT_ORDER;
     const s = pool.next(frame);
@@ -1405,12 +1432,10 @@ export class DrawListRenderer {
     e[s * 4 + 2] = t.tint ? t.tint.x : -1; // D138: no colour offset
     e[s * 4 + 3] = t.tint ? t.tint.y : -1;
     writeMatrix(pool.mesh.instanceMatrix.array as Float32Array, s, x, y, passHeight(d.pass), 1, 1, cam);
+    const b = pool.bank!.array as Float32Array;
+    b[s * 2] = banks[0];
+    b[s * 2 + 1] = banks[1];
     if (blend) {
-      // The C's blend keeps the tile's palette bank (D174): the painting's colours have none, so the
-      // original tile's main one.
-      let bank = this.tileBanks.get(d.tileId);
-      if (bank === undefined) this.tileBanks.set(d.tileId, (bank = dominantBank(d.tile, true)));
-      (pool.bank!.array as Float32Array)[s] = bank;
       this.blendSheets.push({ pool, slot: s, x, y, pass: d.pass });
     }
     this.hdTiles++;
@@ -1563,7 +1588,7 @@ export class DrawListRenderer {
     const pools = receive ? this.hdPools : this.hdSpacePools;
     let pool = pools.get(m.material);
     if (!pool) {
-      pool = new Pool(this.groundGeometry, m.material, "instTile4", this.root, { cast: kind === "cutout", receive }, 16, m.depth, kind === "blend");
+      pool = new Pool(this.groundGeometry, m.material, "instTile4", this.root, { cast: kind === "cutout", receive }, 16, m.depth, true);
       pool.lastUsed = frame;
       pools.set(m.material, pool);
       this.allPools.push(pool);
@@ -2033,4 +2058,9 @@ export function playerOfKey(key: number): number {
   if (k < 0 || k >= 200) return -1;
   const part = k % 100;
   return part === 0 || part === 1 ? Math.floor(k / 100) : -1;
+}
+
+/** Whether the blended layers read the terrain's own shades (D204): on unless `?undershade=0` (for comparisons). */
+export function underShadeFromSearch(search: string | undefined = typeof location === "undefined" ? undefined : location.search): boolean {
+  return search === undefined || new URLSearchParams(search).get("undershade") !== "0";
 }

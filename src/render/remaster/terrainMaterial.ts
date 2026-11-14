@@ -32,6 +32,7 @@ import { TILE_HEIGHT, TILE_WIDTH } from "../../data/levels";
 import { TERRAIN_MAX_LOD, TERRAIN_TINT_SCALE } from "./terrainArt";
 import { HUE_BLEND_PARS, type UnderGrab } from "../hueBlend";
 import type { MaskCut } from "../screenFilters";
+import type { ShadeOut } from "../underShade";
 
 export type TerrainKind = "ground" | "blend" | "cutout";
 
@@ -116,8 +117,8 @@ vec3 terrainPalette(vec3 rgb, float height, inout float water) {
 }
 `;
 
-/** GLSL shared by the colour and depth shaders: the clamped, level-limited atlas read. */
-const SAMPLE_PARS = /* glsl */ `
+/** GLSL shared by the colour, depth and shade shaders: the clamped, level-limited atlas read. */
+export const SAMPLE_PARS = /* glsl */ `
 uniform sampler2D terrainMap;
 uniform vec2 rectSize;
 varying vec2 vTileTexel;
@@ -144,7 +145,8 @@ vec3 terrainTint() {
 }
 `;
 
-const VERTEX_PARS = /* glsl */ `
+/** The vertex shaders' instance inputs (the rect's and its tint's origins) and varyings. */
+export const TERRAIN_VERTEX_PARS = /* glsl */ `
 attribute vec2 tileUvIn;
 attribute vec4 instTile4; // the rect's origin, then its tint's origin (x < 0: none; D138)
 uniform vec2 rectSize;
@@ -153,7 +155,7 @@ varying vec2 vRectOrigin;
 varying vec2 vTintOrigin;
 `;
 
-const VERTEX_MAIN = /* glsl */ `
+export const TERRAIN_VERTEX_MAIN = /* glsl */ `
 vTileTexel = instTile4.xy + tileUvIn * rectSize;
 vRectOrigin = instTile4.xy;
 vTintOrigin = instTile4.zw;
@@ -204,13 +206,15 @@ export function terrainMaterial(
   material.userData.terrainUniforms = uniforms;
   // The screen filters' mask cuts out the see-through texels (D199).
   if (kind !== "ground") material.userData.maskCut = { kind: "terrainAlpha", uniforms: { terrainMap: uniforms.terrainMap, rectSize: uniforms.rectSize } } satisfies MaskCut;
+  // The ground's and the cutouts' own shade under the blended layers (underShade.ts, D204).
+  if (!blended) material.userData.shadeOut = { kind: "terrainHd", cutout: kind === "cutout", uniforms: { terrainMap: uniforms.terrainMap, rectSize: uniforms.rectSize } } satisfies ShadeOut;
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms, palette.screenHue.uniforms);
     shader.vertexShader = shader.vertexShader
-      .replace("#include <common>", `#include <common>\n${VERTEX_PARS}\nvarying float vPassY;${blended ? "\nattribute float instBank;\nvarying float vBank;" : ""}`)
+      .replace("#include <common>", `#include <common>\n${TERRAIN_VERTEX_PARS}\nvarying float vPassY;${blended ? "\nattribute vec2 instBank; // the original tile's main banks (D174, D204)\nvarying float vBank;" : ""}`)
       .replace(
         "#include <begin_vertex>",
-        `#include <begin_vertex>\n${VERTEX_MAIN}\nvPassY = 0.0;\n#ifdef USE_INSTANCING\nvPassY = instanceMatrix[3][1];\n#endif${blended ? "\nvBank = instBank;" : ""}`,
+        `#include <begin_vertex>\n${TERRAIN_VERTEX_MAIN}\nvPassY = 0.0;\n#ifdef USE_INSTANCING\nvPassY = instanceMatrix[3][1];\n#endif${blended ? "\nvBank = instBank.x;" : ""}`,
       );
     shader.fragmentShader = shader.fragmentShader
       .replace(
@@ -281,8 +285,8 @@ export function terrainDepthMaterial(texture: THREE.Texture, scale: number): THR
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
     shader.vertexShader = shader.vertexShader
-      .replace("#include <common>", `#include <common>\n${VERTEX_PARS}`)
-      .replace("#include <begin_vertex>", `#include <begin_vertex>\n${VERTEX_MAIN}`);
+      .replace("#include <common>", `#include <common>\n${TERRAIN_VERTEX_PARS}`)
+      .replace("#include <begin_vertex>", `#include <begin_vertex>\n${TERRAIN_VERTEX_MAIN}`);
     shader.fragmentShader = shader.fragmentShader
       .replace("#include <common>", `#include <common>\n${SAMPLE_PARS}`)
       .replace("#include <clipping_planes_fragment>", `#include <clipping_planes_fragment>\nif (terrainSample(vTileTexel, terrainLod()).a < ${CUT.toFixed(2)}) discard;`);
