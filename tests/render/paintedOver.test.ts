@@ -117,3 +117,29 @@ describe.skipIf(!hasData("newshh.shp"))("painted over: GYGES t2550 (QA M1)", () 
     expect(hidden(items)).toEqual([0, 1, 2, 3]);
   });
 });
+
+describe("painted over by background tiles, and a few pixels showing (D199)", () => {
+  /** A 24x28 background tile at (x, y): all opaque, or with the given pixels (row-major) see-through. */
+  function tile(x: number, y: number, layer: 0 | 1 | 2, o: { clear?: number[]; effect?: "none" | "blend" } = {}): Draw {
+    const pixels = new Uint8Array(24 * 28).fill(30);
+    for (const i of o.clear ?? []) pixels[i] = 0;
+    return { kind: "tile", layer, tile: pixels, tileId: `t${layer}`, x, y, pass: layer === 1 ? Pass.Background2Mid : Pass.Background3, key: 0, effect: o.effect ?? "none" };
+  }
+  const under = sprite(100, 50, { pass: Pass.GroundEnemies });
+
+  test("an opaque background-2 or -3 tile drawn later covers a sprite; background 1 and blended tiles don't", () => {
+    expect(hidden([under, tile(98, 48, 1)])).toEqual([0]);
+    expect(hidden([under, tile(98, 48, 2)])).toEqual([0]);
+    expect(hidden([tile(98, 48, 1), under])).toEqual([]); // drawn before it
+    expect(hidden([under, tile(98, 48, 0)])).toEqual([]);
+    expect(hidden([under, tile(98, 48, 1, { effect: "blend" })])).toEqual([]);
+  });
+
+  test("its see-through pixels let the sprite show, unless only a few of them do", () => {
+    // The sprite covers tile pixels (2..13, 2..15). A clear column of 14 (8% of its 168) shows it.
+    const column = Array.from({ length: 14 }, (_, r) => (r + 2) * 24 + 2);
+    expect(hidden([under, tile(98, 48, 1, { clear: column })])).toEqual([]);
+    // CORE's spire showed 5 of 224 pixels through the rock wall: 4 of 168 is painted over.
+    expect(hidden([under, tile(98, 48, 1, { clear: column.slice(0, 4) })])).toEqual([0]);
+  });
+});

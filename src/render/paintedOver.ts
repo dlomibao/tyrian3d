@@ -9,27 +9,36 @@
 //
 // So a tick's draw list is read back to front once (when it arrives, not every display frame): each
 // sprite is tested against the opaque pixels of the sprites drawn after it, then adds its own. A
-// sprite with an opaque pixel inside the seen playfield and none left uncovered there is left out of
-// the frame, as it was in the original. A grouped object (one enemy model over its tiles, D15) goes
-// only when every tile of it is covered: one model can't show a part of itself.
+// sprite with an opaque pixel inside the seen playfield and none left uncovered there (or a few, D199:
+// PAINTED_OVER_SHOW_*) is left out of the frame, as it was in the original. A grouped object (one
+// enemy model over its tiles, D15) goes only when it is covered as a whole: one model can't show a
+// part of itself.
 //
 // Only draws drawn solid in 3D cover: not "blend" (translucent) or "darken" (shadows), and not the
 // shot, explosion and effect passes, which the remastered effects draw as glows and halos (D35).
+// Background-2 and -3 tiles drawn opaque cover with their opaque pixels (D199).
 // The test uses the sim's own integer positions, so it is the C's answer for that tick.
 
 import { decodeSprite2, decodeTableSprite, type DecodedSprite } from "../data/sprites";
 import { Pass, type Draw, type SpriteDraw, type SpriteTable, type TableSpriteDraw } from "../sim/draw";
 import { PLAYFIELD_VISIBLE, type VisibleRect } from "./remaster/opaqueCover";
 import { composeSprite2x2 } from "./spriteMesh";
+import { TILE_HEIGHT, TILE_WIDTH } from "../data/levels";
 
 /** Passes whose sprites don't hide what is under them in 3D: the remastered effects' glows (D35). */
 const SEE_THROUGH_PASSES = new Set<Pass>([Pass.PlayerShots, Pass.EnemyShots, Pass.Explosions, Pass.Effects]);
 
-/** A draw's state after the test: nothing seen in the playfield, every seen pixel covered, or some showing. */
-const enum Seen {
-  None = 0,
-  Covered = 1,
-  Shows = 2,
+/**
+ * The most of a draw's seen pixels the later draws may leave showing for it to count as painted over
+ * (D199): a few pixels through a background tile's see-through texels don't keep a whole model in the
+ * frame. CORE's spire top `newsh3-237` shows 5 of its 224 pixels through the rock wall's gaps.
+ */
+export const PAINTED_OVER_SHOW_FRACTION = 0.03;
+export const PAINTED_OVER_SHOW_PIXELS = 16;
+
+/** Whether a draw (or grouped object) with `seen` pixels in the playfield, `open` of them showing, is painted over. */
+export function paintedOver(seen: number, open: number): boolean {
+  return seen > 0 && (open === 0 || (open <= PAINTED_OVER_SHOW_PIXELS && open <= seen * PAINTED_OVER_SHOW_FRACTION));
 }
 
 type SpriteLike = SpriteDraw | TableSpriteDraw;
@@ -41,7 +50,8 @@ export function paintsOver(d: SpriteLike): boolean {
 
 export class PaintedOver {
   private readonly painted: Uint8Array;
-  private seen = new Uint8Array(0);
+  private seen = new Int32Array(0);
+  private open = new Int32Array(0);
   private hidden = new Uint8Array(0);
   private count = 0;
   private readonly sprites = new Map<string, DecodedSprite>();
@@ -55,35 +65,47 @@ export class PaintedOver {
   update(items: readonly Draw[]): void {
     const n = items.length;
     if (this.seen.length < n) {
-      this.seen = new Uint8Array(n * 2);
+      this.seen = new Int32Array(n * 2);
+      this.open = new Int32Array(n * 2);
       this.hidden = new Uint8Array(n * 2);
     }
     this.count = n;
     const seen = this.seen;
+    const open = this.open;
     const hidden = this.hidden;
     seen.fill(0, 0, n);
+    open.fill(0, 0, n);
     hidden.fill(0, 0, n);
     this.painted.fill(0);
     for (let i = n - 1; i >= 0; i--) {
       const d = items[i];
+      // Background 2 and 3 drawn opaque paint over the sprites before them too (D199): CORE's spire
+      // top `newsh3-237` (ground enemies) under the rock wall tile shapes) 41 (background 2).
+      if (d.kind === "tile") {
+        if (d.layer !== 0 && d.effect !== "blend") this.paintTile(d.tile, Math.round(d.x), Math.round(d.y));
+        continue;
+      }
       if ((d.kind !== "sprite2" && d.kind !== "sprite") || d.effect === "darken") continue;
       const s = this.mask(d);
-      if (s) seen[i] = this.test(s, Math.round(d.x), Math.round(d.y), paintsOver(d));
+      if (s) this.test(s, Math.round(d.x), Math.round(d.y), paintsOver(d), i);
     }
     // A grouped object's tiles are drawn one after another, its first tile first (blit_enemy): it is
-    // hidden only when none of its tiles shows and some tile is covered.
+    // hidden only when the object as a whole is painted over.
     for (let i = 0; i < n; i++) {
       const d = items[i];
       if (d.kind !== "sprite2" && d.kind !== "sprite") continue;
       if (d.kind === "sprite" || d.groupIndex < 0 || !d.groupFirst) {
-        hidden[i] = seen[i] === Seen.Covered ? 1 : 0;
+        hidden[i] = paintedOver(seen[i], open[i]) ? 1 : 0;
         continue;
       }
       let end = i + 1;
       while (end < n && sameObject(d, items[end])) end++;
-      let state: Seen = Seen.None;
-      for (let j = i; j < end; j++) state = Math.max(state, seen[j]);
-      hidden.fill(state === Seen.Covered ? 1 : 0, i, end);
+      let all = 0, shows = 0;
+      for (let j = i; j < end; j++) {
+        all += seen[j];
+        shows += open[j];
+      }
+      hidden.fill(paintedOver(all, shows) ? 1 : 0, i, end);
       i = end - 1;
     }
   }
@@ -94,10 +116,10 @@ export class PaintedOver {
   }
 
   /**
-   * Test a sprite's opaque pixels at screen (x, y) against what later draws painted, and paint them
-   * when it covers too.
+   * Count draw `i`'s opaque pixels at screen (x, y) in the playfield and those later draws left
+   * showing, and paint them when it covers too.
    */
-  private test(s: DecodedSprite, x: number, y: number, paints: boolean): Seen {
+  private test(s: DecodedSprite, x: number, y: number, paints: boolean, i: number): void {
     const v = this.visible;
     const w = v.x1 - v.x0;
     const painted = this.painted;
@@ -117,7 +139,20 @@ export class PaintedOver {
         }
       }
     }
-    return seen === 0 ? Seen.None : open === 0 ? Seen.Covered : Seen.Shows;
+    this.seen[i] = seen;
+    this.open[i] = open;
+  }
+
+  /** Paint a 24x28 tile's opaque pixels (index 0 is see-through on backgrounds 2 and 3). */
+  private paintTile(tile: Uint8Array, x: number, y: number): void {
+    const v = this.visible;
+    const w = v.x1 - v.x0;
+    const c0 = Math.max(0, v.x0 - x), c1 = Math.min(TILE_WIDTH, v.x1 - x);
+    const r0 = Math.max(0, v.y0 - y), r1 = Math.min(TILE_HEIGHT, v.y1 - y);
+    for (let r = r0; r < r1; r++) {
+      const at = (y + r - v.y0) * w + (x - v.x0);
+      for (let c = c0; c < c1; c++) if (tile[r * TILE_WIDTH + c] !== 0) this.painted[at + c] = 1;
+    }
   }
 
   private mask(d: SpriteLike): DecodedSprite | null {

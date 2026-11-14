@@ -10555,3 +10555,78 @@ Captures, crops, scripts (`bin/soften.py`, `apply_fix.py`, `fix_tint.py`, `field
   SAVARA IV.
 
 **Cost:** one Opus agent, no workflow, no Gemini, no Blender. About 35 headless captures.
+## D199 — Episode-4 QA renderer fixes: the screen filters' mask follows see-through ground texels, lava_filter's integer floor, background2over 2's sheets cover what is under them, opaque background tiles paint over sprites (E4 QA A-H1, B-H1, B-L4, A-L1; follows D31, D146, D174, D183, D191, D193)
+
+2026-11-13
+
+**Report** (`tyrian-scratch/e4-qa/a/REPORT.md`, `b/REPORT.md`): A-H1, LAVA RUN's fire fields draw as hard 24x28
+rectangles (darker with HD terrain, pink with `&terrain=original`); B-H1, SIDE EXIT's ridges show as dark blocks
+and staircases and the plain lava is about twice the C's brightness (red mean 109 against 54 at t1800); B-L4/D196
+Open, under NOSE DRIP's clouds the hidden asteroids show as ink rings, a fire column's ink shows and player shots show
+as pink smears; A-M2/B-M4, a stepped, translucent block-shaped shadow under the SURFACE/DESERTRUN arch; A-L1, CORE's
+spire top `newsh3-237` shows through the rock wall at t300; A-L2, EYESPY's black voids show stars.
+
+**A-H1/B-H1, the rectangles.** Not the blend: both blend materials already discard index 0 / alpha 0. The screen
+filters' mask (`ScreenFilterPass.renderMask`, D31) draws every object with one override material that writes its
+pass height, with no texture. A blended background-2 sheet or an HD "cutout" tile so put its height over its whole
+quad, and the filter left the ground under its see-through texels unfiltered (LAVA RUN's sheets are
+`Background2Mid`, drawn after `lava_filter`; the ground under them is filtered in the C). Fix: a material with
+`userData.maskCut` (HD `blend`/`cutout` terrain: the painting's alpha; the classic and 4x blend sheets: index 0) is
+drawn into the mask after the override pass with a material that discards its see-through texels (`cutMaskMaterial`,
+as the flat art's `ART_MASK_FRAGMENT`), sharing the source's uniforms.
+
+**B-H1, the brightness.** Measured over SIDE EXIT's plain lava (t1800, overhead camera, C panel red 59.7): 3D 118.5
+before; 109.9 with the value filter switched off; 107.5 with the ground's specular off too. So the excess is in the
+lit colour before the filter and in what the filter doesn't do, not a D191/D193 regression:
+- *lava_filter's floor, missing.* `(2*src + below + above) >> 2` floors every tick and feeds its result back at half
+  weight, so the C's lava settles about 0.75 of a shade under its source (simulated on SIDE EXIT's tiles 109/119/129:
+  mean shade 1.43-1.91 -> 0.76-1.20; on noise 0.9-10 -> 0.55-0.76 lower). Now the lava pass takes that loss in shades
+  along the bank's run (`bankShadeAt`/`bankLumaAt`, `lavaFloorLoss`: 0.76 x (1 - exp(-v / 0.2)) at settled shade v),
+  per frame only for the part of a tick the frame's own pixels make up, so the history doesn't compound it.
+- *What is left, not changed here:* the ground's lighting (about 1.3x in sRGB, every level's ground has it; the
+  brightness audits' 1.16-1.83) and its sheen, which the filter turns into red; and, for HD terrain only, the
+  luminance shade a hued texel takes (shade 0 of the fire bank reads as 1; HD 98.6 against 94.3 with
+  `&terrain=original`). The lava filter can't tell lighting from colour in the lit frame.
+- *Results* (`compare=1`, overhead): SIDE EXIT plain lava 118.5 -> 98.6 (original look 113.9 -> 94.3; C 59.7).
+  LAVA RUN t300 lava band 198.2 (C 197.9), whole playfield red 170.6 (C 153.0). LAVA EXIT (4.9) runs
+  `water_filter` with hue 7, not lava_filter (D111), so it is unchanged: 119.2 against the C's 86.4 at t5550.
+- *The wave.* The C's chevrons are there too (its smear runs about twice the wave, as D135 has it); the 3D's read
+  softer for the continuous sine and the painting.
+
+**B-L4, the clouds.** NOSE DRIP's clouds are `Background2Top` (background2over 2), which the C draws over everything
+but the superpixels. The 3D sheet writes no depth, so the outline pass (D146, at -1.5) drew the ink of models under
+it and the effects drew their glows over it; under `water_filter` the glows are drawn over the filtered frame with the
+depth cleared (`renderOver`, D35). Fix: each blend-sheet `Pool` has a depth-only twin (`sheetCoverMaterial`: the
+sheet's opaque texels, colour off, polygon offset behind the sheet so the sheet passes its own depth test) at
+`SHEET_COVER_ORDER` -1.6, visible only while the pool draws a `Background2Top` sheet and also on the effects' layer.
+Ink, flat art and glows under a top cloud's opaque texels fail the depth test; the bodies under it are in the frame
+copy the cloud blends with (D174), so they show faintly in the cloud's bank, as in the C. Without the offset the sheet
+lost rows of fragments to its own cover (the two programs' vertex maths round differently).
+
+**A-L1, the spire.** D183 tested sprites only against later sprites. Background 2 and 3 tiles drawn opaque paint over
+too: `PaintedOver` now paints their non-zero pixels. The spire's 2x2 group was still not hidden: 5 of its 224 pixels
+show through the wall tile's (shapes) 41) see-through pixels. A draw or grouped object now counts as painted over with
+at most 3% and at most 16 of its seen pixels left showing (`PAINTED_OVER_SHOW_*`); D183's own checks (a column of 14 of
+168 pixels, two rows) still show.
+
+**Left alone:**
+- *A-M2/B-M4, the arch shadow* is the model plus D171, not a renderer fault. The band disappears with shadow maps off
+  and with casting off for the pieces above 2 units; those are `newsh3-164`..`-170` and `-202`..`-208`, drawn in the
+  `TopEnemiesOver` pass (4.55, not raised by D181), so their shadows fall as an airborne model's do (D171). Their
+  undersides are full 24x28 slabs (`newsh3-202_1`: bottom x -1..1, z -1.17..1.17; its top only z -1.17..0), so from
+  the sun each piece is a tile-sized rectangle. A shadow shift undoing D181's raise was tried and changed nothing:
+  they aren't raised. For the model agents: shape the pieces' undersides to the crown's outline.
+- *A-L2, EYESPY's stars* are painted: the HD paintings of `shapesx` 0:60, 0:61, 0:74 and 0:82 carry star specks in their
+  black areas (`&terrain=original` shows none; hiding the MMPX void tiles 0:76 leaves them). The sim draws no star
+  pixels there. For the terrain agent: paint those blacks plain.
+- `water_filter` and the blurs floor too (about 0.5 of a shade settled); not applied here, since every water level would
+  darken.
+
+**Checked** (`?debug=play&episode=4&main=M&difficulty=2&seed=1&skip=T&freezeAt=T&compare=1`, `tyrian-scratch/e4-qa-render/`
+`before/`, `after_final/`): LAVA RUN t300 (HD and original look), SIDE EXIT t1800, LAVA EXIT t2550/t5550, NOSE DRIP
+t182/t5550, CORE t300, DESERTRUN t1050, SURFACE t1800, EYESPY t300. Regressions: TYRIAN 1.3 t220 (ice at
+`Background2Under`), SAVARA 1.8 t300 and GYGES 2.3 t600 (blend sheets at `Background2Mid`) unchanged. Tests:
+`tests/render/screenFilters.test.ts` (the floor loss, mask and cover materials), `paletteLut.test.ts` (which HD
+materials carry `maskCut`), `paintedOver.test.ts` (tiles paint over, the few-pixel tolerance).
+
+**Cost:** one Opus agent, no workflow: about 70 headless captures, no Gemini, no Blender.

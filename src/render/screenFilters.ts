@@ -109,6 +109,21 @@ export const LAVA_WAVE: Wave = { mean: 3, amplitude: 4, period: 16 * 512 };
 /** water_filter's wave, -1..3 px: abs(((diw >> 10) & 7) - 4) - 1, period 8 * 1024. */
 export const WATER_WAVE: Wave = { mean: 1, amplitude: 2, period: 8 * 1024 };
 
+/**
+ * What lava_filter's integer average loses (D199). Each tick the C takes (2 * src + below + above) >> 2,
+ * the neighbours being its own results, so the floor's loss (3/8 of a shade on average) feeds back at
+ * half weight: the lava settles about 0.75 of a shade under its source, less near shade 0, where the
+ * value can't drop further. Run on SIDE EXIT's plain lava (tiles 109/119/129, mean shades 1.43-1.91)
+ * the C's filter settles 0.71-0.74 lower; on noise round shades 0.9-10, 0.55-0.76 lower. The fit is the
+ * loss at the settled shade v: s = v + max * (1 - exp(-v / knee)).
+ */
+export const LAVA_FLOOR_LOSS = { max: 0.76, knee: 0.2 } as const;
+
+/** The shade lava_filter's floors take off a settled shade (the shader's lavaFloorLoss). */
+export function lavaFloorLoss(shade: number): number {
+  return LAVA_FLOOR_LOSS.max * (1 - Math.exp(-Math.max(shade, 0) / LAVA_FLOOR_LOSS.knee));
+}
+
 /** The wave's shift at a (continuous) diw: what the shader computes. */
 export function waveAt(w: Wave, diw: number): number {
   return w.mean + w.amplitude * Math.cos((2 * Math.PI * diw) / w.period);
@@ -336,6 +351,36 @@ vec3 undisplayed(vec3 c) {
 float shownLuma(vec3 c) { return pow(clamp(lumaOf(displayed(c)), 0.0, 1.0), 1.0 / 2.2); }
 // The scene colour a filter's hue shows at gamma-encoded displayed luminance v.
 vec3 hueAt(float v, float bank) { return undisplayed(bankAtLuma(pow(max(v, 0.0), 2.2), bank)); }
+// Where a displayed luminance falls along a bank's run, as a fractional shade (bankShadeAt in this
+// file): bankAtLuma's segments, -1..0 below the first shade, past the last scaled.
+float bankShadeAt(float l, float bank) {
+  l = max(l, 0.0);
+  float llo = lumaOf(paletteEntry(bank));
+  if (l <= llo) return llo > 1e-6 ? l / llo - 1.0 : 0.0;
+  float klo = 0.0;
+  for (int k = 1; k < 16; k++) {
+    float lhi = lumaOf(paletteEntry(bank + float(k)));
+    if (lhi <= llo) continue;
+    if (l <= lhi) return klo + (float(k) - klo) * (l - llo) / (lhi - llo);
+    klo = float(k);
+    llo = lhi;
+  }
+  return klo + l / max(llo, 1e-6) - 1.0;
+}
+// The inverse: the displayed luminance at a fractional shade of a bank's run.
+float bankLumaAt(float s, float bank) {
+  float llo = lumaOf(paletteEntry(bank));
+  if (s <= 0.0) return llo * max(s + 1.0, 0.0);
+  float klo = 0.0;
+  for (int k = 1; k < 16; k++) {
+    float lhi = lumaOf(paletteEntry(bank + float(k)));
+    if (lhi <= llo) continue;
+    if (s <= float(k)) return mix(llo, lhi, (s - klo) / (float(k) - klo));
+    klo = float(k);
+    llo = lhi;
+  }
+  return llo * (1.0 + s - klo);
+}
 `;
 
 const FILTER_FRAGMENT = /* glsl */ `
@@ -373,6 +418,8 @@ const float TAU = 6.2831853;
 float diwAt(vec2 g) { return 320.0 * g.y + g.x + 4.0; }
 float wave(vec2 g, vec3 w) { return w.x + w.y * cos(TAU * diwAt(g) / w.z); }
 float lavaWave(vec2 g) { return wave(g, vec3(${glslWave(LAVA_WAVE)})); }
+// lavaFloorLoss in this file.
+float lavaFloorLoss(float shade) { return ${LAVA_FLOOR_LOSS.max.toFixed(2)} * (1.0 - exp(-max(shade, 0.0) / ${LAVA_FLOOR_LOSS.knee.toFixed(2)})); }
 float waterWave(vec2 g) { return wave(g, vec3(${glslWave(WATER_WAVE)})); }
 
 // water_filter leaves grey and cloud-blue pixels alone, a choice the C makes per original pixel. An
@@ -426,6 +473,13 @@ void main() {
       } else {
         v = 0.5 * shownLuma(s.rgb) + 0.25 * (shownLuma(below(p + vec2(0.0, 1.0), ceiling, s).rgb) + shownLuma(below(p - vec2(0.0, 1.0), ceiling, s).rgb));
       }
+      // The C's integer average floors every tick ((2s + below + above) >> 2), and its result feeds
+      // the next tick's: the lava settles about 0.75 of a shade under its source (D199). The loss
+      // is taken in shades along the run, and per frame only for the part of a tick this frame's
+      // own pixels make up (1 - a), so the history doesn't compound it.
+      float shade = bankShadeAt(pow(max(v, 0.0), 2.2), bank);
+      shade -= (a >= 0.0 ? 1.0 - a : 1.0) * lavaFloorLoss(shade);
+      v = pow(bankLumaAt(shade, bank), 1.0 / 2.2);
       c.rgb = hueAt(v, bank);
     } else if (kind == 2) {
       // water_filter, bottom row up: dst = hue | (src value + dst[below, x + wave] value) / 2 for the
@@ -584,6 +638,159 @@ void main() {
 }
 `;
 
+/**
+ * Ground quads with see-through texels (D199): the blended background-2 sheets (all three looks) and
+ * the HD "cutout" tiles. Drawn with the plain mask material their whole 24x28 quad took their height,
+ * so the ground under their see-through texels left the filters' cover: LAVA RUN's lava under the
+ * fire tiles' clear parts, and SIDE EXIT's under the ridges' (E4 QA A-H1, B-H1), drew unfiltered, as
+ * hard dark or pink rectangles. A material that has a `maskCut` in its userData is drawn into the
+ * mask with a material that reads its texels' cover, like the flat art's.
+ */
+export type MaskCut =
+  /** The classic tile atlas (indices; 0 is see-through): `atlasMap`, `tileUv`, per instance `instTile`. */
+  | { kind: "tileIndex"; uniforms: { atlasMap: { value: THREE.Texture | null }; tileUv: { value: THREE.Vector2 } } }
+  /** The 4x MMPX index atlas, the four texels round a point weighted as remasterGroundMaterial does. */
+  | { kind: "remasterIndex"; uniforms: { atlasMap: { value: THREE.Texture | null }; tileUv: { value: THREE.Vector2 }; sharpness: { value: number } } }
+  /** An HD terrain atlas (alpha): `terrainMap`, `rectSize`, per instance `instTile4` (terrainMaterial.ts). */
+  | { kind: "terrainAlpha"; uniforms: { terrainMap: { value: THREE.Texture | null }; rectSize: { value: THREE.Vector2 } } };
+
+/** The cover a texel needs to count in the mask: the blend sheets' alpha reaches one half there. */
+export const MASK_CUT_COVER = 0.5;
+
+const CUT_MASK_VERTEX: Record<MaskCut["kind"], string> = {
+  tileIndex: /* glsl */ `
+attribute vec2 tileUvIn;
+attribute vec2 instTile;
+uniform vec2 tileUv;
+varying vec2 vAtlasUv;
+varying vec2 vTileOrigin;
+varying float vHeight;
+void main() {
+  mat4 m = modelMatrix;
+  #ifdef USE_INSTANCING
+    m = m * instanceMatrix;
+  #endif
+  vHeight = m[3][1];
+  vTileOrigin = instTile;
+  vAtlasUv = instTile + tileUvIn * tileUv;
+  gl_Position = projectionMatrix * viewMatrix * m * vec4(position, 1.0);
+}`,
+  remasterIndex: /* glsl */ `
+attribute vec2 tileUvIn;
+attribute vec2 instTile;
+uniform vec2 tileUv;
+varying vec2 vAtlasUv;
+varying float vHeight;
+void main() {
+  mat4 m = modelMatrix;
+  #ifdef USE_INSTANCING
+    m = m * instanceMatrix;
+  #endif
+  vHeight = m[3][1];
+  vAtlasUv = instTile + tileUvIn * tileUv;
+  gl_Position = projectionMatrix * viewMatrix * m * vec4(position, 1.0);
+}`,
+  terrainAlpha: /* glsl */ `
+attribute vec2 tileUvIn;
+attribute vec4 instTile4;
+uniform vec2 rectSize;
+varying vec2 vTileTexel;
+varying vec2 vRectOrigin;
+varying float vHeight;
+void main() {
+  mat4 m = modelMatrix;
+  #ifdef USE_INSTANCING
+    m = m * instanceMatrix;
+  #endif
+  vHeight = m[3][1];
+  vTileTexel = instTile4.xy + tileUvIn * rectSize;
+  vRectOrigin = instTile4.xy;
+  gl_Position = projectionMatrix * viewMatrix * m * vec4(position, 1.0);
+}`,
+};
+
+const CUT_MASK_FRAGMENT: Record<MaskCut["kind"], string> = {
+  // groundTileMaterial's read: index 0 is see-through.
+  tileIndex: /* glsl */ `
+uniform sampler2D atlasMap;
+uniform vec2 tileUv;
+varying vec2 vAtlasUv;
+varying vec2 vTileOrigin;
+varying float vHeight;
+void main() {
+  vec2 halfTexel = vec2(0.5 / float(textureSize(atlasMap, 0).x));
+  vec2 uv = clamp(vAtlasUv, vTileOrigin + halfTexel, vTileOrigin + tileUv - halfTexel);
+  if (texture2D(atlasMap, uv).r * 255.0 < 0.5) discard;
+  gl_FragColor = vec4(vHeight, 0.0, 0.0, 1.0);
+}`,
+  // remasterGroundMaterial's cover: the four nearest texels' weights, index 0 counting none.
+  remasterIndex: /* glsl */ `
+uniform sampler2D atlasMap;
+uniform float sharpness;
+varying vec2 vAtlasUv;
+varying float vHeight;
+float covered(ivec2 p) { return texelFetch(atlasMap, p, 0).r * 255.0 < 0.5 ? 0.0 : 1.0; }
+void main() {
+  vec2 tp = vAtlasUv * vec2(textureSize(atlasMap, 0)) - 0.5;
+  ivec2 t0 = ivec2(floor(tp));
+  vec2 f = clamp((fract(tp) - 0.5) * sharpness + 0.5, 0.0, 1.0);
+  float cover = (1.0 - f.x) * (1.0 - f.y) * covered(t0) + f.x * (1.0 - f.y) * covered(t0 + ivec2(1, 0))
+    + (1.0 - f.x) * f.y * covered(t0 + ivec2(0, 1)) + f.x * f.y * covered(t0 + ivec2(1, 1));
+  // The sheet's alpha is smoothstep(0.02, 0.6, cover): one half at cover 0.31.
+  if (cover < 0.31) discard;
+  gl_FragColor = vec4(vHeight, 0.0, 0.0, 1.0);
+}`,
+  // terrainMaterial's read (terrainSample at mip 0, inside the tile's rect): the painting's alpha.
+  terrainAlpha: /* glsl */ `
+uniform sampler2D terrainMap;
+uniform vec2 rectSize;
+varying vec2 vTileTexel;
+varying vec2 vRectOrigin;
+varying float vHeight;
+void main() {
+  vec2 t = clamp(vTileTexel, vRectOrigin + 0.5, vRectOrigin + rectSize - 0.5);
+  if (textureLod(terrainMap, t / vec2(textureSize(terrainMap, 0)), 0.0).a < ${MASK_CUT_COVER.toFixed(2)}) discard;
+  gl_FragColor = vec4(vHeight, 0.0, 0.0, 1.0);
+}`,
+};
+
+/** The mask material for a material with a `maskCut` (sharing its uniforms, so atlas swaps follow). */
+export function cutMaskMaterial(cut: MaskCut): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    vertexShader: CUT_MASK_VERTEX[cut.kind],
+    fragmentShader: CUT_MASK_FRAGMENT[cut.kind],
+    uniforms: { ...cut.uniforms },
+    side: THREE.DoubleSide,
+  });
+}
+
+/**
+ * A depth-only material for a blend sheet's opaque texels (D199): the cover the C's top layer makes
+ * (drawListRenderer's sheet covers). In the mask it draws as the sheet does.
+ */
+export function sheetCoverMaterial(cut: MaskCut): THREE.ShaderMaterial {
+  const m = cutMaskMaterial(cut);
+  m.name = "sheet_cover";
+  m.side = THREE.FrontSide;
+  m.transparent = true; // in the translucent list, where its renderOrder places it
+  m.colorWrite = false;
+  m.depthWrite = true;
+  // A little behind the sheet itself, which is depth-tested against it: the two programs' vertex
+  // maths round differently, and at an equal depth the sheet lost rows of fragments to its own cover.
+  m.polygonOffset = true;
+  m.polygonOffsetFactor = 1;
+  m.polygonOffsetUnits = 4;
+  m.userData = { maskCut: cut, outlineParameters: { visible: false } };
+  return m;
+}
+
+/** A mesh whose material marks see-through texels for the mask (`userData.maskCut`). */
+function maskCutOf(o: THREE.Object3D): MaskCut | undefined {
+  const m = o as THREE.Mesh;
+  if (m.isMesh !== true || Array.isArray(m.material)) return undefined;
+  return (m.material as THREE.Material | undefined)?.userData?.maskCut as MaskCut | undefined;
+}
+
 /** The camera layer the mask's flat-art draw uses for a moment; nothing else is on it. */
 const ART_MASK_LAYER = 30;
 
@@ -627,6 +834,7 @@ export class ScreenFilterPass {
   private readonly presentMaterial: THREE.ShaderMaterial;
   private readonly maskMaterial: THREE.ShaderMaterial;
   private readonly artMaskMaterials = new WeakMap<THREE.Texture, THREE.ShaderMaterial>();
+  private readonly cutMaskMaterials = new WeakMap<THREE.Material, THREE.ShaderMaterial>();
   private readonly size = new THREE.Vector2();
   private readonly viewProj = new THREE.Matrix4();
   private readonly invViewProj = new THREE.Matrix4();
@@ -846,6 +1054,16 @@ export class ScreenFilterPass {
     scene.background = background;
   }
 
+  /** The mask material of an object drawn into the mask with its own (flat art, see-through ground). */
+  private ownMaskMaterial(o: THREE.Mesh): THREE.ShaderMaterial {
+    const cut = maskCutOf(o);
+    if (!cut) return this.artMaskMaterial(o.material as THREE.ShaderMaterial);
+    const source = o.material as THREE.Material;
+    let m = this.cutMaskMaterials.get(source);
+    if (!m) this.cutMaskMaterials.set(source, (m = cutMaskMaterial(cut)));
+    return m;
+  }
+
   /** The mask material for a flat-art batch drawn with `material` (one per atlas). */
   private artMaskMaterial(material: THREE.ShaderMaterial): THREE.ShaderMaterial {
     const map = material.uniforms.map.value as THREE.Texture;
@@ -884,10 +1102,11 @@ export class ScreenFilterPass {
         material.uniformsNeedUpdate = true;
       }
     };
-    // The flat art is left out of this draw and drawn after it with its own material.
+    // The flat art and the ground quads with see-through texels (D199) are left out of this draw and
+    // drawn after it with their own materials, which cut their clear texels out.
     const art: THREE.Mesh[] = [];
     scene.traverseVisible((o) => {
-      if (isFlatArt(o) && o.layers.test(camera.layers)) art.push(o);
+      if ((isFlatArt(o) || maskCutOf(o)) && o.layers.test(camera.layers)) art.push(o as THREE.Mesh);
     });
     for (const m of art) m.visible = false;
     scene.background = null;
@@ -900,7 +1119,7 @@ export class ScreenFilterPass {
     if (art.length > 0) {
       const saved = art.map((m) => ({ material: m.material, layers: m.layers.mask }));
       for (const m of art) {
-        m.material = this.artMaskMaterial(m.material as THREE.ShaderMaterial);
+        m.material = this.ownMaskMaterial(m);
         m.layers.set(ART_MASK_LAYER);
       }
       const layers = camera.layers.mask;

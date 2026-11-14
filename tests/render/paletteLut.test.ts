@@ -108,3 +108,16 @@ test("the HD terrain shader picks the index's bank from the lookup", () => {
   // The near-grey test is on the sRGB colour (dark saturated colours aren't grey).
   expect(shader.fragmentShader).toMatch(/vec3 srgb = terrainSrgb\(rgb\);\s+float chroma = max\(srgb\.r/);
 });
+
+test("HD blend sheets and cutouts carry their alpha for the screen filters' mask; the ground doesn't (D199)", () => {
+  const pt = new PaletteTexture();
+  const level = { levelFilter: { value: -99 }, levelBrightness: { value: 0 } };
+  const texture = new THREE.Texture();
+  const under = { uniforms: {} } as unknown as import("../../src/render/hueBlend").UnderGrab;
+  for (const kind of ["blend", "cutout"] as const) {
+    const m = terrainMaterial(pt, texture, level, { kind, scale: 8, under });
+    expect(m.userData.maskCut.kind).toBe("terrainAlpha");
+    expect(m.userData.maskCut.uniforms.terrainMap.value).toBe(texture);
+  }
+  expect(terrainMaterial(pt, texture, level, { kind: "ground", scale: 8 }).userData.maskCut).toBeUndefined();
+});

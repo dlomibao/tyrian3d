@@ -46,6 +46,7 @@ import { colourFrame, rigModel, showFrame, type FrameRig } from "./modelFrames";
 import { castsShadow, isModelHelper, setModelBlended } from "./modelPrep";
 import { depthBandOf, drawnBox, prepareObliqueClone, type DepthBand } from "./obliqueView";
 import { FADE_ROCK_ORDER } from "./outlineHook";
+import { sheetCoverMaterial, type MaskCut } from "./screenFilters";
 import { adoptRockMaterials, cloneRockMaterial, isRockMaterial, rockFades, setRockLook } from "./rockMaterial";
 import type { SpriteModels } from "./spriteModels";
 import { DamageFrames, type DamageState } from "./damage/damageFrames";
@@ -58,7 +59,7 @@ import { ShadowDecals } from "./shadowDecals";
 import type { LevelDamage, LevelSprite, LevelTile } from "../sim/levelSprites";
 import { TileAtlas } from "./tileAtlas";
 import { RemasteredFx, SpriteLook } from "./vfx/remasteredFx";
-import { vfxModeFromSearch, type VfxMode } from "./vfx/vfxMode";
+import { VFX_LAYER, vfxModeFromSearch, type VfxMode } from "./vfx/vfxMode";
 import { EXPLOSION_SHEET_ID, flatExplosionFade } from "./vfx/explosionFrames";
 import { dominantBank, UNDER_GRAB_ORDER, UnderGrab, UnderGrabHook } from "./hueBlend";
 import { decodeSprite2 } from "../data/sprites";
@@ -167,6 +168,13 @@ class Pool {
 
   /** Per-instance palette bank (hue << 4), if made `withBank`. */
   bank: THREE.InstancedBufferAttribute | null = null;
+  /**
+   * A blend sheet's depth-only twin (D199): background2over 2's sheets (NOSE DRIP's clouds) are
+   * drawn over everything else in the C, so under their opaque texels nothing later in
+   * three.js's translucent list may show: the outline pass's ink, the shots' art, the effects' glows.
+   */
+  private cover: THREE.InstancedMesh | null = null;
+  private coverMaterial: THREE.Material | null | undefined;
 
   private allocate(capacity: number): void {
     const old = this.mesh;
@@ -190,6 +198,31 @@ class Pool {
     mesh.receiveShadow = this.shadows.receive;
     if (this.depthMaterial) mesh.customDepthMaterial = this.depthMaterial;
     mesh.count = 0;
+    if (this.coverMaterial === undefined) {
+      const m = this.material;
+      const cut = m.userData.maskCut as MaskCut | undefined;
+      this.coverMaterial = cut && m.transparent && !m.depthWrite ? sheetCoverMaterial(cut) : null;
+    }
+    if (this.cover) {
+      this.parent.remove(this.cover);
+      this.cover.dispose();
+      this.cover = null;
+    }
+    if (this.coverMaterial) {
+      const cover = new THREE.InstancedMesh(g, this.coverMaterial, capacity);
+      cover.instanceMatrix = mesh.instanceMatrix;
+      cover.frustumCulled = false;
+      cover.castShadow = cover.receiveShadow = false;
+      cover.renderOrder = SHEET_COVER_ORDER;
+      cover.count = 0;
+      cover.visible = false;
+      cover.name = "sheet-cover";
+      // Under the screen filters the effects' glows are drawn over the filtered frame in a pass of
+      // their own (ScreenFilterPass.renderOver): the covers go with them, so they hide them too.
+      cover.layers.enable(VFX_LAYER);
+      this.cover = cover;
+      this.parent.add(cover);
+    }
     if (old) {
       mesh.instanceMatrix.array.set(old.instanceMatrix.array);
       extra.array.set(this.extra.array);
@@ -215,6 +248,10 @@ class Pool {
     const n = this.count;
     this.mesh.count = n;
     this.mesh.visible = n > 0;
+    if (this.cover) {
+      this.cover.count = n;
+      this.cover.visible = n > 0 && this.mesh.renderOrder === blendSheetOrder(Pass.Background2Top);
+    }
     if (n === 0) return;
     const m = this.mesh.instanceMatrix;
     m.clearUpdateRanges();
@@ -232,6 +269,10 @@ class Pool {
   }
 
   dispose(): void {
+    if (this.cover) {
+      this.parent.remove(this.cover);
+      this.cover.dispose();
+    }
     this.parent.remove(this.mesh);
     this.mesh.dispose();
     this.mesh.geometry.dispose();
@@ -1940,6 +1981,14 @@ function localBox(source: THREE.Object3D): THREE.Box3 {
 export function blendSheetOrder(pass: Pass): number {
   return pass === Pass.Background2Top ? 1 : -1;
 }
+
+/**
+ * renderOrder of background2over 2's sheet covers (Pool's depth-only twins, D199): after the
+ * depth-writing translucent draws (cutout terrain, a fading rock), before the outline pass, so the
+ * ink, the flat art and the glows under a top sheet's opaque texels fail the depth test as they would
+ * under an opaque model. What they cover is in the frame copy the sheet blends with (hueBlend.ts).
+ */
+export const SHEET_COVER_ORDER = -1.6;
 
 /**
  * A "cutout" terrain tile is drawn with its soft alpha edge (D132), so it is translucent to three.js: before
