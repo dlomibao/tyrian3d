@@ -10630,3 +10630,33 @@ t182/t5550, CORE t300, DESERTRUN t1050, SURFACE t1800, EYESPY t300. Regressions:
 materials carry `maskCut`), `paintedOver.test.ts` (tiles paint over, the few-pixel tolerance).
 
 **Cost:** one Opus agent, no workflow: about 70 headless captures, no Gemini, no Blender.
+
+## D200 — EYESPY's black voids are plain black: the star specks painted into `shapesx` 0:60, 61, 74 and 82 are cleared (E4 QA A-L2; follows D198, D199)
+
+2026-11-13
+
+**Problem:** on EYESPY (4.20) the black voids show star specks (E4 QA A-L2, traced in D199). The original's voids are pure
+black index 0 and `&terrain=original` shows none. The specks are in the HD paintings of `shapesx` layer 0, tiles 60, 61, 74
+and 82 (the only layer-0 tiles of the four that any level draws: EYESPY, 94-165 cells each; GYGES and the other four
+episode-2 levels on `shapesx` don't use them).
+
+**Decision:** one derived-art edit, no Gemini, no code.
+- Every texel whose original pixel (8x8 texels each) is index 0 is set to RGB 0,0,0. All other texels, alpha and the
+  tiles' outer rows and columns are as painted, so the tissue edges follow the original's void outline and the tile seams
+  are not re-solved.
+- Texels changed (RGB not already 0): 60 12,828 of 33,472 void texels; 61 12,152 of 14,976; 74 5,664 of 5,696; 82 11,549
+  of 35,264. Most are near-black (1-8 levels); the specks are the few above 20 (60 480, 61 215, 74 11, 82 90).
+- The four tiles go into a new lossless image `0-4.webp`, and their layer-0 rects point at it. Every other file and rect is
+  byte for byte as before; the old texels stay unused in `0-2.webp`. Layer 2's 60/61/74/82 (`2-2.webp`) are other
+  paintings and are untouched.
+
+**Checked** (`?debug=play&episode=4&main=20&difficulty=2&seed=1&skip=T&freezeAt=T&compare=1`, 1920x1080, before = origin/main
+07013e48): EYESPY t300 and t1500: the specks are gone, voids black; pixel difference confined to the void areas (about 8,000
+playfield pixels over 8 levels, mean 0.4). `terrain_hd.py check --tileset shapesx`, layer 0: texel step across edges /
+inside 3.00/2.97 -> 3.05/2.97 (ratio 1.01 -> 1.026; where the original is continuous 0.967 -> 0.983); 8-texel band ratio
+0.555 -> 0.559; edge count 37,721 unchanged. `tests/render/terrainArt.test.ts` passes.
+
+**Options considered:** *blur or dim only the specks:* leaves faint dark noise where the original is flat black. *Repaint with
+Gemini:* the tissue is fine, only the void needs a flat fill.
+
+**Cost:** one Opus agent, no workflow, no Gemini, 4 headless captures.
