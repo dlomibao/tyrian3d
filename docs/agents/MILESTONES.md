@@ -4,18 +4,30 @@ The numbers come from `docs/roadmap/inventory.md` (made by `tools/inventory.mjs`
 are generated from it: regenerate with `npm run inventory` and update them; don't hand-edit the counts.
 Recipes: `PLAYBOOK.md`. Workflows: `WORKFLOWS.md`.
 
-## Where things stand (2026-11-03, from DECISIONS and the repo)
+## Where things stand (2026-11-14, from DECISIONS and the repo)
+
+Flagship enemy units (inventory): E1 159/159, E2 146/147, E3 185/186, E4 167/168. Whole game 435 of 438.
+Every episode has HD terrain and has had its QA sweeps (E2 D181-D185; E3 D186, D191, D193, D194, D203, D204;
+E4 D187, D198-D202). The inventory still lists GYGES's and EYESPY's blended layer-1 tiles as uncovered: MMPX by choice (D180).
 
 | Area | Done | Not yet |
 |---|---|---|
-| Enemy/boss models | Every catalogued frame has a first-generation model (D33). Level 1's 28 rebuilt to the hard-surface standard (D65). | Every other level's models at the D65 standard. |
+| Enemy/boss models | Every enemy unit of episodes 1-4 at the D65 hard-surface standard except 3 (D65 for E1; E2 D170, D177, D179; E3 D190, D192; E4 D195-D197). | Held models: the TORM waterfall `assembly-newshh-129` (E2, D185: cliffs read as upright pillars, third try); the saw rotor `assembly-newsh-hash-195` (E3, IXMUCANE and SAWBLADES, D192: reads as four forked hands); the rock arch `assembly-newsh3-198` (E4, SURFACE and DESERTRUN, 5.5/10 after three reworks, D201/D202; main keeps the D195 build). Counted as older models by the inventory: `assembly-newshj-127` (by design, D170) and the eye hatch `newsh5-160` (no shell by design, D197). |
 | Player ships, sidekicks | 8 ships at the Talon standard (D50-D53); 10 sidekicks modelled (`assets/blender/sidekicks/`, D49). | - |
-| Structures | TYRIAN's tileset `shapesz` (maps 1-3 and 1-9: D34, D44, D47; island rock D63, D66). | Tilesets `shapes)`, `shapesw`, `shapesx`, `shapesy` (levels per tileset: `shapes)` 4-4, 4-5, 4-6, 4-7, 4-9, 4-10, 4-12, 4-15, 4-17, 4-18; `shapesw` 3-1, 3-4, 3-6, 3-9, 4-8, 4-11, 4-20; `shapesx` 2-1, 2-2, 2-6, 2-10, 2-11, 2-12, 4-13; `shapesy` 1-8, 1-12, 1-17, 3-10, 4-3, 4-19). |
-| HD terrain | `shapesz` for map 1-9 only (D57-D60); the tool now covers a tileset's levels together and merges (D83). | Other levels of `shapesz` (sheets ready, D83: 200 ground, 1 layer-1 and 19 layer-2 tiles to paint) and the other four tilesets. |
-| Flat art (shots, pickups) | Level 1's 179 frames (D43, D56). | Every other weapon, pickup and level palette. |
+| Structures | TYRIAN's tileset `shapesz` (maps 1-3 and 1-9: D34, D44, D47; island rock D63, D66). | Other tilesets' structure kits (E3/E4 only where a building is prominent, see Weighting). |
+| HD terrain | All five tilesets have HD art: `shapesz` (D57-D60, D83), `shapesx` (D180, D184), E3 (D186), E4 (D187); fixes D198, D200, D203. | The tiles the inventory still lists as uncovered (`shapesx` layer 1, 66: GYGES's and EYESPY's blended tiles, MMPX by choice, D180). |
+| Flat art (shots, pickups) | Every pickup (69 of 69) and 238 shot frames. | 76 shot frames and 3 special frames the inventory lists without flat art (`ranking.shots`). |
 | Music, sound effects | All 41 songs x 2 styles (D40); all 38 sounds (D41). | The user's listening notes, as they come. |
 | UI | Title (D64), HUD (D61), item screen, menus (D26), 13 pictures (D19). | Options, load/save, high scores, data cubes, story screens still in their first look (README). |
-| Checks | Level-1 swap/pop test and preload over episode 1 (D54, D56). | The same tests over episodes 2-4. |
+| Checks | Level-1 swap/pop test and preload over episode 1 (D54, D56); the bot plays all 62 levels (all finish except 1-18 and 4-18, see Known issues). | The swap/pop test over episodes 2-4. |
+
+**Waiting on the user:**
+- The global brightness lift: the 3D reads 1.2-1.8x the original's luminance, and the lighting, environment, sun and exposure are untouched (D175, D191, D193).
+- Whether `newsh8-102` (IXMUCANE's egg-shaped red stone, D178) becomes a smooth glossy egg or stays a faceted rock.
+- The double-drawn glows (D193, Open): objects without normals (effect glows, particles, flat art under explosions) are drawn twice a frame, once in the outline render, so additive glows come out at double strength. A one-line mark each would change D169's tuned look.
+
+**Open cost note (D204):** the new `UnderShadePass` renders the scene once more per frame while a blended layer is in
+view (scissored to its area, into an RGBA8 target the frame's size plus depth). Not checked on a phone GPU.
 
 Tyrian 2.1 has four episodes (`tyrian1.lvl`..`tyrian4.lvl` in the data); there is no episode 5
 (that came with Tyrian 2000), so there is no E5 milestone unless the data changes.
@@ -53,13 +65,13 @@ Tyrian 2.1 has four episodes (`tyrian1.lvl`..`tyrian4.lvl` in the data); there i
 
   | Asset group | Count | Used in episodes | Already at standard | Workflow | Est. agents | Status |
   |---|---|---|---|---|---|---|
-  | Shared enemy/boss models | 97 enemy units not flagship-done, used by ≥ 2 levels (16 of them span ≥ 2 episodes). Top: newsh3-229 (5 levels), newsh3-246 (5 levels), newsh3-271 (4 levels), newsh5-121 (4 levels), newsh5-89 (4 levels) | 81 units in 1 episode, 16 in 2, 0 in 3, 0 in 4 | 167 of 264 shared units | model-flagship (full) | ~582 (97 x ~6) | |
-  | Tileset `shapes)` | 1 / 43 / 26 = 70 tiles left / structures n/a (see inventory.md) | E4: 10 levels (4-4, 4-5, 4-6, 4-7, 4-9, 4-10, 4-12, 4-15, 4-17, 4-18) | 0 | terrain-hd + model-flagship (structure) | 5-9 (HD) + ~6 per structure (count n/a) | |
-  | Tileset `shapesw` | 13 / 45 / 68 = 126 tiles left / structures n/a (see inventory.md) | E3, E4: 7 levels (3-1, 3-4, 3-6, 3-9, 4-8, 4-11, 4-20) | 0 | same | 5-9 (HD) + ~6 per structure (count n/a) | |
-  | Tileset `shapesx` | 8 / 131 / 28 = 167 tiles left / structures n/a (see inventory.md) | E2, E4: 7 levels (2-1, 2-2, 2-6, 2-10, 2-11, 2-12, 4-13) | 0 | same | 5-9 (HD) + ~6 per structure (count n/a) | |
-  | Tileset `shapesy` | 0 / 3 / 2 = 5 tiles left / structures n/a (see inventory.md) | E1, E3, E4: 6 levels (1-8, 1-12, 1-17, 3-10, 4-3, 4-19) | 0 | same | 5-9 (HD) + ~6 per structure (count n/a) | |
-  | Tileset `shapesz` (other levels) | 9 / 32 / 8 = 49 tiles left (92 structure models exist) | E1-E4: 32 levels, 29 besides map Z (1-9, 1-15, 3-8) | map 1-9 (HD 66 / 15 / 0, in structure models 85 / 0 / 55) | terrain-hd | 5-9 per run; one run for all 32 levels: 32 primary sheets, ~42 Gemini requests (D83) | sheets prepared (D83) |
-  | Shot frames | 0 without flat art (of 231; 231 flat) | all | level 1's | flat_art.py + Gemini | ~48 Gemini requests (4 episodes x ~12); agents n/a (see inventory.md) | |
+  | Shared enemy/boss models | 2 enemy units not flagship-done, used by ≥ 2 levels (0 of them span ≥ 2 episodes). Top: assembly-newshj-127 (3 levels), assembly-newsh-hash-195 (2 levels) | 2 units in 1 episode, 0 in 2, 0 in 3, 0 in 4 | 260 of 262 shared units | model-flagship (full) | ~12 (2 x ~6) | 2 left: `assembly-newshj-127` (by design, D170), `assembly-newsh-hash-195` (held, D192) |
+  | Tileset `shapes)` | 1 / 8 / 2 = 11 tiles left / structures n/a (see inventory.md) | E4: 10 levels (4-4, 4-5, 4-6, 4-7, 4-9, 4-10, 4-12, 4-15, 4-17, 4-18) | 0 | terrain-hd + model-flagship (structure) | 5-9 (HD) + ~6 per structure (count n/a) | HD done (D187); QA D198-D202 |
+  | Tileset `shapesw` | 3 / 4 / 3 = 10 tiles left / structures n/a (see inventory.md) | E3, E4: 7 levels (3-1, 3-4, 3-6, 3-9, 4-8, 4-11, 4-20) | 0 | same | 5-9 (HD) + ~6 per structure (count n/a) | HD done (D186, D187); QA D191-D204 |
+  | Tileset `shapesx` | 3 / 66 / 5 = 74 tiles left / structures n/a (see inventory.md) | E2, E4: 7 levels (2-1, 2-2, 2-6, 2-10, 2-11, 2-12, 4-13) | 0 | same | 5-9 (HD) + ~6 per structure (count n/a) | HD done (D180, D184, D187); QA D182-D185, D200 |
+  | Tileset `shapesy` | 0 / 3 / 2 = 5 tiles left / structures n/a (see inventory.md) | E1, E3, E4: 6 levels (1-8, 1-12, 1-17, 3-10, 4-3, 4-19) | 0 | same | 5-9 (HD) + ~6 per structure (count n/a) | HD done; QA D203, D204 |
+  | Tileset `shapesz` (other levels) | 9 / 7 / 8 = 24 tiles left (92 structure models exist) | E1-E4: 32 levels, 29 besides map Z (1-9, 1-15, 3-8) | map 1-9 (HD 66 / 15 / 0, in structure models 85 / 0 / 55) | terrain-hd | 5-9 per run; one run for all 32 levels: 32 primary sheets, ~42 Gemini requests (D83) | HD done (D57-D60, D83; E2-E4 levels D184, D186, D187, D203) |
+  | Shot frames | 79 without flat art (of 317; 238 flat) | all | level 1's | flat_art.py + Gemini | ~48 Gemini requests (4 episodes x ~12); agents n/a (see inventory.md) | |
   | Pickup frames | 0 pickup units without flat art (0 frames; of 69 units, 69 flat) | all | level 1's | flat_art.py + Gemini | n/a (see inventory.md) | |
   | UI screens | 6 (see table above) | all | 0 | mockups, then build | n/a (see inventory.md) | |
 
@@ -85,12 +97,12 @@ Tyrian 2.1 has four episodes (`tyrian1.lvl`..`tyrian4.lvl` in the data); there i
   | 1-12 | SAVARA (sec 10) | shapesy | 21 / 21 / 0 / 21 | todo | 65/67 | done | ~3 | todo |
   | 1-7 | MINES (sec 13) | shapesz | 9 / 8 / 1 / 9 | todo | 17/20 | done | ~3 | todo |
   | 1-4 | BUBBLES (sec 16) | shapesz | 6 / 4 / 2 / 6 | todo | 41/44 | done | ~3 | todo |
-  | 1-5 | DELIANI (sec 19) | shapesz | 21 / 21 / 0 / 21 | todo | 24/79 | done | ~3 | todo |
+  | 1-5 | DELIANI (sec 19) | shapesz | 21 / 21 / 0 / 21 | 53 matched | 36/79 | done | ~3 | todo |
   | 1-3 | ASTEROID? (sec 21) | shapesz | 41 / 33 / 8 / 41 | 7 matched | 54/57 | done | ~3 | todo |
-  | 1-6 | MINEMAZE (sec 23) | shapesz | 12 / 12 / 0 / 12 | todo | 19/30 | done | ~3 | todo |
+  | 1-6 | MINEMAZE (sec 23) | shapesz | 12 / 12 / 0 / 12 | todo | 27/30 | done | ~3 | todo |
   | 1-10 | BONUS (sec 25) | shapesz | 14 / 14 / 0 / 14 | todo | 13/16 | done | ~3 | todo |
   | 1-11 | HOLES (sec 28) | shapesz | 18 / 17 / 1 / 18 | 13 matched | 88/90 | done | ~3 | todo |
-  | 1-8 | SAVARA (sec 29) | shapesy | 24 / 23 / 1 / 24 | todo | 161/163 | done | ~3 | todo |
+  | 1-8 | SAVARA (sec 29) | shapesy | 24 / 23 / 1 / 24 | 2 matched | 161/163 | done | ~3 | todo |
   | 1-13 | SOH JIN (sec 31) | shapesz | 8 / 6 / 2 / 8 | todo | 16/18 | done | ~3 | todo |
   | 1-14 | WINDY (sec 33) | shapesz | 7 / 7 / 0 / 7 | 13 matched | 42/49 | done | ~3 | todo |
   | 1-16 | ASSASSIN (sec 36) | shapesz | 12 / 12 / 0 / 12 | todo | 68/71 | done | ~3 | todo |
@@ -105,18 +117,18 @@ Tyrian 2.1 has four episodes (`tyrian1.lvl`..`tyrian4.lvl` in the data); there i
 
   | Level (map id, as `terrain_hd.py --level`) | Name | Tileset | Models: total / shared / unique / at standard | Structures | HD tiles | New flat-art frames | Est. agents | Status |
   |---|---|---|---|---|---|---|---|---|
-  | 2-1 | TORM (sec 2) | shapesx | 33 / 26 / 7 / 25 | todo | 68/72 | done | ~33 | todo |
-  | 2-2 | GYGES (sec 4) | shapesx | 31 / 6 / 25 / 4 | todo | 31/122 | done | ~141 | todo |
-  | 2-3 | BONUS (sec 6) | shapesz | 12 / 12 / 0 / 12 | todo | 13/16 | done | ~3 | todo |
-  | 2-4 | ASTCITY (sec 8) | shapesz | 31 / 31 / 0 / 30 | todo | 54/56 | done | ~3 | todo |
-  | 2-5 | SOH JIN (sec 10) | shapesz | 12 / 11 / 1 / 10 | todo | 0/5 | done | ~9 | todo |
-  | 2-6 | GRYPHON (sec 12) | shapesx | 22 / 11 / 11 / 8 | todo | 64/121 | done | ~57 | todo |
-  | 2-7 | GEM WAR (sec 15) | shapesz | 9 / 4 / 5 / 9 | todo | 0/5 | done | ~3 | todo |
-  | 2-8 | MARKERS (sec 17) | shapesz | 13 / 3 / 10 / 3 | todo | 0/5 | done | ~57 | todo |
-  | 2-9 | MISTAKES (sec 19) | shapesz | 25 / 25 / 0 / 15 | todo | 0/5 | done | ~3 | todo |
-  | 2-10 | BOTANY A (sec 21) | shapesx | 14 / 14 / 0 / 12 | todo | 69/74 | done | ~3 | todo |
-  | 2-11 | BOTANY B (sec 22) | shapesx | 11 / 9 / 2 / 7 | todo | 66/71 | done | ~15 | todo |
-  | 2-12 | BONUS (sec 24) | shapesx | 12 / 12 / 0 / 9 | todo | 68/72 | done | ~3 | todo |
+  | 2-1 | TORM (sec 2) | shapesx | 33 / 26 / 7 / 32 | todo | 70/72 | done | ~3 | todo: waterfall `newshh-129` held (D185) |
+  | 2-2 | GYGES (sec 4) | shapesx | 24 / 6 / 18 / 24 | todo | 55/122 | done | ~3 | QA swept (D182-D185) |
+  | 2-3 | BONUS (sec 6) | shapesz | 12 / 12 / 0 / 12 | todo | 13/16 | done | ~3 | QA swept (D182-D185) |
+  | 2-4 | ASTCITY (sec 8) | shapesz | 31 / 31 / 0 / 31 | todo | 54/56 | done | ~3 | QA swept (D182-D185) |
+  | 2-5 | SOH JIN (sec 10) | shapesz | 12 / 11 / 1 / 12 | todo | 0/5 | done | ~3 | QA swept (D182-D185) |
+  | 2-6 | GRYPHON (sec 12) | shapesx | 22 / 11 / 11 / 22 | todo | 118/121 | done | ~3 | QA swept (D182-D185) |
+  | 2-7 | GEM WAR (sec 15) | shapesz | 9 / 4 / 5 / 9 | todo | 0/5 | done | ~3 | QA swept (D182-D185) |
+  | 2-8 | MARKERS (sec 17) | shapesz | 13 / 3 / 10 / 13 | todo | 0/5 | done | ~3 | QA swept (D182-D185) |
+  | 2-9 | MISTAKES (sec 19) | shapesz | 25 / 25 / 0 / 25 | todo | 0/5 | done | ~3 | QA swept (D182-D185) |
+  | 2-10 | BOTANY A (sec 21) | shapesx | 14 / 14 / 0 / 13 | todo | 71/74 | done | ~3 | QA swept (D182-D185) |
+  | 2-11 | BOTANY B (sec 22) | shapesx | 11 / 9 / 2 / 11 | todo | 68/71 | done | ~3 | QA swept (D182-D185) |
+  | 2-12 | BONUS (sec 24) | shapesx | 12 / 12 / 0 / 11 | todo | 70/72 | done | ~3 | todo: waterfall `newshh-129` held (D185) |
 
 ## M3: Episode 3
 
@@ -129,18 +141,18 @@ Tyrian 2.1 has four episodes (`tyrian1.lvl`..`tyrian4.lvl` in the data); there i
 
   | Level (map id, as `terrain_hd.py --level`) | Name | Tileset | Models: total / shared / unique / at standard | Structures | HD tiles | New flat-art frames | Est. agents | Status |
   |---|---|---|---|---|---|---|---|---|
-  | 3-3 | GAUNTLET (sec 2) | shapesz | 18 / 18 / 0 / 12 | todo | 29/41 | done | ~3 | todo |
-  | 3-4 | IXMUCANE (sec 4) | shapesw | 24 / 18 / 6 / 1 | todo | 58/75 | done | ~27 | todo |
-  | 3-5 | BONUS (sec 6) | shapesz | 13 / 12 / 1 / 11 | todo | 23/47 | done | ~7 | todo |
-  | 3-7 | STARGATE (sec 8) | shapesz | 9 / 6 / 3 / 6 | todo | 42/46 | done | ~15 | todo |
-  | 3-1 | CAMANIS (sec 10) | shapesw | 17 / 10 / 7 / 3 | todo | 57/84 | done | ~31 | todo |
-  | 3-6 | FLEET (sec 12) | shapesw | 26 / 10 / 16 / 6 | todo | 23/90 | done | ~67 | todo |
-  | 3-2 | AST. CITY (sec 15) | shapesz | 36 / 35 / 1 / 35 | todo | 66/69 | done | ~7 | todo |
-  | 3-8 | TYRIAN X (sec 17) | shapesz | 28 / 28 / 0 / 28 | done (map Z, as 1-9) | 81/138 | done | ~3 | todo (same map and models as 1-9) |
-  | 3-9 | SAWBLADES (sec 19) | shapesw | 19 / 18 / 1 / 1 | todo | 56/72 | done | ~7 | todo |
-  | 3-10 | SAVARA Y (sec 21) | shapesy | 22 / 22 / 0 / 22 | todo | 161/163 | done | ~3 | todo |
-  | 3-11 | New Deli (sec 23) | shapesz | 22 / 22 / 0 / 21 | todo | 24/79 | done | ~3 | todo |
-  | 3-12 | MACES (sec 25) | shapesz | 8 / 8 / 0 / 2 | todo | 13/16 | done | ~3 | todo |
+  | 3-3 | GAUNTLET (sec 2) | shapesz | 18 / 18 / 0 / 18 | n/a (lean) | 37/41 | done | ~3 | QA swept (D191, D193, D194, D203, D204) |
+  | 3-4 | IXMUCANE (sec 4) | shapesw | 22 / 18 / 4 / 21 | n/a (lean) | 73/75 | done | ~3 | todo: saw rotor `assembly-newsh-hash-195` held (D192) |
+  | 3-5 | BONUS (sec 6) | shapesz | 13 / 12 / 1 / 13 | n/a (lean) | 40/47 | done | ~3 | QA swept (D191, D193, D194, D203, D204) |
+  | 3-7 | STARGATE (sec 8) | shapesz | 9 / 6 / 3 / 9 | n/a (lean) | 42/46 | done | ~3 | QA swept (D191, D193, D194, D203, D204) |
+  | 3-1 | CAMANIS (sec 10) | shapesw | 16 / 10 / 6 / 16 | n/a (lean) | 82/84 | done | ~3 | QA swept (D191, D193, D194, D203, D204) |
+  | 3-6 | FLEET (sec 12) | shapesw | 25 / 10 / 15 / 25 | n/a (lean) | 85/90 | done | ~3 | QA swept (D191, D193, D194, D203, D204) |
+  | 3-2 | AST. CITY (sec 15) | shapesz | 36 / 35 / 1 / 36 | n/a (lean) | 66/69 | done | ~3 | QA swept (D191, D193, D194, D203, D204) |
+  | 3-8 | TYRIAN X (sec 17) | shapesz | 28 / 28 / 0 / 28 | done (map Z, as 1-9) | 81/138 | done | ~3 | QA swept (same map and models as 1-9) |
+  | 3-9 | SAWBLADES (sec 19) | shapesw | 18 / 18 / 0 / 17 | n/a (lean) | 70/72 | done | ~3 | todo: saw rotor `assembly-newsh-hash-195` held (D192) |
+  | 3-10 | SAVARA Y (sec 21) | shapesy | 22 / 22 / 0 / 22 | 2 matched | 161/163 | done | ~3 | QA swept (D191, D193, D194, D203, D204) |
+  | 3-11 | New Deli (sec 23) | shapesz | 22 / 22 / 0 / 22 | 53 matched | 36/79 | done | ~3 | QA swept (D191, D193, D194, D203, D204) |
+  | 3-12 | MACES (sec 25) | shapesz | 8 / 8 / 0 / 8 | n/a (lean) | 13/16 | done | ~3 | QA swept (D191, D193, D194, D203, D204) |
 
 ## M4: Episode 4
 
@@ -149,26 +161,26 @@ Tyrian 2.1 has four episodes (`tyrian1.lvl`..`tyrian4.lvl` in the data); there i
 
   | Level (map id, as `terrain_hd.py --level`) | Name | Tileset | Models: total / shared / unique / at standard | Structures | HD tiles | New flat-art frames | Est. agents | Status |
   |---|---|---|---|---|---|---|---|---|
-  | 4-4 | SURFACE (sec 2) | shapes) | 28 / 11 / 17 / 1 | todo | 32/38 | done | ~71 | todo |
-  | 4-12 | LAVA RUN (sec 4) | shapes) | 22 / 22 / 0 / 5 | todo | 14/36 | done | ~3 | todo |
-  | 4-5 | CORE (sec 6) | shapes) | 15 / 9 / 6 / 3 | todo | 29/31 | done | ~27 | todo |
-  | 4-11 | ?TUNNEL? (sec 8) | shapesw | 8 / 7 / 1 / 3 | todo | 25/31 | done | ~7 | todo |
-  | 4-8 | ICE EXIT (sec 10) | shapesw | 13 / 13 / 0 / 3 | todo | 3/25 | done | ~3 | todo |
-  | 4-1 | HARVEST (sec 12) | shapesz | 13 / 9 / 4 / 8 | 1 matched | 33/70 | done | ~19 | todo |
-  | 4-7 | UNDERDELI (sec 14) | shapes) | 24 / 14 / 10 / 4 | todo | 22/24 | done | ~43 | todo |
-  | 4-3 | SAVARA IV (sec 16) | shapesy | 16 / 16 / 0 / 13 | todo | 68/70 | done | ~3 | todo |
-  | 4-14 | DREAD-NOT (sec 18) | shapesz | 24 / 14 / 10 / 1 | todo | 0/5 | done | ~43 | todo |
-  | 4-13 | EYESPY (sec 20) | shapesx | 14 / 7 / 7 / 1 | todo | 29/45 | done | ~31 | todo |
-  | 4-15 | BRAINIAC (sec 22) | shapes) | 24 / 14 / 10 / 3 | todo | 15/51 | done | ~43 | todo |
-  | 4-16 | NOSE DRIP (sec 25) | shapesz | 13 / 7 / 6 / 2 | 13 matched | 27/42 | done | ~27 | todo |
-  | 4-2 | WINDY (sec 27) | shapesz | 8 / 7 / 1 / 7 | 15 matched | 17/21 | done | ~7 | todo |
-  | 4-10 | DESERTRUN (sec 29) | shapes) | 7 / 6 / 1 / 1 | todo | 35/41 | done | ~7 | todo |
-  | 4-9 | LAVA EXIT (sec 31) | shapes) | 9 / 9 / 0 / 5 | todo | 20/42 | done | ~3 | todo |
-  | 4-6 | SIDE EXIT (sec 36) | shapes) | 7 / 7 / 0 / 3 | todo | 20/22 | done | ~3 | todo |
-  | 4-17 | TIME WAR (sec 40) | shapes) | 29 / 7 / 22 / 1 | todo | 22/29 | done | ~91 | todo |
-  | 4-18 | SQUADRON (sec 45) | shapes) | 8 / 6 / 2 / 1 | todo | 1/3 | done | ~11 | todo (bot run never ends: see Known issues) |
-  | 4-19 | APPROACH (sec 47) | shapesy | 13 / 12 / 1 / 7 | todo | 15/16 | done | ~7 | todo |
-  | 4-20 | ICESECRET (sec 50) | shapesw | 14 / 14 / 0 / 3 | todo | 22/38 | done | ~3 | todo |
+  | 4-4 | SURFACE (sec 2) | shapes) | 18 / 10 / 8 / 18 | n/a (lean) | 32/38 | done | ~3 | todo: rock arch `assembly-newsh3-198` held (D201, D202) |
+  | 4-12 | LAVA RUN (sec 4) | shapes) | 22 / 22 / 0 / 22 | n/a (lean) | 34/36 | done | ~3 | QA swept (D198-D202) |
+  | 4-5 | CORE (sec 6) | shapes) | 15 / 9 / 6 / 15 | n/a (lean) | 29/31 | done | ~3 | QA swept (D198-D202) |
+  | 4-11 | ?TUNNEL? (sec 8) | shapesw | 8 / 7 / 1 / 8 | n/a (lean) | 29/31 | done | ~3 | QA swept (D198-D202) |
+  | 4-8 | ICE EXIT (sec 10) | shapesw | 13 / 13 / 0 / 13 | n/a (lean) | 24/25 | done | ~3 | QA swept (D198-D202) |
+  | 4-1 | HARVEST (sec 12) | shapesz | 13 / 9 / 4 / 13 | 35 matched | 33/70 | done | ~3 | QA swept (D198-D202) |
+  | 4-7 | UNDERDELI (sec 14) | shapes) | 19 / 14 / 5 / 19 | n/a (lean) | 22/24 | done | ~3 | QA swept (D198-D202) |
+  | 4-3 | SAVARA IV (sec 16) | shapesy | 15 / 15 / 0 / 15 | n/a (lean) | 68/70 | done | ~3 | QA swept (D198-D202) |
+  | 4-14 | DREAD-NOT (sec 18) | shapesz | 24 / 14 / 10 / 24 | n/a (lean) | 0/5 | done | ~3 | QA swept (D198-D202) |
+  | 4-13 | EYESPY (sec 20) | shapesx | 14 / 7 / 7 / 14 | n/a (lean) | 42/45 | done | ~3 | QA swept (D198-D202) |
+  | 4-15 | BRAINIAC (sec 22) | shapes) | 24 / 14 / 10 / 23 | n/a (lean) | 48/51 | done | ~7 | QA swept (D198-D202); eye hatch `newsh5-160` has no shell by design (D197) |
+  | 4-16 | NOSE DRIP (sec 25) | shapesz | 12 / 7 / 5 / 12 | 13 matched | 27/42 | done | ~3 | QA swept (D198-D202) |
+  | 4-2 | WINDY (sec 27) | shapesz | 8 / 7 / 1 / 8 | 15 matched | 17/21 | done | ~3 | QA swept (D198-D202) |
+  | 4-10 | DESERTRUN (sec 29) | shapes) | 6 / 5 / 1 / 6 | n/a (lean) | 35/41 | done | ~3 | todo: rock arch `assembly-newsh3-198` held (D201, D202) |
+  | 4-9 | LAVA EXIT (sec 31) | shapes) | 9 / 9 / 0 / 9 | n/a (lean) | 40/42 | done | ~3 | QA swept (D198-D202) |
+  | 4-6 | SIDE EXIT (sec 36) | shapes) | 7 / 7 / 0 / 7 | n/a (lean) | 20/22 | done | ~3 | QA swept (D198-D202) |
+  | 4-17 | TIME WAR (sec 40) | shapes) | 15 / 7 / 8 / 15 | n/a (lean) | 28/29 | done | ~3 | QA swept (D198-D202) |
+  | 4-18 | SQUADRON (sec 45) | shapes) | 8 / 6 / 2 / 8 | n/a (lean) | 1/3 | done | ~3 | QA swept (D198-D202) (bot run never ends: see Known issues) |
+  | 4-19 | APPROACH (sec 47) | shapesy | 12 / 11 / 1 / 12 | n/a (lean) | 15/16 | done | ~3 | QA swept (D198-D202) |
+  | 4-20 | ICESECRET (sec 50) | shapesw | 14 / 14 / 0 / 14 | n/a (lean) | 36/38 | done | ~3 | QA swept (D198-D202) |
 
 ## Estimating agents
 
@@ -179,13 +191,13 @@ Totals from the tables above (agents by that formula; M0 is the shared enemy mod
 
 | Milestone | Levels | Unique unfinished enemy units | Est. agents |
 |---|---|---|---|
-| M0 | all 62 (shared work) | 97 shared | ~582 for models + 5-9 per tileset HD run (structures n/a, see inventory.md) + ~48 Gemini requests for flat art |
+| M0 | all 62 (shared work) | 2 shared | ~12 for models + 5-9 per tileset HD run (structures n/a, see inventory.md) + ~48 Gemini requests for flat art |
 | M1 | 18 | 0 | 54 |
-| M2 | 12 | 49 | 330 |
-| M3 | 12 | 35 | 176 |
-| M4 | 20 | 98 | 452 |
+| M2 | 12 | 0 | 36 |
+| M3 | 12 | 0 | 36 |
+| M4 | 20 | 1 | 64 |
 
-M1-M4 together: 1012 agents; 182 unique + 97 shared = 279 unfinished enemy units (481 enemy units − 202 flagship, per `inventory.json`).
+M1-M4 together: 190 agents; 1 unique + 2 shared = 3 unfinished enemy units (438 enemy units − 435 flagship, per `inventory.json`).
 
 ## Known issues (from the inventory run)
 
