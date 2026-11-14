@@ -31,6 +31,7 @@ import { SCREEN_HUE_PARS } from "../screenHue";
 import { TILE_HEIGHT, TILE_WIDTH } from "../../data/levels";
 import { TERRAIN_MAX_LOD, TERRAIN_TINT_SCALE } from "./terrainArt";
 import { HUE_BLEND_PARS, type UnderGrab } from "../hueBlend";
+import type { MaskCut } from "../screenFilters";
 
 export type TerrainKind = "ground" | "blend" | "cutout";
 
@@ -201,6 +202,8 @@ export function terrainMaterial(
     ...(blended ? opts.under!.uniforms : {}),
   };
   material.userData.terrainUniforms = uniforms;
+  // The screen filters' mask cuts out the see-through texels (D199).
+  if (kind !== "ground") material.userData.maskCut = { kind: "terrainAlpha", uniforms: { terrainMap: uniforms.terrainMap, rectSize: uniforms.rectSize } } satisfies MaskCut;
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms, palette.screenHue.uniforms);
     shader.vertexShader = shader.vertexShader

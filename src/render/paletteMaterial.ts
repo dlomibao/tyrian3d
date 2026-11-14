@@ -13,6 +13,7 @@ import type { PaletteTexture } from "./paletteTexture";
 import type { TileAtlas } from "./tileAtlas";
 import { SCREEN_HUE_PARS } from "./screenHue";
 import { HUE_BLEND_PARS, type UnderGrab } from "./hueBlend";
+import type { MaskCut } from "./screenFilters";
 
 export const enum FxMode {
   None = 0,
@@ -139,6 +140,8 @@ export function groundTileMaterial(palette: PaletteTexture, atlas: TileAtlas, un
     toneMapped: !blend,
     userData: { outlineParameters: { visible: false } },
   });
+  // A blend sheet's index-0 texels are see-through: the screen filters' mask cuts them out (D199).
+  if (blend) material.userData.maskCut = { kind: "tileIndex", uniforms: { atlasMap: { value: atlas.texture }, tileUv: { value: atlas.tileUv } } } satisfies MaskCut;
   material.onBeforeCompile = (shader) => {
     shader.uniforms.paletteMap = { value: palette.texture };
     if (under) Object.assign(shader.uniforms, under.uniforms);

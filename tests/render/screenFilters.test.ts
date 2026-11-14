@@ -3,8 +3,13 @@
 import { describe, expect, test } from "vitest";
 import * as THREE from "three";
 import {
+  LAVA_FLOOR_LOSS,
   LAVA_WAVE,
   ScreenFilterPass,
+  cutMaskMaterial,
+  lavaFloorLoss,
+  sheetCoverMaterial,
+  type MaskCut,
   WATER_WAVE,
   bankAtLuma,
   hueKeepingChroma,
@@ -261,5 +266,41 @@ describe("the filtered frame's programs, warmed (D159)", () => {
     expect(out).toEqual([done, done]);
     expect(seen[0]).toBeInstanceOf(THREE.WebGLRenderTarget);
     expect(target).toBeNull();
+  });
+});
+
+describe("lava_filter's floor and the mask's see-through texels (D199)", () => {
+  test("the lava settles under its source as the C's integer average does", () => {
+    expect(lavaFloorLoss(0)).toBe(0);
+    expect(lavaFloorLoss(15)).toBeCloseTo(LAVA_FLOOR_LOSS.max, 5);
+    // Source shade -> settled shade, from the C's filter run on noise (tools in tyrian-scratch/e4-qa-render).
+    for (const [source, settled] of [[0.86, 0.31], [1.22, 0.54], [2.06, 1.29], [3.99, 3.24], [9.99, 9.24]]) {
+      expect(settled + lavaFloorLoss(settled)).toBeCloseTo(source, 1);
+    }
+  });
+
+  test("a see-through ground quad draws into the mask with its own texels' cover, sharing its uniforms", () => {
+    const map = new THREE.Texture();
+    const rect = new THREE.Vector2(192, 224);
+    const cut: MaskCut = { kind: "terrainAlpha", uniforms: { terrainMap: { value: map }, rectSize: { value: rect } } };
+    const m = cutMaskMaterial(cut);
+    expect(m.uniforms.terrainMap.value).toBe(map);
+    expect(m.uniforms.rectSize).toBe(cut.uniforms.rectSize);
+    expect(m.fragmentShader).toContain("discard");
+    for (const kind of ["tileIndex", "remasterIndex"] as const) {
+      const u = { atlasMap: { value: map }, tileUv: { value: new THREE.Vector2(0.1, 0.1) }, sharpness: { value: 1.6 } };
+      expect(cutMaskMaterial({ kind, uniforms: u } as MaskCut).fragmentShader).toContain("discard");
+    }
+  });
+
+  test("a top sheet's cover writes depth only, a little behind the sheet, and draws in the mask as the sheet", () => {
+    const cut: MaskCut = { kind: "terrainAlpha", uniforms: { terrainMap: { value: null }, rectSize: { value: new THREE.Vector2(192, 224) } } };
+    const m = sheetCoverMaterial(cut);
+    expect(m.colorWrite).toBe(false);
+    expect(m.depthWrite).toBe(true);
+    expect(m.transparent).toBe(true);
+    expect(m.polygonOffset && m.polygonOffsetFactor > 0 && m.polygonOffsetUnits > 0).toBe(true);
+    expect(m.userData.maskCut).toBe(cut);
+    expect(m.userData.outlineParameters.visible).toBe(false);
   });
 });
