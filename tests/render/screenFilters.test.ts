@@ -5,6 +5,9 @@ import * as THREE from "three";
 import {
   LAVA_FLOOR_LOSS,
   LAVA_WAVE,
+  WATER_FLOOR_LOSS,
+  filterModeFromSearch,
+  waterFloorLoss,
   ScreenFilterPass,
   cutMaskMaterial,
   lavaFloorLoss,
@@ -30,6 +33,7 @@ import { ScreenHue } from "../../src/render/screenHue";
 import { PASS_HEIGHT } from "../../src/render/passHeights";
 import { CLASSIC_TICK_MS } from "../../src/core/timing";
 import { Pass } from "../../src/sim/draw";
+import { VFX_LAYER } from "../../src/render/vfx/vfxMode";
 
 describe("screen filters", () => {
   test("a filter's ceiling sits between its last pass and the next one up", () => {
@@ -302,5 +306,97 @@ describe("lava_filter's floor and the mask's see-through texels (D199)", () => {
     expect(m.polygonOffset && m.polygonOffsetFactor > 0 && m.polygonOffsetUnits > 0).toBe(true);
     expect(m.userData.maskCut).toBe(cut);
     expect(m.userData.outlineParameters.visible).toBe(false);
+  });
+});
+
+describe("water_filter's floor and the effects over the filtered frame (D208)", () => {
+  test("the water settles half a shade under the real-valued average, as the C's integer halving", () => {
+    expect(waterFloorLoss(0)).toBe(0);
+    expect(waterFloorLoss(15)).toBeCloseTo(WATER_FLOOR_LOSS.max, 5);
+    // The C's column (backgrnd.c water_filter, without the wave): v = (src + v below) >> 1, against the
+    // same with no floor, on noise round a few shades.
+    let seed = 7;
+    const rand = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
+    for (const mean of [0.5, 1, 2, 3, 6, 10]) {
+      let floored = 0;
+      let predicted = 0;
+      let n = 0;
+      for (let x = 0; x < 64; x++) {
+        let vi = 0;
+        let ve = 0;
+        for (let y = 185; y >= 0; y--) {
+          // About normal, sd 2 (the sum of four uniforms), clipped to the 16 shades.
+          const src = Math.min(15, Math.max(0, Math.round(mean + (rand() + rand() + rand() + rand() - 2) * 3.46)));
+          vi = (src + vi) >> 1;
+          ve = (src + ve) / 2;
+          if (y < 165) {
+            floored += vi;
+            predicted += ve - waterFloorLoss(ve);
+            n++;
+          }
+        }
+      }
+      expect(Math.abs(predicted / n - floored / n)).toBeLessThan(0.07);
+    }
+  });
+
+  test("?filters=old selects the filters as before D208", () => {
+    expect(filterModeFromSearch("?filters=old")).toBe("old");
+    expect(filterModeFromSearch("?debug=play&filters=old&compare=1")).toBe("old");
+    expect(filterModeFromSearch("")).toBe("new");
+    expect(filterModeFromSearch(undefined)).toBe("new");
+  });
+
+  test("the effects are drawn over a copy of the filtered frame, which alone is the next frame's history", () => {
+    let target: THREE.WebGLRenderTarget | null = null;
+    const renders: { target: THREE.WebGLRenderTarget | null; scene: THREE.Scene; material?: THREE.ShaderMaterial }[] = [];
+    const renderer = {
+      capabilities: { maxSamples: 4 },
+      toneMapping: THREE.NeutralToneMapping,
+      toneMappingExposure: 1,
+      shadowMap: { autoUpdate: true },
+      autoClear: true,
+      getRenderTarget: () => target,
+      setRenderTarget: (t: THREE.WebGLRenderTarget | null) => (target = t),
+      getDrawingBufferSize: (v: THREE.Vector2) => v.set(64, 32),
+      getClearColor: (c: THREE.Color) => c,
+      getClearAlpha: () => 1,
+      setClearColor: () => {},
+      clearDepth: () => {},
+      render: (scene: THREE.Scene) => {
+        const quad = scene.children[0] as THREE.Mesh | undefined;
+        renders.push({ target, scene, material: quad?.material as THREE.ShaderMaterial | undefined });
+      },
+    } as unknown as THREE.WebGLRenderer;
+    const pass = new ScreenFilterPass(renderer, { screenHue: new ScreenHue() } as unknown as PaletteTexture);
+    const list = {
+      items: [],
+      palette: 0,
+      filter: -99,
+      brightness: 0,
+      screen: { stages: [{ kind: "lava", pass: Pass.GroundEnemies, temporal: true }], showCode: 0, playerX: 0, playerY: 0, bars: [] },
+    } as DrawList;
+    pass.setDrawList(list);
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera();
+    camera.layers.enable(VFX_LAYER);
+    const quadOf = (r: (typeof renders)[number]) => r.material?.fragmentShader ?? "";
+    const frame = () => {
+      renders.length = 0;
+      pass.render(scene, camera, new THREE.Group(), () => renders.push({ target, scene }), 1);
+      const filter = renders.find((r) => quadOf(r).includes("lavaWave"))!;
+      const effects = renders.filter((r) => r.scene === scene).at(-1)!;
+      const present = renders.at(-1)!;
+      return { filter, effects, present };
+    };
+    const first = frame();
+    expect(first.effects.target).not.toBe(first.filter.target);
+    expect(first.present.target).toBeNull();
+    expect(first.present.material!.uniforms.sourceMap.value).toBe(first.effects.target!.texture);
+    expect(camera.layers.isEnabled(VFX_LAYER)).toBe(true);
+    // The next frame reads the filter's own output as its previous frame: the effects aren't in it.
+    const second = frame();
+    expect(second.filter.material!.uniforms.prevMap.value).toBe(first.filter.target!.texture);
+    expect(second.filter.target).not.toBe(first.filter.target);
   });
 });

@@ -99,6 +99,16 @@ export function hueStages(stages: readonly ScreenFilterStage[]): ScreenHueStage[
   return out;
 }
 
+/**
+ * The smoothies as D208 has them ("new": water_filter's floor, the effects kept out of the history) or
+ * as before (`?filters=old`), for comparison.
+ */
+export type FilterMode = "new" | "old";
+
+export function filterModeFromSearch(search: string | undefined = typeof location === "undefined" ? undefined : location.search): FilterMode {
+  return search !== undefined && new URLSearchParams(search).get("filters") === "old" ? "old" : "new";
+}
+
 /** A filter's sideways wave: mean + amplitude * cos(2 pi diw / period), in game_screen pixels. */
 export interface Wave {
   mean: number;
@@ -124,6 +134,22 @@ export const LAVA_FLOOR_LOSS = { max: 0.76, knee: 0.2 } as const;
 /** The shade lava_filter's floors take off a settled shade (the shader's lavaFloorLoss). */
 export function lavaFloorLoss(shade: number): number {
   return LAVA_FLOOR_LOSS.max * (1 - Math.exp(-Math.max(shade, 0) / LAVA_FLOOR_LOSS.knee));
+}
+
+/**
+ * What water_filter's integer average loses (D208). Each pixel takes (src + dst below) >> 1, the pixel
+ * below being its own result this frame, so the floor's loss (1/4 of a shade on average) feeds down
+ * the column at half weight: the water settles half a shade under the real-valued average. The C's
+ * filter run to steady state on the real source indices of CORE, SAVARA IV, SAVARA V and NOSE DRIP
+ * loses 0.46-0.52 of a shade (0.39-0.45 on pixels under shade 1.5; none at 0, which can't drop). The
+ * water works in place, so the 3D takes it at the real-valued shade it computes, s:
+ * max * (1 - exp(-s / knee)), within 0.04 of the C's mean on all four levels and on noise.
+ */
+export const WATER_FLOOR_LOSS = { max: 0.5, knee: 0.4 } as const;
+
+/** The shade water_filter's floors take off a real-valued shade (the shader's waterFloorLoss). */
+export function waterFloorLoss(shade: number): number {
+  return WATER_FLOOR_LOSS.max * (1 - Math.exp(-Math.max(shade, 0) / WATER_FLOOR_LOSS.knee));
 }
 
 /** The wave's shift at a (continuous) diw: what the shader computes. */
@@ -397,6 +423,7 @@ uniform int stageKind[${MAX_STAGES}];
 uniform float stageCeiling[${MAX_STAGES}];
 uniform float stagePrev[${MAX_STAGES}];
 uniform float stageBank[${MAX_STAGES}];
+uniform float waterFloor; // 1: water_filter's integer floor (D208); 0: none (\`?filters=old\`)
 varying vec2 vUv;
 
 float heightAt(vec2 uv) { return texture2D(maskMap, uv).r; }
@@ -423,6 +450,8 @@ float lavaWave(vec2 g) { return wave(g, vec3(${glslWave(LAVA_WAVE)})); }
 // lavaFloorLoss in this file.
 float lavaFloorLoss(float shade) { return ${LAVA_FLOOR_LOSS.max.toFixed(2)} * (1.0 - exp(-max(shade, 0.0) / ${LAVA_FLOOR_LOSS.knee.toFixed(2)})); }
 float waterWave(vec2 g) { return wave(g, vec3(${glslWave(WATER_WAVE)})); }
+// waterFloorLoss in this file.
+float waterFloorLoss(float shade) { return ${WATER_FLOOR_LOSS.max.toFixed(2)} * (1.0 - exp(-max(shade, 0.0) / ${WATER_FLOOR_LOSS.knee.toFixed(2)})); }
 
 // water_filter leaves grey and cloud-blue pixels alone, a choice the C makes per original pixel. An
 // HD painting's exempt texels (its darkest, near-grey ones, D114) can be much smaller than that, and
@@ -504,6 +533,12 @@ void main() {
           acc += w * 0.5 * vk;
           w *= 0.5;
         }
+        // The C halves with an integer shift at every step down the column: the water settles half a
+        // shade under the real-valued average (D208). It works in place, so the whole loss each frame.
+        if (waterFloor > 0.5) {
+          float shade = bankShadeAt(pow(max(acc, 0.0), 2.2), bank);
+          acc = pow(bankLumaAt(shade - waterFloorLoss(shade), bank), 1.0 / 2.2);
+        }
         c.rgb = hueAt(acc, bank); // the water's hue, also on an exempt speck (D191)
       }
     } else if (kind == 3 || kind == 4) {
@@ -515,6 +550,15 @@ void main() {
     }
   }
   gl_FragColor = vec4(c.rgb, 1.0);
+}
+`;
+
+const COPY_FRAGMENT = /* glsl */ `
+precision highp float;
+uniform sampler2D map;
+varying vec2 vUv;
+void main() {
+  gl_FragColor = texture2D(map, vUv);
 }
 `;
 
@@ -833,6 +877,8 @@ export class ScreenFilterPass {
   private readonly maskTarget = renderTarget(0);
   private history = [renderTarget(0), renderTarget(0)];
   private historyValid = false;
+  /** D208's filters, or `?filters=old`. */
+  private readonly mode = filterModeFromSearch();
   private lastTime = performance.now();
 
   private readonly quadScene = new THREE.Scene();
@@ -840,6 +886,7 @@ export class ScreenFilterPass {
   private readonly quad: THREE.Mesh;
   private readonly filterMaterial: THREE.ShaderMaterial;
   private readonly presentMaterial: THREE.ShaderMaterial;
+  private readonly copyMaterial: THREE.ShaderMaterial;
   private readonly maskMaterial: THREE.ShaderMaterial;
   private readonly artMaskMaterials = new WeakMap<THREE.Texture, THREE.ShaderMaterial>();
   private readonly cutMaskMaterials = new WeakMap<THREE.Material, THREE.ShaderMaterial>();
@@ -873,6 +920,7 @@ export class ScreenFilterPass {
         stageCeiling: { value: new Array(MAX_STAGES).fill(0) },
         stagePrev: { value: new Array(MAX_STAGES).fill(0) },
         stageBank: { value: new Array(MAX_STAGES).fill(-1) },
+        waterFloor: { value: this.mode === "new" ? 1 : 0 },
       },
       depthTest: false,
       depthWrite: false,
@@ -892,6 +940,14 @@ export class ScreenFilterPass {
       },
       depthTest: false,
       depthWrite: false,
+    });
+    this.copyMaterial = new THREE.ShaderMaterial({
+      vertexShader: QUAD_VERTEX,
+      fragmentShader: COPY_FRAGMENT,
+      uniforms: { map: { value: null } },
+      depthTest: false,
+      depthWrite: false,
+      toneMapped: false,
     });
     this.maskMaterial = new THREE.ShaderMaterial({
       vertexShader: MASK_VERTEX,
@@ -947,7 +1003,7 @@ export class ScreenFilterPass {
         this.quad.material = material;
         return r.compileAsync(this.quadScene, this.quadCamera);
       });
-    return Promise.all([quad(this.filterMaterial, this.history[0]), quad(this.presentMaterial, null)]);
+    return Promise.all([quad(this.filterMaterial, this.history[0]), quad(this.copyMaterial, this.maskTarget), quad(this.presentMaterial, null)]);
   }
 
   private withTarget<T>(target: THREE.WebGLRenderTarget | null, f: () => T): T {
@@ -1021,7 +1077,21 @@ export class ScreenFilterPass {
       r.render(this.quadScene, this.quadCamera);
       source = this.history[0].texture;
       camera.layers.mask = layers;
-      if (camera.layers.isEnabled(VFX_LAYER)) this.renderOver(scene, camera, VFX_LAYER);
+      if (camera.layers.isEnabled(VFX_LAYER)) {
+        if (this.mode === "new") {
+          // The effects go over a copy of the filtered frame (D208), in the mask's target, which this
+          // frame no longer needs. Drawn into the history, they came back in the next frame's lava
+          // and blurs every display frame: a glow's trail piled up a / (1 - a) times (twice at 60 fps,
+          // 4.5 times at 120), where the C adds its shots to the old frame once a tick.
+          const over = this.maskTarget;
+          this.copyMaterial.uniforms.map.value = this.history[0].texture;
+          this.quad.material = this.copyMaterial;
+          r.setRenderTarget(over);
+          r.render(this.quadScene, this.quadCamera);
+          source = over.texture;
+        }
+        this.renderOver(scene, camera, VFX_LAYER);
+      }
       this.history.reverse(); // this frame's result is the next frame's previous one
       this.historyValid = true;
     }
