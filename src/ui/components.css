@@ -426,6 +426,11 @@ h3.ui-title {
   image-rendering: pixelated;
 }
 
+/* A remastered painting (the shop's icons, D210) is scaled down smoothly, not as pixels. */
+.ui-menu__icon img.is-hd {
+  image-rendering: auto;
+}
+
 .ui-menu__text {
   display: flex;
   flex-direction: column;

@@ -29,6 +29,7 @@ import { highScoreCheckDue } from "../sim/highscores"; // [high scores]
 import { PauseButton, showPause, type PauseChoice } from "./pause"; // ui-framework: pause screen
 import { askForData, showMessage, showStatus, showTitle, type TitleChoice } from "./screens";
 import { runItemScreen } from "./shop";
+import { loadShopIcons } from "./shopIcons";
 import { preloadLevelModels } from "./levelPreload";
 import { LevelMusic } from "./levelMusic";
 import { playAttractDemo } from "./attractDemo"; // [demos]
@@ -121,6 +122,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
     await openDestruct({ files, view, sfx, music, exitSong: SONG_TITLE });
   };
   loading();
+  void loadShopIcons(); // the item screen's remastered icons (D210), in the background, ready for the first shop
 
   if (import.meta.env.DEV) Object.assign(window, { tyrian: { g, view, music, sfx } });
 
