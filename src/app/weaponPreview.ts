@@ -32,7 +32,7 @@ function sharedView(): { view: View; host: HTMLElement } {
     const host = document.createElement("div");
     host.className = "weapon-preview-view";
     const view = new View(host, loadSettings(), { frame: WINDOW, fitContainer: true });
-    view.draws.setSpriteModels(spriteModels(), loadModel);
+    view.draws.setSpriteModels(spriteModels(), loadModel, { allShips: true }); // the ship menu can show any ship (D207)
     shared = { view, host };
   }
   return shared;

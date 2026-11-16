@@ -11279,3 +11279,93 @@ slower to decode), re-exporting through Blender (re-encodes the WebP maps).
   model change, for a review round.
 - `meshoptimizer` (the encoder the tool and test use) is installed as a dependency of @types/three; listing it in
   devDependencies would pin it.
+
+## D207 — Performance pass 2: the whole model library meshopt-compressed, a level fetches only the ships it can show, the under-shade pass culled against each blended draw's own rectangle, meshoptimizer a devDependency (follows D54, D204, D206)
+
+2026-11-15
+
+D206's "Left" list, measured as D206 did (headless Chrome, `--use-angle=metal`: ANGLE Metal on the Apple M5 Pro,
+the real GPU; weights from the network log of a cold start, cache off, `?debug=play&episode=E&main=N&skip=1&freezeAt=1`,
+every .glb the level fetched, background loads included; `tyrian-scratch/perf-pass-2/weight/`).
+
+**1. The library compressed.** `tools/glb-meshopt.mjs` over every .glb in public/models (enemies, tiles, sidekicks,
+ships, proto) but the 43 a parallel model workflow is rebuilding (its integration compresses them: the SURFACE rock
+arch, wall and clamp, assembly-newsh3-198 / -166 / newsh-caret-77's 21 pieces; newsh3-262, -180, -282; the waterfall
+assembly-newshh-129's 6; the rotor assembly-newsh-hash-195's 12; newsh8-102). 1,471 files rewritten, 293.3 -> 179.6 MiB;
+the library 324.5 -> 210.8 MiB (the 40 of D206 and 7 tiny files that would not shrink unchanged). 1.2 s. The tool is
+idempotent: run again over the whole list it changes no byte (compressed files are skipped).
+- Decoded against the originals (every file): JSON, images, materials and non-geometry views byte for byte; UVs and
+  indices exact (triangles in order, a triangle's vertices at most rotated); positions within 2.4e-4 units (0.003
+  game px; 8.8e-5 of the largest coordinate), normals within 4e-4.
+- In game, before vs after compressing, same code, `&compare=1` 1920x1080, share of pixels changed by more than 8
+  levels: TYRIAN t1000 0.004%, t2000 0.011%; ASTEROID1 t800 0.001%, t1600 0.017%; TYRIAN X t1000 0.018%, t2200 0.009%;
+  GYGES t3000 0.000%, t6300 0.000%; DREAD-NOT t1800 0.007%; SAVARA Y t1050 0.001%; CAMANIS t3300 0.000%. Two captures
+  of the same build differ by 0 to 0.019% (the explosions' sparkles); what moved is those sparkles and single pixels on
+  model edges, at most 56 levels (DREAD-NOT: 149 pixels, 3 over 32). `?viewer=` and `?debug=models` load them.
+
+**2. Only the ships a level can show.** `setSpriteModels` fetched every banked ship's model when the renderer was set up
+(D54), so every level fetched six ships it never shows (3.2 MB compressed). Now the level's view leaves them to
+preloadLevel, which already had the players' own ships (levelSprites); `{ allShips: true }` keeps them for the shop's
+weapon preview, whose ship menu shows any ship. A ship can change during a level only by the Nort ship chord
+(cheats.ts), so levelSprites adds the Nort ship at time 1e9: loaded last, never waited for. The boot's Talon (the view's
+fallback ship) and the levels' renderer's share one fetch (`preloadModel`, started together: three's FileLoader merges
+requests in flight). Ships per level 3.22 -> 1.00 MB (Talon + Nort; 1.53 where the script gives the Stalker: ALE,
+TIME WAR, SQUADRON).
+
+**Per level** (MB; main 5f91d30f -> library compressed -> both):
+
+| Level | MB | Level | MB | Level | MB |
+|---|---|---|---|---|---|
+| TYRIAN | 61.4 -> 45.2 -> 43.0 | SAVARA (1.10, 1.29) | 23.6 -> 16.6 -> 14.4 | BOTANY A | 16.4 -> 10.2 -> 7.9 |
+| TYRIAN X | 59.0 -> 43.3 -> 41.1 | BONUS 1.25 | 23.5 -> 16.7 -> 14.5 | NOSE DRIP | 16.2 -> 10.9 -> 8.7 |
+| ASTEROID1 | 43.3 -> 30.9 -> 28.7 | BONUS 2.6 | 22.3 -> 15.7 -> 13.4 | CORE | 16.1 -> 11.4 -> 9.2 |
+| ASTEROID? | 42.5 -> 29.3 -> 27.1 | HARVEST | 20.0 -> 12.7 -> 10.5 | DREAD-NOT | 15.5 -> 9.6 -> 7.4 |
+| ASTEROID2 | 39.9 -> 27.8 -> 25.5 | BRAINIAC | 20.0 -> 12.7 -> 10.5 | MINEMAZE | 15.4 -> 11.4 -> 9.2 |
+| AST. CITY | 39.3 -> 28.7 -> 26.4 | LAVA RUN | 19.9 -> 12.6 -> 10.4 | FLEET | 15.0 -> 10.1 -> 7.9 |
+| TORM | 36.1 -> 24.0 -> 21.7 | ICESECRET | 19.7 -> 12.5 -> 10.3 | UNDERDELI | 14.6 -> 10.0 -> 7.8 |
+| ALE | 35.1 -> 23.8 -> 22.1 | SAVARA V | 19.4 -> 13.6 -> 11.4 | LAVA EXIT | 14.4 -> 10.1 -> 7.9 |
+| IXMUCANE | 34.5 -> 21.3 -> 19.1 | MISTAKES | 19.1 -> 14.3 -> 12.0 | BOTANY B | 14.2 -> 8.9 -> 6.7 |
+| HOLES | 33.9 -> 24.6 -> 22.4 | SAVARA IV | 18.2 -> 12.7 -> 10.5 | GRYPHON | 13.8 -> 9.3 -> 7.1 |
+| SAWBLADES | 33.0 -> 20.2 -> 18.0 | CAMANIS | 18.1 -> 13.9 -> 11.7 | ?TUNNEL? | 13.8 -> 8.7 -> 6.4 |
+| ASSASSIN | 32.5 -> 23.5 -> 21.2 | SURFACE | 17.7 -> 12.6 -> 10.4 | BONUS 3.6 | 12.8 -> 8.8 -> 6.5 |
+| ASTCITY | 31.1 -> 22.1 -> 19.9 | BONUS 2.24 | 17.5 -> 13.0 -> 10.7 | ICE EXIT | 12.4 -> 8.9 -> 6.7 |
+| New Deli | 28.1 -> 17.7 -> 15.5 | GAUNTLET | 17.1 -> 12.2 -> 10.0 | TIME WAR | 11.8 -> 8.4 -> 6.7 |
+| DELIANI | 27.9 -> 17.6 -> 15.4 | APPROACH | 11.3 -> 7.7 -> 5.4 | EYESPY | 10.9 -> 7.2 -> 4.9 |
+| GYGES | 25.4 -> 19.8 -> 17.5 | SOH JIN 1.31 | 10.3 -> 7.5 -> 5.3 | MINES | 10.0 -> 7.6 -> 5.4 |
+| SAVARA Y | 23.6 -> 16.6 -> 14.3 | STARGATE | 10.0 -> 7.1 -> 4.9 | SIDE EXIT | 9.1 -> 7.2 -> 5.0 |
+| MACES | 8.8 -> 6.6 -> 4.4 | SOH JIN 2.10 | 8.0 -> 6.2 -> 4.0 | DESERTRUN | 7.1 -> 6.1 -> 3.9 |
+| MARKERS | 6.8 -> 5.3 -> 3.1 | GEM WAR | 6.5 -> 5.3 -> 3.1 | SQUADRON | 6.3 -> 4.9 -> 3.2 |
+| WINDY 4.27 | 6.0 -> 4.9 -> 2.7 | BUBBLES | 5.7 -> 4.8 -> 2.5 | WINDY 1.33 | 5.6 -> 4.7 -> 2.5 |
+
+Median 17.5 -> 12.5 -> 10.3 MB; the 61 levels together 1,251 -> 875 -> 740 MB. The 43 left uncompressed are 7.0 MiB
+(SURFACE, DESERTRUN, IXMUCANE, SAWBLADES, ?TUNNEL?, TORM, BONUS 2.24 and APPROACH fetch some of them).
+
+**3. meshoptimizer** (the encoder of glb-meshopt.mjs and tests/render/perfPass.test.ts) is listed in devDependencies at
+the installed 1.1.1 (`^1.1.1`); before, only @types/three's `~1.1.1` brought it. package-lock.json gains the one root
+line (`npm install --package-lock-only` in a copy without node_modules; `npm ci --dry-run` there agrees).
+
+**4. The under-shade pass culled per draw.** D206's pass drew every model inside the blended draws' bounding box; on
+GYGES the sheets frame the boss on three sides, so it drew the boss. Each blended draw's own screen rectangle now goes
+to the pass with the area (`addGrabArea`), marked (grown by the copies' 8 px margin) in a 128 x 72 grid over the screen
+with a summed-area table. A plain mesh is left out when its bounding sphere misses the narrowed view or its bounding
+box's screen box touches no marked cell; instanced meshes (ground, structures, sheets), meshes three never culls and
+boxes reaching behind the camera are always drawn. Exact: the blends read the shade target only at their own pixels
+(texelFetch at gl_FragCoord), all inside their rectangles. The pass updates the scene's matrices for the test and its
+render then skips its own update. Calls of the pass (frame with it minus without, 3840x2160): GYGES t6300 466 -> 177
+(371k -> 211k triangles), t7050 419 -> 119, NOSE DRIP t5550 79 -> 49, SAVARA Y t1050 12 -> 12. Time: within the
+noise (the pass was 0.4 ms wall on GYGES after D206; GYGES's frame 11.2 -> 10.8 ms wall, CPU 4.17 -> 4.15 ms, GPU
+5.46 -> 5.47 ms, run to run about 0.3 ms). Frames before vs after (`&compare=1`, same models): GYGES t6300 and t7050,
+SAVARA Y t1050 (D204's cloud, no marbling), CAMANIS, TYRIAN 0 pixels; NOSE DRIP 2 pixels at 9 levels; BRAINIAC 197
+pixels at most 31 levels (two captures of the same build: 109, the lava smoothie's history).
+
+**Checked:** `tsc`; `vitest` 891 passed (new: modelPop.test.ts, a level's view fetches only the ships preloadLevel is
+given and the shop's preview all of them; modelSwap.test.ts, episode 1's levels preload the Talon and the Nort ship and
+no other ship; perfPass.test.ts, a model between two rectangles left out, one under a rectangle, one within the margin
+and the instanced ground drawn); `npm run build`. Captures in `tyrian-scratch/perf-pass-2/shots/`, probes in `probe/`.
+
+**Options considered:** for 2, lazy-loading the Nort ship when the chord is pressed (the ship would vanish while it
+loads) or leaving it out (a cheat); for 4, testing each mesh against every rectangle (hundreds of sheet tiles a frame;
+the grid is four reads), bounding spheres instead of boxes (looser on the boss's long pieces).
+
+**Left:** the 43 models above, compressed by their workflow's integration (build-models.sh does it); the server's gzip
+and max-age (D206); newshg-1's density (D206).

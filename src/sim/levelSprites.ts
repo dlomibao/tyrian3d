@@ -190,8 +190,16 @@ export function levelSprites(): LevelSprite[] {
       }
     }
   }
+  // The one ship a level can switch to while it plays: the Nort ship chord (cheats.ts
+  // JE_mainKeyboardInput sets shipGr 1, drawn from player 1's sheet). Loaded last, after everything
+  // the level names, so it never holds up a start (D207). Every other ship is set before a level
+  // starts (JE_getShipInfo), so only the players' own are listed above.
+  if (g.shipGr !== 1) add(g.shipGrPtr ?? g.res.spriteSheet9, 2, 220, true, NORT_SHIP_TIME);
   return [...out.values()];
 }
+
+/** LevelSprite.time of the Nort ship (the in-flight cheat's): after any event, loaded last. */
+export const NORT_SHIP_TIME = 1e9;
 
 /**
  * Every tile on the current level's background maps, with roughly when it first scrolls into view
