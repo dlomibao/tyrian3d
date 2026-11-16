@@ -26,6 +26,8 @@ import { PASS_HEIGHT } from "./passHeights";
 import type { PaletteTexture } from "./paletteTexture";
 import type { ScreenHue, ScreenHueStage } from "./screenHue";
 import { VFX_LAYER } from "./vfx/vfxMode";
+import { addLightsToLayer, isLight, restoreLights } from "./passLights";
+import { VFX_DRAWN_TWICE } from "./vfx/drawnTwice";
 
 /** Classic ticks per second (DECISIONS.md D2): the C runs each filter once a tick. */
 const TICK_HZ = 1000 / CLASSIC_TICK_MS;
@@ -1048,12 +1050,25 @@ export class ScreenFilterPass {
     const shadows = r.shadowMap.autoUpdate;
     const autoClear = r.autoClear;
     const layers = camera.layers.mask;
+    // The lights join this render too, so their state stays as the main render has it (D206).
+    const lights: THREE.Object3D[] = [];
+    scene.traverseVisible((o) => {
+      if (isLight(o)) lights.push(o);
+    });
+    const lightMasks = addLightsToLayer(lights, camera.layers, layer);
     scene.background = null;
     r.shadowMap.autoUpdate = false;
     r.autoClear = false;
     r.clearDepth();
     camera.layers.set(layer);
-    r.render(scene, camera);
+    // The effects drawn here never had the outline pass's second copy: one plain draw (D206).
+    VFX_DRAWN_TWICE.value = 0;
+    try {
+      r.render(scene, camera);
+    } finally {
+      VFX_DRAWN_TWICE.value = 1;
+    }
+    restoreLights(lights, lightMasks);
     camera.layers.mask = layers;
     r.autoClear = autoClear;
     r.shadowMap.autoUpdate = shadows;
@@ -1111,8 +1126,10 @@ export class ScreenFilterPass {
     // The flat art and the ground quads with see-through texels (D199) are left out of this draw and
     // drawn after it with their own materials, which cut their clear texels out.
     const art: THREE.Mesh[] = [];
+    const lights: THREE.Object3D[] = [];
     scene.traverseVisible((o) => {
-      if ((isFlatArt(o) || maskCutOf(o)) && o.layers.test(camera.layers)) art.push(o as THREE.Mesh);
+      if (isLight(o)) lights.push(o);
+      else if ((isFlatArt(o) || maskCutOf(o)) && o.layers.test(camera.layers)) art.push(o as THREE.Mesh);
     });
     for (const m of art) m.visible = false;
     scene.background = null;
@@ -1130,12 +1147,14 @@ export class ScreenFilterPass {
       }
       const layers = camera.layers.mask;
       const autoClear = r.autoClear;
+      const lightMasks = addLightsToLayer(lights, camera.layers, ART_MASK_LAYER); // D206
       scene.overrideMaterial = null;
       camera.layers.set(ART_MASK_LAYER);
       r.autoClear = false;
       r.render(scene, camera);
       r.autoClear = autoClear;
       camera.layers.mask = layers;
+      restoreLights(lights, lightMasks);
       art.forEach((m, i) => {
         m.material = saved[i].material;
         m.layers.mask = saved[i].layers;

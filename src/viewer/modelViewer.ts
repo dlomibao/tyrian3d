@@ -21,6 +21,7 @@ import { OutlineEffect } from "three/addons/effects/OutlineEffect.js";
 import { INK_OUTLINE } from "../render/outlineColor";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { filesFromZip, loadDevFiles, type FileMap } from "../assets/files";
 import { loadStoredZip } from "../assets/store";
 import { vga6To8, type Palette } from "../data/palette";
@@ -275,7 +276,7 @@ export async function runModelViewer(): Promise<void> {
   const camera = () => (mode === "top" ? ortho : persp);
   const controls = () => (mode === "top" ? orthoControls : perspControls);
 
-  const loader = new GLTFLoader();
+  const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder); // EXT_meshopt_compression (D206)
   const glbs = new Map<string, Promise<{ scene: THREE.Object3D; bytes: number }>>();
   const built = new Map<string, Promise<Loaded>>();
   const pieceModels = spriteModels().grouped;

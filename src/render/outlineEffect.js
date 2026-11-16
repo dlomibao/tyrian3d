@@ -8,7 +8,9 @@
 // renderOutline swaps materials on visible objects only and keeps its bookkeeping in Maps (D91); and
 // one made for a material that carries userData.obliqueUniforms (obliqueView.ts, a tall model drawn
 // in the art's view, D165) is drawn in that view too; and renderOutline hides the objects marked
-// userData.outlineSkip while it renders (D193: the frame copies and the explosions they serve).
+// userData.outlineSkip while it renders (D193: the frame copies and the explosions they serve; D206:
+// everything else it would draw a second time with its own material), and leaves a multisampled
+// target's resolve to the main render it runs inside (D206).
 // The rest is three.js's code unchanged. Types: outlineEffect.d.ts (three's own).
 
 import {
@@ -475,7 +477,25 @@ class OutlineEffect {
 			scene.traverseVisible( hideSkipped );
 			for ( const object of skipped ) object.visible = false;
 
-			renderer.render( scene, camera );
+			// Tyrian 3D (D206): this render runs inside the main render, into its target. three resolves
+			// a multisampled target at the end of every render: here that copied the whole frame (the
+			// screen filters' 4x half-float target, D31) and broke the tiler's render pass mid-frame, about
+			// 2 ms a frame at 4K. The main render's own resolve at its end is the one that counts, so the
+			// target reads as single-sampled for this render alone (it doesn't rebind the target: the
+			// shadow map, the only part of a render that does, is off here).
+			const target = renderer.getRenderTarget();
+			const samples = target !== null ? target.samples : 0;
+			if ( samples > 0 ) target.samples = 0;
+
+			try {
+
+				renderer.render( scene, camera );
+
+			} finally {
+
+				if ( samples > 0 ) target.samples = samples;
+
+			}
 
 			for ( const object of skipped ) object.visible = true;
 			skipped.length = 0;

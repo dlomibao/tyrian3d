@@ -64,6 +64,8 @@ uniform sampler2D map;
 uniform sampler2D paletteMap;
 uniform float levelFilter;     // JE_filterScreen's hue, or -99
 uniform float levelBrightness; // and its brightness (0 or -99: none)
+// 1: the output of two draws, premultiplied: alpha a(2 - a) (vfx/drawnTwice.ts, D206); 0: one draw
+uniform float artDrawnTwice;
 varying vec2 vUv;
 varying vec4 vUvRect;
 varying vec4 vFx;
@@ -106,6 +108,7 @@ void main() {
     rgb = hbColor(bank, artShade, hbUnderShade(), vHeight, water);
     gl_FragColor = vec4(rgb * a, a);
     #include <colorspace_fragment>
+    gl_FragColor *= 1.0 + artDrawnTwice * (1.0 - gl_FragColor.a); // D206
     return;
   }
   if (vFx.x > 1.5) {
@@ -129,6 +132,7 @@ void main() {
   gl_FragColor = vec4(rgb * a, a);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
+  gl_FragColor *= 1.0 + artDrawnTwice * (1.0 - gl_FragColor.a); // D206
 }
 `;
 
@@ -292,10 +296,11 @@ export class SpriteArtLayer {
     let b = list[pass];
     if (!b) {
       b = list[pass] = new Batch(pass === Pass.Explosions ? this.stencilled(sheet) : this.material(sheet), SPRITE_ART_ORDER + pass / 100);
-      // The explosions blend with the frame copied under them (D174), in the main render only: the
-      // outline pass's render of the scene (outlineEffect.js) would draw them a first time, before
-      // the blend sheets and without their stencil, over a stale copy (D193).
-      if (pass === Pass.Explosions) b.mesh.userData.outlineSkip = true;
+      // Left out of the outline pass's render of the scene (outlineEffect.js), which drew every
+      // batch a first time. The explosions blend with the frame copied under them (D174), in the main
+      // render only: that copy came before the blend sheets, without their stencil, over a stale
+      // copy (D193). The other passes draw once with two draws' output (artDrawnTwice, D206).
+      b.mesh.userData.outlineSkip = true;
       this.all.push(b);
       this.root.add(b.mesh);
       if (pass === Pass.Explosions && !this.setter) this.root.add((this.setter = this.stencilSetter()));
@@ -319,7 +324,8 @@ export class SpriteArtLayer {
     // level filter and smoothie hue of the moment they were made (a blank 1x1 under: every explosion
     // blended as if over black, crimson where the C's go orange over light ground, D193). They share
     // the live ones instead.
-    m.uniforms = base.uniforms;
+    // They have been drawn once since D193: artDrawnTwice is their own (D206).
+    m.uniforms = { ...base.uniforms, artDrawnTwice: { value: 0 } };
     m.stencilWrite = true;
     m.stencilRef = 0;
     m.stencilFuncMask = EXPLOSION_LAYER_EVERY - 1;
@@ -367,6 +373,7 @@ export class SpriteArtLayer {
           ...this.levelUniforms,
           ...this.palette.screenHue.uniforms,
           ...this.under.uniforms,
+          artDrawnTwice: { value: 1 },
         },
         transparent: true,
         premultipliedAlpha: true,
