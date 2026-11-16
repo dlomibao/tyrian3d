@@ -104,7 +104,13 @@ class OutlineEffect {
 			'vec4 calculateOutline( vec4 pos, vec3 normal, vec4 skinned ) {',
 			'	float thickness = outlineThickness;',
 			'	const float ratio = 1.0;', // TODO: support outline thickness ratio for each vertex
-			'	vec4 pos2 = projectionMatrix * modelViewMatrix * vec4( skinned.xyz + normal, 1.0 );',
+			'	vec4 tip = vec4( skinned.xyz + normal, 1.0 );',
+			// an instanced shell (the asteroid rim's tile models, D211): the normal's tip goes where
+			// project_vertex put the vertex, through the instance's matrix
+			'	#ifdef USE_INSTANCING',
+			'	tip = instanceMatrix * tip;',
+			'	#endif',
+			'	vec4 pos2 = projectionMatrix * modelViewMatrix * tip;',
 			// NOTE: subtract pos2 from pos because BackSide objectNormal is negative
 			'	vec4 norm = normalize( pos - pos2 );',
 			'	return pos + norm * thickness * pos.w * ratio;',

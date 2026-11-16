@@ -11602,3 +11602,75 @@ Upgrade Ship's menus with and without `?sprites=original`. Captures: `tyrian-scr
 Known limits: the colours are the painting's (no palette recolour; D172's ramp could be applied per icon if one
 reads off); Plasma Storm's retry is a hard-edged star with a copper rim rather than the sprite's flat fire colours.
 To redo an icon, add it to `RETRIES`, `sheets --retry`, send the sheet, and `cut` again with all answers.
+## D211 — The asteroid platforms' rock rim becomes 3D rock: twelve layer-0 tile models, one per rim tile, in the enemy asteroids' faceted look with their ink; StructureInstances draws a tile model's outline shell when it is tagged (fixes a user report; follows D34, D74, D86, D90, D175, D206, D209)
+
+2026-11-15
+
+**User report:** on ASTEROID1 "some asteroids are textures and some models; looks inconsistent". The loose asteroids
+(`newshd-123`, `newshd-5`, `assembly-newshd-45` at t1525) are D175's faceted grey rock with the ink outline; the belt
+they fly over was flat HD-painted ground tiles, darker, a little pixelated, no outline.
+
+**Scope** (every level map scanned, `tiles.json`'s levels and neighbour counts): the belt is an autotile kit on
+`shapesz.dat` layer 0, a woven stone floor (371) ringed by twelve rim tiles, the corners 360/362/380/382, the sides
+361/370/372/381 and the inner corners 363/364/373/374: a band of boulders about 10-12 px deep along the platform's
+outline, the weave behind it. They occur on four maps only, ASTEROID1 (783 cells), ASTEROID2 (519), ASTEROID? (616)
+and AST. CITY (165), always on layer 0; no other tileset draws them. ASTEROID? also has the seven `l1bld` bases
+(D141), whose patterns contain rim tiles; those stay whole structure models (the biggest pattern wins). The floor
+(371) and the bases' tiles (379, 389, 383-388, ...) stay painted.
+
+**Decision:** one tile model per rim tile (`assets/blender/tiles/shapesz_rim_rock.py` on the numpy-only
+`lib_rim_rock.py`): `public/models/tiles/shapesz/rim-<tile>.glb` with `src/render/tileModels/shapesz-rim-<tile>.json`
+(1x1 patterns, layer 0, which keeps its tiles: no `keepTiles` key, as the trees and boulders, so D86's covered
+paintings don't apply). The maps compose the kit in hundreds of ways, so a model per recurring pattern can't cover
+them; per-tile models do, if every pair the maps put side by side meets without a step.
+- **Field:** each tile read among its usual neighbours (3x3, MMPX 2x). The band's pixels are split into the art's
+  stones (brightness hills, as `lib_tiles.hills`: a boulder's lit top and its shadowed flank climb to one peak, the
+  crevices are the valleys); a hill whose median lies within 10 px of space is a boulder, deeper ones are weave.
+  Each boulder is a round dome over its own pixels (taller the wider it is, up to 0.30 units: under the ground
+  enemies' 0.45 and `lib_l1bld`'s 0.50 rim rocks) on a 0.03 bed, all of it rising across the outline's dark ring
+  and fading where the weave starts. Brightness is not height (art rule 2).
+- **Seams:** every side's edge profile becomes the mean over all the sides the maps put against it (union of the
+  pairs in the neighbour counts), blended in over 4 px; a side that mostly meets floor tiles (the weave, the bases'
+  channels: `Kit.inner_side`) goes to the floor at its edge (before that rule, 372's rock reached its weave side and
+  its edge wall showed as a dark notch every tile on ASTEROID2's long right rim). Every pair's shared edge then
+  matches exactly (checked: all 57 pairs, mismatch 0). The mesh is a 1 px grid with each vertex jittered 0.32 px
+  (along the edge only on a tile's edges, the same offsets in every tile, so neighbours share their edge vertices),
+  clipped at the rock's outline (a smooth contour, not pixel steps), with walls under any edge the rock reaches.
+- **Look (the enemy asteroids'):** D175's facet ramp, chips within 13° and 1.6 px, flat-shaded, each one grey of the
+  tile's own ramp, ranked by the art's brightness under it (0.55), facing the art's light (0.25) and height (0.2,
+  so the crevices read as cracks), matched to the tile's own shade distribution with a 0.16 bias toward dark (the
+  game's light brightens the lit chips). The greys ride on COLOR_0 as a multiplier of one matte palette material per
+  tile (D209's tone; the greys 1-15 are neutral, so the product is the palette's own grey): one draw per tile model.
+  `common.export_glb` / `lib_tiles.export_tile_model` take `color_attr` for that (D209 asked for it there;
+  lib_arch_rock keeps its own copy for now).
+- **Ink:** the asteroids wear D90's outline shell, so the rim does too: made from the rock among the tile's usual
+  neighbours above 0.03 units (the shell's underside, pushed out by the outline pass, must clear the ground's depth
+  to ink the rock's foot; from z = 0 it drew nothing), cut open at the tile's edges so the ink runs on across seams,
+  tagged `tyrian_tile_outline`. `StructureInstances` keeps such a shell as an instanced part (prepareModel's
+  no-colour, no-depth material, no shadow, left out of the heights) and drops every other helper as before (D8);
+  `outlineEffect.js`'s hull puts the normal's tip through the instance matrix (it took the model matrix alone).
+  The rock covers the outline's dark ring rather than stopping at its inner edge (D74): left showing, the ring was
+  a stepped grey band round the rock in both terrain looks.
+
+**Result** (`&compare=1`, ASTEROID1 t1525, the user's frame): the belt and the loose asteroids read as the same
+faceted grey stone with the same ink; the belt keeps the art's outline, boulder band and weave. Belt luma over the
+belt's pixels: original 66, main 68, this 72 (p5 23 / 22 / 27, p95 138 / 152 / 143). Rock 608-1001 triangles per tile
+plus a 1.2-1.7k shell, 34-50 KB per glb (meshopt, D206), 0.50 MB for the twelve. Draw calls at t1525: 200 -> 232.
+`npm run inventory`: tile models 146 -> 158 (ASTEROID1, ASTEROID2, AST. CITY +12, ASTEROID? 7 -> 19).
+Captures: `tyrian-scratch/asteroid-belt/final/` (before/after pairs, `summary.png`; not in git, D3).
+
+**Options considered:**
+- *A model per recurring platform pattern:* the platforms are hundreds of distinct shapes; patterns would need
+  `minRows` and still miss most placements.
+- *Per-tile boulders (lib_tiles.boulders) or the island rock (`rock_tile`, D63):* boulders cut at the tile edge
+  disagree with the neighbour's (the grid D63 warns of); the island rock is a level top with a texture, not the
+  asteroids' faceted stone.
+- *Model the floor (371) too:* the weave is carved paving, not rock, and raising it would raise every base tile
+  beside it; left painted.
+- *No ink (as every tile model, D8):* the loose asteroids have it, and without it the painted ring showed.
+
+**Open:** the boulders read softer and less separate than the art's; the `l1bld` bases on ASTEROID? keep their own
+bevelled rim blocks (`lib_l1bld.rim_rocks`), lighter and blockier beside these; a straight run of one rim tile
+repeats every 28 px, as the art does. A rim cell under an opaque ground enemy's sprite is left out (D86's rule).
+
+**Cost:** one Opus agent.
