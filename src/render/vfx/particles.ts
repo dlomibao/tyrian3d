@@ -9,6 +9,7 @@
 // nothing is allocated after construction.
 
 import * as THREE from "three";
+import { drawnTwicePars, VFX_DRAWN_TWICE } from "./drawnTwice";
 
 /** The look of a particle, chosen per particle in the fragment shader. */
 export const enum ParticleShape {
@@ -151,6 +152,7 @@ void main() {
   gl_FragColor = vec4(rgb, a * vColor.a);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
+  gl_FragColor = drawnTwice(gl_FragColor); // D206
 }
 `;
 
@@ -204,8 +206,8 @@ export class ParticleSystem {
 
     this.material = new THREE.ShaderMaterial({
       vertexShader: VERTEX,
-      fragmentShader: FRAGMENT,
-      uniforms: { uTime: { value: 0 } },
+      fragmentShader: drawnTwicePars(blending) + FRAGMENT,
+      uniforms: { uTime: { value: 0 }, uDrawnTwice: VFX_DRAWN_TWICE },
       transparent: true,
       depthWrite: false,
       blending,
@@ -215,6 +217,8 @@ export class ParticleSystem {
     this.mesh.frustumCulled = false;
     this.mesh.renderOrder = blending === THREE.AdditiveBlending ? 2 : 1;
     this.mesh.name = blending === THREE.AdditiveBlending ? "vfx-particles-additive" : "vfx-particles";
+    // Drawn once, as if twice (drawnTwice.ts, D206).
+    this.mesh.userData.outlineSkip = true;
   }
 
   /** The clock the particles age by, in seconds. */

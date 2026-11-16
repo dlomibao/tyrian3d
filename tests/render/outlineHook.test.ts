@@ -106,11 +106,26 @@ describe("the outline pass's own render (outlineEffect.js, D193)", () => {
     const renderer = {
       autoClear: true,
       shadowMap: { enabled: true },
+      getRenderTarget: () => null,
       render: (s: THREE.Scene) => seen.push(Object.fromEntries(s.children.map((o) => [o.name, o.visible]))),
     };
     const effect = new OutlineEffect(renderer as unknown as THREE.WebGLRenderer);
     effect.renderOutline(scene, new THREE.PerspectiveCamera());
     expect(seen).toEqual([{ "frame copy": false, glow: true }]);
     expect(skipped.visible).toBe(true);
+  });
+
+  test("leaves a multisampled target's resolve to the main render it runs inside (D206)", () => {
+    const target = new THREE.WebGLRenderTarget(4, 4, { samples: 4 });
+    const seen: number[] = [];
+    const renderer = {
+      autoClear: true,
+      shadowMap: { enabled: true },
+      getRenderTarget: () => target,
+      render: () => seen.push(target.samples),
+    };
+    new OutlineEffect(renderer as unknown as THREE.WebGLRenderer).renderOutline(new THREE.Scene(), new THREE.PerspectiveCamera());
+    expect(seen).toEqual([0]);
+    expect(target.samples).toBe(4);
   });
 });

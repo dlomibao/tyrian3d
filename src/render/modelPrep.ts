@@ -75,6 +75,9 @@ export function prepareModel(root: THREE.Object3D): THREE.Object3D {
       );
       prepass.name = "depth_prepass";
       prepass.userData.depthPrepass = true;
+      // Not in the outline pass's render of the scene (outlineEffect.js), which drew it a first time
+      // there, before the particles and glows it should let show through (D206).
+      prepass.userData.outlineSkip = true;
       prepass.visible = false;
       prepass.castShadow = false;
       prepass.receiveShadow = false;

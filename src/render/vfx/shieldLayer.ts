@@ -7,6 +7,7 @@
 // they're rebuilt every display frame from the draw list, one instanced draw call, reused buffers.
 
 import * as THREE from "three";
+import { drawnTwicePars, VFX_DRAWN_TWICE } from "./drawnTwice";
 
 const VERTEX = /* glsl */ `
 attribute vec3 aCentre;
@@ -67,6 +68,7 @@ void main() {
   gl_FragColor = vec4(rgb, a * vColor.a);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
+  gl_FragColor = drawnTwice(gl_FragColor); // D206
 }
 `;
 
@@ -89,7 +91,8 @@ export class ShieldLayer {
     this.allocate(capacity);
     const material = new THREE.ShaderMaterial({
       vertexShader: VERTEX,
-      fragmentShader: FRAGMENT,
+      fragmentShader: drawnTwicePars(THREE.AdditiveBlending) + FRAGMENT,
+      uniforms: { uDrawnTwice: VFX_DRAWN_TWICE },
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
@@ -99,6 +102,8 @@ export class ShieldLayer {
     this.mesh.frustumCulled = false;
     this.mesh.renderOrder = 2;
     this.mesh.name = "vfx-shield";
+    // Drawn once, as if twice (drawnTwice.ts, D206).
+    this.mesh.userData.outlineSkip = true;
     this.mesh.visible = false;
   }
 

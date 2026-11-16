@@ -7,6 +7,7 @@
 // per layer; the buffers grow (doubling) when a frame needs more, and are otherwise reused.
 
 import * as THREE from "three";
+import { drawnTwicePars, VFX_DRAWN_TWICE } from "./drawnTwice";
 
 export const enum GlowShape {
   /** A soft glow, brightest at the head, fading toward the tail. */
@@ -85,6 +86,7 @@ void main() {
   gl_FragColor = vec4(rgb, a * vColor.a);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
+  gl_FragColor = drawnTwice(gl_FragColor); // D206
 }
 `;
 
@@ -111,7 +113,8 @@ export class GlowLayer {
     this.allocate(capacity);
     const material = new THREE.ShaderMaterial({
       vertexShader: VERTEX,
-      fragmentShader: FRAGMENT,
+      fragmentShader: drawnTwicePars(blending) + FRAGMENT,
+      uniforms: { uDrawnTwice: VFX_DRAWN_TWICE },
       transparent: true,
       depthWrite: false,
       blending,
@@ -121,6 +124,8 @@ export class GlowLayer {
     this.mesh.frustumCulled = false;
     this.mesh.renderOrder = renderOrder ?? (blending === THREE.AdditiveBlending ? 2 : 1);
     this.mesh.name = blending === THREE.AdditiveBlending ? "vfx-glows" : "vfx-puffs";
+    // Drawn once, as if twice (drawnTwice.ts, D206).
+    this.mesh.userData.outlineSkip = true;
   }
 
   private allocate(capacity: number): void {

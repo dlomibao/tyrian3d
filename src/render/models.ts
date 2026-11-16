@@ -1,9 +1,14 @@
 import type { Material, Mesh, Object3D, Texture } from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { prepareModel } from "./modelPrep";
 import { isRockSource } from "./rockMaterial";
 
-const loader = new GLTFLoader();
+/**
+ * The models' loader. Their geometry may be meshopt-compressed (EXT_meshopt_compression,
+ * tools/glb-meshopt.mjs, D206): about half the bytes to fetch, decoded to the same float buffers.
+ */
+const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
 
 /**
  * The largest side a model's texture is uploaded at (D91). A model fills a few hundred pixels of the

@@ -5,6 +5,7 @@
 // alone by the concept bake and textured from above. Every pair of rock tiles the map puts side by
 // side has an edge band on both sides, so the stones meet across every seam.
 import { readFileSync } from "node:fs";
+import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { describe, expect, test } from "vitest";
 import type { TileDraw } from "../../src/sim/draw";
 import { TILE_MODELS, TileModelIndex } from "../../src/render/remaster/tileModels";
@@ -43,16 +44,29 @@ interface GltfMaterial {
   normalTexture?: unknown;
 }
 
-/** A float accessor of a .glb as rows of `n` (the BIN chunk follows the JSON chunk). */
+await MeshoptDecoder.ready;
+
+/**
+ * A float accessor of a .glb as rows of `n` (the BIN chunk follows the JSON chunk); a view compressed
+ * with EXT_meshopt_compression (tools/glb-meshopt.mjs, D206) is decoded first.
+ */
 function floats(model: string, accessor: number, n: number): number[][] {
   const b = readFileSync(new URL(`../../public/models/${model}.glb`, import.meta.url));
   const len = b.readUInt32LE(12);
   const doc = JSON.parse(b.subarray(20, 20 + len).toString("utf8"));
   const a = doc.accessors[accessor];
   const view = doc.bufferViews[a.bufferView];
-  const start = 20 + len + 8 + (view.byteOffset ?? 0) + (a.byteOffset ?? 0);
+  const bin = 20 + len + 8;
+  const meshopt = view.extensions?.EXT_meshopt_compression;
+  let data: DataView;
+  if (meshopt) {
+    const out = new Uint8Array(meshopt.count * meshopt.byteStride);
+    const at = bin + (meshopt.byteOffset ?? 0);
+    MeshoptDecoder.decodeGltfBuffer(out, meshopt.count, meshopt.byteStride, b.subarray(at, at + meshopt.byteLength), meshopt.mode, meshopt.filter ?? "NONE");
+    data = new DataView(out.buffer, a.byteOffset ?? 0);
+  } else data = new DataView(b.buffer, b.byteOffset + bin + (view.byteOffset ?? 0) + (a.byteOffset ?? 0));
   const out: number[][] = [];
-  for (let i = 0; i < a.count; i++) out.push(Array.from({ length: n }, (_, k) => b.readFloatLE(start + (i * n + k) * 4)));
+  for (let i = 0; i < a.count; i++) out.push(Array.from({ length: n }, (_, k) => data.getFloat32((i * n + k) * 4, true)));
   return out;
 }
 

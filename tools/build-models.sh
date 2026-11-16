@@ -3,7 +3,7 @@
 # common.py), or just the ones given. Each writes its .glb to public/models/ and, for models that
 # replace sprites, its entry to src/render/spriteModels/.
 #
-#   tools/build-models.sh [-j jobs] [-p preview_dir] [script.py ...]
+#   tools/build-models.sh [-j jobs] [-p preview_dir] [-n] [-u] [script.py ...]
 #
 # -p also renders each model beside its sprite to <preview_dir>/<name>.png (needs the reference
 # images from `npm run catalogue`). Blender comes from $BLENDER, `blender` on the PATH, or the
@@ -15,17 +15,23 @@
 # textured ones, is the wrong look (a frame left plain flashes lighter, D46). -n builds without the
 # bake (the models come out plain). An assembly's bake needs .shape/<name>/regions.json
 # (tools/sprite_shape.py <name>).
+#
+# Every .glb the run wrote is then meshopt-compressed (tools/glb-meshopt.mjs, DECISIONS.md D206):
+# about 40% fewer bytes to download, the same float geometry once three.js (models.ts) or Blender
+# decodes it. -u leaves them uncompressed.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 jobs=$(( $(getconf _NPROCESSORS_ONLN) / 2 ))
 preview=""
 texture=1
-while getopts "j:p:n" opt; do
+pack=1
+while getopts "j:p:nu" opt; do
   case $opt in
     j) jobs=$OPTARG ;;
     p) preview=$OPTARG ;;
     n) texture=0 ;;
+    u) pack=0 ;;
     *) exit 2 ;;
   esac
 done
@@ -103,4 +109,11 @@ build() {
 export -f build bake_name own_bake
 export blender preview texture
 [ -n "$preview" ] && mkdir -p "$preview"
-printf '%s\n' "$@" | xargs -P "$jobs" -I{} bash -c 'build "$@"' _ {}
+started=$(mktemp)
+status=0
+printf '%s\n' "$@" | xargs -P "$jobs" -I{} bash -c 'build "$@"' _ {} || status=$?
+if [ "$pack" = 1 ]; then
+  find public/models -name '*.glb' -newer "$started" -print0 | xargs -0 -r env NODE_OPTIONS= node tools/glb-meshopt.mjs | grep -v "unchanged" || true
+fi
+rm -f "$started"
+exit "$status"

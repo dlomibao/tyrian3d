@@ -11151,3 +11151,131 @@ paintings.
 - *Painted terrain lighter than its original* stays a little bright: the ice (ICESECRET 1.09-1.11, ICE EXIT t2750 1.09)
   and DESERTRUN t1325 (1.10).
 - Not checked on a phone GPU. `?viewer=` and the menus' backdrop keep their own lights (unchanged).
+## D206 — Performance pass: the lights stay in the passes that draw a layer of their own, the outline pass leaves a multisampled target's resolve to the main render and stops drawing the effects a second time (drawn once, as if twice), the under-shade pass draws through a camera narrowed to the blended area, and the worst models' geometry is meshopt-compressed (follows D54, D91, D146, D169, D193, D204)
+
+2026-11-15
+
+**Measured** (headless Chrome, `--use-angle=metal`: ANGLE Metal on the Apple M5 Pro, the real GPU, not SwiftShader;
+3840x2160 at device pixel ratio 1, dynamic resolution off; `?debug=play&...&seed=1&difficulty=2&skip=T&freezeAt=T`;
+the frozen frame rendered 40 times per figure: CPU = `View.render`'s main-thread time, GPU = the median of
+EXT_disjoint_timer_query_webgl2 over one frame, wall = render plus a 1-pixel readPixels; calls and triangles from
+`renderer.info` over the whole frame, every pass; `tyrian-scratch/perf-pass/bin/probe.js`). Other agents shared the
+GPU during the first runs; the GPU and wall figures below are from a quiet run. Before = origin/main 5cc23a36.
+
+| Scene (4K) | draw calls | triangles | CPU ms | GPU ms | wall ms |
+|---|---|---|---|---|---|
+| TYRIAN 1.3 t1000 | 302 -> 295 | 151k -> 128k | 1.35 -> 1.54 (noise: 2.81 -> 2.39 in a loaded run) | 2.07 -> 2.01 | 4.9 -> 4.7 |
+| GYGES 2.4 t6300 (boss) | 1534 -> 1527 | 1356k -> 1333k | 6.83 -> 5.02 | 5.27 -> 5.01 | 14.8 -> 12.2 |
+| DREAD-NOT 4.18 t1800 | 989 -> 986 | 693k -> 682k | 3.82 -> 2.81 | 6.10 -> 4.61 | 11.8 -> 9.2 |
+| NOSE DRIP 4.25 t5550 (cloud) | 507 -> 479 | 662k -> 617k | 2.77 -> 1.80 | 9.24 -> 6.75 | 12.8 -> 10.4 |
+| CAMANIS 3.10 t3300 (hue filter) | 166 -> 161 | 181k -> 158k | 0.92 -> 0.83 | 6.02 -> 3.96 | 8.1 -> 6.0 |
+| SAVARA Y 3.21 t1050 | 429 -> 312 | 225k -> 169k | 1.93 -> 1.59 | 3.34 -> 3.45 | 6.5 -> 6.7 |
+| BRAINIAC 4.22 t3475 (lava) | 278 -> 276 | 177k -> 166k | 2.06 -> 1.30 | 8.65 -> 5.87 | 12.9 -> 8.5 |
+
+The under-shade pass (D204), measured by switching it off: GYGES 466 calls, 3.2 -> 1.2 ms CPU and 3.7 -> 0.4 ms wall
+(its draws stay: the blended sheets frame the boss on three sides and their bounding box covers it); SAVARA Y 123 -> 12
+calls, 0.96 -> 0.11 ms CPU; NOSE DRIP 105 -> 79 calls. The shadow map pass is 70-470 calls a frame (GYGES 467) but
+under 0.5 ms of GPU time on these scenes; not changed (lighting is D205's).
+
+Live play, CPU profile (GYGES 2.4 from t6250, 1920x1080, 6 s, 364 frames): main-thread busy time 8.5 -> 5.4 ms a
+frame; `getParameters` + `getProgram` (three.js rebuilding programs' parameters) 2.0 ms a frame -> 0.
+
+**What was slow, and the changes:**
+1. *Every lit material's program re-examined every frame (CPU, the largest).* The under-shade pass (D204) and the
+   screen filters' effects and mask draws (D35, D199) render the scene with the camera on a spare layer. The lights
+   (layer 0) dropped out of those renders; three.js's light state (WebGLLights' hash and version) changed, and on
+   the next main render every lit material's `needsProgramChange` was true: `getProgram` rebuilt its parameters and
+   cache key on every draw. The lights now join those renders (`passLights.ts`): they light nothing there (the
+   passes' materials are unlit) and the light state stays the same all frame.
+2. *The outline pass's resolve (GPU, levels with a screen filter).* OutlineEffect's render runs inside the main
+   render (D146). three resolves a multisampled target at the end of every render: under the screen filters (the
+   4x half-float scene target, D31; CAMANIS's hue, the smoothies) that blitted the whole frame mid-frame, about
+   2 ms at 4K. `renderOutline` now shows the target as single-sampled for its own render; the main render's resolve
+   at its end is the one that counts. Nothing else in that render rebinds the target (shadows are off there).
+3. *The effects drawn twice (item D193 left open).* OutlineEffect's render drew every object it has no outline
+   material for with its own material: the glows, puffs, particles, shields, the flat sprite art and a translucent
+   model's depth prepass were drawn twice a frame. They now carry `userData.outlineSkip`, and draw once with the
+   output a second identical draw would have added (`vfx/drawnTwice.ts`): additive, twice the alpha (past 1 the
+   rest goes into the colour; where that clamps, two draws were already white); alpha-blended, alpha a(2 - a);
+   the flat art (premultiplied), its whole output times (2 - a). On the canvas this is exact (a test checks it
+   against the blend equations) where nothing was drawn between the two copies. The explosions keep their single
+   draw (D193: `artDrawnTwice` 0). Under the smoothies the effects are drawn over the filtered frame in a render
+   of their own (`renderOver`), which never had the second copy: there the switch is 0, so those levels keep
+   their look too.
+4. *The under-shade pass (D204)* was scissored to the blended area but drew every model in view. It now renders
+   through a camera whose projection is narrowed to that area, into the area's viewport, so the pixels land where
+   they did and three's frustum culling leaves out what is outside it.
+5. *Model weight.* `tools/glb-meshopt.mjs` compresses a .glb's vertex and index buffers with EXT_meshopt_compression
+   (meshoptimizer's codec, as Blender 5.2's own exporter can): POSITION through the exponential filter at 16
+   mantissa bits per vector (within 2^-15 of a vertex's largest coordinate: 0.004 game px 10 units from a model's
+   origin), NORMAL and TANGENT at 12 bits (Blender's setting), UVs, colours and indices losslessly. Decoded, the
+   attributes are float32 as before, so no code that reads geometry changes; images, materials, nodes and extras
+   are byte for byte. `models.ts` and the viewer set three's MeshoptDecoder on their GLTFLoader (three's own addon,
+   no new dependency at run time). `tools/build-models.sh` compresses every .glb a build writes (`-u`: not).
+
+**Model weight** (bytes a level preloads, D54, logged from the network on a cold start: `bin/netlog.mjs`, all 61 levels
+in `tyrian-scratch/perf-pass/weight/`). Heaviest before: TYRIAN 67.6 MB (249 glbs), TYRIAN X 65.2, ASTEROID1 50.4,
+ASTEROID? 49.7, ASTEROID2 47.0, AST. CITY 46.4, ASTCITY 38.3, TORM 37.9, GYGES 32.3 MB; median about 19 MB. Every level
+also fetches the six player ships (5 MB). The flat art's atlases: 3.0-6.5 MB a level. The live
+server sends .glb uncompressed (no gzip, `max-age=0`). Largest files: `tiles/shapesz/l1bld-base-complex` 5.9 MB,
+`enemies/newshg-1` 5.3 MB (104k triangles, 4.2 MB of float positions, normals and UVs), `tyrbld-fortress` 2.8,
+`tyrbld-bridge` 2.8, `l1bld-pipe-junction` 2.1; geometry is 70-80% of each, the WebP maps the rest.
+- Compressed in this pass (40 files, 41.0 -> 24.1 MiB): every glb over 1 MB (l1bld-base-complex, -light-bridge,
+  -pipe-junction, -ring-dome; tyrbld-bridge, -fortress, -purple-2x5, -purple-cross, -purple-orb, -wreck; newshg-1,
+  newshm-123, newshn-81), the GYGES boss's 20 pieces (`assembly-newshn-195`: newshn-3, 5, 7, 41, 43, 45, 77, 79, 83,
+  85, 115, 117, 123, 153, 155, 161, 193, 195, 197 and newshn-81; 8.6 -> 5.6 MB) and the eight player ships
+  (usp_talon, ship-u-ship, -silver-ship, -supercarrot, -microcorp-stalker, -gencore-phoenix, -nort-ship,
+  -dragonwing). Per level: TYRIAN 67.6 -> 61.3 MB, TYRIAN X 65.2 -> 58.9, ASTEROID1/2/? -14%, ASTCITY 38.3 -> 31.1,
+  GYGES 32.3 -> 25.3, the rest about -5% (the ships).
+- The whole library would go 341 -> 208 MiB (-39%; 1.5 s to run): TYRIAN to about 45 MB, GYGES 20, BRAINIAC 13. Not
+  done here: it rewrites all 1,484 glbs (about 200 MB of new blobs in git). To roll it out:
+  `find public/models -name '*.glb' -print0 | xargs -0 node tools/glb-meshopt.mjs` (files already compressed are
+  skipped), then the in-game check below on a few levels. New builds are compressed by build-models.sh already.
+
+**Checked** (`tyrian-scratch/perf-pass/shots/`; before = origin/main 5cc23a36 from an archive of it, after = this):
+- *Frames*, `&compare=1` at 1920x1080, before vs after, share of pixels changed by more than 8 levels (two captures
+  of main differ by 0 to 0.011%): DREAD-NOT 0.000%, NOSE DRIP 0.000%, CAMANIS 0.007%, BRAINIAC 0.026%, TYRIAN 0.031%,
+  GYGES t6300 0.033%, GYGES t7050 0.065%, SAVARA Y 0.155% (`shots/final-before`, `final-after`, `final-diff`).
+  What moved: a shot's halo where it lies over a blend sheet (SAVARA Y's cloud, GYGES's translucent claws). Its first
+  copy used to be drawn at the outline pass's place, under the sheet, so it showed through the cloud at part strength;
+  now it is drawn once, over the sheet, at the strength it has over open ground, as the shot's own flat art is
+  (`shots/crop-savaray.png`). Particles and glows under the translucent bot ship now show through it, as
+  setModelBlended means them to (its depth prepass had been drawn early, in the outline render). BRAINIAC: a few
+  shot trails in the lava smoothie's history.
+- *SAVARA Y t1050* (D204): the cloud over the sea is pixel for pixel as before (the changes are the two shots'
+  halos); no marbling.
+- *The compressed models* in game, before vs after compressing, same code (TYRIAN t300-t3200 at seven ticks with the
+  islands' structures and the Talon, GYGES t6300 and t7050 with the boss; `shots/glb-pre`, `glb-post`): no model pixel
+  changed; the differences are the explosions' sparkle particles (time noise) and at most 92 pixels, 37 levels, on the
+  boss's edges. Decoded geometry against the originals: positions within 4e-4 units on the largest model, UVs exact,
+  every triangle kept with its winding (the index codec may rotate a triangle's vertices).
+- `tsc`; `vitest` 880 passed (new `tests/render/perfPass.test.ts`: one compensated draw against two plain ones through
+  the blend equations, the effects' marks and shared switch, the prepass's mark, the lights in the passes, the narrowed
+  camera's pixels, a compress/decode round trip; `outlineHook.test.ts`: the resolve; `islandRock.test.ts` decodes
+  compressed views); `npm run build`.
+
+**Options considered:** for 3, hiding every object without an outline material from the outline render (any new
+one would be left out by default; but the sheets' frame copy is meant to be made there, D193); compensating by 1.5x
+(exact nowhere); for 2, drawing the outlines without a nested `render` (three has no public call for a render list);
+for 4, a lower-resolution target (shades vary slowly, but the blends read it per pixel at model edges) and per-draw
+rectangles instead of their bounding box (left, below); for 5, KHR_mesh_quantization (int16 attributes: the depth
+prepass's mergeGeometries and code reading `position.array` would see other types), Draco (a 300 KB decoder,
+slower to decode), re-exporting through Blender (re-encodes the WebP maps).
+
+**Left:**
+- The under-shade pass on GYGES's boss still draws 466 models (0.4 ms wall, 1.2 ms CPU): culling each model against
+  the blended draws' own rectangles (DrawListRenderer.addGrabArea) rather than their bounding box would drop the ones
+  in the middle. About an hour.
+- Roll the compression out to the whole library (above): minutes, plus a check of a few levels; the user's call for
+  the repository's size.
+- Server: nginx sends .glb as application/octet-stream without gzip and with `max-age=0, must-revalidate` (every glb
+  revalidated at each level start). gzip for it and a longer max-age would help most on a first visit. Needs the admin
+  account: not done.
+- Every level fetches the six player ships it never shows (5.0 MB, 3.2 MB compressed); only the player's needs loading.
+- Under the smoothies (BRAINIAC, NOSE DRIP's water, LAVA RUN) the effects were drawn once all along (renderOver), so
+  their glows there are half as strong as on other levels. `VFX_DRAWN_TWICE` left at 1 in renderOver would make them
+  alike: the user's call.
+- newshg-1's 104k triangles (and the l1bld models') are far denser than a 150-pixel enemy needs; simplifying them is a
+  model change, for a review round.
+- `meshoptimizer` (the encoder the tool and test use) is installed as a dependency of @types/three; listing it in
+  devDependencies would pin it.

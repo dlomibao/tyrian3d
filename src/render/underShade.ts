@@ -28,8 +28,8 @@
 //
 // Not in this pass (they keep the shade under them): what writes no depth (the shadows, the scorch
 // marks: the C has neither; models while they fade), and the shots' and explosions' art under a later
-// copy. The cost is one more render of the scene, scissored to the blended layers' area, on frames
-// that have one.
+// copy. The cost is one more render of the scene, on frames that have a blended layer: through a
+// camera narrowed to the blended layers' area, so only what lies there is drawn (D206).
 
 import * as THREE from "three";
 import { areaPixels, HB_SHADE_PARS, ShadeLut, type NdcRect } from "./hueBlend";
@@ -40,6 +40,7 @@ import { passHeight } from "./passHeights";
 import { Pass } from "../sim/draw";
 import { PALETTE_MATERIAL } from "./modelFrames";
 import { rockShadeMap } from "./rockMaterial";
+import { addLightsToLayer, isLight, restoreLights } from "./passLights";
 
 /** How a ground material's own shade is drawn (`material.userData.shadeOut`). */
 export type ShadeOut =
@@ -225,6 +226,13 @@ export class UnderShadePass {
   private readonly palShades: THREE.MeshBasicMaterial[] = [];
   private readonly size = new THREE.Vector2();
   private readonly clearColor = new THREE.Color();
+  /**
+   * The camera the pass draws with: the frame's, its projection narrowed to the blended area and drawn
+   * into that area's viewport, so the same pixels land where they do in the frame and three's frustum
+   * culling leaves out what is outside the area (D206; scissoring alone drew every model in view).
+   */
+  private readonly areaCamera = new THREE.Camera();
+  private readonly crop = new THREE.Matrix4();
   /** Frames drawn (for tests and the harness). */
   renders = 0;
   /**
@@ -304,10 +312,14 @@ export class UnderShadePass {
     if (x1 <= x0 || y1 <= y0) return false;
     this.target.scissor.set(x0, y0, x1 - x0, y1 - y0);
     this.target.scissorTest = true;
+    this.target.viewport.set(x0, y0, x1 - x0, y1 - y0);
+    const view = this.cropCamera(camera, x0 / w, y0 / h, x1 / w, y1 / h);
 
     // Each object the camera would draw, in its pass material (or left out), on the pass's layer.
     const drawn: { object: THREE.Mesh; material: THREE.Material | THREE.Material[]; layers: number }[] = [];
+    const lights: THREE.Object3D[] = [];
     scene.traverseVisible((o) => {
+      if (isLight(o)) lights.push(o);
       const r = o as THREE.Mesh;
       if (!r.isMesh || !o.layers.test(camera.layers) || !r.material) return;
       const source = r.material;
@@ -323,12 +335,14 @@ export class UnderShadePass {
     const override = scene.overrideMaterial;
     const autoClear = renderer.autoClear;
     const shadows = renderer.shadowMap.autoUpdate;
-    const layers = camera.layers.mask;
     renderer.getClearColor(this.clearColor);
     const clearAlpha = renderer.getClearAlpha();
     // Objects join the render by the pass's layer, not left out by `visible` (that would hide their
     // children too); their materials are swapped for the render and back.
     const saved = drawn.map((d) => d.object.material);
+    // The lights join the render too, so their state (and every lit material's program) stays as the
+    // main render has it (passLights.ts, D206).
+    const lightMasks = addLightsToLayer(lights, camera.layers, SHADE_LAYER);
     scene.background = null;
     scene.overrideMaterial = null;
     renderer.shadowMap.autoUpdate = false;
@@ -340,14 +354,13 @@ export class UnderShadePass {
         d.object.material = d.material;
         d.object.layers.set(SHADE_LAYER);
       }
-      camera.layers.set(SHADE_LAYER);
-      renderer.render(scene, camera);
+      renderer.render(scene, view);
     } finally {
       drawn.forEach((d, i) => {
         d.object.material = saved[i];
         d.object.layers.mask = d.layers;
       });
-      camera.layers.mask = layers;
+      restoreLights(lights, lightMasks);
       scene.overrideMaterial = override;
       scene.background = background;
       renderer.autoClear = autoClear;
@@ -357,6 +370,26 @@ export class UnderShadePass {
     }
     this.renders++;
     return true;
+  }
+
+  /**
+   * `camera`, narrowed to the part of the view between (u0, v0) and (u1, v1) (0..1 from the bottom
+   * left), on the pass's layer.
+   */
+  private cropCamera(camera: THREE.Camera, u0: number, v0: number, u1: number, v1: number): THREE.Camera {
+    const c = this.areaCamera;
+    camera.updateMatrixWorld();
+    c.matrixWorldAutoUpdate = false;
+    c.matrixWorld.copy(camera.matrixWorld);
+    c.matrixWorldInverse.copy(camera.matrixWorldInverse);
+    // Clip space x' = sx x + tx w maps NDC (2 u0 - 1 .. 2 u1 - 1) onto -1 .. 1 (and y likewise).
+    const sx = 1 / (u1 - u0);
+    const sy = 1 / (v1 - v0);
+    this.crop.set(sx, 0, 0, sx * (1 - u0 - u1), 0, sy, 0, sy * (1 - v0 - v1), 0, 0, 1, 0, 0, 0, 0, 1);
+    c.projectionMatrix.multiplyMatrices(this.crop, camera.projectionMatrix);
+    c.projectionMatrixInverse.copy(c.projectionMatrix).invert();
+    c.layers.set(SHADE_LAYER);
+    return c;
   }
 
   dispose(): void {
