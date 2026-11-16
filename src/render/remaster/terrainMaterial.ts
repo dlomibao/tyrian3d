@@ -26,6 +26,7 @@
 
 import * as THREE from "three";
 import { GROUND_SHEEN, WATER_ALPHA } from "../paletteMaterial";
+import { CUTOUT_SPECULAR, patchGroundLight } from "../lighting";
 import { PALETTE_LUT_SIZE, type PaletteTexture } from "../paletteTexture";
 import { SCREEN_HUE_PARS } from "../screenHue";
 import { TILE_HEIGHT, TILE_WIDTH } from "../../data/levels";
@@ -90,23 +91,26 @@ vec3 terrainPalette(vec3 rgb, float height, inout float water) {
   // their painted colour. Chroma is measured in sRGB: in linear light every dark colour is near
   // grey, so SAVARA V's dark jungle greens and shore browns took the exempt grey bank and stayed
   // green and brown under its blue water (episode-1 QA).
-  // Under JE_filterScreen the shade is the nearest index's too (D193): the filter keeps the
-  // original's value (index & 0x0f), and a bank's shades are not its luminance in sixteenths
-  // (CAMANIS's ice bank runs from luminance 0.3 to 1, so a texel of its shade 7 read as shade 9 and
-  // the filtered floor went pale). The smoothies keep the brightness's shade: their hue's levels
-  // (D191) were measured on it, and the nearest index's lifts the lava (LAVA RUN 1.4 -> 2.0 of the
-  // original's luminance). A near-grey texel off bank 0 takes the grey shade of its brightness.
+  // Under JE_filterScreen and the smoothies' hues the shade is the nearest index's too (D193,
+  // D205): the C keeps the original's value (index & 0x0f), and a bank's shades are not its
+  // luminance in sixteenths (CAMANIS's ice bank runs from luminance 0.3 to 1, so a texel of its
+  // shade 7 read as shade 9 and the filtered floor went pale; LAVA RUN's red lava, luminance 0.49 at
+  // full red, read 3-5 shades low under lava_filter's hue, 0.76x the original's brightness). The
+  // brightness's shade lifted the lava only while the ground was lit 1.7x (D205). A near-grey texel
+  // off bank 0 takes the grey shade of its brightness.
   vec3 srgb = terrainSrgb(rgb);
   float chroma = max(srgb.r, max(srgb.g, srgb.b)) - min(srgb.r, min(srgb.g, srgb.b));
   float nearest = terrainNearest(srgb);
   float nearBank = floor(nearest / 16.0) * 16.0;
   float bank = chroma < 0.04 ? 0.0 : nearBank;
-  float shade = levelFilter > -98.5 && bank == nearBank ? nearest - nearBank : clamp(floor(lum * 15.0 + 0.5), 0.0, 15.0);
-  float index = bank + shade;
+  float lumShade = clamp(floor(lum * 15.0 + 0.5), 0.0, 15.0);
+  float index = bank + lumShade;
+  // The hues change only the bank, so whether one applies doesn't depend on the shade.
   float hued = screenHueIndex(index, height, water);
   if (hued != index || levelFilter > -98.5) {
+    float shade = bank == nearBank ? nearest - nearBank : lumShade;
     // The palette texture already holds the level filter and brightness (paletteTexture.ts).
-    return texture2D(paletteMap, vec2((hued + 0.5) / 256.0, 0.5)).rgb;
+    return texture2D(paletteMap, vec2((floor(hued / 16.0) * 16.0 + shade + 0.5) / 256.0, 0.5)).rgb;
   }
   if (levelBrightness > -98.5 && levelBrightness != 0.0) {
     float s = lum * 15.0;
@@ -271,6 +275,9 @@ normal = normalize((viewMatrix * vec4(normalize(vec3(-reliefSlope.x, 1.0, -relie
         .replace("#include <opaque_fragment>", WATER_ALPHA)
         .replace("#include <aomap_fragment>", GROUND_SHEEN);
     }
+    // The ground and the cutouts painted over it take the ground's light (lighting.ts, D205).
+    if (kind === "cutout") shader.fragmentShader = shader.fragmentShader.replace("#include <aomap_fragment>", CUTOUT_SPECULAR);
+    if (!blended) patchGroundLight(shader);
     // The C's blend replaces the lit colour: the bank's ramp at the mean shade (hueBlend.ts, D174).
     if (blended) shader.fragmentShader = shader.fragmentShader.replace("#include <opaque_fragment>", "#include <opaque_fragment>\ngl_FragColor.rgb = hueBlended;");
   };
