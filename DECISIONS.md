@@ -11008,3 +11008,146 @@ target the frame's size (plus depth). One Opus agent, no workflow, about 60 head
 **Left:** draws that write no depth keep the shade under them: shadows, the shots' and explosions' flat art under a later
 copy, `?sprites=original`'s flat enemy sprites. A model's frame-dependent palette (`tyrian_frame_pal`) and its hit
 flash aren't followed (it writes its material's base index). Not checked on a phone GPU.
+
+## D205 — The ground takes its own share of the lights: its palette colour lit 1.0, no environment sheen, Neutral's toe undone; the models' environment 0.7 → 0.55; HD terrain under the smoothies' hues takes the nearest index's shade (brightness audit; follows D7, D171, D175, D188, D191, D193, D199, D204)
+
+2026-11-15
+
+**Problem** (`tyrian-scratch/brightness-audit/`, re-measured on origin/main 5cc23a36): every level drew brighter than the
+original, 3D/original luma mean 1.2-1.5 in sRGB (1.4-2.2 in linear light). D188 had already made black space black, so
+the lift was gain, not floor. Bright and painted levels were worst (DESERTRUN t1325 1.44, ICESECRET 1.43, GYGES 1.42).
+
+**What was checked** (in the game's render, `?debug=play ... &compare=1`; linear ratios over the playfield):
+- *Where the ground's light comes from.* An up-facing matte surface got the sun (2.5 × cos 27° / π = 0.71 of its
+  albedo), the hemisphere fill (1.2 × the sky's luma / π ≈ 0.18, blue: its sky is `0x9fb8ff`) and the RoomEnvironment.
+  three r186 gives every MeshStandardMaterial without its own `envMap` `scene.environmentIntensity` (0.7), whatever its
+  `envMapIntensity` (the ground's 0.2-0.25 were ignored). The environment alone, at intensity 1, measured 1.40 (GYGES 2.2)
+  and 1.41 (SAVARA 1.12): 0.98 at 0.7. Sum ≈ 1.87 before the sheen; the ground measured 1.66-1.77.
+- *The floor.* The environment's 4% Fresnel sheen plus the sun's specular came to about 0.04 linear on a black albedo.
+  Neutral's toe takes 0.04 off every colour whose darkest channel is over 0.08 (and crushes darker ones toward 0), so
+  that floor mostly vanished in the output, but it also crushed the palette's real darks. Not the main cause.
+- *Tone mapping, exposure:* not the cause. Neutral is the identity below 0.76 apart from the toe.
+- *Models:* their boxes over black space measured 1.16-1.40 (GYGES's boss t5400 1.25, GAUNTLET's balls 1.40, the DREAD-NOT
+  hull t1800 1.21, the mace 1.23).
+- *Dark levels* (BONUS, SOH JIN, BRAINIAC t8325): their originals average 1-5; what is left there is the effects' glow
+  halos round the shots, not lighting.
+
+**Decision** (`src/render/lighting.ts`; `view.ts` builds the rig; the ground materials take `patchGroundLight`):
+1. **The ground takes its own share of the scene's lights** (`GroundLight`, shared uniforms set by `applyGroundLight`).
+   The pixel ground, the 4x MMPX ground, and the HD terrain's ground and cutouts all take it. Blend sheets are
+   unlit already.
+   - *Sun:* 55% of `GROUND_LIGHT` (1.0) facing up.
+   - *Environment:* its diffuse only, the other 45%. It is near white, and it fills the shadows: they fall to 45% of
+     lit, where they were 63%.
+   - *Hemisphere:* none. Its blue sky tinted the ground.
+   - *Specular:* none. The paintings carry their own highlights; black space already had none (D188).
+   - *Neutral's toe:* undone on the ground's colour before the tone mapping (`groundUntoed`, the exact inverse below
+     the shoulder), so a palette colour lit 1.0 displays as itself, darks included. Black stays 0. Inside the screen
+     filters' render target three skips tone mapping and their present pass applies Neutral, so the inverse holds
+     either way. The filters' `displayed()` sees the true lit colour.
+   - The scales follow the rig (`groundLight(sun, environment)`); `ENV_UP_IRRADIANCE` = 1.4 is the measurement above.
+2. **The models keep the sun (2.5) and hemisphere (1.2)**, and Neutral as it was. Their art was made and reviewed under
+   these lights, and their sheen is the sun's highlights and the environment's reflections (art rule 2). Only the
+   environment goes 0.7 → 0.55 (`MODEL_ENVIRONMENT`). The lit sprites and the HD rocks take the same.
+3. **HD terrain under the smoothies' hues takes the nearest index's shade** (`terrainPalette`, `terrainMaterial.ts`),
+   as under JE_filterScreen since D193: the C keeps `index & 0x0f`. With the ground fixed, LAVA RUN fell to 0.76-0.80
+   and BRAINIAC t3475 to 0.85, while `&terrain=original` (exact indices) measured 1.04-1.12. The cause was the
+   renderer, not the paintings. Under a hue, the painting's shade was its brightness in sixteenths, and a red bank's
+   shades are far darker than that (full red is luminance 0.49, shade 7 instead of 15). The 1.7x ground had hidden
+   it. D193 kept the brightness's shade for the smoothies because the nearest index "lifted the lava (1.4 → 2.0)",
+   measured under that 1.7x light. Whether a hue applies is decided as before (the hues change only the bank), and
+   the bank stays the hue's.
+4. **`?lighting=old`** keeps the lights as before (ground scales 1, no untoe, environment 0.7); its captures matched
+   origin/main exactly before step 3. Step 3 has no switch. In development, `&lt=sun:..,env:..,g.sun:..` tunes values.
+
+**Options considered:**
+- *Per-material `envMap` with tuned `envMapIntensity` per type* (the coordinator's suggestion: polished metal, glows,
+  rocks): 16.5k model materials, nearly all with metal/roughness textures (metallic factor 1 on 7k), so no factor
+  tells steel from rock. Glows are emissive and take no environment. The ground is where the excess was, and its own
+  uniforms reach it without a per-material pass. Lowering the environment on the models once does the rest.
+- *Lower the global lights* (the audit's env 0.25-0.35, exposure 0.75, sun ×3): one knob for two jobs. Enough to fix the
+  ground (about -45% light) and the models turn to mud. Too little and the ground stays bright.
+- *A custom tone curve without Neutral's toe, everywhere* (tried: `CustomToneMapping`): the ground came right, but the
+  models' environment sheen (which the toe had eaten) lifted their darks (DREAD-NOT t6250's hull, median luma 42 → 57;
+  the original's 39). The menus'
+  backdrop shares the renderer and would have changed too. Undoing the toe on the ground alone touches neither.
+- *No environment on the ground, sun + hemisphere only* (tried): right brightness, but shadows fell to about 15% of lit,
+  and the hemisphere's sky turned the ground blue (B/R +6-13%).
+- *A warm sun to cancel the sky's blue:* recolours every model's lit side.
+
+**Checked** (`?debug=play&episode=E&main=N&difficulty=2&seed=1&skip=T&freezeAt=T&compare=1`, 1920x1080, the audit's
+`shot.mjs` and `bin/measure.py` warp; before = origin/main 5cc23a36 served from the main checkout, after = this;
+3D-playfield luma mean (p10/p90), sRGB 0-255, and 3D/original ratio in sRGB / linear; `tyrian-scratch/render-brightness/`
+has `table.md`, the shots and `crops/final/`):
+
+| Capture | Original | Before | Before ratio | After | After ratio |
+|---|---|---|---|---|---|
+| 1.10 BONUS t500 | 3 (0/0) | 5 (0/0) | 1.52 / 1.39 | 4 (0/0) | 1.43 / 1.29 |
+| 1.10 BONUS t1200 | 1 (0/0) | 3 (0/0) | 2.66 / 2.48 | 3 (0/0) | 2.65 / 2.46 |
+| 2.5 SOH JIN t1300 | 3 (0/0) | 5 (0/0) | 1.68 / 1.65 | 5 (0/0) | 1.63 / 1.59 |
+| 2.5 SOH JIN t3100 | 3 (0/0) | 5 (0/0) | 1.63 / 1.59 | 5 (0/0) | 1.58 / 1.52 |
+| 4.14 DREAD-NOT t1800 | 15 (0/69) | 19 (0/76) | 1.23 / 1.33 | 17 (0/68) | 1.11 / 1.12 |
+| 4.14 DREAD-NOT t6250 | 19 (0/74) | 23 (0/83) | 1.27 / 1.28 | 22 (0/75) | 1.17 / 1.15 |
+| 4.14 DREAD-NOT t15025 | 17 (0/69) | 24 (0/88) | 1.47 / 1.77 | 23 (0/80) | 1.36 / 1.58 |
+| 4.15 BRAINIAC t3475 | 18 (7/39) | 19 (7/40) | 1.07 / 1.01 | 20 (7/44) | 1.09 / 1.09 |
+| 4.15 BRAINIAC t8325 | 5 (0/17) | 9 (0/40) | 1.99 / 1.88 | 8 (0/36) | 1.82 / 1.65 |
+| 1.1 ASTEROID1 t1525 | 11 (0/49) | 15 (0/64) | 1.40 / 1.66 | 13 (0/54) | 1.21 / 1.31 |
+| 1.1 ASTEROID1 t3675 | 48 (0/108) | 64 (0/128) | 1.33 / 1.66 | 50 (0/99) | 1.03 / 1.01 |
+| 2.2 GYGES t1575 | 29 (0/63) | 41 (0/87) | 1.42 / 1.66 | 30 (0/69) | 1.05 / 1.03 |
+| 2.2 GYGES t3800 | 34 (10/61) | 43 (20/74) | 1.26 / 1.44 | 36 (12/64) | 1.05 / 1.06 |
+| 2.2 GYGES t5400 (boss) | 30 (10/59) | 39 (17/69) | 1.33 / 1.39 | 32 (10/60) | 1.09 / 1.08 |
+| 3.3 GAUNTLET t775 | 49 (0/125) | 62 (0/157) | 1.26 / 1.56 | 49 (0/124) | 1.01 / 0.98 |
+| 3.3 GAUNTLET t1825 | 9 (0/39) | 14 (0/65) | 1.47 / 1.61 | 13 (0/58) | 1.37 / 1.41 |
+| 3.12 MACES t825 | 34 (0/116) | 43 (0/141) | 1.28 / 1.53 | 35 (0/113) | 1.02 / 0.98 |
+| 3.12 MACES t1975 | 50 (0/125) | 67 (0/166) | 1.34 / 1.78 | 52 (0/129) | 1.04 / 1.06 |
+| 4.13 EYESPY t3100 | 21 (0/58) | 26 (0/73) | 1.27 / 1.45 | 23 (0/61) | 1.09 / 1.08 |
+| 4.13 EYESPY t7425 | 35 (0/84) | 44 (0/105) | 1.26 / 1.45 | 37 (0/87) | 1.05 / 1.05 |
+| 4.8 ICE EXIT t1150 | 134 (107/155) | 162 (102/214) | 1.21 / 1.55 | 139 (98/181) | 1.04 / 1.11 |
+| 4.8 ICE EXIT t2750 | 139 (120/155) | 182 (120/214) | 1.31 / 1.83 | 151 (115/191) | 1.09 / 1.22 |
+| 4.20 ICESECRET t1250 | 107 (62/155) | 154 (89/203) | 1.43 / 2.08 | 119 (69/162) | 1.11 / 1.21 |
+| 4.20 ICESECRET t3025 | 117 (62/155) | 162 (94/205) | 1.39 / 1.97 | 126 (73/164) | 1.09 / 1.14 |
+| 4.10 DESERTRUN t550 | 83 (27/125) | 108 (47/164) | 1.30 / 1.68 | 84 (35/125) | 1.01 / 1.00 |
+| 4.10 DESERTRUN t1325 | 105 (89/108) | 151 (137/171) | 1.44 / 2.18 | 115 (105/130) | 1.10 / 1.23 |
+| 4.12 LAVA RUN t1125 | 40 (7/59) | 45 (17/67) | 1.12 / 1.09 | 43 (10/76) | 1.08 / 1.05 |
+| 4.12 LAVA RUN t2700 | 44 (7/59) | 48 (17/74) | 1.10 / 1.07 | 48 (12/81) | 1.09 / 1.06 |
+| 4.6 SIDE EXIT t950 | 36 (7/89) | 54 (16/117) | 1.50 / 1.63 | 43 (10/100) | 1.22 / 1.23 |
+| 4.9 LAVA EXIT t3400 | 28 (7/59) | 36 (15/67) | 1.28 / 1.31 | 34 (10/73) | 1.19 / 1.21 |
+| 3.7 STARGATE t1200 | 8 (0/17) | 15 (0/44) | 1.91 / 1.57 | 10 (0/28) | 1.31 / 1.15 |
+| 1.8 SAVARA t1525 | 82 (26/167) | 103 (43/185) | 1.26 / 1.43 | 84 (28/166) | 1.03 / 1.03 |
+| 1.12 SAVARA t1550 | 62 (31/93) | 82 (52/123) | 1.33 / 1.73 | 63 (37/96) | 1.01 / 1.02 |
+| 1.12 SAVARA t3700 | 55 (31/82) | 75 (50/106) | 1.36 / 1.77 | 57 (35/83) | 1.03 / 1.06 |
+| 3.1 CAMANIS t1900 | 105 (31/167) | 136 (50/203) | 1.30 / 1.66 | 106 (34/161) | 1.00 / 0.98 |
+| 3.1 CAMANIS t4550 | 102 (50/155) | 131 (70/198) | 1.29 / 1.63 | 102 (52/157) | 1.00 / 0.98 |
+| 1.16 ASSASSIN t1325 | 52 (7/131) | 54 (7/132) | 1.04 / 1.01 | 51 (7/135) | 0.98 / 0.96 |
+| 1.17 SAVARA V t2175 | 68 (12/165) | 89 (27/200) | 1.30 / 1.47 | 71 (14/167) | 1.04 / 1.05 |
+| 4.3 SAVARA IV t1450 | 68 (12/108) | 92 (29/146) | 1.35 / 1.74 | 72 (19/112) | 1.05 / 1.07 |
+| 4.5 CORE t1925 | 35 (17/59) | 52 (27/96) | 1.49 / 1.67 | 42 (18/72) | 1.19 / 1.24 |
+| 4.16 NOSE DRIP t2425 | 74 (24/148) | 87 (42/156) | 1.19 / 1.22 | 77 (32/151) | 1.05 / 1.03 |
+
+Median sRGB ratio over the 41 captures: 1.33 → 1.09. Every level with a lit ground is now 0.98-1.11, apart from
+LAVA EXIT, SIDE EXIT and CORE (1.19-1.22, below). Black stays 0
+(p10 0 wherever the original's is). Model boxes (original / before / after, in `crops/final/`):
+- GYGES boss t5400: 1.25 → 1.07.
+- GAUNTLET spiked balls t1825: 1.40 → 1.28.
+- DREAD-NOT hull and lamps t1800: 1.21 → 1.09.
+- The mace t825: 1.23 → 1.06.
+- ASTEROID1's rocks t1525: 1.24 → 1.03.
+They keep their highlights and shading; the lamps and engine glows are unchanged. `?lighting=old` on GYGES t1575,
+SAVARA t1550, LAVA RUN t1125 and DREAD-NOT t1800 reproduced origin/main's numbers to the digit, before step 3.
+
+Step 3 against steps 1-2 alone (same captures): LAVA RUN 0.76/0.80 → 1.08/1.09, BRAINIAC t3475 0.85 → 1.09,
+ASSASSIN t1325 0.80 → 0.98, LAVA EXIT 1.00 → 1.19, CORE t1925 1.09 → 1.19, ICE EXIT t2750 1.08 → 1.09. SIDE EXIT,
+SAVARA V, SAVARA IV, NOSE DRIP, GYGES, CAMANIS and the space levels don't change. HD terrain now tracks the
+exact-index path (`&terrain=original`, same build) within about 0.06: LAVA RUN 1.04/1.05, BRAINIAC 1.12, LAVA EXIT
+1.13, CORE 1.22, ASSASSIN 1.00. LAVA EXIT's and CORE's excess sits in the exact-index path too, so it isn't the
+paintings.
+
+**Left:**
+- *LAVA EXIT (1.19), SIDE EXIT (1.22) and CORE (1.19)* stay bright under their filters. With exact indices
+  (`&terrain=original`) they measure 1.13, 1.36 and 1.22, so the excess is in the filter path, the models or the
+  effects, not in the HD shade. It needs its own look.
+- *The dark space levels* (BONUS, SOH JIN, BRAINIAC t8325, GAUNTLET t1825) still measure 1.4-2.7. Their originals
+  average 1-9 out of 255, so a few levels of the shots' glow halos and the models' sheen make up the ratio. Black is black.
+- *Painted terrain lighter than its original* stays a little bright: the ice (ICESECRET 1.09-1.11, ICE EXIT t2750 1.09)
+  and DESERTRUN t1325 (1.10).
+- Not checked on a phone GPU. `?viewer=` and the menus' backdrop keep their own lights (unchanged).

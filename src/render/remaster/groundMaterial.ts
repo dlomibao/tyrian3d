@@ -16,6 +16,7 @@
 
 import * as THREE from "three";
 import { GROUND_SHEEN, WATER_ALPHA } from "../paletteMaterial";
+import { patchGroundLight } from "../lighting";
 import type { PaletteTexture } from "../paletteTexture";
 import { SCREEN_HUE_PARS } from "../screenHue";
 import type { RemasterGroundAtlas } from "./groundAtlas";
@@ -146,7 +147,10 @@ normal = normalize((viewMatrix * vec4(normalize(vec3(-reliefSlope.x, 1.0, -relie
       "#include <opaque_fragment>",
       blended ? "#include <opaque_fragment>\ngl_FragColor.rgb = mixed;" : WATER_ALPHA,
     );
-    if (!blended) shader.fragmentShader = shader.fragmentShader.replace("#include <aomap_fragment>", GROUND_SHEEN);
+    if (!blended) {
+      shader.fragmentShader = shader.fragmentShader.replace("#include <aomap_fragment>", GROUND_SHEEN);
+      patchGroundLight(shader); // the ground's share of the lights (D205)
+    }
   };
   material.customProgramCacheKey = () => (blended ? "palette-ground-remaster-blend" : "palette-ground-remaster");
   return material;

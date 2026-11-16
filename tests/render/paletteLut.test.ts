@@ -103,8 +103,11 @@ test("the HD terrain shader picks the index's bank from the lookup", () => {
   m.onBeforeCompile(shader as never, {} as never);
   expect(shader.uniforms.paletteLut.value).toBe(pt.indexLut);
   expect(shader.fragmentShader).toMatch(/float bank = chroma < 0\.04 \? 0\.0 : nearBank;/);
-  // Under JE_filterScreen the shade is the nearest index's value (D193); otherwise, and for a grey off bank 0, the brightness's.
-  expect(shader.fragmentShader).toMatch(/float shade = levelFilter > -98\.5 && bank == nearBank \? nearest - nearBank : clamp\(floor\(lum \* 15\.0 \+ 0\.5\), 0\.0, 15\.0\);/);
+  // Under JE_filterScreen and the smoothies' hues the shade is the nearest index's value (D193, D205); for a grey
+  // off bank 0, the brightness's. The hue keeps its bank.
+  expect(shader.fragmentShader).toMatch(/if \(hued != index \|\| levelFilter > -98\.5\) \{\s+float shade = bank == nearBank \? nearest - nearBank : lumShade;/);
+  expect(shader.fragmentShader).toMatch(/float lumShade = clamp\(floor\(lum \* 15\.0 \+ 0\.5\), 0\.0, 15\.0\);/);
+  expect(shader.fragmentShader).toContain("floor(hued / 16.0) * 16.0 + shade");
   // The near-grey test is on the sRGB colour (dark saturated colours aren't grey).
   expect(shader.fragmentShader).toMatch(/vec3 srgb = terrainSrgb\(rgb\);\s+float chroma = max\(srgb\.r/);
 });

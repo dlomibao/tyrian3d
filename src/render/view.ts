@@ -14,6 +14,7 @@ import { ResolutionScaler } from "./resolutionScaler";
 import { ScreenFilterPass } from "./screenFilters";
 import { SUN_POSITION } from "./sun";
 import { VFX_LAYER } from "./vfx/vfxMode";
+import { applyGroundLight, lightingRig, type LightingRig } from "./lighting";
 
 /**
  * Camera tilt from straight down, in radians: Camera: Steep, the look before D61, and the tilt a
@@ -114,6 +115,8 @@ export class View {
   readonly scaler = new ResolutionScaler();
   /** The main thread's time in the last render(), for the scaler. */
   private lastRenderMs = 0;
+  /** The lights and the ground's share of them (lighting.ts, D205; `?lighting=old`: the ground as before). */
+  readonly lighting: LightingRig = lightingRig();
 
   constructor(
     private readonly container: HTMLElement,
@@ -130,24 +133,28 @@ export class View {
     this.renderer.debug.checkShaderErrors = import.meta.env.DEV;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
-    // Neutral keeps the palette's hues and brightness closer to the original than ACES does.
+    // Neutral keeps the palette's hues and brightness closer to the original than ACES does. The
+    // ground cancels its toe (GROUND_UNTOE, lighting.ts, D205).
     this.renderer.toneMapping = THREE.NeutralToneMapping;
     container.appendChild(this.renderer.domElement);
     this.outline = new OutlineEffect(this.renderer, OUTLINE);
     this.screenFilters = new ScreenFilterPass(this.renderer, this.draws.palette);
     this.camera.layers.enable(VFX_LAYER); // [vfx] the remastered effects' particles (D35)
 
-    // Image-based lighting so metal hulls pick up highlights like the sprites' shading.
+    // Image-based lighting so metal hulls pick up highlights like the sprites' shading. The ground
+    // materials take their own share of these lights (applyGroundLight, lighting.ts, D205).
+    const rig = this.lighting;
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    this.scene.environmentIntensity = 0.7;
+    this.scene.environmentIntensity = rig.environment;
     pmrem.dispose();
+    applyGroundLight(rig);
 
     this.scene.background = new THREE.Color(BACKGROUND);
     this.maskScene.add(this.mask);
 
-    this.scene.add(new THREE.HemisphereLight(0x9fb8ff, 0x20160c, 1.2));
-    const sun = new THREE.DirectionalLight(0xffffff, 2.5);
+    this.scene.add(new THREE.HemisphereLight(rig.hemi.sky, rig.hemi.ground, rig.hemi.intensity));
+    const sun = new THREE.DirectionalLight(0xffffff, rig.sun);
     // Shadows should land a little below and right of their casters on screen, like the original's
     // ship shadow (JE_playerMovement). Draws are lifted along camera rays (DECISIONS.md D6), which by
     // itself pushes a shadow toward the bottom of the screen, so the sun shines from the left and
