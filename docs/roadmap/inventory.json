@@ -955,7 +955,20 @@
     {"layer":1,"tiles":1,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
-   "tileModels": {},
+   "tileModels": {
+    "tiles/shapesz/rim-360": 42,
+    "tiles/shapesz/rim-361": 102,
+    "tiles/shapesz/rim-362": 39,
+    "tiles/shapesz/rim-363": 39,
+    "tiles/shapesz/rim-364": 33,
+    "tiles/shapesz/rim-370": 127,
+    "tiles/shapesz/rim-372": 122,
+    "tiles/shapesz/rim-373": 38,
+    "tiles/shapesz/rim-374": 48,
+    "tiles/shapesz/rim-380": 43,
+    "tiles/shapesz/rim-381": 94,
+    "tiles/shapesz/rim-382": 56
+   },
    "banks": [
     "newshd.shp",
     "newshm.shp",
@@ -1220,7 +1233,20 @@
     {"layer":1,"tiles":1,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
-   "tileModels": {},
+   "tileModels": {
+    "tiles/shapesz/rim-360": 24,
+    "tiles/shapesz/rim-361": 64,
+    "tiles/shapesz/rim-362": 20,
+    "tiles/shapesz/rim-363": 33,
+    "tiles/shapesz/rim-364": 33,
+    "tiles/shapesz/rim-370": 89,
+    "tiles/shapesz/rim-372": 77,
+    "tiles/shapesz/rim-373": 33,
+    "tiles/shapesz/rim-374": 32,
+    "tiles/shapesz/rim-380": 22,
+    "tiles/shapesz/rim-381": 75,
+    "tiles/shapesz/rim-382": 17
+   },
    "banks": [
     "newshd.shp",
     "newshm.shp",
@@ -2330,7 +2356,19 @@
     "tiles/shapesz/l1bld-light-bridge": 1,
     "tiles/shapesz/l1bld-pipe-junction": 1,
     "tiles/shapesz/l1bld-red-bar": 1,
-    "tiles/shapesz/l1bld-ring-dome": 1
+    "tiles/shapesz/l1bld-ring-dome": 1,
+    "tiles/shapesz/rim-360": 30,
+    "tiles/shapesz/rim-361": 103,
+    "tiles/shapesz/rim-362": 28,
+    "tiles/shapesz/rim-363": 20,
+    "tiles/shapesz/rim-364": 20,
+    "tiles/shapesz/rim-370": 108,
+    "tiles/shapesz/rim-372": 98,
+    "tiles/shapesz/rim-373": 24,
+    "tiles/shapesz/rim-374": 24,
+    "tiles/shapesz/rim-380": 34,
+    "tiles/shapesz/rim-381": 95,
+    "tiles/shapesz/rim-382": 32
    },
    "banks": [
     "newshd.shp",
@@ -7291,7 +7329,20 @@
     {"layer":1,"tiles":1,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
-   "tileModels": {},
+   "tileModels": {
+    "tiles/shapesz/rim-360": 13,
+    "tiles/shapesz/rim-361": 21,
+    "tiles/shapesz/rim-362": 10,
+    "tiles/shapesz/rim-363": 14,
+    "tiles/shapesz/rim-364": 8,
+    "tiles/shapesz/rim-370": 12,
+    "tiles/shapesz/rim-372": 11,
+    "tiles/shapesz/rim-373": 11,
+    "tiles/shapesz/rim-374": 18,
+    "tiles/shapesz/rim-380": 8,
+    "tiles/shapesz/rim-381": 21,
+    "tiles/shapesz/rim-382": 18
+   },
    "banks": [
     "newshd.shp",
     "newshm.shp",
@@ -34270,9 +34321,10 @@
     53,
     170
    ],
-   "tileModels": 146,
+   "tileModels": 158,
    "tileModelTiers": {
     "concept": 94,
+    "flagship": 12,
     "basic": 52
    }
   },
@@ -35087,7 +35139,7 @@
    {
     "id": "shapesz",
     "what": "tiles 275/60/178 (layers 0/1/2)",
-    "status": "HD art 266/53/73, in structure models 85/12/97, 146 structure models",
+    "status": "HD art 266/53/73, in structure models 85/12/97, 158 structure models",
     "uncovered": [9,7,8],
     "levels": 32,
     "episodes": 4,

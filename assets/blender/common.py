@@ -196,9 +196,11 @@ def mesh_object(name, bm, materials, collection, smooth=False):
     return obj
 
 
-def export_glb(objects, path, image_format="AUTO"):
+def export_glb(objects, path, image_format="AUTO", color_attr=None):
     """Export only `objects` to a .glb (Y-up, modifiers applied). Textured models (texture_bake.py)
-    pass image_format="WEBP" so their baked maps stay small (EXT_texture_webp; three.js reads it)."""
+    pass image_format="WEBP" so their baked maps stay small (EXT_texture_webp; three.js reads it).
+    `color_attr`: a colour attribute exported as COLOR_0 from the meshes that carry it (three.js
+    multiplies the material's palette colour by it: a tone per face on one material, D209, D211)."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     # An object deleted after the view layer last synced (render_preview's cameras, bake_model's
@@ -221,6 +223,9 @@ def export_glb(objects, path, image_format="AUTO"):
         export_extras=True,  # custom properties: frame tags on parts and materials (frame_part, palette_material)
         export_image_format=image_format,
         export_image_quality=85,
+        **({} if color_attr is None else dict(
+            export_vertex_color="NAME", export_vertex_color_name=color_attr, export_all_vertex_colors=False,
+            export_active_vertex_color_when_no_material=False)),
     )
     return path
 

@@ -127,13 +127,13 @@ ticks, and units seen.
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | 1.9 | TYRIAN | 3 (below hard) | shapesz | 66/66 15/16 55/56 | 82 | 126 | 30 / 30 / 0 / 0 | assembly-newsh4-124 | 18, 15 | text window, music fade, song change, enemy continual damage | done, 8169 ticks, 36 seen |
 | 1.15 | TYRIAN | 3 (hard+) | shapesz | 66/66 15/16 55/56 | 82 | 127 | 30 / 30 / 0 / 0 | assembly-newsh4-124 | 18, 15 | headlight, text window, music fade, song change, enemy continual damage | done, 8073 ticks, 35 seen |
-| 1.1 | ASTEROID1 | 5 | shapesz | 59/60 0/1 0/1 | 0 | 112 | 39 / 39 / 0 / 0 | assembly-newshm-45 | 1 | text window | done, 6116 ticks, 41 seen |
-| 1.2 | ASTEROID2 | 6 | shapesz | 62/63 0/1 0/1 | 0 | 104 | 36 / 36 / 0 / 0 | assembly-newshs-165, newshs-267 | 2 | text window | done, 8511 ticks, 41 seen |
+| 1.1 | ASTEROID1 | 5 | shapesz | 59/60 0/1 0/1 | 12 | 112 | 39 / 39 / 0 / 0 | assembly-newshm-45 | 1 | text window | done, 6116 ticks, 41 seen |
+| 1.2 | ASTEROID2 | 6 | shapesz | 62/63 0/1 0/1 | 12 | 104 | 36 / 36 / 0 / 0 | assembly-newshs-165, newshs-267 | 2 | text window | done, 8511 ticks, 41 seen |
 | 1.12 | SAVARA | 10 (hard+) | shapesy | 56/56 9/10 0/1 | 0 | 90 | 21 / 21 / 0 / 0 | assembly-newshf-195, assembly-newshf-270 | 33, 22 | difficulty change, music fade, text window, song change | done, 6154 ticks, 27 seen |
 | 1.7 | MINES | 13 | shapesz | 17/18 0/1 0/1 | 0 | 40 | 9 / 9 / 0 / 0 | - | 17 | - | done, 1747 ticks, 12 seen |
 | 1.4 | BUBBLES | 16 bonus | shapesz | 41/42 0/1 0/1 | 0 | 26 | 6 / 6 / 0 / 0 | - | 26 | colour filter | done, 3267 ticks, 15 seen |
 | 1.5 | DELIANI | 19 | shapesz | 24/24 12/13 41/42 | 53 | 85 | 21 / 21 / 0 / 0 | assembly-newshc-197, assembly-newshc-243, assembly-newshc-271, assembly-newsht-39 +3 | 14, 26 | difficulty change, background 2 opaque, music fade, song change, text window, clear enemies | done, 5781 ticks, 25 seen |
-| 1.3 | ASTEROID? | 21 bonus | shapesz | 54/55 0/1 0/1 | 7 | 86 | 41 / 41 / 0 / 0 | - | 2 | - | done, 3444 ticks, 38 seen |
+| 1.3 | ASTEROID? | 21 bonus | shapesz | 54/55 0/1 0/1 | 19 | 86 | 41 / 41 / 0 / 0 | - | 2 | - | done, 3444 ticks, 38 seen |
 | 1.6 | MINEMAZE | 23 bonus | shapesz | 19/20 8/9 0/1 | 0 | 51 | 12 / 12 / 0 / 0 | - | 23 | - | done, 3530 ticks, 14 seen |
 | 1.10 | BONUS | 25 bonus | shapesz | 13/14 0/1 0/1 | 0 | 36 | 14 / 14 / 0 / 0 | - | 18 | clear enemies | done, 2005 ticks, 17 seen |
 | 1.11 | HOLES | 28 bonus | shapesz | 27/27 15/16 46/47 | 13 | 62 | 18 / 18 / 0 / 0 | - | 24 | special weapon given | done, 4605 ticks, 20 seen |
@@ -175,7 +175,7 @@ Between levels (the episode 2 script): section 13: song 8, picture 7, text, pict
 | 3.7 | STARGATE | 8 | shapesz | 42/44 0/1 0/1 | 0 | 51 | 9 / 9 / 0 / 0 | - | 16 | text window | done, 4815 ticks, 12 seen |
 | 3.1 | CAMANIS | 10 | shapesw | 59/59 22/23 1/2 | 0 | 79 | 16 / 16 / 0 / 0 | assembly-newsh7-203, assembly-newshb-115, assembly-newshb-154, assembly-newshb-2 +3 | 4, 5 | text window, colour filter, music fade, song change | done, 7580 ticks, 17 seen |
 | 3.6 | FLEET | 12 | shapesw | 31/34 0/1 54/55 | 0 | 106 | 25 / 25 / 0 / 0 | assembly-newsho-156, assembly-newsho-79, newsho-191, newsho-193 | 29 | background 2 opaque, clear enemies, text window | done, 8431 ticks, 25 seen |
-| 3.2 | AST. CITY | 15 | shapesz | 66/67 0/1 0/1 | 0 | 100 | 36 / 36 / 0 / 0 | - | 2 | difficulty change | done, 7102 ticks, 37 seen |
+| 3.2 | AST. CITY | 15 | shapesz | 66/67 0/1 0/1 | 12 | 100 | 36 / 36 / 0 / 0 | - | 2 | difficulty change | done, 7102 ticks, 37 seen |
 | 3.8 | TYRIAN X | 17 | shapesz | 66/66 15/16 55/56 | 82 | 124 | 28 / 28 / 0 / 0 | assembly-newsh4-124 | 18, 15 | difficulty change, text window, music fade, song change, enemy continual damage | done, 6020 ticks, 33 seen |
 | 3.9 | SAWBLADES | 19 | shapesw | 15/15 28/29 27/28 | 0 | 82 | 18 / 17 / 1 / 0 | - | 14 | - | done, 5280 ticks, 19 seen |
 | 3.10 | SAVARA Y | 21 | shapesy | 67/67 49/50 45/46 | 2 | 89 | 22 / 22 / 0 / 0 | assembly-newshf-195, assembly-newshf-270 | 21, 22, 17 | music fade, song change, text window, clear enemies | done, 5267 ticks, 24 seen |

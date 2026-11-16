@@ -6,8 +6,11 @@ import { describe, expect, test } from "vitest";
 import { isModelHelper, prepareModel } from "../../src/render/modelPrep";
 import { StructureInstances } from "../../src/render/remaster/structureInstances";
 
-/** A loaded tile model as loadModel returns it: two palette meshes (one under a node), and optionally a D51 shell. */
-function structure(withShell: boolean) {
+/**
+ * A loaded tile model as loadModel returns it: two palette meshes (one under a node), and optionally a
+ * D51 shell, tagged `tyrian_tile_outline` with `inked` (the asteroid rim's, D211).
+ */
+function structure(withShell: boolean, inked = false) {
   const root = new THREE.Group();
   const node = new THREE.Group();
   node.position.set(0, 0.5, 0);
@@ -19,6 +22,7 @@ function structure(withShell: boolean) {
   if (withShell) {
     const shell = new THREE.Mesh(new THREE.SphereGeometry(1.5), new THREE.MeshStandardMaterial({ name: "shell" }));
     shell.userData.tyrian_outline = true;
+    if (inked) shell.userData.tyrian_tile_outline = true;
     root.add(shell);
   }
   return prepareModel(root);
@@ -59,6 +63,26 @@ describe("StructureInstances", () => {
       expect(helpers(model)).toHaveLength(0); // dropped from the kept source, its geometry freed
     });
   }
+
+  test("a shell tagged tyrian_tile_outline stays as an instanced part drawn only by the outline pass (D211)", () => {
+    const structures = new StructureInstances();
+    structures.add("rim", structure(true, true));
+    const parts = structures.meshes("rim");
+    expect(parts.map((m) => (m.material as THREE.Material).name).sort()).toEqual(["outline_shell", "pal_121_light", "pal_26_deck"]);
+    const shell = parts.find((m) => (m.material as THREE.Material).name === "outline_shell")!;
+    const mat = shell.material as THREE.Material;
+    expect(mat.colorWrite).toBe(false); // prepareModel's: no colour, no depth
+    expect(mat.depthWrite).toBe(false);
+    expect(mat.userData.outlineParameters.visible).toBe(true);
+    expect(shell.castShadow).toBe(false);
+    for (const m of parts.filter((p) => p !== shell)) expect((m.material as THREE.Material).userData.outlineParameters.visible).toBe(false);
+    // the heights stay the colour parts' (the shell is a sphere of radius 1.5)
+    expect(structures.heights("rim")!.high).toBeLessThan(1);
+    structures.begin();
+    for (let i = 0; i < 3; i++) structures.place("rim", i * 2, 0, 0, 1);
+    structures.end(1, (_i, c) => c.set(0xffffff));
+    expect(shell.count).toBe(3);
+  });
 
   test("placed copies draw one instanced mesh per colour part, and nothing else", () => {
     const structures = new StructureInstances();

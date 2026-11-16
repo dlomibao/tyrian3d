@@ -8,7 +8,10 @@
 // material), and each part gets an InstancedMesh that grows as needed. prepareModel's helpers (the
 // depth prepass, an outline shell: isModelHelper) are left out and dropped: a tile is never drawn
 // translucent, so the prepass has no use here, and tiles carry no outline (D8). As parts they drew
-// and cast shadows (D142).
+// and cast shadows (D142). The exception is a shell tagged `tyrian_tile_outline` (the asteroid
+// platforms' rock rim, D211: rock beside the enemy asteroids, which wear the ink): it is kept as an
+// instanced part like the others, drawn only by the outline pass (prepareModel's material), and cut
+// open at the tile's edges by its script, so the ink runs on across the seams.
 //
 // A part tagged with a cell of the model's pattern (`tyrian_cell: [row, col]` and `tyrian_when`, glTF
 // extras on its node, D139) is drawn per copy by whether a ground enemy covers that cell: "open" parts
@@ -102,7 +105,8 @@ export class StructureInstances {
     source.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
-      if (isModelHelper(mesh)) {
+      const inked = mesh.userData?.tyrian_tile_outline === true && mesh.userData?.tyrian_outline === true;
+      if (isModelHelper(mesh) && !inked) {
         helpers.push(mesh);
         return;
       }
@@ -110,12 +114,13 @@ export class StructureInstances {
       const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
       const geometry = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);
       geometry.computeBoundingBox();
-      bounds.union(geometry.boundingBox!);
+      if (!inked) bounds.union(geometry.boundingBox!);
       // A multi-material mesh becomes one part per group.
       const groups = Array.isArray(mesh.material) && geometry.groups.length > 0 ? geometry.groups : [{ start: 0, count: Infinity, materialIndex: 0 }];
       for (const g of groups) {
         const material = materials[g.materialIndex ?? 0];
-        material.userData.outlineParameters = { visible: false }; // tiles join edge to edge (D8)
+        // tiles join edge to edge (D8); an inked rim's shell keeps prepareModel's outline (D211)
+        if (!inked) material.userData.outlineParameters = { visible: false };
         const part = groups.length > 1 ? subGeometry(geometry, g.start, g.count) : geometry;
         if (band) patchOblique(material, obliqueUniforms(band));
         let bands: THREE.InstancedBufferAttribute | undefined;
@@ -127,8 +132,8 @@ export class StructureInstances {
         const im = new THREE.InstancedMesh(part, material, 4);
         im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         im.frustumCulled = false;
-        im.castShadow = true;
-        im.receiveShadow = true;
+        im.castShadow = !inked;
+        im.receiveShadow = !inked;
         im.count = 0;
         this.group.add(im);
         parts.push({ mesh: im, capacity: 4, count: 0, bands, cell: tag?.cell, when: tag?.when });
