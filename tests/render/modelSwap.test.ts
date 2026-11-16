@@ -255,6 +255,8 @@ describe.skipIf(!hasData("tyrian1.lvl", "levels1.dat", "tyrian.hdt", "palette.da
     const missing: string[] = [];
     for (const r of levels) {
       for (const [model, where] of r.shown) if (!r.preloaded.has(model)) missing.push(`level ${r.main}: ${model} (${where})`);
+      // The player's ship and the Nort ship (the in-flight cheat's), no other ship (D207).
+      expect([...r.preloaded].filter((m) => m.startsWith("ships/") || m === "usp_talon").sort(), `level ${r.main}`).toEqual(["ships/ship-nort-ship", "usp_talon"]);
       if (REPORT) {
         const kb = [...r.preloaded].reduce((n, m) => n + statSync(`public/models/${m}.glb`).size, 0) >> 10;
         console.log(`level ${r.main}: ${r.completed ? "completed" : "not completed"}; shows ${r.shown.size} models, preloads ${r.preloaded.size} (${kb} KiB)`);

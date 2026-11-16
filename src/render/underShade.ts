@@ -25,6 +25,9 @@
 // sheet. The explosions and background2over 2's sheets read a copy made after the sheets are drawn,
 // so where a sheet lies the frame shows the sheet's blend, not the terrain: there they guess from the
 // copy (whose colour is then an exact palette colour, which the guess finds).
+// Only the pixels under a blended draw are read (each reads its own pixel), so a model whose screen
+// box reaches none of the draws' own rectangles is left out of the pass (D207: GYGES's boss, framed
+// by the sheets on three sides, lies inside their bounding box but under none of them).
 //
 // Not in this pass (they keep the shade under them): what writes no depth (the shadows, the scorch
 // marks: the C has neither; models while they fade), and the shots' and explosions' art under a later
@@ -32,7 +35,7 @@
 // camera narrowed to the blended layers' area, so only what lies there is drawn (D206).
 
 import * as THREE from "three";
-import { areaPixels, HB_SHADE_PARS, ShadeLut, type NdcRect } from "./hueBlend";
+import { areaPixels, GRAB_MARGIN, HB_SHADE_PARS, ShadeLut, type NdcRect } from "./hueBlend";
 import type { PaletteTexture } from "./paletteTexture";
 import { cutMaskMaterial, type MaskCut } from "./screenFilters";
 import { SAMPLE_PARS, TERRAIN_VERTEX_MAIN, TERRAIN_VERTEX_PARS } from "./remaster/terrainMaterial";
@@ -211,6 +214,48 @@ function modelShadeMaterial(shade: number | THREE.Texture): THREE.MeshBasicMater
   return m;
 }
 
+/** Cells across and down the screen in the grid the blended draws' rectangles are marked in (D207). */
+const COVER_COLS = 128;
+const COVER_ROWS = 72;
+
+/**
+ * The screen cells (COVER_COLS x COVER_ROWS over NDC -1..1) any of a frame's blended draws' rectangles
+ * touch, with a summed-area table, so whether a box reaches one is four reads.
+ */
+export class CoverGrid {
+  private readonly sum = new Int32Array((COVER_COLS + 1) * (COVER_ROWS + 1));
+
+  /** Mark `rects` (NDC x0, y0, x1, y1 each), each grown by (mx, my). */
+  build(rects: ArrayLike<number>, mx: number, my: number): void {
+    const W = COVER_COLS + 1;
+    const sum = this.sum;
+    sum.fill(0);
+    for (let i = 0; i + 3 < rects.length; i += 4) {
+      const c0 = Math.max(0, col(rects[i] - mx));
+      const r0 = Math.max(0, row(rects[i + 1] - my));
+      const c1 = Math.min(COVER_COLS - 1, col(rects[i + 2] + mx));
+      const r1 = Math.min(COVER_ROWS - 1, row(rects[i + 3] + my));
+      for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) sum[(r + 1) * W + c + 1] = 1;
+    }
+    for (let r = 1; r <= COVER_ROWS; r++) for (let c = 1; c <= COVER_COLS; c++) sum[r * W + c] += sum[(r - 1) * W + c] + sum[r * W + c - 1] - sum[(r - 1) * W + c - 1];
+  }
+
+  /** Whether the NDC box (x0, y0)-(x1, y1) touches a marked cell. */
+  hits(x0: number, y0: number, x1: number, y1: number): boolean {
+    const c0 = Math.max(0, col(x0));
+    const r0 = Math.max(0, row(y0));
+    const c1 = Math.min(COVER_COLS - 1, col(x1));
+    const r1 = Math.min(COVER_ROWS - 1, row(y1));
+    if (c1 < c0 || r1 < r0) return false;
+    const W = COVER_COLS + 1;
+    const s = this.sum;
+    return s[(r1 + 1) * W + c1 + 1] - s[r0 * W + c1 + 1] - s[(r1 + 1) * W + c0] + s[r0 * W + c0] > 0;
+  }
+}
+
+const col = (x: number) => Math.floor(((x + 1) / 2) * COVER_COLS);
+const row = (y: number) => Math.floor(((y + 1) / 2) * COVER_ROWS);
+
 /** The terrain shades' target and the pass that draws it each frame (see the top of this file). */
 export class UnderShadePass {
   readonly target = new THREE.WebGLRenderTarget(1, 1, {
@@ -235,6 +280,13 @@ export class UnderShadePass {
   private readonly crop = new THREE.Matrix4();
   /** Frames drawn (for tests and the harness). */
   renders = 0;
+  /** Meshes the last frame left out for reaching none of the blended draws' rectangles (D207). */
+  culled = 0;
+  private readonly cover = new CoverGrid();
+  private readonly frustum = new THREE.Frustum();
+  private readonly viewProj = new THREE.Matrix4();
+  private readonly toClip = new THREE.Matrix4();
+  private readonly corner = new THREE.Vector4();
   /**
    * The raw palette (before JE_filterScreen) and its shade lookup: an HD painting's shade is its
    * brightness along the ramp its tile's indices were drawn with, whatever the level filter does to
@@ -292,9 +344,11 @@ export class UnderShadePass {
 
   /**
    * Draw the terrain's shades over `area` of a target the size of the renderer's current one, for
-   * the scene as `camera` sees it. Returns false (nothing drawn) when `area` is empty.
+   * the scene as `camera` sees it. Returns false (nothing drawn) when `area` is empty. `rects`: the
+   * blended draws' own screen rectangles (NDC x0, y0, x1, y1 each) inside `area`; a model reaching
+   * none of them is left out (D207). Without them every model in `area` is drawn.
    */
-  render(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera, area: NdcRect): boolean {
+  render(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera, area: NdcRect, rects?: ArrayLike<number>): boolean {
     if (area.empty) return false;
     if (this.rawShades.update(this.palette.raw, this.palette.version)) this.rawPalette.needsUpdate = true;
     const current = renderer.getRenderTarget();
@@ -314,6 +368,17 @@ export class UnderShadePass {
     this.target.scissorTest = true;
     this.target.viewport.set(x0, y0, x1 - x0, y1 - y0);
     const view = this.cropCamera(camera, x0 / w, y0 / h, x1 / w, y1 / h);
+    // A model is left out when it lies outside the narrowed view or its screen box reaches none of
+    // the rectangles (grown by the copies' margin, as the area is).
+    const cull = rects !== undefined && rects.length >= 4;
+    if (cull) {
+      // This frame's matrices (the pass's render below then leaves them as they are).
+      if (scene.matrixWorldAutoUpdate) scene.updateMatrixWorld();
+      this.cover.build(rects, (2 * GRAB_MARGIN) / w, (2 * GRAB_MARGIN) / h);
+      this.viewProj.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+      this.frustum.setFromProjectionMatrix(this.toClip.multiplyMatrices(view.projectionMatrix, view.matrixWorldInverse));
+    }
+    this.culled = 0;
 
     // Each object the camera would draw, in its pass material (or left out), on the pass's layer.
     const drawn: { object: THREE.Mesh; material: THREE.Material | THREE.Material[]; layers: number }[] = [];
@@ -322,6 +387,10 @@ export class UnderShadePass {
       if (isLight(o)) lights.push(o);
       const r = o as THREE.Mesh;
       if (!r.isMesh || !o.layers.test(camera.layers) || !r.material) return;
+      if (cull && !this.reachesCover(r)) {
+        this.culled++;
+        return;
+      }
       const source = r.material;
       let pass: THREE.Material | THREE.Material[] | null;
       if (Array.isArray(source)) {
@@ -335,6 +404,7 @@ export class UnderShadePass {
     const override = scene.overrideMaterial;
     const autoClear = renderer.autoClear;
     const shadows = renderer.shadowMap.autoUpdate;
+    const matrices = scene.matrixWorldAutoUpdate;
     renderer.getClearColor(this.clearColor);
     const clearAlpha = renderer.getClearAlpha();
     // Objects join the render by the pass's layer, not left out by `visible` (that would hide their
@@ -346,6 +416,7 @@ export class UnderShadePass {
     scene.background = null;
     scene.overrideMaterial = null;
     renderer.shadowMap.autoUpdate = false;
+    if (cull) scene.matrixWorldAutoUpdate = false;
     renderer.autoClear = true;
     renderer.setClearColor(0x000000, 0);
     renderer.setRenderTarget(this.target);
@@ -365,11 +436,41 @@ export class UnderShadePass {
       scene.background = background;
       renderer.autoClear = autoClear;
       renderer.shadowMap.autoUpdate = shadows;
+      scene.matrixWorldAutoUpdate = matrices;
       renderer.setClearColor(this.clearColor, clearAlpha);
       renderer.setRenderTarget(current);
     }
     this.renders++;
     return true;
+  }
+
+  /**
+   * Whether a mesh may draw into a blended draw's rectangle: a plain mesh whose bounding box is in
+   * the narrowed view and whose screen box touches a marked cell. Instanced meshes (the ground,
+   * the structures, the sheets), meshes three never culls and boxes reaching behind the camera
+   * always may.
+   */
+  private reachesCover(mesh: THREE.Mesh): boolean {
+    if ((mesh as THREE.InstancedMesh).isInstancedMesh || (mesh as THREE.SkinnedMesh).isSkinnedMesh || !mesh.frustumCulled) return true;
+    const geometry = mesh.geometry;
+    if (!geometry.boundingSphere) geometry.computeBoundingSphere();
+    if (!this.frustum.intersectsObject(mesh)) return false;
+    if (!geometry.boundingBox) geometry.computeBoundingBox();
+    const b = geometry.boundingBox!;
+    const m = this.toClip.multiplyMatrices(this.viewProj, mesh.matrixWorld);
+    const v = this.corner;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (let c = 0; c < 8; c++) {
+      v.set(c & 1 ? b.max.x : b.min.x, c & 2 ? b.max.y : b.min.y, c & 4 ? b.max.z : b.min.z, 1).applyMatrix4(m);
+      if (v.w <= 1e-6) return true;
+      const x = v.x / v.w;
+      const y = v.y / v.w;
+      if (x < x0) x0 = x;
+      if (x > x1) x1 = x;
+      if (y < y0) y0 = y;
+      if (y > y1) y1 = y;
+    }
+    return this.cover.hits(x0, y0, x1, y1);
   }
 
   /**

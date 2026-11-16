@@ -139,6 +139,69 @@ describe("the lights in the passes with a layer of their own (D206)", () => {
   });
 });
 
+describe("the under-shade pass, culled against the blended draws' own rectangles (D207)", () => {
+  test("a model between two rectangles is left out; one under a rectangle, and the ground, are drawn", () => {
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(40, 640 / 360, 0.1, 100);
+    camera.position.set(0, 20, 0.01);
+    camera.lookAt(0, 0, 0);
+    camera.updateMatrixWorld();
+    const model = (x: number) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), new THREE.MeshStandardMaterial({ name: "pal_7" }));
+      m.position.set(x, 0, 0);
+      scene.add(m);
+      return m;
+    };
+    const left = model(-4);
+    const middle = model(0);
+    const right = model(4);
+    const ground = new THREE.InstancedMesh(new THREE.PlaneGeometry(20, 20), new THREE.MeshStandardMaterial({ name: "pal_3" }), 1);
+    ground.setMatrixAt(0, new THREE.Matrix4().makeRotationX(-Math.PI / 2));
+    scene.add(ground);
+    scene.updateMatrixWorld();
+    const ndc = (o: THREE.Object3D) => o.getWorldPosition(new THREE.Vector3()).project(camera);
+    // Rectangles round the left and right models only; the area (their bounding box) covers the middle one.
+    const rects: number[] = [];
+    const area = new NdcRect();
+    for (const o of [left, right]) {
+      const p = ndc(o);
+      rects.push(p.x - 0.08, p.y - 0.08, p.x + 0.08, p.y + 0.08);
+      area.add(p.x - 0.08, p.y - 0.08);
+      area.add(p.x + 0.08, p.y + 0.08);
+    }
+    let target: THREE.WebGLRenderTarget | null = null;
+    const drawn: THREE.Object3D[][] = [];
+    const renderer = {
+      autoClear: true,
+      shadowMap: { autoUpdate: true },
+      getRenderTarget: () => target,
+      setRenderTarget: (t: THREE.WebGLRenderTarget | null) => (target = t),
+      getDrawingBufferSize: (v: THREE.Vector2) => v.set(640, 360),
+      getClearColor: (c: THREE.Color) => c,
+      getClearAlpha: () => 1,
+      setClearColor: () => {},
+      render(s: THREE.Scene, c: THREE.Camera) {
+        const list: THREE.Object3D[] = [];
+        s.traverseVisible((o) => void ((o as THREE.Mesh).isMesh && o.layers.test(c.layers) && list.push(o)));
+        drawn.push(list);
+      },
+    } as unknown as THREE.WebGLRenderer;
+    const pass = new UnderShadePass(new PaletteTexture());
+    pass.render(renderer, scene, camera, area);
+    expect(drawn[0]).toEqual(expect.arrayContaining([left, middle, right, ground]));
+    pass.render(renderer, scene, camera, area, rects);
+    expect(drawn[1]).toEqual(expect.arrayContaining([left, right, ground]));
+    expect(drawn[1]).not.toContain(middle);
+    expect(pass.culled).toBe(1);
+    // A rectangle within the copies' margin (8 px) of the middle model's box still draws it.
+    const p = ndc(middle);
+    const box = (0.25 / 20) * 2; // about its half-width in NDC from 20 units up (generous)
+    const margin = (2 * 6) / 640;
+    pass.render(renderer, scene, camera, area, [...rects, p.x + box + margin, p.y - 0.01, p.x + box + margin + 0.01, p.y + 0.01]);
+    expect(drawn[2]).toContain(middle);
+  });
+});
+
 describe("the models' geometry, meshopt-compressed (tools/glb-meshopt.mjs, D206)", () => {
   /** A one-mesh glb: positions, normals, UVs and triangle indices, each in its own view. */
   function glb(n: number) {

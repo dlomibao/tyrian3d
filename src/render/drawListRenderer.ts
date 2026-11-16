@@ -479,6 +479,8 @@ export class DrawListRenderer {
   /** The terrain's own shades under the blended layers (underShade.ts, D204); null with `?undershade=0`. */
   private readonly underShade: UnderShadePass | null;
   private readonly underShadeArea = new NdcRect();
+  /** This frame's blended draws' own screen rectangles, NDC x0, y0, x1, y1 each (D207). */
+  private readonly underShadeRects: number[] = [];
   private readonly grabSheets: UnderGrabHook;
   private readonly grabExplosions: UnderGrabHook;
   private readonly grabTop: UnderGrabHook;
@@ -723,13 +725,22 @@ export class DrawListRenderer {
    * sprites (whole enemies), and sprites drawn on their own (sidekicks). Models are fetched with
    * `loader` by preloadLevel, or the first time they're seen (see objectLook for what's drawn
    * meanwhile). Models are centred on their origin, forward -Z.
+   *
+   * `allShips`: fetch every player ship's model now (the shop's preview, where any ship can be
+   * shown). A level's view leaves them to preloadLevel, which loads only the ships the level can
+   * show (sim/levelSprites.ts; D207: the other ships were 3.2 MB fetched at every start).
    */
-  setSpriteModels(models: SpriteModels, loader: ModelLoader): void {
+  setSpriteModels(models: SpriteModels, loader: ModelLoader, { allShips = false }: { allShips?: boolean } = {}): void {
     // The island rock's HD materials (D84) take their colours from this renderer's palette.
     this.loader = (name) => loader(name).then((model) => adoptRockMaterials(model, this.palette));
     this.router = new Sprite2Router(models);
     if (this.damage !== null) this.router.setDamage([]);
-    for (const o of models.banked) this.modelPool(o.model);
+    if (allShips) for (const o of models.banked) this.modelPool(o.model);
+  }
+
+  /** Start loading model `name` now (if it isn't loaded or loading), for a model known to be needed soon. */
+  preloadModel(name: string): void {
+    this.modelPool(name);
   }
 
   /**
@@ -852,7 +863,7 @@ export class DrawListRenderer {
     area.union(this.grabSheets.area);
     area.union(this.grabExplosions.area);
     area.union(this.grabTop.area);
-    const drawn = this.underShade !== null && this.underShade.render(renderer, scene, camera, area);
+    const drawn = this.underShade !== null && this.underShade.render(renderer, scene, camera, area, this.underShadeRects);
     u.blendShadeOn.value = drawn ? 1 : 0;
     u.blendShadeSheets.value = 1;
     if (drawn) u.blendShade.value = this.underShade!.target.texture;
@@ -894,6 +905,7 @@ export class DrawListRenderer {
     this.grabSheets.area.clear();
     this.grabExplosions.area.clear();
     this.grabTop.area.clear();
+    this.underShadeRects.length = 0;
     this.grabCamera = camera;
     this.under.shades.update(this.palette.texture.image.data as Uint8Array, this.palette.version);
 
@@ -1233,16 +1245,23 @@ export class DrawListRenderer {
   /**
    * Add the screen area of a draw at game screen (x, y), w x h game pixels, to a grab's area. Every
    * draw lands on its original screen position whatever its height (D6), so the ground rectangle under
-   * it projects to where it is drawn.
+   * it projects to where it is drawn. The draw's own rectangle also goes to the under-shade pass's
+   * list (D207), which draws only the models that reach one.
    */
   private addGrabArea(hook: UnderGrabHook, x: number, y: number, w: number, h: number): void {
     const cam = this.grabCamera;
     if (!cam) return;
     const p = this.grabPoint;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (let c = 0; c < 4; c++) {
       p.set(screenWorldX(c & 1 ? x + w : x), 0, screenWorldZ(c & 2 ? y + h : y)).project(cam);
       hook.area.add(p.x, p.y);
+      x0 = Math.min(x0, p.x);
+      y0 = Math.min(y0, p.y);
+      x1 = Math.max(x1, p.x);
+      y1 = Math.max(y1, p.y);
     }
+    this.underShadeRects.push(x0, y0, x1, y1);
   }
 
   /**

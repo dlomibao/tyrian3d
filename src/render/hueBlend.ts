@@ -203,7 +203,7 @@ export class NdcRect {
 }
 
 /** Pixels added round the copied area (camera motion within a frame, soft edges). */
-const GRAB_MARGIN = 8;
+export const GRAB_MARGIN = 8;
 
 /**
  * The pixel box [x0, y0, x1, y1) of a w x h target that `area` covers, GRAB_MARGIN pixels bigger

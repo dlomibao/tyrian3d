@@ -187,3 +187,24 @@ describe("preloadLevel", () => {
     }
   });
 });
+
+describe("the player ships' models (D207)", () => {
+  const SHIPS: SpriteModelEntry[] = [
+    { model: "ships/a", sprites: [{ sheet: SHEET.id, size: 2, frames: [10], bank: { step: 2, max: 2 } }] },
+    { model: "ships/b", sprites: [{ sheet: SHEET.id, size: 2, frames: [30], bank: { step: 2, max: 2 } }] },
+  ];
+
+  test("a level's view fetches only the ships preloadLevel is given; the shop's preview fetches them all", async () => {
+    const level = delayedLoader();
+    const r = make([...SHIPS, ENEMY], level.loader);
+    expect(level.order).toEqual([]);
+    void r.preloadLevel({ sprites: [{ sheet: SHEET.id, size: 2, index: 10, grouped: false, time: 0 }] });
+    await flush();
+    expect(level.order).toEqual(["ships/a"]);
+
+    const shop = delayedLoader();
+    const s = new DrawListRenderer();
+    s.setSpriteModels(spriteModels([...SHIPS, ENEMY]), shop.loader, { allShips: true });
+    expect(shop.order).toEqual(["ships/a", "ships/b"]);
+  });
+});

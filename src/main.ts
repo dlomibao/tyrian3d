@@ -52,6 +52,9 @@ function startGame(): void {
   art
     .then((art) => view.draws.setSpriteArt(art))
     .catch((err) => console.warn("sprite art failed to load; using the original sprites", err));
+  // A new game's ship, for the levels' renderer too: started together, the two loads share one fetch
+  // (three's FileLoader merges requests in flight). The other ships load with the levels that show them (D207).
+  view.draws.preloadModel("usp_talon");
   loadModel("usp_talon")
     .then((model) => view.setShipModel(model))
     .catch((err) => console.error("player ship model failed to load; keeping placeholder", err));
