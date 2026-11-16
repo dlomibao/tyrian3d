@@ -11543,3 +11543,62 @@ rigid egg instead); the glint is streaky reflections of the room's panels, and t
 
 **Review:** SURFACE t1800 and DESERTRUN t1050 against the original; IXMUCANE t590. Fallback: `git revert` restores
 D195's arch and D178's egg.
+
+## D210 — Remastered shop icons: Gemini paints the item screen's 61 pictures, cut back per icon onto their original silhouette; the original pixels stay the fallback and the `?sprites=original` look (follows D42, D43, D85)
+
+2026-11-15
+
+**Decision:** The item screen's item pictures (JE_drawItem: a 24x28 block of the four 12x14 sprites index, +1,
++19, +20, from newsh1.shp by `itemGraphic` for weapons, shields, generators and sidekicks, or from the ship sheet
+`tyrian.shp#8` by `shipGraphic`) are drawn from painted high-resolution icons where `public/art/shop/` has one.
+- **Inventory** (`tools/shop-icons-inventory.mjs`, from the item data of all four episodes, `loadItemDat`): 61
+  distinct pictures, 54 on newsh1.shp and 7 ships. Many items share one (the Pulse-Cannon's is also Hyper Pulse,
+  the NortShip guns, Atomic RailGun, Widget Beam, Sonic Impulse, RetroBall and the Side Ship; the four episodes'
+  item data give the same pictures).
+- **Sheets** (`tools/shop_icons.py sheets`, kept out of git, D3): three 1:1 sheets, weapons (22 icons, 5x5),
+  sidekicks and ships (24, 5x5), shields and generators (15, 4x4), each icon 8x nearest-neighbour in a 256 px cell
+  on flat neutral grey: half the icons' pixels are their near-black outline and drop shadow, which D43's black
+  would hide. Each prompt names every icon's object and the items that show it, row by row (D187), and asks
+  for a remastered painted game-UI icon keeping position, size, silhouette, parts, colours and the dark outline.
+- **Gemini:** 4 requests (Nano Banana Pro, one chat each): the three sheets, and one retry sheet (`RETRIES`) for
+  Plasma Storm (painted larger, as a soft glow with sparks: NCC 0.24), the Structural Integrity Field (bright cyan
+  glass for the sprite's dark steel blue: colour error 60) and the Nort Ship (an outline, shadow and a joining pipe
+  the sprite doesn't have; the fit slid off). The retry fixed all three (NCC 0.80-0.91). No usage warning.
+- **Cutter** (`tools/shop_icons.py cut`): each cell is registered onto its icon by zero-mean NCC of luminance against
+  the icon as it sits on the sheet, scale 0.92-1.08, aspect 0.97-1.03, with small priors toward the sheet's own
+  placement (0.6 NCC per unit of scale, 0.01 per original pixel of shift), since Gemini keeps the geometry and a
+  wider search let an added handle or glow pull the fit off. The icon is resampled at 6 texels per original pixel
+  (144x168; the menus show icons about 38 CSS px wide, 115 device px at DPR 3) with the original silhouette,
+  upscaled smoothly (flat_art.smooth_alpha), as alpha, so the outline is the original's (art rule 1). One atlas,
+  `icons.webp` (1600x1288, 301 KB), and `manifest.json` keyed `"<sheet id>:<first sprite>"`.
+- **Fit:** NCC min 0.67 (the hot dog, whose bun Gemini redrew with mustard, layout kept), median 0.90, mean 0.89;
+  colour error (the painting averaged back to the original's pixels, mean absolute, 0-255) median 30, max 48
+  (the SuperCarrot, painted a little browner; its dark centre eye came back as a cockpit window in the same place).
+- **Game side** (`src/app/shopIcons.ts`, `shop.ts` `itemIcon`): the manifest and atlas are fetched once in the
+  background when the game starts (run.ts), and the shop redraws when they arrive; each icon is cut from the atlas
+  into a data URL once. An icon missing from the manifest, any icon before the atlas loads or when it fails, and
+  every icon in the original look draw the original pixels as before. The look is D42's switch: `?sprites=`, else
+  `?vfx=` (`?sprites=original` or `?vfx=original` draw the original pixels). HD images get `img.is-hd`
+  (components.css: `image-rendering: auto`), so the painting is scaled down smoothly rather than as pixels.
+- **Where:** the Upgrade Ship menus (ships, front and rear guns, shields, generators, left and right sidekicks) and
+  the loadout pane; the item screen has no other picture of an item (Ship Specs is text; the weapon simulator is
+  the game's own drawing).
+
+**Options considered:**
+- *A sheet of pictures per family, a cutter registers each painting onto its original silhouette (chosen):* D43's
+  approach, which keeps the outline and placement the original's and paints a family in one consistent style; 4
+  requests for 61 icons.
+- *Gemini's own outline as alpha:* richer edges, but shapes drift (Plasma Storm's first answer grew 15%) and
+  added parts (the Nort Ship's pipe) would show.
+- *Extend D42's sprite atlas (`public/art/sprites/`, per 12x14 tile):* the shop needs whole 24x28 pictures as HTML
+  images, not tiles for the renderer; one small atlas of whole icons is simpler and keeps the renderer's manifest
+  for what it draws.
+- *8 texels per pixel (192x224):* headroom for a bigger picture, but ~1.8x the bytes for icons shown at ~38 CSS px.
+- *Black background, as D43:* hides half of every icon (the outline and shadow) from Gemini and from the NCC.
+
+**Review:** open the shop (`tyrianConsole.run('shop')`, then `shop all on` to list everything) and go through
+Upgrade Ship's menus with and without `?sprites=original`. Captures: `tyrian-scratch/shop-icons/shots/`
+(before-*, after-*, compare-*), the contact sheet original | remastered at `tyrian-scratch/shop-icons/summary.png`.
+Known limits: the colours are the painting's (no palette recolour; D172's ramp could be applied per icon if one
+reads off); Plasma Storm's retry is a hard-edged star with a copper rim rather than the sprite's flat fire colours.
+To redo an icon, add it to `RETRIES`, `sheets --retry`, send the sheet, and `cut` again with all answers.

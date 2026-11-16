@@ -53,6 +53,7 @@ import { WeaponPreview } from "./weaponPreview";
 import { superArcadeLoadout } from "./arcade"; // [arcade]
 import { inputDevicesText, twoPlayerInputRequest, twoPlayerSideHtml } from "./twoPlayerShop"; // [two-player]
 import { consoleBridge } from "./consoleBridge";
+import { loadShopIcons, shopIconUrl } from "./shopIcons";
 
 /** The shop's host: the files, and the same OptionsHost the title's Options gets (see run.ts), so the settings screen is one. */
 export interface ItemScreenHost extends OptionsHost {
@@ -116,43 +117,57 @@ function spriteCanvas(parts: { sprite: DecodedSprite; x: number; y: number }[], 
 
 const iconCache = new Map<string, string>();
 
+/** A shop picture: its image URL, and whether it is the remastered painting (D210) or the original pixels. */
+interface ItemIcon {
+  url: string;
+  hd: boolean;
+}
+
 /**
- * JE_drawItem: the item's 24x28 shop picture (blit_sprite2x2 from newsh1.shp, or the ship sheet),
- * as a data URL. itemType is the Upgrade Ship choice (2..8).
+ * JE_drawItem: the item's 24x28 shop picture (blit_sprite2x2 from newsh1.shp, or the ship sheet).
+ * itemType is the Upgrade Ship choice (2..8). The remastered painting of that picture when there
+ * is one and the art has loaded (shopIcons.ts, D210), else the original pixels as a data URL.
  */
-function itemIcon(itemType: number, id: number): string | null {
+function itemIcon(itemType: number, id: number): ItemIcon | null {
   if (id <= 0 || id > 90) return null;
-  const key = `${itemType}:${id}`;
-  const hit = iconCache.get(key);
-  if (hit !== undefined) return hit || null;
   const { items } = g.res;
-  let sheet: Uint8Array;
+  let sheet: { id: string; data: Uint8Array };
   let index = 0;
   switch (itemType) {
     case 2:
-      sheet = g.res.spriteSheet9.data;
+      sheet = g.res.spriteSheet9;
       index = items.ships[id].shipGraphic;
       break;
     default:
-      sheet = g.res.loadCompShapes("1").data;
+      sheet = g.res.loadCompShapes("1");
       index =
         itemType === 3 || itemType === 4 ? items.weaponPorts[id].itemGraphic
         : itemType === 5 ? items.shields[id].itemGraphic
         : itemType === 6 ? items.powerSys[id].itemGraphic
         : items.options[id].itemGraphic;
   }
-  let url = "";
-  if (index > 0) {
+  if (index <= 0) return null;
+  const hd = shopIconUrl(sheet.id, index);
+  if (hd) return { url: hd, hd: true };
+  const key = `${sheet.id}:${index}`;
+  let url = iconCache.get(key);
+  if (url === undefined) {
     const parts = [
-      { sprite: decodeSprite2(sheet, index), x: 0, y: 0 },
-      { sprite: decodeSprite2(sheet, index + 1), x: 12, y: 0 },
-      { sprite: decodeSprite2(sheet, index + 19), x: 0, y: 14 },
-      { sprite: decodeSprite2(sheet, index + 20), x: 12, y: 14 },
+      { sprite: decodeSprite2(sheet.data, index), x: 0, y: 0 },
+      { sprite: decodeSprite2(sheet.data, index + 1), x: 12, y: 0 },
+      { sprite: decodeSprite2(sheet.data, index + 19), x: 0, y: 14 },
+      { sprite: decodeSprite2(sheet.data, index + 20), x: 12, y: 14 },
     ];
     url = spriteCanvas(parts, 24, 28, g.res.palettes[SHOP_PALETTE]).toDataURL();
+    iconCache.set(key, url);
   }
-  iconCache.set(key, url);
-  return url || null;
+  return { url, hd: false };
+}
+
+/** An item's picture in the menu markup's icon slot (empty when it has none). */
+function iconSlot(itemType: number, id: number): string {
+  const icon = itemIcon(itemType, id);
+  return `<span class="ui-menu__icon">${icon ? `<img src="${icon.url}" alt=""${icon.hd ? ` class="is-hd"` : ""}>` : ""}</span>`;
 }
 
 const planetCache = new Map<number, HTMLCanvasElement>();
@@ -477,10 +492,7 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
     const p = g.player[0];
     const it = p.items;
     const { items } = g.res;
-    const icon = (type: number, id: number) => {
-      const url = itemIcon(type, id);
-      return `<span class="ui-menu__icon">${url ? `<img src="${url}" alt="">` : ""}</span>`;
-    };
+    const icon = iconSlot;
     const row = (type: number, label: string, id: number, extra = "") =>
       `<li>${icon(type, id)}<span class="ui-menu__text"><small class="ui-menu__detail">${esc(label)}</small><span class="ui-menu__label">${esc(itemName(type, id))}${extra}</span></span></li>`;
     const labels = g.menuInt[2] ?? [];
@@ -533,9 +545,8 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
     if (optionsRow !== null) {
       inner = optionsRow;
     } else if (menu.curMenu === MENU_UPGRADE_SUB && !e.done) {
-      const icon = itemIcon(menu.curSel[MENU_UPGRADES], e.item ?? 0);
       // The price on the right in phosphor (what the game counts, D85).
-      inner = `<span class="ui-menu__icon">${icon ? `<img src="${icon}" alt="">` : ""}</span>
+      inner = `${iconSlot(menu.curSel[MENU_UPGRADES], e.item ?? 0)}
         ${text(e.label)}
         ${e.owned ? `<span class="ui-badge" title="Owned">Owned</span>` : ""}
         <span class="shop-price ui-phos" title="Cost">${e.cost}</span>`;
@@ -681,5 +692,10 @@ export function runItemScreen(host: ItemScreenHost): Promise<void> {
   }
 
   render();
+  // The remastered icons (D210) replace the original pictures once their atlas is in (it is
+  // usually fetched before the first shop: run.ts starts it with the game).
+  void loadShopIcons().then((ok) => {
+    if (ok && !finished) render();
+  });
   return done;
 }
