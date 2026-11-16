@@ -11369,3 +11369,102 @@ the grid is four reads), bounding spheres instead of boxes (looser on the boss's
 
 **Left:** the 43 models above, compressed by their workflow's integration (build-models.sh does it); the server's gzip
 and max-age (D206); newshg-1's density (D206).
+## D208 — The screen filters' remaining brightness: water_filter's integer floor is applied (half a shade), and the effects are drawn over a copy of the filtered frame instead of into the lava's and blurs' history; LAVA EXIT's and SIDE EXIT's rest is the effects, the models and the HD lava under the hue (brightness audit; follows D35, D111, D191, D199, D205, D206)
+
+2026-11-15
+
+**Problem** (D205 Left): three filter levels stayed about 1.2x the original after D205: LAVA EXIT (4.9) t3400 1.19,
+SIDE EXIT (4.6) t950 1.22, CORE (4.5) t1925 1.19 (sRGB luma, `compare=1`, the audit's `shot.mjs` and `measure.py`).
+At those ticks LAVA EXIT and SIDE EXIT run lava_filter after the ground enemies (smoothie_data[0] 7); CORE runs
+water_filter with hue 7. LAVA EXIT runs water_filter only at other ticks (t2550).
+
+**What was measured** (`tyrian-scratch/filter-brightness/`; `bin/` has the scripts):
+- *Where the excess sits.* Over pixels that are lava in both panels, about half of it; the rest is the effects, the
+  models and the shots (`bin/split.py`, `classes.py`). By the original's luma, the dark and middle tones carry it.
+- *The C's own source.* A temporary hook in the classic renderer kept the buffer each filter reads; its values were
+  drawn into the original panel in the red run, against the 3D frame with the filter's value stage off
+  (`steps_csrc.json`, `bin/four.py`). With `&terrain=original` the 3D source matches the C's (the shade histograms
+  agree to a few percent). The HD paintings under the hue sit about 0.1-0.15 of a shade higher on the two lava levels.
+- *The filters' loss, source to shown, in shades on the lava/water pixels* (before): CORE C -0.61, 3D -0.04; LAVA
+  EXIT C -0.57, 3D -0.38; SIDE EXIT C -0.10, 3D -0.22. So water_filter's floor, which D199 left out, is the cause on
+  CORE. After: CORE 3D -0.46 (shown +0.03 shade over the C, was +0.44). SIDE EXIT's filtered lava goes from 1.82 to
+  1.67 (C 1.43), from item 2 below.
+- *water_filter's floor, simulated* (`bin/simloss.py`: backgrnd.c's filter, integer against real-valued, to steady
+  state on each level's real source indices): CORE 0.50, SAVARA IV 0.46, SAVARA V 0.48, NOSE DRIP 0.52 of a shade;
+  0.39-0.45 on pixels under shade 1.5. lava_filter on SIDE EXIT's and LAVA EXIT's sources loses 0.66-0.69, close to
+  D199's fit, which stays.
+- *The effects' share* (the VFX layer off in the 3D only, after this change): SIDE EXIT +0.10 of the ratio, LAVA EXIT
+  +0.02, CORE +0.02. On SIDE EXIT that is the two enemy laser beams' glow: 1.30x in 60-pixel strips round them, 1.15x
+  elsewhere; without the effects layer 1.09 and 1.10.
+- *The history.* `renderOver` drew the effects into the filter's output target, which is the next frame's history.
+  The lava's and blurs' temporal mix so took each glow back in every display frame. At steady state that adds
+  a / (1 - a) of the glow's shade, with a the previous frame's weight per frame: 2x at 60 fps, 4.5x at 120. The C adds
+  its shots to the old frame once a tick (game_screen, read by lava_filter's row above): 0.5x.
+
+**Decision** (`src/render/screenFilters.ts`):
+1. **water_filter's floor.** The water's value, a real-valued running half-and-half down the column, takes
+   `waterFloorLoss` in shades along the hue's run: 0.5 x (1 - exp(-s / 0.4)) at the real-valued shade s. The filter
+   works in place, so the whole loss applies every frame. Per pixel the fit is within 0.04 of the C's mean on all
+   four levels' sources and on noise.
+2. **The effects over a copy.** The filter quad writes the history. The effects go over a copy of it, in the mask's
+   target, which the frame no longer needs (no new target, no extra memory), and the present pass shows that copy.
+   The lava and the blurs no longer pick up the effects' glow, which the C's half-weight smear of its small shot
+   sprites only hints at.
+3. **`?filters=old`** turns both off. Its captures reproduce origin/main's numbers to the digit.
+
+**Options considered:**
+- *Averaging shades instead of displayed luminance in the lava, water and iced filters* (the C adds values). Tried,
+  then dropped. It took 0.02-0.03 off every lava level, ASSASSIN 0.98 -> 0.95 included. With exact indices it matched the
+  C's lava worse on LAVA RUN (mean shade 4.14 against the C's 4.14 before, 4.06 after) and ASSASSIN. The 3D's smear
+  is smoother than the C's per-pixel noise, and the red run's convex luminance makes a smooth field at the C's mean
+  shade darker than the C's noisy one. The luminance average had compensated for that. It is kept in
+  `tyrian-scratch/filter-brightness/screenFilters.shademix.ts`.
+- *A water floor in the old units* (gamma luma): the loss is in shades in the C, so it is taken there, as the lava's.
+- *Dropping the effects into the history once a tick:* no per-tick hook in the render loop, and the remastered
+  glows are far larger than the C's shots, so even the C's half weight would over-brighten the lava.
+
+**Checked** (`?debug=play&episode=E&main=N&difficulty=2&seed=1&skip=T&freezeAt=T&compare=1`, 1920x1080; before =
+`&filters=old` (origin/main 5f91d30f), after = this; 3D-playfield luma mean (p10/p90), sRGB 0-255, 3D/original ratio;
+`tyrian-scratch/filter-brightness/` `shots/old`, `shots/final`, `warp/`):
+
+| Capture | Original | Before | Before ratio | After | After ratio |
+|---|---|---|---|---|---|
+| 4.5 CORE t1925 (water 7) | 35 (17/59) | 42 (17/72) | 1.19 | 39 (15/68) | 1.11 |
+| 4.9 LAVA EXIT t2550 (water 7) | 34 (6/87) | 38 (10/89) | 1.12 | 36 (8/89) | 1.07 |
+| 4.9 LAVA EXIT t3400 (lava) | 28 (6/59) | 34 (9/73) | 1.19 | 33 (9/72) | 1.18 |
+| 4.9 LAVA EXIT t5550 (lava) | 26 (6/59) | 33 (8/87) | 1.27 | 33 (8/83) | 1.25 |
+| 4.6 SIDE EXIT t950 (lava) | 36 (6/88) | 43 (9/99) | 1.22 | 43 (9/99) | 1.20 |
+| 4.6 SIDE EXIT t1800 (lava) | 28 (6/72) | 31 (8/73) | 1.11 | 31 (8/72) | 1.10 |
+| 4.3 SAVARA IV t1450 (water) | 68 (12/107) | 72 (18/112) | 1.05 | 71 (17/112) | 1.04 |
+| 1.17 SAVARA V t2175 (water) | 68 (12/164) | 71 (14/166) | 1.04 | 69 (12/166) | 1.01 |
+| 4.16 NOSE DRIP t2425 (water) | 74 (24/147) | 77 (32/150) | 1.05 | 75 (30/150) | 1.02 |
+| 4.8 ICE EXIT t1150 (iced) | 134 (107/154) | 139 (98/180) | 1.04 | 139 (98/179) | 1.04 |
+| 4.8 ICE EXIT t2750 (iced) | 139 (119/154) | 151 (115/190) | 1.09 | 150 (115/190) | 1.08 |
+| 4.20 ICESECRET t1250 | 107 (62/154) | 119 (69/161) | 1.11 | 119 (69/161) | 1.11 |
+| 4.20 ICESECRET t3025 | 117 (62/154) | 126 (72/163) | 1.08 | 126 (72/163) | 1.08 |
+| 4.12 LAVA RUN t1125 (lava) | 40 (6/59) | 43 (10/75) | 1.08 | 43 (10/75) | 1.08 |
+| 4.12 LAVA RUN t2700 (lava) | 44 (6/59) | 48 (11/81) | 1.09 | 47 (11/80) | 1.09 |
+| 4.15 BRAINIAC t3475 (lava) | 18 (6/39) | 20 (6/43) | 1.09 | 20 (6/43) | 1.08 |
+| 1.16 ASSASSIN t1325 (lava, headlight) | 52 (6/131) | 51 (6/134) | 0.98 | 51 (6/133) | 0.98 |
+
+The water levels move 0.01-0.08 toward the original (CORE 1.19 -> 1.11, LAVA EXIT's water 1.12 -> 1.07, SAVARA V
+1.01, NOSE DRIP 1.02); the lava and ice levels move 0.00-0.02. Nothing moved away from 1.
+Tests: `tests/render/screenFilters.test.ts`: the water floor against the C's integer column on noise, `?filters=old`,
+and the effects drawn over a target other than the history, which the next frame reads alone (a mock renderer).
+`tsc`; `vitest` 892 passed.
+
+**Left:**
+- *SIDE EXIT t950 (1.20)*: the enemies' two laser beams. Their glow is 1.30x the original in strips round them;
+  without the effects layer the playfield is 1.10. That is the remastered effects' look (their halos), not the filter. Under the
+  smoothies they are drawn once already (D206).
+- *LAVA EXIT t3400/t5550 (1.18/1.25)*: the HD lava paintings under the hue read 0.1-0.15 of a shade lighter than the
+  exact indices (D205 step 3: 1.12 with `&terrain=original`). With exact indices the filtered lava's shade histogram
+  matches the C's (mean 2.91 against 2.78). The rest is the flame bullets, the shots' glows and the t5550 ship, all
+  larger or brighter than their sprites (14.7% of the playfield at 1.42x). The paintings are for the terrain agent.
+- The classic renderer's lava_filter and water_filter read the previous frame for the row below. The C reads this
+  frame's result, in place, bottom-up. The mean loss is the same (simulated on six level sources: within 0.01); the
+  smear's shape may differ. Not changed.
+- Performance not measured: one full-screen copy on frames with a smoothie and effects, and 32 palette reads more per
+  water pixel.
+
+**Cost:** one Opus agent, no workflow: about 150 headless captures, no Gemini, no Blender.
