@@ -1,0 +1,20 @@
+{
+ "model": "tiles/shapes)/arch-leg-left",
+ "shapes": "shapes).dat",
+ "layer": 0,
+ "tiles": [
+  [
+   26,
+   27,
+   28,
+   29
+  ],
+  [
+   36,
+   37,
+   38,
+   39
+  ]
+ ],
+ "keepTiles": true
+}

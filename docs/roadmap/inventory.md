@@ -32,9 +32,9 @@ the game data and the repo by `tools/inventory.mjs`; the machine-readable versio
 | 1 | 18 | 888 | 159 / 0 / 159 | 0 | 2 / 2 / 2 | 9 (15) | 15 (15) | 3 (3) |
 | 2 | 12 | 683 | 146 / 1 / 147 | 0 | 2 / 1 / 2 | 6 (15) | 11 (11) | 2 (2) |
 | 3 | 12 | 1202 | 185 / 1 / 186 | 0 | 3 / 2 / 3 | 6 (21) | 15 (15) | 1 (1) |
-| 4 | 20 | 766 | 167 / 1 / 168 | 0 | 5 / 2 / 5 | 15 (55) | 18 (18) | 3 (3) |
+| 4 | 20 | 766 | 164 / 1 / 165 | 0 | 5 / 3 / 5 | 15 (55) | 18 (18) | 3 (3) |
 
-Whole game: 62 levels; 438 enemy units (435 flagship, 3 older-style models, 0 with frames still unmodelled), decor (indestructible boss and scenery pieces) included; 69 pickup and empty units; 5 tilesets (5 with HD art, 2 with structure models); 317 shot frames (238 with flat art); 33 songs used (33 remastered).
+Whole game: 62 levels; 435 enemy units (432 flagship, 3 older-style models, 0 with frames still unmodelled), decor (indestructible boss and scenery pieces) included; 69 pickup and empty units; 5 tilesets (5 with HD art, 3 with structure models); 317 shot frames (238 with flat art); 33 songs used (33 remastered).
 
 Unique sprites counts each enemy and pickup frame (normal and damaged) once per episode; boss units are
 the units created with a boss bar's link number (event 79), pieces included.
@@ -52,7 +52,7 @@ so a tileset shared by many levels is the biggest single piece of terrain work.
 | Tileset | Levels | Episodes | Tiles used (layers 0/1/2) | HD art (0/1/2) | In structure models (0/1/2) | Uncovered (0/1/2) | Levels using it |
 |---|---|---|---|---|---|---|---|
 | shapesz | 32 | 1, 2, 3, 4 | 275 / 60 / 178 | 266 / 53 / 73 | 85 / 12 / 97 | 9 / 7 / 8 | 1.1 ASTEROID1, 1.2 ASTEROID2, 1.3 ASTEROID?, 1.4 BUBBLES, 1.5 DELIANI, 1.6 MINEMAZE, 1.7 MINES, 1.9 TYRIAN, 1.10 BONUS, 1.11 HOLES, 1.13 SOH JIN, 1.14 WINDY, 1.15 TYRIAN, 1.16 ASSASSIN, 1.18 ** ALE **, 2.3 BONUS, 2.4 ASTCITY, 2.5 SOH JIN, 2.7 GEM WAR, 2.8 MARKERS, 2.9 MISTAKES, 3.2 AST. CITY, 3.3 GAUNTLET, 3.5 BONUS, 3.7 STARGATE, 3.8 TYRIAN X, 3.11 New Deli, 3.12 MACES, 4.1 HARVEST, 4.2 WINDY, 4.14 DREAD-NOT, 4.16 NOSE DRIP |
-| shapes) | 10 | 4 | 113 / 57 / 26 | 112 / 49 / 24 | 0 / 0 / 0 | 1 / 8 / 2 | 4.4 SURFACE, 4.5 CORE, 4.6 SIDE EXIT, 4.7 UNDERDELI, 4.9 LAVA EXIT, 4.10 DESERTRUN, 4.12 LAVA RUN, 4.15 BRAINIAC, 4.17 TIME WAR, 4.18 SQUADRON |
+| shapes) | 10 | 4 | 113 / 57 / 26 | 112 / 49 / 24 | 12 / 0 / 0 | 1 / 8 / 2 | 4.4 SURFACE, 4.5 CORE, 4.6 SIDE EXIT, 4.7 UNDERDELI, 4.9 LAVA EXIT, 4.10 DESERTRUN, 4.12 LAVA RUN, 4.15 BRAINIAC, 4.17 TIME WAR, 4.18 SQUADRON |
 | shapesw | 7 | 3, 4 | 113 / 73 / 85 | 110 / 69 / 82 | 0 / 0 / 0 | 3 / 4 / 3 | 3.1 CAMANIS, 3.4 IXMUCANE, 3.6 FLEET, 3.9 SAWBLADES, 4.8 ICE EXIT, 4.11 ?TUNNEL?, 4.20 ICESECRET |
 | shapesx | 7 | 2, 4 | 199 / 138 / 39 | 196 / 72 / 34 | 0 / 0 / 0 | 3 / 66 / 5 | 2.1 TORM, 2.2 GYGES, 2.6 GRYPHON, 2.10 BOTANY A, 2.11 BOTANY B, 2.12 BONUS, 4.13 EYESPY |
 | shapesy | 6 | 1, 3, 4 | 108 / 71 / 47 | 108 / 68 / 45 | 15 / 0 / 0 | 0 / 3 / 2 | 1.8 SAVARA, 1.12 SAVARA, 1.17 SAVARA V, 3.10 SAVARA Y, 4.3 SAVARA IV, 4.19 APPROACH |
@@ -188,7 +188,7 @@ Between levels (the episode 3 script): section 13: song 9, anim, text, text, tex
 
 | Level | Name | Sections | Tileset | Terrain covered (0/1/2) | Structures | Enemy types | Units | Bosses | Songs | Special | Bot |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| 4.4 | SURFACE | 2 | shapes) | 32/32 0/5 0/1 | 0 | 71 | 18 / 18 / 0 / 0 | assembly-newsh3-198, newsh3-1 | 38 | headlight, difficulty change, text window | done, 6901 ticks, 19 seen |
+| 4.4 | SURFACE | 2 | shapes) | 32/32 0/5 0/1 | 2 | 71 | 15 / 15 / 0 / 0 | assembly-newsh3-198, newsh3-1 | 38 | headlight, difficulty change, text window | done, 6901 ticks, 16 seen |
 | 4.12 | LAVA RUN | 4 | shapes) | 14/14 20/21 0/1 | 0 | 73 | 22 / 22 / 0 / 0 | assembly-newsh9-10, assembly-newsh9-85, assembly-newshk-121, newsh3-6 +2 | 17 | flip, lava, difficulty change, text window, colour filter | done, 4514 ticks, 21 seen |
 | 4.5 | CORE | 6 | shapes) | 16/16 13/14 0/1 | 0 | 61 | 15 / 15 / 0 / 0 | assembly-newsh3-117, assembly-newsh3-118, assembly-newsh3-96, assembly-newsh3-99 | 23 | water, background 2 opaque, text window, colour filter, level timer, random explosions | done, 7730 ticks, 18 seen |
 | 4.11 | ?TUNNEL? | 8 bonus | shapesw | 2/2 19/20 8/9 | 0 | 29 | 8 / 8 / 0 / 0 | assembly-newshj-191, assembly-newshj-267, newsh-hash-1, newsh-hash-3 +2 | 6 | background 2 opaque, text window, music fade, song change, level timer, random explosions | done, 2958 ticks, 7 seen |
@@ -201,7 +201,7 @@ Between levels (the episode 3 script): section 13: song 9, anim, text, text, tex
 | 4.15 | BRAINIAC | 22 | shapes) | 14/15 16/17 18/19 | 0 | 75 | 24 / 23 / 1 / 0 | assembly-newsh-caret-123, assembly-newsh-caret-54, assembly-newsh5-198, assembly-newsh5-233 +4 | 38 | headlight, iced-starfield, lava, difficulty change, background 2 opaque, text window, colour filter, random explosions | done, 13870 ticks, 25 seen |
 | 4.16 | NOSE DRIP | 25 | shapesz | 14/14 13/14 13/14 | 13 | 34 | 12 / 12 / 0 / 0 | assembly-newsh-caret-269, assembly-newsh5-191, assembly-newsh5-91, newsh5-121 +3 | 18 | water, text window | done, 9734 ticks, 10 seen |
 | 4.2 | WINDY | 27 bonus | shapesz | 17/17 0/1 0/3 | 15 | 19 | 8 / 8 / 0 / 0 | - | 1, 31 | song change | done, 3430 ticks, 7 seen |
-| 4.10 | DESERTRUN | 29 bonus | shapes) | 35/35 0/5 0/1 | 0 | 32 | 6 / 6 / 0 / 0 | - | 2, 21, 22 | blur, text window, song change | done, 2197 ticks, 14 seen |
+| 4.10 | DESERTRUN | 29 bonus | shapes) | 35/35 0/5 0/1 | 2 | 32 | 3 / 3 / 0 / 0 | - | 2, 21, 22 | blur, text window, song change | done, 2197 ticks, 11 seen |
 | 4.9 | LAVA EXIT | 31 | shapes) | 20/20 20/21 0/1 | 0 | 42 | 9 / 9 / 0 / 0 | assembly-newsh-caret-123, newsh5-51, newsh5-89 | 29 | lava, water, text window | done, 5675 ticks, 9 seen |
 | 4.6 | SIDE EXIT | 36 | shapes) | 7/7 13/14 0/1 | 0 | 36 | 7 / 7 / 0 / 0 | - | 23 | lava, background 2 opaque | done, 3818 ticks, 12 seen |
 | 4.17 | TIME WAR | 40 | shapes) | 21/21 1/1 6/7 | 0 | 40 | 15 / 15 / 0 / 0 | - | 37 | difficulty change | done, 6060 ticks, 15 seen |

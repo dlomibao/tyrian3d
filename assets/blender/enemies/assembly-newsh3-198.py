@@ -1,30 +1,30 @@
-"""SURFACE's sandy rock wall (episode 4: 4.4 SURFACE, 4.10 DESERTRUN), design A: one object across
-three assemblies, built in one script.
+"""SURFACE's sandy rock wall (episode 4: 4.4 SURFACE, 4.10 DESERTRUN): one object across three
+assemblies, the arch's edge rocks and its leg tiles, built in one script.
 
-- the rock arch, assembly-newsh3-198 (newsh3 162/164/241 over 198/200/202/279/281, 120x56 px);
+- the rock arch, assembly-newsh3-198 (newsh3 162/164/241 over 198/200/202/279/281, 120x56 px), with
+  its edge rocks newsh3-262/-180/-282 (D196) and its legs: the layer-0 leg tiles under it (shapes)
+  26-29 over 36-39, 8-9 over 18-19) are two tile models, tiles/shapes)/arch-leg-left and -right.
+  All of it is ONE 3D rock (lib_arch_rock, D209): there is no 3D crown meeting painted legs;
 - the plain wall stretch, assembly-newsh3-166 (newsh3 166/168/170 over 204/206/208, 72x56 px box);
 - the wall clamp, assembly-newsh-caret-77 (newsh^ 77/79/81 over 115/7/119): a grey clamping machine
   on the same wall; its bottom middle is newsh-caret-7 (frames 7/9, with an electric arc each) and
   newsh-caret-7-f2 (frame 117, no arc).
 
-Rock: the outline follows the sprite (pixel steps smoothed out); the arch is one mound (crest,
-S-shaped drop to the lip, an undercut under the opening). In SURFACE a stretch is inserted between
+The arch: see lib_arch_rock (crest envelope down the legs, faired slab domes between the sprite's few
+long cracks as recessed grooves, slab tones blended within the lit crown and the body, a narrow lit
+spine; matte sandstone; one outline shell cut per piece). In SURFACE a stretch is inserted between
 the arch's 164|241 and 202|279, so the arch's column 72 and both cut ends of every stretch take one
-section (seam_height: the crown's profile, no step at the joins); the stretches are the same section
-run along their own edges (wall_height, wall_shell; cut ends straight, so stretches tile). The
-crown's right cut comes down to newsh3-262's low shoulder and the legs to the ground at the sheet's
-bottom; the outline shells lose their faces on the cut ends (trim_caps). The clamp's head and lug
-are faired pchip lofts with a rim chamfer, the centre seam and the panel break as grooves. Every
-rock face but the underside then takes the D175 facet ramp (lib_newshd_rock.facet_ramp:
-flat facets, each one shade of the sprite's own ramp, the lit ones its highlights), matte
-(metallic 0, roughness 0.88). The clamp is grey satin metal. Each group gets an outline shell
-(D51, D189 islands="outer") from a sealed copy, cut open at the piece seams, and is cut into its
-pieces with common.split_assembly.
+section (seam_height: no step at the joins); the stretches are the same section run along their own
+edges (wall_height, wall_shell; cut ends straight, so stretches tile), with the D175 facet ramp. The
+clamp's head and lug are faired pchip lofts with a rim chamfer, the centre seam and the panel break
+as grooves; grey satin metal. Each stretch gets an outline shell (D51, D189 islands="outer") from a
+sealed copy, cut open at the piece seams, and is cut into its pieces with common.split_assembly.
 
-Run: tools/build-models.sh -j 2 assets/blender/enemies/assembly-newsh3-198.py (exports the arch only).
-assembly-newsh3-166.py and assembly-newsh-caret-77.py import this file and export only their own
-models (build_and_export). Review flags (scratch only, nothing is written without them):
--- [--only arch,wall,clamp] [--out review.glb] [--game dir].
+Run: tools/build-models.sh -j 2 assets/blender/enemies/assembly-newsh3-198.py (exports the arch's
+eight pieces and the two leg tile models). assembly-newsh3-166.py, assembly-newsh-caret-77.py,
+newsh3-262.py, newsh3-180.py and newsh3-282.py import this file and export only their own models
+(build_and_export). Review flags (scratch only, nothing is written without them):
+-- [--only arch,edge,wall,clamp] [--out review.glb] [--game dir] [--renders dir].
 """
 
 import json
@@ -45,9 +45,11 @@ def _find_repo():
 
 
 WT = _find_repo()
-sys.path[:0] = [str(WT / "assets" / "blender"), str(WT / "assets" / "blender" / "enemies"), str(WT / "tools")]
+sys.path[:0] = [str(WT / "assets" / "blender"), str(WT / "assets" / "blender" / "enemies"),
+                str(WT / "assets" / "blender" / "tiles"), str(WT / "tools")]
 import common  # noqa: E402
 import lib_b017 as lib  # noqa: E402
+import lib_arch_rock as AR  # noqa: E402
 import lib_newshd_rock as R  # noqa: E402
 import sprite_mask as SM  # noqa: E402
 
@@ -221,387 +223,6 @@ class Segs:
 
     def dist(self, p, cap=40.0):
         return self.nearest(p, cap)[0]
-
-
-def build_arch(sheet):
-    coll = common.reset_collection("arch")
-    mats = lib.Mats("nsh3_198", sheet.colors)
-    # Sandstone: matte, not metal (its lit faces are real shape, lit by the game's light).
-    dark = mats(19, metallic=0.0, roughness=ROUGH)  # the underside (never seen from above)
-    rock = {i: mats(i, metallic=0.0, roughness=ROUGH) for i in range(16, 32)}
-    h, w = sheet.h, sheet.w
-    mask = [[v >= 0 for v in row] for row in sheet.pix]
-    hole = flood(mask, OPENING_SEED)
-    print("arch seam rows", {c: (min(r for r in range(h) if mask[r][c]), max(r for r in range(h) if mask[r][c]) + 1)
-                             for c in (SEAM_COL - 1, SEAM_COL)}, "SEAM", SEAM_R0, SEAM_R1)
-
-    def filled(c, r):
-        ci, ri = int(math.floor(c)), int(math.floor(r))
-        return 0 <= ri < h and 0 <= ci < w and mask[ri][ci]
-
-    def vkind(c, r):
-        """A loop vertex: 'open' (the rock carries on past it), 'hole' (the opening's edge) or 'outer'."""
-        e = 1e-3
-        if c > w - e or r > h - e or (abs(c - CUT_COL) < e and r <= CUT_ROWS + e):
-            return "open"
-        ci, ri = int(round(c)), int(round(r))
-        for dr in (-1, 0):
-            for dc in (-1, 0):
-                rr, cc = ri + dr, ci + dc
-                if 0 <= rr < h and 0 <= cc < w and hole[rr][cc]:
-                    return "hole"
-        return "outer"
-
-    def skind(a, b):
-        """A loop segment's kind, from the empty pixel just outside its middle."""
-        ka, kb = vkind(*a), vkind(*b)
-        if ka == kb:
-            return ka
-        if "hole" in (ka, kb):
-            return "hole"
-        mc, mr = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
-        tx, ty = b[0] - a[0], b[1] - a[1]
-        L = math.hypot(tx, ty) or 1.0
-        oc, orr = mc - ty / L * 0.5, mr + tx / L * 0.5  # outward
-        ci, ri = int(math.floor(oc)), int(math.floor(orr))
-        if not (0 <= ri < h and 0 <= ci < w) or (ci >= CUT_COL and ri < CUT_ROWS):
-            return "open"
-        return "outer"
-
-    traced = lib.trace_loops(mask)
-    loops = [lib.simplify_loop(l, TOL) for l in traced]
-    loops = [l for l in loops if len(l) >= 3]
-    # Split long outline edges so the outline's vertices are as close together as the rows inside
-    # it (long edges fanning out to many row points make sliver facets that read as teeth).
-    fine, kinds, seg_kinds = [], [], []
-    for loop in loops:
-        n = len(loop)
-        pts, ks, sk = [], [], []
-        for k in range(n):
-            a, b = loop[k], loop[(k + 1) % n]
-            kind_ab = skind(a, b)
-            m = max(1, round(math.dist(a, b) / RING_STEP))
-            for j in range(m):
-                s = j / m
-                pts.append((a[0] + (b[0] - a[0]) * s, a[1] + (b[1] - a[1]) * s))
-                ks.append(vkind(*a) if j == 0 else kind_ab)
-                sk.append(kind_ab)
-        # The outline's pixel steps smoothed out along the loop (the cut edges stay put): stepped,
-        # the ink drew a row of teeth along the crown's diagonal and the opening's edge.
-        n = len(pts)
-        for _ in range(OUTLINE_SMOOTH):
-            pts = [((pts[k - 1][0] + 2 * pts[k][0] + pts[(k + 1) % n][0]) / 4,
-                    (pts[k - 1][1] + 2 * pts[k][1] + pts[(k + 1) % n][1]) / 4)
-                   if ks[k] == ks[k - 1] == ks[(k + 1) % n] == sk[k] == sk[k - 1] != "open"
-                   else pts[k] for k in range(n)]
-        fine.append(pts)
-        kinds.append(ks)
-        seg_kinds += sk
-    loops = fine
-    segs = [(loop[k], loop[(k + 1) % len(loop)]) for loop in loops for k in range(len(loop))]
-    all_segs = Segs(segs)
-    kind_of = dict(zip(segs, seg_kinds))
-    raw_outer = Segs([s for s, k in zip(segs, seg_kinds) if k == "outer"])
-    open_segs = Segs([s for s, k in zip(segs, seg_kinds) if k == "open"])
-    right_segs = Segs([s for s, k in zip(segs, seg_kinds) if k == "open" and min(s[0][0], s[1][0]) >= CUT_COL - 0.01
-                       and max(s[0][1], s[1][1]) <= CUT_ROWS + 0.01])
-    # The heights are measured from a smoothed outline: measured from the sprite's pixel steps,
-    # every step would raise a ridge up the flank.
-    soft_outer, soft_hole, soft_loops = [], [], []
-    for loop in traced:
-        soft = chaikin(lib.simplify_loop(loop, SOFT_TOL))
-        if len(soft) < 3:
-            continue
-        soft_loops.append(soft)
-        for k in range(len(soft)):
-            sa, sb = soft[k], soft[(k + 1) % len(soft)]
-            _, seg = all_segs.nearest(((sa[0] + sb[0]) / 2, (sa[1] + sb[1]) / 2), cap=4.0)
-            kind = kind_of.get(seg, "open")
-            if kind == "outer":
-                soft_outer.append((sa, sb))
-            elif kind == "hole":
-                soft_hole.append((sa, sb))
-    outer = Segs(soft_outer)
-    soft_all = Segs([(l[k], l[(k + 1) % len(l)]) for l in soft_loops for k in range(len(l))])
-    # The opening carries on below the sheet.
-    hole_segs = soft_hole
-    for c in range(w):
-        if hole[h - 1][c] and (c == 0 or not hole[h - 1][c - 1]):
-            hole_segs.append(((c, h), (c, h + 40)))
-        if hole[h - 1][c] and (c == w - 1 or not hole[h - 1][c + 1]):
-            hole_segs.append(((c + 1, h), (c + 1, h + 40)))
-    inner = Segs(hole_segs)
-
-    # Large-scale brightness, the dark cracks between the lit boulders, and the boulder facets
-    # between them, per pixel.
-    lum = [[clamp01((sheet.pix[r][c] - 16) / 15) if mask[r][c] else 0.0 for c in range(w)] for r in range(h)]
-    big = lib.blur(lum, mask, 4)
-    near = lib.blur(lum, mask, 2)
-    vals = [big[r][c] for r in range(h) for c in range(w) if mask[r][c]]
-    mean = sum(vals) / len(vals)
-    d_edge = lib.distance_field(mask, "rb")
-    lit = [[clamp01((big[r][c] - DARK_LUM - 0.04) / 0.16) if mask[r][c] else 0.0 for c in range(w)]
-           for r in range(h)]
-    is_crack = [[mask[r][c] and d_edge[r][c] > 2.2 and near[r][c] > 0.45 and lum[r][c] < near[r][c] - 0.1
-                 for c in range(w)] for r in range(h)]
-    crack = lib.blur([[1.0 if is_crack[r][c] else 0.0 for c in range(w)] for r in range(h)], mask, 1)
-    d_crack = lib.distance_field([[mask[r][c] and not is_crack[r][c] for c in range(w)] for r in range(h)], "rb")
-    # Each boulder is lit from the upper left like the sprite's: from the crack on its upper-left
-    # side its top rises gently (facing the light), and at the crack on its lower-right side it
-    # drops steeply (the sprite's dark crack lines sit on the boulders' lower-right edges).
-    def pillow_at(c, r):
-        d = d_crack[r][c]
-        gc = d_crack[r][min(w - 1, c + 1)] - d_crack[r][max(0, c - 1)]
-        gr = d_crack[min(h - 1, r + 1)][c] - d_crack[max(0, r - 1)][c]
-        g = math.hypot(gc, gr) or 1.0
-        away = (gc + gr) / (g * math.sqrt(2))  # +1: the nearest crack is up-left, -1: down-right
-        rad = PILLOW_STEEP + (PILLOW_R - PILLOW_STEEP) * clamp01(0.5 + away)
-        return smoothstep((d - 0.5) / rad)
-
-    pillow = [[pillow_at(c, r) * lit[r][c] if mask[r][c] else 0.0 for c in range(w)] for r in range(h)]
-    pillow = lib.blur(pillow, mask, 1)
-
-    # The rock's tone per pixel (see RING..CRACK_DARK): a blur of the capped sprite colours over
-    # the pixels that are neither the outline ring nor cracks; those take their neighbours' tone.
-    src_ok = [[mask[r][c] and d_edge[r][c] > RING and not is_crack[r][c] for c in range(w)] for r in range(h)]
-    tone = [[0.0] * w for _ in range(h)]
-    for r in range(h):
-        for c in range(w):
-            if not mask[r][c]:
-                continue
-            for rad in (TONE_R, TONE_R + 2, TONE_R + 5):
-                s = n = 0.0
-                for rr in range(max(0, r - rad), min(h, r + rad + 1)):
-                    for cc in range(max(0, c - rad), min(w, c + rad + 1)):
-                        if src_ok[rr][cc]:
-                            s += min(TONE_MAX, sheet.pix[rr][cc])
-                            n += 1
-                if n:
-                    break
-            tone[r][c] = s / n if n else float(min(TONE_MAX, max(16, sheet.pix[r][c])))
-
-    wall_tone = lib.blur(tone, mask, 3)  # the walls' tone, smoother (no stripes down the flanks)
-
-    def tone_index(c, r, on_crack=False, field=tone):
-        v = lib.bilinear(field, mask, c, r) - (CRACK_DARK if on_crack else 0)
-        return max(16, min(31, round(v)))
-    def height(c, r, on_hole=False):
-        """The top's height (px) at corner-coordinate point (c, r) (`on_hole`: on the opening's edge)."""
-        crest = CREST - (CREST - FOOT) * clamp01((r - LEG_ROW) / (h - LEG_ROW))
-        d_out = outer.dist((c, r))
-        if open_segs.dist((c, r), cap=CORNER + 1) < CORNER:
-            # where the outline meets a cut edge the smoothed outline cuts the corner off: measure
-            # from the raw outline too, so the corner comes down to the ground (no fin)
-            d_out = min(d_out, raw_outer.dist((c, r)) + CORNER_LIFT)
-        t = clamp01((d_out - TOE) / SHOULDER)
-        d_in = 0.0 if on_hole else inner.dist((c, r))
-        q = clamp01((d_out - TOE - SHOULDER) / max(1.0, d_out + d_in - TOE - SHOULDER - FALL))
-        rise = (1 - (1 - t) ** 2) * (SHOULDER_H + (1 - SHOULDER_H) * q)
-        u = clamp01(d_in / FALL)
-        lip = LIP + (LEG_LIP - LIP) * smoothstep((r - LEG_ROWS[0]) / (LEG_ROWS[1] - LEG_ROWS[0]))
-        fall = lip + (1 - lip) * smoothstep(u)
-        b = lib.bilinear(big, mask, c, r) - mean
-        k = lib.bilinear(crack, mask, c, r)
-        bulge = PILLOW * lib.bilinear(pillow, mask, c, r)
-        relief = (LOBE * max(-0.3, min(0.4, b)) + bulge - CRACK * k) * t * smoothstep(u * 1.5)
-        z = crest * rise * fall + relief
-        for (bc, br), top, rad in CHUNKS:
-            q = 1 - ((c - bc) ** 2 + (r - br) ** 2) / rad ** 2
-            if q > 0:
-                z = max(z, top * math.sqrt(q))
-        # the seam with the inserted stretches: exactly their section there
-        if r < SEAM_R1 + 2:
-            wgt = seam_weight(abs(c - SEAM_COL))
-            z += (seam_height(r) - z) * wgt
-        # the crown's right cut comes down to newsh3-262's low shoulder
-        wgt = 1 - smoothstep(right_segs.dist((c, r), cap=RIGHT_BLEND + 1) / RIGHT_BLEND)
-        z += (min(z, RIGHT_H) - z) * wgt
-        # and the legs come down to the ground at the sheet's bottom edge
-        wgt = smoothstep((r - (h - BOT_BLEND)) / BOT_BLEND)
-        z += (min(z, BOT_H) - z) * wgt
-        return max(EDGE, z)
-
-    def ztop(c, r, boundary_kind):
-        if boundary_kind == "outer":
-            # the small boulder on the outer edge stands up from the ground there (a short wall)
-            z = EDGE
-            for (bc, br), top, rad in CHUNKS:
-                qq = 1 - ((c - bc) ** 2 + (r - br) ** 2) / rad ** 2
-                if qq > 0:
-                    z = max(z, 0.6 * top * math.sqrt(qq))
-            return z * U
-        if boundary_kind == "open" and r > h - 1e-3:
-            return min(height(c, r), BOT_EDGE) * U
-        return height(c, r, boundary_kind == "hole") * U
-
-    def zbot(c, r, boundary_kind):
-        if boundary_kind == "open" and r > h - 1e-3:
-            return 0.0  # the legs' bottom cut: a sliver of a wall, no dark strip along the terrain join
-        return -(EDGE if boundary_kind else BOTTOM) * U
-
-    # The undercut: the bottom of the wall under the opening's lip is set back into the rock, easing
-    # in over a few px where the opening's edge meets the cut edges.
-    bottom_loops = []
-    for loop, ks in zip(loops, kinds):
-        n = len(loop)
-        moved = []
-        for k in range(n):
-            c, r = loop[k]
-            if ks[k] != "hole":
-                moved.append((c, r))
-                continue
-            best = 1e9
-            for sgn in (1, -1):
-                dist, j = 0.0, k
-                for _ in range(n):
-                    j2 = (j + sgn) % n
-                    dist += math.dist(loop[j], loop[j2])
-                    j = j2
-                    if ks[j] != "hole" or dist > 4:
-                        break
-                if ks[j] != "hole":
-                    best = min(best, dist)
-            a = loop[(k - 2) % n]
-            b = loop[(k + 2) % n]
-            tx, ty = b[0] - a[0], b[1] - a[1]
-            L = math.hypot(tx, ty) or 1.0
-            # (none at the seam: the stretches' south faces stand straight there)
-            amt = UNDERCUT * clamp01(best / 4) * smoothstep((abs(c - SEAM_COL) - SEAM_BLEND[0]) / 5.0)
-            moved.append((c + ty / L * amt, r - tx / L * amt))  # inward is (ty, -tx)
-        # The undercut's foot follows the pixel steps of the opening's edge: smooth it along the
-        # loop so the wall under the lip is one even concave sweep, not a row of teeth.
-        for _ in range(UNDERCUT_SMOOTH):
-            moved = [((moved[(k - 1) % n][0] + 2 * moved[k][0] + moved[(k + 1) % n][0]) / 4,
-                      (moved[(k - 1) % n][1] + 2 * moved[k][1] + moved[(k + 1) % n][1]) / 4)
-                     if ks[k] == "hole" and ks[(k - 1) % n] == "hole" and ks[(k + 1) % n] == "hole"
-                     else moved[k] for k in range(n)]
-        bottom_loops.append(moved)
-
-    # Rows of points following the outline, so the flanks rise in even steps.
-    ring_pts = []
-    bucket = {}
-
-    def free(p, d):
-        gi, gj = int(p[0] // 1), int(p[1] // 1)
-        for di in (-1, 0, 1):
-            for dj in (-1, 0, 1):
-                for q in bucket.get((gi + di, gj + dj), ()):
-                    if (q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2 < d * d:
-                        return False
-        return True
-
-    def add(p, o):
-        if not filled(*p) or not lib._point_in_loops(p, loops):
-            return
-        if all_segs.dist(p, cap=o + 1) < min(0.45, o * 0.85) or soft_all.dist(p, cap=o + 1) < o * 0.85 \
-                or not free(p, 0.7):
-            return
-        ring_pts.append(p)
-        bucket.setdefault((int(p[0] // 1), int(p[1] // 1)), []).append(p)
-
-    def normal(a, b):
-        L = math.hypot(b[0] - a[0], b[1] - a[1]) or 1.0
-        return (b[1] - a[1]) / L, -(b[0] - a[0]) / L  # inward
-
-    # The rows follow the smoothed outline (the heights are measured from it), so they rise in
-    # even steps without the sprite's pixel steps.
-    for loop in soft_loops:
-        n = len(loop)
-        # resample at RING_STEP
-        samples = []
-        for k in range(n):
-            a, b = loop[k], loop[(k + 1) % n]
-            L = math.dist(a, b)
-            m = max(1, round(L / (RING_STEP * 0.5)))
-            for i in range(m):
-                s = i / m
-                samples.append((a[0] + (b[0] - a[0]) * s, a[1] + (b[1] - a[1]) * s))
-        ns = len(samples)
-        acc = RING_STEP
-        prev = samples[0]
-        for k in range(ns):
-            p0 = samples[k]
-            acc += math.dist(prev, p0)
-            prev = p0
-            if acc < RING_STEP:
-                continue
-            acc = 0.0
-            pa, pb = samples[(k - 2) % ns], samples[(k + 2) % ns]
-            nx, ny = normal(pa, pb)
-            for o in RINGS:
-                add((p0[0] + nx * o, p0[1] + ny * o), o)
-    inner_pts = [p for p in lib._fill_points(loops, mask, STEP, 1, margin=RINGS[-1] + 0.9) if free(p, 1.0)]
-
-    bm = bmesh.new()
-    ring_top, ring_bot = {}, {}
-    flat_kinds = [k for ks in kinds for k in ks]
-
-    def surface(outline, interior, zf, ring, is_top):
-        vout, tris, ids, nb = lib._triangulate(outline, interior)
-        verts = {}
-        for k, co in enumerate(vout):
-            oid = ids[k]
-            if oid is not None and oid < nb:
-                if oid not in ring:
-                    ring[oid] = bm.verts.new((sheet.X(co.x), sheet.Y(co.y), zf(co.x, co.y, flat_kinds[oid])))
-                verts[k] = ring[oid]
-            else:
-                verts[k] = bm.verts.new((sheet.X(co.x), sheet.Y(co.y), zf(co.x, co.y, None)))
-        faces = []
-        for f in tris:
-            vs = [verts[j] for j in f]
-            if len(set(vs)) < 3:
-                continue
-            if not is_top:
-                vs.reverse()
-            try:
-                face = bm.faces.new(vs)
-            except ValueError:
-                continue
-            faces.append((face, f, vout))
-        return faces
-
-    d_hole = lib.distance_field([[not hole[r][c] for c in range(w)] for r in range(h)], "lrtb")
-    bot_pts = [p for p in lib._fill_points(loops, mask, BOTTOM_STEP, 8, margin=BOTTOM_STEP * 0.45)
-               if lib.bilinear(d_hole, mask, *p) > UNDERCUT + 2]
-    tops = surface(loops, ring_pts + inner_pts, ztop, ring_top, True)
-    bots = surface(bottom_loops, bot_pts, zbot, ring_bot, False)
-    smooth_tops = []
-    for face, f, vout in tops:
-        cc = sum(vout[j].x for j in f) / len(f)
-        rr = sum(vout[j].y for j in f) / len(f)
-        # Every facet takes the rock's tone under it (not the sprite's pixel: no outline ring on
-        # the low strip along the edge, no painted highlights or per-pixel patchwork); facets on
-        # the cracks between the boulders stay darker (except on the steep flanks and the faces
-        # into the cave, where a crack pixel would streak down the wall).
-        face.normal_update()
-        span = max(q.co.z for q in face.verts) - min(q.co.z for q in face.verts)
-        steep = abs(face.normal.z) < STEEP and span > TALL * U
-        ci, ri = int(math.floor(cc)), int(math.floor(rr))
-        on_crack = not steep and 0 <= ri < h and 0 <= ci < w and is_crack[ri][ci]
-        face.material_index = rock[tone_index(cc, rr, on_crack)]
-        smooth_tops.append(face)
-    for face, _, _ in bots:
-        face.material_index = dark
-    # Walls between the top and bottom rings (outer flanks, the undercut, the cut edges) take the
-    # tone just inside them: the game's light shades them and its outline draws the dark edge.
-    i = 0
-    for loop in loops:
-        n = len(loop)
-        for k in range(n):
-            a, b = i + k, i + (k + 1) % n
-            if a in ring_top and b in ring_top and a in ring_bot and b in ring_bot:
-                try:
-                    face = bm.faces.new((ring_bot[a], ring_bot[b], ring_top[b], ring_top[a]))
-                except ValueError:
-                    continue
-                s0, s1 = loop[k], loop[(k + 1) % n]
-                nx, ny = normal(s0, s1)
-                pc, pr = (s0[0] + s1[0]) / 2 + nx * 1.5, (s0[1] + s1[1]) / 2 + ny * 1.5
-                face.material_index = rock[tone_index(pc, pr, field=wall_tone)]
-        i += n
-    # The top is smooth shaded (rounded rock, no facet noise); walls, underside and cut faces stay flat.
-    return lib.to_object("arch", bm, mats.list, coll, smooth_faces=smooth_tops)
 
 
 # --- the clamp (from assembly-newsh-caret-77.py) ---
@@ -1344,22 +965,6 @@ def make_sheet(placements, open_lr=False, open_cut=None):
 
 
 def build_group(group):
-    if group == "arch":
-        # the right leg's right edge and the legs' bottom edge carry on (newsh3-282, the terrain's legs)
-        sheet = make_sheet(ARCH, open_cut=lambda c, r: (c >= 120 and r >= CUT_ROWS) or r >= 56)
-        obj = build_arch(sheet)
-        facet_rock(obj, sheet)
-        return sheet, ARCH, obj, {}
-    if group == "wall":
-        sheet = make_sheet(WALL, True)
-        coll = common.reset_collection("wall")
-        mats = lib.Mats("nsh3_166", sheet.colors)
-        mask = [[v >= 0 for v in row] for row in sheet.pix]
-        bm = bmesh.new()
-        wall_rock(bm, sheet, mats, mask)
-        obj = lib.to_object("wall", bm, mats.list, coll)
-        facet_rock(obj, sheet)
-        return sheet, WALL, obj, {}
     sheet = make_sheet(CLAMP, True)
     obj = build_clamp(sheet)
     facet_rock(obj, sheet)
@@ -1370,12 +975,62 @@ def build_group(group):
     return sheet, CLAMP, obj, arcs
 
 
-def build_and_export(groups, argv=()):
-    """Build the given groups ("arch", "wall", "clamp") and export their models to the repo
-    (public/models/enemies + src/render/spriteModels). Review copies only behind --out / --game."""
+ARCH_MODELS = [n for n, *_ in ARCH] + ["arch-leg-left", "arch-leg-right"]
+WALL_MODELS = [n for n, *_ in WALL]
+EDGE_MODELS = ["newsh3-262", "newsh3-180", "newsh3-282"]
+
+
+def export_rock(names, argv, scene="arch"):
+    """The arch, its edge rocks and its leg tiles (one rock), or the plain wall stretch, built by
+    lib_arch_rock. Exports `names` only (each wrapper its own); --out / --game / --renders write
+    review copies of all of them instead."""
+    import lib_tiles  # noqa: E402 (assets/blender/tiles)
+    models, F = AR.build(scene)
+    review = any(f in argv for f in ("--out", "--game", "--renders"))
+    if not review:
+        ts = lib_tiles.Tileset(ROOT, "shapes)")
+        for name in names:
+            objs = list(models[name])
+            if name in AR.TILE_MODELS.values():
+                # a tile model draws no outline (D8; StructureInstances drops the shell): leave it out
+                side = "left" if name.endswith("left") else "right"
+                lib_tiles.export_tile_model(ts, objs[:1], name, 0, AR.LEG_TILES[side][0], keep_tiles=True)
+            else:
+                common.export_sprite_model(ROOT, objs, f"enemies/{name}", common.load_sprite(ROOT, name)["sprites"])
+        return
+    if "--game" in argv:  # each model on its own, as the game loads it
+        gdir = Path(argv[argv.index("--game") + 1])
+        for name, objs in models.items():
+            sub = "tiles/shapes)" if name in AR.TILE_MODELS.values() else "enemies"
+            common.export_glb(list(objs), gdir / sub / f"{name}.glb")
+    AR.place(models)
+    if "--out" in argv:
+        common.export_glb([o for objs in models.values() for o in objs], Path(argv[argv.index("--out") + 1]))
+    if "--renders" in argv:
+        rdir = Path(argv[argv.index("--renders") + 1])
+        AR.renders(rdir, [objs[0] for objs in models.values()])
+        import numpy as np
+        np.savez_compressed(rdir / "field.npz", Z=F["Z"], Mf=F["Mf"], MASK=F["MASK"], FULL=F["FULL"],
+                            IDX=F["IDX"], slab=F["slab"], TONE=F["TONE"], OWN=F["OWNPX"].astype(str))
+        (rdir / "slabs.json").write_text(json.dumps(
+            {"slabs": {str(k): v for k, v in F["info"].items()}, "spine_pal": F["spine_pal"],
+             "tris": {n: sum(len(p.vertices) - 2 for p in objs[0].data.polygons) for n, objs in models.items()}},
+            indent=1, default=float))
+    AR.unplace(models)
+
+
+def build_and_export(groups, argv=(), only=None):
+    """Build the given groups ("arch", "edge", "wall", "clamp") and export their models to the repo
+    (public/models + src/render/spriteModels, tileModels). `only`: the model names to export (a
+    wrapper's own). Review copies only behind --out / --game / --renders."""
     argv = list(argv)
     export, manifest = [], {}
-    for group in groups:
+    rock = [n for g, ns in (("arch", ARCH_MODELS), ("edge", EDGE_MODELS)) if g in groups for n in ns]
+    if rock:
+        export_rock([n for n in rock if only is None or n in only], argv)
+    if "wall" in groups:
+        export_rock([n for n in WALL_MODELS if only is None or n in only], argv, "wall")
+    for group in [g for g in groups if g == "clamp"]:
         sheet, placements, obj, arcs = build_group(group)
         coll = obj.users_collection[0]
         layout, pieces, shells = finish(group, obj, sheet, placements, coll)
@@ -1417,7 +1072,7 @@ def build_and_export(groups, argv=()):
                         export.append(o)
                     frames = [f for sp in sprites for f in sp["frames"]]
                     manifest[model] = {"group": group, "frames": frames, "at": list(at[:2])}
-    if "--out" in argv:
+    if "--out" in argv and export:
         out = Path(argv[argv.index("--out") + 1])
         common.export_glb(export, out)
         (out.parent / (out.stem + "_manifest.json")).write_text(json.dumps(manifest, indent=1))

@@ -11468,3 +11468,78 @@ and the effects drawn over a target other than the history, which the next frame
   water pixel.
 
 **Cost:** one Opus agent, no workflow: about 150 headless captures, no Gemini, no Blender.
+
+## D209 — Held models, round 2: SURFACE/DESERTRUN's rock arch ships as one 3D rock, crown, edge rocks and legs (two new layer-0 tile models), at review 6 as a clear improvement over main; the IXMUCANE egg ships as the user-approved smooth glossy egg; the TORM waterfall and the saw rotor stay held (follows D178, D185, D192, D195, D196, D202, D205, D207)
+
+2026-11-15
+
+**Problem:** four models held by earlier rounds: the rock arch `assembly-newsh3-198` (D202: 5.5, posterised crown
+mottle, a seam band where the 3D crown meets the painted leg tiles, a square shadow band), the egg `newsh8-102`
+(D178's facet ramp read as a cut gem; the user asked for a smooth glossy egg), the TORM waterfall
+`assembly-newshh-129` (D185, held three times) and the saw rotor `assembly-newsh-hash-195` (D192).
+
+**Decision:** one full-mode hard-surface model workflow on the four (hero blueprints, competing designs, judge,
+finisher, strict review loop with fix rounds). None reached the pass mark; two ship on the coordinator's call.
+
+- **The arch ships at 6.** It is now ONE 3D rock (`assets/blender/enemies/lib_arch_rock.py`): the arch's eight
+  pieces (newsh3 162/164/241 over 198/200/202/279/281), the edge rocks `newsh3-262`/`-180`/`-282` (D196) and the
+  layer-0 leg tiles under the arch (shapes) 26-29 over 36-39, and 8-9 over 18-19) are one height field in the arch's
+  frame: a crest envelope by geodesic distance from the legs' feet, rounded outer shoulders and a long fall to the
+  opening, faired slab domes between the sprite's few long cracks (recessed grooves, so the light shades them),
+  matte sandstone. So there is no 3D crown meeting painted legs.
+  - The legs are two new tile models, `public/models/tiles/shapes)/arch-leg-left.glb` / `-right.glb` with
+    `src/render/tileModels/shapes)-arch-leg-{left,right}.json` (layer 0, `keepTiles`: they stand on their own HD
+    tiles; no outline, as every tile model, D8). Those twelve tiles occur only under the arch, on SURFACE (19 left,
+    18 right) and DESERTRUN (31, 29), always as the whole 4x2 / 2x2 pattern or cut by the map's edge (scanned over
+    every level; `tests/render/remaster.test.ts` checks the patterns in the real maps). `terrain_hd.py inventory` for
+    shapes) changes only those twelve tiles' `underModel` count and group (still terrain, still painted). The wall
+    stretch `assembly-newsh3-166` is rebuilt from the same lib; the clamp `assembly-newsh-caret-77` is not.
+  - Tone: each slab takes one `pal_` material and a continuous tone rides on COLOR_0 as a multiplier of it (three.js
+    multiplies base colour by it), so there are no iso-line terraces. lib_arch_rock writes it by replacing
+    `common.export_glb` with a COLOR_0 variant inside its own Blender process (one process per build). Only meshes
+    carrying the `rock_tone` attribute get COLOR_0; the clamp, built through the same script, comes out unchanged
+    (its build on this branch and from main's scripts are byte-identical). The variant belongs in common.py
+    (`export_glb(..., color_attr=None)` threaded through `export_sprite_model` and `lib_tiles.export_tile_model`,
+    replacing `assembly-newshd-245`'s copy too); not moved here.
+  - Why it ships below the mark: in game it reads as one continuous rock, with no seam band at the leg join, no
+    posterised mottle and no square shadow band, where main's D195 build shows all three (summary below). The
+    coordinator judged it a clear improvement as a whole, the test D202 used to hold round 3.
+  - Measures: top-view IoU (rule grid) 0.9931-1.0 per model, worst per-piece rectangle 0.9868 (arch-leg-right),
+    whole arch 0.9941. 20.9k triangles for the arch's pieces. Rebuilt on main 07519692: the geometry is byte-identical
+    to the workflow's build; every glb is meshopt-compressed (D206).
+  - Under D205's lighting (re-captured, `&compare=1`): DESERTRUN t1050's crown top matches the original (mean luma
+    131 against 132, the sand 119 against 111). SURFACE t1800's crown is about 10% darker than the sprite's over the
+    crown box (92 against 102; main's 95), mostly on the left shoulder, where the pale band is narrower than the
+    sprite's: the reviewer's relative-tone issue, not an absolute one, so no tone lift was made.
+- **The egg `newsh8-102` ships** (review 6): a smooth egg lying on its side, one material (pal_69), the glint made
+  by two generated finish maps (roughness, and reflectance through Specular Tint and Specular IOR Level, D176) at the
+  upper left and along the lower-right limb; the crown's peak moved toward the upper left so the glint lands there.
+  2,680 triangles with the outline. In game (IXMUCANE t590/t700, D205 lighting) it reads as a smooth red egg, not a
+  black one, in place of main's faceted gem.
+- **Held, main keeps its build:**
+  - *The TORM waterfall `assembly-newshh-129`* (5). The lip is still a straight edge with a seam against the HD river,
+    the right cliff still a dark plumb pillar, the left cliff's facet ramp reads as horizontal stripes. The renderer
+    puts every vertex on the art's 45° ray (D165), so only rock allowed past the art box changes the outline.
+    Patch: `tyrian-scratch/held-models-2/held/waterfall-r4.patch`.
+  - *The saw rotor `assembly-newsh-hash-195`* (5.5). Frame 3 fails the IoU rule (0.78): sprite frames 229/231/267/269
+    are frame 0 moved down 1 px as a whole, while 233, served by the same `-f3` model, is not, so no single geometry
+    matches both. It needs a ruling (a whole-assembly 1 px jolt as a positional offset: 0.9795) or a new `-fN`
+    JSON. The blades still read as 4-5 forked arms, not eight sickles. Patch: `tyrian-scratch/held-models-2/held/rotor-r4.patch`.
+- **D207's 43 deferred files:** the clamp's 7, the waterfall's 6 and the rotor's 12 glbs (main's geometry, not
+  rebuilt) are now meshopt-compressed with `tools/glb-meshopt.mjs`; decoded against main: JSON identical, indices
+  identical, floats within 3.0e-4. With the arch, the wall, the edge rocks and the egg rebuilt, no glb that would
+  shrink is left uncompressed.
+- Inventory: the edge rocks count as part of the arch's unit now (E4 enemy units 168 -> 165, the game 438 -> 435);
+  shapes) has 12 layer-0 tiles in structure models (tilesets with structure models 2 -> 3).
+
+**Open (the arch):** the left leg reads as fluted organ-pipe columns, not the sprite's few broad slabs with diagonal
+cracks; side and front views show a comb of spiky fins (cap the slab relief, round the crests); the north face reads
+as pale flat planes from oblique views; the crown is darker and softer than the sprite's broad pale band, the cracks
+blurred by the tone smoothing; the ink stands off the rock in places and steps where 262 meets 241 (D181's lift).
+**Open (the egg):** it slumps in side views (the apex warp leaves a near-vertical wall at the upper-left end; tilt the
+rigid egg instead); the glint is streaky reflections of the room's panels, and the dark lower limb is weak.
+
+**Cost:** 35 agents, about 5.4M subagent tokens, 2.8 h (the four items); integration one Opus agent.
+
+**Review:** SURFACE t1800 and DESERTRUN t1050 against the original; IXMUCANE t590. Fallback: `git revert` restores
+D195's arch and D178's egg.

@@ -195,14 +195,14 @@
    "summary": {
     "levels": 20,
     "uniqueSprites": 766,
-    "units": 228,
-    "enemyUnits": 168,
-    "enemyUnitsModelled": 168,
-    "enemyUnitsFlagship": 167,
+    "units": 225,
+    "enemyUnits": 165,
+    "enemyUnitsModelled": 165,
+    "enemyUnitsFlagship": 164,
     "damageFramesMissing": 0,
     "tilesets": 5,
     "tilesetsWithHd": 5,
-    "tilesetsWithModels": 2,
+    "tilesetsWithModels": 3,
     "bossLevels": 15,
     "bossUnits": 55,
     "songs": 18,
@@ -8795,11 +8795,14 @@
    ],
    "tileset": "shapes)",
    "layers": [
-    {"layer":0,"tiles":32,"hd":32,"modelled":0,"covered":32},
+    {"layer":0,"tiles":32,"hd":32,"modelled":12,"covered":32},
     {"layer":1,"tiles":5,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
-   "tileModels": {},
+   "tileModels": {
+    "tiles/shapes)/arch-leg-left": 19,
+    "tiles/shapes)/arch-leg-right": 18
+   },
    "banks": [
     "newshp.shp",
     "tyrian.shp#10",
@@ -8822,17 +8825,17 @@
     {"type":209,"kind":"decor","unit":"assembly-newsh3-191","via":"event","events":37,"ticks":5689},
     {"type":210,"kind":"decor","unit":"assembly-newsh3-191","via":"event","events":37,"ticks":6004},
     {"type":211,"kind":"decor","unit":"assembly-newsh3-191","via":"event","events":37,"ticks":6004},
-    {"type":212,"kind":"decor","unit":"newsh3-180","via":"event","events":19,"ticks":5739},
+    {"type":212,"kind":"decor","unit":"assembly-newsh3-198","via":"event","events":19,"ticks":5739},
     {"type":213,"kind":"decor","unit":"assembly-newsh3-198","via":"event","events":19,"ticks":5820},
     {"type":214,"kind":"decor","unit":"assembly-newsh3-198","via":"event","events":19,"ticks":5820},
     {"type":215,"kind":"ground","unit":"assembly-newsh3-198","via":"event","events":19,"ticks":5442},
     {"type":216,"kind":"ground","unit":"assembly-newsh3-198","via":"event","events":19,"ticks":5442},
     {"type":217,"kind":"decor","unit":"assembly-newsh3-198","via":"event","events":19,"ticks":5442},
     {"type":218,"kind":"decor","unit":"assembly-newsh3-198","via":"event","events":18,"ticks":5517},
-    {"type":219,"kind":"decor","unit":"newsh3-262","via":"event","events":18,"ticks":5342},
+    {"type":219,"kind":"decor","unit":"assembly-newsh3-198","via":"event","events":18,"ticks":5342},
     {"type":220,"kind":"decor","unit":"assembly-newsh3-198","via":"event","events":18,"ticks":5167},
     {"type":221,"kind":"ground","unit":"assembly-newsh3-198","via":"event","events":18,"ticks":5169},
-    {"type":222,"kind":"ground","unit":"newsh3-282","via":"event","events":18,"ticks":5169},
+    {"type":222,"kind":"ground","unit":"assembly-newsh3-198","via":"event","events":18,"ticks":5169},
     {"type":223,"kind":"ground","unit":"newsh3-10","via":"event","events":4,"ticks":709},
     {"type":224,"kind":"ground","unit":"newsh3-8","via":"event","events":4,"ticks":674},
     {"type":225,"kind":"air","unit":"newsh3-3","via":"event","events":17,"ticks":2500},
@@ -8893,9 +8896,6 @@
     "newsh3-10",
     "newsh3-126",
     "newsh3-14",
-    "newsh3-180",
-    "newsh3-262",
-    "newsh3-282",
     "newsh3-3",
     "newsh3-8",
     "newsh5-51",
@@ -8979,7 +8979,7 @@
     "difficulty": "normal",
     "completed": true,
     "ticks": 6901,
-    "unitsSeen": 19,
+    "unitsSeen": 16,
     "unitsNotSeen": ["newshp-85","tyrian10-127","tyrian10-129","tyrian10-131","tyrian10-279","tyrian10-76","tyrian9-153","tyrian9-155","tyrian9-157","tyrian9-163","tyrian9-165","tyrian9-191","tyrian9-195","tyrian9-197","tyrian9-199","tyrian9-239","tyrian9-41"],
     "unitsFoundByBot": [],
     "typesNotListed": [],
@@ -11288,11 +11288,14 @@
    ],
    "tileset": "shapes)",
    "layers": [
-    {"layer":0,"tiles":35,"hd":35,"modelled":0,"covered":35},
+    {"layer":0,"tiles":35,"hd":35,"modelled":12,"covered":35},
     {"layer":1,"tiles":5,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
-   "tileModels": {},
+   "tileModels": {
+    "tiles/shapes)/arch-leg-left": 31,
+    "tiles/shapes)/arch-leg-right": 29
+   },
    "banks": [
     "tyrian.shp#10",
     "tyrian.shp#9",
@@ -11303,17 +11306,17 @@
    "enemies": [
     {"type":163,"kind":"ground","unit":null,"via":"random","ticks":0,"unloadedBank":10},
     {"type":183,"kind":"air","unit":"newsh3-18","via":"event","events":58,"ticks":2251},
-    {"type":212,"kind":"decor","unit":"newsh3-180","via":"event","events":31,"ticks":2975},
+    {"type":212,"kind":"decor","unit":"assembly-newsh3-198","via":"event","events":31,"ticks":2975},
     {"type":213,"kind":"decor","unit":"assembly-newsh3-198","via":"event","events":31,"ticks":3031},
     {"type":214,"kind":"decor","unit":"assembly-newsh3-198","via":"event","events":31,"ticks":3031},
     {"type":215,"kind":"ground","unit":"assembly-newsh3-198","via":"event","events":31,"ticks":2767},
     {"type":216,"kind":"ground","unit":"assembly-newsh3-198","via":"event","events":31,"ticks":2767},
     {"type":217,"kind":"decor","unit":"assembly-newsh3-198","via":"event","events":31,"ticks":2767},
     {"type":218,"kind":"decor","unit":"assembly-newsh3-198","via":"event","events":30,"ticks":2872},
-    {"type":219,"kind":"decor","unit":"newsh3-262","via":"event","events":30,"ticks":2763},
+    {"type":219,"kind":"decor","unit":"assembly-newsh3-198","via":"event","events":30,"ticks":2763},
     {"type":220,"kind":"decor","unit":"assembly-newsh3-198","via":"event","events":30,"ticks":2623},
     {"type":221,"kind":"ground","unit":"assembly-newsh3-198","via":"event","events":30,"ticks":2629},
-    {"type":222,"kind":"ground","unit":"newsh3-282","via":"event","events":30,"ticks":2629},
+    {"type":222,"kind":"ground","unit":"assembly-newsh3-198","via":"event","events":30,"ticks":2629},
     {"type":228,"kind":"decor","unit":"assembly-newsh3-198","via":"event","events":6,"ticks":480},
     {"type":229,"kind":"decor","unit":"assembly-newsh3-198","via":"event","events":6,"ticks":480},
     {"type":230,"kind":"decor","unit":"assembly-newsh3-198","via":"event","events":6,"ticks":480},
@@ -11337,9 +11340,6 @@
    "units": [
     "assembly-newsh3-198",
     "newsh3-18",
-    "newsh3-180",
-    "newsh3-262",
-    "newsh3-282",
     "tyrian10-1",
     "tyrian10-127",
     "tyrian10-129",
@@ -11392,7 +11392,7 @@
     "difficulty": "normal",
     "completed": true,
     "ticks": 2197,
-    "unitsSeen": 14,
+    "unitsSeen": 11,
     "unitsNotSeen": ["tyrian10-127","tyrian10-129","tyrian10-131","tyrian10-279"],
     "unitsFoundByBot": [],
     "typesNotListed": [],
@@ -13115,10 +13115,11 @@
    "id": "assembly-newsh3-198",
    "kind": "air+decor+ground",
    "sheet": "newsh3.shp",
-   "size": 2,
+   "size": 1,
    "frames": {
     "newsh^.shp|2": [7,9,77,79,81,115,117,119],
-    "newsh3.shp|2": [162,164,166,168,170,198,200,202,204,206,208,241,279,281]
+    "newsh3.shp|1": [180],
+    "newsh3.shp|2": [162,164,166,168,170,198,200,202,204,206,208,241,262,279,281,282]
    },
    "damageFrames": {
     "newsh^.shp|2": [1,3,5,39,41,43]
@@ -13127,19 +13128,23 @@
    "damage": "modelled",
    "framesSeen": {
     "newsh^.shp|2": [1,3,5,7,9,39,41,43,77,79,81,115,117,119],
-    "newsh3.shp|2": [162,164,166,168,170,198,200,202,204,206,208,241,279,281]
+    "newsh3.shp|1": [180],
+    "newsh3.shp|2": [162,164,166,168,170,198,200,202,204,206,208,241,262,279,281,282]
    },
    "unmodelledUnseen": {},
    "boss": true,
    "types": [
+    "e4:212",
     "e4:213",
     "e4:214",
     "e4:215",
     "e4:216",
     "e4:217",
     "e4:218",
+    "e4:219",
     "e4:220",
     "e4:221",
+    "e4:222",
     "e4:228",
     "e4:229",
     "e4:230",
@@ -13160,8 +13165,8 @@
    "episodes": [
     4
    ],
-   "events": 466,
-   "ticks": 71141
+   "events": 612,
+   "ticks": 90543
   },
   {
    "id": "assembly-newsh3-275",
@@ -18859,34 +18864,6 @@
    "ticks": 2233
   },
   {
-   "id": "newsh3-180",
-   "kind": "decor",
-   "sheet": "newsh3.shp",
-   "size": 1,
-   "frames": {
-    "newsh3.shp|1": [180]
-   },
-   "damageFrames": {},
-   "status": "flagship",
-   "damage": "none",
-   "framesSeen": {
-    "newsh3.shp|1": [180]
-   },
-   "unmodelledUnseen": {},
-   "types": [
-    "e4:212"
-   ],
-   "levels": [
-    "4.4",
-    "4.10"
-   ],
-   "episodes": [
-    4
-   ],
-   "events": 50,
-   "ticks": 6497
-  },
-  {
    "id": "newsh3-195",
    "kind": "ground",
    "sheet": "newsh3.shp",
@@ -18985,34 +18962,6 @@
    "ticks": 4584
   },
   {
-   "id": "newsh3-262",
-   "kind": "decor",
-   "sheet": "newsh3.shp",
-   "size": 2,
-   "frames": {
-    "newsh3.shp|2": [262]
-   },
-   "damageFrames": {},
-   "status": "flagship",
-   "damage": "none",
-   "framesSeen": {
-    "newsh3.shp|2": [262]
-   },
-   "unmodelledUnseen": {},
-   "types": [
-    "e4:219"
-   ],
-   "levels": [
-    "4.4",
-    "4.10"
-   ],
-   "episodes": [
-    4
-   ],
-   "events": 48,
-   "ticks": 6472
-  },
-  {
    "id": "newsh3-267",
    "kind": "ground",
    "sheet": "newsh3.shp",
@@ -19075,34 +19024,6 @@
    ],
    "events": 4,
    "ticks": 4940
-  },
-  {
-   "id": "newsh3-282",
-   "kind": "ground",
-   "sheet": "newsh3.shp",
-   "size": 2,
-   "frames": {
-    "newsh3.shp|2": [282]
-   },
-   "damageFrames": {},
-   "status": "flagship",
-   "damage": "none",
-   "framesSeen": {
-    "newsh3.shp|2": [282]
-   },
-   "unmodelledUnseen": {},
-   "types": [
-    "e4:222"
-   ],
-   "levels": [
-    "4.4",
-    "4.10"
-   ],
-   "episodes": [
-    4
-   ],
-   "events": 48,
-   "ticks": 6433
   },
   {
    "id": "newsh3-3",
@@ -34383,7 +34304,7 @@
     24
    ],
    "modelled": [
-    0,
+    12,
     0,
     0
    ],
@@ -34392,8 +34313,10 @@
     49,
     24
    ],
-   "tileModels": 0,
-   "tileModelTiers": {}
+   "tileModels": 2,
+   "tileModelTiers": {
+    "basic": 2
+   }
   },
   {
    "id": "shapesw",
@@ -35173,7 +35096,7 @@
    {
     "id": "shapes)",
     "what": "tiles 113/57/26 (layers 0/1/2)",
-    "status": "HD art 112/49/24, in structure models 0/0/0, 0 structure models",
+    "status": "HD art 112/49/24, in structure models 12/0/0, 2 structure models",
     "uncovered": [1,8,2],
     "levels": 10,
     "episodes": 1,
