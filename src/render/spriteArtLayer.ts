@@ -20,6 +20,7 @@ import type { PaletteTexture } from "./paletteTexture";
 import { SCREEN_HUE_PARS } from "./screenHue";
 import { HUE_BLEND_PARS, type UnderGrab } from "./hueBlend";
 import { SpriteArt, parseSpriteArtManifest, spriteArtImageUrl, type FlatQuad, type ReadyFrame, type SpriteArtSheet } from "./spriteArt";
+import { SHOT_ART_LAYER } from "./vfx/vfxMode";
 
 /** Where the manifest lives, under the site root. */
 export const SPRITE_ART_DIR = "art/sprites/";
@@ -301,6 +302,8 @@ export class SpriteArtLayer {
       // render only: that copy came before the blend sheets, without their stencil, over a stale
       // copy (D193). The other passes draw once with two draws' output (artDrawnTwice, D206).
       b.mesh.userData.outlineSkip = true;
+      // Under the screen filters the shots are drawn again over their halos (SHOT_ART_LAYER, D215).
+      if (pass === Pass.PlayerShots || pass === Pass.EnemyShots) b.mesh.layers.enable(SHOT_ART_LAYER);
       this.all.push(b);
       this.root.add(b.mesh);
       if (pass === Pass.Explosions && !this.setter) this.root.add((this.setter = this.stencilSetter()));

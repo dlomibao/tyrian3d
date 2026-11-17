@@ -11956,3 +11956,108 @@ rounded box (the CG's has a scooped front); the far wing doesn't rise as steeply
 window is one band where the CG's has a few facets of different shades.
 
 **Cost:** one Opus agent.
+## D215 — The smoothie levels' leftover brightness: under the screen filters the shots' paintings are drawn again over their halos, and the 20 ground paintings only SIDE EXIT, LAVA EXIT and LAVA RUN draw are toned to the original's shades under the lava hue; WINDY's 210/231 "misses" are covered-painting lookups, not missing art (brightness audit, E4 QA B-L6; follows D86, D169, D198, D205, D206, D208)
+
+2026-11-17
+
+**Problem** (D205 and D208 Left; `?debug=play&...&compare=1`, sRGB luma 3D/original over the playfield, the audit's
+`shot.mjs` and `measure.py`): SIDE EXIT (4.6) t950 1.20, LAVA EXIT (4.9) t3400/t5550 1.18/1.25. E4 QA B-L6: at WINDY
+(4.2) t1800 `shapesz` 210 and 231 "miss" the HD atlas.
+
+**What was measured** (`tyrian-scratch/filter-glow/`; ablations by moving the effects' meshes to an unused camera layer
+before the screenshot):
+- *SIDE EXIT t950:* the effects add 0.108 of the ratio, the shot halos alone 0.079, the other glows and particles 0.017.
+  The halos are not stronger under the smoothies: there they are drawn once (`VFX_DRAWN_TWICE` 0, D206), elsewhere as
+  if twice. What differs is their order. The main render puts the halos under the shots' flat art (D169), so a painting
+  covers its halo's core. `ScreenFilterPass.renderOver` draws the effects layer alone over the filtered frame, so the
+  halos landed on top of the paintings (D169 "Not done"): the two enemy beams (52 segments, halo radius 9.5-10.5 px,
+  22 px trails) washed out into orange strips.
+- *Halo energy against the sprite's* (each halo's emitted light over its sprite's own, per unit intensity): pulse-cannon
+  shots 0.31-0.73, the SIDE EXIT beams 0.31-0.67, FLEET's enemy shot 1.23. The beams are ordinary halos, just many, so
+  scaling halos by their sprite's energy would dim every level's shots as much as the beams. On TYRIAN, GYGES and FLEET
+  the halos add 0.005-0.03 of the ratio.
+- *LAVA EXIT:* the effects add only 0.02. The lava class (red in both panels) is 1.11/1.13 with the HD paintings and
+  1.06 with exact indices (`&terrain=original`). The rest is flame bullets (their boxes 1.14-1.16, +0.04) and at t5550 the
+  boss `newsh^-83..127` (its box 1.69, +0.07: its hull and salmon core are lighter than the sprite's dark grey).
+- *The paintings under the hue.* With the shader's own pick (`terrainMaterial.ts`: the 32-cell nearest-index LUT, the
+  painting box-filtered in linear light to 2-8 texels per original pixel as the mips give), every ground tile the three
+  lava levels draw reads 1.01-1.13x the original's light on the 0x70 ramp (109, the plain lava and 4,983 of their cells,
+  1.13; the crust tiles 1.01-1.04). Toned to 1.00 the unfiltered frame matches the exact path (SIDE EXIT plain lava mean
+  shade 1.91 against 1.92, mean red 78.7 against 78.6), but after lava_filter the smooth paintings still came out 1-4%
+  over the exact path's noisy pixels (lava class).
+- *WINDY t1800:* `drawHdTile` is asked for 210's and 231's **covered** painting (D86/D139: the cell lies under a purple
+  block, a ground enemy), has none, and returns false; the cell then draws its normal HD tile. Instrumented: `hd L0
+  shapesz:210 covered MISS` 1, `210 ok` 5, `231 covered MISS` 1, `231 ok` 2, no original-pixel draws. The QA count took the
+  first lookup as a miss. 210-234 are the forest (tree crowns, `shapesz_ground.py`); D86 already says a covered tree cell
+  keeps its normal HD tile, and the C draws the tile's trees round the enemy too.
+
+**Decision:**
+1. **The shots' paintings over their halos under the filters** (`vfxMode.ts SHOT_ART_LAYER`, `spriteArtLayer.ts`,
+   `screenFilters.ts`). The player and enemy shot batches of the flat art are also on camera layer 2. `renderOver`
+   draws that layer with the effects layer, in render order: the halos (`SHOT_HALO_ORDER`), then the paintings, then the
+   other glows. The main render is unchanged (the camera doesn't see layer 2; the batches stay on layer 0). The
+   paintings are drawn a second time where they already are, so a soft edge texel of alpha a takes a(2 - a) there.
+   `?filters=old` keeps the old order.
+2. **The lava levels' ground paintings toned to the original's shades** (`public/art/terrain/shapes)/0-3.webp`, the
+   20 layer-0 tiles drawn only on 4-6, 4-9 and 4-12: 109, 119, 129, 135-139, 145-149, 155-159, 168, 169; their rects
+   point at it, every other file and rect is unchanged; `tyrian-scratch/filter-glow/lava/` `shade.py`, `calibrate.py`,
+   `apply.py`). Each tile's linear RGB is scaled so its hued light, as the shader picks shades, comes to T of the
+   original tile's; the factor eases over the outer 40 texels to one factor shared by every tile edge (the cell-weighted
+   mean), so both sides of a seam scale alike. T = 0.965 is the one value that brings the filtered HD lava closest to the
+   exact-index path's on the seven lava captures (least squares between T = 1 and 0.88 runs). Measured after: lava class
+   within -0.011..+0.022 of exact (SIDE EXIT t950 1.099 against 1.077, the rest within 0.011).
+   Factors 0.81-1.00, mean sRGB change -1.0 to -2.9 levels.
+3. **WINDY:** no art. 210 and 231 have HD paintings on layer 0 (and 2), and nothing draws as pixels.
+
+**Options considered:**
+- *Halo intensity from the sprite's own energy* (the brief's suggestion): measured above, it doesn't single out the beams;
+  it would dim every level's shots.
+- *Halo radius from the sprite's width across its motion* (a beam segment is 9 px wide but takes a 9.5 px radius from its
+  area): about -0.015 on SIDE EXIT, and a change to every shot's look. Not done.
+- *Drawing the halos into the scene under the art:* the lava and blurs would take them into their history (D208).
+- *Tone the paintings to T = 1 only* (the unfiltered match): LAVA EXIT t3400 1.145, SIDE EXIT t950 1.147; the filtered lava
+  stays 1-4% over the exact path. *T = 0.88:* LAVA RUN fell to 0.96-0.97.
+- *A per-tile shade bias in the terrain shader:* needs per-tile data in the manifest and a fractional shade; the bias is
+  the paintings', so it is fixed in the paintings.
+- *Lossless 0-3.webp:* seams 0.518 -> 0.522, but 920 KB; at the atlases' quality 92 (181 KB) the re-encode adds 0.3
+  levels of noise at the tile edges.
+
+**Checked** (`?debug=play&episode=E&main=N&difficulty=2&seed=1&skip=T&freezeAt=T&compare=1`, 1920x1080; before =
+origin/main 568c4718, after = this; 3D-playfield luma mean (p10/p90), sRGB 0-255, and 3D/original ratio):
+
+| Capture | Original | Before | Before ratio | After | After ratio |
+|---|---|---|---|---|---|
+| 1.9 TYRIAN t2050 | 38 (10/71) | 39 (13/74) | 1.024 | 39 (13/74) | 1.024 |
+| 1.9 TYRIAN t4900 | 62 (21/108) | 64 (26/116) | 1.045 | 64 (26/116) | 1.045 |
+| 2.2 GYGES t1575 | 29 (0/63) | 30 (0/69) | 1.055 | 30 (0/69) | 1.055 |
+| 2.2 GYGES t3800 | 34 (10/61) | 36 (12/64) | 1.056 | 36 (12/64) | 1.056 |
+| 3.6 FLEET t2100 | 28 (0/89) | 31 (0/89) | 1.081 | 31 (0/89) | 1.081 |
+| 3.6 FLEET t5050 | 11 (0/17) | 15 (0/63) | 1.363 | 15 (0/63) | 1.363 |
+| 4.2 WINDY t1800 | 45 (19/71) | 47 (21/70) | 1.034 | 47 (21/70) | 1.034 |
+| 4.5 CORE t1925 (water) | 35 (17/59) | 39 (16/68) | 1.107 | 39 (16/68) | 1.104 |
+| 4.6 SIDE EXIT t950 (lava) | 36 (7/89) | 43 (9/99) | 1.198 | 41 (9/94) | 1.144 |
+| 4.6 SIDE EXIT t1800 (lava) | 28 (7/72) | 31 (9/73) | 1.096 | 30 (8/72) | 1.072 |
+| 4.9 LAVA EXIT t2550 (water) | 34 (7/88) | 36 (8/89) | 1.072 | 35 (8/86) | 1.027 |
+| 4.9 LAVA EXIT t3400 (lava) | 28 (7/59) | 33 (9/72) | 1.176 | 32 (9/65) | 1.123 |
+| 4.9 LAVA EXIT t5550 (lava) | 26 (7/59) | 33 (9/84) | 1.253 | 31 (8/80) | 1.207 |
+| 4.12 LAVA RUN t1125 (lava) | 40 (7/59) | 43 (10/75) | 1.080 | 41 (10/70) | 1.027 |
+| 4.12 LAVA RUN t2700 (lava) | 44 (7/59) | 47 (12/81) | 1.086 | 45 (11/76) | 1.037 |
+
+The non-filter levels are unchanged to the digit. Step 1 alone: SIDE EXIT t950 1.198 -> 1.156, the others within 0.007
+(run-to-run noise of the particles included). LAVA RUN is within 0.01 of its exact-index numbers (1.037/1.043). `&vfx=original` still works (no console errors): SIDE EXIT t950
+1.088 -> 1.077, LAVA EXIT t5550 1.200 -> 1.160 (the paintings). `terrain_hd.py check` on 4-6, 4-9, 4-12, layer 0: texel
+step across edges 1.85 -> 2.16 against 3.57 -> 3.39 inside (ratio 0.518 -> 0.639, the re-encode); 8-texel bands 0.481 ->
+0.488. Tests: `screenFilters.test.ts` (the effects' render also draws layer 2), `hueBlend.test.ts` (the shot batches are
+on it, the explosions' aren't). Captures, `summary.png` (original | before | after), `warp/`, the ablations and the
+lava scripts: `tyrian-scratch/filter-glow/`.
+
+**Left:**
+- *SIDE EXIT t950 (1.144):* the beams' halo rims outside the paintings (about +0.04) and their muzzle flashes (+0.017);
+  without the effects 1.08. A smaller halo for long thin shots would be the next lever, for every level.
+- *LAVA EXIT t5550 (1.207):* the boss `newsh^-83..127` reads lighter than its sprite (box 1.69, +0.07 of the ratio):
+  a model-art fix (rule 1, major colours). The flame bullets' paintings, +0.04.
+- *The filter's response to smooth sources:* at the original's mean shade a smooth painting comes out of the 3D lava
+  filter 1-4% brighter than the original's noisy pixels; T = 0.965 absorbs that for these 20 tiles only.
+- CORE's (4-5) red tiles read 3-6% darker than the original under its hue; not touched.
+
+**Cost:** one Opus agent, no workflow: about 120 headless captures, no Gemini, no Blender.

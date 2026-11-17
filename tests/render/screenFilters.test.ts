@@ -33,7 +33,7 @@ import { ScreenHue } from "../../src/render/screenHue";
 import { PASS_HEIGHT } from "../../src/render/passHeights";
 import { CLASSIC_TICK_MS } from "../../src/core/timing";
 import { Pass } from "../../src/sim/draw";
-import { VFX_LAYER } from "../../src/render/vfx/vfxMode";
+import { SHOT_ART_LAYER, VFX_LAYER } from "../../src/render/vfx/vfxMode";
 
 describe("screen filters", () => {
   test("a filter's ceiling sits between its last pass and the next one up", () => {
@@ -349,7 +349,7 @@ describe("water_filter's floor and the effects over the filtered frame (D208)", 
 
   test("the effects are drawn over a copy of the filtered frame, which alone is the next frame's history", () => {
     let target: THREE.WebGLRenderTarget | null = null;
-    const renders: { target: THREE.WebGLRenderTarget | null; scene: THREE.Scene; material?: THREE.ShaderMaterial }[] = [];
+    const renders: { target: THREE.WebGLRenderTarget | null; scene: THREE.Scene; material?: THREE.ShaderMaterial; layers?: number }[] = [];
     const renderer = {
       capabilities: { maxSamples: 4 },
       toneMapping: THREE.NeutralToneMapping,
@@ -363,9 +363,9 @@ describe("water_filter's floor and the effects over the filtered frame (D208)", 
       getClearAlpha: () => 1,
       setClearColor: () => {},
       clearDepth: () => {},
-      render: (scene: THREE.Scene) => {
+      render: (scene: THREE.Scene, cam: THREE.Camera) => {
         const quad = scene.children[0] as THREE.Mesh | undefined;
-        renders.push({ target, scene, material: quad?.material as THREE.ShaderMaterial | undefined });
+        renders.push({ target, scene, material: quad?.material as THREE.ShaderMaterial | undefined, layers: cam.layers.mask });
       },
     } as unknown as THREE.WebGLRenderer;
     const pass = new ScreenFilterPass(renderer, { screenHue: new ScreenHue() } as unknown as PaletteTexture);
@@ -394,6 +394,8 @@ describe("water_filter's floor and the effects over the filtered frame (D208)", 
     expect(first.present.target).toBeNull();
     expect(first.present.material!.uniforms.sourceMap.value).toBe(first.effects.target!.texture);
     expect(camera.layers.isEnabled(VFX_LAYER)).toBe(true);
+    // The effects' render draws the shots' flat art again, after their halos (D215).
+    expect(first.effects.layers).toBe((1 << VFX_LAYER) | (1 << SHOT_ART_LAYER));
     // The next frame reads the filter's own output as its previous frame: the effects aren't in it.
     const second = frame();
     expect(second.filter.material!.uniforms.prevMap.value).toBe(first.filter.target!.texture);
