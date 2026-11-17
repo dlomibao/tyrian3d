@@ -92,6 +92,41 @@ GRIT = dict(floor=0.56, occl=0.5, edge=0.22, grime=0.12, rough=0.2, scale=1.4, i
 # face it (lit faces, rubric), so the stones get the art's spread of greys.
 SUN = (-6.0 / 22.47, -8.4 / 22.47, 20.0 / 22.47)
 
+# D216: the rim stones take the asteroid belt's rim rock look (lib_rim_rock, D211): rounder lumps of
+# smaller chips (RIM_RINGS: (radius share, height share, tilt share) per ring up from the foot), each
+# chip's grey ranked by the art's brightness under it, its face to the art's light and its height,
+# matched to the art's own shades in the rim band (lib_rim_rock's weights and dark bias), one
+# matte material per grey; before, the sun-facing ramp (facet_index) made them a step or two lighter
+# and blockier than the belt's rock beside them on ASTEROID?.
+RIM_RINGS = ((1.0, 0.0, 0.0), (0.93, 0.42, 0.35), (0.74, 0.74, 0.5), (0.44, 0.93, 0.35))
+RIM_SIDES = 1  # the foot's corners per layout corner (2: midpoints pushed out, rounder, 1.6x the triangles)
+
+
+def rim_ramp(faces, grid, lum, band):
+    """The rim rock's facet ramp (lib_rim_rock.facets) over faces [(normal, (px, py), z, seen area)]:
+    a palette index per face, matched to the art's shades in `band` (bool px; indices 3..15)."""
+    import lib_rim_rock as rr
+    if not faces:
+        return []
+    H, W = grid.shape
+    light = np.array([float(np.dot(n, rr.ART_LIGHT)) for n, _, _, _ in faces])
+    bright = np.array([lum[min(H - 1, max(0, int(py))), min(W - 1, max(0, int(px)))] for _, (px, py), _, _ in faces])
+    low = np.array([z for _, _, z, _ in faces])
+    seen = np.array([a for _, _, _, a in faces])
+    key = rr.LIGHT_W * rr._ranks(light) + rr.SPRITE_W * rr._ranks(bright) + (1 - rr.LIGHT_W - rr.SPRITE_W) * rr._ranks(low)
+    idx = grid[band & (grid > rr.DARK_MAX) & (grid < 16)]
+    shades, counts = np.unique(idx, return_counts=True)
+    cdf = np.cumsum(counts) / counts.sum()
+    total = seen.sum() or 1.0
+    out = [0] * len(faces)
+    acc = 0.0
+    for r in np.argsort(key, kind="stable"):
+        q = min(max((acc + seen[r] / 2) / total - rr.BIAS, 0.0), 1.0)
+        acc += seen[r]
+        out[r] = int(shades[min(np.searchsorted(cdf, q - 1e-9), len(shades) - 1)])
+    return out
+
+
 # ---- channels (the art's 389 / 379 strips; the base complex and the pipe junction use the same) ----
 CH_X, CH_Y = 11.0, 13.5
 CH_HX, CH_HY = 7.5, 9.0
@@ -601,13 +636,15 @@ class Kit:
         return len(kept)
 
     def rocks(self):
-        """The rim stones of rock_layout(): craggy, flat-shaded faceted lumps (an irregular foot sunk
-        just under the bed's top, a tilted shoulder ring, a crown ring, an off-centre peak); under
-        ENEMY_MAX on an enemy's cell, under RIM_MAX elsewhere. Every facet takes its index from the
-        way it faces the game's sun (facet_index: lit faces, the rubric's rock rule), so the band
-        has the art's spread from the dark undersides (3) to the lit crowns (8), not one grey."""
+        """The rim stones of rock_layout(): flat-shaded faceted lumps (rim_stone: an irregular foot
+        sunk just under the bed's top, RIM_RINGS up to an off-centre peak, the crown tilted); under
+        ENEMY_MAX on an enemy's cell, under RIM_MAX elsewhere. D216: the chips take the asteroid
+        belt rim rock's ramp (shade_rim / rim_ramp: the art's brightness under each, its face to the
+        art's light, its height, matched to the rim band's own shades), so the bases' rims read as the
+        belt's rock beside them; D148's sun ramp (facet_index, 3..8) was a step or two lighter."""
         g, rng = self.g, self.rng
         enemy = self.b.enemy_mask
+        self._rim_faces = []
         for (x, y, rad, kind, pts) in self.stones:
             if kind == 0:
                 top = 0.36 + 0.008 * rad + 0.07 * rng.random()
@@ -617,7 +654,83 @@ class Kit:
             rr = int(math.ceil(1.25 * rad))
             if enemy[max(0, int(y) - rr):int(y) + rr + 1, max(0, int(x) - rr):int(x) + rr + 1].any():
                 top = min(top, ENEMY_MAX - 0.006 - 0.02 * rng.random())
-            self.stone(x, y, rad, pts, top, rng)
+            self.rim_stone(x, y, rad, pts, top, rng)
+        self.shade_rim()
+
+    def shade_rim(self):
+        """The rim stones' chips in the belt rock's ramp (rim_ramp, D216), one matte material per grey."""
+        b = self.b
+        grid = np.maximum(b.grid, 0)
+        lum = lt.lum_of(b.ts, b.grid)
+        band = b.footprint & (lb.depth(b.footprint) <= ROCK_BAND)
+        info = []
+        for f in self._rim_faces:
+            f.normal_update()
+            c = f.calc_center_median()
+            n = f.normal
+            info.append(((n.x, n.y, n.z), self._px(c.x, c.y), c.z,
+                         f.calc_area() * max(n.z, 0.0)))
+        for f, i in zip(self._rim_faces, rim_ramp(info, grid, lum, band)):
+            key = f"rim{i}"
+            if key not in self.mat:
+                self.mat[key] = b.m(i, roughness=0.85, plain=True)
+            f.material_index = self.mat[key]
+        print(f"kit rim stones: {len(self._rim_faces)} chips in the belt's ramp")
+        self._rim_faces = []
+
+    def _px(self, wx, wy):
+        """World x, y back to pattern px (Geo.v's inverse, by the frame's own mapping)."""
+        b = self.b
+        x0, x1 = b.x(0.0), b.x(1.0)
+        y0, y1 = b.y(0.0), b.y(1.0)
+        return (wx - x0) / (x1 - x0), (wy - y0) / (y1 - y0)
+
+    def rim_stone(self, x, y, rad, pts, top, rng):
+        """One rim stone (D216): the foot (`pts`, (angle, r) round (x, y), pattern px) refined to
+        RIM_SIDES corners per layout corner, then RIM_RINGS up to an off-centre peak at `top`, the
+        crown tilted, each vertex a little jittered: a rounded lump of small flat chips, as the
+        belt's boulders. The chips are shaded by shade_rim()."""
+        g = self.g
+        zs = BED_TOP - 0.03
+        hgt = top - zs
+        ta_ = rng.random() * math.tau
+        tilt = 0.10 + 0.08 * rng.random()
+        # the refined foot: each layout corner, then the midpoint to the next pushed out (rounder)
+        foot = []
+        n0 = len(pts)
+        for i in range(n0):
+            a, r = pts[i]
+            a2, r2 = pts[(i + 1) % n0]
+            if a2 < a:
+                a2 += math.tau
+            foot.append((a, r))
+            for k in range(1, RIM_SIDES):
+                t = k / RIM_SIDES
+                foot.append((a + (a2 - a) * t, (r + (r2 - r) * t) * (1.03 + 0.07 * rng.random())))
+        rings = []
+        for k, (sc, fz, tw) in enumerate(RIM_RINGS):
+            ring = []
+            for a, r in foot:
+                if k == 0:
+                    rr_, zz = r, zs
+                else:
+                    rr_ = r * sc * (0.94 + 0.12 * rng.random())
+                    zz = zs + hgt * min(0.985, fz + tilt * tw * math.cos(a - ta_) + 0.04 * (rng.random() - 0.5))
+                ring.append(g.v(x + rr_ * math.cos(a), y + rr_ * math.sin(a), zz))
+            rings.append(ring[::-1])  # px y down: world CCW
+        po = 0.25 * rad * rng.random()
+        pa = ta_ + (rng.random() - 0.5) * 1.2
+        apex = g.v(x + po * math.cos(pa), y + po * math.sin(pa), top)
+        n = len(foot)
+        faces = []
+        for lo, hi in zip(rings, rings[1:]):
+            for i in range(n):
+                j = (i + 1) % n
+                faces += [g.face((lo[i], lo[j], hi[j]), self.mat["rock5"]), g.face((lo[i], hi[j], hi[i]), self.mat["rock5"])]
+        last = rings[-1]
+        for i in range(n):
+            faces.append(g.face((last[i], last[(i + 1) % n], apex), self.mat["rock5"]))
+        self._rim_faces += [f for f in faces if f is not None]
 
     def stone(self, x, y, rad, pts, top, rng, bias=0.0, zs=None):
         """One faceted stone over its foot (`pts`: (angle, r) round (x, y), pattern px) up to `top`:

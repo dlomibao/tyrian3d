@@ -20,7 +20,7 @@ Height = C(g) * f_out(d_out) * f_in(d_in) + slab domes - crack grooves
   slabs   the rock cut by the few long crack lines the sprite shows (traced from the sprite and the
           leg tiles); each slab a convex faired dome over its whole width, gentle on its north-west
           (lit) side, steeper on its south-east (shadow) side, rounding down into its cracks; short
-          transverse breaks stack the leg slabs; the legs' vertical flutes are soft shallow grooves;
+          transverse breaks stack the leg slabs; the right leg's vertical flutes are soft shallow grooves;
   grooves recessed V/U grooves (geometry), so the scene's light shades them (art rule 2);
   seam    within 9 px of column 72 the crown takes the wall stretches' section (seam_height of
           assembly-newsh3-198.py) so SURFACE's inserted stretches join flush.
@@ -30,6 +30,9 @@ slab medians softened across their cracks, crack floors a little darker. Each sl
 material (its brightest tone) and the tone rides on COLOR_0 as a multiplier of that palette colour
 (Tone; three.js multiplies base colour by COLOR_0): a smooth ramp, no iso-line terraces (fix round 2).
 Matte sandstone (metallic 0, roughness 0.88), no ribbons or painted lines.
+D216: the left leg is a few broad slabs on the sprite's own cracks (diagonals included, no flutes);
+each slab's bulge is capped by its width and smoothed (round crests, no fins); the crown's outer
+shoulder is shorter (RO_CROWN) and its pale tone reaches PALE_REACH px further toward the opening.
 Outline shell from a sealed pre-cut copy (common.outline_shell, islands="outer"), cut per piece
 without caps so no ink crosses a join; underside flat at z = 0.
 """
@@ -295,6 +298,14 @@ CREST_Z = [1.0, 4.0, 8.0, 11.5, 14.0, 16.0, 17.4, 18.0, 18.0]   # legs keep thei
 # sheer walls (fix round 2: the crest FALL px from the opening put the pale crown on a north-facing
 # back slope the tilted camera crushed to a strip, and the outer edge was a cliff)
 RO, FALL = 11.0, 20.0
+# D216: the crown's outer shoulder rises over RO_CROWN px (RO down the legs), so the sprite's pale band
+# lies on the crown's broad top, not on a north slope the tilted camera foreshortens; and the pale
+# tone (>= PALE) is carried PALE_REACH px further toward the opening over the crown (the sprite's
+# band read narrower in game than in the sprite)
+RO_CROWN, PALE, PALE_REACH, PALE_STEP = 6.5, 24.5, 3.0, 0.35
+# D216: no fins: a slab's bulge is at most DOME_W x its half width, and the bulge is smoothed over
+# DOME_SMOOTH px so its crest is rounded (the crest was the distance field's crease)
+DOME_W, DOME_SMOOTH = 0.55, 1.1
 PILLOW, R_LIT, R_SHADOW = 4.0, 5.0, 2.2     # slab bulge (px) and its lit / shadow fall-off radii
 # grooves per crack kind: (depth px, half width px, flat floor half width px); the legs' traced
 # columns (flutes) are slab boundaries too, so every leg column is its own bulging slab
@@ -314,7 +325,7 @@ FIS_DEPTH = 1.0             # px
 TONE_MAX_PAL = 28           # highlights capped (the light makes the shine)
 TONE_S_SIGMA, TONE_MIX = 2.0, 0.35  # the sprite's smoothed value (px) and the slab medians' share
 TONE_P_SIGMA = 1.2          # px: the slab medians soften across their cracks
-CRACK_DARK = 1.5            # indices darker at a groove's floor
+CRACK_DARK = 2.5            # indices darker at a groove's floor (D216: 1.5 blurred the sprite's dark crack lines)
 TONE_ATTR = "rock_tone"     # COLOR_0: the continuous tone as a multiplier of the face's palette colour
 ARCH_CRACKS = CRACKS = {
     'C1_lit_front':   [(36, 21.0), (44, 21.2), (51, 20.4), (60, 20.2), (68, 20.3), (73.4, 20.4)],
@@ -325,26 +336,29 @@ ARCH_CRACKS = CRACKS = {
                        (90, 35.5), (96.5, 39.5), (99.5, 45), (101, 51), (101.4, 57), (100.6, 68), (100.2, 82), (100.4, 94)],
     'C4_hex_left':    [(51, 20.4), (50.8, 24), (51.4, 28), (53, 31), (54, 32.2)],
     'C6_right_wedge': [(80.5, 27.2), (85, 24.4), (90, 22.0), (96.2, 20.4), (104, 19.6), (112, 22)],
+    # the left leg (D216): a few broad slabs, as the sprite and its leg tiles draw it: the knuckle's
+    # inner crack and the lit face's crack run down-left to the leg's top break (D_join, the dark
+    # row 59-61 across the tiles) and the knee (D_outer); under them the foot is three blocks split by
+    # the tiles' two big dark slots (L1 at columns 11-16, L2b at 27-30)
     'L2_knuckle_inner': [(36, 21.0), (35.4, 24.5), (34.6, 28.5), (33.6, 33.4), (31.6, 38), (29.4, 43), (27.2, 49),
-                         (25.8, 56), (26.6, 66), (27.2, 78), (27.6, 90), (28, 100)],
-    'L1_lit_mid':     [(31.6, 38), (26, 42), (21, 47), (16.5, 52), (14, 58), (13.2, 68), (13, 80), (13.2, 92), (13.6, 101)],
-    'L0_outer':       [(16, 34), (10, 42), (5, 50), (1, 57), (-1.8, 64), (-3, 76), (-4, 88), (-5.5, 99)],
+                         (25.8, 55), (26.4, 59.8)],
+    'L2b_foot':       [(27.4, 60.6), (29.6, 67), (29.8, 75), (28.2, 83), (27.4, 92), (27.2, 101)],
+    'L1_lit_mid':     [(31.6, 38), (26, 42), (21, 47), (16.5, 52), (14, 57), (11.6, 63), (11, 70), (12.6, 77),
+                       (14.4, 86), (15.2, 94), (15.6, 101)],
+    'D_join':         [(14, 57), (18, 58.6), (22, 60), (30, 60.6), (38, 61), (45.5, 61.4)],
+    'D_outer':        [(-4, 61.5), (0.5, 59.8), (5.5, 58.8), (11.8, 59.6)],
     'K_top':          [(36, 21.0), (30, 19.8), (24, 19.8)],
     'K_bot':          [(33.6, 33.4), (26, 35.0), (16, 34)],
     'R2_outer':       [(112, 22), (115, 30), (119, 38), (122, 47), (123.6, 57), (124.3, 70), (124.4, 84), (124, 96)],
-    # leg columns traced on the leg tiles (left: lit outer column | mid | dark fissures | inner face)
-    'L3_col':         [(36.5, 40), (34.6, 50), (33.4, 58), (34.6, 70), (35.6, 85), (36, 100)],
-    'L4_col':         [(44, 36), (42.4, 48), (42, 60), (42.8, 75), (44, 92)],
-    'L5_col':         [(4.5, 56), (5.6, 70), (6.6, 85), (6, 100)],
-    'L6_col':         [(20.5, 58), (21.2, 72), (22, 88), (22.2, 100)],
     # right leg: mid columns between the inner face and the outer flank
     'R3_col':         [(86, 29), (95, 36), (103, 44), (106, 52), (105.4, 62), (104.6, 80), (105, 95)],
     # short transverse breaks: the leg columns are stacked blocks, not pipes (traced on the tiles)
     'T_l1': [(-6, 67), (-1, 64.5), (4.6, 62)],
     'T_l2': [(6.4, 84), (10, 81.5), (13.2, 79.5)],
-    'T_l3': [(13.4, 64), (17.5, 62.6), (21, 61.4)],
-    'T_l4': [(21.6, 77), (27, 75.6), (34.8, 74)],
-    'T_l5': [(34, 62), (38.5, 60.8), (42.2, 59.6)],
+    'B_l1': [(0.6, 60.5), (0.9, 65), (-1.4, 72), (-5, 78)],            # the lit foot's branching crack
+    'B_l2': [(24.4, 62), (22.4, 68), (19.6, 75), (17.6, 80)],         # the middle block's diagonals
+    'B_l3': [(21.6, 78.5), (23.4, 81), (25.6, 84.5)],
+    'B_l4': [(40.4, 63), (40.8, 72), (40.2, 82), (40.8, 92)],         # the inner block's crack
     'T_l6': [(35.6, 84), (40, 82.4), (43.4, 81)],
     'T_l7': [(21.8, 91), (25, 89.6), (27.5, 88.6)],
     'T_r1': [(100.6, 68), (105, 66.5), (109.8, 65)],
@@ -354,11 +368,11 @@ ARCH_CRACKS = CRACKS = {
     'T_r5': [(124.4, 62), (128.5, 60.5), (133, 59)],
     'R4_col':         [(100, 24), (109, 32), (115.5, 42), (117.6, 52), (118, 66), (118.2, 80), (118, 96)],
 }
-FLUTES = {"L3_col", "L4_col", "L5_col", "L6_col", "R3_col", "R4_col"}
+FLUTES = {"R3_col", "R4_col"}
 
 
 def crack_kind(name):
-    return "flute" if name in FLUTES else "break" if name.startswith("T_") else "main"
+    return "flute" if name in FLUTES else "break" if name.startswith(("T_", "B_")) else "main"
 
 
 ARCH_RIDGE = RIDGE = [(31.5, 29), (33.5, 23.5), (37, 19), (42, 15.3), (50, 12.6), (56, 10.6), (64, 8.0), (70, 6.6), (76, 6.0)]
@@ -603,7 +617,8 @@ def heights(tone_ref=None):
         G = geodesic(Mf, feet)
         G[~np.isfinite(G)] = 200
         C = pchip(CREST_G, CREST_Z)(np.clip(G, 0, 300))
-        f_out = 0.08 + 0.92 * np.sin(0.5 * np.pi * np.clip(d_out / RO, 0, 1)) ** 1.0
+        ro = RO + (RO_CROWN - RO) * ease((G - 40) / 16)   # legs RO, the crown (>= 56 px from the feet) RO_CROWN
+        f_out = 0.08 + 0.92 * np.sin(0.5 * np.pi * np.clip(d_out / ro, 0, 1)) ** 1.0
         lip = 0.22 + 0.25 * ease((YY - 44) / 20)
         f_in = lip + (1 - lip) * np.sin(0.5 * np.pi * np.clip(d_in / FALL, 0, 1)) ** 1.1
         BASE = C * f_out * f_in
@@ -651,10 +666,11 @@ def heights(tone_ref=None):
     Ms = maxd[slab_lab]
     R_eff = np.clip(0.95 * Ms, 2.5, 10.0)
     R = np.where(se, np.minimum(R_eff, R_SHADOW + 0.35 * R_eff), R_eff)
-    amp = PILLOW * np.clip(Ms / 4.5, 0.55, 1.35)
+    amp = np.minimum(PILLOW * np.clip(Ms / 4.5, 0.55, 1.35), DOME_W * np.maximum(Ms, 1.0))
     # convex over the slab's width (sin-like rise, no flat plateau), rounded into the groove
     t = np.clip(d_dome / R, 0, 1)
     dome = amp * k_h * np.sin(0.5 * np.pi * ease(np.minimum(1.0, t * 1.15)) ** 0.85)
+    dome = norm_blur(dome, Mf, DOME_SMOOTH * K)
     groove = np.zeros_like(BASE)
     # down the legs the traced long cracks shallow out (full length they read as curtain folds); the
     # sprite's own broken fissures carry the legs
@@ -726,6 +742,13 @@ def heights(tone_ref=None):
     Pm = norm_blur(P, Mf, TONE_P_SIGMA * K)
     S = norm_blur(up(CLEAN).astype(float), Mf, TONE_S_SIGMA * K)
     T = TONE_MIX * Pm + (1 - TONE_MIX) * S
+    # D216: the pale band carried toward the opening over the crown (each step a little dimmer)
+    crown = Mf & ((C >= 16.5) if SCENE == "arch" else (YY < 30))
+    Tp = T.copy()
+    for k in range(1, int(PALE_REACH * K) + 1):
+        src = shift(T, k, 0, 0.0)
+        Tp = np.where(crown & (src >= PALE), np.maximum(Tp, src - PALE_STEP * k / K), Tp)
+    T = Tp
     # the cracks are dark lines in the sprite: their floors a few indices darker (and the groove's
     # own lighting on top)
     if tone_ref is not None and OPEN_ENDS:

@@ -17,7 +17,9 @@ does, if every pair the maps put side by side meets without a step:
    each boulder is a round dome over its own pixels, taller the wider it is, on a low bed; all of it
    rises across the outline's dark ring (the rock covers the ring: it showed as a stepped grey band
    round the rock) and fades out where the weave starts. Brightness is not height (art rule 2): the
-   lit and shadowed sides come from the game's light on the facets.
+   lit and shadowed sides come from the game's light on the facets. D216: each dome starts CREVICE
+   px inside its stone where it meets other rock (a gutter down to the bed between two boulders, none
+   toward space), and the gutters never open the rock where D211's domes covered it.
 2. **Seams.** Every tile side's edge profile is replaced by the mean over every side the maps put
    against it (the union of the pairs in tiles.json's neighbour counts), blended in over FALL px, so
    two tiles meet on the same heights; corners settle in a few passes. A side that mostly meets
@@ -29,7 +31,8 @@ does, if every pair the maps put side by side meets without a step:
 4. **Facets** (D175's facet ramp, the enemy asteroids' look): faces grown into chips within ANGLE and
    CHIP px, each shaded flat and given one grey of the tile's own ramp, ranked by the art's
    brightness under it, how squarely it faces the art's light (upper left) and how high it stands
-   (the crevices darker), matched to the tile's distribution of shades over its rock (BIAS darker).
+   (the crevices darker), matched to the tile's distribution of shades over its rock (BIAS darker);
+   a low chip over the art's dark crevice px takes the crevice's own index (DARK_MAX, D216).
    The shade rides on COLOR_0 as a multiplier of one palette material (D209's tone), so a tile is
    one draw however many shades it shows.
 5. **Ink** (shapesz_rim_rock.py): D90's outline shell, made from the rock among its neighbours and
@@ -61,14 +64,20 @@ STONE_BAND = 10.0  # px from space: a hill whose median lies deeper is the weave
 STONE_K = 0.075  # units of height per px of a stone's inscribed radius
 STONE_H = (0.10, H_MAX)  # a stone's top, clamped
 BED = 0.03  # units: the rubble bed the boulders sit on (the crevices' floor)
+CREVICE = 0.9  # px: each boulder's dome starts this far inside its own pixels (D216: a gutter of bed
+#                 between two stones, so they read as separate boulders, not one lumpy mass)
+GUTTER_MIN = 0.004  # units over the outline's level (LIFT): a gutter's floor where it would open the rock
+CREVICE_Z = 0.075  # units: a facet lower than this over the art's dark crevice px takes the crevice's
+#                    own dark index (DARK_MAX), as the art's near-black gaps (D216)
 BED_REACH = 1.0  # px the bed reaches past the boulders
 DARK_MAX = 2  # palette indices <= this are the ring and the crevices (left out of the facet shades)
 LIFT = 0.012  # units: the outline is where the rock is this high (the zero contour of f = h - LIFT)
 FALL = 4.0  # px over which a side's seam correction fades in
-ANGLE = 13.0  # degrees: a facet's faces stay within this of its first face
-CHIP = 1.6  # px: a facet's faces stay within this of its first face's centre
-SPRITE_W = 0.55  # facet rank: weight of the art's brightness under the facet,
-LIGHT_W = 0.25  # of facing the art's light (upper left), the rest of its height (the crevices darker:
+ANGLE = 16.0  # degrees: a facet's faces stay within this of its first face (D216: 13)
+CHIP = 2.2  # px: a facet's faces stay within this of its first face's centre (D216: 1.6; larger flat
+#             chips read as the asteroids' crisp facets, not a soft mottle)
+SPRITE_W = 0.42  # facet rank: weight of the art's brightness under the facet,
+LIGHT_W = 0.38  # of facing the art's light (upper left), the rest of its height (the crevices darker:
 #                 they read as cracks between boulders, as the asteroids' grooves do)
 BIAS = 0.16  # facet ramp: shift toward the darker shades (the game's light brightens the lit chips)
 ART_LIGHT = np.array((-1.0, 1.0, 1.4)) / np.linalg.norm((-1.0, 1.0, 1.4))
@@ -249,19 +258,32 @@ def raw_field(kit, n):
         stone |= m
     # distance to the stone's own edge (another stone, the weave, space)
     h = np.zeros(ctx.shape)
+    h_full = np.zeros(ctx.shape)  # the domes without their gutters: the rock's outline (D211's)
     env_out = _smoothstep(*RING_IN, ds)
     for lab, m in peaks.items():
         d = _distance(~m, 8 * S) / S
         r = max(float(d[m].max()), 0.75)
         top = float(np.clip(STONE_K * r, STONE_H[0], H_MAX))
-        t = np.clip(d / r, 0.0, 1.0)
+        # the gutter only where the stone meets rock (another stone, the weave), not space: the
+        # outline stays where the art's is
+        d_rock = _distance(~m & ~space, 8 * S) / S
+        off = CREVICE * np.clip(1.0 - (d_rock - d), 0.0, 1.0)
+        t = np.clip((d - off) / np.maximum(r - off, 0.5), 0.0, 1.0)
         dome = top * np.sqrt(np.clip(1 - (1 - t) ** 2, 0.0, 1.0))
         h = np.where(m, np.maximum(h, dome), h)
+        full = top * np.sqrt(np.clip(1 - (1 - np.clip(d / r, 0.0, 1.0)) ** 2, 0.0, 1.0))
+        h_full = np.where(m, np.maximum(h_full, full), h_full)
     env = env_out * (1 - _smoothstep(*BAND, ds))
-    h = np.maximum(h, BED * env * _dilate(stone, int(BED_REACH * S))) * env_out
+    bed = BED * env * _dilate(stone, int(BED_REACH * S))
+    h = np.maximum(h, bed) * env_out
+    h_full = np.maximum(h_full, bed) * env_out
     oy, ox = TILE_H * S, TILE_W * S
     # the corners of the centre tile: one 2x pixel of context on every side
-    f = _corners(h[oy - 1:oy + TILE_H * S + 1, ox - 1:ox + TILE_W * S + 1]) - LIFT
+    cut = slice(oy - 1, oy + TILE_H * S + 1), slice(ox - 1, ox + TILE_W * S + 1)
+    f = _corners(h[cut]) - LIFT
+    # a gutter never opens the rock where D211's domes covered it (the outline's ring, the weave's
+    # edge): there its floor stays just above the outline's level
+    f = np.where((_corners(h_full[cut]) - LIFT > 0) & (f < GUTTER_MIN), GUTTER_MIN, f)
     own = slice(oy, oy + TILE_H * S), slice(ox, ox + TILE_W * S)
     return f, {"env": env[own], "idx": ctx[own], "lum": kit.lum[ctx[own]]}
 
@@ -455,7 +477,7 @@ def facets(verts, tris, feat, kit):
         regions.append(members)
     # per facet: area-weighted normal, facing the light, the art's brightness under it, top-view area
     rows, cols = feat["idx"].shape
-    light, seen, bright, fnorm, low = [], [], [], [], []
+    light, seen, bright, fnorm, low, dark = [], [], [], [], [], []
     for members in regions:
         m = np.array(members)
         n = (nrm[m] * area[m, None]).sum(0)
@@ -469,6 +491,9 @@ def facets(verts, tris, feat, kit):
         gy = np.clip(((TILE_H / 2 - cen[m, 1] * 12) * S).astype(int), 0, rows - 1)
         lum = feat["lum"][gy, gx]
         bright.append(float((lum * top).sum() / top.sum()) if top.sum() > 0 else float(lum.mean()))
+        art = feat["idx"][gy, gx]
+        # (not the outline's dark ring, which the rock covers and the ink draws: env < 1 there)
+        dark.append(bool(np.mean((art >= 1) & (art <= DARK_MAX)) >= 0.5 and np.mean(feat["env"][gy, gx]) > 0.9))
     key = LIGHT_W * _ranks(light) + SPRITE_W * _ranks(bright) + (1 - LIGHT_W - SPRITE_W) * _ranks(low)
     # the tile's own shades over its rock (the boulders' greys, ring and crevices left out)
     idx = feat["idx"][(feat["env"] > 0.5) & (feat["idx"] > DARK_MAX) & (feat["idx"] < 16)]
@@ -482,6 +507,11 @@ def facets(verts, tris, feat, kit):
         q = min(max((acc + seen[r] / 2) / total - BIAS, 0.0), 1.0)
         acc += seen[r]
         pick[r] = int(shades[min(np.searchsorted(cdf, q - 1e-9), len(shades) - 1)])
+    # D216: the crevices between the boulders in the art's own dark (its gaps are indices 1-2): a low
+    # facet over them takes DARK_MAX, so the stones part on a dark line, as in the art
+    for r in range(len(regions)):
+        if dark[r] and low[r] < CREVICE_Z:
+            pick[r] = DARK_MAX
     return region, np.array(fnorm), pick
 
 

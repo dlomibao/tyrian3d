@@ -15,10 +15,11 @@ placement and colours):
 - foundation bed: the painted footprint (pits, the yard, the fork's slots are holes) as one closed
   prism, its outer edge a talus chamfer, top in the rubble colour the rocks stand in;
 - rim rocks: one chain of craggy, angular stones (8-11 px across) with small stones in its gaps,
-  flat-shaded (an irregular 5-8 sided foot, a tilted shoulder ring, a crown ring, an off-centre
-  peak), sunk into the dark bed, which shows in the crevices round each stone as the art's
-  near-black gaps; each facet in the kit's ramp by its face to the sun (3 in shadow .. 8 lit,
-  round the band's median 5: lib_l1kit.facet_index, D148); kept under the enemies on enemy cells;
+  flat-shaded (an irregular 5-8 sided foot, rings up to a tilted crown and an off-centre peak),
+  sunk into the dark bed, which shows in the crevices round each stone as the art's near-black
+  gaps; the chips in the asteroid belt rim rock's ramp (lib_l1kit.rim_ramp, D216: the art's
+  brightness, the art's light and height, matched to the rim band's shades; D148's sun ramp read
+  lighter than the belt beside it); kept under the enemies on enemy cells;
 - kerb: the art's dashed comb of light stubs inside the rocks, as separate closed posts every 4 px,
   deduplicated across all outlines (none closer than 3.6 px), kept clear of the stones, each a
   little different in size, lean and height (lib_l1kit.Kit.kerb);
@@ -297,7 +298,7 @@ def build(bake=True):
     #    bed's top, a shoulder ring at uneven heights (the crown tilted), a crown ring and an off-centre
     #    peak, so its top is many flat facets that catch the light one by one; the dark bed (pal 2)
     #    shows in the crevices round it.
-    kt.rocks()  # each facet in the index of its face to the sun (lib_l1kit.facet_index, D148)
+    kt.rocks()  # the chips in the belt rim rock's ramp (lib_l1kit.rim_ramp, D216; D148 shaded them by the sun)
 
     # 7. Red light capsules (338 x2, 339) and the big lights (347): a machined housing, a dark seat and
     #    a domed dark-red lens over a rounded rectangle (the art paints rounded capsules), faintly lit, under the enemies drawn over.
