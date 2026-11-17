@@ -12061,3 +12061,81 @@ lava scripts: `tyrian-scratch/filter-glow/`.
 - CORE's (4-5) red tiles read 3-6% darker than the original under its hue; not touched.
 
 **Cost:** one Opus agent, no workflow: about 120 headless captures, no Gemini, no Blender.
+## D217 — Episode-4 polish fix round: BRAINIAC's red pod gets its yellow glint and a rounded curl, ICESECRET's gems get facets and a steel capsule, EYESPY's arms are slimmed and its eye's iris is polished, and the DREAD-NOT/UNDERDELI/LAVA RUN fortress gets moustache fenders, a grey lip and dark pod sockets; CORE's wall of fire stays as it is (E4 QA L2, L3, M4; D201 and D202 Open; follows D176, D181, D195, D196, D201, D202, D205)
+
+2026-11-17
+
+**Problem:** six episode-4 polish items failed strict review in the first round.
+- **Red pod** `newsh5-121` (BRAINIAC, also DREAD-NOT, NOSE DRIP, UNDERDELI; E4 QA L2): the sprite's yellow glint was lost, and the curl read as pointed from the tilted camera.
+- **Gems** `newsh7-53` (ICESECRET, also E3; L3): flat and dull, with no facet sparkle, no white highlights and no capsule look.
+- **EYESPY arms** `assembly-newsh9-39`/`-45` (`lib_b028`; M4): bulkier than the sprite, with no L shape, no open claw and no palm recess.
+- **Eye sphere** `assembly-newsh9-191`/`-210` (`lib_eyesphere`; D202 Open): cartoon iris spots, a hovering grey cross, a small pupil and a dull swirl lobe.
+- **Fortress** `assembly-newsh9-85` (`lib_b085`; D201 Open): pillow fenders where the sprite has moustache boomerangs, a near-white lip and thin groove sockets.
+- **Wall of fire** `assembly-newsh3-96` (CORE; L3): a molten blob with the sprite's vertical drip streaks posterised away.
+
+**Decision:** one fix-round workflow: fix from each reviewer's concrete issues, re-review strictly, and escalate the last fix to Opus. Pass mark 7.
+
+Five items ship:
+- **Red pod, 7.5** (worst-frame grid IoU 0.9725).
+  - The glint is sheen, not paint (D176's egg method). The shell stays one pal_115 material, with generated roughness and reflectance maps on top-view UVs. At the sprite's hot spot the shell is polished, with a warm yellow F0. Elsewhere F0 is 0.04 and red-only, so highlights climb the red ramp instead of going pink.
+  - The crown is an oval fitted to the inner mask, with a quarter-circle roll-off to the rim. The stalk stub is gone.
+  - In game (BRAINIAC t9300) the brightest glint pixels are about (232, 181, 24); the sprite's are (251, 203, 48). Main had no yellow.
+  - `lib_b068` is untouched. NOSE DRIP's tongue (`assembly-newsh-caret-269`, `lib_b046`) reads `newsh5-121-f3.glb` as a cover model, so it was rebuilt too (`newsh-caret-267`/`-269`).
+- **Gems, 7** (rule IoU 0.9788, grid 1.0, frames 53/91/129).
+  - The table is a cut dome with three facet rings, half-metallic and glossy, so its facets alternate deep blue and pale.
+  - Nothing is emissive now. The SE crown step is a glossy pal 159 sheen material.
+  - The navy north band runs the table's width, and the pale lines form the sprite's U.
+  - The cap is a lofted grey-steel dome instead of a jar lid.
+  - `lib_e3_gunship` and `newsh7-152` only name `newsh7-53` in comments. Neither imports it or reads its glb, so they were not rebuilt.
+- **EYESPY arms, 7** (whole-assembly grid IoU 0.9843 left, 0.9821 right). This is a `lib_b028` edit; only the 39 and 45 wrappers import it.
+  - The forearm is one faired tube, and the palm is a real matte recess with two piston rods.
+  - The claw is an open U-hook with a dark floor.
+  - The greebles (bolts, seam grooves, hub, clevis, collars) are gone, and the knuckles sit on the sprite's two bright peaks.
+- **Eye sphere, 7.5** (whole-assembly grid IoU 0.9926; worst piece in the whole, 210 with the top, 0.9754). This is a `lib_eyesphere` edit; only the 191 and 210 wrappers import it.
+  - The eight iris blobs become about 80 seeded radial streaks laid flush on the lens.
+  - The cross is a flat, near-black dielectric inlay, 0.16 px proud.
+  - The pupil is larger and flares out along the cross arms.
+  - The light swirl lobe is pal 12 and glossier.
+  - `lib_b019` (the TIME WAR shield ship) only names the lib in a comment and is unchanged.
+- **Fortress, 7** (whole-assembly grid IoU 0.9873; every piece in the whole at least 0.977). This is a `lib_b085` edit; only the four fortress wrappers import it (`assembly-newsh9-85`, `newsh9-28`, `newsh9-32`, `assembly-newsh9-10`), and all four were rebuilt so the shared fender geometry stays identical.
+  - The fenders are a round tube about their centreline (`fender_height`), thick at the outer end and slim toward the neck.
+  - D201's OUTER_RISE now scales the tube (0.90). The piece tops are 47 = 1.219 and 51 = 1.212 units, still above the 1.11 pod blocks, so DREAD-NOT keeps no D181 cascade.
+  - The lip has its own matte-ish pal_9 material. Its peak luma at UNDERDELI dropped from 197 to about 149; the sprite's band is 105-142.
+  - The sockets are matte pal_2 plates about 2 px wide that follow the shell. The bolt ring is gone.
+
+**The wall of fire is not shipped (5).** The fix belongs in `lib_b050.py`, the shared builder of the four fire wrappers, and the fixer's edit was refused, so nothing changed. `lib_b050.py`, `assembly-newsh3-96`/`-99`/`-117`/`-118.py` and their glbs match origin/main. The proposed patch (SP 0.5, a band-pass that keeps the one-pixel drip streaks, RELIEF 0.6/2.2, decimation that holds the colour borders) is in `tyrian-scratch/e4-polish/assembly-newsh3-96/final/lib_b050.proposed.diff`.
+
+**Checks (integration):**
+- Every changed entry was rebuilt with `tools/build-models.sh -j 4`, plus `assembly-newsh-caret-269`. All exited cleanly and every glb is meshopt-compressed.
+- The 31 changed glbs are exactly the builders' outputs, and each was rewritten by this rebuild:
+  - pod: `newsh5-121`, `-f2`, `-f3`;
+  - gem: `newsh7-53`;
+  - arms: `newsh9-1`/`3`/`5`/`7`/`39`/`45`;
+  - eye: `newsh9-153`/`155`/`157`/`191`/`193`/`195`/`210`/`212`/`214`;
+  - fortress: `newsh9-10`/`12`/`28`/`32`/`47`/`49`/`51`/`85`/`87`/`89`;
+  - tongue: `newsh-caret-267`/`-269`.
+- No spriteModels or tileModels JSON changed.
+- Each glb has a non-empty `_outline` mesh, and every other material is `pal_`.
+- Rebuilding is not byte-identical for some lib_b028/lib_b085 pieces, but vertex and face counts, top height and centroid match across three builds.
+- The changed scripts have no scratch or worktree paths and no new review output; the existing review outputs only run on a flag.
+- No `src/` or data files changed. The glbs are 2.41 MB -> 2.61 MB, mostly the pod's finish maps (+48 KB per frame).
+
+**Result** (`&compare=1`, original | main | this; `tyrian-scratch/e4-polish/integrate/summary.png` and `zoom_*.png`, not in git, D3):
+- **DREAD-NOT t1800:** no grey box and no cascade. The fenders sit under the pod blocks, and the sockets read as dark rings.
+- **UNDERDELI t4050 and LAVA RUN t3500:** tapered fenders, a light-grey lip instead of white, and broad dark sockets. The fender crowns still peak into a creased ridge.
+- **EYESPY t7800:** a fibrous azure iris with a dark flush cross and a bigger pupil; the arms are slimmer, with the open hook and the dark palm.
+- **BRAINIAC t9300:** every pod shows a yellow-orange glint at the curl's upper left, with rounder crowns.
+- **NOSE DRIP t180:** unchanged from main (6 pixels differ), and the rebuilt tongue does not show through the face.
+- **ICESECRET t1800 and E3 main=10 t600:** faceted gems with a steel cap dome, and the E3 use is intact.
+
+**Open (reviewers' minor issues):**
+- Pod: the glint is softer and larger than the sprite's 2x2 core, and the body is slightly hot (median (128, 10, 0) against (109, 4, 0)).
+- Gems: the white glint is one small triangle at the same spot on every gem; from the side the facets look like a geode; a small light tab sits under the cap; the U lines are cyan, not near-white.
+- Arms: the cowl glacis has hard chamfer creases, and the forearm stands a little high near the claw.
+- Eye: the iris streaks are separate spindles up close, and the upper-left cyan glow is weaker than the sprite's.
+- Fortress: the fender crowns are creased tents, not round lobes with one highlight; the shell is brighter than the sprite.
+- Wall of fire: apply and review the `lib_b050` patch (all four wrappers; whole-assembly IoU ≥ 0.95, `tyrian_anchor` on all 14 pieces, CORE t5550).
+
+**Cost:** 18 agents, about 2.0M subagent tokens, 42 min (fix round); one Opus agent to integrate.
+
+**Review:** check BRAINIAC t9300, ICESECRET t1800, EYESPY t7800 and UNDERDELI t4050 against the original. Fallback: revert per item; the fortress, arms and eye each revert their lib and all of its wrappers' glbs together.

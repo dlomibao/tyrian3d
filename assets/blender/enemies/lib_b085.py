@@ -461,9 +461,64 @@ def shell_top(x, y, d=10.0):
     return max(z, 0.14)
 
 
-SHELL_I, RIM_I = 6, 11
+SHELL_I, RIM_I, LIP_I, SOCKET_I = 6, 11, 13, 14
 FENDER_FLOOR = 0.28   # the dome's surface under the fenders (they lie low over its front flanks)
-OUTER_RISE = 0.70     # the fenders' outer ends: a top of about 1.2 units in newsh9-47/-51 (D181, D201)
+OUTER_RISE = 0.90     # height gain on the fenders' thick outer ends: a top of about 1.2 units in newsh9-47/-51 (D181, D201)
+
+
+def fender_height(poly, base=0.36, v=0.075, win=5.0, sigma=1.0, crown=(13.0, 2.5), crown_r=(6.5, 5.5)):
+    """Height field z(x, y) of a fender (Blender XY polygon), built as a tube round its medial
+    line: at a point d px inside the edge, where the fender's local half-width is R px (the largest
+    edge distance within `win` px), the top is base + v * sqrt(d (2R - d)), a round section as tall
+    as it is wide (v = 1 px). So the thick end stands up and the thin arm stays a slim rod, both
+    with rounded shoulders. OUTER_RISE scales the section up round the thick end's `crown` (own
+    px) to the height D181 needs (a scale, not a bump: the edges stay low). Lightly blurred by
+    `sigma` px against creases; sampled bilinearly."""
+    P = resample(poly, 0.25 * PX, smooth=0)
+    h = PX / 4
+    x0, y0 = P[:, 0].min() - 6 * PX, P[:, 1].min() - 6 * PX
+    xs = np.arange(x0, P[:, 0].max() + 6 * PX, h)
+    ys = np.arange(y0, P[:, 1].max() + 6 * PX, h)
+    GX, GY = np.meshgrid(xs, ys)
+    pts = np.stack([GX.ravel(), GY.ravel()], axis=1)
+    d = seg_dist(pts, P) / PX
+    ins = inside_poly(pts, P)
+    d = np.where(ins, d, 0.0).reshape(GX.shape)
+
+    def maxf(A, n, axis):
+        out = A.copy()
+        for k in range(1, n + 1):
+            out = np.maximum(out, np.roll(A, k, axis))
+            out = np.maximum(out, np.roll(A, -k, axis))
+        return out
+
+    n = int(round(win * 4))
+    R = maxf(maxf(d, n, 0), n, 1)
+    t = np.sqrt(np.maximum(0.0, d * (2 * R - d)))
+    side = 1.0 if P[:, 0].mean() < 0 else -1.0
+    rc, rr = crown
+    rx = X(rc) if side > 0 else -X(rc)
+    gain = 1.0 + OUTER_RISE * np.exp(-(((GX - rx) / (crown_r[0] * PX)) ** 2
+                                       + ((GY - Y(rr)) / (crown_r[1] * PX)) ** 2))
+    raw = v * t * gain
+    s = sigma * 4
+    k = np.arange(-int(3 * s), int(3 * s) + 1)
+    g = np.exp(-0.5 * (k / s) ** 2)
+    g /= g.sum()
+    pad = len(k) // 2
+    a = np.pad(raw, pad, mode="edge")
+    a = np.apply_along_axis(lambda q: np.convolve(q, g, mode="valid"), 0, a)
+    a = np.apply_along_axis(lambda q: np.convolve(q, g, mode="valid"), 1, a)
+    Z = base + a
+
+    def f(x, y):
+        fi = min(max((x - x0) / h, 0.0), len(xs) - 1.001)
+        fj = min(max((y - y0) / h, 0.0), len(ys) - 1.001)
+        i, j = int(fi), int(fj)
+        u, v = fi - i, fj - j
+        return float(Z[j, i] * (1 - u) * (1 - v) + Z[j, i + 1] * u * (1 - v)
+                     + Z[j + 1, i] * (1 - u) * v + Z[j + 1, i + 1] * u * v)
+    return f
 
 
 def build():
@@ -484,12 +539,14 @@ def build():
         pal(5, 0.45, 0.42, "ball"),    # 10 sensor ball
         pal(10, 0.55, 0.32, "rim"),  # 11 lip / light rims (the sprite's light band, 8-C)
         pal(3, 0.5, 0.5, "groove"),     # 12 collars, grooves
+        pal(9, 0.3, 0.62, "lip"),     # 13 the shell's raised lip: the sprite's light-grey band (8-A)
+        pal(2, 0.2, 0.75, "socket"),  # 14 the pods' dark sockets (matte, so they stay dark bands)
     ]
-    for i, sp in ((SHELL_I, 0.6), (RIM_I, 0.7)):
+    for i, sp in ((SHELL_I, 0.6), (RIM_I, 0.7), (LIP_I, 0.3), (SOCKET_I, 0.3)):
         bsdf = next(n for n in mats[i].node_tree.nodes if n.type == "BSDF_PRINCIPLED")
         if "Specular IOR Level" in bsdf.inputs:
             bsdf.inputs["Specular IOR Level"].default_value = sp  # F0 (D176)
-    DOME, SEAM, FENDER, DECK, MACH, BOLT, SHELL, SPINE, LENS, POD, BALL, RIM, GROOVE = range(13)
+    DOME, SEAM, FENDER, DECK, MACH, BOLT, SHELL, SPINE, LENS, POD, BALL, RIM, GROOVE, LIP, SOCKET = range(15)
     fender_polys = []
     M = Mesh()
     dome_setup()
@@ -521,13 +578,20 @@ def build():
                              (max(cs) - min(cs) + 1) / 2, (max(rs) - min(rs) + 1) / 2))
     for c, r, rx, ry in pods:
         zs = shell_top(X(c), Y(r))
-        ellipsoid(M, c, r, zs - 0.02, rx + 1.0, ry + 1.0, 0.05, DECK, seg=20, rings=6)
-        ellipsoid(M, c, r, zs - 0.06, rx - 0.1, ry - 0.1, 0.30, POD, seg=20, rings=10, lower=0.3)
-        for k in range(6):
-            a = 2 * math.pi * (k + 0.5) / 6
-            bc, br = c + (rx + 1.6) * math.cos(a), r + (ry + 1.6) * math.sin(a)
-            if inner(int(bc), int(br)):
-                ellipsoid(M, bc, br, shell_top(X(bc), Y(br)) - 0.005, 0.55, 0.55, 0.05, RIM, seg=8, rings=4)
+        # The socket: a broad dark band round the pod (about 2 px, widest over its top where the
+        # sprite's dark crescent is), laid on the curved shell (it follows shell_top, so no part of
+        # it sinks under the sloping shell and thins to a groove), dipping toward the pod.
+        sc, sr, sx, sy = c, r - 0.5, rx + 2.0, ry + 2.3
+        ell = [(X(sc + sx * math.cos(a)), Y(sr + sy * math.sin(a)))
+               for a in np.linspace(0, -2 * math.pi, 48, endpoint=False)]
+        zmin = min(shell_top(x, y) for x, y in ell)
+
+        def socket_top(x, y, d, sc=sc, sr=sr, sx=sx, sy=sy):
+            q = math.hypot((colf(x) - sc) / sx, (rowf(y) - sr) / sy)
+            return shell_top(x, y) + 0.035 - 0.05 * max(0.0, 1.0 - q) ** 0.5
+
+        plate(M, ell, socket_top, SOCKET, z0=zmin - 0.12, ch=0.012, chw=0.5, grid=1.0, step=0.5)
+        ellipsoid(M, c, r, zs - 0.07, rx - 0.15, ry - 0.15, 0.30, POD, seg=20, rings=10, lower=0.3)
 
     for side in (0, 1):
         C = (lambda c: c) if side == 0 else (lambda c: 71 - c)
@@ -550,21 +614,20 @@ def build():
 
         fpoly = trace(fender_ins, cols=(lo, hi), rows=(-8, 14))
 
+        fz = fender_height(fpoly)
+
         def fender_top(x, y, d):
-            """Low armour over the dome's front flank (it used to ride the dome up to z 1.5, and
-            the tilted game camera lifted it over the grey dome above it): a rounded crown where
-            the sprite's red is tallest, an arm running in to the neck."""
-            c, r = own(colf(x)), rowf(y)
-            z = 0.53 - 0.010 * max(0.0, r - 4.0) - 0.010 * max(0.0, 8.0 - c) - 0.004 * max(0.0, c - 21.0)
-            z = max(z, 0.46)
-            lobe = math.exp(-(((c - 14.5) / 6.5) ** 2 + ((r + 0.5) / 4.0) ** 2))
-            z += 0.18 * lobe
-            # The thick outer end, where the tail curls down the outside (own columns 4-12): it
-            # stands proud of the low plate, so newsh9-47/-51 keep a top above the pod blocks beside
-            # them on DREAD-NOT (newsh9-77..83, 1.11 units) and D181 doesn't raise them over those,
-            # and every piece after them in turn. The inner end stays low.
-            z += OUTER_RISE * math.exp(-(((c - 8.0) / 4.5) ** 2 + ((r - 3.0) / 6.0) ** 2))
-            z -= 0.09 * (1.0 - min(1.0, d / (3.0 * PX))) ** 2
+            """A 'moustache' boomerang (D201 polish): a thick rounded outer end where the tail
+            curls down the outside and a thin arm curving in and down to the neck. Its height
+            comes from its own thickness (fender_height), so the thick end stands up like a
+            tube's crown and the arm stays a low, slim rod; the top's highlight is sheen on the
+            thick end's rounded crown (art rule 2), not a bump. The thick end keeps a top of about
+            1.2 units in newsh9-47/-51 (OUTER_RISE; D181, D201: DREAD-NOT's pod blocks beside them
+            are about 1.11)."""
+            c = own(colf(x))
+            z = fz(x, y)
+            z -= 0.012 * max(0.0, c - 22.0)   # the arm runs down toward the neck
+            z -= 0.06 * (1.0 - min(1.0, d / (2.0 * PX))) ** 2
             return z
 
         plate(M, fpoly, fender_top, FENDER, ch=0.04, chw=0.9, grid=1.2)
@@ -601,7 +664,7 @@ def build():
             z = shell_top(X(C(c)), Y(r)) + 0.02
             w = 2.3 if 0 < i < len(lip) - 1 else 0.0
             path.append((C(c), r, z, w, 0.07 if w else 0.0))
-        sweep(M, path, RIM, sides=8)
+        sweep(M, path, LIP, sides=8)
 
         # Flank boss (bright knob at columns 3-6, rows 31-35).
         ellipsoid(M, C(5.0), 33.0, shell_top(X(C(5.0)), Y(33.0), 3 * PX) - 0.03, 2.0, 2.2, 0.09, RIM, seg=14, rings=6)

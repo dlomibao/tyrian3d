@@ -20,12 +20,13 @@ Cross-sections (sprite px; 1 unit = 12 px):
   - EYE: a socket plane fitted (least squares) through the ball round the lens ellipse (centre
     (35.5, 50.5), 20.5 x 14.5 px); the lens is one smooth convex dome on it, crown 1.8 px proud of
     the ball, in the sprite's colours as flush material regions laid along the lens's own rings and
-    spokes (crisp, no per-pixel stair-steps): azure iris 157 with light-cyan 139 / bright 159
-    patches upper left (the sprite's streaks: colour, not geometry, art rule 2), a teal crescent
-    130 round the lower right with darker 54 patches and darker 130 patches in the right panes, a
-    dark-blue limbal ring 54; a slightly domed glossy black pupil cap (pal 1) at the sprite's place;
-    the CROSS as two full-length raised mullions (pal 97, rounded tops), vertical at col 36,
-    horizontal at row 51 left / row 50 right; a machined bezel ring (pal 3).
+    spokes (crisp, no per-pixel stair-steps): azure iris 157 with short radial fibre streaks
+    (light-cyan 139 / azure 158 / bright 159 upper left, dark 53 / 54 / teal 130 in the right and
+    lower panes, fine 158 / 130 fibres all round: colour, not geometry, art rule 2), a teal
+    crescent 130 round the lower right, a dark-blue limbal ring 54; a slightly domed black pupil cap
+    (pal 1, low F0) at the sprite's place, tapering a little out along the cross arms; the CROSS
+    as two flush, flat inlaid strips (pal 97, low-F0 dielectric, 0.16 px proud), vertical at col
+    36, horizontal at row 51 left / row 50 right; a machined bezel ring (pal 3).
 Underside: plain closed cap (art rule 3).
 
 Outline shell (D51): from a sealed copy of the whole, islands="outer" (D189), cut open per piece;
@@ -459,7 +460,9 @@ def build_sphere(sprite, coll):
 
     BALL = M("ball", 6, metallic=0.4, roughness=0.45)
     SEAM = M("seam", 2, metallic=0.3, roughness=0.65)
-    LOBEA = M("lobea", 11, metallic=0.55, roughness=0.42)
+    # the light head lobe: pal 12 (the sprite's lobe runs 10-15, brighter than the ball), glossy so
+    # the game light rolls a sheen over its crown rather than a flat paint
+    LOBEA = M("lobea", 12, metallic=0.45, roughness=0.3)
     LOBEB = M("lobeb", 9, metallic=0.55, roughness=0.45)
     SGROOVE = M("sgroove", 2, metallic=0.3, roughness=0.7)
     TAIL = M("tail", 10, metallic=0.7, roughness=0.32)
@@ -475,13 +478,19 @@ def build_sphere(sprite, coll):
     LIMB = M("limb", 54, metallic=1.0, roughness=0.55, emission_strength=0.2)
     CYAN = M("cyan", 139, metallic=1.0, roughness=0.5, emission_strength=0.3)
     BRIGHT = M("bright", 159, metallic=1.0, roughness=0.5, emission_strength=0.25)
-    CROSS = M("cross", 97, metallic=0.3, roughness=0.4)
+    # the cross: near-black (pal 97), a dielectric with a low F0 so it stays dark, not a grey rail
+    CROSS = M("cross", 97, metallic=0.0, roughness=0.55)
+    MID = M("mid", 158, metallic=1.0, roughness=0.5, emission_strength=0.25)
+    DEEP = M("deep", 53, metallic=1.0, roughness=0.55, emission_strength=0.15)
     # black glass: a dielectric with a low F0 (Specular IOR Level, D176), so the domed cap catches
     # the game light as a soft sheen and stays black (glossier read grey or as a cartoon glint)
     PUPIL = M("pupil", 1, metallic=0.0, roughness=0.45)
     pb = next(n for n in mats[PUPIL].node_tree.nodes if n.type == "BSDF_PRINCIPLED")
     if "Specular IOR Level" in pb.inputs:
         pb.inputs["Specular IOR Level"].default_value = 0.2
+    cb = next(n for n in mats[CROSS].node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+    if "Specular IOR Level" in cb.inputs:
+        cb.inputs["Specular IOR Level"].default_value = 0.15
     FILL = M("fill", 2, metallic=0.3, roughness=0.7)
 
     # ---- the ball (unchanged armour) ----
@@ -677,36 +686,49 @@ def build_sphere(sprite, coll):
         f.material_index, f.smooth = FILL, False
     bm.from_mesh(_bm_to_mesh(be))
 
-    # the iris tone patches (B's tones on A's lens): flush colour, not geometry (art rule 2). Each
-    # is a soft, slightly irregular blob laid in the lens's own (angle, ring) coordinates, so it
-    # bends with the rings, and its edge is a smooth curve (no per-face or per-pixel steps); placed
-    # where the sprite has its tones. It lies PATCH_LIFT on the lens, a skin, not a relief.
-    # (centre angle deg: 0 east, 90 south; centre e (0 centre, 1 rim); half width deg; half
-    # height in e; shape phase; colour)
-    PATCH_LIFT = 0.12 * PX
-    patches = [
-        # light cyan / bright azure upper left (the sprite's 137-143 streaks and its 62 glint)
-        (228, 0.63, 17, 0.15, 0.3, CYAN), (264, 0.6, 9, 0.17, 1.2, CYAN),
-        (244, 0.4, 7, 0.08, 0.7, BRIGHT), (194, 0.62, 9, 0.1, 1.6, BRIGHT),
-        # darker steel-teal / deep blue in the right and lower right panes
-        (302, 0.6, 14, 0.16, 0.4, TEAL), (34, 0.44, 17, 0.09, 1.0, LIMB),
-        (88, 0.6, 22, 0.07, 2.2, LIMB), (20, 0.82, 12, 0.05, 0.9, IRIS),
+    # the iris fibres: short radial streaks laid flush on the lens (colour, not geometry, art rule
+    # 2), each a spindle with pointed ends along the lens's own spokes, so the iris reads fibrous as
+    # the sprite's broken 137-143 / 158-159 streaks do, not as cartoon spots. Grouped in the sectors
+    # where the sprite has its tones, with seeded jitter (the same every build). They lie
+    # PATCH_LIFT on the lens, a skin under the cross (which stands 0.16 px proud).
+    PATCH_LIFT = 0.09 * PX
+    # (sector centre deg: 0 east, 90 south; half span deg; e from, e to; count; colours)
+    sectors = [
+        (232, 34, 0.4, 0.88, 17, (CYAN, MID, BRIGHT, MID)),      # upper left: light cyan / azure
+        (182, 16, 0.4, 0.82, 7, (BRIGHT, MID, CYAN)),            # west, by the 62 glint
+        (300, 26, 0.36, 0.8, 10, (DEEP, LIMB, TEAL)),            # upper right panes: dark blue
+        (40, 26, 0.36, 0.74, 10, (LIMB, DEEP, TEAL)),            # lower right panes
+        (95, 22, 0.42, 0.74, 6, (LIMB, DEEP)),                   # south, under the pupil
+        (60, 14, 0.66, 0.95, 5, (MID, IRIS)),                    # lighter azure on the crescent
+        (180, 180, 0.3, 0.66, 22, (MID, TEAL, MID, LIMB)),       # fine fibres all round the pupil
     ]
+    import random
+    rnd = random.Random(191)
     bpt = bmesh.new()
-    NPB = 18
-    for gc, ec, hw, he, ph, mat in patches:
-        def at(sc, th):
-            f = 1 + 0.16 * math.cos(2 * th + ph) + 0.09 * math.cos(3 * th + 2 * ph)
-            g = math.radians(gc + hw * sc * f * math.cos(th))
-            u, v = lens_uv(ec + he * sc * f * math.sin(th), g)
-            return bpt.verts.new(Vector((X(u), Y(v), zl(u, v))) + normal_of(zl, u, v) * PATCH_LIFT)
-        c0 = [at(0.0, 0.0)]
-        r1 = [at(0.55, 2 * math.pi * k / NPB) for k in range(NPB)]
-        r2 = [at(1.0, 2 * math.pi * k / NPB) for k in range(NPB)]
-        fs = [bpt.faces.new((c0[0], r1[k], r1[(k + 1) % NPB])) for k in range(NPB)]
-        fs += [bpt.faces.new((r1[k], r2[k], r2[(k + 1) % NPB], r1[(k + 1) % NPB])) for k in range(NPB)]
-        for f in fs:
-            f.material_index, f.smooth = mat, True
+    NS, NT = 9, 3
+    for gc, span, e0, e1, count, cols in sectors:
+        for i in range(count):
+            g0 = gc - span + 2 * span * (i + 0.5 + 0.6 * (rnd.random() - 0.5)) / count
+            hl = (e1 - e0) * (0.22 + 0.16 * rnd.random())       # radial half length (e)
+            ec = e0 + hl + (e1 - e0 - 2 * hl) * rnd.random()
+            hw = (0.9 + 0.9 * rnd.random()) / max(0.4, ec)     # angular half width (deg)
+            curl = (rnd.random() - 0.5) * 6.0                   # a slight bend (deg at the ends)
+            mat = cols[i % len(cols)]
+            grid_ = []
+            for a_ in range(NS + 1):
+                sv = -1 + 2 * a_ / NS
+                w = hw * (1 - sv * sv) ** 0.7
+                row_ = []
+                for b_ in range(NT + 1):
+                    tv = -1 + 2 * b_ / NT
+                    g = math.radians(g0 + curl * sv * sv + w * tv)
+                    u, v = lens_uv(ec + hl * sv, g)
+                    row_.append(bpt.verts.new(Vector((X(u), Y(v), zl(u, v))) + normal_of(zl, u, v) * PATCH_LIFT))
+                grid_.append(row_)
+            for a_ in range(NS):
+                for b_ in range(NT):
+                    f = bpt.faces.new((grid_[a_][b_], grid_[a_ + 1][b_], grid_[a_ + 1][b_ + 1], grid_[a_][b_ + 1]))
+                    f.material_index, f.smooth = mat, True
     # face them all up (outward); they join the whole after its normals are recalculated (an open
     # skin has no inside for the recalc to find)
     bpt.normal_update()
@@ -716,7 +738,17 @@ def build_sphere(sprite, coll):
     patch_mesh = _bm_to_mesh(bpt)
 
     # the pupil: a solid black cap, lens-shaped, its edge tucked into the lens
-    PU, PV, PRU, PRV = 33.6, 51.8, 4.9, 5.4
+    # larger than before (the sprite's pal-1 pupil runs cols 29-38, rows 46-57), tapering a little
+    # out along the four cross arms as the sprite's black runs into them
+    PU, PV, PRU, PRV = 34.4, 51.9, 5.5, 5.9
+    arms = [math.atan2(v - PV, u - PU) for u, v in ((36.5, 43.5), (36.5, 60.5), (43.5, 50.6), (26.5, 51.5))]
+
+    def prad(g):
+        k = 0.0
+        for a in arms:
+            d = math.atan2(math.sin(g - a), math.cos(g - a))
+            k = max(k, math.exp(-(d / 0.3) ** 2))
+        return 1 + 0.17 * k
     bpup = bmesh.new()
     prs = []
     for s, lift in ((0.0, 0.42 * PX), (0.35, 0.38 * PX), (0.65, 0.29 * PX), (0.85, 0.18 * PX),
@@ -725,9 +757,10 @@ def build_sphere(sprite, coll):
             prs.append([bpup.verts.new((X(PU), Y(PV), zl(PU, PV) + lift))])
             continue
         rg = []
-        for k in range(40):
-            g = 2 * math.pi * k / 40
-            u, v = PU + PRU * s * math.cos(g), PV + PRV * s * math.sin(g)
+        for k in range(72):
+            g = 2 * math.pi * k / 72
+            rk = prad(g)
+            u, v = PU + PRU * rk * s * math.cos(g), PV + PRV * rk * s * math.sin(g)
             rg.append(bpup.verts.new((X(u), Y(v), zl(u, v) + lift)))
         prs.append(rg)
     pbot = [bpup.verts.new((X(PU), Y(PV), zl(PU, PV) - 0.3 * PX))]
@@ -745,12 +778,13 @@ def build_sphere(sprite, coll):
         line = [p for p in line if e_of(*p) <= 0.975]
         pts = [(line[0][0], line[0][1], 0.0, 0.0, 0.0)]
         for i, (u, v) in enumerate(line):
-            pts.append((u, v, 0.08 * PX, 0.62, 0.42 * PX))
+            pts.append((u, v, 0.0, 0.58, 0.16 * PX))
         pts.append((line[-1][0], line[-1][1], 0.0, 0.0, 0.0))
         # the ends: shorten the taper so the bar meets the limbus square
-        pts[0] = (line[0][0], line[0][1], 0.0, 0.45, 0.25 * PX)
-        pts[-1] = (line[-1][0], line[-1][1], 0.0, 0.45, 0.25 * PX)
-        sweep(bm, pts, sides=6, mat=CROSS, surface=zl, step=1.0, power=0.55)
+        pts[0] = (line[0][0], line[0][1], 0.0, 0.45, 0.1 * PX)
+        pts[-1] = (line[-1][0], line[-1][1], 0.0, 0.45, 0.1 * PX)
+        # flush inlaid strips, flat-topped (power < 1), not a wire cage over the lens
+        sweep(bm, pts, sides=8, mat=CROSS, surface=zl, step=1.0, power=0.3)
 
     mullion([(36.5, LCV - LB), (36.5, 43.0), (36.5, 50.5), (36.5, 58.0), (36.5, LCV + LB)])
     mullion([(LCU - LA, 51.6), (22.0, 51.5), (30.0, 51.3), (36.5, 50.9), (44.0, 50.5), (LCU + LA, 50.4)])
