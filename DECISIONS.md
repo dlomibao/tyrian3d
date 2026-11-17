@@ -13733,3 +13733,192 @@ bubbles (`newshe-195`/`-235`) are still glossy red". The user asked for one more
 - The scripts' docstrings cite this entry's number.
 
 **Cost:** one Fable agent (asked for by the user).
+## D231 — The TIME WAR mothership is rebuilt whole from its sprite: armour plates on the sprite's own seams, each plate, bevel and seam in the sprite's measured tone, a low hull on one `tyrian_anchor`; the collar is no longer dark and the pods lose their two sheen bars (D225 Open; follows D17, D51, D74, D126, D176, D181, D195, D196, D212, D213, D225)
+
+2026-11-17
+
+`assembly-newsh9-92` (the lower half, `lib_b019`), `assembly-newsh9-54` (the upper half with the collar) and the side
+pods `assembly-newshl-39` (TIME WAR 4.17, `&episode=4&main=40`, on screen at t19050). D225 made the lower hull satin
+grey; its Open notes were "the hull is one smooth shell (the sprite has plate seams and a lit bevel); two white sheen
+bars under the pod panel", and reviewers still saw a dark collar. The user asked for a diagnosis first, then a rebuild.
+
+**Diagnosis** (the game data's frames, the sim stepped through `tyrianHarness`, `&compare=1` at 3840x2160 rectified
+onto the sprite's grid; scratch `diag/`, `rect.py`, `stats.py`):
+- *What it is.* One 48 x 112 px craft: four rigid rows of 2x2 enemies on link 19 (16|18, 54|56, 244|246, 92|94),
+  spawned at t99 and there for all 20,501 ticks to the trace's end at t20600. It comes down in six steps (the top
+  row's enemy y -72 from t125, then -62, -52, -42, -32, -22, and -2 from t15425, where its top edge is drawn at y -9):
+  its top 9 rows are never on screen. The two capsules beside it
+  (`newshl` 1|3, 39|41, 77|79, 48 x 84 px, links 17 and 18) overlap its box by 12 px and are drawn after it.
+- *Frames.* A 20-tick cycle: phase 0, 1, 2, 1, five ticks each (5,126 / 10,250 / 5,125 ticks); 244|246 have one
+  frame. Between phases only the blues move: every canopy pixel walks 3 and 7 steps up the 144-159 ramp (past 159 it
+  is the white 62/63), every channel pixel 2 and 5; no grey pixel and no mask pixel changes.
+- *The sprite's hull* (phase 0 index map, rows 45-110). Plates on seams, lit from the upper left: a flank band each
+  side that goes 8, 6, 5 inward on the left and 2, 3 on the right (the roll of the hull); the canopy's seat as a lit
+  line (10-9 on the left diagonal, 7 along row 46, 5-7 on its right half, 2-5 on the right diagonal); a pillar each
+  side of the bridge windows (cols
+  11-14 | 34-36); a lit sill (row 72) that runs on as the lower edge of the side windows; two chevron seams on each
+  flank (rows 71-76 with a lit lower edge, rows 78-83 dark); stepped plates beside the channel (cols 13-19 | 28-34)
+  with lit top edges at rows 87 and 92 and dark rows 84 and 91; the seams between those plates and the flanks (col
+  12 | 35) dark with the plate edge to their right lit (col 13 | 36); a rolled lip round the stern, 2-8 on the lower
+  left and 7-14 on the lower right (the "lit bevel"). The channel is a trough (its left wall 144-145, its floor
+  150-152), not a tube.
+- *Why main read as one smooth shell.* `lib_b019`'s hull was one 24-sided loft in one material (pal 5, a pal-4
+  keel) with a dozen boxes on it. Where the sprite's seams are ink (238 px of index 1-2 inside the hull) main drew
+  luma 59 (sprite 21); its right flank drew 57-59 where the sprite's is 38-39; the stern lip's sheen 49 (sprite 136).
+- *Why the collar was dark.* Its material in `assembly-newsh9-54.py` was still pal 5 at metallic 0.7, roughness 0.32;
+  D225 changed `lib_b019`'s finish only. Set to D225's finish in the running page (nothing else changed), the left
+  collar went 46 -> 61 (sprite 65). The spine (pal 7, metallic 0.6) drew 49 (sprite 73), the pillars 32 (58).
+- *Height.* Main's canopy stood 18.4 px and its cabin 11 px over the base plane that D6 puts on the sprite's ray; at
+  the craft's place on screen a point slides up 0.3-0.7 px per px of height (D181's formula; camera (0, 19.47,
+  5.96)), so the window grid drew about 7 rows above the sprite's (rectified on a plane 10 px up, it lands).
+- *The pods' sheen bars.* The housing's rim and its rear lip were pal 7 at metallic 0.7, roughness 0.25, each with a
+  45 degree chamfer facing south, at rows 45 and 47.7: the only mirror faces there, 20 degrees from the normal that
+  mirrors the sun into the camera (measured on the glb), and the camera looks from the south. The sprite has ink
+  on row 45 and the core in shade on rows 46-47. (Whether the bars were the sun's lobe or the room's reflection was
+  not separated; made satin and dark, they are gone.)
+- *The game's sun is on the other side.* It stands south-west of plumb (`sun.ts` (-6, 20, 8.4), z down the screen)
+  and the camera looks from the south; the sprite is lit from the north-west. A face tilted about 25 degrees south
+  mirrors the sun. The first build showed it: the spine's fall to the collar (rows 31-46) drew 80-109 where the
+  sprite's rails are 52-69, its slot floor 70-75 (sprite 40-52), and every south bevel drew a bright line.
+- *Lit blue glass goes periwinkle.* At phase 0 a lit pal-151 canopy drew (46, 49, 241) where the palette is (8, 16,
+  207): 30-40 more red and green, at Specular IOR Level 0.15 (at 0.4 its luma was the same, 69 against 70; less on
+  the brighter phases). Put down to the Neutral tone mapping, which pulls a
+  colour whose brightest channel passes its knee toward white (its formula; the mapping was not switched off to
+  prove it). Glowing in its palette colour instead (D126), the same glass drew (10, 18, 206).
+
+**Decision:** the craft is built once, whole, by the new `assets/blender/enemies/lib_newsh9_mothership.py` (numpy and
+bmesh; `--proto` paints its blueprint flat beside the sprite without Blender); `assembly-newsh9-54.py` and
+`assembly-newsh9-92.py` are wrappers that export their four pieces. D213's method on a hull: the sprite's own
+structure traced crisp, every tone measured from the sprite.
+- **Blueprint.** 35 plates as polygons in sprite pixel edges, the left half written down and mirrored: canopy lobes,
+  spine (rails and nose block, the hatch and the slot sunk in it), housing, the frame (collar, pillar, the strip
+  under the sill and the strut beside the lamps, one plate round the side window), windows, lamp bed and lamps,
+  chevron, flank, stern lip, three stepped plates, channel, and the floors of the diagonal seams. Where the sprite
+  draws a seam the blueprint leaves that pixel row or column, or a strip, between two plates.
+- **Plates.** Each is a skin draped on the hull's surface, 0.5-2 px proud. Within 0.9 px of its rim it is a bevel
+  that ramps 0.35 px down. Its top is cut into tone cells (strips along the flank, steps along the spine; the lip
+  along its curve every 3 px) and its bevel into runs of about 4 px; each cell and run takes the median palette
+  index of the sprite pixels under it, the left half from the left pixels, the right half from the right. A
+  diagonal seam's floor takes the lower quartile of the pixels its strip covers; what no plate covers gets a tile
+  per sprite pixel in that pixel's index (158 tiles). D176's rule, as in D213: the sun cannot shade a 1 px bevel
+  into the sprite's two- to fourfold tone steps, and it stands on the wrong side.
+- **Finish.** Steel is D225's satin (metallic 0.3, roughness 0.45). A steel face within 20 degrees of the sun's
+  mirror normal for the craft's place on screen is matte instead (metallic 0.1, roughness 0.85), as are the seam
+  floors, tiles and body; the stern lip keeps its gloss, so the sun's sheen is there where the sprite has its
+  lit bevel. Windows, lamps and channel glow in their palette colour with no specular (D126; strength 1.2, at 1.0
+  they drew 0.8 of the sprite's luma); the canopy glows too (1.1) under a glossy coat, each lobe in the ramp index
+  nearest its mean luma per phase (left 151 / 154 / 157, right 151 / 153 / 156; D17), the channel's cells 2 and 5
+  steps up.
+- **Shape.** The plan is the inner mask's outline (one knot per pixel step, the long straight run held end to end,
+  blunt ends as the mask's). The deck stands 3.6 px over the gunwale with a 7 px roll, the canopy 8 px; a plain
+  belly. Every node carries `tyrian_anchor` 3.2 px (D181), so seams, windows and lamps land on their sprite
+  pixels. The canopy's rim is the mean of the sprite's two sides (it draws the rim 1.5 px lower on its lit left).
+- **Normals.** A draped plate's corner normals are the hull surface's own (one-sided at the rim), its bevels flat;
+  the pieces take the uncut craft's normals, so the shading runs on across the piece seams.
+- **Pieces.** Each glb has three nodes: `<piece>` (the skin; it carries `tyrian_ground`, the game's switch for
+  "casts no shadow", D212), `<piece>_hull` (its part of the closed body, the cuts filled; it casts the shadow) and
+  `<piece>_outline`, a coarse loft of the body's shape (D51). The first shell was a voxel remesh, whose folded
+  triangles drew ink ticks on the canopy. No spriteModels JSON changes: same pieces, frames and export paths.
+- **Pods.** In `assembly-newshl-39.py` the housing's rim is satin pal 7, its south wall and chamfer pal 2 (the
+  sprite's shadow), its east ones pal 4, the rear lip pal 4. `STEEL` there and in `assembly-newshl-77.py` (the
+  capsule's base third, not named in the request) is the mothership's satin (from metallic 0.7 and 0.82): the caps
+  and bases drew luma 48-52 where the sprite's are 80. Geometry unchanged.
+
+**Result.**
+- *IoU* (rule, grid; top views rendered from the exported glbs, shells left out; sub-pixel `iou_rule` in brackets):
+
+  | | Phase 0 | Phase 1 | Phase 2 |
+  |---|---|---|---|
+  | Whole craft, 48 x 112 | 0.9996 (0.9939) | 0.9996 (0.9939) | 0.9996 (0.9939) |
+  | `assembly-newsh9-54`'s block, the craft's masks | 0.9991 (0.9935) | 0.9991 | 0.9991 |
+  | `assembly-newsh9-92`'s block, the craft's masks | 1.0 (0.9944) | 1.0 | 1.0 |
+  | Each block with its own ring (the cut row as the picture's edge) | 0.9937 / 0.9938 | 0.9937 / 0.9938 | 0.9937 / 0.9938 |
+
+  The same with the skin left out (the body alone). D195, D196 and D225 reported 0.934, 0.9854 (grid 0.9924) and
+  0.9885 for main's builds. The pods measure as main's: whole capsule 0.9901, `assembly-newshl-39`'s block 0.9954,
+  `-77`'s 0.9763, 27,518 triangles both.
+- *In game* (`&compare=1`, t19050, phase 1, 3840x2160; mean luma on the sprite's grid; main rectified on its plane
+  10 px up, this on its anchor; pods 6 px up):
+
+  | Region (sprite rows, cols) | Original | Main | This |
+  |---|---|---|---|
+  | Canopy glass, left (r12-40, c4-16) | 88 | 84 | 84 |
+  | Canopy glass, right (r12-40, c31-43) | 70 | 74 | 67 |
+  | Spine rails and slot (r8-44, c18-29) | 73 | 49 | 71 |
+  | Collar's lit bevel, left (r37-46, c1-10, index 6+) | 105 | 47 | 103 |
+  | Collar, left (r45-58, c3-17) | 65 | 46 | 63 |
+  | Collar, right (r45-58, c31-45) | 42 | 41 | 34 |
+  | Housing (r45-58, c18-30) | 63 | 67 | 64 |
+  | Centre window (r59-71, c15-33) | 25 | 43 | 22 |
+  | Side windows (r59-70) | 21 | 31 | 17 |
+  | Pillars (r59-71, c11-14, c34-36) | 58 | 32 | 52 |
+  | Belt, left (r73-83, c2-18) | 63 | 62 | 62 |
+  | Belt, right (r73-83, c29-45) | 38 | 57 | 35 |
+  | Stern flank, left (r84-100, c1-10) | 58 | 66 | 65 |
+  | Stepped plates, left (r84-104, c13-19) | 52 | 60 | 55 |
+  | Stepped plates, right (r84-104, c28-34) | 52 | 49 | 52 |
+  | Stern flank, right (r84-96, c37-46) | 39 | 59 | 34 |
+  | Stern lip's sheen, right (r97-108, c33-43, index 7+) | 136 | 49 | 108 |
+  | Channel (r84-108, c20-27) | 35 | 93 | 32 |
+  | All hull grey (r45-110, index 3+) | 63 (p10-p90 40-93) | 55 (25-88) | 59 (35-90) |
+  | Seam ink inside the hull (index 1-2, r73-108) | 21 | 59 | 29 |
+  | Pod cap (r4-14), left / right pod | 80 | 52 / 48 | 71 / 69 |
+  | Pod core and housing rim (r18-56, c20-28) | 68 | 69 / 67 | 71 / 70 |
+  | Pod, under the panel (r45-50, c20-28) | 60 | 74 / 73 | 68 / 67 |
+  | Pod's side pods (r20-55) | 56 | 39 / 46 | 41 / 48 |
+  | Pod base (r57-80) | 80 | 52 / 51 | 74 / 73 |
+
+  By phase (0 at t19063, 1, 2 at t19053; original / main / this): canopy left 40 / 50 / 39, 88 / 84 / 84, 150 / 146 /
+  142; canopy right 31 / 44 / 38, 70 / 74 / 67, 130 / 132 / 121; channel 20 / 70 / 18, 35 / 93 / 32, 67 / 132 / 62.
+  The left canopy's colour at phase 0 is (11, 19, 213) against the sprite's (11, 22, 207); main's was (32, 31, 201).
+  Under the pods' panel (rows 40-50, cols 19-29, the 4K pixels): main's brightest pixel was 255 on the left pod and
+  253 on the right, 5.2% and 1.1% of them over luma 150; now 162 and 129, 0.5% and none (the sprite's brightest is 121).
+  The hull reads as the sprite's plated steel: the lit collar bevel, the lit and shaded flank bands, the chevrons,
+  the stepped plates and the lip's sheen; the pods' bars are gone and their caps are grey.
+- Also looked at: `?debug=play` at 1920x1080 (and `&camera=overhead|steep`), the craft coming in (t2000, t9200) and
+  near the level's end (t20500), the hit flash in `?debug=models`, `?viewer=newsh9-92`.
+- *Weight.* The eight glbs: 21,158 -> 28,472 triangles, shells 28,477 -> 4,964, 635 -> 661 KB (meshopt), 78 -> 171
+  material primitives (14-27 a piece). The frame at t19050 in the play view: 734 -> 856 draw calls.
+- `npx tsc --noEmit` is clean; the seven model test files pass (39 tests). The whole suite: 923 passed and one 5 s
+  timeout in `tests/sim/world.test.ts` while Blender ran beside it; alone that file passes (20 tests).
+- Captures (not in git, D3): `tyrian-scratch/fable-mothership/final/` (`t19063_phase0_`, `t19050_phase1_`,
+  `t19053_phase2_original_main_this.png` and `_2x`, `play_t19050_main_this.png`, `table.md`, `iou.json`, the 4K
+  frames).
+
+**Options considered:**
+- *Recolour only (the collar on D225's finish, as the experiment):* fixes the collar's mean, leaves the smooth
+  shell, the dark spine and pillars and the window grid 7 rows high.
+- *Seam grooves and bevels cut in the smooth shell, one material:* the sun stands 27 degrees off plumb and to the
+  south; a 21 degree bevel changes a face's light by about a tenth, on the wrong edges (measured: the south bevels
+  lit up).
+- *The sprite's pixels as a palette texture on the hull (D212's way):* it is a machine, not scenery (rule 4), and
+  the game contract is `pal_` materials.
+- *A height field with a material per pixel:* about 43,000 triangles at half-pixel cells (not built), and
+  stair-stepped diagonals.
+- *A lit canopy with a darker index or a lower F0:* tried; the blue stays periwinkle (the tone mapping, above).
+- *Keeping main's heights with an anchor:* by D181's formula a 16 px canopy slides 6-8 px against a 5 px deck
+  whatever the anchor (not built).
+- *The canopy's rim as the sprite draws it, lower on the left:* an asymmetric ship from every other angle.
+- *A tone step up on the right flank to undo the roll's own shade:* not done (Open).
+
+**Open:**
+- The right flank is 3-8 luma darker than the sprite (collar 34 against 42, stern flank 34 against 39) and the left
+  stern flank 7 brighter: the roll's own shade adds to the painted one.
+- Tones are flat steps: the slot's gradient in five, the lip in 3 px runs, the windows a mosaic without the
+  sprite's glints. The canopy has the game's thin sheen streaks, not the sprite's white patch on its upper left.
+- The craft's top 9 rows (the hatch, the nose) are never on screen; they were judged in the top view and the
+  flat proto only. A destroyed stern piece (92 | 94 lose armour to the bot: 31 and 43 left at t20500) was not seen.
+- The pods are still drawn about 6 px taller than their sprite (7 px high, no anchor; geometry untouched) and
+  their side pods (pal 4) are 8-15 darker than the sprite. `assembly-newshl-77`'s finish changed with `-39`'s.
+- 122 more draw calls at t19050; the frame time was not measured on a quiet machine (the readings moved with the
+  machine's load).
+- `tyrian_ground` is used as "casts no shadow" on the skin, as D212 does; a tool that hides `tyrian_ground` nodes
+  shows the bare body (the top view and IoU are the same).
+- `lib_b019.py` has no importer left (`lib_eyesphere.py` names it in a comment); the coordinator deletes absorbed
+  libs (D170). The spriteModels JSON files are unchanged.
+
+**Cost:** one Fable agent (asked for by the user).
+
+**Review:** TIME WAR t19050, t19053 and t19063 with `&compare=1` against the original. Fallback: revert the two
+wrappers, `lib_newsh9_mothership.py` and the eight `newsh9` glbs together (`lib_b019.py` is untouched); the pods
+revert on their own (`assembly-newshl-39.py`, `-77.py` and the six `newshl` glbs).
