@@ -8,13 +8,14 @@ on the top layer, rigid). Read from the 48 x 56 px left drawing:
 - a lower NECK DECK (pal 6) where the upper arm leaves the housing;
 - the UPPER ARM: a raised armoured COWL (pal 9) with a broad glacis on its outer side over a rounded
   box BEAM (pal 5) slanting down to the lower left, ending in a dark WRIST GEARBOX (pal 3);
-- a BALL JOINT (pal 9) at the elbow;
-- a C-shaped YOKE beside the arm: a bright rolled LIP (pal 10) over a recessed dark SOCKET (pal 4, a hub
-  at its centre) into the JAW block (pal 9); under the jaw a hydraulic ACTUATOR pod (pal 4) with two
-  piston RODS (pal 7) meeting at a clevis;
-- the FOREARM drum (pal 7, two machined bands) hanging under the elbow;
-- the CLAW: an open hoop of round tubing (pal 6) over a tapered FINGER (pal 4), its right side one
-  bright run of pipe (pal 9) down into a glowing blue GEM (pal 153) held in the finger's tip.
+- the ELBOW and FOREARM: one faired tube (pal 9 at the elbow, pal 7 below) hanging under the cowl;
+- a C-shaped YOKE beside the arm: a bright rolled LIP (pal 10) over the PALM HOLLOW, a real recess
+  sunk almost to the base (pal 3-4), into the JAW block (pal 9); under the jaw a hydraulic ACTUATOR
+  pod (pal 4); two thin piston RODS (pal 6) lie low in the hollow;
+- the CLAW: a big open U-HOOK of round tubing (pal 6, dark left leg) over a dark floor (pal 2), its
+  right leg one bright run of pipe (pal 9) down a tapered FINGER (pal 4) into a glowing blue GEM
+  (pal 153) held in the finger's tip.
+Polish (E4 QA M4): no greeble (bolts, seam grooves, hubs, collars); the plan is the sprite's.
 Air unit: everything z >= 0, the underside a plain closed shape.
 
 Units while building: left-drawing pixel EDGES (c = column edge, r = row edge, down the screen) and z
@@ -50,11 +51,16 @@ WINDOWS = {
 
 # material slots
 (HOUSE, KNUCK, NECK, COWL, BEAM, WRIST, BALL, LIP, SOCK, HUB, JAW, ACT, ROD, FORE, HOOP, FING, PIPE,
- GEM) = range(18)
+ GEM, HOLE, HOLLOW, HWALL) = range(21)
+
+
+# Polish (E4 QA M4): the arms read bulky beside the sprite's slim L in the game's tilted camera, so
+# every height is drawn at ZS of its design value (plan untouched, so the top-view IoU is too).
+ZS = 0.72
 
 
 def V(c, r, z):
-    return Vector(((c - W / 2) / 12, (H / 2 - r) / 12, z / 12))
+    return Vector(((c - W / 2) / 12, (H / 2 - r) / 12, z * ZS / 12))
 
 
 def _faces(bm, faces, mat, smooth):
@@ -254,7 +260,7 @@ def loft(bm, stations, mat, sides=24, p=2.6, dense=0.5, matf=None, cap0=True, ca
         for f in faces:
             f.normal_update()
             q = f.calc_center_median()
-            f.material_index = matf(q.x * 12 + W / 2, H / 2 - q.y * 12, q.z * 12, f.normal.z)
+            f.material_index = matf(q.x * 12 + W / 2, H / 2 - q.y * 12, q.z * 12 / ZS, f.normal.z)
     return faces
 
 
@@ -288,11 +294,6 @@ def cyl(bm, c, r, z0, z1, rc, rr, mat, sides=24, top_mat=None, ch=0.3):
     _faces(bm, [bm.faces.new(list(reversed(rings[-1])))], top_mat if top_mat is not None else mat, False)
 
 
-def bolt(bm, c, r, z, rad=0.38, h=0.32, mat=HUB):
-    tube(bm, [(c, r, z - 0.3, rad), (c, r, z + h, rad), (c, r, z + h + 0.12, rad * 0.6)], sides=6, mat=mat,
-         smooth=False)
-
-
 # --- the left arm ---------------------------------------------------------------------------------
 
 def build_left(bm):
@@ -303,16 +304,13 @@ def build_left(bm):
           (33.5, 3.1, 12.8, 8.5), (36.0, 2.95, 12.8, 8.7), (38.6, 3.05, 12.7, 8.7), (39.4, 3.75, 12.6, 8.6),
           (40.6, 3.95, 12.45, 8.5), (41.4, 4.0, 12.1, 8.3), (42.1, 4.05, 11.05, 8.1), (43.6, 4.15, 10.95, 7.6),
           (44.4, 4.85, 10.9, 7.2), (45.1, 5.6, 10.75, 6.6), (45.7, 6.3, 10.4, 5.6), (46.1, 7.2, 9.7, 4.2)]
+    # Polish v2: no seam grooves, end hub or knuckle collars (greeble the sprite doesn't draw).
     loft(bm, [(c, (rt + rb) / 2, (rb - rt) / 2, 0.6, zt) for c, rt, rb, zt in hs], HOUSE, sides=28, p=2.4,
-         grooves=[(5.5, 0.3, 0.6), (19.2, 0.3, 0.6)], normal=(0.0, 1.0))
-    # end hub on the outer end of the drum (machined boss)
-    tube(bm, [(45.75, 8.25, 3.0, 1.35), (46.15, 8.25, 3.0, 1.15)], sides=14, mat=HUB)
-    # knuckle domes on the crown
-    ellipsoid(bm, 37.4, 5.7, 7.7, 2.05, 2.2, 1.55, KNUCK, segs=18, rings=9, lower=0.6)
-    ellipsoid(bm, 41.5, 6.9, 7.5, 1.85, 2.0, 1.45, KNUCK, segs=18, rings=9, lower=0.6)
-    for cc, rr in ((37.4, 5.7), (41.5, 6.9)):
-        tube(bm, [(cc, rr, 7.1, 2.25 if cc < 40 else 2.05), (cc, rr, 7.9, 2.25 if cc < 40 else 2.05)],
-             sides=18, mat=HUB, cap0=False, cap1=True)
+         normal=(0.0, 1.0))
+    # knuckle domes on the crown: two crisp bumps standing well clear of it (the sprite's twin
+    # bright knobs at cols 35-38 / 40-42), steep sides so each keeps its own outline.
+    ellipsoid(bm, 37.6, 5.8, 8.1, 1.85, 2.0, 1.9, KNUCK, segs=22, rings=11, lower=0.5, flat=0.8)
+    ellipsoid(bm, 41.6, 7.0, 7.8, 1.7, 1.85, 1.8, KNUCK, segs=22, rings=11, lower=0.5, flat=0.8)
 
     # NECK DECK where the upper arm leaves the housing (rows 8-12, cols 19-28), a lower deck.
     block(bm, [(19.15, 10.1), (20.1, 9.05), (24.0, 9.0), (24.3, 8.4), (26.0, 7.9), (27.6, 9.8), (27.8, 12.4),
@@ -328,84 +326,81 @@ def build_left(bm):
     for f in set(bm.faces) - before:  # the outer glacis is a darker side panel (pal 5, the sprite's band)
         f.normal_update()
         q = f.calc_center_median()
-        if abs(f.normal.z) < 0.99 and q.x * 12 + W / 2 < 20.6 and q.z * 12 > 2.0:
+        if abs(f.normal.z) < 0.99 and q.x * 12 + W / 2 < 20.6 and q.z * 12 / ZS > 2.0:
             f.material_index = BEAM
-    bolt(bm, 25.4, 13.0, 9.0, mat=COWL)
-    bolt(bm, 24.8, 17.6, 9.0, mat=COWL)
+        elif abs(f.normal.z) < 0.5 and f.normal.x > 0.3 and H / 2 - q.y * 12 > 13.5:
+            f.material_index = HWALL  # the cowl's wall down into the palm hollow
 
-    # BEAM: a rounded box slanting down to the lower left under the cowl.
+    # BEAM: a rounded box slanting down to the lower left under the cowl (kept below the cowl's
+    # glacis where they meet, so the two surfaces never run together).
     u = Vector((-0.68, 0.733))
     a0 = Vector((21.4, 17.6))
     st = []
-    for s_, hw, zt in ((0.0, 4.6, 7.0), (3.0, 4.85, 6.8), (7.0, 4.95, 6.4), (10.5, 4.75, 6.0), (13.0, 4.5, 5.4)):
+    for s_, hw, zt in ((0.0, 4.6, 5.8), (3.0, 4.85, 6.1), (7.0, 4.95, 6.2), (10.5, 4.75, 5.9), (13.0, 4.5, 5.4)):
         q = a0 + u * s_
         st.append((q.x, q.y, hw, 0.5, zt))
-    loft(bm, st, BEAM, sides=24, p=3.2, grooves=[(8.6, 0.25, 0.5)])
+    loft(bm, st, BEAM, sides=24, p=3.2)
 
     # WRIST GEARBOX at the beam's lower end (rows 24-31, cols 8-18).
     block(bm, [(9.1, 24.3), (12.6, 23.4), (17.6, 26.4), (17.8, 30.4), (12.8, 31.0), (8.6, 31.3), (7.6, 31.3),
-               (8.1, 30.2), (9.1, 29.9)], 0.3, 4.6,
-          WRIST, insets=0.9, chz=1.0)
+               (8.1, 30.2), (9.1, 29.9)], 0.3, 2.4,
+          WRIST, insets=0.9, chz=0.8)
 
-    # BALL JOINT at the elbow (rows 19-29.5, cols 17-25).
-    ellipsoid(bm, 21.05, 24.45, 4.3, 3.95, 5.0, 4.3, BALL, segs=24, rings=12, lower=0.85)
+    # Polish v2: the elbow and the forearm are ONE faired tube (the sprite's smooth pal 9 slab running
+    # down into the pal 7 forearm, a single sheen streak along its crown), not a ball, a banded drum
+    # and a cap: no waist, no bands; only the colour steps down where the sprite's does (row 29.5).
+    def fore_mat(c, r, z, nz):
+        return BALL if r < 29.5 else FORE
+    loft(bm, [(23.6, 19.2, 1.4, 2.4, 5.0), (23.0, 20.4, 2.6, 1.0, 6.2), (22.0, 22.2, 3.2, 0.6, 6.6),
+              (21.5, 24.6, 3.4, 0.5, 6.6), (20.6, 27.0, 3.35, 0.5, 6.25), (19.2, 29.3, 3.3, 0.5, 5.85),
+              (18.65, 31.0, 3.3, 0.5, 5.6), (18.5, 33.5, 3.35, 0.5, 5.3), (18.4, 36.0, 3.3, 0.5, 5.0),
+              (18.1, 37.9, 2.4, 0.6, 4.2), (17.9, 38.9, 1.2, 1.3, 3.2)], FORE, sides=28, p=2.3, dense=0.4,
+         matf=fore_mat)
 
-    # SOCKET: a recessed dark cup inside the yoke (rows 13-23, cols 26-35), a hub at its centre.
+    # PALM CAVITY: the sprite's big dark hollow (pal 3-4, rows 14-23, cols 26-35) under its light rim.
+    # A real recess: a floor sunk to z 1 between the cowl's wall and the rim's dark web, nothing on it
+    # but the two thin piston rods the sprite draws (its pal 6-9 streaks), lying low.
     block(bm, [(24.6, 15.0), (26.8, 12.9), (31.0, 12.8), (34.2, 14.3), (35.7, 18.6), (35.7, 24.2), (29.6, 24.2),
-               (28.9, 23.0), (26.0, 23.0), (25.95, 24.0), (24.45, 24.0), (24.4, 19.0)], 0.4, 3.0, SOCK, insets=0.5,
-          chz=0.5, round_it=0)
-    cyl(bm, 30.6, 18.6, 2.6, 3.5, 1.7, 1.8, HUB, sides=16)
-    # LIP: the bright rolled edge of the yoke, arching over the socket into the jaw.
+               (28.9, 23.0), (26.0, 23.0), (25.95, 24.0), (24.45, 24.0), (24.4, 19.0)], 0.3, 1.0, HWALL,
+          top_mat=HOLLOW, insets=0.3, chz=0.3, round_it=0)
+    # LIP: the bright rolled rim of the yoke, arching over the hollow into the jaw.
     lip = [(26.9, 12.6, 7.3, 1.0), (28.6, 12.75, 7.6, 1.1), (30.6, 13.05, 7.6, 1.15), (32.4, 13.9, 7.5, 1.15),
            (33.7, 15.5, 7.3, 1.1), (34.9, 17.2, 7.1, 1.05), (36.4, 18.4, 6.9, 0.95), (37.6, 19.0, 6.6, 0.8)]
     tube(bm, [(c, r, z, rad * 1.15) for c, r, z, rad in lip], sides=14, mat=LIP, zscale=1.1)
-    # the yoke's curved web under the lip, down to the socket floor (hidden from above by the lip)
-    loft(bm, [(c, r, rad * 0.75, 1.0, z) for c, r, z, rad in lip], SOCK, sides=16, p=4.0)
+    # the rim's dark inner web, down to the cavity floor: the hollow's wall
+    loft(bm, [(c, r, rad * 0.75, 0.8, z) for c, r, z, rad in lip], HWALL, sides=16, p=4.0)
 
-    # JAW block under the housing (rows 13-22, cols 34-44).
+    # JAW block under the housing (rows 13-22, cols 34-44): one plain block.
     block(bm, [(34.6, 13.0), (35.6, 12.7), (40.8, 12.6), (41.7, 13.0), (42.0, 13.95), (43.6, 13.95), (44.05, 14.4),
                (44.05, 22.0), (43.6, 22.6), (43.0, 23.05), (37.4, 22.8), (34.9, 20.4), (34.0, 16.5)], 1.2, 7.2,
           JAW, insets=0.9, chz=1.2, steps=3, round_it=0)
-    bolt(bm, 41.6, 15.6, 7.2, mat=JAW)
-    bolt(bm, 41.6, 19.4, 7.2, mat=JAW)
-    # ACTUATOR pod under the jaw (rows 21-27.5, cols 34-43), tapering down the screen.
-    loft(bm, [(39.0, 21.0, 4.0, 0.6, 4.8), (38.7, 23.0, 3.6, 0.6, 4.4), (38.0, 24.6, 3.0, 0.7, 3.9),
-              (37.3, 25.9, 2.2, 0.8, 3.4), (36.4, 26.6, 1.6, 1.0, 2.9), (35.7, 27.0, 0.9, 1.2, 2.5)],
-         ACT, sides=20, p=2.6, grooves=[(2.4, 0.2, 0.45), (4.2, 0.2, 0.45)])
-    # RODS: two piston rods meeting at a clevis under the socket.
-    loft(bm, [(28.6, 21.4, 1.5, 0.4, 2.0), (31.6, 24.0, 1.7, 0.4, 2.0), (34.6, 26.6, 1.3, 0.5, 2.0)], WRIST,
-         sides=16, p=3.0)
-    tube(bm, [(28.2, 20.9, 3.1, 0.7), (31.4, 23.8, 3.0, 0.72), (34.6, 26.4, 2.8, 0.7)], sides=10, mat=ROD)
-    tube(bm, [(35.55, 19.6, 4.6, 0.75), (35.55, 23.0, 3.8, 0.78), (35.55, 26.5, 2.9, 0.75)], sides=10, mat=ROD)
-    tube(bm, [(33.2, 27.1, 2.4, 1.05), (35.6, 27.1, 2.4, 1.05)], sides=10, mat=HUB)
+    # ACTUATOR pod under the jaw (rows 21-27.5, cols 34-43), tapering down the screen, plain.
+    loft(bm, [(39.0, 21.0, 4.0, 0.6, 4.4), (38.7, 23.0, 3.6, 0.6, 4.0), (38.0, 24.6, 3.0, 0.7, 3.5),
+              (37.3, 25.9, 2.2, 0.8, 3.0), (36.4, 26.6, 1.6, 1.0, 2.6), (35.7, 27.0, 0.9, 1.2, 2.3)],
+         ACT, sides=20, p=2.6)
+    # RODS: two thin piston rods lying low in the hollow on a dark base plate, meeting at the clevis.
+    loft(bm, [(28.6, 21.4, 1.5, 0.3, 1.0), (31.6, 24.0, 1.7, 0.3, 1.0), (34.6, 26.6, 1.5, 0.3, 1.1),
+              (35.4, 27.2, 1.1, 0.3, 1.1)], HOLLOW, sides=16, p=3.0)
+    tube(bm, [(27.9, 21.1, 1.9, 0.6), (31.4, 24.0, 1.8, 0.62), (34.4, 26.4, 1.8, 0.6)], sides=10, mat=NECK)
+    tube(bm, [(35.45, 19.8, 2.8, 0.6), (35.45, 23.0, 2.4, 0.62), (35.2, 26.4, 1.9, 0.6)], sides=10, mat=NECK)
 
-    # FOREARM drum hanging under the elbow (rows 29-39, cols 15-22): a round drum along the screen with
-    # two machined bands.
-    fr = [(28.0, 2.6), (28.8, 3.1), (29.5, 3.25), (30.2, 3.3), (32.0, 3.3), (32.15, 3.5), (32.85, 3.5), (33.0, 3.3),
-          (35.0, 3.3), (35.15, 3.5), (35.85, 3.5), (36.0, 3.3), (37.0, 3.0), (37.9, 2.5), (38.7, 1.6)]
-    tube(bm, [(18.55 - max(0, r - 35.5) * 0.35, r, 3.6, rad) for r, rad in fr], sides=20, mat=FORE)
-
-    # CLAW: an open hoop of round tubing over a tapered finger, the hoop's right side one bright run of
-    # pipe down into the gem.
-    hc, hr, ax, ay = 9.95, 35.3, 2.7, 3.0
-    hoop = []
-    for k in range(28):
-        t = 2 * math.pi * k / 28
-        hoop.append((hc + ax * math.cos(t), hr + ay * math.sin(t), 2.9, 1.45))
-    tube(bm, hoop, sides=14, closed=True, zscale=1.25,
-         matf=lambda c, r: PIPE if (c > hc + 1.4 and r > hr - 2.2) else HOOP)
-    # the palm under the hoop and the mount joining it to the forearm (dark, low)
+    # CLAW: a big open U-hook (an inverted U with a thick crown, rows 31-39, cols 6-14) whose left leg
+    # is dark and whose right leg is the one bright run of pipe down into the gem; its interior is open
+    # to a dark floor (the sprite's pal 1-2 hollow, rows 35-38).
+    hook = [(6.7, 40.9, 1.2, 0.75), (6.8, 39.0, 1.6, 0.95), (6.8, 37.0, 2.2, 1.0), (7.0, 35.0, 2.7, 1.15), (7.8, 33.3, 3.0, 1.35),
+            (9.2, 32.5, 3.1, 1.5), (10.7, 32.5, 3.1, 1.5), (12.0, 33.3, 3.0, 1.3), (12.8, 35.0, 2.9, 1.0),
+            (12.95, 37.0, 2.9, 0.9), (12.85, 38.6, 3.3, 0.9), (12.3, 40.6, 3.6, 0.9), (11.3, 42.8, 3.65, 0.88),
+            (10.1, 44.8, 3.45, 0.85), (8.9, 46.2, 3.2, 0.8)]
+    tube(bm, hook, sides=14, zscale=1.0,
+         matf=lambda c, r: PIPE if (c >= 10.3 or r > 38.0) else (WRIST if r > 34.5 else HOOP))
+    # the hook's dark floor and the low mount joining it to the forearm
     block(bm, [(6.0, 33.4), (6.1, 32.4), (7.1, 31.4), (7.4, 31.0), (12.0, 31.6), (13.0, 31.0), (16.6, 31.0),
-               (16.9, 39.9), (13.0, 39.9), (8.4, 38.0)], 0.3, 1.9, WRIST, insets=0.4, chz=0.4, round_it=0)
-    loft(bm, [(10.9, 38.9, 4.9, 0.4, 3.6), (10.2, 41.2, 4.2, 0.4, 3.7), (9.85, 43.0, 3.7, 0.4, 3.6),
-              (9.0, 45.0, 3.8, 0.5, 3.4), (8.0, 46.7, 3.75, 0.6, 3.2), (7.4, 48.3, 3.5, 0.7, 2.9),
-              (7.45, 49.5, 3.1, 0.9, 2.5), (7.25, 50.6, 2.3, 1.2, 2.0)], FING, sides=22, p=2.6,
-         grooves=[(4.0, 0.2, 0.45)])
-    pipe = [(12.95, 37.0, 3.0, 0.9), (12.85, 38.6, 3.5, 0.9), (12.3, 40.6, 3.9, 0.9), (11.3, 42.8, 4.0, 0.88),
-            (10.1, 44.8, 3.85, 0.85), (8.9, 46.2, 3.6, 0.8)]
-    tube(bm, pipe, sides=12, mat=PIPE, zscale=1.1)
+               (16.9, 39.9), (13.0, 39.9), (8.4, 38.0)], 0.3, 0.9, HOLE, insets=0.3, chz=0.3, round_it=0)
+    loft(bm, [(11.3, 39.3, 3.8, 0.4, 3.0), (10.6, 41.2, 4.1, 0.4, 3.2), (9.85, 43.0, 3.7, 0.4, 3.2),
+              (9.0, 45.0, 3.8, 0.5, 3.0), (8.0, 46.7, 3.75, 0.6, 2.9), (7.4, 48.3, 3.5, 0.7, 2.7),
+              (7.45, 49.5, 3.1, 0.9, 2.5), (7.25, 50.6, 2.3, 1.2, 2.0)], FING, sides=22, p=2.6)
     # GEM held in the finger's tip
-    ellipsoid(bm, 6.45, 48.6, 3.0, 2.45, 1.85, 1.9, GEM, rot=38, segs=20, rings=10, lower=0.8)
+    ellipsoid(bm, 6.45, 48.6, 2.6, 2.45, 1.85, 1.5, GEM, rot=38, segs=20, rings=10, lower=0.8)
 
 
 def mirror(bm):
@@ -426,8 +421,8 @@ STEEL_SPEC = 0.5 * ((1.0 / 3.0) ** 2 / 0.04)  # F0 of IOR 2.0 via Specular IOR L
 
 
 def materials(sprite):
-    def pal(i, metallic, roughness, spec=True, emission=0.0):
-        m = common.palette_material(sprite, i, TAG, metallic=metallic, roughness=roughness,
+    def pal(i, metallic, roughness, spec=True, emission=0.0, tag=TAG):
+        m = common.palette_material(sprite, i, tag, metallic=metallic, roughness=roughness,
                                     emission_strength=emission)
         bsdf = next(n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
         if spec and "Specular IOR Level" in bsdf.inputs:
@@ -452,6 +447,10 @@ def materials(sprite):
         pal(4, 0.4, 0.48),  # FING
         pal(9, 0.5, 0.34),  # PIPE
         pal(153, 1.0, 0.7, spec=False, emission=0.6),  # GEM (D126/D173: glow on metallic 1, rough)
+        # the hollows (the hook's floor, the palm's floor and walls): matte, so no sheen lifts them
+        pal(2, 0.0, 0.9, spec=False, tag=TAG + "hollow"),  # HOLE
+        pal(3, 0.0, 0.9, spec=False, tag=TAG + "hollow"),  # HOLLOW
+        pal(4, 0.0, 0.85, spec=False, tag=TAG + "hollow"),  # HWALL
     ]
 
 
