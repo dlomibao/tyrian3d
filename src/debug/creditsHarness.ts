@@ -6,6 +6,9 @@
 //   &speed=N          run the credits' clock N times faster (default 1), to reach later pictures
 //                     sooner: the C's ~28 s per picture becomes 28 / N
 //   &sprites=original the original pictures and ship (the look switch, as everywhere)
+//   &screen=anim      another of the episode-end screens instead (episodeEnd.ts): anim (episode 3's
+//                     ending: the video, or with &sprites=original tyrend.anm, fetched then, D234),
+//                     displayText, nextEpisode, superArcadeCode
 //
 // No music. Any key skips, as in the game; the credits then start again.
 
@@ -53,5 +56,7 @@ export async function runCreditsHarness(view: View): Promise<void> {
   view.setPalettes(g.res.palettes);
   loadHelpText(requireFile(files, "tyrian.hdt"));
   Object.assign(window, { tyrianHarness: { view, g } });
-  for (;;) await episodeEndScreens({ files, music: silent })("credits");
+  const screens = ["anim", "displayText", "credits", "nextEpisode", "superArcadeCode"] as const;
+  const screen = screens.find((s) => s === params.get("screen")) ?? "credits";
+  for (;;) await episodeEndScreens({ files, music: silent })(screen);
 }

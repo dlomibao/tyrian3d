@@ -61,6 +61,13 @@ const volumeGain = (v: number): number => (v <= 0 ? 0 : 10 ** ((-30 * (255 - Mat
 const FADE_SECONDS = 3.7;
 
 /**
+ * Decoded songs a StreamedMusic keeps: the current one and the last two (D234). Keeping every one
+ * played held 257 MB of PCM after nine songs. Three cover the usual returns (a level's song after
+ * the shop's); an older one is fetched again (normally from the browser's cache) and decoded.
+ */
+export const SONGS_KEPT = 3;
+
+/**
  * Plays a remaster style's recordings where it has one and the FM original otherwise, with the same
  * behaviour as Music: play() of the current, stopped song resumes it; fade() fades out over ~3.7 s.
  */
@@ -187,7 +194,11 @@ export class StreamedMusic implements MusicPlayer {
 
   private buffer(song: number): Promise<AudioBuffer | null> {
     let p = this.buffers.get(song);
-    if (!p) {
+    if (p) {
+      // Most recently used last (a Map keeps insertion order), so the oldest goes first.
+      this.buffers.delete(song);
+      this.buffers.set(song, p);
+    } else {
       const entry = this.files[String(song + 1)];
       p = fetch(`tyrian-remaster/${entry.file}`)
         .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`${entry.file}: HTTP ${r.status}`))))
@@ -197,8 +208,17 @@ export class StreamedMusic implements MusicPlayer {
           return null;
         });
       this.buffers.set(song, p);
+      for (const old of this.buffers.keys()) {
+        if (this.buffers.size <= SONGS_KEPT) break;
+        this.buffers.delete(old);
+      }
     }
     return p;
+  }
+
+  /** The songs whose recordings are kept (loaded or loading), least recently played first. */
+  get keptSongs(): number[] {
+    return [...this.buffers.keys()];
   }
 
   private async start(offset: number): Promise<void> {

@@ -13973,3 +13973,51 @@ change in its shaders: noise); 4K in-page TYRIAN 2.42 → 1.64 (-32%), SAVARA Y 
 **Options considered:** *a runtime branch on `groundSpecular`* (one program for both rigs, but the specular code stays
 in every ground shader); *editing three's chunks globally* (the models keep their specular, art rule 2).
 **Review:** fallback is reverting the five render files; `?lighting=old` still draws the old ground.
+## D234 — Faster loading: the boot data as one zip without the files the game never reads, each level's terrain atlases only, the sprite art uploaded at boot, three decoded songs kept (follows D3, D42, D54, D57, D219)
+2026-11-17
+The perf scout's load lane (2026-11-17) on the live site: a cold boot to the title fetched 14.2 MB, 10.2 MB of it the
+game data in 80 uncompressed requests, though the port never reads 0.9 MB of it and reads tyrend.anm (3.3 MB)
+only in episode 3's ending when the video (D219) doesn't play. A level loaded every atlas of its tileset (TYRIAN: 10
+shapesz atlases, 4.8 MB, 135 MB on the GPU) though its map draws from 4. The sprite art went to the GPU at the first
+level's start; the remaster manifest was fetched only after the data; every song played stayed decoded (257 MB after
+nine).
+**Decision:** none of this changes what is drawn or heard.
+- *Boot data* (`src/assets/files.ts`): `isGameFile` also skips the files no code reads (each grepped in src/:
+  tyrianc.shp and voicesc.snd, OpenTyrian's Christmas mode, which isn't ported; user1/2.shp, tyrset.pcx, shipedit.pcx,
+  net*.pcx, loudness.awe, exitmsg.bin, which OpenTyrian doesn't read either) and zips. tyrend.anm is
+  `ON_DEMAND_FILES`: `TyrianFiles.load` (FileMap) fetches it the first time playAnim needs it. The site's deploy script
+  (not in git) zips the boot files into `tyrian-data/boot.zip` (deflate 9, sorted, fixed dates, so an unchanged zip
+  keeps its ETag under `rsync -c`): 66 files, 5.96 MB → 2.08 MB. `loadDataFolder` fetches index.json and the zip
+  together, takes the boot files from the zip, and fetches one by one any the list names that the zip lacks (all of
+  them with no zip, as on the dev server and older deploys, or a zip that doesn't read). Extra zip entries are
+  dropped, so the deploy's copy of the filter can only cost bytes. The zip is built from the local data at deploy and
+  is never committed (art rule 6).
+- *Terrain* (`terrainArt.ts`, `terrainLoader.ts`): `preloadLevel`'s request carries the level's maps, and
+  `TerrainTileset.imagesFor` picks the atlases those maps' tiles can draw from (each tile's plain rect, variants,
+  field and covered painting). Another level of the same tileset loads what it adds. A rect whose atlas isn't loaded
+  asks for it (`loadImage`, each atlas once) and draws as before until it arrives; no level was seen to need one (the
+  per-level runs below). A tileset first asked for without a map (a tile drawn before any level's preload) loads every
+  atlas, as before. Loaded atlases stay, as before.
+- *Sprite art* (`main.ts`): uploaded as soon as its atlases load at boot, one per animation frame; the level preload's
+  `uploadSpriteArt` call stays, and does nothing once the boot has uploaded them.
+- *Remaster manifest* (`run.ts`): fetched alongside the data.
+- *Music* (`remaster.ts`): `StreamedMusic` keeps the decoded recordings of the last three songs played (`SONGS_KEPT`);
+  an older one is fetched again (normally from the browser's cache) and decoded when it plays.
+- `?debug=credits&screen=anim` (with `&sprites=original` for tyrend.anm) shows the other episode-end screens.
+**Measured** (cold cache, headless Chrome, a local HTTP/2 server without compression like the site's nginx, 150 ms
+latency and 30 Mbps emulated; medians of 3): boot to the title 4.99 s → 3.15 s, 15.9 → 7.8 MB, 135 → 57 requests;
+`?debug=play` TYRIAN ready 12.61 s → 8.96 s, 34.8 → 23.2 MB by then. TYRIAN's terrain: 10 atlases, 4.8 MB, 135 MB of
+GPU textures → 4, 1.2 MB, 34 MB; ASTEROID1 ready 10.1 s → 6.2 s, its terrain 135 → 56 MB of GPU textures (one atlas).
+Terrain atlas GPU textures per level (no throttle, after 6000 ticks drawn; no atlas was fetched mid-level): TYRIAN 135
+→ 34 MB, ASTEROID1 135 → 56, SAVARA 84 → 84 (uses all five), TORM 95 → 57, IXMUCANE 77 → 59, SURFACE 61 → 27; all GPU
+textures then 1041 → 940, 762 → 683, 520 → 520, 429 → 391, 396 → 377, 384 → 349 MB. The title now holds the sprite art's 90 MB of GPU textures that the first level
+used to upload. Look: the title, TYRIAN and ASTEROID1 at tick 300 are pixel-identical before and after.
+**Options considered:** *gzip in nginx* (a server change, out of this lane's reach, and it keeps the ~80 requests);
+*the zip in the repo* (game data: never, D3); *evicting a tileset's atlases another level loaded* (a re-fetch and
+re-upload on the way back; GPU memory is never above what it was, so left Open); *keeping only the current song*
+(the shop and title songs come back often).
+**Open:** the deploy script repeats `isBootFile`'s filter in Python. Playing several levels of one tileset still
+gathers their atlases on the GPU. In the original look (or when the video fails) episode 3's anim waits for its 3.3 MB fetch (about 1 s at
+30 Mbps) on a black stage.
+**Review:** a cold load of the deployed site, and the same with the zip missing; episode 3's ending with
+`&sprites=original`. Fallback: revert the source files and drop the zip step from the deploy script.

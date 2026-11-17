@@ -90,6 +90,8 @@ const lastLevelSlot = () => (g.twoPlayerMode ? 22 : 11);
 /** `onPlay` fires once the first level starts, so the caller can stop its idle rendering. */
 export async function runGame(view: View, onPlay: () => void = () => {}): Promise<void> {
   consoleBridge.seed = seedAtStartup(); // opentyr.c L757: mt_srand(time(NULL)), or ?seed=N (D37)
+  // The remaster pack's manifest, fetched alongside the data rather than after it (D234).
+  const remasterManifest = loadRemasterManifest();
   const files = await getFiles();
   const loading = showStatus("Loading…");
   g.res = buildResources(files, 1);
@@ -99,7 +101,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
   const audioContext = new AudioContext();
   // The originals, or a local remaster pack's recordings and remade sounds when one is served
   // (local builds only).
-  const remaster = await loadRemasterManifest();
+  const remaster = await remasterManifest;
   const music = new MusicSwitch(audioContext, new Music(requireFile(files, "music.mus"), { context: audioContext }), remaster);
   const sfx = new SoundEffects(requireFile(files, "tyrian.snd"), requireFile(files, "voices.snd"), audioContext, remaster);
   // The one host for the settings screen: the title's Options and the shop's both open it with this, so they show the same rows.

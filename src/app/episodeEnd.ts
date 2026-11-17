@@ -145,7 +145,8 @@ async function playAnim(stage: Cinema, files: TyrianFiles): Promise<void> {
     if (played !== "failed") return;
   }
 
-  const data = files.get(filename);
+  // Left out of the boot (D234): fetched now, the only time it's read.
+  const data = files.load ? await files.load(filename) : files.get(filename);
   if (!data) {
     console.warn(`Failed to open file '${filename}'`);
     return;

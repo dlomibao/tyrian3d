@@ -50,7 +50,12 @@ function startGame(): void {
   const art = loadSpriteArt();
   view.draws.setSpriteArtLoading(art); // a level start waits for it (D54)
   art
-    .then((art) => view.draws.setSpriteArt(art))
+    .then(async (art) => {
+      view.draws.setSpriteArt(art);
+      // Onto the GPU as soon as they've loaded, one atlas per frame, rather than at the first level's start (D234).
+      await art?.loaded;
+      await view.draws.uploadSpriteArt(view.renderer, () => new Promise((r) => requestAnimationFrame(r)));
+    })
     .catch((err) => console.warn("sprite art failed to load; using the original sprites", err));
   // A new game's ship, for the levels' renderer too: started together, the two loads share one fetch
   // (three's FileLoader merges requests in flight). The other ships load with the levels that show them (D207).
